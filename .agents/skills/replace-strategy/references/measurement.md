@@ -24,7 +24,9 @@
 手順は次のとおりである。
 
 1. chrome-devtools MCP で、現行アプリの対象ページを開く。認証が要るなら、ユーザーにログインを頼む
-2. 同梱の [`../scripts/role-probe.mjs`](../scripts/role-probe.mjs) を読み、`roleProbe` 関数のリテラル（`() => { ... }` の部分）を、chrome-devtools MCP の `evaluate_script` の `function` 引数に渡す。
+2. 同梱の [`../scripts/role-probe.mjs`](../scripts/role-probe.mjs) を、インストール済みの `replace-strategy` から `node <replace-strategy>/scripts/role-probe.mjs` で実行する。
+   stdout に出た関数式のソース（`() =>` で始まる 1 つの式）を、そのまま chrome-devtools MCP の `evaluate_script` の `function` 引数に渡す。
+   ソースは、ファイルの中の複数の関数を 1 つの式にまとめたものである。ファイルから関数を選んで書き写すと、ページで参照できない名前が残るので、stdout のソースを使う。
    `evaluate_script` は渡された関数を自分で呼び出し、返り値（測定結果のオブジェクト）を JSON で返す。IIFE にする必要は無い
 3. 返り値（総数・named と unnamed・role ごとの内訳・(role, name) の重複数・unnamed のサンプル）を、ページごとに記録する
 4. 対象のページは、機能インベントリの代表ページから選ぶ。一覧・フォーム・ダイアログを含めて、最低でも 3 ページにする。

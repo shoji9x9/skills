@@ -211,8 +211,8 @@
       "id": "stray-lines-not-reported",
       "why": "slug の行が見つからないときに、表に属さない行の位置を添えず、表が切れた箇所を示さない",
       "file": "skills/replace-strategy/scripts/evidence-gap-check.mjs",
-      "find": "      .filter((stray) => stray.leadingPipe || widths.has(stray.cells))",
-      "replace": "      .filter(() => false)",
+      "find": "    .filter((stray) => stray.leadingPipe || widths.has(stray.cells))",
+      "replace": "    .filter(() => false)",
       "occurrences": 1,
       "expect_failing": [
         "evidence-gap-check: 表の途中の HTML コメントの行で表が切れたら、行が無いというエラーに表の外の行番号を添える",
@@ -223,8 +223,8 @@
       "id": "stray-lines-leading-pipe-only",
       "why": "行頭の `|` を省いた表の外の行を、行が無いというエラーに添えない",
       "file": "skills/replace-strategy/scripts/evidence-gap-check.mjs",
-      "find": "      .filter((stray) => stray.leadingPipe || widths.has(stray.cells))",
-      "replace": "      .filter((stray) => stray.leadingPipe)",
+      "find": "    .filter((stray) => stray.leadingPipe || widths.has(stray.cells))",
+      "replace": "    .filter((stray) => stray.leadingPipe)",
       "occurrences": 1,
       "expect_failing": [
         "evidence-gap-check: 行頭の `|` を省いた行で表が切れても、表の外の行番号を添える"

@@ -215,35 +215,6 @@ export const PENDING_FIXES: Readonly<Record<string, readonly PendingRule[]>> = {
     "max-lines-per-function",
     "max-params",
   ],
-  "skills/replace-strategy/scripts/append-only-check.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-depth",
-    "max-params",
-  ],
-  "skills/replace-strategy/scripts/asset-delivery-check.mjs": [
-    "complexity",
-    "max-lines-per-function",
-  ],
-  "skills/replace-strategy/scripts/asset-probe.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-depth",
-    "max-params",
-  ],
-  "skills/replace-strategy/scripts/evidence-gap-check.mjs": [
-    "complexity",
-    "max-lines-per-function",
-  ],
-  "skills/replace-strategy/scripts/pending-decisions-check.mjs": [
-    "complexity",
-    "max-lines-per-function",
-  ],
-  "skills/replace-strategy/scripts/procedure-staleness-check.mjs": [
-    "complexity",
-    "max-lines-per-function",
-  ],
-  "skills/replace-strategy/scripts/role-probe.mjs": ["max-lines-per-function"],
   "skills/replace-strategy/scripts/skill-config/skill-config.mjs": [
     "complexity",
     "max-lines-per-function",

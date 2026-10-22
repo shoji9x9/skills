@@ -77,11 +77,11 @@
     },
     {
       "path": "skills/replace-strategy/scripts/asset-probe.mjs",
-      "reason": "chrome-devtools MCP の evaluate_script でブラウザの中で実行するプローブで、Node では実行しない"
+      "reason": "ページで実行する関数を CLI がソースにして出し、chrome-devtools MCP の evaluate_script がブラウザの中で実行する。ブラウザでの実行はカバレッジに数えられない"
     },
     {
       "path": "skills/replace-strategy/scripts/role-probe.mjs",
-      "reason": "chrome-devtools MCP の evaluate_script でブラウザの中で実行するプローブで、Node では実行しない"
+      "reason": "ページで実行する関数を CLI がソースにして出し、chrome-devtools MCP の evaluate_script がブラウザの中で実行する。ブラウザでの実行はカバレッジに数えられない"
     }
   ]
 }

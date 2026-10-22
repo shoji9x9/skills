@@ -212,104 +212,128 @@ export function classifyTable(headers) {
 }
 
 /**
- * features.md から対象 slug の口と根拠を取り出す。
- * @param {string} text
+ * 列名のずれで判定できない表の種別について、直し方を添えた理由を返す。判定できる種別なら null。
+ * @param {ReturnType<typeof classifyTable>} kind
  * @param {string} slug
- * @returns {{ endpointCell: string, endpoints: string[], entries: { endpoints: string[], verdict: string, raw: string }[] }}
+ * @returns {string | null}
  */
-export function readRow(text, slug) {
-  const { tables, strayRows, unclosedFence } = parseTables(text);
-  if (unclosedFence !== null)
-    throw new UsageError(`インベントリの ${unclosedFenceMessage(unclosedFence)}`);
-  /** @type {{ endpointCell: string, endpoints: string[], entries: ReturnType<typeof parseEvidenceEntries> }[]} */
-  const matched = [];
+function malformedReason(kind, slug) {
+  if (kind.kind === "missing-endpoint-column") {
+    return `slug ${slug} の行の表は「${EVIDENCE_HEADER}」列を持つのに口の列（${ENDPOINT_HEADERS.join(" / ")}）が無い。列を追加する（改名ではない）`;
+  }
+  if (kind.kind === "malformed-endpoint") {
+    return (
+      `slug ${slug} の行の表は口の列らしい見出し（${kind.headers.join(" / ")}）を持つが、規約名（${ENDPOINT_HEADERS.join(" / ")}）と一致しない。見出しを規約名に揃える` +
+      (kind.missingEvidence
+        ? `（「${EVIDENCE_HEADER}」列も無いので、列名を揃えた後に列の追加も要る）`
+        : "")
+    );
+  }
+  if (kind.kind === "malformed-evidence") {
+    return `slug ${slug} の行の表は根拠列らしい見出し（${kind.headers.join(" / ")}）を持つが、規約名（${EVIDENCE_HEADER}）と一致しない。見出しを規約名に揃える`;
+  }
+  return null;
+}
+
+/**
+ * @typedef {{ endpointCell: string, endpoints: string[], entries: ReturnType<typeof parseEvidenceEntries> }} EvidenceRow
+ * @typedef {{ matched: EvidenceRow[], legacyRows: number, nonEndpointRows: number, malformed: string[] }} RowTally
+ */
+
+/**
+ * 対象 slug の行を表の種別ごとに振り分けて数える。
+ * @param {ReturnType<typeof parseTables>["tables"]} tables
+ * @param {string} slug
+ * @returns {RowTally}
+ */
+function tallyRows(tables, slug) {
+  /** @type {RowTally} */
+  const tally = { matched: [], legacyRows: 0, nonEndpointRows: 0, malformed: [] };
   // 判定できない行は理由の別で数える。同じ終了コードへ畳むと、呼び出し側が
   // 直す場所（列名・列の追加・表の置き場所）を取り違える。
-  let legacyRows = 0;
-  let nonEndpointRows = 0;
-  /** @type {string[]} 列名のずれで判定できない行の理由（理由の種類ごとに書き分ける）。 */
-  const malformed = [];
   for (const table of tables) {
     const slugIndex = table.headers.indexOf("slug");
     if (slugIndex < 0) continue;
     const kind = classifyTable(table.headers);
     for (const row of table.rows) {
       if (collapse(row[slugIndex] ?? "") !== slug) continue;
-      if (kind.kind === "legacy") {
-        legacyRows += 1;
-        continue;
-      }
-      if (kind.kind === "not-applicable") {
-        nonEndpointRows += 1;
-        continue;
-      }
-      if (kind.kind === "missing-endpoint-column") {
-        malformed.push(
-          `slug ${slug} の行の表は「${EVIDENCE_HEADER}」列を持つのに口の列（${ENDPOINT_HEADERS.join(" / ")}）が無い。列を追加する（改名ではない）`,
-        );
-        continue;
-      }
-      if (kind.kind === "malformed-endpoint") {
-        malformed.push(
-          `slug ${slug} の行の表は口の列らしい見出し（${kind.headers.join(" / ")}）を持つが、規約名（${ENDPOINT_HEADERS.join(" / ")}）と一致しない。見出しを規約名に揃える` +
-            (kind.missingEvidence
-              ? `（「${EVIDENCE_HEADER}」列も無いので、列名を揃えた後に列の追加も要る）`
-              : ""),
-        );
-        continue;
-      }
-      if (kind.kind === "malformed-evidence") {
-        malformed.push(
-          `slug ${slug} の行の表は根拠列らしい見出し（${kind.headers.join(" / ")}）を持つが、規約名（${EVIDENCE_HEADER}）と一致しない。見出しを規約名に揃える`,
-        );
-        continue;
-      }
-      const endpointIndex = table.headers.findIndex((header) => ENDPOINT_HEADERS.includes(header));
-      const evidenceIndex = table.headers.indexOf(EVIDENCE_HEADER);
-      matched.push({
-        endpointCell: collapse(row[endpointIndex] ?? ""),
-        endpoints: parseEndpoints(row[endpointIndex] ?? ""),
-        entries: parseEvidenceEntries(row[evidenceIndex] ?? ""),
-      });
+      tallyRow(tally, { table, row, kind, slug });
     }
   }
-  const total = matched.length + legacyRows + nonEndpointRows + malformed.length;
-  if (total > 1) {
-    throw new UsageError(
-      `slug ${slug} の行が ${total} 件ある（slug はインベントリ全体で一意。どちらが正かを決めるまで判定しない）`,
-    );
+  return tally;
+}
+
+/**
+ * 対象 slug の 1 行を、表の種別に応じて tally へ足す。
+ * @param {RowTally} tally
+ * @param {{ table: ReturnType<typeof parseTables>["tables"][number], row: string[], kind: ReturnType<typeof classifyTable>, slug: string }} options
+ */
+function tallyRow(tally, { table, row, kind, slug }) {
+  if (kind.kind === "legacy") {
+    tally.legacyRows += 1;
+    return;
   }
-  if (matched.length === 0 && malformed.length > 0) {
-    throw new UsageError(`${malformed[0]}。対象外としても判定不能としても扱わない`);
+  if (kind.kind === "not-applicable") {
+    tally.nonEndpointRows += 1;
+    return;
   }
-  if (matched.length === 0 && nonEndpointRows > 0) {
+  const reason = malformedReason(kind, slug);
+  if (reason !== null) {
+    tally.malformed.push(reason);
+    return;
+  }
+  const endpointIndex = table.headers.findIndex((header) => ENDPOINT_HEADERS.includes(header));
+  const evidenceIndex = table.headers.indexOf(EVIDENCE_HEADER);
+  tally.matched.push({
+    endpointCell: collapse(row[endpointIndex] ?? ""),
+    endpoints: parseEndpoints(row[endpointIndex] ?? ""),
+    entries: parseEvidenceEntries(row[evidenceIndex] ?? ""),
+  });
+}
+
+/**
+ * 判定できる行が無いときに、理由に応じた例外を投げる。
+ * @param {RowTally} tally
+ * @param {{ slug: string, tables: ReturnType<typeof parseTables>["tables"], strayRows: ReturnType<typeof parseTables>["strayRows"] }} context
+ * @returns {never}
+ */
+function throwNoRow(tally, { slug, tables, strayRows }) {
+  if (tally.malformed.length > 0) {
+    throw new UsageError(`${tally.malformed[0]}。対象外としても判定不能としても扱わない`);
+  }
+  if (tally.nonEndpointRows > 0) {
     throw new NotApplicableError(
       `slug ${slug} の行はバッチ・「その他の Issue」の表にある（見出しから同定）。要求単位の根拠は口ごとの記録なので、この行に検査対象は無い`,
     );
   }
-  if (matched.length === 0 && legacyRows > 0) {
+  if (tally.legacyRows > 0) {
     throw new UndecidableError(
       `slug ${slug} の行の表に「${EVIDENCE_HEADER}」列が無い（列の導入前に作られたインベントリ）。列の追加は replace-strategy の setup / issues が行う`,
     );
   }
-  if (matched.length === 0) {
-    // 表の途中の空行や HTML コメントの行で表が切れると、その後ろの行は表の外になり、ここでは見つからない。
-    // 画面では行が見えるので、表に属さない行の位置を添えて、どこで表が切れたかを示す。
-    // GFM は行頭の `|` を省けるので、slug 列を持つ表と同じセル数の行も、表の行を意図したものとして挙げる。
-    const widths = new Set(
-      tables.filter((table) => table.headers.includes("slug")).map((table) => table.headers.length),
-    );
-    const outside = strayRows
-      .filter((stray) => stray.leadingPipe || widths.has(stray.cells))
-      .map((stray) => stray.line);
-    throw new UsageError(
-      `slug ${slug} の行がインベントリに無い` +
-        (outside.length > 0
-          ? `（${outside.join(", ")} 行目は表に属さない。表の途中の空行か HTML コメントの行で表が切れていないかを確かめる）`
-          : ""),
-    );
-  }
-  const row = matched[0];
+  // 表の途中の空行や HTML コメントの行で表が切れると、その後ろの行は表の外になり、ここでは見つからない。
+  // 画面では行が見えるので、表に属さない行の位置を添えて、どこで表が切れたかを示す。
+  // GFM は行頭の `|` を省けるので、slug 列を持つ表と同じセル数の行も、表の行を意図したものとして挙げる。
+  const widths = new Set(
+    tables.filter((table) => table.headers.includes("slug")).map((table) => table.headers.length),
+  );
+  const outside = strayRows
+    .filter((stray) => stray.leadingPipe || widths.has(stray.cells))
+    .map((stray) => stray.line);
+  throw new UsageError(
+    `slug ${slug} の行がインベントリに無い` +
+      (outside.length > 0
+        ? `（${outside.join(", ")} 行目は表に属さない。表の途中の空行か HTML コメントの行で表が切れていないかを確かめる）`
+        : ""),
+  );
+}
+
+/**
+ * 見つかった行の API 列が空欄でなく、口が重複していないことを確かめる。
+ * @param {EvidenceRow} row
+ * @param {string} slug
+ */
+function assertEndpointCell(row, slug) {
   if (row.endpointCell.length === 0) {
     throw new UsageError(
       `slug ${slug} の API 列が空欄。口が無いことを確かめたなら \`-\` か \`なし\` と書く。空欄は未調査であり、口 0 件（合格）として扱わない`,
@@ -320,69 +344,57 @@ export function readRow(text, slug) {
     if (seen.has(endpoint)) throw new UsageError(`口 ${endpoint} が API 列に重複している`);
     seen.add(endpoint);
   }
+}
+
+/**
+ * features.md から対象 slug の口と根拠を取り出す。
+ * @param {string} text
+ * @param {string} slug
+ * @returns {{ endpointCell: string, endpoints: string[], entries: { endpoints: string[], verdict: string, raw: string }[] }}
+ */
+export function readRow(text, slug) {
+  const { tables, strayRows, unclosedFence } = parseTables(text);
+  if (unclosedFence !== null)
+    throw new UsageError(`インベントリの ${unclosedFenceMessage(unclosedFence)}`);
+  const tally = tallyRows(tables, slug);
+  const total =
+    tally.matched.length + tally.legacyRows + tally.nonEndpointRows + tally.malformed.length;
+  if (total > 1) {
+    throw new UsageError(
+      `slug ${slug} の行が ${total} 件ある（slug はインベントリ全体で一意。どちらが正かを決めるまで判定しない）`,
+    );
+  }
+  if (tally.matched.length === 0) throwNoRow(tally, { slug, tables, strayRows });
+  const row = tally.matched[0];
+  assertEndpointCell(row, slug);
   return row;
 }
 
 /**
- * parity-suite の metadata.json から宣言済みの口を取り出す。
- * @param {string} text
- * @param {string} path
- * @returns {{ declared: Set<string>, legacyArtifact: boolean, invalidEndpoints: number, invalidEntries: number, emptyEndpoints: number }}
+ * @typedef {{ declared: Set<string>, legacyArtifact: boolean, invalidEndpoints: number, invalidEntries: number, emptyEndpoints: number }} Declaration
  */
-export function readDeclaredEndpoints(text, path) {
-  const parsed = parseJsonOrThrow(
-    text,
-    (message) => new UsageError(`${path} を JSON として読めない: ${message}`),
-  );
-  // 配列も typeof が "object" なので、別に拒否する。通すと unmeasured が無いとして旧成果物に数えてしまう。
-  if (!isPlainObject(parsed)) {
-    throw new UsageError(`${path} が object でない（${valueKind(parsed)}）`);
-  }
-  const unmeasured = "unmeasured" in parsed ? parsed.unmeasured : undefined;
-  if (unmeasured === undefined) {
-    // 宣言の置き場所そのものが無い成果物なので、未確認の口は 1 つも宣言されていない。
-    // 判定不能（exit 3）として扱うと、消費する側が完了を止めず、推定の口が残ったまま通過する。
-    // 「判定できない」ではなく「宣言ゼロ」が事実なので、未宣言として数える。
-    return {
-      declared: new Set(),
-      legacyArtifact: true,
-      invalidEndpoints: 0,
-      invalidEntries: 0,
-      emptyEndpoints: 0,
-    };
-  }
-  if (!isPlainObject(unmeasured)) {
-    throw new UsageError(`${path} の unmeasured が object でない（${valueKind(unmeasured)}）`);
-  }
-  // declared の扱いは parity-suite の artifact-health-check.mjs と揃える。向こうは
-  // declared: false で節ごと判定せず entries の妥当性も見ない。ここだけが entries を
-  // 宣言として数えると、「誰も確かめていない宣言」で合格と判定されてしまう。
-  const declaredFlag = "declared" in unmeasured ? unmeasured.declared : undefined;
-  if (typeof declaredFlag !== "boolean") {
-    throw new UsageError(
-      `${path} の unmeasured.declared が真偽値でない（parity-suite の成果物として不備）`,
-    );
-  }
-  if (!declaredFlag)
-    return {
-      declared: new Set(),
-      legacyArtifact: false,
-      invalidEndpoints: 0,
-      invalidEntries: 0,
-      emptyEndpoints: 0,
-    };
-  const entries = "entries" in unmeasured ? unmeasured.entries : undefined;
-  if (entries === undefined)
-    return {
-      declared: new Set(),
-      legacyArtifact: false,
-      invalidEndpoints: 0,
-      invalidEntries: 0,
-      emptyEndpoints: 0,
-    };
-  if (!isArray(entries)) {
-    throw new UsageError(`${path} の unmeasured.entries が配列でない（${valueKind(entries)}）`);
-  }
+
+/**
+ * 宣言を 1 つも持たない結果を作る。
+ * @param {boolean} legacyArtifact
+ * @returns {Declaration}
+ */
+function emptyDeclaration(legacyArtifact) {
+  return {
+    declared: new Set(),
+    legacyArtifact,
+    invalidEndpoints: 0,
+    invalidEntries: 0,
+    emptyEndpoints: 0,
+  };
+}
+
+/**
+ * unmeasured.entries を宣言として数える。数えない要素は理由の別に件数を残す。
+ * @param {unknown[]} entries
+ * @returns {Declaration}
+ */
+function countDeclaredEntries(entries) {
   /** @type {Set<string>} */
   const declared = new Set();
   // 型が違う endpoint は宣言に数えないが、警告なしに捨てない。`artifact-health-check.mjs` は
@@ -414,23 +426,56 @@ export function readDeclaredEndpoints(text, path) {
 }
 
 /**
- * 判定する。
- * @param {{ featuresText: string, slug: string, unmeasuredPath?: string | null }} input
- * @returns {{ findings: string[], notes: string[], counts: Record<string, number> }}
+ * parity-suite の metadata.json から宣言済みの口を取り出す。
+ * @param {string} text
+ * @param {string} path
+ * @returns {Declaration}
  */
-export function check(input) {
-  // 行の分類を先に済ませる。`--unmeasured` を先に読むと、metadata.json が未生成の
-  // バッチ slug が対象外（exit 4）ではなく ENOENT（exit 2）になり、
-  // 「インベントリを直す」という誤った直し方へ案内してしまう。
-  const row = readRow(input.featuresText, input.slug);
-  // 宣言を読むのは未確認の口が 1 つでもあるときだけ。全て `実測` の行では宣言が判定に
-  // 寄与しないので、旧成果物（unmeasured キーが無い）でも exit 3 にしない。
-  // 判定不能が日常化すると、消費する側が exit 3 を無視する運用になってしまう。
-  /** @type {Map<string, Set<string>>} 口 → 対応づいた根拠の語彙 */
+export function readDeclaredEndpoints(text, path) {
+  const parsed = parseJsonOrThrow(
+    text,
+    (message) => new UsageError(`${path} を JSON として読めない: ${message}`),
+  );
+  // 配列も typeof が "object" なので、別に拒否する。通すと unmeasured が無いとして旧成果物に数えてしまう。
+  if (!isPlainObject(parsed)) {
+    throw new UsageError(`${path} が object でない（${valueKind(parsed)}）`);
+  }
+  const unmeasured = "unmeasured" in parsed ? parsed.unmeasured : undefined;
+  // 宣言の置き場所そのものが無い成果物なので、未確認の口は 1 つも宣言されていない。
+  // 判定不能（exit 3）として扱うと、消費する側が完了を止めず、推定の口が残ったまま通過する。
+  // 「判定できない」ではなく「宣言ゼロ」が事実なので、未宣言として数える。
+  if (unmeasured === undefined) return emptyDeclaration(true);
+  if (!isPlainObject(unmeasured)) {
+    throw new UsageError(`${path} の unmeasured が object でない（${valueKind(unmeasured)}）`);
+  }
+  // declared の扱いは parity-suite の artifact-health-check.mjs と揃える。向こうは
+  // declared: false で節ごと判定せず entries の妥当性も見ない。ここだけが entries を
+  // 宣言として数えると、「誰も確かめていない宣言」で合格と判定されてしまう。
+  const declaredFlag = "declared" in unmeasured ? unmeasured.declared : undefined;
+  if (typeof declaredFlag !== "boolean") {
+    throw new UsageError(
+      `${path} の unmeasured.declared が真偽値でない（parity-suite の成果物として不備）`,
+    );
+  }
+  if (!declaredFlag) return emptyDeclaration(false);
+  const entries = "entries" in unmeasured ? unmeasured.entries : undefined;
+  if (entries === undefined) return emptyDeclaration(false);
+  if (!isArray(entries)) {
+    throw new UsageError(`${path} の unmeasured.entries が配列でない（${valueKind(entries)}）`);
+  }
+  return countDeclaredEntries(entries);
+}
+
+/**
+ * 根拠エントリを API 列の口へ対応づける。対応づかないエントリは notes に残す。
+ * @param {EvidenceRow} row
+ * @param {string[]} notes
+ * @returns {Map<string, Set<string>>} 口 → 対応づいた根拠の語彙
+ */
+function mapVerdicts(row, notes) {
+  /** @type {Map<string, Set<string>>} */
   const verdicts = new Map();
   for (const endpoint of row.endpoints) verdicts.set(endpoint, new Set());
-  /** @type {string[]} */
-  const notes = [];
   for (const entry of row.entries) {
     const unmatched = entry.endpoints.filter((endpoint) => !verdicts.has(endpoint));
     for (const endpoint of unmatched) {
@@ -446,23 +491,19 @@ export function check(input) {
       if (bucket !== undefined) bucket.add(entry.verdict);
     }
   }
+  return verdicts;
+}
 
-  // 未確認の口が 1 つも無いなら宣言は判定に寄与しないので読まない。旧成果物
-  // （unmeasured キーが無い）でも全て `実測` の行は exit 0 にする。判定不能が
-  // 日常化すると、消費する側が exit 3 を無視する運用になってしまう。
-  const hasUnresolved = row.endpoints.some((endpoint) => {
-    const bucket = verdicts.get(endpoint) ?? new Set();
-    return !(bucket.size === 1 && bucket.has(MEASURED));
-  });
-  const declaration =
-    !hasUnresolved || input.unmeasuredPath === undefined || input.unmeasuredPath === null
-      ? null
-      : readDeclaredEndpoints(readFileSync(input.unmeasuredPath, "utf8"), input.unmeasuredPath);
-  const declared = declaration === null ? null : declaration.declared;
-
+/**
+ * 宣言を読んだ結果のうち、宣言に数えなかったものを notes に残す。
+ * @param {Declaration | null} declaration
+ * @param {string | null | undefined} unmeasuredPath
+ * @param {string[]} notes
+ */
+function noteDeclarationIssues(declaration, unmeasuredPath, notes) {
   if (declaration !== null && declaration.legacyArtifact) {
     notes.push(
-      `${input.unmeasuredPath} に unmeasured キーが無い（列の導入前の parity-suite 成果物）。宣言ゼロとして数える`,
+      `${unmeasuredPath} に unmeasured キーが無い（列の導入前の parity-suite 成果物）。宣言ゼロとして数える`,
     );
   }
   /** @type {[number, string][]} */
@@ -476,25 +517,39 @@ export function check(input) {
       notes.push(`unmeasured.entries の${label}が ${count} 件あるが、宣言に数えていない`);
     }
   }
+}
 
+/**
+ * 実測でない口について、未確認とする理由を返す。
+ * @param {Set<string>} bucket
+ * @returns {string}
+ */
+function unresolvedReason(bucket) {
+  if (bucket.size === 0) return "根拠のエントリが対応づかない";
+  if (bucket.has(MEASURED) && bucket.has(ESTIMATED)) return "実測と推定の両方が対応づく（矛盾）";
+  if (bucket.has(ESTIMATED)) return "根拠が推定";
+  return "根拠の語彙が実測でも推定でもない";
+}
+
+/**
+ * 口ごとに実測か未確認かを判定し、未確認の口は宣言の有無で notes か findings に振り分ける。
+ * @param {{ endpoints: string[], verdicts: Map<string, Set<string>>, declared: Set<string> | null, notes: string[] }} options
+ * @returns {{ findings: string[], measured: number, unresolved: number, declaredCount: number }}
+ */
+function judgeEndpoints({ endpoints, verdicts, declared, notes }) {
   /** @type {string[]} */
   const findings = [];
   let measured = 0;
   let unresolved = 0;
   let declaredCount = 0;
-  for (const endpoint of row.endpoints) {
+  for (const endpoint of endpoints) {
     const bucket = verdicts.get(endpoint) ?? new Set();
     const isMeasured = bucket.size === 1 && bucket.has(MEASURED);
     if (isMeasured) {
       measured += 1;
       continue;
     }
-    let reason;
-    if (bucket.size === 0) reason = "根拠のエントリが対応づかない";
-    else if (bucket.has(MEASURED) && bucket.has(ESTIMATED))
-      reason = "実測と推定の両方が対応づく（矛盾）";
-    else if (bucket.has(ESTIMATED)) reason = "根拠が推定";
-    else reason = "根拠の語彙が実測でも推定でもない";
+    const reason = unresolvedReason(bucket);
     unresolved += 1;
     if (declared !== null && declared.has(endpoint)) {
       declaredCount += 1;
@@ -503,6 +558,43 @@ export function check(input) {
     }
     findings.push(`未確認の口 ${endpoint}（${reason}）が unmeasured にも宣言されていない`);
   }
+  return { findings, measured, unresolved, declaredCount };
+}
+
+/**
+ * 判定する。
+ * @param {{ featuresText: string, slug: string, unmeasuredPath?: string | null }} input
+ * @returns {{ findings: string[], notes: string[], counts: Record<string, number> }}
+ */
+export function check(input) {
+  // 行の分類を先に済ませる。`--unmeasured` を先に読むと、metadata.json が未生成の
+  // バッチ slug が対象外（exit 4）ではなく ENOENT（exit 2）になり、
+  // 「インベントリを直す」という誤った直し方へ案内してしまう。
+  const row = readRow(input.featuresText, input.slug);
+  /** @type {string[]} */
+  const notes = [];
+  const verdicts = mapVerdicts(row, notes);
+
+  // 未確認の口が 1 つも無いなら宣言は判定に寄与しないので読まない。旧成果物
+  // （unmeasured キーが無い）でも全て `実測` の行は exit 0 にする。判定不能が
+  // 日常化すると、消費する側が exit 3 を無視する運用になってしまう。
+  const hasUnresolved = row.endpoints.some((endpoint) => {
+    const bucket = verdicts.get(endpoint) ?? new Set();
+    return !(bucket.size === 1 && bucket.has(MEASURED));
+  });
+  const declaration =
+    !hasUnresolved || input.unmeasuredPath === undefined || input.unmeasuredPath === null
+      ? null
+      : readDeclaredEndpoints(readFileSync(input.unmeasuredPath, "utf8"), input.unmeasuredPath);
+  const declared = declaration === null ? null : declaration.declared;
+  noteDeclarationIssues(declaration, input.unmeasuredPath, notes);
+
+  const { findings, measured, unresolved, declaredCount } = judgeEndpoints({
+    endpoints: row.endpoints,
+    verdicts,
+    declared,
+    notes,
+  });
   return {
     findings,
     notes,

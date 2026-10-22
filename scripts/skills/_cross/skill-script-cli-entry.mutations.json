@@ -20,6 +20,23 @@
         "skills/parity-component/scripts/lifecycle-check.mjs: シンボリックリンク経由でも引数不足を usage と exit 2 で知らせる",
         "skills/parity-component/scripts/motion-compare.mjs: シンボリックリンク経由でも引数不足を usage と exit 2 で知らせる"
       ]
+    },
+    {
+      "id": "cli-entry-one-sided-replace-strategy",
+      "why": "replace-strategy の CLI の判定（scripts/lib/cli.mjs）で起動パスを実パスに直さない（リンク経由の起動で何も出さずに exit 0 で終わる。引数を取らないプローブの CLI も含む）",
+      "file": "skills/replace-strategy/scripts/lib/cli.mjs",
+      "find": "    return realpathSync(entry) === realpathSync(self);",
+      "replace": "    return entry === self;",
+      "occurrences": 1,
+      "expect_failing": [
+        "skills/replace-strategy/scripts/append-only-check.mjs: シンボリックリンク経由でも引数不足を usage と exit 2 で知らせる",
+        "skills/replace-strategy/scripts/asset-delivery-check.mjs: シンボリックリンク経由でも引数不足を usage と exit 2 で知らせる",
+        "skills/replace-strategy/scripts/evidence-gap-check.mjs: シンボリックリンク経由でも引数不足を usage と exit 2 で知らせる",
+        "skills/replace-strategy/scripts/pending-decisions-check.mjs: シンボリックリンク経由でも引数不足を usage と exit 2 で知らせる",
+        "skills/replace-strategy/scripts/procedure-staleness-check.mjs: シンボリックリンク経由でも引数不足を usage と exit 2 で知らせる",
+        "skills/replace-strategy/scripts/asset-probe.mjs: シンボリックリンク経由でも引数なしの起動で結果を出す",
+        "skills/replace-strategy/scripts/role-probe.mjs: シンボリックリンク経由でも引数なしの起動で結果を出す"
+      ]
     }
   ]
 }

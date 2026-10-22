@@ -180,6 +180,50 @@ const USAGE =
   "[--mode <mode>] [--phase a|b] [--slug <slug>] [--target <target>]";
 
 /**
+ * 引数を読む。誤りがあれば error に理由を入れて返す。
+ * @param {string[]} argv
+ * @returns {{ args: Record<string, string>, error?: undefined } | { args?: undefined, error: string }}
+ */
+function parseArgs(argv) {
+  const known = new Set(["--file", "--mode", "--phase", "--slug", "--target"]);
+  /** @type {Record<string, string>} */
+  const args = {};
+  for (let i = 0; i < argv.length; i += 1) {
+    const key = argv[i];
+    if (!known.has(key)) return { error: `未知の引数: ${key}` };
+    const value = argv[i + 1];
+    if (value === undefined || value.startsWith("--")) return { error: `${key} に値が無い` };
+    if (Object.hasOwn(args, key)) return { error: `${key} が重複している` };
+    args[key] = value;
+    i += 1;
+  }
+  if (args["--file"] === undefined) return { error: "--file は必須" };
+  if (args["--phase"] !== undefined && !["a", "b"].includes(args["--phase"])) {
+    return { error: `--phase は a か b: ${args["--phase"]}` };
+  }
+  // フェーズ B の範囲は slug × target で決まる。片方だけでは他の slug・target の保留で止めるか決められない。
+  if (args["--phase"] === "b" && (args["--slug"] === undefined || args["--target"] === undefined)) {
+    return { error: "--phase b には --slug と --target が要る" };
+  }
+  return { args };
+}
+
+/**
+ * 引数から範囲の絞り込みを作る。指定の無い軸は持たない。
+ * @param {Record<string, string>} args
+ * @returns {{ mode?: string, phase?: string, slug?: string, target?: string }}
+ */
+function scopeFromArgs(args) {
+  /** @type {{ mode?: string, phase?: string, slug?: string, target?: string }} */
+  const scope = {};
+  if (args["--mode"] !== undefined) scope.mode = args["--mode"];
+  if (args["--phase"] !== undefined) scope.phase = args["--phase"];
+  if (args["--slug"] !== undefined) scope.slug = args["--slug"];
+  if (args["--target"] !== undefined) scope.target = args["--target"];
+  return scope;
+}
+
+/**
  * CLI。
  * @param {string[]} argv
  * @param {{ cwd?: string, stdout?: (s: string) => void, stderr?: (s: string) => void }} [deps]
@@ -193,26 +237,9 @@ export function main(argv, deps = {}) {
     (deps.stderr ?? ((s) => process.stderr.write(s)))(`${message}\n${USAGE}\n`);
     return 2;
   };
-  const known = new Set(["--file", "--mode", "--phase", "--slug", "--target"]);
-  /** @type {Record<string, string>} */
-  const args = {};
-  for (let i = 0; i < argv.length; i += 1) {
-    const key = argv[i];
-    if (!known.has(key)) return fail(`未知の引数: ${key}`);
-    const value = argv[i + 1];
-    if (value === undefined || value.startsWith("--")) return fail(`${key} に値が無い`);
-    if (Object.hasOwn(args, key)) return fail(`${key} が重複している`);
-    args[key] = value;
-    i += 1;
-  }
-  if (args["--file"] === undefined) return fail("--file は必須");
-  if (args["--phase"] !== undefined && !["a", "b"].includes(args["--phase"])) {
-    return fail(`--phase は a か b: ${args["--phase"]}`);
-  }
-  // フェーズ B の範囲は slug × target で決まる。片方だけでは他の slug・target の保留で止めるか決められない。
-  if (args["--phase"] === "b" && (args["--slug"] === undefined || args["--target"] === undefined)) {
-    return fail("--phase b には --slug と --target が要る");
-  }
+  const parsed = parseArgs(argv);
+  if (parsed.error !== undefined) return fail(parsed.error);
+  const { args } = parsed;
   const path = resolve(cwd, args["--file"]);
   // 記録先のファイルが無いのは「保留なし」（references/autonomy.md「下流の前提判定」）。
   // ただしパスの誤りと区別できるよう、無かったことを出力に残す。
@@ -227,13 +254,7 @@ export function main(argv, deps = {}) {
   } catch (error) {
     return fail(`${path} を読めない: ${errorMessage(error)}`);
   }
-  /** @type {{ mode?: string, phase?: string, slug?: string, target?: string }} */
-  const scope = {};
-  if (args["--mode"] !== undefined) scope.mode = args["--mode"];
-  if (args["--phase"] !== undefined) scope.phase = args["--phase"];
-  if (args["--slug"] !== undefined) scope.slug = args["--slug"];
-  if (args["--target"] !== undefined) scope.target = args["--target"];
-  const result = checkPendingDecisions(doc, scope);
+  const result = checkPendingDecisions(doc, scopeFromArgs(args));
   if (result.structural) {
     out({ ok: false, structural: true, file: path, error: result.error });
     return 2;

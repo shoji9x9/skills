@@ -99,6 +99,52 @@ export function dateOf(value) {
 }
 
 /**
+ * @typedef {{ id: string, revision: number, axis: string, affects: string[] }} RevisionChange
+ */
+
+/**
+ * 改訂一覧の changes の 1 要素を検証する。読めない要素は null を返す（理由は errors に積む）。
+ * @param {unknown} change
+ * @param {string} where
+ * @param {{ skill: unknown, revision: number | null, seen: Set<number>, errors: string[] }} context
+ * @returns {RevisionChange | null}
+ */
+function readRevisionChange(change, where, { skill, revision, seen, errors }) {
+  if (!isPlainObject(change)) {
+    errors.push(`${where} がオブジェクトでない`);
+    return null;
+  }
+  const rev = change.revision;
+  if (typeof rev !== "number" || !Number.isInteger(rev) || rev < 1) {
+    errors.push(`${where}.revision が 1 以上の整数でない`);
+    return null;
+  }
+  if (revision !== null && rev > revision) {
+    errors.push(`${where}.revision が一覧の revision より大きい`);
+  }
+  if (seen.has(rev)) errors.push(`${where}.revision が重複している: ${rev}`);
+  seen.add(rev);
+  if (!nonEmptyString(change.axis)) errors.push(`${where}.axis が空`);
+  const affects = change.affects;
+  if (!isArray(affects) || affects.length === 0) {
+    errors.push(`${where}.affects が空`);
+    return null;
+  }
+  // MODES は文字列だけなので、typeof は型を絞るためだけにある（判定は変わらない）。
+  /** @type {(mode: unknown) => mode is string & { readonly __isMode: true }} */
+  const isMode = (mode) => typeof mode === "string" && MODES.includes(mode);
+  const modes = affects.filter(isMode);
+  const unknown = affects.filter((mode) => !isMode(mode));
+  if (unknown.length > 0) errors.push(`${where}.affects に語彙外の mode: ${unknown.join(", ")}`);
+  return {
+    id: `${skill}#${rev}`,
+    revision: rev,
+    axis: String(change.axis),
+    affects: modes,
+  };
+}
+
+/**
  * parity-suite の手順の改訂一覧を検証する。
  * @param {unknown} doc
  * @returns {{ ok: true, skill: string, revision: number, changes: Array<{ id: string, revision: number, axis: string, affects: string[] }> } | { ok: false, errors: string[] }}
@@ -123,43 +169,13 @@ export function readRevisions(doc) {
     errors.push("changes が配列でない");
     return { ok: false, errors };
   }
-  /** @type {Array<{ id: string, revision: number, axis: string, affects: string[] }>} */
+  /** @type {RevisionChange[]} */
   const changes = [];
+  /** @type {Set<number>} */
   const seen = new Set();
   doc.changes.forEach((change, index) => {
-    const where = `changes[${index}]`;
-    if (!isPlainObject(change)) {
-      errors.push(`${where} がオブジェクトでない`);
-      return;
-    }
-    const rev = change.revision;
-    if (typeof rev !== "number" || !Number.isInteger(rev) || rev < 1) {
-      errors.push(`${where}.revision が 1 以上の整数でない`);
-      return;
-    }
-    if (revision !== null && rev > revision) {
-      errors.push(`${where}.revision が一覧の revision より大きい`);
-    }
-    if (seen.has(rev)) errors.push(`${where}.revision が重複している: ${rev}`);
-    seen.add(rev);
-    if (!nonEmptyString(change.axis)) errors.push(`${where}.axis が空`);
-    const affects = change.affects;
-    if (!isArray(affects) || affects.length === 0) {
-      errors.push(`${where}.affects が空`);
-      return;
-    }
-    // MODES は文字列だけなので、typeof は型を絞るためだけにある（判定は変わらない）。
-    /** @type {(mode: unknown) => mode is string & { readonly __isMode: true }} */
-    const isMode = (mode) => typeof mode === "string" && MODES.includes(mode);
-    const modes = affects.filter(isMode);
-    const unknown = affects.filter((mode) => !isMode(mode));
-    if (unknown.length > 0) errors.push(`${where}.affects に語彙外の mode: ${unknown.join(", ")}`);
-    changes.push({
-      id: `${skill}#${rev}`,
-      revision: rev,
-      axis: String(change.axis),
-      affects: modes,
-    });
+    const read = readRevisionChange(change, `changes[${index}]`, { skill, revision, seen, errors });
+    if (read !== null) changes.push(read);
   });
   // 一覧の revision は最新の改訂番号。改訂の無い番号を名乗ると、成果物がその番号を書いた時点で
   // 「最新の手順で作った」と読まれ、実在しない改訂との比較になる。
@@ -179,12 +195,7 @@ export function readRevisions(doc) {
         "検査を通ったのに skill か revision が決まっていない（このツールの不具合。到達しない分岐に到達した）",
       ],
     };
-  return {
-    ok: true,
-    skill,
-    revision,
-    changes,
-  };
+  return { ok: true, skill, revision, changes };
 }
 
 /**
@@ -290,12 +301,17 @@ export function parseModes(cell) {
 }
 
 /**
- * プロジェクト側の台帳（.replace/procedure-changes.md）を読む。
- * @param {string} text
- * @param {Set<string>} skillChangeIds 改訂一覧が定める変更 ID（記録の参照先として有効なもの）
- * @returns {{ ok: true, changes: Array<{ id: string, added_at: string, axis: string, origin: string, affects: string[], placement: string }>, records: Array<{ id: string, change: string, slug: string, decision: string, recorded_at: string, basis: string }> } | { ok: false, errors: string[] }}
+ * @typedef {{ id: string, added_at: string, axis: string, origin: string, affects: string[], placement: string }} LedgerChange
+ * @typedef {{ id: string, change: string, slug: string, decision: string, recorded_at: string, basis: string }} LedgerRecord
+ * @typedef {{ headers: string[], rows: string[][] }} LedgerTable
  */
-export function readProcedureLedger(text, skillChangeIds) {
+
+/**
+ * 台帳の 2 つの表を探し、表の形の不備（表が無い・重複・表の外の行・扱えない位置のコメント）を errors に積む。
+ * @param {string} text
+ * @returns {{ errors: string[], changeTable: LedgerTable | null, recordTable: LedgerTable | null }}
+ */
+function findLedgerTables(text) {
   /** @type {string[]} */
   const errors = [];
   /** @type {Set<number>} */
@@ -328,18 +344,21 @@ export function readProcedureLedger(text, skillChangeIds) {
     );
   }
   if (markers.unclosed) errors.push("HTML コメントが閉じていない（以降の表が読まれない）");
-  if (errors.length > 0) return { ok: false, errors };
-  // 表が無ければ上で errors に積んで返しているので、次の行は型を絞るためだけにある（到達しない）。
-  if (changeTable.table === null || recordTable.table === null)
-    return {
-      ok: false,
-      errors: ["検査を通ったのに表が読めていない（このツールの不具合。到達しない分岐に到達した）"],
-    };
+  return { errors, changeTable: changeTable.table, recordTable: recordTable.table };
+}
 
-  /** @type {Array<{ id: string, added_at: string, axis: string, origin: string, affects: string[], placement: string }>} */
+/**
+ * 「観点の追加」表の行を読む。不備は errors に積む。
+ * @param {string[][]} rows
+ * @param {string[]} errors
+ * @returns {{ changes: LedgerChange[], changeIds: Set<string> }}
+ */
+function readChangeRows(rows, errors) {
+  /** @type {LedgerChange[]} */
   const changes = [];
+  /** @type {Set<string>} */
   const changeIds = new Set();
-  changeTable.table.rows.forEach((raw, index) => {
+  rows.forEach((raw, index) => {
     const where = `観点の追加 ${index + 1} 行目`;
     const row = raw.map(collapse);
     if (row.length !== CHANGE_HEADERS.length) {
@@ -368,12 +387,21 @@ export function readProcedureLedger(text, skillChangeIds) {
     }
     changes.push({ id, added_at: addedAt, axis, origin, affects: affects ?? [], placement });
   });
+  return { changes, changeIds };
+}
 
-  /** @type {Array<{ id: string, change: string, slug: string, decision: string, recorded_at: string, basis: string }>} */
+/**
+ * 「既に閉じた機能への当て直し」表の行を読む。不備は errors に積む。
+ * @param {string[][]} rows
+ * @param {{ changeIds: Set<string>, skillChangeIds: Set<string>, errors: string[] }} context
+ * @returns {LedgerRecord[]}
+ */
+function readRecordRows(rows, { changeIds, skillChangeIds, errors }) {
+  /** @type {LedgerRecord[]} */
   const records = [];
   const recordIds = new Set();
   const decisions = Object.values(DECISIONS);
-  recordTable.table.rows.forEach((raw, index) => {
+  rows.forEach((raw, index) => {
     const where = `当て直し ${index + 1} 行目`;
     const row = raw.map(collapse);
     if (row.length !== RECORD_HEADERS.length) {
@@ -401,8 +429,164 @@ export function readProcedureLedger(text, skillChangeIds) {
     }
     records.push({ id, change, slug, decision, recorded_at: recordedAt, basis });
   });
+  return records;
+}
+
+/**
+ * プロジェクト側の台帳（.replace/procedure-changes.md）を読む。
+ * @param {string} text
+ * @param {Set<string>} skillChangeIds 改訂一覧が定める変更 ID（記録の参照先として有効なもの）
+ * @returns {{ ok: true, changes: Array<{ id: string, added_at: string, axis: string, origin: string, affects: string[], placement: string }>, records: Array<{ id: string, change: string, slug: string, decision: string, recorded_at: string, basis: string }> } | { ok: false, errors: string[] }}
+ */
+export function readProcedureLedger(text, skillChangeIds) {
+  const { errors, changeTable, recordTable } = findLedgerTables(text);
+  if (errors.length > 0) return { ok: false, errors };
+  // 表が無ければ上で errors に積んで返しているので、次の行は型を絞るためだけにある（到達しない）。
+  if (changeTable === null || recordTable === null)
+    return {
+      ok: false,
+      errors: ["検査を通ったのに表が読めていない（このツールの不具合。到達しない分岐に到達した）"],
+    };
+  const { changes, changeIds } = readChangeRows(changeTable.rows, errors);
+  const records = readRecordRows(recordTable.rows, { changeIds, skillChangeIds, errors });
   if (errors.length > 0) return { ok: false, errors };
   return { ok: true, changes, records };
+}
+
+/**
+ * @typedef {{ slug: string, mode: string | null, procedure_revision: number | null, finished_on: string | null, problems: string[] }} ArtifactEntry
+ */
+
+/**
+ * 成果物を読めず、対象かどうかを判定できない slug の記録を作る。
+ * @param {string} slug
+ * @param {string} problem
+ * @returns {ArtifactEntry}
+ */
+function unreadableArtifact(slug, problem) {
+  return { slug, mode: null, procedure_revision: null, finished_on: null, problems: [problem] };
+}
+
+/**
+ * パスがリンク先の無いシンボリックリンクか（existsSync が偽を返した後に、本当に無いのかと区別するために使う）。
+ * @param {string} path
+ * @returns {boolean}
+ */
+function isDanglingLink(path) {
+  try {
+    return lstatSync(path).isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * run.procedure_revision を読む。読めなければ null を返し、理由を problems に積む。
+ * @param {Record<string, unknown>} run
+ * @param {number} latestRevision
+ * @param {string[]} problems
+ * @returns {number | null}
+ */
+function readProcedureRevision(run, latestRevision, problems) {
+  if (!Object.hasOwn(run, "procedure_revision")) {
+    // キーが無いのは本機構の導入前の成果物。どの改訂も当たっていないとして 0 で比べる（合格として扱わない）。
+    return 0;
+  }
+  if (
+    typeof run.procedure_revision !== "number" ||
+    !Number.isInteger(run.procedure_revision) ||
+    run.procedure_revision < 0
+  ) {
+    problems.push("run.procedure_revision が 0 以上の整数でない");
+    return null;
+  }
+  if (run.procedure_revision > latestRevision) {
+    // 渡された改訂一覧より新しい手順で作られた成果物。一覧（インストール済みの parity-suite）が古い。
+    problems.push(
+      `run.procedure_revision (${run.procedure_revision}) が改訂一覧の最新 (${latestRevision}) より大きい（渡した改訂一覧が古い）`,
+    );
+    return null;
+  }
+  return run.procedure_revision;
+}
+
+/**
+ * 読めた metadata.json の中身から、slug の記録を作る。
+ * @param {unknown} doc
+ * @param {string} name 置き場の slug
+ * @param {number} latestRevision
+ * @returns {ArtifactEntry}
+ */
+function artifactFromMetadata(doc, name, latestRevision) {
+  /** @type {string[]} */
+  const problems = [];
+  const meta = isPlainObject(doc) ? doc : {};
+  // 置き場の slug と成果物の slug が違えば、別の機能の成果物をこの機能として判定することになる。
+  // 欠落や型の誤りも同じく照合できないので、合格として扱わない（parity-suite の metadata.json は slug を必須で持つ）。
+  if (meta.slug !== name) {
+    problems.push(
+      `metadata.json の slug (${JSON.stringify(meta.slug)}) が置き場の slug (${name}) と一致しない`,
+    );
+  }
+  // MODES は文字列だけなので、typeof は型を絞るためだけにある（判定は変わらない）。
+  const mode = typeof meta.mode === "string" && MODES.includes(meta.mode) ? meta.mode : null;
+  if (mode === null) problems.push(`mode が ${MODES.join(" / ")} のどれでもない`);
+  const run = isPlainObject(meta.run) ? meta.run : {};
+  return {
+    slug: name,
+    mode,
+    procedure_revision: readProcedureRevision(run, latestRevision, problems),
+    finished_on: dateOf(run.finished_at),
+    problems,
+  };
+}
+
+/**
+ * 置き場の 1 項目を読む。特性化前の slug とドットファイルは数えないので null を返す。
+ * @param {string} parityDir
+ * @param {string} name
+ * @param {number} latestRevision
+ * @returns {ArtifactEntry | null}
+ */
+function readArtifact(parityDir, name, latestRevision) {
+  const dir = join(parityDir, name);
+  // リンク先の無いシンボリックリンクでは、statSync が例外を投げる。捨てずに判定不能として残す。
+  let isDir = false;
+  try {
+    isDir = statSync(dir).isDirectory();
+  } catch (error) {
+    return unreadableArtifact(name, `成果物のディレクトリを読めない: ${errorMessage(error)}`);
+  }
+  // 置き場の外に置く正当なファイルは無い（ドットファイル〈.gitkeep 等〉だけ許す）。
+  // slug の置き場がファイルに置き換わった形を警告なしに飛ばすと、その機能が判定から消える。
+  if (!isDir) {
+    if (name.startsWith(".")) return null;
+    return unreadableArtifact(
+      name,
+      "成果物の置き場がディレクトリでない（slug の置き場がファイルに置き換わっている）",
+    );
+  }
+  const path = join(dir, "metadata.json");
+  // metadata.json の無い slug は特性化前（未着手）であって、旧手順で閉じた機能ではない。
+  // 中身のあるディレクトリでも同じ扱いにする。parity-suite は metadata.json を終盤（手順 8）で書くので、
+  // 対応表・スペックだけがある形は特性化中の正常な状態で、判定不能にすると特性化中の機能 1 つで検査が止まる。
+  if (!existsSync(path)) {
+    // existsSync はリンクを辿るので、リンク先の無いシンボリックリンクも「無い」になる。
+    // 特性化前（metadata.json が本当に無い）と区別し、リンク先の無いリンクは、読めない成果物として残す。
+    const linked = isDanglingLink(path);
+    if (linked) {
+      return unreadableArtifact(name, "metadata.json がリンク先の無いシンボリックリンク");
+    }
+    return null;
+  }
+  /** @type {unknown} */
+  let doc;
+  try {
+    doc = JSON.parse(readFileSync(path, "utf8"));
+  } catch (error) {
+    return unreadableArtifact(name, `metadata.json を読めない: ${errorMessage(error)}`);
+  }
+  return artifactFromMetadata(doc, name, latestRevision);
 }
 
 /**
@@ -412,121 +596,79 @@ export function readProcedureLedger(text, skillChangeIds) {
  * @returns {{ slugs: Array<{ slug: string, mode: string | null, procedure_revision: number | null, finished_on: string | null, problems: string[] }> }}
  */
 export function readArtifacts(parityDir, latestRevision) {
-  /** @type {Array<{ slug: string, mode: string | null, procedure_revision: number | null, finished_on: string | null, problems: string[] }>} */
+  /** @type {ArtifactEntry[]} */
   const slugs = [];
   const names = readdirSync(parityDir).sort();
   for (const name of names) {
-    const dir = join(parityDir, name);
-    // リンク先の無いシンボリックリンクでは、statSync が例外を投げる。捨てずに判定不能として残す。
-    let isDir = false;
-    try {
-      isDir = statSync(dir).isDirectory();
-    } catch (error) {
-      slugs.push({
-        slug: name,
-        mode: null,
-        procedure_revision: null,
-        finished_on: null,
-        problems: [`成果物のディレクトリを読めない: ${errorMessage(error)}`],
-      });
-      continue;
-    }
-    // 置き場の外に置く正当なファイルは無い（ドットファイル〈.gitkeep 等〉だけ許す）。
-    // slug の置き場がファイルに置き換わった形を警告なしに飛ばすと、その機能が判定から消える。
-    if (!isDir) {
-      if (!name.startsWith(".")) {
-        slugs.push({
-          slug: name,
-          mode: null,
-          procedure_revision: null,
-          finished_on: null,
-          problems: [
-            "成果物の置き場がディレクトリでない（slug の置き場がファイルに置き換わっている）",
-          ],
-        });
-      }
-      continue;
-    }
-    const path = join(dir, "metadata.json");
-    // metadata.json の無い slug は特性化前（未着手）であって、旧手順で閉じた機能ではない。
-    // 中身のあるディレクトリでも同じ扱いにする。parity-suite は metadata.json を終盤（手順 8）で書くので、
-    // 対応表・スペックだけがある形は特性化中の正常な状態で、判定不能にすると特性化中の機能 1 つで検査が止まる。
-    if (!existsSync(path)) {
-      // existsSync はリンクを辿るので、リンク先の無いシンボリックリンクも「無い」になる。
-      // 特性化前（metadata.json が本当に無い）と区別し、リンク先の無いリンクは、読めない成果物として残す。
-      let linked = false;
-      try {
-        linked = lstatSync(path).isSymbolicLink();
-      } catch {
-        linked = false;
-      }
-      if (linked) {
-        slugs.push({
-          slug: name,
-          mode: null,
-          procedure_revision: null,
-          finished_on: null,
-          problems: ["metadata.json がリンク先の無いシンボリックリンク"],
-        });
-      }
-      continue;
-    }
-    /** @type {string[]} */
-    const problems = [];
-    /** @type {unknown} */
-    let doc;
-    try {
-      doc = JSON.parse(readFileSync(path, "utf8"));
-    } catch (error) {
-      slugs.push({
-        slug: name,
-        mode: null,
-        procedure_revision: null,
-        finished_on: null,
-        problems: [`metadata.json を読めない: ${errorMessage(error)}`],
-      });
-      continue;
-    }
-    const meta = isPlainObject(doc) ? doc : {};
-    // 置き場の slug と成果物の slug が違えば、別の機能の成果物をこの機能として判定することになる。
-    // 欠落や型の誤りも同じく照合できないので、合格として扱わない（parity-suite の metadata.json は slug を必須で持つ）。
-    if (meta.slug !== name) {
-      problems.push(
-        `metadata.json の slug (${JSON.stringify(meta.slug)}) が置き場の slug (${name}) と一致しない`,
-      );
-    }
-    // MODES は文字列だけなので、typeof は型を絞るためだけにある（判定は変わらない）。
-    const mode = typeof meta.mode === "string" && MODES.includes(meta.mode) ? meta.mode : null;
-    if (mode === null) problems.push(`mode が ${MODES.join(" / ")} のどれでもない`);
-    const run = isPlainObject(meta.run) ? meta.run : {};
-    /** @type {number | null} */
-    let procedureRevision = null;
-    if (!Object.hasOwn(run, "procedure_revision")) {
-      // キーが無いのは本機構の導入前の成果物。どの改訂も当たっていないとして 0 で比べる（合格として扱わない）。
-      procedureRevision = 0;
-    } else if (
-      typeof run.procedure_revision !== "number" ||
-      !Number.isInteger(run.procedure_revision) ||
-      run.procedure_revision < 0
-    ) {
-      problems.push("run.procedure_revision が 0 以上の整数でない");
-    } else if (run.procedure_revision > latestRevision) {
-      // 渡された改訂一覧より新しい手順で作られた成果物。一覧（インストール済みの parity-suite）が古い。
-      problems.push(
-        `run.procedure_revision (${run.procedure_revision}) が改訂一覧の最新 (${latestRevision}) より大きい（渡した改訂一覧が古い）`,
-      );
-    } else {
-      procedureRevision = run.procedure_revision;
-    }
-    slugs.push({
-      slug: name,
-      mode,
-      procedure_revision: procedureRevision,
-      finished_on: dateOf(run.finished_at),
-      problems,
-    });
+    const entry = readArtifact(parityDir, name, latestRevision);
+    if (entry !== null) slugs.push(entry);
   }
   return { slugs };
+}
+
+/**
+ * @typedef {{ id: string, axis: string, placement: string | null, source: string }} Hit
+ */
+
+/**
+ * 1 つの機能について、当て直しの対象になる変更を集める。日付を読めない組は undeterminable に積む。
+ * @param {ArtifactEntry & { mode: string }} entry
+ * @param {{ revisionChanges: RevisionChange[], ledgerChanges: Array<{ id: string, added_at: string, axis: string, affects: string[], placement: string }>, undeterminable: Array<{ slug: string, change?: string, reason: string }> }} context
+ * @returns {Hit[]}
+ */
+function hitsFor(entry, { revisionChanges, ledgerChanges, undeterminable }) {
+  /** @type {Hit[]} */
+  const hits = [];
+  for (const change of revisionChanges) {
+    if (!change.affects.includes(entry.mode)) continue;
+    if (entry.procedure_revision === null) continue; // 読めない改訂番号は problems に出ている
+    if (entry.procedure_revision < change.revision) {
+      hits.push({ id: change.id, axis: change.axis, placement: null, source: "skill" });
+    }
+  }
+  for (const change of ledgerChanges) {
+    if (!change.affects.includes(entry.mode)) continue;
+    if (entry.finished_on === null) {
+      // 日付を読めないと、追加より前に閉じたかを決められない。対象外として扱わない。
+      undeterminable.push({
+        slug: entry.slug,
+        change: change.id,
+        reason: "run.finished_at を日時として読めない（追加日より前に作られたかを決められない）",
+      });
+      continue;
+    }
+    if (entry.finished_on <= change.added_at) {
+      hits.push({
+        id: change.id,
+        axis: change.axis,
+        placement: change.placement,
+        source: "project",
+      });
+    }
+  }
+  return hits;
+}
+
+/**
+ * 対象の組み合わせを、最新の判断の記録で未解決か解決済みに振り分ける。
+ * @param {Hit} hit
+ * @param {{ slug: string, record: { id: string, decision: string, basis: string } | undefined, unresolved: Array<Record<string, unknown>>, resolved: Array<Record<string, unknown>> }} context
+ */
+function sortHit(hit, { slug, record, unresolved, resolved }) {
+  const base = { change: hit.id, slug, axis: hit.axis, source: hit.source };
+  if (record === undefined) {
+    unresolved.push({ ...base, state: "未判断", placement: hit.placement });
+  } else if (record.decision === DECISIONS.inProgress) {
+    unresolved.push({
+      ...base,
+      state: DECISIONS.inProgress,
+      placement: hit.placement,
+      record: record.id,
+      basis: record.basis,
+    });
+  } else {
+    resolved.push({ ...base, state: record.decision, record: record.id, basis: record.basis });
+  }
 }
 
 /**
@@ -551,60 +693,21 @@ export function check(input) {
   /** @type {Array<{ slug: string, change?: string, reason: string }>} */
   const undeterminable = [];
   const targeted = new Set();
+  const context = {
+    revisionChanges: input.revisions.changes,
+    ledgerChanges: input.ledger.changes,
+    undeterminable,
+  };
 
   for (const entry of input.slugs) {
     for (const problem of entry.problems)
       undeterminable.push({ slug: entry.slug, reason: problem });
-    if (entry.mode === null) continue;
-
-    /** @type {Array<{ id: string, axis: string, placement: string | null, source: string }>} */
-    const hits = [];
-    for (const change of input.revisions.changes) {
-      if (!change.affects.includes(entry.mode)) continue;
-      if (entry.procedure_revision === null) continue; // 読めない改訂番号は problems に出ている
-      if (entry.procedure_revision < change.revision) {
-        hits.push({ id: change.id, axis: change.axis, placement: null, source: "skill" });
-      }
-    }
-    for (const change of input.ledger.changes) {
-      if (!change.affects.includes(entry.mode)) continue;
-      if (entry.finished_on === null) {
-        // 日付を読めないと、追加より前に閉じたかを決められない。対象外として扱わない。
-        undeterminable.push({
-          slug: entry.slug,
-          change: change.id,
-          reason: "run.finished_at を日時として読めない（追加日より前に作られたかを決められない）",
-        });
-        continue;
-      }
-      if (entry.finished_on <= change.added_at) {
-        hits.push({
-          id: change.id,
-          axis: change.axis,
-          placement: change.placement,
-          source: "project",
-        });
-      }
-    }
-
-    for (const hit of hits) {
+    const { mode } = entry;
+    if (mode === null) continue;
+    for (const hit of hitsFor({ ...entry, mode }, context)) {
       const key = `${hit.id}\u0000${entry.slug}`;
       targeted.add(key);
-      const record = latest.get(key);
-      const base = { change: hit.id, slug: entry.slug, axis: hit.axis, source: hit.source };
-      if (record === undefined) {
-        unresolved.push({ ...base, state: "未判断", placement: hit.placement });
-      } else if (record.decision === DECISIONS.inProgress) {
-        unresolved.push({
-          ...base,
-          state: DECISIONS.inProgress,
-          placement: hit.placement,
-          record: record.id,
-          basis: record.basis,
-        });
-      } else {
-        resolved.push({ ...base, state: record.decision, record: record.id, basis: record.basis });
-      }
+      sortHit(hit, { slug: entry.slug, record: latest.get(key), unresolved, resolved });
     }
   }
 
@@ -621,103 +724,115 @@ const USAGE =
   "[--ledger .replace/procedure-changes.md] [--parity-dir .replace/parity] [--change <変更 ID>]";
 
 /**
- * CLI。
- * @param {string[]} argv
- * @param {{ cwd?: string, stdout?: (s: string) => void, stderr?: (s: string) => void }} [deps]
- * @returns {number} 終了コード
+ * @typedef {{ out: (value: unknown) => void, fail: (message: string) => number }} Io
+ * @typedef {{ changes: LedgerChange[], records: LedgerRecord[] }} Ledger
  */
-export function main(argv, deps = {}) {
-  const cwd = deps.cwd ?? process.cwd();
-  const out = (/** @type {unknown} */ value) =>
-    (deps.stdout ?? ((s) => process.stdout.write(s)))(`${JSON.stringify(value, null, 2)}\n`);
-  const fail = (/** @type {string} */ message) => {
-    (deps.stderr ?? ((s) => process.stderr.write(s)))(`${message}\n${USAGE}\n`);
-    return 2;
-  };
+
+/**
+ * 引数を読む。誤りがあれば error に理由を入れて返す。
+ * @param {string[]} argv
+ * @returns {{ args: Record<string, string>, error?: undefined } | { args?: undefined, error: string }}
+ */
+function parseArgs(argv) {
   const known = new Set(["--revisions", "--ledger", "--parity-dir", "--change"]);
   /** @type {Record<string, string>} */
   const args = {};
   for (let i = 0; i < argv.length; i += 1) {
     const key = argv[i];
-    if (!known.has(key)) return fail(`未知の引数: ${key}`);
+    if (!known.has(key)) return { error: `未知の引数: ${key}` };
     const value = argv[i + 1];
-    if (value === undefined || value.startsWith("--")) return fail(`${key} に値が無い`);
-    if (Object.hasOwn(args, key)) return fail(`${key} が重複している`);
+    if (value === undefined || value.startsWith("--")) return { error: `${key} に値が無い` };
+    if (Object.hasOwn(args, key)) return { error: `${key} が重複している` };
     args[key] = value;
     i += 1;
   }
   // 改訂一覧を省略可能にすると、スキルの手順の改訂が、警告なしに判定から消える。
-  if (args["--revisions"] === undefined) return fail("--revisions は必須");
-  const revisionsPath = resolve(cwd, args["--revisions"]);
-  const ledgerPath = resolve(cwd, args["--ledger"] ?? ".replace/procedure-changes.md");
-  const parityDir = resolve(cwd, args["--parity-dir"] ?? ".replace/parity");
+  if (args["--revisions"] === undefined) return { error: "--revisions は必須" };
+  return { args };
+}
 
+/**
+ * 改訂一覧を読んで検証する。読めない・不備があれば出力して終了コードを返す。
+ * @param {string} revisionsPath
+ * @param {Io} io
+ * @returns {{ code: number } | { revisions: { skill: string, revision: number, changes: RevisionChange[] } }}
+ */
+function loadRevisions(revisionsPath, { out, fail }) {
   /** @type {unknown} */
   let revisionsDoc;
   try {
     revisionsDoc = JSON.parse(readFileSync(revisionsPath, "utf8"));
   } catch (error) {
-    return fail(`${revisionsPath} を読めない: ${errorMessage(error)}`);
+    return { code: fail(`${revisionsPath} を読めない: ${errorMessage(error)}`) };
   }
   const revisions = readRevisions(revisionsDoc);
   if (!revisions.ok) {
     out({ ok: false, structural: true, revisions: revisionsPath, errors: revisions.errors });
-    return 2;
+    return { code: 2 };
   }
+  return { revisions };
+}
 
+/**
+ * 台帳を読む。台帳が無いのは「プロジェクト側で観点を足していない」なので空の台帳を返す。
+ * 読めない・不備があれば出力して終了コードを返す。
+ * @param {{ ledgerPath: string, explicit: boolean, skillChangeIds: Set<string>, io: Io }} options
+ * @returns {{ code: number } | { ledger: Ledger, ledgerExists: boolean }}
+ */
+function loadLedger({ ledgerPath, explicit, skillChangeIds, io: { out, fail } }) {
   // 台帳が無いのは「プロジェクト側で観点を足していない」。ただし出力に残してパスの誤りと区別できるようにする。
   const ledgerExists = existsSync(ledgerPath);
   // existsSync はリンクを辿るので、リンク先の無いシンボリックリンクの台帳も「無い」になる。
   // 台帳が無い（プロジェクト側で軸を足していない）と、台帳を失った状態を区別して後者を落とす。
   if (!ledgerExists) {
-    let linked = false;
-    try {
-      linked = lstatSync(ledgerPath).isSymbolicLink();
-    } catch {
-      linked = false;
-    }
-    if (linked) return fail(`${ledgerPath} がリンク先の無いシンボリックリンク`);
+    const linked = isDanglingLink(ledgerPath);
+    if (linked) return { code: fail(`${ledgerPath} がリンク先の無いシンボリックリンク`) };
     // 明示したパスが無いのは綴り・cwd の誤り。「台帳なし」として読むと台帳の未判断が警告なしに消える（--parity-dir と同じ扱い）。
-    if (args["--ledger"] !== undefined) return fail(`--ledger に渡した ${ledgerPath} が無い`);
+    if (explicit) return { code: fail(`--ledger に渡した ${ledgerPath} が無い`) };
+    return { ledger: { changes: [], records: [] }, ledgerExists };
   }
-  /** @type {{ changes: Array<{ id: string, added_at: string, axis: string, origin: string, affects: string[], placement: string }>, records: Array<{ id: string, change: string, slug: string, decision: string, recorded_at: string, basis: string }> }} 台帳が無ければ空（readProcedureLedger が読めた形と同じ） */
-  let ledger = { changes: [], records: [] };
-  if (ledgerExists) {
-    const skillChangeIds = new Set(revisions.changes.map((change) => change.id));
-    /** @type {string} */
-    let text;
-    try {
-      text = readFileSync(ledgerPath, "utf8");
-    } catch (error) {
-      return fail(`${ledgerPath} を読めない: ${errorMessage(error)}`);
-    }
-    const read = readProcedureLedger(text, skillChangeIds);
-    if (!read.ok) {
-      out({ ok: false, structural: true, ledger: ledgerPath, errors: read.errors });
-      return 2;
-    }
-    ledger = read;
+  /** @type {string} */
+  let text;
+  try {
+    text = readFileSync(ledgerPath, "utf8");
+  } catch (error) {
+    return { code: fail(`${ledgerPath} を読めない: ${errorMessage(error)}`) };
   }
+  const read = readProcedureLedger(text, skillChangeIds);
+  if (!read.ok) {
+    out({ ok: false, structural: true, ledger: ledgerPath, errors: read.errors });
+    return { code: 2 };
+  }
+  return { ledger: read, ledgerExists };
+}
 
+/**
+ * 成果物の置き場を読む。置き場が無い・ディレクトリでないときは終了コードを返す。
+ * @param {string} parityDir
+ * @param {number} latestRevision
+ * @param {Io} io
+ * @returns {{ code: number } | { slugs: ArtifactEntry[] }}
+ */
+function loadArtifacts(parityDir, latestRevision, { fail }) {
   // 成果物の置き場が無いのを「旧手順の機能なし」として扱わない（cwd の誤り・綴り違いで合格が出る）。
   // 特性化前のプロジェクトでも .replace/parity/ は空のディレクトリとして置けば通る。
-  /** @type {ReturnType<typeof readArtifacts>} */
-  let artifacts;
   try {
-    if (!statSync(parityDir).isDirectory()) return fail(`${parityDir} がディレクトリでない`);
-    artifacts = readArtifacts(parityDir, revisions.revision);
+    if (!statSync(parityDir).isDirectory())
+      return { code: fail(`${parityDir} がディレクトリでない`) };
+    return readArtifacts(parityDir, latestRevision);
   } catch (error) {
-    return fail(`${parityDir} を読めない: ${errorMessage(error)}`);
+    return { code: fail(`${parityDir} を読めない: ${errorMessage(error)}`) };
   }
-  const { slugs } = artifacts;
-  const all = check({ revisions, ledger, slugs });
+}
+
+/**
+ * --change で 1 つの変更に絞り、受け渡し済みの組を未解決から分ける。
+ * @param {ReturnType<typeof check>} all
+ * @param {string | undefined} only
+ */
+function selectResults(all, only) {
   // --change は 1 つの変更の当て直しを完了条件に持つ工程のため。他の変更の未判断で止めない。
   // 変更を名指さない判定不能（成果物を読めない）は、その変更の対象かも決められないので残す。
-  const only = args["--change"];
-  if (only !== undefined) {
-    const ids = new Set([...revisions.changes, ...ledger.changes].map((change) => change.id));
-    if (!ids.has(only)) return fail(`--change の変更 ID が台帳にも改訂一覧にも無い: ${only}`);
-  }
   const pick = (/** @type {Array<Record<string, unknown>>} */ list) =>
     only === undefined
       ? list
@@ -732,23 +847,109 @@ export function main(argv, deps = {}) {
     /^#\d+$/u.test(item.placement) &&
     new RegExp(`^${item.placement}(?!\\d)`, "u").test(String(item.basis));
   const picked = pick(all.unresolved);
-  const result = {
+  return {
     unresolved: picked.filter((item) => !handedOff(item)),
     handed_off: picked.filter(handedOff),
     resolved: pick(all.resolved),
     undeterminable: pick(all.undeterminable),
     stray: pick(all.stray),
   };
+}
+
+/**
+ * 終了コードを決める。
+ * @param {ReturnType<typeof selectResults>} result
+ * @param {number} artifactCount 数えた成果物の件数
+ * @returns {number}
+ */
+function exitCode(result, artifactCount) {
   // 成果物を 1 つも数えていない実行を exit 0 にしない。「旧手順の機能なし」と「何も見ていない」
   // （別プロジェクトで実行した・特性化前）が同じ出力になる。evidence-gap-check と同じく 4 ＝ 対象外。
-  const code =
-    result.unresolved.length > 0
-      ? 1
-      : result.undeterminable.length > 0
-        ? 3
-        : slugs.length === 0
-          ? 4
-          : 0;
+  return result.unresolved.length > 0
+    ? 1
+    : result.undeterminable.length > 0
+      ? 3
+      : artifactCount === 0
+        ? 4
+        : 0;
+}
+
+/**
+ * --change に渡した変更 ID が、台帳か改訂一覧の変更にあるか。
+ * @param {string} only
+ * @param {Array<{ id: string }>} changes
+ * @returns {boolean}
+ */
+function knownChange(only, changes) {
+  return changes.some((change) => change.id === only);
+}
+
+/**
+ * 出力の artifacts に載せる、成果物 1 件の要約（problems は undeterminable に出すので載せない）。
+ * @param {ArtifactEntry} entry
+ */
+function artifactSummary(entry) {
+  return {
+    slug: entry.slug,
+    mode: entry.mode,
+    procedure_revision: entry.procedure_revision,
+    finished_on: entry.finished_on,
+  };
+}
+
+/**
+ * 出力の書き込み先を作る。out は JSON を stdout へ、fail は理由と使い方を stderr へ出して 2 を返す。
+ * @param {{ stdout?: (s: string) => void, stderr?: (s: string) => void }} deps
+ * @returns {Io}
+ */
+function makeIo(deps) {
+  const out = (/** @type {unknown} */ value) =>
+    (deps.stdout ?? ((s) => process.stdout.write(s)))(`${JSON.stringify(value, null, 2)}\n`);
+  const fail = (/** @type {string} */ message) => {
+    (deps.stderr ?? ((s) => process.stderr.write(s)))(`${message}\n${USAGE}\n`);
+    return 2;
+  };
+  return { out, fail };
+}
+
+/**
+ * CLI。
+ * @param {string[]} argv
+ * @param {{ cwd?: string, stdout?: (s: string) => void, stderr?: (s: string) => void }} [deps]
+ * @returns {number} 終了コード
+ */
+export function main(argv, deps = {}) {
+  const cwd = deps.cwd ?? process.cwd();
+  const io = makeIo(deps);
+  const { out, fail } = io;
+  const parsed = parseArgs(argv);
+  if (parsed.error !== undefined) return fail(parsed.error);
+  const { args } = parsed;
+  const revisionsPath = resolve(cwd, args["--revisions"]);
+  const ledgerPath = resolve(cwd, args["--ledger"] ?? ".replace/procedure-changes.md");
+  const parityDir = resolve(cwd, args["--parity-dir"] ?? ".replace/parity");
+
+  const loadedRevisions = loadRevisions(revisionsPath, io);
+  if ("code" in loadedRevisions) return loadedRevisions.code;
+  const { revisions } = loadedRevisions;
+  const loadedLedger = loadLedger({
+    ledgerPath,
+    explicit: args["--ledger"] !== undefined,
+    skillChangeIds: new Set(revisions.changes.map((change) => change.id)),
+    io,
+  });
+  if ("code" in loadedLedger) return loadedLedger.code;
+  const { ledger, ledgerExists } = loadedLedger;
+  const artifacts = loadArtifacts(parityDir, revisions.revision, io);
+  if ("code" in artifacts) return artifacts.code;
+  const { slugs } = artifacts;
+  const all = check({ revisions, ledger, slugs });
+  const only = args["--change"];
+  if (only !== undefined && !knownChange(only, [...revisions.changes, ...ledger.changes])) {
+    return fail(`--change の変更 ID が台帳にも改訂一覧にも無い: ${only}`);
+  }
+  const result = selectResults(all, only);
+  const code = exitCode(result, slugs.length);
   out({
     ok: code === 0,
     version: VERSION,
@@ -758,17 +959,8 @@ export function main(argv, deps = {}) {
     ledger_exists: ledgerExists,
     parity_dir: parityDir,
     change: only ?? null,
-    artifacts: slugs.map((entry) => ({
-      slug: entry.slug,
-      mode: entry.mode,
-      procedure_revision: entry.procedure_revision,
-      finished_on: entry.finished_on,
-    })),
-    unresolved: result.unresolved,
-    handed_off: result.handed_off,
-    resolved: result.resolved,
-    undeterminable: result.undeterminable,
-    stray: result.stray,
+    artifacts: slugs.map(artifactSummary),
+    ...result,
   });
   return code;
 }
