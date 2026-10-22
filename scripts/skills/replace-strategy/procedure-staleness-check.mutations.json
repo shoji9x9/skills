@@ -102,7 +102,10 @@
       "find": "      ? 3\n",
       "replace": "      ? 0\n",
       "occurrences": 1,
-      "expect_failing": ["成果物を読めず対象かを決められない機能は合格として扱わず exit 3 にする"]
+      "expect_failing": [
+        "成果物を読めず対象かを決められない機能は合格として扱わず exit 3 にする",
+        "metadata.json が循環したシンボリックリンクなら、リンク先の無いシンボリックリンクとして判定不能に残す"
+      ]
     },
     {
       "id": "orphan-rows-ignored",
@@ -238,7 +241,10 @@
       "find": "  if (metadataState === \"dangling-link\") {\n    return unreadableArtifact(name, \"metadata.json がリンク先の無いシンボリックリンク\");\n  }\n  if (metadataState === \"unreadable\") {\n    return unreadableArtifact(name, \"metadata.json の有無を調べられない（権限が無いなど）\");\n  }\n  if (metadataState === \"missing\") return null;",
       "replace": "  if (metadataState !== \"present\") return null;",
       "occurrences": 1,
-      "expect_failing": ["成果物を読めず対象かを決められない機能は合格として扱わず exit 3 にする"]
+      "expect_failing": [
+        "成果物を読めず対象かを決められない機能は合格として扱わず exit 3 にする",
+        "metadata.json が循環したシンボリックリンクなら、リンク先の無いシンボリックリンクとして判定不能に残す"
+      ]
     },
     {
       "id": "empty-artifacts-exit-zero",
@@ -482,7 +488,20 @@
       "replace": "  return true;",
       "occurrences": 1,
       "expect_failing": [
-        "pathState: 権限が無くて調べられないパスを、無い（missing）ではなく unreadable にする"
+        "pathState: 権限が無くて調べられないパスを、無い（missing）ではなく unreadable にする",
+        "pathState: 循環したシンボリックリンクを、権限の問題（unreadable）ではなく dangling-link にする"
+      ]
+    },
+    {
+      "id": "loop-link-as-unreadable",
+      "why": "循環したシンボリックリンク（ELOOP）を、リンクかを見ずに unreadable にする。権限の問題に見え、直す場所を取り違える",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    const looped = errorCode(error) === \"ELOOP\";\n",
+      "replace": "    const looped = false;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "pathState: 循環したシンボリックリンクを、権限の問題（unreadable）ではなく dangling-link にする",
+        "metadata.json が循環したシンボリックリンクなら、リンク先の無いシンボリックリンクとして判定不能に残す"
       ]
     }
   ]

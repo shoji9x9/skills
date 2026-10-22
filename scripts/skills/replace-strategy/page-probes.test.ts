@@ -13,7 +13,6 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import vm from "node:vm";
-import ts from "typescript";
 import { expect, test, vi } from "vitest";
 import { runOxlint } from "../../gates/code/oxlint-plugin/run-oxlint.ts";
 import {
@@ -82,19 +81,19 @@ function writePageFile(lines: string[]) {
   return pathToFileURL(file);
 }
 
-test("pageFunctionSource: 最後の export の行と行全体がコメントの行を外して関数式で包み、トップレベルの宣言を同じ名前で呼び合って本体の返り値を返す", () => {
+test("pageFunctionSource: 最後の export の行だけを外し、コメントと複数行のリテラルを含む本文をそのまま関数式で包み、トップレベルの宣言を同じ名前で呼び合って本体の返り値を返す", () => {
   const file = writePageFile([
     "// 先頭の説明",
     "/**",
     " * JSDoc のブロック",
     " */",
-    'const LIMIT = [2, "x"]; // 行の途中のコメントは残す',
+    'const LIMIT = [2, "x"]; // 行の途中のコメント',
     "  /* 字下げした 1 行のブロック */",
-    "/*/ 開く記号の直後のスラッシュを閉じと読まない */",
     "function twice(n) { return n * LIMIT.length; }",
-    "/* 閉じの後ろにコードがある行は残す */ const half = (n) => n / 2;",
-    'const url = "http://example.test/*";',
-    "function mainInPage() { return { value: half(twice(21)), limit: LIMIT, url }; }",
+    "/* 閉じの後ろにコードがある行 */ const half = (n) => n / 2;",
+    "const cdn = `https:",
+    "//cdn.example/app.js`;",
+    "function mainInPage() { return { value: half(twice(21)), limit: LIMIT, cdn }; }",
     "",
     "export { mainInPage };",
     "",
@@ -103,11 +102,17 @@ test("pageFunctionSource: 最後の export の行と行全体がコメントの�
   expect(source).toBe(
     [
       "() => {",
-      'const LIMIT = [2, "x"]; // 行の途中のコメントは残す',
+      "// 先頭の説明",
+      "/**",
+      " * JSDoc のブロック",
+      " */",
+      'const LIMIT = [2, "x"]; // 行の途中のコメント',
+      "  /* 字下げした 1 行のブロック */",
       "function twice(n) { return n * LIMIT.length; }",
-      "/* 閉じの後ろにコードがある行は残す */ const half = (n) => n / 2;",
-      'const url = "http://example.test/*";',
-      "function mainInPage() { return { value: half(twice(21)), limit: LIMIT, url }; }",
+      "/* 閉じの後ろにコードがある行 */ const half = (n) => n / 2;",
+      "const cdn = `https:",
+      "//cdn.example/app.js`;",
+      "function mainInPage() { return { value: half(twice(21)), limit: LIMIT, cdn }; }",
       "",
       "return mainInPage();",
       "}",
@@ -116,7 +121,7 @@ test("pageFunctionSource: 最後の export の行と行全体がコメントの�
   expect(evaluateInPage(source, {})).toEqual({
     value: 21,
     limit: [2, "x"],
-    url: "http://example.test/*",
+    cdn: "https:\n//cdn.example/app.js",
   });
 });
 
@@ -154,65 +159,21 @@ test.each([
   expect(() => pageFunctionSource(writePageFile(lines), "mainInPage")).toThrow(message);
 });
 
-/** ソースの構文木から、文字列・テンプレートリテラル・正規表現のうち、改行を含むものの本文を集める。 */
-function multilineLiterals(text: string): string[] {
-  const sf = ts.createSourceFile("page.mjs", text, ts.ScriptTarget.Latest, true);
-  const found: string[] = [];
-  const visit = (node: ts.Node) => {
-    const isLiteral =
-      ts.isStringLiteral(node) ||
-      ts.isNoSubstitutionTemplateLiteral(node) ||
-      ts.isTemplateHead(node) ||
-      ts.isTemplateMiddle(node) ||
-      ts.isTemplateTail(node) ||
-      ts.isRegularExpressionLiteral(node);
-    if (isLiteral && node.getText(sf).includes("\n")) found.push(node.getText(sf));
-    node.forEachChild(visit);
-  };
-  visit(sf);
-  return found;
-}
-
-/** コメントを外して出し直したソース。コメントのほかの差は、そのまま残る。 */
-function printedWithoutComments(text: string): string {
-  const sf = ts.createSourceFile("page.mjs", text, ts.ScriptTarget.Latest, true);
-  return ts.createPrinter({ removeComments: true }).printFile(sf);
-}
-
-test("multilineLiterals: 複数行にまたがる文字列・テンプレートリテラル・正規表現を見つけ、1 行のものは見つけない", () => {
-  const text = [
-    'const a = "1 行";',
-    "const b = `1 行の ${a} テンプレート`;",
-    "const c = /1 行/u;",
-    "const d = `複数行の",
-    "// コメントに見える行`;",
-    "const e = `複数行の ${a}",
-    "/* 置換の後ろ */`;",
-    'const f = "続きの行 \\',
-    '// 行の継続";',
-  ].join("\n");
-  expect(multilineLiterals(text)).toEqual([
-    "`複数行の\n// コメントに見える行`",
-    "}\n/* 置換の後ろ */`",
-    '"続きの行 \\\n// 行の継続"',
-  ]);
-});
-
 test.each([
   ["role-probe.mjs", "role-probe.page.mjs"],
   ["asset-probe.mjs", "asset-probe.page.mjs"],
-])("%s の CLI: コメントの行だけを外し、構文として読めるソースを出す", (name, pageName) => {
-  const text = readFileSync(SCRIPTS + "page/" + pageName, "utf8");
-  // 行単位でコメントを外すので、複数行にまたがる文字列・テンプレートリテラル・正規表現を書かない
-  expect(multilineLiterals(text)).toEqual([]);
-  const source = runCli(name).trimEnd();
-  expect(() => new vm.Script(`(${source})`)).not.toThrow();
-  expect(source.split("\n").filter((line) => /^\s*(?:\/\/|\/\*)/u.test(line))).toEqual([]);
-  // 外したのがコメントだけなら、コメントを外して出し直した結果が一致する
-  const body = source.slice("() => {\n".length, source.lastIndexOf("\nreturn "));
-  const original = text.trimEnd().split("\n").slice(0, -1).join("\n");
-  expect(printedWithoutComments(body)).toBe(printedWithoutComments(original));
-});
+])(
+  "%s の CLI: ページ用のファイルの最後の行のほかをそのまま包み、構文として読めるソースを出す",
+  (name, pageName) => {
+    const text = readFileSync(SCRIPTS + "page/" + pageName, "utf8");
+    const source = runCli(name).trimEnd();
+    expect(() => new vm.Script(`(${source})`)).not.toThrow();
+    // 包んだ本文は、ページ用のファイルから最後の行（本体の export）を外したものと一致する
+    const body = source.slice("() => {\n".length, source.lastIndexOf("\nreturn "));
+    const original = text.trimEnd().split("\n").slice(0, -1).join("\n");
+    expect(body).toBe(original);
+  },
+);
 
 test.each([
   ["role-probe.mjs", "--url"],

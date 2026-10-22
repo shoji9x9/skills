@@ -471,8 +471,10 @@ function unreadableArtifact(slug, problem) {
 /**
  * パスの状態を、在る（present）・リンク先の無いシンボリックリンク（dangling-link）・無い（missing）・
  * 調べられない（unreadable）に分ける。
- * statSync はリンクを辿るので、リンク先が無いと例外を投げる。そのときだけ lstatSync でパス自身がリンクかを見る。
- * 無いと言えるのは ENOENT・ENOTDIR のときだけで、それ以外の失敗（権限が無いなど）は unreadable にする。
+ * statSync はリンクを辿るので、リンク先が無いときと、リンクが循環しているとき（ELOOP）に例外を投げる。
+ * そのときだけ lstatSync でパス自身がリンクかを見て、リンクなら dangling-link にする。
+ * 無いと言えるのは、ENOENT・ENOTDIR で失敗し、パス自身がリンクでないときだけである。
+ * それ以外の失敗（権限が無いなど）は unreadable にする。
  * missing にすると、読めない成果物や台帳が「無い」として扱われ、判定から警告なしに外れる。
  * @param {string} path
  * @returns {"present" | "dangling-link" | "missing" | "unreadable"}
@@ -482,13 +484,26 @@ export function pathState(path) {
     statSync(path);
     return "present";
   } catch (error) {
-    if (!isNotFound(error)) return "unreadable";
+    const looped = errorCode(error) === "ELOOP";
+    if (!looped && !isNotFound(error)) return "unreadable";
     try {
-      return lstatSync(path).isSymbolicLink() ? "dangling-link" : "missing";
+      if (lstatSync(path).isSymbolicLink()) return "dangling-link";
+      // パス自身がリンクでなければ stat と lstat は同じ結果になるので、ELOOP でここに来ることは無いはずである。
+      // 来たときも、無いとは言えないので unreadable にする。
+      return looped ? "unreadable" : "missing";
     } catch (lstatError) {
       return isNotFound(lstatError) ? "missing" : "unreadable";
     }
   }
+}
+
+/**
+ * fs の例外の code を返す。code が無ければ undefined を返す。
+ * @param {unknown} error
+ * @returns {unknown}
+ */
+function errorCode(error) {
+  return error instanceof Error && "code" in error ? error.code : undefined;
 }
 
 /**
@@ -497,7 +512,7 @@ export function pathState(path) {
  * @returns {boolean}
  */
 function isNotFound(error) {
-  const code = error instanceof Error && "code" in error ? error.code : undefined;
+  const code = errorCode(error);
   return code === "ENOENT" || code === "ENOTDIR";
 }
 

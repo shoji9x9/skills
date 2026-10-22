@@ -51,7 +51,7 @@
         "role-probe の CLI: 名前のある要素と無い要素を数え、role ごとの件数と名前の無い標本を返す",
         "role-probe の CLI: 対象の要素が無いページでは割合を null にする",
         "role-probe の CLI: aria-labelledby・label・button の value・内容テキスト・(role, name) の重複を持つページで、名前と重複を数える",
-        "role-probe.mjs の CLI: コメントの行だけを外し、構文として読めるソースを出す"
+        "role-probe.mjs の CLI: ページ用のファイルの最後の行のほかをそのまま包み、構文として読めるソースを出す"
       ]
     },
     {
@@ -92,38 +92,16 @@
       ]
     },
     {
-      "id": "page-line-comments-kept",
-      "why": "先頭が // の行を外さない",
+      "id": "page-comment-lines-dropped",
+      "why": "先頭が // の行を外して包む。複数行のテンプレートリテラルの中の // で始まる行も消え、ページで実行するコードが元のファイルと変わる",
       "file": "skills/replace-strategy/scripts/lib/page-function.mjs",
-      "find": "    if (head.startsWith(\"//\")) i += 1;",
-      "replace": "    if (false) i += 1;",
+      "find": "${lines.join(\"\\n\")}",
+      "replace": "${lines.filter((line) => !line.trimStart().startsWith(\"//\")).join(\"\\n\")}",
       "occurrences": 1,
       "expect_failing": [
-        "pageFunctionSource: 最後の export の行と行全体がコメントの行を外して関数式で包み、トップレベルの宣言を同じ名前で呼び合って本体の返り値を返す",
-        "role-probe.mjs の CLI: コメントの行だけを外し、構文として読めるソースを出す",
-        "asset-probe.mjs の CLI: コメントの行だけを外し、構文として読めるソースを出す"
-      ]
-    },
-    {
-      "id": "page-block-comment-tail-ignored",
-      "why": "ブロックのコメントの閉じの後ろにコードがあっても、その行を外す。コードの行を失う",
-      "file": "skills/replace-strategy/scripts/lib/page-function.mjs",
-      "find": "    if (at >= 0) return lines[i].slice(at + 2).trim() === \"\" ? i : -1;",
-      "replace": "    if (at >= 0) return i;",
-      "occurrences": 1,
-      "expect_failing": [
-        "pageFunctionSource: 最後の export の行と行全体がコメントの行を外して関数式で包み、トップレベルの宣言を同じ名前で呼び合って本体の返り値を返す"
-      ]
-    },
-    {
-      "id": "page-block-comment-close-from-open",
-      "why": "閉じの */ を、開く /* の直後ではなく行の先頭から探す。/*/ の */ を閉じと読み、ブロックのコメントの行を外さない",
-      "file": "skills/replace-strategy/scripts/lib/page-function.mjs",
-      "find": "    const at = lines[i].indexOf(\"*/\", i === start ? from : 0);",
-      "replace": "    const at = lines[i].indexOf(\"*/\", 0);",
-      "occurrences": 1,
-      "expect_failing": [
-        "pageFunctionSource: 最後の export の行と行全体がコメントの行を外して関数式で包み、トップレベルの宣言を同じ名前で呼び合って本体の返り値を返す"
+        "pageFunctionSource: 最後の export の行だけを外し、コメントと複数行のリテラルを含む本文をそのまま関数式で包み、トップレベルの宣言を同じ名前で呼び合って本体の返り値を返す",
+        "role-probe.mjs の CLI: ページ用のファイルの最後の行のほかをそのまま包み、構文として読めるソースを出す",
+        "asset-probe.mjs の CLI: ページ用のファイルの最後の行のほかをそのまま包み、構文として読めるソースを出す"
       ]
     },
     {

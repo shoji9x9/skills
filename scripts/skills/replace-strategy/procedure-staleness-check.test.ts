@@ -565,6 +565,32 @@ test("pathState: ファイル・リンク先のあるリンクを present、リ�
   expect(pathState(join(dir, "missing.md"))).toBe("missing");
 });
 
+test("pathState: 循環したシンボリックリンクを、権限の問題（unreadable）ではなく dangling-link にする", () => {
+  const dir = makeTempDir("loop-link-");
+  const a = join(dir, "a.json");
+  const b = join(dir, "b.json");
+  symlinkSync(a, b);
+  symlinkSync(b, a);
+  expect(pathState(a)).toBe("dangling-link");
+  expect(pathState(b)).toBe("dangling-link");
+  // 循環が途中のディレクトリにあり、パス自身をリンクと確かめられないときは、無いとも言えないので unreadable にする。
+  expect(pathState(join(a, "metadata.json"))).toBe("unreadable");
+});
+
+test("metadata.json が循環したシンボリックリンクなら、リンク先の無いシンボリックリンクとして判定不能に残す", () => {
+  const work = workspace({ artifacts: { order: meta({ procedure_revision: 2 }), edit: null } });
+  const loop = join(work, ".replace", "parity", "edit", "loop.json");
+  const metadata = join(work, ".replace", "parity", "edit", "metadata.json");
+  symlinkSync(loop, metadata);
+  symlinkSync(metadata, loop);
+  const r = run(work);
+  expect(r.code).toBe(3);
+  assert.exists(r.json);
+  expect(r.json.undeterminable.map((u) => [u.slug, u.reason])).toEqual([
+    ["edit", "metadata.json がリンク先の無いシンボリックリンク"],
+  ]);
+});
+
 // root は権限を無視して stat できるので、権限の無い状態を作れない。
 test.skipIf(process.getuid?.() === 0)(
   "pathState: 権限が無くて調べられないパスを、無い（missing）ではなく unreadable にする",

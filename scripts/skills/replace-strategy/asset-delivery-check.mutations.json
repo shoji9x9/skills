@@ -51,7 +51,10 @@
       "find": "    if (entry === undefined) {\n      findings.push(",
       "replace": "    if (entry === undefined) { continue;\n      findings.push(",
       "occurrences": 1,
-      "expect_failing": ["落とす: 台帳の「実体をコピーする」の行に記録が無い（突き合わせていない）"]
+      "expect_failing": [
+        "落とす: 台帳の「実体をコピーする」の行に記録が無い（突き合わせていない）",
+        "check: 突き合わせる組が 0 件なら、base が URL として読めなくても例外を投げずに結果を返す"
+      ]
     },
     {
       "id": "policy-filter-off",
@@ -76,7 +79,8 @@
         "通す: 新側が転送（ハッシュ付きのパスへの 301 等）で配る資産も、参照は転送前の URL・バイトは最終応答で突き合う",
         "通す: 突き合わせる行が全て accepted ならプローブ無しで exit 0",
         "通す: 記録の種類の表記ゆれ（空白・強調）は台帳と同じ正規化で揃えて突き合わせる",
-        "check: 組が 0 件でも複数でも、base のオリジンを 1 回求めて突き合わせる"
+        "check: 組が 0 件なら突き合わせた組を 0 件と数え、組が複数なら指摘を出さずにどの組もバイト一致として記録する",
+        "check: 突き合わせる組が 0 件なら、base が URL として読めなくても例外を投げずに結果を返す"
       ]
     },
     {
@@ -332,6 +336,18 @@
       "expect_failing": [
         "判定しない: --new-base が http(s) で始まっても URL として読めなければ、使い方の誤りとして exit 2 で止める",
         "判定しない: --current-base が http(s) で始まっても URL として読めなければ、使い方の誤りとして exit 2 で止める"
+      ]
+    },
+    {
+      "id": "base-origins-before-ledger",
+      "why": "台帳と記録を読む前に base のオリジンを求め、台帳の不備や組が 0 件の入力を base の TypeError で止める",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "export async function check(input) {\n",
+      "replace": "export async function check(input) {\n  originsOf(input);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "check: 台帳の不備は、base が URL として読めなくても使い方の誤り（UsageError）として報告する",
+        "check: 突き合わせる組が 0 件なら、base が URL として読めなくても例外を投げずに結果を返す"
       ]
     }
   ]

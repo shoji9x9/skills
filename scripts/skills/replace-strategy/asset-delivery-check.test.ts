@@ -13,7 +13,10 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
-import { check } from "../../../skills/replace-strategy/scripts/asset-delivery-check.mjs";
+import {
+  check,
+  UsageError,
+} from "../../../skills/replace-strategy/scripts/asset-delivery-check.mjs";
 import {
   faviconOf,
   ledger,
@@ -811,7 +814,7 @@ test.each([
   },
 );
 
-test("check: 組が 0 件でも複数でも、base のオリジンを 1 回求めて突き合わせる", async () => {
+test("check: 組が 0 件なら突き合わせた組を 0 件と数え、組が複数なら指摘を出さずにどの組もバイト一致として記録する", async () => {
   const none = await check({
     ledgerText: TEMPLATE,
     record: { entries: [] },
@@ -841,4 +844,33 @@ test("check: 組が 0 件でも複数でも、base のオリジンを 1 回求�
   });
   expect(twoPairs.findings).toEqual([]);
   expect(twoPairs.files.map((f) => f.bytes_match)).toEqual([true, true]);
+});
+
+// base のオリジンは、突き合わせる組が決まった後で、組があるときだけ求める。
+// 先に求めると、check を直接呼んだときに台帳や記録の不備が base の TypeError に隠れる。
+test("check: 台帳の不備は、base が URL として読めなくても使い方の誤り（UsageError）として報告する", async () => {
+  await expect(
+    check({
+      ledgerText: "not a ledger",
+      record: { entries: [] },
+      probes: [],
+      currentBase: "x",
+      newBase: "y",
+      fetcher: fetcherOf({}),
+    }),
+  ).rejects.toThrow(UsageError);
+});
+
+test("check: 突き合わせる組が 0 件なら、base が URL として読めなくても例外を投げずに結果を返す", async () => {
+  const r = await check({
+    ledgerText: TEMPLATE,
+    record: { entries: [] },
+    probes: [],
+    currentBase: "x",
+    newBase: "y",
+    fetcher: fetcherOf({}),
+  });
+  expect(r.counts).toEqual({ rows: 1, checkedRows: 0, files: 0 });
+  expect(r.findings).toHaveLength(1);
+  expect(r.findings[0]).toMatch(/^台帳の「本文の書体」（実体をコピーする）を突き合わせていない/u);
 });

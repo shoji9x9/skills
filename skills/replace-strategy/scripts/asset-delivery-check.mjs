@@ -663,16 +663,12 @@ function planChecks(copyRows, entries, { findings, notes }) {
  * @returns {Promise<{ findings: string[], notes: string[], files: CheckedFile[], counts: { rows: number, checkedRows: number, files: number } }>}
  */
 export async function check(input) {
-  const baseOrigins = originsOf(input);
   const { copyRows } = readAssetLedger(input.ledgerText);
   const entries = readRecord(input.record);
   /** @type {string[]} */
   const findings = [];
   /** @type {string[]} */
   const notes = [];
-  /** @type {CheckedFile[]} */
-  const files = [];
-
   /** @type {Set<string>} */
   const referenced = new Set();
   for (const probe of input.probes) {
@@ -687,22 +683,24 @@ export async function check(input) {
     );
   }
 
-  /** @type {FileContext} */
-  const ctx = {
-    currentBase: input.currentBase,
-    newBase: input.newBase,
-    baseOrigins,
-    referenced,
-    fetcher: input.fetcher,
-    findings,
-  };
-  let fileCount = 0;
-  for (const { row, entry } of toCheck) {
-    for (const file of entry.files) {
-      fileCount += 1;
-      files.push(await checkFile(row.kind, file, ctx));
+  // base のオリジンは突き合わせる組があるときだけ求める。組が無ければ base の形は判定に使わない
+  /** @type {CheckedFile[]} */
+  const files = [];
+  if (needsProbe) {
+    /** @type {FileContext} */
+    const ctx = {
+      currentBase: input.currentBase,
+      newBase: input.newBase,
+      baseOrigins: originsOf(input),
+      referenced,
+      fetcher: input.fetcher,
+      findings,
+    };
+    for (const { row, entry } of toCheck) {
+      for (const file of entry.files) files.push(await checkFile(row.kind, file, ctx));
     }
   }
+  const fileCount = files.length;
   return {
     findings,
     notes,
