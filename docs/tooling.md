@@ -148,7 +148,7 @@ PR では、差分に関係する定義だけを測る（`--changed-since origin
 
 - 共有のライブラリ（`scripts/lib/`）
 - `scripts/` の外のコード（`skills/` の `.mjs` など）
-- `.ts` でない相対の import と、テストが実行時に読むファイル（fixture など）
+- `.ts` でない相対の import と、テストが import せずに実行時に読むファイル（fixture など）
 - 依存の版
 
 すべての定義を測ると、PR ごとには払えない時間がかかる。実測値は `.github/workflows/mutation-proof.yml` のコメントにある。

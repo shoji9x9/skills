@@ -19,7 +19,6 @@ import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { write } from "../../lib/testing/repo-file.ts";
 import { fileURLToPath } from "node:url";
 import {
   UNWIRED_PATH,
@@ -29,6 +28,7 @@ import {
   main,
   toRepoPath,
 } from "./check-skill-checks.ts";
+import { write } from "../../lib/testing/repo-file.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 

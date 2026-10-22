@@ -18,10 +18,10 @@ import { afterAll, assert, beforeAll, describe, expect, test, vi } from "vitest"
 import { spawnSync } from "node:child_process";
 import { readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { write } from "../../lib/testing/repo-file.ts";
 import { fileURLToPath } from "node:url";
 import { PENDING_PATH, lintProse, loadPending, main } from "./lint-prose.ts";
 import { COMMENT_EXTENSIONS } from "../../lib/text/code-comments.ts";
+import { write } from "../../lib/testing/repo-file.ts";
 import { makeSharedTempDir, makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { spawnAsync } from "../../lib/spawn-async.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";

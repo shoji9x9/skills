@@ -14,7 +14,6 @@ import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { write } from "../../lib/testing/repo-file.ts";
 import { fileURLToPath } from "node:url";
 import {
   BEGIN,
@@ -28,6 +27,7 @@ import {
   renderTable,
   tierOf,
 } from "./check-doc-tiers.ts";
+import { write } from "../../lib/testing/repo-file.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { invalidInput } from "../../lib/testing/test-input.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";

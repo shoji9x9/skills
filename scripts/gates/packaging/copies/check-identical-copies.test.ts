@@ -21,7 +21,6 @@ import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { write } from "../../../lib/testing/repo-file.ts";
 import { fileURLToPath } from "node:url";
 import {
   DECLARATION_PATH,
@@ -29,6 +28,7 @@ import {
   loadGroups,
   main,
 } from "./check-identical-copies.ts";
+import { write } from "../../../lib/testing/repo-file.ts";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 

@@ -13,10 +13,10 @@ import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { write } from "../../lib/testing/repo-file.ts";
 import { fileURLToPath } from "node:url";
 import { WORDS_PATH } from "../../lib/text/textlint-word-rule.ts";
 import { LIST_PATH, checkWordList, main, renderWordList } from "./check-word-list.ts";
+import { write } from "../../lib/testing/repo-file.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 

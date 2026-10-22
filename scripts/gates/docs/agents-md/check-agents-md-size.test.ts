@@ -15,9 +15,9 @@ import { parseJsonAs } from "../../../lib/parse-as.ts";
 import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { write } from "../../../lib/testing/repo-file.ts";
 import { fileURLToPath } from "node:url";
 import { CONFIG_PATH, checkAgentsMdSize, main } from "./check-agents-md-size.ts";
+import { write } from "../../../lib/testing/repo-file.ts";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 
