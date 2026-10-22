@@ -133,19 +133,24 @@ function findPolicyTable(text) {
 }
 
 /**
+ * 方針の表の列の位置。表ごとに 1 回だけ求め、行を読むたびに見出しを探さない。
+ * @typedef {{ width: number, kind: number, status: number, policy: number }} LedgerColumns
+ */
+
+/**
  * 台帳の 1 行から種類と方針を読む。取り消し済みの行は null を返す。
  * @param {string[]} row
- * @param {{ headers: string[], line: number }} context
+ * @param {{ columns: LedgerColumns, line: number }} context
  * @returns {{ kind: string, policy: string } | null}
  */
-function readLedgerRow(row, { headers, line }) {
-  if (row.length !== headers.length) {
+function readLedgerRow(row, { columns, line }) {
+  if (row.length !== columns.width) {
     throw new UsageError(
-      `台帳の ${line} 行目の列数が見出しと違う（${row.length} ≠ ${headers.length}。セル内の | は \\| と書く）`,
+      `台帳の ${line} 行目の列数が見出しと違う（${row.length} ≠ ${columns.width}。セル内の | は \\| と書く）`,
     );
   }
-  const kind = normalizeCell(row[headers.indexOf("種類")]);
-  const status = normalizeCell(row[headers.indexOf("状態")]);
+  const kind = normalizeCell(row[columns.kind]);
+  const status = normalizeCell(row[columns.status]);
   if (kind === "") throw new UsageError(`台帳の ${line} 行目の「種類」が空`);
   if (status.startsWith(STATUS_CANCELLED_PREFIX)) return null;
   if (status !== STATUS_ACTIVE) {
@@ -153,7 +158,7 @@ function readLedgerRow(row, { headers, line }) {
       `台帳の ${line} 行目（${kind}）の状態が語彙外: "${status}"（${STATUS_ACTIVE} ｜ ${STATUS_CANCELLED_PREFIX}（…））`,
     );
   }
-  const written = normalizeCell(row[headers.indexOf("方針")]);
+  const written = normalizeCell(row[columns.policy]);
   const policy = LEGACY_POLICIES.get(written) ?? written;
   if (!POLICIES.has(policy)) {
     throw new UsageError(
@@ -170,6 +175,13 @@ function readLedgerRow(row, { headers, line }) {
  */
 export function readAssetLedger(text) {
   const { headers, rows, rowLines } = findPolicyTable(text);
+  /** @type {LedgerColumns} */
+  const columns = {
+    width: headers.length,
+    kind: headers.indexOf("種類"),
+    status: headers.indexOf("状態"),
+    policy: headers.indexOf("方針"),
+  };
   /** @type {Map<string, number>} */
   const activeByKind = new Map();
   /** @type {LedgerRow[]} */
@@ -177,7 +189,7 @@ export function readAssetLedger(text) {
   rows.forEach((row, index) => {
     // 台帳ファイル上の行番号（表の中の何行目かではない）。エラー文・findings で利用者が開く行を指す。
     const line = rowLines[index];
-    const read = readLedgerRow(row, { headers, line });
+    const read = readLedgerRow(row, { columns, line });
     if (read === null) return;
     const { kind, policy } = read;
     const previous = activeByKind.get(kind);
@@ -403,7 +415,8 @@ function sha256(bytes) {
 
 /**
  * @typedef {{ currentBase: string, newBase: string, referenced: Set<string>, fetcher: Fetcher, findings: string[] }} FileContext
- * @typedef {{ kind: string, file: { current: string, new: string }, currentUrl: string, newUrl: string }} FilePair
+ * @typedef {{ newBaseOrigin: string, currentOrigins: Set<string> }} LinkOrigins
+ * @typedef {{ kind: string, file: { current: string, new: string }, currentUrl: string, newUrl: string, origins: LinkOrigins | null }} FilePair
  */
 
 /**
@@ -421,11 +434,28 @@ function migrationOrigins(currentBaseOrigin, currentUrl, newBaseOrigin) {
 }
 
 /**
+ * 直リンクの判定（転送の前と後）に使うオリジンを、1 組につき 1 回だけ求める。
+ * 新側と移行元が同じオリジンの構成ではオリジンで見分けられないので、判定しない（null を返す）。
+ * @param {FileContext} ctx
+ * @param {string} currentUrl
+ * @returns {LinkOrigins | null}
+ */
+function linkOrigins(ctx, currentUrl) {
+  const newBaseOrigin = new URL(ctx.newBase).origin;
+  const currentBaseOrigin = new URL(ctx.currentBase).origin;
+  if (currentBaseOrigin === newBaseOrigin) return null;
+  return {
+    newBaseOrigin,
+    currentOrigins: migrationOrigins(currentBaseOrigin, currentUrl, newBaseOrigin),
+  };
+}
+
+/**
  * 取得する前に分かる指摘（同じ URL・直リンク）を findings に足す。
  * @param {FilePair} pair
- * @param {FileContext} ctx
+ * @param {string[]} findings
  */
-function pushLinkFindings({ kind, file, currentUrl, newUrl }, { currentBase, newBase, findings }) {
+function pushLinkFindings({ kind, file, currentUrl, newUrl, origins }, findings) {
   // 同じ URL に解決される組は、同じ配信物を 2 回取得して比べるだけで必ず一致する（同じオリジンの構成で
   // current と new に同じパスを書いた等）。新側が配っていることの証拠にならないので落とす
   if (currentUrl === newUrl) {
@@ -437,11 +467,9 @@ function pushLinkFindings({ kind, file, currentUrl, newUrl }, { currentBase, new
   // 新側と移行元が別オリジンの構成のときだけ判定する（同じオリジンの構成ではオリジンで見分けられない）。
   //   - new が移行元側のオリジン（--current-base か、current を解決した URL のオリジン。移行元が CDN から配る資産を含む）を指す
   //   - current が新側のオリジン（--new-base）を指す（移行元を一度も取得していない）
-  const newBaseOrigin = new URL(newBase).origin;
-  const currentBaseOrigin = new URL(currentBase).origin;
-  if (currentBaseOrigin !== newBaseOrigin) {
+  if (origins !== null) {
+    const { newBaseOrigin, currentOrigins } = origins;
     const newOrigin = new URL(newUrl).origin;
-    const currentOrigins = migrationOrigins(currentBaseOrigin, currentUrl, newBaseOrigin);
     if (currentOrigins.has(newOrigin)) {
       findings.push(
         `「${kind}」の ${file.new} は移行元のオリジン（${newOrigin}）を指している（新側が移行元へ直リンクしている。新側が自分で配る URL を書く）`,
@@ -487,21 +515,18 @@ function pushResponseFindings({ kind, currentUrl, newUrl }, { cur, neu }, findin
 /**
  * 転送の後の指摘（移行元への転送・新側への転送・同じ転送先）を findings に足す。
  * @param {FilePair} pair
- * @param {{ cur: Awaited<ReturnType<Fetcher>>, neu: Awaited<ReturnType<Fetcher>>, ctx: FileContext }} responses
+ * @param {{ cur: Awaited<ReturnType<Fetcher>>, neu: Awaited<ReturnType<Fetcher>>, findings: string[] }} responses
  */
-function pushRedirectFindings({ kind, file, currentUrl }, { cur, neu, ctx }) {
-  const { findings } = ctx;
+function pushRedirectFindings({ kind, file, origins }, { cur, neu, findings }) {
   // 転送そのものは正規の配り方（ハッシュ付きのパスへの 301・署名付き URL への 302 等）なので落とさない。
   // 参照はプローブが記録する転送前の URL（記録の new）で判定し、バイトと HTML かどうかは最終応答で見る
   // （ログイン画面への転送は最終応答が HTML になるので上で落ちる）。
   // ただし両側が同じ転送先に着いたら、同じ配信物を比べているだけなので落とす。
   // 転送先は署名付き URL のクエリを含みうるので、記録と出力にはオリジンとパスだけを出す。
   // 直リンクの判定は転送の後にも当てる（新側が移行元へ 302 で飛ばす形は、転送前の new だけを見ると通る）。
-  // 別オリジンの構成のときだけ判定する点と、移行元側のオリジンの集合は転送前の判定と同じ
-  const newBaseOrigin = new URL(ctx.newBase).origin;
-  const currentBaseOrigin = new URL(ctx.currentBase).origin;
-  if (currentBaseOrigin !== newBaseOrigin) {
-    const currentOrigins = migrationOrigins(currentBaseOrigin, currentUrl, newBaseOrigin);
+  // 別オリジンの構成のときだけ判定する点と、移行元側のオリジンの集合は転送前の判定と同じ（linkOrigins で 1 回だけ求める）
+  if (origins !== null) {
+    const { newBaseOrigin, currentOrigins } = origins;
     const finalOrigin = (/** @type {string | undefined} */ u) =>
       typeof u === "string" && u !== "" ? new URL(u).origin : null;
     const newFinal = neu.redirected === true ? finalOrigin(neu.finalUrl) : null;
@@ -542,12 +567,12 @@ async function checkFile(kind, file, ctx) {
   const currentUrl = resolveAssetUrl(file.current, ctx.currentBase, `「${kind}」の current`);
   const newUrl = resolveAssetUrl(file.new, ctx.newBase, `「${kind}」の new`);
   /** @type {FilePair} */
-  const pair = { kind, file, currentUrl, newUrl };
+  const pair = { kind, file, currentUrl, newUrl, origins: linkOrigins(ctx, currentUrl) };
   // 新側が移行元の配信物へ直リンクしていると、取得先が同じなので sha256 は必ず一致するが、移行元を止めた時点で消える。
   // バイトの一致を「新側が移行元と同じものを配っている」の証拠にできない組の指摘の件数。
   // bytes_match はこの種の指摘が無いときだけ真にする（参照していない等の別の軸の指摘は bytes_match に混ぜない）
   const byteFindingsBefore = findings.length;
-  pushLinkFindings(pair, ctx);
+  pushLinkFindings(pair, findings);
   const byteFindingsEnd = findings.length;
   const isReferenced = ctx.referenced.has(newUrl);
   if (!isReferenced) {
@@ -569,7 +594,7 @@ async function checkFile(kind, file, ctx) {
   };
   const fetchFindingsBefore = findings.length;
   pushResponseFindings(pair, { cur, neu }, findings);
-  pushRedirectFindings(pair, { cur, neu, ctx });
+  pushRedirectFindings(pair, { cur, neu, findings });
   result.current_redirected = cur.redirected === true;
   result.new_redirected = neu.redirected === true;
   const match = result.current_sha256 !== null && result.current_sha256 === result.new_sha256;

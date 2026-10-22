@@ -807,7 +807,7 @@ export function normalizeLines(text, options = {}) {
   for (const raw of src.split("\n")) {
     const line = raw.replace(/\s+/g, " ").trim();
     if (line === "") continue;
-    counts.set(line, (counts.get(line) ?? 0) + 1);
+    addUnit(counts, line);
   }
   return counts;
 }
@@ -1965,7 +1965,7 @@ function readManifestArtifact(a, i, seenIds) {
     unit === "json-arrays" ? readJsonArraysOptions(a, i) : readTextOptions(a, { i, unit });
   checkOptionPathOverlap(i, options);
   return {
-    id: String(a.id).trim(),
+    id,
     pattern: String(a.pattern).trim(),
     unit: String(unit),
     ...options,
@@ -2042,10 +2042,7 @@ function readJsonArraysOptions(a, i) {
   if (!isArray(a.arrays) || a.arrays.length === 0) {
     throw new UsageError(`artifacts[${i}] の unit が json-arrays なのに arrays が空`);
   }
-  for (const path of a.arrays) {
-    if (!nonEmptyString(path)) throw new UsageError(`artifacts[${i}].arrays に空の要素がある`);
-  }
-  const arrays = a.arrays.map((x) => String(x).trim());
+  const arrays = readStringList(a.arrays, `artifacts[${i}].arrays`);
   const key = readArrayKey(a, i);
   const fillOnly = readFillOnly(a, i, key);
   const transitions = readTransitions(a, i, key);

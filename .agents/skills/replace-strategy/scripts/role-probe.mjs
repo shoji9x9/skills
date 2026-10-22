@@ -205,7 +205,7 @@ function duplicatePairs(nameCountByRole) {
  * ページで実行する本体。ヘルパーの一覧を引数で受け取る。
  * @param {RoleProbeHelpers} h
  */
-function roleProbeInPage(h) {
+export function roleProbeInPage(h) {
   const candidates = Array.from(
     document.querySelectorAll(
       "a[href], button, input:not([type=hidden]), select, textarea, summary, h1, h2, h3, h4, h5, h6, table, img[alt]:not([alt='']), [role], [tabindex]",
@@ -224,8 +224,11 @@ function roleProbeInPage(h) {
   };
 }
 
-/** ページ側のヘルパーと定数。ページへは pageFunctionSource がソースのまま組み込んで渡す。 */
-const ROLE_PROBE_PAGE = {
+/**
+ * ページ側のヘルパーと定数。ページへは pageFunctionSource がソースのまま組み込んで渡す。
+ * テストが本体とこの一覧を読み、`h` を通した呼び出しがすべて実行されることを確かめるので、export する。
+ */
+export const ROLE_PROBE_PAGE = {
   IMPLICIT_ROLES,
   isVisible,
   text,

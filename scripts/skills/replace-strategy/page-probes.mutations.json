@@ -1,0 +1,42 @@
+{
+  "$comment": [
+    "page-probes.test.ts のうち、ページへ渡すソースの組み立て（lib/page-function.mjs）と、プローブの本体とヘルパーのつなぎ方の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。"
+  ],
+  "test_file": "scripts/skills/replace-strategy/page-probes.test.ts",
+  "mutations": [
+    {
+      "id": "non-json-helper-accepted",
+      "why": "JSON で往復できない値（RegExp・Map・Set・NaN）を JSON のまま埋め込み、ページで別の値（`{}` や null）になるのを通す。undefined だけはソースに埋め込めないので例外のまま残す",
+      "file": "skills/replace-strategy/scripts/lib/page-function.mjs",
+      "find": "if (json === undefined || !isDeepStrictEqual(JSON.parse(json), value)) {",
+      "replace": "if (json === undefined) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "pageFunctionSource: JSON で往復できない値（RegExp・Map・Set・undefined）を渡すと、名前を添えて例外を投げる"
+      ]
+    },
+    {
+      "id": "asset-helper-called-without-h",
+      "why": "@import の先を読むヘルパーを `h.` を付けずに呼ぶ。Node のモジュールでは名前が解決されるが、ページへ渡したソースでは ReferenceError になる",
+      "file": "skills/replace-strategy/scripts/asset-probe.mjs",
+      "find": "run.h.visitSheet(run, rule.styleSheet);",
+      "replace": "visitSheet(run, rule.styleSheet);",
+      "occurrences": 1,
+      "expect_failing": [
+        "asset-probe: 疑似要素・SVG・スタイルシート・link・Resource Timing を持つページで、h を通した呼び出しがすべて実行される"
+      ]
+    },
+    {
+      "id": "role-helper-called-without-h",
+      "why": "label の名前を読むヘルパーを `h.` を付けずに呼ぶ。aria-labelledby の名前が無い要素を走査したときだけ、ページで ReferenceError になる",
+      "file": "skills/replace-strategy/scripts/role-probe.mjs",
+      "find": "h.labelledbyName(h, el) || h.labelsName(h, el)",
+      "replace": "h.labelledbyName(h, el) || labelsName(h, el)",
+      "occurrences": 1,
+      "expect_failing": [
+        "role-probe: aria-labelledby・label・button の value・内容テキスト・(role, name) の重複を持つページで、h を通した呼び出しがすべて実行される"
+      ]
+    }
+  ]
+}

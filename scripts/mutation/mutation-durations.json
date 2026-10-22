@@ -84,6 +84,7 @@
     "scripts/skills/replace-strategy/lib/errors-lib.mutations.json": 0.6,
     "scripts/skills/replace-strategy/lib/json-lib.mutations.json": 0.6,
     "scripts/skills/replace-strategy/lib/markdown-lib.mutations.json": 0.5,
+    "scripts/skills/replace-strategy/page-probes.mutations.json": 1,
     "scripts/skills/replace-strategy/pending-decisions-check.mutations.json": 0.6,
     "scripts/skills/replace-strategy/procedure-staleness-check.mutations.json": 0.7,
     "scripts/tools/mutation-proof-shards.mutations.json": 2.4,

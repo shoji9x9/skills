@@ -32,6 +32,7 @@ import { join, resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
+import { makeIo, parseFlagArgs } from "./lib/flag-args.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 import { stepFence } from "./lib/fence.mjs";
 import {
@@ -724,7 +725,7 @@ const USAGE =
   "[--ledger .replace/procedure-changes.md] [--parity-dir .replace/parity] [--change <変更 ID>]";
 
 /**
- * @typedef {{ out: (value: unknown) => void, fail: (message: string) => number }} Io
+ * @typedef {import("./lib/flag-args.mjs").Io} Io
  * @typedef {{ changes: LedgerChange[], records: LedgerRecord[] }} Ledger
  */
 
@@ -735,17 +736,9 @@ const USAGE =
  */
 function parseArgs(argv) {
   const known = new Set(["--revisions", "--ledger", "--parity-dir", "--change"]);
-  /** @type {Record<string, string>} */
-  const args = {};
-  for (let i = 0; i < argv.length; i += 1) {
-    const key = argv[i];
-    if (!known.has(key)) return { error: `未知の引数: ${key}` };
-    const value = argv[i + 1];
-    if (value === undefined || value.startsWith("--")) return { error: `${key} に値が無い` };
-    if (Object.hasOwn(args, key)) return { error: `${key} が重複している` };
-    args[key] = value;
-    i += 1;
-  }
+  const parsed = parseFlagArgs(argv, known);
+  if (parsed.error !== undefined) return parsed;
+  const { args } = parsed;
   // 改訂一覧を省略可能にすると、スキルの手順の改訂が、警告なしに判定から消える。
   if (args["--revisions"] === undefined) return { error: "--revisions は必須" };
   return { args };
@@ -898,21 +891,6 @@ function artifactSummary(entry) {
 }
 
 /**
- * 出力の書き込み先を作る。out は JSON を stdout へ、fail は理由と使い方を stderr へ出して 2 を返す。
- * @param {{ stdout?: (s: string) => void, stderr?: (s: string) => void }} deps
- * @returns {Io}
- */
-function makeIo(deps) {
-  const out = (/** @type {unknown} */ value) =>
-    (deps.stdout ?? ((s) => process.stdout.write(s)))(`${JSON.stringify(value, null, 2)}\n`);
-  const fail = (/** @type {string} */ message) => {
-    (deps.stderr ?? ((s) => process.stderr.write(s)))(`${message}\n${USAGE}\n`);
-    return 2;
-  };
-  return { out, fail };
-}
-
-/**
  * CLI。
  * @param {string[]} argv
  * @param {{ cwd?: string, stdout?: (s: string) => void, stderr?: (s: string) => void }} [deps]
@@ -920,7 +898,7 @@ function makeIo(deps) {
  */
 export function main(argv, deps = {}) {
   const cwd = deps.cwd ?? process.cwd();
-  const io = makeIo(deps);
+  const io = makeIo(deps, USAGE);
   const { out, fail } = io;
   const parsed = parseArgs(argv);
   if (parsed.error !== undefined) return fail(parsed.error);

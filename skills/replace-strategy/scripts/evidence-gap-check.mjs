@@ -212,10 +212,11 @@ export function classifyTable(headers) {
 }
 
 /**
- * 列名のずれで判定できない表の種別について、直し方を添えた理由を返す。判定できる種別なら null。
+ * 列名のずれで判定できない表の種別について、直し方を添えた理由を返す。
+ * 扱いを決めていない種別は例外にする（classifyTable に種別を足したときに、ここへの追加を忘れたことが分かる）。
  * @param {ReturnType<typeof classifyTable>} kind
  * @param {string} slug
- * @returns {string | null}
+ * @returns {string}
  */
 function malformedReason(kind, slug) {
   if (kind.kind === "missing-endpoint-column") {
@@ -232,7 +233,7 @@ function malformedReason(kind, slug) {
   if (kind.kind === "malformed-evidence") {
     return `slug ${slug} の行の表は根拠列らしい見出し（${kind.headers.join(" / ")}）を持つが、規約名（${EVIDENCE_HEADER}）と一致しない。見出しを規約名に揃える`;
   }
-  return null;
+  throw new TypeError(`表の種別 ${kind.kind} の扱いが決まっていない`);
 }
 
 /**
@@ -277,9 +278,9 @@ function tallyRow(tally, { table, row, kind, slug }) {
     tally.nonEndpointRows += 1;
     return;
   }
-  const reason = malformedReason(kind, slug);
-  if (reason !== null) {
-    tally.malformed.push(reason);
+  // 口の列と根拠の列を持つ表（feature）だけを判定に使う。ほかの種別は列名のずれとして理由を数える。
+  if (kind.kind !== "feature") {
+    tally.malformed.push(malformedReason(kind, slug));
     return;
   }
   const endpointIndex = table.headers.findIndex((header) => ENDPOINT_HEADERS.includes(header));
@@ -532,6 +533,17 @@ function unresolvedReason(bucket) {
 }
 
 /**
+ * 口に対応づく根拠が実測だけか。
+ * @param {Map<string, Set<string>>} verdicts
+ * @param {string} endpoint
+ * @returns {boolean}
+ */
+function isMeasured(verdicts, endpoint) {
+  const bucket = verdicts.get(endpoint);
+  return bucket !== undefined && bucket.size === 1 && bucket.has(MEASURED);
+}
+
+/**
  * 口ごとに実測か未確認かを判定し、未確認の口は宣言の有無で notes か findings に振り分ける。
  * @param {{ endpoints: string[], verdicts: Map<string, Set<string>>, declared: Set<string> | null, notes: string[] }} options
  * @returns {{ findings: string[], measured: number, unresolved: number, declaredCount: number }}
@@ -543,13 +555,11 @@ function judgeEndpoints({ endpoints, verdicts, declared, notes }) {
   let unresolved = 0;
   let declaredCount = 0;
   for (const endpoint of endpoints) {
-    const bucket = verdicts.get(endpoint) ?? new Set();
-    const isMeasured = bucket.size === 1 && bucket.has(MEASURED);
-    if (isMeasured) {
+    if (isMeasured(verdicts, endpoint)) {
       measured += 1;
       continue;
     }
-    const reason = unresolvedReason(bucket);
+    const reason = unresolvedReason(verdicts.get(endpoint) ?? new Set());
     unresolved += 1;
     if (declared !== null && declared.has(endpoint)) {
       declaredCount += 1;
@@ -578,10 +588,7 @@ export function check(input) {
   // 未確認の口が 1 つも無いなら宣言は判定に寄与しないので読まない。旧成果物
   // （unmeasured キーが無い）でも全て `実測` の行は exit 0 にする。判定不能が
   // 日常化すると、消費する側が exit 3 を無視する運用になってしまう。
-  const hasUnresolved = row.endpoints.some((endpoint) => {
-    const bucket = verdicts.get(endpoint) ?? new Set();
-    return !(bucket.size === 1 && bucket.has(MEASURED));
-  });
+  const hasUnresolved = row.endpoints.some((endpoint) => !isMeasured(verdicts, endpoint));
   const declaration =
     !hasUnresolved || input.unmeasuredPath === undefined || input.unmeasuredPath === null
       ? null

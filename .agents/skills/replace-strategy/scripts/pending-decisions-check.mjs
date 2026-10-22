@@ -25,6 +25,7 @@ import { resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
+import { makeIo, parseFlagArgs } from "./lib/flag-args.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
 /**
@@ -186,17 +187,9 @@ const USAGE =
  */
 function parseArgs(argv) {
   const known = new Set(["--file", "--mode", "--phase", "--slug", "--target"]);
-  /** @type {Record<string, string>} */
-  const args = {};
-  for (let i = 0; i < argv.length; i += 1) {
-    const key = argv[i];
-    if (!known.has(key)) return { error: `未知の引数: ${key}` };
-    const value = argv[i + 1];
-    if (value === undefined || value.startsWith("--")) return { error: `${key} に値が無い` };
-    if (Object.hasOwn(args, key)) return { error: `${key} が重複している` };
-    args[key] = value;
-    i += 1;
-  }
+  const parsed = parseFlagArgs(argv, known);
+  if (parsed.error !== undefined) return parsed;
+  const { args } = parsed;
   if (args["--file"] === undefined) return { error: "--file は必須" };
   if (args["--phase"] !== undefined && !["a", "b"].includes(args["--phase"])) {
     return { error: `--phase は a か b: ${args["--phase"]}` };
@@ -231,12 +224,7 @@ function scopeFromArgs(args) {
  */
 export function main(argv, deps = {}) {
   const cwd = deps.cwd ?? process.cwd();
-  const out = (/** @type {unknown} */ value) =>
-    (deps.stdout ?? ((s) => process.stdout.write(s)))(`${JSON.stringify(value, null, 2)}\n`);
-  const fail = (/** @type {string} */ message) => {
-    (deps.stderr ?? ((s) => process.stderr.write(s)))(`${message}\n${USAGE}\n`);
-    return 2;
-  };
+  const { out, fail } = makeIo(deps, USAGE);
   const parsed = parseArgs(argv);
   if (parsed.error !== undefined) return fail(parsed.error);
   const { args } = parsed;

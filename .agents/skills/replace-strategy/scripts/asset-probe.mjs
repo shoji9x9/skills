@@ -441,7 +441,7 @@ function newRun(h) {
  * ページで実行する本体。ヘルパーの一覧を引数で受け取る。
  * @param {AssetProbeHelpers} h
  */
-function assetProbeInPage(h) {
+export function assetProbeInPage(h) {
   const run = h.newRun(h);
   const { roots, elements } = h.collectElements();
   for (const el of elements) h.scanElement(run, el);
@@ -490,8 +490,11 @@ function assetProbeInPage(h) {
   };
 }
 
-/** ページ側のヘルパーと定数。ページへは pageFunctionSource がソースのまま組み込んで渡す。 */
-const ASSET_PROBE_PAGE = {
+/**
+ * ページ側のヘルパーと定数。ページへは pageFunctionSource がソースのまま組み込んで渡す。
+ * テストが本体とこの一覧を読み、`h` を通した呼び出しがすべて実行されることを確かめるので、export する。
+ */
+export const ASSET_PROBE_PAGE = {
   URL_PROPS,
   MAX_SAMPLES,
   cssPath,
