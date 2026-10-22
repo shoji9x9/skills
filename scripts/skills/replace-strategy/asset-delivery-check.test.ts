@@ -796,35 +796,49 @@ test("CLI: 引数が無ければ exit 2 と使い方を出す", () => {
   expect(r.status).toBe(2);
 });
 
-test("check: URL として読めない base は、照合する組が無ければ例外にせず、最初の組の相対値の UsageError を先に出す", async () => {
-  const run = (files: { current: string; new: string }[], bases: [string, string]) =>
-    check({
-      ledgerText: TEMPLATE,
-      record: { entries: [{ kind: "本文の書体", files }] },
-      probes: [{ label: "probe", doc: FONT_PROBE }],
-      currentBase: bases[0],
-      newBase: bases[1],
-      fetcher: fetcherOf(SAME_FONTS),
-    });
-  const absolute = [
-    { current: `${CUR}/body.woff2`, new: `${NEW}/fonts/body.woff2` },
-    { current: `${CUR}/body.woff`, new: `${NEW}/fonts/body.woff` },
-  ];
-  await expect(run(absolute, [CUR, "not a url"])).rejects.toThrow(TypeError);
-  await expect(run(absolute, ["not a url", NEW])).rejects.toThrow(TypeError);
-  await expect(
-    run([{ current: "body.woff2", new: "/fonts/body.woff2" }], ["x", "y"]),
-  ).rejects.toThrow(/current は http\(s\) の絶対 URL か \/ 始まりのパスで書く/u);
+test.each([
+  ["--new-base", { newBase: "http://" }],
+  ["--current-base", { currentBase: "https://" }],
+])(
+  "判定しない: %s が http(s) で始まっても URL として読めなければ、使い方の誤りとして exit 2 で止める",
+  async (key, bases) => {
+    const r = await runCheck({ record: { entries: [FONT_ENTRY] }, probes: [FONT_PROBE], ...bases });
+    const value = Object.values(bases)[0];
+    expect(r.stderr).toMatch(new RegExp(`^error: ${key} を URL として読めない: "${value}"\n`, "u"));
+    expect(r.stderr).not.toMatch(/判定できない例外/u);
+    expect(r.code).toBe(2);
+    expect(r.written.asset_delivery_check.ok).toBe(false);
+  },
+);
+
+test("check: 組が 0 件でも複数でも、base のオリジンを 1 回求めて突き合わせる", async () => {
   const none = await check({
     ledgerText: TEMPLATE,
     record: { entries: [] },
     probes: [],
-    currentBase: "x",
-    newBase: "y",
+    currentBase: CUR,
+    newBase: NEW,
     fetcher: fetcherOf({}),
   });
   expect(none.counts.files).toBe(0);
-  const twoPairs = await run(absolute, [CUR, NEW]);
+  const twoPairs = await check({
+    ledgerText: TEMPLATE,
+    record: {
+      entries: [
+        {
+          kind: "本文の書体",
+          files: [
+            { current: `${CUR}/body.woff2`, new: `${NEW}/fonts/body.woff2` },
+            { current: `${CUR}/body.woff`, new: `${NEW}/fonts/body.woff` },
+          ],
+        },
+      ],
+    },
+    probes: [{ label: "probe", doc: FONT_PROBE }],
+    currentBase: CUR,
+    newBase: NEW,
+    fetcher: fetcherOf(SAME_FONTS),
+  });
   expect(twoPairs.findings).toEqual([]);
   expect(twoPairs.files.map((f) => f.bytes_match)).toEqual([true, true]);
 });

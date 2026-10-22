@@ -40,16 +40,18 @@
       ]
     },
     {
-      "id": "role-page-exports-main",
-      "why": "ページ用のファイルに export を書く。CLI が包んだ関数式の中で構文の誤りになり、ページで実行できない",
+      "id": "role-page-main-not-exported",
+      "why": "ページ用のファイルの最後の行（本体の export）を消す。CLI がソースを作れず、本体はファイルの中で参照されない関数として no-unused-vars に報告される",
       "file": "skills/replace-strategy/scripts/page/role-probe.page.mjs",
-      "find": "\nfunction roleProbeInPage() {",
-      "replace": "\nexport function roleProbeInPage() {",
+      "find": "\nexport { roleProbeInPage };\n",
+      "replace": "\n",
       "occurrences": 1,
       "expect_failing": [
+        "page/*.page.mjs: oxlint が宣言していない名前の参照と使われないヘルパーを報告しない（ページ用の override が当たる）",
         "role-probe の CLI: 名前のある要素と無い要素を数え、role ごとの件数と名前の無い標本を返す",
         "role-probe の CLI: 対象の要素が無いページでは割合を null にする",
-        "role-probe の CLI: aria-labelledby・label・button の value・内容テキスト・(role, name) の重複を持つページで、名前と重複を数える"
+        "role-probe の CLI: aria-labelledby・label・button の value・内容テキスト・(role, name) の重複を持つページで、名前と重複を数える",
+        "role-probe.mjs の CLI: コメントの行だけを外し、構文として読めるソースを出す"
       ]
     },
     {
@@ -62,6 +64,66 @@
       "expect_failing": [
         "role-probe.mjs の CLI: 引数を付けると、ソースを出さずに理由と使い方を stderr に出して exit 2 で終わる",
         "asset-probe.mjs の CLI: 引数を付けると、ソースを出さずに理由と使い方を stderr に出して exit 2 で終わる"
+      ]
+    },
+    {
+      "id": "page-export-line-unchecked",
+      "why": "最後の行が本体の export かを確かめずに外す。export の無いファイルや別の名前を export するファイルから、本体の無いソースや、最後のコードの行を失ったソースを出す",
+      "file": "skills/replace-strategy/scripts/lib/page-function.mjs",
+      "find": "  if (lines.pop() !== exportLine) {",
+      "replace": "  if ((lines.pop(), false)) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "pageFunctionSource: 例外を投げる（最後の行に本体の export が無い）",
+        "pageFunctionSource: 例外を投げる（最後の行が別の名前を export する）",
+        "pageFunctionSource: 例外を投げる（本体の export の後ろにコードがある）"
+      ]
+    },
+    {
+      "id": "page-stray-module-syntax-unchecked",
+      "why": "最後の行のほかの import・export を確かめない。関数式の中で構文の誤りになるソースを出す",
+      "file": "skills/replace-strategy/scripts/lib/page-function.mjs",
+      "find": "  if (stray !== undefined) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "pageFunctionSource: 例外を投げる（最後の行のほかに export がある）",
+        "pageFunctionSource: 例外を投げる（import がある）"
+      ]
+    },
+    {
+      "id": "page-line-comments-kept",
+      "why": "先頭が // の行を外さない",
+      "file": "skills/replace-strategy/scripts/lib/page-function.mjs",
+      "find": "    if (head.startsWith(\"//\")) i += 1;",
+      "replace": "    if (false) i += 1;",
+      "occurrences": 1,
+      "expect_failing": [
+        "pageFunctionSource: 最後の export の行と行全体がコメントの行を外して関数式で包み、トップレベルの宣言を同じ名前で呼び合って本体の返り値を返す",
+        "role-probe.mjs の CLI: コメントの行だけを外し、構文として読めるソースを出す",
+        "asset-probe.mjs の CLI: コメントの行だけを外し、構文として読めるソースを出す"
+      ]
+    },
+    {
+      "id": "page-block-comment-tail-ignored",
+      "why": "ブロックのコメントの閉じの後ろにコードがあっても、その行を外す。コードの行を失う",
+      "file": "skills/replace-strategy/scripts/lib/page-function.mjs",
+      "find": "    if (at >= 0) return lines[i].slice(at + 2).trim() === \"\" ? i : -1;",
+      "replace": "    if (at >= 0) return i;",
+      "occurrences": 1,
+      "expect_failing": [
+        "pageFunctionSource: 最後の export の行と行全体がコメントの行を外して関数式で包み、トップレベルの宣言を同じ名前で呼び合って本体の返り値を返す"
+      ]
+    },
+    {
+      "id": "page-block-comment-close-from-open",
+      "why": "閉じの */ を、開く /* の直後ではなく行の先頭から探す。/*/ の */ を閉じと読み、ブロックのコメントの行を外さない",
+      "file": "skills/replace-strategy/scripts/lib/page-function.mjs",
+      "find": "    const at = lines[i].indexOf(\"*/\", i === start ? from : 0);",
+      "replace": "    const at = lines[i].indexOf(\"*/\", 0);",
+      "occurrences": 1,
+      "expect_failing": [
+        "pageFunctionSource: 最後の export の行と行全体がコメントの行を外して関数式で包み、トップレベルの宣言を同じ名前で呼び合って本体の返り値を返す"
       ]
     }
   ]

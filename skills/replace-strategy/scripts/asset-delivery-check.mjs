@@ -415,7 +415,7 @@ function sha256(bytes) {
 
 /**
  * @typedef {{ newBaseOrigin: string, currentBaseOrigin: string }} BaseOrigins
- * @typedef {{ currentBase: string, newBase: string, baseOrigins?: BaseOrigins, referenced: Set<string>, fetcher: Fetcher, findings: string[] }} FileContext
+ * @typedef {{ currentBase: string, newBase: string, baseOrigins: BaseOrigins, referenced: Set<string>, fetcher: Fetcher, findings: string[] }} FileContext
  * @typedef {{ newBaseOrigin: string, currentOrigins: Set<string> }} LinkOrigins
  * @typedef {{ kind: string, file: { current: string, new: string }, currentUrl: string, newUrl: string, origins: LinkOrigins | null }} FilePair
  */
@@ -435,18 +435,12 @@ function migrationOrigins(currentBaseOrigin, currentUrl, newBaseOrigin) {
 }
 
 /**
- * --new-base と --current-base のオリジンを、最初に要るときに 1 回だけ求めて ctx.baseOrigins に残す。
- * 最初の組を照合するときに求めるので、URL として読めない base の TypeError は、照合する組が無ければ出ない。
- * 出るときは、最初の組の current・new を解決した後（相対値の UsageError より後）になる。--new-base を先に読む。
- * @param {FileContext} ctx
+ * --new-base と --current-base のオリジンを求める。
+ * @param {{ currentBase: string, newBase: string }} bases
  * @returns {BaseOrigins}
  */
-function baseOrigins(ctx) {
-  if (ctx.baseOrigins === undefined) {
-    const newBaseOrigin = new URL(ctx.newBase).origin;
-    ctx.baseOrigins = { newBaseOrigin, currentBaseOrigin: new URL(ctx.currentBase).origin };
-  }
-  return ctx.baseOrigins;
+function originsOf({ currentBase, newBase }) {
+  return { newBaseOrigin: new URL(newBase).origin, currentBaseOrigin: new URL(currentBase).origin };
 }
 
 /**
@@ -457,7 +451,7 @@ function baseOrigins(ctx) {
  * @returns {LinkOrigins | null}
  */
 function linkOrigins(ctx, currentUrl) {
-  const { newBaseOrigin, currentBaseOrigin } = baseOrigins(ctx);
+  const { newBaseOrigin, currentBaseOrigin } = ctx.baseOrigins;
   if (currentBaseOrigin === newBaseOrigin) return null;
   return {
     newBaseOrigin,
@@ -664,11 +658,12 @@ function planChecks(copyRows, entries, { findings, notes }) {
 }
 
 /**
- * 突き合わせる。
+ * 突き合わせる。currentBase と newBase は、URL として読める http(s) の絶対 URL を渡す（parseArgs が確かめる）。
  * @param {{ ledgerText: string, record: unknown, probes: { label: string, doc: unknown }[], currentBase: string, newBase: string, fetcher: Fetcher }} input
  * @returns {Promise<{ findings: string[], notes: string[], files: CheckedFile[], counts: { rows: number, checkedRows: number, files: number } }>}
  */
 export async function check(input) {
+  const baseOrigins = originsOf(input);
   const { copyRows } = readAssetLedger(input.ledgerText);
   const entries = readRecord(input.record);
   /** @type {string[]} */
@@ -696,6 +691,7 @@ export async function check(input) {
   const ctx = {
     currentBase: input.currentBase,
     newBase: input.newBase,
+    baseOrigins,
     referenced,
     fetcher: input.fetcher,
     findings,
@@ -753,6 +749,21 @@ function collectArgs(argv) {
 }
 
 /**
+ * --current-base・--new-base の値が、http(s) で始まり URL として読めることを確かめる。
+ * @param {string} key 引数の名前
+ * @param {string} value
+ */
+function assertBaseUrl(key, value) {
+  if (!/^https?:\/\//iu.test(value))
+    throw new UsageError(`${key} は http(s) の絶対 URL: "${value}"`);
+  try {
+    new URL(value);
+  } catch {
+    throw new UsageError(`${key} を URL として読めない: "${value}"`);
+  }
+}
+
+/**
  * @param {string[]} argv
  * @returns {{ assets: string, record: string, probes: string[], currentBase: string, newBase: string, write: string | null, timeoutMs: number }}
  */
@@ -761,11 +772,7 @@ export function parseArgs(argv) {
   for (const key of ["--assets", "--record", "--current-base", "--new-base"]) {
     if (!opts[key]) throw new UsageError(`${key} は必須（推測させない）`);
   }
-  for (const key of ["--current-base", "--new-base"]) {
-    if (!/^https?:\/\//iu.test(opts[key])) {
-      throw new UsageError(`${key} は http(s) の絶対 URL: "${opts[key]}"`);
-    }
-  }
+  for (const key of ["--current-base", "--new-base"]) assertBaseUrl(key, opts[key]);
   let timeoutMs = 15000;
   if (opts["--timeout-ms"] !== undefined) {
     timeoutMs = Number(opts["--timeout-ms"]);

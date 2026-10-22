@@ -109,14 +109,14 @@ export default defineConfig({
     },
     {
       // 配布スキルの、ページで実行するコード（page/*.page.mjs）。CLI が本文を関数式で包み、evaluate_script でページへ渡す。
-      // 本文は import も export も持たないので、宣言していない名前の参照は、ページで実行したときに初めて ReferenceError になる。
+      // 本文は最後の行の export（本体）のほかに import も export も持たないので、宣言していない名前の参照は、
+      // ページで実行したときに初めて ReferenceError になる。
       // そこで、ブラウザのグローバルだけを宣言済みとして no-undef を当て、参照の誤りを lint で見つける。
-      // 本体（名前が InPage で終わる関数）は包んだ関数式が呼ぶので、ファイルの中では参照されない。本体だけを no-unused-vars から外す。
+      // 本体は最後の行で export するので、no-unused-vars はこの設定なしで本体を使われているものとして扱う。
       files: ["skills/*/scripts/page/*.page.mjs"],
       env: { browser: true },
       rules: {
         "no-undef": "error",
-        "no-unused-vars": ["error", { varsIgnorePattern: "InPage$" }],
       },
     },
     // 既存の違反のうち、後で直すもの（ファイルごとに外すルール。scripts/gates/code/oxlint-pending.ts）。

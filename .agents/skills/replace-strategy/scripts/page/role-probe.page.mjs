@@ -1,6 +1,7 @@
 // role プローブのうち、ページで実行するコード。role-probe.mjs が、このファイルの本文を関数式で包んで stdout に出す。
-// 本文は関数式の中にそのまま入るので、import と export を書かない。トップレベルには関数の宣言と定数だけを置く。
-// 本体は roleProbeInPage で、包んだ関数式がこれを呼ぶ。
+// 本文は関数式の中にそのまま入るので、最後の行の export のほかに import と export を書かない。
+// トップレベルには関数の宣言と定数だけを置く。
+// 本体は roleProbeInPage で、包んだ関数式がこれを呼ぶ。最後の行は本体だけを export し、CLI が包む前に外す。
 
 /**
  * 走査する要素。labels・type・value は、それを持つ要素（input・select など）でだけ値がある。
@@ -198,3 +199,5 @@ function roleProbeInPage() {
     unnamedSamples: counts.unnamedSamples,
   };
 }
+
+export { roleProbeInPage };

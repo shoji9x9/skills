@@ -5,14 +5,15 @@
 // ここでは、stdout のソースをモジュールの外の vm のコンテキストで評価し、ページのグローバルの偽物を与えて呼ぶ。
 // 実ブラウザでの値の確かめは、この偽物では代えられない（計算後スタイル・CSSOM・Resource Timing を持たない）。
 // 宣言していない名前の参照（偽物のページが通らない分岐の参照も含む）と、使われないヘルパーは、
-// oxlint の no-undef・no-unused-vars がページ用のファイルで見つける（oxlint.config.ts の override）。
+// oxlint の no-undef・no-unused-vars がページ用のファイルで見つける（no-undef は oxlint.config.ts の override で当てる）。
 // ページ用のファイルに oxlint を実行するテストを置き、その検出はミューテーションテスト（page-probes.mutations.json）で示す。
 
 import { spawnSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import vm from "node:vm";
+import ts from "typescript";
 import { expect, test } from "vitest";
 import { runOxlint } from "../../gates/code/oxlint-plugin/run-oxlint.ts";
 import { pageFunctionSource } from "../../../skills/replace-strategy/scripts/lib/page-function.mjs";
@@ -71,23 +72,143 @@ function fakeElement(tagName: string, attrs: Record<string, string>, props: obje
   };
 }
 
-test("pageFunctionSource: ファイルの本文を関数式で包み、トップレベルの宣言を同じ名前で呼び合って本体の返り値を返す", () => {
-  const dir = makeTempDir("page-function-");
-  const file = join(dir, "probe.page.mjs");
-  writeFileSync(
-    file,
+/** lines を書いたページ用のファイルを一時ディレクトリに置き、その URL を返す。 */
+function writePageFile(lines: string[]) {
+  const file = join(makeTempDir("page-function-"), "probe.page.mjs");
+  writeFileSync(file, lines.join("\n"));
+  return pathToFileURL(file);
+}
+
+test("pageFunctionSource: 最後の export の行と行全体がコメントの行を外して関数式で包み、トップレベルの宣言を同じ名前で呼び合って本体の返り値を返す", () => {
+  const file = writePageFile([
+    "// 先頭の説明",
+    "/**",
+    " * JSDoc のブロック",
+    " */",
+    'const LIMIT = [2, "x"]; // 行の途中のコメントは残す',
+    "  /* 字下げした 1 行のブロック */",
+    "/*/ 開く記号の直後のスラッシュを閉じと読まない */",
+    "function twice(n) { return n * LIMIT.length; }",
+    "/* 閉じの後ろにコードがある行は残す */ const half = (n) => n / 2;",
+    'const url = "http://example.test/*";',
+    "function mainInPage() { return { value: half(twice(21)), limit: LIMIT, url }; }",
+    "",
+    "export { mainInPage };",
+    "",
+  ]);
+  const source = pageFunctionSource(file, "mainInPage");
+  expect(source).toBe(
     [
-      'const LIMIT = [2, "x"];',
+      "() => {",
+      'const LIMIT = [2, "x"]; // 行の途中のコメントは残す',
       "function twice(n) { return n * LIMIT.length; }",
-      "const half = (n) => n / 2;",
-      "function mainInPage() { return { value: half(twice(21)), limit: LIMIT }; }",
+      "/* 閉じの後ろにコードがある行は残す */ const half = (n) => n / 2;",
+      'const url = "http://example.test/*";',
+      "function mainInPage() { return { value: half(twice(21)), limit: LIMIT, url }; }",
       "",
+      "return mainInPage();",
+      "}",
     ].join("\n"),
   );
-  const source = pageFunctionSource(pathToFileURL(file), "mainInPage");
-  expect(source.startsWith("() => {\n")).toBe(true);
-  expect(source.endsWith("\nreturn mainInPage();\n}")).toBe(true);
-  expect(evaluateInPage(source, {})).toEqual({ value: 21, limit: [2, "x"] });
+  expect(evaluateInPage(source, {})).toEqual({
+    value: 21,
+    limit: [2, "x"],
+    url: "http://example.test/*",
+  });
+});
+
+test.each([
+  [
+    "最後の行に本体の export が無い",
+    ["function mainInPage() { return 1; }"],
+    /最後の行が「export \{ mainInPage \};」でない/u,
+  ],
+  [
+    "最後の行が別の名前を export する",
+    ["function mainInPage() { return 1; }", "export { other };"],
+    /最後の行が「export \{ mainInPage \};」でない/u,
+  ],
+  [
+    "本体の export の後ろにコードがある",
+    ["function mainInPage() { return 1; }", "export { mainInPage };", "const after = 1;"],
+    /最後の行が「export \{ mainInPage \};」でない/u,
+  ],
+  [
+    "最後の行のほかに export がある",
+    ["export const extra = 1;", "function mainInPage() { return 1; }", "export { mainInPage };"],
+    /ほかの import か export がある: export const extra = 1;/u,
+  ],
+  [
+    "import がある",
+    [
+      '  import { a } from "./a.mjs";',
+      "function mainInPage() { return a; }",
+      "export { mainInPage };",
+    ],
+    /ほかの import か export がある: import \{ a \}/u,
+  ],
+])("pageFunctionSource: 例外を投げる（%s）", (_label, lines, message) => {
+  expect(() => pageFunctionSource(writePageFile(lines), "mainInPage")).toThrow(message);
+});
+
+/** ソースの構文木から、文字列・テンプレートリテラル・正規表現のうち、改行を含むものの本文を集める。 */
+function multilineLiterals(text: string): string[] {
+  const sf = ts.createSourceFile("page.mjs", text, ts.ScriptTarget.Latest, true);
+  const found: string[] = [];
+  const visit = (node: ts.Node) => {
+    const isLiteral =
+      ts.isStringLiteral(node) ||
+      ts.isNoSubstitutionTemplateLiteral(node) ||
+      ts.isTemplateHead(node) ||
+      ts.isTemplateMiddle(node) ||
+      ts.isTemplateTail(node) ||
+      ts.isRegularExpressionLiteral(node);
+    if (isLiteral && node.getText(sf).includes("\n")) found.push(node.getText(sf));
+    node.forEachChild(visit);
+  };
+  visit(sf);
+  return found;
+}
+
+/** コメントを外して出し直したソース。コメントのほかの差は、そのまま残る。 */
+function printedWithoutComments(text: string): string {
+  const sf = ts.createSourceFile("page.mjs", text, ts.ScriptTarget.Latest, true);
+  return ts.createPrinter({ removeComments: true }).printFile(sf);
+}
+
+test("multilineLiterals: 複数行にまたがる文字列・テンプレートリテラル・正規表現を見つけ、1 行のものは見つけない", () => {
+  const text = [
+    'const a = "1 行";',
+    "const b = `1 行の ${a} テンプレート`;",
+    "const c = /1 行/u;",
+    "const d = `複数行の",
+    "// コメントに見える行`;",
+    "const e = `複数行の ${a}",
+    "/* 置換の後ろ */`;",
+    'const f = "続きの行 \\',
+    '// 行の継続";',
+  ].join("\n");
+  expect(multilineLiterals(text)).toEqual([
+    "`複数行の\n// コメントに見える行`",
+    "}\n/* 置換の後ろ */`",
+    '"続きの行 \\\n// 行の継続"',
+  ]);
+});
+
+test.each([
+  ["role-probe.mjs", "role-probe.page.mjs"],
+  ["asset-probe.mjs", "asset-probe.page.mjs"],
+])("%s の CLI: コメントの行だけを外し、構文として読めるソースを出す", (name, pageName) => {
+  const text = readFileSync(SCRIPTS + "page/" + pageName, "utf8");
+  // 行単位でコメントを外すので、複数行にまたがる文字列・テンプレートリテラル・正規表現を書かない
+  expect(multilineLiterals(text)).toEqual([]);
+  const source = runCli(name).trimEnd();
+  expect(() => new vm.Script(`(${source})`)).not.toThrow();
+  expect(source.split("\n").filter((line) => /^\s*(?:\/\/|\/\*)/u.test(line))).toEqual([]);
+  // 外したのがコメントだけなら、コメントを外して出し直した結果が一致する
+  const body = source.slice("() => {\n".length, source.lastIndexOf("\nreturn "));
+  const original = text.trimEnd().split("\n").slice(0, -1).join("\n");
+  expect(printedWithoutComments(body)).toBe(printedWithoutComments(original));
 });
 
 test.each([

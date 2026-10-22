@@ -1,6 +1,7 @@
 // 静的資産の棚卸しのプローブのうち、ページで実行するコード。asset-probe.mjs が、このファイルの本文を関数式で包んで stdout に出す。
-// 本文は関数式の中にそのまま入るので、import と export を書かない。トップレベルには関数の宣言と定数だけを置く。
-// 本体は assetProbeInPage で、包んだ関数式がこれを呼ぶ。
+// 本文は関数式の中にそのまま入るので、最後の行の export のほかに import と export を書かない。
+// トップレベルには関数の宣言と定数だけを置く。
+// 本体は assetProbeInPage で、包んだ関数式がこれを呼ぶ。最後の行は本体だけを export し、CLI が包む前に外す。
 
 /**
  * 走査する要素。type・currentSrc・src は、それを持つ要素（img・input など）でだけ値がある。
@@ -475,3 +476,5 @@ function assetProbeInPage() {
     unreadableSheets: run.unreadableSheets,
   };
 }
+
+export { assetProbeInPage };
