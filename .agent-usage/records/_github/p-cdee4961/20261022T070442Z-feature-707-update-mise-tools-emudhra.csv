@@ -1,0 +1,11 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+review-wait:768:codex-cloud:2026-10-22T05:25:40.000Z,review-wait,2026-10-22T07:04:42.853Z,p-cdee4961,codex-cloud,,,,2026-10-22T05:25:40.000Z,2026-10-22T05:25:58.000Z,Asia/Tokyo,feature/765-kaizen-schedule-node-check-latest,765,,,,,,,,,,pr=768,
+review-wait:768:codex-cloud:2026-10-22T05:25:58.000Z,review-wait,2026-10-22T07:04:42.853Z,p-cdee4961,codex-cloud,,,,2026-10-22T05:25:58.000Z,2026-10-22T05:25:58.000Z,Asia/Tokyo,feature/765-kaizen-schedule-node-check-latest,765,,,,,,,,,,pr=768,
+review-wait:768:codex-cloud:2026-10-22T05:27:23.000Z,review-wait,2026-10-22T07:04:42.853Z,p-cdee4961,codex-cloud,,,,2026-10-22T05:27:23.000Z,2026-10-22T05:27:23.000Z,Asia/Tokyo,feature/765-kaizen-schedule-node-check-latest,765,,,,,,,,,,pr=768,
+ci:39732053694:1,ci,2026-10-22T07:04:42.853Z,p-cdee4961,github-actions,,,,2026-10-22T06:07:56.000Z,2026-10-22T06:08:21.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:39732053681:1,ci,2026-10-22T07:04:42.853Z,p-cdee4961,github-actions,,,,2026-10-22T06:07:56.000Z,2026-10-22T06:11:53.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:39727884931:1,ci,2026-10-22T07:04:42.853Z,p-cdee4961,github-actions,,,,2026-10-22T05:24:53.000Z,2026-10-22T05:28:34.000Z,Asia/Tokyo,feature/765-kaizen-schedule-node-check-latest,765,,,,,,,,,,CI;pull_request;success,
+ci:39727884930:1,ci,2026-10-22T07:04:42.853Z,p-cdee4961,github-actions,,,,2026-10-22T05:24:53.000Z,2026-10-22T05:24:54.000Z,Asia/Tokyo,feature/765-kaizen-schedule-node-check-latest,765,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+coverage:github:2026-10-21T05:20:49.548Z:2026-10-22T07:04:42.853Z,coverage,2026-10-22T07:04:42.853Z,p-cdee4961,,,,,2026-10-21T05:20:49.548Z,2026-10-22T07:04:42.853Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-21T07:04:42.853Z:2026-10-22T07:04:58.757Z,coverage,2026-10-22T07:04:58.757Z,p-cdee4961,,,,,2026-10-21T07:04:42.853Z,2026-10-22T07:04:58.757Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-21T07:04:58.757Z:2026-10-22T07:05:44.936Z,coverage,2026-10-22T07:05:44.936Z,p-cdee4961,,,,,2026-10-21T07:04:58.757Z,2026-10-22T07:05:44.936Z,Asia/Tokyo,,,,,,,,,,,,ok,
