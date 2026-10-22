@@ -51,7 +51,7 @@ import {
 } from "../../../skills/agent-usage/scripts/lib/time.mjs";
 import { messageCosts, usageRows } from "../../../skills/agent-usage/scripts/lib/sources/usage.mjs";
 import { sectionTableRows } from "./aggregate-helpers.ts";
-import { ms as H } from "./utc-day-helpers.ts";
+import { ms as H, isoMs as iso } from "./utc-day-helpers.ts";
 
 const zero = { input: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0, output: 0, reasoning: 0 };
 
@@ -482,7 +482,6 @@ describe("時刻", () => {
 });
 
 describe("停止の分類", () => {
-  const iso = (h: number, m = 0) => new Date(H(h, m)).toISOString();
   const report = (
     rows: Parameters<typeof buildReport>[0],
     over: Partial<Parameters<typeof buildReport>[1]> = {},
@@ -566,7 +565,6 @@ describe("停止の分類", () => {
   });
 
   test("report: 人の稼働を合わせた隙間を停止にし、人の活動の幅・直前のブランチの CI・取得した期間で分類する", () => {
-    const iso = (h: number, m = 0) => new Date(H(h, m)).toISOString();
     const base = { observed_at: iso(23), person: "p-00000001", tz: "UTC" };
     const rows = [
       {
@@ -657,7 +655,6 @@ describe("停止の分類", () => {
   });
 
   test("report: 人ごとの停止は、その人が最後に記録した時刻（observed_at）で打ち切る", () => {
-    const iso = (h: number, m = 0) => new Date(H(h, m)).toISOString();
     const base = { observed_at: iso(4), person: "p-00000001", tz: "UTC" };
     const rows = [
       {
@@ -687,7 +684,6 @@ describe("停止の分類", () => {
   });
 
   test("report: 停止の直前のブランチは、隙間の前に最も遅く終わった run から取る（後に始まって先に終わった run ではない）", () => {
-    const iso = (h: number, m = 0) => new Date(H(h, m)).toISOString();
     const base = { observed_at: iso(23), person: "p-00000001", tz: "UTC" };
     const rows = [
       {
@@ -1189,7 +1185,6 @@ describe("report の集計（欄の欠け・期間・時刻）", () => {
 
   test("human-wait は終わり、activity は始まりの前後を人の活動にし、observed_at の無い人は期間の終わりまで停止に数える", () => {
     const base = { person: "p-00000001", tz: "UTC" };
-    const iso = (h: number, m = 0) => new Date(H(h, m)).toISOString();
     const rows = [
       {
         ...base,

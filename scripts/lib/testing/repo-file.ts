@@ -1,4 +1,4 @@
-// check-doc-refs.test.ts と check-kaizen-refs.test.ts が一時リポジトリにファイルを置くヘルパー。
+// テストが一時ディレクトリにファイルを置くヘルパー。
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 

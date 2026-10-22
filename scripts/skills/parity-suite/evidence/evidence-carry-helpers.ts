@@ -1,7 +1,7 @@
 // evidence-carry.test.ts のヘルパー（fixture の作成・judgeCarry の呼び出し・記録の書き換え・両チェックの CLI の実行）。
 
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { judgeCarry } from "../../../../skills/parity-suite/scripts/evidence-carry.mjs";
@@ -16,6 +16,7 @@ import {
   writeJson,
 } from "./evidence-carry-fixture.ts";
 import { makeTempDirFactory } from "../../../lib/testing/test-tmpdir.ts";
+import { write } from "../../../lib/testing/repo-file.ts";
 import { spawnAsync } from "../../../lib/spawn-async.ts";
 import { parseJsonAs } from "../../../lib/parse-as.ts";
 import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
@@ -80,8 +81,7 @@ export function editRecordPair(p: Project, edit: (entry: RecordPair) => void) {
 export function moveCurrent(p: Project, rel: string) {
   const path = `.replace/parity/${FEATURE}/baseline/${rel}`;
   const body = `PNG current ${rel}\n`;
-  mkdirSync(dirname(join(p.root, path)), { recursive: true });
-  writeFileSync(join(p.root, path), body);
+  write(p.root, path, body);
   editRecordPair(p, (entry) => {
     entry.inputs.current = { path, sha256: createHash("sha256").update(body).digest("hex") };
   });

@@ -1234,6 +1234,39 @@ require("node:module").syncBuiltinESMExports();
     expect(res.out).toContain("シャード 2/2: 選んだ変異 1 件のうち 0 件を測る");
   });
 
+  // テストの組み立てと表明は、test_file が import するヘルパーにもある。ヘルパーだけが変わる差分でも宣言を選ぶ。
+  // 測らずに選択だけを見るので、上のテストと同じく `--shard 2/2` で選んだ 1 変異をこのシャードから外す。
+  test("test_file が import するヘルパーが変わったら、その宣言を測る", async () => {
+    const helper = "scripts/skills/kaizen/schedule/tracking-issue-title-helpers.ts";
+    const res = await runRunner("--changed-since", "origin/main", "--only", "D", "--shard", "2/2", {
+      MUTATION_PROOF_CHANGED_FILES: helper,
+    });
+    expect(res.status, res.out).toBe(0);
+    expect(res.out).toContain(
+      `測る: scripts/skills/kaizen/schedule/tracking-issue-title.mutations.json（当たった変更: ${helper}）`,
+    );
+    expect(res.out).toContain("シャード 2/2: 選んだ変異 1 件のうち 0 件を測る");
+  });
+
+  // check-doc-refs.test.ts は repo-file.ts を直接は import せず、check-doc-refs-helpers.ts を介して使う。
+  test("ヘルパーが import する共有のファイルが変わったら、その宣言を測る", async () => {
+    const shared = "scripts/lib/testing/repo-file.ts";
+    const res = await runRunner(
+      "--changed-since",
+      "origin/main",
+      "--only",
+      "DR-LINK",
+      "--shard",
+      "2/2",
+      { MUTATION_PROOF_CHANGED_FILES: shared },
+    );
+    expect(res.status, res.out).toBe(0);
+    expect(res.out).toContain(
+      `測る: scripts/gates/docs/check-doc-refs.mutations.json（当たった変更: ${shared}）`,
+    );
+    expect(res.out).toContain("シャード 2/2: 選んだ変異 1 件のうち 0 件を測る");
+  });
+
   // 差分を取れないときは「変更なし」として扱わない（0 件と失敗が同じ空配列になる）。
   test("差分を取れなければ exit 2", async () => {
     const res = await runRunner("--changed-since", "no-such-ref-for-test");

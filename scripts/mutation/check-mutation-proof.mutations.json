@@ -912,6 +912,29 @@
       "expect_failing": [
         "宣言ごとの時間 宣言ごとに時間を出し、最後に長い順の一覧を出してから集計の行で終わる"
       ]
+    },
+    {
+      "id": "CHANGED-HELPERS",
+      "why": "test_file が import するヘルパーを当たり判定から外す（表明をヘルパーに移した宣言が、ヘルパーだけの変更で測られない）",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "const hits = [specRel, spec.testFile, ...helpers, ...targets]",
+      "replace": "const hits = [specRel, spec.testFile, ...targets]",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（実行する前に落とす） test_file が import するヘルパーが変わったら、その宣言を測る",
+        "宣言と前提の検証（実行する前に落とす） ヘルパーが import する共有のファイルが変わったら、その宣言を測る"
+      ]
+    },
+    {
+      "id": "CHANGED-HELPERS-TRANSITIVE",
+      "why": "ヘルパーの import をたどらない（ヘルパーを介して使う共有のファイルの変更で宣言が選ばれない）",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "      queue.push(rel);",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（実行する前に落とす） ヘルパーが import する共有のファイルが変わったら、その宣言を測る"
+      ]
     }
   ]
 }

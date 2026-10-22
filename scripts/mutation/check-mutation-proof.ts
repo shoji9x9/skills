@@ -824,11 +824,56 @@ function changedFiles(ref: string): string[] {
   return res.stdout.split("\n").filter(Boolean);
 }
 
+type PreProcess = (
+  source: string,
+  readImportFiles: boolean,
+  detectJavaScriptImports: boolean,
+) => { importedFiles: { fileName: string }[] };
+
+/**
+ * `test_file` が相対パスで import する `scripts/` の `.ts` を、import をたどってすべて返す。
+ * テストの組み立てと表明はヘルパーのファイル（`*-helpers.ts` など）にもあり、そこが変わると検査が変わるからである。
+ * import は TypeScript の構文の解析で取る（コメントや文字列の中の `from "..."` を数えない）。
+ * typescript は `--changed-since` のときだけ読む（このファイルだけをリポジトリの外へコピーして起動するテストがある）。
+ */
+function helperFiles(testFile: string, preProcess: PreProcess): string[] {
+  const seen = new Set<string>();
+  const queue = [testFile];
+  while (queue.length > 0) {
+    const file = queue.pop() ?? "";
+    let source: string;
+    try {
+      source = readFileSync(join(repoRoot, file), "utf8");
+    } catch (err) {
+      die(`${file} を読めないので、import するヘルパーを決められない: ${errorMessage(err)}`);
+    }
+    for (const { fileName } of preProcess(source, true, true).importedFiles) {
+      if (!fileName.startsWith(".") || !fileName.endsWith(".ts")) continue;
+      const rel = relative(repoRoot, resolve(repoRoot, dirname(file), fileName));
+      if (!rel.startsWith("scripts/") || seen.has(rel)) continue;
+      seen.add(rel);
+      queue.push(rel);
+    }
+  }
+  return [...seen];
+}
+
+function loadPreProcess(): PreProcess {
+  try {
+    const ts: { preProcessFile: PreProcess } = createRequire(join(repoRoot, "package.json"))(
+      "typescript",
+    );
+    return ts.preProcessFile;
+  } catch (err) {
+    die(`typescript を解決できない（pnpm install 済みか確かめる）: ${errorMessage(err)}`);
+  }
+}
+
 /**
  * 差分に当たる宣言だけを返す。当たり方は 3 通り:
  *   - ランナー（このファイル）が変わった → **全宣言**（判定の仕組みが変わったので全部測り直す）
  *   - 宣言ファイル自身が変わった
- *   - その宣言の `test_file` か、いずれかの変異の対象ファイルが変わった
+ *   - その宣言の `test_file`、`test_file` が import する `scripts/` のヘルパー、いずれかの変異の対象ファイルが変わった
  *
  * それ以外は対象も検査も変わっていないので、前回の実証がそのまま有効。
  * **選んだ／飛ばした理由は必ず出力する**（0 件を警告なしに成功にしない）。
@@ -841,11 +886,13 @@ function selectChangedSpecs(specs: Spec[], ref: string): Spec[] {
     console.error(`ランナー（${runnerPath}）が変わったので全宣言を測る`);
     return specs;
   }
+  const preProcess = loadPreProcess();
   const selected: Spec[] = [];
   for (const spec of specs) {
     const specRel = relative(repoRoot, spec.specPath);
     const targets = [...new Set(spec.mutations.map((m) => m.file))];
-    const hits = [specRel, spec.testFile, ...targets].filter((f) => changed.has(f));
+    const helpers = helperFiles(spec.testFile, preProcess);
+    const hits = [specRel, spec.testFile, ...helpers, ...targets].filter((f) => changed.has(f));
     if (hits.length > 0) {
       console.error(`測る: ${specRel}（当たった変更: ${hits.join(", ")}）`);
       selected.push(spec);

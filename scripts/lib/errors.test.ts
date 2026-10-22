@@ -54,3 +54,8 @@ test.each([
   expect(errorCodeOrMessage(value)).toBe(codeOrMessage);
   expect(isErrnoException(value)).toBe(errno);
 });
+
+// caught は、body が例外を投げなければその場で失敗する（読む関数を、例外でない値で確かめてしまわないため）。
+test("caught は、例外が出なければ失敗する", () => {
+  expect(() => caught(() => undefined)).toThrow("例外が投げられなかった");
+});

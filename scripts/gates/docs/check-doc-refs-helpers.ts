@@ -7,7 +7,7 @@ import { CONFIG_PATH, checkDocRefs } from "./check-doc-refs.ts";
 import { PENDING_PATH } from "../../lib/doc-scan.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
-import { write } from "./repo-file-helpers.ts";
+import { write } from "../../lib/testing/repo-file.ts";
 
 export const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 export const script = join(repoRoot, "scripts/gates/docs/check-doc-refs.ts");

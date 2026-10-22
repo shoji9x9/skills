@@ -1,11 +1,11 @@
 // check-type-guard-brands.test.ts のヘルパー（検査を文字列に当て、一時リポジトリで CLI を起動する）。
 import { spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { findViolations } from "./check-type-guard-brands.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
+import { write } from "../../lib/testing/repo-file.ts";
 
 const script = join(dirname(fileURLToPath(import.meta.url)), "check-type-guard-brands.ts");
 /** scripts/ の .ts として検査する。 */
@@ -21,10 +21,7 @@ export function makeRepo(files: Record<string, string>): string {
     if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
   };
   git("init", "-q");
-  for (const [path, text] of Object.entries(files)) {
-    mkdirSync(dirname(join(root, path)), { recursive: true });
-    writeFileSync(join(root, path), text);
-  }
+  for (const [path, text] of Object.entries(files)) write(root, path, text);
   git("add", "--", ...Object.keys(files));
   return root;
 }
