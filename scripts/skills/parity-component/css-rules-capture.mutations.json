@@ -3,7 +3,8 @@
     "css-rules-capture.test.ts のうち、当たっている CSS 規則の採取（Issue #326）の検出能力を示す変異の一覧。",
     "修正前の素朴な走査に戻す変異で、本体のテストが落ちることを示す（テストの中に素朴な走査を書いて定数に当てても、本体の検出能力は示せない）。",
     "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
-    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。",
+    "テストはモジュールの関数とページへ渡すソースの 2 通りで実行するので、expect_failing には describe.each の名前（モジュールの関数・ページへ渡すソース）を前に付けた名前を両方書く。"
   ],
   "test_file": "scripts/skills/parity-component/css-rules-capture.test.ts",
   "mutations": [
@@ -15,13 +16,20 @@
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "@import の先の規則を採る",
-        ":hover の宣言と !important を状態付きで採る（計算値では見えない側）",
-        "@import の layer() とメディア条件を読み込んだ規則へ引き継ぐ",
-        "@import の supports() 条件を引き継ぐ",
-        "layer()・media の無い @import には条件を足さない",
-        "同じスタイルシートを 2 度辿らない（@import の循環で止まらない）",
-        "読み込めていない @import を警告なしに捨てない"
+        "モジュールの関数 @import の先の規則を採る",
+        "ページへ渡すソース @import の先の規則を採る",
+        "モジュールの関数 :hover の宣言と !important を状態付きで採る（計算値では見えない側）",
+        "ページへ渡すソース :hover の宣言と !important を状態付きで採る（計算値では見えない側）",
+        "モジュールの関数 @import の layer() とメディア条件を読み込んだ規則へ引き継ぐ",
+        "ページへ渡すソース @import の layer() とメディア条件を読み込んだ規則へ引き継ぐ",
+        "モジュールの関数 @import の supports() 条件を引き継ぐ",
+        "ページへ渡すソース @import の supports() 条件を引き継ぐ",
+        "モジュールの関数 layer()・media の無い @import には条件を足さない",
+        "ページへ渡すソース layer()・media の無い @import には条件を足さない",
+        "モジュールの関数 同じスタイルシートを 2 度辿らない（@import の循環で止まらない）",
+        "ページへ渡すソース 同じスタイルシートを 2 度辿らない（@import の循環で止まらない）",
+        "モジュールの関数 読み込めていない @import を警告なしに捨てない",
+        "ページへ渡すソース 読み込めていない @import を警告なしに捨てない"
       ]
     },
     {
@@ -31,7 +39,10 @@
       "find": "    if (c === '\"' || c === \"'\") {\n      quote = c;\n      continue;\n    }\n    if (c === \"(\" || c === \"[\") depth++;\n    else if (c === \")\" || c === \"]\") {\n      depth--;\n      if (depth === 0) return i + 1;",
       "replace": "    if (c === \"(\") depth++;\n    else if (c === \")\") {\n      depth--;\n      if (depth === 0) return i + 1;",
       "occurrences": 1,
-      "expect_failing": ["引用符・角括弧を跨ぐ関数引数でも状態擬似クラスを剥がす"]
+      "expect_failing": [
+        "モジュールの関数 引用符・角括弧を跨ぐ関数引数でも状態擬似クラスを剥がす",
+        "ページへ渡すソース 引用符・角括弧を跨ぐ関数引数でも状態擬似クラスを剥がす"
+      ]
     },
     {
       "id": "state-inside-shallow",
@@ -40,7 +51,10 @@
       "find": "    if (h.hasStateInsideFunctional(h, p.args, stateNames)) return true;\n",
       "replace": "",
       "occurrences": 1,
-      "expect_failing": ["入れ子の関数引数に入った状態を unresolved に落とす"]
+      "expect_failing": [
+        "モジュールの関数 入れ子の関数引数に入った状態を unresolved に落とす",
+        "ページへ渡すソース 入れ子の関数引数に入った状態を unresolved に落とす"
+      ]
     }
   ]
 }

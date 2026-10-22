@@ -1058,7 +1058,7 @@ function collectInPage(h, el, options) {
 
 /**
  * ページ側の関数の一覧。ページ側の関数は、互いをこの一覧を通して呼ぶ。
- * ページへは pageFunctionSource がこの一覧を関数のソースのまま組み込んで渡す。
+ * ページへは pageFunctionBody がこの一覧を関数のソースのまま組み込んで渡す。
  */
 const PAGE_HELPERS = {
   errorName,
@@ -1131,6 +1131,26 @@ function isPageFunction(value) {
 }
 
 /**
+ * pageFunctionBody のソースから、ページへ渡す関数を作る。
+ * @returns {(el: Element, arg: { statePseudoClasses: readonly string[], structuralPseudoClasses: readonly string[] }) => unknown}
+ */
+function compilePageFunction() {
+  const compiled = new Function("el", "options", pageFunctionBody());
+  // new Function は常に関数を返すので、ここで投げることは起きない（型の絞り込みのため）。
+  if (!isPageFunction(compiled))
+    throw new Error("css rules capture: page function is not callable");
+  return compiled;
+}
+
+/**
+ * ページへ渡す関数。locator.evaluate は関数を文字列にしてページへ渡すので、モジュールの関数を参照する
+ * collectMatchedRules は渡せない。そこで、ページ側の関数のソースを組み込んだ関数を作って渡す。
+ * Node で呼んでも、ページで呼ぶのと同じソースが動く。ソースは入力に依らないので、モジュールを読み込むときに 1 回だけ作る。
+ * ページ側の関数が互いをヘルパーの一覧を通して呼んでいるかをテストが確かめられるように、公開する。
+ */
+export const collectMatchedRulesInPage = compilePageFunction();
+
+/**
  * 論理名を付けた要素ごとに、当たっている CSS 規則を採る。
  *
  * @param {{
@@ -1166,15 +1186,9 @@ export async function captureMatchedRules(entries, options = {}) {
     statePseudoClasses: options.statePseudoClasses || STATE_PSEUDO_CLASSES,
     structuralPseudoClasses: options.structuralPseudoClasses || STRUCTURAL_PSEUDO_CLASSES,
   };
-  // locator.evaluate は関数を文字列にしてページへ渡すので、モジュールの関数を参照する collectMatchedRules は渡せない。
-  // ページ側の関数のソースを組み込んだ関数を作って渡す（Node で呼んでも、ページで呼ぶのと同じソースが動く）。
-  const pageFunction = new Function("el", "options", pageFunctionBody());
-  // new Function は常に関数を返すので、ここで投げることは起きない（型の絞り込みのため）。
-  if (!isPageFunction(pageFunction))
-    throw new Error("css rules capture: page function is not callable");
   const results = [];
   for (const entry of entries) {
-    const captured = await entry.locator.evaluate(pageFunction, resolved);
+    const captured = await entry.locator.evaluate(collectMatchedRulesInPage, resolved);
     // collectMatchedRules は常にこの形を返すので、ここで投げることは起きない（型の絞り込みのため）。
     if (!isCapture(captured))
       throw new Error(`css rules capture returned an unexpected shape: ${entry.name}`);
