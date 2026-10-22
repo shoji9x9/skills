@@ -18,7 +18,8 @@
 // | 件数               | ファイル 0 件 / 参照 0 件 / 1 件以上                                          |
 //
 // 検出されることの確認に使う実データ: 学びを archive/ へ移したときに、実際に切れていた折り返しの参照
-// （`scripts/skills/kaizen/kaizen-schedule-report.test.ts` の修正前の 2 行）をそのまま入力にする。
+// （`scripts/skills/kaizen/schedule/kaizen-schedule-report.test.ts` の修正前の 2 行）をそのまま入力にする。
+// このファイルは、修正したときは `scripts/skills/kaizen/` の直下にあった。
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, rmSync, symlinkSync } from "node:fs";
@@ -238,7 +239,7 @@ test("陰性: 実リポジトリの参照が違反 0 件で、参照を 1 件以
 // ---- 検出されることの確認（落とす入力）----
 
 test("陽性（実データ）: archive/ へ移した学びを指したままの折り返し参照を落とす", () => {
-  // 修正前の scripts/skills/kaizen/kaizen-schedule-report.test.ts の 2 行（学びは archive/ にだけ在る）。
+  // 修正前の scripts/skills/kaizen/schedule/kaizen-schedule-report.test.ts の 2 行（修正したときは kaizen/ の直下にあった。学びは archive/ にだけ在る）。
   const before = [
     "  // 予算をコメントで宣言するだけでは守られない（`.kaizen/2026-09-19-length-limit-",
     "  // measured-by-proxy-not-enforcer.md`）。実装で切り、切ったことが分かる形にする。",

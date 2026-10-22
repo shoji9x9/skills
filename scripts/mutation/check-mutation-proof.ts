@@ -831,31 +831,51 @@ type PreProcess = (
 ) => { importedFiles: { fileName: string }[] };
 
 /**
- * `test_file` が相対パスで import する `scripts/` の `.ts` を、import をたどってすべて返す。
- * テストの組み立てと表明はヘルパーのファイル（`*-helpers.ts` など）にもあり、そこが変わると検査が変わるからである。
+ * `test_file` が相対パスで import する `*-helpers.ts` を、ヘルパーどうしの import もたどって返す。
+ * テストの組み立てと表明はヘルパーにもあり、そこが変わると検査が変わるからである。
+ * 共有のライブラリ（`scripts/lib/` など）と `skills/` のコードはたどらない。それらの変更で影響を受ける定義は、週次の全件の実行で確かめる（Issue #747）。
  * import は TypeScript の構文の解析で取る（コメントや文字列の中の `from "..."` を数えない）。
  * typescript は `--changed-since` のときだけ読む（このファイルだけをリポジトリの外へコピーして起動するテストがある）。
+ * 1 つのファイルの直接の import 先は、定義の間で `cache` に入れて共有し、解析を 1 回にする。
  */
-function helperFiles(testFile: string, preProcess: PreProcess): string[] {
+function helperFiles(
+  testFile: string,
+  preProcess: PreProcess,
+  cache: Map<string, string[]>,
+): string[] {
   const seen = new Set<string>();
   const queue = [testFile];
   while (queue.length > 0) {
     const file = queue.pop() ?? "";
-    let source: string;
-    try {
-      source = readFileSync(join(repoRoot, file), "utf8");
-    } catch (err) {
-      die(`${file} を読めないので、import するヘルパーを決められない: ${errorMessage(err)}`);
-    }
-    for (const { fileName } of preProcess(source, true, true).importedFiles) {
-      if (!fileName.startsWith(".") || !fileName.endsWith(".ts")) continue;
-      const rel = relative(repoRoot, resolve(repoRoot, dirname(file), fileName));
-      if (!rel.startsWith("scripts/") || seen.has(rel)) continue;
-      seen.add(rel);
-      queue.push(rel);
+    for (const helper of directHelpers(file, preProcess, cache)) {
+      if (seen.has(helper)) continue;
+      seen.add(helper);
+      queue.push(helper);
     }
   }
   return [...seen];
+}
+
+/** file が相対パスで直接 import する `*-helpers.ts`（リポジトリのルートからのパス）。 */
+function directHelpers(
+  file: string,
+  preProcess: PreProcess,
+  cache: Map<string, string[]>,
+): string[] {
+  const cached = cache.get(file);
+  if (cached) return cached;
+  let source: string;
+  try {
+    source = readFileSync(join(repoRoot, file), "utf8");
+  } catch (err) {
+    die(`${file} を読めないので、import するヘルパーを決められない: ${errorMessage(err)}`);
+  }
+  const helpers = preProcess(source, true, true)
+    .importedFiles.map(({ fileName }) => fileName)
+    .filter((name) => name.startsWith(".") && name.endsWith("-helpers.ts"))
+    .map((name) => relative(repoRoot, resolve(repoRoot, dirname(file), name)));
+  cache.set(file, helpers);
+  return helpers;
 }
 
 function loadPreProcess(): PreProcess {
@@ -873,7 +893,7 @@ function loadPreProcess(): PreProcess {
  * 差分に当たる宣言だけを返す。当たり方は 3 通り:
  *   - ランナー（このファイル）が変わった → **全宣言**（判定の仕組みが変わったので全部測り直す）
  *   - 宣言ファイル自身が変わった
- *   - その宣言の `test_file`、`test_file` が import する `scripts/` のヘルパー、いずれかの変異の対象ファイルが変わった
+ *   - その宣言の `test_file`、`test_file` が import する `*-helpers.ts`、いずれかの変異の対象ファイルが変わった
  *
  * それ以外は対象も検査も変わっていないので、前回の実証がそのまま有効。
  * **選んだ／飛ばした理由は必ず出力する**（0 件を警告なしに成功にしない）。
@@ -887,11 +907,12 @@ function selectChangedSpecs(specs: Spec[], ref: string): Spec[] {
     return specs;
   }
   const preProcess = loadPreProcess();
+  const cache = new Map<string, string[]>();
   const selected: Spec[] = [];
   for (const spec of specs) {
     const specRel = relative(repoRoot, spec.specPath);
     const targets = [...new Set(spec.mutations.map((m) => m.file))];
-    const helpers = helperFiles(spec.testFile, preProcess);
+    const helpers = helperFiles(spec.testFile, preProcess, cache);
     const hits = [specRel, spec.testFile, ...helpers, ...targets].filter((f) => changed.has(f));
     if (hits.length > 0) {
       console.error(`測る: ${specRel}（当たった変更: ${hits.join(", ")}）`);

@@ -1235,36 +1235,27 @@ require("node:module").syncBuiltinESMExports();
   });
 
   // テストの組み立てと表明は、test_file が import するヘルパーにもある。ヘルパーだけが変わる差分でも宣言を選ぶ。
-  // 測らずに選択だけを見るので、上のテストと同じく `--shard 2/2` で選んだ 1 変異をこのシャードから外す。
+  // 測らずに選択だけを見るので `--list` で終える（`--shard` で外すと、シャードの変異でこのテストも落ちる）。
   test("test_file が import するヘルパーが変わったら、その宣言を測る", async () => {
     const helper = "scripts/skills/kaizen/schedule/tracking-issue-title-helpers.ts";
-    const res = await runRunner("--changed-since", "origin/main", "--only", "D", "--shard", "2/2", {
+    const res = await runRunner("--changed-since", "origin/main", "--only", "D", "--list", {
       MUTATION_PROOF_CHANGED_FILES: helper,
     });
     expect(res.status, res.out).toBe(0);
     expect(res.out).toContain(
       `測る: scripts/skills/kaizen/schedule/tracking-issue-title.mutations.json（当たった変更: ${helper}）`,
     );
-    expect(res.out).toContain("シャード 2/2: 選んだ変異 1 件のうち 0 件を測る");
   });
 
-  // check-doc-refs.test.ts は repo-file.ts を直接は import せず、check-doc-refs-helpers.ts を介して使う。
-  test("ヘルパーが import する共有のファイルが変わったら、その宣言を測る", async () => {
-    const shared = "scripts/lib/testing/repo-file.ts";
-    const res = await runRunner(
-      "--changed-since",
-      "origin/main",
-      "--only",
-      "DR-LINK",
-      "--shard",
-      "2/2",
-      { MUTATION_PROOF_CHANGED_FILES: shared },
-    );
+  // 共有のライブラリの変更で影響を受ける定義は、PR では選ばず、週次の全件の実行で確かめる（Issue #747）。
+  // repo-file.ts は check-doc-refs-helpers.ts が import する共有のファイルで、どの定義のヘルパーでも変異の対象でもない。
+  test("ヘルパーが import する共有のライブラリだけが変わっても、宣言を選ばない", async () => {
+    const res = await runRunner("--changed-since", "origin/main", "--only", "DR-LINK", {
+      MUTATION_PROOF_CHANGED_FILES: "scripts/lib/testing/repo-file.ts",
+    });
     expect(res.status, res.out).toBe(0);
-    expect(res.out).toContain(
-      `測る: scripts/gates/docs/check-doc-refs.mutations.json（当たった変更: ${shared}）`,
-    );
-    expect(res.out).toContain("シャード 2/2: 選んだ変異 1 件のうち 0 件を測る");
+    expect(res.out).toContain("この差分に当たる宣言は無い");
+    expect(res.out).toContain("飛ばす: scripts/gates/docs/check-doc-refs.mutations.json");
   });
 
   // 差分を取れないときは「変更なし」として扱わない（0 件と失敗が同じ空配列になる）。
