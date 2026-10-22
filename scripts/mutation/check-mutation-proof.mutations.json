@@ -30,8 +30,8 @@
       "id": "NAME-CHECK",
       "why": "expect_failing のテスト名が実在するかを見ない",
       "file": "scripts/mutation/check-mutation-proof.ts",
-      "find": "      const unknown = m.expect.filter((name) => !baseline.results.has(name));",
-      "replace": "      const unknown = [];",
+      "find": "    const unknown = m.expect.filter((name) => !baseline.results.has(name));",
+      "replace": "    const unknown = [];",
       "occurrences": 1,
       "expect_failing": [
         "宣言と前提の検証（実行する前に落とす） 実在しないテスト名を宣言したら exit 2"
@@ -41,8 +41,8 @@
       "id": "BASELINE",
       "why": "基準 run が緑であることを確かめない",
       "file": "scripts/mutation/check-mutation-proof.ts",
-      "find": "    if (baseline.failed.size > 0) {",
-      "replace": "    if (false) {",
+      "find": "  if (baseline.failed.size > 0) {",
+      "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": ["宣言と前提の検証（実行する前に落とす） 基準 run が緑でなければ exit 2"]
     },
@@ -144,8 +144,8 @@
       "id": "DUP-NAMES",
       "why": "テスト名の重複を検出しない（名前で合否を判定する前提が黙って破れる）",
       "file": "scripts/mutation/check-mutation-proof.ts",
-      "find": "    if (duplicated.length > 0) {",
-      "replace": "    if (false) {",
+      "find": "  if (duplicated.length > 0) {",
+      "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "宣言と前提の検証（実行する前に落とす） テスト名が重複していたら exit 2",
@@ -545,8 +545,8 @@
       "id": "REAL-REPO-REPORT",
       "why": "数えなかった実リポジトリのテストの失敗を出力しない",
       "file": "scripts/mutation/check-mutation-proof.ts",
-      "find": "        if (res.ignored.length) {",
-      "replace": "        if (false) {",
+      "find": "    if (res.ignored.length) {",
+      "replace": "    if (false) {",
       "expect_failing": [
         "文書の中身で結果が変わるテストの扱い そのテストが変異で落ちる場合も、宣言外として数えず PASS"
       ]
@@ -555,8 +555,8 @@
       "id": "RESTORE-FOREIGN-EDIT",
       "why": "実行中に変異の外から書き換えられた対象を、照合せずに変異前の内容で上書きする",
       "file": "scripts/mutation/check-mutation-proof.ts",
-      "find": "      if (state !== \"mutated\" && (wroteMutation || state in UNSETTLED)) {",
-      "replace": "      if (false) {",
+      "find": "    if (state !== \"mutated\" && (wroteMutation || state in UNSETTLED)) {",
+      "replace": "    if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "宣言と前提の検証（実行する前に落とす） 実行中に対象が変異の外から書き換えられたら上書きせず exit 2",
@@ -581,8 +581,8 @@
       "id": "KEEP-THROWN",
       "why": "止めるとき、テストの実行中の例外を出さない",
       "file": "scripts/mutation/check-mutation-proof.ts",
-      "find": "      if (thrown)\n        console.error(",
-      "replace": "      if (false)\n        console.error(",
+      "find": "    if (thrown)\n      console.error(",
+      "replace": "    if (false)\n      console.error(",
       "occurrences": 1,
       "expect_failing": [
         "宣言と前提の検証（実行する前に落とす） 実行中の編集の後に例外が投げられても、元の例外を出力に残す"
@@ -634,8 +634,8 @@
       "id": "SETTLE-FAIL-KEEPS-PENDING",
       "why": "止めるときに pending を外さず、exit ハンドラが同じ後始末を繰り返す",
       "file": "scripts/mutation/check-mutation-proof.ts",
-      "find": "    pending = null;\n    if (stopMessage !== null) {",
-      "replace": "    if (stopMessage !== null) {",
+      "find": "  pending = null;\n  if (stopMessage !== null) {",
+      "replace": "  if (stopMessage !== null) {",
       "occurrences": 1,
       "expect_failing": [
         "宣言と前提の検証（実行する前に落とす） 後始末の書き戻しが途中で失敗したら、変異のまま止め、次回の起動が自分の変異として戻す"
@@ -757,8 +757,8 @@
       "id": "WRITE-FAIL-EXIT2",
       "why": "変異を当てられない失敗を捕捉せず、exit 1（実証できない変異がある）で終わる",
       "file": "scripts/mutation/check-mutation-proof.ts",
-      "find": "        die(`${m.id} の変異を当てられない: ${err.cause.message}`);",
-      "replace": "        throw err;",
+      "find": "    die(`${m.id} の変異を当てられない: ${err.cause.message}`);",
+      "replace": "    throw err;",
       "occurrences": 1,
       "expect_failing": [
         "宣言と前提の検証（実行する前に落とす） 変異の書き込みが途中で失敗しても、対象を変えずに元の例外を返し、外からの編集として案内しない",
@@ -784,7 +784,7 @@
       "id": "WRITE-ERROR-ONLY",
       "why": "変異を書いた後の例外まで、変異を当てられない失敗として報告する（スタックも捨てる）",
       "file": "scripts/mutation/check-mutation-proof.ts",
-      "find": "        if (!(err instanceof MutationWriteError)) {\n          console.error((err instanceof Error ? err.stack : undefined) ?? String(err));\n          die(`${m.id} の測定中に予期しない例外が起きた（上のスタックを見る）`);\n        }\n",
+      "find": "    if (!(err instanceof MutationWriteError)) {\n      console.error((err instanceof Error ? err.stack : undefined) ?? String(err));\n      die(`${m.id} の測定中に予期しない例外が起きた（上のスタックを見る）`);\n    }\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [

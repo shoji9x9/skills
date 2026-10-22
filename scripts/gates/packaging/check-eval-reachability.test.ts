@@ -65,7 +65,7 @@ const file = (overrides = {}, evalOverrides = {}) =>
   });
 
 const check = (source: string, backlog: Record<string, string> = {}) =>
-  checkEvalFile("evals.json", source, backlog).violations;
+  checkEvalFile({ path: "evals.json", source, backlog }).violations;
 
 test("誤検知しないことの確認: 正しい reachability は違反 0 件", () => {
   expect(check(file())).toEqual([]);

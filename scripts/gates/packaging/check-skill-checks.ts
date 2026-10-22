@@ -161,12 +161,17 @@ function placeholders(text: string): string[] {
  * config_key が、そのスキルの同梱するスキーマ（config-schemas/<設定の名前>.schema.json）の最上位のキーを指すか。
  * スキーマに無いキーを指すと、利用者が設定を書いても読み取りが知らないキーとして止まる。
  */
-function configKeyViolations(
-  root: string,
-  skill: string,
-  configKey: string,
-  pat: string,
-): string[] {
+function configKeyViolations({
+  root,
+  skill,
+  configKey,
+  pat,
+}: {
+  root: string;
+  skill: string;
+  configKey: string;
+  pat: string;
+}): string[] {
   const [name, key] = configKey.split(".");
   const rel = `skills/${skill}/config-schemas/${name}.schema.json`;
   const path = join(root, rel);
@@ -184,6 +189,235 @@ function configKeyViolations(
   return [];
 }
 
+/** wire の 1 項目を検査するときに共有する値。v に違反を足していく。 */
+type EntryCtx = { root: string; skill: string; at: string; v: string[] };
+
+/** プレースホルダを params に解決し、解決できた名前を used に記録する。 */
+type Resolver = {
+  used: Set<string>;
+  resolveIn: (texts: string[], where: string, allowScript: boolean) => void;
+};
+
+/**
+ * プレースホルダは宣言した params（command だけは {script} も）に解決できなければならない。
+ * 解決できないプレースホルダを違反にする関数と、参照された params の集合を作る。
+ */
+function makeResolver(paramNames: string[], { at, v }: EntryCtx): Resolver {
+  const used = new Set<string>();
+  const resolveIn = (texts: string[], where: string, allowScript: boolean) => {
+    for (const t of texts) {
+      for (const name of placeholders(t)) {
+        if (name === "script" && allowScript) continue;
+        if (paramNames.includes(name)) used.add(name);
+        else v.push(`${at}: ${where} のプレースホルダ {${name}} が params に無い`);
+      }
+    }
+  };
+  return { used, resolveIn };
+}
+
+/** wire の項目の script を検査し、実在してスキルの中にあれば scripts に足す。 */
+function checkEntryScript(e: Record<string, unknown>, ctx: EntryCtx, scripts: string[]) {
+  const { root, skill, at, v } = ctx;
+  // `.` / 空のセグメントも落とす。実在の確認は通るが、チェックの一覧のパスと字面が一致しないので、
+  // 宣言したチェックが「組み込むか決まっていない」と報告される（宣言の誤りを、別の違反として報告させない）。
+  if (
+    !isText(e.script) ||
+    e.script.startsWith("/") ||
+    e.script.split("/").some((s) => s === ".." || s === "." || s === "")
+  ) {
+    v.push(`${at}: script はスキル直下からの相対パスにする（. / .. / 空のセグメントを含めない）`);
+    return;
+  }
+  const path = join(root, "skills", skill, e.script);
+  if (!existsSync(path) || !statSync(path).isFile()) {
+    v.push(`${at}: script ${e.script} が無い`);
+  } else if (!isInside(realpathSync(join(root, "skills", skill)), realpathSync(path))) {
+    // リンクでスキルの外を指す script は配布されない（配布されるのはスキルのディレクトリだけ）。
+    v.push(`${at}: script ${e.script} がスキルのディレクトリの外を指している`);
+  } else scripts.push(`skills/${skill}/${e.script}`);
+}
+
+/** by_stage で値を与える params の 1 項目を検査する。 */
+function byStageViolations(p: Record<string, unknown>, pat: string, stages: unknown): string[] {
+  const v: string[] = [];
+  if (Object.keys(p).length !== 1) v.push(`${pat}: by_stage は他のキーと併用しない`);
+  const bs = p.by_stage;
+  const want = isArray(stages) ? [...stages].sort().join(",") : "";
+  // 実行箇所（stage）ごとの値は、そのまま置き換えられる値（value）か、実行箇所の側で求める手順（resolve）のどちらか一方。
+  // 説明文を value の位置に置くと、機械的に置き換える利用者がその文をそのまま引数に渡す。
+  const stageValue = (sv: unknown) =>
+    isRecord(sv) && Object.keys(sv).length === 1 && (isText(sv.value) || isText(sv.resolve));
+  if (!isRecord(bs) || !Object.values(bs).every(stageValue)) {
+    v.push(
+      `${pat}.by_stage は実行箇所ごとに { "value": <そのまま渡す値> } か { "resolve": <実行箇所の側で求める手順> } のどちらか一方にする`,
+    );
+  } else if (Object.keys(bs).sort().join(",") !== want) {
+    v.push(`${pat}.by_stage のキーが stages と一致しない`);
+  }
+  return v;
+}
+
+/** config_key で値を与える params の 1 項目を検査する。 */
+function checkConfigKeyParam(p: Record<string, unknown>, pat: string, ctx: EntryCtx) {
+  const { root, skill, v } = ctx;
+  if (!isText(p.config_key) || !CONFIG_KEY_RE.test(p.config_key)) {
+    v.push(`${pat}: config_key は <設定の名前>.<キー> の形にする（実行箇所ごとの値なら by_stage）`);
+  } else if (p.config_key.startsWith("skills.")) {
+    v.push(`${pat}: config_key ${p.config_key} は旧い skills.yml の書き方。先頭の skills. を外す`);
+  } else {
+    v.push(...configKeyViolations({ root, skill, configKey: p.config_key, pat }));
+  }
+  if ("default" in p && !isText(p.default)) v.push(`${pat}: default は空でない文字列にする`);
+  for (const k of Object.keys(p)) {
+    if (k !== "config_key" && k !== "default") v.push(`${pat}: 未知のキー ${k}`);
+  }
+}
+
+/** params の各項目の名前と、by_stage か config_key のどちらかの形を検査する。 */
+function checkParams(params: unknown, stages: unknown, ctx: EntryCtx) {
+  const { at, v } = ctx;
+  for (const [name, p] of isRecord(params) ? Object.entries(params) : []) {
+    const pat = `${at}: params.${name}`;
+    if (!ID_RE.test(name.replaceAll("_", "-")) || name === "script") {
+      v.push(`${pat}: 名前は小文字英数字と _ にする（script は予約語）`);
+    }
+    if (!isRecord(p)) {
+      v.push(`${pat} がオブジェクトでない`);
+      continue;
+    }
+    if ("by_stage" in p) v.push(...byStageViolations(p, pat, stages));
+    else checkConfigKeyParam(p, pat, ctx);
+  }
+}
+
+/** command の形と {script} の置き方を検査し、プレースホルダを解決する。 */
+function checkCommand(command: unknown, { at, v }: EntryCtx, resolver: Resolver) {
+  if (!isTextArray(command)) {
+    v.push(`${at}: command は空でない文字列の配列（argv）にする`);
+    return;
+  }
+  if (!RUNTIMES.has(command[0])) v.push(`${at}: command[0] は node か bash にする`);
+  if (command.filter((t) => t === "{script}").length !== 1) {
+    v.push(`${at}: command は {script} をちょうど 1 回、単独の要素として持つ`);
+  }
+  // 他の要素に埋め込んだ {script}（x{script} 等）は単独の要素でないので落とす
+  // （resolveIn は {script} を params 扱いせず飛ばすので、ここで拾わないと素通りする）。
+  if (command.some((t) => t !== "{script}" && placeholders(t).includes("script"))) {
+    v.push(`${at}: command の {script} は単独の要素にする（他の引数に埋め込まない）`);
+  }
+  resolver.resolveIn(command, "command", true);
+}
+
+/** optional_args の各要素の形を検査し、プレースホルダを解決する。 */
+function checkOptionalArgs(optionalArgs: unknown, { at, v }: EntryCtx, resolver: Resolver) {
+  if (optionalArgs === undefined) return;
+  if (!isArray(optionalArgs) || optionalArgs.length === 0) {
+    v.push(`${at}: optional_args は空でない配列にする`);
+    return;
+  }
+  optionalArgs.forEach((o, j) => {
+    if (!isRecord(o) || !isTextArray(o.args) || !isText(o.when_exists)) {
+      v.push(`${at}: optional_args[${j}] は args（空でない配列）と when_exists を持つ`);
+    } else if (Object.keys(o).some((k) => k !== "args" && k !== "when_exists")) {
+      // 未知のキー（綴り違いの条件など）を警告なしに捨てると、利用者は書かれた条件が有効になると読む。
+      v.push(`${at}: optional_args[${j}] の未知のキー（args / when_exists だけを持つ）`);
+    } else resolver.resolveIn([...o.args, o.when_exists], `optional_args[${j}]`, false);
+  });
+}
+
+/**
+ * applies_when を検査し、プレースホルダを解決する。
+ * 対象が現れた条件は作業ツリー（exists）か比較元の版（exists_at_base）のどちらか一方以上で書く。
+ * 削除を検出する検査は、作業ツリー側を条件にするとその削除の commit で検査ごと飛ぶので exists_at_base だけを使う。
+ */
+function checkAppliesWhen(aw: unknown, { at, v }: EntryCtx, resolver: Resolver) {
+  const awKeys = ["exists", "exists_at_base"];
+  if (!isRecord(aw) || !awKeys.some((k) => k in aw)) {
+    v.push(
+      `${at}: applies_when に対象が現れたと分かるパスを exists（作業ツリー）か exists_at_base（比較元の版）で 1 件以上書く`,
+    );
+    return;
+  }
+  for (const k of Object.keys(aw)) {
+    if (!awKeys.includes(k)) v.push(`${at}: applies_when の未知のキー ${k}`);
+  }
+  for (const k of awKeys) {
+    if (k in aw && !isTextArray(aw[k])) v.push(`${at}: applies_when.${k} は空でない配列にする`);
+  }
+  // 形が違う値は上で違反にしたので展開しない（真偽値・オブジェクトの展開は
+  // TypeError になり、宣言の誤り＝exit 1 が、誤って「判定できない」＝exit 2 と判定される）。
+  const paths = awKeys.flatMap((k) => (isTextArray(aw[k]) ? aw[k] : []));
+  resolver.resolveIn(paths, "applies_when", false);
+}
+
+/** wire の項目の未知のキー・id・stages を検査する。 */
+function checkEntryHead(e: Record<string, unknown>, { at, v }: EntryCtx, ids: Set<string>) {
+  for (const k of Object.keys(e)) if (!ENTRY_KEYS.has(k)) v.push(`${at}: 未知のキー ${k}`);
+  if (!isText(e.id) || !ID_RE.test(e.id)) v.push(`${at}: id は小文字英数字とハイフンにする`);
+  else if (ids.has(e.id)) v.push(`${at}: id ${e.id} が重複している`);
+  else ids.add(e.id);
+}
+
+/** stages が pre-commit / ci の重複しない空でない配列かを検査する。 */
+function checkStages(stages: unknown, { at, v }: EntryCtx) {
+  if (!isTextArray(stages) || !stages.every((s) => STAGES.has(s))) {
+    v.push(`${at}: stages は pre-commit / ci の空でない配列にする`);
+  } else if (new Set(stages).size !== stages.length) v.push(`${at}: stages が重複している`);
+}
+
+/** wire の 1 項目を検査する。宣言した script は scripts に足す。 */
+function checkWireEntry(
+  e: Record<string, unknown>,
+  ctx: EntryCtx,
+  { ids, scripts }: { ids: Set<string>; scripts: string[] },
+) {
+  const { at, v } = ctx;
+  checkEntryHead(e, ctx, ids);
+  checkEntryScript(e, ctx, scripts);
+
+  const params = e.params === undefined ? {} : e.params;
+  if (!isRecord(params)) v.push(`${at}: params はオブジェクトにする`);
+  const paramNames = isRecord(params) ? Object.keys(params) : [];
+  checkStages(e.stages, ctx);
+  checkParams(params, e.stages, ctx);
+
+  const resolver = makeResolver(paramNames, ctx);
+  checkCommand(e.command, ctx, resolver);
+  checkOptionalArgs(e.optional_args, ctx, resolver);
+  checkAppliesWhen(e.applies_when, ctx, resolver);
+
+  for (const name of paramNames) {
+    if (!resolver.used.has(name)) v.push(`${at}: params.${name} がどこからも参照されていない`);
+  }
+  if (!isText(e.appears_after)) v.push(`${at}: appears_after（対象が現れる工程）が無い`);
+  if (!isText(e.run_from)) v.push(`${at}: run_from（起動するディレクトリ）が無い`);
+  if ("notes" in e && !isText(e.notes)) v.push(`${at}: notes は空でない文字列にする`);
+}
+
+/**
+ * checks.json を読む。スキルの外を指すリンクと、JSON として読めない宣言は違反にする。
+ * @returns 読めたら宣言のオブジェクト、読めなければ違反の文
+ */
+function readDeclaration(
+  root: string,
+  skill: string,
+  rel: string,
+): Record<string, unknown> | string {
+  // 宣言は配布物なので、リンクでスキルの外を指す checks.json は利用者の手元に届かない。読む前に落とす。
+  if (!isInside(realpathSync(join(root, "skills", skill)), realpathSync(join(root, rel)))) {
+    return `${rel}: スキルのディレクトリの外を指している（配布されない）`;
+  }
+  let data: unknown;
+  try {
+    data = JSON.parse(readFileSync(join(root, rel), "utf8"));
+  } catch (error) {
+    return `${rel}: JSON として読めない: ${errorMessage(error)}`;
+  }
+  if (!isRecord(data)) return `${rel}: オブジェクトでない`;
+  return data;
+}
+
 /**
  * 1 スキルの `checks.json` を検査する。
  * @returns {{ scripts: string[], violations: string[] }} 宣言した検査（リポジトリ相対）と違反
@@ -195,20 +429,8 @@ export function checkDeclaration(
   const rel = `skills/${skill}/${DECLARATION_NAME}`;
   const v: string[] = [];
   const scripts: string[] = [];
-  // 宣言は配布物なので、リンクでスキルの外を指す checks.json は利用者の手元に届かない。読む前に落とす。
-  if (!isInside(realpathSync(join(root, "skills", skill)), realpathSync(join(root, rel)))) {
-    return {
-      scripts,
-      violations: [`${rel}: スキルのディレクトリの外を指している（配布されない）`],
-    };
-  }
-  let data: unknown;
-  try {
-    data = JSON.parse(readFileSync(join(root, rel), "utf8"));
-  } catch (error) {
-    return { scripts, violations: [`${rel}: JSON として読めない: ${errorMessage(error)}`] };
-  }
-  if (!isRecord(data)) return { scripts, violations: [`${rel}: オブジェクトでない`] };
+  const data = readDeclaration(root, skill, rel);
+  if (typeof data === "string") return { scripts, violations: [data] };
   for (const k of Object.keys(data)) if (!TOP_KEYS.has(k)) v.push(`${rel}: 未知のキー ${k}`);
   if (data.version !== 1) v.push(`${rel}: version は 1 にする`);
   if (data.skill !== skill) v.push(`${rel}: skill がディレクトリ名（${skill}）と一致しない`);
@@ -219,176 +441,20 @@ export function checkDeclaration(
   const ids = new Set<string>();
   data.wire.forEach((e, i) => {
     const at = `${rel}: wire[${i}]`;
-    if (!isRecord(e)) return v.push(`${at} がオブジェクトでない`);
-    for (const k of Object.keys(e)) if (!ENTRY_KEYS.has(k)) v.push(`${at}: 未知のキー ${k}`);
-    if (!isText(e.id) || !ID_RE.test(e.id)) v.push(`${at}: id は小文字英数字とハイフンにする`);
-    else if (ids.has(e.id)) v.push(`${at}: id ${e.id} が重複している`);
-    else ids.add(e.id);
-
-    // `.` / 空のセグメントも落とす。実在の確認は通るが、チェックの一覧のパスと字面が一致しないので、
-    // 宣言したチェックが「組み込むか決まっていない」と報告される（宣言の誤りを、別の違反として報告させない）。
-    if (
-      !isText(e.script) ||
-      e.script.startsWith("/") ||
-      e.script.split("/").some((s) => s === ".." || s === "." || s === "")
-    ) {
-      v.push(`${at}: script はスキル直下からの相対パスにする（. / .. / 空のセグメントを含めない）`);
-    } else {
-      const path = join(root, "skills", skill, e.script);
-      if (!existsSync(path) || !statSync(path).isFile()) {
-        v.push(`${at}: script ${e.script} が無い`);
-      } else if (!isInside(realpathSync(join(root, "skills", skill)), realpathSync(path))) {
-        // リンクでスキルの外を指す script は配布されない（配布されるのはスキルのディレクトリだけ）。
-        v.push(`${at}: script ${e.script} がスキルのディレクトリの外を指している`);
-      } else scripts.push(`skills/${skill}/${e.script}`);
-    }
-
-    const params = e.params === undefined ? {} : e.params;
-    if (!isRecord(params)) v.push(`${at}: params はオブジェクトにする`);
-    const paramNames = isRecord(params) ? Object.keys(params) : [];
-
-    const stages = e.stages;
-    if (!isTextArray(stages) || !stages.every((s) => STAGES.has(s))) {
-      v.push(`${at}: stages は pre-commit / ci の空でない配列にする`);
-    } else if (new Set(stages).size !== stages.length) v.push(`${at}: stages が重複している`);
-
-    for (const [name, p] of isRecord(params) ? Object.entries(params) : []) {
-      const pat = `${at}: params.${name}`;
-      if (!ID_RE.test(name.replaceAll("_", "-")) || name === "script") {
-        v.push(`${pat}: 名前は小文字英数字と _ にする（script は予約語）`);
-      }
-      if (!isRecord(p)) {
-        v.push(`${pat} がオブジェクトでない`);
-        continue;
-      }
-      const keys = Object.keys(p);
-      if ("by_stage" in p) {
-        if (keys.length !== 1) v.push(`${pat}: by_stage は他のキーと併用しない`);
-        const bs = p.by_stage;
-        const want = isArray(stages) ? [...stages].sort().join(",") : "";
-        // 実行箇所（stage）ごとの値は、そのまま置き換えられる値（value）か、実行箇所の側で求める手順（resolve）のどちらか一方。
-        // 説明文を value の位置に置くと、機械的に置き換える利用者がその文をそのまま引数に渡す。
-        const stageValue = (sv: unknown) =>
-          isRecord(sv) && Object.keys(sv).length === 1 && (isText(sv.value) || isText(sv.resolve));
-        if (!isRecord(bs) || !Object.values(bs).every(stageValue)) {
-          v.push(
-            `${pat}.by_stage は実行箇所ごとに { "value": <そのまま渡す値> } か { "resolve": <実行箇所の側で求める手順> } のどちらか一方にする`,
-          );
-        } else if (Object.keys(bs).sort().join(",") !== want) {
-          v.push(`${pat}.by_stage のキーが stages と一致しない`);
-        }
-      } else {
-        if (!isText(p.config_key) || !CONFIG_KEY_RE.test(p.config_key)) {
-          v.push(
-            `${pat}: config_key は <設定の名前>.<キー> の形にする（実行箇所ごとの値なら by_stage）`,
-          );
-        } else if (p.config_key.startsWith("skills.")) {
-          v.push(
-            `${pat}: config_key ${p.config_key} は旧い skills.yml の書き方。先頭の skills. を外す`,
-          );
-        } else {
-          v.push(...configKeyViolations(root, skill, p.config_key, pat));
-        }
-        if ("default" in p && !isText(p.default)) v.push(`${pat}: default は空でない文字列にする`);
-        for (const k of keys) {
-          if (k !== "config_key" && k !== "default") v.push(`${pat}: 未知のキー ${k}`);
-        }
-      }
-    }
-
-    // プレースホルダは宣言した params（command だけは {script} も）に解決できなければならない。
-    const used = new Set<string>();
-    const resolveIn = (texts: string[], where: string, allowScript: boolean) => {
-      for (const t of texts) {
-        for (const name of placeholders(t)) {
-          if (name === "script" && allowScript) continue;
-          if (paramNames.includes(name)) used.add(name);
-          else v.push(`${at}: ${where} のプレースホルダ {${name}} が params に無い`);
-        }
-      }
-    };
-
-    if (!isTextArray(e.command)) {
-      v.push(`${at}: command は空でない文字列の配列（argv）にする`);
-    } else {
-      if (!RUNTIMES.has(e.command[0])) v.push(`${at}: command[0] は node か bash にする`);
-      if (e.command.filter((t) => t === "{script}").length !== 1) {
-        v.push(`${at}: command は {script} をちょうど 1 回、単独の要素として持つ`);
-      }
-      // 他の要素に埋め込んだ {script}（x{script} 等）は単独の要素でないので落とす
-      // （resolveIn は {script} を params 扱いせず飛ばすので、ここで拾わないと素通りする）。
-      if (e.command.some((t) => t !== "{script}" && placeholders(t).includes("script"))) {
-        v.push(`${at}: command の {script} は単独の要素にする（他の引数に埋め込まない）`);
-      }
-      resolveIn(e.command, "command", true);
-    }
-
-    if (e.optional_args !== undefined) {
-      if (!isArray(e.optional_args) || e.optional_args.length === 0) {
-        v.push(`${at}: optional_args は空でない配列にする`);
-      } else {
-        e.optional_args.forEach((o, j) => {
-          if (!isRecord(o) || !isTextArray(o.args) || !isText(o.when_exists)) {
-            v.push(`${at}: optional_args[${j}] は args（空でない配列）と when_exists を持つ`);
-          } else if (Object.keys(o).some((k) => k !== "args" && k !== "when_exists")) {
-            // 未知のキー（綴り違いの条件など）を警告なしに捨てると、利用者は書かれた条件が有効になると読む。
-            v.push(`${at}: optional_args[${j}] の未知のキー（args / when_exists だけを持つ）`);
-          } else resolveIn([...o.args, o.when_exists], `optional_args[${j}]`, false);
-        });
-      }
-    }
-
-    // 対象が現れた条件は作業ツリー（exists）か比較元の版（exists_at_base）のどちらか一方以上で書く。
-    // 削除を検出する検査は、作業ツリー側を条件にするとその削除の commit で検査ごと飛ぶので exists_at_base だけを使う。
-    const aw = e.applies_when;
-    const awKeys = ["exists", "exists_at_base"];
-    if (!isRecord(aw) || !awKeys.some((k) => k in aw)) {
-      v.push(
-        `${at}: applies_when に対象が現れたと分かるパスを exists（作業ツリー）か exists_at_base（比較元の版）で 1 件以上書く`,
-      );
-    } else {
-      for (const k of Object.keys(aw)) {
-        if (!awKeys.includes(k)) v.push(`${at}: applies_when の未知のキー ${k}`);
-      }
-      for (const k of awKeys) {
-        if (k in aw && !isTextArray(aw[k])) v.push(`${at}: applies_when.${k} は空でない配列にする`);
-      }
-      // 形が違う値は上で違反にしたので展開しない（真偽値・オブジェクトの展開は
-      // TypeError になり、宣言の誤り＝exit 1 が、誤って「判定できない」＝exit 2 と判定される）。
-      const paths = awKeys.flatMap((k) => (isTextArray(aw[k]) ? aw[k] : []));
-      resolveIn(paths, "applies_when", false);
-    }
-
-    for (const name of paramNames) {
-      if (!used.has(name)) v.push(`${at}: params.${name} がどこからも参照されていない`);
-    }
-    if (!isText(e.appears_after)) v.push(`${at}: appears_after（対象が現れる工程）が無い`);
-    if (!isText(e.run_from)) v.push(`${at}: run_from（起動するディレクトリ）が無い`);
-    if ("notes" in e && !isText(e.notes)) v.push(`${at}: notes は空でない文字列にする`);
+    if (!isRecord(e)) v.push(`${at} がオブジェクトでない`);
+    else checkWireEntry(e, { root, skill, at, v }, { ids, scripts });
   });
   return { scripts, violations: v };
 }
 
 /**
- * @param {string} root リポジトリルート（テストでは一時ディレクトリ）
- * @returns {{ checks: number, wired: number, unwired: number, declarations: number, violations: string[] }}
+ * 各スキルの checks.json を検査し、組み込むと宣言した検査をスキル名と対応づけて返す。
+ * @returns 組み込む検査（script -> 宣言したスキル）と、読んだ宣言の数
  */
-export function checkSkillChecks(root: string): {
-  checks: number;
-  wired: number;
-  unwired: number;
-  declarations: number;
-  violations: string[];
-} {
-  const checks = findCheckScripts(root);
-  if (checks.length === 0) throw new Error("走査対象の検査（skills/*/scripts/*-check.*）が 0 本");
-  const unwiredList = loadUnwired(root);
-  const violations: string[] = [];
-
-  const skills = skillDirs(root);
+function collectWired(root: string, checks: string[], violations: string[]) {
   const wired = new Map<string, string>(); // script -> 宣言したスキル
   let declarations = 0;
-  for (const skill of skills) {
+  for (const skill of skillDirs(root)) {
     const hasDecl = existsSync(join(root, "skills", skill, DECLARATION_NAME));
     const hasCheck = checks.some((c) => c.startsWith(`skills/${skill}/`));
     if (!hasDecl) {
@@ -414,7 +480,11 @@ export function checkSkillChecks(root: string): {
       wired.set(s, skill);
     }
   }
+  return { wired, declarations };
+}
 
+/** 組み込まない一覧の重複と、実在しない検査を違反にし、一覧を集合にして返す。 */
+function collectUnwired(unwiredList: string[], checks: string[], violations: string[]) {
   const unwired = new Set<string>();
   for (const s of unwiredList) {
     if (unwired.has(s)) violations.push(`${UNWIRED_PATH}: ${s} が重複している`);
@@ -425,6 +495,26 @@ export function checkSkillChecks(root: string): {
       );
     }
   }
+  return unwired;
+}
+
+/**
+ * @param {string} root リポジトリルート（テストでは一時ディレクトリ）
+ * @returns {{ checks: number, wired: number, unwired: number, declarations: number, violations: string[] }}
+ */
+export function checkSkillChecks(root: string): {
+  checks: number;
+  wired: number;
+  unwired: number;
+  declarations: number;
+  violations: string[];
+} {
+  const checks = findCheckScripts(root);
+  if (checks.length === 0) throw new Error("走査対象の検査（skills/*/scripts/*-check.*）が 0 本");
+  const unwiredList = loadUnwired(root);
+  const violations: string[] = [];
+  const { wired, declarations } = collectWired(root, checks, violations);
+  const unwired = collectUnwired(unwiredList, checks, violations);
 
   for (const c of checks) {
     const w = wired.has(c);

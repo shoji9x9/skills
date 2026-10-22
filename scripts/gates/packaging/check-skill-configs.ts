@@ -40,11 +40,11 @@ export function schemaDirs(root: string): Map<string, string> {
   return out;
 }
 
-/** 違反を列挙する。 */
-export function check(root: string): { findings: Finding[]; files: number; schemas: number } {
-  const findings: Finding[] = [];
-  const dirs = schemaDirs(root);
-  // スキーマそのものを、全スキルの全ファイルについて読めるか確かめる（コピーの一致は identical-copies が見る）
+/**
+ * スキーマそのものを、全スキルの全ファイルについて読めるか確かめる（コピーの一致は identical-copies が見る）。
+ * @returns 読んだスキーマの数
+ */
+function checkSchemas(root: string, findings: Finding[]): number {
   const skills = join(root, "skills");
   let schemas = 0;
   for (const skill of readdirSync(skills).sort()) {
@@ -67,6 +67,14 @@ export function check(root: string): { findings: Finding[]; files: number; schem
       }
     }
   }
+  return schemas;
+}
+
+/**
+ * .config/skills/<owner>/ の設定ファイルを、対応するスキーマで読めるか確かめる。
+ * @returns 名前の形が正しい設定ファイルの数
+ */
+function checkConfigFiles(root: string, dirs: Map<string, string>, findings: Finding[]): number {
   const configDir = join(root, ".config", "skills", NAMESPACE);
   let files = 0;
   for (const f of existsSync(configDir) ? readdirSync(configDir).sort() : []) {
@@ -96,6 +104,15 @@ export function check(root: string): { findings: Finding[]; files: number; schem
       findings.push({ path: rel, message: e.message });
     }
   }
+  return files;
+}
+
+/** 違反を列挙する。 */
+export function check(root: string): { findings: Finding[]; files: number; schemas: number } {
+  const findings: Finding[] = [];
+  const dirs = schemaDirs(root);
+  const schemas = checkSchemas(root, findings);
+  const files = checkConfigFiles(root, dirs, findings);
   return { findings, files, schemas };
 }
 

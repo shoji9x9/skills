@@ -173,13 +173,16 @@ export function linkPath(file: string, target: string) {
   return normalize(path.startsWith("/") ? path.slice(1) : join(dirname(file), path));
 }
 
-export function resolveSectionTarget(
-  root: string,
-  file: string,
-  kind: SectionKind,
-  path: string,
-  skill: string | null,
-): string | null {
+/** 節名の参照 1 件。kind が "skill" のときだけ skill にスキル名が入る。 */
+type SectionRef = {
+  root: string;
+  file: string;
+  kind: SectionKind;
+  path: string;
+  skill: string | null;
+};
+
+export function resolveSectionTarget({ root, file, kind, path, skill }: SectionRef): string | null {
   if (kind === "skill") {
     for (const base of [`skills/${skill}`, `.agents/skills/${skill}`]) {
       if (existsSync(join(root, base, path))) return normalize(join(base, path));
@@ -199,10 +202,7 @@ export function resolveSectionTarget(
 
 function generatedTemplate(
   config: DocRefsConfig,
-  root: string,
-  file: string,
-  path: string,
-  skill: string | null,
+  { root, file, path, skill }: SectionRef,
 ): string | null {
   const sk = skill ?? skillDirOf(root, file)?.split("/").pop();
   // 同じ生成ファイルを `gaps.md`・`.replace/parity/<slug>/gaps.md` のように書くので、宣言した名前で終わるパスも当てる。
@@ -228,21 +228,104 @@ const issueRes = (repo: string) => [
 ];
 const REPO_PATH_RE = /(?<![\w./-])((?:docs|\.agents\/rules|scripts|evals|tests)\/[\w./-]*[\w])/g;
 
+/** 1 ファイルを読む間、どの行でも変わらない値。 */
+type FileContext = {
+  root: string;
+  config: DocRefsConfig;
+  file: string;
+  tier: number;
+  /** 配布スキルのディレクトリ。配布スキルの外のファイルなら null。 */
+  dist: string | null;
+  /** 参照先のファイルの節名の一覧を返す（読んだ結果はキャッシュする）。 */
+  anchors: (target: string) => Set<string>;
+};
+
+/** 1 行を読む間の値。at は、この行の違反を 1 件記録する。 */
+type LineContext = FileContext & {
+  line: string;
+  at: (rule: string, t: string, message?: string) => void;
+};
+
+/** Markdown のリンク `[...](相対パス)` の先が在るかと、配布スキルの外を指していないかを確かめる（link 規則）。 */
+function checkLinks({ root, file, dist, line, at }: LineContext) {
+  for (const m of blankInlineCode(line).matchAll(/\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
+    const target = m[1];
+    if (/^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith("#") || target.startsWith("<"))
+      continue;
+    const rel = linkPath(file, target);
+    if (!existsSync(join(root, rel))) at("link", target, `リンク先 ${target} が無い`);
+    // 配布スキルのリンクは、スキルのディレクトリの中だけを指す（他のスキルも導入先に在るとは限らない）。
+    else if (dist && !rel.startsWith(`${dist}/`))
+      at("dist-repo-path", target, `スキルの外 ${rel} へのリンク`);
+  }
+}
+
+/** パスの直後に書いた「節名」1 件が、参照先の見出しなどに在るかを確かめる（section 規則）。 */
+function checkSection(ctx: LineContext, kind: SectionKind, m: RegExpMatchArray) {
+  const { root, config, file, anchors, at } = ctx;
+  const [skill, path, name] = kind === "skill" ? [m[1], m[2], m[3]] : [null, m[1], m[2]];
+  const shown = `${skill ? `${skill}/` : ""}${path}「${name}」`;
+  const ref = { root, file, kind, path, skill };
+  let target = resolveSectionTarget(ref);
+  if (target === null && kind === "link") return; // リンク切れは link で報告する
+  target ??= generatedTemplate(config, ref);
+  if (target === null) {
+    at(
+      "section",
+      shown,
+      `${shown} の参照先が見つからない（導入先で生成するなら ${CONFIG_PATH} の generated に宣言する）`,
+    );
+  } else if (!hasAnchor(anchors(target), name)) {
+    at("section", shown, `${shown} の節名が ${target} に無い`);
+  }
+}
+
+/** Tier 4（学び・eval の結果・Issue と PR）と、配布スキルの外のファイルへの参照を確かめる。 */
+function checkTierRefs({ root, config, tier, dist, line, at }: LineContext) {
+  const toTier4 = tier <= 2 && !dist;
+  if (!toTier4 && !dist) return;
+  for (const m of line.matchAll(KAIZEN_RE))
+    at(dist ? "dist-kaizen" : "tier-down", m[0], `学び ${m[0]} を参照している`);
+  if (!dist)
+    for (const m of line.matchAll(TESTS_RE))
+      at("tier-down", m[0], `eval の結果 ${m[0]} を参照している`);
+  const isExample = EXAMPLE_LINE_RE.test(line);
+  if (!isExample) {
+    for (const re of issueRes(config.repo)) {
+      // インラインコードの中は例として読まない（「`#1` のように書かない」）。
+      for (const m of blankInlineCode(line).matchAll(re))
+        at(dist ? "dist-issue" : "tier-down", m[0], `Issue・PR ${m[0]} を参照している`);
+    }
+  }
+  if (dist) {
+    for (const m of line.matchAll(REPO_PATH_RE)) {
+      const p = m[1];
+      if (existsSync(join(root, p)) && !existsSync(join(root, dist, p)))
+        at("dist-repo-path", p, `スキルの外のファイル ${p} を参照している`);
+    }
+  }
+}
+
 /**
  * 1 ファイルの違反を列挙する。
  * @returns {{ line: number, rule: string, text: string, message?: string }[]}
  */
-export function findInFile(
-  root: string,
-  config: DocRefsConfig,
-  { file, tier, markdown }: ScannedFile,
-  text: string,
-  anchorCache: Map<string, Set<string>> = new Map(),
-): Finding[] {
+export function findInFile({
+  root,
+  config,
+  scanned: { file, tier, markdown },
+  text,
+  anchorCache = new Map(),
+}: {
+  root: string;
+  config: DocRefsConfig;
+  scanned: ScannedFile;
+  text: string;
+  anchorCache?: Map<string, Set<string>>;
+}): Finding[] {
   const out: Finding[] = [];
   const lines = text.split(/\r?\n/);
   const fenced = markdown ? fencedLines(lines) : lines.map(() => false);
-  const dist = distributedSkillDir(file);
   const anchors = (target: string) => {
     const cached = anchorCache.get(target);
     if (cached) return cached;
@@ -250,67 +333,21 @@ export function findInFile(
     anchorCache.set(target, found);
     return found;
   };
+  const ctx: FileContext = { root, config, file, tier, dist: distributedSkillDir(file), anchors };
 
   lines.forEach((line: string, i: number) => {
     const at = (rule: string, t: string, message?: string) =>
       out.push({ line: i + 1, rule, text: t, message });
-    const isExample = EXAMPLE_LINE_RE.test(line);
-
+    const lc = { ...ctx, line, at };
     if (markdown && !fenced[i]) {
-      for (const m of blankInlineCode(line).matchAll(/\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
-        const target = m[1];
-        if (/^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith("#") || target.startsWith("<"))
-          continue;
-        const rel = linkPath(file, target);
-        if (!existsSync(join(root, rel))) at("link", target, `リンク先 ${target} が無い`);
-        // 配布スキルのリンクは、スキルのディレクトリの中だけを指す（他のスキルも導入先に在るとは限らない）。
-        else if (dist && !rel.startsWith(`${dist}/`))
-          at("dist-repo-path", target, `スキルの外 ${rel} へのリンク`);
-      }
+      checkLinks(lc);
     }
-
     if (!fenced[i]) {
       for (const { re, kind } of SECTION_PATTERNS) {
-        for (const m of line.matchAll(re)) {
-          const [skill, path, name] = kind === "skill" ? [m[1], m[2], m[3]] : [null, m[1], m[2]];
-          const shown = `${skill ? `${skill}/` : ""}${path}「${name}」`;
-          let target = resolveSectionTarget(root, file, kind, path, skill);
-          if (target === null && kind === "link") continue; // リンク切れは link で報告する
-          target ??= generatedTemplate(config, root, file, path, skill);
-          if (target === null) {
-            at(
-              "section",
-              shown,
-              `${shown} の参照先が見つからない（導入先で生成するなら ${CONFIG_PATH} の generated に宣言する）`,
-            );
-          } else if (!hasAnchor(anchors(target), name)) {
-            at("section", shown, `${shown} の節名が ${target} に無い`);
-          }
-        }
+        for (const m of line.matchAll(re)) checkSection(lc, kind, m);
       }
     }
-
-    const toTier4 = tier <= 2 && !dist;
-    if (!toTier4 && !dist) return;
-    for (const m of line.matchAll(KAIZEN_RE))
-      at(dist ? "dist-kaizen" : "tier-down", m[0], `学び ${m[0]} を参照している`);
-    if (!dist)
-      for (const m of line.matchAll(TESTS_RE))
-        at("tier-down", m[0], `eval の結果 ${m[0]} を参照している`);
-    if (!isExample) {
-      for (const re of issueRes(config.repo)) {
-        // インラインコードの中は例として読まない（「`#1` のように書かない」）。
-        for (const m of blankInlineCode(line).matchAll(re))
-          at(dist ? "dist-issue" : "tier-down", m[0], `Issue・PR ${m[0]} を参照している`);
-      }
-    }
-    if (dist) {
-      for (const m of line.matchAll(REPO_PATH_RE)) {
-        const p = m[1];
-        if (existsSync(join(root, p)) && !existsSync(join(root, dist, p)))
-          at("dist-repo-path", p, `スキルの外のファイル ${p} を参照している`);
-      }
-    }
+    checkTierRefs(lc);
   });
   return out;
 }
@@ -327,7 +364,8 @@ export function checkDocRefs(root: string) {
   const found: (Finding & { file: string })[] = [];
   for (const f of files) {
     const text = readFileSync(join(root, f.file), "utf8");
-    for (const v of findInFile(root, config, f, text, cache)) found.push({ file: f.file, ...v });
+    for (const v of findInFile({ root, config, scanned: f, text, anchorCache: cache }))
+      found.push({ file: f.file, ...v });
   }
   return { files: files.length, found, ...applyPending(found, list, RULES) };
 }

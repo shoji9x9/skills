@@ -99,8 +99,8 @@
       "id": "DR-SEC-NOTFOUND",
       "why": "参照先が見つからなくても報告しない",
       "file": "scripts/gates/docs/check-doc-refs.ts",
-      "find": "          if (target === null) {\n            at(",
-      "replace": "          if (target === null) {\n            (() => {})(",
+      "find": "  if (target === null) {\n    at(",
+      "replace": "  if (target === null) {\n    (() => {})(",
       "occurrences": 1,
       "expect_failing": [
         "陽性: 参照先が無い",
@@ -112,8 +112,8 @@
       "id": "DR-SEC-LINKSKIP",
       "why": "リンク切れの節名を section でも報告する",
       "file": "scripts/gates/docs/check-doc-refs.ts",
-      "find": "if (target === null && kind === \"link\") continue;",
-      "replace": "if (false) continue;",
+      "find": "if (target === null && kind === \"link\") return;",
+      "replace": "if (false) return;",
       "occurrences": 1,
       "expect_failing": [
         "陰性: リンク切れの節名は link だけで報告する（二重に数えない）。フェンスの中は読まない"
@@ -257,8 +257,8 @@
       "id": "DR-KAIZEN",
       "why": "学びへの参照を見ない",
       "file": "scripts/gates/docs/check-doc-refs.ts",
-      "find": "    for (const m of line.matchAll(KAIZEN_RE))",
-      "replace": "    for (const m of [])",
+      "find": "  for (const m of line.matchAll(KAIZEN_RE))",
+      "replace": "  for (const m of [])",
       "occurrences": 1,
       "expect_failing": [
         "陽性: Tier 2 の文書から 学び（日付付き） を参照すると落とす",
@@ -279,8 +279,8 @@
       "id": "DR-TESTS",
       "why": "eval の結果への参照を見ない",
       "file": "scripts/gates/docs/check-doc-refs.ts",
-      "find": "      for (const m of line.matchAll(TESTS_RE))",
-      "replace": "      for (const m of [])",
+      "find": "    for (const m of line.matchAll(TESTS_RE))",
+      "replace": "    for (const m of [])",
       "occurrences": 1,
       "expect_failing": ["陽性: Tier 2 の文書から eval の結果 を参照すると落とす"]
     },
@@ -333,8 +333,8 @@
       "id": "DR-ISSUE-EXAMPLE",
       "why": "例の行の番号も数える",
       "file": "scripts/gates/docs/check-doc-refs.ts",
-      "find": "    if (!isExample) {",
-      "replace": "    if (true) {",
+      "find": "  if (!isExample) {",
+      "replace": "  if (true) {",
       "occurrences": 1,
       "expect_failing": ["陰性: 例の行 は Tier 4 への参照として数えない"]
     },

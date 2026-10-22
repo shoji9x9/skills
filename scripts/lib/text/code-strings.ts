@@ -99,41 +99,9 @@ export function hasStrings(path: string): boolean {
  */
 export function stringMarkdown(path: string, source: string): CommentMarkdown {
   if (!hasStrings(path)) throw new Error(`${path}: 文字列を取り出せないファイル`);
-  const isEvals = EVALS.test(path);
-  // oxlint-disable-next-line typescript/consistent-type-assertions -- parseDiagnostics は TypeScript の内部 API で、公開の型に無い
-  const sf = (
-    isEvals
-      ? ts.parseJsonText(path, source)
-      : ts.createSourceFile(
-          path,
-          source,
-          ts.ScriptTarget.Latest,
-          true,
-          path.endsWith(".ts") ? ts.ScriptKind.TS : ts.ScriptKind.JS,
-        )
-  ) as ParsedSourceFile;
-  if (isEvals && sf.parseDiagnostics.length > 0) {
-    throw new Error(`${path}: JSON として読めない（${sf.parseDiagnostics.length} 件の構文エラー）`);
-  }
-  const items = isEvals ? evalStrings(sf) : jsStrings(sf);
-  // ディレクティブの行は、文字列と位置の順に並べて Markdown のコメントにする。
-  const directives = isEvals ? [] : commentDirectives(path, source);
-  const entries: Entry[] = [
-    ...items.map((node) => ({ pos: node.getStart(sf), node })),
-    ...directives.map((d) => ({ pos: sf.getPositionOfLineAndCharacter(d.line, 0), d })),
-  ].sort((a, b) => a.pos - b.pos);
-
-  const md: string[] = [];
-  const lines: number[] = [];
-  const columns: number[] = [];
-  const starts: number[] = [];
-  const emit = (text: string, line: number, column: number) => {
-    md.push(text);
-    lines.push(line);
-    columns.push(column);
-    starts.push(column + 1);
-  };
-  for (const entry of entries) {
+  const { sf, isEvals } = parseSource(path, source);
+  const { emit, build } = markdownBuilder();
+  for (const entry of sortedEntries({ path, source, sf, isEvals })) {
     if (entry.d) {
       emit("", entry.d.line, 0);
       emit(`<!-- textlint-${entry.d.directive} -->`, entry.d.line, 0);
@@ -168,7 +136,73 @@ export function stringMarkdown(path: string, source: string): CommentMarkdown {
       emit(body, origin.line, origin.column + lead);
     });
   }
-  return { markdown: md.join("\n"), lines, columns, starts };
+  return build();
+}
+
+/**
+ * evals.json なら JSON として、それ以外は JavaScript・TypeScript として読む。JSON の構文エラーは Error にする。
+ * evals.json かどうか（isEvals）も返し、取り出し方を決める側が同じ判定を使う。
+ */
+function parseSource(path: string, source: string): { sf: ParsedSourceFile; isEvals: boolean } {
+  const isEvals = EVALS.test(path);
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- parseDiagnostics は TypeScript の内部 API で、公開の型に無い
+  const sf = (
+    isEvals
+      ? ts.parseJsonText(path, source)
+      : ts.createSourceFile(
+          path,
+          source,
+          ts.ScriptTarget.Latest,
+          true,
+          path.endsWith(".ts") ? ts.ScriptKind.TS : ts.ScriptKind.JS,
+        )
+  ) as ParsedSourceFile;
+  if (isEvals && sf.parseDiagnostics.length > 0) {
+    throw new Error(`${path}: JSON として読めない（${sf.parseDiagnostics.length} 件の構文エラー）`);
+  }
+  return { sf, isEvals };
+}
+
+/** 取り出した文字列と、ディレクティブの行を、位置の順に並べる。ディレクティブは Markdown のコメントにする。 */
+function sortedEntries({
+  path,
+  source,
+  sf,
+  isEvals,
+}: {
+  path: string;
+  source: string;
+  sf: ParsedSourceFile;
+  isEvals: boolean;
+}): Entry[] {
+  const items = isEvals ? evalStrings(sf) : jsStrings(sf);
+  const directives = isEvals ? [] : commentDirectives(path, source);
+  const entries: Entry[] = [
+    ...items.map((node) => ({ pos: node.getStart(sf), node })),
+    ...directives.map((d) => ({ pos: sf.getPositionOfLineAndCharacter(d.line, 0), d })),
+  ];
+  return entries.sort((a, b) => a.pos - b.pos);
+}
+
+/**
+ * Markdown の行と、各行が元のファイルのどの行と桁に当たるかを順に溜める。
+ * emit で 1 行を足し、build で `commentMarkdown` と同じ形の結果にする。文章は桁 column の直後から始まるとして扱う。
+ */
+function markdownBuilder(): {
+  emit: (text: string, line: number, column: number) => void;
+  build: () => CommentMarkdown;
+} {
+  const md: string[] = [];
+  const lines: number[] = [];
+  const columns: number[] = [];
+  const starts: number[] = [];
+  const emit = (text: string, line: number, column: number) => {
+    md.push(text);
+    lines.push(line);
+    columns.push(column);
+    starts.push(column + 1);
+  };
+  return { emit, build: () => ({ markdown: md.join("\n"), lines, columns, starts }) };
 }
 
 /**
@@ -235,9 +269,8 @@ function evalStrings(sf: ts.SourceFile): ts.StringLiteral[] {
       const key = prop.name && ts.isStringLiteral(prop.name) ? prop.name.text : undefined;
       if (EVAL_STRING_KEYS.has(key) && ts.isStringLiteral(prop.initializer))
         out.push(prop.initializer);
-      if (key === "assertions" && ts.isArrayLiteralExpression(prop.initializer)) {
-        for (const a of prop.initializer.elements) if (ts.isStringLiteral(a)) out.push(a);
-      }
+      if (key === "assertions" && ts.isArrayLiteralExpression(prop.initializer))
+        out.push(...prop.initializer.elements.filter((a) => ts.isStringLiteral(a)));
     }
   }
   return out;

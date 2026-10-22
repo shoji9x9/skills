@@ -101,7 +101,7 @@
       "id": "CC-DIRECTIVE",
       "why": "ディレクティブを Markdown のコメントにしない",
       "file": "scripts/lib/text/code-comments.ts",
-      "find": "    if (directive) emit(`<!-- textlint-${directive} -->`, block[0].line, 0);\n    else for",
+      "find": "    if (directive) emit({ text: `<!-- textlint-${directive} -->`, line, column: 0 });\n    else for",
       "replace": "    for",
       "occurrences": 1,
       "expect_failing": [
@@ -141,8 +141,8 @@
       "id": "CC-OPEN-COL",
       "why": "/** の後の桁を 1 文字ずらす",
       "file": "scripts/lib/text/code-comments.ts",
-      "find": "    const body = \" \".repeat(open.length) +",
-      "replace": "    const body = \"  \" +",
+      "find": "  const body = \" \".repeat(open.length) +",
+      "replace": "  const body = \"  \" +",
       "occurrences": 1,
       "expect_failing": [
         "JavaScript・TypeScript 位置: 行コメント・ブロックコメントの 1 行目・2 行目以降を元の行と桁に戻す"
@@ -254,8 +254,8 @@
       "id": "CC-JSDOC-SCOPE",
       "why": "/** 以外のコメントの行頭の @ もタグとして扱う",
       "file": "scripts/lib/text/code-comments.ts",
-      "find": "      if (open === \"/**\") {",
-      "replace": "      if (true) {",
+      "find": "    if (open === \"/**\") {",
+      "replace": "    if (true) {",
       "occurrences": 1,
       "expect_failing": ["JavaScript・TypeScript /** 以外のコメントの行頭の @ はタグとして扱わない"]
     },
@@ -263,8 +263,8 @@
       "id": "CC-TYPE-CONTINUATION",
       "why": "次の行に続く型を文章として読む",
       "file": "scripts/lib/text/code-comments.ts",
-      "find": "          typeDepth > 0\n",
-      "replace": "          false\n",
+      "find": "        typeDepth > 0\n",
+      "replace": "        false\n",
       "occurrences": 1,
       "expect_failing": [
         "JavaScript・TypeScript 型の括弧が次の行以降で閉じるなら、閉じるところまでを型として置き換える"

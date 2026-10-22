@@ -22,7 +22,7 @@
 //
 // 使い方: node scripts/eval/generate-parity-component-fixtures.ts
 
-import { type ChildProcess, spawn, spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -88,37 +88,51 @@ const CASCADE_BASE_CSS = `${APP_CSS}.searchbox-btn { width: 40px; }
 .btn { letter-spacing: normal; }
 `;
 
-const page = (title: string, button: string, css = APP_CSS, extraCss: string | null = null) =>
+// css と extraCss は、競合用ページだけが基礎スタイルシートとテーマ層を差し替えるために渡す。
+const page = ({
+  title,
+  button,
+  css = APP_CSS,
+  extraCss = null,
+}: {
+  title: string;
+  button: string;
+  css?: string;
+  extraCss?: string | null;
+}) =>
   `<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>${title}</title>` +
   `<style>${css}</style>${extraCss === null ? "" : `<style>${extraCss}</style>`}` +
   `</head><body style="margin:0">` +
   `<main style="padding:16px">${button}</main></body></html>`;
 
 const PAGES = {
-  "/orders": page(
-    "注文",
-    '<button class="btn btn-primary" data-testid="order-search-submit">検索</button>',
-  ),
-  "/users": page(
-    "利用者",
-    '<button class="btn btn-secondary" data-testid="user-create-submit">利用者を作成</button>',
-  ),
+  "/orders": page({
+    title: "注文",
+    button: '<button class="btn btn-primary" data-testid="order-search-submit">検索</button>',
+  }),
+  "/users": page({
+    title: "利用者",
+    button:
+      '<button class="btn btn-secondary" data-testid="user-create-submit">利用者を作成</button>',
+  }),
 };
 
 const CASCADE_PAGES = {
-  "/orders": page(
-    "注文",
-    '<button class="btn btn-primary searchbox-btn" style="width: 10px" ' +
+  "/orders": page({
+    title: "注文",
+    button:
+      '<button class="btn btn-primary searchbox-btn" style="width: 10px" ' +
       'data-testid="order-search-submit">検索</button>',
-    CASCADE_BASE_CSS,
-    THEME_CSS,
-  ),
-  "/users": page(
-    "利用者",
-    '<button class="btn btn-secondary" data-testid="user-create-submit">利用者を作成</button>',
-    CASCADE_BASE_CSS,
-    THEME_CSS,
-  ),
+    css: CASCADE_BASE_CSS,
+    extraCss: THEME_CSS,
+  }),
+  "/users": page({
+    title: "利用者",
+    button:
+      '<button class="btn btn-secondary" data-testid="user-create-submit">利用者を作成</button>',
+    css: CASCADE_BASE_CSS,
+    extraCss: THEME_CSS,
+  }),
 };
 
 const INSTANCES = [
@@ -166,7 +180,7 @@ const CALL_TIMEOUT_MS = 30000;
 const SHUTDOWN_TIMEOUT_MS = Number(process.env.PARITY_FIXTURES_SHUTDOWN_TIMEOUT_MS) || 10000;
 
 // `exit` を ms 以内に待つ。来れば true、上限を超えたら false。
-const waitForExit = (proc: ChildProcess, ms: number) =>
+const waitForExit = (proc: ChromeProcess, ms: number) =>
   new Promise<boolean>((resolve) => {
     if (proc.exitCode !== null || proc.signalCode !== null) {
       resolve(true);
@@ -192,7 +206,8 @@ type PendingCall = {
 // One message from the CDP WebSocket.
 type CdpMessage = { id?: number; result?: unknown; error?: { message: string; code: number } };
 
-async function launchChrome() {
+/** 一時プロファイルを作り、headless の Chrome をリモートデバッグのポートを開けて起動する。 */
+function spawnChrome() {
   const userDir = mkdtempSync(join(tmpdir(), "parity-component-fixtures-"));
   const proc = spawn(
     process.env.CHROME || "/usr/bin/google-chrome",
@@ -208,12 +223,27 @@ async function launchChrome() {
     ],
     { stdio: ["ignore", "ignore", "pipe"] },
   );
-  let ws: WebSocket | null = null;
-  // Chrome は SIGTERM 後もしばらくプロファイルへ書くので、終了を待ってから消す
-  // （待たずに消すと ENOTEMPTY で finally が throw し、成功した生成が非 0 の終了になってしまう）。
-  // 起動・ハンドシェイクの途中で失敗したときも同じ片付けを通す（通さないと Chrome とプロファイルが残る）。
-  const shutdown = async () => {
-    if (ws) ws.close();
+  return { proc, userDir };
+}
+
+/**
+ * Chrome の DevTools への接続。openPageSocket は socket を開く前に ws に入れ、開く途中で失敗しても shutdown が閉じられるようにする。
+ * 閉じた後も null には戻さない。
+ */
+type Connection = { ws: WebSocket | null };
+/** 起動した Chrome のプロセス。stderr を読むので、spawnChrome が返す stdio の形をそのまま使う。 */
+type ChromeProcess = ReturnType<typeof spawnChrome>["proc"];
+
+/**
+ * Chrome とプロファイルを片付ける関数を返す。`connection.ws` には、openPageSocket が開く前の socket を入れる。
+ *
+ * Chrome は SIGTERM 後もしばらくプロファイルへ書くので、終了を待ってから消す
+ * （待たずに消すと ENOTEMPTY で finally が throw し、成功した生成が非 0 の終了になってしまう）。
+ * 起動・ハンドシェイクの途中で失敗したときも同じ片付けを通す（通さないと Chrome とプロファイルが残る）。
+ */
+function makeShutdown(proc: ChromeProcess, userDir: string, connection: Connection) {
+  return async () => {
+    if (connection.ws) connection.ws.close();
     let stuck = false;
     if (proc.exitCode === null && proc.signalCode === null) {
       proc.kill("SIGTERM");
@@ -229,102 +259,127 @@ async function launchChrome() {
     rmSync(userDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
     if (stuck) throw new Error(`Chrome (pid ${proc.pid}) が SIGKILL 後も終了しない`);
   };
+}
+
+/** Chrome の stderr から DevTools の WebSocket の URL を読む。起動しないときや終了したときは reject する。 */
+function waitForDevToolsUrl(proc: ChromeProcess) {
+  return new Promise<string>((resolve, reject) => {
+    let buf = "";
+    const timer = setTimeout(() => reject(new Error(`Chrome が起動しない: ${buf}`)), 20000);
+    proc.once("error", (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+    proc.once("exit", (code) => {
+      clearTimeout(timer);
+      reject(new Error(`Chrome が終了した (exit ${code}): ${buf}`));
+    });
+    proc.stderr.on("data", (d) => {
+      buf += d;
+      const m = buf.match(/DevTools listening on (ws:\S+)/);
+      if (m) {
+        clearTimeout(timer);
+        resolve(m[1]);
+      }
+    });
+  });
+}
+
+/**
+ * DevTools の HTTP エンドポイントからページのターゲットとブラウザの版を取得し、ページへの WebSocket を開く。
+ * 開く前の socket も `connection.ws` に入れ、shutdown が閉じられるようにする。
+ */
+async function openPageSocket(wsUrl: string, connection: Connection) {
+  const port = new URL(wsUrl).port;
+  // The endpoint decides the shape of what it returns.
+  const getJson = async <T>(path: string) =>
+    parseJsonAs<T>(
+      await (
+        await fetch(`http://127.0.0.1:${port}${path}`, {
+          signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
+        })
+      ).text(),
+    );
+  const targets = await getJson<{ type: string; webSocketDebuggerUrl: string }[]>("/json");
+  const browser = (await getJson<{ Browser: string }>("/json/version")).Browser;
+  const page = targets.find((t) => t.type === "page");
+  if (!page) throw new Error("CDP のページターゲットが見つからない");
+  // shutdown が閉じられるよう connection.ws にも入れ、ここから先は null でない socket を使う。
+  const socket = new WebSocket(page.webSocketDebuggerUrl);
+  connection.ws = socket;
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error("CDP の WebSocket が開かない")),
+      CALL_TIMEOUT_MS,
+    );
+    socket.onopen = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    socket.onerror = () => {
+      clearTimeout(timer);
+      reject(new Error("CDP の WebSocket の接続に失敗した"));
+    };
+  });
+  return { socket, browser };
+}
+
+/** 開いた WebSocket で CDP のメソッドを呼び、応答を id で対応づけて返す send を作る。 */
+function createSender(socket: WebSocket) {
+  let nextId = 0;
+  let closedReason: string | null = null;
+  const pending = new Map<number, PendingCall>();
+  // 接続が切れたら待っている呼び出しを全部落とす。応答メッセージだけを見ていると、
+  // Chrome が生きたまま接続だけ切れたときに send() が永久に解決せず、finally の片付けにも届かない。
+  const failAll = (reason: string) => {
+    closedReason = closedReason || reason;
+    for (const { reject, timer } of pending.values()) {
+      clearTimeout(timer);
+      reject(new Error(closedReason));
+    }
+    pending.clear();
+  };
+  socket.onclose = () => failAll("CDP の WebSocket が閉じた");
+  socket.onerror = () => failAll("CDP の WebSocket でエラーが起きた");
+  socket.onmessage = (ev) => {
+    const msg = parseJsonAs<CdpMessage>(ev.data);
+    const call = msg.id ? pending.get(msg.id) : undefined;
+    if (msg.id && call) {
+      const { resolve, reject, timer } = call;
+      clearTimeout(timer);
+      pending.delete(msg.id);
+      if (msg.error) reject(new Error(`${msg.error.message} (${msg.error.code})`));
+      else resolve(msg.result);
+    }
+  };
+  // The CDP method decides the shape of its result.
+  const send = <T = unknown>(method: string, params: object = {}) =>
+    new Promise<T>((resolve, reject) => {
+      if (closedReason) {
+        reject(new Error(`${method}: ${closedReason}`));
+        return;
+      }
+      const id = ++nextId;
+      const timer = setTimeout(() => {
+        pending.delete(id);
+        reject(new Error(`${method}: ${CALL_TIMEOUT_MS}ms 以内に応答が無い`));
+      }, CALL_TIMEOUT_MS);
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- CDP の結果の形はメソッドごとに決まり、応答の JSON からは型の検査で T を確かめられない。呼び出し側が T で宣言する
+      pending.set(id, { resolve: resolve as (value: unknown) => void, reject, timer });
+      socket.send(JSON.stringify({ id, method, params }));
+    });
+  return send;
+}
+
+async function launchChrome() {
+  const { proc, userDir } = spawnChrome();
+  const connection: Connection = { ws: null };
+  const shutdown = makeShutdown(proc, userDir, connection);
 
   try {
-    const wsUrl = await new Promise<string>((resolve, reject) => {
-      let buf = "";
-      const timer = setTimeout(() => reject(new Error(`Chrome が起動しない: ${buf}`)), 20000);
-      proc.once("error", (err) => {
-        clearTimeout(timer);
-        reject(err);
-      });
-      proc.once("exit", (code) => {
-        clearTimeout(timer);
-        reject(new Error(`Chrome が終了した (exit ${code}): ${buf}`));
-      });
-      proc.stderr.on("data", (d) => {
-        buf += d;
-        const m = buf.match(/DevTools listening on (ws:\S+)/);
-        if (m) {
-          clearTimeout(timer);
-          resolve(m[1]);
-        }
-      });
-    });
-    const port = new URL(wsUrl).port;
-    // The endpoint decides the shape of what it returns.
-    const getJson = async <T>(path: string) =>
-      parseJsonAs<T>(
-        await (
-          await fetch(`http://127.0.0.1:${port}${path}`, {
-            signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
-          })
-        ).text(),
-      );
-    const targets = await getJson<{ type: string; webSocketDebuggerUrl: string }[]>("/json");
-    const browser = (await getJson<{ Browser: string }>("/json/version")).Browser;
-    const page = targets.find((t) => t.type === "page");
-    if (!page) throw new Error("CDP のページターゲットが見つからない");
-    // shutdown が閉じられるよう外側の ws にも入れ、ここから先は null でない socket を使う。
-    const socket = new WebSocket(page.webSocketDebuggerUrl);
-    ws = socket;
-    await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(
-        () => reject(new Error("CDP の WebSocket が開かない")),
-        CALL_TIMEOUT_MS,
-      );
-      socket.onopen = () => {
-        clearTimeout(timer);
-        resolve();
-      };
-      socket.onerror = () => {
-        clearTimeout(timer);
-        reject(new Error("CDP の WebSocket の接続に失敗した"));
-      };
-    });
-
-    let nextId = 0;
-    let closedReason: string | null = null;
-    const pending = new Map<number, PendingCall>();
-    // 接続が切れたら待っている呼び出しを全部落とす。応答メッセージだけを見ていると、
-    // Chrome が生きたまま接続だけ切れたときに send() が永久に解決せず、finally の片付けにも届かない。
-    const failAll = (reason: string) => {
-      closedReason = closedReason || reason;
-      for (const { reject, timer } of pending.values()) {
-        clearTimeout(timer);
-        reject(new Error(closedReason));
-      }
-      pending.clear();
-    };
-    socket.onclose = () => failAll("CDP の WebSocket が閉じた");
-    socket.onerror = () => failAll("CDP の WebSocket でエラーが起きた");
-    socket.onmessage = (ev) => {
-      const msg = parseJsonAs<CdpMessage>(ev.data);
-      const call = msg.id ? pending.get(msg.id) : undefined;
-      if (msg.id && call) {
-        const { resolve, reject, timer } = call;
-        clearTimeout(timer);
-        pending.delete(msg.id);
-        if (msg.error) reject(new Error(`${msg.error.message} (${msg.error.code})`));
-        else resolve(msg.result);
-      }
-    };
-    // The CDP method decides the shape of its result.
-    const send = <T = unknown>(method: string, params: object = {}) =>
-      new Promise<T>((resolve, reject) => {
-        if (closedReason) {
-          reject(new Error(`${method}: ${closedReason}`));
-          return;
-        }
-        const id = ++nextId;
-        const timer = setTimeout(() => {
-          pending.delete(id);
-          reject(new Error(`${method}: ${CALL_TIMEOUT_MS}ms 以内に応答が無い`));
-        }, CALL_TIMEOUT_MS);
-        // oxlint-disable-next-line typescript/consistent-type-assertions -- CDP の結果の形はメソッドごとに決まり、応答の JSON からは型の検査で T を確かめられない。呼び出し側が T で宣言する
-        pending.set(id, { resolve: resolve as (value: unknown) => void, reject, timer });
-        socket.send(JSON.stringify({ id, method, params }));
-      });
+    const wsUrl = await waitForDevToolsUrl(proc);
+    const { socket, browser } = await openPageSocket(wsUrl, connection);
+    const send = createSender(socket);
     return { send, close: shutdown, browser };
   } catch (err) {
     // 片付けの失敗で元のエラーを上書きしない（原因が表面化しなくなる）。片付けの失敗は併記する。
@@ -358,12 +413,14 @@ const locator = (cdp: Cdp, selector: string) => ({
   },
 });
 
-async function captureOnce(
-  cdp: Cdp,
-  pages: Record<string, string>,
-  instance: Instance,
-  state: string,
-) {
+// getBoundingClientRect() の値（ビューポート座標）。
+type Rect = { x: number; y: number; width: number; height: number };
+
+// 1 回の採取の入力。pages はバリアントのページ、instance と state は採る部品インスタンスと状態。
+type CaptureTarget = { pages: Record<string, string>; instance: Instance; state: string };
+
+/** ページを流し込み、部品の要素を探して、状態（hover・active・disabled）を当てる。要素の nodeId を返す。 */
+async function loadAndApplyState(cdp: Cdp, { pages, instance, state }: CaptureTarget) {
   const { frameTree } = await cdp.send<{ frameTree: { frame: { id: string } } }>(
     "Page.getFrameTree",
   );
@@ -384,13 +441,14 @@ async function captureOnce(
   } else if (state !== "default") {
     throw new Error(`未対応の状態: ${state}`);
   }
-  const name = `button@${instance.id}`;
-  const el = locator(cdp, instance.selector);
-  const [traits] = await traitCapture.captureTraits([{ name, locator: el }]);
-  const [rules] = await cssRules.captureMatchedRules([{ name, locator: el }]);
+  return nodeId;
+}
+
+/** 部品の矩形から要素のスクリーンショットを撮り、PNG と element.shot.json の記録を返す。 */
+async function captureElementShot(cdp: Cdp, rect: Rect) {
   // 要素スクショの clip は element-shot.mjs に決めさせる（矩形の丸めの原本。
   // 生の rect を渡すと小数座標のぶん寸法が揺れ、寸法一致を要求する画素比較の入力にならない）。
-  const clip = elementShot.planElementClip(traits.rect, VIEWPORT);
+  const clip = elementShot.planElementClip(rect, VIEWPORT);
   const shot = await cdp.send<{ data: string }>("Page.captureScreenshot", {
     format: "png",
     clip: { ...clip, scale: 1 },
@@ -402,11 +460,22 @@ async function captureOnce(
   const shotRecord = elementShot.buildShotRecord({
     clip,
     png: elementShot.readPngSize(png),
-    rect: traits.rect,
-    page_rect: traits.rect,
+    rect,
+    page_rect: rect,
     frame_depth: 0,
     animations: "disabled",
   });
+  return { png, shotRecord };
+}
+
+async function captureOnce(cdp: Cdp, target: CaptureTarget) {
+  const nodeId = await loadAndApplyState(cdp, target);
+  const { instance } = target;
+  const name = `button@${instance.id}`;
+  const el = locator(cdp, instance.selector);
+  const [traits] = await traitCapture.captureTraits([{ name, locator: el }]);
+  const [rules] = await cssRules.captureMatchedRules([{ name, locator: el }]);
+  const { png, shotRecord } = await captureElementShot(cdp, traits.rect);
   // 総称ファミリー（sans-serif）が実際に何のフォントで描かれたかを残す（撮影環境の記録に要る）。
   const { fonts } = await cdp.send<{ fonts: { familyName: string }[] }>(
     "CSS.getPlatformFontsForNode",
@@ -452,9 +521,152 @@ type FixtureMetadata = {
   [key: string]: unknown;
 };
 
-const cdp = await launchChrome();
-let generationError: unknown = null;
-try {
+// 1 つのインスタンス × 状態の採取物。
+type Captured = { instance: Instance; state: string } & Awaited<ReturnType<typeof captureOnce>>;
+
+/** バリアントの全インスタンス × 状態を 2 回ずつ採り、一致を確かめてから 1 回目の採取物を返す。 */
+async function captureVariant(cdp: Cdp, pages: Record<string, string>) {
+  const captured: Captured[] = [];
+  for (const instance of INSTANCES) {
+    for (const state of STATES) {
+      // ノイズ基準値: 同一条件で 2 回採り、特性とバイト列が一致することを確かめる。
+      const first = await captureOnce(cdp, { pages, instance, state });
+      const second = await captureOnce(cdp, { pages, instance, state });
+      const traitsNoise = isDeepStrictEqual(first.traits, second.traits) ? 0 : 1;
+      const pixelNoise = first.png.equals(second.png) ? 0 : 1;
+      if (traitsNoise || pixelNoise || !isDeepStrictEqual(first.rules, second.rules)) {
+        throw new Error(`${instance.id} / ${state}: 2 回の採取が一致しない（決定論的でない）`);
+      }
+      captured.push({ instance, state, ...first });
+    }
+  }
+  return captured;
+}
+
+/** fixture の baseline に、インスタンス × 状態ごとの採取物と、インスタンスごとの behaviors.json を書く。 */
+function writeBaseline(dir: string, captured: Captured[]): void {
+  for (const { instance, state, traits, rules, png, shotRecord } of captured) {
+    const base = join(dir, "baseline", instance.id, state);
+    mkdirSync(base, { recursive: true });
+    writeJson(join(base, "traits.json"), traits);
+    writeJson(join(base, "css-rules.json"), rules);
+    writeFileSync(join(base, "element.png"), png);
+    writeJson(join(base, "element.shot.json"), shotRecord);
+  }
+  for (const instance of INSTANCES) {
+    writeJson(join(dir, "baseline", instance.id, "behaviors.json"), behaviorsOf(instance.id));
+  }
+}
+
+/** metadata.json の capture（状態・操作・動き・ツールの版）を、このスクリプトの宣言と同梱のツールの版で上書きする。 */
+function updateCaptureDeclarations(meta: FixtureMetadata): void {
+  meta.capture.states = STATES;
+  meta.capture.operations = OPERATIONS;
+  meta.capture.operation_source = OPERATION_SOURCE;
+  meta.capture.operations_none_reason = null;
+  // 動き（Issue #456）。APP_CSS / THEME_CSS は transition / animation を宣言せず、JS も持たないので動きの無い部品として宣言する。
+  // build の前提は capture.motions の宣言を要求する（無いと motion-compare.mjs が型崩れで落ちる）。
+  meta.capture.motions = {
+    source_scan: [],
+    transitions: [],
+    none_reason: MOTIONS_NONE_REASON,
+  };
+  meta.capture.tools = {
+    ...meta.capture.tools,
+    motion_probe: null,
+    motion_probe_version: null,
+    traits_version: traitCapture.VERSION,
+    traits_property_set: [...traitCapture.FIXED_PROPERTIES].sort(),
+    element_shot_version: elementShot.VERSION,
+    css_rules_version: cssRules.VERSION,
+    axis_diff_version: axisDiff.VERSION,
+  };
+}
+
+/** metadata.json の採取の抜け・撮影条件・ノイズ基準値を、採取物から書く。 */
+function updateCaptureResults(meta: FixtureMetadata, captured: Captured[], browser: string): void {
+  const unresolved = captured.reduce((n, c) => n + c.rules.unresolved.length, 0);
+  const inaccessible = captured.reduce((n, c) => n + c.rules.inaccessible.length, 0);
+  meta.capture_gaps = { inaccessible_sheets: inaccessible, unresolved_selectors: unresolved };
+  // 撮影条件とノイズ基準値は、既存の値の有無（null のプレースホルダを含む）に依らず採取から書く。
+  // 真偽で分岐すると null の fixture が `capture.complete: true` のまま条件も基準値も持たず残り、
+  // `build` の照合が同一条件を再現できない。
+  const fontsUsed = [...new Set(captured.flatMap((c) => c.platformFonts))].sort();
+  if (fontsUsed.length === 0) throw new Error("描画に使われたフォントを取得できない");
+  meta.capture_conditions = {
+    environment: `${browser}（headless）/ Linux / DPR 1。"Noto Sans JP", sans-serif は ${fontsUsed.join(" / ")} に解決`,
+    // 想定する利用者の環境との一致は、採取からは決まらない fixture の前提。両 fixture の gaps.md（採取環境依存の未検証: なし）と
+    // 揃えて「一致」とする（既存値の有無で分けると、null だった fixture だけ別の前提になり gaps.md と食い違う）
+    viewer_environment: VIEWER_ENVIRONMENT,
+    viewports: [{ ...VIEWPORT, label: "desktop" }],
+    animations: "disabled",
+    element_screenshot: true,
+    masks: [],
+  };
+  // 2 回の採取が特性・画素とも一致しなければ上で停止しているので、ここに来た組み合わせの差分は 0。
+  meta.noise_baseline = captured.map(({ instance, state }) => ({
+    instance: instance.id,
+    state,
+    viewport: "desktop",
+    pixel: 0,
+    traits: 0,
+  }));
+}
+
+/** fixture 1 つに、baseline・metadata.json・axes.json を書く。 */
+function writeFixture(dir: string, captured: Captured[], browser: string): void {
+  writeBaseline(dir, captured);
+  const metaPath = join(dir, "metadata.json");
+  const meta = parseJsonAs<FixtureMetadata>(readFileSync(metaPath, "utf8"));
+  updateCaptureDeclarations(meta);
+  updateCaptureResults(meta, captured, browser);
+  // 軸の件数は axes.json から転記する。先に metadata を書かないと --baseline がプロパティ集合を読めない。
+  writeJson(metaPath, meta);
+  const axes = axisDiff.diffAxes(axisDiff.assembleFromBaseline(dir));
+  if (!axes.ok) throw new Error(`${dir}: axis-diff が ok でない: ${axes.problems.join(" / ")}`);
+  writeJson(join(dir, "axes.json"), axes);
+  meta.axes = {
+    ...meta.axes,
+    ok: axes.ok,
+    variable: axes.variable.length,
+    fixed: axes.fixed.length,
+    measured: axes.measured,
+    not_compared: axes.not_compared,
+  };
+  writeJson(metaPath, meta);
+  console.log(`wrote ${dir}`);
+}
+
+/** バリアントの幅・可変の軸・測った軸の件数を、確認用に stdout へ出す。 */
+function printVariantSummary(
+  variant: (typeof VARIANTS)[number],
+  captured: Captured[],
+  browser: string,
+): void {
+  const widths = Object.fromEntries(
+    captured.filter((c) => c.state === "default").map((c) => [c.instance.id, c.traits.rect.width]),
+  );
+  const summaryAxes = parseJsonAs<{
+    variable: { state: string; axis: string }[];
+    measured: unknown;
+  }>(readFileSync(join(variant.fixtures[0], "axes.json"), "utf8"));
+  console.log(
+    JSON.stringify(
+      {
+        browser,
+        fixtures: variant.fixtures.map((d) => d.slice(repoRoot.length + 1)),
+        widths,
+        variable: summaryAxes.variable.map((v) => `${v.state} / ${v.axis}`),
+        measured: summaryAxes.measured,
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+/** CDP のドメインを有効にしてビューポートを固定し、全バリアントの fixture を生成して整形する。 */
+async function generate(cdp: Cdp): Promise<void> {
   await cdp.send("Page.enable");
   await cdp.send("DOM.enable");
   await cdp.send("CSS.enable");
@@ -465,124 +677,17 @@ try {
   });
 
   for (const variant of VARIANTS) {
-    const captured = [];
-    for (const instance of INSTANCES) {
-      for (const state of STATES) {
-        // ノイズ基準値: 同一条件で 2 回採り、特性とバイト列が一致することを確かめる。
-        const first = await captureOnce(cdp, variant.pages, instance, state);
-        const second = await captureOnce(cdp, variant.pages, instance, state);
-        const traitsNoise = isDeepStrictEqual(first.traits, second.traits) ? 0 : 1;
-        const pixelNoise = first.png.equals(second.png) ? 0 : 1;
-        if (traitsNoise || pixelNoise || !isDeepStrictEqual(first.rules, second.rules)) {
-          throw new Error(`${instance.id} / ${state}: 2 回の採取が一致しない（決定論的でない）`);
-        }
-        captured.push({ instance, state, ...first });
-      }
-    }
-
-    for (const dir of variant.fixtures) {
-      for (const { instance, state, traits, rules, png, shotRecord } of captured) {
-        const base = join(dir, "baseline", instance.id, state);
-        mkdirSync(base, { recursive: true });
-        writeJson(join(base, "traits.json"), traits);
-        writeJson(join(base, "css-rules.json"), rules);
-        writeFileSync(join(base, "element.png"), png);
-        writeJson(join(base, "element.shot.json"), shotRecord);
-      }
-      for (const instance of INSTANCES) {
-        writeJson(join(dir, "baseline", instance.id, "behaviors.json"), behaviorsOf(instance.id));
-      }
-
-      const metaPath = join(dir, "metadata.json");
-      const meta = parseJsonAs<FixtureMetadata>(readFileSync(metaPath, "utf8"));
-      meta.capture.states = STATES;
-      meta.capture.operations = OPERATIONS;
-      meta.capture.operation_source = OPERATION_SOURCE;
-      meta.capture.operations_none_reason = null;
-      // 動き（Issue #456）。APP_CSS / THEME_CSS は transition / animation を宣言せず、JS も持たないので動きの無い部品として宣言する。
-      // build の前提は capture.motions の宣言を要求する（無いと motion-compare.mjs が型崩れで落ちる）。
-      meta.capture.motions = {
-        source_scan: [],
-        transitions: [],
-        none_reason: MOTIONS_NONE_REASON,
-      };
-      meta.capture.tools = {
-        ...meta.capture.tools,
-        motion_probe: null,
-        motion_probe_version: null,
-        traits_version: traitCapture.VERSION,
-        traits_property_set: [...traitCapture.FIXED_PROPERTIES].sort(),
-        element_shot_version: elementShot.VERSION,
-        css_rules_version: cssRules.VERSION,
-        axis_diff_version: axisDiff.VERSION,
-      };
-      const unresolved = captured.reduce((n, c) => n + c.rules.unresolved.length, 0);
-      const inaccessible = captured.reduce((n, c) => n + c.rules.inaccessible.length, 0);
-      meta.capture_gaps = { inaccessible_sheets: inaccessible, unresolved_selectors: unresolved };
-      // 撮影条件とノイズ基準値は、既存の値の有無（null のプレースホルダを含む）に依らず採取から書く。
-      // 真偽で分岐すると null の fixture が `capture.complete: true` のまま条件も基準値も持たず残り、
-      // `build` の照合が同一条件を再現できない。
-      const fontsUsed = [...new Set(captured.flatMap((c) => c.platformFonts))].sort();
-      if (fontsUsed.length === 0) throw new Error("描画に使われたフォントを取得できない");
-      meta.capture_conditions = {
-        environment: `${cdp.browser}（headless）/ Linux / DPR 1。"Noto Sans JP", sans-serif は ${fontsUsed.join(" / ")} に解決`,
-        // 想定する利用者の環境との一致は、採取からは決まらない fixture の前提。両 fixture の gaps.md（採取環境依存の未検証: なし）と
-        // 揃えて「一致」とする（既存値の有無で分けると、null だった fixture だけ別の前提になり gaps.md と食い違う）
-        viewer_environment: VIEWER_ENVIRONMENT,
-        viewports: [{ ...VIEWPORT, label: "desktop" }],
-        animations: "disabled",
-        element_screenshot: true,
-        masks: [],
-      };
-      // 2 回の採取が特性・画素とも一致しなければ上で停止しているので、ここに来た組み合わせの差分は 0。
-      meta.noise_baseline = captured.map(({ instance, state }) => ({
-        instance: instance.id,
-        state,
-        viewport: "desktop",
-        pixel: 0,
-        traits: 0,
-      }));
-      // 軸の件数は axes.json から転記する。先に metadata を書かないと --baseline がプロパティ集合を読めない。
-      writeJson(metaPath, meta);
-      const axes = axisDiff.diffAxes(axisDiff.assembleFromBaseline(dir));
-      if (!axes.ok) throw new Error(`${dir}: axis-diff が ok でない: ${axes.problems.join(" / ")}`);
-      writeJson(join(dir, "axes.json"), axes);
-      meta.axes = {
-        ...meta.axes,
-        ok: axes.ok,
-        variable: axes.variable.length,
-        fixed: axes.fixed.length,
-        measured: axes.measured,
-        not_compared: axes.not_compared,
-      };
-      writeJson(metaPath, meta);
-      console.log(`wrote ${dir}`);
-    }
-
-    const widths = Object.fromEntries(
-      captured
-        .filter((c) => c.state === "default")
-        .map((c) => [c.instance.id, c.traits.rect.width]),
-    );
-    const summaryAxes = parseJsonAs<{
-      variable: { state: string; axis: string }[];
-      measured: unknown;
-    }>(readFileSync(join(variant.fixtures[0], "axes.json"), "utf8"));
-    console.log(
-      JSON.stringify(
-        {
-          browser: cdp.browser,
-          fixtures: variant.fixtures.map((d) => d.slice(repoRoot.length + 1)),
-          widths,
-          variable: summaryAxes.variable.map((v) => `${v.state} / ${v.axis}`),
-          measured: summaryAxes.measured,
-        },
-        null,
-        2,
-      ),
-    );
+    const captured = await captureVariant(cdp, variant.pages);
+    for (const dir of variant.fixtures) writeFixture(dir, captured, cdp.browser);
+    printVariantSummary(variant, captured, cdp.browser);
   }
   formatWrittenJson();
+}
+
+const cdp = await launchChrome();
+let generationError: unknown = null;
+try {
+  await generate(cdp);
 } catch (err) {
   generationError = err;
 }

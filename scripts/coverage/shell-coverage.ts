@@ -139,17 +139,7 @@ export function shellCoverage(
   targets: readonly string[],
   traceDir: string,
 ): ShellCoverageResult {
-  // 内容が同じ対象（同じスクリプトを 2 つのスキルが持つなど）は、どちらを起動しても、コピーを起動しても、両方に数える。
-  // 起動の方法で結果が変わらないよう、実体のパスからも内容のハッシュを経て同じ組に結び付ける。
-  const realToHash = new Map<string, string>();
-  const hashToTargets = new Map<string, string[]>();
-  for (const rel of targets) {
-    const path = join(root, rel);
-    const hash = createHash("sha256").update(readFileSync(path)).digest("hex");
-    realToHash.set(realpathSync(path), hash);
-    hashToTargets.set(hash, [...(hashToTargets.get(hash) ?? []), rel]);
-  }
-
+  const { realToHash, hashToTargets } = indexTargets(root, targets);
   const executed = new Map<string, Set<number>>();
   const cache = new Map<string, string | null>();
   let unresolved = 0;
@@ -176,12 +166,36 @@ export function shellCoverage(
 
   const files: Record<string, LineCoverage> = {};
   for (const rel of targets) {
-    const lines = executableLines(parseShell(join(root, rel)));
-    const hits = executed.get(rel) ?? new Set<number>();
-    const uncovered = lines.filter((line) => !hits.has(line));
-    const covered = lines.length - uncovered.length;
-    const pct = lines.length === 0 ? 100 : Math.round((covered / lines.length) * 10000) / 100;
-    files[rel] = { total: lines.length, covered, pct, uncovered };
+    files[rel] = lineCoverage(join(root, rel), executed.get(rel) ?? new Set<number>());
   }
   return { files, unresolved };
+}
+
+/**
+ * 対象のファイルを、内容のハッシュで組にする。実体のパスからハッシュへの索引と、ハッシュから対象への索引を返す。
+ * 内容が同じ対象（同じスクリプトを 2 つのスキルが持つなど）は、どちらを起動しても、コピーを起動しても、両方に数える。
+ * 起動の方法で結果が変わらないよう、実体のパスからも内容のハッシュを経て同じ組に結び付ける。
+ */
+function indexTargets(
+  root: string,
+  targets: readonly string[],
+): { realToHash: Map<string, string>; hashToTargets: Map<string, string[]> } {
+  const realToHash = new Map<string, string>();
+  const hashToTargets = new Map<string, string[]>();
+  for (const rel of targets) {
+    const path = join(root, rel);
+    const hash = createHash("sha256").update(readFileSync(path)).digest("hex");
+    realToHash.set(realpathSync(path), hash);
+    hashToTargets.set(hash, [...(hashToTargets.get(hash) ?? []), rel]);
+  }
+  return { realToHash, hashToTargets };
+}
+
+/** 1 つのファイルの実行できる行と、実行した行の番号から、行のカバレッジを出す。 */
+function lineCoverage(path: string, hits: ReadonlySet<number>): LineCoverage {
+  const lines = executableLines(parseShell(path));
+  const uncovered = lines.filter((line) => !hits.has(line));
+  const covered = lines.length - uncovered.length;
+  const pct = lines.length === 0 ? 100 : Math.round((covered / lines.length) * 10000) / 100;
+  return { total: lines.length, covered, pct, uncovered };
 }
