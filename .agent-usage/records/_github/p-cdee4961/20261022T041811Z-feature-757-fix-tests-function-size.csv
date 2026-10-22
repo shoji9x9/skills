@@ -43,3 +43,4 @@ coverage:github:2026-10-21T10:07:42.627Z:2026-10-22T10:08:25.833Z,coverage,2026-
 ci:39761158465:1,ci,2026-10-22T10:33:39.171Z,p-cdee4961,github-actions,,,,2026-10-22T10:10:57.000Z,2026-10-22T10:10:58.000Z,Asia/Tokyo,feature/757-fix-tests-function-size,757,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:39761158200:1,ci,2026-10-22T10:33:39.171Z,p-cdee4961,github-actions,,,,2026-10-22T10:10:57.000Z,2026-10-22T10:27:20.000Z,Asia/Tokyo,feature/757-fix-tests-function-size,757,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-21T10:08:25.833Z:2026-10-22T10:33:39.171Z,coverage,2026-10-22T10:33:39.171Z,p-cdee4961,,,,,2026-10-21T10:08:25.833Z,2026-10-22T10:33:39.171Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-21T10:33:39.171Z:2026-10-22T10:34:29.895Z,coverage,2026-10-22T10:34:29.895Z,p-cdee4961,,,,,2026-10-21T10:33:39.171Z,2026-10-22T10:34:29.895Z,Asia/Tokyo,,,,,,,,,,,,ok,
