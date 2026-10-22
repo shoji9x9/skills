@@ -794,11 +794,19 @@ function main() {
   checkDuplicateRuns(loaded);
   checkAssertionSets(loaded);
 
-  writeBenchmark(opts, buildBenchmark(opts, loaded, runsPerConfiguration));
+  const notes = readNotes(opts);
+  writeBenchmark(opts, buildBenchmark(opts, { loaded, runsPerConfiguration, notes }));
 }
 
-/** 読み込んだ run から、benchmark.json の中身を組み立てる。 */
-function buildBenchmark(opts: Options, loaded: LoadedRun[], runsPerConfiguration: number) {
+/** 読み込んだ run と notes から、benchmark.json の中身を組み立てる。ファイルは読まない。 */
+function buildBenchmark(
+  opts: Options,
+  {
+    loaded,
+    runsPerConfiguration,
+    notes,
+  }: { loaded: LoadedRun[]; runsPerConfiguration: number; notes: string[] },
+) {
   const runs = loaded.map((r) => r.run);
   const evalsRun = [...new Set(runs.map((r) => r.eval_id))].sort((a, b) => a - b);
   return {
@@ -813,7 +821,7 @@ function buildBenchmark(opts: Options, loaded: LoadedRun[], runsPerConfiguration
     },
     runs,
     run_summary: summarizeRuns(runs),
-    notes: readNotes(opts),
+    notes,
   };
 }
 

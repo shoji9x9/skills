@@ -72,7 +72,8 @@ type EvalShape = {
 };
 
 /**
- * eval の id・prompt・assertions の形を確かめる。
+ * eval の id・prompt・assertions の形を確かめる。id が重複していなければ seenIds に足す。
+ * id を足すのは prompt と assertions を確かめる前なので、それらに不備がある eval の id も重複の判定に使う（main の時点と同じ）。
  * @returns 形が正しければ EvalShape、不備があれば違反の文
  */
 function checkEvalShape(ev: unknown, where: string, seenIds: Set<string>): EvalShape | string {
