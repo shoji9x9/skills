@@ -1,0 +1,44 @@
+// check-time-sensitive-prose.test.ts のヘルパー（一時リポジトリを作り、時間の語と日付の検出を文字列にする）。
+import { spawnSync } from "node:child_process";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { findTimeMentions } from "./check-time-sensitive-prose.ts";
+import { PENDING_PATH } from "../../lib/doc-scan.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
+
+export const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+export const script = join(repoRoot, "scripts/gates/prose/check-time-sensitive-prose.ts");
+
+export function makeRepo(files: Record<string, string>) {
+  const root = makeTempDir("time-sensitive-prose-");
+  for (const [p, t] of Object.entries(files)) {
+    mkdirSync(dirname(join(root, p)), { recursive: true });
+    writeFileSync(join(root, p), t);
+  }
+  return root;
+}
+
+/** 時間の語と日付のチェックに要るもの（git と階層の原本）を持つ一時リポジトリ。 */
+export function makeGitRepo(files: Record<string, string>, { pending }: { pending?: object } = {}) {
+  const root = makeRepo({
+    "scripts/gates/docs/doc-tiers.json": readFileSync(
+      join(repoRoot, "scripts/gates/docs/doc-tiers.json"),
+      "utf8",
+    ),
+    ...files,
+  });
+  if (pending) writeFileSync(join(root, PENDING_PATH), JSON.stringify(pending));
+  const r = spawnSync("git", ["init", "-q"], {
+    timeout: CHILD_TIMEOUT_MS,
+    cwd: root,
+    encoding: "utf8",
+  });
+  if (r.status !== 0) throw new Error(r.stderr);
+  return root;
+}
+
+/** 見つけた時間の語と日付（規則・文字列）。 */
+export const texts = (file: string, text: string) =>
+  findTimeMentions(file, text).map((h) => `${h.rule}:${h.text}`);

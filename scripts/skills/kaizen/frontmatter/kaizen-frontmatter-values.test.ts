@@ -8,56 +8,33 @@
 //   - kaizen-status-check.sh が通す書き方は、共通の関数が意図した値として読む（止める書き方の集合も閉じている）
 //   - `status: pending # メモ` と `status: "pending"` を、status-check が止め、どのスクリプトも pending として扱わない
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { copyFileSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, expect, test } from "vitest";
 import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 import { coverageEnv } from "../../../lib/testing/coverage-env.ts";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
-import { kaizenEnv } from "../kaizen-config-env.ts";
+import {
+  ambiguousNote,
+  baseNote,
+  CANONICAL,
+  KEYS,
+  lib,
+  NOTE_NAME,
+  project,
+  readNote,
+  readValues,
+  run,
+  scriptsDir,
+  statusCheck,
+  workdirs,
+} from "./kaizen-frontmatter-values-helpers.ts";
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
-const scriptsDir = join(repoRoot, "skills/kaizen/scripts");
-const lib = join(scriptsDir, "kaizen-hook-common.sh");
-const NOTE_NAME = "2025-01-01-note.md";
-
-const workdirs: string[] = [];
 afterEach(() => {
   for (const dir of workdirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-function project(content: string) {
-  const dir = makeTempDir("kaizen-fm-");
-  workdirs.push(dir);
-  mkdirSync(join(dir, ".kaizen"));
-  writeFileSync(join(dir, ".kaizen", NOTE_NAME), content);
-  const init = spawnSync("git", ["init", "-q", "."], {
-    timeout: CHILD_TIMEOUT_MS,
-    cwd: dir,
-    encoding: "utf8",
-  });
-  expect(init.status, init.stderr).toBe(0);
-  return dir;
-}
-
-/** 共通の関数を呼び、出力の行を返す（最後の改行の後の空の要素は落とす）。 */
-function readValues(path: string, keys: string[]) {
-  const res = spawnSync(
-    "bash",
-    ["-c", '. "$1"; shift; kaizen_frontmatter_values "$@"', "_", lib, path, ...keys],
-    { encoding: "utf8", timeout: CHILD_TIMEOUT_MS, env: { ...process.env, ...coverageEnv() } },
-  );
-  expect(res.status, res.stderr).toBe(0);
-  return res.stdout.split("\n").slice(0, -1);
-}
-
-function readNote(content: string, keys: string[]) {
-  const dir = project(content);
-  return readValues(join(dir, ".kaizen", NOTE_NAME), keys);
-}
-
-test.each([
+test.for<[string, string, string[], string[]]>([
   [
     "指定したキーの順に返す",
     "---\ndate: 2026-10-21\ntype: doc\nstatus: pending\n---\n",
@@ -100,7 +77,7 @@ test.each([
   ["引用符で囲んだキー", '---\n"status": pending\n---\n', ["status"], [""]],
   ["コロンの前の空白", "---\nstatus : pending\n---\n", ["status"], [""]],
   ["明示的なキー", "---\n? status\n: pending\n---\n", ["status"], [""]],
-])("共通の関数が欄を読む: %s", (_name, content, keys, expected) => {
+])("共通の関数が欄を読む: %s", ([, content, keys, expected]) => {
   expect(readNote(content, keys)).toStrictEqual(expected);
 });
 
@@ -154,15 +131,6 @@ test("読めないファイルは、エラーにせず空の出力を返す", ()
 // kaizen-status-check.sh が通す書き方は、共通の関数が意図した値として読む。
 // 書き方の表は YAML の文法から挙げ、通す書き方の集合（値の後の空白を除けば `key: value` だけ）も固定する。
 // 通す書き方が広がったのに読み方が追いつかないと、同じノートをスクリプトごとに別の値として読む。
-type Key = "status" | "type" | "priority" | "date";
-const KEYS: Key[] = ["status", "type", "priority", "date"];
-const CANONICAL: Record<Key, string> = {
-  status: "pending",
-  type: "doc",
-  priority: "high",
-  date: "2026-10-21",
-};
-
 const FORMS: [string, (k: string, v: string) => string, boolean][] = [
   ["key: value", (k, v) => `${k}: ${v}`, true],
   ["値の後の空白", (k, v) => `${k}: ${v}   `, true],
@@ -182,27 +150,13 @@ const FORMS: [string, (k: string, v: string) => string, boolean][] = [
   ["重なったキー", (k, v) => `${k}: ${v}\n${k}: ${v}`, false],
 ];
 
-function baseNote(key: Key, line: string) {
-  const lines = KEYS.map((k) => (k === key ? line : `${k}: ${CANONICAL[k]}`));
-  return `---\n${lines.join("\n")}\napplied-to: []\n---\n\n## 提案\n\n要約\n`;
-}
-
-function statusCheck(dir: string) {
-  return spawnSync("bash", [join(scriptsDir, "kaizen-status-check.sh")], {
-    timeout: CHILD_TIMEOUT_MS,
-    cwd: dir,
-    env: { ...process.env, CLAUDE_PROJECT_DIR: dir, ...coverageEnv() },
-    encoding: "utf8",
-  });
-}
-
 const AGREEMENT_CASES = KEYS.flatMap((key) =>
   FORMS.map(([form, make, accepted]) => [key, form, make, accepted] as const),
 );
 
-test.each(AGREEMENT_CASES)(
+test.for(AGREEMENT_CASES)(
   "status-check が通す書き方は、共通の関数が同じ値として読む: %s の %s",
-  (key, _form, make, accepted) => {
+  ([key, , make, accepted]) => {
     const dir = project(baseNote(key, make(key, CANONICAL[key])));
     const check = statusCheck(dir);
     expect(check.status, check.stderr).toBe(accepted ? 0 : 2);
@@ -218,20 +172,6 @@ const AMBIGUOUS_STATUS = [
   ["行末のコメント", "status: pending # メモ"],
   ["二重引用符で囲んだ値", 'status: "pending"'],
 ] as const;
-
-function ambiguousNote(statusLine: string) {
-  return `---\ndate: 2025-01-01\ntype: doc\npriority: low\n${statusLine}\napplied-to: []\n---\n\n## 提案\n\nalpha と beta の学び\n`;
-}
-
-function run(dir: string, script: string, args: string[] = []) {
-  return spawnSync("bash", [join(scriptsDir, script), ...args], {
-    timeout: CHILD_TIMEOUT_MS,
-    cwd: dir,
-    env: kaizenEnv(dir, { CLAUDE_PROJECT_DIR: dir, LC_ALL: "C.UTF-8", ...coverageEnv() }),
-    encoding: "utf8",
-    input: "",
-  });
-}
 
 test.each(AMBIGUOUS_STATUS)(
   "pending と読めない status は、status-check が止め、どのスクリプトも pending として扱わない: %s",

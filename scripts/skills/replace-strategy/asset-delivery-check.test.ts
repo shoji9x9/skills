@@ -7,91 +7,39 @@
 // （判定に要る列だけを残した表で測ると、実装が別の列を読み始めたときに実在しない形を固定するテストになる）。
 // 通さねばならない入力と落とす入力を、同じ数だけ置く。
 
-import { assert, expect, test, vi } from "vitest";
-import { spawn, spawnSync } from "node:child_process";
-import { createServer } from "node:http";
+import { expect, test } from "vitest";
+import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import type { Fetcher } from "../../../skills/replace-strategy/scripts/asset-delivery-check.mjs";
-import { parseJsonAs } from "../../lib/parse-as.ts";
+import { join } from "node:path";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
-import * as checkModule from "../../../skills/replace-strategy/scripts/asset-delivery-check.mjs";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
+import {
+  faviconOf,
+  ledger,
+  probe,
+  fetcherOf,
+  runCheck,
+  TEMPLATE,
+  readAssetLedger,
+  readRecord,
+  referencedUrls,
+  CUR,
+  NEW,
+  SAME_FONTS,
+  repoRoot,
+  script,
+  serveBodies,
+  runFaviconCli,
+} from "./asset-delivery-check-helpers.ts";
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const script = join(repoRoot, "skills/replace-strategy/scripts/asset-delivery-check.mjs");
-const { main, readAssetLedger, readRecord, referencedUrls } = checkModule;
-
-const TEMPLATE = readFileSync(
-  join(repoRoot, "skills/replace-strategy/assets/assets-template.md"),
-  "utf8",
-);
 const RECORD_TEMPLATE = readFileSync(
   join(repoRoot, "skills/parity-replace/assets/asset-delivery-template.json"),
   "utf8",
 );
-
-/** --write の先に書き出された replace-metadata.json のうち、テストが読む項目。 */
-type DeliveredFile = { kind: string; bytes_match: boolean; referenced: boolean };
-type Written = {
-  slug: string;
-  asset_delivery_check: {
-    ok: boolean;
-    error: string | null;
-    files: DeliveredFile[];
-    ledger_fingerprint: string;
-    probe_fingerprints: unknown[];
-  };
-};
-
-/** 書き出された記録から favicon の行を取り出す。無ければテストを失敗させる。 */
-function faviconOf(written: Written): DeliveredFile {
-  const favicon = written.asset_delivery_check.files.find((f) => f.kind === "favicon");
-  assert.exists(favicon, "記録に favicon の行が無い");
-  return favicon;
-}
-
-const CUR = "http://current.test";
-const NEW = "http://new.test";
 const FAVICON_ROW =
   "| favicon | `favicon.ico`（現行の配信物） | `link[rel=icon]`、全ページ | 実体をコピーする | 可（先方の許諾・2026-09-01） | - | - | 有効 | 2026-09-01・setup | タブの見た目を一致させるため |";
 const FIGURE_ROW =
   "| 画面内の図 | `flow.png`（現行の配信物） | `img`、/orders/:id だけ | 実体をコピーする | 可（自社作成） | - | - | 有効 | 2026-09-01・setup | 図の内容を一致させるため |";
-
-/** 原本のテンプレートの方針の表の末尾に行を足す。 */
-function ledger(...extraRows: string[]) {
-  const lines = TEMPLATE.split("\n");
-  let last = -1;
-  lines.forEach((line, i) => {
-    if (line.startsWith("| ")) last = i;
-  });
-  lines.splice(last + 1, 0, ...extraRows);
-  return lines.join("\n");
-}
-
-/** asset-probe.mjs の返り値の形（全キーを持たせる）。 */
-function probe(overrides: Record<string, unknown> = {}) {
-  return {
-    url: "/orders",
-    images: [],
-    urlRefs: [],
-    localFragmentRefs: [],
-    glyphs: [],
-    fontFaces: [],
-    loadedFonts: [],
-    icons: [],
-    manifests: [],
-    urlPropsScanned: ["background-image"],
-    resources: [],
-    unclassifiedResources: [],
-    resourceEntryCount: 0,
-    resourcesCompleteness: "unknown",
-    shadowRoots: 0,
-    unreadableSheets: [],
-    ...overrides,
-  };
-}
 
 const FONT_PROBE = probe({
   fontFaces: [{ family: "Body", src: [`${NEW}/fonts/body.woff2`, `${NEW}/fonts/body.woff`] }],
@@ -103,93 +51,6 @@ const FONT_ENTRY = {
     { current: "/body.woff", new: "/fonts/body.woff" },
   ],
 };
-
-/** URL → バイト列の表から取得する関数を作る（表に無い URL は 404）。 */
-function fetcherOf(table: Record<string, string>) {
-  return async (url: string) => {
-    if (!(url in table)) return { ok: false, status: 404, bytes: null, error: null };
-    return { ok: true, status: 200, bytes: Buffer.from(table[url]), error: null };
-  };
-}
-
-const SAME_FONTS = {
-  [`${CUR}/body.woff2`]: "woff2-bytes",
-  [`${NEW}/fonts/body.woff2`]: "woff2-bytes",
-  [`${CUR}/body.woff`]: "woff-bytes",
-  [`${NEW}/fonts/body.woff`]: "woff-bytes",
-};
-
-/**
- * main を直接呼び、終了コードと出力を返す。
- * @param {{ ledgerText?: string, record?: unknown, recordText?: string, probes?: unknown[], table?: Record<string, string>, extraArgs?: string[], metadata?: unknown, noProbeArg?: boolean }} opts
- */
-async function runCheck(opts: {
-  ledgerText?: string;
-  record?: unknown;
-  recordText?: string;
-  probes?: unknown[];
-  table?: Record<string, string>;
-  extraArgs?: string[];
-  metadata?: unknown;
-  noProbeArg?: boolean;
-  currentBase?: string;
-  newBase?: string;
-  fetcher?: Fetcher;
-}) {
-  const dir = makeTempDir("asset-delivery-");
-  const assets = join(dir, "assets.md");
-  const record = join(dir, "asset-delivery.json");
-  const meta = join(dir, "replace-metadata.json");
-  writeFileSync(assets, opts.ledgerText ?? ledger());
-  writeFileSync(record, opts.recordText ?? JSON.stringify(opts.record ?? { entries: [] }));
-  writeFileSync(
-    meta,
-    JSON.stringify(opts.metadata ?? { slug: "orders", suite: { new_green: true } }),
-  );
-  const probeArgs: string[] = [];
-  (opts.probes ?? []).forEach((p, i) => {
-    const path = join(dir, `probe-${i}.json`);
-    writeFileSync(path, typeof p === "string" ? p : JSON.stringify(p));
-    probeArgs.push("--probe", path);
-  });
-  const out: string[] = [];
-  const err: string[] = [];
-  const so = vi
-    .spyOn(process.stdout, "write")
-    .mockImplementation((s) => (out.push(String(s)), true));
-  const se = vi
-    .spyOn(process.stderr, "write")
-    .mockImplementation((s) => (err.push(String(s)), true));
-  let code;
-  try {
-    code = await main(
-      [
-        "--assets",
-        assets,
-        "--record",
-        record,
-        "--current-base",
-        opts.currentBase ?? CUR,
-        "--new-base",
-        opts.newBase ?? NEW,
-        ...probeArgs,
-        "--write",
-        meta,
-        ...(opts.extraArgs ?? []),
-      ],
-      { fetcher: opts.fetcher ?? fetcherOf(opts.table ?? SAME_FONTS) },
-    );
-  } finally {
-    so.mockRestore();
-    se.mockRestore();
-  }
-  return {
-    code,
-    stdout: out.join(""),
-    stderr: err.join(""),
-    written: parseJsonAs<Written>(readFileSync(meta, "utf8")),
-  };
-}
 
 // ---- 台帳の読み取り ----
 
@@ -653,19 +514,19 @@ test("通す: 新側が転送（ハッシュ付きのパスへの 301 等）で�
 });
 
 test.each([
-  [
-    "新側が移行元へ転送する",
-    `${NEW}/favicon.ico`,
-    `${CUR}/favicon.ico?v=2`,
-    /\/favicon.ico は移行元のオリジン（http:\/\/current.test）へ転送される/u,
-  ],
-  [
-    "移行元が新側へ転送する",
-    `${CUR}/favicon.ico`,
-    `${NEW}/favicon.ico?v=2`,
-    /\/favicon.ico は新側のオリジン（http:\/\/new.test）へ転送される/u,
-  ],
-])("落とす: 転送を経由した直リンク（%s）", async (_label, redirectedUrl, finalUrl, message) => {
+  {
+    label: "新側が移行元へ転送する",
+    redirectedUrl: `${NEW}/favicon.ico`,
+    finalUrl: `${CUR}/favicon.ico?v=2`,
+    message: /\/favicon.ico は移行元のオリジン（http:\/\/current.test）へ転送される/u,
+  },
+  {
+    label: "移行元が新側へ転送する",
+    redirectedUrl: `${CUR}/favicon.ico`,
+    finalUrl: `${NEW}/favicon.ico?v=2`,
+    message: /\/favicon.ico は新側のオリジン（http:\/\/new.test）へ転送される/u,
+  },
+])("落とす: 転送を経由した直リンク（$label）", async ({ redirectedUrl, finalUrl, message }) => {
   const base = fetcherOf({
     ...SAME_FONTS,
     [`${CUR}/favicon.ico`]: "ico",
@@ -899,26 +760,12 @@ test("判定しない: 引数の不備でも --write の先に失敗を記録す
 // ---- CLI（本物の取得） ----
 
 test("CLI: node で起動し、ローカルの HTTP 配信物を実際に取得して突き合わせる（参照ありで exit 0・バイト違いで exit 1）", async () => {
-  const bodies: Record<string, string> = {
+  const { server, base } = await serveBodies({
     "/cur/favicon.ico": "ICO",
     "/new/favicon.ico": "ICO",
     "/new/bad.ico": "HTML",
-  };
-  const server = createServer((req, res) => {
-    const body = bodies[req.url ?? ""];
-    if (body === undefined) {
-      res.statusCode = 404;
-      res.end();
-      return;
-    }
-    res.end(body);
   });
-  await new Promise((r) => server.listen(0, "127.0.0.1", () => r(undefined)));
   try {
-    const address = server.address();
-    assert(address !== null && typeof address === "object", "TCP で listen していない");
-    const { port } = address;
-    const base = `http://127.0.0.1:${port}`;
     const dir = makeTempDir("asset-delivery-cli-");
     const text = [
       "| 種類 | 描き方と使われるページ | 方針 | 状態 |",
@@ -926,46 +773,7 @@ test("CLI: node で起動し、ローカルの HTTP 配信物を実際に取得�
       "| favicon | `link[rel=icon]`、全ページ | 実体をコピーする | 有効 |",
     ].join("\n");
     writeFileSync(join(dir, "assets.md"), text);
-    const runCli = (newPath: string) => {
-      writeFileSync(
-        join(dir, "record.json"),
-        JSON.stringify({
-          entries: [
-            {
-              kind: "favicon",
-              files: [{ current: `${base}/cur/favicon.ico`, new: newPath }],
-            },
-          ],
-        }),
-      );
-      writeFileSync(
-        join(dir, "probe.json"),
-        JSON.stringify(probe({ icons: [{ rel: "icon", href: `${base}${newPath}` }] })),
-      );
-      // spawnSync はイベントループを止めるので、同じプロセスのサーバーは応答できない。そのため非同期で起動する。
-      return new Promise<{ status: number | null; stdout: string }>((resolveRun) => {
-        const child = spawn(
-          process.execPath,
-          [
-            script,
-            "--assets",
-            join(dir, "assets.md"),
-            "--record",
-            join(dir, "record.json"),
-            "--current-base",
-            base,
-            "--new-base",
-            base,
-            "--probe",
-            join(dir, "probe.json"),
-          ],
-          { timeout: CHILD_TIMEOUT_MS, stdio: ["ignore", "pipe", "pipe"] },
-        );
-        let stdout = "";
-        child.stdout.on("data", (d) => (stdout += d));
-        child.on("close", (status) => resolveRun({ status, stdout }));
-      });
-    };
+    const runCli = (newPath: string) => runFaviconCli({ dir, base, newPath });
     const good = await runCli("/new/favicon.ico");
     expect(good.stdout).toMatch(/^ok: /mu);
     expect(good.status).toBe(0);

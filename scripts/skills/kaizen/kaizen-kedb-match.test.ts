@@ -1,14 +1,7 @@
 import { afterEach, expect, test } from "vitest";
-import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
-import { coverageEnv } from "../../lib/testing/coverage-env.ts";
-import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
-
-// 一時ディレクトリの fixture リポジトリの学びのパス。check-kaizen-refs が、このリポジトリの学びへの参照と読まないよう、組み立てて書く。
-const noteRef = (name: string) => `.kaizen/${name}`;
+import { chmodSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { match, note, noteRef, project, workdirs } from "./kaizen-kedb-match-helpers.ts";
 
 // kaizen-kedb-match.sh は、新しい学びを記録する前に既存の学びと照合する（references/extract.md「KEDB 照合」）。
 // 取り決めは次のとおりである。
@@ -16,43 +9,17 @@ const noteRef = (name: string) => `.kaizen/${name}`;
 //   - 照合は固定文字列で大文字と小文字を区別せず、渡した語をすべて含む記録を返す
 //   - 終了コードは 0 が一致あり、1 が検査したうえで一致なし、2 が引数の不足か走査の失敗
 //   - 出力は一致したファイルと status
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const script = join(repoRoot, "skills/kaizen/scripts/kaizen-kedb-match.sh");
 
-const workdirs: string[] = [];
 afterEach(() => {
   for (const dir of workdirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
-
-function project({ kaizen = true } = {}) {
-  const dir = makeTempDir("kaizen-kedb-");
-  workdirs.push(dir);
-  if (kaizen) mkdirSync(join(dir, ".kaizen", "archive"), { recursive: true });
-  return dir;
-}
-
-function note(dir: string, name: string, body: string, status: string | null = "pending") {
-  const fm = ["---", "date: 2026-09-01", "type: rule", ...(status ? [`status: ${status}`] : [])];
-  writeFileSync(join(dir, ".kaizen", name), `${[...fm, "---", "", body, ""].join("\n")}`);
-}
-
-function match(dir: string, ...keywords: string[]) {
-  const res = spawnSync("bash", [script, ...keywords], {
-    cwd: dir,
-    encoding: "utf8",
-    env: { ...process.env, CLAUDE_PROJECT_DIR: dir, ...coverageEnv() },
-    timeout: CHILD_TIMEOUT_MS,
-  });
-  const hits = res.stdout.split("\n").filter(Boolean);
-  return { ...res, hits };
-}
 
 test.each([
   ["語が 1 つしか無い", ["hook"], "usage:"],
   ["空の語がある", ["hook", ""], "keywords must not be empty"],
 ])("%s なら exit 2 で止める（照合しないまま「一致なし」と答えない）", (_name, args, message) => {
   const dir = project();
-  note(dir, "2026-09-01-a.md", "hook の事象");
+  note(dir, "2026-09-01-a.md", { body: "hook の事象" });
   const res = match(dir, ...args);
   expect(res.status).toBe(2);
   expect(res.stderr).toContain(message);
@@ -67,8 +34,8 @@ test(".kaizen が無ければ、一致なしとして exit 1 を返す", () => {
 
 test("top-level のノートは、渡した語をすべて含むものだけを status つきで返す", () => {
   const dir = project();
-  note(dir, "2026-09-01-both.md", "PreToolUse の Hook が git commit を止めた");
-  note(dir, "2026-09-01-one.md", "PreToolUse の Hook だけの話", "applied");
+  note(dir, "2026-09-01-both.md", { body: "PreToolUse の Hook が git commit を止めた" });
+  note(dir, "2026-09-01-one.md", { body: "PreToolUse の Hook だけの話", status: "applied" });
   const res = match(dir, "hook", "commit");
   expect(res.status, res.stderr).toBe(0);
   expect(res.hits).toStrictEqual([`${noteRef("2026-09-01-both.md")}\tstatus=pending`]);
@@ -81,8 +48,8 @@ test("top-level のノートは、渡した語をすべて含むものだけを 
 
 test("照合は固定文字列で、大文字と小文字を区別しない", () => {
   const dir = project();
-  note(dir, "2026-09-01-regex.md", "設定 a.b を書き換えた");
-  note(dir, "2026-09-01-other.md", "設定 axb を書き換えた");
+  note(dir, "2026-09-01-regex.md", { body: "設定 a.b を書き換えた" });
+  note(dir, "2026-09-01-other.md", { body: "設定 axb を書き換えた" });
   // `.` を正規表現として扱うと axb にも一致する。
   const res = match(dir, "A.B", "設定");
   expect(res.status, res.stderr).toBe(0);
@@ -91,8 +58,11 @@ test("照合は固定文字列で、大文字と小文字を区別しない", ()
 
 test("status は frontmatter から読み、無ければ unknown と出す（本文の status: は読まない）", () => {
   const dir = project();
-  note(dir, "2026-09-01-forgotten.md", "hook commit の事象", "forgotten");
-  note(dir, "2026-09-01-nostatus.md", "hook commit の事象\nstatus: applied", null);
+  note(dir, "2026-09-01-forgotten.md", { body: "hook commit の事象", status: "forgotten" });
+  note(dir, "2026-09-01-nostatus.md", {
+    body: "hook commit の事象\nstatus: applied",
+    status: null,
+  });
   const res = match(dir, "hook", "commit");
   expect(res.status, res.stderr).toBe(0);
   // 忘却済みのノートも照合の対象に入る（忘却は注入から外すだけ）。
@@ -133,7 +103,7 @@ test.skipIf(process.getuid?.() === 0)(
   "読めないノートがあれば exit 2 で止める（一致なしとして扱わない）",
   () => {
     const dir = project();
-    note(dir, "2026-09-01-locked.md", "hook commit の事象");
+    note(dir, "2026-09-01-locked.md", { body: "hook commit の事象" });
     chmodSync(join(dir, ".kaizen", "2026-09-01-locked.md"), 0o000);
     try {
       const res = match(dir, "hook", "commit");

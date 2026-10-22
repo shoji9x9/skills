@@ -21,51 +21,21 @@
 // （`scripts/skills/kaizen/schedule/kaizen-schedule-report.test.ts` の修正前の 2 行）をそのまま入力にする。
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import {
-  EXEMPTIONS_PATH,
-  type Exemption,
-  checkKaizenRefs,
-  findRefs,
-  main,
-} from "./check-kaizen-refs.ts";
+import { mkdirSync, rmSync, symlinkSync } from "node:fs";
+import { join } from "node:path";
+import { EXEMPTIONS_PATH, checkKaizenRefs, findRefs, main } from "./check-kaizen-refs.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
-
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const script = join(repoRoot, "scripts/gates/docs/check-kaizen-refs.ts");
-
-const NOTE = ".kaizen/2026-09-01-live-note.md";
-const ARCHIVED = ".kaizen/archive/2026-08-01-old-note.md";
-const INDEX = ".kaizen/archive/INDEX.md";
-
-function git(root: string, ...args: string[]) {
-  const r = spawnSync("git", args, { timeout: CHILD_TIMEOUT_MS, cwd: root, encoding: "utf8" });
-  if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
-}
-
-function write(root: string, path: string, text: string) {
-  mkdirSync(dirname(join(root, path)), { recursive: true });
-  writeFileSync(join(root, path), text);
-}
-
-/** 学び 3 件を追跡済みで持つ一時リポジトリ。`files` は追跡して置く参照元、`untracked` は置くだけ。 */
-function makeRepo(
-  files: Record<string, string> = {},
-  { untracked = {} }: { untracked?: Record<string, string> } = {},
-) {
-  const root = makeTempDir("kaizen-refs-");
-  git(root, "init", "-q");
-  for (const p of [NOTE, ARCHIVED, INDEX]) write(root, p, "# note\n");
-  for (const [p, t] of Object.entries(files)) write(root, p, t);
-  git(root, "add", "-A");
-  for (const [p, t] of Object.entries(untracked)) write(root, p, t);
-  return root;
-}
-
-const run = (root: string, exemptions: Exemption[] = []) => checkKaizenRefs(root, { exemptions });
+import {
+  ARCHIVED,
+  INDEX,
+  NOTE,
+  git,
+  makeRepo,
+  repoRoot,
+  run,
+  script,
+} from "./check-kaizen-refs-helpers.ts";
 
 // ---- 誤検知しないことの確認（通さねばならない入力）----
 
@@ -128,31 +98,43 @@ test.each([
 });
 
 test.each([
-  ["`.md.bak`", `根拠は ${NOTE}.bak`, 1, `${NOTE}.bak`, false],
-  ["`.md-old`", `根拠は ${NOTE}-old`, 1, `${NOTE}-old`, false],
-  ["`.md_x`", `根拠は ${NOTE}_x`, 1, `${NOTE}_x`, false],
-  ["`.mdx`", `根拠は ${NOTE}x`, 1, `${NOTE}x`, false],
-  ["`.md.gz`", `根拠は ${NOTE}.gz。`, 1, `${NOTE}.gz`, false],
-  ["`.md.1`", `根拠は ${NOTE}.1`, 1, `${NOTE}.1`, false],
-  ["archive/ 配下の `.md.bak`", `\`${ARCHIVED}.bak\``, 1, `${ARCHIVED}.bak`, false],
-  ["`.md.bak.old`", `根拠は ${NOTE}.bak.old.`, 1, `${NOTE}.bak.old`, false],
-  [
-    "折り返しの後の `.md.bak`",
-    ".kaizen/archive/2026-08-01-old-\nnote.md.bak",
-    1,
-    `${ARCHIVED}.bak`,
-    true,
-  ],
-  [
-    "折り返しの後の `.mdx`",
-    "// .kaizen/archive/2026-08-01-old-\n// note.mdx",
-    1,
-    `${ARCHIVED}x`,
-    true,
-  ],
+  { label: "`.md.bak`", text: `根拠は ${NOTE}.bak`, line: 1, shown: `${NOTE}.bak`, wrapped: false },
+  { label: "`.md-old`", text: `根拠は ${NOTE}-old`, line: 1, shown: `${NOTE}-old`, wrapped: false },
+  { label: "`.md_x`", text: `根拠は ${NOTE}_x`, line: 1, shown: `${NOTE}_x`, wrapped: false },
+  { label: "`.mdx`", text: `根拠は ${NOTE}x`, line: 1, shown: `${NOTE}x`, wrapped: false },
+  { label: "`.md.gz`", text: `根拠は ${NOTE}.gz。`, line: 1, shown: `${NOTE}.gz`, wrapped: false },
+  { label: "`.md.1`", text: `根拠は ${NOTE}.1`, line: 1, shown: `${NOTE}.1`, wrapped: false },
+  {
+    label: "archive/ 配下の `.md.bak`",
+    text: `\`${ARCHIVED}.bak\``,
+    line: 1,
+    shown: `${ARCHIVED}.bak`,
+    wrapped: false,
+  },
+  {
+    label: "`.md.bak.old`",
+    text: `根拠は ${NOTE}.bak.old.`,
+    line: 1,
+    shown: `${NOTE}.bak.old`,
+    wrapped: false,
+  },
+  {
+    label: "折り返しの後の `.md.bak`",
+    text: ".kaizen/archive/2026-08-01-old-\nnote.md.bak",
+    line: 1,
+    shown: `${ARCHIVED}.bak`,
+    wrapped: true,
+  },
+  {
+    label: "折り返しの後の `.mdx`",
+    text: "// .kaizen/archive/2026-08-01-old-\n// note.mdx",
+    line: 1,
+    shown: `${ARCHIVED}x`,
+    wrapped: true,
+  },
 ])(
-  "陽性: `.md` の後ろにパスが続く（%s）参照は形が崩れているとして落とす",
-  (_, text, line, shown, wrapped) => {
+  "陽性: `.md` の後ろにパスが続く（$label）参照は形が崩れているとして落とす",
+  ({ text, line, shown, wrapped }) => {
     const r = run(makeRepo({ "docs/a.md": `${text}\n` }));
     expect(r.violations).toEqual([
       `docs/a.md:${line}${wrapped ? "（折り返し）" : ""}: 参照の形が崩れている（${shown}）。` +
@@ -166,18 +148,28 @@ test.each([
 // 通す側の `#` は、実リポジトリに `.kaizen/…md#` の用例が 0 件（`git grep -nP '\\.kaizen/\\S*\\.md[#/]'`）だが、
 // アンカーはファイル内の位置で指すファイルを変えないので参照の終わりとして通す。
 test.each([
-  ["`.md/subpath`", `根拠は ${NOTE}/subpath`, `${NOTE}/subpath`, false],
-  ["`/` で終わる `.md/`", `根拠は ${NOTE}/`, `${NOTE}/`, false],
-  ["archive/ 配下の `.md/x`", `\`${ARCHIVED}/x\``, `${ARCHIVED}/x`, false],
-  [
-    "折り返しの後の `.md/sub`",
-    ".kaizen/archive/2026-08-01-old-\nnote.md/sub",
-    `${ARCHIVED}/sub`,
-    true,
-  ],
+  {
+    label: "`.md/subpath`",
+    text: `根拠は ${NOTE}/subpath`,
+    shown: `${NOTE}/subpath`,
+    wrapped: false,
+  },
+  { label: "`/` で終わる `.md/`", text: `根拠は ${NOTE}/`, shown: `${NOTE}/`, wrapped: false },
+  {
+    label: "archive/ 配下の `.md/x`",
+    text: `\`${ARCHIVED}/x\``,
+    shown: `${ARCHIVED}/x`,
+    wrapped: false,
+  },
+  {
+    label: "折り返しの後の `.md/sub`",
+    text: ".kaizen/archive/2026-08-01-old-\nnote.md/sub",
+    shown: `${ARCHIVED}/sub`,
+    wrapped: true,
+  },
 ])(
-  "陽性: `.md` の後ろに `/` が続く（%s）参照は形が崩れているとして落とす",
-  (_, text, shown, wrapped) => {
+  "陽性: `.md` の後ろに `/` が続く（$label）参照は形が崩れているとして落とす",
+  ({ text, shown, wrapped }) => {
     const r = run(makeRepo({ "docs/a.md": `${text}\n` }));
     expect(r.violations).toEqual([
       `docs/a.md:1${wrapped ? "（折り返し）" : ""}: 参照の形が崩れている（${shown}）。` +

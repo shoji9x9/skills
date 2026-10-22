@@ -10,17 +10,8 @@
 // | 渡し方       | 宣言 / filter のコールバック / every のコールバック                                                   |
 // | 置き場所     | scripts/ / skills/ / private skill / 配布スキルのコピー / .d.ts / .ts・.mjs でない                    |
 import { expect, test } from "vitest";
-import { spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { findViolations, isTarget, normalizeArgs } from "./check-type-guard-brands.ts";
-import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
-import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
-
-const script = join(dirname(fileURLToPath(import.meta.url)), "check-type-guard-brands.ts");
-const ts = (text: string) => findViolations(text, "scripts/a.ts");
-const mjs = (text: string) => findViolations(text, "skills/demo/scripts/a.mjs");
+import { makeRepo, mjs, runCli, ts } from "./check-type-guard-brands-helpers.ts";
 
 test.each([
   [
@@ -132,31 +123,6 @@ test.each([
   expect(isTarget(file, new Set(["priv"]))).toBe(expected);
 });
 
-/** 一時的な git リポジトリを作り、ファイルを追跡する。 */
-function makeRepo(files: Record<string, string>): string {
-  const root = makeTempDir("type-guard-brands-");
-  const git = (...args: string[]) => {
-    const r = spawnSync("git", args, { timeout: CHILD_TIMEOUT_MS, cwd: root, encoding: "utf8" });
-    if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
-  };
-  git("init", "-q");
-  for (const [path, text] of Object.entries(files)) {
-    mkdirSync(dirname(join(root, path)), { recursive: true });
-    writeFileSync(join(root, path), text);
-  }
-  git("add", "--", ...Object.keys(files));
-  return root;
-}
-
-function runCli(cwd: string, args: string[] = []) {
-  const r = spawnSync(process.execPath, [script, ...args], {
-    timeout: CHILD_TIMEOUT_MS,
-    cwd,
-    encoding: "utf8",
-  });
-  return { status: r.status, out: `${r.stdout}${r.stderr}` };
-}
-
 test("CLI: 違反をパスと行番号の付いた一覧で報告して exit 1", () => {
   const root = makeRepo({
     "skills/demo/scripts/bad.mjs":
@@ -250,12 +216,22 @@ test("CLI: リポジトリの外のファイルを渡されたら exit 2", () =>
 });
 
 test.each([
-  ["直下からの相対パス", "/r", ["scripts/a.ts"], ["scripts/a.ts"]],
-  ["サブディレクトリからの相対パス", "/r/scripts", ["a.ts"], ["scripts/a.ts"]],
-  ["絶対パス", "/x", ["/r/skills/b.mjs"], ["skills/b.mjs"]],
-  ["リポジトリの外", "/r", ["../a.ts"], null],
-  ["リポジトリの直下そのもの（対象の外として扱う）", "/r", ["."], [""]],
-])("引数のパスをリポジトリの直下からのパスにする: %s", (_name, cwd, args, expected) => {
+  { name: "直下からの相対パス", cwd: "/r", args: ["scripts/a.ts"], expected: ["scripts/a.ts"] },
+  {
+    name: "サブディレクトリからの相対パス",
+    cwd: "/r/scripts",
+    args: ["a.ts"],
+    expected: ["scripts/a.ts"],
+  },
+  { name: "絶対パス", cwd: "/x", args: ["/r/skills/b.mjs"], expected: ["skills/b.mjs"] },
+  { name: "リポジトリの外", cwd: "/r", args: ["../a.ts"], expected: null },
+  {
+    name: "リポジトリの直下そのもの（対象の外として扱う）",
+    cwd: "/r",
+    args: ["."],
+    expected: [""],
+  },
+])("引数のパスをリポジトリの直下からのパスにする: $name", ({ cwd, args, expected }) => {
   expect(normalizeArgs(args, cwd, "/r")).toEqual(expected);
 });
 

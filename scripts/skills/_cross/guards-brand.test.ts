@@ -13,13 +13,14 @@
 // | 入力の型 | string \| undefined、string、string \| number、number \| undefined、number |
 // | 判定の側 | true の側 / false の側                                              |
 // | 実装     | parity-suite の lib/guards.mjs / parity-component の lib/guards.mjs |
-import { expect, expectTypeOf, test } from "vitest";
+import { expect, test } from "vitest";
 import {
   isFiniteNumber,
   nonEmptyString,
   positiveNumber,
 } from "../../../skills/parity-suite/scripts/lib/guards.mjs";
 import { filled, safeSegment } from "../../../skills/parity-component/scripts/lib/guards.mjs";
+import { narrow } from "./guards-brand-helpers.ts";
 
 test("値の判定: 空白だけの文字列・プレースホルダ・.. と、NaN・Infinity・0 に false を返す", () => {
   expect(nonEmptyString("  ")).toBe(false);
@@ -31,41 +32,6 @@ test("値の判定: 空白だけの文字列・プレースホルダ・.. と、
   expect(positiveNumber(0)).toBe(false);
 });
 
-// 型の期待は引数の宣言した型に対して書く。const に値を代入すると、tsc が代入した値の型に絞ってしまうため。
-// true の側は toExtend だけだと never でも通るので、never でないことも確かめる。
-function narrow(
-  s: string | undefined,
-  f: string,
-  seg: string | number,
-  n: number | undefined,
-  p: number,
-) {
-  if (nonEmptyString(s)) {
-    expectTypeOf(s).toExtend<string>();
-    expectTypeOf(s).not.toBeNever();
-  } else expectTypeOf(s).toEqualTypeOf<string | undefined>();
-
-  if (filled(f)) {
-    expectTypeOf(f).toExtend<string>();
-    expectTypeOf(f).not.toBeNever();
-  } else expectTypeOf(f).toEqualTypeOf<string>();
-
-  if (safeSegment(seg)) {
-    expectTypeOf(seg).toExtend<string>();
-    expectTypeOf(seg).not.toBeNever();
-  } else expectTypeOf(seg).toEqualTypeOf<string | number>();
-
-  if (isFiniteNumber(n)) {
-    expectTypeOf(n).toExtend<number>();
-    expectTypeOf(n).not.toBeNever();
-  } else expectTypeOf(n).toEqualTypeOf<number | undefined>();
-
-  if (positiveNumber(p)) {
-    expectTypeOf(p).toExtend<number>();
-    expectTypeOf(p).not.toBeNever();
-  } else expectTypeOf(p).toEqualTypeOf<number>();
-}
-
 test("false の側に、絞る型の値が残る", () => {
-  narrow("", "TODO", "..", Number.NaN, 0);
+  narrow({ s: "", f: "TODO", seg: "..", n: Number.NaN, p: 0 });
 });

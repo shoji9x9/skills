@@ -8,19 +8,10 @@
 // 後方互換（component_coverage キーが無い旧成果物と declared: false は判定に入れない）は
 // 誤検知しないことの確認として固定する。これが無いと「網羅表が無ければ常に落とす」実装と区別できない。
 
-import { assert, test, expect } from "vitest";
+import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import {
-  fillSetProvenance,
-  itemSource,
-  setInventory,
-} from "../../lib/testing/coverage-set-provenance-fixture.ts";
+import { itemSource, setInventory } from "../../lib/testing/coverage-set-provenance-fixture.ts";
 import { invalidInput, removeField } from "../../lib/testing/test-input.ts";
-import { isRecord } from "../../lib/guards.ts";
-import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import {
   captureFingerprint,
@@ -30,369 +21,39 @@ import {
   readCaptureForFingerprint,
   readDeclaration,
 } from "../../../skills/parity-diff/scripts/coverage-check.mjs";
-import { isArray } from "../../lib/is-array.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
-
-// fixture の型。基準の fixture（full()・profiled() など）が置く正規の形を宣言する。
-// テストは fixture を書き換えて不正な入力を作る。型に合わない値を書く箇所は invalidInput を通し、
-// 必須の欄を消す箇所は `removeField(x, "field")` で書く。
-
-/** 矩形。 */
-type Rect = { x: number; y: number; width: number; height: number };
-
-/** 非描画の原因になった要素と、その計算後スタイル。 */
-type HiddenBy = {
-  target_locator: string;
-  locator: string;
-  relation: string;
-  relationship_verified: boolean;
-  computed_style: Record<string, string>;
-};
-
-/** 非描画の状態ごとの実測。 */
-type RenderState = {
-  name: string;
-  transition: string;
-  locator_match_count: number;
-  bounding_box: Rect | null;
-  offset_parent: string | null;
-  hidden_by: HiddenBy | null;
-};
-
-/** absence_evidence の kind: non-renderable。 */
-type NonRenderableEvidence = {
-  kind: string;
-  locator: string;
-  state_source: string;
-  locator_includes_hidden: boolean;
-  states_exhaustive: boolean;
-  expected_states: string[];
-  states: RenderState[];
-};
-
-/** fired-without-response の送り方。hit-test の欄は座標操作のときだけ書く。 */
-type FiredAction = {
-  locator: string;
-  method: string;
-  detail: string;
-  bounding_box: Rect;
-  visible: boolean;
-  actionability_bypassed: boolean;
-  hit_test_target?: string;
-  hit_test_is_target_or_descendant?: boolean;
-};
-
-/** fired-without-response の発火の確認。 */
-type Fired = { signal: string; detail: string; verified: boolean };
-
-/** absence_evidence の kind: fired-without-response。 */
-type FiredEvidence = {
-  kind: string;
-  action: FiredAction;
-  fired: Fired;
-  observation: string;
-};
-
-/** 網羅表の 1 行。 */
-type Cell = {
-  component: string;
-  item: string;
-  instance: string;
-  value: string;
-  evidence: string;
-  covered_by: string[];
-  absence_evidence?: NonRenderableEvidence | FiredEvidence | undefined;
-  unmeasured_reason?: string;
-};
-
-/** インスタンスの applicable_states manifest。 */
-type ApplicableStates = {
-  source: { kind: string; ref: string; version: string; condition: string };
-  complete: boolean;
-  items: { id: string; transition: string }[];
-};
-
-/** プロファイル部品のインスタンスの列挙。 */
-type Enumeration = {
-  source: {
-    kind: string;
-    ref: string;
-    version: string;
-    extracted_at: string;
-    condition: string;
-  };
-  complete: boolean;
-  elements: Record<string, { id: string }[]>;
-  justified_absences?: { scope: string; reason: string }[];
-  stronger_source_unavailable_reason?: string;
-  incomplete_reason?: string | null;
-};
-
-/** プロファイルを使わない部品のインスタンス。 */
-type Instance = { id: string; applicable_states?: ApplicableStates };
-
-/** プロファイル部品のインスタンス。 */
-type ProfiledInstance = { id: string; enumeration: Enumeration; candidates: string[] };
-
-type Item = {
-  id: string;
-  candidate?: { rule: string; axes: Record<string, string> };
-};
-
-/** 同値クラスの宣言。 */
-type EquivalenceClass = {
-  id: string;
-  axis: string;
-  rationale: string;
-  members: string[];
-  representative: string;
-};
-
-/** 集合の出所の宣言（形は coverage-set-provenance-fixture.ts の setInventory・itemSource が決める）。 */
-type SetDeclaration = Record<string, unknown>;
-
-type Component<I> = {
-  id: string;
-  profile: string | null;
-  profile_version?: string;
-  profile_absent_reason?: string;
-  instance_inventory?: SetDeclaration;
-  source?: SetDeclaration;
-  items: Item[];
-  instances: I[];
-  equivalence_classes?: EquivalenceClass[];
-};
-
-/** 撮影状態の要約。指紋は記録するときに足す。 */
-type VisualStates = {
-  checked: boolean;
-  rows: number;
-  undecided: number;
-  missing_states: string[];
-  table_fingerprint?: string;
-  capture_fingerprint?: string;
-};
-
-/** coverage-expand のプロファイル適合の記録。 */
-type Conformance = {
-  tool: string;
-  tool_version: string;
-  ok: boolean;
-  visual_states: VisualStates;
-};
-
-type Coverage<I = Instance> = {
-  slug: string;
-  conformance: Conformance;
-  component_inventory?: SetDeclaration;
-  components: Component<I>[];
-  cells: Cell[];
-};
-
-type ProfiledCoverage = Coverage<ProfiledInstance>;
-
-/** countCoverage と runCli が受け取る網羅表。型崩れの網羅表は invalidInput で渡す。 */
-type AnyCoverage = Coverage | ProfiledCoverage;
-
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const script = join(repoRoot, "skills/parity-diff/scripts/coverage-check.mjs");
-
-// 撮影状態の要約は記録時点の入力に結び付いている（指紋）。このファイルの被験対象は件数の数え直しなので、
-// 呼ぶ直前に「その表・その撮影条件で記録した」状態へ揃えてから数える。
-// 指紋そのものの検査は「撮影状態の要約は現在の入力と結び付いていなければ通さない」テストが持つ。
-const CAPTURE = { slug: "order-list", pageNames: [], states: [], popupStates: [] };
-function countCoverage(
-  coverage: AnyCoverage,
-  slug: string,
-  captureNow: string | null = captureFingerprint(CAPTURE),
-) {
-  // 集合の出所（component_inventory / instance_inventory / components[].source）は
-  // 宣言が無い fixture にだけ補う。宣言そのものを見るテストは countCoverageRaw を直接呼ぶ。
-  fillSetProvenance(coverage);
-  if (coverage && typeof coverage === "object" && !isArray(coverage)) {
-    const conf = coverage.conformance;
-    if (conf && typeof conf === "object" && conf.visual_states) {
-      conf.visual_states = {
-        ...conf.visual_states,
-        table_fingerprint: coverageFingerprint(coverage),
-        capture_fingerprint: captureFingerprint(CAPTURE),
-      };
-    }
-  }
-  return countCoverageRaw(coverage, slug, captureNow);
-}
-
-/** coverage-expand が書き戻すプロファイル適合の記録（無い・ok: false は収束させない）。 */
-const conformance: Conformance = {
-  tool: "coverage-expand",
-  // 撮影状態の要約は生成側の版が下限以上のときだけ信頼される（導出の意味論が変わった版）。
-  tool_version: String(MIN_COVERAGE_EXPAND_VERSION),
-  ok: true,
-  visual_states: { checked: true, rows: 0, undecided: 0, missing_states: [] },
-};
-
-/** 適合プロファイルが無い部品の宣言（profile キーの欠落＝暗黙の汎用扱いと区別する）。 */
-const noProfile = {
-  profile: null,
-  profile_absent_reason: "軸を持たない単純な部品で、適合プロファイルが無い",
-};
-
-/** 部品 1 つ・項目 2 つ・インスタンス 2 つ ＝ 期待セル 4 の網羅表の骨格。 */
-const skeleton = {
-  slug: "order-list",
+import {
+  type ApplicableStates,
+  applicableStates,
+  boxOf,
+  CAPTURE,
+  type Cell,
+  cell,
+  type Component,
+  type Conformance,
   conformance,
-  // 3 つの集合（部品・インスタンス・項目）の出所と完全性。専任のテストが別に見るので、
-  // 骨格では妥当な宣言を持たせておく。
-  component_inventory: setInventory(),
-  components: [
-    {
-      id: "grid",
-      ...noProfile,
-      instance_inventory: setInventory(),
-      source: itemSource(),
-      items: [{ id: "ctx-menu" }, { id: "drag-reorder" }],
-      instances: [{ id: "orders" }, { id: "search" }],
-    },
-  ],
-};
-
-const cell = (item: string, instance: string, extra?: Partial<Cell>): Cell => ({
-  component: "grid",
-  item,
-  instance,
-  value: "present",
-  evidence: "右クリックでメニューが出た",
-  covered_by: ["context-menu"],
-  ...extra,
-});
-
-/** 4 セルすべてが測れている網羅表。テストが components を書き換えても骨格を汚さないよう複製する。 */
-function full(): Coverage {
-  return {
-    ...structuredClone(skeleton),
-    cells: [
-      cell("ctx-menu", "orders"),
-      cell("ctx-menu", "search", {
-        value: "absent",
-        evidence: "右クリックしてもメニューが出ない",
-        absence_evidence: firedEvidence(),
-        covered_by: [],
-      }),
-      cell("drag-reorder", "orders"),
-      cell("drag-reorder", "search"),
-    ],
-  };
-}
-
-function firedEvidence(overrides: Partial<FiredEvidence> = {}): FiredEvidence {
-  return {
-    kind: "fired-without-response",
-    action: {
-      locator: "getByRole('row', { name: 'Order 1' })",
-      method: "locator-api",
-      detail: "locator.click({ button: 'right' })",
-      bounding_box: { x: 10, y: 20, width: 200, height: 32 },
-      visible: true,
-      actionability_bypassed: false,
-    },
-    fired: {
-      signal: "event-listener",
-      detail: "contextmenu リスナで受信した",
-      verified: true,
-    },
-    observation: "メニューが開かず DOM も変化しなかった",
-    ...overrides,
-  };
-}
-
-/** 座標操作で発火を確認した場合の証拠。重なった別要素の発火と区別するため hit-test まで実測する。 */
-function firedCoordinateEvidence(): FiredEvidence {
-  return firedEvidence({
-    action: {
-      locator: "getByTestId('grid-cell-1-1')",
-      method: "coordinate",
-      detail: "page.mouse.click(x, y, { button: 'right' })",
-      bounding_box: { x: 10, y: 20, width: 120, height: 32 },
-      visible: true,
-      actionability_bypassed: false,
-      hit_test_target: "getByTestId('grid-cell-1-1')",
-      hit_test_is_target_or_descendant: true,
-    },
-  });
-}
-
-/** 全到達状態で非描画だった absent の機械可読証拠。 */
-function nonRenderableEvidence(): NonRenderableEvidence {
-  return {
-    kind: "non-renderable",
-    locator: "getByRole('menuitem', { name: 'Back', includeHidden: true })",
-    state_source: "vendor spec v2 と現行 UI",
-    locator_includes_hidden: true,
-    states_exhaustive: true,
-    expected_states: ["desktop/default", "mobile/admin"],
-    states: [
-      {
-        name: "desktop/default",
-        transition: "desktop viewport でメニューを開く",
-        locator_match_count: 1,
-        bounding_box: { x: 60, y: 0, width: 0, height: 20 },
-        offset_parent: null,
-        hidden_by: null,
-      },
-      {
-        name: "mobile/admin",
-        transition: "mobile viewport・admin 権限でメニューを開く",
-        locator_match_count: 1,
-        bounding_box: null,
-        offset_parent: null,
-        hidden_by: {
-          target_locator: "getByRole('menuitem', { name: 'Back', includeHidden: true })",
-          locator: "#menu",
-          relation: "ancestor",
-          relationship_verified: true,
-          computed_style: { display: "none" },
-        },
-      },
-    ],
-  };
-}
-
-/** 実測した矩形を持つはずの状態から矩形を取り出す。無ければテストを失敗させる。 */
-function boxOf(state: RenderState): Rect {
-  const box = state.bounding_box;
-  assert.exists(box, `${state.name} の bounding_box が無い`);
-  return box;
-}
-
-/** 非表示原因を持つはずの状態から hidden_by を取り出す。無ければテストを失敗させる。 */
-function hiddenByOf(state: RenderState): HiddenBy {
-  const hiddenBy = state.hidden_by;
-  assert.exists(hiddenBy, `${state.name} の hidden_by が無い`);
-  return hiddenBy;
-}
-
-/** setInventory() の source（妥当な宣言）を取り出す。 */
-function inventorySource(): Record<string, unknown> {
-  const { source } = setInventory();
-  assert(isRecord(source), "setInventory() の source がオブジェクトでない");
-  return source;
-}
-
-function applicableStates(): ApplicableStates {
-  return {
-    source: {
-      kind: "vendor-spec",
-      ref: "docs/grid-v2.json",
-      version: "v2",
-      condition: "viewport と権限の全組み合わせ",
-    },
-    complete: true,
-    items: [
-      { id: "desktop/default", transition: "desktop viewport でメニューを開く" },
-      { id: "mobile/admin", transition: "mobile viewport・admin 権限でメニューを開く" },
-    ],
-  };
-}
+  countCoverage,
+  countSets,
+  type Coverage,
+  firedCoordinateEvidence,
+  type FiredEvidence,
+  firedEvidence,
+  full,
+  hiddenByOf,
+  type Instance,
+  inventorySource,
+  type Item,
+  type NonRenderableEvidence,
+  nonRenderableEvidence,
+  noProfile,
+  profiled,
+  type ProfiledCoverage,
+  type ProfiledInstance,
+  runCli,
+  script,
+  type VisualStates,
+  withSets,
+} from "./coverage-check-helpers.ts";
 
 test("誤検知しないことの確認: 全セルが測れていれば未測定ゼロ・問題ゼロ（常に落とす実装を弾く）", () => {
   const r = countCoverage(full(), "order-list");
@@ -431,64 +92,66 @@ test("evidence が空なら present / absent でも未測定", () => {
   expect(r.problems.join("\n")).toMatch(/evidence/);
 });
 
+/** nonRenderableEvidence を 1 か所ずつ壊す変更（どれも未測定として扱われるはずのもの）。 */
+const NON_RENDERABLE_MUTATIONS: ((e: NonRenderableEvidence) => unknown)[] = [
+  (e) => removeField(e, "locator"),
+  (e) => removeField(e, "state_source"),
+  // hidden を含む引き方であることを実証しないと、0 件を DOM 不在と読み替えられる
+  (e) => removeField(e, "locator_includes_hidden"),
+  (e) => (e.locator_includes_hidden = false),
+  (e) => (e.locator_includes_hidden = invalidInput("true")),
+  (e) => (e.states_exhaustive = false),
+  (e) => (e.states = []),
+  (e) => (e.expected_states = []),
+  (e) => e.expected_states.push("desktop/default"),
+  (e) => (e.expected_states[0] = "desktop/other"),
+  (e) => (e.states[1].name = "desktop/default"),
+  (e) => removeField(e.states[0], "bounding_box"),
+  (e) => removeField(e.states[0], "offset_parent"),
+  (e) => (e.states[0].offset_parent = invalidInput(3)),
+  (e) => (boxOf(e.states[0]).width = invalidInput("0")),
+  (e) => (boxOf(e.states[0]).width = 10),
+  // 実在しない矩形（負値・非有限）で 0 寸法判定を迂回させない
+  (e) => (boxOf(e.states[0]).width = -1),
+  (e) => (boxOf(e.states[0]).height = -0.5),
+  (e) => (boxOf(e.states[0]).x = Number.NaN),
+  (e) => (boxOf(e.states[0]).y = Number.POSITIVE_INFINITY),
+  // display: none の本人／祖先配下では実 DOM の offsetParent は必ず null
+  (e) => (e.states[1].offset_parent = "#visible-parent"),
+  // 状態ごとの一致数が実測されていない・一意でない
+  (e) => (e.states[0].locator_match_count = 2),
+  (e) => (e.states[0].locator_match_count = invalidInput("1")),
+  (e) => (e.states[0].locator_match_count = 1.5),
+  (e) => (e.states[0].locator_match_count = -1),
+  (e) => removeField(e.states[0], "locator_match_count"),
+  // 0 件（DOM に無い）と矩形・offset_parent・hidden_by の矛盾
+  (e) => (e.states[0].locator_match_count = 0),
+  (e) => {
+    e.states[1].locator_match_count = 0;
+    e.states[1].hidden_by = null;
+    e.states[1].offset_parent = "#menu-root";
+  },
+  // 全状態が 0 件だと locator の正しさを一度も実証できていない
+  (e) => {
+    for (const st of e.states) {
+      st.locator_match_count = 0;
+      st.bounding_box = null;
+      st.offset_parent = null;
+      st.hidden_by = null;
+    }
+  },
+  (e) => (hiddenByOf(e.states[1]).computed_style = {}),
+  // hidden_by は「非表示原因なし」を明示的な null で書く。キーごとの省略は証拠の欠落として扱う
+  (e) => removeField(e.states[0], "hidden_by"),
+  (e) => removeField(e.states[1], "hidden_by"),
+  (e) => {
+    e.states[1].bounding_box = { x: 0, y: 0, width: 10, height: 20 };
+    hiddenByOf(e.states[1]).computed_style = { display: "block", color: "red" };
+  },
+];
+
 test("非描画 absent の証拠の欠落・型崩れ・空配列は未測定として扱う", () => {
-  const mutations: ((e: NonRenderableEvidence) => unknown)[] = [
-    (e) => removeField(e, "locator"),
-    (e) => removeField(e, "state_source"),
-    // hidden を含む引き方であることを実証しないと、0 件を DOM 不在と読み替えられる
-    (e) => removeField(e, "locator_includes_hidden"),
-    (e) => (e.locator_includes_hidden = false),
-    (e) => (e.locator_includes_hidden = invalidInput("true")),
-    (e) => (e.states_exhaustive = false),
-    (e) => (e.states = []),
-    (e) => (e.expected_states = []),
-    (e) => e.expected_states.push("desktop/default"),
-    (e) => (e.expected_states[0] = "desktop/other"),
-    (e) => (e.states[1].name = "desktop/default"),
-    (e) => removeField(e.states[0], "bounding_box"),
-    (e) => removeField(e.states[0], "offset_parent"),
-    (e) => (e.states[0].offset_parent = invalidInput(3)),
-    (e) => (boxOf(e.states[0]).width = invalidInput("0")),
-    (e) => (boxOf(e.states[0]).width = 10),
-    // 実在しない矩形（負値・非有限）で 0 寸法判定を迂回させない
-    (e) => (boxOf(e.states[0]).width = -1),
-    (e) => (boxOf(e.states[0]).height = -0.5),
-    (e) => (boxOf(e.states[0]).x = Number.NaN),
-    (e) => (boxOf(e.states[0]).y = Number.POSITIVE_INFINITY),
-    // display: none の本人／祖先配下では実 DOM の offsetParent は必ず null
-    (e) => (e.states[1].offset_parent = "#visible-parent"),
-    // 状態ごとの一致数が実測されていない・一意でない
-    (e) => (e.states[0].locator_match_count = 2),
-    (e) => (e.states[0].locator_match_count = invalidInput("1")),
-    (e) => (e.states[0].locator_match_count = 1.5),
-    (e) => (e.states[0].locator_match_count = -1),
-    (e) => removeField(e.states[0], "locator_match_count"),
-    // 0 件（DOM に無い）と矩形・offset_parent・hidden_by の矛盾
-    (e) => (e.states[0].locator_match_count = 0),
-    (e) => {
-      e.states[1].locator_match_count = 0;
-      e.states[1].hidden_by = null;
-      e.states[1].offset_parent = "#menu-root";
-    },
-    // 全状態が 0 件だと locator の正しさを一度も実証できていない
-    (e) => {
-      for (const st of e.states) {
-        st.locator_match_count = 0;
-        st.bounding_box = null;
-        st.offset_parent = null;
-        st.hidden_by = null;
-      }
-    },
-    (e) => (hiddenByOf(e.states[1]).computed_style = {}),
-    // hidden_by は「非表示原因なし」を明示的な null で書く。キーごとの省略は証拠の欠落として扱う
-    (e) => removeField(e.states[0], "hidden_by"),
-    (e) => removeField(e.states[1], "hidden_by"),
-    (e) => {
-      e.states[1].bounding_box = { x: 0, y: 0, width: 10, height: 20 };
-      hiddenByOf(e.states[1]).computed_style = { display: "block", color: "red" };
-    },
-  ];
-  for (const mutate of mutations) {
+  for (const mutate of NON_RENDERABLE_MUTATIONS) {
     const cov = full();
     const evidence = nonRenderableEvidence();
     cov.cells[1].absence_evidence = evidence;
@@ -872,58 +535,6 @@ test("declared: false は理由付きで判定に入れない（キー欠落と�
 
 // --- 網羅のプロファイル（Issue #286）: 期待セルを候補集合で数え直す処理 ---
 
-/** 列 2 つ（price / name）を列挙し、候補 3 件へ展開済みの部品。 */
-function profiled(overrides: Partial<Component<ProfiledInstance>> = {}): ProfiledCoverage {
-  return {
-    slug: "order-list",
-    conformance,
-    components: [
-      {
-        id: "grid",
-        profile: "datagrid",
-        profile_version: "1",
-        items: [
-          {
-            id: "column-visible/price",
-            candidate: { rule: "column-visible", axes: { column: "price" } },
-          },
-          {
-            id: "column-visible/name",
-            candidate: { rule: "column-visible", axes: { column: "name" } },
-          },
-          {
-            id: "column-sort/price/asc",
-            candidate: { rule: "column-sort", axes: { column: "price", "sort-direction": "asc" } },
-          },
-        ],
-        instances: [
-          {
-            id: "orders",
-            enumeration: {
-              source: {
-                kind: "current-source",
-                ref: "src/grid/orderColumns.ts",
-                version: "rev-abc123",
-                extracted_at: "2026-09-03T00:00:00Z",
-                condition: "columns 配列の全要素。hidden も含める",
-              },
-              complete: true,
-              elements: { column: [{ id: "price" }, { id: "name" }] },
-            },
-            candidates: ["column-visible/price", "column-visible/name", "column-sort/price/asc"],
-          },
-        ],
-        ...overrides,
-      },
-    ],
-    cells: [
-      cell("column-visible/price", "orders"),
-      cell("column-visible/name", "orders"),
-      cell("column-sort/price/asc", "orders"),
-    ],
-  };
-}
-
 test("誤検知しないことの確認: プロファイル部品は候補ぶんの期待セルで数え、揃っていれば未測定ゼロ", () => {
   // 「常に落とす実装」を弾く。期待セルは 項目 × インスタンス（3×1）ではなく候補数（3）。
   const r = countCoverage(profiled(), "order-list");
@@ -1153,30 +764,6 @@ test("同値クラスの rationale 空・members 外の representative は問題
   expect(joined).toMatch(/representative .* が members に含まれていない/);
 });
 
-/** 一時ディレクトリに metadata.json と網羅表を書いて CLI を実行する。 */
-function runCli(metadata: unknown, coverage: AnyCoverage | null | undefined) {
-  const dir = makeTempDir("coverage-check-");
-  const metaPath = join(dir, "metadata.json");
-  const covPath = join(dir, "component-coverage.json");
-  writeFileSync(metaPath, JSON.stringify(metadata));
-  // null ＝ 網羅表を書かない（読めないケース）、undefined ＝ --coverage も渡さない。
-  if (coverage !== null && coverage !== undefined) {
-    // インプロセスの countCoverage ラッパと同じく、集合の出所を補ってから指紋を現在の内容へ揃える。
-    fillSetProvenance(coverage);
-    if (coverage && typeof coverage === "object" && coverage.conformance?.visual_states) {
-      coverage.conformance.visual_states = {
-        ...coverage.conformance.visual_states,
-        table_fingerprint: coverageFingerprint(coverage),
-        capture_fingerprint: captureFingerprint(CAPTURE),
-      };
-    }
-    writeFileSync(covPath, JSON.stringify(coverage));
-  }
-  const args = [script, "--metadata", metaPath];
-  if (coverage !== undefined) args.push("--coverage", covPath);
-  return spawnSync(process.execPath, args, { timeout: CHILD_TIMEOUT_MS, encoding: "utf8" });
-}
-
 const declared = {
   slug: "order-list",
   // 撮影条件は CAPTURE と同じ内容にしておく（指紋の突き合わせを通すため。件数の数え直しが被験対象）。
@@ -1363,38 +950,6 @@ test("撮影状態の要約は下限より古い導出規則で作られてい�
 // 列挙しなかった部品・インスタンスは期待セルにも現れず unmeasured 0 で収束する
 // （実測: データグリッドの設定を保存・復元・リセットする 3 部品が集合から落ち、実装からも落ちた）。
 // 指紋の再計算を挟まない生の countCoverageRaw で呼ぶ。補完ラッパは宣言を埋めてしまうためである。
-
-/** 集合の宣言だけを差し替えられる、未測定 0 の網羅表。 */
-function withSets({
-  componentInventory,
-  instanceInventory,
-  source,
-}: {
-  componentInventory?: SetDeclaration | null;
-  instanceInventory?: SetDeclaration | null;
-  source?: SetDeclaration | null;
-} = {}) {
-  const cov = full();
-  if (componentInventory === undefined) cov.component_inventory = setInventory();
-  else if (componentInventory === null) delete cov.component_inventory;
-  else cov.component_inventory = componentInventory;
-  if (instanceInventory === undefined) cov.components[0].instance_inventory = setInventory();
-  else if (instanceInventory === null) delete cov.components[0].instance_inventory;
-  else cov.components[0].instance_inventory = instanceInventory;
-  if (source === undefined) cov.components[0].source = itemSource();
-  else if (source === null) delete cov.components[0].source;
-  else cov.components[0].source = source;
-  cov.conformance = {
-    ...conformance,
-    visual_states: { ...conformance.visual_states, rows: 0 },
-  };
-  cov.conformance.visual_states.table_fingerprint = coverageFingerprint(cov);
-  cov.conformance.visual_states.capture_fingerprint = captureFingerprint(CAPTURE);
-  return cov;
-}
-
-const countSets = (cov: Coverage) =>
-  countCoverageRaw(cov, "order-list", captureFingerprint(CAPTURE));
 
 test("部品・インスタンスの集合の宣言が無ければ 1 件ずつ未測定として数える", () => {
   const missingBoth = countSets(withSets({ componentInventory: null, instanceInventory: null }));

@@ -172,7 +172,7 @@
     {
       "id": "LS-IMPORT-SIDE",
       "why": "副作用だけの import・動的 import・require・単引用符を拾わない",
-      "file": "scripts/gates/tooling/lint-scope.test.ts",
+      "file": "scripts/gates/tooling/lint-scope-helpers.ts",
       "find": "/\\b(?:from|import|require)\\s*\\(?\\s*[\"'](\\.{1,2}\\/[^\"']+)[\"']/g",
       "replace": "/\\bfrom \"(\\.{1,2}\\/[^\"]+)\"/g",
       "occurrences": 1,
@@ -181,8 +181,8 @@
     {
       "id": "LS-IMPORT-TRANSITIVE",
       "why": "import 先がさらに import するファイルをたどらない",
-      "file": "scripts/gates/tooling/lint-scope.test.ts",
-      "find": "    repoImports(dep, readFile, found, rel);\n",
+      "file": "scripts/gates/tooling/lint-scope-helpers.ts",
+      "find": "    repoImports(dep, readFile, { found, from: rel });\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": ["repoImports は、import の書き方の違いと、import 先の import を拾う"]

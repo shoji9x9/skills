@@ -10,8 +10,7 @@ import { readRow } from "../../../../skills/replace-strategy/scripts/evidence-ga
 import { stepFence } from "../../../../skills/replace-strategy/scripts/lib/fence.mjs";
 import { parseTables } from "../../../../skills/replace-strategy/scripts/lib/markdown.mjs";
 import { readProcedureLedger } from "../../../../skills/replace-strategy/scripts/procedure-staleness-check.mjs";
-
-const lines = (...xs: string[]) => [...xs, ""].join("\n");
+import { lines, cells, PC, procedureIds, PLAN, COPY, norm } from "./markdown-lib-helpers.ts";
 
 test("表の行の途中の `|` を含むフェンス行で表を終え、フェンスの中の表の行を読まない", () => {
   const { tables } = parseTables(
@@ -55,10 +54,6 @@ test("誤検知しないことの確認: コメントの中のフェンス行は
   expect(tables.map((t) => t.rows)).toEqual([[[" 1 ", " 2 "]]]);
 });
 
-// セルの値を前後の空白を除いて返す（コメントを空白に置き換えた分の空白を比べない）。
-const cells = (text: string) =>
-  parseTables(text).tables.flatMap((t) => t.rows.map((r) => r.map((c) => c.trim())));
-
 test("誤検知しないことの確認: コードスパンの中の `<!-- -->` は、コメントとして消さない", () => {
   expect(
     cells(lines("| a | b |", "|---|---|", "| 1 | `<!-- x -->` |", "| 2 | ``a` <!-- y -->`` |")),
@@ -86,17 +81,9 @@ test("`<!-->` と `<!--->` は、それだけで閉じたコメントとして�
 const CHANGE = "| ID | 追加日 | 足した軸 | 由来 | 対象の種類 | 見直しの置き場 |";
 const RECORD = "| 記録 ID | 変更 ID | slug | 判断 | 記録日 | 根拠・理由 |";
 const D6 = "|---|---|---|---|---|---|";
-const PC = (id: string) => `| ${id} | 2026-09-20 | 軸 | 由来 | feature | #1 |`;
-const procedureIds = (text: string) => {
-  const r = readProcedureLedger(text, new Set());
-  if (!r.ok) throw new Error(r.errors.join("\n"));
-  return r.changes.map((c) => c.id);
-};
 
 const FEATURE = "| slug | 機能名 | 新規実装 API | 要求単位の根拠 | テーブル | Issue |";
-const PLAN = (api: string) => `| plan | 計画管理 | ${api} | ${api}: measured | MST_PLAN | #210 |`;
 const ASSET = "| 種類 | 方針 | 状態 |";
-const COPY = (kind: string) => `| ${kind} | 実体をコピーする | 有効 |`;
 
 test.each([
   [
@@ -258,49 +245,122 @@ test("HTML ブロックを閉じる行は、`-->` の後ろもブロックに入
   expect(strayRows).toEqual([]);
 });
 
-const norm = (text: string) => cells(text).map((r) => r.map((c) => c.replace(/\s+/gu, " ")));
-
 // フェンスの開閉（Issue #679）。閉じる行は、開いた記号と同じ文字で同じ長さ以上の記号の後ろが空白だけの行（CommonMark）。
-test.each<[string, string | null, string | undefined, { fence: string | null; marker: boolean }]>([
-  ["開いていない・``` で開く", null, "```", { fence: "```", marker: true }],
-  ["開いていない・情報文字列付きで開く", null, "```bash", { fence: "```", marker: true }],
-  [
-    "開いていない・情報文字列に行区切りの文字があっても開く",
-    null,
-    "```a\u2028b",
-    { fence: "```", marker: true },
-  ],
-  ["開いていない・~~~ で開く", null, "~~~", { fence: "~~~", marker: true }],
-  [
-    "開いていない・情報文字列にバッククォートを含む ``` は開かない",
-    null,
-    "```x``` はインラインのコード",
-    { fence: null, marker: false },
-  ],
-  [
-    "開いていない・情報文字列にバッククォートを含む ~~~ は開く",
-    null,
-    "~~~ `x`",
-    { fence: "~~~", marker: true },
-  ],
-  ["開いていない・字下げ 4 文字は開かない", null, "    ```", { fence: null, marker: false }],
-  ["開いていない・行が無い", null, undefined, { fence: null, marker: false }],
-  ["開いている・同じ記号で閉じる", "```", "```", { fence: null, marker: true }],
-  ["開いている・情報文字列付きの行では閉じない", "```", "```bash", { fence: "```", marker: false }],
-  [
-    "開いている・~~~ の情報文字列付きの行では閉じない",
-    "~~~",
-    "~~~ text",
-    { fence: "~~~", marker: false },
-  ],
-  ["開いている・後ろの空白とタブは閉じる", "```", "```  \t", { fence: null, marker: true }],
-  ["開いている・長い記号で閉じる", "```", "`````", { fence: null, marker: true }],
-  ["開いている・短い記号では閉じない", "````", "```", { fence: "````", marker: false }],
-  ["開いている・別の文字では閉じない", "```", "~~~", { fence: "```", marker: false }],
-  ["開いている・字下げ 3 文字は閉じる", "```", "   ```", { fence: null, marker: true }],
-  ["開いている・字下げ 4 文字は閉じない", "```", "    ```", { fence: "```", marker: false }],
-  ["開いている・行が無い", "```", undefined, { fence: "```", marker: false }],
-])("stepFence: %s", (_name, fence, line, expected) => {
+test.each<{
+  name: string;
+  fence: string | null;
+  line: string | undefined;
+  expected: { fence: string | null; marker: boolean };
+}>([
+  {
+    name: "開いていない・``` で開く",
+    fence: null,
+    line: "```",
+    expected: { fence: "```", marker: true },
+  },
+  {
+    name: "開いていない・情報文字列付きで開く",
+    fence: null,
+    line: "```bash",
+    expected: { fence: "```", marker: true },
+  },
+  {
+    name: "開いていない・情報文字列に行区切りの文字があっても開く",
+    fence: null,
+    line: "```a\u2028b",
+    expected: { fence: "```", marker: true },
+  },
+  {
+    name: "開いていない・~~~ で開く",
+    fence: null,
+    line: "~~~",
+    expected: { fence: "~~~", marker: true },
+  },
+  {
+    name: "開いていない・情報文字列にバッククォートを含む ``` は開かない",
+    fence: null,
+    line: "```x``` はインラインのコード",
+    expected: { fence: null, marker: false },
+  },
+  {
+    name: "開いていない・情報文字列にバッククォートを含む ~~~ は開く",
+    fence: null,
+    line: "~~~ `x`",
+    expected: { fence: "~~~", marker: true },
+  },
+  {
+    name: "開いていない・字下げ 4 文字は開かない",
+    fence: null,
+    line: "    ```",
+    expected: { fence: null, marker: false },
+  },
+  {
+    name: "開いていない・行が無い",
+    fence: null,
+    line: undefined,
+    expected: { fence: null, marker: false },
+  },
+  {
+    name: "開いている・同じ記号で閉じる",
+    fence: "```",
+    line: "```",
+    expected: { fence: null, marker: true },
+  },
+  {
+    name: "開いている・情報文字列付きの行では閉じない",
+    fence: "```",
+    line: "```bash",
+    expected: { fence: "```", marker: false },
+  },
+  {
+    name: "開いている・~~~ の情報文字列付きの行では閉じない",
+    fence: "~~~",
+    line: "~~~ text",
+    expected: { fence: "~~~", marker: false },
+  },
+  {
+    name: "開いている・後ろの空白とタブは閉じる",
+    fence: "```",
+    line: "```  \t",
+    expected: { fence: null, marker: true },
+  },
+  {
+    name: "開いている・長い記号で閉じる",
+    fence: "```",
+    line: "`````",
+    expected: { fence: null, marker: true },
+  },
+  {
+    name: "開いている・短い記号では閉じない",
+    fence: "````",
+    line: "```",
+    expected: { fence: "````", marker: false },
+  },
+  {
+    name: "開いている・別の文字では閉じない",
+    fence: "```",
+    line: "~~~",
+    expected: { fence: "```", marker: false },
+  },
+  {
+    name: "開いている・字下げ 3 文字は閉じる",
+    fence: "```",
+    line: "   ```",
+    expected: { fence: null, marker: true },
+  },
+  {
+    name: "開いている・字下げ 4 文字は閉じない",
+    fence: "```",
+    line: "    ```",
+    expected: { fence: "```", marker: false },
+  },
+  {
+    name: "開いている・行が無い",
+    fence: "```",
+    line: undefined,
+    expected: { fence: "```", marker: false },
+  },
+])("stepFence: $name", ({ fence, line, expected }) => {
   expect(stepFence(fence, line)).toEqual(expected);
 });
 

@@ -10,7 +10,6 @@
 
 import { chmodSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { crc32, deflateRawSync } from "node:zlib";
 import { describe, expect, test } from "vitest";
 import { parseRepoConfig } from "../../../skills/agent-usage/scripts/lib/config.mjs";
 import {
@@ -26,40 +25,18 @@ import {
 } from "../../../skills/agent-usage/scripts/lib/sources/github.mjs";
 import { unzip } from "../../../skills/agent-usage/scripts/lib/sources/unzip.mjs";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
-
-const iso = (h: number, m = 0) =>
-  `2026-10-01T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00Z`;
-const ms = (h: number, m = 0) => Date.parse(iso(h, m));
-
-type Gh = (args: readonly string[], opts: { binary?: boolean }) => Buffer;
-
-function options(
-  gh: Gh,
-  extra: Partial<Parameters<typeof collectGitHub>[0]> = {},
-): Parameters<typeof collectGitHub>[0] {
-  return {
-    slug: "o/r",
-    since: ms(0),
-    now: ms(12),
-    person: "p-00000001",
-    tz: "UTC",
-    config: parseRepoConfig({ reviewPricing: { copilot: 0.04 } }),
-    bundledTools: {
-      "copilot-pull-request-reviewer": "copilot",
-      "chatgpt-codex-connector": "codex-cloud",
-    },
-    bundledPricing: { "gpt-5.5": { input: 5, output: 30 } },
-    bundledReviewPricing: { "codex-cloud": 0.1 },
-    commands: [],
-    billing: "none",
-    gh,
-    ...extra,
-  };
-}
-
-const noGh: Gh = () => {
-  throw new Error("呼ばれない想定");
-};
+import {
+  options,
+  noGh,
+  makeZip,
+  fakeGh,
+  prNode,
+  waits,
+  throwingUser,
+  graphqlReturning,
+  type Gh,
+} from "./github-helpers.ts";
+import { iso, ms } from "./utc-day-helpers.ts";
 
 describe("timelineRows", () => {
   const pr = { number: 7, branch: "feature/5-x", author: "me" };
@@ -364,56 +341,59 @@ describe("collectGitHub", () => {
 });
 
 describe("外部の CI", () => {
+  // PR 7 だけを見つける search の 1 ページ。open の PR の検索には、空の結果を返す
+  const searchPages = (args: readonly string[]) => [
+    {
+      data: {
+        search: {
+          pageInfo: { hasNextPage: false, endCursor: null },
+          nodes: args.some((a) => a.includes("is:open"))
+            ? []
+            : [
+                {
+                  number: 7,
+                  headRefName: "feature/7-x",
+                  author: { login: "me" },
+                  headRefOid: "abc",
+                  timelineItems: { nodes: [], pageInfo: { hasNextPage: false } },
+                },
+              ],
+        },
+      },
+    },
+  ];
+  // レビューツールの check run と、外部の CI の check run
+  const EXTERNAL_CHECK_RUNS = [
+    {
+      check_runs: [
+        {
+          id: 1,
+          name: "copilot-pull-request-reviewer",
+          app: { slug: "copilot-pull-request-reviewer" },
+          started_at: iso(1),
+          completed_at: iso(2),
+        },
+        {
+          id: 2,
+          name: "build",
+          app: { slug: "circleci-checks" },
+          started_at: iso(1),
+          completed_at: iso(3),
+        },
+      ],
+    },
+  ];
+
   test("ci.external では、レビューツールの check run を CI に入れない", () => {
     const gh: Gh = (args) => {
       if (args[0] === "user") return Buffer.from(JSON.stringify({ login: "me" }));
       if (args[0] === "graphql") {
-        const pages = [
-          {
-            data: {
-              search: {
-                pageInfo: { hasNextPage: false, endCursor: null },
-                nodes: args.some((a) => a.includes("is:open"))
-                  ? []
-                  : [
-                      {
-                        number: 7,
-                        headRefName: "feature/7-x",
-                        author: { login: "me" },
-                        headRefOid: "abc",
-                        timelineItems: { nodes: [], pageInfo: { hasNextPage: false } },
-                      },
-                    ],
-              },
-            },
-          },
-        ];
+        const pages = searchPages(args);
         return Buffer.from(JSON.stringify(pages));
       }
       if (args.some((a) => a.includes("/statuses"))) return Buffer.from(JSON.stringify([[]]));
       if (args.some((a) => a.includes("/check-runs"))) {
-        return Buffer.from(
-          JSON.stringify([
-            {
-              check_runs: [
-                {
-                  id: 1,
-                  name: "copilot-pull-request-reviewer",
-                  app: { slug: "copilot-pull-request-reviewer" },
-                  started_at: iso(1),
-                  completed_at: iso(2),
-                },
-                {
-                  id: 2,
-                  name: "build",
-                  app: { slug: "circleci-checks" },
-                  started_at: iso(1),
-                  completed_at: iso(3),
-                },
-              ],
-            },
-          ]),
-        );
+        return Buffer.from(JSON.stringify(EXTERNAL_CHECK_RUNS));
       }
       return Buffer.from(JSON.stringify([{ workflow_runs: [], artifacts: [] }]));
     };
@@ -444,43 +424,6 @@ describe("commitActivityRows", () => {
     expect(rows[0].start).toBe("2026-10-01T01:00:00.000Z");
   });
 });
-
-/** 無圧縮と deflate の項目を持つ zip を作る（テスト用の最小の書き手）。 */
-function makeZip(entries: { name: string; data: Buffer; method: 0 | 8 | 99 }[]): Buffer {
-  const locals: Buffer[] = [];
-  const centrals: Buffer[] = [];
-  let offset = 0;
-  for (const e of entries) {
-    const body = e.method === 8 ? deflateRawSync(e.data) : e.data;
-    const name = Buffer.from(e.name);
-    const local = Buffer.alloc(30);
-    local.writeUInt32LE(0x04034b50, 0);
-    local.writeUInt16LE(e.method, 8);
-    local.writeUInt32LE(crc32(e.data), 14);
-    local.writeUInt32LE(body.length, 18);
-    local.writeUInt32LE(e.data.length, 22);
-    local.writeUInt16LE(name.length, 26);
-    const central = Buffer.alloc(46);
-    central.writeUInt32LE(0x02014b50, 0);
-    central.writeUInt16LE(e.method, 10);
-    central.writeUInt32LE(crc32(e.data), 16);
-    central.writeUInt32LE(body.length, 20);
-    central.writeUInt32LE(e.data.length, 24);
-    central.writeUInt16LE(name.length, 28);
-    central.writeUInt32LE(offset, 42);
-    locals.push(local, name, body);
-    centrals.push(central, name);
-    offset += 30 + name.length + body.length;
-  }
-  const cd = Buffer.concat(centrals);
-  const end = Buffer.alloc(22);
-  end.writeUInt32LE(0x06054b50, 0);
-  end.writeUInt16LE(entries.length, 8);
-  end.writeUInt16LE(entries.length, 10);
-  end.writeUInt32LE(cd.length, 12);
-  end.writeUInt32LE(offset, 16);
-  return Buffer.concat([...locals, cd, end]);
-}
 
 describe("unzip と artifactRows", () => {
   test("無圧縮と deflate を取り出し、知らない圧縮方式はエラーにする", () => {
@@ -539,48 +482,6 @@ describe("unzip と artifactRows", () => {
     ]);
   });
 });
-
-// collectGitHub に渡す偽の gh。graphql は PR の一覧を、それ以外は path の部分文字列で選んだ応答を返す。
-// どれにも当たらない REST の呼び出しは、空の 1 ページを返す。
-function fakeGh(
-  prs: object[],
-  routes: [string, unknown][] = [],
-  user: unknown = { login: "me" },
-): Gh {
-  return (args) => {
-    if (args[0] === "user") return Buffer.from(JSON.stringify(user));
-    if (args[0] === "graphql") {
-      const nodes = args.some((a) => a.includes("is:open")) ? prs.slice(0, 1) : prs;
-      return Buffer.from(
-        JSON.stringify([
-          { data: { search: { pageInfo: { hasNextPage: false, endCursor: null }, nodes } } },
-        ]),
-      );
-    }
-    const path = args[args.length - 1];
-    for (const [needle, body] of routes) {
-      if (path.includes(needle)) {
-        if (body instanceof Error) throw body;
-        return Buffer.isBuffer(body) ? body : Buffer.from(JSON.stringify(body));
-      }
-    }
-    return Buffer.from(JSON.stringify([{ workflow_runs: [], artifacts: [], check_runs: [] }]));
-  };
-}
-
-const prNode = (items: unknown[], extra: object = {}) => ({
-  number: 7,
-  headRefName: "feature/5-x",
-  author: { login: "me" },
-  headRefOid: "abc",
-  closedAt: null,
-  timelineItems: { pageInfo: { hasNextPage: false }, nodes: items },
-  ...extra,
-});
-
-const waits = (
-  rows: { kind?: string; agent?: string; start?: string; end?: string; detail?: string }[],
-) => rows.filter((r) => r.kind === "review-wait").map((r) => [r.agent, r.start, r.end, r.detail]);
 
 describe("collectGitHub の timeline", () => {
   test("GraphQL の項目をそろえる（チームへの依頼は name を使い、時刻や依頼先の無い項目は数えない）", () => {
@@ -706,15 +607,6 @@ describe("collectGitHub の timeline", () => {
   });
 });
 
-const throwingUser: Gh = (args, opts) => {
-  if (args[0] === "user") throw "文字列の例外";
-  return fakeGh([])(args, opts);
-};
-const graphqlReturning =
-  (body: string): Gh =>
-  (args, opts) =>
-    args[0] === "graphql" ? Buffer.from(body) : fakeGh([])(args, opts);
-
 describe("collectGitHub の失敗と読めない応答", () => {
   test.each([
     ["login の無い user", fakeGh([], [], {}), "user: login を取得できない"],
@@ -808,42 +700,41 @@ describe("collectGitHub の CI", () => {
     expect(() => actionRuns(options(gh), ms(0), ms(1))).toThrow(/1 時間の実行が 1000 件を超えて/);
   });
 
+  // 外部の CI の check run と commit status を返す gh の応答。数えない記録を混ぜる
+  const EXTERNAL_CI_ROUTES: [string, unknown][] = [
+    [
+      "/check-runs",
+      [
+        {
+          check_runs: [
+            { id: 1, name: "ci", app: { slug: "github-actions" }, started_at: iso(1) },
+            { id: 2, name: "lint", started_at: iso(1), completed_at: null },
+            { id: 3, name: "x", app: { slug: "circleci-checks" }, started_at: null },
+            "not a record",
+          ],
+        },
+      ],
+    ],
+    [
+      "/statuses",
+      [
+        [
+          { context: "ext", state: "pending", created_at: iso(2) },
+          { context: "ext", state: "success", created_at: iso(3) },
+          { context: "ext", state: "pending", created_at: iso(1) },
+          { context: "slow", state: "pending", created_at: iso(4) },
+          { context: "bad", state: "success", created_at: null },
+          "not a record",
+        ],
+      ],
+    ],
+  ];
+
   test("外部の CI: check run と commit status を区間にし、Actions の check run・開始の無い check run・head の無い PR は数えない", () => {
     const res = collectGitHub(
-      options(
-        fakeGh(
-          [prNode([]), prNode([], { number: 8, headRefOid: "" })],
-          [
-            [
-              "/check-runs",
-              [
-                {
-                  check_runs: [
-                    { id: 1, name: "ci", app: { slug: "github-actions" }, started_at: iso(1) },
-                    { id: 2, name: "lint", started_at: iso(1), completed_at: null },
-                    { id: 3, name: "x", app: { slug: "circleci-checks" }, started_at: null },
-                    "not a record",
-                  ],
-                },
-              ],
-            ],
-            [
-              "/statuses",
-              [
-                [
-                  { context: "ext", state: "pending", created_at: iso(2) },
-                  { context: "ext", state: "success", created_at: iso(3) },
-                  { context: "ext", state: "pending", created_at: iso(1) },
-                  { context: "slow", state: "pending", created_at: iso(4) },
-                  { context: "bad", state: "success", created_at: null },
-                  "not a record",
-                ],
-              ],
-            ],
-          ],
-        ),
-        { config: parseRepoConfig({ ci: { external: true } }) },
-      ),
+      options(fakeGh([prNode([]), prNode([], { number: 8, headRefOid: "" })], EXTERNAL_CI_ROUTES), {
+        config: parseRepoConfig({ ci: { external: true } }),
+      }),
     );
     expect(res.failures).toEqual([]);
     expect(

@@ -50,10 +50,10 @@ import {
   splitByLocalHour,
 } from "../../../skills/agent-usage/scripts/lib/time.mjs";
 import { messageCosts, usageRows } from "../../../skills/agent-usage/scripts/lib/sources/usage.mjs";
+import { sectionTableRows } from "./aggregate-helpers.ts";
+import { ms as H } from "./utc-day-helpers.ts";
 
 const zero = { input: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0, output: 0, reasoning: 0 };
-const H = (h: number, m = 0) =>
-  Date.parse(`2026-10-01T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00.000Z`);
 
 describe("単価", () => {
   test.each([
@@ -88,7 +88,7 @@ describe("費用", () => {
     repoPricing: {},
     bundledPricing: { "claude-opus-5-5": { input: 1, output: 1 } },
   };
-  const msg = (key: string, h: number, model: string, input: number) => ({
+  const msg = (key: string, h: number, { model, input }: { model: string; input: number }) => ({
     key,
     ts: H(h),
     model,
@@ -99,9 +99,9 @@ describe("費用", () => {
     const s = {
       ...emptySummary("claude-code", "s"),
       messages: [
-        msg("a", 1, "claude-opus-5-5", 1e6),
-        msg("b", 2, "claude-opus-5-5", 3e6),
-        msg("c", 5, "claude-opus-5-5", 1e6),
+        msg("a", 1, { model: "claude-opus-5-5", input: 1e6 }),
+        msg("b", 2, { model: "claude-opus-5-5", input: 3e6 }),
+        msg("c", 5, { model: "claude-opus-5-5", input: 1e6 }),
       ],
       costSnapshots: [{ ts: H(3), models: { "claude-opus-5-5": { costUSD: 8, tokens: zero } } }],
     };
@@ -117,9 +117,9 @@ describe("費用", () => {
     const s = {
       ...emptySummary("claude-code", "s"),
       messages: [
-        msg("a", 1, "mystery", 1e6),
-        msg("b", 1, "mystery", 1e6),
-        msg("c", 1, "other", 1e6),
+        msg("a", 1, { model: "mystery", input: 1e6 }),
+        msg("b", 1, { model: "mystery", input: 1e6 }),
+        msg("c", 1, { model: "other", input: 1e6 }),
       ],
       costSnapshots: [{ ts: H(3), models: { mystery: { costUSD: 4, tokens: zero } } }],
     };
@@ -133,7 +133,7 @@ describe("費用", () => {
   test("cost-state にあって応答の記録が無いモデルは、cost-state の時刻の行にまとめる", () => {
     const s = {
       ...emptySummary("claude-code", "s"),
-      messages: [msg("a", 1, "claude-opus-5-5", 1)],
+      messages: [msg("a", 1, { model: "claude-opus-5-5", input: 1 })],
       costSnapshots: [
         {
           ts: H(3, 30),
@@ -158,9 +158,9 @@ describe("費用", () => {
     const s = {
       ...emptySummary("claude-code", "s"),
       messages: [
-        msg("a", 1, "claude-opus-5-5", 1),
-        msg("b", 1, "claude-opus-5-5", 2),
-        msg("c", 2, "claude-opus-5-5", 3),
+        msg("a", 1, { model: "claude-opus-5-5", input: 1 }),
+        msg("b", 1, { model: "claude-opus-5-5", input: 2 }),
+        msg("c", 2, { model: "claude-opus-5-5", input: 3 }),
       ],
     };
     expect(usageRows(s, ctx).map((r) => [r.start, r.input_tokens, r.messages])).toEqual([
@@ -169,13 +169,15 @@ describe("費用", () => {
     ]);
   });
 
+  // h 時 m 分の応答
+  const at = (key: string, h: number, { m, input }: { m: number; input: number }) => ({
+    key,
+    ts: H(h, m),
+    model: "claude-opus-5-5",
+    tokens: { ...zero, input },
+  });
+
   test("1 時間の途中でブランチを切り替えたら、切り替えた後のメッセージを切り替えた後のブランチに入れる。最初のブランチの行は元の key のまま", () => {
-    const at = (key: string, h: number, m: number, input: number) => ({
-      key,
-      ts: H(h, m),
-      model: "claude-opus-5-5",
-      tokens: { ...zero, input },
-    });
     const s = {
       ...emptySummary("claude-code", "s"),
       branches: [
@@ -183,10 +185,10 @@ describe("費用", () => {
         { ts: H(1, 30), branch: "feature/2-b" },
       ],
       messages: [
-        at("a", 1, 10, 1e6),
-        at("b", 1, 20, 2e6),
-        at("c", 1, 40, 4e6),
-        at("d", 2, 10, 8e6),
+        at("a", 1, { m: 10, input: 1e6 }),
+        at("b", 1, { m: 20, input: 2e6 }),
+        at("c", 1, { m: 40, input: 4e6 }),
+        at("d", 2, { m: 10, input: 8e6 }),
       ],
     };
     expect(
@@ -498,7 +500,10 @@ describe("停止の分類", () => {
     });
   const stopsOf = (r: ReturnType<typeof buildReport>) =>
     r.intervals.filter((x) => x.type === "stop").map((x) => [x.start, x.end, x.category]);
-  const runRow = (key: string, from: number, to: number, extra: Record<string, string> = {}) => ({
+  const runRow = (
+    key: string,
+    { from, to, extra = {} }: { from: number; to: number; extra?: Record<string, string> },
+  ) => ({
     key,
     kind: "run",
     observed_at: iso(10),
@@ -510,7 +515,10 @@ describe("停止の分類", () => {
     detail: "prompt",
     ...extra,
   });
-  const coverageRow = (key: string, from: number, to: number, detail = "ok") => ({
+  const coverageRow = (
+    key: string,
+    { from, to, detail = "ok" }: { from: number; to: number; detail?: string },
+  ) => ({
     key,
     kind: "coverage",
     observed_at: iso(10),
@@ -523,7 +531,12 @@ describe("停止の分類", () => {
 
   test("report: 重なる run をまとめ、その隙間だけを停止にする", () => {
     const r = report(
-      [runRow("r1", 5, 7), runRow("r2", 1, 3), runRow("r3", 2, 4), coverageRow("cov", 0, 10)],
+      [
+        runRow("r1", { from: 5, to: 7 }),
+        runRow("r2", { from: 1, to: 3 }),
+        runRow("r3", { from: 2, to: 4 }),
+        coverageRow("cov", { from: 0, to: 10 }),
+      ],
       { now: H(10) },
     );
     expect(stopsOf(r)).toEqual([
@@ -800,52 +813,53 @@ describe("停止の分類", () => {
     ]);
   });
 
-  test("HTML: Issue ごとの表の稼働中は、外部待ちを含め、同時に動いた Issue の数で等分し、未活用は直前の指示の Issue に数える", () => {
-    const base = {
+  const byIssueBase = {
+    observed_at: "2026-10-01T05:00:00.000Z",
+    person: "p-00000001",
+    tz: "UTC",
+    kind: "run",
+    detail: "prompt",
+  };
+  const byIssueRows = [
+    // Issue 1 の指示が 2 つ重なる（1〜3 時と 2 時半〜3 時半）。最初の指示には 1 時間の外部待ちがある
+    {
+      ...byIssueBase,
+      key: "a",
+      issue: "1",
+      start: "2026-10-01T01:00:00.000Z",
+      end: "2026-10-01T03:00:00.000Z",
+      wait_ms: "3600000",
+    },
+    {
+      ...byIssueBase,
+      key: "b",
+      issue: "1",
+      start: "2026-10-01T02:30:00.000Z",
+      end: "2026-10-01T03:30:00.000Z",
+    },
+    // 同じ人が同時に動かした Issue 2 の指示（2〜4 時）
+    {
+      ...byIssueBase,
+      key: "c",
+      issue: "2",
+      start: "2026-10-01T02:00:00.000Z",
+      end: "2026-10-01T04:00:00.000Z",
+    },
+    // 4〜5 時は止まっていた（GitHub は取得済みなので未活用）。直前に動いていたのは Issue 2 の指示
+    {
+      key: "cov",
+      kind: "coverage",
       observed_at: "2026-10-01T05:00:00.000Z",
       person: "p-00000001",
       tz: "UTC",
-      kind: "run",
-      detail: "prompt",
-    };
-    const rows = [
-      // Issue 1 の指示が 2 つ重なる（1〜3 時と 2 時半〜3 時半）。最初の指示には 1 時間の外部待ちがある
-      {
-        ...base,
-        key: "a",
-        issue: "1",
-        start: "2026-10-01T01:00:00.000Z",
-        end: "2026-10-01T03:00:00.000Z",
-        wait_ms: "3600000",
-      },
-      {
-        ...base,
-        key: "b",
-        issue: "1",
-        start: "2026-10-01T02:30:00.000Z",
-        end: "2026-10-01T03:30:00.000Z",
-      },
-      // 同じ人が同時に動かした Issue 2 の指示（2〜4 時）
-      {
-        ...base,
-        key: "c",
-        issue: "2",
-        start: "2026-10-01T02:00:00.000Z",
-        end: "2026-10-01T04:00:00.000Z",
-      },
-      // 4〜5 時は止まっていた（GitHub は取得済みなので未活用）。直前に動いていたのは Issue 2 の指示
-      {
-        key: "cov",
-        kind: "coverage",
-        observed_at: "2026-10-01T05:00:00.000Z",
-        person: "p-00000001",
-        tz: "UTC",
-        start: "2026-10-01T00:00:00.000Z",
-        end: "2026-10-01T06:00:00.000Z",
-        detail: "ok",
-      },
-    ];
-    const r = buildReport(rows, {
+      start: "2026-10-01T00:00:00.000Z",
+      end: "2026-10-01T06:00:00.000Z",
+      detail: "ok",
+    },
+  ];
+
+  test("HTML: Issue ごとの表の稼働中は、外部待ちを含め、同時に動いた Issue の数で等分し、未活用は直前の指示の Issue に数える", () => {
+    const r = buildReport(byIssueRows, {
       config: parseRepoConfig({}),
       bundledPricing: {},
       bundledReviewPricing: {},
@@ -861,11 +875,7 @@ describe("停止の分類", () => {
     expect(r.activeByPerson).toEqual({ "p-00000001": 3 });
     expect(r.idleByIssue).toEqual({ "2": 1 });
     const html = renderHtml(r);
-    const start = html.indexOf("<h2>Issue ごと");
-    const section = html.slice(start, html.indexOf("</section>", start));
-    const rowsOf = [...section.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)].map((m) =>
-      [...m[1].matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/g)].map((c) => c[1]),
-    );
+    const rowsOf = sectionTableRows(html, "<h2>Issue ごと");
     expect(rowsOf).toEqual([
       ["Issue", "指示の数", `${STATUS_LABELS.active}（時間）`, `${STOP_LABELS.idle}（時間）`],
       ["1", "2", "1.8", "0.0"],
@@ -874,47 +884,48 @@ describe("停止の分類", () => {
     ]);
   });
 
+  const perPersonBase = { observed_at: "2026-10-02T00:00:00.000Z", tz: "UTC" };
+  const perPersonRows = [
+    {
+      ...perPersonBase,
+      key: "u1",
+      kind: "usage",
+      person: "p-00000001",
+      agent: "codex",
+      model: "m",
+      start: "2026-10-01T01:00:00.000Z",
+      end: "2026-10-01T02:00:00.000Z",
+      cost_usd: "1.5",
+      cost_source: "bundled",
+    },
+    {
+      ...perPersonBase,
+      key: "u2",
+      kind: "usage",
+      person: "p-00000002",
+      agent: "codex",
+      model: "m",
+      start: "2026-10-01T01:00:00.000Z",
+      end: "2026-10-01T02:00:00.000Z",
+      cost_usd: "2.5",
+      cost_source: "bundled",
+    },
+    {
+      ...perPersonBase,
+      key: "r1",
+      kind: "run",
+      person: "p-00000001",
+      start: "2026-10-01T01:00:00.000Z",
+      end: "2026-10-01T02:00:00.000Z",
+      wait_ms: "1800000",
+      detail: "prompt",
+    },
+  ];
+
   test("HTML: 人ごとの表に、人ごとの費用・指示の数・稼働状況の内訳と、合計の行を出し、上部の稼働状況と同じ値にする", () => {
-    const base = { observed_at: "2026-10-02T00:00:00.000Z", tz: "UTC" };
-    const rows = [
-      {
-        ...base,
-        key: "u1",
-        kind: "usage",
-        person: "p-00000001",
-        agent: "codex",
-        model: "m",
-        start: "2026-10-01T01:00:00.000Z",
-        end: "2026-10-01T02:00:00.000Z",
-        cost_usd: "1.5",
-        cost_source: "bundled",
-      },
-      {
-        ...base,
-        key: "u2",
-        kind: "usage",
-        person: "p-00000002",
-        agent: "codex",
-        model: "m",
-        start: "2026-10-01T01:00:00.000Z",
-        end: "2026-10-01T02:00:00.000Z",
-        cost_usd: "2.5",
-        cost_source: "bundled",
-      },
-      {
-        ...base,
-        key: "r1",
-        kind: "run",
-        person: "p-00000001",
-        start: "2026-10-01T01:00:00.000Z",
-        end: "2026-10-01T02:00:00.000Z",
-        wait_ms: "1800000",
-        detail: "prompt",
-      },
-    ];
     const config = parseRepoConfig({ people: { "p-00000002": { name: "花子" } } });
     const html = renderHtml(
-      buildReport(rows, {
+      buildReport(perPersonRows, {
         config,
         bundledPricing: {},
         bundledReviewPricing: {},
@@ -926,11 +937,7 @@ describe("停止の分類", () => {
       }),
     );
     // 「人ごと」の節の表を、列の見出しと対応づけた行にする（マークアップの細部には依らない）
-    const start = html.indexOf("<h2>人ごと</h2>");
-    const section = html.slice(start, html.indexOf("</section>", start));
-    const [header, ...body] = [...section.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)].map((m) =>
-      [...m[1].matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/g)].map((c) => c[1]),
-    );
+    const [header, ...body] = sectionTableRows(html, "<h2>人ごと</h2>");
     const byId = new Map(
       body.map((cells) => [cells[0], Object.fromEntries(header.map((h, i) => [h, cells[i]]))]),
     );
@@ -1022,54 +1029,54 @@ describe("report の集計（欄の欠け・期間・時刻）", () => {
   });
   const stops = (r: ReturnType<typeof buildReport>) =>
     r.intervals.filter((x) => x.type === "stop").map((x) => [x.start, x.end, x.category]);
+  const periodBase = { observed_at: "2026-10-05T00:00:00.000Z", person: "p-00000001" };
+  const periodRun = (key: string, start: string, end: string) => ({
+    ...periodBase,
+    key,
+    kind: "run",
+    start,
+    end,
+    branch: "a",
+    detail: "prompt",
+  });
+  const periodRows = [
+    // 東京で 9 月 30 日（since より前）・10 月 2 日・10 月 3 日（until より後）の run
+    periodRun("r0", "2026-09-30T10:00:00.000Z", "2026-09-30T11:00:00.000Z"),
+    periodRun("r1", "2026-10-01T23:00:00.000Z", "2026-10-01T23:30:00.000Z"),
+    periodRun("r2", "2026-10-02T16:00:00.000Z", "2026-10-02T17:00:00.000Z"),
+    {
+      ...periodBase,
+      key: "u",
+      kind: "usage",
+      agent: "codex",
+      model: "m",
+      start: "2026-10-01T16:00:00.000Z",
+      end: "2026-10-01T17:00:00.000Z",
+      cost_usd: "1.000000",
+      cost_source: "bundled",
+    },
+    // 停止より前に終わる取得と、停止より後に始まる取得。どちらも停止に重ならない
+    {
+      ...periodBase,
+      key: "cov-before",
+      kind: "coverage",
+      start: "2026-10-01T00:00:00.000Z",
+      end: "2026-10-01T01:00:00.000Z",
+      detail: "ok",
+    },
+    {
+      ...periodBase,
+      key: "cov-after",
+      kind: "coverage",
+      start: "2026-10-02T16:00:00.000Z",
+      end: "2026-10-03T00:00:00.000Z",
+      detail: "ok",
+    },
+  ];
 
   test("since・until の外の行を数えず、タイムゾーンの無い行は report のタイムゾーンで日付を切り、停止は until の日の終わりで打ち切る", () => {
-    const base = { observed_at: "2026-10-05T00:00:00.000Z", person: "p-00000001" };
-    const run = (key: string, start: string, end: string) => ({
-      ...base,
-      key,
-      kind: "run",
-      start,
-      end,
-      branch: "a",
-      detail: "prompt",
-    });
-    const rows = [
-      // 東京で 9 月 30 日（since より前）・10 月 2 日・10 月 3 日（until より後）の run
-      run("r0", "2026-09-30T10:00:00.000Z", "2026-09-30T11:00:00.000Z"),
-      run("r1", "2026-10-01T23:00:00.000Z", "2026-10-01T23:30:00.000Z"),
-      run("r2", "2026-10-02T16:00:00.000Z", "2026-10-02T17:00:00.000Z"),
-      {
-        ...base,
-        key: "u",
-        kind: "usage",
-        agent: "codex",
-        model: "m",
-        start: "2026-10-01T16:00:00.000Z",
-        end: "2026-10-01T17:00:00.000Z",
-        cost_usd: "1.000000",
-        cost_source: "bundled",
-      },
-      // 停止より前に終わる取得と、停止より後に始まる取得。どちらも停止に重ならない
-      {
-        ...base,
-        key: "cov-before",
-        kind: "coverage",
-        start: "2026-10-01T00:00:00.000Z",
-        end: "2026-10-01T01:00:00.000Z",
-        detail: "ok",
-      },
-      {
-        ...base,
-        key: "cov-after",
-        kind: "coverage",
-        start: "2026-10-02T16:00:00.000Z",
-        end: "2026-10-03T00:00:00.000Z",
-        detail: "ok",
-      },
-    ];
     const r = buildReport(
-      rows,
+      periodRows,
       options({
         tz: "Asia/Tokyo",
         since: "2026-10-01",
@@ -1125,42 +1132,43 @@ describe("report の集計（欄の欠け・期間・時刻）", () => {
     expect(r.period).toBe("2026-10-01 〜 2026-10-01");
   });
 
+  const aliasBase = {
+    observed_at: "2026-10-02T00:00:00.000Z",
+    tz: "UTC",
+    kind: "usage",
+    start: "2026-10-01T01:00:00.000Z",
+    end: "2026-10-01T02:00:00.000Z",
+  };
+  const aliasRows = [
+    {
+      ...aliasBase,
+      key: "u1",
+      person: "p-00000001",
+      agent: "codex",
+      model: "m",
+      output_tokens: "1000000",
+      cost_usd: "",
+    },
+    {
+      ...aliasBase,
+      key: "u2",
+      person: "p-00000002",
+      agent: "codex",
+      model: "m",
+      cost_usd: "1.000000",
+      cost_source: "bundled",
+    },
+    // 人・エージェント・モデル・費用の出所の欄が無い行
+    { ...aliasBase, key: "u3", cost_usd: "0.500000" },
+  ];
+
   test("別名で人をまとめ、欄の無い usage は空の値と 0 として数え、単価があれば計算し直す", () => {
-    const base = {
-      observed_at: "2026-10-02T00:00:00.000Z",
-      tz: "UTC",
-      kind: "usage",
-      start: "2026-10-01T01:00:00.000Z",
-      end: "2026-10-01T02:00:00.000Z",
-    };
-    const rows = [
-      {
-        ...base,
-        key: "u1",
-        person: "p-00000001",
-        agent: "codex",
-        model: "m",
-        output_tokens: "1000000",
-        cost_usd: "",
-      },
-      {
-        ...base,
-        key: "u2",
-        person: "p-00000002",
-        agent: "codex",
-        model: "m",
-        cost_usd: "1.000000",
-        cost_source: "bundled",
-      },
-      // 人・エージェント・モデル・費用の出所の欄が無い行
-      { ...base, key: "u3", cost_usd: "0.500000" },
-    ];
     const config = parseRepoConfig({
       aliases: { "p-00000001": "p-00000002" },
       people: { "p-00000002": { name: "花子" } },
       pricing: { m: { input: 1, output: 2 } },
     });
-    const r = buildReport(rows, options({ config }));
+    const r = buildReport(aliasRows, options({ config }));
     expect(
       r.usage.map((u) => [
         u.person,
@@ -1240,45 +1248,46 @@ describe("report の集計（欄の欠け・期間・時刻）", () => {
     expect(r.intervals.map((x) => x.person)).toEqual(["p-00000001", "p-00000002"]);
   });
 
+  const billingBase = {
+    observed_at: "2026-10-02T00:00:00.000Z",
+    person: "p-00000001",
+    tz: "UTC",
+    start: "2026-10-01T01:00:00.000Z",
+    end: "2026-10-01T01:00:00.000Z",
+  };
+  const billingRows = [
+    {
+      ...billingBase,
+      key: "b",
+      kind: "billing",
+      agent: "copilot",
+      cost_usd: "0.040000",
+      cost_source: "billing",
+    },
+    {
+      ...billingBase,
+      key: "art",
+      kind: "review",
+      agent: "codex-cloud",
+      model: "x",
+      cost_usd: "",
+      detail: "source=artifact;pr=2",
+    },
+    {
+      ...billingBase,
+      key: "est",
+      kind: "review",
+      agent: "copilot",
+      cost_usd: "0.100000",
+      cost_source: "estimate-bundled",
+      detail: "pr=3;author=a",
+    },
+    { ...billingBase, key: "bare", kind: "review" },
+  ];
+
   test("課金の行と artifact の使用量は推定し直さず、欄の無いレビューは空の値にする", () => {
-    const base = {
-      observed_at: "2026-10-02T00:00:00.000Z",
-      person: "p-00000001",
-      tz: "UTC",
-      start: "2026-10-01T01:00:00.000Z",
-      end: "2026-10-01T01:00:00.000Z",
-    };
-    const rows = [
-      {
-        ...base,
-        key: "b",
-        kind: "billing",
-        agent: "copilot",
-        cost_usd: "0.040000",
-        cost_source: "billing",
-      },
-      {
-        ...base,
-        key: "art",
-        kind: "review",
-        agent: "codex-cloud",
-        model: "x",
-        cost_usd: "",
-        detail: "source=artifact;pr=2",
-      },
-      {
-        ...base,
-        key: "est",
-        kind: "review",
-        agent: "copilot",
-        cost_usd: "0.100000",
-        cost_source: "estimate-bundled",
-        detail: "pr=3;author=a",
-      },
-      { ...base, key: "bare", kind: "review" },
-    ];
     const r = buildReport(
-      rows,
+      billingRows,
       options({ bundledReviewPricing: { copilot: 0.52, "codex-cloud": 9 } }),
     );
     expect(
@@ -1319,7 +1328,10 @@ describe("日別のチャート", () => {
     recordFiles: 1,
     ...over,
   });
-  const usage = (key: string, start: string, cost: string, model = "m") => ({
+  const usage = (
+    key: string,
+    { start, cost, model = "m" }: { start: string; cost: string; model?: string },
+  ) => ({
     key,
     kind: "usage",
     observed_at: start,
@@ -1332,7 +1344,15 @@ describe("日別のチャート", () => {
     cost_usd: cost,
     cost_source: "bundled",
   });
-  const run = (key: string, person: string, start: string, end: string, observedAt: string) => ({
+  const run = (
+    key: string,
+    {
+      person,
+      start,
+      end,
+      observedAt,
+    }: { person: string; start: string; end: string; observedAt: string },
+  ) => ({
     key,
     kind: "run",
     observed_at: observedAt,
@@ -1374,8 +1394,8 @@ describe("日別のチャート", () => {
   test("記録の無い日も、日別の費用のチャートと表に 0 として並べる", () => {
     const r = buildReport(
       [
-        usage("u1", "2026-10-01T01:00:00.000Z", "1.0"),
-        usage("u3", "2026-10-03T01:00:00.000Z", "2.0"),
+        usage("u1", { start: "2026-10-01T01:00:00.000Z", cost: "1.0" }),
+        usage("u3", { start: "2026-10-03T01:00:00.000Z", cost: "2.0" }),
       ],
       options(),
     );
@@ -1393,7 +1413,7 @@ describe("日別のチャート", () => {
 
   test("since・until を指定したら、端の日に記録が無くても、その範囲のすべての日を並べる", () => {
     const r = buildReport(
-      [usage("u3", "2026-10-03T01:00:00.000Z", "2.0")],
+      [usage("u3", { start: "2026-10-03T01:00:00.000Z", cost: "2.0" })],
       options({ since: "2026-10-01", until: "2026-10-05" }),
     );
     expect(r.days).toEqual(["2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05"]);
@@ -1411,8 +1431,8 @@ describe("日別のチャート", () => {
   test("期間が年をまたぐときは、日付の目盛りに年も書く", () => {
     const r = buildReport(
       [
-        usage("u1", "2026-12-31T01:00:00.000Z", "1.0"),
-        usage("u2", "2027-01-01T01:00:00.000Z", "1.0"),
+        usage("u1", { start: "2026-12-31T01:00:00.000Z", cost: "1.0" }),
+        usage("u2", { start: "2027-01-01T01:00:00.000Z", cost: "1.0" }),
       ],
       options({ now: Date.parse("2027-01-02T00:00:00Z") }),
     );
@@ -1422,34 +1442,32 @@ describe("日別のチャート", () => {
     ]);
   });
 
+  const dailyStatusRows = [
+    coverage,
+    // p1 は 10 月 1 日と 3 日に使い、2 日は使わない。最後に記録したのは 3 日の 3 時
+    run("a1", {
+      person: "p-00000001",
+      start: "2026-10-01T22:00:00.000Z",
+      end: "2026-10-01T23:00:00.000Z",
+      observedAt: "2026-10-03T03:00:00.000Z",
+    }),
+    run("a3", {
+      person: "p-00000001",
+      start: "2026-10-03T01:00:00.000Z",
+      end: "2026-10-03T02:00:00.000Z",
+      observedAt: "2026-10-03T03:00:00.000Z",
+    }),
+    // p2 は 3 日に使い始める
+    run("b3", {
+      person: "p-00000002",
+      start: "2026-10-03T01:00:00.000Z",
+      end: "2026-10-03T02:00:00.000Z",
+      observedAt: "2026-10-03T04:00:00.000Z",
+    }),
+  ];
+
   test("稼働中と停止を日ごと・時刻ごとに分けて積み上げ、使わなかった日は人数 × 24 時間の未活用にし、使い始める前の日は数えない", () => {
-    const rows = [
-      coverage,
-      // p1 は 10 月 1 日と 3 日に使い、2 日は使わない。最後に記録したのは 3 日の 3 時
-      run(
-        "a1",
-        "p-00000001",
-        "2026-10-01T22:00:00.000Z",
-        "2026-10-01T23:00:00.000Z",
-        "2026-10-03T03:00:00.000Z",
-      ),
-      run(
-        "a3",
-        "p-00000001",
-        "2026-10-03T01:00:00.000Z",
-        "2026-10-03T02:00:00.000Z",
-        "2026-10-03T03:00:00.000Z",
-      ),
-      // p2 は 3 日に使い始める
-      run(
-        "b3",
-        "p-00000002",
-        "2026-10-03T01:00:00.000Z",
-        "2026-10-03T02:00:00.000Z",
-        "2026-10-03T04:00:00.000Z",
-      ),
-    ];
-    const r = buildReport(rows, options());
+    const r = buildReport(dailyStatusRows, options());
     expect(r.days).toEqual(["2026-10-01", "2026-10-02", "2026-10-03"]);
     const byStatus = Object.fromEntries(r.statusByDay.map((s) => [s.status, s.byDay]));
     // 稼働中: 1 日は p1 の 22〜23 時。3 日は p1 と p2 の 1〜2 時
@@ -1500,13 +1518,12 @@ describe("日別のチャート", () => {
     // until の日の 23 時から翌日の 1 時まで動いた run
     const rows = [
       coverage,
-      run(
-        "a1",
-        "p-00000001",
-        "2026-10-02T23:00:00.000Z",
-        "2026-10-03T01:00:00.000Z",
-        "2026-10-03T01:00:00.000Z",
-      ),
+      run("a1", {
+        person: "p-00000001",
+        start: "2026-10-02T23:00:00.000Z",
+        end: "2026-10-03T01:00:00.000Z",
+        observedAt: "2026-10-03T01:00:00.000Z",
+      }),
     ];
     const r = buildReport(rows, options({ since: "2026-10-02", until: "2026-10-02" }));
     expect(r.days).toEqual(["2026-10-02"]);
@@ -1523,13 +1540,12 @@ describe("日別のチャート", () => {
       { ...coverage, tz: "Asia/Tokyo" },
       // 東京の 10 月 1 日 22〜23 時に使い、最後に記録したのは東京の 10 月 2 日 1 時
       {
-        ...run(
-          "t1",
-          "p-00000001",
-          "2026-10-01T13:00:00.000Z",
-          "2026-10-01T14:00:00.000Z",
-          "2026-10-01T16:00:00.000Z",
-        ),
+        ...run("t1", {
+          person: "p-00000001",
+          start: "2026-10-01T13:00:00.000Z",
+          end: "2026-10-01T14:00:00.000Z",
+          observedAt: "2026-10-01T16:00:00.000Z",
+        }),
         tz: "Asia/Tokyo",
       },
     ];
@@ -1545,13 +1561,12 @@ describe("日別のチャート", () => {
     const rows = [
       { ...coverage, tz: "Asia/Tokyo" },
       {
-        ...run(
-          "t1",
-          "p-00000001",
-          "2026-10-01T10:00:00.000Z",
-          "2026-10-01T16:00:00.000Z",
-          "2026-10-01T16:00:00.000Z",
-        ),
+        ...run("t1", {
+          person: "p-00000001",
+          start: "2026-10-01T10:00:00.000Z",
+          end: "2026-10-01T16:00:00.000Z",
+          observedAt: "2026-10-01T16:00:00.000Z",
+        }),
         tz: "Asia/Tokyo",
       },
     ];
@@ -1588,13 +1603,12 @@ describe("日別のチャート", () => {
   test("稼働状況に数える run が無い人も、人ごとの稼働中と停止は 0 として持つ", () => {
     // report を実行した時刻（10 月 10 日）より後に始まる run だけを持つ人（時計がずれたマシンの記録など）
     const rows = [
-      run(
-        "f",
-        "p-00000001",
-        "2026-10-11T01:00:00.000Z",
-        "2026-10-11T02:00:00.000Z",
-        "2026-10-11T02:00:00.000Z",
-      ),
+      run("f", {
+        person: "p-00000001",
+        start: "2026-10-11T01:00:00.000Z",
+        end: "2026-10-11T02:00:00.000Z",
+        observedAt: "2026-10-11T02:00:00.000Z",
+      }),
     ];
     const r = buildReport(rows, options());
     expect(r.activeByPerson).toEqual({ "p-00000001": 0 });
@@ -1603,7 +1617,7 @@ describe("日別のチャート", () => {
 
   test("--until に先の日付を渡しても、横軸は今日までにし、9999 年の終わりでも止まる", () => {
     const r = buildReport(
-      [usage("u1", "2026-10-08T01:00:00.000Z", "1.0")],
+      [usage("u1", { start: "2026-10-08T01:00:00.000Z", cost: "1.0" })],
       options({ until: "2099-12-31" }),
     );
     // now は options の既定のままなので、横軸は now の日で終わる
@@ -1617,14 +1631,17 @@ describe("日別のチャート", () => {
     // 20〜21 時（UTC 10 月 2 日 3〜4 時）に動いた。どちらもロサンゼルスの 10 月 1 日なので期間に入り、
     // 費用・指示の数・稼働中・停止がどれも同じ期間を数える
     const la = (key: string, start: string, end: string) => ({
-      ...run(key, "p-00000001", start, end, "2026-10-02T05:00:00.000Z"),
+      ...run(key, { person: "p-00000001", start, end, observedAt: "2026-10-02T05:00:00.000Z" }),
       tz: "America/Los_Angeles",
     });
     const rows = [
       coverage,
       la("a", "2026-10-01T17:00:00.000Z", "2026-10-01T18:00:00.000Z"),
       la("b", "2026-10-02T03:00:00.000Z", "2026-10-02T04:00:00.000Z"),
-      { ...usage("u", "2026-10-02T03:30:00.000Z", "5.0"), tz: "America/Los_Angeles" },
+      {
+        ...usage("u", { start: "2026-10-02T03:30:00.000Z", cost: "5.0" }),
+        tz: "America/Los_Angeles",
+      },
     ];
     const r = buildReport(rows, options({ until: "2026-10-01" }));
     expect(r.usage.map((u) => u.cost_usd)).toEqual(["5.000000"]);
@@ -1645,23 +1662,21 @@ describe("日別のチャート", () => {
     const rows = [
       coverage,
       {
-        ...run(
-          "t",
-          "p-00000001",
-          "2026-10-01T01:00:00.000Z",
-          "2026-10-01T02:00:00.000Z",
-          "2026-10-02T05:00:00.000Z",
-        ),
+        ...run("t", {
+          person: "p-00000001",
+          start: "2026-10-01T01:00:00.000Z",
+          end: "2026-10-01T02:00:00.000Z",
+          observedAt: "2026-10-02T05:00:00.000Z",
+        }),
         tz: "Asia/Tokyo",
       },
       {
-        ...run(
-          "l",
-          "p-00000001",
-          "2026-10-02T03:00:00.000Z",
-          "2026-10-02T04:00:00.000Z",
-          "2026-10-02T05:00:00.000Z",
-        ),
+        ...run("l", {
+          person: "p-00000001",
+          start: "2026-10-02T03:00:00.000Z",
+          end: "2026-10-02T04:00:00.000Z",
+          observedAt: "2026-10-02T05:00:00.000Z",
+        }),
         tz: "America/Los_Angeles",
       },
     ];
@@ -1682,10 +1697,10 @@ describe("日別のチャート", () => {
       new Date(Date.parse("2026-10-01T01:00:00.000Z") + sec * 1000).toISOString();
     const rows = [
       coverage,
-      run("a", "p-00000001", s(0), s(60), s(250)),
-      run("b", "p-00000001", s(70), s(130), s(250)),
-      run("c", "p-00000001", s(140), s(200), s(250)),
-      run("d", "p-00000001", s(210), s(250), s(250)),
+      run("a", { person: "p-00000001", start: s(0), end: s(60), observedAt: s(250) }),
+      run("b", { person: "p-00000001", start: s(70), end: s(130), observedAt: s(250) }),
+      run("c", { person: "p-00000001", start: s(140), end: s(200), observedAt: s(250) }),
+      run("d", { person: "p-00000001", start: s(210), end: s(250), observedAt: s(250) }),
     ];
     const r = buildReport(rows, options());
     const idle = r.stopByPerson["p-00000001"].get("idle") ?? 0;

@@ -20,53 +20,27 @@
 import { expect, test } from "vitest";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   checkMutationCountProse,
   checkTimeWords,
   findMentions,
-  findTimeMentions,
   main,
   TIME_RULES,
 } from "./check-time-sensitive-prose.ts";
 import { KNOWN_RULES, PENDING_PATH } from "../../lib/doc-scan.ts";
-import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
+import {
+  makeGitRepo,
+  makeRepo,
+  repoRoot,
+  script,
+  texts,
+} from "./check-time-sensitive-prose-helpers.ts";
 
 // 学びのパスは組み立てて書く（そのまま書くと check-kaizen-refs.ts が実在しない学びへの参照として数える）。
 const KZ = ".kaizen/";
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const script = join(repoRoot, "scripts/gates/prose/check-time-sensitive-prose.ts");
-
-function makeRepo(files: Record<string, string>) {
-  const root = makeTempDir("time-sensitive-prose-");
-  for (const [p, t] of Object.entries(files)) {
-    mkdirSync(dirname(join(root, p)), { recursive: true });
-    writeFileSync(join(root, p), t);
-  }
-  return root;
-}
-
-/** 時間の語と日付のチェックに要るもの（git と階層の原本）を持つ一時リポジトリ。 */
-function makeGitRepo(files: Record<string, string>, { pending }: { pending?: object } = {}) {
-  const root = makeRepo({
-    "scripts/gates/docs/doc-tiers.json": readFileSync(
-      join(repoRoot, "scripts/gates/docs/doc-tiers.json"),
-      "utf8",
-    ),
-    ...files,
-  });
-  if (pending) writeFileSync(join(root, PENDING_PATH), JSON.stringify(pending));
-  const r = spawnSync("git", ["init", "-q"], {
-    timeout: CHILD_TIMEOUT_MS,
-    cwd: root,
-    encoding: "utf8",
-  });
-  if (r.status !== 0) throw new Error(r.stderr);
-  return root;
-}
 
 // ---- 誤検知しないことの確認（通さねばならない入力）----
 
@@ -268,30 +242,87 @@ test("検出の確認（CLI）: 子プロセスとして起動しても、件数
 // | 場所         | Tier 1〜3 / Tier 4（.kaizen/）/ 階層の外（eval の fixture）/ スキルのコピー / このチェックのテスト |
 // | 保留         | 一致 / 古い（直した）/ 許可（使われる・使われない）/ 他のチェックの規則              |
 
-const texts = (file: string, text: string) =>
-  findTimeMentions(file, text).map((h) => `${h.rule}:${h.text}`);
-
 test.each([
-  ["現状は", "a.md", "現状は可。\n", ["time-word:現状は"]],
-  ["現状では", "a.md", "現状では使わない。\n", ["time-word:現状では"]],
-  ["現時点", "a.md", "現時点の最新は 1.0。\n", ["time-word:現時点"]],
-  ["当面", "a.md", "当面は見送る。\n", ["time-word:当面"]],
-  ["今のところ", "a.md", "今のところ 1.0 を使う。\n", ["time-word:今のところ"]],
-  ["いまのところ", "a.md", "いまのところ使わない。\n", ["time-word:いまのところ"]],
-  ["目下", "a.md", "目下は検討中である。\n", ["time-word:目下"]],
-  ["助詞の後の目下", "a.md", "作業は目下検討中である。\n", ["time-word:目下"]],
-  ["接続の語の後の目下（また）", "a.md", "また目下検討中である。\n", ["time-word:目下"]],
-  ["接続の語の後の目下（なお）", "a.md", "なお目下は見送る。\n", ["time-word:目下"]],
-  ["ISO の日付", "a.md", "2026-09-19 時点の版。\n", ["date:2026-09-19"]],
-  ["年月", "a.md", "2026 年 9 月に変えた。\n", ["date:2026 年 9 月"]],
-  ["スラッシュ区切りの日付", "a.md", "2026/09/28 に変えた。\n", ["date:2026/09/28"]],
-  ["JS の行の途中のブロックコメント", "a.js", "const x = 1; /* 当面 */\n", ["time-word:当面"]],
-  ["JS の行コメント", "a.js", "// 2026-09-19 に確認\nconst x = 1;\n", ["date:2026-09-19"]],
-  ["JS のブロックコメント", "a.mjs", "/**\n * 当面は使わない\n */\n", ["time-word:当面"]],
-  ["JS の行末コメント", "a.ts", "const x = 1; // 現状は 1\n", ["time-word:現状は"]],
-  ["sh の # コメント", "a.sh", "# 2026-09-19 時点\necho\n", ["date:2026-09-19"]],
-  ["YAML の行末コメント", "a.yml", "on: push # 当面\n", ["time-word:当面"]],
-])("陽性: %s を拾う", (_, file, text, want) => {
+  { label: "現状は", file: "a.md", text: "現状は可。\n", want: ["time-word:現状は"] },
+  { label: "現状では", file: "a.md", text: "現状では使わない。\n", want: ["time-word:現状では"] },
+  { label: "現時点", file: "a.md", text: "現時点の最新は 1.0。\n", want: ["time-word:現時点"] },
+  { label: "当面", file: "a.md", text: "当面は見送る。\n", want: ["time-word:当面"] },
+  {
+    label: "今のところ",
+    file: "a.md",
+    text: "今のところ 1.0 を使う。\n",
+    want: ["time-word:今のところ"],
+  },
+  {
+    label: "いまのところ",
+    file: "a.md",
+    text: "いまのところ使わない。\n",
+    want: ["time-word:いまのところ"],
+  },
+  { label: "目下", file: "a.md", text: "目下は検討中である。\n", want: ["time-word:目下"] },
+  {
+    label: "助詞の後の目下",
+    file: "a.md",
+    text: "作業は目下検討中である。\n",
+    want: ["time-word:目下"],
+  },
+  {
+    label: "接続の語の後の目下（また）",
+    file: "a.md",
+    text: "また目下検討中である。\n",
+    want: ["time-word:目下"],
+  },
+  {
+    label: "接続の語の後の目下（なお）",
+    file: "a.md",
+    text: "なお目下は見送る。\n",
+    want: ["time-word:目下"],
+  },
+  { label: "ISO の日付", file: "a.md", text: "2026-09-19 時点の版。\n", want: ["date:2026-09-19"] },
+  { label: "年月", file: "a.md", text: "2026 年 9 月に変えた。\n", want: ["date:2026 年 9 月"] },
+  {
+    label: "スラッシュ区切りの日付",
+    file: "a.md",
+    text: "2026/09/28 に変えた。\n",
+    want: ["date:2026/09/28"],
+  },
+  {
+    label: "JS の行の途中のブロックコメント",
+    file: "a.js",
+    text: "const x = 1; /* 当面 */\n",
+    want: ["time-word:当面"],
+  },
+  {
+    label: "JS の行コメント",
+    file: "a.js",
+    text: "// 2026-09-19 に確認\nconst x = 1;\n",
+    want: ["date:2026-09-19"],
+  },
+  {
+    label: "JS のブロックコメント",
+    file: "a.mjs",
+    text: "/**\n * 当面は使わない\n */\n",
+    want: ["time-word:当面"],
+  },
+  {
+    label: "JS の行末コメント",
+    file: "a.ts",
+    text: "const x = 1; // 現状は 1\n",
+    want: ["time-word:現状は"],
+  },
+  {
+    label: "sh の # コメント",
+    file: "a.sh",
+    text: "# 2026-09-19 時点\necho\n",
+    want: ["date:2026-09-19"],
+  },
+  {
+    label: "YAML の行末コメント",
+    file: "a.yml",
+    text: "on: push # 当面\n",
+    want: ["time-word:当面"],
+  },
+])("陽性: $label を拾う", ({ file, text, want }) => {
   expect(texts(file, text)).toEqual(want);
 });
 

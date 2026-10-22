@@ -10,9 +10,9 @@
     {
       "id": "shot-contract",
       "why": "記録と期待値の食い違いを報告しない",
-      "file": "scripts/eval/fixtures/parity-component-fixtures.test.ts",
-      "find": "          if (differ.length > 0) {\n",
-      "replace": "          if (false) {\n",
+      "file": "scripts/eval/fixtures/parity-component-fixtures-helpers.ts",
+      "find": "  if (differ.length > 0) {\n",
+      "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
         "陽性: element.shot.json の仕様違反を検出する: clip の座標",
@@ -27,7 +27,7 @@
     {
       "id": "shot-extra-keys",
       "why": "記録側にだけある余計なキーを見ない（期待値のキーだけで比べる）",
-      "file": "scripts/eval/fixtures/parity-component-fixtures.test.ts",
+      "file": "scripts/eval/fixtures/parity-component-fixtures-helpers.ts",
       "find": "[...new Set([...Object.keys(expected), ...Object.keys(shot)])]",
       "replace": "Object.keys(expected)",
       "occurrences": 1,

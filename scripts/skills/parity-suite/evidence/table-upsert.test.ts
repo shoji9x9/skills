@@ -7,97 +7,13 @@
 // 通ることの確認（差し替え・追記・入れ子の配列・複合鍵・標準入力）を置く。これが無いと「常に止める」実装と区別できない。
 
 import { test, expect } from "vitest";
-import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import { invalidInput } from "../../../lib/testing/test-input.ts";
 import { parseJsonAs } from "../../../lib/parse-as.ts";
-import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
+import { type Operation, type Table, baseTable, run, upsert } from "./table-upsert-helpers.ts";
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
-const script = join(repoRoot, "skills/parity-suite/scripts/table-upsert.mjs");
-
-// 表の形。conformance は照合していない表では無い（テストも消した表を渡す）ので省略可能にする。
-type Operation = { id: string; trigger: string };
-type CallSite = {
-  file: string;
-  line: number;
-  column: number;
-  pattern: string;
-  reaction: string | null;
-};
-type Table = {
-  slug: string;
-  operations: Operation[];
-  feedback_calls: { call_sites: CallSite[] };
-  components: { id: string; instances: { id: string; page: string }[] }[];
-  conformance?: { tool: string; ok: boolean };
-};
 type Keyed = { id: string };
 /** スクリプトが書き戻した表。テストによっては Table に無いキー（cells など）を持つ。 */
 type TableOut = Table & Record<string, unknown>;
-
-const baseTable = (): Table => ({
-  slug: "share",
-  operations: [
-    { id: "copy", trigger: "clickButton(コピー)" },
-    { id: "search", trigger: "clickButton(検索)" },
-  ],
-  feedback_calls: {
-    call_sites: [{ file: "src/share.js", line: 2, column: 3, pattern: "toast", reaction: null }],
-  },
-  components: [
-    { id: "grid", instances: [{ id: "list", page: "一覧" }] },
-    { id: "menu", instances: [] },
-  ],
-  conformance: { tool: "reaction-check", ok: true },
-});
-
-/**
- * 一時ディレクトリに表を置いて CLI を実行する。
- * @param {object | string} table - 文字列ならそのまま書く（不正な JSON 用）
- * @param {string[]} args
- * @param {{ fragment?: object | string, input?: string }} [opts]
- */
-function run(
-  table: object | string,
-  args: string[],
-  opts: { fragment?: unknown; input?: string } = {},
-) {
-  const dir = makeTempDir("table-upsert-");
-  writeFileSync(
-    join(dir, "t.json"),
-    typeof table === "string" ? table : JSON.stringify(table, null, 2),
-  );
-  if (opts.fragment !== undefined) {
-    writeFileSync(
-      join(dir, "f.json"),
-      typeof opts.fragment === "string" ? opts.fragment : JSON.stringify(opts.fragment),
-    );
-  }
-  const r = spawnSync(process.execPath, [script, ...args], {
-    timeout: CHILD_TIMEOUT_MS,
-    cwd: dir,
-    encoding: "utf8",
-    input: opts.input,
-    stdio: [opts.input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
-  });
-  const after = readFileSync(join(dir, "t.json"), "utf8");
-  return { status: r.status, stdout: r.stdout, stderr: r.stderr, after };
-}
-
-const upsert = (array: string, extra: string[] = []) => [
-  "upsert",
-  "--file",
-  "t.json",
-  "--array",
-  array,
-  "--from",
-  "f.json",
-  ...extra,
-];
 
 test("基本の動作: 鍵が一致する要素を差し替え、他の行と順序は動かさない", () => {
   const r = run(baseTable(), upsert("operations"), {
@@ -254,25 +170,133 @@ test.each([
 });
 
 test.each([
-  ["断片に鍵が無い", { trigger: "x()" }, "operations", [], "鍵（id）が欠けている"],
-  ["断片の鍵が空文字", { id: " ", trigger: "x()" }, "operations", [], "鍵（id）が欠けている"],
-  ["断片の鍵がオブジェクト", { id: { a: 1 } }, "operations", [], "鍵（id）が欠けている"],
-  ["断片の鍵が小数", { id: 1.5 }, "operations", [], "鍵（id）が欠けている"],
-  ["断片が配列", [{ id: "copy" }], "operations", [], "1 要素のオブジェクトでない"],
-  ["断片が不正な JSON", "{", "operations", [], "断片を読めない"],
-  ["配列でないキーを指す", { id: "x" }, "slug", [], "配列でない"],
-  ["途中のキーが無い", { id: "x" }, "nothing.call_sites", [], "nothing が無い"],
-  ["途中のキーがオブジェクトでない", { id: "x" }, "slug.call_sites", [], "オブジェクトでない"],
-  ["選択が 0 件", { id: "x" }, "components[id=none].instances", [], "0 件"],
-  ["末尾が要素の選択", { id: "x" }, "components[id=grid]", [], "末尾は配列のキー"],
-  ["--array の形が崩れている", { id: "x" }, "operations..x", [], "形が読めない"],
-  ["継承プロパティを辿る（__proto__）", { id: "x" }, "__proto__.rows", [], "使えない名前"],
-  ["継承プロパティを辿る（constructor）", { id: "x" }, "constructor.rows", [], "使えない名前"],
-  ["末尾が継承プロパティ", { id: "x" }, "feedback_calls.__proto__", [], "使えない名前"],
-  ["選ぶ鍵が継承プロパティ", { id: "x" }, "components[__proto__=x].instances", [], "使えない名前"],
-  ["--key が空を含む", { id: "x" }, "operations", ["--key", "id,"], "--key が空・重複"],
-  ["--key が重複", { id: "x" }, "operations", ["--key", "id,id"], "--key が空・重複"],
-])("書き込まずに exit 2: %s", (_name, fragment, array, extra, needle) => {
+  {
+    name: "断片に鍵が無い",
+    fragment: { trigger: "x()" },
+    array: "operations",
+    extra: [],
+    needle: "鍵（id）が欠けている",
+  },
+  {
+    name: "断片の鍵が空文字",
+    fragment: { id: " ", trigger: "x()" },
+    array: "operations",
+    extra: [],
+    needle: "鍵（id）が欠けている",
+  },
+  {
+    name: "断片の鍵がオブジェクト",
+    fragment: { id: { a: 1 } },
+    array: "operations",
+    extra: [],
+    needle: "鍵（id）が欠けている",
+  },
+  {
+    name: "断片の鍵が小数",
+    fragment: { id: 1.5 },
+    array: "operations",
+    extra: [],
+    needle: "鍵（id）が欠けている",
+  },
+  {
+    name: "断片が配列",
+    fragment: [{ id: "copy" }],
+    array: "operations",
+    extra: [],
+    needle: "1 要素のオブジェクトでない",
+  },
+  {
+    name: "断片が不正な JSON",
+    fragment: "{",
+    array: "operations",
+    extra: [],
+    needle: "断片を読めない",
+  },
+  {
+    name: "配列でないキーを指す",
+    fragment: { id: "x" },
+    array: "slug",
+    extra: [],
+    needle: "配列でない",
+  },
+  {
+    name: "途中のキーが無い",
+    fragment: { id: "x" },
+    array: "nothing.call_sites",
+    extra: [],
+    needle: "nothing が無い",
+  },
+  {
+    name: "途中のキーがオブジェクトでない",
+    fragment: { id: "x" },
+    array: "slug.call_sites",
+    extra: [],
+    needle: "オブジェクトでない",
+  },
+  {
+    name: "選択が 0 件",
+    fragment: { id: "x" },
+    array: "components[id=none].instances",
+    extra: [],
+    needle: "0 件",
+  },
+  {
+    name: "末尾が要素の選択",
+    fragment: { id: "x" },
+    array: "components[id=grid]",
+    extra: [],
+    needle: "末尾は配列のキー",
+  },
+  {
+    name: "--array の形が崩れている",
+    fragment: { id: "x" },
+    array: "operations..x",
+    extra: [],
+    needle: "形が読めない",
+  },
+  {
+    name: "継承プロパティを辿る（__proto__）",
+    fragment: { id: "x" },
+    array: "__proto__.rows",
+    extra: [],
+    needle: "使えない名前",
+  },
+  {
+    name: "継承プロパティを辿る（constructor）",
+    fragment: { id: "x" },
+    array: "constructor.rows",
+    extra: [],
+    needle: "使えない名前",
+  },
+  {
+    name: "末尾が継承プロパティ",
+    fragment: { id: "x" },
+    array: "feedback_calls.__proto__",
+    extra: [],
+    needle: "使えない名前",
+  },
+  {
+    name: "選ぶ鍵が継承プロパティ",
+    fragment: { id: "x" },
+    array: "components[__proto__=x].instances",
+    extra: [],
+    needle: "使えない名前",
+  },
+  {
+    name: "--key が空を含む",
+    fragment: { id: "x" },
+    array: "operations",
+    extra: ["--key", "id,"],
+    needle: "--key が空・重複",
+  },
+  {
+    name: "--key が重複",
+    fragment: { id: "x" },
+    array: "operations",
+    extra: ["--key", "id,id"],
+    needle: "--key が空・重複",
+  },
+])("書き込まずに exit 2: $name", ({ fragment, array, extra, needle }) => {
   const before = JSON.stringify(baseTable(), null, 2);
   const r = run(baseTable(), upsert(array, extra), { fragment });
   expect(r.status).toBe(2);

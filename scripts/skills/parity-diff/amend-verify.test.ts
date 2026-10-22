@@ -7,18 +7,26 @@
 // resolve の Hook（scripts/lib/testing/fake-pngjs-hooks.ts）を登録し、"pngjs" を PNG を読み書きする偽物に差し替えて確かめる。
 
 import { expect, test } from "vitest";
-import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { join } from "node:path";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
-import { encodePng } from "../../lib/testing/fake-pngjs.ts";
-import { parseJsonAs } from "../../lib/parse-as.ts";
 import * as verify from "../../../skills/parity-diff/scripts/amend-verify.mjs";
-import type { Image } from "../../../skills/parity-diff/scripts/amend-verify.mjs";
-import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
+import {
+  BLACK,
+  GREY,
+  WHITE,
+  clone,
+  parseRecord,
+  run,
+  runCli,
+  scene,
+  setPixel,
+  singleArgs,
+  solid,
+  writeScene,
+} from "./amend-verify-helpers.ts";
 
 const pngjsAvailable = (() => {
   try {
@@ -29,39 +37,12 @@ const pngjsAvailable = (() => {
   }
 })();
 
-/** 単色の画像を作る。 */
-function solid(width: number, height: number, rgba: number[]): Image {
-  const data = new Uint8Array(width * height * 4);
-  for (let i = 0; i < width * height; i += 1) data.set(rgba, i * 4);
-  return { width, height, data };
-}
-
-function clone(img: Image): Image {
-  return { width: img.width, height: img.height, data: Uint8Array.from(img.data) };
-}
-
-function setPixel(img: Image, x: number, y: number, rgba: number[]) {
-  img.data.set(rgba, (y * img.width + x) * 4);
-}
-
-const WHITE = [255, 255, 255, 255];
-const GREY = [128, 128, 128, 255];
-const BLACK = [0, 0, 0, 255];
-
-// 10x10。現行は (4,4) が灰。改修前の新側は白（1 画素違う）。
-function scene() {
-  const current = solid(10, 10, WHITE);
-  setPixel(current, 4, 4, GREY);
-  const prevNew = solid(10, 10, WHITE);
-  return { current, prevNew };
-}
-
 const region = { x: 3, y: 3, width: 3, height: 3 };
 
 test("領域の中が現行に近づき、外が変わらなければ pass", () => {
   const { current, prevNew } = scene();
   const next = clone(prevNew);
-  setPixel(next, 4, 4, GREY);
+  setPixel(next, { x: 4, y: 4, rgba: GREY });
 
   const r = verify.judgePair({ prevNew, next, current, regions: [region] });
 
@@ -77,8 +58,8 @@ test("領域の中が同数（悪化していない）なら pass", () => {
   const { current, prevNew } = scene();
   const next = clone(prevNew);
   // 違う画素へ差が移っただけ（数は同じ）。
-  setPixel(next, 4, 4, GREY);
-  setPixel(next, 5, 5, BLACK);
+  setPixel(next, { x: 4, y: 4, rgba: GREY });
+  setPixel(next, { x: 5, y: 5, rgba: BLACK });
 
   const r = verify.judgePair({ prevNew, next, current, regions: [region] });
 
@@ -90,7 +71,7 @@ test("領域の中が同数（悪化していない）なら pass", () => {
 test("領域の中で現行との不一致が増えたら fail", () => {
   const { current, prevNew } = scene();
   const next = clone(prevNew);
-  setPixel(next, 3, 3, BLACK);
+  setPixel(next, { x: 3, y: 3, rgba: BLACK });
 
   const r = verify.judgePair({ prevNew, next, current, regions: [region] });
 
@@ -104,9 +85,9 @@ test("領域の中で現行との不一致が増えたら fail", () => {
 test("領域の外が 1 画素でも変われば、その数を出して fail", () => {
   const { current, prevNew } = scene();
   const next = clone(prevNew);
-  setPixel(next, 4, 4, GREY);
-  setPixel(next, 0, 0, BLACK);
-  setPixel(next, 9, 9, [255, 255, 254, 255]);
+  setPixel(next, { x: 4, y: 4, rgba: GREY });
+  setPixel(next, { x: 0, y: 0, rgba: BLACK });
+  setPixel(next, { x: 9, y: 9, rgba: [255, 255, 254, 255] });
 
   const r = verify.judgePair({ prevNew, next, current, regions: [region] });
 
@@ -119,7 +100,7 @@ test("領域の外が 1 画素でも変われば、その数を出して fail", 
 test("領域の外は隠れた RGB の違い（両側とも透明）も差にする", () => {
   const prevNew = solid(4, 4, [10, 20, 30, 0]);
   const next = clone(prevNew);
-  setPixel(next, 0, 0, [90, 80, 70, 0]);
+  setPixel(next, { x: 0, y: 0, rgba: [90, 80, 70, 0] });
   const current = clone(prevNew);
 
   const r = verify.judgePair({
@@ -176,12 +157,12 @@ test("current の寸法が new と違えば fail", () => {
 test("margin で領域を広げる（広げた分の変化は外に数えない）", () => {
   const { current, prevNew } = scene();
   const next = clone(prevNew);
-  setPixel(next, 4, 4, GREY);
+  setPixel(next, { x: 4, y: 4, rgba: GREY });
   // 影の外周: 矩形 (3,3)-(5,5) の 1px 外側。
-  setPixel(next, 2, 4, [250, 250, 250, 255]);
-  setPixel(next, 6, 4, [250, 250, 250, 255]);
-  setPixel(current, 2, 4, [250, 250, 250, 255]);
-  setPixel(current, 6, 4, [250, 250, 250, 255]);
+  setPixel(next, { x: 2, y: 4, rgba: [250, 250, 250, 255] });
+  setPixel(next, { x: 6, y: 4, rgba: [250, 250, 250, 255] });
+  setPixel(current, { x: 2, y: 4, rgba: [250, 250, 250, 255] });
+  setPixel(current, { x: 6, y: 4, rgba: [250, 250, 250, 255] });
 
   const without = verify.judgePair({ prevNew, next, current, regions: [region] });
   const withMargin = verify.judgePair({ prevNew, next, current, regions: [region], margin: 1 });
@@ -198,9 +179,9 @@ test("margin で領域を広げる（広げた分の変化は外に数えない�
 test("複数の領域は和集合で扱う", () => {
   const { current, prevNew } = scene();
   const next = clone(prevNew);
-  setPixel(next, 4, 4, GREY);
-  setPixel(next, 8, 1, BLACK);
-  setPixel(current, 8, 1, BLACK);
+  setPixel(next, { x: 4, y: 4, rgba: GREY });
+  setPixel(next, { x: 8, y: 1, rgba: BLACK });
+  setPixel(current, { x: 8, y: 1, rgba: BLACK });
   const second = { x: 8, y: 1, width: 1, height: 1 };
 
   const one = verify.judgePair({ prevNew, next, current, regions: [region] });
@@ -233,7 +214,7 @@ test("画像の範囲に切り詰める・小数の矩形は外側へ丸める",
 test("切り詰めた領域はマスクと記録に反映され、画像と重ならない領域だけなら fail", () => {
   const { current, prevNew } = scene();
   const next = clone(prevNew);
-  setPixel(next, 9, 9, BLACK);
+  setPixel(next, { x: 9, y: 9, rgba: BLACK });
 
   const edge = verify.judgePair({
     prevNew,
@@ -314,23 +295,6 @@ test("mergeRecord は同じ pair id の組を置き換え、新しい組を末�
   ]);
   expect(verify.mergeRecord(null, [], undefined)).not.toHaveProperty("change_id");
 });
-
-// 終了コードだけでは区別できない（この環境には pngjs が無く、どの入力不備も exit 2 になりうる）。
-// 落ちた理由（stderr）まで固定する。
-async function run(argv: string[]) {
-  const written: string[] = [];
-  const original = process.stderr.write;
-  process.stderr.write = (chunk) => {
-    written.push(String(chunk));
-    return true;
-  };
-  try {
-    const code = await verify.main(argv);
-    return { code, stderr: written.join("") };
-  } finally {
-    process.stderr.write = original;
-  }
-}
 
 const base = [
   "--pair",
@@ -488,73 +452,9 @@ test.each([
 
 // --- pngjs を偽のモジュールに差し替えて、CLI の記録と終了コードを確かめる ---
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const script = join(repoRoot, "skills/parity-diff/scripts/amend-verify.mjs");
-const HOOKS = fileURLToPath(new URL("../../lib/testing/fake-pngjs-hooks.ts", import.meta.url));
-
-/** 画像を PNG で書く。 */
-function writeImage(path: string, img: Image) {
-  writeFileSync(path, encodePng(img.width, img.height, Uint8Array.from(img.data)));
-}
-
-/** scene() の 3 枚を書き、パスを返す。nextChange で撮り直した新側を変える。 */
-function writeScene(dir: string, nextChange: (next: Image) => void = () => {}) {
-  const { current, prevNew } = scene();
-  const next = clone(prevNew);
-  nextChange(next);
-  const paths = {
-    prev_new: join(dir, "prev-new.png"),
-    new: join(dir, "new.png"),
-    current: join(dir, "current.png"),
-  };
-  writeImage(paths.prev_new, prevNew);
-  writeImage(paths.new, next);
-  writeImage(paths.current, current);
-  return paths;
-}
-
-function singleArgs(paths: ReturnType<typeof writeScene>, pair = "p|hover|desktop") {
-  return [
-    "--pair",
-    pair,
-    "--prev-new",
-    paths.prev_new,
-    "--new",
-    paths.new,
-    "--current",
-    paths.current,
-  ];
-}
-
-/** 偽の pngjs で CLI を子プロセスとして実行する（計測の環境変数は親から引き継ぐ）。 */
-function runCli(argv: string[]) {
-  const r = spawnSync(process.execPath, ["--import", pathToFileURL(HOOKS).href, script, ...argv], {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-    timeout: CHILD_TIMEOUT_MS,
-  });
-  return { status: r.status, stdout: r.stdout, stderr: r.stderr };
-}
-
-type PairRecord = {
-  pair: string;
-  pass: boolean;
-  outside_diff_pixels: number | null;
-  inside_diff_before: number | null;
-  inside_diff_after: number | null;
-  margin: number;
-  declared_regions: unknown[];
-  regions: unknown[];
-  inputs: Record<string, { path: string; sha256: string }>;
-  reasons: string[];
-};
-type AmendRecord = { tool: string; version: string; change_id?: string; pairs: PairRecord[] };
-
-const parseRecord = (text: string) => parseJsonAs<AmendRecord>(text);
-
 test("CLI: 全組 pass なら exit 0 で、記録を stdout に出す（広げる前の領域と広げた後の領域を両方残す）", () => {
   const dir = makeTempDir("amend-verify-");
-  const paths = writeScene(dir, (next) => setPixel(next, 4, 4, GREY));
+  const paths = writeScene(dir, (next) => setPixel(next, { x: 4, y: 4, rgba: GREY }));
 
   const r = runCli([...singleArgs(paths), "--region", "3,3,3,3", "--margin", "1"]);
 
@@ -591,7 +491,7 @@ test("CLI: 記録の inputs は渡したパスと画像のバイトの sha256 �
 
 test("CLI: --pairs の領域は配列とオブジェクトのどちらでも読み、組ごとの margin を使う", () => {
   const dir = makeTempDir("amend-verify-");
-  const paths = writeScene(dir, (next) => setPixel(next, 4, 4, GREY));
+  const paths = writeScene(dir, (next) => setPixel(next, { x: 4, y: 4, rgba: GREY }));
   const pairsPath = join(dir, "pairs.json");
   writeFileSync(
     pairsPath,
@@ -613,7 +513,7 @@ test("CLI: --pairs の領域は配列とオブジェクトのどちらでも読�
 
 test("CLI: fail の組があれば exit 1 で、--out には記録を書き、stdout には組ごとの判定と理由を出す", () => {
   const dir = makeTempDir("amend-verify-");
-  const paths = writeScene(dir, (next) => setPixel(next, 0, 0, BLACK));
+  const paths = writeScene(dir, (next) => setPixel(next, { x: 0, y: 0, rgba: BLACK }));
   const out = join(dir, "nested", "record.json");
 
   const r = runCli([

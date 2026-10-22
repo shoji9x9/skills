@@ -1,98 +1,28 @@
 import { afterEach, assert, expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
-
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const script = join(repoRoot, "skills/kaizen/scripts/kaizen-archive.sh");
-const workdirs: string[] = [];
+import {
+  archive,
+  archiveIn,
+  createRepo,
+  withGlibcStyleLocales,
+  withoutLocaleCommand,
+  workdirs,
+  writeNote,
+} from "./kaizen-archive-helpers.ts";
 
 afterEach(() => {
   for (const dir of workdirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-function createRepo() {
-  const dir = makeTempDir("kaizen-archive-");
-  workdirs.push(dir);
-  mkdirSync(join(dir, ".kaizen"));
-  const init = spawnSync("git", ["init", "-q", "."], {
-    timeout: CHILD_TIMEOUT_MS,
-    cwd: dir,
-    encoding: "utf8",
-  });
-  expect(init.status, init.stderr).toBe(0);
-  return dir;
-}
-
-function writeNote(dir: string, name: string, summary: string, body = "") {
-  const path = join(dir, ".kaizen", name);
-  writeFileSync(
-    path,
-    `---\ndate: 2026-09-01\ntype: rule\npriority: medium\nstatus: applied\n---\n\n# note\n\n## 事象\n\n${summary}\n${body}`,
-  );
-  return path;
-}
-
-function archive(dir: string, ...files: string[]) {
-  return archiveIn(dir, { LANG: "C.UTF-8", LC_ALL: "C.UTF-8" }, ...files);
-}
-
-// `locale` が無い／使えない環境（最小コンテナ）を作る。UTF-8 ロケールへ切り替えられない
-// ので、スクリプトは「切らずに要約を省く」形で、機能を減らして動く。
-function withoutLocaleCommand(dir: string) {
-  const shim = join(dir, "shim-bin");
-  mkdirSync(shim, { recursive: true });
-  const locale = join(shim, "locale");
-  writeFileSync(locale, "#!/bin/sh\nexit 1\n");
-  chmodSync(locale, 0o755);
-  return { PATH: `${shim}:${process.env.PATH}` };
-}
-
-// `locale -a` が glibc 流の名前（en_US.utf8。ハイフン無し・小文字）だけを返す環境を作る。
-// charmap は LC_CTYPE の値に応じて答えるので、候補を拾えたかどうかが出力に現れる。
-function withGlibcStyleLocales(dir: string) {
-  const shim = join(dir, "shim-glibc");
-  mkdirSync(shim, { recursive: true });
-  const locale = join(shim, "locale");
-  writeFileSync(
-    locale,
-    [
-      "#!/bin/sh",
-      'if [ "$1" = "-a" ]; then',
-      '  printf "C\\nPOSIX\\nen_US.utf8\\n"',
-      "  exit 0",
-      "fi",
-      'case "${LC_CTYPE:-}" in',
-      '*utf8* | *UTF-8* | *utf-8*) echo "UTF-8" ;;',
-      '*) echo "ANSI_X3.4-1968" ;;',
-      "esac",
-      "",
-    ].join("\n"),
-  );
-  chmodSync(locale, 0o755);
-  return { PATH: `${shim}:${process.env.PATH}` };
-}
-
-function archiveIn(dir: string, localeEnv: NodeJS.ProcessEnv, ...files: string[]) {
-  return spawnSync("bash", [script, ...files], {
-    timeout: CHILD_TIMEOUT_MS,
-    cwd: dir,
-    env: { ...process.env, CLAUDE_PROJECT_DIR: "", ...localeEnv },
-    encoding: "utf8",
-  });
-}
-
 test("../ で始まる Markdown 相対リンクを移動先の階層に合わせる", () => {
   const dir = createRepo();
-  const note = writeNote(
-    dir,
-    "2026-09-01-links.md",
-    "relative links",
-    "\n[x](../docs/x.md) and ![image](../../assets/x.png) and [web](https://example.com)\n",
-  );
+  const note = writeNote(dir, "2026-09-01-links.md", {
+    summary: "relative links",
+    body: "\n[x](../docs/x.md) and ![image](../../assets/x.png) and [web](https://example.com)\n",
+  });
   spawnSync("git", ["add", ".kaizen"], { timeout: CHILD_TIMEOUT_MS, cwd: dir });
 
   const result = archive(dir, note);
@@ -126,7 +56,7 @@ test.each([
 ])("$length 文字のサマリーを境界どおり索引化する", ({ length, ellipsis }) => {
   const dir = createRepo();
   const summary = "あ".repeat(length);
-  const note = writeNote(dir, `2026-09-01-summary-${length}.md`, summary);
+  const note = writeNote(dir, `2026-09-01-summary-${length}.md`, { summary });
 
   const result = archive(dir, note);
 
@@ -144,12 +74,10 @@ test.each([
 // 止まることと、止まらずに継ぐことの両方を区別する。
 test("折り返した先頭段落を連結してから索引化する", () => {
   const dir = createRepo();
-  const note = writeNote(
-    dir,
-    "2026-09-01-wrapped.md",
-    "先頭段落が折り返されている",
-    "ので続きも読む。\n",
-  );
+  const note = writeNote(dir, "2026-09-01-wrapped.md", {
+    summary: "先頭段落が折り返されている",
+    body: "ので続きも読む。\n",
+  });
 
   const result = archive(dir, note);
 
@@ -160,29 +88,29 @@ test("折り返した先頭段落を連結してから索引化する", () => {
 
 test("段落の境界（空行・後続見出し・箇条書き・水平線）を越えて連結しない", () => {
   const dir = createRepo();
-  const blank = writeNote(
-    dir,
-    "2026-09-01-blank.md",
-    "空行で閉じる段落。",
-    "\n次の段落は含めない。\n",
-  );
+  const blank = writeNote(dir, "2026-09-01-blank.md", {
+    summary: "空行で閉じる段落。",
+    body: "\n次の段落は含めない。\n",
+  });
   // 見出しの前後に空行を挟むと空行側の境界だけで止まり、見出しの分岐に到達しない
   // （変異で実測）。見出しは先頭段落の直後に、次の本文は見出しの直後に置く。
-  const heading = writeNote(
-    dir,
-    "2026-09-01-heading.md",
-    "見出しで閉じる段落。",
-    "## 根本原因\n別の節。\n",
-  );
-  const bullet = writeNote(dir, "2026-09-01-bullet.md", "- 先頭の項目", "- 兄弟の項目\n");
+  const heading = writeNote(dir, "2026-09-01-heading.md", {
+    summary: "見出しで閉じる段落。",
+    body: "## 根本原因\n別の節。\n",
+  });
+  const bullet = writeNote(dir, "2026-09-01-bullet.md", {
+    summary: "- 先頭の項目",
+    body: "- 兄弟の項目\n",
+  });
   // 段落の直後に始まるリストも継続行ではない（繋ぐと「。- A の項目- B の項目」になる）。
-  const paraList = writeNote(
-    dir,
-    "2026-09-01-para-list.md",
-    "対象は次の 2 つ。",
-    "- A の項目\n- B の項目\n",
-  );
-  const rule = writeNote(dir, "2026-09-01-rule.md", "水平線で閉じる段落。", "---\n\n別の節。\n");
+  const paraList = writeNote(dir, "2026-09-01-para-list.md", {
+    summary: "対象は次の 2 つ。",
+    body: "- A の項目\n- B の項目\n",
+  });
+  const rule = writeNote(dir, "2026-09-01-rule.md", {
+    summary: "水平線で閉じる段落。",
+    body: "---\n\n別の節。\n",
+  });
 
   const result = archive(dir, blank, heading, bullet, paraList, rule);
 
@@ -197,14 +125,18 @@ test("段落の境界（空行・後続見出し・箇条書き・水平線）�
 
 test("連結の継ぎ目は両側が ASCII のときだけ空白を入れる", () => {
   const dir = createRepo();
-  const ascii = writeNote(
-    dir,
-    "2026-09-01-ascii.md",
-    "the lead paragraph is",
-    "wrapped onto two lines.\n",
-  );
-  const cjk = writeNote(dir, "2026-09-01-cjk.md", "日本語の折り返しは", "空白を伴わない。\n");
-  const mixed = writeNote(dir, "2026-09-01-mixed.md", "対象は`gh api`の", "pagination である。\n");
+  const ascii = writeNote(dir, "2026-09-01-ascii.md", {
+    summary: "the lead paragraph is",
+    body: "wrapped onto two lines.\n",
+  });
+  const cjk = writeNote(dir, "2026-09-01-cjk.md", {
+    summary: "日本語の折り返しは",
+    body: "空白を伴わない。\n",
+  });
+  const mixed = writeNote(dir, "2026-09-01-mixed.md", {
+    summary: "対象は`gh api`の",
+    body: "pagination である。\n",
+  });
 
   const result = archive(dir, ascii, cjk, mixed);
 
@@ -217,7 +149,10 @@ test("連結の継ぎ目は両側が ASCII のときだけ空白を入れる", (
 
 test("連結後に 80 文字を超えたら … を付けて切り詰める", () => {
   const dir = createRepo();
-  const note = writeNote(dir, "2026-09-01-long.md", "あ".repeat(60), `${"い".repeat(60)}\n`);
+  const note = writeNote(dir, "2026-09-01-long.md", {
+    summary: "あ".repeat(60),
+    body: `${"い".repeat(60)}\n`,
+  });
 
   const result = archive(dir, note);
 
@@ -236,7 +171,7 @@ test("行全体が 200 文字を超えないよう、接頭辞の長さを差し
   const dir = createRepo();
   // 実在するノート名の最長級（60 文字強）で、要約を切らないと 200 を超える組み合わせ。
   const longName = "2026-09-18-relaxation-by-delegation-needs-a-verified-delegate-long.md";
-  const note = writeNote(dir, longName, "あ".repeat(80));
+  const note = writeNote(dir, longName, { summary: "あ".repeat(80) });
 
   const result = archive(dir, note);
 
@@ -257,7 +192,7 @@ test("非 UTF-8 ロケールでも行長規約を満たす（切らずに要約�
   // この行も落とせるが、下の「要約を残す」テストが同時に赤くなる。
   const dir = createRepo();
   const longName = "2026-09-18-relaxation-by-delegation-needs-a-verified-delegate-long.md";
-  const note = writeNote(dir, longName, "あ".repeat(160));
+  const note = writeNote(dir, longName, { summary: "あ".repeat(160) });
 
   const result = archiveIn(dir, { LANG: "C", LC_ALL: "C", ...withoutLocaleCommand(dir) }, note);
 
@@ -283,13 +218,16 @@ test("ロケールが違っても同じ索引を生成する", () => {
 
   const utf8Dir = createRepo();
   expect(
-    archiveIn(utf8Dir, { LANG: "C.UTF-8", LC_ALL: "C.UTF-8" }, writeNote(utf8Dir, name, summary))
-      .status,
+    archiveIn(
+      utf8Dir,
+      { LANG: "C.UTF-8", LC_ALL: "C.UTF-8" },
+      writeNote(utf8Dir, name, { summary }),
+    ).status,
   ).toBe(0);
   const cDir = createRepo();
-  expect(archiveIn(cDir, { LANG: "C", LC_ALL: "C" }, writeNote(cDir, name, summary)).status).toBe(
-    0,
-  );
+  expect(
+    archiveIn(cDir, { LANG: "C", LC_ALL: "C" }, writeNote(cDir, name, { summary })).status,
+  ).toBe(0);
 
   const read = (dir: string) => readFileSync(join(dir, ".kaizen/archive/INDEX.md"), "utf8");
   expect(read(cDir)).toBe(read(utf8Dir));
@@ -303,7 +241,7 @@ test("非 UTF-8 ロケールでも 200 文字以内の要約は残す（バイ�
   // archive をファイル名でしか引けなくする。
   const dir = createRepo();
   const summary = "あ".repeat(60);
-  const note = writeNote(dir, "2026-09-01-short-enough.md", summary);
+  const note = writeNote(dir, "2026-09-01-short-enough.md", { summary });
 
   const result = archiveIn(dir, { LANG: "C", LC_ALL: "C", ...withoutLocaleCommand(dir) }, note);
 
@@ -324,7 +262,7 @@ test.each([
   // ロケール依存に戻る（en_US.UTF-8 はハイフン等を無視して照合する）。行順は内容の一部。
   const dir = createRepo();
   const names = ["a-b", "aB", "a_b", "ab"];
-  const notes = names.map((n) => writeNote(dir, `2026-09-01-${n}.md`, `要約 ${n}`));
+  const notes = names.map((n) => writeNote(dir, `2026-09-01-${n}.md`, { summary: `要約 ${n}` }));
 
   expect(archiveIn(dir, localeEnv, ...notes).status).toBe(0);
 
@@ -359,7 +297,7 @@ test.skipIf(localeListed && collatingLocale === undefined)(
     assert.exists(collatingLocale);
     const dir = createRepo();
     const names = ["a-b", "aB", "a_b", "ab"];
-    const notes = names.map((n) => writeNote(dir, `2026-09-01-${n}.md`, `要約 ${n}`));
+    const notes = names.map((n) => writeNote(dir, `2026-09-01-${n}.md`, { summary: `要約 ${n}` }));
     const localeEnv = {
       LANG: collatingLocale,
       LC_ALL: collatingLocale,
@@ -380,7 +318,7 @@ test("glibc 流の名前（en_US.utf8）しか無い環境でも UTF-8 ロケー
   // 候補名を決め打ちで完全一致させると、glibc の `locale -a` は `en_US.utf8` と
   // ハイフン無し・小文字で出すため一度も一致せず、使える UTF-8 があるのに機能を減らして動く。
   const dir = createRepo();
-  const note = writeNote(dir, "2026-09-01-glibc-names.md", "あ".repeat(60));
+  const note = writeNote(dir, "2026-09-01-glibc-names.md", { summary: "あ".repeat(60) });
 
   const result = archiveIn(dir, { LANG: "C", LC_ALL: "C", ...withGlibcStyleLocales(dir) }, note);
 
@@ -391,7 +329,7 @@ test("glibc 流の名前（en_US.utf8）しか無い環境でも UTF-8 ロケー
 test("UTF-8 ロケールが無いときは機能を減らして動いた旨を stderr に残す", () => {
   // 機能を減らした run と本番構成の run を、出力で区別できるようにする（警告なしに要約を省かない）。
   const dir = createRepo();
-  const note = writeNote(dir, "2026-09-01-degraded.md", "あ".repeat(60));
+  const note = writeNote(dir, "2026-09-01-degraded.md", { summary: "あ".repeat(60) });
 
   const result = archiveIn(dir, { LANG: "C", LC_ALL: "C", ...withoutLocaleCommand(dir) }, note);
 
@@ -399,7 +337,7 @@ test("UTF-8 ロケールが無いときは機能を減らして動いた旨を s
   expect(result.stderr).toMatch(/UTF-8 ロケールが無いため/);
 });
 
-test.each([
+test.for<[string, { LANG: string; LC_ALL: string }, string, string]>([
   [
     "非 UTF-8 で要約ごと落とした行",
     { LANG: "C", LC_ALL: "C" },
@@ -412,11 +350,11 @@ test.each([
     `2026-09-01-${"y".repeat(180)}.md`,
     "あ".repeat(70),
   ],
-])("%s に行末スペースを残さない（MD009）", (_name, localeEnv, name, summary) => {
+])("%s に行末スペースを残さない（MD009）", ([, localeEnv, name, summary]) => {
   // 要約を落とすと接頭辞末尾の "— " がそのまま行末スペースになり、MD009 で
   // pre-commit が落ちる（行長だけを見るテストでは緑のまま通る）。
   const dir = createRepo();
-  const note = writeNote(dir, name, summary);
+  const note = writeNote(dir, name, { summary });
   // 非 UTF-8 側は UTF-8 ロケールへ切り替える手段を塞いで、要約を省く分岐へ入れる。
   const env = localeEnv.LC_ALL === "C" ? { ...localeEnv, ...withoutLocaleCommand(dir) } : localeEnv;
 
@@ -433,7 +371,7 @@ test("接頭辞だけで予算を使い切る場合は要約を落とす（フ�
   // ファイル名は KEDB 照合の鍵なので切り詰めない。要約を落としてもなお 200 を超える
   // 異常に長いノート名は、名前自体を短くするしかない（生成側では直せない）。
   const dir = createRepo();
-  const note = writeNote(dir, `2026-09-01-${"y".repeat(180)}.md`, "あ".repeat(70));
+  const note = writeNote(dir, `2026-09-01-${"y".repeat(180)}.md`, { summary: "あ".repeat(70) });
 
   const result = archive(dir, note);
 
