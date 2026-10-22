@@ -189,6 +189,3 @@ export function predicatesWithOrderId(row: string) {
     row,
   ];
 }
-
-// コードフェンスの中は例示なので、表も見出しも読まない（Issue #679。replace-strategy の台帳と同じ読み方）。
-export const md = (...xs: string[]) => [...xs, ""].join("\n");

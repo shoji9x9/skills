@@ -19,9 +19,9 @@ import {
   codesOf,
   idRangesWith,
   predicatesWithOrderId,
-  md,
   FEATURES,
 } from "./predicate-coverage-check-helpers.ts";
+import { lines as md } from "../../lib/testing/text-lines.ts";
 
 /** 欠陥の無い verification.md（設計値と一致する実測）。 */
 const VERIFICATION = `# 検証レポート（verification）
@@ -1013,6 +1013,7 @@ test("変換の列の `-`（変換なし）は範囲の列と違い受ける（�
   expect(codes).toEqual([]);
 });
 
+// コードフェンスの中は例示なので、表も見出しも読まない（Issue #679。replace-strategy の台帳と同じ読み方）。
 test("コードフェンスの中の表と見出しを読まない", () => {
   const tables = parseTables(
     md(

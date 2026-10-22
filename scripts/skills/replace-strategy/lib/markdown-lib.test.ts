@@ -10,7 +10,8 @@ import { readRow } from "../../../../skills/replace-strategy/scripts/evidence-ga
 import { stepFence } from "../../../../skills/replace-strategy/scripts/lib/fence.mjs";
 import { parseTables } from "../../../../skills/replace-strategy/scripts/lib/markdown.mjs";
 import { readProcedureLedger } from "../../../../skills/replace-strategy/scripts/procedure-staleness-check.mjs";
-import { lines, cells, PC, procedureIds, PLAN, COPY, norm } from "./markdown-lib-helpers.ts";
+import { lines } from "../../../lib/testing/text-lines.ts";
+import { cells, PC, procedureIds, PLAN, COPY, norm } from "./markdown-lib-helpers.ts";
 
 test("表の行の途中の `|` を含むフェンス行で表を終え、フェンスの中の表の行を読まない", () => {
   const { tables } = parseTables(

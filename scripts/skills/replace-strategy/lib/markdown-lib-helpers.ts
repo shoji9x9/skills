@@ -2,8 +2,6 @@
 import { parseTables } from "../../../../skills/replace-strategy/scripts/lib/markdown.mjs";
 import { readProcedureLedger } from "../../../../skills/replace-strategy/scripts/procedure-staleness-check.mjs";
 
-export const lines = (...xs: string[]) => [...xs, ""].join("\n");
-
 // セルの値を前後の空白を除いて返す（コメントを空白に置き換えた分の空白を比べない）。
 export const cells = (text: string) =>
   parseTables(text).tables.flatMap((t) => t.rows.map((r) => r.map((c) => c.trim())));
