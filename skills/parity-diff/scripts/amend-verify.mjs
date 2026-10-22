@@ -273,47 +273,40 @@ const USAGE =
  *   pairsPath?: string, margin: number, marginGiven: boolean, changeId?: string, out?: string }} Flags
  */
 
-const KNOWN_FLAGS = [
-  "--pair",
-  "--prev-new",
-  "--new",
-  "--current",
-  "--region",
-  "--margin",
-  "--pairs",
-  "--change-id",
-  "--out",
-];
-
 /**
- * 1 つのフラグの値を flags へ入れる。誤りは文字列で返す。
- *
- * @param {Flags} flags
- * @param {string} flag
- * @param {string} value
- * @returns {string | undefined}
+ * フラグ名から、そのフラグの値を flags へ入れる処理への対応。誤りは文字列で返す。
+ * 未知のフラグの判定も、この対応のキーで行う（フラグの一覧をここだけで持つ）。
+ * @type {ReadonlyMap<string, (flags: Flags, value: string) => string | undefined>}
  */
-function applyFlag(flags, flag, value) {
-  const { single } = flags;
-  if (flag === "--pair") single.pair = value;
-  else if (flag === "--prev-new") single.prev_new = value;
-  else if (flag === "--new") single.new = value;
-  else if (flag === "--current") single.current = value;
-  else if (flag === "--region") {
-    const r = parseRegion(value);
-    if (!r) return `--region must be x,y,w,h with w,h > 0: ${value}`;
-    single.regions.push(r);
-  } else if (flag === "--margin") {
-    flags.margin = Number(value);
-    flags.marginGiven = true;
-    if (!Number.isFinite(flags.margin) || flags.margin < 0) {
-      return `--margin must be a non-negative number: ${value}`;
-    }
-  } else if (flag === "--pairs") flags.pairsPath = value;
-  else if (flag === "--change-id") flags.changeId = value;
-  else if (flag === "--out") flags.out = value;
-  return undefined;
-}
+const FLAG_SETTERS = new Map([
+  ["--pair", (flags, value) => void (flags.single.pair = value)],
+  ["--prev-new", (flags, value) => void (flags.single.prev_new = value)],
+  ["--new", (flags, value) => void (flags.single.new = value)],
+  ["--current", (flags, value) => void (flags.single.current = value)],
+  [
+    "--region",
+    (flags, value) => {
+      const r = parseRegion(value);
+      if (!r) return `--region must be x,y,w,h with w,h > 0: ${value}`;
+      flags.single.regions.push(r);
+      return undefined;
+    },
+  ],
+  [
+    "--margin",
+    (flags, value) => {
+      flags.margin = Number(value);
+      flags.marginGiven = true;
+      if (!Number.isFinite(flags.margin) || flags.margin < 0) {
+        return `--margin must be a non-negative number: ${value}`;
+      }
+      return undefined;
+    },
+  ],
+  ["--pairs", (flags, value) => void (flags.pairsPath = value)],
+  ["--change-id", (flags, value) => void (flags.changeId = value)],
+  ["--out", (flags, value) => void (flags.out = value)],
+]);
 
 /**
  * 引数のフラグを読む。誤りは文字列で返す。
@@ -332,10 +325,11 @@ function parseFlags(argv) {
   for (let i = 0; i < argv.length; i += 1) {
     const flag = argv[i];
     const value = valueOf(i);
-    if (!KNOWN_FLAGS.includes(flag)) return { error: `unknown argument: ${flag}` };
+    const setter = FLAG_SETTERS.get(flag);
+    if (setter === undefined) return { error: `unknown argument: ${flag}` };
     if (value === undefined) return { error: `${flag} requires a value` };
     i += 1;
-    const error = applyFlag(flags, flag, value);
+    const error = setter(flags, value);
     if (error !== undefined) return { error };
   }
   return flags;

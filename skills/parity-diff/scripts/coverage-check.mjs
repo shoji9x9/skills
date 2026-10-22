@@ -1566,7 +1566,7 @@ function countComponent(component, componentIndex, ctx) {
     addUnmeasured(tally, 1);
   }
 
-  countByProfile(c, cid, ctx);
+  countByProfile(c, { cid, declaredCells }, ctx);
 }
 
 /**
@@ -1587,13 +1587,12 @@ function declaredCellsOf(c) {
  * 識別できた部品を、profile の宣言に従って数え直す。
  *
  * @param {Record<string, unknown>} c - 部品
- * @param {string} cid - 部品 id
+ * @param {{ cid: string, declaredCells: number }} known - 部品 id と、countComponent が declaredCellsOf で計算した期待セル数
  * @param {{ index: CellIndex, tally: Tally }} ctx
  */
-function countByProfile(c, cid, ctx) {
+function countByProfile(c, { cid, declaredCells }, ctx) {
   const { index, tally } = ctx;
   const { problems } = index;
-  const declaredCells = declaredCellsOf(c);
   // profile キーの欠落を「汎用」として扱わない。プロファイル無しを選ぶには理由が要る
   // （parity-suite の references/coverage-profiles.md「プロファイルの選択」で定義する）。
   if (!("profile" in c)) {

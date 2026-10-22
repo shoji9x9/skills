@@ -30,19 +30,25 @@
 // どちらも、取りこぼしても例外が出ないので、走査が誤っていることが出力から分からない。
 // そのため、このツールは**数えられなかったものを必ず出力に残す**（`inaccessible` / `unresolved`）。
 //
-// 検出されることも確かめた。同じ Chrome 149 の上でこの関数をそのまま実行し、次のものを確かめた。
-//   - `@import` の先の `!important` 付きの `:hover` の宣言を採る。
-//   - 入れ子の `&:hover` を `:is(.card):hover` に解決する。
-//   - `@layer` と `@media` の条件を付ける。
-//   - `::after` を擬似要素と判定し、`@keyframes` をレイヤとして数えない。
-//   - 当たらない入れ子（`& .inner`）を採らない。
-// 偽の CSSOM に対するユニットテストは、配布元のリポジトリにある（素朴な走査が同じ入力で取りこぼすことも、あわせて示している）。
-//
 // Playwright はピア前提であり import しない。Locator は引数で受け取り、
 // locator.evaluate() 経由でブラウザ内 DOM を操作する（型は JSDoc のみ。TypeScript 構文は使わない）。
 // locator.evaluate は渡した関数を文字列にしてページで実行するので、ページ側の関数はモジュールの名前を参照できない。
-// そのため、ページ側の関数（PAGE_HELPERS）は引数だけを読み、互いを引数の一覧（`h`）を通して呼ぶ。
-// captureMatchedRules は、それらのソースを 1 つの関数に組み込んで evaluate へ 1 回で渡す。
+// そのため、ページ側の関数（PAGE_HELPERS に並べたもの）は引数だけを読み、互いを引数の一覧（`h`）を通して呼ぶ。
+// captureMatchedRules は、本体の collectInPage と PAGE_HELPERS の関数のソースを new Function で 1 つの関数に組み立て、
+// その関数を evaluate へ渡す。組み立てるのは最初の呼び出しの 1 回だけで、要素ごとの evaluate は 1 回で済む。
+// Node から直接呼ぶ collectMatchedRules は、組み立てずに同じ関数の一覧を渡す。
+//
+// 組み立てた関数がページで動くことも確かめた。Google Chrome 156.0.8078.47 を Playwright の
+// chromium.launch({ executablePath }) で起動し、組み立てた関数を locator.evaluate でページへ渡して、次のものを確かめた。
+//   - `@import` の先の `!important` 付きの `:hover` の宣言を採り、`@import` の `layer()` をレイヤとして付ける。
+//   - 入れ子の `&:hover` を `:is(.card):hover` に解決し、当たらない入れ子（`& .inner`）を採らない。
+//   - `@layer` と `@media` の条件を付け、`@keyframes` をレイヤとして数えない。
+//   - `::after` を擬似要素と判定する。`:focus-visible` を状態として記録し、`:POPOVER-OPEN` を未知の擬似クラスとして unresolved に残す。
+//   - `style` 属性の宣言を `inline_declarations` に採る。
+//   - `@scope` の規則、ホストのシャドウルートの `:host`、外側の document の `::part()`、シャドウルートの `::slotted()` を、
+//     matched に入れず unresolved に残す。
+// 同じページで、関数を組み立てずに 1 つの自己完結した関数として渡していた版と出力を比べ、すべての要素で一致した。
+// 偽の CSSOM に対するユニットテストは、配布元のリポジトリにある（素朴な走査が同じ入力で取りこぼすことも、あわせて示している）。
 
 import { isArray } from "./lib/is-array.mjs";
 

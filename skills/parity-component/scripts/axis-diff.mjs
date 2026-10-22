@@ -147,17 +147,18 @@ function pathSegment(value, what) {
 
 /**
  * baseline/<id>/<state>/traits.json を読む。解決後のパスが baseline の外を指せば投げる。
- * @param {{ baselineRoot: string, id: string, state: string }} arg
+ * @param {{ baselineRoot: string, realRootOf: () => string, id: string, state: string }} arg
+ *   realRootOf は baselineRoot の実パスを返す（assembleFromBaseline が 1 回だけ解決して使い回す）。
  * @returns {unknown}
  */
-function readStateTraits({ baselineRoot, id, state }) {
+function readStateTraits({ baselineRoot, realRootOf, id, state }) {
   // 包含の判定は両辺を実パスに解決してから行う。字句上の resolve / relative だけだと、
   // `baseline/<id>` がシンボリックリンクで外を指すとき判定を通り、readFileSync が
   // リンクを辿って外のファイルを読む。片側だけ解決すると、baseline 自体がリンク経由の
   // 正当な構成を外と誤判定するので、根と候補の両方を realpath に揃える。
   // 実在しないパスは realpathSync が投げる（採取物の欠落として従来どおり読めない扱い）。
   const path = resolve(baselineRoot, id, state, "traits.json");
-  const realRoot = realpathSync(baselineRoot);
+  const realRoot = realRootOf();
   const realPath = realpathSync(path);
   const rel = relative(realRoot, realPath);
   if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
@@ -168,10 +169,10 @@ function readStateTraits({ baselineRoot, id, state }) {
 
 /**
  * metadata.json のインスタンス 1 件から、マニフェストのインスタンスを組み立てる。
- * @param {{ inst: unknown, stateNames: string[], baselineRoot: string }} arg
+ * @param {{ inst: unknown, stateNames: string[], baselineRoot: string, realRootOf: () => string }} arg
  * @returns {{ id: string, unreachable_states: unknown, states: { state: string, traits: unknown }[] }}
  */
-function assembleInstance({ inst, stateNames, baselineRoot }) {
+function assembleInstance({ inst, stateNames, baselineRoot, realRootOf }) {
   const id = field(inst, "id");
   if (typeof id !== "string" || id === "") throw new Error("instances[].id が無い");
   pathSegment(id, "instances[].id");
@@ -188,7 +189,10 @@ function assembleInstance({ inst, stateNames, baselineRoot }) {
     // 宣言の無い欠落は読みに行って失敗させる（採り忘れを警告なしに除外しない）。
     states: stateNames
       .filter((st) => !unreachable.has(st))
-      .map((st) => ({ state: st, traits: readStateTraits({ baselineRoot, id, state: st }) })),
+      .map((st) => ({
+        state: st,
+        traits: readStateTraits({ baselineRoot, realRootOf, id, state: st }),
+      })),
   };
 }
 
@@ -217,6 +221,11 @@ export function assembleFromBaseline(dir) {
   if (instances.length === 0) throw new Error("metadata.json の instances が空");
   // 区切り文字・`.`・`..`・空名を弾いたうえで、解決後のパスが baseline 配下にあることも確かめる（readStateTraits）。
   const baselineRoot = resolve(dir, "baseline");
+  // 根の実パスは、最初に traits.json を読むときに 1 回だけ解決する。先に解決すると、id の誤りより先に
+  // baseline の欠落で投げるようになり、どの誤りを報告するかが変わる。
+  /** @type {string | undefined} */
+  let realRoot;
+  const realRootOf = () => (realRoot ??= realpathSync(baselineRoot));
   const stateNames = states.map((st) => pathSegment(st, "capture.states[]"));
   // 採取ツールのプロパティ集合（記録されていれば）。計算後スタイルのキーと突き合わせて、
   // 集合の外の軸名（空文字・typo）や採り忘れを diffAxes の problems に入れる。
@@ -224,7 +233,9 @@ export function assembleFromBaseline(dir) {
   return {
     component: field(meta, "component") || null,
     ...(propertySet === undefined ? {} : { property_set: propertySet }),
-    instances: instances.map((inst) => assembleInstance({ inst, stateNames, baselineRoot })),
+    instances: instances.map((inst) =>
+      assembleInstance({ inst, stateNames, baselineRoot, realRootOf }),
+    ),
   };
 }
 
