@@ -1,0 +1,10 @@
+<section id="security" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">セキュリティ</h2>
+<table style="font-size:26px;color:#17202a;background:#ffffff;border:1px solid #c9cec7">
+<tr><th style="width:28%">対象</th><th style="width:72%">仕組み</th></tr>
+<tr><td>シークレット</td><td>gitleaks が、commit の前と CI で走査する</td></tr>
+<tr><td>GitHub Actions</td><td>pinact で、使う Action を SHA に固定する。ghalint と actionlint でワークフローをチェックする</td></tr>
+<tr><td>依存</td><td>lockfile と一致することと、レジストリの署名を CI で確かめる。脆弱性は第 5 章のスキルで Issue にする</td></tr>
+<tr><td>main ブランチ</td><td>ルールセットで force push と削除を禁じ、必須チェックの成功を merge の条件にする</td></tr>
+</table>
+</section>

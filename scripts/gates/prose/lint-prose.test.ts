@@ -167,6 +167,29 @@ test("陰性: スキルのコピー・エージェント用のリンク・過去
   expect(result).toEqual({ checked: 2, pending: 0, violations: [], stale: [] });
 });
 
+test("陰性: 英語で書くスライドの文書（英語のストーリーラインと指示）は見ない", async () => {
+  const root = makeRepo({
+    "a.md": CLEAN,
+    "docs/slides/storylines/en/01.md": DIRTY,
+    "docs/slides/prompts/brief.md": DIRTY,
+  });
+  expect(await lintProse({ root })).toEqual({ checked: 1, pending: 0, violations: [], stale: [] });
+});
+
+test("陽性: 英語の置き場所と名前の似た日本語の文書は見る", async () => {
+  const root = makeRepo({
+    "docs/slides/storylines/ja/01.md": DIRTY,
+    "docs/slides/storylines/english.md": DIRTY,
+    "docs/slides/prompts-ja/a.md": DIRTY,
+  });
+  const files = (await lintProse({ root })).violations.map((v) => v.split(":")[0]).sort();
+  expect(files).toEqual([
+    "docs/slides/prompts-ja/a.md",
+    "docs/slides/storylines/english.md",
+    "docs/slides/storylines/ja/01.md",
+  ]);
+});
+
 test("陽性: rule の実体・private skill の実体・有効な学びは見る", async () => {
   const root = makeRepo({
     ".agents/rules/x.md": DIRTY,

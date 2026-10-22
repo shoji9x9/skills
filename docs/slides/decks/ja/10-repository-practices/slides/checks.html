@@ -1,0 +1,12 @@
+<section id="checks" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">品質: 横断のチェック</h2>
+<p style="font-size:36px;font-weight:500;line-height:1.5">ファイルをまたぐ取り決めを、pre-commit と CI でチェックする。</p>
+<table style="font-size:26px;color:#17202a;background:#ffffff;border:1px solid #c9cec7">
+<tr><th style="width:32%">チェック</th><th style="width:68%">内容</th></tr>
+<tr><td>文書の階層と参照</td><td>上位の文書が下位を参照しないか。リンクと節の名前が在るか</td></tr>
+<tr><td>時期に依る記述</td><td>「現状は」「当面」や日付のように、時間がたつと正しくなくなる記述が無いか</td></tr>
+<tr><td>コピーの一致</td><td>スキルの原本とインストール済みのコピーが同じか</td></tr>
+<tr><td>スキルの索引</td><td>AGENTS.md と README.md のスキルの一覧が、実在するスキルと合うか</td></tr>
+<tr><td>ディレクトリの構成</td><td>1 つのディレクトリの直下のファイルが多すぎないか</td></tr>
+</table>
+</section>

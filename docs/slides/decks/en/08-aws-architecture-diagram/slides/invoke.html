@@ -1,0 +1,17 @@
+<section id="invoke" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">How to invoke</h2>
+<p style="font-size:36px;font-weight:500;line-height:1.5">You run setup the first time, then update to regenerate diagrams.</p>
+<div style="display:flex;flex-direction:row;gap:48px;align-items:start">
+<ul style="flex:1.4;font-size:30px;line-height:1.7">
+<li>setup: decides the diagram location, icons, and environments with the user, and draws the first diagram</li>
+<li>update: applies source changes to the spec and regenerates the SVG</li>
+<li>Without --env, it regenerates every environment. Only changed diagrams show a diff</li>
+<li>--from points to the IaC path to use as the source</li>
+</ul>
+<div style="flex:1;display:flex;flex-direction:column;gap:12px">
+<p style="font-size:24px;font-weight:600;color:#5b6670">How to invoke</p>
+<p style="font-family:'IBM Plex Mono', 'Courier New', monospace;font-size:28px;line-height:1.5;background:#ffffff;padding:24px;border:1px solid #c9cec7;border-radius:8px">aws-architecture-diagram<br>  setup --from &lt;IaC path&gt;<br>aws-architecture-diagram<br>  update --env &lt;env&gt;</p>
+<p style="font-size:24px;line-height:1.5;color:#5b6670">You can also ask "Draw an architecture diagram from CDK" or "Update the architecture diagram"</p>
+</div>
+</div>
+</section>

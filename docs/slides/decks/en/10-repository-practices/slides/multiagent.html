@@ -1,0 +1,11 @@
+<section id="multiagent" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">Sharing across agents</h2>
+<p style="font-size:36px;font-weight:500;line-height:1.5">Claude Code, Codex, and GitHub Copilot read the same skills, rules, and docs.</p>
+<table style="font-size:26px;color:#17202a;background:#ffffff;border:1px solid #c9cec7">
+<tr><th style="width:24%">Target</th><th style="width:76%">How it is shared</th></tr>
+<tr><td>Docs</td><td>AGENTS.md holds the shared content, and CLAUDE.md only imports it</td></tr>
+<tr><td>Skills</td><td>The files live in .agents/skills/, and .claude/skills/ links to them</td></tr>
+<tr><td>Rules</td><td>The files live in .agents/rules/, and .claude/rules/ and .github/instructions/ link to them</td></tr>
+</table>
+<p style="font-size:26px;line-height:1.5;color:#5b6670">This repository uses the same layout that multiagent-setup (Chapter 2) creates.</p>
+</section>

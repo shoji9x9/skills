@@ -1,0 +1,18 @@
+<section id="notes" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">Notes</h2>
+<div style="display:flex;flex-direction:row;gap:24px;align-items:stretch">
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#ffffff;padding:40px;border:1px solid #c9cec7;border-radius:16px">
+<p style="font-size:24px;font-weight:600;color:#5b6670">After a write</p>
+<p style="font-size:30px;line-height:1.6">The agent reads the item back and checks the id and modified time.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#ffffff;padding:40px;border:1px solid #c9cec7;border-radius:16px">
+<p style="font-size:24px;font-weight:600;color:#5b6670">Rate limits and server errors</p>
+<p style="font-size:30px;line-height:1.6">It reads Retry-After and retries, doubling the wait each time.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#ffffff;padding:40px;border:1px solid #c9cec7;border-radius:16px">
+<p style="font-size:24px;font-weight:600;color:#5b6670">Access only via shared link</p>
+<p style="font-size:30px;line-height:1.6">For folders you can reach only through a shared link, it adds the BoxApi header.</p>
+</div>
+</div>
+<p style="font-size:26px;line-height:1.5;color:#5b6670">This skill is used on its own. No other skill calls it.</p>
+</section>

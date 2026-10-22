@@ -1,0 +1,31 @@
+<section id="structure" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">構成の要点</h2>
+<div style="display:flex;flex-direction:row;gap:24px;align-items:start">
+<div style="width:680px;display:flex;flex-direction:column;gap:24px">
+<div style="height:200px;display:flex;flex-direction:column;gap:8px;background:#ffffff;padding:20px 24px;border:1px solid #c9cec7;border-radius:8px">
+<p style="font-size:24px;font-weight:600;color:#5b6670">Claude Code</p>
+<p style="font-family:'IBM Plex Mono', 'Courier New', monospace;font-size:24px;line-height:1.5">.claude/skills/&lt;name&gt;<br>.claude/rules/&lt;name&gt;.md<br>CLAUDE.md（差分だけ）</p>
+</div>
+<div style="height:200px;display:flex;flex-direction:column;gap:8px;background:#ffffff;padding:20px 24px;border:1px solid #c9cec7;border-radius:8px">
+<p style="font-size:24px;font-weight:600;color:#5b6670">GitHub Copilot</p>
+<p style="font-family:'IBM Plex Mono', 'Courier New', monospace;font-size:24px;line-height:1.5">.github/instructions/&lt;name&gt;.instructions.md<br>.github/copilot-instructions.md（差分だけ）</p>
+</div>
+<div style="height:200px;display:flex;flex-direction:column;gap:8px;background:#ffffff;padding:20px 24px;border:1px solid #c9cec7;border-radius:8px">
+<p style="font-size:24px;font-weight:600;color:#5b6670">Codex</p>
+<p style="font-family:'IBM Plex Mono', 'Courier New', monospace;font-size:24px;line-height:1.5">.agents/skills/ を直接読む<br>AGENTS.md を直接読む</p>
+</div>
+</div>
+<svg aria-label="各エージェントの置き場所から、.agents/ の実体を参照する矢印" width="140" height="648" viewBox="0 0 140 648" style="width:140px;height:648px">
+<defs><marker id="h" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#1f5fbf" stroke="none"/></marker></defs>
+<path d="M 8 100 L 124 100" fill="none" stroke="#1f5fbf" stroke-width="4" marker-end="url(#h)"/>
+<path d="M 8 324 L 124 324" fill="none" stroke="#1f5fbf" stroke-width="4" marker-end="url(#h)"/>
+<path d="M 8 548 L 124 548" fill="none" stroke="#1f5fbf" stroke-width="4" marker-end="url(#h)"/>
+</svg>
+<div style="flex:1;height:648px;display:flex;flex-direction:column;gap:24px;background:#ffffff;padding:32px;border:3px solid #1f5fbf;border-radius:16px">
+<p style="font-size:24px;font-weight:600;color:#1f5fbf">実体は 1 か所</p>
+<p style="font-family:'IBM Plex Mono', 'Courier New', monospace;font-size:28px;line-height:1.6">AGENTS.md<br>.agents/skills/&lt;name&gt;/<br>.agents/rules/&lt;name&gt;.md<br>.agents/hooks/scripts/</p>
+<p style="font-size:30px;line-height:1.6">各エージェントの置き場所からは、シンボリックリンクで参照する。</p>
+<p style="font-size:30px;line-height:1.6">Hook は、各エージェントの設定ファイルから共通のスクリプトを呼ぶ。</p>
+</div>
+</div>
+</section>

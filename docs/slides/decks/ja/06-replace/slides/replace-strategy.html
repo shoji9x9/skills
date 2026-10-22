@@ -1,0 +1,16 @@
+<section id="replace-strategy" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">replace-strategy</h2>
+<p style="font-size:36px;font-weight:500;line-height:1.5">現行を測って戦略を決め、機能に分けて姉妹スキルに振り分ける。自分では実装しない。</p>
+<div style="display:flex;flex-direction:row;gap:48px;align-items:start">
+<ul style="flex:1.4;font-size:30px;line-height:1.7">
+<li>現行アプリを測って戦略を決める。測れなければ止まる</li>
+<li>仕様は、実行ログ → ソースコード → API → UI の順に、費用の低い方法から確かめる</li>
+<li>機能に分け、依存の順に Issue を起票する（起票は issue-create に任せる）</li>
+<li>status で、Issue と成果物から今の状況と未検証の領域を示す</li>
+</ul>
+<div style="flex:1;display:flex;flex-direction:column;gap:12px">
+<p style="font-size:24px;font-weight:600;color:#5b6670">呼び出し方</p>
+<p style="font-family:'IBM Plex Mono', 'Courier New', monospace;font-size:28px;line-height:1.5;background:#ffffff;padding:24px;border:1px solid #c9cec7;border-radius:8px">replace-strategy setup<br>replace-strategy issues<br>replace-strategy status</p>
+</div>
+</div>
+</section>

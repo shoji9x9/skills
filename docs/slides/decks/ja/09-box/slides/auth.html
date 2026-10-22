@@ -1,0 +1,10 @@
+<section id="auth" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">認証</h2>
+<p style="font-size:36px;font-weight:500;line-height:1.5">設定した環境変数によって、2 つの方式のどちらかを使う。</p>
+<table style="font-size:26px;color:#17202a;background:#ffffff;border:1px solid #c9cec7">
+<tr><th style="width:22%">方式</th><th style="width:78%">特徴</th></tr>
+<tr><td>Dev Token</td><td>Box Developer Console で発行する、60 分有効なトークン。すぐ使えて管理者の承認は要らないが、期限が切れるたびに発行し直す</td></tr>
+<tr><td>OAuth refresh</td><td>refresh token から、access token をそのつど取得する。長く使える。refresh token は使うたびに変わるので、スクリプトが保存し直す。最初の 1 回だけ、人が認可の手順を行う</td></tr>
+</table>
+<p style="font-size:26px;line-height:1.5;color:#5b6670">トークン・client secret・refresh token は、環境変数かリポジトリの外のファイルで管理する。エージェントは値をログや出力に書かず、利用者が示した値も繰り返さない。</p>
+</section>

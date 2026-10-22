@@ -1,0 +1,15 @@
+{
+  "languages": ["ja", "en"],
+  "chapters": [
+    "01-overview",
+    "02-multiagent-setup",
+    "03-writing-style",
+    "04-issue-to-merge",
+    "05-dependencies",
+    "06-replace",
+    "07-browser-test",
+    "08-aws-architecture-diagram",
+    "09-box",
+    "10-repository-practices"
+  ]
+}

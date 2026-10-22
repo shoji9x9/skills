@@ -1,0 +1,21 @@
+<section id="triage" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">Split by whether work can start now</h2>
+<div style="display:flex;flex-direction:row;gap:24px;align-items:stretch">
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#ffffff;padding:40px;border:1px solid #c9cec7;border-radius:16px">
+<p style="font-size:24px;font-weight:600;color:#1f5fbf">Can start now</p>
+<p style="font-size:30px;line-height:1.6">Updating the manifest moves to the fixed version.</p>
+<p style="font-size:24px;font-weight:600;color:#5b6670">Grouping</p>
+<p style="font-size:30px;line-height:1.6">One issue per severity</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#ffffff;padding:40px;border:1px solid #c9cec7;border-radius:16px">
+<p style="font-size:24px;font-weight:600;color:#1f5fbf">Cannot start yet</p>
+<ul style="font-size:30px;line-height:1.6">
+<li>No fixed version is released</li>
+<li>The fix was released too recently</li>
+<li>A parent dependency pins the version</li>
+</ul>
+<p style="font-size:24px;font-weight:600;color:#5b6670">Grouping</p>
+<p style="font-size:30px;line-height:1.6">One issue per package and fixed version, with the conditions for starting work</p>
+</div>
+</div>
+</section>

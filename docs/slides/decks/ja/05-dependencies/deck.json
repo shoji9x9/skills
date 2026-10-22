@@ -1,0 +1,44 @@
+{
+  "v": 4,
+  "createdOnFiles": { "v": 1, "at": "2026-10-22T12:00:00Z" },
+  "lists": "css",
+  "title": "第 5 章 依存の更新と脆弱性",
+  "cover": "cover",
+  "order": [
+    "cover",
+    "problem",
+    "dependabot-merge",
+    "merge-judge",
+    "dependabot-alert-issue",
+    "triage",
+    "config",
+    "human",
+    "output",
+    "next"
+  ],
+  "sections": {
+    "s1": { "description": "困りごと", "start": "cover" },
+    "s2": { "description": "依存の更新 PR を判断してマージする", "start": "dependabot-merge" },
+    "s3": { "description": "脆弱性から解消の Issue を作る", "start": "dependabot-alert-issue" },
+    "s4": { "description": "設定・人が判断する点・成果物・つながるスキル", "start": "config" }
+  },
+  "faces": {
+    "ibm-plex-sans-jp": {
+      "family": "IBM Plex Sans JP",
+      "href": "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap"
+    },
+    "ibm-plex-mono": {
+      "family": "IBM Plex Mono",
+      "href": "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap"
+    }
+  },
+  "designSystems": [
+    {
+      "title": "shoji9x9 Skills",
+      "namespace": "shoji9x9skills",
+      "artifact": "https://claude.ai/artifact/QpiRXnJkvxeKg5dceqA325",
+      "version": "1792660505-b42b",
+      "copiedAt": "2026-10-22T12:00:00Z"
+    }
+  ]
+}
