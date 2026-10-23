@@ -72,7 +72,7 @@
       "id": "AO-FILL-SKIP",
       "why": "fill_only_columns の列の未記入セルも単位にする（空欄を埋める正規の編集が縮小に化ける）",
       "file": "skills/replace-strategy/scripts/append-only-check.mjs",
-      "find": "          if (fillOnly.has(column) && cell === \"\") continue;\n",
+      "find": "    if (md.fillOnly.has(column) && cell === \"\") continue;\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
@@ -121,7 +121,7 @@
       "id": "AO-FILL-PASS",
       "why": "一覧の fill_only_columns を markdownUnits へ渡さない",
       "file": "skills/replace-strategy/scripts/append-only-check.mjs",
-      "find": "      artifact.fillOnlyColumns ?? [],\n",
+      "find": "      fillOnlyColumns: artifact.fillOnlyColumns ?? [],\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
@@ -133,8 +133,8 @@
       "id": "AO-FILL-OVERLAP",
       "why": "同じ列を mutable_columns と fill_only_columns の両方に書いた一覧を受理する",
       "file": "skills/replace-strategy/scripts/append-only-check.mjs",
-      "find": "        if (overlap.length > 0) {",
-      "replace": "        if (false) {",
+      "find": "  if (overlap.length > 0) {",
+      "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "fill_only_columns の宣言の誤り（同じ列が両方にある）は exit 2",
@@ -145,8 +145,8 @@
       "id": "AO-FILL-OVERLAP-STAR",
       "why": "mutable_columns の * と fill_only_columns の重なりを見逃す",
       "file": "skills/replace-strategy/scripts/append-only-check.mjs",
-      "find": "        const overlap = mutableColumns.includes(\"*\")",
-      "replace": "        const overlap = false",
+      "find": "  const overlap = mutableColumns.includes(\"*\")",
+      "replace": "  const overlap = false",
       "occurrences": 1,
       "expect_failing": [
         "fill_only_columns の宣言の誤り（mutable_columns が * で fill_only_columns がある）は exit 2"
@@ -156,8 +156,8 @@
       "id": "AO-FILL-STAR",
       "why": "fill_only_columns の * を受理する",
       "file": "skills/replace-strategy/scripts/append-only-check.mjs",
-      "find": "        if (fillOnlyColumns.includes(\"*\")) {",
-      "replace": "        if (false) {",
+      "find": "  if (fillOnlyColumns.includes(\"*\")) {",
+      "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": ["fill_only_columns の宣言の誤り（fill_only_columns に *）は exit 2"]
     },
@@ -165,8 +165,8 @@
       "id": "AO-FILL-UNIT",
       "why": "unit が lines の項目の fill_only_columns を受理する（黙って効かない）",
       "file": "skills/replace-strategy/scripts/append-only-check.mjs",
-      "find": "      if (a.fill_only_columns !== undefined && a.fill_only_columns !== null) {\n        if (unit !== \"markdown-structure\") {",
-      "replace": "      if (a.fill_only_columns !== undefined && a.fill_only_columns !== null) {\n        if (false) {",
+      "find": "    name: \"fill_only_columns\",\n    units: MARKDOWN_ONLY,",
+      "replace": "    name: \"fill_only_columns\",\n    units: UNITS,",
       "occurrences": 1,
       "expect_failing": [
         "unit が lines なのに fill_only_columns があれば合格として扱わない（exit 2）"
@@ -176,7 +176,7 @@
       "id": "AO-FILL-JSON",
       "why": "unit が json-arrays の項目の fill_only_columns を受理する",
       "file": "skills/replace-strategy/scripts/append-only-check.mjs",
-      "find": "        a.fill_only_columns !== undefined ||\n",
+      "find": "    a.fill_only_columns !== undefined ||\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
@@ -187,7 +187,7 @@
       "id": "AO-FILL-ASSIGN",
       "why": "同じファイルに当たった項目の fill_only_columns の食い違いを見逃す（先勝ちで緩い方が採られうる）",
       "file": "skills/replace-strategy/scripts/append-only-check.mjs",
-      "find": "      prev.fillOnlyColumns.join(\",\") !== artifact.fillOnlyColumns.join(\",\") ||\n",
+      "find": "    prev.fillOnlyColumns.join(\",\") !== artifact.fillOnlyColumns.join(\",\") ||\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
@@ -198,8 +198,8 @@
       "id": "AO-HINT-SUPPRESS",
       "why": "比較元側の案内が現在側の案内を抑止する（閉じ直せば通るコンテナが名指しされない。#432）",
       "file": "skills/replace-strategy/scripts/append-only-check.mjs",
-      "find": "        (afterOnly.length === 0\n",
-      "replace": "        (afterOnly.length === 0 || blamedBefore.size > 0\n",
+      "find": "    (afterOnly.length === 0\n",
+      "replace": "    (afterOnly.length === 0 || blamedBefore.size > 0\n",
       "occurrences": 1,
       "expect_failing": [
         "比較元側と現在側の両方に読めないコンテナがあると、現在側のキーパスも名指しする"
@@ -209,8 +209,8 @@
       "id": "AO-HINT-SAME-PATH",
       "why": "両側に帰属した同じ鍵にも「閉じ括弧を補う」を出す（閉じ直しても比較元の行は戻らない）",
       "file": "skills/replace-strategy/scripts/append-only-check.mjs",
-      "find": "      const afterOnly = [...blamedAfter].filter((path) => !blamedBefore.has(path));\n",
-      "replace": "      const afterOnly = [...blamedAfter];\n",
+      "find": "  const afterOnly = [...blamedAfter].filter((path) => !blamedBefore.has(path));\n",
+      "replace": "  const afterOnly = [...blamedAfter];\n",
       "occurrences": 1,
       "expect_failing": ["同じ鍵が比較元側と現在側の両方に帰属したら、比較元側の案内だけを出す"]
     },
@@ -232,8 +232,8 @@
       "id": "AO-HINT-MUTABLE-UNREGISTERED",
       "why": "mutable_blocks の読めないコンテナを登録しない（鍵と同じインデントの要素行の消失にも案内が出ない）",
       "file": "skills/replace-strategy/scripts/append-only-check.mjs",
-      "find": "        indent,\n        wrappedOut,\n        // **接頭辞は渡さない**",
-      "replace": "        indent,\n        [],\n        // **接頭辞は渡さない**",
+      "find": "    wrappedOut: st.wrappedOut,\n    // **接頭辞は渡さない**",
+      "replace": "    wrappedOut: [],\n    // **接頭辞は渡さない**",
       "occurrences": 1,
       "expect_failing": ["mutable_blocks: 鍵と同じインデントの要素行が失われたときだけ案内が出る"]
     },
@@ -241,8 +241,8 @@
       "id": "AO-PIN-NOAPPEND",
       "why": "履歴を追記せずに固定した値を変えた変更を落とさない",
       "file": "skills/replace-strategy/scripts/append-only-check.mjs",
-      "find": "    if (changed.length > 0 && !appended) {",
-      "replace": "    if (false) {",
+      "find": "  if (changed.length > 0 && !appended) {",
+      "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "履歴を追記せずに floors を緩めると落ちる",
@@ -257,8 +257,8 @@
       "id": "AO-PIN-LAST-MATCH",
       "why": "履歴の最後の要素が今の値と合うかを見ない",
       "file": "skills/replace-strategy/scripts/append-only-check.mjs",
-      "find": "      if (canonicalJson(last[field]) === canonicalJson(atPath(after, p))) continue;",
-      "replace": "      if (true) continue;",
+      "find": "    if (canonicalJson(last[field]) === canonicalJson(atPath(after, p))) continue;",
+      "replace": "    if (true) continue;",
       "occurrences": 1,
       "expect_failing": ["履歴だけを追記して、最後の要素が今の値と合わなければ落ちる"]
     },
@@ -266,8 +266,8 @@
       "id": "AO-PIN-LAST-OBJ",
       "why": "履歴の最後の要素がオブジェクトでなくても区別しない",
       "file": "skills/replace-strategy/scripts/append-only-check.mjs",
-      "find": "    if (!isPlainObject(last)) {",
-      "replace": "    if (false) {",
+      "find": "  if (!isPlainObject(last)) {",
+      "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": ["履歴の最後の要素がオブジェクトでなければ落ちる"]
     },
@@ -275,8 +275,8 @@
       "id": "AO-PIN-HIST-LOST",
       "why": "履歴の既存の要素が減ったことを区別しない",
       "file": "skills/replace-strategy/scripts/append-only-check.mjs",
-      "find": "      if (i >= nowHistory.length) {",
-      "replace": "      if (false) {",
+      "find": "    if (i >= nowHistory.length) {",
+      "replace": "    if (false) {",
       "occurrences": 1,
       "expect_failing": ["履歴の既存の要素を消すと落ちる（下限を変えないときも）"]
     },
@@ -284,8 +284,8 @@
       "id": "AO-PIN-HIST-REWRITE",
       "why": "履歴の既存の要素の書き換えを落とさない",
       "file": "skills/replace-strategy/scripts/append-only-check.mjs",
-      "find": "      if (canonicalJson(element) !== canonicalJson(nowHistory[i])) {",
-      "replace": "      if (false) {",
+      "find": "    if (canonicalJson(element) !== canonicalJson(nowHistory[i])) {",
+      "replace": "    if (false) {",
       "occurrences": 1,
       "expect_failing": ["履歴の既存の要素を書き換えると落ちる"]
     },
@@ -302,8 +302,8 @@
       "id": "AO-PIN-CHECK-CALL",
       "why": "check が pinned_values の検出を findings に入れない",
       "file": "skills/replace-strategy/scripts/append-only-check.mjs",
-      "find": "      for (const finding of pinned) findings.push(`${finding}: ${file}`);",
-      "replace": "      void pinned;",
+      "find": "    for (const finding of pinned) findings.push(`${finding}: ${file}`);",
+      "replace": "    void pinned;",
       "occurrences": 1,
       "expect_failing": [
         "履歴を追記せずに floors を緩めると落ちる",
@@ -349,8 +349,8 @@
       "id": "AO-PIN-UNIT-REJECT",
       "why": "json-arrays 以外の unit の pinned_values を受け付けてしまう",
       "file": "skills/replace-strategy/scripts/append-only-check.mjs",
-      "find": "      if (a.pinned_values !== undefined) {",
-      "replace": "      if (false) {",
+      "find": "  if (a.pinned_values !== undefined) {",
+      "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "unit が json-arrays でないのに pinned_values があれば合格として扱わない（exit 2）"
@@ -360,8 +360,8 @@
       "id": "AO-PIN-ASSIGN",
       "why": "同じファイルに当たる 2 項目の pinned_values の食い違いを見ない",
       "file": "skills/replace-strategy/scripts/append-only-check.mjs",
-      "find": "      canonicalJson(prev.pinnedValues) !== canonicalJson(artifact.pinnedValues)",
-      "replace": "      false",
+      "find": "    canonicalJson(prev.pinnedValues) !== canonicalJson(artifact.pinnedValues)",
+      "replace": "    false",
       "occurrences": 1,
       "expect_failing": [
         "同じファイルに当たる 2 項目で pinned_values だけ違えば合格として扱わない（exit 2）"
@@ -371,8 +371,8 @@
       "id": "AO-PIN-APPENDED-OBJ",
       "why": "同じ変更で追記した途中の要素の形を見ない",
       "file": "skills/replace-strategy/scripts/append-only-check.mjs",
-      "find": "      if (!isPlainObject(nowHistory[k])) {",
-      "replace": "      if (false) {",
+      "find": "    if (!isPlainObject(nowHistory[k])) {",
+      "replace": "    if (false) {",
       "occurrences": 1,
       "expect_failing": ["同じ変更で追記した途中の要素がオブジェクトでなければ落ちる"]
     },
@@ -392,8 +392,8 @@
       "id": "AO-JT-COMMENT",
       "why": "jsonc-tree でコメントを単位にしない（コメントを消しても通る）",
       "file": "skills/replace-strategy/scripts/append-only-check.mjs",
-      "find": "    if (body !== \"\") add(`<comment> ${body}`);",
-      "replace": "    if (false) add(`<comment> ${body}`);",
+      "find": "    if (body !== \"\") tree.add(`<comment> ${body}`);",
+      "replace": "    if (false) tree.add(`<comment> ${body}`);",
       "occurrences": 1,
       "expect_failing": [
         "jsonc-tree: コメントを消す は落とす",
@@ -416,8 +416,8 @@
       "id": "AO-JT-SCALAR",
       "why": "jsonc-tree でスカラの値を単位にしない（値を書き換えても通る）",
       "file": "skills/replace-strategy/scripts/append-only-check.mjs",
-      "find": "    add(`${path} = ${JSON.stringify(v)}`);",
-      "replace": "    void path;",
+      "find": "  tree.add(`${at.path} = ${JSON.stringify(v)}`);",
+      "replace": "  void at;",
       "occurrences": 1,
       "expect_failing": [
         "jsonc-tree: スカラの値を書き換える は落とす",
@@ -431,8 +431,8 @@
       "id": "AO-JT-BLOCKS",
       "why": "jsonc-tree で mutable_blocks の配下を外さない",
       "file": "skills/replace-strategy/scripts/append-only-check.mjs",
-      "find": "        if (exact && blockSet.has(p)) continue;",
-      "replace": "        if (false) continue;",
+      "find": "  if (at.exact && tree.blockSet.has(p)) return;",
+      "replace": "  if (false) return;",
       "occurrences": 1,
       "expect_failing": [
         "jsonc-tree: 一覧の registry_groups・growable_containers・mutable_blocks を受け付け、mutable_blocks の配下を単位から外す"
@@ -442,8 +442,8 @@
       "id": "AO-JT-REGISTRY",
       "why": "jsonc-tree で registry_groups を展開しない（pending の文言を keep へ移すと縮小と判定される）",
       "file": "skills/replace-strategy/scripts/append-only-check.mjs",
-      "find": "        const group = exact ? registryOf.get(p) : undefined;",
-      "replace": "        const group = undefined;",
+      "find": "  const group = at.exact ? tree.registryOf.get(p) : undefined;",
+      "replace": "  const group = undefined;",
       "occurrences": 1,
       "expect_failing": [
         "jsonc-tree: pending の文言を keep へ移す（付随する欄と、要素の行末コメントは移動先に無い） は通す",

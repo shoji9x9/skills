@@ -11,8 +11,8 @@
       "id": "missing-revision-as-latest",
       "why": "改訂番号を持たない成果物（導入前）を最新の手順で作ったとみなし、どの改訂の対象にもしない",
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "      procedureRevision = 0;\n",
-      "replace": "      procedureRevision = latestRevision;\n",
+      "find": "    return 0;\n",
+      "replace": "    return latestRevision;\n",
       "occurrences": 1,
       "expect_failing": [
         "改訂番号を持たない成果物は、スキルのすべての改訂について未判断として落とす",
@@ -23,8 +23,8 @@
       "id": "affects-ignored",
       "why": "改訂の affects を見ず、対象外の mode の機能まで旧手順として出す",
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "      if (!change.affects.includes(entry.mode)) continue;\n      if (entry.procedure_revision === null) continue;",
-      "replace": "      if (entry.procedure_revision === null) continue;",
+      "find": "    if (!change.affects.includes(mode)) continue;\n    if (entry.procedure_revision === null) continue;",
+      "replace": "    if (entry.procedure_revision === null) continue;",
       "occurrences": 1,
       "expect_failing": [
         "成果物の改訂より新しい改訂だけが対象になり、affects に無い mode は対象にしない"
@@ -34,8 +34,8 @@
       "id": "same-day-excluded",
       "why": "追加日と同じ日に作った成果物を追加後とみなして対象から外す（当てたかを日付で決められないのに合格に倒す）",
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "      if (entry.finished_on <= change.added_at) {\n",
-      "replace": "      if (entry.finished_on < change.added_at) {\n",
+      "find": "    if (entry.finished_on <= change.added_at) {\n",
+      "replace": "    if (entry.finished_on < change.added_at) {\n",
       "occurrences": 1,
       "expect_failing": [
         "プロジェクト側で足した軸は、追加日以前（同じ日を含む）に作った成果物を対象にし、後のものは対象にしない",
@@ -46,8 +46,8 @@
       "id": "in-progress-counted-resolved",
       "why": "見直し中の記録を判断済みとして数え、置き場で追っているだけの機能を解決扱いにする",
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "      } else if (record.decision === DECISIONS.inProgress) {\n",
-      "replace": "      } else if (false) {\n",
+      "find": "  } else if (record.decision === DECISIONS.inProgress) {\n",
+      "replace": "  } else if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
         "当て直し済み・当てないの記録で解決し、見直し中は未解決のまま残す",
@@ -90,8 +90,8 @@
       "id": "unreadable-finished-at-skipped",
       "why": "終了日時を読めない成果物をプロジェクト側の変更の対象外に倒し、判定不能を合格にする",
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "        undeterminable.push({\n          slug: entry.slug,\n          change: change.id,\n",
-      "replace": "        if (false) undeterminable.push({\n          slug: entry.slug,\n          change: change.id,\n",
+      "find": "      undeterminable.push({\n        slug: entry.slug,\n        change: change.id,\n",
+      "replace": "      if (false) undeterminable.push({\n        slug: entry.slug,\n        change: change.id,\n",
       "occurrences": 1,
       "expect_failing": ["成果物を読めず対象かを決められない機能は合格として扱わず exit 3 にする"]
     },
@@ -99,10 +99,13 @@
       "id": "undeterminable-exit-zero",
       "why": "判定不能だけが残る実行を exit 0 にする",
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "        ? 3\n",
-      "replace": "        ? 0\n",
+      "find": "      ? 3\n",
+      "replace": "      ? 0\n",
       "occurrences": 1,
-      "expect_failing": ["成果物を読めず対象かを決められない機能は合格として扱わず exit 3 にする"]
+      "expect_failing": [
+        "成果物を読めず対象かを決められない機能は合格として扱わず exit 3 にする",
+        "metadata.json が循環したシンボリックリンクなら、リンク先の無いシンボリックリンクとして判定不能に残す"
+      ]
     },
     {
       "id": "orphan-rows-ignored",
@@ -130,8 +133,8 @@
       "id": "parity-dir-missing-passes",
       "why": "成果物の置き場を読めない実行（無い・綴り違い）を空として通し、cwd の誤りで合格を出す",
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "    return fail(`${parityDir} を読めない: ${errorMessage(error)}`);\n",
-      "replace": "    artifacts = { slugs: [] };\n",
+      "find": "    return { code: fail(`${parityDir} を読めない: ${errorMessage(error)}`) };\n",
+      "replace": "    return { slugs: [] };\n",
       "occurrences": 1,
       "expect_failing": [
         "成果物の置き場・台帳を読めないときは合格としても未判断としても扱わず exit 2 にする"
@@ -199,8 +202,8 @@
       "id": "slug-mismatch-accepted",
       "why": "置き場と成果物の slug の食い違いを見ず、別の機能の成果物をこの機能として旧手順判定する",
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "    if (meta.slug !== name) {\n",
-      "replace": "    if (false) {\n",
+      "find": "  if (meta.slug !== name) {\n",
+      "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["成果物を読めず対象かを決められない機能は合格として扱わず exit 3 にする"]
     },
@@ -235,17 +238,20 @@
       "id": "dangling-metadata-skipped",
       "why": "metadata.json が壊れたリンクの機能を特性化前として黙って外す",
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "      if (linked) {\n",
-      "replace": "      if (false) {\n",
+      "find": "  if (metadataState === \"dangling-link\") {\n    return unreadableArtifact(name, \"metadata.json がリンク先の無いシンボリックリンク\");\n  }\n  if (metadataState === \"unreadable\") {\n    return unreadableArtifact(name, \"metadata.json の有無を調べられない（権限が無いなど）\");\n  }\n  if (metadataState === \"missing\") return null;",
+      "replace": "  if (metadataState !== \"present\") return null;",
       "occurrences": 1,
-      "expect_failing": ["成果物を読めず対象かを決められない機能は合格として扱わず exit 3 にする"]
+      "expect_failing": [
+        "成果物を読めず対象かを決められない機能は合格として扱わず exit 3 にする",
+        "metadata.json が循環したシンボリックリンクなら、リンク先の無いシンボリックリンクとして判定不能に残す"
+      ]
     },
     {
       "id": "empty-artifacts-exit-zero",
       "why": "成果物を 1 つも数えていない実行を exit 0 にし、何も見ていないことを合格に見せる",
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "          ? 4\n",
-      "replace": "          ? 0\n",
+      "find": "        ? 4\n",
+      "replace": "        ? 0\n",
       "occurrences": 1,
       "expect_failing": [
         "成果物の置き場・台帳を読めないときは合格としても未判断としても扱わず exit 2 にする"
@@ -277,8 +283,8 @@
       "id": "non-directory-entry-skipped",
       "why": "slug の置き場がファイルに置き換わった機能を黙って飛ばす",
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "      if (!name.startsWith(\".\")) {\n",
-      "replace": "      if (false) {\n",
+      "find": "    if (name.startsWith(\".\")) return null;\n",
+      "replace": "    if (true) return null;\n",
       "occurrences": 1,
       "expect_failing": ["成果物を読めず対象かを決められない機能は合格として扱わず exit 3 にする"]
     },
@@ -286,8 +292,8 @@
       "id": "dangling-ledger-as-absent",
       "why": "壊れたシンボリックリンクの台帳を「台帳なし」として読み、記録された変更を黙って捨てる",
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "    if (linked) return fail(",
-      "replace": "    if (false) return fail(",
+      "find": "    if (ledgerState === \"dangling-link\")\n",
+      "replace": "    if (false)\n",
       "occurrences": 1,
       "expect_failing": [
         "成果物の置き場・台帳を読めないときは合格としても未判断としても扱わず exit 2 にする"
@@ -375,7 +381,7 @@
       "id": "explicit-ledger-missing-accepted",
       "why": "明示した --ledger の綴り違いを「台帳なし」として読み、台帳の未判断を黙って消す",
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "    if (args[\"--ledger\"] !== undefined) return fail(`--ledger に渡した ${ledgerPath} が無い`);\n",
+      "find": "    if (explicit) return { code: fail(`--ledger に渡した ${ledgerPath} が無い`) };\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": ["明示した --ledger が無いときは「台帳なし」として扱わず exit 2 にする"]
@@ -462,6 +468,41 @@
       "replace": "    if (false) return;",
       "occurrences": 1,
       "expect_failing": ["情報文字列の付いた行でフェンスを閉じず、フェンスの中の表の行を数えない"]
+    },
+    {
+      "id": "dangling-link-ignores-existing-target",
+      "why": "pathState がリンク先の有無を見ず、リンク先のある正常なシンボリックリンクも「リンク先の無いリンク」として扱う",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    statSync(path);\n    return \"present\";",
+      "replace": "    return lstatSync(path).isSymbolicLink() ? \"dangling-link\" : \"present\";",
+      "occurrences": 1,
+      "expect_failing": [
+        "pathState: ファイル・リンク先のあるリンクを present、リンク先の無いリンクを dangling-link、無いパスを missing にする"
+      ]
+    },
+    {
+      "id": "unreadable-path-as-missing",
+      "why": "権限が無くて stat できないパスを、無いパス（missing）として扱う（読めない成果物や台帳が判定から警告なしに外れる）",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "  return code === \"ENOENT\" || code === \"ENOTDIR\";",
+      "replace": "  return true;",
+      "occurrences": 1,
+      "expect_failing": [
+        "pathState: 権限が無くて調べられないパスを、無い（missing）ではなく unreadable にする",
+        "pathState: 循環したシンボリックリンクを、権限の問題（unreadable）ではなく dangling-link にする"
+      ]
+    },
+    {
+      "id": "loop-link-as-unreadable",
+      "why": "循環したシンボリックリンク（ELOOP）を、リンクかを見ずに unreadable にする。権限の問題に見え、直す場所を取り違える",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    const looped = errorCode(error) === \"ELOOP\";\n",
+      "replace": "    const looped = false;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "pathState: 循環したシンボリックリンクを、権限の問題（unreadable）ではなく dangling-link にする",
+        "metadata.json が循環したシンボリックリンクなら、リンク先の無いシンボリックリンクとして判定不能に残す"
+      ]
     }
   ]
 }

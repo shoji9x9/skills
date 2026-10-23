@@ -107,6 +107,18 @@ export default defineConfig({
         "typescript/no-non-null-assertion": "off",
       },
     },
+    {
+      // 配布スキルの、ページで実行するコード（page/*.page.mjs）。CLI が本文を関数式で包み、evaluate_script でページへ渡す。
+      // 本文は最後の行の export（本体）のほかに import も export も持たないので、宣言していない名前の参照は、
+      // ページで実行したときに初めて ReferenceError になる。
+      // そこで、ブラウザのグローバルだけを宣言済みとして no-undef を当て、参照の誤りを lint で見つける。
+      // 本体は最後の行で export するので、no-unused-vars はこの設定なしで本体を使われているものとして扱う。
+      files: ["skills/*/scripts/page/*.page.mjs"],
+      env: { browser: true },
+      rules: {
+        "no-undef": "error",
+      },
+    },
     // 既存の違反のうち、後で直すもの（ファイルごとに外すルール。scripts/gates/code/oxlint-pending.ts）。
     // oxlint-pending.test.ts は、直したのに一覧に残ったものを見つけるため、OXLINT_IGNORE_PENDING=1 で一覧を外して実行する。
     ...(process.env.OXLINT_IGNORE_PENDING === "1" ? [] : pendingOverrides(PENDING_FIXES)),

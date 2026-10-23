@@ -196,6 +196,28 @@ function listFiles(root, startRel) {
 }
 
 /**
+ * @typedef {{ id: string, itemKey: string, paths: string[] }} RegistryGroup
+ * @typedef {{ path: string, prefixes: string[], lines: string[] }} WrappedContainer
+ * @typedef {{ raw: string, trimmed: string, indent: number, structural: boolean }} YamlLine
+ * @typedef {{ li: number, raw: string, trimmed: string, key: string, path: string, indent: number }} YamlKeyLine
+ * @typedef {{ id: string, indent: number, itemKey: string, current: { body: string[], raw: string[] } | null }} RegistryReader
+ * @typedef {{
+ *   srcLines: string[],
+ *   li: number,
+ *   targets: Set<string>,
+ *   growableTargets: Set<string>,
+ *   registryPaths: Map<string, string>,
+ *   registryItemKeys: Map<string, string>,
+ *   wrappedOut: WrappedContainer[],
+ *   kept: string[],
+ *   stack: { indent: number, key: string }[],
+ *   excludeIndent: number | null,
+ *   scalarIndent: number | null,
+ *   registry: RegistryReader | null,
+ * }} YamlStripState
+ */
+
+/**
  * YAML のキーパス（ドット区切り）で指定したブロック（そのキーの行と配下）を外す。
  *
  * 追記専用の取り決めは「積み上げた決定を消さない」ことである。しかし、同じファイルに
@@ -227,275 +249,385 @@ function listFiles(root, startRel) {
  * アンカー・別名・複数の文書（`---`）・フロー形式の入れ子（`{ a: { b: [] } }`）は解釈しない。
  * 解釈できなかったパスは対象に一致しないので、**チェックは厳しい側（行が単位のまま）として扱われる**。
  * @param {string} text
- * @param {string[]} blocks 単位から外すキーパス。**ルート（文書の先頭）からの完全なパス**で書く。
+ * @param {{ blocks: string[], growable?: string[], registryGroups?: RegistryGroup[], wrappedOut?: WrappedContainer[] }} options
+ *   `blocks` は単位から外すキーパス。**ルート（文書の先頭）からの完全なパス**で書く。
  *   部分一致や末尾の一致では探さないので、実在の入れ子（例: skills.replace-strategy.intentional_diffs.pending）を書く。
- * @param {string[]} [growable] 要素ごとの単位に展開するキーパス（同じく、ルートからの完全なパス）。
- * @param {{ id: string, itemKey: string, paths: string[] }[]} [registryGroups] 鍵をまたぐ移動を許すグループ。
- * @param {{ path: string, prefixes: string[], lines: string[] }[]} [wrappedOut] 連結しても閉じない
- *   フロー形式のコンテナを積む先（診断用。どこに属するかを判定する材料を伴う）。
+ *   `growable` は要素ごとの単位に展開するキーパス（同じく、ルートからの完全なパス）。
+ *   `registryGroups` は鍵をまたぐ移動を許すグループ。
+ *   `wrappedOut` は連結しても閉じないフロー形式のコンテナを積む先（診断用。どこに属するかを判定する材料を伴う）。
  * @returns {string} 変換した後の行を、改行で連結したもの。
  */
-export function stripYamlBlocks(text, blocks, growable = [], registryGroups = [], wrappedOut = []) {
+export function stripYamlBlocks(text, options) {
+  const { blocks, growable = [], registryGroups = [], wrappedOut = [] } = options;
   if (blocks.length === 0 && growable.length === 0 && registryGroups.length === 0) return text;
-  // 実在の行と衝突しない形にする（YAML のキーにこの綴りは現れない）。
-  const targets = new Set(blocks.map((b) => b.trim()));
-  const growableTargets = new Set(growable.map((b) => b.trim()));
+  const st = newYamlStripState(text.split("\n"), { blocks, growable, registryGroups, wrappedOut });
+  for (st.li = 0; st.li < st.srcLines.length; st.li += 1) {
+    stripYamlLine(st, yamlLine(st.srcLines[st.li]));
+  }
+  flushRegistryItem(st);
+  return st.kept.join("\n");
+}
+
+/**
+ * stripYamlBlocks の走査の状態を作る。
+ * @param {string[]} srcLines
+ * @param {{ blocks: string[], growable: string[], registryGroups: RegistryGroup[], wrappedOut: WrappedContainer[] }} options
+ * @returns {YamlStripState}
+ */
+function newYamlStripState(srcLines, options) {
   /** @type {Map<string, string>} キーパス → グループ id */
   const registryPaths = new Map();
   /** @type {Map<string, string>} グループ id → 要素の照合キー */
   const registryItemKeys = new Map();
-  for (const group of registryGroups) {
+  for (const group of options.registryGroups) {
     registryItemKeys.set(group.id, group.itemKey);
     for (const path of group.paths) registryPaths.set(path.trim(), group.id);
   }
-  /**
-   * ブロック形式のレジストリを読み進めている状態。`current` は読みかけの要素の行である。
-   * `body` は畳んだ行（照合キーを探す対象）、`raw` は読めなかったときに単位へ戻す元の行である。
-   * @type {{ id: string, indent: number, itemKey: string, current: { body: string[], raw: string[] } | null } | null}
-   */
-  let registry = null;
-  /** 読みかけの要素を確定して単位へ落とす。 */
-  const flushRegistryItem = () => {
-    if (registry === null || registry.current === null) return;
-    const { body: lines, raw: rawLines } = registry.current;
-    registry.current = null;
-    const prefix = `${registry.itemKey}:`;
-    /** @type {string | null} */
-    let value = null;
-    for (const line of lines) {
-      const { code } = splitTrailingComment(line);
-      if (value === null && code.startsWith(prefix)) value = code.slice(prefix.length).trim();
-    }
-    // **要素の行末コメントは単位にしない**（キーの行のコメントは守るので、扱いが非対称になる）。
-    // 要素は鍵をまたいで移動する設計で、移動先（`keep: ["<文言>"]`）には注記の置き場所が無い。
-    // 守ると、注記の付いた要素を棚卸ししただけで、縮小と誤って判定される。注記の付いた要素の誤検出が再発し、
-    // 指示どおり復元すると保留の記録が消える。注記を消せることと引き換えに、正規の棚卸しを通す。
-    // 照合キーが見つからない要素は、素のスカラ（`- <文言>`）として読む。
-    if (value === null) {
-      const { code } = splitTrailingComment(lines[0] ?? "");
-      value = code;
-    }
-    // **1 行に収まっていない値は、読めたことにしない。** 照合キーの値が空（次の行以降へ続くプレーンな複数行のスカラー）、
-    // ブロックスカラーの指示子（`|`・`>`）、閉じない引用符のときは、`code.slice(prefix.length)` が本文を取りこぼす。
-    // 畳むと本文が単位から消え、**要素を丸ごと消しても、文言を正反対に差し替えても通る**。
-    // 実測では、main は exit 1、畳むと exit 0 になり、判定できないのに合格として扱っていた。要素の行は `kept` に戻らないので、行としても残らない。
-    // ここだけ緩い側（単位ゼロ）として扱っていたので、他の解釈できない場合と同じく、**集めた行をそのまま単位に戻す**。
-    // 厳しい側なので棚卸しの移動は通らなくなるが、`pending` の要素の形の原本は、1 行のスカラの鍵 4 つである。
-    if (!isSingleLineScalar(value)) {
-      for (const line of rawLines) kept.push(line);
-      return;
-    }
-    if (value !== "") kept.push(`${REGISTRY_ITEM_PREFIX}${registry.id}> ${unquote(value)}`);
+  return {
+    srcLines,
+    li: 0,
+    // 実在の行と衝突しない形にする（YAML のキーにこの綴りは現れない）。
+    targets: new Set(options.blocks.map((b) => b.trim())),
+    growableTargets: new Set(options.growable.map((b) => b.trim())),
+    registryPaths,
+    registryItemKeys,
+    wrappedOut: options.wrappedOut,
+    kept: [],
+    // 現在のキーパス
+    stack: [],
+    // 除外中のブロックを開いたキー行のインデント
+    excludeIndent: null,
+    // ブロックスカラーの本文を飛ばす基準インデント
+    scalarIndent: null,
+    // ブロック形式のレジストリを読み進めている状態。`current` は読みかけの要素の行である。
+    // `body` は畳んだ行（照合キーを探す対象）、`raw` は読めなかったときに単位へ戻す元の行である。
+    registry: null,
   };
-  /** @type {{ indent: number, key: string }[]} 現在のキーパス */
-  const stack = [];
-  /** @type {string[]} */
-  const kept = [];
-  /** @type {number | null} 除外中のブロックを開いたキー行のインデント */
-  let excludeIndent = null;
-  /** @type {number | null} ブロックスカラーの本文を飛ばす基準インデント */
-  let scalarIndent = null;
-  const srcLines = text.split("\n");
-  for (let li = 0; li < srcLines.length; li += 1) {
-    const raw = srcLines[li];
-    const trimmed = raw.trim();
-    const indent = raw.length - raw.trimStart().length;
-    // 空行・コメントは構造に属さないので**ブロックを閉じない**。閉じると、間にコメントを挟んだだけで
-    // 除外が切れ、続きの行が単位に戻る（設定ファイルのテンプレートは要素の書き方をコメントで示す）。
-    const structural = trimmed !== "" && !trimmed.startsWith("#");
-    if (scalarIndent !== null) {
-      if (structural && indent <= scalarIndent) scalarIndent = null;
-      else {
-        if (excludeIndent === null) kept.push(raw);
-        continue;
-      }
-    }
-    if (excludeIndent !== null) {
-      // 空行・コメントは**ブロックを閉じないが、単位からも落とさない**。落とすと、外した領域の後ろに続く
-      // コメント（次の構造行までは閉じないので配下として扱われる）を警告なしに消せるようになる。
-      // 設定ファイルの原本は「既存のキー・値・コメントは変更しない」を要求しているので、コメントは守る側に残す。
-      if (!structural) {
-        kept.push(raw);
-        continue;
-      }
-      // リスト要素は親キーと同じインデントに置けるので、`- ` で始まる同インデントの行は配下として扱う。
-      const listItem = trimmed === "-" || trimmed.startsWith("- ");
-      const closes = indent < excludeIndent || (indent === excludeIndent && !listItem);
-      if (!closes) continue;
-      excludeIndent = null;
-    }
-    if (registry !== null) {
-      if (!structural) {
-        kept.push(raw);
-        continue;
-      }
-      const listItem = trimmed === "-" || trimmed.startsWith("- ");
-      const closes = indent < registry.indent || (indent === registry.indent && !listItem);
-      if (!closes) {
-        if (listItem) {
-          flushRegistryItem();
-          registry.current = {
-            body: [trimmed === "-" ? "" : trimmed.slice(2).trim()],
-            raw: [raw],
-          };
-        } else if (registry.current !== null) {
-          // 要素の追随行。**照合キーは 1 行目とは限らない**（YAML のキー順は自由）ので、
-          // 要素の全行を集めてから探す。追随フィールド（`slug` / `added_by` 等）は
-          // 棚卸しの移動先に無いので単位にはしない。
-          registry.current.body.push(trimmed);
-          registry.current.raw.push(raw);
-        } else {
-          // リストではない構造（マッピング等）。解釈できないので**行のまま単位に残す**
-          // （捨てると配下を丸ごと消しても通る。他の解釈できない場合と同じく、厳しい側として扱う）。
-          kept.push(raw);
-        }
-        continue;
-      }
-      flushRegistryItem();
-      registry = null;
-    }
-    if (!structural) {
-      kept.push(raw);
-      continue;
-    }
-    while (stack.length > 0 && stack[stack.length - 1].indent >= indent) stack.pop();
-    const m = /^([A-Za-z0-9_.-]+):(\s.*|)$/.exec(trimmed);
-    // リスト要素（`- …`）は**マーカーを積む**。積まないと、その配下のキーが親のパスを継ぎ、
-    // `intentional_diffs:` がリストだった場合の `- name: a` 配下の `pending:` が
-    // `intentional_diffs.pending` として外れる（外しすぎ）。`-` はキーに現れないので衝突しない。
-    if (trimmed === "-" || trimmed.startsWith("- ")) {
-      stack.push({ indent, key: "-" });
-      kept.push(raw);
-      continue;
-    }
-    if (m === null) {
-      kept.push(raw);
-      continue;
-    }
-    const key = m[1];
-    const path = [...stack.map((s) => s.key), key].join(".");
-    stack.push({ indent, key });
-    if (targets.has(path)) {
-      // 配下は外すが、**キーが在り続けること自体は単位に残す**。行ごと外すと、キーを丸ごと消した破壊が
-      // 「外した領域」に紛れて通る。ただし行そのものを残すと表現の揺れ（`pending: []` ⇄ `pending:`）で落ちる。
-      // 棚卸しは要素が増える方向にも減る方向にも動くので、**鍵だけの単位へ畳む**。
-      kept.push(`${MUTABLE_BLOCK_PREFIX}${path}>`);
-      // 折り返したフロー値は**配下ごと消費する**。閉じ括弧の行は鍵と同じインデントに置けるので
-      // インデントによる除外が先に閉じ、1 行へ畳んだだけでその行（`] # c`）の単位が失われる。
-      // 外すのは配下の要素なので、要素行の行末注記は単位にしない（独立したコメント行と閉じる行の注記は残す。
-      // 除外中の空行・コメント行を単位に残す既存の扱いと揃う）。
-      const { comment } = splitTrailingComment(trimmed);
-      // **値の形で門番しない**。`flowValue !== ""` で絞ると、開き括弧が次の行にある形
-      // （フォーマッタが畳む形）がブロック形式の側として扱われ、閉じ括弧の行が素の行として単位になる。
-      // 形の判定は `readNamedFlow` が一手に持ち、ここは「フロー形式として読めたか（`block` でないか）」だけを見る。
-      const flow = readNamedFlow(
-        srcLines,
-        li,
-        trimmed,
-        key,
-        path,
-        indent,
-        wrappedOut,
-        // **接頭辞は渡さない**。mutable_blocks は配下を単位から外すので、この接頭辞が当たるのは
-        // 「鍵を丸ごと消した」ときだけ。当てると破壊に対して「表記を直しても通らない。内容を人が確認して通す」と
-        // 案内することになる。折り返しで失われうるのは読みに行った行（`lines`）の方なので、そちらだけで帰属する。
-        // **だから mutable_blocks で案内が出るのは、鍵と同じインデントに置いた要素行が失われたときだけ**
-        // （除外がそこで閉じて行のまま単位になる。深い要素行は除外されて失われない）。
-        // 鍵の行と閉じる行の注記は、独立した単位にするので帰属させず、案内も出さない。配下は単位から外すので、
-        // 比較元が読めなくても判定は成り立ち、例に出た注記を戻せば通る（実測: 閉じ忘れ・比較元が閉じていない、
-        // のどちらも注記を戻して exit 0。growable では同じ注記が読めない行のまま単位になるので案内が出る）。
-        [],
-        { keepItemComments: false },
-      );
-      if (flow.items !== null && !flow.block) {
-        for (const c of flow.comments) kept.push(c);
-        li = flow.last;
-        continue;
-      }
-      excludeIndent = indent;
-      // 行末コメントは畳まず単位に残す。一覧の requirement は「既存のキー・値・コメントは変更しない」で、
-      // 外すのは配下の**要素**だけ。畳むと、キーの行に付いた注記だけを警告なしに消せるようになる
-      // （別行のコメントは守られるので、残さないと同じファイルの中で非対称になる）。
-      if (comment !== "") kept.push(comment);
-      continue;
-    }
-    const registryId = registryPaths.get(path);
-    if (registryId !== undefined) {
-      const { items, comments, last, block } = readNamedFlow(
-        srcLines,
-        li,
-        trimmed,
-        key,
-        path,
-        indent,
-        wrappedOut,
-        // **要素の接頭辞（`<registry-item: <グループ id>>`）は渡さない**。鍵をまたぐ移動を許すため
-        // グループ共通で、鍵を区別できない（`keep` が読めないだけで `pending` の削除にまで案内が付く）。
-        // 読めなくなると鍵の単位（`<registry: パス>`）が失われるので、真の陽性はそちらで拾える。
-        [`${REGISTRY_PREFIX}${path}>`],
-        { keepItemComments: false },
-      );
-      // 読めない値・スカラは展開せず行のまま（厳しい側として扱う）。
-      if (items === null) {
-        kept.push(raw);
-        continue;
-      }
-      li = last;
-      // 鍵の存在は鍵ごとの単位で守り、要素は**グループ共通の単位**にする。
-      // 棚卸しで `pending` の文言が `keep` / `may_change` へ移るのは正規の運用なので鍵をまたいで同じ単位にし、
-      // どの鍵にも無くなった（警告なしに消された）ときだけ単位が失われるようにする。
-      kept.push(`${REGISTRY_PREFIX}${path}>`);
-      for (const c of comments) kept.push(c);
-      const flowItemKey = registryItemKeys.get(registryId) ?? "item";
-      for (const item of items) {
-        kept.push(`${REGISTRY_ITEM_PREFIX}${registryId}> ${registryItemValue(item, flowItemKey)}`);
-      }
-      // ブロック形式（`- …`）のときだけ要素の収集へ移る。開き括弧が次の行にあるフロー形式は
-      // readNamedFlow が連結して読み切っているので、ここで収集に入ると同じ要素を二重に数える。
-      if (block) {
-        registry = {
-          id: registryId,
-          indent,
-          itemKey: registryItemKeys.get(registryId) ?? "item",
-          current: null,
-        };
-      }
-      continue;
-    }
-    if (growableTargets.has(path)) {
-      const { items, comments, last } = readNamedFlow(
-        srcLines,
-        li,
-        trimmed,
-        key,
-        path,
-        indent,
-        wrappedOut,
-        // 育つコンテナは行末コメントの削除も落とす要求なので、要素行の注記も単位に残す。
-        [`${GROWABLE_PREFIX}${path}>`, `${GROWABLE_ITEM_PREFIX}${path}>`],
-        { keepItemComments: true },
-      );
-      if (items !== null) {
-        li = last;
-        // 鍵（＋行末コメント）と要素を別々の単位にする。要素を足すと単位が増えるだけで通り、
-        // 落とすと単位が失われて落ちる。値がフロー形式でない（ブロック形式・スカラ）ときは展開せず行のまま。
-        kept.push(`${GROWABLE_PREFIX}${path}>`);
-        // 行末コメントは**鍵の単位に連結せず独立した単位にする**。連結すると、同じ注記を上の行へ
-        // 出しただけの編集が「単位の消失」になり、mutable_blocks 側（独立した単位）と非対称になる。
-        for (const c of comments) kept.push(c);
-        for (const item of items) kept.push(`${GROWABLE_ITEM_PREFIX}${path}> ${item}`);
-        continue;
-      }
-    }
-    // ブロックスカラー指示子は `|2-` / `|-2` のようにインデント指示子とチョップ指示子が任意の順に付く。
-    // 取りこぼしても、**外れる側とは判定されない**。本文はスカラのキーの配下にあるので、本文行をキーとして
-    // 読んでもパスにそのキー名（`note.` 等）が入り、対象のキーパスとは一致しないため
-    // （実測で再現を作れなかったので回帰テストは置いていない。ここは仕様への準拠として直してある）。
-    if (/^[|>](?:[-+]?\d*|\d*[-+]?)$/.test(m[2].trim())) scalarIndent = indent;
-    kept.push(raw);
+}
+
+/**
+ * 1 行を、構造の判定に使う形にする。
+ *
+ * 空行・コメントは構造に属さないので**ブロックを閉じない**。閉じると、間にコメントを挟んだだけで
+ * 除外が切れ、続きの行が単位に戻る（設定ファイルのテンプレートは要素の書き方をコメントで示す）。
+ * @param {string} raw
+ * @returns {YamlLine}
+ */
+function yamlLine(raw) {
+  const trimmed = raw.trim();
+  return {
+    raw,
+    trimmed,
+    indent: raw.length - raw.trimStart().length,
+    structural: trimmed !== "" && !trimmed.startsWith("#"),
+  };
+}
+
+/**
+ * リスト要素（`- …`）の行か。
+ * @param {string} trimmed
+ * @returns {boolean}
+ */
+function isListItem(trimmed) {
+  return trimmed === "-" || trimmed.startsWith("- ");
+}
+
+/**
+ * 構造の行が、そのインデントで開いたブロックを閉じるか。
+ * リスト要素は親キーと同じインデントに置けるので、`- ` で始まる同インデントの行は配下として扱う。
+ * @param {YamlLine} line
+ * @param {number} blockIndent
+ * @returns {boolean}
+ */
+function closesBlock(line, blockIndent) {
+  return line.indent < blockIndent || (line.indent === blockIndent && !isListItem(line.trimmed));
+}
+
+/**
+ * 1 行を処理する。ブロックスカラーの本文・除外中のブロック・読みかけのレジストリの順に、行を受け取る処理を決める。
+ * @param {YamlStripState} st
+ * @param {YamlLine} line
+ */
+function stripYamlLine(st, line) {
+  if (skipScalarBody(st, line)) return;
+  if (skipExcludedLine(st, line)) return;
+  if (collectRegistryLine(st, line)) return;
+  if (!line.structural) {
+    st.kept.push(line.raw);
+    return;
   }
-  flushRegistryItem();
-  return kept.join("\n");
+  stripStructuralLine(st, line);
+}
+
+/**
+ * ブロックスカラーの本文を飛ばす（除外中でなければ、行のまま単位に残す）。本文として扱ったら true を返す。
+ * @param {YamlStripState} st
+ * @param {YamlLine} line
+ * @returns {boolean}
+ */
+function skipScalarBody(st, line) {
+  if (st.scalarIndent === null) return false;
+  if (line.structural && line.indent <= st.scalarIndent) {
+    st.scalarIndent = null;
+    return false;
+  }
+  if (st.excludeIndent === null) st.kept.push(line.raw);
+  return true;
+}
+
+/**
+ * mutable_blocks で除外中のブロックの配下を飛ばす。配下として扱ったら true を返す。
+ * @param {YamlStripState} st
+ * @param {YamlLine} line
+ * @returns {boolean}
+ */
+function skipExcludedLine(st, line) {
+  if (st.excludeIndent === null) return false;
+  // 空行・コメントは**ブロックを閉じないが、単位からも落とさない**。落とすと、外した領域の後ろに続く
+  // コメント（次の構造行までは閉じないので配下として扱われる）を警告なしに消せるようになる。
+  // 設定ファイルの原本は「既存のキー・値・コメントは変更しない」を要求しているので、コメントは守る側に残す。
+  if (!line.structural) {
+    st.kept.push(line.raw);
+    return true;
+  }
+  if (!closesBlock(line, st.excludeIndent)) return true;
+  st.excludeIndent = null;
+  return false;
+}
+
+/**
+ * ブロック形式のレジストリの配下を読み進める。配下として扱ったら true を返す。
+ * @param {YamlStripState} st
+ * @param {YamlLine} line
+ * @returns {boolean}
+ */
+function collectRegistryLine(st, line) {
+  const registry = st.registry;
+  if (registry === null) return false;
+  if (!line.structural) {
+    st.kept.push(line.raw);
+    return true;
+  }
+  if (closesBlock(line, registry.indent)) {
+    flushRegistryItem(st);
+    st.registry = null;
+    return false;
+  }
+  if (isListItem(line.trimmed)) {
+    flushRegistryItem(st);
+    registry.current = {
+      body: [line.trimmed === "-" ? "" : line.trimmed.slice(2).trim()],
+      raw: [line.raw],
+    };
+  } else if (registry.current !== null) {
+    // 要素の追随行。**照合キーは 1 行目とは限らない**（YAML のキー順は自由）ので、
+    // 要素の全行を集めてから探す。追随フィールド（`slug` / `added_by` 等）は
+    // 棚卸しの移動先に無いので単位にはしない。
+    registry.current.body.push(line.trimmed);
+    registry.current.raw.push(line.raw);
+  } else {
+    // リストではない構造（マッピング等）。解釈できないので**行のまま単位に残す**
+    // （捨てると配下を丸ごと消しても通る。他の解釈できない場合と同じく、厳しい側として扱う）。
+    st.kept.push(line.raw);
+  }
+  return true;
+}
+
+/**
+ * 読みかけの要素を確定して単位へ落とす。
+ * @param {YamlStripState} st
+ */
+function flushRegistryItem(st) {
+  const registry = st.registry;
+  if (registry === null || registry.current === null) return;
+  const { body: lines, raw: rawLines } = registry.current;
+  registry.current = null;
+  const value = registryKeyValue(lines, registry.itemKey);
+  // **1 行に収まっていない値は、読めたことにしない。** 照合キーの値が空（次の行以降へ続くプレーンな複数行のスカラー）、
+  // ブロックスカラーの指示子（`|`・`>`）、閉じない引用符のときは、`code.slice(prefix.length)` が本文を取りこぼす。
+  // 畳むと本文が単位から消え、**要素を丸ごと消しても、文言を正反対に差し替えても通る**。
+  // 実測では、main は exit 1、畳むと exit 0 になり、判定できないのに合格として扱っていた。要素の行は `kept` に戻らないので、行としても残らない。
+  // ここだけ緩い側（単位ゼロ）として扱っていたので、他の解釈できない場合と同じく、**集めた行をそのまま単位に戻す**。
+  // 厳しい側なので棚卸しの移動は通らなくなるが、`pending` の要素の形の原本は、1 行のスカラの鍵 4 つである。
+  if (!isSingleLineScalar(value)) {
+    for (const line of rawLines) st.kept.push(line);
+    return;
+  }
+  if (value !== "") st.kept.push(`${REGISTRY_ITEM_PREFIX}${registry.id}> ${unquote(value)}`);
+}
+
+/**
+ * ブロック形式の要素の行から、照合キーの値を取り出す。
+ *
+ * **要素の行末コメントは単位にしない**（キーの行のコメントは守るので、扱いが非対称になる）。
+ * 要素は鍵をまたいで移動する設計で、移動先（`keep: ["<文言>"]`）には注記の置き場所が無い。
+ * 守ると、注記の付いた要素を棚卸ししただけで、縮小と誤って判定される。注記の付いた要素の誤検出が再発し、
+ * 指示どおり復元すると保留の記録が消える。注記を消せることと引き換えに、正規の棚卸しを通す。
+ * @param {string[]} lines 要素の行（畳んだもの）
+ * @param {string} itemKey 照合キー
+ * @returns {string} 行末コメントを切った後の値
+ */
+function registryKeyValue(lines, itemKey) {
+  const prefix = `${itemKey}:`;
+  for (const line of lines) {
+    const { code } = splitTrailingComment(line);
+    if (code.startsWith(prefix)) return code.slice(prefix.length).trim();
+  }
+  // 照合キーが見つからない要素は、素のスカラ（`- <文言>`）として読む。
+  return splitTrailingComment(lines[0] ?? "").code;
+}
+
+/**
+ * 構造の行（空行・コメント以外）を、キーパスに従って単位へ変える。
+ * @param {YamlStripState} st
+ * @param {YamlLine} line
+ */
+function stripStructuralLine(st, line) {
+  const { raw, trimmed, indent } = line;
+  while (st.stack.length > 0 && st.stack[st.stack.length - 1].indent >= indent) st.stack.pop();
+  const m = /^([A-Za-z0-9_.-]+):(\s.*|)$/.exec(trimmed);
+  // リスト要素（`- …`）は**マーカーを積む**。積まないと、その配下のキーが親のパスを継ぎ、
+  // `intentional_diffs:` がリストだった場合の `- name: a` 配下の `pending:` が
+  // `intentional_diffs.pending` として外れる（外しすぎ）。`-` はキーに現れないので衝突しない。
+  if (isListItem(trimmed)) {
+    st.stack.push({ indent, key: "-" });
+    st.kept.push(raw);
+    return;
+  }
+  if (m === null) {
+    st.kept.push(raw);
+    return;
+  }
+  const key = m[1];
+  const path = [...st.stack.map((s) => s.key), key].join(".");
+  st.stack.push({ indent, key });
+  /** @type {YamlKeyLine} */
+  const keyLine = { li: st.li, raw, trimmed, key, path, indent };
+  if (st.targets.has(path)) {
+    stripMutableBlock(st, keyLine);
+    return;
+  }
+  const registryId = st.registryPaths.get(path);
+  if (registryId !== undefined) {
+    expandRegistry(st, keyLine, registryId);
+    return;
+  }
+  if (st.growableTargets.has(path) && expandGrowable(st, keyLine)) return;
+  // ブロックスカラー指示子は `|2-` / `|-2` のようにインデント指示子とチョップ指示子が任意の順に付く。
+  // 取りこぼしても、**外れる側とは判定されない**。本文はスカラのキーの配下にあるので、本文行をキーとして
+  // 読んでもパスにそのキー名（`note.` 等）が入り、対象のキーパスとは一致しないため
+  // （実測で再現を作れなかったので回帰テストは置いていない。ここは仕様への準拠として直してある）。
+  if (/^[|>](?:[-+]?\d*|\d*[-+]?)$/.test(m[2].trim())) st.scalarIndent = indent;
+  st.kept.push(raw);
+}
+
+/**
+ * mutable_blocks に挙げたキーの配下を単位から外す。
+ *
+ * 配下は外すが、**キーが在り続けること自体は単位に残す**。行ごと外すと、キーを丸ごと消した破壊が
+ * 「外した領域」に紛れて通る。ただし行そのものを残すと表現の揺れ（`pending: []` ⇄ `pending:`）で落ちる。
+ * 棚卸しは要素が増える方向にも減る方向にも動くので、**鍵だけの単位へ畳む**。
+ *
+ * 折り返したフロー値は**配下ごと消費する**。閉じ括弧の行は鍵と同じインデントに置けるので
+ * インデントによる除外が先に閉じ、1 行へ畳んだだけでその行（`] # c`）の単位が失われる。
+ * 外すのは配下の要素なので、要素行の行末注記は単位にしない（独立したコメント行と閉じる行の注記は残す。
+ * 除外中の空行・コメント行を単位に残す既存の扱いと揃う）。
+ *
+ * **値の形で読む対象を絞らない**。`flowValue !== ""` で絞ると、開き括弧が次の行にある形
+ * （フォーマッタが畳む形）がブロック形式の側として扱われ、閉じ括弧の行が素の行として単位になる。
+ * 形の判定は `readNamedFlow` が一手に持ち、ここは「フロー形式として読めたか（`block` でないか）」だけを見る。
+ * @param {YamlStripState} st
+ * @param {YamlKeyLine} keyLine
+ */
+function stripMutableBlock(st, keyLine) {
+  st.kept.push(`${MUTABLE_BLOCK_PREFIX}${keyLine.path}>`);
+  const { comment } = splitTrailingComment(keyLine.trimmed);
+  const flow = readNamedFlow(st.srcLines, keyLine, {
+    wrappedOut: st.wrappedOut,
+    // **接頭辞は渡さない**。mutable_blocks は配下を単位から外すので、この接頭辞が当たるのは
+    // 「鍵を丸ごと消した」ときだけ。当てると破壊に対して「表記を直しても通らない。内容を人が確認して通す」と
+    // 案内することになる。折り返しで失われうるのは読みに行った行（`lines`）の方なので、そちらだけで帰属する。
+    // **だから mutable_blocks で案内が出るのは、鍵と同じインデントに置いた要素行が失われたときだけ**
+    // （除外がそこで閉じて行のまま単位になる。深い要素行は除外されて失われない）。
+    // 鍵の行と閉じる行の注記は、独立した単位にするので帰属させず、案内も出さない。配下は単位から外すので、
+    // 比較元が読めなくても判定は成り立ち、例に出た注記を戻せば通る（実測: 閉じ忘れ・比較元が閉じていない、
+    // のどちらも注記を戻して exit 0。growable では同じ注記が読めない行のまま単位になるので案内が出る）。
+    unitPrefixes: [],
+    keepItemComments: false,
+  });
+  if (flow.items !== null && !flow.block) {
+    for (const c of flow.comments) st.kept.push(c);
+    st.li = flow.last;
+    return;
+  }
+  st.excludeIndent = keyLine.indent;
+  // 行末コメントは畳まず単位に残す。一覧の requirement は「既存のキー・値・コメントは変更しない」で、
+  // 外すのは配下の**要素**だけ。畳むと、キーの行に付いた注記だけを警告なしに消せるようになる
+  // （別行のコメントは守られるので、残さないと同じファイルの中で非対称になる）。
+  if (comment !== "") st.kept.push(comment);
+}
+
+/**
+ * registry_groups に挙げたキーの値を、鍵の単位とグループ共通の要素の単位に展開する。
+ * @param {YamlStripState} st
+ * @param {YamlKeyLine} keyLine
+ * @param {string} registryId
+ */
+function expandRegistry(st, keyLine, registryId) {
+  const { path } = keyLine;
+  const { items, comments, last, block } = readNamedFlow(st.srcLines, keyLine, {
+    wrappedOut: st.wrappedOut,
+    // **要素の接頭辞（`<registry-item: <グループ id>>`）は渡さない**。鍵をまたぐ移動を許すため
+    // グループ共通で、鍵を区別できない（`keep` が読めないだけで `pending` の削除にまで案内が付く）。
+    // 読めなくなると鍵の単位（`<registry: パス>`）が失われるので、真の陽性はそちらで拾える。
+    unitPrefixes: [`${REGISTRY_PREFIX}${path}>`],
+    keepItemComments: false,
+  });
+  // 読めない値・スカラは展開せず行のまま（厳しい側として扱う）。
+  if (items === null) {
+    st.kept.push(keyLine.raw);
+    return;
+  }
+  st.li = last;
+  // 鍵の存在は鍵ごとの単位で守り、要素は**グループ共通の単位**にする。
+  // 棚卸しで `pending` の文言が `keep` / `may_change` へ移るのは正規の運用なので鍵をまたいで同じ単位にし、
+  // どの鍵にも無くなった（警告なしに消された）ときだけ単位が失われるようにする。
+  st.kept.push(`${REGISTRY_PREFIX}${path}>`);
+  for (const c of comments) st.kept.push(c);
+  const itemKey = st.registryItemKeys.get(registryId) ?? "item";
+  for (const item of items) {
+    st.kept.push(`${REGISTRY_ITEM_PREFIX}${registryId}> ${registryItemValue(item, itemKey)}`);
+  }
+  // ブロック形式（`- …`）のときだけ要素の収集へ移る。開き括弧が次の行にあるフロー形式は
+  // readNamedFlow が連結して読み切っているので、ここで収集に入ると同じ要素を二重に数える。
+  if (block) st.registry = { id: registryId, indent: keyLine.indent, itemKey, current: null };
+}
+
+/**
+ * growable_containers に挙げたキーのフロー形式のコンテナを、鍵の単位と要素の単位に展開する。
+ * 値がフロー形式でない（ブロック形式・スカラ）ときは展開せず false を返す（呼び出し側が行のまま残す）。
+ * @param {YamlStripState} st
+ * @param {YamlKeyLine} keyLine
+ * @returns {boolean}
+ */
+function expandGrowable(st, keyLine) {
+  const { path } = keyLine;
+  const { items, comments, last } = readNamedFlow(st.srcLines, keyLine, {
+    wrappedOut: st.wrappedOut,
+    // 育つコンテナは行末コメントの削除も落とす要求なので、要素行の注記も単位に残す。
+    unitPrefixes: [`${GROWABLE_PREFIX}${path}>`, `${GROWABLE_ITEM_PREFIX}${path}>`],
+    keepItemComments: true,
+  });
+  if (items === null) return false;
+  st.li = last;
+  // 鍵（＋行末コメント）と要素を別々の単位にする。要素を足すと単位が増えるだけで通り、
+  // 落とすと単位が失われて落ちる。
+  st.kept.push(`${GROWABLE_PREFIX}${path}>`);
+  // 行末コメントは**鍵の単位に連結せず独立した単位にする**。連結すると、同じ注記を上の行へ
+  // 出しただけの編集が「単位の消失」になり、mutable_blocks 側（独立した単位）と非対称になる。
+  for (const c of comments) st.kept.push(c);
+  for (const item of items) st.kept.push(`${GROWABLE_ITEM_PREFIX}${path}> ${item}`);
+  return true;
 }
 
 /**
@@ -528,9 +660,8 @@ function nextStructuralLine(lines, li) {
  * 比較元の折り返し行がそのまま単位になり、**案内どおり 1 行へ書き直しても落ちる**
  * （実測: 追記で lost=1、1 行へ書き直して lost=3）。実行できない指示を出す側として扱わない。
  * @param {string[]} lines 文書の全行。
- * @param {number} start 鍵の行の添字。
- * @param {string} head 鍵の行（行末コメントを切った後）。
- * @param {number} keyIndent 鍵の行のインデント。
+ * @param {{ start: number, head: string, keyIndent: number }} key `start` は鍵の行の添字、
+ *   `head` は鍵の行（行末コメントを切った後）、`keyIndent` は鍵の行のインデント。
  * @param {string[]} scannedOut 読みに行った行（正規化済み）を積む先。読めなかったときに、どこに属するかの判定に使う。
  * @returns {{ items: string[], comments: string[], lineComments: string[], closing: string[], last: number } | "trailing" | null}
  *   `null` は、閉じないまま兄弟の構造へ出たか、文書が終わったことを表す。
@@ -538,13 +669,13 @@ function nextStructuralLine(lines, li) {
  *   `items` は連結して読めた要素、`comments` は要素の行の**行末**の注記、`lineComments` は独立したコメントの行である。
  *   `closing` は閉じる行の注記（＝鍵の注記）、`last` は消費した最後の行の添字である。
  */
-function joinWrappedFlow(lines, start, head, keyIndent, scannedOut) {
-  let joined = head;
+function joinWrappedFlow(lines, key, scannedOut) {
+  let joined = key.head;
   /** @type {string[]} 要素行に付いていた**行末**の注記（registry では単位にしない）。 */
   const comments = [];
   /** @type {string[]} 独立したコメント行（**常に単位にする**。消えたら落とす）。 */
   const lineComments = [];
-  for (let i = start + 1; i < lines.length; i += 1) {
+  for (let i = key.start + 1; i < lines.length; i += 1) {
     const line = lines[i];
     const trimmed = line.trim();
     const indent = line.length - line.trimStart().length;
@@ -565,7 +696,7 @@ function joinWrappedFlow(lines, start, head, keyIndent, scannedOut) {
     // 帰属材料に混ぜるとその行を消しただけで「復元せず閉じ括弧を補う」が付く（無関係な鍵の正規の削除に当たる）。
     const sibling =
       /^[A-Za-z0-9_.-]+:(\s|$)/.test(trimmed) || trimmed === "-" || trimmed.startsWith("- ");
-    if (indent <= keyIndent && sibling) return null;
+    if (indent <= key.keyIndent && sibling) return null;
     scannedOut.push(normalizeLine(trimmed));
     const split = splitTrailingComment(trimmed);
     joined = `${joined} ${split.code}`;
@@ -599,29 +730,15 @@ function joinWrappedFlow(lines, start, head, keyIndent, scannedOut) {
  * 一緒に積む**。ファイル単位で案内を出すと、同じファイルの**無関係な鍵**で起きた正規の削除にまで
  * 「復元せず閉じ括弧を補う」が付き、記録した決定を消させないというツールの目的と逆向きの指示になる。
  * @param {string[]} lines 文書の全行。
- * @param {number} li 鍵の行の添字。
- * @param {string} trimmed 鍵の行（前後の空白を除いたもの）
- * @param {string} key 鍵
- * @param {string} path 鍵パス
- * @param {number} keyIndent 鍵の行のインデント
- * @param {{ path: string, prefixes: string[], lines: string[] }[]} wrappedOut
- * @param {string[]} unitPrefixes このコンテナの要素が作る単位の接頭辞（帰属判定に使う）
- * @param {{ keepItemComments: boolean }} options `keepItemComments` = 折り返した要素行の行末コメントを
- *   単位にするか（鍵の行の注記は常に単位にする）
+ * @param {YamlKeyLine} keyLine 鍵の行（添字・前後の空白を除いた行・鍵・鍵パス・インデント）
+ * @param {{ wrappedOut: WrappedContainer[], unitPrefixes: string[], keepItemComments: boolean }} options
+ *   `unitPrefixes` = このコンテナの要素が作る単位の接頭辞（帰属判定に使う）。
+ *   `keepItemComments` = 折り返した要素行の行末コメントを単位にするか（鍵の行の注記は常に単位にする）。
  * @returns {{ items: string[] | null, comments: string[], last: number, block: boolean }}
  *   `block` = 鍵の行に値が無く、フロー形式でもない（ブロック形式として読む）
  */
-function readNamedFlow(
-  lines,
-  li,
-  trimmed,
-  key,
-  path,
-  keyIndent,
-  wrappedOut,
-  unitPrefixes,
-  options,
-) {
+function readNamedFlow(lines, keyLine, options) {
+  const { li, trimmed, key, path, indent: keyIndent } = keyLine;
   const first = splitTrailingComment(trimmed);
   const comments = first.comment === "" ? [] : [first.comment];
   const value = first.code.slice(key.length + 1).trim();
@@ -635,11 +752,13 @@ function readNamedFlow(
   if (flow.reason !== "unclosed") return { items: flow.items, comments, last: li, block: false };
   /** @type {string[]} 読みに行った行（鍵の行を含む）。読めなかったときの帰属判定に使う。 */
   const scanned = [normalizeLine(trimmed)];
-  const joined = joinWrappedFlow(lines, li, first.code, keyIndent, scanned);
+  const joined = joinWrappedFlow(lines, { start: li, head: first.code, keyIndent }, scanned);
   if (joined === null || joined === "trailing") {
     // 「閉じていないので 1 行で閉じる」と案内できるのは**閉じていない**ときだけ。
     // `trailing` は閉じた後に余りがある形で、1 行へ畳んでも同じく読めないので、その案内は指示にならない。
-    if (joined === null) wrappedOut.push({ path, prefixes: unitPrefixes, lines: scanned });
+    if (joined === null) {
+      options.wrappedOut.push({ path, prefixes: options.unitPrefixes, lines: scanned });
+    }
     return { items: null, comments, last: li, block: false };
   }
   return {
@@ -661,30 +780,34 @@ function readNamedFlow(
 /**
  * 行を突き合わせ用に正規化する（空白を畳む。空行は落とす）。
  * @param {string} text
- * @param {string[]} [mutableBlocks] 単位から外す YAML のキーパス（上の stripYamlBlocks を参照）。
- * @param {string[]} [growableContainers] 要素ごとの単位へ展開する YAML のキーパス（同上）。
- * @param {{ id: string, itemKey: string, paths: string[] }[]} [registryGroups] 同上。
- * @param {{ path: string, prefixes: string[], lines: string[] }[]} [wrappedOut] 連結しても閉じない
- *   フロー形式のコンテナを積む先（診断用。どこに属するかを判定する材料を伴う）。
+ * @param {{ mutableBlocks?: string[], growableContainers?: string[], registryGroups?: RegistryGroup[], wrappedOut?: WrappedContainer[] }} [options]
+ *   `mutableBlocks` は単位から外す YAML のキーパス（上の stripYamlBlocks を参照）。
+ *   `growableContainers` は要素ごとの単位へ展開する YAML のキーパス（同上）。`registryGroups` も同上。
+ *   `wrappedOut` は連結しても閉じないフロー形式のコンテナを積む先（診断用。どこに属するかを判定する材料を伴う）。
  * @returns {Map<string, number>} 正規化した行 → 出現回数
  */
-export function normalizeLines(
-  text,
-  mutableBlocks = [],
-  growableContainers = [],
-  registryGroups = [],
-  wrappedOut = [],
-) {
+export function normalizeLines(text, options = {}) {
+  const {
+    mutableBlocks = [],
+    growableContainers = [],
+    registryGroups = [],
+    wrappedOut = [],
+  } = options;
   const src =
     mutableBlocks.length === 0 && growableContainers.length === 0 && registryGroups.length === 0
       ? text
-      : stripYamlBlocks(text, mutableBlocks, growableContainers, registryGroups, wrappedOut);
+      : stripYamlBlocks(text, {
+          blocks: mutableBlocks,
+          growable: growableContainers,
+          registryGroups,
+          wrappedOut,
+        });
   /** @type {Map<string, number>} */
   const counts = new Map();
   for (const raw of src.split("\n")) {
     const line = raw.replace(/\s+/g, " ").trim();
     if (line === "") continue;
-    counts.set(line, (counts.get(line) ?? 0) + 1);
+    addUnit(counts, line);
   }
   return counts;
 }
@@ -720,76 +843,89 @@ function scanFlow(raw) {
   const open = text[0];
   if (open !== "[" && open !== "{") return { items: null, reason: "not-flow" };
   const close = open === "[" ? "]" : "}";
-  /** @type {string[]} */
-  const items = [];
-  let depth = 0;
-  /** @type {string | null} */
-  let quote = null;
-  let cur = "";
+  /** @type {FlowScan} */
+  const scan = { items: [], depth: 0, quote: null, cur: "" };
   let closedAt = -1;
   for (let i = 0; i < text.length; i += 1) {
-    const ch = text[i];
-    if (quote !== null) {
-      cur += ch;
-      if (ch === quote) quote = null;
-      continue;
-    }
-    // 引用符は**値の開始**でだけ開く。`opensQuoteAt` と同じ判定を同じ実装（`opensQuoteAfter`）で行う。
-    // 「要素の先頭」に狭めると、マッピングの値（`{item: "…"}`）では、直前の `item:` があるので引用符が開かない。
-    // すると値の中のカンマがペアの区切りと誤って判定される（`registryItemValue` が単位を `"順序は id` のような断片へ畳み、
-    // 棚卸しが失敗し、文言の差し替えが警告なしに通る）。`don't` のアポストロフィは値の途中なので今までどおり値の一部。
-    if ((ch === '"' || ch === "'") && opensQuoteAfter(cur)) {
-      quote = ch;
-      cur += ch;
-      continue;
-    }
-    if (ch === "[" || ch === "{") {
-      depth += 1;
-      // 外側の開き括弧は要素のテキストに入れない（入れ子の括弧は要素の一部なので入れる）。
-      if (depth > 1) cur += ch;
-      continue;
-    }
-    if (ch === "]" || ch === "}") {
-      depth -= 1;
-      if (depth > 0) {
-        cur += ch;
-        continue;
-      }
-      // 外側が閉じた。開き括弧と種類が合わない閉じ方（`[a}`）は読めたことにしない。
-      if (ch !== close) return { items: null, reason: "unclosed" };
-      closedAt = i;
-      break;
-    }
-    if (ch === "," && depth === 1) {
-      items.push(cur);
-      cur = "";
-      continue;
-    }
-    cur += ch;
+    if (!scanFlowChar(scan, text[i])) continue;
+    // 外側が閉じた。開き括弧と種類が合わない閉じ方（`[a}`）は読めたことにしない。
+    if (text[i] !== close) return { items: null, reason: "unclosed" };
+    closedAt = i;
+    break;
   }
   // 引用符・括弧が同じ行で閉じていない（折り返されたコンテナ）。読めたことにしない。
-  if (quote !== null || closedAt === -1) return { items: null, reason: "unclosed" };
+  if (scan.quote !== null || closedAt === -1) return { items: null, reason: "unclosed" };
   // 閉じた後に余りがある（`[a] b`）。1 行に収まったコンテナとしては読めない。
   if (closedAt !== text.length - 1) return { items: null, reason: "trailing" };
-  items.push(cur);
-  return {
-    items: items
-      .map((v) => {
-        const t = v.trim();
-        const quoted =
-          t.length >= 2 &&
-          ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'")));
-        if (quoted) return t.slice(1, -1);
-        // 入れ子のコンテナは**正規形へ組み直す**。要素自身が折り返されると末尾カンマや余分な空白が
-        // 残り、内容を 1 文字も変えていない整形だけで別の単位になる（コンテナは閉じているので
-        // 案内も出ず、書き手は「復元」へ向かう。フロー表記の誤検出で避けたかった向き）。
-        const nested = scanFlow(t);
-        if (nested.items === null) return t;
-        return t[0] === "[" ? `[${nested.items.join(", ")}]` : `{${nested.items.join(", ")}}`;
-      })
-      .filter((x) => x !== ""),
-    reason: null,
-  };
+  scan.items.push(scan.cur);
+  return { items: scan.items.map(flowItemText).filter((x) => x !== ""), reason: null };
+}
+
+/**
+ * @typedef {{ items: string[], depth: number, quote: string | null, cur: string }} FlowScan
+ */
+
+/**
+ * フロー形式のコンテナを 1 文字進める。外側の括弧が閉じたら true を返す。
+ * @param {FlowScan} scan
+ * @param {string} ch
+ * @returns {boolean}
+ */
+function scanFlowChar(scan, ch) {
+  if (scan.quote !== null) {
+    scan.cur += ch;
+    if (ch === scan.quote) scan.quote = null;
+    return false;
+  }
+  // 引用符は**値の開始**でだけ開く。`opensQuoteAt` と同じ判定を同じ実装（`opensQuoteAfter`）で行う。
+  // 「要素の先頭」に狭めると、マッピングの値（`{item: "…"}`）では、直前の `item:` があるので引用符が開かない。
+  // すると値の中のカンマがペアの区切りと誤って判定される（`registryItemValue` が単位を `"順序は id` のような断片へ畳み、
+  // 棚卸しが失敗し、文言の差し替えが警告なしに通る）。`don't` のアポストロフィは値の途中なので今までどおり値の一部。
+  if ((ch === '"' || ch === "'") && opensQuoteAfter(scan.cur)) {
+    scan.quote = ch;
+    scan.cur += ch;
+    return false;
+  }
+  if (ch === "[" || ch === "{") {
+    scan.depth += 1;
+    // 外側の開き括弧は要素のテキストに入れない（入れ子の括弧は要素の一部なので入れる）。
+    if (scan.depth > 1) scan.cur += ch;
+    return false;
+  }
+  if (ch === "]" || ch === "}") {
+    scan.depth -= 1;
+    if (scan.depth > 0) {
+      scan.cur += ch;
+      return false;
+    }
+    return true;
+  }
+  if (ch === "," && scan.depth === 1) {
+    scan.items.push(scan.cur);
+    scan.cur = "";
+    return false;
+  }
+  scan.cur += ch;
+  return false;
+}
+
+/**
+ * フロー形式のコンテナの要素を、単位にするテキストへ整える。
+ * @param {string} v
+ * @returns {string}
+ */
+function flowItemText(v) {
+  const t = v.trim();
+  const quoted =
+    t.length >= 2 &&
+    ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'")));
+  if (quoted) return t.slice(1, -1);
+  // 入れ子のコンテナは**正規形へ組み直す**。要素自身が折り返されると末尾カンマや余分な空白が
+  // 残り、内容を 1 文字も変えていない整形だけで別の単位になる（コンテナは閉じているので
+  // 案内も出ず、書き手は「復元」へ向かう。フロー表記の誤検出で避けたかった向き）。
+  const nested = scanFlow(t);
+  if (nested.items === null) return t;
+  return t[0] === "[" ? `[${nested.items.join(", ")}]` : `{${nested.items.join(", ")}}`;
 }
 
 /**
@@ -930,6 +1066,32 @@ function tableCells(line) {
 }
 
 /**
+ * 多重集合の単位を 1 つ数える。
+ * @param {Map<string, number>} counts
+ * @param {string} unit
+ */
+function addUnit(counts, unit) {
+  counts.set(unit, (counts.get(unit) ?? 0) + 1);
+}
+
+/**
+ * @typedef {{
+ *   counts: Map<string, number>,
+ *   mutable: Set<string>,
+ *   fillOnly: Set<string>,
+ *   mutableBullet: Set<string>,
+ *   allCellsMutable: boolean,
+ *   allBulletsMutable: boolean,
+ *   headings: string[],
+ *   columns: string[],
+ *   rowOccurrences: Map<string, number>,
+ *   bulletOccurrences: Map<string, number>,
+ *   tableIndex: number,
+ *   inTable: boolean,
+ * }} MarkdownState
+ */
+
+/**
  * Markdown の構造単位を数える。
  *
  * 落とさせない相手は「節・列・行・行の決定内容・箇条書きの鍵・散文」。
@@ -941,107 +1103,145 @@ function tableCells(line) {
  * 空 → 非空は単位が増えるだけなので通り、入っている値の差し替え・消去は単位の消失として落ちる。
  * 箇条書きも鍵と値の両方を守り、原本が更新を定めている項目だけを mutableBullets で外す。散文は行そのもの。
  * @param {string} text 文書の本文。
- * @param {string[]} [mutableColumns] 値の更新を原本が認めている列名（"*" なら、セルを取り決めの対象外にする）。
- * @param {string[]} [mutableBullets] 値の更新を原本が認めている箇条書きの鍵（"*" なら、値を取り決めの対象外にする）。
- * @param {string[]} [fillOnlyColumns] 空 → 非空だけを許す列名
+ * @param {{ mutableColumns?: string[], mutableBullets?: string[], fillOnlyColumns?: string[] }} [options]
+ *   `mutableColumns` は値の更新を原本が認めている列名（"*" なら、セルを取り決めの対象外にする）。
+ *   `mutableBullets` は値の更新を原本が認めている箇条書きの鍵（"*" なら、値を取り決めの対象外にする）。
+ *   `fillOnlyColumns` は空 → 非空だけを許す列名。
  * @returns {Map<string, number>} 単位 → 出現回数
  */
-export function markdownUnits(
-  text,
-  mutableColumns = [],
-  mutableBullets = [],
-  fillOnlyColumns = [],
-) {
+export function markdownUnits(text, options = {}) {
+  const { mutableColumns = [], mutableBullets = [], fillOnlyColumns = [] } = options;
   const mutable = new Set(mutableColumns.map((c) => c.trim()));
-  const fillOnly = new Set(fillOnlyColumns.map((c) => c.trim()));
   const mutableBullet = new Set(mutableBullets.map((c) => c.trim()));
-  // "*" は「中身は取り決めの対象外」（一覧の requirement が節・列・行・ヘッダ項目だけを守ると定めている成果物）。
-  const allCellsMutable = mutable.has("*");
-  const allBulletsMutable = mutableBullet.has("*");
-  /** @type {Map<string, number>} 同じ鍵の箇条書きが何度目か */
-  const bulletOccurrences = new Map();
-  /** @type {Map<string, number>} */
-  const counts = new Map();
-  /** @param {string} key */
-  const add = (key) => counts.set(key, (counts.get(key) ?? 0) + 1);
+  /** @type {MarkdownState} */
+  const md = {
+    counts: new Map(),
+    mutable,
+    fillOnly: new Set(fillOnlyColumns.map((c) => c.trim())),
+    mutableBullet,
+    // "*" は「中身は取り決めの対象外」（一覧の requirement が節・列・行・ヘッダ項目だけを守ると定めている成果物）。
+    allCellsMutable: mutable.has("*"),
+    allBulletsMutable: mutableBullet.has("*"),
+    headings: [],
+    columns: [],
+    // 同じ鍵の行が何度目か
+    rowOccurrences: new Map(),
+    // 同じ鍵の箇条書きが何度目か
+    bulletOccurrences: new Map(),
+    tableIndex: -1,
+    inTable: false,
+  };
+  for (const raw of text.split("\n")) markdownLine(md, normalizeLine(raw));
+  return md.counts;
+}
 
-  /** @type {string[]} */
-  const headings = [];
-  /** @type {string[]} */
-  let columns = [];
-  /** @type {Map<string, number>} 同じ鍵の行が何度目か */
-  const rowOccurrences = new Map();
-  let tableIndex = -1;
-  let inTable = false;
-  for (const raw of text.split("\n")) {
-    const line = normalizeLine(raw);
-    if (line === "") {
-      inTable = false;
-      continue;
-    }
-    const heading = /^(#{1,6})\s+(.*)$/.exec(line);
-    if (heading !== null) {
-      const level = heading[1].length;
-      headings.length = Math.min(headings.length, level - 1);
-      while (headings.length < level - 1) headings.push("");
-      headings.push(heading[2].trim());
-      tableIndex = -1;
-      inTable = false;
-      add(`H:${headings.join(" > ")}`);
-      continue;
-    }
-    const path = headings.join(" > ");
-    if (line.startsWith("|") && line.endsWith("|")) {
-      if (/^\|[\s:|-]+\|$/.test(line)) continue; // 区切り行は列を足すと変わる
-      const cells = tableCells(line);
-      if (!inTable) {
-        inTable = true;
-        tableIndex += 1;
-        columns = cells;
-        for (const cell of cells) add(`C:${path}#${tableIndex}|${cell}`);
-        continue;
-      }
-      const rowKey = cells[0] ?? "";
-      add(`R:${path}#${tableIndex}|${rowKey}`);
-      // 同じ鍵の行は出現順で区別する。区別しないと列ごとの多重集合になり、
-      // 同じ鍵を持つ 2 行の間でセルを入れ替えても単位が変わらない
-      // （assets.md は方針を覆した行と現在の行が同じ「種類」で 2 行並ぶ。原本が想定する形である）。
-      // 追記専用の台帳なので既存行の並びは変わらず、出現順は安定した識別子になる。
-      const seenKey = `${path}#${tableIndex}|${rowKey}`;
-      const occurrence = rowOccurrences.get(seenKey) ?? 0;
-      rowOccurrences.set(seenKey, occurrence + 1);
-      if (!allCellsMutable) {
-        for (const [i, cell] of cells.entries()) {
-          if (i === 0) continue; // 先頭セルは鍵そのもの
-          const column = columns[i] ?? `#${i}`;
-          if (mutable.has(column)) continue; // 原本がその場の更新を定めている列
-          // 未記入は空セルだけ。`-`（該当なし）と `未確認` は決めた値・記録として守る。
-          // `-` も未記入に数えると、決定済みの行の「該当なし」をその場で値へ書き換えられる。
-          if (fillOnly.has(column) && cell === "") continue;
-          add(`R:${seenKey}@${occurrence}|${column}=${cell}`);
-        }
-      }
-      continue;
-    }
-    inTable = false;
-    const bullet = /^[-*+]\s+([^:：]{1,80})[:：](.*)$/.exec(line);
-    if (bullet !== null) {
-      // 鍵は強調・コードの記号を落として安定させる（`- **インスタンス件数**:` と `- インスタンス件数:` を同じ鍵にする）。
-      const bulletKey = bullet[1].trim().replace(/^[*`\s]+|[*`\s]+$/g, "");
-      add(`B:${path}|${bulletKey}`);
-      if (!allBulletsMutable && !mutableBullet.has(bulletKey)) {
-        // 鍵だけを守ると値（決定の中身）が自由に書き換わる。
-        // 原本がその場の更新を定めている項目だけを mutable_bullets で外す。
-        const seenBullet = `${path}|${bulletKey}`;
-        const n = bulletOccurrences.get(seenBullet) ?? 0;
-        bulletOccurrences.set(seenBullet, n + 1);
-        add(`B:${seenBullet}@${n}=${bullet[2].trim()}`);
-      }
-      continue;
-    }
-    add(`L:${line}`);
+/**
+ * 正規化した 1 行を、見出し・表・箇条書き・散文のどれかの単位にする。
+ * @param {MarkdownState} md
+ * @param {string} line
+ */
+function markdownLine(md, line) {
+  if (line === "") {
+    md.inTable = false;
+    return;
   }
-  return counts;
+  const heading = /^(#{1,6})\s+(.*)$/.exec(line);
+  if (heading !== null) {
+    markdownHeading(md, heading);
+    return;
+  }
+  const path = md.headings.join(" > ");
+  if (line.startsWith("|") && line.endsWith("|")) {
+    markdownTableLine(md, path, line);
+    return;
+  }
+  md.inTable = false;
+  const bullet = /^[-*+]\s+([^:：]{1,80})[:：](.*)$/.exec(line);
+  if (bullet !== null) {
+    markdownBullet(md, path, bullet);
+    return;
+  }
+  addUnit(md.counts, `L:${line}`);
+}
+
+/**
+ * 見出しを単位にし、見出しの階層を進める。
+ * @param {MarkdownState} md
+ * @param {RegExpExecArray} heading
+ */
+function markdownHeading(md, heading) {
+  const level = heading[1].length;
+  md.headings.length = Math.min(md.headings.length, level - 1);
+  while (md.headings.length < level - 1) md.headings.push("");
+  md.headings.push(heading[2].trim());
+  md.tableIndex = -1;
+  md.inTable = false;
+  addUnit(md.counts, `H:${md.headings.join(" > ")}`);
+}
+
+/**
+ * 表の 1 行（列名の行か、データの行）を単位にする。
+ * @param {MarkdownState} md
+ * @param {string} path 見出しのパス
+ * @param {string} line
+ */
+function markdownTableLine(md, path, line) {
+  if (/^\|[\s:|-]+\|$/.test(line)) return; // 区切り行は列を足すと変わる
+  const cells = tableCells(line);
+  if (!md.inTable) {
+    md.inTable = true;
+    md.tableIndex += 1;
+    md.columns = cells;
+    for (const cell of cells) addUnit(md.counts, `C:${path}#${md.tableIndex}|${cell}`);
+    return;
+  }
+  const rowKey = cells[0] ?? "";
+  addUnit(md.counts, `R:${path}#${md.tableIndex}|${rowKey}`);
+  // 同じ鍵の行は出現順で区別する。区別しないと列ごとの多重集合になり、
+  // 同じ鍵を持つ 2 行の間でセルを入れ替えても単位が変わらない
+  // （assets.md は方針を覆した行と現在の行が同じ「種類」で 2 行並ぶ。原本が想定する形である）。
+  // 追記専用の台帳なので既存行の並びは変わらず、出現順は安定した識別子になる。
+  const seenKey = `${path}#${md.tableIndex}|${rowKey}`;
+  const occurrence = md.rowOccurrences.get(seenKey) ?? 0;
+  md.rowOccurrences.set(seenKey, occurrence + 1);
+  if (!md.allCellsMutable) addRowCells(md, `${seenKey}@${occurrence}`, cells);
+}
+
+/**
+ * データの行の、先頭以外のセルを単位にする。
+ * @param {MarkdownState} md
+ * @param {string} rowId 行の鍵と出現順
+ * @param {string[]} cells
+ */
+function addRowCells(md, rowId, cells) {
+  for (const [i, cell] of cells.entries()) {
+    if (i === 0) continue; // 先頭セルは鍵そのもの
+    const column = md.columns[i] ?? `#${i}`;
+    if (md.mutable.has(column)) continue; // 原本がその場の更新を定めている列
+    // 未記入は空セルだけ。`-`（該当なし）と `未確認` は決めた値・記録として守る。
+    // `-` も未記入に数えると、決定済みの行の「該当なし」をその場で値へ書き換えられる。
+    if (md.fillOnly.has(column) && cell === "") continue;
+    addUnit(md.counts, `R:${rowId}|${column}=${cell}`);
+  }
+}
+
+/**
+ * 定義の箇条書き（`- 鍵: 値`）の鍵と値を単位にする。
+ * @param {MarkdownState} md
+ * @param {string} path 見出しのパス
+ * @param {RegExpExecArray} bullet
+ */
+function markdownBullet(md, path, bullet) {
+  // 鍵は強調・コードの記号を落として安定させる（`- **インスタンス件数**:` と `- インスタンス件数:` を同じ鍵にする）。
+  const bulletKey = bullet[1].trim().replace(/^[*`\s]+|[*`\s]+$/g, "");
+  addUnit(md.counts, `B:${path}|${bulletKey}`);
+  // 鍵だけを守ると値（決定の中身）が自由に書き換わる。
+  // 原本がその場の更新を定めている項目だけを mutable_bullets で外す。
+  if (md.allBulletsMutable || md.mutableBullet.has(bulletKey)) return;
+  const seenBullet = `${path}|${bulletKey}`;
+  const n = md.bulletOccurrences.get(seenBullet) ?? 0;
+  md.bulletOccurrences.set(seenBullet, n + 1);
+  addUnit(md.counts, `B:${seenBullet}@${n}=${bullet[2].trim()}`);
 }
 
 /**
@@ -1076,40 +1276,57 @@ function canonicalJson(value) {
 }
 
 /**
+ * 一覧が配列と宣言したパスの値を読む。まだ無ければ空とみなす（積み上げた要素も無い）。
+ * @param {unknown} parsed
+ * @param {string} path
+ * @param {string} label 失敗メッセージ用（ファイル名＋版）
+ * @returns {unknown[]}
+ */
+function declaredArrayAt(parsed, path, label) {
+  const value = atPath(parsed, path);
+  if (value === undefined || value === null) return [];
+  if (!isArray(value)) {
+    throw new UsageError(`一覧が配列と宣言した ${path} が配列でない: ${label}`);
+  }
+  return value;
+}
+
+/**
  * JSON の指定した配列の要素を数える。
  * @param {string} text
- * @param {string[]} paths
+ * @param {{ arrays: string[], key?: string | null }} spec `key` を指定すると、要素そのものではなくこの項目の値を同一性にする
  * @param {string} label 失敗メッセージ用（ファイル名＋版）
- * @param {string | null} [key] 指定すると要素そのものではなくこの項目の値を同一性にする
  * @returns {Map<string, number>} 単位 → 出現回数
  */
-export function jsonArrayUnits(text, paths, label, key = null) {
+export function jsonArrayUnits(text, spec, label) {
   const parsed = parseJsonForAppendCheck(text, label);
+  const key = spec.key ?? null;
   /** @type {Map<string, number>} */
   const counts = new Map();
-  for (const path of paths) {
-    const value = atPath(parsed, path);
-    if (value === undefined || value === null) continue; // まだ無い＝積み上げた要素も無い
-    if (!isArray(value)) {
-      throw new UsageError(`一覧が配列と宣言した ${path} が配列でない: ${label}`);
-    }
-    for (const element of value) {
-      let unit;
-      if (key === null) {
-        unit = `${path}|${canonicalJson(element)}`;
-      } else {
-        // 鍵が引けない要素を素通りさせない（全要素が同じ鍵へ潰れて 1 件が全件を満たす形を作らない）。
-        if (!isPlainObject(element) || !nonEmptyString(element[key])) {
-          throw new UsageError(
-            `一覧が key: ${key} と宣言した ${path} の要素に、空でない文字列の ${key} が無い: ${label}`,
-          );
-        }
-        unit = `${path}|${key}=${String(element[key]).trim()}`;
-      }
-      counts.set(unit, (counts.get(unit) ?? 0) + 1);
+  for (const path of spec.arrays) {
+    for (const element of declaredArrayAt(parsed, path, label)) {
+      addUnit(counts, jsonArrayElementUnit(element, { path, key, label }));
     }
   }
   return counts;
+}
+
+/**
+ * 配列の要素 1 つを単位にする。
+ * @param {unknown} element
+ * @param {{ path: string, key: string | null, label: string }} ctx
+ * @returns {string}
+ */
+function jsonArrayElementUnit(element, ctx) {
+  const { path, key, label } = ctx;
+  if (key === null) return `${path}|${canonicalJson(element)}`;
+  // 鍵が引けない要素を素通りさせない（全要素が同じ鍵へ潰れて 1 件が全件を満たす形を作らない）。
+  if (!isPlainObject(element) || !nonEmptyString(element[key])) {
+    throw new UsageError(
+      `一覧が key: ${key} と宣言した ${path} の要素に、空でない文字列の ${key} が無い: ${label}`,
+    );
+  }
+  return `${path}|${key}=${String(element[key]).trim()}`;
 }
 
 /**
@@ -1118,19 +1335,18 @@ export function jsonArrayUnits(text, paths, label, key = null) {
  * 鍵だけを同一性にすると、鍵以外のフィールドが自由に書き換えられる（承認済みの項目の
  * 理由・承認者・承認日時を差し替えても鍵は残る）。そこで、デフォルトは「鍵以外は変えない」にする。
  * 原本が更新を定めている項目だけを、fill_only（空から空でない値への変更だけ）と transitions（明示した値の遷移だけ）で開ける。
- * @param {string} beforeText
- * @param {string} afterText
+ * @param {{ before: string, after: string }} texts 比較元と現在の本文
  * @param {{ arrays: string[], key: string, fillOnly: string[], transitions: Record<string, string[]> }} artifact
  * @param {{ before: string, after: string }} labels
  * @returns {string[]} findings
  */
-export function compareKeyedArrays(beforeText, afterText, artifact, labels) {
+export function compareKeyedArrays(texts, artifact, labels) {
   /** @type {string[]} */
   const findings = [];
   const fillOnly = new Set(artifact.fillOnly);
   for (const path of artifact.arrays) {
-    const before = keyedElements(beforeText, path, artifact.key, labels.before);
-    const after = keyedElements(afterText, path, artifact.key, labels.after);
+    const before = keyedElements(texts.before, { path, key: artifact.key }, labels.before);
+    const after = keyedElements(texts.after, { path, key: artifact.key }, labels.after);
     for (const [key, baseList] of before) {
       const nowList = after.get(key) ?? [];
       if (nowList.length < baseList.length) {
@@ -1138,38 +1354,60 @@ export function compareKeyedArrays(beforeText, afterText, artifact, labels) {
           `${path} の要素が失われている（${artifact.key}=${key}: 比較元 ${baseList.length} 件 → 現在 ${nowList.length} 件）`,
         );
       }
+      const ctx = { path, key, artifact, fillOnly };
       // 同じ鍵が複数ある場合は並び順で対応づける（追記専用なので既存の並びは変わらない）。
       for (const [i, baseElement] of baseList.entries()) {
         const nowElement = nowList[i];
         if (nowElement === undefined) continue; // 件数の減少は上で数えた
-        for (const field of Object.keys(baseElement)) {
-          const from = baseElement[field];
-          const to = nowElement[field];
-          if (canonicalJson(from) === canonicalJson(to)) continue;
-          const allowed = artifact.transitions[field];
-          if (allowed !== undefined) {
-            if (allowed.includes(`${stringify(from)}->${stringify(to)}`)) continue;
-            findings.push(
-              `${path} の ${field} が宣言に無い遷移で書き換えられている（${artifact.key}=${key}: ${stringify(from)} → ${stringify(to)}）`,
-            );
-            continue;
-          }
-          if (fillOnly.has(field)) {
-            // 空 → 非空（記録の充填）だけ許す。既に入っている値の差し替えは決定の書き換え。
-            if (!nonEmptyValue(from)) continue;
-            findings.push(
-              `${path} の ${field} が空でない値から書き換えられている（${artifact.key}=${key}: ${stringify(from)} → ${stringify(to)}）`,
-            );
-            continue;
-          }
-          findings.push(
-            `${path} の ${field} が書き換えられている（${artifact.key}=${key}: ${stringify(from)} → ${stringify(to)}）`,
-          );
-        }
+        findings.push(...keyedElementFindings(ctx, baseElement, nowElement));
       }
     }
   }
   return findings;
+}
+
+/**
+ * 鍵で対応づけた 2 つの要素を、比較元の要素のフィールドごとに突き合わせる。
+ * @param {{ path: string, key: string, artifact: { key: string, transitions: Record<string, string[]> }, fillOnly: Set<string> }} ctx
+ * @param {Record<string, unknown>} baseElement
+ * @param {Record<string, unknown>} nowElement
+ * @returns {string[]} findings
+ */
+function keyedElementFindings(ctx, baseElement, nowElement) {
+  /** @type {string[]} */
+  const findings = [];
+  for (const field of Object.keys(baseElement)) {
+    const finding = keyedFieldFinding(ctx, field, {
+      from: baseElement[field],
+      to: nowElement[field],
+    });
+    if (finding !== null) findings.push(finding);
+  }
+  return findings;
+}
+
+/**
+ * フィールド 1 つの変更が、宣言で許した変更かを見る。許さない変更なら finding を返す。
+ * @param {{ path: string, key: string, artifact: { key: string, transitions: Record<string, string[]> }, fillOnly: Set<string> }} ctx
+ * @param {string} field
+ * @param {{ from: unknown, to: unknown }} change
+ * @returns {string | null}
+ */
+function keyedFieldFinding(ctx, field, change) {
+  const { path, key, artifact } = ctx;
+  const { from, to } = change;
+  if (canonicalJson(from) === canonicalJson(to)) return null;
+  const allowed = artifact.transitions[field];
+  if (allowed !== undefined) {
+    if (allowed.includes(`${stringify(from)}->${stringify(to)}`)) return null;
+    return `${path} の ${field} が宣言に無い遷移で書き換えられている（${artifact.key}=${key}: ${stringify(from)} → ${stringify(to)}）`;
+  }
+  if (ctx.fillOnly.has(field)) {
+    // 空 → 非空（記録の充填）だけ許す。既に入っている値の差し替えは決定の書き換え。
+    if (!nonEmptyValue(from)) return null;
+    return `${path} の ${field} が空でない値から書き換えられている（${artifact.key}=${key}: ${stringify(from)} → ${stringify(to)}）`;
+  }
+  return `${path} の ${field} が書き換えられている（${artifact.key}=${key}: ${stringify(from)} → ${stringify(to)}）`;
 }
 
 /**
@@ -1196,19 +1434,16 @@ function nonEmptyValue(v) {
 /**
  * 配列を鍵ごとの要素リストにする。
  * @param {string} text
- * @param {string} path
- * @param {string} key
+ * @param {{ path: string, key: string }} spec
  * @param {string} label
  * @returns {Map<string, Record<string, unknown>[]>}
  */
-function keyedElements(text, path, key, label) {
+function keyedElements(text, spec, label) {
+  const { path, key } = spec;
   const parsed = parseJsonForAppendCheck(text, label);
   /** @type {Map<string, Record<string, unknown>[]>} */
   const out = new Map();
-  const value = atPath(parsed, path);
-  if (value === undefined || value === null) return out;
-  if (!isArray(value)) throw new UsageError(`一覧が配列と宣言した ${path} が配列でない: ${label}`);
-  for (const element of value) {
+  for (const element of declaredArrayAt(parsed, path, label)) {
     if (!isPlainObject(element) || !nonEmptyString(element[key])) {
       throw new UsageError(
         `一覧が key: ${key} と宣言した ${path} の要素に、空でない文字列の ${key} が無い: ${label}`,
@@ -1262,65 +1497,108 @@ function historyAt(doc, path, label) {
  * （`performance.floors` なら `floors`）。値を消した変更は、その項目を持たない要素で記録する。
  * 履歴の既存の要素は、値を変えないときも、先頭からの並びが比較元と一致しなければならない。
  * 値が無い（undefined）ことと null は、同じ値として扱う。
- * @param {string} beforeText
- * @param {string} afterText
+ * @param {{ before: string, after: string }} texts 比較元と現在の本文
  * @param {{ paths: string[], history: string }[]} groups
  * @param {{ before: string, after: string }} labels
  * @returns {string[]} findings
  */
-export function comparePinnedValues(beforeText, afterText, groups, labels) {
+export function comparePinnedValues(texts, groups, labels) {
   /** @type {string[]} */
   const findings = [];
   if (groups.length === 0) return findings;
-  const before = parseJsonForAppendCheck(beforeText, labels.before);
-  const after = parseJsonForAppendCheck(afterText, labels.after);
-  for (const group of groups) {
-    const baseHistory = historyAt(before, group.history, labels.before);
-    const nowHistory = historyAt(after, group.history, labels.after);
-    for (const [i, element] of baseHistory.entries()) {
-      if (i >= nowHistory.length) {
-        findings.push(
-          `${group.history} の要素が失われている（比較元 ${baseHistory.length} 件 → 現在 ${nowHistory.length} 件）`,
-        );
-        break;
-      }
-      if (canonicalJson(element) !== canonicalJson(nowHistory[i])) {
-        findings.push(`${group.history} の ${i} 番目の要素が書き換えられている`);
-      }
-    }
-    const changed = group.paths.filter(
-      (p) => canonicalJson(atPath(before, p)) !== canonicalJson(atPath(after, p)),
-    );
-    const appended = nowHistory.length > baseHistory.length;
-    if (changed.length > 0 && !appended) {
-      for (const p of changed) {
-        findings.push(
-          `${p} が ${group.history} への追記なしに書き換えられている（${stringify(atPath(before, p))} → ${stringify(atPath(after, p))}）`,
-        );
-      }
-      continue;
-    }
-    if (!appended) continue;
-    // 値の中身が正しい決定かは見ないが、追記した要素は記録として読める形（オブジェクト）でなければならない。
-    // 最後の要素だけを見ると、同じ変更で読めない要素を並べて足しても通る。
-    for (let k = baseHistory.length; k < nowHistory.length - 1; k += 1) {
-      if (!isPlainObject(nowHistory[k])) {
-        findings.push(`${group.history} に追記した ${k} 番目の要素がオブジェクトでない`);
-      }
-    }
-    // 追記した最後の要素が今の値と合わなければ、記録と実体が食い違う（記録だけ足して値を別に書き換える形を通さない）。
-    const last = nowHistory[nowHistory.length - 1];
-    if (!isPlainObject(last)) {
-      findings.push(`${group.history} の最後の要素がオブジェクトでない`);
-      continue;
-    }
-    for (const p of group.paths) {
-      const field = lastSegment(p);
-      if (canonicalJson(last[field]) === canonicalJson(atPath(after, p))) continue;
+  const docs = {
+    before: parseJsonForAppendCheck(texts.before, labels.before),
+    after: parseJsonForAppendCheck(texts.after, labels.after),
+  };
+  for (const group of groups) findings.push(...pinnedGroupFindings(docs, group, labels));
+  return findings;
+}
+
+/**
+ * pinned_values の 1 グループを突き合わせる。
+ * @param {{ before: unknown, after: unknown }} docs 比較元と現在の文書
+ * @param {{ paths: string[], history: string }} group
+ * @param {{ before: string, after: string }} labels
+ * @returns {string[]} findings
+ */
+function pinnedGroupFindings(docs, group, labels) {
+  const { before, after } = docs;
+  const baseHistory = historyAt(before, group.history, labels.before);
+  const nowHistory = historyAt(after, group.history, labels.after);
+  const findings = existingHistoryFindings(group.history, baseHistory, nowHistory);
+  const changed = group.paths.filter(
+    (p) => canonicalJson(atPath(before, p)) !== canonicalJson(atPath(after, p)),
+  );
+  const appended = nowHistory.length > baseHistory.length;
+  if (changed.length > 0 && !appended) {
+    for (const p of changed) {
       findings.push(
-        `${group.history} の最後の要素の ${field} が ${p} の今の値と合わない（履歴 ${stringify(last[field])} / 今 ${stringify(atPath(after, p))}）`,
+        `${p} が ${group.history} への追記なしに書き換えられている（${stringify(atPath(before, p))} → ${stringify(atPath(after, p))}）`,
       );
     }
+    return findings;
+  }
+  if (!appended) return findings;
+  findings.push(
+    ...appendedHistoryFindings(after, group, { baseLength: baseHistory.length, nowHistory }),
+  );
+  return findings;
+}
+
+/**
+ * 履歴の既存の要素が、先頭から比較元と同じ並びで残っているかを見る。
+ * @param {string} historyPath
+ * @param {unknown[]} baseHistory
+ * @param {unknown[]} nowHistory
+ * @returns {string[]} findings
+ */
+function existingHistoryFindings(historyPath, baseHistory, nowHistory) {
+  /** @type {string[]} */
+  const findings = [];
+  for (const [i, element] of baseHistory.entries()) {
+    if (i >= nowHistory.length) {
+      findings.push(
+        `${historyPath} の要素が失われている（比較元 ${baseHistory.length} 件 → 現在 ${nowHistory.length} 件）`,
+      );
+      break;
+    }
+    if (canonicalJson(element) !== canonicalJson(nowHistory[i])) {
+      findings.push(`${historyPath} の ${i} 番目の要素が書き換えられている`);
+    }
+  }
+  return findings;
+}
+
+/**
+ * 履歴に追記した要素の形と、最後の要素が今の値を記録しているかを見る。
+ * @param {unknown} after 現在の文書
+ * @param {{ paths: string[], history: string }} group
+ * @param {{ baseLength: number, nowHistory: unknown[] }} history
+ * @returns {string[]} findings
+ */
+function appendedHistoryFindings(after, group, history) {
+  const { baseLength, nowHistory } = history;
+  /** @type {string[]} */
+  const findings = [];
+  // 値の中身が正しい決定かは見ないが、追記した要素は記録として読める形（オブジェクト）でなければならない。
+  // 最後の要素だけを見ると、同じ変更で読めない要素を並べて足しても通る。
+  for (let k = baseLength; k < nowHistory.length - 1; k += 1) {
+    if (!isPlainObject(nowHistory[k])) {
+      findings.push(`${group.history} に追記した ${k} 番目の要素がオブジェクトでない`);
+    }
+  }
+  // 追記した最後の要素が今の値と合わなければ、記録と実体が食い違う（記録だけ足して値を別に書き換える形を通さない）。
+  const last = nowHistory[nowHistory.length - 1];
+  if (!isPlainObject(last)) {
+    findings.push(`${group.history} の最後の要素がオブジェクトでない`);
+    return findings;
+  }
+  for (const p of group.paths) {
+    const field = lastSegment(p);
+    if (canonicalJson(last[field]) === canonicalJson(atPath(after, p))) continue;
+    findings.push(
+      `${group.history} の最後の要素の ${field} が ${p} の今の値と合わない（履歴 ${stringify(last[field])} / 今 ${stringify(atPath(after, p))}）`,
+    );
   }
   return findings;
 }
@@ -1334,96 +1612,148 @@ function lastSegment(path) {
 }
 
 /**
+ * @typedef {{
+ *   add: (unit: string) => void,
+ *   blockSet: Set<string>,
+ *   growableSet: Set<string>,
+ *   registryOf: Map<string, RegistryGroup>,
+ * }} JsoncWalk
+ */
+
+/**
  * JSONC の値の木を単位に分ける（unit: jsonc-tree）。
  * @param {string} text
- * @param {string[]} blocks 配下を単位から外すキーパス
- * @param {string[]} growable 要素ごとの単位に展開するキーパス（追記だけを許す配列）
- * @param {{ id: string, itemKey: string, paths: string[] }[]} registryGroups 鍵をまたぐ移動を許すグループ
+ * @param {{ blocks: string[], growable: string[], registryGroups: RegistryGroup[] }} options
+ *   `blocks` は配下を単位から外すキーパス、`growable` は要素ごとの単位に展開するキーパス（追記だけを許す配列）、
+ *   `registryGroups` は鍵をまたぐ移動を許すグループ。
  * @param {string} label 失敗メッセージ用（ファイル名＋版）
  * @returns {Map<string, number>}
  */
-export function jsoncTreeUnits(text, blocks, growable, registryGroups, label) {
-  /** @type {unknown} */
-  let value;
+export function jsoncTreeUnits(text, options, label) {
+  const { blocks, growable, registryGroups } = options;
+  const value = parseJsoncForAppendCheck(text, label);
+  /** @type {Map<string, number>} */
+  const counts = new Map();
+  /** @type {Map<string, RegistryGroup>} */
+  const registryOf = new Map();
+  for (const g of registryGroups) for (const path of g.paths) registryOf.set(path, g);
+  /** @type {JsoncWalk} */
+  const tree = {
+    add: (unit) => addUnit(counts, unit),
+    blockSet: new Set(blocks),
+    growableSet: new Set(growable),
+    registryOf,
+  };
+  // 最上位の値の型も単位にする（{} を [] や null にする書き換えを落とす）
+  addJsoncContainer(tree, value, "<最上位>");
+  walkJsonc(tree, value, { path: "", exact: true });
+  // コメント。registry_groups と mutable_blocks の配列の中にあるものは数えない。
+  addJsoncComments(tree, text, [...blocks, ...registryGroups.flatMap((g) => g.paths)]);
+  return counts;
+}
+
+/**
+ * JSONC として読む（読めなければ判定不能）。
+ * @param {string} text
+ * @param {string} label
+ * @returns {unknown}
+ */
+function parseJsoncForAppendCheck(text, label) {
   try {
-    value = parseJsonc(text, label);
+    return parseJsonc(text, label);
   } catch (e) {
     if (!(e instanceof ConfigError)) throw e;
     throw new UsageError(`JSONC として読めないため追記であることを確かめられない: ${e.message}`);
   }
-  /** @type {Map<string, number>} */
-  const counts = new Map();
-  /** @param {string} unit */
-  const add = (unit) => counts.set(unit, (counts.get(unit) ?? 0) + 1);
-  const blockSet = new Set(blocks);
-  const growableSet = new Set(growable);
-  /** @type {Map<string, { id: string, itemKey: string }>} */
-  const registryOf = new Map();
-  for (const g of registryGroups) for (const path of g.paths) registryOf.set(path, g);
-  // 配列とオブジェクトは、型も単位にする。空の配列やオブジェクトは他に単位を持たないので、
-  // null やスカラへの書き換えで消える単位が無く、追記として通ってしまうためである。
-  /**
-   * @param {unknown} v
-   * @param {string} path
-   */
-  const addContainer = (v, path) => {
-    if (isArray(v)) add(`<array: ${path}>`);
-    else if (isPlainObject(v)) add(`<object: ${path}>`);
-  };
-  /**
-   * @param {unknown} v
-   * @param {string} path 添字を `[]` に畳んだパス
-   * @param {boolean} exact 添字を含まない（一覧のキーパスと突き合わせられる）
-   */
-  const walk = (v, path, exact) => {
-    if (isPlainObject(v)) {
-      for (const [k, child] of Object.entries(v)) {
-        // 区切りの文字（. [ ] など）を含むキーは JSON の文字列で書く。そのまま連ねると、{"b.c": 1} と {"b": {"c": 1}} が同じ単位になり、
-        // 入れ子の値を消して同じ字面のキーを足す書き換えを追記として通す
-        const segment = /^[^.[\]"\s<>=]+$/.test(k) ? k : JSON.stringify(k);
-        const p = path === "" ? segment : `${path}.${segment}`;
-        add(`<key: ${p}>`);
-        if (exact && blockSet.has(p)) continue;
-        addContainer(child, p);
-        const group = exact ? registryOf.get(p) : undefined;
-        if (exact && (growableSet.has(p) || group !== undefined) && isArray(child)) {
-          for (const element of child) {
-            if (group === undefined) {
-              add(`${GROWABLE_ITEM_PREFIX}${p}> ${canonicalJson(element)}`);
-              continue;
-            }
-            const item =
-              typeof element === "string"
-                ? element.trim()
-                : isPlainObject(element) && typeof element[group.itemKey] === "string"
-                  ? String(element[group.itemKey]).trim()
-                  : canonicalJson(element);
-            add(`${REGISTRY_ITEM_PREFIX}${group.id}> ${item}`);
-          }
-          continue;
-        }
-        walk(child, p, exact);
-      }
-      return;
+}
+
+/**
+ * 配列とオブジェクトは、型も単位にする。空の配列やオブジェクトは他に単位を持たないので、
+ * null やスカラへの書き換えで消える単位が無く、追記として通ってしまうためである。
+ * @param {JsoncWalk} tree
+ * @param {unknown} v
+ * @param {string} path
+ */
+function addJsoncContainer(tree, v, path) {
+  if (isArray(v)) tree.add(`<array: ${path}>`);
+  else if (isPlainObject(v)) tree.add(`<object: ${path}>`);
+}
+
+/**
+ * 値の木を辿って、キー・スカラの値・コンテナの型を単位にする。
+ * @param {JsoncWalk} tree
+ * @param {unknown} v
+ * @param {{ path: string, exact: boolean }} at `path` は添字を `[]` に畳んだパス、
+ *   `exact` は添字を含まない（一覧のキーパスと突き合わせられる）か
+ */
+function walkJsonc(tree, v, at) {
+  if (isPlainObject(v)) {
+    for (const [k, child] of Object.entries(v)) walkJsoncEntry(tree, { k, child }, at);
+    return;
+  }
+  if (isArray(v)) {
+    for (const element of v) {
+      addJsoncContainer(tree, element, `${at.path}[]`);
+      walkJsonc(tree, element, { path: `${at.path}[]`, exact: false });
     }
-    if (isArray(v)) {
-      for (const element of v) {
-        addContainer(element, `${path}[]`);
-        walk(element, `${path}[]`, false);
-      }
-      return;
-    }
-    add(`${path} = ${JSON.stringify(v)}`);
-  };
-  // 最上位の値の型も単位にする（{} を [] や null にする書き換えを落とす）
-  addContainer(value, "<最上位>");
-  walk(value, "", true);
-  // コメント。registry_groups と mutable_blocks の配列の中にあるものは数えない。
-  const tree = jsonc.parseTree(text, [], { allowTrailingComma: true });
+    return;
+  }
+  tree.add(`${at.path} = ${JSON.stringify(v)}`);
+}
+
+/**
+ * オブジェクトの 1 つのキーと、その配下を単位にする。
+ * @param {JsoncWalk} tree
+ * @param {{ k: string, child: unknown }} entry
+ * @param {{ path: string, exact: boolean }} at 親のパス
+ */
+function walkJsoncEntry(tree, entry, at) {
+  const { k, child } = entry;
+  // 区切りの文字（. [ ] など）を含むキーは JSON の文字列で書く。そのまま連ねると、{"b.c": 1} と {"b": {"c": 1}} が同じ単位になり、
+  // 入れ子の値を消して同じ字面のキーを足す書き換えを追記として通す
+  const segment = /^[^.[\]"\s<>=]+$/.test(k) ? k : JSON.stringify(k);
+  const p = at.path === "" ? segment : `${at.path}.${segment}`;
+  tree.add(`<key: ${p}>`);
+  if (at.exact && tree.blockSet.has(p)) return;
+  addJsoncContainer(tree, child, p);
+  const group = at.exact ? tree.registryOf.get(p) : undefined;
+  if (at.exact && (tree.growableSet.has(p) || group !== undefined) && isArray(child)) {
+    for (const element of child) tree.add(jsoncItemUnit(p, element, group));
+    return;
+  }
+  walkJsonc(tree, child, { path: p, exact: at.exact });
+}
+
+/**
+ * growable_containers か registry_groups に挙げた配列の要素を、単位にする。
+ * @param {string} p 配列のキーパス
+ * @param {unknown} element
+ * @param {RegistryGroup | undefined} group registry_groups のグループ（growable_containers なら undefined）
+ * @returns {string}
+ */
+function jsoncItemUnit(p, element, group) {
+  if (group === undefined) return `${GROWABLE_ITEM_PREFIX}${p}> ${canonicalJson(element)}`;
+  const item =
+    typeof element === "string"
+      ? element.trim()
+      : isPlainObject(element) && typeof element[group.itemKey] === "string"
+        ? String(element[group.itemKey]).trim()
+        : canonicalJson(element);
+  return `${REGISTRY_ITEM_PREFIX}${group.id}> ${item}`;
+}
+
+/**
+ * コメントの本文を単位にする。外すキーパスの値の範囲にあるコメントは数えない。
+ * @param {JsoncWalk} tree
+ * @param {string} text
+ * @param {string[]} skippedPaths
+ */
+function addJsoncComments(tree, text, skippedPaths) {
+  const root = jsonc.parseTree(text, [], { allowTrailingComma: true });
   /** @type {[number, number][]} */
   const skipped = [];
-  for (const path of [...blocks, ...registryGroups.flatMap((g) => g.paths)]) {
-    const node = tree === undefined ? undefined : jsonc.findNodeAtLocation(tree, path.split("."));
+  for (const path of skippedPaths) {
+    const node = root === undefined ? undefined : jsonc.findNodeAtLocation(root, path.split("."));
     if (node !== undefined) skipped.push([node.offset, node.offset + node.length]);
   }
   const scanner = jsonc.createScanner(text, false);
@@ -1433,48 +1763,47 @@ export function jsoncTreeUnits(text, blocks, growable, registryGroups, label) {
     const offset = scanner.getTokenOffset();
     if (skipped.some(([start, end]) => offset >= start && offset < end)) continue;
     const body = normalizeLine(text.slice(offset, offset + scanner.getTokenLength()));
-    if (body !== "") add(`<comment> ${body}`);
+    if (body !== "") tree.add(`<comment> ${body}`);
   }
-  return counts;
 }
 
 /**
  * 一覧の unit に従って単位を数える。
  * @param {string} text
- * @param {{ unit: string, arrays: string[], key?: string | null, mutableColumns?: string[], fillOnlyColumns?: string[], mutableBullets?: string[], mutableBlocks?: string[], growableContainers?: string[], registryGroups?: { id: string, itemKey: string, paths: string[] }[] }} artifact
- * @param {string} label
- * @param {{ path: string, prefixes: string[], lines: string[] }[]} [wrappedOut] 連結しても閉じない
- *   フロー形式のコンテナを積む先（診断用。帰属判定の材料を伴う）
+ * @param {{ unit: string, arrays: string[], key?: string | null, mutableColumns?: string[], fillOnlyColumns?: string[], mutableBullets?: string[], mutableBlocks?: string[], growableContainers?: string[], registryGroups?: RegistryGroup[] }} artifact
+ * @param {{ label: string, wrappedOut?: WrappedContainer[] }} context `label` は失敗メッセージ用（ファイル名＋版）。
+ *   `wrappedOut` は連結しても閉じないフロー形式のコンテナを積む先（診断用。帰属判定の材料を伴う）。
  * @returns {Map<string, number>}
  */
-export function unitsOf(text, artifact, label, wrappedOut = []) {
+export function unitsOf(text, artifact, context) {
+  const { label, wrappedOut = [] } = context;
   if (artifact.unit === "markdown-structure") {
-    return markdownUnits(
-      text,
-      artifact.mutableColumns ?? [],
-      artifact.mutableBullets ?? [],
-      artifact.fillOnlyColumns ?? [],
-    );
+    return markdownUnits(text, {
+      mutableColumns: artifact.mutableColumns ?? [],
+      mutableBullets: artifact.mutableBullets ?? [],
+      fillOnlyColumns: artifact.fillOnlyColumns ?? [],
+    });
   }
   if (artifact.unit === "json-arrays") {
-    return jsonArrayUnits(text, artifact.arrays, label, artifact.key ?? null);
+    return jsonArrayUnits(text, { arrays: artifact.arrays, key: artifact.key ?? null }, label);
   }
   if (artifact.unit === "jsonc-tree") {
     return jsoncTreeUnits(
       text,
-      artifact.mutableBlocks ?? [],
-      artifact.growableContainers ?? [],
-      artifact.registryGroups ?? [],
+      {
+        blocks: artifact.mutableBlocks ?? [],
+        growable: artifact.growableContainers ?? [],
+        registryGroups: artifact.registryGroups ?? [],
+      },
       label,
     );
   }
-  return normalizeLines(
-    text,
-    artifact.mutableBlocks ?? [],
-    artifact.growableContainers ?? [],
-    artifact.registryGroups ?? [],
+  return normalizeLines(text, {
+    mutableBlocks: artifact.mutableBlocks ?? [],
+    growableContainers: artifact.growableContainers ?? [],
+    registryGroups: artifact.registryGroups ?? [],
     wrappedOut,
-  );
+  });
 }
 
 /**
@@ -1556,11 +1885,46 @@ function readPinnedValues(raw, i, arrays) {
 }
 
 /**
+ * @typedef {{
+ *   arrays: string[],
+ *   key: string | null,
+ *   fillOnly: string[],
+ *   transitions: Record<string, string[]>,
+ *   mutableColumns: string[],
+ *   fillOnlyColumns: string[],
+ *   mutableBullets: string[],
+ *   mutableBlocks: string[],
+ *   growableContainers: string[],
+ *   registryGroups: RegistryGroup[],
+ *   pinnedValues: { paths: string[], history: string }[],
+ * }} ArtifactOptions
+ * @typedef {ArtifactOptions & { id: string, pattern: string, unit: string, requirement: string, source: string }} ManifestArtifact
+ */
+
+/** mutable_columns・fill_only_columns・mutable_bullets を書ける unit。 */
+const MARKDOWN_ONLY = ["markdown-structure"];
+
+/** registry_groups・growable_containers・mutable_blocks を書ける unit。 */
+const KEY_PATH_UNITS = ["lines", "jsonc-tree"];
+
+/**
  * 一覧を読む。
  * @param {string} manifestPath
- * @returns {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], fillOnlyColumns: string[], mutableBullets: string[], mutableBlocks: string[], growableContainers: string[], registryGroups: { id: string, itemKey: string, paths: string[] }[], pinnedValues: { paths: string[], history: string }[], requirement: string, source: string }[]}
+ * @returns {ManifestArtifact[]}
  */
 export function readManifest(manifestPath) {
+  const artifacts = loadManifestArtifacts(manifestPath);
+  /** @type {Set<string>} */
+  const seenIds = new Set();
+  return artifacts.map((a, i) => readManifestArtifact(a, i, seenIds));
+}
+
+/**
+ * 一覧のファイルを JSON として読み、artifacts の配列を返す。
+ * @param {string} manifestPath
+ * @returns {unknown[]}
+ */
+function loadManifestArtifacts(manifestPath) {
   if (!existsSync(manifestPath)) throw new UsageError(`一覧が無い: ${manifestPath}`);
   let parsed;
   try {
@@ -1571,326 +1935,404 @@ export function readManifest(manifestPath) {
   if (!isPlainObject(parsed) || !isArray(parsed.artifacts)) {
     throw new UsageError(`一覧に artifacts 配列が無い: ${manifestPath}`);
   }
-  /** @type {Set<string>} */
-  const seenIds = new Set();
-  return parsed.artifacts.map((a, i) => {
-    if (!isPlainObject(a)) throw new UsageError(`artifacts[${i}] がオブジェクトでない`);
-    if (!nonEmptyString(a.id) || !nonEmptyString(a.pattern)) {
-      throw new UsageError(`artifacts[${i}] の id / pattern が空`);
+  return parsed.artifacts;
+}
+
+/**
+ * 一覧の項目 1 つを読む。
+ * @param {unknown} a
+ * @param {number} i
+ * @param {Set<string>} seenIds 既に読んだ項目の id
+ * @returns {ManifestArtifact}
+ */
+function readManifestArtifact(a, i, seenIds) {
+  if (!isPlainObject(a)) throw new UsageError(`artifacts[${i}] がオブジェクトでない`);
+  if (!nonEmptyString(a.id) || !nonEmptyString(a.pattern)) {
+    throw new UsageError(`artifacts[${i}] の id / pattern が空`);
+  }
+  // **id は一覧の中で一意**。重複を許すと「同じ id なら同じ項目」という前提が成り立たなくなり、
+  // 同じファイルに当たった突き合わせ方の違う 2 項目が無音で先勝ちに決まる
+  // （緩い規則＝mutable_columns の多い方が先に来ると、厳しい規則が守るはずの列への破壊的編集が検出から外れる）。
+  const id = String(a.id).trim();
+  if (seenIds.has(id)) {
+    throw new UsageError(
+      `artifacts[${i}] の id が一覧の中で重複している: ${id}（突き合わせ方の食い違いが無音で先勝ちに決まる）`,
+    );
+  }
+  seenIds.add(id);
+  const unit = readUnit(a, i);
+  const options =
+    unit === "json-arrays" ? readJsonArraysOptions(a, i) : readTextOptions(a, { i, unit });
+  checkOptionPathOverlap(i, options);
+  return {
+    id,
+    pattern: String(a.pattern).trim(),
+    unit: String(unit),
+    ...options,
+    requirement: nonEmptyString(a.requirement) ? String(a.requirement).trim() : "",
+    source: nonEmptyString(a.source) ? String(a.source).trim() : "",
+  };
+}
+
+/**
+ * 一覧の項目の unit を読む。
+ * @param {Record<string, unknown>} a
+ * @param {number} i
+ * @returns {string}
+ */
+function readUnit(a, i) {
+  // unit を持たない旧い一覧は lines（このツールの初版の突き合わせ方）として読む。
+  const unit = a.unit === undefined || a.unit === null ? "lines" : a.unit;
+  // UNITS は文字列だけなので、typeof は型を絞るためだけにある（判定は変わらない）。
+  if (typeof unit !== "string" || !UNITS.includes(unit)) {
+    throw new UsageError(
+      `artifacts[${i}] の unit が語彙外（${UNITS.join(" / ")}）: ${JSON.stringify(a.unit)}`,
+    );
+  }
+  return unit;
+}
+
+/**
+ * オプションのデフォルト（どの unit でも、書かなかったオプションはこの値になる）。
+ * @returns {ArtifactOptions}
+ */
+function defaultArtifactOptions() {
+  return {
+    arrays: [],
+    key: null,
+    fillOnly: [],
+    transitions: {},
+    mutableColumns: [],
+    fillOnlyColumns: [],
+    mutableBullets: [],
+    mutableBlocks: [],
+    growableContainers: [],
+    registryGroups: [],
+    pinnedValues: [],
+  };
+}
+
+/**
+ * 一覧の項目の、文字列の配列のオプションを読む。
+ * @param {unknown} value
+ * @param {string} where 失敗メッセージに出す位置（`artifacts[0].fill_only` など）
+ * @param {boolean} [keyPath] 要素をキーパスの形に限るか
+ * @returns {string[]}
+ */
+function readStringList(value, where, keyPath = false) {
+  if (!isArray(value)) throw new UsageError(`${where} が配列でない`);
+  for (const item of value) {
+    if (!nonEmptyString(item)) throw new UsageError(`${where} に空の要素がある`);
+    // キーパス以外（先頭・末尾のドット、空のセグメント）は、警告なしに「一致しないパス」になり、
+    // 外したつもりの領域が単位に残る。書いた側の誤りとして落とす。
+    if (keyPath && !KEY_PATH.test(String(item).trim())) {
+      throw new UsageError(`${where} の要素がキーパスの形でない: ${JSON.stringify(item)}`);
     }
-    // **id は一覧の中で一意**。重複を許すと「同じ id なら同じ項目」という前提が崩れ、
-    // 同じファイルに当たった突き合わせ方の違う 2 項目が無音で先勝ちに決まる
-    // （緩い規則＝mutable_columns の多い方が先に来ると、厳しい規則が守るはずの列への破壊的編集が検出から外れる）。
-    const id = String(a.id).trim();
-    if (seenIds.has(id)) {
-      throw new UsageError(
-        `artifacts[${i}] の id が一覧の中で重複している: ${id}（突き合わせ方の食い違いが無音で先勝ちに決まる）`,
-      );
-    }
-    seenIds.add(id);
-    // unit を持たない旧い一覧は lines（このツールの初版の突き合わせ方）として読む。
-    const unit = a.unit === undefined || a.unit === null ? "lines" : a.unit;
-    // UNITS は文字列だけなので、typeof は型を絞るためだけにある（判定は変わらない）。
-    if (typeof unit !== "string" || !UNITS.includes(unit)) {
-      throw new UsageError(
-        `artifacts[${i}] の unit が語彙外（${UNITS.join(" / ")}）: ${JSON.stringify(a.unit)}`,
-      );
-    }
-    /** @type {string[]} */
-    let arrays = [];
-    /** @type {string | null} */
-    let key = null;
-    /** @type {string[]} */
-    let fillOnly = [];
-    /** @type {Record<string, string[]>} */
-    const transitions = {};
-    /** @type {string[]} */
-    let mutableColumns = [];
-    /** @type {string[]} */
-    let fillOnlyColumns = [];
-    /** @type {string[]} */
-    let mutableBullets = [];
-    /** @type {string[]} */
-    let mutableBlocks = [];
-    /** @type {string[]} */
-    let growableContainers = [];
-    /** @type {{ id: string, itemKey: string, paths: string[] }[]} */
-    let registryGroups = [];
-    /** @type {{ paths: string[], history: string }[]} */
-    let pinnedValues = [];
-    if (unit === "json-arrays") {
-      if (!isArray(a.arrays) || a.arrays.length === 0) {
-        throw new UsageError(`artifacts[${i}] の unit が json-arrays なのに arrays が空`);
-      }
-      for (const path of a.arrays) {
-        if (!nonEmptyString(path)) throw new UsageError(`artifacts[${i}].arrays に空の要素がある`);
-      }
-      arrays = a.arrays.map((x) => String(x).trim());
-      if (a.key !== undefined && a.key !== null) {
-        if (!nonEmptyString(a.key)) throw new UsageError(`artifacts[${i}].key が空`);
-        key = String(a.key).trim();
-      }
-      if (a.fill_only !== undefined && a.fill_only !== null) {
-        if (key === null)
-          throw new UsageError(`artifacts[${i}] は key が無いのに fill_only がある`);
-        if (!isArray(a.fill_only)) throw new UsageError(`artifacts[${i}].fill_only が配列でない`);
-        for (const f of a.fill_only) {
-          if (!nonEmptyString(f))
-            throw new UsageError(`artifacts[${i}].fill_only に空の要素がある`);
-        }
-        fillOnly = a.fill_only.map((x) => String(x).trim());
-      }
-      if (a.transitions !== undefined && a.transitions !== null) {
-        if (key === null)
-          throw new UsageError(`artifacts[${i}] は key が無いのに transitions がある`);
-        if (!isPlainObject(a.transitions)) {
-          throw new UsageError(`artifacts[${i}].transitions がオブジェクトでない`);
-        }
-        for (const [field, list] of Object.entries(a.transitions)) {
-          if (!isArray(list) || list.length === 0) {
-            throw new UsageError(`artifacts[${i}].transitions.${field} が空の配列`);
-          }
-          for (const t of list) {
-            // 「<変更前>-><変更後>」だけを受ける。曖昧な表記を警告なしに通さない。
-            if (!nonEmptyString(t) || !/^[^>]+->[^>]+$/.test(String(t).trim())) {
-              throw new UsageError(
-                `artifacts[${i}].transitions.${field} の要素が <変更前>-><変更後> の形でない: ${JSON.stringify(t)}`,
-              );
-            }
-          }
-          transitions[field] = list.map((x) => String(x).trim());
-        }
-      }
-      if (a.pinned_values !== undefined && a.pinned_values !== null) {
-        pinnedValues = readPinnedValues(a.pinned_values, i, arrays);
-      }
-      if (
-        a.mutable_columns !== undefined ||
-        a.fill_only_columns !== undefined ||
-        a.mutable_bullets !== undefined ||
-        a.mutable_blocks !== undefined ||
-        a.growable_containers !== undefined ||
-        a.registry_groups !== undefined
-      ) {
+  }
+  return value.map((x) => String(x).trim());
+}
+
+/**
+ * unit が json-arrays の項目のオプションを読む。
+ * @param {Record<string, unknown>} a
+ * @param {number} i
+ * @returns {ArtifactOptions}
+ */
+function readJsonArraysOptions(a, i) {
+  if (!isArray(a.arrays) || a.arrays.length === 0) {
+    throw new UsageError(`artifacts[${i}] の unit が json-arrays なのに arrays が空`);
+  }
+  const arrays = readStringList(a.arrays, `artifacts[${i}].arrays`);
+  const key = readArrayKey(a, i);
+  const fillOnly = readFillOnly(a, i, key);
+  const transitions = readTransitions(a, i, key);
+  const pinnedValues =
+    a.pinned_values !== undefined && a.pinned_values !== null
+      ? readPinnedValues(a.pinned_values, i, arrays)
+      : [];
+  rejectTextOptions(a, i);
+  return { ...defaultArtifactOptions(), arrays, key, fillOnly, transitions, pinnedValues };
+}
+
+/**
+ * json-arrays の key を読む。
+ * @param {Record<string, unknown>} a
+ * @param {number} i
+ * @returns {string | null}
+ */
+function readArrayKey(a, i) {
+  if (a.key === undefined || a.key === null) return null;
+  if (!nonEmptyString(a.key)) throw new UsageError(`artifacts[${i}].key が空`);
+  return String(a.key).trim();
+}
+
+/**
+ * json-arrays の fill_only を読む。
+ * @param {Record<string, unknown>} a
+ * @param {number} i
+ * @param {string | null} key
+ * @returns {string[]}
+ */
+function readFillOnly(a, i, key) {
+  if (a.fill_only === undefined || a.fill_only === null) return [];
+  if (key === null) throw new UsageError(`artifacts[${i}] は key が無いのに fill_only がある`);
+  return readStringList(a.fill_only, `artifacts[${i}].fill_only`);
+}
+
+/**
+ * json-arrays の transitions を読む。
+ * @param {Record<string, unknown>} a
+ * @param {number} i
+ * @param {string | null} key
+ * @returns {Record<string, string[]>}
+ */
+function readTransitions(a, i, key) {
+  /** @type {Record<string, string[]>} */
+  const transitions = {};
+  if (a.transitions === undefined || a.transitions === null) return transitions;
+  if (key === null) throw new UsageError(`artifacts[${i}] は key が無いのに transitions がある`);
+  if (!isPlainObject(a.transitions)) {
+    throw new UsageError(`artifacts[${i}].transitions がオブジェクトでない`);
+  }
+  for (const [field, list] of Object.entries(a.transitions)) {
+    const where = `artifacts[${i}].transitions.${field}`;
+    if (!isArray(list) || list.length === 0) throw new UsageError(`${where} が空の配列`);
+    for (const t of list) {
+      // 「<変更前>-><変更後>」だけを受ける。曖昧な表記を警告なしに通さない。
+      if (!nonEmptyString(t) || !/^[^>]+->[^>]+$/.test(String(t).trim())) {
         throw new UsageError(
-          `artifacts[${i}] の unit が json-arrays なのに mutable_columns / fill_only_columns / mutable_bullets / mutable_blocks / growable_containers / registry_groups がある`,
+          `${where} の要素が <変更前>-><変更後> の形でない: ${JSON.stringify(t)}`,
         );
       }
-    } else {
-      if (a.arrays !== undefined && a.arrays !== null) {
-        throw new UsageError(`artifacts[${i}] の unit が ${unit} なのに arrays がある`);
-      }
-      if (a.key !== undefined && a.key !== null) {
-        throw new UsageError(`artifacts[${i}] の unit が ${unit} なのに key がある`);
-      }
-      if (a.fill_only !== undefined || a.transitions !== undefined) {
-        throw new UsageError(
-          `artifacts[${i}] の unit が ${unit} なのに fill_only / transitions がある`,
-        );
-      }
-      if (a.pinned_values !== undefined) {
-        throw new UsageError(`artifacts[${i}] の unit が ${unit} なのに pinned_values がある`);
-      }
-      if (a.mutable_columns !== undefined && a.mutable_columns !== null) {
-        if (unit !== "markdown-structure") {
-          throw new UsageError(`artifacts[${i}] の unit が ${unit} なのに mutable_columns がある`);
-        }
-        if (!isArray(a.mutable_columns)) {
-          throw new UsageError(`artifacts[${i}].mutable_columns が配列でない`);
-        }
-        for (const c of a.mutable_columns) {
-          if (!nonEmptyString(c))
-            throw new UsageError(`artifacts[${i}].mutable_columns に空の要素がある`);
-        }
-        mutableColumns = a.mutable_columns.map((x) => String(x).trim());
-      }
-      if (a.fill_only_columns !== undefined && a.fill_only_columns !== null) {
-        if (unit !== "markdown-structure") {
-          throw new UsageError(
-            `artifacts[${i}] の unit が ${unit} なのに fill_only_columns がある`,
-          );
-        }
-        if (!isArray(a.fill_only_columns)) {
-          throw new UsageError(`artifacts[${i}].fill_only_columns が配列でない`);
-        }
-        for (const c of a.fill_only_columns) {
-          if (!nonEmptyString(c))
-            throw new UsageError(`artifacts[${i}].fill_only_columns に空の要素がある`);
-        }
-        fillOnlyColumns = a.fill_only_columns.map((x) => String(x).trim());
-        // "*" は「全列を空 → 非空だけ」と「取り決めの対象外」のどちらにも読めるので受けない。
-        if (fillOnlyColumns.includes("*")) {
-          throw new UsageError(
-            `artifacts[${i}].fill_only_columns に "*" がある（列名で名指しする）`,
-          );
-        }
-        // 同じ列を両方に書くと、緩い方（mutable_columns）が警告なしに優先され、決めた値の書き換えが通る。
-        const overlap = mutableColumns.includes("*")
-          ? fillOnlyColumns
-          : fillOnlyColumns.filter((c) => mutableColumns.includes(c));
-        if (overlap.length > 0) {
-          throw new UsageError(
-            `artifacts[${i}] の同じ列が mutable_columns と fill_only_columns の両方にある: ${overlap.join(" / ")}`,
-          );
-        }
-      }
-      if (a.registry_groups !== undefined && a.registry_groups !== null) {
-        if (unit !== "lines" && unit !== "jsonc-tree") {
-          throw new UsageError(`artifacts[${i}] の unit が ${unit} なのに registry_groups がある`);
-        }
-        if (!isArray(a.registry_groups)) {
-          throw new UsageError(`artifacts[${i}].registry_groups が配列でない`);
-        }
-        /** @type {Set<string>} */
-        const seenGroupIds = new Set();
-        /** @type {Set<string>} */
-        const seenPaths = new Set();
-        /** @type {{ id: string, itemKey: string, paths: string[] }[]} */
-        const groups = [];
-        for (const group of a.registry_groups) {
-          if (
-            !isPlainObject(group) ||
-            !nonEmptyString(group.id) ||
-            !nonEmptyString(group.item_key)
-          ) {
-            throw new UsageError(`artifacts[${i}].registry_groups の要素に id / item_key が無い`);
-          }
-          const id = String(group.id).trim();
-          // id が重なると別グループの要素が同じ単位に畳まれ、鍵をまたぐ移動の範囲が警告なしに広がる。
-          if (seenGroupIds.has(id)) {
-            throw new UsageError(`artifacts[${i}].registry_groups の id が重複している: ${id}`);
-          }
-          seenGroupIds.add(id);
-          if (!isArray(group.paths) || group.paths.length === 0) {
-            throw new UsageError(`artifacts[${i}].registry_groups[${id}].paths が空`);
-          }
-          /** @type {string[]} */
-          const paths = [];
-          for (const path of group.paths) {
-            if (!nonEmptyString(path) || !KEY_PATH.test(String(path).trim())) {
-              throw new UsageError(
-                `artifacts[${i}].registry_groups[${id}].paths の要素がキーパスの形でない: ${JSON.stringify(path)}`,
-              );
-            }
-            const p = String(path).trim();
-            // 同じパスが 2 つのグループに属すると、どちらの単位になるかが並び順で決まる。
-            if (seenPaths.has(p)) {
-              throw new UsageError(
-                `artifacts[${i}].registry_groups のパスが複数のグループに属している: ${p}`,
-              );
-            }
-            seenPaths.add(p);
-            paths.push(p);
-          }
-          groups.push({ id, itemKey: String(group.item_key).trim(), paths });
-        }
-        registryGroups = groups;
-      }
-      if (a.growable_containers !== undefined && a.growable_containers !== null) {
-        if (unit !== "lines" && unit !== "jsonc-tree") {
-          throw new UsageError(
-            `artifacts[${i}] の unit が ${unit} なのに growable_containers がある`,
-          );
-        }
-        if (!isArray(a.growable_containers)) {
-          throw new UsageError(`artifacts[${i}].growable_containers が配列でない`);
-        }
-        for (const b of a.growable_containers) {
-          if (!nonEmptyString(b))
-            throw new UsageError(`artifacts[${i}].growable_containers に空の要素がある`);
-          if (!KEY_PATH.test(String(b).trim())) {
-            throw new UsageError(
-              `artifacts[${i}].growable_containers の要素がキーパスの形でない: ${JSON.stringify(b)}`,
-            );
-          }
-        }
-        growableContainers = a.growable_containers.map((x) => String(x).trim());
-      }
-      if (a.mutable_blocks !== undefined && a.mutable_blocks !== null) {
-        if (unit !== "lines" && unit !== "jsonc-tree") {
-          throw new UsageError(`artifacts[${i}] の unit が ${unit} なのに mutable_blocks がある`);
-        }
-        if (!isArray(a.mutable_blocks)) {
-          throw new UsageError(`artifacts[${i}].mutable_blocks が配列でない`);
-        }
-        for (const b of a.mutable_blocks) {
-          if (!nonEmptyString(b))
-            throw new UsageError(`artifacts[${i}].mutable_blocks に空の要素がある`);
-          // キーパス以外（先頭・末尾のドット、空のセグメント）は、警告なしに「一致しないパス」になり、
-          // 外したつもりの領域が単位に残る。書いた側の誤りとして落とす。
-          if (!KEY_PATH.test(String(b).trim())) {
-            throw new UsageError(
-              `artifacts[${i}].mutable_blocks の要素がキーパスの形でない: ${JSON.stringify(b)}`,
-            );
-          }
-        }
-        mutableBlocks = a.mutable_blocks.map((x) => String(x).trim());
-      }
-      if (a.mutable_bullets !== undefined && a.mutable_bullets !== null) {
-        if (unit !== "markdown-structure") {
-          throw new UsageError(`artifacts[${i}] の unit が ${unit} なのに mutable_bullets がある`);
-        }
-        if (!isArray(a.mutable_bullets)) {
-          throw new UsageError(`artifacts[${i}].mutable_bullets が配列でない`);
-        }
-        for (const c of a.mutable_bullets) {
-          if (!nonEmptyString(c))
-            throw new UsageError(`artifacts[${i}].mutable_bullets に空の要素がある`);
-        }
-        mutableBullets = a.mutable_bullets.map((x) => String(x).trim());
-      }
     }
-    // **3 つのオプションの間でパスは重ならない。完全一致だけでなく祖先・子孫の重なりも落とす。**
-    // 重なると、同じキーに 2 通りの単位が当たり、実装の分岐の順で先に当たった方に決まる。緩い方が当たると、
-    // 検出できていたはずの削除が警告なしに通る。祖先の側はとくに危ない。`mutable_blocks` は配下を丸ごと
-    // 単位から外すので、子孫に書いた `growable_containers` / `registry_groups` の展開は、そこへ到達しない。
-    // すると、**その配下の削除がすべて通る**（実測: `a.b` を外した状態で `a.b.c` を空にし `a.b.d` を消しても失われた単位 0）。
-    // 一覧をコピーして `--manifest` で渡す運用でコピー側に祖先を足した瞬間に成立するため、使い方の誤りとして落とす。
-    // グループ内・グループ間の重複を exit 2 にしているのと同じ理由。
-    /** @type {{ path: string, option: string }[]} 既に見たパスと由来のオプション名 */
-    const pathOwners = [];
-    /** @type {[string, string[]][]} */
-    const optionPaths = [
-      ["mutable_blocks", mutableBlocks],
-      ["growable_containers", growableContainers],
-      ["registry_groups", registryGroups.flatMap((g) => g.paths)],
-    ];
-    for (const [option, paths] of optionPaths) {
-      for (const path of paths) {
-        for (const prev of pathOwners) {
-          // 祖先・子孫は「一方がもう一方 + `.` で始まる」で判定する（`a.b` と `a.bc` は重ならない）。
-          const overlaps =
-            prev.path === path ||
-            path.startsWith(`${prev.path}.`) ||
-            prev.path.startsWith(`${path}.`);
-          if (!overlaps) continue;
-          const how = prev.path === path ? "同じキーパス" : "入れ子になったキーパス";
-          throw new UsageError(
-            `artifacts[${i}] の${how}が ${prev.option} と ${option} の両方にある: ${prev.path} / ${path}`,
-          );
-        }
-        pathOwners.push({ path, option });
-      }
-    }
-    return {
-      id: String(a.id).trim(),
-      pattern: String(a.pattern).trim(),
-      unit: String(unit),
-      arrays,
-      key,
-      fillOnly,
-      transitions,
-      mutableColumns,
-      fillOnlyColumns,
-      mutableBullets,
-      mutableBlocks,
-      growableContainers,
-      registryGroups,
-      pinnedValues,
-      requirement: nonEmptyString(a.requirement) ? String(a.requirement).trim() : "",
-      source: nonEmptyString(a.source) ? String(a.source).trim() : "",
-    };
+    transitions[field] = list.map((x) => String(x).trim());
+  }
+  return transitions;
+}
+
+/**
+ * unit が json-arrays の項目に、他の unit のオプションがあれば使い方の誤りにする。
+ * @param {Record<string, unknown>} a
+ * @param {number} i
+ */
+function rejectTextOptions(a, i) {
+  if (
+    a.mutable_columns !== undefined ||
+    a.fill_only_columns !== undefined ||
+    a.mutable_bullets !== undefined ||
+    a.mutable_blocks !== undefined ||
+    a.growable_containers !== undefined ||
+    a.registry_groups !== undefined
+  ) {
+    throw new UsageError(
+      `artifacts[${i}] の unit が json-arrays なのに mutable_columns / fill_only_columns / mutable_bullets / mutable_blocks / growable_containers / registry_groups がある`,
+    );
+  }
+}
+
+/**
+ * unit が json-arrays 以外の項目のオプションを読む。
+ * @param {Record<string, unknown>} a
+ * @param {{ i: number, unit: string }} ctx
+ * @returns {ArtifactOptions}
+ */
+function readTextOptions(a, ctx) {
+  rejectJsonArraysOptions(a, ctx);
+  const mutableColumns = readUnitOption(a, ctx, { name: "mutable_columns", units: MARKDOWN_ONLY });
+  const fillOnlyColumns = readUnitOption(a, ctx, {
+    name: "fill_only_columns",
+    units: MARKDOWN_ONLY,
   });
+  checkFillOnlyColumns(ctx.i, fillOnlyColumns, mutableColumns);
+  const registryGroups = readRegistryGroups(a, ctx);
+  const growableContainers = readUnitOption(a, ctx, {
+    name: "growable_containers",
+    units: KEY_PATH_UNITS,
+    keyPath: true,
+  });
+  const mutableBlocks = readUnitOption(a, ctx, {
+    name: "mutable_blocks",
+    units: KEY_PATH_UNITS,
+    keyPath: true,
+  });
+  const mutableBullets = readUnitOption(a, ctx, { name: "mutable_bullets", units: MARKDOWN_ONLY });
+  return {
+    ...defaultArtifactOptions(),
+    mutableColumns,
+    fillOnlyColumns,
+    mutableBullets,
+    mutableBlocks,
+    growableContainers,
+    registryGroups,
+  };
+}
+
+/**
+ * unit が json-arrays 以外の項目に、json-arrays のオプションがあれば使い方の誤りにする。
+ * @param {Record<string, unknown>} a
+ * @param {{ i: number, unit: string }} ctx
+ */
+function rejectJsonArraysOptions(a, ctx) {
+  const { i, unit } = ctx;
+  if (a.arrays !== undefined && a.arrays !== null) {
+    throw new UsageError(`artifacts[${i}] の unit が ${unit} なのに arrays がある`);
+  }
+  if (a.key !== undefined && a.key !== null) {
+    throw new UsageError(`artifacts[${i}] の unit が ${unit} なのに key がある`);
+  }
+  if (a.fill_only !== undefined || a.transitions !== undefined) {
+    throw new UsageError(
+      `artifacts[${i}] の unit が ${unit} なのに fill_only / transitions がある`,
+    );
+  }
+  if (a.pinned_values !== undefined) {
+    throw new UsageError(`artifacts[${i}] の unit が ${unit} なのに pinned_values がある`);
+  }
+}
+
+/**
+ * 書ける unit が決まっている、文字列の配列のオプションを読む。書いていなければ空の配列を返す。
+ * @param {Record<string, unknown>} a
+ * @param {{ i: number, unit: string }} ctx
+ * @param {{ name: string, units: string[], keyPath?: boolean }} spec
+ * @returns {string[]}
+ */
+function readUnitOption(a, ctx, spec) {
+  const value = a[spec.name];
+  if (value === undefined || value === null) return [];
+  if (!spec.units.includes(ctx.unit)) {
+    throw new UsageError(`artifacts[${ctx.i}] の unit が ${ctx.unit} なのに ${spec.name} がある`);
+  }
+  return readStringList(value, `artifacts[${ctx.i}].${spec.name}`, spec.keyPath ?? false);
+}
+
+/**
+ * fill_only_columns の "*" と、mutable_columns との重なりを使い方の誤りにする。
+ * @param {number} i
+ * @param {string[]} fillOnlyColumns
+ * @param {string[]} mutableColumns
+ */
+function checkFillOnlyColumns(i, fillOnlyColumns, mutableColumns) {
+  // "*" は「全列を空 → 非空だけ」と「取り決めの対象外」のどちらにも読めるので受けない。
+  if (fillOnlyColumns.includes("*")) {
+    throw new UsageError(`artifacts[${i}].fill_only_columns に "*" がある（列名で名指しする）`);
+  }
+  // 同じ列を両方に書くと、緩い方（mutable_columns）が警告なしに優先され、決めた値の書き換えが通る。
+  const overlap = mutableColumns.includes("*")
+    ? fillOnlyColumns
+    : fillOnlyColumns.filter((c) => mutableColumns.includes(c));
+  if (overlap.length > 0) {
+    throw new UsageError(
+      `artifacts[${i}] の同じ列が mutable_columns と fill_only_columns の両方にある: ${overlap.join(" / ")}`,
+    );
+  }
+}
+
+/**
+ * registry_groups を読む。
+ * @param {Record<string, unknown>} a
+ * @param {{ i: number, unit: string }} ctx
+ * @returns {RegistryGroup[]}
+ */
+function readRegistryGroups(a, ctx) {
+  const { i, unit } = ctx;
+  const raw = a.registry_groups;
+  if (raw === undefined || raw === null) return [];
+  if (!KEY_PATH_UNITS.includes(unit)) {
+    throw new UsageError(`artifacts[${i}] の unit が ${unit} なのに registry_groups がある`);
+  }
+  if (!isArray(raw)) throw new UsageError(`artifacts[${i}].registry_groups が配列でない`);
+  /** @type {{ groupIds: Set<string>, paths: Set<string> }} */
+  const seen = { groupIds: new Set(), paths: new Set() };
+  return raw.map((group) => readRegistryGroup(group, i, seen));
+}
+
+/**
+ * registry_groups の要素 1 つを読む。
+ * @param {unknown} group
+ * @param {number} i
+ * @param {{ groupIds: Set<string>, paths: Set<string> }} seen 既に読んだグループの id とパス
+ * @returns {RegistryGroup}
+ */
+function readRegistryGroup(group, i, seen) {
+  if (!isPlainObject(group) || !nonEmptyString(group.id) || !nonEmptyString(group.item_key)) {
+    throw new UsageError(`artifacts[${i}].registry_groups の要素に id / item_key が無い`);
+  }
+  const id = String(group.id).trim();
+  // id が重なると別グループの要素が同じ単位に畳まれ、鍵をまたぐ移動の範囲が警告なしに広がる。
+  if (seen.groupIds.has(id)) {
+    throw new UsageError(`artifacts[${i}].registry_groups の id が重複している: ${id}`);
+  }
+  seen.groupIds.add(id);
+  if (!isArray(group.paths) || group.paths.length === 0) {
+    throw new UsageError(`artifacts[${i}].registry_groups[${id}].paths が空`);
+  }
+  const paths = group.paths.map((path) => readRegistryPath(path, { i, id }, seen.paths));
+  return { id, itemKey: String(group.item_key).trim(), paths };
+}
+
+/**
+ * registry_groups の paths の要素 1 つを読む。
+ * @param {unknown} path
+ * @param {{ i: number, id: string }} ctx
+ * @param {Set<string>} seenPaths すべてのグループで既に読んだパス
+ * @returns {string}
+ */
+function readRegistryPath(path, ctx, seenPaths) {
+  const { i, id } = ctx;
+  if (!nonEmptyString(path) || !KEY_PATH.test(String(path).trim())) {
+    throw new UsageError(
+      `artifacts[${i}].registry_groups[${id}].paths の要素がキーパスの形でない: ${JSON.stringify(path)}`,
+    );
+  }
+  const p = String(path).trim();
+  // 同じパスが 2 つのグループに属すると、どちらの単位になるかが並び順で決まる。
+  if (seenPaths.has(p)) {
+    throw new UsageError(
+      `artifacts[${i}].registry_groups のパスが複数のグループに属している: ${p}`,
+    );
+  }
+  seenPaths.add(p);
+  return p;
+}
+
+/**
+ * **3 つのオプションの間でパスは重ならない。完全一致だけでなく祖先・子孫の重なりも落とす。**
+ * 重なると、同じキーに 2 通りの単位が当たり、実装の分岐の順で先に当たった方に決まる。緩い方が当たると、
+ * 検出できていたはずの削除が警告なしに通る。祖先の側はとくに危ない。`mutable_blocks` は配下を丸ごと
+ * 単位から外すので、子孫に書いた `growable_containers` / `registry_groups` の展開は、そこへ到達しない。
+ * すると、**その配下の削除がすべて通る**（実測: `a.b` を外した状態で `a.b.c` を空にし `a.b.d` を消しても失われた単位 0）。
+ * 一覧をコピーして `--manifest` で渡す運用でコピー側に祖先を足した瞬間に成立するため、使い方の誤りとして落とす。
+ * グループ内・グループ間の重複を exit 2 にしているのと同じ理由。
+ * @param {number} i
+ * @param {ArtifactOptions} options
+ */
+function checkOptionPathOverlap(i, options) {
+  /** @type {{ path: string, option: string }[]} 既に見たパスと由来のオプション名 */
+  const pathOwners = [];
+  /** @type {[string, string[]][]} */
+  const optionPaths = [
+    ["mutable_blocks", options.mutableBlocks],
+    ["growable_containers", options.growableContainers],
+    ["registry_groups", options.registryGroups.flatMap((g) => g.paths)],
+  ];
+  for (const [option, paths] of optionPaths) {
+    for (const path of paths) {
+      for (const prev of pathOwners) {
+        // 祖先・子孫は「一方がもう一方 + `.` で始まる」で判定する（`a.b` と `a.bc` は重ならない）。
+        const overlaps =
+          prev.path === path ||
+          path.startsWith(`${prev.path}.`) ||
+          prev.path.startsWith(`${path}.`);
+        if (!overlaps) continue;
+        const how = prev.path === path ? "同じキーパス" : "入れ子になったキーパス";
+        throw new UsageError(
+          `artifacts[${i}] の${how}が ${prev.option} と ${option} の両方にある: ${prev.path} / ${path}`,
+        );
+      }
+      pathOwners.push({ path, option });
+    }
+  }
 }
 
 /**
@@ -1900,6 +2342,56 @@ export function readManifest(manifestPath) {
 export function check(opts) {
   const { root, manifestPath, base } = opts;
   const exclude = opts.exclude ?? [];
+  const artifacts = selectArtifacts(manifestPath, exclude);
+  const prefix = repoPrefix(root, base);
+
+  /** @type {string[]} */
+  const findings = [];
+  /** @type {string[]} */
+  const notes = [];
+  if (exclude.length > 0) notes.push(`一覧から外した項目（突き合わせない）: ${exclude.join(", ")}`);
+
+  const trackedFiles = trackedFilesAt(root, base, prefix);
+  const byFile = assignArtifacts(root, artifacts, trackedFiles);
+  const targets = [...byFile.keys()].sort();
+  if (targets.length === 0) {
+    throw new UsageError(
+      `追記専用の成果物が 1 件も見つからない（対象 0 件を合格として扱わない）: root=${root} 一覧=${manifestPath}`,
+    );
+  }
+
+  /** @type {CheckContext} */
+  const ctx = { root, base, prefix, trackedSet: new Set(trackedFiles), findings, notes };
+  let checked = 0;
+  for (const file of targets) {
+    const artifact = byFile.get(file);
+    // targets は byFile のキーなので必ず見つかる（型を絞るためだけの分岐で、到達しない）。
+    if (artifact === undefined) throw new Error(`byFile に無いファイル: ${file}`);
+    if (compareArtifactFile(ctx, file, artifact)) checked += 1;
+  }
+
+  notes.push(
+    `一覧の ${artifacts.length} パターンに一致した ${targets.length} 件のうち、比較元にも在る ${checked} 件を突き合わせた`,
+  );
+  if (checked === 0) {
+    findings.push(
+      `比較元 ${base} に在る追記専用の成果物が 0 件（突き合わせが 1 件も成立していない）`,
+    );
+  }
+  return { findings, notes, checked };
+}
+
+/**
+ * @typedef {{ root: string, base: string, prefix: string, trackedSet: Set<string>, findings: string[], notes: string[] }} CheckContext
+ */
+
+/**
+ * 一覧を読み、--exclude の項目を外す。
+ * @param {string} manifestPath
+ * @param {string[]} exclude
+ * @returns {ManifestArtifact[]}
+ */
+function selectArtifacts(manifestPath, exclude) {
   // 一覧の形の検査（id の重複・パスの入れ子）は除外の前に全項目へ当てる。
   const declared = readManifest(manifestPath);
   if (declared.length === 0) throw new UsageError(`一覧の artifacts が 0 件: ${manifestPath}`);
@@ -1916,7 +2408,21 @@ export function check(opts) {
       `--exclude で一覧の項目がすべて外れた（何も突き合わせずに合格として扱わない）`,
     );
   }
+  return artifacts;
+}
 
+/**
+ * root が git の作業ツリーの中にあり、比較元の版を解決できることを確かめ、トップレベルから root までの prefix を返す。
+ *
+ * root がリポジトリのトップレベルとは限らない（.replace が monorepo の一階層下に在る等）。
+ * ls-tree はデフォルトで cwd 相対のパスを返す一方、`git show <rev>:<path>` の path はトップレベル起点なので、
+ * 揃えずに混在させると、全件が「比較元に無い＝新規」と誤って判定され、突き合わせが 1 件も成立しない。
+ * そこで --full-tree でトップレベル起点に揃え、root までの prefix で相互に変換する。
+ * @param {string} root
+ * @param {string} base
+ * @returns {string} 空文字か、`/` で終わる prefix
+ */
+function repoPrefix(root, base) {
   const inside = git(root, ["rev-parse", "--is-inside-work-tree"]);
   if (inside.status !== 0 || inside.stdout.trim() !== "true") {
     throw new UsageError(`git リポジトリではないため追記であることを確かめられない: ${root}`);
@@ -1925,11 +2431,6 @@ export function check(opts) {
   if (baseRev.status !== 0) {
     throw new UsageError(`比較元の版を解決できない: ${base}（${baseRev.stderr.trim()}）`);
   }
-
-  // root がリポジトリのトップレベルとは限らない（.replace が monorepo の一階層下に在る等）。
-  // ls-tree はデフォルトで cwd 相対のパスを返す一方、`git show <rev>:<path>` の path はトップレベル起点なので、
-  // 揃えずに混在させると、全件が「比較元に無い＝新規」と誤って判定され、突き合わせが 1 件も成立しない。
-  // そこで --full-tree でトップレベル起点に揃え、root までの prefix で相互に変換する。
   const top = git(root, ["rev-parse", "--show-toplevel"]);
   if (top.status !== 0 || top.stdout.trim() === "") {
     throw new UsageError(`リポジトリのトップレベルを解決できない: ${root}（${top.stderr.trim()}）`);
@@ -1942,26 +2443,38 @@ export function check(opts) {
       `--root がリポジトリの外を指している: ${root}（トップレベル ${top.stdout.trim()}）`,
     );
   }
-  const prefix = prefixRel === "" ? "" : `${prefixRel}/`;
+  return prefixRel === "" ? "" : `${prefixRel}/`;
+}
 
-  /** @type {string[]} */
-  const findings = [];
-  /** @type {string[]} */
-  const notes = [];
-  if (exclude.length > 0) notes.push(`一覧から外した項目（突き合わせない）: ${exclude.join(", ")}`);
-
-  // 比較元に在って作業ツリーから消えたファイルも対象にする（消失は縮小の極端な形）。
+/**
+ * 比較元の版に在る、root の配下のファイルを、root からの相対パスで返す。
+ * 比較元に在って作業ツリーから消えたファイルも対象にする（消失は縮小の極端な形）。
+ * @param {string} root
+ * @param {string} base
+ * @param {string} prefix
+ * @returns {string[]}
+ */
+function trackedFilesAt(root, base, prefix) {
   const tracked = git(root, ["ls-tree", "-r", "--name-only", "--full-tree", "-z", base]);
   if (tracked.status !== 0) {
     throw new UsageError(`比較元の版のファイル一覧を取れない: ${base}（${tracked.stderr.trim()}）`);
   }
-  const trackedFiles = tracked.stdout
+  return tracked.stdout
     .split("\0")
     .filter((f) => f !== "" && (prefix === "" || f.startsWith(prefix)))
     .map((f) => f.slice(prefix.length));
+}
 
-  const trackedSet = new Set(trackedFiles);
-
+/**
+ * 作業ツリーと比較元のファイルに、一覧の項目を割り当てる。
+ * @param {string} root
+ * @param {ManifestArtifact[]} artifacts
+ * @param {string[]} trackedFiles
+ * @returns {Map<string, ManifestArtifact>}
+ */
+function assignArtifacts(root, artifacts, trackedFiles) {
+  /** @type {Map<string, ManifestArtifact>} */
+  const byFile = new Map();
   // 同じ木を一覧のパターン数だけ歩かない（.replace/*.md が 4 パターンとも同じ起点になる）。
   /** @type {Map<string, string[]>} */
   const walked = new Map();
@@ -1973,181 +2486,220 @@ export function check(opts) {
     walked.set(startRel, files);
     return files;
   };
-
-  /** @type {Map<string, { id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], fillOnlyColumns: string[], mutableBullets: string[], mutableBlocks: string[], growableContainers: string[], registryGroups: { id: string, itemKey: string, paths: string[] }[], pinnedValues: { paths: string[], history: string }[] }>} */
-  const byFile = new Map();
-  /**
-   * @param {string} file
-   * @param {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], fillOnlyColumns: string[], mutableBullets: string[], mutableBlocks: string[], growableContainers: string[], registryGroups: { id: string, itemKey: string, paths: string[] }[], pinnedValues: { paths: string[], history: string }[] }} artifact
-   */
-  const assign = (file, artifact) => {
-    const prev = byFile.get(file);
-    if (prev === undefined) {
-      byFile.set(file, artifact);
-      return;
-    }
-    // **同じ項目を 2 度見たときだけ飛ばす**（作業ツリーと比較元の両方から同じ file が来る）。
-    // id で飛ばすと、id が重なった別項目の突き合わせ方の食い違いが下の検査に届かず無音で先勝ちになる。
-    if (prev === artifact) return;
-    if (
-      prev.unit !== artifact.unit ||
-      prev.arrays.join(",") !== artifact.arrays.join(",") ||
-      prev.key !== artifact.key ||
-      prev.fillOnly.join(",") !== artifact.fillOnly.join(",") ||
-      canonicalJson(prev.transitions) !== canonicalJson(artifact.transitions) ||
-      prev.mutableColumns.join(",") !== artifact.mutableColumns.join(",") ||
-      prev.fillOnlyColumns.join(",") !== artifact.fillOnlyColumns.join(",") ||
-      prev.mutableBullets.join(",") !== artifact.mutableBullets.join(",") ||
-      prev.mutableBlocks.join(",") !== artifact.mutableBlocks.join(",") ||
-      prev.growableContainers.join(",") !== artifact.growableContainers.join(",") ||
-      canonicalJson(prev.registryGroups) !== canonicalJson(artifact.registryGroups) ||
-      canonicalJson(prev.pinnedValues) !== canonicalJson(artifact.pinnedValues)
-    ) {
-      // 先勝ちにすると一覧の並び替えで判定が変わる。突き合わせ方が割れたら止める。
-      throw new UsageError(
-        `同じファイルに突き合わせ方の違う一覧の項目が当たっている: ${file}（${prev.id}: ${prev.unit} / ${artifact.id}: ${artifact.unit}）`,
-      );
-    }
-  };
   for (const artifact of artifacts) {
     const re = globToRegExp(artifact.pattern);
     for (const file of listCached(literalPrefix(artifact.pattern))) {
-      if (re.test(file)) assign(file, artifact);
+      if (re.test(file)) assignArtifact(byFile, file, artifact);
     }
     for (const file of trackedFiles) {
-      if (re.test(file)) assign(file, artifact);
+      if (re.test(file)) assignArtifact(byFile, file, artifact);
     }
   }
+  return byFile;
+}
 
-  const targets = [...byFile.keys()].sort();
-  if (targets.length === 0) {
+/**
+ * ファイルに一覧の項目を割り当てる。突き合わせ方の違う項目が同じファイルに当たったら、使い方の誤りにする。
+ * @param {Map<string, ManifestArtifact>} byFile
+ * @param {string} file
+ * @param {ManifestArtifact} artifact
+ */
+function assignArtifact(byFile, file, artifact) {
+  const prev = byFile.get(file);
+  if (prev === undefined) {
+    byFile.set(file, artifact);
+    return;
+  }
+  // **同じ項目を 2 度見たときだけ飛ばす**（作業ツリーと比較元の両方から同じ file が来る）。
+  // id で飛ばすと、id が重なった別項目の突き合わせ方の食い違いが下の検査に届かず無音で先勝ちになる。
+  if (prev === artifact) return;
+  if (comparisonDiffers(prev, artifact)) {
+    // 先勝ちにすると一覧の並び替えで判定が変わる。突き合わせ方が割れたら止める。
     throw new UsageError(
-      `追記専用の成果物が 1 件も見つからない（対象 0 件を合格として扱わない）: root=${root} 一覧=${manifestPath}`,
+      `同じファイルに突き合わせ方の違う一覧の項目が当たっている: ${file}（${prev.id}: ${prev.unit} / ${artifact.id}: ${artifact.unit}）`,
     );
   }
+}
 
-  let checked = 0;
-  for (const file of targets) {
-    const artifact = byFile.get(file);
-    // targets は byFile のキーなので必ず見つかる（型を絞るためだけの分岐で、到達しない）。
-    if (artifact === undefined) throw new Error(`byFile に無いファイル: ${file}`);
-    const inBase = trackedSet.has(file);
-    const before = git(root, ["show", `${base}:${prefix}${file}`]);
-    if (before.status !== 0) {
-      if (inBase) {
-        // 比較元の木に在るのに取り出せない。「新規」として扱うと、縮小を数えられないまま通ってしまう。
-        throw new UsageError(
-          `比較元 ${base} の木に在るのに内容を取り出せない: ${file}（${before.stderr.trim()}）`,
-        );
-      }
-      notes.push(`新規（比較元 ${base} に無い）: ${file}`);
-      continue;
-    }
-    checked += 1;
-    const abs = join(root, file);
-    if (!existsSync(abs)) {
-      findings.push(`追記専用の成果物が消えている: ${file}（比較元 ${base} には在る）`);
-      continue;
-    }
-    const afterText = readFileSync(abs, "utf8");
-    if (artifact.unit === "json-arrays") {
-      const pinned = comparePinnedValues(before.stdout, afterText, artifact.pinnedValues, {
-        before: `${file}@${base}`,
-        after: file,
-      });
-      for (const finding of pinned) findings.push(`${finding}: ${file}`);
-    }
-    if (artifact.unit === "json-arrays" && artifact.key !== null) {
-      // 鍵で対応づけてフィールドごとに見る（多重集合では「鍵以外の書き換え」を表現できない）。
-      const keyed = compareKeyedArrays(
-        before.stdout,
-        afterText,
-        {
-          arrays: artifact.arrays,
-          key: artifact.key,
-          fillOnly: artifact.fillOnly,
-          transitions: artifact.transitions,
-        },
-        { before: `${file}@${base}`, after: file },
-      );
-      for (const finding of keyed) findings.push(`${finding}: ${file}`);
-      continue;
-    }
-    /**
-     * @type {{ path: string, prefixes: string[], lines: string[] }[]}
-     * 連結しても閉じないフロー形式のコンテナ。**比較元と現在で分けて集める**。
-     * 比較元側にあると、比較元の行がそのまま単位なので**どう直しても通らない**（案内の指示が実行できない）。
-     * `lines` / `prefixes` は、失われた単位をそのコンテナへ帰属させるための材料。
-     */
-    const wrappedBefore = [];
-    /** @type {{ path: string, prefixes: string[], lines: string[] }[]} */
-    const wrappedAfter = [];
-    const beforeUnits = unitsOf(before.stdout, artifact, `${file}@${base}`, wrappedBefore);
-    const afterUnits = unitsOf(afterText, artifact, file, wrappedAfter);
-    /** @type {string[]} */
-    const lost = [];
-    /** @type {Set<string>} 失われた単位を帰属できた、比較元の読めないコンテナのキーパス。 */
-    const blamedBefore = new Set();
-    /** @type {Set<string>} 同じく現在側。 */
-    const blamedAfter = new Set();
-    let lostCount = 0;
-    for (const [unit, count] of beforeUnits) {
-      const now = afterUnits.get(unit) ?? 0;
-      if (now >= count) continue;
-      lostCount += count - now;
-      if (lost.length < 3) lost.push(unit.length > 120 ? `${unit.slice(0, 117)}...` : unit);
-      // その消失が読めなかったコンテナ由来か（読みに行った行そのもの、またはそのコンテナの
-      // 要素が作る単位）を見る。ファイル単位で案内を出すと無関係な鍵の削除にまで付く。
-      /** @type {[{ path: string, prefixes: string[], lines: string[] }[], Set<string>][]} */
-      const blameSides = [
-        [wrappedBefore, blamedBefore],
-        [wrappedAfter, blamedAfter],
-      ];
-      for (const [list, blamed] of blameSides) {
-        for (const w of list) {
-          if (w.lines.includes(unit) || w.prefixes.some((prefix) => unit.startsWith(prefix))) {
-            blamed.add(w.path);
-          }
-        }
-      }
-    }
-    if (lostCount > 0) {
-      // 折り返されたコンテナがあると、要素を足しただけの編集も**直前の要素の行に付くカンマ**の
-      // 書き換えとして縮小に見える。指示どおり復元すると記録した決定が消えるので、
-      // 書き直す方向を名指しで案内する。
-      // 比較元側に読めないコンテナがあると、比較元の行がそのまま単位なので**どの編集でも通らない**。
-      // 「直せば通る」と読める案内を出さず、人の確認で通す方法を示す。
-      // **現在側の案内を比較元側で抑止しない**。別の鍵のコンテナをこの変更で壊したなら、それは閉じ直せば
-      // 通る部分なので名指しする（抑止すると、閉じ直せば通るコンテナが一度も案内されない）。
-      // 同じ鍵が両側に在るときだけ比較元側に寄せる（閉じ直しても比較元の行は戻らない）。
-      const afterOnly = [...blamedAfter].filter((path) => !blamedBefore.has(path));
-      // 直し方は「閉じ括弧を補う」に限る。**1 行へ畳むは示さない**。growable_containers は要素行の
-      // 行末注記も単位なので、畳むと注記の単位が消えて落ちる（実測: 追記＋閉じ忘れで lost=5、
-      // 1 行へ畳むと lost=1 で案内も消える、閉じ直すと exit 0）。閉じ直しはどの成果物でも通る。
-      const hint =
-        (afterOnly.length === 0
-          ? ""
-          : `\n      閉じていないフロー形式のコンテナがある: ${afterOnly.join(" / ")}` +
-            " — 復元せず閉じ括弧を補う（折り返したまま、閉じ括弧までを同じ鍵のブロックに収める）") +
-        (blamedBefore.size === 0
-          ? ""
-          : `\n      比較元 ${base} に閉じていないフロー形式のコンテナがある: ${[...blamedBefore].join(" / ")}` +
-            " — この検査では縮んだか判定できない（表記を直しても通らない）。内容を人が確認して通す");
-      findings.push(
-        `追記専用の成果物から ${lostCount} 件（unit: ${artifact.unit}）が失われている: ${file}（例: ${lost.join(" / ")}）${hint}`,
-      );
-    }
-  }
-
-  notes.push(
-    `一覧の ${artifacts.length} パターンに一致した ${targets.length} 件のうち、比較元にも在る ${checked} 件を突き合わせた`,
+/**
+ * 2 つの項目の突き合わせ方（unit とオプション）が違うか。
+ * @param {ManifestArtifact} prev
+ * @param {ManifestArtifact} artifact
+ * @returns {boolean}
+ */
+function comparisonDiffers(prev, artifact) {
+  return (
+    prev.unit !== artifact.unit ||
+    prev.arrays.join(",") !== artifact.arrays.join(",") ||
+    prev.key !== artifact.key ||
+    prev.fillOnly.join(",") !== artifact.fillOnly.join(",") ||
+    canonicalJson(prev.transitions) !== canonicalJson(artifact.transitions) ||
+    prev.mutableColumns.join(",") !== artifact.mutableColumns.join(",") ||
+    prev.fillOnlyColumns.join(",") !== artifact.fillOnlyColumns.join(",") ||
+    prev.mutableBullets.join(",") !== artifact.mutableBullets.join(",") ||
+    prev.mutableBlocks.join(",") !== artifact.mutableBlocks.join(",") ||
+    prev.growableContainers.join(",") !== artifact.growableContainers.join(",") ||
+    canonicalJson(prev.registryGroups) !== canonicalJson(artifact.registryGroups) ||
+    canonicalJson(prev.pinnedValues) !== canonicalJson(artifact.pinnedValues)
   );
-  if (checked === 0) {
-    findings.push(
-      `比較元 ${base} に在る追記専用の成果物が 0 件（突き合わせが 1 件も成立していない）`,
-    );
+}
+
+/**
+ * ファイル 1 つを比較元と突き合わせ、findings と notes に積む。比較元にも在って突き合わせたら true を返す。
+ * @param {CheckContext} ctx
+ * @param {string} file
+ * @param {ManifestArtifact} artifact
+ * @returns {boolean}
+ */
+function compareArtifactFile(ctx, file, artifact) {
+  const { root, base, findings } = ctx;
+  const before = git(root, ["show", `${base}:${ctx.prefix}${file}`]);
+  if (before.status !== 0) {
+    if (ctx.trackedSet.has(file)) {
+      // 比較元の木に在るのに取り出せない。「新規」として扱うと、縮小を数えられないまま通ってしまう。
+      throw new UsageError(
+        `比較元 ${base} の木に在るのに内容を取り出せない: ${file}（${before.stderr.trim()}）`,
+      );
+    }
+    ctx.notes.push(`新規（比較元 ${base} に無い）: ${file}`);
+    return false;
   }
-  return { findings, notes, checked };
+  const abs = join(root, file);
+  if (!existsSync(abs)) {
+    findings.push(`追記専用の成果物が消えている: ${file}（比較元 ${base} には在る）`);
+    return true;
+  }
+  const texts = { before: before.stdout, after: readFileSync(abs, "utf8") };
+  const labels = { before: `${file}@${base}`, after: file };
+  if (artifact.unit === "json-arrays") {
+    const pinned = comparePinnedValues(texts, artifact.pinnedValues, labels);
+    for (const finding of pinned) findings.push(`${finding}: ${file}`);
+  }
+  if (artifact.unit === "json-arrays" && artifact.key !== null) {
+    // 鍵で対応づけてフィールドごとに見る（多重集合では「鍵以外の書き換え」を表現できない）。
+    const keyed = compareKeyedArrays(
+      texts,
+      {
+        arrays: artifact.arrays,
+        key: artifact.key,
+        fillOnly: artifact.fillOnly,
+        transitions: artifact.transitions,
+      },
+      labels,
+    );
+    for (const finding of keyed) findings.push(`${finding}: ${file}`);
+    return true;
+  }
+  const lost = lostUnitsFinding(texts, artifact, { file, base });
+  if (lost !== null) findings.push(lost);
+  return true;
+}
+
+/**
+ * 比較元に在った単位が現在も残っているかを数え、失われていれば finding を返す。
+ * @param {{ before: string, after: string }} texts
+ * @param {ManifestArtifact} artifact
+ * @param {{ file: string, base: string }} where ファイルの相対パスと比較元の版
+ * @returns {string | null}
+ */
+function lostUnitsFinding(texts, artifact, where) {
+  const { file, base } = where;
+  /**
+   * @type {WrappedContainer[]}
+   * 連結しても閉じないフロー形式のコンテナ。**比較元と現在で分けて集める**。
+   * 比較元側にあると、比較元の行がそのまま単位なので**どう直しても通らない**（案内の指示が実行できない）。
+   * `lines` / `prefixes` は、失われた単位をそのコンテナへ帰属させるための材料。
+   */
+  const wrappedBefore = [];
+  /** @type {WrappedContainer[]} */
+  const wrappedAfter = [];
+  const beforeUnits = unitsOf(texts.before, artifact, {
+    label: `${file}@${base}`,
+    wrappedOut: wrappedBefore,
+  });
+  const afterUnits = unitsOf(texts.after, artifact, { label: file, wrappedOut: wrappedAfter });
+  const loss = countLostUnits(beforeUnits, afterUnits, {
+    before: wrappedBefore,
+    after: wrappedAfter,
+  });
+  if (loss.count === 0) return null;
+  const hint = wrappedHint(loss, base);
+  return `追記専用の成果物から ${loss.count} 件（unit: ${artifact.unit}）が失われている: ${file}（例: ${loss.examples.join(" / ")}）${hint}`;
+}
+
+/**
+ * 失われた単位を数え、読めなかったコンテナのうち、失われた単位を帰属できたもののキーパスを集める。
+ * @param {Map<string, number>} beforeUnits
+ * @param {Map<string, number>} afterUnits
+ * @param {{ before: WrappedContainer[], after: WrappedContainer[] }} wrapped
+ * @returns {{ count: number, examples: string[], blamedBefore: Set<string>, blamedAfter: Set<string> }}
+ */
+function countLostUnits(beforeUnits, afterUnits, wrapped) {
+  /** @type {string[]} */
+  const examples = [];
+  /** @type {Set<string>} 失われた単位を帰属できた、比較元の読めないコンテナのキーパス。 */
+  const blamedBefore = new Set();
+  /** @type {Set<string>} 同じく現在側。 */
+  const blamedAfter = new Set();
+  let count = 0;
+  for (const [unit, n] of beforeUnits) {
+    const now = afterUnits.get(unit) ?? 0;
+    if (now >= n) continue;
+    count += n - now;
+    if (examples.length < 3) examples.push(unit.length > 120 ? `${unit.slice(0, 117)}...` : unit);
+    // その消失が読めなかったコンテナ由来か（読みに行った行そのもの、またはそのコンテナの
+    // 要素が作る単位）を見る。ファイル単位で案内を出すと無関係な鍵の削除にまで付く。
+    blameWrapped(unit, wrapped.before, blamedBefore);
+    blameWrapped(unit, wrapped.after, blamedAfter);
+  }
+  return { count, examples, blamedBefore, blamedAfter };
+}
+
+/**
+ * 失われた単位が、読めなかったコンテナの読みに行った行か、そのコンテナの要素が作る単位なら、そのキーパスを集める。
+ * @param {string} unit
+ * @param {WrappedContainer[]} list
+ * @param {Set<string>} blamed
+ */
+function blameWrapped(unit, list, blamed) {
+  for (const w of list) {
+    if (w.lines.includes(unit) || w.prefixes.some((prefix) => unit.startsWith(prefix))) {
+      blamed.add(w.path);
+    }
+  }
+}
+
+/**
+ * 読めなかったコンテナに帰属できた消失について、直し方の案内を作る。
+ *
+ * 折り返されたコンテナがあると、要素を足しただけの編集も**直前の要素の行に付くカンマ**の
+ * 書き換えとして縮小に見える。指示どおり復元すると記録した決定が消えるので、
+ * 書き直す方向を名指しで案内する。
+ * 比較元側に読めないコンテナがあると、比較元の行がそのまま単位なので**どの編集でも通らない**。
+ * 「直せば通る」と読める案内を出さず、人の確認で通す方法を示す。
+ * **現在側の案内を比較元側で抑止しない**。別の鍵のコンテナをこの変更で壊したなら、それは閉じ直せば
+ * 通る部分なので名指しする（抑止すると、閉じ直せば通るコンテナが一度も案内されない）。
+ * 同じ鍵が両側に在るときだけ比較元側に寄せる（閉じ直しても比較元の行は戻らない）。
+ * @param {{ blamedBefore: Set<string>, blamedAfter: Set<string> }} loss
+ * @param {string} base
+ * @returns {string}
+ */
+function wrappedHint(loss, base) {
+  const { blamedBefore, blamedAfter } = loss;
+  const afterOnly = [...blamedAfter].filter((path) => !blamedBefore.has(path));
+  // 直し方は「閉じ括弧を補う」に限る。**1 行へ畳むは示さない**。growable_containers は要素行の
+  // 行末注記も単位なので、畳むと注記の単位が消えて落ちる（実測: 追記＋閉じ忘れで lost=5、
+  // 1 行へ畳むと lost=1 で案内も消える、閉じ直すと exit 0）。閉じ直しはどの成果物でも通る。
+  return (
+    (afterOnly.length === 0
+      ? ""
+      : `\n      閉じていないフロー形式のコンテナがある: ${afterOnly.join(" / ")}` +
+        " — 復元せず閉じ括弧を補う（折り返したまま、閉じ括弧までを同じ鍵のブロックに収める）") +
+    (blamedBefore.size === 0
+      ? ""
+      : `\n      比較元 ${base} に閉じていないフロー形式のコンテナがある: ${[...blamedBefore].join(" / ")}` +
+        " — この検査では縮んだか判定できない（表記を直しても通らない）。内容を人が確認して通す")
+  );
 }
 
 /** 同梱の一覧（原本）。 */

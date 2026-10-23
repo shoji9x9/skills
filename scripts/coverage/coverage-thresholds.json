@@ -76,12 +76,12 @@
       "reason": "利用者のリポジトリにコピーして Playwright で実行する雛形で、実ブラウザを起動する"
     },
     {
-      "path": "skills/replace-strategy/scripts/asset-probe.mjs",
-      "reason": "chrome-devtools MCP の evaluate_script でブラウザの中で実行するプローブで、Node では実行しない"
+      "path": "skills/replace-strategy/scripts/page/asset-probe.page.mjs",
+      "reason": "ページで実行するコードで、CLI が本文を関数式で包んで出し、chrome-devtools MCP の evaluate_script がブラウザの中で実行する。テストも CLI の出力を vm で評価するので、このファイルとしては読み込まれず、カバレッジに数えられない"
     },
     {
-      "path": "skills/replace-strategy/scripts/role-probe.mjs",
-      "reason": "chrome-devtools MCP の evaluate_script でブラウザの中で実行するプローブで、Node では実行しない"
+      "path": "skills/replace-strategy/scripts/page/role-probe.page.mjs",
+      "reason": "ページで実行するコードで、CLI が本文を関数式で包んで出し、chrome-devtools MCP の evaluate_script がブラウザの中で実行する。テストも CLI の出力を vm で評価するので、このファイルとしては読み込まれず、カバレッジに数えられない"
     }
   ]
 }

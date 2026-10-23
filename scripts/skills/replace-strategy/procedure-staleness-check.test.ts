@@ -6,16 +6,18 @@
 // 最新の改訂で作った成果物・追加日より後に作った成果物・判断済みの組み合わせが exit 0 になることも確かめる。
 // これが無いと「常に落とす」実装と区別できない。
 
-import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { assert, test, expect } from "vitest";
 import {
   countRowLikeLines,
+  pathState,
   readProcedureLedger,
   readRevisions,
   strayCommentMarkers,
 } from "../../../skills/replace-strategy/scripts/procedure-staleness-check.mjs";
 import { parseJsonAs } from "../../lib/parse-as.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import {
   failedOf,
   ledgerOf,
@@ -551,3 +553,57 @@ test("情報文字列の付いた行でフェンスを閉じず、フェンス�
     unclosed: false,
   });
 });
+
+test("pathState: ファイル・リンク先のあるリンクを present、リンク先の無いリンクを dangling-link、無いパスを missing にする", () => {
+  const dir = makeTempDir("dangling-link-");
+  writeFileSync(join(dir, "target.md"), "");
+  symlinkSync(join(dir, "target.md"), join(dir, "linked.md"));
+  symlinkSync(join(dir, "gone.md"), join(dir, "dangling.md"));
+  expect(pathState(join(dir, "dangling.md"))).toBe("dangling-link");
+  expect(pathState(join(dir, "linked.md"))).toBe("present");
+  expect(pathState(join(dir, "target.md"))).toBe("present");
+  expect(pathState(join(dir, "missing.md"))).toBe("missing");
+});
+
+test("pathState: 循環したシンボリックリンクを、権限の問題（unreadable）ではなく dangling-link にする", () => {
+  const dir = makeTempDir("loop-link-");
+  const a = join(dir, "a.json");
+  const b = join(dir, "b.json");
+  symlinkSync(a, b);
+  symlinkSync(b, a);
+  expect(pathState(a)).toBe("dangling-link");
+  expect(pathState(b)).toBe("dangling-link");
+  // 循環が途中のディレクトリにあり、パス自身をリンクと確かめられないときは、無いとも言えないので unreadable にする。
+  expect(pathState(join(a, "metadata.json"))).toBe("unreadable");
+});
+
+test("metadata.json が循環したシンボリックリンクなら、リンク先の無いシンボリックリンクとして判定不能に残す", () => {
+  const work = workspace({ artifacts: { order: meta({ procedure_revision: 2 }), edit: null } });
+  const loop = join(work, ".replace", "parity", "edit", "loop.json");
+  const metadata = join(work, ".replace", "parity", "edit", "metadata.json");
+  symlinkSync(loop, metadata);
+  symlinkSync(metadata, loop);
+  const r = run(work);
+  expect(r.code).toBe(3);
+  assert.exists(r.json);
+  expect(r.json.undeterminable.map((u) => [u.slug, u.reason])).toEqual([
+    ["edit", "metadata.json がリンク先の無いシンボリックリンク"],
+  ]);
+});
+
+// root は権限を無視して stat できるので、権限の無い状態を作れない。
+test.skipIf(process.getuid?.() === 0)(
+  "pathState: 権限が無くて調べられないパスを、無い（missing）ではなく unreadable にする",
+  () => {
+    const dir = makeTempDir("unreadable-");
+    const locked = join(dir, "locked");
+    mkdirSync(locked);
+    writeFileSync(join(locked, "metadata.json"), "{}");
+    chmodSync(locked, 0o000);
+    try {
+      expect(pathState(join(locked, "metadata.json"))).toBe("unreadable");
+    } finally {
+      chmodSync(locked, 0o755);
+    }
+  },
+);

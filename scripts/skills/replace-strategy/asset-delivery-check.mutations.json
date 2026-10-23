@@ -10,8 +10,8 @@
       "id": "reference-off",
       "why": "新側の画面が指していない資産（実例の favicon）を参照ありとして通す",
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "      const isReferenced = referenced.has(newUrl);\n",
-      "replace": "      const isReferenced = true;\n",
+      "find": "  const isReferenced = ctx.referenced.has(newUrl);\n",
+      "replace": "  const isReferenced = true;\n",
       "occurrences": 1,
       "expect_failing": [
         "落とす: プローブの localFragmentRefs にしか現れない URL は参照に数えない",
@@ -36,8 +36,8 @@
       "id": "fetch-failure-off",
       "why": "取得できない配信物を不一致にも失敗にも数えず通す",
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "        if (!res.ok || res.bytes === null) {\n",
-      "replace": "        if (false) {\n",
+      "find": "    if (!res.ok || res.bytes === null) {\n",
+      "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
         "落とす: 新側の配信物を取得できない（404）",
@@ -51,7 +51,10 @@
       "find": "    if (entry === undefined) {\n      findings.push(",
       "replace": "    if (entry === undefined) { continue;\n      findings.push(",
       "occurrences": 1,
-      "expect_failing": ["落とす: 台帳の「実体をコピーする」の行に記録が無い（突き合わせていない）"]
+      "expect_failing": [
+        "落とす: 台帳の「実体をコピーする」の行に記録が無い（突き合わせていない）",
+        "check: 突き合わせる組が 0 件なら、base が URL として読めなくても例外を投げずに結果を返す"
+      ]
     },
     {
       "id": "policy-filter-off",
@@ -75,7 +78,9 @@
         "通す: 参照があり移行元とバイト一致する資産は exit 0 で、結果を replace-metadata.json に書く（他のキーは残す）",
         "通す: 新側が転送（ハッシュ付きのパスへの 301 等）で配る資産も、参照は転送前の URL・バイトは最終応答で突き合う",
         "通す: 突き合わせる行が全て accepted ならプローブ無しで exit 0",
-        "通す: 記録の種類の表記ゆれ（空白・強調）は台帳と同じ正規化で揃えて突き合わせる"
+        "通す: 記録の種類の表記ゆれ（空白・強調）は台帳と同じ正規化で揃えて突き合わせる",
+        "check: 組が 0 件なら突き合わせた組を 0 件と数え、組が複数なら指摘を出さずにどの組もバイト一致として記録する",
+        "check: 突き合わせる組が 0 件なら、base が URL として読めなくても例外を投げずに結果を返す"
       ]
     },
     {
@@ -134,20 +139,22 @@
       "id": "failure-write-off",
       "why": "exit 2 で前回の合格を replace-metadata.json に残す",
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "    if (writeTarget !== null) {\n",
-      "replace": "    if (false) {\n",
+      "find": "  if (writeTarget !== null) {\n",
+      "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
         "判定しない: exit 2 でも前回の合格を上書きし、ok: false と error を書く",
-        "判定しない: 引数の不備でも --write の先に失敗を記録する"
+        "判定しない: 引数の不備でも --write の先に失敗を記録する",
+        "判定しない: --new-base が http(s) で始まっても URL として読めなければ、使い方の誤りとして exit 2 で止める",
+        "判定しない: --current-base が http(s) で始まっても URL として読めなければ、使い方の誤りとして exit 2 で止める"
       ]
     },
     {
       "id": "empty-body-accepted",
       "why": "両側とも 0 バイトの 200 を sha256 の一致で配っていることにする",
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "        } else if (res.bytes.length === 0) {\n",
-      "replace": "        } else if (false) {\n",
+      "find": "    } else if (res.bytes.length === 0) {\n",
+      "replace": "    } else if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
         "落とす: 両側とも 200 の空（0 バイト）は sha256 が一致しても配っている証拠にしない"
@@ -180,8 +187,8 @@
       "id": "html-off",
       "why": "資産の URL が HTML（SPA のフォールバック・ログイン画面）を返しても、両側一致で合格にする",
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "        } else if (typeof res.contentType === \"string\" && /^text\\/html\\b/iu.test(res.contentType)) {\n",
-      "replace": "        } else if (false) {\n",
+      "find": "    } else if (typeof res.contentType === \"string\" && /^text\\/html\\b/iu.test(res.contentType)) {\n",
+      "replace": "    } else if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
         "落とす: 両側とも同じバイトでも、HTML の応答（SPA のフォールバック・ログイン画面） は配っている証拠にしない"
@@ -191,8 +198,8 @@
       "id": "used-key-accepted",
       "why": "記録の used: false（検査者が自分で「この画面では使わない」と宣言する形）を受け付け、利用者の承認なしに外させる",
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "    if (raw.used !== undefined) {\n",
-      "replace": "    if (false) {\n",
+      "find": "  if (raw.used !== undefined) {\n",
+      "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
         "判定しない: 記録に used: false と書いた（この画面で使わないは利用者の承認で外す）",
@@ -203,8 +210,8 @@
       "id": "current-origin-link-accepted",
       "why": "新側が移行元の配信物へ直リンクしていても、同じ取得先なので一致として合格にする",
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "        if (currentOrigins.has(newOrigin)) {\n",
-      "replace": "        if (false) {\n",
+      "find": "    if (currentOrigins.has(newOrigin)) {\n",
+      "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
         "落とす: 新側が移行元の配信物へ直リンクしている（new が移行元のオリジン）",
@@ -215,8 +222,8 @@
       "id": "same-url-accepted",
       "why": "current と new が同じ URL に解決される組（同じ配信物を 2 回取得して比べるだけ）を一致として合格にする",
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "      if (currentUrl === newUrl) {\n",
-      "replace": "      if (false) {\n",
+      "find": "  if (currentUrl === newUrl) {\n",
+      "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
         "落とす: 同じオリジンの構成で current と new が同じ URL に解決される（同じ配信物を比べているだけ）"
@@ -241,8 +248,8 @@
       "id": "current-points-new-accepted",
       "why": "current が新側のオリジンを指す組（移行元を一度も取得しない）を一致として合格にする",
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "        if (new URL(currentUrl).origin === newBaseOrigin) {\n",
-      "replace": "        if (false) {\n",
+      "find": "    if (new URL(currentUrl).origin === newBaseOrigin) {\n",
+      "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["落とす: current が新側のオリジンを指す（移行元を一度も取得していない）"]
     },
@@ -252,7 +259,7 @@
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
       "find": "new Set([currentBaseOrigin, new URL(currentUrl).origin])",
       "replace": "new Set([currentBaseOrigin])",
-      "occurrences": 2,
+      "occurrences": 1,
       "expect_failing": [
         "落とす: 移行元が CDN から配る資産へ、新側が同じ CDN のまま直リンクしている"
       ]
@@ -261,8 +268,8 @@
       "id": "bytes-match-counts-reference",
       "why": "参照していないの指摘まで bytes_match に混ぜ、参照漏れだけの組を「バイト不一致」と読ませる",
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "      const fetchFindingsBefore = findings.length;\n",
-      "replace": "      const fetchFindingsBefore = byteFindingsEnd;\n",
+      "find": "  const fetchFindingsBefore = findings.length;\n",
+      "replace": "  const fetchFindingsBefore = byteFindingsEnd;\n",
       "occurrences": 1,
       "expect_failing": [
         "落とす: 実例の形。favicon を配っていてバイトも同じだが、新側の画面が指していない"
@@ -272,8 +279,8 @@
       "id": "same-final-url-accepted",
       "why": "両側が同じ転送先（ログイン画面等）に着いた組を、同じ配信物を比べているだけなのに一致として合格にする",
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "        cur.finalUrl === neu.finalUrl\n",
-      "replace": "        false\n",
+      "find": "    cur.finalUrl === neu.finalUrl\n",
+      "replace": "    false\n",
       "occurrences": 1,
       "expect_failing": [
         "落とす: 両側とも同じバイトでも、両側が同じ転送先（ログイン画面）に着く は配っている証拠にしない"
@@ -294,8 +301,8 @@
       "id": "new-final-direct-link-accepted",
       "why": "新側が移行元へ転送で直リンクする形を、転送前の URL だけを見て通す",
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "        if (newFinal !== null && currentOrigins.has(newFinal)) {\n",
-      "replace": "        if (false) {\n",
+      "find": "    if (newFinal !== null && currentOrigins.has(newFinal)) {\n",
+      "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["落とす: 転送を経由した直リンク（新側が移行元へ転送する）"]
     },
@@ -303,8 +310,8 @@
       "id": "current-final-new-accepted",
       "why": "移行元の URL が新側へ転送される形（移行元を取得していない）を通す",
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "        if (currentFinal !== null && currentFinal === newBaseOrigin) {\n",
-      "replace": "        if (false) {\n",
+      "find": "    if (currentFinal !== null && currentFinal === newBaseOrigin) {\n",
+      "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["落とす: 転送を経由した直リンク（移行元が新側へ転送する）"]
     },
@@ -312,11 +319,35 @@
       "id": "legacy-policy-off",
       "why": "旧い方針の値（実体を写す・写さない）を新しい値に読み替えず、語彙外として落とす",
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "    const policy = LEGACY_POLICIES.get(written) ?? written;\n",
-      "replace": "    const policy = written;\n",
+      "find": "  const policy = LEGACY_POLICIES.get(written) ?? written;\n",
+      "replace": "  const policy = written;\n",
       "occurrences": 1,
       "expect_failing": [
         "台帳: 旧い方針の値を新しい値と同じ意味に読む（改名する前の台帳を書き直さずに判定する）"
+      ]
+    },
+    {
+      "id": "base-url-unparsed",
+      "why": "--current-base・--new-base が URL として読めるかを確かめない。http:// のような値が、使い方の誤りではなく判定できない例外として報告される",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "    new URL(value);\n",
+      "replace": "    void value;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "判定しない: --new-base が http(s) で始まっても URL として読めなければ、使い方の誤りとして exit 2 で止める",
+        "判定しない: --current-base が http(s) で始まっても URL として読めなければ、使い方の誤りとして exit 2 で止める"
+      ]
+    },
+    {
+      "id": "base-origins-before-ledger",
+      "why": "台帳と記録を読む前に base のオリジンを求め、台帳の不備や組が 0 件の入力を base の TypeError で止める",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "export async function check(input) {\n",
+      "replace": "export async function check(input) {\n  originsOf(input);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "check: 台帳の不備は、base が URL として読めなくても使い方の誤り（UsageError）として報告する",
+        "check: 突き合わせる組が 0 件なら、base が URL として読めなくても例外を投げずに結果を返す"
       ]
     }
   ]

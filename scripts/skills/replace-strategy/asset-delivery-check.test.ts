@@ -14,6 +14,10 @@ import { join } from "node:path";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 import {
+  check,
+  UsageError,
+} from "../../../skills/replace-strategy/scripts/asset-delivery-check.mjs";
+import {
   faviconOf,
   ledger,
   probe,
@@ -793,4 +797,80 @@ test("CLI: 引数が無ければ exit 2 と使い方を出す", () => {
   });
   expect(r.stderr).toMatch(/usage: asset-delivery-check.mjs/u);
   expect(r.status).toBe(2);
+});
+
+test.each([
+  ["--new-base", { newBase: "http://" }],
+  ["--current-base", { currentBase: "https://" }],
+])(
+  "判定しない: %s が http(s) で始まっても URL として読めなければ、使い方の誤りとして exit 2 で止める",
+  async (key, bases) => {
+    const r = await runCheck({ record: { entries: [FONT_ENTRY] }, probes: [FONT_PROBE], ...bases });
+    const value = Object.values(bases)[0];
+    expect(r.stderr).toMatch(new RegExp(`^error: ${key} を URL として読めない: "${value}"\n`, "u"));
+    expect(r.stderr).not.toMatch(/判定できない例外/u);
+    expect(r.code).toBe(2);
+    expect(r.written.asset_delivery_check.ok).toBe(false);
+  },
+);
+
+test("check: 組が 0 件なら突き合わせた組を 0 件と数え、組が複数なら指摘を出さずにどの組もバイト一致として記録する", async () => {
+  const none = await check({
+    ledgerText: TEMPLATE,
+    record: { entries: [] },
+    probes: [],
+    currentBase: CUR,
+    newBase: NEW,
+    fetcher: fetcherOf({}),
+  });
+  expect(none.counts.files).toBe(0);
+  const twoPairs = await check({
+    ledgerText: TEMPLATE,
+    record: {
+      entries: [
+        {
+          kind: "本文の書体",
+          files: [
+            { current: `${CUR}/body.woff2`, new: `${NEW}/fonts/body.woff2` },
+            { current: `${CUR}/body.woff`, new: `${NEW}/fonts/body.woff` },
+          ],
+        },
+      ],
+    },
+    probes: [{ label: "probe", doc: FONT_PROBE }],
+    currentBase: CUR,
+    newBase: NEW,
+    fetcher: fetcherOf(SAME_FONTS),
+  });
+  expect(twoPairs.findings).toEqual([]);
+  expect(twoPairs.files.map((f) => f.bytes_match)).toEqual([true, true]);
+});
+
+// base のオリジンは、突き合わせる組が決まった後で、組があるときだけ求める。
+// 先に求めると、check を直接呼んだときに台帳や記録の不備が base の TypeError に隠れる。
+test("check: 台帳の不備は、base が URL として読めなくても使い方の誤り（UsageError）として報告する", async () => {
+  await expect(
+    check({
+      ledgerText: "not a ledger",
+      record: { entries: [] },
+      probes: [],
+      currentBase: "x",
+      newBase: "y",
+      fetcher: fetcherOf({}),
+    }),
+  ).rejects.toThrow(UsageError);
+});
+
+test("check: 突き合わせる組が 0 件なら、base が URL として読めなくても例外を投げずに結果を返す", async () => {
+  const r = await check({
+    ledgerText: TEMPLATE,
+    record: { entries: [] },
+    probes: [],
+    currentBase: "x",
+    newBase: "y",
+    fetcher: fetcherOf({}),
+  });
+  expect(r.counts).toEqual({ rows: 1, checkedRows: 0, files: 0 });
+  expect(r.findings).toHaveLength(1);
+  expect(r.findings[0]).toMatch(/^台帳の「本文の書体」（実体をコピーする）を突き合わせていない/u);
 });

@@ -22,8 +22,9 @@
 
 1. 配信物と受領資産の中のファイル: 現行のソース・ビルドの成果物・受領資産（`current.received_assets`）の中の画像と書体のファイル。
    読めない（ソースを入手できないなど）なら「未確認」と書き、2 だけで作った一覧を網羅とみなさない。
-2. 現行の画面が実際に描いているもの: 同梱の [`../scripts/asset-probe.mjs`](../scripts/asset-probe.mjs) の `assetProbe` 関数リテラルを、chrome-devtools MCP の `evaluate_script` の `function` 引数に渡す
-   （IIFE にする必要は無い。呼び方は `role-probe.mjs` と同じ）。
+2. 現行の画面が実際に描いているもの: 同梱の [`../scripts/asset-probe.mjs`](../scripts/asset-probe.mjs) を、インストール済みの `replace-strategy` から `node <replace-strategy>/scripts/asset-probe.mjs` で実行する。
+   stdout に出た関数式のソースを、そのまま chrome-devtools MCP の `evaluate_script` の `function` 引数に渡す
+   （ファイルから関数を書き写さない。引数は付けない。IIFE にする必要は無い。呼び方は `role-probe.mjs` と同じ）。
    対象のページは手順 9 のページの一覧から選び、選んだページを台帳に明記する（すべてのページでなくてよいが、ダイアログと、ヘッダー・フッターの共通の部分を含める）。
 
 プローブの返り値は、次のように読む。
