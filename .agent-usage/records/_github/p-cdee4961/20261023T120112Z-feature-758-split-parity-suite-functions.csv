@@ -1,0 +1,6 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:39928359233:1,ci,2026-10-23T12:01:12.882Z,p-cdee4961,github-actions,,,,2026-10-23T08:57:32.000Z,2026-10-23T08:57:55.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:39928359231:1,ci,2026-10-23T12:01:12.882Z,p-cdee4961,github-actions,,,,2026-10-23T08:57:32.000Z,2026-10-23T09:01:35.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:39872932235:1,ci,2026-10-23T12:01:12.882Z,p-cdee4961,github-actions,,,,2026-10-22T23:36:46.000Z,2026-10-22T23:40:43.000Z,Asia/Tokyo,feature/758-split-replace-strategy-functions,758,,,,,,,,,,CI;pull_request;success,
+ci:39872931999:1,ci,2026-10-23T12:01:12.882Z,p-cdee4961,github-actions,,,,2026-10-22T23:36:46.000Z,2026-10-22T23:36:47.000Z,Asia/Tokyo,feature/758-split-replace-strategy-functions,758,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+coverage:github:2026-10-21T23:33:58.788Z:2026-10-23T12:01:12.882Z,coverage,2026-10-23T12:01:12.882Z,p-cdee4961,,,,,2026-10-21T23:33:58.788Z,2026-10-23T12:01:12.882Z,Asia/Tokyo,,,,,,,,,,,,ok,

@@ -49,11 +49,10 @@ export function hexToRgb(hex) {
  * 差分画像でマークされた画素のマスクを作る（`--diff` を渡したときだけ使う）。
  * @param {Uint8Array | Buffer} data - 長さ width*height*4 の RGBA
  * @param {number} pixels - width*height
- * @param {{ r:number, g:number, b:number }} target
- * @param {number} tol
+ * @param {{ target: { r:number, g:number, b:number }, tol: number }} color - 差分色と許容差
  * @returns {Uint8Array}
  */
-export function buildMarkedMask(data, pixels, target, tol) {
+export function buildMarkedMask(data, pixels, { target, tol }) {
   const mask = new Uint8Array(pixels);
   for (let i = 0; i < pixels; i += 1) {
     const o = i * 4;
@@ -76,13 +75,12 @@ export function buildMarkedMask(data, pixels, target, tol) {
  * `markedMask` を渡すと、そのうちマークされていない分（＝しきい値の内側に隠れた差）も数える。
  * @param {Uint8Array | Buffer} aData
  * @param {Uint8Array | Buffer} bData
- * @param {number} pixels
- * @param {Uint8Array | null} [markedMask]
+ * @param {{ pixels: number, markedMask?: Uint8Array | null }} options - pixels は width*height
  * @returns {{ total_pixels:number, strict_pixels:number, strict_only_pixels:(number|null),
  *             strict_max_channel_delta:number, strict_only_max_channel_delta:(number|null),
  *             strict_ratio:number }}
  */
-export function countStrictDiff(aData, bData, pixels, markedMask = null) {
+export function countStrictDiff(aData, bData, { pixels, markedMask = null }) {
   let strict = 0;
   let strictOnly = 0;
   let maxDelta = 0;
@@ -128,17 +126,20 @@ async function loadPng() {
   }
 }
 
+const USAGE =
+  "usage: node pixel-strict-count.mjs <pass1.png> <pass2.png> [--diff <diff.png>] [--diff-color <hex>]\n";
+
 /**
- * CLI エントリ。
- * `node pixel-strict-count.mjs <pass1.png> <pass2.png> [--diff <diff.png>] [--diff-color <hex>]`
- * 数えた結果を JSON で出力する。`--diff`（記録済みツールが出した差分画像）を渡すと
- * `strict_only_pixels` も出る。exit 0=計数した / 2=入力エラー（計数そのものは合否ではない）。
- * @param {string[]} argv - process.argv.slice(2)
- * @returns {Promise<number>} exit code
+ * CLI の引数。
+ * @typedef {{ positionals: string[], diffPath: string | undefined, diffRequested: boolean, diffColor: string }} CliArgs
  */
-export async function main(argv) {
-  const usage =
-    "usage: node pixel-strict-count.mjs <pass1.png> <pass2.png> [--diff <diff.png>] [--diff-color <hex>]\n";
+
+/**
+ * 引数を読む。
+ * @param {string[]} argv
+ * @returns {CliArgs}
+ */
+function parseArgs(argv) {
   const positionals = [];
   let diffPath;
   // 「--diff を渡していない」と「--diff の値が空」を区別する。区別しないと、値が空に展開された呼び出しが
@@ -157,26 +158,39 @@ export async function main(argv) {
       positionals.push(argv[i]);
     }
   }
+  return { positionals, diffPath, diffRequested, diffColor };
+}
+
+/**
+ * 引数の誤りを確かめる。誤りは stderr に書いて null を返し、無ければ差分色の RGB を返す。
+ * @param {CliArgs} args
+ * @returns {{ r:number, g:number, b:number } | null}
+ */
+function checkArgs({ positionals, diffPath, diffRequested, diffColor }) {
   if (positionals.length !== 2) {
-    process.stderr.write(usage);
-    return 2;
+    process.stderr.write(USAGE);
+    return null;
   }
   if (diffRequested && (diffPath === undefined || String(diffPath).trim() === "")) {
     process.stderr.write("error: --diff requires a path to the recorded tool's diff image\n");
-    return 2;
+    return null;
   }
   const target = hexToRgb(diffColor);
   if (!target) {
     process.stderr.write("error: --diff-color must be a 6-digit hex color (e.g. ff0000)\n");
-    return 2;
+    return null;
   }
-  const PNG = await loadPng();
-  if (!PNG) {
-    process.stderr.write(
-      "error: pngjs is not installed. install it in the project or confirm with the user before proceeding\n",
-    );
-    return 2;
-  }
+  return target;
+}
+
+/**
+ * 2 枚の撮影と差分画像（渡したときだけ）を読み、寸法が揃うかを確かめる。誤りは stderr に書いて null を返す。
+ * @param {{ sync: { read(buf: Uint8Array): { width: number, height: number, data: Uint8Array } } }} PNG
+ * @param {string[]} positionals - 2 枚の撮影のパス
+ * @param {string | undefined} diffPath
+ * @returns {{ first: { width: number, height: number, data: Uint8Array }, second: { width: number, height: number, data: Uint8Array }, diff: { width: number, height: number, data: Uint8Array } | null } | null}
+ */
+function readCaptures(PNG, positionals, diffPath) {
   let first;
   let second;
   let diff = null;
@@ -187,23 +201,48 @@ export async function main(argv) {
   } catch (err) {
     const message = errorMessage(err);
     process.stderr.write(`error: cannot read PNG inputs: ${message}\n`);
-    return 2;
+    return null;
   }
   if (first.width !== second.width || first.height !== second.height) {
     process.stderr.write(
       `error: PNG dimensions differ (must match): ${first.width}x${first.height} vs ${second.width}x${second.height}\n`,
     );
-    return 2;
+    return null;
   }
   if (diff && (diff.width !== first.width || diff.height !== first.height)) {
     process.stderr.write("error: --diff PNG dimensions must match the two captures\n");
+    return null;
+  }
+  return { first, second, diff };
+}
+
+/**
+ * CLI エントリ。
+ * `node pixel-strict-count.mjs <pass1.png> <pass2.png> [--diff <diff.png>] [--diff-color <hex>]`
+ * 数えた結果を JSON で出力する。`--diff`（記録済みツールが出した差分画像）を渡すと
+ * `strict_only_pixels` も出る。exit 0=計数した / 2=入力エラー（計数そのものは合否ではない）。
+ * @param {string[]} argv - process.argv.slice(2)
+ * @returns {Promise<number>} exit code
+ */
+export async function main(argv) {
+  const args = parseArgs(argv);
+  const target = checkArgs(args);
+  if (!target) return 2;
+  const PNG = await loadPng();
+  if (!PNG) {
+    process.stderr.write(
+      "error: pngjs is not installed. install it in the project or confirm with the user before proceeding\n",
+    );
     return 2;
   }
+  const captures = readCaptures(PNG, args.positionals, args.diffPath);
+  if (!captures) return 2;
+  const { first, second, diff } = captures;
   const pixels = first.width * first.height;
   const markedMask = diff
-    ? buildMarkedMask(diff.data, pixels, target, DEFAULT_COLOR_TOLERANCE)
+    ? buildMarkedMask(diff.data, pixels, { target, tol: DEFAULT_COLOR_TOLERANCE })
     : null;
-  const counted = countStrictDiff(first.data, second.data, pixels, markedMask);
+  const counted = countStrictDiff(first.data, second.data, { pixels, markedMask });
   process.stdout.write(JSON.stringify(counted, null, 2) + "\n");
   return 0;
 }

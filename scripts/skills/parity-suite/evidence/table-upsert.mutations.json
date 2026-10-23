@@ -48,7 +48,7 @@
       "id": "keep-conformance",
       "why": "書き換えた表に conformance を残す",
       "file": "skills/parity-suite/scripts/table-upsert.mjs",
-      "find": "    delete table.conformance;\n",
+      "find": "  delete table.conformance;\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
@@ -78,8 +78,8 @@
       "id": "select-quoted",
       "why": "JSON 文字列の選択値を解かない（\"]\" を含む id を選べない）",
       "file": "skills/parity-suite/scripts/table-upsert.mjs",
-      "find": "    if (m[3] !== undefined) {\n",
-      "replace": "    if (false) {\n",
+      "find": "  if (m[3] !== undefined) {\n",
+      "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
         "\"]\" を含む id は JSON 文字列の選択値で選べる（Codex レビュー）",

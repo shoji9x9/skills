@@ -123,180 +123,393 @@ export function planElementClip(rect, viewport) {
   return { x, y, width, height };
 }
 
+// --- ページの中で実行する関数 -------------------------------------------------
+//
+// ここから measureInPage までの関数は、ページ側で実行される。
+// locator.evaluate は渡した関数を文字列にしてページで実行するので、ページ側の関数はモジュールの名前を参照できない。
+// そのため、ページ側の関数（PAGE_HELPERS に並べたもの）は引数と素のグローバル（Math・parseFloat など）だけを読み、
+// 互いを引数の一覧（`h`）を通して呼ぶ。captureElementShot は、本体の measureInPage と PAGE_HELPERS の関数のソースを
+// new Function で 1 つの関数に組み立て、その関数を evaluate へ渡す（下記 getPageFunction）。
+
 /**
- * ブラウザ内で矩形とビューポートを読む純関数（locator.evaluate に渡す）。
- * この関数は文字列化して evaluate に渡るため、外部スコープを参照しない。
+ * ビューが最上位か。親を読めない（クロスオリジン）ときは最上位でないとみなす。
+ * @param {Window} view
+ * @returns {boolean}
+ */
+function isTopView(view) {
+  try {
+    return view === view.top;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * ビューを置いているフレーム要素。読めない（クロスオリジンで例外になる）なら null。
+ * @param {Window} view
+ * @returns {Element | null}
+ */
+function frameElementOf(view) {
+  try {
+    return view.frameElement;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 文書（またはシャドウルート）の中の生きているアニメーションを数える。開いたシャドウルートは再帰で辿る。
+ *
+ * `animations: "disabled"` は**撮影の中で**有限のものを完了まで早送りし、無限のものを初期状態へ戻してから撮り、
+ * 撮り終えたら元の時刻へ復帰させる。そのため撮影の前後で測った矩形が同じでも、PNG は別の幾何で撮られている
+ * （一時停止した無限アニメーションが典型）。撮る前に件数を見て、生きているなら clip を信用しない。
+ * 数える範囲は要素の部分木ではなく、要素が居る文書と、iframe を遡った先の各文書の全体。
+ * 要素を動かすのは部分木だけではない。祖先の移動・変形、フレーム要素、前に並ぶ兄弟の幅の変化も
+ * レイアウトを通じて要素を動かす。これらも撮影の中で早送り／初期化され、撮り終えると戻るので、
+ * 前後の矩形が一致したまま PNG だけ別の位置で切られる。どのノードが要素を動かしうるかを列挙する代わりに文書ごと数える。
+ * `document.getAnimations()` はシャドウツリーの中を含まない（実測）ので、開いたシャドウルートを再帰で辿る
+ * （閉じたシャドウルートは読めない）。
+ * @param {PageHelpers} h ページ側の関数の一覧（PAGE_HELPERS）
+ * @param {Document | ShadowRoot} root
+ * @returns {number}
+ */
+function countTree(h, root) {
+  let n = root
+    .getAnimations()
+    .filter((a) => a.playState !== "finished" && a.playState !== "idle").length;
+  for (const host of root.querySelectorAll("*")) {
+    if (host.shadowRoot) n += h.countTree(h, host.shadowRoot);
+  }
+  return n;
+}
+
+/**
+ * 要素が居る文書の生きているアニメーションの数。getAnimations を持たない環境では数えられないので null（判定しない）。
+ * @param {PageHelpers} h ページ側の関数の一覧（PAGE_HELPERS）
+ * @param {Element} el
+ * @returns {number | null}
+ */
+function countOwnAnimations(h, el) {
+  try {
+    return h.countTree(h, el.ownerDocument);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 親文書のアニメーションを足す（フレーム要素・その祖先・兄弟がフレームごと要素を動かしうる）。数えられなければ null。
+ * @param {PageHelpers} h ページ側の関数の一覧（PAGE_HELPERS）
+ * @param {number | null} count - ここまでに数えた件数（null は数えられなかった）
+ * @param {Window} parent
+ * @returns {number | null}
+ */
+function addParentAnimations(h, count, parent) {
+  if (count === null) return null;
+  try {
+    return count + h.countTree(h, parent.document);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * @param {ParentNode} parent
+ * @returns {parent is ShadowRoot}
+ */
+function isShadowRoot(parent) {
+  return "host" in parent;
+}
+
+/**
+ * @param {Element} element
+ * @returns {element is HTMLElement}
+ */
+function isOffsetBox(element) {
+  return "offsetWidth" in element;
+}
+
+/**
+ * @param {Window} w
+ * @returns {w is Window & { DOMMatrixReadOnly: typeof DOMMatrixReadOnly }}
+ */
+function hasMatrix(w) {
+  return "DOMMatrixReadOnly" in w && typeof w.DOMMatrixReadOnly === "function";
+}
+
+/**
+ * 計算後スタイルの変形が平行移動だけか。
+ * `transform` の計算値は行列（translate / rotate / scale の個別プロパティは含まない）なので、個別プロパティも見る。
+ * @param {PageHelpers} h ページ側の関数の一覧（PAGE_HELPERS）
+ * @param {CSSStyleDeclaration} cs
+ * @param {Window} parent - 計算後スタイルを読んだ文書のビュー（DOMMatrixReadOnly を使う）
+ * @returns {boolean}
+ */
+function isTranslationOnly(h, cs, parent) {
+  // 個別プロパティは「何も変えない値」を none ではなくその値で返す（実測: `rotate: 0deg` → "0deg"、
+  // `scale: 1 1` → "1"）。transition の初期値・リセットで普通に書かれるので、角度 0 の rotate と
+  // 全成分 1 の scale は通す。読めない値（NaN）は恒等とみなさず拒否する。
+  /** @param {string} v */
+  const tokens = (v) => v.trim().split(/\s+/);
+  const rotateIsIdentity =
+    !cs.rotate || cs.rotate === "none" || parseFloat(tokens(cs.rotate).pop() ?? "") === 0;
+  const scaleIsIdentity =
+    !cs.scale || cs.scale === "none" || tokens(cs.scale).every((t) => parseFloat(t) === 1);
+  if (!rotateIsIdentity || !scaleIsIdentity) {
+    return false;
+  }
+  if (cs.transform && cs.transform !== "none") {
+    if (!h.hasMatrix(parent)) throw new TypeError("parent.DOMMatrixReadOnly is not a constructor");
+    const m = new parent.DOMMatrixReadOnly(cs.transform);
+    const linear = [m.m11, m.m12, m.m13, m.m14, m.m21, m.m22, m.m23, m.m24];
+    const rest = [m.m31, m.m32, m.m33, m.m34, m.m44];
+    if (linear.join() !== "1,0,0,0,0,1,0,0" || rest.join() !== "0,0,1,0,1") {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * フレーム要素か親文書内の祖先に、平行移動以外の変形があるか。
+ * 寸法だけでは外形を保つ変形（rotate(180deg) / scaleX(-1) 等）を見逃す。外接矩形の寸法が変わらないのに
+ * 中身の座標は反転している。そこで計算後スタイルを読んで判定する。
+ * @param {PageHelpers} h ページ側の関数の一覧（PAGE_HELPERS）
+ * @param {Element} frameEl
+ * @param {Window} parent - フレーム要素が居る文書のビュー
+ * @returns {boolean}
+ */
+function hasNonTranslationAncestor(h, frameEl, parent) {
+  /** @type {Element | null} */
+  let node = frameEl;
+  while (node && node.nodeType === 1) {
+    if (!h.isTranslationOnly(h, parent.getComputedStyle(node), parent)) return true;
+    // シャドウツリーの中なら、ホストへ抜けて祖先を辿り続ける。
+    /** @type {Element | null} */
+    const shadowHost =
+      node.parentNode && h.isShadowRoot(node.parentNode) ? node.parentNode.host : null;
+    node = node.parentElement || shadowHost || null;
+  }
+  return false;
+}
+
+/**
+ * フレームが変形されていて、オフセットの足し算では最上位の座標が決まらないか。
+ * @param {PageHelpers} h ページ側の関数の一覧（PAGE_HELPERS）
+ * @param {Element} frameEl
+ * @param {{ frameBox: DOMRect, parent: Window }} where - フレーム要素の矩形（変形後）と、フレーム要素が居る文書のビュー
+ * @returns {boolean}
+ */
+function isTransformedFrame(h, frameEl, { frameBox, parent }) {
+  // transform で拡縮されたフレームは、矩形（変形後）とレイアウト寸法（変形前）が食い違う。
+  // 中身の座標も同じ倍率で縮むので、足し算では最上位の座標が決まらない。
+  // offsetWidth / offsetHeight は整数へ丸められるので（枠線・padding が小数なら矩形と 1px 未満ずれる。
+  // 実測: 610.5px のフレームで offsetWidth=611）、1px 以上の食い違いだけを変形とみなす。
+  // それより小さい倍率ずれは、フレーム全体でも位置の誤差が 1px 未満で、clip の丸めと同じ桁に収まる。
+  // offsetWidth を持たないフレーム要素は、寸法の差を測れない（NaN の比較は偽になる）ので、ここでは変形とみなさない。
+  if (
+    h.isOffsetBox(frameEl) &&
+    (Math.abs(frameBox.width - frameEl.offsetWidth) >= 1 ||
+      Math.abs(frameBox.height - frameEl.offsetHeight) >= 1)
+  ) {
+    return true;
+  }
+  return h.hasNonTranslationAncestor(h, frameEl, parent);
+}
+
+/**
+ * フレームを遡る途中の状態。x / y はここまでに足した座標、frames は内側から外側への各段の矩形と見える範囲。
+ * @typedef {{
+ *   view: Window,
+ *   x: number,
+ *   y: number,
+ *   frames: { rect: { x:number, y:number, width:number, height:number }, viewport: { width:number, height:number } }[],
+ *   frameError: string | null,
+ *   liveAnimations: number | null,
+ * }} FrameWalk
+ */
+
+/**
+ * フレームを 1 段外へ出る。オフセットを足せないなら frameError を書き、view を動かさずに false を返す。
+ * @param {PageHelpers} h ページ側の関数の一覧（PAGE_HELPERS）
+ * @param {FrameWalk} walk
+ * @param {DOMRect} box - 要素の矩形（そのフレームの座標）
+ * @returns {boolean} 1 段外へ出られたか
+ */
+function stepOutOfFrame(h, walk, box) {
+  const view = walk.view;
+  const frameEl = h.frameElementOf(view);
+  if (!frameEl) {
+    walk.frameError = "unreadable";
+    return false;
+  }
+  // 見える範囲はスクロールバーを除いた寸法（scrollingElement は quirks なら body、標準なら html）。
+  const doc = view.document;
+  const scroller = doc.scrollingElement || doc.documentElement;
+  walk.frames.push({
+    rect: { x: walk.x, y: walk.y, width: box.width, height: box.height },
+    viewport: { width: scroller.clientWidth, height: scroller.clientHeight },
+  });
+  const parent = view.parent;
+  const frameBox = frameEl.getBoundingClientRect();
+  if (h.isTransformedFrame(h, frameEl, { frameBox, parent })) {
+    walk.frameError = "transformed";
+    return false;
+  }
+  walk.liveAnimations = h.addParentAnimations(h, walk.liveAnimations, parent);
+  const style = parent.getComputedStyle(frameEl);
+  // 枠線は clientLeft / clientTop ではなく計算後スタイルから読む。clientLeft は整数へ丸められるが、
+  // 枠線はデバイスピクセルへスナップされて小数になる（実測: deviceScaleFactor 1.5 で 1px の枠線は
+  // borderLeftWidth=0.666667px・clientLeft=1）。丸めた値を足すと最上位の座標が 1/3px ずれ、clip の丸めが 1px 反転しうる。
+  walk.x += frameBox.x + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft);
+  walk.y += frameBox.y + parseFloat(style.borderTopWidth) + parseFloat(style.paddingTop);
+  walk.view = parent;
+  return true;
+}
+
+/**
+ * ブラウザ内で矩形とビューポートを読む（ページへ渡す関数の本体）。
  *
  * iframe の中なら、フレームを 1 段ずつ遡って最上位のビューポート座標（`page_rect`）へ直す。
  * 各段のオフセットは「フレーム要素の矩形 + 枠線 + padding」で、フレームの中身はそこから始まる。
  * 各段で要素がそのフレームの見える範囲に収まっているかを Node 側で判定できるよう、
  * 段ごとの矩形と見える範囲を `frames` に並べる（内側から外側へ。最上位は含めない）。
+ * @param {PageHelpers} h ページ側の関数の一覧（PAGE_HELPERS）
  * @param {Element} el
  */
-function readRectAndViewport(el) {
+function measureInPage(h, el) {
   const box = el.getBoundingClientRect();
-  // 生きているアニメーションを数える。`animations: "disabled"` は**撮影の中で**有限のものを
-  // 完了まで早送りし、無限のものを初期状態へ戻してから撮り、撮り終えたら元の時刻へ復帰させる。
-  // そのため撮影の前後で測った矩形が同じでも、PNG は別の幾何で撮られている（一時停止した無限
-  // アニメーションが典型）。撮る前に件数を見て、生きているなら clip を信用しない。
-  // 数える範囲は要素の部分木ではなく、要素が居る文書と、iframe を遡った先の各文書の全体。
-  // 要素を動かすのは部分木だけではない。祖先の移動・変形、フレーム要素、前に並ぶ兄弟の幅の変化も
-  // レイアウトを通じて要素を動かす。これらも撮影の中で早送り／初期化され、撮り終えると戻るので、
-  // 前後の矩形が一致したまま PNG だけ別の位置で切られる。どのノードが要素を動かしうるかを列挙する代わりに文書ごと数える。
-  // `document.getAnimations()` はシャドウツリーの中を含まない（実測）ので、開いたシャドウルートを再帰で辿る
-  // （閉じたシャドウルートは読めない）。
-  /** @param {Animation[]} anims */
-  const live = (anims) =>
-    anims.filter((a) => a.playState !== "finished" && a.playState !== "idle").length;
-  /**
-   * @param {Document | ShadowRoot} root
-   * @returns {number}
-   */
-  const countTree = (root) => {
-    let n = live(root.getAnimations());
-    for (const host of root.querySelectorAll("*")) {
-      if (host.shadowRoot) n += countTree(host.shadowRoot);
-    }
-    return n;
-  };
-  let liveAnimations = null;
-  try {
-    liveAnimations = countTree(el.ownerDocument);
-  } catch {
-    liveAnimations = null; // getAnimations を持たない環境では数えられない（判定しない）
-  }
-  /**
-   * @param {ParentNode} parent
-   * @returns {parent is ShadowRoot}
-   */
-  const isShadowRoot = (parent) => "host" in parent;
-  /**
-   * @param {Element} element
-   * @returns {element is HTMLElement}
-   */
-  const isOffsetBox = (element) => "offsetWidth" in element;
-  /**
-   * @param {Window} w
-   * @returns {w is Window & { DOMMatrixReadOnly: typeof DOMMatrixReadOnly }}
-   */
-  const hasMatrix = (w) => "DOMMatrixReadOnly" in w && typeof w.DOMMatrixReadOnly === "function";
-  const rect = { x: box.x, y: box.y, width: box.width, height: box.height };
+  const liveAnimations = h.countOwnAnimations(h, el);
   const ownerView = el.ownerDocument.defaultView;
   // 閲覧文脈を持たない文書。戻り値の viewport を読めないので、読む前に止める。
   if (ownerView === null) throw new TypeError("element clip: the element's document has no window");
-  /** @type {Window} */
-  let view = ownerView;
-  let x = box.x;
-  let y = box.y;
-  const frames = [];
-  let frameError = null;
-  for (;;) {
-    let isTop;
-    try {
-      isTop = view === view.top;
-    } catch {
-      isTop = false;
-    }
-    if (isTop) break;
-    let frameEl = null;
-    try {
-      frameEl = view.frameElement;
-    } catch {
-      frameEl = null;
-    }
-    if (!frameEl) {
-      frameError = "unreadable";
-      break;
-    }
-    // 見える範囲はスクロールバーを除いた寸法（scrollingElement は quirks なら body、標準なら html）。
-    const doc = view.document;
-    const scroller = doc.scrollingElement || doc.documentElement;
-    frames.push({
-      rect: { x, y, width: box.width, height: box.height },
-      viewport: { width: scroller.clientWidth, height: scroller.clientHeight },
-    });
-    const parent = view.parent;
-    const frameBox = frameEl.getBoundingClientRect();
-    // transform で拡縮されたフレームは、矩形（変形後）とレイアウト寸法（変形前）が食い違う。
-    // 中身の座標も同じ倍率で縮むので、足し算では最上位の座標が決まらない。
-    // offsetWidth / offsetHeight は整数へ丸められるので（枠線・padding が小数なら矩形と 1px 未満ずれる。
-    // 実測: 610.5px のフレームで offsetWidth=611）、1px 以上の食い違いだけを変形とみなす。
-    // それより小さい倍率ずれは、フレーム全体でも位置の誤差が 1px 未満で、clip の丸めと同じ桁に収まる。
-    // offsetWidth を持たないフレーム要素は、寸法の差を測れない（NaN の比較は偽になる）ので、ここでは変形とみなさない。
-    if (
-      isOffsetBox(frameEl) &&
-      (Math.abs(frameBox.width - frameEl.offsetWidth) >= 1 ||
-        Math.abs(frameBox.height - frameEl.offsetHeight) >= 1)
-    ) {
-      frameError = "transformed";
-      break;
-    }
-    // 寸法だけでは外形を保つ変形（rotate(180deg) / scaleX(-1) 等）を見逃す。外接矩形の寸法が変わらないのに
-    // 中身の座標は反転している。フレーム要素と親文書内の祖先の計算後スタイルを読み、平行移動以外の変形を拒否する。
-    // `transform` の計算値は行列（translate / rotate / scale の個別プロパティは含まない）なので、個別プロパティも見る。
-    let transformed = false;
-    /** @type {Element | null} */
-    let node = frameEl;
-    while (node && node.nodeType === 1) {
-      const cs = parent.getComputedStyle(node);
-      // 個別プロパティは「何も変えない値」を none ではなくその値で返す（実測: `rotate: 0deg` → "0deg"、
-      // `scale: 1 1` → "1"）。transition の初期値・リセットで普通に書かれるので、角度 0 の rotate と
-      // 全成分 1 の scale は通す。読めない値（NaN）は恒等とみなさず拒否する。
-      /** @param {string} v */
-      const tokens = (v) => v.trim().split(/\s+/);
-      const rotateIsIdentity =
-        !cs.rotate || cs.rotate === "none" || parseFloat(tokens(cs.rotate).pop() ?? "") === 0;
-      const scaleIsIdentity =
-        !cs.scale || cs.scale === "none" || tokens(cs.scale).every((t) => parseFloat(t) === 1);
-      if (!rotateIsIdentity || !scaleIsIdentity) {
-        transformed = true;
-        break;
-      }
-      if (cs.transform && cs.transform !== "none") {
-        if (!hasMatrix(parent))
-          throw new TypeError("parent.DOMMatrixReadOnly is not a constructor");
-        const m = new parent.DOMMatrixReadOnly(cs.transform);
-        const linear = [m.m11, m.m12, m.m13, m.m14, m.m21, m.m22, m.m23, m.m24];
-        const rest = [m.m31, m.m32, m.m33, m.m34, m.m44];
-        if (linear.join() !== "1,0,0,0,0,1,0,0" || rest.join() !== "0,0,1,0,1") {
-          transformed = true;
-          break;
-        }
-      }
-      // シャドウツリーの中なら、ホストへ抜けて祖先を辿り続ける。
-      /** @type {Element | null} */
-      const shadowHost =
-        node.parentNode && isShadowRoot(node.parentNode) ? node.parentNode.host : null;
-      node = node.parentElement || shadowHost || null;
-    }
-    if (transformed) {
-      frameError = "transformed";
-      break;
-    }
-    // 親文書のアニメーションも数える（フレーム要素・その祖先・兄弟がフレームごと要素を動かしうる）。
-    if (liveAnimations !== null) {
-      try {
-        liveAnimations += countTree(parent.document);
-      } catch {
-        liveAnimations = null;
-      }
-    }
-    const style = parent.getComputedStyle(frameEl);
-    // 枠線は clientLeft / clientTop ではなく計算後スタイルから読む。clientLeft は整数へ丸められるが、
-    // 枠線はデバイスピクセルへスナップされて小数になる（実測: deviceScaleFactor 1.5 で 1px の枠線は
-    // borderLeftWidth=0.666667px・clientLeft=1）。丸めた値を足すと最上位の座標が 1/3px ずれ、clip の丸めが 1px 反転しうる。
-    x += frameBox.x + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft);
-    y += frameBox.y + parseFloat(style.borderTopWidth) + parseFloat(style.paddingTop);
-    view = parent;
+  /** @type {FrameWalk} */
+  const walk = {
+    view: ownerView,
+    x: box.x,
+    y: box.y,
+    frames: [],
+    frameError: null,
+    liveAnimations,
+  };
+  // 抜ける条件を戻り値にも持たせる。frameError の代入だけで抜けると、代入が欠けたときにループが終わらない。
+  while (!h.isTopView(walk.view)) {
+    if (!h.stepOutOfFrame(h, walk, box)) break;
   }
   return {
-    rect,
-    page_rect: { x, y, width: box.width, height: box.height },
-    viewport: { width: view.innerWidth, height: view.innerHeight },
-    frames,
-    frame_error: frameError,
-    live_animations: liveAnimations,
+    rect: { x: box.x, y: box.y, width: box.width, height: box.height },
+    page_rect: { x: walk.x, y: walk.y, width: box.width, height: box.height },
+    viewport: { width: walk.view.innerWidth, height: walk.view.innerHeight },
+    frames: walk.frames,
+    frame_error: walk.frameError,
+    live_animations: walk.liveAnimations,
   };
+}
+
+/** ページ側の関数の一覧。measureInPage はこれを `h` として受け取る。 */
+const PAGE_HELPERS = {
+  isTopView,
+  frameElementOf,
+  countTree,
+  countOwnAnimations,
+  addParentAnimations,
+  isShadowRoot,
+  isOffsetBox,
+  hasMatrix,
+  isTranslationOnly,
+  hasNonTranslationAncestor,
+  isTransformedFrame,
+  stepOutOfFrame,
+};
+
+/**
+ * ページ側の関数の一覧の型。
+ * @typedef {typeof PAGE_HELPERS} PageHelpers
+ */
+
+/**
+ * ページで測った値（measureInPage の返り値）。
+ * @typedef {ReturnType<typeof measureInPage>} Measured
+ */
+
+/**
+ * 測った値の形か（measureInPage は常にこの形を返す）。
+ * @param {unknown} value
+ * @returns {value is Measured}
+ */
+function isMeasured(value) {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "rect" in value &&
+    "page_rect" in value &&
+    "viewport" in value &&
+    "frames" in value &&
+    "frame_error" in value &&
+    "live_animations" in value
+  );
+}
+
+/**
+ * ページへ渡す関数の本文のソース。measureInPage とページ側の関数の一覧を、関数のソースのまま組み込む。
+ * ページ側でグローバルを増やさず、evaluate を 1 回で済ませるために、1 つの式にまとめる。
+ * @returns {string}
+ */
+function pageFunctionBody() {
+  const helpers = Object.entries(PAGE_HELPERS)
+    .map(([name, fn]) => `${name}: ${fn}`)
+    .join(",\n");
+  return `return (${measureInPage})({\n${helpers}\n}, el);`;
+}
+
+/**
+ * evaluate に渡せる関数か。new Function は Function 型を返すので、evaluate の引数の形の型に絞る。
+ * @param {unknown} value
+ * @returns {value is (el: Element) => unknown}
+ */
+function isPageFunction(value) {
+  return typeof value === "function";
+}
+
+/**
+ * pageFunctionBody のソースから、ページへ渡す関数を作る。
+ * @returns {(el: Element) => unknown}
+ */
+function compilePageFunction() {
+  const compiled = new Function("el", pageFunctionBody());
+  // new Function は常に関数を返すので、ここで投げることは起きない（型の絞り込みのため）。
+  if (!isPageFunction(compiled)) throw new Error("element clip: page function is not callable");
+  return compiled;
+}
+
+/**
+ * ページへ渡す関数。captureElementShot の最初の呼び出しで作り、以後は同じ関数を使う。
+ * @type {((el: Element) => unknown) | undefined}
+ */
+let pageFunction;
+
+/**
+ * ページへ渡す関数を返す。locator.evaluate は関数を文字列にしてページへ渡すので、モジュールの関数を参照する
+ * measureInPage はそのままでは渡せない。そこで、ページ側の関数のソースを組み込んだ関数を作って渡す。
+ * ソースは入力に依らないので 1 回だけ作る。モジュールを読み込むときには作らないので、純関数だけを使う側は new Function を実行しない。
+ * @returns {(el: Element) => unknown}
+ */
+function getPageFunction() {
+  pageFunction ??= compilePageFunction();
+  return pageFunction;
+}
+
+/**
+ * 要素の矩形とビューポートをページで測る。
+ * @param {import('playwright').Locator} locator
+ * @returns {Promise<Measured>}
+ */
+async function measureElement(locator) {
+  const measured = await locator.evaluate(getPageFunction());
+  // measureInPage は常にこの形を返すので、ここで投げることは起きない（型の絞り込みのため）。
+  if (!isMeasured(measured))
+    throw new Error("element clip: measurement returned an unexpected shape");
+  return measured;
 }
 
 /**
@@ -357,6 +570,84 @@ function sameRect(a, b) {
 }
 
 /**
+ * フレームの中の要素を、最上位の座標へ直せるかを確かめる。直せないなら撮らずに失敗させる。
+ * @param {Measured} measured
+ */
+function assertFramesMappable(measured) {
+  // フレームの中の要素は、最上位の座標へ直せたときだけ撮る。直せないまま撮ると、
+  // `page.screenshot({ clip })` が最上位の座標として解釈して別の場所を切り出した PNG が「撮れた」として残る。
+  if (measured.frame_error === "unreadable") {
+    throw new Error(
+      "element clip: the element lives inside a frame whose offset cannot be read (cross-origin: " +
+        "frameElement is null), so its box cannot be mapped to the top-level viewport that " +
+        "page.screenshot({ clip }) uses. open the frame's own URL as a page and capture the element there",
+    );
+  }
+  if (measured.frame_error === "transformed") {
+    throw new Error(
+      "element clip: the element lives inside a frame transformed by CSS (scale, rotation or flip — anything " +
+        "but a translation, on the frame or its ancestors); adding offsets cannot " +
+        "map its box to the top-level viewport. remove the transform for the capture or open the frame's " +
+        "own URL as a page",
+    );
+  }
+  // 途中のフレームの見える範囲からはみ出す要素は、そのフレームに切られて、部品の一部だけが撮影される。
+  // 最上位の判定（planElementClip）と同じ丸めで各段を判定する。
+  measured.frames.forEach((frame, depth) => {
+    try {
+      planElementClip(frame.rect, frame.viewport);
+    } catch (error) {
+      throw new Error(
+        `element clip: inside frame level ${depth + 1} (innermost = 1), ${(error instanceof Error ? error.message : String(error)).replace(/^element clip: /, "")}`,
+      );
+    }
+  });
+}
+
+/**
+ * 撮る前に、生きているアニメーションが無いかを確かめる。
+ * @param {Measured} measured
+ * @param {"disabled" | "allow"} animations
+ */
+function assertNoLiveAnimations(measured, animations) {
+  // 生きているアニメーションがあるなら、撮影中に幾何が変わっても前後の測定は同じ値になりうる
+  // （撮影後の測り直しでは捕まえられない）。撮る前に落とす。
+  if (
+    animations === "disabled" &&
+    typeof measured.live_animations === "number" &&
+    measured.live_animations > 0
+  ) {
+    throw new Error(
+      `element clip: ${measured.live_animations} live animation(s) in the element's document or the documents ` +
+        `of its enclosing frames (any of them can move the element through layout). ` +
+        `animations: "disabled" fast-forwards or resets them inside page.screenshot() and restores them ` +
+        `afterwards, so the clip measured before the capture can describe a different geometry than the PNG ` +
+        `(the post-capture rect check cannot see this). quiesce animations and transitions at the page level ` +
+        `before capturing, or pass animations: "allow" and record that the capture condition differs`,
+    );
+  }
+}
+
+/**
+ * 撮影の前後で要素の矩形が変わっていないかを確かめる。
+ * @param {Measured} measured - 撮影前の測定値
+ * @param {Measured} after - 撮影後の測定値
+ * @param {"disabled" | "allow"} animations
+ */
+function assertBoxUnchanged(measured, after, animations) {
+  if (!sameRect(after.rect, measured.rect) || !sameRect(after.page_rect, measured.page_rect)) {
+    throw new Error(
+      `element clip: the element's box changed while capturing ` +
+        `(${measured.page_rect.width}x${measured.page_rect.height} at ${measured.page_rect.x},${measured.page_rect.y} -> ` +
+        `${after.page_rect.width}x${after.page_rect.height} at ${after.page_rect.x},${after.page_rect.y}). ` +
+        `the clip was computed before the screenshot applied animations: "${animations}", so the PNG may ` +
+        `show a different region. quiesce animations and transitions at the page level (or wait until the ` +
+        `rect is stable across two reads) before capturing`,
+    );
+  }
+}
+
+/**
  * 要素を丸めた整数 clip で撮る。呼び出し側が目的の状態へ遷移させ、矩形が落ち着くまで待ってから呼ぶこと。
  *
  * `locator.screenshot()` を置き換える関数なので、**採取側とカタログ側の両方で同じこの関数を使う**
@@ -390,51 +681,9 @@ export async function captureElementShot(page, locator, options = {}) {
   }
   const recordPath = path === undefined ? undefined : shotRecordPath(path);
   if (scrollIntoView) await locator.scrollIntoViewIfNeeded();
-  const measured = await locator.evaluate(readRectAndViewport);
-  // フレームの中の要素は、最上位の座標へ直せたときだけ撮る。直せないまま撮ると、
-  // `page.screenshot({ clip })` が最上位の座標として解釈して別の場所を切り出した PNG が「撮れた」として残る。
-  if (measured.frame_error === "unreadable") {
-    throw new Error(
-      "element clip: the element lives inside a frame whose offset cannot be read (cross-origin: " +
-        "frameElement is null), so its box cannot be mapped to the top-level viewport that " +
-        "page.screenshot({ clip }) uses. open the frame's own URL as a page and capture the element there",
-    );
-  }
-  if (measured.frame_error === "transformed") {
-    throw new Error(
-      "element clip: the element lives inside a frame transformed by CSS (scale, rotation or flip — anything " +
-        "but a translation, on the frame or its ancestors); adding offsets cannot " +
-        "map its box to the top-level viewport. remove the transform for the capture or open the frame's " +
-        "own URL as a page",
-    );
-  }
-  // 途中のフレームの見える範囲からはみ出す要素は、そのフレームに切られて、部品の一部だけが撮影される。
-  // 最上位の判定（planElementClip）と同じ丸めで各段を判定する。
-  measured.frames.forEach((frame, depth) => {
-    try {
-      planElementClip(frame.rect, frame.viewport);
-    } catch (error) {
-      throw new Error(
-        `element clip: inside frame level ${depth + 1} (innermost = 1), ${(error instanceof Error ? error.message : String(error)).replace(/^element clip: /, "")}`,
-      );
-    }
-  });
-  // 生きているアニメーションがあるなら、撮影中に幾何が変わっても前後の測定は同じ値になりうる
-  // （撮影後の測り直しでは捕まえられない）。撮る前に落とす。
-  if (
-    animations === "disabled" &&
-    typeof measured.live_animations === "number" &&
-    measured.live_animations > 0
-  ) {
-    throw new Error(
-      `element clip: ${measured.live_animations} live animation(s) in the element's document or the documents ` +
-        `of its enclosing frames (any of them can move the element through layout). ` +
-        `animations: "disabled" fast-forwards or resets them inside page.screenshot() and restores them ` +
-        `afterwards, so the clip measured before the capture can describe a different geometry than the PNG ` +
-        `(the post-capture rect check cannot see this). quiesce animations and transitions at the page level ` +
-        `before capturing, or pass animations: "allow" and record that the capture condition differs`,
-    );
-  }
+  const measured = await measureElement(locator);
+  assertFramesMappable(measured);
+  assertNoLiveAnimations(measured, animations);
   const clip = planElementClip(measured.page_rect, measured.viewport);
   // `path` は Playwright へ渡さずバッファで受け取る。撮影後の検査で落ちる run が、
   // 拒否したはずのフレームを基準ファイルとして書き残す（または上書きする）のを避けるためである。
@@ -446,17 +695,8 @@ export async function captureElementShot(page, locator, options = {}) {
   // 要素の位置・寸法が変われば、古い矩形で切った PNG が別の領域を撮ったまま残る。
   // 撮った後にもう一度測って、変わっていたら失敗させる。撮影条件を記録しながら
   // 中身が条件と食い違う成果物を基準にしない。フレームの中なら、フレームが動いても同じなので最上位の座標でも比べる。
-  const after = await locator.evaluate(readRectAndViewport);
-  if (!sameRect(after.rect, measured.rect) || !sameRect(after.page_rect, measured.page_rect)) {
-    throw new Error(
-      `element clip: the element's box changed while capturing ` +
-        `(${measured.page_rect.width}x${measured.page_rect.height} at ${measured.page_rect.x},${measured.page_rect.y} -> ` +
-        `${after.page_rect.width}x${after.page_rect.height} at ${after.page_rect.x},${after.page_rect.y}). ` +
-        `the clip was computed before the screenshot applied animations: "${animations}", so the PNG may ` +
-        `show a different region. quiesce animations and transitions at the page level (or wait until the ` +
-        `rect is stable across two reads) before capturing`,
-    );
-  }
+  const after = await measureElement(locator);
+  assertBoxUnchanged(measured, after, animations);
   const png = readPngSize(buffer);
 
   const result = buildShotRecord({

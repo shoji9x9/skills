@@ -131,11 +131,6 @@ export const PENDING_FIXES: Readonly<Record<string, readonly PendingRule[]>> = {
     "max-lines-per-function",
     "max-params",
   ],
-  "skills/parity-suite/assets/perf-capture.spec.template.ts": [
-    "complexity",
-    "max-lines-per-function",
-    "max-depth",
-  ],
   "skills/parity-suite/scripts/artifact-health-check.mjs": ["complexity", "max-lines-per-function"],
   "skills/parity-suite/scripts/auto-wait-check.mjs": [
     "complexity",
@@ -147,42 +142,17 @@ export const PENDING_FIXES: Readonly<Record<string, readonly PendingRule[]>> = {
     "max-lines-per-function",
     "max-depth",
   ],
-  "skills/parity-suite/scripts/checkpoint.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/parity-suite/scripts/component-comparison-check.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-depth",
-  ],
-  "skills/parity-suite/scripts/component-impact.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
   "skills/parity-suite/scripts/coverage-expand.mjs": [
     "complexity",
     "max-lines-per-function",
     "max-depth",
     "max-params",
   ],
-  "skills/parity-suite/scripts/dimension-fit.mjs": ["complexity", "max-lines-per-function"],
-  "skills/parity-suite/scripts/element-shot.mjs": ["complexity", "max-lines-per-function"],
-  "skills/parity-suite/scripts/evidence-carry.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/parity-suite/scripts/header-normalize.mjs": ["complexity", "max-lines-per-function"],
-  "skills/parity-suite/scripts/page-identity.mjs": ["complexity", "max-lines-per-function"],
   "skills/parity-suite/scripts/perf-stats.mjs": [
     "complexity",
     "max-lines-per-function",
     "max-params",
   ],
-  "skills/parity-suite/scripts/pixel-strict-count.mjs": ["max-lines-per-function", "max-params"],
   "skills/parity-suite/scripts/reaction-check.mjs": [
     "complexity",
     "max-lines-per-function",
@@ -190,17 +160,6 @@ export const PENDING_FIXES: Readonly<Record<string, readonly PendingRule[]>> = {
     "max-params",
   ],
   "skills/parity-suite/scripts/skill-config/skill-config.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/parity-suite/scripts/table-upsert.mjs": ["complexity", "max-lines-per-function"],
-  "skills/parity-suite/scripts/trait-capture.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/parity-suite/scripts/trait-compare.mjs": [
     "complexity",
     "max-lines-per-function",
     "max-params",

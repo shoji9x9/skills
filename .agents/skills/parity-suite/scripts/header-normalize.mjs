@@ -170,21 +170,12 @@ function rejectPlaceholders(v, where) {
 }
 
 /**
- * 一覧の 1 行を検査する。書き手（replace-strategy の測定）の不変条件をここで全部確かめる。
- * 読み手が使う欄（name・setter）だけを見ると、他の欄の誤りが残ったまま一覧として通る。
- * @param {unknown} row
- * @param {number} i
- * @param {Set<string>} captured 採った応答の種類
- * @returns {{ key: string, setter: string, responses: string[] }}
+ * 行の class と value の組を検査する。
+ * @param {Record<string, unknown>} row
+ * @param {string} at エラーに出す行の位置
  */
-function checkRow(row, i, captured) {
-  const where = `headers[${i}]`;
-  if (!isPlainObject(row)) throw new Error(`${where} はオブジェクトで書く`);
-  rejectUnknownKeys(row, ROW_KEYS, where);
-  const { name, value, responses, setter, owner_slug: owner } = row;
-  if (typeof name !== "string" || !HEADER_NAME.test(name))
-    throw new Error(`${where}.name をヘッダー名として読めない: ${JSON.stringify(name)}`);
-  const at = `${where}（${name}）`;
+function checkClassAndValue(row, at) {
+  const { value } = row;
   if (typeof row.class !== "string" || !CLASSES.has(row.class))
     throw new Error(
       `${at}.class は ${[...CLASSES].join(" / ")} のどれか: ${JSON.stringify(row.class)}`,
@@ -194,9 +185,19 @@ function checkRow(row, i, captured) {
     throw new Error(`${at}.value は defense なら空でない文字列`);
   if (row.class === "exposure" && value !== null)
     throw new Error(`${at}.value は exposure なら null（付かない）`);
+}
+
+/**
+ * 行の responses を検査し、文字列と確かめた応答の種類を返す。
+ * @param {unknown} responses
+ * @param {string} at エラーに出す行の位置
+ * @param {Set<string>} captured 採った応答の種類
+ * @returns {string[]} 文字列と確かめた responses（並びも中身も responses と同じ）
+ */
+function checkResponses(responses, at, captured) {
   if (!isArray(responses) || responses.length === 0)
     throw new Error(`${at}.responses は応答の種類の空でない配列`);
-  /** @type {string[]} 文字列と確かめた responses（並びも中身も responses と同じ） */
+  /** @type {string[]} */
   const kinds = [];
   for (const r of responses) {
     // 採っていない種類の応答に付くとは書けない（測っていない値を仕様にする）。captured_responses の kind は
@@ -209,10 +210,17 @@ function checkRow(row, i, captured) {
   }
   if (new Set(responses).size !== responses.length)
     throw new Error(`${at}.responses に同じ種類が重複している`);
-  if (typeof setter !== "string" || !SETTERS.has(setter))
-    throw new Error(
-      `${at}.setter は ${[...SETTERS].join(" / ")} のどれか: ${JSON.stringify(setter)}`,
-    );
+  return kinds;
+}
+
+/**
+ * 行の setter_source と owner_slug を検査する。
+ * @param {Record<string, unknown>} row
+ * @param {string} at エラーに出す行の位置
+ * @param {string[]} kinds 行の responses
+ */
+function checkSourceAndOwner(row, at, kinds) {
+  const { owner_slug: owner } = row;
   if (
     Object.hasOwn(row, "setter_source") &&
     row.setter_source !== null &&
@@ -226,7 +234,81 @@ function checkRow(row, i, captured) {
     if (!kinds.some((r) => UNOWNED_KINDS.has(r)))
       throw new Error(`${at}.owner_slug は responses に static か not-found を含む行にだけ書く`);
   }
+}
+
+/**
+ * 一覧の 1 行を検査する。書き手（replace-strategy の測定）の不変条件をここで全部確かめる。
+ * 読み手が使う欄（name・setter）だけを見ると、他の欄の誤りが残ったまま一覧として通る。
+ * @param {unknown} row
+ * @param {number} i
+ * @param {Set<string>} captured 採った応答の種類
+ * @returns {{ key: string, setter: string, responses: string[] }}
+ */
+function checkRow(row, i, captured) {
+  const where = `headers[${i}]`;
+  if (!isPlainObject(row)) throw new Error(`${where} はオブジェクトで書く`);
+  rejectUnknownKeys(row, ROW_KEYS, where);
+  const { name, setter } = row;
+  if (typeof name !== "string" || !HEADER_NAME.test(name))
+    throw new Error(`${where}.name をヘッダー名として読めない: ${JSON.stringify(name)}`);
+  const at = `${where}（${name}）`;
+  checkClassAndValue(row, at);
+  const kinds = checkResponses(row.responses, at, captured);
+  if (typeof setter !== "string" || !SETTERS.has(setter))
+    throw new Error(
+      `${at}.setter は ${[...SETTERS].join(" / ")} のどれか: ${JSON.stringify(setter)}`,
+    );
+  checkSourceAndOwner(row, at, kinds);
   return { key: name.toLowerCase(), setter, responses: kinds };
+}
+
+/**
+ * captured_responses を検査し、採った応答の種類の集合を返す。
+ * @param {Record<string, unknown>} doc 測定済みの一覧
+ * @returns {Set<string>}
+ */
+function readCapturedResponses(doc) {
+  if (!isArray(doc.captured_responses) || doc.captured_responses.length === 0)
+    throw new Error("captured_responses（採った応答）は空でない配列");
+  /** @type {Set<string>} */
+  const captured = new Set();
+  doc.captured_responses.forEach((c, i) => {
+    if (!isPlainObject(c)) throw new Error(`captured_responses[${i}] はオブジェクトで書く`);
+    rejectUnknownKeys(c, new Set(["kind", "url"]), `captured_responses[${i}]`);
+    if (typeof c.kind !== "string" || !RESPONSE_KINDS.has(c.kind))
+      throw new Error(`captured_responses[${i}].kind は語彙外: ${JSON.stringify(c.kind)}`);
+    if (!nonEmptyString(c.url)) throw new Error(`captured_responses[${i}].url が無い`);
+    captured.add(c.kind);
+  });
+  return captured;
+}
+
+/**
+ * headers の各行を検査し、比べるヘッダー名（小文字）の集合を返す。
+ * @param {unknown[]} headers
+ * @param {Set<string>} captured 採った応答の種類
+ * @returns {Set<string>}
+ */
+function comparedHeaderNames(headers, captured) {
+  /** @type {Map<string, boolean>} 名前 → その名前の行がすべて付け手の決まった行か */
+  const known = new Map();
+  /** @type {Map<string, Set<string>>} 名前 → その名前の行が覆う応答の種類 */
+  const covered = new Map();
+  headers.forEach((row, i) => {
+    const { key, setter, responses } = checkRow(row, i, captured);
+    // 同じヘッダーの行が同じ種類の応答を 2 度覆うと、その応答の値・付け手がどちらか読めない。
+    const seen = covered.get(key) ?? new Set();
+    const dup = responses.find((r) => seen.has(r));
+    if (dup) throw new Error(`headers[${i}]（${key}）の responses の ${dup} は別の行と重なる`);
+    for (const r of responses) seen.add(r);
+    covered.set(key, seen);
+    // 同じヘッダーが応答の種類ごとに複数行あり、1 行でも付け手が unknown なら、そのヘッダーは録画にも比較にも入れない。
+    // 出力はヘッダー名で絞るだけで、応答の種類を知らない。比べる側として扱うと、unknown の行が指す応答の値
+    // （再構築で入ったデフォルトの値である可能性がある）まで現行の仕様として固定してしまう。決まった行の後退は、スイートがその応答の
+    // assertion で両側に確かめる（parity-suite の references/api-batch.md「応答ヘッダー」）。
+    known.set(key, (known.get(key) ?? true) && setter !== "unknown");
+  });
+  return new Set([...known].filter(([, ok]) => ok).map(([name]) => name));
 }
 
 /**
@@ -259,18 +341,7 @@ export function parseHeaderList(text) {
   rejectUnknownKeys(doc, MEASURED_KEYS, "測定済みの一覧");
   if (!nonEmptyString(doc.captured_at)) throw new Error("captured_at（採った日時）が無い");
   if (!nonEmptyString(doc.target)) throw new Error("target（採った target 名）が無い");
-  if (!isArray(doc.captured_responses) || doc.captured_responses.length === 0)
-    throw new Error("captured_responses（採った応答）は空でない配列");
-  /** @type {Set<string>} */
-  const captured = new Set();
-  doc.captured_responses.forEach((c, i) => {
-    if (!isPlainObject(c)) throw new Error(`captured_responses[${i}] はオブジェクトで書く`);
-    rejectUnknownKeys(c, new Set(["kind", "url"]), `captured_responses[${i}]`);
-    if (typeof c.kind !== "string" || !RESPONSE_KINDS.has(c.kind))
-      throw new Error(`captured_responses[${i}].kind は語彙外: ${JSON.stringify(c.kind)}`);
-    if (!nonEmptyString(c.url)) throw new Error(`captured_responses[${i}].url が無い`);
-    captured.add(c.kind);
-  });
+  const captured = readCapturedResponses(doc);
   if (Object.hasOwn(doc, "notes") && typeof doc.notes !== "string")
     throw new Error("notes は文字列");
   // 欠落（undefined）も落とす。未確定は null と明示させ、欄の書き忘れと区別する。
@@ -279,26 +350,7 @@ export function parseHeaderList(text) {
   // 防御ヘッダーも露出の抑止の候補も 1 つも無い応答はありうるので、空の配列は「比べるヘッダーが無い」として通す
   // （status: measured と明示した一覧なので、書き忘れの表と違い空であることが測定結果）。
   if (!isArray(doc.headers)) throw new Error("headers は配列");
-
-  /** @type {Map<string, boolean>} 名前 → その名前の行がすべて付け手の決まった行か */
-  const known = new Map();
-  /** @type {Map<string, Set<string>>} 名前 → その名前の行が覆う応答の種類 */
-  const covered = new Map();
-  doc.headers.forEach((row, i) => {
-    const { key, setter, responses } = checkRow(row, i, captured);
-    // 同じヘッダーの行が同じ種類の応答を 2 度覆うと、その応答の値・付け手がどちらか読めない。
-    const seen = covered.get(key) ?? new Set();
-    const dup = responses.find((r) => seen.has(r));
-    if (dup) throw new Error(`headers[${i}]（${key}）の responses の ${dup} は別の行と重なる`);
-    for (const r of responses) seen.add(r);
-    covered.set(key, seen);
-    // 同じヘッダーが応答の種類ごとに複数行あり、1 行でも付け手が unknown なら、そのヘッダーは録画にも比較にも入れない。
-    // 出力はヘッダー名で絞るだけで、応答の種類を知らない。比べる側として扱うと、unknown の行が指す応答の値
-    // （再構築で入ったデフォルトの値である可能性がある）まで現行の仕様として固定してしまう。決まった行の後退は、スイートがその応答の
-    // assertion で両側に確かめる（parity-suite の references/api-batch.md「応答ヘッダー」）。
-    known.set(key, (known.get(key) ?? true) && setter !== "unknown");
-  });
-  return new Set([...known].filter(([, ok]) => ok).map(([name]) => name));
+  return comparedHeaderNames(doc.headers, captured);
 }
 
 /**

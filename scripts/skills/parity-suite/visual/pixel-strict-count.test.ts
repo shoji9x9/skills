@@ -22,7 +22,7 @@ test("しきい値なしの画素数と、マークされていない分を数�
   // 記録済みツールは 2 画素目だけをマークした（1/255 の差は飲んでいる）。
   const marked = Uint8Array.from([0, 1, 0]);
 
-  const counted = counter.countStrictDiff(first, second, 3, marked);
+  const counted = counter.countStrictDiff(first, second, { pixels: 3, markedMask: marked });
 
   expect(counted.strict_pixels).toBe(2);
   expect(counted.strict_only_pixels).toBe(1);
@@ -34,7 +34,7 @@ test("差分画像を渡さなければ strict_only は null（0 と区別する
   const first = rgba([[1, 2, 3, 255]]);
   const second = rgba([[1, 2, 4, 255]]);
 
-  const counted = counter.countStrictDiff(first, second, 1);
+  const counted = counter.countStrictDiff(first, second, { pixels: 1 });
 
   expect(counted.strict_pixels).toBe(1);
   expect(counted.strict_only_pixels).toBeNull();
@@ -42,8 +42,12 @@ test("差分画像を渡さなければ strict_only は null（0 と区別する
 });
 
 test("両側とも完全な透明なら差にしない（片側だけ透明なら数える）", () => {
-  const hidden = counter.countStrictDiff(rgba([[10, 20, 30, 0]]), rgba([[90, 80, 70, 0]]), 1);
-  const appeared = counter.countStrictDiff(rgba([[10, 20, 30, 255]]), rgba([[10, 20, 30, 0]]), 1);
+  const hidden = counter.countStrictDiff(rgba([[10, 20, 30, 0]]), rgba([[90, 80, 70, 0]]), {
+    pixels: 1,
+  });
+  const appeared = counter.countStrictDiff(rgba([[10, 20, 30, 255]]), rgba([[10, 20, 30, 0]]), {
+    pixels: 1,
+  });
 
   expect(hidden.strict_pixels).toBe(0);
   expect(appeared.strict_pixels).toBe(1);
@@ -65,7 +69,7 @@ test("parity-diff の pixel-crops.mjs と同じ画素数・最大チャンネル
     [7, 7, 7, 255],
   ]);
 
-  const mine = counter.countStrictDiff(first, second, 4);
+  const mine = counter.countStrictDiff(first, second, { pixels: 4 });
   const theirs = crops.buildStrictMask(first, second, { pixels: 4 });
 
   expect(mine.strict_pixels).toBe(theirs.count);

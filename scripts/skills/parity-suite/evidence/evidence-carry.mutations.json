@@ -20,7 +20,7 @@
       "id": "chain-gap",
       "why": "宣言の後の宣言外の編集（連鎖が今の版まで届かない）を持ち越す",
       "file": "skills/parity-suite/scripts/evidence-carry.mjs",
-      "find": "if (!reached.has(goal)) {",
+      "find": "if (!reaches(edges, start, goal)) {",
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": ["宣言の後に宣言外の編集がある（files に名前があるだけの古い宣言）: 落とす"]
