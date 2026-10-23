@@ -130,6 +130,7 @@ export function planElementClip(rect, viewport) {
 // そのため、ページ側の関数（PAGE_HELPERS に並べたもの）は引数と素のグローバル（Math・parseFloat など）だけを読み、
 // 互いを引数の一覧（`h`）を通して呼ぶ。captureElementShot は、本体の measureInPage と PAGE_HELPERS の関数のソースを
 // new Function で 1 つの関数に組み立て、その関数を evaluate へ渡す（下記 getPageFunction）。
+// Node から直接呼ぶ measureElementBox は、組み立てずに同じ関数の一覧を渡す。
 
 /**
  * ビューが最上位か。親を読めない（クロスオリジン）ときは最上位でないとみなす。
@@ -426,6 +427,16 @@ const PAGE_HELPERS = {
  * ページ側の関数の一覧の型。
  * @typedef {typeof PAGE_HELPERS} PageHelpers
  */
+
+/**
+ * 要素の矩形とビューポートを測る（ブラウザ内で実行される処理を、Node から直接呼ぶための関数）。
+ *
+ * @param {Element} el 対象の要素。
+ * @returns {Measured} 測った値。
+ */
+export function measureElementBox(el) {
+  return measureInPage(PAGE_HELPERS, el);
+}
 
 /**
  * ページで測った値（measureInPage の返り値）。

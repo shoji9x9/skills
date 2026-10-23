@@ -246,6 +246,7 @@ export const SCROLLBAR_PSEUDO_PROPERTIES = [
 // そのため、ページ側の関数（PAGE_HELPERS に並べたもの）は引数と素のグローバル（getComputedStyle・location・document など）だけを読み、
 // 互いを引数の一覧（`h`）を通して呼ぶ。captureTraits は、本体の captureElement と PAGE_HELPERS の関数のソースを
 // new Function で 1 つの関数に組み立て、その関数を evaluate へ渡す（下記 getPageFunction）。
+// Node から直接呼ぶ captureElementTraits は、組み立てずに同じ関数の一覧を渡す。
 
 // 値が在ることを確かめる。採取の中で対にして作る値（持ち主ごとの区切りなど）と、必ず一致する正規表現の結果に使う。
 // 無ければ、その値を読む行が TypeError で止まるのと同じく、ここで止める。
@@ -908,6 +909,17 @@ const PAGE_HELPERS = {
  * ページ側の関数の一覧の型。
  * @typedef {typeof PAGE_HELPERS} PageHelpers
  */
+
+/**
+ * 1 要素分の特性を採る（ブラウザ内で実行される処理を、Node から直接呼ぶための関数）。
+ *
+ * @param {Element} el 対象の要素。
+ * @param {CaptureProps} props 採るプロパティの固定集合。
+ * @returns {ElementTraits} 採取の結果。
+ */
+export function captureElementTraits(el, props) {
+  return captureElement(PAGE_HELPERS, el, props);
+}
 
 /**
  * 1 要素分の採取の結果。

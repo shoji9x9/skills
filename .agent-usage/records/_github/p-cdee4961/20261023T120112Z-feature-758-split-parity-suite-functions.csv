@@ -4,3 +4,4 @@ ci:39928359231:1,ci,2026-10-23T12:01:12.882Z,p-cdee4961,github-actions,,,,2026-1
 ci:39872932235:1,ci,2026-10-23T12:01:12.882Z,p-cdee4961,github-actions,,,,2026-10-22T23:36:46.000Z,2026-10-22T23:40:43.000Z,Asia/Tokyo,feature/758-split-replace-strategy-functions,758,,,,,,,,,,CI;pull_request;success,
 ci:39872931999:1,ci,2026-10-23T12:01:12.882Z,p-cdee4961,github-actions,,,,2026-10-22T23:36:46.000Z,2026-10-22T23:36:47.000Z,Asia/Tokyo,feature/758-split-replace-strategy-functions,758,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 coverage:github:2026-10-21T23:33:58.788Z:2026-10-23T12:01:12.882Z,coverage,2026-10-23T12:01:12.882Z,p-cdee4961,,,,,2026-10-21T23:33:58.788Z,2026-10-23T12:01:12.882Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-22T12:01:12.882Z:2026-10-23T12:17:34.379Z,coverage,2026-10-23T12:17:34.379Z,p-cdee4961,,,,,2026-10-22T12:01:12.882Z,2026-10-23T12:17:34.379Z,Asia/Tokyo,,,,,,,,,,,,ok,

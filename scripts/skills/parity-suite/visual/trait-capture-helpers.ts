@@ -13,6 +13,7 @@ export const {
   SCROLLBAR_PSEUDO_PROPERTIES,
   VERSION,
   captureTraits,
+  captureElementTraits,
 }: typeof import("../../../../skills/parity-suite/scripts/trait-capture.mjs") = await import(
   script
 );
@@ -227,16 +228,38 @@ function installBrowserGlobals(styles: Styles, o: ResolvedLocatorOptions) {
   return () => Object.assign(browser, previous);
 }
 
+// 採るプロパティの固定集合（captureTraits が evaluate へ渡す引数）。
+type CaptureProps = Parameters<typeof captureElementTraits>[1];
+// evaluate に渡された関数を偽の要素に当てる方法。
+export type PageRun = (
+  fn: (el: FakeElement, props: CaptureProps) => unknown,
+  el: FakeElement,
+  props: CaptureProps,
+) => unknown;
+type FakeElement = ReturnType<typeof fakeElement>;
+
+/**
+ * describe.each に渡す 2 通りの当て方。モジュールの関数は、渡された関数を使わずに captureElementTraits を呼び、
+ * カバレッジを記録する。ページへ渡すソースは、captureTraits が組み立てた関数をそのまま当てる。
+ * ページ側の関数がヘルパーの一覧を通さずに互いを呼ぶと、モジュールの関数として呼んだときはモジュールのスコープで
+ * 名前が解決されて通るが、こちらでは名前が解決できずに失敗する。
+ */
+export const PAGE_RUNS: [string, PageRun][] = [
+  ["モジュールの関数", (_fn, el, props) => captureElementTraits(el, props)],
+  ["ページへ渡すソース", (fn, el, props) => fn(el, props)],
+];
+
 // captureElement は locator.evaluate に文字列化して渡る純関数なので、
 // evaluate を「渡された関数をブラウザ相当のスタブへ当てる」偽ロケータで実行して検証する。
-export function fakeLocator(styles: Styles, options: FakeLocatorOptions = {}) {
+// 当て方は run で選ぶ（PAGE_RUNS）。
+export function fakeLocator(run: PageRun, styles: Styles, options: FakeLocatorOptions = {}) {
   const o = resolveLocatorOptions(styles, options);
   return {
-    evaluate(fn: (el: unknown, props: unknown) => unknown, props: unknown) {
+    evaluate(fn: (el: FakeElement, props: CaptureProps) => unknown, props: CaptureProps) {
       const el = fakeElement(styles, o);
       const restore = installBrowserGlobals(styles, o);
       try {
-        return Promise.resolve(fn(el, props));
+        return Promise.resolve(run(fn, el, props));
       } finally {
         restore();
       }

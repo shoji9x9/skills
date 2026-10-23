@@ -3,7 +3,8 @@
     "trait-capture.test.ts のうち、文字の持ち主（text_owners）の採取（Issue #459）と、スクロールする器の特性（scroll。Issue #495）の検出能力を示す変異の一覧。",
     "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
     "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
-    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。",
+    "ページの処理に当たるテストはモジュールの関数とページへ渡すソースの 2 通りで実行するので、expect_failing には describe.each の名前（モジュールの関数・ページへ渡すソース）を前に付けた名前を両方書く。"
   ],
   "test_file": "scripts/skills/parity-suite/visual/trait-capture.test.ts",
   "mutations": [
@@ -15,20 +16,34 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "入れ子の子孫が持つ文字の書体・大きさ・矩形を、持ち主の行として採る",
-        "空白だけの文字 は持ち主として数えない",
-        "矩形の幅が 0 の文字（display: none の中） は持ち主として数えない",
-        "矩形の高さが 0 の文字 は持ち主として数えない",
-        "visibility が visible でない要素の文字は数えない",
-        "同じ持ち主の文字は 1 行にまとめ、寸法は断片の合計、矩形はそれらを覆う範囲にする",
-        "シャドウルートの中と slot に割り当てられた文字を、描かれる順に採る",
-        "文字の持ち主で解決しないプロパティ名は空文字で通さず論理名付きで落ちる",
-        "折り返した文字の寸法は行の断片から出す（外接矩形の幅を使わない）",
-        "同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる",
-        "line-height を詰めて行の断片が縦に重なっても、折り返した行を数える",
-        "省略記号で切られた長い文字（見えている部分が残る）",
-        "持ち主の端の空白の幅は数えず、中の空白（空白だけのノードを含む）の幅は数える",
-        "NBSP と全角スペースは空白として畳まず、端の幅からも外さない"
+        "モジュールの関数 入れ子の子孫が持つ文字の書体・大きさ・矩形を、持ち主の行として採る",
+        "ページへ渡すソース 入れ子の子孫が持つ文字の書体・大きさ・矩形を、持ち主の行として採る",
+        "モジュールの関数 空白だけの文字 は持ち主として数えない",
+        "ページへ渡すソース 空白だけの文字 は持ち主として数えない",
+        "モジュールの関数 矩形の幅が 0 の文字（display: none の中） は持ち主として数えない",
+        "ページへ渡すソース 矩形の幅が 0 の文字（display: none の中） は持ち主として数えない",
+        "モジュールの関数 矩形の高さが 0 の文字 は持ち主として数えない",
+        "ページへ渡すソース 矩形の高さが 0 の文字 は持ち主として数えない",
+        "モジュールの関数 visibility が visible でない要素の文字は数えない",
+        "ページへ渡すソース visibility が visible でない要素の文字は数えない",
+        "モジュールの関数 同じ持ち主の文字は 1 行にまとめ、寸法は断片の合計、矩形はそれらを覆う範囲にする",
+        "ページへ渡すソース 同じ持ち主の文字は 1 行にまとめ、寸法は断片の合計、矩形はそれらを覆う範囲にする",
+        "モジュールの関数 シャドウルートの中と slot に割り当てられた文字を、描かれる順に採る",
+        "ページへ渡すソース シャドウルートの中と slot に割り当てられた文字を、描かれる順に採る",
+        "モジュールの関数 文字の持ち主で解決しないプロパティ名は空文字で通さず論理名付きで落ちる",
+        "ページへ渡すソース 文字の持ち主で解決しないプロパティ名は空文字で通さず論理名付きで落ちる",
+        "モジュールの関数 折り返した文字の寸法は行の断片から出す（外接矩形の幅を使わない）",
+        "ページへ渡すソース 折り返した文字の寸法は行の断片から出す（外接矩形の幅を使わない）",
+        "モジュールの関数 同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる",
+        "ページへ渡すソース 同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる",
+        "モジュールの関数 line-height を詰めて行の断片が縦に重なっても、折り返した行を数える",
+        "ページへ渡すソース line-height を詰めて行の断片が縦に重なっても、折り返した行を数える",
+        "モジュールの関数 省略記号で切られた長い文字（見えている部分が残る）",
+        "ページへ渡すソース 省略記号で切られた長い文字（見えている部分が残る）",
+        "モジュールの関数 持ち主の端の空白の幅は数えず、中の空白（空白だけのノードを含む）の幅は数える",
+        "ページへ渡すソース 持ち主の端の空白の幅は数えず、中の空白（空白だけのノードを含む）の幅は数える",
+        "モジュールの関数 NBSP と全角スペースは空白として畳まず、端の幅からも外さない",
+        "ページへ渡すソース NBSP と全角スペースは空白として畳まず、端の幅からも外さない"
       ]
     },
     {
@@ -38,7 +53,10 @@
       "find": "  if (style.getPropertyValue(\"visibility\") !== \"visible\") return;\n",
       "replace": "",
       "occurrences": 1,
-      "expect_failing": ["visibility が visible でない要素の文字は数えない"]
+      "expect_failing": [
+        "モジュールの関数 visibility が visible でない要素の文字は数えない",
+        "ページへ渡すソース visibility が visible でない要素の文字は数えない"
+      ]
     },
     {
       "id": "unresolved-passes",
@@ -47,7 +65,10 @@
       "find": "    if (value === \"\") unknown.push(prop);\n    picked[prop] = value;\n",
       "replace": "    picked[prop] = value;\n",
       "occurrences": 1,
-      "expect_failing": ["文字の持ち主で解決しないプロパティ名は空文字で通さず論理名付きで落ちる"]
+      "expect_failing": [
+        "モジュールの関数 文字の持ち主で解決しないプロパティ名は空文字で通さず論理名付きで落ちる",
+        "ページへ渡すソース 文字の持ち主で解決しないプロパティ名は空文字で通さず論理名付きで落ちる"
+      ]
     },
     {
       "id": "slot-ignored",
@@ -57,8 +78,10 @@
       "replace": "    } else if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "シャドウルートの中と slot に割り当てられた文字を、描かれる順に採る",
-        "slot に割り当てられた文字の持ち主は、DOM の親ではなく slot になる"
+        "モジュールの関数 シャドウルートの中と slot に割り当てられた文字を、描かれる順に採る",
+        "ページへ渡すソース シャドウルートの中と slot に割り当てられた文字を、描かれる順に採る",
+        "モジュールの関数 slot に割り当てられた文字の持ち主は、DOM の親ではなく slot になる",
+        "ページへ渡すソース slot に割り当てられた文字の持ち主は、DOM の親ではなく slot になる"
       ]
     },
     {
@@ -69,9 +92,12 @@
       "replace": "  const known = undefined;\n",
       "occurrences": 1,
       "expect_failing": [
-        "同じ持ち主の文字は 1 行にまとめ、寸法は断片の合計、矩形はそれらを覆う範囲にする",
-        "同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる",
-        "持ち主の端の空白の幅は数えず、中の空白（空白だけのノードを含む）の幅は数える"
+        "モジュールの関数 同じ持ち主の文字は 1 行にまとめ、寸法は断片の合計、矩形はそれらを覆う範囲にする",
+        "ページへ渡すソース 同じ持ち主の文字は 1 行にまとめ、寸法は断片の合計、矩形はそれらを覆う範囲にする",
+        "モジュールの関数 同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる",
+        "ページへ渡すソース 同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる",
+        "モジュールの関数 持ち主の端の空白の幅は数えず、中の空白（空白だけのノードを含む）の幅は数える",
+        "ページへ渡すソース 持ち主の端の空白の幅は数えず、中の空白（空白だけのノードを含む）の幅は数える"
       ]
     },
     {
@@ -81,7 +107,10 @@
       "find": "    full: fragments.reduce((sum, f) => sum + f.width, 0),\n",
       "replace": "    full: r.width,\n",
       "occurrences": 1,
-      "expect_failing": ["折り返した文字の寸法は行の断片から出す（外接矩形の幅を使わない）"]
+      "expect_failing": [
+        "モジュールの関数 折り返した文字の寸法は行の断片から出す（外接矩形の幅を使わない）",
+        "ページへ渡すソース 折り返した文字の寸法は行の断片から出す（外接矩形の幅を使わない）"
+      ]
     },
     {
       "id": "dom-parent-as-owner",
@@ -90,7 +119,10 @@
       "find": "  h.record(h, st, { owner: flatParent, path, raw, r, fragments, segment });\n",
       "replace": "  h.record(h, st, { owner: node.parentElement || (node.parentNode && node.parentNode.host) || null, path, raw, r, fragments, segment });\n",
       "occurrences": 1,
-      "expect_failing": ["slot に割り当てられた文字の持ち主は、DOM の親ではなく slot になる"]
+      "expect_failing": [
+        "モジュールの関数 slot に割り当てられた文字の持ち主は、DOM の親ではなく slot になる",
+        "ページへ渡すソース slot に割り当てられた文字の持ち主は、DOM の親ではなく slot になる"
+      ]
     },
     {
       "id": "trim-per-node",
@@ -100,7 +132,8 @@
       "replace": "  st.rawText.set(known, st.rawText.get(known) + \" \" + raw.trim());\n  h.present(st.segments.get(known)).push(segment);\n",
       "occurrences": 1,
       "expect_failing": [
-        "同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる"
+        "モジュールの関数 同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる",
+        "ページへ渡すソース 同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる"
       ]
     },
     {
@@ -111,8 +144,10 @@
       "replace": "    if (true) {\n",
       "occurrences": 1,
       "expect_failing": [
-        "同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる",
-        "同じ持ち主の文字は 1 行にまとめ、寸法は断片の合計、矩形はそれらを覆う範囲にする"
+        "モジュールの関数 同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる",
+        "ページへ渡すソース 同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる",
+        "モジュールの関数 同じ持ち主の文字は 1 行にまとめ、寸法は断片の合計、矩形はそれらを覆う範囲にする",
+        "ページへ渡すソース 同じ持ち主の文字は 1 行にまとめ、寸法は断片の合計、矩形はそれらを覆う範囲にする"
       ]
     },
     {
@@ -122,7 +157,10 @@
       "find": "    if (f.top >= rowTop + (f.bottom - f.top) / 2) {\n      lines += 1;\n      rowTop = f.top;\n",
       "replace": "    if (f.top >= rowTop) {\n      lines += 1;\n      rowTop = f.bottom;\n",
       "occurrences": 1,
-      "expect_failing": ["line-height を詰めて行の断片が縦に重なっても、折り返した行を数える"]
+      "expect_failing": [
+        "モジュールの関数 line-height を詰めて行の断片が縦に重なっても、折り返した行を数える",
+        "ページへ渡すソース line-height を詰めて行の断片が縦に重なっても、折り返した行を数える"
+      ]
     },
     {
       "id": "clip-ignored",
@@ -132,8 +170,10 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "1px の箱に overflow: hidden で閉じ込めた文字（sr-only）",
-        "clip: rect(0 0 0 0) の文字"
+        "モジュールの関数 1px の箱に overflow: hidden で閉じ込めた文字（sr-only）",
+        "ページへ渡すソース 1px の箱に overflow: hidden で閉じ込めた文字（sr-only）",
+        "モジュールの関数 clip: rect(0 0 0 0) の文字",
+        "ページへ渡すソース clip: rect(0 0 0 0) の文字"
       ]
     },
     {
@@ -143,7 +183,10 @@
       "find": "  return right - left < 2 || bottom - top < 2;\n",
       "replace": "  return right - left <= 0 || bottom - top <= 0;\n",
       "occurrences": 1,
-      "expect_failing": ["1px の箱に overflow: hidden で閉じ込めた文字（sr-only）"]
+      "expect_failing": [
+        "モジュールの関数 1px の箱に overflow: hidden で閉じ込めた文字（sr-only）",
+        "ページへ渡すソース 1px の箱に overflow: hidden で閉じ込めた文字（sr-only）"
+      ]
     },
     {
       "id": "input-ignored",
@@ -153,9 +196,12 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "ボタンとして描く <input> の value を文字の持ち主として採る",
-        "value 属性の無い submit は文字列を空にした行として数え、type=button は数えない",
-        "ボタンとして描く <input> の文字は text-transform と letter-spacing を当てて測る"
+        "モジュールの関数 ボタンとして描く <input> の value を文字の持ち主として採る",
+        "ページへ渡すソース ボタンとして描く <input> の value を文字の持ち主として採る",
+        "モジュールの関数 value 属性の無い submit は文字列を空にした行として数え、type=button は数えない",
+        "ページへ渡すソース value 属性の無い submit は文字列を空にした行として数え、type=button は数えない",
+        "モジュールの関数 ボタンとして描く <input> の文字は text-transform と letter-spacing を当てて測る",
+        "ページへ渡すソース ボタンとして描く <input> の文字は text-transform と letter-spacing を当てて測る"
       ]
     },
     {
@@ -165,7 +211,10 @@
       "find": "    [\"submit\", \"button\", \"reset\"].includes(String(node.type).toLowerCase())\n",
       "replace": "    true\n",
       "occurrences": 1,
-      "expect_failing": ["ボタンとして描く <input> の value を文字の持ち主として採る"]
+      "expect_failing": [
+        "モジュールの関数 ボタンとして描く <input> の value を文字の持ち主として採る",
+        "ページへ渡すソース ボタンとして描く <input> の value を文字の持ち主として採る"
+      ]
     },
     {
       "id": "edges-kept",
@@ -175,7 +224,8 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "持ち主の端の空白の幅は数えず、中の空白（空白だけのノードを含む）の幅は数える"
+        "モジュールの関数 持ち主の端の空白の幅は数えず、中の空白（空白だけのノードを含む）の幅は数える",
+        "ページへ渡すソース 持ち主の端の空白の幅は数えず、中の空白（空白だけのノードを含む）の幅は数える"
       ]
     },
     {
@@ -186,7 +236,8 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "持ち主の端の空白の幅は数えず、中の空白（空白だけのノードを含む）の幅は数える"
+        "モジュールの関数 持ち主の端の空白の幅は数えず、中の空白（空白だけのノードを含む）の幅は数える",
+        "ページへ渡すソース 持ち主の端の空白の幅は数えず、中の空白（空白だけのノードを含む）の幅は数える"
       ]
     },
     {
@@ -197,7 +248,8 @@
       "replace": "  const m = canvas.measureText(raw);\n",
       "occurrences": 1,
       "expect_failing": [
-        "ボタンとして描く <input> の文字は text-transform と letter-spacing を当てて測る"
+        "モジュールの関数 ボタンとして描く <input> の文字は text-transform と letter-spacing を当てて測る",
+        "ページへ渡すソース ボタンとして描く <input> の文字は text-transform と letter-spacing を当てて測る"
       ]
     },
     {
@@ -208,7 +260,8 @@
       "replace": "  const defaultLabel = false;\n",
       "occurrences": 1,
       "expect_failing": [
-        "value 属性の無い submit は文字列を空にした行として数え、type=button は数えない"
+        "モジュールの関数 value 属性の無い submit は文字列を空にした行として数え、type=button は数えない",
+        "ページへ渡すソース value 属性の無い submit は文字列を空にした行として数え、type=button は数えない"
       ]
     },
     {
@@ -218,7 +271,10 @@
       "find": "  return value.replace(/[ \\t\\n\\r\\f]+/g, \" \").replace(/^ | $/g, \"\");\n",
       "replace": "  return value.replace(/\\s+/g, \" \").trim();\n",
       "occurrences": 1,
-      "expect_failing": ["NBSP と全角スペースは空白として畳まず、端の幅からも外さない"]
+      "expect_failing": [
+        "モジュールの関数 NBSP と全角スペースは空白として畳まず、端の幅からも外さない",
+        "ページへ渡すソース NBSP と全角スペースは空白として畳まず、端の幅からも外さない"
+      ]
     },
     {
       "id": "js-trim-edges",
@@ -227,7 +283,10 @@
       "find": "  const leadLength = h.present(/^[ \\t\\n\\r\\f]*/.exec(raw))[0].length;\n",
       "replace": "  const leadLength = raw.length - raw.trimStart().length;\n",
       "occurrences": 1,
-      "expect_failing": ["NBSP と全角スペースは空白として畳まず、端の幅からも外さない"]
+      "expect_failing": [
+        "モジュールの関数 NBSP と全角スペースは空白として畳まず、端の幅からも外さない",
+        "ページへ渡すソース NBSP と全角スペースは空白として畳まず、端の幅からも外さない"
+      ]
     },
     {
       "id": "scroll-never-container",
@@ -237,16 +296,26 @@
       "replace": "    false &&\n",
       "occurrences": 1,
       "expect_failing": [
-        "スクロールバーが場所を取る撮影では、現行の横のバーと新側の切れが scroll に分かれて出る",
-        "スクロールバーの厚みは枠を差し引いて数える",
-        "コンテナ（hidden（切るだけのコンテナ））は scroll を持つ",
-        "コンテナ（片向きだけ auto）は scroll を持つ",
-        "コンテナ（scroll）は scroll を持つ",
-        "スクロールバーの見た目の宣言と ::-webkit-scrollbar 系の計算値を擬似要素ごとに採る",
-        "::-webkit-scrollbar を持たないブラウザ（CSS.supports が偽）では webkit を unsupported にする",
-        "::-webkit-scrollbar を持たないブラウザ（CSS が無い）では webkit を unsupported にする",
-        "スクロールバーの宣言で解決しないプロパティ名は空文字で通さず論理名付きで落ちる",
-        "::-webkit-scrollbar 系で解決しないプロパティ名も擬似要素名付きで落ちる"
+        "モジュールの関数 スクロールバーが場所を取る撮影では、現行の横のバーと新側の切れが scroll に分かれて出る",
+        "ページへ渡すソース スクロールバーが場所を取る撮影では、現行の横のバーと新側の切れが scroll に分かれて出る",
+        "モジュールの関数 スクロールバーの厚みは枠を差し引いて数える",
+        "ページへ渡すソース スクロールバーの厚みは枠を差し引いて数える",
+        "モジュールの関数 コンテナ（hidden（切るだけのコンテナ））は scroll を持つ",
+        "ページへ渡すソース コンテナ（hidden（切るだけのコンテナ））は scroll を持つ",
+        "モジュールの関数 コンテナ（片向きだけ auto）は scroll を持つ",
+        "ページへ渡すソース コンテナ（片向きだけ auto）は scroll を持つ",
+        "モジュールの関数 コンテナ（scroll）は scroll を持つ",
+        "ページへ渡すソース コンテナ（scroll）は scroll を持つ",
+        "モジュールの関数 スクロールバーの見た目の宣言と ::-webkit-scrollbar 系の計算値を擬似要素ごとに採る",
+        "ページへ渡すソース スクロールバーの見た目の宣言と ::-webkit-scrollbar 系の計算値を擬似要素ごとに採る",
+        "モジュールの関数 ::-webkit-scrollbar を持たないブラウザ（CSS.supports が偽）では webkit を unsupported にする",
+        "ページへ渡すソース ::-webkit-scrollbar を持たないブラウザ（CSS.supports が偽）では webkit を unsupported にする",
+        "モジュールの関数 ::-webkit-scrollbar を持たないブラウザ（CSS が無い）では webkit を unsupported にする",
+        "ページへ渡すソース ::-webkit-scrollbar を持たないブラウザ（CSS が無い）では webkit を unsupported にする",
+        "モジュールの関数 スクロールバーの宣言で解決しないプロパティ名は空文字で通さず論理名付きで落ちる",
+        "ページへ渡すソース スクロールバーの宣言で解決しないプロパティ名は空文字で通さず論理名付きで落ちる",
+        "モジュールの関数 ::-webkit-scrollbar 系で解決しないプロパティ名も擬似要素名付きで落ちる",
+        "ページへ渡すソース ::-webkit-scrollbar 系で解決しないプロパティ名も擬似要素名付きで落ちる"
       ]
     },
     {
@@ -256,7 +325,10 @@
       "find": "el.offsetWidth - el.clientWidth - border(\"left\") - border(\"right\")",
       "replace": "el.offsetWidth - el.clientWidth",
       "occurrences": 1,
-      "expect_failing": ["スクロールバーの厚みは枠を差し引いて数える"]
+      "expect_failing": [
+        "モジュールの関数 スクロールバーの厚みは枠を差し引いて数える",
+        "ページへ渡すソース スクロールバーの厚みは枠を差し引いて数える"
+      ]
     },
     {
       "id": "scroll-webkit-assumed",
@@ -266,8 +338,10 @@
       "replace": "    true;",
       "occurrences": 1,
       "expect_failing": [
-        "::-webkit-scrollbar を持たないブラウザ（CSS.supports が偽）では webkit を unsupported にする",
-        "::-webkit-scrollbar を持たないブラウザ（CSS が無い）では webkit を unsupported にする"
+        "モジュールの関数 ::-webkit-scrollbar を持たないブラウザ（CSS.supports が偽）では webkit を unsupported にする",
+        "ページへ渡すソース ::-webkit-scrollbar を持たないブラウザ（CSS.supports が偽）では webkit を unsupported にする",
+        "モジュールの関数 ::-webkit-scrollbar を持たないブラウザ（CSS が無い）では webkit を unsupported にする",
+        "ページへ渡すソース ::-webkit-scrollbar を持たないブラウザ（CSS が無い）では webkit を unsupported にする"
       ]
     },
     {
@@ -277,7 +351,10 @@
       "find": "el.offsetHeight - el.clientHeight - border(\"top\") - border(\"bottom\")",
       "replace": "el.offsetHeight - el.clientHeight",
       "occurrences": 1,
-      "expect_failing": ["スクロールバーの厚みは枠を差し引いて数える"]
+      "expect_failing": [
+        "モジュールの関数 スクロールバーの厚みは枠を差し引いて数える",
+        "ページへ渡すソース スクロールバーの厚みは枠を差し引いて数える"
+      ]
     },
     {
       "id": "scroll-inline-treated-as-container",
@@ -287,7 +364,8 @@
       "replace": "true &&",
       "occurrences": 1,
       "expect_failing": [
-        "display: inline の要素は overflow を持っていてもコンテナとして扱わない（文字の幅をバーの厚みにしない）"
+        "モジュールの関数 display: inline の要素は overflow を持っていてもコンテナとして扱わない（文字の幅をバーの厚みにしない）",
+        "ページへ渡すソース display: inline の要素は overflow を持っていてもコンテナとして扱わない（文字の幅をバーの厚みにしない）"
       ]
     }
   ]
