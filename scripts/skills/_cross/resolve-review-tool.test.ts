@@ -78,7 +78,7 @@ function run(scriptRel: string, { args = [], env, cwd }: RunOptions) {
     timeout: CHILD_TIMEOUT_MS,
     encoding: "utf8",
     cwd,
-    env: { ...env },
+    env,
   });
 }
 

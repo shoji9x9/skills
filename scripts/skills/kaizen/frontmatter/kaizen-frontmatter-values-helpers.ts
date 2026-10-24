@@ -34,7 +34,7 @@ export function readValues(path: string, keys: string[]) {
   const res = spawnSync(
     "bash",
     ["-c", '. "$1"; shift; kaizen_frontmatter_values "$@"', "_", lib, path, ...keys],
-    { encoding: "utf8", timeout: CHILD_TIMEOUT_MS, env: { ...process.env } },
+    { encoding: "utf8", timeout: CHILD_TIMEOUT_MS },
   );
   expect(res.status, res.stderr).toBe(0);
   return res.stdout.split("\n").slice(0, -1);

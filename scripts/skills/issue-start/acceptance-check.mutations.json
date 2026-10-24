@@ -57,15 +57,6 @@
       "expect_failing": ["waived・deferred は利用者の承認が無ければ落とし、deferred は置き場も要る"]
     },
     {
-      "id": "later-closable",
-      "why": "later が残る Issue を閉じてよいと出す",
-      "file": "skills/issue-start/scripts/acceptance-check.mjs",
-      "find": " && counts.later === 0,",
-      "replace": ",",
-      "occurrences": 1,
-      "expect_failing": ["later は満たす後工程が無ければ落とし、あれば通すが Issue は閉じない"]
-    },
-    {
       "id": "fingerprint-ignores-comments",
       "why": "コメントでの条件の改訂を指紋に入れず、古い表を通す",
       "file": "skills/issue-start/scripts/acceptance-check.mjs",

@@ -92,7 +92,7 @@ test("呼び出し側の IFS に関わらず、指定したキーを読む", () 
       lib,
       join(dir, ".kaizen", NOTE_NAME),
     ],
-    { encoding: "utf8", timeout: CHILD_TIMEOUT_MS, env: { ...process.env } },
+    { encoding: "utf8", timeout: CHILD_TIMEOUT_MS },
   );
   expect(res.status, res.stderr).toBe(0);
   expect(res.stdout).toBe("pending\ndoc\n");

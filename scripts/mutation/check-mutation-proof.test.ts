@@ -1661,7 +1661,8 @@ describe("本物の vitest を通す end-to-end", () => {
         ...REAL,
         MUTATION_PROOF_CHANGED_FILES: "scripts/tools/mutation-proof-shards.sh",
         // 手元のシャードの実行スクリプトの宣言だけが選ばれる差分。`--only` で 1 変異に抑える（有界化の理由は `--changed-since` のテストの前のコメント）。
-        // 変異の対象（mutation-proof-shards.sh）は、そのテストのほかに読むものが無い。並んで実行中の他のテストに変異を読ませない。
+        // 変異の対象（mutation-proof-shards.sh）を読むテストは、mutation-proof-shards.test.ts と、定義の形を確かめる mutations-declaration.test.ts だけである。
+        // このテストファイルは vitest.config.ts の ISOLATED で単独に実行するので、変異の途中の内容をそれらに読ませない。
       },
     );
     expect(res.status, res.out).toBe(0);

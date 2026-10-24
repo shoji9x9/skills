@@ -1843,7 +1843,7 @@ describe("precommit-gate.sh の、確認を実行できないとき", () => {
     spawnSync(bash, [script, "claude-code"], {
       encoding: "utf8",
       input: stdin,
-      env: { ...env },
+      env,
       timeout: CHILD_TIMEOUT_MS,
     });
 
