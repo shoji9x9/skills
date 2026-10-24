@@ -58,6 +58,7 @@ import { PAGE_VERSION, measureInPage } from "./page/element-shot.page.mjs";
 
 /**
  * ツールのバージョン（原本）。clip の算出規則・失敗条件・撮影オプションの既定を変えたら上げる。
+ * 上げるときは、page/element-shot.page.mjs の PAGE_VERSION も同じ値にする（違うと assertPageVersion が採らずに止める）。
  * 3: 撮影後に矩形を測り直し、撮影中に動いていたら失敗させる。
  * 4: `path` は Playwright へ渡さず、検査を通ってから自分で書く（拒否した PNG を残さない）。
  * 5: 撮る前に生きているアニメーションを数え、`animations: "disabled"` なら撮らずに失敗させる。

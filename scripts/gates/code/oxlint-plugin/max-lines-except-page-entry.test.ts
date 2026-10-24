@@ -1,7 +1,8 @@
-// 最上位で export した本体を除いて関数の行数を数えるルール（max-lines-except-page-entry.ts）のテスト（Issue #758）。
+// 最上位で export した本体を、入れ子の関数とコメントを除いて数えるルール（max-lines-except-page-entry.ts）のテスト（Issue #758）。
 //
 // 実物の oxlint に JS プラグインとして読ませて確かめる。行数は空行も数えるので、本体を空行で埋めて長さを決める。
-// 外すのは、ファイルの最上位で export した関数の宣言だけで、入れ子の関数・export しない関数・export した関数式は数える。
+// 最上位で export した関数の宣言（本体）は、入れ子の関数とコメントを除いてコードの残る行を数える。
+// 入れ子の関数・export しない関数・export した関数式は、全体の行数で数える。
 // oxlint の起動は時間がかかるので、デフォルトのオプションで確かめるケースはファイルを分けて置き、1 回の起動でまとめて判定する。
 import { beforeAll, expect, test } from "vitest";
 import { runRule } from "./run-rule.ts";
@@ -46,7 +47,7 @@ const TABLE = [
 
 /** 1 つのファイルで確かめるケース（ファイル名 → 内容）。 */
 const CASES: Record<string, string> = {
-  // 本体の中に入れ子で書いた関数（宣言・アロー関数）は数える。本体そのものは 100 行を超えても数えない。
+  // 本体の中に入れ子で書いた関数（宣言・アロー関数）は全体の行数で数える。本体は、入れ子の関数を除くと数行なので報告しない。
   "nested.page.mjs": [
     "export function entry() {",
     `  function helper() {${body(51)}}`,
@@ -68,7 +69,7 @@ const CASES: Record<string, string> = {
     "",
   ].join("\n"),
   "boundary.page.mjs": `function a() {${body(50)}}\nfunction b() {${body(51)}}\n`,
-  // 本体の行は、入れ子の関数・空行・コメントだけの行を除いて数える。開きと閉じの 2 行を含めて 50 行なら報告しない。
+  // 本体の行は、入れ子の関数とコメントを除いてコードの残る行を数える。開きと閉じの 2 行を含めて 50 行なら報告しない。
   "entry-50.page.mjs": `export function e() {\n${code(48)}}\n`,
   "entry-51.page.mjs": `export function e() {\n${code(49)}}\n`,
   // コードの 30 行に、コメント・空行・入れ子の関数を足しても、本体は 32 行と数える（入れ子の 51 行の関数は報告する）。
@@ -87,6 +88,8 @@ const CASES: Record<string, string> = {
   ].join("\n"),
   // 入れ子の関数の中のコードの行（45 行）は、本体の行に数えない。本体は開きと閉じと return の 3 行と、入れ子の関数の外の 5 行である。
   "entry-nested-code.page.mjs": `export function e() {\n  function h() {\n${code(45)}  }\n${code(5)}  return h();\n}\n`,
+  // 入れ子の関数と同じ行にある本体の処理は、本体の行に数える（51 行の本体を報告する）。
+  "entry-inline-callback.page.mjs": `export function e(list) {\n  let n = 0;\n${"  n += list.filter((a) => a.ok).length;\n".repeat(48)}  return n;\n}\n`,
   // コードと同じ行のコメントは、その行をコードとして数える。
   "entry-trailing.page.mjs": `export function e() {\n${code(49).replace(/;\n/g, "; // c\n")}}\n`,
 };
@@ -103,7 +106,7 @@ test.each(TABLE)("$name が 51 行なら、報告するか: $reported", ({ file,
   expect(lines[file]).toEqual(reported ? [1] : []);
 });
 
-test("本体の中に入れ子で書いた関数は数え、本体は数えない", () => {
+test("本体の中に入れ子で書いた関数は全体の行数で数え、本体は入れ子の関数を除いて数える", () => {
   expect(lines["nested.page.mjs"]).toEqual([2, 53]);
 });
 
@@ -122,6 +125,10 @@ test("本体のコメント・空行・入れ子の関数の行は、本体の�
 
 test("入れ子の関数の中のコードの行は、本体の行に数えない", () => {
   expect(lines["entry-nested-code.page.mjs"]).toEqual([]);
+});
+
+test("入れ子の関数と同じ行にある本体の処理は、本体の行に数える", () => {
+  expect(lines["entry-inline-callback.page.mjs"]).toEqual([1]);
 });
 
 test("コードと同じ行にあるコメントは、その行をコードとして数える", () => {

@@ -70,7 +70,7 @@ vitest プラグインの correctness のルールのうち、このリポジト
 本体の関数を Playwright の `evaluate` へそのまま渡す page ファイルがある。`skills/*/scripts/page/*.page.mjs` のうち、`oxlint.config.ts` に名前を挙げたものである。
 これらでは、`max-lines-per-function` を JS プラグインのルール `skills-repo/max-lines-per-function-except-page-entry` に替える。
 `evaluate` は関数のソースだけを送るので、本体が呼ぶ関数は本体の中に入れ子で書くしかなく、組み込みのルールでは本体が必ず上限を超えるからである。
-このルールは、export した本体を入れ子の関数・空行・コメントを除いた行数で数え、入れ子の関数には全体の行数で 50 行の上限を当てる。
+このルールは、export した本体を、入れ子の関数とコメントを除いてコードの残る行の数で数え、入れ子の関数は全体の行数で数える。どちらも上限は 50 行である。
 同じ形の page ファイルを足すときは、`oxlint.config.ts` の一覧に名前を足す。
 
 共有ライブラリが上位のチェックやツールに依存しないように、参照の向きを決める。

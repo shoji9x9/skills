@@ -98,6 +98,7 @@ import { PAGE_VERSION, captureElement } from "./page/trait-capture.page.mjs";
 
 /**
  * ツールのバージョン（原本）。採取スキーマ（FIXED_PROPERTIES・採取形状）を変えたら上げる。
+ * 上げるときは、page/trait-capture.page.mjs の PAGE_VERSION も同じ値にする（違うと assertPageVersion が採らずに止める）。
  * metadata.json の traits.tool / differ に記録する「バージョン」はこの値を使う（手入力にしない）。
  * @type {string}
  */

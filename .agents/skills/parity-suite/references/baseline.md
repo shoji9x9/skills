@@ -66,6 +66,7 @@
   - 採取時の文字列が短ければ差にならない `white-space` / `overflow-x` / `overflow-y` / `text-overflow` / `word-break`
 
   プロパティの集合の原本は [`../scripts/trait-capture.mjs`](../scripts/trait-capture.mjs) の `FIXED_PROPERTIES` で、増減させたら `VERSION` を上げる。
+  そのときは、[`../scripts/page/trait-capture.page.mjs`](../scripts/page/trait-capture.page.mjs) の `PAGE_VERSION` も同じ値に上げる。
 - `url()` を値に持つプロパティは、参照先の資産の中身までは照合していない。
   採取ツールは、相対 URL を絶対にしたときのホストの違いを消すため、同じオリジンの `url()` をオリジンに依らない印にまとめる（[`../scripts/page/trait-capture.page.mjs`](../scripts/page/trait-capture.page.mjs) の `foldOrigin`）。
   そのため、**現新が同じパスで別のバイトの資産を配っていると、その見た目の差は特性の照合にも画素にも現れない**（カスタムカーソルの画像が当たる）。
