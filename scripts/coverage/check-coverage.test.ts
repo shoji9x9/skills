@@ -6,7 +6,7 @@
 // | -------------- | ---------------------------------------------------------------------------------- |
 // | 規則の当たり方 | ディレクトリの規則 1 つ / 入れ子のディレクトリの規則（長い方） / 1 ファイルの規則 / 当たらない |
 // | 対象のファイル | .ts・.mjs / テスト・型の宣言・.sh・その他（対象にしない）                          |
-// | 測定値         | 閾値と等しい / 下回る / 測定の結果に無い / 指標が欠けている                         |
+// | 測定値         | 閾値と等しい / 下回る / 測定の結果に無い（指標が欠けた c8 の結果は readC8Summary が例外にする）|
 // | 除外           | 除外したファイル / 対象に無いファイルの除外（古い） / 除外と 1 ファイルの規則の両方 |
 // | 設定の形       | 正しい / 配列でない / path・reason の欠落 / 範囲外の閾値 / 使えない指標 / 重複 |
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -103,12 +103,9 @@ test("evaluate: 当たる規則が無いファイルは合格にせず no-rule �
   ]);
 });
 
-test("evaluate: 測定の結果に無いファイルと、指標が欠けたファイルは not-measured にする", () => {
+test("evaluate: 測定の結果に無いファイルは not-measured にする", () => {
   const c = config(base);
   expect(evaluate(c, ["scripts/a.ts"], new Map())).toEqual([
-    { type: "not-measured", file: "scripts/a.ts" },
-  ]);
-  expect(evaluate(c, ["scripts/a.ts"], new Map([["scripts/a.ts", { lines: 100 }]]))).toEqual([
     { type: "not-measured", file: "scripts/a.ts" },
   ]);
 });

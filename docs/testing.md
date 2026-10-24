@@ -120,7 +120,6 @@ fixture も、原本（テンプレート・スキーマの文書・同梱の雛
 - git の hook から実行すると、git がテストに `GIT_DIR` などを渡す。worktree からの push では、テストが一時ディレクトリで起動した git がそれを受け継ぎ、起動したリポジトリに commit や branch を書き込む。
   `scripts/lib/testing/vitest-git-env-setup.ts` が各テストファイルの前に `process.env` から外すので、子プロセスの環境は `process.env` から組み立てる。vitest の外で git を起動するランナーは、同じ変数を自分で外す
 - ネットワークに接続しない。時刻に依存する処理は、時刻を引数や環境変数で渡せるようにして、固定した値でテストする
-- 子プロセスの環境を明示した値だけで組み立てるときは、`coverageEnv()` を足す（「カバレッジ」の節）
 - 子プロセスにはタイムアウトを付ける。付けないと、止まった子プロセスを待つテストは `vitest.config.ts` の `testTimeout` まで待ってから失敗し、原因が出力に残らない。
   値は `scripts/lib/testing/child-timeout.ts` の `CHILD_TIMEOUT_MS` を使い、起動のオプションのオブジェクトに `timeout` のキーで書く。
   付け忘れは `scripts/lib/testing/child-timeout.test.ts` が検出する。付けない理由がある呼び出しは、同じ行の末尾か、直前のコメントだけの行に `// child-timeout-ok: <理由>` を書く。
@@ -168,8 +167,8 @@ node scripts/coverage/run-coverage.ts --focus skills/kaizen/ -- scripts/skills/k
 `--focus` で始まるファイルの値と、閾値を下回るものだけを出す。
 未実行の行は、出力の最後に示すディレクトリの `report/index.html` にある（GitHub Actions のジョブでは作らない）。
 
-子プロセスの環境を明示した値だけで組み立てると、計測の環境変数（`NODE_V8_COVERAGE`）が子プロセスに渡らない。
-渡らないと、その子プロセスの実行がカバレッジに数えられない。組み立てた環境に `scripts/lib/testing/coverage-env.ts` の `coverageEnv()` を足す。
+Node は、環境を明示して起動した子プロセスにも、計測の環境変数（`NODE_V8_COVERAGE`）を引き継ぐ。
+そのため、子プロセスの環境を明示した値だけで組み立てても、その子プロセスの実行はカバレッジに数えられる。
 
 ## ミューテーションテスト
 
@@ -197,6 +196,7 @@ node scripts/coverage/run-coverage.ts --focus skills/kaizen/ -- scripts/skills/k
 1. 判定を誤っても、エラーにならずに合格として扱われる。
    誤ると止まる判定（チェックが誤って失敗する、処理が例外で止まる）は、CI・レビュー・実行時のエラーで気付けるので対象にしない。
    通す側の判定（免除・緩和）を無効にする変異は、誤って失敗する側に当たるので、この条件を満たさない。
+   通す側の判定を広げる変異（常に真にする）は、通してはいけない入力を通すので、この条件を満たす。
 2. 誤ったときの影響が大きい。
    利用者の環境での誤った合否・分類、データやファイルの変更、外向きの操作（GitHub への投稿・リリース）、秘密の情報の扱いが当たる。
    このリポジトリの中だけで使う文書や書式のチェックが誤って通しても、影響は小さいので対象にしない。

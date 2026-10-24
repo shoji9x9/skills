@@ -28,8 +28,8 @@ export type Rule = {
 export type Exclusion = { path: string; reason: string };
 export type Config = { rules: Rule[]; exclude: Exclusion[] };
 
-/** 1 ファイルの測定値（百分率）。測っていない指標は持たない。 */
-export type FileMeasure = Partial<Record<Metric, number>>;
+/** 1 ファイルの測定値（百分率）。c8 は 3 つの指標をすべて測る。 */
+export type FileMeasure = Record<Metric, number>;
 
 export type Finding =
   | { type: "below"; file: string; metric: Metric; actual: number; threshold: number; rule: string }
@@ -159,10 +159,6 @@ export function evaluate(
       const threshold = rule.thresholds[metric];
       if (threshold === undefined) continue;
       const actual = measure[metric];
-      if (actual === undefined) {
-        findings.push({ type: "not-measured", file });
-        break;
-      }
       if (actual < threshold)
         findings.push({ type: "below", file, metric, actual, threshold, rule: rule.path });
     }

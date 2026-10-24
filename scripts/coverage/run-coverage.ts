@@ -132,14 +132,17 @@ export function readC8Summary(root: string, value: unknown): Map<string, FileMea
   for (const [abs, entry] of Object.entries(value)) {
     if (abs === "total") continue;
     if (!isRecord(entry)) throw new Error(`c8 の結果の ${abs} が object でない`);
-    const measure: FileMeasure = {};
-    for (const metric of METRICS) {
+    const pct = (metric: (typeof METRICS)[number]): number => {
       const m = entry[metric];
       if (!isRecord(m) || typeof m.pct !== "number")
         throw new Error(`c8 の結果の ${abs} に ${metric}.pct が無い`);
-      measure[metric] = m.pct;
-    }
-    measures.set(relative(root, abs), measure);
+      return m.pct;
+    };
+    measures.set(relative(root, abs), {
+      lines: pct("lines"),
+      branches: pct("branches"),
+      functions: pct("functions"),
+    });
   }
   return measures;
 }
@@ -222,9 +225,7 @@ function reportFocus({ config, files, measures, focus, cache }: FocusReport): nu
   const inFocus = (path: string) => focus.some((prefix) => path.startsWith(prefix));
   for (const file of files.filter(inFocus)) {
     const m = measures.get(file);
-    const values = m
-      ? METRICS.filter((k) => m[k] !== undefined).map((k) => `${k} ${m[k]}%`)
-      : ["測定なし"];
+    const values = m ? METRICS.map((k) => `${k} ${m[k]}%`) : ["測定なし"];
     console.log(`${file}: ${values.join(", ")}`);
   }
   const findings = evaluate(config, files, measures).filter((f) =>

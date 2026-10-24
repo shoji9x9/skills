@@ -1626,7 +1626,7 @@ describe.concurrent("--shard", () => {
 
 // **本物の vitest を通す end-to-end は、fixture を使う他のテストが終わってから実行する。**
 // 子の vitest の globalSetup は、`MUTATION_PROOF_CHILD` を受け取らないと `scripts/mutation-proof-fixture-*` を消す。
-// それを止める行を外す変異（`CHILD-GUARD`）で、並んで実行中の他のテストの fixture まで消え、どのテストが落ちるかが実行の順序で変わった（Issue #588）。
+// それを止める行を外す変異で、並んで実行中の他のテストの fixture まで消え、どのテストが落ちるかが実行の順序で変わった（Issue #588）。
 // `describe.concurrent` の suite は、隣の concurrent な suite とも並べて実行される（最後に置いても並んだ）。
 // この suite は concurrent にせず、前の suite が終わってから始める。中の 2 本だけを `test.concurrent` で互いに並べる。
 describe("本物の vitest を通す end-to-end", () => {
@@ -1655,16 +1655,17 @@ describe("本物の vitest を通す end-to-end", () => {
       "--changed-since",
       "origin/main",
       "--only",
-      "shortest-rule",
+      "WORST-1",
       {
         ...REAL,
-        MUTATION_PROOF_CHANGED_FILES: "scripts/coverage/check-coverage.ts",
-        // カバレッジの閾値のチェックの宣言だけが選ばれる差分。`--only` で 1 変異に抑える（有界化の理由は `--changed-since` のテストの前のコメント）。
+        MUTATION_PROOF_CHANGED_FILES: "scripts/tools/mutation-proof-shards.sh",
+        // 手元のシャードの実行スクリプトの宣言だけが選ばれる差分。`--only` で 1 変異に抑える（有界化の理由は `--changed-since` のテストの前のコメント）。
+        // 変異の対象（mutation-proof-shards.sh）は、そのテストのほかに読むものが無い。並んで実行中の他のテストに変異を読ませない。
       },
     );
     expect(res.status, res.out).toBe(0);
-    expect(res.out).toContain("測る: scripts/coverage/check-coverage.mutations.json");
+    expect(res.out).toContain("測る: scripts/tools/mutation-proof-shards.mutations.json");
     expect(res.out).toContain("飛ばす: scripts/mutation/check-mutation-proof.mutations.json");
-    expect(res.out).toContain("PASS shortest-rule");
+    expect(res.out).toContain("PASS WORST-1");
   }, 60_000);
 });
