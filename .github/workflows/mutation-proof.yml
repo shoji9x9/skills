@@ -1,7 +1,7 @@
 # ミューテーションテストの全件測定。
 #
-# PR の CI（`ci.yml` の `Mutation proof (PR)`）は**差分に当たる宣言だけ**を測る。全件は直列で約 62 分かかり
-# （下の jobs のコメントの実測）、毎 PR で払うコストとしては重い。
+# PR の CI（`ci.yml` の `Mutation proof (PR)`）は**差分に当たる宣言だけ**を測る。全件は直列で 1 時間を超え
+# （見積もりと実測は下の jobs のコメント）、毎 PR で払うコストとしては重い。
 # PR は、差分選択がたどらないファイル（`scripts/lib/`・`scripts/` の外のコード・テストが import せずに実行時に読む fixture）の更新や
 # 依存の版上げで検査が変わった宣言を測らない（docs/tooling.md）。その範囲を確かめるため、全件は週次で測り直す（Issue #747）。
 name: Mutation proof
@@ -29,6 +29,7 @@ jobs:
   # 定義を絞った後（74 宣言・784 変異）の直列の実測は、40 分で cancelled になるまでに 36 宣言・358 変異で 2285 秒だった
   # （run 40060212536）。見積もり（mutation-durations.json）の全体は 3749 秒（62 分）で、62 分 ÷ 20 分の切り上げで 4 にした。
   # 4 分割の実測は、ジョブの所要時間が 12 分 9 秒・16 分 18 秒・16 分 38 秒・18 分 13 秒で、すべて成功した（run 40063102573）。
+  # 4 つのジョブの合計（約 63 分。準備の時間を含む）が、直列で測ったときの全件の所要時間の目安になる。
   # 分割数は、PR の CI（ci.yml）のミューテーションテストのシャードの本数と足して、同時実行の上限 20 に収まる数にする。
   # PR の CI のほかのジョブと重なって上限を超えた分のジョブは、待たされるだけで失敗しない。
   #
@@ -54,7 +55,7 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
       - run: pnpm install --frozen-lockfile
-      # 引数なし = `scripts/**/*.mutations.json` の全件。宣言 0 件は成功として扱わない（スクリプト側で exit 2）。
+      # 宣言のパスを渡さないので、`scripts/**/*.mutations.json` の全件から、`--shard` がこのシャードの分を選ぶ。宣言 0 件は成功として扱わない（スクリプト側で exit 2）。
       - name: Mutation proof (all specs, one shard)
         env:
           JOB_INDEX: ${{ strategy.job-index }}
