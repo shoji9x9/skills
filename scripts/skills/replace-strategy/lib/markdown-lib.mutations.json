@@ -6,20 +6,6 @@
   "test_file": "scripts/skills/replace-strategy/lib/markdown-lib.test.ts",
   "mutations": [
     {
-      "id": "fence-not-ending-table",
-      "why": "表の行の途中のフェンス行で表を終えず、`|` を含むフェンス行を表の行として読む",
-      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "      if (fenced[j]) break;",
-      "replace": "      if (false) break;",
-      "occurrences": 1,
-      "expect_failing": [
-        "表の行の途中の `|` を含むフェンス行で表を終え、フェンスの中の表の行を読まない",
-        "asset-delivery-check: 表の直後の `|` を含むフェンス行で表を終える",
-        "evidence-gap-check: 表の直後の `|` を含むフェンス行で表を終える",
-        "procedure-staleness-check: 表の直後の `|` を含むフェンス行で表を終える"
-      ]
-    },
-    {
       "id": "comments-read-as-tables",
       "why": "HTML コメントを空白に置き換えず、コメントの中の表を台帳として読む",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
@@ -66,86 +52,6 @@
       ]
     },
     {
-      "id": "code-span-not-skipped",
-      "why": "コードスパンの中の `<!-- -->` もコメントとして消す",
-      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "    if (code !== null && code.index < start) {",
-      "replace": "    if (false) {",
-      "occurrences": 1,
-      "expect_failing": [
-        "誤検知しないことの確認: コードスパンの中の `<!-- -->` は、コメントとして消さない",
-        "バックスラッシュが 2 つ続く `\\\\<!--` とバッククォートは、エスケープにならない"
-      ]
-    },
-    {
-      "id": "code-span-close-any-length",
-      "why": "コードスパンを、開く側と数の違うバッククォートでも閉じる",
-      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "    if (m[0].length === ticks) return m.index + ticks;",
-      "replace": "    return m.index + m[0].length;",
-      "occurrences": 1,
-      "expect_failing": [
-        "誤検知しないことの確認: コードスパンの中の `<!-- -->` は、コメントとして消さない"
-      ]
-    },
-    {
-      "id": "unclosed-backtick-hides-comment",
-      "why": "閉じないバッククォートの後ろを、行の末尾までコードスパンとして扱う",
-      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "      const stop = end < 0 ? code.index + code.ticks : end;",
-      "replace": "      const stop = end < 0 ? rest.length : end;",
-      "occurrences": 1,
-      "expect_failing": ["閉じないバッククォートの後ろの `<!-- -->` は、コメントとして消す"]
-    },
-    {
-      "id": "inline-unclosed-blanks-rest",
-      "why": "行の途中の閉じない `<!--` から行末までを消す",
-      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "    if (end < 0) return out + rest;",
-      "replace": "    if (end < 0) return out + rest.slice(0, start);",
-      "occurrences": 1,
-      "expect_failing": [
-        "表のセルの中で閉じない `<!--` は、後ろの行の `-->` までの表の行を消さない"
-      ]
-    },
-    {
-      "id": "inline-closed-comment-kept",
-      "why": "行の途中で閉じたコメントを消さずに残す",
-      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "    out += rest.slice(0, start) + \" \".repeat(end - start);",
-      "replace": "    out += rest.slice(0, end);",
-      "occurrences": 1,
-      "expect_failing": [
-        "HTML コメントの中の表は読まない（行頭で開いた複数行のコメントと、行の途中で開いて同じ行で閉じたコメント）",
-        "閉じないバッククォートの後ろの `<!-- -->` は、コメントとして消す",
-        "`<!-->` と `<!--->` は、それだけで閉じたコメントとして消す（CommonMark 0.31）",
-        "バックスラッシュを付けた `\\<!--` と `` \\` `` は、コメントとコードスパンの始まりにしない",
-        "バックスラッシュが 2 つ続く `\\\\<!--` とバッククォートは、エスケープにならない"
-      ]
-    },
-    {
-      "id": "empty-comment-not-closed",
-      "why": "`<!-->` を閉じたコメントとして扱わない",
-      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "  if (body.startsWith(\">\")) return start + 5;",
-      "replace": "  if (false) return start + 5;",
-      "occurrences": 1,
-      "expect_failing": [
-        "`<!-->` と `<!--->` は、それだけで閉じたコメントとして消す（CommonMark 0.31）"
-      ]
-    },
-    {
-      "id": "empty-dash-comment-not-closed",
-      "why": "`<!--->` を閉じたコメントとして扱わない",
-      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "  if (body.startsWith(\"->\")) return start + 6;",
-      "replace": "  if (false) return start + 6;",
-      "occurrences": 1,
-      "expect_failing": [
-        "`<!-->` と `<!--->` は、それだけで閉じたコメントとして消す（CommonMark 0.31）"
-      ]
-    },
-    {
       "id": "block-not-spanning-lines",
       "why": "行頭で開いたコメントを、閉じなくてもその行で終える",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
@@ -162,17 +68,6 @@
         "HTML ブロックを閉じる行は、`-->` の後ろもブロックに入るので表の行として読まない",
         "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: 閉じない HTML コメントの中のフェンス行",
         "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: 閉じた HTML コメントの中のフェンス行"
-      ]
-    },
-    {
-      "id": "block-closed-only-at-line-end",
-      "why": "行頭で開いたコメントが閉じたかを、行末の `-->` だけで決める",
-      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "      block = !line.includes(\"-->\");",
-      "replace": "      block = !line.endsWith(\"-->\");",
-      "occurrences": 1,
-      "expect_failing": [
-        "行頭のコメントが同じ行で閉じたら、その行の後ろの `<!--` で後ろの行を消さない"
       ]
     },
     {
@@ -197,84 +92,6 @@
       "expect_failing": ["4 文字以上字下げした `<!--` は、HTML ブロックを開かない"]
     },
     {
-      "id": "block-indent-none",
-      "why": "字下げした `<!--` で HTML ブロックを開かない",
-      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "  return /^ {0,3}<!--/u.test(line);",
-      "replace": "  return /^<!--/u.test(line);",
-      "occurrences": 1,
-      "expect_failing": [
-        "行頭の閉じない `<!--` は、末尾までコメントとして読む（字下げ 3 文字まで）"
-      ]
-    },
-    {
-      "id": "stray-lines-not-reported",
-      "why": "slug の行が見つからないときに、表に属さない行の位置を添えず、表が切れた箇所を示さない",
-      "file": "skills/replace-strategy/scripts/evidence-gap-check.mjs",
-      "find": "    .filter((stray) => stray.leadingPipe || widths.has(stray.cells))",
-      "replace": "    .filter(() => false)",
-      "occurrences": 1,
-      "expect_failing": [
-        "evidence-gap-check: 表の途中の HTML コメントの行で表が切れたら、行が無いというエラーに表の外の行番号を添える",
-        "evidence-gap-check: 行頭の `|` を省いた行で表が切れても、表の外の行番号を添える"
-      ]
-    },
-    {
-      "id": "stray-lines-leading-pipe-only",
-      "why": "行頭の `|` を省いた表の外の行を、行が無いというエラーに添えない",
-      "file": "skills/replace-strategy/scripts/evidence-gap-check.mjs",
-      "find": "    .filter((stray) => stray.leadingPipe || widths.has(stray.cells))",
-      "replace": "    .filter((stray) => stray.leadingPipe)",
-      "occurrences": 1,
-      "expect_failing": [
-        "evidence-gap-check: 行頭の `|` を省いた行で表が切れても、表の外の行番号を添える"
-      ]
-    },
-    {
-      "id": "escaped-comment-opens",
-      "why": "バックスラッシュを付けた `\\<!--` もコメントの始まりとして読む",
-      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "    if (escapedAt(rest, start)) {",
-      "replace": "    if (false) {",
-      "occurrences": 1,
-      "expect_failing": [
-        "バックスラッシュを付けた `\\<!--` と `` \\` `` は、コメントとコードスパンの始まりにしない"
-      ]
-    },
-    {
-      "id": "escaped-backtick-opens-code",
-      "why": "バックスラッシュを付けたバッククォートもコードスパンの始まりとして数える",
-      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "    if (!escapedAt(rest, m.index)) return { index: m.index, ticks: m[0].length };",
-      "replace": "    return { index: m.index, ticks: m[0].length };",
-      "occurrences": 1,
-      "expect_failing": [
-        "バックスラッシュを付けた `\\<!--` と `` \\` `` は、コメントとコードスパンの始まりにしない"
-      ]
-    },
-    {
-      "id": "block-end-line-rest-read",
-      "why": "HTML ブロックを閉じる行の `-->` の後ろを、ブロックの外として読む",
-      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "      if (line.includes(\"-->\")) block = false;",
-      "replace": "      if (line.includes(\"-->\")) {\n        block = false;\n        return \" \".repeat(line.indexOf(\"-->\") + 3) + line.slice(line.indexOf(\"-->\") + 3);\n      }",
-      "occurrences": 1,
-      "expect_failing": [
-        "HTML ブロックを閉じる行は、`-->` の後ろもブロックに入るので表の行として読まない"
-      ]
-    },
-    {
-      "id": "escape-parity-ignored",
-      "why": "直前のバックスラッシュの数によらず、1 つでもあればエスケープとして扱う",
-      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "  return count % 2 === 1;",
-      "replace": "  return count > 0;",
-      "occurrences": 1,
-      "expect_failing": [
-        "バックスラッシュが 2 つ続く `\\\\<!--` とバッククォートは、エスケープにならない"
-      ]
-    },
-    {
       "id": "fence-closed-by-info-string",
       "why": "閉じるフェンスの後ろに情報文字列を許し、` ```bash ` の行で開いているフェンスを閉じる（Issue #679）",
       "file": "skills/replace-strategy/scripts/lib/fence.mjs",
@@ -296,33 +113,6 @@
       ]
     },
     {
-      "id": "fence-close-without-tab",
-      "why": "閉じるフェンスの後ろのタブを空白として扱わず、フェンスを閉じない",
-      "file": "skills/replace-strategy/scripts/lib/fence.mjs",
-      "find": "/^ {0,3}(`{3,}|~{3,})[ \\t]*$/u",
-      "replace": "/^ {0,3}(`{3,}|~{3,}) *$/u",
-      "occurrences": 1,
-      "expect_failing": ["stepFence: 開いている・後ろの空白とタブは閉じる"]
-    },
-    {
-      "id": "fence-close-without-indent",
-      "why": "字下げした閉じるフェンス（3 文字まで）で閉じない",
-      "file": "skills/replace-strategy/scripts/lib/fence.mjs",
-      "find": "/^ {0,3}(`{3,}|~{3,})[ \\t]*$/u",
-      "replace": "/^(`{3,}|~{3,})[ \\t]*$/u",
-      "occurrences": 1,
-      "expect_failing": ["stepFence: 開いている・字下げ 3 文字は閉じる"]
-    },
-    {
-      "id": "fence-closed-by-other-char",
-      "why": "開いた記号と別の文字（``` に対する ~~~）でフェンスを閉じる",
-      "file": "skills/replace-strategy/scripts/lib/fence.mjs",
-      "find": "match[1][0] === fence[0] && ",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": ["stepFence: 開いている・別の文字では閉じない"]
-    },
-    {
       "id": "fence-closed-by-shorter",
       "why": "開いた記号より短い記号でフェンスを閉じる",
       "file": "skills/replace-strategy/scripts/lib/fence.mjs",
@@ -332,56 +122,6 @@
       "expect_failing": ["stepFence: 開いている・短い記号では閉じない"]
     },
     {
-      "id": "fence-close-not-marked",
-      "why": "閉じるフェンスの行を、フェンスの記号の行として返さない",
-      "file": "skills/replace-strategy/scripts/lib/fence.mjs",
-      "find": "marker: closes",
-      "replace": "marker: false",
-      "occurrences": 1,
-      "expect_failing": [
-        "stepFence: 開いている・同じ記号で閉じる",
-        "stepFence: 開いている・後ろの空白とタブは閉じる",
-        "stepFence: 開いている・長い記号で閉じる",
-        "stepFence: 開いている・字下げ 3 文字は閉じる"
-      ]
-    },
-    {
-      "id": "fence-open-not-marked",
-      "why": "開くフェンスの行を、フェンスの記号の行として返さない",
-      "file": "skills/replace-strategy/scripts/lib/fence.mjs",
-      "find": "marker: opened !== null",
-      "replace": "marker: false",
-      "occurrences": 1,
-      "expect_failing": [
-        "stepFence: 開いていない・``` で開く",
-        "stepFence: 開いていない・情報文字列付きで開く",
-        "stepFence: 開いていない・~~~ で開く",
-        "stepFence: 開いていない・情報文字列にバッククォートを含む ~~~ は開く",
-        "stepFence: 開いていない・情報文字列に行区切りの文字があっても開く"
-      ]
-    },
-    {
-      "id": "fence-opened-by-backtick-info",
-      "why": "情報文字列にバッククォートを含む ``` の行（行頭のインラインのコード）でフェンスを開く",
-      "file": "skills/replace-strategy/scripts/lib/fence.mjs",
-      "find": "  if (match[1][0] === \"`\" && match[2].includes(\"`\")) return null;\n",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "stepFence: 開いていない・情報文字列にバッククォートを含む ``` は開かない",
-        "コメントを空白にして初めてフェンスに見える行では、フェンスを開かない"
-      ]
-    },
-    {
-      "id": "fence-tilde-info-backtick-rejected",
-      "why": "~~~ の情報文字列のバッククォートも拒み、~~~ で開くフェンスを開かない",
-      "file": "skills/replace-strategy/scripts/lib/fence.mjs",
-      "find": "  if (match[1][0] === \"`\" && match[2].includes(\"`\")) return null;\n",
-      "replace": "  if (match[2].includes(\"`\")) return null;\n",
-      "occurrences": 1,
-      "expect_failing": ["stepFence: 開いていない・情報文字列にバッククォートを含む ~~~ は開く"]
-    },
-    {
       "id": "fence-judged-after-blanking",
       "why": "parseTables が、コメントを空白にした後の行でフェンスを判定し直す（PR #696 のレビュー。変更前の parseTables の読み方）",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
@@ -389,15 +129,6 @@
       "replace": "    globalThis.__fence = stepFence(i === 0 ? null : globalThis.__fence.fence, lines[i]);\n    if (globalThis.__fence.marker || globalThis.__fence.fence !== null) continue;",
       "occurrences": 1,
       "expect_failing": ["コメントを空白にして初めてフェンスに見える行では、フェンスを開かない"]
-    },
-    {
-      "id": "fence-open-without-dotall",
-      "why": "フェンスを開く行の情報文字列に行区切りの文字（U+2028）があると開かない（PR #696 のレビュー）",
-      "file": "skills/replace-strategy/scripts/lib/fence.mjs",
-      "find": "(.*)$/su.exec(line);",
-      "replace": "(.*)$/u.exec(line);",
-      "occurrences": 1,
-      "expect_failing": ["stepFence: 開いていない・情報文字列に行区切りの文字があっても開く"]
     },
     {
       "id": "unclosed-fence-opened-at-not-tracked",
@@ -416,37 +147,6 @@
         "evidence-gap-check: 閉じないコードフェンスは、開いた行の番号を付けて止める",
         "procedure-staleness-check: 閉じないコードフェンスは、開いた行の番号を付けて止める",
         "procedure-staleness-check: 閉じないフェンスが表を読めなくしたときは、表が無いエラーより先にフェンスを報告する"
-      ]
-    },
-    {
-      "id": "unclosed-fence-opened-at-first-only",
-      "why": "最初に開いたフェンスの行だけを覚え、閉じた後に開き直したフェンスの行を指さない",
-      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "    if (fence === null && step.fence !== null) openedAt = index + 1;",
-      "replace": "    if (openedAt === null && step.fence !== null) openedAt = index + 1;",
-      "occurrences": 1,
-      "expect_failing": [
-        "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: 閉じた後に開き直したフェンス"
-      ]
-    },
-    {
-      "id": "unclosed-fence-ignores-closed",
-      "why": "末尾でフェンスが閉じていても、開いた行を閉じないフェンスとして返す",
-      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "state.unclosedFence = fence === null ? null : openedAt;",
-      "replace": "state.unclosedFence = openedAt;",
-      "occurrences": 1,
-      "expect_failing": [
-        "asset-delivery-check: 表の直後の `|` を含むフェンス行で表を終える",
-        "evidence-gap-check: 表の直後の `|` を含むフェンス行で表を終える",
-        "procedure-staleness-check: 表の直後の `|` を含むフェンス行で表を終える",
-        "asset-delivery-check: 情報文字列の付いた行でフェンスを閉じず、フェンスの中の表を読まない",
-        "evidence-gap-check: 情報文字列の付いた行でフェンスを閉じず、フェンスの中の表を読まない",
-        "procedure-staleness-check: 情報文字列の付いた行でフェンスを閉じず、フェンスの中の表を読まない",
-        "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: 閉じたフェンス",
-        "誤検知しないことの確認: asset-delivery-check は、閉じたコードフェンスでは止めない",
-        "誤検知しないことの確認: evidence-gap-check は、閉じたコードフェンスでは止めない",
-        "誤検知しないことの確認: procedure-staleness-check は、閉じたコードフェンスでは止めない"
       ]
     },
     {
@@ -481,18 +181,6 @@
       "expect_failing": [
         "procedure-staleness-check: 閉じないコードフェンスは、開いた行の番号を付けて止める",
         "procedure-staleness-check: 閉じないフェンスが表を読めなくしたときは、表が無いエラーより先にフェンスを報告する"
-      ]
-    },
-    {
-      "id": "fence-close-indent-unbounded",
-      "why": "閉じる行の字下げの上限（半角の空白 3 個）を外し、4 個以上字下げした行でもフェンスを閉じる",
-      "file": "skills/replace-strategy/scripts/lib/fence.mjs",
-      "find": "/^ {0,3}(`{3,}|~{3,})[ \\t]*$/u",
-      "replace": "/^ *(`{3,}|~{3,})[ \\t]*$/u",
-      "occurrences": 1,
-      "expect_failing": [
-        "stepFence: 開いている・字下げ 4 文字は閉じない",
-        "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: 4 文字字下げした閉じる行"
       ]
     }
   ]

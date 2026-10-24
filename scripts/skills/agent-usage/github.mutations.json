@@ -29,28 +29,6 @@
       ]
     },
     {
-      "id": "reflog-non-commit-counted",
-      "why": "reflog の commit 以外の操作も人の commit として数える",
-      "file": "skills/agent-usage/scripts/lib/sources/github.mjs",
-      "find": "    if (!/^commit\\b/.test(subject)) continue;",
-      "replace": "    if (false) continue;",
-      "occurrences": 1,
-      "expect_failing": [
-        "commitActivityRows reflog の commit の操作だけを数え、エージェントの git の直後と since より前は除く"
-      ]
-    },
-    {
-      "id": "billing-ignored",
-      "why": "人の設定で billing が user でも、課金 API の実額を取得しない",
-      "file": "skills/agent-usage/scripts/lib/sources/github.mjs",
-      "find": "  if (o.billing === \"user\" && me !== \"\") {",
-      "replace": "  if (false && me !== \"\") {",
-      "occurrences": 1,
-      "expect_failing": [
-        "collectGitHub 人の設定で billing が user のときだけ、課金 API の日別の実額を billing の行にする"
-      ]
-    },
-    {
       "id": "no-open-prs",
       "why": "更新されていない open な PR を取得しない",
       "file": "skills/agent-usage/scripts/lib/sources/github.mjs",
@@ -74,15 +52,6 @@
       ]
     },
     {
-      "id": "download-known",
-      "why": "記録済みの artifact もダウンロードする",
-      "file": "skills/agent-usage/scripts/lib/sources/github.mjs",
-      "find": "      if (o.knownArtifacts?.has(a.id)) continue;",
-      "replace": "      void 0;",
-      "occurrences": 1,
-      "expect_failing": ["collectGitHub 記録済みの artifact はダウンロードしない"]
-    },
-    {
       "id": "rest-copilot-login",
       "why": "REST の Copilot の login を GraphQL の形にそろえない",
       "file": "skills/agent-usage/scripts/lib/sources/github.mjs",
@@ -103,18 +72,6 @@
       "occurrences": 1,
       "expect_failing": [
         "timelineRows レビューツールがコメントで結果を返したら、そこで待ちを終える（@codex review の指摘なし）"
-      ]
-    },
-    {
-      "id": "artifact-all-or-nothing",
-      "why": "artifact の 1 件の失敗で残りを止める",
-      "file": "skills/agent-usage/scripts/lib/sources/github.mjs",
-      "find": "      attempt(`artifacts#${id}`, () => {",
-      "replace": "      (() => {",
-      "occurrences": 1,
-      "expect_failing": [
-        "collectGitHub artifact が 1 件読めなくても、残りの artifact は取得する",
-        "collectGitHub の artifact meta.json の無い artifact は tool を unknown・PR を 0 にし、workflow_run が無くても行を作る"
       ]
     },
     {

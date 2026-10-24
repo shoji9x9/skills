@@ -44,11 +44,7 @@ const run = (args: string[]) =>
  */
 function runCopiedCli(pct: number) {
   const root = makeTempDir("run-coverage-cli-");
-  const RUNNER = [
-    "coverage/run-coverage.ts",
-    "coverage/check-coverage.ts",
-    "coverage/shell-coverage.ts",
-  ];
+  const RUNNER = ["coverage/run-coverage.ts", "coverage/check-coverage.ts"];
   const LIB = ["lib/errors.ts", "lib/guards.ts", "lib/is-array.ts", "lib/source-scope.ts"];
   for (const rel of [...RUNNER, ...LIB]) {
     mkdirSync(dirname(join(root, "scripts", rel)), { recursive: true });
@@ -61,7 +57,7 @@ function runCopiedCli(pct: number) {
   write(
     "scripts/coverage/coverage-thresholds.json",
     JSON.stringify({
-      rules: [{ path: "skills/", kind: "js", lines: 90 }],
+      rules: [{ path: "skills/", lines: 90 }],
       exclude: [...RUNNER, ...LIB].map((rel) => ({
         path: `scripts/${rel}`,
         reason: "ランナーのコピー",
@@ -76,10 +72,6 @@ function runCopiedCli(pct: number) {
       total: { lines: m, branches: m, functions: m },
       [join(root, "skills/x/a.mjs")]: { lines: m, branches: m, functions: m },
     }),
-  );
-  write(
-    "node_modules/.cache/coverage/shell-summary.json",
-    JSON.stringify({ files: {}, unresolved: 0 }),
   );
   expect(spawnSync("git", ["init", "-q"], { cwd: root, timeout: CHILD_TIMEOUT_MS }).status).toBe(0);
   return spawnSync(process.execPath, [join(root, "scripts/coverage/run-coverage.ts"), "--reuse"], {
@@ -169,7 +161,6 @@ test("targetFiles: scripts/・skills/・private skill の下のソースを、ad
   expect(targetFiles(root)).toEqual([
     ".agents/skills/p/scripts/p.ts",
     "scripts/a.ts",
-    "scripts/c.sh",
     "scripts/untracked.ts",
     "skills/x/scripts/d.mjs",
   ]);
@@ -179,36 +170,6 @@ test("targetFiles: 対象が 0 件のときは、判定できないとして例�
   const root = makeTempDir("run-coverage-empty-");
   expect(spawnSync("git", ["init", "-q"], { cwd: root, timeout: CHILD_TIMEOUT_MS }).status).toBe(0);
   expect(() => targetFiles(root)).toThrow(/0 件/);
-});
-
-test("coverageEnv: シェルの計測は SHELL_COVERAGE_DIR と BASH_ENV が両方あるときだけ渡す", () => {
-  const read = (env: Record<string, string>) =>
-    spawnSync(
-      process.execPath,
-      [
-        "--input-type=module",
-        "-e",
-        `import { coverageEnv } from ${JSON.stringify(new URL("../lib/testing/coverage-env.ts", import.meta.url).href)}; console.log(JSON.stringify(coverageEnv()));`,
-      ],
-      {
-        encoding: "utf8",
-        env: { PATH: process.env.PATH ?? "", ...env },
-        timeout: CHILD_TIMEOUT_MS,
-      },
-    ).stdout.trim();
-  // Node は、環境を明示した子プロセスにも親の NODE_V8_COVERAGE を引き継ぐ。測る実行では、親の値が入る。
-  const inherited = process.env.NODE_V8_COVERAGE
-    ? { NODE_V8_COVERAGE: process.env.NODE_V8_COVERAGE }
-    : {};
-  expect(JSON.parse(read({}))).toEqual(inherited);
-  expect(JSON.parse(read({ BASH_ENV: "/b" }))).toEqual(inherited);
-  expect(
-    JSON.parse(read({ NODE_V8_COVERAGE: "/v", SHELL_COVERAGE_DIR: "/d", BASH_ENV: "/b" })),
-  ).toEqual({
-    NODE_V8_COVERAGE: "/v",
-    SHELL_COVERAGE_DIR: "/d",
-    BASH_ENV: "/b",
-  });
 });
 
 const CACHE_DIR = join(ROOT, "node_modules", ".cache");
@@ -228,16 +189,9 @@ function miniRepo(body: string): string {
   write(
     "scripts/coverage/coverage-thresholds.json",
     JSON.stringify({
-      rules: [
-        { path: "skills/", kind: "js", lines: 90, branches: 80, functions: 90 },
-        { path: "skills/", kind: "sh", lines: 80 },
-      ],
-      exclude: [{ path: "scripts/coverage/bash-trace-env.sh", reason: "計測の仕組みそのもの" }],
+      rules: [{ path: "skills/", lines: 90, branches: 80, functions: 90 }],
+      exclude: [],
     }),
-  );
-  copyFileSync(
-    join(ROOT, "scripts/coverage/bash-trace-env.sh"),
-    join(root, "scripts/coverage/bash-trace-env.sh"),
   );
   // Node は node_modules の下の .ts の型を外さないので、ソースとテストと設定は .mjs で書く。
   // 測り方の前提（vite の変換を外す・ワーカーの分を書き出す）は、本物のリポジトリの vitest.config.ts と同じにする。
@@ -254,19 +208,18 @@ function miniRepo(body: string): string {
     "skills/x/a.mjs",
     "export const twice = (n) => n * 2;\nexport const half = (n) => n / 2;\n",
   );
+  // シェルスクリプトは測らないので、テストが実行しなくても閾値と比べない。
   write("skills/x/s.sh", "echo one\necho two\n");
   write("tests/a.test.mjs", body);
   expect(spawnSync("git", ["init", "-q"], { cwd: root, timeout: CHILD_TIMEOUT_MS }).status).toBe(0);
   return root;
 }
 
-const FULL = `import { spawnSync } from "node:child_process";
-import { expect, test } from "vitest";
+const FULL = `import { expect, test } from "vitest";
 import { half, twice } from "../skills/x/a.mjs";
 test("a", () => {
   expect(twice(2)).toBe(4);
   expect(half(4)).toBe(2);
-  expect(spawnSync("bash", ["skills/x/s.sh"]).status).toBe(0);
 });
 `;
 
@@ -292,7 +245,7 @@ test(
     const first = runMain([], root);
     expect(existsSync(stale), "通常の実行が前回の結果を消していない").toBe(false);
     expect(first.status, first.out).toBe(0);
-    expect(first.out).toMatch(/対象 3 ファイルのうち 2 ファイルが閾値以上（除外 1）/);
+    expect(first.out).toMatch(/対象 1 ファイルのうち 1 ファイルが閾値以上（除外 0）/);
     const again = runMain(["--reuse"], root);
     expect(again.status, again.out).toBe(0);
   },
@@ -302,7 +255,7 @@ test(
   "main: 閾値を下回るファイルがあれば exit 1 で、ファイル・指標・閾値を示す",
   { timeout: 120_000 },
   () => {
-    // half を呼ばず、シェルも実行しない。
+    // half を呼ばない。
     const root = miniRepo(`import { expect, test } from "vitest";
 import { twice } from "../skills/x/a.mjs";
 test("a", () => expect(twice(2)).toBe(4));
@@ -310,7 +263,7 @@ test("a", () => expect(twice(2)).toBe(4));
     const res = runMain([], root);
     expect(res.status, res.out).toBe(1);
     expect(res.out).toMatch(/skills\/x\/a\.mjs: functions 50% が閾値 90%/);
-    expect(res.out).toMatch(/skills\/x\/s\.sh: lines 0% が閾値 80%/);
+    expect(res.out).not.toMatch(/s\.sh/);
   },
 );
 

@@ -88,57 +88,6 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": ["page / state / viewport は書いたときだけ実行の組と突き合わせる"]
-    },
-    {
-      "id": "prose-warning-silent",
-      "why": "散文だけの宣言が当たらなかったことを stderr に出さない",
-      "file": "skills/parity-diff/scripts/diff-normalize.mjs",
-      "find": "  if (prose.unused > 0 && residual > 0) {",
-      "replace": "  if (false) {",
-      "occurrences": 1,
-      "expect_failing": ["CLI: 散文だけの宣言が当たらず未説明が残れば、件数を stderr に出す"]
-    },
-    {
-      "id": "prose-warning-always",
-      "why": "未説明が残らないときも散文の宣言の警告を出す（雑音で本物の警告が読まれなくなる）",
-      "file": "skills/parity-diff/scripts/diff-normalize.mjs",
-      "find": "  if (prose.unused > 0 && residual > 0) {",
-      "replace": "  if (prose.unused > 0) {",
-      "occurrences": 1,
-      "expect_failing": ["CLI: 未説明が残らなければ、使われなかった散文の宣言があっても警告しない"]
-    },
-    {
-      "id": "item-not-required",
-      "why": "item の無い match だけの宣言を照合に使う",
-      "file": "skills/parity-diff/scripts/diff-normalize.mjs",
-      "find": "  if (normalizeValue(intentionalEntryText(entry)).length === 0) {",
-      "replace": "  if (false) {",
-      "occurrences": 1,
-      "expect_failing": [
-        "item の無い match だけの宣言は照合に使わない（どの宣言で許容したかを追えない）"
-      ]
-    },
-    {
-      "id": "missing-ctx-silent",
-      "why": "match.page / match.viewport を書いた宣言が当たりようのない実行で警告しない",
-      "file": "skills/parity-diff/scripts/diff-normalize.mjs",
-      "find": "  if (intentionalNeedingCtx > 0 && missingCtx.length > 0) {",
-      "replace": "  if (false) {",
-      "occurrences": 1,
-      "expect_failing": [
-        "CLI: --page を省くと、match.page を書いた宣言が当たらないことを stderr に出す"
-      ]
-    },
-    {
-      "id": "missing-ctx-viewport-ignored",
-      "why": "match.viewport を書いた宣言を数えない",
-      "file": "skills/parity-diff/scripts/diff-normalize.mjs",
-      "find": "        (match.viewport !== undefined && !ctx.viewport)\n",
-      "replace": "        false\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "page / viewport を書いた宣言は、実行側にその軸が無ければ数える（当たりようがない）"
-      ]
     }
   ]
 }

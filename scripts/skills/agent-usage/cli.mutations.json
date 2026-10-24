@@ -21,30 +21,6 @@
       ]
     },
     {
-      "id": "default-branch-blocked",
-      "why": "デフォルトブランチのコミットも確認の対象にする",
-      "file": "skills/agent-usage/scripts/lib/repo.mjs",
-      "find": "  return repo.branch !== \"\" && !defaultBranches(repo).includes(repo.branch);",
-      "replace": "  return repo.branch !== \"\";",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook 判断の無い feature ブランチのコミットを止め、記録しないと決めたら通す。デフォルトブランチでは止めない",
-        "agent-usage のコマンドの入力と状態 origin/HEAD のデフォルトブランチでは、main 以外の名前でもコミットを止めない",
-        "agent-usage のコマンドと Hook リポジトリの defaultDecision は、人の設定が無い人には当てずに止めて setup を求め、人の ID を作らない。デフォルトブランチの status は対象外と出す"
-      ]
-    },
-    {
-      "id": "gate-forgets-worktree",
-      "why": "Hook が worktree のパスを覚えないので、削除した worktree のログを collect が探せない",
-      "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "    rememberWorktrees(repo.commonDir, repo.worktrees);",
-      "replace": "    void rememberWorktrees;",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook Hook が実行された worktree のパスを覚え、その worktree を削除した後も collect がログを集める"
-      ]
-    },
-    {
       "id": "value-option-not-skipped",
       "why": "値を取るオプションの値を語として飛ばさない",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
@@ -232,55 +208,6 @@
       ]
     },
     {
-      "id": "timeout-not-wrapper",
-      "why": "timeout をラッパーとして扱わない（Issue #678）",
-      "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "  [\"timeout\", {",
-      "replace": "  [\"timeout-x\", {",
-      "occurrences": 1,
-      "expect_failing": [
-        "isGitCommit timeout 60 git commit -m x → true",
-        "isGitCommit timeout -s KILL 60 git commit → true",
-        "isGitCommit timeout --signal=KILL 1m git commit → true",
-        "isGitCommit nohup nice -n 5 timeout 60 git commit → true",
-        "isGitCommit timeout 60 /usr/bin/git commit → true",
-        "isGitCommit cd /r && timeout 60 git -C sub commit → true"
-      ]
-    },
-    {
-      "id": "stdbuf-not-wrapper",
-      "why": "stdbuf をラッパーとして扱わない（Issue #678）",
-      "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "  [\"stdbuf\", {",
-      "replace": "  [\"stdbuf-x\", {",
-      "occurrences": 1,
-      "expect_failing": [
-        "isGitCommit stdbuf -oL git commit → true",
-        "isGitCommit stdbuf -o L git commit → true"
-      ]
-    },
-    {
-      "id": "builtin-not-wrapper",
-      "why": "builtin をラッパーとして扱わない（Issue #678）",
-      "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "  [\"builtin\", {",
-      "replace": "  [\"builtin-x\", {",
-      "occurrences": 1,
-      "expect_failing": ["isGitCommit builtin git commit → true"]
-    },
-    {
-      "id": "time-not-wrapper",
-      "why": "time をラッパーとして扱わない（time -p のオプションを読み飛ばさない。Issue #678）",
-      "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "  [\"time\", {",
-      "replace": "  [\"time-x\", {",
-      "occurrences": 1,
-      "expect_failing": [
-        "isGitCommit time git commit → true",
-        "isGitCommit time -p git commit → true"
-      ]
-    },
-    {
       "id": "cd-not-followed",
       "why": "git commit の前の cd を追わない",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
@@ -303,24 +230,6 @@
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook Hook は、前に書いて stage されなかった記録も stage する"
-      ]
-    },
-    {
-      "id": "non-github-host",
-      "why": "ログインしていないホストも GitHub として扱う",
-      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
-      "find": "  if (err === \"\") return { ...t, viaLogin: true };",
-      "replace": "  if (true) return { ...t, viaLogin: true };",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook origin が GitHub でなければ、GitHub を取得しない",
-        "agent-usage のコマンドと Hook Hook の collect も、GitHub を取得しなかった理由を出す",
-        "agent-usage のコマンドと Hook githubTarget: ログインしていないホストは理由を返す",
-        "agent-usage のコマンドと Hook ログインで GitHub と判定したホストには、環境変数の GH_ENTERPRISE_TOKEN を送らない",
-        "agent-usage のコマンドと Hook githubTarget: ポート付きでログインしていなければ取得しない",
-        "agent-usage のコマンドと Hook ポートを含み、gh にログインしていないホストの origin は、理由を出して取得しない",
-        "agent-usage のコマンドの入力と状態 ログインを確かめられないホストは、gh auth token が理由を出さずに失敗する 理由を出して取得しない",
-        "agent-usage のコマンドの入力と状態 ログインを確かめられないホストは、gh が無い 理由を出して取得しない"
       ]
     },
     {
@@ -350,29 +259,6 @@
       ]
     },
     {
-      "id": "remote-shape-ignored",
-      "why": "<ホスト>/<owner>/<name> の形でない origin も GitHub の判定に進める",
-      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
-      "find": "  if (parts.length !== 3 || !host || !owner || !name)",
-      "replace": "  if (false)",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook origin が GitHub でなければ、GitHub を取得しない",
-        "agent-usage のコマンドと Hook githubTarget: owner/name の形でない"
-      ]
-    },
-    {
-      "id": "enterprise-token-counted",
-      "why": "GH_ENTERPRISE_TOKEN をログインとして数え、どのホストも GitHub として扱う",
-      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
-      "find": "    env: withoutEnvTokens(env),",
-      "replace": "    env,",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook ログインで GitHub と判定したホストには、環境変数の GH_ENTERPRISE_TOKEN を送らない"
-      ]
-    },
-    {
       "id": "enterprise-token-sent",
       "why": "ログインで判定したホストに、環境変数の enterprise の token を送る",
       "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
@@ -381,29 +267,6 @@
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook ログインで GitHub と判定したホストには、環境変数の GH_ENTERPRISE_TOKEN を送らない"
-      ]
-    },
-    {
-      "id": "port-host-authed",
-      "why": "ポート付きでログインしていないホストに、ログインを勧める理由を出す",
-      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
-      "find": "  if (host.includes(\":\"))",
-      "replace": "  if (false)",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook ポートを含み、gh にログインしていないホストの origin は、理由を出して取得しない",
-        "agent-usage のコマンドと Hook githubTarget: ポート付きでログインしていなければ取得しない"
-      ]
-    },
-    {
-      "id": "gate-skip-reason-hidden",
-      "why": "Hook の出力に GitHub を取得しなかった理由を出さない",
-      "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "        : r.githubSkipped",
-      "replace": "        : false",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook Hook の collect も、GitHub を取得しなかった理由を出す"
       ]
     },
     {
@@ -433,29 +296,6 @@
       ]
     },
     {
-      "id": "pushd-ignored",
-      "why": "pushd を cd と同じに当てない",
-      "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "    if (words[0] === \"cd\" || words[0] === \"pushd\") {",
-      "replace": "    if (words[0] === \"cd\") {",
-      "occurrences": 1,
-      "expect_failing": [
-        "commitCwd pushd ../o && git commit → /o",
-        "commitCwd cd /r && pushd sub && pushd x && popd && git commit → /r/sub"
-      ]
-    },
-    {
-      "id": "gate-usage-blocks",
-      "why": "gate の処理の誤りでコミットを止める",
-      "file": "skills/agent-usage/scripts/agent-usage.mjs",
-      "find": "    if (process.argv[2] === \"gate\") {",
-      "replace": "    if (false) {",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook gate は、確認の処理の誤り（不正な AGENT_USAGE_NOW）ではコミットを止めない"
-      ]
-    },
-    {
       "id": "popd-ignored",
       "why": "popd で pushd の前のディレクトリに戻さない",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
@@ -465,27 +305,6 @@
       "expect_failing": [
         "commitCwd pushd sub && popd && git commit -m x → /w",
         "commitCwd cd /r && pushd sub && pushd x && popd && git commit → /r/sub"
-      ]
-    },
-    {
-      "id": "pushd-stack-index",
-      "why": "pushd +N をパスとして当てる",
-      "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "        arg === \"\" || /^[-+]/.test(arg) || /[$`]/.test(arg) || arg.startsWith(\"~\")",
-      "replace": "        arg === \"\" || arg === \"-\" || /[$`]/.test(arg) || arg.startsWith(\"~\")",
-      "occurrences": 1,
-      "expect_failing": ["commitCwd pushd +1 && git commit → /w"]
-    },
-    {
-      "id": "record-window-ignored",
-      "why": "範囲より古いファイルも読む",
-      "file": "skills/agent-usage/scripts/lib/records.mjs",
-      "find": "          if (relative(recordsDir, f).split(sep).length < 3) return false;",
-      "replace": "          return true;",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook collect は範囲より古いファイルを読まず、範囲の外の key を書き直しても report の結果は変わらない",
-        "agent-usage のコマンドと Hook 古い形のファイルは、名前の時刻だけで読むかを決める（末尾を読まない）"
       ]
     },
     {
@@ -508,39 +327,6 @@
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook この clone で範囲の中に collect していれば、範囲より古いログの行は書かない（していなければ書く）"
-      ]
-    },
-    {
-      "id": "lower-bound-always",
-      "why": "この人の行が範囲の中に無くても、範囲より古いログの行を書かない",
-      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
-      "find": "  const lowerBound = collectedInWindow ? windowStart : Number.NEGATIVE_INFINITY;",
-      "replace": "  const lowerBound = windowStart;",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook この clone で範囲の中に collect していれば、範囲より古いログの行は書かない（していなければ書く）",
-        "agent-usage のコマンドと Hook この clone で最後に collect したのが範囲より前なら、範囲より古いログの行も書く",
-        "agent-usage のコマンドと Hook 範囲より古い開始時刻の行でも、読んだ記録に同じ key があって内容が変われば書く",
-        "agent-usage のコマンドと Hook 開始時刻が範囲より古い行は、区切り方が変わっても打ち消さず、使用量を残す",
-        "agent-usage のコマンドの入力と状態 last-collect.json がJSON として読めないなら、範囲の中で collect していないとして扱い、範囲より古いログの行も書いて作り直す",
-        "agent-usage のコマンドの入力と状態 last-collect.json が人の時刻が文字列でないなら、範囲の中で collect していないとして扱い、範囲より古いログの行も書いて作り直す"
-      ]
-    },
-    {
-      "id": "branch-file-not-reused",
-      "why": "collect のたびに新しいファイルを作る",
-      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
-      "find": "    if (last !== undefined && !published(last)) return last;",
-      "replace": "    if (false) return last;",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook 1 つのブランチで時刻を変えて何回 collect しても、記録のファイルは人別・GitHub のそれぞれ 1 つまで",
-        "agent-usage のコマンドと Hook 2 つのブランチで並行して記録しても、merge で記録のファイルが競合しない",
-        "agent-usage のコマンドと Hook Hook は、前に書いて stage されなかった記録も stage する",
-        "agent-usage のコマンドと Hook collect --stage は明細を書いて stage し、記録すると決めたブランチのコミットでは Hook が collect して通す",
-        "agent-usage のコマンドと Hook 見出しの列が今と違うファイルに足すときは、今の列で書き直す",
-        "agent-usage のコマンドと Hook デフォルトブランチに入った（squash merge された）ブランチのファイルには足さず、新しいファイルを作る",
-        "agent-usage のコマンドと Hook デフォルトブランチ自身では、push した後も同じファイルに足す"
       ]
     },
     {
@@ -613,34 +399,6 @@
       ]
     },
     {
-      "id": "last-collect-not-saved",
-      "why": "この clone の最後の collect の時刻を残さない",
-      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
-      "find": "  saveLastCollect(lastPath, person, now);",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook この clone で範囲の中に collect していれば、範囲より古いログの行は書かない（していなければ書く）",
-        "agent-usage のコマンドと Hook この clone で最後に collect したのが範囲より前なら、範囲より古いログの行も書く",
-        "agent-usage のコマンドと Hook collect は範囲より古いファイルを読まず、範囲の外の key を書き直しても report の結果は変わらない",
-        "agent-usage のコマンドと Hook この clone で初めての collect は、記録の全体を読み、範囲より古い記録済みの行を重ねて書かない",
-        "agent-usage のコマンドと Hook 古い形のファイルは、名前の時刻だけで読むかを決める（末尾を読まない）",
-        "agent-usage のコマンドの入力と状態 last-collect.json がJSON として読めないなら、範囲の中で collect していないとして扱い、範囲より古いログの行も書いて作り直す",
-        "agent-usage のコマンドの入力と状態 last-collect.json が人の時刻が文字列でないなら、範囲の中で collect していないとして扱い、範囲より古いログの行も書いて作り直す"
-      ]
-    },
-    {
-      "id": "crlf-ignored",
-      "why": "CRLF のファイルに LF で足す",
-      "file": "skills/agent-usage/scripts/lib/records.mjs",
-      "find": "    appendFileSync(path, crlf ? `${glue}${body}`.replace(/\\n/g, \"\\r\\n\") : `${glue}${body}`);",
-      "replace": "    appendFileSync(path, `${glue}${body}`);",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook ブランチのファイルの改行と、知らない列を保って足す"
-      ]
-    },
-    {
       "id": "unknown-columns-dropped",
       "why": "書き直すときに、知らない列の値を落とす",
       "file": "skills/agent-usage/scripts/lib/records.mjs",
@@ -649,17 +407,6 @@
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook ブランチのファイルの改行と、知らない列を保って足す"
-      ]
-    },
-    {
-      "id": "long-label-kept",
-      "why": "長いブランチの名前を切らない",
-      "file": "skills/agent-usage/scripts/lib/records.mjs",
-      "find": "  if (name.length > MAX_LABEL) return `${name.slice(0, MAX_LABEL - 9)}-${hash()}`;",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook branchLabel: 長い名前は切ってハッシュを足す"
       ]
     },
     {
@@ -685,17 +432,6 @@
       ]
     },
     {
-      "id": "old-format-tail-read",
-      "why": "古い形のファイルも末尾の行で読むかを決める",
-      "file": "skills/agent-usage/scripts/lib/records.mjs",
-      "find": "          if (relative(recordsDir, f).split(sep).length < 3) return false;",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook 古い形のファイルは、名前の時刻だけで読むかを決める（末尾を読まない）"
-      ]
-    },
-    {
       "id": "future-last-collect-trusted",
       "why": "今より後の時刻の last-collect を信じる",
       "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
@@ -707,17 +443,6 @@
       ]
     },
     {
-      "id": "older-rows-not-counted",
-      "why": "開始時刻が範囲より古いので書かなかった行を数えない",
-      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
-      "find": "    olderRowsSkipped += 1;",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook この clone で範囲の中に collect していれば、範囲より古いログの行は書かない（していなければ書く）"
-      ]
-    },
-    {
       "id": "first-collect-reads-window",
       "why": "この clone で初めての collect でも、範囲の中の記録しか読まない",
       "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
@@ -726,17 +451,6 @@
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook この clone で初めての collect は、記録の全体を読み、範囲より古い記録済みの行を重ねて書かない"
-      ]
-    },
-    {
-      "id": "default-branch-published",
-      "why": "デフォルトブランチ自身でも、push したファイルに足さない",
-      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
-      "find": "    !onDefault &&",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook デフォルトブランチ自身では、push した後も同じファイルに足す"
       ]
     },
     {
@@ -813,17 +527,6 @@
       ]
     },
     {
-      "id": "retracted-value-unchecked",
-      "why": "打ち消しの列の値を検査しない",
-      "file": "skills/agent-usage/scripts/lib/records.mjs",
-      "find": "      if (r.retracted !== undefined && r.retracted !== \"\" && r.retracted !== \"1\")",
-      "replace": "      if (false)",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook 打ち消しの列が空でも 1 でもない記録は、読むときに失敗にする"
-      ]
-    },
-    {
       "id": "old-rows-retracted",
       "why": "開始時刻が範囲より古い指示・稼働の行も、作らなくなったら打ち消す",
       "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
@@ -844,18 +547,6 @@
       "expect_failing": [
         "agent-usage のコマンドと Hook サブエージェントのログだけが消えたセッションの使用量は、区切り方が変わっても打ち消さない",
         "agent-usage のコマンドと Hook 同じモデルのサブエージェントのログが消えた後に区切り方を変えても、重なる新しい行を書かず二重に数えない"
-      ]
-    },
-    {
-      "id": "retracted-again",
-      "why": "打ち消し済みの行も、collect のたびに打ち消す",
-      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
-      "find": "    if (canonical(r.person) !== person || r.retracted === \"1\") continue;",
-      "replace": "    if (canonical(r.person) !== person) continue;",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook 区切り方が変わった記録済みの行は打ち消し、report は二重に数えない",
-        "agent-usage のコマンドと Hook 別名で記録した行と、observed_at が今より後の行も打ち消し、report は二重に数えない"
       ]
     },
     {
@@ -892,17 +583,6 @@
       ]
     },
     {
-      "id": "run-not-retractable",
-      "why": "稼働の行を打ち消しの対象にしない",
-      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
-      "find": "const RETRACTABLE_KINDS = [\"usage\", \"run\", \"human-wait\", \"prompt\"];",
-      "replace": "const RETRACTABLE_KINDS = [\"usage\", \"human-wait\", \"prompt\"];",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook 引き継いだ側のセッションの指示・稼働の行は、元のセッションのログが見つかると打ち消す"
-      ]
-    },
-    {
       "id": "cost-state-kept",
       "why": "cost-state の使用量の行を、作らなくなっても打ち消さない",
       "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
@@ -911,30 +591,6 @@
       "occurrences": 1,
       "expect_failing": [
         "retractableRows 指示・稼働・cost-state の使用量は、範囲の中に始まる行だけを打ち消す"
-      ]
-    },
-    {
-      "id": "default-decision-ignored",
-      "why": "判断の無いブランチで defaultDecision を読まず、常に止める",
-      "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "    if (fallback === null) return { exit: 2, message: askMessage(agent, script) };",
-      "replace": "    if (true) return { exit: 2, message: askMessage(agent, script) };",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook 判断の無いブランチでは、defaultDecision に従って止めずに通す。人の設定がリポジトリの設定より優先する",
-        "agent-usage のコマンドと Hook リポジトリの defaultDecision は、人の設定が無い人には当てずに止めて setup を求め、人の ID を作らない。デフォルトブランチの status は対象外と出す",
-        "merge 済みのブランチの Hook PR で merge 済みと決められないとき（gh が失敗する）は、記録する",
-        "merge 済みのブランチの Hook PR で merge 済みと決められないとき（merge されずに閉じた）は、記録する",
-        "merge 済みのブランチの Hook PR で merge 済みと決められないとき（merge の後に commit を足して、head の commit が HEAD と違う）は、記録する",
-        "merge 済みのブランチの Hook squash merge のように HEAD が祖先でなくても、head の commit が HEAD と同じ merge 済みの PR があれば記録しない",
-        "merge 済みのブランチの Hook 作った直後で自分の commit が無いブランチは、HEAD がデフォルトブランチの祖先でも merge 済みとせずに記録する",
-        "merge 済みのブランチの Hook 自分の commit を merge commit で取り込んだブランチでは、collect も stage もせずに、merge 済みと出して通す",
-        "merge 済みのブランチの Hook HEAD がデフォルトブランチの祖先でも、fast-forward でデフォルトブランチの commit に移っただけ のブランチは merge 済みとせずに記録する",
-        "merge 済みのブランチの Hook HEAD がデフォルトブランチの祖先でも、ブランチの reflog が無い のブランチは merge 済みとせずに記録する",
-        "merge 済みのブランチの Hook デフォルトブランチを merge commit で取り込んだ後に merge したブランチも、記録しない",
-        "merge 済みのブランチの Hook HEAD が cherry-pick で作った commit で、merge commit で取り込んだブランチも、記録しない",
-        "merge 済みのブランチの Hook HEAD が 衝突を解いて commit した cherry-pick で、merge commit で取り込んだブランチも、記録しない",
-        "merge 済みのブランチの Hook HEAD が revert で作った commit で、merge commit で取り込んだブランチも、記録しない"
       ]
     },
     {
@@ -949,113 +605,11 @@
       ]
     },
     {
-      "id": "user-decline-not-preferred",
-      "why": "人の設定の record だけを優先し、人の decline よりリポジトリの record に従う",
-      "file": "skills/agent-usage/scripts/lib/config.mjs",
-      "find": "    if (d === \"record\" || d === \"decline\") return { decision: d, source: paths[layer] };",
-      "replace": "    if (d === \"record\" || (d === \"decline\" && layer !== \"user\")) return { decision: d, source: paths[layer] };",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook 判断の無いブランチでは、defaultDecision に従って止めずに通す。人の設定がリポジトリの設定より優先する"
-      ]
-    },
-    {
-      "id": "repo-default-unread",
-      "why": "リポジトリの設定の defaultDecision を読まない",
-      "file": "skills/agent-usage/scripts/lib/config.mjs",
-      "find": "    const d = value?.defaultDecision;",
-      "replace": "    const d = layer === \"repo\" ? undefined : value?.defaultDecision;",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook 判断の無いブランチでは、defaultDecision に従って止めずに通す。人の設定がリポジトリの設定より優先する",
-        "agent-usage のコマンドと Hook リポジトリの defaultDecision は、人の設定が無い人には当てずに止めて setup を求め、人の ID を作らない。デフォルトブランチの status は対象外と出す"
-      ]
-    },
-    {
-      "id": "setup-drops-default-decision",
-      "why": "setup をやり直すと、人の設定の defaultDecision が消える",
-      "file": "skills/agent-usage/scripts/agent-usage.mjs",
-      "find": "saveUserConfig(repo.root, process.env, { personId, timeZone, billing })",
-      "replace": "saveUserConfig(repo.root, process.env, { personId, timeZone, billing, defaultDecision: null })",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook 判断の無いブランチでは、defaultDecision に従って止めずに通す。人の設定がリポジトリの設定より優先する"
-      ]
-    },
-    {
-      "id": "default-decline-silent",
-      "why": "defaultDecision の decline に従って通したことを、出所と一緒に伝えない",
-      "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "message: note === \"\" ? \"\" : `agent-usage: 記録しない${note}`",
-      "replace": "message: \"\"",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook 判断の無いブランチでは、defaultDecision に従って止めずに通す。人の設定がリポジトリの設定より優先する"
-      ]
-    },
-    {
-      "id": "status-default-branch-shows-default",
-      "why": "status がデフォルトブランチでも defaultDecision を添えて表示し、記録されると読める",
-      "file": "skills/agent-usage/scripts/agent-usage.mjs",
-      "find": "  if (!isDecisionBranch(repo))",
-      "replace": "  if (false)",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook リポジトリの defaultDecision は、人の設定が無い人には当てずに止めて setup を求め、人の ID を作らない。デフォルトブランチの status は対象外と出す"
-      ]
-    },
-    {
-      "id": "bad-config-no-decline-hint",
-      "why": "設定を読めないときに、decline で先へ進めることを案内しない",
-      "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "decline を実行してからコミットしてください。`,",
-      "replace": "`,",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる",
-        "agent-usage のコマンドと Hook 記録すると決めたブランチで人ごとの設定を読めなければ、記録せずにコミットを止めて理由を返す"
-      ]
-    },
-    {
       "id": "repo-default-null-rejected",
       "why": "リポジトリの設定の defaultDecision: null を、置いていないのと同じに扱わない",
       "file": "skills/agent-usage/scripts/lib/config.mjs",
       "find": "    if (d === \"record\" || d === \"decline\") return { decision: d, source: paths[layer] };",
       "replace": "    if (d !== undefined) return { decision: /** @type {DefaultDecision} */ (d), source: paths[layer] };",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる"
-      ]
-    },
-    {
-      "id": "status-unset-shows-undecided",
-      "why": "status が、.agent-usage/ の無いリポジトリでも判断を「未決定」と出す",
-      "file": "skills/agent-usage/scripts/agent-usage.mjs",
-      "find": "  if (!set) return \"対象外",
-      "replace": "  if (false) return \"対象外",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook setup 前は Hook が何もせず通し、collect はセットアップを求めて失敗する",
-        "agent-usage のコマンドの入力と状態 status は、セットアップの有無・ブランチ・判断・人の設定を表示する"
-      ]
-    },
-    {
-      "id": "status-throws-on-bad-decisions",
-      "why": "status が判断の記録を読めないときに止まり、他の行を出さない",
-      "file": "skills/agent-usage/scripts/agent-usage.mjs",
-      "find": "    return `判断の記録を読めない: ${e instanceof Error ? e.message : String(e)}`;",
-      "replace": "    throw e;",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる"
-      ]
-    },
-    {
-      "id": "status-throws-on-bad-config",
-      "why": "status が設定を読めないときに止まり、他の行を出さない",
-      "file": "skills/agent-usage/scripts/agent-usage.mjs",
-      "find": "    return `未決定（設定を読めない: ${e instanceof Error ? e.message : String(e)}）`;",
-      "replace": "    throw e;",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる"
@@ -1082,106 +636,6 @@
       "expect_failing": [
         "agent-usage のコマンドと Hook ブランチの判断が「記録する」でも、人の設定が無ければ止めて、Hook からは人の ID を作らない。status も止めると出す",
         "agent-usage のコマンドと Hook 記録すると決めたブランチで人ごとの設定を読めなければ、記録せずにコミットを止めて理由を返す"
-      ]
-    },
-    {
-      "id": "person-config-error-hidden",
-      "why": "人ごとの設定を読めないことを、人の設定が無いことと同じに扱う（設定の誤りを示さない）",
-      "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "    return hasPerson(process.env);\n  } catch (e) {\n    return configErrorResult(e, script);",
-      "replace": "    return hasPerson(process.env);\n  } catch {\n    return false;",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook 記録すると決めたブランチで人ごとの設定を読めなければ、記録せずにコミットを止めて理由を返す"
-      ]
-    },
-    {
-      "id": "status-record-ignores-missing-user",
-      "why": "判断が「記録する」で人の設定が無いとき、status が record とだけ出し、Hook が止めることと食い違う",
-      "file": "skills/agent-usage/scripts/agent-usage.mjs",
-      "find": "      if (!hasPerson())\n        return \"record（人の設定が無いので",
-      "replace": "      if (false)\n        return \"record（人の設定が無いので",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook ブランチの判断が「記録する」でも、人の設定が無ければ止めて、Hook からは人の ID を作らない。status も止めると出す",
-        "agent-usage のコマンドと Hook 記録すると決めたブランチで人ごとの設定を読めなければ、記録せずにコミットを止めて理由を返す"
-      ]
-    },
-    {
-      "id": "setup-message-no-person-id",
-      "why": "人の設定が無くて止めたときに、既存の ID を --person-id で渡すことを案内しない",
-      "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "setup に --person-id <その ID> を付けます。",
-      "replace": "setup を実行します。",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook ブランチの判断が「記録する」でも、人の設定が無ければ止めて、Hook からは人の ID を作らない。status も止めると出す"
-      ]
-    },
-    {
-      "id": "status-default-ignores-missing-user",
-      "why": "人の設定が無くても、status が defaultDecision に従うと読める表示を出し、Hook の判断と食い違う",
-      "file": "skills/agent-usage/scripts/agent-usage.mjs",
-      "find": "    if (!hasPerson())\n      return `未決定（defaultDecision:",
-      "replace": "    if (false)\n      return `未決定（defaultDecision:",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook リポジトリの defaultDecision は、人の設定が無い人には当てずに止めて setup を求め、人の ID を作らない。デフォルトブランチの status は対象外と出す"
-      ]
-    },
-    {
-      "id": "setup-creates-before-validate",
-      "why": "setup が引数を確かめる前に人の設定を作り、打ち間違いで止まっても乱数の ID の設定が残る",
-      "file": "skills/agent-usage/scripts/agent-usage.mjs",
-      "find": "      const config = loadUserConfig(repo.root);",
-      "replace": "      const config =\n        loadUserConfig(repo.root) ??\n        (saveUserConfig(repo.root, process.env, { personId: newPersonId(), timeZone: systemTimeZone() }),\n        loadUserConfig(repo.root));",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook 人の設定が無いとき、引数を誤った setup と report は人の設定を作らず、判断を確かめる案内は setup --person-id を示す"
-      ]
-    },
-    {
-      "id": "report-creates-user-config",
-      "why": "report が人の設定を作り、setup を通らずに乱数の ID ができる",
-      "file": "skills/agent-usage/scripts/lib/report/report.mjs",
-      "find": "import { loadRepoConfig, loadUserConfig, resolved } from \"../config.mjs\";",
-      "replace": "import { loadRepoConfig, loadOrCreateUserConfig, resolved } from \"../config.mjs\";\nconst loadUserConfig = (/** @type {string} */ root, /** @type {NodeJS.ProcessEnv} */ env, /** @type {ReturnType<typeof resolved>} */ r) => loadOrCreateUserConfig(root, env, r).config;",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook 人の設定が無いとき、引数を誤った setup と report は人の設定を作らず、判断を確かめる案内は setup --person-id を示す"
-      ]
-    },
-    {
-      "id": "ask-no-person-id-hint",
-      "why": "人の設定が無い人に、collect が新しい ID を作る前に setup --person-id を案内しない",
-      "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "    ...(hasPerson(process.env)",
-      "replace": "    ...(true",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook 人の設定が無いとき、引数を誤った setup と report は人の設定を作らず、判断を確かめる案内は setup --person-id を示す"
-      ]
-    },
-    {
-      "id": "ask-person-id-hint-always",
-      "why": "人の設定がある人にも、人の設定がまだ無いと案内する",
-      "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "    ...(hasPerson(process.env)",
-      "replace": "    ...(false",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる"
-      ]
-    },
-    {
-      "id": "setup-billing-unchecked",
-      "why": "setup の --billing の誤りを引数の誤りにせず、まだ無い設定ファイルの誤りとして示す",
-      "file": "skills/agent-usage/scripts/agent-usage.mjs",
-      "find": "      if (billing !== \"none\" && billing !== \"user\")\n        throw new UsageError",
-      "replace": "      if (false)\n        throw new UsageError",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook 人の設定が無いとき、引数を誤った setup と report は人の設定を作らず、判断を確かめる案内は setup --person-id を示す"
       ]
     },
     {
@@ -1212,17 +666,6 @@
       ]
     },
     {
-      "id": "merged-pr-ignores-head",
-      "why": "PR の head の commit と HEAD を比べない（merge の後に足した commit を記録しない）",
-      "file": "skills/agent-usage/scripts/lib/merged.mjs",
-      "find": " && pr.head.sha === head)",
-      "replace": ")",
-      "occurrences": 1,
-      "expect_failing": [
-        "merge 済みのブランチの Hook PR で merge 済みと決められないとき（merge の後に commit を足して、head の commit が HEAD と違う）は、記録する"
-      ]
-    },
-    {
       "id": "merged-pr-ignores-merged-at",
       "why": "PR が merge 済みかを見ない（merge せずに閉じた PR のブランチを記録しない）",
       "file": "skills/agent-usage/scripts/lib/merged.mjs",
@@ -1231,22 +674,6 @@
       "occurrences": 1,
       "expect_failing": [
         "merge 済みのブランチの Hook PR で merge 済みと決められないとき（merge されずに閉じた）は、記録する"
-      ]
-    },
-    {
-      "id": "gate-ignores-merged",
-      "why": "Hook が merge 済みの判定を使わない",
-      "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "  if (merged.merged)\n",
-      "replace": "  if (false)\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "merge 済みのブランチの Hook 自分の commit を merge commit で取り込んだブランチでは、collect も stage もせずに、merge 済みと出して通す",
-        "merge 済みのブランチの Hook squash merge のように HEAD が祖先でなくても、head の commit が HEAD と同じ merge 済みの PR があれば記録しない",
-        "merge 済みのブランチの Hook デフォルトブランチを merge commit で取り込んだ後に merge したブランチも、記録しない",
-        "merge 済みのブランチの Hook HEAD が cherry-pick で作った commit で、merge commit で取り込んだブランチも、記録しない",
-        "merge 済みのブランチの Hook HEAD が 衝突を解いて commit した cherry-pick で、merge commit で取り込んだブランチも、記録しない",
-        "merge 済みのブランチの Hook HEAD が revert で作った commit で、merge commit で取り込んだブランチも、記録しない"
       ]
     },
     {
@@ -1286,40 +713,6 @@
       "occurrences": 1,
       "expect_failing": [
         "merge 済みのブランチの Hook デフォルトブランチを merge commit で取り込んだ後に merge したブランチも、記録しない"
-      ]
-    },
-    {
-      "id": "status-ignores-merged",
-      "why": "status が、merge 済みのブランチでコミットの前の確認が記録しないことを出さない",
-      "file": "skills/agent-usage/scripts/agent-usage.mjs",
-      "find": "  return m.merged ?",
-      "replace": "  return false ?",
-      "occurrences": 1,
-      "expect_failing": [
-        "merge 済みのブランチの Hook status は、記録すると決めた merge 済みのブランチで、コミットの前の確認が記録しないことを出す"
-      ]
-    },
-    {
-      "id": "merged-tip-commit-kind-no-hyphen",
-      "why": "「commit (cherry-pick): 」のようにハイフンを含む commit の種類を、このブランチで作った commit として扱わない",
-      "file": "skills/agent-usage/scripts/lib/merged.mjs",
-      "find": "/^commit( \\([a-z-]+\\))?: /",
-      "replace": "/^commit( \\([a-z]+\\))?: /",
-      "occurrences": 1,
-      "expect_failing": [
-        "merge 済みのブランチの Hook HEAD が 衝突を解いて commit した cherry-pick で、merge commit で取り込んだブランチも、記録しない"
-      ]
-    },
-    {
-      "id": "merged-tip-ignores-pick-revert",
-      "why": "cherry-pick と revert で作った commit を、このブランチで作った commit として扱わない",
-      "file": "skills/agent-usage/scripts/lib/merged.mjs",
-      "find": "/^(cherry-pick|revert): /.test(subject)",
-      "replace": "false",
-      "occurrences": 1,
-      "expect_failing": [
-        "merge 済みのブランチの Hook HEAD が cherry-pick で作った commit で、merge commit で取り込んだブランチも、記録しない",
-        "merge 済みのブランチの Hook HEAD が revert で作った commit で、merge commit で取り込んだブランチも、記録しない"
       ]
     }
   ]

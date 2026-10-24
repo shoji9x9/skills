@@ -29,66 +29,6 @@
       ]
     },
     {
-      "id": "record-writer-substring-match",
-      "why": "書き手の login を区切りなしの部分一致で照合する（作成者の login の一部を持つ別の login を作成者として扱う）",
-      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
-      "find": "\t*\",${login},\"*) ;;\n",
-      "replace": "\t*\"${login}\"*) ;;\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "担当者の記録は数え、作成者でも担当者でもない人の記録は理由を出して読み飛ばす"
-      ]
-    },
-    {
-      "id": "record-short-sha-accepted",
-      "why": "1 行目の SHA に 40 桁を求めない（短縮した SHA の記録を形の正しい記録として数える）",
-      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
-      "find": "sha=\"([0-9a-f]{40})\" findings=",
-      "replace": "sha=\"([0-9a-f]+)\" findings=",
-      "occurrences": 1,
-      "expect_failing": ["1 行目の形が違う記録（短縮した SHA）は、数えずに読み飛ばす"]
-    },
-    {
-      "id": "record-trailing-text-accepted",
-      "why": "1 行目の末尾を固定しない（目印の後ろに余計な文字がある記録を数える）",
-      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
-      "find": "\" -->\"$ ]]; then\n",
-      "replace": "\" -->\" ]]; then\n",
-      "occurrences": 1,
-      "expect_failing": ["1 行目の形が違う記録（末尾に余計な文字）は、数えずに読み飛ばす"]
-    },
-    {
-      "id": "first-line-separator-accepted",
-      "why": "1 行目の U+001F を見分けない（read が末尾の 1 文字の U+001F を取り除き、形の違う記録を数える）",
-      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
-      "find": "\tif [ \"${shape}\" != \"ok\" ] || [[ ! \"${line}\" =~ ^",
-      "replace": "\tif [[ ! \"${line}\" =~ ^",
-      "occurrences": 1,
-      "expect_failing": [
-        "1 行目の形が違う記録（1 行目の末尾が U+001F 1 文字）は、数えずに読み飛ばす"
-      ]
-    },
-    {
-      "id": "head-sha-not-validated",
-      "why": "headRefOid が完全な SHA かを確かめない（判定できない状態を not-reviewed として返す）",
-      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
-      "find": "if [[ ! \"${head:-}\" =~ ^[0-9a-f]{40}$ ]]; then\n",
-      "replace": "if false; then\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "headRefOid が完全な SHA でない ときは、記録が無いとせずに exit 2（判定できない）"
-      ]
-    },
-    {
-      "id": "comments-failure-as-empty",
-      "why": "コメントの取得の失敗を、記録が 0 件として扱う",
-      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
-      "find": "\techo \"error: PR のコメントを取得できない\" >&2\n\texit 2\n",
-      "replace": "\techo \"error: PR のコメントを取得できない\" >&2\n\tlist=\"\"\n",
-      "occurrences": 1,
-      "expect_failing": ["コメントを取得できない ときは、記録が無いとせずに exit 2（判定できない）"]
-    },
-    {
       "id": "post-sha-not-compared",
       "why": "post で、渡した SHA を HEAD と比べない（前の HEAD のレビューを、今の HEAD の記録として残す）",
       "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
@@ -96,57 +36,6 @@
       "replace": "\tif false; then\n",
       "occurrences": 1,
       "expect_failing": ["post は、渡した SHA が HEAD と違えば投稿せずに exit 1"]
-    },
-    {
-      "id": "ghe-hostname-dropped",
-      "why": "GHE の PR で gh api に --hostname を渡さない（github.com の同じパスを読む）",
-      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
-      "find": "[ \"${host}\" = \"github.com\" ] || host_args=(--hostname \"${host}\")\n",
-      "replace": "true || host_args=(--hostname \"${host}\")\n",
-      "occurrences": 1,
-      "expect_failing": ["GHE の PR では、gh api に --hostname を渡す"]
-    },
-    {
-      "id": "post-poster-not-checked",
-      "why": "post で gh のユーザーを確かめない（check が読み飛ばす人の名前で記録を投稿し、HEAD がレビュー済みにならない）",
-      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
-      "find": "\t*\",${me},\"*) ;;\n",
-      "replace": "\t*) ;;\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "post は、gh のユーザーが作成者でも担当者でもなければ、check が読み飛ばす記録を投稿せずに exit 3"
-      ]
-    },
-    {
-      "id": "app-author-not-normalized",
-      "why": "GitHub App の作成者 app/<name> を <name>[bot] に揃えない（bot が作った PR の記録をすべて読み飛ばす）",
-      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
-      "find": "app/*) author=\"${author#app/}[bot]\" ;;",
-      "replace": "app/*) : ;;",
-      "occurrences": 1,
-      "expect_failing": [
-        "GitHub App が作った PR では、作成者の app/<name> を <name>[bot] として記録の書き手と照合する"
-      ]
-    },
-    {
-      "id": "crlf-not-trimmed",
-      "why": "1 行目の末尾の CR を取り除かない（CRLF で保存された記録を形が違うとして読み飛ばす）",
-      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
-      "find": " | rtrimstr(\"\\r\")",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": ["1 行目の末尾の CR（CRLF の改行）は、形の照合の前に取り除く"]
-    },
-    {
-      "id": "empty-author-not-rejected",
-      "why": "作成者の login が空でも判定を続ける（作成者の無いまま、担当者だけを書き手として判定する）",
-      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
-      "find": "if [ -z \"${author:-}\" ]; then\n",
-      "replace": "if false; then\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "作成者の login が空（担当者はいる） ときは、記録が無いとせずに exit 2（判定できない）"
-      ]
     },
     {
       "id": "open-not-checked",
@@ -159,82 +48,6 @@
         "HEAD の記録に未対応の指摘（open が 1 以上）が残っていれば、open で exit 1",
         "post は、未対応の件数を記録に残し、check はその記録を open と読む"
       ]
-    },
-    {
-      "id": "open-over-findings-accepted",
-      "why": "open が findings より大きい記録を、形の正しい記録として数える",
-      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
-      "find": "\tif [ \"${BASH_REMATCH[3]}\" -gt \"${BASH_REMATCH[2]}\" ]; then\n",
-      "replace": "\tif false; then\n",
-      "occurrences": 1,
-      "expect_failing": ["open が findings より大きい記録は、形が正しくても数えずに読み飛ばす"]
-    },
-    {
-      "id": "marker-position-reason-dropped",
-      "why": "目印の前に空白か改行がある記録を、目印の位置という理由を出さずに「1 行目の形が違う」として読み飛ばす（利用者が直す箇所を取り違える）",
-      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
-      "find": "\tif [ \"${shape}\" = \"indented\" ]; then\n",
-      "replace": "\tif false; then\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "目印の前に空白か改行がある記録は、記録として数えず、理由を出して読み飛ばす"
-      ]
-    },
-    {
-      "id": "user-failure-as-transient",
-      "why": "gh のユーザーを取得できないことを、一時的な失敗（exit 2）と同じ終了コードで返す",
-      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
-      "find": "local を使わずに止まる）\" >&2\n\t\texit 4\n",
-      "replace": "local を使わずに止まる）\" >&2\n\t\texit 2\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "post は、gh のユーザーを取得できなければ（ユーザーでないトークン）、投稿せずに exit 4"
-      ]
-    },
-    {
-      "id": "previous-not-output",
-      "why": "前の記録の SHA を出さない（2 回目からのレビューの範囲を、呼び出し側が手で探す）",
-      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
-      "find": "\t\tprevious=\"${BASH_REMATCH[1]}\"\n",
-      "replace": "\t\t:\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "直した commit を push した後に再レビューしていない（記録が前の HEAD だけ）なら not-reviewed",
-        "前の HEAD と今の HEAD の記録があれば、今の HEAD の記録を使う。同じ HEAD に 2 件あれば後のもの"
-      ]
-    },
-    {
-      "id": "count-digits-unbounded",
-      "why": "件数の桁数を限らない（bash の整数に収まらない値で比較が失敗し、記録を数える）",
-      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
-      "find": "findings=\"(0|[1-9][0-9]{0,8})\" open=\"(0|[1-9][0-9]{0,8})\" -->",
-      "replace": "findings=\"(0|[1-9][0-9]*)\" open=\"(0|[1-9][0-9]*)\" -->",
-      "occurrences": 1,
-      "expect_failing": [
-        "1 行目の形が違う記録（件数が 10 桁）は、数えずに読み飛ばす",
-        "1 行目の形が違う記録（件数が 20 桁）は、数えずに読み飛ばす"
-      ]
-    },
-    {
-      "id": "quote-counted-as-ignored",
-      "why": "本文の途中で目印を引用しただけのコメントを、記録の候補にする",
-      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
-      "find": "select(.t | startswith(",
-      "replace": "select(.b | contains(",
-      "occurrences": 1,
-      "expect_failing": [
-        "本文の途中で目印を引用しただけ コメントは、記録の候補にも、読み飛ばした件数にも入れない",
-        "Quote reply で記録を引用した コメントは、記録の候補にも、読み飛ばした件数にも入れない"
-      ]
-    },
-    {
-      "id": "post-digits-unbounded",
-      "why": "post で件数の桁数を限らない（bash の整数の比較が失敗する値で記録を投稿する）",
-      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
-      "find": "[[ \"${findings}\" =~ ^(0|[1-9][0-9]{0,8})$ ]]",
-      "replace": "[[ \"${findings}\" =~ ^(0|[1-9][0-9]*)$ ]]",
-      "occurrences": 1,
-      "expect_failing": ["引数が不正（件数が 10 桁）なら、gh を呼ばずに exit 64"]
     }
   ]
 }

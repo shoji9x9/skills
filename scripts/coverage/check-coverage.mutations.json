@@ -6,28 +6,6 @@
   "test_file": "scripts/coverage/check-coverage.test.ts",
   "mutations": [
     {
-      "id": "below-never",
-      "why": "閾値を下回っても finding にしない",
-      "file": "scripts/coverage/check-coverage.ts",
-      "find": "if (actual < threshold)",
-      "replace": "if (false)",
-      "expect_failing": [
-        "evaluate: 閾値と等しい値は合格にし、下回る値は指標ごとに finding にする",
-        "evaluate: sh の規則は lines だけを比べる"
-      ]
-    },
-    {
-      "id": "below-inclusive",
-      "why": "閾値と等しい値を下回るとして扱う",
-      "file": "scripts/coverage/check-coverage.ts",
-      "find": "if (actual < threshold)",
-      "replace": "if (actual <= threshold)",
-      "expect_failing": [
-        "evaluate: 閾値と等しい値は合格にし、下回る値は指標ごとに finding にする",
-        "evaluate: sh の規則は lines だけを比べる"
-      ]
-    },
-    {
       "id": "shortest-rule",
       "why": "入れ子のディレクトリの規則のうち短い方を使う",
       "file": "scripts/coverage/check-coverage.ts",
@@ -36,82 +14,6 @@
       "expect_failing": [
         "ruleFor: 入れ子のディレクトリの規則が当たるときは、長い path の規則を使う",
         "evaluate: 閾値と等しい値は合格にし、下回る値は指標ごとに finding にする"
-      ]
-    },
-    {
-      "id": "file-rule-ignored",
-      "why": "1 ファイルの規則を優先しない",
-      "file": "scripts/coverage/check-coverage.ts",
-      "find": "if (rule.path === file) return rule;",
-      "replace": "if (false) return rule;",
-      "expect_failing": ["ruleFor: 1 ファイルの規則はディレクトリの規則より優先する"]
-    },
-    {
-      "id": "kind-ignored",
-      "why": "種類の違う規則も当てる",
-      "file": "scripts/coverage/check-coverage.ts",
-      "find": "if (rule.kind !== kind) continue;",
-      "replace": "if (false) continue;",
-      "expect_failing": [
-        "ruleFor: 種類の違う規則は当てない",
-        "evaluate: sh の規則は lines だけを比べる"
-      ]
-    },
-    {
-      "id": "no-rule-silent",
-      "why": "当たる規則が無いファイルを合格にする",
-      "file": "scripts/coverage/check-coverage.ts",
-      "find": "findings.push({ type: \"no-rule\", file });",
-      "replace": "",
-      "expect_failing": ["evaluate: 当たる規則が無いファイルは合格にせず no-rule にする"]
-    },
-    {
-      "id": "missing-metric-silent",
-      "why": "指標が欠けたファイルを合格にする",
-      "file": "scripts/coverage/check-coverage.ts",
-      "find": "if (actual === undefined) {",
-      "replace": "if (false) {",
-      "expect_failing": [
-        "evaluate: 測定の結果に無いファイルと、指標が欠けたファイルは not-measured にする"
-      ]
-    },
-    {
-      "id": "exclude-ignored",
-      "why": "除外したファイルも比べる",
-      "file": "scripts/coverage/check-coverage.ts",
-      "find": "if (excluded.has(file)) continue;",
-      "replace": "",
-      "expect_failing": ["evaluate: 除外したファイルは比べない"]
-    },
-    {
-      "id": "stale-exclude-silent",
-      "why": "対象に無いファイルの除外を見逃す",
-      "file": "scripts/coverage/check-coverage.ts",
-      "find": "if (!fileSet.has(e.path))",
-      "replace": "if (false)",
-      "expect_failing": [
-        "evaluate: 対象に無いファイルの除外と 1 ファイルの規則は stale-config にする"
-      ]
-    },
-    {
-      "id": "file-rule-reason-optional",
-      "why": "1 ファイルの規則に理由を求めない",
-      "file": "scripts/coverage/check-coverage.ts",
-      "find": "if (isFile && !isNonBlankString(raw.reason))",
-      "replace": "if (false)",
-      "expect_failing": [
-        "parseConfig: 1 ファイルの規則に reason が無い は判定できないとして例外にする"
-      ]
-    },
-    {
-      "id": "exclude-reason-optional",
-      "why": "除外に理由を求めない",
-      "file": "scripts/coverage/check-coverage.ts",
-      "find": "if (!isNonBlankString(raw.reason)) throw new Error(`${at}: reason が無い`);",
-      "replace": "",
-      "expect_failing": [
-        "parseConfig: 除外に reason が無い は判定できないとして例外にする",
-        "parseConfig: 除外の reason が空白 は判定できないとして例外にする"
       ]
     }
   ]

@@ -180,7 +180,7 @@ describe("box-folder.sh", () => {
 
   // id が PATH に無いと登録を確かめられないので、box-folder.sh は ~ の展開に戻し、人ごとの層を本物のホームの下に置く。
   // 本物のホームにファイルを置けないので、決めた置き場所（xdg）を bash -x の出力で確かめる（setup の PATH に id は無い）。
-  // シェルのカバレッジの測定は BASH_ENV で xtrace の出力先と PS4 を変えるので、この実行には coverageEnv を渡さない。
+  // 親の環境の BASH_ENV と PS4 が bash -x の出力を変えないよう、環境は PATH・HOME・XDG_CONFIG_HOME だけで組み立てる。
   test("HOME が空で id が PATH に無ければ、~ の展開で決めたホームの下を人ごとの層にする", () => {
     const s = setup({ node: false });
     const r = spawnSync(BASH, ["-x", SCRIPT], {

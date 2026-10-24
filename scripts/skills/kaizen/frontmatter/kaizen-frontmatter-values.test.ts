@@ -12,7 +12,6 @@ import { copyFileSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, expect, test } from "vitest";
 import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
-import { coverageEnv } from "../../../lib/testing/coverage-env.ts";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import {
   ambiguousNote,
@@ -93,7 +92,7 @@ test("呼び出し側の IFS に関わらず、指定したキーを読む", () 
       lib,
       join(dir, ".kaizen", NOTE_NAME),
     ],
-    { encoding: "utf8", timeout: CHILD_TIMEOUT_MS, env: { ...process.env, ...coverageEnv() } },
+    { encoding: "utf8", timeout: CHILD_TIMEOUT_MS },
   );
   expect(res.status, res.stderr).toBe(0);
   expect(res.stdout).toBe("pending\ndoc\n");
@@ -111,7 +110,7 @@ test("共通ライブラリを読めないとき、注入は学びを出さず�
   const res = spawnSync("bash", [join(solo, "kaizen-context-inject.sh")], {
     timeout: CHILD_TIMEOUT_MS,
     cwd: dir,
-    env: { ...process.env, CLAUDE_PROJECT_DIR: dir, ...coverageEnv() },
+    env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
     encoding: "utf8",
     input: "",
   });

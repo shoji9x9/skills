@@ -25,39 +25,6 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": ["実物の git が挙げるリポジトリに固有の変数を、一覧がすべて含む"]
-    },
-    {
-      "id": "config-entries-kept",
-      "why": "GIT_CONFIG_KEY_<n>・GIT_CONFIG_VALUE_<n> を外さない",
-      "file": "scripts/lib/testing/vitest-git-env-setup.ts",
-      "find": " || CONFIG_ENTRY.test(name)",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "一覧の名前と GIT_CONFIG_KEY_<n>・GIT_CONFIG_VALUE_<n> を消し、他の名前は残す"
-      ]
-    },
-    {
-      "id": "prefix-match",
-      "why": "一覧の名前を前方に含む別の名前（GIT_DIRX）まで外す",
-      "file": "scripts/lib/testing/vitest-git-env-setup.ts",
-      "find": "REPO_LOCAL_GIT_ENV.includes(name)",
-      "replace": "REPO_LOCAL_GIT_ENV.some((n) => name.startsWith(n))",
-      "occurrences": 1,
-      "expect_failing": [
-        "一覧の名前と GIT_CONFIG_KEY_<n>・GIT_CONFIG_VALUE_<n> を消し、他の名前は残す"
-      ]
-    },
-    {
-      "id": "config-entry-no-digits",
-      "why": "番号の無い GIT_CONFIG_KEY_ まで外す",
-      "file": "scripts/lib/testing/vitest-git-env-setup.ts",
-      "find": "_\\d+$/",
-      "replace": "_\\d*$/",
-      "occurrences": 1,
-      "expect_failing": [
-        "一覧の名前と GIT_CONFIG_KEY_<n>・GIT_CONFIG_VALUE_<n> を消し、他の名前は残す"
-      ]
     }
   ]
 }

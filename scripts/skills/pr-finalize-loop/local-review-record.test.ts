@@ -29,7 +29,6 @@ import {
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
-import { coverageEnv } from "../../lib/testing/coverage-env.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
@@ -133,7 +132,6 @@ function run(dir: string, args: string[]) {
       PATH: `${join(dir, "bin")}:${process.env.PATH}`,
       HOME: dir,
       FAKE_GH_DIR: dir,
-      ...coverageEnv(),
     },
   });
   const out = Object.fromEntries(

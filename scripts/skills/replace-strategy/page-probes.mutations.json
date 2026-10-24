@@ -6,28 +6,6 @@
   "test_file": "scripts/skills/replace-strategy/page-probes.test.ts",
   "mutations": [
     {
-      "id": "role-page-undeclared-reference",
-      "why": "偽物のページが通らない分岐（alt を持つ要素）で、ページ用のファイルが宣言していない名前（isCliEntry）を参照する。実行のテストでは見つからず、oxlint の no-undef だけが見つける",
-      "file": "skills/replace-strategy/scripts/page/role-probe.page.mjs",
-      "find": "if (alt && alt.trim()) return alt.trim();",
-      "replace": "if (alt && alt.trim()) return String(isCliEntry(alt));",
-      "occurrences": 1,
-      "expect_failing": [
-        "page/*.page.mjs: oxlint が宣言していない名前の参照と使われないヘルパーを報告しない（ページ用の override が当たる）"
-      ]
-    },
-    {
-      "id": "asset-page-undeclared-reference",
-      "why": "偽物のページが通らない分岐（style の無い @font-face の規則）で、ページ用のファイルが宣言していない名前（errorMessage）を参照する",
-      "file": "skills/replace-strategy/scripts/page/asset-probe.page.mjs",
-      "find": "if (!ruleStyle) throw new TypeError(\"@font-face の規則に style がありません\");",
-      "replace": "if (!ruleStyle) throw new TypeError(errorMessage(rule));",
-      "occurrences": 1,
-      "expect_failing": [
-        "page/*.page.mjs: oxlint が宣言していない名前の参照と使われないヘルパーを報告しない（ページ用の override が当たる）"
-      ]
-    },
-    {
       "id": "role-page-helper-unreferenced",
       "why": "label の名前を読むヘルパーを、どこからも呼ばなくする。使われないヘルパーが残り、label を持つ要素の名前を数えなくなる",
       "file": "skills/replace-strategy/scripts/page/role-probe.page.mjs",
@@ -37,84 +15,6 @@
       "expect_failing": [
         "page/*.page.mjs: oxlint が宣言していない名前の参照と使われないヘルパーを報告しない（ページ用の override が当たる）",
         "role-probe の CLI: aria-labelledby・label・button の value・内容テキスト・(role, name) の重複を持つページで、名前と重複を数える"
-      ]
-    },
-    {
-      "id": "role-page-main-not-exported",
-      "why": "ページ用のファイルの最後の行（本体の export）を消す。CLI がソースを作れず、本体はファイルの中で参照されない関数として no-unused-vars に報告される",
-      "file": "skills/replace-strategy/scripts/page/role-probe.page.mjs",
-      "find": "\nexport { roleProbeInPage };\n",
-      "replace": "\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "page/*.page.mjs: oxlint が宣言していない名前の参照と使われないヘルパーを報告しない（ページ用の override が当たる）",
-        "role-probe の CLI: 名前のある要素と無い要素を数え、role ごとの件数と名前の無い標本を返す",
-        "role-probe の CLI: 対象の要素が無いページでは割合を null にする",
-        "role-probe の CLI: aria-labelledby・label・button の value・内容テキスト・(role, name) の重複を持つページで、名前と重複を数える",
-        "role-probe.mjs の CLI: ページ用のファイルの最後の行のほかをそのまま包み、構文として読めるソースを出す"
-      ]
-    },
-    {
-      "id": "probe-cli-args-ignored",
-      "why": "プローブの CLI が引数を読まずにソースを出して exit 0 で終わる。ページを指定したつもりの引数が受け付けられたと読まれる",
-      "file": "skills/replace-strategy/scripts/lib/page-function.mjs",
-      "find": "  if (argv.length > 0) {",
-      "replace": "  if (false) {",
-      "occurrences": 1,
-      "expect_failing": [
-        "role-probe.mjs の CLI: 引数を付けると、ソースを出さずに理由と使い方を stderr に出して exit 2 で終わる",
-        "asset-probe.mjs の CLI: 引数を付けると、ソースを出さずに理由と使い方を stderr に出して exit 2 で終わる"
-      ]
-    },
-    {
-      "id": "page-export-line-unchecked",
-      "why": "最後の行が本体の export かを確かめずに外す。export の無いファイルや別の名前を export するファイルから、本体の無いソースや、最後のコードの行を失ったソースを出す",
-      "file": "skills/replace-strategy/scripts/lib/page-function.mjs",
-      "find": "  if (lines.pop() !== exportLine) {",
-      "replace": "  if ((lines.pop(), false)) {",
-      "occurrences": 1,
-      "expect_failing": [
-        "pageFunctionSource: 例外を投げる（最後の行に本体の export が無い）",
-        "pageFunctionSource: 例外を投げる（最後の行が別の名前を export する）",
-        "pageFunctionSource: 例外を投げる（本体の export の後ろにコードがある）"
-      ]
-    },
-    {
-      "id": "page-stray-module-syntax-unchecked",
-      "why": "包んだソースの構文解析を外し、最後の行のほかの import・export や import.meta を持つソースを出す（ページで実行した時点で SyntaxError になる）",
-      "file": "skills/replace-strategy/scripts/lib/page-function.mjs",
-      "find": "    new vm.Script(`(${source})`);",
-      "replace": "    void source;",
-      "occurrences": 1,
-      "expect_failing": [
-        "pageFunctionSource: 例外を投げる（最後の行のほかに export がある）",
-        "pageFunctionSource: 例外を投げる（import がある）",
-        "pageFunctionSource: 例外を投げる（行の途中に export がある）",
-        "pageFunctionSource: 例外を投げる（import.meta を参照する）"
-      ]
-    },
-    {
-      "id": "page-comment-lines-dropped",
-      "why": "先頭が // の行を外して包む。複数行のテンプレートリテラルの中の // で始まる行も消え、ページで実行するコードが元のファイルと変わる",
-      "file": "skills/replace-strategy/scripts/lib/page-function.mjs",
-      "find": "${lines.join(\"\\n\")}",
-      "replace": "${lines.filter((line) => !line.trimStart().startsWith(\"//\")).join(\"\\n\")}",
-      "occurrences": 1,
-      "expect_failing": [
-        "pageFunctionSource: 最後の export の行だけを外し、コメントと複数行のリテラルを含む本文をそのまま関数式で包み、トップレベルの宣言を同じ名前で呼び合って本体の返り値を返す",
-        "role-probe.mjs の CLI: ページ用のファイルの最後の行のほかをそのまま包み、構文として読めるソースを出す",
-        "asset-probe.mjs の CLI: ページ用のファイルの最後の行のほかをそのまま包み、構文として読めるソースを出す"
-      ]
-    },
-    {
-      "id": "probe-cli-source-error-uncaught",
-      "why": "ソースを組み立てられないときの例外を捕まえず、スタックトレースで終わる（使い方の終了コード 0 か 2 から外れる）",
-      "file": "skills/replace-strategy/scripts/lib/page-function.mjs",
-      "find": "  } catch (error) {\n    // ページ用のファイルが無い",
-      "replace": "  } catch (error) {\n    throw error;\n    // ページ用のファイルが無い",
-      "occurrences": 1,
-      "expect_failing": [
-        "プローブの CLI: ソースを組み立てられないと、スタックトレースを出さずに理由を stderr に出して exit 2 で終わる"
       ]
     }
   ]

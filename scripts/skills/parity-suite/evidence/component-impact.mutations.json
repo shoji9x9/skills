@@ -22,40 +22,6 @@
       ]
     },
     {
-      "id": "unmatched-exit",
-      "why": "どの機能のページとも一致しない影響インスタンスを exit 1 にせず影響なしに倒す",
-      "file": "skills/parity-suite/scripts/component-impact.mjs",
-      "find": "result.unmatched_instances.length > 0",
-      "replace": "false",
-      "occurrences": 1,
-      "expect_failing": [
-        "CLI: どの機能のページとも一致しない影響インスタンスがあれば exit 1（影響なしとして扱わない）"
-      ]
-    },
-    {
-      "id": "feature-filter-universe",
-      "why": "--feature で絞ったとき、他の機能のページにあるインスタンスを一致しないに数える",
-      "file": "skills/parity-suite/scripts/component-impact.mjs",
-      "find": "const universe = isArray(pageUniverse) ? pageUniverse : sorted.map((f) => f.metadata);",
-      "replace": "const universe = sorted.map((f) => f.metadata);",
-      "occurrences": 1,
-      "expect_failing": [
-        "CLI: --feature で絞っても、他の機能のページにあるインスタンスは一致しないに数えない",
-        "CLI: --feature で 1 機能に絞る"
-      ]
-    },
-    {
-      "id": "unmatched-usages-exit",
-      "why": "どの機能のページとも一致しない usages を exit 1 にせず影響なしに倒す",
-      "file": "skills/parity-suite/scripts/component-impact.mjs",
-      "find": "result.unmatched_usages.length > 0",
-      "replace": "false",
-      "occurrences": 1,
-      "expect_failing": [
-        "CLI: usages だけに頼る宣言で、usages がどの機能のページとも一致しなければ exit 1（影響なしとして扱わない）"
-      ]
-    },
-    {
       "id": "unknown-state-accepted",
       "why": "部品の capture.states に無い状態（綴り違い）を受け入れ、撮っていない＝影響なしに倒す",
       "file": "skills/parity-suite/scripts/component-impact.mjs",

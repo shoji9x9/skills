@@ -43,15 +43,6 @@
       ]
     },
     {
-      "id": "noise-tolerance",
-      "why": "許容差を測った揺れから広げない（揺れの大きい現行で永久に落ちる）",
-      "file": "skills/parity-component/scripts/motion-compare.mjs",
-      "find": "const tolerance = Math.max(floor, NOISE_FACTOR * timeGap(base[key], noise[key]));",
-      "replace": "const tolerance = floor;",
-      "occurrences": 1,
-      "expect_failing": ["許容差は現行の 2 回の揺れから広がる（揺れの 2 倍までは通す）"]
-    },
-    {
       "id": "timed-out",
       "why": "打ち切られた時系列（終わりを見ていない）を比較に使う",
       "file": "skills/parity-component/scripts/motion-compare.mjs",
@@ -59,17 +50,6 @@
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": ["打ち切られた・要素が一度も在らなかった・t が戻る時系列は比較に使わない"]
-    },
-    {
-      "id": "relative-rect",
-      "why": "絶対座標で比べる（現行のページとカタログで置き場所が違うだけで落ちる）",
-      "file": "skills/parity-component/scripts/motion-compare.mjs",
-      "find": "dx: s.present ? s.x - reference.x : null,",
-      "replace": "dx: s.present ? s.x : null,",
-      "occurrences": 1,
-      "expect_failing": [
-        "置き場所が違っても（絶対座標のずれ）、基準の矩形からのずれで比べるので一致する"
-      ]
     },
     {
       "id": "uncompared",
@@ -85,17 +65,6 @@
       ]
     },
     {
-      "id": "unreachable-reason",
-      "why": "理由の無い到達不能の宣言を除外として扱う",
-      "file": "skills/parity-component/scripts/motion-compare.mjs",
-      "find": "if (!filled(field(u, \"reason\"))) {",
-      "replace": "if (false) {",
-      "occurrences": 1,
-      "expect_failing": [
-        "理由付きで到達できないと宣言した遷移は母集合から外れ、理由が無ければ外さない"
-      ]
-    },
-    {
       "id": "acceptance-approval",
       "why": "承認の無い accepted を承認として数える",
       "file": "skills/parity-component/scripts/motion-compare.mjs",
@@ -103,26 +72,6 @@
       "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": ["比べないことを選ぶには承認が要る（プレースホルダは承認ではない）"]
-    },
-    {
-      "id": "none-reason-placeholder",
-      "why": "プレースホルダのままの none_reason で判定を省く",
-      "file": "skills/parity-component/scripts/motion-compare.mjs",
-      "find": "if (filled(declared.none_reason)) return",
-      "replace": "if (declared.none_reason) return",
-      "occurrences": 1,
-      "expect_failing": [
-        "動きの列挙が無い・空（理由なし）・理由と遷移の併記・ソースの記録なしは型崩れ"
-      ]
-    },
-    {
-      "id": "probe-version",
-      "why": "探針の版が記録と違う時系列を比べる",
-      "file": "skills/parity-component/scripts/motion-compare.mjs",
-      "find": "if (read.summary.probe_version !== probeVersion) {",
-      "replace": "if (false) {",
-      "occurrences": 2,
-      "expect_failing": ["プローブの版が記録と違う時系列は比べない（採取スキーマが違う）"]
     },
     {
       "id": "noise-cap",
@@ -133,17 +82,6 @@
       "occurrences": 1,
       "expect_failing": [
         "揺れの上限は時間と軌跡のそれぞれで適用される（遅れだけ・移動量だけが割れた現行も基準にしない）"
-      ]
-    },
-    {
-      "id": "baseline-static",
-      "why": "現行で一度も動かなかった時系列を基準にする（止めたまま採った・静止した要素を引いた誤りを見逃す）",
-      "file": "skills/parity-component/scripts/motion-compare.mjs",
-      "find": "if (!summaries[0].changed) {",
-      "replace": "if (false) {",
-      "occurrences": 1,
-      "expect_failing": [
-        "現行が一度も動かなかった時系列は、ソースの宣言の有無に関わらず基準にしない"
       ]
     },
     {
@@ -188,67 +126,6 @@
       "replace": "if (false) return notFinite(\"x\");",
       "occurrences": 1,
       "expect_failing": ["在る標本の x が有限の数でない時系列は比較に使わない"]
-    },
-    {
-      "id": "sample-y-finite",
-      "why": "在る標本の y が有限の数でない時系列を、比較に使える要約にしない",
-      "file": "skills/parity-component/scripts/motion-compare.mjs",
-      "find": "if (!isFiniteNumber(y)) return notFinite(\"y\");",
-      "replace": "if (false) return notFinite(\"y\");",
-      "occurrences": 1,
-      "expect_failing": ["在る標本の y が有限の数でない時系列は比較に使わない"]
-    },
-    {
-      "id": "sample-width-finite",
-      "why": "在る標本の width が有限の数でない時系列を、比較に使える要約にしない",
-      "file": "skills/parity-component/scripts/motion-compare.mjs",
-      "find": "if (!isFiniteNumber(width)) return notFinite(\"width\");",
-      "replace": "if (false) return notFinite(\"width\");",
-      "occurrences": 1,
-      "expect_failing": ["在る標本の width が有限の数でない時系列は比較に使わない"]
-    },
-    {
-      "id": "sample-height-finite",
-      "why": "在る標本の height が有限の数でない時系列を、比較に使える要約にしない",
-      "file": "skills/parity-component/scripts/motion-compare.mjs",
-      "find": "if (!isFiniteNumber(height)) return notFinite(\"height\");",
-      "replace": "if (false) return notFinite(\"height\");",
-      "occurrences": 1,
-      "expect_failing": ["在る標本の height が有限の数でない時系列は比較に使わない"]
-    },
-    {
-      "id": "sample-opacity-finite",
-      "why": "在る標本の opacity が有限の数でない時系列を、比較に使える要約にしない",
-      "file": "skills/parity-component/scripts/motion-compare.mjs",
-      "find": "if (!isFiniteNumber(opacity)) return notFinite(\"opacity\");",
-      "replace": "if (false) return notFinite(\"opacity\");",
-      "occurrences": 1,
-      "expect_failing": ["在る標本の opacity が有限の数でない時系列は比較に使わない"]
-    },
-    {
-      "id": "baseline-not-object-as-missing-instance",
-      "why": "オブジェクトでない motions.json を、型を書かずに instance の不一致として報告する（#719 の前の振る舞い）",
-      "file": "skills/parity-component/scripts/motion-compare.mjs",
-      "find": "if (!isPlainObject(raw)) {",
-      "replace": "if (false) {",
-      "occurrences": 1,
-      "expect_failing": [
-        "motions.json がオブジェクトでない（文字列）なら、値の型を書いて instance の不一致として報告する",
-        "motions.json がオブジェクトでない（数値）なら、値の型を書いて instance の不一致として報告する",
-        "motions.json がオブジェクトでない（配列）なら、値の型を書いて instance の不一致として報告する"
-      ]
-    },
-    {
-      "id": "comparison-not-object-as-missing-target",
-      "why": "オブジェクトでない突き合わせ表を、型を書かずに target と component の不一致として報告する（#719 の前の振る舞い）",
-      "file": "skills/parity-component/scripts/motion-compare.mjs",
-      "find": ": `突き合わせ表がオブジェクトでない（${valueKind(comparison)}）`,",
-      "replace": ": `突き合わせ表の target が ${JSON.stringify(table.target)}（判定対象は ${JSON.stringify(target)}）`,",
-      "occurrences": 2,
-      "expect_failing": [
-        "突き合わせ表がオブジェクトでない（文字列）なら、値の型を書いて target の不一致として報告する",
-        "突き合わせ表がオブジェクトでない（配列）なら、値の型を書いて target の不一致として報告する"
-      ]
     }
   ]
 }

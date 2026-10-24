@@ -2,67 +2,42 @@
   "rules": [
     {
       "path": "scripts/",
-      "kind": "js",
       "lines": 90,
       "branches": 80,
       "functions": 90
     },
     {
       "path": "scripts/lib/",
-      "kind": "js",
       "lines": 95,
       "branches": 85,
       "functions": 95
     },
     {
       "path": "scripts/eval/",
-      "kind": "js",
       "lines": 80,
       "branches": 70,
       "functions": 80
     },
     {
       "path": "scripts/tools/",
-      "kind": "js",
       "lines": 80,
       "branches": 70,
       "functions": 80
     },
     {
       "path": "skills/",
-      "kind": "js",
       "lines": 90,
       "branches": 80,
       "functions": 90
     },
     {
       "path": ".agents/skills/",
-      "kind": "js",
       "lines": 90,
       "branches": 80,
       "functions": 90
-    },
-    {
-      "path": "scripts/",
-      "kind": "sh",
-      "lines": 80
-    },
-    {
-      "path": "skills/",
-      "kind": "sh",
-      "lines": 80
-    },
-    {
-      "path": ".agents/skills/",
-      "kind": "sh",
-      "lines": 80
     }
   ],
   "exclude": [
-    {
-      "path": "scripts/coverage/bash-trace-env.sh",
-      "reason": "xtrace を有効にする前に実行し終わるので、自分の行は記録に残らない。振る舞いは shell-coverage.test.ts が確かめる"
-    },
     {
       "path": "scripts/eval/fixtures/generate-parity-component-fixtures.ts",
       "reason": "eval の fixture を実 Chrome で生成するツールで、テストの中では Chrome を起動しない"

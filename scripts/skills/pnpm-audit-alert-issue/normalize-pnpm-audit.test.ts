@@ -23,7 +23,6 @@ import {
   normalizeAudit,
 } from "../../../.agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
-import { coverageEnv } from "../../lib/testing/coverage-env.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
@@ -694,7 +693,7 @@ describe("CLI", () => {
   function run(args: string[]) {
     return spawnSync(process.execPath, [script, ...args], {
       encoding: "utf8",
-      env: { PATH: process.env.PATH ?? "", ...coverageEnv() },
+      env: { PATH: process.env.PATH ?? "" },
       timeout: 20_000,
     });
   }
@@ -782,7 +781,7 @@ describe("CLI", () => {
 
     const result = spawnSync(process.execPath, [viaLink], {
       encoding: "utf8",
-      env: { PATH: process.env.PATH ?? "", ...coverageEnv() },
+      env: { PATH: process.env.PATH ?? "" },
       timeout: 20_000,
     });
 

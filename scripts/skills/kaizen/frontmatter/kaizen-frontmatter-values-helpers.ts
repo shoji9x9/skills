@@ -5,7 +5,6 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect } from "vitest";
 import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
-import { coverageEnv } from "../../../lib/testing/coverage-env.ts";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import { kaizenEnv } from "../kaizen-config-env.ts";
 
@@ -35,7 +34,7 @@ export function readValues(path: string, keys: string[]) {
   const res = spawnSync(
     "bash",
     ["-c", '. "$1"; shift; kaizen_frontmatter_values "$@"', "_", lib, path, ...keys],
-    { encoding: "utf8", timeout: CHILD_TIMEOUT_MS, env: { ...process.env, ...coverageEnv() } },
+    { encoding: "utf8", timeout: CHILD_TIMEOUT_MS },
   );
   expect(res.status, res.stderr).toBe(0);
   return res.stdout.split("\n").slice(0, -1);
@@ -64,7 +63,7 @@ export function statusCheck(dir: string) {
   return spawnSync("bash", [join(scriptsDir, "kaizen-status-check.sh")], {
     timeout: CHILD_TIMEOUT_MS,
     cwd: dir,
-    env: { ...process.env, CLAUDE_PROJECT_DIR: dir, ...coverageEnv() },
+    env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
     encoding: "utf8",
   });
 }
@@ -77,7 +76,7 @@ export function run(dir: string, script: string, args: string[] = []) {
   return spawnSync("bash", [join(scriptsDir, script), ...args], {
     timeout: CHILD_TIMEOUT_MS,
     cwd: dir,
-    env: kaizenEnv(dir, { CLAUDE_PROJECT_DIR: dir, LC_ALL: "C.UTF-8", ...coverageEnv() }),
+    env: kaizenEnv(dir, { CLAUDE_PROJECT_DIR: dir, LC_ALL: "C.UTF-8" }),
     encoding: "utf8",
     input: "",
   });

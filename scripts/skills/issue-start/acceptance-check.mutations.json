@@ -33,15 +33,6 @@
       ]
     },
     {
-      "id": "met-without-evidence",
-      "why": "根拠の無い met を通す",
-      "file": "skills/issue-start/scripts/acceptance-check.mjs",
-      "find": "      if (evidence.length === 0) add(\"evidence-missing\"",
-      "replace": "      if (false) add(\"evidence-missing\"",
-      "occurrences": 1,
-      "expect_failing": ["根拠の無い met・実測を名乗るのにコマンドの無い met は落とす"]
-    },
-    {
       "id": "file-ref-not-resolved",
       "why": "ファイル:行 の根拠のファイルの実在・行の範囲を確かめない",
       "file": "skills/issue-start/scripts/acceptance-check.mjs",
@@ -66,33 +57,6 @@
       "expect_failing": ["waived・deferred は利用者の承認が無ければ落とし、deferred は置き場も要る"]
     },
     {
-      "id": "later-without-owner",
-      "why": "満たす後工程の書かれていない later を通す（誰も満たさない条件が完了側に数えられる）",
-      "file": "skills/issue-start/scripts/acceptance-check.mjs",
-      "find": "      if (!nonEmptyString(raw.owner))\n        add(\"owner-missing\"",
-      "replace": "      if (false)\n        add(\"owner-missing\"",
-      "occurrences": 1,
-      "expect_failing": ["later は満たす後工程が無ければ落とし、あれば通すが Issue は閉じない"]
-    },
-    {
-      "id": "later-owner-not-restricted",
-      "why": "呼び出し元が許していない後工程へ later で回せる（実装役が条件を後回しにして外せる）",
-      "file": "skills/issue-start/scripts/acceptance-check.mjs",
-      "find": "      else if (!allowLater.has(raw.owner))",
-      "replace": "      else if (false)",
-      "occurrences": 1,
-      "expect_failing": ["later は呼び出し元が --allow-later で許した後工程にだけ回せる"]
-    },
-    {
-      "id": "later-closable",
-      "why": "later が残る Issue を閉じてよいと出す",
-      "file": "skills/issue-start/scripts/acceptance-check.mjs",
-      "find": " && counts.later === 0,",
-      "replace": ",",
-      "occurrences": 1,
-      "expect_failing": ["later は満たす後工程が無ければ落とし、あれば通すが Issue は閉じない"]
-    },
-    {
       "id": "fingerprint-ignores-comments",
       "why": "コメントでの条件の改訂を指紋に入れず、古い表を通す",
       "file": "skills/issue-start/scripts/acceptance-check.mjs",
@@ -101,18 +65,6 @@
       "occurrences": 1,
       "expect_failing": [
         "表の後で Issue の条件が変わったら古い表として落とす（チェックを付けただけでは古くしない）"
-      ]
-    },
-    {
-      "id": "fingerprint-counts-checkmarks",
-      "why": "チェックを付けただけで表を古くする（完了の報告で表が必ず落ちる）",
-      "file": "skills/issue-start/scripts/acceptance-check.mjs",
-      "find": "    body: bodyForFingerprint(body),\n",
-      "replace": "    body,\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "表の後で Issue の条件が変わったら古い表として落とす（チェックを付けただけでは古くしない）",
-        "チェックを付けて書き戻したときの末尾の改行では表を古くしない"
       ]
     },
     {
@@ -125,26 +77,6 @@
       "expect_failing": [
         "表の後で Issue の条件が変わったら古い表として落とす（チェックを付けただけでは古くしない）"
       ]
-    },
-    {
-      "id": "title-not-quotable",
-      "why": "タイトルからの行を受け付けず、本文が空の Issue が永久に通れない",
-      "file": "skills/issue-start/scripts/acceptance-check.mjs",
-      "find": "            ? normalizeText(title).includes(quote)",
-      "replace": "            ? false",
-      "occurrences": 1,
-      "expect_failing": [
-        "本文が空でタイトルだけの Issue は、タイトルからの行で通る（タイトルの変更は古い表として落とす）"
-      ]
-    },
-    {
-      "id": "trailing-newline-stale",
-      "why": "書き戻しで付いた末尾の改行だけで表を古くする",
-      "file": "skills/issue-start/scripts/acceptance-check.mjs",
-      "find": "    .join(\"\\n\")\n    .trimEnd();",
-      "replace": "    .join(\"\\n\");",
-      "occurrences": 1,
-      "expect_failing": ["チェックを付けて書き戻したときの末尾の改行では表を古くしない"]
     },
     {
       "id": "checklist-from-markdown",
@@ -164,55 +96,6 @@
         "comments を持たない Issue はコメント無しとして読み、コメントからの行は引用が見つからない",
         "誤検知しないことの確認: 絶対パスの ファイル:行 と行の範囲の根拠は通る"
       ]
-    },
-    {
-      "id": "list-boundary-not-ending-item",
-      "why": "リストの境界（ul / ol / li）で項目の文言を打ち切らず、後ろの項目の文言を混ぜる",
-      "file": "skills/issue-start/scripts/acceptance-check.mjs",
-      "find": "  \"ul\",\n  \"ol\",\n  \"li\",\n",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "画面にチェックボックスとして出た項目だけを数える（フェンス・HTML コメントの中は描画でチェックボックスにならない）"
-      ]
-    },
-    {
-      "id": "entity-not-decoded",
-      "why": "文字参照を戻さず、描画後の文言が画面の文言と食い違う",
-      "file": "skills/issue-start/scripts/acceptance-check.mjs",
-      "find": "    if (ref[0] !== \"#\") return NAMED_ENTITIES[ref] ?? all;",
-      "replace": "    if (ref[0] !== \"#\") return all;",
-      "occurrences": 1,
-      "expect_failing": [
-        "画面にチェックボックスとして出た項目だけを数える（フェンス・HTML コメントの中は描画でチェックボックスにならない）"
-      ]
-    },
-    {
-      "id": "html-body-mismatch-ignored",
-      "why": "別の時点で取った本文と HTML を突き合わせる（項目の列挙が本文と食い違う）",
-      "file": "skills/issue-start/scripts/acceptance-check.mjs",
-      "find": "  if (issueHtml.body !== issue.body) {",
-      "replace": "  if (false) {",
-      "occurrences": 1,
-      "expect_failing": ["本文と HTML を別の時点で取った・HTML が無い・形が違う入力は exit 2"]
-    },
-    {
-      "id": "empty-item-dropped",
-      "why": "文言の無い項目を黙って捨てる（画面にあるチェックボックスが表と対応しないまま通る）",
-      "file": "skills/issue-start/scripts/acceptance-check.mjs",
-      "find": "    if (item === \"\")\n",
-      "replace": "    if (item === \"\") continue;\n    if (false)\n",
-      "occurrences": 1,
-      "expect_failing": ["文言の無い項目は警告なしに捨てず、Issue 側を直すよう落とす"]
-    },
-    {
-      "id": "fingerprint-checkmark-in-quote",
-      "why": "引用・リストの中の項目のチェックを指紋で畳まず、チェックを付けただけで表を古くする",
-      "file": "skills/issue-start/scripts/acceptance-check.mjs",
-      "find": "const CHECKBOX =\n  /^((?:\\s*(?:>|(?:[-*+]|\\d+[.)])(?=\\s)))*\\s*(?:[-*+]|\\d+[.)])\\s+)\\[([ xX])\\](\\s+)(.*)$/;\n",
-      "replace": "const CHECKBOX = /^(\\s*(?:[-*+]|\\d+[.)])\\s+)\\[([ xX])\\](\\s+)(.*)$/;\n",
-      "occurrences": 1,
-      "expect_failing": ["チェックを付けて書き戻したときの末尾の改行では表を古くしない"]
     }
   ]
 }

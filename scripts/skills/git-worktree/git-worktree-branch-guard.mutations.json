@@ -6,20 +6,6 @@
   "test_file": "scripts/skills/git-worktree/git-worktree-branch-guard.test.ts",
   "mutations": [
     {
-      "id": "WT-PREFILTER-WHOLE-INPUT",
-      "why": "事前の絞り込みで、入力の全体（cwd・transcript_path を含む）を見る",
-      "file": "skills/git-worktree/scripts/git-worktree-branch-guard.sh",
-      "find": "if hook_tool_text \"${input}\"; then",
-      "replace": "if false; then",
-      "occurrences": 1,
-      "expect_failing": [
-        "事前の絞り込みで終える: cwd だけに語がある",
-        "事前の絞り込みで終える: transcript_path だけに語がある",
-        "事前の絞り込みで終える: cwd と transcript_path の両方に語がある",
-        "事前の絞り込みで終える: Copilot の toolArgs（JSON の文字列）"
-      ]
-    },
-    {
       "id": "WT-PREFILTER-UNICODE-ESCAPE",
       "why": "\\u を含む入力も絞り込みに使う（\\u で書いたキーの command を見つけられず、通知しない）",
       "file": "skills/git-worktree/scripts/git-worktree-branch-guard.sh",

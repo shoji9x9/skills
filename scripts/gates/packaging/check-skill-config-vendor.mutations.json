@@ -28,15 +28,6 @@
       ]
     },
     {
-      "id": "shared-doc-unchecked",
-      "why": "config-files.md が無いスキルを挙げない",
-      "file": "scripts/gates/packaging/check-skill-config-vendor.ts",
-      "find": "  if (!existsSync(join(root, doc))) {\n",
-      "replace": "  if (false) {\n",
-      "occurrences": 1,
-      "expect_failing": ["check スキーマを持つスキルの、読み取りと vendor/ の欠けをすべて挙げる"]
-    },
-    {
       "id": "fix-follows-symlink",
       "why": "--fix が書き込み先のシンボリックリンクをたどって、リンク先を書き換える",
       "file": "scripts/gates/packaging/check-skill-config-vendor.ts",

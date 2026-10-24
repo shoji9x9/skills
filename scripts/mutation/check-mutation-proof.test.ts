@@ -1200,7 +1200,7 @@ require("node:module").syncBuiltinESMExports();
   // `MUTATION_PROOF_CHANGED_FILES` は差分の注入（git を使わずに選択だけを測るため）。
   //
   // **`--changed-since` を測るテストは、必ず `--only` で範囲を限る。**
-  // 選択の判定を常に真にする変異（`CHANGED-HITS`）が入ると、`--only` が無ければ、選ばれた全宣言を測りに行く。
+  // ランナーの選択の判定を常に真にする誤り（変更や変異）が入ると、`--only` が無ければ、選ばれた全宣言を測りに行く。
   // すると入れ子の runner が指数的に増える。
   // 実測では 30 分以上・21 プロセス以上に膨らみ、止めた後の作業ツリーに変異が残った。
   test("差分に当たらない宣言は飛ばし、理由を印字する", async () => {
@@ -1249,53 +1249,64 @@ require("node:module").syncBuiltinESMExports();
     );
   });
 
-  // import-direction.test.ts は run-oxlint.ts を直接は import せず、run-rule.ts を介して使う。
-  // run-oxlint.ts は変異の対象でもなく、名前も -helpers.ts で終わらない。
+  // check-doc-refs.test.ts は doc-scan-files.ts を直接は import せず、check-doc-refs.ts を介して使う。
+  // 中継の check-doc-refs.ts も doc-scan-files.ts も変異の対象ではなく、名前も -helpers.ts で終わらない。
   // そのため、ランナーが import を間接のものまでたどり、選ぶファイルを名前ではなく `scripts/` の下のパスで決めるときだけ、この宣言を選ぶ。
+  // check-doc-refs.mutations.json の残りの変異は #748 が消す pending の処理を狙うので、#748 でこの定義が無くなるときは向け直す。
   test("test_file から間接に import されるファイルが変わったら、その宣言を測る", async () => {
-    const support = "scripts/gates/code/oxlint-plugin/run-oxlint.ts";
-    const res = await runRunner("--changed-since", "origin/main", "--only", "ID-ASSETS", "--list", {
-      MUTATION_PROOF_CHANGED_FILES: support,
-    });
-    expect(res.status, res.out).toBe(0);
-    expect(res.out).toContain(
-      `測る: scripts/gates/code/oxlint-plugin/import-direction.mutations.json（当たった変更: ${support}）`,
-    );
-  });
-
-  // parity-component-fixtures.test.ts は、親のディレクトリの read-json-helpers.ts を `../` で import する。
-  test("test_file が親のディレクトリから import するファイルが変わったら、その宣言を測る", async () => {
-    const support = "scripts/eval/read-json-helpers.ts";
+    const support = "scripts/gates/docs/doc-scan-files.ts";
     const res = await runRunner(
       "--changed-since",
       "origin/main",
       "--only",
-      "shot-contract",
+      "DS-PENDING-MATCH",
       "--list",
       { MUTATION_PROOF_CHANGED_FILES: support },
     );
     expect(res.status, res.out).toBe(0);
     expect(res.out).toContain(
-      `測る: scripts/eval/fixtures/parity-component-fixtures.mutations.json（当たった変更: ${support}）`,
+      `測る: scripts/gates/docs/check-doc-refs.mutations.json（当たった変更: ${support}）`,
     );
   });
 
-  // import-direction.ts は ID-ASSETS の変異の対象で、test_file からも import される。
-  test("変異の対象を test_file も import するとき、当たった変更に 1 回だけ出す", async () => {
-    const target = "scripts/gates/code/oxlint-plugin/import-direction.ts";
-    const res = await runRunner("--changed-since", "origin/main", "--only", "ID-ASSETS", "--list", {
-      MUTATION_PROOF_CHANGED_FILES: target,
-    });
+  // kaizen-schedule-report.test.ts は、親のディレクトリの kaizen-config-env.ts を `../` で import する。
+  test("test_file が親のディレクトリから import するファイルが変わったら、その宣言を測る", async () => {
+    const support = "scripts/skills/kaizen/kaizen-config-env.ts";
+    const res = await runRunner(
+      "--changed-since",
+      "origin/main",
+      "--only",
+      "SR-DEFAULT-ON-BASH",
+      "--list",
+      { MUTATION_PROOF_CHANGED_FILES: support },
+    );
     expect(res.status, res.out).toBe(0);
     expect(res.out).toContain(
-      `測る: scripts/gates/code/oxlint-plugin/import-direction.mutations.json（当たった変更: ${target}）`,
+      `測る: scripts/skills/kaizen/schedule/kaizen-schedule-report.mutations.json（当たった変更: ${support}）`,
+    );
+  });
+
+  // stop-marker.ts は SM-SESSION-UNCHECKED の変異の対象で、test_file からも import される。
+  test("変異の対象を test_file も import するとき、当たった変更に 1 回だけ出す", async () => {
+    const target = "scripts/hooks/stop-marker.ts";
+    const res = await runRunner(
+      "--changed-since",
+      "origin/main",
+      "--only",
+      "SM-SESSION-UNCHECKED",
+      "--list",
+      { MUTATION_PROOF_CHANGED_FILES: target },
+    );
+    expect(res.status, res.out).toBe(0);
+    expect(res.out).toContain(
+      `測る: scripts/hooks/stop-marker.mutations.json（当たった変更: ${target}）`,
     );
   });
 
   // 共有のライブラリの変更で影響を受ける定義は、PR では選ばず、週次の全件の実行で確かめる（Issue #747）。
   // repo-file.ts は check-doc-refs-helpers.ts が import する共有のファイルで、どの定義のヘルパーでも変異の対象でもない。
   test("ヘルパーが import する共有のライブラリだけが変わっても、宣言を選ばない", async () => {
-    const res = await runRunner("--changed-since", "origin/main", "--only", "DR-LINK", {
+    const res = await runRunner("--changed-since", "origin/main", "--only", "DS-STALE", {
       MUTATION_PROOF_CHANGED_FILES: "scripts/lib/testing/repo-file.ts",
     });
     expect(res.status, res.out).toBe(0);
@@ -1616,7 +1627,7 @@ describe.concurrent("--shard", () => {
 
 // **本物の vitest を通す end-to-end は、fixture を使う他のテストが終わってから実行する。**
 // 子の vitest の globalSetup は、`MUTATION_PROOF_CHILD` を受け取らないと `scripts/mutation-proof-fixture-*` を消す。
-// それを止める行を外す変異（`CHILD-GUARD`）で、並んで実行中の他のテストの fixture まで消え、どのテストが落ちるかが実行の順序で変わった（Issue #588）。
+// それを止める行を外す変異で、並んで実行中の他のテストの fixture まで消え、どのテストが落ちるかが実行の順序で変わった（Issue #588）。
 // `describe.concurrent` の suite は、隣の concurrent な suite とも並べて実行される（最後に置いても並んだ）。
 // この suite は concurrent にせず、前の suite が終わってから始める。中の 2 本だけを `test.concurrent` で互いに並べる。
 describe("本物の vitest を通す end-to-end", () => {
@@ -1645,16 +1656,18 @@ describe("本物の vitest を通す end-to-end", () => {
       "--changed-since",
       "origin/main",
       "--only",
-      "WL-DUP",
+      "WORST-1",
       {
         ...REAL,
-        MUTATION_PROOF_CHANGED_FILES: "scripts/gates/prose/check-word-list.ts",
-        // 語の一覧のチェックの宣言だけが選ばれる差分。`--only` で 1 変異に抑える（有界化の理由は `--changed-since` のテストの前のコメント）。
+        MUTATION_PROOF_CHANGED_FILES: "scripts/tools/mutation-proof-shards.sh",
+        // 手元のシャードの実行スクリプトの宣言だけが選ばれる差分。`--only` で 1 変異に抑える（有界化の理由は `--changed-since` のテストの前のコメント）。
+        // 変異の対象（mutation-proof-shards.sh）を読むテストは、mutation-proof-shards.test.ts と、定義の形を確かめる mutations-declaration.test.ts だけである。
+        // このテストファイルは vitest.config.ts の ISOLATED で単独に実行するので、変異の途中の内容をそれらに読ませない。
       },
     );
     expect(res.status, res.out).toBe(0);
-    expect(res.out).toContain("測る: scripts/gates/prose/check-word-list.mutations.json");
+    expect(res.out).toContain("測る: scripts/tools/mutation-proof-shards.mutations.json");
     expect(res.out).toContain("飛ばす: scripts/mutation/check-mutation-proof.mutations.json");
-    expect(res.out).toContain("PASS WL-DUP");
+    expect(res.out).toContain("PASS WORST-1");
   }, 60_000);
 });

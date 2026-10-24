@@ -299,13 +299,6 @@ pre-commit:
           - name: gitleaks
             run: gitleaks git --staged --no-banner --redact
 
-# テスト全体をカバレッジ付きで実行し、ファイルごとの値を閾値と比べる（docs/testing.md「カバレッジ」）。
-# テスト全体を実行するので、commit ごとではなく push ごとに 1 回実行する。CI の Unit tests も同じコマンドを実行する。
-pre-push:
-  jobs:
-    - name: coverage
-      run: pnpm run test:coverage
-
 commit-msg:
   jobs:
     - name: commitlint

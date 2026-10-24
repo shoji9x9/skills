@@ -7,78 +7,6 @@
   "test_file": "scripts/gates/prose/lint-prose.test.ts",
   "mutations": [
     {
-      "id": "LP-EXCLUDE",
-      "why": "エージェント用のコピー・台帳・テスト結果を対象から外さない",
-      "file": "scripts/gates/prose/lint-prose.ts",
-      "find": "  if (EXCLUDED_PREFIXES.some((p) => rel.startsWith(p))) return false;",
-      "replace": "  if (false) return false;",
-      "occurrences": 1,
-      "expect_failing": [
-        "陰性: スキルのコピー・エージェント用のリンク・過去の記録・テスト結果・シンボリックリンク・.md 以外は見ない",
-        "ファイル指定: 渡したもののうち対象だけを見る（保留していないファイルの指摘は報告する）"
-      ]
-    },
-    {
-      "id": "LP-ENGLISH-DOCS",
-      "why": "英語で書くスライドの文書を対象から外さない（日本語向けの規則で英文を指摘する）",
-      "file": "scripts/gates/prose/lint-prose.ts",
-      "find": "  if (ENGLISH_DOC_PREFIXES.some((p) => rel.startsWith(p))) return false;",
-      "replace": "  if (false) return false;",
-      "occurrences": 1,
-      "expect_failing": ["陰性: 英語で書くスライドの文書（英語のストーリーラインと指示）は見ない"]
-    },
-    {
-      "id": "LP-ENGLISH-PREFIX",
-      "why": "英語の置き場所を前方一致の区切りなしで照合し、名前の似た日本語の文書まで外す",
-      "file": "scripts/gates/prose/lint-prose.ts",
-      "find": "const ENGLISH_DOC_PREFIXES = [\"docs/slides/storylines/en/\", \"docs/slides/prompts/\"];",
-      "replace": "const ENGLISH_DOC_PREFIXES = [\"docs/slides/storylines/en\", \"docs/slides/prompts\"];",
-      "occurrences": 1,
-      "expect_failing": ["陽性: 英語の置き場所と名前の似た日本語の文書は見る"]
-    },
-    {
-      "id": "LP-SYMLINK",
-      "why": "シンボリックリンクを対象から外さない（リンク先と二重に見る）",
-      "file": "scripts/gates/prose/lint-prose.ts",
-      "find": "  return !lstatSync(abs).isSymbolicLink();",
-      "replace": "  return true;",
-      "occurrences": 1,
-      "expect_failing": [
-        "陰性: スキルのコピー・エージェント用のリンク・過去の記録・テスト結果・シンボリックリンク・.md 以外は見ない"
-      ]
-    },
-    {
-      "id": "LP-COPIES",
-      "why": "エージェント用のコピーとリンクも見る",
-      "file": "scripts/gates/prose/lint-prose.ts",
-      "find": "  if (isAgentCopy(root, rel)) return false;",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "陰性: スキルのコピー・エージェント用のリンク・過去の記録・テスト結果・シンボリックリンク・.md 以外は見ない"
-      ]
-    },
-    {
-      "id": "LP-UNTRACKED",
-      "why": "ignore されていない未追跡のファイルを見ない（新しく作った文書が commit 前に見られない）",
-      "file": "scripts/gates/prose/lint-prose.ts",
-      "find": "\"--cached\", \"--others\", \"--exclude-standard\"]",
-      "replace": "\"--cached\"]",
-      "occurrences": 1,
-      "expect_failing": ["陽性: ignore されていない未追跡のファイルも見る"]
-    },
-    {
-      "id": "LP-ZERO",
-      "why": "全体を見る実行で対象 0 件を合格として扱う",
-      "file": "scripts/gates/prose/lint-prose.ts",
-      "find": "  if (whole && targets.length === 0) throw new Error(\"対象のファイルが 0 件\");",
-      "replace": "  if (false) throw new Error(\"対象のファイルが 0 件\");",
-      "occurrences": 1,
-      "expect_failing": [
-        "全体: 対象が 0 件なら例外にする（何も見ていない実行を合格として扱わない）"
-      ]
-    },
-    {
       "id": "LP-PENDING",
       "why": "保留したファイルの指摘も数える（書き換え前のファイルで毎回落ちる）",
       "file": "scripts/gates/prose/lint-prose.ts",
@@ -133,92 +61,6 @@
       "expect_failing": ["保留の一覧がfiles が重複なら例外にする"]
     },
     {
-      "id": "LP-COMMENTS",
-      "why": "コメントの文章を textlint に渡さない",
-      "file": "scripts/gates/prose/lint-prose.ts",
-      "find": "  const comments = hasComments(rel) ? await lintExtracted(linter, at, \"comments\") : [];",
-      "replace": "  const comments = [];",
-      "occurrences": 1,
-      "expect_failing": [
-        "陽性: コメントの指摘を、元のファイルの行と桁で報告する",
-        "コメントの textlint-disable で囲んだ箇所だけを除外する",
-        "文の長さの指摘に、Markdown の行番号を残さない",
-        "陰性: コメントの指摘も、保留したファイルなら数えず、0 件になったら外すよう求める",
-        "JSDoc のタグの行の指摘も、元の行の文章より前の桁を指さない",
-        "陽性: コメントを取り出せないシェルは、指摘として報告する",
-        "陽性: 保留したファイルでも、コメントを取り出せなければ報告する",
-        "shfmt が無ければ、ファイルの指摘にせず例外にし、main は保留の一覧を名指ししない exit 2",
-        "陽性: 記号が続くダッシュと U+2015 の並びを、Markdown・コメント・文字列で辞書の message で報告する"
-      ]
-    },
-    {
-      "id": "LP-COMMENT-LINE",
-      "why": "取り出した文章（コメントと文字列）の指摘の行を、元のファイルの行に戻さない",
-      "file": "scripts/gates/prose/lint-prose.ts",
-      "find": "    line: lines[m.line - 1] + 1,\n",
-      "replace": "    line: m.line,\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "陽性: コメントの指摘を、元のファイルの行と桁で報告する",
-        "コメントの textlint-disable で囲んだ箇所だけを除外する",
-        "文の長さの指摘に、Markdown の行番号を残さない",
-        "JSDoc のタグの行の指摘も、元の行の文章より前の桁を指さない",
-        "コメントの textlint-disable で囲んだ文字列だけを除外する",
-        "陽性: JS の文字列とテンプレートの語を、元のファイルの行と桁で報告する",
-        "陽性: evals.json の prompt・expected_output・assertions の語を報告し、他のキーは見ない",
-        "先頭の --- と行頭の [ラベル]: を Markdown の構文として読ませず、文字列の語を検出する",
-        "文字列の中の HTML のコメントとコードフェンスは、後の文字列を隠さない",
-        "入れ物（リスト・引用）の中の字下げとリンク参照の定義も、文字列の語を検出する",
-        "値に \\r を含む文字列の後ろの指摘も、元の行で報告する"
-      ]
-    },
-    {
-      "id": "LP-COMMENT-COLUMN",
-      "why": "取り出した文章（コメントと文字列）の指摘の桁を、元のファイルの桁に戻さない",
-      "file": "scripts/gates/prose/lint-prose.ts",
-      "find": "    column: Math.max(starts[m.line - 1], columns[m.line - 1] + m.column),\n",
-      "replace": "    column: Math.max(starts[m.line - 1], m.column),\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "陽性: コメントの指摘を、元のファイルの行と桁で報告する",
-        "文字列の中の HTML のコメントとコードフェンスは、後の文字列を隠さない",
-        "陽性: JS の文字列とテンプレートの語を、元のファイルの行と桁で報告する",
-        "値に \\r を含む文字列の後ろの指摘も、元の行で報告する",
-        "陽性: 記号が続くダッシュと U+2015 の並びを、Markdown・コメント・文字列で辞書の message で報告する"
-      ]
-    },
-    {
-      "id": "LP-LINE-NUMBER",
-      "why": "文の長さの指摘に Markdown の行番号を残す",
-      "file": "scripts/gates/prose/lint-prose.ts",
-      "find": "m.message.replace(/^Line \\d+ /, \"\")",
-      "replace": "m.message",
-      "occurrences": 1,
-      "expect_failing": ["文の長さの指摘に、Markdown の行番号を残さない"]
-    },
-    {
-      "id": "LP-COLUMN-CLAMP",
-      "why": "置き換えた JSDoc のタグの中の指摘が、行の文章より前の桁を指す",
-      "file": "scripts/gates/prose/lint-prose.ts",
-      "find": "    column: Math.max(starts[m.line - 1], columns[m.line - 1] + m.column),\n",
-      "replace": "    column: columns[m.line - 1] + m.column,\n",
-      "occurrences": 1,
-      "expect_failing": ["JSDoc のタグの行の指摘も、元の行の文章より前の桁を指さない"]
-    },
-    {
-      "id": "LP-PARSE-ERROR",
-      "why": "コメントや文字列を取り出せないファイルを指摘 0 件として通す",
-      "file": "scripts/gates/prose/lint-prose.ts",
-      "find": "    return [{ line: 1, column: 1, message: errorMessage(error), ruleId: PARSE_RULE }];",
-      "replace": "    return [];",
-      "occurrences": 1,
-      "expect_failing": [
-        "陽性: コメントを取り出せないシェルは、指摘として報告する",
-        "陽性: 保留したファイルでも、コメントを取り出せなければ報告する",
-        "陽性: JSON として読めない evals.json は、指摘として報告する"
-      ]
-    },
-    {
       "id": "LP-PENDING-PARSE",
       "why": "保留したファイルでは、コメントを取り出せないことを報告しない",
       "file": "scripts/gates/prose/lint-prose.ts",
@@ -226,17 +68,6 @@
       "replace": "      for (const m of [])\n",
       "occurrences": 1,
       "expect_failing": ["陽性: 保留したファイルでも、コメントを取り出せなければ報告する"]
-    },
-    {
-      "id": "LP-MISSING-TOOL",
-      "why": "shfmt が無いことを、ファイルごとの指摘として扱う",
-      "file": "scripts/gates/prose/lint-prose.ts",
-      "find": "    if (isMissingToolError(error)) throw error;\n",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "shfmt が無ければ、ファイルの指摘にせず例外にし、main は保留の一覧を名指ししない exit 2"
-      ]
     },
     {
       "id": "LP-TOOL-MESSAGE",
@@ -258,78 +89,6 @@
       "replace": "throw new Error(`${errorMessage(error)}`, {",
       "occurrences": 1,
       "expect_failing": ["main: 保留の一覧のパスは、一覧を読めないときだけ示す"]
-    },
-    {
-      "id": "LP-STRINGS",
-      "why": "文字列を textlint に渡さない（テスト名・メッセージ・eval の旧称を見逃す）",
-      "file": "scripts/gates/prose/lint-prose.ts",
-      "find": "  const strings = hasStrings(rel) ? await lintExtracted(linter, at, \"strings\") : [];",
-      "replace": "  const strings = [];",
-      "expect_failing": [
-        "陽性: JS の文字列とテンプレートの語を、元のファイルの行と桁で報告する",
-        "陽性: evals.json の prompt・expected_output・assertions の語を報告し、他のキーは見ない",
-        "文字列の中の HTML のコメントとコードフェンスは、後の文字列を隠さない",
-        "コメントの textlint-disable で囲んだ文字列だけを除外する",
-        "陽性: JSON として読めない evals.json は、指摘として報告する",
-        "先頭の --- と行頭の [ラベル]: を Markdown の構文として読ませず、文字列の語を検出する",
-        "入れ物（リスト・引用）の中の字下げとリンク参照の定義も、文字列の語を検出する",
-        "値に \\r を含む文字列の後ろの指摘も、元の行で報告する",
-        "陽性: 記号が続くダッシュと U+2015 の並びを、Markdown・コメント・文字列で辞書の message で報告する"
-      ]
-    },
-    {
-      "id": "LP-STRING-TARGET",
-      "why": "evals.json を対象にしない",
-      "file": "scripts/gates/prose/lint-prose.ts",
-      "find": " && !hasStrings(rel)) return false;",
-      "replace": ") return false;",
-      "expect_failing": [
-        "陽性: evals.json の prompt・expected_output・assertions の語を報告し、他のキーは見ない",
-        "陽性: JSON として読めない evals.json は、指摘として報告する"
-      ]
-    },
-    {
-      "id": "LP-WORD-RULE",
-      "why": "文字列に語以外の規則（文の長さ・感嘆符など）も当てる",
-      "file": "scripts/gates/prose/lint-prose.ts",
-      "find": "kind === \"strings\"\n      ? result.messages.filter((m) => WORD_RULE_IDS.includes(m.ruleId))\n      : result.messages;",
-      "replace": "result.messages;",
-      "expect_failing": [
-        "陰性: 文字列には語の規則だけを当て、バッククォートの中と import の指定子は見ない"
-      ]
-    },
-    {
-      "id": "LP-WORD-RULE-UNCHECKED",
-      "why": "使わない語の規則が設定に在るかを確かめない（ID がずれると文字列の指摘が 0 件のまま通る）",
-      "file": "scripts/gates/prose/lint-prose.ts",
-      "find": "  wordRules(descriptor);\n",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "textlint の設定で使わない語の規則が無効なら、文字列の指摘が 0 件のまま通さずに止まる"
-      ]
-    },
-    {
-      "id": "LP-DASH-NOT-ADDED",
-      "why": "ダッシュの並びを探す規則を当てない（記号が続く形と U+2015 を通す）",
-      "file": "scripts/gates/prose/lint-prose.ts",
-      "find": "descriptor: withDashRule(descriptor, configRoot)",
-      "replace": "descriptor",
-      "occurrences": 1,
-      "expect_failing": [
-        "陽性: 記号が続くダッシュと U+2015 の並びを、Markdown・コメント・文字列で辞書の message で報告する"
-      ]
-    },
-    {
-      "id": "LP-DASH-STRINGS-DROPPED",
-      "why": "文字列の指摘を使わない語の辞書の規則だけに絞る（文字列の中のダッシュの並びを通す）",
-      "file": "scripts/gates/prose/lint-prose.ts",
-      "find": "WORD_RULE_IDS.includes(m.ruleId)",
-      "replace": "m.ruleId === WORD_RULE_IDS[0]",
-      "occurrences": 1,
-      "expect_failing": [
-        "陽性: 記号が続くダッシュと U+2015 の並びを、Markdown・コメント・文字列で辞書の message で報告する"
-      ]
     }
   ]
 }

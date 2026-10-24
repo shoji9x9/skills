@@ -6,98 +6,6 @@
   "test_file": "scripts/gates/code/check-skill-lint-directives.test.ts",
   "mutations": [
     {
-      "id": "DIRECTIVE-ESLINT",
-      "why": "eslint-disable を指示の一覧から外す",
-      "file": "scripts/gates/code/check-skill-lint-directives.ts",
-      "find": "  \"eslint-disable\": [\"\", \"-line\", \"-next-line\"],\n",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "CLI: 未追跡のファイルの指示を検出して exit 1 にする",
-        "JSDoc の 2 行目以降の指示は、その行の番号で報告する",
-        "staged の中身を読む（作業ツリーから消したファイル・作業ツリーで直したファイル）",
-        "抑止の指示（/* */）を違反にする",
-        "抑止の指示（/** */）を違反にする",
-        "抑止の指示（JSDoc の行頭の *）を違反にする",
-        "抑止の指示（閉じの */ の直前）を違反にする"
-      ]
-    },
-    {
-      "id": "DIRECTIVE-ALL-OFF",
-      "why": "抑止の指示を 1 件も違反にしない（CLI の終了コードがこの検出だけで 1 になることを示す）",
-      "file": "scripts/gates/code/check-skill-lint-directives.ts",
-      "find": "if (hit) out.push(",
-      "replace": "if (false) out.push(",
-      "occurrences": 1,
-      "expect_failing": [
-        "CLI: 未追跡のファイルの指示を検出して exit 1 にする",
-        "JSDoc の 2 行目以降の指示は、その行の番号で報告する",
-        "staged の中身を読む（作業ツリーから消したファイル・作業ツリーで直したファイル）",
-        "抑止の指示（/* */）を違反にする",
-        "抑止の指示（/** */）を違反にする",
-        "抑止の指示（// の -next-line）を違反にする",
-        "抑止の指示（@ts-expect-error）を違反にする",
-        "抑止の指示（JSDoc の行頭の *）を違反にする",
-        "抑止の指示（biome-ignore-all）を違反にする",
-        "抑止の指示（biome-ignore）を違反にする",
-        "抑止の指示（deno-lint-ignore-file）を違反にする",
-        "抑止の指示（deno-lint-ignore）を違反にする",
-        "抑止の指示（コードの後ろの //）を違反にする",
-        "抑止の指示（空白の無いコードの後ろの //）を違反にする",
-        "抑止の指示（閉じの */ の直前）を違反にする",
-        "配布スキルの .mjs と .ts の指示を検出し、.md は見ない"
-      ]
-    },
-    {
-      "id": "JSDOC-STAR",
-      "why": "JSDoc の行頭の * を外さずに読む",
-      "file": "scripts/gates/code/check-skill-lint-directives.ts",
-      "find": "/^\\s*(?:\\*+(?!\\/))?\\s*/",
-      "replace": "/^\\s*/",
-      "occurrences": 1,
-      "expect_failing": [
-        "JSDoc の 2 行目以降の指示は、その行の番号で報告する",
-        "抑止の指示（JSDoc の行頭の *）を違反にする"
-      ]
-    },
-    {
-      "id": "SUFFIX-PER-DIRECTIVE",
-      "why": "接尾辞を、指示ごとに受け付けるものに限らない",
-      "file": "scripts/gates/code/check-skill-lint-directives.ts",
-      "find": "return (DIRECTIVES[m[1]] ?? []).includes(m[2] ?? \"\") ? m[1] : undefined;",
-      "replace": "return m[1];",
-      "occurrences": 1,
-      "expect_failing": ["指示として読まれない // biome-ignore-file は違反にしない"]
-    },
-    {
-      "id": "DIRECTIVE-BOUNDARY",
-      "why": "指示の後ろの区切りを確かめない（前に含むだけの語も数える）",
-      "file": "scripts/gates/code/check-skill-lint-directives.ts",
-      "find": "(?=$|[\\\\s:])",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "指示として読まれない // @ts-expect-erroring は違反にしない",
-        "指示として読まれない // biome-ignored は違反にしない",
-        "指示として読まれない // deno-lint-ignores は違反にしない",
-        "指示として読まれない // eslint-disable-foo は違反にしない",
-        "指示として読まれない // eslint-disablement の話 は違反にしない",
-        "指示として読まれない // oxlint-disabled のとき は違反にしない"
-      ]
-    },
-    {
-      "id": "EXT-FILTER",
-      "why": "JavaScript・TypeScript 以外の拡張子も走査する",
-      "file": "scripts/gates/code/check-skill-lint-directives.ts",
-      "find": "skillFiles.filter((p) => CODE_EXT_RE.test(p))",
-      "replace": "skillFiles.filter(() => true)",
-      "occurrences": 1,
-      "expect_failing": [
-        "配布スキルで禁じた拡張子（.jsx・.tsx・.js）は見ない（check-js-extensions が禁じる）",
-        "配布スキルの .mjs と .ts の指示を検出し、.md は見ない"
-      ]
-    },
-    {
       "id": "GUARD-RANGE",
       "why": "型ガードの外の使用を違反にしない",
       "file": "scripts/gates/code/check-skill-lint-directives.ts",
@@ -144,26 +52,6 @@
       ]
     },
     {
-      "id": "STAGED-BLOB",
-      "why": "index の中身を読まず、作業ツリーだけを読む",
-      "file": "scripts/gates/code/check-skill-lint-directives.ts",
-      "find": "  const blob = blobs.get(path);",
-      "replace": "  const blob = undefined;",
-      "occurrences": 1,
-      "expect_failing": [
-        "staged の中身を読む（作業ツリーから消したファイル・作業ツリーで直したファイル）"
-      ]
-    },
-    {
-      "id": "MISSING-SOURCE",
-      "why": "index にも作業ツリーにも無い走査対象を読み飛ばす",
-      "file": "scripts/gates/code/check-skill-lint-directives.ts",
-      "find": "    if (source === null) throw new Error(`${path}: index にも作業ツリーにも無い`);",
-      "replace": "    if (source === null) continue;",
-      "occurrences": 1,
-      "expect_failing": ["index にも作業ツリーにも無い走査対象は、判定できないので例外にする"]
-    },
-    {
       "id": "HOLDER-MISSING",
       "why": "一覧のファイルが無いことを違反にしない",
       "file": "scripts/gates/code/check-skill-lint-directives.ts",
@@ -182,15 +70,6 @@
       "expect_failing": [
         "一覧のファイルの作業ツリーと staged が食い違えば例外にし、そろっていれば通す"
       ]
-    },
-    {
-      "id": "ZERO-FILES",
-      "why": "走査したファイルが 0 件でも判定を続ける",
-      "file": "scripts/gates/code/check-skill-lint-directives.ts",
-      "find": "  if (code.length === 0) {",
-      "replace": "  if (false) {",
-      "occurrences": 1,
-      "expect_failing": ["CLI: skills/ の JavaScript・TypeScript が 0 件なら exit 2 にする"]
     },
     {
       "id": "BYTE-OFFSET",

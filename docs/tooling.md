@@ -130,10 +130,10 @@ pre-commit の検査は、他のジョブと同じく作業ツリーの内容に
 | `prose/check-word-list.ts` | `.textlint/word-list.md` と `.textlint/words.json` の一致 |
 | `docs/agents-md/check-agents-md-size.ts` | `AGENTS.md` のサイズ。ブランチで 30 KiB を超えたら、24 KiB 以下まで縮めさせる。超えたかは履歴で判定し、上限は `scripts/gates/docs/agents-md/agents-md-size.json` に書く |
 
-### カバレッジ（pre-push と CI で実行）
+### カバレッジ（CI で実行）
 
 `pnpm run test:coverage` がテスト全体をカバレッジ付きで実行し、ファイルごとの値を `scripts/coverage/coverage-thresholds.json` の閾値と比べる。
-テスト全体を実行するので、lefthook の pre-commit ではなく pre-push で実行する。CI では `Unit tests` のジョブがこのコマンドを実行する。
+CI では、必須チェックの `Unit tests` のジョブがこのコマンドを実行する。テスト全体を実行するので、lefthook では実行しない。
 測り方・閾値の決め方・除外の書き方は [`docs/testing.md`](testing.md)「カバレッジ」にある。
 
 vitest は、vite の変換を通さず Node がファイルを直接読み込む設定にしている（`vitest.config.ts` の `experimental.viteModuleRunner`）。
@@ -165,7 +165,8 @@ CI では、選んだ変異を matrix で 12 個のシャードに分けて並�
 1 つのシャードの目安を超える重い定義だけを、変異で分ける。所要時間は `scripts/mutation/mutation-durations.json`（定義ごとの、テストファイルを 1 回実行する秒数）で見積もる。
 見積もりは割り当ての釣り合いにだけ使い、測る変異の集合は変えない。各シャードのログには、そのシャードの見積もり（`見積もり: 全体 … 秒、このシャード … 秒`）と、定義ごとの実測（`時間: X 秒（N 変異、基準 run を含む）`）が出る。
 定義を足したときや、シャードの所要時間が偏ったときは、全件を検証した PR の CI の全シャードのログから、定義ごとに X の合計 ÷ (N + 1) の合計で更新する。
-週次の全件の実行は 1 つのジョブで直列に測るので、並べて実行する CI のシャードとは 1 回の秒数が違う。見積もりの更新には使わない。
+週次の全件の実行も、同じ `--shard` で matrix に分けて測る。分割数とその根拠は `.github/workflows/mutation-proof.yml` のコメントにある。
+週次の実行の全シャードのログも、同じ形の `時間:` を出すので、同じ式で見積もりの更新に使える。
 定義を足したら、見積もりも足す（`mutations-declaration.test.ts` が、どの定義にも見積もりがあることを確かめる）。最初は手元の実行の `時間:` から同じ式で書く。
 文書を含む変更は、push の前に手元でも `--changed-since origin/main` を実行する。文書を読むテストを持つ定義も選ばれるので、文書の書き換えで落ちる定義を CI の前に見つけられる。
 `--changed-since` は commit の差分（`origin/main...HEAD`）だけを見るので、commit した後に実行する。commit する前は「変更ファイル: 0 件」になり、何も測らない。

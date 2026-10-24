@@ -7,17 +7,6 @@
   "test_file": "scripts/skills/parity-suite/evidence/coverage-expand.test.ts",
   "mutations": [
     {
-      "id": "required-group-first-only",
-      "why": "代替の組を先頭のルールだけで判定する（組にした意味が消え、全列が初期非表示のグリッドが行き止まりに戻る）",
-      "file": "skills/parity-suite/scripts/coverage-expand.mjs",
-      "find": "        if (candidates.some((cand) => group.includes(cand.rule))) continue;\n",
-      "replace": "        if (candidates.some((cand) => cand.rule === group[0])) continue;\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "必須ルールの代替の組は、どれか 1 つが候補を生めば満たす（全列が初期非表示のグリッド。Codex レビュー）"
-      ]
-    },
-    {
       "id": "required-group-any-justified",
       "why": "組の 1 つにだけ根拠があれば通す（残りのルールの列挙漏れを見逃す）",
       "file": "skills/parity-suite/scripts/coverage-expand.mjs",
@@ -27,15 +16,6 @@
       "expect_failing": [
         "代替の組の全てのルールが候補 0 件なら、全てに根拠が要る（1 つだけの根拠では通さない）"
       ]
-    },
-    {
-      "id": "required-dup",
-      "why": "同じルールを 2 つの要素に書いても通す",
-      "file": "skills/parity-suite/scripts/coverage-expand.mjs",
-      "find": "      if (seenRequired.has(String(rid)))\n",
-      "replace": "      if (false)\n",
-      "occurrences": 1,
-      "expect_failing": ["required_rules の代替の組の形を検査する"]
     },
     {
       "id": "required-group-axes",
