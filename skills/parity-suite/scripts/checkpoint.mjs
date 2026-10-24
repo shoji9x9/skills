@@ -45,6 +45,9 @@ export const CHECKPOINTS = [
   { at: "gated", next_step: 8 },
 ];
 
+/** --at に渡せる語彙の表示（usage とエラーメッセージで同じものを使う）。 */
+const AT_VOCAB = CHECKPOINTS.map((c) => c.at).join(" | ");
+
 /** 記録ファイル名（slug のディレクトリ直下）。 */
 const RECORD_NAME = "checkpoints.json";
 
@@ -420,7 +423,7 @@ function loadTarget(command, args, cwd) {
   if (dir === null || at === null) throw new UsageError("--dir と --at が要る");
   const pos = CHECKPOINTS.findIndex((c) => c.at === at);
   if (pos < 0) {
-    throw new UsageError(`--at が語彙（${CHECKPOINTS.map((c) => c.at).join(" | ")}）に無い: ${at}`);
+    throw new UsageError(`--at が語彙（${AT_VOCAB}）に無い: ${at}`);
   }
   if (command === "verify" && includes.length > 0) {
     throw new UsageError("verify に --include は渡さない（記録した根をそのまま使う）");
@@ -609,10 +612,9 @@ export function main(argv, deps = {}) {
     out: deps.out ?? ((s) => process.stdout.write(s)),
     err: deps.err ?? ((s) => process.stderr.write(s)),
   };
-  const vocab = CHECKPOINTS.map((c) => c.at).join(" | ");
   const usage = [
-    `usage: checkpoint.mjs record --dir .replace/parity/<slug> --at <${vocab}> [--include <パス>]...`,
-    `       checkpoint.mjs verify --dir .replace/parity/<slug> --at <${vocab}>`,
+    `usage: checkpoint.mjs record --dir .replace/parity/<slug> --at <${AT_VOCAB}> [--include <パス>]...`,
+    `       checkpoint.mjs verify --dir .replace/parity/<slug> --at <${AT_VOCAB}>`,
     "  cwd は対象プロジェクトのルート（record と verify で同じにする）",
   ].join("\n");
   const [command, ...rest] = argv;

@@ -307,7 +307,8 @@ class CarryStop extends Error {
  */
 
 /**
- * CarryState に、確かめた新側リポジトリを足したもの。
+ * CarryState に、確かめた新側リポジトリを足したもの。renderInputDiff が `{ ...state, repo }` で作るので、
+ * findings・notes は state と同じ配列である。judgeCarry は state の側から読むので、配列を置き換えずに push で足す。
  * @typedef {CarryState & { repo: string }} GitState
  */
 

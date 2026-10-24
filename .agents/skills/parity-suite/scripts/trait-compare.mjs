@@ -254,7 +254,7 @@ function diffTextOwnerSize({ name, tol, out }, prefix, { expected, actual }) {
  * i 番目の文字の持ち主の組について、kind "text" の差分を積む。片側にしか無ければ在否の差を出す。
  * @param {DiffContext} ctx
  * @param {string} prefix - "text[<i>]"
- * @param {{ expected: TextOwner, actual: TextOwner }} pair
+ * @param {{ expected: TextOwner | undefined, actual: TextOwner | undefined }} pair - 件数が違えば、短い側は undefined
  */
 function diffTextOwnerPair(ctx, prefix, { expected, actual }) {
   const { name, out } = ctx;
@@ -265,7 +265,7 @@ function diffTextOwnerPair(ctx, prefix, { expected, actual }) {
       prop: prefix,
       expected: expected ? "present" : "absent",
       actual: actual ? "present" : "absent",
-      text: (expected || actual).text,
+      text: (expected ?? actual)?.text,
     });
     return;
   }

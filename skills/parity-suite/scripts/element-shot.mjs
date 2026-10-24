@@ -331,7 +331,7 @@ function isTransformedFrame(h, frameEl, { frameBox, parent }) {
  */
 
 /**
- * フレームを 1 段外へ出る。オフセットを足せないなら frameError を書き、view を動かさずに false を返す。
+ * フレームを 1 段外へ出る。オフセットを足せないなら frameError を書き、view を変えずに false を返す。
  * @param {PageHelpers} h ページ側の関数の一覧（PAGE_HELPERS）
  * @param {FrameWalk} walk
  * @param {DOMRect} box - 要素の矩形（そのフレームの座標）
