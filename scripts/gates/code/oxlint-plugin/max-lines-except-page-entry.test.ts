@@ -11,6 +11,8 @@ const RULE = "skills-repo/max-lines-per-function-except-page-entry";
 
 /** 全体が lines 行になる関数の本体（開きと閉じの 2 行を除いた空行）。 */
 const body = (lines: number) => "\n".repeat(lines - 1);
+/** コードの n 行（各行が 1 つの文）。 */
+const code = (n: number) => "  void 0;\n".repeat(n);
 
 /** 1 行目から 51 行の関数を置くケース。 */
 const TABLE = [
@@ -66,6 +68,27 @@ const CASES: Record<string, string> = {
     "",
   ].join("\n"),
   "boundary.page.mjs": `function a() {${body(50)}}\nfunction b() {${body(51)}}\n`,
+  // 本体の行は、入れ子の関数・空行・コメントだけの行を除いて数える。開きと閉じの 2 行を含めて 50 行なら報告しない。
+  "entry-50.page.mjs": `export function e() {\n${code(48)}}\n`,
+  "entry-51.page.mjs": `export function e() {\n${code(49)}}\n`,
+  // コードの 30 行に、コメント・空行・入れ子の関数を足しても、本体は 32 行と数える（入れ子の 51 行の関数は報告する）。
+  "entry-mixed.page.mjs": [
+    "export function e() {",
+    "  /**",
+    ...Array.from({ length: 30 }, () => "   * 説明"),
+    "   */",
+    `  function helper() {${body(51)}}`,
+    "",
+    "  // 行のコメント",
+    "  /* ブロックのコメント */",
+    code(30).replace(/\n$/, ""),
+    "}",
+    "",
+  ].join("\n"),
+  // 入れ子の関数の中のコードの行（45 行）は、本体の行に数えない。本体は開きと閉じと return の 3 行と、入れ子の関数の外の 5 行である。
+  "entry-nested-code.page.mjs": `export function e() {\n  function h() {\n${code(45)}  }\n${code(5)}  return h();\n}\n`,
+  // コードと同じ行のコメントは、その行をコードとして数える。
+  "entry-trailing.page.mjs": `export function e() {\n${code(49).replace(/;\n/g, "; // c\n")}}\n`,
 };
 
 const dir = makeSharedTempDir("max-lines-except-page-entry-");
@@ -86,6 +109,23 @@ test("本体の中に入れ子で書いた関数は数え、本体は数えな�
 
 test("入れ子の関数の中の関数は、最上位の export でないので数える", () => {
   expect(lines["deep.page.mjs"]).toEqual([2, 3]);
+});
+
+test("本体は、入れ子の関数・空行・コメントを除いて 50 行なら報告せず、51 行なら報告する", () => {
+  expect(lines["entry-50.page.mjs"]).toEqual([]);
+  expect(lines["entry-51.page.mjs"]).toEqual([1]);
+});
+
+test("本体のコメント・空行・入れ子の関数の行は、本体の行に数えない", () => {
+  expect(lines["entry-mixed.page.mjs"]).toEqual([34]);
+});
+
+test("入れ子の関数の中のコードの行は、本体の行に数えない", () => {
+  expect(lines["entry-nested-code.page.mjs"]).toEqual([]);
+});
+
+test("コードと同じ行にあるコメントは、その行をコードとして数える", () => {
+  expect(lines["entry-trailing.page.mjs"]).toEqual([1]);
 });
 
 test("境界: 50 行の関数は報告せず、51 行の関数は報告する", () => {

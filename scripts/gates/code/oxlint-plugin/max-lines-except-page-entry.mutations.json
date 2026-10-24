@@ -16,7 +16,11 @@
         "最上位で export した関数の宣言 が 51 行なら、報告するか: false",
         "本体の中に入れ子で書いた関数は数え、本体は数えない",
         "入れ子の関数の中の関数は、最上位の export でないので数える",
-        "オプションの max を上限にする"
+        "オプションの max を上限にする",
+        "コードと同じ行にあるコメントは、その行をコードとして数える",
+        "本体のコメント・空行・入れ子の関数の行は、本体の行に数えない",
+        "本体は、入れ子の関数・空行・コメントを除いて 50 行なら報告せず、51 行なら報告する",
+        "入れ子の関数の中のコードの行は、本体の行に数えない"
       ]
     },
     {
@@ -45,7 +49,9 @@
         "本体の中に入れ子で書いた関数は数え、本体は数えない",
         "入れ子の関数の中の関数は、最上位の export でないので数える",
         "境界: 50 行の関数は報告せず、51 行の関数は報告する",
-        "オプションの max を上限にする"
+        "オプションの max を上限にする",
+        "本体のコメント・空行・入れ子の関数の行は、本体の行に数えない",
+        "入れ子の関数の中のコードの行は、本体の行に数えない"
       ]
     },
     {
@@ -59,6 +65,51 @@
         "本体の中に入れ子で書いた関数は数え、本体は数えない",
         "境界: 50 行の関数は報告せず、51 行の関数は報告する",
         "オプションの max を上限にする"
+      ]
+    },
+    {
+      "id": "ML-PE-ENTRY-UNCHECKED",
+      "why": "本体の行数に上限を当てない",
+      "file": "scripts/gates/code/oxlint-plugin/max-lines-except-page-entry.ts",
+      "find": "if (own > max)",
+      "replace": "if (false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "本体は、入れ子の関数・空行・コメントを除いて 50 行なら報告せず、51 行なら報告する",
+        "コードと同じ行にあるコメントは、その行をコードとして数える"
+      ]
+    },
+    {
+      "id": "ML-PE-ENTRY-NESTED",
+      "why": "入れ子の関数の行も本体に数える",
+      "file": "scripts/gates/code/oxlint-plugin/max-lines-except-page-entry.ts",
+      "find": "if (code.has(line) && !nested.some(([a, b]) => a <= line && line <= b)) own++;",
+      "replace": "if (code.has(line)) own++;",
+      "occurrences": 1,
+      "expect_failing": [
+        "入れ子の関数の中のコードの行は、本体の行に数えない",
+        "オプションの max を上限にする"
+      ]
+    },
+    {
+      "id": "ML-PE-ENTRY-COMMENTS",
+      "why": "コメントだけの行も本体に数える",
+      "file": "scripts/gates/code/oxlint-plugin/max-lines-except-page-entry.ts",
+      "find": "if (units[i] !== \"\\n\") units[i] = \" \";",
+      "replace": "if (units[i] === \"\\u0000\") units[i] = \" \";",
+      "occurrences": 1,
+      "expect_failing": ["本体のコメント・空行・入れ子の関数の行は、本体の行に数えない"]
+    },
+    {
+      "id": "ML-PE-ENTRY-BLANK",
+      "why": "空行も本体に数える",
+      "file": "scripts/gates/code/oxlint-plugin/max-lines-except-page-entry.ts",
+      "find": "if (line.trim() !== \"\") lines.add(i + 1);",
+      "replace": "lines.add(i + 1);",
+      "occurrences": 1,
+      "expect_failing": [
+        "最上位で export した関数の宣言 が 51 行なら、報告するか: false",
+        "本体のコメント・空行・入れ子の関数の行は、本体の行に数えない"
       ]
     }
   ]
