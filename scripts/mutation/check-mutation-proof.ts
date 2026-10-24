@@ -1074,6 +1074,59 @@ function collectResults(report: VitestReport): Map<string, string> {
 }
 
 /**
+ * テストファイルを 1 回実行する時間の上限（ミリ秒）。
+ * 変異でテストの中に同期の無限ループができると、vitest の testTimeout では止まらず、ランナーも終わらない。
+ * 宣言ごとの 1 回の実行は、`mutation-durations.json` で最も長いものでも数十秒なので、その 10 倍ほどの 5 分にする。
+ * `MUTATION_PROOF_RUN_TIMEOUT_MS` で差し替えられる（**テスト用の seam**。使ったら必ず印字する）。
+ */
+let runTimeoutCache: number | null = null;
+function runTimeoutMs(): number {
+  if (runTimeoutCache !== null) return runTimeoutCache;
+  const injected = process.env.MUTATION_PROOF_RUN_TIMEOUT_MS;
+  if (injected === undefined) return (runTimeoutCache = 300_000);
+  const value = Number(injected);
+  if (!/^[1-9][0-9]*$/.test(injected) || !Number.isSafeInteger(value)) {
+    die(`MUTATION_PROOF_RUN_TIMEOUT_MS が正の整数でない: ${JSON.stringify(injected)}`);
+  }
+  console.error(`実行の上限: MUTATION_PROOF_RUN_TIMEOUT_MS=${injected}（テスト用の注入）`);
+  return (runTimeoutCache = value);
+}
+
+/** 子の起動に失敗したことを、包む側のプロセスが知らせる印（stderr の 1 行の先頭）。 */
+const SPAWN_ERROR_MARK = "mutation-proof-spawn-error: ";
+/** 子の起動に失敗したときの、包む側のプロセスの終了コード。 */
+const SPAWN_ERROR_STATUS = 127;
+
+/**
+ * テストのコマンドを、自分のプロセスグループで起動して待つ、包む側のプロセスの本文（`node -e` で実行する）。
+ * vitest は、テストを別のプロセス（forks のワーカー）で実行する。時間切れで vitest だけを止めると、
+ * 無限ループのワーカーが親を失ったまま残る（実測）。そこで、時間切れの SIGTERM を受けた包む側が、
+ * 子のプロセスグループ全体を止める。子が終わったときも、残ったワーカーを止めてから同じ終了コードで終わる。
+ */
+const GROUP_WRAPPER = `
+const { spawn } = require("node:child_process");
+const [file, ...args] = process.argv.slice(1);
+const child = spawn(file, args, { stdio: "inherit", detached: true });
+const killGroup = () => {
+  try {
+    process.kill(-child.pid, "SIGKILL");
+  } catch {}
+};
+process.on("SIGTERM", () => {
+  killGroup();
+  process.exit(143);
+});
+child.on("error", (err) => {
+  console.error(${JSON.stringify(SPAWN_ERROR_MARK)} + err.message);
+  process.exit(${SPAWN_ERROR_STATUS});
+});
+child.on("exit", (code) => {
+  killGroup();
+  process.exit(code ?? 1);
+});
+`;
+
+/**
  * テストファイルを 1 回実行し、テスト名 → 状態のマップを返す。
  * **終了コードでは判定しない**。実行されなかった（収集で落ちた）のか、狙ったテストが落ちたのかを
  * 区別できないため、JSON レポータの結果から名前で読む。
@@ -1086,29 +1139,11 @@ function runTests(testFile: string): RunResult {
   tempDirs.add(dir);
   const outFile = join(dir, "result.json");
   try {
-    const command = testCommand();
-    const res = spawnSync(
-      command.file,
-      [...command.prefix, "run", testFile, "--reporter=json", `--outputFile=${outFile}`],
-      {
-        cwd: repoRoot,
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "pipe"],
-        // 子 vitest に、使用中の fixture を掃かせない（`scripts/lib/testing/vitest-global-setup.ts`）。
-        env: { ...process.env, MUTATION_PROOF_CHILD: "1" },
-      },
-    );
-    // **起動できなかったのは「実証の失敗」ではない。** spawn 自体が失敗すると、理由は
-    // `res.error` にだけ入り、stdout/stderr は null になる。そのままだと、誤って理由なしの FAIL
-    // （exit 1 =「実証できない変異がある」）と判定される。前提の誤りとして exit 2 にする。
-    if (res.error) {
-      die(`テストを起動できない（${command.file}）: ${res.error.message}`);
-    }
+    const res = spawnTests(testFile, outFile);
+    if (!res.done) return res.run;
+    const output = res.output;
     if (!existsSync(outFile)) {
-      return {
-        ran: false,
-        reason: `vitest が結果を出さなかった: ${tail(res.stderr || res.stdout)}`,
-      };
+      return { ran: false, reason: `vitest が結果を出さなかった: ${output}` };
     }
     let report: VitestReport;
     try {
@@ -1118,10 +1153,7 @@ function runTests(testFile: string): RunResult {
     }
     const results = collectResults(report);
     if (results.size === 0) {
-      return {
-        ran: false,
-        reason: `テストが 1 件も実行されなかった: ${tail(res.stderr || res.stdout)}`,
-      };
+      return { ran: false, reason: `テストが 1 件も実行されなかった: ${output}` };
     }
     const failed = new Set([...results].filter(([, s]) => s === "failed").map(([n]) => n));
     return { ran: true, results, failed };
@@ -1129,6 +1161,43 @@ function runTests(testFile: string): RunResult {
     rmSync(dir, { recursive: true, force: true });
     tempDirs.delete(dir);
   }
+}
+
+/**
+ * テストのコマンドを、時間の上限を付けて包む側のプロセスから起動する。
+ * 終わったら出力の末尾を、時間切れなら結果を持たない実行を返す。起動できなければ die する。
+ */
+function spawnTests(
+  testFile: string,
+  outFile: string,
+): { done: true; output: string } | { done: false; run: RunResult } {
+  const command = testCommand();
+  const timeout = runTimeoutMs();
+  const args = [...command.prefix, "run", testFile, "--reporter=json", `--outputFile=${outFile}`];
+  const res = spawnSync(process.execPath, ["-e", GROUP_WRAPPER, command.file, ...args], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout,
+    killSignal: "SIGTERM",
+    // 子 vitest に、使用中の fixture を掃かせない（`scripts/lib/testing/vitest-global-setup.ts`）。
+    env: { ...process.env, MUTATION_PROOF_CHILD: "1" },
+  });
+  // 時間切れは、テストが終わらなかったことを示す。変異を検出したかを確かめられないので、結果を持たない実行として扱う。
+  if (errnoCode(res.error) === "ETIMEDOUT") {
+    const reason = `時間切れ: ${timeout / 1000} 秒でテストが終わらなかった`;
+    return { done: false, run: { ran: false, reason } };
+  }
+  // **起動できなかったのは「実証の失敗」ではない。** 起動の失敗は、包む側のプロセスが印を付けて知らせる。
+  // そのままだと、誤って理由なしの FAIL（exit 1 =「実証できない変異がある」）と判定される。前提の誤りとして exit 2 にする。
+  const spawnError = (res.stderr ?? "")
+    .split("\n")
+    .find((line) => line.startsWith(SPAWN_ERROR_MARK));
+  if (res.error || (res.status === SPAWN_ERROR_STATUS && spawnError !== undefined)) {
+    const reason = res.error?.message ?? spawnError?.slice(SPAWN_ERROR_MARK.length);
+    die(`テストを起動できない（${command.file}）: ${reason}`);
+  }
+  return { done: true, output: tail(res.stderr || res.stdout) };
 }
 
 function tail(text: string | null | undefined, lines = 8): string {
