@@ -2,7 +2,7 @@
 import { assert } from "vitest";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { runInThisContext } from "node:vm";
+import { runFromSource } from "./page-source.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/trait-capture.mjs");
@@ -13,12 +13,14 @@ export const {
   SCROLLBAR_PSEUDOS,
   SCROLLBAR_PSEUDO_PROPERTIES,
   VERSION,
+  assertPageVersion,
   captureTraits,
 }: typeof import("../../../../skills/parity-suite/scripts/trait-capture.mjs") = await import(
   script
 );
 const pageScript = join(repoRoot, "skills/parity-suite/scripts/page/trait-capture.page.mjs");
 export const {
+  PAGE_VERSION,
   captureElement,
 }: typeof import("../../../../skills/parity-suite/scripts/page/trait-capture.page.mjs") =
   await import(pageScript);
@@ -243,16 +245,7 @@ export type PageRun = (
 ) => unknown;
 type FakeElement = ReturnType<typeof fakeElement>;
 
-/**
- * 関数のソースだけを評価し直して呼ぶ。locator.evaluate がページへ送るのも関数のソースだけである。
- * 評価し直した関数はモジュールのスコープを持たないので、本体の外の名前を参照すると ReferenceError になる。
- * 大域の名前（偽のブラウザの大域変数を含む）は、モジュールと同じものを読む。
- */
-export function runFromSource(fn: (...args: never[]) => unknown, args: unknown[]): unknown {
-  const rebuilt: unknown = runInThisContext(`(${String(fn)})`);
-  assert(typeof rebuilt === "function", "ソースを評価し直した結果が関数でない");
-  return Reflect.apply(rebuilt, undefined, args);
-}
+export { runFromSource };
 
 /**
  * describe.each に渡す 2 通りの当て方。モジュールの関数は、渡された関数を使わずに page/trait-capture.page.mjs の

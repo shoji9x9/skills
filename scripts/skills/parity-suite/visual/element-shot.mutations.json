@@ -322,6 +322,17 @@
         "モジュールの関数 何も変えない個別プロパティは撮る（計算値は none にならない）: scale: 1 1 1",
         "ページへ渡すソース 何も変えない個別プロパティは撮る（計算値は none にならない）: scale: 1 1 1"
       ]
+    },
+    {
+      "id": "page-version",
+      "why": "page ファイルの版が違っても失敗しない（片方だけ古いコピーを見逃す）",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "if (pageVersion !== VERSION) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "assertPageVersion は、page ファイルの版が VERSION と違えば失敗し、同じなら通る"
+      ]
     }
   ]
 }

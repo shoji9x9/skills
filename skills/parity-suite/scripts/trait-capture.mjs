@@ -94,7 +94,7 @@
 // ページで実行する本体（captureElement）は page/trait-capture.page.mjs にあり、ここから import して
 // locator.evaluate へそのまま渡す。コピーするときは page/trait-capture.page.mjs も、コピー先の隣の page/ へ一緒にコピーする。
 
-import { captureElement } from "./page/trait-capture.page.mjs";
+import { PAGE_VERSION, captureElement } from "./page/trait-capture.page.mjs";
 
 /**
  * ツールのバージョン（原本）。採取スキーマ（FIXED_PROPERTIES・採取形状）を変えたら上げる。
@@ -102,6 +102,19 @@ import { captureElement } from "./page/trait-capture.page.mjs";
  * @type {string}
  */
 export const VERSION = "6";
+
+/**
+ * page ファイルの PAGE_VERSION が、このスクリプトの VERSION と同じかを確かめる。違えば、片方だけを古い版のまま
+ * コピーしてあるので、採らずに失敗する。
+ * @param {string} pageVersion
+ */
+export function assertPageVersion(pageVersion) {
+  if (pageVersion !== VERSION) {
+    throw new Error(
+      `trait capture: page/trait-capture.page.mjs has PAGE_VERSION ${pageVersion} but trait-capture.mjs has VERSION ${VERSION}; copy both files from the same version`,
+    );
+  }
+}
 
 /**
  * 採取する computed style プロパティの固定集合（原本）。
@@ -292,6 +305,7 @@ function isElementTraits(value) {
  * @returns {Promise<Array<{ name: string, computed: Record<string,string>, before: (Record<string,string>|null), after: (Record<string,string>|null), rect: { x:number, y:number, width:number, height:number }, child_inline_styles: { index:number, tag:string, style:string }[], text_owners: { path:string, tag:string, text:string, style: Record<string,string>, advance:number, glyph_height:number, lines:number, rect: { x:number, y:number, width:number, height:number } }[], scroll: ({ overflowing_x:boolean, overflowing_y:boolean, vertical_bar_px:number, horizontal_bar_px:number, style: Record<string,string>, webkit: (Record<string, Record<string,string>>|"unsupported") }|null) }>>}
  */
 export async function captureTraits(entries) {
+  assertPageVersion(PAGE_VERSION);
   const results = [];
   for (const entry of entries) {
     let captured;

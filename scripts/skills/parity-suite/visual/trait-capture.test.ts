@@ -10,6 +10,8 @@ import {
   SCROLLBAR_PSEUDOS,
   SCROLLBAR_PSEUDO_PROPERTIES,
   VERSION,
+  PAGE_VERSION,
+  assertPageVersion,
   captureTraits,
   captureElement,
   runFromSource,
@@ -1038,4 +1040,15 @@ describe.each(PAGE_RUNS)("%s", (_label, run) => {
       /computed style did not resolve for ::-webkit-scrollbar-thumb: border-top-left-radius/,
     );
   });
+});
+
+test("page ファイルの PAGE_VERSION は、trait-capture.mjs の VERSION と同じ値である", () => {
+  expect(PAGE_VERSION).toBe(VERSION);
+});
+
+test("assertPageVersion は、page ファイルの版が VERSION と違えば失敗し、同じなら通る", () => {
+  expect(() => assertPageVersion(`${VERSION}-old`)).toThrow(
+    /PAGE_VERSION .* but trait-capture.mjs has VERSION/,
+  );
+  expect(() => assertPageVersion(VERSION)).not.toThrow();
 });

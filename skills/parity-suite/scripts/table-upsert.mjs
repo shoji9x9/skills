@@ -377,13 +377,19 @@ function run(command, opts, io) {
   }
   const at = index.get(key);
 
-  if (command === "get" && at !== undefined) {
+  const missing = `error: ${opts.array} に鍵 ${key} の要素が無い\n`;
+  if (command === "get") {
+    if (at === undefined) {
+      process.stderr.write(missing);
+      return 1;
+    }
     process.stdout.write(`${JSON.stringify(arr[at], null, 2)}\n`);
     return 0;
   }
-  const action = command === "get" ? null : applyChange({ command, arr, at, probe });
+  // applyChange は remove で要素が無いときだけ null を返す。
+  const action = applyChange({ command, arr, at, probe });
   if (action === null) {
-    process.stderr.write(`error: ${opts.array} に鍵 ${key} の要素が無い\n`);
+    process.stderr.write(missing);
     return 1;
   }
   const conformanceRemoved = Object.hasOwn(table, "conformance");

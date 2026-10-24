@@ -1,0 +1,65 @@
+{
+  "$comment": [
+    "max-lines-except-page-entry.test.ts の検出能力を示す変異の一覧（Issue #758）。",
+    "散文コメントで持つと古くなるため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。"
+  ],
+  "test_file": "scripts/gates/code/oxlint-plugin/max-lines-except-page-entry.test.ts",
+  "mutations": [
+    {
+      "id": "ML-PE-NO-ENTRY",
+      "why": "export した本体も数える",
+      "file": "scripts/gates/code/oxlint-plugin/max-lines-except-page-entry.ts",
+      "find": "if (isIife(fn) || isPageEntry(fn)) return;",
+      "replace": "if (isIife(fn)) return;",
+      "occurrences": 1,
+      "expect_failing": [
+        "最上位で export した関数の宣言 が 51 行なら、報告するか: false",
+        "本体の中に入れ子で書いた関数は数え、本体は数えない",
+        "入れ子の関数の中の関数は、最上位の export でないので数える",
+        "オプションの max を上限にする"
+      ]
+    },
+    {
+      "id": "ML-PE-ANY-FUNCTION",
+      "why": "変数に入れた関数式とアロー関数も本体として外す",
+      "file": "scripts/gates/code/oxlint-plugin/max-lines-except-page-entry.ts",
+      "find": "return fn.type === \"FunctionDeclaration\" && parent?.type === \"ExportNamedDeclaration\";",
+      "replace": "return parent?.type === \"ExportNamedDeclaration\" || parent?.type === \"VariableDeclarator\";",
+      "occurrences": 1,
+      "expect_failing": [
+        "export した関数式 が 51 行なら、報告するか: true",
+        "export したアロー関数 が 51 行なら、報告するか: true",
+        "本体の中に入れ子で書いた関数は数え、本体は数えない"
+      ]
+    },
+    {
+      "id": "ML-PE-ANY-PARENT",
+      "why": "export しない関数の宣言と export default の関数も本体として外す",
+      "file": "scripts/gates/code/oxlint-plugin/max-lines-except-page-entry.ts",
+      "find": "return fn.type === \"FunctionDeclaration\" && parent?.type === \"ExportNamedDeclaration\";",
+      "replace": "return fn.type === \"FunctionDeclaration\";",
+      "occurrences": 1,
+      "expect_failing": [
+        "export しない関数の宣言 が 51 行なら、報告するか: true",
+        "export default の関数の宣言 が 51 行なら、報告するか: true",
+        "本体の中に入れ子で書いた関数は数え、本体は数えない",
+        "入れ子の関数の中の関数は、最上位の export でないので数える",
+        "境界: 50 行の関数は報告せず、51 行の関数は報告する",
+        "オプションの max を上限にする"
+      ]
+    },
+    {
+      "id": "ML-PE-OFF-BY-ONE",
+      "why": "上限ちょうどの関数も報告する",
+      "file": "scripts/gates/code/oxlint-plugin/max-lines-except-page-entry.ts",
+      "find": "if (lines > max)",
+      "replace": "if (lines >= max)",
+      "occurrences": 1,
+      "expect_failing": [
+        "本体の中に入れ子で書いた関数は数え、本体は数えない",
+        "境界: 50 行の関数は報告せず、51 行の関数は報告する",
+        "オプションの max を上限にする"
+      ]
+    }
+  ]
+}

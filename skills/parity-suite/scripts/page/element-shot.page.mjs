@@ -4,7 +4,11 @@
 // 本体が呼ぶ関数はすべて本体の中に入れ子で書き、読むのは引数と素のグローバル（Math・parseFloat など）だけにする。
 // このファイルは import を持たない。element-shot.mjs と一緒に、その隣の page/ へコピーして使う。
 // フレームを遡る理由と、直せない形を失敗させる理由は element-shot.mjs の冒頭にある。
-// 出力の形（採る値・キー・正規化）を変えたら、element-shot.mjs の VERSION を上げる。利用者のコピーは VERSION で版を突き合わせる。
+// 出力の形（採る値・キー・正規化）を変えたら、element-shot.mjs の VERSION とこのファイルの PAGE_VERSION を同じ値に上げる。
+// element-shot.mjs は、2 つが違えば採らずに失敗する（利用者が片方だけをコピーし直した場合を見つけるため）。
+
+/** このファイルの版。element-shot.mjs の VERSION と同じ値にする。 */
+export const PAGE_VERSION = "6";
 
 /**
  * フレームを遡る途中の状態。x / y はここまでに足した座標、frames は内側から外側への各段の矩形と見える範囲。

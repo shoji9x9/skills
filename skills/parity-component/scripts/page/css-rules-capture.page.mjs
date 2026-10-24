@@ -450,7 +450,7 @@ export function collectInPage(el, options) {
       if (p.name === "not") continue;
       // セレクタを引数に取る擬似クラスは `:is()` / `:where()` / `:has()` だけではない。
       // `:nth-child(2n of .item:hover)` / `:host(.foo:hover)` にも状態を置ける。
-      // 名前で絞ると、絞り漏れた擬似クラスの中の状態が base に残り、通常状態の matches() が
+      // 名前で絞ると、絞りきれなかった擬似クラスの中の状態が base に残り、通常状態の matches() が
       // false を返して規則が matched にも unresolved にも残らない。`:not()` 以外は一律に見る。
       for (const inner of scanPseudos(p.args)) {
         if (!inner.doubled && stateNames.has(inner.name)) return true;

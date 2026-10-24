@@ -319,8 +319,9 @@ function fitElement({ page, element, rects }, windows, acc) {
       `samples の (${page}, ${element}) が全ての窓で表示されていない（採取の失敗を疑う。ページ・認証・ロケータを確かめて採り直す）`,
     );
   }
+  // 見えない窓は軸に依らないので、1 回だけ求める。
+  const hidden = windows.filter((w) => rects.get(windowKey(w)) === null).map(windowKey);
   for (const property of PROPERTIES) {
-    const hidden = windows.filter((w) => rects.get(windowKey(w)) === null).map(windowKey);
     if (hidden.length > 0) {
       acc.unfit.push({
         page,

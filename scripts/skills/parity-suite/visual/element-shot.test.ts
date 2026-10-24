@@ -9,7 +9,7 @@ import { assert, describe, expect, test } from "vitest";
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { runInThisContext } from "node:vm";
+import { runFromSource } from "./page-source.ts";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import { invalidInput } from "../../../lib/testing/test-input.ts";
 import { parseJsonAs } from "../../../lib/parse-as.ts";
@@ -18,6 +18,7 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..",
 const script = join(repoRoot, "skills/parity-suite/scripts/element-shot.mjs");
 const {
   VERSION,
+  assertPageVersion,
   planElementClip,
   captureElementShot,
   readPngSize,
@@ -25,6 +26,7 @@ const {
 }: typeof import("../../../../skills/parity-suite/scripts/element-shot.mjs") = await import(script);
 const pageScript = join(repoRoot, "skills/parity-suite/scripts/page/element-shot.page.mjs");
 const {
+  PAGE_VERSION,
   measureInPage,
 }: typeof import("../../../../skills/parity-suite/scripts/page/element-shot.page.mjs") =
   await import(pageScript);
@@ -171,15 +173,6 @@ test("ビューポートが 0 以下なら失敗する", () => {
 
 /** evaluate に渡された関数を偽の要素に当てる方法。 */
 type PageRun = (fn: (element: FakeElement) => unknown, element: FakeElement) => unknown;
-/**
- * 関数のソースだけを評価し直して呼ぶ。locator.evaluate がページへ送るのも関数のソースだけである。
- * 評価し直した関数はモジュールのスコープを持たないので、本体の外の名前を参照すると ReferenceError になる。
- */
-function runFromSource(fn: (...args: never[]) => unknown, args: unknown[]): unknown {
-  const rebuilt: unknown = runInThisContext(`(${String(fn)})`);
-  assert(typeof rebuilt === "function", "ソースを評価し直した結果が関数でない");
-  return Reflect.apply(rebuilt, undefined, args);
-}
 
 /** captureElementShot が evaluate へ渡した関数を、ソースから評価し直して偽の要素に当てる。 */
 const runSource: PageRun = (fn, element) => runFromSource(fn, [element]);
@@ -968,4 +961,15 @@ describe.each(PAGE_RUNS)("%s", (_label, run) => {
     await captureElementShot(page, frameLocatorWith(run, el));
     expect(page.calls).toHaveLength(1);
   });
+});
+
+test("page ファイルの PAGE_VERSION は、element-shot.mjs の VERSION と同じ値である", () => {
+  expect(PAGE_VERSION).toBe(VERSION);
+});
+
+test("assertPageVersion は、page ファイルの版が VERSION と違えば失敗し、同じなら通る", () => {
+  expect(() => assertPageVersion(`${VERSION}-old`)).toThrow(
+    /PAGE_VERSION .* but element-shot.mjs has VERSION/,
+  );
+  expect(() => assertPageVersion(VERSION)).not.toThrow();
 });

@@ -54,7 +54,7 @@
 
 import { existsSync, mkdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
-import { measureInPage } from "./page/element-shot.page.mjs";
+import { PAGE_VERSION, measureInPage } from "./page/element-shot.page.mjs";
 
 /**
  * ツールのバージョン（原本）。clip の算出規則・失敗条件・撮影オプションの既定を変えたら上げる。
@@ -67,6 +67,19 @@ import { measureInPage } from "./page/element-shot.page.mjs";
  * @type {string}
  */
 export const VERSION = "6";
+
+/**
+ * page ファイルの PAGE_VERSION が、このスクリプトの VERSION と同じかを確かめる。違えば、片方だけを古い版のまま
+ * コピーしてあるので、採らずに失敗する。
+ * @param {string} pageVersion
+ */
+export function assertPageVersion(pageVersion) {
+  if (pageVersion !== VERSION) {
+    throw new Error(
+      `element clip: page/element-shot.page.mjs has PAGE_VERSION ${pageVersion} but element-shot.mjs has VERSION ${VERSION}; copy both files from the same version`,
+    );
+  }
+}
 
 /**
  * 要素の矩形とビューポートから clip を決める純関数（ブラウザに依存しないのでここで単体検査できる）。
@@ -326,6 +339,7 @@ function assertBoxUnchanged(measured, after, animations) {
  * @throws {Error} フレームの座標を最上位へ直せない（読めない・変形された・フレームが切る）場合
  */
 export async function captureElementShot(page, locator, options = {}) {
+  assertPageVersion(PAGE_VERSION);
   const { path, scrollIntoView = true, animations = "disabled" } = options;
   if (animations !== "disabled" && animations !== "allow") {
     throw new Error(

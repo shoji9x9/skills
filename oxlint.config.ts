@@ -122,8 +122,9 @@ export default defineConfig({
     },
     {
       // 本体の関数を Playwright の evaluate へそのまま渡す page ファイル。evaluate はその関数のソースだけを送るので、
-      // 本体が呼ぶ helper は本体の中に入れ子で書くしかない。入れ子の行数と分岐は本体に数えられるので、
-      // 関数の大きさのルールはこのファイルに限って外す。
+      // 本体が呼ぶ helper は本体の中に入れ子で書くしかない。組み込みの max-lines-per-function は入れ子の行も本体に数えるので、
+      // 最上位で export した本体だけを数えない同じ数え方の JS プラグインのルールに替え、入れ子の helper には上限を当てる。
+      // complexity と max-depth は関数ごとに数え、入れ子の関数を本体に数えないので、組み込みのまま当てる。
       // 外にある helper を送るために new Function でソースを組み立てる方法は、利用者の lint や
       // --disallow-code-generation-from-strings で止まるので採らない。
       // CLI が本文を関数式で包む replace-strategy の page ファイルは、helper を最上位に置けるので対象にしない。
@@ -134,8 +135,7 @@ export default defineConfig({
       ],
       rules: {
         "max-lines-per-function": "off",
-        complexity: "off",
-        "max-depth": "off",
+        "skills-repo/max-lines-per-function-except-page-entry": "error",
       },
     },
     // 既存の違反のうち、後で直すもの（ファイルごとに外すルール。scripts/gates/code/oxlint-pending.ts）。
