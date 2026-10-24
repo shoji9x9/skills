@@ -1076,14 +1076,15 @@ function collectResults(report: VitestReport): Map<string, string> {
 /**
  * テストファイルを 1 回実行する時間の上限（ミリ秒）。
  * 変異でテストの中に同期の無限ループができると、vitest の testTimeout では止まらず、ランナーも終わらない。
- * 宣言ごとの 1 回の実行は、`mutation-durations.json` で最も長いものでも数十秒なので、その 10 倍ほどの 5 分にする。
+ * 宣言ごとの 1 回の実行は、`mutation-durations.json` で最も長いものでも 30 秒ほどなので、その約 4 倍の 2 分にする。
+ * 終わらない変異が同じシャードにいくつあっても、シャードの timeout（ci.yml の 20 分）より前に FAIL の一覧を出せるよう、長くしすぎない。
  * `MUTATION_PROOF_RUN_TIMEOUT_MS` で差し替えられる（**テスト用の seam**。使ったら必ず印字する）。
  */
 let runTimeoutCache: number | null = null;
 function runTimeoutMs(): number {
   if (runTimeoutCache !== null) return runTimeoutCache;
   const injected = process.env.MUTATION_PROOF_RUN_TIMEOUT_MS;
-  if (injected === undefined) return (runTimeoutCache = 300_000);
+  if (injected === undefined) return (runTimeoutCache = 120_000);
   const value = Number(injected);
   if (!/^[1-9][0-9]*$/.test(injected) || !Number.isSafeInteger(value)) {
     die(`MUTATION_PROOF_RUN_TIMEOUT_MS が正の整数でない: ${JSON.stringify(injected)}`);
@@ -1103,6 +1104,7 @@ const SPAWN_ERROR_STATUS = 127;
  * 無限ループのワーカーが親を失ったまま残る（実測）。そこで、時間切れの SIGTERM を受けた包む側が、
  * 子のプロセスグループ全体を止める。子は別のプロセスグループにいて端末の Ctrl-C（SIGINT）や SIGHUP が届かないので、
  * 包む側はそれらを受けたときも子のグループを止める。子が終わったときも、残ったワーカーを止めてから同じ終了コードで終わる。
+ * ランナーが signal を転送できないまま終わったとき（SIGKILL など）は、親が替わったことを 1 秒ごとに確かめて、子のグループを止める。
  */
 const GROUP_WRAPPER = `
 const { spawn } = require("node:child_process");
@@ -1119,6 +1121,13 @@ for (const [signal, code] of [["SIGTERM", 143], ["SIGINT", 130], ["SIGHUP", 129]
     process.exit(code);
   });
 }
+const parent = process.ppid;
+setInterval(() => {
+  if (process.ppid !== parent) {
+    killGroup();
+    process.exit(1);
+  }
+}, 1000);
 child.on("error", (err) => {
   console.error(${JSON.stringify(SPAWN_ERROR_MARK)} + err.message);
   process.exit(${SPAWN_ERROR_STATUS});
@@ -1186,8 +1195,10 @@ function spawnTests(
     // 子 vitest に、使用中の fixture を掃かせない（`scripts/lib/testing/vitest-global-setup.ts`）。
     env: { ...process.env, MUTATION_PROOF_CHILD: "1" },
   });
-  // 時間切れは、テストが終わらなかったことを示す。変異を検出したかを確かめられないので、結果を持たない実行として扱う。
-  if (errnoCode(res.error) === "ETIMEDOUT") {
+  // 時間切れで結果のファイルが無ければ、テストが終わらなかったことを示す。変異を検出したかを確かめられないので、結果を持たない実行として扱う。
+  // 結果のファイルがあれば、テストは終わっている（vitest は終わったときに書く）。パイプを持つ孫が残って待たされただけなので、結果を読む。
+  const timedOut = errnoCode(res.error) === "ETIMEDOUT";
+  if (timedOut && !existsSync(outFile)) {
     const reason = `時間切れ: ${timeout / 1000} 秒でテストが終わらなかった`;
     return { done: false, run: { ran: false, reason } };
   }
@@ -1196,7 +1207,7 @@ function spawnTests(
   const spawnError = (res.stderr ?? "")
     .split("\n")
     .find((line) => line.startsWith(SPAWN_ERROR_MARK));
-  if (res.error || (res.status === SPAWN_ERROR_STATUS && spawnError !== undefined)) {
+  if ((res.error && !timedOut) || (res.status === SPAWN_ERROR_STATUS && spawnError !== undefined)) {
     const reason = res.error?.message ?? spawnError?.slice(SPAWN_ERROR_MARK.length);
     die(`テストを起動できない（${command.file}）: ${reason}`);
   }

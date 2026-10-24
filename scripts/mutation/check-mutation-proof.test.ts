@@ -275,6 +275,16 @@ function runRunnerWithin(timeout: number, ...args: (string | Env)[]) {
   return runNode([RUNNER, ...runnerArgs], { cwd: repoRoot, env: runnerEnv(env), timeout });
 }
 
+/** pid のプロセスが在るか（止めたプロセスが残っていないかを確かめる）。 */
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function mutation(over: Record<string, unknown> = {}) {
   return {
     id: "G",
@@ -545,16 +555,8 @@ describe.concurrent("宣言と前提の検証（実行する前に落とす）",
     expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
     const pid = Number(readFileSync(fx.hangPidFile, "utf8"));
     expect(Number.isInteger(pid) && pid > 0, String(pid)).toBe(true);
-    const alive = () => {
-      try {
-        process.kill(pid, 0);
-        return true;
-      } catch {
-        return false;
-      }
-    };
     // 止めたプロセスが init に回収されるまで、少しだけ待つ。
-    await vi.waitFor(() => expect(alive()).toBe(false), { timeout: 5_000 });
+    await vi.waitFor(() => expect(isAlive(pid)).toBe(false), { timeout: 5_000 });
   });
 
   // テストのプロセスは別のプロセスグループにいて、端末の Ctrl-C（SIGINT）が届かない。中断したときも残さない。
@@ -567,22 +569,27 @@ describe.concurrent("宣言と前提の検証（実行する前に落とす）",
       env: runnerEnv({ MUTATION_PROOF_RUN_TIMEOUT_MS: "60000" }),
       stdio: "ignore",
       detached: true,
+      timeout: CHILD_TIMEOUT_MS,
     });
+    const group = runner.pid;
+    expect(group, "ランナーを起動できなかった").toBeGreaterThan(0);
     const exited = new Promise((resolve) => runner.once("exit", resolve));
-    await vi.waitFor(() => expect(existsSync(fx.hangPidFile)).toBe(true), { timeout: 20_000 });
+    try {
+      await vi.waitFor(() => expect(existsSync(fx.hangPidFile)).toBe(true), { timeout: 20_000 });
+      process.kill(-Number(group), "SIGINT");
+      await vi.waitFor(() => expect(runner.exitCode ?? runner.signalCode).not.toBeNull(), {
+        timeout: 10_000,
+      });
+      await exited;
+    } finally {
+      // 途中の確認が失敗しても、起動したランナーのグループを残さない（終わっていれば ESRCH になる）。
+      try {
+        process.kill(-Number(group), "SIGKILL");
+      } catch {}
+    }
     const pid = Number(readFileSync(fx.hangPidFile, "utf8"));
     expect(Number.isInteger(pid) && pid > 0, String(pid)).toBe(true);
-    process.kill(-(runner.pid ?? 0), "SIGINT");
-    await exited;
-    const alive = () => {
-      try {
-        process.kill(pid, 0);
-        return true;
-      } catch {
-        return false;
-      }
-    };
-    await vi.waitFor(() => expect(alive()).toBe(false), { timeout: 5_000 });
+    await vi.waitFor(() => expect(isAlive(pid)).toBe(false), { timeout: 5_000 });
   });
 
   test.each(["", "0", "-1", "1.5", "abc"])(

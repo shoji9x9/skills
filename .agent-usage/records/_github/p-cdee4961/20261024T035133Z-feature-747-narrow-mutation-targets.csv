@@ -15,3 +15,6 @@ ci:40064577920:1,ci,2026-10-24T07:28:10.646Z,p-cdee4961,github-actions,,,,2026-1
 coverage:github:2026-10-23T04:58:23.832Z:2026-10-24T07:28:10.646Z,coverage,2026-10-24T07:28:10.646Z,p-cdee4961,,,,,2026-10-23T04:58:23.832Z,2026-10-24T07:28:10.646Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-23T07:28:10.646Z:2026-10-24T09:35:11.872Z,coverage,2026-10-24T09:35:11.872Z,p-cdee4961,,,,,2026-10-23T07:28:10.646Z,2026-10-24T09:35:11.872Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-23T09:35:11.872Z:2026-10-24T09:36:29.965Z,coverage,2026-10-24T09:36:29.965Z,p-cdee4961,,,,,2026-10-23T09:35:11.872Z,2026-10-24T09:36:29.965Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:40082686645:1,ci,2026-10-24T09:49:24.345Z,p-cdee4961,github-actions,,,,2026-10-24T09:37:27.000Z,2026-10-24T09:37:28.000Z,Asia/Tokyo,feature/747-narrow-mutation-targets,747,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40082686700:1,ci,2026-10-24T09:49:24.345Z,p-cdee4961,github-actions,,,,2026-10-24T09:37:27.000Z,2026-10-24T09:44:40.000Z,Asia/Tokyo,feature/747-narrow-mutation-targets,747,,,,,,,,,,CI;pull_request;failure,
+coverage:github:2026-10-23T09:36:29.965Z:2026-10-24T09:49:24.345Z,coverage,2026-10-24T09:49:24.345Z,p-cdee4961,,,,,2026-10-23T09:36:29.965Z,2026-10-24T09:49:24.345Z,Asia/Tokyo,,,,,,,,,,,,ok,
