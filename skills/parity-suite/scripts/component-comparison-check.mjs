@@ -78,43 +78,27 @@ export function fingerprintOf(keys) {
 }
 
 /**
- * 網羅表と突き合わせ表を突き合わせる。
- *
- * `carry`（任意）は new_implementation.commit と現在の new.commit が両側とも SHA で食い違うときに呼ぶ持ち越しの判定
- * （evidence-carry.mjs の judgeCarry を包んだもの。CLI が組み立てる）。渡されなければ従来どおり stale で落とす。
- * artifact-health-check.mjs の checkStage も同じ judgeCarry で判定し、2 つのチェックの判定を揃える。
- * `carryTo`（任意。--carry-to）を渡すと、new_implementation.commit からその版への持ち越しを、現在の new.commit が
- * 記録と同じでも必ず判定する（部品改修の一括再検証の直後は両方が改修前の版で一致する）。
- * 判定できない（記録の版が SHA でない・carry が無い）ときは合格として扱わない。
- * @param {{ coverage: unknown, comparison: unknown, metadata?: unknown, replaceMetadata?: unknown, target?: string | null, carryTo?: string | null, carry?: (input: { recordedCommit: string, wantedCommit: string, renderInputs: unknown }) => { ok: boolean, findings: string[], notes: string[] } }} input
- * @returns {{ findings: {code:string, message:string}[], notes: string[], counts: Record<string, number>, structural: boolean, judged: boolean }}
+ * checkComponentComparison の入力。
+ * @typedef {{ coverage: unknown, comparison: unknown, metadata?: unknown, replaceMetadata?: unknown, target?: string | null, carryTo?: string | null, carry?: (input: { recordedCommit: string, wantedCommit: string, renderInputs: unknown }) => { ok: boolean, findings: string[], notes: string[] } }} ComparisonInput
  */
-export function checkComponentComparison(input) {
-  /** @type {{code:string, message:string}[]} */
-  const findings = [];
-  /** @type {string[]} */
-  const notes = [];
-  const counts = { present: 0, compared: 0, blocking: 0, accepted: 0 };
-  const coverage = input.coverage;
-  if (!isObjectLike(coverage) || !isArray(coverage.cells)) {
-    return {
-      findings: [
-        {
-          code: "coverage-unreadable",
-          message: "網羅表が読めない（cells を持つ JSON オブジェクトでない）。合格として扱わない",
-        },
-      ],
-      notes,
-      counts,
-      structural: true,
-      judged: true,
-    };
-  }
+
+/**
+ * 判定の間で集める指摘と注記。
+ * @typedef {{ findings: {code:string, message:string}[], notes: string[] }} Report
+ */
+
+/**
+ * 網羅表の present セルの鍵を集める。鍵を作れないセル・重複したセルは指摘に足して数えない。
+ * @param {unknown[]} cells
+ * @param {Report} report
+ * @returns {string[]}
+ */
+function presentKeysOf(cells, { findings }) {
   /** @type {string[]} */
   const presentKeys = [];
   /** @type {Set<string>} */
   const seenPresent = new Set();
-  for (const raw of coverage.cells) {
+  for (const raw of cells) {
     // 文字列・数のセルはキーを読むと undefined になるので、{} と同じ扱いになる
     /** @type {Record<string, unknown>} */
     const cell = isObjectLike(raw) ? raw : {};
@@ -139,21 +123,21 @@ export function checkComponentComparison(input) {
     seenPresent.add(key);
     presentKeys.push(key);
   }
-  counts.present = presentKeys.length;
+  return presentKeys;
+}
 
-  const comparison = input.comparison;
-  if (!isObjectLike(comparison) || !isArray(comparison.cells)) {
-    findings.push({
-      code: "comparison-missing",
-      message:
-        "新側の突き合わせ表が無い（網羅表の present は移行元側の測定であり、新側の欠落を 1 件も示さない）",
-    });
-    return { findings, notes, counts, structural: false, judged: true };
-  }
-  if (nonEmptyString(input.target) && comparison.target !== input.target) {
+/**
+ * 突き合わせ表の target と、記録した新側の実装（new_implementation の commit と dirty）を確かめる。
+ * @param {Record<string, unknown>} comparison
+ * @param {string | null | undefined} target
+ * @param {Report} report
+ * @returns {{ observed: unknown, observedCommit: unknown }}
+ */
+function checkObservedImplementation(comparison, target, { findings }) {
+  if (nonEmptyString(target) && comparison.target !== target) {
     findings.push({
       code: "comparison-target-mismatch",
-      message: `突き合わせ表の target「${String(comparison.target)}」が判定対象の target「${String(input.target)}」と違う（別環境の記録で収束させない）`,
+      message: `突き合わせ表の target「${String(comparison.target)}」が判定対象の target「${String(target)}」と違う（別環境の記録で収束させない）`,
     });
   }
   // **突き合わせは新側の実装の版に紐づく**。target・slug・網羅表の指紋だけで縛ると、
@@ -178,6 +162,197 @@ export function checkComponentComparison(input) {
       message: `突き合わせ表の new_implementation.dirty が false でない（${observedDirty === undefined ? "欠落" : JSON.stringify(observedDirty)}）。未コミットの変更を抱えた作業ツリーで操作した記録は、commit で版を特定できない`,
     });
   }
+  return { observed, observedCommit };
+}
+
+/**
+ * 鮮度の判定で持ち回る値。
+ * @typedef {{ input: ComparisonInput, report: Report, observed: unknown, replaceNew: Record<string, unknown> }} Freshness
+ */
+
+/**
+ * 記録と現在のどちらかが `none` のときの鮮度の判定。
+ * @param {Freshness} f
+ * @param {{ recorded: string, wanted: string }} commits
+ * @returns {void}
+ */
+function checkNoCommitFreshness({ input, report, observed }, { recorded, wanted }) {
+  const { findings } = report;
+  const replaceMetadata = input.replaceMetadata;
+  // **`none` センチネルを素の文字列として比べない**。新側が git 管理を持たないと両側とも
+  // `none` になり、実装をいくら変えても `none !== none` は常に偽で、古い記録が鮮度検査を
+  // 永久に素通りする。artifact-health-check.mjs の checkStage と同じく反復回数へ退く。
+  // **退き先が無いことを合格として扱わない**。材料（どちらかの反復回数）が読めなければ不合格にする。
+  // **片側だけが `none` なら、その時点で記録と現在は別の版である**。記録した SHA と現在の `none`
+  // （またはその逆）は同じ版を指さない。反復回数がたまたま一致しただけで合格として扱うと、
+  // git 管理の有無が変わった新側で、古い記録が警告なしに通る。ここで不合格にし、反復回数の検査へは進まない。
+  // 進めると、取り決めの上で `iteration` を書く義務が無い SHA 記録に対して
+  // `comparison-implementation-unversionable`（「iteration を書き足せ」と読める）が同時に出て、
+  // 実際に必要な直し方（同じ版でもう一度測る）と案内がずれる。
+  if (recorded !== wanted) {
+    findings.push({
+      code: "comparison-implementation-stale",
+      message: `突き合わせ表の new_implementation.commit「${recorded}」が現在の新側「${wanted}」と違う（片側だけが ${NO_COMMIT} なので、反復回数が一致しても同じ版を指さない。同じ版で記録し直す）`,
+    });
+    return;
+  }
+  // 両側とも `none`。文字列の比較は常に一致するので、鮮度は反復回数だけが担う。
+  const recordedIteration = toIterationCount(
+    isObjectLike(observed) ? observed.iteration : undefined,
+  );
+  const loop =
+    isObjectLike(replaceMetadata) && isPlainObject(replaceMetadata.loop)
+      ? replaceMetadata.loop
+      : null;
+  const wantedIteration = toIterationCount(loop === null ? undefined : loop.iterations);
+  if (recordedIteration === null || wantedIteration === null) {
+    findings.push({
+      code: "comparison-implementation-unversionable",
+      message: `new.commit が ${NO_COMMIT}（新側リポジトリのコミットを持たない）なのに反復回数で版を対応づけられない（突き合わせ表の new_implementation.iteration: ${recordedIteration === null ? "読めない" : recordedIteration} / replace-metadata.json の loop.iterations: ${wantedIteration === null ? "読めない" : wantedIteration}）。どちらの鮮度指標も無いと、実装を変えても古い記録が通る`,
+    });
+  } else if (recordedIteration !== wantedIteration) {
+    findings.push({
+      code: "comparison-implementation-stale",
+      message: `突き合わせ表の new_implementation.iteration「${recordedIteration}」が現在の新側の反復回数「${wantedIteration}」と違う（new.commit が ${NO_COMMIT} なので反復回数で判定する。記録の後に実装が変わっている。同じ版で記録し直す）`,
+    });
+  }
+}
+
+/**
+ * SHA の不一致を即失効にせず、ページの描画入力の差分で持ち越せるかを見る。
+ * 判定の原本は evidence-carry.mjs。artifact-health-check.mjs の checkStage も同じ関数で判定する。
+ * @param {Freshness} f
+ * @param {{ recorded: string, wanted: string }} commits
+ * @returns {void}
+ */
+function checkShaMismatch({ input, report, replaceNew }, { recorded, wanted }) {
+  const { findings, notes } = report;
+  const carry =
+    typeof input.carry === "function"
+      ? input.carry({
+          recordedCommit: recorded,
+          wantedCommit: wanted,
+          renderInputs: replaceNew.render_inputs,
+        })
+      : null;
+  if (carry !== null && carry.ok) {
+    notes.push(...carry.notes);
+    return;
+  }
+  findings.push({
+    code: "comparison-implementation-stale",
+    message: `突き合わせ表の new_implementation.commit「${recorded}」が現在の新側「${wanted}」と違う（記録の後に実装が変わっている。同じ版で記録し直す）`,
+  });
+  if (carry !== null) {
+    for (const message of carry.findings) {
+      findings.push({
+        code: "evidence-carry-rejected",
+        message: `証跡を持ち越せない: ${message}`,
+      });
+    }
+    notes.push(...carry.notes);
+  }
+}
+
+/**
+ * 記録した版と現在の new.commit を突き合わせる。食い違いの判定で judgeCarry に掛けうる「今の版」を返す（掛けなければ null）。
+ * @param {Freshness} f
+ * @param {unknown} observedCommit
+ * @returns {string | null}
+ */
+function checkCommitFreshness(f, observedCommit) {
+  const { replaceNew } = f;
+  if (!nonEmptyString(replaceNew.commit)) {
+    f.report.findings.push({
+      code: "replace-metadata-commit-missing",
+      message:
+        "replace-metadata.json の new.commit が無い（現在の新側の版が読めないので、突き合わせの鮮度を確かめられない）",
+    });
+    return null;
+  }
+  if (!nonEmptyString(observedCommit)) return null;
+  const wanted = String(replaceNew.commit).trim();
+  const recorded = String(observedCommit).trim();
+  if (wanted === NO_COMMIT || recorded === NO_COMMIT) {
+    checkNoCommitFreshness(f, { recorded, wanted });
+  } else if (recorded !== wanted) {
+    checkShaMismatch(f, { recorded, wanted });
+  }
+  return wanted;
+}
+
+/**
+ * --carry-to: 記録の版から検証先の版への持ち越しを、現在の new.commit に依らず判定する。
+ * @param {Freshness} f
+ * @param {{ observedCommit: unknown, judgedWanted: string | null }} judged
+ * @returns {void}
+ */
+function checkCarryTo({ input, report, replaceNew }, { observedCommit, judgedWanted }) {
+  const { findings } = report;
+  const carryTo = nonEmptyString(input.carryTo) ? String(input.carryTo).trim() : null;
+  const recordedCommit = nonEmptyString(observedCommit) ? String(observedCommit).trim() : null;
+  // 食い違いの判定は SHA 同士が違うときだけ judgeCarry を呼ぶ。同じ版へ既に掛けたなら繰り返さない。
+  const alreadyJudged =
+    judgedWanted === carryTo &&
+    recordedCommit !== null &&
+    recordedCommit !== NO_COMMIT &&
+    judgedWanted !== NO_COMMIT &&
+    recordedCommit !== judgedWanted;
+  if (carryTo !== null && !alreadyJudged) {
+    if (recordedCommit === null || recordedCommit === NO_COMMIT) {
+      findings.push({
+        code: "evidence-carry-unverifiable",
+        message: `--carry-to ${carryTo} への持ち越しを判定できない（突き合わせ表の new_implementation.commit が ${recordedCommit ?? "無い"}。記録の版が SHA でないと描画入力の差分を取れない）`,
+      });
+    } else if (typeof input.carry !== "function") {
+      findings.push({
+        code: "evidence-carry-unverifiable",
+        message: `--carry-to ${carryTo} への持ち越しを判定する手段が渡されていない（判定不能を合格にしない）`,
+      });
+    } else {
+      const carry = input.carry({
+        recordedCommit,
+        wantedCommit: carryTo,
+        renderInputs: replaceNew.render_inputs,
+      });
+      reportCarryTo(carry, { carryTo, recordedCommit }, report);
+    }
+  }
+}
+
+/**
+ * --carry-to の持ち越しの判定結果を、指摘と注記に足す。
+ * @param {{ ok: boolean, findings: string[], notes: string[] }} carry
+ * @param {{ carryTo: string, recordedCommit: string }} commits
+ * @param {Report} report
+ * @returns {void}
+ */
+function reportCarryTo(carry, { carryTo, recordedCommit }, { findings, notes }) {
+  if (carry.ok) {
+    notes.push(...carry.notes.map((note) => `--carry-to ${carryTo}: ${note}`));
+    return;
+  }
+  findings.push({
+    code: "evidence-carry-rejected",
+    message: `突き合わせ表の証跡を --carry-to の版へ持ち越せない（new_implementation.commit ${recordedCommit} → ${carryTo}）`,
+  });
+  for (const message of carry.findings) {
+    findings.push({
+      code: "evidence-carry-rejected",
+      message: `証跡を持ち越せない: ${message}`,
+    });
+  }
+  notes.push(...carry.notes);
+}
+
+/**
+ * 突き合わせ表の鮮度を、replace-metadata.json の現在の新側の版と突き合わせる。
+ * @param {ComparisonInput} input
+ * @param {{ observed: unknown, observedCommit: unknown }} implementation
+ * @param {Report} report
+ * @returns {void}
+ */
+function checkFreshness(input, { observed, observedCommit }, report) {
   // **`--replace-metadata` は省略を許さない。** 照合相手が無いと鮮度の検査そのものが飛び、
   // 「記録の後に実装が変わっていない」ことを一度も確かめないまま収束する
   // （`comparison-implementation-stale` は相手が渡されたときにしか機能しない）。
@@ -186,145 +361,36 @@ export function checkComponentComparison(input) {
     isPlainObject(replaceMetadata) && isPlainObject(replaceMetadata.new)
       ? replaceMetadata.new
       : null;
-  // 食い違いの判定で judgeCarry に掛けうる「今の版」。--carry-to が同じ版なら二重に判定しない。
-  /** @type {string | null} */
-  let judgedWanted = null;
   if (!replaceNew) {
-    findings.push({
+    report.findings.push({
       code: "replace-metadata-unusable",
       message:
         "replace-metadata.json を new オブジェクトを持つ形で読めない（現在の新側の版が分からず、突き合わせの鮮度を確かめられない。省略・型の誤りを免除にしない）",
     });
-  } else {
-    if (!nonEmptyString(replaceNew.commit)) {
-      findings.push({
-        code: "replace-metadata-commit-missing",
-        message:
-          "replace-metadata.json の new.commit が無い（現在の新側の版が読めないので、突き合わせの鮮度を確かめられない）",
-      });
-    } else if (nonEmptyString(observedCommit)) {
-      const wanted = String(replaceNew.commit).trim();
-      judgedWanted = wanted;
-      const recorded = String(observedCommit).trim();
-      if (wanted === NO_COMMIT || recorded === NO_COMMIT) {
-        // **`none` センチネルを素の文字列として比べない**。新側が git 管理を持たないと両側とも
-        // `none` になり、実装をいくら変えても `none !== none` は常に偽で、古い記録が鮮度検査を
-        // 永久に素通りする。artifact-health-check.mjs の checkStage と同じく反復回数へ退く。
-        // **退き先が無いことを合格として扱わない**。材料（どちらかの反復回数）が読めなければ不合格にする。
-        // **片側だけが `none` なら、その時点で記録と現在は別の版である**。記録した SHA と現在の `none`
-        // （またはその逆）は同じ版を指さない。反復回数がたまたま一致しただけで合格として扱うと、
-        // git 管理の有無が変わった新側で、古い記録が警告なしに通る。ここで不合格にし、反復回数の検査へは進まない。
-        // 進めると、取り決めの上で `iteration` を書く義務が無い SHA 記録に対して
-        // `comparison-implementation-unversionable`（「iteration を書き足せ」と読める）が同時に出て、
-        // 実際に必要な直し方（同じ版でもう一度測る）と案内がずれる。
-        if (recorded !== wanted) {
-          findings.push({
-            code: "comparison-implementation-stale",
-            message: `突き合わせ表の new_implementation.commit「${recorded}」が現在の新側「${wanted}」と違う（片側だけが ${NO_COMMIT} なので、反復回数が一致しても同じ版を指さない。同じ版で記録し直す）`,
-          });
-        } else {
-          // 両側とも `none`。文字列の比較は常に一致するので、鮮度は反復回数だけが担う。
-          const recordedIteration = toIterationCount(
-            isObjectLike(observed) ? observed.iteration : undefined,
-          );
-          const loop =
-            isObjectLike(replaceMetadata) && isPlainObject(replaceMetadata.loop)
-              ? replaceMetadata.loop
-              : null;
-          const wantedIteration = toIterationCount(loop === null ? undefined : loop.iterations);
-          if (recordedIteration === null || wantedIteration === null) {
-            findings.push({
-              code: "comparison-implementation-unversionable",
-              message: `new.commit が ${NO_COMMIT}（新側リポジトリのコミットを持たない）なのに反復回数で版を対応づけられない（突き合わせ表の new_implementation.iteration: ${recordedIteration === null ? "読めない" : recordedIteration} / replace-metadata.json の loop.iterations: ${wantedIteration === null ? "読めない" : wantedIteration}）。どちらの鮮度指標も無いと、実装を変えても古い記録が通る`,
-            });
-          } else if (recordedIteration !== wantedIteration) {
-            findings.push({
-              code: "comparison-implementation-stale",
-              message: `突き合わせ表の new_implementation.iteration「${recordedIteration}」が現在の新側の反復回数「${wantedIteration}」と違う（new.commit が ${NO_COMMIT} なので反復回数で判定する。記録の後に実装が変わっている。同じ版で記録し直す）`,
-            });
-          }
-        }
-      } else if (recorded !== wanted) {
-        // SHA の不一致を即失効にせず、ページの描画入力の差分で持ち越せるかを見る。
-        // 判定の原本は evidence-carry.mjs。artifact-health-check.mjs の checkStage も同じ関数で判定する。
-        const carry =
-          typeof input.carry === "function"
-            ? input.carry({
-                recordedCommit: recorded,
-                wantedCommit: wanted,
-                renderInputs: replaceNew.render_inputs,
-              })
-            : null;
-        if (carry !== null && carry.ok) {
-          notes.push(...carry.notes);
-        } else {
-          findings.push({
-            code: "comparison-implementation-stale",
-            message: `突き合わせ表の new_implementation.commit「${recorded}」が現在の新側「${wanted}」と違う（記録の後に実装が変わっている。同じ版で記録し直す）`,
-          });
-          if (carry !== null) {
-            for (const message of carry.findings) {
-              findings.push({
-                code: "evidence-carry-rejected",
-                message: `証跡を持ち越せない: ${message}`,
-              });
-            }
-            notes.push(...carry.notes);
-          }
-        }
-      }
-    }
-    // --carry-to: 記録の版から検証先の版への持ち越しを、現在の new.commit に依らず判定する。
-    const carryTo = nonEmptyString(input.carryTo) ? String(input.carryTo).trim() : null;
-    const recordedCommit = nonEmptyString(observedCommit) ? String(observedCommit).trim() : null;
-    // 食い違いの判定は SHA 同士が違うときだけ judgeCarry を呼ぶ。同じ版へ既に掛けたなら繰り返さない。
-    const alreadyJudged =
-      judgedWanted === carryTo &&
-      recordedCommit !== null &&
-      recordedCommit !== NO_COMMIT &&
-      judgedWanted !== NO_COMMIT &&
-      recordedCommit !== judgedWanted;
-    if (carryTo !== null && !alreadyJudged) {
-      if (recordedCommit === null || recordedCommit === NO_COMMIT) {
-        findings.push({
-          code: "evidence-carry-unverifiable",
-          message: `--carry-to ${carryTo} への持ち越しを判定できない（突き合わせ表の new_implementation.commit が ${recordedCommit ?? "無い"}。記録の版が SHA でないと描画入力の差分を取れない）`,
-        });
-      } else if (typeof input.carry !== "function") {
-        findings.push({
-          code: "evidence-carry-unverifiable",
-          message: `--carry-to ${carryTo} への持ち越しを判定する手段が渡されていない（判定不能を合格にしない）`,
-        });
-      } else {
-        const carry = input.carry({
-          recordedCommit,
-          wantedCommit: carryTo,
-          renderInputs: replaceNew.render_inputs,
-        });
-        if (carry.ok) {
-          notes.push(...carry.notes.map((note) => `--carry-to ${carryTo}: ${note}`));
-        } else {
-          findings.push({
-            code: "evidence-carry-rejected",
-            message: `突き合わせ表の証跡を --carry-to の版へ持ち越せない（new_implementation.commit ${recordedCommit} → ${carryTo}）`,
-          });
-          for (const message of carry.findings) {
-            findings.push({
-              code: "evidence-carry-rejected",
-              message: `証跡を持ち越せない: ${message}`,
-            });
-          }
-          notes.push(...carry.notes);
-        }
-      }
-    }
-    if (replaceNew.dirty !== false) {
-      findings.push({
-        code: "replace-metadata-dirty",
-        message: `replace-metadata.json の new.dirty が false でない（${replaceNew.dirty === undefined ? "欠落" : JSON.stringify(replaceNew.dirty)}）。未コミットの変更があると、突き合わせをどの版に紐づけたか決まらない`,
-      });
-    }
+    return;
   }
+  /** @type {Freshness} */
+  const f = { input, report, observed, replaceNew };
+  // 食い違いの判定で judgeCarry に掛けうる「今の版」。--carry-to が同じ版なら二重に判定しない。
+  const judgedWanted = checkCommitFreshness(f, observedCommit);
+  checkCarryTo(f, { observedCommit, judgedWanted });
+  if (replaceNew.dirty !== false) {
+    report.findings.push({
+      code: "replace-metadata-dirty",
+      message: `replace-metadata.json の new.dirty が false でない（${replaceNew.dirty === undefined ? "欠落" : JSON.stringify(replaceNew.dirty)}）。未コミットの変更があると、突き合わせをどの版に紐づけたか決まらない`,
+    });
+  }
+}
+
+/**
+ * 突き合わせ表の slug を、網羅表と metadata.json の slug と照合する。
+ * @param {Record<string, unknown>} coverage
+ * @param {Record<string, unknown>} comparison
+ * @param {{ metadata: unknown, report: Report }} ctx
+ * @returns {void}
+ */
+function checkSlugs(coverage, comparison, { metadata, report }) {
+  const { findings } = report;
   // **slug の照合は網羅表との間で常に行う**。`--metadata` は任意なので、metadata があるときだけ見ると、
   // 別機能からコピーした突き合わせ表が「target と鍵がたまたま一致する」だけで通る（指紋は鍵しか数えない）。
   if (!nonEmptyString(coverage.slug)) {
@@ -341,7 +407,6 @@ export function checkComponentComparison(input) {
       message: `突き合わせ表の slug「${String(comparison.slug)}」が網羅表の slug「${String(coverage.slug)}」と違う（別機能の記録で収束させない）`,
     });
   }
-  const metadata = input.metadata;
   if (isObjectLike(metadata) && nonEmptyString(metadata.slug)) {
     if (comparison.slug !== metadata.slug) {
       findings.push({
@@ -350,6 +415,16 @@ export function checkComponentComparison(input) {
       });
     }
   }
+}
+
+/**
+ * 突き合わせ表の source_coverage.fingerprint を、網羅表の present セルの指紋と照合する。
+ * @param {Record<string, unknown>} comparison
+ * @param {string[]} presentKeys
+ * @param {Report} report
+ * @returns {void}
+ */
+function checkCoverageFingerprint(comparison, presentKeys, { findings }) {
   const expectedFingerprint = fingerprintOf(presentKeys);
   // source_coverage がオブジェクトでなければ fingerprint を undefined として読み、下で fingerprint が無いと報告する。
   const sourceCoverage = comparison.source_coverage;
@@ -366,10 +441,19 @@ export function checkComponentComparison(input) {
       message: `source_coverage.fingerprint が網羅表の present セルと一致しない（記録後に網羅表が変わっている。期待 ${expectedFingerprint}）`,
     });
   }
+}
 
+/**
+ * 突き合わせ表の行を鍵ごとにまとめる。鍵を作れない行・重複した行・present に無い行は指摘に足す。
+ * @param {unknown[]} cells
+ * @param {string[]} presentKeys
+ * @param {Report} report
+ * @returns {Map<string, Record<string, unknown>>}
+ */
+function comparisonRows(cells, presentKeys, { findings }) {
   /** @type {Map<string, Record<string, unknown>>} */
   const rows = new Map();
-  for (const raw of comparison.cells) {
+  for (const raw of cells) {
     // 文字列・数の行はキーを読むと undefined になるので、{} と同じ扱いになる
     /** @type {Record<string, unknown>} */
     const row = isObjectLike(raw) ? raw : {};
@@ -398,122 +482,171 @@ export function checkComponentComparison(input) {
       });
     }
   }
-  for (const key of presentKeys) {
-    const row = rows.get(key);
-    if (!row) {
-      findings.push({
-        code: "cell-not-compared",
-        message: `${key} は移行元で present だが、新側で突き合わせた記録が無い（在席の記録は新側の欠落を示さない）`,
-      });
-      counts.blocking += 1;
-      continue;
-    }
-    if (row.compared === true) {
-      /** @type {Record<string, unknown>} */
-      const evidence = isObjectLike(row.evidence) ? row.evidence : {};
-      const missing = EVIDENCE_AXES.filter((axis) => !nonEmptyString(evidence[axis]));
-      if (missing.length > 0) {
-        findings.push({
-          code: "evidence-axis-missing",
-          message: `${key} の突き合わせに ${missing.join(" / ")} の観測が無い（起点・当たり判定・完了のどれかで止まる欠落はケースの文面に出てこない）`,
-        });
-        counts.blocking += 1;
-        continue;
-      }
-      counts.compared += 1;
-      continue;
-    }
-    if (row.compared !== false) {
-      findings.push({
-        code: "compared-not-boolean",
-        message: `${key} の compared が真偽値でない（未突合と突き合わせ済みを書き分けられない）`,
-      });
-      counts.blocking += 1;
-      continue;
-    }
-    if (!nonEmptyString(row.not_compared_reason)) {
-      findings.push({
-        code: "not-compared-reason-missing",
-        message: `${key} は compared: false なのに理由が無い（何が突き合わせを止めているか残らない）`,
-      });
-      counts.blocking += 1;
-      continue;
-    }
-    const disposition = row.disposition;
-    if (disposition === "accepted") {
-      if (!nonEmptyString(row.approved_by) || !nonEmptyString(row.approved_at)) {
-        findings.push({
-          code: "acceptance-unapproved",
-          message: `${key} の accepted に approved_by / approved_at が無い（承認の無い accepted は blocking として数える）`,
-        });
-        counts.blocking += 1;
-        continue;
-      }
-      counts.accepted += 1;
-      continue;
-    }
-    if (
-      disposition !== undefined &&
-      disposition !== null &&
-      !DISPOSITIONS.includes(String(disposition))
-    ) {
-      findings.push({
-        code: "disposition-vocabulary",
-        message: `${key} の disposition「${String(disposition)}」は語彙外（${DISPOSITIONS.join(" / ")}）`,
-      });
-    }
+  return rows;
+}
+
+/**
+ * compared: false の行を判定する。承認のある accepted だけを accepted として数え、それ以外は blocking にする。
+ * @param {string} key
+ * @param {Record<string, unknown>} row
+ * @param {{code:string, message:string}[]} findings
+ * @returns {"accepted" | "blocking"}
+ */
+function judgeNotCompared(key, row, findings) {
+  if (!nonEmptyString(row.not_compared_reason)) {
     findings.push({
-      code: "cell-comparison-blocking",
-      message: `${key} は新側で突き合わせていない（理由: ${String(row.not_compared_reason)}）`,
+      code: "not-compared-reason-missing",
+      message: `${key} は compared: false なのに理由が無い（何が突き合わせを止めているか残らない）`,
     });
-    counts.blocking += 1;
+    return "blocking";
+  }
+  const disposition = row.disposition;
+  if (disposition === "accepted") {
+    if (!nonEmptyString(row.approved_by) || !nonEmptyString(row.approved_at)) {
+      findings.push({
+        code: "acceptance-unapproved",
+        message: `${key} の accepted に approved_by / approved_at が無い（承認の無い accepted は blocking として数える）`,
+      });
+      return "blocking";
+    }
+    return "accepted";
+  }
+  if (
+    disposition !== undefined &&
+    disposition !== null &&
+    !DISPOSITIONS.includes(String(disposition))
+  ) {
+    findings.push({
+      code: "disposition-vocabulary",
+      message: `${key} の disposition「${String(disposition)}」は語彙外（${DISPOSITIONS.join(" / ")}）`,
+    });
+  }
+  findings.push({
+    code: "cell-comparison-blocking",
+    message: `${key} は新側で突き合わせていない（理由: ${String(row.not_compared_reason)}）`,
+  });
+  return "blocking";
+}
+
+/**
+ * 網羅表の present セル 1 つを、突き合わせ表の行で判定する。数える欄（compared / accepted / blocking）を返す。
+ * @param {string} key
+ * @param {Record<string, unknown> | undefined} row
+ * @param {{code:string, message:string}[]} findings
+ * @returns {"compared" | "accepted" | "blocking"}
+ */
+function judgeCell(key, row, findings) {
+  if (!row) {
+    findings.push({
+      code: "cell-not-compared",
+      message: `${key} は移行元で present だが、新側で突き合わせた記録が無い（在席の記録は新側の欠落を示さない）`,
+    });
+    return "blocking";
+  }
+  if (row.compared === true) {
+    /** @type {Record<string, unknown>} */
+    const evidence = isObjectLike(row.evidence) ? row.evidence : {};
+    const missing = EVIDENCE_AXES.filter((axis) => !nonEmptyString(evidence[axis]));
+    if (missing.length > 0) {
+      findings.push({
+        code: "evidence-axis-missing",
+        message: `${key} の突き合わせに ${missing.join(" / ")} の観測が無い（起点・当たり判定・完了のどれかで止まる欠落はケースの文面に出てこない）`,
+      });
+      return "blocking";
+    }
+    return "compared";
+  }
+  if (row.compared !== false) {
+    findings.push({
+      code: "compared-not-boolean",
+      message: `${key} の compared が真偽値でない（未突合と突き合わせ済みを書き分けられない）`,
+    });
+    return "blocking";
+  }
+  return judgeNotCompared(key, row, findings);
+}
+
+/**
+ * 網羅表と突き合わせ表を突き合わせる。
+ *
+ * `carry`（任意）は new_implementation.commit と現在の new.commit が両側とも SHA で食い違うときに呼ぶ持ち越しの判定
+ * （evidence-carry.mjs の judgeCarry を包んだもの。CLI が組み立てる）。渡されなければ従来どおり stale で落とす。
+ * artifact-health-check.mjs の checkStage も同じ judgeCarry で判定し、2 つのチェックの判定を揃える。
+ * `carryTo`（任意。--carry-to）を渡すと、new_implementation.commit からその版への持ち越しを、現在の new.commit が
+ * 記録と同じでも必ず判定する（部品改修の一括再検証の直後は両方が改修前の版で一致する）。
+ * 判定できない（記録の版が SHA でない・carry が無い）ときは合格として扱わない。
+ * @param {ComparisonInput} input
+ * @returns {{ findings: {code:string, message:string}[], notes: string[], counts: Record<string, number>, structural: boolean, judged: boolean }}
+ */
+export function checkComponentComparison(input) {
+  /** @type {Report} */
+  const report = { findings: [], notes: [] };
+  const { findings, notes } = report;
+  const counts = { present: 0, compared: 0, blocking: 0, accepted: 0 };
+  const coverage = input.coverage;
+  if (!isObjectLike(coverage) || !isArray(coverage.cells)) {
+    return {
+      findings: [
+        {
+          code: "coverage-unreadable",
+          message: "網羅表が読めない（cells を持つ JSON オブジェクトでない）。合格として扱わない",
+        },
+      ],
+      notes,
+      counts,
+      structural: true,
+      judged: true,
+    };
+  }
+  const presentKeys = presentKeysOf(coverage.cells, report);
+  counts.present = presentKeys.length;
+
+  const comparison = input.comparison;
+  if (!isObjectLike(comparison) || !isArray(comparison.cells)) {
+    findings.push({
+      code: "comparison-missing",
+      message:
+        "新側の突き合わせ表が無い（網羅表の present は移行元側の測定であり、新側の欠落を 1 件も示さない）",
+    });
+    return { findings, notes, counts, structural: false, judged: true };
+  }
+  const implementation = checkObservedImplementation(comparison, input.target, report);
+  checkFreshness(input, implementation, report);
+  checkSlugs(coverage, comparison, { metadata: input.metadata, report });
+  checkCoverageFingerprint(comparison, presentKeys, report);
+  const rows = comparisonRows(comparison.cells, presentKeys, report);
+  for (const key of presentKeys) {
+    counts[judgeCell(key, rows.get(key), findings)] += 1;
   }
 
   return { findings, notes, counts, structural: false, judged: true };
 }
 
+const USAGE =
+  "usage: component-comparison-check.mjs --coverage <component-coverage.json> --comparison <new/<target>/component-comparison.json> --target <name> --replace-metadata <new/<target>/replace-metadata.json> [--metadata <metadata.json>] [--new-repo <path>] [--replace-root <.replace>] [--evidence-carry <evidence-carry.json>] [--carry-to <SHA>]";
+
+/** 引数・入力の誤り。main が stderr へ知らせて exit 2 にする（判定結果ではないので stdout の JSON には混ぜない）。 */
+class InputError extends Error {}
+
 /**
- * CLI 本体。
+ * 引数を名前から値への対応にする。値の無い引数・重複・知らない引数は InputError を投げる。
  * @param {string[]} argv
- * @param {{ readFile?: (path: string) => string, readBytes?: (path: string) => Buffer, cwd?: string, write?: (s: string) => void, writeErr?: (s: string) => void }} [deps]
- * @returns {number}
+ * @returns {Record<string, string>}
  */
-export function main(argv, deps = {}) {
-  const readFile = deps.readFile ?? ((p) => readFileSync(p, "utf8"));
-  const cwd = deps.cwd ?? process.cwd();
-  const write = deps.write ?? ((s) => process.stdout.write(s));
-  const writeErr = deps.writeErr ?? ((s) => process.stderr.write(s));
-  const usage =
-    "usage: component-comparison-check.mjs --coverage <component-coverage.json> --comparison <new/<target>/component-comparison.json> --target <name> --replace-metadata <new/<target>/replace-metadata.json> [--metadata <metadata.json>] [--new-repo <path>] [--replace-root <.replace>] [--evidence-carry <evidence-carry.json>] [--carry-to <SHA>]";
-  /**
-   * 引数・入力の誤りを stderr へ知らせる（判定結果ではないので stdout の JSON には混ぜない）。
-   * @param {string} message
-   * @returns {number}
-   */
-  const fail = (message) => {
-    writeErr(`error: ${message}\n${usage}\n`);
-    return 2;
-  };
-  /**
-   * @param {Record<string, unknown>} obj
-   */
-  const out = (obj) =>
-    write(
-      `${JSON.stringify({ tool: "component-comparison-check", version: VERSION, ...obj }, null, 2)}\n`,
-    );
+function parseArgs(argv) {
   /** @type {Record<string, string>} */
   const args = {};
   for (let i = 0; i < argv.length; i += 1) {
     const key = argv[i];
     if (!key.startsWith("--")) {
-      return fail(`不明な引数: ${key}`);
+      throw new InputError(`不明な引数: ${key}`);
     }
     const value = argv[i + 1];
     if (typeof value !== "string" || value.startsWith("--")) {
-      return fail(`${key} に値がない`);
+      throw new InputError(`${key} に値がない`);
     }
     if (args[key] !== undefined) {
-      return fail(`${key} が複数ある`);
+      throw new InputError(`${key} が複数ある`);
     }
     args[key] = value;
     i += 1;
@@ -531,15 +664,24 @@ export function main(argv, deps = {}) {
   ];
   const unknown = Object.keys(args).filter((k) => !known.includes(k));
   if (unknown.length > 0) {
-    return fail(`不明な引数: ${unknown.join(", ")}`);
+    throw new InputError(`不明な引数: ${unknown.join(", ")}`);
   }
+  return args;
+}
+
+/**
+ * 必須の引数と、引数どうしの組み合わせを確かめる。
+ * @param {Record<string, string>} args
+ * @returns {void}
+ */
+function checkRequiredArgs(args) {
   if (!args["--coverage"]) {
-    return fail("--coverage は必須");
+    throw new InputError("--coverage は必須");
   }
   // **鮮度の照合相手を省けるようにしない**。省くと `comparison-implementation-stale` が
   // 一度も評価されず、記録の後に新側を変えても古い証拠で収束する。
   if (!args["--replace-metadata"] || args["--replace-metadata"].trim() === "") {
-    return fail(
+    throw new InputError(
       "--replace-metadata は必須（空白だけの値も不可。現在の新側の版と突き合わせないと、記録の鮮度を確かめられない）",
     );
   }
@@ -549,19 +691,30 @@ export function main(argv, deps = {}) {
   // **空白だけの値を通さない**。CLI の truthy 判定は通るのに、判定側は非空文字列でないと
   // 「渡されていない」として target 照合を飛ばすため、別環境の記録が通る。
   if (!args["--target"] || args["--target"].trim() === "") {
-    return fail(
+    throw new InputError(
       "--target は必須（空白だけの値も不可。突き合わせ表は環境別の記録なので、別 target の記録を通さない）",
     );
   }
   // --carry-to は持ち越しを判定させる指定なので、差分を取るリポジトリが無いまま受け付けない。
   if (args["--carry-to"] !== undefined) {
     if (args["--carry-to"].trim() === "") {
-      return fail("--carry-to が空");
+      throw new InputError("--carry-to が空");
     }
     if (args["--new-repo"] === undefined || args["--new-repo"].trim() === "") {
-      return fail("--carry-to には --new-repo が要る（描画入力の差分を新側リポジトリで取る）");
+      throw new InputError(
+        "--carry-to には --new-repo が要る（描画入力の差分を新側リポジトリで取る）",
+      );
     }
   }
+}
+
+/**
+ * 入力の JSON を読む。突き合わせ表だけは、読めなければ null にする。
+ * @param {Record<string, string>} args
+ * @param {{ readFile: (path: string) => string, cwd: string }} io
+ * @returns {Record<string, unknown>}
+ */
+function readInputs(args, { readFile, cwd }) {
   /** @type {Record<string, unknown>} */
   const parsed = {};
   for (const key of ["--coverage", "--comparison", "--metadata", "--replace-metadata"]) {
@@ -576,46 +729,70 @@ export function main(argv, deps = {}) {
         parsed[key] = null;
         continue;
       }
-      return fail(`${path} を読めない: ${errorMessage(error)}`);
+      throw new InputError(`${path} を読めない: ${errorMessage(error)}`);
     }
   }
-  // 持ち越しの判定に渡す材料。パスは作業ディレクトリから解決し、--replace-root を省けば
-  // --replace-metadata のパスにある `.replace` を使う（artifact-health-check.mjs の既定 <root>/.replace と同じ場所）。
+  return parsed;
+}
+
+/**
+ * 持ち越しの判定に使う `.replace` ディレクトリ。--replace-root を省けば --replace-metadata のパスにある `.replace` を使う
+ * （artifact-health-check.mjs の既定 <root>/.replace と同じ場所）。見つからなければ null。
+ * @param {Record<string, string>} args
+ * @param {string} cwd
+ * @param {string} replaceMetadataPath
+ * @returns {string | null}
+ */
+function replaceRootOf(args, cwd, replaceMetadataPath) {
+  if (args["--replace-root"] !== undefined) return resolve(cwd, args["--replace-root"]);
+  const parts = replaceMetadataPath.split(sep);
+  const i = parts.lastIndexOf(".replace");
+  return i > 0 ? parts.slice(0, i + 1).join(sep) : null;
+}
+
+/**
+ * 持ち越しの判定（judgeCarry）を、CLI の引数から組み立てる。パスは作業ディレクトリから解決する。
+ * @param {Record<string, string>} args
+ * @param {Record<string, unknown>} parsed
+ * @param {{ cwd: string, readBytes?: (path: string) => Buffer }} io
+ * @returns {NonNullable<ComparisonInput["carry"]>}
+ */
+function carryFor(args, parsed, { cwd, readBytes }) {
   const replaceMetadataPath = resolve(cwd, args["--replace-metadata"]);
-  /** @type {string | null} */
-  let replaceRoot = null;
-  if (args["--replace-root"] !== undefined) {
-    replaceRoot = resolve(cwd, args["--replace-root"]);
-  } else {
-    const parts = replaceMetadataPath.split(sep);
-    const i = parts.lastIndexOf(".replace");
-    if (i > 0) replaceRoot = parts.slice(0, i + 1).join(sep);
-  }
+  const replaceRoot = replaceRootOf(args, cwd, replaceMetadataPath);
   const parsedCoverage = parsed["--coverage"];
   const coverageSlug = isObjectLike(parsedCoverage) ? parsedCoverage.slug : undefined;
-  const result = checkComponentComparison({
-    coverage: parsed["--coverage"],
-    comparison: parsed["--comparison"] ?? null,
-    metadata: parsed["--metadata"],
-    replaceMetadata: parsed["--replace-metadata"],
-    target: args["--target"] ?? null,
-    carryTo: args["--carry-to"] ?? null,
-    carry: ({ recordedCommit, wantedCommit, renderInputs }) =>
-      judgeCarry({
-        recordedCommit,
-        wantedCommit,
-        renderInputs,
-        repo: args["--new-repo"] !== undefined ? resolve(cwd, args["--new-repo"]) : null,
-        evidenceCarryPath:
-          args["--evidence-carry"] !== undefined
-            ? resolve(cwd, args["--evidence-carry"])
-            : join(dirname(replaceMetadataPath), EVIDENCE_CARRY_FILE),
-        featureSlug: typeof coverageSlug === "string" ? coverageSlug : "",
-        featureMetadata: parsed["--metadata"],
-        replaceRoot,
-        ...(deps.readBytes ? { readBytes: deps.readBytes } : {}),
-      }),
-  });
+  return ({ recordedCommit, wantedCommit, renderInputs }) =>
+    judgeCarry({
+      recordedCommit,
+      wantedCommit,
+      renderInputs,
+      repo: args["--new-repo"] !== undefined ? resolve(cwd, args["--new-repo"]) : null,
+      evidenceCarryPath:
+        args["--evidence-carry"] !== undefined
+          ? resolve(cwd, args["--evidence-carry"])
+          : join(dirname(replaceMetadataPath), EVIDENCE_CARRY_FILE),
+      featureSlug: typeof coverageSlug === "string" ? coverageSlug : "",
+      featureMetadata: parsed["--metadata"],
+      replaceRoot,
+      ...(readBytes ? { readBytes } : {}),
+    });
+}
+
+/**
+ * 判定結果を stdout へ書き、終了コードを返す。
+ * @param {ReturnType<typeof checkComponentComparison>} result
+ * @param {(s: string) => void} write
+ * @returns {number}
+ */
+function writeResult(result, write) {
+  /**
+   * @param {Record<string, unknown>} obj
+   */
+  const out = (obj) =>
+    write(
+      `${JSON.stringify({ tool: "component-comparison-check", version: VERSION, ...obj }, null, 2)}\n`,
+    );
   if (result.structural) {
     out({ ok: false, structural: true, findings: result.findings, counts: result.counts });
     return 2;
@@ -629,6 +806,42 @@ export function main(argv, deps = {}) {
     counts: { ...result.counts, findings: result.findings.length },
   });
   return result.findings.length === 0 ? 0 : 1;
+}
+
+/**
+ * CLI 本体。
+ * @param {string[]} argv
+ * @param {{ readFile?: (path: string) => string, readBytes?: (path: string) => Buffer, cwd?: string, write?: (s: string) => void, writeErr?: (s: string) => void }} [deps]
+ * @returns {number}
+ */
+export function main(argv, deps = {}) {
+  const readFile = deps.readFile ?? ((p) => readFileSync(p, "utf8"));
+  const cwd = deps.cwd ?? process.cwd();
+  const write = deps.write ?? ((s) => process.stdout.write(s));
+  const writeErr = deps.writeErr ?? ((s) => process.stderr.write(s));
+  /** @type {Record<string, string>} */
+  let args;
+  /** @type {Record<string, unknown>} */
+  let parsed;
+  try {
+    args = parseArgs(argv);
+    checkRequiredArgs(args);
+    parsed = readInputs(args, { readFile, cwd });
+  } catch (error) {
+    if (!(error instanceof InputError)) throw error;
+    writeErr(`error: ${error.message}\n${USAGE}\n`);
+    return 2;
+  }
+  const result = checkComponentComparison({
+    coverage: parsed["--coverage"],
+    comparison: parsed["--comparison"] ?? null,
+    metadata: parsed["--metadata"],
+    replaceMetadata: parsed["--replace-metadata"],
+    target: args["--target"] ?? null,
+    carryTo: args["--carry-to"] ?? null,
+    carry: carryFor(args, parsed, { cwd, readBytes: deps.readBytes }),
+  });
+  return writeResult(result, write);
 }
 
 if (isCliEntry(import.meta.url)) {

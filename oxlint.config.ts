@@ -108,15 +108,33 @@ export default defineConfig({
       },
     },
     {
-      // 配布スキルの、ページで実行するコード（page/*.page.mjs）。CLI が本文を関数式で包み、evaluate_script でページへ渡す。
-      // 本文は最後の行の export（本体）のほかに import も export も持たないので、宣言していない名前の参照は、
-      // ページで実行したときに初めて ReferenceError になる。
+      // 配布スキルの、ページで実行するコード（page/*.page.mjs）。ページへはソースだけが渡る。
+      // 渡し方は 2 通りある。CLI が本文を関数式で包んで evaluate_script へ渡すもの（replace-strategy）と、
+      // 本体の関数を import して Playwright の evaluate へそのまま渡すもの（parity-suite・parity-component）である。
+      // どちらも、宣言していない名前の参照は、ページで実行したときに初めて ReferenceError になる。
       // そこで、ブラウザのグローバルだけを宣言済みとして no-undef を当て、参照の誤りを lint で見つける。
-      // 本体は最後の行で export するので、no-unused-vars はこの設定なしで本体を使われているものとして扱う。
+      // 本体は export するので、no-unused-vars はこの設定なしで本体を使われているものとして扱う。
       files: ["skills/*/scripts/page/*.page.mjs"],
       env: { browser: true },
       rules: {
         "no-undef": "error",
+      },
+    },
+    {
+      // 本体の関数を Playwright の evaluate へそのまま渡す page ファイル。evaluate はその関数のソースだけを送るので、
+      // 本体が呼ぶ関数は本体の中に入れ子で書くしかない。組み込みの max-lines-per-function は入れ子の行も本体に数えるので、
+      // JS プラグインのルールに替える。本体は入れ子の関数とコメントを除いてコードの残る行を数え、入れ子の関数は全体の行数で数える。
+      // complexity と max-depth は関数ごとに数え、入れ子の関数を本体に数えないので、組み込みのまま当てる。
+      // 本体の外にある関数を送るために new Function でソースを組み立てる方法は、利用者の lint や
+      // --disallow-code-generation-from-strings で止まるので採らない。
+      // CLI が本文を関数式で包む replace-strategy の page ファイルは、本体が呼ぶ関数を最上位に置けるので対象にしない。
+      files: [
+        "skills/parity-suite/scripts/page/*.page.mjs",
+        "skills/parity-component/scripts/page/*.page.mjs",
+      ],
+      rules: {
+        "max-lines-per-function": "off",
+        "skills-repo/max-lines-per-function-except-page-entry": "error",
       },
     },
     // 既存の違反のうち、後で直すもの（ファイルごとに外すルール。scripts/gates/code/oxlint-pending.ts）。

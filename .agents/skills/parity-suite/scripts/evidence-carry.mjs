@@ -153,12 +153,10 @@ function rectKey(r) {
  * traits.json（inputs.new と同じディレクトリ）にある影響インスタンスの論理名の rect と一致することを求める。
  * @param {Record<string, unknown>} entry amend-verify の記録の組 1 件
  * @param {CarryChange} change
- * @param {{id:string, locator:unknown}[]} instances
- * @param {(p: string) => string} fromProject
- * @param {(p: string) => Buffer} readBytes
+ * @param {{ instances: {id:string, locator:unknown}[], fromProject: (p: string) => string, readBytes: (p: string) => Buffer }} where
  * @returns {string | null} 不合格の理由（合格なら null）
  */
-function checkGeometry(entry, change, instances, fromProject, readBytes) {
+function checkGeometry(entry, change, { instances, fromProject, readBytes }) {
   if (entry.margin !== change.margin_px) {
     return `margin ${JSON.stringify(entry.margin)} が変更宣言の margin_px ${JSON.stringify(change.margin_px)} と違う（判定を弱めた記録で持ち越さない）`;
   }
@@ -232,11 +230,10 @@ function checkVerdict(entry) {
  * `<stage>` は evidence-carry.json のあるディレクトリ（new/<target>/）。
  * @param {Record<string, unknown>} entry amend-verify の記録の組 1 件
  * @param {string} pair
- * @param {string} changeId
- * @param {{ stageDir: string, currentRoot: string, fromProject: (p: string) => string }} where
+ * @param {{ changeId: string, stageDir: string, currentRoot: string, fromProject: (p: string) => string }} where
  * @returns {string | null} 不合格の理由（合格なら null）
  */
-function checkProvenance(entry, pair, changeId, where) {
+function checkProvenance(entry, pair, where) {
   const [page, state, viewport] = pair.split("|");
   const inputs = isPlainObject(entry.inputs) ? entry.inputs : {};
   /** @param {string} key */
@@ -249,7 +246,7 @@ function checkProvenance(entry, pair, changeId, where) {
   const expectedPrev = join(
     where.stageDir,
     "pre-change",
-    changeId,
+    where.changeId,
     page,
     state,
     viewport,
@@ -293,6 +290,802 @@ export function toPathspec(spec) {
 }
 
 /**
+ * judgeCarry の途中で、持ち越さないと決まったことを知らせる。finding があれば findings の末尾に足す
+ * （null なら、それまでに findings へ足した理由だけで返す）。
+ */
+class CarryStop extends Error {
+  /** @param {string | null} finding */
+  constructor(finding) {
+    super(finding ?? "持ち越さない");
+    this.finding = finding;
+  }
+}
+
+/**
+ * judgeCarry の判定の間で持ち回る、git・ファイルの読み取りと、集めた理由・注記。
+ * @typedef {{ runGit: (repo: string, args: string[]) => string, readBytes: (path: string) => Buffer, findings: string[], notes: string[] }} CarryState
+ */
+
+/**
+ * CarryState に、確かめた新側リポジトリを足したもの。renderInputDiff が `{ ...state, repo }` で作るので、
+ * findings・notes は state と同じ配列である。judgeCarry は state の側から読むので、配列を置き換えずに push で足す。
+ * @typedef {CarryState & { repo: string }} GitState
+ */
+
+/**
+ * 記録の版と今の版（入力の字面と、git で解いた完全な SHA）。
+ * @typedef {{ recorded: string, wanted: string, recordedFull: string, wantedFull: string }} CommitRange
+ */
+
+/**
+ * JSON ファイルを読む。読めない・JSON でなければ理由を返す。
+ * @param {(path: string) => Buffer} readBytes
+ * @param {string} path
+ * @param {string} label
+ * @returns {{ ok: true, value: unknown } | { ok: false, message: string }}
+ */
+function readJsonVia(readBytes, path, label) {
+  let text;
+  try {
+    text = readBytes(path).toString("utf8");
+  } catch (e) {
+    return { ok: false, message: `${label} を読めない: ${path}（${reasonOf(e)}）` };
+  }
+  try {
+    return { ok: true, value: JSON.parse(text) };
+  } catch (e) {
+    return { ok: false, message: `${label} が JSON として不正: ${path}（${reasonOf(e)}）` };
+  }
+}
+
+/**
+ * 1. render_inputs を読む。無い・空なら null を返す（従来どおりの閉じた免除）。それ以外の形は読めない入力として止める。
+ * @param {unknown} renderInputs
+ * @returns {string[] | null}
+ */
+function renderInputsOf(renderInputs) {
+  if (
+    renderInputs === undefined ||
+    renderInputs === null ||
+    (isArray(renderInputs) && renderInputs.length === 0)
+  ) {
+    return null;
+  }
+  if (
+    !isArray(renderInputs) ||
+    !renderInputs.every(nonEmptyString) ||
+    renderInputs.some((s) => /^\s*<[\s\S]*>\s*$/.test(s))
+  ) {
+    throw new CarryStop(
+      `replace-metadata.json の new.render_inputs が空でない文字列（git pathspec）の配列でない（雛形のプレースホルダを含む）: ${JSON.stringify(renderInputs)}`,
+    );
+  }
+  return renderInputs;
+}
+
+/**
+ * 2. 新側リポジトリが渡され、その最上位であることを確かめる。
+ * @param {unknown} repoArg
+ * @param {CarryState} state
+ * @returns {string} 解決したリポジトリのパス
+ */
+function openRepo(repoArg, state) {
+  if (!nonEmptyString(repoArg)) {
+    throw new CarryStop(
+      "--new-repo（新側リポジトリ）が渡されていないので描画入力の差分を取れない（判定不能を合格にしない）",
+    );
+  }
+  const repo = resolve(repoArg);
+  let toplevel;
+  try {
+    toplevel = state.runGit(repo, ["rev-parse", "--show-toplevel"]).trim();
+  } catch (e) {
+    throw new CarryStop(`新側リポジトリ ${repo} で git を実行できない: ${reasonOf(e)}`);
+  }
+  let realRepo = repo;
+  let realTop = toplevel;
+  try {
+    realRepo = realpathSync(repo);
+    realTop = realpathSync(toplevel);
+  } catch {
+    // 解けないなら下の比較で落ちる。
+  }
+  if (realRepo !== realTop) {
+    // pathspec は -C の位置から、--name-only と変更宣言の files はリポジトリ直下から数えるので、
+    // 部分ディレクトリを渡すと両者の起点がずれる。
+    throw new CarryStop(
+      `--new-repo ${repo} がリポジトリの最上位（${toplevel}）でない（変更宣言の files はリポジトリ相対なので起点を揃える）`,
+    );
+  }
+  return repo;
+}
+
+/**
+ * コミットを解く。解けなければ findings に理由を足して null を返す。
+ * @param {GitState} git
+ * @param {string} sha
+ * @param {string} label
+ * @returns {string | null}
+ */
+function verifyCommit(git, sha, label) {
+  // 16 進でない値を git の引数へ渡さない（`-` 始まりがオプションとして読まれる）。
+  if (typeof sha !== "string" || !/^[0-9a-fA-F]{4,64}$/.test(sha)) {
+    git.findings.push(`${label} ${JSON.stringify(sha)} がコミット SHA（16 進）でない`);
+    return null;
+  }
+  try {
+    return git.runGit(git.repo, ["rev-parse", "--verify", "--quiet", `${sha}^{commit}`]).trim();
+  } catch {
+    git.findings.push(`${label} のコミット ${sha} が新側リポジトリ ${git.repo} に無い`);
+    return null;
+  }
+}
+
+/**
+ * pathspec 1 つが、どちらかの版で 1 つ以上のファイルに当たるか。
+ * @param {GitState} git
+ * @param {string} spec
+ * @param {{ emptyTree: string, commits: string[] }} against
+ * @returns {boolean}
+ */
+function specHits(git, spec, { emptyTree, commits }) {
+  for (const commit of commits) {
+    try {
+      const out = git.runGit(git.repo, [
+        "diff",
+        "-z",
+        "--no-renames",
+        "--name-only",
+        emptyTree,
+        commit,
+        "--",
+        toPathspec(spec),
+      ]);
+      if (out.split("\0").some((name) => name !== "")) return true;
+    } catch (e) {
+      throw new CarryStop(
+        `描画入力 ${spec} の対象ファイルを数えられない（git diff が失敗）: ${reasonOf(e)}`,
+      );
+    }
+  }
+  return false;
+}
+
+/**
+ * 各 pathspec がどちらかの版で 1 つ以上のファイルに当たることを確かめる。当たらない pathspec（綴り違い・起点違い）は
+ * 差分が常に空になり、描画入力が変わっても「差分なし」で持ち越してしまう。空の木からの差分で数える
+ * （ls-tree は pathspec の magic を解さない）。
+ * @param {GitState} git
+ * @param {string[]} renderInputs
+ * @param {CommitRange} range
+ * @returns {void}
+ */
+function checkSpecsHit(git, renderInputs, range) {
+  let emptyTree;
+  try {
+    emptyTree = git.runGit(git.repo, ["hash-object", "-t", "tree", "/dev/null"]).trim();
+  } catch (e) {
+    throw new CarryStop(
+      `空の木のオブジェクト名を得られない（git hash-object が失敗）: ${reasonOf(e)}`,
+    );
+  }
+  const commits = [range.wantedFull, range.recordedFull];
+  const unmatchedSpecs = renderInputs.filter(
+    (spec) => !specHits(git, spec, { emptyTree, commits }),
+  );
+  if (unmatchedSpecs.length > 0) {
+    throw new CarryStop(
+      `new.render_inputs の pathspec がどちらの版のファイルにも当たらない: ${unmatchedSpecs.join(", ")}（当たらない描画入力は差分が常に空になり、持ち越しの根拠にならない。新側リポジトリ最上位からの相対で書く）`,
+    );
+  }
+}
+
+/**
+ * 3. 描画入力の差分 D。-z で名前を引用させず、--no-renames で移動元も数える。
+ * @param {GitState} git
+ * @param {string[]} renderInputs
+ * @param {CommitRange} range
+ * @returns {string[]}
+ */
+function renderDiff(git, renderInputs, range) {
+  try {
+    return git
+      .runGit(git.repo, [
+        "diff",
+        "-z",
+        "--no-renames",
+        "--name-only",
+        range.recordedFull,
+        range.wantedFull,
+        "--",
+        ...renderInputs.map(toPathspec),
+      ])
+      .split("\0")
+      .filter((name) => name !== "");
+  } catch (e) {
+    throw new CarryStop(`描画入力の差分を取れない（git diff が失敗）: ${reasonOf(e)}`);
+  }
+}
+
+/**
+ * evidence-carry.json の中身を carries の一覧にする。
+ * @param {Buffer} carryBytes
+ * @param {string} carryPath
+ * @returns {{ change: string, amend_verify: string | null }[]}
+ */
+function parseCarries(carryBytes, carryPath) {
+  let value;
+  try {
+    value = JSON.parse(carryBytes.toString("utf8"));
+  } catch (e) {
+    throw new CarryStop(
+      `${EVIDENCE_CARRY_FILE} が JSON として不正: ${carryPath}（${reasonOf(e)}）`,
+    );
+  }
+  if (!isPlainObject(value) || !isArray(value.carries)) {
+    throw new CarryStop(
+      `${EVIDENCE_CARRY_FILE} が carries 配列を持つオブジェクトでない: ${carryPath}`,
+    );
+  }
+  /** @type {{ change: string, amend_verify: string | null }[]} */
+  const carries = [];
+  for (const [i, raw] of value.carries.entries()) {
+    if (
+      !isPlainObject(raw) ||
+      !nonEmptyString(raw.change) ||
+      !(raw.amend_verify === null || nonEmptyString(raw.amend_verify))
+    ) {
+      throw new CarryStop(
+        `${EVIDENCE_CARRY_FILE} の carries[${i}] が { change: <パス>, amend_verify: <パス> | null } でない: ${JSON.stringify(raw)}`,
+      );
+    }
+    carries.push({ change: raw.change, amend_verify: raw.amend_verify });
+  }
+  return carries;
+}
+
+/**
+ * 4. evidence-carry.json を読む。無ければ空の一覧を返し、注記を残す。
+ * @param {string} carryPath
+ * @param {CarryState} state
+ * @returns {{ change: string, amend_verify: string | null }[]}
+ */
+function readCarries(carryPath, state) {
+  /** @type {Buffer} */
+  let carryBytes;
+  try {
+    carryBytes = state.readBytes(carryPath);
+  } catch (e) {
+    // 無いのは「持ち越しの宣言が無い」。D が空でない以上、どのファイルも説明できずに下で落ちる。
+    // 無い以外の読めなさ（権限等）は宣言の有無が分からないので落とす。
+    if (!(e instanceof Error && "code" in e && e.code === "ENOENT")) {
+      throw new CarryStop(`${EVIDENCE_CARRY_FILE} を読めない: ${carryPath}（${reasonOf(e)}）`);
+    }
+    state.notes.push(`${carryPath} が無い（持ち越しに使う変更宣言が無い）`);
+    return [];
+  }
+  return parseCarries(carryBytes, carryPath);
+}
+
+/**
+ * carries が指す変更宣言を読み、検証する。
+ * @param {{ change: string, amend_verify: string | null }[]} carries
+ * @param {(p: string) => string} fromProject
+ * @param {CarryState} state
+ * @returns {{ path: string, amendVerify: string | null, change: CarryChange }[]}
+ */
+function readDeclared(carries, fromProject, state) {
+  /** @type {{ path: string, amendVerify: string | null, change: CarryChange }[]} */
+  const declared = [];
+  for (const carry of carries) {
+    const path = fromProject(carry.change);
+    const read = readJsonVia(state.readBytes, path, "変更宣言");
+    if (!read.ok) throw new CarryStop(read.message);
+    const errors = validateChange(read.value);
+    if (errors.length > 0) {
+      throw new CarryStop(`変更宣言 ${path} が不正: ${errors.join(" / ")}`);
+    }
+    const change = read.value;
+    // validateChange が誤りを返さなかった宣言は、この形を必ず満たす（到達しない分岐）
+    if (!isCarryChange(change)) throw new CarryStop(`変更宣言 ${path} が不正: 読む欄の形が違う`);
+    declared.push({
+      path,
+      amendVerify: carry.amend_verify,
+      change,
+    });
+  }
+  return declared;
+}
+
+/**
+ * D の各ファイルが、どれかの変更宣言の files に含まれることを確かめ、差分に触れる宣言を返す。
+ * @param {string[]} changed
+ * @param {{ path: string, amendVerify: string | null, change: CarryChange }[]} declared
+ * @param {{ range: CommitRange, state: CarryState }} ctx
+ * @returns {{ path: string, amendVerify: string | null, change: CarryChange }[]}
+ */
+function usedDeclarations(changed, declared, { range, state }) {
+  const uncovered = changed.filter((file) => !declared.some((d) => d.change.files.includes(file)));
+  if (uncovered.length > 0) {
+    throw new CarryStop(
+      `描画入力の差分（${range.recorded} → ${range.wanted}）に、どの変更宣言の files にも無いファイルがある: ${uncovered.join(", ")}（宣言外の変更は持ち越さない）`,
+    );
+  }
+  const used = declared.filter((d) => d.change.files.some((file) => changed.includes(file)));
+  for (const d of declared) {
+    if (!used.includes(d))
+      state.notes.push(`変更宣言 ${d.change.id} はこの差分に触れないので使わない: ${d.path}`);
+  }
+  return used;
+}
+
+/**
+ * そのコミットでのファイルの blob（無ければ "absent"）。
+ * @param {GitState} git
+ * @param {string} commit
+ * @param {string} file
+ * @returns {string}
+ */
+function blobOf(git, commit, file) {
+  try {
+    return git.runGit(git.repo, ["rev-parse", "--verify", "--quiet", `${commit}:${file}`]).trim();
+  } catch {
+    // コミットは実在を確かめ済みなので、失敗はそのパスが無いこと。
+    return "absent";
+  }
+}
+
+/**
+ * start から辺（from → to）を辿って goal に着けるか。
+ * @param {string[][]} edges
+ * @param {string} start
+ * @param {string} goal
+ * @returns {boolean}
+ */
+function reaches(edges, start, goal) {
+  const reached = new Set([start]);
+  let grew = true;
+  while (grew && !reached.has(goal)) {
+    grew = false;
+    for (const [from, to] of edges) {
+      if (reached.has(from) && !reached.has(to)) {
+        reached.add(to);
+        grew = true;
+      }
+    }
+  }
+  return reached.has(goal);
+}
+
+/**
+ * 各ファイルの記録の版 → 今の版の変化が、宣言した改修（before → after の blob）の連鎖で辿れるか。
+ * files に名前があるだけの古い宣言で、その後の宣言外の編集を持ち越さない。辿れないファイルは findings に足す。
+ * @param {GitState} git
+ * @param {{ changed: string[], used: { change: CarryChange }[], range: CommitRange }} diff
+ * @returns {void}
+ */
+function checkChains(git, { changed, used, range }) {
+  for (const file of changed) {
+    const edges = used
+      .filter((d) => d.change.files.includes(file))
+      .map((d) => [
+        blobOf(git, d.change.commits.before, file),
+        blobOf(git, d.change.commits.after, file),
+      ]);
+    const start = blobOf(git, range.recordedFull, file);
+    const goal = blobOf(git, range.wantedFull, file);
+    if (!reaches(edges, start, goal)) {
+      git.findings.push(
+        `${file} の変化（${range.recorded} → ${range.wanted}）を変更宣言（${used
+          .filter((d) => d.change.files.includes(file))
+          .map((d) => d.change.id)
+          .join(
+            ", ",
+          )}）の commits.before → after の連鎖で説明できない（宣言の前後に宣言外の編集がある）`,
+      );
+    }
+  }
+}
+
+/**
+ * 機能の metadata.json を決める。input.featureMetadata が無ければ replaceRoot から読む。
+ * @param {{ featureSlug: string, featureMetadata?: unknown }} input
+ * @param {string} replaceRoot
+ * @param {CarryState} state
+ * @returns {unknown}
+ */
+function featureMetadataOf(input, replaceRoot, state) {
+  if (input.featureMetadata !== undefined) return input.featureMetadata;
+  // slug が空だと join が .replace/parity/metadata.json に潰れ、読めない理由が別のパスを指す
+  if (typeof input.featureSlug !== "string" || input.featureSlug.trim() === "") {
+    throw new CarryStop(
+      "機能の slug が分からない（--metadata を渡すか、component-coverage.json の slug を確かめる）",
+    );
+  }
+  const path = join(replaceRoot, "parity", input.featureSlug, "metadata.json");
+  const read = readJsonVia(state.readBytes, path, "機能の metadata.json");
+  if (!read.ok) throw new CarryStop(read.message);
+  return read.value;
+}
+
+/**
+ * unmatched_instances の判定に使う全機能のページ（component-impact.mjs の --feature 実行と同じ扱い）。
+ * 他の機能のページにある影響インスタンスを「どこにも一致しない」に数えない。読めない metadata は足さないだけ
+ * （一致しないインスタンスが残れば、持ち越さないと判定される）。
+ * @param {unknown} featureMetadata
+ * @param {string} featureSlug
+ * @param {{ replaceRoot: string, readBytes: (path: string) => Buffer }} where
+ * @returns {unknown[]}
+ */
+function pageUniverseOf(featureMetadata, featureSlug, { replaceRoot, readBytes }) {
+  /** @type {unknown[]} */
+  const pageUniverse = [featureMetadata];
+  const parityDir = join(replaceRoot, "parity");
+  /** @type {string[]} */
+  let featureDirs = [];
+  try {
+    featureDirs = readdirSync(parityDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort();
+  } catch {
+    // 読めなければこの機能のページだけで数える（一致しないものは、持ち越さないと判定される）。
+  }
+  for (const name of featureDirs) {
+    if (name === featureSlug) continue;
+    const read = readJsonVia(
+      readBytes,
+      join(parityDir, name, "metadata.json"),
+      "機能の metadata.json",
+    );
+    if (read.ok) pageUniverse.push(read.value);
+  }
+  return pageUniverse;
+}
+
+/**
+ * 5 の判定で、使う変更宣言ごとに共通に読む値。
+ * @typedef {CarryState & {
+ *   featureSlug: string,
+ *   featureMetadata: unknown,
+ *   pageUniverse: unknown[],
+ *   replaceRoot: string,
+ *   stageDir: string,
+ *   fromProject: (p: string) => string,
+ * }} ImpactContext
+ */
+
+/**
+ * 使う変更宣言 1 つの影響を再計算し、この機能に影響する組を返す。影響しない・判定できないなら理由を残して null を返す。
+ * @param {{ change: CarryChange }} d
+ * @param {ImpactContext} ctx
+ * @returns {{ pair: string, region_known: boolean, instances: {id:string, locator:unknown}[] }[] | null}
+ */
+function affectedPairsOf(d, ctx) {
+  const { findings } = ctx;
+  const id = String(d.change.id);
+  // 部品側の照合（宣言した範囲の外は差分ゼロ・範囲の中は現行と一致）が通っていない宣言は、
+  // 範囲の外にも影響している疑いがあるので、影響の計算そのものを根拠にできない
+  const catalog = d.change.catalog_verification;
+  if (catalog.outside_scope_identical !== true || catalog.inside_matches_current !== true) {
+    findings.push(
+      `変更宣言 ${id} の catalog_verification が合格していない（outside_scope_identical: ${JSON.stringify(catalog.outside_scope_identical)}、inside_matches_current: ${JSON.stringify(catalog.inside_matches_current)}）。部品の照合が通ってから持ち越す（parity-component の references/amend.md）`,
+    );
+    return null;
+  }
+  const componentPath = join(ctx.replaceRoot, "components", String(d.change.slug), "metadata.json");
+  const component = readJsonVia(ctx.readBytes, componentPath, "部品 metadata.json");
+  if (!component.ok) {
+    findings.push(`変更宣言 ${id}: ${component.message}`);
+    return null;
+  }
+  let impact;
+  try {
+    impact = computeImpact({
+      change: d.change,
+      componentMetadata: component.value,
+      features: [{ slug: ctx.featureSlug, metadata: ctx.featureMetadata }],
+      pageUniverse: ctx.pageUniverse,
+    });
+  } catch (e) {
+    findings.push(`変更宣言 ${id} の影響を計算できない: ${reasonOf(e)}`);
+    return null;
+  }
+  return pairsFromImpact(id, impact, ctx);
+}
+
+/**
+ * computeImpact の結果から、この機能に影響する組を取り出す。一致しないインスタンス・usages、判定不能、影響なしは null。
+ * @param {string} id
+ * @param {ReturnType<typeof computeImpact>} impact
+ * @param {CarryState} state
+ * @returns {{ pair: string, region_known: boolean, instances: {id:string, locator:unknown}[] }[] | null}
+ */
+function pairsFromImpact(id, impact, state) {
+  const { findings, notes } = state;
+  const feature = impact.features[0];
+  if (impact.unmatched_instances.length > 0) {
+    // どの機能（.replace/parity/*/metadata.json）のページとも一致しない影響インスタンスは、
+    // 未着手の機能のページか path の書き方の食い違いかを区別できない。後者ならこの機能の
+    // 「影響なし」は誤りなので、component-impact.mjs の全機能実行（exit 1）と同じく持ち越さない。
+    findings.push(
+      `変更宣言 ${id} の影響インスタンスがどの機能のページとも一致しない: ${impact.unmatched_instances
+        .map((u) => `${u.id}（${u.page}）`)
+        .join(
+          ", ",
+        )}（path の書き方の食い違いを「影響なし」として扱わない。component-impact.mjs を全機能で回して確かめる）`,
+    );
+    return null;
+  }
+  if (impact.unmatched_usages.length > 0) {
+    // usages も同じ理由で持ち越さない（綴り違いの usages は、使っているページを「影響なし」と判定させる）
+    findings.push(
+      `変更宣言 ${id} の usages がどの機能のページとも一致しない: ${impact.unmatched_usages.join(", ")}（component-impact.mjs を全機能で回して確かめる）`,
+    );
+    return null;
+  }
+  if (feature.verdict === "undeterminable") {
+    findings.push(`変更宣言 ${id} の影響を判定できない: ${feature.reasons.join(" / ")}`);
+    return null;
+  }
+  if (feature.verdict === "unaffected") {
+    notes.push(`変更宣言 ${id} はこの機能に影響しない: ${feature.reasons.join(" / ")}`);
+    return null;
+  }
+  // affected。
+  return feature.pairs;
+}
+
+/**
+ * 影響する組を機械判定で持ち越せる宣言か確かめ、amend-verify の記録を読む。持ち越せないなら理由を残して null を返す。
+ * @param {{ amendVerify: string | null, change: CarryChange }} d
+ * @param {{ pair: string, region_known: boolean }[]} pairs
+ * @param {ImpactContext} ctx
+ * @returns {{ r: Record<string, unknown> & { pairs: unknown[] }, recordPath: string } | null}
+ */
+function amendRecordOf(d, pairs, ctx) {
+  const { findings } = ctx;
+  const id = String(d.change.id);
+  // 機械判定（amend-verify）の合格条件は「現行へ近づいた」なので、現行に合わせ直す修正にしか意味を持たない。
+  // new-appearance は満たすべき条件が宣言から決まらず、合格しても従来のトリアージを省く根拠にならない
+  if (d.change.kind !== "align-to-current") {
+    findings.push(
+      `変更宣言 ${id} は kind: ${JSON.stringify(d.change.kind)} で、この機能に影響する（${pairs.map((p) => p.pair).join(", ")}）。機械判定で持ち越せるのは align-to-current だけ（従来のトリアージへ回す。parity-diff の references/component-change.md）`,
+    );
+    return null;
+  }
+  const unknownRegion = pairs.filter((p) => p.region_known !== true).map((p) => p.pair);
+  if (unknownRegion.length > 0) {
+    findings.push(
+      `変更宣言 ${id} の影響する組 ${unknownRegion.join(", ")} は usages だけで一致し領域が分からない（amend-verify で機械判定できないので持ち越さない。従来のトリアージへ回す）`,
+    );
+    return null;
+  }
+  if (d.amendVerify === null) {
+    findings.push(
+      `変更宣言 ${id} はこの機能に影響する（${pairs.map((p) => p.pair).join(", ")}）のに evidence-carry.json の amend_verify が null`,
+    );
+    return null;
+  }
+  const recordPath = ctx.fromProject(d.amendVerify);
+  const record = readJsonVia(ctx.readBytes, recordPath, "amend-verify の記録");
+  if (!record.ok) {
+    findings.push(`変更宣言 ${id}: ${record.message}`);
+    return null;
+  }
+  const r = record.value;
+  if (!isPlainObject(r) || r.tool !== AMEND_VERIFY_TOOL || !isArray(r.pairs)) {
+    findings.push(
+      `amend-verify の記録の形でない（tool: ${AMEND_VERIFY_TOOL} と pairs 配列が要る）: ${recordPath}`,
+    );
+    return null;
+  }
+  if (r.change_id !== id) {
+    findings.push(
+      `amend-verify の記録の change_id（${JSON.stringify(r.change_id)}）が変更宣言 ${id} と違う（--change-id ${id} で記録し直す）: ${recordPath}`,
+    );
+    return null;
+  }
+  return { r: { ...r, pairs: r.pairs }, recordPath };
+}
+
+/**
+ * amend-verify の組の 3 つの入力画像の sha256 が、記録したものと今のファイルで一致するか。食い違いは findings に足す。
+ * @param {Record<string, unknown>} entry
+ * @param {{ pair: string, recordPath: string }} at
+ * @param {ImpactContext} ctx
+ * @returns {void}
+ */
+function checkInputHashes(entry, { pair, recordPath }, ctx) {
+  const { findings } = ctx;
+  for (const key of ["prev_new", "new", "current"]) {
+    const ref = isPlainObject(entry.inputs) ? entry.inputs[key] : undefined;
+    if (!isPlainObject(ref) || !nonEmptyString(ref.path) || !nonEmptyString(ref.sha256)) {
+      findings.push(
+        `amend-verify の組 ${pair} の inputs.${key} に path / sha256 が無い: ${recordPath}`,
+      );
+      continue;
+    }
+    const imagePath = ctx.fromProject(ref.path);
+    let actual;
+    try {
+      actual = createHash("sha256").update(ctx.readBytes(imagePath)).digest("hex");
+    } catch (e) {
+      findings.push(
+        `amend-verify の組 ${pair} の inputs.${key} を読めない: ${imagePath}（${reasonOf(e)}）`,
+      );
+      continue;
+    }
+    if (actual !== ref.sha256) {
+      findings.push(
+        `amend-verify の組 ${pair} の inputs.${key} が判定後に変わっている（sha256 ${ref.sha256} ≠ 今の ${actual}）: ${imagePath}`,
+      );
+    }
+  }
+}
+
+/**
+ * 影響する組 1 つを、amend-verify の記録で確かめる。持ち越せない理由は findings に足す。
+ * @param {{ pair: string, id: string, change: CarryChange, pairs: { pair: string, instances?: {id:string, locator:unknown}[] }[], r: { pairs: unknown[] }, recordPath: string }} target
+ * @param {ImpactContext} ctx
+ * @returns {void}
+ */
+function checkRecordPair({ pair, id, change, pairs, r, recordPath }, ctx) {
+  const { findings } = ctx;
+  const entries = r.pairs.filter((e) => isPlainObject(e) && e.pair === pair);
+  if (entries.length !== 1) {
+    findings.push(
+      `amend-verify の記録に組 ${pair} が ${entries.length === 0 ? "無い" : "2 つ以上ある"}（変更宣言 ${id} の影響する組を覆っていない）: ${recordPath}`,
+    );
+    return;
+  }
+  const entry = entries[0];
+  // entries は isPlainObject で絞った要素だけを持つ（到達しない分岐）
+  if (!isPlainObject(entry)) return;
+  if (entry.pass !== true) {
+    findings.push(
+      `amend-verify の組 ${pair} が pass でない（${isArray(entry.reasons) ? entry.reasons.join("; ") : "理由なし"}）: ${recordPath}`,
+    );
+    return;
+  }
+  const problem =
+    checkVerdict(entry) ??
+    checkProvenance(entry, pair, {
+      changeId: id,
+      stageDir: ctx.stageDir,
+      currentRoot: resolve(ctx.replaceRoot, "parity", ctx.featureSlug, "baseline"),
+      fromProject: ctx.fromProject,
+    }) ??
+    checkGeometry(entry, change, {
+      instances: pairInstances(pairs, pair),
+      fromProject: ctx.fromProject,
+      readBytes: ctx.readBytes,
+    });
+  if (problem !== null) {
+    findings.push(`amend-verify の組 ${pair}: ${problem}: ${recordPath}`);
+    return;
+  }
+  checkInputHashes(entry, { pair, recordPath }, ctx);
+}
+
+/**
+ * 5. 使う変更宣言 1 つについて、影響の再計算と amend-verify の記録を確かめる。持ち越せない理由は findings に足す。
+ * @param {{ amendVerify: string | null, change: CarryChange }} d
+ * @param {ImpactContext} ctx
+ * @returns {void}
+ */
+function checkUsedChange(d, ctx) {
+  const pairs = affectedPairsOf(d, ctx);
+  if (pairs === null) return;
+  const record = amendRecordOf(d, pairs, ctx);
+  if (record === null) return;
+  const id = String(d.change.id);
+  for (const { pair } of pairs) {
+    checkRecordPair({ pair, id, change: d.change, pairs, ...record }, ctx);
+  }
+}
+
+/**
+ * 1〜3: render_inputs・リポジトリ・コミットを確かめ、描画入力の差分 D を取る。従来どおり（legacy）なら null。
+ * @param {Parameters<typeof judgeCarry>[0]} input
+ * @param {CarryState} state
+ * @returns {{ renderInputs: string[], git: GitState, range: CommitRange, changed: string[] } | null}
+ */
+function renderInputDiff(input, state) {
+  const renderInputs = renderInputsOf(input.renderInputs);
+  if (renderInputs === null) return null;
+  const recorded = String(input.recordedCommit).trim();
+  const wanted = String(input.wantedCommit).trim();
+  const git = { ...state, repo: openRepo(input.repo, state) };
+  const recordedFull = verifyCommit(git, recorded, "記録した版");
+  const wantedFull = verifyCommit(git, wanted, "今の版");
+  if (recordedFull === null || wantedFull === null) throw new CarryStop(null);
+  const range = { recorded, wanted, recordedFull, wantedFull };
+  checkSpecsHit(git, renderInputs, range);
+  return { renderInputs, git, range, changed: renderDiff(git, renderInputs, range) };
+}
+
+/**
+ * 4. evidence-carry.json と変更宣言を読み、描画入力の差分 D を宣言した改修で説明できることを確かめる。
+ * @param {Parameters<typeof judgeCarry>[0]} input
+ * @param {{ git: GitState, range: CommitRange, changed: string[] }} diff
+ * @returns {{ replaceRoot: string, fromProject: (p: string) => string, used: { amendVerify: string | null, change: CarryChange }[] }}
+ */
+function explainedChanges(input, { git, range, changed }) {
+  const replaceRoot = nonEmptyString(input.replaceRoot) ? resolve(input.replaceRoot) : null;
+  if (replaceRoot === null) {
+    throw new CarryStop(
+      "--replace-root（.replace ディレクトリ）を決められないので変更宣言・部品 metadata を読めない（判定不能を合格にしない）",
+    );
+  }
+  const projectRoot = dirname(replaceRoot);
+  /** @param {string} p */
+  const fromProject = (p) => (isAbsolute(p) ? p : resolve(projectRoot, p));
+  const carries = readCarries(input.evidenceCarryPath, git);
+  const declared = readDeclared(carries, fromProject, git);
+  const used = usedDeclarations(changed, declared, { range, state: git });
+
+  // 使う変更宣言のコミットが実在するか。
+  for (const d of used) {
+    /** @type {Array<"before" | "after">} */
+    const sides = ["before", "after"];
+    for (const side of sides) {
+      verifyCommit(git, d.change.commits[side], `変更宣言 ${d.change.id} の commits.${side}`);
+    }
+  }
+  if (git.findings.length > 0) throw new CarryStop(null);
+  checkChains(git, { changed, used, range });
+  if (git.findings.length > 0) throw new CarryStop(null);
+  return { replaceRoot, fromProject, used };
+}
+
+/**
+ * 持ち越しを判定する（CarryStop で止まったら、呼び出し元の judgeCarry が持ち越さない結果にする）。
+ * @param {Parameters<typeof judgeCarry>[0]} input
+ * @param {CarryState} state
+ * @returns {{ ok: boolean, legacy: boolean, findings: string[], notes: string[], carried_by: string[] }}
+ */
+function judgeCarryOrStop(input, state) {
+  const { notes } = state;
+  const diff = renderInputDiff(input, state);
+  if (diff === null) {
+    return { ok: false, legacy: true, findings: [], notes: [LEGACY_HINT], carried_by: [] };
+  }
+  const { renderInputs, range, changed } = diff;
+  if (changed.length === 0) {
+    notes.push(
+      `新側のコミットは違う（${range.recorded} → ${range.wanted}）が、描画入力（${renderInputs.join(", ")}）に差分が無いので証跡を持ち越す`,
+    );
+    return { ok: true, legacy: false, findings: [], notes, carried_by: [] };
+  }
+
+  const { replaceRoot, fromProject, used } = explainedChanges(input, diff);
+
+  // 5. 影響の再計算と amend-verify の記録。
+  const featureMetadata = featureMetadataOf(input, replaceRoot, state);
+  /** @type {ImpactContext} */
+  const ctx = {
+    ...state,
+    featureSlug: input.featureSlug,
+    featureMetadata,
+    pageUniverse: pageUniverseOf(featureMetadata, input.featureSlug, {
+      replaceRoot,
+      readBytes: state.readBytes,
+    }),
+    replaceRoot,
+    stageDir: resolve(dirname(input.evidenceCarryPath)),
+    fromProject,
+  };
+  for (const d of used) checkUsedChange(d, ctx);
+  if (state.findings.length > 0) throw new CarryStop(null);
+  const carriedBy = used.map((d) => String(d.change.id));
+  notes.push(
+    `新側のコミットは違う（${range.recorded} → ${range.wanted}）が、描画入力の差分（${changed.join(", ")}）は変更宣言 ${carriedBy.join(", ")} で説明でき、影響する組は amend-verify で pass なので証跡を持ち越す`,
+  );
+  return { ok: true, legacy: false, findings: [], notes, carried_by: carriedBy };
+}
+
+/**
  * 持ち越しを判定する。
  *
  * @param {{
@@ -310,535 +1103,18 @@ export function toPathspec(spec) {
  * @returns {{ ok: boolean, legacy: boolean, findings: string[], notes: string[], carried_by: string[] }}
  */
 export function judgeCarry(input) {
-  const runGit = input.runGit ?? defaultRunGit;
-  const readBytes = input.readBytes ?? ((p) => readFileSync(p));
-  /** @type {string[]} */
-  const findings = [];
-  /** @type {string[]} */
-  const notes = [];
-  /**
-   * @param {string} message
-   * @returns {{ ok: boolean, legacy: boolean, findings: string[], notes: string[], carried_by: string[] }}
-   */
-  const fail = (message) => ({
-    ok: false,
-    legacy: false,
-    findings: [...findings, message],
-    notes,
-    carried_by: [],
-  });
-
-  // 1. render_inputs。無い・空だけが従来どおり（閉じた免除）。それ以外の形は読めない入力として落とす。
-  const renderInputs = input.renderInputs;
-  if (
-    renderInputs === undefined ||
-    renderInputs === null ||
-    (isArray(renderInputs) && renderInputs.length === 0)
-  ) {
-    return { ok: false, legacy: true, findings: [], notes: [LEGACY_HINT], carried_by: [] };
-  }
-  if (
-    !isArray(renderInputs) ||
-    !renderInputs.every(nonEmptyString) ||
-    renderInputs.some((s) => /^\s*<[\s\S]*>\s*$/.test(s))
-  ) {
-    return fail(
-      `replace-metadata.json の new.render_inputs が空でない文字列（git pathspec）の配列でない（雛形のプレースホルダを含む）: ${JSON.stringify(renderInputs)}`,
-    );
-  }
-  const recorded = String(input.recordedCommit).trim();
-  const wanted = String(input.wantedCommit).trim();
-
-  // 2. リポジトリとコミット。
-  if (!nonEmptyString(input.repo)) {
-    return fail(
-      "--new-repo（新側リポジトリ）が渡されていないので描画入力の差分を取れない（判定不能を合格にしない）",
-    );
-  }
-  const repo = resolve(input.repo);
-  let toplevel;
-  try {
-    toplevel = runGit(repo, ["rev-parse", "--show-toplevel"]).trim();
-  } catch (e) {
-    return fail(`新側リポジトリ ${repo} で git を実行できない: ${reasonOf(e)}`);
-  }
-  let realRepo = repo;
-  let realTop = toplevel;
-  try {
-    realRepo = realpathSync(repo);
-    realTop = realpathSync(toplevel);
-  } catch {
-    // 解けないなら下の比較で落ちる。
-  }
-  if (realRepo !== realTop) {
-    // pathspec は -C の位置から、--name-only と変更宣言の files はリポジトリ直下から数えるので、
-    // 部分ディレクトリを渡すと両者の起点がずれる。
-    return fail(
-      `--new-repo ${repo} がリポジトリの最上位（${toplevel}）でない（変更宣言の files はリポジトリ相対なので起点を揃える）`,
-    );
-  }
-  /**
-   * @param {string} sha
-   * @param {string} label
-   * @returns {string | null} 解けなければ null
-   */
-  const verifyCommit = (sha, label) => {
-    // 16 進でない値を git の引数へ渡さない（`-` 始まりがオプションとして読まれる）。
-    if (typeof sha !== "string" || !/^[0-9a-fA-F]{4,64}$/.test(sha)) {
-      findings.push(`${label} ${JSON.stringify(sha)} がコミット SHA（16 進）でない`);
-      return null;
-    }
-    try {
-      return runGit(repo, ["rev-parse", "--verify", "--quiet", `${sha}^{commit}`]).trim();
-    } catch {
-      findings.push(`${label} のコミット ${sha} が新側リポジトリ ${repo} に無い`);
-      return null;
-    }
+  /** @type {CarryState} */
+  const state = {
+    runGit: input.runGit ?? defaultRunGit,
+    readBytes: input.readBytes ?? ((p) => readFileSync(p)),
+    findings: [],
+    notes: [],
   };
-  const recordedFull = verifyCommit(recorded, "記録した版");
-  const wantedFull = verifyCommit(wanted, "今の版");
-  if (recordedFull === null || wantedFull === null) {
-    return { ok: false, legacy: false, findings, notes, carried_by: [] };
-  }
-
-  // 各 pathspec がどちらかの版で 1 つ以上のファイルに当たるか。当たらない pathspec（綴り違い・起点違い）は
-  // 差分が常に空になり、描画入力が変わっても「差分なし」で持ち越してしまう。空の木からの差分で数える
-  // （ls-tree は pathspec の magic を解さない）。
-  let emptyTree;
   try {
-    emptyTree = runGit(repo, ["hash-object", "-t", "tree", "/dev/null"]).trim();
+    return judgeCarryOrStop(input, state);
   } catch (e) {
-    return fail(`空の木のオブジェクト名を得られない（git hash-object が失敗）: ${reasonOf(e)}`);
+    if (!(e instanceof CarryStop)) throw e;
+    const findings = e.finding === null ? state.findings : [...state.findings, e.finding];
+    return { ok: false, legacy: false, findings, notes: state.notes, carried_by: [] };
   }
-  /** @type {string[]} */
-  const unmatchedSpecs = [];
-  for (const spec of renderInputs) {
-    let hit = false;
-    for (const commit of [wantedFull, recordedFull]) {
-      try {
-        const out = runGit(repo, [
-          "diff",
-          "-z",
-          "--no-renames",
-          "--name-only",
-          emptyTree,
-          commit,
-          "--",
-          toPathspec(spec),
-        ]);
-        if (out.split("\0").some((name) => name !== "")) {
-          hit = true;
-          break;
-        }
-      } catch (e) {
-        return fail(
-          `描画入力 ${spec} の対象ファイルを数えられない（git diff が失敗）: ${reasonOf(e)}`,
-        );
-      }
-    }
-    if (!hit) unmatchedSpecs.push(spec);
-  }
-  if (unmatchedSpecs.length > 0) {
-    return fail(
-      `new.render_inputs の pathspec がどちらの版のファイルにも当たらない: ${unmatchedSpecs.join(", ")}（当たらない描画入力は差分が常に空になり、持ち越しの根拠にならない。新側リポジトリ最上位からの相対で書く）`,
-    );
-  }
-
-  // 3. 描画入力の差分 D。-z で名前を引用させず、--no-renames で移動元も数える。
-  /** @type {string[]} */
-  let changed;
-  try {
-    changed = runGit(repo, [
-      "diff",
-      "-z",
-      "--no-renames",
-      "--name-only",
-      recordedFull,
-      wantedFull,
-      "--",
-      ...renderInputs.map(toPathspec),
-    ])
-      .split("\0")
-      .filter((name) => name !== "");
-  } catch (e) {
-    return fail(`描画入力の差分を取れない（git diff が失敗）: ${reasonOf(e)}`);
-  }
-  if (changed.length === 0) {
-    notes.push(
-      `新側のコミットは違う（${recorded} → ${wanted}）が、描画入力（${renderInputs.join(", ")}）に差分が無いので証跡を持ち越す`,
-    );
-    return { ok: true, legacy: false, findings: [], notes, carried_by: [] };
-  }
-
-  // 4. evidence-carry.json と変更宣言。
-  const replaceRoot = nonEmptyString(input.replaceRoot) ? resolve(input.replaceRoot) : null;
-  if (replaceRoot === null) {
-    return fail(
-      "--replace-root（.replace ディレクトリ）を決められないので変更宣言・部品 metadata を読めない（判定不能を合格にしない）",
-    );
-  }
-  const projectRoot = dirname(replaceRoot);
-  /** @param {string} p */
-  const fromProject = (p) => (isAbsolute(p) ? p : resolve(projectRoot, p));
-  /**
-   * @param {string} path
-   * @param {string} label
-   * @returns {{ ok: true, value: unknown } | { ok: false, message: string }}
-   */
-  const readJson = (path, label) => {
-    let text;
-    try {
-      text = readBytes(path).toString("utf8");
-    } catch (e) {
-      return { ok: false, message: `${label} を読めない: ${path}（${reasonOf(e)}）` };
-    }
-    try {
-      return { ok: true, value: JSON.parse(text) };
-    } catch (e) {
-      return { ok: false, message: `${label} が JSON として不正: ${path}（${reasonOf(e)}）` };
-    }
-  };
-
-  /** @type {{ change: string, amend_verify: string | null }[]} */
-  const carries = [];
-  /** @type {Buffer | null} */
-  let carryBytes = null;
-  try {
-    carryBytes = readBytes(input.evidenceCarryPath);
-  } catch (e) {
-    // 無いのは「持ち越しの宣言が無い」。D が空でない以上、どのファイルも説明できずに下で落ちる。
-    // 無い以外の読めなさ（権限等）は宣言の有無が分からないので落とす。
-    if (!(e instanceof Error && "code" in e && e.code === "ENOENT")) {
-      return fail(
-        `${EVIDENCE_CARRY_FILE} を読めない: ${input.evidenceCarryPath}（${reasonOf(e)}）`,
-      );
-    }
-    notes.push(`${input.evidenceCarryPath} が無い（持ち越しに使う変更宣言が無い）`);
-  }
-  if (carryBytes !== null) {
-    let value;
-    try {
-      value = JSON.parse(carryBytes.toString("utf8"));
-    } catch (e) {
-      return fail(
-        `${EVIDENCE_CARRY_FILE} が JSON として不正: ${input.evidenceCarryPath}（${reasonOf(e)}）`,
-      );
-    }
-    if (!isPlainObject(value) || !isArray(value.carries)) {
-      return fail(
-        `${EVIDENCE_CARRY_FILE} が carries 配列を持つオブジェクトでない: ${input.evidenceCarryPath}`,
-      );
-    }
-    for (const [i, raw] of value.carries.entries()) {
-      if (
-        !isPlainObject(raw) ||
-        !nonEmptyString(raw.change) ||
-        !(raw.amend_verify === null || nonEmptyString(raw.amend_verify))
-      ) {
-        return fail(
-          `${EVIDENCE_CARRY_FILE} の carries[${i}] が { change: <パス>, amend_verify: <パス> | null } でない: ${JSON.stringify(raw)}`,
-        );
-      }
-      carries.push({ change: raw.change, amend_verify: raw.amend_verify });
-    }
-  }
-
-  /** @type {{ path: string, amendVerify: string | null, change: CarryChange }[]} */
-  const declared = [];
-  for (const carry of carries) {
-    const path = fromProject(carry.change);
-    const read = readJson(path, "変更宣言");
-    if (!read.ok) return fail(read.message);
-    const errors = validateChange(read.value);
-    if (errors.length > 0) {
-      return fail(`変更宣言 ${path} が不正: ${errors.join(" / ")}`);
-    }
-    const change = read.value;
-    // validateChange が誤りを返さなかった宣言は、この形を必ず満たす（到達しない分岐）
-    if (!isCarryChange(change)) return fail(`変更宣言 ${path} が不正: 読む欄の形が違う`);
-    declared.push({
-      path,
-      amendVerify: carry.amend_verify,
-      change,
-    });
-  }
-
-  // D の各ファイルが、どれかの変更宣言の files に含まれるか。
-  const uncovered = changed.filter((file) => !declared.some((d) => d.change.files.includes(file)));
-  if (uncovered.length > 0) {
-    return fail(
-      `描画入力の差分（${recorded} → ${wanted}）に、どの変更宣言の files にも無いファイルがある: ${uncovered.join(", ")}（宣言外の変更は持ち越さない）`,
-    );
-  }
-  const used = declared.filter((d) => d.change.files.some((file) => changed.includes(file)));
-  for (const d of declared) {
-    if (!used.includes(d))
-      notes.push(`変更宣言 ${d.change.id} はこの差分に触れないので使わない: ${d.path}`);
-  }
-
-  // 使う変更宣言のコミットが実在するか。
-  for (const d of used) {
-    /** @type {Array<"before" | "after">} */
-    const sides = ["before", "after"];
-    for (const side of sides) {
-      verifyCommit(d.change.commits[side], `変更宣言 ${d.change.id} の commits.${side}`);
-    }
-  }
-  if (findings.length > 0) return { ok: false, legacy: false, findings, notes, carried_by: [] };
-
-  /**
-   * そのコミットでのファイルの blob（無ければ "absent"）。
-   * @param {string} commit
-   * @param {string} file
-   * @returns {string}
-   */
-  const blobOf = (commit, file) => {
-    try {
-      return runGit(repo, ["rev-parse", "--verify", "--quiet", `${commit}:${file}`]).trim();
-    } catch {
-      // コミットは実在を確かめ済みなので、失敗はそのパスが無いこと。
-      return "absent";
-    }
-  };
-  // 各ファイルの記録の版 → 今の版の変化が、宣言した改修（before → after の blob）の連鎖で辿れるか。
-  // files に名前があるだけの古い宣言で、その後の宣言外の編集を持ち越さない。
-  for (const file of changed) {
-    const edges = used
-      .filter((d) => d.change.files.includes(file))
-      .map((d) => [blobOf(d.change.commits.before, file), blobOf(d.change.commits.after, file)]);
-    const start = blobOf(recordedFull, file);
-    const goal = blobOf(wantedFull, file);
-    const reached = new Set([start]);
-    let grew = true;
-    while (grew && !reached.has(goal)) {
-      grew = false;
-      for (const [from, to] of edges) {
-        if (reached.has(from) && !reached.has(to)) {
-          reached.add(to);
-          grew = true;
-        }
-      }
-    }
-    if (!reached.has(goal)) {
-      findings.push(
-        `${file} の変化（${recorded} → ${wanted}）を変更宣言（${used
-          .filter((d) => d.change.files.includes(file))
-          .map((d) => d.change.id)
-          .join(
-            ", ",
-          )}）の commits.before → after の連鎖で説明できない（宣言の前後に宣言外の編集がある）`,
-      );
-    }
-  }
-  if (findings.length > 0) return { ok: false, legacy: false, findings, notes, carried_by: [] };
-
-  // 5. 影響の再計算と amend-verify の記録。
-  let featureMetadata = input.featureMetadata;
-  if (featureMetadata === undefined) {
-    // slug が空だと join が .replace/parity/metadata.json に潰れ、読めない理由が別のパスを指す
-    if (typeof input.featureSlug !== "string" || input.featureSlug.trim() === "") {
-      return fail(
-        "機能の slug が分からない（--metadata を渡すか、component-coverage.json の slug を確かめる）",
-      );
-    }
-    const path = join(replaceRoot, "parity", input.featureSlug, "metadata.json");
-    const read = readJson(path, "機能の metadata.json");
-    if (!read.ok) return fail(read.message);
-    featureMetadata = read.value;
-  }
-  // unmatched_instances の判定に使う全機能のページ（component-impact.mjs の --feature 実行と同じ扱い）。
-  // 他の機能のページにある影響インスタンスを「どこにも一致しない」に数えない。読めない metadata は足さないだけ
-  // （一致しないインスタンスが残れば、持ち越さないと判定される）。
-  /** @type {unknown[]} */
-  const pageUniverse = [featureMetadata];
-  const parityDir = join(replaceRoot, "parity");
-  /** @type {string[]} */
-  let featureDirs = [];
-  try {
-    featureDirs = readdirSync(parityDir, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name)
-      .sort();
-  } catch {
-    // 読めなければこの機能のページだけで数える（一致しないものは、持ち越さないと判定される）。
-  }
-  for (const name of featureDirs) {
-    if (name === input.featureSlug) continue;
-    const read = readJson(join(parityDir, name, "metadata.json"), "機能の metadata.json");
-    if (read.ok) pageUniverse.push(read.value);
-  }
-  for (const d of used) {
-    const id = String(d.change.id);
-    // 部品側の照合（宣言した範囲の外は差分ゼロ・範囲の中は現行と一致）が通っていない宣言は、
-    // 範囲の外にも影響している疑いがあるので、影響の計算そのものを根拠にできない
-    const catalog = d.change.catalog_verification;
-    if (catalog.outside_scope_identical !== true || catalog.inside_matches_current !== true) {
-      findings.push(
-        `変更宣言 ${id} の catalog_verification が合格していない（outside_scope_identical: ${JSON.stringify(catalog.outside_scope_identical)}、inside_matches_current: ${JSON.stringify(catalog.inside_matches_current)}）。部品の照合が通ってから持ち越す（parity-component の references/amend.md）`,
-      );
-      continue;
-    }
-    const componentPath = join(replaceRoot, "components", String(d.change.slug), "metadata.json");
-    const component = readJson(componentPath, "部品 metadata.json");
-    if (!component.ok) {
-      findings.push(`変更宣言 ${id}: ${component.message}`);
-      continue;
-    }
-    let impact;
-    try {
-      impact = computeImpact({
-        change: d.change,
-        componentMetadata: component.value,
-        features: [{ slug: input.featureSlug, metadata: featureMetadata }],
-        pageUniverse,
-      });
-    } catch (e) {
-      findings.push(`変更宣言 ${id} の影響を計算できない: ${reasonOf(e)}`);
-      continue;
-    }
-    const feature = impact.features[0];
-    if (impact.unmatched_instances.length > 0) {
-      // どの機能（.replace/parity/*/metadata.json）のページとも一致しない影響インスタンスは、
-      // 未着手の機能のページか path の書き方の食い違いかを区別できない。後者ならこの機能の
-      // 「影響なし」は誤りなので、component-impact.mjs の全機能実行（exit 1）と同じく持ち越さない。
-      findings.push(
-        `変更宣言 ${id} の影響インスタンスがどの機能のページとも一致しない: ${impact.unmatched_instances
-          .map((u) => `${u.id}（${u.page}）`)
-          .join(
-            ", ",
-          )}（path の書き方の食い違いを「影響なし」として扱わない。component-impact.mjs を全機能で回して確かめる）`,
-      );
-      continue;
-    }
-    if (impact.unmatched_usages.length > 0) {
-      // usages も同じ理由で持ち越さない（綴り違いの usages は、使っているページを「影響なし」と判定させる）
-      findings.push(
-        `変更宣言 ${id} の usages がどの機能のページとも一致しない: ${impact.unmatched_usages.join(", ")}（component-impact.mjs を全機能で回して確かめる）`,
-      );
-      continue;
-    }
-    if (feature.verdict === "undeterminable") {
-      findings.push(`変更宣言 ${id} の影響を判定できない: ${feature.reasons.join(" / ")}`);
-      continue;
-    }
-    if (feature.verdict === "unaffected") {
-      notes.push(`変更宣言 ${id} はこの機能に影響しない: ${feature.reasons.join(" / ")}`);
-      continue;
-    }
-    // affected。
-    const pairs = feature.pairs;
-    // 機械判定（amend-verify）の合格条件は「現行へ近づいた」なので、現行に合わせ直す修正にしか意味を持たない。
-    // new-appearance は満たすべき条件が宣言から決まらず、合格しても従来のトリアージを省く根拠にならない
-    if (d.change.kind !== "align-to-current") {
-      findings.push(
-        `変更宣言 ${id} は kind: ${JSON.stringify(d.change.kind)} で、この機能に影響する（${pairs.map((p) => p.pair).join(", ")}）。機械判定で持ち越せるのは align-to-current だけ（従来のトリアージへ回す。parity-diff の references/component-change.md）`,
-      );
-      continue;
-    }
-    const unknownRegion = pairs.filter((p) => p.region_known !== true).map((p) => p.pair);
-    if (unknownRegion.length > 0) {
-      findings.push(
-        `変更宣言 ${id} の影響する組 ${unknownRegion.join(", ")} は usages だけで一致し領域が分からない（amend-verify で機械判定できないので持ち越さない。従来のトリアージへ回す）`,
-      );
-      continue;
-    }
-    if (d.amendVerify === null) {
-      findings.push(
-        `変更宣言 ${id} はこの機能に影響する（${pairs.map((p) => p.pair).join(", ")}）のに evidence-carry.json の amend_verify が null`,
-      );
-      continue;
-    }
-    const recordPath = fromProject(d.amendVerify);
-    const record = readJson(recordPath, "amend-verify の記録");
-    if (!record.ok) {
-      findings.push(`変更宣言 ${id}: ${record.message}`);
-      continue;
-    }
-    const r = record.value;
-    if (!isPlainObject(r) || r.tool !== AMEND_VERIFY_TOOL || !isArray(r.pairs)) {
-      findings.push(
-        `amend-verify の記録の形でない（tool: ${AMEND_VERIFY_TOOL} と pairs 配列が要る）: ${recordPath}`,
-      );
-      continue;
-    }
-    if (r.change_id !== id) {
-      findings.push(
-        `amend-verify の記録の change_id（${JSON.stringify(r.change_id)}）が変更宣言 ${id} と違う（--change-id ${id} で記録し直す）: ${recordPath}`,
-      );
-      continue;
-    }
-    for (const { pair } of pairs) {
-      const entries = r.pairs.filter((e) => isPlainObject(e) && e.pair === pair);
-      if (entries.length !== 1) {
-        findings.push(
-          `amend-verify の記録に組 ${pair} が ${entries.length === 0 ? "無い" : "2 つ以上ある"}（変更宣言 ${id} の影響する組を覆っていない）: ${recordPath}`,
-        );
-        continue;
-      }
-      const entry = entries[0];
-      // entries は isPlainObject で絞った要素だけを持つ（到達しない分岐）
-      if (!isPlainObject(entry)) continue;
-      if (entry.pass !== true) {
-        findings.push(
-          `amend-verify の組 ${pair} が pass でない（${isArray(entry.reasons) ? entry.reasons.join("; ") : "理由なし"}）: ${recordPath}`,
-        );
-        continue;
-      }
-      const verdict = checkVerdict(entry);
-      if (verdict !== null) {
-        findings.push(`amend-verify の組 ${pair}: ${verdict}: ${recordPath}`);
-        continue;
-      }
-      const provenance = checkProvenance(entry, pair, id, {
-        stageDir: resolve(dirname(input.evidenceCarryPath)),
-        currentRoot: resolve(replaceRoot, "parity", input.featureSlug, "baseline"),
-        fromProject,
-      });
-      if (provenance !== null) {
-        findings.push(`amend-verify の組 ${pair}: ${provenance}: ${recordPath}`);
-        continue;
-      }
-      const geometry = checkGeometry(
-        entry,
-        d.change,
-        pairInstances(pairs, pair),
-        fromProject,
-        readBytes,
-      );
-      if (geometry !== null) {
-        findings.push(`amend-verify の組 ${pair}: ${geometry}: ${recordPath}`);
-        continue;
-      }
-      for (const key of ["prev_new", "new", "current"]) {
-        const ref = isPlainObject(entry.inputs) ? entry.inputs[key] : undefined;
-        if (!isPlainObject(ref) || !nonEmptyString(ref.path) || !nonEmptyString(ref.sha256)) {
-          findings.push(
-            `amend-verify の組 ${pair} の inputs.${key} に path / sha256 が無い: ${recordPath}`,
-          );
-          continue;
-        }
-        const imagePath = fromProject(ref.path);
-        let actual;
-        try {
-          actual = createHash("sha256").update(readBytes(imagePath)).digest("hex");
-        } catch (e) {
-          findings.push(
-            `amend-verify の組 ${pair} の inputs.${key} を読めない: ${imagePath}（${reasonOf(e)}）`,
-          );
-          continue;
-        }
-        if (actual !== ref.sha256) {
-          findings.push(
-            `amend-verify の組 ${pair} の inputs.${key} が判定後に変わっている（sha256 ${ref.sha256} ≠ 今の ${actual}）: ${imagePath}`,
-          );
-        }
-      }
-    }
-  }
-  if (findings.length > 0) return { ok: false, legacy: false, findings, notes, carried_by: [] };
-  const carriedBy = used.map((d) => String(d.change.id));
-  notes.push(
-    `新側のコミットは違う（${recorded} → ${wanted}）が、描画入力の差分（${changed.join(", ")}）は変更宣言 ${carriedBy.join(", ")} で説明でき、影響する組は amend-verify で pass なので証跡を持ち越す`,
-  );
-  return { ok: true, legacy: false, findings: [], notes, carried_by: carriedBy };
 }

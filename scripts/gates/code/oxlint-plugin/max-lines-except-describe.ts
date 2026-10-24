@@ -123,11 +123,11 @@ export function isGroupingCallback(fn: AstNode, names: ReadonlySet<string>): boo
 }
 
 /** 即時実行の関数か（組み込みのルールのデフォルトは数えない）。 */
-const isIife = (fn: AstNode): boolean =>
+export const isIife = (fn: AstNode): boolean =>
   fn.parent?.type === "CallExpression" && fn.parent.callee === fn;
 
 /** 行を数える節点。メソッドと getter・setter はキーを含む親から数える。 */
-function countedNode(fn: AstNode): AstNode {
+export function countedNode(fn: AstNode): AstNode {
   const parent = fn.parent;
   if (!parent) return fn;
   if (parent.type === "MethodDefinition") return parent;
@@ -136,13 +136,22 @@ function countedNode(fn: AstNode): AstNode {
   return fn;
 }
 
-/** オプション `{ max }` の上限。数でない値は、判定できないので例外にする。 */
-export function maxOf(options: readonly unknown[]): number {
+/** 関数の行数（countedNode の範囲の行の数）。max-lines-except-page-entry.ts も同じ数え方を使う。 */
+export function linesOf(fn: AstNode): number {
+  const { loc } = countedNode(fn);
+  return loc.end.line - loc.start.line + 1;
+}
+
+/** オプション `{ max }` の上限。数でない値は、判定できないので例外にする。rule は例外のメッセージに書くルールの名前。 */
+export function maxOf(
+  options: readonly unknown[],
+  rule = "max-lines-per-function-except-describe",
+): number {
   const first = options[0];
   const value = isRecord(first) ? first.max : undefined;
   if (first === undefined || value === undefined) return DEFAULT_MAX;
   if (typeof value !== "number" || !Number.isInteger(value) || value < 1)
-    throw new Error("max-lines-per-function-except-describe: max は 1 以上の整数にする");
+    throw new Error(`${rule}: max は 1 以上の整数にする`);
   return value;
 }
 
@@ -163,8 +172,7 @@ export const maxLinesExceptDescribe = {
     let names: ReadonlySet<string> = new Set();
     const check = (fn: AstNode) => {
       if (isIife(fn) || isGroupingCallback(fn, names)) return;
-      const { loc } = countedNode(fn);
-      const lines = loc.end.line - loc.start.line + 1;
+      const lines = linesOf(fn);
       if (lines > max)
         context.report({
           node: fn,

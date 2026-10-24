@@ -20,7 +20,7 @@
 // 緑を根拠に先へ進める）。次の 2 つの形を防ぐ。
 //   - 支援技術のためのコピー。市販部品は aria のための木を別に作り、getByRole が返す要素が
 //     画面の外（y = -32000 など）に置かれていることがある。矩形が文書の外なら採取を失敗させる
-//     （下記 captureElement。getBoundingClientRect() は相対幾何のために既に読んでいる）。
+//     （page/trait-capture.page.mjs の captureElement。getBoundingClientRect() は相対幾何のために既に読んでいる）。
 //   - 装飾が子ノードに乗っている。名前を付けた要素の計算値は一致するのに、子の inline style が
 //     見た目を変えている。子の計算値は採らず、inline style の在否と値だけを記録する。
 //     画素の差を、フォントの版・ヒンティングの切り分けへ持っていかずに済むようにするためである
@@ -82,7 +82,7 @@
 //
 // 計算値が url() を含みうる項目（cursor のカスタムカーソル等）は、相対 URL が自分のオリジンで
 // 絶対化されるため、そのままでは現・新のホスト違いが偽の差分になる。captureElement が同一
-// オリジンの url() だけを畳んで比較可能にしている（下記 foldOrigin）。url() を持ちうる項目を
+// オリジンの url() だけを畳んで比較可能にしている（page/trait-capture.page.mjs の foldOrigin）。url() を持ちうる項目を
 // 足すときは、この正規化で両側が揃うかを確かめる。
 //
 // 状態遷移（hover / focus / active / disabled 等）はこの関数の責務ではない。呼び出し側
@@ -90,13 +90,32 @@
 //
 // Playwright はピア前提であり import しない。Locator は引数で受け取り、
 // locator.evaluate() 経由でブラウザ内 DOM を操作する（型は JSDoc のみ。TypeScript 構文は使わない）。
+//
+// ページで実行する本体（captureElement）は page/trait-capture.page.mjs にあり、ここから import して
+// locator.evaluate へそのまま渡す。コピーするときは page/trait-capture.page.mjs も、コピー先の隣の page/ へ一緒にコピーする。
+
+import { PAGE_VERSION, captureElement } from "./page/trait-capture.page.mjs";
 
 /**
  * ツールのバージョン（原本）。採取スキーマ（FIXED_PROPERTIES・採取形状）を変えたら上げる。
+ * 上げるときは、page/trait-capture.page.mjs の PAGE_VERSION も同じ値にする（違うと assertPageVersion が採らずに止める）。
  * metadata.json の traits.tool / differ に記録する「バージョン」はこの値を使う（手入力にしない）。
  * @type {string}
  */
 export const VERSION = "6";
+
+/**
+ * page ファイルの PAGE_VERSION が、このスクリプトの VERSION と同じかを確かめる。違えば、片方だけを古い版のまま
+ * コピーしてあるので、採らずに失敗する。
+ * @param {string} pageVersion
+ */
+export function assertPageVersion(pageVersion) {
+  if (pageVersion !== VERSION) {
+    throw new Error(
+      `trait capture: page/trait-capture.page.mjs has PAGE_VERSION ${pageVersion} but trait-capture.mjs has VERSION ${VERSION}; copy both files from the same version`,
+    );
+  }
+}
 
 /**
  * 採取する computed style プロパティの固定集合（原本）。
@@ -211,546 +230,28 @@ export const SCROLLBAR_PSEUDO_PROPERTIES = [
   "border-left-color",
 ];
 
-/** @typedef {{ x: number, y: number, width: number, height: number }} Rect */
-/** @typedef {{ top: number, bottom: number }} LineBand */
-/** @typedef {{ full: number, lead: number, trail: number, blank: boolean }} TextSegment */
 /**
- * @typedef {{ path: string, tag: string, text: string, style: Record<string, string>, advance: number, glyph_height: number, lines: number, rect: Rect }} TextOwner
+ * 1 要素分の採取の結果。
+ * @typedef {ReturnType<typeof captureElement>} ElementTraits
  */
 
 /**
- * ブラウザ内で 1 要素分の特性を採る純関数（locator.evaluate に渡す）。
- * el と props を受け取り、computed / before / after / rect / child_inline_styles / text_owners / scroll を返す。
- * 擬似要素は content が "none"（＝生成コンテンツ無し）のとき null を返し、省略できるようにする。
- * 矩形が文書の外に丸ごと出ている要素（支援技術のためのコピー）はここで失敗させる。
- * この関数は文字列化して evaluate に渡るため、外部スコープを参照しない（props で受け取る）。
- * @param {Element} el
- * @param {{ fixed: readonly string[], textOwner: readonly string[], scrollbar: readonly string[], scrollbarPseudos: readonly string[], scrollbarPseudoProps: readonly string[] }} props
+ * 採取の結果の形か（captureElement は常にこの形を返す）。
+ * @param {unknown} value
+ * @returns {value is ElementTraits}
  */
-function captureElement(
-  el,
-  {
-    fixed: props,
-    textOwner: textOwnerProps,
-    scrollbar: scrollbarProps,
-    scrollbarPseudos,
-    scrollbarPseudoProps,
-  },
-) {
-  // 同一オリジンの url() をオリジン非依存の印へ畳む。cursor: url(cur.png) のような相対 URL の
-  // 計算値は自分のオリジンで絶対化されるため（実測: 同じ CSS が :8811 と :8822 で別文字列になる）、
-  // 現・新がホストもポートも違う前提のパリティ比較では、同じ指定が偽の property 差分になる。
-  // 畳むのは自分のオリジンで始まる URL だけ。data: と他オリジンの URL は両側で同じ文字列に
-  // なるので触らない（畳むと別ホストの資産どうしが同一視され、本物の差分を消す）。
-  // 正規化できないとき（file:// 等で origin が "null"）は元の値のまま残す。偽の差分として
-  // 目に見える側として扱い、警告なしに一致させない。
-  //
-  // 置換は url() トークンの中身を取り出し、その URL 自体が自オリジンで始まるときだけ行う。
-  // 値全体への単純置換にすると、他オリジン URL のパス・クエリにたまたま自オリジンが現れた値
-  // （url("https://cdn.example/redirect/http://legacy.example:8811/x") 等）まで畳んで、
-  // 現・新で別物を指している外部参照を同値化し、本物の差分を消す。
-  //
-  // 射程: 畳むのは URL 文字列までで、参照先の資産の中身は照合しない。現新が同じパスで
-  // 別バイトの資産を配信していると、その見た目差は、この正規化にも画素にも現れない。
-  // 対象要素がある機能は gaps.md へ「採取値の射程外」として残す（確認済みにしない）。
-  // 値が在ることを確かめる。採取の中で対にして作る値（持ち主ごとの区切りなど）と、必ず一致する正規表現の結果に使う。
-  // 無ければ、その値を読む行が TypeError で止まるのと同じく、ここで止める。
-  /**
-   * @template T
-   * @param {T | null | undefined} value
-   * @returns {T}
-   */
-  const present = (value) => {
-    if (value === null || value === undefined) throw new TypeError("captureElement: missing value");
-    return value;
-  };
-  /**
-   * @param {Node} node
-   * @returns {node is Element}
-   */
-  const isElementNode = (node) => node.nodeType === 1;
-  const origin = location.origin;
-  const foldable = /^https?:\/\//.test(origin);
-  /** @param {string} value */
-  const foldOrigin = (value) => {
-    if (!foldable || !value.includes("url(")) return value;
-    return value.replace(/url\(\s*("[^"]*"|'[^']*'|[^)]*)\s*\)/g, (whole, raw) => {
-      const quote = raw[0] === '"' || raw[0] === "'" ? raw[0] : "";
-      const url = quote ? raw.slice(1, -1) : raw.trim();
-      if (url !== origin && !url.startsWith(origin + "/")) return whole;
-      return `url(${quote}<same-origin>${url.slice(origin.length)}${quote})`;
-    });
-  };
-
-  /**
-   * @overload
-   * @param {"::before" | "::after"} pseudo
-   * @returns {Record<string, string> | null}
-   */
-  /**
-   * @overload
-   * @param {string | null} pseudo
-   * @param {readonly string[]} [names]
-   * @returns {Record<string, string>}
-   */
-  /**
-   * @param {string | null} pseudo
-   * @param {readonly string[]} [names]
-   * @returns {Record<string, string> | null}
-   */
-  function pick(pseudo, names = props) {
-    const style = getComputedStyle(el, pseudo);
-    // 生成コンテンツの有無で省けるのは ::before / ::after だけ（スクロールバーの擬似要素は content を持たない）
-    if ((pseudo === "::before" || pseudo === "::after") && style.content === "none") return null;
-    /** @type {Record<string, string>} */
-    const out = {};
-    const unknown = [];
-    for (const prop of names) {
-      const value = style.getPropertyValue(prop);
-      // getPropertyValue はブラウザが知らないプロパティ名に空文字を返す。空のまま採ると
-      // 現・新の両側が同じ空文字になり「差が無い」と読めてしまう（集合に入れた意味が消える）。
-      // 検出できないことを警告なしに通さず、どの名前が解決しなかったかを付けて落とす。
-      if (value === "") unknown.push(prop);
-      out[prop] = foldOrigin(value);
-    }
-    if (unknown.length > 0) {
-      throw new Error(
-        `computed style did not resolve${pseudo ? ` for ${pseudo}` : ""}: ${unknown.join(", ")}`,
-      );
-    }
-    return out;
-  }
-  const box = el.getBoundingClientRect();
-
-  // 描かれているかの判定は、ビューポートではなく**文書**の矩形に対して行う。ビューポートで測ると
-  // 折り返し下の要素（full_page 撮影では正当に撮影される）やスクロールで外へ出た要素まで落ちる。
-  // 文書座標へ直したうえで「文書の外側に丸ごと出ている」ものだけを失敗にする。
-  // 支援技術のためのコピーは y = -32000 のような座標に置かれるので、この判定で捕まる。
-  // 面積 0 の矩形（display: none 等）はこの判定から外す。描かれていないのは同じだが、
-  // 状態として正当に採る対象であり、コピーの合図ではない。
-  // 射程: この除外のぶん、width: 0; height: 0 で置かれたコピーは検出できない（捕まえるのは
-  // 文書の外へ動かしたコピーだけ）。限界は references/baseline.md に書いてある。
-  // なお内側にスクロール領域を持つ部品（横スクロールするデータグリッド等）では、正当な要素でも
-  // スクロール領域の外へ出た位置に矩形が出て文書の外と判定されうる。コピーとは原因が違うので、失敗メッセージには
-  // どちらの可能性も出す（採り直す前に対象をスクロール領域の中へスクロールさせる）。
-  if (box.width > 0 && box.height > 0) {
-    // 参照はすべて素のグローバル（scrollX / innerWidth / document）で書く。ブラウザでは window と
-    // 同じものを指し、locator.evaluate へ文字列化して渡るこの関数を差し替え無しで単体検査できる。
-    //
-    // ビューポートに掛かっている要素は、文書座標を見るまでもなく描かれている。先に通すのは
-    // RTL の横スクロール文書で `scrollX` が負になり、見えている矩形でも
-    // `docX + width <= 0` が成り立ちうるため（例: rect.x=10 / width=50 / scrollX=-100）。
-    const intersectsViewport =
-      box.x < innerWidth && box.x + box.width > 0 && box.y < innerHeight && box.y + box.height > 0;
-    const docX = box.x + scrollX;
-    const docY = box.y + scrollY;
-    const docWidth = Math.max(document.documentElement.scrollWidth, innerWidth);
-    const docHeight = Math.max(document.documentElement.scrollHeight, innerHeight);
-    const outsideDocument =
-      docX + box.width <= 0 || docY + box.height <= 0 || docX >= docWidth || docY >= docHeight;
-    if (!intersectsViewport && outsideDocument) {
-      throw new Error(
-        `element is outside the document: rect=(${box.x}, ${box.y}, ${box.width}, ${box.height}) ` +
-          `scroll=(${scrollX}, ${scrollY}) document=(${docWidth}, ${docHeight}). ` +
-          `the logical name likely resolves to an off-screen copy (accessibility mirror), not the drawn element; ` +
-          `if the element instead sits in an inner scroll container, scroll it into view before capturing`,
-      );
-    }
-  }
-
-  // 1 段下の子の inline style だけを読む（孫は見ない・子の計算値も採らない）。
-  // 「子に inline style がある」ことが記録に残れば、名前を付けた要素の計算値が全一致のまま
-  // 画素だけ差が出たときに、装飾がどこに乗っているかを採取物から読める。
-  const childInlineStyles = [];
-  for (let i = 0; i < el.children.length; i += 1) {
-    const child = el.children[i];
-    const inline = child.getAttribute("style");
-    if (inline === null || inline.trim() === "") continue;
-    childInlineStyles.push({
-      index: i,
-      tag: child.tagName.toLowerCase(),
-      style: inline.trim(),
-    });
-  }
-
-  // 文字の持ち主を平坦木の順に拾う（冒頭の「文字の持ち主」を参照）。path は el からの道筋で、
-  // 照合には使わない診断材料（どの要素が文字を持っているかを採取物から読むため）。
-  /** @type {Map<Element, TextOwner>} */
-  const owners = new Map();
-  /** @type {TextOwner[]} */
-  const textOwners = [];
-  // 持ち主ごとの生の文字列。空白の畳み込みと trim は、全ノードを繋いだ後に 1 回だけ当てる。
-  // ノードごとに trim して " " で繋ぐと、フレームワークがテキストを分けたかどうかで文字列が変わる
-  // （React の <span>{count}件</span> は "3" と "件" の 2 ノードで "3 件"、1 ノードなら "3件"）。
-  // すると、見た目が同じ文字の寸法の照合が、trait-compare.mjs で警告なしに省かれる。
-  /** @type {Map<TextOwner, string>} */
-  const rawText = new Map();
-  // 持ち主ごとの行の断片（縦の範囲）。行の数は断片の数ではなく、行の帯の数で数える。
-  // テキストノードが分かれると同じ行に断片が 2 つ出る（実測: "3" と "件" の 2 ノードで断片 2、1 ノードで 1）。
-  // 帯の切れ目は「前の帯の上端から、その断片の高さの半分以上下がったか」で決める。断片の高さは行送りではなく
-  // 書体の高さなので、line-height を詰めると上下の行の断片が縦に重なり、重なりで数えると折り返しを 1 行と
-  // 数える（実測: 16px・3 行の折り返しが line-height: 1 / 0.8 で 1 行になった）。同じ行の断片は上端が揃う。
-  /** @type {Map<TextOwner, LineBand[]>} */
-  const bands = new Map();
-  /** @param {LineBand[]} list */
-  const countLines = (list) => {
-    let lines = 0;
-    let rowTop = -Infinity;
-    for (const f of [...list].sort((a, b) => a.top - b.top)) {
-      if (f.top >= rowTop + (f.bottom - f.top) / 2) {
-        lines += 1;
-        rowTop = f.top;
-      }
-    }
-    return lines;
-  };
-  // 畳む・端から外す空白は、CSS が畳む空白（スペース・タブ・改行・CR・FF）だけにする。
-  // JavaScript の \s と trim は NBSP や全角スペースも空白とみなすが、CSS はそれらを幅を持つ文字として描く。
-  // \s で扱うと、全角スペースで字下げした「\u3000設定」が「設定」と同じ文字列になり、字下げの幅まで差し引かれて、
-  // 字下げの無い文字と区別できなくなる。別の文字列として残せば寸法は比べないが、字下げは画素の比較に表れる。
-  /** @param {string} value */
-  const collapse = (value) => value.replace(/[ \t\n\r\f]+/g, " ").replace(/^ | $/g, "");
-  // 持ち主ごとの文字の区切り（テキストノード 1 つ分）。幅の合計 advance は全区切りの幅から、持ち主の
-  // 先頭と末尾の空白の幅だけを差し引いて出す。文字列は空白を畳んで trim して比べるので、端の空白の幅を
-  // 残すと、境目の空白がどちらの持ち主に付くかだけで幅が変わる（実測: <p>合計 <b>3件</b></p> と
-  // <p>合計<b> 3件</b></p> で p と b の幅が 4.45px ずつ入れ替わった）。中の空白は幅に数える
-  // （空白だけのノードも。数えないと "合計" " " "3" の 3 ノードが 1 ノードより 4.4px 狭くなった）。
-  /** @type {Map<TextOwner, TextSegment[]>} */
-  const segments = new Map();
-  /** @param {TextSegment[]} list */
-  const edgeTrimmedAdvance = (list) => {
-    let total = list.reduce((sum, seg) => sum + seg.full, 0);
-    /** @type {Array<[TextSegment[], "lead" | "trail"]>} */
-    const ends = [
-      [list, "lead"],
-      [[...list].reverse(), "trail"],
-    ];
-    for (const [order, side] of ends) {
-      for (const seg of order) {
-        if (seg.blank) {
-          total -= seg.full;
-          continue;
-        }
-        total -= seg[side];
-        break;
-      }
-    }
-    return total;
-  };
-  /**
-   * @param {Node} node
-   * @param {number} start
-   * @param {number} end
-   */
-  const widthOf = (node, start, end) => {
-    if (start >= end) return 0;
-    const sub = (el.ownerDocument || document).createRange();
-    sub.setStart(node, start);
-    sub.setEnd(node, end);
-    return Array.from(sub.getClientRects()).reduce((sum, f) => sum + f.width, 0);
-  };
-  /**
-   * @param {Node} node
-   * @param {string} path
-   * @param {Element} flatParent
-   */
-  const collectText = (node, path, flatParent) => {
-    const raw = node.nodeValue || "";
-    if (collapse(raw) === "") {
-      // 空白だけのノードは持ち主を新しく作らないが、既に文字を持つ持ち主の中の空白は文字列と幅に残す
-      const known = owners.get(flatParent);
-      if (known) {
-        rawText.set(known, rawText.get(known) + raw);
-        const full = widthOf(node, 0, raw.length);
-        present(segments.get(known)).push({ full, lead: full, trail: full, blank: true });
-      }
-      return;
-    }
-    // 持ち主は平坦木の親（visit が渡す）。文字の書体は平坦木で継承されるため、<slot> に割り当てられた
-    // 文字は DOM の親（ホスト）ではなく slot から継承する（実測: シャドウ内の <button style="font-size:30px">
-    // <slot> に割り当てた文字を parentElement で採るとホストの 16px が記録された）。シャドウルート直下の
-    // 文字はホストが持ち主になる（ShadowRoot は要素ではなく計算値を持たない）。
-    const range = (el.ownerDocument || document).createRange();
-    range.selectNodeContents(node);
-    const r = range.getBoundingClientRect();
-    if (!(r.width > 0 && r.height > 0)) return;
-    // 比較に使う寸法は行の断片（getClientRects）から出す。外接矩形（`r`）は、折り返すと「1 行目の左端〜
-    // 最終行の右端」まで広がり、同じ持ち主の文字どうしを合わせると間に挟まる子要素の領域まで覆うため、
-    // 書体と無関係な寸法の差を出す（外接矩形は診断材料として rect に残すだけ）。
-    const fragments = Array.from(range.getClientRects()).filter((f) => f.width > 0 && f.height > 0);
-    const leadLength = present(/^[ \t\n\r\f]*/.exec(raw))[0].length;
-    const trailLength = present(/[ \t\n\r\f]*$/.exec(raw))[0].length;
-    const segment = {
-      full: fragments.reduce((sum, f) => sum + f.width, 0),
-      lead: widthOf(node, 0, leadLength),
-      trail: widthOf(node, raw.length - trailLength, raw.length),
-      blank: false,
-    };
-    record(flatParent, path, raw, r, fragments, segment);
-  };
-  // 文字の矩形が、el までの祖先の切り抜き（overflow が visible でない箱・clip: rect(0 0 0 0)）で
-  // 実質的に見えなくなっているか。視覚的に隠した文字は、矩形の面積も visibility も通常の文字と同じである
-  // （sr-only は 1px の箱に overflow: hidden で閉じ込め、text-indent: -9999px は箱の外へ逃がす）。そのため、
-  // 切り抜いた後の幅か高さが 2px 未満なら描かれていないとみなす（実測: sr-only の「閉じる」は
-  // 切り抜き後 1×1）。省略記号で切られた長い文字は大きく残るので数え続ける。
-  /**
-   * @param {ParentNode} parent
-   * @returns {parent is ShadowRoot}
-   */
-  const isShadowRoot = (parent) => "host" in parent;
-  /**
-   * @param {Element} owner
-   * @param {Rect} r
-   */
-  const clippedAway = (owner, r) => {
-    let left = r.x;
-    let top = r.y;
-    let right = r.x + r.width;
-    let bottom = r.y + r.height;
-    /** @type {Element | null} */
-    let node = owner;
-    while (node) {
-      const style = getComputedStyle(node);
-      if (style.getPropertyValue("clip") === "rect(0px, 0px, 0px, 0px)") return true;
-      if (
-        style.getPropertyValue("overflow-x") !== "visible" ||
-        style.getPropertyValue("overflow-y") !== "visible"
-      ) {
-        const b = node.getBoundingClientRect();
-        left = Math.max(left, b.x);
-        top = Math.max(top, b.y);
-        right = Math.min(right, b.x + b.width);
-        bottom = Math.min(bottom, b.y + b.height);
-      }
-      if (node === el) break;
-      node =
-        node.parentElement ||
-        (node.parentNode && isShadowRoot(node.parentNode) ? node.parentNode.host : undefined) ||
-        null;
-    }
-    return right - left < 2 || bottom - top < 2;
-  };
-  // 持ち主へ 1 つ分の文字を足す。r は外接矩形（診断材料）、fragments は行の断片（寸法の照合に使う）。
-  /**
-   * @param {Element} owner
-   * @param {string} path
-   * @param {string} raw
-   * @param {Rect} r
-   * @param {Rect[]} fragments
-   * @param {TextSegment} segment
-   */
-  const record = (owner, path, raw, r, fragments, segment) => {
-    const glyphHeight = fragments.reduce((max, f) => Math.max(max, f.height), 0);
-    const style = getComputedStyle(owner);
-    if (style.getPropertyValue("visibility") !== "visible") return;
-    if (clippedAway(owner, r)) return;
-    const known = owners.get(owner);
-    if (known) {
-      rawText.set(known, rawText.get(known) + raw);
-      present(segments.get(known)).push(segment);
-      known.glyph_height = Math.max(known.glyph_height, glyphHeight);
-      for (const f of fragments)
-        present(bands.get(known)).push({ top: f.y, bottom: f.y + f.height });
-      const x2 = Math.max(known.rect.x + known.rect.width, r.x + r.width);
-      const y2 = Math.max(known.rect.y + known.rect.height, r.y + r.height);
-      known.rect.x = Math.min(known.rect.x, r.x);
-      known.rect.y = Math.min(known.rect.y, r.y);
-      known.rect.width = x2 - known.rect.x;
-      known.rect.height = y2 - known.rect.y;
-      return;
-    }
-    /** @type {Record<string, string>} */
-    const picked = {};
-    const unknown = [];
-    for (const prop of textOwnerProps) {
-      const value = style.getPropertyValue(prop);
-      if (value === "") unknown.push(prop);
-      picked[prop] = value;
-    }
-    if (unknown.length > 0) {
-      throw new Error(
-        `computed style did not resolve for text owner "${path}": ${unknown.join(", ")}`,
-      );
-    }
-    const entry = {
-      path,
-      tag: owner.tagName.toLowerCase(),
-      text: "",
-      style: picked,
-      advance: 0,
-      glyph_height: glyphHeight,
-      lines: 0,
-      rect: { x: r.x, y: r.y, width: r.width, height: r.height },
-    };
-    owners.set(owner, entry);
-    rawText.set(entry, raw);
-    segments.set(entry, [segment]);
-    bands.set(
-      entry,
-      fragments.map((f) => ({ top: f.y, bottom: f.y + f.height })),
-    );
-    textOwners.push(entry);
-  };
-  /**
-   * @param {Iterable<Node, unknown, unknown>} nodes
-   * @param {string} path
-   * @param {Element} flatParent
-   */
-  const visit = (nodes, path, flatParent) => {
-    let elementIndex = 0;
-    for (const node of nodes) {
-      if (node.nodeType === 3) {
-        collectText(node, path, flatParent);
-        continue;
-      }
-      if (!isElementNode(node)) continue;
-      const segment = `${node.tagName.toLowerCase()}[${elementIndex}]`;
-      elementIndex += 1;
-      const childPath = path === "" ? segment : `${path}>${segment}`;
-      if (isButtonInput(node)) collectInputValue(node, childPath);
-      if (node.shadowRoot) {
-        // シャドウツリーが描かれ、ライト DOM の子は <slot> 経由でその位置に描かれる
-        visit(Array.from(node.shadowRoot.childNodes), `${childPath}>#shadow-root`, node);
-      } else if (isSlot(node) && node.assignedNodes().length > 0) {
-        visit(node.assignedNodes(), childPath, node);
-      } else {
-        visit(Array.from(node.childNodes), childPath, node);
-      }
-    }
-  };
-  // ボタンとして描かれる <input>（submit / button / reset）は value の文字をテキストノードを持たずに描く。
-  // 数えないと <input type=submit value="検索"> を <button>検索</button> へ置き換えた組で、見た目が同じでも
-  // 件数の差（text[0] の absent / present）が出る。Range で測れないので、同じ書体を canvas の measureText に
-  // 当てて行の断片を 1 つ作る（実測: 同じ書体の <button> の Range と幅・高さが一致した）。
-  /**
-   * @param {Node} node
-   * @returns {node is HTMLInputElement & { readonly __isButtonInput: true }}
-   */
-  const isButtonInput = (node) =>
-    isElementNode(node) &&
-    node.tagName === "INPUT" &&
-    "type" in node &&
-    ["submit", "button", "reset"].includes(String(node.type).toLowerCase());
-  /**
-   * @param {Element} node
-   * @returns {node is HTMLSlotElement}
-   */
-  const isSlot = (node) => "assignedNodes" in node && typeof node.assignedNodes === "function";
-  /** @type {CanvasRenderingContext2D | null} */
-  let canvas = null;
-  // value 属性の無い submit / reset はブラウザが既定の文言（「送信」等）を描くが、その文言は DOM から
-  // 読めない。数えないと <button>送信</button> への置き換えで件数の差が出るので、文字列を空にした行として
-  // 数える（書体は照合し、文字列が合わないので寸法は照合されない）。
-  /**
-   * @param {HTMLInputElement} node
-   * @param {string} path
-   */
-  const collectInputValue = (node, path) => {
-    const type = String(node.type).toLowerCase();
-    const defaultLabel = type !== "button" && !node.hasAttribute("value");
-    const raw = String(node.value || "");
-    if (collapse(raw) === "" && !defaultLabel) return;
-    const box = node.getBoundingClientRect();
-    if (!(box.width > 0 && box.height > 0)) return;
-    const style = getComputedStyle(node);
-    canvas =
-      canvas || present((el.ownerDocument || document).createElement("canvas").getContext("2d"));
-    canvas.font = ["font-style", "font-weight", "font-size", "font-family"]
-      .map((prop) => style.getPropertyValue(prop))
-      .join(" ");
-    // canvas は text-transform と letter-spacing を当てないので、描く側と同じ形へ寄せてから測る
-    // （実測: uppercase・0.05em で input 48.0px、button 71.5px だった）
-    const transform = style.getPropertyValue("text-transform");
-    const shown =
-      transform === "uppercase"
-        ? raw.toUpperCase()
-        : transform === "lowercase"
-          ? raw.toLowerCase()
-          : transform === "capitalize"
-            ? raw.replace(/(^|\s)(\S)/g, (_all, space, first) => space + first.toUpperCase())
-            : raw;
-    const spacing = style.getPropertyValue("letter-spacing");
-    canvas.letterSpacing = spacing === "normal" ? "0px" : spacing;
-    const m = canvas.measureText(shown);
-    const height = m.fontBoundingBoxAscent + m.fontBoundingBoxDescent;
-    const fragment = { x: box.x, y: box.y, width: m.width, height };
-    const segment = { full: m.width, lead: 0, trail: 0, blank: false };
-    const rect = { x: box.x, y: box.y, width: box.width, height: box.height };
-    record(node, path, raw, rect, [fragment], segment);
-  };
-  if (isButtonInput(el)) collectInputValue(el, "");
-  visit(
-    el.shadowRoot ? Array.from(el.shadowRoot.childNodes) : Array.from(el.childNodes || []),
-    el.shadowRoot ? "#shadow-root" : "",
-    el,
+function isElementTraits(value) {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "computed" in value &&
+    "before" in value &&
+    "after" in value &&
+    "rect" in value &&
+    "child_inline_styles" in value &&
+    "text_owners" in value &&
+    "scroll" in value
   );
-  for (const entry of textOwners) {
-    entry.text = collapse(present(rawText.get(entry)));
-    entry.advance = edgeTrimmedAdvance(present(segments.get(entry)));
-    entry.lines = countLines(present(bands.get(entry)));
-  }
-
-  // スクロールする領域の特性（冒頭の「スクロールする領域」を参照）。offsetWidth を持たない要素（SVG 等）は
-  // スクロール領域の寸法を読めないので null にする（スクロール領域かどうかの差は overflow-x / overflow-y の差として固定集合に出る）。
-  // display: inline の要素には overflow が機能せず、clientWidth / clientHeight が 0 になる。
-  // すると offsetWidth − clientWidth が文字の幅そのものになってしまう（実測: overflow: hidden の <a> で 122px / 17px）。
-  // そのため、スクロール領域として扱わない。
-  const elementStyle = getComputedStyle(el);
-  /** @param {string} value */
-  const clipsNothing = (value) => value === "visible" || value === "clip";
-  /**
-   * @param {Element} element
-   * @returns {element is HTMLElement}
-   */
-  const hasOffsetBox = (element) =>
-    "offsetWidth" in element && typeof element.offsetWidth === "number";
-  let scroll = null;
-  if (
-    hasOffsetBox(el) &&
-    elementStyle.getPropertyValue("display") !== "inline" &&
-    !(
-      clipsNothing(elementStyle.getPropertyValue("overflow-x")) &&
-      clipsNothing(elementStyle.getPropertyValue("overflow-y"))
-    )
-  ) {
-    /** @param {string} side */
-    const border = (side) => parseFloat(elementStyle.getPropertyValue(`border-${side}-width`)) || 0;
-    // ::-webkit-scrollbar を持たないブラウザでは擬似要素の計算値が見た目を表さないので、読まずに印を残す
-    const webkitSupported =
-      typeof CSS !== "undefined" && CSS.supports("selector(::-webkit-scrollbar)");
-    /** @type {Record<string, Record<string, string>>} */
-    const webkitStyles = {};
-    /** @type {Record<string, Record<string, string>> | "unsupported"} */
-    const webkit = webkitSupported ? webkitStyles : "unsupported";
-    if (webkitSupported) {
-      for (const pseudo of scrollbarPseudos)
-        webkitStyles[pseudo] = pick(pseudo, scrollbarPseudoProps);
-    }
-    scroll = {
-      overflowing_x: el.scrollWidth > el.clientWidth,
-      overflowing_y: el.scrollHeight > el.clientHeight,
-      // 縦のスクロールバー（とガター）が取った幅・横のスクロールバーが取った高さ。枠を差し引く
-      // （実測: 枠 2px・overflow: auto のスクロール領域で offsetWidth 204 / clientWidth 185 → 15px）
-      vertical_bar_px: Math.round(
-        el.offsetWidth - el.clientWidth - border("left") - border("right"),
-      ),
-      horizontal_bar_px: Math.round(
-        el.offsetHeight - el.clientHeight - border("top") - border("bottom"),
-      ),
-      style: pick(null, scrollbarProps),
-      webkit,
-    };
-  }
-
-  return {
-    computed: pick(null),
-    before: pick("::before"),
-    after: pick("::after"),
-    rect: { x: box.x, y: box.y, width: box.width, height: box.height },
-    child_inline_styles: childInlineStyles,
-    text_owners: textOwners,
-    scroll,
-  };
 }
 
 /**
@@ -805,6 +306,7 @@ function captureElement(
  * @returns {Promise<Array<{ name: string, computed: Record<string,string>, before: (Record<string,string>|null), after: (Record<string,string>|null), rect: { x:number, y:number, width:number, height:number }, child_inline_styles: { index:number, tag:string, style:string }[], text_owners: { path:string, tag:string, text:string, style: Record<string,string>, advance:number, glyph_height:number, lines:number, rect: { x:number, y:number, width:number, height:number } }[], scroll: ({ overflowing_x:boolean, overflowing_y:boolean, vertical_bar_px:number, horizontal_bar_px:number, style: Record<string,string>, webkit: (Record<string, Record<string,string>>|"unsupported") }|null) }>>}
  */
 export async function captureTraits(entries) {
+  assertPageVersion(PAGE_VERSION);
   const results = [];
   for (const entry of entries) {
     let captured;
@@ -822,6 +324,9 @@ export async function captureTraits(entries) {
         cause: err,
       });
     }
+    // captureElement は常にこの形を返すので、ここで投げることは起きない（型の絞り込みのため）。
+    if (!isElementTraits(captured))
+      throw new Error(`trait capture returned an unexpected shape: ${entry.name}`);
     results.push({ name: entry.name, ...captured });
   }
   return results;

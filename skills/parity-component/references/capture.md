@@ -26,7 +26,10 @@
 1. インストール済みの `parity-suite` を特定する。このスキルと同じインストール先にある `parity-suite/scripts/` に、使うツールが在ることを確かめる。
    見つからなければ、推測で探し回らずに止まり、`gh skill install shoji9x9/skills parity-suite` を促す
    （引数の形 `gh skill install <repository> [<skill[@version]>]` の出典: <https://cli.github.com/manual/gh_skill_install>）
-2. コピー先に無ければ、同梱版をそのままコピーする。修正も整形もしない（コピーは修正しない規約）
+2. コピー先に無ければ、同梱版をそのままコピーする。修正も整形もしない（コピーは修正しない規約）。
+   trait-capture.mjs と element-shot.mjs は、ページで実行する本体を `./page/` から import するので、対になる `parity-suite/scripts/page/` の
+   `trait-capture.page.mjs`・`element-shot.page.mjs` も、コピー先の `page/` へ同じ版からコピーする（原本は `parity-suite` の `references/baseline.md`）。
+   手順 3 の一致の確認も、page ファイルに当てる
 3. コピー先に既に在れば、同梱版とバイト列で一致することを確かめる。一致しなければ、**上書きせずに止まり、ユーザーに確認する**。
    機能単位のスイートが古い版で採ったベースラインを持っている可能性があり、警告なしに差し替えると、機能側の採取物と版がずれる。
    このスキルに同梱の motion-probe.mjs（動きのプローブ）も、同じ置き場所へ同じ規律でコピーする。
@@ -135,6 +138,7 @@ trait-capture.mjs も css-rules-capture.mjs も「いまの状態」を採るだ
 ## 当たっている CSS 規則
 
 `scripts/css-rules-capture.mjs` は、コピーせずにスキル配下からそのまま実行する。出力は `baseline/<instance>/<state>/css-rules.json` に置く。
+このスクリプトはページで実行する本体を `scripts/page/css-rules-capture.page.mjs` から import するので、1 ファイルだけを別の場所へコピーすると読み込みに失敗する。
 
 - 計算値の代わりではなく、計算値の裏側を採る。どの宣言が勝つかは計算後スタイルが持っており、このツールは候補と条件（状態・擬似要素・`@media` / `@supports` / `@layer`・`!important`）を出す。
   どちらか片方だけでは、実装するときに「なぜこの値になっているのか」を再現できない

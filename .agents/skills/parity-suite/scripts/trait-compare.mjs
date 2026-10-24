@@ -143,15 +143,21 @@ function relate(a, b, tol) {
 }
 
 /**
+ * 1 つの論理名の比較で、差分関数どうしが受け渡す文脈。
+ * @typedef {object} DiffContext
+ * @property {string} name  - 要素の論理名
+ * @property {number} tol  - 寸法を比べるときの許容誤差（alignTolerance）
+ * @property {Diff[]} out  - 差分を積む先
+ */
+
+/**
  * 2 つの computed style マップを比較して property 差分を積む。
- * @param {string} name
- * @param {'property'|'pseudo'} kind
- * @param {string} prefix - pseudo のときの接頭辞（例 "::before/"）。property のときは ""。
- * @param {Record<string,string>} expectedMap
- * @param {Record<string,string>} actualMap
+ * @param {{ name: string, kind: 'property'|'pseudo', prefix: string }} target
+ *   prefix は pseudo のときの接頭辞（例 "::before/"）。property のときは ""。
+ * @param {{ expected: Record<string,string>, actual: Record<string,string> }} maps
  * @param {Diff[]} out
  */
-function diffStyleMap(name, kind, prefix, expectedMap, actualMap, out) {
+function diffStyleMap({ name, kind, prefix }, { expected: expectedMap, actual: actualMap }, out) {
   const keys = new Set([...Object.keys(expectedMap), ...Object.keys(actualMap)]);
   for (const key of [...keys].sort()) {
     const expected = expectedMap[key];
@@ -169,14 +175,27 @@ function diffStyleMap(name, kind, prefix, expectedMap, actualMap, out) {
 }
 
 /**
- * 擬似要素（::before / ::after）の差分を積む。null（生成コンテンツ無し）の有無も差分にする。
+ * 2 つの computed style マップの差分を、property 差分として新しい配列に集める。
+ * 呼び出し側が kind と prop を付け替えて積む（text・scroll の差分に使う）。
  * @param {string} name
- * @param {string} pseudo - "::before" | "::after"
- * @param {Record<string,string>|null|undefined} expected
- * @param {Record<string,string>|null|undefined} actual
- * @param {Diff[]} out
+ * @param {Record<string,string>} expected
+ * @param {Record<string,string>} actual
+ * @returns {Diff[]}
  */
-function diffPseudo(name, pseudo, expected, actual, out) {
+function styleDiffsOf(name, expected, actual) {
+  /** @type {Diff[]} */
+  const diffs = [];
+  diffStyleMap({ name, kind: "property", prefix: "" }, { expected, actual }, diffs);
+  return diffs;
+}
+
+/**
+ * 擬似要素（::before / ::after）の差分を積む。null（生成コンテンツ無し）の有無も差分にする。
+ * @param {DiffContext} ctx
+ * @param {string} pseudo - "::before" | "::after"
+ * @param {{ expected: Record<string,string>|null|undefined, actual: Record<string,string>|null|undefined }} pair
+ */
+function diffPseudo({ name, out }, pseudo, { expected, actual }) {
   /** @param {unknown} v */
   const exists = (v) => (v ? "present" : "absent");
   if (Boolean(expected) !== Boolean(actual)) {
@@ -190,152 +209,178 @@ function diffPseudo(name, pseudo, expected, actual, out) {
     return;
   }
   if (expected && actual) {
-    diffStyleMap(name, "pseudo", pseudo + "/", expected, actual, out);
+    diffStyleMap({ name, kind: "pseudo", prefix: pseudo + "/" }, { expected, actual }, out);
   }
+}
+
+/**
+ * 同じ文字列の持ち主の組について、文字の寸法（行の数・幅の合計・高さ）の差を積む。
+ * @param {DiffContext} ctx
+ * @param {string} prefix - "text[<i>]"
+ * @param {{ expected: TextOwner, actual: TextOwner }} pair
+ */
+function diffTextOwnerSize({ name, tol, out }, prefix, { expected, actual }) {
+  // 折り返しの行数が違えば幅の合計・高さは比べても意味が無いので、行数の差だけを出す
+  if (expected.lines !== actual.lines) {
+    out.push({
+      name,
+      kind: "text",
+      prop: `${prefix}/lines`,
+      expected: String(expected.lines),
+      actual: String(actual.lines),
+      text: expected.text,
+    });
+    return;
+  }
+  /** @type {Array<"advance" | "glyph_height">} */
+  const sizeKeys = ["advance", "glyph_height"];
+  for (const key of sizeKeys) {
+    const e = expected[key];
+    const a = actual[key];
+    if (typeof e !== "number" || typeof a !== "number" || Math.abs(e - a) > tol) {
+      out.push({
+        name,
+        kind: "text",
+        prop: `${prefix}/${key}`,
+        expected: String(e),
+        actual: String(a),
+        text: expected.text,
+      });
+    }
+  }
+}
+
+/**
+ * i 番目の文字の持ち主の組について、kind "text" の差分を積む。片側にしか無ければ在否の差を出す。
+ * @param {DiffContext} ctx
+ * @param {string} prefix - "text[<i>]"
+ * @param {{ expected: TextOwner | undefined, actual: TextOwner | undefined }} pair - 件数が違えば、短い側は undefined
+ */
+function diffTextOwnerPair(ctx, prefix, { expected, actual }) {
+  const { name, out } = ctx;
+  // 呼び出し元は長い側の件数まで回すので、片側は必ずある。両側とも無い（null の要素など）なら、比べずに止める。
+  const present = expected || actual;
+  if (!present) throw new TypeError(`trait compare: ${prefix} の文字の持ち主が両側とも無い`);
+  if (!expected || !actual) {
+    out.push({
+      name,
+      kind: "text",
+      prop: prefix,
+      expected: expected ? "present" : "absent",
+      actual: actual ? "present" : "absent",
+      text: present.text,
+    });
+    return;
+  }
+  for (const d of styleDiffsOf(name, expected.style, actual.style)) {
+    out.push({ ...d, kind: "text", prop: `${prefix}/${d.prop}`, text: expected.text });
+  }
+  if (expected.text !== actual.text) return;
+  diffTextOwnerSize(ctx, prefix, { expected, actual });
 }
 
 /**
  * 文字の持ち主（text_owners）を i 番目どうしで突き合わせて kind "text" の差分を積む（冒頭の説明を参照）。
- * @param {string} name
+ * @param {DiffContext} ctx
  * @param {TextOwner[]} expectedOwners
  * @param {TextOwner[]} actualOwners
- * @param {number} tol
- * @param {Diff[]} out
  */
-function diffTextOwners(name, expectedOwners, actualOwners, tol, out) {
+function diffTextOwners(ctx, expectedOwners, actualOwners) {
   const count = Math.max(expectedOwners.length, actualOwners.length);
   for (let i = 0; i < count; i += 1) {
-    const expected = expectedOwners[i];
-    const actual = actualOwners[i];
-    const prefix = `text[${i}]`;
-    if (!expected || !actual) {
-      out.push({
-        name,
-        kind: "text",
-        prop: prefix,
-        expected: expected ? "present" : "absent",
-        actual: actual ? "present" : "absent",
-        text: (expected || actual).text,
-      });
-      continue;
-    }
-    /** @type {Diff[]} */
-    const styleDiffs = [];
-    diffStyleMap(name, "property", "", expected.style, actual.style, styleDiffs);
-    for (const d of styleDiffs) {
-      out.push({ ...d, kind: "text", prop: `${prefix}/${d.prop}`, text: expected.text });
-    }
-    if (expected.text !== actual.text) continue;
-    // 折り返しの行数が違えば幅の合計・高さは比べても意味が無いので、行数の差だけを出す
-    if (expected.lines !== actual.lines) {
-      out.push({
-        name,
-        kind: "text",
-        prop: `${prefix}/lines`,
-        expected: String(expected.lines),
-        actual: String(actual.lines),
-        text: expected.text,
-      });
-      continue;
-    }
-    /** @type {Array<"advance" | "glyph_height">} */
-    const sizeKeys = ["advance", "glyph_height"];
-    for (const key of sizeKeys) {
-      const e = expected[key];
-      const a = actual[key];
-      if (typeof e !== "number" || typeof a !== "number" || Math.abs(e - a) > tol) {
-        out.push({
-          name,
-          kind: "text",
-          prop: `${prefix}/${key}`,
-          expected: String(e),
-          actual: String(a),
-          text: expected.text,
-        });
-      }
-    }
+    diffTextOwnerPair(ctx, `text[${i}]`, { expected: expectedOwners[i], actual: actualOwners[i] });
   }
 }
 
 /**
- * スクロールする領域の特性（scroll）の差を kind "scroll" で積む（冒頭の説明を参照）。
- * @param {string} name
- * @param {Scroll | null} expected
- * @param {Scroll | null} actual
- * @param {number} tol
- * @param {Diff[]} out
+ * scroll の差を kind "scroll" で 1 件積む。
+ * @param {DiffContext} ctx
+ * @param {string} prop
+ * @param {{ expected: unknown, actual: unknown }} pair
  */
-function diffScroll(name, expected, actual, tol, out) {
-  /**
-   * @param {string} prop
-   * @param {unknown} e
-   * @param {unknown} a
-   */
-  const push = (prop, e, a) =>
-    out.push({ name, kind: "scroll", prop, expected: String(e), actual: String(a) });
-  if (!expected || !actual) {
-    if (Boolean(expected) !== Boolean(actual)) {
-      push("scroll", expected ? "present" : "absent", actual ? "present" : "absent");
-    }
-    return;
-  }
+function pushScroll({ name, out }, prop, { expected, actual }) {
+  out.push({ name, kind: "scroll", prop, expected: String(expected), actual: String(actual) });
+}
+
+/**
+ * はみ出しの有無と、スクロールバーが取った幅・高さ（alignTolerance 付き）の差を積む。
+ * @param {DiffContext} ctx
+ * @param {Scroll} expected
+ * @param {Scroll} actual
+ */
+function diffScrollBars(ctx, expected, actual) {
   /** @type {Array<"overflowing_x" | "overflowing_y">} */
   const overflowKeys = ["overflowing_x", "overflowing_y"];
   for (const key of overflowKeys) {
-    if (expected[key] !== actual[key]) push(`scroll/${key}`, expected[key], actual[key]);
+    if (expected[key] !== actual[key])
+      pushScroll(ctx, `scroll/${key}`, { expected: expected[key], actual: actual[key] });
   }
   /** @type {Array<"vertical_bar_px" | "horizontal_bar_px">} */
   const barKeys = ["vertical_bar_px", "horizontal_bar_px"];
   for (const key of barKeys) {
     const e = expected[key];
     const a = actual[key];
-    if (typeof e !== "number" || typeof a !== "number" || Math.abs(e - a) > tol) {
-      push(`scroll/${key}`, e, a);
-    }
-  }
-  /** @type {Diff[]} */
-  const styleDiffs = [];
-  diffStyleMap(name, "property", "", expected.style, actual.style, styleDiffs);
-  for (const d of styleDiffs) out.push({ ...d, kind: "scroll", prop: `scroll/${d.prop}` });
-  const ew = expected.webkit;
-  const aw = actual.webkit;
-  if (typeof ew !== "object" || typeof aw !== "object" || !ew || !aw) {
-    // 片側だけ（または両側とも）擬似要素を読めない。両側 unsupported は比べられないだけで差ではない
-    if (ew !== aw) {
-      push(
-        "scroll/webkit",
-        typeof ew === "string" ? ew : "present",
-        typeof aw === "string" ? aw : "present",
-      );
-    }
-    return;
-  }
-  for (const pseudo of [...new Set([...Object.keys(ew), ...Object.keys(aw)])].sort()) {
-    /** @type {Diff[]} */
-    const pseudoDiffs = [];
-    diffStyleMap(name, "property", "", ew[pseudo] || {}, aw[pseudo] || {}, pseudoDiffs);
-    for (const d of pseudoDiffs) {
-      out.push({ ...d, kind: "scroll", prop: `scroll/${pseudo}/${d.prop}` });
+    if (typeof e !== "number" || typeof a !== "number" || Math.abs(e - a) > ctx.tol) {
+      pushScroll(ctx, `scroll/${key}`, { expected: e, actual: a });
     }
   }
 }
 
 /**
- * baseline と capture を比較して差分配列を返す。決定論的。
+ * ::-webkit-scrollbar 系の計算値の差を、擬似要素ごとに積む。
+ * @param {DiffContext} ctx
+ * @param {Scroll["webkit"]} ew
+ * @param {Scroll["webkit"]} aw
+ */
+function diffScrollWebkit(ctx, ew, aw) {
+  if (typeof ew !== "object" || typeof aw !== "object" || !ew || !aw) {
+    // 片側だけ（または両側とも）擬似要素を読めない。両側 unsupported は比べられないだけで差ではない
+    if (ew !== aw) {
+      pushScroll(ctx, "scroll/webkit", {
+        expected: typeof ew === "string" ? ew : "present",
+        actual: typeof aw === "string" ? aw : "present",
+      });
+    }
+    return;
+  }
+  for (const pseudo of [...new Set([...Object.keys(ew), ...Object.keys(aw)])].sort()) {
+    for (const d of styleDiffsOf(ctx.name, ew[pseudo] || {}, aw[pseudo] || {})) {
+      ctx.out.push({ ...d, kind: "scroll", prop: `scroll/${pseudo}/${d.prop}` });
+    }
+  }
+}
+
+/**
+ * スクロールする領域の特性（scroll）の差を kind "scroll" で積む（冒頭の説明を参照）。
+ * @param {DiffContext} ctx
+ * @param {Scroll | null} expected
+ * @param {Scroll | null} actual
+ */
+function diffScroll(ctx, expected, actual) {
+  if (!expected || !actual) {
+    if (Boolean(expected) !== Boolean(actual)) {
+      pushScroll(ctx, "scroll", {
+        expected: expected ? "present" : "absent",
+        actual: actual ? "present" : "absent",
+      });
+    }
+    return;
+  }
+  diffScrollBars(ctx, expected, actual);
+  for (const d of styleDiffsOf(ctx.name, expected.style, actual.style))
+    ctx.out.push({ ...d, kind: "scroll", prop: `scroll/${d.prop}` });
+  diffScrollWebkit(ctx, expected.webkit, actual.webkit);
+}
+
+/**
+ * 論理名の重複を、baseline と capture のそれぞれについて kind "duplicate" で積む。
+ * 論理名の重複は authoring ミス（Map が後勝ちで潰れ、先勝ち分の退行が隠れる）。
+ * 警告なしに比較を続けず、診断として差分に出す。
  * @param {Trait[]} baselineEntries
  * @param {Trait[]} captureEntries
- * @param {{ alignTolerance?: number }} [options]
- * @returns {Diff[]}
+ * @param {Diff[]} out
  */
-export function compareTraits(baselineEntries, captureEntries, options = {}) {
-  const tol = options.alignTolerance ?? 1;
-  const baseByName = new Map(baselineEntries.map((e) => [e.name, e]));
-  const capByName = new Map(captureEntries.map((e) => [e.name, e]));
-  /** @type {Diff[]} */
-  const out = [];
-
-  // 0. 論理名の重複は authoring ミス（Map が後勝ちで潰れ、先勝ち分の退行が隠れる）。
-  //    警告なしに比較を続けず、診断として差分に出す。
+function pushDuplicates(baselineEntries, captureEntries, out) {
   /** @type {Array<[string, Trait[]]>} */
   const sides = [
     ["baseline", baselineEntries],
@@ -350,57 +395,87 @@ export function compareTraits(baselineEntries, captureEntries, options = {}) {
       }
     }
   }
+}
 
-  // 1. プロパティ・擬似要素の差分（baseline の並び順で走査 = 決定論的）。
-  for (const base of baselineEntries) {
-    const cap = capByName.get(base.name);
-    if (!cap) {
-      out.push({ name: base.name, kind: "missing", expected: "present", actual: "absent" });
-      continue;
-    }
-    diffStyleMap(base.name, "property", "", base.computed || {}, cap.computed || {}, out);
-    diffPseudo(base.name, "::before", base.before, cap.before, out);
-    diffPseudo(base.name, "::after", base.after, cap.after, out);
-    const baseOwners = base.text_owners;
-    const capOwners = cap.text_owners;
-    const baseHas = isArray(baseOwners);
-    const capHas = isArray(capOwners);
-    if (baseHas && capHas) {
-      diffTextOwners(base.name, baseOwners, capOwners, tol, out);
-    } else if (baseHas !== capHas) {
-      out.push({
-        name: base.name,
-        kind: "missing",
-        prop: "text_owners",
-        expected: baseHas ? "present" : "absent",
-        actual: capHas ? "present" : "absent",
-      });
-    }
-    // scroll は null（スクロールする領域でない）を正規の値に持つので、キーの在否で版違いを見る
-    const baseHasScroll = Object.hasOwn(base, "scroll");
-    const capHasScroll = Object.hasOwn(cap, "scroll");
-    if (baseHasScroll && capHasScroll) {
-      diffScroll(base.name, base.scroll ?? null, cap.scroll ?? null, tol, out);
-    } else if (baseHasScroll !== capHasScroll) {
-      out.push({
-        name: base.name,
-        kind: "missing",
-        prop: "scroll",
-        expected: baseHasScroll ? "present" : "absent",
-        actual: capHasScroll ? "present" : "absent",
-      });
-    }
+/**
+ * 片側だけがキーを持つ（採取ツールの版違い）ことを kind "missing" で積む。
+ * @param {{ name: string, out: Diff[] }} ctx
+ * @param {string} prop
+ * @param {{ expected: boolean, actual: boolean }} has
+ */
+function pushOneSided({ name, out }, prop, { expected, actual }) {
+  out.push({
+    name,
+    kind: "missing",
+    prop,
+    expected: expected ? "present" : "absent",
+    actual: actual ? "present" : "absent",
+  });
+}
+
+/**
+ * 両側にある 1 つの論理名について、text_owners を照合する。片側だけが持つなら kind "missing" で出す。
+ * @param {DiffContext} ctx
+ * @param {Trait} base
+ * @param {Trait} cap
+ */
+function diffEntryTextOwners(ctx, base, cap) {
+  const baseOwners = base.text_owners;
+  const capOwners = cap.text_owners;
+  const baseHas = isArray(baseOwners);
+  const capHas = isArray(capOwners);
+  if (baseHas && capHas) {
+    diffTextOwners(ctx, baseOwners, capOwners);
+  } else if (baseHas !== capHas) {
+    pushOneSided(ctx, "text_owners", { expected: baseHas, actual: capHas });
   }
+}
 
-  // 2. capture 側にしか無い要素（余分）も欠落として拾う。
-  for (const cap of captureEntries) {
-    if (!baseByName.has(cap.name)) {
-      out.push({ name: cap.name, kind: "missing", expected: "absent", actual: "present" });
-    }
+/**
+ * 両側にある 1 つの論理名について、scroll を照合する。片側だけがキーを持つなら kind "missing" で出す。
+ * @param {DiffContext} ctx
+ * @param {Trait} base
+ * @param {Trait} cap
+ */
+function diffEntryScroll(ctx, base, cap) {
+  // scroll は null（スクロールする領域でない）を正規の値に持つので、キーの在否で版違いを見る
+  const baseHasScroll = Object.hasOwn(base, "scroll");
+  const capHasScroll = Object.hasOwn(cap, "scroll");
+  if (baseHasScroll && capHasScroll) {
+    diffScroll(ctx, base.scroll ?? null, cap.scroll ?? null);
+  } else if (baseHasScroll !== capHasScroll) {
+    pushOneSided(ctx, "scroll", { expected: baseHasScroll, actual: capHasScroll });
   }
+}
 
-  // 3. 相対幾何: 両側に存在し rect を持つ要素対の関係が変わったものだけを差分にする。
-  //    rect を欠くエントリ（旧スキーマ・手編集）はクラッシュさせず診断を出して幾何比較から除く。
+/**
+ * 両側にある 1 つの論理名について、プロパティ・擬似要素・文字の持ち主・スクロールする領域の差を積む。
+ * @param {DiffContext} ctx
+ * @param {Trait} base
+ * @param {Trait} cap
+ */
+function diffEntry(ctx, base, cap) {
+  const { name, out } = ctx;
+  diffStyleMap(
+    { name, kind: "property", prefix: "" },
+    { expected: base.computed || {}, actual: cap.computed || {} },
+    out,
+  );
+  diffPseudo(ctx, "::before", { expected: base.before, actual: cap.before });
+  diffPseudo(ctx, "::after", { expected: base.after, actual: cap.after });
+  diffEntryTextOwners(ctx, base, cap);
+  diffEntryScroll(ctx, base, cap);
+}
+
+/**
+ * 両側に存在し rect を持つ要素を、baseline の並び順で集める。
+ * rect を欠くエントリ（旧スキーマ・手編集）はクラッシュさせず診断を出して幾何比較から除く。
+ * @param {Trait[]} baselineEntries
+ * @param {Map<string, Trait>} capByName
+ * @param {Diff[]} out
+ * @returns {{ name: string, baseRect: NonNullable<Trait["rect"]>, capRect: NonNullable<Trait["rect"]> }[]}
+ */
+function sharedRects(baselineEntries, capByName, out) {
   const shared = [];
   const seen = new Set();
   for (const e of baselineEntries) {
@@ -409,17 +484,24 @@ export function compareTraits(baselineEntries, captureEntries, options = {}) {
     const baseRect = e.rect;
     const capRect = capByName.get(e.name)?.rect;
     if (!baseRect || !capRect) {
-      out.push({
-        name: e.name,
-        kind: "missing",
-        prop: "rect",
-        expected: baseRect ? "present" : "absent",
-        actual: capRect ? "present" : "absent",
+      pushOneSided({ name: e.name, out }, "rect", {
+        expected: Boolean(baseRect),
+        actual: Boolean(capRect),
       });
       continue;
     }
     shared.push({ name: e.name, baseRect, capRect });
   }
+  return shared;
+}
+
+/**
+ * 要素対の関係が変わったものだけを kind "geometry" で積む。
+ * @param {{ name: string, baseRect: NonNullable<Trait["rect"]>, capRect: NonNullable<Trait["rect"]> }[]} shared
+ * @param {number} tol
+ * @param {Diff[]} out
+ */
+function diffGeometry(shared, tol, out) {
   for (let i = 0; i < shared.length; i += 1) {
     const a = shared[i];
     for (let j = i + 1; j < shared.length; j += 1) {
@@ -439,6 +521,44 @@ export function compareTraits(baselineEntries, captureEntries, options = {}) {
       }
     }
   }
+}
+
+/**
+ * baseline と capture を比較して差分配列を返す。決定論的。
+ * @param {Trait[]} baselineEntries
+ * @param {Trait[]} captureEntries
+ * @param {{ alignTolerance?: number }} [options]
+ * @returns {Diff[]}
+ */
+export function compareTraits(baselineEntries, captureEntries, options = {}) {
+  const tol = options.alignTolerance ?? 1;
+  const baseByName = new Map(baselineEntries.map((e) => [e.name, e]));
+  const capByName = new Map(captureEntries.map((e) => [e.name, e]));
+  /** @type {Diff[]} */
+  const out = [];
+
+  // 0. 論理名の重複を診断として出す。
+  pushDuplicates(baselineEntries, captureEntries, out);
+
+  // 1. プロパティ・擬似要素の差分（baseline の並び順で走査 = 決定論的）。
+  for (const base of baselineEntries) {
+    const cap = capByName.get(base.name);
+    if (!cap) {
+      out.push({ name: base.name, kind: "missing", expected: "present", actual: "absent" });
+      continue;
+    }
+    diffEntry({ name: base.name, tol, out }, base, cap);
+  }
+
+  // 2. capture 側にしか無い要素（余分）も欠落として拾う。
+  for (const cap of captureEntries) {
+    if (!baseByName.has(cap.name)) {
+      out.push({ name: cap.name, kind: "missing", expected: "absent", actual: "present" });
+    }
+  }
+
+  // 3. 相対幾何: 両側に存在し rect を持つ要素対の関係が変わったものだけを差分にする。
+  diffGeometry(sharedRects(baselineEntries, capByName, out), tol, out);
 
   return out;
 }

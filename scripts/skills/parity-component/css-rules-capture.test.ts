@@ -37,10 +37,10 @@ import {
   bindCollect,
 } from "./css-rules-capture-helpers.ts";
 
-// どのテストも、モジュールの関数と、ページへ渡すのと同じソースから作った関数の 2 通りで実行する。
-// ソースから作った関数は、captureMatchedRules に偽の locator を渡して呼ぶ。
-// ページ側の関数がヘルパーの一覧を通さずに互いを呼んでも、モジュールの関数の側はモジュールのスコープで名前が解決されて通る。
-// ソースから作った関数の側は名前を解決できずに失敗するので、取り決めが守られていることはこちらの側で確かめる。
+// どのテストも、モジュールの関数と、ページへ渡すソースから作り直した関数の 2 通りで実行する。
+// ソースから作り直した関数は、captureMatchedRules に偽の locator を渡して呼ぶ（node:vm の新しいコンテキストで評価する）。
+// 本体が本体の外の名前を参照しても、モジュールの関数の側はモジュールのスコープで名前が解決されて通る。
+// 作り直した関数の側は名前を解決できずに失敗するので、取り決めが守られていることはこちらの側で確かめる。
 describe.each(COLLECTORS)("%s", (_label, collect) => {
   const { capture, shadowCapture, captureOne } = bindCollect(collect);
 
@@ -830,4 +830,11 @@ test("captureMatchedRules は論理名とツール版を付けて返す", async 
   expect(captured.name).toBe("button.primary");
   expect(captured.tool_version).toBe(VERSION);
   expect(captured.matched.length).toBeGreaterThan(0);
+});
+
+test("collectMatchedRules は、page ファイルの collectInPage を同じ名前のまま export し続ける", async () => {
+  const mod = await import("../../../skills/parity-component/scripts/css-rules-capture.mjs");
+  const page =
+    await import("../../../skills/parity-component/scripts/page/css-rules-capture.page.mjs");
+  expect(mod.collectMatchedRules).toBe(page.collectInPage);
 });

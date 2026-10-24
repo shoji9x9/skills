@@ -279,6 +279,79 @@ function fingerprint(text) {
 }
 
 /**
+ * fit が fits に書く 1 件（当てはめた式と残差）。
+ * @typedef {FitRecord & { residual: number }} FittedRecord
+ */
+
+/**
+ * fit が unfit に書く 1 件（式が読めない軸）。表示されない窓があるときは residual を null にする。
+ * @typedef {{ page: string, element: string, property: string, residual: number | null, reason: string }} UnfitRecord
+ */
+
+/**
+ * 1 つの軸について、窓ごとの (窓の幅, 窓の高さ, 値) を並べる。
+ * @param {Map<string, Record<string, number> | null>} rects
+ * @param {{ width: number, height: number }[]} windows
+ * @param {string} property
+ * @returns {{ W: number, H: number, v: number }[]}
+ */
+function planePoints(rects, windows, property) {
+  return windows.map((w) => {
+    const rect = rects.get(windowKey(w));
+    // 呼び出し側が表示されない窓の無いことを確かめている（indexElements が全窓の矩形を求める）。
+    // 矩形が無いときは、入力の誤りではなくこのスクリプトの不具合なので TypeError にする
+    if (!rect) throw new TypeError(`窓 ${windowKey(w)} の矩形が無い`);
+    return { W: w.width, H: w.height, v: rect[property] };
+  });
+}
+
+/**
+ * 要素 1 つの 4 軸に式を当てはめ、残差が許容内なら fits へ、そうでなければ unfit へ足す。
+ * @param {{ page: string, element: string, rects: Map<string, Record<string, number> | null> }} entry
+ * @param {{ width: number, height: number }[]} windows
+ * @param {{ tolerance: number, fits: FittedRecord[], unfit: UnfitRecord[] }} acc
+ */
+function fitElement({ page, element, rects }, windows, acc) {
+  // 全窓で見えない要素は「式が読めない」ではなく採取の失敗（認証切れ・別ルート・ロケータ不解決）として落とす
+  // （unfit に流すと照合 0 件のモデルが measured を名乗り、check が ok: true を返す）
+  if (windows.every((w) => rects.get(windowKey(w)) === null)) {
+    throw new UsageError(
+      `samples の (${page}, ${element}) が全ての窓で表示されていない（採取の失敗を疑う。ページ・認証・ロケータを確かめて採り直す）`,
+    );
+  }
+  // 見えない窓は軸に依らないので、1 回だけ求める。
+  const hidden = windows.filter((w) => rects.get(windowKey(w)) === null).map(windowKey);
+  for (const property of PROPERTIES) {
+    if (hidden.length > 0) {
+      acc.unfit.push({
+        page,
+        element,
+        property,
+        residual: null,
+        reason: `hidden_in_windows: ${hidden.join(", ")}`,
+      });
+      continue;
+    }
+    const f = fitPlane(planePoints(rects, windows, property));
+    const residual = round(f.residual, 4);
+    if (f.residual > acc.tolerance) {
+      acc.unfit.push({ page, element, property, residual, reason: "residual_exceeds_tolerance" });
+    } else {
+      acc.fits.push({
+        page,
+        element,
+        property,
+        // 係数の丸め誤差（× 窓の寸法）が check の偏差に乗るので、残差が許容ぎりぎりの軸で
+        // 現側と同一の新側を落とさないよう、係数は窓の寸法を掛けても 1e-6 px 未満に収まる桁で残す
+        ratio: { width: round(f.ratio.width, 10), height: round(f.ratio.height, 10) },
+        offset: round(f.offset, 8),
+        residual,
+      });
+    }
+  }
+}
+
+/**
  * 現側の samples から dimension_model を作る。
  * @param {unknown} samples
  * @param {{ viewports: { width: number, height: number }[], targets: { traitElements: string[], pages: string[] }, tolerance: number, samplesText: string }} opts
@@ -295,53 +368,9 @@ export function fitModel(samples, opts) {
   const index = indexElements(samples.elements, windows, "samples");
   // 測る対象を自分で選ばせない: 撮影ページは全て、特性を採った論理名は全てどこかのページで窓を変えて読んでいること
   assertCoverage([...index.values()], opts.targets, "samples");
-  const fits = [];
-  const unfit = [];
-  for (const { page, element, rects } of index.values()) {
-    // 全窓で見えない要素は「式が読めない」ではなく採取の失敗（認証切れ・別ルート・ロケータ不解決）として落とす
-    // （unfit に流すと照合 0 件のモデルが measured を名乗り、check が ok: true を返す）
-    if (windows.every((w) => rects.get(windowKey(w)) === null)) {
-      throw new UsageError(
-        `samples の (${page}, ${element}) が全ての窓で表示されていない（採取の失敗を疑う。ページ・認証・ロケータを確かめて採り直す）`,
-      );
-    }
-    for (const property of PROPERTIES) {
-      const hidden = windows.filter((w) => rects.get(windowKey(w)) === null).map(windowKey);
-      if (hidden.length > 0) {
-        unfit.push({
-          page,
-          element,
-          property,
-          residual: null,
-          reason: `hidden_in_windows: ${hidden.join(", ")}`,
-        });
-        continue;
-      }
-      const points = windows.map((w) => {
-        const rect = rects.get(windowKey(w));
-        // hidden が空なので、どの窓の矩形も null でない（indexElements が全窓の矩形を求める）。
-        // 矩形が無いときは、入力の誤りではなくこのスクリプトの不具合なので TypeError にする
-        if (!rect) throw new TypeError(`窓 ${windowKey(w)} の矩形が無い`);
-        return { W: w.width, H: w.height, v: rect[property] };
-      });
-      const f = fitPlane(points);
-      const residual = round(f.residual, 4);
-      if (f.residual > opts.tolerance) {
-        unfit.push({ page, element, property, residual, reason: "residual_exceeds_tolerance" });
-      } else {
-        fits.push({
-          page,
-          element,
-          property,
-          // 係数の丸め誤差（× 窓の寸法）が check の偏差に乗るので、残差が許容ぎりぎりの軸で
-          // 現側と同一の新側を落とさないよう、係数は窓の寸法を掛けても 1e-6 px 未満に収まる桁で残す
-          ratio: { width: round(f.ratio.width, 10), height: round(f.ratio.height, 10) },
-          offset: round(f.offset, 8),
-          residual,
-        });
-      }
-    }
-  }
+  /** @type {{ tolerance: number, fits: FittedRecord[], unfit: UnfitRecord[] }} */
+  const acc = { tolerance: opts.tolerance, fits: [], unfit: [] };
+  for (const entry of index.values()) fitElement(entry, windows, acc);
   return {
     status: "measured",
     tool: "dimension-fit",
@@ -349,8 +378,8 @@ export function fitModel(samples, opts) {
     tolerance: opts.tolerance,
     measured_at: windows,
     samples_fingerprint: fingerprint(opts.samplesText),
-    fits,
-    unfit,
+    fits: acc.fits,
+    unfit: acc.unfit,
     reason: null,
   };
 }
@@ -456,14 +485,11 @@ function assertCoverage(entries, targets, label) {
 }
 
 /**
- * 新側の samples を現側の dimension_model と突き合わせる。
+ * capture_conditions.dimension_model を読み、status が既知の値かを確かめる。
  * @param {unknown} metadata - 現側 metadata.json
- * @param {() => unknown} loadSamples - 新側 samples（measured のときだけ読む）
- * @param {() => string} [loadCurrentSamplesText] - 現側 dimension-samples.json の本文（measured のときだけ読み、式の出所と照合する）
- * @returns {{ judged: false, reason: string, unfit_to_note?: UnfitNote[] } | { judged: true, reason: null, ok: boolean, checked: number, failures: CheckFailure[], unfit_to_note: UnfitNote[] }}
+ * @returns {{ dm: Record<string, unknown>, status: string }}
  */
-export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
-  const viewports = readViewports(metadata);
+function readDimensionModel(metadata) {
   // readViewports が capture_conditions を JSON オブジェクトだと確かめているので、この分岐には到達しない
   const cc = isPlainObject(metadata) ? metadata.capture_conditions : undefined;
   if (!isPlainObject(cc)) {
@@ -479,18 +505,35 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
   if (!isPlainObject(dm) || typeof dm.status !== "string" || !STATUSES.includes(dm.status)) {
     throw new UsageError(`dimension_model.status が ${STATUSES.join(" / ")} のいずれでもない`);
   }
-  // 判定しない場合は閉じた集合（not_measured / not_required）に限り、理由を必須にする
-  if (dm.status !== "measured") {
-    if (!nonEmptyString(dm.reason)) {
-      throw new UsageError(`dimension_model.status: ${dm.status} に reason が無い`);
-    }
-    if (dm.status === "not_required" && viewports.length < 2) {
-      throw new UsageError(
-        "ビューポートが 1 つの撮影で dimension_model.status: not_required は使えない（1 点の px を並べた版組が 3 つの比較方法で緑になる）",
-      );
-    }
-    return { judged: false, reason: `dimension_model.status: ${dm.status}（${dm.reason}）` };
+  return { dm, status: dm.status };
+}
+
+/**
+ * 判定しない場合（not_measured / not_required）の結果を作る。閉じた集合に限り、理由を必須にする。
+ * @param {Record<string, unknown>} dm
+ * @param {string} status - measured 以外の status
+ * @param {number} viewportCount - capture_conditions.viewports の数
+ * @returns {{ judged: false, reason: string }}
+ */
+function unjudgedResult(dm, status, viewportCount) {
+  if (!nonEmptyString(dm.reason)) {
+    throw new UsageError(`dimension_model.status: ${status} に reason が無い`);
   }
+  if (status === "not_required" && viewportCount < 2) {
+    throw new UsageError(
+      "ビューポートが 1 つの撮影で dimension_model.status: not_required は使えない（1 点の px を並べた版組が 3 つの比較方法で緑になる）",
+    );
+  }
+  return { judged: false, reason: `dimension_model.status: ${status}（${dm.reason}）` };
+}
+
+/**
+ * measured の dimension_model から、ツールの版・許容・測定窓を読む。
+ * @param {Record<string, unknown>} dm
+ * @param {{ width: number, height: number }[]} viewports
+ * @returns {{ tolerance: number, windows: { width: number, height: number }[] }}
+ */
+function readMeasuredWindows(dm, viewports) {
   if (dm.tool_version !== VERSION) {
     throw new UsageError(
       `dimension_model.tool_version が ${String(dm.tool_version)}（ツールは ${VERSION}）。parity-suite で現側を採り直す`,
@@ -506,26 +549,37 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
       "dimension_model.measured_at が capture_conditions.viewports のどれも含まない（撮影したビューポートで照合されない）。parity-suite で採り直す",
     );
   }
-  const targets = readTargets(metadata);
-  if (!isArray(dm.fits) || !isArray(dm.unfit)) {
-    throw new UsageError("dimension_model.fits / unfit が配列でない");
-  }
-  if (dm.fits.length + dm.unfit.length === 0) {
-    throw new UsageError("dimension_model.fits と unfit がどちらも空（測った要素が無い）");
-  }
-  const seenFit = new Set();
-  const fits = dm.fits.map((f, i) => {
+  return { tolerance: dm.tolerance, windows };
+}
+
+/**
+ * dimension_model.fits を読む（形と重複を確かめる）。
+ * @param {unknown[]} list
+ * @returns {{ fits: FitRecord[], seen: Set<string> }}
+ */
+function readFitRecords(list) {
+  const seen = new Set();
+  const fits = list.map((f, i) => {
     if (!isFitRecord(f)) {
       throw new UsageError(`dimension_model.fits[${i}] の形が不正`);
     }
     const key = JSON.stringify([f.page, f.element, f.property]);
-    if (seenFit.has(key)) throw new UsageError(`dimension_model.fits[${i}] が重複している`);
-    seenFit.add(key);
+    if (seen.has(key)) throw new UsageError(`dimension_model.fits[${i}] が重複している`);
+    seen.add(key);
     return f;
   });
-  // unfit も fits と同じくキーの材料を検証する（不正な記録を、中身の無い note として扱わない）
+  return { fits, seen };
+}
+
+/**
+ * dimension_model.unfit を読む。fits と同じくキーの材料を検証する（不正な記録を、中身の無い note として扱わない）。
+ * @param {unknown[]} list
+ * @param {Set<string>} seenFit - fits に在る (page, element, property) のキー
+ * @returns {UnfitNote[]}
+ */
+function readUnfitNotes(list, seenFit) {
   const seenUnfit = new Set();
-  const unfit = dm.unfit.map((u, i) => {
+  return list.map((u, i) => {
     if (
       !isPlainObject(u) ||
       !nonEmptyString(u.page) ||
@@ -546,11 +600,18 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
     seenUnfit.add(key);
     return { page: u.page, element: u.element, property: u.property, reason: u.reason };
   });
-  // 記録された (page, element) は 4 軸すべてを fits か unfit のどちらかにちょうど 1 回持つこと
-  // （軸を消した記録で、消した軸の照合を警告なしに飛ばさない）
+}
+
+/**
+ * 記録された (page, element) が 4 軸すべてを fits か unfit のどちらかに持つかを確かめ、(page, element) の一覧を返す。
+ * 軸を消した記録で、消した軸の照合を警告なしに飛ばさない。
+ * @param {{ page: string, element: string, property: string }[]} records
+ * @returns {{ page: string, element: string }[]}
+ */
+function assertAllAxesRecorded(records) {
   /** @type {Map<string, { page: string, element: string, properties: Set<string> }>} */
   const byElement = new Map();
-  for (const e of [...fits, ...unfit]) {
+  for (const e of records) {
     const key = JSON.stringify([e.page, e.element]);
     const entry = byElement.get(key) ?? { page: e.page, element: e.element, properties: new Set() };
     entry.properties.add(e.property);
@@ -564,8 +625,35 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
       );
     }
   }
-  assertCoverage([...byElement.values()], targets, "dimension_model");
-  // 式が今の現側 samples から当てたものか（採り直して fit を通していない古い式で照合しない）
+  return [...byElement.values()];
+}
+
+/**
+ * dimension_model の fits / unfit を読み、基準集合を覆っているかを確かめる。
+ * @param {Record<string, unknown>} dm
+ * @param {{ traitElements: string[], pages: string[] }} targets
+ * @returns {{ fits: FitRecord[], unfit: UnfitNote[] }}
+ */
+function readModelRecords(dm, targets) {
+  if (!isArray(dm.fits) || !isArray(dm.unfit)) {
+    throw new UsageError("dimension_model.fits / unfit が配列でない");
+  }
+  if (dm.fits.length + dm.unfit.length === 0) {
+    throw new UsageError("dimension_model.fits と unfit がどちらも空（測った要素が無い）");
+  }
+  const { fits, seen } = readFitRecords(dm.fits);
+  const unfit = readUnfitNotes(dm.unfit, seen);
+  assertCoverage(assertAllAxesRecorded([...fits, ...unfit]), targets, "dimension_model");
+  return { fits, unfit };
+}
+
+/**
+ * 記録された式が今の現側 samples から当てたものかを確かめる（採り直して fit を通していない古い式や、
+ * fit の後に手で書き換えた式で照合しない）。
+ * @param {Record<string, unknown>} dm
+ * @param {{ viewports: { width: number, height: number }[], targets: { traitElements: string[], pages: string[] }, tolerance: number, loadCurrentSamplesText: (() => string) | undefined }} ctx
+ */
+function assertModelDerived(dm, ctx) {
   if (
     typeof dm.samples_fingerprint !== "string" ||
     !/^[0-9a-f]{64}$/.test(dm.samples_fingerprint)
@@ -574,10 +662,10 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
       "dimension_model.samples_fingerprint が sha256 の 16 進 64 桁でない。parity-suite で fit を通し直す",
     );
   }
-  if (loadCurrentSamplesText === undefined) {
+  if (ctx.loadCurrentSamplesText === undefined) {
     throw new UsageError("式の出所を照合するための現側 samples が渡されていない");
   }
-  const currentSamplesText = loadCurrentSamplesText();
+  const currentSamplesText = ctx.loadCurrentSamplesText();
   if (fingerprint(currentSamplesText) !== dm.samples_fingerprint) {
     throw new UsageError(
       "現側 dimension-samples.json が dimension_model.samples_fingerprint と一致しない（採り直した samples に fit を通していない）。parity-suite で fit --write を通し直す",
@@ -589,9 +677,9 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
   let recomputed;
   try {
     recomputed = fitModel(JSON.parse(currentSamplesText), {
-      viewports,
-      targets,
-      tolerance: dm.tolerance,
+      viewports: ctx.viewports,
+      targets: ctx.targets,
+      tolerance: ctx.tolerance,
       samplesText: currentSamplesText,
     });
   } catch (e) {
@@ -609,7 +697,14 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
       "dimension_model の measured_at / fits / unfit が、現側 dimension-samples.json から当てはめ直した結果と一致しない（fit の後に書き換えられている）。parity-suite で fit --write を通し直す",
     );
   }
-  const samples = loadSamples();
+}
+
+/**
+ * 新側 samples を読み、現側の測定窓をすべて含むかを確かめて、要素ごとの矩形に索引する。
+ * @param {unknown} samples - 新側 samples
+ * @param {{ width: number, height: number }[]} windows - 現側の測定窓
+ */
+function indexNewSamples(samples, windows) {
   if (!isPlainObject(samples)) throw new UsageError("新側 samples が JSON オブジェクトでない");
   const sampleWindows = validateWindows(samples.windows, "新側 samples.windows");
   const sampleKeys = new Set(sampleWindows.map(windowKey));
@@ -619,7 +714,41 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
       `新側 samples.windows に現側の測定窓 ${lacking.join(", ")} が無い（同じ窓で測る）`,
     );
   }
-  const index = indexElements(samples.elements, sampleWindows, "新側 samples");
+  return indexElements(samples.elements, sampleWindows, "新側 samples");
+}
+
+/**
+ * 1 つの式を 1 つの窓で照合する。外れたら CheckFailure、合えば null を返す。
+ * @param {FitRecord} f
+ * @param {{ width: number, height: number }} w
+ * @param {{ rect: Record<string, number> | null | undefined, tolerance: number }} ctx
+ * @returns {CheckFailure | null}
+ */
+function checkFitAt(f, w, { rect, tolerance }) {
+  const base = { page: f.page, element: f.element, property: f.property, window: w };
+  if (rect === null || rect === undefined) return { ...base, reason: "hidden" };
+  const expected = f.ratio.width * w.width + f.ratio.height * w.height + f.offset;
+  const deviation = Math.abs(rect[f.property] - expected);
+  // 記録した係数の丸め（1e-6 px 未満）だけを飲む。fits の残差は tolerance 以下なので、現側と同一の矩形は通る
+  if (deviation > tolerance + ROUNDING_SLACK) {
+    return {
+      ...base,
+      reason: "deviation_exceeds_tolerance",
+      expected: round(expected, 4),
+      actual: rect[f.property],
+      deviation: round(deviation, 4),
+    };
+  }
+  return null;
+}
+
+/**
+ * 新側の矩形を、現側の式による予測値と窓ごとに突き合わせる。
+ * @param {FitRecord[]} fits
+ * @param {{ windows: { width: number, height: number }[], index: ReturnType<typeof indexElements>, tolerance: number }} ctx
+ * @returns {{ failures: CheckFailure[], checked: number }}
+ */
+function compareFits(fits, { windows, index, tolerance }) {
   /** @type {CheckFailure[]} */
   const failures = [];
   let checked = 0;
@@ -637,34 +766,30 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
     }
     for (const w of windows) {
       checked += 1;
-      const rect = entry.rects.get(windowKey(w));
-      if (rect === null || rect === undefined) {
-        failures.push({
-          page: f.page,
-          element: f.element,
-          property: f.property,
-          window: w,
-          reason: "hidden",
-        });
-        continue;
-      }
-      const expected = f.ratio.width * w.width + f.ratio.height * w.height + f.offset;
-      const deviation = Math.abs(rect[f.property] - expected);
-      // 記録した係数の丸め（1e-6 px 未満）だけを飲む。fits の残差は tolerance 以下なので、現側と同一の矩形は通る
-      if (deviation > dm.tolerance + ROUNDING_SLACK) {
-        failures.push({
-          page: f.page,
-          element: f.element,
-          property: f.property,
-          window: w,
-          reason: "deviation_exceeds_tolerance",
-          expected: round(expected, 4),
-          actual: rect[f.property],
-          deviation: round(deviation, 4),
-        });
-      }
+      const failure = checkFitAt(f, w, { rect: entry.rects.get(windowKey(w)), tolerance });
+      if (failure !== null) failures.push(failure);
     }
   }
+  return { failures, checked };
+}
+
+/**
+ * 新側の samples を現側の dimension_model と突き合わせる。
+ * @param {unknown} metadata - 現側 metadata.json
+ * @param {() => unknown} loadSamples - 新側 samples（measured のときだけ読む）
+ * @param {() => string} [loadCurrentSamplesText] - 現側 dimension-samples.json の本文（measured のときだけ読み、式の出所と照合する）
+ * @returns {{ judged: false, reason: string, unfit_to_note?: UnfitNote[] } | { judged: true, reason: null, ok: boolean, checked: number, failures: CheckFailure[], unfit_to_note: UnfitNote[] }}
+ */
+export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
+  const viewports = readViewports(metadata);
+  const { dm, status } = readDimensionModel(metadata);
+  if (status !== "measured") return unjudgedResult(dm, status, viewports.length);
+  const { tolerance, windows } = readMeasuredWindows(dm, viewports);
+  const targets = readTargets(metadata);
+  const { fits, unfit } = readModelRecords(dm, targets);
+  assertModelDerived(dm, { viewports, targets, tolerance, loadCurrentSamplesText });
+  const index = indexNewSamples(loadSamples(), windows);
+  const { failures, checked } = compareFits(fits, { windows, index, tolerance });
   // 照合できる式が 0 件（全軸が unfit）なら合格を名乗らない。新側へ反映していない軸として porting.md へ明示させる
   if (fits.length === 0) {
     return {
@@ -684,51 +809,59 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
   };
 }
 
+const USAGE = [
+  "usage: dimension-fit.mjs fit --samples <現側 samples.json> --metadata <metadata.json> [--tolerance <px>] [--write]",
+  "       dimension-fit.mjs check --metadata <現側 metadata.json> --current-samples <現側 samples.json> --samples <新側 samples.json> [--write <replace-metadata.json>]",
+].join("\n");
+
 /**
- * @param {string[]} argv - process.argv.slice(2)
- * @param {{ readFile?: (p: string) => string, writeFile?: (p: string, s: string) => void, cwd?: string }} [deps]
- * @returns {number}
+ * 結果を JSON で stdout に書く。
+ * @param {Record<string, unknown>} obj
  */
-export function main(argv, deps = {}) {
-  const readFile = deps.readFile ?? ((p) => readFileSync(p, "utf8"));
-  const writeFile = deps.writeFile ?? ((p, s) => writeFileSync(p, s));
-  const cwd = deps.cwd ?? process.cwd();
-  const usage = [
-    "usage: dimension-fit.mjs fit --samples <現側 samples.json> --metadata <metadata.json> [--tolerance <px>] [--write]",
-    "       dimension-fit.mjs check --metadata <現側 metadata.json> --current-samples <現側 samples.json> --samples <新側 samples.json> [--write <replace-metadata.json>]",
-  ].join("\n");
-  /**
-   * @param {Record<string, unknown>} obj
-   */
-  const out = (obj) =>
-    process.stdout.write(
-      `${JSON.stringify({ tool: "dimension-fit", version: VERSION, ...obj }, null, 2)}\n`,
-    );
-  const [mode, ...rest] = argv;
-  /**
-   * check --write の書き込み先。引数の解析より先に全て拾う（後続の引数の不備で exit 2 になっても前回の合格を上書きできるように）。
-   * --write が複数あれば解析で exit 2 にするが、どれにも古い合格を残さないよう失敗の記録は全ての先へ書く。
-   * @type {string[]}
-   */
-  const checkWritePaths = [];
-  if (mode === "check") {
-    rest.forEach((a, i) => {
-      const v = rest[i + 1];
-      if (a === "--write" && nonEmptyString(v) && !v.startsWith("--")) {
-        checkWritePaths.push(resolve(cwd, v));
-      }
-    });
-  }
-  /** @type {string | null} */
-  let newSamplesText = null;
-  /** @type {string | null} */
-  let modelFingerprint = null;
-  /**
-   * @param {Record<string, unknown>} record
-   * @param {string} path
-   */
-  const writeCheck = (record, path) => {
-    const replaceMetadata = JSON.parse(readFile(path));
+function printResult(obj) {
+  process.stdout.write(
+    `${JSON.stringify({ tool: "dimension-fit", version: VERSION, ...obj }, null, 2)}\n`,
+  );
+}
+
+/**
+ * main が使う入出力。
+ * @typedef {{ readFile: (p: string) => string, writeFile: (p: string, s: string) => void, cwd: string }} Io
+ */
+
+/**
+ * check の記録に添える指紋の材料。照合の途中で埋まるので、失敗の記録もその時点の値を書く。
+ * @typedef {{ newSamplesText: string | null, modelFingerprint: string | null }} CheckState
+ */
+
+/**
+ * check --write の書き込み先。引数の解析より先に全て拾う（後続の引数の不備で exit 2 になっても前回の合格を上書きできるように）。
+ * --write が複数あれば解析で exit 2 にするが、どれにも古い合格を残さないよう失敗の記録は全ての先へ書く。
+ * @param {string[]} rest - モードの後の引数
+ * @param {string} cwd
+ * @returns {string[]}
+ */
+function collectCheckWritePaths(rest, cwd) {
+  /** @type {string[]} */
+  const paths = [];
+  rest.forEach((a, i) => {
+    const v = rest[i + 1];
+    if (a === "--write" && nonEmptyString(v) && !v.startsWith("--")) {
+      paths.push(resolve(cwd, v));
+    }
+  });
+  return paths;
+}
+
+/**
+ * dimension_check を replace-metadata.json へ書く関数を作る。
+ * @param {Io} io
+ * @param {CheckState} state
+ * @returns {(record: Record<string, unknown>, path: string) => void}
+ */
+function makeCheckWriter(io, state) {
+  return (record, path) => {
+    const replaceMetadata = JSON.parse(io.readFile(path));
     if (!isPlainObject(replaceMetadata)) {
       throw new UsageError("--write の先が JSON オブジェクトでない");
     }
@@ -737,147 +870,230 @@ export function main(argv, deps = {}) {
       tool_version: VERSION,
       ...record,
       // どの式とどの新側 samples を照合した記録か（採り直した後に古い記録を見分ける）
-      model_fingerprint: modelFingerprint,
-      samples_fingerprint: newSamplesText === null ? null : fingerprint(newSamplesText),
+      model_fingerprint: state.modelFingerprint,
+      samples_fingerprint: state.newSamplesText === null ? null : fingerprint(state.newSamplesText),
     };
-    writeFile(path, `${JSON.stringify(replaceMetadata, null, 2)}\n`);
+    io.writeFile(path, `${JSON.stringify(replaceMetadata, null, 2)}\n`);
   };
-  try {
-    if (mode !== "fit" && mode !== "check") throw new UsageError("先頭に fit か check を書く");
-    /** @type {Record<string, string | true>} */
-    const opts = {};
-    for (let i = 0; i < rest.length; i += 1) {
-      const a = rest[i];
-      const takesValue =
-        a === "--samples" ||
-        a === "--metadata" ||
-        a === "--tolerance" ||
-        (mode === "check" && (a === "--write" || a === "--current-samples"));
-      if (a === "--write" && mode === "fit") {
-        if (opts.write === true) throw new UsageError("--write が重複している");
-        opts.write = true;
-      } else if (takesValue) {
-        const v = rest[i + 1];
-        if (!nonEmptyString(v) || v.startsWith("--")) throw new UsageError(`${a} に値が無い`);
-        // 同じオプションの重複は後勝ちにしない（どちらの値で動いたかが曖昧になる）
-        if (Object.hasOwn(opts, a.slice(2))) throw new UsageError(`${a} が重複している`);
-        opts[a.slice(2)] = v;
-        i += 1;
-      } else {
-        throw new UsageError(`不明な引数 ${a}`);
-      }
-    }
-    if (typeof opts.metadata !== "string") throw new UsageError("--metadata が無い");
-    const metadataPath = resolve(cwd, opts.metadata);
-    const metadata = JSON.parse(readFile(metadataPath));
+}
 
-    if (mode === "fit") {
-      if (typeof opts.samples !== "string") throw new UsageError("--samples が無い");
-      let tolerance = DEFAULT_TOLERANCE;
-      if (typeof opts.tolerance === "string") {
-        tolerance = Number(opts.tolerance);
-        if (!Number.isFinite(tolerance) || tolerance < 0) {
-          throw new UsageError("--tolerance が 0 以上の数でない");
-        }
-      }
-      const viewports = readViewports(metadata);
-      const targets = readTargets(metadata);
-      const samplesText = readFile(resolve(cwd, opts.samples));
-      const model = fitModel(JSON.parse(samplesText), {
-        viewports,
-        targets,
-        tolerance,
-        samplesText,
-      });
-      if (opts.write === true) {
-        // readViewports が capture_conditions を JSON オブジェクトだと確かめているので、この分岐には到達しない
-        const cc = isPlainObject(metadata) ? metadata.capture_conditions : undefined;
-        if (!isPlainObject(cc)) {
-          throw new UsageError(
-            "metadata.json の capture_conditions.viewports が空でない配列でない",
-          );
-        }
-        cc.dimension_model = model;
-        writeFile(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`);
-      }
-      out({ mode, fits: model.fits.length, unfit: model.unfit.length, dimension_model: model });
-      return 0;
-    }
+/**
+ * 値を取るオプションか。--write は check でだけ値（書き込み先）を取る。
+ * @param {"fit" | "check"} mode
+ * @param {string} a
+ */
+function takesValue(mode, a) {
+  return (
+    a === "--samples" ||
+    a === "--metadata" ||
+    a === "--tolerance" ||
+    (mode === "check" && (a === "--write" || a === "--current-samples"))
+  );
+}
 
+/**
+ * モードの後の引数を読む。
+ * @param {"fit" | "check"} mode
+ * @param {string[]} rest
+ * @returns {Record<string, string | true>}
+ */
+function parseOptions(mode, rest) {
+  /** @type {Record<string, string | true>} */
+  const opts = {};
+  for (let i = 0; i < rest.length; i += 1) {
+    const a = rest[i];
+    if (a === "--write" && mode === "fit") {
+      if (opts.write === true) throw new UsageError("--write が重複している");
+      opts.write = true;
+    } else if (takesValue(mode, a)) {
+      const v = rest[i + 1];
+      if (!nonEmptyString(v) || v.startsWith("--")) throw new UsageError(`${a} に値が無い`);
+      // 同じオプションの重複は後勝ちにしない（どちらの値で動いたかが曖昧になる）
+      if (Object.hasOwn(opts, a.slice(2))) throw new UsageError(`${a} が重複している`);
+      opts[a.slice(2)] = v;
+      i += 1;
+    } else {
+      throw new UsageError(`不明な引数 ${a}`);
+    }
+  }
+  return opts;
+}
+
+/**
+ * fit の --tolerance を読む。無ければ既定の許容残差。
+ * @param {string | true | undefined} raw
+ * @returns {number}
+ */
+function readToleranceOption(raw) {
+  if (typeof raw !== "string") return DEFAULT_TOLERANCE;
+  const tolerance = Number(raw);
+  if (!Number.isFinite(tolerance) || tolerance < 0) {
+    throw new UsageError("--tolerance が 0 以上の数でない");
+  }
+  return tolerance;
+}
+
+/**
+ * fit を実行する。
+ * @param {{ opts: Record<string, string | true>, metadata: unknown, metadataPath: string }} ctx
+ * @param {Io} io
+ * @returns {number}
+ */
+function runFit({ opts, metadata, metadataPath }, io) {
+  if (typeof opts.samples !== "string") throw new UsageError("--samples が無い");
+  const tolerance = readToleranceOption(opts.tolerance);
+  const viewports = readViewports(metadata);
+  const targets = readTargets(metadata);
+  const samplesText = io.readFile(resolve(io.cwd, opts.samples));
+  const model = fitModel(JSON.parse(samplesText), {
+    viewports,
+    targets,
+    tolerance,
+    samplesText,
+  });
+  if (opts.write === true) {
+    // readViewports が capture_conditions を JSON オブジェクトだと確かめているので、この分岐には到達しない
     const cc = isPlainObject(metadata) ? metadata.capture_conditions : undefined;
-    if (isPlainObject(cc) && Object.hasOwn(cc, "dimension_model")) {
-      modelFingerprint = fingerprint(JSON.stringify(cc.dimension_model));
+    if (!isPlainObject(cc)) {
+      throw new UsageError("metadata.json の capture_conditions.viewports が空でない配列でない");
     }
-    if (opts.tolerance !== undefined) {
-      throw new UsageError("check に --tolerance は渡せない（現側に記録した tolerance を使う）");
-    }
-    const result = checkModel(
-      metadata,
-      () => {
-        if (typeof opts.samples !== "string") {
-          throw new UsageError(
-            "dimension_model.status: measured の照合には --samples（新側）が要る",
-          );
-        }
-        newSamplesText = readFile(resolve(cwd, opts.samples));
-        return JSON.parse(newSamplesText);
+    cc.dimension_model = model;
+    io.writeFile(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`);
+  }
+  printResult({
+    mode: "fit",
+    fits: model.fits.length,
+    unfit: model.unfit.length,
+    dimension_model: model,
+  });
+  return 0;
+}
+
+/**
+ * check に渡す 2 つの読み込み関数を作る（measured のときだけ呼ばれる）。新側 samples の本文は state に残す。
+ * @param {Record<string, string | true>} opts
+ * @param {Io} io
+ * @param {CheckState} state
+ * @returns {{ loadSamples: () => unknown, loadCurrentSamplesText: () => string }}
+ */
+function checkLoaders(opts, io, state) {
+  return {
+    loadSamples: () => {
+      if (typeof opts.samples !== "string") {
+        throw new UsageError("dimension_model.status: measured の照合には --samples（新側）が要る");
+      }
+      state.newSamplesText = io.readFile(resolve(io.cwd, opts.samples));
+      return JSON.parse(state.newSamplesText);
+    },
+    loadCurrentSamplesText: () => {
+      if (typeof opts["current-samples"] !== "string") {
+        throw new UsageError(
+          "dimension_model.status: measured の照合には --current-samples（現側 dimension-samples.json）が要る",
+        );
+      }
+      return io.readFile(resolve(io.cwd, opts["current-samples"]));
+    },
+  };
+}
+
+/**
+ * check を実行する。
+ * @param {{ opts: Record<string, string | true>, metadata: unknown, checkWritePaths: string[] }} ctx
+ * @param {{ io: Io, state: CheckState, writeCheck: (record: Record<string, unknown>, path: string) => void }} deps
+ * @returns {number}
+ */
+function runCheck({ opts, metadata, checkWritePaths }, { io, state, writeCheck }) {
+  const cc = isPlainObject(metadata) ? metadata.capture_conditions : undefined;
+  if (isPlainObject(cc) && Object.hasOwn(cc, "dimension_model")) {
+    state.modelFingerprint = fingerprint(JSON.stringify(cc.dimension_model));
+  }
+  if (opts.tolerance !== undefined) {
+    throw new UsageError("check に --tolerance は渡せない（現側に記録した tolerance を使う）");
+  }
+  const { loadSamples, loadCurrentSamplesText } = checkLoaders(opts, io, state);
+  const result = checkModel(metadata, loadSamples, loadCurrentSamplesText);
+  for (const path of checkWritePaths) {
+    writeCheck(
+      {
+        judged: result.judged,
+        reason: result.reason,
+        ok: result.judged ? result.ok : null,
+        checked: result.judged ? result.checked : 0,
+        failures: result.judged ? result.failures.length : 0,
+        unfit_to_note: result.unfit_to_note ?? [],
+        error: null,
       },
-      () => {
-        if (typeof opts["current-samples"] !== "string") {
-          throw new UsageError(
-            "dimension_model.status: measured の照合には --current-samples（現側 dimension-samples.json）が要る",
-          );
-        }
-        return readFile(resolve(cwd, opts["current-samples"]));
-      },
+      path,
     );
-    for (const path of checkWritePaths) {
+  }
+  printResult({ mode: "check", ...result });
+  if (result.judged && !result.ok) {
+    for (const f of result.failures) process.stderr.write(`warn: ${JSON.stringify(f)}\n`);
+    process.stderr.write(
+      `error: 寸法の決まり方が現側と合わない ${result.failures.length} 件 — 1 点の px ではなく式で反映する\n`,
+    );
+    return 1;
+  }
+  return 0;
+}
+
+/**
+ * exit 2 で終わる check の失敗を、--write の全ての先へ書く。
+ * 前回の ok: true を残したまま exit 2 で終わらせない（記録から古い合格と見分けられなくなる）。
+ * @param {string[]} paths
+ * @param {string} message
+ * @param {(record: Record<string, unknown>, path: string) => void} writeCheck
+ */
+function writeErrorRecords(paths, message, writeCheck) {
+  for (const path of paths) {
+    try {
       writeCheck(
         {
-          judged: result.judged,
-          reason: result.reason,
-          ok: result.judged ? result.ok : null,
-          checked: result.judged ? result.checked : 0,
-          failures: result.judged ? result.failures.length : 0,
-          unfit_to_note: result.unfit_to_note ?? [],
-          error: null,
+          judged: false,
+          reason: null,
+          ok: false,
+          checked: 0,
+          failures: 0,
+          unfit_to_note: [],
+          error: message,
         },
         path,
       );
+    } catch (writeError) {
+      process.stderr.write(`error: 失敗の記録も書けない（${path}）: ${errorMessage(writeError)}\n`);
     }
-    out({ mode, ...result });
-    if (result.judged && !result.ok) {
-      for (const f of result.failures) process.stderr.write(`warn: ${JSON.stringify(f)}\n`);
-      process.stderr.write(
-        `error: 寸法の決まり方が現側と合わない ${result.failures.length} 件 — 1 点の px ではなく式で反映する\n`,
-      );
-      return 1;
-    }
-    return 0;
+  }
+}
+
+/**
+ * @param {string[]} argv - process.argv.slice(2)
+ * @param {{ readFile?: (p: string) => string, writeFile?: (p: string, s: string) => void, cwd?: string }} [deps]
+ * @returns {number}
+ */
+export function main(argv, deps = {}) {
+  /** @type {Io} */
+  const io = {
+    readFile: deps.readFile ?? ((p) => readFileSync(p, "utf8")),
+    writeFile: deps.writeFile ?? ((p, s) => writeFileSync(p, s)),
+    cwd: deps.cwd ?? process.cwd(),
+  };
+  const [mode, ...rest] = argv;
+  const checkWritePaths = mode === "check" ? collectCheckWritePaths(rest, io.cwd) : [];
+  /** @type {CheckState} */
+  const state = { newSamplesText: null, modelFingerprint: null };
+  const writeCheck = makeCheckWriter(io, state);
+  try {
+    if (mode !== "fit" && mode !== "check") throw new UsageError("先頭に fit か check を書く");
+    const opts = parseOptions(mode, rest);
+    if (typeof opts.metadata !== "string") throw new UsageError("--metadata が無い");
+    const metadataPath = resolve(io.cwd, opts.metadata);
+    const metadata = JSON.parse(io.readFile(metadataPath));
+    if (mode === "fit") return runFit({ opts, metadata, metadataPath }, io);
+    return runCheck({ opts, metadata, checkWritePaths }, { io, state, writeCheck });
   } catch (e) {
     const message = errorMessage(e);
-    process.stderr.write(`error: ${message}\n${usage}\n`);
-    // 前回の ok: true を残したまま exit 2 で終わらせない（記録から古い合格と見分けられなくなる）
-    for (const path of mode === "check" ? checkWritePaths : []) {
-      try {
-        writeCheck(
-          {
-            judged: false,
-            reason: null,
-            ok: false,
-            checked: 0,
-            failures: 0,
-            unfit_to_note: [],
-            error: message,
-          },
-          path,
-        );
-      } catch (writeError) {
-        process.stderr.write(
-          `error: 失敗の記録も書けない（${path}）: ${errorMessage(writeError)}\n`,
-        );
-      }
-    }
+    process.stderr.write(`error: ${message}\n${USAGE}\n`);
+    writeErrorRecords(checkWritePaths, message, writeCheck);
     return 2;
   }
 }

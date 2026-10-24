@@ -11,7 +11,7 @@
     {
       "id": "no-import-follow",
       "why": "@import の先のスタイルシートを辿らない（読み込まれた規則が丸ごと消え、例外も出ない）",
-      "file": "skills/parity-component/scripts/css-rules-capture.mjs",
+      "file": "skills/parity-component/scripts/page/css-rules-capture.page.mjs",
       "find": "if (\"styleSheet\" in rule) {",
       "replace": "if (false) {",
       "occurrences": 1,
@@ -35,9 +35,9 @@
     {
       "id": "naive-paren-count",
       "why": "関数擬似クラスの引数の終わりを、引用符と角括弧を見ない括弧勘定で探す（引用符の中の ( で後ろの :hover まで引数に含める）",
-      "file": "skills/parity-component/scripts/css-rules-capture.mjs",
-      "find": "    if (c === '\"' || c === \"'\") {\n      quote = c;\n      continue;\n    }\n    if (c === \"(\" || c === \"[\") depth++;\n    else if (c === \")\" || c === \"]\") {\n      depth--;\n      if (depth === 0) return i + 1;",
-      "replace": "    if (c === \"(\") depth++;\n    else if (c === \")\") {\n      depth--;\n      if (depth === 0) return i + 1;",
+      "file": "skills/parity-component/scripts/page/css-rules-capture.page.mjs",
+      "find": "      if (c === '\"' || c === \"'\") {\n        quote = c;\n        continue;\n      }\n      if (c === \"(\" || c === \"[\") depth++;\n      else if (c === \")\" || c === \"]\") {\n        depth--;\n        if (depth === 0) return i + 1;",
+      "replace": "      if (c === \"(\") depth++;\n      else if (c === \")\") {\n        depth--;\n        if (depth === 0) return i + 1;",
       "occurrences": 1,
       "expect_failing": [
         "モジュールの関数 引用符・角括弧を跨ぐ関数引数でも状態擬似クラスを剥がす",
@@ -47,8 +47,8 @@
     {
       "id": "state-inside-shallow",
       "why": "関数擬似クラスの引数の中の状態を直下の 1 段しか見ない（:is(:has(:hover)) の状態を取りこぼし、規則が警告なしに消える）",
-      "file": "skills/parity-component/scripts/css-rules-capture.mjs",
-      "find": "    if (h.hasStateInsideFunctional(h, p.args, stateNames)) return true;\n",
+      "file": "skills/parity-component/scripts/page/css-rules-capture.page.mjs",
+      "find": "      if (hasStateInsideFunctional(p.args, stateNames)) return true;\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [

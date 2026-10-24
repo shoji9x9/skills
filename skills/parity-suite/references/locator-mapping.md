@@ -191,7 +191,7 @@ Locator・Page なら束縛に型注釈（`loc: Locator`）を付け、Playwrigh
 | 操作アダプタ | `<parity_suite_dir>/parity/lib/interactions/` |
 | 共通のフィクスチャ（利用者環境のブラウザへ接続する target があるときだけ。後の「利用者環境のブラウザへ接続する」） | `<parity_suite_dir>/parity/lib/fixtures.ts` |
 | プロジェクトが自分で書くツール（画素差分の呼び出し・aria 比較など） | `<parity_suite_dir>/parity/lib/tools/` |
-| **決定論的なツール（同梱の scripts のコピー）** | `<parity_suite_dir>/parity/lib/tools/vendor/` |
+| **決定論的なツール（同梱の scripts のコピー）** | `<parity_suite_dir>/parity/lib/tools/vendor/`（trait-capture・element-shot が import する page ファイルは `vendor/page/`） |
 
 同梱のスクリプトのコピーは、プロジェクトが自作したツールと同じディレクトリに置かない。
 コピーは修正しない取り決めである（原本はスキルの側にあり、`gh skill update` の更新を取り込む）。一方、自作のツールは通常のコードとして扱う。

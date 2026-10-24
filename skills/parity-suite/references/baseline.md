@@ -66,8 +66,9 @@
   - 採取時の文字列が短ければ差にならない `white-space` / `overflow-x` / `overflow-y` / `text-overflow` / `word-break`
 
   プロパティの集合の原本は [`../scripts/trait-capture.mjs`](../scripts/trait-capture.mjs) の `FIXED_PROPERTIES` で、増減させたら `VERSION` を上げる。
+  そのときは、[`../scripts/page/trait-capture.page.mjs`](../scripts/page/trait-capture.page.mjs) の `PAGE_VERSION` も同じ値に上げる。
 - `url()` を値に持つプロパティは、参照先の資産の中身までは照合していない。
-  採取ツールは、相対 URL を絶対にしたときのホストの違いを消すため、同じオリジンの `url()` をオリジンに依らない印にまとめる（[`../scripts/trait-capture.mjs`](../scripts/trait-capture.mjs) の `foldOrigin`）。
+  採取ツールは、相対 URL を絶対にしたときのホストの違いを消すため、同じオリジンの `url()` をオリジンに依らない印にまとめる（[`../scripts/page/trait-capture.page.mjs`](../scripts/page/trait-capture.page.mjs) の `foldOrigin`）。
   そのため、**現新が同じパスで別のバイトの資産を配っていると、その見た目の差は特性の照合にも画素にも現れない**（カスタムカーソルの画像が当たる）。
   対象の要素があれば、`gaps.md` の「特性化できなかった箇所と理由」に種別「採取値の射程外」として残し、確認済みにしない。
   強度のチェックで注入しても特性の照合が赤にならないので、`strength.md` の「未検証の故障種別」にも同じ理由で残す。
@@ -76,6 +77,9 @@
   そのため、片側だけ採り直した成果物は比較に進めない（止まるのが正しい振る舞いである）。
 - 採取には、同梱の [`../scripts/trait-capture.mjs`](../scripts/trait-capture.mjs) をプロジェクト側の `<parity_suite_dir>/parity/lib/tools/vendor/` にコピーして使う。
   この場所はデフォルトで、コピー専用のサブディレクトリである（置き方の方針は [`locator-mapping.md`](locator-mapping.md)）。
+  trait-capture.mjs は、ページで実行する本体を `./page/trait-capture.page.mjs` から import する。
+  そのため、同梱の [`../scripts/page/trait-capture.page.mjs`](../scripts/page/trait-capture.page.mjs) も同じ版から、コピー先の `page/`（デフォルトは `vendor/page/`）へコピーする。
+  要素単位の撮影に element-shot.mjs を使う場合も、[`../scripts/page/element-shot.page.mjs`](../scripts/page/element-shot.page.mjs) を同じ `page/` へコピーする。
   何を採ったか（対象の要素・プロパティの集合・状態）を `metadata.json` に残し、`parity-diff` が同じ条件で照合できるようにする。
 
 ## 撮影条件の統制

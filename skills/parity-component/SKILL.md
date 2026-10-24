@@ -342,6 +342,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
   スクリーンショットなどの大きなバイナリは `artifacts` の設定に従い、デフォルトは `local`（commit しない）である。
 - ノイズを測るための 2 回目の採取物は、成果物ではない。基準値を `metadata.json.noise_baseline` に記録したら削除する（原本は `parity-suite` の `references/baseline.md`）。
 - 差分ツールと特性採取ツールは、`parity-suite` 同梱のものを原本として使い、このスキルで実装し直さない。実行するときは `<parity_suite_dir>/parity/lib/tools/vendor/` にコピーし、実際のパスを `metadata.json` に記録する。
+  trait-capture.mjs と element-shot.mjs は、隣の `page/` の本体（`parity-suite` の `scripts/page/`）も一緒にコピーする。
   このスキルは機能単位の `parity-suite` より先に実行されるので、コピーが無いのが普通である。
   インストール済みの `parity-suite` から用意する方法と、既存のコピーが同梱版と違うときに停止する取り決めは、[`references/capture.md`](references/capture.md)「`parity-suite` 同梱ツールの用意」にある。
 - 次のスクリプトはコピーせず、スキルの中のものをそのまま実行する。`gh skill update` で自動で更新されるようにするためである。

@@ -2,6 +2,7 @@
 import { assert } from "vitest";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { runFromSource } from "./page-source.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/trait-capture.mjs");
@@ -12,10 +13,17 @@ export const {
   SCROLLBAR_PSEUDOS,
   SCROLLBAR_PSEUDO_PROPERTIES,
   VERSION,
+  assertPageVersion,
   captureTraits,
 }: typeof import("../../../../skills/parity-suite/scripts/trait-capture.mjs") = await import(
   script
 );
+const pageScript = join(repoRoot, "skills/parity-suite/scripts/page/trait-capture.page.mjs");
+export const {
+  PAGE_VERSION,
+  captureElement,
+}: typeof import("../../../../skills/parity-suite/scripts/page/trait-capture.page.mjs") =
+  await import(pageScript);
 
 export type Rect = { x: number; y: number; width: number; height: number };
 export type Styles = Record<string, string>;
@@ -227,16 +235,40 @@ function installBrowserGlobals(styles: Styles, o: ResolvedLocatorOptions) {
   return () => Object.assign(browser, previous);
 }
 
+// 採るプロパティの固定集合（captureTraits が evaluate へ渡す引数）。
+type CaptureProps = Parameters<typeof captureElement>[1];
+// evaluate に渡された関数を偽の要素に当てる方法。
+export type PageRun = (
+  fn: (el: FakeElement, props: CaptureProps) => unknown,
+  el: FakeElement,
+  props: CaptureProps,
+) => unknown;
+type FakeElement = ReturnType<typeof fakeElement>;
+
+export { runFromSource };
+
+/**
+ * describe.each に渡す 2 通りの当て方。モジュールの関数は、渡された関数を使わずに page/trait-capture.page.mjs の
+ * captureElement を直接呼び、カバレッジを記録する。ページへ渡すソースは、captureTraits が evaluate へ渡した関数を
+ * ソースから評価し直して当てる。本体が本体の外の名前を参照すると、モジュールの関数として呼んだときはモジュールの
+ * スコープで名前が解決されて通るが、こちらでは名前が解決できずに失敗する。
+ */
+export const PAGE_RUNS: [string, PageRun][] = [
+  ["モジュールの関数", (_fn, el, props) => captureElement(el, props)],
+  ["ページへ渡すソース", (fn, el, props) => runFromSource(fn, [el, props])],
+];
+
 // captureElement は locator.evaluate に文字列化して渡る純関数なので、
 // evaluate を「渡された関数をブラウザ相当のスタブへ当てる」偽ロケータで実行して検証する。
-export function fakeLocator(styles: Styles, options: FakeLocatorOptions = {}) {
+// 当て方は run で選ぶ（PAGE_RUNS）。
+export function fakeLocator(run: PageRun, styles: Styles, options: FakeLocatorOptions = {}) {
   const o = resolveLocatorOptions(styles, options);
   return {
-    evaluate(fn: (el: unknown, props: unknown) => unknown, props: unknown) {
+    evaluate(fn: (el: FakeElement, props: CaptureProps) => unknown, props: CaptureProps) {
       const el = fakeElement(styles, o);
       const restore = installBrowserGlobals(styles, o);
       try {
-        return Promise.resolve(fn(el, props));
+        return Promise.resolve(run(fn, el, props));
       } finally {
         restore();
       }

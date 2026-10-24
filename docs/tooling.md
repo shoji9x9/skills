@@ -67,6 +67,13 @@ GitHub Actions は、`actionlint` で構文を、`ghalint` で `permissions`・`
 テストを書く関数は `test` にそろえ、`vitest/consistent-test-it` が `it` を失敗にする。
 vitest プラグインの correctness のルールのうち、このリポジトリのテストが違反するもの（`valid-expect` など）は外す。`consistent-test-it` を使うためにプラグインを有効にしただけで、これらのルールは対象にしていないからである。採るときは、そのルールの違反を直してから、`off` の行を消す。
 
+本体の関数を Playwright の `evaluate` へそのまま渡す page ファイルがある。parity-suite と parity-component の `scripts/page/*.page.mjs` である。
+これらでは、`max-lines-per-function` を JS プラグインのルール `skills-repo/max-lines-per-function-except-page-entry` に替える。
+`evaluate` は関数のソースだけを送るので、本体が呼ぶ関数は本体の中に入れ子で書くしかなく、組み込みのルールでは本体が必ず上限を超えるからである。
+このルールは、export した本体を、入れ子の関数とコメントを除いてコードの残る行の数で数え、入れ子の関数は全体の行数で数える。どちらも上限は 50 行である。
+CLI が本文を関数式で包む replace-strategy の page ファイルは、本体が呼ぶ関数を最上位に置けるので、組み込みのルールのまま当てる。
+同じ形の page ファイルを別のスキルに足すときは、`oxlint.config.ts` の一覧にそのスキルの `scripts/page/*.page.mjs` を足す。
+
 共有ライブラリが上位のチェックやツールに依存しないように、参照の向きを決める。
 JS プラグインのルール `skills-repo/import-direction` が、import するファイルからの相対パスを解決して判定する。
 参照は、書き方を 1 つずつ挙げずに、次の 3 つの定義で集める。

@@ -87,6 +87,19 @@ const urlKeyOf = (pathname, search, hash) =>
   JSON.stringify([pathname, search ?? null, hash ?? null]);
 
 /**
+ * capture_conditions.pages の 1 要素から name と path を読む。オブジェクトでない要素と、name が空でない文字列でない要素は null（読み飛ばす）。
+ * @param {unknown} pg
+ * @returns {{ name: string, path: unknown } | null}
+ */
+function readPageEntry(pg) {
+  if (typeof pg !== "object" || pg === null || isArray(pg)) return null;
+  const name = "name" in pg ? pg.name : undefined;
+  const path = "path" in pg ? pg.path : undefined;
+  if (!nonEmptyString(name)) return null;
+  return { name, path };
+}
+
+/**
  * capture_conditions.pages を baseURL に対して解く。
  * @param {unknown} pages - capture_conditions.pages（名前の重複・欠けの検査は呼び出し側が持つ）
  * @param {unknown} uiUrl - target.ui_url
@@ -97,24 +110,20 @@ export function resolvePages(pages, uiUrl) {
   const resolved = new Map();
   /** @type {string[]} */
   const problems = [];
-  const list = isArray(pages) ? pages : [];
   const baseRead = readBaseUrl(uiUrl);
   if (baseRead.problem !== null) {
-    return {
-      resolvable: false,
-      reason: baseRead.problem,
+    return unresolvable(baseRead.problem, {
       pages: resolved,
       unresolved: new Map(),
       problems: [baseRead.problem],
-    };
+    });
   }
   /** @type {Map<string, string>} */
   const unresolved = new Map();
-  for (const pg of list) {
-    if (typeof pg !== "object" || pg === null || isArray(pg)) continue;
-    const name = "name" in pg ? pg.name : undefined;
-    const path = "path" in pg ? pg.path : undefined;
-    if (!nonEmptyString(name)) continue;
+  for (const pg of isArray(pages) ? pages : []) {
+    const entry = readPageEntry(pg);
+    if (entry === null) continue;
+    const { name, path } = entry;
     if (typeof path !== "string") {
       problems.push(
         `capture_conditions.pages の "${name}" に path（baseURL からの相対パス。根のページは空文字列）が無い`,
@@ -144,25 +153,35 @@ export function resolvePages(pages, uiUrl) {
       key: urlKeyOf(u.pathname, search, hash),
     });
   }
+  return finishResolution({ pages: resolved, unresolved, problems });
+}
+
+/**
+ * 解けなかった結果を作る。
+ * @param {string} reason
+ * @param {{ pages: Map<string, ResolvedPage>, unresolved: Map<string, string>, problems: string[] }} parts
+ * @returns {PageResolution}
+ */
+function unresolvable(reason, { pages, unresolved, problems }) {
+  return { resolvable: false, reason, pages, unresolved, problems };
+}
+
+/**
+ * 全てのページを読んだ後に、入力の誤り・runtime で解けない相対の path が無いかで結果を決める。
+ * @param {{ pages: Map<string, ResolvedPage>, unresolved: Map<string, string>, problems: string[] }} parts
+ * @returns {PageResolution}
+ */
+function finishResolution({ pages, unresolved, problems }) {
   if (problems.length > 0) {
-    return {
-      resolvable: false,
-      reason: problems.join(" / "),
-      pages: resolved,
-      unresolved,
-      problems,
-    };
+    return unresolvable(problems.join(" / "), { pages, unresolved, problems });
   }
   if (unresolved.size > 0) {
-    return {
-      resolvable: false,
-      reason: `target.ui_url が "runtime" で baseURL が成果物に無く、相対の path（${[...unresolved.keys()].join(", ")}）を解決できない（押した後の URL との照合をしない。照合させるなら path を baseURL のパス接頭辞を含めて "/" から書く）`,
-      pages: resolved,
-      unresolved,
-      problems: [],
-    };
+    return unresolvable(
+      `target.ui_url が "runtime" で baseURL が成果物に無く、相対の path（${[...unresolved.keys()].join(", ")}）を解決できない（押した後の URL との照合をしない。照合させるなら path を baseURL のパス接頭辞を含めて "/" から書く）`,
+      { pages, unresolved, problems: [] },
+    );
   }
-  return { resolvable: true, reason: null, pages: resolved, unresolved, problems: [] };
+  return { resolvable: true, reason: null, pages, unresolved, problems: [] };
 }
 
 /**

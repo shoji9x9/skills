@@ -44,6 +44,46 @@ function keyValue(v) {
 const PROTO_NAMES = new Set(["__proto__", "constructor", "prototype"]);
 
 /**
+ * 選ぶ欄の値を取り出す。JSON 文字列で書いた値（m[3]）は解いて返し、裸の値（m[4]）はそのまま返す。
+ * @param {RegExpExecArray} m
+ * @returns {string | undefined}
+ */
+function selectValueOf(m) {
+  if (m[3] !== undefined) {
+    /** @type {unknown} */
+    let parsed;
+    try {
+      parsed = JSON.parse(m[3]);
+    } catch {
+      throw new UsageError(`--array の選ぶ値が JSON 文字列として読めない: ${m[3]}`);
+    }
+    // 正規表現が JSON の文字列リテラルだけを取り出すので、読めたら必ず文字列になる（到達しない分岐）
+    if (typeof parsed !== "string") {
+      throw new UsageError(`--array の選ぶ値が JSON 文字列として読めない: ${m[3]}`);
+    }
+    return parsed;
+  }
+  return m[4];
+}
+
+/**
+ * 継承プロパティ（__proto__ 等）の名前を弾く。
+ * @param {{ name: string, select: { field: string, value: string } | null }[]} segments
+ * @param {string} spec
+ * @returns {void}
+ */
+function rejectProtoNames(segments, spec) {
+  // 継承プロパティ（__proto__ 等）を辿ると表の外へ書いたまま成功を返すので、名前で弾き、辿るときも自前のキーに限る
+  for (const seg of segments) {
+    for (const n of [seg.name, seg.select?.field]) {
+      if (n !== undefined && PROTO_NAMES.has(n)) {
+        throw new UsageError(`--array に使えない名前がある: ${n}（${spec}）`);
+      }
+    }
+  }
+}
+
+/**
  * --array の指し方を解析する。
  * @param {string} spec
  * @returns {{ name: string, select: { field: string, value: string } | null }[]}
@@ -57,22 +97,7 @@ export function parseArrayPath(spec) {
   for (;;) {
     const m = re.exec(rest);
     if (!m) throw new UsageError(`--array の形が読めない: ${spec}`);
-    /** @type {string | undefined} */
-    let value = m[4];
-    if (m[3] !== undefined) {
-      /** @type {unknown} */
-      let parsed;
-      try {
-        parsed = JSON.parse(m[3]);
-      } catch {
-        throw new UsageError(`--array の選ぶ値が JSON 文字列として読めない: ${m[3]}`);
-      }
-      // 正規表現が JSON の文字列リテラルだけを取り出すので、読めたら必ず文字列になる（到達しない分岐）
-      if (typeof parsed !== "string") {
-        throw new UsageError(`--array の選ぶ値が JSON 文字列として読めない: ${m[3]}`);
-      }
-      value = parsed;
-    }
+    const value = selectValueOf(m);
     // 選ぶ欄（m[2]）があれば、値（m[3] か m[4]）も必ずある。無ければ、条件を外して別の要素へ書かないよう止める
     if (m[2] !== undefined && value === undefined) {
       throw new UsageError(`--array の選ぶ欄 ${m[2]} に値が無い: ${spec}`);
@@ -86,14 +111,7 @@ export function parseArrayPath(spec) {
     if (!rest.startsWith(".")) throw new UsageError(`--array の形が読めない: ${spec}`);
     rest = rest.slice(1);
   }
-  // 継承プロパティ（__proto__ 等）を辿ると表の外へ書いたまま成功を返すので、名前で弾き、辿るときも自前のキーに限る
-  for (const seg of segments) {
-    for (const n of [seg.name, seg.select?.field]) {
-      if (n !== undefined && PROTO_NAMES.has(n)) {
-        throw new UsageError(`--array に使えない名前がある: ${n}（${spec}）`);
-      }
-    }
-  }
+  rejectProtoNames(segments, spec);
   if (segments[segments.length - 1].select !== null) {
     throw new UsageError(`--array の末尾は配列のキーにする（要素の選択で終えない）: ${spec}`);
   }
@@ -186,141 +204,220 @@ function indexArray(arr, fields, spec) {
   return index;
 }
 
+const USAGE = [
+  "usage: table-upsert.mjs upsert --file <json> --array <path> [--key <field,...>] --from <断片.json | ->",
+  "       table-upsert.mjs remove --file <json> --array <path> [--key <field,...>] --match <json>",
+  "       table-upsert.mjs get    --file <json> --array <path> [--key <field,...>] --match <json>",
+  "       table-upsert.mjs keys   --file <json> --array <path> [--key <field,...>]",
+].join("\n");
+
+/**
+ * @typedef {{ readFile: (p: string) => string, writeFile: (p: string, s: string) => void, readStdin: () => string, cwd: string }} Io
+ */
+
+/**
+ * 差し替えの無い入出力をデフォルトで埋める。
+ * @param {{ readFile?: (p: string) => string, writeFile?: (p: string, s: string) => void, readStdin?: () => string, cwd?: string }} deps
+ * @returns {Io}
+ */
+function resolveIo(deps) {
+  return {
+    readFile: deps.readFile ?? ((p) => readFileSync(p, "utf8")),
+    writeFile:
+      deps.writeFile ??
+      ((p, s) => {
+        // 途中で落ちても表が半分だけ書かれた状態を残さない
+        const tmp = `${p}.tmp-${process.pid}`;
+        writeFileSync(tmp, s);
+        renameSync(tmp, p);
+      }),
+    readStdin: deps.readStdin ?? (() => readFileSync(0, "utf8")),
+    cwd: deps.cwd ?? process.cwd(),
+  };
+}
+
+/**
+ * サブコマンドの後の引数を、名前（-- を除く）から値への対応にする。
+ * @param {string[]} rest
+ * @returns {Record<string, string>}
+ */
+function parseOptions(rest) {
+  /** @type {Record<string, string>} */
+  const opts = {};
+  for (let i = 0; i < rest.length; i += 1) {
+    const a = rest[i];
+    if (!["--file", "--array", "--key", "--from", "--match"].includes(a)) {
+      throw new UsageError(`不明な引数 ${a}`);
+    }
+    const v = rest[i + 1];
+    // "-" は --from の標準入力の指定なので値として受ける
+    if (v === undefined || v === "" || (v.startsWith("--") && v !== "-")) {
+      throw new UsageError(`${a} に値が無い`);
+    }
+    // 同じ引数を重ねると後勝ちで警告なしに別のファイル・配列・鍵を書き換えうるので、曖昧な呼び出しは止める
+    if (Object.hasOwn(opts, a.slice(2))) {
+      throw new UsageError(`${a} が重複している`);
+    }
+    opts[a.slice(2)] = v;
+    i += 1;
+  }
+  return opts;
+}
+
+/**
+ * サブコマンドごとに要る引数を確かめ、鍵の欄の一覧を返す。
+ * @param {string} command
+ * @param {Record<string, string>} opts
+ * @returns {string[]}
+ */
+function keyFieldsOf(command, opts) {
+  if (!opts.file || !opts.array) throw new UsageError("--file と --array が要る");
+  if (command === "upsert" && !opts.from) throw new UsageError("upsert には --from が要る");
+  if ((command === "remove" || command === "get") && !opts.match) {
+    throw new UsageError(`${command} には --match が要る`);
+  }
+  const fields = (opts.key ?? "id").split(",").map((f) => f.trim());
+  if (fields.some((f) => f === "") || new Set(fields).size !== fields.length) {
+    throw new UsageError(`--key が空・重複を含む: ${opts.key}`);
+  }
+  return fields;
+}
+
+/**
+ * 表のファイルを読み、オブジェクトであることを確かめる。
+ * @param {string} path
+ * @param {string} file - 利用者が指定したままのパス（メッセージ用）
+ * @param {Io} io
+ * @returns {Record<string, unknown>}
+ */
+function loadTable(path, file, io) {
+  let table;
+  try {
+    table = JSON.parse(io.readFile(path));
+  } catch (e) {
+    throw new UsageError(`表を読めない: ${file}（${errorMessage(e)}）`);
+  }
+  if (!isPlainObject(table)) throw new UsageError(`表がオブジェクトでない: ${file}`);
+  return table;
+}
+
+/**
+ * upsert なら --from の断片を、remove / get なら --match を読む。
+ * @param {string} command
+ * @param {Record<string, string>} opts
+ * @param {Io} io
+ * @returns {Record<string, unknown>}
+ */
+function readProbe(command, opts, io) {
+  /** @type {unknown} */
+  let probe;
+  if (command === "upsert") {
+    const text = opts.from === "-" ? io.readStdin() : io.readFile(resolve(io.cwd, opts.from));
+    try {
+      probe = JSON.parse(text);
+    } catch (e) {
+      throw new UsageError(`断片を読めない: ${opts.from}（${errorMessage(e)}）`);
+    }
+    if (!isPlainObject(probe)) throw new UsageError("断片が 1 要素のオブジェクトでない");
+    return probe;
+  }
+  try {
+    probe = JSON.parse(opts.match);
+  } catch (e) {
+    throw new UsageError(`--match を読めない（${errorMessage(e)}）`);
+  }
+  if (!isPlainObject(probe)) throw new UsageError("--match がオブジェクトでない");
+  return probe;
+}
+
+/**
+ * 配列を書き換える。remove で一致する要素が無ければ null を返す。
+ * @param {{ command: string, arr: unknown[], at: number | undefined, probe: Record<string, unknown> }} change
+ * @returns {"removed" | "appended" | "replaced" | null}
+ */
+function applyChange({ command, arr, at, probe }) {
+  if (command === "remove") {
+    if (at === undefined) return null;
+    arr.splice(at, 1);
+    return "removed";
+  }
+  if (at === undefined) {
+    arr.push(probe);
+    return "appended";
+  }
+  arr[at] = probe;
+  return "replaced";
+}
+
+/**
+ * 引数を確かめた後の処理。使い方の誤り・ファイルや構造の不備は UsageError で投げる。
+ * @param {string} command
+ * @param {Record<string, string>} opts
+ * @param {Io} io
+ * @returns {number}
+ */
+function run(command, opts, io) {
+  const fields = keyFieldsOf(command, opts);
+  const path = resolve(io.cwd, opts.file);
+  const table = loadTable(path, opts.file, io);
+  const arr = resolveArray(table, opts.array, command === "upsert");
+  const index = indexArray(arr, fields, opts.array);
+
+  if (command === "keys") {
+    for (const k of index.keys()) process.stdout.write(`${k}\n`);
+    return 0;
+  }
+
+  const probe = readProbe(command, opts, io);
+  const key = rowKeyOf(probe, fields);
+  if (key === null) {
+    throw new UsageError(
+      `${command === "upsert" ? "断片" : "--match"} の鍵（${fields.join(", ")}）が欠けている・空・型の誤り`,
+    );
+  }
+  const at = index.get(key);
+
+  const missing = `error: ${opts.array} に鍵 ${key} の要素が無い\n`;
+  if (command === "get") {
+    if (at === undefined) {
+      process.stderr.write(missing);
+      return 1;
+    }
+    process.stdout.write(`${JSON.stringify(arr[at], null, 2)}\n`);
+    return 0;
+  }
+  // applyChange は remove で要素が無いときだけ null を返す。
+  const action = applyChange({ command, arr, at, probe });
+  if (action === null) {
+    process.stderr.write(missing);
+    return 1;
+  }
+  const conformanceRemoved = Object.hasOwn(table, "conformance");
+  delete table.conformance;
+  io.writeFile(path, `${JSON.stringify(table, null, 2)}\n`);
+  process.stdout.write(
+    `${JSON.stringify({ tool: "table-upsert", action, array: opts.array, key, count: arr.length, conformance_removed: conformanceRemoved })}\n`,
+  );
+  return 0;
+}
+
 /**
  * @param {string[]} argv - process.argv.slice(2)
  * @param {{ readFile?: (p: string) => string, writeFile?: (p: string, s: string) => void, readStdin?: () => string, cwd?: string }} [deps]
  * @returns {number}
  */
 export function main(argv, deps = {}) {
-  const readFile = deps.readFile ?? ((p) => readFileSync(p, "utf8"));
-  const writeFile =
-    deps.writeFile ??
-    ((p, s) => {
-      // 途中で落ちても表が半分だけ書かれた状態を残さない
-      const tmp = `${p}.tmp-${process.pid}`;
-      writeFileSync(tmp, s);
-      renameSync(tmp, p);
-    });
-  const readStdin = deps.readStdin ?? (() => readFileSync(0, "utf8"));
-  const cwd = deps.cwd ?? process.cwd();
-  const usage = [
-    "usage: table-upsert.mjs upsert --file <json> --array <path> [--key <field,...>] --from <断片.json | ->",
-    "       table-upsert.mjs remove --file <json> --array <path> [--key <field,...>] --match <json>",
-    "       table-upsert.mjs get    --file <json> --array <path> [--key <field,...>] --match <json>",
-    "       table-upsert.mjs keys   --file <json> --array <path> [--key <field,...>]",
-  ].join("\n");
-  const [command, ...rest] = argv;
-  if (!["upsert", "remove", "get", "keys"].includes(command ?? "")) {
-    process.stderr.write(`error: サブコマンドが無い・不明: ${command ?? ""}\n${usage}\n`);
+  const io = resolveIo(deps);
+  const [first, ...rest] = argv;
+  const command = first ?? "";
+  if (!["upsert", "remove", "get", "keys"].includes(command)) {
+    process.stderr.write(`error: サブコマンドが無い・不明: ${command}\n${USAGE}\n`);
     return 2;
   }
-  /** @type {Record<string, string>} */
-  const opts = {};
-  for (let i = 0; i < rest.length; i += 1) {
-    const a = rest[i];
-    if (!["--file", "--array", "--key", "--from", "--match"].includes(a)) {
-      process.stderr.write(`error: 不明な引数 ${a}\n${usage}\n`);
-      return 2;
-    }
-    const v = rest[i + 1];
-    // "-" は --from の標準入力の指定なので値として受ける
-    if (v === undefined || v === "" || (v.startsWith("--") && v !== "-")) {
-      process.stderr.write(`error: ${a} に値が無い\n${usage}\n`);
-      return 2;
-    }
-    // 同じ引数を重ねると後勝ちで警告なしに別のファイル・配列・鍵を書き換えうるので、曖昧な呼び出しは止める
-    if (Object.hasOwn(opts, a.slice(2))) {
-      process.stderr.write(`error: ${a} が重複している\n${usage}\n`);
-      return 2;
-    }
-    opts[a.slice(2)] = v;
-    i += 1;
-  }
   try {
-    if (!opts.file || !opts.array) throw new UsageError("--file と --array が要る");
-    if (command === "upsert" && !opts.from) throw new UsageError("upsert には --from が要る");
-    if ((command === "remove" || command === "get") && !opts.match) {
-      throw new UsageError(`${command} には --match が要る`);
-    }
-    const fields = (opts.key ?? "id").split(",").map((f) => f.trim());
-    if (fields.some((f) => f === "") || new Set(fields).size !== fields.length) {
-      throw new UsageError(`--key が空・重複を含む: ${opts.key}`);
-    }
-    const path = resolve(cwd, opts.file);
-    let table;
-    try {
-      table = JSON.parse(readFile(path));
-    } catch (e) {
-      throw new UsageError(`表を読めない: ${opts.file}（${errorMessage(e)}）`);
-    }
-    if (!isPlainObject(table)) throw new UsageError(`表がオブジェクトでない: ${opts.file}`);
-    const arr = resolveArray(table, opts.array, command === "upsert");
-    const index = indexArray(arr, fields, opts.array);
-
-    if (command === "keys") {
-      for (const k of index.keys()) process.stdout.write(`${k}\n`);
-      return 0;
-    }
-
-    /** @type {unknown} */
-    let probe;
-    if (command === "upsert") {
-      const text = opts.from === "-" ? readStdin() : readFile(resolve(cwd, opts.from));
-      try {
-        probe = JSON.parse(text);
-      } catch (e) {
-        throw new UsageError(`断片を読めない: ${opts.from}（${errorMessage(e)}）`);
-      }
-      if (!isPlainObject(probe)) throw new UsageError("断片が 1 要素のオブジェクトでない");
-    } else {
-      try {
-        probe = JSON.parse(opts.match);
-      } catch (e) {
-        throw new UsageError(`--match を読めない（${errorMessage(e)}）`);
-      }
-      if (!isPlainObject(probe)) throw new UsageError("--match がオブジェクトでない");
-    }
-    const key = rowKeyOf(probe, fields);
-    if (key === null) {
-      throw new UsageError(
-        `${command === "upsert" ? "断片" : "--match"} の鍵（${fields.join(", ")}）が欠けている・空・型の誤り`,
-      );
-    }
-    const at = index.get(key);
-
-    if (command === "get") {
-      if (at === undefined) {
-        process.stderr.write(`error: ${opts.array} に鍵 ${key} の要素が無い\n`);
-        return 1;
-      }
-      process.stdout.write(`${JSON.stringify(arr[at], null, 2)}\n`);
-      return 0;
-    }
-
-    let action;
-    if (command === "remove") {
-      if (at === undefined) {
-        process.stderr.write(`error: ${opts.array} に鍵 ${key} の要素が無い\n`);
-        return 1;
-      }
-      arr.splice(at, 1);
-      action = "removed";
-    } else if (at === undefined) {
-      arr.push(probe);
-      action = "appended";
-    } else {
-      arr[at] = probe;
-      action = "replaced";
-    }
-    const conformanceRemoved = Object.hasOwn(table, "conformance");
-    delete table.conformance;
-    writeFile(path, `${JSON.stringify(table, null, 2)}\n`);
-    process.stdout.write(
-      `${JSON.stringify({ tool: "table-upsert", action, array: opts.array, key, count: arr.length, conformance_removed: conformanceRemoved })}\n`,
-    );
-    return 0;
+    return run(command, parseOptions(rest), io);
   } catch (e) {
-    process.stderr.write(`error: ${errorMessage(e)}\n${usage}\n`);
+    process.stderr.write(`error: ${errorMessage(e)}\n${USAGE}\n`);
     return 2;
   }
 }

@@ -32,60 +32,30 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { arch, cpus, platform } from "node:os";
 import { dirname, isAbsolute, join, relative } from "node:path";
-import { test } from "@playwright/test";
+import { test, type Browser, type TestInfo } from "@playwright/test";
 
 // scripts/perf-stats.mjs の SAMPLES_VERSION と同じ値にする
 const PERF_SAMPLES_VERSION = "1";
 
+type PageDef = { name: string; path: string };
+type Viewport = { label: string; width: number; height: number };
+type Use = TestInfo["project"]["use"];
+type Shift = { at: number; value: number };
+// ページの中で読んだ値。cls はずれの一覧から Node の側でまとめる
+type PageReading = { lcp: number | null; shifts: Shift[]; tbt: number; ttfb: number };
+type PerfValues = { lcp: number | null; cls: number; tbt: number; ttfb: number };
+
 test("性能の採取", async ({ browser }, testInfo) => {
   test.skip(process.env.PARITY_PERF_CAPTURE !== "1", "PARITY_PERF_CAPTURE=1 の実行でだけ採る");
-  const side = testInfo.project.name;
-  if (side !== "current" && side !== "new") {
-    throw new Error(`current / new 以外の project で実行された: ${side}`);
-  }
-  if (testInfo.config.workers !== 1) {
-    throw new Error(
-      `--workers=1 で実行する（並列の読み込みは互いの値を遅くする）: workers=${testInfo.config.workers}`,
-    );
-  }
-  const slug = requireName("PARITY_SLUG");
-  const repoRoot = process.env.PARITY_REPO_ROOT ?? process.cwd();
-  const root = join(repoRoot, ".replace", "parity", slug);
-  const out =
-    side === "current"
-      ? join(root, "perf-samples.json")
-      : join(root, "new", requireName("PARITY_NEW_TARGET"), "perf-samples.json");
-  const rel = relative(root, out);
-  if (rel.startsWith("..") || isAbsolute(rel))
-    throw new Error(`出力先 ${out} が ${root} の外を指す`);
+  const side = requireSide(testInfo);
+  const { slug, root, out } = outputPaths(side);
+  const { runs, settleMs } = runSettings();
 
-  const runs = Number(process.env.PARITY_PERF_RUNS ?? "10");
-  const settleMs = Number(process.env.PARITY_PERF_SETTLE_MS ?? "3000");
-  if (!Number.isInteger(runs) || runs < 5)
-    throw new Error(`PARITY_PERF_RUNS は 5 以上の整数: ${runs}`);
-  if (!Number.isInteger(settleMs) || settleMs < 0)
-    throw new Error(`PARITY_PERF_SETTLE_MS は 0 以上の整数: ${settleMs}`);
-
-  // 組は metadata.json（parity-suite が記録した現側の条件）から読む。手で書き写さない
-  const metadata = JSON.parse(readFileSync(join(root, "metadata.json"), "utf8"));
-  const pages: { name: string; path: string }[] = metadata.capture_conditions.pages;
-  const viewports: { label: string; width: number; height: number }[] =
-    metadata.capture_conditions.viewports;
+  const { pages, viewports } = captureConditions(root);
   test.setTimeout(pages.length * viewports.length * (runs + 1) * (settleMs + 30_000));
 
-  // largest-contentful-paint と longtask は Chromium 系でしか観測できない（Firefox・WebKit では observe が例外になる）
-  if (browser.browserType().name() !== "chromium") {
-    throw new Error(`性能は chromium の project で採る: ${browser.browserType().name()}`);
-  }
   const use = testInfo.project.use;
-  const channel = use.channel ?? null;
-  const headless = use.headless ?? true; // Playwright Test のデフォルトは headless: true
-  if (channel !== null || headless === false) {
-    console.warn(
-      `[perf] channel=${channel} headless=${headless}: ブラウザ本体が Google へ送信する構成で測っている（デフォルトの headless shell では送信しない）`,
-    );
-  }
-
+  const { channel, headless } = browserSettings(browser, use);
   const contextOptions = contextOptionsFromUse(use);
   // 置き場所が両側で違うと、ネットワークの遅れが TTFB・LCP の差に入る。perf-stats.mjs が違いを env_mismatch にする
   const placement = targetPlacement(
@@ -93,101 +63,14 @@ test("性能の採取", async ({ browser }, testInfo) => {
     typeof contextOptions.baseURL === "string" ? contextOptions.baseURL : undefined,
   );
 
-  const samples: Record<string, unknown>[] = [];
-  for (const viewport of viewports) {
-    for (const pageDef of pages) {
-      for (let run = 0; run <= runs; run += 1) {
-        // TODO: 認証を storageState 以外の方法で入れているなら、プロジェクトの現側スペックと同じ方法でここに入れる。
-        // browser.newContext は project の use を引き継がないので、スイートと同じ指定になるよう、コンテキストの設定を移す
-        const context = await browser.newContext({
-          ...contextOptions,
-          viewport: { width: viewport.width, height: viewport.height },
-        });
-        try {
-          const page = await context.newPage();
-          await page.goto(pageDef.path, { waitUntil: "load" });
-          // 出典: https://developer.mozilla.org/docs/Web/API/PerformanceObserver/observe（buffered）、
-          // https://web.dev/articles/lcp・https://web.dev/articles/cls・https://web.dev/articles/tbt
-          const values = await page.evaluate(
-            (settle) =>
-              new Promise<{ lcp: number | null; cls: number; tbt: number; ttfb: number }>(
-                (resolve) => {
-                  const out: { lcp: number | null; cls: number; tbt: number; ttfb: number } = {
-                    lcp: null,
-                    cls: 0,
-                    tbt: 0,
-                    ttfb: 0,
-                  };
-                  const nav = performance.getEntriesByType("navigation")[0];
-                  out.ttfb = nav instanceof PerformanceNavigationTiming ? nav.responseStart : 0;
-                  const onLcp = (entries: PerformanceEntryList) => {
-                    const last = entries.at(-1);
-                    if (last) out.lcp = last.startTime;
-                  };
-                  const shifts: { at: number; value: number }[] = [];
-                  // LayoutShift は TypeScript の DOM の型に無いので、使う欄を持つかで確かめる
-                  const isLayoutShift = (
-                    e: PerformanceEntry,
-                  ): e is PerformanceEntry & { value: number; hadRecentInput: boolean } =>
-                    "value" in e && "hadRecentInput" in e;
-                  const onShift = (entries: PerformanceEntryList) => {
-                    for (const e of entries) {
-                      if (isLayoutShift(e) && !e.hadRecentInput)
-                        shifts.push({ at: e.startTime, value: e.value });
-                    }
-                  };
-                  // セッションウィンドウ: 直前のずれから 1 秒を超えるか、最初のずれから 5 秒を超えたら次の窓にする
-                  const sessionWindowCls = () => {
-                    let max = 0;
-                    let sum = 0;
-                    let first = -Infinity;
-                    let prev = -Infinity;
-                    for (const s of [...shifts].sort((a, b) => a.at - b.at)) {
-                      if (s.at - prev > 1000 || s.at - first > 5000) {
-                        sum = 0;
-                        first = s.at;
-                      }
-                      sum += s.value;
-                      prev = s.at;
-                      max = Math.max(max, sum);
-                    }
-                    return max;
-                  };
-                  const onLongTask = (entries: PerformanceEntryList) => {
-                    for (const e of entries) out.tbt += Math.max(0, e.duration - 50);
-                  };
-                  const observers: [PerformanceObserver, (e: PerformanceEntryList) => void][] = [
-                    [new PerformanceObserver((l) => onLcp(l.getEntries())), onLcp],
-                    [new PerformanceObserver((l) => onShift(l.getEntries())), onShift],
-                    [new PerformanceObserver((l) => onLongTask(l.getEntries())), onLongTask],
-                  ];
-                  observers[0][0].observe({ type: "largest-contentful-paint", buffered: true });
-                  observers[1][0].observe({ type: "layout-shift", buffered: true });
-                  observers[2][0].observe({ type: "longtask", buffered: true });
-                  setTimeout(() => {
-                    // コールバックは非同期なので、まだ渡されていないエントリを取り出してから返す
-                    for (const [observer, handle] of observers) {
-                      handle(observer.takeRecords());
-                      observer.disconnect();
-                    }
-                    out.cls = sessionWindowCls();
-                    resolve(out);
-                  }, settle);
-                },
-              ),
-            settleMs,
-          );
-          // 0 回目はウォームアップ（ブラウザの起動直後の 1 回は遅い）。記録しない
-          if (run > 0)
-            samples.push({ page: pageDef.name, viewport: viewport.label, run, ...values });
-        } finally {
-          await context.close();
-        }
-      }
-    }
-  }
+  const samples = await collectSamples(browser, {
+    contextOptions,
+    pages,
+    viewports,
+    runs,
+    settleMs,
+  });
 
-  const cpuList = cpus();
   writeJsonAtomic(out, {
     version: PERF_SAMPLES_VERSION,
     side,
@@ -199,21 +82,7 @@ test("性能の採取", async ({ browser }, testInfo) => {
       pages: pages.map((p) => ({ name: p.name, path: p.path })),
       viewports: viewports.map((v) => ({ label: v.label, width: v.width, height: v.height })),
     },
-    environment: {
-      browser_name: browser.browserType().name(),
-      browser_version: browser.version(),
-      channel,
-      headless,
-      target_placement: placement,
-      context_options: contextFingerprint(contextOptions),
-      launch_options: launchFingerprint(use.launchOptions),
-      runner: {
-        platform: platform(),
-        arch: arch(),
-        cpu_model: cpuList[0]?.model ?? null,
-        cpu_count: cpuList.length > 0 ? cpuList.length : null,
-      },
-    },
+    environment: environmentRecord(browser, { channel, headless, placement, contextOptions, use }),
     settings: {
       runs,
       warmup: 1,
@@ -224,6 +93,220 @@ test("性能の採取", async ({ browser }, testInfo) => {
     samples,
   });
 });
+
+// 実行した project が current か new で、直列（--workers=1）で実行されているかを確かめ、project 名を返す
+function requireSide(testInfo: TestInfo): "current" | "new" {
+  const side = testInfo.project.name;
+  if (side !== "current" && side !== "new") {
+    throw new Error(`current / new 以外の project で実行された: ${side}`);
+  }
+  if (testInfo.config.workers !== 1) {
+    throw new Error(
+      `--workers=1 で実行する（並列の読み込みは互いの値を遅くする）: workers=${testInfo.config.workers}`,
+    );
+  }
+  return side;
+}
+
+// 対象機能の記録のディレクトリ（root）と、記録の出力先。出力先が root の外を指すなら失敗にする
+function outputPaths(side: "current" | "new"): { slug: string; root: string; out: string } {
+  const slug = requireName("PARITY_SLUG");
+  const repoRoot = process.env.PARITY_REPO_ROOT ?? process.cwd();
+  const root = join(repoRoot, ".replace", "parity", slug);
+  const out =
+    side === "current"
+      ? join(root, "perf-samples.json")
+      : join(root, "new", requireName("PARITY_NEW_TARGET"), "perf-samples.json");
+  const rel = relative(root, out);
+  if (rel.startsWith("..") || isAbsolute(rel))
+    throw new Error(`出力先 ${out} が ${root} の外を指す`);
+  return { slug, root, out };
+}
+
+// 1 組あたりの回数と、読み込みの後に値を読むまでの時間を環境変数から読む
+function runSettings(): { runs: number; settleMs: number } {
+  const runs = Number(process.env.PARITY_PERF_RUNS ?? "10");
+  const settleMs = Number(process.env.PARITY_PERF_SETTLE_MS ?? "3000");
+  if (!Number.isInteger(runs) || runs < 5)
+    throw new Error(`PARITY_PERF_RUNS は 5 以上の整数: ${runs}`);
+  if (!Number.isInteger(settleMs) || settleMs < 0)
+    throw new Error(`PARITY_PERF_SETTLE_MS は 0 以上の整数: ${settleMs}`);
+  return { runs, settleMs };
+}
+
+// 組は metadata.json（parity-suite が記録した現側の条件）から読む。手で書き写さない
+function captureConditions(root: string): { pages: PageDef[]; viewports: Viewport[] } {
+  const metadata = JSON.parse(readFileSync(join(root, "metadata.json"), "utf8"));
+  const pages: PageDef[] = metadata.capture_conditions.pages;
+  const viewports: Viewport[] = metadata.capture_conditions.viewports;
+  return { pages, viewports };
+}
+
+// ブラウザが Chromium 系かを確かめ、channel と headless を返す。Google へ送信する構成なら警告を出す
+function browserSettings(
+  browser: Browser,
+  use: Use,
+): { channel: string | null; headless: boolean } {
+  // largest-contentful-paint と longtask は Chromium 系でしか観測できない（Firefox・WebKit では observe が例外になる）
+  if (browser.browserType().name() !== "chromium") {
+    throw new Error(`性能は chromium の project で採る: ${browser.browserType().name()}`);
+  }
+  const channel = use.channel ?? null;
+  const headless = use.headless ?? true; // Playwright Test のデフォルトは headless: true
+  if (channel !== null || headless === false) {
+    console.warn(
+      `[perf] channel=${channel} headless=${headless}: ブラウザ本体が Google へ送信する構成で測っている（デフォルトの headless shell では送信しない）`,
+    );
+  }
+  return { channel, headless };
+}
+
+// viewports × pages の組ごとに、ウォームアップの 1 回と runs 回を読み込み、ウォームアップ以外の値を並べる
+async function collectSamples(
+  browser: Browser,
+  plan: {
+    contextOptions: Record<string, unknown>;
+    pages: PageDef[];
+    viewports: Viewport[];
+    runs: number;
+    settleMs: number;
+  },
+): Promise<Record<string, unknown>[]> {
+  const samples: Record<string, unknown>[] = [];
+  for (const viewport of plan.viewports) {
+    for (const pageDef of plan.pages) {
+      for (let run = 0; run <= plan.runs; run += 1) {
+        const values = await measureOnce(browser, { ...plan, viewport, pageDef });
+        // 0 回目はウォームアップ（ブラウザの起動直後の 1 回は遅い）。記録しない
+        if (run > 0) samples.push({ page: pageDef.name, viewport: viewport.label, run, ...values });
+      }
+    }
+  }
+  return samples;
+}
+
+// 新しいコンテキスト（キャッシュの無い状態）で 1 回読み込み、値を読む
+async function measureOnce(
+  browser: Browser,
+  target: {
+    contextOptions: Record<string, unknown>;
+    viewport: Viewport;
+    pageDef: PageDef;
+    settleMs: number;
+  },
+): Promise<PerfValues> {
+  // TODO: 認証を storageState 以外の方法で入れているなら、プロジェクトの現側スペックと同じ方法でここに入れる。
+  // browser.newContext は project の use を引き継がないので、スイートと同じ指定になるよう、コンテキストの設定を移す
+  const context = await browser.newContext({
+    ...target.contextOptions,
+    viewport: { width: target.viewport.width, height: target.viewport.height },
+  });
+  try {
+    const page = await context.newPage();
+    await page.goto(target.pageDef.path, { waitUntil: "load" });
+    const reading = await page.evaluate(readInPage, target.settleMs);
+    return {
+      lcp: reading.lcp,
+      cls: sessionWindowCls(reading.shifts),
+      tbt: reading.tbt,
+      ttfb: reading.ttfb,
+    };
+  } finally {
+    await context.close();
+  }
+}
+
+// ページの中で実行する。page.evaluate は関数を文字列にしてページへ渡すので、この関数の外の名前を参照しない。
+// 出典: https://developer.mozilla.org/docs/Web/API/PerformanceObserver/observe（buffered）、
+// https://web.dev/articles/lcp・https://web.dev/articles/cls・https://web.dev/articles/tbt
+function readInPage(settle: number): Promise<PageReading> {
+  return new Promise<PageReading>((resolve) => {
+    const out: PageReading = { lcp: null, shifts: [], tbt: 0, ttfb: 0 };
+    const nav = performance.getEntriesByType("navigation")[0];
+    out.ttfb = nav instanceof PerformanceNavigationTiming ? nav.responseStart : 0;
+    const onLcp = (entries: PerformanceEntryList) => {
+      const last = entries.at(-1);
+      if (last) out.lcp = last.startTime;
+    };
+    // LayoutShift は TypeScript の DOM の型に無いので、使う欄を持つかで確かめる
+    const isLayoutShift = (
+      e: PerformanceEntry,
+    ): e is PerformanceEntry & { value: number; hadRecentInput: boolean } =>
+      "value" in e && "hadRecentInput" in e;
+    const onShift = (entries: PerformanceEntryList) => {
+      for (const e of entries) {
+        if (isLayoutShift(e) && !e.hadRecentInput)
+          out.shifts.push({ at: e.startTime, value: e.value });
+      }
+    };
+    const onLongTask = (entries: PerformanceEntryList) => {
+      for (const e of entries) out.tbt += Math.max(0, e.duration - 50);
+    };
+    const observers: [PerformanceObserver, (e: PerformanceEntryList) => void][] = [
+      [new PerformanceObserver((l) => onLcp(l.getEntries())), onLcp],
+      [new PerformanceObserver((l) => onShift(l.getEntries())), onShift],
+      [new PerformanceObserver((l) => onLongTask(l.getEntries())), onLongTask],
+    ];
+    observers[0][0].observe({ type: "largest-contentful-paint", buffered: true });
+    observers[1][0].observe({ type: "layout-shift", buffered: true });
+    observers[2][0].observe({ type: "longtask", buffered: true });
+    setTimeout(() => {
+      // コールバックは非同期なので、まだ渡されていないエントリを取り出してから返す
+      for (const [observer, handle] of observers) {
+        handle(observer.takeRecords());
+        observer.disconnect();
+      }
+      resolve(out);
+    }, settle);
+  });
+}
+
+// セッションウィンドウ: 直前のずれから 1 秒を超えるか、最初のずれから 5 秒を超えたら次の窓にする
+function sessionWindowCls(shifts: Shift[]): number {
+  let max = 0;
+  let sum = 0;
+  let first = -Infinity;
+  let prev = -Infinity;
+  for (const s of [...shifts].sort((a, b) => a.at - b.at)) {
+    if (s.at - prev > 1000 || s.at - first > 5000) {
+      sum = 0;
+      first = s.at;
+    }
+    sum += s.value;
+    prev = s.at;
+    max = Math.max(max, sum);
+  }
+  return max;
+}
+
+// 記録の environment。perf-stats.mjs が両側で突き合わせる
+function environmentRecord(
+  browser: Browser,
+  run: {
+    channel: string | null;
+    headless: boolean;
+    placement: "loopback" | "remote";
+    contextOptions: Record<string, unknown>;
+    use: Use;
+  },
+): Record<string, unknown> {
+  const cpuList = cpus();
+  return {
+    browser_name: browser.browserType().name(),
+    browser_version: browser.version(),
+    channel: run.channel,
+    headless: run.headless,
+    target_placement: run.placement,
+    context_options: contextFingerprint(run.contextOptions),
+    launch_options: launchFingerprint(run.use.launchOptions),
+    runner: {
+      platform: platform(),
+      arch: arch(),
+      cpu_model: cpuList[0]?.model ?? null,
+      cpu_count: cpuList.length > 0 ? cpuList.length : null,
+    },
+  };
+}
 
 // project の use のうち、コンテキストを作るときに渡す設定（Playwright の BrowserContextOptions。1.63 の types.d.ts で確かめた）。
 // 出典: https://playwright.dev/docs/api/class-browser#browser-new-context

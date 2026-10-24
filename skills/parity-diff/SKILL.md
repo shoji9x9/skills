@@ -282,6 +282,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
   [`scripts/coverage-check.mjs`](scripts/coverage-check.mjs)・[`scripts/pending-triage-check.mjs`](scripts/pending-triage-check.mjs)・[`scripts/amend-verify.mjs`](scripts/amend-verify.mjs) である。
   性能の比較は、インストール済みの `parity-suite` の `scripts/perf-stats.mjs` を `compare` で呼ぶ（コピーしない）。
   特性照合と応答ヘッダーの正規化は、`parity-suite` で確定した取り決めに従い、プロジェクトの側のコピー（`trait-capture.mjs`・`trait-compare.mjs`・`header-normalize.mjs`）を使う。
+  `trait-capture.mjs` は、隣の `page/trait-capture.page.mjs` のコピーと一緒に使う（コピーの手順の原本は `parity-suite` の `references/baseline.md`）。
 
 ## 姉妹スキルとの連携
 
