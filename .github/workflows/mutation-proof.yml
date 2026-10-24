@@ -24,15 +24,26 @@ defaults:
     shell: bash
 
 jobs:
-  mutation-proof:
-    name: All mutations
+  # 全件を 1 つのジョブで直列に測ると、timeout（40 分）に届く。そこで、ci.yml と同じ `--shard i/N` で matrix に分ける。
+  # 分割数は「直列の合計 ÷ 20 分（timeout の半分）」の切り上げにする（Issue #747）。
+  # 定義を絞った後（627 変異）の直列の実測は、40 分で cancelled になるまでに 36 宣言・358 変異で 2285 秒だった
+  # （run 40060212536）。残り 426 変異の見積もり（mutation-durations.json）は約 1200 秒で、合計は約 3500 秒（58 分）。
+  # 58 分 ÷ 20 分の切り上げで 3 になるが、見積もりは並列の CI の値で直列より短く出るので、1 つ足して 4 にする。
+  # PR の CI の 12 シャードと同時に動いても、同時実行の上限 20 に収まる。
+  #
+  # PR の CI（ci.yml）のシャードの実測は次のとおりである。
+  # 6 分割・変異の通し番号の割り当てでは、1457 変異で 1 シャード最長 11 分 10 秒になった（PR #604、run 38253076063）。
+  # 12 シャード・宣言を単位に所要時間で均す割り当て（Issue #607）では、1468 変異で 1 シャード最長 5 分 36 秒（PR #608、run 38319089775）。
+  # ci.yml のシャードの timeout（20 分）はこの値を根拠にしている（変異が増える前提で、約 3.5 倍の余裕を取る）。
+  mutation-proof-shard:
+    name: All mutations shard ${{ matrix.shard }}
     runs-on: ubuntu-latest
-    # 全件は CI で 1690 秒（504 変異。2026-09-28 の週次 run、PR #509 の高速化前）＝ timeout の 71%。
-    # PR #509 後は当時の 6 分割の合計 1143 秒（569 変異）。宣言は 660 変異まで増えたので、週次の実測で比率を見直す。
-    # PR の CI（当時の `ci.yml` の 6 分割シャード）では全宣言に広がったとき 1 シャード最長 3 分 47 秒（569 変異。PR #509）。
-    # 6 分割・変異の通し番号の割り当てでは、1457 変異で 1 シャード最長 11 分 10 秒になった（PR #604、run 38253076063）。
-    # 12 シャード・宣言を単位に所要時間で均す割り当て（Issue #607）では、1468 変異で 1 シャード最長 5 分 36 秒（PR #608、run 38319089775）。
-    # ci.yml のシャードの timeout（20 分）はこの値を根拠にしている（変異が増える前提で、約 3.5 倍の余裕を取る）。
+    strategy:
+      # 1 つの赤で他のシャードを止めない（どの変異が実証できないかを一度に出す）。
+      fail-fast: false
+      matrix:
+        # 分割数を変えたら、上の根拠のコメントを実測で書き直す。
+        shard: [1, 2, 3, 4]
     timeout-minutes: 40
     permissions:
       contents: read
@@ -43,5 +54,27 @@ jobs:
       - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
       - run: pnpm install --frozen-lockfile
       # 引数なし = `scripts/**/*.mutations.json` の全件。宣言 0 件は成功として扱わない（スクリプト側で exit 2）。
-      - name: Mutation proof (all specs)
-        run: node scripts/mutation/check-mutation-proof.ts
+      - name: Mutation proof (all specs, one shard)
+        env:
+          JOB_INDEX: ${{ strategy.job-index }}
+          JOB_TOTAL: ${{ strategy.job-total }}
+        run: node scripts/mutation/check-mutation-proof.ts --shard "$((JOB_INDEX + 1))/${JOB_TOTAL}"
+
+  # 実行の結果を 1 つにまとめる。シャードが 1 本でも成功以外（失敗・中止・スキップ）なら落とす。
+  mutation-proof:
+    name: All mutations
+    if: always()
+    needs: [mutation-proof-shard]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: All shards succeeded
+        env:
+          RESULT: ${{ needs.mutation-proof-shard.result }}
+        run: |
+          echo "シャードの結果: ${RESULT}"
+          if [ "${RESULT}" != "success" ]; then
+            echo "ミューテーションテストのシャードが成功していない（${RESULT}）。各シャードのログを確かめる" >&2
+            exit 1
+          fi
