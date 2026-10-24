@@ -526,7 +526,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
   応答ヘッダーを録画する場合は [`scripts/header-normalize.mjs`](scripts/header-normalize.mjs) である。
   実行するときは、プロジェクトの側の `<parity_suite_dir>/parity/lib/tools/vendor/`（デフォルト）にコピーして使い、実際のパスを `metadata.json` に記録する。
   trait-capture.mjs と element-shot.mjs は、ページで実行する本体を [`scripts/page/`](scripts/page/) の `trait-capture.page.mjs`・`element-shot.page.mjs` から import する。
-  そのため、この 2 つをコピーするときは、対になる page ファイルも同じ版から、コピー先の隣の `page/`（デフォルトは `vendor/page/`）へコピーする
+  そのため、この 2 つをコピーするときは、対になる page ファイルも同じ版から、コピー先の隣の `page/`（デフォルトは `vendor/page/`）へコピーする。
   コピーは修正しない取り決めなので、プロジェクトが自作したツールとパスで分けられる、コピー専用のサブディレクトリに置く（置き方は [`references/locator-mapping.md`](references/locator-mapping.md)）
 - 網羅プロファイルと、[`scripts/coverage-expand.mjs`](scripts/coverage-expand.mjs)・[`scripts/pixel-strict-count.mjs`](scripts/pixel-strict-count.mjs) は、コピーしない。
   スキルの中のスクリプトをそのまま実行する（`gh skill update` の自動更新を反映させるため）。

@@ -67,7 +67,7 @@
 
   プロパティの集合の原本は [`../scripts/trait-capture.mjs`](../scripts/trait-capture.mjs) の `FIXED_PROPERTIES` で、増減させたら `VERSION` を上げる。
 - `url()` を値に持つプロパティは、参照先の資産の中身までは照合していない。
-  採取ツールは、相対 URL を絶対にしたときのホストの違いを消すため、同じオリジンの `url()` をオリジンに依らない印にまとめる（[`../scripts/trait-capture.mjs`](../scripts/trait-capture.mjs) の `foldOrigin`）。
+  採取ツールは、相対 URL を絶対にしたときのホストの違いを消すため、同じオリジンの `url()` をオリジンに依らない印にまとめる（[`../scripts/page/trait-capture.page.mjs`](../scripts/page/trait-capture.page.mjs) の `foldOrigin`）。
   そのため、**現新が同じパスで別のバイトの資産を配っていると、その見た目の差は特性の照合にも画素にも現れない**（カスタムカーソルの画像が当たる）。
   対象の要素があれば、`gaps.md` の「特性化できなかった箇所と理由」に種別「採取値の射程外」として残し、確認済みにしない。
   強度のチェックで注入しても特性の照合が赤にならないので、`strength.md` の「未検証の故障種別」にも同じ理由で残す。

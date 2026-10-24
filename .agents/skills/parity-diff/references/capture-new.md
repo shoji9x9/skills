@@ -152,7 +152,9 @@
 ## 特性採取
 
 - 採取のツールは、プロジェクトの側のコピー `metadata.json.suite.tools` の `trait-capture.mjs` を使う。
-  スキルの間で参照せず、プロジェクトの側のコピーを使うのは、インストールに依存しないためである（原本は `parity-suite` に同梱している）
+  スキルの間で参照せず、プロジェクトの側のコピーを使うのは、インストールに依存しないためである（原本は `parity-suite` に同梱している）。
+  trait-capture.mjs は、ページで実行する本体を隣の `page/trait-capture.page.mjs` から import する。そのため、page ファイルのコピーも要る。
+  コピーの手順の原本は、`parity-suite` の `references/baseline.md` である。
 - 採る対象・プロパティの集合・状態は、現行と同じにする（`metadata.json.traits.property_set`・`traits.elements`・`capture_conditions.states`）
 - 相対的な位置と大きさは、`getBoundingClientRect()` から要素の対の関係を導いて比べる（絶対的な座標は比べない。導くのは `trait-compare.mjs` の側）
 - 採取が `element is outside the document` で失敗したら、新側の論理名が、描画されていない要素（支援技術のためのコピー）に解決している。

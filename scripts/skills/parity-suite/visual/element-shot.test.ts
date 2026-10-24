@@ -406,7 +406,7 @@ function frameLocatorWith(run: PageRun, ...sequence: FakeElement[]) {
   };
 }
 
-/** ページの処理の当て方を問わないテストが使う locator（組み立てた関数をそのまま当てる）。 */
+/** ページの処理の当て方を問わないテストが使う locator（ページへ渡すソースを評価し直して当てる）。 */
 function frameLocator(...sequence: FakeElement[]) {
   return frameLocatorWith(runSource, ...sequence);
 }

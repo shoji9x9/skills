@@ -114,14 +114,25 @@ export default defineConfig({
       // どちらも、宣言していない名前の参照は、ページで実行したときに初めて ReferenceError になる。
       // そこで、ブラウザのグローバルだけを宣言済みとして no-undef を当て、参照の誤りを lint で見つける。
       // 本体は export するので、no-unused-vars はこの設定なしで本体を使われているものとして扱う。
-      // evaluate はその関数のソースだけを送るので、本体が呼ぶ helper は本体の中に入れ子で書くしかない。
-      // 入れ子の行数と分岐は本体に数えられるので、関数の大きさのルールはこのファイルに限って外す。
-      // 外にある helper を送るために new Function でソースを組み立てる方法は、利用者の lint や
-      // --disallow-code-generation-from-strings で止まるので採らない。
       files: ["skills/*/scripts/page/*.page.mjs"],
       env: { browser: true },
       rules: {
         "no-undef": "error",
+      },
+    },
+    {
+      // 本体の関数を Playwright の evaluate へそのまま渡す page ファイル。evaluate はその関数のソースだけを送るので、
+      // 本体が呼ぶ helper は本体の中に入れ子で書くしかない。入れ子の行数と分岐は本体に数えられるので、
+      // 関数の大きさのルールはこのファイルに限って外す。
+      // 外にある helper を送るために new Function でソースを組み立てる方法は、利用者の lint や
+      // --disallow-code-generation-from-strings で止まるので採らない。
+      // CLI が本文を関数式で包む replace-strategy の page ファイルは、helper を最上位に置けるので対象にしない。
+      files: [
+        "skills/parity-suite/scripts/page/trait-capture.page.mjs",
+        "skills/parity-suite/scripts/page/element-shot.page.mjs",
+        "skills/parity-component/scripts/page/css-rules-capture.page.mjs",
+      ],
+      rules: {
         "max-lines-per-function": "off",
         complexity: "off",
         "max-depth": "off",

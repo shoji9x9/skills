@@ -258,6 +258,9 @@ function diffTextOwnerSize({ name, tol, out }, prefix, { expected, actual }) {
  */
 function diffTextOwnerPair(ctx, prefix, { expected, actual }) {
   const { name, out } = ctx;
+  // 呼び出し元は長い側の件数まで回すので、片側は必ずある。両側とも無い（null の要素など）なら、比べずに止める。
+  const present = expected || actual;
+  if (!present) throw new TypeError(`trait compare: ${prefix} の文字の持ち主が両側とも無い`);
   if (!expected || !actual) {
     out.push({
       name,
@@ -265,7 +268,7 @@ function diffTextOwnerPair(ctx, prefix, { expected, actual }) {
       prop: prefix,
       expected: expected ? "present" : "absent",
       actual: actual ? "present" : "absent",
-      text: (expected ?? actual)?.text,
+      text: present.text,
     });
     return;
   }

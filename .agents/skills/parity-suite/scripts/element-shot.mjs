@@ -124,7 +124,7 @@ export function planElementClip(rect, viewport) {
   return { x, y, width, height };
 }
 
-// --- ページの中で実行する関数 -------------------------------------------------
+// --- ページで測った値の受け取り ---------------------------------------------
 //
 // ページで実行する本体（measureInPage）は page/element-shot.page.mjs にあり、ここから import して
 // locator.evaluate へそのまま渡す。コピーするときは page/element-shot.page.mjs も、コピー先の隣の page/ へ一緒にコピーする。

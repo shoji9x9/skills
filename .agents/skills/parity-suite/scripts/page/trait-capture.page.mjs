@@ -4,6 +4,7 @@
 // 本体が呼ぶ関数はすべて本体の中に入れ子で書き、読むのは引数と素のグローバル（getComputedStyle・location・document など）だけにする。
 // このファイルは import を持たない。trait-capture.mjs と一緒に、その隣の page/ へコピーして使う。
 // 何を採るかと、採る理由は trait-capture.mjs の冒頭にある。
+// 出力の形（採る値・キー・正規化）を変えたら、trait-capture.mjs の VERSION を上げる。利用者のコピーは VERSION で版を突き合わせる。
 
 /** @typedef {{ x: number, y: number, width: number, height: number }} Rect */
 /** @typedef {{ top: number, bottom: number }} LineBand */
