@@ -560,37 +560,41 @@ describe.concurrent("宣言と前提の検証（実行する前に落とす）",
   });
 
   // テストのプロセスは別のプロセスグループにいて、端末の Ctrl-C（SIGINT）が届かない。中断したときも残さない。
-  test("終わらないテストの実行中に Ctrl-C で中断しても、子孫のプロセスを残さない", async () => {
-    const fx = makeFixture({ hangUnless: 'if [ -z "$X" ]; then' });
-    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
-    // 端末の前面のプロセスグループにあたるよう、ランナーを自分のプロセスグループで起動する。
-    const runner = spawn(process.execPath, [RUNNER, spec], {
-      cwd: repoRoot,
-      env: runnerEnv({ MUTATION_PROOF_RUN_TIMEOUT_MS: "60000" }),
-      stdio: "ignore",
-      detached: true,
-      timeout: CHILD_TIMEOUT_MS,
-    });
-    const group = runner.pid;
-    expect(group, "ランナーを起動できなかった").toBeGreaterThan(0);
-    const exited = new Promise((resolve) => runner.once("exit", resolve));
-    try {
-      await vi.waitFor(() => expect(existsSync(fx.hangPidFile)).toBe(true), { timeout: 20_000 });
-      process.kill(-Number(group), "SIGINT");
-      await vi.waitFor(() => expect(runner.exitCode ?? runner.signalCode).not.toBeNull(), {
-        timeout: 10_000,
+  test(
+    "終わらないテストの実行中に Ctrl-C で中断しても、子孫のプロセスを残さない",
+    { timeout: 60_000 },
+    async () => {
+      const fx = makeFixture({ hangUnless: 'if [ -z "$X" ]; then' });
+      const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+      // 端末の前面のプロセスグループにあたるよう、ランナーを自分のプロセスグループで起動する。
+      const runner = spawn(process.execPath, [RUNNER, spec], {
+        cwd: repoRoot,
+        env: runnerEnv({ MUTATION_PROOF_RUN_TIMEOUT_MS: "60000" }),
+        stdio: "ignore",
+        detached: true,
+        timeout: CHILD_TIMEOUT_MS,
       });
-      await exited;
-    } finally {
-      // 途中の確認が失敗しても、起動したランナーのグループを残さない（終わっていれば ESRCH になる）。
+      const group = runner.pid;
+      expect(group, "ランナーを起動できなかった").toBeGreaterThan(0);
+      const exited = new Promise((resolve) => runner.once("exit", resolve));
       try {
-        process.kill(-Number(group), "SIGKILL");
-      } catch {}
-    }
-    const pid = Number(readFileSync(fx.hangPidFile, "utf8"));
-    expect(Number.isInteger(pid) && pid > 0, String(pid)).toBe(true);
-    await vi.waitFor(() => expect(isAlive(pid)).toBe(false), { timeout: 5_000 });
-  });
+        await vi.waitFor(() => expect(existsSync(fx.hangPidFile)).toBe(true), { timeout: 20_000 });
+        process.kill(-Number(group), "SIGINT");
+        await vi.waitFor(() => expect(runner.exitCode ?? runner.signalCode).not.toBeNull(), {
+          timeout: 10_000,
+        });
+        await exited;
+      } finally {
+        // 途中の確認が失敗しても、起動したランナーのグループを残さない（終わっていれば ESRCH になる）。
+        try {
+          process.kill(-Number(group), "SIGKILL");
+        } catch {}
+      }
+      const pid = Number(readFileSync(fx.hangPidFile, "utf8"));
+      expect(Number.isInteger(pid) && pid > 0, String(pid)).toBe(true);
+      await vi.waitFor(() => expect(isAlive(pid)).toBe(false), { timeout: 5_000 });
+    },
+  );
 
   test.each(["", "0", "-1", "1.5", "abc"])(
     "MUTATION_PROOF_RUN_TIMEOUT_MS が正の整数でなければ exit 2（%j）",
@@ -1289,7 +1293,7 @@ require("node:module").syncBuiltinESMExports();
   // `MUTATION_PROOF_CHANGED_FILES` は差分の注入（git を使わずに選択だけを測るため）。
   //
   // **`--changed-since` を測るテストは、必ず `--only` で範囲を限る。**
-  // 選択の判定を常に真にする変異（`CHANGED-HITS`）が入ると、`--only` が無ければ、選ばれた全宣言を測りに行く。
+  // ランナーの選択の判定を常に真にする誤り（変更や変異）が入ると、`--only` が無ければ、選ばれた全宣言を測りに行く。
   // すると入れ子の runner が指数的に増える。
   // 実測では 30 分以上・21 プロセス以上に膨らみ、止めた後の作業ツリーに変異が残った。
   test("差分に当たらない宣言は飛ばし、理由を印字する", async () => {
@@ -1394,7 +1398,7 @@ require("node:module").syncBuiltinESMExports();
   // 共有のライブラリの変更で影響を受ける定義は、PR では選ばず、週次の全件の実行で確かめる（Issue #747）。
   // repo-file.ts は check-doc-refs-helpers.ts が import する共有のファイルで、どの定義のヘルパーでも変異の対象でもない。
   test("ヘルパーが import する共有のライブラリだけが変わっても、宣言を選ばない", async () => {
-    const res = await runRunner("--changed-since", "origin/main", "--only", "DR-LINK", {
+    const res = await runRunner("--changed-since", "origin/main", "--only", "DS-STALE", {
       MUTATION_PROOF_CHANGED_FILES: "scripts/lib/testing/repo-file.ts",
     });
     expect(res.status, res.out).toBe(0);

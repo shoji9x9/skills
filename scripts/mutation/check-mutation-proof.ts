@@ -1076,21 +1076,38 @@ function collectResults(report: VitestReport): Map<string, string> {
 /**
  * テストファイルを 1 回実行する時間の上限（ミリ秒）。
  * 変異でテストの中に同期の無限ループができると、vitest の testTimeout では止まらず、ランナーも終わらない。
- * 宣言ごとの 1 回の実行は、`mutation-durations.json` で最も長いものでも 30 秒ほどなので、その約 4 倍の 2 分にする。
- * 終わらない変異が同じシャードにいくつあっても、シャードの timeout（ci.yml の 20 分）より前に FAIL の一覧を出せるよう、長くしすぎない。
- * `MUTATION_PROOF_RUN_TIMEOUT_MS` で差し替えられる（**テスト用の seam**。使ったら必ず印字する）。
+ * 上限は、宣言ごとに基準 run（変異を入れない実行）の所要時間から決める。固定の値にすると、重いテストファイルでは
+ * 検出できている変異まで時間切れになり、軽いテストファイルでは終わらない変異を長く待つ。
+ * 変異を入れた実行は、子プロセスの時間切れを待つ分だけ基準 run より長くなりうるので、基準 run の 10 倍（下限 1 分）にする。
+ * 基準 run そのものには、`mutation-durations.json` で最も長い 1 回の実行（約 30 秒）の 20 倍の 10 分を上限にする。
+ * `MUTATION_PROOF_RUN_TIMEOUT_MS` で、すべての実行の上限を差し替えられる（**テスト用の seam**。使ったら必ず印字する）。
  */
-let runTimeoutCache: number | null = null;
-function runTimeoutMs(): number {
-  if (runTimeoutCache !== null) return runTimeoutCache;
+const BASELINE_TIMEOUT_MS = 600_000;
+const MIN_MUTATION_TIMEOUT_MS = 60_000;
+const MUTATION_TIMEOUT_FACTOR = 10;
+let injectedTimeoutCache: number | null | undefined;
+function injectedTimeoutMs(): number | null {
+  if (injectedTimeoutCache !== undefined) return injectedTimeoutCache;
   const injected = process.env.MUTATION_PROOF_RUN_TIMEOUT_MS;
-  if (injected === undefined) return (runTimeoutCache = 120_000);
+  if (injected === undefined) return (injectedTimeoutCache = null);
   const value = Number(injected);
   if (!/^[1-9][0-9]*$/.test(injected) || !Number.isSafeInteger(value)) {
     die(`MUTATION_PROOF_RUN_TIMEOUT_MS が正の整数でない: ${JSON.stringify(injected)}`);
   }
   console.error(`実行の上限: MUTATION_PROOF_RUN_TIMEOUT_MS=${injected}（テスト用の注入）`);
-  return (runTimeoutCache = value);
+  return (injectedTimeoutCache = value);
+}
+
+/** 基準 run の上限。 */
+function baselineTimeoutMs(): number {
+  return injectedTimeoutMs() ?? BASELINE_TIMEOUT_MS;
+}
+
+/** 変異を入れた実行の上限。`baselineMs` は、同じ宣言の基準 run の所要時間。 */
+function mutationTimeoutMs(baselineMs: number): number {
+  const injected = injectedTimeoutMs();
+  if (injected !== null) return injected;
+  return Math.max(MIN_MUTATION_TIMEOUT_MS, Math.ceil(baselineMs * MUTATION_TIMEOUT_FACTOR));
 }
 
 /** 子の起動に失敗したことを、包む側のプロセスが知らせる印（stderr の 1 行の先頭）。 */
@@ -1109,8 +1126,10 @@ const SPAWN_ERROR_STATUS = 127;
 const GROUP_WRAPPER = `
 const { spawn } = require("node:child_process");
 const [file, ...args] = process.argv.slice(1);
-const child = spawn(file, args, { stdio: "inherit", detached: true });
+// signal の処理と親の確認は、子を起動する前に登録する。起動の直後に signal が届いても、子のグループを止められるようにする。
+let child = null;
 const killGroup = () => {
+  if (child === null || child.pid === undefined) return;
   try {
     process.kill(-child.pid, "SIGKILL");
   } catch {}
@@ -1128,6 +1147,7 @@ setInterval(() => {
     process.exit(1);
   }
 }, 1000);
+child = spawn(file, args, { stdio: "inherit", detached: true });
 child.on("error", (err) => {
   console.error(${JSON.stringify(SPAWN_ERROR_MARK)} + err.message);
   process.exit(${SPAWN_ERROR_STATUS});
@@ -1146,12 +1166,12 @@ child.on("exit", (code) => {
  * **`die()` は `process.exit` なので finally を飛ばす。** 変異の復元と同じく exit ハンドラで
  * 二重化して、起動失敗・重複検出で落ちたときに一時ディレクトリを残さない。
  */
-function runTests(testFile: string): RunResult {
+function runTests(testFile: string, timeout: number): RunResult {
   const dir = mkdtempSync(join(tmpdir(), "mutation-proof-"));
   tempDirs.add(dir);
   const outFile = join(dir, "result.json");
   try {
-    const res = spawnTests(testFile, outFile);
+    const res = spawnTests(testFile, outFile, timeout);
     if (!res.done) return res.run;
     const output = res.output;
     if (!existsSync(outFile)) {
@@ -1182,9 +1202,9 @@ function runTests(testFile: string): RunResult {
 function spawnTests(
   testFile: string,
   outFile: string,
+  timeout: number,
 ): { done: true; output: string } | { done: false; run: RunResult } {
   const command = testCommand();
-  const timeout = runTimeoutMs();
   const args = [...command.prefix, "run", testFile, "--reporter=json", `--outputFile=${outFile}`];
   const res = spawnSync(process.execPath, ["-e", GROUP_WRAPPER, command.file, ...args], {
     cwd: repoRoot,
@@ -1231,7 +1251,7 @@ class MutationWriteError extends Error {
 }
 
 /** 変異を当てて実行し、元に戻す。戻し忘れを残さないため、復元まで必ず通る。 */
-function proveMutation(mutation: Mutation, testFile: string): ProveResult {
+function proveMutation(mutation: Mutation, testFile: string, timeout: number): ProveResult {
   const original = readFileSync(mutation.target, "utf8");
   const hits = original.split(mutation.find).length - 1;
   if (hits !== mutation.occurrences) {
@@ -1260,7 +1280,7 @@ function proveMutation(mutation: Mutation, testFile: string): ProveResult {
       throw new MutationWriteError(err instanceof Error ? err : new Error(String(err)));
     }
     wroteMutation = true;
-    run = runTests(testFile);
+    run = runTests(testFile, timeout);
   } catch (err) {
     // finally の exit(2) が元の例外を隠さないよう、照合の前に覚えておく。
     thrown = err;
@@ -1428,10 +1448,15 @@ function applyShard(plans: Plan[], shard: { index: number; total: number }): boo
   return true;
 }
 
-/** 基準 run（変異を入れない実行）を測り、緑であることと、宣言したテスト名が実在することを確かめる。 */
-function checkBaseline(spec: Spec, targeted: Mutation[]) {
+/**
+ * 基準 run（変異を入れない実行）を測り、緑であることと、宣言したテスト名が実在することを確かめる。
+ * 基準 run の所要時間（ミリ秒）を返す（変異を入れた実行の上限に使う）。
+ */
+function checkBaseline(spec: Spec, targeted: Mutation[]): number {
   // **基準は先に測る。** 変異前が緑でなければ、落ちた原因を変異に帰属できない。
-  const baseline = runTests(spec.testFile);
+  const baselineStart = performance.now();
+  const baseline = runTests(spec.testFile, baselineTimeoutMs());
+  const baselineMs = performance.now() - baselineStart;
   if (!baseline.ran) die(`基準 run を実行できなかった: ${baseline.reason}`);
   if (baseline.failed.size > 0) {
     die(`基準 run が緑でない（先に直す）: ${sorted(baseline.failed).join(" / ")}`);
@@ -1446,13 +1471,14 @@ function checkBaseline(spec: Spec, targeted: Mutation[]) {
       die(`${m.id}: expect_failing に実在しないテスト名がある: ${unknown.join(" / ")}`);
     }
   }
+  return baselineMs;
 }
 
 /** 1 変異を測って、PASS か FAIL を出力する。実証できたら true を返す。 */
-function measureMutation(m: Mutation, testFile: string): boolean {
+function measureMutation(m: Mutation, testFile: string, timeout: number): boolean {
   let res: ProveResult;
   try {
-    res = proveMutation(m, testFile);
+    res = proveMutation(m, testFile, timeout);
   } catch (err) {
     // 変異を当てられない（ENOSPC・EACCES・ハードリンクなど）のは環境や前提の誤りで、変異の判定ではない。
     // 捕捉しないと node が exit 1（実証できない変異がある）で終わり、呼び出し側が判定を取り違える。
@@ -1489,9 +1515,9 @@ function measurePlans(plans: Plan[]): { proven: number; failures: number; timing
     if (targeted.length === 0) continue;
     const specStart = performance.now();
     console.log(`\n=== ${relative(repoRoot, spec.specPath)} → ${spec.testFile}`);
-    checkBaseline(spec, targeted);
+    const timeout = mutationTimeoutMs(checkBaseline(spec, targeted));
     for (const m of targeted) {
-      if (measureMutation(m, spec.testFile)) proven++;
+      if (measureMutation(m, spec.testFile, timeout)) proven++;
       else failures++;
     }
     const seconds = (performance.now() - specStart) / 1000;

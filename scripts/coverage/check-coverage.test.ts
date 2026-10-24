@@ -142,7 +142,6 @@ test("evaluate: 除外と 1 ファイルの規則の両方に書いたファイ�
 test("parseConfig: 正しい設定を読み、閾値を指標ごとに持つ", () => {
   expect(config(base).rules[0]).toEqual({
     path: "scripts/",
-
     thresholds: { lines: 90, branches: 80, functions: 90 },
   });
 });
@@ -201,6 +200,11 @@ test.each([
     "除外がディレクトリ",
     { rules: [], exclude: [{ path: "a/", reason: "r" }] },
     /ファイルごとに書く/,
+  ],
+  [
+    "除外が測る対象のファイルでない",
+    { rules: [], exclude: [{ path: "a.sh", reason: "r" }] },
+    /測る対象のファイルでない/,
   ],
   [
     "除外が重複",

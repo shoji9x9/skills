@@ -84,6 +84,10 @@ export function parseConfig(value: unknown): Config {
     if (!isNonBlankString(raw.reason)) throw new Error(`${at}: reason が無い`);
     if (raw.path.endsWith("/"))
       throw new Error(`${at}: 除外はファイルごとに書く（ディレクトリは書けない）`);
+    if (!isMeasured(raw.path))
+      throw new Error(
+        `${at}: ${raw.path} はカバレッジを測る対象のファイルでない（除外は要らない）`,
+      );
     return { path: raw.path, reason: raw.reason };
   });
   const paths = exclude.map((e) => e.path);
