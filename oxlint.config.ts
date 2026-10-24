@@ -129,9 +129,8 @@ export default defineConfig({
       // --disallow-code-generation-from-strings で止まるので採らない。
       // CLI が本文を関数式で包む replace-strategy の page ファイルは、本体が呼ぶ関数を最上位に置けるので対象にしない。
       files: [
-        "skills/parity-suite/scripts/page/trait-capture.page.mjs",
-        "skills/parity-suite/scripts/page/element-shot.page.mjs",
-        "skills/parity-component/scripts/page/css-rules-capture.page.mjs",
+        "skills/parity-suite/scripts/page/*.page.mjs",
+        "skills/parity-component/scripts/page/*.page.mjs",
       ],
       rules: {
         "max-lines-per-function": "off",
