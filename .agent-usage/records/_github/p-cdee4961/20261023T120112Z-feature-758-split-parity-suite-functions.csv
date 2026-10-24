@@ -24,3 +24,6 @@ coverage:github:2026-10-23T02:04:00.814Z:2026-10-24T02:24:03.125Z,coverage,2026-
 ci:40054189786:1,ci,2026-10-24T02:43:18.593Z,p-cdee4961,github-actions,,,,2026-10-24T02:26:45.000Z,2026-10-24T02:26:46.000Z,Asia/Tokyo,feature/758-split-parity-suite-functions,758,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:40054189850:1,ci,2026-10-24T02:43:18.593Z,p-cdee4961,github-actions,,,,2026-10-24T02:26:45.000Z,2026-10-24T02:30:48.000Z,Asia/Tokyo,feature/758-split-parity-suite-functions,758,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-23T02:24:03.125Z:2026-10-24T02:43:18.593Z,coverage,2026-10-24T02:43:18.593Z,p-cdee4961,,,,,2026-10-23T02:24:03.125Z,2026-10-24T02:43:18.593Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:40055538684:1,ci,2026-10-24T02:47:15.873Z,p-cdee4961,github-actions,,,,2026-10-24T02:46:02.000Z,2026-10-24T02:46:03.000Z,Asia/Tokyo,feature/758-split-parity-suite-functions,758,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40055538719:1,ci,2026-10-24T02:47:15.873Z,p-cdee4961,github-actions,,,,2026-10-24T02:46:02.000Z,2026-10-24T02:47:15.873Z,Asia/Tokyo,feature/758-split-parity-suite-functions,758,,,,,,,,,,CI;pull_request;open,
+coverage:github:2026-10-23T02:43:18.593Z:2026-10-24T02:47:15.873Z,coverage,2026-10-24T02:47:15.873Z,p-cdee4961,,,,,2026-10-23T02:43:18.593Z,2026-10-24T02:47:15.873Z,Asia/Tokyo,,,,,,,,,,,,ok,

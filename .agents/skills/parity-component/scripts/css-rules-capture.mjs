@@ -47,6 +47,9 @@
 import { isArray } from "./lib/is-array.mjs";
 import { collectInPage } from "./page/css-rules-capture.page.mjs";
 
+// 要素 1 つの採取を Node から直接呼ぶ関数。利用者のコードが import しうる公開の名前なので、本体の別名として export する。
+export { collectInPage as collectMatchedRules };
+
 /**
  * ツールのバージョン（このスクリプトで定義する）。採取スキーマ（出力の形・状態擬似クラスの集合）を変えたら上げる。
  * 2: `inline_declarations`（style 属性の宣言）と `counts.outer_scope_skipped` を足した。

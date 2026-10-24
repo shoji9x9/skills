@@ -831,3 +831,10 @@ test("captureMatchedRules は論理名とツール版を付けて返す", async 
   expect(captured.tool_version).toBe(VERSION);
   expect(captured.matched.length).toBeGreaterThan(0);
 });
+
+test("collectMatchedRules は、page ファイルの collectInPage を同じ名前のまま export し続ける", async () => {
+  const mod = await import("../../../skills/parity-component/scripts/css-rules-capture.mjs");
+  const page =
+    await import("../../../skills/parity-component/scripts/page/css-rules-capture.page.mjs");
+  expect(mod.collectMatchedRules).toBe(page.collectInPage);
+});
