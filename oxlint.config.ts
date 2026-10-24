@@ -108,15 +108,23 @@ export default defineConfig({
       },
     },
     {
-      // 配布スキルの、ページで実行するコード（page/*.page.mjs）。CLI が本文を関数式で包み、evaluate_script でページへ渡す。
-      // 本文は最後の行の export（本体）のほかに import も export も持たないので、宣言していない名前の参照は、
-      // ページで実行したときに初めて ReferenceError になる。
+      // 配布スキルの、ページで実行するコード（page/*.page.mjs）。ページへはソースだけが渡る。
+      // 渡し方は 2 通りある。CLI が本文を関数式で包んで evaluate_script へ渡すもの（replace-strategy）と、
+      // 本体の関数を import して Playwright の evaluate へそのまま渡すもの（parity-suite・parity-component）である。
+      // どちらも、宣言していない名前の参照は、ページで実行したときに初めて ReferenceError になる。
       // そこで、ブラウザのグローバルだけを宣言済みとして no-undef を当て、参照の誤りを lint で見つける。
-      // 本体は最後の行で export するので、no-unused-vars はこの設定なしで本体を使われているものとして扱う。
+      // 本体は export するので、no-unused-vars はこの設定なしで本体を使われているものとして扱う。
+      // evaluate はその関数のソースだけを送るので、本体が呼ぶ helper は本体の中に入れ子で書くしかない。
+      // 入れ子の行数と分岐は本体に数えられるので、関数の大きさのルールはこのファイルに限って外す。
+      // 外にある helper を送るために new Function でソースを組み立てる方法は、利用者の lint や
+      // --disallow-code-generation-from-strings で止まるので採らない。
       files: ["skills/*/scripts/page/*.page.mjs"],
       env: { browser: true },
       rules: {
         "no-undef": "error",
+        "max-lines-per-function": "off",
+        complexity: "off",
+        "max-depth": "off",
       },
     },
     // 既存の違反のうち、後で直すもの（ファイルごとに外すルール。scripts/gates/code/oxlint-pending.ts）。

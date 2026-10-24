@@ -76,6 +76,9 @@
   そのため、片側だけ採り直した成果物は比較に進めない（止まるのが正しい振る舞いである）。
 - 採取には、同梱の [`../scripts/trait-capture.mjs`](../scripts/trait-capture.mjs) をプロジェクト側の `<parity_suite_dir>/parity/lib/tools/vendor/` にコピーして使う。
   この場所はデフォルトで、コピー専用のサブディレクトリである（置き方の方針は [`locator-mapping.md`](locator-mapping.md)）。
+  trait-capture.mjs は、ページで実行する本体を `./page/trait-capture.page.mjs` から import する。
+  そのため、同梱の [`../scripts/page/trait-capture.page.mjs`](../scripts/page/trait-capture.page.mjs) も同じ版から、コピー先の `page/`（デフォルトは `vendor/page/`）へコピーする。
+  要素単位の撮影に element-shot.mjs を使う場合も、[`../scripts/page/element-shot.page.mjs`](../scripts/page/element-shot.page.mjs) を同じ `page/` へコピーする。
   何を採ったか（対象の要素・プロパティの集合・状態）を `metadata.json` に残し、`parity-diff` が同じ条件で照合できるようにする。
 
 ## 撮影条件の統制

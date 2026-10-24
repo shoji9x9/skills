@@ -11,6 +11,8 @@ import {
   SCROLLBAR_PSEUDO_PROPERTIES,
   VERSION,
   captureTraits,
+  captureElement,
+  runFromSource,
   type Rect,
   type Styles,
   type FakeNode,
@@ -62,6 +64,39 @@ test("固定集合の要素数と VERSION が対応している", () => {
 
 test("固定集合に重複が無い", () => {
   expect(new Set(FIXED_PROPERTIES).size).toBe(FIXED_PROPERTIES.length);
+});
+
+test("ソースから評価し直した関数は、本体の外の名前を参照すると失敗する", () => {
+  const outside = 1;
+  const readsOutside = () => outside;
+  expect(readsOutside()).toBe(1);
+  expect(() => runFromSource(readsOutside, [])).toThrow(ReferenceError);
+});
+
+test("captureTraits は page/trait-capture.page.mjs の captureElement を evaluate へ渡す", async () => {
+  const passed: unknown[] = [];
+  const locator = {
+    evaluate: async (fn: unknown) => {
+      passed.push(fn);
+      throw new Error("stop after evaluate");
+    },
+  };
+  await expect(captureTraits([{ name: "probe", locator }])).rejects.toThrow(/stop after evaluate/);
+  expect(passed).toEqual([captureElement]);
+});
+
+test("evaluate が Error でない値で失敗しても、論理名を付けたエラーにする", async () => {
+  const locator = { evaluate: () => Promise.reject("page crashed") };
+  await expect(captureTraits([{ name: "probe", locator }])).rejects.toThrow(
+    /trait capture failed for logical name "probe": page crashed/,
+  );
+});
+
+test("evaluate が採取の結果の形でない値を返したら失敗する", async () => {
+  const locator = { evaluate: async () => ({ computed: {} }) };
+  await expect(captureTraits([{ name: "probe", locator }])).rejects.toThrow(
+    /unexpected shape: probe/,
+  );
 });
 
 describe.each(PAGE_RUNS)("%s", (_label, run) => {

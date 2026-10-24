@@ -2,6 +2,7 @@
 import { assert } from "vitest";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { runInThisContext } from "node:vm";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/trait-capture.mjs");
@@ -13,10 +14,14 @@ export const {
   SCROLLBAR_PSEUDO_PROPERTIES,
   VERSION,
   captureTraits,
-  captureElementTraits,
 }: typeof import("../../../../skills/parity-suite/scripts/trait-capture.mjs") = await import(
   script
 );
+const pageScript = join(repoRoot, "skills/parity-suite/scripts/page/trait-capture.page.mjs");
+export const {
+  captureElement,
+}: typeof import("../../../../skills/parity-suite/scripts/page/trait-capture.page.mjs") =
+  await import(pageScript);
 
 export type Rect = { x: number; y: number; width: number; height: number };
 export type Styles = Record<string, string>;
@@ -229,7 +234,7 @@ function installBrowserGlobals(styles: Styles, o: ResolvedLocatorOptions) {
 }
 
 // 採るプロパティの固定集合（captureTraits が evaluate へ渡す引数）。
-type CaptureProps = Parameters<typeof captureElementTraits>[1];
+type CaptureProps = Parameters<typeof captureElement>[1];
 // evaluate に渡された関数を偽の要素に当てる方法。
 export type PageRun = (
   fn: (el: FakeElement, props: CaptureProps) => unknown,
@@ -239,14 +244,25 @@ export type PageRun = (
 type FakeElement = ReturnType<typeof fakeElement>;
 
 /**
- * describe.each に渡す 2 通りの当て方。モジュールの関数は、渡された関数を使わずに captureElementTraits を呼び、
- * カバレッジを記録する。ページへ渡すソースは、captureTraits が組み立てた関数をそのまま当てる。
- * ページ側の関数がヘルパーの一覧を通さずに互いを呼ぶと、モジュールの関数として呼んだときはモジュールのスコープで
- * 名前が解決されて通るが、こちらでは名前が解決できずに失敗する。
+ * 関数のソースだけを評価し直して呼ぶ。locator.evaluate がページへ送るのも関数のソースだけである。
+ * 評価し直した関数はモジュールのスコープを持たないので、本体の外の名前を参照すると ReferenceError になる。
+ * 大域の名前（偽のブラウザの大域変数を含む）は、モジュールと同じものを読む。
+ */
+export function runFromSource(fn: (...args: never[]) => unknown, args: unknown[]): unknown {
+  const rebuilt: unknown = runInThisContext(`(${String(fn)})`);
+  assert(typeof rebuilt === "function", "ソースを評価し直した結果が関数でない");
+  return Reflect.apply(rebuilt, undefined, args);
+}
+
+/**
+ * describe.each に渡す 2 通りの当て方。モジュールの関数は、渡された関数を使わずに page/trait-capture.page.mjs の
+ * captureElement を直接呼び、カバレッジを記録する。ページへ渡すソースは、captureTraits が evaluate へ渡した関数を
+ * ソースから評価し直して当てる。本体が本体の外の名前を参照すると、モジュールの関数として呼んだときはモジュールの
+ * スコープで名前が解決されて通るが、こちらでは名前が解決できずに失敗する。
  */
 export const PAGE_RUNS: [string, PageRun][] = [
-  ["モジュールの関数", (_fn, el, props) => captureElementTraits(el, props)],
-  ["ページへ渡すソース", (fn, el, props) => fn(el, props)],
+  ["モジュールの関数", (_fn, el, props) => captureElement(el, props)],
+  ["ページへ渡すソース", (fn, el, props) => runFromSource(fn, [el, props])],
 ];
 
 // captureElement は locator.evaluate に文字列化して渡る純関数なので、

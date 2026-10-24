@@ -9,6 +9,7 @@ import { assert, describe, expect, test } from "vitest";
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { runInThisContext } from "node:vm";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import { invalidInput } from "../../../lib/testing/test-input.ts";
 import { parseJsonAs } from "../../../lib/parse-as.ts";
@@ -19,10 +20,14 @@ const {
   VERSION,
   planElementClip,
   captureElementShot,
-  measureElementBox,
   readPngSize,
   shotRecordPath,
 }: typeof import("../../../../skills/parity-suite/scripts/element-shot.mjs") = await import(script);
+const pageScript = join(repoRoot, "skills/parity-suite/scripts/page/element-shot.page.mjs");
+const {
+  measureInPage,
+}: typeof import("../../../../skills/parity-suite/scripts/page/element-shot.page.mjs") =
+  await import(pageScript);
 
 type Rect = { x: number; y: number; width: number; height: number };
 /** fake の page.screenshot が受け取るオプション。 */
@@ -166,19 +171,49 @@ test("ビューポートが 0 以下なら失敗する", () => {
 
 /** evaluate に渡された関数を偽の要素に当てる方法。 */
 type PageRun = (fn: (element: FakeElement) => unknown, element: FakeElement) => unknown;
-/** captureElementShot が組み立てた関数を、そのまま偽の要素に当てる。 */
-const runSource: PageRun = (fn, element) => fn(element);
+/**
+ * 関数のソースだけを評価し直して呼ぶ。locator.evaluate がページへ送るのも関数のソースだけである。
+ * 評価し直した関数はモジュールのスコープを持たないので、本体の外の名前を参照すると ReferenceError になる。
+ */
+function runFromSource(fn: (...args: never[]) => unknown, args: unknown[]): unknown {
+  const rebuilt: unknown = runInThisContext(`(${String(fn)})`);
+  assert(typeof rebuilt === "function", "ソースを評価し直した結果が関数でない");
+  return Reflect.apply(rebuilt, undefined, args);
+}
+
+/** captureElementShot が evaluate へ渡した関数を、ソースから評価し直して偽の要素に当てる。 */
+const runSource: PageRun = (fn, element) => runFromSource(fn, [element]);
 
 /**
- * describe.each に渡す 2 通りの当て方。モジュールの関数は、渡された関数を使わずに measureElementBox を呼び、
- * カバレッジを記録する。ページへ渡すソースは、captureElementShot が組み立てた関数をそのまま当てる。
- * ページ側の関数がヘルパーの一覧を通さずに互いを呼ぶと、モジュールの関数として呼んだときはモジュールのスコープで
- * 名前が解決されて通るが、こちらでは名前が解決できずに失敗する。
+ * describe.each に渡す 2 通りの当て方。モジュールの関数は、渡された関数を使わずに page/element-shot.page.mjs の
+ * measureInPage を直接呼び、カバレッジを記録する。ページへ渡すソースは、captureElementShot が evaluate へ渡した関数を
+ * ソースから評価し直して当てる。本体が本体の外の名前を参照すると、モジュールの関数として呼んだときはモジュールの
+ * スコープで名前が解決されて通るが、こちらでは名前が解決できずに失敗する。
  */
 const PAGE_RUNS: [string, PageRun][] = [
-  ["モジュールの関数", (_fn, element) => measureElementBox(element)],
+  ["モジュールの関数", (_fn, element) => measureInPage(element)],
   ["ページへ渡すソース", runSource],
 ];
+
+test("ソースから評価し直した関数は、本体の外の名前を参照すると失敗する", () => {
+  const outside = 1;
+  const readsOutside = () => outside;
+  expect(readsOutside()).toBe(1);
+  expect(() => runFromSource(readsOutside, [])).toThrow(ReferenceError);
+});
+
+test("captureElementShot は page/element-shot.page.mjs の measureInPage を evaluate へ渡す", async () => {
+  const passed: unknown[] = [];
+  const locator = {
+    scrollIntoViewIfNeeded: async () => {},
+    evaluate: async (fn: unknown) => {
+      passed.push(fn);
+      throw new Error("stop after evaluate");
+    },
+  };
+  await expect(captureElementShot(recordingPage(), locator)).rejects.toThrow(/stop after evaluate/);
+  expect(passed).toEqual([measureInPage]);
+});
 
 /**
  * ページ側の関数（`measureInPage` とその helper）が読む形の偽のビュー。`frames` を渡すと、その数だけ入れ子の iframe の中に居る相当になる

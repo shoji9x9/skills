@@ -26,6 +26,17 @@
       "expect_failing": [
         "skills/parity-suite/scripts/header-normalize.mjs は 1 ファイルだけコピーした先で import できる"
       ]
+    },
+    {
+      "id": "vendored-page-sibling-import",
+      "why": "ページで実行する本体（page ファイル）が、コピーしない隣のファイルを import する（一緒にコピーした先で ERR_MODULE_NOT_FOUND になる）",
+      "file": "skills/parity-suite/scripts/page/trait-capture.page.mjs",
+      "find": "// 論理名付き要素の特性採取のうち、ページで実行するコード。trait-capture.mjs が captureElement を import し、\n",
+      "replace": "// 論理名付き要素の特性採取のうち、ページで実行するコード。trait-capture.mjs が captureElement を import し、\nimport \"../lib/is-array.mjs\";\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "skills/parity-suite/scripts/trait-capture.mjs は page/trait-capture.page.mjs と一緒にコピーした先で import できる"
+      ]
     }
   ]
 }

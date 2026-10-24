@@ -11,8 +11,8 @@
     {
       "id": "offset",
       "why": "フレームのオフセットを足さない（フレーム内の座標のまま clip を決める）",
-      "file": "skills/parity-suite/scripts/element-shot.mjs",
-      "find": "  walk.x += frameBox.x + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft);\n",
+      "file": "skills/parity-suite/scripts/page/element-shot.page.mjs",
+      "find": "    walk.x += frameBox.x + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft);\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
@@ -25,7 +25,7 @@
     {
       "id": "border-rounded",
       "why": "枠線を整数へ丸められた clientLeft / clientTop で足す（deviceScaleFactor でスナップされた小数の枠線とずれる）",
-      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "file": "skills/parity-suite/scripts/page/element-shot.page.mjs",
       "find": "parseFloat(style.borderLeftWidth)",
       "replace": "frameEl.clientLeft",
       "occurrences": 1,
@@ -37,8 +37,8 @@
     {
       "id": "unreadable",
       "why": "読めないフレームで止めず、そこを最上位とみなす",
-      "file": "skills/parity-suite/scripts/element-shot.mjs",
-      "find": "    walk.frameError = \"unreadable\";\n",
+      "file": "skills/parity-suite/scripts/page/element-shot.page.mjs",
+      "find": "      walk.frameError = \"unreadable\";\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
@@ -51,9 +51,9 @@
     {
       "id": "transformed",
       "why": "変形の判定を常に偽にする",
-      "file": "skills/parity-suite/scripts/element-shot.mjs",
-      "find": "    (Math.abs(frameBox.width - frameEl.offsetWidth) >= 1 ||\n      Math.abs(frameBox.height - frameEl.offsetHeight) >= 1)\n",
-      "replace": "    false\n",
+      "file": "skills/parity-suite/scripts/page/element-shot.page.mjs",
+      "find": "      (Math.abs(frameBox.width - frameEl.offsetWidth) >= 1 ||\n        Math.abs(frameBox.height - frameEl.offsetHeight) >= 1)\n",
+      "replace": "      false\n",
       "occurrences": 1,
       "expect_failing": [
         "モジュールの関数 transform で拡縮されたフレームの中の要素は撮らずに失敗する",
@@ -63,9 +63,9 @@
     {
       "id": "tolerance",
       "why": "変形の許容差を丸め未満に戻す（小数寸法のフレームを誤って落とす。実ブラウザで踏んだ形）",
-      "file": "skills/parity-suite/scripts/element-shot.mjs",
-      "find": "    (Math.abs(frameBox.width - frameEl.offsetWidth) >= 1 ||\n",
-      "replace": "    (Math.abs(frameBox.width - frameEl.offsetWidth) > 0.01 ||\n",
+      "file": "skills/parity-suite/scripts/page/element-shot.page.mjs",
+      "find": "      (Math.abs(frameBox.width - frameEl.offsetWidth) >= 1 ||\n",
+      "replace": "      (Math.abs(frameBox.width - frameEl.offsetWidth) > 0.01 ||\n",
       "occurrences": 1,
       "expect_failing": [
         "モジュールの関数 寸法が小数のフレームは変形とみなさない（offsetWidth は整数へ丸められる）",
@@ -95,9 +95,9 @@
     {
       "id": "scrollbar",
       "why": "フレームの見える範囲をスクロールバー込みの innerWidth で測る",
-      "file": "skills/parity-suite/scripts/element-shot.mjs",
-      "find": "    viewport: { width: scroller.clientWidth, height: scroller.clientHeight },\n",
-      "replace": "    viewport: { width: view.innerWidth, height: view.innerHeight },\n",
+      "file": "skills/parity-suite/scripts/page/element-shot.page.mjs",
+      "find": "      viewport: { width: scroller.clientWidth, height: scroller.clientHeight },\n",
+      "replace": "      viewport: { width: view.innerWidth, height: view.innerHeight },\n",
       "occurrences": 1,
       "expect_failing": [
         "モジュールの関数 見える範囲はスクロールバーを除いた寸法で測る（innerWidth ではなく）",
@@ -165,9 +165,9 @@
     {
       "id": "transform-matrix",
       "why": "行列の判定を常に偽にする（外形を保つ回転・反転を見逃す）",
-      "file": "skills/parity-suite/scripts/element-shot.mjs",
-      "find": "    if (linear.join() !== \"1,0,0,0,0,1,0,0\" || rest.join() !== \"0,0,1,0,1\") {\n",
-      "replace": "    if (false) {\n",
+      "file": "skills/parity-suite/scripts/page/element-shot.page.mjs",
+      "find": "      if (linear.join() !== \"1,0,0,0,0,1,0,0\" || rest.join() !== \"0,0,1,0,1\") {\n",
+      "replace": "      if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
         "モジュールの関数 外形を保つ変形も撮らずに失敗する: フレーム要素の rotate(180deg)（行列）",
@@ -183,9 +183,9 @@
     {
       "id": "transform-translate",
       "why": "行列の判定を常に真にする（平行移動だけのフレームまで拒否する）",
-      "file": "skills/parity-suite/scripts/element-shot.mjs",
-      "find": "    if (linear.join() !== \"1,0,0,0,0,1,0,0\" || rest.join() !== \"0,0,1,0,1\") {\n",
-      "replace": "    if (true) {\n",
+      "file": "skills/parity-suite/scripts/page/element-shot.page.mjs",
+      "find": "      if (linear.join() !== \"1,0,0,0,0,1,0,0\" || rest.join() !== \"0,0,1,0,1\") {\n",
+      "replace": "      if (true) {\n",
       "occurrences": 1,
       "expect_failing": [
         "モジュールの関数 平行移動だけの変形は撮る（getBoundingClientRect が移動後の位置を返すので足し算で合う）",
@@ -195,9 +195,9 @@
     {
       "id": "transform-props",
       "why": "個別プロパティ rotate / scale を見ない",
-      "file": "skills/parity-suite/scripts/element-shot.mjs",
-      "find": "  if (!rotateIsIdentity || !scaleIsIdentity) {\n",
-      "replace": "  if (false) {\n",
+      "file": "skills/parity-suite/scripts/page/element-shot.page.mjs",
+      "find": "    if (!rotateIsIdentity || !scaleIsIdentity) {\n",
+      "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
         "モジュールの関数 外形を保つ変形も撮らずに失敗する: フレーム要素の個別プロパティ rotate",
@@ -215,7 +215,7 @@
     {
       "id": "shadow-host",
       "why": "シャドウツリーの境界で祖先の走査を止める",
-      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "file": "skills/parity-suite/scripts/page/element-shot.page.mjs",
       "find": " || shadowHost",
       "replace": "",
       "occurrences": 1,
@@ -256,9 +256,9 @@
     {
       "id": "doc-animations",
       "why": "要素が居る文書のアニメーションを数えない",
-      "file": "skills/parity-suite/scripts/element-shot.mjs",
-      "find": "    return h.countTree(h, el.ownerDocument);\n",
-      "replace": "    return 0;\n",
+      "file": "skills/parity-suite/scripts/page/element-shot.page.mjs",
+      "find": "      return countTree(el.ownerDocument);\n",
+      "replace": "      return 0;\n",
       "occurrences": 1,
       "expect_failing": [
         "モジュールの関数 文書内のアニメーションが生きていれば撮らずに失敗する: 要素が居る文書（兄弟・祖先を含む）",
@@ -272,9 +272,9 @@
     {
       "id": "parent-doc-animations",
       "why": "iframe を遡った先の文書のアニメーションを数えない",
-      "file": "skills/parity-suite/scripts/element-shot.mjs",
-      "find": "    return count + h.countTree(h, parent.document);\n",
-      "replace": "    return count;\n",
+      "file": "skills/parity-suite/scripts/page/element-shot.page.mjs",
+      "find": "      return count + countTree(parent.document);\n",
+      "replace": "      return count;\n",
       "occurrences": 1,
       "expect_failing": [
         "モジュールの関数 文書内のアニメーションが生きていれば撮らずに失敗する: 親文書（フレーム要素・その祖先・兄弟を含む）",
@@ -286,8 +286,8 @@
     {
       "id": "shadow-animations",
       "why": "シャドウルートの中を辿らない（document.getAnimations だけに頼る）",
-      "file": "skills/parity-suite/scripts/element-shot.mjs",
-      "find": "    if (host.shadowRoot) n += h.countTree(h, host.shadowRoot);\n",
+      "file": "skills/parity-suite/scripts/page/element-shot.page.mjs",
+      "find": "      if (host.shadowRoot) n += countTree(host.shadowRoot);\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
@@ -298,7 +298,7 @@
     {
       "id": "rotate-identity",
       "why": "角度 0 の rotate も変形とみなす（リセット用のスタイルで撮れなくなる）",
-      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "file": "skills/parity-suite/scripts/page/element-shot.page.mjs",
       "find": "parseFloat(tokens(cs.rotate).pop() ?? \"\") === 0",
       "replace": "false",
       "occurrences": 1,
@@ -312,7 +312,7 @@
     {
       "id": "scale-identity",
       "why": "全成分 1 の scale も変形とみなす",
-      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "file": "skills/parity-suite/scripts/page/element-shot.page.mjs",
       "find": "tokens(cs.scale).every((t) => parseFloat(t) === 1)",
       "replace": "false",
       "occurrences": 1,
