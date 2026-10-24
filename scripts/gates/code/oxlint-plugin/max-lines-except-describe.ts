@@ -136,6 +136,12 @@ export function countedNode(fn: AstNode): AstNode {
   return fn;
 }
 
+/** 関数の行数（countedNode の範囲の行の数）。max-lines-except-page-entry.ts も同じ数え方を使う。 */
+export function linesOf(fn: AstNode): number {
+  const { loc } = countedNode(fn);
+  return loc.end.line - loc.start.line + 1;
+}
+
 /** オプション `{ max }` の上限。数でない値は、判定できないので例外にする。rule は例外のメッセージに書くルールの名前。 */
 export function maxOf(
   options: readonly unknown[],
@@ -166,8 +172,7 @@ export const maxLinesExceptDescribe = {
     let names: ReadonlySet<string> = new Set();
     const check = (fn: AstNode) => {
       if (isIife(fn) || isGroupingCallback(fn, names)) return;
-      const { loc } = countedNode(fn);
-      const lines = loc.end.line - loc.start.line + 1;
+      const lines = linesOf(fn);
       if (lines > max)
         context.report({
           node: fn,

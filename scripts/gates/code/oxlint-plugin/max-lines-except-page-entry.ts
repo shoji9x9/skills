@@ -9,7 +9,7 @@
 // 本体の外の関数と入れ子の関数には、max-lines-except-describe.ts と同じ数え方（空行とコメントも数える・即時実行の関数は
 // 数えない）で、全体の行数に上限を当てる。
 // complexity と max-depth は組み込みのルールが関数ごとに数え、入れ子の関数を本体に数えないので、組み込みのまま当てる。
-import { type AstNode, countedNode, isIife, maxOf } from "./max-lines-except-describe.ts";
+import { type AstNode, countedNode, isIife, linesOf, maxOf } from "./max-lines-except-describe.ts";
 
 const RULE = "max-lines-per-function-except-page-entry";
 
@@ -98,10 +98,12 @@ export const maxLinesExceptPageEntry = {
     const check = (fn: AstNode & Ranged) => {
       if (isIife(fn) || isPageEntry(fn)) return;
       const outer = enclosingFunction(fn);
-      if (outer !== null && isPageEntry(outer))
-        nested.set(outer, [...(nested.get(outer) ?? []), fn]);
-      const [start, end] = spanOf(fn);
-      const lines = end - start + 1;
+      if (outer !== null && isPageEntry(outer)) {
+        const inner = nested.get(outer);
+        if (inner) inner.push(fn);
+        else nested.set(outer, [fn]);
+      }
+      const lines = linesOf(fn);
       if (lines > max)
         context.report({
           node: fn,

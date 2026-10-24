@@ -122,12 +122,12 @@ export default defineConfig({
     },
     {
       // 本体の関数を Playwright の evaluate へそのまま渡す page ファイル。evaluate はその関数のソースだけを送るので、
-      // 本体が呼ぶ helper は本体の中に入れ子で書くしかない。組み込みの max-lines-per-function は入れ子の行も本体に数えるので、
-      // JS プラグインのルールに替える。本体は入れ子の関数とコメントを除いてコードの残る行を数え、入れ子の helper は全体の行数で数える。
+      // 本体が呼ぶ関数は本体の中に入れ子で書くしかない。組み込みの max-lines-per-function は入れ子の行も本体に数えるので、
+      // JS プラグインのルールに替える。本体は入れ子の関数とコメントを除いてコードの残る行を数え、入れ子の関数は全体の行数で数える。
       // complexity と max-depth は関数ごとに数え、入れ子の関数を本体に数えないので、組み込みのまま当てる。
-      // 外にある helper を送るために new Function でソースを組み立てる方法は、利用者の lint や
+      // 本体の外にある関数を送るために new Function でソースを組み立てる方法は、利用者の lint や
       // --disallow-code-generation-from-strings で止まるので採らない。
-      // CLI が本文を関数式で包む replace-strategy の page ファイルは、helper を最上位に置けるので対象にしない。
+      // CLI が本文を関数式で包む replace-strategy の page ファイルは、本体が呼ぶ関数を最上位に置けるので対象にしない。
       files: [
         "skills/parity-suite/scripts/page/trait-capture.page.mjs",
         "skills/parity-suite/scripts/page/element-shot.page.mjs",
