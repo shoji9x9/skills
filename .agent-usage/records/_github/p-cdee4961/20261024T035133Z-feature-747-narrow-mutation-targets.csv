@@ -8,3 +8,5 @@ coverage:github:2026-10-23T03:51:33.843Z:2026-10-24T03:52:28.450Z,coverage,2026-
 coverage:github:2026-10-23T03:52:28.450Z:2026-10-24T03:53:40.049Z,coverage,2026-10-24T03:53:40.049Z,p-cdee4961,,,,,2026-10-23T03:52:28.450Z,2026-10-24T03:53:40.049Z,Asia/Tokyo,,,,,,,,,,,,ok,
 ci:40060212536:1,ci,2026-10-24T04:37:28.767Z,p-cdee4961,github-actions,,,,2026-10-24T03:54:30.000Z,2026-10-24T04:34:59.000Z,Asia/Tokyo,feature/747-narrow-mutation-targets,747,,,,,,,,,,Mutation proof;workflow_dispatch;cancelled,
 coverage:github:2026-10-23T03:53:40.049Z:2026-10-24T04:37:28.767Z,coverage,2026-10-24T04:37:28.767Z,p-cdee4961,,,,,2026-10-23T03:53:40.049Z,2026-10-24T04:37:28.767Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:40063102573:1,ci,2026-10-24T04:58:23.832Z,p-cdee4961,github-actions,,,,2026-10-24T04:37:54.000Z,2026-10-24T04:56:17.000Z,Asia/Tokyo,feature/747-narrow-mutation-targets,747,,,,,,,,,,Mutation proof;workflow_dispatch;success,
+coverage:github:2026-10-23T04:37:28.767Z:2026-10-24T04:58:23.832Z,coverage,2026-10-24T04:58:23.832Z,p-cdee4961,,,,,2026-10-23T04:37:28.767Z,2026-10-24T04:58:23.832Z,Asia/Tokyo,,,,,,,,,,,,ok,
