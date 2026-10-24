@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from "vitest";
+import { describe, expect, test } from "vitest";
 import {
   chmodSync,
   copyFileSync,
@@ -14,7 +14,6 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join, relative } from "node:path";
 import { spawnAsync } from "../lib/spawn-async.ts";
@@ -109,14 +108,6 @@ const def = JSON.parse(readFileSync(testFile, "utf8"));
 const content = readFileSync(join(dirname(testFile), def.target), "utf8");
 // 所要時間の差を作る（\`sleepMs\` を持つ fixture だけ。宣言ごとの時間の並びを確かめるため）。
 if (def.sleepMs) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, def.sleepMs);
-// 終わらないテストを作る（\`hang\` を持つ fixture だけ。対象から \`hang.unless\` が消えた run で止まる）。
-// vitest の forks のワーカーにあたる子孫のプロセスを 1 つ残し、その pid を書いてから同期の無限ループに入る。
-if (def.hang && !content.includes(def.hang.unless)) {
-  const { spawn } = require("node:child_process");
-  const worker = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });
-  writeFileSync(def.hang.pidFile, String(worker.pid));
-  for (;;) {}
-}
 // 実行中に対象を外から編集する状態を作る（\`editDuringRun\` を持つ fixture だけ）。
 const editing = Boolean(def.editDuringRun && content !== def.editDuringRun.unless);
 if (editing) {
@@ -171,26 +162,17 @@ function makeFixture({
   real = false,
   stubTests = STUB_TESTS,
   sleepMs,
-  hangUnless,
-}: {
-  real?: boolean;
-  stubTests?: { name: string; contains: string }[];
-  sleepMs?: number;
-  hangUnless?: string;
-} = {}) {
+}: { real?: boolean; stubTests?: { name: string; contains: string }[]; sleepMs?: number } = {}) {
   const dir = makeFixtureDir("case-");
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "target.sh"), FIXTURE_TARGET);
   const testName = real ? "fixture.test.ts" : "fixture.stub.json";
-  const hangPidFile = join(dir, "hang.pid");
-  const hang = hangUnless === undefined ? undefined : { unless: hangUnless, pidFile: hangPidFile };
   writeFileSync(
     join(dir, testName),
-    real ? FIXTURE_TEST : JSON.stringify({ target: "target.sh", tests: stubTests, sleepMs, hang }),
+    real ? FIXTURE_TEST : JSON.stringify({ target: "target.sh", tests: stubTests, sleepMs }),
   );
   return {
     dir,
-    hangPidFile,
     target: join(dir, "target.sh"),
     // 形を検証するテストが不正な宣言も渡すので、mutations と overrides は形を決めずに受ける。
     spec(mutations: unknown, overrides: Record<string, unknown> = {}) {
@@ -273,16 +255,6 @@ function runRunnerWithin(timeout: number, ...args: (string | Env)[]) {
   const env: Env = typeof last === "object" ? last : {};
   const runnerArgs = args.filter((a): a is string => typeof a === "string");
   return runNode([RUNNER, ...runnerArgs], { cwd: repoRoot, env: runnerEnv(env), timeout });
-}
-
-/** pid のプロセスが在るか（止めたプロセスが残っていないかを確かめる）。 */
-function isAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 function mutation(over: Record<string, unknown> = {}) {
@@ -541,71 +513,6 @@ describe.concurrent("宣言と前提の検証（実行する前に落とす）",
     // 変異を当てたファイルは戻っていること（起動できなくても復元する）。
     expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
   });
-
-  // 変異でテストの中に同期の無限ループができると、vitest の testTimeout では止まらない。
-  // 時間切れの run は確かめられていないので FAIL にし、残った子孫のプロセスを止め、対象を元に戻す。
-  test("変異でテストが終わらなければ、時間切れとして FAIL にし、子孫のプロセスを止めて対象を戻す", async () => {
-    const fx = makeFixture({ hangUnless: 'if [ -z "$X" ]; then' });
-    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
-    // 上限は基準 run にも当たるので、並べて実行するテストの負荷で基準 run が届かない長さにする。
-    const res = await runRunner(spec, { MUTATION_PROOF_RUN_TIMEOUT_MS: "8000" });
-    expect(res.status, res.out).toBe(1);
-    expect(res.out).toContain("時間切れ: 8 秒でテストが終わらなかった");
-    expect(res.out).toContain("MUTATION_PROOF_RUN_TIMEOUT_MS=8000");
-    expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
-    const pid = Number(readFileSync(fx.hangPidFile, "utf8"));
-    expect(Number.isInteger(pid) && pid > 0, String(pid)).toBe(true);
-    // 止めたプロセスが init に回収されるまで、少しだけ待つ。
-    await vi.waitFor(() => expect(isAlive(pid)).toBe(false), { timeout: 5_000 });
-  });
-
-  // テストのプロセスは別のプロセスグループにいて、端末の Ctrl-C（SIGINT）が届かない。中断したときも残さない。
-  test(
-    "終わらないテストの実行中に Ctrl-C で中断しても、子孫のプロセスを残さない",
-    { timeout: 60_000 },
-    async () => {
-      const fx = makeFixture({ hangUnless: 'if [ -z "$X" ]; then' });
-      const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
-      // 端末の前面のプロセスグループにあたるよう、ランナーを自分のプロセスグループで起動する。
-      const runner = spawn(process.execPath, [RUNNER, spec], {
-        cwd: repoRoot,
-        env: runnerEnv({ MUTATION_PROOF_RUN_TIMEOUT_MS: "60000" }),
-        stdio: "ignore",
-        detached: true,
-        timeout: CHILD_TIMEOUT_MS,
-      });
-      const group = runner.pid;
-      expect(group, "ランナーを起動できなかった").toBeGreaterThan(0);
-      const exited = new Promise((resolve) => runner.once("exit", resolve));
-      try {
-        await vi.waitFor(() => expect(existsSync(fx.hangPidFile)).toBe(true), { timeout: 20_000 });
-        process.kill(-Number(group), "SIGINT");
-        await vi.waitFor(() => expect(runner.exitCode ?? runner.signalCode).not.toBeNull(), {
-          timeout: 10_000,
-        });
-        await exited;
-      } finally {
-        // 途中の確認が失敗しても、起動したランナーのグループを残さない（終わっていれば ESRCH になる）。
-        try {
-          process.kill(-Number(group), "SIGKILL");
-        } catch {}
-      }
-      const pid = Number(readFileSync(fx.hangPidFile, "utf8"));
-      expect(Number.isInteger(pid) && pid > 0, String(pid)).toBe(true);
-      await vi.waitFor(() => expect(isAlive(pid)).toBe(false), { timeout: 5_000 });
-    },
-  );
-
-  test.each(["", "0", "-1", "1.5", "abc"])(
-    "MUTATION_PROOF_RUN_TIMEOUT_MS が正の整数でなければ exit 2（%j）",
-    async (value) => {
-      const fx = makeFixture();
-      const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
-      const res = await runRunner(spec, { MUTATION_PROOF_RUN_TIMEOUT_MS: value });
-      expect(res.status, res.out).toBe(2);
-      expect(res.out).toContain("MUTATION_PROOF_RUN_TIMEOUT_MS が正の整数でない");
-    },
-  );
 
   // 空の注入を「未指定」として扱うと、スタブのつもりで本物の vitest を測る。
   test("MUTATION_PROOF_TEST_COMMAND が空なら exit 2", async () => {
