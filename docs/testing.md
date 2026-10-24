@@ -117,7 +117,7 @@ fixture も、原本（テンプレート・スキーマの文書・同梱の雛
 
 - 書き込みは、`scripts/lib/testing/test-tmpdir.ts` の `makeTempDir`・`makeTempDirFactory` で作った一時ディレクトリの中だけで行う。リポジトリの tracked のファイルを書き換えない
 - テストする処理が読む環境変数（`HOME`・`PATH`・`LC_ALL`・`CLAUDE_PROJECT_DIR` など）は、テストの中で一時ディレクトリかリポジトリの中を指す値に固定する。手元の `~/` の中身に結果を左右させない
-- git の hook から実行すると、git がテストに `GIT_DIR` などを渡す。worktree からの push では、テストが一時ディレクトリで起動した git がそれを受け継ぎ、起動したリポジトリに commit や branch を書き込む。
+- git の hook（lefthook の pre-commit など）から実行すると、git がテストに `GIT_DIR` などを渡す。worktree で hook を実行すると、テストが一時ディレクトリで起動した git がそれを受け継ぎ、起動したリポジトリに commit や branch を書き込む。
   `scripts/lib/testing/vitest-git-env-setup.ts` が各テストファイルの前に `process.env` から外すので、子プロセスの環境は `process.env` から組み立てる。vitest の外で git を起動するランナーは、同じ変数を自分で外す
 - ネットワークに接続しない。時刻に依存する処理は、時刻を引数や環境変数で渡せるようにして、固定した値でテストする
 - 子プロセスにはタイムアウトを付ける。付けないと、止まった子プロセスを待つテストは `vitest.config.ts` の `testTimeout` まで待ってから失敗し、原因が出力に残らない。

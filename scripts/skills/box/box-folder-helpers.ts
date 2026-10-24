@@ -4,7 +4,6 @@ import { chmodSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
-import { coverageEnv } from "../../lib/testing/coverage-env.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
@@ -30,7 +29,6 @@ export function setup({ node }: { node: boolean }) {
   const configDir = join(repo, ".config", "skills", "shoji9x9");
   const xdg = join(dir, "xdg");
   const env: Record<string, string> = {
-    ...coverageEnv(),
     PATH: bin,
     HOME: join(dir, "home"),
     XDG_CONFIG_HOME: xdg,
@@ -66,7 +64,7 @@ export function resolveHome(env: Record<string, string>, idScript: string | null
       "-c",
       `. ${JSON.stringify(lib)}; box_resolve_home; printf '%s\\n%s\\n' "$box_home_dir" "$box_home_reason"`,
     ],
-    { env: { ...coverageEnv(), PATH: bin, ...env }, encoding: "utf8", timeout: CHILD_TIMEOUT_MS },
+    { env: { PATH: bin, ...env }, encoding: "utf8", timeout: CHILD_TIMEOUT_MS },
   );
   const [home, reason] = r.stdout.split("\n");
   return { status: r.status, home, reason };

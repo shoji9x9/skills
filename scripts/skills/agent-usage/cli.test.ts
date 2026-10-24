@@ -32,7 +32,6 @@ import {
 } from "../../../skills/agent-usage/scripts/lib/run-collect.mjs";
 import { branchLabel } from "../../../skills/agent-usage/scripts/lib/records.mjs";
 import { localHourStart } from "../../../skills/agent-usage/scripts/lib/time.mjs";
-import { coverageEnv } from "../../lib/testing/coverage-env.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
@@ -1844,7 +1843,7 @@ describe("precommit-gate.sh の、確認を実行できないとき", () => {
     spawnSync(bash, [script, "claude-code"], {
       encoding: "utf8",
       input: stdin,
-      env: { ...env, ...coverageEnv() },
+      env: { ...env },
       timeout: CHILD_TIMEOUT_MS,
     });
 

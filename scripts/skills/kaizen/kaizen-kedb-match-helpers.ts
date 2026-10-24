@@ -4,7 +4,6 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
-import { coverageEnv } from "../../lib/testing/coverage-env.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 // 一時ディレクトリの fixture リポジトリの学びのパス。check-kaizen-refs が、このリポジトリの学びへの参照と読まないよう、組み立てて書く。
@@ -35,7 +34,7 @@ export function match(dir: string, ...keywords: string[]) {
   const res = spawnSync("bash", [script, ...keywords], {
     cwd: dir,
     encoding: "utf8",
-    env: { ...process.env, CLAUDE_PROJECT_DIR: dir, ...coverageEnv() },
+    env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
     timeout: CHILD_TIMEOUT_MS,
   });
   const hits = res.stdout.split("\n").filter(Boolean);

@@ -4,7 +4,6 @@ import { chmodSync, copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
-import { coverageEnv } from "../../../lib/testing/coverage-env.ts";
 import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 import { kaizenEnv, pathWithout, writeKaizenConfig } from "../kaizen-config-env.ts";
 
@@ -130,7 +129,6 @@ function run({ dir, target }: Project, args: string[], env: NodeJS.ProcessEnv = 
       HOME: dir,
       XDG_CONFIG_HOME: join(dir, ".test-xdg"),
       LC_ALL: "C.UTF-8",
-      ...coverageEnv(),
       ...env,
     },
   });

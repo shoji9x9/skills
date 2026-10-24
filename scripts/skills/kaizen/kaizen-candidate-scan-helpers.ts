@@ -4,7 +4,6 @@ import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
 import { delimiter, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
-import { coverageEnv } from "../../lib/testing/coverage-env.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 import { pathWithout } from "./kaizen-config-env.ts";
 
@@ -23,7 +22,7 @@ export function workdir() {
 export function scan(args: string[], env: NodeJS.ProcessEnv = {}) {
   return spawnSync("bash", [script, ...args], {
     encoding: "utf8",
-    env: { ...process.env, ...coverageEnv(), ...env },
+    env: { ...process.env, ...env },
     timeout: CHILD_TIMEOUT_MS,
   });
 }

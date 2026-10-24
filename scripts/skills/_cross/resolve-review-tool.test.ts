@@ -21,7 +21,6 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
-import { coverageEnv } from "../../lib/testing/coverage-env.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
@@ -79,7 +78,7 @@ function run(scriptRel: string, { args = [], env, cwd }: RunOptions) {
     timeout: CHILD_TIMEOUT_MS,
     encoding: "utf8",
     cwd,
-    env: { ...coverageEnv(), ...env },
+    env: { ...env },
   });
 }
 

@@ -27,7 +27,6 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, test } from "vitest";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
-import { coverageEnv } from "../../lib/testing/coverage-env.ts";
 import type * as Reader from "../../../skills/kaizen/scripts/skill-config/skill-config.mjs";
 import {
   COPIES,
@@ -1183,7 +1182,7 @@ describe.each(COPIES)("%s", (copy) => {
           [script, "get", "t", "method", "--raw", "--schema-dir", s.schemaDir],
           {
             cwd: s.root,
-            env: { ...coverageEnv(), PATH: process.env.PATH, ...s.env },
+            env: { PATH: process.env.PATH, ...s.env },
             encoding: "utf8",
             timeout: CHILD_TIMEOUT_MS,
           },
@@ -1198,7 +1197,7 @@ describe.each(COPIES)("%s", (copy) => {
         [join(repoRoot, copy), "get", "t", "flag", "--schema-dir", s.schemaDir],
         {
           cwd: s.root,
-          env: { ...coverageEnv(), PATH: process.env.PATH, ...s.env },
+          env: { PATH: process.env.PATH, ...s.env },
           encoding: "utf8",
           timeout: CHILD_TIMEOUT_MS,
         },

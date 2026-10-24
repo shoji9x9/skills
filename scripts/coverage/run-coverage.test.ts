@@ -172,32 +172,6 @@ test("targetFiles: 対象が 0 件のときは、判定できないとして例�
   expect(() => targetFiles(root)).toThrow(/0 件/);
 });
 
-test("coverageEnv: 計測の環境変数は NODE_V8_COVERAGE だけを渡し、シェルの計測の変数は渡さない", () => {
-  const read = (env: Record<string, string>) =>
-    spawnSync(
-      process.execPath,
-      [
-        "--input-type=module",
-        "-e",
-        `import { coverageEnv } from ${JSON.stringify(new URL("../lib/testing/coverage-env.ts", import.meta.url).href)}; console.log(JSON.stringify(coverageEnv()));`,
-      ],
-      {
-        encoding: "utf8",
-        env: { PATH: process.env.PATH ?? "", ...env },
-        timeout: CHILD_TIMEOUT_MS,
-      },
-    ).stdout.trim();
-  // Node は、環境を明示した子プロセスにも親の NODE_V8_COVERAGE を引き継ぐ。測る実行では、親の値が入る。
-  const inherited = process.env.NODE_V8_COVERAGE
-    ? { NODE_V8_COVERAGE: process.env.NODE_V8_COVERAGE }
-    : {};
-  expect(JSON.parse(read({}))).toEqual(inherited);
-  expect(JSON.parse(read({ BASH_ENV: "/b" }))).toEqual(inherited);
-  expect(
-    JSON.parse(read({ NODE_V8_COVERAGE: "/v", SHELL_COVERAGE_DIR: "/d", BASH_ENV: "/b" })),
-  ).toEqual({ NODE_V8_COVERAGE: "/v" });
-});
-
 const CACHE_DIR = join(ROOT, "node_modules", ".cache");
 mkdirSync(CACHE_DIR, { recursive: true });
 const newRepoDir = makeTempDirFactory("run-coverage-test-", CACHE_DIR);

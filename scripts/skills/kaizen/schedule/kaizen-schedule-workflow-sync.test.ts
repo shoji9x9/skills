@@ -5,7 +5,6 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { loadYamlAs } from "../../../lib/text/yaml-as.ts";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
-import { coverageEnv } from "../../../lib/testing/coverage-env.ts";
 import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 
 // kaizen の定期実行ワークフローは、配布スキルに同梱したテンプレート
@@ -80,7 +79,6 @@ function appendReport(report: string) {
         GITHUB_SERVER_URL: "https://github.com",
         GITHUB_REPOSITORY: "o/r",
         GITHUB_RUN_ID: "1",
-        ...coverageEnv(),
       },
       timeout: CHILD_TIMEOUT_MS,
     });

@@ -13,7 +13,6 @@ import { userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect } from "vitest";
-import { coverageEnv } from "../../lib/testing/coverage-env.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
@@ -95,7 +94,6 @@ export function run(
     HOME: s.home,
     TMPDIR: s.dir,
     STUB_LOG: s.log,
-    ...coverageEnv(),
     ...env,
   };
   const childEnv: Record<string, string> = {};

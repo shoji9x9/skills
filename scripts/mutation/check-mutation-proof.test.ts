@@ -1249,22 +1249,23 @@ require("node:module").syncBuiltinESMExports();
     );
   });
 
-  // kaizen-frontmatter-values.test.ts は kaizen-config-env.ts を直接は import せず、kaizen-frontmatter-values-helpers.ts を介して使う。
-  // kaizen-config-env.ts は変異の対象でもなく、名前も -helpers.ts で終わらない。
+  // check-doc-refs.test.ts は doc-scan-files.ts を直接は import せず、check-doc-refs.ts を介して使う。
+  // 中継の check-doc-refs.ts も doc-scan-files.ts も変異の対象ではなく、名前も -helpers.ts で終わらない。
   // そのため、ランナーが import を間接のものまでたどり、選ぶファイルを名前ではなく `scripts/` の下のパスで決めるときだけ、この宣言を選ぶ。
+  // check-doc-refs.mutations.json の残りの変異は #748 が消す pending の処理を狙うので、#748 でこの定義が無くなるときは向け直す。
   test("test_file から間接に import されるファイルが変わったら、その宣言を測る", async () => {
-    const support = "scripts/skills/kaizen/kaizen-config-env.ts";
+    const support = "scripts/gates/docs/doc-scan-files.ts";
     const res = await runRunner(
       "--changed-since",
       "origin/main",
       "--only",
-      "FM-LAST-DUPLICATE",
+      "DS-PENDING-MATCH",
       "--list",
       { MUTATION_PROOF_CHANGED_FILES: support },
     );
     expect(res.status, res.out).toBe(0);
     expect(res.out).toContain(
-      `測る: scripts/skills/kaizen/frontmatter/kaizen-frontmatter-values.mutations.json（当たった変更: ${support}）`,
+      `測る: scripts/gates/docs/check-doc-refs.mutations.json（当たった変更: ${support}）`,
     );
   });
 

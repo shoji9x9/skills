@@ -6,7 +6,6 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { loadYamlAs } from "../../../lib/text/yaml-as.ts";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
-import { coverageEnv } from "../../../lib/testing/coverage-env.ts";
 import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 
 export const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
@@ -114,7 +113,6 @@ export function runBash(script: string, ghScript: string, env: NodeJS.ProcessEnv
         GITHUB_REPOSITORY: "o/r",
         GITHUB_RUN_ID: "1",
         BODY_FILE: join(dir, "body.md"),
-        ...coverageEnv(),
         ...env,
       },
     });
@@ -225,7 +223,6 @@ export function runLocate(wfPath: string, cwd: string) {
         HOME: dir,
         LC_ALL: "C.UTF-8",
         GITHUB_OUTPUT: out,
-        ...coverageEnv(),
       },
     });
     const outputs = Object.fromEntries(
