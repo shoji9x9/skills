@@ -18,11 +18,6 @@
       "file": "scripts/tools/repo-size.test.ts",
       "ref": ".kaizen/2026-01-01-a.md",
       "reason": "規模の集計で記録として数えないことを確かめる、ファイルの分類の入力のパス（このリポジトリの学びではない）"
-    },
-    {
-      "file": "scripts/tools/repo-size.mutations.json",
-      "ref": ".kaizen/2026-01-01-a.md",
-      "reason": "上の repo-size.test.ts のテスト名を expect_failing で指す参照（このリポジトリの学びではない）"
     }
   ]
 }

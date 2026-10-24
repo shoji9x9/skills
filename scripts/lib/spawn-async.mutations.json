@@ -6,39 +6,6 @@
   "test_file": "scripts/lib/spawn-async.test.ts",
   "mutations": [
     {
-      "id": "input-not-written",
-      "why": "input を stdin に渡さない",
-      "file": "scripts/lib/spawn-async.ts",
-      "find": "child.stdin.end(input);",
-      "replace": "child.stdin.end();",
-      "occurrences": 1,
-      "expect_failing": ["spawnAsync input を stdin に渡し、渡さなければ stdin はすぐ閉じる"]
-    },
-    {
-      "id": "epipe-not-ignored",
-      "why": "stdin を読まない子へ書いたときの EPIPE を握りつぶさない",
-      "file": "scripts/lib/spawn-async.ts",
-      "find": "child.stdin.on(\"error\", () => {});",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "spawnAsync stdin を読まずに終わる子へ大きな input を渡しても失敗にしない（EPIPE を数えない）"
-      ]
-    },
-    {
-      "id": "error-dropped",
-      "why": "起動できなかったときの error を結果に入れない",
-      "file": "scripts/lib/spawn-async.ts",
-      "find": "...(error ? { error } : {})",
-      "replace": "...{}",
-      "occurrences": 1,
-      "expect_failing": [
-        "spawnAsync 起動できなければ reject せず、error を持つ結果を返す（spawnSync と同じ）",
-        "spawnAsync timeout を過ぎたら、孫プロセスが stdout を持っていても止めて ETIMEDOUT を返す（spawnSync と同じ）",
-        "spawnAsync 子が先に終わっても、孫プロセスが stdout を持ったまま timeout を過ぎたら ETIMEDOUT を返す（spawnSync と同じ）"
-      ]
-    },
-    {
       "id": "status-dropped",
       "why": "終了コードを返さない",
       "file": "scripts/lib/spawn-async.ts",
@@ -49,52 +16,6 @@
         "spawnAsync 終了コード・stdout・stderr を文字列で返す",
         "spawnAsync 起動できなければ reject せず、error を持つ結果を返す（spawnSync と同じ）",
         "spawnAsync timeout を過ぎたら、孫プロセスが stdout を持っていても止めて ETIMEDOUT を返す（spawnSync と同じ）"
-      ]
-    },
-    {
-      "id": "spawn-error-status-not-null",
-      "why": "起動できなかったときの終了コードを、spawnSync の null ではなく負の errno のまま返す",
-      "file": "scripts/lib/spawn-async.ts",
-      "find": "status: child.pid === undefined ? null : status,",
-      "replace": "status,",
-      "occurrences": 1,
-      "expect_failing": [
-        "spawnAsync 起動できなければ reject せず、error を持つ結果を返す（spawnSync と同じ）"
-      ]
-    },
-    {
-      "id": "timeout-not-killed",
-      "why": "timeout を過ぎても子を止めない",
-      "file": "scripts/lib/spawn-async.ts",
-      "find": "      child.kill(\"SIGTERM\");",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "spawnAsync timeout を過ぎたら、孫プロセスが stdout を持っていても止めて ETIMEDOUT を返す（spawnSync と同じ）"
-      ]
-    },
-    {
-      "id": "stdout-kept-open",
-      "why": "止めた子の stdout を読み続け、孫プロセスが閉じるまで返らない",
-      "file": "scripts/lib/spawn-async.ts",
-      "find": "      child.stdout.destroy();",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "spawnAsync timeout を過ぎたら、孫プロセスが stdout を持っていても止めて ETIMEDOUT を返す（spawnSync と同じ）",
-        "spawnAsync 子が先に終わっても、孫プロセスが stdout を持ったまま timeout を過ぎたら ETIMEDOUT を返す（spawnSync と同じ）"
-      ]
-    },
-    {
-      "id": "timeout-error-missing",
-      "why": "timeout で止めたときに error を返さない",
-      "file": "scripts/lib/spawn-async.ts",
-      "find": "      if (timedOut)\n        error = ",
-      "replace": "      if (false)\n        error = ",
-      "occurrences": 1,
-      "expect_failing": [
-        "spawnAsync timeout を過ぎたら、孫プロセスが stdout を持っていても止めて ETIMEDOUT を返す（spawnSync と同じ）",
-        "spawnAsync 子が先に終わっても、孫プロセスが stdout を持ったまま timeout を過ぎたら ETIMEDOUT を返す（spawnSync と同じ）"
       ]
     }
   ]

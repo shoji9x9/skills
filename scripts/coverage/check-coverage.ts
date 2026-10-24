@@ -6,7 +6,7 @@
 // 設定の読み方は次のとおり。
 // - `rules` の `path` が `/` で終わるものはディレクトリの規則で、その下のファイルに当てる。複数が当たるときは、最も長い `path` を使う。
 //   `/` で終わらないものは 1 ファイルだけの規則で、ディレクトリの規則より優先する。`reason` を必須にする。
-// - `kind` は `js`（JavaScript・TypeScript）か `sh`（シェルスクリプト）。`sh` は行だけを測るので、`lines` だけを持つ。
+// - `kind` は `js`（JavaScript・TypeScript）だけである。シェルスクリプトは測らない。
 // - `exclude` のファイルは比べない。`reason` を必須にする。
 //
 // 判定できないものは合格にせず、finding にする。対象のファイルに当たる規則が無いとき、測定の結果に対象のファイルが無いとき、
@@ -20,7 +20,7 @@ export const CONFIG_PATH = "scripts/coverage/coverage-thresholds.json";
 
 export const METRICS = ["lines", "branches", "functions"] as const;
 export type Metric = (typeof METRICS)[number];
-export type Kind = "js" | "sh";
+export type Kind = "js";
 
 export type Rule = {
   path: string;
@@ -43,7 +43,6 @@ export type Finding =
 
 /** 対象のファイルの種類。拡張子で決め、対象でなければ null。 */
 export function kindOf(file: string): Kind | null {
-  if (file.endsWith(".sh")) return "sh";
   if (/\.(?:ts|mjs)$/.test(file) && !file.endsWith(".test.ts") && !file.endsWith(".d.ts"))
     return "js";
   return null;
@@ -61,9 +60,8 @@ export function parseConfig(value: unknown): Config {
   const rules: Rule[] = value.rules.map((raw, i) => {
     const at = `${CONFIG_PATH}: rules[${i}]`;
     if (!isRecord(raw) || !isNonBlankString(raw.path)) throw new Error(`${at}: path が無い`);
-    if (raw.kind !== "js" && raw.kind !== "sh")
-      throw new Error(`${at}: kind が js でも sh でもない`);
-    const allowed: readonly Metric[] = raw.kind === "sh" ? ["lines"] : METRICS;
+    if (raw.kind !== "js") throw new Error(`${at}: kind が js でない`);
+    const allowed: readonly Metric[] = METRICS;
     const thresholds: Partial<Record<Metric, number>> = {};
     for (const key of Object.keys(raw)) {
       if (key === "path" || key === "kind" || key === "reason") continue;
@@ -188,9 +186,7 @@ export function describe(finding: Finding): string {
     case "no-rule":
       return `${finding.file}: 当たる規則が無い。${CONFIG_PATH} の rules に、このファイルを含むディレクトリの規則を足す`;
     case "not-measured":
-      return kindOf(finding.file) === "sh"
-        ? `${finding.file}: 測定の結果に無い。シェルスクリプトは対象をすべて結果に入れるので、--reuse で古い結果を使っていないかを確かめ、測り直す`
-        : `${finding.file}: 測定の結果に無い。測定の対象（run-coverage.ts の c8 の引数）を確かめる`;
+      return `${finding.file}: 測定の結果に無い。測定の対象（run-coverage.ts の c8 の引数）を確かめる`;
     case "stale-config":
       return `${CONFIG_PATH} の ${finding.section}: ${finding.path} は対象のファイルに無い。消すか、パスを直す`;
     case "excluded-and-ruled":

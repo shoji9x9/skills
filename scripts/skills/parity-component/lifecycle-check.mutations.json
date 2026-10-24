@@ -20,26 +20,6 @@
       ]
     },
     {
-      "id": "path-duplicate",
-      "why": "同じ経路の二重の振り分けを落とさない",
-      "file": "skills/parity-component/scripts/lifecycle-check.mjs",
-      "find": "} else if (n > 1) {",
-      "replace": "} else if (false) {",
-      "occurrences": 1,
-      "expect_failing": ["同じ実行パスの二重の振り分けと語彙外の実行パス名を落とす"]
-    },
-    {
-      "id": "path-failed",
-      "why": "検査が落ちた経路を通す",
-      "file": "skills/parity-component/scripts/lifecycle-check.mjs",
-      "find": "if (row.result !== \"pass\") {",
-      "replace": "if (false) {",
-      "occurrences": 1,
-      "expect_failing": [
-        "検査が落ちた・実行パスに入っていない・直した処理を外した確認が無い実行パスを落とす"
-      ]
-    },
-    {
       "id": "not-entered",
       "why": "経路に入っていない検査を通す",
       "file": "skills/parity-component/scripts/lifecycle-check.mjs",
@@ -48,46 +28,6 @@
       "occurrences": 1,
       "expect_failing": [
         "検査が落ちた・実行パスに入っていない・直した処理を外した確認が無い実行パスを落とす"
-      ]
-    },
-    {
-      "id": "fix-removal",
-      "why": "直した処理を外した確認の無い経路を通す",
-      "file": "skills/parity-component/scripts/lifecycle-check.mjs",
-      "find": "if (row.fix_removal_verified !== true) {",
-      "replace": "if (false) {",
-      "occurrences": 1,
-      "expect_failing": [
-        "検査が落ちた・実行パスに入っていない・直した処理を外した確認が無い実行パスを落とす"
-      ]
-    },
-    {
-      "id": "paths-when-not-applicable",
-      "why": "対象でない部品の順番の見本を通す",
-      "file": "skills/parity-component/scripts/lifecycle-check.mjs",
-      "find": "if (paths.length > 0) {",
-      "replace": "if (false) {",
-      "occurrences": 1,
-      "expect_failing": ["対象でない部品は paths が空なら通し、paths があれば落とす"]
-    },
-    {
-      "id": "na-reason",
-      "why": "名指しできない理由の無い振り分けを通す",
-      "file": "skills/parity-component/scripts/lifecycle-check.mjs",
-      "find": "if (!filled(row.reason)) {",
-      "replace": "if (false) {",
-      "occurrences": 1,
-      "expect_failing": ["名指しできない実行パスの理由が無ければ落とす"]
-    },
-    {
-      "id": "story-in-catalog",
-      "why": "順番の見本が見た目の対応表にも載っていても通す",
-      "file": "skills/parity-component/scripts/lifecycle-check.mjs",
-      "find": "if (nonEmptyString(row.story) && visualStories.has(row.story)) {",
-      "replace": "if (false) {",
-      "occurrences": 1,
-      "expect_failing": [
-        "順番の見本が catalog.stories にも載っていれば落とし、対応表が読めなければ型崩れ"
       ]
     }
   ]

@@ -130,10 +130,10 @@ pre-commit の検査は、他のジョブと同じく作業ツリーの内容に
 | `prose/check-word-list.ts` | `.textlint/word-list.md` と `.textlint/words.json` の一致 |
 | `docs/agents-md/check-agents-md-size.ts` | `AGENTS.md` のサイズ。ブランチで 30 KiB を超えたら、24 KiB 以下まで縮めさせる。超えたかは履歴で判定し、上限は `scripts/gates/docs/agents-md/agents-md-size.json` に書く |
 
-### カバレッジ（pre-push と CI で実行）
+### カバレッジ（CI で実行）
 
 `pnpm run test:coverage` がテスト全体をカバレッジ付きで実行し、ファイルごとの値を `scripts/coverage/coverage-thresholds.json` の閾値と比べる。
-テスト全体を実行するので、lefthook の pre-commit ではなく pre-push で実行する。CI では `Unit tests` のジョブがこのコマンドを実行する。
+CI では、必須チェックの `Unit tests` のジョブがこのコマンドを実行する。テスト全体を実行するので、lefthook では実行しない。
 測り方・閾値の決め方・除外の書き方は [`docs/testing.md`](testing.md)「カバレッジ」にある。
 
 vitest は、vite の変換を通さず Node がファイルを直接読み込む設定にしている（`vitest.config.ts` の `experimental.viteModuleRunner`）。

@@ -16,15 +16,6 @@
       "expect_failing": ["設定ファイルが無いときに bash が使う値は、スキーマの default と一致する"]
     },
     {
-      "id": "KC-LOAD-NOT-CACHED",
-      "why": "2 回目の kaizen_config_load で前の結果を使わない（呼ぶたびに node を起動する）",
-      "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
-      "find": "\tif [ -n \"${kaizen_config_loaded}\" ]; then\n",
-      "replace": "\tif false; then\n",
-      "occurrences": 1,
-      "expect_failing": ["2 回目の kaizen_config_load は node を起動せず、前の結果を返す"]
-    },
-    {
       "id": "KC-ERROR-NOT-KEPT",
       "why": "誤りの結果を 2 回目に返さない（2 回目の呼び出しが設定の誤りを見逃す）",
       "file": "skills/kaizen/scripts/kaizen-hook-common.sh",

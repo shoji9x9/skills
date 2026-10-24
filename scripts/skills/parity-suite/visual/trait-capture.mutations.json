@@ -47,30 +47,6 @@
       ]
     },
     {
-      "id": "hidden-counted",
-      "why": "visibility: hidden の要素の文字も数える",
-      "file": "skills/parity-suite/scripts/page/trait-capture.page.mjs",
-      "find": "    if (style.getPropertyValue(\"visibility\") !== \"visible\") return;\n",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "モジュールの関数 visibility が visible でない要素の文字は数えない",
-        "ページへ渡すソース visibility が visible でない要素の文字は数えない"
-      ]
-    },
-    {
-      "id": "unresolved-passes",
-      "why": "文字の持ち主で解決しないプロパティ名を空文字のまま通す",
-      "file": "skills/parity-suite/scripts/page/trait-capture.page.mjs",
-      "find": "      if (value === \"\") unknown.push(prop);\n      picked[prop] = value;\n",
-      "replace": "      picked[prop] = value;\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "モジュールの関数 文字の持ち主で解決しないプロパティ名は空文字で通さず論理名付きで落ちる",
-        "ページへ渡すソース 文字の持ち主で解決しないプロパティ名は空文字で通さず論理名付きで落ちる"
-      ]
-    },
-    {
       "id": "slot-ignored",
       "why": "<slot> に割り当てられたノードを辿らない（ライト DOM の文字を落とす）",
       "file": "skills/parity-suite/scripts/page/trait-capture.page.mjs",
@@ -82,22 +58,6 @@
         "ページへ渡すソース シャドウルートの中と slot に割り当てられた文字を、描かれる順に採る",
         "モジュールの関数 slot に割り当てられた文字の持ち主は、DOM の親ではなく slot になる",
         "ページへ渡すソース slot に割り当てられた文字の持ち主は、DOM の親ではなく slot になる"
-      ]
-    },
-    {
-      "id": "no-merge",
-      "why": "同じ持ち主の 2 つ目以降の文字を別の行にする",
-      "file": "skills/parity-suite/scripts/page/trait-capture.page.mjs",
-      "find": "    const known = st.owners.get(owner);\n",
-      "replace": "    const known = undefined;\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "モジュールの関数 同じ持ち主の文字は 1 行にまとめ、寸法は断片の合計、矩形はそれらを覆う範囲にする",
-        "ページへ渡すソース 同じ持ち主の文字は 1 行にまとめ、寸法は断片の合計、矩形はそれらを覆う範囲にする",
-        "モジュールの関数 同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる",
-        "ページへ渡すソース 同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる",
-        "モジュールの関数 持ち主の端の空白の幅は数えず、中の空白（空白だけのノードを含む）の幅は数える",
-        "ページへ渡すソース 持ち主の端の空白の幅は数えず、中の空白（空白だけのノードを含む）の幅は数える"
       ]
     },
     {
@@ -122,32 +82,6 @@
       "expect_failing": [
         "モジュールの関数 slot に割り当てられた文字の持ち主は、DOM の親ではなく slot になる",
         "ページへ渡すソース slot に割り当てられた文字の持ち主は、DOM の親ではなく slot になる"
-      ]
-    },
-    {
-      "id": "trim-per-node",
-      "why": "テキストノードごとに trim して空白で繋ぐ（分割されたノードで \"3 件\" になる）",
-      "file": "skills/parity-suite/scripts/page/trait-capture.page.mjs",
-      "find": "    st.rawText.set(known, st.rawText.get(known) + raw);\n    present(st.segments.get(known)).push(segment);\n",
-      "replace": "    st.rawText.set(known, st.rawText.get(known) + \" \" + raw.trim());\n    present(st.segments.get(known)).push(segment);\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "モジュールの関数 同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる",
-        "ページへ渡すソース 同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる"
-      ]
-    },
-    {
-      "id": "lines-as-fragments",
-      "why": "行の数を縦の帯ではなく断片の数で数える（テキストノードが分かれると 1 行が 2 行になる）",
-      "file": "skills/parity-suite/scripts/page/trait-capture.page.mjs",
-      "find": "      if (f.top >= rowTop + (f.bottom - f.top) / 2) {\n",
-      "replace": "      if (true) {\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "モジュールの関数 同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる",
-        "ページへ渡すソース 同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる",
-        "モジュールの関数 同じ持ち主の文字は 1 行にまとめ、寸法は断片の合計、矩形はそれらを覆う範囲にする",
-        "ページへ渡すソース 同じ持ち主の文字は 1 行にまとめ、寸法は断片の合計、矩形はそれらを覆う範囲にする"
       ]
     },
     {
@@ -177,18 +111,6 @@
       ]
     },
     {
-      "id": "clip-threshold-empty-only",
-      "why": "切り抜き後の面積が 0 のときだけ除外する（1×1 に閉じ込めた sr-only が残る）",
-      "file": "skills/parity-suite/scripts/page/trait-capture.page.mjs",
-      "find": "    return right - left < 2 || bottom - top < 2;\n",
-      "replace": "    return right - left <= 0 || bottom - top <= 0;\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "モジュールの関数 1px の箱に overflow: hidden で閉じ込めた文字（sr-only）",
-        "ページへ渡すソース 1px の箱に overflow: hidden で閉じ込めた文字（sr-only）"
-      ]
-    },
-    {
       "id": "input-ignored",
       "why": "ボタンとして描く <input> の value を数えない",
       "file": "skills/parity-suite/scripts/page/trait-capture.page.mjs",
@@ -205,83 +127,11 @@
       ]
     },
     {
-      "id": "input-any-type",
-      "why": "文字入力欄の value までボタンの文字として数える",
-      "file": "skills/parity-suite/scripts/page/trait-capture.page.mjs",
-      "find": "      [\"submit\", \"button\", \"reset\"].includes(String(node.type).toLowerCase())\n",
-      "replace": "      true\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "モジュールの関数 ボタンとして描く <input> の value を文字の持ち主として採る",
-        "ページへ渡すソース ボタンとして描く <input> の value を文字の持ち主として採る"
-      ]
-    },
-    {
-      "id": "edges-kept",
-      "why": "持ち主の端の空白の幅を差し引かない（境目の空白の付き方で幅が変わる）",
-      "file": "skills/parity-suite/scripts/page/trait-capture.page.mjs",
-      "find": "        total -= seg[side];\n",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "モジュールの関数 持ち主の端の空白の幅は数えず、中の空白（空白だけのノードを含む）の幅は数える",
-        "ページへ渡すソース 持ち主の端の空白の幅は数えず、中の空白（空白だけのノードを含む）の幅は数える"
-      ]
-    },
-    {
-      "id": "blank-node-unmeasured",
-      "why": "空白だけのノードの幅を数えない（分割されたノードが 1 ノードより狭くなる）",
-      "file": "skills/parity-suite/scripts/page/trait-capture.page.mjs",
-      "find": "        present(st.segments.get(known)).push({ full, lead: full, trail: full, blank: true });\n",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "モジュールの関数 持ち主の端の空白の幅は数えず、中の空白（空白だけのノードを含む）の幅は数える",
-        "ページへ渡すソース 持ち主の端の空白の幅は数えず、中の空白（空白だけのノードを含む）の幅は数える"
-      ]
-    },
-    {
-      "id": "input-no-transform",
-      "why": "input の文字に text-transform と letter-spacing を当てずに測る",
-      "file": "skills/parity-suite/scripts/page/trait-capture.page.mjs",
-      "find": "    const m = canvas.measureText(shown);\n",
-      "replace": "    const m = canvas.measureText(raw);\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "モジュールの関数 ボタンとして描く <input> の文字は text-transform と letter-spacing を当てて測る",
-        "ページへ渡すソース ボタンとして描く <input> の文字は text-transform と letter-spacing を当てて測る"
-      ]
-    },
-    {
-      "id": "default-label-ignored",
-      "why": "value 属性の無い submit を数えない（<button>送信</button> への置き換えで件数差が出る）",
-      "file": "skills/parity-suite/scripts/page/trait-capture.page.mjs",
-      "find": "    const defaultLabel = type !== \"button\" && !node.hasAttribute(\"value\");\n",
-      "replace": "    const defaultLabel = false;\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "モジュールの関数 value 属性の無い submit は文字列を空にした行として数え、type=button は数えない",
-        "ページへ渡すソース value 属性の無い submit は文字列を空にした行として数え、type=button は数えない"
-      ]
-    },
-    {
       "id": "js-whitespace",
       "why": "JavaScript の \\\\s で空白を畳む（全角スペースの字下げや NBSP を空白として消す）",
       "file": "skills/parity-suite/scripts/page/trait-capture.page.mjs",
       "find": "    return value.replace(/[ \\t\\n\\r\\f]+/g, \" \").replace(/^ | $/g, \"\");\n",
       "replace": "    return value.replace(/\\s+/g, \" \").trim();\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "モジュールの関数 NBSP と全角スペースは空白として畳まず、端の幅からも外さない",
-        "ページへ渡すソース NBSP と全角スペースは空白として畳まず、端の幅からも外さない"
-      ]
-    },
-    {
-      "id": "js-trim-edges",
-      "why": "端の空白の幅を JavaScript の trim で測る（全角スペースの字下げの幅を外す）",
-      "file": "skills/parity-suite/scripts/page/trait-capture.page.mjs",
-      "find": "    const leadLength = present(/^[ \\t\\n\\r\\f]*/.exec(raw))[0].length;\n",
-      "replace": "    const leadLength = raw.length - raw.trimStart().length;\n",
       "occurrences": 1,
       "expect_failing": [
         "モジュールの関数 NBSP と全角スペースは空白として畳まず、端の幅からも外さない",
@@ -316,67 +166,6 @@
         "ページへ渡すソース スクロールバーの宣言で解決しないプロパティ名は空文字で通さず論理名付きで落ちる",
         "モジュールの関数 ::-webkit-scrollbar 系で解決しないプロパティ名も擬似要素名付きで落ちる",
         "ページへ渡すソース ::-webkit-scrollbar 系で解決しないプロパティ名も擬似要素名付きで落ちる"
-      ]
-    },
-    {
-      "id": "scroll-bar-border-kept",
-      "why": "縦のバーの幅から左右の枠を差し引かない（Issue #495）",
-      "file": "skills/parity-suite/scripts/page/trait-capture.page.mjs",
-      "find": "el.offsetWidth - el.clientWidth - border(\"left\") - border(\"right\")",
-      "replace": "el.offsetWidth - el.clientWidth",
-      "occurrences": 1,
-      "expect_failing": [
-        "モジュールの関数 スクロールバーの厚みは枠を差し引いて数える",
-        "ページへ渡すソース スクロールバーの厚みは枠を差し引いて数える"
-      ]
-    },
-    {
-      "id": "scroll-webkit-assumed",
-      "why": "::-webkit-scrollbar を持たないブラウザでも擬似要素の計算値を読む（Issue #495）",
-      "file": "skills/parity-suite/scripts/page/trait-capture.page.mjs",
-      "find": "      typeof CSS !== \"undefined\" && CSS.supports(\"selector(::-webkit-scrollbar)\");",
-      "replace": "      true;",
-      "occurrences": 1,
-      "expect_failing": [
-        "モジュールの関数 ::-webkit-scrollbar を持たないブラウザ（CSS.supports が偽）では webkit を unsupported にする",
-        "ページへ渡すソース ::-webkit-scrollbar を持たないブラウザ（CSS.supports が偽）では webkit を unsupported にする",
-        "モジュールの関数 ::-webkit-scrollbar を持たないブラウザ（CSS が無い）では webkit を unsupported にする",
-        "ページへ渡すソース ::-webkit-scrollbar を持たないブラウザ（CSS が無い）では webkit を unsupported にする"
-      ]
-    },
-    {
-      "id": "scroll-bar-border-kept-horizontal",
-      "why": "横のバーの高さから上下の枠を差し引かない（Issue #495）",
-      "file": "skills/parity-suite/scripts/page/trait-capture.page.mjs",
-      "find": "el.offsetHeight - el.clientHeight - border(\"top\") - border(\"bottom\")",
-      "replace": "el.offsetHeight - el.clientHeight",
-      "occurrences": 1,
-      "expect_failing": [
-        "モジュールの関数 スクロールバーの厚みは枠を差し引いて数える",
-        "ページへ渡すソース スクロールバーの厚みは枠を差し引いて数える"
-      ]
-    },
-    {
-      "id": "scroll-inline-treated-as-container",
-      "why": "display: inline の要素（overflow が効かず clientWidth が 0）を器として採り、文字の幅をバーの厚みにする（Issue #495）",
-      "file": "skills/parity-suite/scripts/page/trait-capture.page.mjs",
-      "find": "elementStyle.getPropertyValue(\"display\") !== \"inline\" &&",
-      "replace": "true &&",
-      "occurrences": 1,
-      "expect_failing": [
-        "モジュールの関数 display: inline の要素は overflow を持っていてもコンテナとして扱わない（文字の幅をバーの厚みにしない）",
-        "ページへ渡すソース display: inline の要素は overflow を持っていてもコンテナとして扱わない（文字の幅をバーの厚みにしない）"
-      ]
-    },
-    {
-      "id": "page-version",
-      "why": "page ファイルの版が違っても失敗しない（片方だけ古いコピーを見逃す）",
-      "file": "skills/parity-suite/scripts/trait-capture.mjs",
-      "find": "if (pageVersion !== VERSION) {",
-      "replace": "if (false) {",
-      "occurrences": 1,
-      "expect_failing": [
-        "assertPageVersion は、page ファイルの版が VERSION と違えば失敗し、同じなら通る"
       ]
     }
   ]

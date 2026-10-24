@@ -5,7 +5,7 @@
 // | 軸             | 値                                                                                 |
 // | -------------- | ---------------------------------------------------------------------------------- |
 // | 規則の当たり方 | ディレクトリの規則 1 つ / 入れ子のディレクトリの規則（長い方） / 1 ファイルの規則 / 当たらない |
-// | 種類           | js / sh（sh の規則は js のファイルに当てない）                                     |
+// | 種類           | js だけ（.sh は対象にしない）                                                      |
 // | 測定値         | 閾値と等しい / 下回る / 測定の結果に無い / 指標が欠けている                         |
 // | 除外           | 除外したファイル / 対象に無いファイルの除外（古い） / 除外と 1 ファイルの規則の両方 |
 // | 設定の形       | 正しい / 配列でない / path・reason・kind の欠落 / 範囲外の閾値 / 使えない指標 / 重複 |
@@ -31,7 +31,6 @@ const base = {
   rules: [
     { path: "scripts/", kind: "js", lines: 90, branches: 80, functions: 90 },
     { path: "scripts/lib/", kind: "js", lines: 95, branches: 85, functions: 95 },
-    { path: "scripts/", kind: "sh", lines: 80 },
   ],
   exclude: [],
 };
@@ -42,10 +41,10 @@ const full = (lines: number, branches = 100, functions = 100): FileMeasure => ({
   functions,
 });
 
-test("kindOf: テストと型の宣言を対象にせず、.ts・.mjs を js、.sh を sh にする", () => {
+test("kindOf: テストと型の宣言とシェルスクリプトを対象にせず、.ts・.mjs を js にする", () => {
   expect(kindOf("scripts/a.ts")).toBe("js");
   expect(kindOf("skills/x/scripts/a.mjs")).toBe("js");
-  expect(kindOf("scripts/a.sh")).toBe("sh");
+  expect(kindOf("scripts/a.sh")).toBe(null);
   expect(kindOf("scripts/a.test.ts")).toBe(null);
   expect(kindOf("scripts/a.d.ts")).toBe(null);
   expect(kindOf("scripts/a.json")).toBe(null);
@@ -63,11 +62,6 @@ test("ruleFor: 1 ファイルの規則はディレクトリの規則より優先
     rules: [...base.rules, { path: "scripts/lib/x.ts", kind: "js", lines: 50, reason: "理由" }],
   });
   expect(ruleFor(c.rules, "scripts/lib/x.ts", "js")?.thresholds).toEqual({ lines: 50 });
-});
-
-test("ruleFor: 種類の違う規則は当てない", () => {
-  const c = config({ rules: [{ path: "scripts/", kind: "sh", lines: 80 }], exclude: [] });
-  expect(ruleFor(c.rules, "scripts/a.ts", "js")).toBe(null);
 });
 
 test("ruleFor: path の前方一致はディレクトリの境界で区切る（scripts/lib/ は scripts/library/ に当たらない）", () => {
@@ -98,21 +92,6 @@ test("evaluate: 閾値と等しい値は合格にし、下回る値は指標ご�
       actual: 84,
       threshold: 85,
       rule: "scripts/lib/",
-    },
-  ]);
-});
-
-test("evaluate: sh の規則は lines だけを比べる", () => {
-  const c = config(base);
-  expect(evaluate(c, ["scripts/a.sh"], new Map([["scripts/a.sh", { lines: 80 }]]))).toEqual([]);
-  expect(evaluate(c, ["scripts/a.sh"], new Map([["scripts/a.sh", { lines: 79 }]]))).toEqual([
-    {
-      type: "below",
-      file: "scripts/a.sh",
-      metric: "lines",
-      actual: 79,
-      threshold: 80,
-      rule: "scripts/",
     },
   ]);
 });
@@ -185,12 +164,12 @@ test.each([
   [
     "kind が不明",
     { rules: [{ path: "a/", kind: "py", lines: 1 }], exclude: [] },
-    /kind が js でも sh でもない/,
+    /kind が js でない/,
   ],
   [
-    "sh に branches",
-    { rules: [{ path: "a/", kind: "sh", branches: 1 }], exclude: [] },
-    /使えないキー branches/,
+    "廃止した sh",
+    { rules: [{ path: "a/", kind: "sh", lines: 1 }], exclude: [] },
+    /kind が js でない/,
   ],
   [
     "知らないキー",
@@ -249,10 +228,6 @@ test.each([
   ],
 ])("parseConfig: %s は判定できないとして例外にする", (_name, raw, message) => {
   expect(() => parseConfig(raw)).toThrow(message);
-});
-
-test("parseConfig: 同じ path でも種類が違う規則は重複にしない", () => {
-  expect(config(base).rules).toHaveLength(3);
 });
 
 test("describe: finding ごとに、ファイルと直し方が分かる文にする", () => {

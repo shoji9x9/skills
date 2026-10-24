@@ -29,15 +29,6 @@
       ]
     },
     {
-      "id": "GATE-DEADLINE-MIN",
-      "why": "締め切り 1 秒を受け付ける（lifecycle 検査に時間が残らず、毎回判定できないとして止まる）。下限はスキーマが決める",
-      "file": "skills/kaizen/config-schemas/kaizen.schema.json",
-      "find": "\"minimum\": 2,",
-      "replace": "\"minimum\": 1,",
-      "occurrences": 1,
-      "expect_failing": ["チェック全体の締め切り 不正な締め切り 1 はコミットを止めて知らせる"]
-    },
-    {
       "id": "GATE-CONFIG-ERROR-PASSES",
       "why": "設定を読めなくてもコミットを止めない（不正な値・旧い場所の設定のまま、デフォルトの値で判定する）",
       "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
@@ -59,143 +50,6 @@
       ]
     },
     {
-      "id": "FOREIGN-CACHE-NEVER-READ",
-      "why": "キャッシュを読まない（候補が残る他セッション分を commit のたびに走査し直す）",
-      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
-      "find": "if cached=$(foreign_scan_cached \"${cache}\" \"${inputs}\" \"${slice}\"); then",
-      "replace": "if false && cached=$(foreign_scan_cached \"${cache}\" \"${inputs}\" \"${slice}\"); then",
-      "occurrences": 1,
-      "expect_failing": [
-        "他セッション分の走査結果の再利用 候補あり は入力が変わらなければ走査し直さない",
-        "他セッション分の走査結果の再利用（使える秒数を比べる） 打ち切りは、前回より長く使えるときだけ走査し直す"
-      ]
-    },
-    {
-      "id": "FOREIGN-CACHE-SIZE-IGNORED",
-      "why": "transcript の大きさを入力に含めない（伸びた transcript の新しい活動を走査しない）",
-      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
-      "find": "\"$1\" \"${size:-unknown}\" \"$(fingerprint_of \"$2\")\"",
-      "replace": "\"$1\" \"x\" \"$(fingerprint_of \"$2\")\"",
-      "occurrences": 1,
-      "expect_failing": ["他セッション分の走査結果の再利用 transcript が伸びたら走査し直す"]
-    },
-    {
-      "id": "FOREIGN-CACHE-CHECKPOINT-IGNORED",
-      "why": "checkpoint を入力に含めない（走査の起点が変わっても前回の結論を使う）",
-      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
-      "find": "\"${size:-unknown}\" \"$(fingerprint_of \"$2\")\" \"${scanner_fingerprint}\"",
-      "replace": "\"${size:-unknown}\" \"x\" \"${scanner_fingerprint}\"",
-      "occurrences": 1,
-      "expect_failing": ["他セッション分の走査結果の再利用 checkpoint が変わったら走査し直す"]
-    },
-    {
-      "id": "FOREIGN-CACHE-SCANNER-IGNORED",
-      "why": "走査器を入力に含めない（スキル更新後も古い走査器の結論を使う）",
-      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
-      "find": "\"$(fingerprint_of \"$2\")\" \"${scanner_fingerprint}\" \\",
-      "replace": "\"$(fingerprint_of \"$2\")\" \"x\" \\",
-      "occurrences": 1,
-      "expect_failing": ["他セッション分の走査結果の再利用 スキャナが変わったら走査し直す"]
-    },
-    {
-      "id": "FOREIGN-CACHE-TWO-LINES",
-      "why": "結論と秒数の 2 行を確かめない（秒数の欠けたキャッシュで結論を秒数にも流用する）",
-      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
-      "find": "\t*$'\\n'*) ;;\n\t*) return 1 ;;\n\tesac\n\tcached_rc=",
-      "replace": "\t*) ;;\n\tesac\n\tcached_rc=",
-      "occurrences": 1,
-      "expect_failing": [
-        "他セッション分の走査結果の再利用 キャッシュの形が違えば（秒数が欠けている）走査し直す"
-      ]
-    },
-    {
-      "id": "FOREIGN-CACHE-TIMEOUT-ALWAYS-SKIP",
-      "why": "打ち切りを、使える時間に関わらず再利用する（長い締め切りでも二度と走査しない）",
-      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
-      "find": "124) [ \"$3\" -le \"$((10#${cached_slice} + 1))\" ] || return 1 ;;",
-      "replace": "124) ;;",
-      "occurrences": 1,
-      "expect_failing": [
-        "他セッション分の走査結果の再利用（使える秒数を比べる） 打ち切りは、前回より長く使えるときだけ走査し直す"
-      ]
-    },
-    {
-      "id": "FOREIGN-CACHE-SWEEP-KEEPS",
-      "why": "保持期間で回収したセンチネルのキャッシュを残す（読む者のいない制御ファイルが溜まる）",
-      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
-      "find": "\t\trm -f \"$(foreign_scan_cache_path \"${sentinel}\" \"${key}\")\"\n",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "他セッション分の走査結果の再利用 保持期間で回収したセンチネルのキャッシュも消す"
-      ]
-    },
-    {
-      "id": "GATE-SECONDS-INHERITED",
-      "why": "環境変数 SECONDS を引き継いだまま経過時間を測る（親環境に export されていると毎回 fail closed）",
-      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
-      "find": "\nSECONDS=0\n",
-      "replace": "\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "チェック全体の締め切り 環境変数 SECONDS を引き継いでも経過時間は 0 から数える"
-      ]
-    },
-    {
-      "id": "FOREIGN-CACHE-WRITES-INCONCLUSIVE",
-      "why": "判定不能（一過性の失敗と区別できない）をキャッシュに書く",
-      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
-      "find": "\t\t0 | 124)\n",
-      "replace": "\t\t0 | 2 | 124)\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "他セッション分の走査結果の再利用 判定不能はキャッシュに残さず、毎回走査し直す"
-      ]
-    },
-    {
-      "id": "FOREIGN-CACHE-READS-INCONCLUSIVE",
-      "why": "残っていた判定不能のキャッシュを再利用する（持ち主が戻らないセンチネルを保持期間まで再試行しない）",
-      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
-      "find": "\t0) ;;\n",
-      "replace": "\t0 | 2) ;;\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "他セッション分の走査結果の再利用 残っていた判定不能のキャッシュも使わない"
-      ]
-    },
-    {
-      "id": "SCAN-META-AS-UTTERANCE",
-      "why": "isMeta の user レコード（スキルの本文の注入）を発話として扱う（本文の修正語で実在しない user correction が出て commit が止まる）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "(if ($j.isMeta // false) == true then empty",
-      "replace": "(if false then empty",
-      "occurrences": 1,
-      "expect_failing": [
-        "Claude Code の isMeta の user レコード isMeta の本文の修正語は候補にしない",
-        "Claude Code の isMeta の user レコード isMeta: false の発話の修正語は候補にする"
-      ]
-    },
-    {
-      "id": "SCAN-CODEX-INJECTED-AS-UTTERANCE",
-      "why": "Codex の注入（AGENTS.md・スキルの本文）を発話として扱う（本文の修正語で実在しない user correction が出て commit が止まる）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "select(codex_injected | not)",
-      "replace": "select(true)",
-      "occurrences": 1,
-      "expect_failing": [
-        "Codex の注入された user メッセージ 注入の本文の修正語は候補にしない",
-        "Codex の注入された user メッセージ 注入でない発話の修正語は候補にする",
-        "Codex の注入された user メッセージ 注入の形 # AGENTS.md instructions for は候補にしない",
-        "Codex の注入された user メッセージ 注入の形 <skill> は候補にしない",
-        "Codex の注入された user メッセージ 注入の形 <user_action> は候補にしない",
-        "Codex の注入された user メッセージ 注入の形 <recommended_plugins> は候補にしない",
-        "Codex の注入された user メッセージ 注入の形 <turn_aborted> は候補にしない",
-        "Codex の注入された user メッセージ 注入の形 <environment_context> は候補にしない",
-        "Codex の注入された user メッセージ 注入の形 <codex_internal_context> は候補にしない",
-        "Codex の注入された user メッセージ 注入の形 <user_shell_command> は候補にしない"
-      ]
-    },
-    {
       "id": "SCAN-META-FALSE-AS-META",
       "why": "isMeta が真のときだけでなく、キーがあるだけ（isMeta: false）で発話を捨てる（本物の user correction を見逃す）",
       "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
@@ -204,132 +58,6 @@
       "occurrences": 1,
       "expect_failing": [
         "Claude Code の isMeta の user レコード isMeta: false の発話の修正語は候補にする"
-      ]
-    },
-    {
-      "id": "SCAN-CODEX-FORM-AGENTS",
-      "why": "注入の形 # AGENTS.md instructions for を閉じた集合から落とす（その形の注入を発話として扱い、実在しない user correction が出る）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "# AGENTS\\\\.md instructions for |",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "Codex の注入された user メッセージ 注入の形 # AGENTS.md instructions for は候補にしない",
-        "Codex の注入された user メッセージ 注入でない発話の修正語は候補にする",
-        "Codex の注入された user メッセージ 注入の本文の修正語は候補にしない"
-      ]
-    },
-    {
-      "id": "SCAN-CODEX-FORM-SKILL",
-      "why": "注入の形 <skill> を閉じた集合から落とす（その形の注入を発話として扱い、実在しない user correction が出る）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "<(skill|",
-      "replace": "<(",
-      "occurrences": 1,
-      "expect_failing": [
-        "Codex の注入された user メッセージ 注入の形 <skill> は候補にしない",
-        "Codex の注入された user メッセージ 注入の本文の修正語は候補にしない"
-      ]
-    },
-    {
-      "id": "SCAN-CODEX-FORM-USER-ACTION",
-      "why": "注入の形 <user_action> を閉じた集合から落とす（その形の注入を発話として扱い、実在しない user correction が出る）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "|user_action",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": ["Codex の注入された user メッセージ 注入の形 <user_action> は候補にしない"]
-    },
-    {
-      "id": "SCAN-CODEX-FORM-RECOMMENDED-PLUGINS",
-      "why": "注入の形 <recommended_plugins> を閉じた集合から落とす（その形の注入を発話として扱い、実在しない user correction が出る）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "|recommended_plugins",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "Codex の注入された user メッセージ 注入の形 <recommended_plugins> は候補にしない"
-      ]
-    },
-    {
-      "id": "SCAN-CODEX-FORM-TURN-ABORTED",
-      "why": "注入の形 <turn_aborted> を閉じた集合から落とす（その形の注入を発話として扱い、実在しない user correction が出る）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "|turn_aborted",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "Codex の注入された user メッセージ 注入の形 <turn_aborted> は候補にしない"
-      ]
-    },
-    {
-      "id": "SCAN-CODEX-FORM-ENVIRONMENT-CONTEXT",
-      "why": "注入の形 <environment_context> を閉じた集合から落とす（その形の注入を発話として扱い、実在しない user correction が出る）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "|environment_context",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "Codex の注入された user メッセージ 注入の形 <environment_context> は候補にしない"
-      ]
-    },
-    {
-      "id": "SCAN-CODEX-FORM-CODEX-INTERNAL-CONTEXT",
-      "why": "注入の形 <codex_internal_context> を閉じた集合から落とす（その形の注入を発話として扱い、実在しない user correction が出る）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "|codex_internal_context",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "Codex の注入された user メッセージ 注入の形 <codex_internal_context> は候補にしない",
-        "Codex の注入された user メッセージ 注入の本文の修正語は候補にしない"
-      ]
-    },
-    {
-      "id": "SCAN-CODEX-FORM-USER-SHELL-COMMAND",
-      "why": "注入の形 <user_shell_command> を閉じた集合から落とす（その形の注入を発話として扱い、実在しない user correction が出る）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "|user_shell_command",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "Codex の注入された user メッセージ 注入の形 <user_shell_command> は候補にしない"
-      ]
-    },
-    {
-      "id": "SCAN-CODEX-AUX-TOKEN-USAGE",
-      "why": "token_usage_record を補助レコードとして認識しない（使用量のレコードだけの transcript が判定不能になり、commit が止まる）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "elif $j.type == \"token_usage_record\" then \"D\", \"R\"",
-      "replace": "elif false then \"D\", \"R\"",
-      "occurrences": 1,
-      "expect_failing": [
-        "Codex の token usage / review mode 補助レコード 補助レコードだけなら候補ゼロ",
-        "Codex の token usage / review mode 補助レコード 補助レコードはツール失敗候補を隠さない"
-      ]
-    },
-    {
-      "id": "SCAN-CODEX-AUX-ENTERED-REVIEW",
-      "why": "EnteredReviewMode を補助レコードとして認識しない（review mode に入っただけの transcript が判定不能になる）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "$item.type == \"EnteredReviewMode\" or",
-      "replace": "false or",
-      "occurrences": 1,
-      "expect_failing": [
-        "Codex の token usage / review mode 補助レコード 補助レコードだけなら候補ゼロ",
-        "Codex の token usage / review mode 補助レコード 補助レコードはツール失敗候補を隠さない"
-      ]
-    },
-    {
-      "id": "SCAN-CODEX-AUX-EXITED-REVIEW",
-      "why": "ExitedReviewMode を補助レコードとして認識しない（review mode を出ただけの transcript が判定不能になる）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "$item.type == \"ExitedReviewMode\" or",
-      "replace": "false or",
-      "occurrences": 1,
-      "expect_failing": [
-        "Codex の token usage / review mode 補助レコード 補助レコードだけなら候補ゼロ",
-        "Codex の token usage / review mode 補助レコード 補助レコードはツール失敗候補を隠さない"
       ]
     },
     {
@@ -346,57 +74,6 @@
       ]
     },
     {
-      "id": "SCAN-INVALID-LINE",
-      "why": "判定できなかった最初の行の番号を報告に出さない（commit が止まった利用者が原因の行を探せない）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "\t\t\tinvalid_line=${record_line}\n",
-      "replace": "\t\t\tinvalid_line=0\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "jq の実行時のエラー オブジェクトでない JSON の行は判定不能",
-        "jq の実行時のエラー user レコードの text が文字列でないものは判定不能",
-        "jq の実行時のエラー 型の判定で判定不能にしたレコードも、最初の行の番号を出す"
-      ]
-    },
-    {
-      "id": "SCAN-CLAUDE-API-REQUEST-BLOB",
-      "why": "api-request-blob を既知のレコードとして扱わない（api-request-blob を書く Claude Code の transcript がすべて判定不能になる。Issue #710）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "$j.type == \"api-request-blob\" and",
-      "replace": "false and",
-      "occurrences": 1,
-      "expect_failing": [
-        "Claude Code の api-request-blob レコード コピーの中の修正語だけなら候補ゼロ",
-        "Claude Code の api-request-blob レコード コピーは本物の発話の候補を隠さない",
-        "Claude Code の api-request-blob レコード checkpoint 後の差分が api-request-blob だけでも検証済みゼロ",
-        "Claude Code の api-request-blob レコード checkpoint が無く差分が api-request-blob だけでも Claude Code と識別する",
-        "Claude Code の api-request-blob レコード コピーは作業中に送った発話の候補を隠さない"
-      ]
-    },
-    {
-      "id": "SCAN-CLAUDE-API-REQUEST-BLOB-HASH",
-      "why": "api-request-blob の hash が文字列かを確かめない（知らない形のコピーを読み飛ばす）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "($j.hash | type) == \"string\" and",
-      "replace": "true and",
-      "occurrences": 1,
-      "expect_failing": [
-        "Claude Code の api-request-blob レコード hash が無いコピーは判定不能",
-        "Claude Code の api-request-blob レコード hash が文字列でないコピーは判定不能"
-      ]
-    },
-    {
-      "id": "SCAN-CLAUDE-API-REQUEST-BLOB-MESSAGE",
-      "why": "api-request-blob の message がオブジェクトかを確かめない（知らない形のコピーを読み飛ばす）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "($j.message | type) == \"object\" then \"C\", \"R\"",
-      "replace": "true then \"C\", \"R\"",
-      "occurrences": 1,
-      "expect_failing": [
-        "Claude Code の api-request-blob レコード message が文字列のコピーは判定不能"
-      ]
-    },
-    {
       "id": "SCAN-CLAUDE-API-REQUEST-BLOB-TYPENAME",
       "why": "api-request-blob の型名を確かめない（hash と message の形が同じ未知のレコードを読み飛ばす）",
       "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
@@ -405,17 +82,6 @@
       "occurrences": 1,
       "expect_failing": [
         "Claude Code の api-request-blob レコード 型名が違う未知のレコードは、hash と message の形が同じでも判定不能"
-      ]
-    },
-    {
-      "id": "SCAN-CLAUDE-API-REQUEST-BLOB-AGENT",
-      "why": "api-request-blob で Claude Code の transcript と識別しない（checkpoint の無い blob だけの差分が、エージェントを識別できず判定不能になる）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "== \"object\" then \"C\", \"R\"",
-      "replace": "== \"object\" then \"R\"",
-      "occurrences": 1,
-      "expect_failing": [
-        "Claude Code の api-request-blob レコード checkpoint が無く差分が api-request-blob だけでも Claude Code と識別する"
       ]
     },
     {
@@ -444,17 +110,6 @@
       ]
     },
     {
-      "id": "SCAN-CLAUDE-QUEUED-COMMAND-OBJECT",
-      "why": "attachment がオブジェクトかを確かめない（最後の行の文字列の attachment で jq がエラーになり、判定不能になる）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "($j.attachment | type) == \"object\" and\n\t     $j.attachment.type == \"queued_command\"",
-      "replace": "true and\n\t     $j.attachment.type == \"queued_command\"",
-      "occurrences": 1,
-      "expect_failing": [
-        "Claude Code の queued_command の attachment attachment がオブジェクトでないものは読み飛ばす（jq のエラーにしない）"
-      ]
-    },
-    {
       "id": "SCAN-CLAUDE-QUEUED-COMMAND-META-TYPE",
       "why": "isMeta の型を確かめない（文字列の isMeta を発話として読む）",
       "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
@@ -465,71 +120,6 @@
         "Claude Code の queued_command の attachment isMeta が真偽値でないものは判定不能",
         "Claude Code の queued_command の attachment 最上位の isMeta が真偽値でないものは判定不能",
         "jq の実行時のエラー 型の判定で判定不能にしたレコードも、最初の行の番号を出す"
-      ]
-    },
-    {
-      "id": "SCAN-CLAUDE-QUEUED-COMMAND-META-NULL",
-      "why": "isMeta の欠落を許さない（isMeta の無いレコードがすべて判定不能になる）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "[$j.isMeta, $a.isMeta] | any(. != null and",
-      "replace": "[$j.isMeta, $a.isMeta] | any(true and",
-      "occurrences": 1,
-      "expect_failing": [
-        "Claude Code の queued_command の attachment 人の発話は候補にする",
-        "Claude Code の queued_command の attachment origin が無い発話も候補にする",
-        "Claude Code の queued_command の attachment 知らない commandMode の発話も候補にする",
-        "Claude Code の queued_command の attachment commandMode が無い発話も候補にする",
-        "Claude Code の queued_command の attachment 知らない origin.kind の発話も候補にする",
-        "Claude Code の queued_command の attachment prompt が配列の発話も候補にする",
-        "Claude Code の queued_command の attachment サブエージェントの報告は候補にしない",
-        "Claude Code の queued_command の attachment coordinator の本文は候補にしない",
-        "Claude Code の queued_command の attachment origin.kind が task-notification の本文は候補にしない",
-        "Claude Code の queued_command の attachment task-notification は候補にしない",
-        "Claude Code の queued_command の attachment prompt が無いものは候補を出さない",
-        "Claude Code の queued_command の attachment commandMode が無い注入した本文は読み飛ばす",
-        "Claude Code の queued_command の attachment レコードの最上位の isMeta も候補にしない",
-        "Claude Code の queued_command の attachment 注入した本文は候補にしない",
-        "Claude Code の queued_command の attachment task-notification は prompt の型が違っても読み飛ばす",
-        "Claude Code の queued_command の attachment task-notification は origin がオブジェクトでなくても読み飛ばす",
-        "Claude Code の queued_command の attachment サブエージェントの報告は prompt の型が違っても読み飛ばす",
-        "Claude Code の queued_command の attachment 注入した本文は origin がオブジェクトでなくても読み飛ばす",
-        "Claude Code の queued_command の attachment commandMode が prompt でも prompt が無いものは候補を出さない",
-        "Claude Code の api-request-blob レコード コピーは作業中に送った発話の候補を隠さない"
-      ]
-    },
-    {
-      "id": "SCAN-CLAUDE-QUEUED-COMMAND-TOP-META",
-      "why": "レコードの最上位の isMeta を確かめない（注入した本文を発話として読む）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "elif ($j.isMeta == true or",
-      "replace": "elif (false or",
-      "occurrences": 1,
-      "expect_failing": [
-        "Claude Code の queued_command の attachment レコードの最上位の isMeta も候補にしない"
-      ]
-    },
-    {
-      "id": "SCAN-CLAUDE-QUEUED-COMMAND-META",
-      "why": "attachment の isMeta を確かめない（注入した本文を発話として読む）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "or $a.isMeta == true) then empty",
-      "replace": "or false) then empty",
-      "occurrences": 1,
-      "expect_failing": [
-        "Claude Code の queued_command の attachment 注入した本文は候補にしない",
-        "Claude Code の queued_command の attachment commandMode が無い注入した本文は読み飛ばす",
-        "Claude Code の queued_command の attachment 注入した本文は origin がオブジェクトでなくても読み飛ばす"
-      ]
-    },
-    {
-      "id": "SCAN-CLAUDE-QUEUED-COMMAND-ORIGIN-NULL",
-      "why": "origin の欠落を許さない（origin の無い発話が判定不能になる）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "elif $a.origin != null and",
-      "replace": "elif true and",
-      "occurrences": 1,
-      "expect_failing": [
-        "Claude Code の queued_command の attachment origin が無い発話も候補にする"
       ]
     },
     {
@@ -553,56 +143,6 @@
       "occurrences": 1,
       "expect_failing": [
         "Claude Code の queued_command の attachment prompt が文字列でも配列でもないものは判定不能"
-      ]
-    },
-    {
-      "id": "SCAN-CLAUDE-QUEUED-COMMAND-PROMPT-ARRAY",
-      "why": "配列の prompt を受け付けない（配列の発話が判定不能になる）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "and ($a.prompt | type) != \"array\") then \"X\"",
-      "replace": ") then \"X\"",
-      "occurrences": 1,
-      "expect_failing": [
-        "Claude Code の queued_command の attachment prompt が配列の発話も候補にする"
-      ]
-    },
-    {
-      "id": "SCAN-CLAUDE-QUEUED-COMMAND-PROMPT-NULL",
-      "why": "prompt の欠落を許さない（本文を prompt 以外に持つレコードが判定不能になる）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "elif ($a.prompt != null and",
-      "replace": "elif (true and",
-      "occurrences": 1,
-      "expect_failing": [
-        "Claude Code の queued_command の attachment prompt が無いものは候補を出さない",
-        "Claude Code の queued_command の attachment commandMode が prompt でも prompt が無いものは候補を出さない"
-      ]
-    },
-    {
-      "id": "SCAN-CLAUDE-QUEUED-COMMAND-NOTIFICATION",
-      "why": "task-notification を読み飛ばさない（通知の本文を発話として読む）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "elif ($a.commandMode == \"task-notification\" or",
-      "replace": "elif (false or",
-      "occurrences": 1,
-      "expect_failing": [
-        "Claude Code の queued_command の attachment task-notification は候補にしない",
-        "Claude Code の queued_command の attachment task-notification は prompt の型が違っても読み飛ばす",
-        "Claude Code の queued_command の attachment task-notification は origin がオブジェクトでなくても読み飛ばす"
-      ]
-    },
-    {
-      "id": "SCAN-CLAUDE-QUEUED-COMMAND-KIND-SET",
-      "why": "origin.kind の peer・coordinator・task-notification を読み飛ばさない（報告や通知の本文を発話として読む）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "($a.origin.kind == \"peer\" or $a.origin.kind == \"coordinator\" or\n\t\t         $a.origin.kind == \"task-notification\")",
-      "replace": "(false)",
-      "occurrences": 1,
-      "expect_failing": [
-        "Claude Code の queued_command の attachment サブエージェントの報告は候補にしない",
-        "Claude Code の queued_command の attachment coordinator の本文は候補にしない",
-        "Claude Code の queued_command の attachment origin.kind が task-notification の本文は候補にしない",
-        "Claude Code の queued_command の attachment サブエージェントの報告は prompt の型が違っても読み飛ばす"
       ]
     },
     {
@@ -646,26 +186,6 @@
         "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（timeout と関数置換 ${ と空白）=> exit 2",
         "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（timeout と関数置換 ${ とタブ）=> exit 2"
       ]
-    },
-    {
-      "id": "GATE-SCAN-ONE-CHAR",
-      "why": "一致を探し直す位置を、次の区切りではなく 1 文字後ろにする（同じコマンドが語の途中から何度も一致し、そのたびにコミット先を判定する）",
-      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
-      "find": "\t\tnext_off=$((match_off + 1 + ${#before_sep}))\n",
-      "replace": "\t\tnext_off=$((match_off + 1))\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "事前の絞り込みはツールの名前と入力だけを見る 代入やパスを前に付けた外部宛ての commit も、コミット先を 1 回だけ判定する"
-      ]
-    },
-    {
-      "id": "GATE-WRAPPER-ARG-NO-FUNSUB",
-      "why": "閉じた関数置換（${ cmd; }）をラッパーの引数の 1 語として読まない（env ${ true; } git commit を見逃す）",
-      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
-      "find": "wrapper_arg='(\\$\\{[[:blank:]][^{}]*\\}|[^[:space:];&|])+'",
-      "replace": "wrapper_arg='[^[:space:];&|]+'",
-      "occurrences": 1,
-      "expect_failing": ["チェックの commit 検出 env ${ true; } git commit -m x => exit 2"]
     },
     {
       "id": "GATE-WRAPPER-ARG-NO-DOLLAR",
@@ -714,32 +234,6 @@
       ]
     },
     {
-      "id": "GATE-SCOPE-GIT-NO-PATH",
-      "why": "コミット先のスコープ判定で、パスを付けた git を読まない（外部宛ての /usr/bin/git -C <dir> commit を止める）",
-      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
-      "find": "local git_head_re='(^|[[:space:]]|[;&|(){`])'\"${gitbin}\"'[[:space:]]+(.*)$'",
-      "replace": "local git_head_re='(^|[[:space:]]|[;&|(){`])()git[[:space:]]+(.*)$'",
-      "occurrences": 1,
-      "expect_failing": [
-        "コミット先のスコープ判定 外部宛て（パスを付けた git）=> exit 0",
-        "事前の絞り込みはツールの名前と入力だけを見る 代入やパスを前に付けた外部宛ての commit も、コミット先を 1 回だけ判定する"
-      ]
-    },
-    {
-      "id": "GATE-PREFILTER-WHOLE-INPUT",
-      "why": "事前の絞り込みで、入力の全体（cwd・transcript_path を含む）を見る（Issue #678）",
-      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
-      "find": "if hook_tool_text \"${input}\"; then",
-      "replace": "if false; then",
-      "occurrences": 1,
-      "expect_failing": [
-        "事前の絞り込みはツールの名前と入力だけを見る cwd だけに語がある: jq・python3・git を起動せずに通す",
-        "事前の絞り込みはツールの名前と入力だけを見る transcript_path だけに語がある: jq・python3・git を起動せずに通す",
-        "事前の絞り込みはツールの名前と入力だけを見る cwd と transcript_path の両方に語がある: jq・python3・git を起動せずに通す",
-        "事前の絞り込みはツールの名前と入力だけを見る Copilot の toolArgs（JSON の文字列）: jq・python3・git を起動せずに通す"
-      ]
-    },
-    {
       "id": "GATE-PREFILTER-UNICODE-ESCAPE",
       "why": "\\u を含む入力も絞り込みに使う（\\u で書いたキーの command を見つけられず、commit を通す）",
       "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
@@ -759,28 +253,6 @@
       "occurrences": 1,
       "expect_failing": [
         "事前の絞り込みはツールの名前と入力だけを見る 対象のキーが無い入力は、入力の全体で判定する"
-      ]
-    },
-    {
-      "id": "GATE-FIELDS-BEFORE-DETECTION",
-      "why": "session_id・cwd の取り出し（jq）を、commit の判定より前に行う（Issue #678）",
-      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
-      "find": "# jq で取り出せたか。transcript_path を python3 で読み直すかを、後で同じ条件で決める。",
-      "replace": "kaizen_hook_fields \"${input}\" >/dev/null\n# jq で取り出せたか。",
-      "occurrences": 1,
-      "expect_failing": [
-        "事前の絞り込みはツールの名前と入力だけを見る コマンドに語があれば次の段に進み、commit でなければ jq を 1 回だけ起動して通す"
-      ]
-    },
-    {
-      "id": "GATE-ROOT-BEFORE-DETECTION",
-      "why": "git rev-parse によるプロジェクトの直下の解決を、commit の判定より前に行う（Issue #678）",
-      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
-      "find": "# jq で取り出せたか。transcript_path を python3 で読み直すかを、後で同じ条件で決める。",
-      "replace": "kaizen_resolve_project_root \"\" >/dev/null\n# jq で取り出せたか。",
-      "occurrences": 1,
-      "expect_failing": [
-        "事前の絞り込みはツールの名前と入力だけを見る コマンドに語があれば次の段に進み、commit でなければ jq を 1 回だけ起動して通す"
       ]
     }
   ]

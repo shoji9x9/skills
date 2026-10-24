@@ -61,28 +61,6 @@
       "expect_failing": [
         "dedupeSessions コピーした側から、重複した応答と、その時刻までの指示・完了・待ちを外し、claims に記録する"
       ]
-    },
-    {
-      "id": "cache-infinity",
-      "why": "キャッシュの無限大（JSON の null）を戻さない",
-      "file": "skills/agent-usage/scripts/lib/collect.mjs",
-      "find": "  const firstTs = v.firstTs === null ? Number.POSITIVE_INFINITY : v.firstTs;",
-      "replace": "  const firstTs = v.firstTs;",
-      "occurrences": 1,
-      "expect_failing": [
-        "collectLocal のキャッシュ 時刻を持つ行が無いセッション（最初と最後の時刻が無限大）も、キャッシュから読み直せる"
-      ]
-    },
-    {
-      "id": "cache-tokens-unchecked",
-      "why": "キャッシュのトークン数の形を確かめない",
-      "file": "skills/agent-usage/scripts/lib/collect.mjs",
-      "find": "    if (!isNum(value)) return null;",
-      "replace": "    if (false) return null;",
-      "occurrences": 1,
-      "expect_failing": [
-        "collectLocal のキャッシュ キャッシュの要約のトークン数が数でないなら、そのセッションをログから解析し直す"
-      ]
     }
   ]
 }

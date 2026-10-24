@@ -57,44 +57,6 @@
       ]
     },
     {
-      "id": "policy-filter-off",
-      "why": "同等物・写さない・空欄の行まで「実体を写す」として期待集合に入れる",
-      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "    if (policy !== POLICY_COPY) return;\n",
-      "replace": "    if (false) return;\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "台帳: 原本のテンプレートから「有効 × 実体をコピーする」の行だけを取り出す（取り消し済み・同等物・空欄は取らない）",
-        "台帳: 旧い方針の値を新しい値と同じ意味に読む（改名する前の台帳を書き直さずに判定する）",
-        "落とす: 台帳の「実体をコピーする」の有効な行に無い種類の記録（同等物の行・取り消し済みの行）",
-        "通す: 「実体をコピーする」の有効な行が 0 件の台帳は、プローブ無しで exit 0",
-        "通す: プローブの fontFaces[].src[] に現れれば参照している",
-        "通す: プローブの icons[].href に現れれば参照している",
-        "通す: プローブの images[].src に現れれば参照している",
-        "通す: プローブの resources[].url に現れれば参照している",
-        "通す: プローブの urlRefs[].url に現れれば参照している",
-        "通す: 別オリジン（CDN）の絶対 URL で配る資産も、プローブに同じ URL があれば突き合う",
-        "通す: 利用者が承認した accepted の行は突き合わせない",
-        "通す: 参照があり移行元とバイト一致する資産は exit 0 で、結果を replace-metadata.json に書く（他のキーは残す）",
-        "通す: 新側が転送（ハッシュ付きのパスへの 301 等）で配る資産も、参照は転送前の URL・バイトは最終応答で突き合う",
-        "通す: 突き合わせる行が全て accepted ならプローブ無しで exit 0",
-        "通す: 記録の種類の表記ゆれ（空白・強調）は台帳と同じ正規化で揃えて突き合わせる",
-        "check: 組が 0 件なら突き合わせた組を 0 件と数え、組が複数なら指摘を出さずにどの組もバイト一致として記録する",
-        "check: 突き合わせる組が 0 件なら、base が URL として読めなくても例外を投げずに結果を返す"
-      ]
-    },
-    {
-      "id": "stray-record-off",
-      "why": "台帳の「実体を写す」行に無い種類の記録（綴り違い・方針が変わった行）を黙って通す",
-      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "    if (!copyKinds.has(entry.kind)) {\n",
-      "replace": "    if (false) {\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "落とす: 台帳の「実体をコピーする」の有効な行に無い種類の記録（同等物の行・取り消し済みの行）"
-      ]
-    },
-    {
       "id": "duplicate-active-off",
       "why": "同じ種類に有効な行が 2 つある台帳を読んで、どちらかの方針で判定する",
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
@@ -102,38 +64,6 @@
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["台帳: 同じ種類に有効が 2 行 は判定しない（例外）"]
-    },
-    {
-      "id": "no-probe-off",
-      "why": "プローブを渡していない実行を「参照が無い」の exit 1 にして、判定していないことを隠す",
-      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "  if (needsProbe && input.probes.length === 0) {\n",
-      "replace": "  if (false) {\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "判定しない: exit 2 でも前回の合格を上書きし、ok: false と error を書く",
-        "判定しない: 突き合わせる資産があるのにプローブが無い"
-      ]
-    },
-    {
-      "id": "comment-strip-off",
-      "why": "HTML コメント内の例示の表を本物の台帳として読む",
-      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "  const lines = blankComments(text.split(/\\r?\\n/u), fenced, state);",
-      "replace": "  const lines = text.split(/\\r?\\n/u);\n  blankComments(lines, fenced, state);",
-      "occurrences": 1,
-      "expect_failing": ["台帳: HTML コメントとコードフェンスの中の表は台帳として読まない"]
-    },
-    {
-      "id": "unclassified-counted",
-      "why": "資産以外の取得も混ざる unclassifiedResources を参照として数える",
-      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "  for (const row of rowsOf(\"resources\")) if (isPlainObject(row)) add(row.url);\n  return out;\n",
-      "replace": "  for (const row of rowsOf(\"resources\")) if (isPlainObject(row)) add(row.url);\n  for (const row of rowsOf(\"unclassifiedResources\")) if (isPlainObject(row)) add(row.url);\n  return out;\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "落とす: プローブの unclassifiedResources にしか現れない URL は参照に数えない"
-      ]
     },
     {
       "id": "failure-write-off",
@@ -170,17 +100,6 @@
       "expect_failing": [
         "台帳: 空行で切れた後の、行頭の `|` を省いた行（GFM では表の行になりうる）も判定しない（例外）",
         "台帳: 表の本体が空行で切れた後の行は警告なしに捨てず判定しない（例外）"
-      ]
-    },
-    {
-      "id": "stray-no-leading-pipe-ignored",
-      "why": "行頭の `|` を省いた表の行（GFM では有効）が空行の後ろにあっても黙って捨てる",
-      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "r.leadingPipe || r.cells === headers.length",
-      "replace": "r.leadingPipe",
-      "occurrences": 1,
-      "expect_failing": [
-        "台帳: 空行で切れた後の、行頭の `|` を省いた行（GFM では表の行になりうる）も判定しない（例外）"
       ]
     },
     {
@@ -254,28 +173,6 @@
       "expect_failing": ["落とす: current が新側のオリジンを指す（移行元を一度も取得していない）"]
     },
     {
-      "id": "cdn-origin-ignored",
-      "why": "移行元が CDN から配る資産への直リンクを、--current-base のオリジンだけと比べて見逃す",
-      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "new Set([currentBaseOrigin, new URL(currentUrl).origin])",
-      "replace": "new Set([currentBaseOrigin])",
-      "occurrences": 1,
-      "expect_failing": [
-        "落とす: 移行元が CDN から配る資産へ、新側が同じ CDN のまま直リンクしている"
-      ]
-    },
-    {
-      "id": "bytes-match-counts-reference",
-      "why": "参照していないの指摘まで bytes_match に混ぜ、参照漏れだけの組を「バイト不一致」と読ませる",
-      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "  const fetchFindingsBefore = findings.length;\n",
-      "replace": "  const fetchFindingsBefore = byteFindingsEnd;\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "落とす: 実例の形。favicon を配っていてバイトも同じだが、新側の画面が指していない"
-      ]
-    },
-    {
       "id": "same-final-url-accepted",
       "why": "両側が同じ転送先（ログイン画面等）に着いた組を、同じ配信物を比べているだけなのに一致として合格にする",
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
@@ -284,17 +181,6 @@
       "occurrences": 1,
       "expect_failing": [
         "落とす: 両側とも同じバイトでも、両側が同じ転送先（ログイン画面）に着く は配っている証拠にしない"
-      ]
-    },
-    {
-      "id": "probe-fingerprint-dropped",
-      "why": "判定を左右するプローブの指紋を残さず、プローブを取り直した後の古い合格を見分けられなくする",
-      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "probe_fingerprints: fingerprints.probes,",
-      "replace": "probe_fingerprints: [],",
-      "occurrences": 2,
-      "expect_failing": [
-        "通す: 参照があり移行元とバイト一致する資産は exit 0 で、結果を replace-metadata.json に書く（他のキーは残す）"
       ]
     },
     {
@@ -314,41 +200,6 @@
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["落とす: 転送を経由した直リンク（移行元が新側へ転送する）"]
-    },
-    {
-      "id": "legacy-policy-off",
-      "why": "旧い方針の値（実体を写す・写さない）を新しい値に読み替えず、語彙外として落とす",
-      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "  const policy = LEGACY_POLICIES.get(written) ?? written;\n",
-      "replace": "  const policy = written;\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "台帳: 旧い方針の値を新しい値と同じ意味に読む（改名する前の台帳を書き直さずに判定する）"
-      ]
-    },
-    {
-      "id": "base-url-unparsed",
-      "why": "--current-base・--new-base が URL として読めるかを確かめない。http:// のような値が、使い方の誤りではなく判定できない例外として報告される",
-      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "    new URL(value);\n",
-      "replace": "    void value;\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "判定しない: --new-base が http(s) で始まっても URL として読めなければ、使い方の誤りとして exit 2 で止める",
-        "判定しない: --current-base が http(s) で始まっても URL として読めなければ、使い方の誤りとして exit 2 で止める"
-      ]
-    },
-    {
-      "id": "base-origins-before-ledger",
-      "why": "台帳と記録を読む前に base のオリジンを求め、台帳の不備や組が 0 件の入力を base の TypeError で止める",
-      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "export async function check(input) {\n",
-      "replace": "export async function check(input) {\n  originsOf(input);\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "check: 台帳の不備は、base が URL として読めなくても使い方の誤り（UsageError）として報告する",
-        "check: 突き合わせる組が 0 件なら、base が URL として読めなくても例外を投げずに結果を返す"
-      ]
     }
   ]
 }

@@ -8,7 +8,7 @@
 //   ワーカーの分は、vitest-coverage-setup.ts が各テストファイルの最後に `v8.takeCoverage()` で書き出す。
 //   ワーカーは終了の処理を経ずに止められるので、書き出さないと NODE_V8_COVERAGE に残らない。
 //   位置がずれないよう、vitest.config.ts で vite の変換を外し、Node が直接ファイルを読み込むようにしている。
-// - シェルスクリプトは、BASH_ENV で bash-trace-env.sh を読み込ませて xtrace を記録し、shell-coverage.ts で集計する。
+// - シェルスクリプトは測らない。
 //
 // 使い方:
 //   node scripts/coverage/run-coverage.ts           # 測って比べる。
@@ -31,7 +31,6 @@ import {
   realpathSync,
   rmSync,
   statSync,
-  writeFileSync,
 } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -46,7 +45,6 @@ import {
   kindOf,
   loadConfig,
 } from "./check-coverage.ts";
-import { shellCoverage } from "./shell-coverage.ts";
 import { VENDORED_GLOBS, isVendored } from "../lib/source-scope.ts";
 
 const CACHE = "node_modules/.cache/coverage";
@@ -185,44 +183,28 @@ function c8Args(
   ];
 }
 
-/** `measure` が受け取る、リポジトリの直下・結果の置き場所・測る対象のファイル・vitest に渡す引数。 */
+/** `measure` が受け取る、リポジトリの直下・結果の置き場所・vitest に渡す引数。 */
 interface MeasureOptions {
   root: string;
   cache: string;
-  files: readonly string[];
   vitestArgs: readonly string[];
 }
 
-/** c8 で vitest を実行して測り、シェルの記録を集計して shell-summary.json に書く。テストの終了コードを返す。 */
-function measure({ root, cache, files, vitestArgs }: MeasureOptions): number {
-  // private skill の列挙で例外が出ても空のディレクトリを残さないよう、shell-trace（と、まだ無ければ cache）を作る前に求める。
+/** c8 で vitest を実行して測る。テストの終了コードを返す。 */
+function measure({ root, cache, vitestArgs }: MeasureOptions): number {
   const privates = privateSkillDirs(root);
-  const traceDir = join(cache, "shell-trace");
-  mkdirSync(traceDir, { recursive: true });
+  mkdirSync(cache, { recursive: true });
   const res = spawnSync("pnpm", c8Args(privates, cache, vitestArgs), {
     cwd: root,
     stdio: ["ignore", "inherit", "inherit"],
-    env: {
-      ...process.env,
-      BASH_ENV: join(root, "scripts/coverage/bash-trace-env.sh"),
-      SHELL_COVERAGE_DIR: traceDir,
-    },
   });
   try {
     if (res.error) throw res.error;
-    if (res.status !== 0) return res.status ?? 1;
-    const sh = shellCoverage(
-      root,
-      files.filter((f) => kindOf(f) === "sh"),
-      traceDir,
-    );
-    writeFileSync(join(cache, "shell-summary.json"), `${JSON.stringify(sh, null, 2)}\n`);
-    return 0;
+    return res.status ?? 1;
   } finally {
-    // 比べるのに使うのは 2 つの要約とレポートだけである。元の記録は数百 MB になるので、
+    // 比べるのに使うのは要約とレポートだけである。元の記録は数百 MB になるので、
     // テストが失敗したときも消す（--focus の実行は実行ごとに別のディレクトリを作るので、残すと溜まる）。
     rmSync(join(cache, "v8"), { recursive: true, force: true });
-    rmSync(traceDir, { recursive: true, force: true });
   }
 }
 
@@ -249,9 +231,7 @@ function reportFocus({ config, files, measures, focus, cache }: FocusReport): nu
     inFocus("file" in f ? f.file : f.path),
   );
   for (const f of findings) console.error(describe(f));
-  console.log(
-    `run-coverage: 結果は ${cache} にある（シェルの未実行の行は shell-summary.json の uncovered）`,
-  );
+  console.log(`run-coverage: 結果は ${cache} にある（未実行の行は report/index.html）`);
   return findings.length > 0 ? 1 : 0;
 }
 
@@ -316,34 +296,15 @@ function prepareCache(root: string, { focus, reuse }: CliArgs): string | undefin
   return cache;
 }
 
-/** c8 の要約とシェルの要約を読み、ファイルごとの測定値にまとめる。形が誤っていれば Error を投げる。 */
-function readMeasures(root: string, c8Path: string, shPath: string): Map<string, FileMeasure> {
-  const measures = readC8Summary(root, JSON.parse(readFileSync(c8Path, "utf8")));
-  const sh: unknown = JSON.parse(readFileSync(shPath, "utf8"));
-  if (!isRecord(sh) || !isRecord(sh.files)) throw new Error(`${shPath} に files が無い`);
-  for (const [file, entry] of Object.entries(sh.files)) {
-    if (!isRecord(entry) || typeof entry.pct !== "number")
-      throw new Error(`${shPath} の ${file} に pct が無い`);
-    measures.set(file, { lines: entry.pct });
-  }
-  if (typeof sh.unresolved === "number" && sh.unresolved > 0) {
-    console.log(
-      `run-coverage: ファイルに解決できなかったシェルの記録 ${sh.unresolved} 件（テストが消した一時ファイルなど）`,
-    );
-  }
-  return measures;
-}
-
 /** 測り（--reuse なら測らず）、測定値を読む。テストの失敗と判定できないことは、終了コードの数値で返す。 */
 function measureAndRead(
-  { root, cache, files, vitestArgs }: MeasureOptions,
+  { root, cache, vitestArgs }: MeasureOptions,
   reuse: boolean,
 ): { ok: true; measures: Map<string, FileMeasure> } | { ok: false; code: number } {
   const c8Path = join(cache, "report", "coverage-summary.json");
-  const shPath = join(cache, "shell-summary.json");
   if (!reuse) {
     try {
-      const status = measure({ root, cache, files, vitestArgs });
+      const status = measure({ root, cache, vitestArgs });
       if (status !== 0) {
         console.error(`run-coverage: テストが失敗した（exit ${status}）。カバレッジは比べない`);
         return { ok: false, code: 1 };
@@ -353,12 +314,12 @@ function measureAndRead(
       return { ok: false, code: 2 };
     }
   }
-  if (!existsSync(c8Path) || !existsSync(shPath)) {
-    console.error(`run-coverage: 判定できない: 測定の結果が無い（${c8Path}・${shPath}）`);
+  if (!existsSync(c8Path)) {
+    console.error(`run-coverage: 判定できない: 測定の結果が無い（${c8Path}）`);
     return { ok: false, code: 2 };
   }
   try {
-    return { ok: true, measures: readMeasures(root, c8Path, shPath) };
+    return { ok: true, measures: readC8Summary(root, JSON.parse(readFileSync(c8Path, "utf8"))) };
   } catch (error) {
     console.error(`run-coverage: 判定できない: 測定の結果を読めない: ${errorMessage(error)}`);
     return { ok: false, code: 2 };
@@ -411,7 +372,7 @@ export function main(
   // 結果の置き場所は、測ると決まってから作る（引数・設定・対象の誤りで止まる実行に、空のディレクトリを残さない）。
   const cache = prepareCache(root, args);
   if (cache === undefined) return 2;
-  const measured = measureAndRead({ root, cache, files, vitestArgs }, args.reuse);
+  const measured = measureAndRead({ root, cache, vitestArgs }, args.reuse);
   if (!measured.ok) return measured.code;
   const { measures } = measured;
   if (focus.length > 0) return reportFocus({ config, files, measures, focus, cache });

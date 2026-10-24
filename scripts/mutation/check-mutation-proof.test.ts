@@ -1249,46 +1249,56 @@ require("node:module").syncBuiltinESMExports();
     );
   });
 
-  // import-direction.test.ts は run-oxlint.ts を直接は import せず、run-rule.ts を介して使う。
-  // run-oxlint.ts は変異の対象でもなく、名前も -helpers.ts で終わらない。
+  // kaizen-frontmatter-values.test.ts は kaizen-config-env.ts を直接は import せず、kaizen-frontmatter-values-helpers.ts を介して使う。
+  // kaizen-config-env.ts は変異の対象でもなく、名前も -helpers.ts で終わらない。
   // そのため、ランナーが import を間接のものまでたどり、選ぶファイルを名前ではなく `scripts/` の下のパスで決めるときだけ、この宣言を選ぶ。
   test("test_file から間接に import されるファイルが変わったら、その宣言を測る", async () => {
-    const support = "scripts/gates/code/oxlint-plugin/run-oxlint.ts";
-    const res = await runRunner("--changed-since", "origin/main", "--only", "ID-ASSETS", "--list", {
-      MUTATION_PROOF_CHANGED_FILES: support,
-    });
-    expect(res.status, res.out).toBe(0);
-    expect(res.out).toContain(
-      `測る: scripts/gates/code/oxlint-plugin/import-direction.mutations.json（当たった変更: ${support}）`,
-    );
-  });
-
-  // parity-component-fixtures.test.ts は、親のディレクトリの read-json-helpers.ts を `../` で import する。
-  test("test_file が親のディレクトリから import するファイルが変わったら、その宣言を測る", async () => {
-    const support = "scripts/eval/read-json-helpers.ts";
+    const support = "scripts/skills/kaizen/kaizen-config-env.ts";
     const res = await runRunner(
       "--changed-since",
       "origin/main",
       "--only",
-      "shot-contract",
+      "FM-LAST-DUPLICATE",
       "--list",
       { MUTATION_PROOF_CHANGED_FILES: support },
     );
     expect(res.status, res.out).toBe(0);
     expect(res.out).toContain(
-      `測る: scripts/eval/fixtures/parity-component-fixtures.mutations.json（当たった変更: ${support}）`,
+      `測る: scripts/skills/kaizen/frontmatter/kaizen-frontmatter-values.mutations.json（当たった変更: ${support}）`,
     );
   });
 
-  // import-direction.ts は ID-ASSETS の変異の対象で、test_file からも import される。
-  test("変異の対象を test_file も import するとき、当たった変更に 1 回だけ出す", async () => {
-    const target = "scripts/gates/code/oxlint-plugin/import-direction.ts";
-    const res = await runRunner("--changed-since", "origin/main", "--only", "ID-ASSETS", "--list", {
-      MUTATION_PROOF_CHANGED_FILES: target,
-    });
+  // kaizen-schedule-report.test.ts は、親のディレクトリの kaizen-config-env.ts を `../` で import する。
+  test("test_file が親のディレクトリから import するファイルが変わったら、その宣言を測る", async () => {
+    const support = "scripts/skills/kaizen/kaizen-config-env.ts";
+    const res = await runRunner(
+      "--changed-since",
+      "origin/main",
+      "--only",
+      "SR-DEFAULT-ON-BASH",
+      "--list",
+      { MUTATION_PROOF_CHANGED_FILES: support },
+    );
     expect(res.status, res.out).toBe(0);
     expect(res.out).toContain(
-      `測る: scripts/gates/code/oxlint-plugin/import-direction.mutations.json（当たった変更: ${target}）`,
+      `測る: scripts/skills/kaizen/schedule/kaizen-schedule-report.mutations.json（当たった変更: ${support}）`,
+    );
+  });
+
+  // stop-marker.ts は SM-SESSION-UNCHECKED の変異の対象で、test_file からも import される。
+  test("変異の対象を test_file も import するとき、当たった変更に 1 回だけ出す", async () => {
+    const target = "scripts/hooks/stop-marker.ts";
+    const res = await runRunner(
+      "--changed-since",
+      "origin/main",
+      "--only",
+      "SM-SESSION-UNCHECKED",
+      "--list",
+      { MUTATION_PROOF_CHANGED_FILES: target },
+    );
+    expect(res.status, res.out).toBe(0);
+    expect(res.out).toContain(
+      `測る: scripts/hooks/stop-marker.mutations.json（当たった変更: ${target}）`,
     );
   });
 
@@ -1645,16 +1655,16 @@ describe("本物の vitest を通す end-to-end", () => {
       "--changed-since",
       "origin/main",
       "--only",
-      "WL-DUP",
+      "shortest-rule",
       {
         ...REAL,
-        MUTATION_PROOF_CHANGED_FILES: "scripts/gates/prose/check-word-list.ts",
-        // 語の一覧のチェックの宣言だけが選ばれる差分。`--only` で 1 変異に抑える（有界化の理由は `--changed-since` のテストの前のコメント）。
+        MUTATION_PROOF_CHANGED_FILES: "scripts/coverage/check-coverage.ts",
+        // カバレッジの閾値のチェックの宣言だけが選ばれる差分。`--only` で 1 変異に抑える（有界化の理由は `--changed-since` のテストの前のコメント）。
       },
     );
     expect(res.status, res.out).toBe(0);
-    expect(res.out).toContain("測る: scripts/gates/prose/check-word-list.mutations.json");
+    expect(res.out).toContain("測る: scripts/coverage/check-coverage.mutations.json");
     expect(res.out).toContain("飛ばす: scripts/mutation/check-mutation-proof.mutations.json");
-    expect(res.out).toContain("PASS WL-DUP");
+    expect(res.out).toContain("PASS shortest-rule");
   }, 60_000);
 });

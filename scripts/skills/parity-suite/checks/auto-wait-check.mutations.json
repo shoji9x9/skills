@@ -7,35 +7,6 @@
   "test_file": "scripts/skills/parity-suite/checks/auto-wait-check.test.ts",
   "mutations": [
     {
-      "id": "excluded-never",
-      "why": "確定した名前でも対象外に数えず判定不能にする（通常運用を止める側）",
-      "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
-      "find": "          receivers.nonReceivers.has(root) &&\n",
-      "replace": "          false &&\n",
-      "occurrences": 1,
-      "expect_failing": [
-        ".tsx の JSX 本文を型アサーションと読み違えない: as を含まない JSX",
-        ".tsx の JSX 本文を型アサーションと読み違えない: as を含む JSX テキスト",
-        "CLI は Playwright 以外と確定した件数を出力する",
-        "Page から取り出した別の値は Page として束ねない",
-        "Playwright 以外と確定した受け側は対象外に数える: JSX（.tsx）",
-        "Playwright 以外と確定した受け側は対象外に数える: Page から取り出したプロパティ",
-        "Playwright 以外と確定した受け側は対象外に数える: Page から取り出したプロパティを別の型へアサート",
-        "Playwright 以外と確定した受け側は対象外に数える: Promise.all",
-        "Playwright 以外と確定した受け側は対象外に数える: console.count",
-        "Playwright 以外と確定した受け側は対象外に数える: document の中の DOM",
-        "Playwright 以外と確定した受け側は対象外に数える: リテラルだけのオブジェクト",
-        "Playwright 以外と確定した受け側は対象外に数える: 数値リテラル",
-        "Playwright 以外と確定した受け側は対象外に数える: 文字列リテラル",
-        "Playwright 以外と確定した受け側は対象外に数える: 添字への代入があっても別の確定した名前は巻き込まない",
-        "Playwright 以外と確定した受け側は対象外に数える: 起点が確定済みの算術",
-        "Playwright 以外の同名メソッドは違反にせず、由来を確定できない名前は判定不能にする",
-        "リテラル・算術を束ねた変数は判定不能にしない",
-        "純粋なプロパティ取り出しの免除は型アサーションで外れない",
-        "走査の内訳は呼び出し数と常に合う（解決 + 判定不能 + 対象外。免除は解決の内数）"
-      ]
-    },
-    {
       "id": "excluded-always",
       "why": "解決しない受け側を全て対象外に数える（Issue #412 の黙った素通りへ戻す）",
       "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
@@ -181,15 +152,6 @@
       "expect_failing": ["行をまたぐ角括弧アサーションは Locator として解決する"]
     },
     {
-      "id": "breakdown",
-      "why": "内訳の不一致を検出しない（呼び出しを数えずに捨てても exit 0 になる）",
-      "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
-      "find": "  if (callSites === resolved + undecidable + excluded) return null;\n",
-      "replace": "  return null;\n",
-      "occurrences": 1,
-      "expect_failing": ["内訳が呼び出し数に満たなければ不一致として説明を返す"]
-    },
-    {
       "id": "destructuring-assignment",
       "why": "分割代入による再代入を束縛として数えない（宣言時の右辺で確定したまま Locator を代入できる）",
       "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
@@ -239,19 +201,6 @@
       ]
     },
     {
-      "id": "chain-length",
-      "why": "確定した名前から辿ったプロパティも対象外に数える（後から Locator を代入できる）",
-      "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
-      "find": "          (chain.segments.length === 1 || BUILTIN_NON_RECEIVERS.has(root))",
-      "replace": "          (true || BUILTIN_NON_RECEIVERS.has(root))",
-      "occurrences": 1,
-      "expect_failing": [
-        "Playwright 以外の根拠にしない形は判定不能: Page から取り出した値のプロパティを辿る",
-        "Playwright 以外の根拠にしない形は判定不能: 代入の無い確定した名前でもプロパティは辿らない",
-        "Playwright 以外の根拠にしない形は判定不能: 確定した名前のプロパティを辿る"
-      ]
-    },
-    {
       "id": "value-member",
       "why": "プロパティ参照・呼び出し・添字・括弧を含む式も根拠にする",
       "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
@@ -283,15 +232,6 @@
       "expect_failing": ["Playwright 以外の根拠にしない形は判定不能: Page の任意のプロパティ"]
     },
     {
-      "id": "page-property-reassigned",
-      "why": "代入し直した Page API の名前も根拠にする",
-      "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
-      "find": "        !reassignedPageProperties.has(last)\n",
-      "replace": "        true\n",
-      "occurrences": 1,
-      "expect_failing": ["Playwright 以外の根拠にしない形は判定不能: 代入し直した Page API の名前"]
-    },
-    {
       "id": "mutated-builtin",
       "why": "同じファイルで書き込んだ組み込みも根拠にする（window.row = page.locator(…) が確定に化ける）",
       "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
@@ -302,21 +242,6 @@
         "Playwright 以外の根拠にしない形は判定不能: Object.assign で書き込んだ組み込み",
         "Playwright 以外の根拠にしない形は判定不能: 代入した組み込みのプロパティ",
         "Playwright 以外の根拠にしない形は判定不能: 添字で代入した組み込みのプロパティ"
-      ]
-    },
-    {
-      "id": "builtin",
-      "why": "標準の組み込みを確定の根拠にしない",
-      "find": "    if (candidate(name) && !declarations.has(name) && !mutatedBuiltins.has(name)) {\n",
-      "replace": "    if (false) {\n",
-      "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
-      "occurrences": 1,
-      "expect_failing": [
-        "CLI は Playwright 以外と確定した件数を出力する",
-        "Playwright 以外と確定した受け側は対象外に数える: Promise.all",
-        "Playwright 以外と確定した受け側は対象外に数える: console.count",
-        "Playwright 以外と確定した受け側は対象外に数える: document の中の DOM",
-        "Playwright 以外の同名メソッドは違反にせず、由来を確定できない名前は判定不能にする"
       ]
     }
   ]

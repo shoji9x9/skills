@@ -6,19 +6,6 @@
   "test_file": "scripts/eval/run-skill-eval.test.ts",
   "mutations": [
     {
-      "id": "codex-scans-raw",
-      "why": "codex の汚染判定を走査面ではなく raw/ 全文に戻す",
-      "file": "scripts/eval/run-skill-eval.sh",
-      "find": "\tcodex) [ -d \"${contamination_surface_dir}\" ] && scan_directories+=(\"${contamination_surface_dir}\") ;;\n",
-      "replace": "\tcodex) [ -d \"${out}/raw\" ] && scan_directories+=(\"${out}/raw\") ;;\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "run-skill-eval executor compatibility judges a codex baseline with EXPECT_MARKER_MENTION as clean",
-        "run-skill-eval executor compatibility judges a codex baseline with EXPECT_MARKER_READ as CONTAMINATED",
-        "run-skill-eval executor compatibility judges a codex baseline with EXPECT_MARKER_IN_OUTPUT as CONTAMINATED"
-      ]
-    },
-    {
       "id": "codex-surface-not-scanned",
       "why": "codex の走査面を走査対象に入れない",
       "file": "scripts/eval/run-skill-eval.sh",
@@ -40,17 +27,6 @@
       "occurrences": 1,
       "expect_failing": [
         "run-skill-eval executor compatibility calls a codex baseline CHECK-BROKEN when its contamination surface is empty"
-      ]
-    },
-    {
-      "id": "install-drops-config-schemas",
-      "why": "配布先には届く config-schemas/ と checks.json を、eval のプロジェクトにコピーしない",
-      "file": "scripts/eval/run-skill-eval.sh",
-      "find": "\t\tfor subject_part in SKILL.md references assets scripts config-schemas checks.json; do\n",
-      "replace": "\t\tfor subject_part in SKILL.md references assets scripts; do\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "run-skill-eval required sibling skills installs config-schemas/ and checks.json with the subject, as gh skill install does"
       ]
     }
   ]

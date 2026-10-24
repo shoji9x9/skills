@@ -1,0 +1,7 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:40058260723:1,ci,2026-10-24T03:51:33.843Z,p-cdee4961,github-actions,,,,2026-10-24T03:25:47.000Z,2026-10-24T03:26:09.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:40058260722:1,ci,2026-10-24T03:51:33.843Z,p-cdee4961,github-actions,,,,2026-10-24T03:25:47.000Z,2026-10-24T03:29:38.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:40057321770:1,ci,2026-10-24T03:51:33.843Z,p-cdee4961,github-actions,,,,2026-10-24T03:12:01.000Z,2026-10-24T03:12:02.000Z,Asia/Tokyo,feature/758-split-parity-suite-functions,758,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40057321764:1,ci,2026-10-24T03:51:33.843Z,p-cdee4961,github-actions,,,,2026-10-24T03:12:01.000Z,2026-10-24T03:15:53.000Z,Asia/Tokyo,feature/758-split-parity-suite-functions,758,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-23T03:09:17.128Z:2026-10-24T03:51:33.843Z,coverage,2026-10-24T03:51:33.843Z,p-cdee4961,,,,,2026-10-23T03:09:17.128Z,2026-10-24T03:51:33.843Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-23T03:51:33.843Z:2026-10-24T03:52:28.450Z,coverage,2026-10-24T03:52:28.450Z,p-cdee4961,,,,,2026-10-23T03:51:33.843Z,2026-10-24T03:52:28.450Z,Asia/Tokyo,,,,,,,,,,,,ok,
