@@ -2,42 +2,36 @@
   "rules": [
     {
       "path": "scripts/",
-      "kind": "js",
       "lines": 90,
       "branches": 80,
       "functions": 90
     },
     {
       "path": "scripts/lib/",
-      "kind": "js",
       "lines": 95,
       "branches": 85,
       "functions": 95
     },
     {
       "path": "scripts/eval/",
-      "kind": "js",
       "lines": 80,
       "branches": 70,
       "functions": 80
     },
     {
       "path": "scripts/tools/",
-      "kind": "js",
       "lines": 80,
       "branches": 70,
       "functions": 80
     },
     {
       "path": "skills/",
-      "kind": "js",
       "lines": 90,
       "branches": 80,
       "functions": 90
     },
     {
       "path": ".agents/skills/",
-      "kind": "js",
       "lines": 90,
       "branches": 80,
       "functions": 90

@@ -7,12 +7,6 @@
   "pending": [],
   "allowed": [
     {
-      "file": ".github/workflows/mutation-proof.yml",
-      "rule": "date",
-      "text": "2026-09-28",
-      "reason": "変異実証の実測値の置き場。実測値は測った日と一緒に置く（mutation-count の規則と同じ方針）"
-    },
-    {
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
       "rule": "date",
       "text": "2026-02-30",

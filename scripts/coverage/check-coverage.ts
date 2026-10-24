@@ -6,7 +6,7 @@
 // 設定の読み方は次のとおり。
 // - `rules` の `path` が `/` で終わるものはディレクトリの規則で、その下のファイルに当てる。複数が当たるときは、最も長い `path` を使う。
 //   `/` で終わらないものは 1 ファイルだけの規則で、ディレクトリの規則より優先する。`reason` を必須にする。
-// - `kind` は `js`（JavaScript・TypeScript）だけである。シェルスクリプトは測らない。
+// - 測る対象は JavaScript・TypeScript（`.ts`・`.mjs`）だけである。シェルスクリプトは測らない。
 // - `exclude` のファイルは比べない。`reason` を必須にする。
 //
 // 判定できないものは合格にせず、finding にする。対象のファイルに当たる規則が無いとき、測定の結果に対象のファイルが無いとき、
@@ -20,11 +20,8 @@ export const CONFIG_PATH = "scripts/coverage/coverage-thresholds.json";
 
 export const METRICS = ["lines", "branches", "functions"] as const;
 export type Metric = (typeof METRICS)[number];
-export type Kind = "js";
-
 export type Rule = {
   path: string;
-  kind: Kind;
   thresholds: Partial<Record<Metric, number>>;
   reason?: string;
 };
@@ -41,11 +38,9 @@ export type Finding =
   | { type: "stale-config"; path: string; section: "rules" | "exclude" }
   | { type: "excluded-and-ruled"; path: string };
 
-/** 対象のファイルの種類。拡張子で決め、対象でなければ null。 */
-export function kindOf(file: string): Kind | null {
-  if (/\.(?:ts|mjs)$/.test(file) && !file.endsWith(".test.ts") && !file.endsWith(".d.ts"))
-    return "js";
-  return null;
+/** カバレッジを測る対象のファイルか。拡張子で決め、テストと型の宣言は対象にしない。 */
+export function isMeasured(file: string): boolean {
+  return /\.(?:ts|mjs)$/.test(file) && !file.endsWith(".test.ts") && !file.endsWith(".d.ts");
 }
 
 function isPercent(value: unknown): value is number & { readonly __isPercent: true } {
@@ -60,13 +55,11 @@ export function parseConfig(value: unknown): Config {
   const rules: Rule[] = value.rules.map((raw, i) => {
     const at = `${CONFIG_PATH}: rules[${i}]`;
     if (!isRecord(raw) || !isNonBlankString(raw.path)) throw new Error(`${at}: path が無い`);
-    if (raw.kind !== "js") throw new Error(`${at}: kind が js でない`);
-    const allowed: readonly Metric[] = METRICS;
     const thresholds: Partial<Record<Metric, number>> = {};
     for (const key of Object.keys(raw)) {
-      if (key === "path" || key === "kind" || key === "reason") continue;
-      const metric = allowed.find((m) => m === key);
-      if (metric === undefined) throw new Error(`${at}: ${raw.kind} の規則に使えないキー ${key}`);
+      if (key === "path" || key === "reason") continue;
+      const metric = METRICS.find((m) => m === key);
+      if (metric === undefined) throw new Error(`${at}: 規則に使えないキー ${key}`);
       const threshold = raw[key];
       if (!isPercent(threshold)) throw new Error(`${at}: ${key} が 0 から 100 の数でない`);
       thresholds[metric] = threshold;
@@ -75,18 +68,15 @@ export function parseConfig(value: unknown): Config {
     const isFile = !raw.path.endsWith("/");
     if (isFile && !isNonBlankString(raw.reason))
       throw new Error(`${at}: 1 ファイルの規則には reason が要る`);
-    if (isFile && kindOf(raw.path) !== raw.kind)
-      throw new Error(`${at}: ${raw.path} の種類が kind と合わない`);
-    const rule: Rule = { path: raw.path, kind: raw.kind, thresholds };
+    if (isFile && !isMeasured(raw.path))
+      throw new Error(`${at}: ${raw.path} はカバレッジを測る対象のファイルでない`);
+    const rule: Rule = { path: raw.path, thresholds };
     if (isNonBlankString(raw.reason)) rule.reason = raw.reason;
     return rule;
   });
-  const keys = rules.map((r) => `${r.kind}\0${r.path}`);
+  const keys = rules.map((r) => r.path);
   const dup = keys.find((k, i) => keys.indexOf(k) !== i);
-  if (dup !== undefined)
-    throw new Error(
-      `${CONFIG_PATH}: 同じ path と kind の規則が 2 つある: ${dup.replace("\0", " ")}`,
-    );
+  if (dup !== undefined) throw new Error(`${CONFIG_PATH}: 同じ path の規則が 2 つある: ${dup}`);
 
   const exclude: Exclusion[] = value.exclude.map((raw, i) => {
     const at = `${CONFIG_PATH}: exclude[${i}]`;
@@ -108,10 +98,9 @@ export function loadConfig(root: string): Config {
 }
 
 /** ファイルに当てる規則。1 ファイルの規則を優先し、無ければ最も長いディレクトリの規則。 */
-export function ruleFor(rules: readonly Rule[], file: string, kind: Kind): Rule | null {
+export function ruleFor(rules: readonly Rule[], file: string): Rule | null {
   let best: Rule | null = null;
   for (const rule of rules) {
-    if (rule.kind !== kind) continue;
     if (rule.path === file) return rule;
     if (
       rule.path.endsWith("/") &&
@@ -151,9 +140,8 @@ export function evaluate(
 
   for (const file of files) {
     if (excluded.has(file)) continue;
-    const kind = kindOf(file);
-    if (kind === null) continue;
-    const rule = ruleFor(config.rules, file, kind);
+    if (!isMeasured(file)) continue;
+    const rule = ruleFor(config.rules, file);
     if (rule === null) {
       findings.push({ type: "no-rule", file });
       continue;

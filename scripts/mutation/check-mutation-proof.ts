@@ -1101,7 +1101,8 @@ const SPAWN_ERROR_STATUS = 127;
  * テストのコマンドを、自分のプロセスグループで起動して待つ、包む側のプロセスの本文（`node -e` で実行する）。
  * vitest は、テストを別のプロセス（forks のワーカー）で実行する。時間切れで vitest だけを止めると、
  * 無限ループのワーカーが親を失ったまま残る（実測）。そこで、時間切れの SIGTERM を受けた包む側が、
- * 子のプロセスグループ全体を止める。子が終わったときも、残ったワーカーを止めてから同じ終了コードで終わる。
+ * 子のプロセスグループ全体を止める。子は別のプロセスグループにいて端末の Ctrl-C（SIGINT）や SIGHUP が届かないので、
+ * 包む側はそれらを受けたときも子のグループを止める。子が終わったときも、残ったワーカーを止めてから同じ終了コードで終わる。
  */
 const GROUP_WRAPPER = `
 const { spawn } = require("node:child_process");
@@ -1112,10 +1113,12 @@ const killGroup = () => {
     process.kill(-child.pid, "SIGKILL");
   } catch {}
 };
-process.on("SIGTERM", () => {
-  killGroup();
-  process.exit(143);
-});
+for (const [signal, code] of [["SIGTERM", 143], ["SIGINT", 130], ["SIGHUP", 129]]) {
+  process.on(signal, () => {
+    killGroup();
+    process.exit(code);
+  });
+}
 child.on("error", (err) => {
   console.error(${JSON.stringify(SPAWN_ERROR_MARK)} + err.message);
   process.exit(${SPAWN_ERROR_STATUS});

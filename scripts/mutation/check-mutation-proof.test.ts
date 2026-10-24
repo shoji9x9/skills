@@ -14,6 +14,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
+import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join, relative } from "node:path";
 import { spawnAsync } from "../lib/spawn-async.ts";
@@ -536,10 +537,11 @@ describe.concurrent("宣言と前提の検証（実行する前に落とす）",
   test("変異でテストが終わらなければ、時間切れとして FAIL にし、子孫のプロセスを止めて対象を戻す", async () => {
     const fx = makeFixture({ hangUnless: 'if [ -z "$X" ]; then' });
     const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
-    const res = await runRunner(spec, { MUTATION_PROOF_RUN_TIMEOUT_MS: "3000" });
+    // 上限は基準 run にも当たるので、並べて実行するテストの負荷で基準 run が届かない長さにする。
+    const res = await runRunner(spec, { MUTATION_PROOF_RUN_TIMEOUT_MS: "8000" });
     expect(res.status, res.out).toBe(1);
-    expect(res.out).toContain("時間切れ: 3 秒でテストが終わらなかった");
-    expect(res.out).toContain("MUTATION_PROOF_RUN_TIMEOUT_MS=3000");
+    expect(res.out).toContain("時間切れ: 8 秒でテストが終わらなかった");
+    expect(res.out).toContain("MUTATION_PROOF_RUN_TIMEOUT_MS=8000");
     expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
     const pid = Number(readFileSync(fx.hangPidFile, "utf8"));
     expect(Number.isInteger(pid) && pid > 0, String(pid)).toBe(true);
@@ -552,6 +554,34 @@ describe.concurrent("宣言と前提の検証（実行する前に落とす）",
       }
     };
     // 止めたプロセスが init に回収されるまで、少しだけ待つ。
+    await vi.waitFor(() => expect(alive()).toBe(false), { timeout: 5_000 });
+  });
+
+  // テストのプロセスは別のプロセスグループにいて、端末の Ctrl-C（SIGINT）が届かない。中断したときも残さない。
+  test("終わらないテストの実行中に Ctrl-C で中断しても、子孫のプロセスを残さない", async () => {
+    const fx = makeFixture({ hangUnless: 'if [ -z "$X" ]; then' });
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    // 端末の前面のプロセスグループにあたるよう、ランナーを自分のプロセスグループで起動する。
+    const runner = spawn(process.execPath, [RUNNER, spec], {
+      cwd: repoRoot,
+      env: runnerEnv({ MUTATION_PROOF_RUN_TIMEOUT_MS: "60000" }),
+      stdio: "ignore",
+      detached: true,
+    });
+    const exited = new Promise((resolve) => runner.once("exit", resolve));
+    await vi.waitFor(() => expect(existsSync(fx.hangPidFile)).toBe(true), { timeout: 20_000 });
+    const pid = Number(readFileSync(fx.hangPidFile, "utf8"));
+    expect(Number.isInteger(pid) && pid > 0, String(pid)).toBe(true);
+    process.kill(-(runner.pid ?? 0), "SIGINT");
+    await exited;
+    const alive = () => {
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    };
     await vi.waitFor(() => expect(alive()).toBe(false), { timeout: 5_000 });
   });
 

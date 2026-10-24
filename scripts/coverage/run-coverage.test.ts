@@ -57,7 +57,7 @@ function runCopiedCli(pct: number) {
   write(
     "scripts/coverage/coverage-thresholds.json",
     JSON.stringify({
-      rules: [{ path: "skills/", kind: "js", lines: 90 }],
+      rules: [{ path: "skills/", lines: 90 }],
       exclude: [...RUNNER, ...LIB].map((rel) => ({
         path: `scripts/${rel}`,
         reason: "ランナーのコピー",
@@ -215,7 +215,7 @@ function miniRepo(body: string): string {
   write(
     "scripts/coverage/coverage-thresholds.json",
     JSON.stringify({
-      rules: [{ path: "skills/", kind: "js", lines: 90, branches: 80, functions: 90 }],
+      rules: [{ path: "skills/", lines: 90, branches: 80, functions: 90 }],
       exclude: [],
     }),
   );

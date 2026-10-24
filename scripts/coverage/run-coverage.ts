@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// テスト全体をカバレッジ付きで実行し、ファイルごとの値を閾値（coverage-thresholds.json）と比べる（lefthook pre-push と CI）。
+// テスト全体をカバレッジ付きで実行し、ファイルごとの値を閾値（coverage-thresholds.json）と比べる（CI の Unit tests）。
 //
 // 測り方は次のとおり。
 // - JavaScript・TypeScript は c8 で測る。c8 は NODE_V8_COVERAGE を設定して vitest を起動するので、
@@ -42,7 +42,7 @@ import {
   METRICS,
   describe,
   evaluate,
-  kindOf,
+  isMeasured,
   loadConfig,
 } from "./check-coverage.ts";
 import { VENDORED_GLOBS, isVendored } from "../lib/source-scope.ts";
@@ -83,7 +83,7 @@ export function targetFiles(root: string): string[] {
   });
   if (res.status !== 0) throw new Error(`git ls-files に失敗した: ${res.stderr}`);
   const files = [...new Set(res.stdout.split("\0"))].filter(
-    (f) => f !== "" && kindOf(f) !== null && !isVendored(f),
+    (f) => f !== "" && isMeasured(f) && !isVendored(f),
   );
   if (files.length === 0) throw new Error("測る対象のファイルが 0 件である");
   return files.sort();
