@@ -1,0 +1,8 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:40259291424:1,ci,2026-10-26T05:35:02.712Z,p-cdee4961,github-actions,,,,2026-10-26T02:28:49.000Z,2026-10-26T02:46:37.000Z,Asia/Tokyo,main,,,,,,,,,,,Mutation proof;schedule;success,
+ci:40254036712:1,ci,2026-10-26T05:35:02.712Z,p-cdee4961,github-actions,,,,2026-10-26T01:24:11.000Z,2026-10-26T01:24:26.000Z,Asia/Tokyo,main,,,,,,,,,,,Kaizen schedule;schedule;success,
+ci:40249159367:1,ci,2026-10-26T05:35:02.712Z,p-cdee4961,github-actions,,,,2026-10-26T00:23:51.000Z,2026-10-26T00:24:11.000Z,Asia/Tokyo,main,,,,,,,,,,,Outdated tools;schedule;success,
+ci:40091213429:1,ci,2026-10-26T05:35:02.712Z,p-cdee4961,github-actions,,,,2026-10-24T11:46:03.000Z,2026-10-24T11:49:56.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:40089444569:1,ci,2026-10-26T05:35:02.712Z,p-cdee4961,github-actions,,,,2026-10-24T11:19:33.000Z,2026-10-24T11:19:34.000Z,Asia/Tokyo,feature/747-narrow-mutation-targets,747,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40089444596:1,ci,2026-10-26T05:35:02.712Z,p-cdee4961,github-actions,,,,2026-10-24T11:19:33.000Z,2026-10-24T11:25:42.000Z,Asia/Tokyo,feature/747-narrow-mutation-targets,747,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-23T11:18:24.803Z:2026-10-26T05:35:02.712Z,coverage,2026-10-26T05:35:02.712Z,p-cdee4961,,,,,2026-10-23T11:18:24.803Z,2026-10-26T05:35:02.712Z,Asia/Tokyo,,,,,,,,,,,,ok,
