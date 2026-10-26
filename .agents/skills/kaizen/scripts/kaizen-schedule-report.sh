@@ -351,6 +351,7 @@ cmd_prompt() {
    `.github/skills/kaizen/references/apply.md` / `skills/kaizen/references/apply.md`。
    特に「決定性で選ぶ」に従い、散文（rule / doc）で閉じる対策と、lint / hook / スクリプトなど
    機構へ寄せるべき対策を区別し、機構へ寄せるべきものはそう書く。
+   機構へ寄せる提案には、同じガイドの「機構を作る前に効果と費用を書く」に従い、効果と費用を添える。
 4. 優先して着手すべきグループを上位 3 つまで挙げ、理由を添える。
 
 ## 制約

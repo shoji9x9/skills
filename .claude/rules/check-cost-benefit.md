@@ -1,0 +1,1 @@
+../../.agents/rules/check-cost-benefit.md
