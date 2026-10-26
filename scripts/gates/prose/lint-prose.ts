@@ -20,10 +20,7 @@
 //   - 過去の記録（`.kaizen/archive/`）とテスト結果（`tests/`）。有効な学び（`.kaizen/*.md`）は見る。
 //   - シンボリックリンク（`.github/instructions/` など。リンク先を見れば足りる）。
 // - 引数でファイルを渡したときは、そのうち対象に当たるものだけを見る（lefthook の staged_files）。
-// - 書き換えがまだ済んでいないファイルは `scripts/gates/prose/prose-lint-pending.json` に列挙し、指摘を数えない。
-//   ただし列挙したファイルが指摘 0 件になったら、一覧から外すよう求めて失敗する（一覧が古いまま残らないように）。
-//   列挙したファイルが無いときも失敗する。
-// - 一覧が読めない・対象が 0 件（全体を見る実行時）は exit 2、指摘や古い一覧は exit 1。
+// - 設定や辞書を読めない・対象が 0 件（全体を見る実行時）は exit 2、指摘は exit 1。
 import { execFileSync } from "node:child_process";
 import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
@@ -38,11 +35,8 @@ import {
 import { hasStrings, stringMarkdown } from "../../lib/text/code-strings.ts";
 import { isAgentCopy, isVendored } from "../../lib/source-scope.ts";
 import { errorMessage } from "../../lib/errors.ts";
-import { isNonEmptyString, isRecord } from "../../lib/guards.ts";
-import { isArray } from "../../lib/is-array.ts";
 import { WORD_RULE_IDS, withDashRule, wordRules } from "../../lib/text/textlint-word-rule.ts";
 
-export const PENDING_PATH = "scripts/gates/prose/prose-lint-pending.json";
 /** コメントを取り出せなかったファイルの指摘に付ける ruleId。 */
 const PARSE_RULE = "code-comments";
 /** 文字列に当てる規則（使わない語の一覧）。 */
@@ -54,37 +48,6 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 /** 指摘のうち、このスクリプトが読むフィールド。 */
 type LintMessage = { line: number; column: number; message: string; ruleId: string };
 type Linter = ReturnType<typeof createLinter>;
-
-/**
- * 一覧を読み、形の誤りは例外にする（読めない一覧を「保留 0 件」として扱わない）。
- * 例外の message には一覧のパスを付ける。main は他の例外（設定・辞書・ツール）と同じ形で表示するので、
- * 一覧の問題かどうかは message で区別する。
- */
-export function loadPending(root: string): Set<string> {
-  try {
-    return readPending(root);
-  } catch (error) {
-    throw new Error(`${resolve(join(root, PENDING_PATH))}: ${errorMessage(error)}`, {
-      cause: error,
-    });
-  }
-}
-
-function readPending(root: string): Set<string> {
-  const path = join(root, PENDING_PATH);
-  if (!existsSync(path)) throw new Error("ファイルが無い");
-  const data: unknown = JSON.parse(readFileSync(path, "utf8"));
-  if (!isRecord(data) || typeof data.reason !== "string" || !data.reason.trim()) {
-    throw new Error("reason が無い（なぜ保留しているかを書く）");
-  }
-  const files = data.files;
-  if (!isArray(files) || !files.every(isNonEmptyString)) {
-    throw new Error("files は空でない文字列の配列にする");
-  }
-  const set = new Set(files);
-  if (set.size !== files.length) throw new Error("files に同じパスが重複している");
-  return set;
-}
 
 /** リポジトリ相対パスが対象か。 */
 export function isTarget(root: string, rel: string): boolean {
@@ -154,29 +117,16 @@ async function lintSource(linter: Linter, at: { root: string; rel: string }) {
   return [...comments, ...strings].sort((a, b) => a.line - b.line || a.column - b.column);
 }
 
-/**
- * ファイルごとの指摘を、報告する違反と古い保留に分ける。
- * 保留したファイルでは、コメントを取り出せない指摘だけを違反にし、指摘が 0 件なら古い保留にする。
- */
-function classify(targets: string[], byPath: Map<string, LintMessage[]>, pending: Set<string>) {
+/** ファイルごとの指摘を、報告する行にする。結果が無いファイルは「指摘 0 件」として扱わずに例外にする。 */
+function formatViolations(targets: string[], byPath: Map<string, LintMessage[]>) {
   const violations: string[] = [];
-  const stale: string[] = [];
   for (const rel of targets) {
-    // 結果が無いファイルを「指摘 0 件」として扱わない（保留の判定が逆転する）。
     const messages = byPath.get(rel);
     if (!messages) throw new Error(`${rel} の textlint の結果が無い`);
-    if (pending.has(rel)) {
-      if (messages.length === 0)
-        stale.push(`${rel}: 指摘が 0 件になった。${PENDING_PATH} から外す`);
-      // コメントを取り出せないことは、書き換えの保留と関係が無いので、保留したファイルでも報告する。
-      for (const m of messages.filter((m) => m.ruleId === PARSE_RULE))
-        violations.push(`${rel}:${m.line}:${m.column} ${m.message} (${m.ruleId})`);
-      continue;
-    }
     for (const m of messages)
       violations.push(`${rel}:${m.line}:${m.column} ${m.message} (${m.ruleId})`);
   }
-  return { violations, stale };
+  return violations;
 }
 
 /**
@@ -191,8 +141,7 @@ export async function lintProse({
   root: string;
   files?: string[];
   configRoot?: string;
-}): Promise<{ checked: number; pending: number; violations: string[]; stale: string[] }> {
-  const pending = loadPending(root);
+}): Promise<{ checked: number; violations: string[] }> {
   const whole = files === undefined;
   const targets = whole
     ? listTargets(root)
@@ -217,19 +166,7 @@ export async function lintProse({
   for (const rel of targets.filter((t) => !t.endsWith(".md"))) {
     byPath.set(rel, await lintSource(linter, { root, rel }));
   }
-  const { violations, stale } = classify(targets, byPath, pending);
-  if (whole) {
-    for (const rel of pending) {
-      if (!existsSync(join(root, rel)))
-        stale.push(`${rel}: ファイルが無い。${PENDING_PATH} から外す`);
-    }
-  }
-  return {
-    checked: targets.length,
-    pending: targets.filter((t) => pending.has(t)).length,
-    violations,
-    stale,
-  };
+  return { checked: targets.length, violations: formatViolations(targets, byPath) };
 }
 
 export async function main(argv: string[]): Promise<number> {
@@ -238,21 +175,19 @@ export async function main(argv: string[]): Promise<number> {
   try {
     result = await lintProse({ root: process.cwd(), files: files.length ? files : undefined });
   } catch (error) {
-    // 一覧のパスは、一覧を読めないときだけ loadPending が message に付ける（設定・辞書・ツールの問題に付けない）。
     console.error(`lint-prose: 実行できない: ${errorMessage(error)}`);
     return 2;
   }
-  const { checked, pending, violations, stale } = result;
+  const { checked, violations } = result;
   for (const v of violations) console.error(v);
-  for (const s of stale) console.error(s);
-  if (violations.length || stale.length) {
+  if (violations.length) {
     console.error(
-      `lint-prose: ${checked} 件（うち保留 ${pending} 件）を見て、指摘 ${violations.length} 件・古い保留 ${stale.length} 件。` +
+      `lint-prose: ${checked} 件を見て、指摘 ${violations.length} 件。` +
         "語の言い換え先は .textlint/words.json の message を見る。文章の書き方は skills/writing-style/references/rules.md に、このリポジトリでの対象と対象外は docs/writing-style.md に従う。",
     );
     return 1;
   }
-  console.log(`lint-prose: OK（${checked} 件、うち保留 ${pending} 件）`);
+  console.log(`lint-prose: OK（${checked} 件）`);
   return 0;
 }
 

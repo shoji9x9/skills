@@ -59,10 +59,9 @@ scripts/                リポジトリ内のツールとテスト（配布し�
     docs/               文書の構造・参照・階層・サイズ
     prose/              文章の表現（使わない語・時期に依る記述）
     packaging/          スキル・rule・eval の宣言・frontmatter・索引と、インストール済みのコピーの整合
-    code/               コード・設定ファイルの中身（拡張子・配置・制御文字・YAML・ページネーション）
-    types/              型の検査を外す書き方と、型ガードが絞る型（JSDoc の型・ブランド型）
+    code/               コード・設定ファイルの中身（拡張子・配置・制御文字・YAML・抑止コメント）
+    types/              型の検査を外す書き方（JSDoc の型）
     tooling/            lint と整形のツールの対象範囲と起動
-    layout/             ディレクトリの構成（直下のファイル数）
   mutation/             ミューテーションテストのランナー
   coverage/             カバレッジの測定のランナーと、ファイルごとの閾値のチェック
   eval/                 eval の実行・隔離・集計と、evals/ の fixture の生成・チェック
@@ -80,10 +79,8 @@ scripts/                リポジトリ内のツールとテスト（配布し�
 新しいチェックは、チェックする対象で `scripts/gates/` の分類を選び、どれにも当たらなければ分類を足す。
 
 1 つのディレクトリの直下のファイルは、原則 20 件以下に保つ。超えたら、役割ごとに分ける。
-分けられないディレクトリ（ツールが決まった場所から読むもの、eval が一式を入力にする fixture、スキルが溜めていく記録）だけ、理由を付けて閾値を変えるか対象外にする。
-どちらにするかの基準と分け方は [`docs/directory-layout.md`](docs/directory-layout.md) にある。
-件数・閾値・対象外は、`scripts/gates/layout/check-dir-file-count.ts` が `scripts/gates/layout/dir-file-count.json` に従ってチェックする（pre-commit と CI）。
-`scripts/` と `scripts/gates/` の直下にファイルを置かない規約も、この設定で閾値を 0 にしてチェックしている。
+分けられないディレクトリ（ツールが決まった場所から読むもの、eval が一式を入力にする fixture、スキルが溜めていく記録）は、20 件を超えてよい。
+分けられるかの基準と分け方は [`docs/directory-layout.md`](docs/directory-layout.md) にある。
 
 ## ワークフロー
 

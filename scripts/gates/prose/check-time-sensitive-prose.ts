@@ -15,9 +15,9 @@
 //   「今は」「現在は」も当てない。「以前は A だったが、今は B」のように、変更の前後を対比する記述に使われている。
 // - date: 日付（例: 2026-09-28、2026/09/28、2026 年 9 月）。後ろに `-<名前>.md` が続くもの（学びのファイル名）は除く。
 // - 例の行（scripts/lib/doc-scan.ts の EXAMPLE_LINE_RE）は読まない。
-// - 今ある違反は scripts/gates/docs/doc-pending.json に保留として持ち、直したら消す（古い保留は失敗にする。--prune で消せる）。
+// - 違反の形だが正しい記述は、scripts/gates/docs/doc-allowed.json に理由付きで許可する（使われていない許可は失敗にする）。
 //
-// 2. ミューテーションテストの件数と全件の所要時間（規則 mutation-count。保留にしない）
+// 2. ミューテーションテストの件数と全件の所要時間（規則 mutation-count。許可の一覧では扱わない）
 // なぜ要るか: 変異の総数と全件の実測値は宣言を足すたびに変わる。AGENTS.md や rule に書くと、
 // 書いた時点の値が残ったまま実態と離れる（98 → 376 → 504 → 569 と変わり、そのたびに複数箇所が古くなった）。
 // 実測値は `.github/workflows/mutation-proof.yml` のコメント 1 箇所にだけ置く方針にしたので、
@@ -46,12 +46,11 @@ import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "n
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  applyPending,
+  applyAllowed,
   blankInlineCode,
   EXAMPLE_LINE_RE,
   fencedLines,
-  loadPending,
-  prunePending,
+  loadAllowed,
 } from "../../lib/doc-scan.ts";
 import { scannedFiles } from "../docs/doc-scan-files.ts";
 import { errorMessage } from "../../lib/errors.ts";
@@ -196,17 +195,17 @@ export function findTimeMentions(file: string, text: string) {
 
 /**
  * @param {string} root
- * @returns {{ files: number, found: object[], failures: string[], pendingCount: number, stale: object[] }}
+ * @returns {{ files: number, found: object[], failures: string[] }}
  */
 export function checkTimeWords(root: string) {
-  const list = loadPending(root);
+  const list = loadAllowed(root);
   const files = scannedFiles(root, { exclude: SELF_FIXTURES });
   const found: { file: string; line: number; rule: string; text: string }[] = [];
   for (const { file } of files) {
     const text = readFileSync(join(root, file), "utf8");
     for (const v of findTimeMentions(file, text)) found.push({ file, ...v });
   }
-  return { files: files.length, found, ...applyPending(found, list, TIME_RULES) };
+  return { files: files.length, found, ...applyAllowed(found, list, TIME_RULES) };
 }
 
 /** ミューテーションテストの件数・所要時間の記述を、直し方と一緒に stderr に出す。 */
@@ -221,7 +220,7 @@ function reportMutationCounts(scanned: number, violations: string[]) {
   );
 }
 
-/** 時間の語・日付の違反と古い保留を、直し方と一緒に stderr に出す。 */
+/** 時間の語・日付の違反と使われていない許可を、直し方と一緒に stderr に出す。 */
 function reportTimeWords(scanned: number, failures: string[]) {
   console.error(
     `time-sensitive-prose: ${scanned} 件を走査し、${failures.length} 件の時間の語・日付:`,
@@ -229,13 +228,12 @@ function reportTimeWords(scanned: number, failures: string[]) {
   for (const f of failures) console.error(`  - ${f}`);
   console.error(
     "Fix: 時点や経過は Tier 4（.kaizen/・Issue・PR）に書き、文書からは消す。" +
-      "後の段階で直すものだけを scripts/gates/docs/doc-pending.json の pending に、正しい記述は allowed に理由付きで書く。",
+      "正しい記述だけを scripts/gates/docs/doc-allowed.json の allowed に理由付きで書く。",
   );
 }
 
 export function main(argv: string[]) {
   const args = argv.filter((a) => a !== "--");
-  const prune = args.includes("--prune");
   const root = args.find((a) => !a.startsWith("--")) ?? process.cwd();
   const { files, violations } = checkMutationCountProse(root);
   if (files.length === 0) {
@@ -255,16 +253,12 @@ export function main(argv: string[]) {
     console.error("time-sensitive-prose: 時間の語と日付の対象ファイルが 0 件。列挙できていない");
     return 2;
   }
-  let failures = time.failures;
-  if (prune && time.stale.length) {
-    console.log(`time-sensitive-prose: 古い保留を ${prunePending(root, time.stale)} 件消した`);
-    failures = failures.filter((f) => !f.startsWith("古い保留: "));
-  }
+  const { failures } = time;
   if (violations.length) reportMutationCounts(files.length, violations);
   if (failures.length) reportTimeWords(time.files, failures);
   if (violations.length || failures.length) return 1;
   console.log(
-    `time-sensitive-prose: OK（ミューテーションテストの件数 ${files.length} 件、時間の語と日付 ${time.files} 件。保留 ${time.pendingCount} 件）`,
+    `time-sensitive-prose: OK（ミューテーションテストの件数 ${files.length} 件、時間の語と日付 ${time.files} 件）`,
   );
   return 0;
 }

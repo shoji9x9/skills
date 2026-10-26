@@ -7,34 +7,14 @@
   "test_file": "scripts/gates/prose/check-time-sensitive-prose.test.ts",
   "mutations": [
     {
-      "id": "TS-PRUNE",
-      "why": "--prune の後も古い保留を失敗として数える",
-      "file": "scripts/gates/prose/check-time-sensitive-prose.ts",
-      "find": "failures = failures.filter((f) => !f.startsWith(\"古い保留: \"));",
-      "replace": "failures = failures;",
-      "occurrences": 1,
-      "expect_failing": ["--prune は古い保留だけを消し、一致する保留と許可は残す"]
-    },
-    {
       "id": "DS-KNOWN-RULE",
-      "why": "知らない規則の保留を通す",
+      "why": "知らない規則の許可を通す",
       "file": "scripts/lib/doc-scan.ts",
       "find": "if (!KNOWN_RULES.includes(e.rule))",
       "replace": "if (false)",
       "occurrences": 1,
       "expect_failing": [
-        "保留の一覧の形の誤り（stage が無い・reason が無い・知らない規則・知らない stage）はチェックできない（exit 2）"
-      ]
-    },
-    {
-      "id": "DS-STAGE-SET",
-      "why": "知らない stage の保留を通す",
-      "file": "scripts/lib/doc-scan.ts",
-      "find": "if (!STAGES.includes(e.stage))",
-      "replace": "if (false)",
-      "occurrences": 1,
-      "expect_failing": [
-        "保留の一覧の形の誤り（stage が無い・reason が無い・知らない規則・知らない stage）はチェックできない（exit 2）"
+        "許可の一覧の形の誤り（reason が無い・知らない規則・allowed が配列でない）はチェックできない（exit 2）"
       ]
     }
   ]

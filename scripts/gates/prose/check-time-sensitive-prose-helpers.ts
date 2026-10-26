@@ -4,7 +4,8 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { findTimeMentions } from "./check-time-sensitive-prose.ts";
-import { PENDING_PATH } from "../../lib/doc-scan.ts";
+import { ALLOWED_PATH } from "../../lib/doc-scan.ts";
+import { TIERS_PATH } from "../docs/doc-tiers.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 import { write } from "../../lib/testing/repo-file.ts";
@@ -19,15 +20,12 @@ export function makeRepo(files: Record<string, string>) {
 }
 
 /** 時間の語と日付のチェックに要るもの（git と階層の原本）を持つ一時リポジトリ。 */
-export function makeGitRepo(files: Record<string, string>, { pending }: { pending?: object } = {}) {
+export function makeGitRepo(files: Record<string, string>, { allowed }: { allowed?: object } = {}) {
   const root = makeRepo({
-    "scripts/gates/docs/doc-tiers.json": readFileSync(
-      join(repoRoot, "scripts/gates/docs/doc-tiers.json"),
-      "utf8",
-    ),
+    [TIERS_PATH]: readFileSync(join(repoRoot, TIERS_PATH), "utf8"),
     ...files,
   });
-  if (pending) writeFileSync(join(root, PENDING_PATH), JSON.stringify(pending));
+  if (allowed) writeFileSync(join(root, ALLOWED_PATH), JSON.stringify(allowed));
   const r = spawnSync("git", ["init", "-q"], {
     timeout: CHILD_TIMEOUT_MS,
     cwd: root,

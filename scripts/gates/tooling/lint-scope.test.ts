@@ -108,7 +108,6 @@ const EXCLUDING_JOBS = [
   "oxlint",
   "jsonlint",
   "js-yaml",
-  "pagination",
 ];
 
 test.each(EXCLUDING_JOBS)(

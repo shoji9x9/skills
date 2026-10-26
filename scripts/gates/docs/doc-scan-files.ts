@@ -5,8 +5,8 @@
 // Markdown は表の階層、それ以外のファイルはコードコメントとして Tier 3 に数える。
 import { TEXT_EXTENSIONS } from "../code/check-control-chars.ts";
 import { listSources } from "../tooling/run-on-sources.ts";
-import { PENDING_PATH } from "../../lib/doc-scan.ts";
-import { loadDocTiers, tierOf } from "./check-doc-tiers.ts";
+import { ALLOWED_PATH } from "../../lib/doc-scan.ts";
+import { loadDocTiers, tierOf } from "./doc-tiers.ts";
 
 export type ScannedFile = { file: string; tier: number; markdown: boolean };
 
@@ -24,11 +24,11 @@ export function scannedFiles(
   const config = loadDocTiers(root);
   const out: ScannedFile[] = [];
   for (const file of listSources(root, TEXT_EXTENSIONS)) {
-    if (exclude.includes(file) || file === PENDING_PATH || EVAL_INPUT_RE.test(file)) continue;
+    if (exclude.includes(file) || file === ALLOWED_PATH || EVAL_INPUT_RE.test(file)) continue;
     const markdown = file.endsWith(".md");
     const tier = tierOf(config, file);
-    // 階層の外（null）と Tier 4 は読まない。Markdown の階層が決まらない（undefined）ものは
-    // check-doc-tiers.ts が失敗させるので、ここでは Tier 3 として読む（読まずに通さない）。
+    // 階層の外（null）と Tier 4 は読まない。Markdown の階層が決まらない（undefined）ものは、
+    // 読まずに通さないよう Tier 3 として読む。
     if (tier === null || tier === 4) continue;
     out.push({ file, tier: markdown && tier !== undefined ? tier : 3, markdown });
   }

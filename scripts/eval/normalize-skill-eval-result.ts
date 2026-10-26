@@ -1291,7 +1291,7 @@ function listFiles(root: string): string[] {
  * シンボリックリンクはたどる。エントリの `isDirectory()` はリンク自身を見るので、たどらないとリンクしたスキルのディレクトリが警告なしに抜ける。
  * build-skill-eval-benchmark.ts の `listDirs` も同じ問題に当たった。リンク先の無いリンクは例外にする。
  * `ancestors` は今の位置より上の実パスで、自分か祖先を指すリンクは歩き直さない（ELOOP まで再帰するため）。
- * 全体で 1 つの訪問済みの集合にはしない。同じディレクトリを指す兄弟のリンクは、どちらも挙げる（check-skill-checks.ts の `listFiles` と同じ規則）。
+ * 全体で 1 つの訪問済みの集合にはしない。同じディレクトリを指す兄弟のリンクは、どちらも挙げる。
  */
 function collectFiles(
   walk: { root: string; files: string[] },

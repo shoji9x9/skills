@@ -29,12 +29,12 @@ mise の shim は、cwd の設定の階層からツールの版を決める。
 
 | 対象 | リント | 整形 | 補助のチェック |
 | --- | --- | --- | --- |
-| Markdown（`*.md`） | `markdownlint-cli2` | `markdownlint-cli2` | `scripts/gates/code/lint-pagination.ts` が shell のコードブロックの `gh api` のページネーションを、`scripts/gates/prose/lint-prose.ts` が人が読む文章を textlint でチェックする |
+| Markdown（`*.md`） | `markdownlint-cli2` | `markdownlint-cli2` | `scripts/gates/prose/lint-prose.ts` が人が読む文章を textlint でチェックする |
 | JavaScript・TypeScript（`*.js`、`*.mjs`、`*.ts` など） | `oxlint` | `oxfmt` | `tsc`（`pnpm run typecheck`）が `.ts`・`.tsx` の型を検査する（下の「型の検査」）。`scripts/gates/prose/lint-prose.ts` がコメントの文章を textlint で、文字列（テスト名・メッセージ）を使わない語の規則でチェックする |
 | JSON（`*.json`） | `jsonlint` | `oxfmt` | 重複したキーもチェックする。`scripts/gates/prose/lint-prose.ts` が `evals/<name>/evals.json` の文字列を使わない語の規則でチェックする |
 | JSONC（`*.jsonc`。スキルの設定ファイル） | `jsonlint -C -T`（コメントと末尾のカンマを受け付けて読む） | `oxfmt` | 重複したキーもチェックする。CI は整形されていないファイルも検出する（`JSONC format check`） |
 | YAML（`*.yml`、`*.yaml`） | `js-yaml`（`scripts/gates/code/lint-yaml.ts` が API で 1 つのプロセスにまとめて読む） | `oxfmt` | `scripts/gates/prose/lint-prose.ts` がコメントの文章を textlint でチェックする |
-| シェル（`*.sh`） | `shellcheck` | `shfmt` | `scripts/gates/code/lint-pagination.ts` が `gh api` のページネーションを、`scripts/gates/prose/lint-prose.ts` がコメントの文章をチェックする |
+| シェル（`*.sh`） | `shellcheck` | `shfmt` | `scripts/gates/prose/lint-prose.ts` がコメントの文章をチェックする |
 | GitHub Actions（`.github/workflows/*.{yml,yaml}`） | `actionlint` と `ghalint` | `oxfmt` | `pinact` が SHA の固定を確かめる |
 
 表のうち `shellcheck`・`shfmt`・`actionlint`・`pinact`・`ghalint`・`gitleaks` は、mise でインストールし（`mise.toml`）、コマンド名だけで起動する。
@@ -110,23 +110,17 @@ pre-commit の検査は、他のジョブと同じく作業ツリーの内容に
 | `code/check-control-chars.ts` | テキストの拡張子のファイルに入った制御文字 |
 | `packaging/check-eval-reachability.ts` | eval の assertion と prompt の対応 |
 | `packaging/copies/check-skills-sync.ts` | `skills/<name>/` とインストール済みのコピー `.agents/skills/<name>/` の一致 |
-| `layout/check-dir-file-count.ts` | 各ディレクトリの直下のファイル数。閾値（デフォルトは 20）を変えるディレクトリと対象外のディレクトリは、理由を付けて `scripts/gates/layout/dir-file-count.json` に書く。書いたディレクトリが実在しないとき、理由が空のとき、判定に使われない設定（`descendants` の対象外の下に書いた設定、デフォルトと同じ閾値、件数がデフォルトの閾値以下に減ったディレクトリの、閾値を上げた例外）を書いたときも失敗にする |
 | `code/check-js-extensions.ts` | JavaScript の拡張子（「JavaScript の拡張子」の節） |
-| `code/check-skill-lint-directives.ts` | 配布スキルの、このリポジトリの lint の設定を前提にした抑止コメント（`.agents/rules/distributed-skill-stack-independence.md`）と、`Array.isArray` の禁止をファイル単位で外したファイル（`scripts/lib/is-array-holders.ts`）の、型ガードの外の呼び出し |
+| `code/check-skill-lint-directives.ts` | 配布スキルの、このリポジトリの lint の設定を前提にした抑止コメント（`.agents/rules/distributed-skill-stack-independence.md`） |
 | `types/check-jsdoc-types.ts` | 配布スキルの `.mjs` で、型の検査を外す JSDoc の書き方（「型の検査」の節） |
-| `types/check-type-guard-brands.ts` | 絞る型の値にも false を返す型ガードが、ブランド型に絞っているか（「型の検査」の節） |
 | `packaging/check-skill-frontmatter.ts` | `SKILL.md` の frontmatter |
-| `code/lint-pagination.ts` | `gh api` などの一覧の取得のページネーション |
-| `docs/check-kaizen-refs.ts` | `.kaizen/` の学びへの参照の実在。意図して実在しないものは `scripts/gates/docs/kaizen-refs-exemptions.json` に書く |
 | `packaging/copies/check-identical-copies.ts` | 同じ内容であるべきコピー。組は `scripts/gates/packaging/copies/identical-copies.json` に書く。`region` を持つ組は、印 `// <region>:begin` と `// <region>:end` の間だけを比べる |
 | `packaging/check-skill-config-vendor.ts` | 配布スキルに同梱する設定の読み取り（`scripts/skill-config/`）。同梱した jsonc-parser（`vendor/`）が devDependency の版から作った内容と一致するか。版を上げたら `--fix` で作り直す |
 | `packaging/check-skill-configs.ts` | このリポジトリのスキルの設定（`.config/skills/shoji9x9/*.jsonc`）が、各スキルのスキーマ（`skills/<name>/config-schemas/`）に合うか |
-| `packaging/check-skill-checks.ts` | 配布スキルのチェック（`*-check.*`）の分類。利用者の pre-commit・CI に組み込むもの（`skills/<name>/checks.json`）か、組み込まないもの（理由を付けて `scripts/gates/packaging/skill-checks-unwired.json`）のどちらかにする |
 | `prose/check-time-sensitive-prose.ts` | 日付・「現状は」「当面」を Tier 1〜3 の文書とコメントに書いていないか。変異の件数や全件の実測値は `mutation-proof.yml` だけに書く |
-| `docs/check-doc-tiers.ts` | 文書の階層。原本は `scripts/gates/docs/doc-tiers.json` で、`.agents/rules/doc-altitude.md` の表は `--fix` で生成する |
-| `docs/check-doc-refs.ts` | リンクと節名の実在、参照の向き。節名は、パス（バッククォート・リンク・スキル名付き）の後に「」で書いたものを照合する。間に「の」や空白を挟んでもよく、節名でない語句を引用するときは名詞を挟む。導入先で生成するファイルは `scripts/gates/docs/doc-refs.json`、保留は `scripts/gates/docs/doc-pending.json` に書く |
+| `docs/check-doc-refs.ts` | リンクと節名の実在、参照の向き。節名は、パス（バッククォート・リンク・スキル名付き）の後に「」で書いたものを照合する。間に「の」や空白を挟んでもよく、節名でない語句を引用するときは名詞を挟む。導入先で生成するファイルは `scripts/gates/docs/doc-refs.json`、違反の形だが正しい記述の許可は `scripts/gates/docs/doc-allowed.json` に書く |
 | `packaging/check-skill-index.ts` | スキルガイド・README とスキルの実体の対応 |
-| `prose/lint-prose.ts` | 人が読む Markdown の文章と、JavaScript・TypeScript・シェル・YAML のコメントの文章。JavaScript・TypeScript の文字列と `evals/<name>/evals.json` の prompt・expected_output・assertions には、使わない語の規則だけを当てる（取り出し方は `scripts/lib/text/code-strings.ts`）。シェルのコメントは `shfmt --to-json` の構文木から取り出すので、shfmt（`mise.toml` で版を固定）が要る。書き換え前のファイルは `scripts/gates/prose/prose-lint-pending.json` に書く |
+| `prose/lint-prose.ts` | 人が読む Markdown の文章と、JavaScript・TypeScript・シェル・YAML のコメントの文章。JavaScript・TypeScript の文字列と `evals/<name>/evals.json` の prompt・expected_output・assertions には、使わない語の規則だけを当てる（取り出し方は `scripts/lib/text/code-strings.ts`）。シェルのコメントは `shfmt --to-json` の構文木から取り出すので、shfmt（`mise.toml` で版を固定）が要る |
 | `prose/check-word-list.ts` | `.textlint/word-list.md` と `.textlint/words.json` の一致 |
 | `docs/agents-md/check-agents-md-size.ts` | `AGENTS.md` のサイズ。ブランチで 30 KiB を超えたら、24 KiB 以下まで縮めさせる。超えたかは履歴で判定し、上限は `scripts/gates/docs/agents-md/agents-md-size.json` に書く |
 
@@ -258,8 +252,6 @@ Markdown の整形は `markdownlint-cli2 --fix` で行う。
 Markdown に加えて、JavaScript・TypeScript・シェル・YAML のコメントもチェックする。
 コメントは日本語を含む段落だけを見て、文字列（利用者に表示するメッセージ）は見ない。メッセージは、書いた人とレビューする人が確かめる。
 
-- 書き換えがまだ済んでいないファイルは `scripts/gates/prose/prose-lint-pending.json` に載っていて、指摘を数えない。
-  ファイルを書き換えて指摘が 0 件になったら、一覧から外す。
 - 語を一覧に足すときは、言い換え先を `message` に、検出されることを確かめる文を `example` に書く。
   `scripts/gates/prose/lint-prose.test.ts` が全エントリの `example` で検出されることを確かめる。
 - 読みやすさの規則を例の文から語の並びとして lint にするかを決めるときは、例と同じ語の並びを持つ自然な文を 1 つ以上書き、その文を検出しないかを確かめる。
@@ -371,7 +363,7 @@ lefthook の pre-commit は、TypeScript か JavaScript（`ts`・`tsx`・`mts`�
 直接の呼び出しは、`oxlint.config.ts` の `no-restricted-properties` が失敗にする。
 型ガードの中で組み込みの判定を呼ぶファイルは、行の disable コメントではなく、`oxlint.config.ts` の `overrides` でファイルごとに外す（一覧は `scripts/lib/is-array-holders.ts`）。
 配布スキルのファイルは利用者のプロジェクトへ入り、そこでは使われない disable のコメントになるからである。
-外したファイルの型ガードの外の呼び出しは、`check-skill-lint-directives.ts` が検出する。
+外したファイルでは、型ガードの外の呼び出しを oxlint が検出しないので、書いた人とレビューする人が確かめる。
 import できない雛形（`skills/*/assets/*.template.ts`）とミューテーションテストのランナーは、同じ関数をファイルの中に持つ。
 利用者のプロジェクトへ 1 ファイルだけコピーして使う配布スキルのツール（`trait-compare.mjs` など）も同じである。
 コピーとの一致は `check-identical-copies.ts` が確かめる。
@@ -390,18 +382,7 @@ import できない雛形（`skills/*/assets/*.template.ts`）とミューテー
 要素の型ガードを `.every` に渡して絞った配列は、要素がブランド型になる。この配列を検査していない `string` と比べるときは、`includes` の代わりに `some((x) => x === y)` を使うか、`/** @type {Set<string>} */` の注釈で受けた `Set` で比べる。
 判定が型と一致する型ガード（`typeof` だけのもの、`isArray`）と、false の側が無いもの（`asserts`）は、ブランド型にしない。
 呼び出しの引数に直接渡す関数（`filter`・`every` のコールバックなど）も、false の側を使うかを呼び出し先が決めるので、ブランド型にしなくてよい。
-絞る型がプリミティブとその配列の型ガードは、`scripts/gates/types/check-type-guard-brands.ts` がこの規約を pre-commit と CI でチェックする。
-pre-commit は stage したファイルだけを検査し、CI はすべての対象のファイルを検査する。
-そのため、stage したファイルの型ガードを変えて、それを import する別のファイルの型ガードが違反になったときは、CI で検出される。
-チェックは型述語と絞る型を TypeScript の型チェッカーで読むので、注釈・JSDoc・オーバーロード・型の別名のどこに書いた型述語も対象になる。
-`isArray(v) && v.every(isS)` のように、配列の要素の判定に関数を名前で渡す型ガードも、`isS` の宣言（import の先を含む）をたどって判定を読む。
-`isS` の判定が型と一致すれば違反にしない。`isS` が追加の条件を持つときと、宣言をたどれないとき（引数で受け取った関数など）は違反にする。
-対象のファイルは `scripts/` と `skills/` と private skill の `.ts`・`.mjs` で、`types/` とリポジトリの直下のファイルは対象にしない。
-呼び出しの引数の位置に直接書いた関数（`filter((x): x is string => ...)` のアロー関数や、関数をそのまま返すラッパーで包んだ型ガード）は、それ自体を型ガードとしては検査しない。
-ブランド型と他の型を並べた union も、チェックは対象にしない。どちらも書いた人とレビューする人が確かめる。
-`every(isS)` のように名前で渡した `isS` は、宣言した場所で型ガードとして検査し、渡した側の型ガードの判定を読むときにもたどる。
-オブジェクトの形の型ガードは、判定が型と一致するかを構文から決められないので、書いた人とレビューする人が確かめる。
-チェックを作らないのは、過去に実際の不具合が無く、構文の書き方の数だけ例外を維持する費用に見合わないからである。
+型ガードがこの規約に従うかは、チェックするツールが無いので、書いた人とレビューする人が確かめる。
 
 配布スキルの `.mjs` では、型の検査を外す JSDoc の書き方を `scripts/gates/types/check-jsdoc-types.ts` が失敗にする。
 失敗にするのは、型の表明 `/** @type {X} */ (v)`（TypeScript の `as` と同じ）と、`@ts-ignore`・`@ts-expect-error`・`@ts-nocheck` である。

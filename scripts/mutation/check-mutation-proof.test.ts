@@ -1252,14 +1252,13 @@ require("node:module").syncBuiltinESMExports();
   // check-doc-refs.test.ts は doc-scan-files.ts を直接は import せず、check-doc-refs.ts を介して使う。
   // 中継の check-doc-refs.ts も doc-scan-files.ts も変異の対象ではなく、名前も -helpers.ts で終わらない。
   // そのため、ランナーが import を間接のものまでたどり、選ぶファイルを名前ではなく `scripts/` の下のパスで決めるときだけ、この宣言を選ぶ。
-  // check-doc-refs.mutations.json の残りの変異は #748 が消す pending の処理を狙うので、#748 でこの定義が無くなるときは向け直す。
   test("test_file から間接に import されるファイルが変わったら、その宣言を測る", async () => {
     const support = "scripts/gates/docs/doc-scan-files.ts";
     const res = await runRunner(
       "--changed-since",
       "origin/main",
       "--only",
-      "DS-PENDING-MATCH",
+      "DS-ALLOWED-MATCH",
       "--list",
       { MUTATION_PROOF_CHANGED_FILES: support },
     );
@@ -1306,7 +1305,7 @@ require("node:module").syncBuiltinESMExports();
   // 共有のライブラリの変更で影響を受ける定義は、PR では選ばず、週次の全件の実行で確かめる（Issue #747）。
   // repo-file.ts は check-doc-refs-helpers.ts が import する共有のファイルで、どの定義のヘルパーでも変異の対象でもない。
   test("ヘルパーが import する共有のライブラリだけが変わっても、宣言を選ばない", async () => {
-    const res = await runRunner("--changed-since", "origin/main", "--only", "DS-STALE", {
+    const res = await runRunner("--changed-since", "origin/main", "--only", "DS-UNUSED", {
       MUTATION_PROOF_CHANGED_FILES: "scripts/lib/testing/repo-file.ts",
     });
     expect(res.status, res.out).toBe(0);

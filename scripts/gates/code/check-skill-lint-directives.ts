@@ -9,38 +9,23 @@
 // 判断の基準は `.agents/rules/distributed-skill-stack-independence.md` にある。
 //
 // 判定規則:
-// 1. `skills/**` の JavaScript・TypeScript のコメントで、行頭（`//`・`/*`・JSDoc の行頭の `*` を除いた先頭）に
-//    使われない抑止を報告されうる指示（下の DIRECTIVES）があれば違反にする。
-//    コメントの範囲は TypeScript のパーサで決める（`scripts/lib/text/code-comments.ts` の jsCommentRanges）。
-//    文字列・テンプレート・正規表現の中の `//` や指示の名前は、コメントではないので対象にしない。
-//    文章の途中で名前を挙げるだけのコメントも、指示として読まれないので対象にしない。
-//    textlint・markdownlint・shellcheck の指示は、未使用でも報告されず、規則が無いプロジェクトでは何もしないので対象にしない。
-// 2. `oxlint.config.ts` は、`Array.isArray` の禁止をファイル単位で外す（一覧は `scripts/lib/is-array-holders.ts`）。
-//    そのファイルでは、組み込みの `Array.isArray` を、関数宣言 `isArray` の中で 1 回だけ使うことを求める。
-//    使い方は構文木で数える（`Array.isArray`・`Array?.isArray`・`Array["isArray"]`・`const { isArray } = Array`。
-//    改行やコメントを挟んでも同じ）。ファイル単位で外した分、関数の外の呼び出しを oxlint が検出しなくなるので、ここで検出する。
-//    一覧のファイルが無い・関数宣言 `isArray` が 1 つだけ無いものも違反にする。
+// `skills/**` の JavaScript・TypeScript のコメントで、行頭（`//`・`/*`・JSDoc の行頭の `*` を除いた先頭）に
+// 使われない抑止を報告されうる指示（下の DIRECTIVES）があれば違反にする。
+// コメントの範囲は TypeScript のパーサで決める（`scripts/lib/text/code-comments.ts` の jsCommentRanges）。
+// 文字列・テンプレート・正規表現の中の `//` や指示の名前は、コメントではないので対象にしない。
+// 文章の途中で名前を挙げるだけのコメントも、指示として読まれないので対象にしない。
+// textlint・markdownlint・shellcheck の指示は、未使用でも報告されず、規則が無いプロジェクトでは何もしないので対象にしない。
 // 読む中身: index にあるファイルは staged の blob、未追跡のファイルは作業ツリーから読む。
 // pre-commit では commit に入る中身を、CI では commit の中身（作業ツリーと同じ）を見る。作業ツリーから消して
 // stage したままのファイルも、index から読む。
 // 走査したファイルが 0 件・git が失敗した・中身を読めないときは、判定できないので exit 2 にする。
 import { spawnSync } from "node:child_process";
-import {
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  realpathSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { jsCommentRanges } from "../../lib/text/code-comments.ts";
-import { runOxlint } from "./oxlint-plugin/run-oxlint.ts";
 import { errorMessage } from "../../lib/errors.ts";
-import { IS_ARRAY_HOLDERS, IS_ARRAY_RESTRICTION } from "../../lib/is-array-holders.ts";
 
 // 配布スキルで置ける JavaScript・TypeScript の拡張子だけを走査する（`.mjs` と雛形の `.ts`）。
 // 他の拡張子（`.js`・`.jsx`・`.tsx`・`.mts` など）は `check-js-extensions.ts` が配布スキルで禁じているので、
@@ -101,98 +86,6 @@ export function findDirectives(source: string, path = "a.ts"): string[] {
   return out;
 }
 
-/** 関数宣言 `isArray` の範囲（UTF-8 のバイト位置）と、始まりの行。1 つだけでなければ、その件数。 */
-function guardRange(
-  source: string,
-  path: string,
-): { start: number; end: number; line: number } | number {
-  const kind = path.endsWith(".ts") ? ts.ScriptKind.TS : ts.ScriptKind.JS;
-  const sf = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, kind);
-  const guards: ts.FunctionDeclaration[] = [];
-  const visit = (node: ts.Node) => {
-    if (ts.isFunctionDeclaration(node) && node.name?.text === "isArray") guards.push(node);
-    ts.forEachChild(node, visit);
-  };
-  visit(sf);
-  if (guards.length !== 1) return guards.length;
-  // oxlint の診断の位置（offset）は UTF-8 のバイト位置なので、TypeScript の位置（UTF-16）を同じ単位に直す。
-  // 行で比べると、同じ行で関数の前後にある呼び出しを、関数の中と取り違える。
-  const bytes = (pos: number) => Buffer.byteLength(source.slice(0, pos), "utf8");
-  const start = guards[0].getStart(sf);
-  return { start: bytes(start), end: bytes(guards[0].getEnd()), line: lineOf(source, start) };
-}
-
-/** oxlint が検出した `Array.isArray` の位置（行は 1 始まり、offset は UTF-8 のバイト位置）。 */
-export type IsArrayUse = { line: number; offset: number };
-
-const RULE = "no-restricted-properties";
-
-/**
- * 組み込みの `Array.isArray` を使う位置を、ファイルごとに返す。
- * 判定は、`oxlint.config.ts` と同じ禁止（IS_ARRAY_RESTRICTION）だけを有効にした oxlint に任せる。
- * 書き方（改行を挟んだ参照・`?.`・`["isArray"]`・分割代入・代入の分割）を自前で数えると、書き方の数だけ抜けが出るからである。
- * 中身は一時ディレクトリに書いて渡す（staged の中身を読むため）。oxlint が失敗したら例外にする。
- */
-export function isArrayUses(entries: readonly { path: string; source: string }[]): IsArrayUse[][] {
-  const dir = mkdtempSync(join(tmpdir(), "skill-lint-directives-"));
-  try {
-    const config = join(dir, "oxlintrc.json");
-    writeFileSync(
-      config,
-      // 数えるのは RULE だけなので、デフォルトで有効な correctness のルールは外す（関係の無い診断で止めない）。
-      JSON.stringify({
-        categories: { correctness: "off" },
-        rules: { [RULE]: ["error", IS_ARRAY_RESTRICTION] },
-      }),
-    );
-    const files = entries.map((e, i) => {
-      const file = join(dir, `${i}-${basename(e.path)}`);
-      writeFileSync(file, e.source);
-      return file;
-    });
-    // 起動と出力の読み方（終了コード・JSON・診断の形）は、oxlint-plugin/run-oxlint.ts と共有する。
-    const uses = entries.map((): IsArrayUse[] => []);
-    // staged の内容に構文の誤りがあると、runOxlint は例外にする（exit 2）。読めないファイルの Array.isArray を 0 件として扱わないためである。
-    for (const d of runOxlint(["-c", config, ...files])) {
-      if (d.rule !== RULE) continue;
-      const index = files.indexOf(d.file);
-      if (index === -1) throw new Error(`oxlint の診断のファイルが渡したものと合わない: ${d.file}`);
-      uses[index].push({ line: d.line, offset: d.offset });
-    }
-    return uses;
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-}
-
-/** `isArray` を持つファイルの違反。組み込みの `Array.isArray` は、関数宣言 `isArray` の中で 1 回だけ使ってよい。 */
-export function guardViolations(
-  source: string,
-  path: string,
-  uses: readonly IsArrayUse[],
-): string[] {
-  const guard = guardRange(source, path);
-  if (typeof guard === "number") return [`関数宣言 isArray が 1 つだけ無い（${guard} 件）`];
-  const out: string[] = [];
-  const within = (u: IsArrayUse) => u.offset >= guard.start && u.offset < guard.end;
-  for (const u of uses) {
-    if (!within(u)) out.push(`${u.line}: 型ガード isArray の外で Array.isArray を使っている`);
-  }
-  const inside = uses.filter(within).length;
-  if (inside !== 1) {
-    out.push(
-      `${guard.line}: 型ガード isArray の中の Array.isArray が 1 回だけでない（${inside} 回）`,
-    );
-  }
-  return out;
-}
-
-/** 1 ファイルの `guardViolations`（テスト用。oxlint を 1 回起動する）。 */
-export function findOutsideGuard(source: string, path = "a.ts"): string[] {
-  const [uses] = isArrayUses([{ path, source }]);
-  return guardViolations(source, path, uses ?? []);
-}
-
 /** `skills/` の下の、追跡しているファイルと無視されていない未追跡のファイル（ルートからのパス）。 */
 export function listSkillFiles(root: string): string[] {
   const res = spawnSync(
@@ -240,14 +133,10 @@ function readSource(root: string, path: string, blobs: Map<string, string>): str
 }
 
 /** 違反の一覧（`パス:行番号: 内容`）。 */
-export function findViolations(
-  root: string,
-  skillFiles: readonly string[],
-  holders: readonly string[],
-): string[] {
+export function findViolations(root: string, skillFiles: readonly string[]): string[] {
   const out: string[] = [];
   const code = skillFiles.filter((p) => CODE_EXT_RE.test(p));
-  const blobs = indexBlobs(root, [...code, ...holders]);
+  const blobs = indexBlobs(root, code);
   for (const path of code) {
     const source = readSource(root, path, blobs);
     if (source === null) throw new Error(`${path}: index にも作業ツリーにも無い`);
@@ -255,21 +144,6 @@ export function findViolations(
       out.push(`${path}:${v}（このリポジトリの設定を前提にした抑止。設定の overrides で外す）`);
     }
   }
-  const present: { path: string; source: string }[] = [];
-  for (const path of holders) {
-    const source = readSource(root, path, blobs);
-    if (source === null)
-      out.push(`${path}: scripts/lib/is-array-holders.ts に挙げたファイルが無い`);
-    // 一覧に挙げたファイルは index に置く。作業ツリーにだけあると pre-commit は通るのに、commit には入らず
-    // oxlint.config.ts の overrides が指す先が無くなる（CI で初めて失敗する）。
-    else if (!blobs.has(path))
-      out.push(`${path}: 一覧に挙げたファイルが index に無い（stage する）`);
-    else present.push({ path, source });
-  }
-  const uses = present.length ? isArrayUses(present) : [];
-  present.forEach((e, i) => {
-    for (const v of guardViolations(e.source, e.path, uses[i] ?? [])) out.push(`${e.path}:${v}`);
-  });
   return out;
 }
 
@@ -281,42 +155,11 @@ function repoRoot(cwd: string): string {
   return res.stdout.trim();
 }
 
-/** 一覧のファイル（このチェックが import する）。中身は作業ツリーの版で、staged の版ではない。 */
-export const HOLDERS_REGISTRY = "scripts/lib/is-array-holders.ts";
-
-/**
- * 一覧のファイルが index に無いか、作業ツリーと index で食い違っていれば例外にする。
- * このチェックは一覧を import する（作業ツリーの版）が、ファイルの中身は staged の版を読む。
- * 一部だけを stage すると、commit に入る一覧と、検査に使う一覧がずれる。
- * index に無いと（未追跡・`git rm --cached`）、`git diff` は差を報告しないのに、commit の後は
- * `oxlint.config.ts` の import 先が無くなる。
- */
-export function assertRegistryStaged(root: string): void {
-  const listed = spawnSync("git", ["ls-files", "--error-unmatch", "--", HOLDERS_REGISTRY], {
-    cwd: root,
-    encoding: "utf8",
-  });
-  if (listed.status !== 0) {
-    throw new Error(`${HOLDERS_REGISTRY} が index に無い。追加して stage してから実行する`);
-  }
-  const res = spawnSync("git", ["diff", "--quiet", "--no-ext-diff", "--", HOLDERS_REGISTRY], {
-    cwd: root,
-    encoding: "utf8",
-  });
-  if (res.status === 1) {
-    throw new Error(
-      `${HOLDERS_REGISTRY} の作業ツリーと staged の中身が違う。全体を stage するか、変更を戻してから実行する`,
-    );
-  }
-  if (res.status !== 0) throw new Error(`git diff に失敗した（exit ${res.status}）: ${res.stderr}`);
-}
-
 export function main(cwd = "."): number {
   let root: string;
   let files: string[];
   try {
     root = repoRoot(cwd);
-    assertRegistryStaged(root);
     files = listSkillFiles(root);
   } catch (error) {
     console.error(`skill-lint-directives: ${errorMessage(error)}`);
@@ -331,7 +174,7 @@ export function main(cwd = "."): number {
   }
   let violations: string[];
   try {
-    violations = findViolations(root, files, IS_ARRAY_HOLDERS);
+    violations = findViolations(root, files);
   } catch (error) {
     console.error(`skill-lint-directives: ${errorMessage(error)}`);
     return 2;
@@ -341,9 +184,7 @@ export function main(cwd = "."): number {
     for (const v of violations) console.error(`  - ${v}`);
     return 1;
   }
-  console.log(
-    `skill-lint-directives: OK（${code.length} 件、isArray を持つファイル ${IS_ARRAY_HOLDERS.length} 件）`,
-  );
+  console.log(`skill-lint-directives: OK（${code.length} 件）`);
   return 0;
 }
 

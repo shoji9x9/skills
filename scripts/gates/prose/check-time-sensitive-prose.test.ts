@@ -18,10 +18,7 @@
 // 誤検知しないことの確認に使う実データ: 削除後の AGENTS.md に残した行（単位の定義・暴走時の記述）。
 // ワークフローで検出されることの確認に使う実データ: 実測値を mutation-proof.yml へ移す前の ci.yml のコメント。
 import { expect, test } from "vitest";
-import { parseJsonAs } from "../../lib/parse-as.ts";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import {
   checkMutationCountProse,
   checkTimeWords,
@@ -29,7 +26,7 @@ import {
   main,
   TIME_RULES,
 } from "./check-time-sensitive-prose.ts";
-import { KNOWN_RULES, PENDING_PATH } from "../../lib/doc-scan.ts";
+import { KNOWN_RULES } from "../../lib/doc-scan.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 import {
   makeGitRepo,
@@ -39,7 +36,6 @@ import {
   texts,
 } from "./check-time-sensitive-prose-helpers.ts";
 
-// 学びのパスは組み立てて書く（そのまま書くと check-kaizen-refs.ts が実在しない学びへの参照として数える）。
 const KZ = ".kaizen/";
 
 // ---- 誤検知しないことの確認（通さねばならない入力）----
@@ -221,7 +217,7 @@ test("検出の確認（CLI）: 子プロセスとして起動しても、件数
   });
   expect(good.status, good.stderr).toBe(0);
   expect(good.stdout).toMatch(
-    /time-sensitive-prose: OK（ミューテーションテストの件数 1 件、時間の語と日付 2 件。保留 0 件）/,
+    /time-sensitive-prose: OK（ミューテーションテストの件数 1 件、時間の語と日付 2 件）/,
   );
   const bad = spawnSync(process.execPath, [script, makeGitRepo({ "docs/a.md": "376 変異\n" })], {
     timeout: CHILD_TIMEOUT_MS,
@@ -240,7 +236,7 @@ test("検出の確認（CLI）: 子プロセスとして起動しても、件数
 // | 行の中       | 本文 / インラインコード / コードフェンス / 例の行                                   |
 // | ファイル     | Markdown / JS の行コメント・ブロックコメント・行末コメント / JS のコード / sh・YAML の # / shebang / JSON |
 // | 場所         | Tier 1〜3 / Tier 4（.kaizen/）/ 階層の外（eval の fixture）/ スキルのコピー / このチェックのテスト |
-// | 保留         | 一致 / 古い（直した）/ 許可（使われる・使われない）/ 他のチェックの規則              |
+// | 許可         | 使われる / 使われない / 他のチェックの規則                                          |
 
 test.each([
   { label: "現状は", file: "a.md", text: "現状は可。\n", want: ["time-word:現状は"] },
@@ -361,69 +357,38 @@ test("走査対象: Tier 4・階層の外・スキルのコピー・このチェ
   expect(checkTimeWords(root).failures).toEqual(["docs/a.md:1: [time-word] 当面"]);
 });
 
-test("保留: 一致する違反は失敗にせず数える。直した後に残った保留は失敗にする", () => {
-  const pending = {
-    pending: [
-      { file: "docs/a.md", rule: "time-word", text: "当面", stage: "3" },
-      { file: "docs/b.md", rule: "date", text: "2026-09-19", stage: "3" },
-      { file: "docs/c.md", rule: "section", text: "x.md「y」", stage: "3" },
-    ],
-    allowed: [],
-  };
-  const root = makeGitRepo(
-    { "AGENTS.md": "本文\n", "docs/a.md": "当面\n", "docs/b.md": "本文\n" },
-    { pending },
-  );
-  const r = checkTimeWords(root);
-  expect(r.pendingCount).toBe(1);
-  // 他のチェックの規則（section）の保留は、このチェックでは古いと判定しない。
-  expect(r.failures).toEqual([expect.stringMatching(/^古い保留: docs\/b\.md \[date\] 2026-09-19/)]);
-});
-
-test("許可: 一致する記述は通し、使われなくなった許可は失敗にする", () => {
+test("許可: 一致する記述は通し、使われなくなった許可は失敗にし、他のチェックの規則の許可は見ない", () => {
   const allowed = [
     { file: "docs/a.md", rule: "date", text: "2026-09-19", reason: "例" },
     { file: "docs/a.md", rule: "date", text: "2026-01-01", reason: "例" },
+    { file: "docs/c.md", rule: "section", text: "x.md「y」", reason: "例" },
   ];
   const root = makeGitRepo(
     { "AGENTS.md": "本文\n", "docs/a.md": "2026-09-19 の版\n" },
-    { pending: { pending: [], allowed } },
+    { allowed: { allowed } },
   );
+  // 他のチェックの規則（section）の許可は、このチェックでは使われていないと判定しない。
   expect(checkTimeWords(root).failures).toEqual([
     expect.stringMatching(/^使われていない許可: docs\/a\.md \[date\] 2026-01-01/),
   ]);
 });
 
-test("保留の一覧の形の誤り（stage が無い・reason が無い・知らない規則・知らない stage）はチェックできない（exit 2）", () => {
+test("許可の一覧の形の誤り（reason が無い・知らない規則・allowed が配列でない）はチェックできない（exit 2）", () => {
   for (const bad of [
-    { pending: [{ file: "a", rule: "date", text: "x" }], allowed: [] },
-    { pending: [], allowed: [{ file: "a", rule: "date", text: "x" }] },
-    { pending: [{ file: "a", rule: "dates", text: "x", stage: "3" }], allowed: [] },
-    { pending: [{ file: "a", rule: "date", text: "x", stage: "6" }], allowed: [] },
+    { allowed: [{ file: "a", rule: "date", text: "x" }] },
+    { allowed: [{ file: "a", rule: "dates", text: "x", reason: "例" }] },
+    { allowed: {} },
   ]) {
-    expect(main([makeGitRepo({ "AGENTS.md": "本文\n" }, { pending: bad })])).toBe(2);
+    expect(main([makeGitRepo({ "AGENTS.md": "本文\n" }, { allowed: bad })])).toBe(2);
   }
 });
 
-test("--prune は古い保留だけを消し、一致する保留と許可は残す", () => {
-  const keep = { file: "docs/a.md", rule: "time-word", text: "当面", stage: "3" };
-  const stale = { file: "docs/b.md", rule: "date", text: "2026-09-19", stage: "3" };
-  const other = { file: "docs/c.md", rule: "section", text: "x.md「y」", stage: "3" };
-  const root = makeGitRepo(
-    { "AGENTS.md": "本文\n", "docs/a.md": "当面\n" },
-    { pending: { pending: [keep, stale, other], allowed: [] } },
-  );
-  expect(main([root, "--prune"])).toBe(0);
-  const after = parseJsonAs<{ pending: unknown[] }>(readFileSync(join(root, PENDING_PATH), "utf8"));
-  expect(after.pending).toEqual([keep, other]);
-});
-
-test("陰性: 実リポジトリは保留と許可を当てると時間の語と日付の失敗が 0 件", () => {
+test("陰性: 実リポジトリは許可を当てると時間の語と日付の失敗が 0 件", () => {
   const r = checkTimeWords(repoRoot);
   expect(r.failures).toEqual([]);
   expect(r.files).toBeGreaterThan(100);
 });
 
-test("このチェックの規則は、保留に書ける規則に含まれる", () => {
+test("このチェックの規則は、許可に書ける規則に含まれる", () => {
   for (const r of TIME_RULES) expect(KNOWN_RULES).toContain(r);
 });

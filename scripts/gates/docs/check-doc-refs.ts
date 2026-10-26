@@ -16,19 +16,18 @@
 //   Tier 3（コメント）にも当てる。
 // Issue と PR の番号は、例の行（scripts/lib/doc-scan.ts の EXAMPLE_LINE_RE）では読まない。
 //
-// 今ある違反は scripts/gates/docs/doc-pending.json に保留として持ち、直したら消す（古い保留は失敗にする）。
-// 対象ファイル 0 件・設定の形の誤りは exit 2。違反・古い保留は exit 1。
+// 違反の形だが正しい記述は、scripts/gates/docs/doc-allowed.json に理由付きで許可する（使われていない許可は失敗にする）。
+// 対象ファイル 0 件・設定の形の誤りは exit 2。違反・使われていない許可は exit 1。
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  applyPending,
+  applyAllowed,
   blankInlineCode,
   distributedSkillDir,
   EXAMPLE_LINE_RE,
   fencedLines,
-  loadPending,
-  prunePending,
+  loadAllowed,
 } from "../../lib/doc-scan.ts";
 import { scannedFiles, type ScannedFile } from "./doc-scan-files.ts";
 import { errorMessage } from "../../lib/errors.ts";
@@ -354,11 +353,11 @@ export function findInFile({
 
 /**
  * @param {string} root
- * @returns {{ files: number, found: object[], failures: string[], pendingCount: number, stale: object[] }}
+ * @returns {{ files: number, found: object[], failures: string[] }}
  */
 export function checkDocRefs(root: string) {
   const config = loadConfig(root);
-  const list = loadPending(root);
+  const list = loadAllowed(root);
   const files = scannedFiles(root, { exclude: SELF_FIXTURES });
   const cache = new Map();
   const found: (Finding & { file: string })[] = [];
@@ -367,12 +366,11 @@ export function checkDocRefs(root: string) {
     for (const v of findInFile({ root, config, scanned: f, text, anchorCache: cache }))
       found.push({ file: f.file, ...v });
   }
-  return { files: files.length, found, ...applyPending(found, list, RULES) };
+  return { files: files.length, found, ...applyAllowed(found, list, RULES) };
 }
 
 export function main(argv: string[]) {
   const args = argv.filter((a) => a !== "--");
-  const prune = args.includes("--prune");
   const root = args.find((a) => !a.startsWith("--")) ?? process.cwd();
   let result;
   try {
@@ -381,29 +379,20 @@ export function main(argv: string[]) {
     console.error(`doc-refs: チェックできない: ${errorMessage(error)}`);
     return 2;
   }
-  const { files, failures, pendingCount, stale } = result;
+  const { files, failures } = result;
   if (files === 0) {
     console.error("doc-refs: 対象ファイルが 0 件。列挙できていない");
     return 2;
-  }
-  if (prune && stale.length) {
-    // 古い保留の失敗は、消したので数えない。
-    const n = prunePending(root, stale);
-    console.log(`doc-refs: 古い保留を ${n} 件消した`);
-    const rest = failures.filter((f) => !f.startsWith("古い保留: "));
-    failures.length = 0;
-    failures.push(...rest);
   }
   if (failures.length) {
     console.error(`doc-refs: ${files} 件を走査し、${failures.length} 件の不備:`);
     for (const f of failures) console.error(`  - ${f}`);
     console.error(
-      "Fix: 参照先を直す。後の段階で直すものだけを scripts/gates/docs/doc-pending.json の pending に、" +
-        "正しい記述は allowed に理由付きで書く。",
+      "Fix: 参照先を直す。正しい記述だけを scripts/gates/docs/doc-allowed.json の allowed に理由付きで書く。",
     );
     return 1;
   }
-  console.log(`doc-refs: OK（${files} 件。保留 ${pendingCount} 件）`);
+  console.log(`doc-refs: OK（${files} 件）`);
   return 0;
 }
 
