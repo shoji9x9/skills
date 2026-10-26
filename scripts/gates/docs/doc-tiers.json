@@ -1,7 +1,7 @@
 {
   "$comment": [
     "文書の階層（Tier）。文書のチェックの走査対象（scripts/gates/docs/doc-scan-files.ts）が、scripts/gates/docs/doc-tiers.ts で読む。",
-    ".agents/rules/doc-altitude.md の表と同じ内容に保つ。どちらかを変えたら、もう一方も直す。",
+    ".agents/rules/doc-altitude.md の表のコピーで、原本は表である。表を変えたら、この JSON も同じ内容に直す。",
     "doc-tiers.ts が読むのは、docs と outside の各項目の glob と、項目が属する tier だけである。",
     "label・note・contents は doc-altitude.md の表と対応させるための説明の欄で、値はどのスクリプトも読まない。glob を持たない項目（label だけ）は、ファイルで分けられない文書を表すためのもの。",
     "項目が持ってよいキーは glob・label・note・contents だけで、ほかのキー（glob の書き間違いなど）は doc-tiers.ts が例外にする。"
