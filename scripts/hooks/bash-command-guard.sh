@@ -76,14 +76,23 @@ fi
 # 数字のクラスは配列の添字（`${pats[0]}`）と区別できないので、免除しない。記号のクラス（`[_]`）も免除しない。
 # 照合は grep で行い、時間を入力の長さに比例させる（bash の正規表現と置き換えは、入力の形によって 2 乗の時間になる）。
 # 次の見逃しは受け入れる。判定を広げると、照合の時間と誤検知が増えるからである。
-# - 区間のどこかに英字 1 文字のクラスがあれば止めないので、パターンの外の `out[x].log` や `# [x]`、英字の添字（`${pats[i]}`）でも通す
+# - 区間のどこかに英字 1 文字のクラスがあれば止めないので、パターンの外の `out[x].log` や `# [x]`、
+#   pkill より前の代入（`x=[a] pkill -f node`）、英字の添字（`${pats[i]}`）でも通す
 # - 行継続（\ と改行）の後に書いた `-f` は、改行を区切りとして読むので見逃す
-# grep が一致しないときの exit 1 は「止める区間が無い」という期待される結果なので、`|| true` で通す（offending は空のまま）。
-pkill_re='(^|[^[:alnum:]_.-])(pkill|killall)[[:blank:]](.*[[:blank:]])?(-[[:alnum:]]*f[[:alnum:]]*|--full)([[:blank:]=]|$)'
-offending="$(printf '%s\n' "${command_text}" | tr ';&|' '\n' | grep -aE -- "${pkill_re}" | grep -avE -- '\[[[:alpha:]]\]' | head -n 1)" || true
+pkill_re='(^|[^[:alnum:]_.-])(pkill|killall)[[:blank:]](.*[[:blank:]])?(-[[:alnum:]]*f[[:alnum:]]*|--full)([^[:alnum:]_-]|$)'
+# 2 つ目の grep は最初の 1 行で止まるので、前段は SIGPIPE で終わることがある。一致した行があれば終了コードを見ずに止める。
+# 一致が無いときは、grep の exit 1（止める区間が無い）だけを通常の結果として扱い、それ以外は検査していないと stderr に残して通す。
+set +e
+offending="$(printf '%s\n' "${command_text}" | tr ';&|' '\n' | grep -aE -- "${pkill_re}" | grep -avE -m 1 -- '\[[[:alpha:]]\]')"
+rc=$?
+set -e
 
 if [ -n "${offending}" ]; then
-	echo "bash-command-guard: 実行前に止めた。pkill/killall -f の照合対象は full command line で、この呼び出し自身にも一致する（シェルごと終了する）。PID 指定（kill \"\$PID\"）にするか、パターンを [d]ump-dom の形にする: ${offending}" >&2
+	echo "bash-command-guard: 実行前に止めた。pkill/killall -f の照合対象は full command line で、この呼び出し自身にも一致する（シェルごと終了する）。PID 指定（kill \"\$PID\"）にするか、パターンを [d]ump-dom の形にする: ${offending:0:200}" >&2
 	exit 2
 fi
+case "${rc}" in
+0 | 1) ;;
+*) echo "bash-command-guard: 照合に失敗したため検査していない（終了コード ${rc}）" >&2 ;;
+esac
 exit 0

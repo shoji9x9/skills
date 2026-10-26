@@ -51,10 +51,12 @@ test.each([
   ["\\\\ で終わる行の後の別のコマンドの -f", "pkill -x a\\\\\nrm -f x"],
   ["pkill で終わる行の次の行の --full", 'echo "pkill chrome\n--full text"'],
   ["免除した区間の後の、-f を使わない pkill", "pkill -f '[d]x'; pkill y"],
+  ["--full で始まる別のオプション", "pkill --fullscreen x"],
   // 受け入れた見逃し（正規表現を広げると、照合の時間と誤検知が増える）。
   ["行継続の後の -f（字下げあり）", "pkill \\\n  -f chrome"],
   ["行継続の後の -f（字下げなし）", "pkill \\\n-f chrome"],
   ["英字の配列の添字", 'pkill -f "${pats[i]}"'],
+  ["pkill より前の代入の英字 1 文字のクラス", "x=[a] pkill -f node"],
 ])("通す: %s", (_name, command) => {
   const r = guard(command);
   expect(r.stderr).toBe("");
@@ -132,6 +134,22 @@ test.each([
 test("制御文字（\\x01）が続く pkill -f も止める", () => {
   const r = guard("pkill -f node\u0001");
   expect(r.status).toBe(2);
+  expect(r.stderr).toMatch(/full command line/);
+});
+
+test.each([
+  ["リダイレクト", "pkill -f>/dev/null node"],
+  ["空の引用", 'pkill -f"" node'],
+])("-f の直後に記号が続く形も止める: %s", (_name, command) => {
+  const r = guard(command);
+  expect(r.status).toBe(2);
+  expect(r.stderr).toMatch(/full command line/);
+});
+
+test("止めたときのメッセージは、長い 1 行でも 200 文字までにする", () => {
+  const r = guard(`${"x".repeat(1000)} pkill -f node`);
+  expect(r.status).toBe(2);
+  expect(r.stderr.length).toBeLessThan(600);
 });
 
 test("行継続を多く含む大きな入力も、すぐ通す", () => {
