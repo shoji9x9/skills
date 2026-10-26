@@ -9,10 +9,11 @@ pre-commit:
         piped: true
         jobs:
           - name: word-list
-            # 使わない語の一覧（.textlint/word-list.md。AGENTS.md が @ で取り込む生成物）を .textlint/words.json から生成して stage する。
+            # 使わない語の一覧（.textlint/word-list.md。AGENTS.md が @ で取り込む生成物）を、index の .textlint/words.json から生成して stage する。
+            # 作業ツリーから生成すると、words.json の一部だけを stage した commit に、stage していない語が入る。
             # stage_fixed は {staged_files} だけを stage し、words.json だけが staged のときに一覧を stage しないので、git add で stage する。
             glob: "{.textlint/words.json,.textlint/word-list.md}"
-            run: node scripts/tools/generate-word-list.ts && git add .textlint/word-list.md
+            run: node scripts/tools/generate-word-list.ts --index && git add .textlint/word-list.md
           - name: markdownlint
             # 見る範囲は .markdownlint-cli2.yaml の globs が決める（引数で渡したファイルにも除外が反映される）。
             # ここで .agents/** を除くと、.agents/rules/ と private skill だけを直した commit で実行されない。

@@ -202,9 +202,10 @@ worktree は commit した内容から作るので、tracked のファイルに 
 
 ### その他のチェックと整形
 
-Bash の実行前のチェック（PreToolUse）として、`scripts/hooks/bash-command-guard.sh` が、文字クラスで自分を避けていない `pkill -f` と `killall -f` を止める。
+Bash の実行前のチェック（PreToolUse）として、`scripts/hooks/bash-command-guard.sh` が、1 文字だけの文字クラス（`[d]ump-dom`）で自分を避けていない `pkill -f` と `killall -f` を止める。
 照合するのがコマンドライン全体なので、自分のシェルにも一致する。文章の規約では防げずに再発した形である。
-判定はコマンドの位置にある `pkill`・`killall` を 1 本の正規表現で見るだけで、シェルの構文は解析しない。この Hook に規則を足さない。
+判定は語として現れる `pkill`・`killall` を 1 本の正規表現で見るだけで、シェルの構文は解析しない。そのため、引用の中の文章や heredoc の本文に書いた `pkill -f` でも止める。止められたら書き方を変える。
+この Hook に規則を足さない。
 
 このチェックは、3 つのエージェントに設定してある（`.claude/settings.json`・`.codex/hooks.json`・`.github/hooks/kaizen-session.json`）。
 
@@ -269,7 +270,7 @@ Markdown に加えて、JavaScript・TypeScript・シェル・YAML のコメン�
 代わりに、Claude Code の Stop の Hook（`scripts/hooks/response-word-check.ts`）が、応答を確定する前に同じ辞書で使わない語を確かめ、見つかれば書き直させる。
 使わない語の一覧 `.textlint/word-list.md` は `AGENTS.md` から `@` で取り込み、Claude Code がセッション開始時に読み込むようにしている。
 `@` での取り込みは Claude Code だけが処理するので、他のエージェントには `AGENTS.md` の文で一覧を開くよう指示している。
-この一覧は `.textlint/words.json` の `term` と `instead` から `scripts/tools/generate-word-list.ts` で生成する。pre-commit が、`words.json` か一覧が staged のときに生成し直して stage する。
+この一覧は `.textlint/words.json` の `term` と `instead` から `scripts/tools/generate-word-list.ts` で生成する。pre-commit が、`words.json` か一覧が staged のときに、index の `words.json` から生成し直して stage する。
 
 ### JavaScript の拡張子
 

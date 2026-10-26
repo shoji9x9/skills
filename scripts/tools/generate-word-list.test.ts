@@ -8,6 +8,7 @@
 // | エントリ        | term と instead を持つ / 両方持たない / 片方だけ / term が重複 / 「|」を含む  |
 // | 一覧に出す件数  | 1 件以上 / 0 件                                                            |
 // | 一覧のファイル  | 生成した内容と同じ / 違う / 無い                                           |
+// | 読む元          | 作業ツリー / index（作業ツリーと違う内容）/ index に無い                    |
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
 import { readFileSync, rmSync } from "node:fs";
@@ -86,6 +87,55 @@ test.each<[string, RepoOptions, string]>([
   if (options.words === null) rmSync(join(root, WORDS_PATH));
   expect(() => writeWordList(root)).toThrow(message);
   expect(list(root)).toBe("元の一覧\n");
+});
+
+/** 一時リポジトリを git の管理下にし、words.json を entries の内容で stage する。 */
+function stageWords(root: string, entries: unknown[]) {
+  const git = (...args: string[]) => {
+    const r = spawnSync("git", args, { cwd: root, encoding: "utf8", timeout: CHILD_TIMEOUT_MS });
+    if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
+  };
+  git("init", "-q");
+  write(root, WORDS_PATH, JSON.stringify({ entries }));
+  git("add", WORDS_PATH);
+}
+
+test("index から読むと、stage していない作業ツリーの変更は一覧に入れない", () => {
+  const root = makeRepo();
+  stageWords(root, [ENTRIES[0]]);
+  // 作業ツリーだけに語を足す（stage しない）。
+  write(root, WORDS_PATH, JSON.stringify({ entries: ENTRIES }));
+  expect(writeWordList(root, { fromIndex: true })).toBe(true);
+  expect(list(root)).toContain("| 旧語 | 新語 |");
+  expect(list(root)).not.toContain("古い名前");
+  // 作業ツリーから読むと、stage していない語も入る。
+  writeWordList(root);
+  expect(list(root)).toContain("| 古い名前 | 新しい名前 |");
+});
+
+test("index に words.json が無ければ、例外にして一覧を書き換えない", () => {
+  const root = makeRepo({ list: "元の一覧\n" });
+  stageWords(root, [ENTRIES[0]]);
+  spawnSync("git", ["rm", "-q", "--cached", WORDS_PATH], {
+    cwd: root,
+    timeout: CHILD_TIMEOUT_MS,
+  });
+  expect(() => writeWordList(root, { fromIndex: true })).toThrow(
+    `index の ${WORDS_PATH} を読めない`,
+  );
+  expect(list(root)).toBe("元の一覧\n");
+});
+
+test("CLI: --index を付けると、index の words.json から生成する", () => {
+  const root = makeRepo();
+  stageWords(root, [ENTRIES[0]]);
+  write(root, WORDS_PATH, JSON.stringify({ entries: ENTRIES }));
+  const r = spawnSync(process.execPath, [script, "--index", root], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
+  expect(r.status).toBe(0);
+  expect(list(root)).not.toContain("古い名前");
 });
 
 test("main: 生成できれば 0、作れなければ 2 を返す", () => {

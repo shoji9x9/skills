@@ -6,10 +6,10 @@
 // | -------------- | ------------------------------------------------------------------------------------ |
 // | 入力           | 正常な Hook JSON / command フィールド欠落 / 不正な JSON / 空 stdin                     |
 // | payload の形   | tool_input.command / toolArgs.command / toolArgs が JSON 文字列 / input.command / 素の command |
-// | コマンド       | pkill / killall / pkill を名前に含む別のコマンド / pgrep / kill PID                    |
-// | 位置           | 先頭 / ; && \| の後 / 改行の後 / $( の中 / sudo の後 / 引用の中の語                    |
+// | コマンド       | pkill / killall / /usr/bin/pkill / pkill を名前に含む別のコマンド / pgrep / kill PID   |
+// | 位置           | 先頭 / ; && \| の後 / 改行の後 / $( の中 / 制御構文・否定の `!` の後 / 代入・ラッパーの後 / 引用の中 |
 // | -f             | -f / 束ねた -9f / --full / -f 無し（-x）/ 他のオプションの後の -f                     |
-// | 文字クラス     | 同じコマンドの中に [ あり / 無し / 別のコマンドにだけあり                             |
+// | 文字クラス     | 1 文字のクラス（[d]）あり / 範囲のクラス（[0-9]）だけ / 無し / 別のコマンドにだけあり  |
 //
 // 誤検知しないことの確認（通さねばならない入力）を、止める入力と同じ数だけ置く。
 // 止める入力だけのテストでは、「全部落とす実装」と区別が付かない。
@@ -40,10 +40,10 @@ test.each([
   ["危険語を含まない通常のコマンド", "ls -la"],
   ["PID 指定の kill", 'kill "$PID"'],
   ["pgrep での確認", "pgrep -af dump-dom"],
-  ["文字クラスで自分を避けた pkill -f", "pkill -f '[d]ump-dom'"],
+  ["1 文字の文字クラスで自分を避けた pkill -f", "pkill -f '[d]ump-dom'"],
+  ["二重引用符の中の 1 文字の文字クラス", 'pkill -f "node [s]erver.js"'],
   ["-f を使わない pkill", "pkill chrome"],
-  ["f で終わらないオプションの pkill", "pkill -x firefox"],
-  ["引用の中で話題にしているだけ", 'git log --grep "pkill -f"'],
+  ["f を含まないオプションの pkill", "pkill -x firefox"],
   ["pkill を名前に含む別のコマンド", "mypkill -f x"],
 ])("通す: %s", (_name, command) => {
   const r = guard(command);
@@ -62,7 +62,22 @@ test.each([
   ["束ねた -9f", "pkill -9f node"],
   ["--full", "pkill --full node"],
   ["他のオプションの後の -f", "pkill -u me -f node"],
-  ["文字クラスが別のコマンドにだけある", "pkill -f node && echo [x]"],
+  ["1 文字の文字クラスが別のコマンドにだけある", "pkill -f node && echo [x]"],
+  ["範囲の文字クラスだけ", 'pkill -f "chrome.*[0-9]+"'],
+  ["while の条件", "while pkill -f foo; do sleep 1; done"],
+  ["if の条件", "if pkill -f foo; then echo ok; fi"],
+  ["! の後", "! pkill -f foo"],
+  ["環境変数の代入の後", "VAR=1 pkill -f foo"],
+  ["timeout の後", "timeout 5 pkill -f foo"],
+  ["xargs の後", "echo x | xargs pkill -f foo"],
+  ["nohup の後", "nohup pkill -f foo"],
+  ["exec の後", "exec pkill -f foo"],
+  ["command の後", "command pkill -f foo"],
+  ["パスで書いた pkill", "/usr/bin/pkill -f foo"],
+  ["オプション付きの sudo の後", "sudo -n pkill -f foo"],
+  ["シェルに委譲した引数", 'bash -c "pkill -f foo"'],
+  // 引用の中の文章でも止める（正規表現 1 本で判定すると決めたので、この誤検知は受け入れる）。
+  ["commit message の中の文章", 'git commit -m "stop pkill -f node"'],
 ])("止める: %s", (_name, command) => {
   const r = guard(command);
   expect(r.status).toBe(2);

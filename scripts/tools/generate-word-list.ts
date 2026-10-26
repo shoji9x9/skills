@@ -4,12 +4,15 @@
 // なぜ要るか: textlint はファイルしか見ないので、エージェントが人へ返す応答には単語帳が届かない。
 // AGENTS.md から一覧を `@` で取り込み（Claude Code はセッション開始時に読み込む）、応答にも同じ語を使わせる。
 // words.json は形態素の条件を含めて大きいので、取り込むのは `term` と `instead` だけを表にした生成物にする。
-// pre-commit は、words.json か一覧が staged のときにこのスクリプトで一覧を生成し直して stage する。
+// pre-commit は、words.json か一覧が staged のときに `--index` を付けて一覧を生成し直し、stage する。
+// `--index` を付けると、作業ツリーではなく index の words.json（`git show :.textlint/words.json`）から生成する。
+// words.json の一部だけを stage した commit で、stage していない語を一覧に入れないためである。
 //
 // 生成の規則:
 // - `term` を持たないエントリ（同じ語の別の形を拾うためのエントリ）は一覧に出さない。
 // - `term` と `instead` の片方だけを持つエントリ・`term` の重複・「|」を含むエントリ・一覧が 0 行は、
 //   一覧を作れないので書き換えずに exit 2。
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,11 +23,30 @@ import { WORDS_PATH } from "../lib/text/textlint-word-rule.ts";
 
 export const LIST_PATH = ".textlint/word-list.md";
 
+/** 生成の元にする words.json を、作業ツリーか index から読む。 */
+type Source = { fromIndex?: boolean };
+
+/** words.json の本文。fromIndex なら index の内容を読む。無ければ例外にする。 */
+function readWords(root: string, { fromIndex = false }: Source) {
+  if (!fromIndex) {
+    const path = join(root, WORDS_PATH);
+    if (!existsSync(path)) throw new Error(`${WORDS_PATH} が無い`);
+    return readFileSync(path, "utf8");
+  }
+  try {
+    return execFileSync("git", ["show", `:${WORDS_PATH}`], {
+      cwd: root,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch (error) {
+    throw new Error(`index の ${WORDS_PATH} を読めない: ${errorMessage(error)}`, { cause: error });
+  }
+}
+
 /** words.json から一覧のファイルの全文を作る。形の誤りは例外にする。 */
-export function renderWordList(root: string) {
-  const path = join(root, WORDS_PATH);
-  if (!existsSync(path)) throw new Error(`${WORDS_PATH} が無い`);
-  const data: unknown = JSON.parse(readFileSync(path, "utf8"));
+export function renderWordList(root: string, source: Source = {}) {
+  const data: unknown = JSON.parse(readWords(root, source));
   const entries = isRecord(data) ? data.entries : undefined;
   if (!isArray(entries)) throw new Error("entries が配列でない");
   const rows: string[] = [];
@@ -62,8 +84,8 @@ export function renderWordList(root: string) {
 }
 
 /** 一覧を生成して書く。内容が同じなら書かない。書いたかを返す。 */
-export function writeWordList(root: string) {
-  const expected = renderWordList(root);
+export function writeWordList(root: string, source: Source = {}) {
+  const expected = renderWordList(root, source);
   const path = join(root, LIST_PATH);
   if (existsSync(path) && readFileSync(path, "utf8") === expected) return false;
   writeFileSync(path, expected);
@@ -71,10 +93,12 @@ export function writeWordList(root: string) {
 }
 
 export function main(argv: string[]) {
-  const root = argv.find((a) => a !== "--") ?? process.cwd();
+  const args = argv.filter((a) => a !== "--");
+  const fromIndex = args.includes("--index");
+  const root = args.find((a) => a !== "--index") ?? process.cwd();
   let written;
   try {
-    written = writeWordList(root);
+    written = writeWordList(root, { fromIndex });
   } catch (error) {
     console.error(`word-list: 一覧を作れない: ${errorMessage(error)}`);
     return 2;
