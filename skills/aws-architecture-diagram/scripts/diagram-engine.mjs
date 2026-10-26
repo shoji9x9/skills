@@ -31,6 +31,7 @@ const FONT =
  * @typedef {{ x: number, y: number, w: number, title: string, lines: string[] }} DiagramNote
  * @typedef {{ W: number, H: number, title: string, nodes?: DiagramNode[], edges?: DiagramEdge[], groups?: DiagramGroup[], notes?: DiagramNote[] }} DiagramSpec
  * @typedef {{ x: number, y: number }} Point
+ * @typedef {{ ei: number, x: number, lo: number, hi: number }} Vertical
  */
 
 /**
@@ -43,17 +44,9 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 /** @param {unknown} s */
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-/**
- * @param {DiagramSpec} spec
- * @param {{ iconDir?: string }} [options]
- * @returns {string}
- */
-export function renderDiagram(spec, options = {}) {
-  const { W, H, title, nodes = [], edges = [], groups = [], notes = [] } = spec;
-  const { iconDir } = options;
-  if (!iconDir) throw new Error("renderDiagram: options.iconDir が必要です");
-
-  // ノード間の矢印は最大 1 本。重複した from→to はここで弾く（配置ミスの早期検出）。
+// ノード間の矢印は最大 1 本。重複した from→to はここで弾く（配置ミスの早期検出）。
+/** @param {DiagramEdge[]} edges */
+function assertUniqueEdges(edges) {
   /** @type {Set<string>} */
   const seenEdge = new Set();
   for (const e of edges) {
@@ -61,170 +54,202 @@ export function renderDiagram(spec, options = {}) {
     if (seenEdge.has(key)) throw new Error(`重複エッジ: ${key}（ノード間の矢印は最大 1 本）`);
     seenEdge.add(key);
   }
+}
 
+/**
+ * id からノードを引く関数を返す。未知の id はエラーにする。
+ * @param {DiagramNode[]} nodes
+ */
+function nodeLookup(nodes) {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   /** @param {string} id */
-  const node = (id) => {
+  return (id) => {
     const n = byId.get(id);
     if (!n) throw new Error(`未知のノード: ${id}`);
     return n;
   };
+}
 
-  // アイコン SVG を <svg> ネストとして取り込み、元の viewBox を引き継ぐ。
-  // iconDir の外（.. や絶対パス）は読み込ませない。
+// アイコンのファイルの実体パスを返す。iconDir の外（.. や絶対パス）は読み込ませない。
+/**
+ * @param {string} iconDir
+ * @param {() => string} getIconDirReal iconDir の実体パス（symlink 解決後）を返す
+ * @param {string} name
+ */
+function resolveIconFile(iconDir, getIconDirReal, name) {
+  const file = join(iconDir, `${name}.svg`);
+  // 1) 字面のチェック（spec の name に `..` や絶対パスが含まれていても拒否する）。
+  const rel = relative(iconDir, file);
+  if (rel.startsWith("..") || isAbsolute(rel))
+    throw new Error(`アイコンパスが iconDir の外を指しています: ${name}`);
+  // 2) 実体（symlink 解決後）が iconDir 配下かを検証（iconDir 内の外向き symlink 対策）。
+  const iconDirReal = getIconDirReal();
+  let fileReal;
+  try {
+    fileReal = realpathSync(file);
+  } catch {
+    throw new Error(`アイコンが見つかりません: ${name}`);
+  }
+  const relReal = relative(iconDirReal, fileReal);
+  if (relReal.startsWith("..") || isAbsolute(relReal))
+    throw new Error(`アイコンパスが iconDir の外を指しています（symlink 経由）: ${name}`);
+  return fileReal;
+}
+
+// アイコン SVG の中身を取り出し、元の viewBox と一緒に返す。
+/**
+ * @param {string} raw
+ * @param {string} name
+ * @returns {{ viewBox: string, body: string }}
+ */
+function parseIconSvg(raw, name) {
+  const head = raw.match(/<svg[^>]*>/);
+  if (!head) throw new Error(`アイコン SVG が不正（<svg> がありません）: ${name}`);
+  // viewBox はシングル/ダブルクォート両対応（自作アイコンで ' を使っても崩れない）。
+  const viewBox = head[0].match(/viewBox=["']([^"']+)["']/)?.[1] ?? "0 0 80 80";
+  const body = raw
+    .replace(/<\?xml[^>]*\?>/, "")
+    .replace(/<svg[^>]*>/, "")
+    .replace(/<\/svg>\s*$/, "")
+    // 取得元（AWS パッケージ）や自作アイコンに万一 <script> や on* ハンドラが
+    // 含まれても出力 SVG へ混入させない（多層防御）。
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, "")
+    .replace(/<script\b[^>]*\/>/gi, "")
+    .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, "")
+    .replace(/\son[a-z]+\s*=\s*'[^']*'/gi, "")
+    // クォート無しの on* も除去（値内の `/` は許すが、自己終端 `/>` の `/` は食わない）。
+    .replace(/\son[a-z]+\s*=\s*(?:[^\s"'>/]|\/(?!>))*/gi, "")
+    .trim();
+  return { viewBox, body };
+}
+
+// 同じ図に複数のアイコンを埋めると内部 id（clipPath/gradient/mask 等）が衝突し、
+// url(#id)/href="#id" が別アイコンの要素を参照してしまう。埋め込みごとに一意の
+// 接頭辞で id とその参照を書き換えて分離する。クォート種別（" / '）や xlink:href、
+// url() 内のクォート有無を問わず置換する（取得元 SVG・自作アイコンの表記ゆれ対策）。
+/**
+ * @param {string} body
+ * @param {string} p
+ */
+function prefixIconIds(body, p) {
+  return body
+    .replace(/\bid=(["'])([^"']+)\1/g, `id=$1${p}$2$1`)
+    .replace(/\b((?:xlink:)?href)=(["'])#([^"']+)\2/g, `$1=$2#${p}$3$2`)
+    .replace(/\burl\((["']?)#([^"')]+)\1\)/g, `url($1#${p}$2$1)`);
+}
+
+// アイコン SVG を <svg> ネストとして取り込み、元の viewBox を引き継ぐ関数を返す。
+/** @param {string} iconDir */
+function createIconEmbedder(iconDir) {
   /** @type {Map<string, { viewBox: string, body: string }>} */
   const iconCache = new Map();
   /** @type {string | undefined} */
   let iconDirReal; // iconDir の実体パス（symlink 解決後）。初回に一度だけ解決する。
   let iconSeq = 0; // 埋め込みごとに内部 id を名前空間化するための連番。
+  const getIconDirReal = () => (iconDirReal ??= realpathSync(iconDir));
   /**
    * @param {string} name
    * @param {number} x
    * @param {number} y
    */
-  const embedIcon = (name, x, y) => {
+  return (name, x, y) => {
     let inner = iconCache.get(name);
     if (inner === undefined) {
-      const file = join(iconDir, `${name}.svg`);
-      // 1) 字面のチェック（spec の name に `..` や絶対パスが含まれていても拒否する）。
-      const rel = relative(iconDir, file);
-      if (rel.startsWith("..") || isAbsolute(rel))
-        throw new Error(`アイコンパスが iconDir の外を指しています: ${name}`);
-      // 2) 実体（symlink 解決後）が iconDir 配下かを検証（iconDir 内の外向き symlink 対策）。
-      iconDirReal ??= realpathSync(iconDir);
-      let fileReal;
-      try {
-        fileReal = realpathSync(file);
-      } catch {
-        throw new Error(`アイコンが見つかりません: ${name}`);
-      }
-      const relReal = relative(iconDirReal, fileReal);
-      if (relReal.startsWith("..") || isAbsolute(relReal))
-        throw new Error(`アイコンパスが iconDir の外を指しています（symlink 経由）: ${name}`);
-      const raw = readFileSync(fileReal, "utf8");
-      const head = raw.match(/<svg[^>]*>/);
-      if (!head) throw new Error(`アイコン SVG が不正（<svg> がありません）: ${name}`);
-      // viewBox はシングル/ダブルクォート両対応（自作アイコンで ' を使っても崩れない）。
-      const viewBox = head[0].match(/viewBox=["']([^"']+)["']/)?.[1] ?? "0 0 80 80";
-      const body = raw
-        .replace(/<\?xml[^>]*\?>/, "")
-        .replace(/<svg[^>]*>/, "")
-        .replace(/<\/svg>\s*$/, "")
-        // 取得元（AWS パッケージ）や自作アイコンに万一 <script> や on* ハンドラが
-        // 含まれても出力 SVG へ混入させない（多層防御）。
-        .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, "")
-        .replace(/<script\b[^>]*\/>/gi, "")
-        .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, "")
-        .replace(/\son[a-z]+\s*=\s*'[^']*'/gi, "")
-        // クォート無しの on* も除去（値内の `/` は許すが、自己終端 `/>` の `/` は食わない）。
-        .replace(/\son[a-z]+\s*=\s*(?:[^\s"'>/]|\/(?!>))*/gi, "")
-        .trim();
-      inner = { viewBox, body };
+      const fileReal = resolveIconFile(iconDir, getIconDirReal, name);
+      inner = parseIconSvg(readFileSync(fileReal, "utf8"), name);
       iconCache.set(name, inner);
     }
-    // 同じ図に複数のアイコンを埋めると内部 id（clipPath/gradient/mask 等）が衝突し、
-    // url(#id)/href="#id" が別アイコンの要素を参照してしまう。埋め込みごとに一意の
-    // 接頭辞で id とその参照を書き換えて分離する。クォート種別（" / '）や xlink:href、
-    // url() 内のクォート有無を問わず置換する（取得元 SVG・自作アイコンの表記ゆれ対策）。
-    const p = `ic${iconSeq++}-`;
-    const body = inner.body
-      .replace(/\bid=(["'])([^"']+)\1/g, `id=$1${p}$2$1`)
-      .replace(/\b((?:xlink:)?href)=(["'])#([^"']+)\2/g, `$1=$2#${p}$3$2`)
-      .replace(/\burl\((["']?)#([^"')]+)\1\)/g, `url($1#${p}$2$1)`);
+    const body = prefixIconIds(inner.body, `ic${iconSeq++}-`);
     return `<svg x="${x}" y="${y}" width="${ICON}" height="${ICON}" viewBox="${inner.viewBox}" overflow="visible">${body}</svg>`;
   };
+}
 
-  /** @param {DiagramNode} n */
-  const box = (n) => {
-    const h = ICON / 2;
-    return { left: n.x - h, right: n.x + h, top: n.y - h, bottom: n.y + h };
-  };
+/** @param {DiagramNode} n */
+const box = (n) => {
+  const h = ICON / 2;
+  return { left: n.x - h, right: n.x + h, top: n.y - h, bottom: n.y + h };
+};
 
-  // ノード境界上の接続点。最も近い辺を選び、辺に平行な座標は接近点(px,py)へ合わせる。
-  // これにより waypoint を動かすと辺上の進入位置を制御できる（複数線の進入をずらす）。
-  /**
-   * @param {DiagramNode} n
-   * @param {number} px
-   * @param {number} py
-   * @returns {Point}
-   */
-  const anchor = (n, px, py) => {
-    const b = box(n);
-    const PAD = 12;
-    if (Math.abs(px - n.x) >= Math.abs(py - n.y)) {
-      return { x: px >= n.x ? b.right : b.left, y: clamp(py, b.top + PAD, b.bottom - PAD) };
-    }
-    return { x: clamp(px, b.left + PAD, b.right - PAD), y: py >= n.y ? b.bottom : b.top };
-  };
+// ノード境界上の接続点。最も近い辺を選び、辺に平行な座標は接近点(px,py)へ合わせる。
+// これにより waypoint を動かすと辺上の進入位置を制御できる（複数線の進入をずらす）。
+/**
+ * @param {DiagramNode} n
+ * @param {number} px
+ * @param {number} py
+ * @returns {Point}
+ */
+const anchor = (n, px, py) => {
+  const b = box(n);
+  const PAD = 12;
+  if (Math.abs(px - n.x) >= Math.abs(py - n.y)) {
+    return { x: px >= n.x ? b.right : b.left, y: clamp(py, b.top + PAD, b.bottom - PAD) };
+  }
+  return { x: clamp(px, b.left + PAD, b.right - PAD), y: py >= n.y ? b.bottom : b.top };
+};
 
-  // 線の座標の列。waypoints があればそこを経由し、無ければ直交する L 字の線を自動で作る。
-  /**
-   * @param {DiagramNode} a
-   * @param {DiagramNode} b
-   * @param {DiagramEdge} e
-   * @returns {Point[]}
-   */
-  const route = (a, b, e) => {
-    if (e.waypoints?.length) {
-      const first = e.waypoints[0];
-      const last = e.waypoints[e.waypoints.length - 1];
-      return [
-        anchor(a, first[0], first[1]),
-        ...e.waypoints.map(([x, y]) => ({ x, y })),
-        anchor(b, last[0], last[1]),
-      ];
-    }
-    const s = anchor(a, b.x, b.y);
-    const t = anchor(b, a.x, a.y);
-    if (Math.abs(a.x - b.x) >= Math.abs(a.y - b.y)) {
-      const mx = (s.x + t.x) / 2;
-      return [s, { x: mx, y: s.y }, { x: mx, y: t.y }, t];
-    }
-    const my = (s.y + t.y) / 2;
-    return [s, { x: s.x, y: my }, { x: t.x, y: my }, t];
-  };
+// 線の座標の列。waypoints があればそこを経由し、無ければ直交する L 字の線を自動で作る。
+/**
+ * @param {DiagramNode} a
+ * @param {DiagramNode} b
+ * @param {DiagramEdge} e
+ * @returns {Point[]}
+ */
+const route = (a, b, e) => {
+  if (e.waypoints?.length) {
+    const first = e.waypoints[0];
+    const last = e.waypoints[e.waypoints.length - 1];
+    return [
+      anchor(a, first[0], first[1]),
+      ...e.waypoints.map(([x, y]) => ({ x, y })),
+      anchor(b, last[0], last[1]),
+    ];
+  }
+  const s = anchor(a, b.x, b.y);
+  const t = anchor(b, a.x, a.y);
+  if (Math.abs(a.x - b.x) >= Math.abs(a.y - b.y)) {
+    const mx = (s.x + t.x) / 2;
+    return [s, { x: mx, y: s.y }, { x: mx, y: t.y }, t];
+  }
+  const my = (s.y + t.y) / 2;
+  return [s, { x: s.x, y: my }, { x: t.x, y: my }, t];
+};
 
-  // ラベルを線の出ていない辺へ配置。
-  /** @param {DiagramNode} n */
-  const label = (n) => {
-    const b = box(n);
-    const lines = n.label ?? [];
-    const lh = 14;
-    let x;
-    let y;
-    let align;
-    if (n.lp === "top") {
-      x = n.x;
-      align = "middle";
-      y = b.top - 8 - (lines.length - 1) * lh;
-    } else if (n.lp === "left") {
-      x = b.left - 8;
-      align = "end";
-      y = n.y - ((lines.length - 1) * lh) / 2 + 4;
-    } else if (n.lp === "right") {
-      x = b.right + 8;
-      align = "start";
-      y = n.y - ((lines.length - 1) * lh) / 2 + 4;
-    } else {
-      x = n.x;
-      align = "middle";
-      y = b.bottom + 16;
-    }
-    return lines
-      .map(
-        (line, i) =>
-          `<text x="${x}" y="${y + i * lh}" text-anchor="${align}" font-family='${FONT}' font-size="12" fill="#16191F">${esc(line)}</text>`,
-      )
-      .join("\n  ");
-  };
+// ラベルの 1 行目の座標と揃え。lp が指す辺の外側に置く。
+/**
+ * @param {DiagramNode} n
+ * @param {number} lineCount
+ * @param {number} lh
+ */
+function labelOrigin(n, lineCount, lh) {
+  const b = box(n);
+  if (n.lp === "top") return { x: n.x, align: "middle", y: b.top - 8 - (lineCount - 1) * lh };
+  if (n.lp === "left")
+    return { x: b.left - 8, align: "end", y: n.y - ((lineCount - 1) * lh) / 2 + 4 };
+  if (n.lp === "right")
+    return { x: b.right + 8, align: "start", y: n.y - ((lineCount - 1) * lh) / 2 + 4 };
+  return { x: n.x, align: "middle", y: b.bottom + 16 };
+}
 
-  // 全エッジの線を先に確定し、垂直の区間の一覧を作る（交差を飛び越すかの判定に使う）。
-  const routed = edges.map((e) => ({ e, pts: route(node(e.from), node(e.to), e) }));
+// ラベルを線の出ていない辺へ配置。
+/** @param {DiagramNode} n */
+const label = (n) => {
+  const lines = n.label ?? [];
+  const lh = 14;
+  const { x, y, align } = labelOrigin(n, lines.length, lh);
+  return lines
+    .map(
+      (line, i) =>
+        `<text x="${x}" y="${y + i * lh}" text-anchor="${align}" font-family='${FONT}' font-size="12" fill="#16191F">${esc(line)}</text>`,
+    )
+    .join("\n  ");
+};
 
-  // 線が直交していること（conventions.md の確認観点 (b)）を機械的に強制する。
-  // 斜めの線は目視で見落としやすく、`waypoints` の座標を 1 つ間違えるだけで生じるので、ここで止める。
-  // 両端の区間もチェックする。ノードの側の接続点は、相手の側の waypoint に合わせて辺の上を動く。
-  // ただし、辺の範囲（中心から ±20px）を超える指定は丸められるので、斜めになる。
+// 線が直交していること（conventions.md の確認観点 (b)）を機械的に強制する。
+// 斜めの線は目視で見落としやすく、`waypoints` の座標を 1 つ間違えるだけで生じるので、ここで止める。
+// 両端の区間もチェックする。ノードの側の接続点は、相手の側の waypoint に合わせて辺の上を動く。
+// ただし、辺の範囲（中心から ±20px）を超える指定は丸められるので、斜めになる。
+/** @param {{ e: DiagramEdge, pts: Point[] }[]} routed */
+function assertOrthogonal(routed) {
   for (const { e, pts } of routed) {
     for (let i = 0; i < pts.length - 1; i++) {
       const a = pts[i];
@@ -238,8 +263,15 @@ export function renderDiagram(spec, options = {}) {
       }
     }
   }
+}
 
-  /** @type {{ ei: number, x: number, lo: number, hi: number }[]} */
+// 垂直の区間の一覧を作る（交差を飛び越すかの判定に使う）。
+/**
+ * @param {{ pts: Point[] }[]} routed
+ * @returns {Vertical[]}
+ */
+function collectVerticals(routed) {
+  /** @type {Vertical[]} */
   const verticals = [];
   routed.forEach(({ pts }, ei) => {
     for (let i = 0; i < pts.length - 1; i++) {
@@ -249,128 +281,153 @@ export function renderDiagram(spec, options = {}) {
         verticals.push({ ei, x: a.x, lo: Math.min(a.y, b.y), hi: Math.max(a.y, b.y) });
     }
   });
+  return verticals;
+}
 
-  // エッジラベルの中心座標。`labelAt` があればそれを使う。省略時は点列の中央を採るが、
-  // そこが屈曲点だとラベルの白背景が角を覆い「線が折れていること」を隠す（自動 L 字は
-  // 常に 4 点なので中央インデックスは必ず屈曲点になる）。屈曲点・端点に当たったら、
-  // 隣接する直線区間の長い方の中点へ寄せる（線の形は変えずラベルだけ動かす）。
-  /**
-   * @param {Point[]} pts
-   * @param {DiagramEdge} e
-   * @returns {Point}
-   */
-  const labelPoint = (pts, e) => {
-    if (e.labelAt) return { x: e.labelAt[0], y: e.labelAt[1] };
-    const i = Math.floor(pts.length / 2);
-    const p = pts[i];
-    const prev = pts[i - 1];
-    const next = pts[i + 1];
-    const straight =
-      prev && next && ((prev.x === p.x && p.x === next.x) || (prev.y === p.y && p.y === next.y));
-    if (straight) return p;
-    const segs = [prev && [prev, p], next && [p, next]].filter(Boolean);
-    if (!segs.length) return p;
-    /** @param {Point[]} seg */
-    const len = ([a, b]) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
-    const [a, b] = segs.reduce((best, s) => (len(s) > len(best) ? s : best));
-    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-  };
+// エッジラベルの中心座標。`labelAt` があればそれを使う。省略時は点列の中央を採るが、
+// そこが屈曲点だとラベルの白背景が角を覆い「線が折れていること」を隠す（自動 L 字は
+// 常に 4 点なので中央インデックスは必ず屈曲点になる）。屈曲点・端点に当たったら、
+// 隣接する直線区間の長い方の中点へ寄せる（線の形は変えずラベルだけ動かす）。
+/**
+ * @param {Point[]} pts
+ * @param {DiagramEdge} e
+ * @returns {Point}
+ */
+const labelPoint = (pts, e) => {
+  if (e.labelAt) return { x: e.labelAt[0], y: e.labelAt[1] };
+  const i = Math.floor(pts.length / 2);
+  const p = pts[i];
+  const prev = pts[i - 1];
+  const next = pts[i + 1];
+  const straight =
+    prev && next && ((prev.x === p.x && p.x === next.x) || (prev.y === p.y && p.y === next.y));
+  if (straight) return p;
+  const segs = [prev && [prev, p], next && [p, next]].filter(Boolean);
+  if (!segs.length) return p;
+  /** @param {Point[]} seg */
+  const len = ([a, b]) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+  const [a, b] = segs.reduce((best, s) => (len(s) > len(best) ? s : best));
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+};
 
-  // 水平セグメントが他エッジの垂直セグメントと交わる点で半円アーチ（∩）を描く。
-  /**
-   * @param {Point[]} pts
-   * @param {number} ei
-   */
-  const pathD = (pts, ei) => {
-    let d = `M ${pts[0].x} ${pts[0].y}`;
-    for (let i = 0; i < pts.length - 1; i++) {
-      const a = pts[i];
-      const b = pts[i + 1];
-      if (a.y === b.y && a.x !== b.x) {
-        const dir = b.x > a.x ? 1 : -1;
-        const y = a.y;
-        const hops = [
-          ...new Set(
-            verticals
-              .filter(
-                (v) =>
-                  v.ei !== ei &&
-                  v.x > Math.min(a.x, b.x) + 1 &&
-                  v.x < Math.max(a.x, b.x) - 1 &&
-                  v.lo < y - 1 &&
-                  v.hi > y + 1,
-              )
-              .map((v) => v.x),
-          ),
-        ].sort((p, q) => (dir > 0 ? p - q : q - p));
-        for (const cx of hops) {
-          d += ` L ${cx - dir * HOP} ${y} A ${HOP} ${HOP} 0 0 ${dir > 0 ? 1 : 0} ${cx + dir * HOP} ${y}`;
-        }
-        d += ` L ${b.x} ${b.y}`;
-      } else {
-        d += ` L ${b.x} ${b.y}`;
+// 水平の区間 a→b と交わる、他のエッジの垂直の区間の x 座標（進む向きの順）。
+/**
+ * @param {{ a: Point, b: Point, ei: number }} seg
+ * @param {Vertical[]} verticals
+ * @param {number} dir
+ */
+function hopXs({ a, b, ei }, verticals, dir) {
+  const y = a.y;
+  return [
+    ...new Set(
+      verticals
+        .filter(
+          (v) =>
+            v.ei !== ei &&
+            v.x > Math.min(a.x, b.x) + 1 &&
+            v.x < Math.max(a.x, b.x) - 1 &&
+            v.lo < y - 1 &&
+            v.hi > y + 1,
+        )
+        .map((v) => v.x),
+    ),
+  ].sort((p, q) => (dir > 0 ? p - q : q - p));
+}
+
+// 水平セグメントが他エッジの垂直セグメントと交わる点で半円アーチ（∩）を描く。
+/**
+ * @param {Point[]} pts
+ * @param {number} ei
+ * @param {Vertical[]} verticals
+ */
+const pathD = (pts, ei, verticals) => {
+  let d = `M ${pts[0].x} ${pts[0].y}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i];
+    const b = pts[i + 1];
+    if (a.y === b.y && a.x !== b.x) {
+      const dir = b.x > a.x ? 1 : -1;
+      const y = a.y;
+      for (const cx of hopXs({ a, b, ei }, verticals, dir)) {
+        d += ` L ${cx - dir * HOP} ${y} A ${HOP} ${HOP} 0 0 ${dir > 0 ? 1 : 0} ${cx + dir * HOP} ${y}`;
       }
+      d += ` L ${b.x} ${b.y}`;
+    } else {
+      d += ` L ${b.x} ${b.y}`;
     }
-    return d;
-  };
+  }
+  return d;
+};
 
-  const out = [];
-  out.push(
-    `<rect x="0" y="0" width="${W}" height="${H}" fill="#FFFFFF"/>`,
-    `<text x="28" y="44" font-family='${FONT}' font-size="22" font-weight="700" fill="#16191F">${esc(title)}</text>`,
-  );
+// グループ枠（最背面）。
+/** @param {DiagramGroup[]} groups */
+function renderGroups(groups) {
+  return groups.flatMap((g) => [
+    `<rect x="${g.x}" y="${g.y}" width="${g.w}" height="${g.h}" rx="10" fill="${g.color}" fill-opacity="0.04" stroke="${g.color}" stroke-width="2"/>`,
+    `<text x="${g.x + 12}" y="${g.y + 24}" font-family='${FONT}' font-size="14" font-weight="600" fill="${g.color}">${esc(g.label)}</text>`,
+  ]);
+}
 
-  // グループ枠（最背面）。
-  for (const g of groups) {
+// エッジ 1 本（線とラベル）。dim は淡色。
+/**
+ * @param {{ e: DiagramEdge, pts: Point[] }} routedEdge
+ * @param {number} ei
+ * @param {Vertical[]} verticals
+ */
+function renderEdge({ e, pts }, ei, verticals) {
+  const stroke = e.dim ? "#B9C2CE" : "#5A6B86";
+  const marker = e.dim ? "arrowDim" : "arrow";
+  const out = [
+    `<path d="${pathD(pts, ei, verticals)}" fill="none" stroke="${stroke}" stroke-width="1.8" marker-end="url(#${marker})"${e.dashed ? ' stroke-dasharray="6,4"' : ""}/>`,
+  ];
+  if (e.label) {
+    const mid = labelPoint(pts, e);
+    // 全角（CJK 等の非 Latin-1）は ASCII より広いので、文字幅を出し分けて背景がラベルより
+    // 狭くならないようにする（font-size 11 での概算: Latin-1 ≈ 6.5px / 全角 ≈ 11px）。
+    const textW = [...e.label].reduce((a, ch) => a + (/[\x20-\xff]/.test(ch) ? 6.5 : 11), 0);
+    const w = Math.ceil(textW) + 12;
     out.push(
-      `<rect x="${g.x}" y="${g.y}" width="${g.w}" height="${g.h}" rx="10" fill="${g.color}" fill-opacity="0.04" stroke="${g.color}" stroke-width="2"/>`,
-      `<text x="${g.x + 12}" y="${g.y + 24}" font-family='${FONT}' font-size="14" font-weight="600" fill="${g.color}">${esc(g.label)}</text>`,
+      `<rect x="${mid.x - w / 2}" y="${mid.y - 10}" width="${w}" height="18" rx="3" fill="#FFFFFF" fill-opacity="0.92"/>`,
+      `<text x="${mid.x}" y="${mid.y + 3}" text-anchor="middle" font-family='${FONT}' font-size="11" fill="#5A6B86">${esc(e.label)}</text>`,
     );
   }
+  return out;
+}
 
-  // エッジ（ノードより先に描いて背面へ）。dim は淡色。
-  routed.forEach(({ e, pts }, ei) => {
-    const stroke = e.dim ? "#B9C2CE" : "#5A6B86";
-    const marker = e.dim ? "arrowDim" : "arrow";
-    out.push(
-      `<path d="${pathD(pts, ei)}" fill="none" stroke="${stroke}" stroke-width="1.8" marker-end="url(#${marker})"${e.dashed ? ' stroke-dasharray="6,4"' : ""}/>`,
-    );
-    if (e.label) {
-      const mid = labelPoint(pts, e);
-      // 全角（CJK 等の非 Latin-1）は ASCII より広いので、文字幅を出し分けて背景がラベルより
-      // 狭くならないようにする（font-size 11 での概算: Latin-1 ≈ 6.5px / 全角 ≈ 11px）。
-      const textW = [...e.label].reduce((a, ch) => a + (/[\x20-\xff]/.test(ch) ? 6.5 : 11), 0);
-      const w = Math.ceil(textW) + 12;
-      out.push(
-        `<rect x="${mid.x - w / 2}" y="${mid.y - 10}" width="${w}" height="18" rx="3" fill="#FFFFFF" fill-opacity="0.92"/>`,
-        `<text x="${mid.x}" y="${mid.y + 3}" text-anchor="middle" font-family='${FONT}' font-size="11" fill="#5A6B86">${esc(e.label)}</text>`,
-      );
-    }
-  });
+// ノード（アイコン + ラベル）。
+/**
+ * @param {DiagramNode} n
+ * @param {(name: string, x: number, y: number) => string} embedIcon
+ */
+function renderNode(n, embedIcon) {
+  const b = box(n);
+  const icon = n.icon
+    ? embedIcon(n.icon, b.left, b.top)
+    : `<rect x="${b.left}" y="${b.top}" width="${ICON}" height="${ICON}" rx="6" fill="#EAEDED" stroke="#5A6B86" stroke-width="1.5"/>`;
+  const body = `${icon}\n  ${label(n)}`;
+  return n.dim ? `<g opacity="0.32">${body}</g>` : body;
+}
 
-  // ノード（アイコン + ラベル）。
-  for (const n of nodes) {
-    const b = box(n);
-    const icon = n.icon
-      ? embedIcon(n.icon, b.left, b.top)
-      : `<rect x="${b.left}" y="${b.top}" width="${ICON}" height="${ICON}" rx="6" fill="#EAEDED" stroke="#5A6B86" stroke-width="1.5"/>`;
-    const body = `${icon}\n  ${label(n)}`;
-    out.push(n.dim ? `<g opacity="0.32">${body}</g>` : body);
-  }
+// 注記/凡例ボックス（最前面）。
+/** @param {DiagramNote} note */
+function renderNote(note) {
+  const h = 30 + note.lines.length * 16 + 6;
+  return [
+    `<rect x="${note.x}" y="${note.y}" width="${note.w}" height="${h}" rx="8" fill="#F4F6F8" stroke="#C2CAD4" stroke-width="1"/>`,
+    `<text x="${note.x + 14}" y="${note.y + 22}" font-family='${FONT}' font-size="13" font-weight="700" fill="#16191F">${esc(note.title)}</text>`,
+    ...note.lines.map(
+      (line, i) =>
+        `<text x="${note.x + 14}" y="${note.y + 42 + i * 16}" font-family='${FONT}' font-size="12" fill="#3A4452">${esc(line)}</text>`,
+    ),
+  ];
+}
 
-  // 注記/凡例ボックス（最前面）。
-  for (const note of notes) {
-    const h = 30 + note.lines.length * 16 + 6;
-    out.push(
-      `<rect x="${note.x}" y="${note.y}" width="${note.w}" height="${h}" rx="8" fill="#F4F6F8" stroke="#C2CAD4" stroke-width="1"/>`,
-      `<text x="${note.x + 14}" y="${note.y + 22}" font-family='${FONT}' font-size="13" font-weight="700" fill="#16191F">${esc(note.title)}</text>`,
-      ...note.lines.map(
-        (line, i) =>
-          `<text x="${note.x + 14}" y="${note.y + 42 + i * 16}" font-family='${FONT}' font-size="12" fill="#3A4452">${esc(line)}</text>`,
-      ),
-    );
-  }
-
+/**
+ * @param {number} W
+ * @param {number} H
+ * @param {string[]} out
+ */
+function svgDocument(W, H, out) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family='${FONT}'>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -383,4 +440,35 @@ export function renderDiagram(spec, options = {}) {
   ${out.join("\n  ")}
 </svg>
 `;
+}
+
+/**
+ * @param {DiagramSpec} spec
+ * @param {{ iconDir?: string }} [options]
+ * @returns {string}
+ */
+export function renderDiagram(spec, options = {}) {
+  const { W, H, title, nodes = [], edges = [], groups = [], notes = [] } = spec;
+  const { iconDir } = options;
+  if (!iconDir) throw new Error("renderDiagram: options.iconDir が必要です");
+
+  assertUniqueEdges(edges);
+  const node = nodeLookup(nodes);
+  const embedIcon = createIconEmbedder(iconDir);
+
+  // 全エッジの線を先に確定し、垂直の区間の一覧を作る（交差を飛び越すかの判定に使う）。
+  const routed = edges.map((e) => ({ e, pts: route(node(e.from), node(e.to), e) }));
+  assertOrthogonal(routed);
+  const verticals = collectVerticals(routed);
+
+  const out = [
+    `<rect x="0" y="0" width="${W}" height="${H}" fill="#FFFFFF"/>`,
+    `<text x="28" y="44" font-family='${FONT}' font-size="22" font-weight="700" fill="#16191F">${esc(title)}</text>`,
+    ...renderGroups(groups),
+    // エッジ（ノードより先に描いて背面へ）。
+    ...routed.flatMap((r, ei) => renderEdge(r, ei, verticals)),
+    ...nodes.map((n) => renderNode(n, embedIcon)),
+    ...notes.flatMap(renderNote),
+  ];
+  return svgDocument(W, H, out);
 }

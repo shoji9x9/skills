@@ -161,13 +161,12 @@ export function firstLine(path) {
 
 /**
  * Codex のログのうち、cwd がルートの中にあるか、リモートが一致するもの。
- * @param {readonly string[]} roots
- * @param {string} remote normalizeRemote した形
- * @param {NodeJS.ProcessEnv} env
- * @param {(path: string, roots: readonly string[]) => boolean} inside
+ * remote は normalizeRemote した形で渡す。
+ * @param {{ roots: readonly string[]; remote: string; env: NodeJS.ProcessEnv; inside: (path: string, roots: readonly string[]) => boolean }} o
  * @returns {SessionSource[]}
  */
-export function discoverCodex(roots, remote, env, inside) {
+export function discoverCodex(o) {
+  const { roots, remote, env, inside } = o;
   /** @type {SessionSource[]} */
   const out = [];
   for (const p of walkJsonl(codexSessionsDir(env))) {

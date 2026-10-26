@@ -54,8 +54,7 @@ describe("timelineRows", () => {
         },
         { type: "review", id: 2, login: "chatgpt-codex-connector", at: ms(3), state: "commented" },
       ],
-      "me",
-      options(noGh),
+      { ...options(noGh), me: "me" },
     );
     expect(rows.map((r) => [r.kind, r.agent, r.cost_usd, r.cost_source, r.issue])).toEqual([
       ["review", "copilot", "0.040000", "estimate-repo", "5"],
@@ -77,8 +76,7 @@ describe("timelineRows", () => {
         { type: "review", id: 12, login: "me", at: ms(5), state: "approved" },
         { type: "comment", id: 13, login: "someone", at: ms(6), body: "x" },
       ],
-      "me",
-      o,
+      { ...o, me: "me" },
     );
     expect(rows.map((r) => r.key)).toEqual(["activity:gh-comment:10", "activity:gh-review:12"]);
   });
@@ -98,8 +96,7 @@ describe("timelineRows", () => {
         { type: "comment", id: 2, login: "me", at: ms(3), body: "@codex review" },
         { type: "request", login: "copilot-pull-request-reviewer", at: ms(4) },
       ],
-      "me",
-      options(noGh),
+      { ...options(noGh), me: "me" },
     );
     expect(
       rows.filter((r) => r.kind === "review-wait").map((r) => [r.agent, r.start, r.end, r.detail]),
@@ -117,8 +114,7 @@ describe("timelineRows", () => {
         { type: "request", login: "core", at: ms(1) },
         { type: "request", login: "copilot-pull-request-reviewer", at: ms(6) },
       ],
-      "me",
-      options(noGh),
+      { ...options(noGh), me: "me" },
     );
     expect(
       rows.filter((r) => r.kind === "review-wait").map((r) => [r.agent, r.end, r.detail]),
@@ -150,8 +146,7 @@ describe("timelineRows", () => {
           body: "No issues found.",
         },
       ],
-      "me",
-      options(noGh),
+      { ...options(noGh), me: "me" },
     );
     expect(
       rows.filter((r) => r.kind === "review-wait").map((r) => [r.agent, r.start, r.end, r.detail]),
@@ -768,6 +763,20 @@ describe("collectGitHub の CI", () => {
         "slow;status",
       ],
     ]);
+  });
+
+  test("外部の CI: commit status の取得だけが失敗しても、取得できた check run の行は残し、失敗を記録する", () => {
+    const routes: [string, unknown][] = [
+      EXTERNAL_CI_ROUTES[0],
+      ["/statuses", new Error("HTTP 502")],
+    ];
+    const res = collectGitHub(
+      options(fakeGh([prNode([])], routes), {
+        config: parseRepoConfig({ ci: { external: true } }),
+      }),
+    );
+    expect(res.failures).toEqual(["check-runs#7: HTTP 502"]);
+    expect(res.rows.filter((r) => r.kind === "ci").map((r) => r.key)).toEqual(["ci-ext:2"]);
   });
 });
 
