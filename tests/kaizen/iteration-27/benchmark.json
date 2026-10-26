@@ -1,0 +1,129 @@
+{
+  "metadata": {
+    "skill_name": "kaizen",
+    "skill_path": "/home/shoji9x9/projects/skills/.claude/worktrees/677/skills/kaizen",
+    "executor_model": "claude-opus-5-5[1m]",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-26T18:59:09Z",
+    "evals_run": [4, 20],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 20,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8333,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 88.504,
+        "tokens": 813977,
+        "tool_calls": 14,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Claude Code・Codex・Copilot のどれも handler の if で絞らず（Claude Code の if は git -C <dir> commit や heredoc の中の git commit で起動しないため）、スクリプト内の Bash prefilter で非 commit の呼び出しを速く終える",
+          "passed": true,
+          "evidence": "result.json の result: 「絞り込みは matcher: Bash だけにします。Claude Code の if: Bash(git commit *) は付けません。付けると、git -C <dir> commit やヒアドキュメントの中の commit でチェックが起動しなくなります。」「速さは、スクリプトの先頭にある bash 組み込みの照合（case \"${input}\" in *git*commit*）で確保」。Claude Code・Codex（同じ構造）・Copilot の設定例のどれにも if は無い。"
+        },
+        {
+          "text": "非 commit の prefilter は jq・python・git を起動せず終了すると説明している",
+          "passed": true,
+          "evidence": "result の (1): 「bash の組み込み照合だけで exit 0 になります。jq・python3・git（rev-parse を含む）・kaizen-status-check.sh・kaizen-candidate-scan.sh は、どれも起動しません。」"
+        },
+        {
+          "text": "transcript_path と自セッションの .kaizen/.extract-checkpoint.<session key> の間だけを走査し、検証済み候補ゼロなら checkpoint と自セッションのセンチネルだけを更新して .extract-done.<session key> は作らず commit を通す",
+          "passed": true,
+          "evidence": "result の (2) の表: .kaizen/.extract-checkpoint.<session key> を「更新する」（transcript のパス・バイト位置を記録し、スキャナが報告した scanned-bytes までだけ進める＝checkpoint から先の範囲だけを走査）、自分のセッションの .pending-extract<suffix>.<key> を「消す」、.kaizen/.extract-done.<key> は「作らない。作るとセッション全体が抽出済みになり、後の commit が素通りします」。(3) で自セッションの候補ゼロ後に「commit は通ります」と述べている。"
+        },
+        {
+          "text": "Codex と Copilot のセンチネルが同時にある状態で Codex の候補ゼロ transcript を走査すると、Codex のセンチネルだけを削除し Copilot のぶんは残す。残った Copilot 分が自セッション（または key を持たない旧形式）なら exit 2 でブロックし、別セッションのものなら警告に留めて commit は通すと区別している",
+          "passed": true,
+          "evidence": "result の (3): 「消えるのは Codex のセンチネルだけです」「Copilot のセンチネルは残ります」「Copilot のセンチネルは session key が違うので、他のセッションの分として扱われます。この場合 Codex 側は exit 1 になり、commit は止めずに警告を表示します」「例外として…Copilot のセンチネルが key を持たない古い形式の場合…自分の側として扱われ、exit 2 で止まります」。"
+        },
+        {
+          "text": "候補あり、既知 container の未知・欠損 subtype、不正な JSON、読めない transcript、jq 不在、内部 timeout は失敗として扱って kaizen --current を促すと説明している",
+          "passed": false,
+          "evidence": "result の (4) が挙げるのは、候補がある・jq が無い・JSON が不正・会話を運ぶ入れ物を持つ未知の type・Claude Code と Codex の混在・締め切り（8 秒）超過／timeout コマンドが無い・transcript_path が無い、である。assertion が挙げる「読めない transcript」と「欠損 subtype」（subtype が無いレコード）には触れていない。transcript_path が無い場合は読めない transcript とは別の条件である。kaizen --current を促すことは (5) の手順 1 にある。"
+        },
+        {
+          "text": "コミットの既定クリティカルパスは抽出・記録と extract-done までで、apply は明示選択時だけ続ける",
+          "passed": true,
+          "evidence": "result の (5): 「ここまでで十分です。apply（学びを成果物に反映すること）はしません。ユーザーが「今すぐ適用」を選んだ場合だけ続けます。」手順は kaizen --current での抽出・記録、kaizen-extract-done.sh（complete モード）、git add .kaizen/ と commit の再実行まで。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 41.748,
+        "tokens": 251501,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".claude/settings.json の hooks セクションに Stop イベントの設定が追加されている",
+          "passed": true,
+          "evidence": "raw/claude-code.jsonl の行 25-26: jq で .claude/settings.json を生成し、cat の出力に \"Stop\": [{\"matcher\": \"\", \"hooks\": [{\"type\": \"command\", ...kaizen-stop-mark.sh}]}] がある。project-tree.txt に ./.claude/settings.json がある（.claude/ は project-files のスナップショット対象外なので内容は raw から取った）。"
+        },
+        {
+          "text": "Stop Hook がバンドルされた kaizen-stop-mark スクリプトを呼び出し、session 単位の未抽出センチネル .kaizen/.pending-extract<agent suffix>.<session key> を作成する設定になっている",
+          "passed": true,
+          "evidence": "settings.json の Stop の command は \"bash \\\"${CLAUDE_PROJECT_DIR:-...}/.claude/skills/kaizen/scripts/kaizen-stop-mark.sh\\\"\"（同梱スクリプトを直接参照）。raw 行 33 の検証で Stop 実行後に .kaizen/.pending-extract.s1（session key 付き、Claude Code なので suffix 空）が作られた。project-tree.txt にも ./.kaizen/.pending-extract.2c8b1666-7235-4048-a4bf-a13e9d683f29 がある。"
+        },
+        {
+          "text": "Stop Hook に echo によるリマインダー出力が含まれていない",
+          "passed": true,
+          "evidence": "raw 行 26 の settings.json の Stop の hooks は kaizen-stop-mark.sh を呼ぶ command 1 件だけで、echo を含まない。"
+        },
+        {
+          "text": "PreToolUse Hook（matcher が Bash）が設定され、handler に if が無く、kaizen-precommit-gate スクリプトを呼び出している",
+          "passed": true,
+          "evidence": "raw 行 26: \"PreToolUse\": [{\"matcher\": \"Bash\", \"hooks\": [{\"type\": \"command\", \"command\": \"bash \\\"...kaizen-precommit-gate.sh\\\"\"}]}]。handler に if キーは無い。"
+        },
+        {
+          "text": "コミット前のチェックは未抽出センチネルがある時に git commit をブロックして kaizen --current の実行を促す設計になっている",
+          "passed": true,
+          "evidence": "raw 行 33 の検証出力: センチネル .pending-extract.s1 がある状態で commit を判定し「未抽出の kaizen 候補を自動判定できませんでした（判定できないのでブロックします）。」「kaizen --current を実行し、最重要 1 件を記録してください。」exit=2。非 commit は exit=0。最終応答も「未抽出の学びが残ったまま git commit しようとするとコミットが止まり、kaizen --current で学びを抽出するよう促されます」と説明している。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9166,
+        "stddev": 0.1179,
+        "min": 0.8333,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 65.126,
+        "stddev": 33.0615,
+        "min": 41.748,
+        "max": 88.504
+      },
+      "tokens": {
+        "mean": 532739,
+        "stddev": 397730.5939,
+        "min": 251501,
+        "max": 813977
+      }
+    }
+  },
+  "notes": [
+    "#677 の受け入れ条件（変えたスキルの eval を with_skill で実行する）のための 1 run。eval の入力は変えていないので without_skill は実行していない。"
+  ]
+}

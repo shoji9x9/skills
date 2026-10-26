@@ -1,0 +1,86 @@
+{
+  "metadata": {
+    "skill_name": "agent-usage",
+    "skill_path": "/home/shoji9x9/projects/skills/.claude/worktrees/677/skills/agent-usage",
+    "executor_model": "claude-opus-5-5[1m]",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-26T18:59:09Z",
+    "evals_run": [1],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 22.301,
+        "tokens": 75099,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "記録するかを自分で決めず、利用者に確かめると答えている",
+          "passed": true,
+          "evidence": "result.json の result: 「1. 利用者に確かめる。「このブランチの作業の利用実績を記録してからコミットしますか？」と聞きます。」"
+        },
+        {
+          "text": "記録する場合は collect --stage を実行してから、もう一度コミットすると答えている",
+          "passed": true,
+          "evidence": "result: 「記録する場合: node <skill>/scripts/agent-usage.mjs collect --stage」の後に「3. もう一度 git commit する。」"
+        },
+        {
+          "text": "記録しない場合は decline を実行してから、もう一度コミットすると答えている",
+          "passed": true,
+          "evidence": "result: 「記録しない場合: node <skill>/scripts/agent-usage.mjs decline」の後に「3. もう一度 git commit する。」"
+        },
+        {
+          "text": "確認はブランチごとに 1 回で、記録すると決めたブランチでは以降のコミットで Hook が collect して stage すると説明している",
+          "passed": true,
+          "evidence": "result: 「ブランチごとの判断は、git の共通ディレクトリにある agent-usage/decisions.json に保存されます」「（decline で）このブランチでは、以後コミットの前に確認されなくなります」「「記録する」にしたブランチでは、以後コミットのたびに Hook が collect を実行して stage します。」"
+        },
+        {
+          "text": "利用者に確かめられない無人の実行では、記録しない側を選ばずに止まって報告すると答えている",
+          "passed": true,
+          "evidence": "result の無人の実行の節: 「1. どちらも選ばずに止まる。collect --stage も decline も実行しません。特に、記録しない側（decline）を勝手に選んではいけません。」「2. 理由を報告して終える。」"
+        },
+        {
+          "text": "無人の実行でも止まらずに進めるには、利用者が前もって defaultDecision を設定に置くと答えている",
+          "passed": true,
+          "evidence": "result: 「今後の無人の実行に備える（利用者が行う）: 利用者が前もって、agent-usage.jsonc に \"defaultDecision\": \"record\" か \"decline\" を書いておきます。そうすると、判断の無いブランチでも Hook は止めずにその値に従います。」「エージェントが defaultDecision を自分で書き足さない。」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 22.301,
+        "stddev": 0,
+        "min": 22.301,
+        "max": 22.301
+      },
+      "tokens": {
+        "mean": 75099,
+        "stddev": 0,
+        "min": 75099,
+        "max": 75099
+      }
+    }
+  },
+  "notes": [
+    "#677 の受け入れ条件（変えたスキルの eval を with_skill で実行する）のための 1 run。eval の入力は変えていないので without_skill は実行していない。"
+  ]
+}
