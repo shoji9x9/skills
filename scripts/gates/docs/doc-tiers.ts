@@ -1,15 +1,19 @@
 // 文書の階層（Tier）の設定（scripts/gates/docs/doc-tiers.json）を読み、ファイルの階層を決める。
 // 文書のチェックの走査対象（doc-scan-files.ts）が、Tier 4 と階層の外を読まないために使う。
 //
-// 読むのは各項目の glob と、項目が属する tier だけである。label・note・contents は人が読む説明の欄で、ここでは読まない。
-// 設定の形の誤り（Tier が 1〜4 の順でない・docs が空か配列でない・glob も label も無い項目・glob が空か文字列でない・glob の重複・
-// outside に glob が無い）は例外にする。glob も label も無い項目を例外にするのは、キーの書き間違い（"gob" など）を説明だけの項目として読み飛ばさないためである。
+// 読むのは各項目の glob と、項目が属する tier だけである。label・note・contents は人が読む説明の欄で、値は読まない。
+// 設定の形の誤り（Tier が 1〜4 の順でない・docs が空か配列でない・項目が object でない・項目に知らないキーがある・
+// glob が空か文字列でない・glob の重複・outside に glob が無い）は例外にする。
+// 知らないキーを例外にするのは、glob の書き間違い（"gob" など）を説明だけの項目として読み飛ばさないためである。
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { isNonBlankString, isRecord } from "../../lib/guards.ts";
 import { isArray } from "../../lib/is-array.ts";
 
 export const TIERS_PATH = "scripts/gates/docs/doc-tiers.json";
+
+/** 項目が持ってよいキー。glob だけを読み、残りは説明の欄。 */
+const ITEM_KEYS = new Set(["glob", "label", "note", "contents"]);
 
 /** 読んだ設定。tiers は tier 1〜4 の順に、その tier の glob を持つ。outside は階層の外の glob。 */
 export type DocTiers = { tiers: { tier: number; globs: string[] }[]; outside: string[] };
@@ -52,12 +56,12 @@ export function loadDocTiers(root: string): DocTiers {
   const seen = new Set<string>();
   /** 項目の glob。glob を持たない項目（説明だけの項目）は undefined。 */
   const globOf = (e: unknown, where: string): string | undefined => {
-    const glob = isRecord(e) ? e.glob : undefined;
-    if (glob === undefined) {
-      if (!isRecord(e) || !isNonBlankString(e.label))
-        throw new Error(`${where}: glob か label を持つ`);
-      return undefined;
-    }
+    if (!isRecord(e)) throw new Error(`${where}: 項目は object にする`);
+    const unknownKeys = Object.keys(e).filter((k) => !ITEM_KEYS.has(k));
+    if (unknownKeys.length > 0)
+      throw new Error(`${where}: 知らないキー（${unknownKeys.join("・")}）がある`);
+    const { glob } = e;
+    if (glob === undefined) return undefined;
     if (!isNonBlankString(glob)) throw new Error(`${where}: glob は空でない文字列`);
     if (seen.has(glob)) throw new Error(`${where}: glob「${glob}」が重複している`);
     seen.add(glob);

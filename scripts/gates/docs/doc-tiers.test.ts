@@ -6,13 +6,13 @@
 // | ------------ | ---------------------------------------------------------------------- |
 // | glob         | `**`（0 段・複数段）/ `*`（`/` を越えない）/ ドットで始まる名前 / 文字の `.` |
 // | 当たる項目   | 0 件 / 1 件 / 2 件（項目が重なる）/ 階層の外 / glob を持たない説明だけの項目 |
-// | 設定の形     | 正しい / ファイルが無い / tiers が配列でない / Tier の順が違う / Tier の数が違う / Tier の番号が文字列 / docs が配列でない / glob が空・文字列でない / glob の重複 / outside に glob が無い |
+// | 設定の形     | 正しい / ファイルが無い / tiers が配列でない / Tier の順が違う / Tier の数が違う / Tier の番号が文字列 / docs が空・配列でない / 項目が object でない / 項目に知らないキーがある（label と並んでいても）/ glob が空・文字列でない / glob の重複 / outside に glob が無い |
 import { expect, test } from "vitest";
 import { TIERS_PATH, type DocTiers, loadDocTiers, tierOf } from "./doc-tiers.ts";
 import { write } from "../../lib/testing/repo-file.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
-/** doc-tiers.json に書く形。label・note・contents は読まれない説明の欄だが、実物と同じ形にするため置く。 */
+/** doc-tiers.json に書く形。label・note・contents は値を読まれない説明の欄だが、実物と同じ形にするため置く。 */
 const RAW = {
   tiers: [
     { tier: 1, contents: "原則", docs: [{ glob: "AGENTS.md" }] },
@@ -92,9 +92,19 @@ test.each([
     /docs は空でない配列にする/,
   ],
   [
-    "glob も label も無い（キーの書き間違い）",
+    "glob の書き間違い",
     withTiers((t) => [{ ...t[0], docs: [{ gob: "AGENTS.md" }] }, ...t.slice(1)]),
-    /glob か label を持つ/,
+    /知らないキー（gob）/,
+  ],
+  [
+    "label と並んだ glob の書き間違い",
+    withTiers((t) => [{ ...t[0], docs: [{ gob: "AGENTS.md", label: "x" }] }, ...t.slice(1)]),
+    /知らないキー（gob）/,
+  ],
+  [
+    "項目が object でない",
+    withTiers((t) => [{ ...t[0], docs: ["AGENTS.md"] }, ...t.slice(1)]),
+    /項目は object にする/,
   ],
   [
     "glob が空",
