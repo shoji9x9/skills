@@ -315,17 +315,18 @@ Copilot では、lifecycle の検査の警告が届かない（既知の制約�
 そのため、次の形は判定を直さず、ここに挙げる。
 
 次の形は、プロジェクトへの commit でもチェックが commit と判定せずに通す。
-チェックに止めさせたい commit は、`git commit` か `git -C <dir> commit` を、行の先頭か区切り（`;`・`&&`・`||`・改行）の直後に書く。
+チェックに止めさせたい commit は、`git commit` か `git -C <dir> commit` を、行の先頭か区切り（`;`・`&`・`|`・改行）の直後に書く。
 
 | 形 | 例 | チェックの読み方 |
 | --- | --- | --- |
-| 前の代入の値が、空白を含む引用の中に置換を持つ | `X="$(date +%s)" git commit` | 代入の後ろの `git` を、コマンドの先頭として読まない |
-| シェルの予約語の後ろ | `if true; then git commit; fi`・`while …; do git commit; done`・`! git commit` | `then`・`do`・`!` の後ろを、コマンドの先頭として読まない |
+| 前の代入の値を引用で囲み、その中の置換が空白を含む | `X="$(date +%s)" git commit`・``X="`date +%s`" git commit`` | 代入を空白の手前までの 1 語として読むので、後ろの `git` をコマンドの先頭として読まない。置換が空白を含まない形（`X="$(date)"`）と、空白が置換の外にある形（`X="a $(date)"`・`X="a b"`）は止める |
+| シェルの予約語の後ろ | `if git commit; then …`・`if …; then git commit; fi`・`elif git commit`・`else git commit`・`while git commit`・`until git commit`・`do git commit`・`! git commit`・`coproc git commit` | `if`・`then`・`elif`・`else`・`while`・`until`・`do`・`!`・`coproc` の後ろを、コマンドの先頭として読まない。`{`・`(` の後ろは読む |
+| `eval` の引数 | `eval git commit`・`eval "git commit"` | `eval` をラッパーとして読まないので、後ろの `git` をコマンドの先頭として読まない |
 | 前の代入やラッパーの引数の置換の中に `git -C <外部>` がある | `env X="$(git -C <外部> rev-parse HEAD)" git commit` | 置換の中の `-C <外部>` を、実行される git の `-C` として読み、外部宛てとして通す |
 | git の名前を、引用やエスケープで書く | `\git commit`・`"git" commit`・`timeout 60 "git" commit` | 引用を外さずに `git` の名前と比べる |
 | 別のコマンドの引数の中に書く | `env -S 'git commit'`・二重引用符の中の関数置換（`"${ git commit; }"`） | 引用の内側として読み飛ばす（`bash -c "git commit"` と同じ扱い） |
 | 環境変数でリポジトリを差し替える | `GIT_DIR=<プロジェクト>/.git git -C <外部> commit` | コミット先は `GIT_DIR` で決まるが、チェックは `-C` だけを読み、外部宛てとして通す |
-| `jq` と `python3` が無い環境で、ラッパーと git の間をタブで区切る | `nice<タブ>git commit` | 生の JSON ではタブが `\t` の 2 文字になり、区切りの空白として読まない |
+| `jq` と `python3` が無い環境で、git の直前にタブを置く | `nice<タブ>git commit`・`true;<タブ>git commit`・`<タブ>git commit` | 生の JSON ではタブが `\t` の 2 文字になり、空白として読まない。ラッパーの後ろ・区切りの後ろ・行の先頭のどれでも同じである |
 
 次の形は、外部宛てか commit でない呼び出しでも、チェックが止める。
 外部のリポジトリにコミットするときは、`git -C <絶対パス> commit` の形で書けば止められない。
@@ -353,8 +354,15 @@ Copilot では、lifecycle の検査の警告が届かない（既知の制約�
 | `-m` の引用が 100KB で、エスケープを含まない | 約 4 秒 |
 | `-m` の引用が 100KB で、`\"` を多く含む | 1 分以上 |
 
-この時間も、下の「チェックの締め切りとフックの timeout」の締め切りに含まれる。
-フックの timeout より長くかかると、チェックは打ち切られ、commit は止められずに通る。
+この時間も、下の「チェックの締め切りとフックの timeout」の締め切り（`precommit_deadline_seconds`）に含まれる。
+そのため、エスケープを含む長い本文だけで、結果が次のように変わる。
+同じ環境で `\"` を多く含む 40KB の `-m` を渡すと、判定に約 12 秒かかった。
+
+- プロジェクト宛ての commit は、デフォルトの締め切り（8 秒）を過ぎ、「lifecycle 検査がチェックの締め切り…までに終わりませんでした」で止められる（exit 2）。センチネルが無くても止められる。
+- 外部宛ての commit は、締め切りを過ぎても、判定を終えた時点で通す（exit 0）。
+- どちらでも、フックの timeout より長くかかると、チェックは打ち切られ、commit は止められずに通る。
+
+締め切りやフックの timeout を延ばしても、待つ時間が延びるだけなので、対処にしない。
 大きな本文は、コマンドの中に書かない。
 commit message はファイルに書いて `git commit -F <file>` で渡し、`git commit` を本文に含む手順書はファイルを編集するツールで書く。
 
