@@ -24,7 +24,8 @@ agent-usage status
 - `setup`: 人の ID とタイムゾーンを決め、リポジトリに `.agent-usage/` を作る。Hook の設定は [`references/setup.md`](references/setup.md) に従う
 - `collect`: ログと GitHub から、まだ記録していない分を `.agent-usage/records/` の今のブランチのファイルに足す（ブランチごとに 1 ファイル）。`--stage` は書いたファイルを stage し、今のブランチの判断を「記録する」にする
 - `decline`: 今のブランチの判断を「記録しない」にする。そのブランチでは、コミットの前に確認しない
-- `report`: 記録を集計し、`.agent-usage/report/<yyyyMMdd>/` に `index.html`・`usage.csv`・`intervals.csv`・`reviews.csv` を書く。同じ日に実行し直したら上書きする。期間を省けば、すべての記録を集計する
+- `report`: 記録を集計し、`.agent-usage/report/<yyyyMMdd>/` に `index.html`・`usage.csv`・`intervals.csv`・`reviews.csv`・`meta.json` を書く。同じ日に実行し直したら上書きする。期間を省けば、すべての記録を集計する。
+  `meta.json` には、渡した `--since`・`--until`（省いたら `null`）・期間・作成時刻・タイムゾーンを書く。古いレポートを整理するスクリプトは、この値で期間を省いたレポートを見分けられる
 - `status`: セットアップの有無・今のブランチの判断・人の設定を表示する
 
 ## 前提

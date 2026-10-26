@@ -37,6 +37,19 @@ export function esc(s) {
 }
 
 /**
+ * 見出しに出す期間の指定。期間を省いたレポートと、記録の最初の日を --since に渡したレポートを見分けられるようにする
+ * @param {Pick<ReportData, "since" | "until">} d
+ * @returns {string}
+ */
+export function periodArgs(d) {
+  const args = [
+    ["--since", d.since],
+    ["--until", d.until],
+  ].flatMap(([name, v]) => (v === null ? [] : [`${name} ${v}`]));
+  return args.length > 0 ? args.join(" ") : "なし";
+}
+
+/**
  * @param {number} n
  * @returns {string}
  */
@@ -306,7 +319,7 @@ export function renderHtml(d) {
   ];
 
   const body = [
-    `<header><h1>エージェントの利用実績</h1><p class="muted">期間: ${esc(d.period)} / 作成: ${esc(d.generatedAt)} / タイムゾーン: ${esc(d.tz)} / 記録のファイル: ${d.recordFiles} / 行: ${d.rows}</p></header>`,
+    `<header><h1>エージェントの利用実績</h1><p class="muted">期間: ${esc(d.period)} / 期間の指定: ${esc(periodArgs(d))} / 作成: ${esc(d.generatedAt)} / タイムゾーン: ${esc(d.tz)} / 記録のファイル: ${d.recordFiles} / 行: ${d.rows}</p></header>`,
     `<section class="groups">${tileGroups
       .map(
         (g) =>
