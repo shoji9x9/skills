@@ -196,6 +196,8 @@ Dependabot が pnpm の複数ドキュメントの lockfile に対応するま�
 
 知識・規約・処理を追加するときや文書を整理するときは、skill・rule・hook・ドキュメントのどれにするかを先に決める。
 新しい仕組みを設計する前に、同じ問題の公開済みの解（上流の対応・既存のスキル・Issue）を調べる。見つからなかった場合も、その結果を提案に添える。
+新しいチェック（pre-commit・CI・Hook）を作る前に、効果（実際に起きた誤りの記録・同じ種類の誤りが繰り返されているか・起きやすさ）と費用（例外の一覧・書き方の数だけの分岐・実行時間）を Issue か PR に書く。
+見合わなければ、チェックを作らずに規約の追記で終える。判断と、レビューが判定の抜けを続けて指摘したときの扱いは `.agents/rules/check-cost-benefit.md` にある。
 
 | 種類 | 置くもの |
 | --- | --- |
@@ -222,6 +224,7 @@ rule は、対象のファイルを触るときに自動で読み込まれる。
 - `.agents/rules/skill-file-format.md`: `SKILL.md` の frontmatter を Agent Skills 仕様に合わせる
 - `.agents/rules/eval-assertion-discrimination.md`: 回帰 eval の assertion と fixture を書いたときに確かめること
 - `.agents/rules/eval-run-scope.md`: eval を実行する前に、目的と範囲を述べる
+- `.agents/rules/check-cost-benefit.md`: 新しいチェックを作る前に効果と費用を書き、見合わなければ規約の追記で終える
 - `.agents/rules/state-space-and-mutation-proof.md`: チェックを書く前に入力の状態を列挙し、ミューテーションテストで効果を確かめる
 - `.agents/rules/skill-consistency-pass.md`: 配布スキルを変えたときに、push 前に整合を確認する
 

@@ -277,3 +277,5 @@ URL の `github.com` を含む `node` の検査、`gh pr create` のタイトル
 2 回目は、同じ処理を `grep -rl` に変えたが、除外の引数に `--exclude-dir=.git` を書いていた。git を実行しない `grep` でも、引数の `.git` の語で拒否された（#653 の 2 回目と同じ形）。
 Write ツールでスクリプトにして絶対パスで実行して通した。
 同じ run の preflight でこの学びを読んでいたが、worktree に入った最初の調査の処理で同じ形を書いた。
+同じ run の #750 でも、`reinstall-skill.sh` の起動に `> /dev/null 2>&1; echo rc=$?` をつないだ呼び出しが拒否された。
+理由は `runs bash inside a construct too complex to verify` で、#655 の 4 つ目の箇条と同じ形である。単独の呼び出しに分けて通した。
