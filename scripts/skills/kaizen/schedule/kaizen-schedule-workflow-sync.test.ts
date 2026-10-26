@@ -73,6 +73,7 @@ function appendReport(report: string, env: Record<string, string> = {}) {
         AGENT: "claude",
         CRED_PRESENT: "true",
         OUTCOME_CLAUDE: "success",
+        DOWNLOAD_OUTCOME: "success",
         MAX_REPORT_CHARS: String(max),
         AGENT_REPORT: "report.md",
         BODY_FILE: "body.md",
@@ -127,6 +128,41 @@ describe("エージェントのレポートを本文の予算の中で載せる"
     const { body } = appendReport("", { CRED_PRESENT: "false" });
     expect(body).toContain("が未設定のため、通知のみに切り替えました");
   });
+
+  // GHES では artifact の v4 以降が使えず、download が失敗する。エージェントが何も出さなかったと
+  // 書くと、利用者はエージェントを疑い、受け渡しの失敗に気付かない。
+  test.each(["failure", ""])(
+    "download の outcome が「%s」なら、出力しなかったとは書かず、受け取れなかったと書く",
+    (outcome) => {
+      const { body } = appendReport("", { DOWNLOAD_OUTCOME: outcome });
+      expect(body).toContain("エージェントのレポートを受け取れませんでした");
+      expect(body).not.toContain("レポートを出力しませんでした");
+    },
+  );
+
+  test("download が成功してレポートが空なら、出力しなかったと書く", () => {
+    const { body } = appendReport("");
+    expect(body).toContain("エージェントはレポートを出力しませんでした");
+    expect(body).not.toContain("受け取れませんでした");
+  });
+});
+
+// 空のレポートと受け渡しの失敗を分けるには、レポートが空でも artifact を作る必要がある。
+test("レポートが無くても空のファイルを作り、artifact が作られなければ upload を失敗させる", () => {
+  const doc = loadYamlAs<{
+    jobs: Record<
+      string,
+      { steps?: { name?: string; run?: string; with?: Record<string, unknown> }[] }
+    >;
+  }>(readFileSync(join(repoRoot, CANON), "utf8"));
+  const steps = Object.values(doc.jobs).flatMap((j) => j.steps ?? []);
+  const names = steps.map((s) => s.name);
+  const ensure = names.indexOf("Ensure agent report file");
+  const upload = names.indexOf("Upload agent report");
+  expect(ensure, "Ensure agent report file").toBeGreaterThanOrEqual(0);
+  expect(upload).toBeGreaterThan(ensure);
+  expect(steps[ensure]?.run).toContain('touch "$REPORT_FILE"');
+  expect(steps[upload]?.with?.["if-no-files-found"]).toBe("error");
 });
 
 /** 権限と構成を確かめるために読む job の形。 */

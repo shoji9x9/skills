@@ -281,18 +281,25 @@ jobs:
             --no-ask-user \
             -s >"$REPORT_FILE" </dev/null
 
+      # エージェントがレポートを書かなかったときも、空のファイルを渡す。`tracking-issue` は、
+      # 空のレポート（エージェントが何も出さなかった）と、受け渡しの失敗（download の失敗）を分けて Issue に書く。
+      # artifact を作らない形にすると、2 つが同じ download の失敗になり、区別できない。
+      - name: Ensure agent report file
+        if: steps.cred.outputs.present == 'true'
+        run: touch "$REPORT_FILE"
+
       # レポートだけを渡す。`tracking-issue` はこれを Issue の本文に載せる文章として読み、実行しない。
-      # レポートが無いとき（エージェントが書かなかった・起動しなかった）は artifact を作らない。
-      # 無いことは `tracking-issue` の「Append agent report」が判定して Issue に書く。
       # 名前に試行の番号（run_attempt）を入れる。run を再実行したときに、前の試行が上げたレポートを
       # 今回の分として download しないようにするためである。
+      # upload-artifact と download-artifact の v4 以降は、GitHub Enterprise Server では使えない（各 action の README）。
+      # GHES では、この段で `review` が失敗し、`tracking-issue` はレポートを受け取れなかったと Issue に書く。
       - name: Upload agent report
         if: steps.cred.outputs.present == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: kaizen-agent-report-${{ github.run_attempt }}
           path: ${{ env.REPORT_FILE }}
-          if-no-files-found: ignore
+          if-no-files-found: error
           retention-days: 1
 
   tracking-issue:
@@ -319,6 +326,7 @@ jobs:
 
       # 作業ツリーの外に置く。作業ツリーのファイルを上書きできないようにするためである。
       - name: Download agent report
+        id: download
         if: needs.review.outputs.mode == 'agent' && needs.review.outputs.cred_present == 'true'
         continue-on-error: true
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -338,6 +346,7 @@ jobs:
           OUTCOME_CLAUDE: ${{ needs.review.outputs.outcome_claude }}
           OUTCOME_CODEX: ${{ needs.review.outputs.outcome_codex }}
           OUTCOME_COPILOT: ${{ needs.review.outputs.outcome_copilot }}
+          DOWNLOAD_OUTCOME: ${{ steps.download.outcome }}
           AGENT_REPORT: ${{ runner.temp }}/kaizen-agent/${{ env.REPORT_FILE }}
         run: |
           # 起動したエージェントのステップの結果を取る（他の 2 つは skipped）。
@@ -366,6 +375,10 @@ jobs:
               # レポートになるため、レート制限等で途中終了した run の**部分出力**が
               # 非空になり、未完成のレポートを完成品として転記してしまう。
               echo "> エージェントの実行が失敗しました（outcome: \`${outcome:-unknown}\`）。上記 run のログを確認してください。"
+            elif [ "$DOWNLOAD_OUTCOME" != success ]; then
+              # `review` は空のファイルでも artifact を作るので、download の失敗は受け渡しの失敗である。
+              # 「レポートを出力しなかった」と書くと、エージェントの問題と取り違える。
+              echo "> エージェントのレポートを受け取れませんでした（download の outcome: \`${DOWNLOAD_OUTCOME:-unknown}\`）。上記 run のログを確認してください。"
             elif [ -s "$AGENT_REPORT" ]; then
               # 表は 60 行で切って本文の文字数予算を守っているのに、ここが無制限だと
               # 同じ故障（`gh issue edit/create` が上限超過で落ち、その週の Issue が
