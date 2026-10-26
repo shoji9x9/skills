@@ -2,7 +2,8 @@
 // 文書のチェックの走査対象（doc-scan-files.ts）が、Tier 4 と階層の外を読まないために使う。
 //
 // 読むのは各項目の glob と、項目が属する tier だけである。label・note・contents は人が読む説明の欄で、ここでは読まない。
-// 設定の形の誤り（Tier が 1〜4 の順でない・docs が配列でない・glob が空でない文字列でない・glob の重複・outside に glob が無い）は例外にする。
+// 設定の形の誤り（Tier が 1〜4 の順でない・docs が空か配列でない・glob も label も無い項目・glob が空か文字列でない・glob の重複・
+// outside に glob が無い）は例外にする。glob も label も無い項目を例外にするのは、キーの書き間違い（"gob" など）を説明だけの項目として読み飛ばさないためである。
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { isNonBlankString, isRecord } from "../../lib/guards.ts";
@@ -52,7 +53,11 @@ export function loadDocTiers(root: string): DocTiers {
   /** 項目の glob。glob を持たない項目（説明だけの項目）は undefined。 */
   const globOf = (e: unknown, where: string): string | undefined => {
     const glob = isRecord(e) ? e.glob : undefined;
-    if (glob === undefined) return undefined;
+    if (glob === undefined) {
+      if (!isRecord(e) || !isNonBlankString(e.label))
+        throw new Error(`${where}: glob か label を持つ`);
+      return undefined;
+    }
     if (!isNonBlankString(glob)) throw new Error(`${where}: glob は空でない文字列`);
     if (seen.has(glob)) throw new Error(`${where}: glob「${glob}」が重複している`);
     seen.add(glob);
@@ -60,7 +65,8 @@ export function loadDocTiers(root: string): DocTiers {
   };
   const checkedTiers = tiers.map((t, n) => {
     const { docs } = t;
-    if (!isArray(docs)) throw new Error(`tier ${n + 1}: docs は配列にする`);
+    if (!isArray(docs) || docs.length === 0)
+      throw new Error(`tier ${n + 1}: docs は空でない配列にする`);
     const globs = docs.flatMap((e, i) => globOf(e, `tier ${n + 1} の docs[${i}]`) ?? []);
     return { tier: n + 1, globs };
   });

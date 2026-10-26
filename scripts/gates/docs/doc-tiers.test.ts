@@ -84,7 +84,17 @@ test.each([
   [
     "docs が配列でない",
     withTiers((t) => [{ ...t[0], docs: {} }, ...t.slice(1)]),
-    /docs は配列にする/,
+    /docs は空でない配列にする/,
+  ],
+  [
+    "docs が空",
+    withTiers((t) => [{ ...t[0], docs: [] }, ...t.slice(1)]),
+    /docs は空でない配列にする/,
+  ],
+  [
+    "glob も label も無い（キーの書き間違い）",
+    withTiers((t) => [{ ...t[0], docs: [{ gob: "AGENTS.md" }] }, ...t.slice(1)]),
+    /glob か label を持つ/,
   ],
   [
     "glob が空",
