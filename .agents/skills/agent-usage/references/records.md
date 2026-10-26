@@ -9,7 +9,7 @@
   records/
     <person-id>/branches/<UTC の時刻>-<ブランチ>.csv   ローカルのログ・人の活動からの行（ブランチごとに 1 ファイル）
     _github/<person-id>/<UTC の時刻>-<ブランチ>.csv    GitHub から取った行（CI・レビュー・取得した期間。ブランチごとに 1 ファイル）
-  report/<yyyyMMdd>/                                  report の結果（index.html・usage.csv・intervals.csv・reviews.csv）
+  report/<yyyyMMdd>/                                  report の結果（index.html・usage.csv・intervals.csv・reviews.csv・meta.json）
 ```
 
 - 時刻は、そのブランチで初めて collect した時刻である。`<ブランチ>` は、ブランチの名前の `/` などを `-` にした形（detached なら `detached`）

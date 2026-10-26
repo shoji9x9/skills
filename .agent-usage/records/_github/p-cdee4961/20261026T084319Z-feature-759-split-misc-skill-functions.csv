@@ -20,3 +20,8 @@ ci:40295876873:1,ci,2026-10-26T09:45:27.999Z,p-cdee4961,github-actions,,,,2026-1
 coverage:github:2026-10-25T08:55:14.930Z:2026-10-26T09:45:27.999Z,coverage,2026-10-26T09:45:27.999Z,p-cdee4961,,,,,2026-10-25T08:55:14.930Z,2026-10-26T09:45:27.999Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-25T09:45:27.999Z:2026-10-26T09:52:37.215Z,coverage,2026-10-26T09:52:37.215Z,p-cdee4961,,,,,2026-10-25T09:45:27.999Z,2026-10-26T09:52:37.215Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-25T09:52:37.215Z:2026-10-26T09:52:57.990Z,coverage,2026-10-26T09:52:57.990Z,p-cdee4961,,,,,2026-10-25T09:52:37.215Z,2026-10-26T09:52:57.990Z,Asia/Tokyo,,,,,,,,,,,,ok,
+review-wait:784:codex-cloud:2026-10-26T09:58:39.000Z,review-wait,2026-10-26T10:04:35.876Z,p-cdee4961,codex-cloud,,,,2026-10-26T09:58:39.000Z,2026-10-26T09:58:58.000Z,Asia/Tokyo,feature/759-split-misc-skill-functions,759,,,,,,,,,,pr=784,
+review-wait:784:codex-cloud:2026-10-26T09:58:58.000Z,review-wait,2026-10-26T10:04:35.876Z,p-cdee4961,codex-cloud,,,,2026-10-26T09:58:58.000Z,2026-10-26T09:58:58.000Z,Asia/Tokyo,feature/759-split-misc-skill-functions,759,,,,,,,,,,pr=784,
+review-wait:784:codex-cloud:2026-10-26T10:02:57.000Z,review-wait,2026-10-26T10:04:35.876Z,p-cdee4961,codex-cloud,,,,2026-10-26T10:02:57.000Z,2026-10-26T10:02:57.000Z,Asia/Tokyo,feature/759-split-misc-skill-functions,759,,,,,,,,,,pr=784,
+coverage:github:2026-10-25T09:52:57.990Z:2026-10-26T10:04:35.876Z,coverage,2026-10-26T10:04:35.876Z,p-cdee4961,,,,,2026-10-25T09:52:57.990Z,2026-10-26T10:04:35.876Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-25T10:04:35.876Z:2026-10-26T10:07:59.124Z,coverage,2026-10-26T10:07:59.124Z,p-cdee4961,,,,,2026-10-25T10:04:35.876Z,2026-10-26T10:07:59.124Z,Asia/Tokyo,,,,,,,,,,,,ok,

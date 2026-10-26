@@ -463,7 +463,7 @@ describe("agent-usage のコマンドと Hook", () => {
     );
   });
 
-  test("report は report/<日付>/ に HTML と 3 つの CSV を書き、費用と稼働を集計する", () => {
+  test("report は report/<日付>/ に HTML と 3 つの CSV と meta.json を書き、費用と稼働を集計する", () => {
     const { repo, git, cli } = setup();
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
     git("switch", "-q", "-c", "feature/5-x");
@@ -471,7 +471,7 @@ describe("agent-usage のコマンドと Hook", () => {
     const r = cli("report");
     expect(r.status).toBe(0);
     const out = join(repo, ".agent-usage", "report", "20261001");
-    for (const f of ["index.html", "usage.csv", "intervals.csv", "reviews.csv"])
+    for (const f of ["index.html", "usage.csv", "intervals.csv", "reviews.csv", "meta.json"])
       expect(existsSync(join(out, f))).toBe(true);
     const usage = readFileSync(join(out, "usage.csv"), "utf8");
     expect(usage).toMatch(/2026-10-01,p-[0-9a-f]{8},p-[0-9a-f]{8},claude-code,claude-opus-5-5/);
@@ -482,6 +482,35 @@ describe("agent-usage のコマンドと Hook", () => {
     );
     expect(cli("report", "--since", "2026-10-02", "--until", "2026-10-01").status).toBe(1);
     expect(cli("report", "--since", "10/01").status).toBe(1);
+  });
+
+  test("report は渡した期間を meta.json と HTML の見出しに残し、期間を省いたレポートと記録の最初の日を --since に渡したレポートを区別できる", () => {
+    const { repo, git, cli } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect").status).toBe(0);
+    const report = (...args: string[]) => {
+      const out = join(repo, ".agent-usage", `out-${args.length}`);
+      const r = cli("report", ...args, "--out", out);
+      expect(r.status).toBe(0);
+      return {
+        period: /期間: (.+)$/m.exec(r.stdout)?.[1],
+        meta: JSON.parse(readFileSync(join(out, "meta.json"), "utf8")),
+        html: readFileSync(join(out, "index.html"), "utf8"),
+      };
+    };
+    const none = report();
+    // fixture の記録の最初の日を --since に渡す。期間の値は、期間を省いたときと同じになる
+    const since = report("--since", "2026-10-01");
+    const both = report("--since", "2026-10-01", "--until", "2026-10-01");
+    expect(none.period).toBe(since.period);
+    const meta = { period: none.period, generated_at: expect.any(String), time_zone: "UTC" };
+    expect(none.meta).toEqual({ since: null, until: null, ...meta });
+    expect(since.meta).toEqual({ since: "2026-10-01", until: null, ...meta });
+    expect(both.meta).toMatchObject({ since: "2026-10-01", until: "2026-10-01" });
+    expect(none.html).toContain("期間の指定: なし /");
+    expect(since.html).toContain("期間の指定: --since 2026-10-01 /");
+    expect(both.html).toContain("期間の指定: --since 2026-10-01 --until 2026-10-01 /");
   });
 
   test("Hook が実行された worktree のパスを覚え、その worktree を削除した後も collect がログを集める", () => {

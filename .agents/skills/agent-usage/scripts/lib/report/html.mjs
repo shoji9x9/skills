@@ -37,6 +37,19 @@ export function esc(s) {
 }
 
 /**
+ * 見出しに出す期間の指定。期間を省いたレポートと、記録の最初の日を --since に渡したレポートを見分けられるようにする
+ * @param {Pick<ReportData, "since" | "until">} d
+ * @returns {string}
+ */
+export function periodArgs(d) {
+  const args = [
+    ["--since", d.since],
+    ["--until", d.until],
+  ].flatMap(([name, v]) => (v === null ? [] : [`${name} ${v}`]));
+  return args.length > 0 ? args.join(" ") : "なし";
+}
+
+/**
  * @param {number} n
  * @returns {string}
  */
@@ -662,7 +675,7 @@ const TIP_SCRIPT = `(() => {
  */
 export function renderHtml(d) {
   const body = [
-    `<header><h1>エージェントの利用実績</h1><p class="muted">期間: ${esc(d.period)} / 作成: ${esc(d.generatedAt)} / タイムゾーン: ${esc(d.tz)} / 記録のファイル: ${d.recordFiles} / 行: ${d.rows}</p></header>`,
+    `<header><h1>エージェントの利用実績</h1><p class="muted">期間: ${esc(d.period)} / 期間の指定: ${esc(periodArgs(d))} / 作成: ${esc(d.generatedAt)} / タイムゾーン: ${esc(d.tz)} / 記録のファイル: ${d.recordFiles} / 行: ${d.rows}</p></header>`,
     tilesHtml(d),
     d.unknownCostBuckets > 0
       ? `<p class="note">単価が分からず費用を数えていない記録が ${d.unknownCostBuckets} 件あります（usage.csv の cost_unknown_buckets）。.config/skills/shoji9x9/agent-usage.jsonc の pricing に単価を足して report を実行し直すと、費用に入ります。</p>`

@@ -252,3 +252,13 @@ URL の `github.com` を含む `node` の検査、`gh pr create` のタイトル
 どれも、Write ツールでスクリプトにして絶対パスで実行するか、単独の呼び出しに分けて通した。
 この学びはセッション開始時に注入されていたが、worktree に入った最初の準備の処理で同じ形を書いた。
 同じ原因の再発を確かめたので、confidence を high にした。
+
+### 再発の記録（#781）
+
+2026-10-26、#781 の作業（issue-start から git-worktree enter）で、worktree に入った後の Bash の呼び出しが 5 回拒否された。
+1 回目は、worktree に入った直後の準備で、`git rev-parse`・`git branch`・`cp`・`mise trust`・`pnpm install` を `;` でつないだ形である（#669 の 1 つ目の箇条と同じ）。
+2 回目は、引用符で囲まない変数を `sed -i` のオペランドに置いた形である（#681 と #651 の merge の箇条と同じ）。
+3 回目と 4 回目は、`git diff --stat` を先頭に置き、typecheck と lint を `;` でつないだ形と、`kaizen-kedb-match.sh` に `"git"` を渡した形である（#762 と同じ）。
+5 回目は、`kaizen-kedb-match.sh` の起動と `; echo rc=$?` の組である（#655 の 4 つ目の箇条と同じ）。
+どれも、単独の呼び出しに分けるか、Read ツールで読む形に直して通した。
+この学びはセッション開始時に注入されていたが、worktree に入った最初の準備の処理で同じ形を書いた。新しい形は無かった。
