@@ -6,7 +6,7 @@
 // | ------------ | ---------------------------------------------------------------------- |
 // | glob         | `**`（0 段・複数段）/ `*`（`/` を越えない）/ ドットで始まる名前 / 文字の `.` |
 // | 当たる項目   | 0 件 / 1 件 / 2 件（項目が重なる）/ 階層の外 / glob を持たない説明だけの項目 |
-// | 設定の形     | 正しい / ファイルが無い / tiers が配列でない / Tier の順が違う / Tier の数が違う / Tier の番号が文字列 / docs が空・配列でない / 項目が object でない / 項目に知らないキーがある（label と並んでいても）/ glob が空・文字列でない / glob の重複 / outside に glob が無い |
+// | 設定の形     | 正しい / ファイルが無い / tiers が配列でない / Tier の順が違う / Tier の数が違う / Tier の番号が文字列 / docs が空・配列でない / 項目が object でない / 項目に知らないキーがある（label と並んでいても・Tier の側の contents も）/ glob も label も無い / glob が空・文字列でない / glob の重複 / outside に glob が無い |
 import { expect, test } from "vitest";
 import { TIERS_PATH, type DocTiers, loadDocTiers, tierOf } from "./doc-tiers.ts";
 import { write } from "../../lib/testing/repo-file.ts";
@@ -137,6 +137,11 @@ test.each([
     /重複/,
   ],
   ["outside に glob が無い", { ...RAW, outside: [{ label: "x" }] }, /outside\[0\]: glob を持つ/],
+  [
+    "outside の項目に Tier の側のキー（contents）がある",
+    { ...RAW, outside: [{ glob: "x/**", contents: "x" }] },
+    /outside\[0\]: 知らないキー（contents）/,
+  ],
 ])("loadDocTiers: 設定の形の誤り（%s）は例外にする", (_name, bad, reason) => {
   expect(() => loadDocTiers(makeRepo(bad))).toThrow(reason);
 });
