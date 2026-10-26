@@ -1244,7 +1244,7 @@ function checkRepeatRunPerSpec(suiteObj, record, root) {
  * @returns {string}
  */
 function fingerprintUnavailable(missing) {
-  return `現在のスイートの指紋を計算できない（判定不能を合格として扱わない）: ${missing.length > 0 ? `読めない ${missing.join(" / ")}` : "suite.specs / locator_map / interactions がどれも宣言されていない"}`;
+  return `現在のスイートの指紋を計算できない（判定不能を合格として扱わない）: ${missing.length > 0 ? `指紋に使えないパス ${missing.join(" / ")}` : "suite.specs / locator_map / interactions がどれも宣言されていない"}`;
 }
 
 /**

@@ -907,6 +907,30 @@ test("suite.tools がファイルを指すと、ディレクトリで書くよ�
   rmSync(root, { recursive: true, force: true });
 });
 
+test("スペック単位の記録でも、suite.tools がファイルを指すと exit 1", () => {
+  const { root, metadataPath } = perSpecProject();
+  writeVendorTools(root);
+  editMetadata(metadataPath, (m) => {
+    Object.assign(m.suite, { tools: "vendor/trait-capture.mjs" });
+  });
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/suite\.tools はコピー専用のディレクトリで書く/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("--fingerprint は、suite.tools がファイルを指すと指紋を出さずに exit 2", () => {
+  const { root, metadataPath } = perSpecProject();
+  writeVendorTools(root);
+  editMetadata(metadataPath, (m) => {
+    Object.assign(m.suite, { tools: "vendor/trait-capture.mjs" });
+  });
+  const r = run(metadataPath, ["--fingerprint"]);
+  expect(r.stderr).toMatch(/suite\.tools はコピー専用のディレクトリで書く/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
 test.each([".js", ".mjs", ".cjs"])(
   "#457: %s も生バイトで数える（トランスパイルで JSX を書ける。テキストの // を見逃さない）",
   (ext) => {
@@ -985,7 +1009,9 @@ test("宣言したスイートの実体が無ければ合格として扱わな�
     m.suite.specs = "e2e/parity/does-not-exist";
   });
   const r = run(metadataPath);
-  expect(r.stdout).toMatch(/現在のスイートの指紋を計算できない.*読めない .*（実体が無い）/);
+  expect(r.stdout).toMatch(
+    /現在のスイートの指紋を計算できない.*指紋に使えないパス .*（実体が無い）/,
+  );
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });

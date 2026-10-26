@@ -835,6 +835,17 @@ function chainStep(code, start) {
 }
 
 /**
+ * 逆向きに集めた区間を root 側からの並びにして返す。区間が無ければ null。
+ * @template T
+ * @param {T[]} segments
+ * @param {boolean} fromGroupInterior
+ */
+function chainResult(segments, fromGroupInterior) {
+  if (segments.length === 0) return null;
+  return { segments: segments.reverse(), fromGroupInterior };
+}
+
+/**
  * 呼び出し直前の式を逆向きにたどり、プロパティチェーンの各区間を root 側から並べて返す。
  * 区間ごとに「直後が呼び出しだったか」「添字アクセスだったか」を持つ。どちらも名前で解決できない形なので、
  * 判定不能として扱うために区別が要る（添字アクセスはプロパティ名そのものが読めない）。
@@ -850,21 +861,16 @@ function receiverChain(code, dotIndex) {
   // 1 回の読み進めで i は 1 以上戻るので、回数の上限は dotIndex で足りる。
   // 上限は、読み進めが i を戻さない誤りがあってもループを終わらせるためにある。
   // 上限で抜けたときは、途中までの区間で判定を続けずに例外にする。
-  let ended = false;
   for (let step = 0; i >= 0 && step < dotIndex; step += 1) {
     const read = chainStep(code, i);
     if (read === null) return null;
     if (read.segment === null) fromGroupInterior = true;
     else segments.push(read.segment);
-    if (read.next === null) {
-      ended = true;
-      break;
-    }
+    if (read.next === null) return chainResult(segments, fromGroupInterior);
     i = read.next;
   }
-  if (!ended && i >= 0) throw new Error("レシーバの連鎖が上限の回数で読み終わらない");
-  if (segments.length === 0) return null;
-  return { segments: segments.reverse(), fromGroupInterior };
+  if (i >= 0) throw new Error("レシーバの連鎖が上限の回数で読み終わらない");
+  return chainResult(segments, fromGroupInterior);
 }
 
 /**
