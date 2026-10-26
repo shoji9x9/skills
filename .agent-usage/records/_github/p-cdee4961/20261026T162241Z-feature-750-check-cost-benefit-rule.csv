@@ -12,3 +12,6 @@ ci:40360481911:1,ci,2026-10-26T16:41:08.056Z,p-cdee4961,github-actions,,,,2026-1
 ci:40360482032:1,ci,2026-10-26T16:41:08.056Z,p-cdee4961,github-actions,,,,2026-10-26T16:34:53.000Z,2026-10-26T16:38:49.000Z,Asia/Tokyo,feature/750-check-cost-benefit-rule,750,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-25T16:33:06.271Z:2026-10-26T16:41:08.056Z,coverage,2026-10-26T16:41:08.056Z,p-cdee4961,,,,,2026-10-25T16:33:06.271Z,2026-10-26T16:41:08.056Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-25T16:41:08.056Z:2026-10-26T16:41:28.448Z,coverage,2026-10-26T16:41:28.448Z,p-cdee4961,,,,,2026-10-25T16:41:08.056Z,2026-10-26T16:41:28.448Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:40361625767:1,ci,2026-10-26T16:46:55.189Z,p-cdee4961,github-actions,,,,2026-10-26T16:42:07.000Z,2026-10-26T16:42:08.000Z,Asia/Tokyo,feature/750-check-cost-benefit-rule,750,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40361625704:1,ci,2026-10-26T16:46:55.189Z,p-cdee4961,github-actions,,,,2026-10-26T16:42:07.000Z,2026-10-26T16:45:42.000Z,Asia/Tokyo,feature/750-check-cost-benefit-rule,750,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-25T16:41:28.448Z:2026-10-26T16:46:55.189Z,coverage,2026-10-26T16:46:55.189Z,p-cdee4961,,,,,2026-10-25T16:41:28.448Z,2026-10-26T16:46:55.189Z,Asia/Tokyo,,,,,,,,,,,,ok,
