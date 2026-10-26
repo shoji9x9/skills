@@ -15,19 +15,17 @@
 // | Tier 4 への参照    | 学び（日付付き・archive・INDEX.md）/ eval の結果 / #番号 / Issue の URL /       |
 // |                    | 他のリポジトリ（owner/repo#1・他の URL）/ ${#1} / &#123; / インラインコード / 例の行 |
 // | スキルの外のパス   | ルートにだけ在る / スキルにも在る / どこにも無い                                 |
-// | 保留               | 一致 / 古い / 許可 / 他のチェックの規則                                          |
+// | 許可               | 使われる / 使われない / 他のチェックの規則                                       |
 // | 設定               | 正しい / 無い / repo の形の誤り / テンプレートが無い                             |
 import { expect, test } from "vitest";
-import { parseJsonAs } from "../../lib/parse-as.ts";
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { CONFIG_PATH, RULES, checkDocRefs, hasAnchor, main } from "./check-doc-refs.ts";
-import { KNOWN_RULES, PENDING_PATH } from "../../lib/doc-scan.ts";
+import { KNOWN_RULES } from "../../lib/doc-scan.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 import { CONFIG, found, makeRepo, repoRoot, script } from "./check-doc-refs-helpers.ts";
 
-// 学びのパスは組み立てて書く（そのまま書くと check-kaizen-refs.ts が実在しない学びへの参照として数える）。
 const KZ = ".kaizen/";
 
 // ---- 節名の一致 ----
@@ -357,7 +355,7 @@ test("陰性: 符号化として読めない % を含むリンク先は、書い
   expect(found(root)).toEqual(["docs/a.md:1 link 50%.md"]);
 });
 
-test("このチェックの規則は、保留に書ける規則に含まれる", () => {
+test("このチェックの規則は、許可に書ける規則に含まれる", () => {
   for (const r of RULES) expect(KNOWN_RULES).toContain(r);
 });
 
@@ -370,38 +368,21 @@ test("陰性: 配布スキルの中に在るパスと、どこにも無いパス
   expect(found(root)).toEqual([]);
 });
 
-// ---- 保留と許可 ----
+// ---- 許可 ----
 
-test("保留: 一致は失敗にしない。古い保留・使われない許可は失敗にし、他のチェックの規則は見ない", () => {
-  const pending = {
-    pending: [
-      { file: "docs/a.md", rule: "tier-down", text: "#1", stage: "3" },
-      { file: "docs/b.md", rule: "link", text: "x.md", stage: "3" },
-      { file: "docs/c.md", rule: "date", text: "2026-09-01", stage: "3" },
-    ],
+test("許可: 一致は失敗にしない。使われない許可は失敗にし、他のチェックの規則は見ない", () => {
+  const allowed = {
     allowed: [
       { file: "docs/a.md", rule: "tier-down", text: "#2", reason: "導入先の例" },
       { file: "docs/a.md", rule: "tier-down", text: "#3", reason: "導入先の例" },
+      { file: "docs/c.md", rule: "date", text: "2026-09-01", reason: "他のチェックの例" },
     ],
   };
-  const r = checkDocRefs(
-    makeRepo({ "docs/a.md": "#1 #2 #1\n", "docs/b.md": "本文\n" }, { pending }),
-  );
-  expect(r.pendingCount).toBe(2);
+  const r = checkDocRefs(makeRepo({ "docs/a.md": "#1 #2\n", "docs/b.md": "本文\n" }, { allowed }));
   expect(r.failures).toEqual([
-    expect.stringMatching(/^古い保留: docs\/b\.md \[link\] x\.md/),
+    expect.stringMatching(/^docs\/a\.md:1: \[tier-down\] /),
     expect.stringMatching(/^使われていない許可: docs\/a\.md \[tier-down\] #3/),
   ]);
-});
-
-test("--prune は古い保留を消して exit 0 にする", () => {
-  const stale = { file: "docs/b.md", rule: "link", text: "x.md", stage: "3" };
-  const root = makeRepo({}, { pending: { pending: [stale], allowed: [] } });
-  expect(main([root])).toBe(1);
-  expect(main([root, "--prune"])).toBe(0);
-  expect(
-    parseJsonAs<{ pending: unknown[] }>(readFileSync(join(root, PENDING_PATH), "utf8")).pending,
-  ).toEqual([]);
 });
 
 // ---- 設定と件数 ----
@@ -432,7 +413,7 @@ test("このチェック自身のテストは読まない", () => {
   expect(found(root)).toEqual([]);
 });
 
-test("陰性: 実リポジトリは保留と許可を当てると失敗 0 件", () => {
+test("陰性: 実リポジトリは許可を当てると失敗 0 件", () => {
   const r = checkDocRefs(repoRoot);
   expect(r.failures).toEqual([]);
   expect(r.files).toBeGreaterThan(100);
@@ -444,7 +425,7 @@ test("検出の確認（CLI）: 子プロセスとして起動しても、違反
     encoding: "utf8",
   });
   expect(good.status, good.stderr).toBe(0);
-  expect(good.stdout).toMatch(/doc-refs: OK（\d+ 件。保留 0 件）/);
+  expect(good.stdout).toMatch(/doc-refs: OK（\d+ 件）/);
   const bad = spawnSync(process.execPath, [script, makeRepo({ "docs/a.md": "[x](none.md)\n" })], {
     timeout: CHILD_TIMEOUT_MS,
     encoding: "utf8",

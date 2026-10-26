@@ -192,33 +192,24 @@ pre-commit:
           - name: word-list
             # 使わない語の一覧（.textlint/word-list.md。AGENTS.md が @ で取り込む生成物）が .textlint/words.json と一致しているか。
             run: node scripts/gates/prose/check-word-list.ts
-          - name: pagination
-            glob: "*.{sh,md}"
-            exclude: *agent-copies
-            run: node scripts/gates/code/lint-pagination.ts {staged_files}
           - name: skills-sync
             # Repo-wide drift check (skills/ vs .agents/skills/). Fast and deterministic,
             # so it runs on every commit rather than relying on path-glob matching.
             run: node scripts/gates/packaging/copies/check-skills-sync.ts
           - name: skill-config-vendor
             # 配布スキルに同梱する jsonc-parser が devDependency の版から作った内容と一致するか。版を上げた commit でも確かめる。
-            glob: "{skills/*/config-schemas/*,skills/*/scripts/skill-config/**,skills/*/references/config-files.md,scripts/gates/packaging/copies/identical-copies.json,package.json,pnpm-lock.yaml}"
+            glob: "{skills/*/config-schemas/*,skills/*/scripts/skill-config/**,skills/*/references/config-files.md,package.json,pnpm-lock.yaml}"
             run: node scripts/gates/packaging/check-skill-config-vendor.ts
           - name: skill-configs
             # このリポジトリのスキルの設定（.config/skills/shoji9x9/*.jsonc）が、各スキルのスキーマに合うか。
             glob: "{.config/skills/**,skills/*/config-schemas/*}"
             run: node scripts/gates/packaging/check-skill-configs.ts
-          - name: dir-file-count
-            # 各ディレクトリの直下のファイル数を閾値以下に保つ（scripts/gates/layout/dir-file-count.json）。
-            # ファイルを足したディレクトリはどこでもよいので、glob で絞らずに毎回実行する（git ls-files を数えるだけで数十 ms）。
-            run: node scripts/gates/layout/check-dir-file-count.ts
           - name: js-extensions
             # Enforce the JS extension policy (skills/ => .mjs, scripts/ and private skills => .ts).
             run: node scripts/gates/code/check-js-extensions.ts
           - name: skill-lint-directives
             # 配布スキルに、このリポジトリの lint の設定を前提にした抑止コメント（oxlint-disable など）を置かない。
-            # isArray を持つファイル（scripts/lib/is-array-holders.ts）の、型ガードの外の Array.isArray も検出する。
-            # TypeScript のパーサで全ファイルを読み、oxlint も起動する（約 3 秒）ので、JavaScript・TypeScript が staged のときだけ実行する。
+            # TypeScript のパーサで全ファイルを読むので、JavaScript・TypeScript が staged のときだけ実行する。
             glob: "*.{mjs,cjs,js,jsx,ts,mts,cts,tsx}"
             run: node scripts/gates/code/check-skill-lint-directives.ts
           - name: jsdoc-types
@@ -228,29 +219,13 @@ pre-commit:
             # （Program の作成と型の解決に約 2 秒かかる）。
             glob: "{*.mjs,*check-jsdoc-types.ts,tsconfig.skills.json,tsconfig.base.json,types/*.ts,package.json,pnpm-lock.yaml}"
             run: node scripts/gates/types/check-jsdoc-types.ts
-          - name: type-guard-brands
-            # 絞る型の値にも false を返す型ガード（空文字を除く `v is string` など）を、ブランド型に絞らせる。
-            # stage したファイルだけを起点に型チェッカーを作る（import 先はディスクから読む）。全件は CI で検査する。
-            glob: "{scripts,skills,.agents}/**/*.{mjs,ts}"
-            run: node scripts/gates/types/check-type-guard-brands.ts {staged_files}
-          - name: kaizen-refs
-            # .kaizen/ の学びへの参照の実在。参照される側（.kaizen/ の archive への移動）で
-            # 参照する側のリンクが切れるので、path glob で絞らず毎コミット全走査する。
-            run: node scripts/gates/docs/check-kaizen-refs.ts
           - name: identical-copies
             # 同一であるべきコピー（scripts/gates/packaging/copies/identical-copies.json で宣言）の一致。
             run: node scripts/gates/packaging/copies/check-identical-copies.ts
-          - name: skill-checks
-            # 配布スキルの検査を、利用者の起点へ組み込むか（skills/<name>/checks.json）・しないか
-            # （scripts/gates/packaging/skill-checks-unwired.json）のどちらかに分類されているか。
-            run: node scripts/gates/packaging/check-skill-checks.ts
           - name: time-sensitive-prose
             # 時間がたつと正しくなくなる記述（日付・「現状は」「当面」と、変異の件数・全件の実測値）を
-            # Tier 1〜3 の文書とコメントに書いていないか。保留は scripts/gates/docs/doc-pending.json。
+            # Tier 1〜3 の文書とコメントに書いていないか。許可は scripts/gates/docs/doc-allowed.json。
             run: node scripts/gates/prose/check-time-sensitive-prose.ts
-          - name: doc-tiers
-            # Markdown がちょうど 1 つの階層に属するか、doc-altitude.md の表が doc-tiers.json と一致するか。
-            run: node scripts/gates/docs/check-doc-tiers.ts
           - name: doc-refs
             # 文書のリンク・節名の実在と、参照の向き（Tier 4 と、配布スキルからリポジトリ固有のものへの参照）。
             # 参照される側の変更（見出しの変更・ファイルの移動）で参照する側が失敗するので、全体を見る。

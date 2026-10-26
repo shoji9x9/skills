@@ -69,7 +69,7 @@ export default defineConfig({
     },
     {
       // 型ガード isArray を持つファイル。`Array.isArray` の禁止だけを外し、他の禁止は残す（一覧が空なら何も禁じない）。
-      // 型ガードの外の呼び出しは scripts/gates/code/check-skill-lint-directives.ts が検出する。
+      // ファイル単位で外すので、型ガードの外の呼び出しも検出しない。一覧には型ガードを持つファイルだけを挙げる。
       files: IS_ARRAY_HOLDERS,
       rules: {
         "no-restricted-properties": [

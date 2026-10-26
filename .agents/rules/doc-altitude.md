@@ -25,8 +25,7 @@ applyTo: "AGENTS.md,CLAUDE.md,**/SKILL.md,skills/**/references/**/*.md,.agents/r
 ## 文書の階層（Tier）
 
 文書を 4 つの階層に分け、置き場所と参照の向きを決める。どのファイルがどの階層かは次の表で決める。
-
-<!-- doc-tiers:begin（scripts/gates/docs/doc-tiers.json から scripts/gates/docs/check-doc-tiers.ts --fix で生成する。手で直さない） -->
+文書のチェック（`check-doc-refs.ts`・`check-time-sensitive-prose.ts`）は `scripts/gates/docs/doc-tiers.json` で階層を決めるので、表を変えたらこの JSON も同じ内容に直す。
 
 | Tier | 文書 | 置くもの |
 | --- | --- | --- |
@@ -36,8 +35,6 @@ applyTo: "AGENTS.md,CLAUDE.md,**/SKILL.md,skills/**/references/**/*.md,.agents/r
 | 4 | `.kaizen/**`、`tests/` の結果、Issue・PR | 経過と判断の記録（追記していく） |
 
 階層の外に置く文書: `evals/*/fixtures/**`（eval の入力）、`.github/ISSUE_TEMPLATE/**`（Issue のテンプレート）。
-
-<!-- doc-tiers:end -->
 
 コードと設定の値そのものは階層の外に置く。文書がスクリプトや設定ファイルの名前・パスを挙げるのは、案内として書いてよい。
 インストール済みのスキルのコピー（`.agents/skills/<name>/`）とエージェント用のリンク（`.claude/`）は `skills/` と同じ中身なので、階層に数えない。

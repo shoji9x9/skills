@@ -142,7 +142,7 @@ PreToolUse で捕まえて通知する（[branch-guard-hook.md](branch-guard-hoo
    `linkedBranches` に載ったことを確かめる。
 
 ```bash
-gh api graphql -f query='query($o:String!,$r:String!,$n:Int!){ # pagination-ok（作った 1 本が載ったかの確認）
+gh api graphql -f query='query($o:String!,$r:String!,$n:Int!){ # ページングしない（作った 1 本が載ったかの確認）
   repository(owner:$o,name:$r){
     issue(number:$n){ linkedBranches(first:10){ nodes { ref { name } } } } } }' \
   -F o=<owner> -F r=<repo> -F n=<番号>

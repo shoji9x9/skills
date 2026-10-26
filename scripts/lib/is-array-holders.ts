@@ -4,12 +4,11 @@
 // 行の disable コメントで外さないのは、配布スキルの雛形と 1 ファイルだけコピーするツールが利用者のプロジェクトへ入るためである。
 // 利用者のプロジェクトでは、このリポジトリの lint の設定を前提にしたコメントは何も抑えず、
 // 使われない disable を error にする設定では lint が失敗する（`.agents/rules/distributed-skill-stack-independence.md`）。
-// ファイル単位で外すと、関数の外の呼び出しも検出されなくなる。その分は
-// `scripts/gates/code/check-skill-lint-directives.ts` が、同じ規則の oxlint をそのファイルに当て、関数宣言 `isArray` の中の 1 件の他を違反にする。
+// ファイル単位で外すので、この一覧のファイルでは、型ガードの外の `Array.isArray` も oxlint は検出しない。
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
-/** `no-restricted-properties` で禁じる `Array.isArray`（`oxlint.config.ts` と、持ち主のファイルの検査が同じものを使う）。 */
+/** `no-restricted-properties` で禁じる `Array.isArray`（`oxlint.config.ts` が使う）。 */
 export const IS_ARRAY_RESTRICTION = {
   object: "Array",
   property: "isArray",

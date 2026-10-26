@@ -4,8 +4,7 @@
 # WHY: `run-skill-eval.sh` isolates cwd and skill installation, but `claude -p` can
 # still read any path on the machine and find this repo's skill sources from the
 # skill name in the prompt. Every such run makes the baseline satisfy skill-specific
-# assertions, and the measured Delta becomes meaningless
-# (.kaizen/archive/2026-07-28-eval-baseline-read-contamination.md — 5 recurrences).
+# assertions, and the measured Delta becomes meaningless (this happened 5 times).
 #
 # The blocked set is NOT "the repo path". It is every route that reaches the skill
 # CONTENT, in 4 groups (each group was found by an actual contaminated run):

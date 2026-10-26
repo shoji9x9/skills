@@ -4,7 +4,7 @@
 // 以前は集計を iteration ごとの使い捨てのスクリプトで組み立てていた。
 // そのスクリプトが判定を位置（配列の index）で対応づけたため、件数を誤った。
 // `parity-diff` #27 の `without_skill` を、1/6 と 2/6 の両方で数えた
-// （Issue #421 / `.kaizen/2026-09-17-eval-benchmark-assembled-ad-hoc.md`）。
+// （Issue #421）。
 // この集計は **assertion テキストをキーにした入力だけを受理する**。
 //
 //   - assertion テキストの原本は各 run の `eval_metadata.json`（run 時点の宣言）。

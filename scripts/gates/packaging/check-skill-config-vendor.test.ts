@@ -8,8 +8,6 @@
 // | 読み取り（skill-config.mjs） | ある / 無い / スキーマが無いのにある |
 // | vendor/ の 3 つ | 生成した内容と同じ / 無い / 中身が違う |
 // | config-files.md | ある / 無い |
-// | 複数のスキルが持つファイルの組 | 1 つの組に全部 / 一部が外れる / 組が無い / 2 つの組に分かれる / 1 スキルだけが持つ |
-// | identical-copies.json | 読める / groups が配列でない / files が文字列の配列でない |
 // | --fix | 無し（報告だけ）/ 有り（作り直す。読み取りは作らない） |
 // | --fix の書き込み先 | 通常のファイル / ファイルがシンボリックリンク / 途中のディレクトリがシンボリックリンク |
 // | 引数 | 無し / --fix / 知らない引数 |
@@ -19,7 +17,6 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, test, vi } from "vitest";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import {
-  COPIES_CONFIG,
   READER,
   SHARED_DOC,
   VENDOR_DIR,
@@ -38,8 +35,6 @@ function makeRepo() {
   writeFileSync(join(root, "package.json"), "{}\n");
   symlinkSync(join(repoRoot, "node_modules"), join(root, "node_modules"));
   mkdirSync(join(root, "skills"));
-  mkdirSync(join(root, "scripts/gates/packaging/copies"), { recursive: true });
-  writeFileSync(join(root, COPIES_CONFIG), '{ "groups": [] }\n');
   const put = (rel: string, text = "") => {
     mkdirSync(dirname(join(root, rel)), { recursive: true });
     writeFileSync(join(root, rel), text);
@@ -142,63 +137,6 @@ describe("check", () => {
         message: "devDependency の jsonc-parser から作った内容と一致しない",
       },
     ]);
-  });
-
-  test("複数のスキルが持つ読み取り・config-files.md・同じ名前のスキーマが 1 つの組に載っていなければ、載っていないパスを挙げる", async () => {
-    const { root, put } = makeRepo();
-    for (const n of ["a", "b", "c"]) {
-      put(`skills/${n}/config-schemas/common.schema.json`, "{}");
-      put(`skills/${n}/${READER}`);
-      put(`skills/${n}/${SHARED_DOC}`);
-    }
-    put("skills/c/config-schemas/only-c.schema.json", "{}");
-    await check(root, true);
-    const paths = (rel: string, names: string[]) => names.map((n) => `skills/${n}/${rel}`);
-    const write = (groups: string[][]) =>
-      writeFileSync(
-        join(root, COPIES_CONFIG),
-        JSON.stringify({ groups: groups.map((files) => ({ files, reason: "r" })) }),
-      );
-    // c だけが組から外れている（新しいスキルにコピーして組に足し忘れた形）
-    write([
-      paths(READER, ["a", "b"]),
-      paths(SHARED_DOC, ["a", "b"]),
-      paths("config-schemas/common.schema.json", ["a", "b"]),
-    ]);
-    expect((await check(root, false)).map((f) => f.path)).toEqual([
-      `skills/c/${READER}`,
-      `skills/c/${SHARED_DOC}`,
-      "skills/c/config-schemas/common.schema.json",
-    ]);
-    // 組が 1 つも無いときは、すべてのパスを挙げる。1 つのスキルだけが持つスキーマは比べる相手が無いので挙げない
-    write([]);
-    expect(await check(root, false)).toHaveLength(9);
-    expect((await check(root, false))[0]?.message).toMatch(
-      /identical-copies\.json の .* の組に無い/,
-    );
-    // 2 つの組に分かれているのも、1 つの組に載っていないとして挙げる
-    write([
-      paths(READER, ["a", "b"]),
-      paths(READER, ["c"]),
-      paths(SHARED_DOC, ["a", "b", "c"]),
-      paths("config-schemas/common.schema.json", ["a", "b", "c"]),
-    ]);
-    expect((await check(root, false)).map((f) => f.path)).toEqual([`skills/c/${READER}`]);
-    write([
-      paths(READER, ["a", "b", "c"]),
-      paths(SHARED_DOC, ["a", "b", "c"]),
-      paths("config-schemas/common.schema.json", ["a", "b", "c"]),
-    ]);
-    expect(await check(root, false)).toEqual([]);
-  });
-
-  test("identical-copies.json を読めなければ、判定できないとして例外にする", async () => {
-    const { root, put } = makeRepo();
-    put("skills/a/config-schemas/a.schema.json", "{}");
-    writeFileSync(join(root, COPIES_CONFIG), '{ "groups": {} }');
-    await expect(check(root, false)).rejects.toThrow(/groups が配列でない/);
-    writeFileSync(join(root, COPIES_CONFIG), '{ "groups": [{ "files": [1] }] }');
-    await expect(check(root, false)).rejects.toThrow(/files が文字列の配列でない/);
   });
 
   test("スキーマが無いのに scripts/skill-config/ を持つスキルを挙げる", async () => {

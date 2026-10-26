@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CONFIG_PATH, checkDocRefs } from "./check-doc-refs.ts";
-import { PENDING_PATH } from "../../lib/doc-scan.ts";
+import { ALLOWED_PATH } from "../../lib/doc-scan.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 import { write } from "../../lib/testing/repo-file.ts";
@@ -24,7 +24,7 @@ export const CONFIG = {
 /** 階層の原本・設定・参照先を持つ一時リポジトリ。 */
 export function makeRepo(
   files: Record<string, string> = {},
-  { config = CONFIG, pending }: { config?: object; pending?: object } = {},
+  { config = CONFIG, allowed }: { config?: object; allowed?: object } = {},
 ) {
   const root = makeTempDir("doc-refs-");
   const all = {
@@ -39,7 +39,7 @@ export function makeRepo(
     ...files,
   };
   for (const [p, t] of Object.entries(all)) write(root, p, t);
-  if (pending) write(root, PENDING_PATH, JSON.stringify(pending));
+  if (allowed) write(root, ALLOWED_PATH, JSON.stringify(allowed));
   const r = spawnSync("git", ["init", "-q"], {
     timeout: CHILD_TIMEOUT_MS,
     cwd: root,

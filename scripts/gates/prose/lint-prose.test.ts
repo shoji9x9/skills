@@ -1,6 +1,6 @@
 // 文章チェック（lint-prose）の回帰テスト。
 //
-// textlint の設定と単語帳は実リポジトリのものを使い（configRoot の既定値）、対象のファイルと保留の一覧は
+// textlint の設定と単語帳は実リポジトリのものを使い（configRoot の既定値）、対象のファイルは
 // 一時ディレクトリの git リポジトリに置く。実リポジトリの文章の中身には前提を置かない（書き換えの途中で変わる）。
 //
 // 状態空間の軸（判定に使う全入力）と、各セルに置いた入力:
@@ -11,15 +11,13 @@
 // | 文章の位置         | 本文 / インラインコード / コードブロック / frontmatter / コメント / 文字列       |
 // | コメントの言語     | JavaScript / シェル / YAML（取り出し方の状態は scripts/lib/text/code-comments.test.ts） |
 // | ファイルの場所     | 対象 / .agents/rules / private skill / スキルのコピー / .claude/ / .kaizen/ と archive / tests/ / シンボリックリンク / .md 以外 |
-// | 保留の一覧         | 在る / 無い / JSON でない / reason が空 / files が配列でない / 重複            |
-// | 保留したファイル   | 指摘あり / 指摘 0 件 / ファイルが無い                                         |
 // | 実行のしかた       | 全体（引数なし）/ ファイル指定（lefthook）/ 対象 0 件                          |
 import { afterAll, assert, beforeAll, describe, expect, test, vi } from "vitest";
 import { spawnSync } from "node:child_process";
 import { readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PENDING_PATH, lintProse, loadPending, main } from "./lint-prose.ts";
+import { lintProse, main } from "./lint-prose.ts";
 import { COMMENT_EXTENSIONS } from "../../lib/text/code-comments.ts";
 import { write } from "../../lib/testing/repo-file.ts";
 import { makeSharedTempDir, makeTempDir } from "../../lib/testing/test-tmpdir.ts";
@@ -42,20 +40,17 @@ const CLEAN = "# 手順\n\nこの手順でファイルを確認する。\n";
 const DIRTY = "# 手順\n\n一覧はこのファイルが正本である。\n";
 // textlint-enable
 
-/** `files` を置いて git に登録し、`pending` を保留の一覧として書いた一時リポジトリ。 */
-function makeRepo(files: Record<string, string>, pending: string[] | null = []) {
+/** `files` を置いて git に登録した一時リポジトリ。 */
+function makeRepo(files: Record<string, string>) {
   const root = makeTempDir("lint-prose-");
-  fillRepo(root, files, pending);
+  fillRepo(root, files);
   return root;
 }
 
 /** `makeRepo` の中身を、作ったディレクトリ `root` に置く。 */
-function fillRepo(root: string, files: Record<string, string>, pending: string[] | null = []) {
+function fillRepo(root: string, files: Record<string, string>) {
   spawnSync("git", ["init", "-q"], { timeout: CHILD_TIMEOUT_MS, cwd: root });
   for (const [p, t] of Object.entries(files)) write(root, p, t);
-  if (pending !== null) {
-    write(root, PENDING_PATH, JSON.stringify({ reason: "書き換え前", files: pending }));
-  }
   spawnSync("git", ["add", "-A"], { timeout: CHILD_TIMEOUT_MS, cwd: root });
 }
 
@@ -92,7 +87,6 @@ describe("単語帳: 各エントリの example が、そのエントリの mess
   beforeAll(async () => {
     spawnSync("git", ["init", "-q"], { timeout: CHILD_TIMEOUT_MS, cwd: root });
     words.entries.forEach((e, i) => write(root, fileOf(i), `# 例\n\n${e.example}\n`));
-    write(root, PENDING_PATH, JSON.stringify({ reason: "書き換え前", files: [] }));
     spawnSync("git", ["add", "-A"], { timeout: CHILD_TIMEOUT_MS, cwd: root });
     ({ violations } = await lintProse({ root }));
   }, 120_000);
@@ -164,7 +158,7 @@ test("陰性: スキルのコピー・エージェント用のリンク・過去
   symlinkSync(join(root, "tests/x/result.md"), join(root, "link.md"));
   spawnSync("git", ["add", "-A"], { timeout: CHILD_TIMEOUT_MS, cwd: root });
   const result = await lintProse({ root });
-  expect(result).toEqual({ checked: 2, pending: 0, violations: [], stale: [] });
+  expect(result).toEqual({ checked: 2, violations: [] });
 });
 
 test("陰性: 英語で書くスライドの文書（英語のストーリーラインと指示）は見ない", async () => {
@@ -173,7 +167,7 @@ test("陰性: 英語で書くスライドの文書（英語のストーリーラ
     "docs/slides/storylines/en/01.md": DIRTY,
     "docs/slides/prompts/brief.md": DIRTY,
   });
-  expect(await lintProse({ root })).toEqual({ checked: 1, pending: 0, violations: [], stale: [] });
+  expect(await lintProse({ root })).toEqual({ checked: 1, violations: [] });
 });
 
 test("陽性: 英語の置き場所と名前の似た日本語の文書は見る", async () => {
@@ -215,7 +209,7 @@ test("陽性: ignore されていない未追跡のファイルも見る", async
   expect((await lintProse({ root })).violations).toHaveLength(1);
 });
 
-test("ファイル指定: 渡したもののうち対象だけを見る（保留していないファイルの指摘は報告する）", async () => {
+test("ファイル指定: 渡したもののうち対象だけを見る", async () => {
   const root = makeRepo({ "a.md": DIRTY, "b.md": DIRTY, "tests/x/c.md": DIRTY });
   const result = await lintProse({ root, files: ["a.md", "tests/x/c.md"] });
   expect(result.checked).toBe(1);
@@ -225,12 +219,7 @@ test("ファイル指定: 渡したもののうち対象だけを見る（保留
 
 test("ファイル指定: 対象が 0 件でも失敗にしない（lefthook は .md 以外の staged も渡しうる）", async () => {
   const root = makeRepo({ "a.md": DIRTY });
-  expect(await lintProse({ root, files: ["notes.txt"] })).toEqual({
-    checked: 0,
-    pending: 0,
-    violations: [],
-    stale: [],
-  });
+  expect(await lintProse({ root, files: ["notes.txt"] })).toEqual({ checked: 0, violations: [] });
 });
 
 test("全体: 対象が 0 件なら例外にする（何も見ていない実行を合格として扱わない）", async () => {
@@ -441,30 +430,13 @@ test("文の長さの指摘に、Markdown の行番号を残さない", async ()
   expect(lengths[0]).toMatch(/^a\.js:3:\d+ sentence length\(\d+\) exceeds/);
 });
 
-test("陰性: コメントの指摘も、保留したファイルなら数えず、0 件になったら外すよう求める", async () => {
-  const dirty = await lintProse({
-    // textlint-disable
-    root: makeRepo({ "a.js": "// 一覧は正本である。\n" }, ["a.js"]),
-    // textlint-enable
-  });
-  expect(dirty).toEqual({ checked: 1, pending: 1, violations: [], stale: [] });
-  const clean = await lintProse({ root: makeRepo({ "a.js": "// 一覧を確かめる。\n" }, ["a.js"]) });
-  expect(clean.stale).toEqual([`a.js: 指摘が 0 件になった。${PENDING_PATH} から外す`]);
-});
-
 test("陽性: コメントを取り出せないシェルは、指摘として報告する", async () => {
   const { violations } = await lintProse({ root: makeRepo({ "a.sh": 'x="abc\n# 説明。\n' }) });
   expect(violations).toHaveLength(1);
   expect(violations[0]).toMatch(/^a\.sh:1:1 .*判定できない.*\(code-comments\)$/);
 });
 
-test("陽性: 保留したファイルでも、コメントを取り出せなければ報告する", async () => {
-  const { violations } = await lintProse({ root: makeRepo({ "a.sh": 'x="abc\n' }, ["a.sh"]) });
-  expect(violations).toHaveLength(1);
-  expect(violations[0]).toMatch(/^a\.sh:1:1 .*判定できない.*\(code-comments\)$/);
-});
-
-test("shfmt が無ければ、ファイルの指摘にせず例外にし、main は保留の一覧を名指ししない exit 2", async () => {
+test("shfmt が無ければ、ファイルの指摘にせず例外にし、main は exit 2", async () => {
   const root = makeRepo({ "a.sh": "# 説明。\n" });
   // git は要るので、git へのリンクだけを置いたディレクトリを PATH にする（shfmt の置き場所に依らない）。
   const bin = makeTempDir("git-only-");
@@ -488,7 +460,6 @@ test("shfmt が無ければ、ファイルの指摘にせず例外にし、main 
     spy.mockRestore();
   }
   expect(errors.join("\n")).toMatch(/^lint-prose: 実行できない: shfmt を起動できない/m);
-  expect(errors.join("\n")).not.toContain(PENDING_PATH);
 });
 
 test("lefthook の prose の glob は、Markdown とコメントを持つ拡張子と evals.json に一致する", () => {
@@ -503,71 +474,20 @@ test("lefthook の prose の glob は、Markdown とコメントを持つ拡張�
   expect(exts.sort()).toEqual([".md", ".json", ...COMMENT_EXTENSIONS].sort());
 });
 
-// ---- 保留の一覧 ----
-
-test("陰性: 保留したファイルの指摘は数えない", async () => {
-  const root = makeRepo({ "a.md": DIRTY, "b.md": CLEAN }, ["a.md"]);
-  expect(await lintProse({ root })).toEqual({ checked: 2, pending: 1, violations: [], stale: [] });
-});
-
-test("陽性: 保留したファイルの指摘が 0 件になったら、一覧から外すよう求める", async () => {
-  const root = makeRepo({ "a.md": CLEAN }, ["a.md"]);
-  const { stale } = await lintProse({ root });
-  expect(stale).toEqual([`a.md: 指摘が 0 件になった。${PENDING_PATH} から外す`]);
-});
-
-test("陽性: 保留したファイルが無ければ、一覧から外すよう求める（全体を見るときだけ）", async () => {
-  const root = makeRepo({ "a.md": CLEAN }, ["gone.md"]);
-  expect((await lintProse({ root })).stale).toEqual([
-    `gone.md: ファイルが無い。${PENDING_PATH} から外す`,
-  ]);
-  expect((await lintProse({ root, files: ["a.md"] })).stale).toEqual([]);
-});
-
-test.each([
-  ["無い", null, "が無い"],
-  ["JSON でない", "{", "JSON"],
-  ["reason が空", JSON.stringify({ reason: " ", files: [] }), "reason"],
-  ["files が配列でない", JSON.stringify({ reason: "r", files: "a.md" }), "files"],
-  ["files に空文字", JSON.stringify({ reason: "r", files: [""] }), "files"],
-  ["files が重複", JSON.stringify({ reason: "r", files: ["a.md", "a.md"] }), "重複"],
-])("保留の一覧が%sなら例外にする", (_, text, message) => {
-  const root = makeRepo({ "a.md": CLEAN }, null);
-  if (text !== null) write(root, PENDING_PATH, text);
-  expect(() => loadPending(root)).toThrow(message);
-});
-
 // ---- CLI ----
 
-test("main: 指摘があれば 1、無ければ 0、一覧が読めなければ 2 を返す", async () => {
+test("main: 指摘があれば 1、無ければ 0、対象が 0 件なら 2 を返す", async () => {
   const cwd = process.cwd();
   try {
     process.chdir(makeRepo({ "a.md": DIRTY }));
     expect(await main([])).toBe(1);
     process.chdir(makeRepo({ "a.md": CLEAN }));
     expect(await main([])).toBe(0);
-    process.chdir(makeRepo({ "a.md": CLEAN }, null));
+    process.chdir(makeRepo({ "notes.txt": "x" }));
     expect(await main([])).toBe(2);
   } finally {
     process.chdir(cwd);
   }
-});
-
-test("main: 保留の一覧のパスは、一覧を読めないときだけ示す", async () => {
-  const cwd = process.cwd();
-  const errors: string[] = [];
-  const spy = vi.spyOn(console, "error").mockImplementation((m) => errors.push(String(m)));
-  try {
-    process.chdir(makeRepo({ "a.md": CLEAN }, null));
-    expect(await main([])).toBe(2);
-  } finally {
-    process.chdir(cwd);
-    spy.mockRestore();
-  }
-  // パスは 1 回だけ出す（loadPending が付け、内側の message には付けない）。
-  expect(errors.join("\n")).toMatch(
-    /^lint-prose: 実行できない: [^:]*prose-lint-pending\.json: ファイルが無い$/m,
-  );
 });
 
 test("検出の確認（CLI）: 子プロセスとして起動しても、指摘は exit 1、無ければ exit 0", async () => {

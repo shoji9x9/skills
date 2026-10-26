@@ -7,15 +7,13 @@
 //
 // 判定規則:
 // - 設定のスキーマ（skills/<name>/config-schemas/）を持つスキルは、読み取りと、同梱したパーサの 3 つを持つ。
-//   読み取りは scripts/skill-config/skill-config.mjs で、同じ内容であることは identical-copies.json の組が確かめる。
+//   読み取りは scripts/skill-config/skill-config.mjs で、同じ内容であることは copies/check-identical-copies.ts が確かめる。
 //   パーサは scripts/skill-config/vendor/ の jsonc-parser.mjs・jsonc-parser.d.mts・LICENSE.md である。
 // - vendor/ の 3 つは、devDependency の jsonc-parser から作った内容とバイト単位で一致する。
 //   jsonc-parser.mjs は esbuild で 1 ファイルにまとめたもの、jsonc-parser.d.mts は lib/esm/main.d.ts、
 //   LICENSE.md は jsonc-parser の LICENSE.md である。
 // - スキーマを持たないスキルが scripts/skill-config/ を持つのも違反にする（使われない同梱物を配らない）。
 // - スキーマを持つスキルは references/config-files.md（設定ファイルの共通の文書）も持つ。
-// - 複数のスキルが同じ内容で持つファイル（読み取り・config-files.md・同じ名前のスキーマ）は、持つスキルのすべてのパスが
-//   identical-copies.json の 1 つの組に載っている。内容の比較はその組が行う。組に足し忘れたコピーは比べられないので、ここで挙げる。
 // - スキーマを持つスキルが 0 件なら exit 2（対象 0 件を合格として扱わない）。
 // - `--fix` を付けると、vendor/ の 3 つを作り直して書く。読み取り（skill-config.mjs）は手で直す。
 import {
@@ -32,43 +30,12 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 import { errorMessage } from "../../lib/errors.ts";
-import { isArray } from "../../lib/is-array.ts";
 
 export const SCHEMA_DIR = "config-schemas";
 export const READER = "scripts/skill-config/skill-config.mjs";
 export const VENDOR_DIR = "scripts/skill-config/vendor";
 export const VENDOR_FILES = ["jsonc-parser.mjs", "jsonc-parser.d.mts", "LICENSE.md"] as const;
 export const SHARED_DOC = "references/config-files.md";
-export const COPIES_CONFIG = "scripts/gates/packaging/copies/identical-copies.json";
-
-/** identical-copies.json の組（ファイルのパスの一覧）。 */
-export function copyGroups(root: string): string[][] {
-  const raw: unknown = JSON.parse(readFileSync(join(root, COPIES_CONFIG), "utf8"));
-  const groups =
-    typeof raw === "object" && raw !== null && "groups" in raw ? raw.groups : undefined;
-  if (!isArray(groups)) throw new Error(`${COPIES_CONFIG}: groups が配列でない`);
-  return groups.map((g: unknown, i) => {
-    const files = typeof g === "object" && g !== null && "files" in g ? g.files : undefined;
-    if (!isArray(files) || !files.every((f) => typeof f === "string"))
-      throw new Error(`${COPIES_CONFIG}: groups[${i}].files が文字列の配列でない`);
-    return files;
-  });
-}
-
-/** paths のすべてが 1 つの組に載っていなければ、載っていないパスを挙げる。 */
-export function missingFromGroup(paths: string[], groups: string[][], what: string): Finding[] {
-  if (paths.length < 2) return [];
-  const best = groups
-    .map((files) => ({ files, hit: paths.filter((p) => files.includes(p)).length }))
-    .sort((a, b) => b.hit - a.hit)[0];
-  const inGroup = best === undefined || best.hit === 0 ? [] : best.files;
-  return paths
-    .filter((p) => !inGroup.includes(p))
-    .map((p) => ({
-      path: p,
-      message: `${COPIES_CONFIG} の${what}の組に無い（同じ内容であることを比べられない。組に足す）`,
-    }));
-}
 
 /** jsonc-parser のパッケージのディレクトリと版。 */
 export function jsoncParserPackage(root: string): { dir: string; version: string } {
@@ -191,29 +158,6 @@ function vendorFindings(
   return findings;
 }
 
-/** スキルの間で同じであるべきファイル（読み取り・共有の文書・スキーマ）が、コピーの組に載っているかを確かめる。 */
-function groupFindings(root: string, withSchema: string[]): Finding[] {
-  const findings: Finding[] = [];
-  const groups = copyGroups(root);
-  for (const rel of [READER, SHARED_DOC]) {
-    const paths = withSchema
-      .map((n) => `skills/${n}/${rel}`)
-      .filter((p) => existsSync(join(root, p)));
-    findings.push(...missingFromGroup(paths, groups, ` ${rel} `));
-  }
-  const schemas = new Map<string, string[]>();
-  for (const name of withSchema) {
-    for (const file of readdirSync(join(root, "skills", name, SCHEMA_DIR)).sort()) {
-      const list = schemas.get(file) ?? [];
-      list.push(`skills/${name}/${SCHEMA_DIR}/${file}`);
-      schemas.set(file, list);
-    }
-  }
-  for (const [file, paths] of schemas)
-    findings.push(...missingFromGroup(paths, groups, ` ${file} `));
-  return findings;
-}
-
 /** 食い違いを列挙する。fix なら vendor/ を書き直す。 */
 export async function check(root: string, fix: boolean): Promise<Finding[]> {
   const { withSchema, withReader } = skillsWithConfig(root);
@@ -230,7 +174,6 @@ export async function check(root: string, fix: boolean): Promise<Finding[]> {
     findings.push(...missingSharedFiles(root, name));
     findings.push(...vendorFindings(root, name, { expected, fix }));
   }
-  findings.push(...groupFindings(root, withSchema));
   return findings;
 }
 

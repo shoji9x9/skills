@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
-// 一時ディレクトリの fixture リポジトリの学びのパス。check-kaizen-refs が、このリポジトリの学びへの参照と読まないよう、組み立てて書く。
+// 一時ディレクトリの fixture リポジトリの学びのパス。
 export const noteRef = (name: string) => `.kaizen/${name}`;
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");

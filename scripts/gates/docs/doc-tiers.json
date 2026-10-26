@@ -1,8 +1,8 @@
 {
   "$comment": [
-    "文書の階層（Tier）の原本。.agents/rules/doc-altitude.md の表は、ここから scripts/gates/docs/check-doc-tiers.ts --fix で生成する。",
-    "docs の glob は Markdown の分類に使う。glob を持たない項目（text）は、ファイルで分けられない文書を表に出すためのもの。",
-    "Markdown はちょうど 1 つの項目（tiers か outside）に当たらなければならない。コピーとリンク（scripts/lib/source-scope.ts）は数えない。"
+    "文書の階層（Tier）。文書のチェックの走査対象（scripts/gates/docs/doc-scan-files.ts）が、scripts/gates/docs/doc-tiers.ts で読む。",
+    ".agents/rules/doc-altitude.md の表と同じ内容に保つ。どちらかを変えたら、もう一方も直す。",
+    "docs の glob は Markdown の分類に使う。glob を持たない項目（label）は、ファイルで分けられない文書を表に出すためのもの。"
   ],
   "tiers": [
     {

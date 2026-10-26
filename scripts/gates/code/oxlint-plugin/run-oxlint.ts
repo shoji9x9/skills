@@ -1,5 +1,5 @@
-// oxlint を実物のまま起動し、診断を読む（check-skill-lint-directives.ts・oxlint-pending.ts のテスト・oxlint-plugin/ のテストが使う）。
-// 本番のチェックも使うので、テスト用の補助（lib/testing/）を import しない。テスト用の補助は run-rule.ts に置く。
+// oxlint を実物のまま起動し、診断を読む（oxlint-pending.ts のテスト・oxlint-plugin/ のテスト・replace-strategy のテストが使う）。
+// テスト用の補助（lib/testing/）は import しない。テスト用の補助は run-rule.ts に置く。
 import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";

@@ -1,53 +1,43 @@
 {
   "$comment": [
-    "scripts/gates/docs/check-doc-refs.test.ts の検出能力を示す変異の一覧（参照のチェックと、scripts/gates/docs/doc-scan-files.ts の走査対象・scripts/lib/doc-scan.ts の保留）。",
+    "scripts/gates/docs/check-doc-refs.test.ts の検出能力を示す変異の一覧（参照のチェックと、scripts/gates/docs/doc-scan-files.ts の走査対象・scripts/lib/doc-scan.ts の許可）。",
     "散文コメントで持つと古くなるため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
   ],
   "test_file": "scripts/gates/docs/check-doc-refs.test.ts",
   "mutations": [
     {
-      "id": "DS-PENDING-MATCH",
-      "why": "保留に一致する違反も失敗にする",
+      "id": "DS-ALLOWED-MATCH",
+      "why": "許可に一致する違反も失敗にする",
       "file": "scripts/lib/doc-scan.ts",
-      "find": "else if (pending.has(k)) {",
-      "replace": "else if (false) {",
+      "find": "if (allowed.has(k)) usedAllowed.add(k);",
+      "replace": "if (false) usedAllowed.add(k);",
       "occurrences": 1,
       "expect_failing": [
-        "保留: 一致は失敗にしない。古い保留・使われない許可は失敗にし、他のチェックの規則は見ない"
+        "許可: 一致は失敗にしない。使われない許可は失敗にし、他のチェックの規則は見ない"
       ]
     },
     {
-      "id": "DS-STALE",
-      "why": "古い保留を失敗にしない",
+      "id": "DS-UNUSED",
+      "why": "使われていない許可を失敗にしない",
       "file": "scripts/lib/doc-scan.ts",
-      "find": ".filter(([k]) => !usedPending.has(k))",
-      "replace": ".filter(() => false)",
+      "find": "if (!usedAllowed.has(k))",
+      "replace": "if (false)",
       "occurrences": 1,
       "expect_failing": [
-        "保留: 一致は失敗にしない。古い保留・使われない許可は失敗にし、他のチェックの規則は見ない",
-        "--prune は古い保留を消して exit 0 にする"
+        "許可: 一致は失敗にしない。使われない許可は失敗にし、他のチェックの規則は見ない"
       ]
     },
     {
       "id": "DS-RULES",
-      "why": "他のチェックの規則の保留も古いと判定する",
+      "why": "他のチェックの規則の許可も使われていないと判定する",
       "file": "scripts/lib/doc-scan.ts",
-      "find": "const mine = (e: EntryKey) => rules.includes(e.rule);",
-      "replace": "const mine = () => true;",
+      "find": "list.filter((e) => rules.includes(e.rule))",
+      "replace": "list.filter(() => true)",
       "occurrences": 1,
       "expect_failing": [
-        "保留: 一致は失敗にしない。古い保留・使われない許可は失敗にし、他のチェックの規則は見ない"
+        "許可: 一致は失敗にしない。使われない許可は失敗にし、他のチェックの規則は見ない"
       ]
-    },
-    {
-      "id": "DS-PRUNE",
-      "why": "--prune で古い保留を消さない",
-      "file": "scripts/lib/doc-scan.ts",
-      "find": "data.pending = data.pending.filter((e) => !drop.has(key(e)));",
-      "replace": "data.pending = data.pending;",
-      "occurrences": 1,
-      "expect_failing": ["--prune は古い保留を消して exit 0 にする"]
     }
   ]
 }
