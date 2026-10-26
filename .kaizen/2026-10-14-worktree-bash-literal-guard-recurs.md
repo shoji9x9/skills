@@ -118,6 +118,13 @@ python の heredoc の 1 回は、本文の文字列に `git` の語があった
 単独の呼び出しに分けて通した。同じ形（`bash` の起動と `; echo rc=$?` の組）は、この記録の #655 の箇条に既に書いてある。
 同じ作業で、python の quoted heredoc で benchmark.md を置換し、続けて `git add` と `git status` をつないだ呼び出しも、`feeds python text naming git in a plain command` で拒否された。Write ツールで書き直して通した。
 
+2026-10-26、#760 の作業（issue-start から worktree に入った後）で、Bash の呼び出しが 1 回拒否された。
+拒否された形は、`for` ループで `gh issue view` を 4 回呼び、`--jq` に `\(.number)` を含む式を渡したものである。
+拒否のメッセージは `names git in a form too complex to verify` で、git を実行しない呼び出しでも、検証できない形として止められた。
+`gh issue list --search` の 1 回の呼び出しに書き換えて通した。
+この学びはセッション開始時に注入されていたが、ループを書く時点では参照されなかった。
+ループと jq の文字列の補間という、この記録に既に書いた形と同じ原因である。
+
 ## 根本原因
 
 1. なぜ拒否されたか → 隔離セッションのガードは字面で判定し、本文・引数・パスに `git` を含む複合コマンドや heredoc を拒否する。
