@@ -180,14 +180,11 @@ function isKeyPart(v) {
 }
 
 /**
- * 採取ファイル（perf-samples.json）を検証し、組ごとの値の列にまとめる。
- * 形の誤りは UsageError にする（判定できない入力を、判定した結果として扱わない）。
- * @param {unknown} doc
- * @param {{ side: "current" | "new", slug: string, target: (string|null) }} expect - 現側の target は null
- * @returns {Map<string, { page:string, viewport:string, values: Record<string, (number|null)[]> }>}
+ * 採取の版・側・target・slug が、期待するものと一致するかを確かめる。
+ * @param {Record<string, unknown>} doc
+ * @param {{ side: "current" | "new", slug: string, target: (string|null) }} expect
  */
-export function groupSamples(doc, expect) {
-  if (!isPlainObject(doc)) throw new UsageError("採取がオブジェクトでない");
+function checkSamplesHeader(doc, expect) {
   if (doc.version !== SAMPLES_VERSION) {
     throw new UsageError(
       `採取の version が ${SAMPLES_VERSION} でない: ${JSON.stringify(doc.version)}`,
@@ -205,6 +202,13 @@ export function groupSamples(doc, expect) {
   if (doc.slug !== expect.slug) {
     throw new UsageError(`採取の slug が metadata.json と違う: ${JSON.stringify(doc.slug)}`);
   }
+}
+
+/**
+ * 採取の environment の各項目の型を確かめる。
+ * @param {Record<string, unknown>} doc
+ */
+function checkSamplesEnvironment(doc) {
   if (!isPlainObject(doc.environment)) throw new UsageError("採取に environment が無い");
   if (typeof getPath(doc.environment, "headless") !== "boolean") {
     throw new UsageError("採取の environment.headless が真偽値でない");
@@ -241,8 +245,14 @@ export function groupSamples(doc, expect) {
       throw new UsageError(`採取の environment.${key} がオブジェクトでない`);
     }
   }
-  const settings = doc.settings;
-  if (!isPlainObject(settings)) throw new UsageError("採取に settings が無い");
+}
+
+/**
+ * 採取の settings（測り方）を確かめ、1 組あたりの回数を返す。
+ * @param {Record<string, unknown>} settings
+ * @returns {number}
+ */
+function checkSamplesSettings(settings) {
   const runs = settings.runs;
   if (typeof runs !== "number" || !Number.isInteger(runs) || runs < MIN_RUNS) {
     throw new UsageError(
@@ -273,45 +283,75 @@ export function groupSamples(doc, expect) {
   if (settings.cache !== "cold") {
     throw new UsageError(`settings.cache が "cold" でない: ${JSON.stringify(settings.cache)}`);
   }
+  return runs;
+}
+
+/**
+ * groupSamples が組ごとにまとめる途中の値。`runs` は、組の中で見た回の番号である。
+ * @typedef {{ page:string, viewport:string, values: Record<string, (number|null)[]>, runs: Set<number> }} SampleGroup
+ */
+
+/**
+ * 1 回分の測定（samples の 1 要素）を検証し、その組に加える。
+ * @param {{ groups: Map<string, SampleGroup>, runs: number }} ctx - runs は settings.runs
+ * @param {unknown} s
+ * @param {number} i - samples の中の位置（誤りの報告に使う）
+ */
+function addSample(ctx, s, i) {
+  if (!isPlainObject(s)) throw new UsageError(`samples[${i}] がオブジェクトでない`);
+  if (!isKeyPart(s.page) || !isKeyPart(s.viewport)) {
+    throw new UsageError(`samples[${i}] の page / viewport が空か "${KEY_SEPARATOR}" を含む`);
+  }
+  const run = s.run;
+  if (typeof run !== "number" || !Number.isInteger(run) || run < 1 || run > ctx.runs) {
+    // 重複が無く件数も合えば、run の集合は 1..settings.runs と一致する
+    throw new UsageError(`samples[${i}] の run が 1 から settings.runs までの整数でない`);
+  }
+  const key = pairKey(s.page, s.viewport);
+  let g = ctx.groups.get(key);
+  if (!g) {
+    g = { page: s.page, viewport: s.viewport, values: {}, runs: new Set() };
+    for (const m of METRICS) g.values[m] = [];
+    ctx.groups.set(key, g);
+  }
+  if (g.runs.has(run)) {
+    throw new UsageError(`samples[${i}] の run が組 ${key} の中で重複する: ${s.run}`);
+  }
+  g.runs.add(run);
+  for (const m of METRICS) {
+    const v = s[m];
+    // LCP だけは候補が出ない回がある（描画する内容が無い頁）。他の指標は必ず値がある
+    const nullable = m === "lcp";
+    if (v === null && nullable) {
+      g.values[m].push(null);
+    } else if (nonNegativeNumber(v)) {
+      g.values[m].push(v);
+    } else {
+      throw new UsageError(`samples[${i}] の ${m} が 0 以上の数でない: ${JSON.stringify(v)}`);
+    }
+  }
+}
+
+/**
+ * 採取ファイル（perf-samples.json）を検証し、組ごとの値の列にまとめる。
+ * 形の誤りは UsageError にする（判定できない入力を、判定した結果として扱わない）。
+ * @param {unknown} doc
+ * @param {{ side: "current" | "new", slug: string, target: (string|null) }} expect - 現側の target は null
+ * @returns {Map<string, { page:string, viewport:string, values: Record<string, (number|null)[]> }>}
+ */
+export function groupSamples(doc, expect) {
+  if (!isPlainObject(doc)) throw new UsageError("採取がオブジェクトでない");
+  checkSamplesHeader(doc, expect);
+  checkSamplesEnvironment(doc);
+  const settings = doc.settings;
+  if (!isPlainObject(settings)) throw new UsageError("採取に settings が無い");
+  const runs = checkSamplesSettings(settings);
   if (!isArray(doc.samples) || doc.samples.length === 0) {
     throw new UsageError("採取の samples が空か配列でない");
   }
-  /** @type {Map<string, { page:string, viewport:string, values: Record<string, (number|null)[]>, runs: Set<number> }>} */
+  /** @type {Map<string, SampleGroup>} */
   const groups = new Map();
-  doc.samples.forEach((s, i) => {
-    if (!isPlainObject(s)) throw new UsageError(`samples[${i}] がオブジェクトでない`);
-    if (!isKeyPart(s.page) || !isKeyPart(s.viewport)) {
-      throw new UsageError(`samples[${i}] の page / viewport が空か "${KEY_SEPARATOR}" を含む`);
-    }
-    const run = s.run;
-    if (typeof run !== "number" || !Number.isInteger(run) || run < 1 || run > runs) {
-      // 重複が無く件数も合えば、run の集合は 1..settings.runs と一致する
-      throw new UsageError(`samples[${i}] の run が 1 から settings.runs までの整数でない`);
-    }
-    const key = pairKey(s.page, s.viewport);
-    let g = groups.get(key);
-    if (!g) {
-      g = { page: s.page, viewport: s.viewport, values: {}, runs: new Set() };
-      for (const m of METRICS) g.values[m] = [];
-      groups.set(key, g);
-    }
-    if (g.runs.has(run)) {
-      throw new UsageError(`samples[${i}] の run が組 ${key} の中で重複する: ${s.run}`);
-    }
-    g.runs.add(run);
-    for (const m of METRICS) {
-      const v = s[m];
-      // LCP だけは候補が出ない回がある（描画する内容が無い頁）。他の指標は必ず値がある
-      const nullable = m === "lcp";
-      if (v === null && nullable) {
-        g.values[m].push(null);
-      } else if (nonNegativeNumber(v)) {
-        g.values[m].push(v);
-      } else {
-        throw new UsageError(`samples[${i}] の ${m} が 0 以上の数でない: ${JSON.stringify(v)}`);
-      }
-    }
-  });
+  doc.samples.forEach((s, i) => addSample({ groups, runs }, s, i));
   for (const [key, g] of groups) {
     if (g.runs.size !== settings.runs) {
       throw new UsageError(
@@ -424,6 +464,22 @@ export function parseFloors(specs, defaults = DEFAULT_FLOORS, flag = "--floor") 
 }
 
 /**
+ * 期待する組の順に、採取した組の各指標を集計する。採取に無い組は飛ばす。
+ * @param {string[]} expected
+ * @param {Map<string, { page:string, viewport:string, values: Record<string, (number|null)[]> }>} groups
+ */
+function summarizePairs(expected, groups) {
+  return expected.flatMap((k) => {
+    const g = groups.get(k);
+    if (!g) return [];
+    /** @type {Record<string, ReturnType<typeof summarizeValues>>} */
+    const metrics = {};
+    for (const m of METRICS) metrics[m] = summarizeValues(g.values[m]);
+    return [{ page: g.page, viewport: g.viewport, metrics }];
+  });
+}
+
+/**
  * 現側の採取を集計する。
  * @param {Record<string, unknown>} metadata
  * @param {unknown} samplesDoc
@@ -454,14 +510,6 @@ export function summarize(metadata, samplesDoc, opts) {
   // groupSamples がオブジェクトでない採取を先に拒否しているので、ここには到達しない
   if (!isPlainObject(samplesDoc)) throw new UsageError("採取がオブジェクトでない");
   const doc = samplesDoc;
-  const pairs = expected.flatMap((k) => {
-    const g = groups.get(k);
-    if (!g) return [];
-    /** @type {Record<string, ReturnType<typeof summarizeValues>>} */
-    const metrics = {};
-    for (const m of METRICS) metrics[m] = summarizeValues(g.values[m]);
-    return [{ page: g.page, viewport: g.viewport, metrics }];
-  });
   return {
     ok: missing.length === 0 && extra.length === 0,
     missing,
@@ -478,7 +526,7 @@ export function summarize(metadata, samplesDoc, opts) {
       relative_floors: opts.relativeFloors,
       floor_history: floorHistory(metadata.performance, samplesDoc, opts),
       capture: captureDefinition(metadata),
-      pairs,
+      pairs: summarizePairs(expected, groups),
       reason: null,
     },
   };
@@ -540,12 +588,10 @@ export function floorHistory(previous, samplesDoc, opts) {
  * 引き継ぐ表や指標が無ければ、その分はデフォルトを使う（前の版の基準でも summarize で通し直せるようにする）。
  * 値が在るのに 0 以上の数でなければ、デフォルトへ戻さずに使い方の誤りにする。ただし、その指標をフラグで渡したときは上書きするので止めない。
  * @param {unknown} previous - 書き換える前の metadata.json の performance
- * @param {string} key - `floors` か `relative_floors`
- * @param {Record<string, number>} defaults
- * @param {string[]} [overridden] - フラグで渡した指標
+ * @param {{ key: string, defaults: Record<string, number>, overridden?: string[] }} spec - key は `floors` か `relative_floors`、overridden はフラグで渡した指標
  * @returns {Record<string, number>}
  */
-export function baseFloors(previous, key, defaults, overridden = []) {
+export function baseFloors(previous, { key, defaults, overridden = [] }) {
   // すべての指標をフラグで渡したときは何も引き継がないので、履歴の末尾や表が読めなくても止めない（フラグだけで復旧できる）。
   // 履歴そのものが配列でないときは、ここでは空として扱うが、続く floorHistory がフラグに関わらず止める（フラグでは復旧できない）。
   if (!isPlainObject(previous) || METRICS.every((m) => overridden.includes(m)))
@@ -590,12 +636,11 @@ export function baseFloors(previous, key, defaults, overridden = []) {
  * フラグで渡した下限（parseFloors が検査した表）を、引き継ぐ下限に重ねる。
  * @param {Record<string, number>} given - フラグで渡した指標だけの表
  * @param {unknown} previous
- * @param {string} key
- * @param {Record<string, number>} defaults
+ * @param {{ key: string, defaults: Record<string, number> }} spec
  * @returns {Record<string, number>}
  */
-function withBase(given, previous, key, defaults) {
-  return { ...baseFloors(previous, key, defaults, Object.keys(given)), ...given };
+function withBase(given, previous, { key, defaults }) {
+  return { ...baseFloors(previous, { key, defaults, overridden: Object.keys(given) }), ...given };
 }
 
 /**
@@ -607,11 +652,10 @@ function withBase(given, previous, key, defaults) {
  * 1 つの指標を判定する。
  * @param {MetricStats} cur
  * @param {MetricStats} neu
- * @param {number} floor - 絶対の下限
- * @param {number} [relativeFloor] - 現側の中央値に対する割合の下限
+ * @param {{ floor: number, relativeFloor?: number }} limits - floor は絶対の下限、relativeFloor は現側の中央値に対する割合の下限
  * @returns {{ status: string, delta: (number|null), tolerance: (number|null) }}
  */
-export function judgeMetric(cur, neu, floor, relativeFloor = 0) {
+export function judgeMetric(cur, neu, { floor, relativeFloor = 0 }) {
   if (cur.nulls === cur.n && neu.nulls === neu.n) {
     return { status: "not_applicable", delta: null, tolerance: null };
   }
@@ -746,12 +790,30 @@ export function loosenedFloors(perf) {
 }
 
 /**
- * 新側の採取を、metadata.json の performance と比べる。
- * @param {Record<string, unknown>} metadata
- * @param {unknown} samplesDoc
- * @param {{ currentSamplesSha256: (string|null), currentSamplesDoc?: unknown, target: string }} opts - 現側の採取ファイルを今読んだ sha256（読めなければ null）
+ * performance.floors・relative_floors の各指標が 0 以上の数であることを確かめる。
+ * @param {Record<string, unknown>} perf
  */
-export function compare(metadata, samplesDoc, opts) {
+function checkFloorTables(perf) {
+  for (const key of ["floors", "relative_floors"]) {
+    const table = perf[key];
+    // 直前で floors・relative_floors がオブジェクトであることを確かめているので、ここには到達しない。
+    // 到達したらこのスクリプトの不具合なので、TypeError にする（UsageError にすると、直前の確かめを外しても同じ出口で通ってしまう）
+    if (!isPlainObject(table)) throw new TypeError(`performance.${key} の欄を読めない`);
+    for (const m of METRICS) {
+      const f = table[m];
+      if (!nonNegativeNumber(f)) {
+        throw new UsageError(`performance.${key}.${m} が 0 以上の数でない`);
+      }
+    }
+  }
+}
+
+/**
+ * compare が読む基準（metadata.json の performance）の形を確かめ、確かめた欄を返す。
+ * @param {Record<string, unknown>} metadata
+ * @param {{ target: string }} opts
+ */
+function checkBaseline(metadata, opts) {
   if (!nonEmptyString(opts.target)) throw new UsageError("比べる新側の target が無い（--target）");
   const perf = metadata.performance;
   if (!isPlainObject(perf)) {
@@ -773,18 +835,7 @@ export function compare(metadata, samplesDoc, opts) {
   if (!isPlainObject(perf.relative_floors)) {
     throw new UsageError("performance.relative_floors が無い（summarize を通し直す）");
   }
-  for (const key of ["floors", "relative_floors"]) {
-    const table = perf[key];
-    // 直前で floors・relative_floors がオブジェクトであることを確かめているので、ここには到達しない。
-    // 到達したらこのスクリプトの不具合なので、TypeError にする（UsageError にすると、直前の確かめを外しても同じ出口で通ってしまう）
-    if (!isPlainObject(table)) throw new TypeError(`performance.${key} の欄を読めない`);
-    for (const m of METRICS) {
-      const f = table[m];
-      if (!nonNegativeNumber(f)) {
-        throw new UsageError(`performance.${key}.${m} が 0 以上の数でない`);
-      }
-    }
-  }
+  checkFloorTables(perf);
   if (perf.tool_version !== VERSION) {
     // 判定の規則が変わった版で、古い版が書いた基準を読まない
     throw new UsageError(
@@ -794,24 +845,28 @@ export function compare(metadata, samplesDoc, opts) {
   if (!isPlainObject(perf.capture)) {
     throw new UsageError("performance.capture が無い（summarize を通し直す）");
   }
-  const groups = groupSamples(samplesDoc, {
-    side: "new",
+  return {
+    perf,
     slug: metadata.slug,
-    target: opts.target,
-  });
-  // groupSamples がオブジェクトでない採取を先に拒否しているので、ここには到達しない
-  if (!isPlainObject(samplesDoc)) throw new UsageError("採取がオブジェクトでない");
-  const neuDoc = samplesDoc;
+    pairs: perf.pairs,
+    floors: perf.floors,
+    relativeFloors: perf.relative_floors,
+  };
+}
+
+/**
+ * 基準が今の採取と組の定義を表しているかを調べる。どれかが真なら、基準は古い。
+ * @param {Record<string, unknown>} metadata
+ * @param {ReturnType<typeof checkBaseline>} base
+ * @param {{ currentSamplesSha256: (string|null), currentSamplesDoc?: unknown }} opts
+ */
+function baselineStaleness(metadata, base, opts) {
+  const { perf } = base;
   // 基準を採った後にページ・ビューポートが増減したか、path や寸法が変わったら、基準は今の組を表さない
   const staleCapture = JSON.stringify(perf.capture) !== JSON.stringify(captureDefinition(metadata));
-  if (!captureMatches(samplesDoc, metadata)) {
-    throw new UsageError(
-      "新側の採取の capture が metadata.json の capture_conditions と違う（今の定義で採り直す）",
-    );
-  }
   // 基準の統計は採取ファイルから計算し直したものと一致しなければ使わない（手で書き換えた中央値で回帰を隠さない）
   const staleSummary =
-    opts.currentSamplesDoc == null || !summaryMatches(perf, opts.currentSamplesDoc, metadata.slug);
+    opts.currentSamplesDoc == null || !summaryMatches(perf, opts.currentSamplesDoc, base.slug);
 
   // 基準を採った採取が、集計した後に採り直されていないか（集計は採取から作るので、元が変われば古い）。
   // 読めなかった（null）ときも sha256 の文字列と一致しないので、古い基準と同じく通さない。
@@ -819,7 +874,7 @@ export function compare(metadata, samplesDoc, opts) {
   // 基準の組が今の定義（ページ × ビューポート）とそろっているか。現側・新側の採取と基準から同じ組を削った成果物は、
   // 統計と sha256 が合っても欠けた組を含むので、古い基準として扱う
   const expected = expectedPairs(metadata);
-  const baselineKeys = perf.pairs.map((p) =>
+  const baselineKeys = base.pairs.map((p) =>
     isPlainObject(p) && isKeyPart(p.page) && isKeyPart(p.viewport)
       ? pairKey(p.page, p.viewport)
       : null,
@@ -829,11 +884,105 @@ export function compare(metadata, samplesDoc, opts) {
     baselineKeys.some((k) => k === null || !expected.includes(k));
   const staleBaseline =
     opts.currentSamplesSha256 !== perf.samples_sha256 || staleCapture || staleSummary || stalePairs;
+  return { staleBaseline, staleCapture, staleSummary, stalePairs };
+}
 
-  const differences = environmentDifferences(perf, neuDoc);
+/**
+ * 基準の 1 組 × 1 指標の統計の形を確かめ、判定に使う欄を返す。
+ * @param {unknown} cur - performance.pairs の要素の metrics の 1 指標
+ * @param {string} key - 組の鍵
+ * @param {string} m - 指標
+ * @returns {{ n: number, nulls: number, median: (number|null), iqr: (number|null) }}
+ */
+function baselineMetric(cur, key, m) {
+  if (
+    !isPlainObject(cur) ||
+    typeof cur.n !== "number" ||
+    !Number.isInteger(cur.n) ||
+    typeof cur.nulls !== "number" ||
+    !Number.isInteger(cur.nulls)
+  ) {
+    throw new UsageError(`performance.pairs の ${key} の ${m} の形が違う`);
+  }
+  // 手で書き換えた基準で、回数の足りない組や値の無い組を not_applicable として通さない
+  if (cur.n < MIN_RUNS || cur.nulls < 0 || cur.nulls > cur.n) {
+    throw new UsageError(
+      `performance.pairs の ${key} の ${m} の回数が範囲外（n は ${MIN_RUNS} 以上、nulls は 0 から n まで）`,
+    );
+  }
+  // 値のある組は 0 以上の数、すべて null の組は null（summarizeValues が書く形）でなければ、基準として読まない
+  const statsValid =
+    cur.nulls < cur.n
+      ? [cur.median, cur.iqr].every(nonNegativeNumber)
+      : cur.median === null && cur.iqr === null;
+  // statsValid が真なら median と iqr は数か null なので、後ろの 2 つの条件は判定を変えない
+  if (!statsValid || !isNumberOrNull(cur.median) || !isNumberOrNull(cur.iqr)) {
+    throw new UsageError(
+      `performance.pairs の ${key} の ${m} の median / iqr が回数と合わない（値のある組は 0 以上の数、すべて null の組は null）`,
+    );
+  }
+  return { n: cur.n, nulls: cur.nulls, median: cur.median, iqr: cur.iqr };
+}
+
+/**
+ * compare が組ごとの判定に使う、判定の前に決めた値。
+ * @typedef {{ groups: Map<string, { values: Record<string, (number|null)[]> }>, floors: Record<string, unknown>, relativeFloors: Record<string, unknown>, staleBaseline: boolean, differences: string[] }} JudgeContext
+ */
+
+/**
+ * 1 組 × 1 指標の判定の結果を作る。
+ * @param {{ page: string, viewport: string, metric: string, cur: MetricStats }} target - cur は基準の統計
+ * @param {JudgeContext} ctx
+ * @param {string} key - 組の鍵
+ */
+function judgePairMetric(target, ctx, key) {
+  const { page, viewport, metric: m, cur } = target;
+  const g = ctx.groups.get(key);
+  if (!g) {
+    return {
+      page,
+      viewport,
+      metric: m,
+      status: "missing",
+      reason: "新側の採取に組が無い",
+    };
+  }
+  const neu = summarizeValues(g.values[m]);
+  const floor = ctx.floors[m];
+  const relativeFloor = ctx.relativeFloors[m];
+  // 冒頭で floors・relative_floors の各指標が 0 以上の数であることを確かめているので、ここには到達しない
+  if (typeof floor !== "number" || typeof relativeFloor !== "number") {
+    throw new UsageError(`performance.floors / relative_floors の ${m} が数でない`);
+  }
+  // 古い基準と比べた regressed を出すと、parity-diff が判定に使えない値で差し戻す。環境の違いと同じく判定しない
+  const unjudged = ctx.staleBaseline
+    ? { status: "stale_baseline", delta: null, tolerance: null }
+    : null;
+  const verdict =
+    unjudged ??
+    (ctx.differences.length > 0
+      ? { status: "env_mismatch", delta: null, tolerance: null }
+      : judgeMetric(cur, neu, { floor, relativeFloor }));
+  return {
+    page,
+    viewport,
+    metric: m,
+    ...verdict,
+    current: { median: cur.median, iqr: cur.iqr, n: cur.n, nulls: cur.nulls },
+    new: { median: neu.median, iqr: neu.iqr, n: neu.n, nulls: neu.nulls },
+  };
+}
+
+/**
+ * 基準の組ごとに、指標を判定する。
+ * @param {unknown[]} pairs - performance.pairs
+ * @param {JudgeContext} ctx
+ * @returns {{ results: ReturnType<typeof judgePairMetric>[], seen: Set<string> }}
+ */
+function judgePairs(pairs, ctx) {
   const results = [];
   const seen = new Set();
-  for (const p of perf.pairs) {
+  for (const p of pairs) {
     if (
       !isPlainObject(p) ||
       !isKeyPart(p.page) ||
@@ -845,78 +994,62 @@ export function compare(metadata, samplesDoc, opts) {
     const key = pairKey(p.page, p.viewport);
     if (seen.has(key)) throw new UsageError(`performance.pairs の組が重複する: ${key}`);
     seen.add(key);
-    const g = groups.get(key);
     for (const m of METRICS) {
-      const cur = p.metrics[m];
-      if (
-        !isPlainObject(cur) ||
-        typeof cur.n !== "number" ||
-        !Number.isInteger(cur.n) ||
-        typeof cur.nulls !== "number" ||
-        !Number.isInteger(cur.nulls)
-      ) {
-        throw new UsageError(`performance.pairs の ${key} の ${m} の形が違う`);
-      }
-      // 手で書き換えた基準で、回数の足りない組や値の無い組を not_applicable として通さない
-      if (cur.n < MIN_RUNS || cur.nulls < 0 || cur.nulls > cur.n) {
-        throw new UsageError(
-          `performance.pairs の ${key} の ${m} の回数が範囲外（n は ${MIN_RUNS} 以上、nulls は 0 から n まで）`,
-        );
-      }
-      // 値のある組は 0 以上の数、すべて null の組は null（summarizeValues が書く形）でなければ、基準として読まない
-      const statsValid =
-        cur.nulls < cur.n
-          ? [cur.median, cur.iqr].every(nonNegativeNumber)
-          : cur.median === null && cur.iqr === null;
-      // statsValid が真なら median と iqr は数か null なので、後ろの 2 つの条件は判定を変えない
-      if (!statsValid || !isNumberOrNull(cur.median) || !isNumberOrNull(cur.iqr)) {
-        throw new UsageError(
-          `performance.pairs の ${key} の ${m} の median / iqr が回数と合わない（値のある組は 0 以上の数、すべて null の組は null）`,
-        );
-      }
-      if (!g) {
-        results.push({
-          page: p.page,
-          viewport: p.viewport,
-          metric: m,
-          status: "missing",
-          reason: "新側の採取に組が無い",
-        });
-        continue;
-      }
-      const curStats = { n: cur.n, nulls: cur.nulls, median: cur.median, iqr: cur.iqr };
-      const neu = summarizeValues(g.values[m]);
-      const floor = perf.floors[m];
-      const relativeFloor = perf.relative_floors[m];
-      // 冒頭で floors・relative_floors の各指標が 0 以上の数であることを確かめているので、ここには到達しない
-      if (typeof floor !== "number" || typeof relativeFloor !== "number") {
-        throw new UsageError(`performance.floors / relative_floors の ${m} が数でない`);
-      }
-      // 古い基準と比べた regressed を出すと、parity-diff が判定に使えない値で差し戻す。環境の違いと同じく判定しない
-      const unjudged = staleBaseline
-        ? { status: "stale_baseline", delta: null, tolerance: null }
-        : null;
-      const verdict =
-        unjudged ??
-        (differences.length > 0
-          ? { status: "env_mismatch", delta: null, tolerance: null }
-          : judgeMetric(curStats, neu, floor, relativeFloor));
-      results.push({
-        page: p.page,
-        viewport: p.viewport,
-        metric: m,
-        ...verdict,
-        current: { median: cur.median, iqr: cur.iqr, n: cur.n, nulls: cur.nulls },
-        new: { median: neu.median, iqr: neu.iqr, n: neu.n, nulls: neu.nulls },
-      });
+      const cur = baselineMetric(p.metrics[m], key, m);
+      results.push(
+        judgePairMetric({ page: p.page, viewport: p.viewport, metric: m, cur }, ctx, key),
+      );
     }
   }
+  return { results, seen };
+}
+
+/**
+ * 新側の採取を検証し、組ごとの値の列にまとめる。
+ * @param {Record<string, unknown>} metadata
+ * @param {unknown} samplesDoc
+ * @param {{ slug: string, target: string }} expect
+ */
+function groupNewSamples(metadata, samplesDoc, expect) {
+  const groups = groupSamples(samplesDoc, { side: "new", ...expect });
+  // groupSamples がオブジェクトでない採取を先に拒否しているので、ここには到達しない
+  if (!isPlainObject(samplesDoc)) throw new UsageError("採取がオブジェクトでない");
+  if (!captureMatches(samplesDoc, metadata)) {
+    throw new UsageError(
+      "新側の採取の capture が metadata.json の capture_conditions と違う（今の定義で採り直す）",
+    );
+  }
+  return { groups, neuDoc: samplesDoc };
+}
+
+/**
+ * 新側の採取を、metadata.json の performance と比べる。
+ * @param {Record<string, unknown>} metadata
+ * @param {unknown} samplesDoc
+ * @param {{ currentSamplesSha256: (string|null), currentSamplesDoc?: unknown, target: string }} opts - 現側の採取ファイルを今読んだ sha256（読めなければ null）
+ */
+export function compare(metadata, samplesDoc, opts) {
+  const base = checkBaseline(metadata, opts);
+  const { perf } = base;
+  const { groups, neuDoc } = groupNewSamples(metadata, samplesDoc, {
+    slug: base.slug,
+    target: opts.target,
+  });
+  const stale = baselineStaleness(metadata, base, opts);
+  const differences = environmentDifferences(perf, neuDoc);
+  const { results, seen } = judgePairs(base.pairs, {
+    groups,
+    floors: base.floors,
+    relativeFloors: base.relativeFloors,
+    staleBaseline: stale.staleBaseline,
+    differences,
+  });
   const extra = [...groups.keys()].filter((k) => !seen.has(k));
   /** @type {Record<string, number>} */
   const counts = {};
   for (const r of results) counts[r.status] = (counts[r.status] ?? 0) + 1;
   const ok =
-    !staleBaseline &&
+    !stale.staleBaseline &&
     differences.length === 0 &&
     extra.length === 0 &&
     results.every((r) => PASSING_STATUSES.includes(r.status));
@@ -926,14 +1059,14 @@ export function compare(metadata, samplesDoc, opts) {
     command: "compare",
     judged: true,
     ok,
-    stale_baseline: staleBaseline,
-    stale_capture: staleCapture,
-    stale_summary: staleSummary,
-    stale_pairs: stalePairs,
+    stale_baseline: stale.staleBaseline,
+    stale_capture: stale.staleCapture,
+    stale_summary: stale.staleSummary,
+    stale_pairs: stale.stalePairs,
     environment_differences: differences,
     extra_pairs: extra,
-    floors: perf.floors,
-    relative_floors: perf.relative_floors,
+    floors: base.floors,
+    relative_floors: base.relativeFloors,
     loosened_floors: loosenedFloors(perf),
     counts,
     regressed: results.filter((r) => r.status === "regressed"),
@@ -962,12 +1095,22 @@ export function samplesFingerprint(text) {
     .digest("hex");
 }
 
+const USAGE = [
+  "usage: perf-stats.mjs summarize --metadata <metadata.json> --samples <perf-samples.json> [--floor <指標>=<ms> ...] [--relative-floor <指標>=<割合> ...] [--write]",
+  "       perf-stats.mjs compare   --metadata <現側 metadata.json> --samples <新側 perf-samples.json> --target <新側の target> [--write <diff-metadata.json>]",
+].join("\n");
+
 /**
- * @param {string[]} argv - process.argv.slice(2)
- * @param {{ readFile?: (p: string) => string, writeFile?: (p: string, s: string) => void, realpath?: (p: string) => string, cwd?: string, stdout?: (s: string) => void, stderr?: (s: string) => void }} [deps]
- * @returns {number}
+ * main が使う入出力。テストはメモリ上のファイルを渡す。
+ * @typedef {{ readFile: (p: string) => string, writeFile: (p: string, s: string) => void, realpath: (p: string) => string, cwd: string, stdout: (s: string) => void, stderr: (s: string) => void }} CliIo
  */
-export function main(argv, deps = {}) {
+
+/**
+ * 渡されなかった入出力を、実際のファイルと標準出力で補う。
+ * @param {Partial<CliIo>} deps
+ * @returns {CliIo}
+ */
+function cliIo(deps) {
   const readFile = deps.readFile ?? ((p) => readFileSync(p, "utf8"));
   const writeFile =
     deps.writeFile ??
@@ -979,32 +1122,35 @@ export function main(argv, deps = {}) {
     });
   const cwd = deps.cwd ?? process.cwd();
   const realpath = deps.realpath ?? ((p) => realpathSync(p));
-  /**
-   * パスの綴りだけでなく、シンボリックリンクを解決した実体もリポジトリの中にあるか。読めなければ null を返す。
-   * @param {string} path - リポジトリのルートからの相対パス
-   * @returns {boolean|null}
-   */
-  const realInsideRoot = (path) => {
-    let real;
-    try {
-      real = realpath(resolve(cwd, path));
-    } catch {
-      return null;
-    }
-    const root = realpath(cwd);
-    return real === root || real.startsWith(root.endsWith(sep) ? root : `${root}${sep}`);
-  };
   const stdout = deps.stdout ?? ((s) => process.stdout.write(s));
   const stderr = deps.stderr ?? ((s) => process.stderr.write(s));
-  const usage = [
-    "usage: perf-stats.mjs summarize --metadata <metadata.json> --samples <perf-samples.json> [--floor <指標>=<ms> ...] [--relative-floor <指標>=<割合> ...] [--write]",
-    "       perf-stats.mjs compare   --metadata <現側 metadata.json> --samples <新側 perf-samples.json> --target <新側の target> [--write <diff-metadata.json>]",
-  ].join("\n");
-  const [command, ...rest] = argv;
-  if (command !== "summarize" && command !== "compare") {
-    stderr(`error: サブコマンドが無い・不明: ${command ?? ""}\n${usage}\n`);
-    return 2;
+  return { readFile, writeFile, cwd, realpath, stdout, stderr };
+}
+
+/**
+ * パスの綴りだけでなく、シンボリックリンクを解決した実体もリポジトリの中にあるか。読めなければ null を返す。
+ * @param {string} path - リポジトリのルートからの相対パス
+ * @param {CliIo} io
+ * @returns {boolean|null}
+ */
+function realInsideRoot(path, io) {
+  let real;
+  try {
+    real = io.realpath(resolve(io.cwd, path));
+  } catch {
+    return null;
   }
+  const root = io.realpath(io.cwd);
+  return real === root || real.startsWith(root.endsWith(sep) ? root : `${root}${sep}`);
+}
+
+/**
+ * サブコマンドの後の引数を読む。
+ * @param {"summarize" | "compare"} command
+ * @param {string[]} rest
+ * @returns {{ opts: Record<string, string>, floorSpecs: string[], relativeFloorSpecs: string[], writeFlag: boolean }}
+ */
+function parseArgs(command, rest) {
   /** @type {Record<string, string>} */
   const opts = {};
   /** @type {string[]} */
@@ -1012,190 +1158,264 @@ export function main(argv, deps = {}) {
   /** @type {string[]} */
   const relativeFloorSpecs = [];
   let writeFlag = false;
+  for (let i = 0; i < rest.length; i += 1) {
+    const a = rest[i];
+    if (command === "summarize" && a === "--write") {
+      writeFlag = true;
+      continue;
+    }
+    const allowed =
+      command === "summarize"
+        ? ["--metadata", "--samples", "--floor", "--relative-floor"]
+        : ["--metadata", "--samples", "--target", "--write"];
+    if (!allowed.includes(a)) throw new UsageError(`不明な引数 ${a}`);
+    const v = rest[i + 1];
+    if (v === undefined || v === "" || v.startsWith("--")) throw new UsageError(`${a} に値が無い`);
+    i += 1;
+    if (a === "--floor") {
+      floorSpecs.push(v);
+      continue;
+    }
+    if (a === "--relative-floor") {
+      relativeFloorSpecs.push(v);
+      continue;
+    }
+    if (Object.hasOwn(opts, a.slice(2))) throw new UsageError(`${a} が重複している`);
+    opts[a.slice(2)] = v;
+  }
+  if (!opts.metadata || !opts.samples) throw new UsageError("--metadata と --samples が要る");
+  return { opts, floorSpecs, relativeFloorSpecs, writeFlag };
+}
+
+/**
+ * --samples のパスがリポジトリの中を指すことを確かめ、採取を読む。
+ * @param {string} samples - --samples の値
+ * @param {CliIo} io
+ * @returns {{ samplesText: string, samplesDoc: unknown }}
+ */
+function readSamples(samples, io) {
+  // summarize は記録したパスを別の機械の compare がルートから読み、compare は新側のパスを diff-metadata.json に残す。
+  // どちらもリポジトリの外のファイルを採取として読まない
+  if (!isRepoRelative(samples)) {
+    throw new UsageError(
+      `--samples はリポジトリのルートからの相対パスで渡す（絶対パスと .. は受けない）: ${samples}`,
+    );
+  }
+  if (realInsideRoot(samples, io) === false) {
+    throw new UsageError(
+      `--samples の実体がリポジトリの外にある（シンボリックリンク）: ${samples}`,
+    );
+  }
+  let samplesText;
   try {
-    for (let i = 0; i < rest.length; i += 1) {
-      const a = rest[i];
-      if (command === "summarize" && a === "--write") {
-        writeFlag = true;
-        continue;
-      }
-      const allowed =
-        command === "summarize"
-          ? ["--metadata", "--samples", "--floor", "--relative-floor"]
-          : ["--metadata", "--samples", "--target", "--write"];
-      if (!allowed.includes(a)) throw new UsageError(`不明な引数 ${a}`);
-      const v = rest[i + 1];
-      if (v === undefined || v === "" || v.startsWith("--"))
-        throw new UsageError(`${a} に値が無い`);
-      i += 1;
-      if (a === "--floor") {
-        floorSpecs.push(v);
-        continue;
-      }
-      if (a === "--relative-floor") {
-        relativeFloorSpecs.push(v);
-        continue;
-      }
-      if (Object.hasOwn(opts, a.slice(2))) throw new UsageError(`${a} が重複している`);
-      opts[a.slice(2)] = v;
-    }
-    if (!opts.metadata || !opts.samples) throw new UsageError("--metadata と --samples が要る");
-    const metadataPath = resolve(cwd, opts.metadata);
-    /** @type {unknown} */
-    let metadata;
-    try {
-      metadata = JSON.parse(readFile(metadataPath));
-    } catch (e) {
-      throw new UsageError(`metadata.json を読めない: ${opts.metadata}（${errorMessage(e)}）`);
-    }
-    if (!isPlainObject(metadata)) throw new UsageError("metadata.json がオブジェクトでない");
-    // summarize は記録したパスを別の機械の compare がルートから読み、compare は新側のパスを diff-metadata.json に残す。
-    // どちらもリポジトリの外のファイルを採取として読まない
-    if (!isRepoRelative(opts.samples)) {
-      throw new UsageError(
-        `--samples はリポジトリのルートからの相対パスで渡す（絶対パスと .. は受けない）: ${opts.samples}`,
-      );
-    }
-    if (realInsideRoot(opts.samples) === false) {
-      throw new UsageError(
-        `--samples の実体がリポジトリの外にある（シンボリックリンク）: ${opts.samples}`,
-      );
-    }
-    let samplesText;
-    try {
-      samplesText = readFile(resolve(cwd, opts.samples));
-    } catch (e) {
-      throw new UsageError(`採取を読めない: ${opts.samples}（${errorMessage(e)}）`);
-    }
-    let samplesDoc;
-    try {
-      samplesDoc = JSON.parse(samplesText);
-    } catch (e) {
-      throw new UsageError(`採取が JSON でない: ${opts.samples}（${errorMessage(e)}）`);
-    }
-
-    if (command === "summarize") {
-      const result = summarize(metadata, samplesDoc, {
-        floors: withBase(
-          parseFloors(floorSpecs, {}),
-          metadata.performance,
-          "floors",
-          DEFAULT_FLOORS,
-        ),
-        relativeFloors: withBase(
-          parseFloors(relativeFloorSpecs, {}, "--relative-floor"),
-          metadata.performance,
-          "relative_floors",
-          DEFAULT_RELATIVE_FLOORS,
-        ),
-        samplesPath: opts.samples,
-        samplesSha256: samplesFingerprint(samplesText),
-      });
-      if (!result.ok) {
-        stderr(
-          `error: 採取の組が capture_conditions と合わない（足りない: ${JSON.stringify(result.missing)}、余分: ${JSON.stringify(result.extra)}）\n`,
-        );
-        return 1;
-      }
-      if (writeFlag) {
-        metadata.performance = result.performance;
-        writeFile(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`);
-      }
-      stdout(
-        `${JSON.stringify({ tool: "perf-stats", version: VERSION, command, written: writeFlag, performance: result.performance }, null, 2)}\n`,
-      );
-      return 0;
-    }
-
-    const perf = metadata.performance;
-    /** @type {string|null} */
-    let currentSha = null;
-    /** @type {unknown} */
-    let currentDoc = null;
-    if (isPlainObject(perf) && nonEmptyString(perf.samples)) {
-      // 手で書き換えた metadata.json で、リポジトリの外の JSON を現側の基準として読まない
-      if (!isRepoRelative(perf.samples)) {
-        throw new UsageError(
-          `performance.samples がリポジトリのルートからの相対パスでない（絶対パスと .. は受けない）: ${perf.samples}`,
-        );
-      }
-      if (realInsideRoot(perf.samples) === false) {
-        throw new UsageError(
-          `performance.samples の実体がリポジトリの外にある（シンボリックリンク）: ${perf.samples}`,
-        );
-      }
-      try {
-        const text = readFile(resolve(cwd, perf.samples));
-        currentSha = samplesFingerprint(text);
-        currentDoc = JSON.parse(text);
-      } catch {
-        currentSha = null; // 読めない基準を、今の基準として扱わない
-        currentDoc = null;
-      }
-    }
-    const result = compare(metadata, samplesDoc, {
-      currentSamplesSha256: currentSha,
-      currentSamplesDoc: currentDoc,
-      target: opts.target ?? "",
-    });
-    // 書き込みに失敗しても判定の結果が残るよう、先に出力する
-    stdout(`${JSON.stringify(result, null, 2)}\n`);
-    if (opts.write) {
-      const diffPath = resolve(cwd, opts.write);
-      /** @type {unknown} */
-      let diffMetadata;
-      try {
-        diffMetadata = JSON.parse(readFile(diffPath));
-      } catch (e) {
-        throw new UsageError(
-          `diff-metadata.json を読めない（今回の実行の diff-metadata.json を手順 3 で書いてから通す）: ${opts.write}（${errorMessage(e)}）`,
-        );
-      }
-      if (!isPlainObject(diffMetadata))
-        throw new UsageError("diff-metadata.json がオブジェクトでない");
-      diffMetadata.performance = {
-        ...result,
-        new_samples: opts.samples,
-        new_samples_sha256: samplesFingerprint(samplesText),
-      };
-      writeFile(diffPath, `${JSON.stringify(diffMetadata, null, 2)}\n`);
-    }
-    const loosened = result.loosened_floors;
-    if (loosened.length > 0) {
-      // 合否に関わらず出す。緩めた下限は回帰を許容幅の中に入れうるので、報告に載せて人が確かめる
-      stderr(
-        `warning: デフォルトより緩い下限で判定した（報告に載せる）: ${loosened
-          .map((l) => `${l.kind}.${l.metric}=${l.value}（デフォルト ${l.default}）`)
-          .join(", ")}\n`,
-      );
-    }
-    if (!result.ok) {
-      const reasons = [];
-      if (result.stale_pairs && !result.stale_capture)
-        reasons.push(
-          "基準の組が capture_conditions のページ × ビューポートとそろっていない（採り直して summarize を通し直す）",
-        );
-      if (result.stale_summary && !result.stale_capture)
-        reasons.push("基準の統計が現側の採取から計算し直した値と違う（summarize を通し直す）");
-      if (result.stale_capture)
-        reasons.push(
-          "基準を採った後に capture_conditions の組が変わった（採り直して summarize を通し直す）",
-        );
-      else if (result.stale_baseline)
-        reasons.push("現側の基準が古いか、採取ファイルを読めない（summarize を通し直す）");
-      if (result.environment_differences.length > 0) {
-        reasons.push(`環境・測り方が現側と違う: ${result.environment_differences.join(", ")}`);
-      }
-      if (result.extra_pairs.length > 0) {
-        reasons.push(`現側に無い組: ${JSON.stringify(result.extra_pairs)}`);
-      }
-      reasons.push(`状態の件数: ${JSON.stringify(result.counts)}`);
-      stderr(`error: 性能の比較が通らない。${reasons.join(" / ")}\n`);
-      return 1;
-    }
-    return 0;
+    samplesText = io.readFile(resolve(io.cwd, samples));
   } catch (e) {
-    stderr(`error: ${errorMessage(e)}\n${usage}\n`);
+    throw new UsageError(`採取を読めない: ${samples}（${errorMessage(e)}）`);
+  }
+  /** @type {unknown} */
+  let samplesDoc;
+  try {
+    samplesDoc = JSON.parse(samplesText);
+  } catch (e) {
+    throw new UsageError(`採取が JSON でない: ${samples}（${errorMessage(e)}）`);
+  }
+  return { samplesText, samplesDoc };
+}
+
+/**
+ * metadata.json と採取を読む。
+ * @param {Record<string, string>} opts - parseArgs が読んだ引数
+ * @param {CliIo} io
+ * @returns {{ metadataPath: string, metadata: Record<string, unknown>, samplesText: string, samplesDoc: unknown }}
+ */
+function readInputs(opts, io) {
+  const metadataPath = resolve(io.cwd, opts.metadata);
+  /** @type {unknown} */
+  let metadata;
+  try {
+    metadata = JSON.parse(io.readFile(metadataPath));
+  } catch (e) {
+    throw new UsageError(`metadata.json を読めない: ${opts.metadata}（${errorMessage(e)}）`);
+  }
+  if (!isPlainObject(metadata)) throw new UsageError("metadata.json がオブジェクトでない");
+  return { metadataPath, metadata, ...readSamples(opts.samples, io) };
+}
+
+/**
+ * CLI の 1 回の実行で読んだ引数と入力。
+ * @typedef {{ args: ReturnType<typeof parseArgs>, input: ReturnType<typeof readInputs>, io: CliIo }} CliRun
+ */
+
+/**
+ * summarize を実行し、終了コードを返す。
+ * @param {CliRun} run
+ * @returns {number}
+ */
+function runSummarize({ args, input, io }) {
+  const { metadata } = input;
+  const result = summarize(metadata, input.samplesDoc, {
+    floors: withBase(parseFloors(args.floorSpecs, {}), metadata.performance, {
+      key: "floors",
+      defaults: DEFAULT_FLOORS,
+    }),
+    relativeFloors: withBase(
+      parseFloors(args.relativeFloorSpecs, {}, "--relative-floor"),
+      metadata.performance,
+      { key: "relative_floors", defaults: DEFAULT_RELATIVE_FLOORS },
+    ),
+    samplesPath: args.opts.samples,
+    samplesSha256: samplesFingerprint(input.samplesText),
+  });
+  if (!result.ok) {
+    io.stderr(
+      `error: 採取の組が capture_conditions と合わない（足りない: ${JSON.stringify(result.missing)}、余分: ${JSON.stringify(result.extra)}）\n`,
+    );
+    return 1;
+  }
+  if (args.writeFlag) {
+    metadata.performance = result.performance;
+    io.writeFile(input.metadataPath, `${JSON.stringify(metadata, null, 2)}\n`);
+  }
+  io.stdout(
+    `${JSON.stringify({ tool: "perf-stats", version: VERSION, command: "summarize", written: args.writeFlag, performance: result.performance }, null, 2)}\n`,
+  );
+  return 0;
+}
+
+/**
+ * metadata.json の performance.samples が指す現側の採取を読む。読めなければ、どちらも null にする。
+ * @param {unknown} perf - metadata.json の performance
+ * @param {CliIo} io
+ * @returns {{ currentSha: (string|null), currentDoc: unknown }}
+ */
+function readCurrentSamples(perf, io) {
+  if (!isPlainObject(perf) || !nonEmptyString(perf.samples)) {
+    return { currentSha: null, currentDoc: null };
+  }
+  // 手で書き換えた metadata.json で、リポジトリの外の JSON を現側の基準として読まない
+  if (!isRepoRelative(perf.samples)) {
+    throw new UsageError(
+      `performance.samples がリポジトリのルートからの相対パスでない（絶対パスと .. は受けない）: ${perf.samples}`,
+    );
+  }
+  if (realInsideRoot(perf.samples, io) === false) {
+    throw new UsageError(
+      `performance.samples の実体がリポジトリの外にある（シンボリックリンク）: ${perf.samples}`,
+    );
+  }
+  try {
+    const text = io.readFile(resolve(io.cwd, perf.samples));
+    return { currentSha: samplesFingerprint(text), currentDoc: JSON.parse(text) };
+  } catch {
+    return { currentSha: null, currentDoc: null }; // 読めない基準を、今の基準として扱わない
+  }
+}
+
+/**
+ * compare の結果を、--write で渡した diff-metadata.json の performance に書く。
+ * @param {ReturnType<typeof compare>} result
+ * @param {CliRun} run
+ */
+function writeDiffMetadata(result, { args, input, io }) {
+  const write = args.opts.write;
+  const diffPath = resolve(io.cwd, write);
+  /** @type {unknown} */
+  let diffMetadata;
+  try {
+    diffMetadata = JSON.parse(io.readFile(diffPath));
+  } catch (e) {
+    throw new UsageError(
+      `diff-metadata.json を読めない（今回の実行の diff-metadata.json を手順 3 で書いてから通す）: ${write}（${errorMessage(e)}）`,
+    );
+  }
+  if (!isPlainObject(diffMetadata)) throw new UsageError("diff-metadata.json がオブジェクトでない");
+  diffMetadata.performance = {
+    ...result,
+    new_samples: args.opts.samples,
+    new_samples_sha256: samplesFingerprint(input.samplesText),
+  };
+  io.writeFile(diffPath, `${JSON.stringify(diffMetadata, null, 2)}\n`);
+}
+
+/**
+ * 通らなかった compare の結果から、利用者に示す理由を並べる。
+ * @param {ReturnType<typeof compare>} result
+ * @returns {string[]}
+ */
+function compareFailureReasons(result) {
+  const reasons = [];
+  if (result.stale_pairs && !result.stale_capture)
+    reasons.push(
+      "基準の組が capture_conditions のページ × ビューポートとそろっていない（採り直して summarize を通し直す）",
+    );
+  if (result.stale_summary && !result.stale_capture)
+    reasons.push("基準の統計が現側の採取から計算し直した値と違う（summarize を通し直す）");
+  if (result.stale_capture)
+    reasons.push(
+      "基準を採った後に capture_conditions の組が変わった（採り直して summarize を通し直す）",
+    );
+  else if (result.stale_baseline)
+    reasons.push("現側の基準が古いか、採取ファイルを読めない（summarize を通し直す）");
+  if (result.environment_differences.length > 0) {
+    reasons.push(`環境・測り方が現側と違う: ${result.environment_differences.join(", ")}`);
+  }
+  if (result.extra_pairs.length > 0) {
+    reasons.push(`現側に無い組: ${JSON.stringify(result.extra_pairs)}`);
+  }
+  reasons.push(`状態の件数: ${JSON.stringify(result.counts)}`);
+  return reasons;
+}
+
+/**
+ * compare を実行し、終了コードを返す。
+ * @param {CliRun} run
+ * @returns {number}
+ */
+function runCompare(run) {
+  const { args, input, io } = run;
+  const { currentSha, currentDoc } = readCurrentSamples(input.metadata.performance, io);
+  const result = compare(input.metadata, input.samplesDoc, {
+    currentSamplesSha256: currentSha,
+    currentSamplesDoc: currentDoc,
+    target: args.opts.target ?? "",
+  });
+  // 書き込みに失敗しても判定の結果が残るよう、先に出力する
+  io.stdout(`${JSON.stringify(result, null, 2)}\n`);
+  if (args.opts.write) writeDiffMetadata(result, run);
+  const loosened = result.loosened_floors;
+  if (loosened.length > 0) {
+    // 合否に関わらず出す。緩めた下限は回帰を許容幅の中に入れうるので、報告に載せて人が確かめる
+    io.stderr(
+      `warning: デフォルトより緩い下限で判定した（報告に載せる）: ${loosened
+        .map((l) => `${l.kind}.${l.metric}=${l.value}（デフォルト ${l.default}）`)
+        .join(", ")}\n`,
+    );
+  }
+  if (!result.ok) {
+    io.stderr(`error: 性能の比較が通らない。${compareFailureReasons(result).join(" / ")}\n`);
+    return 1;
+  }
+  return 0;
+}
+
+/**
+ * @param {string[]} argv - process.argv.slice(2)
+ * @param {Partial<CliIo>} [deps]
+ * @returns {number}
+ */
+export function main(argv, deps = {}) {
+  const io = cliIo(deps);
+  const [command, ...rest] = argv;
+  if (command !== "summarize" && command !== "compare") {
+    io.stderr(`error: サブコマンドが無い・不明: ${command ?? ""}\n${USAGE}\n`);
+    return 2;
+  }
+  try {
+    const args = parseArgs(command, rest);
+    const run = { args, input: readInputs(args.opts, io), io };
+    return command === "summarize" ? runSummarize(run) : runCompare(run);
+  } catch (e) {
+    io.stderr(`error: ${errorMessage(e)}\n${USAGE}\n`);
     return 2;
   }
 }

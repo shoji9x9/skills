@@ -11,8 +11,8 @@
       "id": "bar-takes-no-space",
       "why": "横にはみ出した窓で横スクロールバーの厚みが 0 でも通す（陽性コントロールを外す）",
       "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
-      "find": "      if (w.horizontal && w.horizontal_bar_px === 0) {\n",
-      "replace": "      if (false) {\n",
+      "find": "  if (w.horizontal && w.horizontal_bar_px === 0) {\n",
+      "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
         "スクロールバーを隠して測った記録は落とす（100vh と 100% の差が 0 になる）"
@@ -33,8 +33,8 @@
       "id": "min-width-null-horizontal",
       "why": "最小幅を持たないと書いた頁が横にはみ出していても通す",
       "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
-      "find": "        if (w.horizontal) {\n",
-      "replace": "        if (false) {\n",
+      "find": "    if (w.horizontal) {\n",
+      "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["最小幅と窓の記録が矛盾していれば落とす"]
     },
@@ -42,8 +42,8 @@
       "id": "narrow-window-missing",
       "why": "最小幅より狭い窓を 1 つも測っていなくても通す",
       "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
-      "find": "    if (minWidthOk && minWidth !== null && narrow === 0) {\n",
-      "replace": "    if (false) {\n",
+      "find": "  if (minWidthOk && minWidth !== null && narrow === 0) {\n",
+      "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["最小幅と窓の記録が矛盾していれば落とす"]
     },
@@ -51,8 +51,8 @@
       "id": "fit-window-missing",
       "why": "最小幅より狭く中身が収まる高さの窓が無くても通す",
       "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
-      "find": "    } else if (minWidthOk && minWidth !== null && contentHeightOk && fitting === 0) {\n",
-      "replace": "    } else if (false) {\n",
+      "find": "  } else if (minWidthOk && minWidth !== null && contentHeightOk && fitting === 0) {\n",
+      "replace": "  } else if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["中身が収まる高さの狭い窓が無い記録は落とす（Codex レビュー #453）"]
     },
@@ -122,8 +122,8 @@
       "id": "pair-undecided",
       "why": "軸の対の判断の欠落を数えない",
       "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
-      "find": "      if (!decided.has(key)) {\n        add(\n          \"display-axis-pair-undecided\",\n",
-      "replace": "      if (!decided.has(key)) {\n        if (false) add(\n          \"display-axis-pair-undecided\",\n",
+      "find": "  if (!decided.has(key)) {\n    add(\n      \"display-axis-pair-undecided\",\n",
+      "replace": "  if (!decided.has(key)) {\n    if (false) add(\n      \"display-axis-pair-undecided\",\n",
       "occurrences": 1,
       "expect_failing": ["軸の対の判断が無い・理由が無い・形が崩れていると落ちる"]
     },
@@ -131,8 +131,8 @@
       "id": "pair-viewport-not-crossed",
       "why": "窓と掛けると宣言した軸の窓ごとの変種を確かめない",
       "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
-      "find": "            if (!variantKeys.has(want)) {\n",
-      "replace": "            if (false) {\n",
+      "find": "      if (!variantKeys.has(want)) {\n",
+      "replace": "      if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["窓と掛け合わせると宣言した軸は、全ての窓で変種が要る"]
     },
@@ -140,8 +140,8 @@
       "id": "pair-axes-not-crossed",
       "why": "2 軸を掛けると宣言した対の値の組の変種を確かめない",
       "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
-      "find": "          if (!signatures.has(want)) {\n",
-      "replace": "          if (false) {\n",
+      "find": "      if (!signatures.has(want)) {\n",
+      "replace": "      if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
         "2 つの軸を掛け合わせると宣言したら、既定以外の値の組ごとに変種が要る",
@@ -152,8 +152,8 @@
       "id": "not-applicable-all-pages",
       "why": "全ページを not_applicable にした軸を通す",
       "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
-      "find": "    if (declaredPages.length > 0 && declaredPages.every((page) => excludedPages.has(page))) {\n",
-      "replace": "    if (false) {\n",
+      "find": "  if (declaredPages.length > 0 && declaredPages.every((page) => excludedPages.has(page))) {\n",
+      "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
         "not_applicable が撮影ページの全てを覆う軸は落とす（変種の撮るはずの組が 0 件になり撮らずに通る）"
@@ -163,8 +163,8 @@
       "id": "variant-no-pages",
       "why": "軸の効くページが 0 の複合変種を通す",
       "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
-      "find": "      declaredPages.every((page) => pickedAxes.some((axis) => notApplicable.get(axis)?.has(page)))\n",
-      "replace": "      false\n",
+      "find": "    declaredPages.every((page) => pickedAxes.some((axis) => notApplicable.get(axis)?.has(page)))\n",
+      "replace": "    false\n",
       "occurrences": 1,
       "expect_failing": [
         "軸が機能するページが 1 つも無い複合変種は落とす（撮るはずの組 0 件で掛け合わせの対を満たさない。Codex レビュー #491）",
@@ -230,8 +230,8 @@
       "id": "recorded-undeclared",
       "why": "宣言に無い組の記録を通す",
       "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
-      "find": "      if (!declaredSet.has(key)) {\n",
-      "replace": "      if (false) {\n",
+      "find": "    if (!declaredSet.has(key)) {\n",
+      "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
         "宣言に無い組（消した・改名した変種の古い記録）が noise_baseline と capture_scope に残っていたら落とす（Codex レビュー #491）"
@@ -241,8 +241,8 @@
       "id": "scrollbar-hidden-disabled",
       "why": "shown で撮ったのにはみ出した向きのバーが厚み 0 の器を穴にしない（Issue #495）",
       "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
-      "find": "      if (context.scrollbars === \"shown\" && (hiddenVertical || hiddenHorizontal)) {",
-      "replace": "      if (false) {",
+      "find": "  if (ctx.scrollbars === \"shown\" && (hiddenVertical || hiddenHorizontal)) {",
+      "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "shown で撮ったのに縦にはみ出した向きのバーが場所を取っていないコンテナは抜けになる",

@@ -859,6 +859,86 @@ test("#457: JS / TS 系以外のファイルは生バイトで数える（コメ
   rmSync(root, { recursive: true, force: true });
 });
 
+/** コピー専用のディレクトリに、trait-capture のコピーと、それが import する page/ の本体を置く。 */
+function writeVendorTools(root: string) {
+  mkdirSync(join(root, "vendor/page"), { recursive: true });
+  writeFileSync(
+    join(root, "vendor/trait-capture.mjs"),
+    'import { collect } from "./page/trait-capture.page.mjs";\nexport { collect };\n',
+  );
+  writeFileSync(
+    join(root, "vendor/page/trait-capture.page.mjs"),
+    "export const collect = () => 1;\n",
+  );
+}
+
+test("suite.tools をディレクトリで書けば、page/ の本体だけを入れ替えても指紋が変わる", () => {
+  const root = makeTempDir("artifact-health-fp-");
+  writeVendorTools(root);
+  const suite = { tools: "vendor" };
+  const before = suiteFingerprint(suite, root).fingerprint;
+  assert(before !== null, "ディレクトリの tools で指紋を計算できる");
+  writeFileSync(
+    join(root, "vendor/page/trait-capture.page.mjs"),
+    "export const collect = () => 2;\n",
+  );
+  expect(suiteFingerprint(suite, root).fingerprint).not.toBe(before);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("suite.tools がファイルを指すと、page/ が指紋に入らないので判定できないとして扱う", () => {
+  const root = makeTempDir("artifact-health-fp-");
+  writeVendorTools(root);
+  const fp = suiteFingerprint({ tools: "vendor/trait-capture.mjs" }, root);
+  expect(fp.fingerprint).toBeNull();
+  expect(fp.missing.join("\n")).toMatch(/suite\.tools はコピー専用のディレクトリで書く/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("suite.tools がファイルを指すと、ディレクトリで書くよう求めて exit 1", () => {
+  const { root, metadataPath } = recordedProject();
+  writeVendorTools(root);
+  editMetadata(metadataPath, (m) => {
+    Object.assign(m.suite, { tools: "vendor/trait-capture.mjs" });
+  });
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/suite\.tools はコピー専用のディレクトリで書く/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("スペック単位の記録でも、suite.tools がファイルを指すと、指紋が記録と同じでも exit 1", () => {
+  const { root, metadataPath } = perSpecProject();
+  // ディレクトリに 1 ファイルだけ置くと、ディレクトリで書いてもファイルで書いても列挙するファイルは同じになる。
+  // そのため、ファイルの宣言を失敗にする判定が無ければ、記録と指紋が一致して exit 0 になる。
+  mkdirSync(join(root, "vendor"), { recursive: true });
+  writeFileSync(join(root, "vendor/trait-capture.mjs"), "export const collect = () => 1;\n");
+  editMetadata(metadataPath, (m) => {
+    Object.assign(m.suite, { tools: "vendor" });
+  });
+  recordRuns(metadataPath, [LOCALE, ORDERS], { day: "2026-09-20" });
+  expect(run(metadataPath).status).toBe(0);
+  editMetadata(metadataPath, (m) => {
+    Object.assign(m.suite, { tools: "vendor/trait-capture.mjs" });
+  });
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/suite\.tools はコピー専用のディレクトリで書く/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("--fingerprint は、suite.tools がファイルを指すと指紋を出さずに exit 2", () => {
+  const { root, metadataPath } = perSpecProject();
+  writeVendorTools(root);
+  editMetadata(metadataPath, (m) => {
+    Object.assign(m.suite, { tools: "vendor/trait-capture.mjs" });
+  });
+  const r = run(metadataPath, ["--fingerprint"]);
+  expect(r.stderr).toMatch(/suite\.tools はコピー専用のディレクトリで書く/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
 test.each([".js", ".mjs", ".cjs"])(
   "#457: %s も生バイトで数える（トランスパイルで JSX を書ける。テキストの // を見逃さない）",
   (ext) => {
@@ -937,7 +1017,9 @@ test("宣言したスイートの実体が無ければ合格として扱わな�
     m.suite.specs = "e2e/parity/does-not-exist";
   });
   const r = run(metadataPath);
-  expect(r.stdout).toMatch(/現在のスイートの指紋を計算できない.*読めない .*（実体が無い）/);
+  expect(r.stdout).toMatch(
+    /現在のスイートの指紋を計算できない.*指紋に使えないパス .*（実体が無い）/,
+  );
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });

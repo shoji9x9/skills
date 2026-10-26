@@ -118,8 +118,8 @@
       "id": "health-carry-to-stage-skipped",
       "why": "artifact-health-check が工程の節を判定しないとき --carry-to を黙って通す",
       "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
-      "find": "    carryTo === null\n",
-      "replace": "    true\n",
+      "find": "  return carryTo === null\n",
+      "replace": "  return true\n",
       "occurrences": 1,
       "expect_failing": [
         "--carry-to: suite.new_green が真でない: 工程の節を飛ばして通さない（--carry-to 無しは従来どおり判定しない）"
