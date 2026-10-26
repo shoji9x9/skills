@@ -32,3 +32,8 @@ coverage:github:2026-10-25T15:50:48.185Z:2026-10-26T15:51:07.064Z,coverage,2026-
 ci:40353513644:1,ci,2026-10-26T15:56:01.594Z,p-cdee4961,github-actions,,,,2026-10-26T15:51:58.000Z,2026-10-26T15:51:59.000Z,Asia/Tokyo,feature/749-simplify-complex-checks,749,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:40353513669:1,ci,2026-10-26T15:56:01.594Z,p-cdee4961,github-actions,,,,2026-10-26T15:51:58.000Z,2026-10-26T15:55:39.000Z,Asia/Tokyo,feature/749-simplify-complex-checks,749,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-25T15:51:07.064Z:2026-10-26T15:56:01.594Z,coverage,2026-10-26T15:56:01.594Z,p-cdee4961,,,,,2026-10-25T15:51:07.064Z,2026-10-26T15:56:01.594Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:40354332773:1,ci,2026-10-26T16:01:20.542Z,p-cdee4961,github-actions,,,,2026-10-26T15:56:59.000Z,2026-10-26T15:57:00.000Z,Asia/Tokyo,feature/749-simplify-complex-checks,749,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40354332489:1,ci,2026-10-26T16:01:20.542Z,p-cdee4961,github-actions,,,,2026-10-26T15:56:59.000Z,2026-10-26T16:00:18.000Z,Asia/Tokyo,feature/749-simplify-complex-checks,749,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-25T15:56:01.594Z:2026-10-26T16:01:20.542Z,coverage,2026-10-26T16:01:20.542Z,p-cdee4961,,,,,2026-10-25T15:56:01.594Z,2026-10-26T16:01:20.542Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-25T16:01:20.542Z:2026-10-26T16:01:44.970Z,coverage,2026-10-26T16:01:44.970Z,p-cdee4961,,,,,2026-10-25T16:01:20.542Z,2026-10-26T16:01:44.970Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-25T16:01:44.970Z:2026-10-26T16:02:47.554Z,coverage,2026-10-26T16:02:47.554Z,p-cdee4961,,,,,2026-10-25T16:01:44.970Z,2026-10-26T16:02:47.554Z,Asia/Tokyo,,,,,,,,,,,,ok,

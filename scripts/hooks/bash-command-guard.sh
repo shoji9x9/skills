@@ -80,37 +80,35 @@ fi
 #   pkill より前の代入（`x=[a] pkill -f node`）、英字の添字（`${pats[i]}`）でも通す
 # - 行継続（\ と改行）の後に書いた `-f` は、改行を区切りとして読むので見逃す
 pkill_re='(^|[^[:alnum:]_.-])(pkill|killall)[[:blank:]](.*[[:blank:]])?(-[[:alnum:]]*f[[:alnum:]]*|--full)([^[:alnum:]_-]|$)'
-# grep は段ごとに終了コードを確かめる。exit 1（一致なし）は通常の結果で、それ以外は検査していないと stderr に残して通す。
 # `-f/` や `-f.` を含む文章（「-f/--full を付けない」など）も止める。引用の中の文章と同じく、この誤検知は受け入れる。
 # 区切りは tr で改行にする（bash の ${var//…/…} は入力の形によって 2 乗の時間になる）。
-segments="$(printf '%s\n' "${command_text}" | tr ';&|' '\n')"
-set +e
-matched="$(grep -aE -- "${pkill_re}" <<<"${segments}")"
-rc=$?
-set -e
-case "${rc}" in
-0) ;;
-1) exit 0 ;;
-*)
-	echo "bash-command-guard: 照合に失敗したため検査していない（grep の終了コード ${rc}）" >&2
+# 段ごとに終了コードを確かめる。出力のある段は、終了コードに関わらず次へ進む（一致した行を捨てない）。
+# 出力が無いときは、exit 1（一致なし）を通常の結果とし、それ以外は検査していないと stderr に残して通す。
+stage_output=""
+run_stage() {
+	local rc
+	set +e
+	stage_output="$("$@")"
+	rc=$?
+	set -e
+	[ -n "${stage_output}" ] && return 0
+	[ "${rc}" -ne 1 ] && echo "bash-command-guard: 照合に失敗したため検査していない（$1 の終了コード ${rc}）" >&2
 	exit 0
-	;;
-esac
-set +e
-offending="$(grep -avE -m 1 -- '\[[[:alpha:]]\]' <<<"${matched}")"
-rc=$?
-set -e
-case "${rc}" in
-0) ;;
-1) exit 0 ;;
-*)
-	echo "bash-command-guard: 照合に失敗したため検査していない（grep の終了コード ${rc}）" >&2
-	exit 0
-	;;
-esac
+}
+# run_stage が引数から呼ぶので、shellcheck は呼び出しを見つけられない。
+# shellcheck disable=SC2329
+split_segments() { printf '%s\n' "${command_text}" | tr ';&|' '\n'; }
+run_stage split_segments
+run_stage grep -aE -- "${pkill_re}" <<<"${stage_output}"
+run_stage grep -avE -m 1 -- '\[[[:alpha:]]\]' <<<"${stage_output}"
+offending="${stage_output}"
 
-# 表示は pkill / killall から 200 文字までにする（前に長い文字列があっても、止めた箇所が読めるように）。
+# 表示は、止めた pkill / killall から 200 文字までにする（前に長い文字列があっても、止めた箇所が読めるように）。
 shown="${offending}"
-if [[ ${offending} =~ (pkill|killall).* ]]; then shown="${BASH_REMATCH[0]}"; fi
+# 一致した区間に pkill の語が複数あるときは、-f の直前の最後の語から出す。
+if [[ ${offending} =~ ${pkill_re} ]]; then
+	shown="${BASH_REMATCH[0]}"
+	if [[ ${shown} =~ .*(pkill|killall)(.*) ]]; then shown="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"; fi
+fi
 echo "bash-command-guard: 実行前に止めた。pkill/killall -f の照合対象は full command line で、この呼び出し自身にも一致する（シェルごと終了する）。PID 指定（kill \"\$PID\"）にするか、パターンを [d]ump-dom の形にする: ${shown:0:200}" >&2
 exit 2

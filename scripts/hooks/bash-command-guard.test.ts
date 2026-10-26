@@ -147,30 +147,76 @@ test.each([
   expect(r.stderr).toMatch(/full command line/);
 });
 
-test("止めたときのメッセージは、pkill から 200 文字までを出す", () => {
-  const before = guard(`${"x".repeat(1000)} pkill -f node`);
-  expect(before.status).toBe(2);
-  expect(before.stderr).toMatch(/: pkill -f node\n$/);
-  const after = guard(`pkill -f node ${"y".repeat(1000)}`);
-  expect(after.status).toBe(2);
-  const shown = after.stderr.replace(/^.*?: (pkill.*)\n$/s, "$1");
-  expect(shown).toHaveLength(200);
-  expect(shown.startsWith("pkill -f node")).toBe(true);
+const shownOf = (stderr: string) =>
+  stderr.replace(/^.*?を \[d\]ump-dom の形にする: (.*)\n$/s, "$1");
+
+test.each([
+  ["前に長い文字列がある", `${"x".repeat(1000)} pkill -f node`],
+  ["後ろに長い文字列がある", `pkill -f node ${"y".repeat(1000)}`],
+  [
+    "止めた pkill の前に別の pkill の語がある",
+    `git commit -m 'pkill docs ${"x".repeat(250)} pkill -f node'`,
+  ],
+])("止めたときの表示は、止めた pkill から 200 文字までにする: %s", (_name, command) => {
+  const r = guard(command);
+  expect(r.status).toBe(2);
+  const shown = shownOf(r.stderr);
+  expect(shown.startsWith("pkill -f")).toBe(true);
+  expect(shown.length).toBeLessThanOrEqual(200);
 });
 
-test("grep が照合に失敗したら、検査していないと stderr に残して通す", () => {
-  const bin = makeSharedTempDir("bash-command-guard-broken-grep-");
-  writeFileSync(join(bin, "grep"), "#!/bin/sh\nexit 2\n");
-  chmodSync(join(bin, "grep"), 0o755);
-  const r = spawnSync("bash", [script], {
+// 段ごとに失敗する偽物を PATH の先頭に置く。指定した引数を持つ呼び出しだけを失敗させ、ほかは本物に渡す。
+const realGrep = spawnSync("bash", ["-c", "command -v grep"], {
+  encoding: "utf8",
+  timeout: CHILD_TIMEOUT_MS,
+}).stdout.trim();
+const withFailing = (name: string, body: string, command: string) => {
+  const bin = makeSharedTempDir(`bash-command-guard-broken-${name}-`);
+  writeFileSync(join(bin, name), body);
+  chmodSync(join(bin, name), 0o755);
+  return spawnSync("bash", [script], {
     timeout: CHILD_TIMEOUT_MS,
-    input: hook("pkill -f node"),
+    input: hook(command),
     encoding: "utf8",
     cwd: repoRoot,
     env: { ...process.env, PATH: [bin, process.env.PATH ?? ""].join(delimiter) },
   });
-  expect(r.status).toBe(0);
-  expect(r.stderr).toMatch(/照合に失敗したため検査していない（grep の終了コード 2）/);
+};
+
+test.each([
+  {
+    stage: "区切りの tr",
+    tool: "tr",
+    body: "#!/bin/sh\nexit 2\n",
+    reason: /split_segments の終了コード 2/,
+  },
+  {
+    stage: "1 段目の grep",
+    tool: "grep",
+    body: `#!/bin/sh\ncase "$1" in -aE) exit 2 ;; esac\nexec '${realGrep}' "$@"\n`,
+    reason: /grep の終了コード 2/,
+  },
+  {
+    stage: "2 段目の grep",
+    tool: "grep",
+    body: `#!/bin/sh\ncase "$1" in -avE) exit 2 ;; esac\nexec '${realGrep}' "$@"\n`,
+    reason: /grep の終了コード 2/,
+  },
+])(
+  "$stage が出力なしで失敗したら、検査していないと stderr に残して通す",
+  ({ tool, body, reason }) => {
+    const r = withFailing(tool, body, "pkill -f node");
+    expect(r.status).toBe(0);
+    expect(r.stderr).toMatch(/照合に失敗したため検査していない/);
+    expect(r.stderr).toMatch(reason);
+  },
+);
+
+test("grep が一致した行を出して失敗しても、その行で止める", () => {
+  const body = `#!/bin/sh\n'${realGrep}' "$@"\nexit 2\n`;
+  const r = withFailing("grep", body, "pkill -f node");
+  expect(r.status).toBe(2);
+  expect(r.stderr).toMatch(/full command line/);
 });
 
 test("行継続を多く含む大きな入力も、すぐ通す", () => {
