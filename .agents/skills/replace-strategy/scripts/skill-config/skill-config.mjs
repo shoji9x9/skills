@@ -242,6 +242,23 @@ function isFileLayer(v) {
  */
 export function loadSchema(schemaDir, name) {
   const path = join(schemaDir, `${name}.schema.json`);
+  const raw = readSchemaFile(path, name);
+  /** @type {Record<string, PropertySchema>} */
+  const properties = {};
+  for (const [key, prop] of Object.entries(raw.properties)) {
+    properties[key] = parseProperty(prop, `${path}: properties.${key}`);
+  }
+  const legacy = isRecord(raw["x-legacy"]) ? raw["x-legacy"] : {};
+  return { name, properties, ...parseLegacy(legacy, path) };
+}
+
+/**
+ * スキーマのファイルを JSON として読み、properties を持つオブジェクトであることを確かめる。
+ * @param {string} path
+ * @param {string} name
+ * @returns {Record<string, unknown> & { properties: Record<string, unknown> }}
+ */
+function readSchemaFile(path, name) {
   if (!existsSync(path)) {
     throw new ConfigError(`${path}: 設定 ${JSON.stringify(name)} のスキーマが無い`);
   }
@@ -252,27 +269,39 @@ export function loadSchema(schemaDir, name) {
   } catch (e) {
     throw new ConfigError(`${path}: JSON として読めない（${String(e)}）`);
   }
-  if (!isRecord(raw) || !isRecord(raw.properties)) {
-    throw new ConfigError(`${path}: properties を持つオブジェクトでない`);
+  if (!isRecord(raw)) throw new ConfigError(`${path}: properties を持つオブジェクトでない`);
+  const properties = raw.properties;
+  if (!isRecord(properties)) throw new ConfigError(`${path}: properties を持つオブジェクトでない`);
+  return { ...raw, properties };
+}
+
+/**
+ * スキーマの 1 つのキーの定義を読む。
+ * @param {unknown} prop
+ * @param {string} where
+ * @returns {PropertySchema}
+ */
+function parseProperty(prop, where) {
+  if (!isRecord(prop)) throw new ConfigError(`${where} がオブジェクトでない`);
+  const layers = prop["x-layers"];
+  if (!isArray(layers) || layers.length === 0 || !layers.every(isFileLayer)) {
+    throw new ConfigError(`${where}["x-layers"] が local・user・repo の空でない配列でない`);
   }
-  /** @type {Record<string, PropertySchema>} */
-  const properties = {};
-  for (const [key, prop] of Object.entries(raw.properties)) {
-    if (!isRecord(prop)) throw new ConfigError(`${path}: properties.${key} がオブジェクトでない`);
-    const layers = prop["x-layers"];
-    if (!isArray(layers) || layers.length === 0 || !layers.every(isFileLayer)) {
-      throw new ConfigError(
-        `${path}: properties.${key}["x-layers"] が local・user・repo の空でない配列でない`,
-      );
-    }
-    const env = prop["x-env"];
-    if (env !== undefined && typeof env !== "string") {
-      throw new ConfigError(`${path}: properties.${key}["x-env"] が文字列でない`);
-    }
-    checkPatterns(prop, `${path}: properties.${key}`);
-    properties[key] = { layers, env, schema: prop };
+  const env = prop["x-env"];
+  if (env !== undefined && typeof env !== "string") {
+    throw new ConfigError(`${where}["x-env"] が文字列でない`);
   }
-  const legacy = isRecord(raw["x-legacy"]) ? raw["x-legacy"] : {};
+  checkPatterns(prop, where);
+  return { layers, env, schema: prop };
+}
+
+/**
+ * スキーマの x-legacy（旧い置き場所と外した環境変数）を読む。
+ * @param {Record<string, unknown>} legacy
+ * @param {string} path
+ * @returns {{ legacyFiles: LegacyFile[]; legacyEnv: LegacyEnv[] }}
+ */
+function parseLegacy(legacy, path) {
   /** @type {LegacyFile[]} */
   const legacyFiles = [];
   for (const f of isArray(legacy.files) ? legacy.files : []) {
@@ -289,7 +318,7 @@ export function loadSchema(schemaDir, name) {
     }
     legacyEnv.push({ name: e.name, steps: e.steps });
   }
-  return { name, properties, legacyFiles, legacyEnv };
+  return { legacyFiles, legacyEnv };
 }
 
 /**
@@ -349,11 +378,37 @@ function checkPatterns(schema, where) {
  */
 export function validateValue(value, schema, where) {
   if (!isRecord(schema)) return [];
-  /** @type {string[]} */
-  const errors = [];
   if (schema.type !== undefined && !matchesType(value, schema.type)) {
     return [`${where}: 型が ${JSON.stringify(schema.type)} でない（${jsonType(value)}）`];
   }
+  /** @type {ValueCheck} */
+  const check = { value, schema, where };
+  return [
+    ...literalErrors(check),
+    ...numberErrors(check),
+    ...stringErrors(check),
+    ...arrayErrors(check),
+    ...objectErrors(check),
+    ...alternativeErrors(check),
+  ];
+}
+
+/**
+ * validateValue のキーワードごとの検証に渡す、検証する値・スキーマ・誤りの位置。
+ * @typedef {object} ValueCheck
+ * @property {unknown} value
+ * @property {Record<string, unknown>} schema
+ * @property {string} where
+ */
+
+/**
+ * enum と const を検証する。
+ * @param {ValueCheck} check
+ * @returns {string[]}
+ */
+function literalErrors({ value, schema, where }) {
+  /** @type {string[]} */
+  const errors = [];
   if (
     isArray(schema.enum) &&
     !schema.enum.some((e) => JSON.stringify(e) === JSON.stringify(value))
@@ -365,41 +420,90 @@ export function validateValue(value, schema, where) {
   if ("const" in schema && JSON.stringify(schema.const) !== JSON.stringify(value)) {
     errors.push(`${where}: ${JSON.stringify(schema.const)} でない`);
   }
-  if (typeof value === "number") {
-    if (typeof schema.minimum === "number" && value < schema.minimum)
-      errors.push(`${where}: ${schema.minimum} より小さい`);
-    if (typeof schema.maximum === "number" && value > schema.maximum)
-      errors.push(`${where}: ${schema.maximum} より大きい`);
+  return errors;
+}
+
+/**
+ * 数の minimum と maximum を検証する。
+ * @param {ValueCheck} check
+ * @returns {string[]}
+ */
+function numberErrors({ value, schema, where }) {
+  if (typeof value !== "number") return [];
+  /** @type {string[]} */
+  const errors = [];
+  if (typeof schema.minimum === "number" && value < schema.minimum)
+    errors.push(`${where}: ${schema.minimum} より小さい`);
+  if (typeof schema.maximum === "number" && value > schema.maximum)
+    errors.push(`${where}: ${schema.maximum} より大きい`);
+  return errors;
+}
+
+/**
+ * 文字列の minLength と pattern を検証する。
+ * @param {ValueCheck} check
+ * @returns {string[]}
+ */
+function stringErrors({ value, schema, where }) {
+  if (typeof value !== "string") return [];
+  /** @type {string[]} */
+  const errors = [];
+  if (typeof schema.minLength === "number" && value.length < schema.minLength)
+    errors.push(`${where}: ${schema.minLength} 文字より短い`);
+  if (typeof schema.pattern === "string" && !new RegExp(schema.pattern, "u").test(value)) {
+    errors.push(`${where}: ${JSON.stringify(value)} が /${schema.pattern}/ に合わない`);
   }
-  if (typeof value === "string") {
-    if (typeof schema.minLength === "number" && value.length < schema.minLength)
-      errors.push(`${where}: ${schema.minLength} 文字より短い`);
-    if (typeof schema.pattern === "string" && !new RegExp(schema.pattern, "u").test(value)) {
-      errors.push(`${where}: ${JSON.stringify(value)} が /${schema.pattern}/ に合わない`);
-    }
+  return errors;
+}
+
+/**
+ * 配列の minItems と items を検証する。
+ * @param {ValueCheck} check
+ * @returns {string[]}
+ */
+function arrayErrors({ value, schema, where }) {
+  if (!isArray(value)) return [];
+  /** @type {string[]} */
+  const errors = [];
+  if (typeof schema.minItems === "number" && value.length < schema.minItems)
+    errors.push(`${where}: 要素が ${schema.minItems} 個より少ない`);
+  if (schema.items !== undefined)
+    value.forEach((item, i) => errors.push(...validateValue(item, schema.items, `${where}[${i}]`)));
+  return errors;
+}
+
+/**
+ * オブジェクトの required・properties・additionalProperties を検証する。
+ * @param {ValueCheck} check
+ * @returns {string[]}
+ */
+function objectErrors({ value, schema, where }) {
+  if (!isRecord(value)) return [];
+  /** @type {string[]} */
+  const errors = [];
+  const props = isRecord(schema.properties) ? schema.properties : {};
+  if (isStringArray(schema.required)) {
+    for (const r of schema.required)
+      if (!Object.hasOwn(value, r)) errors.push(`${where}: ${r} が無い`);
   }
-  if (isArray(value)) {
-    if (typeof schema.minItems === "number" && value.length < schema.minItems)
-      errors.push(`${where}: 要素が ${schema.minItems} 個より少ない`);
-    if (schema.items !== undefined)
-      value.forEach((item, i) =>
-        errors.push(...validateValue(item, schema.items, `${where}[${i}]`)),
-      );
+  for (const [k, v] of Object.entries(value)) {
+    if (Object.hasOwn(props, k)) errors.push(...validateValue(v, props[k], `${where}.${k}`));
+    else if (schema.additionalProperties === false)
+      errors.push(`${where}: 知らないキー ${JSON.stringify(k)}`);
+    else if (isRecord(schema.additionalProperties))
+      errors.push(...validateValue(v, schema.additionalProperties, `${where}.${k}`));
   }
-  if (isRecord(value)) {
-    const props = isRecord(schema.properties) ? schema.properties : {};
-    if (isStringArray(schema.required)) {
-      for (const r of schema.required)
-        if (!Object.hasOwn(value, r)) errors.push(`${where}: ${r} が無い`);
-    }
-    for (const [k, v] of Object.entries(value)) {
-      if (Object.hasOwn(props, k)) errors.push(...validateValue(v, props[k], `${where}.${k}`));
-      else if (schema.additionalProperties === false)
-        errors.push(`${where}: 知らないキー ${JSON.stringify(k)}`);
-      else if (isRecord(schema.additionalProperties))
-        errors.push(...validateValue(v, schema.additionalProperties, `${where}.${k}`));
-    }
-  }
+  return errors;
+}
+
+/**
+ * anyOf と oneOf を検証する。
+ * @param {ValueCheck} check
+ * @returns {string[]}
+ */
+function alternativeErrors({ value, schema, where }) {
+  /** @type {string[]} */
+  const errors = [];
   for (const kw of /** @type {const} */ (["anyOf", "oneOf"])) {
     const alts = schema[kw];
     if (!isArray(alts)) continue;
@@ -494,7 +598,7 @@ export function parseJsonc(text, where) {
  */
 export function readLayer(schema, layer, path) {
   if (!existsSync(path)) return null;
-  return validateLayer(schema, layer, parseJsonc(stripBom(readText(path)), path), path);
+  return validateLayer({ schema, layer, path }, parseJsonc(stripBom(readText(path)), path));
 }
 
 /**
@@ -511,14 +615,20 @@ function readText(path) {
 }
 
 /**
+ * 検証する層のファイル。
+ * @typedef {object} LayerFile
+ * @property {ConfigSchema} schema
+ * @property {FileLayer} layer
+ * @property {string} path 失敗のメッセージに使う
+ */
+
+/**
  * 1 つの層のファイルの中身を検証する。知らないキー・置けない層のキー・スキーマに合わない値は ConfigError にする。
- * @param {ConfigSchema} schema
- * @param {FileLayer} layer
+ * @param {LayerFile} file
  * @param {unknown} value ファイルを読んだ値
- * @param {string} path 失敗のメッセージに使う
  * @returns {Record<string, unknown>}
  */
-function validateLayer(schema, layer, value, path) {
+function validateLayer({ schema, layer, path }, value) {
   if (!isRecord(value)) throw new ConfigError(`${path}: 最上位がオブジェクトでない`);
   /** @type {string[]} */
   const errors = [];
@@ -639,47 +749,63 @@ export function loadConfig(opts) {
   const schema = opts.schema ?? loadSchema(opts.schemaDir ?? DEFAULT_SCHEMA_DIR, opts.name);
   checkLegacy(schema, root, env);
   const paths = configPaths(root, opts.name, env);
-  /** @type {Partial<Record<FileLayer, Record<string, unknown> | null>>} */
-  const layers = {};
   const ignoreUser = ignoresUserLayer(env);
   if (ignoreUser) {
     const warn = opts.warn ?? ((s) => process.stderr.write(s));
     warn(`note: 人ごとの層（${paths.user}）を読まない（${ignoreReason(env)}）\n`);
   }
+  /** @type {Partial<Record<FileLayer, Record<string, unknown> | null>>} */
+  const layers = {};
   for (const layer of FILE_LAYERS) {
     layers[layer] = layer === "user" && ignoreUser ? null : readLayer(schema, layer, paths[layer]);
   }
   /** @type {Record<string, Resolved>} */
   const out = {};
   for (const [key, prop] of Object.entries(schema.properties)) {
-    const cli = opts.cli?.[key];
-    if (cli !== undefined) {
-      const errors = validateValue(cli, prop.schema, `CLI の ${key}`);
-      if (errors.length > 0) throw new ConfigError(errors.join("\n"));
-      out[key] = { value: cli, source: "cli", path: null };
-      continue;
-    }
-    const raw = prop.env === undefined ? undefined : env[prop.env];
-    if (raw !== undefined && raw !== "") {
-      const value = coerceEnv(raw, prop.schema);
-      const errors = validateValue(value, prop.schema, `環境変数 ${prop.env}`);
-      if (errors.length > 0) throw new ConfigError(errors.join("\n"));
-      out[key] = { value, source: "env", path: null };
-      continue;
-    }
-    const layer = FILE_LAYERS.find((l) => {
-      const data = layers[l];
-      return data != null && Object.hasOwn(data, key);
-    });
-    const data = layer === undefined ? undefined : layers[layer];
-    if (layer !== undefined && data != null) {
-      out[key] = { value: data[key], source: layer, path: paths[layer] };
-      continue;
-    }
-    if ("default" in prop.schema)
-      out[key] = { value: prop.schema.default, source: "default", path: null };
+    const r = resolveKey(key, prop, { cli: opts.cli, env, layers, paths });
+    if (r !== undefined) out[key] = r;
   }
   return out;
+}
+
+/**
+ * resolveKey が値を探す先。
+ * @typedef {object} ResolveSources
+ * @property {Record<string, unknown> | undefined} cli
+ * @property {NodeJS.ProcessEnv} env
+ * @property {Partial<Record<FileLayer, Record<string, unknown> | null>>} layers 読んだ層のファイル（無い層は null）
+ * @property {Record<FileLayer, string>} paths
+ */
+
+/**
+ * 1 つのキーの値を、CLI → 環境変数 → ファイルの層 → デフォルトの順に探す。値もデフォルトも無ければ undefined。
+ * @param {string} key
+ * @param {PropertySchema} prop
+ * @param {ResolveSources} sources
+ * @returns {Resolved | undefined}
+ */
+function resolveKey(key, prop, { cli, env, layers, paths }) {
+  const fromCli = cli?.[key];
+  if (fromCli !== undefined) {
+    const errors = validateValue(fromCli, prop.schema, `CLI の ${key}`);
+    if (errors.length > 0) throw new ConfigError(errors.join("\n"));
+    return { value: fromCli, source: "cli", path: null };
+  }
+  const raw = prop.env === undefined ? undefined : env[prop.env];
+  if (raw !== undefined && raw !== "") {
+    const value = coerceEnv(raw, prop.schema);
+    const errors = validateValue(value, prop.schema, `環境変数 ${prop.env}`);
+    if (errors.length > 0) throw new ConfigError(errors.join("\n"));
+    return { value, source: "env", path: null };
+  }
+  for (const layer of FILE_LAYERS) {
+    const data = layers[layer];
+    if (data != null && Object.hasOwn(data, key))
+      return { value: data[key], source: layer, path: paths[layer] };
+  }
+  if ("default" in prop.schema)
+    return { value: prop.schema.default, source: "default", path: null };
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -741,6 +867,49 @@ export function writeConfig(opts) {
   const root = opts.root ?? findRoot(process.cwd());
   const schema = loadSchema(opts.schemaDir ?? DEFAULT_SCHEMA_DIR, opts.name);
   checkLegacy(schema, root, env);
+  const top = writableTop(schema, opts);
+  const path = writablePath(root, env, opts);
+  const raw = existsSync(path) ? readText(path) : "";
+  // BOM は外して編集し、書くときに戻す（ファイルの他の部分と同じく、書き込みで変えない）
+  const bom = raw.startsWith(BOM) ? BOM : "";
+  // 中身の無いファイル（touch で作ったものなど）は、ファイルが無いときと同じく {} から書く。
+  // コメントだけのファイルは、コメントを消さないように、読み取りと同じ「空のファイル」で止める
+  const text = stripBom(raw).trim() === "" ? "{}\n" : stripBom(raw);
+  const current = parseJsonc(text, path);
+  const existing = valueAt(current, opts.keyPath);
+  const reason =
+    opts.mode === "set"
+      ? setUnchanged(opts, existing, path)
+      : appendUnchanged(opts, existing, path);
+  if (reason !== undefined) {
+    // 書かずに返すとき（同じ値が既にある・--unique-by の要素が既にある）も、書こうとしたキーの外の誤りは見逃さない。
+    // 書く前のファイル全体は検証しない。誤った状態を書き込みで直す操作（空の配列に最初の要素を足すなど）を止めるからである
+    // set で同じ値が既にあるなら、その値も含めてファイル全体を検証する。
+    // append で同じ要素が既にあるなら、書こうとした最上位のキーは外す（その配列には、正規の書き込みで直す途中の状態がありうる）
+    const file = { schema, layer: opts.layer, path };
+    if (opts.mode === "set") validateLayer(file, current);
+    else if (isRecord(current)) {
+      const { [top]: _written, ...others } = current;
+      validateLayer(file, others);
+    }
+    return { path, changed: false, reason };
+  }
+  const edits = editsFor(text, { ...opts, exists: existing !== undefined }, path);
+  const next = jsonc.applyEdits(text, edits);
+  const checkPath = `${path}（書き込んだ後）`;
+  validateLayer({ schema, layer: opts.layer, path: checkPath }, parseJsonc(next, checkPath));
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, `${bom}${next.endsWith("\n") ? next : `${next}\n`}`);
+  return { path, changed: true, reason: opts.mode === "set" ? "書いた" : "足した" };
+}
+
+/**
+ * 書くキーの最上位の名前を返す。スキーマに無いキーと、その層に置けないキーは ConfigError にする。
+ * @param {ConfigSchema} schema
+ * @param {WriteOptions} opts
+ * @returns {string}
+ */
+function writableTop(schema, opts) {
   const top = opts.keyPath[0];
   if (typeof top !== "string")
     throw new ConfigError(`${opts.name}: キーのパスの最初は最上位のキーの名前にする`);
@@ -752,64 +921,63 @@ export function writeConfig(opts) {
       `${top} は ${layerLabel(opts.layer)} の層に置けない（置ける層: ${prop.layers.map(layerLabel).join("・")}）`,
     );
   }
+  return top;
+}
+
+/**
+ * 書く層のファイルのパスを返す。読まない人ごとの層・gitignore されていない .local.jsonc・リポジトリの外を指す置き場所は ConfigError にする。
+ * @param {string} root
+ * @param {NodeJS.ProcessEnv} env
+ * @param {WriteOptions} opts
+ * @returns {string}
+ */
+function writablePath(root, env, opts) {
   if (opts.layer === "user" && ignoresUserLayer(env)) {
     throw new ConfigError(`人ごとの層に書かない（${ignoreReason(env)}）`);
   }
   const path = configPaths(root, opts.name, env)[opts.layer];
   if (opts.layer === "local") requireIgnored(root, path);
   if (opts.layer !== "user") requireInsideRoot(root, path);
-  const raw = existsSync(path) ? readText(path) : "";
-  // BOM は外して編集し、書くときに戻す（ファイルの他の部分と同じく、書き込みで変えない）
-  const bom = raw.startsWith(BOM) ? BOM : "";
-  // 中身の無いファイル（touch で作ったものなど）は、ファイルが無いときと同じく {} から書く。
-  // コメントだけのファイルは、コメントを消さないように、読み取りと同じ「空のファイル」で止める
-  const text = stripBom(raw).trim() === "" ? "{}\n" : stripBom(raw);
-  const current = parseJsonc(text, path);
-  const existing = valueAt(current, opts.keyPath);
-  // 書かずに返すとき（同じ値が既にある・--unique-by の要素が既にある）も、書こうとしたキーの外の誤りは見逃さない。
-  // 書く前のファイル全体は検証しない。誤った状態を書き込みで直す操作（空の配列に最初の要素を足すなど）を止めるからである
-  // set で同じ値が既にあるなら、その値も含めてファイル全体を検証する。
-  // append で同じ要素が既にあるなら、書こうとした最上位のキーは外す（その配列には、正規の書き込みで直す途中の状態がありうる）
-  const unchanged = (/** @type {string} */ reason) => {
-    if (opts.mode === "set") validateLayer(schema, opts.layer, current, path);
-    else if (isRecord(current)) {
-      const { [top]: _written, ...others } = current;
-      validateLayer(schema, opts.layer, others, path);
-    }
-    return { path, changed: false, reason };
-  };
-  if (opts.mode === "set") {
-    if (existing !== undefined && !opts.replace) {
-      if (JSON.stringify(existing) === JSON.stringify(opts.value))
-        return unchanged("同じ値が既にある");
-      throw new ConfigError(
-        `${path}: ${opts.keyPath.join(".")} は既に ${JSON.stringify(existing)} になっている。既にあるキーは変えない（変えるなら人が確かめてから --replace を付ける）`,
-      );
-    }
-  } else {
-    if (existing !== undefined && !isArray(existing))
-      throw new ConfigError(`${path}: ${opts.keyPath.join(".")} が配列でない`);
-    const list = isArray(existing) ? existing : [];
-    if (opts.uniqueBy !== undefined) {
-      const key = opts.uniqueBy;
-      // 文字列だけの要素は、key の欄だけを書いた要素の短い書き方として扱う（intentional_diffs の "文言" と {"item": "文言"} など）。
-      // 足す値が文字列のときも同じに扱う
-      const keyOf = (/** @type {unknown} */ x) => (isRecord(x) ? x[key] : x);
-      const want =
-        isRecord(opts.value) || typeof opts.value === "string" ? keyOf(opts.value) : undefined;
-      if (want === undefined) throw new UsageError(`--unique-by ${key}: 足す要素に ${key} が無い`);
-      if (list.some((x) => JSON.stringify(keyOf(x)) === JSON.stringify(want))) {
-        return unchanged(`${key} が同じ要素が既にある`);
-      }
-    }
-  }
-  const edits = editsFor(text, opts.keyPath, opts.value, opts.mode, existing !== undefined, path);
-  const next = jsonc.applyEdits(text, edits);
-  const checkPath = `${path}（書き込んだ後）`;
-  validateLayer(schema, opts.layer, parseJsonc(next, checkPath), checkPath);
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, `${bom}${next.endsWith("\n") ? next : `${next}\n`}`);
-  return { path, changed: true, reason: opts.mode === "set" ? "書いた" : "足した" };
+  return path;
+}
+
+/**
+ * set で書かずに返す理由。同じ値が既にあれば理由を返し、違う値が既にあれば（--replace が無いとき）ConfigError にする。
+ * @param {WriteOptions} opts
+ * @param {unknown} existing 書くキーに既にある値
+ * @param {string} path
+ * @returns {string | undefined}
+ */
+function setUnchanged(opts, existing, path) {
+  if (existing === undefined || opts.replace) return undefined;
+  if (JSON.stringify(existing) === JSON.stringify(opts.value)) return "同じ値が既にある";
+  throw new ConfigError(
+    `${path}: ${opts.keyPath.join(".")} は既に ${JSON.stringify(existing)} になっている。既にあるキーは変えない（変えるなら人が確かめてから --replace を付ける）`,
+  );
+}
+
+/**
+ * append で書かずに返す理由。--unique-by の欄が同じ要素が既にあれば理由を返す。
+ * @param {WriteOptions} opts
+ * @param {unknown} existing 書くキーに既にある値
+ * @param {string} path
+ * @returns {string | undefined}
+ */
+function appendUnchanged(opts, existing, path) {
+  if (existing !== undefined && !isArray(existing))
+    throw new ConfigError(`${path}: ${opts.keyPath.join(".")} が配列でない`);
+  if (opts.uniqueBy === undefined) return undefined;
+  const list = isArray(existing) ? existing : [];
+  const key = opts.uniqueBy;
+  // 文字列だけの要素は、key の欄だけを書いた要素の短い書き方として扱う（intentional_diffs の "文言" と {"item": "文言"} など）。
+  // 足す値が文字列のときも同じに扱う
+  const keyOf = (/** @type {unknown} */ x) => (isRecord(x) ? x[key] : x);
+  const want =
+    isRecord(opts.value) || typeof opts.value === "string" ? keyOf(opts.value) : undefined;
+  if (want === undefined) throw new UsageError(`--unique-by ${key}: 足す要素に ${key} が無い`);
+  if (list.some((x) => JSON.stringify(keyOf(x)) === JSON.stringify(want)))
+    return `${key} が同じ要素が既にある`;
+  return undefined;
 }
 
 /**
@@ -847,57 +1015,85 @@ function formatValue(value, indent, inline) {
  * @returns {jsonc.Edit[]}
  */
 function appendMember(text, container, member) {
-  const children = container.children ?? [];
-  const close = container.offset + container.length - 1;
-  const last = children.at(-1);
-  if (last === undefined) {
-    const inner = text.slice(container.offset + 1, close);
-    const indent = lineIndent(text, container.offset);
-    const child = `${indent}  `;
-    if (inner.trim() === "") {
-      return [
-        {
-          offset: container.offset + 1,
-          length: inner.length,
-          content: `\n${child}${member(child, false)}\n${indent}`,
-        },
-      ];
-    }
-    // 中身がコメントだけなら、最後のコメントの後ろに足す
-    const end = container.offset + 1 + inner.trimEnd().length;
-    return [{ offset: end, length: 0, content: `\n${child}${member(child, false)}` }];
-  }
+  const last = (container.children ?? []).at(-1);
+  if (last === undefined) return appendToEmpty(text, container, member);
   const end = last.offset + last.length;
   const inline = !text.slice(container.offset, last.offset).includes("\n");
   if (inline) return [{ offset: end, length: 0, content: `, ${member("", true)}` }];
-  let j = end;
+  const { at, hasComma } = afterLastMember(text, end);
+  const child = lineIndent(text, last.offset);
+  const added = `\n${child}${member(child, false)}${hasComma ? "," : ""}`;
+  if (hasComma) return [{ offset: at, length: 0, content: added }];
+  return [
+    { offset: end, length: 0, content: "," },
+    { offset: at, length: 0, content: added },
+  ];
+}
+
+/**
+ * 要素の無いオブジェクトか配列に、最初の要素を足す編集。
+ * @param {string} text
+ * @param {jsonc.Node} container
+ * @param {(indent: string, inline: boolean) => string} member
+ * @returns {jsonc.Edit[]}
+ */
+function appendToEmpty(text, container, member) {
+  const close = container.offset + container.length - 1;
+  const inner = text.slice(container.offset + 1, close);
+  const indent = lineIndent(text, container.offset);
+  const child = `${indent}  `;
+  if (inner.trim() === "") {
+    return [
+      {
+        offset: container.offset + 1,
+        length: inner.length,
+        content: `\n${child}${member(child, false)}\n${indent}`,
+      },
+    ];
+  }
+  // 中身がコメントだけなら、最後のコメントの後ろに足す
+  const end = container.offset + 1 + inner.trimEnd().length;
+  return [{ offset: end, length: 0, content: `\n${child}${member(child, false)}` }];
+}
+
+/**
+ * 空白とタブを読み飛ばした位置。
+ * @param {string} text
+ * @param {number} offset
+ * @returns {number}
+ */
+function skipBlanks(text, offset) {
+  let j = offset;
   while (text[j] === " " || text[j] === "\t") j++;
+  return j;
+}
+
+/**
+ * 最後の要素（end で終わる）の後ろで、次の要素を足す位置と、最後の要素の後に「,」があるか。
+ * 足す位置は、「,」と、同じ行のコメントの後ろにする。
+ * @param {string} text
+ * @param {number} end
+ * @returns {{ at: number; hasComma: boolean }}
+ */
+function afterLastMember(text, end) {
+  let j = skipBlanks(text, end);
   const hasComma = text[j] === ",";
-  if (hasComma) j++;
-  while (text[j] === " " || text[j] === "\t") j++;
+  if (hasComma) j = skipBlanks(text, j + 1);
   // 同じ行で閉じるブロックコメントは読み進める。その後ろの行コメントも、最後の要素に付いたまま残す
   let closedBlock = false;
   while (text.startsWith("/*", j)) {
     const closeComment = text.indexOf("*/", j);
     const nl = text.indexOf("\n", j);
     if (closeComment === -1 || (nl !== -1 && closeComment > nl)) break;
-    j = closeComment + 2;
+    j = skipBlanks(text, closeComment + 2);
     closedBlock = true;
-    while (text[j] === " " || text[j] === "\t") j++;
   }
   if (text.startsWith("//", j)) {
     const nl = text.indexOf("\n", j);
-    j = nl === -1 ? text.length : nl;
-  } else if (!closedBlock) {
-    j = hasComma ? j : end;
+    return { at: nl === -1 ? text.length : nl, hasComma };
   }
-  const child = lineIndent(text, last.offset);
-  const added = `\n${child}${member(child, false)}${hasComma ? "," : ""}`;
-  if (hasComma) return [{ offset: j, length: 0, content: added }];
-  return [
-    { offset: end, length: 0, content: "," },
-    { offset: j, length: 0, content: added },
-  ];
+  if (!closedBlock && !hasComma) return { at: end, hasComma };
+  return { at: j, hasComma };
 }
 
 /**
@@ -906,14 +1102,11 @@ function appendMember(text, container, member) {
  * - set で値が無い: 在る中で最も深いオブジェクトに、残りのパスを入れ子にした値を足す
  * - append: 配列があれば末尾に要素を足し、無ければ要素 1 つの配列を set と同じく足す
  * @param {string} text
- * @param {(string | number)[]} keyPath
- * @param {unknown} value
- * @param {"set" | "append"} mode
- * @param {boolean} exists keyPath に値があるか
+ * @param {Pick<WriteOptions, "keyPath" | "value" | "mode"> & { exists: boolean }} write exists は keyPath に値があるか
  * @param {string} where
  * @returns {jsonc.Edit[]}
  */
-function editsFor(text, keyPath, value, mode, exists, where) {
+function editsFor(text, { keyPath, value, mode, exists }, where) {
   const tree = jsonc.parseTree(text, [], PARSE_OPTIONS);
   if (tree === undefined) throw new ConfigError(`${where}: 読めない`);
   const node = exists ? jsonc.findNodeAtLocation(tree, keyPath) : undefined;
@@ -1059,152 +1252,12 @@ function parseJsonArg(s, what) {
  */
 export function main(argv, io) {
   try {
-    /** @type {string[]} */
-    const pos = [];
-    /** @type {Record<string, string | true>} */
-    const flags = {};
-    const valued = new Set(["--root", "--schema-dir", "--layer", "--cli-value", "--unique-by"]);
-    const bare = new Set(["--raw", "--replace", "-h", "--help"]);
-    for (let i = 0; i < argv.length; i++) {
-      const a = argv[i];
-      // -- の後はすべて位置引数にする（負の数の JSON 値 -1 などを渡すため）
-      if (a === "--") {
-        pos.push(...argv.slice(i + 1));
-        break;
-      }
-      // 同じオプションを重ねて渡したら、どちらの値を使うかを決めずに止める（--layer local --layer repo で共有の層に書かない）
-      if ((valued.has(a) || bare.has(a)) && Object.hasOwn(flags, a))
-        throw new UsageError(`${a} を 2 回渡している`);
-      if (valued.has(a)) {
-        const v = argv[i + 1];
-        if (v === undefined || v === "") throw new UsageError(`${a} に値が無い`);
-        flags[a] = v;
-        i++;
-      } else if (bare.has(a)) flags[a] = true;
-      else if (a.startsWith("-"))
-        throw new UsageError(`知らないオプション ${a}（- で始まる値は -- の後に置く）`);
-      else pos.push(a);
-    }
+    const { pos, flags } = parseArgs(argv);
     if (flags["-h"] || flags["--help"]) {
       io.out(`${usage}\n`);
       return 0;
     }
-    const [cmd, name, ...rest] = pos;
-    if (cmd === undefined || name === undefined)
-      throw new UsageError("サブコマンドと設定の名前が要る");
-    // サブコマンドに関係しないオプションは、無視せずに止める（set の --unique-by や get の --layer が反映されたと思わせない）
-    /** @type {Record<string, string[]>} */
-    const only = {
-      get: ["--raw", "--cli-value"],
-      set: ["--layer", "--replace"],
-      append: ["--layer", "--unique-by"],
-    };
-    for (const f of Object.keys(flags)) {
-      if (f === "--root" || f === "--schema-dir") continue;
-      if (Object.hasOwn(only, cmd) && !only[cmd].includes(f))
-        throw new UsageError(`${cmd} に ${f} は渡せない`);
-      if (!Object.hasOwn(only, cmd) && Object.values(only).some((l) => l.includes(f)))
-        throw new UsageError(`${cmd} に ${f} は渡せない`);
-    }
-    if (!/^[a-z0-9][a-z0-9-]*$/.test(name))
-      throw new UsageError(`設定の名前 ${JSON.stringify(name)} が小文字の英数字とハイフンでない`);
-    const root = typeof flags["--root"] === "string" ? flags["--root"] : findRoot(io.cwd);
-    const schemaDir =
-      typeof flags["--schema-dir"] === "string" ? flags["--schema-dir"] : DEFAULT_SCHEMA_DIR;
-    const base = { name, root, env: io.env, schemaDir, warn: io.err };
-    /** @param {number} n */
-    const expectArgs = (n) => {
-      if (rest.length !== n) throw new UsageError(`${cmd} の引数の数が違う`);
-    };
-    switch (cmd) {
-      case "get": {
-        expectArgs(1);
-        // 層は最上位のキーごとに選ぶ。入れ子のパスは、選んだ層の値の中をたどる。
-        const [key, ...inner] = parseKeyPath(rest[0]);
-        if (typeof key !== "string")
-          throw new UsageError(`キーのパス ${rest[0]} の最初が、キーの名前でない`);
-        /** @type {Record<string, unknown>} */
-        const cli = {};
-        if (typeof flags["--cli-value"] === "string") {
-          if (inner.length > 0) throw new UsageError("--cli-value は最上位のキーにだけ渡せる");
-          cli[key] = parseJsonArg(flags["--cli-value"], "--cli-value");
-        }
-        const schema = loadSchema(schemaDir, name);
-        if (!Object.hasOwn(schema.properties, key))
-          throw new ConfigError(`${name} に ${JSON.stringify(key)} というキーは無い`);
-        const r = loadConfig({ ...base, cli, schema })[key];
-        /** @type {unknown} */
-        let value = r?.value;
-        for (const part of inner) {
-          if (typeof part === "number" && isArray(value)) value = value[part];
-          else if (typeof part === "string" && isRecord(value) && Object.hasOwn(value, part))
-            value = value[part];
-          else value = undefined;
-        }
-        if (flags["--raw"]) {
-          if (r === undefined || value === undefined) return 3;
-          io.out(`${typeof value === "string" ? value : JSON.stringify(value)}\n`);
-          return 0;
-        }
-        if (r === undefined || value === undefined) {
-          io.out(`source=unset\n`);
-          return 3;
-        }
-        io.out(
-          `value=${JSON.stringify(value)}\nsource=${r.source}\n${r.path === null ? "" : `path=${r.path}\n`}`,
-        );
-        return 0;
-      }
-      case "dump": {
-        expectArgs(0);
-        io.out(`${JSON.stringify(loadConfig(base), null, 2)}\n`);
-        return 0;
-      }
-      case "validate": {
-        expectArgs(0);
-        loadConfig(base);
-        // 読まなかった人ごとの層のファイルは、検証していないので並べない（読まない旨は loadConfig が note で出す）
-        const ignoreUser = ignoresUserLayer(io.env);
-        const present = Object.entries(configPaths(root, name, io.env)).filter(
-          ([l, p]) => !(l === "user" && ignoreUser) && existsSync(p),
-        );
-        io.out(
-          `ok: ${name} の設定はスキーマに合う（${present.length === 0 ? "設定ファイルは無い" : present.map(([l, p]) => `${l}=${p}`).join(" ")}）\n`,
-        );
-        return 0;
-      }
-      case "paths": {
-        expectArgs(0);
-        // 読まない人ごとの層のパスは出さない（そこに書いても読まれず、相対パスならリポジトリの層と取り違える）
-        const ignoreUser = ignoresUserLayer(io.env);
-        for (const [l, p] of Object.entries(configPaths(root, name, io.env))) {
-          if (l === "user" && ignoreUser)
-            io.err(`note: 人ごとの層（${p}）を読まない（${ignoreReason(io.env)}）\n`);
-          else io.out(`${l}=${p}\n`);
-        }
-        return 0;
-      }
-      case "set":
-      case "append": {
-        expectArgs(2);
-        const layer = flags["--layer"];
-        if (layer !== "local" && layer !== "user" && layer !== "repo")
-          throw new UsageError("--layer に local・user・repo のどれかが要る");
-        const r = writeConfig({
-          ...base,
-          layer,
-          keyPath: parseKeyPath(rest[0]),
-          value: parseJsonArg(rest[1], "値"),
-          mode: cmd,
-          replace: flags["--replace"] === true,
-          uniqueBy: typeof flags["--unique-by"] === "string" ? flags["--unique-by"] : undefined,
-        });
-        io.out(`${r.changed ? "changed" : "unchanged"}: ${r.path}（${r.reason}）\n`);
-        return 0;
-      }
-      default:
-        throw new UsageError(`知らないサブコマンド ${cmd}`);
-    }
+    return runCommand(commandContext(pos, flags, io));
   } catch (e) {
     if (e instanceof UsageError) {
       io.err(`error: ${e.message}\n${usage}\n`);
@@ -1216,6 +1269,254 @@ export function main(argv, io) {
     }
     throw e;
   }
+}
+
+/** 値を取るオプション。 */
+const VALUED_FLAGS = new Set(["--root", "--schema-dir", "--layer", "--cli-value", "--unique-by"]);
+
+/** 値を取らないオプション。 */
+const BARE_FLAGS = new Set(["--raw", "--replace", "-h", "--help"]);
+
+/**
+ * サブコマンドに関係するオプション。ここに無いサブコマンドには、ここに挙げたオプションを渡せない。
+ * @type {Record<string, string[]>}
+ */
+const COMMAND_FLAGS = {
+  get: ["--raw", "--cli-value"],
+  set: ["--layer", "--replace"],
+  append: ["--layer", "--unique-by"],
+};
+
+/**
+ * 引数を位置引数とオプションに分ける。
+ * @param {string[]} argv
+ * @returns {{ pos: string[]; flags: Record<string, string | true> }}
+ */
+function parseArgs(argv) {
+  /** @type {string[]} */
+  const pos = [];
+  /** @type {Record<string, string | true>} */
+  const flags = {};
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    // -- の後はすべて位置引数にする（負の数の JSON 値 -1 などを渡すため）
+    if (a === "--") {
+      pos.push(...argv.slice(i + 1));
+      break;
+    }
+    // 同じオプションを重ねて渡したら、どちらの値を使うかを決めずに止める（--layer local --layer repo で共有の層に書かない）
+    if ((VALUED_FLAGS.has(a) || BARE_FLAGS.has(a)) && Object.hasOwn(flags, a))
+      throw new UsageError(`${a} を 2 回渡している`);
+    if (VALUED_FLAGS.has(a)) {
+      const v = argv[i + 1];
+      if (v === undefined || v === "") throw new UsageError(`${a} に値が無い`);
+      flags[a] = v;
+      i++;
+    } else if (BARE_FLAGS.has(a)) flags[a] = true;
+    else if (a.startsWith("-"))
+      throw new UsageError(`知らないオプション ${a}（- で始まる値は -- の後に置く）`);
+    else pos.push(a);
+  }
+  return { pos, flags };
+}
+
+/**
+ * サブコマンドの実行に渡す引数と共通の設定。
+ * @typedef {object} CommandContext
+ * @property {string} cmd
+ * @property {string[]} rest サブコマンドと設定の名前の後の位置引数
+ * @property {Record<string, string | true>} flags
+ * @property {{ name: string; root: string; env: NodeJS.ProcessEnv; schemaDir: string; warn: (s: string) => void }} base
+ *   loadConfig と writeConfig に共通で渡すオプション
+ * @property {Io} io
+ */
+
+/**
+ * 位置引数とオプションから、サブコマンドの実行に渡すものを作る。
+ * @param {string[]} pos
+ * @param {Record<string, string | true>} flags
+ * @param {Io} io
+ * @returns {CommandContext}
+ */
+function commandContext(pos, flags, io) {
+  const [cmd, name, ...rest] = pos;
+  if (cmd === undefined || name === undefined)
+    throw new UsageError("サブコマンドと設定の名前が要る");
+  checkCommandFlags(cmd, flags);
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(name))
+    throw new UsageError(`設定の名前 ${JSON.stringify(name)} が小文字の英数字とハイフンでない`);
+  const root = typeof flags["--root"] === "string" ? flags["--root"] : findRoot(io.cwd);
+  const schemaDir =
+    typeof flags["--schema-dir"] === "string" ? flags["--schema-dir"] : DEFAULT_SCHEMA_DIR;
+  const base = { name, root, env: io.env, schemaDir, warn: io.err };
+  return { cmd, rest, flags, base, io };
+}
+
+/**
+ * サブコマンドに関係しないオプションは、無視せずに止める（set の --unique-by や get の --layer が反映されたと思わせない）。
+ * @param {string} cmd
+ * @param {Record<string, string | true>} flags
+ */
+function checkCommandFlags(cmd, flags) {
+  for (const f of Object.keys(flags)) {
+    if (f === "--root" || f === "--schema-dir") continue;
+    if (Object.hasOwn(COMMAND_FLAGS, cmd) && !COMMAND_FLAGS[cmd].includes(f))
+      throw new UsageError(`${cmd} に ${f} は渡せない`);
+    if (
+      !Object.hasOwn(COMMAND_FLAGS, cmd) &&
+      Object.values(COMMAND_FLAGS).some((l) => l.includes(f))
+    )
+      throw new UsageError(`${cmd} に ${f} は渡せない`);
+  }
+}
+
+/**
+ * @param {CommandContext} ctx
+ * @param {number} n 位置引数の数
+ */
+function expectArgs(ctx, n) {
+  if (ctx.rest.length !== n) throw new UsageError(`${ctx.cmd} の引数の数が違う`);
+}
+
+/**
+ * サブコマンドを実行し、終了コードを返す。
+ * @param {CommandContext} ctx
+ * @returns {number}
+ */
+function runCommand(ctx) {
+  const { cmd } = ctx;
+  switch (cmd) {
+    case "get":
+      expectArgs(ctx, 1);
+      return runGet(ctx);
+    case "dump":
+      expectArgs(ctx, 0);
+      ctx.io.out(`${JSON.stringify(loadConfig(ctx.base), null, 2)}\n`);
+      return 0;
+    case "validate":
+      expectArgs(ctx, 0);
+      return runValidate(ctx);
+    case "paths":
+      expectArgs(ctx, 0);
+      return runPaths(ctx);
+    case "set":
+    case "append":
+      expectArgs(ctx, 2);
+      return runWrite(ctx, cmd);
+    default:
+      throw new UsageError(`知らないサブコマンド ${cmd}`);
+  }
+}
+
+/**
+ * get を実行する。層は最上位のキーごとに選ぶ。入れ子のパスは、選んだ層の値の中をたどる。
+ * @param {CommandContext} ctx
+ * @returns {number}
+ */
+function runGet({ rest, flags, base, io }) {
+  const { name, schemaDir } = base;
+  const [key, ...inner] = parseKeyPath(rest[0]);
+  if (typeof key !== "string")
+    throw new UsageError(`キーのパス ${rest[0]} の最初が、キーの名前でない`);
+  /** @type {Record<string, unknown>} */
+  const cli = {};
+  if (typeof flags["--cli-value"] === "string") {
+    if (inner.length > 0) throw new UsageError("--cli-value は最上位のキーにだけ渡せる");
+    cli[key] = parseJsonArg(flags["--cli-value"], "--cli-value");
+  }
+  const schema = loadSchema(schemaDir, name);
+  if (!Object.hasOwn(schema.properties, key))
+    throw new ConfigError(`${name} に ${JSON.stringify(key)} というキーは無い`);
+  const r = loadConfig({ ...base, cli, schema })[key];
+  const value = innerValue(r?.value, inner);
+  if (flags["--raw"]) {
+    if (r === undefined || value === undefined) return 3;
+    io.out(`${typeof value === "string" ? value : JSON.stringify(value)}\n`);
+    return 0;
+  }
+  if (r === undefined || value === undefined) {
+    io.out(`source=unset\n`);
+    return 3;
+  }
+  io.out(
+    `value=${JSON.stringify(value)}\nsource=${r.source}\n${r.path === null ? "" : `path=${r.path}\n`}`,
+  );
+  return 0;
+}
+
+/**
+ * 値の中を、入れ子のパスでたどる。たどれなければ undefined。
+ * @param {unknown} value
+ * @param {(string | number)[]} inner
+ * @returns {unknown}
+ */
+function innerValue(value, inner) {
+  let cur = value;
+  for (const part of inner) {
+    if (typeof part === "number" && isArray(cur)) cur = cur[part];
+    else if (typeof part === "string" && isRecord(cur) && Object.hasOwn(cur, part)) cur = cur[part];
+    else cur = undefined;
+  }
+  return cur;
+}
+
+/**
+ * validate を実行する。
+ * @param {CommandContext} ctx
+ * @returns {number}
+ */
+function runValidate({ base, io }) {
+  const { name, root } = base;
+  loadConfig(base);
+  // 読まなかった人ごとの層のファイルは、検証していないので並べない（読まない旨は loadConfig が note で出す）
+  const ignoreUser = ignoresUserLayer(io.env);
+  const present = Object.entries(configPaths(root, name, io.env)).filter(
+    ([l, p]) => !(l === "user" && ignoreUser) && existsSync(p),
+  );
+  io.out(
+    `ok: ${name} の設定はスキーマに合う（${present.length === 0 ? "設定ファイルは無い" : present.map(([l, p]) => `${l}=${p}`).join(" ")}）\n`,
+  );
+  return 0;
+}
+
+/**
+ * paths を実行する。
+ * @param {CommandContext} ctx
+ * @returns {number}
+ */
+function runPaths({ base, io }) {
+  const { name, root } = base;
+  // 読まない人ごとの層のパスは出さない（そこに書いても読まれず、相対パスならリポジトリの層と取り違える）
+  const ignoreUser = ignoresUserLayer(io.env);
+  for (const [l, p] of Object.entries(configPaths(root, name, io.env))) {
+    if (l === "user" && ignoreUser)
+      io.err(`note: 人ごとの層（${p}）を読まない（${ignoreReason(io.env)}）\n`);
+    else io.out(`${l}=${p}\n`);
+  }
+  return 0;
+}
+
+/**
+ * set と append を実行する。
+ * @param {CommandContext} ctx
+ * @param {"set" | "append"} mode
+ * @returns {number}
+ */
+function runWrite({ rest, flags, base, io }, mode) {
+  const layer = flags["--layer"];
+  if (layer !== "local" && layer !== "user" && layer !== "repo")
+    throw new UsageError("--layer に local・user・repo のどれかが要る");
+  const r = writeConfig({
+    ...base,
+    layer,
+    keyPath: parseKeyPath(rest[0]),
+    value: parseJsonArg(rest[1], "値"),
+    mode,
+    replace: flags["--replace"] === true,
+    uniqueBy: typeof flags["--unique-by"] === "string" ? flags["--unique-by"] : undefined,
+  });
+  io.out(`${r.changed ? "changed" : "unchanged"}: ${r.path}（${r.reason}）\n`);
+  return 0;
 }
 
 // cli-entry-js:begin
