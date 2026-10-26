@@ -649,7 +649,8 @@ runner にはログインの設定が無く、step の env のトークン（`GH
 github.com では `GH_HOST=github.com` になるだけなので、振る舞いは変わらない。
 
 GitHub Enterprise Server では、`agent` モードのレポートを受け渡せない。
-テンプレートが使う `actions/upload-artifact` と `actions/download-artifact` の v4 以降は、GHES で使えないからである（各 action の README）。
+テンプレートが使う `actions/upload-artifact` と `actions/download-artifact` の v4 以降は、GHES で使えないからである。
+出典は、各 action の README の「GHES Support」（<https://github.com/actions/upload-artifact#ghes-support>・<https://github.com/actions/download-artifact#ghes-support>）である。
 このとき `review` ジョブは upload の段で失敗し、追跡 Issue には「エージェントのレポートを受け取れませんでした」と書かれる。
 GHES では `notify` モードで動かす。`notify` モードは artifact を使わない。
 

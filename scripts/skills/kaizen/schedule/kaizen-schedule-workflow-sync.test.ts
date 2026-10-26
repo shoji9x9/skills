@@ -169,6 +169,7 @@ test("レポートが無くても空のファイルを作り、artifact が作�
 type Job = {
   "runs-on"?: unknown;
   permissions?: Record<string, unknown>;
+  outputs?: Record<string, unknown>;
   steps?: { name?: string; uses?: string; run?: string; with?: Record<string, unknown> }[];
 };
 
@@ -212,15 +213,27 @@ describe("エージェントを Issue の書き込みの権限から分ける", 
 
   // run を再実行すると、前の試行が上げた artifact が同じ run に残る。名前が試行ごとに違わないと、
   // 今回エージェントがレポートを書かなかった試行で、前の試行のレポートを今週の分として載せる。
-  test("レポートの artifact は、upload と download で同じ名前を使い、名前に試行の番号を含む", () => {
-    const all = Object.values(jobs()).flatMap((j) => j.steps ?? []);
-    const named = (action: string) =>
-      all.filter((s) => (s.uses ?? "").startsWith(`actions/${action}@`)).map((s) => s.with?.name);
-    const uploads = named("upload-artifact");
-    const downloads = named("download-artifact");
+  // 一方、失敗したジョブだけを再実行すると、upload したジョブは再実行されない。download する側が
+  // 自分の試行の番号から名前を作ると、前の試行のレポートを見つけられない。名前は upload した側から受け取る。
+  test("レポートの artifact の名前は試行の番号を含み、download は upload したジョブの outputs から名前を受け取る", () => {
+    const entries = Object.entries(jobs());
+    const using = (action: string) =>
+      entries.flatMap(([id, j]) =>
+        (j.steps ?? [])
+          .filter((s) => (s.uses ?? "").startsWith(`actions/${action}@`))
+          .map((s) => ({ id, job: j, name: String(s.with?.name) })),
+      );
+    const uploads = using("upload-artifact");
+    const downloads = using("download-artifact");
     expect(uploads).toHaveLength(1);
-    expect(downloads).toStrictEqual(uploads);
-    expect(String(uploads[0])).toContain("${{ github.run_attempt }}");
+    expect(downloads).toHaveLength(1);
+    const [up] = uploads;
+    const [down] = downloads;
+    expect(up.name).toContain("${{ github.run_attempt }}");
+    const ref = down.name.match(/^\$\{\{\s*needs\.([\w-]+)\.outputs\.([\w-]+)\s*\}\}$/);
+    assert.exists(ref, `download の名前が needs.<job>.outputs を指さない: ${down.name}`);
+    expect(ref[1], "download が名前を受け取るジョブ").toBe(up.id);
+    expect(up.job.outputs?.[ref[2]], `jobs.${up.id}.outputs.${ref[2]}`).toBe(up.name);
   });
 });
 

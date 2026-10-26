@@ -82,6 +82,11 @@ jobs:
       outcome_claude: ${{ steps.run-claude.outcome }}
       outcome_codex: ${{ steps.run-codex.outcome }}
       outcome_copilot: ${{ steps.run-copilot.outcome }}
+      # レポートの artifact の名前。`review` が upload したときの試行の番号を含む。
+      # run を再実行したときに、前の試行が上げたレポートを今回の分として download しないようにする。
+      # `tracking-issue` は、自分の run_attempt から名前を作らない。失敗したジョブだけを再実行すると
+      # `review` は再実行されず、`tracking-issue` の試行の番号だけが進むので、名前が合わなくなる。
+      report_artifact: kaizen-agent-report-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -289,9 +294,9 @@ jobs:
         run: touch "$REPORT_FILE"
 
       # レポートだけを渡す。`tracking-issue` はこれを Issue の本文に載せる文章として読み、実行しない。
-      # 名前に試行の番号（run_attempt）を入れる。run を再実行したときに、前の試行が上げたレポートを
-      # 今回の分として download しないようにするためである。
-      # upload-artifact と download-artifact の v4 以降は、GitHub Enterprise Server では使えない（各 action の README）。
+      # 名前は、job の outputs の `report_artifact` と同じ値にする（試行の番号を含む）。
+      # upload-artifact と download-artifact の v4 以降は、GitHub Enterprise Server では使えない。
+      # 出典: https://github.com/actions/upload-artifact#ghes-support と https://github.com/actions/download-artifact#ghes-support
       # GHES では、この段で `review` が失敗し、`tracking-issue` はレポートを受け取れなかったと Issue に書く。
       - name: Upload agent report
         if: steps.cred.outputs.present == 'true'
@@ -331,7 +336,7 @@ jobs:
         continue-on-error: true
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: kaizen-agent-report-${{ github.run_attempt }}
+          name: ${{ needs.review.outputs.report_artifact }}
           path: ${{ runner.temp }}/kaizen-agent
 
       # エージェント実行の成否を**成果物**で判定する。`continue-on-error` を付けた
