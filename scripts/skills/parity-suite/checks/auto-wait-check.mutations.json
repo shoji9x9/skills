@@ -10,8 +10,8 @@
       "id": "excluded-always",
       "why": "解決しない受け側を全て対象外に数える（Issue #412 の黙った素通りへ戻す）",
       "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
-      "find": "          receivers.nonReceivers.has(root) &&\n",
-      "replace": "          true ||\n",
+      "find": "    receivers.nonReceivers.has(root) &&\n",
+      "replace": "    true ||\n",
       "occurrences": 1,
       "expect_failing": [
         "Playwright と無関係なメンバー式は違反にせず、起点が未宣言なら判定不能にする",
@@ -204,7 +204,7 @@
       "id": "value-member",
       "why": "プロパティ参照・呼び出し・添字・括弧を含む式も根拠にする",
       "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
-      "find": "    if (/[.([]/.test(statement)) return false;\n",
+      "find": "  if (/[.([]/.test(statement)) return false;\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
@@ -217,8 +217,8 @@
       "id": "jsx-complete",
       "why": "JSX の根拠を閉じた要素に限らず、`<` 始まりの断片（型引数の `<T`）も JSX と読む",
       "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
-      "find": "      /^\\s*<([A-Za-z][\\w.]*)\\b[\\s\\S]*(?:<\\/\\1\\s*>|\\/>)\\s*$/.test(statement)\n",
-      "replace": "      /^\\s*<[A-Za-z]/.test(statement)\n",
+      "find": "    /^\\s*<([A-Za-z][\\w.]*)\\b[\\s\\S]*(?:<\\/\\1\\s*>|\\/>)\\s*$/.test(statement)\n",
+      "replace": "    /^\\s*<[A-Za-z]/.test(statement)\n",
       "occurrences": 1,
       "expect_failing": ["`.tsx` の generic アロー関数を JSX と読んで Playwright 以外と確定しない"]
     },
@@ -226,7 +226,7 @@
       "id": "page-property-allowlist",
       "why": "Page から取り出すプロパティを既知の Page API に限らない（page.row のような任意の名前も確定する）",
       "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
-      "find": "        PAGE_NON_RECEIVER_PROPERTIES.has(last) &&\n",
+      "find": "    PAGE_NON_RECEIVER_PROPERTIES.has(last) &&\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": ["Playwright 以外の根拠にしない形は判定不能: Page の任意のプロパティ"]

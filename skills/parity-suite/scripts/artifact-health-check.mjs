@@ -46,7 +46,7 @@ import { realPathOf } from "./lib/paths.mjs";
  * ツールのバージョン（原本）。判定ロジック・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "10";
+export const VERSION = "11";
 
 /** 採取物の種別。derived は元の実体から作った加工物。 */
 const ARTIFACT_KINDS = ["captured", "derived"];
@@ -230,153 +230,240 @@ const REGEX_AFTER_KEYWORDS = new Set([
  * @returns {string | null}
  */
 export function stripJsComments(src) {
-  let out = "";
-  /** @type {"" | " " | "\n"} */
-  let pendingWs = "";
-  /** 直前の有意なトークン: "div" なら次の `/` は除算、"re" なら正規表現。 */
-  let prev = "re";
-  /** `{` の入れ子。"t" はテンプレートの `${` で、対応する `}` でテンプレートへ戻る。 */
-  /** @type {string[]} */
-  const braces = [];
-  let i = 0;
-  const n = src.length;
-  /** @param {string} c */
-  const isWs = (c) => /\s/.test(c);
-  /** @param {string} c */
-  const isIdent = (c) => /[\w$\\]/.test(c) || c.charCodeAt(0) > 0x7f;
-  /** @param {string} s */
-  const emit = (s) => {
-    if (pendingWs !== "" && out !== "") out += pendingWs;
-    pendingWs = "";
-    out += s;
-  };
-  /** @param {boolean} hasNewline */
-  const ws = (hasNewline) => {
-    if (hasNewline) pendingWs = "\n";
-    else if (pendingWs === "") pendingWs = " ";
-  };
-  /** テンプレートの本文を読む。`}` で戻ってきた直後か開始の `` ` `` の直後から。 */
-  const scanTemplate = () => {
-    const start = i;
-    while (i < n) {
-      const c = src[i];
-      if (c === "\\") {
-        i += 2;
-        continue;
-      }
-      if (c === "`") {
-        i += 1;
-        out += src.slice(start, i);
-        prev = "div";
-        return true;
-      }
-      if (c === "$" && src[i + 1] === "{") {
-        i += 2;
-        out += src.slice(start, i);
-        braces.push("t");
-        prev = "re";
-        return true;
-      }
-      i += 1;
-    }
-    return false;
-  };
-  while (i < n) {
-    const c = src[i];
-    if (isWs(c)) {
-      const start = i;
-      while (i < n && isWs(src[i])) i += 1;
-      ws(/[\n\r\u2028\u2029]/.test(src.slice(start, i)));
-      continue;
-    }
-    if (c === "/" && src[i + 1] === "/") {
-      const start = i;
-      while (i < n && !/[\n\r\u2028\u2029]/.test(src[i])) i += 1;
-      // 指示コメントは残す。直前・直後の有意なトークンの読み（prev）はコメントで変えない
-      if (isDirectiveComment(src.slice(start + 2, i))) emit(src.slice(start, i).trimEnd());
-      else ws(false);
-      continue;
-    }
-    if (c === "/" && src[i + 1] === "*") {
-      const end = src.indexOf("*/", i + 2);
-      if (end < 0) return null;
-      if (isDirectiveComment(src.slice(i + 2, end))) emit(src.slice(i, end + 2));
-      else ws(/[\n\r\u2028\u2029]/.test(src.slice(i + 2, end)));
-      i = end + 2;
-      continue;
-    }
-    if (c === "'" || c === '"') {
-      const start = i;
-      i += 1;
-      while (i < n && src[i] !== c) {
-        if (src[i] === "\\") i += 1;
-        else if (src[i] === "\n") return null;
-        i += 1;
-      }
-      if (i >= n) return null;
-      i += 1;
-      emit(src.slice(start, i));
-      prev = "div";
+  /** @type {LexState} */
+  const st = { src, n: src.length, i: 0, out: "", pendingWs: "", prev: "re", braces: [] };
+  while (st.i < st.n) {
+    if (!lexToken(st)) return null;
+  }
+  return st.out;
+}
+
+/**
+ * stripJsComments の字句解析の状態。
+ * - pendingWs: 次の有意なトークンの前に出す空白（保留中）
+ * - prev: 直前の有意なトークン。"div" なら次の `/` は除算、"re" なら正規表現
+ * - braces: `{` の入れ子。"t" はテンプレートの `${` で、対応する `}` でテンプレートへ戻る
+ * @typedef {{ src: string, n: number, i: number, out: string, pendingWs: "" | " " | "\n", prev: string, braces: string[] }} LexState
+ */
+
+/** 改行として数える文字（ASI に影響するので、空白を畳むときに残す）。 */
+const LINE_BREAK = /[\n\r\u2028\u2029]/;
+
+/** @param {string} c */
+function isLexWs(c) {
+  return /\s/.test(c);
+}
+
+/** @param {string} c */
+function isLexIdent(c) {
+  return /[\w$\\]/.test(c) || c.charCodeAt(0) > 0x7f;
+}
+
+/**
+ * 保留した空白を出してから、トークンを出す。
+ * @param {LexState} st
+ * @param {string} s
+ */
+function emitToken(st, s) {
+  if (st.pendingWs !== "" && st.out !== "") st.out += st.pendingWs;
+  st.pendingWs = "";
+  st.out += s;
+}
+
+/**
+ * 空白を保留する。改行を含むなら `\n`、含まなければ空白 1 個にする。
+ * @param {LexState} st
+ * @param {boolean} hasNewline
+ */
+function queueWhitespace(st, hasNewline) {
+  if (hasNewline) st.pendingWs = "\n";
+  else if (st.pendingWs === "") st.pendingWs = " ";
+}
+
+/**
+ * 位置 st.i から 1 トークンを読む。字句解析が閉じないときは false を返す。
+ * @param {LexState} st
+ * @returns {boolean}
+ */
+function lexToken(st) {
+  const c = st.src[st.i];
+  if (isLexWs(c)) return lexWhitespace(st);
+  if (c === "/" && st.src[st.i + 1] === "/") return lexLineComment(st);
+  if (c === "/" && st.src[st.i + 1] === "*") return lexBlockComment(st);
+  if (c === "'" || c === '"') return lexQuoted(st, c);
+  if (c === "`") return lexTemplateStart(st);
+  if (c === "/" && st.prev === "re") return lexRegex(st);
+  if (isLexIdent(c)) return lexIdent(st);
+  return lexSymbol(st, c);
+}
+
+/**
+ * @param {LexState} st
+ * @returns {boolean}
+ */
+function lexWhitespace(st) {
+  const start = st.i;
+  while (st.i < st.n && isLexWs(st.src[st.i])) st.i += 1;
+  queueWhitespace(st, LINE_BREAK.test(st.src.slice(start, st.i)));
+  return true;
+}
+
+/**
+ * @param {LexState} st
+ * @returns {boolean}
+ */
+function lexLineComment(st) {
+  const start = st.i;
+  while (st.i < st.n && !LINE_BREAK.test(st.src[st.i])) st.i += 1;
+  // 指示コメントは残す。直前・直後の有意なトークンの読み（prev）はコメントで変えない
+  if (isDirectiveComment(st.src.slice(start + 2, st.i)))
+    emitToken(st, st.src.slice(start, st.i).trimEnd());
+  else queueWhitespace(st, false);
+  return true;
+}
+
+/**
+ * @param {LexState} st
+ * @returns {boolean}
+ */
+function lexBlockComment(st) {
+  const end = st.src.indexOf("*/", st.i + 2);
+  if (end < 0) return false;
+  if (isDirectiveComment(st.src.slice(st.i + 2, end))) emitToken(st, st.src.slice(st.i, end + 2));
+  else queueWhitespace(st, LINE_BREAK.test(st.src.slice(st.i + 2, end)));
+  st.i = end + 2;
+  return true;
+}
+
+/**
+ * 引用符の文字列を読む。中身は 1 バイトも変えない。
+ * @param {LexState} st
+ * @param {string} quote
+ * @returns {boolean}
+ */
+function lexQuoted(st, quote) {
+  const start = st.i;
+  st.i += 1;
+  while (st.i < st.n && st.src[st.i] !== quote) {
+    if (st.src[st.i] === "\\") st.i += 1;
+    else if (st.src[st.i] === "\n") return false;
+    st.i += 1;
+  }
+  if (st.i >= st.n) return false;
+  st.i += 1;
+  emitToken(st, st.src.slice(start, st.i));
+  st.prev = "div";
+  return true;
+}
+
+/**
+ * @param {LexState} st
+ * @returns {boolean}
+ */
+function lexTemplateStart(st) {
+  emitToken(st, "`");
+  st.i += 1;
+  return scanTemplate(st);
+}
+
+/**
+ * テンプレートの本文を読む。`}` で戻ってきた直後か開始の `` ` `` の直後から。
+ * @param {LexState} st
+ * @returns {boolean}
+ */
+function scanTemplate(st) {
+  const start = st.i;
+  while (st.i < st.n) {
+    const c = st.src[st.i];
+    if (c === "\\") {
+      st.i += 2;
       continue;
     }
     if (c === "`") {
-      emit("`");
-      i += 1;
-      if (!scanTemplate()) return null;
-      continue;
+      st.i += 1;
+      st.out += st.src.slice(start, st.i);
+      st.prev = "div";
+      return true;
     }
-    if (c === "/" && prev === "re") {
-      const start = i;
-      i += 1;
-      let inClass = false;
-      while (i < n) {
-        const d = src[i];
-        if (d === "\\") i += 1;
-        else if (d === "\n") return null;
-        else if (d === "[") inClass = true;
-        else if (d === "]") inClass = false;
-        else if (d === "/" && !inClass) break;
-        i += 1;
-      }
-      if (i >= n) return null;
-      i += 1;
-      while (i < n && isIdent(src[i])) i += 1;
-      emit(src.slice(start, i));
-      prev = "div";
-      continue;
+    if (c === "$" && st.src[st.i + 1] === "{") {
+      st.i += 2;
+      st.out += st.src.slice(start, st.i);
+      st.braces.push("t");
+      st.prev = "re";
+      return true;
     }
-    if (isIdent(c)) {
-      const start = i;
-      while (i < n && isIdent(src[i])) i += 1;
-      const word = src.slice(start, i);
-      emit(word);
-      prev = REGEX_AFTER_KEYWORDS.has(word) ? "re" : "div";
-      continue;
-    }
-    // 記号 1 文字。`.5` のような数値の小数点も記号として出すが、正規形として決定的なので問題ない。
-    if (c === "/" && out.endsWith(")")) {
-      // `)` の後の `/` は、`(a + b) / 2` なら除算、`if (x) /[//]/.test(v)` なら正規表現で、字句だけでは決まらない。
-      // 除算と読んだまま同じ行の残りに `//` `/*` があると、正規表現の中身をコメントとして捨ててコードの変更を
-      // 見逃しうる。そのため、その形は読めないものとして扱い、生バイトで指紋を取る（null）
-      const eol = src.slice(i + 1).search(/[\n\r\u2028\u2029]/);
-      const rest = eol < 0 ? src.slice(i + 1) : src.slice(i + 1, i + 1 + eol);
-      if (rest.includes("//") || rest.includes("/*")) return null;
-    }
-    i += 1;
-    if (c === "{") braces.push("b");
-    if (c === "}" && braces.pop() === "t") {
-      // テンプレートの `${ ... }` を閉じた。空白はテンプレートの本文に属するので、保留した空白は捨てる。
-      pendingWs = "";
-      out += "}";
-      if (!scanTemplate()) return null;
-      continue;
-    }
-    emit(c);
-    if (c === ")" || c === "]") prev = "div";
-    else if ((c === "+" || c === "-") && src[i - 2] === c) prev = "div"; // 後置 ++ / --
-    else prev = "re";
+    st.i += 1;
   }
-  return out;
+  return false;
+}
+
+/**
+ * 正規表現リテラル（フラグを含む）を読む。中身は 1 バイトも変えない。
+ * @param {LexState} st
+ * @returns {boolean}
+ */
+function lexRegex(st) {
+  const start = st.i;
+  st.i += 1;
+  let inClass = false;
+  while (st.i < st.n) {
+    const d = st.src[st.i];
+    if (d === "\\") st.i += 1;
+    else if (d === "\n") return false;
+    else if (d === "[") inClass = true;
+    else if (d === "]") inClass = false;
+    else if (d === "/" && !inClass) break;
+    st.i += 1;
+  }
+  if (st.i >= st.n) return false;
+  st.i += 1;
+  while (st.i < st.n && isLexIdent(st.src[st.i])) st.i += 1;
+  emitToken(st, st.src.slice(start, st.i));
+  st.prev = "div";
+  return true;
+}
+
+/**
+ * @param {LexState} st
+ * @returns {boolean}
+ */
+function lexIdent(st) {
+  const start = st.i;
+  while (st.i < st.n && isLexIdent(st.src[st.i])) st.i += 1;
+  const word = st.src.slice(start, st.i);
+  emitToken(st, word);
+  st.prev = REGEX_AFTER_KEYWORDS.has(word) ? "re" : "div";
+  return true;
+}
+
+/**
+ * 記号 1 文字。`.5` のような数値の小数点も記号として出すが、正規形として決定的なので問題ない。
+ * @param {LexState} st
+ * @param {string} c
+ * @returns {boolean}
+ */
+function lexSymbol(st, c) {
+  if (c === "/" && st.out.endsWith(")")) {
+    // `)` の後の `/` は、`(a + b) / 2` なら除算、`if (x) /[//]/.test(v)` なら正規表現で、字句だけでは決まらない。
+    // 除算と読んだまま同じ行の残りに `//` `/*` があると、正規表現の中身をコメントとして捨ててコードの変更を
+    // 見逃しうる。そのため、その形は読めないものとして扱い、生バイトで指紋を取る（null）
+    const eol = st.src.slice(st.i + 1).search(LINE_BREAK);
+    const rest = eol < 0 ? st.src.slice(st.i + 1) : st.src.slice(st.i + 1, st.i + 1 + eol);
+    if (rest.includes("//") || rest.includes("/*")) return false;
+  }
+  st.i += 1;
+  if (c === "{") st.braces.push("b");
+  if (c === "}" && st.braces.pop() === "t") {
+    // テンプレートの `${ ... }` を閉じた。空白はテンプレートの本文に属するので、保留した空白は捨てる。
+    st.pendingWs = "";
+    st.out += "}";
+    return scanTemplate(st);
+  }
+  emitToken(st, c);
+  if (c === ")" || c === "]") st.prev = "div";
+  else if ((c === "+" || c === "-") && st.src[st.i - 2] === c) st.prev = "div"; // 後置 ++ / --
+  else st.prev = "re";
+  return true;
 }
 
 /**
@@ -408,14 +495,10 @@ export function includesAsName(text, name) {
  * @returns {{ judged: boolean, findings: string[], notes: string[] }}
  */
 export function checkArtifacts(metadata, ctx) {
-  /** @type {string[]} */
-  const findings = [];
-  /** @type {string[]} */
-  const notes = [];
   if (!("artifact_health" in metadata)) {
     return {
       judged: false,
-      findings,
+      findings: [],
       notes: ["artifact_health をキーごと持たない旧成果物のため採取物の節を判定しない"],
     };
   }
@@ -423,53 +506,15 @@ export function checkArtifacts(metadata, ctx) {
   if (!isPlainObject(health)) throw new UsageError("artifact_health がオブジェクトでない");
   if (typeof health.declared !== "boolean")
     throw new UsageError("artifact_health.declared が真偽値でない");
-  if (!health.declared) {
-    if (!nonEmptyString(health.reason))
-      throw new UsageError(
-        "artifact_health.declared: false なのに reason が空（免除の根拠が残らない）",
-      );
-    return {
-      judged: false,
-      findings,
-      notes: [
-        `artifact_health.declared: false のため判定しない（理由: ${String(health.reason).trim()}）`,
-      ],
-    };
-  }
+  if (!health.declared) return undeclaredArtifacts(health);
 
-  if (!nonEmptyString(health.baseline_dir))
-    throw new UsageError("artifact_health.baseline_dir が空でない文字列でない");
-  const baselineDir = resolveInside(ctx.root, String(health.baseline_dir));
-  if (baselineDir === null)
-    throw new UsageError(
-      `artifact_health.baseline_dir がルートの外を指しているか実パスを解決できない: ${String(health.baseline_dir)}`,
-    );
+  const baselineDir = resolveBaselineDir(health, ctx.root);
   if (!isArray(health.entries)) throw new UsageError("artifact_health.entries が配列でない");
 
   /** @type {string[]} */
-  let present = [];
-  if (!existsSync(baselineDir) || !statSync(baselineDir).isDirectory()) {
-    findings.push(`artifact_health.declared: true なのに baseline_dir が無い: ${baselineDir}`);
-  } else {
-    present = listFiles(baselineDir);
-  }
-
-  /** @type {Map<string, Record<string, unknown>>} */
-  const byPath = new Map();
-  const seen = new Set();
-  for (const [i, entry] of health.entries.entries()) {
-    if (!isPlainObject(entry))
-      throw new UsageError(`artifact_health.entries[${i}] がオブジェクトでない`);
-    if (!nonEmptyString(entry.path))
-      throw new UsageError(`artifact_health.entries[${i}].path が空でない文字列でない`);
-    const p = String(entry.path).trim();
-    if (seen.has(p)) {
-      findings.push(`採取物の宣言が重複している（先勝ちにしない）: ${p}`);
-      continue;
-    }
-    seen.add(p);
-    byPath.set(p, entry);
-  }
+  const findings = [];
+  const present = listBaseline(baselineDir, findings);
+  const byPath = indexArtifactEntries(health.entries, findings);
 
   if (present.length === 0 && byPath.size === 0) {
     findings.push(
@@ -483,122 +528,221 @@ export function checkArtifacts(metadata, ctx) {
   }
 
   for (const [p, entry] of byPath) {
-    const target = resolveInside(baselineDir, p);
-    if (target === null) {
-      findings.push(`採取物のパスが baseline_dir の外を指しているか実パスを解決できない: ${p}`);
-      continue;
-    }
-    if (!existsSync(target)) {
-      findings.push(`宣言された採取物の実体が無い: ${p}`);
-      continue;
-    }
-
-    const kind = entry.kind;
-    if (typeof kind !== "string" || !ARTIFACT_KINDS.includes(kind)) {
-      findings.push(`採取物の kind が語彙外（${ARTIFACT_KINDS.join(" / ")}）: ${p}`);
-    }
-
-    // 読み手（字面の照合）
-    const readBy = entry.read_by;
-    if (readBy !== undefined && readBy !== null && !isArray(readBy)) {
-      throw new UsageError(`artifact_health.entries[${p}].read_by が配列でない`);
-    }
-    const readers = isArray(readBy) ? readBy : [];
-    if (readers.length === 0) {
-      if (!nonEmptyString(entry.unread_reason)) {
-        findings.push(
-          `読み手が宣言されておらず unread_reason も空（採っただけの採取物になる）: ${p}`,
-        );
-      }
-    } else {
-      const name = basename(p);
-      for (const reader of readers) {
-        if (!nonEmptyString(reader)) {
-          findings.push(`read_by に空の要素がある: ${p}`);
-          continue;
-        }
-        const specPath = resolveInside(ctx.root, String(reader).trim());
-        // **閉じ込め拒否と不在を同じ文言にしない**。リンク越しにルート外を指す宣言は実体が在るのに
-        // ここで null になるため、「無い」と報告すると原因（閉じ込め拒否）に辿り着けない。
-        if (specPath === null) {
-          findings.push(
-            `read_by が指すスペックがルートの外を指しているか実パスを解決できない: ${String(reader).trim()}（採取物 ${p}）`,
-          );
-          continue;
-        }
-        if (!existsSync(specPath)) {
-          findings.push(`read_by が指すスペックが無い: ${String(reader).trim()}（採取物 ${p}）`);
-          continue;
-        }
-        let text;
-        try {
-          text = readFileSync(specPath, "utf8");
-        } catch (e) {
-          findings.push(
-            `read_by が指すスペックを読めない: ${String(reader).trim()}（${errorMessage(e)}）`,
-          );
-          continue;
-        }
-        if (!includesAsName(text, name)) {
-          findings.push(
-            `read_by が指すスペックに採取物の名前が現れない（字面の照合で不一致）: ${name} ∉ ${String(reader).trim()}`,
-          );
-        }
-      }
-    }
-
-    // 鮮度（何から作ったか）
-    const derivedFrom = entry.derived_from;
-    if (kind === "derived") {
-      if (derivedFrom === undefined || derivedFrom === null) {
-        if (!nonEmptyString(entry.freshness_unverified_reason)) {
-          findings.push(
-            `加工物に derived_from が無く freshness_unverified_reason も空（古いかもしれないが未検証としても残らない）: ${p}`,
-          );
-        }
-        continue;
-      }
-      if (!isPlainObject(derivedFrom))
-        throw new UsageError(`artifact_health.entries[${p}].derived_from がオブジェクトでない`);
-      if (!nonEmptyString(derivedFrom.path) || !nonEmptyString(derivedFrom.sha256)) {
-        findings.push(`derived_from の path / sha256 が空: ${p}`);
-        continue;
-      }
-      const srcRel = String(derivedFrom.path).trim();
-      if (!byPath.has(srcRel)) {
-        findings.push(
-          `derived_from が宣言されていない採取物を指している: ${srcRel}（加工物 ${p}）`,
-        );
-        continue;
-      }
-      const srcPath = resolveInside(baselineDir, srcRel);
-      if (srcPath === null) {
-        findings.push(
-          `derived_from の実体が baseline_dir の外を指しているか実パスを解決できない: ${srcRel}（加工物 ${p}）`,
-        );
-        continue;
-      }
-      if (!existsSync(srcPath)) {
-        findings.push(`derived_from の実体が無い: ${srcRel}（加工物 ${p}）`);
-        continue;
-      }
-      const actual = sha256File(srcPath);
-      if (actual !== String(derivedFrom.sha256).trim().toLowerCase()) {
-        findings.push(
-          `加工物が古い（元の実体の sha256 が宣言と一致しない）: ${p} ← ${srcRel}（宣言 ${String(derivedFrom.sha256).trim()} / 実測 ${actual}）`,
-        );
-      }
-    } else if (derivedFrom !== undefined && derivedFrom !== null) {
-      findings.push(`kind: captured なのに derived_from がある（採取か加工かが決まらない）: ${p}`);
-    }
+    findings.push(...artifactEntryFindings({ p, entry, byPath, baselineDir, root: ctx.root }));
   }
 
-  notes.push(`採取物 ${byPath.size} 件を宣言、${present.length} 件を baseline_dir に実測`);
-  return { judged: true, findings, notes };
+  return {
+    judged: true,
+    findings,
+    notes: [`採取物 ${byPath.size} 件を宣言、${present.length} 件を baseline_dir に実測`],
+  };
+}
+
+/**
+ * artifact_health.declared: false の成果物を、理由を確かめてから判定しないで返す。
+ * @param {Record<string, unknown>} health
+ * @returns {{ judged: boolean, findings: string[], notes: string[] }}
+ */
+function undeclaredArtifacts(health) {
+  if (!nonEmptyString(health.reason))
+    throw new UsageError(
+      "artifact_health.declared: false なのに reason が空（免除の根拠が残らない）",
+    );
+  return {
+    judged: false,
+    findings: [],
+    notes: [
+      `artifact_health.declared: false のため判定しない（理由: ${String(health.reason).trim()}）`,
+    ],
+  };
+}
+
+/**
+ * artifact_health.baseline_dir をルートの中に解決する。空・ルートの外・実パスを解けないものは型の誤りにする。
+ * @param {Record<string, unknown>} health
+ * @param {string} root
+ * @returns {string}
+ */
+function resolveBaselineDir(health, root) {
+  if (!nonEmptyString(health.baseline_dir))
+    throw new UsageError("artifact_health.baseline_dir が空でない文字列でない");
+  const baselineDir = resolveInside(root, String(health.baseline_dir));
+  if (baselineDir === null)
+    throw new UsageError(
+      `artifact_health.baseline_dir がルートの外を指しているか実パスを解決できない: ${String(health.baseline_dir)}`,
+    );
+  return baselineDir;
+}
+
+/**
+ * baseline_dir に在るファイルを列挙する。ディレクトリが無ければ所見を足して空を返す。
+ * @param {string} baselineDir
+ * @param {string[]} findings
+ * @returns {string[]}
+ */
+function listBaseline(baselineDir, findings) {
+  if (!existsSync(baselineDir) || !statSync(baselineDir).isDirectory()) {
+    findings.push(`artifact_health.declared: true なのに baseline_dir が無い: ${baselineDir}`);
+    return [];
+  }
+  return listFiles(baselineDir);
+}
+
+/**
+ * artifact_health.entries をパスで引けるようにする。重複は所見を足し、先の宣言を残す。
+ * @param {unknown[]} entries
+ * @param {string[]} findings
+ * @returns {Map<string, Record<string, unknown>>}
+ */
+function indexArtifactEntries(entries, findings) {
+  /** @type {Map<string, Record<string, unknown>>} */
+  const byPath = new Map();
+  for (const [i, entry] of entries.entries()) {
+    if (!isPlainObject(entry))
+      throw new UsageError(`artifact_health.entries[${i}] がオブジェクトでない`);
+    if (!nonEmptyString(entry.path))
+      throw new UsageError(`artifact_health.entries[${i}].path が空でない文字列でない`);
+    const p = String(entry.path).trim();
+    if (byPath.has(p)) {
+      findings.push(`採取物の宣言が重複している（先勝ちにしない）: ${p}`);
+      continue;
+    }
+    byPath.set(p, entry);
+  }
+  return byPath;
+}
+
+/**
+ * 宣言された採取物 1 件の実体・kind・読み手・鮮度を数え直す。
+ * @param {{ p: string, entry: Record<string, unknown>, byPath: Map<string, Record<string, unknown>>, baselineDir: string, root: string }} a
+ * @returns {string[]}
+ */
+function artifactEntryFindings({ p, entry, byPath, baselineDir, root }) {
+  const target = resolveInside(baselineDir, p);
+  if (target === null) {
+    return [`採取物のパスが baseline_dir の外を指しているか実パスを解決できない: ${p}`];
+  }
+  if (!existsSync(target)) return [`宣言された採取物の実体が無い: ${p}`];
+
+  /** @type {string[]} */
+  const findings = [];
+  const kind = entry.kind;
+  if (typeof kind !== "string" || !ARTIFACT_KINDS.includes(kind)) {
+    findings.push(`採取物の kind が語彙外（${ARTIFACT_KINDS.join(" / ")}）: ${p}`);
+  }
+  findings.push(...readerFindings(entry, p, root));
+  findings.push(...freshnessFindings({ entry, kind, p, byPath, baselineDir }));
+  return findings;
+}
+
+/**
+ * 読み手（字面の照合）を数え直す。
+ * @param {Record<string, unknown>} entry
+ * @param {string} p
+ * @param {string} root
+ * @returns {string[]}
+ */
+function readerFindings(entry, p, root) {
+  const readBy = entry.read_by;
+  if (readBy !== undefined && readBy !== null && !isArray(readBy)) {
+    throw new UsageError(`artifact_health.entries[${p}].read_by が配列でない`);
+  }
+  const readers = isArray(readBy) ? readBy : [];
+  if (readers.length === 0) {
+    if (nonEmptyString(entry.unread_reason)) return [];
+    return [`読み手が宣言されておらず unread_reason も空（採っただけの採取物になる）: ${p}`];
+  }
+  const name = basename(p);
+  return readers.flatMap((reader) => readerFinding(reader, { name, p, root }));
+}
+
+/**
+ * read_by の 1 件が指すスペックに、採取物の名前が現れるかを見る。
+ * @param {unknown} reader
+ * @param {{ name: string, p: string, root: string }} a
+ * @returns {string[]}
+ */
+function readerFinding(reader, { name, p, root }) {
+  if (!nonEmptyString(reader)) return [`read_by に空の要素がある: ${p}`];
+  const readerRel = String(reader).trim();
+  const specPath = resolveInside(root, readerRel);
+  // **閉じ込め拒否と不在を同じ文言にしない**。リンク越しにルート外を指す宣言は実体が在るのに
+  // ここで null になるため、「無い」と報告すると原因（閉じ込め拒否）に辿り着けない。
+  if (specPath === null) {
+    return [
+      `read_by が指すスペックがルートの外を指しているか実パスを解決できない: ${readerRel}（採取物 ${p}）`,
+    ];
+  }
+  if (!existsSync(specPath)) return [`read_by が指すスペックが無い: ${readerRel}（採取物 ${p}）`];
+  let text;
+  try {
+    text = readFileSync(specPath, "utf8");
+  } catch (e) {
+    return [`read_by が指すスペックを読めない: ${readerRel}（${errorMessage(e)}）`];
+  }
+  if (!includesAsName(text, name)) {
+    return [
+      `read_by が指すスペックに採取物の名前が現れない（字面の照合で不一致）: ${name} ∉ ${readerRel}`,
+    ];
+  }
+  return [];
+}
+
+/**
+ * 鮮度（何から作ったか）を数え直す。加工物は元の実体の sha256 を宣言と突き合わせる。
+ * @param {{ entry: Record<string, unknown>, kind: unknown, p: string, byPath: Map<string, Record<string, unknown>>, baselineDir: string }} a
+ * @returns {string[]}
+ */
+function freshnessFindings({ entry, kind, p, byPath, baselineDir }) {
+  const derivedFrom = entry.derived_from;
+  if (kind !== "derived") {
+    if (derivedFrom === undefined || derivedFrom === null) return [];
+    return [`kind: captured なのに derived_from がある（採取か加工かが決まらない）: ${p}`];
+  }
+  if (derivedFrom === undefined || derivedFrom === null) {
+    if (nonEmptyString(entry.freshness_unverified_reason)) return [];
+    return [
+      `加工物に derived_from が無く freshness_unverified_reason も空（古いかもしれないが未検証としても残らない）: ${p}`,
+    ];
+  }
+  if (!isPlainObject(derivedFrom))
+    throw new UsageError(`artifact_health.entries[${p}].derived_from がオブジェクトでない`);
+  if (!nonEmptyString(derivedFrom.path) || !nonEmptyString(derivedFrom.sha256)) {
+    return [`derived_from の path / sha256 が空: ${p}`];
+  }
+  const srcRel = String(derivedFrom.path).trim();
+  if (!byPath.has(srcRel)) {
+    return [`derived_from が宣言されていない採取物を指している: ${srcRel}（加工物 ${p}）`];
+  }
+  return derivedSourceFindings({ p, srcRel, sha256: derivedFrom.sha256, baselineDir });
+}
+
+/**
+ * 加工物の元の実体を読み、sha256 を宣言と突き合わせる。
+ * @param {{ p: string, srcRel: string, sha256: unknown, baselineDir: string }} a
+ * @returns {string[]}
+ */
+function derivedSourceFindings({ p, srcRel, sha256, baselineDir }) {
+  const srcPath = resolveInside(baselineDir, srcRel);
+  if (srcPath === null) {
+    return [
+      `derived_from の実体が baseline_dir の外を指しているか実パスを解決できない: ${srcRel}（加工物 ${p}）`,
+    ];
+  }
+  if (!existsSync(srcPath)) return [`derived_from の実体が無い: ${srcRel}（加工物 ${p}）`];
+  const actual = sha256File(srcPath);
+  if (actual !== String(sha256).trim().toLowerCase()) {
+    return [
+      `加工物が古い（元の実体の sha256 が宣言と一致しない）: ${p} ← ${srcRel}（宣言 ${String(sha256).trim()} / 実測 ${actual}）`,
+    ];
+  }
+  return [];
 }
 
 /** 反復実行の記録が指す「スイートそのもの」を構成する metadata.suite のキー。 */
 const SUITE_SOURCE_KEYS = ["specs", "locator_map", "expectations", "interactions", "tools"];
+/** スイートの宣言パスが 1 つも無いときの文。キーの一覧は SUITE_SOURCE_KEYS から作る。 */
+const NO_SUITE_SOURCE = `suite.${SUITE_SOURCE_KEYS.join(" / ")} がどれも宣言されていない`;
 
 /**
  * 現在のスイートの指紋を計算する。
@@ -607,8 +751,9 @@ const SUITE_SOURCE_KEYS = ["specs", "locator_map", "expectations", "interactions
  * 記録が「どの版のスイートを 2 回回したか」を持たないためで、指紋を記録・照合して初めて
  * 「いまのスイートが 2 回続けて回った」と言える。
  *
- * 列挙は宣言されたパス（suite.specs / locator_map / interactions）から行い、
+ * 列挙は宣言されたパス（suite.specs / locator_map / expectations / interactions / tools）から行い、
  * ディレクトリは再帰、並びはソートで固定する。1 つでも実体が無ければ判定不能として null を返す。
+ * suite.tools がファイルを指すときも null を返す（隣の page/ を指紋に含められないため。理由は missing に入る）。
  *
  * 既定（接頭辞 `sha256-nc:`）は JS / TS 系のファイルをコメントを除いた正規形（stripJsComments）で数える。
  * 注記を書き換えただけで指紋が変わると、テストの動きが同じなのに現行で 2 回回し直すことになるため。
@@ -660,7 +805,16 @@ function listSuiteFiles(suiteObj, root) {
       missing.push(`${rel}（実体が無い）`);
       continue;
     }
-    const files = statSync(abs).isDirectory() ? listFiles(abs).map((f) => `${rel}/${f}`) : [rel];
+    const isDir = statSync(abs).isDirectory();
+    // tools のコピー（trait-capture・element-shot）は、隣の page/ の本体を import する。
+    // ファイルで書くと page/ が指紋に入らず、page/ だけを入れ替えても記録が失効しないので、判定できないとして扱う
+    if (key === "tools" && !isDir) {
+      missing.push(
+        `${rel}（suite.tools はコピー専用のディレクトリで書く取り決めである。ファイルで書くと、trait-capture・element-shot のコピーが import する隣の page/ を指紋に含められない）`,
+      );
+      continue;
+    }
+    const files = isDir ? listFiles(abs).map((f) => `${rel}/${f}`) : [rel];
     byKey.push({ key, rel, files });
   }
   return { declared, missing, byKey };
@@ -761,11 +915,37 @@ export function specFingerprints(suiteObj, root, opts = {}) {
   };
   if (listed.declared === 0 || listed.missing.length > 0)
     return { ...empty, missing: listed.missing };
+  const { specFiles, sharedFiles } = classifySuiteFiles(listed.byKey, { declared, excluded });
+  const tree = specsTreeSharedFiles(listed.byKey, sharedFiles, sharedDeclared);
+  const shared = digestFiles([...sharedFiles].sort(), root, false);
+  if (shared.fingerprint === null) return { ...empty, missing: shared.missing };
+  const sortedSpecs = [...specFiles].sort();
+  const perSpec = digestEachSpec(sortedSpecs, root);
+  if (perSpec.missing !== null) return { ...empty, missing: perSpec.missing };
+  return {
+    shared: shared.fingerprint,
+    specs: perSpec.specs,
+    specFiles: sortedSpecs,
+    sharedFiles: sharedFiles.size,
+    specsTreeShared: tree.specsTreeShared.sort(),
+    undeclared: tree.undeclared.sort(),
+    missing: [],
+    unparsed: [...shared.unparsed, ...perSpec.unparsed],
+  };
+}
+
+/**
+ * 宣言パスの下のファイルを、スペックと共通部分（shared）に分ける。excluded の下のスペックは外す。
+ * @param {{ key: string, rel: string, files: string[] }[]} byKey
+ * @param {{ declared: Set<string>, excluded: string[] }} opts
+ * @returns {{ specFiles: Set<string>, sharedFiles: Set<string> }}
+ */
+function classifySuiteFiles(byKey, { declared, excluded }) {
   /** @type {Set<string>} */
   const specFiles = new Set();
   /** @type {Set<string>} */
   const sharedFiles = new Set();
-  for (const { key, files } of listed.byKey) {
+  for (const { key, files } of byKey) {
     for (const raw of files) {
       const f = normalizeRel(raw);
       if (key === "specs" && excluded.some((e) => underRel(f, e))) continue;
@@ -775,6 +955,17 @@ export function specFingerprints(suiteObj, root, opts = {}) {
   }
   // 同じファイルが specs と別のキーの両方に入る宣言（tools を specs の下に置く等）は、スペックとして数える
   for (const f of specFiles) sharedFiles.delete(f);
+  return { specFiles, sharedFiles };
+}
+
+/**
+ * suite.specs の下の共通部分と、そのうち宣言の要るファイルを挙げる。
+ * @param {{ key: string, rel: string, files: string[] }[]} byKey
+ * @param {Set<string>} sharedFiles
+ * @param {Set<string>} sharedDeclared
+ * @returns {{ specsTreeShared: string[], undeclared: string[] }}
+ */
+function specsTreeSharedFiles(byKey, sharedFiles, sharedDeclared) {
   // suite.specs の下で命名規則にも分類表にも当たらない JS / TS 系のファイルは、repeat_run.shared_files に宣言していなければ落とす。
   // 字面（test( の呼び出し）でスペックかどうかを推測すると、別名 import（test as it）などで検出できない。
   // すると、状態を変えるスペックが、2 回続けての緑を求められないまま共通部分として扱われる。推測せず宣言を求める
@@ -782,7 +973,7 @@ export function specFingerprints(suiteObj, root, opts = {}) {
   const specsTreeShared = [];
   /** @type {string[]} */
   const undeclared = [];
-  for (const { key, files } of listed.byKey) {
+  for (const { key, files } of byKey) {
     if (key !== "specs") continue;
     for (const raw of files) {
       const f = normalizeRel(raw);
@@ -791,30 +982,27 @@ export function specFingerprints(suiteObj, root, opts = {}) {
       if (JS_TS_FILE_PATTERN.test(f) && !sharedDeclared.has(f)) undeclared.push(f);
     }
   }
-  /** @type {string[]} */
-  const unparsed = [];
-  const shared = digestFiles([...sharedFiles].sort(), root, false);
-  if (shared.fingerprint === null) return { ...empty, missing: shared.missing };
-  unparsed.push(...shared.unparsed);
+  return { specsTreeShared, undeclared };
+}
+
+/**
+ * スペックごとに指紋を取る。1 つでも実体が無ければ missing を返す。
+ * @param {string[]} sortedSpecs
+ * @param {string} root
+ * @returns {{ specs: Record<string, string>, unparsed: string[], missing: string[] | null }}
+ */
+function digestEachSpec(sortedSpecs, root) {
   /** @type {Record<string, string>} */
   const specs = {};
-  const sortedSpecs = [...specFiles].sort();
+  /** @type {string[]} */
+  const unparsed = [];
   for (const f of sortedSpecs) {
     const d = digestFiles([f], root, false);
-    if (d.fingerprint === null) return { ...empty, missing: d.missing };
+    if (d.fingerprint === null) return { specs, unparsed, missing: d.missing };
     unparsed.push(...d.unparsed);
     specs[f] = d.fingerprint;
   }
-  return {
-    shared: shared.fingerprint,
-    specs,
-    specFiles: sortedSpecs,
-    sharedFiles: sharedFiles.size,
-    specsTreeShared: specsTreeShared.sort(),
-    undeclared: undeclared.sort(),
-    missing: [],
-    unparsed,
-  };
+  return { specs, unparsed, missing: null };
 }
 
 /**
@@ -871,7 +1059,24 @@ function readSpecClassification(record, root, specsDecl) {
   const specsRoot = nonEmptyString(specsDecl) ? normalizeRel(String(specsDecl)) : null;
   /** @type {string[]} */
   const findings = [];
-  const rawExcluded = record.current_excluded ?? [];
+  const excluded = readCurrentExcluded(record.current_excluded ?? [], {
+    root,
+    specsRoot,
+    findings,
+  });
+  const declared = readSpecDeclarations(record.specs, findings);
+  const sharedDeclared = readSharedDeclarations(record.shared_files ?? [], { declared, findings });
+  return { findings, declared, sharedDeclared, excluded };
+}
+
+/**
+ * repeat_run.current_excluded を読み、外してよいパス（normalizeRel 済み）を返す。記録の不備は所見に足す。
+ * @param {unknown} rawExcluded
+ * @param {{ root: string, specsRoot: string | null, findings: string[] }} ctx
+ * @returns {string[]}
+ */
+function readCurrentExcluded(rawExcluded, ctx) {
+  const { root, specsRoot, findings } = ctx;
   if (!isArray(rawExcluded)) throw new UsageError("suite.repeat_run.current_excluded が配列でない");
   /** @type {string[]} */
   const excluded = [];
@@ -905,7 +1110,16 @@ function readSpecClassification(record, root, specsDecl) {
     }
     excluded.push(normalizeRel(rel));
   }
-  const specs = record.specs;
+  return excluded;
+}
+
+/**
+ * repeat_run.specs を読み、スペック（normalizeRel 済み）→ state_mutating の表を返す。記録の不備は所見に足す。
+ * @param {unknown} specs
+ * @param {string[]} findings
+ * @returns {Map<string, boolean>}
+ */
+function readSpecDeclarations(specs, findings) {
   if (!isArray(specs)) throw new UsageError("suite.repeat_run.specs が配列でない");
   /** @type {Map<string, boolean>} */
   const declared = new Map();
@@ -930,7 +1144,16 @@ function readSpecClassification(record, root, specsDecl) {
     }
     declared.set(rel, e.state_mutating);
   }
-  const rawShared = record.shared_files ?? [];
+  return declared;
+}
+
+/**
+ * repeat_run.shared_files を読み、共通部分と認めるパス（normalizeRel 済み）を返す。記録の不備は所見に足す。
+ * @param {unknown} rawShared
+ * @param {{ declared: Map<string, boolean>, findings: string[] }} ctx
+ * @returns {Set<string>}
+ */
+function readSharedDeclarations(rawShared, { declared, findings }) {
   if (!isArray(rawShared)) throw new UsageError("suite.repeat_run.shared_files が配列でない");
   /** @type {Set<string>} */
   const sharedDeclared = new Set();
@@ -961,7 +1184,7 @@ function readSpecClassification(record, root, specsDecl) {
     }
     sharedDeclared.add(rel);
   }
-  return { findings, declared, sharedDeclared, excluded };
+  return sharedDeclared;
 }
 
 /**
@@ -981,19 +1204,72 @@ function checkRepeatRunPerSpec(suiteObj, record, root) {
     root,
     suiteObj.specs,
   );
-  /** @type {string[]} */
-  const notes = [];
   const current = specFingerprints(suiteObj, root, {
     declared: [...declared.keys()],
     sharedDeclared: [...sharedDeclared],
     excluded,
   });
   if (current.shared === null) {
-    findings.push(
-      `現在のスイートの指紋を計算できない（判定不能を合格として扱わない）: ${current.missing.length > 0 ? `読めない ${current.missing.join(" / ")}` : "suite.specs / locator_map / interactions がどれも宣言されていない"}`,
-    );
-    return { findings, notes };
+    findings.push(fingerprintUnavailable(current.missing));
+    return { findings, notes: [] };
   }
+  findings.push(...classificationFindings(current, declared, sharedDeclared));
+  const mutating = [...declared]
+    .filter(([f, m]) => m && current.specFiles.includes(f))
+    .map(([f]) => f);
+  if (mutating.length === 0 && [...declared.values()].every((m) => !m)) {
+    findings.push(
+      "suite.state_mutating: true なのに repeat_run.specs に状態を変えるスペックが 1 件も無い（状態を変えないなら suite.state_mutating: false と reason を書く）",
+    );
+  }
+
+  const { runRecords, withoutSpecPrints } = readPerSpecRuns(record);
+  findings.push(...mutatingSpecFindings(mutating, runRecords, current));
+  // 状態を変えないスペックは 1 回の緑で足りるが、その 1 回も現在の版に結びつける。
+  // 結びつけないと、状態を変えないスペックを書き換えた（壊した）後も、状態を変えるスペックの記録だけで通る
+  const readOnly = current.specFiles.filter((f) => declared.get(f) === false);
+  findings.push(...readOnlySpecFindings(readOnly, runRecords, current));
+  /** @type {string[]} */
+  const notes = [
+    `スペック単位で判定: 状態を変えるスペック ${mutating.length} 件は 2 回続けての緑、状態を変えないスペック ${readOnly.length} 件は現在の版での 1 回の緑で足りる（共通部分 ${current.sharedFiles} ファイル、current_excluded ${excluded.length} 件）`,
+  ];
+  if (withoutSpecPrints > 0) {
+    notes.push(
+      `spec_fingerprints を持たない実行記録 ${withoutSpecPrints} 件はスペック単位の判定に使わない`,
+    );
+  }
+  if (current.unparsed.length > 0) notes.push(unparsedNote(current.unparsed));
+  return { findings, notes };
+}
+
+/**
+ * 現在のスイートの指紋を計算できないときの所見。
+ * @param {string[]} missing
+ * @returns {string}
+ */
+function fingerprintUnavailable(missing) {
+  return `現在のスイートの指紋を計算できない（判定不能を合格として扱わない）: ${missing.length > 0 ? `指紋に使えないパス ${missing.join(" / ")}` : NO_SUITE_SOURCE}`;
+}
+
+/**
+ * コメントを除けず生バイトで数えたファイルの注記。
+ * @param {string[]} unparsed
+ * @returns {string}
+ */
+function unparsedNote(unparsed) {
+  return `コメントを除けず生バイトで数えたファイル（字句解析が閉じない）: ${unparsed.join(" / ")}`;
+}
+
+/**
+ * 分類表（repeat_run.specs / shared_files）と、実際に suite.specs の下に在るファイルとの食い違いを挙げる。
+ * @param {{ specFiles: string[], undeclared: string[], specsTreeShared: string[] }} current
+ * @param {Map<string, boolean>} declared
+ * @param {Set<string>} sharedDeclared
+ * @returns {string[]}
+ */
+function classificationFindings(current, declared, sharedDeclared) {
+  /** @type {string[]} */
+  const findings = [];
   const specSet = new Set(current.specFiles);
   for (const f of current.specFiles) {
     if (!declared.has(f)) {
@@ -1022,13 +1298,15 @@ function checkRepeatRunPerSpec(suiteObj, record, root) {
       );
     }
   }
-  const mutating = [...declared].filter(([f, m]) => m && specSet.has(f)).map(([f]) => f);
-  if (mutating.length === 0 && [...declared.values()].every((m) => !m)) {
-    findings.push(
-      "suite.state_mutating: true なのに repeat_run.specs に状態を変えるスペックが 1 件も無い（状態を変えないなら suite.state_mutating: false と reason を書く）",
-    );
-  }
+  return findings;
+}
 
+/**
+ * repeat_run.runs を読む。型の誤りは UsageError にする。
+ * @param {Record<string, unknown>} record - suite.repeat_run
+ * @returns {{ runRecords: Record<string, unknown>[], withoutSpecPrints: number }}
+ */
+function readPerSpecRuns(record) {
   const runs = record.runs;
   if (runs !== undefined && runs !== null && !isArray(runs))
     throw new UsageError("suite.repeat_run.runs が配列でない");
@@ -1059,12 +1337,35 @@ function checkRepeatRunPerSpec(suiteObj, record, root) {
       );
     }
   }
+  return { runRecords, withoutSpecPrints };
+}
+
+/**
+ * スペック spec を含む実行記録を、記録の順に返す。
+ * @param {Record<string, unknown>[]} list
+ * @param {string} spec
+ * @returns {Record<string, unknown>[]}
+ */
+function runsWithSpec(list, spec) {
+  return list.filter(
+    (run) =>
+      isPlainObject(run.spec_fingerprints) &&
+      Object.keys(run.spec_fingerprints).some((k) => normalizeRel(k) === spec),
+  );
+}
+
+/**
+ * 状態を変えるスペックごとに、直近 2 回の記録が緑で、現在のスペックと共通部分の版に結びつくかを数える。
+ * @param {string[]} mutating
+ * @param {Record<string, unknown>[]} list - repeat_run.runs（すべてオブジェクト）
+ * @param {{ shared: string | null, specs: Record<string, string> }} current
+ * @returns {string[]}
+ */
+function mutatingSpecFindings(mutating, list, current) {
+  /** @type {string[]} */
+  const findings = [];
   for (const spec of mutating) {
-    const hits = runRecords.filter(
-      (run) =>
-        isPlainObject(run.spec_fingerprints) &&
-        Object.keys(run.spec_fingerprints).some((k) => normalizeRel(k) === spec),
-    );
+    const hits = runsWithSpec(list, spec);
     if (hits.length < 2) {
       findings.push(
         `状態を変えるスペック ${spec} の実行記録が ${hits.length} 件（そのスペックを 2 回続けて回さないと後始末の有無が結果に現れない）`,
@@ -1093,17 +1394,21 @@ function checkRepeatRunPerSpec(suiteObj, record, root) {
       );
     }
   }
-  // 状態を変えないスペックは 1 回の緑で足りるが、その 1 回も現在の版に結びつける。
-  // 結びつけないと、状態を変えないスペックを書き換えた（壊した）後も、状態を変えるスペックの記録だけで通る
-  const readOnly = current.specFiles.filter((f) => declared.get(f) === false);
+  return findings;
+}
+
+/**
+ * 状態を変えないスペックごとに、直近の記録が緑で、現在のスペックと共通部分の版に結びつくかを数える。
+ * @param {string[]} readOnly
+ * @param {Record<string, unknown>[]} list - repeat_run.runs（すべてオブジェクト）
+ * @param {{ shared: string | null, specs: Record<string, string> }} current
+ * @returns {string[]}
+ */
+function readOnlySpecFindings(readOnly, list, current) {
+  /** @type {string[]} */
+  const findings = [];
   for (const spec of readOnly) {
-    const last = runRecords
-      .filter(
-        (run) =>
-          isPlainObject(run.spec_fingerprints) &&
-          Object.keys(run.spec_fingerprints).some((k) => normalizeRel(k) === spec),
-      )
-      .at(-1);
+    const last = runsWithSpec(list, spec).at(-1);
     if (last === undefined) {
       findings.push(
         `状態を変えないスペック ${spec} の実行記録が 0 件（1 回の緑を現在のスペックに結びつける記録が無い）`,
@@ -1124,20 +1429,7 @@ function checkRepeatRunPerSpec(suiteObj, record, root) {
       );
     }
   }
-  notes.push(
-    `スペック単位で判定: 状態を変えるスペック ${mutating.length} 件は 2 回続けての緑、状態を変えないスペック ${readOnly.length} 件は現在の版での 1 回の緑で足りる（共通部分 ${current.sharedFiles} ファイル、current_excluded ${excluded.length} 件）`,
-  );
-  if (withoutSpecPrints > 0) {
-    notes.push(
-      `spec_fingerprints を持たない実行記録 ${withoutSpecPrints} 件はスペック単位の判定に使わない`,
-    );
-  }
-  if (current.unparsed.length > 0) {
-    notes.push(
-      `コメントを除けず生バイトで数えたファイル（字句解析が閉じない）: ${current.unparsed.join(" / ")}`,
-    );
-  }
-  return { findings, notes };
+  return findings;
 }
 
 /**
@@ -1147,30 +1439,13 @@ function checkRepeatRunPerSpec(suiteObj, record, root) {
  * @returns {{ judged: boolean, findings: string[], notes: string[] }}
  */
 export function checkRepeatRun(metadata, ctx) {
-  /** @type {string[]} */
-  const findings = [];
   const suite = metadata.suite;
   if (suite !== undefined && suite !== null && !isPlainObject(suite))
     throw new UsageError("suite がオブジェクトでない");
   // suite をキーごと持たない成果物も「state_mutating が無い」と同じ扱いにする（型の誤りとして扱わない）。
   // artifact_health を宣言していれば下の分岐が未検証として落とすので、後方互換のために確かめずに通すことはない。
   const suiteObj = isPlainObject(suite) ? suite : {};
-  if (!("state_mutating" in suiteObj)) {
-    // 判定の根拠は artifact_health の「宣言の有無」ではなく「キーの有無」。
-    // declared: false は視覚採取物を持たない成果物（api-resource 等）の免除であって旧成果物ではなく、
-    // 書き込み系 API のスイートこそ 2 回続けての緑を要る側なので、ここで外さない。
-    if (ctx.artifactHealthPresent) {
-      findings.push(
-        "artifact_health を持つ成果物なのに suite.state_mutating が無い（状態を変えるかどうかが決まらない）",
-      );
-      return { judged: true, findings, notes: [] };
-    }
-    return {
-      judged: false,
-      findings,
-      notes: ["suite.state_mutating をキーごと持たない旧成果物のため反復実行の節を判定しない"],
-    };
-  }
+  if (!("state_mutating" in suiteObj)) return withoutStateMutating(ctx.artifactHealthPresent);
   if (typeof suiteObj.state_mutating !== "boolean")
     throw new UsageError("suite.state_mutating が真偽値でない");
 
@@ -1180,29 +1455,10 @@ export function checkRepeatRun(metadata, ctx) {
   }
   const record = isPlainObject(repeat) ? repeat : {};
 
-  if (!suiteObj.state_mutating) {
-    if (record.specs !== undefined && record.specs !== null && !isArray(record.specs))
-      throw new UsageError("suite.repeat_run.specs が配列でない");
-    if (
-      isArray(record.specs) &&
-      record.specs.some((e) => isPlainObject(e) && e.state_mutating === true)
-    ) {
-      findings.push(
-        "suite.state_mutating: false なのに repeat_run.specs に状態を変えるスペックがある（どちらの宣言が正しいか決まらない）",
-      );
-    }
-    if (!nonEmptyString(record.reason)) {
-      findings.push(
-        "suite.state_mutating: false なのに repeat_run.reason が空（状態を変えないと判断した根拠が残らない）",
-      );
-    }
-    return {
-      judged: true,
-      findings,
-      notes: ["suite.state_mutating: false のため 2 回続けての緑は求めない"],
-    };
-  }
+  if (!suiteObj.state_mutating) return checkNonMutating(record);
 
+  /** @type {string[]} */
+  const findings = [];
   if (record.cleanup_in_suite !== true) {
     findings.push(
       "状態を変えるスイートなのに repeat_run.cleanup_in_suite が true でない（後始末が外のツールに依存すると、回した人が忘れた時点で次の実行が失敗する）",
@@ -1214,15 +1470,85 @@ export function checkRepeatRun(metadata, ctx) {
     findings.push(...perSpec.findings);
     return { judged: true, findings, notes: perSpec.notes };
   }
+  const whole = checkWholeSuiteRuns(suiteObj, record, ctx.root);
+  findings.push(...whole.findings);
+  return { judged: true, findings, notes: whole.notes };
+}
+
+/**
+ * suite.state_mutating をキーごと持たない成果物を扱う。
+ * @param {boolean} artifactHealthPresent
+ * @returns {{ judged: boolean, findings: string[], notes: string[] }}
+ */
+function withoutStateMutating(artifactHealthPresent) {
+  // 判定の根拠は artifact_health の「宣言の有無」ではなく「キーの有無」。
+  // declared: false は視覚採取物を持たない成果物（api-resource 等）の免除であって旧成果物ではなく、
+  // 書き込み系 API のスイートこそ 2 回続けての緑を要る側なので、ここで外さない。
+  if (artifactHealthPresent) {
+    return {
+      judged: true,
+      findings: [
+        "artifact_health を持つ成果物なのに suite.state_mutating が無い（状態を変えるかどうかが決まらない）",
+      ],
+      notes: [],
+    };
+  }
+  return {
+    judged: false,
+    findings: [],
+    notes: ["suite.state_mutating をキーごと持たない旧成果物のため反復実行の節を判定しない"],
+  };
+}
+
+/**
+ * suite.state_mutating: false のスイートを数え直す（2 回続けての緑は求めない）。
+ * @param {Record<string, unknown>} record - suite.repeat_run
+ * @returns {{ judged: boolean, findings: string[], notes: string[] }}
+ */
+function checkNonMutating(record) {
+  /** @type {string[]} */
+  const findings = [];
+  if (record.specs !== undefined && record.specs !== null && !isArray(record.specs))
+    throw new UsageError("suite.repeat_run.specs が配列でない");
+  if (
+    isArray(record.specs) &&
+    record.specs.some((e) => isPlainObject(e) && e.state_mutating === true)
+  ) {
+    findings.push(
+      "suite.state_mutating: false なのに repeat_run.specs に状態を変えるスペックがある（どちらの宣言が正しいか決まらない）",
+    );
+  }
+  if (!nonEmptyString(record.reason)) {
+    findings.push(
+      "suite.state_mutating: false なのに repeat_run.reason が空（状態を変えないと判断した根拠が残らない）",
+    );
+  }
+  return {
+    judged: true,
+    findings,
+    notes: ["suite.state_mutating: false のため 2 回続けての緑は求めない"],
+  };
+}
+
+/**
+ * 分類表を持たない成果物の反復実行を、スイート全体の指紋で数え直す。
+ * @param {Record<string, unknown>} suiteObj
+ * @param {Record<string, unknown>} record - suite.repeat_run
+ * @param {string} root
+ * @returns {{ findings: string[], notes: string[] }}
+ */
+function checkWholeSuiteRuns(suiteObj, record, root) {
   const runs = record.runs;
   if (runs !== undefined && runs !== null && !isArray(runs))
     throw new UsageError("suite.repeat_run.runs が配列でない");
   const list = isArray(runs) ? runs : [];
   if (list.length < 2) {
-    findings.push(
-      `状態を変えるスイートの実行記録が ${list.length} 件（2 回続けて回さないと後始末の有無が結果に現れない）`,
-    );
-    return { judged: true, findings, notes: [] };
+    return {
+      findings: [
+        `状態を変えるスイートの実行記録が ${list.length} 件（2 回続けて回さないと後始末の有無が結果に現れない）`,
+      ],
+      notes: [],
+    };
   }
   /** @type {Record<string, unknown>[]} */
   const tailRecords = [];
@@ -1231,64 +1557,92 @@ export function checkRepeatRun(metadata, ctx) {
       throw new UsageError(`suite.repeat_run.runs の末尾 ${i + 1} 件目がオブジェクトでない`);
     tailRecords.push(run);
   }
-  findings.push(...pairFindings(tailRecords, ""));
+  const findings = pairFindings(tailRecords, "");
   /** @type {string[]} */
   const notes = [`状態を変えるスイートの実行記録 ${list.length} 件のうち末尾 2 件を判定`];
+  const bound = suiteFingerprintBinding(tailRecords, suiteObj, root);
+  findings.push(...bound.findings);
+  notes.push(...bound.notes);
+  return { findings, notes };
+}
 
-  // 記録を「いまのスイート」に結びつける。指紋が無い旧成果物はこの軸を判定しない（理由は残す）。
+/**
+ * 連続する 2 回の記録を「いまのスイート」に結びつける。指紋が無い旧成果物はこの軸を判定しない（理由は残す）。
+ * @param {Record<string, unknown>[]} tailRecords
+ * @param {Record<string, unknown>} suiteObj
+ * @param {string} root
+ * @returns {{ findings: string[], notes: string[] }}
+ */
+function suiteFingerprintBinding(tailRecords, suiteObj, root) {
   const prints = tailRecords.map((run) => run.suite_fingerprint);
   if (prints.every((p) => p === undefined || p === null)) {
-    notes.push(
-      "runs[].suite_fingerprint を持たない旧成果物のため、記録が現在のスイートのものかは判定しない",
-    );
-  } else if (!prints.every((p) => nonEmptyString(p))) {
-    findings.push(
-      "連続する 2 回のうち片方だけ suite_fingerprint を持つ（どの版のスイートを回したか対応づかない）",
+    return {
+      findings: [],
+      notes: [
+        "runs[].suite_fingerprint を持たない旧成果物のため、記録が現在のスイートのものかは判定しない",
+      ],
+    };
+  }
+  if (!prints.every((p) => nonEmptyString(p))) {
+    return {
+      findings: [
+        "連続する 2 回のうち片方だけ suite_fingerprint を持つ（どの版のスイートを回したか対応づかない）",
+      ],
+      notes: [],
+    };
+  }
+  const recorded = prints.map((p) => String(p).trim());
+  if (recorded[0] !== recorded[1]) {
+    return {
+      findings: [
+        `連続する 2 回で suite_fingerprint が違う（同じスイートを 2 回続けて回していない）: ${recorded.join(" / ")}`,
+      ],
+      notes: [],
+    };
+  }
+  return matchSuiteFingerprint(recorded[0], suiteObj, root);
+}
+
+/**
+ * 記録した指紋を、現在のスイートの指紋と照合する。
+ * @param {string} recorded
+ * @param {Record<string, unknown>} suiteObj
+ * @param {string} root
+ * @returns {{ findings: string[], notes: string[] }}
+ */
+function matchSuiteFingerprint(recorded, suiteObj, root) {
+  // 記録の接頭辞で照合の方式を決める。旧方式（sha256:）の記録は旧方式で数え直す
+  // （新方式へ一律に切り替えると、スイートを変えていない記録まで全部もう一度測ることになる）。
+  const scheme = recorded.startsWith("sha256-nc:")
+    ? "nc"
+    : recorded.startsWith("sha256:")
+      ? "legacy"
+      : null;
+  if (scheme === null) {
+    return {
+      findings: [
+        `suite_fingerprint の方式を読めない（接頭辞が sha256-nc: でも sha256: でもない）: ${recorded}。--fingerprint の出力で記録し直す`,
+      ],
+      notes: [],
+    };
+  }
+  const legacy = scheme === "legacy";
+  const current = suiteFingerprint(suiteObj, root, { legacy });
+  /** @type {{ findings: string[], notes: string[] }} */
+  const out = { findings: [], notes: [] };
+  if (current.fingerprint === null) {
+    out.findings.push(fingerprintUnavailable(current.missing));
+  } else if (current.fingerprint !== recorded) {
+    out.findings.push(
+      `記録した 2 回は現在のスイートのものでない（suite_fingerprint ${recorded} ≠ 実測 ${current.fingerprint}${legacy ? "。旧方式 sha256: の記録なのでコメントの書き換えも差として数えた" : ""}）。スイートを変えたら 2 回続けて回し直す`,
     );
   } else {
-    const recorded = prints.map((p) => String(p).trim());
-    if (recorded[0] !== recorded[1]) {
-      findings.push(
-        `連続する 2 回で suite_fingerprint が違う（同じスイートを 2 回続けて回していない）: ${recorded.join(" / ")}`,
-      );
-    } else {
-      // 記録の接頭辞で照合の方式を決める。旧方式（sha256:）の記録は旧方式で数え直す
-      // （新方式へ一律に切り替えると、スイートを変えていない記録まで全部もう一度測ることになる）。
-      const scheme = recorded[0].startsWith("sha256-nc:")
-        ? "nc"
-        : recorded[0].startsWith("sha256:")
-          ? "legacy"
-          : null;
-      const current =
-        scheme === null
-          ? null
-          : suiteFingerprint(suiteObj, ctx.root, { legacy: scheme === "legacy" });
-      if (current === null) {
-        findings.push(
-          `suite_fingerprint の方式を読めない（接頭辞が sha256-nc: でも sha256: でもない）: ${recorded[0]}。--fingerprint の出力で記録し直す`,
-        );
-      } else if (current.fingerprint === null) {
-        findings.push(
-          `現在のスイートの指紋を計算できない（判定不能を合格として扱わない）: ${current.missing.length > 0 ? `読めない ${current.missing.join(" / ")}` : "suite.specs / locator_map / interactions がどれも宣言されていない"}`,
-        );
-      } else if (current.fingerprint !== recorded[0]) {
-        findings.push(
-          `記録した 2 回は現在のスイートのものでない（suite_fingerprint ${recorded[0]} ≠ 実測 ${current.fingerprint}${scheme === "legacy" ? "。旧方式 sha256: の記録なのでコメントの書き換えも差として数えた" : ""}）。スイートを変えたら 2 回続けて回し直す`,
-        );
-      } else {
-        notes.push(
-          `スイートの指紋が記録と一致（${current.files} ファイル、${scheme === "legacy" ? "旧方式 sha256: の記録なのでコメントも含めて照合" : "JS / TS 系はコメントを除いて照合"}）`,
-        );
-      }
-      if (current !== null && current.unparsed.length > 0) {
-        notes.push(
-          `コメントを除けず生バイトで数えたファイル（字句解析が閉じない）: ${current.unparsed.join(" / ")}`,
-        );
-      }
-    }
+    out.notes.push(
+      `スイートの指紋が記録と一致（${current.files} ファイル、${legacy ? "旧方式 sha256: の記録なのでコメントも含めて照合" : "JS / TS 系はコメントを除いて照合"}）`,
+    );
   }
-
-  return { judged: true, findings, notes };
+  if (current.unparsed.length > 0) out.notes.push(unparsedNote(current.unparsed));
+  return out;
 }
 
 /**
@@ -1299,14 +1653,10 @@ export function checkRepeatRun(metadata, ctx) {
  */
 export function checkUnmeasured(metadata, ctx) {
   const stage = ctx?.stage ?? "diff";
-  /** @type {string[]} */
-  const findings = [];
-  /** @type {string[]} */
-  const pending = [];
   if (!("unmeasured" in metadata)) {
     return {
       judged: false,
-      findings,
+      findings: [],
       notes: ["unmeasured をキーごと持たない旧成果物のため未測定の節を判定しない"],
       blocking: 0,
     };
@@ -1320,57 +1670,28 @@ export function checkUnmeasured(metadata, ctx) {
       throw new UsageError("unmeasured.declared: false なのに reason が空（免除の根拠が残らない）");
     return {
       judged: false,
-      findings,
+      findings: [],
       notes: [`unmeasured.declared: false のため判定しない（理由: ${String(decl.reason).trim()}）`],
       blocking: 0,
     };
   }
   if (!isArray(decl.entries)) throw new UsageError("unmeasured.entries が配列でない");
 
+  /** @type {string[]} */
+  const findings = [];
+  /** @type {string[]} */
+  const pending = [];
   let blocking = 0;
   const seen = new Set();
   for (const [i, entry] of decl.entries.entries()) {
-    if (!isPlainObject(entry))
-      throw new UsageError(`unmeasured.entries[${i}] がオブジェクトでない`);
-    const item = nonEmptyString(entry.item) ? String(entry.item).trim() : null;
-    if (item === null) {
-      findings.push(`unmeasured.entries[${i}].item が空（照合キーが無い）`);
-      blocking += 1;
-      continue;
-    }
-    if (seen.has(item)) {
-      findings.push(`未測定の項目が重複している（先勝ちにしない）: ${item}`);
-      blocking += 1;
-      continue;
-    }
-    seen.add(item);
-    if (!nonEmptyString(entry.reason)) {
-      findings.push(`未測定の理由が空: ${item}`);
-      blocking += 1;
-      continue;
-    }
-    const disposition = entry.disposition;
-    if (typeof disposition !== "string" || !DISPOSITIONS.includes(disposition)) {
-      findings.push(
-        `未測定の disposition が語彙外（${DISPOSITIONS.join(" / ")}）のため blocking として数える: ${item}`,
-      );
-      blocking += 1;
-      continue;
-    }
-    if (disposition === "accepted") {
-      if (!nonEmptyString(entry.approved_by) || !nonEmptyString(entry.approved_at)) {
-        findings.push(
-          `accepted なのに approved_by / approved_at が空のため blocking として数える: ${item}`,
-        );
-        blocking += 1;
-      }
-      continue;
-    }
-    blocking += 1;
+    const judged = judgeUnmeasuredEntry(entry, i, seen);
+    if (judged.blocking) blocking += 1;
+    if (judged.finding !== null) findings.push(judged.finding);
+    if (judged.item === null) continue;
     // suite 工程では blocking は「これから測る」の記録なので落とさない（書いた本人のチェックを止めない）。
     // diff 工程では収束を止める（原本: parity-suite の references/coverage.md「未測定を機械可読にする」）。
-    if (stage === "suite") pending.push(item);
-    else findings.push(`未測定が残っている（disposition: blocking）: ${item}`);
+    if (stage === "suite") pending.push(judged.item);
+    else findings.push(`未測定が残っている（disposition: blocking）: ${judged.item}`);
   }
   const notes = [`未測定の宣言 ${decl.entries.length} 件のうち blocking ${blocking} 件`];
   if (pending.length > 0) {
@@ -1379,6 +1700,38 @@ export function checkUnmeasured(metadata, ctx) {
     );
   }
   return { judged: true, findings, notes, blocking };
+}
+
+/**
+ * 未測定の宣言 1 件を判定する。
+ * finding は記録の不備（どの工程でも落とす）、item は disposition: blocking の正規の記録（工程で扱いが変わる）。
+ * @param {unknown} entry
+ * @param {number} i
+ * @param {Set<string>} seen - 既に読んだ item（重複の検出に使い、この関数が足す）
+ * @returns {{ blocking: boolean, finding: string | null, item: string | null }}
+ */
+function judgeUnmeasuredEntry(entry, i, seen) {
+  if (!isPlainObject(entry)) throw new UsageError(`unmeasured.entries[${i}] がオブジェクトでない`);
+  /** @param {string} finding */
+  const invalid = (finding) => ({ blocking: true, finding, item: null });
+  const item = nonEmptyString(entry.item) ? String(entry.item).trim() : null;
+  if (item === null) return invalid(`unmeasured.entries[${i}].item が空（照合キーが無い）`);
+  if (seen.has(item)) return invalid(`未測定の項目が重複している（先勝ちにしない）: ${item}`);
+  seen.add(item);
+  if (!nonEmptyString(entry.reason)) return invalid(`未測定の理由が空: ${item}`);
+  const disposition = entry.disposition;
+  if (typeof disposition !== "string" || !DISPOSITIONS.includes(disposition)) {
+    return invalid(
+      `未測定の disposition が語彙外（${DISPOSITIONS.join(" / ")}）のため blocking として数える: ${item}`,
+    );
+  }
+  if (disposition !== "accepted") return { blocking: true, finding: null, item };
+  if (!nonEmptyString(entry.approved_by) || !nonEmptyString(entry.approved_at)) {
+    return invalid(
+      `accepted なのに approved_by / approved_at が空のため blocking として数える: ${item}`,
+    );
+  }
+  return { blocking: false, finding: null, item: null };
 }
 
 /**
@@ -1441,28 +1794,94 @@ export function affectsBetween(changes, v, c) {
  * @returns {{ judged: boolean, findings: string[], notes: string[] }}
  */
 export function checkStage(ctx) {
-  /** @type {string[]} */
-  const findings = [];
-  /** @type {string[]} */
-  const notes = [];
   const stageDir = join(ctx.slugDir, "new", ctx.target);
   const replacePath = join(stageDir, "replace-metadata.json");
   const carryTo = nonEmptyString(ctx.carryTo) ? ctx.carryTo.trim() : null;
-  /**
-   * 工程の節を判定しないで返す。--carry-to を渡したときは、持ち越しを確かめないまま通さない。
-   * @param {string} reason
-   */
-  const skipStage = (reason) =>
-    carryTo === null
-      ? { judged: false, findings, notes: [reason] }
-      : {
-          judged: true,
-          findings: [`--carry-to ${carryTo} への持ち越しを判定できない（${reason}）`],
-          notes,
-        };
   if (!existsSync(replacePath)) {
-    return skipStage(`${replacePath} が無いため工程の節を判定しない（新側の工程が回っていない）`);
+    return skipStage(
+      `${replacePath} が無いため工程の節を判定しない（新側の工程が回っていない）`,
+      carryTo,
+    );
   }
+  const replaceMeta = readReplaceMetadata(replacePath);
+  const replaceSuite = replaceMeta.suite;
+  const newGreen = isPlainObject(replaceSuite) ? replaceSuite.new_green : undefined;
+  if (newGreen !== true) {
+    return skipStage(
+      `suite.new_green が真でないため工程の節を判定しない（${replacePath}）`,
+      carryTo,
+    );
+  }
+
+  const diffPath = join(stageDir, "diff-metadata.json");
+  if (!existsSync(diffPath)) {
+    return {
+      judged: true,
+      findings: [
+        `suite.new_green: true なのに diff-metadata.json が無い（工程の完了が記憶に委ねられている）: ${diffPath}`,
+      ],
+      notes: [],
+    };
+  }
+  const diffMeta = readJson(diffPath, "diff-metadata.json");
+  if (!isPlainObject(diffMeta)) throw new UsageError("diff-metadata.json がオブジェクトでない");
+
+  const s = stageState({ ctx, stageDir, diffPath, carryTo, replaceMeta, diffMeta });
+  judgeStageTargets(s);
+  const commits = judgeStageCommits(s);
+  judgeCarryTo(s, commits.judgedWanted);
+  judgeStageIteration(s, commits.versionDelegatedToIteration);
+  judgeStageDataset(s);
+  return { judged: true, findings: s.findings, notes: s.notes };
+}
+
+/**
+ * checkStage の判定の途中経過。所見と注記は各段が足す。
+ * @typedef {{ ctx: { root: string, slugDir: string, target: string, newRepo?: string | null, replaceRoot?: string | null, featureMetadata?: unknown, carryTo?: string | null }, stageDir: string, diffPath: string, carryTo: string | null, replaceMeta: Record<string, unknown>, diffMeta: Record<string, unknown>, replaceNew: Record<string, unknown> | null, diffNew: Record<string, unknown> | null, findings: string[], notes: string[] }} StageState
+ */
+
+/**
+ * 判定の途中経過を作る。
+ *
+ * 同じ target の diff-metadata.json が「いまの新側」に対応しているかを見る。
+ * dataset_version だけを鮮度にすると、データセットを変えずに parity-replace が作り直した実装に対して、
+ * 前の反復で収束した古い diff-metadata.json が、そのままこのチェックを満たす（差分を採り直していないのに「済んだ」に見える）。
+ * 対応づけは、両成果物が既に持っている識別子（新側のコミット SHA と反復回数）で取る。
+ * @param {Omit<StageState, "replaceNew" | "diffNew" | "findings" | "notes">} base
+ * @returns {StageState}
+ */
+function stageState(base) {
+  return {
+    ...base,
+    replaceNew: isPlainObject(base.replaceMeta.new) ? base.replaceMeta.new : null,
+    diffNew: isPlainObject(base.diffMeta.new) ? base.diffMeta.new : null,
+    findings: [],
+    notes: [],
+  };
+}
+
+/**
+ * 工程の節を判定しないで返す。--carry-to を渡したときは、持ち越しを確かめないまま通さない。
+ * @param {string} reason
+ * @param {string | null} carryTo
+ * @returns {{ judged: boolean, findings: string[], notes: string[] }}
+ */
+function skipStage(reason, carryTo) {
+  return carryTo === null
+    ? { judged: false, findings: [], notes: [reason] }
+    : {
+        judged: true,
+        findings: [`--carry-to ${carryTo} への持ち越しを判定できない（${reason}）`],
+        notes: [],
+      };
+}
+
+/**
+ * replace-metadata.json を読み、オブジェクトであることと suite の型を確かめる。
+ * @param {string} replacePath
+ * @returns {Record<string, unknown>}
+ */
+function readReplaceMetadata(replacePath) {
   const replaceMeta = readJson(replacePath, "replace-metadata.json");
   if (!isPlainObject(replaceMeta))
     throw new UsageError("replace-metadata.json がオブジェクトでない");
@@ -1470,44 +1889,30 @@ export function checkStage(ctx) {
   if (replaceSuite !== undefined && replaceSuite !== null && !isPlainObject(replaceSuite)) {
     throw new UsageError("replace-metadata.json の suite がオブジェクトでない");
   }
-  const newGreen = isPlainObject(replaceSuite) ? replaceSuite.new_green : undefined;
-  if (newGreen !== true) {
-    return skipStage(`suite.new_green が真でないため工程の節を判定しない（${replacePath}）`);
-  }
+  return replaceMeta;
+}
 
-  const diffPath = join(stageDir, "diff-metadata.json");
-  if (!existsSync(diffPath)) {
-    findings.push(
-      `suite.new_green: true なのに diff-metadata.json が無い（工程の完了が記憶に委ねられている）: ${diffPath}`,
-    );
-    return { judged: true, findings, notes };
-  }
-  const diffMeta = readJson(diffPath, "diff-metadata.json");
-  if (!isPlainObject(diffMeta)) throw new UsageError("diff-metadata.json がオブジェクトでない");
-
-  // 同じ target の diff-metadata.json が「いまの新側」に対応しているかを見る。
-  // dataset_version だけを鮮度にすると、データセットを変えずに parity-replace が作り直した実装に対して、
-  // 前の反復で収束した古い diff-metadata.json が、そのままこのチェックを満たす（差分を採り直していないのに「済んだ」に見える）。
-  // 対応づけは、両成果物が既に持っている識別子（新側のコミット SHA と反復回数）で取る。
-  const replaceNew = isPlainObject(replaceMeta.new) ? replaceMeta.new : null;
-  const diffNew = isPlainObject(diffMeta.new) ? diffMeta.new : null;
-
+/**
+ * 環境の対応と、未コミット変更の有無を見る。
+ * @param {StageState} s
+ */
+function judgeStageTargets(s) {
   // 環境の対応づけ。同じコミット・同じ反復は環境をまたいで一致しうるので、
   // 両成果物が記録している target 名を --target と突き合わせる
   // （別 target のディレクトリへコピーしただけの成果物が、その環境で差分を採らずに通るのを防ぐ）。
   /** @type {Array<[string, unknown]>} */
   const recordedTargets = [
-    ["replace-metadata.json", replaceNew === null ? undefined : replaceNew.target],
-    ["diff-metadata.json", diffNew === null ? undefined : diffNew.target],
+    ["replace-metadata.json", s.replaceNew === null ? undefined : s.replaceNew.target],
+    ["diff-metadata.json", s.diffNew === null ? undefined : s.diffNew.target],
   ];
   for (const [label, value] of recordedTargets) {
     if (!nonEmptyString(value)) {
-      notes.push(`${label} が new.target を持たないため環境の対応を判定しない（旧成果物）`);
+      s.notes.push(`${label} が new.target を持たないため環境の対応を判定しない（旧成果物）`);
       continue;
     }
-    if (String(value).trim() !== ctx.target) {
-      findings.push(
-        `${label} が別の環境の成果物（new.target ${String(value).trim()} ≠ --target ${ctx.target}）: ${stageDir}`,
+    if (String(value).trim() !== s.ctx.target) {
+      s.findings.push(
+        `${label} が別の環境の成果物（new.target ${String(value).trim()} ≠ --target ${s.ctx.target}）: ${s.stageDir}`,
       );
     }
   }
@@ -1515,96 +1920,119 @@ export function checkStage(ctx) {
   // 未コミット変更のある木では「差分を採った実装」を特定できない。
   // コミットの比較方法（一致 / none / 片側欠落）を選ぶ前に落とす。
   // none の枝へ入ると dirty の判定へ到達せず、同じ反復のまま中身だけ変わった実装が素通りする。
-  if (replaceNew !== null && replaceNew.dirty === true) {
-    findings.push(
-      `新側の版を特定できない（replace-metadata.json の new.dirty: true。未コミット変更があるので版の同一性を確かめられない）: ${diffPath}`,
+  if (s.replaceNew !== null && s.replaceNew.dirty === true) {
+    s.findings.push(
+      `新側の版を特定できない（replace-metadata.json の new.dirty: true。未コミット変更があるので版の同一性を確かめられない）: ${s.diffPath}`,
     );
   }
+}
 
-  const replaceCommit = replaceNew === null ? undefined : replaceNew.commit;
-  const diffCommit = diffNew === null ? undefined : diffNew.commit;
-  /**
-   * @param {string} recordedCommit
-   * @param {string} wantedCommit
-   */
-  const carryFrom = (recordedCommit, wantedCommit) =>
-    judgeCarry({
-      recordedCommit,
-      wantedCommit,
-      renderInputs: replaceNew === null ? undefined : replaceNew.render_inputs,
-      repo: ctx.newRepo ?? null,
-      evidenceCarryPath: join(stageDir, EVIDENCE_CARRY_FILE),
-      featureSlug: basename(ctx.slugDir),
-      featureMetadata: ctx.featureMetadata,
-      replaceRoot: ctx.replaceRoot ?? join(ctx.root, ".replace"),
-    });
-  // 食い違いの判定で既に judgeCarry に掛けた「今の版」。--carry-to が同じ版なら二重に判定しない。
-  /** @type {string | null} */
-  let judgedWanted = null;
-  // commit が `none` センチネルで、版の対応が反復回数だけに委ねられたか。
-  // 委ねた先も読めないときに、合格として扱わないための材料（下の反復回数の判定で使う）。
-  let versionDelegatedToIteration = false;
-  if (nonEmptyString(replaceCommit) && nonEmptyString(diffCommit)) {
-    const wanted = String(replaceCommit).trim();
-    const recordedCommit = String(diffCommit).trim();
-    // **反復回数へ委ねるのは、両側とも `${NO_COMMIT}` のときだけである**。片側だけが `none` なら、
-    // 記録した SHA と現在の `none`（またはその逆）は同じ版を指さない。反復回数が
-    // たまたま一致しただけで合格として扱うと、git 管理の有無が変わった新側で古い成果物が通る
-    // （component-comparison-check.mjs と同じ規則。原本は references/coverage.md）。
-    if (wanted === NO_COMMIT && recordedCommit === NO_COMMIT) {
-      versionDelegatedToIteration = true;
-      notes.push(
-        `new.commit が ${NO_COMMIT}（新側リポジトリのコミットを持たない）ため版の対応は反復回数だけで判定する: ${diffPath}`,
-      );
-    } else if (wanted !== recordedCommit) {
-      // SHA の不一致を即失効にせず、ページの描画入力の差分で持ち越せるかを見る。
-      // 判定の原本は evidence-carry.mjs。component-comparison-check.mjs も同じ関数で判定する。
-      const carry = carryFrom(recordedCommit, wanted);
-      judgedWanted = wanted;
-      if (carry.ok) {
-        notes.push(...carry.notes.map((note) => `${note}: ${diffPath}`));
-      } else {
-        findings.push(
-          `diff-metadata.json が今の新側の版に対応していない（new.commit ${recordedCommit} ≠ replace-metadata.json の ${wanted}）: ${diffPath}`,
-        );
-        findings.push(...carry.findings.map((f) => `証跡を持ち越せない: ${f}`));
-        notes.push(...carry.notes);
-      }
-    }
-  } else {
-    notes.push(
+/**
+ * 記録の版から今の版へ、証跡を持ち越せるかを evidence-carry.mjs の judgeCarry で判定する。
+ * @param {StageState} s
+ * @param {string} recordedCommit
+ * @param {string} wantedCommit
+ */
+function carryFrom(s, recordedCommit, wantedCommit) {
+  return judgeCarry({
+    recordedCommit,
+    wantedCommit,
+    renderInputs: s.replaceNew === null ? undefined : s.replaceNew.render_inputs,
+    repo: s.ctx.newRepo ?? null,
+    evidenceCarryPath: join(s.stageDir, EVIDENCE_CARRY_FILE),
+    featureSlug: basename(s.ctx.slugDir),
+    featureMetadata: s.ctx.featureMetadata,
+    replaceRoot: s.ctx.replaceRoot ?? join(s.ctx.root, ".replace"),
+  });
+}
+
+/**
+ * 両成果物の new.commit を突き合わせる。
+ * @param {StageState} s
+ * @returns {{ judgedWanted: string | null, versionDelegatedToIteration: boolean }}
+ */
+function judgeStageCommits(s) {
+  const replaceCommit = s.replaceNew === null ? undefined : s.replaceNew.commit;
+  const diffCommit = s.diffNew === null ? undefined : s.diffNew.commit;
+  // judgedWanted: 食い違いの判定で既に judgeCarry に掛けた「今の版」。--carry-to が同じ版なら二重に判定しない。
+  // versionDelegatedToIteration: commit が `none` センチネルで、版の対応が反復回数だけに委ねられたか。
+  // 委ねた先も読めないときに、合格として扱わないための材料（反復回数の判定で使う）。
+  if (!nonEmptyString(replaceCommit) || !nonEmptyString(diffCommit)) {
+    s.notes.push(
       "new.commit を片側が持たないため新側の版の対応を判定しない（旧成果物）: 記録があれば次の実行から判定する",
     );
+    return { judgedWanted: null, versionDelegatedToIteration: false };
   }
+  const wanted = String(replaceCommit).trim();
+  const recordedCommit = String(diffCommit).trim();
+  // **反復回数へ委ねるのは、両側とも `${NO_COMMIT}` のときだけである**。片側だけが `none` なら、
+  // 記録した SHA と現在の `none`（またはその逆）は同じ版を指さない。反復回数が
+  // たまたま一致しただけで合格として扱うと、git 管理の有無が変わった新側で古い成果物が通る
+  // （component-comparison-check.mjs と同じ規則。原本は references/coverage.md）。
+  if (wanted === NO_COMMIT && recordedCommit === NO_COMMIT) {
+    s.notes.push(
+      `new.commit が ${NO_COMMIT}（新側リポジトリのコミットを持たない）ため版の対応は反復回数だけで判定する: ${s.diffPath}`,
+    );
+    return { judgedWanted: null, versionDelegatedToIteration: true };
+  }
+  if (wanted === recordedCommit) return { judgedWanted: null, versionDelegatedToIteration: false };
+  // SHA の不一致を即失効にせず、ページの描画入力の差分で持ち越せるかを見る。
+  // 判定の原本は evidence-carry.mjs。component-comparison-check.mjs も同じ関数で判定する。
+  const carry = carryFrom(s, recordedCommit, wanted);
+  if (carry.ok) {
+    s.notes.push(...carry.notes.map((note) => `${note}: ${s.diffPath}`));
+  } else {
+    s.findings.push(
+      `diff-metadata.json が今の新側の版に対応していない（new.commit ${recordedCommit} ≠ replace-metadata.json の ${wanted}）: ${s.diffPath}`,
+    );
+    s.findings.push(...carry.findings.map((f) => `証跡を持ち越せない: ${f}`));
+    s.notes.push(...carry.notes);
+  }
+  return { judgedWanted: wanted, versionDelegatedToIteration: false };
+}
 
-  // --carry-to: 記録の版から検証先の版への持ち越しを、replace-metadata.json の new.commit に依らず判定する。
+/**
+ * --carry-to: 記録の版から検証先の版への持ち越しを、replace-metadata.json の new.commit に依らず判定する。
+ * @param {StageState} s
+ * @param {string | null} judgedWanted
+ */
+function judgeCarryTo(s, judgedWanted) {
+  const { carryTo, diffPath } = s;
   if (carryTo !== null && carryTo !== judgedWanted) {
+    const diffCommit = s.diffNew === null ? undefined : s.diffNew.commit;
     const recorded = nonEmptyString(diffCommit) ? String(diffCommit).trim() : null;
     if (recorded === null || recorded === NO_COMMIT) {
-      findings.push(
+      s.findings.push(
         `--carry-to ${carryTo} への持ち越しを判定できない（diff-metadata.json の new.commit が ${recorded ?? "無い"}。記録の版が SHA でないと描画入力の差分を取れない）: ${diffPath}`,
       );
+      return;
+    }
+    const carry = carryFrom(s, recorded, carryTo);
+    if (carry.ok) {
+      s.notes.push(...carry.notes.map((note) => `--carry-to ${carryTo}: ${note}: ${diffPath}`));
     } else {
-      const carry = carryFrom(recorded, carryTo);
-      if (carry.ok) {
-        notes.push(...carry.notes.map((note) => `--carry-to ${carryTo}: ${note}: ${diffPath}`));
-      } else {
-        findings.push(
-          `diff-metadata.json の証跡を --carry-to の版へ持ち越せない（new.commit ${recorded} → ${carryTo}）: ${diffPath}`,
-        );
-        findings.push(...carry.findings.map((f) => `証跡を持ち越せない: ${f}`));
-        notes.push(...carry.notes);
-      }
+      s.findings.push(
+        `diff-metadata.json の証跡を --carry-to の版へ持ち越せない（new.commit ${recorded} → ${carryTo}）: ${diffPath}`,
+      );
+      s.findings.push(...carry.findings.map((f) => `証跡を持ち越せない: ${f}`));
+      s.notes.push(...carry.notes);
     }
   }
+}
 
-  const loop = isPlainObject(replaceMeta.loop) ? replaceMeta.loop : null;
+/**
+ * diff-metadata.json の iteration を replace-metadata.json の loop.iterations と突き合わせる。
+ * @param {StageState} s
+ * @param {boolean} versionDelegatedToIteration
+ */
+function judgeStageIteration(s, versionDelegatedToIteration) {
+  const loop = isPlainObject(s.replaceMeta.loop) ? s.replaceMeta.loop : null;
   const iterations = toIterationCount(loop === null ? undefined : loop.iterations);
-  const recordedIteration = toIterationCount(diffMeta.iteration);
+  const recordedIteration = toIterationCount(s.diffMeta.iteration);
   if (iterations !== null && recordedIteration !== null) {
     if (recordedIteration !== iterations) {
-      findings.push(
-        `diff-metadata.json が前の反復のもの（iteration ${recordedIteration} ≠ replace-metadata.json の loop.iterations ${iterations}）: ${diffPath}`,
+      s.findings.push(
+        `diff-metadata.json が前の反復のもの（iteration ${recordedIteration} ≠ replace-metadata.json の loop.iterations ${iterations}）: ${s.diffPath}`,
       );
     }
   } else if (versionDelegatedToIteration) {
@@ -1612,15 +2040,38 @@ export function checkStage(ctx) {
     // 反復回数へ委ねている。その反復回数も読めないと、実装を変えても古い成果物が、
     // 版の検査を 1 つも受けずに通ってしまう（component-comparison-check.mjs の
     // comparison-implementation-unversionable と同じ扱いにする）。
-    findings.push(
-      `新側の版を対応づける指標が無い（new.commit が ${NO_COMMIT} なのに iteration: ${recordedIteration === null ? "読めない" : recordedIteration} / loop.iterations: ${iterations === null ? "読めない" : iterations}）: ${diffPath}`,
+    s.findings.push(
+      `新側の版を対応づける指標が無い（new.commit が ${NO_COMMIT} なのに iteration: ${recordedIteration === null ? "読めない" : recordedIteration} / loop.iterations: ${iterations === null ? "読めない" : iterations}）: ${s.diffPath}`,
     );
   } else {
-    notes.push(
+    s.notes.push(
       "iteration / loop.iterations を片側が持たないため反復の対応を判定しない（旧成果物）: 記録があれば次の実行から判定する",
     );
   }
+}
 
+/**
+ * データセットの版で diff-metadata.json の鮮度を見る。converged が偽でも落とさない。
+ * @param {StageState} s
+ */
+function judgeStageDataset(s) {
+  if (datasetVersionExempted(s)) return;
+  const versions = readDatasetVersions(s);
+  if (versions === null) return;
+  if (!judgeDatasetRange(s, versions)) return;
+  // converged が偽でも落とさない。偽は「まだ直っていない」の記録であり、隠す相手ではない。
+  s.notes.push(
+    `工程の成果物を判定（converged: ${JSON.stringify(s.diffMeta.converged)} は判定に入れない）`,
+  );
+}
+
+/**
+ * dataset_version の免除を読む。正規の免除なら注記を足して true を返す。
+ * @param {StageState} s
+ * @returns {boolean}
+ */
+function datasetVersionExempted(s) {
+  const { diffMeta, diffPath } = s;
   // 投入対象でない target（db を持たない／seedable の無い読み取り専用）は phase B との整合を免除できる。
   // 原本: parity-diff の references/preflight.md と assets/diff-metadata-template.json の dataset_version_exempt。
   // 免除は dataset_version: null と対で書かれるので、空の判定より先に見る（正規の記録を落とさない）。
@@ -1628,29 +2079,36 @@ export function checkStage(ctx) {
   if (exempt !== undefined && exempt !== null && typeof exempt !== "string") {
     throw new UsageError("diff-metadata.json の dataset_version_exempt が文字列でも null でもない");
   }
-  if (nonEmptyString(exempt)) {
-    // 免除は「dataset_version: null ＋ 理由」という閉じた対（原本の定める形）。
-    // 理由が残っているだけで版の検査を飛ばすと、投入対象の target に古い免除文字列が残ったまま
-    // 鮮度の判定が丸ごと外れる。対になっていなければ免除ではなく記録の不整合として落とす。
-    if (diffMeta.dataset_version !== null) {
-      findings.push(
-        `dataset_version_exempt があるのに dataset_version が null でない（免除は null と対の記録。現在 ${JSON.stringify(diffMeta.dataset_version)}）: ${diffPath}`,
-      );
-    } else {
-      notes.push(`dataset_version を免除して判定（理由: ${String(exempt).trim()}）: ${diffPath}`);
-      notes.push(
-        `工程の成果物を判定（converged: ${JSON.stringify(diffMeta.converged)} は判定に入れない）`,
-      );
-      return { judged: true, findings, notes };
-    }
+  if (!nonEmptyString(exempt)) return false;
+  // 免除は「dataset_version: null ＋ 理由」という閉じた対（原本の定める形）。
+  // 理由が残っているだけで版の検査を飛ばすと、投入対象の target に古い免除文字列が残ったまま
+  // 鮮度の判定が丸ごと外れる。対になっていなければ免除ではなく記録の不整合として落とす。
+  if (diffMeta.dataset_version !== null) {
+    s.findings.push(
+      `dataset_version_exempt があるのに dataset_version が null でない（免除は null と対の記録。現在 ${JSON.stringify(diffMeta.dataset_version)}）: ${diffPath}`,
+    );
+    return false;
   }
+  s.notes.push(`dataset_version を免除して判定（理由: ${String(exempt).trim()}）: ${diffPath}`);
+  s.notes.push(
+    `工程の成果物を判定（converged: ${JSON.stringify(diffMeta.converged)} は判定に入れない）`,
+  );
+  return true;
+}
 
-  const datasetPath = join(ctx.root, ".replace", "dataset", "metadata.json");
+/**
+ * データセットの現在の版と、diff-metadata.json に記録した版を読む。読めなければ所見を足して null を返す。
+ * @param {StageState} s
+ * @returns {{ v: number, c: number, datasetMeta: Record<string, unknown>, datasetPath: string } | null}
+ */
+function readDatasetVersions(s) {
+  const { diffMeta, diffPath } = s;
+  const datasetPath = join(s.ctx.root, ".replace", "dataset", "metadata.json");
   if (!existsSync(datasetPath)) {
-    findings.push(
+    s.findings.push(
       `データセットの版を読めないため鮮度を判定できない（判定不能を合格として扱わない）: ${datasetPath}`,
     );
-    return { judged: true, findings, notes };
+    return null;
   }
   const datasetMeta = readJson(datasetPath, "dataset/metadata.json");
   if (!isPlainObject(datasetMeta))
@@ -1658,56 +2116,60 @@ export function checkStage(ctx) {
   const current = datasetMeta.version;
   const recorded = diffMeta.dataset_version;
   if (current === undefined || current === null || String(current).trim() === "") {
-    findings.push(`データセットの version が空のため鮮度を判定できない: ${datasetPath}`);
-    return { judged: true, findings, notes };
+    s.findings.push(`データセットの version が空のため鮮度を判定できない: ${datasetPath}`);
+    return null;
   }
   if (recorded === undefined || recorded === null || String(recorded).trim() === "") {
-    findings.push(
+    s.findings.push(
       `diff-metadata.json の dataset_version が空で dataset_version_exempt も空（古いかどうかを判定できない）: ${diffPath}`,
     );
-    return { judged: true, findings, notes };
+    return null;
   }
+  const v = toInteger(recorded);
+  const c = toInteger(current);
+  if (v === null || c === null) {
+    s.findings.push(
+      `dataset_version が整数として読めない（記録 ${JSON.stringify(recorded)} / 現在 ${JSON.stringify(current)}）: ${diffPath}`,
+    );
+    return null;
+  }
+  return { v, c, datasetMeta, datasetPath };
+}
 
+/**
+ * 記録した版 v と現在の版 c の区間を見る。判定を続けてよいなら true を返す。
+ * @param {StageState} s
+ * @param {{ v: number, c: number, datasetMeta: Record<string, unknown>, datasetPath: string }} versions
+ * @returns {boolean}
+ */
+function judgeDatasetRange(s, { v, c, datasetMeta, datasetPath }) {
   // 数値が古いだけでは陳腐化にしない。原本は golden-dataset の references/versioning.md である。
   // 記録済み V・現在 C として 1 <= V <= C を確かめ、V < change.version <= C の affects が
   // slug の実効参照テーブルと交差するときだけ陳腐化する。実効参照テーブルは .replace/features.md から導く。
   // 導出規則の原本は golden-dataset 側にあるため、ここで 2 つ目の実装を作らない。
   // ここで落とすのは、交差を見るまでもなく陳腐化が確定する形（版が読めない・区間に * がある・履歴が不正）だけである。
-  const v = toInteger(recorded);
-  const c = toInteger(current);
-  if (v === null || c === null) {
-    findings.push(
-      `dataset_version が整数として読めない（記録 ${JSON.stringify(recorded)} / 現在 ${JSON.stringify(current)}）: ${diffPath}`,
-    );
-    return { judged: true, findings, notes };
-  }
   if (v < 1 || v > c) {
-    findings.push(
-      `dataset_version の範囲が不正（記録 ${v} / 現在 ${c}。1 <= 記録 <= 現在 を満たさない）: ${diffPath}`,
+    s.findings.push(
+      `dataset_version の範囲が不正（記録 ${v} / 現在 ${c}。1 <= 記録 <= 現在 を満たさない）: ${s.diffPath}`,
     );
-    return { judged: true, findings, notes };
+    return false;
   }
-  if (v < c) {
-    const affects = affectsBetween(datasetMeta.changes, v, c);
-    if (affects === null) {
-      findings.push(
-        `dataset の changes 履歴が不正（欠番・重複・affects が配列でない）ため影響なしとして扱わない（記録 ${v} / 現在 ${c}）: ${datasetPath}`,
-      );
-    } else if (affects.includes("*")) {
-      findings.push(
-        `記録後の変更が全機能に影響する（changes[].affects に * がある。記録 ${v} / 現在 ${c}）: ${diffPath}`,
-      );
-    } else {
-      notes.push(
-        `dataset_version は記録 ${v} / 現在 ${c}。区間の affects（${affects.join(", ") || "なし"}）と slug の実効参照テーブルの交差判定は golden-dataset の references/versioning.md で定義するため、ここでは数えない`,
-      );
-    }
+  if (v === c) return true;
+  const affects = affectsBetween(datasetMeta.changes, v, c);
+  if (affects === null) {
+    s.findings.push(
+      `dataset の changes 履歴が不正（欠番・重複・affects が配列でない）ため影響なしとして扱わない（記録 ${v} / 現在 ${c}）: ${datasetPath}`,
+    );
+  } else if (affects.includes("*")) {
+    s.findings.push(
+      `記録後の変更が全機能に影響する（changes[].affects に * がある。記録 ${v} / 現在 ${c}）: ${s.diffPath}`,
+    );
+  } else {
+    s.notes.push(
+      `dataset_version は記録 ${v} / 現在 ${c}。区間の affects（${affects.join(", ") || "なし"}）と slug の実効参照テーブルの交差判定は golden-dataset の references/versioning.md で定義するため、ここでは数えない`,
+    );
   }
-  // converged が偽でも落とさない。偽は「まだ直っていない」の記録であり、隠す相手ではない。
-  notes.push(
-    `工程の成果物を判定（converged: ${JSON.stringify(diffMeta.converged)} は判定に入れない）`,
-  );
-  return { judged: true, findings, notes };
+  return true;
 }
 
 /**
@@ -1727,54 +2189,13 @@ export function deriveRoot(metadataPath) {
  * @returns {{ metadata: string, root: string | null, target: string | null, stage: string, newRepo: string | null, replaceRoot: string | null, carryTo: string | null, fingerprint: boolean }}
  */
 export function parseArgs(argv) {
-  /** @type {Record<string, string>} */
-  const opts = {};
-  let fingerprint = false;
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (arg === "--fingerprint") {
-      fingerprint = true;
-      continue;
-    }
-    if (
-      arg === "--metadata" ||
-      arg === "--root" ||
-      arg === "--target" ||
-      arg === "--stage" ||
-      arg === "--new-repo" ||
-      arg === "--replace-root" ||
-      arg === "--carry-to"
-    ) {
-      const value = argv[i + 1];
-      if (value === undefined || value.startsWith("--")) throw new UsageError(`${arg} に値が無い`);
-      opts[arg.slice(2)] = value;
-      i += 1;
-      continue;
-    }
-    throw new UsageError(
-      `使い方: artifact-health-check.mjs --metadata <path> [--root <dir>] [--target <name>] [--stage diff|suite] [--new-repo <path>] [--replace-root <dir>] [--carry-to <SHA>] [--fingerprint]（不明な引数: ${arg}）`,
-    );
-  }
+  const { opts, fingerprint } = readArgv(argv);
   if (!nonEmptyString(opts.metadata)) throw new UsageError("--metadata は必須");
   const stage = opts.stage ?? "diff";
   if (!STAGES.includes(stage)) {
     throw new UsageError(`--stage は ${STAGES.join(" | ")} のいずれか（渡された値: ${stage}）`);
   }
-  // --carry-to は持ち越しを判定させる指定なので、判定に要る入力が欠けたまま受け付けない
-  // （警告なしに判定を飛ばすと、持ち越しを確かめないまま通る）。
-  if (opts["carry-to"] !== undefined) {
-    if (!nonEmptyString(opts["carry-to"])) throw new UsageError("--carry-to が空");
-    if (!nonEmptyString(opts.target)) {
-      throw new UsageError(
-        "--carry-to には --target が要る（持ち越しは工程の成果物について判定する）",
-      );
-    }
-    if (!nonEmptyString(opts["new-repo"])) {
-      throw new UsageError(
-        "--carry-to には --new-repo が要る（描画入力の差分を新側リポジトリで取る）",
-      );
-    }
-  }
+  if (opts["carry-to"] !== undefined) validateCarryTo(opts);
   return {
     metadata: opts.metadata,
     root: opts.root ?? null,
@@ -1785,6 +2206,65 @@ export function parseArgs(argv) {
     carryTo: opts["carry-to"] !== undefined ? opts["carry-to"].trim() : null,
     fingerprint,
   };
+}
+
+/** 値を 1 つ取る引数。 */
+const VALUE_FLAGS = new Set([
+  "--metadata",
+  "--root",
+  "--target",
+  "--stage",
+  "--new-repo",
+  "--replace-root",
+  "--carry-to",
+]);
+
+/**
+ * argv を読み、値を取る引数（先頭の -- を外した名前 → 値）と --fingerprint の有無を返す。
+ * @param {string[]} argv
+ * @returns {{ opts: Record<string, string>, fingerprint: boolean }}
+ */
+function readArgv(argv) {
+  /** @type {Record<string, string>} */
+  const opts = {};
+  let fingerprint = false;
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === "--fingerprint") {
+      fingerprint = true;
+      continue;
+    }
+    if (VALUE_FLAGS.has(arg)) {
+      const value = argv[i + 1];
+      if (value === undefined || value.startsWith("--")) throw new UsageError(`${arg} に値が無い`);
+      opts[arg.slice(2)] = value;
+      i += 1;
+      continue;
+    }
+    throw new UsageError(
+      `使い方: artifact-health-check.mjs --metadata <path> [--root <dir>] [--target <name>] [--stage diff|suite] [--new-repo <path>] [--replace-root <dir>] [--carry-to <SHA>] [--fingerprint]（不明な引数: ${arg}）`,
+    );
+  }
+  return { opts, fingerprint };
+}
+
+/**
+ * --carry-to は持ち越しを判定させる指定なので、判定に要る入力が欠けたまま受け付けない
+ * （警告なしに判定を飛ばすと、持ち越しを確かめないまま通る）。
+ * @param {Record<string, string>} opts
+ */
+function validateCarryTo(opts) {
+  if (!nonEmptyString(opts["carry-to"])) throw new UsageError("--carry-to が空");
+  if (!nonEmptyString(opts.target)) {
+    throw new UsageError(
+      "--carry-to には --target が要る（持ち越しは工程の成果物について判定する）",
+    );
+  }
+  if (!nonEmptyString(opts["new-repo"])) {
+    throw new UsageError(
+      "--carry-to には --new-repo が要る（描画入力の差分を新側リポジトリで取る）",
+    );
+  }
 }
 
 /**
@@ -1814,7 +2294,7 @@ export function fingerprintReport(metadata, root) {
   const missing = [...new Set([...whole.missing, ...perSpec.missing])];
   if (whole.fingerprint === null || perSpec.shared === null) {
     throw new UsageError(
-      `スイートの指紋を計算できない: ${missing.length > 0 ? missing.join(" / ") : "suite.specs / locator_map / interactions がどれも宣言されていない"}`,
+      `スイートの指紋を計算できない: ${missing.length > 0 ? missing.join(" / ") : NO_SUITE_SOURCE}`,
     );
   }
   return {
@@ -1833,6 +2313,33 @@ export function fingerprintReport(metadata, root) {
  */
 export function run(argv, io) {
   const args = parseArgs(argv);
+  const { metadataPath, metadata, root } = loadMetadata(args);
+  const slugDir = resolve(metadataPath, "..");
+
+  if (args.fingerprint) {
+    io.log(JSON.stringify(fingerprintReport(metadata, root), null, 2));
+    return 0;
+  }
+
+  const { findings, notes } = collectSections({ metadata, root, slugDir, args });
+  for (const note of notes) io.log(`note: ${note}`);
+  for (const finding of findings) io.log(`warn: ${finding}`);
+  if (findings.length > 0) {
+    io.log(
+      `error: 採取物・工程の健全性に ${findings.length} 件の未検証／不整合が残る — 収束させず直す`,
+    );
+    return 1;
+  }
+  io.log(`ok: 採取物・工程の健全性は条件を満たす（artifact-health-check ${VERSION}）`);
+  return 0;
+}
+
+/**
+ * metadata.json を読み、リポジトリルートを決める。
+ * @param {{ metadata: string, root: string | null }} args
+ * @returns {{ metadataPath: string, metadata: Record<string, unknown>, root: string }}
+ */
+function loadMetadata(args) {
   const metadataPath = resolve(args.metadata);
   if (!existsSync(metadataPath)) throw new UsageError(`metadata.json が無い: ${metadataPath}`);
   const metadata = readJson(metadataPath, "metadata.json");
@@ -1844,60 +2351,41 @@ export function run(argv, io) {
       `metadata.json のパスから .replace を見つけられないため --root を渡す: ${metadataPath}`,
     );
   }
-  const slugDir = resolve(metadataPath, "..");
+  return { metadataPath, metadata, root };
+}
 
-  if (args.fingerprint) {
-    io.log(JSON.stringify(fingerprintReport(metadata, root), null, 2));
-    return 0;
-  }
-
-  /** @type {string[]} */
-  const findings = [];
-  /** @type {string[]} */
-  const notes = [];
-
-  const artifacts = checkArtifacts(metadata, { root });
-  findings.push(...artifacts.findings);
-  notes.push(...artifacts.notes);
-
-  const repeat = checkRepeatRun(metadata, {
-    artifactHealthPresent: "artifact_health" in metadata,
-    root,
-  });
-  findings.push(...repeat.findings);
-  notes.push(...repeat.notes);
-
-  const unmeasured = checkUnmeasured(metadata, { stage: args.stage });
-  findings.push(...unmeasured.findings);
-  notes.push(...unmeasured.notes);
-
+/**
+ * 採取物・反復実行・未測定・工程の各節を判定し、所見と注記を節の順に集める。
+ * @param {{ metadata: Record<string, unknown>, root: string, slugDir: string, args: ReturnType<typeof parseArgs> }} a
+ * @returns {{ findings: string[], notes: string[] }}
+ */
+function collectSections({ metadata, root, slugDir, args }) {
+  const sections = [
+    checkArtifacts(metadata, { root }),
+    checkRepeatRun(metadata, {
+      artifactHealthPresent: "artifact_health" in metadata,
+      root,
+    }),
+    checkUnmeasured(metadata, { stage: args.stage }),
+  ];
   if (args.target !== null) {
     if (!nonEmptyString(args.target)) throw new UsageError("--target が空");
-    const stage = checkStage({
-      root,
-      slugDir,
-      target: args.target.trim(),
-      newRepo: args.newRepo,
-      replaceRoot: args.replaceRoot,
-      featureMetadata: metadata,
-      carryTo: args.carryTo,
-    });
-    findings.push(...stage.findings);
-    notes.push(...stage.notes);
-  } else {
-    notes.push("--target が無いため工程の節を判定しない");
-  }
-
-  for (const note of notes) io.log(`note: ${note}`);
-  for (const finding of findings) io.log(`warn: ${finding}`);
-  if (findings.length > 0) {
-    io.log(
-      `error: 採取物・工程の健全性に ${findings.length} 件の未検証／不整合が残る — 収束させず直す`,
+    sections.push(
+      checkStage({
+        root,
+        slugDir,
+        target: args.target.trim(),
+        newRepo: args.newRepo,
+        replaceRoot: args.replaceRoot,
+        featureMetadata: metadata,
+        carryTo: args.carryTo,
+      }),
     );
-    return 1;
   }
-  io.log(`ok: 採取物・工程の健全性は条件を満たす（artifact-health-check ${VERSION}）`);
-  return 0;
+  const findings = sections.flatMap((section) => section.findings);
+  const notes = sections.flatMap((section) => section.notes);
+  if (args.target === null) notes.push("--target が無いため工程の節を判定しない");
+  return { findings, notes };
 }
 
 /** 使い方（stderr に出す。CLI として起動されたかの判定が誤ったときに、何もせずに終わったことを検出できるようにする）。 */

@@ -69,8 +69,8 @@
       "id": "run-dup-ok",
       "why": "同じ回の重複を受ける",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "    if (g.runs.has(run)) {\n",
-      "replace": "    if (false && g.runs.has(run)) {\n",
+      "find": "  if (g.runs.has(run)) {\n",
+      "replace": "  if (false && g.runs.has(run)) {\n",
       "occurrences": 1,
       "expect_failing": ["summarize 同じ組で run が重複すれば exit 2"]
     },
@@ -87,8 +87,8 @@
       "id": "nullable-all",
       "why": "LCP 以外の null を受ける",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "      const nullable = m === \"lcp\";\n",
-      "replace": "      const nullable = true;\n",
+      "find": "    const nullable = m === \"lcp\";\n",
+      "replace": "    const nullable = true;\n",
       "occurrences": 1,
       "expect_failing": ["summarize LCP の null は受け、他の指標の null は exit 2"]
     },

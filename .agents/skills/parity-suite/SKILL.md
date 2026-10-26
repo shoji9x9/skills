@@ -523,7 +523,8 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
 - 決定論的なツールの原本は、このスキルに同梱する。
   [`scripts/trait-capture.mjs`](scripts/trait-capture.mjs) / [`scripts/trait-compare.mjs`](scripts/trait-compare.mjs) / 要素単位の撮影を使う場合は [`scripts/element-shot.mjs`](scripts/element-shot.mjs) /
   応答ヘッダーを録画する場合は [`scripts/header-normalize.mjs`](scripts/header-normalize.mjs) である。
-  実行するときは、プロジェクトの側の `<parity_suite_dir>/parity/lib/tools/vendor/`（デフォルト）にコピーして使い、実際のパスを `metadata.json` に記録する。
+  実行するときは、プロジェクトの側の `<parity_suite_dir>/parity/lib/tools/vendor/`（デフォルト）にコピーして使い、コピー先のディレクトリを `metadata.json` の `suite.tools` に記録する。
+  ファイルのパスで書くと、artifact-health-check はスイートの指紋を計算するときに判定できないとして失敗にする（理由は [`references/baseline.md`](references/baseline.md)）。
   trait-capture.mjs と element-shot.mjs は、ページで実行する本体を [`scripts/page/`](scripts/page/) の `trait-capture.page.mjs`・`element-shot.page.mjs` から import する。
   そのため、この 2 つをコピーするときは、対になる page ファイルも同じ版から、コピー先の隣の `page/`（デフォルトは `vendor/page/`）へコピーする。
   コピーは修正しない取り決めなので、プロジェクトが自作したツールとパスで分けられる、コピー専用のサブディレクトリに置く（置き方は [`references/locator-mapping.md`](references/locator-mapping.md)）

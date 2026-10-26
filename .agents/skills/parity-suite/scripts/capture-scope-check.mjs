@@ -151,6 +151,17 @@ export const OVERFLOW_VALUES = ["visible", "hidden", "clip", "scroll", "auto"];
 const SCROLLBAR_OVERFLOW = ["scroll", "auto"];
 
 /**
+ * `deriveHoles` が抜けと finding を集める先と、1 つの撮影組の判定に使う材料。
+ * @typedef {{
+ *   key: string,
+ *   elements: Set<string> | null,
+ *   scrollbars: unknown,
+ *   holes: {id:string, kind:string, detail:string}[],
+ *   findings: {code:string, message:string}[],
+ * }} HoleContext
+ */
+
+/**
  * 1 つの撮影組の実測から抜けを導く。
  *
  * **抜けは記録された `holes` ではなく寸法から導く**。書き手が挙げた分だけを見ると、
@@ -164,12 +175,15 @@ const SCROLLBAR_OVERFLOW = ["scroll", "auto"];
  * @returns {{ holes: {id:string, kind:string, detail:string}[], findings: {code:string, message:string}[] }}
  */
 export function deriveHoles(entry, context = {}) {
-  const elements = context.elements ?? null;
-  const key = combinationKey(entry);
-  /** @type {{id:string, kind:string, detail:string}[]} */
-  const holes = [];
-  /** @type {{code:string, message:string}[]} */
-  const findings = [];
+  /** @type {HoleContext} */
+  const ctx = {
+    key: combinationKey(entry),
+    elements: context.elements ?? null,
+    scrollbars: context.scrollbars,
+    holes: [],
+    findings: [],
+  };
+  const { key, holes, findings } = ctx;
   const document = readSize(entry.document);
   const captured = readSize(entry.captured);
   if (!document || !captured) {
@@ -179,6 +193,20 @@ export function deriveHoles(entry, context = {}) {
     });
     return { holes, findings };
   }
+  pageSizeHoles(ctx, document, captured);
+  scrollContainerHoles(ctx, entry.scroll_containers);
+  outsideElementHoles(ctx, entry.named_elements_outside);
+  return { holes, findings };
+}
+
+/**
+ * 文書が撮影領域より大きい向き（下・右）を抜けにする。
+ * @param {HoleContext} ctx
+ * @param {{width:number, height:number}} document
+ * @param {{width:number, height:number}} captured
+ */
+function pageSizeHoles(ctx, document, captured) {
+  const { key, holes } = ctx;
   if (document.height > captured.height) {
     holes.push({
       id: `${key}#below-fold`,
@@ -193,144 +221,214 @@ export function deriveHoles(entry, context = {}) {
       detail: `文書の幅 ${document.width} に対し撮影領域は ${captured.width}（右が ${document.width - captured.width}px 切れている）`,
     });
   }
-  const containers = entry.scroll_containers;
+}
+
+/**
+ * 内部のスクロール領域（`scroll_containers`）ごとに抜けを導く。
+ * @param {HoleContext} ctx
+ * @param {unknown} containers
+ */
+function scrollContainerHoles(ctx, containers) {
   if (!isArray(containers)) {
-    findings.push({
+    ctx.findings.push({
       code: "scroll-containers-missing",
-      message: `${key} に scroll_containers が無い（内部のスクロール領域を数えていないことと、スクロール領域が無いことを書き分ける。無ければ空配列を書く）`,
+      message: `${ctx.key} に scroll_containers が無い（内部のスクロール領域を数えていないことと、スクロール領域が無いことを書き分ける。無ければ空配列を書く）`,
     });
-  } else {
-    const seen = new Set();
-    for (const raw of containers) {
-      /** @type {Record<string, unknown>} */
-      const container = isObjectLike(raw) ? raw : {};
-      const name = container.name;
-      if (!nonEmptyString(name)) {
-        findings.push({
-          code: "scroll-container-name-missing",
-          message: `${key} の scroll_containers に名前の無い要素がある（抜けの id が決まらない）`,
-        });
-        continue;
-      }
-      if (!idPartIsSafe(name)) {
-        findings.push({
-          code: "scroll-container-name-unsafe",
-          message: `${key} の scroll_containers[${String(name)}] に区切り文字（${KEY_SEPARATOR} / ${ID_SEPARATOR}）が入っている（別々の抜けが同じ id になり、1 つの宣言が 2 つの抜けを対象外にしてしまう）`,
-        });
-        continue;
-      }
-      if (seen.has(name)) {
-        findings.push({
-          code: "scroll-container-duplicated",
-          message: `${key} の scroll_containers に ${name} が 2 つ以上ある（宣言がどちらに当たるか決まらない）`,
-        });
-      }
-      seen.add(name);
-      const client = readSize(container.client);
-      const scroll = readSize(container.scroll);
-      if (!client || !scroll) {
-        findings.push({
-          code: "scroll-container-size-unreadable",
-          message: `${key} の scroll_containers[${String(name)}] の client / scroll が数値で書かれていない`,
-        });
-        continue;
-      }
-      if (scroll.height > client.height || scroll.width > client.width) {
-        holes.push({
-          id: `${key}#scroll:${String(name)}`,
-          kind: "scroll-container",
-          detail: `スクロール領域 ${String(name)} の内容 ${scroll.width}x${scroll.height} が可視部 ${client.width}x${client.height} より大きい`,
-        });
-      }
-      // スクロール領域ごとの overflow とスクロールバーの厚み。寸法だけでは、現行が overflow: auto で横のバーを出し、
-      // 新側が overflow-x: hidden で右端を切る差が見えない（バーを隠して撮ると client と scroll が両側とも揃う）
-      const overflowX = container.overflow_x;
-      const overflowY = container.overflow_y;
-      if (!isOneOf(OVERFLOW_VALUES, overflowX) || !isOneOf(OVERFLOW_VALUES, overflowY)) {
-        findings.push({
-          code: "scroll-container-overflow-unreadable",
-          message: `${key} の scroll_containers[${String(name)}] の overflow_x / overflow_y が計算値の語彙（${OVERFLOW_VALUES.join(" / ")}）で書かれていない`,
-        });
-        continue;
-      }
-      const bar = container.bar;
-      if (
-        !isObjectLike(bar) ||
-        !nonNegativeNumber(bar.vertical) ||
-        !nonNegativeNumber(bar.horizontal)
-      ) {
-        findings.push({
-          code: "scroll-container-bar-unreadable",
-          message: `${key} の scroll_containers[${String(name)}] の bar（vertical: 縦のバーの幅 / horizontal: 横のバーの高さ。枠を除く）が 0 以上の数で書かれていない`,
-        });
-        continue;
-      }
-      if (elements && !elements.has(String(name))) {
-        holes.push({
-          id: `${key}#untraced:${String(name)}`,
-          kind: "untraced-scroll-container",
-          detail: `スクロール領域 ${String(name)} が traits.elements に無い（スクロールバーの有無・厚み・見た目が特性照合で採られない。スクロール領域に論理名を付けて採る）`,
-        });
-      }
-      // バーを描く overflow ではみ出しているのに厚みが 0 なら、バーが場所を取っていない（隠したまま撮ったことを検出する）
-      const hiddenVertical =
-        scroll.height > client.height &&
-        SCROLLBAR_OVERFLOW.includes(overflowY) &&
-        bar.vertical === 0;
-      const hiddenHorizontal =
-        scroll.width > client.width &&
-        SCROLLBAR_OVERFLOW.includes(overflowX) &&
-        bar.horizontal === 0;
-      if (context.scrollbars === "shown" && (hiddenVertical || hiddenHorizontal)) {
-        holes.push({
-          id: `${key}#scrollbar-hidden:${String(name)}`,
-          kind: "scrollbar-hidden",
-          detail: `スクロール領域 ${String(name)} は${hiddenVertical ? "縦" : "横"}にはみ出しているのにスクロールバーの厚みが 0（scrollbars: shown で撮ったはずが --hide-scrollbars が残っているか、オーバーレイ型・scrollbar-width: none のバー）`,
-        });
-      }
-    }
+    return;
   }
-  const outside = entry.named_elements_outside;
-  if (!isArray(outside)) {
+  /** @type {Set<string>} */
+  const seen = new Set();
+  for (const raw of containers) {
+    scrollContainerEntryHoles(ctx, raw, seen);
+  }
+}
+
+/**
+ * スクロール領域 1 つの名前・寸法・overflow・スクロールバーの厚みを読み、抜けを導く。
+ * @param {HoleContext} ctx
+ * @param {unknown} raw
+ * @param {Set<string>} seen
+ */
+function scrollContainerEntryHoles(ctx, raw, seen) {
+  /** @type {Record<string, unknown>} */
+  const container = isObjectLike(raw) ? raw : {};
+  const name = scrollContainerName(ctx, container.name, seen);
+  if (name === null) return;
+  const client = readSize(container.client);
+  const scroll = readSize(container.scroll);
+  if (!client || !scroll) {
+    ctx.findings.push({
+      code: "scroll-container-size-unreadable",
+      message: `${ctx.key} の scroll_containers[${name}] の client / scroll が数値で書かれていない`,
+    });
+    return;
+  }
+  if (scroll.height > client.height || scroll.width > client.width) {
+    ctx.holes.push({
+      id: `${ctx.key}#scroll:${name}`,
+      kind: "scroll-container",
+      detail: `スクロール領域 ${name} の内容 ${scroll.width}x${scroll.height} が可視部 ${client.width}x${client.height} より大きい`,
+    });
+  }
+  const bars = scrollContainerBars(ctx, container, name);
+  if (!bars) return;
+  if (ctx.elements && !ctx.elements.has(name)) {
+    ctx.holes.push({
+      id: `${ctx.key}#untraced:${name}`,
+      kind: "untraced-scroll-container",
+      detail: `スクロール領域 ${name} が traits.elements に無い（スクロールバーの有無・厚み・見た目が特性照合で採られない。スクロール領域に論理名を付けて採る）`,
+    });
+  }
+  scrollbarHiddenHole(ctx, name, { client, scroll, ...bars });
+}
+
+/**
+ * スクロール領域の名前を検査して返す。id に使えない名前なら finding を足して null を返す。
+ * 重複は finding を足すが、名前は返す（同じ名前の抜けも導く）。
+ * @param {HoleContext} ctx
+ * @param {unknown} name
+ * @param {Set<string>} seen
+ * @returns {string | null}
+ */
+function scrollContainerName(ctx, name, seen) {
+  const { key, findings } = ctx;
+  if (!nonEmptyString(name)) {
     findings.push({
-      code: "named-elements-outside-missing",
-      message: `${key} に named_elements_outside が無い（撮影領域の外に出た論理名を数えていない。無ければ空配列を書く）`,
+      code: "scroll-container-name-missing",
+      message: `${key} の scroll_containers に名前の無い要素がある（抜けの id が決まらない）`,
     });
-  } else {
-    const seenOutside = new Set();
-    for (const name of outside) {
-      if (!nonEmptyString(name)) {
-        findings.push({
-          code: "named-element-name-missing",
-          message: `${key} の named_elements_outside に空の要素がある`,
-        });
-        continue;
-      }
-      if (!idPartIsSafe(name)) {
-        findings.push({
-          code: "named-element-name-unsafe",
-          message: `${key} の named_elements_outside の ${String(name)} に区切り文字（${KEY_SEPARATOR} / ${ID_SEPARATOR}）が入っている（別々の抜けが同じ id になる）`,
-        });
-        continue;
-      }
-      // **同じ論理名が 2 つあると同じ id の抜けが 2 つできる**。1 つの宣言で両方が消えるので、
-      // スクロール領域の名前と同じく重複の側で落とす（棚卸しが潰れたまま exit 0 にしない）。
-      if (seenOutside.has(name)) {
-        findings.push({
-          code: "named-element-duplicated",
-          message: `${key} の named_elements_outside に ${String(name)} が 2 つ以上ある（同じ id の抜けが 2 つでき、1 つの宣言で両方が消える）`,
-        });
-        continue;
-      }
-      seenOutside.add(name);
-      holes.push({
-        id: `${key}#offscreen:${String(name)}`,
-        kind: "offscreen-named-element",
-        detail: `論理名 ${String(name)} が撮影領域の外にある（特性は採れても画素には表れない）`,
-      });
-    }
+    return null;
   }
-  return { holes, findings };
+  if (!idPartIsSafe(name)) {
+    findings.push({
+      code: "scroll-container-name-unsafe",
+      message: `${key} の scroll_containers[${String(name)}] に区切り文字（${KEY_SEPARATOR} / ${ID_SEPARATOR}）が入っている（別々の抜けが同じ id になり、1 つの宣言が 2 つの抜けを対象外にしてしまう）`,
+    });
+    return null;
+  }
+  if (seen.has(name)) {
+    findings.push({
+      code: "scroll-container-duplicated",
+      message: `${key} の scroll_containers に ${name} が 2 つ以上ある（宣言がどちらに当たるか決まらない）`,
+    });
+  }
+  seen.add(name);
+  return name;
+}
+
+/**
+ * スクロール領域ごとの overflow とスクロールバーの厚みを読む。読めなければ finding を足して null を返す。
+ * @param {HoleContext} ctx
+ * @param {Record<string, unknown>} container
+ * @param {string} name
+ * @returns {{ overflowX: string, overflowY: string, bar: { vertical: number, horizontal: number } } | null}
+ */
+function scrollContainerBars(ctx, container, name) {
+  // スクロール領域ごとの overflow とスクロールバーの厚み。寸法だけでは、現行が overflow: auto で横のバーを出し、
+  // 新側が overflow-x: hidden で右端を切る差が見えない（バーを隠して撮ると client と scroll が両側とも揃う）
+  const overflowX = container.overflow_x;
+  const overflowY = container.overflow_y;
+  if (!isOneOf(OVERFLOW_VALUES, overflowX) || !isOneOf(OVERFLOW_VALUES, overflowY)) {
+    ctx.findings.push({
+      code: "scroll-container-overflow-unreadable",
+      message: `${ctx.key} の scroll_containers[${name}] の overflow_x / overflow_y が計算値の語彙（${OVERFLOW_VALUES.join(" / ")}）で書かれていない`,
+    });
+    return null;
+  }
+  const bar = container.bar;
+  if (
+    !isObjectLike(bar) ||
+    !nonNegativeNumber(bar.vertical) ||
+    !nonNegativeNumber(bar.horizontal)
+  ) {
+    ctx.findings.push({
+      code: "scroll-container-bar-unreadable",
+      message: `${ctx.key} の scroll_containers[${name}] の bar（vertical: 縦のバーの幅 / horizontal: 横のバーの高さ。枠を除く）が 0 以上の数で書かれていない`,
+    });
+    return null;
+  }
+  return { overflowX, overflowY, bar: { vertical: bar.vertical, horizontal: bar.horizontal } };
+}
+
+/**
+ * スクロールバーを表示して撮ったのに、はみ出した向きのバーが場所を取っていなければ抜けにする。
+ * @param {HoleContext} ctx
+ * @param {string} name
+ * @param {{ client: {width:number, height:number}, scroll: {width:number, height:number}, overflowX: string, overflowY: string, bar: { vertical: number, horizontal: number } }} measured
+ */
+function scrollbarHiddenHole(ctx, name, measured) {
+  const { client, scroll, overflowX, overflowY, bar } = measured;
+  // バーを描く overflow ではみ出しているのに厚みが 0 なら、バーが場所を取っていない（隠したまま撮ったことを検出する）
+  const hiddenVertical =
+    scroll.height > client.height && SCROLLBAR_OVERFLOW.includes(overflowY) && bar.vertical === 0;
+  const hiddenHorizontal =
+    scroll.width > client.width && SCROLLBAR_OVERFLOW.includes(overflowX) && bar.horizontal === 0;
+  if (ctx.scrollbars === "shown" && (hiddenVertical || hiddenHorizontal)) {
+    ctx.holes.push({
+      id: `${ctx.key}#scrollbar-hidden:${name}`,
+      kind: "scrollbar-hidden",
+      detail: `スクロール領域 ${name} は${hiddenVertical ? "縦" : "横"}にはみ出しているのにスクロールバーの厚みが 0（scrollbars: shown で撮ったはずが --hide-scrollbars が残っているか、オーバーレイ型・scrollbar-width: none のバー）`,
+    });
+  }
+}
+
+/**
+ * 撮影領域の外にある論理名（`named_elements_outside`）を抜けにする。
+ * @param {HoleContext} ctx
+ * @param {unknown} outside
+ */
+function outsideElementHoles(ctx, outside) {
+  if (!isArray(outside)) {
+    ctx.findings.push({
+      code: "named-elements-outside-missing",
+      message: `${ctx.key} に named_elements_outside が無い（撮影領域の外に出た論理名を数えていない。無ければ空配列を書く）`,
+    });
+    return;
+  }
+  /** @type {Set<string>} */
+  const seenOutside = new Set();
+  for (const name of outside) {
+    outsideElementHole(ctx, name, seenOutside);
+  }
+}
+
+/**
+ * 撮影領域の外にある論理名 1 つを検査し、抜けにする。
+ * @param {HoleContext} ctx
+ * @param {unknown} name
+ * @param {Set<string>} seenOutside
+ */
+function outsideElementHole(ctx, name, seenOutside) {
+  const { key, findings } = ctx;
+  if (!nonEmptyString(name)) {
+    findings.push({
+      code: "named-element-name-missing",
+      message: `${key} の named_elements_outside に空の要素がある`,
+    });
+    return;
+  }
+  if (!idPartIsSafe(name)) {
+    findings.push({
+      code: "named-element-name-unsafe",
+      message: `${key} の named_elements_outside の ${String(name)} に区切り文字（${KEY_SEPARATOR} / ${ID_SEPARATOR}）が入っている（別々の抜けが同じ id になる）`,
+    });
+    return;
+  }
+  // **同じ論理名が 2 つあると同じ id の抜けが 2 つできる**。1 つの宣言で両方が消えるので、
+  // スクロール領域の名前と同じく重複の側で落とす（棚卸しが潰れたまま exit 0 にしない）。
+  if (seenOutside.has(name)) {
+    findings.push({
+      code: "named-element-duplicated",
+      message: `${key} の named_elements_outside に ${name} が 2 つ以上ある（同じ id の抜けが 2 つでき、1 つの宣言で両方が消える）`,
+    });
+    return;
+  }
+  seenOutside.add(name);
+  ctx.holes.push({
+    id: `${key}#offscreen:${name}`,
+    kind: "offscreen-named-element",
+    detail: `論理名 ${name} が撮影領域の外にある（特性は採れても画素には表れない）`,
+  });
 }
 
 /**
@@ -353,52 +451,21 @@ export function deriveHoles(entry, context = {}) {
 export function declaredCombinations(conditions, displayAxes) {
   /** @type {{code:string, message:string}[]} */
   const findings = [];
-  /**
-   * @param {unknown} value
-   * @param {string} axis
-   * @param {(element: unknown) => unknown} pick
-   * @returns {string[]}
-   */
-  const axisValues = (value, axis, pick) => {
-    if (!isArray(value) || value.length === 0) {
-      findings.push({
-        code: "declared-axis-missing",
-        message: `capture_conditions.${axis} が空（撮るはずの組を列挙できない。採った組の一覧を期待値にすると、採らなかった組が期待値からも消える）`,
-      });
-      return [];
-    }
-    /** @type {string[]} */
-    const names = [];
-    const seen = new Set();
-    for (const element of value) {
-      const name = pick(element);
-      if (!idPartIsSafe(name)) {
-        findings.push({
-          code: "declared-axis-value-unusable",
-          message: `capture_conditions.${axis} に使えない値がある（空、または区切り文字 ${KEY_SEPARATOR} / ${ID_SEPARATOR} を含む）: ${name === undefined ? "（欠落）" : JSON.stringify(name)}`,
-        });
-        continue;
-      }
-      const text = name;
-      if (seen.has(text)) {
-        findings.push({
-          code: "declared-axis-value-duplicated",
-          message: `capture_conditions.${axis} に ${text} が 2 つ以上ある（同じ組が 2 回期待され、片方の実測がもう片方を満たす）`,
-        });
-        continue;
-      }
-      seen.add(text);
-      names.push(text);
-    }
-    return names;
-  };
-  const pages = axisValues(conditions.pages, "pages", (element) =>
-    isObjectLike(element) ? element.name : undefined,
-  );
-  const states = axisValues(conditions.states, "states", (element) => element);
-  const viewports = axisValues(conditions.viewports, "viewports", (element) =>
-    isObjectLike(element) ? element.label : undefined,
-  );
+  const pages = declaredAxisValues(findings, {
+    value: conditions.pages,
+    axis: "pages",
+    pick: (element) => (isObjectLike(element) ? element.name : undefined),
+  });
+  const states = declaredAxisValues(findings, {
+    value: conditions.states,
+    axis: "states",
+    pick: (element) => element,
+  });
+  const viewports = declaredAxisValues(findings, {
+    value: conditions.viewports,
+    axis: "viewports",
+    pick: (element) => (isObjectLike(element) ? element.label : undefined),
+  });
   /** @type {string[]} */
   const keys = [];
   for (const page of pages) {
@@ -408,6 +475,61 @@ export function declaredCombinations(conditions, displayAxes) {
       }
     }
   }
+  keys.push(...variantCombinations(displayAxes, pages, states));
+  return { keys, findings };
+}
+
+/**
+ * 撮影条件の 1 つの軸の値を、鍵の材料として使える名前の一覧にする。
+ * @param {{code:string, message:string}[]} findings
+ * @param {{ value: unknown, axis: string, pick: (element: unknown) => unknown }} source
+ * @returns {string[]}
+ */
+function declaredAxisValues(findings, source) {
+  const { value, axis, pick } = source;
+  if (!isArray(value) || value.length === 0) {
+    findings.push({
+      code: "declared-axis-missing",
+      message: `capture_conditions.${axis} が空（撮るはずの組を列挙できない。採った組の一覧を期待値にすると、採らなかった組が期待値からも消える）`,
+    });
+    return [];
+  }
+  /** @type {string[]} */
+  const names = [];
+  const seen = new Set();
+  for (const element of value) {
+    const name = pick(element);
+    if (!idPartIsSafe(name)) {
+      findings.push({
+        code: "declared-axis-value-unusable",
+        message: `capture_conditions.${axis} に使えない値がある（空、または区切り文字 ${KEY_SEPARATOR} / ${ID_SEPARATOR} を含む）: ${name === undefined ? "（欠落）" : JSON.stringify(name)}`,
+      });
+      continue;
+    }
+    const text = name;
+    if (seen.has(text)) {
+      findings.push({
+        code: "declared-axis-value-duplicated",
+        message: `capture_conditions.${axis} に ${text} が 2 つ以上ある（同じ組が 2 回期待され、片方の実測がもう片方を満たす）`,
+      });
+      continue;
+    }
+    seen.add(text);
+    names.push(text);
+  }
+  return names;
+}
+
+/**
+ * 表示の軸の変種ごとに撮るはずの組（変種の label をビューポートの軸の値にした組）を列挙する。
+ * @param {{ variants: {label:string, axes:string[]}[], notApplicable: Map<string, Set<string>> } | undefined} displayAxes
+ * @param {string[]} pages
+ * @param {string[]} states
+ * @returns {string[]}
+ */
+function variantCombinations(displayAxes, pages, states) {
+  /** @type {string[]} */
+  const keys = [];
   for (const variant of displayAxes?.variants ?? []) {
     for (const page of pages) {
       const excluded = variant.axes.some((axis) => displayAxes?.notApplicable.get(axis)?.has(page));
@@ -417,7 +539,7 @@ export function declaredCombinations(conditions, displayAxes) {
       }
     }
   }
-  return { keys, findings };
+  return keys;
 }
 
 /**
@@ -484,6 +606,24 @@ function variantSignature(values) {
 }
 
 /**
+ * `checkDisplayAxes` の各段が読み書きする状態。
+ * @typedef {{
+ *   add: (code: string, message: string) => void,
+ *   declaredPages: string[],
+ *   baseViewports: string[],
+ *   candidateIds: string[],
+ *   surveyed: Map<string, string>,
+ *   axes: Map<string, {values:string[], default:string}>,
+ *   notApplicable: Map<string, Set<string>>,
+ *   labels: Set<string>,
+ *   variantKeys: Set<string>,
+ *   signatures: Set<string>,
+ *   decided: Map<string, boolean>,
+ *   variantsOut: {label:string, axes:string[]}[],
+ * }} DisplayAxesState
+ */
+
+/**
  * 表示を切り替える軸（`capture_conditions.display_axes`）の宣言を検査する。
  *
  * 落とすのは 4 群。
@@ -512,17 +652,51 @@ export function checkDisplayAxes(conditions) {
   const notApplicable = new Map();
   const result = () => ({ findings, variants: variantsOut, notApplicable });
 
+  const lists = readDisplayAxisLists(conditions, add);
+  if (lists === null) return result();
+  /** @type {DisplayAxesState} */
+  const st = {
+    add,
+    declaredPages: stringFields(conditions.pages, "name"),
+    baseViewports: stringFields(conditions.viewports, "label"),
+    candidateIds: AXIS_CANDIDATES.map((c) => c.id),
+    surveyed: new Map(),
+    axes: new Map(),
+    notApplicable,
+    labels: new Set(),
+    variantKeys: new Set(),
+    signatures: new Set(),
+    decided: new Map(),
+    variantsOut,
+  };
+  lists.axes.forEach((rawAxis, i) => checkDisplayAxis(st, rawAxis, i));
+  lists.absent.forEach((rawAbsent, i) => checkAbsentAxis(st, rawAbsent, i));
+  checkUnsurveyedCandidates(st);
+  lists.variants.forEach((rawVariant, i) => checkDisplayVariant(st, rawVariant, i));
+  checkValueSweep(st);
+  lists.pairs.forEach((rawPair, i) => checkAxisPair(st, rawPair, i));
+  checkPairCoverage(st);
+  return result();
+}
+
+/**
+ * `display_axes` を読み、4 つの一覧を返す。キーが無い・形が違うなら finding を足して null を返す。
+ * @param {Record<string, unknown>} conditions
+ * @param {(code: string, message: string) => void} add
+ * @returns {{ axes: unknown[], absent: unknown[], pairs: unknown[], variants: unknown[] } | null}
+ */
+function readDisplayAxisLists(conditions, add) {
   if (!Object.hasOwn(conditions, "display_axes")) {
     add(
       "display-axes-missing",
       "capture_conditions.display_axes が無い（表示を切り替える軸〈ロケール・配色テーマ等〉を数えていない。デフォルトの 1 値だけで撮ると、他の値での差は 3 つの比較方法のどれにも表れない）",
     );
-    return result();
+    return null;
   }
   const raw = conditions.display_axes;
   if (!isPlainObject(raw)) {
     add("display-axes-malformed", "capture_conditions.display_axes がオブジェクトではない");
-    return result();
+    return null;
   }
   const lists = displayAxisLists(raw);
   if (typeof lists === "string") {
@@ -530,181 +704,264 @@ export function checkDisplayAxes(conditions) {
       "display-axes-malformed",
       `capture_conditions.display_axes.${lists} が配列ではない（空でもキーごと書く。欠落は「数えていない」と区別できない）`,
     );
-    return result();
+    return null;
   }
-  const { axes: axisList, absent: absentList, pairs: pairList, variants: variantList } = lists;
-  const declaredPages = isArray(conditions.pages)
-    ? conditions.pages
-        .map((p) => (isObjectLike(p) ? p.name : undefined))
-        .filter((name) => typeof name === "string")
-    : [];
-  const candidateIds = AXIS_CANDIDATES.map((c) => c.id);
-  /** @type {Map<string, string>} 候補 id → 振り分け先（どこに書いたか） */
-  const surveyed = new Map();
-  /**
-   * @param {unknown} candidate
-   * @param {string} where
-   */
-  const survey = (candidate, where) => {
-    if (candidate === OTHER_CANDIDATE) return;
-    if (!isOneOf(candidateIds, candidate)) {
-      add(
-        "display-axis-candidate-unknown",
-        `${where} の candidate「${String(candidate)}」が候補の一覧に無い（一覧に無い軸は "${OTHER_CANDIDATE}" で書く。候補: ${candidateIds.join(" / ")}）`,
-      );
-      return;
-    }
-    if (surveyed.has(candidate)) {
-      add(
-        "display-axis-candidate-duplicated",
-        `候補 ${candidate} が ${surveyed.get(candidate)} と ${where} の 2 か所に振り分けてある（在る・無いのどちらかに 1 回だけ書く）`,
-      );
-      return;
-    }
-    surveyed.set(candidate, where);
-  };
+  return lists;
+}
 
-  /** @type {Map<string, {values:string[], default:string}>} */
-  const axes = new Map();
-  axisList.forEach((rawAxis, i) => {
-    const at = `display_axes.axes[${i}]`;
-    /** @type {Record<string, unknown>} */
-    const axis = isObjectLike(rawAxis) ? rawAxis : {};
-    const name = axis.name;
-    if (!axisPartIsSafe(name) || name === VIEWPORT_AXIS) {
-      add(
-        "display-axis-name-unusable",
-        `${at} の name が使えない（空・区切り文字 | # = , を含む・予約語 "${VIEWPORT_AXIS}"）: ${JSON.stringify(name)}`,
-      );
-      return;
-    }
-    const axisName = name;
-    if (axes.has(axisName)) {
-      add("display-axis-duplicated", `display_axes.axes に ${axisName} が 2 つ以上ある`);
-      return;
-    }
-    survey(axis.candidate, at);
-    const values = axis.values;
-    /** @type {string[]} */
-    const valueList = [];
-    if (!isArray(values) || values.length < 2) {
+/**
+ * オブジェクトの配列から、指定した欄の文字列だけを並べる（配列でなければ空）。
+ * @param {unknown} list
+ * @param {string} field
+ * @returns {string[]}
+ */
+function stringFields(list, field) {
+  return isArray(list)
+    ? list
+        .map((item) => (isObjectLike(item) ? item[field] : undefined))
+        .filter((value) => typeof value === "string")
+    : [];
+}
+
+/**
+ * 候補を「在る」か「無い」のどちらかに振り分けたことを記録する。
+ * @param {DisplayAxesState} st
+ * @param {unknown} candidate
+ * @param {string} where
+ */
+function surveyCandidate(st, candidate, where) {
+  const { candidateIds, surveyed, add } = st;
+  if (candidate === OTHER_CANDIDATE) return;
+  if (!isOneOf(candidateIds, candidate)) {
+    add(
+      "display-axis-candidate-unknown",
+      `${where} の candidate「${String(candidate)}」が候補の一覧に無い（一覧に無い軸は "${OTHER_CANDIDATE}" で書く。候補: ${candidateIds.join(" / ")}）`,
+    );
+    return;
+  }
+  if (surveyed.has(candidate)) {
+    add(
+      "display-axis-candidate-duplicated",
+      `候補 ${candidate} が ${surveyed.get(candidate)} と ${where} の 2 か所に振り分けてある（在る・無いのどちらかに 1 回だけ書く）`,
+    );
+    return;
+  }
+  surveyed.set(candidate, where);
+}
+
+/**
+ * `display_axes.axes` の 1 つを検査し、使える軸なら `st.axes` と `st.notApplicable` に入れる。
+ * @param {DisplayAxesState} st
+ * @param {unknown} rawAxis
+ * @param {number} i
+ */
+function checkDisplayAxis(st, rawAxis, i) {
+  const { add } = st;
+  const at = `display_axes.axes[${i}]`;
+  /** @type {Record<string, unknown>} */
+  const axis = isObjectLike(rawAxis) ? rawAxis : {};
+  const name = axis.name;
+  if (!axisPartIsSafe(name) || name === VIEWPORT_AXIS) {
+    add(
+      "display-axis-name-unusable",
+      `${at} の name が使えない（空・区切り文字 | # = , を含む・予約語 "${VIEWPORT_AXIS}"）: ${JSON.stringify(name)}`,
+    );
+    return;
+  }
+  const axisName = name;
+  if (st.axes.has(axisName)) {
+    add("display-axis-duplicated", `display_axes.axes に ${axisName} が 2 つ以上ある`);
+    return;
+  }
+  surveyCandidate(st, axis.candidate, at);
+  /** @type {AxisWhere} */
+  const where = { at, axisName, excludedPages: new Set() };
+  const valueList = axisValueList(st, where, axis.values);
+  if (typeof axis.default !== "string" || !valueList.includes(axis.default)) {
+    add(
+      "display-axis-default-unknown",
+      `${at}（${axisName}）の default が values に無い（基準の組を撮った値が決まらない）: ${JSON.stringify(axis.default)}`,
+    );
+  }
+  checkAxisEvidence(st, where, axis);
+  const excludedPages = axisExcludedPages(st, where, axis.not_applicable ?? []);
+  st.notApplicable.set(axisName, excludedPages);
+  st.axes.set(axisName, {
+    values: valueList,
+    default: typeof axis.default === "string" ? axis.default : "",
+  });
+}
+
+/**
+ * 検査している軸の位置と名前、その軸が機能しないページの集合。
+ * @typedef {{ at: string, axisName: string, excludedPages: Set<string> }} AxisWhere
+ */
+
+/**
+ * 軸の values を検査し、使える値だけを並べる。
+ * @param {DisplayAxesState} st
+ * @param {AxisWhere} where
+ * @param {unknown} values
+ * @returns {string[]}
+ */
+function axisValueList(st, where, values) {
+  const { at, axisName } = where;
+  const { add } = st;
+  /** @type {string[]} */
+  const valueList = [];
+  if (!isArray(values) || values.length < 2) {
+    add(
+      "display-axis-values-unusable",
+      `${at}（${axisName}）の values が 2 つ以上の値の配列ではない（値が 1 つなら切り替えの軸ではないので absent に書く）`,
+    );
+    return valueList;
+  }
+  for (const value of values) {
+    if (!axisPartIsSafe(value)) {
       add(
         "display-axis-values-unusable",
-        `${at}（${axisName}）の values が 2 つ以上の値の配列ではない（値が 1 つなら切り替えの軸ではないので absent に書く）`,
+        `${at}（${axisName}）の values に使えない値がある（空・区切り文字 | # = , を含む）: ${JSON.stringify(value)}`,
+      );
+    } else if (valueList.includes(value)) {
+      add(
+        "display-axis-values-unusable",
+        `${at}（${axisName}）の values に ${value} が 2 つ以上ある`,
       );
     } else {
-      for (const value of values) {
-        if (!axisPartIsSafe(value)) {
-          add(
-            "display-axis-values-unusable",
-            `${at}（${axisName}）の values に使えない値がある（空・区切り文字 | # = , を含む）: ${JSON.stringify(value)}`,
-          );
-        } else if (valueList.includes(value)) {
-          add(
-            "display-axis-values-unusable",
-            `${at}（${axisName}）の values に ${value} が 2 つ以上ある`,
-          );
-        } else {
-          valueList.push(value);
-        }
-      }
+      valueList.push(value);
     }
-    if (typeof axis.default !== "string" || !valueList.includes(axis.default)) {
-      add(
-        "display-axis-default-unknown",
-        `${at}（${axisName}）の default が values に無い（基準の組を撮った値が決まらない）: ${JSON.stringify(axis.default)}`,
-      );
-    }
-    if (!evidenceText(axis.source)) {
-      add(
-        "display-axis-source-missing",
-        `${at}（${axisName}）に source が無い（値の一覧をどこから数えたかの出所が残らない）`,
-      );
-    }
-    if (!evidenceText(axis.apply)) {
-      add(
-        "display-axis-apply-missing",
-        `${at}（${axisName}）に apply が無い（値の当て方が残らないと、新側を同じ値で撮れない）`,
-      );
-    }
-    const expectations = evidenceText(axis.suite_expectations);
-    const noExpectations = evidenceText(axis.suite_reason);
-    if (expectations === noExpectations) {
-      add(
-        "display-axis-suite-undecided",
-        `${at}（${axisName}）は suite_expectations（値ごとの期待値を引く箇所）と suite_reason（値で文言・振る舞いが変わらない根拠）のどちらか一方だけを書く（視覚ベースラインだけではスイートが既定の値でしか緑を示さない）`,
-      );
-    }
-    /** @type {Set<string>} */
-    const excludedPages = new Set();
-    const naList = axis.not_applicable ?? [];
-    if (!isArray(naList)) {
-      add(
-        "display-axis-not-applicable-malformed",
-        `${at}（${axisName}）の not_applicable が配列ではない`,
-      );
-    } else {
-      naList.forEach((rawNa, j) => {
-        /** @type {Record<string, unknown>} */
-        const na = isObjectLike(rawNa) ? rawNa : {};
-        const page = na.page;
-        if (typeof page !== "string" || !declaredPages.includes(page)) {
-          add(
-            "display-axis-not-applicable-page-unknown",
-            `${at}.not_applicable[${j}] のページ ${JSON.stringify(page)} が capture_conditions.pages に無い`,
-          );
-          return;
-        }
-        if (excludedPages.has(page)) {
-          add(
-            "display-axis-not-applicable-duplicated",
-            `${at}（${axisName}）の not_applicable に ${page} が 2 つ以上ある`,
-          );
-          return;
-        }
-        if (!evidenceText(na.reason)) {
-          add(
-            "display-axis-not-applicable-reason-missing",
-            `${at}（${axisName}）の not_applicable の ${page} に reason が無い（軸が機能しないことの出所が残らない）`,
-          );
-          return;
-        }
-        excludedPages.add(page);
-      });
-    }
-    // 全ページで機能しない軸は切り替えの軸ではない。変種を宣言しても撮るはずの組が 0 件になり、撮らずに通る
-    if (declaredPages.length > 0 && declaredPages.every((page) => excludedPages.has(page))) {
-      add(
-        "display-axis-not-applicable-all-pages",
-        `${at}（${axisName}）の not_applicable が撮影ページの全てを覆う（どのページでも機能しない軸は absent に書く。変種の撮るはずの組が 0 件になり、撮らずに通る）`,
-      );
-    }
-    notApplicable.set(axisName, excludedPages);
-    axes.set(axisName, {
-      values: valueList,
-      default: typeof axis.default === "string" ? axis.default : "",
-    });
-  });
+  }
+  return valueList;
+}
 
-  absentList.forEach((rawAbsent, i) => {
-    const at = `display_axes.absent[${i}]`;
-    /** @type {Record<string, unknown>} */
-    const absent = isObjectLike(rawAbsent) ? rawAbsent : {};
-    if (absent.candidate === OTHER_CANDIDATE) {
-      add(
-        "display-axis-candidate-unknown",
-        `${at} に "${OTHER_CANDIDATE}" は書けない（無いと言える候補は一覧の候補だけ）`,
-      );
-      return;
-    }
-    survey(absent.candidate, at);
-    if (!evidenceText(absent.source)) {
-      add(
-        "display-axis-absent-source-missing",
-        `${at}（${String(absent.candidate)}）に source が無い（無いと確かめた出所が残らない。思いつかなかった軸と区別できない）`,
-      );
-    }
-  });
+/**
+ * 軸の出所（source）・当て方（apply）・スイートへの反映（suite_expectations / suite_reason）を検査する。
+ * @param {DisplayAxesState} st
+ * @param {AxisWhere} where
+ * @param {Record<string, unknown>} axis
+ */
+function checkAxisEvidence(st, where, axis) {
+  const { at, axisName } = where;
+  const { add } = st;
+  if (!evidenceText(axis.source)) {
+    add(
+      "display-axis-source-missing",
+      `${at}（${axisName}）に source が無い（値の一覧をどこから数えたかの出所が残らない）`,
+    );
+  }
+  if (!evidenceText(axis.apply)) {
+    add(
+      "display-axis-apply-missing",
+      `${at}（${axisName}）に apply が無い（値の当て方が残らないと、新側を同じ値で撮れない）`,
+    );
+  }
+  const expectations = evidenceText(axis.suite_expectations);
+  const noExpectations = evidenceText(axis.suite_reason);
+  if (expectations === noExpectations) {
+    add(
+      "display-axis-suite-undecided",
+      `${at}（${axisName}）は suite_expectations（値ごとの期待値を引く箇所）と suite_reason（値で文言・振る舞いが変わらない根拠）のどちらか一方だけを書く（視覚ベースラインだけではスイートが既定の値でしか緑を示さない）`,
+    );
+  }
+}
+
+/**
+ * 軸の not_applicable を検査し、軸が機能しないページの集合を返す。
+ * @param {DisplayAxesState} st
+ * @param {AxisWhere} where
+ * @param {unknown} naList
+ * @returns {Set<string>}
+ */
+function axisExcludedPages(st, where, naList) {
+  const { at, axisName, excludedPages } = where;
+  const { declaredPages, add } = st;
+  if (!isArray(naList)) {
+    add(
+      "display-axis-not-applicable-malformed",
+      `${at}（${axisName}）の not_applicable が配列ではない`,
+    );
+  } else {
+    naList.forEach((rawNa, j) => notApplicableEntry(st, where, { raw: rawNa, index: j }));
+  }
+  // 全ページで機能しない軸は切り替えの軸ではない。変種を宣言しても撮るはずの組が 0 件になり、撮らずに通る
+  if (declaredPages.length > 0 && declaredPages.every((page) => excludedPages.has(page))) {
+    add(
+      "display-axis-not-applicable-all-pages",
+      `${at}（${axisName}）の not_applicable が撮影ページの全てを覆う（どのページでも機能しない軸は absent に書く。変種の撮るはずの組が 0 件になり、撮らずに通る）`,
+    );
+  }
+  return excludedPages;
+}
+
+/**
+ * not_applicable の 1 つを検査し、使えるなら軸が機能しないページに入れる。
+ * @param {DisplayAxesState} st
+ * @param {AxisWhere} where
+ * @param {{ raw: unknown, index: number }} item
+ */
+function notApplicableEntry(st, where, item) {
+  const { at, axisName, excludedPages } = where;
+  const { declaredPages, add } = st;
+  /** @type {Record<string, unknown>} */
+  const na = isObjectLike(item.raw) ? item.raw : {};
+  const page = na.page;
+  if (typeof page !== "string" || !declaredPages.includes(page)) {
+    add(
+      "display-axis-not-applicable-page-unknown",
+      `${at}.not_applicable[${item.index}] のページ ${JSON.stringify(page)} が capture_conditions.pages に無い`,
+    );
+    return;
+  }
+  if (excludedPages.has(page)) {
+    add(
+      "display-axis-not-applicable-duplicated",
+      `${at}（${axisName}）の not_applicable に ${page} が 2 つ以上ある`,
+    );
+    return;
+  }
+  if (!evidenceText(na.reason)) {
+    add(
+      "display-axis-not-applicable-reason-missing",
+      `${at}（${axisName}）の not_applicable の ${page} に reason が無い（軸が機能しないことの出所が残らない）`,
+    );
+    return;
+  }
+  excludedPages.add(page);
+}
+
+/**
+ * `display_axes.absent` の 1 つを検査し、候補を「無い」に振り分ける。
+ * @param {DisplayAxesState} st
+ * @param {unknown} rawAbsent
+ * @param {number} i
+ */
+function checkAbsentAxis(st, rawAbsent, i) {
+  const { add } = st;
+  const at = `display_axes.absent[${i}]`;
+  /** @type {Record<string, unknown>} */
+  const absent = isObjectLike(rawAbsent) ? rawAbsent : {};
+  if (absent.candidate === OTHER_CANDIDATE) {
+    add(
+      "display-axis-candidate-unknown",
+      `${at} に "${OTHER_CANDIDATE}" は書けない（無いと言える候補は一覧の候補だけ）`,
+    );
+    return;
+  }
+  surveyCandidate(st, absent.candidate, at);
+  if (!evidenceText(absent.source)) {
+    add(
+      "display-axis-absent-source-missing",
+      `${at}（${String(absent.candidate)}）に source が無い（無いと確かめた出所が残らない。思いつかなかった軸と区別できない）`,
+    );
+  }
+}
+
+/**
+ * axes にも absent にも振り分けていない候補を落とす。
+ * @param {DisplayAxesState} st
+ */
+function checkUnsurveyedCandidates(st) {
+  const { candidateIds, surveyed, add } = st;
   for (const id of candidateIds) {
     if (!surveyed.has(id)) {
       const label = AXIS_CANDIDATES.find((c) => c.id === id)?.label ?? id;
@@ -714,121 +971,173 @@ export function checkDisplayAxes(conditions) {
       );
     }
   }
+}
 
-  const baseViewports = isArray(conditions.viewports)
-    ? conditions.viewports
-        .map((v) => (isObjectLike(v) ? v.label : undefined))
-        .filter((label) => typeof label === "string")
-    : [];
-  /** @type {Set<string>} */
-  const labels = new Set();
-  /** @type {Set<string>} 変種の中身（`<基準の窓>|<軸=値,…>`） */
-  const variantKeys = new Set();
-  /** @type {Set<string>} 軸=値 の組み合わせ（窓を問わない） */
-  const signatures = new Set();
-  variantList.forEach((rawVariant, i) => {
-    const at = `display_axes.variants[${i}]`;
-    /** @type {Record<string, unknown>} */
-    const variant = isObjectLike(rawVariant) ? rawVariant : {};
-    const label = variant.label;
-    // label は書き出し先のディレクトリ名にもなる（page/state/label）。`.` / `..` やパスの区切りを通すと、
-    // 採取の noise パスの削除が別の組のディレクトリを指す
-    if (!idPartIsSafe(label) || label === "." || label === ".." || /[\\/,]/.test(label)) {
-      add(
-        "display-axis-variant-label-unusable",
-        `${at} の label が使えない（空、区切り文字 ${KEY_SEPARATOR} / ${ID_SEPARATOR} を含む、または . / .. / パスの区切り・カンマを含む。カンマは PARITY_NOISE_PAIRS 等の区切りでもある）: ${JSON.stringify(label)}`,
-      );
-      return;
-    }
-    const labelText = label;
-    if (labels.has(labelText) || baseViewports.includes(labelText)) {
-      add(
-        "display-axis-variant-label-duplicated",
-        `${at} の label ${labelText} が他の変種か capture_conditions.viewports の label と重なる（別々の組が同じ鍵に潰れる）`,
-      );
-      return;
-    }
-    labels.add(labelText);
-    if (typeof variant.viewport !== "string" || !baseViewports.includes(variant.viewport)) {
-      add(
-        "display-axis-variant-viewport-unknown",
-        `${at}（${labelText}）の viewport ${JSON.stringify(variant.viewport)} が capture_conditions.viewports の label に無い（どの窓で撮るか決まらない）`,
-      );
-      return;
-    }
-    const values = variant.values;
-    if (
-      !values ||
-      typeof values !== "object" ||
-      isArray(values) ||
-      Object.keys(values).length === 0
-    ) {
-      add(
-        "display-axis-variant-values-unusable",
-        `${at}（${labelText}）の values が「軸の名前 → デフォルト以外の値」のオブジェクトではない`,
-      );
-      return;
-    }
-    /** @type {Record<string, string>} */
-    const picked = {};
-    let usable = true;
-    for (const [axisName, value] of Object.entries(values)) {
-      const axis = axes.get(axisName);
-      if (!axis) {
-        add(
-          "display-axis-variant-values-unusable",
-          `${at}（${labelText}）の values の軸 ${axisName} が display_axes.axes に無い`,
-        );
-        usable = false;
-        continue;
-      }
-      if (typeof value !== "string" || !axis.values.includes(value)) {
-        add(
-          "display-axis-variant-values-unusable",
-          `${at}（${labelText}）の ${axisName} の値 ${JSON.stringify(value)} が values に無い`,
-        );
-        usable = false;
-        continue;
-      }
-      if (value === axis.default) {
-        add(
-          "display-axis-variant-values-unusable",
-          `${at}（${labelText}）の ${axisName} がデフォルト値 ${value}（デフォルト値は基準の組が撮る。変種にはデフォルト以外の値だけを書く）`,
-        );
-        usable = false;
-        continue;
-      }
-      picked[axisName] = value;
-    }
-    if (!usable) return;
-    // 変種の軸のどれかが機能しないページは撮らない。全ページが外れる変種は撮るはずの組が 0 件になり、
-    // それでも掛け合わせの対を満たしたことになるので落とす
-    const pickedAxes = Object.keys(picked);
-    if (
-      declaredPages.length > 0 &&
-      declaredPages.every((page) => pickedAxes.some((axis) => notApplicable.get(axis)?.has(page)))
-    ) {
-      add(
-        "display-axis-variant-no-pages",
-        `${at}（${labelText}）の軸が機能するページが 1 つも無い（not_applicable が合わせて全ページを覆う。撮るはずの組が 0 件のまま掛け合わせの対を満たさない。同時に機能しない対なら crossed: false にする）`,
-      );
-      return;
-    }
-    const signature = variantSignature(picked);
-    const key = `${variant.viewport}${KEY_SEPARATOR}${signature}`;
-    if (variantKeys.has(key)) {
-      add(
-        "display-axis-variant-duplicated",
-        `${at}（${labelText}）は同じ窓 ${variant.viewport} × ${signature} の変種が既にある（同じ撮影が 2 回期待される）`,
-      );
-      return;
-    }
-    variantKeys.add(key);
-    signatures.add(signature);
-    variantsOut.push({ label: labelText, axes: Object.keys(picked) });
-  });
+/**
+ * `display_axes.variants` の 1 つを検査し、使える変種なら `st.variantsOut` に入れる。
+ * @param {DisplayAxesState} st
+ * @param {unknown} rawVariant
+ * @param {number} i
+ */
+function checkDisplayVariant(st, rawVariant, i) {
+  const { add } = st;
+  const at = `display_axes.variants[${i}]`;
+  /** @type {Record<string, unknown>} */
+  const variant = isObjectLike(rawVariant) ? rawVariant : {};
+  const labelText = variantLabel(st, at, variant.label);
+  if (labelText === null) return;
+  if (typeof variant.viewport !== "string" || !st.baseViewports.includes(variant.viewport)) {
+    add(
+      "display-axis-variant-viewport-unknown",
+      `${at}（${labelText}）の viewport ${JSON.stringify(variant.viewport)} が capture_conditions.viewports の label に無い（どの窓で撮るか決まらない）`,
+    );
+    return;
+  }
+  const picked = pickVariantValues(st, { at, labelText }, variant.values);
+  if (picked === null) return;
+  // 変種の軸のどれかが機能しないページは撮らない。全ページが外れる変種は撮るはずの組が 0 件になり、
+  // それでも掛け合わせの対を満たしたことになるので落とす
+  if (variantHasNoPages(st, picked)) {
+    add(
+      "display-axis-variant-no-pages",
+      `${at}（${labelText}）の軸が機能するページが 1 つも無い（not_applicable が合わせて全ページを覆う。撮るはずの組が 0 件のまま掛け合わせの対を満たさない。同時に機能しない対なら crossed: false にする）`,
+    );
+    return;
+  }
+  const signature = variantSignature(picked);
+  const key = `${variant.viewport}${KEY_SEPARATOR}${signature}`;
+  if (st.variantKeys.has(key)) {
+    add(
+      "display-axis-variant-duplicated",
+      `${at}（${labelText}）は同じ窓 ${variant.viewport} × ${signature} の変種が既にある（同じ撮影が 2 回期待される）`,
+    );
+    return;
+  }
+  st.variantKeys.add(key);
+  st.signatures.add(signature);
+  st.variantsOut.push({ label: labelText, axes: Object.keys(picked) });
+}
 
-  // 1 軸ずつ振る: 既定以外の値ごとに、その軸だけを振った変種が要る（窓は問わない）
+/**
+ * 変種の label を検査して返す。使えない・重なるなら finding を足して null を返す。
+ * @param {DisplayAxesState} st
+ * @param {string} at
+ * @param {unknown} label
+ * @returns {string | null}
+ */
+function variantLabel(st, at, label) {
+  const { labels, baseViewports, add } = st;
+  // label は書き出し先のディレクトリ名にもなる（page/state/label）。`.` / `..` やパスの区切りを通すと、
+  // 採取の noise パスの削除が別の組のディレクトリを指す
+  if (!idPartIsSafe(label) || label === "." || label === ".." || /[\\/,]/.test(label)) {
+    add(
+      "display-axis-variant-label-unusable",
+      `${at} の label が使えない（空、区切り文字 ${KEY_SEPARATOR} / ${ID_SEPARATOR} を含む、または . / .. / パスの区切り・カンマを含む。カンマは PARITY_NOISE_PAIRS 等の区切りでもある）: ${JSON.stringify(label)}`,
+    );
+    return null;
+  }
+  const labelText = label;
+  if (labels.has(labelText) || baseViewports.includes(labelText)) {
+    add(
+      "display-axis-variant-label-duplicated",
+      `${at} の label ${labelText} が他の変種か capture_conditions.viewports の label と重なる（別々の組が同じ鍵に潰れる）`,
+    );
+    return null;
+  }
+  labels.add(labelText);
+  return labelText;
+}
+
+/**
+ * 変種の values（軸の名前 → デフォルト以外の値）を検査して返す。1 つでも使えない値があれば null を返す。
+ * @param {DisplayAxesState} st
+ * @param {{ at: string, labelText: string }} where
+ * @param {unknown} values
+ * @returns {Record<string, string> | null}
+ */
+function pickVariantValues(st, where, values) {
+  if (
+    !values ||
+    typeof values !== "object" ||
+    isArray(values) ||
+    Object.keys(values).length === 0
+  ) {
+    st.add(
+      "display-axis-variant-values-unusable",
+      `${where.at}（${where.labelText}）の values が「軸の名前 → デフォルト以外の値」のオブジェクトではない`,
+    );
+    return null;
+  }
+  /** @type {Record<string, string>} */
+  const picked = {};
+  let usable = true;
+  for (const [axisName, value] of Object.entries(values)) {
+    const usableValue = variantValue(st, where, [axisName, value]);
+    if (usableValue === null) {
+      usable = false;
+    } else {
+      picked[axisName] = usableValue;
+    }
+  }
+  return usable ? picked : null;
+}
+
+/**
+ * 変種の値 1 つ（軸の名前と値）が、宣言した軸のデフォルト以外の値なら、その値を返す。違えば finding を足して null を返す。
+ * @param {DisplayAxesState} st
+ * @param {{ at: string, labelText: string }} where
+ * @param {[string, unknown]} entry
+ * @returns {string | null}
+ */
+function variantValue(st, where, entry) {
+  const { at, labelText } = where;
+  const [axisName, value] = entry;
+  const axis = st.axes.get(axisName);
+  if (!axis) {
+    st.add(
+      "display-axis-variant-values-unusable",
+      `${at}（${labelText}）の values の軸 ${axisName} が display_axes.axes に無い`,
+    );
+    return null;
+  }
+  if (typeof value !== "string" || !axis.values.includes(value)) {
+    st.add(
+      "display-axis-variant-values-unusable",
+      `${at}（${labelText}）の ${axisName} の値 ${JSON.stringify(value)} が values に無い`,
+    );
+    return null;
+  }
+  if (value === axis.default) {
+    st.add(
+      "display-axis-variant-values-unusable",
+      `${at}（${labelText}）の ${axisName} がデフォルト値 ${value}（デフォルト値は基準の組が撮る。変種にはデフォルト以外の値だけを書く）`,
+    );
+    return null;
+  }
+  return value;
+}
+
+/**
+ * 変種の軸のどれかが機能しないページを除くと、撮影ページが 1 つも残らないか。
+ * @param {DisplayAxesState} st
+ * @param {Record<string, string>} picked
+ * @returns {boolean}
+ */
+function variantHasNoPages(st, picked) {
+  const { declaredPages, notApplicable } = st;
+  const pickedAxes = Object.keys(picked);
+  return (
+    declaredPages.length > 0 &&
+    declaredPages.every((page) => pickedAxes.some((axis) => notApplicable.get(axis)?.has(page)))
+  );
+}
+
+/**
+ * 1 軸ずつ振る: 既定以外の値ごとに、その軸だけを振った変種が要る（窓は問わない）。
+ * @param {DisplayAxesState} st
+ */
+function checkValueSweep(st) {
+  const { axes, signatures, add } = st;
   for (const [axisName, axis] of axes) {
     for (const value of axis.values) {
       if (value === axis.default) continue;
@@ -840,100 +1149,152 @@ export function checkDisplayAxes(conditions) {
       }
     }
   }
+}
 
-  // 対ごとの掛け合わせの判断
-  const members = [...axes.keys()];
-  /** @type {Map<string, boolean>} */
-  const decided = new Map();
-  /**
-   * @param {string} a
-   * @param {string} b
-   */
-  const pairKey = (a, b) => [a, b].sort().join(",");
-  pairList.forEach((rawPair, i) => {
-    const at = `display_axes.pairs[${i}]`;
-    /** @type {Record<string, unknown>} */
-    const pair = isObjectLike(rawPair) ? rawPair : {};
-    const names = pair.axes;
-    // `names.every(nonEmptyString)` は要素の型を絞るためにある。文字列でない名前は、宣言した軸の判定でも落ちる
-    if (
-      !isArray(names) ||
-      names.length !== 2 ||
-      names[0] === names[1] ||
-      !names.every(nonEmptyString) ||
-      !names.every((n) => n === VIEWPORT_AXIS || axes.has(n)) ||
-      names.every((n) => n === VIEWPORT_AXIS)
-    ) {
-      add(
-        "display-axis-pair-unusable",
-        `${at} の axes が「宣言した軸（または "${VIEWPORT_AXIS}"）の異なる 2 つ」ではない: ${JSON.stringify(names)}`,
-      );
-      return;
-    }
-    const key = pairKey(names[0], names[1]);
-    if (decided.has(key)) {
-      add("display-axis-pair-duplicated", `display_axes.pairs に ${key} の対が 2 つ以上ある`);
-      return;
-    }
-    if (typeof pair.crossed !== "boolean") {
-      add("display-axis-pair-unusable", `${at}（${key}）の crossed が真偽値ではない`);
-      return;
-    }
-    if (!evidenceText(pair.reason)) {
-      add(
-        "display-axis-pair-reason-missing",
-        `${at}（${key}）に reason が無い（掛けた・掛けなかった理由が残らない）`,
-      );
-    }
-    decided.set(key, pair.crossed);
-  });
+/**
+ * 軸の対の鍵（順序に依らない）。
+ * @param {string} a
+ * @param {string} b
+ * @returns {string}
+ */
+function pairKey(a, b) {
+  return [a, b].sort().join(",");
+}
+
+/**
+ * `display_axes.pairs` の 1 つを検査し、掛け合わせの判断を `st.decided` に入れる。
+ * @param {DisplayAxesState} st
+ * @param {unknown} rawPair
+ * @param {number} i
+ */
+function checkAxisPair(st, rawPair, i) {
+  const { axes, decided, add } = st;
+  const at = `display_axes.pairs[${i}]`;
+  /** @type {Record<string, unknown>} */
+  const pair = isObjectLike(rawPair) ? rawPair : {};
+  const names = pair.axes;
+  // `names.every(nonEmptyString)` は要素の型を絞るためにある。文字列でない名前は、宣言した軸の判定でも落ちる
+  if (
+    !isArray(names) ||
+    names.length !== 2 ||
+    names[0] === names[1] ||
+    !names.every(nonEmptyString) ||
+    !names.every((n) => n === VIEWPORT_AXIS || axes.has(n)) ||
+    names.every((n) => n === VIEWPORT_AXIS)
+  ) {
+    add(
+      "display-axis-pair-unusable",
+      `${at} の axes が「宣言した軸（または "${VIEWPORT_AXIS}"）の異なる 2 つ」ではない: ${JSON.stringify(names)}`,
+    );
+    return;
+  }
+  const key = pairKey(names[0], names[1]);
+  if (decided.has(key)) {
+    add("display-axis-pair-duplicated", `display_axes.pairs に ${key} の対が 2 つ以上ある`);
+    return;
+  }
+  if (typeof pair.crossed !== "boolean") {
+    add("display-axis-pair-unusable", `${at}（${key}）の crossed が真偽値ではない`);
+    return;
+  }
+  if (!evidenceText(pair.reason)) {
+    add(
+      "display-axis-pair-reason-missing",
+      `${at}（${key}）に reason が無い（掛けた・掛けなかった理由が残らない）`,
+    );
+  }
+  decided.set(key, pair.crossed);
+}
+
+/**
+ * 対ごとの掛け合わせの判断: 軸（とビューポート）の対のすべてに判断があり、掛けると宣言した対の変種が揃うか。
+ * @param {DisplayAxesState} st
+ */
+function checkPairCoverage(st) {
+  const members = [...st.axes.keys()];
   const pairMembers = [...members, VIEWPORT_AXIS];
   for (let i = 0; i < members.length; i += 1) {
     for (let j = i + 1; j < pairMembers.length; j += 1) {
-      const a = members[i];
-      const b = pairMembers[j];
-      const key = pairKey(a, b);
-      if (!decided.has(key)) {
+      checkPairCrossed(st, members[i], pairMembers[j]);
+    }
+  }
+}
+
+/**
+ * 軸の対 1 つに掛け合わせの判断があるかと、掛けると宣言したなら組み合わせの変種があるかを検査する。
+ * @param {DisplayAxesState} st
+ * @param {string} a
+ * @param {string} b
+ */
+function checkPairCrossed(st, a, b) {
+  const { decided, add } = st;
+  const key = pairKey(a, b);
+  if (!decided.has(key)) {
+    add(
+      "display-axis-pair-undecided",
+      `軸の対 ${key} を掛け合わせるかの判断が display_axes.pairs に無い（同時に変えると結果が変わる対か、理由付きで書く）`,
+    );
+    return;
+  }
+  if (!decided.get(key)) return;
+  if (b === VIEWPORT_AXIS) {
+    checkViewportCrossed(st, a, key);
+    return;
+  }
+  checkAxesCrossed(st, { a, b, key });
+}
+
+/**
+ * 軸のデフォルト以外の値。
+ * @param {Map<string, {values:string[], default:string}>} axes
+ * @param {string} name
+ * @returns {string[]}
+ */
+function nonDefaultValues(axes, name) {
+  const axis = axes.get(name);
+  return axis ? axis.values.filter((v) => v !== axis.default) : [];
+}
+
+/**
+ * 軸とビューポートを掛けると宣言した対で、デフォルト以外の値 × 窓ごとの変種があるか。
+ * @param {DisplayAxesState} st
+ * @param {string} a
+ * @param {string} key
+ */
+function checkViewportCrossed(st, a, key) {
+  const { baseViewports, variantKeys, add } = st;
+  for (const value of nonDefaultValues(st.axes, a)) {
+    for (const viewport of baseViewports) {
+      const want = `${viewport}${KEY_SEPARATOR}${variantSignature({ [a]: value })}`;
+      if (!variantKeys.has(want)) {
         add(
-          "display-axis-pair-undecided",
-          `軸の対 ${key} を掛け合わせるかの判断が display_axes.pairs に無い（同時に変えると結果が変わる対か、理由付きで書く）`,
+          "display-axis-pair-not-crossed",
+          `掛け合わせると宣言した対 ${key} の組 ${a}=${value} × 窓 ${viewport} の変種が無い`,
         );
-        continue;
-      }
-      if (!decided.get(key)) continue;
-      /** @param {string} name */
-      const nonDefault = (name) => {
-        const axis = axes.get(name);
-        return axis ? axis.values.filter((v) => v !== axis.default) : [];
-      };
-      if (b === VIEWPORT_AXIS) {
-        for (const value of nonDefault(a)) {
-          for (const viewport of baseViewports) {
-            const want = `${viewport}${KEY_SEPARATOR}${variantSignature({ [a]: value })}`;
-            if (!variantKeys.has(want)) {
-              add(
-                "display-axis-pair-not-crossed",
-                `掛け合わせると宣言した対 ${key} の組 ${a}=${value} × 窓 ${viewport} の変種が無い`,
-              );
-            }
-          }
-        }
-        continue;
-      }
-      for (const va of nonDefault(a)) {
-        for (const vb of nonDefault(b)) {
-          const want = variantSignature({ [a]: va, [b]: vb });
-          if (!signatures.has(want)) {
-            add(
-              "display-axis-pair-not-crossed",
-              `掛け合わせると宣言した対 ${key} の組 ${want} の変種が無い`,
-            );
-          }
-        }
       }
     }
   }
-  return result();
+}
+
+/**
+ * 2 つの軸を掛けると宣言した対で、デフォルト以外の値の組み合わせごとの変種があるか。
+ * @param {DisplayAxesState} st
+ * @param {{ a: string, b: string, key: string }} pair
+ */
+function checkAxesCrossed(st, pair) {
+  const { a, b, key } = pair;
+  const { signatures, add } = st;
+  for (const va of nonDefaultValues(st.axes, a)) {
+    for (const vb of nonDefaultValues(st.axes, b)) {
+      const want = variantSignature({ [a]: va, [b]: vb });
+      if (!signatures.has(want)) {
+        add(
+          "display-axis-pair-not-crossed",
+          `掛け合わせると宣言した対 ${key} の組 ${want} の変種が無い`,
+        );
+      }
+    }
+  }
 }
 
 /**
@@ -1113,29 +1474,7 @@ export function checkOverflow(conditions) {
    * @param {string} message
    */
   const add = (code, message) => findings.push({ code, message });
-  if (!Object.hasOwn(conditions, "scrollbars")) {
-    add(
-      "scrollbars-missing",
-      `capture_conditions.scrollbars が無い（撮影時にスクロールバーが場所を取ったか。${SCROLLBAR_MODES.join(" / ")} で書く。新側を同じ扱いで撮れない）`,
-    );
-  } else if (!isOneOf(SCROLLBAR_MODES, conditions.scrollbars)) {
-    add(
-      "scrollbars-unknown",
-      `capture_conditions.scrollbars「${String(conditions.scrollbars)}」が語彙外（${SCROLLBAR_MODES.join(" / ")}）`,
-    );
-  } else if (conditions.scrollbars === "hidden" && !evidenceText(conditions.scrollbars_reason)) {
-    // デフォルトは shown。隠して撮ると、バーが場所を取る差（はみ出し・横のバーの有無）が 3 つの比較方法のどれにも表れない
-    add(
-      "scrollbars-hidden-reason-missing",
-      "capture_conditions.scrollbars が hidden なのに scrollbars_reason が無い（デフォルトは shown。隠して撮るなら、スクロールバーが場所を取る差を測らない理由を書き gaps.md に残す）",
-    );
-  } else if (conditions.scrollbars === "shown" && !evidenceText(conditions.scrollbar_environment)) {
-    // バーの描き方は OS とブラウザで変わるので、撮ったバーの画素を利用者環境の見え方の根拠にしない
-    add(
-      "scrollbar-environment-missing",
-      "capture_conditions.scrollbars が shown なのに scrollbar_environment が無い（どの OS・ブラウザのどの種類〈クラシック / オーバーレイ〉のスクロールバーで撮ったかを書く）",
-    );
-  }
+  checkScrollbarMode(conditions, add);
   if (!Object.hasOwn(conditions, "overflow")) {
     add(
       "overflow-missing",
@@ -1165,6 +1504,48 @@ export function checkOverflow(conditions) {
     }
     return findings;
   }
+  checkMeasuredOverflow(conditions, o, add);
+  return findings;
+}
+
+/**
+ * 撮影時のスクロールバーの扱い（`scrollbars`）と、その扱いに要る記録を検査する。
+ * @param {Record<string, unknown>} conditions
+ * @param {(code: string, message: string) => void} add
+ */
+function checkScrollbarMode(conditions, add) {
+  if (!Object.hasOwn(conditions, "scrollbars")) {
+    add(
+      "scrollbars-missing",
+      `capture_conditions.scrollbars が無い（撮影時にスクロールバーが場所を取ったか。${SCROLLBAR_MODES.join(" / ")} で書く。新側を同じ扱いで撮れない）`,
+    );
+  } else if (!isOneOf(SCROLLBAR_MODES, conditions.scrollbars)) {
+    add(
+      "scrollbars-unknown",
+      `capture_conditions.scrollbars「${String(conditions.scrollbars)}」が語彙外（${SCROLLBAR_MODES.join(" / ")}）`,
+    );
+  } else if (conditions.scrollbars === "hidden" && !evidenceText(conditions.scrollbars_reason)) {
+    // デフォルトは shown。隠して撮ると、バーが場所を取る差（はみ出し・横のバーの有無）が 3 つの比較方法のどれにも表れない
+    add(
+      "scrollbars-hidden-reason-missing",
+      "capture_conditions.scrollbars が hidden なのに scrollbars_reason が無い（デフォルトは shown。隠して撮るなら、スクロールバーが場所を取る差を測らない理由を書き gaps.md に残す）",
+    );
+  } else if (conditions.scrollbars === "shown" && !evidenceText(conditions.scrollbar_environment)) {
+    // バーの描き方は OS とブラウザで変わるので、撮ったバーの画素を利用者環境の見え方の根拠にしない
+    add(
+      "scrollbar-environment-missing",
+      "capture_conditions.scrollbars が shown なのに scrollbar_environment が無い（どの OS・ブラウザのどの種類〈クラシック / オーバーレイ〉のスクロールバーで撮ったかを書く）",
+    );
+  }
+}
+
+/**
+ * `status: measured` の `overflow` を検査する（記録の形と、撮影頁ごとの実測）。
+ * @param {Record<string, unknown>} conditions
+ * @param {Record<string, unknown>} o
+ * @param {(code: string, message: string) => void} add
+ */
+function checkMeasuredOverflow(conditions, o, add) {
   if (o.reason !== null) {
     add(
       "overflow-reason-unexpected",
@@ -1189,170 +1570,11 @@ export function checkOverflow(conditions) {
     : [];
   if (!isArray(o.pages)) {
     add("overflow-pages-missing", "capture_conditions.overflow.pages が配列でない");
-    return findings;
+    return;
   }
   /** @type {Set<string>} */
   const seenPages = new Set();
-  o.pages.forEach((raw, i) => {
-    const at = `capture_conditions.overflow.pages[${i}]`;
-    /** @type {Record<string, unknown>} */
-    const entry = isObjectLike(raw) ? raw : {};
-    if (!nonEmptyString(entry.page)) {
-      add("overflow-page-unkeyed", `${at}.page が空（どの頁の実測か決まらない）`);
-      return;
-    }
-    const page = entry.page;
-    if (seenPages.has(page)) {
-      add(
-        "overflow-page-duplicated",
-        `capture_conditions.overflow.pages に ${page} が 2 つ以上ある`,
-      );
-      return;
-    }
-    seenPages.add(page);
-    if (!declaredPages.includes(page)) {
-      add("overflow-page-unknown", `${at} の頁 ${page} が capture_conditions.pages に無い`);
-    }
-    const minWidth = entry.min_width;
-    const minWidthOk = minWidth === null || (isInteger(minWidth) && minWidth > 0);
-    if (!minWidthOk) {
-      add(
-        "overflow-min-width-malformed",
-        `${at}.min_width が正の整数でも null でもない（最小幅を持たない頁だけ null と書く）`,
-      );
-    }
-    // 狭い窓で読んだ中身の高さ。最小幅を持つ頁では、これより高い狭い窓（縦のはみ出しが頁の高さの決め方だけで決まる窓）を要求する。
-    // 「縦にはみ出さないこと」は要求しない。body { height: 100% } と既定の margin のように、どの高さでもはみ出す正当な頁があるからである。
-    const contentHeight = entry.content_height;
-    const contentHeightOk = minWidth === null || (isInteger(contentHeight) && contentHeight > 0);
-    if (minWidthOk && !contentHeightOk) {
-      add(
-        "overflow-content-height-malformed",
-        `${at}.content_height が正の整数でない（最小幅より狭い窓で読んだ文書の scrollHeight を書く）`,
-      );
-    }
-    // 最小幅の探索の範囲。刻みだけの探索は狭い帯でだけ有効になる最小幅を見落とすので、メディアクエリの境界も探す。
-    // 読めないスタイルシートの境界は探索できていないので、未検証として gaps.md への参照を要求する
-    /** @type {Record<string, unknown>} */
-    const probe = isObjectLike(entry.probe) ? entry.probe : {};
-    if (
-      !entry.probe ||
-      typeof entry.probe !== "object" ||
-      !isInteger(probe.step) ||
-      probe.step <= 0 ||
-      !isArray(probe.breakpoints) ||
-      !probe.breakpoints.every(positiveNumber) ||
-      !isInteger(probe.unreadable_stylesheets) ||
-      probe.unreadable_stylesheets < 0
-    ) {
-      add(
-        "overflow-probe-malformed",
-        `${at}.probe が無いか型が不正（step: 正の整数、breakpoints: 正の数の配列、unreadable_stylesheets: 0 以上の整数）`,
-      );
-    } else if (probe.unreadable_stylesheets > 0 && !nonEmptyString(probe.gaps_ref)) {
-      add(
-        "overflow-probe-unreadable-unrecorded",
-        `${at} に読めないスタイルシートが ${probe.unreadable_stylesheets} 件あるのに probe.gaps_ref が空（その境界は探索できていない。gaps.md に未検証として残して該当箇所を書く）`,
-      );
-    } else if (probe.unreadable_stylesheets === 0 && probe.gaps_ref !== null) {
-      add(
-        "overflow-probe-gaps-ref-unexpected",
-        `${at} に読めないスタイルシートが無いのに probe.gaps_ref が null でない（古い記録）`,
-      );
-    }
-    if (!isArray(entry.windows) || entry.windows.length === 0) {
-      add("overflow-windows-missing", `${at}.windows が空（測った窓が無い）`);
-      return;
-    }
-    /** @type {Set<string>} */
-    const seenWindows = new Set();
-    let narrow = 0;
-    let fitting = 0;
-    entry.windows.forEach((rawWindow, j) => {
-      const wat = `${at}.windows[${j}]`;
-      /** @type {Record<string, unknown>} */
-      const w = isObjectLike(rawWindow) ? rawWindow : {};
-      if (!isInteger(w.width) || !isInteger(w.height) || w.width <= 0 || w.height <= 0) {
-        add("overflow-window-malformed", `${wat} の width / height が正の整数でない`);
-        return;
-      }
-      const key = `${w.width}x${w.height}`;
-      if (seenWindows.has(key)) {
-        add("overflow-window-duplicated", `${at}.windows に窓 ${key} が 2 つ以上ある`);
-        return;
-      }
-      seenWindows.add(key);
-      if (typeof w.horizontal !== "boolean" || typeof w.vertical !== "boolean") {
-        add("overflow-window-malformed", `${wat} の horizontal / vertical が真偽値でない`);
-        return;
-      }
-      if (
-        typeof w.horizontal_bar_px !== "number" ||
-        !Number.isFinite(w.horizontal_bar_px) ||
-        w.horizontal_bar_px < 0
-      ) {
-        add("overflow-window-malformed", `${wat}.horizontal_bar_px が 0 以上の数でない`);
-        return;
-      }
-      // はみ出し量。真偽値だけだと、どの高さでも縦にはみ出す頁（body の height: 100% と既定の margin）で
-      // 100% と 100vh が両側とも vertical: true になり見分けられない。スイートは量を比べる
-      /**
-       * @param {unknown} v
-       * @returns {v is number & { readonly __extentOk: true }}
-       */
-      const extentOk = (v) => isInteger(v) && v >= 0;
-      if (!extentOk(w.overflow_x_px) || !extentOk(w.overflow_y_px)) {
-        add(
-          "overflow-window-malformed",
-          `${wat}.overflow_x_px / overflow_y_px が 0 以上の整数でない`,
-        );
-        return;
-      }
-      if (w.horizontal !== w.overflow_x_px > 0 || w.vertical !== w.overflow_y_px > 0) {
-        add(
-          "overflow-extent-inconsistent",
-          `${wat} のはみ出しの真偽値とはみ出し量が矛盾している（horizontal は overflow_x_px > 0、vertical は overflow_y_px > 0 と一致させる）`,
-        );
-      }
-      // 横にはみ出した窓で横スクロールバーが場所を取っていなければ、スクロールバーが隠れたまま測っている（それを検出する）
-      if (w.horizontal && w.horizontal_bar_px === 0) {
-        add(
-          "overflow-bar-takes-no-space",
-          `${wat} は横にはみ出しているのに横スクロールバーの厚みが 0（スクロールバーが隠れたまま測っている。--hide-scrollbars が残っているか、オーバーレイ型のスクロールバー）`,
-        );
-      }
-      if (!minWidthOk) return;
-      if (minWidth === null) {
-        if (w.horizontal) {
-          add(
-            "overflow-min-width-inconsistent",
-            `${wat} は横にはみ出しているのに ${at}.min_width が null（最小幅を持つ頁として測り直す）`,
-          );
-        }
-        return;
-      }
-      // 最小幅より狭い窓が全て横にはみ出すとは限らない（最小幅が中間のブレークポイントでだけ有効になるレスポンシブな頁は、
-      // モバイル幅ではみ出さない）。数えるのは「最小幅より狭く、横にはみ出した窓」
-      if (w.width < minWidth && w.horizontal) {
-        narrow += 1;
-        // contentHeightOk かつ minWidth が null でないので contentHeight は数（typeof は型を絞るための再確認）
-        if (contentHeightOk && typeof contentHeight === "number" && w.height > contentHeight) {
-          fitting += 1;
-        }
-      }
-    });
-    if (minWidthOk && minWidth !== null && narrow === 0) {
-      add(
-        "overflow-narrow-window-missing",
-        `${at} に min_width（${minWidth}）より狭く横にはみ出した窓が無い（横スクロールバーが出る窓で測らないと 100vh と 100% の差は出ない）`,
-      );
-    } else if (minWidthOk && minWidth !== null && contentHeightOk && fitting === 0) {
-      add(
-        "overflow-fit-window-missing",
-        `${at} に min_width（${minWidth}）より狭く横にはみ出し、content_height（${contentHeight}）より高い窓が無い（中身が収まる高さの窓でないと、縦のはみ出しが頁の高さの決め方だけで決まらず 100vh と 100% を見分けられない）`,
-      );
-    }
-  });
+  o.pages.forEach((raw, i) => checkOverflowPage({ add, declaredPages, seenPages }, raw, i));
   for (const page of declaredPages) {
     if (!seenPages.has(page)) {
       add(
@@ -1361,7 +1583,374 @@ export function checkOverflow(conditions) {
       );
     }
   }
-  return findings;
+}
+
+/**
+ * `overflow.pages` の 1 頁を検査したときに、窓ごとの検査と数え上げが読み書きする状態。
+ * `minWidth` は `minWidthOk` のときだけ意味を持つ（正の整数か null）。
+ * @typedef {{
+ *   add: (code: string, message: string) => void,
+ *   at: string,
+ *   minWidthOk: boolean,
+ *   minWidth: number | null,
+ *   contentHeightOk: boolean,
+ *   contentHeight: unknown,
+ *   seenWindows: Set<string>,
+ *   narrow: number,
+ *   fitting: number,
+ * }} OverflowPageState
+ */
+
+/**
+ * `overflow.pages` の 1 頁を検査する。
+ * @param {{ add: (code: string, message: string) => void, declaredPages: string[], seenPages: Set<string> }} ctx
+ * @param {unknown} raw
+ * @param {number} i
+ */
+function checkOverflowPage(ctx, raw, i) {
+  const { add, declaredPages, seenPages } = ctx;
+  const at = `capture_conditions.overflow.pages[${i}]`;
+  /** @type {Record<string, unknown>} */
+  const entry = isObjectLike(raw) ? raw : {};
+  if (!nonEmptyString(entry.page)) {
+    add("overflow-page-unkeyed", `${at}.page が空（どの頁の実測か決まらない）`);
+    return;
+  }
+  const page = entry.page;
+  if (seenPages.has(page)) {
+    add("overflow-page-duplicated", `capture_conditions.overflow.pages に ${page} が 2 つ以上ある`);
+    return;
+  }
+  seenPages.add(page);
+  if (!declaredPages.includes(page)) {
+    add("overflow-page-unknown", `${at} の頁 ${page} が capture_conditions.pages に無い`);
+  }
+  const ps = overflowPageLimits(add, at, entry);
+  checkOverflowProbe(add, at, entry.probe);
+  if (!isArray(entry.windows) || entry.windows.length === 0) {
+    add("overflow-windows-missing", `${at}.windows が空（測った窓が無い）`);
+    return;
+  }
+  entry.windows.forEach((rawWindow, j) => checkOverflowWindow(ps, rawWindow, j));
+  checkNarrowWindows(ps);
+}
+
+/**
+ * 頁の最小幅（`min_width`）と、狭い窓で読んだ中身の高さ（`content_height`）を検査し、窓ごとの検査の状態を作る。
+ * @param {(code: string, message: string) => void} add
+ * @param {string} at
+ * @param {Record<string, unknown>} entry
+ * @returns {OverflowPageState}
+ */
+function overflowPageLimits(add, at, entry) {
+  const minWidth = entry.min_width;
+  const minWidthOk = minWidth === null || (isInteger(minWidth) && minWidth > 0);
+  if (!minWidthOk) {
+    add(
+      "overflow-min-width-malformed",
+      `${at}.min_width が正の整数でも null でもない（最小幅を持たない頁だけ null と書く）`,
+    );
+  }
+  // 狭い窓で読んだ中身の高さ。最小幅を持つ頁では、これより高い狭い窓（縦のはみ出しが頁の高さの決め方だけで決まる窓）を要求する。
+  // 「縦にはみ出さないこと」は要求しない。body { height: 100% } と既定の margin のように、どの高さでもはみ出す正当な頁があるからである。
+  const contentHeight = entry.content_height;
+  const contentHeightOk = minWidth === null || (isInteger(contentHeight) && contentHeight > 0);
+  if (minWidthOk && !contentHeightOk) {
+    add(
+      "overflow-content-height-malformed",
+      `${at}.content_height が正の整数でない（最小幅より狭い窓で読んだ文書の scrollHeight を書く）`,
+    );
+  }
+  return {
+    add,
+    at,
+    minWidthOk,
+    minWidth: minWidthOk ? minWidth : null,
+    contentHeightOk,
+    contentHeight,
+    seenWindows: new Set(),
+    narrow: 0,
+    fitting: 0,
+  };
+}
+
+/**
+ * 最小幅の探索の範囲（`probe`）を検査する。
+ * @param {(code: string, message: string) => void} add
+ * @param {string} at
+ * @param {unknown} rawProbe
+ */
+function checkOverflowProbe(add, at, rawProbe) {
+  // 最小幅の探索の範囲。刻みだけの探索は狭い帯でだけ有効になる最小幅を見落とすので、メディアクエリの境界も探す。
+  // 読めないスタイルシートの境界は探索できていないので、未検証として gaps.md への参照を要求する
+  /** @type {Record<string, unknown>} */
+  const probe = isObjectLike(rawProbe) ? rawProbe : {};
+  if (
+    !rawProbe ||
+    typeof rawProbe !== "object" ||
+    !isInteger(probe.step) ||
+    probe.step <= 0 ||
+    !isArray(probe.breakpoints) ||
+    !probe.breakpoints.every(positiveNumber) ||
+    !isInteger(probe.unreadable_stylesheets) ||
+    probe.unreadable_stylesheets < 0
+  ) {
+    add(
+      "overflow-probe-malformed",
+      `${at}.probe が無いか型が不正（step: 正の整数、breakpoints: 正の数の配列、unreadable_stylesheets: 0 以上の整数）`,
+    );
+  } else if (probe.unreadable_stylesheets > 0 && !nonEmptyString(probe.gaps_ref)) {
+    add(
+      "overflow-probe-unreadable-unrecorded",
+      `${at} に読めないスタイルシートが ${probe.unreadable_stylesheets} 件あるのに probe.gaps_ref が空（その境界は探索できていない。gaps.md に未検証として残して該当箇所を書く）`,
+    );
+  } else if (probe.unreadable_stylesheets === 0 && probe.gaps_ref !== null) {
+    add(
+      "overflow-probe-gaps-ref-unexpected",
+      `${at} に読めないスタイルシートが無いのに probe.gaps_ref が null でない（古い記録）`,
+    );
+  }
+}
+
+/**
+ * はみ出し量として使える値か（0 以上の整数）。
+ * @param {unknown} v
+ * @returns {v is number & { readonly __extentOk: true }}
+ */
+function extentOk(v) {
+  return isInteger(v) && v >= 0;
+}
+
+/**
+ * `windows` の 1 つの窓を検査し、最小幅より狭い窓を数える。
+ * @param {OverflowPageState} ps
+ * @param {unknown} rawWindow
+ * @param {number} j
+ */
+function checkOverflowWindow(ps, rawWindow, j) {
+  const wat = `${ps.at}.windows[${j}]`;
+  /** @type {Record<string, unknown>} */
+  const record = isObjectLike(rawWindow) ? rawWindow : {};
+  const w = readOverflowWindow(ps, wat, record);
+  if (w === null) return;
+  if (w.horizontal !== w.overflow_x_px > 0 || w.vertical !== w.overflow_y_px > 0) {
+    ps.add(
+      "overflow-extent-inconsistent",
+      `${wat} のはみ出しの真偽値とはみ出し量が矛盾している（horizontal は overflow_x_px > 0、vertical は overflow_y_px > 0 と一致させる）`,
+    );
+  }
+  // 横にはみ出した窓で横スクロールバーが場所を取っていなければ、スクロールバーが隠れたまま測っている（それを検出する）
+  if (w.horizontal && w.horizontal_bar_px === 0) {
+    ps.add(
+      "overflow-bar-takes-no-space",
+      `${wat} は横にはみ出しているのに横スクロールバーの厚みが 0（スクロールバーが隠れたまま測っている。--hide-scrollbars が残っているか、オーバーレイ型のスクロールバー）`,
+    );
+  }
+  countNarrowWindow(ps, wat, w);
+}
+
+/**
+ * 窓 1 つの実測（`windows[]` の 1 要素）。
+ * @typedef {{
+ *   width: number,
+ *   height: number,
+ *   horizontal: boolean,
+ *   vertical: boolean,
+ *   horizontal_bar_px: number,
+ *   overflow_x_px: number,
+ *   overflow_y_px: number,
+ * }} OverflowWindow
+ */
+
+/**
+ * 窓 1 つの寸法・はみ出し・横スクロールバーの厚み・はみ出し量を読む。読めない・重複するなら finding を足して null を返す。
+ * @param {OverflowPageState} ps
+ * @param {string} wat
+ * @param {Record<string, unknown>} w
+ * @returns {OverflowWindow | null}
+ */
+function readOverflowWindow(ps, wat, w) {
+  const { add, at, seenWindows } = ps;
+  const { width, height, horizontal, vertical } = w;
+  if (!isInteger(width) || !isInteger(height) || width <= 0 || height <= 0) {
+    add("overflow-window-malformed", `${wat} の width / height が正の整数でない`);
+    return null;
+  }
+  const key = `${width}x${height}`;
+  if (seenWindows.has(key)) {
+    add("overflow-window-duplicated", `${at}.windows に窓 ${key} が 2 つ以上ある`);
+    return null;
+  }
+  seenWindows.add(key);
+  if (typeof horizontal !== "boolean" || typeof vertical !== "boolean") {
+    add("overflow-window-malformed", `${wat} の horizontal / vertical が真偽値でない`);
+    return null;
+  }
+  const bar = w.horizontal_bar_px;
+  if (typeof bar !== "number" || !Number.isFinite(bar) || bar < 0) {
+    add("overflow-window-malformed", `${wat}.horizontal_bar_px が 0 以上の数でない`);
+    return null;
+  }
+  // はみ出し量。真偽値だけだと、どの高さでも縦にはみ出す頁（body の height: 100% と既定の margin）で
+  // 100% と 100vh が両側とも vertical: true になり見分けられない。スイートは量を比べる
+  const { overflow_x_px: overflowX, overflow_y_px: overflowY } = w;
+  if (!extentOk(overflowX) || !extentOk(overflowY)) {
+    add("overflow-window-malformed", `${wat}.overflow_x_px / overflow_y_px が 0 以上の整数でない`);
+    return null;
+  }
+  return {
+    width,
+    height,
+    horizontal,
+    vertical,
+    horizontal_bar_px: bar,
+    overflow_x_px: overflowX,
+    overflow_y_px: overflowY,
+  };
+}
+
+/**
+ * 最小幅を持つ頁で、最小幅より狭く横にはみ出した窓と、そのうち中身が収まる高さの窓を数える。
+ * @param {OverflowPageState} ps
+ * @param {string} wat
+ * @param {OverflowWindow} w
+ */
+function countNarrowWindow(ps, wat, w) {
+  const { minWidthOk, minWidth, contentHeightOk, contentHeight } = ps;
+  if (!minWidthOk) return;
+  if (minWidth === null) {
+    if (w.horizontal) {
+      ps.add(
+        "overflow-min-width-inconsistent",
+        `${wat} は横にはみ出しているのに ${ps.at}.min_width が null（最小幅を持つ頁として測り直す）`,
+      );
+    }
+    return;
+  }
+  // 最小幅より狭い窓が全て横にはみ出すとは限らない（最小幅が中間のブレークポイントでだけ有効になるレスポンシブな頁は、
+  // モバイル幅ではみ出さない）。数えるのは「最小幅より狭く、横にはみ出した窓」
+  if (w.width < minWidth && w.horizontal) {
+    ps.narrow += 1;
+    // contentHeightOk かつ minWidth が null でないので contentHeight は数（typeof は型を絞るための再確認）
+    if (contentHeightOk && typeof contentHeight === "number" && w.height > contentHeight) {
+      ps.fitting += 1;
+    }
+  }
+}
+
+/**
+ * 最小幅を持つ頁に、最小幅より狭く横にはみ出した窓と、中身が収まる高さの窓があるか。
+ * @param {OverflowPageState} ps
+ */
+function checkNarrowWindows(ps) {
+  const { add, at, minWidthOk, minWidth, contentHeightOk, contentHeight, narrow, fitting } = ps;
+  if (minWidthOk && minWidth !== null && narrow === 0) {
+    add(
+      "overflow-narrow-window-missing",
+      `${at} に min_width（${minWidth}）より狭く横にはみ出した窓が無い（横スクロールバーが出る窓で測らないと 100vh と 100% の差は出ない）`,
+    );
+  } else if (minWidthOk && minWidth !== null && contentHeightOk && fitting === 0) {
+    add(
+      "overflow-fit-window-missing",
+      `${at} に min_width（${minWidth}）より狭く横にはみ出し、content_height（${contentHeight}）より高い窓が無い（中身が収まる高さの窓でないと、縦のはみ出しが頁の高さの決め方だけで決まらず 100vh と 100% を見分けられない）`,
+    );
+  }
+}
+
+/**
+ * `checkCaptureScope` の戻り値。
+ * @typedef {{ findings: {code:string, message:string}[], holes: {id:string, kind:string, detail:string}[], counts: Record<string, number>, structural: boolean, judged: boolean }} CaptureScopeResult
+ */
+
+/**
+ * 撮影条件を読む前に、型崩れとして判定を終える結果。
+ * @param {{code:string, message:string}} finding
+ * @returns {{ done: CaptureScopeResult }}
+ */
+function structuralScopeResult(finding) {
+  return {
+    done: {
+      findings: [finding],
+      holes: [],
+      counts: { combinations: 0, holes: 0 },
+      structural: true,
+      judged: true,
+    },
+  };
+}
+
+/**
+ * 撮影条件を読む前に判定を終える入力（metadata が読めない・mode が語彙外・判定に入れないモード・撮影条件が無い）の結果。
+ * 判定に進める入力なら、metadata と撮影条件を返す。
+ * @param {unknown} metadata
+ * @returns {{ done: CaptureScopeResult } | { meta: Record<string, unknown>, conditions: Record<string, unknown> }}
+ */
+function capturePrecheck(metadata) {
+  if (!isObjectLike(metadata)) {
+    return structuralScopeResult({
+      code: "metadata-unreadable",
+      message: "metadata.json が JSON オブジェクトではない",
+    });
+  }
+  // 視覚採取物を持たないモード（api-resource / batch）は撮影条件そのものを持たないので判定に入れない。
+  // **通すのはこの閉じた集合だけ**で、mode が読めない・知らない値のときは判定を飛ばさず落とす
+  // （緩和を「不正な入力」全部に広げない）。
+  // **欠落・非文字列も同じ**。分岐の外へ落として feature として扱うと、不正な metadata が
+  // 「撮影条件が読めた feature」として判定を通りうる。mode は語彙の中の文字列であることを先に確かめる。
+  if (typeof metadata.mode !== "string" || !MODES.includes(metadata.mode)) {
+    return structuralScopeResult({
+      code: "mode-unknown",
+      message: `mode「${metadata.mode === undefined ? "（欠落）" : String(metadata.mode)}」が語彙外（${MODES.join(" / ")}）。判定を飛ばさない`,
+    });
+  }
+  if (metadata.mode !== "feature") {
+    return {
+      done: {
+        findings: [],
+        holes: [],
+        counts: { combinations: 0, holes: 0 },
+        structural: false,
+        judged: false,
+      },
+    };
+  }
+  const conditions = metadata.capture_conditions;
+  if (!isObjectLike(conditions)) {
+    return structuralScopeResult({
+      code: "capture-conditions-missing",
+      message: "capture_conditions が無い（撮影条件を持たない成果物は範囲の判定に入れない）",
+    });
+  }
+  return { meta: metadata, conditions };
+}
+
+/**
+ * 判定に入れた（型崩れでない）結果。
+ * @param {{code:string, message:string}[]} findings
+ * @param {{id:string, kind:string, detail:string}[]} holes
+ * @param {Record<string, number>} counts
+ * @returns {CaptureScopeResult}
+ */
+function judgedScopeResult(findings, holes, counts) {
+  return { findings, holes, counts, structural: false, judged: true };
+}
+
+/**
+ * 撮影条件のうち、範囲の実測より前に読む宣言（撮るはずの組・表示の軸・利用者環境・ブラウザ・はみ出し）を検査する。
+ * @param {Record<string, unknown>} conditions
+ * @returns {{ declaredKeys: string[], findings: {code:string, message:string}[] }}
+ */
+function checkConditions(conditions) {
+  const displayAxes = checkDisplayAxes(conditions);
+  const declared = declaredCombinations(conditions, displayAxes);
+  /** @type {{code:string, message:string}[]} */
+  const findings = [];
+  findings.push(...declared.findings);
+  findings.push(...displayAxes.findings);
+  findings.push(...checkViewerEnvironment(conditions));
+  findings.push(...checkBrowser(conditions));
+  findings.push(...checkOverflow(conditions));
+  return { declaredKeys: declared.keys, findings };
 }
 
 /**
@@ -1370,82 +1959,15 @@ export function checkOverflow(conditions) {
  * `judged: false` は「視覚採取物を持たないモードなので判定に入れない」の意味で、合格とは別物
  * （呼び出し側は判定しなかった事実を記録に残す）。
  * @param {unknown} metadata
- * @returns {{ findings: {code:string, message:string}[], holes: {id:string, kind:string, detail:string}[], counts: Record<string, number>, structural: boolean, judged: boolean }}
+ * @returns {CaptureScopeResult}
  */
 export function checkCaptureScope(metadata) {
-  /** @type {{code:string, message:string}[]} */
-  const findings = [];
+  const pre = capturePrecheck(metadata);
+  if ("done" in pre) return pre.done;
+  const { meta, conditions } = pre;
+  const { declaredKeys, findings } = checkConditions(conditions);
   /** @type {{id:string, kind:string, detail:string}[]} */
   const holes = [];
-  if (!isObjectLike(metadata)) {
-    return {
-      findings: [
-        { code: "metadata-unreadable", message: "metadata.json が JSON オブジェクトではない" },
-      ],
-      holes,
-      counts: { combinations: 0, holes: 0 },
-      structural: true,
-      judged: true,
-    };
-  }
-  const meta = metadata;
-  // 視覚採取物を持たないモード（api-resource / batch）は撮影条件そのものを持たないので判定に入れない。
-  // **通すのはこの閉じた集合だけ**で、mode が読めない・知らない値のときは判定を飛ばさず落とす
-  // （緩和を「不正な入力」全部に広げない）。
-  // **欠落・非文字列も同じ**。分岐の外へ落として feature として扱うと、不正な metadata が
-  // 「撮影条件が読めた feature」として判定を通りうる。mode は語彙の中の文字列であることを先に確かめる。
-  if (typeof meta.mode !== "string" || !MODES.includes(meta.mode)) {
-    return {
-      findings: [
-        {
-          code: "mode-unknown",
-          message: `mode「${meta.mode === undefined ? "（欠落）" : String(meta.mode)}」が語彙外（${MODES.join(" / ")}）。判定を飛ばさない`,
-        },
-      ],
-      holes,
-      counts: { combinations: 0, holes: 0 },
-      structural: true,
-      judged: true,
-    };
-  }
-  if (meta.mode !== "feature") {
-    return {
-      findings,
-      holes,
-      counts: { combinations: 0, holes: 0 },
-      structural: false,
-      judged: false,
-    };
-  }
-  const conditions = meta.capture_conditions;
-  if (!isObjectLike(conditions)) {
-    return {
-      findings: [
-        {
-          code: "capture-conditions-missing",
-          message: "capture_conditions が無い（撮影条件を持たない成果物は範囲の判定に入れない）",
-        },
-      ],
-      holes,
-      counts: { combinations: 0, holes: 0 },
-      structural: true,
-      judged: true,
-    };
-  }
-  const conditionsRecord = conditions;
-  // 特性照合する論理名（スクロール領域ごとの untraced の判定に使う）。読めなければ判定を飛ばさず、スクロール領域があるときに落とす
-  const traitElements = isObjectLike(meta.traits) ? meta.traits.elements : undefined;
-  const elements =
-    isArray(traitElements) && traitElements.every((name) => nonEmptyString(name))
-      ? new Set(traitElements)
-      : null;
-  const displayAxes = checkDisplayAxes(conditionsRecord);
-  const declared = declaredCombinations(conditionsRecord, displayAxes);
-  findings.push(...declared.findings);
-  findings.push(...displayAxes.findings);
-  findings.push(...checkViewerEnvironment(conditionsRecord));
-  findings.push(...checkBrowser(conditionsRecord));
-  findings.push(...checkOverflow(conditionsRecord));
   const noiseBaseline = meta.noise_baseline;
   if (!isArray(noiseBaseline) || noiseBaseline.length === 0) {
     findings.push({
@@ -1461,18 +1983,50 @@ export function checkCaptureScope(metadata) {
       message:
         "capture_conditions.capture_scope が無い（範囲を測っていない。撮った組ごとに文書・撮影領域・内部のスクロールコンテナ・領域外の論理名を実測して書く）",
     });
-    return {
-      findings,
-      holes,
-      counts: {
-        declared: declared.keys.length,
-        combinations: isArray(noiseBaseline) ? noiseBaseline.length : 0,
-        holes: 0,
-      },
-      structural: false,
-      judged: true,
-    };
+    return judgedScopeResult(findings, holes, {
+      declared: declaredKeys.length,
+      combinations: isArray(noiseBaseline) ? noiseBaseline.length : 0,
+      holes: 0,
+    });
   }
+  const out = { findings, holes };
+  const scopeByKey = indexCaptureScope(scope, findings);
+  /** @type {Set<string>} */
+  const shot = isArray(noiseBaseline) ? indexNoiseBaseline(noiseBaseline, findings) : new Set();
+  crossCheckCombinations({ declaredKeys, shot, scopeByKey }, out);
+  deriveScopeHoles(
+    scopeByKey,
+    { elements: traitElementsOf(meta), scrollbars: conditions.scrollbars },
+    out,
+  );
+  checkExemptions(conditions.capture_scope_exemptions ?? [], out);
+  return judgedScopeResult(findings, holes, {
+    declared: declaredKeys.length,
+    combinations: shot.size,
+    holes: holes.length,
+  });
+}
+
+/**
+ * 特性照合する論理名（スクロール領域ごとの untraced の判定に使う）。
+ * 空でない文字列の配列でなければ null を返す（判定を飛ばさず、スクロール領域があるときに呼び出し側が落とす）。
+ * @param {Record<string, unknown>} meta
+ * @returns {Set<string> | null}
+ */
+function traitElementsOf(meta) {
+  const traitElements = isObjectLike(meta.traits) ? meta.traits.elements : undefined;
+  return isArray(traitElements) && traitElements.every((name) => nonEmptyString(name))
+    ? new Set(traitElements)
+    : null;
+}
+
+/**
+ * `capture_scope` を撮影組の鍵で引けるようにする。鍵の揃わない・危ない・重複する要素は finding にして入れない。
+ * @param {unknown[]} scope
+ * @param {{code:string, message:string}[]} findings
+ * @returns {Map<string, Record<string, unknown>>}
+ */
+function indexCaptureScope(scope, findings) {
   /** @type {Map<string, Record<string, unknown>>} */
   const scopeByKey = new Map();
   for (const raw of scope) {
@@ -1513,43 +2067,67 @@ export function checkCaptureScope(metadata) {
     }
     scopeByKey.set(key, entry);
   }
+  return scopeByKey;
+}
+
+/**
+ * `noise_baseline` から撮った組の鍵の集合を作る。鍵の揃わない・危ない・重複する行は finding にして入れない。
+ * @param {unknown[]} noiseBaseline
+ * @param {{code:string, message:string}[]} findings
+ * @returns {Set<string>}
+ */
+function indexNoiseBaseline(noiseBaseline, findings) {
   /** @type {Set<string>} */
   const shot = new Set();
-  if (isArray(noiseBaseline)) {
-    for (const raw of noiseBaseline) {
-      /** @type {Record<string, unknown>} */
-      const entry = isObjectLike(raw) ? raw : {};
-      if (
-        !nonEmptyString(entry.page) ||
-        !nonEmptyString(entry.state) ||
-        !nonEmptyString(entry.viewport)
-      ) {
-        findings.push({
-          code: "noise-entry-unkeyed",
-          message: "noise_baseline に page / state / viewport の揃っていない要素がある",
-        });
-        continue;
-      }
-      if (!keyPartsAreSafe(entry)) {
-        findings.push({
-          code: "noise-entry-key-unsafe",
-          message: `noise_baseline の要素に区切り文字「${KEY_SEPARATOR}」を含む名前がある（別々の組が同じ鍵に潰れる）`,
-        });
-        continue;
-      }
-      const noiseKey = combinationKey(entry);
-      // **同じ組が 2 行あると Set が警告なしに畳む**。parity-diff の突き合わせは先に当たった行を使うので、
-      // しきい値の大きい行が選ばれると実差がノイズとして分類されうる。畳む前に落とす。
-      if (shot.has(noiseKey)) {
-        findings.push({
-          code: "noise-entry-duplicated",
-          message: `noise_baseline に ${noiseKey} の行が 2 つ以上ある（どの基準値が有効か決まらない）`,
-        });
-        continue;
-      }
-      shot.add(noiseKey);
+  for (const raw of noiseBaseline) {
+    /** @type {Record<string, unknown>} */
+    const entry = isObjectLike(raw) ? raw : {};
+    if (
+      !nonEmptyString(entry.page) ||
+      !nonEmptyString(entry.state) ||
+      !nonEmptyString(entry.viewport)
+    ) {
+      findings.push({
+        code: "noise-entry-unkeyed",
+        message: "noise_baseline に page / state / viewport の揃っていない要素がある",
+      });
+      continue;
     }
+    if (!keyPartsAreSafe(entry)) {
+      findings.push({
+        code: "noise-entry-key-unsafe",
+        message: `noise_baseline の要素に区切り文字「${KEY_SEPARATOR}」を含む名前がある（別々の組が同じ鍵に潰れる）`,
+      });
+      continue;
+    }
+    const noiseKey = combinationKey(entry);
+    // **同じ組が 2 行あると Set が警告なしに畳む**。parity-diff の突き合わせは先に当たった行を使うので、
+    // しきい値の大きい行が選ばれると実差がノイズとして分類されうる。畳む前に落とす。
+    if (shot.has(noiseKey)) {
+      findings.push({
+        code: "noise-entry-duplicated",
+        message: `noise_baseline に ${noiseKey} の行が 2 つ以上ある（どの基準値が有効か決まらない）`,
+      });
+      continue;
+    }
+    shot.add(noiseKey);
   }
+  return shot;
+}
+
+/**
+ * 突き合わせる 3 つの組の集合（宣言した組・撮った組・範囲を測った組）。
+ * @typedef {{ declaredKeys: string[], shot: Set<string>, scopeByKey: Map<string, Record<string, unknown>> }} Combinations
+ */
+
+/**
+ * 宣言した組・撮った組・範囲を測った組を突き合わせる。
+ * @param {Combinations} combos
+ * @param {{ findings: {code:string, message:string}[], holes: {id:string, kind:string, detail:string}[] }} out
+ */
+function crossCheckCombinations(combos, out) {
+  const { declaredKeys, shot, scopeByKey } = combos;
+  const { findings, holes } = out;
   for (const key of shot) {
     if (!scopeByKey.has(key)) {
       findings.push({
@@ -1561,7 +2139,7 @@ export function checkCaptureScope(metadata) {
   // **宣言した組を採らなかった場合は抜けとして数える。**
   // 採った組の一覧（`noise_baseline`）だけを突き合わせ相手にすると、組ごと落とした範囲が
   // 期待値からも消えて抜けが 0 件になる。対象外にするなら他の抜けと同じく理由付きで宣言させる。
-  for (const key of declared.keys) {
+  for (const key of declaredKeys) {
     if (!shot.has(key) && !scopeByKey.has(key)) {
       holes.push({
         id: `${key}#not-captured`,
@@ -1570,19 +2148,7 @@ export function checkCaptureScope(metadata) {
       });
     }
   }
-  // **記録した組が宣言にあることも確かめる。** 変種を消した・改名した後に古い行が noise_baseline と capture_scope の
-  // 両方に残ると、2 つの記録は互いに突き合って通り、宣言に無い組の基準値が比較や新側の測り直しに使われる
-  if (declared.keys.length > 0) {
-    const declaredSet = new Set(declared.keys);
-    for (const key of new Set([...shot, ...scopeByKey.keys()])) {
-      if (!declaredSet.has(key)) {
-        findings.push({
-          code: "recorded-combination-undeclared",
-          message: `${key} は noise_baseline / capture_scope に記録があるが、撮影条件（pages × states × viewports と display_axes.variants）が宣言した組に無い（消した・改名した変種や窓の古い記録を消す）`,
-        });
-      }
-    }
-  }
+  checkRecordedDeclared(combos, findings);
   for (const key of scopeByKey.keys()) {
     if (shot.size > 0 && !shot.has(key)) {
       findings.push({
@@ -1591,36 +2157,88 @@ export function checkCaptureScope(metadata) {
       });
     }
   }
+}
+
+/**
+ * **記録した組が宣言にあることも確かめる。** 変種を消した・改名した後に古い行が noise_baseline と capture_scope の
+ * 両方に残ると、2 つの記録は互いに突き合って通り、宣言に無い組の基準値が比較や新側の測り直しに使われる
+ * @param {Combinations} combos
+ * @param {{code:string, message:string}[]} findings
+ */
+function checkRecordedDeclared(combos, findings) {
+  const { declaredKeys, shot, scopeByKey } = combos;
+  if (declaredKeys.length === 0) return;
+  const declaredSet = new Set(declaredKeys);
+  for (const key of new Set([...shot, ...scopeByKey.keys()])) {
+    if (!declaredSet.has(key)) {
+      findings.push({
+        code: "recorded-combination-undeclared",
+        message: `${key} は noise_baseline / capture_scope に記録があるが、撮影条件（pages × states × viewports と display_axes.variants）が宣言した組に無い（消した・改名した変種や窓の古い記録を消す）`,
+      });
+    }
+  }
+}
+
+/**
+ * 範囲を測った組ごとに抜けを導き、スクロール領域があるのに traits.elements が読めなければ落とす。
+ * @param {Map<string, Record<string, unknown>>} scopeByKey
+ * @param {{ elements: Set<string> | null, scrollbars: unknown }} context
+ * @param {{ findings: {code:string, message:string}[], holes: {id:string, kind:string, detail:string}[] }} out
+ */
+function deriveScopeHoles(scopeByKey, context, out) {
   for (const entry of scopeByKey.values()) {
-    const derived = deriveHoles(entry, { elements, scrollbars: conditions.scrollbars });
-    holes.push(...derived.holes);
-    findings.push(...derived.findings);
+    const derived = deriveHoles(entry, context);
+    out.holes.push(...derived.holes);
+    out.findings.push(...derived.findings);
   }
   const hasContainer = [...scopeByKey.values()].some(
     (entry) => isArray(entry.scroll_containers) && entry.scroll_containers.length > 0,
   );
-  if (hasContainer && !elements) {
-    findings.push({
+  if (hasContainer && !context.elements) {
+    out.findings.push({
       code: "traits-elements-unreadable",
       message:
         "traits.elements が空でない文字列の配列ではない（内部のスクロール領域が特性照合の対象かを判定できない）",
     });
   }
+}
 
-  const exemptions = conditions.capture_scope_exemptions ?? [];
+/**
+ * 対象外の宣言（`capture_scope_exemptions`）を抜けと突き合わせる。
+ * @param {unknown} exemptions
+ * @param {{ findings: {code:string, message:string}[], holes: {id:string, kind:string, detail:string}[] }} out
+ */
+function checkExemptions(exemptions, out) {
+  const { findings, holes } = out;
   if (!isArray(exemptions)) {
     findings.push({
       code: "exemptions-malformed",
       message: "capture_conditions.capture_scope_exemptions が配列ではない",
     });
-    return {
-      findings,
-      holes,
-      counts: { declared: declared.keys.length, combinations: shot.size, holes: holes.length },
-      structural: false,
-      judged: true,
-    };
+    return;
   }
+  const exemptionById = indexExemptions(exemptions, findings);
+  const holeIds = new Set(holes.map((hole) => hole.id));
+  for (const hole of holes) {
+    checkHoleExemption(hole, exemptionById.get(hole.id), findings);
+  }
+  for (const id of exemptionById.keys()) {
+    if (!holeIds.has(id)) {
+      findings.push({
+        code: "exemption-ineffective",
+        message: `${id} の宣言に対応する抜けが無い（機能しない宣言。残すと範囲を狭めてもエラーにならないので消す）`,
+      });
+    }
+  }
+}
+
+/**
+ * 対象外の宣言を id で引けるようにする（重複は finding にして後の宣言で上書きする）。
+ * @param {unknown[]} exemptions
+ * @param {{code:string, message:string}[]} findings
+ * @returns {Map<string, Record<string, unknown>>}
+ */
+function indexExemptions(exemptions, findings) {
   /** @type {Map<string, Record<string, unknown>>} */
   const exemptionById = new Map();
   for (const raw of exemptions) {
@@ -1643,45 +2261,65 @@ export function checkCaptureScope(metadata) {
     }
     exemptionById.set(id, exemption);
   }
-  const holeIds = new Set(holes.map((hole) => hole.id));
-  for (const hole of holes) {
-    const exemption = exemptionById.get(hole.id);
-    if (!exemption) {
-      findings.push({
-        code: "hole-unexempted",
-        message: `撮る範囲に抜けがある: ${hole.detail}（id: ${hole.id}）。範囲を広げて撮り直すか、対象外として理由付きで宣言する`,
-      });
-      continue;
-    }
-    if (!nonEmptyString(exemption.reason)) {
-      findings.push({
-        code: "exemption-reason-missing",
-        message: `${hole.id} の宣言に reason が無い（なぜ撮らないかが残らない）`,
-      });
-    }
-    if (!nonEmptyString(exemption.gaps_ref)) {
-      findings.push({
-        code: "exemption-gaps-ref-missing",
-        message: `${hole.id} の宣言に gaps_ref が無い（gaps.md の未検証領域へ回らないと、対象外が誰にも見えない）`,
-      });
-    }
-  }
-  for (const id of exemptionById.keys()) {
-    if (!holeIds.has(id)) {
-      findings.push({
-        code: "exemption-ineffective",
-        message: `${id} の宣言に対応する抜けが無い（機能しない宣言。残すと範囲を狭めてもエラーにならないので消す）`,
-      });
-    }
-  }
+  return exemptionById;
+}
 
-  return {
-    findings,
-    holes,
-    counts: { declared: declared.keys.length, combinations: shot.size, holes: holes.length },
-    structural: false,
-    judged: true,
-  };
+/**
+ * 抜け 1 つに、理由と gaps.md の該当箇所を持つ対象外の宣言があるか。
+ * @param {{id:string, kind:string, detail:string}} hole
+ * @param {Record<string, unknown> | undefined} exemption
+ * @param {{code:string, message:string}[]} findings
+ */
+function checkHoleExemption(hole, exemption, findings) {
+  if (!exemption) {
+    findings.push({
+      code: "hole-unexempted",
+      message: `撮る範囲に抜けがある: ${hole.detail}（id: ${hole.id}）。範囲を広げて撮り直すか、対象外として理由付きで宣言する`,
+    });
+    return;
+  }
+  if (!nonEmptyString(exemption.reason)) {
+    findings.push({
+      code: "exemption-reason-missing",
+      message: `${hole.id} の宣言に reason が無い（なぜ撮らないかが残らない）`,
+    });
+  }
+  if (!nonEmptyString(exemption.gaps_ref)) {
+    findings.push({
+      code: "exemption-gaps-ref-missing",
+      message: `${hole.id} の宣言に gaps_ref が無い（gaps.md の未検証領域へ回らないと、対象外が誰にも見えない）`,
+    });
+  }
+}
+
+/**
+ * CLI の引数を読む。誤りがあれば、その説明を `error` に入れて返す。
+ * @param {string[]} argv
+ * @returns {{ args: Record<string, string>, error: null } | { args: null, error: string }}
+ */
+function parseArgs(argv) {
+  /** @type {Record<string, string>} */
+  const args = {};
+  for (let i = 0; i < argv.length; i += 1) {
+    const key = argv[i];
+    if (!key.startsWith("--")) {
+      return { args: null, error: `不明な引数: ${key}` };
+    }
+    const value = argv[i + 1];
+    if (typeof value !== "string" || value.startsWith("--")) {
+      return { args: null, error: `${key} に値がない` };
+    }
+    if (args[key] !== undefined) {
+      return { args: null, error: `${key} が複数ある` };
+    }
+    args[key] = value;
+    i += 1;
+  }
+  const unknown = Object.keys(args).filter((k) => k !== "--metadata");
+  if (unknown.length > 0) {
+    return { args: null, error: `不明な引数: ${unknown.join(", ")}` };
+  }
+  return { args, error: null };
 }
 
 /**
@@ -1710,28 +2348,11 @@ export function main(argv, deps = {}) {
     write(
       `${JSON.stringify({ tool: "capture-scope-check", version: VERSION, ...obj }, null, 2)}\n`,
     );
-  /** @type {Record<string, string>} */
-  const args = {};
-  for (let i = 0; i < argv.length; i += 1) {
-    const key = argv[i];
-    if (!key.startsWith("--")) {
-      return fail(`不明な引数: ${key}`);
-    }
-    const value = argv[i + 1];
-    if (typeof value !== "string" || value.startsWith("--")) {
-      return fail(`${key} に値がない`);
-    }
-    if (args[key] !== undefined) {
-      return fail(`${key} が複数ある`);
-    }
-    args[key] = value;
-    i += 1;
+  const parsed = parseArgs(argv);
+  if (parsed.args === null) {
+    return fail(parsed.error);
   }
-  const unknown = Object.keys(args).filter((k) => k !== "--metadata");
-  if (unknown.length > 0) {
-    return fail(`不明な引数: ${unknown.join(", ")}`);
-  }
-  const metadataPath = args["--metadata"];
+  const metadataPath = parsed.args["--metadata"];
   if (!metadataPath) {
     return fail("--metadata は必須");
   }
