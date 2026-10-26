@@ -80,19 +80,37 @@ fi
 #   pkill より前の代入（`x=[a] pkill -f node`）、英字の添字（`${pats[i]}`）でも通す
 # - 行継続（\ と改行）の後に書いた `-f` は、改行を区切りとして読むので見逃す
 pkill_re='(^|[^[:alnum:]_.-])(pkill|killall)[[:blank:]](.*[[:blank:]])?(-[[:alnum:]]*f[[:alnum:]]*|--full)([^[:alnum:]_-]|$)'
-# 2 つ目の grep は最初の 1 行で止まるので、前段は SIGPIPE で終わることがある。一致した行があれば終了コードを見ずに止める。
-# 一致が無いときは、grep の exit 1（止める区間が無い）だけを通常の結果として扱い、それ以外は検査していないと stderr に残して通す。
+# grep は段ごとに終了コードを確かめる。exit 1（一致なし）は通常の結果で、それ以外は検査していないと stderr に残して通す。
+# `-f/` や `-f.` を含む文章（「-f/--full を付けない」など）も止める。引用の中の文章と同じく、この誤検知は受け入れる。
+# 区切りは tr で改行にする（bash の ${var//…/…} は入力の形によって 2 乗の時間になる）。
+segments="$(printf '%s\n' "${command_text}" | tr ';&|' '\n')"
 set +e
-offending="$(printf '%s\n' "${command_text}" | tr ';&|' '\n' | grep -aE -- "${pkill_re}" | grep -avE -m 1 -- '\[[[:alpha:]]\]')"
+matched="$(grep -aE -- "${pkill_re}" <<<"${segments}")"
 rc=$?
 set -e
-
-if [ -n "${offending}" ]; then
-	echo "bash-command-guard: 実行前に止めた。pkill/killall -f の照合対象は full command line で、この呼び出し自身にも一致する（シェルごと終了する）。PID 指定（kill \"\$PID\"）にするか、パターンを [d]ump-dom の形にする: ${offending:0:200}" >&2
-	exit 2
-fi
 case "${rc}" in
-0 | 1) ;;
-*) echo "bash-command-guard: 照合に失敗したため検査していない（終了コード ${rc}）" >&2 ;;
+0) ;;
+1) exit 0 ;;
+*)
+	echo "bash-command-guard: 照合に失敗したため検査していない（grep の終了コード ${rc}）" >&2
+	exit 0
+	;;
 esac
-exit 0
+set +e
+offending="$(grep -avE -m 1 -- '\[[[:alpha:]]\]' <<<"${matched}")"
+rc=$?
+set -e
+case "${rc}" in
+0) ;;
+1) exit 0 ;;
+*)
+	echo "bash-command-guard: 照合に失敗したため検査していない（grep の終了コード ${rc}）" >&2
+	exit 0
+	;;
+esac
+
+# 表示は pkill / killall から 200 文字までにする（前に長い文字列があっても、止めた箇所が読めるように）。
+shown="${offending}"
+if [[ ${offending} =~ (pkill|killall).* ]]; then shown="${BASH_REMATCH[0]}"; fi
+echo "bash-command-guard: 実行前に止めた。pkill/killall -f の照合対象は full command line で、この呼び出し自身にも一致する（シェルごと終了する）。PID 指定（kill \"\$PID\"）にするか、パターンを [d]ump-dom の形にする: ${shown:0:200}" >&2
+exit 2

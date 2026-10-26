@@ -95,6 +95,7 @@ test.each([
   ["シェルに委譲した引数", 'bash -c "pkill -f foo"'],
   // 引用の中の文章でも止める（正規表現 1 本で判定すると決めたので、この誤検知は受け入れる）。
   ["commit message の中の文章", 'git commit -m "stop pkill -f node"'],
+  ["-f/ を含む文章", 'git commit -m "pkill に -f/--full を付けない"'],
 ])("止める: %s", (_name, command) => {
   const r = guard(command);
   expect(r.status).toBe(2);
@@ -146,10 +147,30 @@ test.each([
   expect(r.stderr).toMatch(/full command line/);
 });
 
-test("止めたときのメッセージは、長い 1 行でも 200 文字までにする", () => {
-  const r = guard(`${"x".repeat(1000)} pkill -f node`);
-  expect(r.status).toBe(2);
-  expect(r.stderr.length).toBeLessThan(600);
+test("止めたときのメッセージは、pkill から 200 文字までを出す", () => {
+  const before = guard(`${"x".repeat(1000)} pkill -f node`);
+  expect(before.status).toBe(2);
+  expect(before.stderr).toMatch(/: pkill -f node\n$/);
+  const after = guard(`pkill -f node ${"y".repeat(1000)}`);
+  expect(after.status).toBe(2);
+  const shown = after.stderr.replace(/^.*?: (pkill.*)\n$/s, "$1");
+  expect(shown).toHaveLength(200);
+  expect(shown.startsWith("pkill -f node")).toBe(true);
+});
+
+test("grep が照合に失敗したら、検査していないと stderr に残して通す", () => {
+  const bin = makeSharedTempDir("bash-command-guard-broken-grep-");
+  writeFileSync(join(bin, "grep"), "#!/bin/sh\nexit 2\n");
+  chmodSync(join(bin, "grep"), 0o755);
+  const r = spawnSync("bash", [script], {
+    timeout: CHILD_TIMEOUT_MS,
+    input: hook("pkill -f node"),
+    encoding: "utf8",
+    cwd: repoRoot,
+    env: { ...process.env, PATH: [bin, process.env.PATH ?? ""].join(delimiter) },
+  });
+  expect(r.status).toBe(0);
+  expect(r.stderr).toMatch(/照合に失敗したため検査していない（grep の終了コード 2）/);
 });
 
 test("行継続を多く含む大きな入力も、すぐ通す", () => {
