@@ -1,7 +1,7 @@
 // 文書の階層（Tier）の設定（scripts/gates/docs/doc-tiers.json）を読み、ファイルの階層を決める。
 // 文書のチェックの走査対象（doc-scan-files.ts）が、Tier 4 と階層の外を読まないために使う。
 //
-// 読むのは各項目の glob と、項目が属する tier だけである。label・note・contents は人が読む説明の欄で、値は読まない。
+// 読むのは各項目の glob と、項目が属する tier だけである。項目の label・note と Tier の contents は人が読む説明の欄で、値は読まない。
 // 設定の形の誤り（Tier が 1〜4 の順でない・docs が空か配列でない・項目が object でない・項目に知らないキーがある・
 // glob も label も無い・glob が空か文字列でない・glob の重複・outside に glob が無い）は例外にする。
 // 知らないキーを例外にするのは、glob の書き間違い（"gob" など）を説明だけの項目として読み飛ばさないためである。

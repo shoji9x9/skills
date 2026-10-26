@@ -12,7 +12,7 @@ import { TIERS_PATH, type DocTiers, loadDocTiers, tierOf } from "./doc-tiers.ts"
 import { write } from "../../lib/testing/repo-file.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
-/** doc-tiers.json に書く形。label・note・contents は値を読まれない説明の欄だが、実物と同じ形にするため置く。 */
+/** doc-tiers.json に書く形。項目の label・note と Tier の contents は値を読まれない説明の欄だが、実物と同じ形にするため置く。 */
 const RAW = {
   tiers: [
     { tier: 1, contents: "原則", docs: [{ glob: "AGENTS.md" }] },
@@ -95,6 +95,11 @@ test.each([
     "glob の書き間違い",
     withTiers((t) => [{ ...t[0], docs: [{ gob: "AGENTS.md" }] }, ...t.slice(1)]),
     /知らないキー（gob）/,
+  ],
+  [
+    "項目に Tier の側のキー（contents）がある",
+    withTiers((t) => [{ ...t[0], docs: [{ glob: "AGENTS.md", contents: "x" }] }, ...t.slice(1)]),
+    /知らないキー（contents）/,
   ],
   [
     "label と並んだ glob の書き間違い",
