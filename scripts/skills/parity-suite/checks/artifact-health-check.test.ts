@@ -907,9 +907,17 @@ test("suite.tools がファイルを指すと、ディレクトリで書くよ�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("スペック単位の記録でも、suite.tools がファイルを指すと exit 1", () => {
+test("スペック単位の記録でも、suite.tools がファイルを指すと、指紋が記録と同じでも exit 1", () => {
   const { root, metadataPath } = perSpecProject();
-  writeVendorTools(root);
+  // ディレクトリに 1 ファイルだけ置くと、ディレクトリで書いてもファイルで書いても列挙するファイルは同じになる。
+  // そのため、ファイルの宣言を失敗にする判定が無ければ、記録と指紋が一致して exit 0 になる。
+  mkdirSync(join(root, "vendor"), { recursive: true });
+  writeFileSync(join(root, "vendor/trait-capture.mjs"), "export const collect = () => 1;\n");
+  editMetadata(metadataPath, (m) => {
+    Object.assign(m.suite, { tools: "vendor" });
+  });
+  recordRuns(metadataPath, [LOCALE, ORDERS], { day: "2026-09-20" });
+  expect(run(metadataPath).status).toBe(0);
   editMetadata(metadataPath, (m) => {
     Object.assign(m.suite, { tools: "vendor/trait-capture.mjs" });
   });

@@ -1245,7 +1245,7 @@ function checkRepeatRunPerSpec(suiteObj, record, root) {
  * @returns {string}
  */
 function fingerprintUnavailable(missing) {
-  return `現在のスイートの指紋を計算できない（判定不能を合格として扱わない）: ${missing.length > 0 ? `指紋に使えないパス ${missing.join(" / ")}` : "suite.specs / locator_map / interactions がどれも宣言されていない"}`;
+  return `現在のスイートの指紋を計算できない（判定不能を合格として扱わない）: ${missing.length > 0 ? `指紋に使えないパス ${missing.join(" / ")}` : "suite.specs / locator_map / expectations / interactions / tools がどれも宣言されていない"}`;
 }
 
 /**
@@ -2291,7 +2291,7 @@ export function fingerprintReport(metadata, root) {
   const missing = [...new Set([...whole.missing, ...perSpec.missing])];
   if (whole.fingerprint === null || perSpec.shared === null) {
     throw new UsageError(
-      `スイートの指紋を計算できない: ${missing.length > 0 ? missing.join(" / ") : "suite.specs / locator_map / interactions がどれも宣言されていない"}`,
+      `スイートの指紋を計算できない: ${missing.length > 0 ? missing.join(" / ") : "suite.specs / locator_map / expectations / interactions / tools がどれも宣言されていない"}`,
     );
   }
   return {
