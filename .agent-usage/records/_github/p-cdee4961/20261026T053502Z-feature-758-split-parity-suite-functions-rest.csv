@@ -6,3 +6,4 @@ ci:40091213429:1,ci,2026-10-26T05:35:02.712Z,p-cdee4961,github-actions,,,,2026-1
 ci:40089444569:1,ci,2026-10-26T05:35:02.712Z,p-cdee4961,github-actions,,,,2026-10-24T11:19:33.000Z,2026-10-24T11:19:34.000Z,Asia/Tokyo,feature/747-narrow-mutation-targets,747,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:40089444596:1,ci,2026-10-26T05:35:02.712Z,p-cdee4961,github-actions,,,,2026-10-24T11:19:33.000Z,2026-10-24T11:25:42.000Z,Asia/Tokyo,feature/747-narrow-mutation-targets,747,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-23T11:18:24.803Z:2026-10-26T05:35:02.712Z,coverage,2026-10-26T05:35:02.712Z,p-cdee4961,,,,,2026-10-23T11:18:24.803Z,2026-10-26T05:35:02.712Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-25T05:35:02.712Z:2026-10-26T05:36:06.694Z,coverage,2026-10-26T05:36:06.694Z,p-cdee4961,,,,,2026-10-25T05:35:02.712Z,2026-10-26T05:36:06.694Z,Asia/Tokyo,,,,,,,,,,,,ok,

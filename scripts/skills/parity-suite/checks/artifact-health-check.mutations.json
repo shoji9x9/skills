@@ -11,8 +11,8 @@
       "id": "strip-string",
       "why": "文字列リテラルを保護せず、中の // をコメントとして除く",
       "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
-      "find": "    if (c === \"'\" || c === '\"') {",
-      "replace": "    if (false) {",
+      "find": "if (c === \"'\" || c === '\"') return lexQuoted",
+      "replace": "if (false) return lexQuoted",
       "occurrences": 1,
       "expect_failing": [
         "#457: 字句解析が閉じない JS / TS 系のファイルは生バイトで数え、その旨を残す",
@@ -24,8 +24,8 @@
       "id": "strip-template",
       "why": "テンプレートリテラルを保護せず、中の // をコメントとして除く",
       "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
-      "find": "    if (c === \"`\") {\n      emit(\"`\");",
-      "replace": "    if (false) {\n      emit(\"`\");",
+      "find": "if (c === \"`\") return lexTemplateStart",
+      "replace": "if (false) return lexTemplateStart",
       "occurrences": 1,
       "expect_failing": [
         "#457: 文字列・テンプレート・正規表現の中の // や /* はコメントとして除かない"
@@ -35,8 +35,8 @@
       "id": "strip-regex",
       "why": "正規表現リテラルを保護せず、中の // をコメントとして除く",
       "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
-      "find": "    if (c === \"/\" && prev === \"re\") {",
-      "replace": "    if (false) {",
+      "find": "if (c === \"/\" && st.prev === \"re\")",
+      "replace": "if (false)",
       "occurrences": 1,
       "expect_failing": [
         "#457: 文字列・テンプレート・正規表現の中の // や /* はコメントとして除かない"
@@ -61,7 +61,7 @@
       "id": "line-directive-dropped",
       "why": "行コメントの指示コメントを通常のコメントとして除く",
       "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
-      "find": "if (isDirectiveComment(src.slice(start + 2, i)))",
+      "find": "if (isDirectiveComment(st.src.slice(start + 2, st.i)))",
       "replace": "if (false)",
       "occurrences": 1,
       "expect_failing": [
@@ -75,7 +75,7 @@
       "id": "block-directive-dropped",
       "why": "ブロックコメントの指示コメントを通常のコメントとして除く",
       "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
-      "find": "if (isDirectiveComment(src.slice(i + 2, end)))",
+      "find": "if (isDirectiveComment(st.src.slice(st.i + 2, end)))",
       "replace": "if (false)",
       "occurrences": 1,
       "expect_failing": [
@@ -90,7 +90,7 @@
       "id": "ambiguous-slash-stripped",
       "why": ") の後の / を除算と読んだまま、同じ行の正規表現の中の // をコメントとして捨てる",
       "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
-      "find": "if (rest.includes(\"//\") || rest.includes(\"/*\")) return null;",
+      "find": "if (rest.includes(\"//\") || rest.includes(\"/*\")) return false;",
       "replace": "void rest;",
       "occurrences": 1,
       "expect_failing": [

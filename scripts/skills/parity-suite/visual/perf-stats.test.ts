@@ -239,29 +239,33 @@ describe("集計の部品", () => {
   test("重いページでは、現側の中央値に対する割合が許容幅を広げる", () => {
     // LCP 1,000ms・四分位範囲 0 のページで、割合 0.2 なら許容幅は 200ms（絶対の下限 100ms より大きい）
     const cur = summarizeValues([1000, 1000, 1000, 1000, 1000]);
-    const at = (ms: number) => judgeMetric(cur, summarizeValues([ms, ms, ms, ms, ms]), 100, 0.2);
+    const at = (ms: number) =>
+      judgeMetric(cur, summarizeValues([ms, ms, ms, ms, ms]), { floor: 100, relativeFloor: 0.2 });
     expect(at(1150)).toMatchObject({ status: "within_noise", tolerance: 200 });
     expect(at(1200).status).toBe("within_noise");
     expect(at(1201).status).toBe("regressed");
     // 軽いページでは絶対の下限が使われる
     const light = summarizeValues([20, 20, 20, 20, 20]);
-    expect(judgeMetric(light, summarizeValues([110, 110, 110, 110, 110]), 100, 0.2).tolerance).toBe(
-      100,
-    );
+    expect(
+      judgeMetric(light, summarizeValues([110, 110, 110, 110, 110]), {
+        floor: 100,
+        relativeFloor: 0.2,
+      }).tolerance,
+    ).toBe(100);
   });
 
   test("許容幅は四分位範囲と下限の大きい方で、ちょうどは回帰にしない", () => {
     const cur = summarizeValues([100, 100, 100, 100, 100]);
-    expect(judgeMetric(cur, summarizeValues([150, 150, 150, 150, 150]), 50).status).toBe(
+    expect(judgeMetric(cur, summarizeValues([150, 150, 150, 150, 150]), { floor: 50 }).status).toBe(
       "within_noise",
     );
-    expect(judgeMetric(cur, summarizeValues([151, 151, 151, 151, 151]), 50).status).toBe(
+    expect(judgeMetric(cur, summarizeValues([151, 151, 151, 151, 151]), { floor: 50 }).status).toBe(
       "regressed",
     );
     const wide = summarizeValues([0, 100, 200, 300, 400]); // iqr 200
-    expect(judgeMetric(wide, summarizeValues([380, 380, 380, 380, 380]), 50).status).toBe(
-      "within_noise",
-    );
+    expect(
+      judgeMetric(wide, summarizeValues([380, 380, 380, 380, 380]), { floor: 50 }).status,
+    ).toBe("within_noise");
   });
 });
 

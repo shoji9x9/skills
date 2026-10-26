@@ -1029,8 +1029,7 @@ function copySpecsFingerprint(final: Table, list: unknown, dir: string) {
     final.assertion_audit.specs_fingerprint = specsFingerprint(
       coveredByOwners(final),
       indexTestList(list),
-      dir,
-      (f) => readFileSync(f, "utf8"),
+      { rootDir: dir, readFile: (f) => readFileSync(f, "utf8") },
     ).fingerprint;
   } catch {
     // 一覧そのものが不正な場合（使い方の誤りを測るテスト）は指紋をコピーしない

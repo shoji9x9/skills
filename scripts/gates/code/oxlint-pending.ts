@@ -131,34 +131,6 @@ export const PENDING_FIXES: Readonly<Record<string, readonly PendingRule[]>> = {
     "max-lines-per-function",
     "max-params",
   ],
-  "skills/parity-suite/scripts/artifact-health-check.mjs": ["complexity", "max-lines-per-function"],
-  "skills/parity-suite/scripts/auto-wait-check.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/parity-suite/scripts/capture-scope-check.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-depth",
-  ],
-  "skills/parity-suite/scripts/coverage-expand.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-depth",
-    "max-params",
-  ],
-  "skills/parity-suite/scripts/perf-stats.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/parity-suite/scripts/reaction-check.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-depth",
-    "max-params",
-  ],
   "skills/parity-suite/scripts/skill-config/skill-config.mjs": [
     "complexity",
     "max-lines-per-function",
