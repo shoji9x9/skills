@@ -46,7 +46,7 @@ import { realPathOf } from "./lib/paths.mjs";
  * ツールのバージョン（原本）。判定ロジック・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "10";
+export const VERSION = "11";
 
 /** 採取物の種別。derived は元の実体から作った加工物。 */
 const ARTIFACT_KINDS = ["captured", "derived"];
@@ -749,8 +749,9 @@ const SUITE_SOURCE_KEYS = ["specs", "locator_map", "expectations", "interactions
  * 記録が「どの版のスイートを 2 回回したか」を持たないためで、指紋を記録・照合して初めて
  * 「いまのスイートが 2 回続けて回った」と言える。
  *
- * 列挙は宣言されたパス（suite.specs / locator_map / interactions）から行い、
+ * 列挙は宣言されたパス（suite.specs / locator_map / expectations / interactions / tools）から行い、
  * ディレクトリは再帰、並びはソートで固定する。1 つでも実体が無ければ判定不能として null を返す。
+ * suite.tools がファイルを指すときも null を返す（隣の page/ を指紋に含められないため。理由は missing に入る）。
  *
  * 既定（接頭辞 `sha256-nc:`）は JS / TS 系のファイルをコメントを除いた正規形（stripJsComments）で数える。
  * 注記を書き換えただけで指紋が変わると、テストの動きが同じなのに現行で 2 回回し直すことになるため。
@@ -807,7 +808,7 @@ function listSuiteFiles(suiteObj, root) {
     // ファイルで書くと page/ が指紋に入らず、page/ だけを入れ替えても記録が失効しないので、判定できないとして扱う
     if (key === "tools" && !isDir) {
       missing.push(
-        `${rel}（suite.tools はコピー専用のディレクトリで書く。ファイルで書くと、隣の page/ が指紋に入らない）`,
+        `${rel}（suite.tools はコピー専用のディレクトリで書く取り決めである。ファイルで書くと、trait-capture・element-shot のコピーが import する隣の page/ を指紋に含められない）`,
       );
       continue;
     }
