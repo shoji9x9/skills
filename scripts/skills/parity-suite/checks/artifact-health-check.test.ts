@@ -895,7 +895,7 @@ test("suite.tools がファイルを指すと、page/ が指紋に入らない�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("suite.tools がファイルを指すと、記録の指紋が一致していても exit 1", () => {
+test("suite.tools がファイルを指すと、ディレクトリで書くよう求めて exit 1", () => {
   const { root, metadataPath } = recordedProject();
   writeVendorTools(root);
   editMetadata(metadataPath, (m) => {

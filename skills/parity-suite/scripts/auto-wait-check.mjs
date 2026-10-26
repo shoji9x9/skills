@@ -600,11 +600,13 @@ export function maskNonCode(source) {
   };
   // 1 回の読み進めで i は 1 以上進むので、回数の上限は source.length で足りる。
   // 上限は、読み進めが i を進めない誤りがあってもループを終わらせるためにある。
+  // 上限で抜けたときは、途中までのマスクを返さずに例外にする（判定できないものを違反 0 件として扱わない）。
   for (let step = 0; ctx.i < source.length && step < source.length; step += 1) {
     if (ctx.state === "code") maskCodeChar(ctx);
     else if (ctx.state === "string") maskStringChar(ctx);
     else maskTemplateChar(ctx);
   }
+  if (ctx.i < source.length) throw new Error("走査が上限の回数でソースの終端に届かない");
 
   if (ctx.state !== "code" || ctx.stack.length > 0) {
     const unclosed = ctx.state !== "code" ? ctx.state : ctx.stack[ctx.stack.length - 1].kind;
@@ -847,14 +849,20 @@ function receiverChain(code, dotIndex) {
   let fromGroupInterior = false;
   // 1 回の読み進めで i は 1 以上戻るので、回数の上限は dotIndex で足りる。
   // 上限は、読み進めが i を戻さない誤りがあってもループを終わらせるためにある。
+  // 上限で抜けたときは、途中までの区間で判定を続けずに例外にする。
+  let ended = false;
   for (let step = 0; i >= 0 && step < dotIndex; step += 1) {
     const read = chainStep(code, i);
     if (read === null) return null;
     if (read.segment === null) fromGroupInterior = true;
     else segments.push(read.segment);
-    if (read.next === null) break;
+    if (read.next === null) {
+      ended = true;
+      break;
+    }
     i = read.next;
   }
+  if (!ended && i >= 0) throw new Error("レシーバの連鎖が上限の回数で読み終わらない");
   if (segments.length === 0) return null;
   return { segments: segments.reverse(), fromGroupInterior };
 }
@@ -1154,6 +1162,7 @@ function playwrightReceivers(code, file = "<source>") {
       if (facts !== null && applyAssignment(facts, state)) changed = true;
     }
   }
+  if (changed) throw new Error("別名の集合が上限の回数で定まらない");
   const { pages, locators, pageCallables, locatorCallables, opaqueAliases, assertionKind } = state;
   const nonReceivers = nonPlaywrightNames(code, {
     assignments,
@@ -1469,6 +1478,7 @@ function nonPlaywrightNames(
       }
     }
   }
+  if (grew) throw new Error("値でない名前の集合が上限の回数で定まらない");
   return nonReceivers;
 }
 
