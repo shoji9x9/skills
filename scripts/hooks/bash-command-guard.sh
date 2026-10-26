@@ -71,25 +71,19 @@ if [ -z "${command_text}" ]; then
 	exit 0
 fi
 
-# 語として現れる pkill / killall から次の区切り（; & | 改行）までに、-f（束ねたオプションを含む）か --full があり、
-# 印が無い形。印は、英字 1 文字だけの文字クラス（`[d]`）を置き換えた文字である。
+# 入力を区切り（; & | 改行）で区間に分け、語として現れる pkill / killall の後に -f（束ねたオプションを含む）か --full がある区間を探す。
+# 英字 1 文字だけの文字クラス（`[d]`）を含む区間は止めない。
 # 数字のクラスは配列の添字（`${pats[0]}`）と区別できないので、免除しない。記号のクラス（`[_]`）も免除しない。
-# 次の見逃しは受け入れる。正規表現を広げると、照合の時間と誤検知が増えるからである。
-# - 区間のどこかに印があれば止めないので、パターンの外の `out[x].log` や `# [x]`、英字の添字（`${pats[i]}`）でも通す
-# - 行継続（\ と改行）の後に書いた `-f` は、改行を区切りとして読むので見逃す（オプションの前後の空白に改行を含めない）
-nl=$'\n'
-mark=$'\001'
-pkill_re="(^|[^[:alnum:]_.-])(pkill|killall)([[:blank:]][^;&|${nl}${mark}]*)?[[:blank:]](-[[:alnum:]]*f[[:alnum:]]*|--full)[^;&|${nl}${mark}]*(\$|[;&|${nl}])"
+# 照合は grep で行い、時間を入力の長さに比例させる（bash の正規表現と置き換えは、入力の形によって 2 乗の時間になる）。
+# 次の見逃しは受け入れる。判定を広げると、照合の時間と誤検知が増えるからである。
+# - 区間のどこかに英字 1 文字のクラスがあれば止めないので、パターンの外の `out[x].log` や `# [x]`、英字の添字（`${pats[i]}`）でも通す
+# - 行継続（\ と改行）の後に書いた `-f` は、改行を区切りとして読むので見逃す
+# grep が一致しないときの exit 1 は「止める区間が無い」という期待される結果なので、`|| true` で通す（offending は空のまま）。
+pkill_re='(^|[^[:alnum:]_.-])(pkill|killall)[[:blank:]](.*[[:blank:]])?(-[[:alnum:]]*f[[:alnum:]]*|--full)([[:blank:]=]|$)'
+offending="$(printf '%s\n' "${command_text}" | tr ';&|' '\n' | grep -aE -- "${pkill_re}" | grep -avE -- '\[[[:alpha:]]\]' | head -n 1)" || true
 
-# 置き換えは対象の長さの 2 乗の時間がかかるので、一致した区間だけに当てる。
-# 区間が免除されたら、その後ろの入力で次の区間を探す。
-rest="${command_text}"
-while [[ ${rest} =~ ${pkill_re} ]]; do
-	segment="${BASH_REMATCH[0]}"
-	if [[ ${segment//\[[[:alpha:]]\]/${mark}} =~ ${pkill_re} ]]; then
-		echo "bash-command-guard: 実行前に止めた。pkill/killall -f の照合対象は full command line で、この呼び出し自身にも一致する（シェルごと終了する）。PID 指定（kill \"\$PID\"）にするか、パターンを [d]ump-dom の形にする: ${segment}" >&2
-		exit 2
-	fi
-	rest="${rest#*"${segment}"}"
-done
+if [ -n "${offending}" ]; then
+	echo "bash-command-guard: 実行前に止めた。pkill/killall -f の照合対象は full command line で、この呼び出し自身にも一致する（シェルごと終了する）。PID 指定（kill \"\$PID\"）にするか、パターンを [d]ump-dom の形にする: ${offending}" >&2
+	exit 2
+fi
 exit 0

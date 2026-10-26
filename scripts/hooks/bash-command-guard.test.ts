@@ -115,6 +115,25 @@ test("免除した pkill -f の後に文字クラスの多い大きな本文が�
   expect(Date.now() - started).toBeLessThan(3000);
 });
 
+test.each([
+  [
+    "免除した pkill -f の前に大きな本文がある",
+    `cat > f <<'EOF'\n${"a[i] = b[j];\n".repeat(32000)}EOF\npkill -f '[d]ump-dom'`,
+  ],
+  ["区切りを含まない長い 1 行", `pkill -f '[d]x' ${"a[i]+".repeat(40000)}`],
+  ["免除した pkill -f が多い", "pkill -f '[d]x'\n".repeat(5000)],
+])("大きな入力も、照合の時間が長さに比例してすぐ通す: %s", (_name, command) => {
+  const started = Date.now();
+  const r = guard(command);
+  expect(r.status).toBe(0);
+  expect(Date.now() - started).toBeLessThan(3000);
+});
+
+test("制御文字（\\x01）が続く pkill -f も止める", () => {
+  const r = guard("pkill -f node\u0001");
+  expect(r.status).toBe(2);
+});
+
 test("行継続を多く含む大きな入力も、すぐ通す", () => {
   const started = Date.now();
   const r = guard("pkill -x foo \\\n".repeat(10000));
