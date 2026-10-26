@@ -7,6 +7,7 @@
 // 知らないキーを例外にするのは、glob の書き間違い（"gob" など）を説明だけの項目として読み飛ばさないためである。
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { errorMessage } from "../../lib/errors.ts";
 import { isNonBlankString, isRecord } from "../../lib/guards.ts";
 import { isArray } from "../../lib/is-array.ts";
 
@@ -39,7 +40,17 @@ function globToRegExp(glob: string) {
   return new RegExp(`^${re}$`);
 }
 
-const matchesGlob = (rel: string, glob: string) => globToRegExp(glob).test(rel);
+/** glob ごとの正規表現。tierOf は走査するファイルごとに呼ばれるので、同じ glob を作り直さない。 */
+const globRegExps = new Map<string, RegExp>();
+
+function matchesGlob(rel: string, glob: string) {
+  let re = globRegExps.get(glob);
+  if (re === undefined) {
+    re = globToRegExp(glob);
+    globRegExps.set(glob, re);
+  }
+  return re.test(rel);
+}
 
 /** doc-tiers.json を JSON として読む。無いか読めなければ、パスを添えて例外にする。 */
 function readTiersJson(root: string): unknown {
@@ -48,26 +59,21 @@ function readTiersJson(root: string): unknown {
   try {
     return JSON.parse(readFileSync(path, "utf8"));
   } catch (e) {
-    throw new Error(
-      `${TIERS_PATH} を JSON として読めない: ${e instanceof Error ? e.message : String(e)}`,
-    );
+    throw new Error(`${TIERS_PATH} を JSON として読めない: ${errorMessage(e)}`);
   }
 }
 
-/**
- * 項目の glob。glob を持たない項目（説明だけの項目）は undefined。seen に読んだ glob を足し、重複を例外にする。
- * glob の無い項目は、ファイルで分けられない文書の説明なので label が要る（{} や note だけの項目は、glob を消し忘れた誤り）。
- */
-function globOf(e: unknown, where: string, seen: Set<string>): string | undefined {
+/** 項目が object で、知らないキーを持たないことを確かめる。 */
+function checkedItem(e: unknown, where: string): Record<string, unknown> {
   if (!isRecord(e)) throw new Error(`${where}: 項目は object にする`);
   const unknownKeys = Object.keys(e).filter((k) => !ITEM_KEYS.has(k));
   if (unknownKeys.length > 0)
     throw new Error(`${where}: 知らないキー（${unknownKeys.join("・")}）がある`);
-  const { glob } = e;
-  if (glob === undefined) {
-    if (!isNonBlankString(e.label)) throw new Error(`${where}: glob か label を持つ`);
-    return undefined;
-  }
+  return e;
+}
+
+/** glob が空でない文字列で、ほかの項目と重複しないことを確かめる。seen に読んだ glob を足す。 */
+function checkedGlob(glob: unknown, where: string, seen: Set<string>): string {
   if (!isNonBlankString(glob)) throw new Error(`${where}: glob は空でない文字列`);
   if (seen.has(glob)) throw new Error(`${where}: glob「${glob}」が重複している`);
   seen.add(glob);
@@ -89,15 +95,22 @@ export function loadDocTiers(root: string): DocTiers {
     const { docs } = t;
     if (!isArray(docs) || docs.length === 0)
       throw new Error(`tier ${n + 1}: docs は空でない配列にする`);
-    const globs = docs.flatMap((e, i) => globOf(e, `tier ${n + 1} の docs[${i}]`, seen) ?? []);
+    const globs = docs.flatMap((e, i) => {
+      const where = `tier ${n + 1} の docs[${i}]`;
+      const item = checkedItem(e, where);
+      if (item.glob !== undefined) return [checkedGlob(item.glob, where, seen)];
+      // glob の無い項目は、ファイルで分けられない文書の説明なので label が要る（{} や note だけの項目は、glob を消し忘れた誤り）。
+      if (!isNonBlankString(item.label)) throw new Error(`${where}: glob か label を持つ`);
+      return [];
+    });
     return { tier: n + 1, globs };
   });
+  // 階層の外の項目は glob で外すので、label だけの項目を受け付けない。
   const checkedOutside = outside.map((e, i) => {
-    // 階層の外の項目は glob で外すので、label だけの項目を受け付けない。globOf の「glob か label」の案内より先に止める。
-    if (isRecord(e) && e.glob === undefined) throw new Error(`outside[${i}]: glob を持つ`);
-    const glob = globOf(e, `outside[${i}]`, seen);
-    if (glob === undefined) throw new Error(`outside[${i}]: glob を持つ`);
-    return glob;
+    const where = `outside[${i}]`;
+    const item = checkedItem(e, where);
+    if (item.glob === undefined) throw new Error(`${where}: glob を持つ`);
+    return checkedGlob(item.glob, where, seen);
   });
   return { tiers: checkedTiers, outside: checkedOutside };
 }
