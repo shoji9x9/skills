@@ -297,9 +297,13 @@ jobs:
       # 名前は、job の outputs の `report_artifact` と同じ値にする（試行の番号を含む）。
       # upload-artifact と download-artifact の v4 以降は、GitHub Enterprise Server では使えない。
       # 出典: https://github.com/actions/upload-artifact#ghes-support と https://github.com/actions/download-artifact#ghes-support
-      # GHES では、この段で `review` が失敗し、`tracking-issue` はレポートを受け取れなかったと Issue に書く。
+      # GHES ではこの段が失敗し、`tracking-issue` はレポートを受け取れなかったと Issue に書く。
+      # `continue-on-error` を落とさない。失敗したジョブの outputs を下流のジョブが読めるかは、
+      # 公式のドキュメント（workflow syntax の jobs.<job_id>.outputs）に書かれていない。
+      # `review` を成功で終わらせ、`tracking-issue` が outputs を確実に読めるようにする。
       - name: Upload agent report
         if: steps.cred.outputs.present == 'true'
+        continue-on-error: true
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: kaizen-agent-report-${{ github.run_attempt }}
@@ -310,7 +314,9 @@ jobs:
   tracking-issue:
     name: Update kaizen tracking issue
     needs: review
-    # `review` の中でエージェントの段以外が失敗しても、settings が skip=false と答えていれば、追跡 Issue は更新する。
+    # エージェントの段とレポートの upload の段は `continue-on-error` なので、その失敗では `review` は成功で終わり、
+    # 追跡 Issue を更新する。`!cancelled()` は、それ以外の段で `review` が失敗し、それでも outputs の
+    # skip=false を受け取れた場合に、追跡 Issue の更新を止めないためのものである。
     # エージェントの成否は「Append agent report」が Issue に書く。
     if: ${{ !cancelled() && needs.review.outputs.skip == 'false' }}
     runs-on: ${{ vars.KAIZEN_SCHEDULE_RUNNER || 'ubuntu-latest' }}

@@ -651,7 +651,7 @@ github.com では `GH_HOST=github.com` になるだけなので、振る舞い�
 GitHub Enterprise Server では、`agent` モードのレポートを受け渡せない。
 テンプレートが使う `actions/upload-artifact` と `actions/download-artifact` の v4 以降は、GHES で使えないからである。
 出典は、各 action の README の「GHES Support」（<https://github.com/actions/upload-artifact#ghes-support>・<https://github.com/actions/download-artifact#ghes-support>）である。
-このとき `review` ジョブは upload の段で失敗し、追跡 Issue には「エージェントのレポートを受け取れませんでした」と書かれる。
+このとき upload の段は失敗するが、`continue-on-error` なので `review` ジョブは成功で終わり、追跡 Issue には「エージェントのレポートを受け取れませんでした」と書かれる。
 GHES では `notify` モードで動かす。`notify` モードは artifact を使わない。
 
 このワークフローは、リポジトリを変えない。pending の一覧（エージェントを使う場合はその分析も）を 1 つの Issue にまとめ、既存の追跡 Issue があれば本文を更新する。pending が 0 件になれば、その Issue を閉じる。

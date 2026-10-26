@@ -165,6 +165,19 @@ test("レポートが無くても空のファイルを作り、artifact が作�
   expect(steps[upload]?.with?.["if-no-files-found"]).toBe("error");
 });
 
+// upload が失敗して `review` が失敗すると、`tracking-issue` が `review` の outputs を読めるかは
+// 公式のドキュメントに書かれていない。GHES では upload が必ず失敗するので、そこで `review` を失敗させない。
+test("レポートの upload が失敗しても、review ジョブを失敗させない", () => {
+  const doc = loadYamlAs<{
+    jobs: Record<string, { steps?: { name?: string; "continue-on-error"?: unknown }[] }>;
+  }>(readFileSync(join(repoRoot, CANON), "utf8"));
+  const uploads = Object.values(doc.jobs)
+    .flatMap((j) => j.steps ?? [])
+    .filter((s) => s.name === "Upload agent report");
+  expect(uploads).toHaveLength(1);
+  expect(uploads[0]?.["continue-on-error"]).toBe(true);
+});
+
 /** 権限と構成を確かめるために読む job の形。 */
 type Job = {
   "runs-on"?: unknown;
