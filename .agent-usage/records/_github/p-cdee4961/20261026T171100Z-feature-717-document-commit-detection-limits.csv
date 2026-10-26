@@ -16,3 +16,6 @@ ci:40374662859:1,ci,2026-10-26T18:10:35.143Z,p-cdee4961,github-actions,,,,2026-1
 coverage:github:2026-10-25T17:47:12.200Z:2026-10-26T18:10:35.143Z,coverage,2026-10-26T18:10:35.143Z,p-cdee4961,,,,,2026-10-25T17:47:12.200Z,2026-10-26T18:10:35.143Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-25T18:10:35.143Z:2026-10-26T18:13:11.396Z,coverage,2026-10-26T18:13:11.396Z,p-cdee4961,,,,,2026-10-25T18:10:35.143Z,2026-10-26T18:13:11.396Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-25T18:13:11.396Z:2026-10-26T18:13:34.071Z,coverage,2026-10-26T18:13:34.071Z,p-cdee4961,,,,,2026-10-25T18:13:11.396Z,2026-10-26T18:13:34.071Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:40375957564:1,ci,2026-10-26T18:18:59.720Z,p-cdee4961,github-actions,,,,2026-10-26T18:14:25.000Z,2026-10-26T18:14:26.000Z,Asia/Tokyo,feature/717-document-commit-detection-limits,717,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40375957528:1,ci,2026-10-26T18:18:59.720Z,p-cdee4961,github-actions,,,,2026-10-26T18:14:25.000Z,2026-10-26T18:18:24.000Z,Asia/Tokyo,feature/717-document-commit-detection-limits,717,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-25T18:13:34.071Z:2026-10-26T18:18:59.720Z,coverage,2026-10-26T18:18:59.720Z,p-cdee4961,,,,,2026-10-25T18:13:34.071Z,2026-10-26T18:18:59.720Z,Asia/Tokyo,,,,,,,,,,,,ok,
