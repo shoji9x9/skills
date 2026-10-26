@@ -95,6 +95,11 @@ export function writeWordList(root: string, source: Source = {}) {
 export function main(argv: string[]) {
   const args = argv.filter((a) => a !== "--");
   const fromIndex = args.includes("--index");
+  const unknown = args.filter((a) => a.startsWith("-") && a !== "--index");
+  if (unknown.length > 0) {
+    console.error(`word-list: 知らないオプション: ${unknown.join(" ")}`);
+    return 2;
+  }
   const root = args.find((a) => a !== "--index") ?? process.cwd();
   let written;
   try {

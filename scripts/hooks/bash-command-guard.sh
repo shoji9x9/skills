@@ -71,13 +71,16 @@ if [ -z "${command_text}" ]; then
 	exit 0
 fi
 
-# 1 文字だけの文字クラス（`[d]`）を印の文字に置き換える。正規表現は、印のある区間を止めない。
+# 語として現れる pkill / killall から次の区切り（; & | 改行）までに、-f（束ねたオプションを含む）か --full があり、
+# 印が無い形。印は、英数字 1 文字だけの文字クラス（`[d]`）を置き換えた文字である。
+# 区間のどこかに印があれば止めないので、パターンの外の `out[1].log` や `# [x]` でも通す。この見逃しは受け入れる。
 nl=$'\n'
 mark=$'\001'
-scan="${command_text//\[?\]/${mark}}"
-# 語として現れる pkill / killall から次の区切り（; & | 改行）までに、-f（束ねたオプションを含む）か --full があり、
-# 印が無い形。
 pkill_re="(^|[^[:alnum:]_.-])(pkill|killall)([[:space:]][^;&|${nl}${mark}]*)?[[:space:]](-[[:alnum:]]*f[[:alnum:]]*|--full)[^;&|${nl}${mark}]*(\$|[;&|${nl}])"
+
+# 置き換えは入力の長さの 2 乗の時間がかかるので、置き換える前の入力で一致したときだけ行う。
+[[ ${command_text} =~ ${pkill_re} ]] || exit 0
+scan="${command_text//\[[[:alnum:]]\]/${mark}}"
 
 if [[ ${scan} =~ ${pkill_re} ]]; then
 	echo "bash-command-guard: 実行前に止めた。pkill/killall -f の照合対象は full command line で、この呼び出し自身にも一致する（シェルごと終了する）。PID 指定（kill \"\$PID\"）にするか、パターンを [d]ump-dom の形にする: ${BASH_REMATCH[0]}" >&2

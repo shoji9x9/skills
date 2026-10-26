@@ -143,6 +143,13 @@ test("main: 生成できれば 0、作れなければ 2 を返す", () => {
   expect(main([makeRepo({ entries: [ENTRIES[1]] })])).toBe(2);
 });
 
+test("main: --index 以外のオプション（書き間違いを含む）はパスとして読まず、2 を返す", () => {
+  const root = makeRepo();
+  expect(main(["--index=1", root])).toBe(2);
+  expect(main(["--Index", root])).toBe(2);
+  expect(main([root, "--foo"])).toBe(2);
+});
+
 test("CLI: 子プロセスとして起動すると、一覧を生成し直して exit 0", () => {
   const root = makeRepo({ list: "x\n" });
   const r = spawnSync(process.execPath, [script, root], {

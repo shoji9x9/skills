@@ -45,6 +45,9 @@ test.each([
   ["-f を使わない pkill", "pkill chrome"],
   ["f を含まないオプションの pkill", "pkill -x firefox"],
   ["pkill を名前に含む別のコマンド", "mypkill -f x"],
+  ["- でつないだ名前の別のコマンド", "my-pkill -f x"],
+  ["_ でつないだ名前の別のコマンド", "foo_pkill -f x"],
+  ["拡張子の付いた名前の別のコマンド", "run.pkill -f x"],
 ])("通す: %s", (_name, command) => {
   const r = guard(command);
   expect(r.stderr).toBe("");
@@ -64,6 +67,8 @@ test.each([
   ["他のオプションの後の -f", "pkill -u me -f node"],
   ["1 文字の文字クラスが別のコマンドにだけある", "pkill -f node && echo [x]"],
   ["範囲の文字クラスだけ", 'pkill -f "chrome.*[0-9]+"'],
+  ["[ そのものの 1 文字のクラス", "pkill -f 'a[[]'"],
+  ["] そのものの 1 文字のクラス", 'pkill -f "[]]x"'],
   ["while の条件", "while pkill -f foo; do sleep 1; done"],
   ["if の条件", "if pkill -f foo; then echo ok; fi"],
   ["! の後", "! pkill -f foo"],
@@ -82,6 +87,14 @@ test.each([
   const r = guard(command);
   expect(r.status).toBe(2);
   expect(r.stderr).toMatch(/full command line/);
+});
+
+test("pkill -f を含まない大きな入力は、文字クラスが多くても置き換えずにすぐ通す", () => {
+  const body = "a[i] = b[j];\n".repeat(32000);
+  const started = Date.now();
+  const r = guard(`pkill -x foo\ncat > f <<'EOF'\n${body}EOF`);
+  expect(r.status).toBe(0);
+  expect(Date.now() - started).toBeLessThan(3000);
 });
 
 // --- 入力の退化形 ---
