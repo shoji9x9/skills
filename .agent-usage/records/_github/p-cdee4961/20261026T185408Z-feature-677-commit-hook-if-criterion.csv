@@ -32,3 +32,8 @@ coverage:github:2026-10-25T19:23:27.159Z:2026-10-26T19:27:48.195Z,coverage,2026-
 coverage:github:2026-10-25T19:27:48.195Z:2026-10-26T19:28:30.755Z,coverage,2026-10-26T19:28:30.755Z,p-cdee4961,,,,,2026-10-25T19:27:48.195Z,2026-10-26T19:28:30.755Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-25T19:28:30.755Z:2026-10-26T19:28:50.155Z,coverage,2026-10-26T19:28:50.155Z,p-cdee4961,,,,,2026-10-25T19:28:30.755Z,2026-10-26T19:28:50.155Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-25T19:28:50.155Z:2026-10-26T19:29:26.764Z,coverage,2026-10-26T19:29:26.764Z,p-cdee4961,,,,,2026-10-25T19:28:50.155Z,2026-10-26T19:29:26.764Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:40387317425:1,ci,2026-10-26T19:33:30.216Z,p-cdee4961,github-actions,,,,2026-10-26T19:30:14.000Z,2026-10-26T19:33:30.216Z,Asia/Tokyo,feature/677-commit-hook-if-criterion,677,,,,,,,,,,CI;pull_request;open,
+ci:40387317237:1,ci,2026-10-26T19:33:30.216Z,p-cdee4961,github-actions,,,,2026-10-26T19:30:14.000Z,2026-10-26T19:30:15.000Z,Asia/Tokyo,feature/677-commit-hook-if-criterion,677,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+coverage:github:2026-10-25T19:29:26.764Z:2026-10-26T19:33:30.216Z,coverage,2026-10-26T19:33:30.216Z,p-cdee4961,,,,,2026-10-25T19:29:26.764Z,2026-10-26T19:33:30.216Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:40387317425:1,ci,2026-10-26T19:33:52.574Z,p-cdee4961,github-actions,,,,2026-10-26T19:30:14.000Z,2026-10-26T19:33:52.574Z,Asia/Tokyo,feature/677-commit-hook-if-criterion,677,,,,,,,,,,CI;pull_request;open,
+coverage:github:2026-10-25T19:33:30.216Z:2026-10-26T19:33:52.574Z,coverage,2026-10-26T19:33:52.574Z,p-cdee4961,,,,,2026-10-25T19:33:30.216Z,2026-10-26T19:33:52.574Z,Asia/Tokyo,,,,,,,,,,,,ok,
