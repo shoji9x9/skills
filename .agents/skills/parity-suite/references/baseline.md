@@ -1135,7 +1135,8 @@ node <skill>/scripts/artifact-health-check.mjs --metadata .replace/parity/<slug>
 今のスイートは一度も 2 回続けて回っていないのに、後始末の誤ったスイートが現行アプリを書き換え続けることになる。
 
 `runs[]` に `suite_fingerprint` を記録する。これは、`suite.specs` / `locator_map` / `expectations` / `interactions` / `tools` の宣言したパスから計算した `sha256-nc:` である。
-`tools` は、コピー専用のディレクトリで書く。trait-capture・element-shot のコピーは隣の `page/` を import するので、ファイルで書くと `page/` が指紋に入らない。そのため、artifact-health-check は、ファイルで書いた `tools` を判定できないとして失敗にする。
+`tools` は、コピー専用のディレクトリで書く。trait-capture・element-shot のコピーは隣の `page/` を import するので、ファイルで書くと `page/` が指紋に入らない。
+そのため、artifact-health-check は、スイートの指紋を計算するとき（`runs[]` の記録を今のスイートと照合するときと、`--fingerprint`）に、ファイルで書いた `tools` を判定できないとして失敗にする。
 ファイルで書いていたスイートは、`tools` をディレクトリに直す。指紋が変わるので、スイートを回し直す。
 スペックごとに記録しているなら、`tools` は共有部分なので、後の「共有部分が変わったら」の手順で、状態を変えないスペックも含めてすべて回し直す。
 [`../scripts/artifact-health-check.mjs`](../scripts/artifact-health-check.mjs) は、続く 2 回で同じ値であることと、今のスイートから計算し直した値と一致することを確かめる。
