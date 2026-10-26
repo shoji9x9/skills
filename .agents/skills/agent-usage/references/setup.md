@@ -128,7 +128,7 @@ merge 済みのブランチで Hook が通しても、前に stage された明�
 ### コミットと判定しない形と、コミットと判定する形
 
 この節は、スクリプトが起動した後の判定を扱う。
-Claude Code は、`if` に当たらない形（`env A=1 git commit`・`sudo git commit` など）では、コマンドを解析できればスクリプトを起動しない。起動する条件は、上の「Claude Code（`.claude/settings.json`）」の節の `if` の説明にある。
+Claude Code は、`if` に当たらない形（`env A=1 git commit`・`sudo git commit` など）では、コマンドを解析できればスクリプトを起動しない。起動する条件は、上の「Claude Code（`.claude/settings.json`）」で `if` を説明している。
 
 Hook のスクリプトは、エージェントが普段書く形の `git commit` を判定する。
 判定は、区切りの文字（`;`・`&`・`|`・`(`・`)`・バッククォート・改行）でコマンドを分けて読む。
