@@ -1,17 +1,17 @@
 // 文書の階層（Tier）の設定（scripts/gates/docs/doc-tiers.json）を読み、ファイルの階層を決める。
 // 文書のチェックの走査対象（doc-scan-files.ts）が、Tier 4 と階層の外を読まないために使う。
 //
-// doc-tiers.json の形の誤り（Tier が 1〜4 の順でない・項目に glob も label も無い・「|」を含む・glob の重複）は例外にする。
+// 読むのは各項目の glob と、項目が属する tier だけである。label・note・contents は人が読む説明の欄で、ここでは読まない。
+// 設定の形の誤り（Tier が 1〜4 の順でない・docs が配列でない・glob が空でない文字列でない・glob の重複・outside に glob が無い）は例外にする。
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { isNonBlankString as isText, isRecord } from "../../lib/guards.ts";
+import { isNonBlankString, isRecord } from "../../lib/guards.ts";
 import { isArray } from "../../lib/is-array.ts";
 
-const TIERS_PATH = "scripts/gates/docs/doc-tiers.json";
+export const TIERS_PATH = "scripts/gates/docs/doc-tiers.json";
 
-type DocEntry = { glob?: string; label?: string; note?: string };
-type TierEntry = { tier: number; contents: string; docs: DocEntry[] };
-export type DocTiers = { tiers: TierEntry[]; outside: (DocEntry & { glob: string })[] };
+/** 読んだ設定。tiers は tier 1〜4 の順に、その tier の glob を持つ。outside は階層の外の glob。 */
+export type DocTiers = { tiers: { tier: number; globs: string[] }[]; outside: string[] };
 
 /**
  * glob を正規表現にする。`**` は 0 個以上のディレクトリ、`*` は `/` を含まない 0 文字以上。
@@ -36,7 +36,7 @@ function globToRegExp(glob: string) {
 
 const matchesGlob = (rel: string, glob: string) => globToRegExp(glob).test(rel);
 
-/** doc-tiers.json を読み、形を確かめる。形の誤りは例外にする。 */
+/** doc-tiers.json を読み、glob と tier の形を確かめる。形の誤りは例外にする。 */
 export function loadDocTiers(root: string): DocTiers {
   const path = join(root, TIERS_PATH);
   if (!existsSync(path)) throw new Error(`${TIERS_PATH} が無い`);
@@ -48,42 +48,26 @@ export function loadDocTiers(root: string): DocTiers {
   const tierNumbers = tiers.map((t) => (isRecord(t) ? t.tier : undefined));
   if (!tiers.every(isRecord) || tierNumbers.some((n, i) => n !== i + 1) || tiers.length !== 4)
     throw new Error("tiers は tier 1〜4 をこの順に 1 つずつ持つ");
-  const globs = new Set<string>();
-  const checkEntry = (e: unknown, where: string): DocEntry => {
-    const record = isRecord(e) ? e : {};
-    if (!isText(record.glob) && !isText(record.label))
-      throw new Error(`${where}: glob か label のどちらかを持つ`);
-    const text = (k: "glob" | "label" | "note") => {
-      const v = record[k];
-      if (v !== undefined && !isText(v)) throw new Error(`${where}: ${k} は空でない文字列`);
-      if (v?.includes("|")) throw new Error(`${where}: ${k} に「|」がある（表の列がずれる）`);
-      return v;
-    };
-    const glob = text("glob");
-    const label = text("label");
-    const note = text("note");
-    if (glob !== undefined) {
-      if (globs.has(glob)) throw new Error(`${where}: glob「${glob}」が重複している`);
-      globs.add(glob);
-    }
-    return { ...record, glob, label, note };
+  const seen = new Set<string>();
+  /** 項目の glob。glob を持たない項目（説明だけの項目）は undefined。 */
+  const globOf = (e: unknown, where: string): string | undefined => {
+    const glob = isRecord(e) ? e.glob : undefined;
+    if (glob === undefined) return undefined;
+    if (!isNonBlankString(glob)) throw new Error(`${where}: glob は空でない文字列`);
+    if (seen.has(glob)) throw new Error(`${where}: glob「${glob}」が重複している`);
+    seen.add(glob);
+    return glob;
   };
-  const checkedTiers = tiers.map((t, n): TierEntry => {
-    const { contents, docs } = t;
-    if (!isText(contents) || contents.includes("|"))
-      throw new Error(`tier ${n + 1}: contents は「|」を含まない空でない文字列`);
-    if (!isArray(docs) || docs.length === 0) throw new Error(`tier ${n + 1}: docs は空でない配列`);
-    return {
-      tier: n + 1,
-      contents,
-      docs: docs.map((e, i) => checkEntry(e, `tier ${n + 1} の docs[${i}]`)),
-    };
+  const checkedTiers = tiers.map((t, n) => {
+    const { docs } = t;
+    if (!isArray(docs)) throw new Error(`tier ${n + 1}: docs は配列にする`);
+    const globs = docs.flatMap((e, i) => globOf(e, `tier ${n + 1} の docs[${i}]`) ?? []);
+    return { tier: n + 1, globs };
   });
   const checkedOutside = outside.map((e, i) => {
-    const entry = checkEntry(e, `outside[${i}]`);
-    const { glob } = entry;
-    if (!isText(glob)) throw new Error(`outside[${i}]: glob を持つ`);
-    return { ...entry, glob };
+    const glob = globOf(e, `outside[${i}]`);
+    if (glob === undefined) throw new Error(`outside[${i}]: glob を持つ`);
+    return glob;
   });
   return { tiers: checkedTiers, outside: checkedOutside };
 }
@@ -91,10 +75,8 @@ export function loadDocTiers(root: string): DocTiers {
 /** glob を持つ項目の一覧（{ glob, tier }。階層の外は tier: null）。 */
 function globEntries({ tiers, outside }: DocTiers): { glob: string; tier: number | null }[] {
   return [
-    ...tiers.flatMap((t) =>
-      t.docs.flatMap((e) => (e.glob ? [{ glob: e.glob, tier: t.tier }] : [])),
-    ),
-    ...outside.map((e) => ({ glob: e.glob, tier: null })),
+    ...tiers.flatMap((t) => t.globs.map((glob) => ({ glob, tier: t.tier }))),
+    ...outside.map((glob) => ({ glob, tier: null })),
   ];
 }
 

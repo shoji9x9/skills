@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CONFIG_PATH, checkDocRefs } from "./check-doc-refs.ts";
 import { ALLOWED_PATH } from "../../lib/doc-scan.ts";
+import { TIERS_PATH } from "./doc-tiers.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 import { write } from "../../lib/testing/repo-file.ts";
@@ -12,7 +13,7 @@ import { write } from "../../lib/testing/repo-file.ts";
 export const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 export const script = join(repoRoot, "scripts/gates/docs/check-doc-refs.ts");
 
-const TIERS = readFileSync(join(repoRoot, "scripts/gates/docs/doc-tiers.json"), "utf8");
+const TIERS = readFileSync(join(repoRoot, TIERS_PATH), "utf8");
 export const CONFIG = {
   repo: "o/r",
   generated: [
@@ -28,7 +29,7 @@ export function makeRepo(
 ) {
   const root = makeTempDir("doc-refs-");
   const all = {
-    "scripts/gates/docs/doc-tiers.json": TIERS,
+    [TIERS_PATH]: TIERS,
     [CONFIG_PATH]: JSON.stringify(config),
     "AGENTS.md": "# Agents\n",
     "docs/guide.md":

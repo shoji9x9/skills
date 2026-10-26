@@ -5,16 +5,15 @@
 // | 軸           | 値                                                                     |
 // | ------------ | ---------------------------------------------------------------------- |
 // | glob         | `**`（0 段・複数段）/ `*`（`/` を越えない）/ ドットで始まる名前 / 文字の `.` |
-// | 当たる項目   | 0 件 / 1 件 / 2 件（項目が重なる）/ 階層の外                            |
-// | 設定の形     | 正しい / ファイルが無い / Tier の順が違う / Tier の数が違う / Tier の番号が文字列 / glob も label も無い / 「|」を含む / glob の重複 / outside に glob が無い / docs が空 |
+// | 当たる項目   | 0 件 / 1 件 / 2 件（項目が重なる）/ 階層の外 / glob を持たない説明だけの項目 |
+// | 設定の形     | 正しい / ファイルが無い / tiers が配列でない / Tier の順が違う / Tier の数が違う / Tier の番号が文字列 / docs が配列でない / glob が空・文字列でない / glob の重複 / outside に glob が無い |
 import { expect, test } from "vitest";
-import { type DocTiers, loadDocTiers, tierOf } from "./doc-tiers.ts";
+import { TIERS_PATH, type DocTiers, loadDocTiers, tierOf } from "./doc-tiers.ts";
 import { write } from "../../lib/testing/repo-file.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
-const TIERS_PATH = "scripts/gates/docs/doc-tiers.json";
-
-const CONFIG: DocTiers = {
+/** doc-tiers.json に書く形。label・note・contents は読まれない説明の欄だが、実物と同じ形にするため置く。 */
+const RAW = {
   tiers: [
     { tier: 1, contents: "原則", docs: [{ glob: "AGENTS.md" }] },
     { tier: 2, contents: "規約", docs: [{ glob: "docs/**" }, { glob: "skills/**" }] },
@@ -31,6 +30,9 @@ function makeRepo(config: unknown) {
   return root;
 }
 
+/** RAW を読んだ設定。一時ディレクトリはテストごとに作る。 */
+const config = (): DocTiers => loadDocTiers(makeRepo(RAW));
+
 test.each([
   ["docs/a.md", 2],
   ["docs/x/y/a.md", 2],
@@ -43,27 +45,35 @@ test.each([
   ["docsx/a.md", undefined],
   ["README.md", undefined],
 ])("tierOf(%s) は %s", (rel, want) => {
-  expect(tierOf(CONFIG, rel)).toBe(want);
+  expect(tierOf(config(), rel)).toBe(want);
 });
 
 test("tierOf: 2 つの項目に当たるパスは undefined", () => {
-  const overlap = structuredClone(CONFIG);
-  overlap.tiers[2]?.docs.push({ glob: "docs/a.md" });
+  const overlap = config();
+  overlap.tiers[2]?.globs.push("docs/a.md");
   expect(tierOf(overlap, "docs/a.md")).toBe(undefined);
 });
 
-test("loadDocTiers: 正しい設定を読む", () => {
-  expect(tierOf(loadDocTiers(makeRepo(CONFIG)), "docs/a.md")).toBe(2);
+test("loadDocTiers: glob を持つ項目だけを、その tier の glob として読む", () => {
+  expect(config()).toEqual({
+    tiers: [
+      { tier: 1, globs: ["AGENTS.md"] },
+      { tier: 2, globs: ["docs/**", "skills/**"] },
+      { tier: 3, globs: ["evals/*/README.md"] },
+      { tier: 4, globs: [".kaizen/**"] },
+    ],
+    outside: ["evals/*/fixtures/**"],
+  });
 });
 
-const withTiers = (f: (t: DocTiers["tiers"]) => unknown[]) => ({
-  ...CONFIG,
-  tiers: f(structuredClone(CONFIG.tiers)),
+const withTiers = (f: (t: typeof RAW.tiers) => unknown[]) => ({
+  ...RAW,
+  tiers: f(structuredClone(RAW.tiers)),
 });
 
 test.each([
   ["ファイルが無い", null, /doc-tiers\.json が無い/],
-  ["tiers が配列でない", { ...CONFIG, tiers: {} }, /tiers と outside は配列/],
+  ["tiers が配列でない", { ...RAW, tiers: {} }, /tiers と outside は配列/],
   ["Tier の順が違う", withTiers((t) => [t[1], t[0], t[2], t[3]]), /tier 1〜4/],
   ["Tier が 3 つしかない", withTiers((t) => t.slice(0, 3)), /tier 1〜4/],
   [
@@ -72,32 +82,26 @@ test.each([
     /tier 1〜4/,
   ],
   [
-    "Tier の項目に glob も label も無い",
-    withTiers((t) => [{ ...t[0], docs: [{ note: "x" }] }, ...t.slice(1)]),
-    /glob か label/,
+    "docs が配列でない",
+    withTiers((t) => [{ ...t[0], docs: {} }, ...t.slice(1)]),
+    /docs は配列にする/,
   ],
   [
-    "「|」を含む",
-    withTiers((t) => [{ ...t[0], docs: [{ glob: "a|b" }] }, ...t.slice(1)]),
-    /「\|」/,
+    "glob が空",
+    withTiers((t) => [{ ...t[0], docs: [{ glob: " " }] }, ...t.slice(1)]),
+    /glob は空でない文字列/,
+  ],
+  [
+    "glob が文字列でない",
+    withTiers((t) => [{ ...t[0], docs: [{ glob: 1 }] }, ...t.slice(1)]),
+    /glob は空でない文字列/,
   ],
   [
     "glob の重複",
     withTiers((t) => [{ ...t[0], docs: [{ glob: "docs/**" }] }, ...t.slice(1)]),
     /重複/,
   ],
-  ["docs が空", withTiers((t) => [{ ...t[0], docs: [] }, ...t.slice(1)]), /docs は空でない配列/],
-  ["outside に glob が無い", { ...CONFIG, outside: [{ label: "x" }] }, /outside\[0\]: glob を持つ/],
-  [
-    "contents に「|」を含む",
-    withTiers((t) => [{ ...t[0], contents: "a|b" }, ...t.slice(1)]),
-    /contents は「\|」を含まない/,
-  ],
-  [
-    "note が文字列でない",
-    withTiers((t) => [{ ...t[0], docs: [{ glob: "AGENTS.md", note: 1 }] }, ...t.slice(1)]),
-    /note は空でない文字列/,
-  ],
-])("loadDocTiers: 設定の形の誤り（%s）は例外にする", (_name, config, reason) => {
-  expect(() => loadDocTiers(makeRepo(config))).toThrow(reason);
+  ["outside に glob が無い", { ...RAW, outside: [{ label: "x" }] }, /outside\[0\]: glob を持つ/],
+])("loadDocTiers: 設定の形の誤り（%s）は例外にする", (_name, bad, reason) => {
+  expect(() => loadDocTiers(makeRepo(bad))).toThrow(reason);
 });
