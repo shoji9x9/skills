@@ -463,7 +463,7 @@ describe("agent-usage のコマンドと Hook", () => {
     );
   });
 
-  test("report は report/<日付>/ に HTML と 3 つの CSV を書き、費用と稼働を集計する", () => {
+  test("report は report/<日付>/ に HTML と 3 つの CSV と meta.json を書き、費用と稼働を集計する", () => {
     const { repo, git, cli } = setup();
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
     git("switch", "-q", "-c", "feature/5-x");

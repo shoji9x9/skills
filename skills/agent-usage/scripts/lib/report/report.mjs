@@ -1,4 +1,4 @@
-// report: records/ の行を集計し、report/<yyyyMMdd>/ に HTML と 3 つの CSV を書く。
+// report: records/ の行を集計し、report/<yyyyMMdd>/ に HTML と 3 つの CSV と、渡した期間を記録した meta.json を書く。
 //
 // 稼働状況（人ごと）:
 //   人の稼働の区間（run）をすべてのセッション・エージェントで合わせ、その区間を稼働中、隙間を停止とする。
