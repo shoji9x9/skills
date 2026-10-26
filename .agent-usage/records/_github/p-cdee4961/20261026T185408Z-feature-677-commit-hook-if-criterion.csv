@@ -1,0 +1,6 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:40380805864:1,ci,2026-10-26T18:54:08.389Z,p-cdee4961,github-actions,,,,2026-10-26T18:47:01.000Z,2026-10-26T18:47:31.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:40380805969:1,ci,2026-10-26T18:54:08.389Z,p-cdee4961,github-actions,,,,2026-10-26T18:47:01.000Z,2026-10-26T18:50:45.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:40380102436:1,ci,2026-10-26T18:54:08.389Z,p-cdee4961,github-actions,,,,2026-10-26T18:42:23.000Z,2026-10-26T18:42:24.000Z,Asia/Tokyo,feature/717-document-commit-detection-limits,717,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40380101968:1,ci,2026-10-26T18:54:08.389Z,p-cdee4961,github-actions,,,,2026-10-26T18:42:23.000Z,2026-10-26T18:46:14.000Z,Asia/Tokyo,feature/717-document-commit-detection-limits,717,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-25T18:41:32.978Z:2026-10-26T18:54:08.389Z,coverage,2026-10-26T18:54:08.389Z,p-cdee4961,,,,,2026-10-25T18:41:32.978Z,2026-10-26T18:54:08.389Z,Asia/Tokyo,,,,,,,,,,,,ok,
