@@ -14,7 +14,7 @@ import { isArray } from "../../lib/is-array.ts";
 export const TIERS_PATH = "scripts/gates/docs/doc-tiers.json";
 
 /** 項目が持ってよいキー。glob だけを読み、残りは説明の欄。 */
-const ITEM_KEYS = new Set(["glob", "label", "note", "contents"]);
+const ITEM_KEYS = new Set(["glob", "label", "note"]);
 
 /** 読んだ設定。tiers は tier 1〜4 の順に、その tier の glob を持つ。outside は階層の外の glob。 */
 export type DocTiers = { tiers: { tier: number; globs: string[] }[]; outside: string[] };
