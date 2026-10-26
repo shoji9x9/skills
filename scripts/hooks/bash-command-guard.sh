@@ -76,17 +76,20 @@ fi
 # 数字のクラスは配列の添字（`${pats[0]}`）と区別できないので、免除しない。記号のクラス（`[_]`）も免除しない。
 # 次の見逃しは受け入れる。正規表現を広げると、照合の時間と誤検知が増えるからである。
 # - 区間のどこかに印があれば止めないので、パターンの外の `out[x].log` や `# [x]`、英字の添字（`${pats[i]}`）でも通す
-# - 行継続（\ と改行）の後に書いた `-f` は、改行を区切りとして読むので見逃す
+# - 行継続（\ と改行）の後に書いた `-f` は、改行を区切りとして読むので見逃す（オプションの前後の空白に改行を含めない）
 nl=$'\n'
 mark=$'\001'
-pkill_re="(^|[^[:alnum:]_.-])(pkill|killall)([[:space:]][^;&|${nl}${mark}]*)?[[:space:]](-[[:alnum:]]*f[[:alnum:]]*|--full)[^;&|${nl}${mark}]*(\$|[;&|${nl}])"
+pkill_re="(^|[^[:alnum:]_.-])(pkill|killall)([[:blank:]][^;&|${nl}${mark}]*)?[[:blank:]](-[[:alnum:]]*f[[:alnum:]]*|--full)[^;&|${nl}${mark}]*(\$|[;&|${nl}])"
 
-# 置き換えは入力の長さの 2 乗の時間がかかるので、置き換える前の入力で一致したときだけ行う。
-[[ ${command_text} =~ ${pkill_re} ]] || exit 0
-scan="${command_text//\[[[:alpha:]]\]/${mark}}"
-
-if [[ ${scan} =~ ${pkill_re} ]]; then
-	echo "bash-command-guard: 実行前に止めた。pkill/killall -f の照合対象は full command line で、この呼び出し自身にも一致する（シェルごと終了する）。PID 指定（kill \"\$PID\"）にするか、パターンを [d]ump-dom の形にする: ${BASH_REMATCH[0]}" >&2
-	exit 2
-fi
+# 置き換えは対象の長さの 2 乗の時間がかかるので、一致した区間だけに当てる。
+# 区間が免除されたら、その後ろの入力で次の区間を探す。
+rest="${command_text}"
+while [[ ${rest} =~ ${pkill_re} ]]; do
+	segment="${BASH_REMATCH[0]}"
+	if [[ ${segment//\[[[:alpha:]]\]/${mark}} =~ ${pkill_re} ]]; then
+		echo "bash-command-guard: 実行前に止めた。pkill/killall -f の照合対象は full command line で、この呼び出し自身にも一致する（シェルごと終了する）。PID 指定（kill \"\$PID\"）にするか、パターンを [d]ump-dom の形にする: ${segment}" >&2
+		exit 2
+	fi
+	rest="${rest#*"${segment}"}"
+done
 exit 0

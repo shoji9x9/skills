@@ -48,10 +48,13 @@ test.each([
   ["- でつないだ名前の別のコマンド", "my-pkill -f x"],
   ["_ でつないだ名前の別のコマンド", "foo_pkill -f x"],
   ["拡張子の付いた名前の別のコマンド", "run.pkill -f x"],
+  ["\\\\ で終わる行の後の別のコマンドの -f", "pkill -x a\\\\\nrm -f x"],
+  ["pkill で終わる行の次の行の --full", 'echo "pkill chrome\n--full text"'],
+  ["免除した区間の後の、-f を使わない pkill", "pkill -f '[d]x'; pkill y"],
   // 受け入れた見逃し（正規表現を広げると、照合の時間と誤検知が増える）。
-  ["行継続の後の -f", "pkill \\\n  -f chrome"],
+  ["行継続の後の -f（字下げあり）", "pkill \\\n  -f chrome"],
+  ["行継続の後の -f（字下げなし）", "pkill \\\n-f chrome"],
   ["英字の配列の添字", 'pkill -f "${pats[i]}"'],
-  ["行で終わる \\\\ の後の別のコマンドの -f", "pkill -x a\\\\\nrm -f x"],
 ])("通す: %s", (_name, command) => {
   const r = guard(command);
   expect(r.stderr).toBe("");
@@ -70,6 +73,7 @@ test.each([
   ["--full", "pkill --full node"],
   ["他のオプションの後の -f", "pkill -u me -f node"],
   ["1 文字の文字クラスが別のコマンドにだけある", "pkill -f node && echo [x]"],
+  ["免除した区間の後の pkill -f", "pkill -f '[d]x'; pkill -f y"],
   ["範囲の文字クラスだけ", 'pkill -f "chrome.*[0-9]+"'],
   ["[ そのものの 1 文字のクラス", "pkill -f 'a[[]'"],
   ["配列の添字（数字 1 文字）", 'pkill -f "${pats[0]}"'],
@@ -99,6 +103,14 @@ test("pkill -f を含まない大きな入力は、文字クラスが多くて�
   const body = "a[i] = b[j];\n".repeat(32000);
   const started = Date.now();
   const r = guard(`pkill -x foo\ncat > f <<'EOF'\n${body}EOF`);
+  expect(r.status).toBe(0);
+  expect(Date.now() - started).toBeLessThan(3000);
+});
+
+test("免除した pkill -f の後に文字クラスの多い大きな本文が続いても、置き換えは区間だけに当ててすぐ通す", () => {
+  const body = "a[i] = b[j];\n".repeat(32000);
+  const started = Date.now();
+  const r = guard(`pkill -f '[d]ump-dom'\ncat > f <<'EOF'\n${body}EOF`);
   expect(r.status).toBe(0);
   expect(Date.now() - started).toBeLessThan(3000);
 });
