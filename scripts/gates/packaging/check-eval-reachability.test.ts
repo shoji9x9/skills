@@ -10,28 +10,20 @@
 // | id             | 数値 / 文字列 / 欠落 / ":" を含む / 重複                                          |
 // | prompt         | 正常 / 空                                                                         |
 // | assertions     | 正常 / 空配列 / 空要素 / テキスト重複                                             |
-// | reachability   | 無い（免除あり・指紋一致 / 免除あり・指紋不一致 / 免除なし） / ある                |
+// | reachability   | 無い（免除あり / 免除なし） / ある                                               |
 // | reachability[] | 正常 / 非オブジェクト / assertion 不在 / assertion 重複 / quote 空 / quote 非部分文字列 |
 // | 網羅           | 全 assertion に対応あり / 対応の無い assertion が残る                             |
-// | backlog        | 存在 / 不在 / 孤児キー / reachability 済みなのに残存                              |
+// | backlog        | 存在 / 不在 / 不正な形 / id の重複 / 孤児キー / reachability 済みなのに残存       |
 // | 走査モード     | 全走査（孤児を見る） / 部分走査（見ない）                                          |
 //
 // 誤検知しないことの確認（通さねばならない入力）は 2 つある。(1) reachability を正しく書いた eval。
-// (2) **実リポジトリ全体**（299 eval が backlog の宣言で通ること）。
-// 検出されることの確認も、実データから行う（実在の eval の prompt を 1 文字変えると、指紋が外れること）。
-import { assert, test, expect } from "vitest";
+// (2) 実リポジトリ全体（backlog に載る eval が、reachability が無くても通ること）。
+import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  BACKLOG_PATH,
-  backlogKey,
-  checkAll,
-  checkEvalFile,
-  evalFingerprint,
-  listEvalFiles,
-} from "./check-eval-reachability.ts";
+import { BACKLOG_PATH, checkAll, checkEvalFile, listEvalFiles } from "./check-eval-reachability.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
@@ -64,8 +56,8 @@ const file = (overrides = {}, evalOverrides = {}) =>
     ...overrides,
   });
 
-const check = (source: string, backlog: Record<string, string> = {}) =>
-  checkEvalFile({ path: "evals.json", source, backlog }).violations;
+const check = (source: string, backlog: string[] = []) =>
+  checkEvalFile({ path: "evals.json", source, backlog: new Set(backlog) }).violations;
 
 test("誤検知しないことの確認: 正しい reachability は違反 0 件", () => {
   expect(check(file())).toEqual([]);
@@ -79,47 +71,25 @@ test("誤検知しないことの確認（実データ）: 実リポジトリの
   expect(evals).toBeGreaterThan(100);
 });
 
-test("検出の確認（実データ）: 実在の eval の prompt を変えると免除の指紋が外れる", () => {
-  const files = listEvalFiles(repoRoot);
-  // backlog に残る（reachability の無い）eval を持つ最初のファイルを使う。すべての eval が reachability を持つファイル（新しいスキル）もある
-  const parse = (f: string) =>
-    parseJsonAs<{ skill_name: string; evals: EvalEntry[] }>(readFileSync(f, "utf8"));
-  const target = files.find((f) => parse(f).evals.some((e) => !Object.hasOwn(e, "reachability")));
-  assert.exists(target);
-  const parsed = parse(target);
-  const ev = parsed.evals.find((e) => !Object.hasOwn(e, "reachability"));
-  assert.exists(ev);
-  const backlog = parseJsonAs<{ exempt: Record<string, string> }>(
-    readFileSync(join(repoRoot, BACKLOG_PATH), "utf8"),
-  ).exempt;
-  const key = backlogKey(parsed.skill_name, ev.id);
-  expect(backlog[key]).toBe(evalFingerprint(ev));
-  // prompt を 1 文字足すと指紋が変わる＝免除が外れる。
-  expect(evalFingerprint({ ...ev, prompt: `${ev.prompt}。` })).not.toBe(backlog[key]);
-});
-
-test("reachability が無く免除も無ければ落とす（指紋を添えて案内する）", () => {
+test("reachability が無く免除も無ければ落とす（足す eval の id を添えて案内する）", () => {
   const v = check(file({}, { reachability: undefined }));
   expect(v).toHaveLength(1);
   expect(v[0]).toMatch(/reachability が無い/);
   expect(v[0]).toContain(`"demo:1"`);
 });
 
-test("免除があり指紋が一致すれば通す（段階適用）", () => {
-  const source = file({}, { reachability: undefined });
-  const ev = parseJsonAs<{ evals: EvalEntry[] }>(source).evals[0];
-  expect(check(source, { "demo:1": evalFingerprint(ev) })).toEqual([]);
+test("reachability が無くても、backlog に eval の id があれば通す", () => {
+  expect(check(file({}, { reachability: undefined }), ["demo:1"])).toEqual([]);
 });
 
-test("免除の指紋が古ければ落とす（eval を書き換えたら免除は外れる）", () => {
+test("backlog の免除は eval の id で照合する（別の skill・別の id の免除では通さない）", () => {
   const source = file({}, { reachability: undefined });
-  const v = check(source, { "demo:1": "0000000000000000" });
-  expect(v).toHaveLength(1);
-  expect(v[0]).toMatch(/backlog の指紋が古い/);
+  expect(check(source, ["other:1"])[0]).toMatch(/reachability が無い/);
+  expect(check(source, ["demo:2"])[0]).toMatch(/reachability が無い/);
 });
 
 test("reachability があるのに免除が残っていたら落とす", () => {
-  const v = check(file(), { "demo:1": "0000000000000000" });
+  const v = check(file(), ["demo:1"]);
   expect(v).toEqual([
     "evals.json #1: reachability があるのに scripts/gates/packaging/eval-reachability-backlog.json に残っている（項目を消す）",
   ]);
@@ -241,10 +211,7 @@ test("孤児の免除は全走査でだけ落とす（部分走査では正常�
   mkdirSync(join(root, "scripts/gates/packaging"), { recursive: true });
   const evalsPath = join(root, "evals/demo/evals.json");
   writeFileSync(evalsPath, file());
-  writeFileSync(
-    join(root, BACKLOG_PATH),
-    JSON.stringify({ exempt: { "demo:99": "0000000000000000" } }, null, 2),
-  );
+  writeFileSync(join(root, BACKLOG_PATH), JSON.stringify({ exempt: ["demo:99"] }, null, 2));
   expect(checkAll(root, [evalsPath]).violations).toEqual([
     `${BACKLOG_PATH}: "demo:99" に対応する eval が無い（孤児の免除）`,
   ]);
@@ -258,7 +225,7 @@ test("配布スキルの中の eval（skills/<name>/evals/）は全走査でだ�
   mkdirSync(join(root, "scripts/gates/packaging"), { recursive: true });
   const evalsPath = join(root, "evals/demo/evals.json");
   writeFileSync(evalsPath, file());
-  writeFileSync(join(root, BACKLOG_PATH), JSON.stringify({ exempt: {} }));
+  writeFileSync(join(root, BACKLOG_PATH), JSON.stringify({ exempt: [] }));
   // 誤検知しないことの確認: 置き場所が evals/<name>/ だけなら違反 0 件で、走査にも拾われる。
   expect(listEvalFiles(root)).toEqual([evalsPath]);
   expect(checkAll(root, [evalsPath]).violations).toEqual([]);
@@ -290,16 +257,23 @@ test("backlog が不正でも、クラッシュせず違反として落とす", 
   mkdirSync(join(root, "scripts/gates/packaging"), { recursive: true });
   const evalsPath = join(root, "evals/demo/evals.json");
   writeFileSync(evalsPath, file());
-  writeFileSync(join(root, BACKLOG_PATH), '{ "exempt": { "demo:1": ');
+  writeFileSync(join(root, BACKLOG_PATH), '{ "exempt": [ "demo:1", ');
   expect(checkAll(root, [evalsPath]).violations[0]).toMatch(/宣言ファイルを読めない/);
   // トップレベルが配列の宣言ファイルも同じ扱い（exempt を読めないのは同じ）。
   writeFileSync(join(root, BACKLOG_PATH), "[]");
   expect(checkAll(root, [evalsPath]).violations[0]).toMatch(/宣言ファイルを読めない/);
-  // exempt が object でないものと、値が文字列でないものも同じ扱い（免除の指紋として読めない）。
-  writeFileSync(join(root, BACKLOG_PATH), '{ "exempt": [] }');
-  expect(checkAll(root, [evalsPath]).violations[0]).toMatch(/宣言ファイルを読めない: exempt が/);
-  writeFileSync(join(root, BACKLOG_PATH), '{ "exempt": { "demo:1": 1 } }');
-  expect(checkAll(root, [evalsPath]).violations[0]).toMatch(/宣言ファイルを読めない: exempt が/);
+  // exempt が配列でないもの、要素が空や文字列でないものも同じ扱い（eval の id として読めない）。
+  for (const exempt of ['{ "demo:1": "x" }', "[1]", '[""]']) {
+    writeFileSync(join(root, BACKLOG_PATH), `{ "exempt": ${exempt} }`);
+    expect(checkAll(root, [evalsPath]).violations[0]).toMatch(
+      /宣言ファイルを読めない: exempt が、eval の id の文字列の配列でない/,
+    );
+  }
+  // 同じ id の重複は、片方を消しても免除が残るので落とす。
+  writeFileSync(join(root, BACKLOG_PATH), '{ "exempt": ["demo:1", "demo:1"] }');
+  expect(checkAll(root, [evalsPath]).violations[0]).toMatch(
+    /宣言ファイルを読めない: exempt に同じ eval の id が重複している/,
+  );
   rmSync(root, { recursive: true, force: true });
 });
 

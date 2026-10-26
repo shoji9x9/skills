@@ -121,8 +121,7 @@ pre-commit の検査は、他のジョブと同じく作業ツリーの内容に
 | `docs/check-doc-refs.ts` | リンクと節名の実在、参照の向き。節名は、パス（バッククォート・リンク・スキル名付き）の後に「」で書いたものを照合する。間に「の」や空白を挟んでもよく、節名でない語句を引用するときは名詞を挟む。導入先で生成するファイルは `scripts/gates/docs/doc-refs.json`、違反の形だが正しい記述の許可は `scripts/gates/docs/doc-allowed.json` に書く |
 | `packaging/check-skill-index.ts` | スキルガイド・README とスキルの実体の対応 |
 | `prose/lint-prose.ts` | 人が読む Markdown の文章と、JavaScript・TypeScript・シェル・YAML のコメントの文章。JavaScript・TypeScript の文字列と `evals/<name>/evals.json` の prompt・expected_output・assertions には、使わない語の規則だけを当てる（取り出し方は `scripts/lib/text/code-strings.ts`）。シェルのコメントは `shfmt --to-json` の構文木から取り出すので、shfmt（`mise.toml` で版を固定）が要る |
-| `prose/check-word-list.ts` | `.textlint/word-list.md` と `.textlint/words.json` の一致 |
-| `docs/agents-md/check-agents-md-size.ts` | `AGENTS.md` のサイズ。ブランチで 30 KiB を超えたら、24 KiB 以下まで縮めさせる。超えたかは履歴で判定し、上限は `scripts/gates/docs/agents-md/agents-md-size.json` に書く |
+| `docs/agents-md/check-agents-md-size.ts` | `AGENTS.md` のサイズが、Codex が読む上限（`project_doc_max_bytes` のデフォルトの 32 KiB）を超えていないか |
 
 ### カバレッジ（CI で実行）
 
@@ -203,10 +202,10 @@ worktree は commit した内容から作るので、tracked のファイルに 
 
 ### その他のチェックと整形
 
-Bash の実行前のチェック（PreToolUse）として、`scripts/hooks/bash-command-guard.sh` が次の 2 つの形を止める。どちらも、文章の規約では防げずに再発した形である。
-
-- `gh api` と同じセグメントにある `--body-file`。`gh api` にこのフラグは無い。`gh pr` と `gh issue` の `--body-file` は通す。
-- 文字クラスで自分を避けていない `pkill -f` と `killall -f`。照合するのがコマンドライン全体なので、自分のシェルにも一致する。
+Bash の実行前のチェック（PreToolUse）として、`scripts/hooks/bash-command-guard.sh` が、1 文字だけの文字クラス（`[d]ump-dom`）で自分を避けていない `pkill -f` と `killall -f` を止める。
+照合するのがコマンドライン全体なので、自分のシェルにも一致する。文章の規約では防げずに再発した形である。
+判定は語として現れる `pkill`・`killall` を 1 本の正規表現で見るだけで、シェルの構文は解析しない。そのため、引用の中の文章や heredoc の本文に書いた `pkill -f` でも止める。止められたら書き方を変える。
+この Hook に規則を足さない。
 
 このチェックは、3 つのエージェントに設定してある（`.claude/settings.json`・`.codex/hooks.json`・`.github/hooks/kaizen-session.json`）。
 
@@ -271,7 +270,7 @@ Markdown に加えて、JavaScript・TypeScript・シェル・YAML のコメン�
 代わりに、Claude Code の Stop の Hook（`scripts/hooks/response-word-check.ts`）が、応答を確定する前に同じ辞書で使わない語を確かめ、見つかれば書き直させる。
 使わない語の一覧 `.textlint/word-list.md` は `AGENTS.md` から `@` で取り込み、Claude Code がセッション開始時に読み込むようにしている。
 `@` での取り込みは Claude Code だけが処理するので、他のエージェントには `AGENTS.md` の文で一覧を開くよう指示している。
-この一覧は `.textlint/words.json` の `term` と `instead` から `scripts/gates/prose/check-word-list.ts --fix` で生成し、一致をチェックしている。
+この一覧は `.textlint/words.json` の `term` と `instead` から `scripts/tools/generate-word-list.ts` で生成する。pre-commit が、`words.json` か一覧が staged のときに、index の `words.json` から生成し直して stage する。
 
 ### JavaScript の拡張子
 
@@ -387,10 +386,8 @@ import できない雛形（`skills/*/assets/*.template.ts`）とミューテー
 配布スキルの `.mjs` では、型の検査を外す JSDoc の書き方を `scripts/gates/types/check-jsdoc-types.ts` が失敗にする。
 失敗にするのは、型の表明 `/** @type {X} */ (v)`（TypeScript の `as` と同じ）と、`@ts-ignore`・`@ts-expect-error`・`@ts-nocheck` である。
 JSDoc の型の `any`・`*`・`?`・`Function` と、型引数の無い `Object` も失敗にする。
-型引数を省くとデフォルトの `any` が入る型（`Generator`・`Iterable`・`IteratorResult`・`ReadableStream` など）は、`any` が入らない数まで型引数を書かせる。
-対象の型と書く数は、`tsconfig.skills.json` から作った Program の型チェッカーで名前を解決し、宣言の型引数のデフォルトから求める。
-名前では照合しないので、同じ名前の自作の型は対象にせず、修飾した名前（`globalThis.Generator`）も検出する。
-型引数の無い `Array`・`Promise`・`Map` は、tsc が TS2314 で失敗にする。
+判定は TypeScript のパーサで読んだ構文だけで行い、型の名前は解決しない。
+そのため、型引数を省くとデフォルトの `any` が入る型（`Generator<string>` は `Generator<string, any, any>` になる）は検出しない。書く人とレビューする人が、型引数をすべて書く。
 宣言の注釈（`/** @type {X} */ const v = ...`）・`@satisfies`・`/** @type {const} */ (v)` は、型を外さないので使ってよい。
 配布スキルが利用者のプロジェクトから読み込むモジュール（`pngjs` など）の型は、使う欄だけを `types/skill-runtime/<モジュール名>.ts` に書き、`tsconfig.skills.json` の `paths` でそこへ解決する。
 大域の `declare module` にしないのは、`.mjs` をモジュールとして読む判定（`moduleDetection`）を変えずに済ませるためである。

@@ -1,6 +1,6 @@
 # 使わない語
 
-<!-- .textlint/words.json から scripts/gates/prose/check-word-list.ts --fix で生成する。手で直さない。 -->
+<!-- .textlint/words.json から scripts/tools/generate-word-list.ts で生成する（pre-commit が実行する）。手で直さない。 -->
 
 人が読む文章と人への応答では、次の語を使わず言い換えて書く。
 
