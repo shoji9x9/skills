@@ -125,3 +125,9 @@ test.each([
 ])("loadDocTiers: 設定の形の誤り（%s）は例外にする", (_name, bad, reason) => {
   expect(() => loadDocTiers(makeRepo(bad))).toThrow(reason);
 });
+
+test("loadDocTiers: JSON として読めない設定は、ファイルのパスを添えて例外にする", () => {
+  const root = makeRepo(null);
+  write(root, TIERS_PATH, '{ "tiers": [], }');
+  expect(() => loadDocTiers(root)).toThrow(/doc-tiers\.json を JSON として読めない/);
+});

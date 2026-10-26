@@ -7,7 +7,8 @@
 //
 // 判定規則:
 // - 設定のスキーマ（skills/<name>/config-schemas/）を持つスキルは、読み取りと、同梱したパーサの 3 つを持つ。
-//   読み取りは scripts/skill-config/skill-config.mjs で、同じ内容であることは copies/check-identical-copies.ts が確かめる。
+//   読み取りは scripts/skill-config/skill-config.mjs である。copies/check-identical-copies.ts は、identical-copies.json の組に載った
+//   コピーが同じ内容であることだけを確かめる。新しいスキルのコピーを組に足すのは、docs/skill-development.md の手順で行い、チェックしない。
 //   パーサは scripts/skill-config/vendor/ の jsonc-parser.mjs・jsonc-parser.d.mts・LICENSE.md である。
 // - vendor/ の 3 つは、devDependency の jsonc-parser から作った内容とバイト単位で一致する。
 //   jsonc-parser.mjs は esbuild で 1 ファイルにまとめたもの、jsonc-parser.d.mts は lib/esm/main.d.ts、

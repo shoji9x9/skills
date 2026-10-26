@@ -16,3 +16,6 @@ coverage:github:2026-10-25T13:34:36.873Z:2026-10-26T13:34:56.848Z,coverage,2026-
 coverage:github:2026-10-25T13:34:56.848Z:2026-10-26T13:37:46.263Z,coverage,2026-10-26T13:37:46.263Z,p-cdee4961,,,,,2026-10-25T13:34:56.848Z,2026-10-26T13:37:46.263Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-25T13:37:46.263Z:2026-10-26T13:38:03.267Z,coverage,2026-10-26T13:38:03.267Z,p-cdee4961,,,,,2026-10-25T13:37:46.263Z,2026-10-26T13:38:03.267Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-25T13:38:03.267Z:2026-10-26T13:38:46.543Z,coverage,2026-10-26T13:38:46.543Z,p-cdee4961,,,,,2026-10-25T13:38:03.267Z,2026-10-26T13:38:46.543Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:40332889702:1,ci,2026-10-26T13:49:32.677Z,p-cdee4961,github-actions,,,,2026-10-26T13:42:06.000Z,2026-10-26T13:45:53.000Z,Asia/Tokyo,feature/748-remove-low-value-checks,748,,,,,,,,,,CI;pull_request;success,
+ci:40332889873:1,ci,2026-10-26T13:49:32.677Z,p-cdee4961,github-actions,,,,2026-10-26T13:42:06.000Z,2026-10-26T13:42:07.000Z,Asia/Tokyo,feature/748-remove-low-value-checks,748,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+coverage:github:2026-10-25T13:38:46.543Z:2026-10-26T13:49:32.677Z,coverage,2026-10-26T13:49:32.677Z,p-cdee4961,,,,,2026-10-25T13:38:46.543Z,2026-10-26T13:49:32.677Z,Asia/Tokyo,,,,,,,,,,,,ok,

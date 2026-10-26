@@ -45,7 +45,14 @@ const matchesGlob = (rel: string, glob: string) => globToRegExp(glob).test(rel);
 export function loadDocTiers(root: string): DocTiers {
   const path = join(root, TIERS_PATH);
   if (!existsSync(path)) throw new Error(`${TIERS_PATH} が無い`);
-  const data: unknown = JSON.parse(readFileSync(path, "utf8"));
+  let data: unknown;
+  try {
+    data = JSON.parse(readFileSync(path, "utf8"));
+  } catch (e) {
+    throw new Error(
+      `${TIERS_PATH} を JSON として読めない: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
   const { tiers, outside }: Record<string, unknown> = isRecord(data) ? data : {};
   if (!isArray(tiers) || !isArray(outside)) throw new Error("tiers と outside は配列にする");
   // tier は数の 1〜4 だけを受ける（文字列の "1" は、tierOf の比較で数と食い違う）。
