@@ -134,12 +134,20 @@ const LOCATE_STEP = "Locate kaizen scripts";
 type WorkflowStep = { name?: string; id?: string; run: string; env?: Record<string, unknown> };
 type Workflow = {
   env?: Record<string, unknown>;
-  jobs: Record<string, { steps?: WorkflowStep[]; env?: Record<string, unknown> }>;
+  jobs: Record<
+    string,
+    { steps?: WorkflowStep[]; env?: Record<string, unknown>; outputs?: Record<string, unknown> }
+  >;
 };
+
+/** ワークフローを読み込む。 */
+function workflowDoc(wfPath: string) {
+  return loadYamlAs<Workflow>(readFileSync(join(repoRoot, wfPath), "utf8"));
+}
 
 /** ワークフローの指定ステップ（宣言そのもの）を返す。 */
 function step(wfPath: string, name: string) {
-  const doc = loadYamlAs<Workflow>(readFileSync(join(repoRoot, wfPath), "utf8"));
+  const doc = workflowDoc(wfPath);
   // `uses:` で再利用ワークフローを呼ぶ job には `steps` が無い（TypeError で落ちるのを避ける）。
   const steps = Object.values(doc.jobs).flatMap((job) => job.steps ?? []);
   const matched = steps.filter((s) => s.name === name);
@@ -161,7 +169,7 @@ export function trackingStep(wfPath: string) {
  * テストが緑のまま通り、空の値でステップが実行されていることに気づけない（実測）。
  */
 export function declaredEnv(wfPath: string, key: string) {
-  const doc = loadYamlAs<Workflow>(readFileSync(join(repoRoot, wfPath), "utf8"));
+  const doc = workflowDoc(wfPath);
   const scopes = [
     doc.env ?? {},
     ...Object.values(doc.jobs).map((j) => j.env ?? {}),
@@ -188,19 +196,31 @@ export function declaredEnv(wfPath: string, key: string) {
  */
 export function resolveLib(wfPath: string) {
   const declared = declaredEnv(wfPath, "TRACKING_LIB");
-  const m = declared.match(/^\$\{\{\s*steps\.([\w-]+)\.outputs\.(\w+)\s*\}\}$/);
+  const m = declared.match(/^\$\{\{\s*needs\.([\w-]+)\.outputs\.([\w-]+)\s*\}\}$/);
   if (!m) {
     expect(declared, "TRACKING_LIB は式かリポジトリ内の相対パス").not.toMatch(/\$\{\{/);
     const abs = join(repoRoot, declared);
     expect(existsSync(abs), `${wfPath}: TRACKING_LIB=${declared} が実在しない`).toBe(true);
     return abs;
   }
-  const [, stepId, output] = m;
+  // kaizen 側は、エージェントを動かすジョブの outputs を経て探索ステップの出力を受ける。
+  // ジョブの outputs が別の値を指す変異を落とすため、outputs の宣言を探索ステップまで辿る。
+  const [, jobId, jobOutput] = m;
+  const jobOutputs = workflowDoc(wfPath).jobs[jobId]?.outputs ?? {};
+  const inner = String(jobOutputs[jobOutput] ?? "").match(
+    /^\$\{\{\s*steps\.([\w-]+)\.outputs\.(\w+)\s*\}\}$/,
+  );
+  assert.exists(inner, `${wfPath}: jobs.${jobId}.outputs.${jobOutput} がステップの出力を指さない`);
+  const [, stepId, output] = inner;
   expect(step(wfPath, LOCATE_STEP).id, `${wfPath}: ${LOCATE_STEP} の id`).toBe(stepId);
   const found = runLocate(wfPath, repoRoot);
   expect(found.status, found.stderr).toBe(0);
   const value = found.outputs[output];
   expect(value, `${LOCATE_STEP} が ${output} を出力していない`).toBeTruthy();
+  // 実在するだけでは足りない。同じ探索ステップが出すレポートのスクリプトを指しても実在する。
+  expect(value, `TRACKING_LIB が ${output} を経て lib 以外を指す`).toMatch(
+    /\/tracking-issue-lib\.sh$/,
+  );
   const abs = join(repoRoot, value);
   expect(existsSync(abs), `${LOCATE_STEP} が出した ${value} が実在しない`).toBe(true);
   return abs;

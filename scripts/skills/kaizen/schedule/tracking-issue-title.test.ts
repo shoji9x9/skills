@@ -505,3 +505,49 @@ describe.each(WORKFLOWS)(
     }
   },
 );
+
+// runner にはログインの設定が無く、`GH_TOKEN` だけを持つ。remote が github.com 以外を指すと、
+// gh はホストを解決できずに失敗する（Issue #780）。ホストは `GITHUB_SERVER_URL` から決めて渡す。
+describe("kaizen-schedule.yml の追跡 Issue 更新ステップが gh に渡すホスト", () => {
+  const wfPath = ".github/workflows/kaizen-schedule.yml";
+  // gh の呼び出しごとに、受け取った GH_HOST を記録するスタブ。照会は 0 件を返す。
+  const GH_HOST_LOGGING = `#!/usr/bin/env bash
+set -euo pipefail
+printf 'HOST: %s CALL: %s\\n' "\${GH_HOST-unset}" "$*" >>"$GH_LOG"
+if [ "\${1-}" = issue ] && [ "\${2-}" = list ]; then
+  echo "scanned=0"
+fi
+`;
+
+  test.each([
+    ["https://github.com", "github.com"],
+    ["https://example.ghe.com", "example.ghe.com"],
+    ["https://ghes.example.internal", "ghes.example.internal"],
+  ])("GITHUB_SERVER_URL=%s なら、すべての gh の呼び出しに GH_HOST=%s を渡す", (url, host) => {
+    const res = runBash(trackingStep(wfPath), GH_HOST_LOGGING, {
+      ISSUE_TITLE_PREFIX: declaredEnv(wfPath, "ISSUE_TITLE_PREFIX"),
+      TRACKING_LIB: libPath,
+      PENDING_COUNT: "3",
+      GITHUB_SERVER_URL: url,
+      // 呼び出し元の環境に GH_HOST があっても、ステップの値で上書きすることを確かめる。
+      GH_HOST: "stale.example.com",
+    });
+    expect(res.status, res.stderr).toBe(0);
+    // 引数（jq の式）は改行を含むので、記録を行ではなく呼び出しの先頭の `HOST: ` で区切る。
+    const calls = [...res.calls.matchAll(/^HOST: (\S+) CALL: (\S+ \S+)/gm)].map((m) => ({
+      host: m[1],
+      command: m[2],
+    }));
+    // 照会と作成の両方に到達している（呼び出しが 0 件の緑を根拠にしない）。
+    const commands = calls.map((c) => c.command);
+    expect(commands, res.calls).toContain("issue list");
+    expect(commands, res.calls).toContain("issue create");
+    expect(new Set(calls.map((c) => c.host)), res.calls).toStrictEqual(new Set([host]));
+  });
+
+  // GitHub Enterprise Server のホストでは、gh は GH_TOKEN を読まず GH_ENTERPRISE_TOKEN を読む。
+  // https://cli.github.com/manual/gh_help_environment
+  test("GitHub Enterprise Server 向けに、GH_ENTERPRISE_TOKEN にも同じトークンを渡す", () => {
+    expect(declaredEnv(wfPath, "GH_ENTERPRISE_TOKEN")).toBe(declaredEnv(wfPath, "GH_TOKEN"));
+  });
+});

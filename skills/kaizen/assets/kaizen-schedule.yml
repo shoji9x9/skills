@@ -53,14 +53,40 @@ env:
   PROMPT_FILE: kaizen-agent-prompt.md
   BODY_FILE: kaizen-issue-body.md
 
+# ジョブは 2 つに分ける。エージェント（claude の `Write`）は作業ツリーの任意のファイルを書き換えられるので、
+# 同じジョブの後の段は、エージェントが書いたスクリプトを Issue の書き込みの権限で実行してしまう。
+# エージェントを動かす `review` には `contents: read` だけを与え、追跡 Issue を書く `tracking-issue` は
+# checkout し直した作業ツリーのスクリプトと、artifact で受け取ったレポート（データとして読むだけ）だけを使う。
+#
+# runner のラベルは、リポジトリ変数 `KAIZEN_SCHEDULE_RUNNER` で選ぶ（無ければ ubuntu-latest）。
+# IP allow list を有効にした organization では、固定の IP を持つ larger runner や self-hosted runner のラベルを入れる。
 jobs:
-  kaizen-schedule:
+  review:
     name: Review pending kaizen notes
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.KAIZEN_SCHEDULE_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 30
     permissions:
       contents: read
-      issues: write
+    # `tracking-issue` が読む値。outcome_* 以外は、エージェントを動かす前に終わった段の出力から取る。
+    # outcome_* は runner が記録するステップの結果で、エージェントは書き換えられない。
+    outputs:
+      skip: ${{ steps.settings.outputs.skip }}
+      mode: ${{ steps.settings.outputs.mode }}
+      agent: ${{ steps.settings.outputs.agent }}
+      model: ${{ steps.settings.outputs.model }}
+      effort: ${{ steps.settings.outputs.effort }}
+      pending_count: ${{ steps.settings.outputs.pending_count }}
+      script: ${{ steps.locate.outputs.script }}
+      lib: ${{ steps.locate.outputs.lib }}
+      cred_present: ${{ steps.cred.outputs.present }}
+      outcome_claude: ${{ steps.run-claude.outcome }}
+      outcome_codex: ${{ steps.run-codex.outcome }}
+      outcome_copilot: ${{ steps.run-copilot.outcome }}
+      # レポートの artifact の名前。`review` が upload したときの試行の番号を含む。
+      # run を再実行したときに、前の試行が上げたレポートを今回の分として download しないようにする。
+      # `tracking-issue` は、自分の run_attempt から名前を作らない。失敗したジョブだけを再実行すると
+      # `review` は再実行されず、`tracking-issue` の試行の番号だけが進むので、名前が合わなくなる。
+      report_artifact: kaizen-agent-report-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -154,10 +180,6 @@ jobs:
 
       # 以降は、settings が実行されて skip=false と答えたときだけ動かす。`!= 'true'` にすると、
       # 一時停止で settings 自体が skip されたときに出力が空になり、条件を満たしてしまう。
-      - name: Build notify body
-        if: steps.settings.outputs.skip == 'false'
-        run: bash "${{ steps.locate.outputs.script }}" issue >"$BODY_FILE"
-
       - name: Build agent prompt
         if: steps.settings.outputs.skip == 'false' && steps.settings.outputs.mode == 'agent'
         run: bash "${{ steps.locate.outputs.script }}" prompt >"$PROMPT_FILE"
@@ -229,8 +251,8 @@ jobs:
       # Copilot CLI を動かし、Copilot の API へ接続する。
       # true にして、キャッシュのバージョンが最新の 24.x でなければ取得させる。
       # `continue-on-error` を落とさない。カスタム `if:` でも暗黙の `success() &&` は外れないので、
-      # ここが落ちるとジョブが失敗状態になり、後続の Issue 更新まで丸ごと skip される。
-      # その結果、pending 一覧はできているのに、その週の追跡 Issue が作成も更新もクローズもされない。
+      # 付けないと、このステップが失敗したときに Copilot CLI とレポートの upload が skip され、`review` ジョブが失敗になる。
+      # 追跡 Issue は更新されるが、Copilot CLI を起動しなかったことが run の失敗として通知される。
       - name: Set up Node.js
         if: steps.cred.outputs.present == 'true' && steps.settings.outputs.agent == 'copilot'
         continue-on-error: true
@@ -264,18 +286,79 @@ jobs:
             --no-ask-user \
             -s >"$REPORT_FILE" </dev/null
 
+      # エージェントがレポートを書かなかったときも、空のファイルを渡す。`tracking-issue` は、
+      # 空のレポート（エージェントが何も出さなかった）と、受け渡しの失敗（download の失敗）を分けて Issue に書く。
+      # artifact を作らない形にすると、2 つが同じ download の失敗になり、区別できない。
+      - name: Ensure agent report file
+        if: steps.cred.outputs.present == 'true'
+        run: touch "$REPORT_FILE"
+
+      # レポートだけを渡す。`tracking-issue` はこれを Issue の本文に載せる文章として読み、実行しない。
+      # 名前は、job の outputs の `report_artifact` と同じ値にする（試行の番号を含む）。
+      # upload-artifact と download-artifact の v4 以降は、GitHub Enterprise Server では使えない。
+      # 出典: https://github.com/actions/upload-artifact#ghes-support と https://github.com/actions/download-artifact#ghes-support
+      # GHES ではこの段が失敗し、`tracking-issue` はレポートを受け取れなかったと Issue に書く。
+      # `continue-on-error` を落とさない。失敗したジョブの outputs を下流のジョブが読めるかは、
+      # 公式のドキュメント（workflow syntax の jobs.<job_id>.outputs）に書かれていない。
+      # `review` を成功で終わらせ、`tracking-issue` が outputs を確実に読めるようにする。
+      - name: Upload agent report
+        if: steps.cred.outputs.present == 'true'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: kaizen-agent-report-${{ github.run_attempt }}
+          path: ${{ env.REPORT_FILE }}
+          if-no-files-found: error
+          retention-days: 1
+
+  tracking-issue:
+    name: Update kaizen tracking issue
+    needs: review
+    # エージェントの段とレポートの upload の段は `continue-on-error` なので、その失敗では `review` は成功で終わり、
+    # 追跡 Issue を更新する。`!cancelled()` は、それ以外の段で `review` が失敗し、それでも outputs の
+    # skip=false を受け取れた場合に、追跡 Issue の更新を止めないためのものである。
+    # エージェントの成否は「Append agent report」が Issue に書く。
+    if: ${{ !cancelled() && needs.review.outputs.skip == 'false' }}
+    runs-on: ${{ vars.KAIZEN_SCHEDULE_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      # `review` の作業ツリーはエージェントが書き換えられるので、使わない。同じ commit を checkout し直す。
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build notify body
+        env:
+          KAIZEN_SCRIPT: ${{ needs.review.outputs.script }}
+        run: bash "$KAIZEN_SCRIPT" issue >"$BODY_FILE"
+
+      # 作業ツリーの外に置く。作業ツリーのファイルを上書きできないようにするためである。
+      - name: Download agent report
+        id: download
+        if: needs.review.outputs.mode == 'agent' && needs.review.outputs.cred_present == 'true'
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ needs.review.outputs.report_artifact }}
+          path: ${{ runner.temp }}/kaizen-agent
+
       # エージェント実行の成否を**成果物**で判定する。`continue-on-error` を付けた
       # ステップの結果だけでは、起動したが空を書いた場合を拾えない。
       - name: Append agent report
-        if: steps.settings.outputs.skip == 'false' && steps.settings.outputs.mode == 'agent'
+        if: needs.review.outputs.mode == 'agent'
         env:
-          AGENT: ${{ steps.settings.outputs.agent }}
-          MODEL: ${{ steps.settings.outputs.model }}
-          EFFORT: ${{ steps.settings.outputs.effort }}
-          CRED_PRESENT: ${{ steps.cred.outputs.present }}
-          OUTCOME_CLAUDE: ${{ steps.run-claude.outcome }}
-          OUTCOME_CODEX: ${{ steps.run-codex.outcome }}
-          OUTCOME_COPILOT: ${{ steps.run-copilot.outcome }}
+          AGENT: ${{ needs.review.outputs.agent }}
+          MODEL: ${{ needs.review.outputs.model }}
+          EFFORT: ${{ needs.review.outputs.effort }}
+          CRED_PRESENT: ${{ needs.review.outputs.cred_present }}
+          OUTCOME_CLAUDE: ${{ needs.review.outputs.outcome_claude }}
+          OUTCOME_CODEX: ${{ needs.review.outputs.outcome_codex }}
+          OUTCOME_COPILOT: ${{ needs.review.outputs.outcome_copilot }}
+          DOWNLOAD_OUTCOME: ${{ steps.download.outcome }}
+          AGENT_REPORT: ${{ runner.temp }}/kaizen-agent/${{ env.REPORT_FILE }}
         run: |
           # 起動したエージェントのステップの結果を取る（他の 2 つは skipped）。
           outcome=""
@@ -293,14 +376,21 @@ jobs:
             echo "- エージェント: \`$AGENT\`${MODEL:+ / モデル: \`$MODEL\`}${EFFORT:+ / エフォート: \`$EFFORT\`}"
             echo "- 実行: [ワークフロー run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)"
             echo
-            if [ "$CRED_PRESENT" != true ]; then
+            if [ -z "$CRED_PRESENT" ]; then
+              # 資格情報を確かめる段まで進まずに `review` が失敗した。未設定と書くと、原因を取り違える。
+              echo "> エージェントを起動する前に \`review\` ジョブが失敗しました。上記 run のログを確認してください。"
+            elif [ "$CRED_PRESENT" != true ]; then
               echo "> 資格情報（\`$AGENT\` 用の secret）が未設定のため、通知のみに切り替えました。"
             elif [ "$outcome" != success ]; then
               # 非空だけで成否を測らない。copilot は CLI の stdout がそのまま
               # レポートになるため、レート制限等で途中終了した run の**部分出力**が
               # 非空になり、未完成のレポートを完成品として転記してしまう。
               echo "> エージェントの実行が失敗しました（outcome: \`${outcome:-unknown}\`）。上記 run のログを確認してください。"
-            elif [ -s "$REPORT_FILE" ]; then
+            elif [ "$DOWNLOAD_OUTCOME" != success ]; then
+              # `review` は空のファイルでも artifact を作るので、download の失敗は受け渡しの失敗である。
+              # 「レポートを出力しなかった」と書くと、エージェントの問題と取り違える。
+              echo "> エージェントのレポートを受け取れませんでした（download の outcome: \`${DOWNLOAD_OUTCOME:-unknown}\`）。上記 run のログを確認してください。"
+            elif [ -s "$AGENT_REPORT" ]; then
               # 表は 60 行で切って本文の文字数予算を守っているのに、ここが無制限だと
               # 同じ故障（`gh issue edit/create` が上限超過で落ち、その週の Issue が
               # 作成も更新もされない）がエージェント経由で再現する。行の境界で切るのは、
@@ -313,7 +403,7 @@ jobs:
                   exit
                 }
                 { print }
-              ' "$REPORT_FILE"
+              ' "$AGENT_REPORT"
             else
               echo "> エージェントはレポートを出力しませんでした。上記 run のログを確認してください。"
             fi
@@ -322,13 +412,22 @@ jobs:
       # 作成・更新・クローズを 1 ステップに置く。追跡 Issue を引く処理が同じなので、
       # 分けると同じ関数を 2 箇所に持つことになり、片方だけ直る余地ができる。
       - name: Update tracking issue
-        if: steps.settings.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
-          PENDING_COUNT: ${{ steps.settings.outputs.pending_count }}
+          # GitHub Enterprise Server のホストには、gh は GH_TOKEN ではなく GH_ENTERPRISE_TOKEN を使う。
+          # github.com と <tenant>.ghe.com では GH_TOKEN を使うので、こちらは読まれない。
+          GH_ENTERPRISE_TOKEN: ${{ github.token }}
+          PENDING_COUNT: ${{ needs.review.outputs.pending_count }}
           # 照会の原本（同梱のスクリプト）。`Locate kaizen scripts` が実在を確かめた 1 本である。
-          TRACKING_LIB: ${{ steps.locate.outputs.lib }}
+          # 読み込むのは、このジョブで checkout し直した作業ツリーの同じパスのファイルである。
+          TRACKING_LIB: ${{ needs.review.outputs.lib }}
         run: |
+          # runner にはログインの設定が無く、トークンは env の値だけを持つ。remote が github.com 以外
+          # （GitHub Enterprise の <tenant>.ghe.com など）を指すと、gh はホストを解決できずに失敗する。
+          # そのため、ホストを `GITHUB_SERVER_URL`（https://<ホスト>）から決めて渡す。
+          # github.com では GH_HOST=github.com になるだけなので、振る舞いは変わらない。
+          export GH_HOST="${GITHUB_SERVER_URL#*://}"
+
           # `settings` は必ず 10 進の件数を書く。空や数値でないまま進むと、`= 0` は文字列の比較
           # なので「未適用あり」と判定され、件数の抜けたコメントを投稿しつつ Issue を更新する
           # （実測）。`outdated.yml` の `has_outdated` の検証と同じく、gh を呼ぶ前にエラーにする。

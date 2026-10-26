@@ -636,6 +636,23 @@ node <KAIZEN_SKILL_DIR>/scripts/skill-config/skill-config.mjs set kaizen schedul
 
 > ワークフローは、設定ファイルを Node.js で読む。GitHub がホストする `ubuntu-latest` のランナーには Node.js が入っている。
 > Node.js の無いランナー（self-hosted など）では、設定を読む step の前に `actions/setup-node` を足す。
+> 設定は、`review` ジョブの「Resolve settings」と `tracking-issue` ジョブの「Build notify body」の両方が読むので、2 つのジョブに足す。
+
+runner のラベルは、リポジトリ変数 `KAIZEN_SCHEDULE_RUNNER` で選ぶ。変数が無ければ `ubuntu-latest` で動く。
+IP allow list を有効にした organization では、標準の runner から接続できないので、固定の IP を持つ larger runner や self-hosted runner のラベルを入れる。
+設定は `gh variable set KAIZEN_SCHEDULE_RUNNER --body <ラベル>` で行う。
+ワークフローの 2 つのジョブ（`review` と `tracking-issue`）は、どちらもこのラベルで動く。
+
+追跡 Issue を書く step は、`gh` に渡すホスト（`GH_HOST`）を `GITHUB_SERVER_URL` から決める。
+runner にはログインの設定が無く、step の env のトークン（`GH_TOKEN`、GitHub Enterprise Server 向けの `GH_ENTERPRISE_TOKEN`）だけがある。
+そのため、remote が github.com 以外（GitHub Enterprise の `<tenant>.ghe.com` など）を指すと、ホストを渡さない `gh` はホストを解決できずに失敗する。
+github.com では `GH_HOST=github.com` になるだけなので、振る舞いは変わらない。
+
+GitHub Enterprise Server では、`agent` モードのレポートを受け渡せない。
+テンプレートが使う `actions/upload-artifact` と `actions/download-artifact` の v4 以降は、GHES で使えないからである。
+出典は、各 action の README の「GHES Support」（<https://github.com/actions/upload-artifact#ghes-support>・<https://github.com/actions/download-artifact#ghes-support>）である。
+このとき upload の段は失敗するが、`continue-on-error` なので `review` ジョブは成功で終わり、追跡 Issue には「エージェントのレポートを受け取れませんでした」と書かれる。
+GHES では `notify` モードで動かす。`notify` モードは artifact を使わない。
 
 このワークフローは、リポジトリを変えない。pending の一覧（エージェントを使う場合はその分析も）を 1 つの Issue にまとめ、既存の追跡 Issue があれば本文を更新する。pending が 0 件になれば、その Issue を閉じる。
 
@@ -654,7 +671,15 @@ node <KAIZEN_SKILL_DIR>/scripts/skill-config/skill-config.mjs set kaizen schedul
 | `notify`（デフォルト） | pending の一覧表だけを Issue にする | なし（LLM を動かさない） |
 | `agent` | エージェントに pending を読ませ、グループ分け・根本原因・適用先の提案までさせて Issue に載せる | 選んだエージェントの資格情報（secret） |
 
-`agent` でも、エージェントは読み取りだけを行う。レポートは、ワークフローが Issue に転記する。
+`agent` でも、エージェントは commit も push もしない（checkout は資格情報を残さない）。
+エージェントが書き換えられるのは、`review` ジョブの作業ツリーのファイルだけで、ジョブが終わると捨てられる。レポートは、ワークフローが Issue に転記する。
+
+エージェントは、Issue の書き込みの権限を持たないジョブ（`review`。権限は `contents: read` だけ）で動かす。
+claude に許す `Write` は書き込む先を限らないので、エージェントは作業ツリーの任意のファイル（後で読み込むスクリプトなど）を書き換えられる。
+エージェントへの入力（`.kaizen/` の学びの本文）は commit された文章なので、プロンプトの注入でその書き換えを誘導できる。
+そのため、追跡 Issue を書くジョブ（`tracking-issue`）は、同じ commit を checkout し直した作業ツリーのスクリプトだけを読み込む。
+エージェントのレポートは artifact で受け取って作業ツリーの外（`RUNNER_TEMP`）に置き、本文に載せる文章として読むだけにする。
+配置したワークフローを書き換えるときも、エージェントの step と、秘密情報や書き込みの権限を持つ step を同じジョブに置かない。
 
 #### エージェントの選択
 

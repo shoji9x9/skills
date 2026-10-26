@@ -48,7 +48,7 @@ type Workflow = {
 };
 
 /** 原本の「Append agent report」ステップを、成功したエージェントのレポートで実行し、本文を返す。 */
-function appendReport(report: string) {
+function appendReport(report: string, env: Record<string, string> = {}) {
   const doc = loadYamlAs<Workflow>(readFileSync(join(repoRoot, CANON), "utf8"));
   const steps = Object.values(doc.jobs).flatMap((job) => job.steps ?? []);
   const matched = steps.filter((s) => s.name === "Append agent report");
@@ -73,12 +73,14 @@ function appendReport(report: string) {
         AGENT: "claude",
         CRED_PRESENT: "true",
         OUTCOME_CLAUDE: "success",
+        DOWNLOAD_OUTCOME: "success",
         MAX_REPORT_CHARS: String(max),
-        REPORT_FILE: "report.md",
+        AGENT_REPORT: "report.md",
         BODY_FILE: "body.md",
         GITHUB_SERVER_URL: "https://github.com",
         GITHUB_REPOSITORY: "o/r",
         GITHUB_RUN_ID: "1",
+        ...env,
       },
       timeout: CHILD_TIMEOUT_MS,
     });
@@ -112,6 +114,151 @@ describe("エージェントのレポートを本文の予算の中で載せる"
     expect(body).toContain("短いレポート\n2 行目\n");
     expect(body).not.toContain(OMITTED);
   });
+
+  // `tracking-issue` は `review` が途中で失敗しても動く。資格情報を確かめる段まで進まなかったときに、
+  // 「資格情報が未設定」と書くと、利用者は secret を疑い、本当の原因（前の段の失敗）を探さない。
+  test("資格情報を確かめる前に review が失敗したときは、未設定とは書かず、review の失敗と書く", () => {
+    const { body } = appendReport("届いたレポート\n", { CRED_PRESENT: "" });
+    expect(body).toContain("エージェントを起動する前に `review` ジョブが失敗しました");
+    expect(body).not.toContain("未設定");
+    expect(body).not.toContain("届いたレポート");
+  });
+
+  test("資格情報が無いと答えたときは、未設定と書く", () => {
+    const { body } = appendReport("", { CRED_PRESENT: "false" });
+    expect(body).toContain("が未設定のため、通知のみに切り替えました");
+  });
+
+  // GHES では artifact の v4 以降が使えず、download が失敗する。エージェントが何も出さなかったと
+  // 書くと、利用者はエージェントを疑い、受け渡しの失敗に気付かない。
+  test.each(["failure", ""])(
+    "download の outcome が「%s」なら、出力しなかったとは書かず、受け取れなかったと書く",
+    (outcome) => {
+      const { body } = appendReport("", { DOWNLOAD_OUTCOME: outcome });
+      expect(body).toContain("エージェントのレポートを受け取れませんでした");
+      expect(body).not.toContain("レポートを出力しませんでした");
+    },
+  );
+
+  test("download が成功してレポートが空なら、出力しなかったと書く", () => {
+    const { body } = appendReport("");
+    expect(body).toContain("エージェントはレポートを出力しませんでした");
+    expect(body).not.toContain("受け取れませんでした");
+  });
+});
+
+// 空のレポートと受け渡しの失敗を分けるには、レポートが空でも artifact を作る必要がある。
+test("レポートが無くても空のファイルを作り、artifact が作られなければ upload を失敗させる", () => {
+  const doc = loadYamlAs<{
+    jobs: Record<
+      string,
+      { steps?: { name?: string; run?: string; with?: Record<string, unknown> }[] }
+    >;
+  }>(readFileSync(join(repoRoot, CANON), "utf8"));
+  const steps = Object.values(doc.jobs).flatMap((j) => j.steps ?? []);
+  const names = steps.map((s) => s.name);
+  const ensure = names.indexOf("Ensure agent report file");
+  const upload = names.indexOf("Upload agent report");
+  expect(ensure, "Ensure agent report file").toBeGreaterThanOrEqual(0);
+  expect(upload).toBeGreaterThan(ensure);
+  expect(steps[ensure]?.run).toContain('touch "$REPORT_FILE"');
+  expect(steps[upload]?.with?.["if-no-files-found"]).toBe("error");
+});
+
+// upload が失敗して `review` が失敗すると、`tracking-issue` が `review` の outputs を読めるかは
+// 公式のドキュメントに書かれていない。GHES では upload が必ず失敗するので、そこで `review` を失敗させない。
+test("レポートの upload が失敗しても、review ジョブを失敗させない", () => {
+  const doc = loadYamlAs<{
+    jobs: Record<string, { steps?: { name?: string; "continue-on-error"?: unknown }[] }>;
+  }>(readFileSync(join(repoRoot, CANON), "utf8"));
+  const uploads = Object.values(doc.jobs)
+    .flatMap((j) => j.steps ?? [])
+    .filter((s) => s.name === "Upload agent report");
+  expect(uploads).toHaveLength(1);
+  expect(uploads[0]?.["continue-on-error"]).toBe(true);
+});
+
+/** 権限と構成を確かめるために読む job の形。 */
+type Job = {
+  "runs-on"?: unknown;
+  permissions?: Record<string, unknown>;
+  outputs?: Record<string, unknown>;
+  steps?: { name?: string; uses?: string; run?: string; with?: Record<string, unknown> }[];
+};
+
+// エージェントは作業ツリーのファイルを書き換えられる（claude の `Write`）。同じジョブの後の段が
+// そのファイルを読み込むと、エージェントが書いた内容が Issue の書き込みの権限で実行される（Issue #779）。
+describe("エージェントを Issue の書き込みの権限から分ける", () => {
+  const jobs = () =>
+    loadYamlAs<{ jobs: Record<string, Job> }>(readFileSync(join(repoRoot, CANON), "utf8")).jobs;
+  const isAgentStep = (s: NonNullable<Job["steps"]>[number]) =>
+    /claude-code-action|codex-action/.test(s.uses ?? "") || /^\s*copilot /m.test(s.run ?? "");
+
+  test("エージェントを動かすジョブは、読み取りの権限だけを持つ", () => {
+    const agentJobs = Object.entries(jobs()).filter(([, j]) => (j.steps ?? []).some(isAgentStep));
+    // 0 件を合格として扱わない（判定が空振りしただけの緑を根拠にしない）。
+    expect(agentJobs.map(([id]) => id)).toHaveLength(1);
+    for (const [id, job] of agentJobs) {
+      expect(job.permissions, `${id} の permissions`).toStrictEqual({ contents: "read" });
+      // エージェントは 3 つとも同じジョブにある。
+      expect((job.steps ?? []).filter(isAgentStep), id).toHaveLength(3);
+    }
+  });
+
+  test("追跡 Issue を書くジョブは、エージェントを動かさず、checkout し直した作業ツリーを使う", () => {
+    const writers = Object.entries(jobs()).filter(([, j]) => j.permissions?.issues === "write");
+    expect(writers.map(([id]) => id)).toHaveLength(1);
+    const [[id, job]] = writers;
+    const steps = job.steps ?? [];
+    expect(steps.filter(isAgentStep), `${id} がエージェントを動かしている`).toStrictEqual([]);
+    const names = steps.map((s) => s.name ?? s.uses ?? "");
+    const checkout = steps.findIndex((s) => (s.uses ?? "").startsWith("actions/checkout@"));
+    expect(checkout, `${id} に checkout が無い`).toBeGreaterThanOrEqual(0);
+    // スクリプトを読む段は、checkout の後に置く。
+    for (const name of ["Build notify body", "Update tracking issue"]) {
+      expect(names.indexOf(name), `${id} の ${name}`).toBeGreaterThan(checkout);
+    }
+    // レポートは作業ツリーの外に置く（作業ツリーのファイルを上書きさせない）。
+    const download = steps.find((s) => (s.uses ?? "").startsWith("actions/download-artifact@"));
+    assert.exists(download, `${id} にレポートの download が無い`);
+    expect(String(download.with?.path)).toMatch(/^\$\{\{\s*runner\.temp\s*\}\}\//);
+  });
+
+  // run を再実行すると、前の試行が上げた artifact が同じ run に残る。名前が試行ごとに違わないと、
+  // 今回エージェントがレポートを書かなかった試行で、前の試行のレポートを今週の分として載せる。
+  // 一方、失敗したジョブだけを再実行すると、upload したジョブは再実行されない。download する側が
+  // 自分の試行の番号から名前を作ると、前の試行のレポートを見つけられない。名前は upload した側から受け取る。
+  test("レポートの artifact の名前は試行の番号を含み、download は upload したジョブの outputs から名前を受け取る", () => {
+    const entries = Object.entries(jobs());
+    const using = (action: string) =>
+      entries.flatMap(([id, j]) =>
+        (j.steps ?? [])
+          .filter((s) => (s.uses ?? "").startsWith(`actions/${action}@`))
+          .map((s) => ({ id, job: j, name: String(s.with?.name) })),
+      );
+    const uploads = using("upload-artifact");
+    const downloads = using("download-artifact");
+    expect(uploads).toHaveLength(1);
+    expect(downloads).toHaveLength(1);
+    const [up] = uploads;
+    const [down] = downloads;
+    expect(up.name).toContain("${{ github.run_attempt }}");
+    const ref = down.name.match(/^\$\{\{\s*needs\.([\w-]+)\.outputs\.([\w-]+)\s*\}\}$/);
+    assert.exists(ref, `download の名前が needs.<job>.outputs を指さない: ${down.name}`);
+    expect(ref[1], "download が名前を受け取るジョブ").toBe(up.id);
+    expect(up.job.outputs?.[ref[2]], `jobs.${up.id}.outputs.${ref[2]}`).toBe(up.name);
+  });
+});
+
+// IP allow list を有効にした organization では、標準の runner から接続できない（Issue #780）。
+test("すべてのジョブの runner を、リポジトリ変数で選べる（無ければ ubuntu-latest）", () => {
+  const all = Object.entries(
+    loadYamlAs<{ jobs: Record<string, Job> }>(readFileSync(join(repoRoot, CANON), "utf8")).jobs,
+  );
+  expect(all.length).toBeGreaterThan(0);
+  for (const [id, job] of all) {
+    expect(job["runs-on"], id).toBe("${{ vars.KAIZEN_SCHEDULE_RUNNER || 'ubuntu-latest' }}");
+  }
 });
 
 test("すべての uses: を 40 桁 SHA で固定している", () => {
