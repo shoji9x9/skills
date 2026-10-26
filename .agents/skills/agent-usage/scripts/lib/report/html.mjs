@@ -81,61 +81,106 @@ function niceMax(max) {
   return 10 * p;
 }
 
+/** @typedef {{ title: string; labels: string[]; series: { name: string; color: string; values: number[] }[]; format: (n: number) => string; unit: string; axisFormat?: (n: number) => string; axisLabel?: (label: string) => string; maxLabels?: number; note?: string }} StackedBarsChart */
+
+/** 積み上げの縦棒グラフの大きさと余白。 */
+const BAR_W = 1080;
+const BAR_H = 260;
+const BAR_LEFT = 72;
+const BAR_BOTTOM = 40;
+const BAR_TOP = 12;
+const BAR_PLOT_W = BAR_W - BAR_LEFT - 12;
+const BAR_PLOT_H = BAR_H - BAR_TOP - BAR_BOTTOM;
+
+/** @typedef {{ max: number; slot: number; barW: number; every: number }} BarLayout 目盛りの上限・項目の幅・棒の幅・項目名を書く間隔 */
+
 /**
  * 積み上げの縦棒グラフ。
  * 表で見るときは、行ごとの合計の列と、すべての行の合計の行を付ける。
- * @param {{ title: string; labels: string[]; series: { name: string; color: string; values: number[] }[]; format: (n: number) => string; unit: string; axisFormat?: (n: number) => string; axisLabel?: (label: string) => string; maxLabels?: number; note?: string }} c
+ * @param {StackedBarsChart} c
  * @returns {string}
  */
 export function stackedBars(c) {
-  const W = 1080;
-  const H = 260;
-  const left = 72;
-  const bottom = 40;
-  const top = 12;
-  const plotW = W - left - 12;
-  const plotH = H - top - bottom;
   const totals = c.labels.map((_, i) => c.series.reduce((a, s) => a + (s.values[i] ?? 0), 0));
   const max = niceMax(Math.max(0, ...totals));
   const n = Math.max(1, c.labels.length);
-  const slot = plotW / n;
-  const barW = Math.max(2, Math.min(28, slot * 0.6));
-  const every = Math.max(1, Math.ceil(n / (c.maxLabels ?? 12)));
-  const parts = [];
-  for (let k = 0; k <= 4; k += 1) {
-    const v = (max * k) / 4;
-    const y = top + plotH - (plotH * k) / 4;
-    parts.push(`<line class="grid" x1="${left}" x2="${W - 12}" y1="${y}" y2="${y}"/>`);
-    parts.push(
-      `<text class="axis" x="${left - 6}" y="${y + 4}" text-anchor="end">${esc((c.axisFormat ?? c.format)(v))}</text>`,
-    );
-  }
-  c.labels.forEach((label, i) => {
-    const x = left + slot * i + (slot - barW) / 2;
-    let y = top + plotH;
-    for (const s of c.series) {
-      const v = s.values[i] ?? 0;
-      if (v <= 0) continue;
-      const h = (plotH * v) / max;
-      y -= h;
-      const tip = `${label} / ${s.name}: ${c.format(v)}${c.unit}`;
-      parts.push(
-        `<rect class="mark" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(0, h - 1).toFixed(1)}" fill="${s.color}" data-tip="${esc(tip)}" tabindex="0"><title>${esc(tip)}</title></rect>`,
-      );
-    }
-    if (i % every === 0) {
-      parts.push(
-        `<text class="axis" x="${(left + slot * i + slot / 2).toFixed(1)}" y="${H - bottom + 16}" text-anchor="middle">${esc(c.axisLabel ? c.axisLabel(label) : label)}</text>`,
-      );
-    }
-  });
+  const slot = BAR_PLOT_W / n;
+  /** @type {BarLayout} */
+  const layout = {
+    max,
+    slot,
+    barW: Math.max(2, Math.min(28, slot * 0.6)),
+    every: Math.max(1, Math.ceil(n / (c.maxLabels ?? 12))),
+  };
+  const parts = [...gridLines(c, max)];
+  c.labels.forEach((label, i) => parts.push(...barParts(c, layout, { label, i })));
   parts.push(
-    `<line class="baseline" x1="${left}" x2="${W - 12}" y1="${top + plotH}" y2="${top + plotH}"/>`,
+    `<line class="baseline" x1="${BAR_LEFT}" x2="${BAR_W - 12}" y1="${BAR_TOP + BAR_PLOT_H}" y2="${BAR_TOP + BAR_PLOT_H}"/>`,
   );
   const legend =
     c.series.length > 1
       ? `<ul class="legend">${c.series.map((s) => `<li><span class="swatch" style="background:${s.color}"></span>${esc(s.name)}</li>`).join("")}</ul>`
       : "";
+  const note = c.note ? `<p class="muted small">${esc(c.note)}</p>` : "";
+  return `<figure class="chart"><figcaption>${esc(c.title)}</figcaption>${note}${legend}<svg viewBox="0 0 ${BAR_W} ${BAR_H}" role="img" aria-label="${esc(c.title)}">${parts.join("")}</svg><details><summary>表で見る</summary>${chartTable(c, totals)}</details></figure>`;
+}
+
+/**
+ * 積み上げの縦棒グラフの目盛りの線と値。
+ * @param {StackedBarsChart} c
+ * @param {number} max
+ * @returns {string[]}
+ */
+function gridLines(c, max) {
+  const parts = [];
+  for (let k = 0; k <= 4; k += 1) {
+    const v = (max * k) / 4;
+    const y = BAR_TOP + BAR_PLOT_H - (BAR_PLOT_H * k) / 4;
+    parts.push(`<line class="grid" x1="${BAR_LEFT}" x2="${BAR_W - 12}" y1="${y}" y2="${y}"/>`);
+    parts.push(
+      `<text class="axis" x="${BAR_LEFT - 6}" y="${y + 4}" text-anchor="end">${esc((c.axisFormat ?? c.format)(v))}</text>`,
+    );
+  }
+  return parts;
+}
+
+/**
+ * 1 つの項目の棒（系列を積み上げたもの）と、横軸の項目名。
+ * @param {StackedBarsChart} c
+ * @param {BarLayout} layout
+ * @param {{ label: string; i: number }} item
+ * @returns {string[]}
+ */
+function barParts(c, layout, { label, i }) {
+  const { max, slot, barW, every } = layout;
+  const parts = [];
+  const x = BAR_LEFT + slot * i + (slot - barW) / 2;
+  let y = BAR_TOP + BAR_PLOT_H;
+  for (const s of c.series) {
+    const v = s.values[i] ?? 0;
+    if (v <= 0) continue;
+    const h = (BAR_PLOT_H * v) / max;
+    y -= h;
+    const tip = `${label} / ${s.name}: ${c.format(v)}${c.unit}`;
+    parts.push(
+      `<rect class="mark" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(0, h - 1).toFixed(1)}" fill="${s.color}" data-tip="${esc(tip)}" tabindex="0"><title>${esc(tip)}</title></rect>`,
+    );
+  }
+  if (i % every === 0) {
+    parts.push(
+      `<text class="axis" x="${(BAR_LEFT + slot * i + slot / 2).toFixed(1)}" y="${BAR_H - BAR_BOTTOM + 16}" text-anchor="middle">${esc(c.axisLabel ? c.axisLabel(label) : label)}</text>`,
+    );
+  }
+  return parts;
+}
+
+/**
+ * 積み上げの縦棒グラフと同じ値の表。行ごとの合計の列と、すべての行の合計の行を付ける。
+ * @param {StackedBarsChart} c
+ * @param {number[]} totals 項目ごとの合計
+ * @returns {string}
+ */
+function chartTable(c, totals) {
   const rows = c.labels.map((l, i) => [
     l,
     ...c.series.map((s) => c.format(s.values[i] ?? 0)),
@@ -143,8 +188,7 @@ export function stackedBars(c) {
   ]);
   const sum = (/** @type {number[]} */ xs) => xs.reduce((a, b) => a + b, 0);
   const totalRow = ["合計", ...c.series.map((s) => c.format(sum(s.values))), c.format(sum(totals))];
-  const note = c.note ? `<p class="muted small">${esc(c.note)}</p>` : "";
-  return `<figure class="chart"><figcaption>${esc(c.title)}</figcaption>${note}${legend}<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(c.title)}">${parts.join("")}</svg><details><summary>表で見る</summary>${table(["項目", ...c.series.map((s) => s.name), "合計"], rows, totalRow)}</details></figure>`;
+  return table(["項目", ...c.series.map((s) => s.name), "合計"], rows, totalRow);
 }
 
 /**
@@ -164,21 +208,36 @@ function table(headers, rows, totalRow = null) {
   return `<div class="scroll"><table>${head}${body}${foot}</table></div>`;
 }
 
+/** 系列の色。モデル別の費用で、上位のモデルから順に使う。 */
+const SERIES_COLORS = [
+  "var(--s1)",
+  "var(--s2)",
+  "var(--s3)",
+  "var(--s4)",
+  "var(--s5)",
+  "var(--s6)",
+  "var(--s7)",
+];
+
+/** 稼働状況のチャートで、系列に付ける色。 */
+const STATUS_COLORS = {
+  // CI 待ち（緑）と見分けられ、ダークモード用の値もある色にする
+  active: "var(--s7)",
+  idle: "var(--s1)",
+  reviewing: "var(--s2)",
+  "ci-wait": "var(--s3)",
+  "review-wait": "var(--s4)",
+  unknown: "var(--other)",
+};
+
+/** @typedef {{ name: string; color: string; values: number[] }} ChartSeries */
+
 /**
+ * 日別の費用の系列（上位 7 モデル＋その他）。横軸は期間のすべての日にし、記録の無い日は 0 にする。
  * @param {ReportData} d
- * @returns {string}
+ * @returns {ChartSeries[]}
  */
-export function renderHtml(d) {
-  const series = [
-    "var(--s1)",
-    "var(--s2)",
-    "var(--s3)",
-    "var(--s4)",
-    "var(--s5)",
-    "var(--s6)",
-    "var(--s7)",
-  ];
-  // 日別の費用（上位 7 モデル＋その他）
+function modelCostSeries(d) {
   /** @type {Map<string, number>} */
   const byModel = new Map();
   for (const x of d.dailyCost) byModel.set(x.model, (byModel.get(x.model) ?? 0) + x.cost);
@@ -186,7 +245,6 @@ export function renderHtml(d) {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 7)
     .map(([m]) => m);
-  // 横軸は期間のすべての日にし、記録の無い日は 0 にする
   const dates = d.days;
   /** @type {Map<string, number>} */
   const costByKey = new Map();
@@ -200,39 +258,40 @@ export function renderHtml(d) {
   }
   const modelSeries = topModels.map((m, i) => ({
     name: m,
-    color: series[i],
+    color: SERIES_COLORS[i],
     values: dates.map((date) => costByKey.get(`${date}\u0000${m}`) ?? 0),
   }));
   const others = dates.map((date) => otherByDate.get(date) ?? 0);
-  // 期間が年をまたぐときは、日付の目盛りに年も書く
-  const spansYears =
-    dates.length > 0 && dates[0].slice(0, 4) !== dates[dates.length - 1].slice(0, 4);
-  const dayLabel = (/** @type {string} */ l) => (spansYears ? l : l.slice(5));
   if (others.some((v) => v > 0))
     modelSeries.push({ name: "その他", color: "var(--other)", values: others });
+  return modelSeries;
+}
 
-  const totalCost = d.usage.reduce((a, u) => a + Number(u.cost_usd), 0);
-  /** @type {Map<string, number>} */
-  const byAgent = new Map();
-  for (const u of d.usage) byAgent.set(u.agent, (byAgent.get(u.agent) ?? 0) + Number(u.cost_usd));
-  const runs = d.intervals.filter((x) => x.type === "run");
-  const runMinutes = runs.map((x) => Number(x.minutes)).sort((a, b) => a - b);
-  const median = runMinutes.length > 0 ? runMinutes[Math.floor(runMinutes.length / 2)] : 0;
-  // 稼働状況の合計は、日別のチャートと同じ値から取る（タイルとチャートで数え方を分けない）
-  const statusHours = Object.fromEntries(
-    d.statusByDay.map((s) => [s.status, s.byDay.reduce((a, b) => a + b, 0)]),
-  );
-  const statusColors = {
-    // CI 待ち（緑）と見分けられ、ダークモード用の値もある色にする
-    active: "var(--s7)",
-    idle: "var(--s1)",
-    reviewing: "var(--s2)",
-    "ci-wait": "var(--s3)",
-    "review-wait": "var(--s4)",
-    unknown: "var(--other)",
-  };
+/**
+ * 日付の目盛りの表示。期間が年をまたぐときは、日付の目盛りに年も書く。
+ * @param {string[]} dates
+ * @returns {(label: string) => string}
+ */
+function dayLabelOf(dates) {
+  const spansYears =
+    dates.length > 0 && dates[0].slice(0, 4) !== dates[dates.length - 1].slice(0, 4);
+  return (/** @type {string} */ l) => (spansYears ? l : l.slice(5));
+}
 
-  // Issue ごと
+/**
+ * @param {ReportData} d
+ * @returns {Record<string, string>[]}
+ */
+function runsOf(d) {
+  return d.intervals.filter((x) => x.type === "run");
+}
+
+/**
+ * Issue ごとの指示の数・稼働中・未活用。
+ * @param {ReportData} d
+ * @returns {Map<string, { active: number; runs: number; idle: number }>}
+ */
+function issueTotals(d) {
   /** @type {Map<string, { active: number; runs: number; idle: number }>} */
   const byIssue = new Map();
   const issueOf = (/** @type {string} */ i) => {
@@ -243,29 +302,24 @@ export function renderHtml(d) {
     }
     return v;
   };
-  for (const x of runs) issueOf(x.issue || "(なし)").runs += 1;
+  for (const x of runsOf(d)) issueOf(x.issue || "(なし)").runs += 1;
   for (const [issue, hours] of Object.entries(d.activeByIssue))
     issueOf(issue || "(なし)").active += hours;
   // 未活用も、人ごとの表と同じく丸める前の値から足す
   for (const [issue, hours] of Object.entries(d.idleByIssue))
     issueOf(issue || "(なし)").idle += hours;
+  return byIssue;
+}
 
-  // レビュー
-  /** @type {Map<string, { count: number; cost: number; unknown: number }>} */
-  const byTool = new Map();
-  for (const r of d.reviews.filter((x) => x.type !== "billing")) {
-    const v = byTool.get(r.tool) ?? { count: 0, cost: 0, unknown: 0 };
-    if (r.type === "review") v.count += 1;
-    if (r.cost_usd === "") v.unknown += 1;
-    else v.cost += Number(r.cost_usd);
-    byTool.set(r.tool, v);
-  }
-  const billing = d.reviews
-    .filter((x) => x.type === "billing")
-    .reduce((a, x) => a + Number(x.cost_usd || 0), 0);
+/** @typedef {{ id: string; name: string; cost: number; runs: number; status: Map<Status, number> }} PersonTotals */
 
-  // 人ごと（費用・指示の数・稼働状況の内訳）
-  /** @type {Map<string, { id: string; name: string; cost: number; runs: number; status: Map<Status, number> }>} */
+/**
+ * 人ごとの費用・指示の数・稼働状況の内訳。費用の多い順に並べる。
+ * @param {ReportData} d
+ * @returns {PersonTotals[]}
+ */
+function peopleTotals(d) {
+  /** @type {Map<string, PersonTotals>} */
   const byPerson = new Map();
   const personOf = (/** @type {string} */ id) => {
     let v = byPerson.get(id);
@@ -291,24 +345,58 @@ export function renderHtml(d) {
     s.set(c, (s.get(c) ?? 0) + hours);
   };
   for (const u of d.usage) personOf(u.person).cost += Number(u.cost_usd);
-  for (const x of runs) personOf(x.person).runs += 1;
+  for (const x of runsOf(d)) personOf(x.person).runs += 1;
   for (const [id, hours] of Object.entries(d.activeByPerson)) addTo(id, "active", hours);
   // 停止は丸める前の値から足す（intervals.csv の minutes から足すと、タイルとチャートの合計とずれる）
   for (const [id, stops] of Object.entries(d.stopByPerson))
     for (const [c, hours] of stops) addTo(id, c, hours);
-  const people = [...byPerson.values()].sort((a, b) => b.cost - a.cost);
+  return [...byPerson.values()].sort((a, b) => b.cost - a.cost);
+}
 
+/**
+ * @param {ReportData} d
+ * @returns {number}
+ */
+function totalCostOf(d) {
+  return d.usage.reduce((a, u) => a + Number(u.cost_usd), 0);
+}
+
+/**
+ * 稼働状況の分類ごとの合計の時間。日別のチャートと同じ値から取る（タイルとチャートで数え方を分けない）。
+ * @param {ReportData} d
+ * @returns {Record<string, number>}
+ */
+function statusHoursOf(d) {
+  return Object.fromEntries(
+    d.statusByDay.map((s) => [s.status, s.byDay.reduce((a, b) => a + b, 0)]),
+  );
+}
+
+/**
+ * 上に並べるタイル（費用・指示・稼働状況）。
+ * @param {ReportData} d
+ * @returns {string}
+ */
+function tilesHtml(d) {
+  /** @type {Map<string, number>} */
+  const byAgent = new Map();
+  for (const u of d.usage) byAgent.set(u.agent, (byAgent.get(u.agent) ?? 0) + Number(u.cost_usd));
+  const runMinutes = runsOf(d)
+    .map((x) => Number(x.minutes))
+    .sort((a, b) => a - b);
+  const median = runMinutes.length > 0 ? runMinutes[Math.floor(runMinutes.length / 2)] : 0;
+  const statusHours = statusHoursOf(d);
   const statusTotal = STATUSES.reduce((a, c) => a + (statusHours[c] ?? 0), 0);
   /** @type {{ title: string; total: [string, string]; items: [string, string][] }[]} */
   const tileGroups = [
     {
       title: "費用（API 料金換算）",
-      total: ["合計", usd(totalCost)],
+      total: ["合計", usd(totalCostOf(d))],
       items: [...byAgent.entries()].sort((a, b) => b[1] - a[1]).map(([a, c]) => [a, usd(c)]),
     },
     {
       title: "指示",
-      total: ["指示の数", num(runs.length)],
+      total: ["指示の数", num(runMinutes.length)],
       items: [["1 回の指示で動き続けた時間の中央値", `${num(median, 1)} 分`]],
     },
     {
@@ -317,22 +405,27 @@ export function renderHtml(d) {
       items: STATUSES.map((c) => [STATUS_LABELS[c], `${num(statusHours[c] ?? 0, 1)} 時間`]),
     },
   ];
+  return `<section class="groups">${tileGroups
+    .map(
+      (g) =>
+        `<div class="group"><h2>${esc(g.title)}</h2><div class="total"><span class="k">${esc(g.total[0])}</span><span class="v">${esc(g.total[1])}</span></div><dl>${g.items.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl></div>`,
+    )
+    .join("")}</section>`;
+}
 
-  const body = [
-    `<header><h1>エージェントの利用実績</h1><p class="muted">期間: ${esc(d.period)} / 期間の指定: ${esc(periodArgs(d))} / 作成: ${esc(d.generatedAt)} / タイムゾーン: ${esc(d.tz)} / 記録のファイル: ${d.recordFiles} / 行: ${d.rows}</p></header>`,
-    `<section class="groups">${tileGroups
-      .map(
-        (g) =>
-          `<div class="group"><h2>${esc(g.title)}</h2><div class="total"><span class="k">${esc(g.total[0])}</span><span class="v">${esc(g.total[1])}</span></div><dl>${g.items.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl></div>`,
-      )
-      .join("")}</section>`,
-    d.unknownCostBuckets > 0
-      ? `<p class="note">単価が分からず費用を数えていない記録が ${d.unknownCostBuckets} 件あります（usage.csv の cost_unknown_buckets）。.config/skills/shoji9x9/agent-usage.jsonc の pricing に単価を足して report を実行し直すと、費用に入ります。</p>`
-      : "",
+/**
+ * 日別の費用と日別の稼働状況のチャート。
+ * @param {ReportData} d
+ * @returns {string[]}
+ */
+function dailyCharts(d) {
+  const dates = d.days;
+  const dayLabel = dayLabelOf(dates);
+  return [
     stackedBars({
       title: "日別の費用（モデル別）",
       labels: dates,
-      series: modelSeries,
+      series: modelCostSeries(d),
       format: (n) => usd(n),
       axisFormat: (n) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`,
       unit: "",
@@ -344,7 +437,7 @@ export function renderHtml(d) {
       labels: dates,
       series: d.statusByDay.map((s) => ({
         name: STATUS_LABELS[s.status],
-        color: statusColors[s.status],
+        color: STATUS_COLORS[s.status],
         values: s.byDay,
       })),
       format: (n) => num(n, 1),
@@ -353,6 +446,16 @@ export function renderHtml(d) {
       maxLabels: 10,
       note: `${ACTIVE_NOTE}エージェントを使わなかった日も停止に数えます。各人の稼働中と停止は、その人の期間の最初の稼働から、最後に記録した時刻までを数えます。そのため、1 日の合計は、その日の長さ × 人数までになります（夏時間が切り替わる日を除いて 24 時間）。`,
     }),
+  ];
+}
+
+/**
+ * 1 回の指示で動き続けた時間のヒストグラムと、時刻ごとの稼働状況のチャート。
+ * @param {ReportData} d
+ * @returns {string[]}
+ */
+function runCharts(d) {
+  return [
     stackedBars({
       title: "1 回の指示で動き続けた時間（件数）",
       labels: RUN_BINS.map((b) => b.label),
@@ -365,104 +468,144 @@ export function renderHtml(d) {
       labels: Array.from({ length: 24 }, (_, h) => `${h} 時`),
       series: d.statusByHour.map((s) => ({
         name: STATUS_LABELS[s.status],
-        color: statusColors[s.status],
+        color: STATUS_COLORS[s.status],
         values: s.byHour,
       })),
       format: (n) => num(n, 1),
       unit: " 時間",
       note: `${ACTIVE_NOTE}判定不能は、GitHub の情報（CI・レビュー・自分の操作）を取得していない期間の停止です。collect が GitHub を取得するのは、初回は最大 60 日前からです。`,
     }),
-    `<section><h2>Issue ごと（稼働中の長い順に ${ISSUE_ROWS} 件まで。残りの Issue の指示と停止は intervals.csv の issue の列で見られる）</h2><p class="muted small">同じ人が同時に複数の Issue の指示を動かした時間は、その Issue の数で等分して稼働中に数えます。未活用は、直前に動いていた指示の Issue に数えます。</p>${table(
-      ["Issue", "指示の数", `${STATUS_LABELS.active}（時間）`, `${STATUS_LABELS.idle}（時間）`],
-      [...byIssue.entries()]
-        .sort((a, b) => b[1].active - a[1].active)
-        .slice(0, ISSUE_ROWS)
-        .map(([k, v]) => [k, num(v.runs), num(v.active, 1), num(v.idle, 1)]),
-      [
-        "合計（すべての Issue）",
-        num([...byIssue.values()].reduce((a, v) => a + v.runs, 0)),
-        num(
-          [...byIssue.values()].reduce((a, v) => a + v.active, 0),
-          1,
-        ),
-        num(
-          [...byIssue.values()].reduce((a, v) => a + v.idle, 0),
-          1,
-        ),
-      ],
-    )}</section>`,
-    `<section><h2>モデルごと</h2>${table(
-      ["エージェント", "モデル", "出力トークン", "費用", "単価不明の記録"],
-      Object.values(
-        d.usage.reduce(
-          (
-            /** @type {Record<string, { agent: string; model: string; out: number; cost: number; unknown: number }>} */ acc,
-            u,
-          ) => {
-            const k = `${u.agent}\u0000${u.model}`;
-            const v =
-              acc[k] ?? (acc[k] = { agent: u.agent, model: u.model, out: 0, cost: 0, unknown: 0 });
-            v.out += Number(u.output_tokens);
-            v.cost += Number(u.cost_usd);
-            v.unknown += Number(u.cost_unknown_buckets);
-            return acc;
-          },
-          {},
-        ),
-      )
-        .sort((a, b) => b.cost - a.cost)
-        .map((v) => [v.agent, v.model, num(v.out), usd(v.cost), num(v.unknown)]),
-      [
-        "合計",
-        "",
-        num(d.usage.reduce((a, u) => a + Number(u.output_tokens), 0)),
-        usd(totalCost),
-        num(d.usage.reduce((a, u) => a + Number(u.cost_unknown_buckets), 0)),
-      ],
-    )}</section>`,
-    `<section><h2>PR のレビュー</h2>${table(
-      ["ツール", "レビューの数", "費用", "費用の無い記録"],
-      [...byTool.entries()].map(([k, v]) => [k, num(v.count), usd(v.cost), num(v.unknown)]),
-      [
-        "合計",
-        num([...byTool.values()].reduce((a, v) => a + v.count, 0)),
-        usd([...byTool.values()].reduce((a, v) => a + v.cost, 0)),
-        num([...byTool.values()].reduce((a, v) => a + v.unknown, 0)),
-      ],
-    )}${billing > 0 ? `<p class="muted">課金 API の実額（premium request、レビュー以外を含む）: ${esc(usd(billing))}</p>` : ""}</section>`,
-    `<section><h2>人ごと</h2>${table(
-      ["ID", "表示名", "費用", "指示の数", ...STATUSES.map((c) => `${STATUS_LABELS[c]}（時間）`)],
-      people.map((p) => [
-        p.id,
-        p.name,
-        usd(p.cost),
-        num(p.runs),
-        ...STATUSES.map((c) => num(p.status.get(c) ?? 0, 1)),
-      ]),
-      [
-        "合計",
-        "",
-        usd(people.reduce((a, p) => a + p.cost, 0)),
-        num(people.reduce((a, p) => a + p.runs, 0)),
-        ...STATUSES.map((c) =>
-          num(
-            people.reduce((a, p) => a + (p.status.get(c) ?? 0), 0),
-            1,
-          ),
-        ),
-      ],
-    )}</section>`,
-    `<footer class="muted">費用は API の料金に換算した推定で、サブスクリプションの請求額とは一致しません。明細は同じディレクトリの usage.csv・intervals.csv・reviews.csv にあります。</footer>`,
-  ].join("\n");
+  ];
+}
 
-  return `<!doctype html>
-<html lang="ja">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>エージェントの利用実績</title>
-<style>
-:root {
+/**
+ * Issue ごとの表。
+ * @param {ReportData} d
+ * @returns {string}
+ */
+function issueSection(d) {
+  const byIssue = issueTotals(d);
+  return `<section><h2>Issue ごと（稼働中の長い順に ${ISSUE_ROWS} 件まで。残りの Issue の指示と停止は intervals.csv の issue の列で見られる）</h2><p class="muted small">同じ人が同時に複数の Issue の指示を動かした時間は、その Issue の数で等分して稼働中に数えます。未活用は、直前に動いていた指示の Issue に数えます。</p>${table(
+    ["Issue", "指示の数", `${STATUS_LABELS.active}（時間）`, `${STATUS_LABELS.idle}（時間）`],
+    [...byIssue.entries()]
+      .sort((a, b) => b[1].active - a[1].active)
+      .slice(0, ISSUE_ROWS)
+      .map(([k, v]) => [k, num(v.runs), num(v.active, 1), num(v.idle, 1)]),
+    [
+      "合計（すべての Issue）",
+      num([...byIssue.values()].reduce((a, v) => a + v.runs, 0)),
+      num(
+        [...byIssue.values()].reduce((a, v) => a + v.active, 0),
+        1,
+      ),
+      num(
+        [...byIssue.values()].reduce((a, v) => a + v.idle, 0),
+        1,
+      ),
+    ],
+  )}</section>`;
+}
+
+/**
+ * モデルごとの表。
+ * @param {ReportData} d
+ * @returns {string}
+ */
+function modelSection(d) {
+  return `<section><h2>モデルごと</h2>${table(
+    ["エージェント", "モデル", "出力トークン", "費用", "単価不明の記録"],
+    Object.values(
+      d.usage.reduce(
+        (
+          /** @type {Record<string, { agent: string; model: string; out: number; cost: number; unknown: number }>} */ acc,
+          u,
+        ) => {
+          const k = `${u.agent}\u0000${u.model}`;
+          const v =
+            acc[k] ?? (acc[k] = { agent: u.agent, model: u.model, out: 0, cost: 0, unknown: 0 });
+          v.out += Number(u.output_tokens);
+          v.cost += Number(u.cost_usd);
+          v.unknown += Number(u.cost_unknown_buckets);
+          return acc;
+        },
+        {},
+      ),
+    )
+      .sort((a, b) => b.cost - a.cost)
+      .map((v) => [v.agent, v.model, num(v.out), usd(v.cost), num(v.unknown)]),
+    [
+      "合計",
+      "",
+      num(d.usage.reduce((a, u) => a + Number(u.output_tokens), 0)),
+      usd(totalCostOf(d)),
+      num(d.usage.reduce((a, u) => a + Number(u.cost_unknown_buckets), 0)),
+    ],
+  )}</section>`;
+}
+
+/**
+ * PR のレビューの表。
+ * @param {ReportData} d
+ * @returns {string}
+ */
+function reviewSection(d) {
+  /** @type {Map<string, { count: number; cost: number; unknown: number }>} */
+  const byTool = new Map();
+  for (const r of d.reviews.filter((x) => x.type !== "billing")) {
+    const v = byTool.get(r.tool) ?? { count: 0, cost: 0, unknown: 0 };
+    if (r.type === "review") v.count += 1;
+    if (r.cost_usd === "") v.unknown += 1;
+    else v.cost += Number(r.cost_usd);
+    byTool.set(r.tool, v);
+  }
+  const billing = d.reviews
+    .filter((x) => x.type === "billing")
+    .reduce((a, x) => a + Number(x.cost_usd || 0), 0);
+  return `<section><h2>PR のレビュー</h2>${table(
+    ["ツール", "レビューの数", "費用", "費用の無い記録"],
+    [...byTool.entries()].map(([k, v]) => [k, num(v.count), usd(v.cost), num(v.unknown)]),
+    [
+      "合計",
+      num([...byTool.values()].reduce((a, v) => a + v.count, 0)),
+      usd([...byTool.values()].reduce((a, v) => a + v.cost, 0)),
+      num([...byTool.values()].reduce((a, v) => a + v.unknown, 0)),
+    ],
+  )}${billing > 0 ? `<p class="muted">課金 API の実額（premium request、レビュー以外を含む）: ${esc(usd(billing))}</p>` : ""}</section>`;
+}
+
+/**
+ * 人ごとの表。
+ * @param {ReportData} d
+ * @returns {string}
+ */
+function peopleSection(d) {
+  const people = peopleTotals(d);
+  return `<section><h2>人ごと</h2>${table(
+    ["ID", "表示名", "費用", "指示の数", ...STATUSES.map((c) => `${STATUS_LABELS[c]}（時間）`)],
+    people.map((p) => [
+      p.id,
+      p.name,
+      usd(p.cost),
+      num(p.runs),
+      ...STATUSES.map((c) => num(p.status.get(c) ?? 0, 1)),
+    ]),
+    [
+      "合計",
+      "",
+      usd(people.reduce((a, p) => a + p.cost, 0)),
+      num(people.reduce((a, p) => a + p.runs, 0)),
+      ...STATUSES.map((c) =>
+        num(
+          people.reduce((a, p) => a + (p.status.get(c) ?? 0), 0),
+          1,
+        ),
+      ),
+    ],
+  )}</section>`;
+}
+
+/** ページのスタイル。 */
+const PAGE_STYLE = `:root {
   color-scheme: light;
   --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink2: #52514e; --muted: rgb(137, 135, 129);
   --grid: #e1e0d9; --base: #c3c2b7; --border: rgba(11,11,11,0.10);
@@ -510,15 +653,10 @@ th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--grid
 details summary { cursor: pointer; color: var(--ink2); font-size: 12px; margin-top: 4px; }
 #tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--page); padding: 4px 8px; border-radius: 4px; font-size: 12px; display: none; z-index: 10; }
 footer { margin-top: 24px; font-size: 12px; }
-</style>
-</head>
-<body>
-<main>
-${body}
-</main>
-<div id="tip" role="status"></div>
-<script>
-(() => {
+`;
+
+/** グラフの棒にツールチップを出すスクリプト。ページに埋め込んで実行するので、外の名前を参照しない。 */
+const TIP_SCRIPT = `(() => {
   const tip = document.getElementById("tip");
   const show = (el, x, y) => { tip.textContent = el.getAttribute("data-tip"); tip.style.display = "block"; tip.style.left = (x + 12) + "px"; tip.style.top = (y + 12) + "px"; };
   const hide = () => { tip.style.display = "none"; };
@@ -529,7 +667,44 @@ ${body}
     el.addEventListener("blur", hide);
   });
 })();
-</script>
+`;
+
+/**
+ * @param {ReportData} d
+ * @returns {string}
+ */
+export function renderHtml(d) {
+  const body = [
+    `<header><h1>エージェントの利用実績</h1><p class="muted">期間: ${esc(d.period)} / 期間の指定: ${esc(periodArgs(d))} / 作成: ${esc(d.generatedAt)} / タイムゾーン: ${esc(d.tz)} / 記録のファイル: ${d.recordFiles} / 行: ${d.rows}</p></header>`,
+    tilesHtml(d),
+    d.unknownCostBuckets > 0
+      ? `<p class="note">単価が分からず費用を数えていない記録が ${d.unknownCostBuckets} 件あります（usage.csv の cost_unknown_buckets）。.config/skills/shoji9x9/agent-usage.jsonc の pricing に単価を足して report を実行し直すと、費用に入ります。</p>`
+      : "",
+    ...dailyCharts(d),
+    ...runCharts(d),
+    issueSection(d),
+    modelSection(d),
+    reviewSection(d),
+    peopleSection(d),
+    `<footer class="muted">費用は API の料金に換算した推定で、サブスクリプションの請求額とは一致しません。明細は同じディレクトリの usage.csv・intervals.csv・reviews.csv にあります。</footer>`,
+  ].join("\n");
+
+  return `<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>エージェントの利用実績</title>
+<style>
+${PAGE_STYLE}</style>
+</head>
+<body>
+<main>
+${body}
+</main>
+<div id="tip" role="status"></div>
+<script>
+${TIP_SCRIPT}</script>
 </body>
 </html>
 `;

@@ -42,60 +42,86 @@ export function toCsv(columns, rows, opts = {}) {
   return `${lines.join("\n")}\n`;
 }
 
+/** @typedef {{ records: string[][]; fields: string[]; field: string; inQuotes: boolean }} CsvState */
+
+/**
+ * 引用符の中の 1 文字を読み、次に読む位置を返す。`""` は `"` 1 文字にし、それ以外の `"` で引用符を閉じる。
+ * @param {string} text
+ * @param {number} i
+ * @param {CsvState} st
+ * @returns {number}
+ */
+function stepInQuotes(text, i, st) {
+  const ch = text[i];
+  if (ch !== '"') {
+    st.field += ch;
+    return i + 1;
+  }
+  if (text[i + 1] === '"') {
+    st.field += '"';
+    return i + 2;
+  }
+  st.inQuotes = false;
+  return i + 1;
+}
+
+/**
+ * 引用符の外の 1 文字を読み、次に読む位置を返す。
+ * @param {string} text
+ * @param {number} i
+ * @param {CsvState} st
+ * @returns {number}
+ */
+function stepOutsideQuotes(text, i, st) {
+  const ch = text[i];
+  if (ch === '"' && st.field === "") {
+    st.inQuotes = true;
+    return i + 1;
+  }
+  if (ch === ",") {
+    st.fields.push(st.field);
+    st.field = "";
+    return i + 1;
+  }
+  if (ch === "\n" || ch === "\r") {
+    st.fields.push(st.field);
+    st.records.push(st.fields);
+    st.fields = [];
+    st.field = "";
+    return i + (ch === "\r" && text[i + 1] === "\n" ? 2 : 1);
+  }
+  st.field += ch;
+  return i + 1;
+}
+
+/**
+ * CSV を、行ごとの値の配列にする。閉じていない引用符はエラーにする。
+ * @param {string} text
+ * @returns {string[][]}
+ */
+function splitRecords(text) {
+  /** @type {CsvState} */
+  const st = { records: [], fields: [], field: "", inQuotes: false };
+  let i = 0;
+  // どちらの関数も、次に読む位置を 1 か 2 進めて返すので、ループは必ず終わる
+  while (i < text.length) {
+    i = st.inQuotes ? stepInQuotes(text, i, st) : stepOutsideQuotes(text, i, st);
+  }
+  if (st.inQuotes) throw new Error("CSV の引用符が閉じていない");
+  if (st.field !== "" || st.fields.length > 0) {
+    st.fields.push(st.field);
+    st.records.push(st.fields);
+  }
+  return st.records;
+}
+
 /**
  * CSV を、1 行目を見出しにしたオブジェクトの配列にする。見出しに無い列を持つ行と、閉じていない引用符はエラーにする。
  * @param {string} text
  * @returns {Record<string, string>[]}
  */
 export function parseCsv(text) {
-  /** @type {string[][]} */
-  const records = [];
-  /** @type {string[]} */
-  let fields = [];
-  let field = "";
-  let inQuotes = false;
-  let i = 0;
-  while (i < text.length) {
-    const ch = text[i];
-    if (inQuotes) {
-      if (ch === '"') {
-        if (text[i + 1] === '"') {
-          field += '"';
-          i += 2;
-          continue;
-        }
-        inQuotes = false;
-        i += 1;
-        continue;
-      }
-      field += ch;
-      i += 1;
-      continue;
-    }
-    if (ch === '"' && field === "") {
-      inQuotes = true;
-      i += 1;
-    } else if (ch === ",") {
-      fields.push(field);
-      field = "";
-      i += 1;
-    } else if (ch === "\n" || ch === "\r") {
-      fields.push(field);
-      records.push(fields);
-      fields = [];
-      field = "";
-      i += ch === "\r" && text[i + 1] === "\n" ? 2 : 1;
-    } else {
-      field += ch;
-      i += 1;
-    }
-  }
-  if (inQuotes) throw new Error("CSV の引用符が閉じていない");
-  if (field !== "" || fields.length > 0) {
-    fields.push(field);
-    records.push(fields);
-  }
-  const nonEmpty = records.filter((r) => !(r.length === 1 && r[0] === ""));
+  const nonEmpty = splitRecords(text).filter((r) => !(r.length === 1 && r[0] === ""));
   if (nonEmpty.length === 0) return [];
   const [header, ...body] = nonEmpty;
   return body.map((r, n) => {

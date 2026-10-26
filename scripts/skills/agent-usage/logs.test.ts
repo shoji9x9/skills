@@ -480,7 +480,12 @@ describe("ログの探索", () => {
     );
     write("rollout-nopayload.jsonl", JSON.stringify({ type: "session_meta", payload: "x" }));
     writeFileSync(join(day, "notes.txt"), sessionMeta({ id: "txt", cwd: "/repo" }));
-    const found = discoverCodex(["/repo"], "github.com/o/r", { CODEX_HOME: home }, isInside);
+    const found = discoverCodex({
+      roots: ["/repo"],
+      remote: "github.com/o/r",
+      env: { CODEX_HOME: home },
+      inside: isInside,
+    });
     expect(ids(found)).toEqual(["in", "remote", "rollout-noid"]);
     expect(found.every((x) => x.agent === "codex" && x.subagents.length === 0)).toBe(true);
   });
@@ -488,12 +493,16 @@ describe("ログの探索", () => {
   test("Codex: リモートが分からなければ、URL の無いログをリモートの一致として扱わない", () => {
     const { home, day } = codexDir();
     writeFileSync(join(day, "rollout-a.jsonl"), `${sessionMeta({ id: "a", cwd: "/other" })}\n`);
-    expect(discoverCodex(["/repo"], "", { CODEX_HOME: home }, isInside)).toEqual([]);
+    expect(
+      discoverCodex({ roots: ["/repo"], remote: "", env: { CODEX_HOME: home }, inside: isInside }),
+    ).toEqual([]);
   });
 
   test("Codex: ログのディレクトリが無ければ空を返す", () => {
     const env = { AGENT_USAGE_CODEX_SESSIONS: join(makeTempDir("agent-usage-none-"), "missing") };
-    expect(discoverCodex(["/repo"], "github.com/o/r", env, isInside)).toEqual([]);
+    expect(
+      discoverCodex({ roots: ["/repo"], remote: "github.com/o/r", env, inside: isInside }),
+    ).toEqual([]);
   });
 
   test("Codex: 最初の行が読み込みの塊の境目で複数バイトの文字を分けても、文字を壊さずに読む", () => {
@@ -502,7 +511,12 @@ describe("ログの探索", () => {
     // 「あ」（3 バイト）が 65535 バイト目から始まり、64 KiB の塊の境目をまたぐようにする
     const id = `${"a".repeat(65535 - prefix.length)}あ`;
     writeFileSync(join(day, "rollout-long.jsonl"), `${prefix}${id}","cwd":"/repo"}}\nnot json\n`);
-    const found = discoverCodex(["/repo"], "", { CODEX_HOME: home }, isInside);
+    const found = discoverCodex({
+      roots: ["/repo"],
+      remote: "",
+      env: { CODEX_HOME: home },
+      inside: isInside,
+    });
     expect(found.map((x) => x.id)).toEqual([id]);
   });
 
@@ -511,7 +525,16 @@ describe("ログの探索", () => {
     const meta = sessionMeta({ id: "big", cwd: "/repo", pad: "x".repeat(4.5 * 1024 * 1024) });
     writeFileSync(join(day, "rollout-big.jsonl"), meta);
     writeFileSync(join(day, "rollout-small.jsonl"), sessionMeta({ id: "small", cwd: "/repo" }));
-    expect(ids(discoverCodex(["/repo"], "", { CODEX_HOME: home }, isInside))).toEqual(["small"]);
+    expect(
+      ids(
+        discoverCodex({
+          roots: ["/repo"],
+          remote: "",
+          env: { CODEX_HOME: home },
+          inside: isInside,
+        }),
+      ),
+    ).toEqual(["small"]);
   });
 
   test("Claude Code: サブエージェントのファイルしか無いセッションは、ディレクトリ名が作業ツリーと一致するときだけ返す", () => {

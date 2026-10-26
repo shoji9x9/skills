@@ -121,13 +121,12 @@ function tokenTotal(rows) {
  * 作り直した行がすべて書かれるか記録済みで（範囲の下限より古くて書かれない行が無い）、
  * 作り直した行の合計が記録済みの合計より少なくない（ログが欠けていない）こと。
  * 打ち消さないまとまりでは、作らなくなった行と時間が重なる新しい行を書かない（withheld）。両方を数えて二重にしないため。
- * @param {readonly Row[]} stale
- * @param {Map<string, Row>} existing
- * @param {Map<string, Row>} unique 今の collect で作った行（key ごと）
- * @param {{ person: string; lowerBound: number; canonical: (p: string | undefined) => string }} o
+ * unique は、今の collect で作った行（key ごと）。
+ * @param {{ stale: readonly Row[]; existing: Map<string, Row>; unique: Map<string, Row>; person: string; lowerBound: number; canonical: (p: string | undefined) => string }} o
  * @returns {{ rows: Row[]; withheld: Set<string> }}
  */
-export function retractableRows(stale, existing, unique, o) {
+export function retractableRows(o) {
+  const { stale, existing, unique } = o;
   /** @type {Row[]} */
   const rows = [];
   /** @type {Set<string>} */
@@ -194,13 +193,11 @@ function loadBundledTools() {
  * GitHub から取り始める時刻。この人の取得に成功した期間の最後から GITHUB_OVERLAP_MS さかのぼる。記録が無ければ、ローカルの行の最初の時刻。
  * 他の人の取得（_github/ の coverage）は数えない。この時刻は、この人の commit と GitHub での操作（activity）を取る範囲にも使うので、
  * 他の人が最近取得していると、しばらく collect していなかった人の activity が取れなくなる。
- * @param {Map<string, Row>} existing
- * @param {readonly Row[]} localRows
- * @param {number} now
- * @param {string} person
+ * @param {{ existing: Map<string, Row>; localRows: readonly Row[]; now: number; person: string }} o
  * @returns {number}
  */
-export function githubSince(existing, localRows, now, person) {
+export function githubSince(o) {
+  const { existing, localRows, now, person } = o;
   let lastOk = Number.NEGATIVE_INFINITY;
   for (const r of existing.values()) {
     if (r.kind !== "coverage" || r.detail !== "ok" || r.person !== person) continue;
@@ -330,6 +327,54 @@ export function ghLoginError(host, env) {
 export function runCollect(o) {
   const { repo, now, env } = o;
   const dir = usageDir(repo.root);
+  const settings = loadSettings(repo, env);
+  const { person } = settings;
+  const local = collectLocalOf(repo, env, settings);
+  const recordsDir = join(dir, "records");
+  const targets = branchTargets(repo, { recordsDir, person, now });
+  const lastPath = lastCollectPath(repo.commonDir);
+  const read = readExisting({ recordsDir, keep: targets.keep, lastPath, person, now });
+  const { existing, lowerBound } = read;
+  const since = githubSince({ existing, localRows: local.rows, now, person });
+  /** @type {Row[]} */
+  const candidates = [...local.rows, ...commitRows({ repo, local, settings, since })];
+  const target = githubTargetOf(o);
+  const github =
+    target.reason === ""
+      ? fetchGitHub({ o, target, since, settings, existing, commands: local.commands })
+      : { rows: [], failures: [] };
+  candidates.push(...github.rows);
+  const { unique, conflicts } = uniqueByKey(candidates);
+  const { rows: retractions, withheld } = retractionsOf({ read, unique, local, settings });
+  const { fresh, olderRowsSkipped } = freshRows({ unique, existing, withheld, lowerBound });
+  const rows = stampRows(fresh, retractions, now);
+  const written = writeBranchRows(rows, targets);
+  saveLastCollect(lastPath, person, now);
+  return {
+    person,
+    personCreated: settings.user.created,
+    written,
+    newRows: rows.length,
+    sessions: local.sessions,
+    parsed: local.parsed,
+    invalidLines: local.invalidLines,
+    duplicateMessages: local.duplicateMessages,
+    githubFailures: github.failures,
+    githubSkipped: target.reason !== "",
+    githubSkipReason: target.reason,
+    keyConflicts: conflicts,
+    skippedFiles: read.skipped,
+    olderRowsSkipped,
+    retractedRows: retractions.length,
+  };
+}
+
+/**
+ * 設定を読み、記録に書く人と、行を作る文脈を決める。
+ * @param {RepoInfo} repo
+ * @param {NodeJS.ProcessEnv} env
+ */
+function loadSettings(repo, env) {
   // 設定は 1 回だけ読む（旧い置き場所の確認・層の検証・人ごとの層を読まない旨の note を繰り返さない）
   const config = resolved(repo.root, env);
   const repoConfig = loadRepoConfig(repo.root, env, config);
@@ -338,27 +383,72 @@ export function runCollect(o) {
   const tz = user.config.timeZone;
   const bundledPricing = loadBundledPricing();
   const ctx = { person, tz, repoPricing: repoConfig.pricing, bundledPricing };
+  return { repoConfig, user, person, tz, bundledPricing, ctx };
+}
 
-  const local = collectLocal({
+/** @typedef {ReturnType<typeof loadSettings>} Settings */
+
+/**
+ * このリポジトリ（と、これまでに見た worktree）のローカルのログから行を作る。
+ * @param {RepoInfo} repo
+ * @param {NodeJS.ProcessEnv} env
+ * @param {Settings} settings
+ */
+function collectLocalOf(repo, env, settings) {
+  return collectLocal({
     roots: rememberWorktrees(repo.commonDir, repo.worktrees),
     remote: repo.remote,
     commonDir: repo.commonDir,
     env,
-    ctx,
+    ctx: settings.ctx,
     useCache: true,
   });
-  const recordsDir = join(dir, "records");
+}
+
+/**
+ * @typedef {object} BranchTargets
+ * @property {Set<string>} keep 範囲に関わらず読むファイル
+ * @property {() => string} person 人の行を書き足す先。git を起動するので、書く行があるときだけ呼ぶ
+ * @property {() => string} github GitHub の行を書き足す先。同じく、書く行があるときだけ呼ぶ
+ */
+
+/**
+ * このブランチの記録のファイルを挙げ、書き足す先を決める関数を返す。
+ * @param {RepoInfo} repo
+ * @param {{ recordsDir: string; person: string; now: number }} o
+ * @returns {BranchTargets}
+ */
+function branchTargets(repo, o) {
   const label = repo.branch ? branchLabel(repo.branch) : "detached";
-  const personDir = join(recordsDir, person, BRANCH_DIR);
-  const githubDir = join(recordsDir, GITHUB_DIR, person);
-  const windowStart = now - RECORD_WINDOW_MS;
+  const personDir = join(o.recordsDir, o.person, BRANCH_DIR);
+  const githubDir = join(o.recordsDir, GITHUB_DIR, o.person);
+  const published = publishedCheck(repo);
+  const personFiles = branchFiles(personDir, label);
+  const githubFiles = branchFiles(githubDir, label);
+  // 範囲に関わらず読むのは、書き足す候補（このブランチの最後のファイル）だけ。前のファイルは範囲の判定に任せる
+  /** @type {Set<string>} */
+  const keep = new Set();
+  for (const f of [personFiles.at(-1), githubFiles.at(-1)]) if (f !== undefined) keep.add(f);
+  const at = { label, now: o.now, published };
+  return {
+    keep,
+    person: () => appendTarget({ ...at, dir: personDir, files: personFiles }),
+    github: () => appendTarget({ ...at, dir: githubDir, files: githubFiles }),
+  };
+}
+
+/**
+ * デフォルトブランチ（origin）に既に入ったファイルかを返す関数を作る。
+ * @param {RepoInfo} repo
+ * @returns {(f: string) => boolean}
+ */
+function publishedCheck(repo) {
   // 書き足す先は、このブランチのファイルのうち最も新しいもの。ただし、デフォルトブランチ（origin）に既に入ったファイルには足さず、
   // 新しいファイルを作る。squash merge の後に同じブランチで作業を続けて足すと、デフォルトブランチを取り込むときに add/add で競合するため
   const defaults = defaultBranches(repo);
   // 今のブランチがデフォルトブランチ自身なら、足しても add/add の競合は起きないので、同じファイルに足し続ける
   const onDefault = defaults.includes(repo.branch);
-  /** @param {string} f */
-  const published = (f) =>
+  return (f) =>
     !onDefault &&
     defaults.some(
       (b) =>
@@ -371,103 +461,146 @@ export function runCollect(o) {
           repo.root,
         ) !== null,
     );
-  const personFiles = branchFiles(personDir, label);
-  const githubFiles = branchFiles(githubDir, label);
-  // 範囲に関わらず読むのは、書き足す候補（このブランチの最後のファイル）だけ。前のファイルは範囲の判定に任せる
-  /** @type {Set<string>} */
-  const keep = new Set();
-  for (const f of [personFiles.at(-1), githubFiles.at(-1)]) if (f !== undefined) keep.add(f);
-  /**
-   * 書き足す先。git を起動するので、書く行があるときだけ呼ぶ
-   * @param {string} d
-   * @param {readonly string[]} files
-   */
-  const appendTarget = (d, files) => {
-    const last = files[files.length - 1];
-    if (last !== undefined && !published(last)) return last;
-    // 新しいファイルは、デフォルトブランチに入ったファイル（このブランチの最後のファイル）より後に並べる。
-    // 他のマシンの時計が進んでいて、そのファイルの時刻が今より後でも、次の collect が新しいファイルを書き足す先に選ぶようにする
-    const t = last === undefined ? now : Math.max(now, (fileStampTime(last) ?? now) + 1000);
-    return join(d, `${fileStamp(t)}-${label}.csv`);
-  };
-  const lastPath = lastCollectPath(repo.commonDir);
-  const last = loadLastCollect(lastPath, person, now);
+}
+
+/**
+ * 書き足す先。git を起動するので、書く行があるときだけ呼ぶ
+ * @param {{ dir: string; files: readonly string[]; label: string; now: number; published: (f: string) => boolean }} o
+ * @returns {string}
+ */
+function appendTarget(o) {
+  const { files, now } = o;
+  const last = files[files.length - 1];
+  if (last !== undefined && !o.published(last)) return last;
+  // 新しいファイルは、デフォルトブランチに入ったファイル（このブランチの最後のファイル）より後に並べる。
+  // 他のマシンの時計が進んでいて、そのファイルの時刻が今より後でも、次の collect が新しいファイルを書き足す先に選ぶようにする
+  const t = last === undefined ? now : Math.max(now, (fileStampTime(last) ?? now) + 1000);
+  return join(o.dir, `${fileStamp(t)}-${o.label}.csv`);
+}
+
+/**
+ * 記録済みの行を読み、書く行の範囲の下限を決める。
+ * @param {{ recordsDir: string; keep: Set<string>; lastPath: string; person: string; now: number }} o
+ * @returns {{ existing: Map<string, Row>; lowerBound: number; skipped: number }}
+ */
+function readExisting(o) {
+  const windowStart = o.now - RECORD_WINDOW_MS;
+  const last = loadLastCollect(o.lastPath, o.person, o.now);
   const collectedInWindow = last !== null && last >= windowStart;
   // 範囲の中で collect していなければ（この版にした後の最初の collect・新しい clone）、範囲より古い行もすべて書くので、
   // 記録も全体を読み、記録済みの行を重ねて書かない
   const read = collectedInWindow
-    ? readRecords(recordsDir, { since: windowStart, keep })
-    : readRecords(recordsDir);
+    ? readRecords(o.recordsDir, { since: windowStart, keep: o.keep })
+    : readRecords(o.recordsDir);
   const existing = latestByKey(read.rows);
   // 範囲より古い行は、範囲の外のファイルにあって読んでいないので、書くと重複する。
   // この clone で範囲の中に collect していなければ、前回の collect から範囲の始まりまでの行を取りこぼさないよう、すべて書く
   // （重複は report が key でまとめる）。記録の行では決めない。別のマシン（clone）の行が範囲の中にあっても、
   // このマシンのログにある古い行はまだ書いていないことがあるため
   const lowerBound = collectedInWindow ? windowStart : Number.NEGATIVE_INFINITY;
+  return { existing, lowerBound, skipped: read.skipped };
+}
 
-  /** @type {Row[]} */
-  const candidates = [...local.rows];
-  const since = githubSince(existing, local.rows, now, person);
-
+/**
+ * 人の commit と GitHub での操作の行を、reflog から作る。
+ * @param {{ repo: RepoInfo; local: { commands: { ts: number; text: string }[] }; settings: Settings; since: number }} o
+ * @returns {Row[]}
+ */
+function commitRows(o) {
   const reflog =
     gitOrNull(
       ["log", "-g", "--all", "--date=iso-strict", "--format=%H%x00%gd%x00%gs%x1e"],
-      repo.root,
+      o.repo.root,
     ) ?? "";
-  candidates.push(...commitActivityRows(reflog, local.commands, { person, tz, since }));
+  const { person, tz } = o.settings;
+  return commitActivityRows(reflog, o.local.commands, { person, tz, since: o.since });
+}
 
-  /** @type {string[]} */
-  let githubFailures = [];
-  /** @type {GitHubTarget} */
-  const target = o.github
-    ? githubTarget(repo.remote, env, (h) => ghLoginError(h, env))
+/**
+ * GitHub として取得する先を決める（--no-github なら取得しない理由を返す）。
+ * @param {CollectOptions} o
+ * @returns {GitHubTarget}
+ */
+function githubTargetOf(o) {
+  const { env } = o;
+  return o.github
+    ? githubTarget(o.repo.remote, env, (h) => ghLoginError(h, env))
     : { reason: "--no-github", host: "", slug: "", viaLogin: false };
-  const githubSkipReason = target.reason;
-  const githubSkipped = githubSkipReason !== "";
-  if (!githubSkipped) {
-    // ログインで判定したホストには、保存した token で問い合わせ、環境変数の token（別のホスト用でありうる）を送らない
-    const gh = o.gh ?? makeGh(target.host, target.viaLogin ? withoutEnvTokens(env) : env);
-    const res = collectGitHub({
-      slug: target.slug,
-      since,
-      now,
-      person,
-      tz,
-      config: repoConfig,
-      bundledTools: loadBundledTools(),
-      bundledPricing,
-      bundledReviewPricing: loadBundledReviewPricing(),
-      knownArtifacts: new Set(
-        [...existing.keys()].flatMap((k) => {
-          const m = /^review-artifact:(\d+):/.exec(k);
-          return m ? [Number(m[1])] : [];
-        }),
-      ),
-      commands: local.commands,
-      billing: user.config.billing,
-      gh,
-    });
-    candidates.push(...res.rows);
-    githubFailures = res.failures;
-    const classifyingFailures = classifyingFailuresOf(res.failures);
-    candidates.push({
-      key: `coverage:github:${toIso(since)}:${toIso(now)}`,
-      kind: "coverage",
-      person,
-      tz,
-      start: toIso(since),
-      end: toIso(now),
-      // 停止の分類に使う段（PR・Actions の run・外部の CI・自分の login）が取れていれば ok にする。
-      // 課金 API と artifact の失敗は費用の行が欠けるだけなので、その期間を判定不能にしない（失敗は collect の出力に出る）
-      detail:
-        classifyingFailures.length === 0
-          ? "ok"
-          : `failed:${classifyingFailures.join(" | ").slice(0, 500)}`,
-    });
-  }
+}
 
-  // 同じ key の行が 1 回の collect の中で食い違うのは、行の作り方の不具合である（key が一意でない）。
-  // 後の collect のたびに書き直し続けるのを避けるため最初の行を残し、件数を報告する
+/**
+ * GitHub から行を取得し、取得した期間の coverage の行を足す。
+ * @param {{ o: CollectOptions; target: GitHubTarget; since: number; settings: Settings; existing: Map<string, Row>; commands: { ts: number; text: string }[] }} a
+ * @returns {{ rows: Row[]; failures: string[] }}
+ */
+function fetchGitHub(a) {
+  const { o, target, since, settings } = a;
+  const { person, tz } = settings;
+  // ログインで判定したホストには、保存した token で問い合わせ、環境変数の token（別のホスト用でありうる）を送らない
+  const gh = o.gh ?? makeGh(target.host, target.viaLogin ? withoutEnvTokens(o.env) : o.env);
+  const res = collectGitHub({
+    slug: target.slug,
+    since,
+    now: o.now,
+    person,
+    tz,
+    config: settings.repoConfig,
+    bundledTools: loadBundledTools(),
+    bundledPricing: settings.bundledPricing,
+    bundledReviewPricing: loadBundledReviewPricing(),
+    knownArtifacts: knownArtifactsOf(a.existing),
+    commands: a.commands,
+    billing: settings.user.config.billing,
+    gh,
+  });
+  const coverage = coverageRow({ since, now: o.now, person, tz, failures: res.failures });
+  return { rows: [...res.rows, coverage], failures: res.failures };
+}
+
+/**
+ * 記録済みの review-artifact の行が持つ artifact の ID。
+ * @param {Map<string, Row>} existing
+ * @returns {Set<number>}
+ */
+function knownArtifactsOf(existing) {
+  return new Set(
+    [...existing.keys()].flatMap((k) => {
+      const m = /^review-artifact:(\d+):/.exec(k);
+      return m ? [Number(m[1])] : [];
+    }),
+  );
+}
+
+/**
+ * GitHub を取得した期間の行。
+ * @param {{ since: number; now: number; person: string; tz: string; failures: readonly string[] }} o
+ * @returns {Row}
+ */
+function coverageRow(o) {
+  const classifyingFailures = classifyingFailuresOf(o.failures);
+  return {
+    key: `coverage:github:${toIso(o.since)}:${toIso(o.now)}`,
+    kind: "coverage",
+    person: o.person,
+    tz: o.tz,
+    start: toIso(o.since),
+    end: toIso(o.now),
+    // 停止の分類に使う段（PR・Actions の run・外部の CI・自分の login）が取れていれば ok にする。
+    // 課金 API と artifact の失敗は費用の行が欠けるだけなので、その期間を判定不能にしない（失敗は collect の出力に出る）
+    detail:
+      classifyingFailures.length === 0
+        ? "ok"
+        : `failed:${classifyingFailures.join(" | ").slice(0, 500)}`,
+  };
+}
+
+/**
+ * 同じ key の行が 1 回の collect の中で食い違うのは、行の作り方の不具合である（key が一意でない）。
+ * 後の collect のたびに書き直し続けるのを避けるため最初の行を残し、件数を報告する
+ * @param {readonly Row[]} candidates
+ * @returns {{ unique: Map<string, Row>; conflicts: number }}
+ */
+function uniqueByKey(candidates) {
   /** @type {Map<string, Row>} */
   const unique = new Map();
   let conflicts = 0;
@@ -476,68 +609,97 @@ export function runCollect(o) {
     if (!prev) unique.set(r.key ?? "", r);
     else if (signature(prev) !== signature(r)) conflicts += 1;
   }
-  // 打ち消し: ログが今もあるセッションの記録済みの行のうち、今の collect で作らなくなった行は、打ち消しの行（retracted=1）を書いて、
-  // report が数えないようにする。ログが消えたセッションの行は、作れないだけなので打ち消さない。人の commit と GitHub の行は、ログから作らないので対象にしない。
-  // サブエージェントとして記録した行は、サブエージェントのログだけが先に消えることがあるので打ち消さない。
-  /** @param {string | undefined} p */
-  const canonical = (p) => (p ? (repoConfig.aliases[p] ?? p) : "");
+  return { unique, conflicts };
+}
+
+/**
+ * 打ち消し: ログが今もあるセッションの記録済みの行のうち、今の collect で作らなくなった行は、打ち消しの行（retracted=1）を書いて、
+ * report が数えないようにする。ログが消えたセッションの行は、作れないだけなので打ち消さない。人の commit と GitHub の行は、ログから作らないので対象にしない。
+ * サブエージェントとして記録した行は、サブエージェントのログだけが先に消えることがあるので打ち消さない。
+ * @param {{ existing: Map<string, Row>; unique: Map<string, Row>; person: string; canonical: (p: string | undefined) => string; local: { presentSessions: Set<string> } }} o
+ * @returns {Row[]}
+ */
+function staleRows(o) {
   /** @type {Row[]} */
   const stale = [];
-  for (const r of existing.values()) {
-    if (canonical(r.person) !== person || r.retracted === "1") continue;
+  for (const r of o.existing.values()) {
+    if (o.canonical(r.person) !== o.person || r.retracted === "1") continue;
     if (!RETRACTABLE_KINDS.includes(r.kind ?? "") || r.subagent === "1") continue;
-    if (!local.presentSessions.has(`${r.agent ?? ""}:${r.session ?? ""}`)) continue;
-    if (unique.has(r.key ?? "")) continue;
+    if (!o.local.presentSessions.has(`${r.agent ?? ""}:${r.session ?? ""}`)) continue;
+    if (o.unique.has(r.key ?? "")) continue;
     stale.push(r);
   }
-  const { rows: retractions, withheld } = retractableRows(stale, existing, unique, {
-    person,
-    lowerBound,
-    canonical,
-  });
+  return stale;
+}
+
+/**
+ * 作らなくなった記録済みの行を挙げ、打ち消しの行と、書かない行の key を返す。
+ * @param {{ read: { existing: Map<string, Row>; lowerBound: number }; unique: Map<string, Row>; local: { presentSessions: Set<string> }; settings: Settings }} o
+ * @returns {{ rows: Row[]; withheld: Set<string> }}
+ */
+function retractionsOf(o) {
+  const { existing, lowerBound } = o.read;
+  const { unique } = o;
+  const { person } = o.settings;
+  const aliases = o.settings.repoConfig.aliases;
+  /** @param {string | undefined} p */
+  const canonical = (p) => (p ? (aliases[p] ?? p) : "");
+  const stale = staleRows({ existing, unique, person, canonical, local: o.local });
+  return retractableRows({ stale, existing, unique, person, lowerBound, canonical });
+}
+
+/**
+ * 書く行（記録済みの行から変わった行のうち、書く範囲にあるもの）を選ぶ。
+ * @param {{ unique: Map<string, Row>; existing: Map<string, Row>; withheld: Set<string>; lowerBound: number }} o
+ * @returns {{ fresh: Row[]; olderRowsSkipped: number }}
+ */
+function freshRows(o) {
+  const { existing } = o;
   // 既に読んだ key の行は、前の内容と比べられるので、範囲より古くても内容が変わっていれば書く
   let olderRowsSkipped = 0;
-  const fresh = changedRows([...unique.values()], existing).filter((r) => {
+  const fresh = changedRows([...o.unique.values()], existing).filter((r) => {
     if (existing.has(r.key ?? "")) return true;
     // 打ち消せない前の区切りの行と時間が重なる行は、書くと二重に数えるので書かない
-    if (withheld.has(r.key ?? "")) return false;
+    if (o.withheld.has(r.key ?? "")) return false;
     // GitHub の行は取得の範囲（since）で決まり、その前に始まった区間（実行中の CI・レビュー待ち）も意図して書く
     if (GITHUB_KINDS.includes(r.kind ?? "")) return true;
     const t = parseTime(r.start);
-    if (t === null || t >= lowerBound) return true;
+    if (t === null || t >= o.lowerBound) return true;
     olderRowsSkipped += 1;
     return false;
   });
+  return { fresh, olderRowsSkipped };
+}
+
+/**
+ * 書く行と打ち消しの行に observed_at を付け、1 つの列にまとめる。
+ * @param {Row[]} fresh
+ * @param {readonly Row[]} retractions
+ * @param {number} now
+ * @returns {Row[]}
+ */
+function stampRows(fresh, retractions, now) {
   const observed = toIso(now);
   for (const r of fresh) r.observed_at = observed;
   // 打ち消しの行は、元の行より新しい observed_at にする（他のマシンの時計が進んでいて、元の行が今より後でも打ち消せるように）
   for (const r of retractions)
     r.observed_at = toIso(Math.max(now, (parseTime(r.observed_at) ?? now) + 1000));
   fresh.push(...retractions);
-  const personRows = fresh.filter((r) => !GITHUB_KINDS.includes(r.kind ?? ""));
-  const githubRows = fresh.filter((r) => GITHUB_KINDS.includes(r.kind ?? ""));
+  return fresh;
+}
+
+/**
+ * 人の行と GitHub の行を、それぞれのブランチのファイルに書き足す。
+ * @param {readonly Row[]} rows
+ * @param {BranchTargets} targets
+ * @returns {string[]} 書いたファイル
+ */
+function writeBranchRows(rows, targets) {
+  const personRows = rows.filter((r) => !GITHUB_KINDS.includes(r.kind ?? ""));
+  const githubRows = rows.filter((r) => GITHUB_KINDS.includes(r.kind ?? ""));
   /** @type {string[]} */
   const written = [];
-  if (personRows.length > 0)
-    written.push(appendBranchFile(appendTarget(personDir, personFiles), personRows));
-  if (githubRows.length > 0)
-    written.push(appendBranchFile(appendTarget(githubDir, githubFiles), githubRows));
-  saveLastCollect(lastPath, person, now);
-  return {
-    person,
-    personCreated: user.created,
-    written,
-    newRows: fresh.length,
-    sessions: local.sessions,
-    parsed: local.parsed,
-    invalidLines: local.invalidLines,
-    duplicateMessages: local.duplicateMessages,
-    githubFailures,
-    githubSkipped,
-    githubSkipReason,
-    keyConflicts: conflicts,
-    skippedFiles: read.skipped,
-    olderRowsSkipped,
-    retractedRows: retractions.length,
-  };
+  if (personRows.length > 0) written.push(appendBranchFile(targets.person(), personRows));
+  if (githubRows.length > 0) written.push(appendBranchFile(targets.github(), githubRows));
+  return written;
 }

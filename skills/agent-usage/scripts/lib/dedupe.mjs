@@ -66,12 +66,11 @@ function originFirst(a, b) {
 }
 
 /**
- * セッションをまたいだ重複を除いた要約を返す（引数は変えない）。claims は書き換える。
+ * 応答の key（エージェント:key）ごとに、その応答を持つセッションを集める。
  * @param {readonly SessionSummary[]} summaries
- * @param {Map<string, string>} claims
- * @returns {{ summaries: SessionSummary[]; dropped: number }}
+ * @returns {Map<string, SessionSummary[]>}
  */
-export function dedupeSessions(summaries, claims) {
+function holdersByKey(summaries) {
   /** @type {Map<string, SessionSummary[]>} */
   const holders = new Map();
   for (const s of summaries) {
@@ -82,6 +81,16 @@ export function dedupeSessions(summaries, claims) {
       holders.set(k, list);
     }
   }
+  return holders;
+}
+
+/**
+ * key ごとに持ち主のセッションを決め、持ち主でないセッションから外す応答の key を返す。claims は書き換える。
+ * @param {Map<string, SessionSummary[]>} holders
+ * @param {Map<string, string>} claims
+ * @returns {Map<SessionSummary, Set<string>>} 外す応答の key（セッションごと）
+ */
+function dropsByOwner(holders, claims) {
   /** @type {Map<SessionSummary, Set<string>>} 外す応答の key（セッションごと） */
   const drop = new Map();
   for (const [k, list] of holders) {
@@ -98,6 +107,17 @@ export function dedupeSessions(summaries, claims) {
       drop.set(s, set);
     }
   }
+  return drop;
+}
+
+/**
+ * セッションをまたいだ重複を除いた要約を返す（引数は変えない）。claims は書き換える。
+ * @param {readonly SessionSummary[]} summaries
+ * @param {Map<string, string>} claims
+ * @returns {{ summaries: SessionSummary[]; dropped: number }}
+ */
+export function dedupeSessions(summaries, claims) {
+  const drop = dropsByOwner(holdersByKey(summaries), claims);
   let dropped = 0;
   const out = summaries.map((s) => {
     const keys = drop.get(s);

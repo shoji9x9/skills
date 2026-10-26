@@ -55,11 +55,23 @@ export function inferTurnEnds(s) {
 }
 
 /**
- * @param {SessionSummary} s
- * @returns {Run[]}
+ * 状態を 1 つのオブジェクトに持つ（関数をまたいで書き換える let は、型の絞り込みが追えないため）。
+ * @typedef {object} RunState
+ * @property {Run[]} runs
+ * @property {Run | null} run
+ * @property {boolean} working
+ * @property {number | null} lastTurnEnd
+ * @property {number} waitMs
+ * @property {number} waiting
+ * @property {number[]} msgTimes 応答の時刻（昇順）
  */
-export function buildRuns(s) {
-  if (s.subagent) return [];
+
+/**
+ * 区切りと完了のイベントを、時刻と同じ時刻での処理の順に並べる。
+ * @param {SessionSummary} s
+ * @returns {TimelineEvent[]}
+ */
+function timelineEvents(s) {
   // 完了の記録が無いログ（古い版）は応答の時刻から推定する。中断はどちらの場合も完了に足す
   const turnEnds = [...(s.turnEnds.length > 0 ? s.turnEnds : inferTurnEnds(s)), ...s.interrupts];
   /** @type {TimelineEvent[]} */
@@ -72,104 +84,159 @@ export function buildRuns(s) {
     events.push({ t: w.end, order: ORDER.hwEnd, type: "hwEnd" });
   }
   events.sort((a, b) => a.t - b.t || a.order - b.order);
+  return events;
+}
 
-  /** @type {Run[]} */
-  const runs = [];
-  /**
-   * 状態を 1 つのオブジェクトに持つ（閉じた関数の中で書き換える let は、型の絞り込みが追えないため）。
-   * @type {{ run: Run | null; working: boolean; lastTurnEnd: number | null; waitMs: number; waiting: number }}
-   */
-  const st = { run: null, working: false, lastTurnEnd: null, waitMs: 0, waiting: 0 };
-  const msgTimes = s.messages.map((m) => m.ts).sort((a, b) => a - b);
-  /**
-   * t より前で最後の応答の時刻（無ければ null）。
-   * @param {number} t
-   * @returns {number | null}
-   */
-  const lastMessageBefore = (t) => {
-    let found = null;
-    for (const m of msgTimes) {
-      if (m >= t) break;
-      found = m;
-    }
-    return found;
-  };
-
-  /** @param {number} end */
-  const close = (end) => {
-    const r = st.run;
-    if (r && end >= r.start) {
-      r.end = end;
-      r.waitMs = st.waitMs;
-      runs.push(r);
-    }
-    st.run = null;
-    st.waitMs = 0;
-    st.lastTurnEnd = null;
-  };
-  /**
-   * @param {number} t
-   * @param {Run["trigger"]} trigger
-   */
-  const open = (t, trigger) => {
-    st.run = { start: t, end: t, waitMs: 0, open: false, trigger };
-    st.working = true;
-    st.lastTurnEnd = null;
-    st.waitMs = 0;
-  };
-
-  for (const e of events) {
-    switch (e.type) {
-      case "prompt": {
-        if (st.run && st.working) {
-          // 応答の途中の指示は区切らない。ただし、直前の応答から STALE_TURN_MS より長く何も無ければ、
-          // 完了の記録が抜けた（API のエラー・プロセスの終了など）とみなし、最後の応答で閉じる
-          const lastMsg = lastMessageBefore(e.t);
-          const since = lastMsg ?? st.run.start;
-          if (e.t - since <= STALE_TURN_MS) break;
-          close(Math.max(st.run.start, since));
-          open(e.t, "prompt");
-          break;
-        }
-        if (st.run) close(st.lastTurnEnd ?? e.t);
-        open(e.t, "prompt");
-        break;
-      }
-      case "auto":
-        if (!st.run) {
-          open(e.t, "auto");
-          break;
-        }
-        if (!st.working && st.lastTurnEnd !== null) st.waitMs += e.t - st.lastTurnEnd;
-        st.working = true;
-        break;
-      case "turnEnd":
-        if (!st.run) break;
-        st.working = false;
-        st.lastTurnEnd = e.t;
-        break;
-      case "hwStart":
-        // 並列のツール呼び出しで人の待ちが重なることがあるので、重なりの深さで数える
-        st.waiting += 1;
-        if (st.run) close(e.t);
-        st.working = false;
-        break;
-      case "hwEnd":
-        st.waiting = Math.max(0, st.waiting - 1);
-        if (st.waiting > 0) break;
-        if (st.run) close(e.t);
-        open(e.t, "human-wait");
-        break;
-    }
+/**
+ * t より前で最後の応答の時刻（無ければ null）。
+ * @param {readonly number[]} msgTimes
+ * @param {number} t
+ * @returns {number | null}
+ */
+function lastMessageBefore(msgTimes, t) {
+  let found = null;
+  for (const m of msgTimes) {
+    if (m >= t) break;
+    found = m;
   }
+  return found;
+}
+
+/**
+ * @param {RunState} st
+ * @param {number} end
+ */
+function closeRun(st, end) {
+  const r = st.run;
+  if (r && end >= r.start) {
+    r.end = end;
+    r.waitMs = st.waitMs;
+    st.runs.push(r);
+  }
+  st.run = null;
+  st.waitMs = 0;
+  st.lastTurnEnd = null;
+}
+
+/**
+ * @param {RunState} st
+ * @param {number} t
+ * @param {Run["trigger"]} trigger
+ */
+function openRun(st, t, trigger) {
+  st.run = { start: t, end: t, waitMs: 0, open: false, trigger };
+  st.working = true;
+  st.lastTurnEnd = null;
+  st.waitMs = 0;
+}
+
+/**
+ * @param {RunState} st
+ * @param {TimelineEvent} e
+ */
+function onPrompt(st, e) {
+  if (st.run && st.working) {
+    // 応答の途中の指示は区切らない。ただし、直前の応答から STALE_TURN_MS より長く何も無ければ、
+    // 完了の記録が抜けた（API のエラー・プロセスの終了など）とみなし、最後の応答で閉じる
+    const lastMsg = lastMessageBefore(st.msgTimes, e.t);
+    const since = lastMsg ?? st.run.start;
+    if (e.t - since <= STALE_TURN_MS) return;
+    closeRun(st, Math.max(st.run.start, since));
+    openRun(st, e.t, "prompt");
+    return;
+  }
+  if (st.run) closeRun(st, st.lastTurnEnd ?? e.t);
+  openRun(st, e.t, "prompt");
+}
+
+/**
+ * @param {RunState} st
+ * @param {TimelineEvent} e
+ */
+function onAuto(st, e) {
+  if (!st.run) {
+    openRun(st, e.t, "auto");
+    return;
+  }
+  if (!st.working && st.lastTurnEnd !== null) st.waitMs += e.t - st.lastTurnEnd;
+  st.working = true;
+}
+
+/**
+ * @param {RunState} st
+ * @param {TimelineEvent} e
+ */
+function onTurnEnd(st, e) {
+  if (!st.run) return;
+  st.working = false;
+  st.lastTurnEnd = e.t;
+}
+
+/**
+ * @param {RunState} st
+ * @param {TimelineEvent} e
+ */
+function onHumanWaitStart(st, e) {
+  // 並列のツール呼び出しで人の待ちが重なることがあるので、重なりの深さで数える
+  st.waiting += 1;
+  if (st.run) closeRun(st, e.t);
+  st.working = false;
+}
+
+/**
+ * @param {RunState} st
+ * @param {TimelineEvent} e
+ */
+function onHumanWaitEnd(st, e) {
+  st.waiting = Math.max(0, st.waiting - 1);
+  if (st.waiting > 0) return;
+  if (st.run) closeRun(st, e.t);
+  openRun(st, e.t, "human-wait");
+}
+
+/** イベントの種類ごとの処理。 */
+const HANDLERS = {
+  prompt: onPrompt,
+  auto: onAuto,
+  turnEnd: onTurnEnd,
+  hwStart: onHumanWaitStart,
+  hwEnd: onHumanWaitEnd,
+};
+
+/**
+ * ログの終わりで、残った run を閉じる。
+ * @param {RunState} st
+ * @param {number} lastTs ログの最後の時刻
+ */
+function closeLastRun(st, lastTs) {
   const last = st.run;
-  if (last) {
-    if (st.working || st.lastTurnEnd === null) {
-      last.open = true;
-      close(Math.max(last.start, s.lastTs));
-    } else {
-      close(st.lastTurnEnd);
-    }
+  if (!last) return;
+  if (st.working || st.lastTurnEnd === null) {
+    last.open = true;
+    closeRun(st, Math.max(last.start, lastTs));
+  } else {
+    closeRun(st, st.lastTurnEnd);
   }
-  return runs;
+}
+
+/**
+ * @param {SessionSummary} s
+ * @returns {Run[]}
+ */
+export function buildRuns(s) {
+  if (s.subagent) return [];
+  const events = timelineEvents(s);
+  /** @type {RunState} */
+  const st = {
+    runs: [],
+    run: null,
+    working: false,
+    lastTurnEnd: null,
+    waitMs: 0,
+    waiting: 0,
+    msgTimes: s.messages.map((m) => m.ts).sort((a, b) => a - b),
+  };
+  for (const e of events) HANDLERS[e.type](st, e);
+  closeLastRun(st, s.lastTs);
+  return st.runs;
 }

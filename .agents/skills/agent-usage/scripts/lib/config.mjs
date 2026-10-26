@@ -162,12 +162,13 @@ function pick(r, keys) {
 /**
  * 値をスキーマで検証する（知らないキーと型の誤り）。
  * @param {Record<string, unknown>} obj
- * @param {readonly string[] | null} allowed 許すキー。null なら、layer の層に置けるキー
  * @param {string} where
- * @param {{ id: import("../skill-config/skill-config.mjs").FileLayer; label: string }} [layer] 置き場所。
+ * @param {object} scope
+ * @param {readonly string[] | null} scope.allowed 許すキー。null なら、layer の層に置けるキー
+ * @param {{ id: import("../skill-config/skill-config.mjs").FileLayer; label: string }} [scope.layer] 置き場所。
  *   渡すと、スキーマにはあるが許していないキーを、知らないキーではなく、その層に置けないキーとして示す
  */
-function validateKeys(obj, allowed, where, layer) {
+function validateKeys(obj, where, { allowed, layer }) {
   const schema = loadSchema(SCHEMA_DIR, CONFIG_NAME);
   const keys =
     allowed ??
@@ -198,8 +199,22 @@ function validateKeys(obj, allowed, where, layer) {
  */
 export function parseRepoConfig(raw, where = CONFIG_NAME) {
   if (!isRecord(raw)) throw new ConfigError(`${where}: オブジェクトでない`);
-  validateKeys(raw, REPO_KEYS, where);
+  validateKeys(raw, where, { allowed: REPO_KEYS });
   const cfg = defaultRepoConfig();
+  readPricing(cfg, raw, where);
+  readSettings(cfg, raw);
+  readNames(cfg, raw);
+  checkAliases(cfg, where);
+  return cfg;
+}
+
+/**
+ * 単価（pricing と reviewPricing）を cfg に読み込む。
+ * @param {RepoConfig} cfg
+ * @param {Record<string, unknown>} raw
+ * @param {string} where
+ */
+function readPricing(cfg, raw, where) {
   if (isRecord(raw.pricing)) {
     for (const [model, p] of Object.entries(raw.pricing))
       cfg.pricing[model] = parsePrice(p, `${where}: pricing.${model}`);
@@ -208,9 +223,28 @@ export function parseRepoConfig(raw, where = CONFIG_NAME) {
     for (const [k, n] of Object.entries(raw.reviewPricing))
       if (isNonNegative(n)) cfg.reviewPricing[k] = n;
   }
+}
+
+/**
+ * 1 つの値で決まる設定（ci・activityWindowMinutes・defaultDecision）を cfg に読み込む。
+ * @param {RepoConfig} cfg
+ * @param {Record<string, unknown>} raw
+ */
+function readSettings(cfg, raw) {
   if (isRecord(raw.ci) && typeof raw.ci.external === "boolean") cfg.ci.external = raw.ci.external;
   if (isNonNegative(raw.activityWindowMinutes))
     cfg.activityWindowMinutes = raw.activityWindowMinutes;
+  // null は、置いていないのと同じに扱う（値を外すつもりで null を書いた設定で止めない）
+  if (raw.defaultDecision === "record" || raw.defaultDecision === "decline")
+    cfg.defaultDecision = raw.defaultDecision;
+}
+
+/**
+ * 名前の対応（reviewTools・aliases・people）を cfg に読み込む。
+ * @param {RepoConfig} cfg
+ * @param {Record<string, unknown>} raw
+ */
+function readNames(cfg, raw) {
   for (const key of /** @type {const} */ (["reviewTools", "aliases"])) {
     const v = raw[key];
     if (isRecord(v))
@@ -220,14 +254,18 @@ export function parseRepoConfig(raw, where = CONFIG_NAME) {
     for (const [id, p] of Object.entries(raw.people))
       if (isRecord(p) && typeof p.name === "string") cfg.people[id] = { name: p.name };
   }
-  // null は、置いていないのと同じに扱う（値を外すつもりで null を書いた設定で止めない）
-  if (raw.defaultDecision === "record" || raw.defaultDecision === "decline")
-    cfg.defaultDecision = raw.defaultDecision;
+}
+
+/**
+ * 別名の先がさらに別名になっていれば、エラーにする。
+ * @param {RepoConfig} cfg
+ * @param {string} where
+ */
+function checkAliases(cfg, where) {
   for (const [from, to] of Object.entries(cfg.aliases)) {
     if (cfg.aliases[to] !== undefined)
       throw new ConfigError(`${where}: aliases: ${from} → ${to} の先がさらに別名になっている`);
   }
-  return cfg;
 }
 
 /**
@@ -250,7 +288,7 @@ export function loadRepoConfig(root, env = process.env, r = resolved(root, env))
  */
 export function parseUserConfig(raw, where = CONFIG_NAME) {
   if (!isRecord(raw)) throw new ConfigError(`${where}: オブジェクトでない`);
-  validateKeys(raw, USER_KEYS, where);
+  validateKeys(raw, where, { allowed: USER_KEYS });
   if (typeof raw.personId !== "string") throw new ConfigError(`${where}: personId が無い`);
   const timeZone = raw.timeZone === undefined ? systemTimeZone() : raw.timeZone;
   if (typeof timeZone !== "string" || !isValidTimeZone(timeZone))
@@ -326,9 +364,8 @@ export function saveUserConfig(root, env, values) {
   // 書く前に、すべてのキーが人ごとの層に置けることと、値がスキーマに合うことを確かめる
   validateKeys(
     Object.fromEntries(Object.entries(values).filter(([, v]) => v !== undefined)),
-    null,
     path,
-    { id: "user", label: "人ごと" },
+    { allowed: null, layer: { id: "user", label: "人ごと" } },
   );
   for (const [key, value] of Object.entries(values)) {
     if (value === undefined) continue;

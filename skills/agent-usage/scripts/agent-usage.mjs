@@ -161,6 +161,161 @@ function mergedNote(repo) {
 }
 
 /**
+ * コマンドに渡す、引数以外の値。
+ * @typedef {object} CommandContext
+ * @property {string} cwd
+ * @property {number} now
+ */
+
+/**
+ * @param {string[]} rest
+ * @param {CommandContext} context
+ * @returns {number}
+ */
+function setupCommand(rest, context) {
+  const a = parseArgs(rest, [], ["--person-id", "--time-zone", "--billing"]);
+  const repo = repoInfo(context.cwd);
+  // 引数を確かめる前に人の設定を作らない。打ち間違いで止まったときに、乱数の ID の設定が残らないようにする
+  const config = loadUserConfig(repo.root);
+  const created = config === null;
+  const personId = a.options.get("--person-id") ?? config?.personId ?? newPersonId();
+  if (!PERSON_ID_RE.test(personId))
+    throw new UsageError("--person-id は p- と 16 進数 8 桁の形にする");
+  // config.timeZone は .local.jsonc の値のことがあるので使わない（人ごとの層へ書き写すと、他のリポジトリの記録の日付まで変わる）
+  const timeZone = a.options.get("--time-zone") ?? userLayerTimeZone() ?? systemTimeZone();
+  if (!isValidTimeZone(timeZone))
+    throw new UsageError("--time-zone は IANA のタイムゾーンの名前にする");
+  const billing = a.options.get("--billing") ?? config?.billing ?? "none";
+  if (billing !== "none" && billing !== "user")
+    throw new UsageError("--billing は none か user にする");
+  // 書くのは人ごとの層の 3 つのキーだけで、defaultDecision など他のキーは変えない
+  const path = saveUserConfig(repo.root, process.env, { personId, timeZone, billing });
+  const dir = usageDir(repo.root);
+  mkdirSync(join(dir, "records"), { recursive: true });
+  // .agent-usage/ を commit できるよう、空のファイルを置く。.agent-usage/ があることがこのリポジトリでスキルを使う印なので、
+  // commit されないと、clone した先や worktree では Hook が何もしない
+  const keep = join(dir, "records", ".gitkeep");
+  if (!existsSync(keep)) writeFileSync(keep, "");
+  console.log(`${created ? "作った" : "更新した"}: ${path}`);
+  console.log(`人の ID: ${personId} / タイムゾーン: ${timeZone} / 課金 API: ${billing}`);
+  console.log(
+    `リポジトリの設定: ${configPaths(repo.root, CONFIG_NAME, process.env).repo}（無ければデフォルト）`,
+  );
+  console.log(`Hook のスクリプト: ${join(SCRIPT, "..", "precommit-gate.sh")}`);
+  return 0;
+}
+
+/**
+ * @param {string[]} rest
+ * @param {CommandContext} context
+ * @returns {number}
+ */
+function collectCommand(rest, context) {
+  const { now } = context;
+  const a = parseArgs(rest, ["--stage", "--no-github"], []);
+  const repo = requireSetup(context.cwd);
+  const r = runCollect({
+    repo,
+    now,
+    env: process.env,
+    github: !a.flags.has("--no-github"),
+    gh: null,
+  });
+  printCollect(r);
+  if (a.flags.has("--stage")) {
+    if (r.written.length > 0) git(["add", "--", ...r.written], repo.root);
+    if (repo.branch !== "")
+      saveDecision(repo.commonDir, { branch: repo.branch, decision: "record", now });
+  }
+  return 0;
+}
+
+/**
+ * @param {string[]} rest
+ * @param {CommandContext} context
+ * @returns {number}
+ */
+function declineCommand(rest, context) {
+  parseArgs(rest, [], []);
+  const repo = requireSetup(context.cwd);
+  if (repo.branch === "") throw new Error("ブランチの上にいない（detached HEAD）");
+  saveDecision(repo.commonDir, { branch: repo.branch, decision: "decline", now: context.now });
+  console.log(`${repo.branch}: 記録しない（このブランチでは確認しない）`);
+  return 0;
+}
+
+/**
+ * @param {string[]} rest
+ * @param {CommandContext} context
+ * @returns {number}
+ */
+function statusCommand(rest, context) {
+  parseArgs(rest, [], []);
+  const repo = repoInfo(context.cwd);
+  const set = existsSync(usageDir(repo.root));
+  console.log(`セットアップ: ${set ? "済み" : "未"}（${usageDir(repo.root)}）`);
+  console.log(
+    `ブランチ: ${repo.branch || "(detached)"} / デフォルトブランチ: ${repo.defaultBranch ?? "(不明)"}`,
+  );
+  console.log(`このブランチの判断: ${repo.branch ? branchDecisionText(repo, set) : "-"}`);
+  const path = userConfigPath();
+  console.log(
+    `人の設定: ${existsSync(path) ? readFileSync(path, "utf8").trim().replace(/\s+/g, " ") : "(無い)"}`,
+  );
+  return 0;
+}
+
+/**
+ * @param {string[]} rest
+ * @param {CommandContext} context
+ * @returns {number}
+ */
+function reportCommand(rest, context) {
+  const a = parseArgs(rest, [], ["--since", "--until", "--out"]);
+  const repo = requireSetup(context.cwd);
+  const out = runReport({
+    root: repo.root,
+    now: context.now,
+    env: process.env,
+    since: a.options.get("--since") ?? null,
+    until: a.options.get("--until") ?? null,
+    out: a.options.get("--out") ?? null,
+  });
+  for (const f of out.files) console.log(`書いた: ${f}`);
+  console.log(`行: ${out.rows}（重複を除いた後） / 期間: ${out.period}`);
+  return 0;
+}
+
+/**
+ * @param {string[]} rest
+ * @param {CommandContext} context
+ * @returns {number}
+ */
+function gateCommand(rest, context) {
+  const a = parseArgs(rest, [], ["--agent"]);
+  const agent = a.options.get("--agent") ?? "claude-code";
+  const input = readHookInput(readFileSync(0, "utf8"));
+  const verdict = gateDecision(input, {
+    fallbackCwd: context.cwd,
+    now: context.now,
+    script: SCRIPT,
+    agent,
+  });
+  if (verdict.message) process.stderr.write(`${verdict.message}\n`);
+  return verdict.exit;
+}
+
+/** @type {ReadonlyMap<string, (rest: string[], context: CommandContext) => number>} */
+const COMMANDS = new Map([
+  ["setup", setupCommand],
+  ["collect", collectCommand],
+  ["decline", declineCommand],
+  ["status", statusCommand],
+  ["report", reportCommand],
+  ["gate", gateCommand],
+]);
+
+/**
  * @param {string[]} argv
  * @param {string} cwd
  * @returns {number}
@@ -169,105 +324,9 @@ export function main(argv, cwd = process.cwd()) {
   const [cmd, ...rest] = argv;
   const now = process.env.AGENT_USAGE_NOW ? parseTime(process.env.AGENT_USAGE_NOW) : Date.now();
   if (now === null) throw new UsageError("AGENT_USAGE_NOW が時刻でない");
-  switch (cmd) {
-    case "setup": {
-      const a = parseArgs(rest, [], ["--person-id", "--time-zone", "--billing"]);
-      const repo = repoInfo(cwd);
-      // 引数を確かめる前に人の設定を作らない。打ち間違いで止まったときに、乱数の ID の設定が残らないようにする
-      const config = loadUserConfig(repo.root);
-      const created = config === null;
-      const personId = a.options.get("--person-id") ?? config?.personId ?? newPersonId();
-      if (!PERSON_ID_RE.test(personId))
-        throw new UsageError("--person-id は p- と 16 進数 8 桁の形にする");
-      // config.timeZone は .local.jsonc の値のことがあるので使わない（人ごとの層へ書き写すと、他のリポジトリの記録の日付まで変わる）
-      const timeZone = a.options.get("--time-zone") ?? userLayerTimeZone() ?? systemTimeZone();
-      if (!isValidTimeZone(timeZone))
-        throw new UsageError("--time-zone は IANA のタイムゾーンの名前にする");
-      const billing = a.options.get("--billing") ?? config?.billing ?? "none";
-      if (billing !== "none" && billing !== "user")
-        throw new UsageError("--billing は none か user にする");
-      // 書くのは人ごとの層の 3 つのキーだけで、defaultDecision など他のキーは変えない
-      const path = saveUserConfig(repo.root, process.env, { personId, timeZone, billing });
-      const dir = usageDir(repo.root);
-      mkdirSync(join(dir, "records"), { recursive: true });
-      // .agent-usage/ を commit できるよう、空のファイルを置く。.agent-usage/ があることがこのリポジトリでスキルを使う印なので、
-      // commit されないと、clone した先や worktree では Hook が何もしない
-      const keep = join(dir, "records", ".gitkeep");
-      if (!existsSync(keep)) writeFileSync(keep, "");
-      console.log(`${created ? "作った" : "更新した"}: ${path}`);
-      console.log(`人の ID: ${personId} / タイムゾーン: ${timeZone} / 課金 API: ${billing}`);
-      console.log(
-        `リポジトリの設定: ${configPaths(repo.root, CONFIG_NAME, process.env).repo}（無ければデフォルト）`,
-      );
-      console.log(`Hook のスクリプト: ${join(SCRIPT, "..", "precommit-gate.sh")}`);
-      return 0;
-    }
-    case "collect": {
-      const a = parseArgs(rest, ["--stage", "--no-github"], []);
-      const repo = requireSetup(cwd);
-      const r = runCollect({
-        repo,
-        now,
-        env: process.env,
-        github: !a.flags.has("--no-github"),
-        gh: null,
-      });
-      printCollect(r);
-      if (a.flags.has("--stage")) {
-        if (r.written.length > 0) git(["add", "--", ...r.written], repo.root);
-        if (repo.branch !== "") saveDecision(repo.commonDir, repo.branch, "record", now);
-      }
-      return 0;
-    }
-    case "decline": {
-      parseArgs(rest, [], []);
-      const repo = requireSetup(cwd);
-      if (repo.branch === "") throw new Error("ブランチの上にいない（detached HEAD）");
-      saveDecision(repo.commonDir, repo.branch, "decline", now);
-      console.log(`${repo.branch}: 記録しない（このブランチでは確認しない）`);
-      return 0;
-    }
-    case "status": {
-      parseArgs(rest, [], []);
-      const repo = repoInfo(cwd);
-      const set = existsSync(usageDir(repo.root));
-      console.log(`セットアップ: ${set ? "済み" : "未"}（${usageDir(repo.root)}）`);
-      console.log(
-        `ブランチ: ${repo.branch || "(detached)"} / デフォルトブランチ: ${repo.defaultBranch ?? "(不明)"}`,
-      );
-      console.log(`このブランチの判断: ${repo.branch ? branchDecisionText(repo, set) : "-"}`);
-      const path = userConfigPath();
-      console.log(
-        `人の設定: ${existsSync(path) ? readFileSync(path, "utf8").trim().replace(/\s+/g, " ") : "(無い)"}`,
-      );
-      return 0;
-    }
-    case "report": {
-      const a = parseArgs(rest, [], ["--since", "--until", "--out"]);
-      const repo = requireSetup(cwd);
-      const out = runReport({
-        root: repo.root,
-        now,
-        env: process.env,
-        since: a.options.get("--since") ?? null,
-        until: a.options.get("--until") ?? null,
-        out: a.options.get("--out") ?? null,
-      });
-      for (const f of out.files) console.log(`書いた: ${f}`);
-      console.log(`行: ${out.rows}（重複を除いた後） / 期間: ${out.period}`);
-      return 0;
-    }
-    case "gate": {
-      const a = parseArgs(rest, [], ["--agent"]);
-      const agent = a.options.get("--agent") ?? "claude-code";
-      const input = readHookInput(readFileSync(0, "utf8"));
-      const verdict = gateDecision(input, cwd, now, SCRIPT, agent);
-      if (verdict.message) process.stderr.write(`${verdict.message}\n`);
-      return verdict.exit;
-    }
-    default:
-      throw new UsageError(`知らないコマンド: ${cmd ?? "(無し)"}`);
-  }
+  const command = cmd === undefined ? undefined : COMMANDS.get(cmd);
+  if (command === undefined) throw new UsageError(`知らないコマンド: ${cmd ?? "(無し)"}`);
+  return command(rest, { cwd, now });
 }
 
 /**

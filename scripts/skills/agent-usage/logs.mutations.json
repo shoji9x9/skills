@@ -9,8 +9,8 @@
       "id": "mid-turn-prompt-splits",
       "why": "応答の途中の人の指示で run を区切ってしまう",
       "file": "skills/agent-usage/scripts/lib/sources/timeline.mjs",
-      "find": "        if (st.run && st.working) {",
-      "replace": "        if (false) {",
+      "find": "  if (st.run && st.working) {",
+      "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "buildRuns 応答の途中の指示は区切らない",
@@ -21,8 +21,8 @@
       "id": "external-wait-not-counted",
       "why": "完了から自動の再開までを外部待ちとして数えない",
       "file": "skills/agent-usage/scripts/lib/sources/timeline.mjs",
-      "find": "        if (!st.working && st.lastTurnEnd !== null) st.waitMs += e.t - st.lastTurnEnd;",
-      "replace": "        if (false) st.waitMs += e.t - (st.lastTurnEnd ?? 0);",
+      "find": "  if (!st.working && st.lastTurnEnd !== null) st.waitMs += e.t - st.lastTurnEnd;",
+      "replace": "  if (false) st.waitMs += e.t - (st.lastTurnEnd ?? 0);",
       "occurrences": 1,
       "expect_failing": ["buildRuns 自動の再開では区切らず、完了から再開までを外部待ちとして数える"]
     },
@@ -30,8 +30,8 @@
       "id": "permission-by-user-ignored",
       "why": "人が判断した権限の確認を、人を待った区間にしない",
       "file": "skills/agent-usage/scripts/lib/sources/claude-log.mjs",
-      "find": "      const byUser = typeof decision.source === \"string\" && decision.source.startsWith(\"user\");",
-      "replace": "      const byUser = false;",
+      "find": "  const byUser = typeof decision.source === \"string\" && decision.source.startsWith(\"user\");",
+      "replace": "  const byUser = false;",
       "occurrences": 1,
       "expect_failing": [
         "Claude Code のログ AskUserQuestion と、人が判断した権限は人を待った区間にし、設定による許可は区間にしない"
@@ -41,8 +41,8 @@
       "id": "streaming-usage-first-row",
       "why": "ストリーミングの同じ id の行で、欄ごとの最大ではなく最初の行を使う",
       "file": "skills/agent-usage/scripts/lib/sources/claude-log.mjs",
-      "find": "            ? { ts: prev.ts, model, tokens: maxTokens(prev.tokens, tokens) }",
-      "replace": "            ? { ts: prev.ts, model, tokens: prev.tokens }",
+      "find": "{ ts: prev.ts, model, tokens: maxTokens(prev.tokens, tokens) }",
+      "replace": "{ ts: prev.ts, model, tokens: prev.tokens }",
       "occurrences": 1,
       "expect_failing": [
         "Claude Code のログ 同じ message.id の複数行は欄ごとの最大を取り、<synthetic> は数えない"
@@ -52,8 +52,8 @@
       "id": "codex-parent-meta-overwrites",
       "why": "子のファイルが持つ親の session_meta のコピーで id を上書きする",
       "file": "skills/agent-usage/scripts/lib/sources/codex-log.mjs",
-      "find": "      if (seenMeta) continue;",
-      "replace": "      if (false) continue;",
+      "find": "  if (st.seenMeta) return;",
+      "replace": "  if (false) return;",
       "occurrences": 1,
       "expect_failing": [
         "Codex のログ 最初の session_meta だけを使い、子のファイルが持つ親のコピーで id を上書きしない"
@@ -63,8 +63,8 @@
       "id": "interrupt-as-prompt",
       "why": "中断した応答を応答の完了にしない",
       "file": "skills/agent-usage/scripts/lib/sources/claude-log.mjs",
-      "find": "    if (userText(message.content)?.startsWith(\"[Request interrupted by user\") === true) {",
-      "replace": "    if (false) {",
+      "find": "  if (userText(message.content)?.startsWith(\"[Request interrupted by user\") === true) {",
+      "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "Claude Code のログ 利用者が中断した応答（[Request interrupted by user]）は、指示ではなく応答の完了にする"
@@ -74,8 +74,8 @@
       "id": "stale-turn-kept",
       "why": "完了の記録が抜けたターンの後の指示を区切らない",
       "file": "skills/agent-usage/scripts/lib/sources/timeline.mjs",
-      "find": "          if (e.t - since <= STALE_TURN_MS) break;",
-      "replace": "          break;",
+      "find": "    if (e.t - since <= STALE_TURN_MS) return;",
+      "replace": "    return;",
       "occurrences": 1,
       "expect_failing": [
         "buildRuns 完了の記録が抜けたターンの後の指示は、直前の応答から 30 分を超えていれば区切る"
@@ -85,8 +85,8 @@
       "id": "overlapping-waits",
       "why": "重なった人の待ちの途中で run を始める",
       "file": "skills/agent-usage/scripts/lib/sources/timeline.mjs",
-      "find": "        if (st.waiting > 0) break;",
-      "replace": "        void 0;",
+      "find": "  if (st.waiting > 0) return;",
+      "replace": "  void 0;",
       "occurrences": 1,
       "expect_failing": [
         "buildRuns 重なった人の待ち（並列のツール呼び出し）では、すべて終わってから次の run を始める"

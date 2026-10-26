@@ -257,118 +257,253 @@ export function dateRange(from, to) {
  * @property {number} unknownCostBuckets 費用が単価不明の usage の行の数
  */
 
+/** @typedef {{ config: RepoConfig; bundledPricing: Record<string, import("../config.mjs").Price>; bundledReviewPricing: Record<string, number>; tz: string; now: number; since: string | null; until: string | null; recordFiles: number }} BuildOptions */
+
+/**
+ * buildReport の入力と、集計の全体で使う値。
+ * @typedef {object} ReportContext
+ * @property {BuildOptions} o
+ * @property {(p: string | undefined) => string} alias 人の ID を、設定の aliases で揃えた ID にする
+ * @property {Record<string, string>} names 人の ID → 表示名
+ * @property {Row[]} latest key ごとに最も新しい行（打ち消された key を除く。期間で絞る前）
+ * @property {Row[]} rows latest を期間で絞った行
+ */
+
 /**
  * @param {readonly Row[]} allRows
- * @param {{ config: RepoConfig; bundledPricing: Record<string, import("../config.mjs").Price>; bundledReviewPricing: Record<string, number>; tz: string; now: number; since: string | null; until: string | null; recordFiles: number }} o
+ * @param {BuildOptions} o
  * @returns {ReportData}
  */
 export function buildReport(allRows, o) {
   // observed_at の最も新しい行が打ち消しの行（retracted=1）なら、その key を数えない
   const latest = [...latestByKey(allRows).values()].filter((r) => r.retracted !== "1");
-  const alias = (/** @type {string | undefined} */ p) => (p ? (o.config.aliases[p] ?? p) : "");
-  const inPeriod = (/** @type {Row} */ r) => {
-    const t = parseTime(r.start);
-    if (t === null) return false;
-    const date = localParts(t, r.tz || o.tz).date;
-    if (o.since && date < o.since) return false;
-    if (o.until && date > o.until) return false;
-    return true;
+  const alias = aliasOf(o.config);
+  const rows = latest.filter((r) => inPeriod(r, o));
+  /** @type {ReportContext} */
+  const ctx = { o, alias, names: namesOf(rows, alias, o.config), latest, rows };
+  const { usageOut, dailyCost, unknownCostBuckets } = aggregateUsage(ctx);
+  const st = aggregateStatus(ctx);
+  const reviews = buildReviews(rows, o);
+  const { first, last, days } = axisDays({ o, rows, dailyCost, byDate: st.byDate });
+
+  return {
+    generatedAt: toIso(o.now),
+    tz: o.tz,
+    // --until を指定しない側は、横軸と同じ最後の日を出す
+    period: formatPeriod(o.since ?? first, o.until ?? last),
+    since: o.since,
+    until: o.until,
+    recordFiles: o.recordFiles,
+    rows: rows.length,
+    names: ctx.names,
+    usage: usageOut,
+    intervals: st.intervals,
+    reviews,
+    statusByHour: STATUSES.map((c) => ({ status: c, byHour: st.byHour.get(c) ?? [] })),
+    days,
+    statusByDay: STATUSES.map((c) => ({
+      status: c,
+      byDay: days.map((date) => st.byDate.get(c)?.get(date) ?? 0),
+    })),
+    activeByPerson: st.activeByPerson,
+    activeByIssue: st.activeByIssue,
+    stopByPerson: st.stopByPerson,
+    idleByIssue: st.idleByIssue,
+    runHistogram: st.runHistogram,
+    dailyCost,
+    unknownCostBuckets,
   };
-  const rows = latest.filter(inPeriod);
+}
+
+/**
+ * 人の ID を、設定の aliases で揃えた ID にする関数。ID が無ければ空文字にする。
+ * @param {RepoConfig} config
+ * @returns {(p: string | undefined) => string}
+ */
+function aliasOf(config) {
+  return (p) => (p ? (config.aliases[p] ?? p) : "");
+}
+
+/**
+ * 行の始まりの日付（行のタイムゾーンで切る）が、--since から --until までに入るか。
+ * @param {Row} r
+ * @param {BuildOptions} o
+ * @returns {boolean}
+ */
+function inPeriod(r, o) {
+  const t = parseTime(r.start);
+  if (t === null) return false;
+  const date = localParts(t, r.tz || o.tz).date;
+  if (o.since && date < o.since) return false;
+  if (o.until && date > o.until) return false;
+  return true;
+}
+
+/**
+ * 行に現れる人の ID → 表示名。
+ * @param {readonly Row[]} rows
+ * @param {(p: string | undefined) => string} alias
+ * @param {RepoConfig} config
+ * @returns {Record<string, string>}
+ */
+function namesOf(rows, alias, config) {
   /** @type {Record<string, string>} */
   const names = {};
   for (const r of rows) {
     const p = alias(r.person);
-    if (p !== "" && !(p in names)) names[p] = o.config.people[p]?.name ?? p;
+    if (p !== "" && !(p in names)) names[p] = config.people[p]?.name ?? p;
   }
+  return names;
+}
 
-  // 費用
-  const TOKEN_COLUMNS = /** @type {const} */ ([
-    "input_tokens",
-    "cache_read_tokens",
-    "cache_write_tokens",
-    "output_tokens",
-    "reasoning_tokens",
-    "messages",
-  ]);
-  /**
-   * @typedef {object} UsageAcc
-   * @property {string} date
-   * @property {string} person
-   * @property {string} agent
-   * @property {string} model
-   * @property {Record<(typeof TOKEN_COLUMNS)[number], number>} sums
-   * @property {number} cost
-   * @property {number} unknown
-   * @property {Set<string>} sources
-   */
-  /** @type {Map<string, UsageAcc>} */
-  const usage = new Map();
-  /** @type {Map<string, number>} */
-  const daily = new Map();
-  let unknownCostBuckets = 0;
-  for (const r of rows.filter((x) => x.kind === "usage")) {
-    const t = parseTime(r.start) ?? 0;
-    const date = localParts(t, r.tz || o.tz).date;
-    const person = alias(r.person);
-    const agent = r.agent ?? "";
-    const model = r.model ?? "";
-    const key = [date, person, agent, model].join("\u0000");
-    let u = usage.get(key);
-    if (!u) {
-      u = {
-        date,
-        person,
-        agent,
-        model,
-        sums: {
-          input_tokens: 0,
-          cache_read_tokens: 0,
-          cache_write_tokens: 0,
-          output_tokens: 0,
-          reasoning_tokens: 0,
-          messages: 0,
-        },
-        cost: 0,
-        unknown: 0,
-        sources: new Set(),
+// 費用
+const TOKEN_COLUMNS = /** @type {const} */ ([
+  "input_tokens",
+  "cache_read_tokens",
+  "cache_write_tokens",
+  "output_tokens",
+  "reasoning_tokens",
+  "messages",
+]);
+/**
+ * @typedef {object} UsageAcc
+ * @property {string} date
+ * @property {string} person
+ * @property {string} agent
+ * @property {string} model
+ * @property {Record<(typeof TOKEN_COLUMNS)[number], number>} sums
+ * @property {number} cost
+ * @property {number} unknown
+ * @property {Set<string>} sources
+ */
+/**
+ * @typedef {object} UsageTotals
+ * @property {Map<string, UsageAcc>} usage 日付・人・エージェント・モデルごと
+ * @property {Map<string, number>} daily 日付とモデルごとの費用
+ * @property {number} unknownCostBuckets
+ */
+
+/**
+ * usage の行を、日付・人・エージェント・モデルごとに集計する。
+ * @param {ReportContext} ctx
+ * @returns {{ usageOut: Record<string, string>[]; dailyCost: { date: string; model: string; cost: number }[]; unknownCostBuckets: number }}
+ */
+function aggregateUsage(ctx) {
+  /** @type {UsageTotals} */
+  const acc = { usage: new Map(), daily: new Map(), unknownCostBuckets: 0 };
+  for (const r of ctx.rows.filter((x) => x.kind === "usage")) addUsageRow(acc, r, ctx);
+  const dailyCost = [...acc.daily.entries()].map(([k, cost]) => {
+    const [date, model] = k.split("\u0000");
+    return { date, model, cost };
+  });
+  return {
+    usageOut: usageRows(acc.usage, ctx.names),
+    dailyCost,
+    unknownCostBuckets: acc.unknownCostBuckets,
+  };
+}
+
+/**
+ * usage の 1 行を集計に足す。
+ * @param {UsageTotals} acc
+ * @param {Row} r
+ * @param {ReportContext} ctx
+ */
+function addUsageRow(acc, r, ctx) {
+  const t = parseTime(r.start) ?? 0;
+  const date = localParts(t, r.tz || ctx.o.tz).date;
+  const model = r.model ?? "";
+  const u = usageAccOf(acc.usage, {
+    date,
+    person: ctx.alias(r.person),
+    agent: r.agent ?? "",
+    model,
+  });
+  for (const c of TOKEN_COLUMNS) u.sums[c] += Number(r[c] || 0);
+  const { cost, sources } = usageCost(r, model, ctx.o);
+  for (const src of sources) u.sources.add(src);
+  // 単価のある応答と単価不明の応答が混在する行（cost_source に unknown を含む）も、費用が足りないので単価不明に数える
+  if (cost === null || sources.includes("unknown")) {
+    u.unknown += 1;
+    acc.unknownCostBuckets += 1;
+  }
+  if (cost !== null) {
+    u.cost += cost;
+    const dk = `${date}\u0000${model}`;
+    acc.daily.set(dk, (acc.daily.get(dk) ?? 0) + cost);
+  }
+}
+
+/**
+ * 日付・人・エージェント・モデルの組の集計。無ければ 0 で作る。
+ * @param {Map<string, UsageAcc>} usage
+ * @param {{ date: string; person: string; agent: string; model: string }} k
+ * @returns {UsageAcc}
+ */
+function usageAccOf(usage, { date, person, agent, model }) {
+  const key = [date, person, agent, model].join("\u0000");
+  let u = usage.get(key);
+  if (!u) {
+    u = {
+      date,
+      person,
+      agent,
+      model,
+      sums: {
+        input_tokens: 0,
+        cache_read_tokens: 0,
+        cache_write_tokens: 0,
+        output_tokens: 0,
+        reasoning_tokens: 0,
+        messages: 0,
+      },
+      cost: 0,
+      unknown: 0,
+      sources: new Set(),
+    };
+    usage.set(key, u);
+  }
+  return u;
+}
+
+/**
+ * usage の 1 行の費用と、費用の出所。
+ * @param {Row} r
+ * @param {string} model
+ * @param {BuildOptions} o
+ * @returns {{ cost: number | null; sources: string[] }}
+ */
+function usageCost(r, model, o) {
+  // 記録の時点で単価が無かった行は、今の単価表（リポジトリの設定・同梱）で計算し直す。
+  // キャッシュの書き込みは 5 分と 1 時間を 1 列にまとめて記録しているので、5 分の単価で数える
+  let cost = r.cost_usd === "" || r.cost_usd === undefined ? null : Number(r.cost_usd);
+  let sources = (r.cost_source ?? "").split("+").filter(Boolean);
+  if (cost === null) {
+    const { price, source } = resolvePrice(model, o.config.pricing, o.bundledPricing);
+    if (price) {
+      const tokens = {
+        input: Number(r.input_tokens || 0),
+        cacheRead: Number(r.cache_read_tokens || 0),
+        cacheWrite5m: Number(r.cache_write_tokens || 0),
+        cacheWrite1h: 0,
+        output: Number(r.output_tokens || 0),
+        reasoning: 0,
       };
-      usage.set(key, u);
-    }
-    for (const c of TOKEN_COLUMNS) u.sums[c] += Number(r[c] || 0);
-    // 記録の時点で単価が無かった行は、今の単価表（リポジトリの設定・同梱）で計算し直す。
-    // キャッシュの書き込みは 5 分と 1 時間を 1 列にまとめて記録しているので、5 分の単価で数える
-    let cost = r.cost_usd === "" || r.cost_usd === undefined ? null : Number(r.cost_usd);
-    let sources = (r.cost_source ?? "").split("+").filter(Boolean);
-    if (cost === null) {
-      const { price, source } = resolvePrice(model, o.config.pricing, o.bundledPricing);
-      if (price) {
-        const tokens = {
-          input: Number(r.input_tokens || 0),
-          cacheRead: Number(r.cache_read_tokens || 0),
-          cacheWrite5m: Number(r.cache_write_tokens || 0),
-          cacheWrite1h: 0,
-          output: Number(r.output_tokens || 0),
-          reasoning: 0,
-        };
-        cost = costOf(tokens, price);
-        sources = [`${source}@report`];
-      }
-    }
-    for (const src of sources) u.sources.add(src);
-    // 単価のある応答と単価不明の応答が混在する行（cost_source に unknown を含む）も、費用が足りないので単価不明に数える
-    if (cost === null || sources.includes("unknown")) {
-      u.unknown += 1;
-      unknownCostBuckets += 1;
-    }
-    if (cost !== null) {
-      u.cost += cost;
-      const dk = `${date}\u0000${model}`;
-      daily.set(dk, (daily.get(dk) ?? 0) + cost);
+      cost = costOf(tokens, price);
+      sources = [`${source}@report`];
     }
   }
-  /** @type {Record<string, string>[]} */
-  const usageOut = [...usage.values()]
+  return { cost, sources };
+}
+
+/**
+ * usage.csv の行。日付・人・エージェント・モデルの順に並べる。
+ * @param {Map<string, UsageAcc>} usage
+ * @param {Record<string, string>} names
+ * @returns {Record<string, string>[]}
+ */
+function usageRows(usage, names) {
+  return [...usage.values()]
     .sort(
       (a, b) =>
         a.date.localeCompare(b.date) ||
@@ -387,254 +522,423 @@ export function buildReport(allRows, o) {
       cost_unknown_buckets: String(u.unknown),
       cost_sources: [...u.sources].sort().join("+"),
     }));
-  const dailyCost = [...daily.entries()].map(([k, cost]) => {
-    const [date, model] = k.split("\u0000");
-    return { date, model, cost };
-  });
+}
 
-  // 稼働と停止
-  const windowMs = o.config.activityWindowMinutes * 60000;
-  /** @type {Record<string, string>[]} */
-  const intervals = [];
-  const runHistogram = RUN_BINS.map(() => 0);
-  /** @type {Map<Status, number[]>} */
-  const byHour = new Map(STATUSES.map((c) => [c, Array.from({ length: 24 }, () => 0)]));
-  /** @type {Map<Status, Map<string, number>>} */
-  const byDate = new Map(STATUSES.map((c) => [c, new Map()]));
-  /**
-   * 区間を時刻ごとと日ごとに足す。どちらも同じ正時の区切りで分ける（日をまたぐ区間は、それぞれの日に入る）。
-   * @param {Status} status
-   * @param {number} start
-   * @param {number} end
-   * @param {string} tz
-   */
-  const addStatus = (status, start, end, tz) => {
-    for (const h of splitByLocalHour(start, end, tz)) {
-      const hours = (h.end - h.start) / 3600000;
-      const arr = byHour.get(status);
-      if (arr) arr[h.hour] += hours;
-      const days = byDate.get(status);
-      const date = h.date;
-      if (days) days.set(date, (days.get(date) ?? 0) + hours);
-    }
+// 稼働と停止
+/**
+ * @typedef {object} StatusAcc
+ * @property {Record<string, string>[]} intervals intervals.csv の行
+ * @property {number[]} runHistogram
+ * @property {Map<Status, number[]>} byHour
+ * @property {Map<Status, Map<string, number>>} byDate
+ * @property {Record<string, number>} activeByPerson
+ * @property {Record<string, number>} activeByIssue
+ * @property {Record<string, Map<StopCategory, number>>} stopByPerson
+ * @property {Record<string, number>} idleByIssue
+ */
+/**
+ * 稼働状況の集計で使う、GitHub の情報の区間。
+ * @typedef {object} StatusContext
+ * @property {Span[]} coverageAll GitHub の情報を取得できた区間（期間で絞る前）
+ * @property {Map<string, Span[]>} ciByBranch
+ * @property {Map<string, Span[]>} reviewWaitByBranch
+ */
+/** @typedef {{ row: Row; span: Span }} RunEntry */
+/**
+ * 1 人の稼働状況を数えるときの値。
+ * @typedef {object} PersonScope
+ * @property {string} person
+ * @property {string} name
+ * @property {Row[]} mine その人の行
+ * @property {RunEntry[]} statusRuns 稼働状況に数える run
+ * @property {Span[]} merged statusRuns の区間をまとめたもの
+ * @property {number} periodEnd
+ * @property {string} tz
+ * @property {Map<StopCategory, number>} stops 停止の分類ごとの時間（時）
+ */
+
+/**
+ * 稼働と停止を、人ごと・Issue ごと・時刻ごと・日ごとに集計し、intervals.csv の行を作る。
+ * @param {ReportContext} ctx
+ * @returns {StatusAcc}
+ */
+function aggregateStatus(ctx) {
+  /** @type {StatusAcc} */
+  const st = {
+    intervals: [],
+    runHistogram: RUN_BINS.map(() => 0),
+    byHour: new Map(STATUSES.map((c) => [c, Array.from({ length: 24 }, () => 0)])),
+    byDate: new Map(STATUSES.map((c) => [c, new Map()])),
+    activeByPerson: {},
+    activeByIssue: {},
+    stopByPerson: {},
+    idleByIssue: {},
   };
-  // coverage は期間で絞る前の行から取る（期間の初めの停止に、前日までの取得が当たる）
-  const coverageAll = mergeSpans(
-    spansOf(latest.filter((r) => r.kind === "coverage" && r.detail === "ok")),
-  );
-  // CI とレビュー待ちの区間は、ブランチごとに 1 回だけまとめる（停止の隙間ごとに全行を走査しない）
-  /**
-   * @param {string} kind
-   * @returns {Map<string, Span[]>}
-   */
-  const spansByBranch = (kind) => {
-    /** @type {Map<string, Span[]>} */
-    const byBranch = new Map();
-    for (const r of latest) {
-      if (r.kind !== kind || !r.branch) continue;
-      const s = spanOf(r);
-      if (!s) continue;
-      const list = byBranch.get(r.branch) ?? [];
-      list.push(s);
-      byBranch.set(r.branch, list);
-    }
-    return new Map([...byBranch].map(([b, list]) => [b, mergeSpans(list)]));
+  /** @type {StatusContext} */
+  const sctx = {
+    // coverage は期間で絞る前の行から取る（期間の初めの停止に、前日までの取得が当たる）
+    coverageAll: mergeSpans(
+      spansOf(ctx.latest.filter((r) => r.kind === "coverage" && r.detail === "ok")),
+    ),
+    ciByBranch: spansByBranch(ctx.latest, "ci"),
+    reviewWaitByBranch: spansByBranch(ctx.latest, "review-wait"),
   };
-  const ciByBranch = spansByBranch("ci");
-  const reviewWaitByBranch = spansByBranch("review-wait");
   const people = [
-    ...new Set(rows.filter((r) => r.kind === "run").map((r) => alias(r.person))),
+    ...new Set(ctx.rows.filter((r) => r.kind === "run").map((r) => ctx.alias(r.person))),
   ].sort();
-  /** @type {Record<string, number>} */
-  const activeByPerson = {};
-  /** @type {Record<string, number>} */
-  const activeByIssue = {};
-  /** @type {Record<string, Map<StopCategory, number>>} */
-  const stopByPerson = {};
-  /** @type {Record<string, number>} */
-  const idleByIssue = {};
-  for (const person of people) {
-    const mine = rows.filter((r) => alias(r.person) === person);
-    const runs = mine
-      .filter((r) => r.kind === "run")
-      .flatMap((r) => {
-        const s = spanOf(r);
-        return s ? [{ row: r, span: s }] : [];
-      })
-      .sort((a, b) => a.span[0] - b.span[0]);
-    for (const { row, span } of runs) {
-      const minutes = (span[1] - span[0]) / 60000;
-      const bin = RUN_BINS.findIndex((b) => minutes < b.max);
-      runHistogram[bin] += 1;
-      intervals.push({
-        type: "run",
-        person,
-        name: names[person] ?? person,
-        start: toIso(span[0]),
-        end: toIso(span[1]),
-        minutes: minutes.toFixed(1),
-        active_minutes: ((span[1] - span[0] - Number(row.wait_ms || 0)) / 60000).toFixed(1),
-        category: (row.detail ?? "").includes("open") ? "running" : "run",
-        agent: row.agent ?? "",
-        session: row.session ?? "",
-        branch: row.branch ?? "",
-        issue: row.issue ?? "",
-      });
-    }
-    if (runs.length === 0) continue;
-    const tz = runs[0].row.tz || o.tz;
-    // 稼働状況は、1 人を 1 つのタイムゾーン（期間で絞った後の、その人の最初の run のタイムゾーン）で数える。
-    // 日付の分け方も期間の終わり（そのタイムゾーンでの --until の日の終わり）も、このタイムゾーンで決める
-    const periodEnd = o.until ? Math.min(o.now, endOfLocalDate(o.until, tz)) : o.now;
-    // 行を期間で絞るのは行ごとのタイムゾーンなので、記録が複数のタイムゾーンにまたがると、別のタイムゾーンの行として期間に入った run が
-    // 期間の終わりより後に始まりうる。その run は稼働状況（稼働中と停止）に数えない。指示の数とヒストグラムには、期間に入った行として数える
-    const statusRuns = runs.filter((r) => r.span[0] < periodEnd);
-    // 稼働状況に数える run が無い人も、人ごとの稼働中と停止は 0 として持つ
-    activeByPerson[person] = 0;
-    stopByPerson[person] = new Map(STOP_CATEGORIES.map((c) => [c, 0]));
-    if (statusRuns.length === 0) continue;
-    const merged = mergeSpans(statusRuns.map((r) => r.span));
-    // 稼働中は、重なる run をまとめた区間（停止はこの隙間なので、稼働中と停止は重ならない）。期間の終わりで打ち切る
-    let active = 0;
-    for (const [a, b] of merged) {
-      const end = Math.min(b, periodEnd);
-      if (end <= a) continue;
-      addStatus("active", a, end, tz);
-      active += (end - a) / 3600000;
-    }
-    activeByPerson[person] = active;
-    const myStops = new Map(STOP_CATEGORIES.map((c) => [c, 0]));
-    stopByPerson[person] = myStops;
-    // Issue ごとの稼働中は、人ごとの稼働中を、その時間に動いていた Issue の数で等分して配る（Issue ごとの合計が人ごとの稼働中と一致する）。
-    // run の始まりと終わりを時刻の順に走査し、動いている run の数を Issue ごとに増減させる
-    /** @type {[number, number, string][]} */
-    const events = [];
-    for (const { row, span } of statusRuns) {
-      const end = Math.min(span[1], periodEnd);
-      if (end > span[0]) events.push([span[0], 1, row.issue ?? ""], [end, -1, row.issue ?? ""]);
-    }
-    events.sort((x, y) => x[0] - y[0]);
-    /** @type {Map<string, number>} */
-    const running = new Map();
-    for (let i = 0; i < events.length; i += 1) {
-      const [t, delta, issue] = events[i];
-      const count = (running.get(issue) ?? 0) + delta;
-      if (count > 0) running.set(issue, count);
-      else running.delete(issue);
-      const next = i + 1 < events.length ? events[i + 1][0] : t;
-      if (next <= t || running.size === 0) continue;
-      for (const k of running.keys())
-        activeByIssue[k] = (activeByIssue[k] ?? 0) + (next - t) / 3600000 / running.size;
-    }
-    /** @type {Span[]} */
-    const marks = [];
-    for (const r of mine) {
-      const t =
-        r.kind === "prompt" || r.kind === "activity"
-          ? parseTime(r.start)
-          : r.kind === "human-wait"
-            ? parseTime(r.end)
-            : null;
-      if (t !== null) marks.push(around(t, windowMs));
-    }
-    const presence = mergeSpans(marks);
-    // その人がまだ collect していない時間を停止に数えない（最後に記録した時刻で打ち切る）
-    const lastSeen = mine.reduce(
-      (a, r) => Math.max(a, parseTime(r.observed_at ?? "") ?? Number.NEGATIVE_INFINITY),
-      Number.NEGATIVE_INFINITY,
+  for (const person of people) addPerson(st, { ctx, sctx }, person);
+  st.intervals.sort((a, b) => a.start.localeCompare(b.start) || a.person.localeCompare(b.person));
+  return st;
+}
+
+/**
+ * CI とレビュー待ちの区間は、ブランチごとに 1 回だけまとめる（停止の隙間ごとに全行を走査しない）
+ * @param {readonly Row[]} latest
+ * @param {string} kind
+ * @returns {Map<string, Span[]>}
+ */
+function spansByBranch(latest, kind) {
+  /** @type {Map<string, Span[]>} */
+  const byBranch = new Map();
+  for (const r of latest) {
+    if (r.kind !== kind || !r.branch) continue;
+    const s = spanOf(r);
+    if (!s) continue;
+    const list = byBranch.get(r.branch) ?? [];
+    list.push(s);
+    byBranch.set(r.branch, list);
+  }
+  return new Map([...byBranch].map(([b, list]) => [b, mergeSpans(list)]));
+}
+
+/**
+ * 区間を時刻ごとと日ごとに足す。どちらも同じ正時の区切りで分ける（日をまたぐ区間は、それぞれの日に入る）。
+ * @param {StatusAcc} st
+ * @param {{ status: Status; start: number; end: number; tz: string }} s
+ */
+function addStatus(st, { status, start, end, tz }) {
+  for (const h of splitByLocalHour(start, end, tz)) {
+    const hours = (h.end - h.start) / 3600000;
+    const arr = st.byHour.get(status);
+    if (arr) arr[h.hour] += hours;
+    const days = st.byDate.get(status);
+    const date = h.date;
+    if (days) days.set(date, (days.get(date) ?? 0) + hours);
+  }
+}
+
+/**
+ * 1 人の run と停止を集計に足す。
+ * @param {StatusAcc} st
+ * @param {{ ctx: ReportContext; sctx: StatusContext }} c
+ * @param {string} person
+ */
+function addPerson(st, { ctx, sctx }, person) {
+  const { o } = ctx;
+  const name = ctx.names[person] ?? person;
+  const mine = ctx.rows.filter((r) => ctx.alias(r.person) === person);
+  const runs = runsOf(mine);
+  for (const run of runs) recordRun(st, run, { person, name });
+  if (runs.length === 0) return;
+  const tz = runs[0].row.tz || o.tz;
+  // 稼働状況は、1 人を 1 つのタイムゾーン（期間で絞った後の、その人の最初の run のタイムゾーン）で数える。
+  // 日付の分け方も期間の終わり（そのタイムゾーンでの --until の日の終わり）も、このタイムゾーンで決める
+  const periodEnd = o.until ? Math.min(o.now, endOfLocalDate(o.until, tz)) : o.now;
+  // 行を期間で絞るのは行ごとのタイムゾーンなので、記録が複数のタイムゾーンにまたがると、別のタイムゾーンの行として期間に入った run が
+  // 期間の終わりより後に始まりうる。その run は稼働状況（稼働中と停止）に数えない。指示の数とヒストグラムには、期間に入った行として数える
+  const statusRuns = runs.filter((r) => r.span[0] < periodEnd);
+  // 稼働状況に数える run が無い人も、人ごとの稼働中と停止は 0 として持つ
+  st.activeByPerson[person] = 0;
+  st.stopByPerson[person] = new Map(STOP_CATEGORIES.map((c) => [c, 0]));
+  if (statusRuns.length === 0) return;
+  /** @type {PersonScope} */
+  const p = {
+    person,
+    name,
+    mine,
+    statusRuns,
+    merged: mergeSpans(statusRuns.map((r) => r.span)),
+    periodEnd,
+    tz,
+    stops: new Map(STOP_CATEGORIES.map((c) => [c, 0])),
+  };
+  st.activeByPerson[person] = addActive(st, p);
+  st.stopByPerson[person] = p.stops;
+  splitActiveByIssue(st, statusRuns, periodEnd);
+  addStops(st, { ctx, sctx }, p);
+}
+
+/**
+ * 1 人の run を、始まりの順に並べる（時刻を読めない run は除く）。
+ * @param {readonly Row[]} mine
+ * @returns {RunEntry[]}
+ */
+function runsOf(mine) {
+  return mine
+    .filter((r) => r.kind === "run")
+    .flatMap((r) => {
+      const s = spanOf(r);
+      return s ? [{ row: r, span: s }] : [];
+    })
+    .sort((a, b) => a.span[0] - b.span[0]);
+}
+
+/**
+ * run を、ヒストグラムと intervals.csv の行に足す。
+ * @param {StatusAcc} st
+ * @param {RunEntry} run
+ * @param {{ person: string; name: string }} who
+ */
+function recordRun(st, { row, span }, who) {
+  const minutes = (span[1] - span[0]) / 60000;
+  const bin = RUN_BINS.findIndex((b) => minutes < b.max);
+  st.runHistogram[bin] += 1;
+  st.intervals.push({
+    type: "run",
+    person: who.person,
+    name: who.name,
+    start: toIso(span[0]),
+    end: toIso(span[1]),
+    minutes: minutes.toFixed(1),
+    active_minutes: ((span[1] - span[0] - Number(row.wait_ms || 0)) / 60000).toFixed(1),
+    category: (row.detail ?? "").includes("open") ? "running" : "run",
+    agent: row.agent ?? "",
+    session: row.session ?? "",
+    branch: row.branch ?? "",
+    issue: row.issue ?? "",
+  });
+}
+
+/**
+ * 1 人の稼働中を時刻ごとと日ごとに足し、稼働中の時間（時）を返す。
+ * @param {StatusAcc} st
+ * @param {PersonScope} p
+ * @returns {number}
+ */
+function addActive(st, p) {
+  const { merged, periodEnd, tz } = p;
+  // 稼働中は、重なる run をまとめた区間（停止はこの隙間なので、稼働中と停止は重ならない）。期間の終わりで打ち切る
+  let active = 0;
+  for (const [a, b] of merged) {
+    const end = Math.min(b, periodEnd);
+    if (end <= a) continue;
+    addStatus(st, { status: "active", start: a, end, tz });
+    active += (end - a) / 3600000;
+  }
+  return active;
+}
+
+/**
+ * Issue ごとの稼働中は、人ごとの稼働中を、その時間に動いていた Issue の数で等分して配る（Issue ごとの合計が人ごとの稼働中と一致する）。
+ * run の始まりと終わりを時刻の順に走査し、動いている run の数を Issue ごとに増減させる
+ * @param {StatusAcc} st
+ * @param {readonly RunEntry[]} statusRuns
+ * @param {number} periodEnd
+ */
+function splitActiveByIssue(st, statusRuns, periodEnd) {
+  const { activeByIssue } = st;
+  /** @type {[number, number, string][]} */
+  const events = [];
+  for (const { row, span } of statusRuns) {
+    const end = Math.min(span[1], periodEnd);
+    if (end > span[0]) events.push([span[0], 1, row.issue ?? ""], [end, -1, row.issue ?? ""]);
+  }
+  events.sort((x, y) => x[0] - y[0]);
+  /** @type {Map<string, number>} */
+  const running = new Map();
+  for (let i = 0; i < events.length; i += 1) {
+    const [t, delta, issue] = events[i];
+    const count = (running.get(issue) ?? 0) + delta;
+    if (count > 0) running.set(issue, count);
+    else running.delete(issue);
+    const next = i + 1 < events.length ? events[i + 1][0] : t;
+    if (next <= t || running.size === 0) continue;
+    for (const k of running.keys())
+      activeByIssue[k] = (activeByIssue[k] ?? 0) + (next - t) / 3600000 / running.size;
+  }
+}
+
+/**
+ * 人の活動（指示・人を待った区間の終わり・人の commit・GitHub での自分の操作）の前後 windowMs の区間をまとめたもの。
+ * @param {readonly Row[]} mine
+ * @param {number} windowMs
+ * @returns {Span[]}
+ */
+function presenceOf(mine, windowMs) {
+  /** @type {Span[]} */
+  const marks = [];
+  for (const r of mine) {
+    const t =
+      r.kind === "prompt" || r.kind === "activity"
+        ? parseTime(r.start)
+        : r.kind === "human-wait"
+          ? parseTime(r.end)
+          : null;
+    if (t !== null) marks.push(around(t, windowMs));
+  }
+  return mergeSpans(marks);
+}
+
+/**
+ * 1 人の停止（run の隙間）を分類して、集計と intervals.csv の行に足す。
+ * @param {StatusAcc} st
+ * @param {{ ctx: ReportContext; sctx: StatusContext }} c
+ * @param {PersonScope} p
+ */
+function addStops(st, { ctx, sctx }, p) {
+  const { merged, periodEnd, mine } = p;
+  const presence = presenceOf(mine, ctx.o.config.activityWindowMinutes * 60000);
+  // その人がまだ collect していない時間を停止に数えない（最後に記録した時刻で打ち切る）
+  const lastSeen = mine.reduce(
+    (a, r) => Math.max(a, parseTime(r.observed_at ?? "") ?? Number.NEGATIVE_INFINITY),
+    Number.NEGATIVE_INFINITY,
+  );
+  const personEnd = Number.isFinite(lastSeen) ? Math.min(periodEnd, lastSeen) : periodEnd;
+  // 期間に入れた run は期間の終わりより前に始まるので、run の間の隙間は期間の終わりより前に収まる。
+  // 最後の run の後の隙間も、personEnd（期間の終わりより後にならない）までである
+  for (const gap of gaps(merged, merged[0][0], Math.max(personEnd, merged[merged.length - 1][1]))) {
+    const before = lastRunBefore(p.statusRuns, gap);
+    const branch = before ? (before.row.branch ?? "") : "";
+    const ci = sctx.ciByBranch.get(branch) ?? [];
+    const reviewWait = sctx.reviewWaitByBranch.get(branch) ?? [];
+    const uncovered = gaps(sctx.coverageAll, gap[0], gap[1]);
+    const pieces = classifySpan(
+      gap,
+      [
+        { category: "reviewing", spans: presence },
+        { category: "ci-wait", spans: ci },
+        { category: "review-wait", spans: reviewWait },
+        { category: "unknown", spans: uncovered },
+      ],
+      "idle",
     );
-    const personEnd = Number.isFinite(lastSeen) ? Math.min(periodEnd, lastSeen) : periodEnd;
-    // 期間に入れた run は期間の終わりより前に始まるので、run の間の隙間は期間の終わりより前に収まる。
-    // 最後の run の後の隙間も、personEnd（期間の終わりより後にならない）までである
-    for (const gap of gaps(
-      merged,
-      merged[0][0],
-      Math.max(personEnd, merged[merged.length - 1][1]),
-    )) {
-      // 直前に動いていた run は、隙間の前に最も遅く終わったもの（runs は始まりの順なので、末尾が最後に終わったとは限らない）
-      /** @type {(typeof runs)[number] | undefined} */
-      let before;
-      for (const r of statusRuns) {
-        if (r.span[1] <= gap[0] && (!before || r.span[1] >= before.span[1])) before = r;
-      }
-      const branch = before ? (before.row.branch ?? "") : "";
-      const ci = ciByBranch.get(branch) ?? [];
-      const reviewWait = reviewWaitByBranch.get(branch) ?? [];
-      const uncovered = gaps(coverageAll, gap[0], gap[1]);
-      const pieces = classifySpan(
-        gap,
-        [
-          { category: "reviewing", spans: presence },
-          { category: "ci-wait", spans: ci },
-          { category: "review-wait", spans: reviewWait },
-          { category: "unknown", spans: uncovered },
-        ],
-        "idle",
-      );
-      for (const p of pieces) {
-        intervals.push({
-          type: "stop",
-          person,
-          name: names[person] ?? person,
-          start: toIso(p.start),
-          end: toIso(p.end),
-          minutes: ((p.end - p.start) / 60000).toFixed(1),
-          active_minutes: "",
-          category: p.category,
-          agent: before ? (before.row.agent ?? "") : "",
-          session: before ? (before.row.session ?? "") : "",
-          branch,
-          issue: before ? (before.row.issue ?? "") : "",
-        });
-        addStatus(p.category, p.start, p.end, tz);
-        // 人ごとの表と Issue ごとの表も、丸める前の値から足す（intervals.csv の minutes は小数第 1 位に丸めてある）
-        myStops.set(p.category, (myStops.get(p.category) ?? 0) + (p.end - p.start) / 3600000);
-        if (p.category === "idle") {
-          const issue = before ? (before.row.issue ?? "") : "";
-          idleByIssue[issue] = (idleByIssue[issue] ?? 0) + (p.end - p.start) / 3600000;
-        }
-      }
+    for (const piece of pieces) recordStop(st, p, { piece, before, branch });
+  }
+}
+
+/**
+ * 直前に動いていた run は、隙間の前に最も遅く終わったもの（runs は始まりの順なので、末尾が最後に終わったとは限らない）
+ * @param {readonly RunEntry[]} statusRuns
+ * @param {Span} gap
+ * @returns {RunEntry | undefined}
+ */
+function lastRunBefore(statusRuns, gap) {
+  /** @type {RunEntry | undefined} */
+  let before;
+  for (const r of statusRuns) {
+    if (r.span[1] <= gap[0] && (!before || r.span[1] >= before.span[1])) before = r;
+  }
+  return before;
+}
+
+/**
+ * 直前に動いていた run のエージェント・セッション・Issue。run が無ければ空文字にする。
+ * @param {RunEntry | undefined} before
+ * @returns {{ agent: string; session: string; issue: string }}
+ */
+function beforeFields(before) {
+  if (!before) return { agent: "", session: "", issue: "" };
+  const { row } = before;
+  return { agent: row.agent ?? "", session: row.session ?? "", issue: row.issue ?? "" };
+}
+
+/**
+ * 分類した停止の 1 片を、intervals.csv の行と、時刻ごと・日ごと・人ごと・Issue ごとの集計に足す。
+ * @param {StatusAcc} st
+ * @param {PersonScope} p
+ * @param {{ piece: { start: number; end: number; category: StopCategory }; before: RunEntry | undefined; branch: string }} s
+ */
+function recordStop(st, p, { piece, before, branch }) {
+  const { agent, session, issue } = beforeFields(before);
+  st.intervals.push({
+    type: "stop",
+    person: p.person,
+    name: p.name,
+    start: toIso(piece.start),
+    end: toIso(piece.end),
+    minutes: ((piece.end - piece.start) / 60000).toFixed(1),
+    active_minutes: "",
+    category: piece.category,
+    agent,
+    session,
+    branch,
+    issue,
+  });
+  addStatus(st, { status: piece.category, start: piece.start, end: piece.end, tz: p.tz });
+  // 人ごとの表と Issue ごとの表も、丸める前の値から足す（intervals.csv の minutes は小数第 1 位に丸めてある）
+  p.stops.set(
+    piece.category,
+    (p.stops.get(piece.category) ?? 0) + (piece.end - piece.start) / 3600000,
+  );
+  if (piece.category === "idle") {
+    st.idleByIssue[issue] = (st.idleByIssue[issue] ?? 0) + (piece.end - piece.start) / 3600000;
+  }
+}
+
+/**
+ * レビューと課金の行から、reviews.csv の行を作る。日付・ツールの順に並べる。
+ * @param {readonly Row[]} rows
+ * @param {BuildOptions} o
+ * @returns {Record<string, string>[]}
+ */
+function buildReviews(rows, o) {
+  return rows
+    .filter((r) => r.kind === "review" || r.kind === "billing")
+    .map((r) => reviewRow(r, o))
+    .sort((a, b) => a.date.localeCompare(b.date) || a.tool.localeCompare(b.tool));
+}
+
+/**
+ * @param {Row} r
+ * @param {BuildOptions} o
+ * @returns {Record<string, string> & { date: string; tool: string }}
+ */
+function reviewRow(r, o) {
+  const detail = Object.fromEntries((r.detail ?? "").split(";").map((kv) => kv.split("=")));
+  const type = r.kind === "billing" ? "billing" : detail.source === "artifact" ? "usage" : "review";
+  const { cost, costSource } = reviewCost(r, type, o);
+  return {
+    type,
+    date: localParts(parseTime(r.start) ?? 0, r.tz || o.tz).date,
+    tool: r.agent ?? "",
+    model: r.model ?? "",
+    pr: detail.pr ?? "",
+    author: detail.author ?? "",
+    branch: r.branch ?? "",
+    issue: r.issue ?? "",
+    cost_usd: cost,
+    cost_source: costSource,
+    detail: r.detail ?? "",
+  };
+}
+
+/**
+ * レビューの費用と、費用の出所。
+ * @param {Row} r
+ * @param {string} type
+ * @param {BuildOptions} o
+ * @returns {{ cost: string; costSource: string }}
+ */
+function reviewCost(r, type, o) {
+  // 記録の時点で推定額の無かったレビューは、今の単価（リポジトリの設定・同梱）で推定し直す
+  let cost = r.cost_usd ?? "";
+  let costSource = r.cost_source ?? "";
+  if (type === "review" && cost === "") {
+    const est = resolveReviewPrice(r.agent ?? "", o.config.reviewPricing, o.bundledReviewPricing);
+    if (est.cost !== null) {
+      cost = est.cost.toFixed(6);
+      costSource = `${est.source}@report`;
     }
   }
-  intervals.sort((a, b) => a.start.localeCompare(b.start) || a.person.localeCompare(b.person));
+  return { cost, costSource };
+}
 
-  // レビュー
-  const reviews = rows
-    .filter((r) => r.kind === "review" || r.kind === "billing")
-    .map((r) => {
-      const detail = Object.fromEntries((r.detail ?? "").split(";").map((kv) => kv.split("=")));
-      const type =
-        r.kind === "billing" ? "billing" : detail.source === "artifact" ? "usage" : "review";
-      // 記録の時点で推定額の無かったレビューは、今の単価（リポジトリの設定・同梱）で推定し直す
-      let cost = r.cost_usd ?? "";
-      let costSource = r.cost_source ?? "";
-      if (type === "review" && cost === "") {
-        const est = resolveReviewPrice(
-          r.agent ?? "",
-          o.config.reviewPricing,
-          o.bundledReviewPricing,
-        );
-        if (est.cost !== null) {
-          cost = est.cost.toFixed(6);
-          costSource = `${est.source}@report`;
-        }
-      }
-      return {
-        type,
-        date: localParts(parseTime(r.start) ?? 0, r.tz || o.tz).date,
-        tool: r.agent ?? "",
-        model: r.model ?? "",
-        pr: detail.pr ?? "",
-        author: detail.author ?? "",
-        branch: r.branch ?? "",
-        issue: r.issue ?? "",
-        cost_usd: cost,
-        cost_source: costSource,
-        detail: r.detail ?? "",
-      };
-    })
-    .sort((a, b) => a.date.localeCompare(b.date) || a.tool.localeCompare(b.tool));
-
+/**
+ * 日別のチャートの横軸と、期間の表示に使う最初の日と最後の日。
+ * @param {{ o: BuildOptions; rows: readonly Row[]; dailyCost: { date: string }[]; byDate: Map<Status, Map<string, number>> }} a
+ * @returns {{ first: string | null; last: string | null; days: string[] }}
+ */
+function axisDays({ o, rows, dailyCost, byDate }) {
   // 日別のチャートの横軸。停止は observed_at まで続くので、記録の最後の日より後の日にも置かれうる
   const valueDates = [
     ...dailyCost.map((x) => x.date),
@@ -655,34 +959,7 @@ export function buildReport(allRows, o) {
   const cap = valueMax !== null && valueMax > today ? valueMax : today;
   const last = o.until !== null && widened !== null && widened > cap ? cap : widened;
   const days = first !== null && last !== null ? dateRange(first, last) : [];
-
-  return {
-    generatedAt: toIso(o.now),
-    tz: o.tz,
-    // --until を指定しない側は、横軸と同じ最後の日を出す
-    period: formatPeriod(o.since ?? first, o.until ?? last),
-    since: o.since,
-    until: o.until,
-    recordFiles: o.recordFiles,
-    rows: rows.length,
-    names,
-    usage: usageOut,
-    intervals,
-    reviews,
-    statusByHour: STATUSES.map((c) => ({ status: c, byHour: byHour.get(c) ?? [] })),
-    days,
-    statusByDay: STATUSES.map((c) => ({
-      status: c,
-      byDay: days.map((date) => byDate.get(c)?.get(date) ?? 0),
-    })),
-    activeByPerson,
-    activeByIssue,
-    stopByPerson,
-    idleByIssue,
-    runHistogram,
-    dailyCost,
-    unknownCostBuckets,
-  };
+  return { first, last, days };
 }
 
 export const USAGE_COLUMNS = [

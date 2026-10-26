@@ -150,6 +150,15 @@ const GIT_VALUE_OPTIONS = [
 ];
 
 /**
+ * splitCommands が読み進める間の状態。
+ * @typedef {object} SplitState
+ * @property {string[][]} out 読み終えたコマンドの語の列
+ * @property {string[]} words 読んでいるコマンドの語
+ * @property {string | null} word 読んでいる語（語の途中でなければ null）
+ * @property {string[]} substitutions 二重引用符の中のコマンド置換の中身を足していく配列
+ */
+
+/**
  * コマンドの文字列を、単純なコマンドごとの語の列に分ける。引用符・エスケープ・行の継続・コメントを扱い、
  * `;`・`&`・`|`・`(`・`)`・改行・`$(`・バッククォートでコマンドを区切る。閉じていない引用符があれば null。
  * 二重引用符の中のコマンド置換（`"$(...)"`・`` "`...`" ``）は語の一部になるので、中身を substitutions に足す。
@@ -158,75 +167,119 @@ const GIT_VALUE_OPTIONS = [
  * @returns {string[][] | null}
  */
 export function splitCommands(command, substitutions = []) {
-  /** @type {string[][]} */
-  const out = [];
-  /** @type {string[]} */
-  let words = [];
-  /** @type {string | null} */
-  let word = null;
-  const endWord = () => {
-    if (word !== null) words.push(word);
-    word = null;
-  };
-  const endCommand = () => {
-    endWord();
-    if (words.length > 0) out.push(words);
-    words = [];
-  };
+  /** @type {SplitState} */
+  const state = { out: [], words: [], word: null, substitutions };
   for (let i = 0; i < command.length; i += 1) {
-    const ch = command[i];
-    if (ch === "\\") {
-      if (command[i + 1] === "\n") {
-        i += 1;
-        continue;
-      }
-      if (command[i + 1] === "\r" && command[i + 2] === "\n") {
-        i += 2;
-        continue;
-      }
-      word = (word ?? "") + (command[i + 1] ?? "");
-      i += 1;
-    } else if (ch === "'") {
-      const close = command.indexOf("'", i + 1);
-      if (close < 0) return null;
-      word = (word ?? "") + command.slice(i + 1, close);
-      i = close;
-    } else if (ch === '"') {
-      let j = i + 1;
-      let text = "";
-      while (j < command.length && command[j] !== '"') {
-        const inner = substitutionAt(command, j);
-        if (inner !== null) {
-          substitutions.push(inner.text);
-          text += command.slice(j, inner.end);
-          j = inner.end;
-        } else if (command[j] === "\\" && j + 1 < command.length) {
-          text += command[j + 1];
-          j += 2;
-        } else {
-          text += command[j];
-          j += 1;
-        }
-      }
-      if (j >= command.length) return null;
-      word = (word ?? "") + text;
-      i = j;
-    } else if (ch === "#" && word === null) {
-      const nl = command.indexOf("\n", i);
-      i = nl < 0 ? command.length : nl - 1;
-    } else if (ch === "$" && command[i + 1] === "(") {
-      endCommand();
-      i += 1;
-    } else if (";&|()`\n".includes(ch)) {
-      endCommand();
-    } else if (ch === " " || ch === "\t" || ch === "\r") {
-      endWord();
+    const last = readToken(command, i, state);
+    if (last === null) return null;
+    i = last;
+  }
+  endCommand(state);
+  return state.out;
+}
+
+/**
+ * @param {SplitState} state
+ */
+function endWord(state) {
+  if (state.word !== null) state.words.push(state.word);
+  state.word = null;
+}
+
+/**
+ * @param {SplitState} state
+ */
+function endCommand(state) {
+  endWord(state);
+  if (state.words.length > 0) state.out.push(state.words);
+  state.words = [];
+}
+
+/**
+ * command[i] から始まる字句を 1 つ読んで state に反映し、読んだ最後の文字の位置を返す。閉じていない引用符なら null。
+ * @param {string} command
+ * @param {number} i
+ * @param {SplitState} state
+ * @returns {number | null}
+ */
+function readToken(command, i, state) {
+  const ch = command[i];
+  if (ch === "\\") return readEscape(command, i, state);
+  if (ch === "'") return readSingleQuoted(command, i, state);
+  if (ch === '"') return readDoubleQuoted(command, i, state);
+  if (ch === "#" && state.word === null) {
+    const nl = command.indexOf("\n", i);
+    return nl < 0 ? command.length : nl - 1;
+  }
+  if (ch === "$" && command[i + 1] === "(") {
+    endCommand(state);
+    return i + 1;
+  }
+  if (";&|()`\n".includes(ch)) {
+    endCommand(state);
+  } else if (ch === " " || ch === "\t" || ch === "\r") {
+    endWord(state);
+  } else {
+    state.word = (state.word ?? "") + ch;
+  }
+  return i;
+}
+
+/**
+ * command[i] のバックスラッシュを読む。行の継続（`\` と改行）は読み飛ばし、それ以外は次の文字を語に足す。
+ * @param {string} command
+ * @param {number} i
+ * @param {SplitState} state
+ * @returns {number}
+ */
+function readEscape(command, i, state) {
+  if (command[i + 1] === "\n") return i + 1;
+  if (command[i + 1] === "\r" && command[i + 2] === "\n") return i + 2;
+  state.word = (state.word ?? "") + (command[i + 1] ?? "");
+  return i + 1;
+}
+
+/**
+ * command[i] から始まる単一引用符を読む。閉じていなければ null。
+ * @param {string} command
+ * @param {number} i
+ * @param {SplitState} state
+ * @returns {number | null}
+ */
+function readSingleQuoted(command, i, state) {
+  const close = command.indexOf("'", i + 1);
+  if (close < 0) return null;
+  state.word = (state.word ?? "") + command.slice(i + 1, close);
+  return close;
+}
+
+/**
+ * command[i] から始まる二重引用符を読む。中のコマンド置換は語の一部にし、中身を state.substitutions に足す。閉じていなければ null。
+ * @param {string} command
+ * @param {number} i
+ * @param {SplitState} state
+ * @returns {number | null}
+ */
+function readDoubleQuoted(command, i, state) {
+  let j = i + 1;
+  let text = "";
+  while (j < command.length && command[j] !== '"') {
+    const inner = substitutionAt(command, j);
+    if (inner !== null) {
+      state.substitutions.push(inner.text);
+      text += command.slice(j, inner.end);
+      j = inner.end;
+    } else if (command[j] === "\\" && j + 1 < command.length) {
+      text += command[j + 1];
+      j += 2;
     } else {
-      word = (word ?? "") + ch;
+      text += command[j];
+      j += 1;
     }
   }
-  endCommand();
-  return out;
+  if (j >= command.length) return null;
+  state.word = (state.word ?? "") + text;
+  return j;
 }
 
 /**
@@ -425,38 +478,89 @@ function setupMessage(agent, script) {
 }
 
 /**
+ * gateDecision の判断に使う、Hook の入力以外の値。
+ * @typedef {object} GateContext
+ * @property {string} fallbackCwd Hook の入力に cwd が無いときの作業ディレクトリ
+ * @property {number} now
+ * @property {string} script agent-usage.mjs のパス（案内に書く）
+ * @property {string} agent
+ */
+
+/** @typedef {{ exit: number; message: string }} GateResult */
+
+/**
+ * ブランチの判断。person は人の設定があるかを読んだ結果（読むのは 1 回だけにする。まだ読んでいなければ undefined）。
+ * @typedef {object} ResolvedDecision
+ * @property {import("./decisions.mjs").Decision} decision
+ * @property {string} note 案内に添える、判断の出所
+ * @property {boolean | GateResult | undefined} person
+ */
+
+/**
+ * @param {HookInput} input
+ * @param {GateContext} context
+ * @returns {GateResult}
+ */
+export function gateDecision(input, context) {
+  const { script, agent } = context;
+  if (!isGitCommit(input.command)) return { exit: 0, message: "" };
+  const repo = commitRepo(input, context.fallbackCwd);
+  if (repo === null || !existsSync(usageDir(repo.root))) return { exit: 0, message: "" };
+  rememberWorktreesQuietly(repo);
+  if (!isDecisionBranch(repo)) return { exit: 0, message: "" };
+  const resolved = resolveDecision(repo, context);
+  if (!("decision" in resolved)) return resolved;
+  const { decision, note } = resolved;
+  if (decision === "decline")
+    return { exit: 0, message: note === "" ? "" : `agent-usage: 記録しない${note}` };
+  // Hook からは人の ID を作らない（collect は人の設定が無いと ID を作るので、その前に止める）
+  const person = resolved.person ?? personOf(script);
+  if (person !== true)
+    return person === false ? { exit: 2, message: setupMessage(agent, script) } : person;
+  return recordCommit(repo, context, note);
+}
+
+/**
+ * git commit を実行するリポジトリ。git のリポジトリでなければ null。
  * @param {HookInput} input
  * @param {string} fallbackCwd
- * @param {number} now
- * @param {string} script agent-usage.mjs のパス（案内に書く）
- * @param {string} agent
- * @returns {{ exit: number; message: string }}
+ * @returns {import("./repo.mjs").RepoInfo | null}
  */
-export function gateDecision(input, fallbackCwd, now, script, agent) {
-  if (!isGitCommit(input.command)) return { exit: 0, message: "" };
+function commitRepo(input, fallbackCwd) {
   // `git -C <dir> commit` は <dir> のリポジトリにコミットするので、Hook の cwd ではなくそこで判断・記録する
   const base = input.cwd !== "" ? input.cwd : fallbackCwd;
   const cwd = commitCwd(input.command, base);
-  /** @type {import("./repo.mjs").RepoInfo} */
-  let repo;
   try {
-    repo = repoInfo(cwd);
+    return repoInfo(cwd);
   } catch {
     // コマンドから求めたディレクトリが無い（展開を含む -C など）ときは、Hook の cwd のリポジトリで判断する
     try {
-      repo = repoInfo(base);
+      return repoInfo(base);
     } catch {
-      return { exit: 0, message: "" };
+      return null;
     }
   }
-  if (!existsSync(usageDir(repo.root))) return { exit: 0, message: "" };
+}
+
+/**
+ * @param {import("./repo.mjs").RepoInfo} repo
+ */
+function rememberWorktreesQuietly(repo) {
   try {
     // 後で削除される worktree のログを collect が探せるよう、パスを覚える。失敗してもコミットは止めない
     rememberWorktrees(repo.commonDir, repo.worktrees);
   } catch {
     // 次の collect で、読めない理由がエラーとして出る
   }
-  if (!isDecisionBranch(repo)) return { exit: 0, message: "" };
+}
+
+/**
+ * ブランチの判断を読む。判断が無ければ defaultDecision に従う。コミットを止めるなら、その結果を返す。
+ * @param {import("./repo.mjs").RepoInfo} repo
+ * @param {GateContext} context
+ * @returns {ResolvedDecision | GateResult}
+ */
+function resolveDecision(repo, context) {
   /** @type {import("./decisions.mjs").Decision | null} */
   let decision;
   try {
@@ -467,32 +571,43 @@ export function gateDecision(input, fallbackCwd, now, script, agent) {
       message: `agent-usage: 判断の記録を読めない: ${e instanceof Error ? e.message : String(e)}`,
     };
   }
-  let note = "";
-  /** @type {boolean | { exit: number; message: string } | undefined} 人の設定があるか（読むのは 1 回だけにする） */
-  let person;
-  if (decision === null) {
-    /** @type {{ decision: import("./config.mjs").DefaultDecision; source: string } | null} */
-    let fallback;
-    try {
-      fallback = defaultDecisionOf(repo.root, process.env);
-    } catch (e) {
-      return configErrorResult(e, script);
-    }
-    if (fallback === null) return { exit: 2, message: askMessage(agent, script) };
-    // リポジトリの defaultDecision は、人の設定（setup が作る人の ID）がある人にだけ当てる。
-    // 無い人に当てると、使い捨ての環境では実行のたびに別の ID で記録され、HOME に書けない環境では毎回止まる
-    person = personOf(script);
-    if (person !== true)
-      return person === false ? { exit: 2, message: setupMessage(agent, script) } : person;
-    decision = fallback.decision;
-    note = `（このブランチの判断は無いので、${fallback.source} の defaultDecision: ${fallback.decision} に従った）`;
+  if (decision !== null) return { decision, note: "", person: undefined };
+  return defaultDecision(repo, context);
+}
+
+/**
+ * ブランチの判断が無いときに、人かリポジトリの設定の defaultDecision を当てる。無ければ止めて、記録するかを確かめさせる。
+ * @param {import("./repo.mjs").RepoInfo} repo
+ * @param {GateContext} context
+ * @returns {ResolvedDecision | GateResult}
+ */
+function defaultDecision(repo, context) {
+  const { script, agent } = context;
+  /** @type {{ decision: import("./config.mjs").DefaultDecision; source: string } | null} */
+  let fallback;
+  try {
+    fallback = defaultDecisionOf(repo.root, process.env);
+  } catch (e) {
+    return configErrorResult(e, script);
   }
-  if (decision === "decline")
-    return { exit: 0, message: note === "" ? "" : `agent-usage: 記録しない${note}` };
-  // Hook からは人の ID を作らない（collect は人の設定が無いと ID を作るので、その前に止める）
-  person ??= personOf(script);
+  if (fallback === null) return { exit: 2, message: askMessage(agent, script) };
+  // リポジトリの defaultDecision は、人の設定（setup が作る人の ID）がある人にだけ当てる。
+  // 無い人に当てると、使い捨ての環境では実行のたびに別の ID で記録され、HOME に書けない環境では毎回止まる
+  const person = personOf(script);
   if (person !== true)
     return person === false ? { exit: 2, message: setupMessage(agent, script) } : person;
+  const note = `（このブランチの判断は無いので、${fallback.source} の defaultDecision: ${fallback.decision} に従った）`;
+  return { decision: fallback.decision, note, person };
+}
+
+/**
+ * 記録すると決めたブランチで collect を実行し、記録を stage する。merge 済みのブランチなら記録しない。
+ * @param {import("./repo.mjs").RepoInfo} repo
+ * @param {GateContext} context
+ * @param {string} note
+ * @returns {GateResult}
+ */
+function recordCommit(repo, context, note) {
   // merge 済みのブランチ（merge の後の worktree で commit を試みた、など）には記録を足さない。
   // 足すと、merge 済みのブランチの worktree に stage した記録が残り、どの PR にも入らない
   const merged = branchMerged(repo, process.env);
@@ -502,7 +617,7 @@ export function gateDecision(input, fallbackCwd, now, script, agent) {
       message: `agent-usage: このブランチは merge 済み（${merged.how}）なので、記録しない${note}`,
     };
   try {
-    const r = runCollect({ repo, now, env: process.env, github: true, gh: null });
+    const r = runCollect({ repo, now: context.now, env: process.env, github: true, gh: null });
     // 今回書いたファイルに加えて、前回書いて stage されなかった（index.lock などで失敗した、手動の collect で書いた）記録も入れる
     git(["add", "--", ".agent-usage/records"], repo.root);
     const notes =
@@ -520,7 +635,7 @@ export function gateDecision(input, fallbackCwd, now, script, agent) {
       exit: 2,
       message: [
         `agent-usage: 利用実績の記録に失敗したので、コミットを止めました: ${e instanceof Error ? e.message : String(e)}`,
-        `原因を直して node "${script}" collect --stage を実行するか、このブランチで記録しないなら node "${script}" decline を実行してから、もう一度コミットしてください。`,
+        `原因を直して node "${context.script}" collect --stage を実行するか、このブランチで記録しないなら node "${context.script}" decline を実行してから、もう一度コミットしてください。`,
       ].join("\n"),
     };
   }

@@ -51,11 +51,10 @@ export function decisionFor(commonDir, branch) {
 
 /**
  * @param {string} commonDir
- * @param {string} branch
- * @param {Decision} decision
- * @param {number} now
+ * @param {{ branch: string; decision: Decision; now: number }} entry 判断を保存するブランチと、判断と、判断した時刻
  */
-export function saveDecision(commonDir, branch, decision, now) {
+export function saveDecision(commonDir, entry) {
+  const { branch, decision, now } = entry;
   const all = loadDecisions(commonDir);
   all[branch] = { decision, at: new Date(now).toISOString() };
   const path = decisionsPath(commonDir);

@@ -116,143 +116,257 @@ export function classifyUserEntry(entry) {
 }
 
 /**
+ * @typedef {object} ClaudeLogState 1 ファイルを読む間の状態
+ * @property {SessionSummary} s
+ * @property {boolean} main メインのファイルか（false ならサブエージェントのファイル）
+ * @property {Map<string, { ts: number; model: string; tokens: Tokens }>} byId
+ * @property {Map<string, { ts: number; name: string }>} toolUses
+ * @property {number} lastTs
+ * @property {string} lastBranch
+ */
+
+/**
+ * @typedef {object} ClaudeRow 時刻を持つ 1 行
+ * @property {Record<string, unknown>} entry
+ * @property {Record<string, unknown> | null} message
+ * @property {number} ts
+ */
+
+/**
+ * JSON の 1 行を読む。空行は null を返し、読めない行は invalidLines に数えて null を返す。
+ * @param {SessionSummary} s
+ * @param {string} line
+ * @returns {Record<string, unknown> | null}
+ */
+function parseEntry(s, line) {
+  if (line.trim() === "") return null;
+  /** @type {unknown} */
+  let entry;
+  try {
+    entry = JSON.parse(line);
+  } catch {
+    s.invalidLines += 1;
+    return null;
+  }
+  if (!isRecord(entry)) {
+    s.invalidLines += 1;
+    return null;
+  }
+  return entry;
+}
+
+/**
+ * cost-state の 1 モデルの使用量。
+ * @param {Record<string, unknown>} u
+ * @returns {Tokens}
+ */
+function costStateTokens(u) {
+  const tokens = zeroTokens();
+  tokens.input = num(u.inputTokens);
+  tokens.output = num(u.outputTokens);
+  tokens.cacheRead = num(u.cacheReadInputTokens);
+  tokens.cacheWrite5m = num(u.cacheCreationInputTokens);
+  tokens.reasoning = num(u.thinkingTokens);
+  return tokens;
+}
+
+/**
+ * 正規化すると同じ名前になるモデルの費用と使用量を足す。
+ * @param {{ costUSD: number; tokens: Tokens }} prev
+ * @param {number} cost
+ * @param {Tokens} tokens
+ */
+function addModelCost(prev, cost, tokens) {
+  prev.costUSD += cost;
+  prev.tokens.input += tokens.input;
+  prev.tokens.output += tokens.output;
+  prev.tokens.cacheRead += tokens.cacheRead;
+  prev.tokens.cacheWrite5m += tokens.cacheWrite5m;
+  prev.tokens.reasoning += tokens.reasoning;
+}
+
+/**
+ * cost-state の modelUsage を、正規化したモデルの名前ごとの費用と使用量にまとめる。
+ * @param {Record<string, unknown>} modelUsage
+ * @returns {Record<string, { costUSD: number; tokens: Tokens }>}
+ */
+function costStateModels(modelUsage) {
+  /** @type {Record<string, { costUSD: number; tokens: Tokens }>} */
+  const models = {};
+  for (const [model, u] of Object.entries(modelUsage)) {
+    if (!isRecord(u)) continue;
+    const name = normalizeModel(model);
+    const prev = models[name];
+    const tokens = costStateTokens(u);
+    const cost = num(u.costUSD);
+    if (prev) addModelCost(prev, cost, tokens);
+    else models[name] = { costUSD: cost, tokens };
+  }
+  return models;
+}
+
+/**
+ * cost-state の行（時刻を持たない）を、直前の行の時刻の費用の記録にする。
+ * @param {ClaudeLogState} st
+ * @param {Record<string, unknown>} entry
+ */
+function addCostState(st, entry) {
+  if (st.main && isRecord(entry.modelUsage) && Number.isFinite(st.lastTs)) {
+    st.s.costSnapshots.push({ ts: st.lastTs, models: costStateModels(entry.modelUsage) });
+  }
+}
+
+/**
+ * メインのファイルの行から、作業ディレクトリとブランチの切り替わりを記録する。
+ * @param {ClaudeLogState} st
+ * @param {ClaudeRow} row
+ */
+function recordPlace(st, row) {
+  const { entry, ts } = row;
+  const s = st.s;
+  if (typeof entry.cwd === "string" && entry.cwd !== "" && !s.cwds.includes(entry.cwd))
+    s.cwds.push(entry.cwd);
+  if (
+    typeof entry.gitBranch === "string" &&
+    entry.gitBranch !== "" &&
+    entry.gitBranch !== st.lastBranch
+  ) {
+    st.lastBranch = entry.gitBranch;
+    s.branches.push({ ts, branch: entry.gitBranch });
+  }
+}
+
+/**
+ * 応答の使用量を message.id ごとに足す。ストリーミングで同じ id の行が複数あるので、欄ごとの最大を取る。
+ * @param {ClaudeLogState} st
+ * @param {Record<string, unknown>} message
+ * @param {number} ts
+ */
+function recordUsage(st, message, ts) {
+  const id = typeof message.id === "string" ? message.id : "";
+  const model = typeof message.model === "string" ? message.model : "";
+  if (id === "" || model === "" || model === "<synthetic>") return;
+  const tokens = claudeTokens(message.usage);
+  const prev = st.byId.get(id);
+  st.byId.set(
+    id,
+    prev ? { ts: prev.ts, model, tokens: maxTokens(prev.tokens, tokens) } : { ts, model, tokens },
+  );
+}
+
+/**
+ * 応答のツールの呼び出しを、結果と対応づけるために覚え、コマンドを記録する。
+ * @param {ClaudeLogState} st
+ * @param {unknown} content
+ * @param {number} ts
+ */
+function recordToolUses(st, content, ts) {
+  if (!isArray(content)) return;
+  for (const block of content) {
+    if (!isRecord(block) || block.type !== "tool_use" || typeof block.id !== "string") continue;
+    const name = typeof block.name === "string" ? block.name : "";
+    st.toolUses.set(block.id, { ts, name });
+    const input = isRecord(block.input) ? block.input : {};
+    if (typeof input.command === "string") st.s.commands.push({ ts, text: input.command });
+  }
+}
+
+/**
+ * ツールの結果の行から、人を待った区間（人への質問と、人が判断した権限の確認）を記録する。
+ * @param {ClaudeLogState} st
+ * @param {ClaudeRow} row
+ */
+function recordToolResults(st, row) {
+  const { entry, ts } = row;
+  const content = row.message?.content;
+  if (!isArray(content)) return;
+  const decision = isRecord(entry.permissionDecision) ? entry.permissionDecision : {};
+  const byUser = typeof decision.source === "string" && decision.source.startsWith("user");
+  for (const block of content) {
+    if (!isRecord(block) || block.type !== "tool_result" || typeof block.tool_use_id !== "string")
+      continue;
+    const use = st.toolUses.get(block.tool_use_id);
+    if (!use) continue;
+    if (HUMAN_INPUT_TOOLS.includes(use.name)) {
+      st.s.humanWaits.push({ start: use.ts, end: ts, reason: use.name });
+    } else if (byUser) {
+      st.s.humanWaits.push({ start: use.ts, end: ts, reason: "permission" });
+    }
+  }
+}
+
+/**
+ * メインのファイルの、サイドチェーンでない system と user の行を読む。
+ * @param {ClaudeLogState} st
+ * @param {ClaudeRow} row
+ */
+function recordMainEntry(st, row) {
+  const { entry, message, ts } = row;
+  const s = st.s;
+  if (entry.type === "system") {
+    if (entry.subtype === "turn_duration") s.turnEnds.push(ts);
+    else if (entry.subtype === "scheduled_task_fire") s.autoResumes.push(ts);
+    return;
+  }
+  if (entry.type !== "user" || !message) return;
+  recordToolResults(st, row);
+  // 利用者が応答を中断した（Esc）。turn_duration が記録されないので、ここを応答の完了にする
+  if (userText(message.content)?.startsWith("[Request interrupted by user") === true) {
+    s.interrupts.push(ts);
+    return;
+  }
+  const kind = classifyUserEntry(entry);
+  if (kind === "human") s.prompts.push(ts);
+  else if (kind === "auto") s.autoResumes.push(ts);
+}
+
+/**
+ * ログの 1 行を要約に足す。
+ * @param {ClaudeLogState} st
+ * @param {Record<string, unknown>} entry
+ */
+function addClaudeEntry(st, entry) {
+  if (entry.type === "cost-state") {
+    addCostState(st, entry);
+    return;
+  }
+  const ts = parseTime(entry.timestamp);
+  if (ts === null) return;
+  st.lastTs = ts;
+  touch(st.s, ts);
+  /** @type {ClaudeRow} */
+  const row = { entry, message: isRecord(entry.message) ? entry.message : null, ts };
+  if (st.main) recordPlace(st, row);
+  if (entry.type === "assistant" && row.message) {
+    recordUsage(st, row.message, ts);
+    recordToolUses(st, row.message.content, ts);
+    return;
+  }
+  if (!st.main || entry.isSidechain === true) return;
+  recordMainEntry(st, row);
+}
+
+/**
  * ログの 1 ファイルを要約に足す。main が false ならサブエージェントのファイルで、使用量とコマンドだけを読む。
  * @param {SessionSummary} s
  * @param {string} text
  * @param {boolean} main
  */
 export function addClaudeLog(s, text, main) {
-  /** @type {Map<string, { ts: number; model: string; tokens: Tokens }>} */
-  const byId = new Map(
-    s.messages.map((m) => [m.key, { ts: m.ts, model: m.model, tokens: m.tokens }]),
-  );
-  /** @type {Map<string, { ts: number; name: string }>} */
-  const toolUses = new Map();
-  let lastTs = Number.NEGATIVE_INFINITY;
-  let lastBranch = s.branches.length > 0 ? s.branches[s.branches.length - 1].branch : "";
+  /** @type {ClaudeLogState} */
+  const st = {
+    s,
+    main,
+    byId: new Map(s.messages.map((m) => [m.key, { ts: m.ts, model: m.model, tokens: m.tokens }])),
+    toolUses: new Map(),
+    lastTs: Number.NEGATIVE_INFINITY,
+    lastBranch: s.branches.length > 0 ? s.branches[s.branches.length - 1].branch : "",
+  };
   for (const line of text.split("\n")) {
-    if (line.trim() === "") continue;
-    /** @type {unknown} */
-    let entry;
-    try {
-      entry = JSON.parse(line);
-    } catch {
-      s.invalidLines += 1;
-      continue;
-    }
-    if (!isRecord(entry)) {
-      s.invalidLines += 1;
-      continue;
-    }
-    if (entry.type === "cost-state") {
-      if (main && isRecord(entry.modelUsage) && Number.isFinite(lastTs)) {
-        /** @type {Record<string, { costUSD: number; tokens: Tokens }>} */
-        const models = {};
-        for (const [model, u] of Object.entries(entry.modelUsage)) {
-          if (!isRecord(u)) continue;
-          const name = normalizeModel(model);
-          const prev = models[name];
-          const tokens = zeroTokens();
-          tokens.input = num(u.inputTokens);
-          tokens.output = num(u.outputTokens);
-          tokens.cacheRead = num(u.cacheReadInputTokens);
-          tokens.cacheWrite5m = num(u.cacheCreationInputTokens);
-          tokens.reasoning = num(u.thinkingTokens);
-          const cost = num(u.costUSD);
-          if (prev) {
-            prev.costUSD += cost;
-            prev.tokens.input += tokens.input;
-            prev.tokens.output += tokens.output;
-            prev.tokens.cacheRead += tokens.cacheRead;
-            prev.tokens.cacheWrite5m += tokens.cacheWrite5m;
-            prev.tokens.reasoning += tokens.reasoning;
-          } else {
-            models[name] = { costUSD: cost, tokens };
-          }
-        }
-        s.costSnapshots.push({ ts: lastTs, models });
-      }
-      continue;
-    }
-    const ts = parseTime(entry.timestamp);
-    if (ts === null) continue;
-    lastTs = ts;
-    touch(s, ts);
-    if (main) {
-      if (typeof entry.cwd === "string" && entry.cwd !== "" && !s.cwds.includes(entry.cwd))
-        s.cwds.push(entry.cwd);
-      if (
-        typeof entry.gitBranch === "string" &&
-        entry.gitBranch !== "" &&
-        entry.gitBranch !== lastBranch
-      ) {
-        lastBranch = entry.gitBranch;
-        s.branches.push({ ts, branch: entry.gitBranch });
-      }
-    }
-    const sidechain = entry.isSidechain === true;
-    const message = isRecord(entry.message) ? entry.message : null;
-    if (entry.type === "assistant" && message) {
-      const id = typeof message.id === "string" ? message.id : "";
-      const model = typeof message.model === "string" ? message.model : "";
-      if (id !== "" && model !== "" && model !== "<synthetic>") {
-        const tokens = claudeTokens(message.usage);
-        const prev = byId.get(id);
-        byId.set(
-          id,
-          prev
-            ? { ts: prev.ts, model, tokens: maxTokens(prev.tokens, tokens) }
-            : { ts, model, tokens },
-        );
-      }
-      if (isArray(message.content)) {
-        for (const block of message.content) {
-          if (!isRecord(block) || block.type !== "tool_use" || typeof block.id !== "string")
-            continue;
-          const name = typeof block.name === "string" ? block.name : "";
-          toolUses.set(block.id, { ts, name });
-          const input = isRecord(block.input) ? block.input : {};
-          if (typeof input.command === "string") s.commands.push({ ts, text: input.command });
-        }
-      }
-      continue;
-    }
-    if (!main || sidechain) continue;
-    if (entry.type === "system") {
-      if (entry.subtype === "turn_duration") s.turnEnds.push(ts);
-      else if (entry.subtype === "scheduled_task_fire") s.autoResumes.push(ts);
-      continue;
-    }
-    if (entry.type !== "user" || !message) continue;
-    if (isArray(message.content)) {
-      const decision = isRecord(entry.permissionDecision) ? entry.permissionDecision : {};
-      const byUser = typeof decision.source === "string" && decision.source.startsWith("user");
-      for (const block of message.content) {
-        if (
-          !isRecord(block) ||
-          block.type !== "tool_result" ||
-          typeof block.tool_use_id !== "string"
-        )
-          continue;
-        const use = toolUses.get(block.tool_use_id);
-        if (!use) continue;
-        if (HUMAN_INPUT_TOOLS.includes(use.name)) {
-          s.humanWaits.push({ start: use.ts, end: ts, reason: use.name });
-        } else if (byUser) {
-          s.humanWaits.push({ start: use.ts, end: ts, reason: "permission" });
-        }
-      }
-    }
-    // 利用者が応答を中断した（Esc）。turn_duration が記録されないので、ここを応答の完了にする
-    if (userText(message.content)?.startsWith("[Request interrupted by user") === true) {
-      s.interrupts.push(ts);
-      continue;
-    }
-    const kind = classifyUserEntry(entry);
-    if (kind === "human") s.prompts.push(ts);
-    else if (kind === "auto") s.autoResumes.push(ts);
+    const entry = parseEntry(s, line);
+    if (entry) addClaudeEntry(st, entry);
   }
-  s.messages = [...byId.entries()].map(([key, m]) => ({
+  s.messages = [...st.byId.entries()].map(([key, m]) => ({
     key,
     ts: m.ts,
     model: m.model,

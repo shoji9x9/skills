@@ -44,8 +44,8 @@
       "id": "report-no-reprice",
       "why": "記録の時点で単価の無かった行を、report で計算し直さない",
       "file": "skills/agent-usage/scripts/lib/report/report.mjs",
-      "find": "    if (cost === null) {\n      const { price, source }",
-      "replace": "    if (false) {\n      const { price, source }",
+      "find": "  if (cost === null) {\n    const { price, source }",
+      "replace": "  if (false) {\n    const { price, source }",
       "occurrences": 1,
       "expect_failing": [
         "停止の分類 report: 記録の時点で単価の無かった行は、今の単価表で計算し直し、それでも無ければ単価不明として数える",
@@ -67,8 +67,8 @@
       "id": "idle-until-now",
       "why": "まだ collect していない人の時間も停止に数える",
       "file": "skills/agent-usage/scripts/lib/report/report.mjs",
-      "find": "    const personEnd = Number.isFinite(lastSeen) ? Math.min(periodEnd, lastSeen) : periodEnd;",
-      "replace": "    const personEnd = periodEnd;",
+      "find": "  const personEnd = Number.isFinite(lastSeen) ? Math.min(periodEnd, lastSeen) : periodEnd;",
+      "replace": "  const personEnd = periodEnd;",
       "occurrences": 1,
       "expect_failing": [
         "停止の分類 report: 人ごとの停止は、その人が最後に記録した時刻（observed_at）で打ち切る",
@@ -82,8 +82,8 @@
       "id": "partial-unknown-hidden",
       "why": "単価の一部が不明な行を単価不明に数えない",
       "file": "skills/agent-usage/scripts/lib/report/report.mjs",
-      "find": "    if (cost === null || sources.includes(\"unknown\")) {",
-      "replace": "    if (cost === null) {",
+      "find": "  if (cost === null || sources.includes(\"unknown\")) {",
+      "replace": "  if (cost === null) {",
       "occurrences": 1,
       "expect_failing": [
         "停止の分類 report: 単価のある応答と単価不明の応答が混在する行も、単価不明に数える"
@@ -151,8 +151,8 @@
       "id": "daily-stop-not-split-by-day",
       "why": "日をまたぐ区間を、始まりの日にまとめて数える",
       "file": "skills/agent-usage/scripts/lib/report/report.mjs",
-      "find": "      const date = h.date;",
-      "replace": "      const date = localParts(start, tz).date;",
+      "find": "    const date = h.date;",
+      "replace": "    const date = localParts(start, tz).date;",
       "occurrences": 1,
       "expect_failing": [
         "日別のチャート 稼働中と停止を日ごと・時刻ごとに分けて積み上げ、使わなかった日は人数 × 24 時間の未活用にし、使い始める前の日は数えない",
@@ -163,8 +163,8 @@
       "id": "active-not-clipped",
       "why": "稼働中を、期間の終わりで打ち切らない",
       "file": "skills/agent-usage/scripts/lib/report/report.mjs",
-      "find": "      const end = Math.min(b, periodEnd);",
-      "replace": "      const end = b;",
+      "find": "    const end = Math.min(b, periodEnd);",
+      "replace": "    const end = b;",
       "occurrences": 1,
       "expect_failing": [
         "日別のチャート 稼働中は、期間の終わりで打ち切る",
@@ -175,8 +175,8 @@
       "id": "issue-active-not-split",
       "why": "Issue ごとの稼働中で、同時に動いた Issue の数で等分しない",
       "file": "skills/agent-usage/scripts/lib/report/report.mjs",
-      "find": "        activeByIssue[k] = (activeByIssue[k] ?? 0) + (next - t) / 3600000 / running.size;",
-      "replace": "        activeByIssue[k] = (activeByIssue[k] ?? 0) + (next - t) / 3600000;",
+      "find": "      activeByIssue[k] = (activeByIssue[k] ?? 0) + (next - t) / 3600000 / running.size;",
+      "replace": "      activeByIssue[k] = (activeByIssue[k] ?? 0) + (next - t) / 3600000;",
       "occurrences": 1,
       "expect_failing": [
         "停止の分類 HTML: Issue ごとの表の稼働中は、外部待ちを含め、同時に動いた Issue の数で等分し、未活用は直前の指示の Issue に数える"
@@ -209,8 +209,8 @@
       "id": "period-end-in-report-tz",
       "why": "期間の終わりを、人のタイムゾーンではなく report のタイムゾーンで決める",
       "file": "skills/agent-usage/scripts/lib/report/report.mjs",
-      "find": "    const periodEnd = o.until ? Math.min(o.now, endOfLocalDate(o.until, tz)) : o.now;",
-      "replace": "    const periodEnd = o.until ? Math.min(o.now, endOfLocalDate(o.until, o.tz)) : o.now;",
+      "find": "  const periodEnd = o.until ? Math.min(o.now, endOfLocalDate(o.until, tz)) : o.now;",
+      "replace": "  const periodEnd = o.until ? Math.min(o.now, endOfLocalDate(o.until, o.tz)) : o.now;",
       "occurrences": 1,
       "expect_failing": [
         "日別のチャート 期間の終わりは、report のタイムゾーンではなく、人のタイムゾーンでの until の日の終わりにする（東）",
@@ -222,8 +222,8 @@
       "id": "status-runs-not-filtered",
       "why": "最初の run のタイムゾーンで期間の終わりより後に始まる run も、稼働状況に数える",
       "file": "skills/agent-usage/scripts/lib/report/report.mjs",
-      "find": "    const statusRuns = runs.filter((r) => r.span[0] < periodEnd);",
-      "replace": "    const statusRuns = runs.filter(() => true);",
+      "find": "  const statusRuns = runs.filter((r) => r.span[0] < periodEnd);",
+      "replace": "  const statusRuns = runs.filter(() => true);",
       "occurrences": 1,
       "expect_failing": [
         "日別のチャート 1 人の記録が複数のタイムゾーンにまたがっても、稼働状況は最初の run のタイムゾーンの期間で数える"

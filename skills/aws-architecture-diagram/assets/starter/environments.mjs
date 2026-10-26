@@ -26,24 +26,10 @@ const localRelabel = {
   ddb: { label: ["DynamoDB", "（クラウド共有）"] },
 };
 
-// base を「ローカル構成」に変換する。
-/** @param {typeof baseSpec} base */
-function toLocal(base) {
-  const nodes = base.nodes.map((n) => ({
-    ...n,
-    ...localRelabel[n.id],
-    ...(localDimIds.has(n.id) ? { dim: true } : {}),
-  }));
-
-  // 端点のどちらかが淡色ノードのエッジ = local 未使用フローとして淡色化。
-  /** @type {{ from: string, to: string, label?: string, dashed?: boolean, waypoints?: number[][], dim?: boolean }[]} */
-  const edges = base.edges.map((e) => ({
-    ...e,
-    ...(localDimIds.has(e.from) || localDimIds.has(e.to) ? { dim: true } : {}),
-  }));
-
-  // local の実フロー（通常色）を追加。
-  edges.push(
+// local の実フロー（通常色）。toLocal が base のエッジの後ろに足す。
+/** @returns {{ from: string, to: string, label?: string, dashed?: boolean, waypoints?: number[][] }[]} */
+function localFlowEdges() {
+  return [
     // SPA(:5173) → ローカル backend(:3001) を直接呼ぶ（API Gateway は介さない）。
     {
       from: "browser",
@@ -66,25 +52,51 @@ function toLocal(base) {
         [920, 490],
       ],
     },
-  );
+  ];
+}
+
+// local の凡例。
+/** @returns {{ x: number, y: number, w: number, title: string, lines: string[] }[]} */
+function localNotes() {
+  return [
+    {
+      x: 150,
+      y: 700,
+      w: 460,
+      title: "凡例",
+      lines: [
+        "通常色 = ローカル稼働 / クラウド共有 / 外部 API",
+        "淡色 = クラウドのみ（ローカル未使用）",
+      ],
+    },
+  ];
+}
+
+// base を「ローカル構成」に変換する。
+/** @param {typeof baseSpec} base */
+function toLocal(base) {
+  const nodes = base.nodes.map((n) => ({
+    ...n,
+    ...localRelabel[n.id],
+    ...(localDimIds.has(n.id) ? { dim: true } : {}),
+  }));
+
+  // 端点のどちらかが淡色ノードのエッジ = local 未使用フローとして淡色化。
+  /** @type {{ from: string, to: string, label?: string, dashed?: boolean, waypoints?: number[][], dim?: boolean }[]} */
+  const edges = base.edges.map((e) => ({
+    ...e,
+    ...(localDimIds.has(e.from) || localDimIds.has(e.to) ? { dim: true } : {}),
+  }));
+
+  // local の実フロー（通常色）を追加。
+  edges.push(...localFlowEdges());
 
   return {
     ...base, // W/H/groups 等の base フィールドを引き継ぐ（下で上書きするものだけ差し替え）
     title: "システム構成図（ローカル）",
     nodes,
     edges,
-    notes: [
-      {
-        x: 150,
-        y: 700,
-        w: 460,
-        title: "凡例",
-        lines: [
-          "通常色 = ローカル稼働 / クラウド共有 / 外部 API",
-          "淡色 = クラウドのみ（ローカル未使用）",
-        ],
-      },
-    ],
+    notes: localNotes(),
   };
 }
 

@@ -9,8 +9,8 @@
       "id": "agent-gh-comment-counted",
       "why": "エージェントの gh の直後のコメントを人の活動として数える",
       "file": "skills/agent-usage/scripts/lib/sources/github.mjs",
-      "find": "      if (it.at >= o.since && mine(it.login) && !nearAgentCommand(it.at, o.commands, /\\bgh\\b/)) {",
-      "replace": "      if (it.at >= o.since && mine(it.login)) {",
+      "find": "    it.at >= o.since &&\n    isMine(o.me, it.login) &&\n    !nearAgentCommand(it.at, o.commands, { pattern: /\\bgh\\b/ })",
+      "replace": "    it.at >= o.since &&\n    isMine(o.me, it.login)",
       "occurrences": 1,
       "expect_failing": [
         "timelineRows 自分のレビューとコメントは活動にし、エージェントの gh の直後のものは除く"
@@ -67,8 +67,8 @@
       "id": "comment-not-arrival",
       "why": "レビューツールのコメントを、レビューの到着として扱わない",
       "file": "skills/agent-usage/scripts/lib/sources/github.mjs",
-      "find": "      if (commentTool) arrivals.push({ reviewer: commentTool, at: it.at });",
-      "replace": "      void commentTool;",
+      "find": "  if (commentTool) ctx.arrivals.push({ reviewer: commentTool, at: it.at });",
+      "replace": "  void commentTool;",
       "occurrences": 1,
       "expect_failing": [
         "timelineRows レビューツールがコメントで結果を返したら、そこで待ちを終える（@codex review の指摘なし）"
@@ -78,8 +78,8 @@
       "id": "review-check-as-ci",
       "why": "レビューツールの check run を外部の CI に入れる",
       "file": "skills/agent-usage/scripts/lib/sources/github.mjs",
-      "find": "            toolOf(o.bundledTools, o.config.reviewTools, app) ||\n            toolOf(o.bundledTools, o.config.reviewTools, str(c.name))",
-      "replace": "            false",
+      "find": "      toolOf(o.bundledTools, o.config.reviewTools, app) ||\n      toolOf(o.bundledTools, o.config.reviewTools, str(ch.name))",
+      "replace": "      false",
       "occurrences": 1,
       "expect_failing": ["外部の CI ci.external では、レビューツールの check run を CI に入れない"]
     }
