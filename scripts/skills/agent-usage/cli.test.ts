@@ -2057,7 +2057,10 @@ describe("retractableRows", () => {
       tz: "Asia/Kolkata",
       input: 5,
     });
-    const { rows, withheld } = retractableRows([o1, o2], byKey([o1, o2]), byKey([n1, n2, n3]), {
+    const { rows, withheld } = retractableRows({
+      stale: [o1, o2],
+      existing: byKey([o1, o2]),
+      unique: byKey([n1, n2, n3]),
       person: "p-1",
       lowerBound: W,
       canonical,
@@ -2089,12 +2092,14 @@ describe("retractableRows", () => {
       model: "claude-haiku-5-5",
       detail: "cost-state",
     };
-    const { rows } = retractableRows(
-      [inside, before, cost, costBefore],
-      byKey([inside, before, cost, costBefore]),
-      new Map(),
-      { person: "p-1", lowerBound: W, canonical },
-    );
+    const { rows } = retractableRows({
+      stale: [inside, before, cost, costBefore],
+      existing: byKey([inside, before, cost, costBefore]),
+      unique: new Map(),
+      person: "p-1",
+      lowerBound: W,
+      canonical,
+    });
     expect(rows.map((r) => r.key)).toEqual([inside.key, cost.key]);
   });
 });

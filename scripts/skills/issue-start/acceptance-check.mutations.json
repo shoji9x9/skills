@@ -23,8 +23,8 @@
       "id": "quote-not-checked",
       "why": "散文からの行の引用が Issue に在るかを確かめない",
       "file": "skills/issue-start/scripts/acceptance-check.mjs",
-      "find": "        if (!found)\n          add(\n            \"quote-not-found\",",
-      "replace": "        if (false)\n          add(\n            \"quote-not-found\",",
+      "find": "  if (!found)\n    ctx.add(\n      \"quote-not-found\",",
+      "replace": "  if (false)\n    ctx.add(\n      \"quote-not-found\",",
       "occurrences": 1,
       "expect_failing": [
         "散文からの行は引用が本文・コメントに無ければ落とす",
@@ -51,8 +51,8 @@
       "id": "waived-without-approval",
       "why": "利用者の承認の無い waived / deferred を通す（実装役が黙って条件を外せる）",
       "file": "skills/issue-start/scripts/acceptance-check.mjs",
-      "find": "        add(\"approval-missing\",",
-      "replace": "        if (false) add(\"approval-missing\",",
+      "find": "    ctx.add(\n      \"approval-missing\",",
+      "replace": "    if (false) ctx.add(\n      \"approval-missing\",",
       "occurrences": 1,
       "expect_failing": ["waived・deferred は利用者の承認が無ければ落とし、deferred は置き場も要る"]
     },
@@ -82,7 +82,7 @@
       "id": "checklist-from-markdown",
       "why": "項目を描画後の HTML ではなく本文の Markdown から取る（描画の結果を使わない）",
       "file": "skills/issue-start/scripts/acceptance-check.mjs",
-      "find": "  const issueChecklist = checklistItems(issueHtml.bodyHTML);",
+      "find": "  const issueChecklist = checklistItems(issue.bodyHTML);",
       "replace": "  const issueChecklist = checklistItems(issue.body);",
       "occurrences": 1,
       "expect_failing": [

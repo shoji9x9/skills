@@ -33,7 +33,7 @@ export function branchMerged(repo, env, gh = null) {
   if (head === "") return { merged: false, how: "" };
   const byAncestry = mergedByAncestry(repo, head);
   if (byAncestry !== "") return { merged: true, how: byAncestry };
-  const byPr = mergedByPullRequest(repo, head, env, gh);
+  const byPr = mergedByPullRequest(repo, head, { env, gh });
   if (byPr !== "") return { merged: true, how: byPr };
   return { merged: false, how: "" };
 }
@@ -82,11 +82,12 @@ function tipCommittedHere(repo) {
  * このブランチを head にした merge 済みの PR のうち、head の commit が HEAD と同じものがあれば、その説明を返す。
  * @param {import("./repo.mjs").RepoInfo} repo
  * @param {string} head
- * @param {NodeJS.ProcessEnv} env
- * @param {import("./sources/github.mjs").GhRunner | null} gh
+ * @param {object} opts
+ * @param {NodeJS.ProcessEnv} opts.env
+ * @param {import("./sources/github.mjs").GhRunner | null} opts.gh
  * @returns {string}
  */
-function mergedByPullRequest(repo, head, env, gh) {
+function mergedByPullRequest(repo, head, { env, gh }) {
   const target = githubTarget(repo.remote, env, (h) => ghLoginError(h, env));
   if (target.reason !== "") return "";
   const owner = target.slug.split("/")[0] ?? "";

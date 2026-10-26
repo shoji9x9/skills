@@ -16,46 +16,11 @@ export const PENDING_RULES = [
 export type PendingRule = (typeof PENDING_RULES)[number];
 
 export const PENDING_FIXES: Readonly<Record<string, readonly PendingRule[]>> = {
-  "skills/agent-usage/scripts/agent-usage.mjs": ["complexity", "max-lines-per-function"],
-  "skills/agent-usage/scripts/lib/collect.mjs": ["complexity", "max-lines-per-function"],
-  "skills/agent-usage/scripts/lib/config.mjs": ["complexity", "max-params"],
-  "skills/agent-usage/scripts/lib/csv.mjs": ["max-lines-per-function"],
-  "skills/agent-usage/scripts/lib/decisions.mjs": ["max-params"],
-  "skills/agent-usage/scripts/lib/dedupe.mjs": ["max-lines-per-function"],
-  "skills/agent-usage/scripts/lib/gate.mjs": ["complexity", "max-lines-per-function", "max-params"],
-  "skills/agent-usage/scripts/lib/merged.mjs": ["max-params"],
-  "skills/agent-usage/scripts/lib/report/html.mjs": ["complexity", "max-lines-per-function"],
-  "skills/agent-usage/scripts/lib/report/report.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/agent-usage/scripts/lib/run-collect.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/agent-usage/scripts/lib/sources/claude-log.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-depth",
-  ],
-  "skills/agent-usage/scripts/lib/sources/codex-log.mjs": ["complexity", "max-lines-per-function"],
-  "skills/agent-usage/scripts/lib/sources/discover.mjs": ["max-params"],
-  "skills/agent-usage/scripts/lib/sources/github.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/agent-usage/scripts/lib/sources/timeline.mjs": ["complexity", "max-lines-per-function"],
-  "skills/agent-usage/scripts/lib/sources/usage.mjs": ["max-lines-per-function"],
   "skills/agent-usage/scripts/skill-config/skill-config.mjs": [
     "complexity",
     "max-lines-per-function",
     "max-params",
   ],
-  "skills/aws-architecture-diagram/assets/starter/environments.mjs": ["max-lines-per-function"],
-  "skills/aws-architecture-diagram/scripts/diagram-engine.mjs": ["max-lines-per-function"],
   "skills/aws-architecture-diagram/scripts/skill-config/skill-config.mjs": [
     "complexity",
     "max-lines-per-function",
@@ -97,11 +62,6 @@ export const PENDING_FIXES: Readonly<Record<string, readonly PendingRule[]>> = {
     "max-params",
   ],
   "skills/issue-batch/scripts/skill-config/skill-config.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/issue-start/scripts/acceptance-check.mjs": [
     "complexity",
     "max-lines-per-function",
     "max-params",

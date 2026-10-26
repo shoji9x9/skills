@@ -9,8 +9,8 @@
       "id": "undecided-branch-passes",
       "why": "判断の無いブランチのコミットを止めない",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "    if (fallback === null) return { exit: 2, message: askMessage(agent, script) };",
-      "replace": "    if (false) return { exit: 2, message: askMessage(agent, script) };",
+      "find": "  if (fallback === null) return { exit: 2, message: askMessage(agent, script) };",
+      "replace": "  if (false) return { exit: 2, message: askMessage(agent, script) };",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook 判断の無い feature ブランチのコミットを止め、記録しないと決めたら通す。デフォルトブランチでは止めない",
@@ -262,8 +262,8 @@
       "id": "enterprise-token-sent",
       "why": "ログインで判定したホストに、環境変数の enterprise の token を送る",
       "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
-      "find": "target.viaLogin ? withoutEnvTokens(env) : env",
-      "replace": "env",
+      "find": "target.viaLogin ? withoutEnvTokens(o.env) : o.env",
+      "replace": "o.env",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook ログインで GitHub と判定したホストには、環境変数の GH_ENTERPRISE_TOKEN を送らない"
@@ -413,8 +413,8 @@
       "id": "published-branch-file-appended",
       "why": "デフォルトブランチに入ったブランチのファイルにも足す",
       "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
-      "find": "    if (last !== undefined && !published(last)) return last;",
-      "replace": "    if (last !== undefined) return last;",
+      "find": "  if (last !== undefined && !o.published(last)) return last;",
+      "replace": "  if (last !== undefined) return last;",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook デフォルトブランチに入った（squash merge された）ブランチのファイルには足さず、新しいファイルを作る"
@@ -424,8 +424,8 @@
       "id": "same-second-name-reused",
       "why": "新しいファイルの時刻を、デフォルトブランチに入ったファイルより後にしない",
       "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
-      "find": "    const t = last === undefined ? now : Math.max(now, (fileStampTime(last) ?? now) + 1000);",
-      "replace": "    const t = now;",
+      "find": "  const t = last === undefined ? now : Math.max(now, (fileStampTime(last) ?? now) + 1000);",
+      "replace": "  const t = now;",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook デフォルトブランチに入った（squash merge された）ブランチのファイルには足さず、新しいファイルを作る"
@@ -446,8 +446,8 @@
       "id": "first-collect-reads-window",
       "why": "この clone で初めての collect でも、範囲の中の記録しか読まない",
       "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
-      "find": "    : readRecords(recordsDir);",
-      "replace": "    : readRecords(recordsDir, { since: windowStart, keep });",
+      "find": "    : readRecords(o.recordsDir);",
+      "replace": "    : readRecords(o.recordsDir, { since: windowStart, keep: o.keep });",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook この clone で初めての collect は、記録の全体を読み、範囲より古い記録済みの行を重ねて書かない"
@@ -481,7 +481,7 @@
       "id": "retraction-without-log",
       "why": "ログが消えたセッションの行も打ち消す",
       "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
-      "find": "    if (!local.presentSessions.has(`${r.agent ?? \"\"}:${r.session ?? \"\"}`)) continue;",
+      "find": "    if (!o.local.presentSessions.has(`${r.agent ?? \"\"}:${r.session ?? \"\"}`)) continue;",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
@@ -519,8 +519,8 @@
       "id": "retraction-subagent-only",
       "why": "メインのログが消え、サブエージェントのログだけが残ったセッションの行を打ち消す",
       "file": "skills/agent-usage/scripts/lib/collect.mjs",
-      "find": "      matched.filter((s) => !s.subagent).map((s) => `${s.agent}:${s.sessionId}`),",
-      "replace": "      matched.map((s) => `${s.agent}:${s.sessionId}`),",
+      "find": "      scan.matched.filter((s) => !s.subagent).map((s) => `${s.agent}:${s.sessionId}`),",
+      "replace": "      scan.matched.map((s) => `${s.agent}:${s.sessionId}`),",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook サブエージェントのログしか残っていないセッションの行は、打ち消さない"
@@ -553,7 +553,7 @@
       "id": "withheld-written",
       "why": "打ち消せない前の区切りの行と重なる新しい行も書く",
       "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
-      "find": "    if (withheld.has(r.key ?? \"\")) return false;",
+      "find": "    if (o.withheld.has(r.key ?? \"\")) return false;",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
@@ -564,8 +564,8 @@
       "id": "alias-ignored",
       "why": "別名で記録した行を、今の人の行として打ち消さない",
       "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
-      "find": "    if (canonical(r.person) !== person || r.retracted === \"1\") continue;",
-      "replace": "    if (r.person !== person || r.retracted === \"1\") continue;",
+      "find": "    if (o.canonical(r.person) !== o.person || r.retracted === \"1\") continue;",
+      "replace": "    if (r.person !== o.person || r.retracted === \"1\") continue;",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook 別名で記録した行と、observed_at が今より後の行も打ち消し、report は二重に数えない"
@@ -619,8 +619,8 @@
       "id": "repo-default-applied-without-user",
       "why": "リポジトリの defaultDecision を、人の設定が無い人にも当てる",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "    person = personOf(script);\n    if (person !== true)\n      return person === false ? { exit: 2, message: setupMessage(agent, script) } : person;\n    decision = fallback.decision;",
-      "replace": "    decision = fallback.decision;",
+      "find": "  const person = personOf(script);\n  if (person !== true)\n    return person === false ? { exit: 2, message: setupMessage(agent, script) } : person;\n  const note",
+      "replace": "  const person = undefined;\n  const note",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook リポジトリの defaultDecision は、人の設定が無い人には当てずに止めて setup を求め、人の ID を作らない。デフォルトブランチの status は対象外と出す"
@@ -630,8 +630,8 @@
       "id": "gate-creates-person",
       "why": "記録するときに人の設定が無くても止めず、collect が人の ID を作る",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "  person ??= personOf(script);\n  if (person !== true)\n    return person === false ? { exit: 2, message: setupMessage(agent, script) } : person;\n  // merge 済みのブランチ",
-      "replace": "  // merge 済みのブランチ",
+      "find": "  const person = resolved.person ?? personOf(script);\n  if (person !== true)\n    return person === false ? { exit: 2, message: setupMessage(agent, script) } : person;\n  return recordCommit",
+      "replace": "  return recordCommit",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook ブランチの判断が「記録する」でも、人の設定が無ければ止めて、Hook からは人の ID を作らない。status も止めると出す",
