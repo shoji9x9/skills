@@ -3,7 +3,7 @@
 //
 // 読むのは各項目の glob と、項目が属する tier だけである。label・note・contents は人が読む説明の欄で、値は読まない。
 // 設定の形の誤り（Tier が 1〜4 の順でない・docs が空か配列でない・項目が object でない・項目に知らないキーがある・
-// glob が空か文字列でない・glob の重複・outside に glob が無い）は例外にする。
+// glob も label も無い・glob が空か文字列でない・glob の重複・outside に glob が無い）は例外にする。
 // 知らないキーを例外にするのは、glob の書き間違い（"gob" など）を説明だけの項目として読み飛ばさないためである。
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -41,18 +41,42 @@ function globToRegExp(glob: string) {
 
 const matchesGlob = (rel: string, glob: string) => globToRegExp(glob).test(rel);
 
-/** doc-tiers.json を読み、glob と tier の形を確かめる。形の誤りは例外にする。 */
-export function loadDocTiers(root: string): DocTiers {
+/** doc-tiers.json を JSON として読む。無いか読めなければ、パスを添えて例外にする。 */
+function readTiersJson(root: string): unknown {
   const path = join(root, TIERS_PATH);
   if (!existsSync(path)) throw new Error(`${TIERS_PATH} が無い`);
-  let data: unknown;
   try {
-    data = JSON.parse(readFileSync(path, "utf8"));
+    return JSON.parse(readFileSync(path, "utf8"));
   } catch (e) {
     throw new Error(
       `${TIERS_PATH} を JSON として読めない: ${e instanceof Error ? e.message : String(e)}`,
     );
   }
+}
+
+/**
+ * 項目の glob。glob を持たない項目（説明だけの項目）は undefined。seen に読んだ glob を足し、重複を例外にする。
+ * glob の無い項目は、ファイルで分けられない文書の説明なので label が要る（{} や note だけの項目は、glob を消し忘れた誤り）。
+ */
+function globOf(e: unknown, where: string, seen: Set<string>): string | undefined {
+  if (!isRecord(e)) throw new Error(`${where}: 項目は object にする`);
+  const unknownKeys = Object.keys(e).filter((k) => !ITEM_KEYS.has(k));
+  if (unknownKeys.length > 0)
+    throw new Error(`${where}: 知らないキー（${unknownKeys.join("・")}）がある`);
+  const { glob } = e;
+  if (glob === undefined) {
+    if (!isNonBlankString(e.label)) throw new Error(`${where}: glob か label を持つ`);
+    return undefined;
+  }
+  if (!isNonBlankString(glob)) throw new Error(`${where}: glob は空でない文字列`);
+  if (seen.has(glob)) throw new Error(`${where}: glob「${glob}」が重複している`);
+  seen.add(glob);
+  return glob;
+}
+
+/** doc-tiers.json を読み、glob と tier の形を確かめる。形の誤りは例外にする。 */
+export function loadDocTiers(root: string): DocTiers {
+  const data = readTiersJson(root);
   const { tiers, outside }: Record<string, unknown> = isRecord(data) ? data : {};
   if (!isArray(tiers) || !isArray(outside)) throw new Error("tiers と outside は配列にする");
   // tier は数の 1〜4 だけを受ける（文字列の "1" は、tierOf の比較で数と食い違う）。
@@ -61,28 +85,17 @@ export function loadDocTiers(root: string): DocTiers {
   if (!tiers.every(isRecord) || tierNumbers.some((n, i) => n !== i + 1) || tiers.length !== 4)
     throw new Error("tiers は tier 1〜4 をこの順に 1 つずつ持つ");
   const seen = new Set<string>();
-  /** 項目の glob。glob を持たない項目（説明だけの項目）は undefined。 */
-  const globOf = (e: unknown, where: string): string | undefined => {
-    if (!isRecord(e)) throw new Error(`${where}: 項目は object にする`);
-    const unknownKeys = Object.keys(e).filter((k) => !ITEM_KEYS.has(k));
-    if (unknownKeys.length > 0)
-      throw new Error(`${where}: 知らないキー（${unknownKeys.join("・")}）がある`);
-    const { glob } = e;
-    if (glob === undefined) return undefined;
-    if (!isNonBlankString(glob)) throw new Error(`${where}: glob は空でない文字列`);
-    if (seen.has(glob)) throw new Error(`${where}: glob「${glob}」が重複している`);
-    seen.add(glob);
-    return glob;
-  };
   const checkedTiers = tiers.map((t, n) => {
     const { docs } = t;
     if (!isArray(docs) || docs.length === 0)
       throw new Error(`tier ${n + 1}: docs は空でない配列にする`);
-    const globs = docs.flatMap((e, i) => globOf(e, `tier ${n + 1} の docs[${i}]`) ?? []);
+    const globs = docs.flatMap((e, i) => globOf(e, `tier ${n + 1} の docs[${i}]`, seen) ?? []);
     return { tier: n + 1, globs };
   });
   const checkedOutside = outside.map((e, i) => {
-    const glob = globOf(e, `outside[${i}]`);
+    // 階層の外の項目は glob で外すので、label だけの項目を受け付けない。globOf の「glob か label」の案内より先に止める。
+    if (isRecord(e) && e.glob === undefined) throw new Error(`outside[${i}]: glob を持つ`);
+    const glob = globOf(e, `outside[${i}]`, seen);
     if (glob === undefined) throw new Error(`outside[${i}]: glob を持つ`);
     return glob;
   });

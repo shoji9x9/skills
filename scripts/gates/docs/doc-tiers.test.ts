@@ -102,6 +102,16 @@ test.each([
     /知らないキー（gob）/,
   ],
   [
+    "glob も label も無い（note だけ）",
+    withTiers((t) => [{ ...t[0], docs: [{ note: "x" }] }, ...t.slice(1)]),
+    /glob か label を持つ/,
+  ],
+  [
+    "glob が無く label が空",
+    withTiers((t) => [{ ...t[0], docs: [{ label: " " }] }, ...t.slice(1)]),
+    /glob か label を持つ/,
+  ],
+  [
     "項目が object でない",
     withTiers((t) => [{ ...t[0], docs: ["AGENTS.md"] }, ...t.slice(1)]),
     /項目は object にする/,

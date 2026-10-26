@@ -27,7 +27,6 @@ test("toDiagnostic: 診断を読み、使われていない disable コメント
     file: "a.ts",
     rule: "max-params",
     line: 3,
-    offset: 0,
     message: "m",
   });
   const unused = {

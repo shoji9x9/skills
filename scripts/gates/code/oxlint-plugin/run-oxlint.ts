@@ -1,5 +1,5 @@
 // oxlint を実物のまま起動し、診断を読む（oxlint-pending.ts のテスト・oxlint-plugin/ のテスト・replace-strategy のテストが使う）。
-// テスト用の補助（lib/testing/）は import しない。テスト用の補助は run-rule.ts に置く。
+// プラグインのルールを 1 つずつ当てる補助は run-rule.ts に置く。
 import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,18 +8,14 @@ import { isArray } from "../../../lib/is-array.ts";
 
 export const REPO_DIR = join(dirname(fileURLToPath(import.meta.url)), "../../../..");
 export const PLUGIN_PATH = join(REPO_DIR, "scripts/gates/code/oxlint-plugin/plugin.ts");
-/** 本番のチェックの打ち切りの時間。CI の負荷でも終わる長さにする（テストは短い時間を渡す）。 */
+/** 打ち切りのデフォルトの時間。リポジトリ全体を読むテストが CI の負荷でも終わる長さにする（短いテストは短い時間を渡す）。 */
 const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000;
 
-/**
- * oxlint の診断。rule は設定のキーと同じ字面（`max-params`・`skills-repo/import-direction`）。
- * offset はファイルの中の UTF-8 のバイト位置。
- */
+/** oxlint の診断。rule は設定のキーと同じ字面（`max-params`・`skills-repo/import-direction`）。 */
 export type Diagnostic = {
   file: string;
   rule: string;
   line: number;
-  offset: number;
   message: string;
 };
 
@@ -51,14 +47,9 @@ export function toDiagnostic(d: unknown): Diagnostic {
   const rule = typeof d.code === "string" ? ruleOf(d.code) : ruleWithoutCode(d.message);
   const label = isArray(d.labels) ? d.labels[0] : undefined;
   const span = isRecord(label) ? label.span : undefined;
-  if (
-    typeof d.filename !== "string" ||
-    !isRecord(span) ||
-    typeof span.line !== "number" ||
-    typeof span.offset !== "number"
-  )
+  if (typeof d.filename !== "string" || !isRecord(span) || typeof span.line !== "number")
     throw new Error("oxlint の診断の形を読めない");
-  return { file: d.filename, rule, line: span.line, offset: span.offset, message: d.message };
+  return { file: d.filename, rule, line: span.line, message: d.message };
 }
 
 /**
