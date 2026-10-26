@@ -8,6 +8,11 @@ pre-commit:
       group:
         piped: true
         jobs:
+          - name: word-list
+            # 使わない語の一覧（.textlint/word-list.md。AGENTS.md が @ で取り込む生成物）を .textlint/words.json から生成して stage する。
+            # stage_fixed は {staged_files} だけを stage し、words.json だけが staged のときに一覧を stage しないので、git add で stage する。
+            glob: "{.textlint/words.json,.textlint/word-list.md}"
+            run: node scripts/tools/generate-word-list.ts && git add .textlint/word-list.md
           - name: markdownlint
             # 見る範囲は .markdownlint-cli2.yaml の globs が決める（引数で渡したファイルにも除外が反映される）。
             # ここで .agents/** を除くと、.agents/rules/ と private skill だけを直した commit で実行されない。
@@ -186,12 +191,9 @@ pre-commit:
             glob: "*.{md,js,mjs,cjs,ts,sh,yml,yaml,json}"
             run: node scripts/gates/prose/lint-prose.ts {staged_files}
           - name: agents-md-size
-            # AGENTS.md のサイズ（Codex はデフォルトで 32 KiB までしか読まない）。このブランチで 30 KiB を超えたら、
-            # 24 KiB 以下になるまで失敗させる。超えたかは origin/main との分岐点より後の履歴で判定する。
-            run: node scripts/gates/docs/agents-md/check-agents-md-size.ts --pre-commit --base origin/main
-          - name: word-list
-            # 使わない語の一覧（.textlint/word-list.md。AGENTS.md が @ で取り込む生成物）が .textlint/words.json と一致しているか。
-            run: node scripts/gates/prose/check-word-list.ts
+            # AGENTS.md のサイズが、Codex が読む上限（デフォルトで 32 KiB）を超えていないか。
+            glob: "AGENTS.md"
+            run: node scripts/gates/docs/agents-md/check-agents-md-size.ts
           - name: skills-sync
             # Repo-wide drift check (skills/ vs .agents/skills/). Fast and deterministic,
             # so it runs on every commit rather than relying on path-glob matching.
@@ -214,10 +216,8 @@ pre-commit:
             run: node scripts/gates/code/check-skill-lint-directives.ts
           - name: jsdoc-types
             # 配布スキルの .mjs で、型の検査を外す JSDoc の書き方（型の表明・any・@ts-ignore など）を禁じる。
-            # 型の名前を tsconfig.skills.json の Program で解決する。そのため、型の解決に関わるファイルが staged のときだけ実行する
-            # （.mjs・チェック自身・その設定・include の型の宣言 types/・依存の版を決める package.json と pnpm-lock.yaml）。
-            # （Program の作成と型の解決に約 2 秒かかる）。
-            glob: "{*.mjs,*check-jsdoc-types.ts,tsconfig.skills.json,tsconfig.base.json,types/*.ts,package.json,pnpm-lock.yaml}"
+            # 構文だけで判定するので、.mjs かチェック自身が staged のときだけ実行する。
+            glob: "{*.mjs,*check-jsdoc-types.ts}"
             run: node scripts/gates/types/check-jsdoc-types.ts
           - name: identical-copies
             # 同一であるべきコピー（scripts/gates/packaging/copies/identical-copies.json で宣言）の一致。

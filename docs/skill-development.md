@@ -146,9 +146,8 @@ scripts/tools/reinstall-skill.sh <name>
 各 assertion を引き出す prompt の文を、`{ "assertion": "<assertions に実在するテキスト>", "prompt_quote": "<prompt 内の部分文字列>" }` の形で並べる。
 `scripts/gates/packaging/check-eval-reachability.ts` が pre-commit と CI で次のものをエラーにする。
 対応する要素が無いもの、引用が空のもの、prompt に無い引用、assertions に無い assertion である。対応はテキストで付け、位置では付けない。
-既存の eval は `scripts/gates/packaging/eval-reachability-backlog.json` に載せて、順に適用している。
-この一覧の各項目は eval の指紋（prompt と assertions のハッシュ）を持つ。その eval を書き換えると一覧から外れたものとして扱われ、`reachability` が必要になる。
-そのため、触った eval から順に `reachability` が埋まる。新しい eval をこの一覧に足さない。
+`reachability` を書いていない既存の eval は、`scripts/gates/packaging/eval-reachability-backlog.json` に eval の id（`<skill_name>:<id>`）の一覧で載せて免除する。
+新しい eval をこの一覧に足さない。既存の eval を変えたら、`reachability` を書いて一覧から消す。
 
 配布スキルのうちエージェントが読む文書（`SKILL.md`・`references/`・`assets/`）を規則に合わせて書き換えたら、eval の入力が変わっていなくても、そのスキルの eval を `with_skill` で実行する。
 前回から下がったものは、書き換え前の版と同じ条件で比べる。コメントの行だけを変えたとき（スクリプトや `assets/` の設定ファイルのコメントなど）は対象にしない。

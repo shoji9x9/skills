@@ -45,8 +45,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          # AGENTS.md のサイズのチェックが、PR の base との分岐点より後の履歴を読む。
-          fetch-depth: 0
       - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
       - run: pnpm install --frozen-lockfile
       - name: Markdown lint
@@ -103,15 +101,8 @@ jobs:
         run: node scripts/gates/packaging/check-skill-index.ts
       - name: Prose lint (textlint; .textlintrc.json / .textlint/words.json)
         run: node scripts/gates/prose/lint-prose.ts
-      # PR では base との分岐点より後の履歴で「30 KiB を超えたか」を判定する。push（main）では範囲が空になり、上限だけを見る。
-      - name: AGENTS.md size (scripts/gates/docs/agents-md/agents-md-size.json)
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ -n "$BASE_REF" ]; then base="origin/$BASE_REF"; else base=HEAD; fi
-          node scripts/gates/docs/agents-md/check-agents-md-size.ts --base "$base"
-      - name: Word list (.textlint/word-list.md) matches .textlint/words.json
-        run: node scripts/gates/prose/check-word-list.ts
+      - name: AGENTS.md size (Codex reads up to 32 KiB)
+        run: node scripts/gates/docs/agents-md/check-agents-md-size.ts
 
   # ユニットテストは Lint から独立したジョブにして並べて実行する（Lint の所要の大半を占めていたため）。
   # ファイル並列と、tracked ファイルを書き換えるテストの単独実行の分け方は `vitest.config.ts` が持つ。

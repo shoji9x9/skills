@@ -17,10 +17,8 @@
 // 「1 assertion 1 主張」「選択肢が両方立つ材料があるか」等はレビュー観点として rule に残す
 // （機械検査は部分文字列の実在までしか見ない）。
 //
-// 既存 eval の backfill は一度に行わず、宣言済みの backlog（scripts/gates/packaging/eval-reachability-backlog.json）で
-// 段階適用する。backlog の項目は eval の指紋（prompt + assertions のハッシュ）を持ち、
-// **eval を書き換えた時点で指紋が外れ、reachability が必須になる**（免除が警告なしに残り続けない）。
-import { createHash } from "node:crypto";
+// reachability を書いていない既存の eval は、backlog（scripts/gates/packaging/eval-reachability-backlog.json）に
+// eval の id（`<skill_name>:<id>`）の一覧で載せて免除する。新しい eval は backlog に足さず reachability を書く。
 import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,12 +27,6 @@ import { isNonBlankString, isRecord } from "../../lib/guards.ts";
 import { isArray } from "../../lib/is-array.ts";
 
 export const BACKLOG_PATH = "scripts/gates/packaging/eval-reachability-backlog.json";
-
-/** eval の同一性の指紋。prompt か assertions が変われば外れる。 */
-export function evalFingerprint(ev: { prompt?: unknown; assertions?: unknown }) {
-  const material = JSON.stringify({ prompt: ev.prompt ?? null, assertions: ev.assertions ?? null });
-  return createHash("sha256").update(material).digest("hex").slice(0, 16);
-}
 
 /** backlog の鍵。区切り文字は材料側で禁じる（skill 名・id に ":" を許さない）。 */
 export function backlogKey(skill: string, id: unknown) {
@@ -106,30 +98,19 @@ function checkEvalShape(ev: unknown, where: string, seenIds: Set<string>): EvalS
  * hasReachability は呼び出し元が 1 回だけ求め、要素を続けて検査するかにも同じ値を使う。
  */
 function backlogViolations(
-  { where, ev }: EvalShape,
-  {
-    key,
-    exemptFingerprint,
-    hasReachability,
-  }: { key: string; exemptFingerprint: string | undefined; hasReachability: boolean },
+  { where }: EvalShape,
+  { key, exempt, hasReachability }: { key: string; exempt: boolean; hasReachability: boolean },
 ): string[] {
-  const fingerprint = evalFingerprint(ev);
   if (!hasReachability) {
-    if (exemptFingerprint === undefined) {
+    if (!exempt) {
       return [
         `${where}: reachability が無い。各 assertion に { "assertion", "prompt_quote" } を書く` +
-          `（既存 eval を触らずに通すなら ${BACKLOG_PATH} へ "${key}": "${fingerprint}" を足す）`,
-      ];
-    }
-    if (exemptFingerprint !== fingerprint) {
-      return [
-        `${where}: backlog の指紋が古い（宣言 ${exemptFingerprint} / 実際 ${fingerprint}）。` +
-          "prompt か assertions を変えたので、この eval は reachability を書いて backlog から外す",
+          `（既存の eval を触らずに通すなら ${BACKLOG_PATH} の exempt に "${key}" を足す）`,
       ];
     }
     return [];
   }
-  if (exemptFingerprint !== undefined) {
+  if (exempt) {
     return [`${where}: reachability があるのに ${BACKLOG_PATH} に残っている（項目を消す）`];
   }
   return [];
@@ -225,7 +206,7 @@ export function checkEvalFile({
 }: {
   path: string;
   source: string;
-  backlog: Record<string, string>;
+  backlog: ReadonlySet<string>;
   label?: string;
 }) {
   const violations: string[] = [];
@@ -246,7 +227,7 @@ export function checkEvalFile({
     keys.push(key);
     const hasReachability = Object.hasOwn(shape.ev, "reachability");
     violations.push(
-      ...backlogViolations(shape, { key, exemptFingerprint: backlog[key], hasReachability }),
+      ...backlogViolations(shape, { key, exempt: backlog.has(key), hasReachability }),
     );
     if (hasReachability) violations.push(...reachabilityViolations(shape));
   }
@@ -255,12 +236,12 @@ export function checkEvalFile({
 }
 
 export function loadBacklog(root: string): {
-  exempt: Record<string, string>;
+  exempt: Set<string>;
   missing: boolean;
   error?: string;
 } {
   const path = join(root, BACKLOG_PATH);
-  if (!existsSync(path)) return { exempt: {}, missing: true };
+  if (!existsSync(path)) return { exempt: new Set(), missing: true };
   // 不在を違反として扱う以上、形式が不正な場合も違反にする。素の JSON.parse だと、
   // （merge 衝突の残骸などで）スタックトレースを出してチェックが止まる。すると pre-commit / CI が、
   // 「チェックした結果」ではなくクラッシュで落ちる。
@@ -268,21 +249,24 @@ export function loadBacklog(root: string): {
   try {
     parsed = JSON.parse(readFileSync(path, "utf8"));
   } catch (error) {
-    return { exempt: {}, missing: false, error: errorMessage(error) };
+    return { exempt: new Set(), missing: false, error: errorMessage(error) };
   }
   if (!isRecord(parsed)) {
-    return { exempt: {}, missing: false, error: "トップレベルがオブジェクトでない" };
+    return { exempt: new Set(), missing: false, error: "トップレベルがオブジェクトでない" };
   }
-  const exempt = parsed.exempt ?? {};
-  if (!isStringRecord(exempt)) {
-    return { exempt: {}, missing: false, error: "exempt が、値が文字列のオブジェクトでない" };
+  const exempt = parsed.exempt ?? [];
+  if (!isArray(exempt) || !exempt.every(isNonBlankString)) {
+    return {
+      exempt: new Set(),
+      missing: false,
+      error: "exempt が、eval の id の文字列の配列でない",
+    };
   }
-  return { exempt, missing: false };
-}
-
-/** 値がすべて文字列の object か。 */
-function isStringRecord(value: unknown): value is Record<string, string> {
-  return isRecord(value) && Object.values(value).every((v) => typeof v === "string");
+  const ids = new Set<string>(exempt);
+  if (ids.size !== exempt.length) {
+    return { exempt: new Set(), missing: false, error: "exempt に同じ eval の id が重複している" };
+  }
+  return { exempt: ids, missing: false };
 }
 
 export function checkAll(
@@ -323,7 +307,7 @@ export function checkAll(
       `${relative(root, dir)}/: 配布スキルの中に eval がある（下流へ配られ、この検査の走査からも外れる）。evals/${name}/ へ置く`,
     );
   }
-  for (const key of Object.keys(exempt)) {
+  for (const key of exempt) {
     if (!keys.includes(key)) {
       violations.push(`${BACKLOG_PATH}: "${key}" に対応する eval が無い（孤児の免除）`);
     }

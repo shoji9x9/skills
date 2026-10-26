@@ -1,23 +1,22 @@
 #!/usr/bin/env node
-// 使わない語の一覧（`.textlint/word-list.md`）が `.textlint/words.json` と一致しているかチェックする（lefthook pre-commit + CI）。
+// 使わない語の一覧（`.textlint/word-list.md`）を `.textlint/words.json` から生成する（lefthook pre-commit）。
 //
 // なぜ要るか: textlint はファイルしか見ないので、エージェントが人へ返す応答には単語帳が届かない。
 // AGENTS.md から一覧を `@` で取り込み（Claude Code はセッション開始時に読み込む）、応答にも同じ語を使わせる。
 // words.json は形態素の条件を含めて大きいので、取り込むのは `term` と `instead` だけを表にした生成物にする。
-// 一覧を手で書くと単語帳と食い違うため、ここで一致を確かめる。
+// pre-commit は、words.json か一覧が staged のときにこのスクリプトで一覧を生成し直して stage する。
 //
-// 判定規則:
-// - `.textlint/word-list.md` の全文を、words.json から生成した内容と比べる。
-//   `term` を持たないエントリ（同じ語の別の形を拾うためのエントリ）は一覧に出さない。
-// - `term` と `instead` の片方だけを持つエントリ・`term` の重複・「|」を含むエントリ・一覧が 0 行は exit 2、
-//   一覧のファイルが無い・内容の食い違いは exit 1。`--fix` を付けると生成した内容で書き換える。
+// 生成の規則:
+// - `term` を持たないエントリ（同じ語の別の形を拾うためのエントリ）は一覧に出さない。
+// - `term` と `instead` の片方だけを持つエントリ・`term` の重複・「|」を含むエントリ・一覧が 0 行は、
+//   一覧を作れないので書き換えずに exit 2。
 import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { errorMessage } from "../../lib/errors.ts";
-import { isRecord } from "../../lib/guards.ts";
-import { isArray } from "../../lib/is-array.ts";
-import { WORDS_PATH } from "../../lib/text/textlint-word-rule.ts";
+import { errorMessage } from "../lib/errors.ts";
+import { isRecord } from "../lib/guards.ts";
+import { isArray } from "../lib/is-array.ts";
+import { WORDS_PATH } from "../lib/text/textlint-word-rule.ts";
 
 export const LIST_PATH = ".textlint/word-list.md";
 
@@ -47,7 +46,7 @@ export function renderWordList(root: string) {
   return [
     "# 使わない語",
     "",
-    `<!-- ${WORDS_PATH} から scripts/gates/prose/check-word-list.ts --fix で生成する。手で直さない。 -->`,
+    `<!-- ${WORDS_PATH} から scripts/tools/generate-word-list.ts で生成する（pre-commit が実行する）。手で直さない。 -->`,
     "",
     "人が読む文章と人への応答では、次の語を使わず言い換えて書く。",
     "",
@@ -62,40 +61,25 @@ export function renderWordList(root: string) {
   ].join("\n");
 }
 
-/**
- * @param {string} root リポジトリルート（テストでは一時ディレクトリ）
- * @param {{ fix?: boolean }} options
- * @returns {{ ok: boolean, fixed: boolean }}
- */
-export function checkWordList(root: string, { fix = false }: { fix?: boolean } = {}) {
+/** 一覧を生成して書く。内容が同じなら書かない。書いたかを返す。 */
+export function writeWordList(root: string) {
   const expected = renderWordList(root);
   const path = join(root, LIST_PATH);
-  if (existsSync(path) && readFileSync(path, "utf8") === expected)
-    return { ok: true, fixed: false };
-  if (!fix) return { ok: false, fixed: false };
+  if (existsSync(path) && readFileSync(path, "utf8") === expected) return false;
   writeFileSync(path, expected);
-  return { ok: true, fixed: true };
+  return true;
 }
 
 export function main(argv: string[]) {
-  const args = argv.filter((a) => a !== "--");
-  const fix = args.includes("--fix");
-  const root = args.find((a) => a !== "--fix") ?? process.cwd();
-  let result;
+  const root = argv.find((a) => a !== "--") ?? process.cwd();
+  let written;
   try {
-    result = checkWordList(root, { fix });
+    written = writeWordList(root);
   } catch (error) {
     console.error(`word-list: 一覧を作れない: ${errorMessage(error)}`);
     return 2;
   }
-  if (!result.ok) {
-    console.error(
-      `word-list: ${LIST_PATH} が無いか、${WORDS_PATH} と一致しない。` +
-        "Fix: node scripts/gates/prose/check-word-list.ts --fix で生成し直す（一覧を手で直さない）。",
-    );
-    return 1;
-  }
-  console.log(result.fixed ? `word-list: ${LIST_PATH} を生成し直した` : "word-list: OK");
+  console.log(written ? `word-list: ${LIST_PATH} を生成し直した` : "word-list: 変更なし");
   return 0;
 }
 

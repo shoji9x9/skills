@@ -1,0 +1,7 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:40340881336:1,ci,2026-10-26T14:53:48.814Z,p-cdee4961,github-actions,,,,2026-10-26T14:34:41.000Z,2026-10-26T14:35:09.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:40340881084:1,ci,2026-10-26T14:53:48.814Z,p-cdee4961,github-actions,,,,2026-10-26T14:34:41.000Z,2026-10-26T14:38:28.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:40340128099:1,ci,2026-10-26T14:53:48.814Z,p-cdee4961,github-actions,,,,2026-10-26T14:30:05.000Z,2026-10-26T14:34:09.000Z,Asia/Tokyo,feature/748-remove-low-value-checks,748,,,,,,,,,,CI;pull_request;success,
+ci:40340127992:1,ci,2026-10-26T14:53:48.814Z,p-cdee4961,github-actions,,,,2026-10-26T14:30:05.000Z,2026-10-26T14:30:06.000Z,Asia/Tokyo,feature/748-remove-low-value-checks,748,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40339658727:1,ci,2026-10-26T14:53:48.814Z,p-cdee4961,github-actions,,,,2026-10-26T14:26:23.000Z,2026-10-26T14:30:25.000Z,Asia/Tokyo,feature/748-remove-low-value-checks,748,,,,,,,,,,CI;pull_request;cancelled,
+coverage:github:2026-10-25T14:27:49.764Z:2026-10-26T14:53:48.814Z,coverage,2026-10-26T14:53:48.814Z,p-cdee4961,,,,,2026-10-25T14:27:49.764Z,2026-10-26T14:53:48.814Z,Asia/Tokyo,,,,,,,,,,,,ok,

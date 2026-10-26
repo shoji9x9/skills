@@ -10,7 +10,6 @@
     "scripts/gates/prose/check-time-sensitive-prose.mutations.json": 0.8,
     "scripts/gates/tooling/formatter-scope.mutations.json": 1.5,
     "scripts/gates/tooling/lint-scope.mutations.json": 0.6,
-    "scripts/hooks/bash-command-guard.mutations.json": 3.0,
     "scripts/lib/spawn-async.mutations.json": 1.4,
     "scripts/lib/testing/vitest-git-env-setup.mutations.json": 0.9,
     "scripts/mutation/check-mutation-proof.mutations.json": 8.8,
