@@ -237,6 +237,8 @@ export function dateRange(from, to) {
  * @property {string} generatedAt
  * @property {string} tz
  * @property {string} period
+ * @property {string | null} since 指定した --since（省いたときは null）
+ * @property {string | null} until 指定した --until（省いたときは null）
  * @property {number} recordFiles
  * @property {number} rows
  * @property {Record<string, string>} names 人の ID → 表示名
@@ -659,6 +661,8 @@ export function buildReport(allRows, o) {
     tz: o.tz,
     // --until を指定しない側は、横軸と同じ最後の日を出す
     period: formatPeriod(o.since ?? first, o.until ?? last),
+    since: o.since,
+    until: o.until,
     recordFiles: o.recordFiles,
     rows: rows.length,
     names,
@@ -726,6 +730,20 @@ export const REVIEW_COLUMNS = [
 ];
 
 /**
+ * meta.json の中身。レポートを整理するスクリプトが、期間を指定したかを HTML を解析せずに読めるようにする
+ * @param {ReportData} d
+ */
+export function reportMeta(d) {
+  return {
+    since: d.since,
+    until: d.until,
+    period: d.period,
+    generated_at: d.generatedAt,
+    time_zone: d.tz,
+  };
+}
+
+/**
  * @param {{ root: string; now: number; env: NodeJS.ProcessEnv; since: string | null; until: string | null; out: string | null }} o
  * @returns {{ files: string[]; rows: number; period: string }}
  */
@@ -763,6 +781,7 @@ export function runReport(o) {
     [join(outDir, "intervals.csv"), toCsv(INTERVAL_COLUMNS, data.intervals, { formulaSafe: true })],
     [join(outDir, "reviews.csv"), toCsv(REVIEW_COLUMNS, data.reviews, { formulaSafe: true })],
     [join(outDir, "index.html"), renderHtml(data)],
+    [join(outDir, "meta.json"), `${JSON.stringify(reportMeta(data), null, 2)}\n`],
   ];
   for (const [p, text] of written) writeFileSync(p, text);
   return { files: written.map(([p]) => p), rows: data.rows, period: data.period };
