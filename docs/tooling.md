@@ -92,7 +92,7 @@ JS プラグインのルール `skills-repo/import-direction` が、import す�
 
 循環参照は `import/no-cycle` が失敗にする。import をたどるので、pre-commit で 1 ファイルだけを渡しても循環を検出する。
 
-ルールを有効にしたときに既にあった違反は、`scripts/gates/code/oxlint-pending.ts` の一覧に、ファイルとルールの組で載せて外している。
+ルールを足したり厳しくしたりしたときに、既にある違反をすぐに直せなければ、`scripts/gates/code/oxlint-pending.ts` の一覧に、ファイルとルールの組で載せて外す。
 一覧は後で直すものだけで、新しいファイルと一覧に無いルールは外さない。
 行の disable コメントで外さないのは、配布スキルのファイルが利用者のプロジェクトへ入り、そこでは使われない disable になるためである。
 直したら、そのルールを一覧から消す。直したのに一覧に残った組は、`oxlint-pending.test.ts` が pre-commit と CI で失敗にする。

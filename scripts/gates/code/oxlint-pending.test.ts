@@ -111,7 +111,7 @@ test("parsePlan: CLI の出力を範囲に戻す", () => {
 });
 
 test("CLI: stdin の staged のファイルから範囲を出し、検査しないなら何も出さない", () => {
-  const listed = Object.keys(PENDING_FIXES)[0] ?? "";
+  const listed = Object.keys(PENDING_FIXES)[0];
   const run = (input: string) => {
     const r = spawnSync(
       process.execPath,
@@ -126,7 +126,8 @@ test("CLI: stdin の staged のファイルから範囲を出し、検査しな�
     return r.stdout;
   };
   expect(run("docs/tooling.md\n")).toBe("");
-  expect(run(`docs/tooling.md\n${listed}\n`)).toBe(`${listed}\n`);
+  // 一覧が空なら、一覧と重なるファイルは無い。一覧と重なるときの範囲は、checkPlan のテストが合成した一覧で確かめる
+  if (listed !== undefined) expect(run(`docs/tooling.md\n${listed}\n`)).toBe(`${listed}\n`);
   expect(run("pnpm-lock.yaml\n")).toBe("all\n");
 });
 

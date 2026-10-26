@@ -1,5 +1,5 @@
 // 関数の大きさのルール（oxlint.config.ts）を有効にしたときに既にあった違反のうち、後で直すもの（Issue #658）。
-// 直す作業は、ファイルの種類ごとに Issue #756〜#760 で扱う。
+// 一覧が空でも、仕組みは残す。関数の大きさのルールを足したり厳しくしたりして、既存の違反をすぐに直せないときに使う。
 //
 // ファイルごとに、外すルールを挙げる。oxlint.config.ts は、この一覧から overrides を作り、そのファイルでだけルールを外す。
 // 行の disable コメントで外さないのは、配布スキルのファイルが利用者のプロジェクトへ入り、そこでは使われない disable になるためである。
@@ -15,108 +15,7 @@ export const PENDING_RULES = [
 ] as const;
 export type PendingRule = (typeof PENDING_RULES)[number];
 
-export const PENDING_FIXES: Readonly<Record<string, readonly PendingRule[]>> = {
-  "skills/agent-usage/scripts/skill-config/skill-config.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/aws-architecture-diagram/scripts/skill-config/skill-config.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/box/scripts/skill-config/skill-config.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/browser-test/scripts/skill-config/skill-config.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/current-environment-bootstrap/scripts/skill-config/skill-config.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/dependabot-alert-issue/scripts/skill-config/skill-config.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/dependabot-merge/scripts/skill-config/skill-config.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/git-worktree/scripts/skill-config/skill-config.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/golden-dataset/scripts/skill-config/skill-config.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/issue-batch/scripts/skill-config/skill-config.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/issue-start/scripts/skill-config/skill-config.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/kaizen/scripts/skill-config/skill-config.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/parity-component/scripts/skill-config/skill-config.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/parity-diff/scripts/skill-config/skill-config.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/parity-replace/scripts/skill-config/skill-config.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/parity-suite/scripts/skill-config/skill-config.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/pr-finalize-loop/scripts/skill-config/skill-config.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/pr-review-handle/scripts/skill-config/skill-config.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/replace-strategy/scripts/skill-config/skill-config.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/writing-style/scripts/skill-config/skill-config.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-};
+export const PENDING_FIXES: Readonly<Record<string, readonly PendingRule[]>> = {};
 
 /** 一覧から oxlint.config.ts の overrides を作る。同じルールの組を持つファイルを 1 つの override にまとめる。 */
 export function pendingOverrides(
