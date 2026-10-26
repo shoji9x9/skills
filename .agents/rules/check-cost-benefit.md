@@ -5,7 +5,12 @@ paths:
   - "lefthook.yml"
   - ".github/workflows/**"
   - "**/*.mutations.json"
-applyTo: "scripts/gates/**,scripts/hooks/**,lefthook.yml,.github/workflows/**,**/*.mutations.json"
+  - "skills/*/scripts/**/*-check.*"
+  - "skills/*/checks.json"
+  - ".claude/settings.json"
+  - ".codex/**"
+  - ".github/hooks/**"
+applyTo: "scripts/gates/**,scripts/hooks/**,lefthook.yml,.github/workflows/**,**/*.mutations.json,skills/*/scripts/**/*-check.*,skills/*/checks.json,.claude/settings.json,.codex/**,.github/hooks/**"
 ---
 
 # チェックを作る前に、効果と費用を書く
@@ -13,7 +18,7 @@ applyTo: "scripts/gates/**,scripts/hooks/**,lefthook.yml,.github/workflows/**,**
 新しいチェック（pre-commit・CI・Hook）は、作り始める前に効果と費用を Issue か PR の本文に書き、見合うときだけ作る。
 仮想の懸念からチェックを作り、レビューが判定の抜けを指摘するたびに例外と分岐を足すと、効果に比べて費用の大きいチェックが残る。
 
-## 書く 2 点
+## 作る前に書く効果と費用
 
 効果として、次の 2 つを書く。
 
@@ -37,8 +42,12 @@ applyTo: "scripts/gates/**,scripts/hooks/**,lefthook.yml,.github/workflows/**,**
 
 チェックを作る PR で、レビューが 3 回続けて判定の抜け（扱っていない書き方・入力の状態）を指摘したら、3 回目の指摘を直す前に利用者に確かめる。
 確かめるのは、チェックをやめて規約の追記に切り替えるかである。
+利用者に確かめられない実行（自律実行のループ、`pr-finalize-loop` の `--defer-decisions` など）では、3 回目の指摘を直さずに判断待ちとして残す。
 抜けの指摘が続くのは、判定する対象の書き方が、費用を見積もったときより多いからである。
-入力を構造化すれば抜けが生じなくなる場合（`state-space-and-mutation-proof.md` の「入力を構造化するか、自由記述を解析するか」）は、その案も選択肢に並べる。
+
+`state-space-and-mutation-proof.md` の「入力を構造化するか、自由記述を解析するか」にある、同じ種類の誤りを 3 回以上指摘されたら入力の形式を疑う基準も、同じ時点で当たる。
+そのため、入力の形式を変える（構造化する）案とチェックをやめる案を、同じ確認に並べる。
+配布スキル `kaizen` の `references/apply.md` にある「2 巡」の基準は、kaizen を適用する中で呼び出し側の入力の形を読む検査を作るときにだけ、この 3 回より先に当たる。それ以外のチェックを作る PR には当てない。
 
 ## ミューテーションテストの定義
 
@@ -47,5 +56,5 @@ applyTo: "scripts/gates/**,scripts/hooks/**,lefthook.yml,.github/workflows/**,**
 
 ## kaizen の提案
 
-kaizen が機構（`type: hook` の提案や、lint・CI のジョブの新設）を提案するときも、提案に同じ 2 点を書き、同じ基準で作るかを決める。
+kaizen が機構（Hook・lint・CI のチェックなど）を提案するときも、提案に効果と費用を書き、同じ基準で作るかを決める。
 kaizen の側の基準は、配布スキル `kaizen` の `references/apply.md`「機構を作る前に効果と費用を書く」で定義する。
