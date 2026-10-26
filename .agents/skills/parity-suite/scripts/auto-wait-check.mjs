@@ -1115,6 +1115,8 @@ function opaqueByTruncation(facts, state) {
 
 /**
  * 代入 1 件の別名を、Page / Locator / 由来を追えない別名のどれかへ入れる。集合が変わったら true。
+ * 1 つの別名が移るのは、この 3 つの集合へ高々 1 回ずつである。playwrightReceivers のループの上限（代入の数の 3 倍）は
+ * この回数から決めているので、移り先を足すときは上限の係数も合わせて直す。
  * @param {NonNullable<ReturnType<typeof assignmentFacts>>} facts
  * @param {ReceiverState} state
  */

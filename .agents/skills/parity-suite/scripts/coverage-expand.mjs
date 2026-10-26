@@ -1642,8 +1642,7 @@ function checkEquivalenceClass(cls, i, ctx) {
     return;
   }
   const c = cls;
-  const cid = nonEmptyString(c.id) ? String(c.id) : `#${i}`;
-  const axisId = checkEquivalenceClassHeader(c, i, ctx);
+  const { cid, axisId } = checkEquivalenceClassHeader(c, i, ctx);
   const members = (isArray(c.members) ? c.members : []).filter(nonEmptyString).map(String);
   if (members.length === 0) {
     problems.push(`${label}: 同値クラス ${cid}: members が空`);
@@ -1664,11 +1663,11 @@ function checkEquivalenceClass(cls, i, ctx) {
 }
 
 /**
- * 同値クラスの id・rationale・axis を検査し、読めた軸 id を返す（空なら null）。
+ * 同値クラスの id・rationale・axis を検査し、問題文で使うクラスの呼び名と、読めた軸 id（空なら null）を返す。
  * @param {Record<string, unknown>} c - 同値クラス
  * @param {number} i - 位置
  * @param {EquivalenceClassContext} ctx
- * @returns {string|null}
+ * @returns {{ cid: string, axisId: string|null }}
  */
 function checkEquivalenceClassHeader(c, i, ctx) {
   const { label, problems, classIds, reducible } = ctx;
@@ -1688,7 +1687,7 @@ function checkEquivalenceClassHeader(c, i, ctx) {
       `${label}: 同値クラス ${cid}: 軸 ${axisId} は reducible_axes にない（束ねると差分が見えなくなる）`,
     );
   }
-  return axisId;
+  return { cid, axisId };
 }
 
 /**

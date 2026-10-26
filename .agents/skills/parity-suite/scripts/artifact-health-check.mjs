@@ -1214,8 +1214,9 @@ function checkRepeatRunPerSpec(suiteObj, record, root) {
     return { findings, notes: [] };
   }
   findings.push(...classificationFindings(current, declared, sharedDeclared));
-  const specSet = new Set(current.specFiles);
-  const mutating = [...declared].filter(([f, m]) => m && specSet.has(f)).map(([f]) => f);
+  const mutating = [...declared]
+    .filter(([f, m]) => m && current.specFiles.includes(f))
+    .map(([f]) => f);
   if (mutating.length === 0 && [...declared.values()].every((m) => !m)) {
     findings.push(
       "suite.state_mutating: true なのに repeat_run.specs に状態を変えるスペックが 1 件も無い（状態を変えないなら suite.state_mutating: false と reason を書く）",
