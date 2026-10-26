@@ -310,7 +310,7 @@ function substitutionAt(command, pos) {
  * git commit を実行するコマンドか。単純なコマンドごとに、先頭の変数の代入を除き、
  * `git`（パス付きを含む）の後にグローバルのオプション（値を取るものはその値も）だけを挟んで `commit` が来るかを見る。
  * 前に来るシェルの予約語（SHELL_PREFIXES）と、後ろのコマンドを実行するコマンド（COMMAND_WRAPPERS）は読み飛ばす。
- * 次の場所の git commit は検出しない: エイリアス、変数、`sh -c` の中、スクリプトの中。
+ * 検出しない形の主な例（網羅はしていない）は、references/setup.md の「コミットと判定しない形と、コミットと判定する形」の表にある。
  * COMMAND_WRAPPERS の valueOptions に無い、値を次の語に取るラッパーのオプションの後も検出しない。
  * 引用符が閉じていないなど語に分けられないときは、`git` と `commit` の語を含むかで判定する（止めすぎの側に寄せる）。
  * @param {string} command
