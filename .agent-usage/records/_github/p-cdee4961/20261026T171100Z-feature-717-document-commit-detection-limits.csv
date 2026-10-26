@@ -1,0 +1,8 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:40365130996:1,ci,2026-10-26T17:11:00.625Z,p-cdee4961,github-actions,,,,2026-10-26T17:04:11.000Z,2026-10-26T17:04:36.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:40365131007:1,ci,2026-10-26T17:11:00.625Z,p-cdee4961,github-actions,,,,2026-10-26T17:04:11.000Z,2026-10-26T17:08:02.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:40364135936:1,ci,2026-10-26T17:11:00.625Z,p-cdee4961,github-actions,,,,2026-10-26T16:57:54.000Z,2026-10-26T16:57:55.000Z,Asia/Tokyo,feature/750-check-cost-benefit-rule,750,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40364136937:1,ci,2026-10-26T17:11:00.625Z,p-cdee4961,github-actions,,,,2026-10-26T16:57:54.000Z,2026-10-26T17:00:40.000Z,Asia/Tokyo,feature/750-check-cost-benefit-rule,750,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-25T16:57:10.586Z:2026-10-26T17:11:00.625Z,coverage,2026-10-26T17:11:00.625Z,p-cdee4961,,,,,2026-10-25T16:57:10.586Z,2026-10-26T17:11:00.625Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-25T17:11:00.625Z:2026-10-26T17:18:15.415Z,coverage,2026-10-26T17:18:15.415Z,p-cdee4961,,,,,2026-10-25T17:11:00.625Z,2026-10-26T17:18:15.415Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-25T17:18:15.415Z:2026-10-26T17:18:34.004Z,coverage,2026-10-26T17:18:34.004Z,p-cdee4961,,,,,2026-10-25T17:18:15.415Z,2026-10-26T17:18:34.004Z,Asia/Tokyo,,,,,,,,,,,,ok,
