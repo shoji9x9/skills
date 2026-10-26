@@ -29,7 +29,7 @@
     "interactions": "<操作アダプタのパス>",
     "dimension": "<寸法の決まり方の測定スペックのパス（既定 <parity_suite_dir>/parity/<slug>/dimension/）。current / new の両プロジェクトに含め、PARITY_DIMENSION_CAPTURE=1 の実行でだけ書く（強度チェック等で上書きさせない）。current は .replace/parity/<slug>/dimension-samples.json、new は .replace/parity/<slug>/new/<PARITY_NEW_TARGET>/dimension-samples.json へ書く>",
     "perf": "<性能の採取スペックのパス（既定 <parity_suite_dir>/parity/<slug>/perf/perf.spec.ts。parity-suite の assets/perf-capture.spec.template.ts から起こす）。current / new の両プロジェクトに含め、PARITY_PERF_CAPTURE=1 の実行でだけ書く。current は .replace/parity/<slug>/perf-samples.json、new は .replace/parity/<slug>/new/<PARITY_NEW_TARGET>/perf-samples.json へ書く。performance.declared: false なら null>",
-    "tools": "<決定論的ツール（trait-capture / trait-compare / 応答ヘッダーを録画するなら header-normalize のコピー）のパス（パスを 1 つだけ書く。trait-capture・element-shot は隣の page/ の本体のコピーを import するので、コピー専用サブディレクトリをディレクトリで書く。ファイルのパスで書くと、page/ のコピーがスイートの指紋に入らない。版は traits.tool・differ.* の側に書く）。コピー専用サブディレクトリ（既定 <parity_suite_dir>/parity/lib/tools/vendor/）に置き、プロジェクト自作ツールと同居させない>",
+    "tools": "<決定論的ツール（trait-capture / trait-compare / 応答ヘッダーを録画するなら header-normalize のコピー）のパス（パスを 1 つだけ書く。trait-capture・element-shot は隣の page/ の本体のコピーを import するので、コピー専用サブディレクトリをディレクトリで書く。ファイルのパスで書くと、page/ のコピーがスイートの指紋に入らないので、artifact-health-check は判定できないとして失敗にする。版は traits.tool・differ.* の側に書く）。コピー専用サブディレクトリ（既定 <parity_suite_dir>/parity/lib/tools/vendor/）に置き、プロジェクト自作ツールと同居させない>",
     "auth_roles": [
       "<特性化に使ったロール名（設定 targets[].auth.roles のキー。認証不要なら空配列）>"
     ],

@@ -859,6 +859,54 @@ test("#457: JS / TS 系以外のファイルは生バイトで数える（コメ
   rmSync(root, { recursive: true, force: true });
 });
 
+/** コピー専用のディレクトリに、trait-capture のコピーと、それが import する page/ の本体を置く。 */
+function writeVendorTools(root: string) {
+  mkdirSync(join(root, "vendor/page"), { recursive: true });
+  writeFileSync(
+    join(root, "vendor/trait-capture.mjs"),
+    'import { collect } from "./page/trait-capture.page.mjs";\nexport { collect };\n',
+  );
+  writeFileSync(
+    join(root, "vendor/page/trait-capture.page.mjs"),
+    "export const collect = () => 1;\n",
+  );
+}
+
+test("suite.tools をディレクトリで書けば、page/ の本体だけを入れ替えても指紋が変わる", () => {
+  const root = makeTempDir("artifact-health-fp-");
+  writeVendorTools(root);
+  const suite = { tools: "vendor" };
+  const before = suiteFingerprint(suite, root).fingerprint;
+  assert(before !== null, "ディレクトリの tools で指紋を計算できる");
+  writeFileSync(
+    join(root, "vendor/page/trait-capture.page.mjs"),
+    "export const collect = () => 2;\n",
+  );
+  expect(suiteFingerprint(suite, root).fingerprint).not.toBe(before);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("suite.tools がファイルを指すと、page/ が指紋に入らないので判定できないとして扱う", () => {
+  const root = makeTempDir("artifact-health-fp-");
+  writeVendorTools(root);
+  const fp = suiteFingerprint({ tools: "vendor/trait-capture.mjs" }, root);
+  expect(fp.fingerprint).toBeNull();
+  expect(fp.missing.join("\n")).toMatch(/suite\.tools はコピー専用のディレクトリで書く/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("suite.tools がファイルを指すと、記録の指紋が一致していても exit 1", () => {
+  const { root, metadataPath } = recordedProject();
+  writeVendorTools(root);
+  editMetadata(metadataPath, (m) => {
+    Object.assign(m.suite, { tools: "vendor/trait-capture.mjs" });
+  });
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/suite\.tools はコピー専用のディレクトリで書く/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
 test.each([".js", ".mjs", ".cjs"])(
   "#457: %s も生バイトで数える（トランスパイルで JSX を書ける。テキストの // を見逃さない）",
   (ext) => {

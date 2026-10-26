@@ -802,7 +802,16 @@ function listSuiteFiles(suiteObj, root) {
       missing.push(`${rel}（実体が無い）`);
       continue;
     }
-    const files = statSync(abs).isDirectory() ? listFiles(abs).map((f) => `${rel}/${f}`) : [rel];
+    const isDir = statSync(abs).isDirectory();
+    // tools のコピー（trait-capture・element-shot）は、隣の page/ の本体を import する。
+    // ファイルで書くと page/ が指紋に入らず、page/ だけを入れ替えても記録が失効しないので、判定できないとして扱う
+    if (key === "tools" && !isDir) {
+      missing.push(
+        `${rel}（suite.tools はコピー専用のディレクトリで書く。ファイルで書くと、隣の page/ が指紋に入らない）`,
+      );
+      continue;
+    }
+    const files = isDir ? listFiles(abs).map((f) => `${rel}/${f}`) : [rel];
     byKey.push({ key, rel, files });
   }
   return { declared, missing, byKey };
