@@ -13,3 +13,8 @@ review-wait:799:codex-cloud:2026-10-27T07:18:37.000Z,review-wait,2026-10-27T07:2
 ci:40466283217:1,ci,2026-10-27T07:27:14.418Z,p-cdee4961,github-actions,,,,2026-10-27T07:17:57.000Z,2026-10-27T07:18:06.000Z,Asia/Tokyo,feature/659-type-aware-oxlint,659,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:40466283216:1,ci,2026-10-27T07:27:14.418Z,p-cdee4961,github-actions,,,,2026-10-27T07:17:57.000Z,2026-10-27T07:24:16.000Z,Asia/Tokyo,feature/659-type-aware-oxlint,659,,,,,,,,,,CI;pull_request;failure,
 coverage:github:2026-10-26T07:15:56.653Z:2026-10-27T07:27:14.418Z,coverage,2026-10-27T07:27:14.418Z,p-cdee4961,,,,,2026-10-26T07:15:56.653Z,2026-10-27T07:27:14.418Z,Asia/Tokyo,,,,,,,,,,,,ok,
+review:5663584284,review,2026-10-27T07:36:46.819Z,p-cdee4961,codex-cloud,,,,2026-10-27T07:32:49.000Z,2026-10-27T07:32:49.000Z,Asia/Tokyo,feature/659-type-aware-oxlint,659,,,,,,,,unknown,,pr=799;author=shoji9x9;state=commented,
+review-wait:799:codex-cloud:2026-10-27T07:28:12.000Z,review-wait,2026-10-27T07:36:46.819Z,p-cdee4961,codex-cloud,,,,2026-10-27T07:28:12.000Z,2026-10-27T07:32:49.000Z,Asia/Tokyo,feature/659-type-aware-oxlint,659,,,,,,,,,,pr=799,
+ci:40467303068:1,ci,2026-10-27T07:36:46.819Z,p-cdee4961,github-actions,,,,2026-10-27T07:28:14.000Z,2026-10-27T07:28:14.000Z,Asia/Tokyo,feature/659-type-aware-oxlint,659,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40467303083:1,ci,2026-10-27T07:36:46.819Z,p-cdee4961,github-actions,,,,2026-10-27T07:28:14.000Z,2026-10-27T07:34:25.000Z,Asia/Tokyo,feature/659-type-aware-oxlint,659,,,,,,,,,,CI;pull_request;failure,
+coverage:github:2026-10-26T07:27:14.418Z:2026-10-27T07:36:46.819Z,coverage,2026-10-27T07:36:46.819Z,p-cdee4961,,,,,2026-10-26T07:27:14.418Z,2026-10-27T07:36:46.819Z,Asia/Tokyo,,,,,,,,,,,,ok,

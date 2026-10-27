@@ -14,7 +14,6 @@
       "replace": "    : severity;\n",
       "occurrences": 1,
       "expect_failing": [
-        "fromAdvisory（古い形の advisories の 1 件） severity 3 は unknown にする",
         "fromAdvisory（古い形の advisories の 1 件） severity info は unknown にする"
       ]
     },

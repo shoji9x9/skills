@@ -13,6 +13,11 @@ test.each([
 });
 
 test("オブジェクトは中身ごとに違う文字列にする（String では、どれも [object Object] で一致してしまう）", () => {
-  expect(valueText({ a: 1 })).toBe('{"a":1}');
   expect(valueText({ a: 1 })).not.toBe(valueText({ a: 2 }));
+  expect(valueText({ a: 1 })).toBe(valueText({ a: 1 }));
+});
+
+test("オブジェクトは、JSON と同じ字面の文字列とも一致させない", () => {
+  expect(valueText({ a: 1 })).not.toBe(valueText('{"a":1}'));
+  expect(valueText([{ a: 1 }])).not.toBe(valueText('{"a":1}'));
 });
