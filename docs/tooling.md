@@ -138,7 +138,10 @@ fallow はドットで始まるディレクトリを走査しないので、イ�
 
 CI だけで実行する検査が 2 つある。
 
-- `Unit tests` ジョブの CRAP（`pnpm run lint:crap`）: 複雑なのにテストが通っていない関数。カバレッジ（`coverage-final.json`）を渡す。カバレッジが無いと値を推定して誤検知が多くなるので、pre-commit には入れない。既存の指摘は `.config/fallow/crap-baseline.json`
+- `Unit tests` ジョブの CRAP（`pnpm run lint:crap`）: 複雑なのにテストが通っていない関数。カバレッジは、`pnpm run test:coverage` が残す V8 の記録（`node_modules/.cache/coverage/v8/`）を渡す。
+  `coverage-final.json` は名前の無い関数（コールバックなど）を持たないので、渡すと fallow がそれらのカバレッジを推定する。
+  カバレッジが無いと値を推定して誤検知が多くなるので、pre-commit には入れない。既存の指摘は `.config/fallow/crap-baseline.json`。
+  ブラウザでだけ実行する関数（Playwright の spec の雛形 `skills/*/assets/*.spec.template.ts` と、eval の fixture をブラウザで作るジェネレータ）は、ユニットテストで実行できないので、ベースラインに載せたままにする
 - `Lint` ジョブの `Test weakening`（`fallow audit`）: PR が増やした、テストを弱める変更（`.skip`・`.only` の追加、テストのケースや assertion の減少、カバレッジの閾値の引き下げ）。PR のベースとの差分を見るので、PR でだけ実行する。
   意図して弱めるときは、理由を付けた `fallow-ignore-next-line weakened-tests` を書く
 

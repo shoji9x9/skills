@@ -140,7 +140,7 @@ jobs:
       # テストが失敗したときも、閾値を下回ったときも失敗する。
       - name: Unit tests and coverage (vitest + c8)
         run: pnpm run test:coverage
-      # 複雑なのにテストが通っていない関数（CRAP）。上のカバレッジ（coverage-final.json）を渡す。既存の指摘は .config/fallow/crap-baseline.json。
+      # 複雑なのにテストが通っていない関数（CRAP）。上の測定が残す V8 の記録（node_modules/.cache/coverage/v8）を渡す。既存の指摘は .config/fallow/crap-baseline.json。
       - name: CRAP (fallow health with coverage)
         run: pnpm run lint:crap
 

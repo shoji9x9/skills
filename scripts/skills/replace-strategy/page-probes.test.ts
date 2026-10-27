@@ -20,6 +20,8 @@ import {
   runProbeCli,
 } from "../../../skills/replace-strategy/scripts/lib/page-function.mjs";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
+import { assetProbeInPage } from "../../../skills/replace-strategy/scripts/page/asset-probe.page.mjs";
+import { roleProbeInPage } from "../../../skills/replace-strategy/scripts/page/role-probe.page.mjs";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 const SCRIPTS = fileURLToPath(
@@ -43,10 +45,41 @@ function runCli(name: string) {
 }
 
 /** ソースを globals だけを持つコンテキストで評価して呼び、evaluate_script と同じく JSON で返す。 */
-function evaluateInPage(source: string, globals: Record<string, unknown>): unknown {
+function evaluateSource(source: string, globals: Record<string, unknown>): unknown {
   const fn: unknown = vm.runInNewContext(source, { ...globals });
   if (typeof fn !== "function") throw new TypeError("ソースが関数式でない");
   return JSON.parse(JSON.stringify(fn()));
+}
+
+/** プローブの CLI と、その CLI が包むページ用のファイルの本体（モジュールから読み込んだもの）。 */
+const PROBES = { "role-probe.mjs": roleProbeInPage, "asset-probe.mjs": assetProbeInPage };
+
+/**
+ * プローブの CLI を起動し、出したソースを evaluateSource で呼んで返す。
+ * 同じ globals で、ページ用のファイルを読み込んだモジュールの本体も呼び、結果が同じことを確かめる。
+ * 包んだソースは元のファイルと位置が違うので、ページ用のファイルのカバレッジ（CI の CRAP）は、モジュールの側の実行で数える。
+ */
+function evaluateInPage(name: keyof typeof PROBES, globals: Record<string, unknown>): unknown {
+  const result = evaluateSource(runCli(name), globals);
+  // 偽物のグローバルは本体を呼ぶ間だけ置き、比べる（vitest の expect が動く）前に、置いた分だけを元に戻す。
+  // vi.unstubAllGlobals は、ほかの場所で置いた偽物も戻すので使わない。
+  const saved = Object.keys(globals).map(
+    (key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const,
+  );
+  let moduleResult: unknown;
+  try {
+    for (const [key, value] of Object.entries(globals)) {
+      Object.defineProperty(globalThis, key, { value, configurable: true, writable: true });
+    }
+    moduleResult = JSON.parse(JSON.stringify(PROBES[name]()));
+  } finally {
+    for (const [key, descriptor] of saved) {
+      if (descriptor === undefined) Reflect.deleteProperty(globalThis, key);
+      else Object.defineProperty(globalThis, key, descriptor);
+    }
+  }
+  expect(moduleResult, "モジュールの本体の結果").toEqual(result);
+  return result;
 }
 
 /** 計算後スタイルの偽物。指定の無いプロパティは空文字を返す。 */
@@ -118,7 +151,7 @@ test("pageFunctionSource: 最後の export の行だけを外し、コメント�
       "}",
     ].join("\n"),
   );
-  expect(evaluateInPage(source, {})).toEqual({
+  expect(evaluateSource(source, {})).toEqual({
     value: 21,
     limit: [2, "x"],
     cdn: "https:\n//cdn.example/app.js",
@@ -217,7 +250,7 @@ test.each([
 test("role-probe の CLI: 名前のある要素と無い要素を数え、role ごとの件数と名前の無い標本を返す", () => {
   const named = fakeElement("BUTTON", { role: "button", "aria-label": " Save " });
   const unnamed = fakeElement("DIV", { tabindex: "0" });
-  const result = evaluateInPage(runCli("role-probe.mjs"), {
+  const result = evaluateInPage("role-probe.mjs", {
     document: { querySelectorAll: () => [named, unnamed], body: {}, getElementById: () => null },
     location: { pathname: "/page" },
     getComputedStyle: () => fakeStyle(),
@@ -235,7 +268,7 @@ test("role-probe の CLI: 名前のある要素と無い要素を数え、role �
 });
 
 test("role-probe の CLI: 対象の要素が無いページでは割合を null にする", () => {
-  const result = evaluateInPage(runCli("role-probe.mjs"), {
+  const result = evaluateInPage("role-probe.mjs", {
     document: { querySelectorAll: () => [], body: {} },
     location: { pathname: "/" },
     getComputedStyle: () => fakeStyle(),
@@ -254,7 +287,7 @@ test("asset-probe の CLI: 描かれた img を src ごとに数え、走査し�
     adoptedStyleSheets: [],
     fonts: [],
   };
-  const result = evaluateInPage(runCli("asset-probe.mjs"), {
+  const result = evaluateInPage("asset-probe.mjs", {
     document,
     location: { pathname: "/page" },
     URL,
@@ -396,7 +429,7 @@ function fakeAssetPage() {
 }
 
 test("asset-probe の CLI: 疑似要素・SVG・スタイルシート・link・Resource Timing を持つページで、各々の資産を数える", () => {
-  const result = evaluateInPage(runCli("asset-probe.mjs"), fakeAssetPage());
+  const result = evaluateInPage("asset-probe.mjs", fakeAssetPage());
   expect(result).toMatchObject({
     images: [
       { src: "https://example.test/a.png", kind: "img" },
@@ -435,7 +468,7 @@ test("role-probe の CLI: aria-labelledby・label・button の value・内容テ
   );
   const more = [1, 2].map(() => fakeElement("A", { role: "link", "aria-label": "More" }));
   const unnamed = fakeElement("DIV", { tabindex: "0" });
-  const result = evaluateInPage(runCli("role-probe.mjs"), {
+  const result = evaluateInPage("role-probe.mjs", {
     document: {
       querySelectorAll: () => [labelled, withLabel, submit, heading, ...more, unnamed],
       body: {},

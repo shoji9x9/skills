@@ -1,40 +1,12 @@
 {
   "kind": "health",
   "finding_counts": {
-    "scripts/eval/build-skill-eval-benchmark.ts": {
-      "crap_high": {
-        "count": 1
-      }
-    },
     "scripts/eval/fixtures/generate-parity-component-fixtures.ts": {
       "crap_high": {
         "count": 1
       },
       "crap_moderate": {
-        "count": 3
-      }
-    },
-    "scripts/gates/prose/check-time-sensitive-prose.ts": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "scripts/mutation/check-mutation-proof.ts": {
-      "crap_critical": {
-        "count": 1
-      },
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "scripts/skills/kaizen/kaizen-config.test.ts": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "scripts/skills/pr-finalize-loop/local-review-record.test.ts": {
-      "crap_moderate": {
-        "count": 1
+        "count": 2
       }
     },
     "skills/parity-diff/assets/capture-new.spec.template.ts": {
@@ -58,53 +30,19 @@
       "crap_moderate": {
         "count": 4
       }
-    },
-    "skills/parity-suite/scripts/coverage-expand.mjs": {
-      "crap_moderate": {
-        "count": 2
-      }
-    },
-    "skills/replace-strategy/scripts/lib/markdown.mjs": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "skills/replace-strategy/scripts/page/asset-probe.page.mjs": {
-      "crap_high": {
-        "count": 5
-      },
-      "crap_moderate": {
-        "count": 6
-      }
-    },
-    "skills/replace-strategy/scripts/page/role-probe.page.mjs": {
-      "crap_critical": {
-        "count": 2
-      },
-      "crap_moderate": {
-        "count": 4
-      }
-    },
-    "skills/replace-strategy/scripts/procedure-staleness-check.mjs": {
-      "crap_high": {
-        "count": 2
-      },
-      "crap_moderate": {
-        "count": 1
-      }
     }
   },
   "runtime_coverage_findings": [],
   "target_keys": [
     "skills/parity-suite/scripts/coverage-expand.mjs:hidden coupling",
     "skills/agent-usage/scripts/agent-usage.mjs:hidden coupling",
+    "scripts/coverage/run-coverage.ts:hidden coupling",
     "scripts/gates/docs/doc-tiers.ts:high impact",
     "skills/agent-usage/scripts/lib/config.mjs:hidden coupling",
     "scripts/gates/code/oxlint-plugin/max-lines-except-describe.ts:high impact",
     "scripts/lib/testing/child-timeout.ts:high impact",
     ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts:hidden coupling",
     "skills/parity-component/scripts/axis-diff.mjs:hidden coupling",
-    "scripts/coverage/run-coverage.ts:hidden coupling",
     "skills/parity-diff/scripts/coverage-check.mjs:hidden coupling",
     "scripts/lib/errors.ts:high impact",
     "skills/parity-suite/scripts/table-upsert.mjs:hidden coupling",
@@ -117,11 +55,11 @@
     "skills/parity-component/scripts/behavior-compare.mjs:hidden coupling",
     "skills/parity-component/scripts/motion-probe.mjs:hidden coupling",
     "scripts/mutation/check-mutation-proof.ts:hidden coupling",
+    "scripts/coverage/run-coverage.test.ts:hidden coupling",
     "skills/agent-usage/scripts/skill-config/skill-config.mjs:hidden coupling",
     "skills/kaizen/scripts/skill-config/skill-config.mjs:hidden coupling",
     "skills/aws-architecture-diagram/scripts/skill-config/skill-config.mjs:hidden coupling",
     "skills/replace-strategy/scripts/skill-config/skill-config.mjs:hidden coupling",
-    "scripts/coverage/run-coverage.test.ts:hidden coupling",
     "skills/box/scripts/skill-config/skill-config.mjs:hidden coupling",
     "skills/browser-test/scripts/skill-config/skill-config.mjs:hidden coupling",
     "skills/current-environment-bootstrap/scripts/skill-config/skill-config.mjs:hidden coupling",

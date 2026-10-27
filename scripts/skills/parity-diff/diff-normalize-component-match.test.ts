@@ -32,6 +32,7 @@ import {
   matchNoise,
   matchesComponentPattern,
   validateComponentDiffs,
+  validateExceptions,
   validateNoiseBaseline,
 } from "../../../skills/parity-diff/scripts/diff-normalize.mjs";
 import type { ComponentDiff } from "../../../skills/parity-diff/scripts/diff-normalize.mjs";
@@ -330,4 +331,87 @@ test("CLI: 配列の要素を含む Diff の配列は入力エラー（exit 2）
   const r = runRaw({ component_diffs: [popupT] }, [diff("filter-popup", "2px"), []], []);
   expect(r.stderr).toContain("<trait-diffs.json> must be a JSON array of trait diffs");
   expect(r.status).toBe(2);
+});
+
+// インスタンス例外のうち照合に使わないものは、理由を 1 件ずつ返す（CLI が stderr の警告に出す）。
+const validException = {
+  slug: "demo",
+  page: "main",
+  viewport: "1280x800",
+  element: "filter-popup",
+  property: "margin-top",
+  current: "0px",
+  new: "2px",
+  cause: "c1",
+};
+const validCauses = [{ id: "c1", reason: "popup only", evidence: "ticket-1" }];
+
+test.each<[string, { ex: unknown; slug: string | undefined; expected: string[] }]>([
+  ["照合に使える", { ex: validException, slug: "demo", expected: [] }],
+  [
+    "slug を渡さなければ、slug を比べない",
+    { ex: { ...validException, slug: "other" }, slug: undefined, expected: [] },
+  ],
+  [
+    "object でない",
+    { ex: "x", slug: "demo", expected: ["component_diff_exceptions[0]: not an object"] },
+  ],
+  [
+    "slug が無い",
+    {
+      ex: { ...validException, slug: "" },
+      slug: "demo",
+      expected: ["component_diff_exceptions[0]: missing slug — not used for matching"],
+    },
+  ],
+  [
+    "slug が対象と違う",
+    {
+      ex: { ...validException, slug: "other" },
+      slug: "demo",
+      expected: [
+        'component_diff_exceptions[0]: slug "other" does not match the target slug "demo" — not used for matching',
+      ],
+    },
+  ],
+  [
+    "照合キーが無い",
+    {
+      ex: { ...validException, page: "", element: undefined },
+      slug: "demo",
+      expected: [
+        "component_diff_exceptions[0]: missing matching key(s) page, element — not used for matching " +
+          "(an omitted key is not a wildcard; write one instance per occurrence)",
+      ],
+    },
+  ],
+  [
+    "cause が無い",
+    {
+      ex: { ...validException, cause: "" },
+      slug: "demo",
+      expected: [
+        "component_diff_exceptions[0]: missing cause (required; the reason text lives in the cause entry)",
+      ],
+    },
+  ],
+  [
+    "cause を解決できない",
+    {
+      ex: { ...validException, cause: "c2" },
+      slug: "demo",
+      expected: [
+        'component_diff_exceptions[0]: cause "c2" is unresolved or its evidence is empty — not used for matching',
+      ],
+    },
+  ],
+])("validateExceptions: %s", (_case, { ex, slug, expected }) => {
+  expect(validateExceptions([ex], validCauses, slug)).toEqual(expected);
+});
+
+test("validateExceptions: 要素ごとに理由を返し、配列でない一覧は空として扱う", () => {
+  expect(validateExceptions([validException, null], validCauses, "demo")).toEqual([
+    "component_diff_exceptions[1]: not an object",
+  ]);
+  expect(validateExceptions({ 0: validException }, validCauses, "demo")).toEqual([]);
 });
