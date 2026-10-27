@@ -28,7 +28,7 @@ type Statement = {
   specifiers?: ImportSpecifierNode[];
 };
 
-/** import の宣言の指定子（`{ describe as d }` の `describe as d`、`* as v` など）。 */
+/** import の宣言で、名前を取り込む指定（`{ describe as d }` の `describe as d`、`* as v` など）。 */
 type ImportSpecifierNode = {
   type: string;
   imported?: { name?: string };
@@ -111,7 +111,7 @@ function groupingNames(body: readonly Statement[]): Set<string> {
   return names;
 }
 
-/** vitest の import の 1 つの指定子が、describe・suite に付ける名前。 */
+/** vitest から import する指定 1 つが、describe・suite に付ける名前。 */
 function specifierGroupingNames(spec: ImportSpecifierNode): string[] {
   const local = spec.local?.name;
   if (!local) return [];

@@ -283,7 +283,7 @@ function stealStaleLock(): void {
   // **奪うのは `renameSync` で行う**。`unlinkSync` だと、
   // 同じ残骸を読んだ 2 本が「先に貼り直した側の**生きた**ロック」を消してしまい、両方が同時に
   // 作業ツリーへ変異を当てる（ロックが防ぐはずの状態そのもの）。rename は勝者が 1 本に決まり、
-  // 負けた側は ENOENT で次の試行へ落ちる。
+  // 負けた側は ENOENT を受けて次の試行に進む。
   try {
     const stale = `${lockPath}.stale.${process.pid}`;
     renameSync(lockPath, stale);

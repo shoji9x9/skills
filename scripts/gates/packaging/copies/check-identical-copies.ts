@@ -171,7 +171,7 @@ function wholeFileViolations(root: string, present: readonly string[]): string[]
   return violations;
 }
 
-/** 組の先頭のファイル（base）と、残りのファイルの範囲 region の中身を比べる。 */
+/** 組の先頭のファイル（base）と残りのファイルとで、印で囲んだ範囲（region）の中身を比べる。 */
 function regionViolations(root: string, present: readonly string[], region: string): string[] {
   const base = present[0];
   const violations: string[] = [];

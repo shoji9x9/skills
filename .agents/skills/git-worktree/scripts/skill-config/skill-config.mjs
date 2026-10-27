@@ -1313,7 +1313,7 @@ function parseArgs(argv) {
 }
 
 /**
- * argv[i] のオプションを flags に入れ、読んだ値の数（値を取るオプションなら 1、取らないなら 0）を返す。
+ * argv[i] のオプション（VALUED_FLAGS か BARE_FLAGS にあるもの）を flags に入れ、読んだ値の数（値を取るオプションなら 1、取らないなら 0）を返す。
  * @param {string[]} argv
  * @param {number} i
  * @param {Record<string, string | true>} flags
@@ -1323,10 +1323,11 @@ function takeFlag(argv, i, flags) {
   const a = argv[i];
   // 同じオプションを重ねて渡したら、どちらの値を使うかを決めずに止める（--layer local --layer repo で共有の層に書かない）
   if (Object.hasOwn(flags, a)) throw new UsageError(`${a} を 2 回渡している`);
-  if (!VALUED_FLAGS.has(a)) {
+  if (BARE_FLAGS.has(a)) {
     flags[a] = true;
     return 0;
   }
+  if (!VALUED_FLAGS.has(a)) throw new UsageError(`知らないオプション ${a}`);
   const v = argv[i + 1];
   if (v === undefined || v === "") throw new UsageError(`${a} に値が無い`);
   flags[a] = v;

@@ -580,7 +580,7 @@ function loadPairRuns(configDir: string, evalDir: string, configuration: string)
   return { loaded, ungraded };
 }
 
-/** eval × configuration のディレクトリの run-* を挙げる。run が無いときと、名前が run-<番号> でないディレクトリがあるときは落とす。 */
+/** eval と configuration の組ごとのディレクトリにある run-* を挙げる。run が無いときと、名前が run-<番号> でないディレクトリがあるときは落とす。 */
 function pairRunDirs(configDir: string, evalDir: string, configuration: string): string[] {
   const runDirs = listDirs(configDir, "run-");
   if (runDirs.length === 0) die(`${configDir}: run-* ディレクトリが無い`);

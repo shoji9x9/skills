@@ -1164,7 +1164,7 @@ export function codexContaminationSurface(rawText: string): string {
 }
 
 /** スキルの名前に触れるだけで、読んだ証拠にならない item か。 */
-function isMentionOnlyItem(item: CodexEvent["item"] | undefined): boolean {
+function isMentionOnlyItem(item: CodexEvent["item"]): boolean {
   if (typeof item !== "object" || item === null) {
     return false;
   }
