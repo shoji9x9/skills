@@ -243,15 +243,22 @@ function readV8Record(path: string): V8Record | null {
 
 /**
  * V8 の記録の URL が、残すスクリプトを指すかを返す関数を作る。
- * 残すのは、`dirs` の下のファイルのうち、閾値を比べる対象（isMeasured）から外部のパッケージから作った生成物と node_modules の下を除いたものである。
- * テスト（`*.test.ts`）は、閾値を比べる対象ではないが残す。fallow はテストの関数の CRAP も測る。
+ * 残すのは、`dirs` の下にある閾値を比べる対象（isMeasured）とテスト（`*.test.ts`）である。fallow はテストの関数の CRAP も測る。
+ * そのうち、外部のパッケージから作った生成物（isVendored）と node_modules の下のものは残さない。
+ * ファイルのパスに戻せない URL（`%2F` を含むものなど）は残さない。
  * node_modules は、対象のディレクトリより下だけで探す。リポジトリ自身が node_modules の下にあっても（テストの一時ディレクトリなど）残す。
  */
 function projectScriptFilter(root: string, dirs: readonly string[]): (url: unknown) => boolean {
   const rootUrl = pathToFileURL(join(root, "/")).href;
   return (url) => {
     if (typeof url !== "string" || !url.startsWith(rootUrl)) return false;
-    const rel = relative(root, fileURLToPath(url)).split(sep).join("/");
+    let path: string;
+    try {
+      path = fileURLToPath(url);
+    } catch {
+      return false;
+    }
+    const rel = relative(root, path).split(sep).join("/");
     return (
       dirs.some((d) => rel.startsWith(d) && !rel.slice(d.length).includes("node_modules/")) &&
       (isMeasured(rel) || rel.endsWith(".test.ts")) &&
@@ -293,7 +300,10 @@ function narrowRecordFile(
  * ファイルを読み書きできなければ、ディレクトリごと消して false を返す。記録のディレクトリが無いときと、1 件も残らなかったときも false を返す。
  */
 export function keepProjectCoverage(dir: string, root: string, dirs: readonly string[]): boolean {
-  if (!existsSync(dir)) return false;
+  if (!existsSync(dir)) {
+    console.error(`run-coverage: V8 の記録のディレクトリが無い: ${dir}`);
+    return false;
+  }
   const inProject = projectScriptFilter(root, dirs);
   const counts = { kept: 0, removed: 0, unreadable: 0 };
   try {
@@ -309,6 +319,11 @@ export function keepProjectCoverage(dir: string, root: string, dirs: readonly st
     );
   }
   // 1 件も残らないのは、root と記録の URL が合わないときなどである。空の記録を CRAP に渡さない。
+  if (counts.kept === 0) {
+    console.error(
+      `run-coverage: V8 の記録 ${counts.removed} 件のどれにも ${pathToFileURL(root).href} の下の測る対象のスクリプトが無い`,
+    );
+  }
   return counts.kept > 0;
 }
 
@@ -438,7 +453,9 @@ function measureAndRead(
  * 閾値を下回ったときは、その終了コードを優先する。
  */
 function recordsLostCode(code: number): number {
-  console.error("run-coverage: 判定できない: V8 の記録を絞れず、CRAP の検査に渡す記録が無い");
+  console.error(
+    "run-coverage: 判定できない: CRAP の検査に渡す V8 の記録を残せなかった（理由は上の行）",
+  );
   return code === 0 ? 2 : code;
 }
 

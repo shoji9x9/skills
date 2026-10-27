@@ -312,6 +312,35 @@ test("a", () => expect(1).toBe(2));
   expect(existsSync(join(root, "node_modules", ".cache", "coverage", "v8"))).toBe(false);
 });
 
+// テストがソースを 1 つも読み込まないと、V8 の記録に測る対象のスクリプトが残らない。
+const NO_IMPORT = `import { expect, test } from "vitest";
+test("a", () => expect(1).toBe(1));
+`;
+
+test.each([
+  ["閾値を満たせば、判定できないとして exit 2", true, 2],
+  ["閾値を下回れば、その終了コード（exit 1）を優先する", false, 1],
+])(
+  "main: テストは成功したが V8 の記録が 1 件も残らないとき、%s",
+  { timeout: 120_000 },
+  (_case, excludeSource, expected) => {
+    const root = miniRepo(NO_IMPORT);
+    if (excludeSource) {
+      writeFileSync(
+        join(root, "scripts/coverage/coverage-thresholds.json"),
+        JSON.stringify({
+          rules: [{ path: "skills/", lines: 90 }],
+          exclude: [{ path: "skills/x/a.mjs", reason: "記録が残らない状態を作る" }],
+        }),
+      );
+    }
+    const res = runMain([], root);
+    expect(res.status, res.out).toBe(expected);
+    expect(res.out).toMatch(/V8 の記録 \d+ 件のどれにも .* の下の測る対象のスクリプトが無い/);
+    expect(res.out).toMatch(/CRAP の検査に渡す V8 の記録を残せなかった/);
+  },
+);
+
 test("main: 前回の結果が無いのに --reuse なら、判定できないとして exit 2", () => {
   const res = runMain(["--reuse"], miniRepo(FULL));
   expect(res.status).toBe(2);
