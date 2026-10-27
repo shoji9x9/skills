@@ -260,6 +260,30 @@ function matchClose(s, start, brackets) {
 }
 
 /**
+ * 引用符で始まる文字列の次の位置（閉じ引用符が無ければ末尾の次）。skipString と違い、閉じていなくても投げない。
+ * @param {string} text
+ * @param {number} start 開き引用符の位置
+ * @returns {number}
+ */
+function skipQuotedLenient(text, start) {
+  const quote = text[start];
+  let j = start + 1;
+  while (j < text.length && text[j] !== quote) j += text[j] === "\\" ? 2 : 1;
+  return j + 1;
+}
+
+/**
+ * 括弧の深さの増減（開き括弧なら 1、閉じ括弧なら -1、それ以外は 0）。
+ * @param {string} ch
+ * @returns {number}
+ */
+function bracketDelta(ch) {
+  if (ch === "(" || ch === "[") return 1;
+  if (ch === ")" || ch === "]") return -1;
+  return 0;
+}
+
+/**
  * トップレベルのカンマで分割する（入れ子の括弧・文字列の中は分割しない）。
  * @param {string} text
  * @returns {string[]}
@@ -277,15 +301,11 @@ function splitTopLevel(text) {
       continue;
     }
     if (ch === '"' || ch === "'") {
-      const quote = ch;
-      j += 1;
-      while (j < text.length && text[j] !== quote) j += text[j] === "\\" ? 2 : 1;
-      j += 1;
+      j = skipQuotedLenient(text, j);
       continue;
     }
-    if (ch === "(" || ch === "[") depth += 1;
-    else if (ch === ")" || ch === "]") depth -= 1;
-    else if (ch === "," && depth === 0) {
+    depth += bracketDelta(ch);
+    if (ch === "," && depth === 0) {
       parts.push(text.slice(start, j));
       start = j + 1;
     }
@@ -402,6 +422,26 @@ export function specificity(selector) {
 }
 
 /**
+ * トップレベル（括弧の外）にある最後の結合子（空白・`>`・`+`・`~`）の位置。無ければ -1。
+ * @param {string} selector
+ * @returns {number}
+ */
+function lastTopLevelCombinator(selector) {
+  let depth = 0;
+  let lastBreak = -1;
+  for (let i = 0; i < selector.length; i += 1) {
+    const ch = selector[i];
+    if (ch === "\\") {
+      i += 1;
+      continue;
+    }
+    depth += bracketDelta(ch);
+    if (depth === 0 && (/\s/.test(ch) || ch === ">" || ch === "+" || ch === "~")) lastBreak = i;
+  }
+  return lastBreak;
+}
+
+/**
  * 状態擬似クラスが**主語（最後の複合セレクタ）以外**に付いているかを見る。
  *
  * `css-rules-capture.mjs` は状態擬似クラスをセレクタから剥がして `states` に名前だけ記録するため、
@@ -416,19 +456,7 @@ export function specificity(selector) {
 export function statesOutsideSubject(selector, states) {
   if (typeof selector !== "string" || states.length === 0) return [];
   // トップレベルの結合子で分割し、最後の断片を主語とする（括弧・文字列の中では分割しない）。
-  let depth = 0;
-  let lastBreak = -1;
-  for (let i = 0; i < selector.length; i += 1) {
-    const ch = selector[i];
-    if (ch === "\\") {
-      i += 1;
-      continue;
-    }
-    if (ch === "(" || ch === "[") depth += 1;
-    else if (ch === ")" || ch === "]") depth -= 1;
-    else if (depth === 0 && (/\s/.test(ch) || ch === ">" || ch === "+" || ch === "~"))
-      lastBreak = i;
-  }
+  const lastBreak = lastTopLevelCombinator(selector);
   if (lastBreak < 0) return []; // 結合子が無い＝主語だけのセレクタ
   const outside = selector.slice(0, lastBreak + 1);
   const found = [];
@@ -454,6 +482,30 @@ export function compareSpecificity(a, b) {
 }
 
 /**
+ * 候補 c が、それまでの勝者 best に代わって勝つか。詳細度 → order の後勝ち → 宣言の後勝ちの順に比べる。
+ * @param {CascadeCandidate} c
+ * @param {CascadeCandidate} best
+ * @returns {boolean}
+ */
+function supersedes(c, best) {
+  // インラインの候補は詳細度を持たない（`specificity: null`）。同じ段に並ぶのはインライン同士か
+  // 規則同士のどちらかなので、null が混じる比較は引き分けにして出現順（後勝ち）で決める。
+  // ここで compareSpecificity へ null を渡すと TypeError になり、UsageError の exit 2 ではなく
+  // 素のクラッシュになる（同じプロパティのインライン宣言が 2 件並ぶ入力で起きる）。
+  const bySpec =
+    c.specificity === null || best.specificity === null
+      ? 0
+      : compareSpecificity(c.specificity, best.specificity);
+  if (bySpec !== 0) return bySpec > 0;
+  // 規則の候補で、最も強い詳細度に order を読めない（null の）規則が並ぶ入力は、呼び出し側が
+  // unorderedTie で判定できないとして先に返すので、別の規則どうしの同点では order は数値である。
+  // インラインの候補は規則ではないので order を持たず（null）、どれも同じ null として次の判定に進む。
+  if (c.order !== null && best.order !== null && c.order > best.order) return true;
+  // 同じ規則（同じ order）か、インラインどうしなら、後に書いた宣言が勝つ。
+  return c.order === best.order && (c.declaration_index ?? 0) >= (best.declaration_index ?? 0);
+}
+
+/**
  * 候補を 1 件に畳む（同じ段・同じレイヤの中での勝者）。詳細度 → order の後勝ち。
  * @param {CascadeCandidate[]} candidates
  * @returns {CascadeCandidate}
@@ -461,30 +513,7 @@ export function compareSpecificity(a, b) {
 function strongest(candidates) {
   let best = candidates[0];
   for (const c of candidates.slice(1)) {
-    // インラインの候補は詳細度を持たない（`specificity: null`）。同じ段に並ぶのはインライン同士か
-    // 規則同士のどちらかなので、null が混じる比較は引き分けにして出現順（後勝ち）で決める。
-    // ここで compareSpecificity へ null を渡すと TypeError になり、UsageError の exit 2 ではなく
-    // 素のクラッシュになる（同じプロパティのインライン宣言が 2 件並ぶ入力で起きる）。
-    const bySpec =
-      c.specificity === null || best.specificity === null
-        ? 0
-        : compareSpecificity(c.specificity, best.specificity);
-    if (bySpec > 0) {
-      best = c;
-      continue;
-    }
-    if (bySpec < 0) continue;
-    // 規則の候補で、最も強い詳細度に order を読めない（null の）規則が並ぶ入力は、呼び出し側が
-    // unorderedTie で判定できないとして先に返すので、別の規則どうしの同点では order は数値である。
-    // インラインの候補は規則ではないので order を持たず（null）、どれも同じ null として次の判定に進む。
-    if (c.order !== null && best.order !== null && c.order > best.order) {
-      best = c;
-      continue;
-    }
-    // 同じ規則（同じ order）か、インラインどうしなら、後に書いた宣言が勝つ。
-    if (c.order === best.order && (c.declaration_index ?? 0) >= (best.declaration_index ?? 0)) {
-      best = c;
-    }
+    if (supersedes(c, best)) best = c;
   }
   return best;
 }
@@ -858,6 +887,22 @@ function missingPropertyResult(property, wildcardsForOwn) {
 }
 
 /**
+ * `all` の宣言しか持たない擬似要素に、その `all` を受ける番兵のバケットを作る。
+ * `all` しか宣言が無い採取物では buckets が空になる。keys を buckets だけから作ると
+ * `--all` が「候補 0 件」で exit 0 になり、ほぼ全プロパティを reset する宣言を見落とす。
+ * @param {CandidateStore} store
+ * @returns {void}
+ */
+function addWildcardSentinels(store) {
+  const { buckets, wildcards } = store;
+  for (const pseudoKey of wildcards.keys()) {
+    const pseudo = pseudoKey === "" ? null : pseudoKey;
+    const hasBucket = [...buckets.values()].some((e) => (e.pseudo_element ?? "") === pseudoKey);
+    if (!hasBucket) bucketFor(store, pseudo, "all");
+  }
+}
+
+/**
  * 集めた候補から、プロパティ × 擬似要素ごとの結果を作る。
  * @param {CandidateStore} store
  * @param {string[] | null} requested 解決するプロパティ名（null ならすべて）
@@ -867,14 +912,7 @@ function collectResults(store, requested) {
   const { buckets, wildcards } = store;
   /** @type {CascadeResult[]} */
   const results = [];
-  // `all` しか宣言が無い採取物では buckets が空になる。keys を buckets だけから作ると
-  // `--all` が「候補 0 件」で exit 0 になり、ほぼ全プロパティを reset する宣言を見落とす。
-  // 擬似要素ごとに、その `all` を受ける番兵のバケットを先に作っておく。
-  for (const pseudoKey of wildcards.keys()) {
-    const pseudo = pseudoKey === "" ? null : pseudoKey;
-    const hasBucket = [...buckets.values()].some((e) => (e.pseudo_element ?? "") === pseudoKey);
-    if (!hasBucket) bucketFor(store, pseudo, "all");
-  }
+  addWildcardSentinels(store);
   const keys = [...buckets.keys()].sort();
   for (const key of keys) {
     const entry = buckets.get(key);
@@ -1278,6 +1316,26 @@ function flagValue(name, value) {
 }
 
 /**
+ * 必須の `--state` と、`--property` と `--all` の組み合わせを確かめる（誤りは UsageError を投げる）。
+ * @param {{ states: string[], properties: string[], all: boolean }} args
+ * @returns {void}
+ */
+function checkArgCombination({ states, properties, all }) {
+  if (states.length === 0) {
+    throw new UsageError(
+      "--state is required; css-rules.json does not record which state it was captured in, " +
+        "and matched[] contains rules that only apply in other states",
+    );
+  }
+  if (properties.length === 0 && !all) {
+    throw new UsageError("pass --property <name> at least once, or --all");
+  }
+  if (properties.length > 0 && all) {
+    throw new UsageError("--all and --property are mutually exclusive");
+  }
+}
+
+/**
  * 引数を読む（誤りは UsageError を投げる）。
  * @param {string[]} argv
  * @returns {{ cssRules: string, states: string[], properties: string[], all: boolean, allowIncomplete: boolean }}
@@ -1301,18 +1359,7 @@ function parseArgs(argv) {
     else throw new UsageError(`unknown argument ${JSON.stringify(arg)}`);
   }
   if (cssRules === null) throw new UsageError("--css-rules is required");
-  if (states.length === 0) {
-    throw new UsageError(
-      "--state is required; css-rules.json does not record which state it was captured in, " +
-        "and matched[] contains rules that only apply in other states",
-    );
-  }
-  if (properties.length === 0 && !all) {
-    throw new UsageError("pass --property <name> at least once, or --all");
-  }
-  if (properties.length > 0 && all) {
-    throw new UsageError("--all and --property are mutually exclusive");
-  }
+  checkArgCombination({ states, properties, all });
   return { cssRules, states, properties, all, allowIncomplete };
 }
 

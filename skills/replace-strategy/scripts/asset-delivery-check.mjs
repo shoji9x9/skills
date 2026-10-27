@@ -321,6 +321,48 @@ export function readRecord(doc) {
 }
 
 /**
+ * 参照を数える表と、各行で URL を持つ列。many の列は URL の配列（fontFaces の src）である。
+ * @type {{ key: string, column: string, many: boolean }[]}
+ */
+const PROBE_URL_COLUMNS = [
+  { key: "images", column: "src", many: false },
+  { key: "urlRefs", column: "url", many: false },
+  { key: "fontFaces", column: "src", many: true },
+  { key: "icons", column: "href", many: false },
+  { key: "resources", column: "url", many: false },
+];
+
+/** asset-probe.mjs の出力で、配列であるべきキー（参照を数える表と、走査したプロパティの一覧） */
+const PROBE_ARRAY_KEYS = [...PROBE_URL_COLUMNS.map((c) => c.key), "urlPropsScanned"];
+
+/**
+ * 値が空でない絶対 URL なら、正規化した href を out に足す。
+ * @param {Set<string>} out
+ * @param {unknown} u
+ */
+function addAbsoluteUrl(out, u) {
+  if (!nonEmptyString(u)) return;
+  try {
+    out.add(new URL(u).href);
+  } catch {
+    // 絶対 URL でない値（プローブは解決済みの URL を返すので通常は来ない）は参照に数えない
+  }
+}
+
+/**
+ * プローブの 1 行から、参照として数える値を取り出す。
+ * @param {unknown} row
+ * @param {{ column: string, many: boolean }} at
+ * @returns {unknown[]}
+ */
+function probeRowUrls(row, { column, many }) {
+  if (!isPlainObject(row)) return [];
+  const value = row[column];
+  if (!many) return [value];
+  return isArray(value) ? value : [];
+}
+
+/**
  * asset-probe.mjs の出力から「参照している」と数える URL を集める。
  * @param {unknown} probe
  * @param {string} label
@@ -328,38 +370,20 @@ export function readRecord(doc) {
  */
 export function referencedUrls(probe, label) {
   if (!isPlainObject(probe)) throw new UsageError(`${label} が JSON オブジェクトでない`);
-  for (const key of ["images", "urlRefs", "fontFaces", "icons", "resources", "urlPropsScanned"]) {
+  for (const key of PROBE_ARRAY_KEYS) {
     if (!isArray(probe[key])) {
       throw new UsageError(`${label} が asset-probe.mjs の出力でない（${key} が配列でない）`);
     }
   }
   /** @type {Set<string>} */
   const out = new Set();
-  /** @param {unknown} u */
-  const add = (u) => {
-    if (!nonEmptyString(u)) return;
-    try {
-      out.add(new URL(u).href);
-    } catch {
-      // 絶対 URL でない値（プローブは解決済みの URL を返すので通常は来ない）は参照に数えない
+  for (const at of PROBE_URL_COLUMNS) {
+    const rows = probe[at.key];
+    // 上の検査で各キーが配列だと確かめてあるので、`[]` は型を絞るためだけにある（到達しない）。
+    for (const row of isArray(rows) ? rows : []) {
+      for (const u of probeRowUrls(row, at)) addAbsoluteUrl(out, u);
     }
-  };
-  // 上の検査で各キーが配列だと確かめてあるので、`[]` は型を絞るためだけにある（到達しない）。
-  /**
-   * @param {string} key
-   * @returns {unknown[]}
-   */
-  const rowsOf = (key) => {
-    const rows = probe[key];
-    return isArray(rows) ? rows : [];
-  };
-  for (const row of rowsOf("images")) if (isPlainObject(row)) add(row.src);
-  for (const row of rowsOf("urlRefs")) if (isPlainObject(row)) add(row.url);
-  for (const row of rowsOf("fontFaces")) {
-    if (isPlainObject(row) && isArray(row.src)) for (const u of row.src) add(u);
   }
-  for (const row of rowsOf("icons")) if (isPlainObject(row)) add(row.href);
-  for (const row of rowsOf("resources")) if (isPlainObject(row)) add(row.url);
   return out;
 }
 

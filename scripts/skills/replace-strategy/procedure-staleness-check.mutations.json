@@ -196,8 +196,8 @@
       "id": "revision-gap-accepted",
       "why": "改訂一覧の途中の番号の抜けを受理し、抜けた改訂の軸を一度も求めない",
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "      if (!seen.has(rev)) errors.push",
-      "replace": "      if (rev === revision && !seen.has(rev)) errors.push",
+      "find": "    if (!seen.has(rev)) errors.push",
+      "replace": "    if (rev === revision && !seen.has(rev)) errors.push",
       "occurrences": 1,
       "expect_failing": [
         "改訂一覧の revision に対応する改訂が無い・affects が語彙外なら exit 2 で落とす"

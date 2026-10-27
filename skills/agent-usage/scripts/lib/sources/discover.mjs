@@ -77,6 +77,28 @@ function jsonlIn(dir) {
 }
 
 /**
+ * Claude Code のプロジェクトのディレクトリ（dir）にある、セッションごとのサブエージェントのログを out に足す。
+ * project は dir の名前（作業ツリーのパスを符号化したもの）。
+ * @param {{ out: Map<string, SessionSource>; dir: string; project: string; prefixes: readonly string[] }} o
+ * @returns {void}
+ */
+function addClaudeSubagents(o) {
+  const { out, dir, project, prefixes } = o;
+  for (const sub of readdirSync(dir, { withFileTypes: true })) {
+    if (!sub.isDirectory()) continue;
+    const files = jsonlIn(join(dir, sub.name, "subagents"));
+    if (files.length === 0) continue;
+    const key = `${project}/${sub.name}`;
+    // サブエージェントのファイルしか残っていないセッションは cwd で確かめられないので、
+    // ディレクトリ名が作業ツリーのパスと一致するときだけ対象にする（前方一致では、名前が同じで始まる別のリポジトリも当たる）
+    if (!out.has(key) && !prefixes.includes(project)) continue;
+    const src = out.get(key) ?? { agent: "claude-code", id: sub.name, main: null, subagents: [] };
+    src.subagents = files.map(fileOf);
+    out.set(key, src);
+  }
+}
+
+/**
  * @param {readonly string[]} roots
  * @param {NodeJS.ProcessEnv} env
  * @returns {SessionSource[]}
@@ -94,18 +116,7 @@ export function discoverClaude(roots, env = process.env) {
       const id = basename(p, ".jsonl");
       out.set(`${ent.name}/${id}`, { agent: "claude-code", id, main: fileOf(p), subagents: [] });
     }
-    for (const sub of readdirSync(dir, { withFileTypes: true })) {
-      if (!sub.isDirectory()) continue;
-      const files = jsonlIn(join(dir, sub.name, "subagents"));
-      if (files.length === 0) continue;
-      const key = `${ent.name}/${sub.name}`;
-      // サブエージェントのファイルしか残っていないセッションは cwd で確かめられないので、
-      // ディレクトリ名が作業ツリーのパスと一致するときだけ対象にする（前方一致では、名前が同じで始まる別のリポジトリも当たる）
-      if (!out.has(key) && !prefixes.includes(ent.name)) continue;
-      const src = out.get(key) ?? { agent: "claude-code", id: sub.name, main: null, subagents: [] };
-      src.subagents = files.map(fileOf);
-      out.set(key, src);
-    }
+    addClaudeSubagents({ out, dir, project: ent.name, prefixes });
   }
   return [...out.values()];
 }
@@ -160,6 +171,37 @@ export function firstLine(path) {
 }
 
 /**
+ * Codex のログの最初の行（session_meta）の payload。読めないか session_meta でなければ null。
+ * @param {string} p
+ * @returns {Record<string, unknown> | null}
+ */
+function codexSessionMeta(p) {
+  /** @type {unknown} */
+  let meta;
+  try {
+    meta = JSON.parse(firstLine(p));
+  } catch {
+    return null;
+  }
+  if (!isRecord(meta) || meta.type !== "session_meta" || !isRecord(meta.payload)) return null;
+  return meta.payload;
+}
+
+/**
+ * session_meta の payload の cwd がルートの中にあるか、リポジトリの URL がリモートと一致するか。
+ * @param {Record<string, unknown>} payload
+ * @param {{ roots: readonly string[]; remote: string; inside: (path: string, roots: readonly string[]) => boolean }} o
+ * @returns {boolean}
+ */
+function codexInRepo(payload, o) {
+  const { roots, remote, inside } = o;
+  const cwd = typeof payload.cwd === "string" ? payload.cwd : "";
+  const g = isRecord(payload.git) ? payload.git : {};
+  const url = typeof g.repository_url === "string" ? normalizeRemote(g.repository_url) : "";
+  return (cwd !== "" && inside(cwd, roots)) || (remote !== "" && url === remote);
+}
+
+/**
  * Codex のログのうち、cwd がルートの中にあるか、リモートが一致するもの。
  * remote は normalizeRemote した形で渡す。
  * @param {{ roots: readonly string[]; remote: string; env: NodeJS.ProcessEnv; inside: (path: string, roots: readonly string[]) => boolean }} o
@@ -170,19 +212,8 @@ export function discoverCodex(o) {
   /** @type {SessionSource[]} */
   const out = [];
   for (const p of walkJsonl(codexSessionsDir(env))) {
-    /** @type {unknown} */
-    let meta;
-    try {
-      meta = JSON.parse(firstLine(p));
-    } catch {
-      continue;
-    }
-    if (!isRecord(meta) || meta.type !== "session_meta" || !isRecord(meta.payload)) continue;
-    const payload = meta.payload;
-    const cwd = typeof payload.cwd === "string" ? payload.cwd : "";
-    const g = isRecord(payload.git) ? payload.git : {};
-    const url = typeof g.repository_url === "string" ? normalizeRemote(g.repository_url) : "";
-    if (!(cwd !== "" && inside(cwd, roots)) && !(remote !== "" && url === remote)) continue;
+    const payload = codexSessionMeta(p);
+    if (payload === null || !codexInRepo(payload, { roots, remote, inside })) continue;
     const id =
       typeof payload.id === "string" && payload.id !== "" ? payload.id : basename(p, ".jsonl");
     out.push({ agent: "codex", id, main: fileOf(p), subagents: [] });

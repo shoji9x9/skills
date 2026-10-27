@@ -80,13 +80,12 @@ export function gaps(merged, from, to) {
 }
 
 /**
- * span を、層ごとの区間で切り分けて分類する。layers は優先度の順で、最初に覆う層の分類にする。
+ * span の両端と、span の中にある層の区間の端を、時刻の順に並べた切れ目。
  * @param {Span} span
- * @param {{ category: StopCategory; spans: Span[] }[]} layers spans は mergeSpans 済み
- * @param {StopCategory} fallback
- * @returns {{ start: number; end: number; category: StopCategory }[]}
+ * @param {{ spans: Span[] }[]} layers
+ * @returns {number[]}
  */
-export function classifySpan(span, layers, fallback) {
+function cutPoints(span, layers) {
   const cuts = new Set([span[0], span[1]]);
   for (const l of layers) {
     for (const [a, b] of l.spans) {
@@ -94,7 +93,18 @@ export function classifySpan(span, layers, fallback) {
       if (b > span[0] && b < span[1]) cuts.add(b);
     }
   }
-  const points = [...cuts].sort((a, b) => a - b);
+  return [...cuts].sort((a, b) => a - b);
+}
+
+/**
+ * span を、層ごとの区間で切り分けて分類する。layers は優先度の順で、最初に覆う層の分類にする。
+ * @param {Span} span
+ * @param {{ category: StopCategory; spans: Span[] }[]} layers spans は mergeSpans 済み
+ * @param {StopCategory} fallback
+ * @returns {{ start: number; end: number; category: StopCategory }[]}
+ */
+export function classifySpan(span, layers, fallback) {
+  const points = cutPoints(span, layers);
   /** @type {{ start: number; end: number; category: StopCategory }[]} */
   const out = [];
   for (let i = 0; i + 1 < points.length; i += 1) {
@@ -729,6 +739,23 @@ function addActive(st, p) {
 }
 
 /**
+ * run の始まり（+1）と、期間の終わりで打ち切った終わり（-1）を、Issue と組にして時刻の順に並べる。
+ * @param {readonly RunEntry[]} statusRuns
+ * @param {number} periodEnd
+ * @returns {[number, number, string][]}
+ */
+function issueEvents(statusRuns, periodEnd) {
+  /** @type {[number, number, string][]} */
+  const events = [];
+  for (const { row, span } of statusRuns) {
+    const end = Math.min(span[1], periodEnd);
+    if (end > span[0]) events.push([span[0], 1, row.issue ?? ""], [end, -1, row.issue ?? ""]);
+  }
+  events.sort((x, y) => x[0] - y[0]);
+  return events;
+}
+
+/**
  * Issue ごとの稼働中は、人ごとの稼働中を、その時間に動いていた Issue の数で等分して配る（Issue ごとの合計が人ごとの稼働中と一致する）。
  * run の始まりと終わりを時刻の順に走査し、動いている run の数を Issue ごとに増減させる
  * @param {StatusAcc} st
@@ -737,13 +764,7 @@ function addActive(st, p) {
  */
 function splitActiveByIssue(st, statusRuns, periodEnd) {
   const { activeByIssue } = st;
-  /** @type {[number, number, string][]} */
-  const events = [];
-  for (const { row, span } of statusRuns) {
-    const end = Math.min(span[1], periodEnd);
-    if (end > span[0]) events.push([span[0], 1, row.issue ?? ""], [end, -1, row.issue ?? ""]);
-  }
-  events.sort((x, y) => x[0] - y[0]);
+  const events = issueEvents(statusRuns, periodEnd);
   /** @type {Map<string, number>} */
   const running = new Map();
   for (let i = 0; i < events.length; i += 1) {

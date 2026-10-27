@@ -182,6 +182,43 @@ function blankComments(lines, fenced, state) {
  */
 
 /**
+ * 見出しの次の行が、見出しと同じセル数の区切り行かを見る。
+ * @param {string[] | null} delimiter 見出しの次の行を splitRow で分けたもの
+ * @param {string[]} header
+ * @returns {boolean}
+ */
+function isDelimiterRow(delimiter, header) {
+  return (
+    delimiter !== null &&
+    delimiter.every((cell) => /^:?-+:?$/u.test(cell.trim())) &&
+    delimiter.length === header.length
+  );
+}
+
+/**
+ * 区切り行の次から、表の行を読めるところまで読む。フェンスの中の行か表の行でない行で止める。
+ * @param {string[]} lines
+ * @param {boolean[]} fenced
+ * @param {number} start 最初の行の添字
+ * @returns {{ rows: string[][], rowLines: number[], end: number }} end は読まなかった最初の行の添字
+ */
+function readTableRows(lines, fenced, start) {
+  /** @type {string[][]} */
+  const rows = [];
+  /** @type {number[]} */
+  const rowLines = [];
+  let j = start;
+  for (; j < lines.length; j += 1) {
+    if (fenced[j]) break;
+    const row = splitRow(lines[j]);
+    if (row === null) break;
+    rows.push(row);
+    rowLines.push(j + 1);
+  }
+  return { rows, rowLines, end: j };
+}
+
+/**
  * Markdown の表を全て取り出す。コードフェンスの中は例示なので読まない。
  * 区切り行のハイフンは GFM では 1 個以上（3 個以上を要求すると `|-|-|` の表を読み落とす）。
  *
@@ -213,12 +250,7 @@ function parseTables(text, options = {}) {
     if (fenced[i]) continue;
     const header = splitRow(lines[i]);
     if (header === null) continue;
-    const delimiter = splitRow(lines[i + 1]);
-    if (
-      delimiter === null ||
-      !delimiter.every((cell) => /^:?-+:?$/u.test(cell.trim())) ||
-      delimiter.length !== header.length
-    ) {
+    if (!isDelimiterRow(splitRow(lines[i + 1]), header)) {
       strayRows.push({
         line: i + 1,
         cells: header.length,
@@ -226,18 +258,7 @@ function parseTables(text, options = {}) {
       });
       continue;
     }
-    /** @type {string[][]} */
-    const rows = [];
-    /** @type {number[]} */
-    const rowLines = [];
-    let j = i + 2;
-    for (; j < lines.length; j += 1) {
-      if (fenced[j]) break;
-      const row = splitRow(lines[j]);
-      if (row === null) break;
-      rows.push(row);
-      rowLines.push(j + 1);
-    }
+    const { rows, rowLines, end: j } = readTableRows(lines, fenced, i + 2);
     tables.push({ headers: header.map(normalizeHeader), rows, rowLines });
     if (consumed !== undefined) for (let k = i; k < j; k += 1) consumed.add(k);
     i = j - 1;

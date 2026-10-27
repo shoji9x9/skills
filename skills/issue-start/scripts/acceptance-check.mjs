@@ -161,6 +161,36 @@ function attribute(attrs, name) {
 }
 
 /**
+ * タグが、GitHub が描画したチェックリストのチェックボックス（task-list-item-checkbox の <input>）かを判定する。
+ * @param {string} name - 小文字にしたタグ名
+ * @param {boolean} opening - 開きタグか
+ * @param {string} attrs
+ * @returns {boolean}
+ */
+function isTaskCheckbox(name, opening, attrs) {
+  return (
+    opening &&
+    name === "input" &&
+    (attribute(attrs, "type") ?? "").toLowerCase() === "checkbox" &&
+    (attribute(attrs, "class") ?? "").split(/\s+/).includes("task-list-item-checkbox")
+  );
+}
+
+/**
+ * 項目の中のタグが、項目の文言に足す文字列を返す。<br> は空白 1 つ、<img> は代替テキスト、他のタグは空文字。
+ * @param {string} name - 小文字にしたタグ名
+ * @param {boolean} opening - 開きタグか
+ * @param {string} attrs
+ * @returns {string}
+ */
+function inlineTagText(name, opening, attrs) {
+  if (name === "br") return " ";
+  // 画像だけの項目も文言を持つ（代替テキスト）。
+  if (name === "img" && opening) return attribute(attrs, "alt") ?? "";
+  return "";
+}
+
+/**
  * 本文のチェックリストの項目を、GitHub が描画した HTML のチェックボックスから列挙する。
  * 画面にチェックボックスとして出たものだけが項目になる。コードフェンス・HTML コメントの中の `- [ ]` は
  * 描画でチェックボックスにならず、引用・<details> の中はなる。利用者がタグで書いた <input> は描画で消される（実測）。
@@ -184,23 +214,15 @@ export function checklistItems(html) {
     if (m[2] === undefined) continue; // HTML コメント
     const name = m[2].toLowerCase();
     const opening = m[1] === "";
-    if (
-      opening &&
-      name === "input" &&
-      (attribute(m[3], "type") ?? "").toLowerCase() === "checkbox" &&
-      (attribute(m[3], "class") ?? "").split(/\s+/).includes("task-list-item-checkbox")
-    ) {
+    if (isTaskCheckbox(name, opening, m[3])) {
       finish();
       current = "";
     } else if (current === null) {
       continue;
     } else if (ITEM_END.has(name)) {
       finish();
-    } else if (name === "br") {
-      current += " ";
-    } else if (name === "img" && opening) {
-      // 画像だけの項目も文言を持つ（代替テキスト）。
-      current += attribute(m[3], "alt") ?? "";
+    } else {
+      current += inlineTagText(name, opening, m[3]);
     }
   }
   if (current !== null) current += decodeEntities(html.slice(last));

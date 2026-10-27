@@ -200,6 +200,27 @@ export function matchesIntentionalKey(match, diff, ctx) {
 }
 
 /**
+ * 意図的差異レジストリの 1 要素が Diff に当たるかを確かめ、当たったときの照合の方法を返す。
+ * `match` を持つ要素は構造で照合し、持たない要素は文全体の包含で照合する（matchIntentional を参照）。
+ *
+ * @param {unknown} entry
+ * @param {string} text - intentionalEntryText(entry) の値
+ * @param {{ diff:{ name?:string, prop?:string }, hay:string,
+ *   ctx:{ page?:string, state?:string, viewport?:string } }} probe - 照合する Diff と、
+ *   その名前と prop を正規化した文字列
+ * @returns {'match'|'text'|null}
+ */
+function intentionalEntryHit(entry, text, { diff, hay, ctx }) {
+  const match = intentionalEntryMatch(entry);
+  if (match !== null) {
+    if ("invalid" in match) return null;
+    return matchesIntentionalKey(match, diff, ctx) ? "match" : null;
+  }
+  const needle = normalizeValue(text);
+  return needle.length > 0 && hay.includes(needle) ? "text" : null;
+}
+
+/**
  * 意図的差異レジストリの分類 3 群のどれに該当するかを返す。
  *
  * - **`match` を持つ要素**は構造で照合する（`matchesIntentionalKey`）。散文の `item` は照合に使わない
@@ -222,18 +243,8 @@ export function matchIntentional(diff, registry, ctx = {}) {
     for (let index = 0; index < entries.length; index += 1) {
       const entry = entries[index];
       const text = intentionalEntryText(entry);
-      const match = intentionalEntryMatch(entry);
-      if (match !== null) {
-        if ("invalid" in match) continue;
-        if (matchesIntentionalKey(match, diff, ctx)) {
-          return { group, entry: text, index, by: "match" };
-        }
-        continue;
-      }
-      const needle = normalizeValue(text);
-      if (needle.length > 0 && hay.includes(needle)) {
-        return { group, entry: text, index, by: "text" };
-      }
+      const by = intentionalEntryHit(entry, text, { diff, hay, ctx });
+      if (by !== null) return { group, entry: text, index, by };
     }
   }
   return null;
@@ -508,6 +519,43 @@ export function validateExceptions(exceptions, causes, slug) {
 }
 
 /**
+ * インスタンス例外の slug・page・viewport・state が、実行の ctx と合致するか（matchException を参照）。
+ *
+ * @param {Record<string, unknown>} ex
+ * @param {{ slug:string, page?:string, state?:string, viewport?:string }} ctx
+ * @returns {boolean}
+ */
+function exceptionScopeMatches(ex, ctx) {
+  if (!ex.slug || ex.slug !== ctx.slug) return false;
+  // ctx 側の欠落も不一致にする。Diff は page / viewport を持たないので、ctx に無ければ
+  // 「どの page / viewport の候補か」を確かめる手段が無い。ここを「指定されたときだけ比較」にすると、
+  // --page / --viewport を省いた実行で、例外がページや viewport をまたいで一致してしまう。
+  if (!ctx.page || ex.page !== ctx.page) return false;
+  if (!ctx.viewport || ex.viewport !== ctx.viewport) return false;
+  // state だけは両側にスキーマ既定値 default があるので、欠落を default として突き合わせる。
+  return (ex.state || "default") === (ctx.state || "default");
+}
+
+/**
+ * インスタンス例外の element・property・値が、Diff と合致するか（matchException を参照）。
+ *
+ * @param {Record<string, unknown>} ex
+ * @param {TraitDiff} diff
+ * @returns {boolean}
+ */
+function exceptionTargetMatches(ex, diff) {
+  const elementOk = ex.element === "none" ? !diff.name : ex.element === diff.name;
+  if (!elementOk) return false;
+  const propertyOk =
+    ex.property === "pixel" || normalizeValue(ex.property) === normalizeValue(diff.prop);
+  if (!propertyOk) return false;
+  return (
+    normalizeValue(ex.current) === normalizeValue(diff.expected) &&
+    normalizeValue(ex.new) === normalizeValue(diff.actual)
+  );
+}
+
+/**
  * インスタンス例外との照合。slug・page・state・viewport・element・property・値が合致するか。
  * slug はスキーマ上必須のため、欠落・不一致の例外は常に不一致として扱う
  * （書き忘れた例外が全 slug の差分を吸収しないための安全側）。
@@ -536,23 +584,8 @@ export function matchException(diff, { exceptions, causes }, ctx) {
   // object でない要素は validateExceptions が「not an object」として警告し、照合に使わない。
   const list = isArray(exceptions) ? exceptions.filter(isObjectLike) : [];
   for (const ex of list) {
-    if (!ex.slug || ex.slug !== ctx.slug) continue;
-    // ctx 側の欠落も不一致にする。Diff は page / viewport を持たないので、ctx に無ければ
-    // 「どの page / viewport の候補か」を確かめる手段が無い。ここを「指定されたときだけ比較」にすると、
-    // --page / --viewport を省いた実行で、例外がページや viewport をまたいで一致してしまう。
-    if (!ctx.page || ex.page !== ctx.page) continue;
-    if (!ctx.viewport || ex.viewport !== ctx.viewport) continue;
-    // state だけは両側にスキーマ既定値 default があるので、欠落を default として突き合わせる。
-    if ((ex.state || "default") !== (ctx.state || "default")) continue;
-    const elementOk = ex.element === "none" ? !diff.name : ex.element === diff.name;
-    if (!elementOk) continue;
-    const propertyOk =
-      ex.property === "pixel" || normalizeValue(ex.property) === normalizeValue(diff.prop);
-    if (!propertyOk) continue;
-    const valuesOk =
-      normalizeValue(ex.current) === normalizeValue(diff.expected) &&
-      normalizeValue(ex.new) === normalizeValue(diff.actual);
-    if (!valuesOk) continue;
+    if (!exceptionScopeMatches(ex, ctx)) continue;
+    if (!exceptionTargetMatches(ex, diff)) continue;
     const cause = resolveExceptionCause(ex, causes);
     if (!cause) continue;
     return { ...ex, cause_reason: cause.reason, cause_evidence: cause.evidence };

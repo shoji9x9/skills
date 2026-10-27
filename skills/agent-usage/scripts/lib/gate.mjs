@@ -327,15 +327,14 @@ export function isGitCommit(command) {
 }
 
 /**
- * 単純なコマンド（語の列）が git commit なら、ラッパーの `env -C`・`sudo -D` と git の `-C` で指定したディレクトリを指定の順に返す。
- * git commit でなければ null。
+ * 単純なコマンドの先頭にある前置き（変数の代入・シェルの予約語・ラッパーとそのオプション）を読み飛ばし、
+ * 実行するコマンドの名前の位置を返す。ラッパーが作業ディレクトリを変える指定は dirs に足す。
  * @param {readonly string[]} words
- * @returns {string[] | null}
+ * @param {string[]} dirs
+ * @returns {number}
  */
-function commitDirsOf(words) {
+function skipCommandPrefixes(words, dirs) {
   let i = 0;
-  /** @type {string[]} */
-  const dirs = [];
   for (;;) {
     while (i < words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[i])) i += 1;
     if (i < words.length && SHELL_PREFIXES.includes(words[i])) {
@@ -344,19 +343,45 @@ function commitDirsOf(words) {
     }
     const wrapper = i < words.length ? COMMAND_WRAPPERS.get(words[i]) : undefined;
     if (wrapper !== undefined) {
-      i += 1;
-      // `--`（オプションの終わり）も `-` で始まる語として読み飛ばす
-      while (i < words.length && words[i].startsWith("-")) {
-        // 作業ディレクトリを変えるオプション（`env -C <dir>`・`sudo -D <dir>`）は、git の -C より先に当たる
-        const option = readWrapperOption(wrapper, words, i);
-        if (option.dir !== null) dirs.push(option.dir);
-        i += option.width;
-      }
-      i += wrapper.operands;
+      i = skipWrapperOptions(wrapper, words, { start: i + 1, dirs });
       continue;
     }
-    break;
+    return i;
   }
+}
+
+/**
+ * ラッパーの名前の次（start）から、ラッパーのオプションと被演算子を読み飛ばした位置を返す。
+ * 作業ディレクトリを変えるオプションの値は dirs に足す。
+ * @param {CommandWrapper} wrapper
+ * @param {readonly string[]} words
+ * @param {{ start: number; dirs: string[] }} at start はラッパーの名前の次の位置、dirs は作業ディレクトリを足す先
+ * @returns {number}
+ */
+function skipWrapperOptions(wrapper, words, at) {
+  const { dirs } = at;
+  let i = at.start;
+  // `--`（オプションの終わり）も `-` で始まる語として読み飛ばす
+  while (i < words.length && words[i].startsWith("-")) {
+    // 作業ディレクトリを変えるオプション（`env -C <dir>`・`sudo -D <dir>`）は、git の -C より先に当たる
+    const option = readWrapperOption(wrapper, words, i);
+    if (option.dir !== null) dirs.push(option.dir);
+    i += option.width;
+  }
+  i += wrapper.operands;
+  return i;
+}
+
+/**
+ * 単純なコマンド（語の列）が git commit なら、ラッパーの `env -C`・`sudo -D` と git の `-C` で指定したディレクトリを指定の順に返す。
+ * git commit でなければ null。
+ * @param {readonly string[]} words
+ * @returns {string[] | null}
+ */
+function commitDirsOf(words) {
+  /** @type {string[]} */
+  const dirs = [];
+  let i = skipCommandPrefixes(words, dirs);
   if (i >= words.length || words[i].split("/").pop() !== "git") return null;
   i += 1;
   while (i < words.length && words[i].startsWith("-")) {
@@ -364,6 +389,23 @@ function commitDirsOf(words) {
     i += GIT_VALUE_OPTIONS.includes(words[i]) ? 2 : 1;
   }
   return words[i] === "commit" ? dirs : null;
+}
+
+/**
+ * ラッパーの長いオプション（`--` で始まる語）を、`--opt <value>`・`--opt=<value>` の形で読む。戻り値は readWrapperOption と同じ。
+ * @param {CommandWrapper} wrapper
+ * @param {string} word
+ * @param {string | null} next
+ * @returns {{ width: number, dir: string | null }}
+ */
+function readLongWrapperOption(wrapper, word, next) {
+  const chdir = wrapper.chdirOptions ?? [];
+  const eq = word.indexOf("=");
+  if (eq !== -1) {
+    return { width: 1, dir: chdir.includes(word.slice(0, eq)) ? word.slice(eq + 1) : null };
+  }
+  const takesValue = wrapper.valueOptions.includes(word);
+  return { width: takesValue ? 2 : 1, dir: takesValue && chdir.includes(word) ? next : null };
 }
 
 /**
@@ -378,16 +420,9 @@ function commitDirsOf(words) {
  */
 function readWrapperOption(wrapper, words, i) {
   const word = words[i];
-  const chdir = wrapper.chdirOptions ?? [];
   const next = i + 1 < words.length ? words[i + 1] : null;
-  if (word.startsWith("--")) {
-    const eq = word.indexOf("=");
-    if (eq !== -1) {
-      return { width: 1, dir: chdir.includes(word.slice(0, eq)) ? word.slice(eq + 1) : null };
-    }
-    const takesValue = wrapper.valueOptions.includes(word);
-    return { width: takesValue ? 2 : 1, dir: takesValue && chdir.includes(word) ? next : null };
-  }
+  if (word.startsWith("--")) return readLongWrapperOption(wrapper, word, next);
+  const chdir = wrapper.chdirOptions ?? [];
   for (let k = 1; k < word.length; k += 1) {
     const name = `-${word[k]}`;
     if (!wrapper.valueOptions.includes(name)) continue;
@@ -398,6 +433,22 @@ function readWrapperOption(wrapper, words, i) {
     };
   }
   return { width: 1, dir: null };
+}
+
+/**
+ * `cd <dir>`・`pushd <dir>`（words）を dir に当てた後の作業ディレクトリ。解決できない引数なら cwd を返す。
+ * @param {readonly string[]} words
+ * @param {string} dir
+ * @param {string} cwd
+ * @returns {string}
+ */
+function changedDir(words, dir, cwd) {
+  // 展開が要る引数（$・バッククォート・~）と、pushd のスタックの指定（+N・-N）は解決できないので当てず、
+  // Hook の cwd で判断する側に寄せる
+  const arg = words.length === 2 ? words[1] : "";
+  return arg === "" || /^[-+]/.test(arg) || /[$`]/.test(arg) || arg.startsWith("~")
+    ? cwd
+    : resolve(dir, arg);
 }
 
 /**
@@ -422,13 +473,7 @@ export function commitCwd(command, cwd) {
     }
     if (words[0] === "cd" || words[0] === "pushd") {
       if (words[0] === "pushd") stack.push(dir);
-      // 展開が要る引数（$・バッククォート・~）と、pushd のスタックの指定（+N・-N）は解決できないので当てず、
-      // Hook の cwd で判断する側に寄せる
-      const arg = words.length === 2 ? words[1] : "";
-      dir =
-        arg === "" || /^[-+]/.test(arg) || /[$`]/.test(arg) || arg.startsWith("~")
-          ? cwd
-          : resolve(dir, arg);
+      dir = changedDir(words, dir, cwd);
       continue;
     }
     const dirs = commitDirsOf(words);

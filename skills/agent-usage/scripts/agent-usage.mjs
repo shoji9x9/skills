@@ -126,17 +126,33 @@ function branchDecisionText(repo, set) {
   } catch (e) {
     return `判断の記録を読めない: ${e instanceof Error ? e.message : String(e)}`;
   }
-  if (decided === "record") {
-    // gateDecision と同じく、判断が「記録する」でも人の設定が無ければ止め、人ごとの設定を読めなければその理由を出す
-    try {
-      if (!hasPerson())
-        return "record（人の設定が無いので、コミットの前の確認は止めて setup を求める）";
-    } catch (e) {
-      return `record（設定を読めない: ${e instanceof Error ? e.message : String(e)}）`;
-    }
-    return `record${mergedNote(repo)}`;
-  }
+  if (decided === "record") return recordDecisionText(repo);
   if (decided !== null) return decided;
+  return undecidedText(repo);
+}
+
+/**
+ * ブランチの判断が「記録する」ときに status に出す文字列。
+ * @param {import("./lib/repo.mjs").RepoInfo} repo
+ * @returns {string}
+ */
+function recordDecisionText(repo) {
+  // gateDecision と同じく、判断が「記録する」でも人の設定が無ければ止め、人ごとの設定を読めなければその理由を出す
+  try {
+    if (!hasPerson())
+      return "record（人の設定が無いので、コミットの前の確認は止めて setup を求める）";
+  } catch (e) {
+    return `record（設定を読めない: ${e instanceof Error ? e.message : String(e)}）`;
+  }
+  return `record${mergedNote(repo)}`;
+}
+
+/**
+ * ブランチの判断が無いときに status に出す文字列。コミットの前の確認が従う defaultDecision と、その出所を添える。
+ * @param {import("./lib/repo.mjs").RepoInfo} repo
+ * @returns {string}
+ */
+function undecidedText(repo) {
   try {
     const fallback = defaultDecisionOf(repo.root);
     if (fallback === null) return "未決定";

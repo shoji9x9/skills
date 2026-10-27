@@ -1,0 +1,6 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:40494025235:1,ci,2026-10-27T12:51:09.158Z,p-cdee4961,github-actions,,,,2026-10-27T11:09:37.000Z,2026-10-27T11:13:33.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:40494025126:1,ci,2026-10-27T12:51:09.158Z,p-cdee4961,github-actions,,,,2026-10-27T11:09:36.000Z,2026-10-27T11:10:01.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:40493233384:1,ci,2026-10-27T12:51:09.158Z,p-cdee4961,github-actions,,,,2026-10-27T11:03:22.000Z,2026-10-27T11:07:31.000Z,Asia/Tokyo,feature/659-reduce-cognitive-complexity-parity-suite,659,,,,,,,,,,CI;pull_request;success,
+ci:40493233056:1,ci,2026-10-27T12:51:09.158Z,p-cdee4961,github-actions,,,,2026-10-27T11:03:21.000Z,2026-10-27T11:03:23.000Z,Asia/Tokyo,feature/659-reduce-cognitive-complexity-parity-suite,659,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+coverage:github:2026-10-26T11:02:29.224Z:2026-10-27T12:51:09.158Z,coverage,2026-10-27T12:51:09.158Z,p-cdee4961,,,,,2026-10-26T11:02:29.224Z,2026-10-27T12:51:09.158Z,Asia/Tokyo,,,,,,,,,,,,ok,

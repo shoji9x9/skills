@@ -240,6 +240,18 @@ function readSettings(cfg, raw) {
 }
 
 /**
+ * 人の ID と表示名の対応（people）を cfg に読み込む。
+ * @param {RepoConfig} cfg
+ * @param {Record<string, unknown>} raw
+ */
+function readPeople(cfg, raw) {
+  if (isRecord(raw.people)) {
+    for (const [id, p] of Object.entries(raw.people))
+      if (isRecord(p) && typeof p.name === "string") cfg.people[id] = { name: p.name };
+  }
+}
+
+/**
  * 名前の対応（reviewTools・aliases・people）を cfg に読み込む。
  * @param {RepoConfig} cfg
  * @param {Record<string, unknown>} raw
@@ -250,10 +262,7 @@ function readNames(cfg, raw) {
     if (isRecord(v))
       for (const [k, s] of Object.entries(v)) if (typeof s === "string") cfg[key][k] = s;
   }
-  if (isRecord(raw.people)) {
-    for (const [id, p] of Object.entries(raw.people))
-      if (isRecord(p) && typeof p.name === "string") cfg.people[id] = { name: p.name };
-  }
+  readPeople(cfg, raw);
 }
 
 /**

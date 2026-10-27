@@ -61,6 +61,26 @@ function badValues(record) {
 }
 
 /**
+ * 擬似要素 1 つ（before / after）の特性を、`::<擬似要素>/` を前に付けた軸として flat に足す。
+ * 採っていなければ軸を出さない（測っていないので、固定として扱わない）。null なら `<present>: "false"` だけを出す。
+ * @param {Record<string, string>} flat
+ * @param {{ before?: Record<string, string> | null, after?: Record<string, string> | null }} traits
+ * @param {"before" | "after"} pseudo
+ * @returns {void}
+ */
+function flattenPseudo(flat, traits, pseudo) {
+  const prefix = `::${pseudo}/`;
+  if (!Object.hasOwn(traits, pseudo)) return; // 測っていないので、固定として扱わず軸を出さない
+  const captured = traits[pseudo];
+  if (captured == null) {
+    flat[`${prefix}<present>`] = "false";
+    return;
+  }
+  flat[`${prefix}<present>`] = "true";
+  for (const [property, value] of Object.entries(captured)) flat[prefix + property] = value;
+}
+
+/**
  * 1 つの採取物（trait-capture.mjs の返り値の形）を「軸名 → 値」の平坦な表にまとめる。
  * まとめるのは computed / before / after / rect だけである。
  * `child_inline_styles`（trait-capture.mjs VERSION 3 以降）は照合に使わない診断用の情報なので、**意図して読まない**。
@@ -90,17 +110,8 @@ export function flattenTraits(traits) {
   // JSON 由来の `__proto__` キーが軸ごと消える（固定とも可変とも出ず、欠落の問題にもならない）。
   const flat = Object.create(null);
   for (const [property, value] of Object.entries(traits.computed || {})) flat[property] = value;
-  for (const pseudo of ["before", "after"]) {
-    const prefix = `::${pseudo}/`;
-    if (!Object.hasOwn(traits, pseudo)) continue; // 測っていないので、固定として扱わず軸を出さない
-    const captured = pseudo === "before" ? traits.before : traits.after;
-    if (captured == null) {
-      flat[`${prefix}<present>`] = "false";
-      continue;
-    }
-    flat[`${prefix}<present>`] = "true";
-    for (const [property, value] of Object.entries(captured)) flat[prefix + property] = value;
-  }
+  for (const pseudo of /** @type {const} */ (["before", "after"]))
+    flattenPseudo(flat, traits, pseudo);
   for (const [key, value] of Object.entries(traits.rect || {})) {
     if (key === "x" || key === "y") continue; // 絶対座標は比較に使わない（parity-suite の規約）
     flat[`rect/${key}`] = String(value);
@@ -751,6 +762,28 @@ export function diffAxes(manifest) {
 }
 
 /**
+ * 既知のオプション a とその次の引数 value を読み、値を values に入れる。
+ * 2 回目の指定と値の欠落は error に返す（両方なら 2 回目の指定を先に返す）。値を読んだら consumed を true にする。
+ * @param {{
+ *   a: string,
+ *   value: string | undefined,
+ *   option: { key: "baseline" | "out", what: string },
+ *   seen: Set<string>,
+ *   values: { baseline: string | null, out: string | null },
+ * }} input
+ * @returns {{ error: string | null, consumed: boolean }}
+ */
+function applyOption({ a, value, option, seen, values }) {
+  const duplicate = seen.has(a) ? `${a} は 1 回だけ指定する` : null;
+  seen.add(a);
+  if (value === undefined || value.startsWith("-")) {
+    return { error: duplicate || `${a} には${option.what}を続ける`, consumed: false };
+  }
+  values[option.key] = value;
+  return { error: duplicate, consumed: true };
+}
+
+/**
  * CLI の引数を読む。
  * 受け付けるオプションは `--baseline <dir>` と `--out <path>` だけである。`--` で始まるトークンをまとめて読み飛ばすと、
  * `--otu=result.json` のような綴りの誤りや `--out=path` の等号の形が、警告なしに無視される。
@@ -784,15 +817,9 @@ function parseCliArgs(args) {
       badOption = badOption || `未知のオプション: ${a}`;
       continue;
     }
-    if (seen.has(a)) badOption = badOption || `${a} は 1 回だけ指定する`;
-    seen.add(a);
-    const value = args[i + 1];
-    if (value === undefined || value.startsWith("-")) {
-      badOption = badOption || `${a} には${option.what}を続ける`;
-    } else {
-      values[option.key] = value;
-      i++;
-    }
+    const { error, consumed } = applyOption({ a, value: args[i + 1], option, seen, values });
+    badOption = badOption || error;
+    if (consumed) i++;
   }
   return { positionals, ...values, badOption };
 }
