@@ -1,4 +1,4 @@
 {
-  "extends": ["../../.fallowrc.jsonc"],
+  "extends": ["../../.fallowrc.json"],
   "rules": { "complexity-crap": "error" }
 }

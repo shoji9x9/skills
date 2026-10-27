@@ -1,0 +1,269 @@
+{
+  "$schema": "./node_modules/fallow/schema.json",
+  "entry": [
+    "skills/*/scripts/*.mjs",
+    "skills/*/scripts/page/*.mjs",
+    "skills/*/scripts/skill-config/skill-config.mjs",
+    "skills/*/assets/**/*.{mjs,ts}",
+    "scripts/coverage/**/*.ts",
+    "scripts/eval/**/*.ts",
+    "scripts/gates/**/*.ts",
+    "scripts/hooks/**/*.ts",
+    "scripts/mutation/**/*.ts",
+    "scripts/tools/**/*.ts",
+    ".agents/skills/*/scripts/**/*.ts",
+    "types/**/*.ts"
+  ],
+  "includeEntryExports": true,
+  "ignoreExportsUsedInFile": false,
+  "ignorePatterns": [
+    "evals/**/fixtures/**",
+    "docs/slides/**",
+    "tests/**",
+    "skills/*/scripts/skill-config/vendor/**",
+    "!scripts/coverage/**",
+    "!.agents/skills/*/scripts/**/*.ts"
+  ],
+  "ignoreDependencies": ["c8", "conventional-changelog-conventionalcommits", "jsonc-parser"],
+  "duplicates": {
+    "enabled": false
+  },
+  "health": {
+    "maxCyclomatic": 20,
+    "maxCognitive": 15
+  },
+  "boundaries": {
+    "zones": [
+      {
+        "name": "skill-tests",
+        "patterns": ["scripts/skills/**"]
+      },
+      {
+        "name": "lib",
+        "patterns": ["scripts/lib/**"]
+      },
+      {
+        "name": "scripts/coverage",
+        "patterns": ["scripts/coverage/**"]
+      },
+      {
+        "name": "scripts/eval",
+        "patterns": ["scripts/eval/**"]
+      },
+      {
+        "name": "scripts/gates",
+        "patterns": ["scripts/gates/**"]
+      },
+      {
+        "name": "scripts/hooks",
+        "patterns": ["scripts/hooks/**"]
+      },
+      {
+        "name": "scripts/mutation",
+        "patterns": ["scripts/mutation/**"]
+      },
+      {
+        "name": "scripts/tools",
+        "patterns": ["scripts/tools/**"]
+      },
+      {
+        "name": "skills",
+        "patterns": ["skills/**"],
+        "autoDiscover": ["skills"]
+      }
+    ],
+    "rules": [
+      {
+        "from": "lib",
+        "allow": ["skills"]
+      },
+      {
+        "from": "scripts/coverage",
+        "allow": ["lib", "skills"]
+      },
+      {
+        "from": "scripts/eval",
+        "allow": ["lib", "skills"]
+      },
+      {
+        "from": "scripts/gates",
+        "allow": ["lib", "skills"]
+      },
+      {
+        "from": "scripts/hooks",
+        "allow": ["lib", "skills"]
+      },
+      {
+        "from": "scripts/mutation",
+        "allow": ["lib", "skills"]
+      },
+      {
+        "from": "scripts/tools",
+        "allow": ["lib", "skills"]
+      },
+      {
+        "from": "skills",
+        "allow": []
+      }
+    ]
+  },
+  "rules": {
+    "unused-dev-dependencies": "error",
+    "deprecated-exports-in-use": "error",
+    "require-suppression-reason": "error",
+    "stale-suppressions": "error",
+    "re-export-cycle": "error",
+    "boundary-violation": "error",
+    "complexity-crap": "off",
+    "dev-dependencies-in-production": "off",
+    "weakened-tests": "error",
+    "added-suppression": "off",
+    "test-only-branch": "off"
+  },
+  "audit": {
+    "deadCode": true,
+    "health": false,
+    "dupes": false,
+    "css": false
+  },
+  "overrides": [
+    {
+      "files": ["skills/*/assets/**"],
+      "rules": {
+        "unresolved-imports": "off"
+      }
+    },
+    {
+      "files": ["types/skill-runtime/**"],
+      "rules": {
+        "unused-class-members": "off"
+      }
+    }
+  ],
+  "ignoreExports": [
+    {
+      "file": "skills/agent-usage/scripts/lib/is-array.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/agent-usage/scripts/skill-config/skill-config.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/aws-architecture-diagram/scripts/skill-config/skill-config.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/box/scripts/skill-config/skill-config.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/browser-test/scripts/skill-config/skill-config.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/current-environment-bootstrap/scripts/skill-config/skill-config.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/dependabot-alert-issue/scripts/skill-config/skill-config.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/dependabot-merge/scripts/skill-config/skill-config.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/git-worktree/scripts/skill-config/skill-config.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/golden-dataset/scripts/lib/fence.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/golden-dataset/scripts/lib/is-array.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/golden-dataset/scripts/skill-config/skill-config.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/issue-batch/scripts/skill-config/skill-config.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/issue-start/scripts/lib/is-array.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/issue-start/scripts/skill-config/skill-config.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/parity-component/scripts/lib/cli.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/parity-component/scripts/lib/is-array.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/parity-component/scripts/skill-config/skill-config.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/parity-diff/scripts/lib/cli.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/parity-diff/scripts/lib/is-array.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/parity-diff/scripts/lib/json.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/parity-diff/scripts/skill-config/skill-config.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/parity-replace/scripts/skill-config/skill-config.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/parity-suite/scripts/skill-config/skill-config.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/pr-finalize-loop/scripts/skill-config/skill-config.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/pr-review-handle/scripts/skill-config/skill-config.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/replace-strategy/scripts/lib/cli.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/replace-strategy/scripts/lib/errors.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/replace-strategy/scripts/lib/is-array.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/replace-strategy/scripts/skill-config/skill-config.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/writing-style/scripts/skill-config/skill-config.mjs",
+      "exports": ["*"]
+    }
+  ]
+}

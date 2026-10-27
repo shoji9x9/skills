@@ -1,7 +1,7 @@
-// 参照の向き（`.fallowrc.jsonc` の boundaries）の回帰テスト。
+// 参照の向き（`.config/fallow/base.jsonc` の boundaries）の回帰テスト。
 //
 // 参照の向きは、oxlint の JS プラグインの規則から fallow の boundaries に移した。規則の実装はツールにあるので、
-// このテストは設定（ゾーンと許可する向き）を確かめる。実物の `.fallowrc.jsonc` を一時ディレクトリに置き、
+// このテストは設定（ゾーンと許可する向き）を確かめる。生成した実物の `.fallowrc.json` を一時ディレクトリに置き、
 // 実物の fallow（`fallow architecture`）を当てる。ゾーンのパターンや許可する向きを変えて規則が緩むと、ここで失敗する。
 //
 // 状態空間の軸と、各セルに置いた入力:
@@ -25,7 +25,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 /** fallow の boundaries の違反を「参照する側 -> 参照される側」の一覧で返す。 */
 function violations(files: Record<string, string>): string[] {
   const root = makeTempDir("fallow-boundaries-");
-  copyFileSync(join(ROOT, ".fallowrc.jsonc"), join(root, ".fallowrc.jsonc"));
+  copyFileSync(join(ROOT, ".fallowrc.json"), join(root, ".fallowrc.json"));
   write(root, "package.json", JSON.stringify({ name: "fixture", type: "module" }));
   for (const [p, t] of Object.entries(files)) write(root, p, t);
   const res = spawnSync(

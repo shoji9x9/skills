@@ -1,5 +1,8 @@
 {
-  "$schema": "./node_modules/fallow/schema.json",
+  "$schema": "../../node_modules/fallow/schema.json",
+  // fallow が読む設定（.fallowrc.json）は、このファイルと意図したコピーの宣言（scripts/gates/packaging/copies/identical-copies.json）から
+  // scripts/gates/packaging/copies/generate-fallow-config.ts が生成する（pre-commit が実行し、CI が生成し忘れを確かめる）。設定はこのファイルで直し、.fallowrc.json は直さない。
+  // 生成した設定の ignoreExports は、このファイルの ignoreExports（手で書く例外）に、基準以外のコピーの export を足したものになる。
   // ファイルの間の関係を見る検査（使われていないコード・依存・複雑度・参照の向き・循環参照）。
   // 1 ファイルの中で完結する検査は oxlint、重複は jscpd が受け持つ（docs/tooling.md）。
   // fallow はドットで始まるディレクトリ（.agents/・.claude/）を走査しないので、インストール済みのコピーは除外を書かなくても対象外になる。

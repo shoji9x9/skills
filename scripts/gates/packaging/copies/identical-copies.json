@@ -140,6 +140,7 @@
     },
     {
       "files": [
+        "skills/kaizen/scripts/skill-config/skill-config.mjs",
         "skills/agent-usage/scripts/skill-config/skill-config.mjs",
         "skills/aws-architecture-diagram/scripts/skill-config/skill-config.mjs",
         "skills/box/scripts/skill-config/skill-config.mjs",
@@ -151,7 +152,6 @@
         "skills/golden-dataset/scripts/skill-config/skill-config.mjs",
         "skills/issue-batch/scripts/skill-config/skill-config.mjs",
         "skills/issue-start/scripts/skill-config/skill-config.mjs",
-        "skills/kaizen/scripts/skill-config/skill-config.mjs",
         "skills/parity-component/scripts/skill-config/skill-config.mjs",
         "skills/parity-diff/scripts/skill-config/skill-config.mjs",
         "skills/parity-replace/scripts/skill-config/skill-config.mjs",
