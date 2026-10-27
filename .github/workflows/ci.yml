@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+      - uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde # v5.2.1
       - name: Lockfile integrity
         run: pnpm install --frozen-lockfile
       - name: Verify registry signatures
@@ -47,7 +47,7 @@ jobs:
           persist-credentials: false
           # fallow audit（Test weakening）が PR のベースとの差分を取る。
           fetch-depth: 0
-      - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+      - uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde # v5.2.1
       - run: pnpm install --frozen-lockfile
       - name: Markdown lint
         run: pnpm exec markdownlint-cli2
@@ -134,7 +134,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+      - uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde # v5.2.1
       - run: pnpm install --frozen-lockfile
       # テスト全体をカバレッジ付きで実行し、ファイルごとの値を閾値と比べる（docs/testing.md「カバレッジ」）。
       # テストが失敗したときも、閾値を下回ったときも失敗する。
@@ -182,7 +182,7 @@ jobs:
           persist-credentials: false
           # 差分選択（`--changed-since origin/<base>`）が基点の ref を要求する。
           fetch-depth: 0
-      - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+      - uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde # v5.2.1
       - run: pnpm install --frozen-lockfile
       - name: Mutation proof (specs touched by this diff, one shard)
         env:
@@ -222,7 +222,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+      - uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde # v5.2.1
       # pinact は pin の検証でタグを GitHub API から取得する。トークンを渡さないと未認証の上限
       # （ランナーの IP で共有される）に当たり、403 で落ちる（実測: PR #536）。
       - run: pinact run --check
@@ -261,6 +261,6 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+      - uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde # v5.2.1
       - name: Gitleaks
         run: gitleaks git --no-banner --redact
