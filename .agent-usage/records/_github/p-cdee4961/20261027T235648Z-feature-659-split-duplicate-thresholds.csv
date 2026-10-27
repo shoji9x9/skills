@@ -1,0 +1,6 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:40594785593:1,ci,2026-10-27T23:56:48.357Z,p-cdee4961,github-actions,,,,2026-10-27T22:26:04.000Z,2026-10-27T22:30:01.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:40594153923:1,ci,2026-10-27T23:56:48.357Z,p-cdee4961,github-actions,,,,2026-10-27T22:21:14.000Z,2026-10-27T22:21:14.000Z,Asia/Tokyo,feature/659-reduce-crap-findings,659,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40594153877:1,ci,2026-10-27T23:56:48.357Z,p-cdee4961,github-actions,,,,2026-10-27T22:21:13.000Z,2026-10-27T22:25:04.000Z,Asia/Tokyo,feature/659-reduce-crap-findings,659,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-26T22:20:27.514Z:2026-10-27T23:56:48.357Z,coverage,2026-10-27T23:56:48.357Z,p-cdee4961,,,,,2026-10-26T22:20:27.514Z,2026-10-27T23:56:48.357Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-26T23:56:48.357Z:2026-10-27T23:58:04.803Z,coverage,2026-10-27T23:58:04.803Z,p-cdee4961,,,,,2026-10-26T23:56:48.357Z,2026-10-27T23:58:04.803Z,Asia/Tokyo,,,,,,,,,,,,ok,

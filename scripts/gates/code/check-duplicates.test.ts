@@ -13,7 +13,9 @@
 // | 範囲を持つ組             | 両方が範囲と重なる / 片方が範囲と重ならない / 範囲の境界の行で重なる / 印が崩れている |
 // | 設定の ignore            | 文字列の配列 / 無い / 空文字を含む                                           |
 // | 引数                     | なし / --update-baseline / 知らない引数                                      |
-// | ベースライン             | 在る / 無い                                                                  |
+// | ベースライン             | 在る / 無い（全体・テストどうしのそれぞれ）                                  |
+// | 重複の場所               | テスト以外どうし / テストとテスト以外 / テストどうし（TEST_MIN_TOKENS 未満・以上） |
+// | テストのコード           | 在る / 無い（2 回目の走査が 0 件）                                            |
 // | 控えた組                 | 在る / 無い / 形が違う（組が 0 件・1 ファイルの組・空文字）。重複の 2 つのファイルが、控えた組にあり今の組に無い / 今も組にある / 控えた組に無い |
 // | 重複の形式               | TypeScript / シェル / Markdown（形式はこのリポジトリの .jscpd.json から読む）    |
 // | 走査の結果               | 新しい重複 / ベースラインの重複だけ / 登録済みのコピーの重複だけ / 走査したファイルが 0 件 |
@@ -25,8 +27,10 @@ import {
   CONFIG_PATH,
   type Clone,
   DECLARED_PATH,
+  TEST_BASELINE_PATH,
   configIgnores,
   isDeclaredCopy,
+  isTestCode,
   isUndeclaredCopy,
   loadDeclared,
   main,
@@ -299,6 +303,23 @@ const MD_BODY = [
   "",
 ].join("\n");
 
+// テストのコードに置く、BODY・OTHER と重ならないファイル。2 回目の走査が 0 件にならないよう、TEST_MIN_TOKENS を超える大きさにする
+// （閾値より小さいファイルは jscpd が走査の件数に数えない）。
+const TEST_FILE = [
+  'import { expect, test } from "vitest";',
+  'test("parses the header", () => {',
+  '  const header = { name: "demo", version: [1, 2, 3], tags: ["alpha", "beta"] };',
+  '  expect(Object.keys(header).sort()).toEqual(["name", "tags", "version"]);',
+  "  expect(header.version.reduce((a, b) => a + b, 0)).toBe(6);",
+  '  expect(header.tags.map((tag) => tag.toUpperCase()).join("|")).toBe("ALPHA|BETA");',
+  '  expect(JSON.stringify({ ...header, tags: [] })).not.toContain("alpha");',
+  '  expect(header.name.padStart(8, "*").length).toBeGreaterThan(header.name.length);',
+  "});",
+  "",
+].join("\n");
+// BODY と OTHER をつないだ、TEST_MIN_TOKENS を超える大きさの重複。
+const LONG_BODY = BODY + OTHER.replaceAll("label", "labelOf");
+
 /** jscpd の設定（形式はこのリポジトリと同じ）と、identical-copies の宣言（groups）を持つ一時リポジトリ。 */
 // identical-copies.json は組を 1 件以上求めるので、デフォルトは走査に関係しないファイルの組にする。
 const UNRELATED = [{ files: ["p.mjs", "q.mjs"], reason: "走査に関係しない組" }];
@@ -311,12 +332,20 @@ function makeRepo(files: Record<string, string>, groups: unknown[] = UNRELATED) 
     JSON.stringify({ format: REPO_FORMATS, ignore: ["**/node_modules/**"] }),
   );
   write(root, DECLARATION_PATH, JSON.stringify({ groups }));
-  for (const [p, t] of Object.entries(files)) write(root, p, t);
+  for (const [p, t] of Object.entries({ "scripts/t.test.ts": TEST_FILE, ...files }))
+    write(root, p, t);
   return root;
 }
 
 test("main: ベースラインが無ければ判定できないので exit 2（無いまま合格にしない）", () => {
   const root = makeRepo({ "a.ts": BODY, "b.ts": BODY });
+  expect(main([], root)).toBe(2);
+});
+
+test("main: テストどうしのベースラインが無ければ判定できないので exit 2", () => {
+  const root = makeRepo({ "a.ts": OTHER });
+  expect(main(["--update-baseline"], root)).toBe(0);
+  rmSync(join(root, TEST_BASELINE_PATH));
   expect(main([], root)).toBe(2);
 });
 
@@ -341,6 +370,70 @@ test("main: ベースラインに無い重複を失敗にし、ベースライ�
   expect(main([], root)).toBe(1);
   expect(main(["--update-baseline"], root)).toBe(0);
   expect(main([], root)).toBe(0);
+});
+
+/** 重複を置くファイル（1 つなら同じファイルの中に 2 回置く）・内容・期待する終了コード。 */
+type Placement = { files: string[]; body?: string; code: number };
+
+test.each<[string, Placement]>([
+  [
+    "テストとテスト以外の間の短い重複は失敗にする",
+    { files: ["scripts/x.test.ts", "b.ts"], code: 1 },
+  ],
+  [
+    "テストどうしの短い重複は数えない",
+    { files: ["scripts/x.test.ts", "scripts/skills/y/y.test.ts"], code: 0 },
+  ],
+  [
+    "テストのヘルパーどうしの短い重複も数えない",
+    { files: ["scripts/skills/y/h-helpers.ts", "scripts/lib/testing/h.ts"], code: 0 },
+  ],
+  [
+    "テストのヘルパーどうしでも、閾値を超える重複は失敗にする",
+    {
+      files: ["scripts/skills/y/h-helpers.ts", "scripts/lib/testing/h.ts"],
+      body: LONG_BODY,
+      code: 1,
+    },
+  ],
+  [
+    "テストどうしでも、閾値を超える重複は失敗にする",
+    { files: ["scripts/x.test.ts", "scripts/y.test.ts"], body: LONG_BODY, code: 1 },
+  ],
+  [
+    "テストの 1 つのファイルの中の閾値を超える重複も失敗にする",
+    { files: ["scripts/x.test.ts"], body: LONG_BODY, code: 1 },
+  ],
+])("main: %s", (_, { files, body = BODY, code }) => {
+  const root = makeRepo({ "a.ts": OTHER });
+  expect(main(["--update-baseline"], root)).toBe(0);
+  if (files.length === 1)
+    write(root, files[0], `${body}\n// ---\n${body.replaceAll("total", "sum")}`);
+  else files.forEach((p) => write(root, p, body));
+  expect(main([], root)).toBe(code);
+});
+
+test("main: テストのコードが無く 2 回目の走査が 0 件なら、判定できないので exit 2 にし、ベースラインを書かない", () => {
+  const root = makeRepo({ "a.ts": OTHER });
+  rmSync(join(root, "scripts/t.test.ts"));
+  expect(main(["--update-baseline"], root)).toBe(2);
+  expect(existsSync(join(root, BASELINE_PATH))).toBe(false);
+  expect(existsSync(join(root, TEST_BASELINE_PATH))).toBe(false);
+});
+
+test.each([
+  ["scripts/gates/code/check-duplicates.test.ts", true],
+  ["scripts/skills/kaizen/kaizen-archive-helpers.ts", true],
+  ["scripts/skills/parity-diff/fixtures/a/b.md", true],
+  ["scripts/lib/testing/test-tmpdir.ts", true],
+  ["scripts/skills/x/fixtures/.agents/a.md", true],
+  ["scripts/.hidden/a.test.ts", true],
+  ["scripts/gates/code/check-duplicates.ts", false],
+  ["scripts/lib/guards.ts", false],
+  ["skills/kaizen/scripts/kaizen-archive.sh", false],
+  ["skills/x/y.test.ts", false],
+])("isTestCode: %s → %s", (file, expected) => {
+  expect(isTestCode(file)).toBe(expected);
 });
 
 const SISTERS = [{ files: ["b.ts", "c.ts"], reason: "姉妹スキルが同じ処理を持つ" }];
@@ -376,6 +469,7 @@ test("main: 登録済みのコピーをベースラインに載せた後で組�
 
 test("main: 走査したファイルが 0 件なら判定できないので exit 2", () => {
   const root = makeRepo({ "a.md": "# a\n" });
+  rmSync(join(root, "scripts/t.test.ts"));
   expect(main(["--update-baseline"], root)).toBe(2);
 });
 

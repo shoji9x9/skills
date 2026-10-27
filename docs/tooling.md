@@ -150,9 +150,16 @@ CI だけで実行する検査が 2 つある。
 同じ処理を複数の箇所にコピーすると、片方だけを直して食い違う。`scripts/gates/code/check-duplicates.ts` が jscpd（設定は `.jscpd.json`）で、JavaScript・TypeScript・シェル・Markdown の重複を検出する。テストも対象にする。
 閾値は jscpd のデフォルト（5 行・50 トークン）を使う。pre-commit と CI の `Lint` ジョブで、リポジトリ全体を検査する（`pnpm run lint:duplicates`）。
 
+テストのコード（`scripts/` の `*.test.ts`・`scripts/skills/`・`scripts/lib/testing/`。定義は `check-duplicates.ts` の `TEST_GLOBS`）どうしの重複は、閾値を 100 トークンに上げて判定する。
+テストは準備と assertion を各テストに書くので、50 トークンでは `expect(r.status).toBe(1)` が続くような短い並びも重複として数える。
+テストとテスト以外の間の重複は、デフォルトの閾値で数える。
+jscpd は閾値によって断片の切り方を変えるので、1 回の走査の結果をトークン数で絞っても、閾値を上げた走査と同じ結果にならない。
+そのため、全体をデフォルトの閾値で走査する 1 回目からテストどうしの重複を除き、テストのコードだけを 100 トークンで走査する 2 回目の重複を数える。
+
 `identical-copies.json` に登録した意図したコピーどうしの重複は数えない（配布スキルの間のように共通化できないコピーは、ここに登録する）。
 範囲（`region`）を持つ組は、両方の断片がそれぞれの範囲と重なる重複を外す。
-既存の重複は `.config/jscpd/baseline.json`（jscpd の指紋）に載せて外す。新しい重複が見つかったら、内容を見て扱いを決める。共通化する・意図したコピーとして登録する・残す、のどれかである。残すなら `node scripts/gates/code/check-duplicates.ts --update-baseline` でベースラインに載せる。
+既存の重複は `.config/jscpd/baseline.json` と、テストどうしの `.config/jscpd/baseline-tests.json`（どちらも jscpd の指紋）に載せて外す。
+新しい重複が見つかったら、内容を見て扱いを決める。共通化する・意図したコピーとして登録する・残す、のどれかである。残すなら `node scripts/gates/code/check-duplicates.ts --update-baseline` でベースラインに載せる。
 `--update-baseline` は登録済みのコピーの重複もベースラインに載せる（jscpd のレポートは指紋を出さないので、ベースラインから除けない）。
 そのため、そのときの組を `.config/jscpd/declared-groups.json` に控え、後で組を宣言から外したら、その組のファイルの間の重複はベースラインにあっても失敗にする。
 jscpd は 3 か所以上の重複を 2 つずつの組で報告するので、1 か所を直すと、残りの組が新しい重複として報告されることがある。そのときもベースラインを作り直す。

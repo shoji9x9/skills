@@ -72,7 +72,7 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: pnpm exec fallow audit --base "origin/${BASE_REF}" --dead-code-baseline .config/fallow/dead-code-baseline.json --quiet --format compact
-      # 重複したコード（JS/TS・シェル・Markdown）。既存の重複は .config/jscpd/baseline.json。
+      # 重複したコード（JS/TS・シェル・Markdown）。既存の重複は .config/jscpd/ の baseline.json と baseline-tests.json。
       - name: Duplicates (jscpd)
         run: pnpm run lint:duplicates
       # 対象は tsconfig.json が束ねる 4 つのプロジェクト（Node で実行する .ts、配布スキルの雛形とインストール済みのコピー、Claude Code 用のリンクから見た雛形、eval の fixture）。
