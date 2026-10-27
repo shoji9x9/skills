@@ -214,22 +214,36 @@ function regexLiteralEnd(source, start) {
     // 正規表現リテラルは行をまたげない。
     if (c === "\n") return -1;
     if (c === "\\") {
-      if (i + 1 >= source.length || source[i + 1] === "\n") return -1;
+      if (escapeReachesLineEnd(source, i)) return -1;
       i += 2;
       continue;
     }
-    if (inClass) {
-      if (c === "]") inClass = false;
-    } else if (c === "[") {
-      inClass = true;
-    } else if (c === "/") {
-      i += 1;
-      while (i < source.length && /[a-z]/i.test(source[i])) i += 1;
-      return i;
-    }
+    if (!inClass && c === "/") return regexFlagsEnd(source, i + 1);
+    // 文字クラスの中は `]` で閉じ、外は `[` で開く。
+    inClass = inClass ? c !== "]" : c === "[";
     i += 1;
   }
   return -1;
+}
+
+/**
+ * `i` の `\` が、エスケープする文字を持たずに入力の終わりか改行に当たるか。
+ * @param {string} source
+ * @param {number} i
+ */
+function escapeReachesLineEnd(source, i) {
+  return i + 1 >= source.length || source[i + 1] === "\n";
+}
+
+/**
+ * `from` から続く正規表現のフラグの直後の位置を返す。
+ * @param {string} source
+ * @param {number} from
+ */
+function regexFlagsEnd(source, from) {
+  let i = from;
+  while (i < source.length && /[a-z]/i.test(source[i])) i += 1;
+  return i;
 }
 
 /**
@@ -254,21 +268,31 @@ function startsAmbiguousSlash(source, from) {
   for (;;) {
     while (k < source.length && /\s/.test(source[k])) k += 1;
     if (source[k] !== "/") return false;
-    const next = source[k + 1];
-    if (next === "/") {
-      const end = source.indexOf("\n", k + 2);
-      if (end === -1) return false;
-      k = end + 1;
-      continue;
-    }
-    if (next === "*") {
-      const end = source.indexOf("*/", k + 2);
-      if (end === -1) return false;
-      k = end + 2;
-      continue;
-    }
-    return true;
+    const end = commentEnd(source, k);
+    if (end === -1) return false;
+    if (end === k) return true;
+    k = end;
   }
+}
+
+/**
+ * `k` の `/` から始まるコメントの直後の位置を返す。
+ * コメントでなければ `k` を、コメントが閉じなければ -1 を返す。
+ * @param {string} source
+ * @param {number} k
+ * @returns {number}
+ */
+function commentEnd(source, k) {
+  const next = source[k + 1];
+  if (next === "/") {
+    const end = source.indexOf("\n", k + 2);
+    return end === -1 ? -1 : end + 1;
+  }
+  if (next === "*") {
+    const end = source.indexOf("*/", k + 2);
+    return end === -1 ? -1 : end + 2;
+  }
+  return k;
 }
 
 /**
@@ -1204,20 +1228,33 @@ function declaratorRhs(rawRhs) {
     else if (c === ")" || c === "]" || c === "}") {
       if (depth === 0) return rawRhs.slice(0, k);
       depth -= 1;
-    } else if (depth === 0 && (c === ";" || c === ",")) return rawRhs.slice(0, k);
-    else if (depth === 0 && c === "\n") {
-      const before = rawRhs.slice(0, k).trimEnd();
-      const after = rawRhs.slice(k + 1).trimStart();
-      if (
-        before !== "" &&
-        !/[=+\-*/%&|^!~?:,.<>([{]$/.test(before) &&
-        !/^[.?:+\-*/%&|^<>=]/.test(after)
-      ) {
-        return rawRhs.slice(0, k);
-      }
-    }
+    } else if (depth === 0 && endsDeclarator(rawRhs, k)) return rawRhs.slice(0, k);
   }
   return rawRhs;
+}
+
+/**
+ * 括弧の外にある `k` の文字が、宣言子を終えるか（`;` / `,`、または文を終える改行）。
+ * @param {string} rawRhs
+ * @param {number} k
+ */
+function endsDeclarator(rawRhs, k) {
+  const c = rawRhs[k];
+  if (c === ";" || c === ",") return true;
+  return c === "\n" && newlineEndsStatement(rawRhs, k);
+}
+
+/**
+ * `k` の改行が文を終えるか。前の行が演算子で終わるか、次の行が演算子で始まるなら、続きとして読む。
+ * @param {string} rawRhs
+ * @param {number} k
+ */
+function newlineEndsStatement(rawRhs, k) {
+  const before = rawRhs.slice(0, k).trimEnd();
+  const after = rawRhs.slice(k + 1).trimStart();
+  return (
+    before !== "" && !/[=+\-*/%&|^!~?:,.<>([{]$/.test(before) && !/^[.?:+\-*/%&|^<>=]/.test(after)
+  );
 }
 
 /**
@@ -1472,6 +1509,20 @@ function nonPlaywrightNames(
       nonReceivers.add(name);
     }
   }
+  growNonReceivers({ declarations, nonReceivers, candidate, siteIsNonValue });
+  return nonReceivers;
+}
+
+/**
+ * 宣言のすべてが値でない名前を、`nonReceivers` が増えなくなるまで足す。
+ * @param {{
+ *   declarations: Map<string, string[]>,
+ *   nonReceivers: Set<string>,
+ *   candidate: (name: string) => boolean,
+ *   siteIsNonValue: (rawRhs: string) => boolean,
+ * }} context
+ */
+function growNonReceivers({ declarations, nonReceivers, candidate, siteIsNonValue }) {
   // 起点が全て確定済みの式（`const total = limit + 1`）は、確定した名前が増えるたびに読み直す。
   // 名前は 1 回ずつしか増えないので、読み直しの回数の上限は宣言の数で足りる。
   // 上限は、名前が増えたと誤って返す誤りがあってもループを終わらせるためにある。
@@ -1487,7 +1538,6 @@ function nonPlaywrightNames(
     }
   }
   if (grew) throw new Error("値でない名前の集合が上限の回数で定まらない");
-  return nonReceivers;
 }
 
 /**
@@ -1510,27 +1560,9 @@ function resolveReceiver(segments, receivers) {
   let hasOpaqueAlias = false;
   for (const segment of segments) {
     if (segment.computed) hasComputedAccess = true;
-    // 戻り値注釈で解決した名前は「呼ばれている区間」だけに当てる。呼ばれていない同名の
-    // プロパティに当てると、`function page(…): Locator` があるファイルで
-    // `screen.page.waitForTimeout()` の Page 判定を Locator へ上書きし、page 専用規則が静かに外れる。
-    // 同名が両方の集合に入るなら（別宣言が別の型を返す）どちらとも決められない。先に並べた側を
-    // 採ると、その名前を持つ無関係な宣言 1 つで判定が反転する。解決に使わず、他の区間・
-    // 呼び出しの判定不能に委ねる。
-    const isLocatorCallable = receivers.locatorCallables.has(segment.name);
-    const isPageCallable = receivers.pageCallables.has(segment.name);
-    const ambiguousCallable = isLocatorCallable && isPageCallable;
-    const callableKind =
-      segment.called && !ambiguousCallable
-        ? isLocatorCallable
-          ? "locator"
-          : isPageCallable
-            ? "page"
-            : null
-        : null;
-    if (receivers.locator.has(segment.name) || callableKind === "locator") {
-      kind = "locator";
-    } else if (receivers.page.has(segment.name) || callableKind === "page") {
-      kind = "page";
+    const resolved = segmentKind(segment, receivers);
+    if (resolved !== null) {
+      kind = resolved;
     } else if (segment.called) {
       hasUnknownCall = true;
     } else if (receivers.opaqueAliases.has(segment.name)) {
@@ -1543,6 +1575,39 @@ function resolveReceiver(segments, receivers) {
     undecidable: kind === null && (hasUnknownCall || hasComputedAccess || hasOpaqueAlias),
     reason: hasUnknownCall ? "call" : hasOpaqueAlias ? "alias" : "computed",
   };
+}
+
+/**
+ * チェーンの区間 1 つが解決する受け側の種別（解決しなければ null）。
+ * @param {{ name: string, called: boolean, computed: boolean }} segment
+ * @param {ReturnType<typeof playwrightReceivers>} receivers
+ * @returns {"locator" | "page" | null}
+ */
+function segmentKind(segment, receivers) {
+  const callableKind = segmentCallableKind(segment, receivers);
+  if (receivers.locator.has(segment.name) || callableKind === "locator") return "locator";
+  if (receivers.page.has(segment.name) || callableKind === "page") return "page";
+  return null;
+}
+
+/**
+ * 区間の名前を戻り値注釈で解決した種別（解決しなければ null）。
+ * @param {{ name: string, called: boolean, computed: boolean }} segment
+ * @param {ReturnType<typeof playwrightReceivers>} receivers
+ * @returns {"locator" | "page" | null}
+ */
+function segmentCallableKind(segment, receivers) {
+  // 戻り値注釈で解決した名前は「呼ばれている区間」だけに当てる。呼ばれていない同名の
+  // プロパティに当てると、`function page(…): Locator` があるファイルで
+  // `screen.page.waitForTimeout()` の Page 判定を Locator へ上書きし、page 専用規則が警告なしに外れる。
+  // 同名が両方の集合に入るなら（別宣言が別の型を返す）どちらとも決められない。先に並べた側を
+  // 採ると、その名前を持つ無関係な宣言 1 つで判定が反転する。解決に使わず、他の区間・
+  // 呼び出しの判定不能に委ねる。
+  const isLocatorCallable = receivers.locatorCallables.has(segment.name);
+  const isPageCallable = receivers.pageCallables.has(segment.name);
+  if (!segment.called || (isLocatorCallable && isPageCallable)) return null;
+  if (isLocatorCallable) return "locator";
+  return isPageCallable ? "page" : null;
 }
 
 /** @param {string} file */
@@ -1621,47 +1686,64 @@ export function scanSourceWithStats(source, file = "<source>") {
   const findings = [];
   // exempted は resolved の内数（解決してから免除する）。内訳は callSites = resolved + undecidable + excluded。
   const stats = { callSites: 0, resolved: 0, undecidable: 0, excluded: 0, exempted: 0 };
+  const scan = { code, file, receivers, captureSpec, findings, stats };
   for (const rule of RULES) {
     const methodPattern = rule.methods.map((method) => method.replaceAll("$", "\\$")).join("|");
     const pattern = new RegExp(`\\.\\s*(?:${methodPattern})\\s*\\(`, "g");
-    for (const match of code.matchAll(pattern)) {
-      stats.callSites += 1;
-      const site = classifyCallSite(code, match.index, receivers);
-      if (site.outcome === "excluded") {
-        stats.excluded += 1;
-        continue;
-      }
-      if (site.outcome === "undecidable") {
-        stats.undecidable += 1;
-        findings.push({
-          ...sourcePosition(code, match.index),
-          file,
-          rule: UNRESOLVED_RULE,
-          message: site.message,
-        });
-        continue;
-      }
-      // 解決できた受け側は、規則の要求と合わなくても件数に数える（合致だけを数えると
-      // 「解決できた」と「規則が当たった」が区別できず、ok: 行が測れた量を示さなくなる）。
-      stats.resolved += 1;
-      const matchesReceiver = rule.receivers.some(
-        (want) => want === site.kind || (want === "locator" && site.kind === "page"),
-      );
-      if (!matchesReceiver) continue;
-      if (captureSpec && CAPTURE_EXEMPT_RULES.has(rule.id)) {
-        stats.exempted += 1;
-        continue;
-      }
-      findings.push({
-        ...sourcePosition(code, match.index),
-        file,
-        rule: rule.id,
-        message: rule.message,
-      });
-    }
+    for (const match of code.matchAll(pattern)) recordCallSite(scan, rule, match.index);
   }
   findings.sort((a, b) => a.line - b.line || a.column - b.column || a.rule.localeCompare(b.rule));
   return { findings, stats };
+}
+
+/**
+ * `index` の呼び出し 1 件を分類し、件数と違反を `scan` に積む。
+ * @param {{
+ *   code: string,
+ *   file: string,
+ *   receivers: ReturnType<typeof playwrightReceivers>,
+ *   captureSpec: boolean,
+ *   findings: Finding[],
+ *   stats: { callSites: number, resolved: number, undecidable: number, excluded: number, exempted: number },
+ * }} scan
+ * @param {(typeof RULES)[number]} rule
+ * @param {number} index
+ */
+function recordCallSite(scan, rule, index) {
+  const { code, file, receivers, captureSpec, findings, stats } = scan;
+  stats.callSites += 1;
+  const site = classifyCallSite(code, index, receivers);
+  if (site.outcome === "excluded") {
+    stats.excluded += 1;
+    return;
+  }
+  if (site.outcome === "undecidable") {
+    stats.undecidable += 1;
+    findings.push({
+      ...sourcePosition(code, index),
+      file,
+      rule: UNRESOLVED_RULE,
+      message: site.message,
+    });
+    return;
+  }
+  // 解決できた受け側は、規則の要求と合わなくても件数に数える（合致だけを数えると
+  // 「解決できた」と「規則が当たった」が区別できず、ok: 行が測れた量を示さなくなる）。
+  stats.resolved += 1;
+  const matchesReceiver = rule.receivers.some(
+    (want) => want === site.kind || (want === "locator" && site.kind === "page"),
+  );
+  if (!matchesReceiver) return;
+  if (captureSpec && CAPTURE_EXEMPT_RULES.has(rule.id)) {
+    stats.exempted += 1;
+    return;
+  }
+  findings.push({
+    ...sourcePosition(code, index),
+    file,
+    rule: rule.id,
+    message: rule.message,
+  });
 }
 
 /**

@@ -147,6 +147,28 @@ function rectKey(r) {
  */
 
 /**
+ * 新側の traits.json から、影響インスタンスの論理名ごとの rect の鍵を集める。
+ * @param {unknown[]} traits 新側の traits.json
+ * @param {{id:string, locator:unknown}[]} instances 影響インスタンス
+ * @param {string} traitsPath 不合格の理由に出す traits.json のパス
+ * @returns {string[] | string} rect の鍵（論理名の rect が 1 件だけある形でなければ、不合格の理由）
+ */
+function expectedRectKeys(traits, instances, traitsPath) {
+  /** @type {string[]} */
+  const expected = [];
+  const traitObjects = traits.filter(isPlainObject);
+  for (const { locator } of instances) {
+    const found = traitObjects.filter((t) => t.name === locator);
+    const key = found.length === 1 ? rectKey(found[0].rect) : null;
+    if (key === null) {
+      return `新側の traits.json に影響インスタンスの論理名 ${JSON.stringify(locator)} の rect が 1 件だけある形でない（${found.length} 件）: ${traitsPath}`;
+    }
+    expected.push(key);
+  }
+  return expected;
+}
+
+/**
  * amend-verify の組の判定に使った幾何（margin と領域）が、変更宣言と新側の採取物に結びついているか。
  * 画像の sha256 は画像を認証するだけで、判定を弱める margin・領域（画面全体など）を認証しない。
  * margin は宣言の margin_px と一致し、領域（広げる前の declared_regions）は撮り直した新側の組の
@@ -172,17 +194,8 @@ function checkGeometry(entry, change, { instances, fromProject, readBytes }) {
     return `新側の traits.json を読めない（inputs.new には撮り直した組の screenshot.png を渡す）: ${traitsPath}（${reasonOf(e)}）`;
   }
   if (!isArray(traits)) return `新側の traits.json が配列でない: ${traitsPath}`;
-  /** @type {string[]} */
-  const expected = [];
-  const traitObjects = traits.filter(isPlainObject);
-  for (const { locator } of instances) {
-    const found = traitObjects.filter((t) => t.name === locator);
-    const key = found.length === 1 ? rectKey(found[0].rect) : null;
-    if (key === null) {
-      return `新側の traits.json に影響インスタンスの論理名 ${JSON.stringify(locator)} の rect が 1 件だけある形でない（${found.length} 件）: ${traitsPath}`;
-    }
-    expected.push(key);
-  }
+  const expected = expectedRectKeys(traits, instances, traitsPath);
+  if (typeof expected === "string") return expected;
   const declared = isArray(entry.declared_regions) ? entry.declared_regions.map(rectKey) : [];
   if (!declared.every((k) => k !== null) || declared.length === 0) {
     return "declared_regions が矩形の配列でない";

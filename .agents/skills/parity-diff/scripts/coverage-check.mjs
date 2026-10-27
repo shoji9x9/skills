@@ -551,40 +551,53 @@ function setInventoryProblems(raw, label) {
     return problems;
   }
   const block = raw;
+  problems.push(...setSourceProblems(block, label));
+  problems.push(...setCompleteProblems(block, label));
+  return problems;
+}
+
+/**
+ * 集合のブロックの `source` を検査する（setInventoryProblems の出所の側）。
+ * @param {Record<string, unknown>} block - 集合の出所と完全性のブロック
+ * @param {string} label - エラーメッセージ用のラベル
+ * @returns {string[]}
+ */
+function setSourceProblems(block, label) {
   const source = isPlainObject(block.source) ? block.source : null;
   if (source === null) {
-    problems.push(`${label}.source が無い（どの版のどこから何を条件に列挙したか残らない）`);
-  } else {
-    for (const key of ["kind", "ref", "version", "condition"]) {
-      if (!nonEmptyString(source[key])) problems.push(`${label}.source.${key} が空`);
-    }
-    if (!inAllowlist(source.kind, SET_SOURCE_KINDS)) {
-      problems.push(
-        `${label}.source.kind（${showKind(source.kind)}）が ${SET_SOURCE_KINDS.join(" / ")} のいずれでもない`,
-      );
-    }
-    problems.push(...strongerSourceProblems(block, label));
+    return [`${label}.source が無い（どの版のどこから何を条件に列挙したか残らない）`];
   }
-  // complete: false は「列挙元を読み切れなかった」の記録。未列挙として扱い、確認済みにしない。
-  // 真偽値でないときも合格として扱わない（未設定を「完全」と読まない）。
-  if (block.complete !== true) {
-    if (block.complete === false) {
-      if (!nonEmptyString(block.incomplete_reason)) {
-        problems.push(
-          `${label}: complete: false なのに incomplete_reason が空（不足と列挙手順が残らない）`,
-        );
-      } else {
-        problems.push(
-          `${label}: 列挙が未完了（${String(block.incomplete_reason)}）— 確認済みにしない`,
-        );
-      }
-    } else {
-      problems.push(`${label}.complete が true ではない（未設定を「完全」と読まない）`);
-    }
-  } else {
-    problems.push(...staleIncompleteReasonProblems(block, label));
+  /** @type {string[]} */
+  const problems = [];
+  for (const key of ["kind", "ref", "version", "condition"]) {
+    if (!nonEmptyString(source[key])) problems.push(`${label}.source.${key} が空`);
   }
+  if (!inAllowlist(source.kind, SET_SOURCE_KINDS)) {
+    problems.push(
+      `${label}.source.kind（${showKind(source.kind)}）が ${SET_SOURCE_KINDS.join(" / ")} のいずれでもない`,
+    );
+  }
+  problems.push(...strongerSourceProblems(block, label));
   return problems;
+}
+
+/**
+ * 集合のブロックの `complete` / `incomplete_reason` を検査する（setInventoryProblems の完全性の側）。
+ * complete: false は「列挙元を読み切れなかった」の記録。未列挙として扱い、確認済みにしない。
+ * 真偽値でないときも合格として扱わない（未設定を「完全」と読まない）。
+ * @param {Record<string, unknown>} block - 集合の出所と完全性のブロック
+ * @param {string} label - エラーメッセージ用のラベル
+ * @returns {string[]}
+ */
+function setCompleteProblems(block, label) {
+  if (block.complete === true) return staleIncompleteReasonProblems(block, label);
+  if (block.complete !== false) {
+    return [`${label}.complete が true ではない（未設定を「完全」と読まない）`];
+  }
+  if (!nonEmptyString(block.incomplete_reason)) {
+    return [`${label}: complete: false なのに incomplete_reason が空（不足と列挙手順が残らない）`];
+  }
+  return [`${label}: 列挙が未完了（${String(block.incomplete_reason)}）— 確認済みにしない`];
 }
 
 /**

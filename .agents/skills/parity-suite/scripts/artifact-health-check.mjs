@@ -443,14 +443,7 @@ function lexIdent(st) {
  * @returns {boolean}
  */
 function lexSymbol(st, c) {
-  if (c === "/" && st.out.endsWith(")")) {
-    // `)` の後の `/` は、`(a + b) / 2` なら除算、`if (x) /[//]/.test(v)` なら正規表現で、字句だけでは決まらない。
-    // 除算と読んだまま同じ行の残りに `//` `/*` があると、正規表現の中身をコメントとして捨ててコードの変更を
-    // 見逃しうる。そのため、その形は読めないものとして扱い、生バイトで指紋を取る（null）
-    const eol = st.src.slice(st.i + 1).search(LINE_BREAK);
-    const rest = eol < 0 ? st.src.slice(st.i + 1) : st.src.slice(st.i + 1, st.i + 1 + eol);
-    if (rest.includes("//") || rest.includes("/*")) return false;
-  }
+  if (c === "/" && st.out.endsWith(")") && !slashAfterParenReadable(st)) return false;
   st.i += 1;
   if (c === "{") st.braces.push("b");
   if (c === "}" && st.braces.pop() === "t") {
@@ -460,10 +453,35 @@ function lexSymbol(st, c) {
     return scanTemplate(st);
   }
   emitToken(st, c);
-  if (c === ")" || c === "]") st.prev = "div";
-  else if ((c === "+" || c === "-") && st.src[st.i - 2] === c) st.prev = "div"; // 後置 ++ / --
-  else st.prev = "re";
+  st.prev = prevAfterSymbol(st, c);
   return true;
+}
+
+/**
+ * `)` の後の `/` を、除算と読んでも指紋を取れるか。
+ * @param {LexState} st
+ * @returns {boolean}
+ */
+function slashAfterParenReadable(st) {
+  // `)` の後の `/` は、`(a + b) / 2` なら除算、`if (x) /[//]/.test(v)` なら正規表現で、字句だけでは決まらない。
+  // 除算と読んだまま同じ行の残りに `//` `/*` があると、正規表現の中身をコメントとして捨ててコードの変更を
+  // 見逃しうる。そのため、その形は読めないものとして扱い、生バイトで指紋を取る（null）
+  const eol = st.src.slice(st.i + 1).search(LINE_BREAK);
+  const rest = eol < 0 ? st.src.slice(st.i + 1) : st.src.slice(st.i + 1, st.i + 1 + eol);
+  if (rest.includes("//") || rest.includes("/*")) return false;
+  return true;
+}
+
+/**
+ * 記号 1 文字を出した後に、次の `/` を除算と読むか正規表現と読むか。
+ * @param {LexState} st
+ * @param {string} c
+ * @returns {"div" | "re"}
+ */
+function prevAfterSymbol(st, c) {
+  if (c === ")" || c === "]") return "div";
+  if ((c === "+" || c === "-") && st.src[st.i - 2] === c) return "div"; // 後置 ++ / --
+  return "re";
 }
 
 /**
@@ -1677,13 +1695,30 @@ export function checkUnmeasured(metadata, ctx) {
   }
   if (!isArray(decl.entries)) throw new UsageError("unmeasured.entries が配列でない");
 
+  const { findings, pending, blocking } = tallyUnmeasured(decl.entries, stage);
+  const notes = [`未測定の宣言 ${decl.entries.length} 件のうち blocking ${blocking} 件`];
+  if (pending.length > 0) {
+    notes.push(
+      `stage: suite のため blocking ${pending.length} 件は落とさない（parity-diff の収束判定が受け取る）: ${pending.join(" / ")}`,
+    );
+  }
+  return { judged: true, findings, notes, blocking };
+}
+
+/**
+ * 未測定の宣言を 1 件ずつ判定し、記録の不備・工程で扱いが変わる blocking の項目・blocking の件数を集める。
+ * @param {unknown[]} entries
+ * @param {string} stage
+ * @returns {{ findings: string[], pending: string[], blocking: number }}
+ */
+function tallyUnmeasured(entries, stage) {
   /** @type {string[]} */
   const findings = [];
   /** @type {string[]} */
   const pending = [];
   let blocking = 0;
   const seen = new Set();
-  for (const [i, entry] of decl.entries.entries()) {
+  for (const [i, entry] of entries.entries()) {
     const judged = judgeUnmeasuredEntry(entry, i, seen);
     if (judged.blocking) blocking += 1;
     if (judged.finding !== null) findings.push(judged.finding);
@@ -1693,13 +1728,7 @@ export function checkUnmeasured(metadata, ctx) {
     if (stage === "suite") pending.push(judged.item);
     else findings.push(`未測定が残っている（disposition: blocking）: ${judged.item}`);
   }
-  const notes = [`未測定の宣言 ${decl.entries.length} 件のうち blocking ${blocking} 件`];
-  if (pending.length > 0) {
-    notes.push(
-      `stage: suite のため blocking ${pending.length} 件は落とさない（parity-diff の収束判定が受け取る）: ${pending.join(" / ")}`,
-    );
-  }
-  return { judged: true, findings, notes, blocking };
+  return { findings, pending, blocking };
 }
 
 /**
@@ -1760,16 +1789,9 @@ export function affectsBetween(changes, v, c) {
   /** @type {Map<number, string[]>} */
   const byVersion = new Map();
   for (const change of changes) {
-    if (!isPlainObject(change)) return null;
-    const ver = toInteger(change.version);
-    if (ver === null || ver < 1) return null;
-    if (byVersion.has(ver)) return null;
-    if (!isArray(change.affects)) return null;
-    for (const a of change.affects) if (!nonEmptyString(a)) return null;
-    byVersion.set(
-      ver,
-      change.affects.map((a) => String(a).trim()),
-    );
+    const read = readChange(change, byVersion);
+    if (read === null) return null;
+    byVersion.set(read.ver, read.affects);
   }
   for (let i = 1; i <= c; i += 1) if (!byVersion.has(i)) return null;
   /** @type {string[]} */
@@ -1777,6 +1799,22 @@ export function affectsBetween(changes, v, c) {
   // 1 から c までの版がすべて在ることは、直前で確かめている
   for (let i = v + 1; i <= c; i += 1) out.push(...(byVersion.get(i) ?? []));
   return [...new Set(out)];
+}
+
+/**
+ * changes[] の 1 件から版と affects を読む。不正（版が読めない・既に読んだ版・affects が文字列の配列でない）なら null。
+ * @param {unknown} change
+ * @param {Map<number, string[]>} byVersion - 既に読んだ版（重複の検出に使う。この関数は足さない）
+ * @returns {{ ver: number, affects: string[] } | null}
+ */
+function readChange(change, byVersion) {
+  if (!isPlainObject(change)) return null;
+  const ver = toInteger(change.version);
+  if (ver === null || ver < 1) return null;
+  if (byVersion.has(ver)) return null;
+  if (!isArray(change.affects)) return null;
+  for (const a of change.affects) if (!nonEmptyString(a)) return null;
+  return { ver, affects: change.affects.map((a) => String(a).trim()) };
 }
 
 /**

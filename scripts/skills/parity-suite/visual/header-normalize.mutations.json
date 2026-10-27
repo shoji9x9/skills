@@ -23,8 +23,8 @@
       "id": "lowercase-off",
       "why": "取得経路で表記の違うヘッダー名を揃えず、同じ応答が別の出力になる",
       "file": "skills/parity-suite/scripts/header-normalize.mjs",
-      "find": "    const key = name.toLowerCase();\n    // allHeaders()",
-      "replace": "    const key = name;\n    // allHeaders()",
+      "find": "  const key = name.toLowerCase();\n  // allHeaders()",
+      "replace": "  const key = name;\n  // allHeaders()",
       "occurrences": 1,
       "expect_failing": [
         "CLI: 正規化した JSON を出して exit 0（node で起動しても main が実行される）",

@@ -318,6 +318,21 @@ function lookupInstances(change, m) {
   const problems = [];
   /** @type {{id:string, page:string, locator:unknown}[]} */
   const resolved = [];
+  const byId = instancesById(m);
+  for (const id of new Set(stringList(change.instances))) {
+    const instance = lookupInstance(id, byId.get(id) ?? []);
+    if (typeof instance === "string") problems.push(instance);
+    else resolved.push(instance);
+  }
+  return { resolved, problems };
+}
+
+/**
+ * 部品 metadata の instances を id ごとにまとめる。id が文字列でない要素は飛ばす。
+ * @param {Record<string, unknown>} m - 部品 metadata
+ * @returns {Map<string, Record<string, unknown>[]>}
+ */
+function instancesById(m) {
   /** @type {Map<string, Record<string, unknown>[]>} */
   const byId = new Map();
   for (const record of isArray(m.instances) ? m.instances : []) {
@@ -326,28 +341,27 @@ function lookupInstances(change, m) {
     if (typeof record.id !== "string") continue;
     byId.set(record.id, [...(byId.get(record.id) ?? []), record]);
   }
-  for (const id of new Set(stringList(change.instances))) {
-    const found = byId.get(id) ?? [];
-    if (found.length === 0) {
-      problems.push(
-        `インスタンス ${id} が部品 metadata の instances に無い（どのページのものか分からない）`,
-      );
-      continue;
-    }
-    if (found.length > 1) {
-      problems.push(
-        `インスタンス ${id} が部品 metadata の instances に 2 つ以上ある（どのページのものか決まらない）`,
-      );
-      continue;
-    }
-    const page = found[0].page;
-    if (!nonEmptyString(page) || isPlaceholder(page)) {
-      problems.push(`インスタンス ${id} の page が読めない: ${JSON.stringify(page)}`);
-      continue;
-    }
-    resolved.push({ id, page, locator: found[0].locator ?? null });
+  return byId;
+}
+
+/**
+ * 1 つのインスタンス id を、同じ id を持つ instances の要素から取得する。
+ * @param {string} id
+ * @param {Record<string, unknown>[]} found - 同じ id を持つ instances の要素
+ * @returns {{id:string, page:string, locator:unknown} | string} 取得したインスタンス（取得できなければ理由）
+ */
+function lookupInstance(id, found) {
+  if (found.length === 0) {
+    return `インスタンス ${id} が部品 metadata の instances に無い（どのページのものか分からない）`;
   }
-  return { resolved, problems };
+  if (found.length > 1) {
+    return `インスタンス ${id} が部品 metadata の instances に 2 つ以上ある（どのページのものか決まらない）`;
+  }
+  const page = found[0].page;
+  if (!nonEmptyString(page) || isPlaceholder(page)) {
+    return `インスタンス ${id} の page が読めない: ${JSON.stringify(page)}`;
+  }
+  return { id, page, locator: found[0].locator ?? null };
 }
 
 /**

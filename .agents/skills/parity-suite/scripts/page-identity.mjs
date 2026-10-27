@@ -100,6 +100,28 @@ function readPageEntry(pg) {
 }
 
 /**
+ * ページの path を base に対して解き、照合に使う鍵を付ける。
+ * @param {string} name - ページの名前
+ * @param {string} path - ページの path
+ * @param {URL | string} base - baseURL（runtime なら仮のオリジン）
+ * @returns {ResolvedPage}
+ */
+function resolvePage(name, path, base) {
+  const u = new URL(path, base);
+  // フラグメントの中の `?`（`#/orders?tab=1`）はクエリではない
+  const search = path.split("#")[0].includes("?") ? u.search : null;
+  const hash = path.includes("#") ? u.hash : null;
+  return {
+    name,
+    path,
+    pathname: u.pathname,
+    search,
+    hash,
+    key: urlKeyOf(u.pathname, search, hash),
+  };
+}
+
+/**
  * capture_conditions.pages を baseURL に対して解く。
  * @param {unknown} pages - capture_conditions.pages（名前の重複・欠けの検査は呼び出し側が持つ）
  * @param {unknown} uiUrl - target.ui_url
@@ -140,18 +162,7 @@ export function resolvePages(pages, uiUrl) {
       unresolved.set(name, path);
       continue;
     }
-    const u = new URL(path, baseRead.base ?? PLACEHOLDER_ORIGIN);
-    // フラグメントの中の `?`（`#/orders?tab=1`）はクエリではない
-    const search = path.split("#")[0].includes("?") ? u.search : null;
-    const hash = path.includes("#") ? u.hash : null;
-    resolved.set(name, {
-      name,
-      path,
-      pathname: u.pathname,
-      search,
-      hash,
-      key: urlKeyOf(u.pathname, search, hash),
-    });
+    resolved.set(name, resolvePage(name, path, baseRead.base ?? PLACEHOLDER_ORIGIN));
   }
   return finishResolution({ pages: resolved, unresolved, problems });
 }

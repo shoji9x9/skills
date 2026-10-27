@@ -577,6 +577,30 @@ export function floorHistory(previous, samplesDoc, opts) {
 }
 
 /**
+ * 下限を引き継ぐ表と、エラーに出すその表の名前を決める（baseFloors の説明の順で選ぶ）。
+ * 履歴が無く集計済みでもなければ、デフォルトを使うので null を返す。
+ * @param {Record<string, unknown>} previous - 書き換える前の metadata.json の performance
+ * @param {string} key - `floors` か `relative_floors`
+ * @returns {{ table: unknown, label: string } | null}
+ */
+function inheritedSource(previous, key) {
+  const history = isArray(previous.floor_history) ? previous.floor_history : [];
+  if (history.length > 0) {
+    const tail = history[history.length - 1];
+    if (!isPlainObject(tail)) {
+      throw new UsageError(
+        "前の performance.floor_history の最後の要素がオブジェクトでない（履歴を直してから通す）",
+      );
+    }
+    return { table: tail[key], label: `performance.floor_history の最後の要素の ${key}` };
+  }
+  if (previous.declared === true) {
+    return { table: previous[key], label: `performance.${key}` };
+  }
+  return null;
+}
+
+/**
  * `--floor` / `--relative-floor` を省いた指標に使う下限を決める。
  * 記録した下限を引き継ぐ。省いただけで決めた下限がデフォルトへ戻ると、
  * 採り直しのときにフラグを付け忘れただけで下限が変わり、デフォルトより緩くなければ compare の loosened_floors にも出ない。
@@ -596,25 +620,9 @@ export function baseFloors(previous, { key, defaults, overridden = [] }) {
   // 履歴そのものが配列でないときは、ここでは空として扱うが、続く floorHistory がフラグに関わらず止める（フラグでは復旧できない）。
   if (!isPlainObject(previous) || METRICS.every((m) => overridden.includes(m)))
     return { ...defaults };
-  const history = isArray(previous.floor_history) ? previous.floor_history : [];
-  /** @type {unknown} */
-  let table;
-  let label;
-  if (history.length > 0) {
-    const tail = history[history.length - 1];
-    if (!isPlainObject(tail)) {
-      throw new UsageError(
-        "前の performance.floor_history の最後の要素がオブジェクトでない（履歴を直してから通す）",
-      );
-    }
-    table = tail[key];
-    label = `performance.floor_history の最後の要素の ${key}`;
-  } else if (previous.declared === true) {
-    table = previous[key];
-    label = `performance.${key}`;
-  } else {
-    return { ...defaults };
-  }
+  const source = inheritedSource(previous, key);
+  if (source === null) return { ...defaults };
+  const { table, label } = source;
   if (table === undefined || table === null) return { ...defaults };
   if (!isPlainObject(table)) throw new UsageError(`前の ${label} がオブジェクトでない`);
   /** @type {Record<string, number>} */
@@ -1145,6 +1153,23 @@ function realInsideRoot(path, io) {
 }
 
 /**
+ * 値を取る引数がサブコマンドで受け付けるものかと、値が在るかを確かめて、値を返す。
+ * @param {"summarize" | "compare"} command
+ * @param {string} a - 引数の名前
+ * @param {string | undefined} v - 引数の次の要素
+ * @returns {string}
+ */
+function flagValue(command, a, v) {
+  const allowed =
+    command === "summarize"
+      ? ["--metadata", "--samples", "--floor", "--relative-floor"]
+      : ["--metadata", "--samples", "--target", "--write"];
+  if (!allowed.includes(a)) throw new UsageError(`不明な引数 ${a}`);
+  if (v === undefined || v === "" || v.startsWith("--")) throw new UsageError(`${a} に値が無い`);
+  return v;
+}
+
+/**
  * サブコマンドの後の引数を読む。
  * @param {"summarize" | "compare"} command
  * @param {string[]} rest
@@ -1164,13 +1189,7 @@ function parseArgs(command, rest) {
       writeFlag = true;
       continue;
     }
-    const allowed =
-      command === "summarize"
-        ? ["--metadata", "--samples", "--floor", "--relative-floor"]
-        : ["--metadata", "--samples", "--target", "--write"];
-    if (!allowed.includes(a)) throw new UsageError(`不明な引数 ${a}`);
-    const v = rest[i + 1];
-    if (v === undefined || v === "" || v.startsWith("--")) throw new UsageError(`${a} に値が無い`);
+    const v = flagValue(command, a, rest[i + 1]);
     i += 1;
     if (a === "--floor") {
       floorSpecs.push(v);

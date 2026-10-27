@@ -112,10 +112,10 @@
     },
     "skills/parity-diff/scripts/coverage-check.mjs": {
       "complexity_moderate": {
-        "count": 2
+        "count": 1
       },
       "crap_moderate": {
-        "count": 2
+        "count": 1
       }
     },
     "skills/parity-diff/scripts/diff-normalize.mjs": {
@@ -151,144 +151,6 @@
     "skills/parity-diff/scripts/pixel-crops.mjs": {
       "complexity_moderate": {
         "count": 2
-      }
-    },
-    "skills/parity-suite/scripts/artifact-health-check.mjs": {
-      "complexity_high": {
-        "count": 3
-      },
-      "crap_high": {
-        "count": 3
-      }
-    },
-    "skills/parity-suite/scripts/auto-wait-check.mjs": {
-      "complexity_high": {
-        "count": 2
-      },
-      "complexity_moderate": {
-        "count": 4
-      },
-      "crap_high": {
-        "count": 2
-      },
-      "crap_moderate": {
-        "count": 2
-      }
-    },
-    "skills/parity-suite/scripts/checkpoint.mjs": {
-      "complexity_high": {
-        "count": 1
-      },
-      "complexity_moderate": {
-        "count": 1
-      },
-      "crap_high": {
-        "count": 1
-      },
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/component-impact.mjs": {
-      "complexity_moderate": {
-        "count": 1
-      },
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/coverage-expand.mjs": {
-      "complexity_high": {
-        "count": 1
-      },
-      "complexity_moderate": {
-        "count": 7
-      },
-      "crap_moderate": {
-        "count": 5
-      }
-    },
-    "skills/parity-suite/scripts/dimension-fit.mjs": {
-      "complexity_moderate": {
-        "count": 2
-      },
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/element-shot.mjs": {
-      "complexity_high": {
-        "count": 1
-      },
-      "complexity_moderate": {
-        "count": 1
-      },
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/evidence-carry.mjs": {
-      "complexity_high": {
-        "count": 1
-      },
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/header-normalize.mjs": {
-      "complexity_moderate": {
-        "count": 2
-      },
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/page-identity.mjs": {
-      "complexity_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/perf-stats.mjs": {
-      "complexity_high": {
-        "count": 2
-      },
-      "crap_high": {
-        "count": 2
-      }
-    },
-    "skills/parity-suite/scripts/pixel-strict-count.mjs": {
-      "complexity_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/reaction-check.mjs": {
-      "complexity_high": {
-        "count": 6
-      },
-      "complexity_moderate": {
-        "count": 3
-      },
-      "crap_high": {
-        "count": 6
-      },
-      "crap_moderate": {
-        "count": 3
-      }
-    },
-    "skills/parity-suite/scripts/table-upsert.mjs": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/trait-compare.mjs": {
-      "complexity_moderate": {
-        "count": 1
-      },
-      "crap_moderate": {
-        "count": 1
       }
     },
     "skills/replace-strategy/scripts/append-only-check.mjs": {
@@ -529,14 +391,6 @@
         "count": 1
       }
     },
-    "skills/parity-diff/scripts/coverage-check.mjs\u0000setInventoryProblems": {
-      "complexity_moderate": {
-        "count": 1
-      },
-      "crap_moderate": {
-        "count": 1
-      }
-    },
     "skills/parity-diff/scripts/diff-normalize.mjs\u0000matchException": {
       "complexity_high": {
         "count": 1
@@ -578,312 +432,6 @@
     },
     "skills/parity-diff/scripts/pixel-crops.mjs\u0000clusterComponents": {
       "complexity_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/artifact-health-check.mjs\u0000affectsBetween": {
-      "complexity_high": {
-        "count": 1
-      },
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/artifact-health-check.mjs\u0000checkUnmeasured": {
-      "complexity_high": {
-        "count": 1
-      },
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/artifact-health-check.mjs\u0000lexSymbol": {
-      "complexity_high": {
-        "count": 1
-      },
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/auto-wait-check.mjs\u0000declaratorRhs": {
-      "complexity_high": {
-        "count": 1
-      },
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/auto-wait-check.mjs\u0000nonPlaywrightNames": {
-      "complexity_moderate": {
-        "count": 1
-      },
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/auto-wait-check.mjs\u0000regexLiteralEnd": {
-      "complexity_moderate": {
-        "count": 1
-      },
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/auto-wait-check.mjs\u0000resolveReceiver": {
-      "complexity_high": {
-        "count": 1
-      },
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/auto-wait-check.mjs\u0000scanSourceWithStats": {
-      "complexity_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/auto-wait-check.mjs\u0000startsAmbiguousSlash": {
-      "complexity_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/checkpoint.mjs\u0000parseArgs": {
-      "complexity_high": {
-        "count": 1
-      },
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/checkpoint.mjs\u0000visit": {
-      "complexity_moderate": {
-        "count": 1
-      },
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/component-impact.mjs\u0000lookupInstances": {
-      "complexity_moderate": {
-        "count": 1
-      },
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/coverage-expand.mjs\u0000fillCandidates": {
-      "complexity_moderate": {
-        "count": 1
-      },
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/coverage-expand.mjs\u0000fillVisualStateRows": {
-      "complexity_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/coverage-expand.mjs\u0000fillVisualStates": {
-      "complexity_high": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/coverage-expand.mjs\u0000itemKindsIndex": {
-      "complexity_moderate": {
-        "count": 1
-      },
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/coverage-expand.mjs\u0000pageScopeIndex": {
-      "complexity_moderate": {
-        "count": 1
-      },
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/coverage-expand.mjs\u0000parseArgs": {
-      "complexity_moderate": {
-        "count": 1
-      },
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/coverage-expand.mjs\u0000readCaptureConditions": {
-      "complexity_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/coverage-expand.mjs\u0000setInventoryProblems": {
-      "complexity_moderate": {
-        "count": 1
-      },
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/dimension-fit.mjs\u0000parseOptions": {
-      "complexity_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/dimension-fit.mjs\u0000runCheck": {
-      "complexity_moderate": {
-        "count": 1
-      },
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/element-shot.mjs\u0000planElementClip": {
-      "complexity_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/element-shot.mjs\u0000writePair": {
-      "complexity_high": {
-        "count": 1
-      },
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/evidence-carry.mjs\u0000checkGeometry": {
-      "complexity_high": {
-        "count": 1
-      },
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/header-normalize.mjs\u0000collectHeaders": {
-      "complexity_moderate": {
-        "count": 1
-      },
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/header-normalize.mjs\u0000main": {
-      "complexity_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/page-identity.mjs\u0000resolvePages": {
-      "complexity_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/perf-stats.mjs\u0000baseFloors": {
-      "complexity_high": {
-        "count": 1
-      },
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/perf-stats.mjs\u0000parseArgs": {
-      "complexity_high": {
-        "count": 1
-      },
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/pixel-strict-count.mjs\u0000countStrictDiff": {
-      "complexity_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/reaction-check.mjs\u0000checkDisplayRow": {
-      "complexity_moderate": {
-        "count": 1
-      },
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/reaction-check.mjs\u0000instancePages": {
-      "complexity_moderate": {
-        "count": 1
-      },
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/reaction-check.mjs\u0000layoutMeasureProblem": {
-      "complexity_high": {
-        "count": 1
-      },
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/reaction-check.mjs\u0000noneProblem": {
-      "complexity_high": {
-        "count": 1
-      },
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/reaction-check.mjs\u0000parseFlags": {
-      "complexity_moderate": {
-        "count": 1
-      },
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/reaction-check.mjs\u0000recordCallSites": {
-      "complexity_high": {
-        "count": 1
-      },
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/reaction-check.mjs\u0000recordWriteSites": {
-      "complexity_high": {
-        "count": 1
-      },
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/reaction-check.mjs\u0000walk": {
-      "complexity_high": {
-        "count": 1
-      },
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/reaction-check.mjs\u0000writeSiteProblems": {
-      "complexity_high": {
-        "count": 1
-      },
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/table-upsert.mjs\u0000resolveArray": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "skills/parity-suite/scripts/trait-compare.mjs\u0000main": {
-      "complexity_moderate": {
-        "count": 1
-      },
-      "crap_moderate": {
         "count": 1
       }
     },
@@ -953,18 +501,18 @@
   },
   "runtime_coverage_findings": [],
   "target_keys": [
-    "skills/parity-suite/scripts/coverage-expand.mjs:complexity",
+    "skills/parity-suite/scripts/coverage-expand.mjs:hidden coupling",
     "skills/agent-usage/scripts/agent-usage.mjs:hidden coupling",
     "skills/parity-diff/scripts/json-normalize-diff.mjs:complexity",
     "scripts/gates/docs/doc-tiers.ts:high impact",
-    "scripts/gates/code/oxlint-plugin/max-lines-except-describe.ts:high impact",
     "skills/agent-usage/scripts/lib/config.mjs:hidden coupling",
+    "scripts/gates/code/oxlint-plugin/max-lines-except-describe.ts:high impact",
     ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts:hidden coupling",
     "scripts/lib/testing/child-timeout.ts:high impact",
     "scripts/coverage/run-coverage.ts:hidden coupling",
     "skills/parity-component/scripts/axis-diff.mjs:hidden coupling",
-    "skills/parity-diff/scripts/coverage-check.mjs:hidden coupling",
     "scripts/lib/errors.ts:high impact",
+    "skills/parity-diff/scripts/coverage-check.mjs:hidden coupling",
     "skills/agent-usage/scripts/lib/collect.mjs:hidden coupling",
     "skills/agent-usage/scripts/lib/gate.mjs:hidden coupling",
     "skills/parity-component/scripts/motion-compare.mjs:hidden coupling",

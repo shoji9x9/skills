@@ -131,37 +131,60 @@ export function resolveArray(table, spec, create) {
   let node = table;
   for (const [i, seg] of segments.entries()) {
     const last = i === segments.length - 1;
-    if (last) {
-      if (!Object.hasOwn(node, seg.name)) {
-        if (!create) throw new UsageError(`${spec}: ${seg.name} が無い`);
-        node[seg.name] = [];
-      }
-      const arr = node[seg.name];
-      if (!isArray(arr)) throw new UsageError(`${spec}: ${seg.name} が配列でない`);
-      return arr;
-    }
-    if (!Object.hasOwn(node, seg.name)) throw new UsageError(`${spec}: ${seg.name} が無い`);
-    const child = node[seg.name];
-    if (seg.select === null) {
-      if (!isPlainObject(child)) throw new UsageError(`${spec}: ${seg.name} がオブジェクトでない`);
-      node = child;
-      continue;
-    }
-    if (!isArray(child)) throw new UsageError(`${spec}: ${seg.name} が配列でない`);
-    const { field, value } = seg.select;
-    const hits = child.filter((e) => isPlainObject(e) && e[field] === value);
-    if (hits.length !== 1) {
-      throw new UsageError(
-        `${spec}: ${seg.name}[${field}=${value}] に一致する要素が ${hits.length} 件（1 件でなければ選ばない）`,
-      );
-    }
-    const hit = hits[0];
-    // hits は isPlainObject で絞った要素だけを持つ（到達しない分岐）
-    if (!isPlainObject(hit))
-      throw new UsageError(`${spec}: ${seg.name} の要素がオブジェクトでない`);
-    node = hit;
+    if (last) return lastArray(node, seg, { spec, create });
+    node = childNode(node, seg, spec);
   }
   throw new UsageError(`--array が空: ${spec}`);
+}
+
+/**
+ * --array の 1 区切り。
+ * @typedef {{ name: string, select: { field: string, value: string } | null }} ArraySegment
+ */
+
+/**
+ * 末尾の区切りが指す配列を返す。無ければ create のときだけ空配列を作る。
+ * @param {Record<string, unknown>} node
+ * @param {ArraySegment} seg
+ * @param {{ spec: string, create: boolean }} opts
+ * @returns {unknown[]}
+ */
+function lastArray(node, seg, { spec, create }) {
+  if (!Object.hasOwn(node, seg.name)) {
+    if (!create) throw new UsageError(`${spec}: ${seg.name} が無い`);
+    node[seg.name] = [];
+  }
+  const arr = node[seg.name];
+  if (!isArray(arr)) throw new UsageError(`${spec}: ${seg.name} が配列でない`);
+  return arr;
+}
+
+/**
+ * 途中の区切りが指すオブジェクト（選ぶ欄があれば、条件に 1 件だけ一致する配列の要素）を返す。
+ * @param {Record<string, unknown>} node
+ * @param {ArraySegment} seg
+ * @param {string} spec
+ * @returns {Record<string, unknown>}
+ */
+function childNode(node, seg, spec) {
+  if (!Object.hasOwn(node, seg.name)) throw new UsageError(`${spec}: ${seg.name} が無い`);
+  const child = node[seg.name];
+  if (seg.select === null) {
+    if (!isPlainObject(child)) throw new UsageError(`${spec}: ${seg.name} がオブジェクトでない`);
+    return child;
+  }
+  if (!isArray(child)) throw new UsageError(`${spec}: ${seg.name} が配列でない`);
+  const { field, value } = seg.select;
+  const hits = child.filter((e) => isPlainObject(e) && e[field] === value);
+  if (hits.length !== 1) {
+    throw new UsageError(
+      `${spec}: ${seg.name}[${field}=${value}] に一致する要素が ${hits.length} 件（1 件でなければ選ばない）`,
+    );
+  }
+  const hit = hits[0];
+  // hits は isPlainObject で絞った要素だけを持つ（到達しない分岐）
+  if (!isPlainObject(hit)) throw new UsageError(`${spec}: ${seg.name} の要素がオブジェクトでない`);
+  return hit;
 }
 
 /**

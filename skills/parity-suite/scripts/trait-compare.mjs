@@ -697,6 +697,30 @@ function invalidEntry(side, at) {
 }
 
 /**
+ * main の引数を、入力ファイルと --align-tolerance の値に分ける。
+ * --align-tolerance が負か数でなければ stderr へ書いて null を返す。
+ * @param {string[]} argv - process.argv.slice(2)
+ * @returns {{ files: string[], alignTolerance: number | undefined } | null}
+ */
+function parseCompareArgs(argv) {
+  const files = [];
+  let alignTolerance;
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] === "--align-tolerance") {
+      alignTolerance = Number(argv[i + 1]);
+      if (!Number.isFinite(alignTolerance) || alignTolerance < 0) {
+        process.stderr.write("error: --align-tolerance must be a non-negative number\n");
+        return null;
+      }
+      i += 1;
+    } else {
+      files.push(argv[i]);
+    }
+  }
+  return { files, alignTolerance };
+}
+
+/**
  * CLI エントリ。
  * `node trait-compare.mjs <baseline.json> <capture.json> [--align-tolerance <px>]` で差分を
  * JSON 出力し、差分があれば exit 1、無ければ exit 0、入力エラーは exit 2。
@@ -708,20 +732,9 @@ function invalidEntry(side, at) {
 export function main(argv) {
   const usage =
     "usage: node trait-compare.mjs <baseline.json> <capture.json> [--align-tolerance <px>]\n";
-  const files = [];
-  let alignTolerance;
-  for (let i = 0; i < argv.length; i += 1) {
-    if (argv[i] === "--align-tolerance") {
-      alignTolerance = Number(argv[i + 1]);
-      if (!Number.isFinite(alignTolerance) || alignTolerance < 0) {
-        process.stderr.write("error: --align-tolerance must be a non-negative number\n");
-        return 2;
-      }
-      i += 1;
-    } else {
-      files.push(argv[i]);
-    }
-  }
+  const parsed = parseCompareArgs(argv);
+  if (parsed === null) return 2;
+  const { files, alignTolerance } = parsed;
   if (files.length !== 2) {
     process.stderr.write(usage);
     return 2;
