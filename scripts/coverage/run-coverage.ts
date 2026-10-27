@@ -33,7 +33,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { basename, dirname, join, relative } from "node:path";
+import { basename, dirname, join, relative, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { errorMessage, isErrnoException } from "../lib/errors.ts";
 import { isRecord } from "../lib/guards.ts";
@@ -149,6 +149,11 @@ export function readC8Summary(root: string, value: unknown): Map<string, FileMea
   return measures;
 }
 
+/** 測る対象のディレクトリ（リポジトリからの相対パス。末尾に `/` を付ける）。c8 の --src と、残す V8 の記録の範囲に使う。 */
+function sourceDirs(privates: readonly string[]): string[] {
+  return ["scripts/", "skills/", ...privates];
+}
+
 /** c8 に渡す引数。測る対象・除く対象・結果の置き場所・レポートの形式を並べ、最後に vitest の起動を続ける。 */
 function c8Args(
   privates: readonly string[],
@@ -159,11 +164,7 @@ function c8Args(
     "exec",
     "c8",
     "--all",
-    "--src",
-    "scripts",
-    "--src",
-    "skills",
-    ...privates.flatMap((dir) => ["--src", dir]),
+    ...sourceDirs(privates).flatMap((dir) => ["--src", dir]),
     ...[
       "scripts/**/*.ts",
       "skills/**/*.mjs",
@@ -204,18 +205,21 @@ function measure({ root, cache, vitestArgs, keepRecords }: MeasureOptions): numb
     cwd: root,
     stdio: ["ignore", "inherit", "inherit"],
   });
-  try {
+  // 元の記録は数百 MB になるので、全体の実行でテストが成功したときだけ、測る対象のファイルの分を残す。
+  // 残した分は、CI の CRAP（lint:crap）が関数ごとのカバレッジとして読む。
+  // coverage-final.json は名前の無い関数（コールバックなど）を持たないので、fallow はそれらのカバレッジを推定する。
+  // --focus の結果は CRAP が読まず、実行ごとに別のディレクトリを作るので、残すと溜まる。テストが失敗した実行は CRAP まで進まない。
+  const v8Dir = join(cache, "v8");
+  if (res.error || res.status !== 0 || !keepRecords) {
+    rmSync(v8Dir, { recursive: true, force: true });
     if (res.error) throw res.error;
     return res.status ?? 1;
-  } finally {
-    // 元の記録は数百 MB になるので、測る対象のファイルの分だけを残す。
-    // 残した分は、CI の CRAP（lint:crap）が関数ごとのカバレッジとして読む。
-    // coverage-final.json は名前の無い関数（コールバックなど）を持たないので、fallow はそれらのカバレッジを推定する。
-    // --focus の結果は CRAP が読まず、実行ごとに別のディレクトリを作るので、残すと溜まる。そのため --focus では、テストが失敗したときも記録を消す。
-    const v8Dir = join(cache, "v8");
-    if (keepRecords) keepProjectCoverage(v8Dir, root, ["scripts/", "skills/", ...privates]);
-    else rmSync(v8Dir, { recursive: true, force: true });
   }
+  // 絞れなければ記録が無くなるので、CRAP の検査で初めて失敗させず、ここで判定できないとして止める。
+  if (!keepProjectCoverage(v8Dir, root, sourceDirs(privates))) {
+    throw new Error("V8 の記録を絞れず、CRAP の検査に渡す記録が無い");
+  }
+  return 0;
 }
 
 /** V8 の記録の 1 ファイルのうち、絞るときに残す `result` と、Node が書いたソースマップ（スクリプトの URL ごと）。 */
@@ -239,46 +243,69 @@ function readV8Record(path: string): V8Record | null {
 }
 
 /**
+ * V8 の記録の URL が、残すスクリプトを指すかを返す関数を作る。
+ * 残すのは、`dirs` の下のファイルのうち、c8 が測る対象から除く型の宣言・外部のパッケージから作った生成物・node_modules の下を除いたものである。
+ * テスト（`*.test.ts`）は、c8 は除くが残す。fallow はテストの関数の CRAP も測る。
+ * node_modules は、対象のディレクトリより下だけで探す。リポジトリ自身が node_modules の下にあっても（テストの一時ディレクトリなど）残す。
+ */
+function projectScriptFilter(root: string, dirs: readonly string[]): (url: unknown) => boolean {
+  const rootUrl = pathToFileURL(join(root, "/")).href;
+  return (url) => {
+    if (typeof url !== "string" || !url.startsWith(rootUrl)) return false;
+    const rel = relative(root, fileURLToPath(url)).split(sep).join("/");
+    return (
+      dirs.some((d) => rel.startsWith(d) && !rel.slice(d.length).includes("node_modules/")) &&
+      !rel.endsWith(".d.ts") &&
+      !isVendored(rel)
+    );
+  };
+}
+
+/**
+ * V8 の記録の 1 ファイルを、残すスクリプトの分（とそのソースマップ）に絞る。何も残らなければ消し、何も外れなければ書き直さない。
+ * JSON でないか形が違えば、消して false を返す。
+ */
+function narrowRecordFile(path: string, inProject: (url: unknown) => boolean): boolean {
+  const record = readV8Record(path);
+  const result = (record?.result ?? []).filter((entry) => isRecord(entry) && inProject(entry.url));
+  const maps = Object.entries(record?.sourceMaps ?? {});
+  const sourceMaps = maps.filter(([url]) => inProject(url));
+  if (result.length === 0) rmSync(path);
+  else if (result.length !== record?.result.length || sourceMaps.length !== maps.length) {
+    writeFileSync(
+      path,
+      JSON.stringify({ result, "source-map-cache": Object.fromEntries(sourceMaps) }),
+    );
+  }
+  return record !== null;
+}
+
+/**
  * NODE_V8_COVERAGE の記録から、`dirs`（リポジトリからの相対パス。末尾に `/` を付ける）の下のスクリプトの分だけを残す。
  * 残すスクリプトのソースマップ（`source-map-cache`）も残す。fallow は、変換したスクリプトの位置をソースマップで元のファイルに戻す。
  * 何も残らないファイルは消す。JSON でないか形が違うファイル（書き出しの途中で止められたプロセスの記録など）は、
  * c8 がレポートを作るときに飛ばすので、同じように消し、件数を出す。
- * ファイルを読み書きできなければ、ディレクトリごと消す（CRAP は記録が無いとして失敗する）。
+ * ファイルを読み書きできなければ、ディレクトリごと消して false を返す。記録のディレクトリが無いときも false を返す。
  */
-export function keepProjectCoverage(dir: string, root: string, dirs: readonly string[]): void {
-  if (!existsSync(dir)) return;
-  const prefixes = dirs.map((d) => pathToFileURL(join(root, d)).href);
-  // node_modules は、対象のディレクトリより下だけで探す。リポジトリ自身が node_modules の下にあっても（テストの一時ディレクトリなど）残す。
-  const inProject = (url: unknown) =>
-    typeof url === "string" &&
-    prefixes.some((p) => url.startsWith(p) && !url.slice(p.length).includes("node_modules/"));
+export function keepProjectCoverage(dir: string, root: string, dirs: readonly string[]): boolean {
+  if (!existsSync(dir)) return false;
+  const inProject = projectScriptFilter(root, dirs);
   let unreadable = 0;
   try {
     for (const name of readdirSync(dir)) {
-      const path = join(dir, name);
-      const record = readV8Record(path);
-      if (record === null) unreadable += 1;
-      const result = (record?.result ?? []).filter(
-        (entry) => isRecord(entry) && inProject(entry.url),
-      );
-      const sourceMaps = Object.entries(record?.sourceMaps ?? {}).filter(([url]) => inProject(url));
-      if (result.length === 0) rmSync(path);
-      else
-        writeFileSync(
-          path,
-          JSON.stringify({ result, "source-map-cache": Object.fromEntries(sourceMaps) }),
-        );
+      if (!narrowRecordFile(join(dir, name), inProject)) unreadable += 1;
     }
   } catch (error) {
     console.error(`run-coverage: V8 の記録を絞れないので消す: ${errorMessage(error)}`);
     rmSync(dir, { recursive: true, force: true });
-    return;
+    return false;
   }
   if (unreadable > 0) {
     console.error(
       `run-coverage: 読めない V8 の記録 ${unreadable} 件を飛ばした（c8 のレポートも使わない）`,
     );
   }
+  return true;
 }
 
 /** `reportFocus` が受け取る、閾値の設定・対象のファイル・測定値・--focus の接頭辞・結果の置き場所。 */

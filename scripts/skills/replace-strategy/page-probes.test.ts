@@ -51,24 +51,21 @@ function evaluateSource(source: string, globals: Record<string, unknown>): unkno
   return JSON.parse(JSON.stringify(fn()));
 }
 
-/** 包んだソースが呼ぶ本体と、それを export するページ用のファイルのモジュール。 */
-const PAGE_MAINS: Record<string, () => unknown> = { roleProbeInPage, assetProbeInPage };
+/** プローブの CLI と、その CLI が包むページ用のファイルの本体（モジュールから読み込んだもの）。 */
+const PROBES = { "role-probe.mjs": roleProbeInPage, "asset-probe.mjs": assetProbeInPage };
 
 /**
- * プローブの CLI が出したソースを evaluateSource で呼んで返す。
+ * プローブの CLI を起動し、出したソースを evaluateSource で呼んで返す。
  * 同じ globals で、ページ用のファイルを読み込んだモジュールの本体も呼び、結果が同じことを確かめる。
  * 包んだソースは元のファイルと位置が違うので、ページ用のファイルのカバレッジ（CI の CRAP）は、モジュールの側の実行で数える。
  */
-function evaluateInPage(source: string, globals: Record<string, unknown>): unknown {
-  const result = evaluateSource(source, globals);
-  const mainName = /\nreturn (\w+)\(\);\n\}\s*$/.exec(source)?.[1] ?? "";
-  const main = PAGE_MAINS[mainName];
-  if (main === undefined) throw new TypeError(`ソースが呼ぶ本体が分からない: ${mainName}`);
+function evaluateInPage(name: keyof typeof PROBES, globals: Record<string, unknown>): unknown {
+  const result = evaluateSource(runCli(name), globals);
   // 偽物のグローバルは本体を呼ぶ間だけ置き、比べる（vitest の expect が動く）前に戻す。
   let moduleResult: unknown;
-  for (const [name, value] of Object.entries(globals)) vi.stubGlobal(name, value);
+  for (const [key, value] of Object.entries(globals)) vi.stubGlobal(key, value);
   try {
-    moduleResult = JSON.parse(JSON.stringify(main()));
+    moduleResult = JSON.parse(JSON.stringify(PROBES[name]()));
   } finally {
     vi.unstubAllGlobals();
   }
@@ -244,7 +241,7 @@ test.each([
 test("role-probe の CLI: 名前のある要素と無い要素を数え、role ごとの件数と名前の無い標本を返す", () => {
   const named = fakeElement("BUTTON", { role: "button", "aria-label": " Save " });
   const unnamed = fakeElement("DIV", { tabindex: "0" });
-  const result = evaluateInPage(runCli("role-probe.mjs"), {
+  const result = evaluateInPage("role-probe.mjs", {
     document: { querySelectorAll: () => [named, unnamed], body: {}, getElementById: () => null },
     location: { pathname: "/page" },
     getComputedStyle: () => fakeStyle(),
@@ -262,7 +259,7 @@ test("role-probe の CLI: 名前のある要素と無い要素を数え、role �
 });
 
 test("role-probe の CLI: 対象の要素が無いページでは割合を null にする", () => {
-  const result = evaluateInPage(runCli("role-probe.mjs"), {
+  const result = evaluateInPage("role-probe.mjs", {
     document: { querySelectorAll: () => [], body: {} },
     location: { pathname: "/" },
     getComputedStyle: () => fakeStyle(),
@@ -281,7 +278,7 @@ test("asset-probe の CLI: 描かれた img を src ごとに数え、走査し�
     adoptedStyleSheets: [],
     fonts: [],
   };
-  const result = evaluateInPage(runCli("asset-probe.mjs"), {
+  const result = evaluateInPage("asset-probe.mjs", {
     document,
     location: { pathname: "/page" },
     URL,
@@ -423,7 +420,7 @@ function fakeAssetPage() {
 }
 
 test("asset-probe の CLI: 疑似要素・SVG・スタイルシート・link・Resource Timing を持つページで、各々の資産を数える", () => {
-  const result = evaluateInPage(runCli("asset-probe.mjs"), fakeAssetPage());
+  const result = evaluateInPage("asset-probe.mjs", fakeAssetPage());
   expect(result).toMatchObject({
     images: [
       { src: "https://example.test/a.png", kind: "img" },
@@ -462,7 +459,7 @@ test("role-probe の CLI: aria-labelledby・label・button の value・内容テ
   );
   const more = [1, 2].map(() => fakeElement("A", { role: "link", "aria-label": "More" }));
   const unnamed = fakeElement("DIV", { tabindex: "0" });
-  const result = evaluateInPage(runCli("role-probe.mjs"), {
+  const result = evaluateInPage("role-probe.mjs", {
     document: {
       querySelectorAll: () => [labelled, withLabel, submit, heading, ...more, unnamed],
       body: {},
