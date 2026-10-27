@@ -214,13 +214,14 @@ interface V8Record {
   data: Record<string, unknown>;
 }
 
-/** V8 の記録のファイルを読む。JSON でないか形が違えば null を返す。 */
+/** V8 の記録のファイルを読む。JSON でないか、形が違うか、大きすぎて文字列にできなければ null を返す。 */
 function readV8Record(path: string): V8Record | null {
   let data: unknown;
   try {
     data = JSON.parse(readFileSync(path, "utf8"));
   } catch (error) {
-    if (error instanceof SyntaxError) return null;
+    // JSON でないもの（SyntaxError）と、文字列の上限を超えて読めないもの（RangeError）は、c8 と同じく読めない記録として飛ばす。
+    if (error instanceof SyntaxError || error instanceof RangeError) return null;
     throw error;
   }
   if (!isRecord(data) || !isArray(data.result)) return null;
@@ -307,7 +308,7 @@ function narrowRecordFile(
   return result.some((entry) => isRecord(entry) && isSource(entry.url)) ? "source" : "kept";
 }
 
-/** 絞れなかった V8 の記録のディレクトリを消す。消せなくても例外にせず、理由を出す（呼び出し側は残せなかったとして扱う）。 */
+/** V8 の記録のディレクトリを消す。消せなくても例外にせず、理由を出す（終了コードは、テストと閾値の結果と、残せたかで決める）。 */
 function removeRecords(dir: string): void {
   try {
     rmSync(dir, { recursive: true, force: true });
@@ -481,7 +482,7 @@ function measureAndRead(
 function handleRecords({ root, cache, privates }: MeasureOptions, keep: boolean): boolean {
   const v8Dir = join(cache, "v8");
   if (keep) return keepProjectCoverage(v8Dir, root, sourceDirs(privates));
-  rmSync(v8Dir, { recursive: true, force: true });
+  removeRecords(v8Dir);
   return true;
 }
 

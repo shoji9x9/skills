@@ -91,3 +91,6 @@ coverage:github:2026-10-26T21:53:34.238Z:2026-10-27T22:04:43.266Z,coverage,2026-
 ci:40592064272:1,ci,2026-10-27T22:15:09.702Z,p-cdee4961,github-actions,,,,2026-10-27T22:05:29.000Z,2026-10-27T22:05:36.000Z,Asia/Tokyo,feature/659-reduce-crap-findings,659,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:40592064187:1,ci,2026-10-27T22:15:09.702Z,p-cdee4961,github-actions,,,,2026-10-27T22:05:29.000Z,2026-10-27T22:09:32.000Z,Asia/Tokyo,feature/659-reduce-crap-findings,659,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-26T22:04:43.266Z:2026-10-27T22:15:09.702Z,coverage,2026-10-27T22:15:09.702Z,p-cdee4961,,,,,2026-10-26T22:04:43.266Z,2026-10-27T22:15:09.702Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:40593469616:1,ci,2026-10-27T22:20:27.514Z,p-cdee4961,github-actions,,,,2026-10-27T22:15:59.000Z,2026-10-27T22:16:10.000Z,Asia/Tokyo,feature/659-reduce-crap-findings,659,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40593469601:1,ci,2026-10-27T22:20:27.514Z,p-cdee4961,github-actions,,,,2026-10-27T22:15:59.000Z,2026-10-27T22:19:53.000Z,Asia/Tokyo,feature/659-reduce-crap-findings,659,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-26T22:15:09.702Z:2026-10-27T22:20:27.514Z,coverage,2026-10-27T22:20:27.514Z,p-cdee4961,,,,,2026-10-26T22:15:09.702Z,2026-10-27T22:20:27.514Z,Asia/Tokyo,,,,,,,,,,,,ok,
