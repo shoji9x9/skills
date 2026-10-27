@@ -12,6 +12,7 @@ import {
   readFileSync,
   readdirSync,
   realpathSync,
+  symlinkSync,
   utimesSync,
   writeFileSync,
 } from "node:fs";
@@ -337,7 +338,7 @@ test.each([
     const res = runMain([], root);
     expect(res.status, res.out).toBe(expected);
     expect(res.out).toMatch(
-      /読めた V8 の記録 \d+ 件のどれにも .* の下の測る対象のスクリプトが無い/,
+      /読めた V8 の記録 \d+ 件のどれにも .* の下の測る対象のスクリプト（テストを除く）が無い/,
     );
     expect(res.out).toMatch(/CRAP の検査に渡す V8 の記録を残せなかった/);
   },
@@ -528,6 +529,34 @@ test("keepProjectCoverage: 1 件も残らなければ（root と記録の URL �
   writeFileSync(join(dir, "a.json"), v8Record([pathToFileURL(join(root, "other/a.mjs")).href]));
   expect(keepProjectCoverage(dir, root, ["skills/"])).toBe(false);
   expect(readdirSync(dir)).toEqual([]);
+});
+
+test("keepProjectCoverage: テストの記録だけが残っても、ソースの記録が無ければ false を返す", () => {
+  const root = makeTempDir("run-coverage-v8-testonly-");
+  const dir = join(root, "v8");
+  mkdirSync(dir);
+  writeFileSync(
+    join(dir, "a.json"),
+    v8Record([pathToFileURL(join(root, "scripts/a.test.ts")).href]),
+  );
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  expect(keepProjectCoverage(dir, root, ["scripts/"])).toBe(false);
+  expect(readdirSync(dir)).toEqual(["a.json"]);
+  expect(vi.mocked(console.error).mock.calls[0]?.[0]).toMatch(/テストを除く/);
+});
+
+test("keepProjectCoverage: root がシンボリックリンクでも、実体のパスの URL の記録を残す", () => {
+  const real = makeTempDir("run-coverage-v8-real-");
+  const link = join(makeTempDir("run-coverage-v8-link-"), "repo");
+  symlinkSync(real, link);
+  const dir = join(real, "v8");
+  mkdirSync(dir);
+  writeFileSync(
+    join(dir, "a.json"),
+    v8Record([pathToFileURL(join(realpathSync(real), "skills/a.mjs")).href]),
+  );
+  expect(keepProjectCoverage(dir, link, ["skills/"])).toBe(true);
+  expect(readdirSync(dir)).toEqual(["a.json"]);
 });
 
 test("keepProjectCoverage: 記録のディレクトリが無ければ、残す記録が無いとして false を返す", () => {
