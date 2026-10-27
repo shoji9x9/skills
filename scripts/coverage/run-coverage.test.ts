@@ -336,7 +336,9 @@ test.each([
     }
     const res = runMain([], root);
     expect(res.status, res.out).toBe(expected);
-    expect(res.out).toMatch(/V8 の記録 \d+ 件のどれにも .* の下の測る対象のスクリプトが無い/);
+    expect(res.out).toMatch(
+      /読めた V8 の記録 \d+ 件のどれにも .* の下の測る対象のスクリプトが無い/,
+    );
     expect(res.out).toMatch(/CRAP の検査に渡す V8 の記録を残せなかった/);
   },
 );
@@ -403,9 +405,13 @@ test("main: 結果の置き場所を用意できなければ、判定できな�
 });
 
 /** V8 の記録（NODE_V8_COVERAGE の 1 ファイル）を、url の並びとソースマップから作る。 */
-const v8Record = (urls: unknown[], sourceMaps: Record<string, unknown> = {}) =>
+const v8Record = (
+  urls: unknown[],
+  sourceMaps: Record<string, unknown> = {},
+  others: unknown[] = [],
+) =>
   JSON.stringify({
-    result: urls.map((url) => ({ scriptId: "1", url, functions: [] })),
+    result: [...urls.map((url) => ({ scriptId: "1", url, functions: [] })), ...others],
     timestamp: 1,
     "source-map-cache": sourceMaps,
   });
@@ -439,11 +445,15 @@ test("keepProjectCoverage: 対象のディレクトリの下のスクリプト�
         url("scripts/types.d.ts"),
         url("scripts/z.test.ts"),
         url("other/d.mjs"),
+        // ファイルのパスに戻せない URL（エンコードした `/` を含む）
+        `${pathToFileURL(join(root, "scripts")).href}/a%2Fb.ts`,
         "node:internal/main",
         "",
         42,
       ],
       { [url("scripts/y.ts")]: map, [url("other/d.mjs")]: map },
+      // object でない result の要素
+      ["x", null],
     ),
   );
   writeFileSync(join(dir, "b.json"), v8Record([url("other/e.mjs"), "node:fs"]));
@@ -463,6 +473,21 @@ test("keepProjectCoverage: 対象のディレクトリの下のスクリプト�
     url("scripts/z.test.ts"),
   ]);
   expect(kept["source-map-cache"]).toEqual({ [url("scripts/y.ts")]: map });
+  // result と source-map-cache のほかのキーは、書き直しても残す。
+  expect(kept).toHaveProperty("timestamp", 1);
+});
+
+test("keepProjectCoverage: どの記録も読めなければ、読める記録が無いと出して false を返す", () => {
+  const root = makeTempDir("run-coverage-v8-allbad-");
+  const dir = join(root, "v8");
+  mkdirSync(dir);
+  writeFileSync(join(dir, "a.json"), "{");
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  expect(keepProjectCoverage(dir, root, ["skills/"])).toBe(false);
+  expect(vi.mocked(console.error).mock.calls.map((c) => c[0])).toEqual([
+    "run-coverage: 読めない V8 の記録 1 件を飛ばした（c8 のレポートも使わない）",
+    "run-coverage: 読める V8 の記録が 1 件も無い",
+  ]);
 });
 
 test.each([

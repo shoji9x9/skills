@@ -221,10 +221,11 @@ function measure({ root, cache, vitestArgs, keepRecords }: MeasureOptions): {
   return { status: 0, recordsLost: !keepProjectCoverage(v8Dir, root, sourceDirs(privates)) };
 }
 
-/** V8 の記録の 1 ファイルのうち、絞るときに残す `result` と、Node が書いたソースマップ（スクリプトの URL ごと）。 */
+/** V8 の記録の 1 ファイル。絞るときに置き換える `result` と、Node が書いたソースマップ（スクリプトの URL ごと）と、元のオブジェクト全体。 */
 interface V8Record {
   result: unknown[];
   sourceMaps: Record<string, unknown>;
+  data: Record<string, unknown>;
 }
 
 /** V8 の記録のファイルを読む。JSON でないか形が違えば null を返す。 */
@@ -238,7 +239,7 @@ function readV8Record(path: string): V8Record | null {
   }
   if (!isRecord(data) || !isArray(data.result)) return null;
   const maps = data["source-map-cache"];
-  return { result: data.result, sourceMaps: isRecord(maps) ? maps : {} };
+  return { result: data.result, sourceMaps: isRecord(maps) ? maps : {}, data };
 }
 
 /**
@@ -250,8 +251,8 @@ function readV8Record(path: string): V8Record | null {
  */
 function projectScriptFilter(root: string, dirs: readonly string[]): (url: unknown) => boolean {
   const rootUrl = pathToFileURL(join(root, "/")).href;
-  return (url) => {
-    if (typeof url !== "string" || !url.startsWith(rootUrl)) return false;
+  const decide = (url: string): boolean => {
+    if (!url.startsWith(rootUrl)) return false;
     let path: string;
     try {
       path = fileURLToPath(url);
@@ -264,6 +265,17 @@ function projectScriptFilter(root: string, dirs: readonly string[]): (url: unkno
       (isMeasured(rel) || rel.endsWith(".test.ts")) &&
       !isVendored(rel)
     );
+  };
+  // 同じスクリプトの URL が多くの記録のファイルに現れるので、URL ごとに 1 回だけ判定する。
+  const decided = new Map<string, boolean>();
+  return (url) => {
+    if (typeof url !== "string") return false;
+    let keep = decided.get(url);
+    if (keep === undefined) {
+      keep = decide(url);
+      decided.set(url, keep);
+    }
+    return keep;
   };
 }
 
@@ -284,10 +296,13 @@ function narrowRecordFile(
     return record === null ? "unreadable" : "removed";
   }
   if (result.length !== record?.result.length || sourceMaps.length !== maps.length) {
-    writeFileSync(
-      path,
-      JSON.stringify({ result, "source-map-cache": Object.fromEntries(sourceMaps) }),
-    );
+    // result と source-map-cache だけを置き換え、ほかのキー（timestamp など）は元のまま残す。
+    const narrowed = {
+      ...record?.data,
+      result,
+      "source-map-cache": Object.fromEntries(sourceMaps),
+    };
+    writeFileSync(path, JSON.stringify(narrowed));
   }
   return "kept";
 }
@@ -318,11 +333,13 @@ export function keepProjectCoverage(dir: string, root: string, dirs: readonly st
       `run-coverage: 読めない V8 の記録 ${counts.unreadable} 件を飛ばした（c8 のレポートも使わない）`,
     );
   }
-  // 1 件も残らないのは、root と記録の URL が合わないときなどである。空の記録を CRAP に渡さない。
-  if (counts.kept === 0) {
+  // 1 件も残らないのは、root と記録の URL が合わないときや、どの記録も読めなかったときである。空の記録を CRAP に渡さない。
+  if (counts.kept === 0 && counts.removed > 0) {
     console.error(
-      `run-coverage: V8 の記録 ${counts.removed} 件のどれにも ${pathToFileURL(root).href} の下の測る対象のスクリプトが無い`,
+      `run-coverage: 読めた V8 の記録 ${counts.removed} 件のどれにも ${pathToFileURL(root).href} の下の測る対象のスクリプトが無い`,
     );
+  } else if (counts.kept === 0) {
+    console.error("run-coverage: 読める V8 の記録が 1 件も無い");
   }
   return counts.kept > 0;
 }
