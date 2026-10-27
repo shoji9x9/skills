@@ -25,7 +25,14 @@ export type AstNode = {
 type Statement = {
   type: string;
   source?: { value?: unknown };
-  specifiers?: { type: string; imported?: { name?: string }; local?: { name?: string } }[];
+  specifiers?: ImportSpecifierNode[];
+};
+
+/** import の宣言の指定子（`{ describe as d }` の `describe as d`、`* as v` など）。 */
+type ImportSpecifierNode = {
+  type: string;
+  imported?: { name?: string };
+  local?: { name?: string };
 };
 
 type Context = {
@@ -98,20 +105,22 @@ function groupingNames(body: readonly Statement[]): Set<string> {
   for (const stmt of body) {
     if (stmt.type !== "ImportDeclaration" || stmt.source?.value !== "vitest") continue;
     for (const spec of stmt.specifiers ?? []) {
-      if (spec.type === "ImportNamespaceSpecifier" && spec.local?.name)
-        for (const callee of GROUPING_CALLEES) names.add(`${spec.local.name}.${callee}`);
-      const imported = spec.imported?.name;
-      const local = spec.local?.name;
-      if (
-        spec.type === "ImportSpecifier" &&
-        imported &&
-        local &&
-        GROUPING_CALLEES.includes(imported)
-      )
-        names.add(local);
+      for (const name of specifierGroupingNames(spec)) names.add(name);
     }
   }
   return names;
+}
+
+/** vitest の import の 1 つの指定子が、describe・suite に付ける名前。 */
+function specifierGroupingNames(spec: ImportSpecifierNode): string[] {
+  const local = spec.local?.name;
+  if (!local) return [];
+  if (spec.type === "ImportNamespaceSpecifier")
+    return GROUPING_CALLEES.map((callee) => `${local}.${callee}`);
+  const imported = spec.imported?.name;
+  return spec.type === "ImportSpecifier" && imported && GROUPING_CALLEES.includes(imported)
+    ? [local]
+    : [];
 }
 
 /** 関数が `describe` の呼び出しの引数か。names は groupingNames の結果。 */

@@ -209,41 +209,43 @@ type CliResult = ReturnType<typeof checkCaptureScope>;
 export function metadataOf(override: MetadataOverride = {}) {
   return {
     slug: "order-list",
-    mode: "mode" in override ? override.mode : "feature",
+    mode: pick(override, "mode", "feature"),
     capture_conditions: {
       full_page: true,
-      viewports:
-        "viewports" in override
-          ? override.viewports
-          : [{ width: 1366, height: 768, label: "desktop" }],
-      pages: "pages" in override ? override.pages : [{ name: "list", path: "/orders" }],
-      states: "states" in override ? override.states : ["default", "hover"],
+      viewports: pick(override, "viewports", [{ width: 1366, height: 768, label: "desktop" }]),
+      pages: pick(override, "pages", [{ name: "list", path: "/orders" }]),
+      states: pick(override, "states", ["default", "hover"]),
       capture_scope: override.scope ?? defaultScope(),
       capture_scope_exemptions: override.exemptions ?? [],
-      scrollbars: "scrollbars" in override ? override.scrollbars : "shown",
+      scrollbars: pick(override, "scrollbars", "shown"),
       ...("scrollbarsReason" in override ? { scrollbars_reason: override.scrollbarsReason } : {}),
-      ...("scrollbarEnvironment" in override
-        ? { scrollbar_environment: override.scrollbarEnvironment }
-        : { scrollbar_environment: "Linux の headless Chromium 140（クラシック・15px）" }),
-      overflow: "overflow" in override ? override.overflow : overflowOf(),
-      display_axes: "displayAxes" in override ? override.displayAxes : noAxes(),
-      viewer_environment:
-        "viewerEnvironment" in override
-          ? override.viewerEnvironment
-          : "一致: 利用者環境のブラウザへ接続し CSS.getPlatformFontsForNode で描いた書体を読んだ",
-      browser: "browser" in override ? override.browser : "cdp",
-      browser_identity:
-        "browserIdentity" in override
-          ? override.browserIdentity
-          : {
-              product: "140.0.3485.54",
-              user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Edg/140.0",
-              browser_os: { platform: "Windows", platformVersion: "15.0.0", architecture: "x86" },
-            },
+      scrollbar_environment: pick(
+        override,
+        "scrollbarEnvironment",
+        "Linux の headless Chromium 140（クラシック・15px）",
+      ),
+      overflow: pick(override, "overflow", overflowOf()),
+      display_axes: pick(override, "displayAxes", noAxes()),
+      viewer_environment: pick(
+        override,
+        "viewerEnvironment",
+        "一致: 利用者環境のブラウザへ接続し CSS.getPlatformFontsForNode で描いた書体を読んだ",
+      ),
+      browser: pick(override, "browser", "cdp"),
+      browser_identity: pick(override, "browserIdentity", {
+        product: "140.0.3485.54",
+        user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Edg/140.0",
+        browser_os: { platform: "Windows", platformVersion: "15.0.0", architecture: "x86" },
+      }),
     },
     noise_baseline: override.noise ?? defaultNoise(),
-    traits: "traits" in override ? override.traits : { elements: ["グリッド本体", "保存ボタン"] },
+    traits: pick(override, "traits", { elements: ["グリッド本体", "保存ボタン"] }),
   };
+}
+
+/** override に key があればその値（undefined も含む）を、無ければ fallback を使う。 */
+function pick(override: MetadataOverride, key: keyof MetadataOverride, fallback: unknown): unknown {
+  return key in override ? override[key] : fallback;
 }
 
 /**

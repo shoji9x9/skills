@@ -1304,20 +1304,33 @@ function parseArgs(argv) {
       pos.push(...argv.slice(i + 1));
       break;
     }
-    // 同じオプションを重ねて渡したら、どちらの値を使うかを決めずに止める（--layer local --layer repo で共有の層に書かない）
-    if ((VALUED_FLAGS.has(a) || BARE_FLAGS.has(a)) && Object.hasOwn(flags, a))
-      throw new UsageError(`${a} を 2 回渡している`);
-    if (VALUED_FLAGS.has(a)) {
-      const v = argv[i + 1];
-      if (v === undefined || v === "") throw new UsageError(`${a} に値が無い`);
-      flags[a] = v;
-      i++;
-    } else if (BARE_FLAGS.has(a)) flags[a] = true;
+    if (VALUED_FLAGS.has(a) || BARE_FLAGS.has(a)) i += takeFlag(argv, i, flags);
     else if (a.startsWith("-"))
       throw new UsageError(`知らないオプション ${a}（- で始まる値は -- の後に置く）`);
     else pos.push(a);
   }
   return { pos, flags };
+}
+
+/**
+ * argv[i] のオプションを flags に入れ、読んだ値の数（値を取るオプションなら 1、取らないなら 0）を返す。
+ * @param {string[]} argv
+ * @param {number} i
+ * @param {Record<string, string | true>} flags
+ * @returns {number}
+ */
+function takeFlag(argv, i, flags) {
+  const a = argv[i];
+  // 同じオプションを重ねて渡したら、どちらの値を使うかを決めずに止める（--layer local --layer repo で共有の層に書かない）
+  if (Object.hasOwn(flags, a)) throw new UsageError(`${a} を 2 回渡している`);
+  if (!VALUED_FLAGS.has(a)) {
+    flags[a] = true;
+    return 0;
+  }
+  const v = argv[i + 1];
+  if (v === undefined || v === "") throw new UsageError(`${a} に値が無い`);
+  flags[a] = v;
+  return 1;
 }
 
 /**

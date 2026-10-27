@@ -47,6 +47,24 @@ function isPercent(value: unknown): value is number & { readonly __isPercent: tr
   return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100;
 }
 
+/** 規則の path と reason 以外のキーを、指標ごとの閾値として読む。 */
+function parseThresholds(
+  raw: Record<string, unknown>,
+  at: string,
+): Partial<Record<Metric, number>> {
+  const thresholds: Partial<Record<Metric, number>> = {};
+  for (const key of Object.keys(raw)) {
+    if (key === "path" || key === "reason") continue;
+    const metric = METRICS.find((m) => m === key);
+    if (metric === undefined) throw new Error(`${at}: 規則に使えないキー ${key}`);
+    const threshold = raw[key];
+    if (!isPercent(threshold)) throw new Error(`${at}: ${key} が 0 から 100 の数でない`);
+    thresholds[metric] = threshold;
+  }
+  if (Object.keys(thresholds).length === 0) throw new Error(`${at}: 閾値が 1 つも無い`);
+  return thresholds;
+}
+
 /** 設定の形を確かめて読む。形が違うときは、判定できないとして例外にする。 */
 export function parseConfig(value: unknown): Config {
   if (!isRecord(value) || !isArray(value.rules) || !isArray(value.exclude)) {
@@ -55,16 +73,7 @@ export function parseConfig(value: unknown): Config {
   const rules: Rule[] = value.rules.map((raw, i) => {
     const at = `${CONFIG_PATH}: rules[${i}]`;
     if (!isRecord(raw) || !isNonBlankString(raw.path)) throw new Error(`${at}: path が無い`);
-    const thresholds: Partial<Record<Metric, number>> = {};
-    for (const key of Object.keys(raw)) {
-      if (key === "path" || key === "reason") continue;
-      const metric = METRICS.find((m) => m === key);
-      if (metric === undefined) throw new Error(`${at}: 規則に使えないキー ${key}`);
-      const threshold = raw[key];
-      if (!isPercent(threshold)) throw new Error(`${at}: ${key} が 0 から 100 の数でない`);
-      thresholds[metric] = threshold;
-    }
-    if (Object.keys(thresholds).length === 0) throw new Error(`${at}: 閾値が 1 つも無い`);
+    const thresholds = parseThresholds(raw, at);
     const isFile = !raw.path.endsWith("/");
     if (isFile && !isNonBlankString(raw.reason))
       throw new Error(`${at}: 1 ファイルの規則には reason が要る`);
@@ -126,10 +135,24 @@ export function evaluate(
   files: readonly string[],
   measures: ReadonlyMap<string, FileMeasure>,
 ): Finding[] {
-  const findings: Finding[] = [];
   const fileSet = new Set(files);
   const excluded = new Set(config.exclude.map((e) => e.path));
+  const findings = configFindings(config, fileSet, excluded);
+  for (const file of files) {
+    if (excluded.has(file)) continue;
+    if (!isMeasured(file)) continue;
+    findings.push(...fileFindings(config.rules, file, measures.get(file)));
+  }
+  return findings;
+}
 
+/** 設定の除外と 1 ファイルの規則のうち、対象に無いファイルを指すものと、除外と規則の両方にあるもの。 */
+function configFindings(
+  config: Config,
+  fileSet: ReadonlySet<string>,
+  excluded: ReadonlySet<string>,
+): Finding[] {
+  const findings: Finding[] = [];
   for (const e of config.exclude) {
     if (!fileSet.has(e.path))
       findings.push({ type: "stale-config", path: e.path, section: "exclude" });
@@ -141,27 +164,25 @@ export function evaluate(
     else if (excluded.has(rule.path))
       findings.push({ type: "excluded-and-ruled", path: rule.path });
   }
+  return findings;
+}
 
-  for (const file of files) {
-    if (excluded.has(file)) continue;
-    if (!isMeasured(file)) continue;
-    const rule = ruleFor(config.rules, file);
-    if (rule === null) {
-      findings.push({ type: "no-rule", file });
-      continue;
-    }
-    const measure = measures.get(file);
-    if (measure === undefined) {
-      findings.push({ type: "not-measured", file });
-      continue;
-    }
-    for (const metric of METRICS) {
-      const threshold = rule.thresholds[metric];
-      if (threshold === undefined) continue;
-      const actual = measure[metric];
-      if (actual < threshold)
-        findings.push({ type: "below", file, metric, actual, threshold, rule: rule.path });
-    }
+/** 1 つの対象のファイルを、当てる規則と測定値で比べる。 */
+function fileFindings(
+  rules: readonly Rule[],
+  file: string,
+  measure: FileMeasure | undefined,
+): Finding[] {
+  const rule = ruleFor(rules, file);
+  if (rule === null) return [{ type: "no-rule", file }];
+  if (measure === undefined) return [{ type: "not-measured", file }];
+  const findings: Finding[] = [];
+  for (const metric of METRICS) {
+    const threshold = rule.thresholds[metric];
+    if (threshold === undefined) continue;
+    const actual = measure[metric];
+    if (actual < threshold)
+      findings.push({ type: "below", file, metric, actual, threshold, rule: rule.path });
   }
   return findings;
 }

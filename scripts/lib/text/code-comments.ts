@@ -93,26 +93,7 @@ const JAPANESE = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u;
 export function commentMarkdown(path: string, source: string): CommentMarkdown {
   const extract = EXTRACTORS[extOf(path)];
   if (!extract) throw new Error(`${path}: コメントを取り出せない拡張子`);
-  const isSeparator = (piece: Piece) => /^[-=─━#*]{3,}|[-=─━#*]{3,}$/.test(piece.text.trim());
-  const blocks: Piece[][] = [];
-  let previous: Piece | undefined;
-  for (const piece of extract(source, path)) {
-    const joins =
-      previous &&
-      !previous.trailing &&
-      !piece.trailing &&
-      !directiveOf(previous) &&
-      !directiveOf(piece) &&
-      !piece.tag &&
-      !isSeparator(previous) &&
-      !isSeparator(piece) &&
-      piece.line === previous.line + 1;
-    // つなぐのは previous があるとき（前の反復で blocks に足した後）だけなので、last は在る。
-    const last = blocks.at(-1);
-    if (joins && last) last.push(piece);
-    else blocks.push([piece]);
-    previous = piece;
-  }
+  const blocks = paragraphBlocks(extract(source, path));
   const md: string[] = [];
   const lines: number[] = [];
   const columns: number[] = [];
@@ -135,6 +116,33 @@ export function commentMarkdown(path: string, source: string): CommentMarkdown {
     else for (const p of block) emit(p);
   }
   return { markdown: md.join("\n"), lines, columns, starts };
+}
+
+/** 続く行のコメントを段落にまとめる。 */
+function paragraphBlocks(pieces: readonly Piece[]): Piece[][] {
+  const blocks: Piece[][] = [];
+  let previous: Piece | undefined;
+  for (const piece of pieces) {
+    // つなぐのは previous があるとき（前の反復で blocks に足した後）だけなので、last は在る。
+    const last = blocks.at(-1);
+    if (previous && last && joinsParagraph(previous, piece)) last.push(piece);
+    else blocks.push([piece]);
+    previous = piece;
+  }
+  return blocks;
+}
+
+/** 区切りの行（`--- 設定の解決 ---`・`=====` など）か。 */
+function isSeparator(piece: Piece): boolean {
+  return /^[-=─━#*]{3,}|[-=─━#*]{3,}$/.test(piece.text.trim());
+}
+
+/** piece を、直前の行の previous と同じ段落につなぐか。 */
+function joinsParagraph(previous: Piece, piece: Piece): boolean {
+  if (previous.trailing || piece.trailing || piece.tag) return false;
+  if (directiveOf(previous) || directiveOf(piece)) return false;
+  if (isSeparator(previous) || isSeparator(piece)) return false;
+  return piece.line === previous.line + 1;
 }
 
 /**
@@ -474,35 +482,44 @@ function shellComments(source: string, path: string): Piece[] {
 }
 
 function yamlComments(source: string): Piece[] {
-  const pieces: Piece[] = [];
-  source.split("\n").forEach((line, n) => {
-    let quote = "";
-    for (let i = 0; i < line.length; i++) {
-      const c = line[i];
-      if (quote === "'") {
-        // 一重引用符の中の `''` は `'` のエスケープで、引用の終わりではない。
-        if (c === "'" && line[i + 1] === "'") i++;
-        else if (c === "'") quote = "";
-        continue;
-      }
-      if (quote === '"') {
-        if (c === "\\") i++;
-        else if (c === '"') quote = "";
-        continue;
-      }
-      // 引用はスカラーの先頭（行頭・空白・フローの `[` `{` `,` の後）でだけ始まる。`it's` の `'` は引用にしない。
-      if ((c === "'" || c === '"') && (i === 0 || /[\s[{,]/.test(line[i - 1]))) {
-        quote = c;
-        continue;
-      }
-      if (c === "#" && startsComment(line, i)) {
-        const rest = line.slice(i + 1);
-        const pad = rest.startsWith(" ") ? 1 : 0;
-        const trailing = line.slice(0, i).trim() !== "";
-        pieces.push({ line: n, column: i + 1 + pad, text: rest.slice(pad).trimEnd(), trailing });
-        break;
-      }
-    }
+  return source.split("\n").flatMap((line, n) => {
+    const piece = yamlLineComment(line, n);
+    return piece ? [piece] : [];
   });
-  return pieces;
+}
+
+/** YAML の 1 行（n 行目、0 始まり）のコメント。引用の中の `#` はコメントにしない。 */
+function yamlLineComment(line: string, n: number): Piece | undefined {
+  let quote = "";
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (quote !== "") {
+      ({ i, quote } = yamlQuoteStep(line, i, quote));
+      continue;
+    }
+    // 引用はスカラーの先頭（行頭・空白・フローの `[` `{` `,` の後）でだけ始まる。`it's` の `'` は引用にしない。
+    if ((c === "'" || c === '"') && (i === 0 || /[\s[{,]/.test(line[i - 1]))) {
+      quote = c;
+      continue;
+    }
+    if (c === "#" && startsComment(line, i)) {
+      const rest = line.slice(i + 1);
+      const pad = rest.startsWith(" ") ? 1 : 0;
+      const trailing = line.slice(0, i).trim() !== "";
+      return { line: n, column: i + 1 + pad, text: rest.slice(pad).trimEnd(), trailing };
+    }
+  }
+  return undefined;
+}
+
+/** 引用（quote）の中で i 文字目を読む。読み終えた位置と、続く引用（閉じたら空文字）を返す。 */
+function yamlQuoteStep(line: string, i: number, quote: string): { i: number; quote: string } {
+  const c = line[i];
+  if (quote === "'") {
+    // 一重引用符の中の `''` は `'` のエスケープで、引用の終わりではない。
+    if (c === "'" && line[i + 1] === "'") return { i: i + 1, quote };
+    return { i, quote: c === "'" ? "" : quote };
+  }
+  if (c === "\\") return { i: i + 1, quote };
+  return { i, quote: c === '"' ? "" : quote };
 }

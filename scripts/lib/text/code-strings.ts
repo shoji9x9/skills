@@ -262,16 +262,22 @@ function evalStrings(sf: ts.SourceFile): ts.StringLiteral[] {
   const evals = objectProperty(root, "evals");
   if (!evals || !ts.isArrayLiteralExpression(evals)) return out;
   for (const item of evals.elements) {
-    if (!ts.isObjectLiteralExpression(item)) continue;
-    // 構文エラーの無い JSON のオブジェクトの要素は、すべて PropertyAssignment（`"キー": 値`）である。
-    for (const prop of item.properties) {
-      if (!ts.isPropertyAssignment(prop)) continue;
-      const key = prop.name && ts.isStringLiteral(prop.name) ? prop.name.text : undefined;
-      if (EVAL_STRING_KEYS.has(key) && ts.isStringLiteral(prop.initializer))
-        out.push(prop.initializer);
-      if (key === "assertions" && ts.isArrayLiteralExpression(prop.initializer))
-        out.push(...prop.initializer.elements.filter((a) => ts.isStringLiteral(a)));
-    }
+    if (ts.isObjectLiteralExpression(item)) out.push(...evalItemStrings(item));
+  }
+  return out;
+}
+
+/** eval 1 件の `prompt`・`expected_output`・`assertions[]` の文字列。 */
+function evalItemStrings(item: ts.ObjectLiteralExpression): ts.StringLiteral[] {
+  const out: ts.StringLiteral[] = [];
+  // 構文エラーの無い JSON のオブジェクトの要素は、すべて PropertyAssignment（`"キー": 値`）である。
+  for (const prop of item.properties) {
+    if (!ts.isPropertyAssignment(prop)) continue;
+    const key = prop.name && ts.isStringLiteral(prop.name) ? prop.name.text : undefined;
+    if (EVAL_STRING_KEYS.has(key) && ts.isStringLiteral(prop.initializer))
+      out.push(prop.initializer);
+    if (key === "assertions" && ts.isArrayLiteralExpression(prop.initializer))
+      out.push(...prop.initializer.elements.filter((a) => ts.isStringLiteral(a)));
   }
   return out;
 }

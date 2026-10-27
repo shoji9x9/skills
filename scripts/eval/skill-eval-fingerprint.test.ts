@@ -285,6 +285,20 @@ test("実リポジトリ: 配布スキルの直下の要素は、すべてイン
   for (const parts of loops) expect(parts.split(" ")).toEqual(INSTALLED_SKILL_PARTS);
 });
 
+/** 設定のスキーマが挙げる環境変数の名前（x-legacy.env[].name と properties の x-env）。 */
+function schemaEnvNamesOf(schema: unknown): string[] {
+  if (!isRecord(schema)) return [];
+  const legacyEnv = isRecord(schema["x-legacy"]) ? schema["x-legacy"].env : [];
+  const legacy = (isArray(legacyEnv) ? legacyEnv : []).flatMap((e) =>
+    isRecord(e) && typeof e.name === "string" ? [e.name] : [],
+  );
+  const props = isRecord(schema.properties) ? Object.values(schema.properties) : [];
+  const current = props.flatMap((prop) =>
+    isRecord(prop) && typeof prop["x-env"] === "string" ? [prop["x-env"]] : [],
+  );
+  return [...legacy, ...current];
+}
+
 // スキーマが挙げる環境変数（x-env と x-legacy.env）が開発者の環境にあると、eval の結果が起動した人で変わる。
 test("実リポジトリ: ランナーが eval の前に消す環境変数は、スキルのスキーマの x-env と x-legacy.env の名前と一致する", () => {
   const skillsRoot = join(here, "..", "..", "skills");
@@ -294,12 +308,7 @@ test("実リポジトリ: ランナーが eval の前に消す環境変数は、
     if (!existsSync(dir)) continue;
     for (const file of readdirSync(dir)) {
       const schema: unknown = JSON.parse(readFileSync(join(dir, file), "utf8"));
-      const env = isRecord(schema) && isRecord(schema["x-legacy"]) ? schema["x-legacy"].env : [];
-      for (const e of isArray(env) ? env : [])
-        if (isRecord(e) && typeof e.name === "string") schemaEnvNames.add(e.name);
-      const props = isRecord(schema) && isRecord(schema.properties) ? schema.properties : {};
-      for (const prop of Object.values(props))
-        if (isRecord(prop) && typeof prop["x-env"] === "string") schemaEnvNames.add(prop["x-env"]);
+      for (const envName of schemaEnvNamesOf(schema)) schemaEnvNames.add(envName);
     }
   }
   expect(schemaEnvNames.size).toBeGreaterThan(0);

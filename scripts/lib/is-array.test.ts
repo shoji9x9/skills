@@ -41,7 +41,7 @@ test("値の判定は Array.isArray と同じ", () => {
 
 // 2 つの実装を 1 つの変数（`test.each` の引数）に入れると、関数の型の union を呼ぶことになり、
 // 片方の型が崩れても絞り込みの違いが表に出ない（実測）。実装ごとに同じ本文を直接書く。
-test("入力の型を保って絞る: is-array.ts", () => {
+test("入力の型を保って絞る（unknown・any・null と undefined との union）: is-array.ts", () => {
   const u = typed<unknown>([1]);
   if (isArray(u)) expectTypeOf(u).toEqualTypeOf<unknown[]>();
   else expectTypeOf(u).toEqualTypeOf<unknown>();
@@ -61,7 +61,9 @@ test("入力の型を保って絞る: is-array.ts", () => {
   const o = typed<{ x: number }[] | string>([{ x: 1 }]);
   if (isArray(o)) expectTypeOf(o).toEqualTypeOf<{ x: number }[]>();
   else expectTypeOf(o).toEqualTypeOf<string>();
+});
 
+test("入力の型を保って絞る（読み取り専用・タプル・配列の union・配列を含みうる型）: is-array.ts", () => {
   const r = typed<readonly string[] | number>(["a"]);
   if (isArray(r)) expectTypeOf(r).toEqualTypeOf<readonly string[]>();
   else expectTypeOf(r).toEqualTypeOf<number>();
@@ -84,7 +86,7 @@ test("入力の型を保って絞る: is-array.ts", () => {
   else expectTypeOf(it).toEqualTypeOf<Iterable<string> | number>();
 });
 
-test("入力の型を保って絞る: is-array.mjs", () => {
+test("入力の型を保って絞る（unknown・any・null と undefined との union）: is-array.mjs", () => {
   const u = typed<unknown>([1]);
   if (isArrayMjs(u)) expectTypeOf(u).toEqualTypeOf<unknown[]>();
   else expectTypeOf(u).toEqualTypeOf<unknown>();
@@ -104,7 +106,9 @@ test("入力の型を保って絞る: is-array.mjs", () => {
   const o = typed<{ x: number }[] | string>([{ x: 1 }]);
   if (isArrayMjs(o)) expectTypeOf(o).toEqualTypeOf<{ x: number }[]>();
   else expectTypeOf(o).toEqualTypeOf<string>();
+});
 
+test("入力の型を保って絞る（読み取り専用・タプル・配列の union・配列を含みうる型）: is-array.mjs", () => {
   const r = typed<readonly string[] | number>(["a"]);
   if (isArrayMjs(r)) expectTypeOf(r).toEqualTypeOf<readonly string[]>();
   else expectTypeOf(r).toEqualTypeOf<number>();

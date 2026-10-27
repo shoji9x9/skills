@@ -280,7 +280,8 @@ function checkSection(ctx: LineContext, kind: SectionKind, m: RegExpMatchArray) 
 }
 
 /** Tier 4（学び・eval の結果・Issue と PR）と、配布スキルの外のファイルへの参照を確かめる。 */
-function checkTierRefs({ root, config, tier, dist, line, at }: LineContext) {
+function checkTierRefs(ctx: LineContext) {
+  const { tier, dist, line, at } = ctx;
   const toTier4 = tier <= 2 && !dist;
   if (!toTier4 && !dist) return;
   for (const m of line.matchAll(KAIZEN_RE))
@@ -288,20 +289,26 @@ function checkTierRefs({ root, config, tier, dist, line, at }: LineContext) {
   if (!dist)
     for (const m of line.matchAll(TESTS_RE))
       at("tier-down", m[0], `eval の結果 ${m[0]} を参照している`);
-  const isExample = EXAMPLE_LINE_RE.test(line);
-  if (!isExample) {
-    for (const re of issueRes(config.repo)) {
-      // インラインコードの中は例として読まない（「`#1` のように書かない」）。
-      for (const m of blankInlineCode(line).matchAll(re))
-        at(dist ? "dist-issue" : "tier-down", m[0], `Issue・PR ${m[0]} を参照している`);
-    }
+  if (!EXAMPLE_LINE_RE.test(line)) checkIssueRefs(ctx);
+  if (dist) checkRepoPathRefs(ctx, dist);
+}
+
+/** 行が Issue・PR を参照していないかを確かめる。 */
+function checkIssueRefs({ config, dist, line, at }: LineContext) {
+  const rule = dist ? "dist-issue" : "tier-down";
+  for (const re of issueRes(config.repo)) {
+    // インラインコードの中は例として読まない（「`#1` のように書かない」）。
+    for (const m of blankInlineCode(line).matchAll(re))
+      at(rule, m[0], `Issue・PR ${m[0]} を参照している`);
   }
-  if (dist) {
-    for (const m of line.matchAll(REPO_PATH_RE)) {
-      const p = m[1];
-      if (existsSync(join(root, p)) && !existsSync(join(root, dist, p)))
-        at("dist-repo-path", p, `スキルの外のファイル ${p} を参照している`);
-    }
+}
+
+/** 配布スキル（dist）の行が、スキルの中に無いリポジトリのファイルを参照していないかを確かめる。 */
+function checkRepoPathRefs({ root, line, at }: LineContext, dist: string) {
+  for (const m of line.matchAll(REPO_PATH_RE)) {
+    const p = m[1];
+    if (existsSync(join(root, p)) && !existsSync(join(root, dist, p)))
+      at("dist-repo-path", p, `スキルの外のファイル ${p} を参照している`);
   }
 }
 

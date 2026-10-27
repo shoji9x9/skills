@@ -108,7 +108,7 @@
       "id": "cdpath-ignored",
       "why": "CDPATH を経由しうる素の相対 cd（./ ../ で始まらない）を解決する",
       "file": "scripts/eval/normalize-skill-eval-result.ts",
-      "find": "      const direct = target.startsWith(\"/\") || /^\\.\\.?(?:\\/|$)/u.test(target);\n",
+      "find": "  const direct = target.startsWith(\"/\") || /^\\.\\.?(?:\\/|$)/u.test(target);\n",
       "replace": "      const direct = true;\n",
       "occurrences": 1,
       "expect_failing": [

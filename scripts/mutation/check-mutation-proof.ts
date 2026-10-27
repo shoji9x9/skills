@@ -249,38 +249,48 @@ function takeLock() {
       if (errnoCode(err) !== "EEXIST") {
         die(`ロックを作れない（${lockPath}）: ${errorMessage(err)}`);
       }
-      // **読み取りも失敗しうる。** EEXIST を受けてから、持ち主が `releaseLock()` で unlink するまでの間に
-      // 読むと ENOENT を投げる。`catch` の中なので誰も受けず、未処理例外になる。終了コード 1 は
-      // 「実証できない変異がある」の意味なので、一時的な競合が、誤って実証の失敗と判定される。
-      // 読めなかったロックは残骸として扱い、次の試行に回す。
-      let pid = NaN;
-      try {
-        pid = Number(readFileSync(lockPath, "utf8").trim());
-      } catch (readErr) {
-        if (errnoCode(readErr) !== "ENOENT") {
-          die(`ロック（${lockPath}）を読めない: ${errorMessage(readErr)}`);
-        }
-      }
+      const pid = readLockPid();
       if (Number.isInteger(pid) && pid > 0 && alive(pid)) {
         die(
           `別の実行（pid ${pid}）が作業ツリーへ変異を当てている最中。` +
             `終わるまで待つ（この検査は同時に実行できない）。ロック: ${lockPath}`,
         );
       }
-      // 生きていないプロセスのロックは残骸。**奪うのは `renameSync` で行う**。`unlinkSync` だと、
-      // 同じ残骸を読んだ 2 本が「先に貼り直した側の**生きた**ロック」を消してしまい、両方が同時に
-      // 作業ツリーへ変異を当てる（ロックが防ぐはずの状態そのもの）。rename は勝者が 1 本に決まり、
-      // 負けた側は ENOENT で次の試行へ落ちる。
-      try {
-        const stale = `${lockPath}.stale.${process.pid}`;
-        renameSync(lockPath, stale);
-        unlinkSync(stale);
-      } catch {
-        /* 別の実行が先に奪った（ENOENT）。次の試行で EEXIST か取得成功になる */
-      }
+      stealStaleLock();
     }
   }
   die(`ロックの取得が競合した（${lockPath}）。時間を置いて再実行する`);
+}
+
+/** ロックに書かれた持ち主の pid。持ち主が消した直後で読めなければ NaN。 */
+function readLockPid(): number {
+  // **読み取りも失敗しうる。** EEXIST を受けてから、持ち主が `releaseLock()` で unlink するまでの間に
+  // 読むと ENOENT を投げる。`catch` の中なので誰も受けず、未処理例外になる。終了コード 1 は
+  // 「実証できない変異がある」の意味なので、一時的な競合が、誤って実証の失敗と判定される。
+  // 読めなかったロックは残骸として扱い、次の試行に回す。
+  try {
+    return Number(readFileSync(lockPath, "utf8").trim());
+  } catch (readErr) {
+    if (errnoCode(readErr) !== "ENOENT") {
+      die(`ロック（${lockPath}）を読めない: ${errorMessage(readErr)}`);
+    }
+    return NaN;
+  }
+}
+
+/** 生きていないプロセスのロック（残骸）を奪う。 */
+function stealStaleLock(): void {
+  // **奪うのは `renameSync` で行う**。`unlinkSync` だと、
+  // 同じ残骸を読んだ 2 本が「先に貼り直した側の**生きた**ロック」を消してしまい、両方が同時に
+  // 作業ツリーへ変異を当てる（ロックが防ぐはずの状態そのもの）。rename は勝者が 1 本に決まり、
+  // 負けた側は ENOENT で次の試行へ落ちる。
+  try {
+    const stale = `${lockPath}.stale.${process.pid}`;
+    renameSync(lockPath, stale);
+    unlinkSync(stale);
+  } catch {
+    /* 別の実行が先に奪った（ENOENT）。次の試行で EEXIST か取得成功になる */
+  }
 }
 
 function alive(pid: number): boolean {
@@ -603,22 +613,16 @@ function parseArgs(argv: string[]) {
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--only") {
-      const value = argv[++i];
-      if (!value) die("--only に値がない");
-      only = new Set(value.split(",").filter(Boolean));
-      if (only.size === 0) die("--only の値が空");
+      only = parseOnly(argv[++i]);
     } else if (arg === "--changed-since") {
-      changedSince = argv[++i];
+      changedSince = argv[++i] ?? "";
       if (!changedSince) die("--changed-since に ref がない");
     } else if (arg === "--list") {
       list = true;
     } else if (arg === "--shard") {
       shard = parseShard(argv[++i]);
     } else if (arg === "--help" || arg === "-h") {
-      console.log(
-        "usage: node scripts/mutation/check-mutation-proof.ts [<spec.json>...] [--only <id,...>] [--changed-since <ref>] [--shard <i>/<N>] [--list]",
-      );
-      process.exit(0);
+      printUsage();
     } else if (arg.startsWith("-")) {
       die(`不明な引数: ${arg}`);
     } else {
@@ -626,6 +630,21 @@ function parseArgs(argv: string[]) {
     }
   }
   return { files, only, changedSince, shard, list };
+}
+
+/** `--only` の値（カンマ区切りの id）を読む。 */
+function parseOnly(value: string | undefined): Set<string> {
+  if (!value) die("--only に値がない");
+  const only = new Set(value.split(",").filter(Boolean));
+  if (only.size === 0) die("--only の値が空");
+  return only;
+}
+
+function printUsage(): never {
+  console.log(
+    "usage: node scripts/mutation/check-mutation-proof.ts [<spec.json>...] [--only <id,...>] [--changed-since <ref>] [--shard <i>/<N>] [--list]",
+  );
+  process.exit(0);
 }
 
 /**
