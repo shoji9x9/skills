@@ -24,13 +24,14 @@ import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { errorCodeOrMessage, errorMessage } from "../../lib/errors.ts";
 import { isNonBlankString, isRecord } from "../../lib/guards.ts";
+import { showValue } from "../../lib/show-value.ts";
 import { isArray } from "../../lib/is-array.ts";
 
 export const BACKLOG_PATH = "scripts/gates/packaging/eval-reachability-backlog.json";
 
 /** backlog の鍵。区切り文字は材料側で禁じる（skill 名・id に ":" を許さない）。 */
 function backlogKey(skill: string, id: unknown) {
-  return `${skill}:${id}`;
+  return `${skill}:${String(id)}`;
 }
 
 export function listEvalFiles(root: string) {
@@ -217,7 +218,7 @@ export function checkEvalFile({
 
   const seenIds = new Set<string>();
   for (const [index, ev] of evals.entries()) {
-    const where = `${label} #${(isRecord(ev) ? ev.id : undefined) ?? `(index ${index})`}`;
+    const where = `${label} #${showValue((isRecord(ev) ? ev.id : undefined) ?? `(index ${index})`)}`;
     const shape = checkEvalShape(ev, where, seenIds);
     if (typeof shape === "string") {
       violations.push(shape);

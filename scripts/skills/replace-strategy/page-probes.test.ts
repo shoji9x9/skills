@@ -258,7 +258,8 @@ test("asset-probe の CLI: 描かれた img を src ごとに数え、走査し�
     document,
     location: { pathname: "/page" },
     URL,
-    CSSRule: { FONT_FACE_RULE: 5, IMPORT_RULE: 3 },
+    CSSFontFaceRule: FakeFontFaceRule,
+    CSSImportRule: FakeImportRule,
     HTMLLinkElement: class {},
     performance: { getEntriesByType: () => [] },
     getComputedStyle: (_el: unknown, pseudo: string | null) =>
@@ -299,6 +300,10 @@ function fakeSheet(href: string | null, rules: object[] | null) {
     },
   };
 }
+
+/** @font-face と @import の規則の偽物。asset-probe は規則の種類をクラスで見分けるので、グローバルにこのクラスを渡す。 */
+class FakeFontFaceRule {}
+class FakeImportRule {}
 
 /** link 要素の偽物。asset-probe は HTMLLinkElement のインスタンスだけを読むので、グローバルにこのクラスを渡す。 */
 class FakeLink {
@@ -343,16 +348,16 @@ function fakeAssetElements() {
  * 読めないシートへの @import・@media の中の @font-face を持つ。adoptedStyleSheets にも同じシートを置く。
  */
 function fakeAssetSheets() {
-  const fontFace = (src: string) => ({
-    type: 5,
-    style: fakeStyle({ "font-family": "Icons", src }),
-  });
+  const fontFace = (src: string) =>
+    Object.assign(new FakeFontFaceRule(), {
+      style: fakeStyle({ "font-family": "Icons", src }),
+    });
   const unreadable = fakeSheet("https://cdn.example.test/x.css", null);
   return [
     fakeSheet("https://example.test/css/a.css", [
       fontFace('url("../fonts/i.woff2")'),
-      { type: 3, styleSheet: unreadable },
-      { type: 4, cssRules: [fontFace("url(/fonts/m.woff)")] },
+      Object.assign(new FakeImportRule(), { styleSheet: unreadable }),
+      { cssRules: [fontFace("url(/fonts/m.woff)")] },
     ]),
   ];
 }
@@ -382,7 +387,8 @@ function fakeAssetPage() {
     document,
     location: { pathname: "/page" },
     URL,
-    CSSRule: { FONT_FACE_RULE: 5, IMPORT_RULE: 3 },
+    CSSFontFaceRule: FakeFontFaceRule,
+    CSSImportRule: FakeImportRule,
     HTMLLinkElement: FakeLink,
     performance: { getEntriesByType: () => resources },
     getComputedStyle,

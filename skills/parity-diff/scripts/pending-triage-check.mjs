@@ -32,6 +32,7 @@ import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 import { intentionalEntryText } from "./lib/intentional.mjs";
+import { valueText } from "./lib/value-text.mjs";
 
 /**
  * ツールのバージョン（原本）。判定の処理や出力の形を変えたら上げる。
@@ -39,7 +40,7 @@ import { intentionalEntryText } from "./lib/intentional.mjs";
  *
  * @type {string}
  */
-export const VERSION = "3";
+export const VERSION = "4";
 
 /** 機能に帰属しない追記を表す予約語（replace-strategy の references/project-config.md で定義する）。 */
 export const CROSS_CUTTING = "cross-cutting";
@@ -80,9 +81,7 @@ const DISPOSITIONS = ["keep", "may_change", "carried_over"];
  * @returns {string}
  */
 export function matchKey(v) {
-  return String(v ?? "")
-    .trim()
-    .replace(/\s+/g, " ");
+  return valueText(v).trim().replace(/\s+/g, " ");
 }
 
 /**

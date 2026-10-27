@@ -116,12 +116,14 @@ function pngSize(path: string) {
 /** metadata.json に記録したツールの版とコピー先のパスを、同梱のツールと突き合わせる。 */
 function checkTools(tools: Metadata["capture"]["tools"], problems: string[]) {
   if (tools.traits_version !== traitCapture.VERSION) {
-    problems.push(`traits_version ${tools.traits_version} ≠ ${traitCapture.VERSION}`);
+    problems.push(`traits_version ${String(tools.traits_version)} ≠ ${traitCapture.VERSION}`);
   }
   // element-shot.mjs の版も突き合わせる。build 手順 1 のツール版判定がこの値を読むので、
   // 欠けていると eval が実装の分岐へ届かず前段で止まる。
   if (tools.element_shot_version !== elementShot.VERSION) {
-    problems.push(`element_shot_version ${tools.element_shot_version} ≠ ${elementShot.VERSION}`);
+    problems.push(
+      `element_shot_version ${String(tools.element_shot_version)} ≠ ${elementShot.VERSION}`,
+    );
   }
   // テンプレートはコピー先のパスも記録させる（`traits` と対）。版だけ埋めてパスを書かない
   // 採取物を fixture が手本にしてしまうため、パス側も揃っていることを検査する。
@@ -131,10 +133,10 @@ function checkTools(tools: Metadata["capture"]["tools"], problems: string[]) {
     }
   }
   if (tools.css_rules_version !== cssRules.VERSION) {
-    problems.push(`css_rules_version ${tools.css_rules_version} ≠ ${cssRules.VERSION}`);
+    problems.push(`css_rules_version ${String(tools.css_rules_version)} ≠ ${cssRules.VERSION}`);
   }
   if (tools.axis_diff_version !== axisDiff.VERSION) {
-    problems.push(`axis_diff_version ${tools.axis_diff_version} ≠ ${axisDiff.VERSION}`);
+    problems.push(`axis_diff_version ${String(tools.axis_diff_version)} ≠ ${axisDiff.VERSION}`);
   }
 }
 
@@ -178,7 +180,7 @@ function checkDeclarations(capture: StateCapture, problems: string[]) {
     problems.push(`${where}: traits.json の computed のキーが FIXED_PROPERTIES と一致しない`);
   }
   if (rules.tool_version !== cssRules.VERSION) {
-    problems.push(`${where}: css-rules.json の tool_version ${rules.tool_version}`);
+    problems.push(`${where}: css-rules.json の tool_version ${String(rules.tool_version)}`);
   }
 
   // その状態で成立する宣言（状態擬似クラスがその状態だけ・擬似要素なし・条件なし）が
@@ -198,7 +200,7 @@ function checkDeclarations(capture: StateCapture, problems: string[]) {
     if (!Object.hasOwn(traits.computed, property)) continue;
     if (!values.includes(traits.computed[property])) {
       problems.push(
-        `${where}: ${property} の計算値 ${traits.computed[property]} が当たっている宣言（${values.join(", ")}）に無い`,
+        `${where}: ${property} の計算値 ${String(traits.computed[property])} が当たっている宣言（${values.join(", ")}）に無い`,
       );
     }
   }
@@ -257,7 +259,7 @@ function checkShot(capture: StateCapture, problems: string[]) {
   }
   if (shot.tool_version !== elementShot.VERSION) {
     problems.push(
-      `${where}: element.shot.json の tool_version ${shot.tool_version} ≠ ${elementShot.VERSION}`,
+      `${where}: element.shot.json の tool_version ${String(shot.tool_version)} ≠ ${elementShot.VERSION}`,
     );
   }
   if (png && (shot.png?.width !== png.width || shot.png?.height !== png.height)) {
@@ -383,7 +385,7 @@ const malformedNoiseRow = (n: NoiseRow) =>
 function checkNoiseBaseline(meta: Metadata, viewportLabels: unknown[], problems: string[]) {
   const expectedNoise = meta.instances
     .flatMap((inst) => comparedStates(meta, inst).map((s) => [inst.id, s]))
-    .flatMap(([id, st]) => viewportLabels.map((vp) => `${id}\u001f${st}\u001f${vp}`))
+    .flatMap(([id, st]) => viewportLabels.map((vp) => `${id}\u001f${st}\u001f${String(vp)}`))
     .sort();
   // 形が不正な行は捨てずに問題にする。除外してから突き合わせると、期待する行が揃っている限り、
   // 不正な余分な行が metadata.json に残ったまま合格する。
@@ -394,7 +396,7 @@ function checkNoiseBaseline(meta: Metadata, viewportLabels: unknown[], problems:
   }
   const recordedNoise = noiseRows
     .filter((n) => !malformedNoise.includes(n))
-    .map((n) => `${n.instance}\u001f${n.state}\u001f${n.viewport}`)
+    .map((n) => `${String(n.instance)}\u001f${String(n.state)}\u001f${String(n.viewport)}`)
     .sort();
   if (
     JSON.stringify(recordedNoise) !== JSON.stringify(expectedNoise) ||

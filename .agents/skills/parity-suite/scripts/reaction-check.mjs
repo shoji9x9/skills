@@ -647,7 +647,7 @@ function auditVerdictProblem(e, at) {
   if (!listIncludes(AUDIT_VERDICTS, e.verdict)) {
     return `${at}: verdict が ${AUDIT_VERDICTS.join(" / ")} でない`;
   } else if (e.verdict === "short") {
-    return `${at}: ${e.path} の assertion が期待値に届いていない（${nonEmptyString(e.missing) ? e.missing : "届いていない部分が空"}）。assertion を深くして監査し直すか、測れないなら表の側を未測定にする`;
+    return `${at}: ${String(e.path)} の assertion が期待値に届いていない（${nonEmptyString(e.missing) ? e.missing : "届いていない部分が空"}）。assertion を深くして監査し直すか、測れないなら表の側を未測定にする`;
   } else if (!filled(e.checked)) {
     return `${at}: verdict: reaches なのに checked が空かテンプレートの説明文のまま（期待値のどの部分をどの assertion が確かめているかを書く）`;
   }
@@ -859,7 +859,7 @@ function reactionCaptureProblem(cap, captureStates) {
   const hasReason = nonEmptyString(cap.reason);
   if (hasState === hasReason) return "capture は state と reason のどちらか一方だけを埋める";
   if (hasState && captureStates && !setHas(captureStates, cap.state)) {
-    return `capture.state "${cap.state}" が capture_conditions.states に無い`;
+    return `capture.state "${String(cap.state)}" が capture_conditions.states に無い`;
   }
   return null;
 }
@@ -1253,7 +1253,7 @@ function lookChangedProblems(items, captureStates) {
  * @returns {Finding | null}
  */
 function lookItemProblem(item, captureStates) {
-  const at = `aftermath.look.items["${item.id}"]`;
+  const at = `aftermath.look.items["${String(item.id)}"]`;
   if (!filled(item.target) || !filled(item.description)) {
     return { problem: `${at}: target（論理名）/ description が空`, unmeasured: true };
   }
@@ -1281,7 +1281,7 @@ function lookItemProblem(item, captureStates) {
   }
   if (hasState && captureStates && !setHas(captureStates, item.captured)) {
     return {
-      problem: `${at}: captured "${item.captured}" が capture_conditions.states に無い`,
+      problem: `${at}: captured "${String(item.captured)}" が capture_conditions.states に無い`,
       unmeasured: true,
     };
   }
@@ -1589,7 +1589,7 @@ function presentStateProblems(entry, candidate, captureStates) {
   }
   if (hasState && captureStates && !setHas(captureStates, entry.captured)) {
     out.push({
-      problem: `${candidate}: captured "${entry.captured}" が capture_conditions.states に無い`,
+      problem: `${candidate}: captured "${String(entry.captured)}" が capture_conditions.states に無い`,
       unmeasured: true,
     });
   }
@@ -1725,7 +1725,7 @@ function displayPageSetProblems(seen, pageNames, { problems, summary }) {
  */
 function checkDisplayRow(row, ctx, summary) {
   const { captureStates, problems } = ctx;
-  const at = `state_displays["${row.page}"]`;
+  const at = `state_displays["${String(row.page)}"]`;
   const candidates = row.candidates;
   if (!isPlainObject(candidates)) {
     problems.push(
@@ -2097,7 +2097,7 @@ function preSendItemsProblems(checks, refs) {
  * @param {SourceRef[]} refs
  */
 function preSendItemProblems(item, out, refs) {
-  const at = `pre_send.items["${item.id}"]`;
+  const at = `pre_send.items["${String(item.id)}"]`;
   if (typeof item.kind !== "string" || !PRE_SEND_KINDS.includes(item.kind)) {
     out.push({
       problem: `${at}: kind が語彙（${PRE_SEND_KINDS.join(" / ")}）に無い`,
@@ -2459,7 +2459,7 @@ function writeSiteProblems(s, at, opIds) {
   // 画面を開いたときの書き込みのように操作に結び付かない書き込みは operation: null（occasion で時機を書く）
   if (s.operation !== null && !setHas(opIds, s.operation)) {
     problems.push(
-      `${at}: operation "${String(s.operation)}" が網羅表の操作に無い（操作に結び付かない書き込みは null にして occasion に時機を書く。この機能の書き込みでなければ excluded_reason）`,
+      `${at}: operation "${typeof s.operation === "string" ? s.operation : JSON.stringify(s.operation)}" が網羅表の操作に無い（操作に結び付かない書き込みは null にして occasion に時機を書く。この機能の書き込みでなければ excluded_reason）`,
     );
   }
   if (!filled(s.occasion) || !filled(s.values) || !filled(s.count)) {
@@ -2784,7 +2784,7 @@ function reactionOptions(opts) {
     pageNames = null,
     slug = null,
     target = null,
-    targetCommit = undefined,
+    targetCommit,
     testIndex = null,
     specs = null,
     pageResolution = null,
@@ -3266,12 +3266,12 @@ function checkOperationReactions(op, { opId, label, fail }, env) {
 function checkReaction(r, { opId, fail }, env) {
   const { state } = env;
   state.reactionCount += 1;
-  const rLabel = `reactions["${r.id}"]`;
+  const rLabel = `reactions["${String(r.id)}"]`;
   if (typeof r.kind !== "string" || !REACTION_KINDS.includes(r.kind)) {
     fail(`${rLabel}: kind が語彙（${REACTION_KINDS.join(" / ")}）に無い`);
     return;
   }
-  state.reactionKinds.set(`${opId}/${r.id}`, r.kind);
+  state.reactionKinds.set(`${opId}/${String(r.id)}`, r.kind);
   if (r.kind === "unmeasured") {
     fail(
       `${rLabel}: unmeasured${nonEmptyString(r.reason) ? `（${r.reason}）` : "（reason が空）"}`,
@@ -3406,10 +3406,10 @@ function recordCallSites(recordedSites, env) {
     } else if (hasReaction) {
       const kind = state.reactionKinds.get(s.reaction);
       if (kind === undefined)
-        problems.push(`call_sites ${key}: reaction "${s.reaction}" が網羅表の反応に無い`);
+        problems.push(`call_sites ${key}: reaction "${String(s.reaction)}" が網羅表の反応に無い`);
       else if (kind !== "observed") {
         problems.push(
-          `call_sites ${key}: reaction "${s.reaction}" は kind: ${kind}（呼び出しがあるのに観測した反応へ対応付いていない）`,
+          `call_sites ${key}: reaction "${String(s.reaction)}" は kind: ${kind}（呼び出しがあるのに観測した反応へ対応付いていない）`,
         );
         const opId = String(s.reaction).split("/")[0];
         if (opIds.has(opId)) state.unmeasuredOps.add(opId);

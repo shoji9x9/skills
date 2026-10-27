@@ -277,7 +277,7 @@ export function main(
   try {
     metadata = JSON.parse(readFileSync(resolve(cwd, argv[1]), "utf8"));
   } catch (error) {
-    return fail(`build-metadata.json を読めない: ${field(error, "message")}`);
+    return fail(`build-metadata.json を読めない: ${String(field(error, "message"))}`);
   }
   const result = checkLifecycle(metadata);
   if (result.structural) {

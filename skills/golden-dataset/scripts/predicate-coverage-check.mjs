@@ -1700,7 +1700,7 @@ function readInputs(inputs, { readFile, cwd }) {
       sources[key] = readFile(resolve(cwd, path));
     } catch (error) {
       return {
-        error: `${path} を読めない: ${error && (typeof error === "object" && "message" in error ? error.message : undefined)}`,
+        error: `${path} を読めない: ${String(error && (typeof error === "object" && "message" in error ? error.message : undefined))}`,
       };
     }
   }

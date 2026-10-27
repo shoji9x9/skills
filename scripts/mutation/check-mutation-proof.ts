@@ -1229,7 +1229,7 @@ function settleAfterRun({
     // 元の例外は、テストの実行中のものとは限らない（変異の書き込みの失敗もここに来る）。
     if (thrown)
       console.error(
-        `mutation-proof: 元の例外: ${(thrown instanceof Error ? thrown.stack : undefined) ?? thrown}`,
+        `mutation-proof: 元の例外: ${thrown instanceof Error ? (thrown.stack ?? thrown.message) : errorMessage(thrown)}`,
       );
     process.exit(2);
   }

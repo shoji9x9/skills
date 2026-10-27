@@ -409,7 +409,7 @@ export function specificity(selector) {
  * `.target` を hover した採取に対してこの規則を成立と扱ってしまう。**隣の要素が hover されているか**は
  * 採取ディレクトリ名からは分からない。主語の外に状態が付いていたら成否を決めず undecidable に回す。
  *
- * @param {string} selector - 規則のセレクタ（状態擬似クラスを含む形）。
+ * @param {unknown} selector - 規則のセレクタ（状態擬似クラスを含む形）。文字列でなければ空の配列を返す。
  * @param {readonly string[]} states - その規則が要求する状態擬似クラスの名前。
  * @returns {string[]} 主語の外に現れた状態の名前（空なら主語だけに付いている）。
  */
@@ -615,7 +615,9 @@ function stateContext(states) {
  * @returns {CascadeBucket}
  */
 function bucketFor(store, pseudo, property) {
-  const key = `${pseudo === null ? "" : pseudo}\u0000${property}`;
+  const pseudoKey =
+    typeof pseudo === "string" ? pseudo : pseudo === null ? "" : JSON.stringify(pseudo);
+  const key = `${pseudoKey}\u0000${property}`;
   let entry = store.buckets.get(key);
   if (entry === undefined) {
     entry = {
@@ -686,7 +688,7 @@ function ruleStates(rule, { active, coOccurring }) {
   const inactive = states.filter((state) => !active.has(state));
   // 主語の外に付いた状態は、名前が一致しても「いまその状態か」を採取ディレクトリ名が決めない
   // （`.trigger:hover + .target` の `hover` は隣の要素の話）。不成立とも成立とも判定せず、不明にする。
-  const foreign = statesOutsideSubject(String(rule.selector ?? ""), states);
+  const foreign = statesOutsideSubject(rule.selector, states);
   // 渡された状態と共起しうる一時的な状態は、「不成立」と判定しない（下記 CO_OCCURRING_STATES）。
   const gated = inactive.some(
     (state) => TRANSIENT_STATES.has(state) && !coOccurring.has(state) && !foreign.includes(state),
@@ -975,7 +977,7 @@ function decideWithoutApplying(entry, wildcard, out) {
   if (entry.state_unknown.length > 0) {
     reasons.push(
       "only declarations gated by persistent state pseudo-classes remain " +
-        `(${[...new Set(entry.state_unknown.flatMap((c) => c.unknown_states))].sort().join(", ")}); ` +
+        `(${[...new Set(entry.state_unknown.flatMap((c) => c.unknown_states))].map(String).sort().join(", ")}); ` +
         "these describe the element itself, not the capture directory, so applicability is unknown. " +
         "pass --state <name> for the ones you know were active",
     );
@@ -1149,7 +1151,7 @@ function rivalReason(entry, wildcard, winner) {
   if (entry.state_unknown.some(couldOutrank)) {
     return (
       "a declaration gated by a persistent state pseudo-class " +
-      `(${[...new Set(entry.state_unknown.filter(couldOutrank).flatMap((c) => c.unknown_states))].sort().join(", ")}) ` +
+      `(${[...new Set(entry.state_unknown.filter(couldOutrank).flatMap((c) => c.unknown_states))].map(String).sort().join(", ")}) ` +
       "would outrank the winner if that state was active during capture; the capture directory name " +
       "does not settle it. pass --state <name> if you know it was active"
     );

@@ -190,11 +190,11 @@ function motionDiffers(a, b, epsilon) {
  * @returns {{ error: string }}
  */
 function samplerFailure(error) {
-  // message は、message を持つオブジェクトからだけ読む。読めないか偽の値（空文字など）なら、String(error) を表示する。
+  // message は、message を持つオブジェクトからだけ読む。読めないか、空でない文字列でなければ、String(error) を表示する。
   const message =
     typeof error === "object" && error !== null && "message" in error ? error.message : undefined;
   return {
-    error: `sampler failed: ${message ? message : String(error)}`,
+    error: `sampler failed: ${typeof message === "string" && message ? message : String(error)}`,
   };
 }
 
@@ -300,8 +300,8 @@ export const SAMPLER_HELPERS = {
  * installSampler とヘルパーをそれぞれソースにして組み立てる。
  * 関数の宣言のソース（`function name(...) {...}`）は、引数やプロパティの値の位置に置くと関数式として評価される。
  */
-export const SAMPLER_SCRIPT_HEAD = `(${installSampler})({\n${Object.entries(SAMPLER_HELPERS)
-  .map(([name, fn]) => `${name}: ${fn}`)
+export const SAMPLER_SCRIPT_HEAD = `(${String(installSampler)})({\n${Object.entries(SAMPLER_HELPERS)
+  .map(([name, fn]) => `${name}: ${String(fn)}`)
   .join(",\n")}\n}, `;
 
 /**

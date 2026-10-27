@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { loadYamlAs } from "../../../lib/text/yaml-as.ts";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
+import { showValue } from "../../../lib/show-value.ts";
 import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 
 export const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
@@ -178,7 +179,7 @@ export function declaredEnv(wfPath: string, key: string) {
   const found = scopes.map((e) => e[key]).filter((v) => v !== undefined);
   // 宣言は 1 箇所だけ（`run` へ直書きすると照合と表示でずれる）。0 件も複数件も落とす。
   expect(found, `${wfPath}: env の ${key} 宣言`).toHaveLength(1);
-  return String(found[0]);
+  return showValue(found[0]);
 }
 
 /**
@@ -207,7 +208,7 @@ export function resolveLib(wfPath: string) {
   // ジョブの outputs が別の値を指す変異を落とすため、outputs の宣言を探索ステップまで辿る。
   const [, jobId, jobOutput] = m;
   const jobOutputs = workflowDoc(wfPath).jobs[jobId]?.outputs ?? {};
-  const inner = String(jobOutputs[jobOutput] ?? "").match(
+  const inner = showValue(jobOutputs[jobOutput] ?? "").match(
     /^\$\{\{\s*steps\.([\w-]+)\.outputs\.(\w+)\s*\}\}$/,
   );
   assert.exists(inner, `${wfPath}: jobs.${jobId}.outputs.${jobOutput} がステップの出力を指さない`);

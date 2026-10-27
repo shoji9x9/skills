@@ -157,7 +157,7 @@ function patchedFrom(range: unknown): string {
 }
 
 function normalizeSeverity(value: unknown): string {
-  const severity = String(value || "unknown").toLowerCase();
+  const severity = typeof value === "string" ? value.toLowerCase() : "unknown";
   return ["critical", "high", "moderate", "medium", "low"].includes(severity)
     ? severity
     : "unknown";

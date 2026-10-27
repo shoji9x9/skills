@@ -255,7 +255,7 @@ export function validateComponentMetadata(metadata) {
   if (absolute.length > 0) {
     return [
       `部品 metadata の instances[].page は target の baseURL からの相対パスで書く（capture_conditions.pages[].path と同じ語彙）。絶対 URL: ${absolute
-        .map((i) => `${i.id}（${i.page}）`)
+        .map((i) => `${String(i.id)}（${String(i.page)}）`)
         .join(", ")}`,
     ];
   }

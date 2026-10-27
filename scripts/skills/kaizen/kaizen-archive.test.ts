@@ -66,7 +66,7 @@ test.each([
   assert.exists(lastSegment, "索引に要約が無い");
   const indexedSummary = lastSegment.trimEnd();
   expect(indexedSummary.endsWith("…")).toBe(ellipsis);
-  expect([...indexedSummary]).toHaveLength(Math.min(length, 80));
+  expect(Array.from(indexedSummary)).toHaveLength(Math.min(length, 80));
 });
 
 // Issue #303: 先頭段落が折り返されたノートで、索引の要約が文の途中で切れていた。

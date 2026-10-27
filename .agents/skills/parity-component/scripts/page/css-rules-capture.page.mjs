@@ -110,7 +110,7 @@
  *   outerScope: boolean,
  *   hostScope: boolean,
  *   slottedScope: boolean,
- *   scope?: unknown,
+ *   scope?: string,
  * }} WalkContext
  */
 
@@ -157,13 +157,13 @@
  */
 export function collectInPage(el, options) {
   /**
-   * 例外の名前（`e && e.name ? e.name : "Error"` と同じ。名前は文字列として返す）。
+   * 例外の名前。name が空でない文字列でなければ "Error" を返す。
    * @param {unknown} e
    * @returns {string}
    */
   function errorName(e) {
     const name = typeof e === "object" && e !== null && "name" in e ? e.name : undefined;
-    return name ? String(name) : "Error";
+    return typeof name === "string" && name ? name : "Error";
   }
 
   /**
@@ -721,7 +721,10 @@ export function collectInPage(el, options) {
     //     見ないので、`@scope (.dialog) { .button {...} }` を .dialog の外の .button にも
     //     当たったと報告してしまう（偽の根拠になる）。スコープを評価せず unresolved に回す。
     if (rule.start !== undefined || rule.end !== undefined) {
-      walkRules(run, children, { ...ctx, scope: rule.start || "(implicit)" });
+      walkRules(run, children, {
+        ...ctx,
+        scope: typeof rule.start === "string" && rule.start ? rule.start : "(implicit)",
+      });
       return;
     }
     // (6) それ以外のグループ（conditionText も name も start/end も持たないもの）。

@@ -152,7 +152,7 @@ function readJson(path: string): JsonObject {
 /** Python の `round(x, n)`（偶数丸め）に合わせる。既存の benchmark.json と数値を揃えるため。 */
 function round(value: unknown, digits: number): number {
   if (typeof value !== "number" || !Number.isFinite(value))
-    die(`数値でない値を丸めようとした: ${value}`);
+    die(`数値でない値を丸めようとした: ${String(value)}`);
   if (Number.isInteger(value)) return value;
   // 二重丸めを避けるため、まず double の十進展開を十分な桁で採ってから桁を落とす。
   const exact = value.toFixed(20);
@@ -387,7 +387,7 @@ function tallyGrading(
     ["total", expectations.length],
   ]) {
     if (summary[key] !== want) {
-      die(`${gradingPath}: summary.${key}=${summary[key]} が採点内訳（${want}）と違う`);
+      die(`${gradingPath}: summary.${key}=${String(summary[key])} が採点内訳（${want}）と違う`);
     }
   }
   const computedRate = round(passed / expectations.length, 4);

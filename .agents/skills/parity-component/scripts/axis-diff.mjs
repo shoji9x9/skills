@@ -839,7 +839,7 @@ export function main(argv) {
   } catch (e) {
     const what = baseline === null ? "マニフェスト" : "採取物";
     const message = field(e, "message");
-    process.stderr.write(`error: ${what}を読めない: ${message ? message : e}\n`);
+    process.stderr.write(`error: ${what}を読めない: ${String(message ? message : e)}\n`);
     return 2;
   }
 

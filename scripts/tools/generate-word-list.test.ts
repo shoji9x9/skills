@@ -32,7 +32,7 @@ const ENTRIES = [
 /** words.json と一覧のファイルを置いた一時リポジトリ。list が null なら一覧を置かない。 */
 type RepoOptions = { entries?: unknown[]; words?: string | null; list?: string | null };
 
-function makeRepo({ entries = ENTRIES, words = undefined, list = null }: RepoOptions = {}) {
+function makeRepo({ entries = ENTRIES, words, list = null }: RepoOptions = {}) {
   const root = makeTempDir("word-list-");
   write(root, WORDS_PATH, words ?? JSON.stringify({ entries }));
   if (list !== null) write(root, LIST_PATH, list);

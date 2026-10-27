@@ -281,7 +281,7 @@ test("CRLF で保存した文書でも、reviewedUntil の見出しを見つけ�
 test("CRLF で保存した文書は、行末の \\r も文字数に数える", () => {
   // LF なら上限ちょうどになる本文を CRLF にすると、行の数だけ上限を超える。
   const head = docText("style", DOC.reviewedUntil, { filler: 0 }).split(DOC.reviewedUntil)[0];
-  const filler = REVIEW_READ_LIMIT - [...head].length;
+  const filler = REVIEW_READ_LIMIT - Array.from(head).length;
   const text = docText("style", DOC.reviewedUntil, { filler }).replaceAll("\n", "\r\n");
   const root = makeDocRepo({ text });
   const { violations } = checkRuleSymlinks(root, [...DOC_INSTRUCTIONS, DOC]);
@@ -313,7 +313,7 @@ test.each([
   (_name, total, expected) => {
     // 見出しより前の文字数が total になるように、本文の「あ」の数を決める（符号位置で数える）。
     const head = docText("style", DOC.reviewedUntil, { filler: 0 }).split(DOC.reviewedUntil)[0];
-    const filler = total - [...head].length;
+    const filler = total - Array.from(head).length;
     const root = makeDocRepo({ text: docText("style", DOC.reviewedUntil, { filler }) });
     // 文字数の指摘だけを見る（リンクの検査の変異で増える指摘と区別する）。
     const { violations } = checkRuleSymlinks(root, [...DOC_INSTRUCTIONS, DOC]);

@@ -315,7 +315,7 @@ function addSample(ctx, s, i) {
     ctx.groups.set(key, g);
   }
   if (g.runs.has(run)) {
-    throw new UsageError(`samples[${i}] の run が組 ${key} の中で重複する: ${s.run}`);
+    throw new UsageError(`samples[${i}] の run が組 ${key} の中で重複する: ${String(s.run)}`);
   }
   g.runs.add(run);
   for (const m of METRICS) {
@@ -355,7 +355,7 @@ export function groupSamples(doc, expect) {
   for (const [key, g] of groups) {
     if (g.runs.size !== settings.runs) {
       throw new UsageError(
-        `組 ${key} の回数 ${g.runs.size} が settings.runs ${settings.runs} と違う`,
+        `組 ${key} の回数 ${g.runs.size} が settings.runs ${String(settings.runs)} と違う`,
       );
     }
   }

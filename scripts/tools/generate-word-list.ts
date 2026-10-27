@@ -58,11 +58,11 @@ export function renderWordList(root: string, source: Source = {}) {
     if (hasTerm !== hasInstead)
       throw new Error(`entries[${i}] は term と instead を両方持つか、両方持たない`);
     if (!hasTerm) return;
-    if (seen.has(e.term)) throw new Error(`term「${e.term}」が重複している`);
-    if (`${e.term}${e.instead}`.includes("|"))
+    if (seen.has(e.term)) throw new Error(`term「${String(e.term)}」が重複している`);
+    if (`${String(e.term)}${String(e.instead)}`.includes("|"))
       throw new Error(`entries[${i}] に「|」がある（表が崩れる）`);
     seen.add(e.term);
-    rows.push(`| ${e.term} | ${e.instead} |`);
+    rows.push(`| ${String(e.term)} | ${String(e.instead)} |`);
   });
   if (rows.length === 0) throw new Error("一覧に出すエントリが 0 件");
   return [

@@ -146,11 +146,17 @@ if (failure) {
     field(failure, "code") === "ETIMEDOUT"
       ? `${timeoutMs}ms 応答なしで中断`
       : field(failure, "signal")
-        ? `signal ${field(failure, "signal")}`
-        : `exit ${field(failure, "status") ?? field(failure, "code")}`;
+        ? `signal ${String(field(failure, "signal"))}`
+        : `exit ${String(field(failure, "status") ?? field(failure, "code"))}`;
   console.error(`Chrome での PNG 化に失敗しました（${reason}）: ${chrome}`);
   // dbus 関連の警告は成功時にも出るノイズなので落とし、残りの末尾だけ見せる。
-  const lines = String(field(failure, "stderr") ?? "")
+  const stderr = field(failure, "stderr");
+  const stderrText = Buffer.isBuffer(stderr)
+    ? stderr.toString()
+    : typeof stderr === "string"
+      ? stderr
+      : "";
+  const lines = stderrText
     .split("\n")
     .filter((l) => l.trim() && !/dbus|Failed to connect to the bus/i.test(l));
   if (lines.length) console.error(lines.slice(-5).join("\n"));
