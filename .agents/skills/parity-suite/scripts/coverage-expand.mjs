@@ -3098,6 +3098,22 @@ function checkSharedCaptures(vctx) {
  * @returns {Record<string, unknown>}
  */
 export function fillVisualStates(coverage, profiles) {
+  for (const { c, profile } of profiledComponents(coverage, profiles)) {
+    applyRuleVisualStates(c, ruleVisualStates(profile));
+  }
+  return coverage;
+}
+
+/**
+ * 網羅表の部品のうち、宣言したプロファイルを読めたものと、そのプロファイルの組を、部品の順に返す。
+ * 部品でない要素・プロファイルを宣言しない部品・読めないプロファイルを名乗る部品は含めない。
+ * @param {Record<string, unknown>} coverage
+ * @param {Map<string, Record<string, unknown>>} profiles
+ * @returns {{c: Record<string, unknown>, profile: Record<string, unknown>}[]}
+ */
+function profiledComponents(coverage, profiles) {
+  /** @type {{c: Record<string, unknown>, profile: Record<string, unknown>}[]} */
+  const out = [];
   const components = isArray(coverage.components) ? coverage.components : [];
   for (const component of components) {
     if (!isPlainObject(component)) continue;
@@ -3105,9 +3121,9 @@ export function fillVisualStates(coverage, profiles) {
     if (!nonEmptyString(c.profile)) continue;
     const profile = profiles.get(String(c.profile));
     if (!profile) continue;
-    applyRuleVisualStates(c, ruleVisualStates(profile));
+    out.push({ c, profile });
   }
-  return coverage;
+  return out;
 }
 
 /**
@@ -3160,13 +3176,7 @@ function applyRuleVisualStates(c, byRule) {
  * @returns {Record<string, unknown>}
  */
 export function fillCandidates(coverage, profiles) {
-  const components = isArray(coverage.components) ? coverage.components : [];
-  for (const component of components) {
-    if (!isPlainObject(component)) continue;
-    const c = component;
-    if (!nonEmptyString(c.profile)) continue;
-    const profile = profiles.get(String(c.profile));
-    if (!profile) continue;
+  for (const { c, profile } of profiledComponents(coverage, profiles)) {
     c.profile_version = String(profile.version);
     fillInstanceCandidates(c, profile);
   }

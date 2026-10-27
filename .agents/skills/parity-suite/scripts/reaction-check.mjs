@@ -906,7 +906,7 @@ function noneProblem(r, windowMs, documents) {
 }
 
 /**
- * none の反応の observation.documents（見た文書）の欠けを返す（無ければ null）。
+ * none の反応で、見た文書（observation.documents）が欠けているか表の documents と食い違えば、その理由を返す（無ければ null）。
  * @param {unknown} observed - observation.documents
  * @param {Set<string> | null} documents - 表の documents（top と全フレーム）
  * @returns {string | null}
@@ -954,7 +954,7 @@ function layoutMeasureProblem(m) {
 }
 
 /**
- * 頁の組み方の 1 回の測定の、rects の 1 件（論理名と矩形）の欠けを返す（無ければ null）。
+ * 頁の組み方を 1 回測った記録で、rects の 1 件（論理名と矩形）が欠けていれば、その理由を返す（無ければ null）。
  * @param {string} name - 論理名
  * @param {unknown} r - 矩形
  * @returns {string | null}
@@ -1788,7 +1788,7 @@ function checkDisplayRow(row, ctx, summary) {
 }
 
 /**
- * state_displays.pages の 1 行の candidates について、振り分けていない候補と語彙に無いキーを problems に積む。
+ * state_displays.pages の 1 行で、candidates に振り分けていない候補か語彙に無いキーがあれば、problems に積む。
  * @param {Record<string, unknown>} candidates
  * @param {string} at - 行の位置
  * @param {{ problems: string[], summary: DisplaySummary }} out

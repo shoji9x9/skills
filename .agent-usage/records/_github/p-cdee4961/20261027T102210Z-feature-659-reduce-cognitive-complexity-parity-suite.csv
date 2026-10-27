@@ -7,3 +7,7 @@ coverage:github:2026-10-26T09:35:18.628Z:2026-10-27T10:22:10.371Z,coverage,2026-
 coverage:github:2026-10-26T10:22:10.371Z:2026-10-27T10:23:00.959Z,coverage,2026-10-27T10:23:00.959Z,p-cdee4961,,,,,2026-10-26T10:22:10.371Z,2026-10-27T10:23:00.959Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-26T10:23:00.959Z:2026-10-27T10:23:22.691Z,coverage,2026-10-27T10:23:22.691Z,p-cdee4961,,,,,2026-10-26T10:23:00.959Z,2026-10-27T10:23:22.691Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-26T10:23:22.691Z:2026-10-27T10:34:36.094Z,coverage,2026-10-27T10:34:36.094Z,p-cdee4961,,,,,2026-10-26T10:23:22.691Z,2026-10-27T10:34:36.094Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:40489866005:1,ci,2026-10-27T10:45:14.992Z,p-cdee4961,github-actions,,,,2026-10-27T10:37:03.000Z,2026-10-27T10:37:04.000Z,Asia/Tokyo,feature/659-reduce-cognitive-complexity-parity-suite,659,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40489866092:1,ci,2026-10-27T10:45:14.992Z,p-cdee4961,github-actions,,,,2026-10-27T10:37:03.000Z,2026-10-27T10:40:59.000Z,Asia/Tokyo,feature/659-reduce-cognitive-complexity-parity-suite,659,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-26T10:34:36.094Z:2026-10-27T10:45:14.992Z,coverage,2026-10-27T10:45:14.992Z,p-cdee4961,,,,,2026-10-26T10:34:36.094Z,2026-10-27T10:45:14.992Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-26T10:45:14.992Z:2026-10-27T10:45:45.284Z,coverage,2026-10-27T10:45:45.284Z,p-cdee4961,,,,,2026-10-26T10:45:14.992Z,2026-10-27T10:45:45.284Z,Asia/Tokyo,,,,,,,,,,,,ok,
