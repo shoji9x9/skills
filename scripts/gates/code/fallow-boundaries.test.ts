@@ -16,6 +16,7 @@ import { copyFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 import { write } from "../../lib/testing/repo-file.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
@@ -30,8 +31,7 @@ function violations(files: Record<string, string>): string[] {
   const res = spawnSync(
     "pnpm",
     ["exec", "fallow", "architecture", "--root", root, "--quiet", "--format", "compact"],
-    // fallow は数百ミリ秒で終わる。止まったときに待ち続けないよう打ち切る。
-    { cwd: ROOT, encoding: "utf8", timeout: 60_000 },
+    { cwd: ROOT, encoding: "utf8", timeout: CHILD_TIMEOUT_MS },
   );
   if (res.error) throw res.error;
   // 違反があれば 1、無ければ 0。それ以外は判定できないので、0 件として扱わない。

@@ -91,6 +91,8 @@ test.each([
   ["断片の名前が空", report([{ ...raw(), firstFile: { name: "", start: 1, end: 2 } }])],
   ["行が整数でない", report([{ ...raw(), secondFile: { name: "b.ts", start: "1", end: 2 } }])],
   ["断片が object でない", report([{ ...raw(), firstFile: null }])],
+  ["start が 0", report([{ ...raw(), firstFile: { name: "a.ts", start: 0, end: 2 } }])],
+  ["end が start より前", report([{ ...raw(), secondFile: { name: "b.ts", start: 5, end: 4 } }])],
   ["format が無い", report([{ ...raw(), format: undefined }])],
   ["format が空", report([{ ...raw(), format: "" }])],
   ["lines が無い", report([{ ...raw(), lines: undefined }])],

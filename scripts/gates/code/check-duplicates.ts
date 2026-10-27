@@ -56,10 +56,11 @@ function fragmentOf(value: unknown, where: string): Fragment {
   const { name, start, end } = value;
   if (typeof name !== "string" || name === "")
     throw new Error(`${where}.name が空でない文字列でない`);
-  if (!Number.isInteger(start) || !Number.isInteger(end)) {
-    throw new Error(`${where}.start と ${where}.end が整数でない`);
+  const [first, last] = [Number(start), Number(end)];
+  if (!Number.isInteger(start) || !Number.isInteger(end) || first < 1 || last < first) {
+    throw new Error(`${where}.start と ${where}.end が 1 始まりで start <= end の整数でない`);
   }
-  return { name, start: Number(start), end: Number(end) };
+  return { name, start: first, end: last };
 }
 
 /** jscpd の JSON のレポートから、重複と走査したファイルの数を読む。形が違えば例外にする（読めないレポートを 0 件として扱わない）。 */
