@@ -14,7 +14,7 @@
 // | 設定の ignore            | 文字列の配列 / 無い / 空文字を含む                                           |
 // | 引数                     | なし / --update-baseline / 知らない引数                                      |
 // | ベースライン             | 在る / 無い                                                                  |
-// | 控えた組                 | 在る / 無い / 形が違う。重複の 2 つのファイルが、控えた組にあり今の組に無い / 今も組にある / 控えた組に無い |
+// | 控えた組                 | 在る / 無い / 形が違う（組が 0 件・1 ファイルの組・空文字）。重複の 2 つのファイルが、控えた組にあり今の組に無い / 今も組にある / 控えた組に無い |
 // | 走査の結果               | 新しい重複 / ベースラインの重複だけ / 登録済みのコピーの重複だけ / 走査したファイルが 0 件 |
 import { expect, test } from "vitest";
 import { existsSync, rmSync } from "node:fs";
@@ -210,6 +210,8 @@ test.each([
   ["groups が無い", {}],
   ["組が配列でない", { groups: ["a.mjs"] }],
   ["ファイルが空文字", { groups: [["a.mjs", ""]] }],
+  ["組が 0 件", { groups: [] }],
+  ["1 ファイルだけの組", { groups: [["a.mjs", "c.mjs"], ["b.mjs"]] }],
 ])("loadDeclared: %s なら例外にする", (_, value) => {
   const root = makeTempDir("duplicates-declared-");
   write(root, DECLARED_PATH, JSON.stringify(value));
@@ -340,6 +342,6 @@ test("main: 設定を読めなければ exit 2", () => {
   const root = makeRepo({ "a.ts": BODY });
   write(root, CONFIG_PATH, "{");
   write(root, BASELINE_PATH, JSON.stringify({ version: 1, fingerprints: {} }));
-  write(root, DECLARED_PATH, JSON.stringify({ groups: [] }));
+  write(root, DECLARED_PATH, JSON.stringify({ groups: [["p.mjs", "q.mjs"]] }));
   expect(main([], root)).toBe(2);
 });

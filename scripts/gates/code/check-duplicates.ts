@@ -21,7 +21,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, relative } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { errorMessage } from "../../lib/errors.ts";
 import { isRecord } from "../../lib/guards.ts";
@@ -128,14 +128,16 @@ export function isUndeclaredCopy(
   return declared.some(together) && !groups.some((g) => together(g.files));
 }
 
-/** 控えた組を読む。形が違えば例外にする。 */
+/** 控えた組を読む。書き手（loadGroups の組）と同じく、1 件以上で、各組が 2 つ以上のファイルを持つ。形が違えば例外にする。 */
 export function loadDeclared(root: string): string[][] {
   const data: unknown = JSON.parse(readFileSync(join(root, DECLARED_PATH), "utf8"));
   const groups = isRecord(data) ? data.groups : undefined;
   const isFiles = (g: unknown): g is string[] =>
-    isArray(g) && g.every((f) => typeof f === "string" && f !== "");
-  if (!isArray(groups) || !groups.every(isFiles)) {
-    throw new Error(`${DECLARED_PATH} の groups がファイルの一覧の配列でない`);
+    isArray(g) && g.length >= 2 && g.every((f) => typeof f === "string" && f !== "");
+  if (!isArray(groups) || groups.length === 0 || !groups.every(isFiles)) {
+    throw new Error(
+      `${DECLARED_PATH} の groups が、2 つ以上のファイルを持つ組の 1 件以上の配列でない`,
+    );
   }
   return groups;
 }
@@ -206,7 +208,8 @@ function runJscpd(root: string, updateBaseline: boolean): { sources: number; clo
     if (res.status !== 0)
       throw new Error(`jscpd が終了コード ${res.status} で失敗した: ${res.stderr}`);
     const report = parseReport(JSON.parse(readFileSync(join(output, "jscpd-report.json"), "utf8")));
-    const rel = (f: Fragment) => ({ ...f, name: relative(root, f.name) });
+    // 宣言（identical-copies.json と控え）は / 区切りなので、Windows の \ 区切りもそろえる。
+    const rel = (f: Fragment) => ({ ...f, name: relative(root, f.name).split(sep).join("/") });
     return {
       ...report,
       clones: report.clones.map((c) => ({ ...c, first: rel(c.first), second: rel(c.second) })),
