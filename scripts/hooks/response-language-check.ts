@@ -23,9 +23,9 @@ import { alreadyBlocked, recordBlocked } from "./stop-marker.ts";
 const HOOK = "response-language-check";
 
 /** ラテン文字がこれより少ない応答は、言語を判定しない（短い返事・識別子だけの応答）。 */
-export const MIN_LATIN_LETTERS = 40;
+const MIN_LATIN_LETTERS = 40;
 /** 日本語の文字 ÷（日本語の文字 ＋ ラテン文字）がこれ未満なら、英語の応答とみなす。 */
-export const MIN_JAPANESE_RATIO = 0.1;
+const MIN_JAPANESE_RATIO = 0.1;
 
 /**
  * 応答の言語に数えない部分を除いた本文を返す。
@@ -35,7 +35,7 @@ export const MIN_JAPANESE_RATIO = 0.1;
  *   外すのは実測で見たタグ（HARNESS_TAGS）だけにする。任意のタグを外すと、`<p>...</p>` のような英語の本文まで消えて通ってしまう。
  * - URL は ASCII の範囲だけを外す。空白で区切らない日本語の続きまで消さないためである。
  */
-export const HARNESS_TAGS = ["system-reminder", "task-notification"];
+const HARNESS_TAGS = ["system-reminder", "task-notification"];
 const HARNESS_BLOCK = new RegExp(`<(${HARNESS_TAGS.join("|")})>[\\s\\S]*?<\\/\\1>`, "g");
 
 export function prose(message: string): string {

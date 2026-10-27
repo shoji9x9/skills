@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import {
   RENDER_INPUTS,
   featureMetadata,
@@ -15,6 +15,11 @@ import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import { parseJsonAs } from "../../../lib/parse-as.ts";
 import { isArray } from "../../../lib/is-array.ts";
 import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
+import {
+  main,
+  suiteFingerprint,
+  stripJsComments,
+} from "../../../../skills/parity-suite/scripts/artifact-health-check.mjs";
 
 /** 機能の metadata.json のうち、反復実行の記録の指紋を書き換える欄。 */
 export type RepeatRunMetadata = {
@@ -24,12 +29,7 @@ export type RepeatRunMetadata = {
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/artifact-health-check.mjs");
 // 期待値はスクリプトと同じ関数から取る（テスト側で計算規則を複製すると、両方が同時に間違っても緑になる）。
-export const {
-  main,
-  suiteFingerprint,
-  stripJsComments,
-}: typeof import("../../../../skills/parity-suite/scripts/artifact-health-check.mjs") =
-  await import(pathToFileURL(script).href);
+export { suiteFingerprint, stripJsComments };
 
 /** artifact_health.entries の 1 件。 */
 type ArtifactEntry = {

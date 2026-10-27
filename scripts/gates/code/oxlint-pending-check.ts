@@ -18,14 +18,14 @@ import { PENDING_FIXES, type PendingRule } from "./oxlint-pending.ts";
  * 設定とプラグインに加えて、診断を読む run-oxlint.ts と範囲を決めるこのファイルを起点にする。
  * 突き合わせのテスト自身はテストの補助（lib/testing/）も import するので、起点にしない（関係の無い commit でも全体を検査してしまう）。
  */
-export const SOURCE_ENTRIES = [
+const SOURCE_ENTRIES = [
   "oxlint.config.ts",
   "scripts/gates/code/oxlint-plugin/plugin.ts",
   "scripts/gates/code/oxlint-plugin/run-oxlint.ts",
   "scripts/gates/code/oxlint-pending-check.ts",
 ];
 /** oxlint と依存の版を決めるファイルと、突き合わせのテスト自身（テストの補助まで import はたどらない）。 */
-export const VERSION_FILES = [
+const VERSION_FILES = [
   "package.json",
   "pnpm-lock.yaml",
   "scripts/gates/code/oxlint-pending.test.ts",
@@ -34,10 +34,7 @@ export const VERSION_FILES = [
  * 設定が実行時に読む入力を変えるファイル。oxlint.config.ts は skills/ と .agents/skills/ のディレクトリから対象の範囲を決めるので、
  * スキルを足したり消したりした commit（SKILL.md が staged）も、全体を検査する。
  */
-export const RUNTIME_INPUTS = [
-  /^skills\/[^/]+\/SKILL\.md$/,
-  /^\.agents\/skills\/[^/]+\/SKILL\.md$/,
-];
+const RUNTIME_INPUTS = [/^skills\/[^/]+\/SKILL\.md$/, /^\.agents\/skills\/[^/]+\/SKILL\.md$/];
 
 /** root からのパスの entries から、相対 import をたどって集めたファイル（`/` 区切り）。 */
 export function importClosure(root: string, entries: readonly string[]): Set<string> {

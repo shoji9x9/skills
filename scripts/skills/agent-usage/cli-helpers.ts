@@ -6,7 +6,7 @@ import { encodeProjectPath } from "../../../skills/agent-usage/scripts/lib/sourc
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
-export const SCRIPTS = join(import.meta.dirname, "../../../skills/agent-usage/scripts");
+const SCRIPTS = join(import.meta.dirname, "../../../skills/agent-usage/scripts");
 export const CLI = join(SCRIPTS, "agent-usage.mjs");
 export const GATE = join(SCRIPTS, "precommit-gate.sh");
 

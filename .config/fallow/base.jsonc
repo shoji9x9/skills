@@ -31,6 +31,19 @@
   // 起点のファイルの export も、使われていなければ報告する（同じファイルの中でだけ使う export を含む）。
   "includeEntryExports": true,
   "ignoreExportsUsedInFile": false,
+  // 使われていても fallow が利用者を見つけられない export。
+  "ignoreExports": [
+    // 配布スキルの export は、利用者のプロジェクトにコピーした先のテストと手順が使う（コピーした script の VERSION の読み取り、
+    // references に呼び出し方を書いた captureElementShot など）。page script の CLI は最後の行の export を前提にし、
+    // サンプルの環境の定義は engine が動的に import する。fallow はリポジトリの外の利用を追えず、テストも外したことを検出しない。
+    { "file": "skills/**", "exports": ["*"] },
+    // oxlint が設定の jsPlugins でパスから読む。
+    { "file": "scripts/gates/code/oxlint-plugin/plugin.ts", "exports": ["default"] },
+    // vitest が設定の globalSetup でパスから読む。
+    { "file": "scripts/lib/testing/vitest-global-setup.ts", "exports": ["setup"] },
+    // 子プロセスで、fake-pngjs-hooks.ts が pngjs の import をこのファイルに向ける。
+    { "file": "scripts/lib/testing/fake-pngjs.ts", "exports": ["PNG"] }
+  ],
   "ignorePatterns": [
     // eval の入力（下流のプロジェクトの断片）と、スライドの生成物、テストの結果。
     "evals/**/fixtures/**",

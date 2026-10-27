@@ -33,7 +33,7 @@ type Context = {
   report: (d: { node: AstNode; message: string }) => void;
 };
 
-export const DEFAULT_MAX = 50;
+const DEFAULT_MAX = 50;
 /**
  * `describe` と同じく、テストをまとめるだけの関数（vitest の `suite` は `describe` の別名）。
  * vitest から import した名前だけを数える（別名の import は、ファイルの中の名前で数える）。
@@ -93,7 +93,7 @@ const isGroupingModifier = (member: AstNode): boolean =>
  * ファイルの中で、vitest の describe・suite を指す名前（`import { describe as d } from "vitest"` なら d）。
  * 名前空間の import（`import * as v from "vitest"`）は、`v.describe` と `v.suite` を返す。
  */
-export function groupingNames(body: readonly Statement[]): Set<string> {
+function groupingNames(body: readonly Statement[]): Set<string> {
   const names = new Set<string>();
   for (const stmt of body) {
     if (stmt.type !== "ImportDeclaration" || stmt.source?.value !== "vitest") continue;
@@ -115,7 +115,7 @@ export function groupingNames(body: readonly Statement[]): Set<string> {
 }
 
 /** 関数が `describe` の呼び出しの引数か。names は groupingNames の結果。 */
-export function isGroupingCallback(fn: AstNode, names: ReadonlySet<string>): boolean {
+function isGroupingCallback(fn: AstNode, names: ReadonlySet<string>): boolean {
   const parent = fn.parent;
   if (!parent || parent.type !== "CallExpression" || parent.callee === fn) return false;
   const root = calleeRoot(parent.callee);

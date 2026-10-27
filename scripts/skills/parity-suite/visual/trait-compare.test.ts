@@ -12,7 +12,6 @@ import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import { parseJsonAs } from "../../../lib/parse-as.ts";
 import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 import {
-  repoRoot,
   font,
   owner,
   trait,
@@ -24,13 +23,7 @@ import {
   script,
   runCli,
 } from "./trait-compare-helpers.ts";
-
-const {
-  VERSION,
-  compareTraits,
-}: typeof import("../../../../skills/parity-suite/scripts/trait-compare.mjs") = await import(
-  join(repoRoot, "skills/parity-suite/scripts/trait-compare.mjs")
-);
+import { VERSION, compareTraits } from "../../../../skills/parity-suite/scripts/trait-compare.mjs";
 
 test("VERSION は 4（CLI が入れ子の欄まで型どおりでない要素を exit 2 にする）", () => {
   expect(VERSION).toBe("4");

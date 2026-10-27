@@ -115,7 +115,7 @@ export function findEscapes(path: string, text: string): string[] {
   return out;
 }
 
-export function main(cwd = "."): number {
+function main(cwd = "."): number {
   let root: string;
   let files: string[];
   try {

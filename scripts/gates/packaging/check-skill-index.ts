@@ -24,8 +24,8 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { errorMessage } from "../../lib/errors.ts";
 
-export const AGENTS_SECTION = "## 参照スキルガイド";
-export const README_SECTION = "## 利用可能なスキル";
+const AGENTS_SECTION = "## 参照スキルガイド";
+const README_SECTION = "## 利用可能なスキル";
 
 const BULLET_RE = /^- `([^`]+)`:/;
 const ROW_RE = /^\|\s*\[([^\]]+)\]\(\.\/skills\/([^/)]+)\/\)\s*\|/;

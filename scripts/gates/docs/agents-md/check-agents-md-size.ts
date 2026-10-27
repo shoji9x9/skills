@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { errorMessage } from "../../../lib/errors.ts";
 
-export const TARGET_PATH = "AGENTS.md";
+const TARGET_PATH = "AGENTS.md";
 /** Codex の `project_doc_max_bytes` のデフォルト。 */
 export const LIMIT_BYTES = 32 * 1024;
 

@@ -7,7 +7,7 @@
 // 新しいファイルと、ここに無いルールは外さない。直したら、そのルールを一覧から消す（残っていると oxlint-pending.test.ts が失敗する）。
 // 一覧はリポジトリのルートからのパスで、ルールの名前は oxlint.config.ts の rules のキー（分類で有効にしたルールは、診断の名前）と同じ字面にする。
 
-export const PENDING_RULES = [
+const PENDING_RULES = [
   "max-lines-per-function",
   "max-depth",
   "max-params",

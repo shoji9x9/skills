@@ -7,8 +7,8 @@ import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 
-export const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
-export const script = join(repoRoot, "skills/parity-suite/scripts/table-upsert.mjs");
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
+const script = join(repoRoot, "skills/parity-suite/scripts/table-upsert.mjs");
 
 // 表の形。conformance は照合していない表では無い（テストも消した表を渡す）ので省略可能にする。
 export type Operation = { id: string; trigger: string };

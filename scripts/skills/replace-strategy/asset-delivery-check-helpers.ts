@@ -9,10 +9,14 @@ import type { Fetcher } from "../../../skills/replace-strategy/scripts/asset-del
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
-import * as checkModule from "../../../skills/replace-strategy/scripts/asset-delivery-check.mjs";
+import { main } from "../../../skills/replace-strategy/scripts/asset-delivery-check.mjs";
 
 export const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-export const { main, readAssetLedger, readRecord, referencedUrls } = checkModule;
+export {
+  readAssetLedger,
+  readRecord,
+  referencedUrls,
+} from "../../../skills/replace-strategy/scripts/asset-delivery-check.mjs";
 export const script = join(repoRoot, "skills/replace-strategy/scripts/asset-delivery-check.mjs");
 
 export const TEMPLATE = readFileSync(

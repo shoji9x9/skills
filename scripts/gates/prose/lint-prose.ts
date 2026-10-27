@@ -50,7 +50,7 @@ type LintMessage = { line: number; column: number; message: string; ruleId: stri
 type Linter = ReturnType<typeof createLinter>;
 
 /** リポジトリ相対パスが対象か。 */
-export function isTarget(root: string, rel: string): boolean {
+function isTarget(root: string, rel: string): boolean {
   if (!rel.endsWith(".md") && !hasComments(rel) && !hasStrings(rel)) return false;
   if (EXCLUDED_PREFIXES.some((p) => rel.startsWith(p))) return false;
   if (ENGLISH_DOC_PREFIXES.some((p) => rel.startsWith(p))) return false;

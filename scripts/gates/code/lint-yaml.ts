@@ -27,7 +27,7 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..")
 
 // 起点直下のこれらは対象外。エージェント用のコピーとリンクも除く（判定は scripts/lib/source-scope.ts）。
 // `.agents/` を丸ごと除くと、rule と private skill の実体が検査されない。
-export const PRUNED = ["node_modules", ".git"];
+const PRUNED = ["node_modules", ".git"];
 const YAML_RE = /\.ya?ml$/;
 
 /**
@@ -35,7 +35,7 @@ const YAML_RE = /\.ya?ml$/;
  * ディレクトリを素で走査すると、gitignore された手元の eval 出力（`tests/<スキル>/iteration-N/eval-N/` 配下）まで拾い、
  * CI の checkout には無いファイルで、手元でだけ失敗する（実測）。git が失敗したら、空配列として扱わずに投げる。
  */
-export function findYamlFiles(root: string): string[] {
+function findYamlFiles(root: string): string[] {
   const out = execFileSync(
     "git",
     ["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
@@ -55,7 +55,7 @@ export function findYamlFiles(root: string): string[] {
 }
 
 /** 1 ファイルを JSON か YAML（YAML_SCHEMA）として読む。読めなければ理由を返す。 */
-export function lintFile(path: string): string | null {
+function lintFile(path: string): string | null {
   let text: string;
   try {
     text = readFileSync(path, "utf8");

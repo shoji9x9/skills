@@ -8,28 +8,22 @@
 import { assert, describe, expect, test } from "vitest";
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { runFromSource } from "./page-source.ts";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import { invalidInput } from "../../../lib/testing/test-input.ts";
 import { parseJsonAs } from "../../../lib/parse-as.ts";
-
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
-const script = join(repoRoot, "skills/parity-suite/scripts/element-shot.mjs");
-const {
+import {
   VERSION,
   assertPageVersion,
   planElementClip,
   captureElementShot,
   readPngSize,
   shotRecordPath,
-}: typeof import("../../../../skills/parity-suite/scripts/element-shot.mjs") = await import(script);
-const pageScript = join(repoRoot, "skills/parity-suite/scripts/page/element-shot.page.mjs");
-const {
+} from "../../../../skills/parity-suite/scripts/element-shot.mjs";
+import {
   PAGE_VERSION,
   measureInPage,
-}: typeof import("../../../../skills/parity-suite/scripts/page/element-shot.page.mjs") =
-  await import(pageScript);
+} from "../../../../skills/parity-suite/scripts/page/element-shot.page.mjs";
 
 type Rect = { x: number; y: number; width: number; height: number };
 /** fake の page.screenshot が受け取るオプション。 */

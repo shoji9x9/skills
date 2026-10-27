@@ -31,7 +31,7 @@ import {
 } from "js-yaml";
 
 /** このリポジトリで YAML を読むスキーマ（js-yaml 4 のデフォルトが読める YAML の範囲）。 */
-export const YAML_SCHEMA = CORE_SCHEMA.withTags(
+const YAML_SCHEMA = CORE_SCHEMA.withTags(
   legacyMapTag,
   mergeTag,
   timestampTag,

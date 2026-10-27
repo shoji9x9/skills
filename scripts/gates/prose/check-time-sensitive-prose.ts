@@ -56,12 +56,12 @@ import { scannedFiles } from "../docs/doc-scan-files.ts";
 import { errorMessage } from "../../lib/errors.ts";
 
 // 対象: ルート直下のファイルと、配下を再帰で走査するディレクトリ。
-export const TARGET_FILES = ["AGENTS.md"];
-export const TARGET_DIRS = [".agents/rules", "docs"];
+const TARGET_FILES = ["AGENTS.md"];
+const TARGET_DIRS = [".agents/rules", "docs"];
 // ワークフローは直下の YAML だけ（GitHub Actions はサブディレクトリを読まない）。
-export const WORKFLOW_DIR = ".github/workflows";
+const WORKFLOW_DIR = ".github/workflows";
 // 実測値の唯一の置き場なので、ここに書いた件数・所要時間は原本であって再導入ではない。
-export const MEASUREMENTS_FILE = ".github/workflows/mutation-proof.yml";
+const MEASUREMENTS_FILE = ".github/workflows/mutation-proof.yml";
 
 // 数は語の先頭からだけ取る。`#` の直後（Issue / PR 番号）や英数字・小数点の直後から取ると、
 // 「PR #509 変異の実証」のような、番号の後に「変異」が続く文を件数と読んで落とす。
@@ -109,7 +109,7 @@ function walkMarkdown(dir: string): string[] {
 }
 
 /** 対象ファイル（ルートからの相対パス、ソート済み）。 */
-export function targetFiles(root: string) {
+function targetFiles(root: string) {
   const files = TARGET_FILES.filter((f) => existsSync(join(root, f)));
   for (const d of TARGET_DIRS) {
     const abs = join(root, d);
@@ -144,7 +144,7 @@ export function checkMutationCountProse(root: string) {
 
 export const TIME_RULES = ["time-word", "date"];
 // このチェック自身のテストとミューテーションテストの定義は、違反の fixture を本文に持つので読まない。
-export const SELF_FIXTURES = [
+const SELF_FIXTURES = [
   "scripts/gates/prose/check-time-sensitive-prose.test.ts",
   "scripts/gates/prose/check-time-sensitive-prose.mutations.json",
 ];
@@ -162,7 +162,7 @@ const HASH_COMMENT_EXT_RE = /\.(?:sh|ya?ml)$/;
  * 1 ファイルのうち、散文として読む部分を行ごとに返す（読まない行は null）。
  * Markdown はコードフェンスの外の本文、それ以外はコメントの部分。
  */
-export function proseLines(file: string, text: string): (string | null)[] {
+function proseLines(file: string, text: string): (string | null)[] {
   const lines = text.split(/\r?\n/);
   if (file.endsWith(".md")) {
     const fenced = fencedLines(lines);

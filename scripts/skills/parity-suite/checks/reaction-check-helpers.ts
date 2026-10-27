@@ -3,25 +3,24 @@ import { assert } from "vitest";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import { isRecord } from "../../../lib/guards.ts";
 import { parseJsonAs } from "../../../lib/parse-as.ts";
 import { isArray } from "../../../lib/is-array.ts";
 import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
-
-export const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
-const script = join(repoRoot, "skills/parity-suite/scripts/reaction-check.mjs");
-export const {
+import {
   main,
   coveredByOwners,
   tableFingerprint,
   indexTestList,
   specsFingerprint,
   OPERATIONLESS_TABLE_REVISION,
-}: typeof import("../../../../skills/parity-suite/scripts/reaction-check.mjs") = await import(
-  pathToFileURL(script).href
-);
+} from "../../../../skills/parity-suite/scripts/reaction-check.mjs";
+
+export const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
+const script = join(repoRoot, "skills/parity-suite/scripts/reaction-check.mjs");
+export { coveredByOwners, tableFingerprint, OPERATIONLESS_TABLE_REVISION };
 
 /** 観測した反応（トースト）。消えるまでの時間を 2 標本で持つ。 */
 export const toast = (): ObservedReaction => ({

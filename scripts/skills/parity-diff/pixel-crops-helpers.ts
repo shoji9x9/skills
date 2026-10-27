@@ -48,7 +48,7 @@ export type Output = {
 };
 export type Run = { code: number | null; stdout: string; stderr: string; out: string };
 
-export function isOutput(value: unknown): value is Output {
+function isOutput(value: unknown): value is Output {
   if (typeof value !== "object" || value === null) return false;
   return "summary" in value && "regions" in value && "strict_only_regions" in value;
 }
