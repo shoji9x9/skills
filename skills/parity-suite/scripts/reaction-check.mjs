@@ -339,7 +339,6 @@ function scanCoveredBy(table) {
   const found = [];
   /** @type {string[]} */
   const malformed = [];
-  /** @param {unknown} v @param {string} path */
   /** @param {unknown} v @param {string} path @param {{ path: string, obj: Record<string, unknown> }[]} chain 外側から並べた祖先（表そのものを除く） */
   const walk = (v, path, chain) => {
     if (isArray(v)) {
