@@ -8,22 +8,26 @@
 //
 // | 軸                       | 値                                                                          |
 // | ------------------------ | --------------------------------------------------------------------------- |
-// | レポート                 | 正しい形 / object でない / duplicates が配列でない / sources が無い / isNew が真偽値でない / 断片の名前が空 / 行が整数でない |
+// | レポート                 | 正しい形 / object でない / duplicates が配列でない / sources が無い / isNew が真偽値でない / format が空か無い / lines が 1 以上の整数でない / 断片の名前が空 / 行が整数でない |
 // | 重複の 2 つのファイル    | 同じファイル / 同じ組（ファイル全体） / 片方だけが組 / 組に無い              |
 // | 範囲を持つ組             | 両方が範囲と重なる / 片方が範囲と重ならない / 範囲の境界の行で重なる / 印が崩れている |
 // | 設定の ignore            | 文字列の配列 / 無い / 空文字を含む                                           |
 // | 引数                     | なし / --update-baseline / 知らない引数                                      |
 // | ベースライン             | 在る / 無い                                                                  |
+// | 控えた組                 | 在る / 無い / 形が違う。重複の 2 つのファイルが、控えた組にあり今の組に無い / 今も組にある / 控えた組に無い |
 // | 走査の結果               | 新しい重複 / ベースラインの重複だけ / 登録済みのコピーの重複だけ / 走査したファイルが 0 件 |
 import { expect, test } from "vitest";
-import { existsSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import {
   BASELINE_PATH,
   CONFIG_PATH,
   type Clone,
+  DECLARED_PATH,
   configIgnores,
   isDeclaredCopy,
+  isUndeclaredCopy,
+  loadDeclared,
   main,
   parseReport,
   regionReader,
@@ -87,6 +91,11 @@ test.each([
   ["断片の名前が空", report([{ ...raw(), firstFile: { name: "", start: 1, end: 2 } }])],
   ["行が整数でない", report([{ ...raw(), secondFile: { name: "b.ts", start: "1", end: 2 } }])],
   ["断片が object でない", report([{ ...raw(), firstFile: null }])],
+  ["format が無い", report([{ ...raw(), format: undefined }])],
+  ["format が空", report([{ ...raw(), format: "" }])],
+  ["lines が無い", report([{ ...raw(), lines: undefined }])],
+  ["lines が整数でない", report([{ ...raw(), lines: 1.5 }])],
+  ["lines が 0", report([{ ...raw(), lines: 0 }])],
 ])("parseReport: %s なら例外にする（読めないレポートを 0 件として扱わない）", (_, value) => {
   expect(() => parseReport(value)).toThrow();
 });
@@ -155,6 +164,54 @@ test.each([
   ],
 ])("isDeclaredCopy: %s → %s", (_, c, expected) => {
   expect(isDeclaredCopy(c, [fileGroup, regionGroup], rangeOf)).toBe(expected);
+});
+
+// ---- isUndeclaredCopy ----
+
+const declared = [
+  ["a.mjs", "c.mjs"],
+  ["x.ts", "y.ts"],
+];
+
+test.each([
+  {
+    name: "控えた組から外した 2 つのファイル",
+    c: clone("a.mjs", "c.mjs"),
+    groups: [],
+    expected: true,
+  },
+  { name: "今も同じ組にある", c: clone("a.mjs", "c.mjs"), groups: [fileGroup], expected: false },
+  {
+    name: "範囲を持つ組に移した",
+    c: clone("x.ts", "y.ts"),
+    groups: [regionGroup],
+    expected: false,
+  },
+  { name: "控えた組に無い", c: clone("p.mjs", "q.mjs"), groups: [], expected: false },
+  { name: "控えた組に片方だけ", c: clone("a.mjs", "q.mjs"), groups: [], expected: false },
+  {
+    name: "同じファイルの中",
+    c: clone("a.mjs", "a.mjs", [
+      [1, 10],
+      [20, 30],
+    ]),
+    groups: [],
+    expected: false,
+  },
+])("isUndeclaredCopy: $name → $expected", ({ c, groups, expected }) => {
+  expect(isUndeclaredCopy(c, declared, groups)).toBe(expected);
+});
+
+// ---- loadDeclared ----
+
+test.each([
+  ["groups が無い", {}],
+  ["組が配列でない", { groups: ["a.mjs"] }],
+  ["ファイルが空文字", { groups: [["a.mjs", ""]] }],
+])("loadDeclared: %s なら例外にする", (_, value) => {
+  const root = makeTempDir("duplicates-declared-");
+  write(root, DECLARED_PATH, JSON.stringify(value));
+  expect(() => loadDeclared(root)).toThrow(/groups/);
 });
 
 // ---- regionReader ----
@@ -229,6 +286,13 @@ test("main: ベースラインが無ければ判定できないので exit 2（�
   expect(main([], root)).toBe(2);
 });
 
+test("main: 控えた組が無ければ判定できないので exit 2", () => {
+  const root = makeRepo({ "a.ts": OTHER });
+  expect(main(["--update-baseline"], root)).toBe(0);
+  rmSync(join(root, DECLARED_PATH));
+  expect(main([], root)).toBe(2);
+});
+
 test("main: 知らない引数は exit 2", () => {
   const root = makeRepo({ "a.ts": BODY });
   expect(main(["--fix"], root)).toBe(2);
@@ -245,13 +309,24 @@ test("main: ベースラインに無い重複を失敗にし、ベースライ�
   expect(main([], root)).toBe(0);
 });
 
+const SISTERS = [{ files: ["b.ts", "c.ts"], reason: "姉妹スキルが同じ処理を持つ" }];
+
 test("main: identical-copies.json に登録したコピーどうしの重複は、ベースラインに無くても通す", () => {
-  const groups = [{ files: ["b.ts", "c.ts"], reason: "姉妹スキルが同じ処理を持つ" }];
-  const root = makeRepo({ "a.ts": OTHER }, groups);
+  const root = makeRepo({ "a.ts": OTHER }, SISTERS);
   expect(main(["--update-baseline"], root)).toBe(0);
   write(root, "b.ts", BODY);
   write(root, "c.ts", BODY);
   expect(main([], root)).toBe(0);
+});
+
+test("main: 登録済みのコピーをベースラインに載せた後で組を宣言から外すと、失敗にする", () => {
+  const root = makeRepo({ "a.ts": OTHER, "b.ts": BODY, "c.ts": BODY }, SISTERS);
+  const runs = () => [main(["--update-baseline"], root), main([], root)];
+  expect(runs()).toEqual([0, 0]);
+  write(root, DECLARATION_PATH, JSON.stringify({ groups: UNRELATED }));
+  expect(main([], root)).toBe(1);
+  // 残すと決めてベースラインを作り直すと、控えた組からも外れて通る。
+  expect(runs()).toEqual([0, 0]);
 });
 
 test("main: 走査したファイルが 0 件なら判定できないので exit 2", () => {
@@ -263,5 +338,6 @@ test("main: 設定を読めなければ exit 2", () => {
   const root = makeRepo({ "a.ts": BODY });
   write(root, CONFIG_PATH, "{");
   write(root, BASELINE_PATH, JSON.stringify({ version: 1, fingerprints: {} }));
+  write(root, DECLARED_PATH, JSON.stringify({ groups: [] }));
   expect(main([], root)).toBe(2);
 });

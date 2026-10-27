@@ -110,6 +110,7 @@ pre-commit の検査は、他のジョブと同じく作業ツリーの内容に
 そのため、pre-commit と CI の `Lint` ジョブで、リポジトリ全体を検査する（`pnpm run lint:fallow`）。
 fallow はドットで始まるディレクトリを走査しないので、インストール済みのコピーは除外を書かなくても対象外になる。private skill の実体（`.ts`）は、`ignorePatterns` の `!` で含め直し、`entry` に挙げて対象にする。`entry` に挙げるだけでは走査されない。
 `scripts/` の分類を足したら、`.fallowrc.jsonc` の `entry` と境界のゾーンにも足す。足し忘れると、その分類の CLI が使われていないファイルとして失敗する。
+境界のゾーンと許可する向きは、`scripts/gates/code/fallow-boundaries.test.ts` が実物の fallow を一時ディレクトリに当てて確かめる。向きを変えたら、このテストも直す。
 
 参照の向きは、fallow の構文の解析が読む参照（`import`・`export from`・`import()`・`require()`・`import type`・JSDoc の `{import("…")}`・`vi.mock`・`new URL`）で判定する。
 次の書き方は検出しないので、相対パスのモジュールを読むときは使わない。`createRequire` の戻り値を別名で呼ぶ、`vi.importActual`、`/// <reference path>`、相対パスの文字列を任意の関数に渡して読む、である。
@@ -132,6 +133,8 @@ CI だけで実行する検査が 2 つある。
 `identical-copies.json` に登録した意図したコピーどうしの重複は数えない（配布スキルの間のように共通化できないコピーは、ここに登録する）。
 範囲（`region`）を持つ組は、両方の断片がそれぞれの範囲と重なる重複を外す。
 既存の重複は `.config/jscpd/baseline.json`（jscpd の指紋）に載せて外す。新しい重複が見つかったら、内容を見て扱いを決める。共通化する・意図したコピーとして登録する・残す、のどれかである。残すなら `node scripts/gates/code/check-duplicates.ts --update-baseline` でベースラインに載せる。
+`--update-baseline` は登録済みのコピーの重複もベースラインに載せる（jscpd のレポートは指紋を出さないので、ベースラインから除けない）。
+そのため、そのときの組を `.config/jscpd/declared-groups.json` に控え、後で組を宣言から外したら、その組のファイルの間の重複はベースラインにあっても失敗にする。
 jscpd は 3 か所以上の重複を 2 つずつの組で報告するので、1 か所を直すと、残りの組が新しい重複として報告されることがある。そのときもベースラインを作り直す。
 
 ファイルの種類に依らない横断のチェックは、pre-commit と CI の `Lint` ジョブで実行する。どのチェックも、対象が 0 件のときは成功にしない。

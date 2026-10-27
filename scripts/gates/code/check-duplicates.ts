@@ -13,10 +13,13 @@
 //   jscpd の断片が範囲の外へ数行広がるからである。範囲と重ならない重複は、登録していないコピーとして数える。
 // - 既存の重複はベースライン（`.config/jscpd/baseline.json`。jscpd の指紋）に載せる。ベースラインに無い重複（jscpd の `isNew`）を失敗にする。
 //   直すかどうかは内容を見て決め、残すなら `--update-baseline` で載せ直す。
-// - ベースラインが無い・jscpd が失敗した・レポートを読めない・走査したファイルが 0 件・範囲の印が崩れている、は判定できないので exit 2。
+// - `--update-baseline` は登録済みのコピーの重複もベースラインに載せる（jscpd のレポートは指紋を出さないので、ベースラインから除けない）。
+//   そのため、載せたときの組を `.config/jscpd/declared-groups.json` に控える。控えた組の 2 つのファイルの重複は、
+//   組を宣言から外した後はベースラインにあっても失敗にする（外した組のコピーが、登録していないコピーとして残るのを見逃さない）。
+// - ベースラインか控えが無い・jscpd が失敗した・レポートを読めない・走査したファイルが 0 件・範囲の印が崩れている、は判定できないので exit 2。
 //   ベースラインが無いと jscpd はすべての重複を新しくないと報告するので、無いまま合格にしない。
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -35,6 +38,8 @@ const TOOL_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", ".."
 
 export const CONFIG_PATH = ".jscpd.json";
 export const BASELINE_PATH = ".config/jscpd/baseline.json";
+/** ベースラインを作り直したときの、登録済みのコピーの組（ファイルの一覧）。 */
+export const DECLARED_PATH = ".config/jscpd/declared-groups.json";
 
 /** jscpd のレポートの 1 つの断片。行番号は 1 始まりで、両端を含む。 */
 export type Fragment = { name: string; start: number; end: number };
@@ -67,11 +72,16 @@ export function parseReport(value: unknown): { sources: number; clones: Clone[] 
     throw new Error("statistics.total.sources が整数でない");
   const clones = duplicates.map((d, i) => {
     if (!isRecord(d)) throw new Error(`duplicates[${i}] が object でない`);
-    if (typeof d.isNew !== "boolean") throw new Error(`duplicates[${i}].isNew が真偽値でない`);
+    const { format, lines, isNew } = d;
+    if (typeof isNew !== "boolean") throw new Error(`duplicates[${i}].isNew が真偽値でない`);
+    if (typeof format !== "string" || format === "")
+      throw new Error(`duplicates[${i}].format が空でない文字列でない`);
+    if (!Number.isInteger(lines) || Number(lines) < 1)
+      throw new Error(`duplicates[${i}].lines が 1 以上の整数でない`);
     return {
-      format: String(d.format),
-      lines: Number(d.lines),
-      isNew: d.isNew,
+      format,
+      lines: Number(lines),
+      isNew,
       first: fragmentOf(d.firstFile, `duplicates[${i}].firstFile`),
       second: fragmentOf(d.secondFile, `duplicates[${i}].secondFile`),
     };
@@ -102,6 +112,31 @@ export function isDeclaredCopy(
       overlaps(second, rangeOf(second.name, g.region))
     );
   });
+}
+
+/** 控えた組のどれかに 2 つのファイルが入っていて、今の組のどれにも一緒に入っていない重複か（組を宣言から外した後に残ったコピー）。 */
+export function isUndeclaredCopy(
+  clone: Clone,
+  declared: readonly (readonly string[])[],
+  groups: readonly CopyGroup[],
+): boolean {
+  const { first, second } = clone;
+  if (first.name === second.name) return false;
+  const together = (files: readonly string[]) =>
+    files.includes(first.name) && files.includes(second.name);
+  return declared.some(together) && !groups.some((g) => together(g.files));
+}
+
+/** 控えた組を読む。形が違えば例外にする。 */
+export function loadDeclared(root: string): string[][] {
+  const data: unknown = JSON.parse(readFileSync(join(root, DECLARED_PATH), "utf8"));
+  const groups = isRecord(data) ? data.groups : undefined;
+  const isFiles = (g: unknown): g is string[] =>
+    isArray(g) && g.every((f) => typeof f === "string" && f !== "");
+  if (!isArray(groups) || !groups.every(isFiles)) {
+    throw new Error(`${DECLARED_PATH} の groups がファイルの一覧の配列でない`);
+  }
+  return groups;
 }
 
 /** ファイルの範囲の中身の行を返す関数。読んだ結果を覚えておく。 */
@@ -185,18 +220,23 @@ function describe(c: Clone): string {
   return `${at(c.first)} と ${at(c.second)}（${c.format}・${c.lines} 行）`;
 }
 
-/** ベースラインに無く、登録済みのコピーでもない重複を報告する。終了コードを返す。 */
+/** ベースラインに無く登録済みのコピーでもない重複と、組を宣言から外した後に残ったコピーを報告する。終了コードを返す。 */
 function report(root: string, sources: number, clones: Clone[]): number {
   const groups = loadGroups(root);
+  const declared = loadDeclared(root);
   const rangeOf = regionReader(root);
-  const fresh = clones.filter((c) => c.isNew && !isDeclaredCopy(c, groups, rangeOf));
+  const fresh = clones.filter((c) =>
+    c.isNew ? !isDeclaredCopy(c, groups, rangeOf) : isUndeclaredCopy(c, declared, groups),
+  );
   if (fresh.length === 0) {
     console.log(
       `duplicates: OK（${sources} ファイル・${clones.length} 件の重複はすべてベースラインか登録済みのコピー）`,
     );
     return 0;
   }
-  console.error(`duplicates: ベースラインに無い重複が ${fresh.length} 件:`);
+  console.error(
+    `duplicates: ベースラインに無いか、宣言から外した組に残った重複が ${fresh.length} 件:`,
+  );
   for (const c of fresh) console.error(`  - ${describe(c)}`);
   console.error(
     "Fix: 共通化できるならまとめる。配布スキルの間のように共通化できないコピーは scripts/gates/packaging/copies/identical-copies.json に" +
@@ -213,9 +253,10 @@ export function main(argv: string[], root = process.cwd()): number {
     console.error(`duplicates: 知らない引数: ${unknown.join(" ")}（使い方: [--update-baseline]）`);
     return 2;
   }
-  if (!updateBaseline && !existsSync(join(root, BASELINE_PATH))) {
+  const missing = [BASELINE_PATH, DECLARED_PATH].filter((p) => !existsSync(join(root, p)));
+  if (!updateBaseline && missing.length) {
     console.error(
-      `duplicates: ベースライン（${BASELINE_PATH}）が無いので判定できない。` +
+      `duplicates: ${missing.join("・")} が無いので判定できない。` +
         "既存の重複を載せるなら --update-baseline で作る",
     );
     return 2;
@@ -227,6 +268,8 @@ export function main(argv: string[], root = process.cwd()): number {
       return 2;
     }
     if (!updateBaseline) return report(root, sources, clones);
+    const files = loadGroups(root).map((g) => [...g.files].sort());
+    writeFileSync(join(root, DECLARED_PATH), `${JSON.stringify({ groups: files }, null, 2)}\n`);
     console.log(`duplicates: ベースラインを作り直した（${sources} ファイル・${clones.length} 件）`);
     return 0;
   } catch (error) {
