@@ -35,7 +35,6 @@ const CASE_REASON =
 export function violationOf(path: string, privateSkills: readonly string[]): string | null {
   const parts = path.split("/");
   // 拡張子は大文字と小文字を区別せずに照合する（区別しないファイルシステムでは `a.JS` も `.js` として読まれる）。
-  // 渡されるのは判定の対象のディレクトリのパスなので、対象の外のパスを小文字にする費用は考えない。
   const p = { path, lower: path.toLowerCase(), parts };
   if (parts[0] === "skills") return distributedViolation(p);
   const isPrivateSkill =
