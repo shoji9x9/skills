@@ -36,7 +36,7 @@ import { valueText } from "./lib/value-text.mjs";
  *
  * @type {string}
  */
-export const VERSION = "7";
+export const VERSION = "8";
 
 /**
  * trait-compare の Diff のうち、分類が読む欄。ほかの欄は読まずに出力へ持ち越す。
@@ -480,7 +480,7 @@ export function validateExceptions(exceptions, causes, slug) {
       problems.push(`${at}: missing slug — not used for matching`);
     } else if (slug && ex.slug !== slug) {
       problems.push(
-        `${at}: slug "${typeof ex.slug === "string" ? ex.slug : JSON.stringify(ex.slug)}" does not match the target slug "${slug}" — not used for matching`,
+        `${at}: slug ${JSON.stringify(ex.slug)} does not match the target slug "${slug}" — not used for matching`,
       );
     }
     // 照合キーの欠落は「どの値にも合う」ではなく不一致（1 エントリで N 件を畳めないようにする）。

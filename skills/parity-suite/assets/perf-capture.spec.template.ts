@@ -455,17 +455,12 @@ function shapeOf(value: unknown): string {
   if (value === null) return "null";
   if (isArray(value)) return `配列（${value.length} 件）`;
   if (typeof value === "object") return `object（欄: ${Object.keys(value).join(", ") || "なし"}）`;
-  if (typeof value === "function") return `function ${value.name}`;
-  if (
-    typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean" ||
-    typeof value === "bigint" ||
-    typeof value === "symbol"
-  ) {
-    return `${typeof value} ${String(value)}`;
-  }
-  return typeof value;
+  return `${typeof value} ${primitiveText(value)}`;
+}
+
+// object と配列を除いた値（文字列・数値・関数など）の字面。object は呼び出し側の shapeOf が先に扱う。
+function primitiveText(value: unknown): string {
+  return String(value);
 }
 
 // すべての頁が localhost・127.0.0.0/8・::1 を指せば loopback、1 つでも他を指せば remote

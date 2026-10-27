@@ -40,7 +40,7 @@ import { valueText } from "./lib/value-text.mjs";
  *
  * @type {string}
  */
-export const VERSION = "3";
+export const VERSION = "4";
 
 /** 機能に帰属しない追記を表す予約語（replace-strategy の references/project-config.md で定義する）。 */
 export const CROSS_CUTTING = "cross-cutting";
