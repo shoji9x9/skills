@@ -21,12 +21,16 @@ Claude Code・Codex・GitHub Copilot に対応した、マルチエージェン�
 | 対象 | リント | 整形 |
 | --- | --- | --- |
 | Markdown | `markdownlint-cli2`、文章は textlint（`scripts/gates/prose/lint-prose.ts`） | `markdownlint-cli2` |
-| JavaScript・TypeScript | `oxlint`、型は `tsc`（`pnpm run typecheck`） | `oxfmt` |
+| JavaScript・TypeScript | `oxlint`（型の情報を使うルールを含む）、ファイルの間の関係（使われていないコード・複雑度・参照の向き・循環参照）は `fallow`、型は `tsc`（`pnpm run typecheck`） | `oxfmt` |
 | JSON | `jsonlint` | `oxfmt` |
 | JSONC（スキルの設定ファイル） | `jsonlint -C -T` | `oxfmt` |
 | YAML | `js-yaml`（`scripts/gates/code/lint-yaml.ts`） | `oxfmt` |
 | シェル | `shellcheck` | `shfmt` |
+| 重複したコード（JavaScript・TypeScript・シェル・Markdown） | `jscpd`（`scripts/gates/code/check-duplicates.ts`） | |
 | GitHub Actions | `actionlint` と `ghalint`、SHA の固定は `pinact` | `oxfmt` |
+
+`fallow` と `jscpd` は pre-commit と CI で実行する。すぐに直せない既存の指摘は、`.config/fallow/` と `.config/jscpd/` のベースラインに載せて外す。
+`fallow` のうち、カバレッジを使う CRAP と、テストを弱めた変更の検査（`fallow audit`）は CI だけで実行する。
 
 JavaScript の拡張子は、配布する `skills/**` では `.mjs` にする。配布しない `scripts/**` と private skill は TypeScript（`.ts`）で書く。
 `.ts` は Node が型を消して直接実行するので、型を消すだけでは実行できない構文（`enum` など）は使わない。

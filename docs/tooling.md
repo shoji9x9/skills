@@ -30,12 +30,13 @@ mise の shim は、cwd の設定の階層からツールの版を決める。
 | 対象 | リント | 整形 | 補助のチェック |
 | --- | --- | --- | --- |
 | Markdown（`*.md`） | `markdownlint-cli2` | `markdownlint-cli2` | `scripts/gates/prose/lint-prose.ts` が人が読む文章を textlint でチェックする |
-| JavaScript・TypeScript（`*.js`、`*.mjs`、`*.ts` など） | `oxlint` | `oxfmt` | `tsc`（`pnpm run typecheck`）が `.ts`・`.tsx` の型を検査する（下の「型の検査」）。`scripts/gates/prose/lint-prose.ts` がコメントの文章を textlint で、文字列（テスト名・メッセージ）を使わない語の規則でチェックする |
+| JavaScript・TypeScript（`*.js`、`*.mjs`、`*.ts` など） | `oxlint`（1 ファイルの中で完結する検査）と `fallow`（ファイルの間の関係。下の「ファイルの間の関係（fallow）」） | `oxfmt` | `tsc`（`pnpm run typecheck`）が `.ts`・`.tsx` の型を検査する（下の「型の検査」）。`scripts/gates/prose/lint-prose.ts` がコメントの文章を textlint で、文字列（テスト名・メッセージ）を使わない語の規則でチェックする |
 | JSON（`*.json`） | `jsonlint` | `oxfmt` | 重複したキーもチェックする。`scripts/gates/prose/lint-prose.ts` が `evals/<name>/evals.json` の文字列を使わない語の規則でチェックする |
 | JSONC（`*.jsonc`。スキルの設定ファイル） | `jsonlint -C -T`（コメントと末尾のカンマを受け付けて読む） | `oxfmt` | 重複したキーもチェックする。CI は整形されていないファイルも検出する（`JSONC format check`） |
 | YAML（`*.yml`、`*.yaml`） | `js-yaml`（`scripts/gates/code/lint-yaml.ts` が API で 1 つのプロセスにまとめて読む） | `oxfmt` | `scripts/gates/prose/lint-prose.ts` がコメントの文章を textlint でチェックする |
 | シェル（`*.sh`） | `shellcheck` | `shfmt` | `scripts/gates/prose/lint-prose.ts` がコメントの文章をチェックする |
 | GitHub Actions（`.github/workflows/*.{yml,yaml}`） | `actionlint` と `ghalint` | `oxfmt` | `pinact` が SHA の固定を確かめる |
+| 重複したコード（JavaScript・TypeScript・シェル・Markdown） | `jscpd`（下の「重複したコード（jscpd）」） | | |
 
 表のうち `shellcheck`・`shfmt`・`actionlint`・`pinact`・`ghalint`・`gitleaks` は、mise でインストールし（`mise.toml`）、コマンド名だけで起動する。
 それ以外は pnpm の devDependencies に入れ、`pnpm exec` で起動する。
@@ -47,14 +48,13 @@ lefthook の glob と `format:js*` スクリプトの glob も、この範囲に
 GitHub Actions は、`actionlint` で構文を、`ghalint` で `permissions`・`timeout-minutes`・`persist-credentials` などの方針をチェックする。
 `ghalint` はリポジトリ全体を読むので pre-commit に入れず、CI の `GitHub Actions lint` だけで実行する。
 
-#### 関数の大きさ・参照の向き・循環参照
+#### 関数の大きさ
 
 大きく分岐の多い関数は、テストとミューテーションテストで振る舞いを確かめにくく、レビューでも読みにくい。
 そこで、`oxlint.config.ts` で関数の大きさを制限する。閾値は oxlint のデフォルトをそのまま使う。
 
 | ルール | 閾値 |
 | --- | --- |
-| `complexity` | 20 |
 | `max-lines-per-function` | 50 行（空行とコメントも数える） |
 | `max-depth` | 4 |
 | `max-params` | 3 |
@@ -74,23 +74,7 @@ vitest プラグインの correctness のルールのうち、このリポジト
 CLI が本文を関数式で包む replace-strategy の page ファイルは、本体が呼ぶ関数を最上位に置けるので、組み込みのルールのまま当てる。
 同じ形の page ファイルを別のスキルに足すときは、`oxlint.config.ts` の一覧にそのスキルの `scripts/page/*.page.mjs` を足す。
 
-共有ライブラリが上位のチェックやツールに依存しないように、参照の向きを決める。
-JS プラグインのルール `skills-repo/import-direction` が、import するファイルからの相対パスを解決して判定する。
-参照は、書き方を 1 つずつ挙げずに、次の 3 つの定義で集める。
-構文の参照は、モジュールを指す構文木の節点（`import`・`export from`・`import()`・`import x = require()`・型の `import("…")`）から集める。
-呼び出しと `new` の引数は、相対パスの文字列を渡すものを、関数に依らず参照として扱う（`require()`・`createRequire` の戻り値・`vi.mock`・`new URL` など）。ただし、拡張子が JS・TS・JSON のパスに限る。拡張子の無いパス（`../..`）は、プロジェクトのルートを探す `join` のようにディレクトリを求める呼び出しにも使うので数えない。
-コメントの参照（JSDoc の型・`@import`・`/// <reference path>`）は、TypeScript のパーサで読む。`@example` のコードは参照として扱わない。
-式を埋め込んだテンプレート文字列や、`join(here, "..", "lib")` のように複数の引数に分けたパスは、組み合わせた先を決められないので判定しない。
-引数の相対パスは、書いたファイルからのパスとして解決する。cwd やリポジトリのルートを基準にした文字列で誤って報告されるときは、基準を変数にして渡す。
-組み込みの `no-restricted-imports` の `patterns` は書かれた specifier の字面で照合するので、`../../skills/` が `scripts/skills/` と `skills/` のどちらを指すかを区別できない。
-
-- `scripts/` の各分類（`lib/`・`gates/`・`eval/`・`hooks/` など）は、自分の分類と `scripts/lib/` の他を import しない。
-  そのため、`scripts/lib/` は `scripts/` の他の分類を import しない。
-  `scripts/skills/` はスキルのスクリプトのテストと fixture の置き場所なので、この向きを当てない。
-- 配布スキル（`skills/<name>/`）は、自分のディレクトリの外を import しない。利用者のプロジェクトには `skills/<name>/` だけが入るからである。
-  雛形（`skills/<name>/assets/`）は利用者のプロジェクトへコピーしてから使い、相対パスもコピー先で解決するので、対象にしない。
-
-循環参照は `import/no-cycle` が失敗にする。import をたどるので、pre-commit で 1 ファイルだけを渡しても循環を検出する。
+複雑度・参照の向き・循環参照は、ファイルの間の関係を見る fallow が検査する（「ファイルの間の関係（fallow）」）。
 
 ルールを足したり厳しくしたりしたときに、既にある違反をすぐに直せなければ、`scripts/gates/code/oxlint-pending.ts` の一覧に、ファイルとルールの組で載せて外す。
 一覧は後で直すものだけで、新しいファイルと一覧に無いルールは外さない。
@@ -101,6 +85,57 @@ JS プラグインのルール `skills-repo/import-direction` が、import す�
 pre-commit の検査は、他のジョブと同じく作業ツリーの内容に oxlint を当てる。直したファイルを stage せずに一覧だけを commit すると pre-commit は通り、CI で失敗する。
 
 これらのルールは、pre-commit と CI の両方で実行し、CI だけで実行するルールは置かない。
+
+#### 型の情報を使うルール
+
+`oxlint.config.ts` の `options.typeAware` で、型の情報を使うルールを有効にする（`oxlint-tsgolint` が要る）。
+`correctness` の分類の型のルール（`restrict-template-expressions`・`no-base-to-string` など）と、依存するパッケージの非推奨の API の利用を見る `typescript/no-deprecated` である。
+すぐに直せない既存の違反は、ほかのルールと同じく `oxlint-pending.ts` の一覧に載せて外す。
+
+#### ファイルの間の関係（fallow）
+
+1 ファイルの中で完結しない検査は、fallow（設定は `.fallowrc.jsonc`）が行う。
+
+| 検査 | 内容 |
+| --- | --- |
+| 使われていないコード | どこからも使われないファイル・export・型・クラスのメンバー。同じファイルの中でだけ使う export も対象にする（export を外せば、呼び出し元が無くなったときに oxlint の `no-unused-vars` が検出する） |
+| 依存 | 使われていない依存、`package.json` に無い依存、解決できない import |
+| 同じ名前の export | 同じ名前の export を持つ別のモジュール |
+| 非推奨の export | `@deprecated` を付けた自分の export を、まだ使っている箇所 |
+| 複雑度 | 循環的複雑度 20・認知的複雑度 15。oxlint の `complexity` は循環的複雑度しか数えないので使わない |
+| 参照の向き | 配布スキル（`skills/<name>/`）は自分のディレクトリの外を import しない（利用者のプロジェクトには `skills/<name>/` だけが入る）。`scripts/` の各分類は、自分の分類と `scripts/lib/` と配布スキルのほかを import しない。雛形（`skills/<name>/assets/`）はそのスキルの一部として扱う。`scripts/skills/` は対象にしない |
+| 循環参照 | import と `require()` をたどった循環 |
+
+1 つのファイルの変更が、変更していないファイルの判定を変える（最後の呼び出し元を消すと、変更していないファイルの export が使われなくなる）。
+そのため、pre-commit と CI の `Lint` ジョブで、リポジトリ全体を検査する（`pnpm run lint:fallow`）。
+fallow はドットで始まるディレクトリを走査しないので、インストール済みのコピーは除外を書かなくても対象外になる。private skill の実体（`.ts`）は、`ignorePatterns` の `!` で含め直し、`entry` に挙げて対象にする。`entry` に挙げるだけでは走査されない。
+`scripts/` の分類を足したら、`.fallowrc.jsonc` の `entry` と境界のゾーンにも足す。足し忘れると、その分類の CLI が使われていないファイルとして失敗する。
+境界のゾーンと許可する向きは、`scripts/gates/code/fallow-boundaries.test.ts` が実物の fallow を一時ディレクトリに当てて確かめる。向きを変えたら、このテストも直す。
+
+参照の向きは、fallow の構文の解析が読む参照（`import`・`export from`・`import()`・`require()`・`import type`・JSDoc の `{import("…")}`・`vi.mock`・`new URL`）で判定する。
+次の書き方は検出しないので、相対パスのモジュールを読むときは使わない。`createRequire` の戻り値を別名で呼ぶ、`vi.importActual`、`/// <reference path>`、相対パスの文字列を任意の関数に渡して読む、である。
+
+すぐに直せない既存の指摘は、`.config/fallow/dead-code-baseline.json` と `.config/fallow/health-baseline.json` に載せて外す。直したら、`fallow --save-baseline` と `fallow health --save-baseline` で作り直す。
+使われていない export は、`fallow fix --dry-run` で提案を確かめてから `fallow fix` で直す。`fallow fix` は `export` を外し、依存を消すので、pre-commit と CI では自動に適用しない。
+誤検知は、`.fallowrc.jsonc` で理由を書いて外す。配布スキルには `fallow-ignore` のコメントを置かない。
+
+CI だけで実行する検査が 2 つある。
+
+- `Unit tests` ジョブの CRAP（`pnpm run lint:crap`）: 複雑なのにテストが通っていない関数。カバレッジ（`coverage-final.json`）を渡す。カバレッジが無いと値を推定して誤検知が多くなるので、pre-commit には入れない。既存の指摘は `.config/fallow/crap-baseline.json`
+- `Lint` ジョブの `Test weakening`（`fallow audit`）: PR が増やした、テストを弱める変更（`.skip`・`.only` の追加、テストのケースや assertion の減少、カバレッジの閾値の引き下げ）。PR のベースとの差分を見るので、PR でだけ実行する。
+  意図して弱めるときは、理由を付けた `fallow-ignore-next-line weakened-tests` を書く
+
+#### 重複したコード（jscpd）
+
+同じ処理を複数の箇所にコピーすると、片方だけを直して食い違う。`scripts/gates/code/check-duplicates.ts` が jscpd（設定は `.jscpd.json`）で、JavaScript・TypeScript・シェル・Markdown の重複を検出する。テストも対象にする。
+閾値は jscpd のデフォルト（5 行・50 トークン）を使う。pre-commit と CI の `Lint` ジョブで、リポジトリ全体を検査する（`pnpm run lint:duplicates`）。
+
+`identical-copies.json` に登録した意図したコピーどうしの重複は数えない（配布スキルの間のように共通化できないコピーは、ここに登録する）。
+範囲（`region`）を持つ組は、両方の断片がそれぞれの範囲と重なる重複を外す。
+既存の重複は `.config/jscpd/baseline.json`（jscpd の指紋）に載せて外す。新しい重複が見つかったら、内容を見て扱いを決める。共通化する・意図したコピーとして登録する・残す、のどれかである。残すなら `node scripts/gates/code/check-duplicates.ts --update-baseline` でベースラインに載せる。
+`--update-baseline` は登録済みのコピーの重複もベースラインに載せる（jscpd のレポートは指紋を出さないので、ベースラインから除けない）。
+そのため、そのときの組を `.config/jscpd/declared-groups.json` に控え、後で組を宣言から外したら、その組のファイルの間の重複はベースラインにあっても失敗にする。
+jscpd は 3 か所以上の重複を 2 つずつの組で報告するので、1 か所を直すと、残りの組が新しい重複として報告されることがある。そのときもベースラインを作り直す。
 
 ファイルの種類に依らない横断のチェックは、pre-commit と CI の `Lint` ジョブで実行する。どのチェックも、対象が 0 件のときは成功にしない。
 

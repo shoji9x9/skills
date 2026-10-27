@@ -1,0 +1,593 @@
+{
+  "kind": "health",
+  "finding_counts": {
+    "scripts/coverage/check-coverage.ts": {
+      "complexity_high": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "scripts/eval/build-skill-eval-benchmark.ts": {
+      "complexity_moderate": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "scripts/eval/fixtures/generate-parity-component-fixtures.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "scripts/eval/normalize-skill-eval-result.ts": {
+      "complexity_moderate": {
+        "count": 3
+      }
+    },
+    "scripts/eval/skill-eval-fingerprint.test.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "scripts/gates/code/check-duplicates.ts": {
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "scripts/gates/code/check-js-extensions.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "scripts/gates/code/oxlint-plugin/max-lines-except-describe.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "scripts/gates/docs/check-doc-refs.ts": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "scripts/gates/packaging/check-skill-frontmatter.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "scripts/gates/packaging/copies/check-identical-copies.ts": {
+      "complexity_high": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "scripts/gates/prose/check-time-sensitive-prose.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "scripts/lib/is-array.test.ts": {
+      "complexity_moderate": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "scripts/lib/text/code-comments.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "scripts/lib/text/code-strings.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "scripts/mutation/check-mutation-proof.ts": {
+      "complexity_moderate": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "scripts/skills/kaizen/kaizen-config.test.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "scripts/skills/parity-suite/checks/capture-scope-check-helpers.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "scripts/skills/pr-finalize-loop/local-review-record.test.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/agent-usage/scripts/agent-usage.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/agent-usage/scripts/lib/config.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/agent-usage/scripts/lib/gate.mjs": {
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 2
+      }
+    },
+    "skills/agent-usage/scripts/lib/records.mjs": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "skills/agent-usage/scripts/lib/report/report.mjs": {
+      "complexity_moderate": {
+        "count": 2
+      }
+    },
+    "skills/agent-usage/scripts/lib/run-collect.mjs": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "skills/agent-usage/scripts/lib/sources/discover.mjs": {
+      "complexity_moderate": {
+        "count": 2
+      }
+    },
+    "skills/agent-usage/scripts/lib/sources/unzip.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/agent-usage/scripts/skill-config/skill-config.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/aws-architecture-diagram/scripts/skill-config/skill-config.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/box/scripts/skill-config/skill-config.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/browser-test/scripts/skill-config/skill-config.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/current-environment-bootstrap/scripts/skill-config/skill-config.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/dependabot-alert-issue/scripts/skill-config/skill-config.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/dependabot-merge/scripts/skill-config/skill-config.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/git-worktree/scripts/skill-config/skill-config.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/golden-dataset/scripts/predicate-coverage-check.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/golden-dataset/scripts/skill-config/skill-config.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/issue-batch/scripts/skill-config/skill-config.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/issue-start/scripts/acceptance-check.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/issue-start/scripts/skill-config/skill-config.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/kaizen/scripts/skill-config/skill-config.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-component/scripts/axis-diff.mjs": {
+      "complexity_moderate": {
+        "count": 2
+      }
+    },
+    "skills/parity-component/scripts/behavior-compare.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-component/scripts/cascade-resolve.mjs": {
+      "complexity_moderate": {
+        "count": 5
+      }
+    },
+    "skills/parity-component/scripts/page/css-rules-capture.page.mjs": {
+      "complexity_moderate": {
+        "count": 4
+      }
+    },
+    "skills/parity-component/scripts/skill-config/skill-config.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-diff/assets/capture-new.spec.template.ts": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "skills/parity-diff/scripts/coverage-check.mjs": {
+      "complexity_moderate": {
+        "count": 2
+      }
+    },
+    "skills/parity-diff/scripts/diff-normalize.mjs": {
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-diff/scripts/json-normalize-diff.mjs": {
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-diff/scripts/pending-triage-check.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-diff/scripts/pixel-crops.mjs": {
+      "complexity_moderate": {
+        "count": 2
+      }
+    },
+    "skills/parity-diff/scripts/skill-config/skill-config.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-replace/scripts/skill-config/skill-config.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/assets/perf-capture.spec.template.ts": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 4
+      }
+    },
+    "skills/parity-suite/scripts/artifact-health-check.mjs": {
+      "complexity_moderate": {
+        "count": 3
+      }
+    },
+    "skills/parity-suite/scripts/auto-wait-check.mjs": {
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 5
+      }
+    },
+    "skills/parity-suite/scripts/checkpoint.mjs": {
+      "complexity_moderate": {
+        "count": 2
+      }
+    },
+    "skills/parity-suite/scripts/component-impact.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/coverage-expand.mjs": {
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 7
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "skills/parity-suite/scripts/dimension-fit.mjs": {
+      "complexity_moderate": {
+        "count": 2
+      }
+    },
+    "skills/parity-suite/scripts/element-shot.mjs": {
+      "complexity_moderate": {
+        "count": 2
+      }
+    },
+    "skills/parity-suite/scripts/evidence-carry.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/header-normalize.mjs": {
+      "complexity_moderate": {
+        "count": 2
+      }
+    },
+    "skills/parity-suite/scripts/page-identity.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/perf-stats.mjs": {
+      "complexity_moderate": {
+        "count": 2
+      }
+    },
+    "skills/parity-suite/scripts/pixel-strict-count.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/reaction-check.mjs": {
+      "complexity_moderate": {
+        "count": 9
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "skills/parity-suite/scripts/skill-config/skill-config.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/table-upsert.mjs": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/trait-compare.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/pr-finalize-loop/scripts/skill-config/skill-config.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/pr-review-handle/scripts/skill-config/skill-config.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/replace-strategy/scripts/append-only-check.mjs": {
+      "complexity_moderate": {
+        "count": 3
+      }
+    },
+    "skills/replace-strategy/scripts/asset-delivery-check.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/replace-strategy/scripts/evidence-gap-check.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/replace-strategy/scripts/lib/markdown.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/replace-strategy/scripts/page/asset-probe.page.mjs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 4
+      },
+      "crap_moderate": {
+        "count": 4
+      }
+    },
+    "skills/replace-strategy/scripts/page/role-probe.page.mjs": {
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 4
+      }
+    },
+    "skills/replace-strategy/scripts/pending-decisions-check.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/replace-strategy/scripts/procedure-staleness-check.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/replace-strategy/scripts/skill-config/skill-config.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/writing-style/scripts/skill-config/skill-config.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    }
+  },
+  "runtime_coverage_findings": [],
+  "target_keys": [
+    "skills/agent-usage/scripts/agent-usage.mjs:hidden coupling",
+    "skills/parity-suite/scripts/table-upsert.mjs:dead code",
+    "skills/parity-suite/scripts/reaction-check.mjs:dead code",
+    "skills/parity-diff/scripts/json-normalize-diff.mjs:dead code",
+    "scripts/gates/code/check-duplicates.ts:dead code",
+    "skills/agent-usage/scripts/lib/sources/claude-log.mjs:dead code",
+    "scripts/gates/docs/check-doc-refs.ts:dead code",
+    "skills/replace-strategy/scripts/append-only-check.mjs:dead code",
+    "skills/parity-suite/scripts/artifact-health-check.mjs:dead code",
+    "skills/replace-strategy/scripts/procedure-staleness-check.mjs:dead code",
+    "skills/parity-suite/scripts/coverage-expand.mjs:complexity",
+    "skills/agent-usage/scripts/lib/sources/discover.mjs:dead code",
+    "scripts/gates/code/lint-yaml.ts:dead code",
+    "skills/replace-strategy/scripts/pending-decisions-check.mjs:dead code",
+    "scripts/gates/prose/check-time-sensitive-prose.ts:dead code",
+    "skills/parity-suite/scripts/element-shot.mjs:dead code",
+    "skills/parity-suite/scripts/checkpoint.mjs:dead code",
+    "skills/agent-usage/scripts/lib/run-collect.mjs:dead code",
+    "skills/replace-strategy/scripts/evidence-gap-check.mjs:dead code",
+    "scripts/gates/code/oxlint-plugin/max-lines-except-page-entry.ts:dead code",
+    "skills/parity-suite/scripts/pixel-strict-count.mjs:dead code",
+    "skills/agent-usage/scripts/lib/collect.mjs:dead code",
+    "skills/parity-suite/scripts/capture-scope-check.mjs:dead code",
+    "skills/parity-suite/scripts/auto-wait-check.mjs:dead code",
+    "skills/parity-suite/scripts/perf-stats.mjs:dead code",
+    "scripts/eval/reuse-skill-eval-baseline.ts:dead code",
+    "skills/replace-strategy/scripts/asset-delivery-check.mjs:dead code",
+    "scripts/gates/code/oxlint-plugin/max-lines-except-describe.ts:high impact",
+    "skills/agent-usage/scripts/lib/sources/worktrees.mjs:dead code",
+    "skills/parity-suite/scripts/trait-compare.mjs:dead code",
+    "skills/parity-suite/scripts/dimension-fit.mjs:dead code",
+    "skills/agent-usage/scripts/lib/report/report.mjs:dead code",
+    "scripts/gates/code/check-skill-lint-directives.ts:dead code",
+    "scripts/gates/code/check-js-extensions.ts:dead code",
+    "skills/parity-diff/scripts/pending-triage-check.mjs:dead code",
+    "skills/agent-usage/scripts/lib/decisions.mjs:dead code",
+    "skills/parity-component/scripts/motion-compare.mjs:dead code",
+    "skills/parity-suite/scripts/trait-capture.mjs:dead code",
+    "skills/golden-dataset/scripts/predicate-coverage-check.mjs:dead code",
+    "skills/parity-suite/scripts/component-comparison-check.mjs:dead code",
+    "skills/box/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/browser-test/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/current-environment-bootstrap/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/dependabot-alert-issue/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/dependabot-merge/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/git-worktree/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/golden-dataset/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/issue-batch/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/issue-start/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/parity-component/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/parity-diff/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/parity-replace/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/parity-suite/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/pr-finalize-loop/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/pr-review-handle/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/parity-diff/scripts/coverage-check.mjs:hidden coupling",
+    "scripts/coverage/run-coverage.ts:hidden coupling",
+    "skills/agent-usage/scripts/lib/config.mjs:hidden coupling",
+    "scripts/gates/packaging/check-skill-index.ts:dead code",
+    "skills/replace-strategy/scripts/skill-config/skill-config.mjs:dead code",
+    "scripts/gates/docs/doc-tiers.ts:high impact",
+    "skills/parity-component/scripts/axis-diff.mjs:hidden coupling",
+    "skills/aws-architecture-diagram/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/parity-component/scripts/motion-probe.mjs:hidden coupling",
+    "scripts/skills/aws-architecture-diagram/preview-diagram-helpers.ts:dead code",
+    "scripts/lib/testing/child-timeout.ts:high impact",
+    "skills/agent-usage/scripts/lib/gate.mjs:hidden coupling",
+    "skills/writing-style/scripts/skill-config/skill-config.mjs:dead code",
+    "scripts/lib/errors.ts:high impact",
+    "skills/issue-start/scripts/acceptance-check.mjs:dead code",
+    "skills/parity-component/scripts/behavior-compare.mjs:hidden coupling",
+    "skills/agent-usage/scripts/lib/report/html.mjs:dead code",
+    "skills/agent-usage/scripts/skill-config/skill-config.mjs:hidden coupling",
+    "skills/parity-component/scripts/css-rules-capture.mjs:hidden coupling",
+    "scripts/eval/skill-eval-fingerprint.test.ts:complexity",
+    "scripts/skills/agent-usage/cli.test.ts:hidden coupling",
+    "scripts/mutation/check-mutation-proof.ts:hidden coupling",
+    "skills/kaizen/scripts/skill-config/skill-config.mjs:hidden coupling",
+    "scripts/coverage/run-coverage.test.ts:hidden coupling",
+    "scripts/skills/_cross/resolve-review-tool.test.ts:hidden coupling",
+    "scripts/skills/_cross/skill-config.test.ts:hidden coupling",
+    "scripts/mutation/check-mutation-proof.test.ts:hidden coupling",
+    "scripts/skills/pnpm-audit-alert-issue/normalize-pnpm-audit.test.ts:hidden coupling"
+  ]
+}

@@ -30,7 +30,7 @@ import { isArray } from "../../../lib/is-array.ts";
 
 export const DECLARATION_PATH = "scripts/gates/packaging/copies/identical-copies.json";
 
-type CopyGroup = { files: string[]; reason: string; region?: string };
+export type CopyGroup = { files: string[]; reason: string; region?: string };
 
 const REGION_NAME_RE = /^[a-z][a-z0-9-]*$/;
 
@@ -76,8 +76,14 @@ export function loadGroups(root: string): CopyGroup[] {
   });
 }
 
-/** 印の行 `// <region>:begin` と `// <region>:end` の間（印の行を含まない）。印が 1 組だけ無ければ、理由を返す。 */
-export function extractRegion(text: string, region: string): { body: string } | { error: string } {
+/**
+ * 印の行 `// <region>:begin` と `// <region>:end` の行番号（0 始まり）。印が 1 組だけ無ければ、理由を返す。
+ * 範囲の中身は、2 つの印の行の間（印の行を含まない）である。
+ */
+export function regionMarkers(
+  text: string,
+  region: string,
+): { begin: number; end: number } | { error: string } {
   const lines = text.split("\n");
   const begin = `// ${region}:begin`;
   const end = `// ${region}:end`;
@@ -89,7 +95,19 @@ export function extractRegion(text: string, region: string): { body: string } | 
     };
   }
   if (e[0] < b[0]) return { error: `印「${end}」が「${begin}」より前にある` };
-  return { body: lines.slice(b[0] + 1, e[0]).join("\n") };
+  return { begin: b[0], end: e[0] };
+}
+
+/** 印の行 `// <region>:begin` と `// <region>:end` の間（印の行を含まない）。印が 1 組だけ無ければ、理由を返す。 */
+export function extractRegion(text: string, region: string): { body: string } | { error: string } {
+  const m = regionMarkers(text, region);
+  if ("error" in m) return m;
+  return {
+    body: text
+      .split("\n")
+      .slice(m.begin + 1, m.end)
+      .join("\n"),
+  };
 }
 
 /** 2 つのテキストで最初に食い違う行（1 始まり）。 */

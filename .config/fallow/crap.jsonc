@@ -1,0 +1,4 @@
+{
+  "extends": ["../../.fallowrc.jsonc"],
+  "rules": { "complexity-crap": "error" }
+}

@@ -1,0 +1,127 @@
+{
+  "$schema": "./node_modules/fallow/schema.json",
+  // ファイルの間の関係を見る検査（使われていないコード・依存・複雑度・参照の向き・循環参照）。
+  // 1 ファイルの中で完結する検査は oxlint、重複は jscpd が受け持つ（docs/tooling.md）。
+  // fallow はドットで始まるディレクトリ（.agents/・.claude/）を走査しないので、インストール済みのコピーは除外を書かなくても対象外になる。
+  // private skill の実体（.agents/skills/<name>/ の .ts。配布スキルは .mjs なので当たらない）は、ignorePatterns の ! で含め直し、起点に挙げて対象にする。
+  "entry": [
+    // SKILL.md から起動するスクリプト。fallow からは起動する側が見えない。
+    "skills/*/scripts/*.mjs",
+    "skills/*/scripts/page/*.mjs",
+    "skills/*/scripts/skill-config/skill-config.mjs",
+    // 利用者のプロジェクトへコピーして使う雛形と、そのサンプル。
+    "skills/*/assets/**/*.{mjs,ts}",
+    // CLI として起動するスクリプト。起動の書き方（起動の判定・最後の main()）が揃っておらず、テストも子プロセスで起動するので、
+    // scripts/ の分類ごとに全体を起点にする。共有ライブラリ（scripts/lib/）と、テストとその helper の置き場所（scripts/skills/）は起点にしない。
+    // fallow の entry は否定パターンと extglob を受け付けないので、分類を名前で挙げる。分類を足したら、ここにも足す
+    // （足し忘れると、その分類の CLI が使われていないファイルとして失敗する）。
+    "scripts/coverage/**/*.ts",
+    "scripts/eval/**/*.ts",
+    "scripts/gates/**/*.ts",
+    "scripts/hooks/**/*.ts",
+    "scripts/mutation/**/*.ts",
+    "scripts/tools/**/*.ts",
+    ".agents/skills/*/scripts/**/*.ts",
+    // tsconfig が読む型の宣言（types/）。
+    "types/**/*.ts"
+  ],
+  // 起点のファイルの export も、使われていなければ報告する（同じファイルの中でだけ使う export を含む）。
+  "includeEntryExports": true,
+  "ignoreExportsUsedInFile": false,
+  "ignorePatterns": [
+    // eval の入力（下流のプロジェクトの断片）と、スライドの生成物、テストの結果。
+    "evals/**/fixtures/**",
+    "docs/slides/**",
+    "tests/**",
+    // 外部のパッケージから作った生成物（scripts/lib/source-scope.ts の VENDORED_GLOBS）。
+    "skills/*/scripts/skill-config/vendor/**",
+    // 組み込みの除外 **/coverage/** に当たるが、カバレッジを測るスクリプトの実体なので含め直す。
+    "!scripts/coverage/**",
+    // ドットで始まるディレクトリは、entry に挙げても走査されない。private skill の実体（.ts）だけを含め直す。
+    // インストール済みのコピーは .mjs なので当たらない。
+    "!.agents/skills/*/scripts/**/*.ts"
+  ],
+  // 名前で読む依存。c8 は run-coverage.ts が起動する CLI、conventional-changelog-conventionalcommits は
+  // release.config.ts が preset の名前で読み、jsonc-parser は配布スキルに同梱するパーサの原本である。
+  "ignoreDependencies": ["c8", "conventional-changelog-conventionalcommits", "jsonc-parser"],
+  "duplicates": {
+    // 重複は jscpd で JS/TS・シェル・Markdown をまとめて検査する。
+    "enabled": false
+  },
+  "health": {
+    "maxCyclomatic": 20,
+    "maxCognitive": 15
+  },
+  "boundaries": {
+    // 参照の向き。配布スキル（skills/<name>/）は自分のディレクトリの外を import しない（利用者のプロジェクトには skills/<name>/ だけが入る）。
+    // scripts/ の各分類は、自分の分類と scripts/lib/ と配布スキルのほかを import しない。scripts/lib/ は scripts/ の他の分類を import しない。
+    // 最初に当たったゾーンに属するので、対象外のゾーン（規則を持たない）を先に書く。
+    "zones": [
+      // スキルのスクリプトのテストと fixture の置き場所。
+      { "name": "skill-tests", "patterns": ["scripts/skills/**"] },
+      { "name": "lib", "patterns": ["scripts/lib/**"] },
+      // scripts/ の分類。entry と同じ分類を名前で挙げる（autoDiscover は lib/・skills/ にも空のゾーンを作り、毎回警告を出す）。
+      { "name": "scripts/coverage", "patterns": ["scripts/coverage/**"] },
+      { "name": "scripts/eval", "patterns": ["scripts/eval/**"] },
+      { "name": "scripts/gates", "patterns": ["scripts/gates/**"] },
+      { "name": "scripts/hooks", "patterns": ["scripts/hooks/**"] },
+      { "name": "scripts/mutation", "patterns": ["scripts/mutation/**"] },
+      { "name": "scripts/tools", "patterns": ["scripts/tools/**"] },
+      // 配布スキルは、スキルを足しても設定を直さずに済むよう autoDiscover で 1 スキル 1 ゾーンにする。
+      // 雛形（skills/<name>/assets/）も同じスキルのゾーンに入るので、スキルのスクリプトは自分の雛形を参照してよく、別のスキルの雛形は参照しない。
+      // 雛形の中の相対パスはコピー先で解決するので、このリポジトリでは解決できず（unresolved-imports は下の overrides で外す）、参照の向きの判定にも現れない。
+      // JS・TS を持たないスキル（skills/issue-create など）と、子に分かれた親の skills は 0 ファイルのゾーンになり、fallow は毎回警告を出す。
+      // 警告は RUST_LOG="warn,fallow_core::analyze::boundary=error" で止められるが、パターンを書き間違えて 0 ファイルになったときも気付けなくなるので止めない。
+      { "name": "skills", "patterns": ["skills/**"], "autoDiscover": ["skills"] }
+    ],
+    "rules": [
+      { "from": "lib", "allow": ["skills"] },
+      { "from": "scripts/coverage", "allow": ["lib", "skills"] },
+      { "from": "scripts/eval", "allow": ["lib", "skills"] },
+      { "from": "scripts/gates", "allow": ["lib", "skills"] },
+      { "from": "scripts/hooks", "allow": ["lib", "skills"] },
+      { "from": "scripts/mutation", "allow": ["lib", "skills"] },
+      { "from": "scripts/tools", "allow": ["lib", "skills"] },
+      { "from": "skills", "allow": [] }
+    ]
+  },
+  "rules": {
+    // 依存はすべて devDependencies なので、warn のままだと使われていない依存が失敗にならない。
+    "unused-dev-dependencies": "error",
+    "deprecated-exports-in-use": "error",
+    // oxlint の disable のコメントに理由を書く規約と、reportUnusedDisableDirectives に合わせる。
+    "require-suppression-reason": "error",
+    "stale-suppressions": "error",
+    "re-export-cycle": "error",
+    "boundary-violation": "error",
+    // CRAP はカバレッジが無いと推定の値で判定する。実際のカバレッジを渡す CI の実行（.config/fallow/crap.jsonc）だけで有効にする。
+    "complexity-crap": "off",
+    // 本番の依存が無い。
+    "dev-dependencies-in-production": "off",
+    // audit の差分の規則。weakened-tests だけを PR の CI で使う。added-suppression は正規の抑止にも抑止が要り、二重になる。
+    "weakened-tests": "error",
+    "added-suppression": "off",
+    "test-only-branch": "off"
+  },
+  "audit": {
+    // audit は PR の CI で、テストを弱めた変更（weakened-tests）を見るためだけに使う。
+    // 構造の検査は変更していないファイルに生じた指摘も見るため、全体の実行（pnpm run lint:fallow）で行う。
+    // audit は検査を 1 つ以上選ばないと動かないので、全体の実行と重なる dead code だけを残す（PR が増やしたものだけを報告する）。
+    "deadCode": true,
+    "health": false,
+    "dupes": false,
+    "css": false
+  },
+  "overrides": [
+    {
+      // 雛形は利用者のプロジェクトへコピーしてから使うので、相対パスはこのリポジトリでは解決できない。
+      "files": ["skills/*/assets/**"],
+      "rules": { "unresolved-imports": "off" }
+    },
+    {
+      // 外部のパッケージ（pngjs など）の型の宣言。メンバーはパッケージの側が使う。
+      "files": ["types/skill-runtime/**"],
+      "rules": { "unused-class-members": "off" }
+    }
+  ]
+}

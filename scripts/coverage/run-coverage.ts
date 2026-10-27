@@ -176,6 +176,9 @@ function c8Args(
     join(cache, "report"),
     "--reporter",
     "json-summary",
+    // 関数ごとのカバレッジ（Istanbul の coverage-final.json）。CI で fallow の CRAP に渡す（.github/workflows/ci.yml）。
+    "--reporter",
+    "json",
     // HTML のレポートは手元で未実行の行を見るためのもので、GitHub Actions のジョブでは残さないので作らない。
     ...(process.env.GITHUB_ACTIONS === "true" ? [] : ["--reporter", "html"]),
     "--reporter",
