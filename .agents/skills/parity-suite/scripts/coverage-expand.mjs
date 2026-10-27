@@ -584,40 +584,53 @@ function setInventoryProblems(raw, label) {
     return problems;
   }
   const block = raw;
+  problems.push(...setSourceProblems(block, label));
+  problems.push(...setCompleteProblems(block, label));
+  return problems;
+}
+
+/**
+ * 集合のブロックの `source` を検査する（setInventoryProblems の出所の側）。
+ * @param {Record<string, unknown>} block - 集合の出所と完全性のブロック
+ * @param {string} label - エラーメッセージ用のラベル
+ * @returns {string[]}
+ */
+function setSourceProblems(block, label) {
   const source = isPlainObject(block.source) ? block.source : null;
   if (source === null) {
-    problems.push(`${label}.source が無い（どの版のどこから何を条件に列挙したか残らない）`);
-  } else {
-    for (const key of ["kind", "ref", "version", "condition"]) {
-      if (!nonEmptyString(source[key])) problems.push(`${label}.source.${key} が空`);
-    }
-    if (!inAllowlist(source.kind, SET_SOURCE_KINDS)) {
-      problems.push(
-        `${label}.source.kind（${showKind(source.kind)}）が ${SET_SOURCE_KINDS.join(" / ")} のいずれでもない`,
-      );
-    }
-    problems.push(...strongerSourceProblems(block, label));
+    return [`${label}.source が無い（どの版のどこから何を条件に列挙したか残らない）`];
   }
-  // complete: false は「列挙元を読み切れなかった」の記録。未列挙として扱い、確認済みにしない。
-  // 真偽値でないときも合格として扱わない（未設定を「完全」と読まない）。
-  if (block.complete !== true) {
-    if (block.complete === false) {
-      if (!nonEmptyString(block.incomplete_reason)) {
-        problems.push(
-          `${label}: complete: false なのに incomplete_reason が空（不足と列挙手順が残らない）`,
-        );
-      } else {
-        problems.push(
-          `${label}: 列挙が未完了（${String(block.incomplete_reason)}）— 確認済みにしない`,
-        );
-      }
-    } else {
-      problems.push(`${label}.complete が true ではない（未設定を「完全」と読まない）`);
-    }
-  } else {
-    problems.push(...staleIncompleteReasonProblems(block, label));
+  /** @type {string[]} */
+  const problems = [];
+  for (const key of ["kind", "ref", "version", "condition"]) {
+    if (!nonEmptyString(source[key])) problems.push(`${label}.source.${key} が空`);
   }
+  if (!inAllowlist(source.kind, SET_SOURCE_KINDS)) {
+    problems.push(
+      `${label}.source.kind（${showKind(source.kind)}）が ${SET_SOURCE_KINDS.join(" / ")} のいずれでもない`,
+    );
+  }
+  problems.push(...strongerSourceProblems(block, label));
   return problems;
+}
+
+/**
+ * 集合のブロックの `complete` / `incomplete_reason` を検査する（setInventoryProblems の完全性の側）。
+ * complete: false は「列挙元を読み切れなかった」の記録。未列挙として扱い、確認済みにしない。
+ * 真偽値でないときも合格として扱わない（未設定を「完全」と読まない）。
+ * @param {Record<string, unknown>} block - 集合の出所と完全性のブロック
+ * @param {string} label - エラーメッセージ用のラベル
+ * @returns {string[]}
+ */
+function setCompleteProblems(block, label) {
+  if (block.complete === true) return staleIncompleteReasonProblems(block, label);
+  if (block.complete !== false) {
+    return [`${label}.complete が true ではない（未設定を「完全」と読まない）`];
+  }
+  if (!nonEmptyString(block.incomplete_reason)) {
+    return [`${label}: complete: false なのに incomplete_reason が空（不足と列挙手順が残らない）`];
+  }
+  return [`${label}: 列挙が未完了（${String(block.incomplete_reason)}）— 確認済みにしない`];
 }
 
 /**
@@ -2597,26 +2610,37 @@ function itemKindsIndex(components, problems) {
     if (!nonEmptyString(c.id)) continue;
     const cid = String(c.id);
     if (itemsByComponent.has(cid)) continue;
-    /** @type {Map<string, {kinds: string[], requiredBy: string}>} */
-    const byItem = new Map();
-    for (const item of isArray(c.items) ? c.items : []) {
-      if (!isPlainObject(item)) continue;
-      const it = item;
-      if (!nonEmptyString(it.id)) continue;
-      const iid = String(it.id);
-      if (byItem.has(iid)) continue;
-      // 要求元は項目 id（プロファイル由来なら候補 id）そのもの。**ルール id でまとめない**。
-      // ルールは複数の軸の直積へ展開されるので、まとめると縮約してはいけない軸まで畳んでしまう
-      // （datagrid の column-sort は sort-direction へ展開されるが、その軸は reducible_axes に無い）。
-      // 縮約は宣言・検証済みの同値クラス経由でだけ行う（representativeIndex）。
-      byItem.set(iid, {
-        kinds: itemVisualKinds(it, `部品 ${cid}: 項目 ${iid}`, problems),
-        requiredBy: iid,
-      });
-    }
-    itemsByComponent.set(cid, byItem);
+    itemsByComponent.set(cid, componentItemKinds(c, cid, problems));
   }
   return itemsByComponent;
+}
+
+/**
+ * 部品 1 件の項目 id → 状態種別の索引を作る（itemKindsIndex の部品ごとの処理）。
+ * @param {Record<string, unknown>} c - 部品
+ * @param {string} cid - 部品 id
+ * @param {string[]} problems - 問題の追記先
+ * @returns {Map<string, {kinds: string[], requiredBy: string}>}
+ */
+function componentItemKinds(c, cid, problems) {
+  /** @type {Map<string, {kinds: string[], requiredBy: string}>} */
+  const byItem = new Map();
+  for (const item of isArray(c.items) ? c.items : []) {
+    if (!isPlainObject(item)) continue;
+    const it = item;
+    if (!nonEmptyString(it.id)) continue;
+    const iid = String(it.id);
+    if (byItem.has(iid)) continue;
+    // 要求元は項目 id（プロファイル由来なら候補 id）そのもの。**ルール id でまとめない**。
+    // ルールは複数の軸の直積へ展開されるので、まとめると縮約してはいけない軸まで畳んでしまう
+    // （datagrid の column-sort は sort-direction へ展開されるが、その軸は reducible_axes に無い）。
+    // 縮約は宣言・検証済みの同値クラス経由でだけ行う（representativeIndex）。
+    byItem.set(iid, {
+      kinds: itemVisualKinds(it, `部品 ${cid}: 項目 ${iid}`, problems),
+      requiredBy: iid,
+    });
+  }
+  return byItem;
 }
 
 /**
@@ -2723,15 +2747,12 @@ function rowTarget(representative, inst, requiredBy) {
 }
 
 /**
- * 導いた行を網羅表へ書き戻す。captured / reason は同じキー（部品・インスタンス・要求元・種別）の
- * 既存行から引き継ぐ。導出は要求の集合だけを決め、撮る／撮らないの判断は人／エージェントが持つ。
- * 要求が消えた行は落とす（測っていない操作の撮影判断が残り続けない）。
- * @param {Record<string, unknown>} cov
- * @returns {Record<string, unknown>}
+ * 書き戻す前の網羅表の行を、キー（部品・インスタンス・要求元・種別）で索引する。
+ * キーの材料が欠けた行は索引しない。同じキーの重複は空の行にして、どちらの判断も引き継がない。
+ * @param {Record<string, unknown>} previous - 書き戻す前の visual_state_coverage
+ * @returns {Map<string, Record<string, unknown>>}
  */
-export function fillVisualStateRows(cov) {
-  const { rows } = deriveVisualStateRows(cov);
-  const previous = isPlainObject(cov.visual_state_coverage) ? cov.visual_state_coverage : {};
+function previousVisualRowsByKey(previous) {
   /** @type {Map<string, Record<string, unknown>>} */
   const prevByKey = new Map();
   for (const row of isArray(previous.rows) ? previous.rows : []) {
@@ -2749,6 +2770,20 @@ export function fillVisualStateRows(cov) {
     if (prevByKey.has(key)) prevByKey.set(key, {});
     else prevByKey.set(key, r);
   }
+  return prevByKey;
+}
+
+/**
+ * 導いた行を網羅表へ書き戻す。captured / reason は同じキー（部品・インスタンス・要求元・種別）の
+ * 既存行から引き継ぐ。導出は要求の集合だけを決め、撮る／撮らないの判断は人／エージェントが持つ。
+ * 要求が消えた行は落とす（測っていない操作の撮影判断が残り続けない）。
+ * @param {Record<string, unknown>} cov
+ * @returns {Record<string, unknown>}
+ */
+export function fillVisualStateRows(cov) {
+  const { rows } = deriveVisualStateRows(cov);
+  const previous = isPlainObject(cov.visual_state_coverage) ? cov.visual_state_coverage : {};
+  const prevByKey = previousVisualRowsByKey(previous);
   for (const row of rows) {
     const kept = prevByKey.get(visualRowKey(row));
     if (!kept) continue;
@@ -2898,16 +2933,25 @@ function pageScopeIndex(cov) {
     if (!isPlainObject(component)) continue;
     const c = component;
     if (!nonEmptyString(c.id)) continue;
-    for (const instance of isArray(c.instances) ? c.instances : []) {
-      if (!isPlainObject(instance)) continue;
-      const inst = instance;
-      if (!nonEmptyString(inst.id)) continue;
-      const key = JSON.stringify([String(c.id), String(inst.id)]);
-      if (scopeByInstance.has(key)) continue;
-      if (nonEmptyString(inst.page)) scopeByInstance.set(key, String(inst.page));
-    }
+    addInstancePageScopes(c, scopeByInstance);
   }
   return scopeByInstance;
+}
+
+/**
+ * 部品 1 件のインスタンスのページを索引へ足す（pageScopeIndex の部品ごとの処理）。
+ * @param {Record<string, unknown>} c - 部品（id は空でない）
+ * @param {Map<string, string>} scopeByInstance - 索引の追記先
+ */
+function addInstancePageScopes(c, scopeByInstance) {
+  for (const instance of isArray(c.instances) ? c.instances : []) {
+    if (!isPlainObject(instance)) continue;
+    const inst = instance;
+    if (!nonEmptyString(inst.id)) continue;
+    const key = JSON.stringify([String(c.id), String(inst.id)]);
+    if (scopeByInstance.has(key)) continue;
+    if (nonEmptyString(inst.page)) scopeByInstance.set(key, String(inst.page));
+  }
 }
 
 /**
@@ -3054,6 +3098,22 @@ function checkSharedCaptures(vctx) {
  * @returns {Record<string, unknown>}
  */
 export function fillVisualStates(coverage, profiles) {
+  for (const { c, profile } of profiledComponents(coverage, profiles)) {
+    applyRuleVisualStates(c, ruleVisualStates(profile));
+  }
+  return coverage;
+}
+
+/**
+ * 網羅表の部品のうち、宣言したプロファイルを読めたものと、そのプロファイルの組を、部品の順に返す。
+ * 部品でない要素・プロファイルを宣言しない部品・読めないプロファイルを名乗る部品は含めない。
+ * @param {Record<string, unknown>} coverage
+ * @param {Map<string, Record<string, unknown>>} profiles
+ * @returns {{c: Record<string, unknown>, profile: Record<string, unknown>}[]}
+ */
+function profiledComponents(coverage, profiles) {
+  /** @type {{c: Record<string, unknown>, profile: Record<string, unknown>}[]} */
+  const out = [];
   const components = isArray(coverage.components) ? coverage.components : [];
   for (const component of components) {
     if (!isPlainObject(component)) continue;
@@ -3061,31 +3121,49 @@ export function fillVisualStates(coverage, profiles) {
     if (!nonEmptyString(c.profile)) continue;
     const profile = profiles.get(String(c.profile));
     if (!profile) continue;
-    /** @type {Map<string, {kinds: string[], reason: string | null}>} */
-    const byRule = new Map();
-    for (const rule of isArray(profile.candidate_rules) ? profile.candidate_rules : []) {
-      if (!isPlainObject(rule)) continue;
-      const r = rule;
-      if (!nonEmptyString(r.id) || !isArray(r.visual_states)) continue;
-      byRule.set(String(r.id), {
-        kinds: r.visual_states.map(String),
-        reason: nonEmptyString(r.no_visual_state_reason) ? String(r.no_visual_state_reason) : null,
-      });
-    }
-    for (const item of isArray(c.items) ? c.items : []) {
-      if (!isPlainObject(item)) continue;
-      const it = item;
-      const candidate = isPlainObject(it.candidate) ? it.candidate : null;
-      // ルールを名乗らない項目は推測で埋めない（id の前半からの推測は、別ルールの状態を取り込みうる）。
-      // 対応付けの欠落は reconcile が候補との突き合わせで落とす。
-      if (!candidate || !nonEmptyString(candidate.rule)) continue;
-      const declared = byRule.get(String(candidate.rule));
-      if (!declared) continue;
-      it.visual_states = [...declared.kinds];
-      it.no_visual_state_reason = declared.reason;
-    }
+    out.push({ c, profile });
   }
-  return coverage;
+  return out;
+}
+
+/**
+ * プロファイルの candidate_rules から、ルール id → 撮影状態の種別と理由の索引を作る。
+ * @param {Record<string, unknown>} profile
+ * @returns {Map<string, {kinds: string[], reason: string | null}>}
+ */
+function ruleVisualStates(profile) {
+  /** @type {Map<string, {kinds: string[], reason: string | null}>} */
+  const byRule = new Map();
+  for (const rule of isArray(profile.candidate_rules) ? profile.candidate_rules : []) {
+    if (!isPlainObject(rule)) continue;
+    const r = rule;
+    if (!nonEmptyString(r.id) || !isArray(r.visual_states)) continue;
+    byRule.set(String(r.id), {
+      kinds: r.visual_states.map(String),
+      reason: nonEmptyString(r.no_visual_state_reason) ? String(r.no_visual_state_reason) : null,
+    });
+  }
+  return byRule;
+}
+
+/**
+ * 部品 1 件の items[] へ、名乗ったルールの撮影状態を書き戻す（fillVisualStates の部品ごとの処理）。
+ * @param {Record<string, unknown>} c - 部品
+ * @param {Map<string, {kinds: string[], reason: string | null}>} byRule - ruleVisualStates の索引
+ */
+function applyRuleVisualStates(c, byRule) {
+  for (const item of isArray(c.items) ? c.items : []) {
+    if (!isPlainObject(item)) continue;
+    const it = item;
+    const candidate = isPlainObject(it.candidate) ? it.candidate : null;
+    // ルールを名乗らない項目は推測で埋めない（id の前半からの推測は、別ルールの状態を取り込みうる）。
+    // 対応付けの欠落は reconcile が候補との突き合わせで落とす。
+    if (!candidate || !nonEmptyString(candidate.rule)) continue;
+    const declared = byRule.get(String(candidate.rule));
+    if (!declared) continue;
+    it.visual_states = [...declared.kinds];
+    it.no_visual_state_reason = declared.reason;
+  }
 }
 
 /**
@@ -3098,24 +3176,27 @@ export function fillVisualStates(coverage, profiles) {
  * @returns {Record<string, unknown>}
  */
 export function fillCandidates(coverage, profiles) {
-  const components = isArray(coverage.components) ? coverage.components : [];
-  for (const component of components) {
-    if (!isPlainObject(component)) continue;
-    const c = component;
-    if (!nonEmptyString(c.profile)) continue;
-    const profile = profiles.get(String(c.profile));
-    if (!profile) continue;
+  for (const { c, profile } of profiledComponents(coverage, profiles)) {
     c.profile_version = String(profile.version);
-    const instances = isArray(c.instances) ? c.instances : [];
-    for (const instance of instances) {
-      if (!isPlainObject(instance)) continue;
-      const inst = instance;
-      const label = `部品 ${String(c.id)} / インスタンス ${String(inst.id)}`;
-      const { elements, usable } = readEnumeration(inst.enumeration, profile, label);
-      inst.candidates = usable ? expandCandidates(profile, elements).map((cand) => cand.id) : [];
-    }
+    fillInstanceCandidates(c, profile);
   }
   return coverage;
+}
+
+/**
+ * 部品 1 件の instances[].candidates を展開結果で書き戻す（fillCandidates の部品ごとの処理）。
+ * @param {Record<string, unknown>} c - 部品
+ * @param {Record<string, unknown>} profile - 部品が宣言したプロファイル
+ */
+function fillInstanceCandidates(c, profile) {
+  const instances = isArray(c.instances) ? c.instances : [];
+  for (const instance of instances) {
+    if (!isPlainObject(instance)) continue;
+    const inst = instance;
+    const label = `部品 ${String(c.id)} / インスタンス ${String(inst.id)}`;
+    const { elements, usable } = readEnumeration(inst.enumeration, profile, label);
+    inst.candidates = usable ? expandCandidates(profile, elements).map((cand) => cand.id) : [];
+  }
 }
 
 /**
@@ -3136,6 +3217,23 @@ export function recordConformance(coverage, result) {
     problems: result.problems,
   };
   return coverage;
+}
+
+/**
+ * 行の配列から、オブジェクトの行の指定したフィールドのうち空でない値を順に集める。
+ * @param {unknown[]} rows
+ * @param {string} field
+ * @returns {string[]}
+ */
+function nonEmptyFieldValues(rows, field) {
+  /** @type {string[]} */
+  const values = [];
+  for (const row of rows) {
+    if (!isPlainObject(row)) continue;
+    const r = row;
+    if (nonEmptyString(r[field])) values.push(String(r[field]));
+  }
+  return values;
 }
 
 /**
@@ -3161,20 +3259,8 @@ export function readCaptureConditions(parsed) {
   if (!isArray(cc.pages)) return null;
   // popup_inventory はキーの欠落と空配列を区別する（欠落は棚卸し未実施＝照合できない）。
   if (!isArray(cc.popup_inventory)) return null;
-  /** @type {string[]} */
-  const popupStates = [];
-  for (const row of cc.popup_inventory) {
-    if (!isPlainObject(row)) continue;
-    const r = row;
-    if (nonEmptyString(r.captured)) popupStates.push(String(r.captured));
-  }
-  /** @type {string[]} */
-  const pageNames = [];
-  for (const row of cc.pages) {
-    if (!isPlainObject(row)) continue;
-    const r = row;
-    if (nonEmptyString(r.name)) pageNames.push(String(r.name));
-  }
+  const popupStates = nonEmptyFieldValues(cc.popup_inventory, "captured");
+  const pageNames = nonEmptyFieldValues(cc.pages, "name");
   return {
     slug: String(meta.slug),
     pageNames,
@@ -3271,6 +3357,27 @@ const USAGE =
   "       node coverage-expand.mjs --list-profiles [--profiles <dir>]\n";
 
 /**
+ * 値を取るフラグ 1 つを opts へ読む。値が無い・重複指定なら stderr に出して false を返す。
+ * @param {string} a - フラグ（`--coverage` など）
+ * @param {string | undefined} v - フラグの次の引数
+ * @param {Record<string, string>} opts - 読んだ値の追記先
+ * @returns {boolean}
+ */
+function readValueFlag(a, v, opts) {
+  if (v === undefined) {
+    process.stderr.write(USAGE);
+    return false;
+  }
+  if (opts[a.slice(2)] !== undefined) {
+    // 同じフラグの重複指定を警告なしに後勝ちにしない（どちらを読んだか出力から分からなくなる）。
+    process.stderr.write(`error: ${a} が複数回指定されている\n${USAGE}`);
+    return false;
+  }
+  opts[a.slice(2)] = v;
+  return true;
+}
+
+/**
  * CLI の引数を読む。使い方の誤りなら stderr に出して終了コード 2 を返す。
  * @param {string[]} argv
  * @returns {number | {opts: Record<string, string>, write: boolean, list: boolean}}
@@ -3291,17 +3398,7 @@ function parseArgs(argv) {
       continue;
     }
     if (a === "--coverage" || a === "--profiles" || a === "--metadata") {
-      const v = argv[i + 1];
-      if (v === undefined) {
-        process.stderr.write(USAGE);
-        return 2;
-      }
-      if (opts[a.slice(2)] !== undefined) {
-        // 同じフラグの重複指定を警告なしに後勝ちにしない（どちらを読んだか出力から分からなくなる）。
-        process.stderr.write(`error: ${a} が複数回指定されている\n${USAGE}`);
-        return 2;
-      }
-      opts[a.slice(2)] = v;
+      if (!readValueFlag(a, argv[i + 1], opts)) return 2;
       i += 1;
       continue;
     }

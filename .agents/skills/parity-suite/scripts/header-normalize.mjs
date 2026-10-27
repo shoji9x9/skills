@@ -363,32 +363,57 @@ export function parseHeaderList(text) {
 function collectHeaders(headers) {
   /** @type {Map<string, string[]>} */
   const out = new Map();
-  const add = (/** @type {unknown} */ name, /** @type {unknown} */ value) => {
-    if (typeof name !== "string" || typeof value !== "string") {
-      // 値は cookie の値を含みうるので、エラーには型だけを出す。
-      throw new Error(
-        `ヘッダーの名前と値は文字列で渡す（name: ${typeof name}, value: ${typeof value}）`,
-      );
-    }
-    const key = name.toLowerCase();
-    // allHeaders() は複数の Set-Cookie を改行でつないで返す。1 cookie 1 要素に揃える。
-    const parts = key === "set-cookie" ? value.split("\n") : [value];
-    out.set(key, [...(out.get(key) ?? []), ...parts]);
-  };
   if (isArray(headers)) {
-    for (const h of headers) {
-      if (h === null || typeof h !== "object")
-        throw new Error("headersArray の要素は { name, value } で渡す");
-      add("name" in h ? h.name : undefined, "value" in h ? h.value : undefined);
-    }
+    addHeaderArray(out, headers);
   } else if (headers !== null && typeof headers === "object") {
-    for (const [name, value] of Object.entries(headers)) {
-      for (const v of isArray(value) ? value : [value]) add(name, v);
-    }
+    addHeaderObject(out, headers);
   } else {
     throw new Error("ヘッダーはオブジェクトか { name, value } の配列で渡す");
   }
   return out;
+}
+
+/**
+ * headersArray() / HAR の [{ name, value }] を Map に足す。
+ * @param {Map<string, string[]>} out 足す先
+ * @param {unknown[]} headers
+ */
+function addHeaderArray(out, headers) {
+  for (const h of headers) {
+    if (h === null || typeof h !== "object")
+      throw new Error("headersArray の要素は { name, value } で渡す");
+    addHeader(out, "name" in h ? h.name : undefined, "value" in h ? h.value : undefined);
+  }
+}
+
+/**
+ * allHeaders() の { name: value }（値は文字列か文字列の配列）を Map に足す。
+ * @param {Map<string, string[]>} out 足す先
+ * @param {object} headers
+ */
+function addHeaderObject(out, headers) {
+  for (const [name, value] of Object.entries(headers)) {
+    for (const v of isArray(value) ? value : [value]) addHeader(out, name, v);
+  }
+}
+
+/**
+ * ヘッダーを 1 つ、小文字の名前で Map に足す。Set-Cookie は 1 cookie 1 要素に分ける。
+ * @param {Map<string, string[]>} out 足す先
+ * @param {unknown} name
+ * @param {unknown} value
+ */
+function addHeader(out, name, value) {
+  if (typeof name !== "string" || typeof value !== "string") {
+    // 値は cookie の値を含みうるので、エラーには型だけを出す。
+    throw new Error(
+      `ヘッダーの名前と値は文字列で渡す（name: ${typeof name}, value: ${typeof value}）`,
+    );
+  }
+  const key = name.toLowerCase();
+  // allHeaders() は複数の Set-Cookie を改行でつないで返す。1 cookie 1 要素に揃える。
+  const parts = key === "set-cookie" ? value.split("\n") : [value];
+  out.set(key, [...(out.get(key) ?? []), ...parts]);
 }
 
 /**
@@ -503,19 +528,7 @@ export function main(argv, io = { stdout: process.stdout, stderr: process.stderr
   const usage =
     "usage: node header-normalize.mjs --header-list <.replace/response-headers.json> <headers.json>\n" +
     "       node header-normalize.mjs --header-list <.replace/response-headers.json> --list\n";
-  let listPath;
-  let listOnly = false;
-  const positionals = [];
-  for (let i = 0; i < argv.length; i += 1) {
-    if (argv[i] === "--header-list") {
-      listPath = argv[i + 1];
-      i += 1;
-    } else if (argv[i] === "--list") {
-      listOnly = true;
-    } else {
-      positionals.push(argv[i]);
-    }
-  }
+  const { listPath, listOnly, positionals } = parseMainArgs(argv);
   if (!listPath || positionals.length !== (listOnly ? 0 : 1)) {
     io.stderr.write(usage);
     return 2;
@@ -533,9 +546,42 @@ export function main(argv, io = { stdout: process.stdout, stderr: process.stderr
     io.stdout.write(JSON.stringify([...list].sort()) + "\n");
     return 0;
   }
+  return writeNormalized(positionals[0], list, io);
+}
+
+/**
+ * main の引数を、一覧のパス・--list の有無・位置引数に分ける。
+ * @param {string[]} argv
+ * @returns {{ listPath: string | undefined, listOnly: boolean, positionals: string[] }}
+ */
+function parseMainArgs(argv) {
+  let listPath;
+  let listOnly = false;
+  const positionals = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] === "--header-list") {
+      listPath = argv[i + 1];
+      i += 1;
+    } else if (argv[i] === "--list") {
+      listOnly = true;
+    } else {
+      positionals.push(argv[i]);
+    }
+  }
+  return { listPath, listOnly, positionals };
+}
+
+/**
+ * headers.json を読んで正規化し、stdout へ出す。終了コード（0: 成功、2: 入力の誤り）を返す。
+ * @param {string} path headers.json のパス
+ * @param {Set<string>} list 比べるヘッダー名
+ * @param {{ stdout: { write(s: string): unknown }, stderr: { write(s: string): unknown } }} io 出力先
+ * @returns {number}
+ */
+function writeNormalized(path, list, io) {
   let normalized;
   try {
-    normalized = normalizeHeaders(JSON.parse(readFileSync(positionals[0], "utf8")), list);
+    normalized = normalizeHeaders(JSON.parse(readFileSync(path, "utf8")), list);
   } catch (err) {
     // 入力の中身（cookie の値を含みうる）を stderr へ出さないよう、JSON の構文エラーは位置だけにする。
     const message =

@@ -83,18 +83,12 @@ export function assertPageVersion(pageVersion) {
 }
 
 /**
- * 要素の矩形とビューポートから clip を決める純関数（ブラウザに依存しないのでここで単体検査できる）。
- *
- * 丸めは `Math.round` で行い、**外接（floor / ceil）にしない**。外接は要素の寸法に無関係な
- * 1px を足すので、同じ CSS box でも両側の PNG がずれる（このツールが存在する理由そのもの）。
- * `-0` は 0 に畳む（JSON へ `-0` が出ると採取物の差分がノイズになる）。
- *
- * @param {{ x:number, y:number, width:number, height:number }} rect - getBoundingClientRect() の値（ビューポート座標）
+ * clip を決める前に、矩形とビューポートの値が有限の数で、ビューポートが正の寸法かを確かめる。
+ * @param {{ x:number, y:number, width:number, height:number }} rect - getBoundingClientRect() の値
  * @param {{ width:number, height:number }} viewport - ビューポートの CSS ピクセル寸法
- * @returns {{ x:number, y:number, width:number, height:number }}
- * @throws {Error} 丸めた clip が面積 0 になる／ビューポートからはみ出す場合
+ * @throws {Error} 値が有限の数でない／ビューポートが正の寸法でない場合
  */
-export function planElementClip(rect, viewport) {
+function assertClipInputs(rect, viewport) {
   for (const [label, value] of [
     ["rect.x", rect && rect.x],
     ["rect.y", rect && rect.y],
@@ -112,6 +106,22 @@ export function planElementClip(rect, viewport) {
       `element clip: viewport must be positive (got ${viewport.width}x${viewport.height})`,
     );
   }
+}
+
+/**
+ * 要素の矩形とビューポートから clip を決める純関数（ブラウザに依存しないのでここで単体検査できる）。
+ *
+ * 丸めは `Math.round` で行い、**外接（floor / ceil）にしない**。外接は要素の寸法に無関係な
+ * 1px を足すので、同じ CSS box でも両側の PNG がずれる（このツールが存在する理由そのもの）。
+ * `-0` は 0 に畳む（JSON へ `-0` が出ると採取物の差分がノイズになる）。
+ *
+ * @param {{ x:number, y:number, width:number, height:number }} rect - getBoundingClientRect() の値（ビューポート座標）
+ * @param {{ width:number, height:number }} viewport - ビューポートの CSS ピクセル寸法
+ * @returns {{ x:number, y:number, width:number, height:number }}
+ * @throws {Error} 丸めた clip が面積 0 になる／ビューポートからはみ出す場合
+ */
+export function planElementClip(rect, viewport) {
+  assertClipInputs(rect, viewport);
 
   /** @param {number} n */
   const zero = (n) => (n === 0 ? 0 : n);
@@ -393,8 +403,18 @@ export async function captureElementShot(page, locator, options = {}) {
  */
 export function writePair(entries) {
   const suffix = `.tmp-${process.pid}`;
-  // 置き換え先が通常のファイルでない（ディレクトリ等）なら、何も書かずに落とす。
-  // 退避して置き換えると、利用者のディレクトリを基準ファイルで上書きして消すことになる。
+  assertReplaceable(entries);
+  stageEntries(entries, suffix);
+  const backups = swapEntries(entries, suffix);
+  for (const dest of backups) rmSync(dest + suffix + ".bak", { force: true });
+}
+
+/**
+ * 置き換え先が通常のファイルでない（ディレクトリ等）なら、何も書かずに落とす。
+ * 退避して置き換えると、利用者のディレクトリを基準ファイルで上書きして消すことになる。
+ * @param {Array<[string, (string|Buffer)]>} entries - [書き出し先, 中身]
+ */
+function assertReplaceable(entries) {
   for (const [dest] of entries) {
     if (existsSync(dest) && !statSync(dest).isFile()) {
       throw new Error(
@@ -402,6 +422,14 @@ export function writePair(entries) {
       );
     }
   }
+}
+
+/**
+ * 中身を一時ファイル（書き出し先 + suffix）へ書き切る。途中で落ちたら書いた一時ファイルを消す。
+ * @param {Array<[string, (string|Buffer)]>} entries - [書き出し先, 中身]
+ * @param {string} suffix - 一時ファイルの接尾辞
+ */
+function stageEntries(entries, suffix) {
   const staged = [];
   try {
     for (const [dest, data] of entries) {
@@ -413,6 +441,16 @@ export function writePair(entries) {
     for (const dest of staged) rmSync(dest + suffix, { force: true });
     throw error;
   }
+}
+
+/**
+ * 一時ファイルを rename で書き出し先へ差し替える。既存のファイルは .bak へ退避し、
+ * 途中で落ちたら差し替えた分を消して退避した分を戻す。
+ * @param {Array<[string, (string|Buffer)]>} entries - [書き出し先, 中身]
+ * @param {string} suffix - 一時ファイルの接尾辞
+ * @returns {string[]} 退避した書き出し先
+ */
+function swapEntries(entries, suffix) {
   const backups = [];
   const replaced = [];
   try {
@@ -430,5 +468,5 @@ export function writePair(entries) {
     for (const [dest] of entries) rmSync(dest + suffix, { force: true });
     throw error;
   }
-  for (const dest of backups) rmSync(dest + suffix + ".bak", { force: true });
+  return backups;
 }

@@ -66,8 +66,8 @@
       "id": "nested-link-into-slug",
       "why": "スイートの根の下で slug のディレクトリの中を指すリンクを辿って指紋にする（Codex レビュー）",
       "file": "skills/parity-suite/scripts/checkpoint.mjs",
-      "find": "    if (inSuite) {\n",
-      "replace": "    if (false) {\n",
+      "find": "    if (inSuite) assertSuiteEntry(cwd, abs, slugReal);\n",
+      "replace": "    if (false) assertSuiteEntry(cwd, abs, slugReal);\n",
       "occurrences": 1,
       "expect_failing": [
         "#474（Codex レビュー）: スイートの根の中のファイルが slug のディレクトリの中を指すリンクなら record は exit 2",

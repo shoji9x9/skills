@@ -339,7 +339,6 @@ function scanCoveredBy(table) {
   const found = [];
   /** @type {string[]} */
   const malformed = [];
-  /** @param {unknown} v @param {string} path */
   /** @param {unknown} v @param {string} path @param {{ path: string, obj: Record<string, unknown> }[]} chain 外側から並べた祖先（表そのものを除く） */
   const walk = (v, path, chain) => {
     if (isArray(v)) {
@@ -347,12 +346,7 @@ function scanCoveredBy(table) {
       return;
     }
     if (!isPlainObject(v)) return;
-    if (Object.hasOwn(v, "covered_by") && v.covered_by !== null) {
-      if (!isArray(v.covered_by) || !v.covered_by.every(nonEmptyString)) malformed.push(path);
-      else if (v.covered_by.length > 0) {
-        found.push({ path, owner: v, names: v.covered_by, ancestors: chain });
-      }
-    }
+    recordCoveredBy(v, { path, chain }, { found, malformed });
     for (const k of Object.keys(v)) {
       // _note 等の注記（文字列）だけを飛ばす。_ で始まるキーの下の行は数える
       if (k === "covered_by" || (k.startsWith("_") && typeof v[k] === "string")) continue;
@@ -368,6 +362,20 @@ function scanCoveredBy(table) {
   };
   walk(table, "$", []);
   return { owners: found, malformed };
+}
+
+/**
+ * 走査中のオブジェクト 1 つの covered_by を、形が正しければ found に、不正なら malformed に足す。空配列と null は足さない。
+ * @param {Record<string, unknown>} v
+ * @param {{ path: string, chain: { path: string, obj: Record<string, unknown> }[] }} at - v の位置と、外側から並べた祖先
+ * @param {{ found: { path: string, owner: Record<string, unknown>, names: string[], ancestors: { path: string, obj: Record<string, unknown> }[] }[], malformed: string[] }} out
+ */
+function recordCoveredBy(v, { path, chain }, { found, malformed }) {
+  if (!Object.hasOwn(v, "covered_by") || v.covered_by === null) return;
+  if (!isArray(v.covered_by) || !v.covered_by.every(nonEmptyString)) malformed.push(path);
+  else if (v.covered_by.length > 0) {
+    found.push({ path, owner: v, names: v.covered_by, ancestors: chain });
+  }
 }
 
 /**
@@ -879,28 +887,8 @@ function noneProblem(r, windowMs, documents) {
   if (windowMs !== null && obs.window_ms < windowMs) {
     return `observation.window_ms が表の observation_window_ms（${windowMs}）より短い`;
   }
-  if (
-    !isArray(obs.documents) ||
-    obs.documents.length === 0 ||
-    !obs.documents.every(nonEmptyString)
-  ) {
-    return "observation.documents が空（どの文書を見たか記録していない）";
-  }
-  // 操作したコンテナ（iframe など）の中だけを見た none は、親文書や別フレームに出る反応を取りこぼす
-  if (!obs.documents.some((d) => d === "top"))
-    return "observation.documents に top（最上位の文書）が無い";
-  if (documents) {
-    /** @type {Set<string>} */
-    const seen = new Set(obs.documents);
-    const missing = [...documents].filter((d) => !seen.has(d));
-    if (missing.length > 0) {
-      return `observation.documents が表の documents を網羅していない（見ていない文書: ${missing.join(", ")}）`;
-    }
-    const unknown = obs.documents.filter((d) => !documents.has(d));
-    if (unknown.length > 0) {
-      return `observation.documents に表の documents に無い文書がある: ${unknown.join(", ")}`;
-    }
-  }
+  const documentsProblem = observedDocumentsProblem(obs.documents, documents);
+  if (documentsProblem !== null) return documentsProblem;
   // 操作した文書。反応の出どころと見た文書のオリジンが違うと、実在する反応が同一オリジンポリシーで届かず、誤って「無い」と判定される（表の document_origins で照合する）
   if (!nonEmptyString(obs.source_document)) {
     return "observation.source_document が空（どの文書で操作したかを記録していない。オリジンの照合に使う）";
@@ -912,6 +900,34 @@ function noneProblem(r, windowMs, documents) {
   // 新側が反応を足しても（遅れて出て消えるトースト等）静止画・特性照合には表れないので、不在もスイートで確かめる
   if (!isArray(r.covered_by) || r.covered_by.length === 0 || !r.covered_by.every(nonEmptyString)) {
     return "kind: none なのに covered_by が空（観測時間・文書にわたる不在をスイートの assertion に落としていない）";
+  }
+  return null;
+}
+
+/**
+ * none の反応で、見た文書（observation.documents）が欠けているか表の documents と食い違えば、その理由を返す（無ければ null）。
+ * @param {unknown} observed - observation.documents
+ * @param {Set<string> | null} documents - 表の documents（top と全フレーム）
+ * @returns {string | null}
+ */
+function observedDocumentsProblem(observed, documents) {
+  if (!isArray(observed) || observed.length === 0 || !observed.every(nonEmptyString)) {
+    return "observation.documents が空（どの文書を見たか記録していない）";
+  }
+  // 操作したコンテナ（iframe など）の中だけを見た none は、親文書や別フレームに出る反応を取りこぼす
+  if (!observed.some((d) => d === "top"))
+    return "observation.documents に top（最上位の文書）が無い";
+  if (documents) {
+    /** @type {Set<string>} */
+    const seen = new Set(observed);
+    const missing = [...documents].filter((d) => !seen.has(d));
+    if (missing.length > 0) {
+      return `observation.documents が表の documents を網羅していない（見ていない文書: ${missing.join(", ")}）`;
+    }
+    const unknown = observed.filter((d) => !documents.has(d));
+    if (unknown.length > 0) {
+      return `observation.documents に表の documents に無い文書がある: ${unknown.join(", ")}`;
+    }
   }
   return null;
 }
@@ -930,22 +946,34 @@ function layoutMeasureProblem(m) {
     return "rects が空（主な論理名の矩形を測っていない）";
   }
   for (const [name, r] of Object.entries(m.rects)) {
-    // 論理名の無い矩形は、どの要素の位置かを名指さないので測った記録にならない
-    if (!nonEmptyString(name)) return "rects に空の論理名がある";
-    // null は「その時点で表示されない」の記録（操作で現れる要素は操作の前には無い）
-    if (r === null) continue;
-    if (
-      !isPlainObject(r) ||
-      !RECT_AXES.every((k) => typeof r[k] === "number" && Number.isFinite(r[k]))
-    ) {
-      return `rects["${name}"] が { x, y, width, height } の数値でも null でもない`;
-    }
-    if (
-      (typeof r.width === "number" && r.width < 0) ||
-      (typeof r.height === "number" && r.height < 0)
-    ) {
-      return `rects["${name}"] の width / height が負`;
-    }
+    const problem = rectProblem(name, r);
+    if (problem !== null) return problem;
+  }
+  return null;
+}
+
+/**
+ * 頁の組み方を 1 回測った記録で、rects の 1 件（論理名と矩形）が欠けていれば、その理由を返す（無ければ null）。
+ * @param {string} name - 論理名
+ * @param {unknown} r - 矩形
+ * @returns {string | null}
+ */
+function rectProblem(name, r) {
+  // 論理名の無い矩形は、どの要素の位置かを名指さないので測った記録にならない
+  if (!nonEmptyString(name)) return "rects に空の論理名がある";
+  // null は「その時点で表示されない」の記録（操作で現れる要素は操作の前には無い）
+  if (r === null) return null;
+  if (
+    !isPlainObject(r) ||
+    !RECT_AXES.every((k) => typeof r[k] === "number" && Number.isFinite(r[k]))
+  ) {
+    return `rects["${name}"] が { x, y, width, height } の数値でも null でもない`;
+  }
+  if (
+    (typeof r.width === "number" && r.width < 0) ||
+    (typeof r.height === "number" && r.height < 0)
+  ) {
+    return `rects["${name}"] の width / height が負`;
   }
   return null;
 }
@@ -1734,19 +1762,7 @@ function checkDisplayRow(row, ctx, summary) {
     summary.unmeasured += 1;
     return;
   }
-  const lacking = STATE_DISPLAY_CANDIDATES.filter((c) => !Object.hasOwn(candidates, c));
-  if (lacking.length > 0) {
-    problems.push(
-      `${at}: 候補 ${lacking.join(", ")} を振り分けていない（ある／ない を現行で測って書く。測れなければ status: unmeasured と理由）`,
-    );
-    summary.unmeasured += lacking.length;
-  }
-  const unknown = Object.keys(candidates).filter((c) => !STATE_DISPLAY_CANDIDATES.includes(c));
-  if (unknown.length > 0) {
-    problems.push(
-      `${at}: 候補の語彙（${STATE_DISPLAY_CANDIDATES.join(" / ")}）に無いキー: ${unknown.join(", ")}`,
-    );
-  }
+  candidateKeyProblems(candidates, at, { problems, summary });
   for (const c of STATE_DISPLAY_CANDIDATES) {
     if (!Object.hasOwn(candidates, c)) continue;
     summary.entries += 1;
@@ -1767,6 +1783,28 @@ function checkDisplayRow(row, ctx, summary) {
         page,
       });
     }
+  }
+}
+
+/**
+ * state_displays.pages の 1 行で、candidates に振り分けていない候補か語彙に無いキーがあれば、problems に積む。
+ * @param {Record<string, unknown>} candidates
+ * @param {string} at - 行の位置
+ * @param {{ problems: string[], summary: DisplaySummary }} out
+ */
+function candidateKeyProblems(candidates, at, { problems, summary }) {
+  const lacking = STATE_DISPLAY_CANDIDATES.filter((c) => !Object.hasOwn(candidates, c));
+  if (lacking.length > 0) {
+    problems.push(
+      `${at}: 候補 ${lacking.join(", ")} を振り分けていない（ある／ない を現行で測って書く。測れなければ status: unmeasured と理由）`,
+    );
+    summary.unmeasured += lacking.length;
+  }
+  const unknown = Object.keys(candidates).filter((c) => !STATE_DISPLAY_CANDIDATES.includes(c));
+  if (unknown.length > 0) {
+    problems.push(
+      `${at}: 候補の語彙（${STATE_DISPLAY_CANDIDATES.join(" / ")}）に無いキー: ${unknown.join(", ")}`,
+    );
   }
 }
 
@@ -2409,14 +2447,7 @@ function recordWriteSites(sites, lookup, ctx) {
   /** @type {Set<string>} 書き込み箇所を 1 件以上記録した表 */
   const writtenTables = new Set();
   for (const s of sites) {
-    if (
-      !isPlainObject(s) ||
-      !nonEmptyString(s.file) ||
-      !isInteger(s.line) ||
-      !isInteger(s.column) ||
-      s.column < 1 ||
-      !nonEmptyString(s.pattern)
-    ) {
+    if (!isSiteRow(s)) {
       problems.push("side_effect_writes.sites: file / line / column / pattern が欠けた行がある");
       continue;
     }
@@ -2434,9 +2465,7 @@ function recordWriteSites(sites, lookup, ctx) {
     if (typeof s.operation === "string" && opIds.has(s.operation)) writeOps.add(s.operation);
     problems.push(...writeSiteProblems(s, at, opIds));
   }
-  for (const [key, n] of recordedCount) {
-    if (n > 1) problems.push(`side_effect_writes.sites ${key}: ${n} 回重複している`);
-  }
+  pushDuplicateSites(recordedCount, "side_effect_writes.sites", problems);
   const unwritten = [...tableSet].filter((t) => !writtenTables.has(t));
   if (unwritten.length > 0) {
     problems.push(
@@ -2470,6 +2499,19 @@ function writeSiteProblems(s, at, opIds) {
   if (typeof s.path !== "string" || !WRITE_PATHS.includes(s.path)) {
     problems.push(`${at}: path が語彙（${WRITE_PATHS.join(" / ")}）に無い`);
   }
+  problems.push(...writeVerificationProblems(s, at));
+  return problems;
+}
+
+/**
+ * 書き込み箇所 1 件の確かめ方（verification）と、それに伴う covered_by・source_only_reason の欠けを返す。
+ * @param {Record<string, unknown>} s
+ * @param {string} at - 箇所の位置
+ * @returns {string[]}
+ */
+function writeVerificationProblems(s, at) {
+  /** @type {string[]} */
+  const problems = [];
   if (s.verification === "assertion") {
     if (!filledStrings(s.covered_by)) {
       problems.push(`${at}: verification: assertion なのに covered_by が空`);
@@ -3382,18 +3424,11 @@ function checkDeclaredFeedbackCalls(fc, env, callSummary) {
  * @returns {Map<string, number>}
  */
 function recordCallSites(recordedSites, env) {
-  const { problems, opIds, state } = env;
+  const { problems } = env;
   /** @type {Map<string, number>} */
   const recordedCount = new Map();
   for (const s of recordedSites) {
-    if (
-      !isPlainObject(s) ||
-      !nonEmptyString(s.file) ||
-      !isInteger(s.line) ||
-      !isInteger(s.column) ||
-      s.column < 1 ||
-      !nonEmptyString(s.pattern)
-    ) {
+    if (!isSiteRow(s)) {
       problems.push("feedback_calls.call_sites: file / line / column / pattern が欠けた行がある");
       continue;
     }
@@ -3404,22 +3439,60 @@ function recordCallSites(recordedSites, env) {
     if (hasReaction === hasExcluded) {
       problems.push(`call_sites ${key}: reaction と excluded_reason のどちらか一方だけを埋める`);
     } else if (hasReaction) {
-      const kind = state.reactionKinds.get(s.reaction);
-      if (kind === undefined)
-        problems.push(`call_sites ${key}: reaction "${String(s.reaction)}" が網羅表の反応に無い`);
-      else if (kind !== "observed") {
-        problems.push(
-          `call_sites ${key}: reaction "${String(s.reaction)}" は kind: ${kind}（呼び出しがあるのに観測した反応へ対応付いていない）`,
-        );
-        const opId = String(s.reaction).split("/")[0];
-        if (opIds.has(opId)) state.unmeasuredOps.add(opId);
-      }
+      checkCallSiteReaction(s.reaction, key, env);
     }
   }
-  for (const [key, n] of recordedCount) {
-    if (n > 1) problems.push(`call_sites ${key}: ${n} 回重複している`);
-  }
+  pushDuplicateSites(recordedCount, "call_sites", problems);
   return recordedCount;
+}
+
+/**
+ * 呼び出し箇所が対応付けた反応が、網羅表の観測した反応（kind: observed）かを検査する。
+ * 観測していない反応なら、その操作を未測定に数える。
+ * @param {unknown} reaction - 呼び出し箇所の reaction
+ * @param {string} key - 呼び出し箇所の照合キー
+ * @param {ReactionEnv} env
+ */
+function checkCallSiteReaction(reaction, key, env) {
+  const { problems, opIds, state } = env;
+  const kind = state.reactionKinds.get(reaction);
+  if (kind === undefined)
+    problems.push(`call_sites ${key}: reaction "${String(reaction)}" が網羅表の反応に無い`);
+  else if (kind !== "observed") {
+    problems.push(
+      `call_sites ${key}: reaction "${String(reaction)}" は kind: ${kind}（呼び出しがあるのに観測した反応へ対応付いていない）`,
+    );
+    const opId = String(reaction).split("/")[0];
+    if (opIds.has(opId)) state.unmeasuredOps.add(opId);
+  }
+}
+
+/**
+ * 記録した箇所の照合キーのうち、2 回以上現れたものを problems に積む。
+ * @param {Map<string, number>} recordedCount
+ * @param {string} label - 指摘の先頭に付ける欄の名前
+ * @param {string[]} problems
+ */
+function pushDuplicateSites(recordedCount, label, problems) {
+  for (const [key, n] of recordedCount) {
+    if (n > 1) problems.push(`${label} ${key}: ${n} 回重複している`);
+  }
+}
+
+/**
+ * 記録した箇所の 1 行が、照合キーの材料（file・line・1 以上の column・pattern）を揃えているか。
+ * @param {unknown} s
+ * @returns {s is Record<string, unknown> & { file: string, line: number, column: number, pattern: string }}
+ */
+function isSiteRow(s) {
+  return (
+    isPlainObject(s) &&
+    nonEmptyString(s.file) &&
+    isInteger(s.line) &&
+    isInteger(s.column) &&
+    s.column >= 1 &&
+    nonEmptyString(s.pattern)
+  );
 }
 
 /**
@@ -3776,13 +3849,23 @@ function instancePages(cov) {
   const pageByInstance = new Map();
   for (const c of isPlainObject(cov) && isArray(cov.components) ? cov.components : []) {
     if (!isPlainObject(c) || !nonEmptyString(c.id)) continue;
-    for (const inst of isArray(c.instances) ? c.instances : []) {
-      if (!isPlainObject(inst) || !nonEmptyString(inst.id) || !nonEmptyString(inst.page)) continue;
-      const k = JSON.stringify([c.id, inst.id]);
-      if (!pageByInstance.has(k)) pageByInstance.set(k, inst.page);
-    }
+    addInstancePages(c.id, c.instances, pageByInstance);
   }
   return pageByInstance;
+}
+
+/**
+ * 部品 1 つのインスタンスのページを pageByInstance に足す。先に足したものを優先する。
+ * @param {string} componentId
+ * @param {unknown} instances - 部品の instances
+ * @param {Map<string, string>} pageByInstance
+ */
+function addInstancePages(componentId, instances, pageByInstance) {
+  for (const inst of isArray(instances) ? instances : []) {
+    if (!isPlainObject(inst) || !nonEmptyString(inst.id) || !nonEmptyString(inst.page)) continue;
+    const k = JSON.stringify([componentId, inst.id]);
+    if (!pageByInstance.has(k)) pageByInstance.set(k, inst.page);
+  }
 }
 
 /**
@@ -3922,9 +4005,7 @@ function parseFlags(argv, cwd) {
       const v = argv[i + 1];
       if (!nonEmptyString(v) || v.startsWith("--"))
         return { error: `${a} に値が無い`, options: null };
-      if (a === "--metadata") options.metadataPath = v;
-      else if (a === "--tests") options.testsPath = v;
-      else options.root = resolve(cwd, v);
+      setValueFlag(options, a, { value: v, cwd });
       i += 1;
     } else if (a === "--write") options.write = true;
     else if (a === "--recorded") options.recorded = true;
@@ -3932,6 +4013,18 @@ function parseFlags(argv, cwd) {
     else return { error: `不明な引数 ${a}`, options: null };
   }
   return { error: null, options };
+}
+
+/**
+ * 値を取る引数（--metadata・--tests・--root）の値を options に入れる。--root は cwd からの絶対パスにする。
+ * @param {{ metadataPath: string | null, root: string, testsPath: string | null }} options
+ * @param {string} flag
+ * @param {{ value: string, cwd: string }} arg
+ */
+function setValueFlag(options, flag, { value, cwd }) {
+  if (flag === "--metadata") options.metadataPath = value;
+  else if (flag === "--tests") options.testsPath = value;
+  else options.root = resolve(cwd, value);
 }
 
 /**

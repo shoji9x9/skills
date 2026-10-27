@@ -139,6 +139,23 @@ function realRootProblem(cwd, slugDir, suiteRoots) {
 }
 
 /**
+ * スイートの根の下の要素の実パスが解決でき、slug のディレクトリの中を指さないことを確かめる。
+ * @param {string} cwd
+ * @param {string} abs - 確かめる要素の絶対パス
+ * @param {string} slugReal - slug のディレクトリの実パス
+ */
+function assertSuiteEntry(cwd, abs, slugReal) {
+  const real = realPathOf(abs);
+  if (real === null)
+    throw new UsageError(`スイートの根の下の ${toRel(cwd, abs)} の実パスを解決できない`);
+  if (realUnder(real, slugReal)) {
+    throw new UsageError(
+      `スイートの根の下の ${toRel(cwd, abs)} の実パス（${real}）が --dir の中を指す（slug のディレクトリの成果物はスイートにならない）`,
+    );
+  }
+}
+
+/**
  * 根の下のファイルの指紋を集める。
  * @param {string} cwd
  * @param {string[]} roots - cwd 基準の相対パス（先頭は slug のディレクトリ）
@@ -163,16 +180,7 @@ export function fingerprintFiles(cwd, roots, opts) {
   const visit = (abs, inSuite) => {
     // スイートの根の中のシンボリックリンクが slug のディレクトリの中を指すと、スイートの指紋が slug の成果物のコピーになり、
     // 書いたスイートを 1 つも照合しないまま通る。根の下で辿る要素をすべて実パスで確かめる
-    if (inSuite) {
-      const real = realPathOf(abs);
-      if (real === null)
-        throw new UsageError(`スイートの根の下の ${toRel(cwd, abs)} の実パスを解決できない`);
-      if (realUnder(real, slugReal)) {
-        throw new UsageError(
-          `スイートの根の下の ${toRel(cwd, abs)} の実パス（${real}）が --dir の中を指す（slug のディレクトリの成果物はスイートにならない）`,
-        );
-      }
-    }
+    if (inSuite) assertSuiteEntry(cwd, abs, slugReal);
     const st = statSync(abs);
     if (st.isDirectory()) {
       for (const name of readdirSync(abs).sort()) {
@@ -382,6 +390,22 @@ export function recordProblem(rec, slugDir, opts) {
  */
 
 /**
+ * 引数の名前が --dir・--at・--include のどれかで、値が在ることを確かめて、値を返す。
+ * @param {string} a - 引数の名前
+ * @param {string | undefined} v - 引数の次の要素
+ * @returns {string}
+ */
+function argValue(a, v) {
+  if (a !== "--dir" && a !== "--at" && a !== "--include") {
+    throw new UsageError(`不明な引数 ${a}`);
+  }
+  if (v === undefined || v === "" || v.startsWith("--")) {
+    throw new UsageError(`${a} に値が無い`);
+  }
+  return v;
+}
+
+/**
  * サブコマンドの後の引数を読む。--include だけは重ねてよい。
  * @param {string[]} rest
  * @returns {{ dir: string | null, at: string | null, includes: string[] }}
@@ -393,13 +417,7 @@ function parseArgs(rest) {
   const includes = [];
   for (let i = 0; i < rest.length; i += 1) {
     const a = rest[i];
-    const v = rest[i + 1];
-    if (a !== "--dir" && a !== "--at" && a !== "--include") {
-      throw new UsageError(`不明な引数 ${a}`);
-    }
-    if (v === undefined || v === "" || v.startsWith("--")) {
-      throw new UsageError(`${a} に値が無い`);
-    }
+    const v = argValue(a, rest[i + 1]);
     // --include 以外を重ねると後勝ちで警告なしに別の区切り・別の slug を扱うので止める
     if ((a === "--dir" && dir !== null) || (a === "--at" && at !== null)) {
       throw new UsageError(`${a} が重複している`);

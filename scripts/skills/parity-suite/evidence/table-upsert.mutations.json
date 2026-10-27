@@ -30,8 +30,8 @@
       "id": "select-first",
       "why": "選択が複数件でも先勝ちにする",
       "file": "skills/parity-suite/scripts/table-upsert.mjs",
-      "find": "    if (hits.length !== 1) {\n",
-      "replace": "    if (hits.length === 0) {\n",
+      "find": "  if (hits.length !== 1) {\n",
+      "replace": "  if (hits.length === 0) {\n",
       "occurrences": 1,
       "expect_failing": ["選択が複数件なら先勝ちにせず exit 2"]
     }

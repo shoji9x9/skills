@@ -135,8 +135,8 @@
       "id": "continued-line",
       "why": "演算子で終わる行で右辺を切る（折った続きの名前を確定の判定から漏らす）",
       "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
-      "find": "        !/[=+\\-*/%&|^!~?:,.<>([{]$/.test(before) &&\n",
-      "replace": "        true &&\n",
+      "find": " && !/[=+\\-*/%&|^!~?:,.<>([{]$/.test(before) &&",
+      "replace": " && true &&",
       "occurrences": 1,
       "expect_failing": [
         "束縛を読めない受け側は判定不能に数える: 行を折った右辺の続きに未確定の名前"

@@ -892,6 +892,19 @@ function takesValue(mode, a) {
 }
 
 /**
+ * 値を取るオプションの値を確かめて opts に入れる。
+ * @param {Record<string, string | true>} opts - 読んだオプション（書き足す）
+ * @param {string} a - オプションの名前
+ * @param {string | undefined} v - オプションの次の要素
+ */
+function setValueOption(opts, a, v) {
+  if (!nonEmptyString(v) || v.startsWith("--")) throw new UsageError(`${a} に値が無い`);
+  // 同じオプションの重複は後勝ちにしない（どちらの値で動いたかが曖昧になる）
+  if (Object.hasOwn(opts, a.slice(2))) throw new UsageError(`${a} が重複している`);
+  opts[a.slice(2)] = v;
+}
+
+/**
  * モードの後の引数を読む。
  * @param {"fit" | "check"} mode
  * @param {string[]} rest
@@ -906,11 +919,7 @@ function parseOptions(mode, rest) {
       if (opts.write === true) throw new UsageError("--write が重複している");
       opts.write = true;
     } else if (takesValue(mode, a)) {
-      const v = rest[i + 1];
-      if (!nonEmptyString(v) || v.startsWith("--")) throw new UsageError(`${a} に値が無い`);
-      // 同じオプションの重複は後勝ちにしない（どちらの値で動いたかが曖昧になる）
-      if (Object.hasOwn(opts, a.slice(2))) throw new UsageError(`${a} が重複している`);
-      opts[a.slice(2)] = v;
+      setValueOption(opts, a, rest[i + 1]);
       i += 1;
     } else {
       throw new UsageError(`不明な引数 ${a}`);
@@ -997,6 +1006,23 @@ function checkLoaders(opts, io, state) {
 }
 
 /**
+ * check の結果から、--write の先へ書く記録を作る。
+ * @param {ReturnType<typeof checkModel>} result
+ * @returns {Record<string, unknown>}
+ */
+function checkRecord(result) {
+  return {
+    judged: result.judged,
+    reason: result.reason,
+    ok: result.judged ? result.ok : null,
+    checked: result.judged ? result.checked : 0,
+    failures: result.judged ? result.failures.length : 0,
+    unfit_to_note: result.unfit_to_note ?? [],
+    error: null,
+  };
+}
+
+/**
  * check を実行する。
  * @param {{ opts: Record<string, string | true>, metadata: unknown, checkWritePaths: string[] }} ctx
  * @param {{ io: Io, state: CheckState, writeCheck: (record: Record<string, unknown>, path: string) => void }} deps
@@ -1012,20 +1038,7 @@ function runCheck({ opts, metadata, checkWritePaths }, { io, state, writeCheck }
   }
   const { loadSamples, loadCurrentSamplesText } = checkLoaders(opts, io, state);
   const result = checkModel(metadata, loadSamples, loadCurrentSamplesText);
-  for (const path of checkWritePaths) {
-    writeCheck(
-      {
-        judged: result.judged,
-        reason: result.reason,
-        ok: result.judged ? result.ok : null,
-        checked: result.judged ? result.checked : 0,
-        failures: result.judged ? result.failures.length : 0,
-        unfit_to_note: result.unfit_to_note ?? [],
-        error: null,
-      },
-      path,
-    );
-  }
+  for (const path of checkWritePaths) writeCheck(checkRecord(result), path);
   printResult({ mode: "check", ...result });
   if (result.judged && !result.ok) {
     for (const f of result.failures) process.stderr.write(`warn: ${JSON.stringify(f)}\n`);

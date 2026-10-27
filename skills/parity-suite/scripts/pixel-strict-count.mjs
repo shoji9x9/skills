@@ -67,6 +67,23 @@ export function buildMarkedMask(data, pixels, { target, tol }) {
 }
 
 /**
+ * 1 画素のチャンネル差の最大値を返す。両側とも完全な透明なら 0 を返す。
+ * @param {Uint8Array | Buffer} aData
+ * @param {Uint8Array | Buffer} bData
+ * @param {number} o - 画素の先頭のオフセット（画素の番号 * 4）
+ * @returns {number}
+ */
+function pixelDelta(aData, bData, o) {
+  if (aData[o + 3] === 0 && bData[o + 3] === 0) return 0;
+  let delta = 0;
+  for (let c = 0; c < 4; c += 1) {
+    const d = Math.abs(aData[o + c] - bData[o + c]);
+    if (d > delta) delta = d;
+  }
+  return delta;
+}
+
+/**
  * 2 枚の RGBA バッファを**しきい値なしで**突き合わせて数える。
  *
  * 両側とも完全な透明な画素は、隠れている RGB が違っても画面には同じものが出るので差にしない
@@ -86,15 +103,7 @@ export function countStrictDiff(aData, bData, { pixels, markedMask = null }) {
   let maxDelta = 0;
   let maxStrictOnlyDelta = 0;
   for (let i = 0; i < pixels; i += 1) {
-    const o = i * 4;
-    let delta = 0;
-    const bothTransparent = aData[o + 3] === 0 && bData[o + 3] === 0;
-    if (!bothTransparent) {
-      for (let c = 0; c < 4; c += 1) {
-        const d = Math.abs(aData[o + c] - bData[o + c]);
-        if (d > delta) delta = d;
-      }
-    }
+    const delta = pixelDelta(aData, bData, i * 4);
     if (delta === 0) continue;
     strict += 1;
     if (delta > maxDelta) maxDelta = delta;
