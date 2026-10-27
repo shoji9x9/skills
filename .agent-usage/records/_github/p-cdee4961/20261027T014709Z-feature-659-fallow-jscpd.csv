@@ -1,0 +1,8 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:40389232191:1,ci,2026-10-27T01:47:09.499Z,p-cdee4961,github-actions,,,,2026-10-26T19:43:11.000Z,2026-10-26T19:45:59.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:40389232388:1,ci,2026-10-27T01:47:09.499Z,p-cdee4961,github-actions,,,,2026-10-26T19:43:11.000Z,2026-10-26T19:43:35.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:40388418561:1,ci,2026-10-27T01:47:09.499Z,p-cdee4961,github-actions,,,,2026-10-26T19:37:37.000Z,2026-10-26T19:42:12.000Z,Asia/Tokyo,feature/677-commit-hook-if-criterion,677,,,,,,,,,,CI;pull_request;success,
+ci:40388418534:1,ci,2026-10-27T01:47:09.499Z,p-cdee4961,github-actions,,,,2026-10-26T19:37:37.000Z,2026-10-26T19:37:38.000Z,Asia/Tokyo,feature/677-commit-hook-if-criterion,677,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40387958087:1,ci,2026-10-27T01:47:09.499Z,p-cdee4961,github-actions,,,,2026-10-26T19:34:34.000Z,2026-10-26T19:38:19.000Z,Asia/Tokyo,feature/677-commit-hook-if-criterion,677,,,,,,,,,,CI;pull_request;cancelled,
+coverage:github:2026-10-25T19:36:56.643Z:2026-10-27T01:47:09.499Z,coverage,2026-10-27T01:47:09.499Z,p-cdee4961,,,,,2026-10-25T19:36:56.643Z,2026-10-27T01:47:09.499Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-26T01:47:09.499Z:2026-10-27T01:48:56.337Z,coverage,2026-10-27T01:48:56.337Z,p-cdee4961,,,,,2026-10-26T01:47:09.499Z,2026-10-27T01:48:56.337Z,Asia/Tokyo,,,,,,,,,,,,ok,

@@ -45,6 +45,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # fallow audit（Test weakening）が PR のベースとの差分を取る。
+          fetch-depth: 0
       - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
       - run: pnpm install --frozen-lockfile
       - name: Markdown lint
@@ -57,6 +59,19 @@ jobs:
         run: pnpm run lint:js
       - name: JavaScript format check
         run: pnpm run format:js:check
+      # ファイルの間の関係（使われていないコード・依存・複雑度・参照の向き・循環参照）。既存の指摘は .config/fallow/ のベースライン。
+      - name: Structure (fallow)
+        run: pnpm run lint:fallow
+      # PR が増やした、テストを弱める変更（.skip・.only の追加、テストのケースや assertion の減少、カバレッジの閾値の引き下げ）。
+      # audit は変更したファイルだけを見るので、構造の検査は上の全体の実行で行う。
+      - name: Test weakening (fallow audit)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: pnpm exec fallow audit --base "origin/${BASE_REF}" --dead-code-baseline .config/fallow/dead-code-baseline.json --quiet --format compact
+      # 重複したコード（JS/TS・シェル・Markdown）。既存の重複は .config/jscpd/baseline.json。
+      - name: Duplicates (jscpd)
+        run: pnpm run lint:duplicates
       # 対象は tsconfig.json が束ねる 4 つのプロジェクト（Node で実行する .ts、配布スキルの雛形とインストール済みのコピー、Claude Code 用のリンクから見た雛形、eval の fixture）。
       - name: TypeScript type check
         run: pnpm run typecheck
@@ -122,6 +137,9 @@ jobs:
       # テストが失敗したときも、閾値を下回ったときも失敗する。
       - name: Unit tests and coverage (vitest + c8)
         run: pnpm run test:coverage
+      # 複雑なのにテストが通っていない関数（CRAP）。上のカバレッジ（coverage-final.json）を渡す。既存の指摘は .config/fallow/crap-baseline.json。
+      - name: CRAP (fallow health with coverage)
+        run: pnpm run lint:crap
 
   # ミューテーションテスト（検査の検出能力の再実行）。Lint・Unit tests から独立したジョブにして並べて実行する
   # （ステップ自体は縮まないが、PR 全体の待ち時間が縮む。Issue #478）。

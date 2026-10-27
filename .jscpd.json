@@ -1,0 +1,4 @@
+{
+  "format": ["javascript", "typescript", "bash", "markdown"],
+  "ignore": ["**/node_modules/**", "evals/**/fixtures/**", "tests/**", "docs/slides/**"]
+}

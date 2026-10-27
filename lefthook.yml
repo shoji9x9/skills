@@ -158,6 +158,16 @@ pre-commit:
               if [ -n "$plan" ]; then
                 OXLINT_PENDING_PLAN="$plan" pnpm exec vitest run scripts/gates/code/oxlint-pending.test.ts
               fi
+          - name: fallow
+            # ファイルの間の関係（使われていないコード・依存・複雑度・参照の向き・循環参照）。1 ファイルの変更が他のファイルの判定を変える
+            # （最後の呼び出し元を消すと、変更していないファイルの export が使われなくなる）ので、渡されたファイルではなく全体を検査する。
+            # 既存の指摘は .config/fallow/ のベースラインで外す。
+            glob: "{*.{js,mjs,cjs,jsx,ts,tsx,mts,cts},package.json,pnpm-lock.yaml,.fallowrc.jsonc,.config/fallow/*}"
+            run: pnpm run lint:fallow
+          - name: duplicates
+            # 重複したコード（JS/TS・シェル・Markdown）。別のファイルとの重複を探すので、全体を検査する。
+            glob: "{*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,sh,md},.jscpd.json,.config/jscpd/*,scripts/gates/packaging/copies/identical-copies.json}"
+            run: pnpm run lint:duplicates
           - name: typecheck
             # tsconfig.json が束ねる .ts・.tsx 全体と、配布スキルの .mjs（tsconfig.skills.json の checkJs）の型。
             # 設定ファイル・scripts・private skill・eval の fixture・配布スキルの雛形（インストール済みのコピーを含む）を検査する。

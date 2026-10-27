@@ -9,7 +9,9 @@ import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 
 test("ruleOf: 組み込みのルールは名前だけ、プラグインのルールは <プラグイン>/<名前> にし、読めない code は例外にする", () => {
   expect(ruleOf("eslint(max-params)")).toBe("max-params");
-  expect(ruleOf("skills-repo(import-direction)")).toBe("skills-repo/import-direction");
+  expect(ruleOf("skills-repo(max-lines-per-function-except-describe)")).toBe(
+    "skills-repo/max-lines-per-function-except-describe",
+  );
   expect(ruleOf("import(no-cycle)")).toBe("import/no-cycle");
   expect(() => ruleOf("max-params")).toThrow(/code を読めない/);
 });

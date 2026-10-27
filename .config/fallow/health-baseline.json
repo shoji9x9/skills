@@ -1,0 +1,1639 @@
+{
+  "kind": "health",
+  "finding_counts": {
+    "scripts/coverage/check-coverage.ts": {
+      "complexity_high": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "scripts/eval/build-skill-eval-benchmark.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "scripts/eval/normalize-skill-eval-result.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "scripts/eval/skill-eval-fingerprint.test.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "scripts/gates/code/check-js-extensions.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "scripts/gates/code/oxlint-plugin/max-lines-except-describe.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "scripts/gates/docs/check-doc-refs.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "scripts/gates/packaging/check-skill-frontmatter.ts": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "scripts/gates/packaging/copies/check-identical-copies.ts": {
+      "complexity_high": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "scripts/lib/is-array.test.ts": {
+      "complexity_moderate": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "scripts/lib/text/code-comments.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "scripts/lib/text/code-strings.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "scripts/mutation/check-mutation-proof.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 2
+      }
+    },
+    "scripts/skills/parity-suite/checks/capture-scope-check-helpers.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/agent-usage/scripts/agent-usage.mjs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/agent-usage/scripts/lib/config.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/agent-usage/scripts/lib/gate.mjs": {
+      "complexity_high": {
+        "count": 2
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "skills/agent-usage/scripts/lib/records.mjs": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "skills/agent-usage/scripts/lib/report/report.mjs": {
+      "complexity_moderate": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/agent-usage/scripts/lib/run-collect.mjs": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "skills/agent-usage/scripts/lib/sources/discover.mjs": {
+      "complexity_moderate": {
+        "count": 2
+      }
+    },
+    "skills/agent-usage/scripts/lib/sources/unzip.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/agent-usage/scripts/skill-config/skill-config.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/aws-architecture-diagram/scripts/skill-config/skill-config.mjs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/box/scripts/skill-config/skill-config.mjs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/browser-test/scripts/skill-config/skill-config.mjs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/current-environment-bootstrap/scripts/skill-config/skill-config.mjs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/dependabot-alert-issue/scripts/skill-config/skill-config.mjs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/dependabot-merge/scripts/skill-config/skill-config.mjs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/git-worktree/scripts/skill-config/skill-config.mjs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/golden-dataset/scripts/predicate-coverage-check.mjs": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "skills/golden-dataset/scripts/skill-config/skill-config.mjs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/issue-batch/scripts/skill-config/skill-config.mjs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/issue-start/scripts/acceptance-check.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/issue-start/scripts/skill-config/skill-config.mjs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/kaizen/scripts/skill-config/skill-config.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-component/scripts/axis-diff.mjs": {
+      "complexity_moderate": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-component/scripts/behavior-compare.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-component/scripts/cascade-resolve.mjs": {
+      "complexity_high": {
+        "count": 3
+      },
+      "complexity_moderate": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 3
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-component/scripts/page/css-rules-capture.page.mjs": {
+      "complexity_high": {
+        "count": 3
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 3
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-component/scripts/skill-config/skill-config.mjs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-diff/scripts/coverage-check.mjs": {
+      "complexity_moderate": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "skills/parity-diff/scripts/diff-normalize.mjs": {
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-diff/scripts/json-normalize-diff.mjs": {
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-diff/scripts/pending-triage-check.mjs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-diff/scripts/pixel-crops.mjs": {
+      "complexity_moderate": {
+        "count": 2
+      }
+    },
+    "skills/parity-diff/scripts/skill-config/skill-config.mjs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-replace/scripts/skill-config/skill-config.mjs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/artifact-health-check.mjs": {
+      "complexity_critical": {
+        "count": 3
+      },
+      "crap_critical": {
+        "count": 3
+      }
+    },
+    "skills/parity-suite/scripts/auto-wait-check.mjs": {
+      "complexity_critical": {
+        "count": 4
+      },
+      "complexity_high": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 4
+      },
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "skills/parity-suite/scripts/checkpoint.mjs": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 2
+      }
+    },
+    "skills/parity-suite/scripts/component-impact.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/coverage-expand.mjs": {
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 7
+      },
+      "crap_moderate": {
+        "count": 5
+      }
+    },
+    "skills/parity-suite/scripts/dimension-fit.mjs": {
+      "complexity_moderate": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/element-shot.mjs": {
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/evidence-carry.mjs": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/header-normalize.mjs": {
+      "complexity_moderate": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/page-identity.mjs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/perf-stats.mjs": {
+      "complexity_high": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "skills/parity-suite/scripts/pixel-strict-count.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/reaction-check.mjs": {
+      "complexity_critical": {
+        "count": 9
+      },
+      "crap_critical": {
+        "count": 9
+      }
+    },
+    "skills/parity-suite/scripts/skill-config/skill-config.mjs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/table-upsert.mjs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/trait-compare.mjs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/pr-finalize-loop/scripts/skill-config/skill-config.mjs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/pr-review-handle/scripts/skill-config/skill-config.mjs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/replace-strategy/scripts/append-only-check.mjs": {
+      "complexity_high": {
+        "count": 2
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/replace-strategy/scripts/asset-delivery-check.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/replace-strategy/scripts/evidence-gap-check.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/replace-strategy/scripts/lib/markdown.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/replace-strategy/scripts/page/asset-probe.page.mjs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/replace-strategy/scripts/pending-decisions-check.mjs": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "skills/replace-strategy/scripts/procedure-staleness-check.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/replace-strategy/scripts/skill-config/skill-config.mjs": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/writing-style/scripts/skill-config/skill-config.mjs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    }
+  },
+  "identity_finding_counts": {
+    "scripts/coverage/check-coverage.ts\u0000evaluate": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "scripts/coverage/check-coverage.ts\u0000rules": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "scripts/eval/build-skill-eval-benchmark.ts\u0000loadRuns": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "scripts/eval/build-skill-eval-benchmark.ts\u0000parseArgs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "scripts/eval/normalize-skill-eval-result.ts\u0000analyzeShellCommand": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "scripts/eval/normalize-skill-eval-result.ts\u0000applyClaudeEvent": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "scripts/eval/normalize-skill-eval-result.ts\u0000codexContaminationSurface": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "scripts/eval/skill-eval-fingerprint.test.ts\u0000test(\"実リポジトリ: ランナーが eval の前に消す環境変数は、スキルのスキーマの...\")": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "scripts/gates/code/check-js-extensions.ts\u0000violationOf": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "scripts/gates/code/oxlint-plugin/max-lines-except-describe.ts\u0000groupingNames": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "scripts/gates/docs/check-doc-refs.ts\u0000checkTierRefs": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "scripts/gates/packaging/check-skill-frontmatter.ts\u0000listSkillFiles": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "scripts/gates/packaging/copies/check-identical-copies.ts\u0000<arrow>": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "scripts/gates/packaging/copies/check-identical-copies.ts\u0000checkIdenticalCopies": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "scripts/lib/is-array.test.ts\u0000test(\"入力の型を保って絞る: is-array.mjs\")": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "scripts/lib/is-array.test.ts\u0000test(\"入力の型を保って絞る: is-array.ts\")": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "scripts/lib/text/code-comments.ts\u0000<arrow>": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "scripts/lib/text/code-comments.ts\u0000commentMarkdown": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "scripts/lib/text/code-strings.ts\u0000evalStrings": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "scripts/mutation/check-mutation-proof.ts\u0000parseArgs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "scripts/mutation/check-mutation-proof.ts\u0000takeLock": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "scripts/skills/parity-suite/checks/capture-scope-check-helpers.ts\u0000metadataOf": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/agent-usage/scripts/agent-usage.mjs\u0000branchDecisionText": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/agent-usage/scripts/lib/config.mjs\u0000readNames": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/agent-usage/scripts/lib/gate.mjs\u0000commitCwd": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/agent-usage/scripts/lib/gate.mjs\u0000commitDirsOf": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "skills/agent-usage/scripts/lib/gate.mjs\u0000readWrapperOption": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "skills/agent-usage/scripts/lib/records.mjs\u0000readRecords": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "skills/agent-usage/scripts/lib/report/report.mjs\u0000classifySpan": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/agent-usage/scripts/lib/report/report.mjs\u0000splitActiveByIssue": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/agent-usage/scripts/lib/run-collect.mjs\u0000retractableRows": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "skills/agent-usage/scripts/lib/sources/discover.mjs\u0000discoverClaude": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/agent-usage/scripts/lib/sources/discover.mjs\u0000discoverCodex": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/agent-usage/scripts/lib/sources/unzip.mjs\u0000unzip": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/agent-usage/scripts/skill-config/skill-config.mjs\u0000parseArgs": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/aws-architecture-diagram/scripts/skill-config/skill-config.mjs\u0000parseArgs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/box/scripts/skill-config/skill-config.mjs\u0000parseArgs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/browser-test/scripts/skill-config/skill-config.mjs\u0000parseArgs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/current-environment-bootstrap/scripts/skill-config/skill-config.mjs\u0000parseArgs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/dependabot-alert-issue/scripts/skill-config/skill-config.mjs\u0000parseArgs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/dependabot-merge/scripts/skill-config/skill-config.mjs\u0000parseArgs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/git-worktree/scripts/skill-config/skill-config.mjs\u0000parseArgs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/golden-dataset/scripts/predicate-coverage-check.mjs\u0000splitTopLevel": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "skills/golden-dataset/scripts/skill-config/skill-config.mjs\u0000parseArgs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/issue-batch/scripts/skill-config/skill-config.mjs\u0000parseArgs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/issue-start/scripts/acceptance-check.mjs\u0000checklistItems": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/issue-start/scripts/skill-config/skill-config.mjs\u0000parseArgs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/kaizen/scripts/skill-config/skill-config.mjs\u0000parseArgs": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-component/scripts/axis-diff.mjs\u0000flattenTraits": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-component/scripts/axis-diff.mjs\u0000parseCliArgs": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-component/scripts/behavior-compare.mjs\u0000judgeRows": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-component/scripts/cascade-resolve.mjs\u0000collectResults": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "skills/parity-component/scripts/cascade-resolve.mjs\u0000parseArgs": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "skills/parity-component/scripts/cascade-resolve.mjs\u0000splitTopLevel": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "skills/parity-component/scripts/cascade-resolve.mjs\u0000statesOutsideSubject": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-component/scripts/cascade-resolve.mjs\u0000strongest": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-component/scripts/page/css-rules-capture.page.mjs\u0000replaceNestingTokens": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "skills/parity-component/scripts/page/css-rules-capture.page.mjs\u0000scanPseudos": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "skills/parity-component/scripts/page/css-rules-capture.page.mjs\u0000skipBalanced": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-component/scripts/page/css-rules-capture.page.mjs\u0000splitSelectorList": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "skills/parity-component/scripts/skill-config/skill-config.mjs\u0000parseArgs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-diff/scripts/coverage-check.mjs\u0000checkEnumeratedElements": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-diff/scripts/coverage-check.mjs\u0000setInventoryProblems": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-diff/scripts/diff-normalize.mjs\u0000matchException": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "skills/parity-diff/scripts/diff-normalize.mjs\u0000matchIntentional": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-diff/scripts/json-normalize-diff.mjs\u0000main": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-diff/scripts/json-normalize-diff.mjs\u0000walk": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "skills/parity-diff/scripts/pending-triage-check.mjs\u0000parseFeatureSlugs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-diff/scripts/pixel-crops.mjs\u0000absorbAroundCore": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-diff/scripts/pixel-crops.mjs\u0000clusterComponents": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-diff/scripts/skill-config/skill-config.mjs\u0000parseArgs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-replace/scripts/skill-config/skill-config.mjs\u0000parseArgs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/artifact-health-check.mjs\u0000affectsBetween": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/artifact-health-check.mjs\u0000checkUnmeasured": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/artifact-health-check.mjs\u0000lexSymbol": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/auto-wait-check.mjs\u0000declaratorRhs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/auto-wait-check.mjs\u0000nonPlaywrightNames": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/auto-wait-check.mjs\u0000regexLiteralEnd": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/auto-wait-check.mjs\u0000resolveReceiver": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/auto-wait-check.mjs\u0000scanSourceWithStats": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/auto-wait-check.mjs\u0000startsAmbiguousSlash": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/checkpoint.mjs\u0000parseArgs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/checkpoint.mjs\u0000visit": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/component-impact.mjs\u0000lookupInstances": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/coverage-expand.mjs\u0000fillCandidates": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/coverage-expand.mjs\u0000fillVisualStateRows": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/coverage-expand.mjs\u0000fillVisualStates": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/coverage-expand.mjs\u0000itemKindsIndex": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/coverage-expand.mjs\u0000pageScopeIndex": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/coverage-expand.mjs\u0000parseArgs": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/coverage-expand.mjs\u0000readCaptureConditions": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/coverage-expand.mjs\u0000setInventoryProblems": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/dimension-fit.mjs\u0000parseOptions": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/dimension-fit.mjs\u0000runCheck": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/element-shot.mjs\u0000planElementClip": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/element-shot.mjs\u0000writePair": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/evidence-carry.mjs\u0000checkGeometry": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/header-normalize.mjs\u0000collectHeaders": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/header-normalize.mjs\u0000main": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/page-identity.mjs\u0000resolvePages": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/perf-stats.mjs\u0000baseFloors": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/perf-stats.mjs\u0000parseArgs": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/pixel-strict-count.mjs\u0000countStrictDiff": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/reaction-check.mjs\u0000checkDisplayRow": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/reaction-check.mjs\u0000instancePages": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/reaction-check.mjs\u0000layoutMeasureProblem": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/reaction-check.mjs\u0000noneProblem": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/reaction-check.mjs\u0000parseFlags": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/reaction-check.mjs\u0000recordCallSites": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/reaction-check.mjs\u0000recordWriteSites": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/reaction-check.mjs\u0000walk": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/reaction-check.mjs\u0000writeSiteProblems": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/skill-config/skill-config.mjs\u0000parseArgs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/table-upsert.mjs\u0000resolveArray": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/parity-suite/scripts/trait-compare.mjs\u0000main": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/pr-finalize-loop/scripts/skill-config/skill-config.mjs\u0000parseArgs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/pr-review-handle/scripts/skill-config/skill-config.mjs\u0000parseArgs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/replace-strategy/scripts/append-only-check.mjs\u0000joinWrappedFlow": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/replace-strategy/scripts/append-only-check.mjs\u0000parseArgs": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "skills/replace-strategy/scripts/append-only-check.mjs\u0000scanFlowChar": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "skills/replace-strategy/scripts/asset-delivery-check.mjs\u0000referencedUrls": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/replace-strategy/scripts/evidence-gap-check.mjs\u0000main": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/replace-strategy/scripts/lib/markdown.mjs\u0000parseTables": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/replace-strategy/scripts/page/asset-probe.page.mjs\u0000scanImageElement": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "skills/replace-strategy/scripts/pending-decisions-check.mjs\u0000inScope": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "skills/replace-strategy/scripts/procedure-staleness-check.mjs\u0000readRevisions": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "skills/replace-strategy/scripts/skill-config/skill-config.mjs\u0000parseArgs": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/writing-style/scripts/skill-config/skill-config.mjs\u0000parseArgs": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    }
+  },
+  "runtime_coverage_findings": [],
+  "target_keys": [
+    "skills/agent-usage/scripts/agent-usage.mjs:hidden coupling",
+    "skills/parity-suite/scripts/table-upsert.mjs:dead code",
+    "skills/parity-suite/scripts/reaction-check.mjs:dead code",
+    "skills/parity-diff/scripts/json-normalize-diff.mjs:dead code",
+    "scripts/gates/code/check-duplicates.ts:dead code",
+    "skills/agent-usage/scripts/lib/sources/claude-log.mjs:dead code",
+    "scripts/gates/docs/check-doc-refs.ts:dead code",
+    "skills/replace-strategy/scripts/append-only-check.mjs:dead code",
+    "skills/parity-suite/scripts/artifact-health-check.mjs:dead code",
+    "skills/replace-strategy/scripts/procedure-staleness-check.mjs:dead code",
+    "skills/parity-suite/scripts/coverage-expand.mjs:complexity",
+    "skills/agent-usage/scripts/lib/sources/discover.mjs:dead code",
+    "scripts/gates/code/lint-yaml.ts:dead code",
+    "skills/replace-strategy/scripts/pending-decisions-check.mjs:dead code",
+    "scripts/gates/prose/check-time-sensitive-prose.ts:dead code",
+    "skills/parity-suite/scripts/element-shot.mjs:dead code",
+    "skills/parity-suite/scripts/checkpoint.mjs:dead code",
+    "skills/agent-usage/scripts/lib/run-collect.mjs:dead code",
+    "skills/replace-strategy/scripts/evidence-gap-check.mjs:dead code",
+    "scripts/gates/code/oxlint-plugin/max-lines-except-page-entry.ts:dead code",
+    "skills/parity-suite/scripts/pixel-strict-count.mjs:dead code",
+    "skills/agent-usage/scripts/lib/collect.mjs:dead code",
+    "skills/parity-suite/scripts/capture-scope-check.mjs:dead code",
+    "skills/parity-suite/scripts/auto-wait-check.mjs:dead code",
+    "skills/parity-suite/scripts/perf-stats.mjs:dead code",
+    "scripts/eval/reuse-skill-eval-baseline.ts:dead code",
+    "skills/replace-strategy/scripts/asset-delivery-check.mjs:dead code",
+    "scripts/gates/code/oxlint-plugin/max-lines-except-describe.ts:high impact",
+    "skills/agent-usage/scripts/lib/sources/worktrees.mjs:dead code",
+    "skills/parity-suite/scripts/trait-compare.mjs:dead code",
+    "skills/parity-suite/scripts/dimension-fit.mjs:dead code",
+    "skills/agent-usage/scripts/lib/report/report.mjs:dead code",
+    "scripts/gates/code/check-skill-lint-directives.ts:dead code",
+    "scripts/gates/code/check-js-extensions.ts:dead code",
+    "skills/parity-diff/scripts/pending-triage-check.mjs:dead code",
+    "skills/agent-usage/scripts/lib/decisions.mjs:dead code",
+    "skills/parity-component/scripts/motion-compare.mjs:dead code",
+    "skills/parity-suite/scripts/trait-capture.mjs:dead code",
+    "skills/golden-dataset/scripts/predicate-coverage-check.mjs:dead code",
+    "skills/parity-suite/scripts/component-comparison-check.mjs:dead code",
+    "skills/box/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/browser-test/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/current-environment-bootstrap/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/dependabot-alert-issue/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/dependabot-merge/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/git-worktree/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/golden-dataset/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/issue-batch/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/issue-start/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/parity-component/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/parity-diff/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/parity-replace/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/parity-suite/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/pr-finalize-loop/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/pr-review-handle/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/parity-diff/scripts/coverage-check.mjs:hidden coupling",
+    "scripts/coverage/run-coverage.ts:hidden coupling",
+    "skills/agent-usage/scripts/lib/config.mjs:hidden coupling",
+    "scripts/gates/packaging/check-skill-index.ts:dead code",
+    "skills/replace-strategy/scripts/skill-config/skill-config.mjs:dead code",
+    "scripts/gates/docs/doc-tiers.ts:high impact",
+    "skills/parity-component/scripts/axis-diff.mjs:hidden coupling",
+    "skills/aws-architecture-diagram/scripts/skill-config/skill-config.mjs:dead code",
+    "skills/parity-component/scripts/motion-probe.mjs:hidden coupling",
+    "scripts/skills/aws-architecture-diagram/preview-diagram-helpers.ts:dead code",
+    "scripts/lib/testing/child-timeout.ts:high impact",
+    "skills/agent-usage/scripts/lib/gate.mjs:hidden coupling",
+    "skills/writing-style/scripts/skill-config/skill-config.mjs:dead code",
+    "scripts/lib/errors.ts:high impact",
+    "skills/issue-start/scripts/acceptance-check.mjs:dead code",
+    "skills/parity-component/scripts/behavior-compare.mjs:hidden coupling",
+    "skills/agent-usage/scripts/lib/report/html.mjs:dead code",
+    "skills/agent-usage/scripts/skill-config/skill-config.mjs:hidden coupling",
+    "skills/parity-component/scripts/css-rules-capture.mjs:hidden coupling",
+    "scripts/eval/skill-eval-fingerprint.test.ts:complexity",
+    "scripts/skills/agent-usage/cli.test.ts:hidden coupling",
+    "scripts/mutation/check-mutation-proof.ts:hidden coupling",
+    "skills/kaizen/scripts/skill-config/skill-config.mjs:hidden coupling",
+    "scripts/coverage/run-coverage.test.ts:hidden coupling",
+    "scripts/skills/_cross/resolve-review-tool.test.ts:hidden coupling",
+    "scripts/skills/_cross/skill-config.test.ts:hidden coupling",
+    "scripts/mutation/check-mutation-proof.test.ts:hidden coupling",
+    "scripts/skills/pnpm-audit-alert-issue/normalize-pnpm-audit.test.ts:hidden coupling"
+  ]
+}

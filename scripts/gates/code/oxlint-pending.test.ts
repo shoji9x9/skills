@@ -25,12 +25,12 @@ import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 test("pendingOverrides: 同じルールの組を持つファイルを 1 つの override にまとめ、ルールを off にする", () => {
   const overrides = pendingOverrides({
-    "a.ts": ["complexity", "max-params"],
-    "b.ts": ["max-params", "complexity"],
+    "a.ts": ["typescript/no-deprecated", "max-params"],
+    "b.ts": ["max-params", "typescript/no-deprecated"],
     "c.ts": ["max-depth"],
   });
   expect(overrides).toEqual([
-    { files: ["a.ts", "b.ts"], rules: { complexity: "off", "max-params": "off" } },
+    { files: ["a.ts", "b.ts"], rules: { "typescript/no-deprecated": "off", "max-params": "off" } },
     { files: ["c.ts"], rules: { "max-depth": "off" } },
   ]);
 });
@@ -40,9 +40,12 @@ test("pendingOverrides: ルールが空の組は、外すものが無いので�
 });
 
 test("stalePending: 違反の無い組だけを返し、別のファイルや別のルールの違反を取り違えない", () => {
-  const pending = { "a.ts": ["complexity", "max-params"], "b.ts": ["max-depth"] } as const;
+  const pending = {
+    "a.ts": ["typescript/no-deprecated", "max-params"],
+    "b.ts": ["max-depth"],
+  } as const;
   const violations = [
-    { file: "a.ts", rule: "complexity" },
+    { file: "a.ts", rule: "typescript/no-deprecated" },
     { file: "b.ts", rule: "max-params" },
     { file: "c.ts", rule: "max-depth" },
   ];
@@ -59,22 +62,22 @@ test("実リポジトリ: 一覧のファイルはすべて在る", () => {
 });
 
 test("unlistedViolations: 一覧で外していない違反を、ルールに依らずすべて返す", () => {
-  const pending = { "a.ts": ["complexity"] } as const;
+  const pending = { "a.ts": ["typescript/no-deprecated"] } as const;
   const violations = [
-    { file: "a.ts", rule: "complexity", line: 1 },
+    { file: "a.ts", rule: "typescript/no-deprecated", line: 1 },
     { file: "a.ts", rule: "max-params", line: 2 },
-    { file: "b.ts", rule: "complexity", line: 3 },
+    { file: "b.ts", rule: "typescript/no-deprecated", line: 3 },
     { file: "b.ts", rule: "no-unused-vars", line: 4 },
   ];
   expect(unlistedViolations(pending, violations)).toEqual([
     { file: "a.ts", rule: "max-params", line: 2 },
-    { file: "b.ts", rule: "complexity", line: 3 },
+    { file: "b.ts", rule: "typescript/no-deprecated", line: 3 },
     { file: "b.ts", rule: "no-unused-vars", line: 4 },
   ]);
 });
 
 test("checkPlan: staged が無ければ全体、きっかけのファイルかスキルの SKILL.md があれば全体、一覧と重なればそのファイル、どれでもなければ検査しない", () => {
-  const pending = { "a.ts": ["complexity"], "b.ts": ["max-depth"] } as const;
+  const pending = { "a.ts": ["typescript/no-deprecated"], "b.ts": ["max-depth"] } as const;
   const sources = new Set(["oxlint.config.ts", "pnpm-lock.yaml"]);
   expect(checkPlan(pending, null, sources)).toEqual({ mode: "all" });
   expect(checkPlan(pending, ["pnpm-lock.yaml", "a.ts"], sources)).toEqual({ mode: "all" });

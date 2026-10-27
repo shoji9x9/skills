@@ -17,17 +17,16 @@ export default defineConfig({
   // エージェント用のコピーとリンクだけを除く。.agents/ を丸ごと除くと rule と private skill の実体も外れる。
   ignorePatterns: [...agentCopyGlobs(import.meta.dirname), ...VENDORED_GLOBS],
   rules: {
-    // 関数の大きさと分岐の数。閾値は oxlint のデフォルト（complexity 20・max-lines-per-function 50 行・max-depth 4・
-    // max-params 3・max-nested-callbacks 10）を使う。大きく分岐の多い関数は、テストとミューテーションテストで振る舞いを確かめにくい。
+    // 関数の大きさ。閾値は oxlint のデフォルト（max-lines-per-function 50 行・max-depth 4・max-params 3・max-nested-callbacks 10）を使う。
+    // 大きく分岐の多い関数は、テストとミューテーションテストで振る舞いを確かめにくい。
     // max-lines-per-function は空行とコメントも数える。テストのファイルでは、後の override で describe のコールバックだけを外す。
-    complexity: "error",
+    // 複雑度（循環的・認知的）・参照の向き・循環参照は、ファイルの間の関係を見る fallow が検査する（.fallowrc.jsonc）。
     "max-lines-per-function": "error",
     "max-depth": "error",
     "max-params": "error",
     "max-nested-callbacks": "error",
-    // 循環参照と参照の向き（docs/tooling.md「関数の大きさ・参照の向き・循環参照」）。向きは import するファイルからの相対パスを解決して判定する。
-    "import/no-cycle": "error",
-    "skills-repo/import-direction": ["error", { root: import.meta.dirname }],
+    // 依存するパッケージの非推奨の API の利用。型の情報を使う（options の typeAware）。
+    "typescript/no-deprecated": "error",
   },
   overrides: [
     {
@@ -144,6 +143,8 @@ export default defineConfig({
   options: {
     // 外した理由が無くなった disable のコメントを残さない（表明を消したのにコメントだけが残る、など）。
     reportUnusedDisableDirectives: "error",
+    // 型の情報を使うルール（correctness の分類の型のルールと no-deprecated）を有効にする。oxlint-tsgolint が要る。
+    typeAware: true,
   },
   env: {
     builtin: true,

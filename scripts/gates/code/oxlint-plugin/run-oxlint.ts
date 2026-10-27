@@ -11,7 +11,7 @@ export const PLUGIN_PATH = join(REPO_DIR, "scripts/gates/code/oxlint-plugin/plug
 /** 打ち切りのデフォルトの時間。リポジトリ全体を読むテストが CI の負荷でも終わる長さにする（短いテストは短い時間を渡す）。 */
 const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000;
 
-/** oxlint の診断。rule は設定のキーと同じ字面（`max-params`・`skills-repo/import-direction`）。 */
+/** oxlint の診断。rule は設定のキーと同じ字面（`max-params`・`skills-repo/max-lines-per-function-except-describe`）。 */
 export type Diagnostic = {
   file: string;
   rule: string;
@@ -22,7 +22,7 @@ export type Diagnostic = {
 /** 使われていない disable コメントの診断（reportUnusedDisableDirectives）の rule。oxlint は code を付けない。 */
 export const UNUSED_DIRECTIVE = "unused-disable-directive";
 
-/** 診断の code（`eslint(max-params)`・`skills-repo(import-direction)`）を、設定のキーの字面にする。 */
+/** 診断の code（`eslint(max-params)`・`skills-repo(max-lines-per-function-except-describe)`）を、設定のキーの字面にする。 */
 export function ruleOf(code: string): string {
   const m = /^([\w-]+)\((.+)\)$/.exec(code);
   if (!m) throw new Error(`oxlint の診断の code を読めない: ${code}`);
