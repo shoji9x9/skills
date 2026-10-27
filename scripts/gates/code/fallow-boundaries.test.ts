@@ -9,7 +9,7 @@
 // | 軸             | 値                                                                                         |
 // | -------------- | ------------------------------------------------------------------------------------------ |
 // | 参照する側     | scripts/lib / scripts/<分類> / 配布スキル                                                   |
-// | 参照される側   | 同じゾーン / scripts/lib / 別の scripts/<分類> / 配布スキル / 別の配布スキル / 雛形（assets） |
+// | 参照される側   | 同じゾーン / scripts/lib / 別の scripts/<分類> / 配布スキル / 別の配布スキル / 自分の雛形 / 別のスキルの雛形 |
 // | 参照の書き方   | import / export from / import() / import type                                              |
 import { spawnSync } from "node:child_process";
 import { copyFileSync } from "node:fs";
@@ -91,22 +91,27 @@ test("scripts/<分類> は別の分類を、どの書き方でも参照しない
   );
 });
 
-test("配布スキルは自分のディレクトリの外（別の配布スキル・scripts/）を参照しない", () => {
+test("配布スキルは自分のディレクトリの外（別の配布スキル・その雛形・scripts/）を参照しない。自分の雛形は参照してよい", () => {
   expect(
     violations({
       "skills/x/scripts/a.mjs": [
         'import { b } from "../../y/scripts/b.mjs";',
+        'import { yt } from "../../y/assets/yt.mjs";',
         'import { l } from "../../../scripts/lib/l.ts";',
         'import { h } from "./lib/h.mjs";',
-        "export const a = b + l + h;",
+        'import { t } from "../assets/t.mjs";',
+        "export const a = b + yt + l + h + t;",
         "",
       ].join("\n"),
       "skills/x/scripts/lib/h.mjs": "export const h = 1;\n",
+      "skills/x/assets/t.mjs": "export const t = 1;\n",
       "skills/y/scripts/b.mjs": "export const b = 1;\n",
+      "skills/y/assets/yt.mjs": "export const yt = 1;\n",
       "scripts/lib/l.ts": "export const l = 1;\n",
     }),
   ).toEqual([
     "skills/x/scripts/a.mjs -> scripts/lib/l.ts (skills/x -> lib)",
+    "skills/x/scripts/a.mjs -> skills/y/assets/yt.mjs (skills/x -> skills/y)",
     "skills/x/scripts/a.mjs -> skills/y/scripts/b.mjs (skills/x -> skills/y)",
   ]);
 });

@@ -103,7 +103,7 @@ pre-commit の検査は、他のジョブと同じく作業ツリーの内容に
 | 同じ名前の export | 同じ名前の export を持つ別のモジュール |
 | 非推奨の export | `@deprecated` を付けた自分の export を、まだ使っている箇所 |
 | 複雑度 | 循環的複雑度 20・認知的複雑度 15。oxlint の `complexity` は循環的複雑度しか数えないので使わない |
-| 参照の向き | 配布スキル（`skills/<name>/`）は自分のディレクトリの外を import しない（利用者のプロジェクトには `skills/<name>/` だけが入る）。`scripts/` の各分類は、自分の分類と `scripts/lib/` と配布スキルのほかを import しない。雛形（`skills/<name>/assets/`）と `scripts/skills/` は対象にしない |
+| 参照の向き | 配布スキル（`skills/<name>/`）は自分のディレクトリの外を import しない（利用者のプロジェクトには `skills/<name>/` だけが入る）。`scripts/` の各分類は、自分の分類と `scripts/lib/` と配布スキルのほかを import しない。雛形（`skills/<name>/assets/`）はそのスキルの一部として扱う。`scripts/skills/` は対象にしない |
 | 循環参照 | import と `require()` をたどった循環 |
 
 1 つのファイルの変更が、変更していないファイルの判定を変える（最後の呼び出し元を消すと、変更していないファイルの export が使われなくなる）。

@@ -57,8 +57,6 @@
     // scripts/ の各分類は、自分の分類と scripts/lib/ と配布スキルのほかを import しない。scripts/lib/ は scripts/ の他の分類を import しない。
     // 最初に当たったゾーンに属するので、対象外のゾーン（規則を持たない）を先に書く。
     "zones": [
-      // 雛形は利用者のプロジェクトへコピーしてから使い、相対パスもコピー先で解決する。
-      { "name": "assets", "patterns": ["skills/*/assets/**"] },
       // スキルのスクリプトのテストと fixture の置き場所。
       { "name": "skill-tests", "patterns": ["scripts/skills/**"] },
       { "name": "lib", "patterns": ["scripts/lib/**"] },
@@ -70,18 +68,20 @@
       { "name": "scripts/mutation", "patterns": ["scripts/mutation/**"] },
       { "name": "scripts/tools", "patterns": ["scripts/tools/**"] },
       // 配布スキルは、スキルを足しても設定を直さずに済むよう autoDiscover で 1 スキル 1 ゾーンにする。
+      // 雛形（skills/<name>/assets/）も同じスキルのゾーンに入るので、スキルのスクリプトは自分の雛形を参照してよく、別のスキルの雛形は参照しない。
+      // 雛形の中の相対パスはコピー先で解決するので、このリポジトリでは解決できず（unresolved-imports は下の overrides で外す）、参照の向きの判定にも現れない。
       // JS・TS を持たないスキル（skills/issue-create など）と、子に分かれた親の skills は 0 ファイルのゾーンになり、fallow は毎回警告を出す。
       // 警告は RUST_LOG="warn,fallow_core::analyze::boundary=error" で止められるが、パターンを書き間違えて 0 ファイルになったときも気付けなくなるので止めない。
       { "name": "skills", "patterns": ["skills/**"], "autoDiscover": ["skills"] }
     ],
     "rules": [
-      { "from": "lib", "allow": ["skills", "assets"] },
-      { "from": "scripts/coverage", "allow": ["lib", "skills", "assets"] },
-      { "from": "scripts/eval", "allow": ["lib", "skills", "assets"] },
-      { "from": "scripts/gates", "allow": ["lib", "skills", "assets"] },
-      { "from": "scripts/hooks", "allow": ["lib", "skills", "assets"] },
-      { "from": "scripts/mutation", "allow": ["lib", "skills", "assets"] },
-      { "from": "scripts/tools", "allow": ["lib", "skills", "assets"] },
+      { "from": "lib", "allow": ["skills"] },
+      { "from": "scripts/coverage", "allow": ["lib", "skills"] },
+      { "from": "scripts/eval", "allow": ["lib", "skills"] },
+      { "from": "scripts/gates", "allow": ["lib", "skills"] },
+      { "from": "scripts/hooks", "allow": ["lib", "skills"] },
+      { "from": "scripts/mutation", "allow": ["lib", "skills"] },
+      { "from": "scripts/tools", "allow": ["lib", "skills"] },
       { "from": "skills", "allow": [] }
     ]
   },

@@ -69,8 +69,8 @@ export function parseReport(value: unknown): { sources: number; clones: Clone[] 
   const { duplicates, statistics } = value;
   if (!isArray(duplicates)) throw new Error("duplicates が配列でない");
   const total = isRecord(statistics) && isRecord(statistics.total) ? statistics.total : undefined;
-  if (!total || !Number.isInteger(total.sources))
-    throw new Error("statistics.total.sources が整数でない");
+  if (!total || !Number.isInteger(total.sources) || Number(total.sources) < 0)
+    throw new Error("statistics.total.sources が 0 以上の整数でない");
   const clones = duplicates.map((d, i) => {
     if (!isRecord(d)) throw new Error(`duplicates[${i}] が object でない`);
     const { format, lines, isNew } = d;
@@ -266,13 +266,15 @@ export function main(argv: string[], root = process.cwd()): number {
     return 2;
   }
   try {
+    // ベースラインを書き換える前に宣言を読む。宣言が不正なら、ベースラインだけが置き換わったまま残らないよう、jscpd を実行しない。
+    const groups = updateBaseline ? loadGroups(root) : [];
     const { sources, clones } = runJscpd(root, updateBaseline);
     if (sources === 0) {
       console.error("duplicates: 走査したファイルが 0 件（設定の形式と除外を確かめる）");
       return 2;
     }
     if (!updateBaseline) return report(root, sources, clones);
-    const files = loadGroups(root).map((g) => [...g.files].sort());
+    const files = groups.map((g) => [...g.files].sort());
     writeFileSync(join(root, DECLARED_PATH), `${JSON.stringify({ groups: files }, null, 2)}\n`);
     console.log(`duplicates: ベースラインを作り直した（${sources} ファイル・${clones.length} 件）`);
     return 0;

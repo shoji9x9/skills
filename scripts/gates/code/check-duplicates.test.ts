@@ -8,7 +8,7 @@
 //
 // | 軸                       | 値                                                                          |
 // | ------------------------ | --------------------------------------------------------------------------- |
-// | レポート                 | 正しい形 / object でない / duplicates が配列でない / sources が無い / isNew が真偽値でない / format が空か無い / lines が 1 以上の整数でない / 断片の名前が空 / 行が整数でない |
+// | レポート                 | 正しい形 / object でない / duplicates が配列でない / sources が無いか負 / isNew が真偽値でない / format が空か無い / lines が 1 以上の整数でない / 断片の名前が空 / 行が整数でない |
 // | 重複の 2 つのファイル    | 同じファイル / 同じ組（ファイル全体） / 片方だけが組 / 組に無い              |
 // | 範囲を持つ組             | 両方が範囲と重なる / 片方が範囲と重ならない / 範囲の境界の行で重なる / 印が崩れている |
 // | 設定の ignore            | 文字列の配列 / 無い / 空文字を含む                                           |
@@ -17,7 +17,7 @@
 // | 控えた組                 | 在る / 無い / 形が違う（組が 0 件・1 ファイルの組・空文字）。重複の 2 つのファイルが、控えた組にあり今の組に無い / 今も組にある / 控えた組に無い |
 // | 走査の結果               | 新しい重複 / ベースラインの重複だけ / 登録済みのコピーの重複だけ / 走査したファイルが 0 件 |
 import { expect, test } from "vitest";
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import {
   BASELINE_PATH,
@@ -86,6 +86,7 @@ test.each([
   ["object でない", []],
   ["duplicates が配列でない", { duplicates: {}, statistics: { total: { sources: 1 } } }],
   ["sources が無い", { duplicates: [], statistics: { total: {} } }],
+  ["sources が負", { duplicates: [], statistics: { total: { sources: -1 } } }],
   ["statistics が無い", { duplicates: [] }],
   ["isNew が真偽値でない", report([raw("yes")])],
   ["断片の名前が空", report([{ ...raw(), firstFile: { name: "", start: 1, end: 2 } }])],
@@ -336,6 +337,17 @@ test("main: 登録済みのコピーをベースラインに載せた後で組�
 test("main: 走査したファイルが 0 件なら判定できないので exit 2", () => {
   const root = makeRepo({ "a.md": "# a\n" });
   expect(main(["--update-baseline"], root)).toBe(2);
+});
+
+test("main: 宣言が不正なら、ベースラインを書き換えずに exit 2", () => {
+  const root = makeRepo({ "a.ts": OTHER });
+  expect(main(["--update-baseline"], root)).toBe(0);
+  const before = readFileSync(join(root, BASELINE_PATH), "utf8");
+  write(root, "b.ts", BODY);
+  write(root, "c.ts", BODY);
+  write(root, DECLARATION_PATH, JSON.stringify({ groups: [] }));
+  expect(main(["--update-baseline"], root)).toBe(2);
+  expect(readFileSync(join(root, BASELINE_PATH), "utf8")).toBe(before);
 });
 
 test("main: 設定を読めなければ exit 2", () => {
