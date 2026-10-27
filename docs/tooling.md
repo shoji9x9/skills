@@ -132,14 +132,7 @@ fallow はドットで始まるディレクトリを走査しないので、イ�
 参照の向きは、fallow の構文の解析が読む参照（`import`・`export from`・`import()`・`require()`・`import type`・JSDoc の `{import("…")}`・`vi.mock`・`new URL`）で判定する。
 次の書き方は検出しないので、相対パスのモジュールを読むときは使わない。`createRequire` の戻り値を別名で呼ぶ、`vi.importActual`、`/// <reference path>`、相対パスの文字列を任意の関数に渡して読む、である。
 
-すぐに直せない既存の指摘は、`.config/fallow/dead-code-baseline.json` と `.config/fallow/health-baseline.json` に載せて外す。
-直したら、ベースラインを作り直す。dead-code は `fallow --save-baseline .config/fallow/dead-code-baseline.json` で作り直す。
-health は `fallow health --save-baseline .config/fallow/health-baseline.json --baseline-mode identity` で作り直す。
-health のベースラインは関数ごとの識別を持つので、`--baseline-mode identity` を付けないと fallow は上書きを拒んで exit 2 で終わる。
-どちらのコマンドもベースラインを当てずに実行するので、残りの指摘があれば、ファイルを書いたうえで exit 1 で終わる。
-作り直すと、その時点の指摘がすべて載るので、直していない新しい指摘も載る。
-そのため、作り直した後に、指摘の件数（health なら `finding_counts` と `identity_finding_counts`）が旧版より増えた項目が無いことを確かめる。
-増えた項目は除外を増やす変更なので、PR に理由を書いて利用者に確かめる。`target_keys` は合否に使われないので、比べなくてよい。
+すぐに直せない既存の指摘は、`.config/fallow/dead-code-baseline.json` と `.config/fallow/health-baseline.json` に載せて外す。直したら、`fallow --save-baseline` と `fallow health --save-baseline` で作り直す。
 使われていない export は、`fallow fix --dry-run` で提案を確かめてから `fallow fix` で直す。`fallow fix` は `export` を外し、依存を消すので、pre-commit と CI では自動に適用しない。
 誤検知は、`base.jsonc` で理由を書いて外す。配布スキルには `fallow-ignore` のコメントを置かない。
 
