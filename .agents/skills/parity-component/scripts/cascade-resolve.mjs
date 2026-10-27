@@ -209,12 +209,13 @@ function skipIdent(s, start) {
 }
 
 /**
- * 文字列を飛ばした次の位置（閉じていなければ投げる）。
+ * 文字列を飛ばした次の位置。閉じていなければ投げる。lenient なら投げずに、末尾まで読んだ位置の次を返す。
  * @param {string} s
  * @param {number} start 開きの引用符の位置
+ * @param {{ lenient?: boolean }} [options]
  * @returns {number}
  */
-function skipString(s, start) {
+function skipString(s, start, { lenient = false } = {}) {
   const quote = s[start];
   let j = start + 1;
   while (j < s.length) {
@@ -225,6 +226,7 @@ function skipString(s, start) {
     if (s[j] === quote) return j + 1;
     j += 1;
   }
+  if (lenient) return j + 1;
   throw new UndecidableSelector("unterminated string in selector");
 }
 
@@ -260,19 +262,6 @@ function matchClose(s, start, brackets) {
 }
 
 /**
- * 引用符で始まる文字列の次の位置（閉じ引用符が無ければ末尾の次）。skipString と違い、閉じていなくても投げない。
- * @param {string} text
- * @param {number} start 開き引用符の位置
- * @returns {number}
- */
-function skipQuotedLenient(text, start) {
-  const quote = text[start];
-  let j = start + 1;
-  while (j < text.length && text[j] !== quote) j += text[j] === "\\" ? 2 : 1;
-  return j + 1;
-}
-
-/**
  * 括弧の深さの増減（開き括弧なら 1、閉じ括弧なら -1、それ以外は 0）。
  * @param {string} ch
  * @returns {number}
@@ -301,7 +290,7 @@ function splitTopLevel(text) {
       continue;
     }
     if (ch === '"' || ch === "'") {
-      j = skipQuotedLenient(text, j);
+      j = skipString(text, j, { lenient: true });
       continue;
     }
     depth += bracketDelta(ch);

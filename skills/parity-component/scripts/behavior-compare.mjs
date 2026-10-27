@@ -579,7 +579,7 @@ function judgeObserved({ row, cell, expected, ctx }) {
 }
 
 /**
- * 突き合わせ表の行 1 件の操作とインスタンスを読み、母集合から組み合わせを引く。
+ * 突き合わせ表の行 1 件の操作とインスタンスを読み、母集合から組み合わせを取得する。
  * 操作かインスタンスが空でない文字列でなければ、key を null にする。
  * @param {unknown} row
  * @param {Map<string, { operation: string, instance: string }>} population

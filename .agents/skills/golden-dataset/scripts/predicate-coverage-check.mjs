@@ -304,7 +304,7 @@ export function splitList(cell) {
  * @param {string} char
  * @returns {boolean}
  */
-function isTopLevelSeparator(scan, char) {
+function advanceToSeparator(scan, char) {
   if (scan.quote !== null) {
     if (char === scan.quote) scan.quote = null;
     return false;
@@ -340,7 +340,7 @@ export function splitTopLevel(value) {
   /** @type {{ depth: number, quote: string | null }} */
   const scan = { depth: 0, quote: null };
   for (const char of value) {
-    if (isTopLevelSeparator(scan, char)) {
+    if (advanceToSeparator(scan, char)) {
       parts.push(current);
       current = "";
       continue;
