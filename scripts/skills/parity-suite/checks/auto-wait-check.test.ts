@@ -7,19 +7,17 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
+import {
+  breakdownMismatch,
+  scanSource,
+  scanSourceWithStats,
+} from "../../../../skills/parity-suite/scripts/auto-wait-check.mjs";
 
 /** ブロックコメントの literal。このファイル自身のコメントを閉じないよう組み立てる。 */
 const BLOCK_COMMENT = `/${"*"} c ${"*"}/`;
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/auto-wait-check.mjs");
-const {
-  breakdownMismatch,
-  scanSource,
-  scanSourceWithStats,
-}: typeof import("../../../../skills/parity-suite/scripts/auto-wait-check.mjs") = await import(
-  script
-);
 
 test("誤検知しないことの確認: locator と自動リトライ assertion は通る", () => {
   const source = `

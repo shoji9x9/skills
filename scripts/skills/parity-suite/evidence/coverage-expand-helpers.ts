@@ -20,7 +20,7 @@ import { invalidInput, removeField } from "../../../lib/testing/test-input.ts";
 import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 import { findOrFail, reconcile } from "../../_cross/coverage-fixture-helpers.ts";
 
-export const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 export const script = join(repoRoot, "skills/parity-suite/scripts/coverage-expand.mjs");
 export const bundledProfiles = join(repoRoot, "skills/parity-suite/assets/coverage-profiles");
 
@@ -210,16 +210,16 @@ export function rowsOf(coverage: {
   return coverage.visual_state_coverage.rows;
 }
 
-export function isNonRenderable(evidence: AbsenceEvidence): evidence is NonRenderableEvidence {
+function isNonRenderable(evidence: AbsenceEvidence): evidence is NonRenderableEvidence {
   return isArray(evidence.states);
 }
 
-export function isFired(evidence: AbsenceEvidence): evidence is FiredEvidence {
+function isFired(evidence: AbsenceEvidence): evidence is FiredEvidence {
   return evidence.action !== undefined && evidence.fired !== undefined;
 }
 
 /** セルの non-renderable の証拠（状態ごとの記録を持つもの）。 */
-export function nonRenderable(cell: Cell): NonRenderableEvidence {
+function nonRenderable(cell: Cell): NonRenderableEvidence {
   const evidence = cell.absence_evidence;
   assert.exists(evidence, "セルに absence_evidence が無い");
   assert(isNonRenderable(evidence), "absence_evidence に states が無い");
@@ -239,13 +239,13 @@ export function firstState(cell: Cell): AbsenceState {
   return nonRenderable(cell).states[0];
 }
 
-export function expectedStates(cell: Cell): string[] {
+function expectedStates(cell: Cell): string[] {
   const { expected_states: states } = nonRenderable(cell);
   assert.exists(states, "absence_evidence に expected_states が無い");
   return states;
 }
 
-export function applicableStates(instance: Instance): ApplicableStates {
+function applicableStates(instance: Instance): ApplicableStates {
   assert.exists(
     instance.applicable_states,
     `インスタンス ${instance.id} に applicable_states が無い`,
@@ -253,7 +253,7 @@ export function applicableStates(instance: Instance): ApplicableStates {
   return instance.applicable_states;
 }
 
-export function assertRowsFilled(coverage: UnresolvedCoverage): asserts coverage is Coverage {
+function assertRowsFilled(coverage: UnresolvedCoverage): asserts coverage is Coverage {
   assert.exists(
     coverage.visual_state_coverage,
     "fillVisualStateRows が visual_state_coverage を書いていない",
@@ -281,9 +281,7 @@ export function resolveVisualStates(
 }
 
 /** filter(Boolean) と同じく null と空文字を除き、型も string に絞る。 */
-export function isNonEmpty(
-  value: string | null,
-): value is string & { readonly __isNonEmpty: true } {
+function isNonEmpty(value: string | null): value is string & { readonly __isNonEmpty: true } {
   return Boolean(value);
 }
 
@@ -317,7 +315,7 @@ export const { profiles: bundled, problems: bundledProblems } = loadProfiles(bun
 export type Profiles = Parameters<typeof reconcileRaw>[1];
 
 /** パースしたプロファイルが、テストが読む欄を持つかを確かめる。 */
-export function isProfile(value: Record<string, unknown>): value is Profile {
+function isProfile(value: Record<string, unknown>): value is Profile {
   return (
     typeof value.id === "string" &&
     isArray(value.axes) &&
@@ -928,7 +926,7 @@ export function treeviewProfile() {
 }
 
 /** ツリーのノードの列挙（展開できる root と、展開できない leaf）。 */
-export function treeviewEnumeration() {
+function treeviewEnumeration() {
   return {
     source: {
       kind: "current-source",

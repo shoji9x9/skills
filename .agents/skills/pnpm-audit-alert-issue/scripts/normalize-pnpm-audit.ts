@@ -369,7 +369,7 @@ export function normalizeAudit(raw: unknown): Finding[] {
 }
 
 /** 引数が足りなければ 2、入力を読めないか形が違えば 1、書き出したら 0 を返す。 */
-export function main(argv: string[]): number {
+function main(argv: string[]): number {
   const [inputPath, outputPath] = argv;
   if (!inputPath || !outputPath) {
     console.error("Usage: normalize-pnpm-audit.ts <pnpm-audit.json> <findings.json>");

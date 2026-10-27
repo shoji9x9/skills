@@ -12,10 +12,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
-export const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-export const script = join(repoRoot, "skills/aws-architecture-diagram/scripts/preview-diagram.mjs");
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const script = join(repoRoot, "skills/aws-architecture-diagram/scripts/preview-diagram.mjs");
 
-export const FAKE_CHROME = `#!/usr/bin/env bash
+const FAKE_CHROME = `#!/usr/bin/env bash
 printf '%s\\n' "$@" > "$FAKE_CHROME_LOG/args.txt"
 for a in "$@"; do
   case "$a" in

@@ -7,8 +7,8 @@ import { deflateRawSync } from "node:zlib";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
-export const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-export const script = join(repoRoot, "skills/aws-architecture-diagram/scripts/fetch-aws-icons.mjs");
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const script = join(repoRoot, "skills/aws-architecture-diagram/scripts/fetch-aws-icons.mjs");
 export const ICONS_PAGE = "https://aws.amazon.com/architecture/icons/";
 export const PACKAGE_URL =
   "https://d1.awsstatic.com/webteam/architecture-icons/q3-2026/Icon-package_07312026.zip";
@@ -55,10 +55,10 @@ export function zip(files: ZipFile[]): Buffer {
 export const svg = (marker: string) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><g class="${marker}"/></svg>`;
 export const page = `<html><a href="${PACKAGE_URL}">Download</a></html>`;
-export const manifest = {
+const manifest = {
   aws: { lambda: "AWS-Lambda", dynamodb: "Amazon-DynamoDB", s3: "Amazon-Simple-Storage-Service" },
 };
-export const fullZip = () =>
+const fullZip = () =>
   zip([
     // __MACOSX/ の AppleDouble は同じ basename を持つ。後に置き、実体を上書きしないことを確かめる。
     {

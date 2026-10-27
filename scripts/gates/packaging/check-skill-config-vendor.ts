@@ -32,7 +32,7 @@ import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 import { errorMessage } from "../../lib/errors.ts";
 
-export const SCHEMA_DIR = "config-schemas";
+const SCHEMA_DIR = "config-schemas";
 export const READER = "scripts/skill-config/skill-config.mjs";
 export const VENDOR_DIR = "scripts/skill-config/vendor";
 export const VENDOR_FILES = ["jsonc-parser.mjs", "jsonc-parser.d.mts", "LICENSE.md"] as const;
@@ -81,7 +81,7 @@ export async function renderVendor(
 }
 
 /** 設定のスキーマを持つスキルと、scripts/skill-config/ を持つスキル。 */
-export function skillsWithConfig(root: string): { withSchema: string[]; withReader: string[] } {
+function skillsWithConfig(root: string): { withSchema: string[]; withReader: string[] } {
   const skillsDir = join(root, "skills");
   const names = readdirSync(skillsDir, { withFileTypes: true })
     .filter((e) => e.isDirectory())
@@ -96,7 +96,7 @@ export function skillsWithConfig(root: string): { withSchema: string[]; withRead
 export type Finding = { path: string; message: string };
 
 /** root からの相対パス rel の途中（rel 自身を含む）で、最初に見つかったシンボリックリンクの相対パス。無ければ null。 */
-export function symlinkOnPath(root: string, rel: string): string | null {
+function symlinkOnPath(root: string, rel: string): string | null {
   const parts = rel.split("/");
   for (let i = 1; i <= parts.length; i++) {
     const sub = parts.slice(0, i).join("/");

@@ -19,7 +19,7 @@ import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { errorMessage } from "../lib/errors.ts";
 
-export const KINDS = ["main", "test", "fixture"] as const;
+const KINDS = ["main", "test", "fixture"] as const;
 export type Kind = (typeof KINDS)[number];
 
 /** 集計の行の名前。スキルの名前か、リポジトリ共通（COMMON）。 */
@@ -242,7 +242,7 @@ function git(cwd: string, args: readonly string[], input?: string): Buffer {
 }
 
 /** rev の commit にあるファイルを、mode と中身付きで読む。 */
-export function readTree(cwd: string, rev: string): { commit: string; entries: Entry[] } {
+function readTree(cwd: string, rev: string): { commit: string; entries: Entry[] } {
   const commit = git(cwd, ["rev-parse", "--verify", `${rev}^{commit}`])
     .toString()
     .trim();

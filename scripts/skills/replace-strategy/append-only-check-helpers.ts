@@ -7,8 +7,8 @@ import { spawnAsync } from "../../lib/spawn-async.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
-export const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-export const script = join(repoRoot, "skills/replace-strategy/scripts/append-only-check.mjs");
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const script = join(repoRoot, "skills/replace-strategy/scripts/append-only-check.mjs");
 
 // **テストは `test.concurrent` で並べて実行する**（Issue #590）。どのテストも git とチェックの子プロセスの終了を待つだけなので、
 // 並べた分だけ 1 回の実行が縮み、ミューテーションテストでは変異の数だけ反映される。
@@ -42,9 +42,9 @@ export const FEATURES = [
   "",
 ].join("\n");
 
-export const DATASET = `${JSON.stringify({ version: 1, changes: [{ version: 1, affects: ["orders"] }] }, null, 2)}\n`;
+const DATASET = `${JSON.stringify({ version: 1, changes: [{ version: 1, affects: ["orders"] }] }, null, 2)}\n`;
 
-export const EXCEPTIONS = `${JSON.stringify(
+const EXCEPTIONS = `${JSON.stringify(
   {
     version: 1,
     slug: "order-list",
@@ -76,7 +76,7 @@ export const EXCEPTIONS = `${JSON.stringify(
   2,
 )}\n`;
 
-export const PARITY_METADATA = `${JSON.stringify(
+const PARITY_METADATA = `${JSON.stringify(
   {
     slug: "order-list",
     unmeasured: {
@@ -140,7 +140,7 @@ export const GAPS = [
   "",
 ].join("\n");
 
-export const EMPTY_EXCEPTIONS = `${JSON.stringify(
+const EMPTY_EXCEPTIONS = `${JSON.stringify(
   {
     version: 1,
     slug: "order-list",
@@ -212,7 +212,7 @@ export function writeManifest(root: string, artifacts: unknown[]): string {
  * @param {string} root
  * @returns {string}
  */
-export function yamlConfigManifest(root: string): string {
+function yamlConfigManifest(root: string): string {
   const bundled = parseJsonAs<{ artifacts: { id: string }[] }>(
     readFileSync(
       join(repoRoot, "skills/replace-strategy/assets/append-only-manifest.json"),
@@ -303,7 +303,7 @@ export async function commit(root: string, message: string) {
 }
 
 /** @param {string} root */
-export function configPath(root: string) {
+function configPath(root: string) {
   return join(root, ".config/skills/acme/skills.yml");
 }
 
@@ -350,7 +350,7 @@ export async function makeConfigRepoWithPending() {
 // 状態列だけが mutable_columns なので、それ以外の列の書き換えと行の削除は落ちる。
 // ---------------------------------------------------------------------------
 
-export const DEPENDENCY_TABLE = [
+const DEPENDENCY_TABLE = [
   "# 依存パッケージの決定記録（dependencies）",
   "",
   "- 最終更新: 2026-09-01T00:00:00Z",
@@ -407,7 +407,7 @@ export async function makeConfigRepoWithFlowPending() {
 // 1 行に収まらない照合キーの値（PR #429 のレビュー指摘・8 巡目）
 // ---------------------------------------------------------------------------
 
-export const MULTILINE_PENDING = [
+const MULTILINE_PENDING = [
   "      pending: # 保留（測定結果で決める）",
   "        - item:",
   "            合計の丸めが現行と違う",
@@ -575,13 +575,13 @@ export async function makeConfigRepoWithEditedValue() {
 // 台帳は同梱の一覧（デフォルトの --manifest）で測る。一覧の列名がテンプレートの列名と食い違うと、緩和が一度も適用されない。
 // ---------------------------------------------------------------------------
 
-export const WEAKNESS_HEADER =
+const WEAKNESS_HEADER =
   "| 弱点 | 分類 | 攻撃の流れ | 基準（1 / 2 / 3） | 仕分け | 宣言 | 扱う設計作業 | 露出を広げた差異 | 状態 | 決定日・決めた工程 | 根拠 |";
-export const WEAKNESS_DECIDED =
+const WEAKNESS_DECIDED =
   "| CSRF | A01 | `POST /api/orders` | 満 / 満 / 否 | 引き継ぐ | 書き込みの API は text/plain を受け付ける | #123 | - | 有効 | 2026-09-01・setup | 現行ソースのハンドラ |";
 export const WEAKNESS_BLANK =
   "| IDOR | A01 | `GET /api/orders/:id` | 満 / 満 / 満 |  |  |  | - | 有効 |  | 現行ソースのハンドラ |";
-export const WEAKNESS_UNCONFIRMED =
+const WEAKNESS_UNCONFIRMED =
   "| XSS | A03 | `GET /settings` | 満 / 未確認 / 満 |  |  |  | - | 有効 |  | 保存した値を描画へ使う |";
 export const WEAKNESS_NONE =
   "| 該当なし（A04） | A04 | - | - | 該当なし | - | - | - | 有効 | 2026-09-01・setup | 探した場所 |";

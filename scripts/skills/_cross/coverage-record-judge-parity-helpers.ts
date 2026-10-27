@@ -12,7 +12,7 @@ import {
 import { countCoverage as countCoverageRaw } from "../../../skills/parity-diff/scripts/coverage-check.mjs";
 import { reconcile } from "./coverage-fixture-helpers.ts";
 
-export const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
 // 網羅表の fixture の形。型は基準の fixture（generic・profiled）が置く正規の形にする。
 // 変異が欄を消す箇所は `removeField(x, "field")` で、型に合わない値を入れる箇所は
@@ -74,7 +74,7 @@ export type Fixture = ProfiledFixture | GenericFixture;
 // 集合の出所（component_inventory / instance_inventory / components[].source）は、
 // このファイルの被験対象（件数の関係）ではないので、宣言が無い fixture にだけ補う。
 // 両側へ同じオブジェクトを渡すため、補うのは片方の呼び出しの前で足りる。
-export function countCoverage(
+function countCoverage(
   coverage: Fixture,
   slug: string,
   captureNow?: Parameters<typeof countCoverageRaw>[2],
@@ -122,7 +122,7 @@ export function enumeration(): Enumeration {
   };
 }
 
-export const presentCell = (component: string, item: string, instance: string): Cell => ({
+const presentCell = (component: string, item: string, instance: string): Cell => ({
   component,
   item,
   instance,

@@ -76,10 +76,7 @@ export function violationOf(path: string, privateSkills: readonly string[]): str
 }
 
 /** 違反の一覧（`パス: 理由`）。 */
-export function findViolations(
-  paths: readonly string[],
-  privateSkills: readonly string[],
-): string[] {
+function findViolations(paths: readonly string[], privateSkills: readonly string[]): string[] {
   const out: string[] = [];
   for (const path of paths) {
     const reason = violationOf(path, privateSkills);
@@ -130,7 +127,7 @@ export function repoRoot(cwd: string): string {
 }
 
 /** 走査したファイルの一覧のうち、`.agents/skills/<name>/` にあって `skills/<name>/` に無いスキルの名前。 */
-export function privateSkillNames(files: readonly string[]): string[] {
+function privateSkillNames(files: readonly string[]): string[] {
   const installed = new Set<string>();
   const published = new Set<string>();
   for (const path of files) {
@@ -142,7 +139,7 @@ export function privateSkillNames(files: readonly string[]): string[] {
   return [...installed].filter((name) => !published.has(name)).sort();
 }
 
-export function main(cwd = "."): number {
+function main(cwd = "."): number {
   let root: string;
   let files: string[];
   try {

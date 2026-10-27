@@ -1636,7 +1636,7 @@ export function normalizeTrace(options: NormalizeTraceOptions) {
   return { result, timing, metrics, normalizationError };
 }
 
-export function determineFilesCreated(projectFiles: string, initialFilesRaw: string): string[] {
+function determineFilesCreated(projectFiles: string, initialFilesRaw: string): string[] {
   const initialFiles = new Set(
     initialFilesRaw
       .split("\0")

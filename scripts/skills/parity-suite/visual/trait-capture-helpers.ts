@@ -1,12 +1,7 @@
 // trait-capture.test.ts が使うヘルパーと fixture。
 import { assert } from "vitest";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { runFromSource } from "./page-source.ts";
-
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
-const script = join(repoRoot, "skills/parity-suite/scripts/trait-capture.mjs");
-export const {
+import {
   FIXED_PROPERTIES,
   TEXT_OWNER_PROPERTIES,
   SCROLLBAR_PROPERTIES,
@@ -15,15 +10,23 @@ export const {
   VERSION,
   assertPageVersion,
   captureTraits,
-}: typeof import("../../../../skills/parity-suite/scripts/trait-capture.mjs") = await import(
-  script
-);
-const pageScript = join(repoRoot, "skills/parity-suite/scripts/page/trait-capture.page.mjs");
-export const {
+} from "../../../../skills/parity-suite/scripts/trait-capture.mjs";
+import {
   PAGE_VERSION,
   captureElement,
-}: typeof import("../../../../skills/parity-suite/scripts/page/trait-capture.page.mjs") =
-  await import(pageScript);
+} from "../../../../skills/parity-suite/scripts/page/trait-capture.page.mjs";
+
+export {
+  FIXED_PROPERTIES,
+  TEXT_OWNER_PROPERTIES,
+  SCROLLBAR_PROPERTIES,
+  SCROLLBAR_PSEUDOS,
+  SCROLLBAR_PSEUDO_PROPERTIES,
+  VERSION,
+  assertPageVersion,
+  captureTraits,
+};
+export { PAGE_VERSION, captureElement };
 
 export type Rect = { x: number; y: number; width: number; height: number };
 export type Styles = Record<string, string>;

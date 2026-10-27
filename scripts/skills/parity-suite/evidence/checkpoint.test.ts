@@ -9,16 +9,15 @@ import { afterEach, test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import { invalidInput, removeField } from "../../../lib/testing/test-input.ts";
 import { parseJsonAs } from "../../../lib/parse-as.ts";
 import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
+import { main } from "../../../../skills/parity-suite/scripts/checkpoint.mjs";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/checkpoint.mjs");
-const { main }: typeof import("../../../../skills/parity-suite/scripts/checkpoint.mjs") =
-  await import(pathToFileURL(script).href);
 const SLUG = ".replace/parity/share";
 const SUITE = "e2e/parity/share";
 

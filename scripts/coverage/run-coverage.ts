@@ -50,7 +50,7 @@ import { VENDORED_GLOBS, isVendored } from "../lib/source-scope.ts";
 const CACHE = "node_modules/.cache/coverage";
 
 /** private skill のディレクトリ（`.agents/skills/<name>/` のうち `.private-skill` を持つもの）。リポジトリからの相対パスで、末尾に `/` を付ける。 */
-export function privateSkillDirs(root: string): string[] {
+function privateSkillDirs(root: string): string[] {
   const base = join(root, ".agents", "skills");
   if (!existsSync(base)) return [];
   return readdirSync(base)

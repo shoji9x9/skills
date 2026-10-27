@@ -182,7 +182,7 @@ export type ProfiledCoverage = Coverage<ProfiledInstance>;
 /** countCoverage と runCli が受け取る網羅表。型崩れの網羅表は invalidInput で渡す。 */
 export type AnyCoverage = Coverage | ProfiledCoverage;
 
-export const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 export const script = join(repoRoot, "skills/parity-diff/scripts/coverage-check.mjs");
 
 // 撮影状態の要約は記録時点の入力に結び付いている（指紋）。このファイルの被験対象は件数の数え直しなので、
@@ -226,7 +226,7 @@ export const noProfile = {
 };
 
 /** 部品 1 つ・項目 2 つ・インスタンス 2 つ ＝ 期待セル 4 の網羅表の骨格。 */
-export const skeleton = {
+const skeleton = {
   slug: "order-list",
   conformance,
   // 3 つの集合（部品・インスタンス・項目）の出所と完全性。専任のテストが別に見るので、

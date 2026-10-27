@@ -59,7 +59,7 @@ export function wordRules(descriptor: Descriptor): KernelRules {
 export const WORDS_PATH = ".textlint/words.json";
 
 /** 辞書（`<root>/WORDS_PATH`）から `——` の項目の message を読む。無ければ例外を投げる。 */
-export function dashMessage(root: string): string {
+function dashMessage(root: string): string {
   const path = join(root, WORDS_PATH);
   const data: unknown = JSON.parse(readFileSync(path, "utf8"));
   const entries = isRecord(data) && isArray(data.entries) ? data.entries : [];

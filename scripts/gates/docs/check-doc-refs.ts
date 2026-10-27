@@ -44,7 +44,7 @@ export const RULES = [
   "dist-repo-path",
 ];
 // このチェック自身のテストとミューテーションテストの定義は、違反の fixture を本文に持つので読まない。
-export const SELF_FIXTURES = [
+const SELF_FIXTURES = [
   "scripts/gates/docs/check-doc-refs.test.ts",
   "scripts/gates/docs/check-doc-refs.mutations.json",
   CONFIG_PATH,
@@ -56,7 +56,7 @@ type Finding = { line: number; rule: string; text: string; message?: string };
 type SectionKind = "skill" | "link" | "code";
 
 /** doc-refs.json を読む。形の誤りは例外にする。 */
-export function loadConfig(root: string): DocRefsConfig {
+function loadConfig(root: string): DocRefsConfig {
   const path = join(root, CONFIG_PATH);
   if (!existsSync(path)) throw new Error(`${CONFIG_PATH} が無い`);
   const data: unknown = JSON.parse(readFileSync(path, "utf8"));
@@ -91,7 +91,7 @@ const norm = (s: string) =>
     .replace(/。$/, "");
 
 /** Markdown の本文から、節名として参照できる文字列（見出し・太字の項目・表のセル）を集める。 */
-export function anchorsOf(text: string): Set<string> {
+function anchorsOf(text: string): Set<string> {
   const names = new Set<string>();
   const lines = text.split(/\r?\n/);
   const fenced = fencedLines(lines);
@@ -161,7 +161,7 @@ function skillDirOf(root: string, file: string): string | null {
  * Markdown のリンク先をリポジトリ相対のパスにする。アンカーとクエリを除き、`%` の符号化を戻し、
  * `/` で始まるものはルートから読む。link 規則と section 規則が同じ解決を使う。
  */
-export function linkPath(file: string, target: string) {
+function linkPath(file: string, target: string) {
   const raw = target.replace(/[#?].*$/, "");
   let path = raw;
   try {
@@ -181,7 +181,7 @@ type SectionRef = {
   skill: string | null;
 };
 
-export function resolveSectionTarget({ root, file, kind, path, skill }: SectionRef): string | null {
+function resolveSectionTarget({ root, file, kind, path, skill }: SectionRef): string | null {
   if (kind === "skill") {
     for (const base of [`skills/${skill}`, `.agents/skills/${skill}`]) {
       if (existsSync(join(root, base, path))) return normalize(join(base, path));
@@ -309,7 +309,7 @@ function checkTierRefs({ root, config, tier, dist, line, at }: LineContext) {
  * 1 ファイルの違反を列挙する。
  * @returns {{ line: number, rule: string, text: string, message?: string }[]}
  */
-export function findInFile({
+function findInFile({
   root,
   config,
   scanned: { file, tier, markdown },

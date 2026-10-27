@@ -87,8 +87,8 @@ export function moveCurrent(p: Project, rel: string) {
   });
 }
 
-export const healthCheck = join(repoRoot, "skills/parity-suite/scripts/artifact-health-check.mjs");
-export const comparisonCheck = join(
+const healthCheck = join(repoRoot, "skills/parity-suite/scripts/artifact-health-check.mjs");
+const comparisonCheck = join(
   repoRoot,
   "skills/parity-suite/scripts/component-comparison-check.mjs",
 );

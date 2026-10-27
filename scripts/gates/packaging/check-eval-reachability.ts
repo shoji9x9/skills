@@ -29,7 +29,7 @@ import { isArray } from "../../lib/is-array.ts";
 export const BACKLOG_PATH = "scripts/gates/packaging/eval-reachability-backlog.json";
 
 /** backlog の鍵。区切り文字は材料側で禁じる（skill 名・id に ":" を許さない）。 */
-export function backlogKey(skill: string, id: unknown) {
+function backlogKey(skill: string, id: unknown) {
   return `${skill}:${id}`;
 }
 
@@ -46,7 +46,7 @@ export function listEvalFiles(root: string) {
  * `gh skill install` はスキルディレクトリの全ファイルを配るため、ここに置くと
  * 下流へ eval が配られる。走査対象（`evals/<name>/`）からも外れ、警告なしにチェックされなくなる。
  */
-export function listShippedEvalDirs(root: string) {
+function listShippedEvalDirs(root: string) {
   const skillsDir = join(root, "skills");
   if (!existsSync(skillsDir)) return [];
   return readdirSync(skillsDir)
@@ -235,7 +235,7 @@ export function checkEvalFile({
   return { evals: evals.length, violations, keys };
 }
 
-export function loadBacklog(root: string): {
+function loadBacklog(root: string): {
   exempt: Set<string>;
   missing: boolean;
   error?: string;

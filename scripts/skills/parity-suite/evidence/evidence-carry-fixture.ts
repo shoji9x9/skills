@@ -87,7 +87,7 @@ export const RENDER_INPUTS = ["src/pages/orders.tsx", "src/components/**", "src/
  * @param {string[]} args
  * @returns {string}
  */
-export function git(repo: string, args: string[]): string {
+function git(repo: string, args: string[]): string {
   return execFileSync(
     "git",
     [
@@ -159,7 +159,7 @@ export function featureMetadata(scope: ScopeTuple[]): FeatureMetadata {
  * 部品 metadata（parity-component の雛形から）。インスタンスの page は target の baseURL からの相対パス
  * （雛形の語彙どおり。機能の capture_conditions.pages[].path と完全一致で照合する）。
  */
-export function componentMetadata(): ComponentMetadata {
+function componentMetadata(): ComponentMetadata {
   const metadata = readTemplate<ComponentMetadata>(
     "skills/parity-component/assets/metadata-template.json",
   );

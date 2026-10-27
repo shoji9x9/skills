@@ -16,7 +16,7 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
-export const LINK_DIRS = [".claude/rules", ".claude/skills", ".github/instructions"];
+const LINK_DIRS = [".claude/rules", ".claude/skills", ".github/instructions"];
 
 /** `.agents/skills/` の下のディレクトリ名のうち、`skills/` に同名の実体があるもの（コピー）。 */
 export function copySkillNames(root: string): string[] {

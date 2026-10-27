@@ -27,7 +27,7 @@ type Context = {
  * コードのある行（1 始まりの行番号）の集合。masked（コメントと入れ子の関数）を空白に置き換えてから、空白でない文字が残る行を数える。
  * 範囲（range）を読めなければ、判定できないので例外にする。
  */
-export function codeLines(text: string, masked: readonly Ranged[]): Set<number> {
+function codeLines(text: string, masked: readonly Ranged[]): Set<number> {
   // range は UTF-16 の位置なので、code unit の配列で置き換える。
   const units = text.split("");
   for (const c of masked) {
@@ -45,7 +45,7 @@ export function codeLines(text: string, masked: readonly Ranged[]): Set<number> 
 }
 
 /** export した関数の宣言（`export function f() {}`）か。export の宣言はモジュールの最上位にしか書けないので、親だけを見る。 */
-export function isPageEntry(fn: AstNode): boolean {
+function isPageEntry(fn: AstNode): boolean {
   const parent = fn.parent;
   return fn.type === "FunctionDeclaration" && parent?.type === "ExportNamedDeclaration";
 }
@@ -53,7 +53,7 @@ export function isPageEntry(fn: AstNode): boolean {
 const FUNCTION_TYPES = ["FunctionDeclaration", "FunctionExpression", "ArrowFunctionExpression"];
 
 /** fn を包む、最も近い関数（即時実行の関数は除く）。無ければ null。 */
-export function enclosingFunction(fn: AstNode): AstNode | null {
+function enclosingFunction(fn: AstNode): AstNode | null {
   let node = fn.parent;
   while (node) {
     if (FUNCTION_TYPES.includes(node.type) && !isIife(node)) return node;

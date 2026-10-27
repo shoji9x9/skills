@@ -11,7 +11,7 @@ import type {
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 
-export const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 
 // 特性には、採取（trait-capture.mjs）が書き compareTraits は読まない child_inline_styles も持たせる。
 type Trait = ComparedTrait & {

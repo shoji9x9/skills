@@ -16,131 +16,23 @@
   ],
   "includeEntryExports": true,
   "ignoreExportsUsedInFile": false,
-  "ignorePatterns": [
-    "evals/**/fixtures/**",
-    "docs/slides/**",
-    "tests/**",
-    "skills/*/scripts/skill-config/vendor/**",
-    "!scripts/coverage/**",
-    "!.agents/skills/*/scripts/**/*.ts"
-  ],
-  "ignoreDependencies": ["c8", "conventional-changelog-conventionalcommits", "jsonc-parser"],
-  "duplicates": {
-    "enabled": false
-  },
-  "health": {
-    "maxCyclomatic": 20,
-    "maxCognitive": 15
-  },
-  "boundaries": {
-    "zones": [
-      {
-        "name": "skill-tests",
-        "patterns": ["scripts/skills/**"]
-      },
-      {
-        "name": "lib",
-        "patterns": ["scripts/lib/**"]
-      },
-      {
-        "name": "scripts/coverage",
-        "patterns": ["scripts/coverage/**"]
-      },
-      {
-        "name": "scripts/eval",
-        "patterns": ["scripts/eval/**"]
-      },
-      {
-        "name": "scripts/gates",
-        "patterns": ["scripts/gates/**"]
-      },
-      {
-        "name": "scripts/hooks",
-        "patterns": ["scripts/hooks/**"]
-      },
-      {
-        "name": "scripts/mutation",
-        "patterns": ["scripts/mutation/**"]
-      },
-      {
-        "name": "scripts/tools",
-        "patterns": ["scripts/tools/**"]
-      },
-      {
-        "name": "skills",
-        "patterns": ["skills/**"],
-        "autoDiscover": ["skills"]
-      }
-    ],
-    "rules": [
-      {
-        "from": "lib",
-        "allow": ["skills"]
-      },
-      {
-        "from": "scripts/coverage",
-        "allow": ["lib", "skills"]
-      },
-      {
-        "from": "scripts/eval",
-        "allow": ["lib", "skills"]
-      },
-      {
-        "from": "scripts/gates",
-        "allow": ["lib", "skills"]
-      },
-      {
-        "from": "scripts/hooks",
-        "allow": ["lib", "skills"]
-      },
-      {
-        "from": "scripts/mutation",
-        "allow": ["lib", "skills"]
-      },
-      {
-        "from": "scripts/tools",
-        "allow": ["lib", "skills"]
-      },
-      {
-        "from": "skills",
-        "allow": []
-      }
-    ]
-  },
-  "rules": {
-    "unused-dev-dependencies": "error",
-    "deprecated-exports-in-use": "error",
-    "require-suppression-reason": "error",
-    "stale-suppressions": "error",
-    "re-export-cycle": "error",
-    "boundary-violation": "error",
-    "complexity-crap": "off",
-    "dev-dependencies-in-production": "off",
-    "weakened-tests": "error",
-    "added-suppression": "off",
-    "test-only-branch": "off"
-  },
-  "audit": {
-    "deadCode": true,
-    "health": false,
-    "dupes": false,
-    "css": false
-  },
-  "overrides": [
+  "ignoreExports": [
     {
-      "files": ["skills/*/assets/**"],
-      "rules": {
-        "unresolved-imports": "off"
-      }
+      "file": "skills/**",
+      "exports": ["*"]
     },
     {
-      "files": ["types/skill-runtime/**"],
-      "rules": {
-        "unused-class-members": "off"
-      }
-    }
-  ],
-  "ignoreExports": [
+      "file": "scripts/gates/code/oxlint-plugin/plugin.ts",
+      "exports": ["default"]
+    },
+    {
+      "file": "scripts/lib/testing/vitest-global-setup.ts",
+      "exports": ["setup"]
+    },
+    {
+      "file": "scripts/lib/testing/fake-pngjs.ts",
+      "exports": ["PNG"]
+    },
     {
       "file": "skills/agent-usage/scripts/lib/is-array.mjs",
       "exports": ["*"]
@@ -264,6 +156,130 @@
     {
       "file": "skills/writing-style/scripts/skill-config/skill-config.mjs",
       "exports": ["*"]
+    }
+  ],
+  "ignorePatterns": [
+    "evals/**/fixtures/**",
+    "docs/slides/**",
+    "tests/**",
+    "skills/*/scripts/skill-config/vendor/**",
+    "!scripts/coverage/**",
+    "!.agents/skills/*/scripts/**/*.ts"
+  ],
+  "ignoreDependencies": ["c8", "conventional-changelog-conventionalcommits", "jsonc-parser"],
+  "duplicates": {
+    "enabled": false
+  },
+  "health": {
+    "maxCyclomatic": 20,
+    "maxCognitive": 15
+  },
+  "boundaries": {
+    "zones": [
+      {
+        "name": "skill-tests",
+        "patterns": ["scripts/skills/**"]
+      },
+      {
+        "name": "lib",
+        "patterns": ["scripts/lib/**"]
+      },
+      {
+        "name": "scripts/coverage",
+        "patterns": ["scripts/coverage/**"]
+      },
+      {
+        "name": "scripts/eval",
+        "patterns": ["scripts/eval/**"]
+      },
+      {
+        "name": "scripts/gates",
+        "patterns": ["scripts/gates/**"]
+      },
+      {
+        "name": "scripts/hooks",
+        "patterns": ["scripts/hooks/**"]
+      },
+      {
+        "name": "scripts/mutation",
+        "patterns": ["scripts/mutation/**"]
+      },
+      {
+        "name": "scripts/tools",
+        "patterns": ["scripts/tools/**"]
+      },
+      {
+        "name": "skills",
+        "patterns": ["skills/**"],
+        "autoDiscover": ["skills"]
+      }
+    ],
+    "rules": [
+      {
+        "from": "lib",
+        "allow": ["skills"]
+      },
+      {
+        "from": "scripts/coverage",
+        "allow": ["lib", "skills"]
+      },
+      {
+        "from": "scripts/eval",
+        "allow": ["lib", "skills"]
+      },
+      {
+        "from": "scripts/gates",
+        "allow": ["lib", "skills"]
+      },
+      {
+        "from": "scripts/hooks",
+        "allow": ["lib", "skills"]
+      },
+      {
+        "from": "scripts/mutation",
+        "allow": ["lib", "skills"]
+      },
+      {
+        "from": "scripts/tools",
+        "allow": ["lib", "skills"]
+      },
+      {
+        "from": "skills",
+        "allow": []
+      }
+    ]
+  },
+  "rules": {
+    "unused-dev-dependencies": "error",
+    "deprecated-exports-in-use": "error",
+    "require-suppression-reason": "error",
+    "stale-suppressions": "error",
+    "re-export-cycle": "error",
+    "boundary-violation": "error",
+    "complexity-crap": "off",
+    "dev-dependencies-in-production": "off",
+    "weakened-tests": "error",
+    "added-suppression": "off",
+    "test-only-branch": "off"
+  },
+  "audit": {
+    "deadCode": true,
+    "health": false,
+    "dupes": false,
+    "css": false
+  },
+  "overrides": [
+    {
+      "files": ["skills/*/assets/**"],
+      "rules": {
+        "unresolved-imports": "off"
+      }
+    },
+    {
+      "files": ["types/skill-runtime/**"],
+      "rules": {
+        "unused-class-members": "off"
+      }
     }
   ]
 }

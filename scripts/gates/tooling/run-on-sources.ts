@@ -39,7 +39,7 @@ export function listSources(root: string, exts: string[]): string[] {
   return [...new Set(files)].sort();
 }
 
-export function parseArgs(argv: string[]): { exts: string[]; command: string[] } {
+function parseArgs(argv: string[]): { exts: string[]; command: string[] } {
   const sep = argv.indexOf("--");
   const own = sep >= 0 ? argv.slice(0, sep) : argv;
   const command = sep >= 0 ? argv.slice(sep + 1) : [];

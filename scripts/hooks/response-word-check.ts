@@ -32,7 +32,7 @@ const HOOK = "response-word-check";
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 /** 応答の本文から、使わない語の指摘（辞書の message）を返す。 */
-export async function findWords(message: string, root: string = REPO_ROOT): Promise<string[]> {
+async function findWords(message: string, root: string = REPO_ROOT): Promise<string[]> {
   const body = prose(message);
   if (body.trim() === "") return [];
   const { createLinter, loadTextlintrc } = await import("textlint");

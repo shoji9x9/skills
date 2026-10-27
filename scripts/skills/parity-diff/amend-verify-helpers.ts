@@ -54,14 +54,12 @@ export async function run(argv: string[]) {
   }
 }
 
-export const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-export const script = join(repoRoot, "skills/parity-diff/scripts/amend-verify.mjs");
-export const HOOKS = fileURLToPath(
-  new URL("../../lib/testing/fake-pngjs-hooks.ts", import.meta.url),
-);
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const script = join(repoRoot, "skills/parity-diff/scripts/amend-verify.mjs");
+const HOOKS = fileURLToPath(new URL("../../lib/testing/fake-pngjs-hooks.ts", import.meta.url));
 
 /** 画像を PNG で書く。 */
-export function writeImage(path: string, img: Image) {
+function writeImage(path: string, img: Image) {
   writeFileSync(path, encodePng(img.width, img.height, Uint8Array.from(img.data)));
 }
 

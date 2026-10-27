@@ -87,7 +87,7 @@ export function findDirectives(source: string, path = "a.ts"): string[] {
 }
 
 /** `skills/` の下の、追跡しているファイルと無視されていない未追跡のファイル（ルートからのパス）。 */
-export function listSkillFiles(root: string): string[] {
+function listSkillFiles(root: string): string[] {
   const res = spawnSync(
     "git",
     ["ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", "skills"],
@@ -155,7 +155,7 @@ function repoRoot(cwd: string): string {
   return res.stdout.trim();
 }
 
-export function main(cwd = "."): number {
+function main(cwd = "."): number {
   let root: string;
   let files: string[];
   try {

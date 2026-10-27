@@ -121,18 +121,14 @@ function assertCleanAndIsolated(source: string): void {
   }
 }
 
-export function validateReusableBaseline(source: string, expectedFingerprint: Fingerprint): void {
+function validateReusableBaseline(source: string, expectedFingerprint: Fingerprint): void {
   assertArtifactsPresent(source);
   assertFingerprintMatches(source, expectedFingerprint);
   assertSucceededWithRawTrace(source);
   assertCleanAndIsolated(source);
 }
 
-export function reuseBaseline(
-  sourceValue: string,
-  targetValue: string,
-  expectedPath: string,
-): void {
+function reuseBaseline(sourceValue: string, targetValue: string, expectedPath: string): void {
   const source = resolve(sourceValue);
   const target = resolve(targetValue);
   if (
