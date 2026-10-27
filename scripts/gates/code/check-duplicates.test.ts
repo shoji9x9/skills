@@ -15,6 +15,7 @@
 // | 引数                     | なし / --update-baseline / 知らない引数                                      |
 // | ベースライン             | 在る / 無い                                                                  |
 // | 控えた組                 | 在る / 無い / 形が違う（組が 0 件・1 ファイルの組・空文字）。重複の 2 つのファイルが、控えた組にあり今の組に無い / 今も組にある / 控えた組に無い |
+// | 重複の形式               | TypeScript / シェル / Markdown（形式はこのリポジトリの .jscpd.json から読む）    |
 // | 走査の結果               | 新しい重複 / ベースラインの重複だけ / 登録済みのコピーの重複だけ / 走査したファイルが 0 件 |
 import { expect, test } from "vitest";
 import { existsSync, readFileSync, rmSync } from "node:fs";
@@ -33,6 +34,7 @@ import {
   regionReader,
 } from "./check-duplicates.ts";
 import { DECLARATION_PATH } from "../packaging/copies/check-identical-copies.ts";
+import { isRecord } from "../../lib/guards.ts";
 import { write } from "../../lib/testing/repo-file.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
@@ -270,7 +272,34 @@ const OTHER = [
   "",
 ].join("\n");
 
-/** jscpd の設定と、identical-copies の宣言（groups）を持つ一時リポジトリ。 */
+/** このリポジトリの jscpd の形式（.jscpd.json の format）。形式を外したときに、その形式の重複を検出しなくなることをテストで見つける。 */
+const repoConfig: unknown = JSON.parse(
+  readFileSync(join(import.meta.dirname, "..", "..", "..", CONFIG_PATH), "utf8"),
+);
+const REPO_FORMATS = isRecord(repoConfig) ? repoConfig.format : undefined;
+
+// 50 トークン・5 行を超える、同じ内容のシェルと Markdown。
+const SH_BODY = [
+  "#!/usr/bin/env bash",
+  "set -euo pipefail",
+  'for file in "$@"; do',
+  '  if [ ! -f "$file" ]; then echo "missing: $file" >&2; exit 2; fi',
+  '  lines=$(wc -l < "$file")',
+  '  if [ "$lines" -gt 100 ]; then echo "too long: $file ($lines lines)" >&2; exit 1; fi',
+  "done",
+  "",
+].join("\n");
+const MD_BODY = [
+  "# 手順",
+  "",
+  "1. 依存を入れる前に、リポジトリの中で `mise trust` を実行して、設定を信頼する。",
+  "2. `pnpm install --frozen-lockfile` で、lockfile のとおりに依存を入れる。",
+  "3. `pnpm run lint:js` と `pnpm run typecheck` を実行し、どちらも成功することを確かめる。",
+  "4. 失敗したら、出力の最初のエラーから直し、もう一度 2 つのコマンドを実行する。",
+  "",
+].join("\n");
+
+/** jscpd の設定（形式はこのリポジトリと同じ）と、identical-copies の宣言（groups）を持つ一時リポジトリ。 */
 // identical-copies.json は組を 1 件以上求めるので、デフォルトは走査に関係しないファイルの組にする。
 const UNRELATED = [{ files: ["p.mjs", "q.mjs"], reason: "走査に関係しない組" }];
 
@@ -279,7 +308,7 @@ function makeRepo(files: Record<string, string>, groups: unknown[] = UNRELATED) 
   write(
     root,
     CONFIG_PATH,
-    JSON.stringify({ format: ["typescript"], ignore: ["**/node_modules/**"] }),
+    JSON.stringify({ format: REPO_FORMATS, ignore: ["**/node_modules/**"] }),
   );
   write(root, DECLARATION_PATH, JSON.stringify({ groups }));
   for (const [p, t] of Object.entries(files)) write(root, p, t);
@@ -315,6 +344,17 @@ test("main: ベースラインに無い重複を失敗にし、ベースライ�
 });
 
 const SISTERS = [{ files: ["b.ts", "c.ts"], reason: "姉妹スキルが同じ処理を持つ" }];
+
+test.each([
+  ["シェル", "sh", SH_BODY],
+  ["Markdown", "md", MD_BODY],
+])("main: %s の重複も、ベースラインに無ければ失敗にする", (_, ext, body) => {
+  const root = makeRepo({ "a.ts": OTHER });
+  expect(main(["--update-baseline"], root)).toBe(0);
+  write(root, `b.${ext}`, body);
+  write(root, `c.${ext}`, body);
+  expect(main([], root)).toBe(1);
+});
 
 test("main: identical-copies.json に登録したコピーどうしの重複は、ベースラインに無くても通す", () => {
   const root = makeRepo({ "a.ts": OTHER }, SISTERS);
