@@ -11,7 +11,7 @@ import { parseJsonAs } from "../../lib/parse-as.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 /** CLI が stdout に出す JSON のうち、テストが読む項目。 */
-export type Entry = {
+type Entry = {
   change: string;
   slug: string;
   state: string;
@@ -21,7 +21,7 @@ export type Entry = {
   basis: string;
   reason: string;
 };
-export type Output = {
+type Output = {
   ledger_exists: boolean;
   unresolved: Entry[];
   resolved: Entry[];

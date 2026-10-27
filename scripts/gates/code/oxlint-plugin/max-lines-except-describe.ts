@@ -22,7 +22,7 @@ export type AstNode = {
 };
 
 /** Program の直下の文のうち、import の宣言が読む欄。 */
-export type Statement = {
+type Statement = {
   type: string;
   source?: { value?: unknown };
   specifiers?: { type: string; imported?: { name?: string }; local?: { name?: string } }[];

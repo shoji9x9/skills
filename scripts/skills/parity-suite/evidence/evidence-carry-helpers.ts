@@ -43,10 +43,10 @@ export type RecordPair = ReturnType<typeof amendVerifyPair>;
 export type AmendRecord = { tool: string; change_id: string; pairs: RecordPair[] };
 
 /** 機能の metadata.json のうち、テストが消す欄を持つ形。 */
-export type FeatureMetadataFile = FeatureMetadata & { suite: Record<string, unknown> };
+type FeatureMetadataFile = FeatureMetadata & { suite: Record<string, unknown> };
 
 /** component-comparison-check の CLI が stdout に書く結果のうち、テストが読む部分。 */
-export type ComparisonResult = { findings: { code: string; message: string }[]; notes: string[] };
+type ComparisonResult = { findings: { code: string; message: string }[]; notes: string[] };
 
 /**
  * judgeCarry を fixture の既定値で呼ぶ。

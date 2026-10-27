@@ -102,7 +102,7 @@ export type AbsenceEvidence = {
   observation?: string;
 };
 /** non-renderable の証拠（状態ごとの記録を持つ）。 */
-export type NonRenderableEvidence = AbsenceEvidence & { states: AbsenceState[] };
+type NonRenderableEvidence = AbsenceEvidence & { states: AbsenceState[] };
 /** fired-without-response の証拠（送り方と発火確認を持つ）。 */
 export type FiredEvidence = AbsenceEvidence & {
   action: NonNullable<AbsenceEvidence["action"]>;
