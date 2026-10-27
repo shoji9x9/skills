@@ -3,10 +3,12 @@ date: 2026-10-27
 type: doc
 priority: medium
 confidence: high
-status: pending
+status: applied
+applied-to: [docs/tooling.md]
+session: claude-code
 ---
 
-# fallow の health のベースラインを作り直すと、直していない除外（target_keys）まで足される
+# fallow health --save-baseline で作り直すと、直した関数と関係しない target_keys の項目まで足される
 
 ## 事象
 
@@ -23,12 +25,14 @@ PR #800 で認知的複雑度の指摘を直した後、`docs/tooling.md` の手
 
 ## 根拠
 
+確信度は high とする。exit 2 の stderr と、足された 21 件をレビューが指摘した記録の両方が、同じ手順の抜けを示すからである。
+
 - `fallow health --save-baseline` の stderr: `refusing to overwrite health baseline ... Re-save with --baseline-mode identity`
 - 作り直した後の `target_keys` は 83 件から 44 件になったが、旧版に無い 21 件を含んでいた（PR #800 のレビューの指摘）
 
 ## 提案
 
-`docs/tooling.md` の fallow のベースラインの手順に、health は `--baseline-mode identity` で作り直すことと、作り直した後に旧版と全項目（`target_keys` を含む）を比べて、旧版に無い項目を外すことを書く。
+`docs/tooling.md` で fallow のベースラインを作り直す手順に、health は `--baseline-mode identity` で作り直すことと、作り直した後に旧版と全項目（`target_keys` を含む）を比べて、旧版に無い項目を外すことを書く。
 
 - 作り直しは除外を緩める変更になりうるので、旧版に無い項目が要るなら、PR に理由を書いて利用者に確かめる
 - dead-code のベースライン（`fallow --save-baseline`）も同じ形で比べる

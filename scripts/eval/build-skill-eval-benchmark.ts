@@ -567,7 +567,7 @@ function loadRuns(opts: Options, evalDirs: string[]) {
   return { loaded, ungraded, perPair, presentByEval };
 }
 
-/** eval × configuration の 1 組の run を読む。採点の無い run は ungraded に分ける。 */
+/** eval と configuration の 1 組の run を読む。採点の無い run は ungraded に分ける。 */
 function loadPairRuns(configDir: string, evalDir: string, configuration: string) {
   const loaded: LoadedRun[] = [];
   const ungraded: string[] = [];

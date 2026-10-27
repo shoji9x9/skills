@@ -1304,16 +1304,15 @@ function parseArgs(argv) {
       pos.push(...argv.slice(i + 1));
       break;
     }
-    if (VALUED_FLAGS.has(a) || BARE_FLAGS.has(a)) i += takeFlag(argv, i, flags);
-    else if (a.startsWith("-"))
-      throw new UsageError(`知らないオプション ${a}（- で始まる値は -- の後に置く）`);
+    if (a.startsWith("-")) i += takeFlag(argv, i, flags);
     else pos.push(a);
   }
   return { pos, flags };
 }
 
 /**
- * argv[i] のオプション（VALUED_FLAGS か BARE_FLAGS にあるもの）を flags に入れ、読んだ値の数（値を取るオプションなら 1、取らないなら 0）を返す。
+ * argv[i] のオプションを flags に入れ、読んだ値の数（値を取るオプションなら 1、取らないなら 0）を返す。
+ * VALUED_FLAGS にも BARE_FLAGS にも無いオプションは、UsageError にする。
  * @param {string[]} argv
  * @param {number} i
  * @param {Record<string, string | true>} flags
@@ -1321,13 +1320,14 @@ function parseArgs(argv) {
  */
 function takeFlag(argv, i, flags) {
   const a = argv[i];
+  if (!VALUED_FLAGS.has(a) && !BARE_FLAGS.has(a))
+    throw new UsageError(`知らないオプション ${a}（- で始まる値は -- の後に置く）`);
   // 同じオプションを重ねて渡したら、どちらの値を使うかを決めずに止める（--layer local --layer repo で共有の層に書かない）
   if (Object.hasOwn(flags, a)) throw new UsageError(`${a} を 2 回渡している`);
   if (BARE_FLAGS.has(a)) {
     flags[a] = true;
     return 0;
   }
-  if (!VALUED_FLAGS.has(a)) throw new UsageError(`知らないオプション ${a}`);
   const v = argv[i + 1];
   if (v === undefined || v === "") throw new UsageError(`${a} に値が無い`);
   flags[a] = v;

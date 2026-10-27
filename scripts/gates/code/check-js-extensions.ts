@@ -34,13 +34,14 @@ const CASE_REASON =
 /** パス（リポジトリのルートからの `/` 区切り）が拡張子の規約に反していれば、その理由を返す。 */
 export function violationOf(path: string, privateSkills: readonly string[]): string | null {
   const parts = path.split("/");
-  // 拡張子は大文字と小文字を区別せずに照合する（区別しないファイルシステムでは `a.JS` も `.js` として読まれる）。
-  const p = { path, lower: path.toLowerCase(), parts };
-  if (parts[0] === "skills") return distributedViolation(p);
   const isPrivateSkill =
     parts[0] === ".agents" && parts[1] === "skills" && privateSkills.includes(parts[2] ?? "");
-  if (parts[0] === "scripts" || isPrivateSkill) return nonDistributedViolation(p, isPrivateSkill);
-  return null;
+  if (parts[0] !== "skills" && parts[0] !== "scripts" && !isPrivateSkill) return null;
+  // 拡張子は大文字と小文字を区別せずに照合する（区別しないファイルシステムでは `a.JS` も `.js` として読まれる）。
+  const p = { path, lower: path.toLowerCase(), parts };
+  return parts[0] === "skills"
+    ? distributedViolation(p)
+    : nonDistributedViolation(p, isPrivateSkill);
 }
 
 /** 判定するパスと、それを小文字にしたもの、`/` で分けたもの。 */

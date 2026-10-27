@@ -11,3 +11,6 @@ ci:40474420979:1,ci,2026-10-27T08:42:04.301Z,p-cdee4961,github-actions,,,,2026-1
 ci:40474421229:1,ci,2026-10-27T08:42:04.301Z,p-cdee4961,github-actions,,,,2026-10-27T08:34:12.000Z,2026-10-27T08:40:25.000Z,Asia/Tokyo,feature/659-reduce-cognitive-complexity-scripts,659,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-26T08:32:06.129Z:2026-10-27T08:42:04.301Z,coverage,2026-10-27T08:42:04.301Z,p-cdee4961,,,,,2026-10-26T08:32:06.129Z,2026-10-27T08:42:04.301Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-26T08:42:04.301Z:2026-10-27T08:44:05.441Z,coverage,2026-10-27T08:44:05.441Z,p-cdee4961,,,,,2026-10-26T08:42:04.301Z,2026-10-27T08:44:05.441Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:40475705389:1,ci,2026-10-27T08:55:24.097Z,p-cdee4961,github-actions,,,,2026-10-27T08:45:13.000Z,2026-10-27T08:51:31.000Z,Asia/Tokyo,feature/659-reduce-cognitive-complexity-scripts,659,,,,,,,,,,CI;pull_request;success,
+ci:40475705123:1,ci,2026-10-27T08:55:24.097Z,p-cdee4961,github-actions,,,,2026-10-27T08:45:12.000Z,2026-10-27T08:45:24.000Z,Asia/Tokyo,feature/659-reduce-cognitive-complexity-scripts,659,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+coverage:github:2026-10-26T08:44:05.441Z:2026-10-27T08:55:24.097Z,coverage,2026-10-27T08:55:24.097Z,p-cdee4961,,,,,2026-10-26T08:44:05.441Z,2026-10-27T08:55:24.097Z,Asia/Tokyo,,,,,,,,,,,,ok,
