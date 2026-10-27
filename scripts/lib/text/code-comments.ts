@@ -121,13 +121,11 @@ export function commentMarkdown(path: string, source: string): CommentMarkdown {
 /** 続く行のコメントを段落にまとめる。 */
 function paragraphBlocks(pieces: readonly Piece[]): Piece[][] {
   const blocks: Piece[][] = [];
-  let previous: Piece | undefined;
   for (const piece of pieces) {
-    // つなぐのは previous があるとき（前の反復で blocks に足した後）だけなので、last は在る。
     const last = blocks.at(-1);
-    if (previous && last && joinsParagraph(previous, piece)) last.push(piece);
+    const previous = last?.at(-1);
+    if (last && previous && joinsParagraph(previous, piece)) last.push(piece);
     else blocks.push([piece]);
-    previous = piece;
   }
   return blocks;
 }
