@@ -42,7 +42,11 @@
     // vitest が設定の globalSetup でパスから読む。
     { "file": "scripts/lib/testing/vitest-global-setup.ts", "exports": ["setup"] },
     // 子プロセスで、fake-pngjs-hooks.ts が pngjs の import をこのファイルに向ける。
-    { "file": "scripts/lib/testing/fake-pngjs.ts", "exports": ["PNG"] }
+    { "file": "scripts/lib/testing/fake-pngjs.ts", "exports": ["PNG"] },
+    // 配布スキルが読む pngjs（import("pngjs")）と playwright（JSDoc の import('playwright')）の型。
+    // tsconfig.skills.json の paths がパッケージの名前をこれらのファイルへ解決するが、fallow はその解決をたどらない。
+    { "file": "types/skill-runtime/pngjs.ts", "exports": ["PNG"] },
+    { "file": "types/skill-runtime/playwright.ts", "exports": ["Locator", "Page"] }
   ],
   "ignorePatterns": [
     // eval の入力（下流のプロジェクトの断片）と、スライドの生成物、テストの結果。

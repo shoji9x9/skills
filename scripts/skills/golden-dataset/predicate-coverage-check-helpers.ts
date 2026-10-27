@@ -114,7 +114,7 @@ ${idRangeSection}`;
 }
 
 /** main が出す JSON の、テストで確かめる欄。 */
-export type CheckOutput = {
+type CheckOutput = {
   ok: boolean;
   structural?: boolean;
   findings: { code: string; message: string }[];

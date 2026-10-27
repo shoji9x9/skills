@@ -51,7 +51,7 @@ const SELF_FIXTURES = [
 ];
 
 type GeneratedEntry = { ref: string; template: string; skills?: string[] };
-export type DocRefsConfig = { repo: string; generated: GeneratedEntry[] };
+type DocRefsConfig = { repo: string; generated: GeneratedEntry[] };
 type Finding = { line: number; rule: string; text: string; message?: string };
 type SectionKind = "skill" | "link" | "code";
 

@@ -34,6 +34,14 @@
       "exports": ["PNG"]
     },
     {
+      "file": "types/skill-runtime/pngjs.ts",
+      "exports": ["PNG"]
+    },
+    {
+      "file": "types/skill-runtime/playwright.ts",
+      "exports": ["Locator", "Page"]
+    },
+    {
       "file": "skills/agent-usage/scripts/lib/is-array.mjs",
       "exports": ["*"]
     },

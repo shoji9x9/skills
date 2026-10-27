@@ -102,7 +102,7 @@ export function runCli(argv: string[]) {
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 
-export type PairRecord = {
+type PairRecord = {
   pair: string;
   pass: boolean;
   outside_diff_pixels: number | null;
@@ -114,7 +114,7 @@ export type PairRecord = {
   inputs: Record<string, { path: string; sha256: string }>;
   reasons: string[];
 };
-export type AmendRecord = {
+type AmendRecord = {
   tool: string;
   version: string;
   change_id?: string;

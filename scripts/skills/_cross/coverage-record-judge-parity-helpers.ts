@@ -26,7 +26,7 @@ export type Enumeration = {
 };
 export type Candidate = { rule: string; axes: Record<string, string> };
 /** expandCandidates が返す候補。 */
-export type ExpandedCandidate = Candidate & { id: string };
+type ExpandedCandidate = Candidate & { id: string };
 /** fillSetProvenance の setInventory が書く形。 */
 export type SetInventory = {
   source: { kind: string; ref: string; version: string; condition: string };
@@ -196,11 +196,11 @@ export const counts = (make: () => Fixture) => ({
 });
 
 // visual_state_coverage と conformance は、fillVisualStateRows と recordConformance が書き足す。
-export type RecordedComponent = Omit<GenericComponent, "items" | "instances"> & {
+type RecordedComponent = Omit<GenericComponent, "items" | "instances"> & {
   items: { id: string; visual_states: string[]; no_visual_state_reason: string | null }[];
   instances: { id: string; page: string; locator: string }[];
 };
-export type Recorded = CoverageOf<RecordedComponent> & {
+type Recorded = CoverageOf<RecordedComponent> & {
   visual_state_coverage?: { rows: { captured: string | null }[] };
   conformance?: { visual_states: { table_fingerprint: unknown; capture_fingerprint: unknown } };
 };
