@@ -20,7 +20,7 @@ export default defineConfig({
     // 関数の大きさ。閾値は oxlint のデフォルト（max-lines-per-function 50 行・max-depth 4・max-params 3・max-nested-callbacks 10）を使う。
     // 大きく分岐の多い関数は、テストとミューテーションテストで振る舞いを確かめにくい。
     // max-lines-per-function は空行とコメントも数える。テストのファイルでは、後の override で describe のコールバックだけを外す。
-    // 複雑度（循環的・認知的）・参照の向き・循環参照は、ファイルの間の関係を見る fallow が検査する（.fallowrc.jsonc）。
+    // 複雑度（循環的・認知的）・参照の向き・循環参照は、ファイルの間の関係を見る fallow が検査する（.config/fallow/base.jsonc）。
     "max-lines-per-function": "error",
     "max-depth": "error",
     "max-params": "error",

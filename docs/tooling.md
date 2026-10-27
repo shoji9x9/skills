@@ -94,7 +94,15 @@ pre-commit の検査は、他のジョブと同じく作業ツリーの内容に
 
 #### ファイルの間の関係（fallow）
 
-1 ファイルの中で完結しない検査は、fallow（設定は `.fallowrc.jsonc`）が行う。
+1 ファイルの中で完結しない検査は、fallow が行う。
+設定は `.config/fallow/base.jsonc` で手で書く。fallow が読む `.fallowrc.json` は、`scripts/gates/packaging/copies/generate-fallow-config.ts` がこのファイルと `identical-copies.json` から生成するので、手で直さない。
+pre-commit が生成し直して stage し、CI の `Lint` ジョブが生成し忘れを確かめる。
+
+配布スキルの間のコピー（`identical-copies.json` の組）は、テストが import する 1 つのコピーだけで export が使われる。
+fallow はコピーどうしの関係を知らないので、ほかのコピーの export を使われていないと判定する。
+そのため、生成するときに、組の最初のファイル（基準）以外のコピーの export を `ignoreExports` に挙げる。ファイル全体の組はすべての export を、範囲（`region`）の組は印の間で export する名前だけを外す。
+基準のコピーは検査に残るので、どのコピーでも使われていない export は基準のコピーで検出される。テストが import するコピーを、組の最初に置く。
+export を手で外すときは、`base.jsonc` の `ignoreExports` に理由を添えて書く。生成した設定は、これにコピーの分を足す。
 
 | 検査 | 内容 |
 | --- | --- |
@@ -109,7 +117,7 @@ pre-commit の検査は、他のジョブと同じく作業ツリーの内容に
 1 つのファイルの変更が、変更していないファイルの判定を変える（最後の呼び出し元を消すと、変更していないファイルの export が使われなくなる）。
 そのため、pre-commit と CI の `Lint` ジョブで、リポジトリ全体を検査する（`pnpm run lint:fallow`）。
 fallow はドットで始まるディレクトリを走査しないので、インストール済みのコピーは除外を書かなくても対象外になる。private skill の実体（`.ts`）は、`ignorePatterns` の `!` で含め直し、`entry` に挙げて対象にする。`entry` に挙げるだけでは走査されない。
-`scripts/` の分類を足したら、`.fallowrc.jsonc` の `entry` と境界のゾーンにも足す。足し忘れると、その分類の CLI が使われていないファイルとして失敗する。
+`scripts/` の分類を足したら、`base.jsonc` の `entry` と境界のゾーンにも足す。足し忘れると、その分類の CLI が使われていないファイルとして失敗する。
 境界のゾーンと許可する向きは、`scripts/gates/code/fallow-boundaries.test.ts` が実物の fallow を一時ディレクトリに当てて確かめる。向きを変えたら、このテストも直す。
 
 参照の向きは、fallow の構文の解析が読む参照（`import`・`export from`・`import()`・`require()`・`import type`・JSDoc の `{import("…")}`・`vi.mock`・`new URL`）で判定する。
@@ -117,7 +125,7 @@ fallow はドットで始まるディレクトリを走査しないので、イ�
 
 すぐに直せない既存の指摘は、`.config/fallow/dead-code-baseline.json` と `.config/fallow/health-baseline.json` に載せて外す。直したら、`fallow --save-baseline` と `fallow health --save-baseline` で作り直す。
 使われていない export は、`fallow fix --dry-run` で提案を確かめてから `fallow fix` で直す。`fallow fix` は `export` を外し、依存を消すので、pre-commit と CI では自動に適用しない。
-誤検知は、`.fallowrc.jsonc` で理由を書いて外す。配布スキルには `fallow-ignore` のコメントを置かない。
+誤検知は、`base.jsonc` で理由を書いて外す。配布スキルには `fallow-ignore` のコメントを置かない。
 
 CI だけで実行する検査が 2 つある。
 

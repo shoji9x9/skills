@@ -38,7 +38,11 @@ const REGION_NAME_RE = /^[a-z][a-z0-9-]*$/;
 export function loadGroups(root: string): CopyGroup[] {
   const path = join(root, DECLARATION_PATH);
   if (!existsSync(path)) throw new Error(`${DECLARATION_PATH} が無い`);
-  const data: unknown = JSON.parse(readFileSync(path, "utf8"));
+  return parseGroups(JSON.parse(readFileSync(path, "utf8")));
+}
+
+/** 宣言の中身（JSON を読んだ値）から組を作り、形の誤りは例外にする。 */
+export function parseGroups(data: unknown): CopyGroup[] {
   const groups = isRecord(data) ? data.groups : undefined;
   if (!isArray(groups) || groups.length === 0) {
     throw new Error("groups は 1 件以上の配列にする");

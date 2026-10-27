@@ -14,6 +14,12 @@ pre-commit:
             # stage_fixed は {staged_files} だけを stage し、words.json だけが staged のときに一覧を stage しないので、git add で stage する。
             glob: "{.textlint/words.json,.textlint/word-list.md}"
             run: node scripts/tools/generate-word-list.ts --index && git add .textlint/word-list.md
+          - name: fallow-config
+            # fallow の設定（.fallowrc.json）を、index の手で書く設定（.config/fallow/base.jsonc）と、意図したコピーの宣言から生成して stage する。
+            # lint の fallow より前の段で生成するので、同じ commit の検査は生成し直した設定を使う。
+            # 範囲（region）の組は、コピーの中身から外す export の名前を読むので、JS・TS の変更でも生成し直す。
+            glob: "{*.{js,mjs,cjs,jsx,ts,tsx,mts,cts},.config/fallow/base.jsonc,scripts/gates/packaging/copies/identical-copies.json,.fallowrc.json}"
+            run: node scripts/gates/packaging/copies/generate-fallow-config.ts --index && git add .fallowrc.json
           - name: markdownlint
             # 見る範囲は .markdownlint-cli2.yaml の globs が決める（引数で渡したファイルにも除外が反映される）。
             # ここで .agents/** を除くと、.agents/rules/ と private skill だけを直した commit で実行されない。
@@ -162,7 +168,7 @@ pre-commit:
             # ファイルの間の関係（使われていないコード・依存・複雑度・参照の向き・循環参照）。1 ファイルの変更が他のファイルの判定を変える
             # （最後の呼び出し元を消すと、変更していないファイルの export が使われなくなる）ので、渡されたファイルではなく全体を検査する。
             # 既存の指摘は .config/fallow/ のベースラインで外す。
-            glob: "{*.{js,mjs,cjs,jsx,ts,tsx,mts,cts},package.json,pnpm-lock.yaml,.fallowrc.jsonc,.config/fallow/*}"
+            glob: "{*.{js,mjs,cjs,jsx,ts,tsx,mts,cts},package.json,pnpm-lock.yaml,.fallowrc.json,.config/fallow/*}"
             run: pnpm run lint:fallow
           - name: duplicates
             # 重複したコード（JS/TS・シェル・Markdown）。別のファイルとの重複を探すので、全体を検査する。
