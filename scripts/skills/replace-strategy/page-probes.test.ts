@@ -61,13 +61,22 @@ const PROBES = { "role-probe.mjs": roleProbeInPage, "asset-probe.mjs": assetProb
  */
 function evaluateInPage(name: keyof typeof PROBES, globals: Record<string, unknown>): unknown {
   const result = evaluateSource(runCli(name), globals);
-  // 偽物のグローバルは本体を呼ぶ間だけ置き、比べる（vitest の expect が動く）前に戻す。
+  // 偽物のグローバルは本体を呼ぶ間だけ置き、比べる（vitest の expect が動く）前に、置いた分だけを元に戻す。
+  // vi.unstubAllGlobals は、ほかの場所で置いた偽物も戻すので使わない。
+  const saved = Object.keys(globals).map(
+    (key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const,
+  );
   let moduleResult: unknown;
-  for (const [key, value] of Object.entries(globals)) vi.stubGlobal(key, value);
   try {
+    for (const [key, value] of Object.entries(globals)) {
+      Object.defineProperty(globalThis, key, { value, configurable: true, writable: true });
+    }
     moduleResult = JSON.parse(JSON.stringify(PROBES[name]()));
   } finally {
-    vi.unstubAllGlobals();
+    for (const [key, descriptor] of saved) {
+      if (descriptor === undefined) Reflect.deleteProperty(globalThis, key);
+      else Object.defineProperty(globalThis, key, descriptor);
+    }
   }
   expect(moduleResult, "モジュールの本体の結果").toEqual(result);
   return result;

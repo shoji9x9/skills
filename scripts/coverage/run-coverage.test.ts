@@ -467,6 +467,15 @@ test("keepProjectCoverage: 記録を読めなければ（ディレクトリが�
   expect(error.mock.calls[0]?.[0]).toMatch(/V8 の記録を絞れないので消す/);
 });
 
+test("keepProjectCoverage: 1 件も残らなければ（root と記録の URL が合わないなど）、false を返す", () => {
+  const root = makeTempDir("run-coverage-v8-empty-");
+  const dir = join(root, "v8");
+  mkdirSync(dir);
+  writeFileSync(join(dir, "a.json"), v8Record([pathToFileURL(join(root, "other/a.mjs")).href]));
+  expect(keepProjectCoverage(dir, root, ["skills/"])).toBe(false);
+  expect(readdirSync(dir)).toEqual([]);
+});
+
 test("keepProjectCoverage: 記録のディレクトリが無ければ、残す記録が無いとして false を返す", () => {
   const root = makeTempDir("run-coverage-v8-none-");
   expect(keepProjectCoverage(join(root, "v8"), root, ["skills/"])).toBe(false);

@@ -197,8 +197,11 @@ interface MeasureOptions {
   keepRecords: boolean;
 }
 
-/** c8 で vitest を実行して測る。テストの終了コードを返す。 */
-function measure({ root, cache, vitestArgs, keepRecords }: MeasureOptions): number {
+/** c8 で vitest を実行して測る。テストの終了コードと、残すはずの V8 の記録を残せなかったかを返す。 */
+function measure({ root, cache, vitestArgs, keepRecords }: MeasureOptions): {
+  status: number;
+  recordsLost: boolean;
+} {
   const privates = privateSkillDirs(root);
   mkdirSync(cache, { recursive: true });
   const res = spawnSync("pnpm", c8Args(privates, cache, vitestArgs), {
@@ -213,13 +216,9 @@ function measure({ root, cache, vitestArgs, keepRecords }: MeasureOptions): numb
   if (res.error || res.status !== 0 || !keepRecords) {
     rmSync(v8Dir, { recursive: true, force: true });
     if (res.error) throw res.error;
-    return res.status ?? 1;
+    return { status: res.status ?? 1, recordsLost: false };
   }
-  // 絞れなければ記録が無くなるので、CRAP の検査で初めて失敗させず、ここで判定できないとして止める。
-  if (!keepProjectCoverage(v8Dir, root, sourceDirs(privates))) {
-    throw new Error("V8 の記録を絞れず、CRAP の検査に渡す記録が無い");
-  }
-  return 0;
+  return { status: 0, recordsLost: !keepProjectCoverage(v8Dir, root, sourceDirs(privates)) };
 }
 
 /** V8 の記録の 1 ファイルのうち、絞るときに残す `result` と、Node が書いたソースマップ（スクリプトの URL ごと）。 */
@@ -244,8 +243,8 @@ function readV8Record(path: string): V8Record | null {
 
 /**
  * V8 の記録の URL が、残すスクリプトを指すかを返す関数を作る。
- * 残すのは、`dirs` の下のファイルのうち、c8 が測る対象から除く型の宣言・外部のパッケージから作った生成物・node_modules の下を除いたものである。
- * テスト（`*.test.ts`）は、c8 は除くが残す。fallow はテストの関数の CRAP も測る。
+ * 残すのは、`dirs` の下のファイルのうち、閾値を比べる対象（isMeasured）から外部のパッケージから作った生成物と node_modules の下を除いたものである。
+ * テスト（`*.test.ts`）は、閾値を比べる対象ではないが残す。fallow はテストの関数の CRAP も測る。
  * node_modules は、対象のディレクトリより下だけで探す。リポジトリ自身が node_modules の下にあっても（テストの一時ディレクトリなど）残す。
  */
 function projectScriptFilter(root: string, dirs: readonly string[]): (url: unknown) => boolean {
@@ -255,7 +254,7 @@ function projectScriptFilter(root: string, dirs: readonly string[]): (url: unkno
     const rel = relative(root, fileURLToPath(url)).split(sep).join("/");
     return (
       dirs.some((d) => rel.startsWith(d) && !rel.slice(d.length).includes("node_modules/")) &&
-      !rel.endsWith(".d.ts") &&
+      (isMeasured(rel) || rel.endsWith(".test.ts")) &&
       !isVendored(rel)
     );
   };
@@ -263,21 +262,27 @@ function projectScriptFilter(root: string, dirs: readonly string[]): (url: unkno
 
 /**
  * V8 の記録の 1 ファイルを、残すスクリプトの分（とそのソースマップ）に絞る。何も残らなければ消し、何も外れなければ書き直さない。
- * JSON でないか形が違えば、消して false を返す。
+ * 残したか（kept）、何も残らず消したか（removed）、JSON でないか形が違うので消したか（unreadable）を返す。
  */
-function narrowRecordFile(path: string, inProject: (url: unknown) => boolean): boolean {
+function narrowRecordFile(
+  path: string,
+  inProject: (url: unknown) => boolean,
+): "kept" | "removed" | "unreadable" {
   const record = readV8Record(path);
   const result = (record?.result ?? []).filter((entry) => isRecord(entry) && inProject(entry.url));
   const maps = Object.entries(record?.sourceMaps ?? {});
   const sourceMaps = maps.filter(([url]) => inProject(url));
-  if (result.length === 0) rmSync(path);
-  else if (result.length !== record?.result.length || sourceMaps.length !== maps.length) {
+  if (result.length === 0) {
+    rmSync(path);
+    return record === null ? "unreadable" : "removed";
+  }
+  if (result.length !== record?.result.length || sourceMaps.length !== maps.length) {
     writeFileSync(
       path,
       JSON.stringify({ result, "source-map-cache": Object.fromEntries(sourceMaps) }),
     );
   }
-  return record !== null;
+  return "kept";
 }
 
 /**
@@ -285,27 +290,26 @@ function narrowRecordFile(path: string, inProject: (url: unknown) => boolean): b
  * 残すスクリプトのソースマップ（`source-map-cache`）も残す。fallow は、変換したスクリプトの位置をソースマップで元のファイルに戻す。
  * 何も残らないファイルは消す。JSON でないか形が違うファイル（書き出しの途中で止められたプロセスの記録など）は、
  * c8 がレポートを作るときに飛ばすので、同じように消し、件数を出す。
- * ファイルを読み書きできなければ、ディレクトリごと消して false を返す。記録のディレクトリが無いときも false を返す。
+ * ファイルを読み書きできなければ、ディレクトリごと消して false を返す。記録のディレクトリが無いときと、1 件も残らなかったときも false を返す。
  */
 export function keepProjectCoverage(dir: string, root: string, dirs: readonly string[]): boolean {
   if (!existsSync(dir)) return false;
   const inProject = projectScriptFilter(root, dirs);
-  let unreadable = 0;
+  const counts = { kept: 0, removed: 0, unreadable: 0 };
   try {
-    for (const name of readdirSync(dir)) {
-      if (!narrowRecordFile(join(dir, name), inProject)) unreadable += 1;
-    }
+    for (const name of readdirSync(dir)) counts[narrowRecordFile(join(dir, name), inProject)] += 1;
   } catch (error) {
     console.error(`run-coverage: V8 の記録を絞れないので消す: ${errorMessage(error)}`);
     rmSync(dir, { recursive: true, force: true });
     return false;
   }
-  if (unreadable > 0) {
+  if (counts.unreadable > 0) {
     console.error(
-      `run-coverage: 読めない V8 の記録 ${unreadable} 件を飛ばした（c8 のレポートも使わない）`,
+      `run-coverage: 読めない V8 の記録 ${counts.unreadable} 件を飛ばした（c8 のレポートも使わない）`,
     );
   }
-  return true;
+  // 1 件も残らないのは、root と記録の URL が合わないときなどである。空の記録を CRAP に渡さない。
+  return counts.kept > 0;
 }
 
 /** `reportFocus` が受け取る、閾値の設定・対象のファイル・測定値・--focus の接頭辞・結果の置き場所。 */
@@ -398,11 +402,15 @@ function prepareCache(root: string, { focus, reuse }: CliArgs): string | undefin
 function measureAndRead(
   { root, cache, vitestArgs, keepRecords }: MeasureOptions,
   reuse: boolean,
-): { ok: true; measures: Map<string, FileMeasure> } | { ok: false; code: number } {
+):
+  | { ok: true; measures: Map<string, FileMeasure>; recordsLost: boolean }
+  | { ok: false; code: number } {
   const c8Path = join(cache, "report", "coverage-summary.json");
+  let recordsLost = false;
   if (!reuse) {
     try {
-      const status = measure({ root, cache, vitestArgs, keepRecords });
+      const { status, ...rest } = measure({ root, cache, vitestArgs, keepRecords });
+      recordsLost = rest.recordsLost;
       if (status !== 0) {
         console.error(`run-coverage: テストが失敗した（exit ${status}）。カバレッジは比べない`);
         return { ok: false, code: 1 };
@@ -417,11 +425,21 @@ function measureAndRead(
     return { ok: false, code: 2 };
   }
   try {
-    return { ok: true, measures: readC8Summary(root, JSON.parse(readFileSync(c8Path, "utf8"))) };
+    const measures = readC8Summary(root, JSON.parse(readFileSync(c8Path, "utf8")));
+    return { ok: true, measures, recordsLost };
   } catch (error) {
     console.error(`run-coverage: 判定できない: 測定の結果を読めない: ${errorMessage(error)}`);
     return { ok: false, code: 2 };
   }
+}
+
+/**
+ * V8 の記録を残せなかった全体の実行の終了コード。CI の CRAP の検査で初めて失敗させず、閾値を比べた後でここで止める。
+ * 閾値を下回ったときは、その終了コードを優先する。
+ */
+function recordsLostCode(code: number): number {
+  console.error("run-coverage: 判定できない: V8 の記録を絞れず、CRAP の検査に渡す記録が無い");
+  return code === 0 ? 2 : code;
 }
 
 /** 全体の実行の結果を出す。閾値を下回るものと、比べたファイルの件数を出す。 */
@@ -475,6 +493,7 @@ export function main(
   if (!measured.ok) return measured.code;
   const { measures } = measured;
   if (focus.length > 0) return reportFocus({ config, files, measures, focus, cache });
+  if (measured.recordsLost) return recordsLostCode(reportAll(config, files, measures));
   return reportAll(config, files, measures);
 }
 
