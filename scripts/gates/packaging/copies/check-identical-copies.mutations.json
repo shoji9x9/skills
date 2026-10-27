@@ -10,8 +10,8 @@
       "id": "IC-EQUALS",
       "why": "内容を比べない（片方だけ直したコピーを通す）",
       "file": "scripts/gates/packaging/copies/check-identical-copies.ts",
-      "find": "      if (!baseBuf.equals(buf)) {",
-      "replace": "      if (false) {",
+      "find": "    if (!baseBuf.equals(buf)) {",
+      "replace": "    if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "陽性: 片方の途中にだけ行を足したら、最初に食い違う行番号を付けて落とす",
@@ -25,8 +25,8 @@
       "id": "IC-REST",
       "why": "3 件以上の組で 2 件目までしか比べない",
       "file": "scripts/gates/packaging/copies/check-identical-copies.ts",
-      "find": "    for (const p of rest) {",
-      "replace": "    for (const p of rest.slice(0, 1)) {",
+      "find": "  for (const p of rest) {",
+      "replace": "  for (const p of rest.slice(0, 1)) {",
       "occurrences": 1,
       "expect_failing": ["陽性: 3 件の組で 1 件だけ違えば、その 1 件だけを報告する"]
     },

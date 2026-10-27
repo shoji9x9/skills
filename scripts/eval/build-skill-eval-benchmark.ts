@@ -103,16 +103,21 @@ function parseArgs(argv: string[]): CliOptions & { dir: string } {
     else positional.push(arg);
   }
   if (positional.length !== 1) usage("iteration ディレクトリを 1 つ指定する");
-  for (const [flag, key] of Object.entries(withValue)) {
-    if (["--notes-file", "--timestamp", "--out", "--ungraded"].includes(flag)) continue;
-    if (!opts[key]) usage(`${flag} は必須`);
-  }
-  if (!["fail", "skip"].includes(opts.ungraded)) usage("--ungraded は fail | skip");
+  checkRequired(opts, withValue);
   const dir = resolve(positional[0]);
   if (!existsSync(dir) || !statSync(dir).isDirectory()) {
     die(`iteration ディレクトリが無い: ${dir}`);
   }
   return { ...opts, dir };
+}
+
+/** 必須のオプションが揃い、`--ungraded` が決まった値であることを確かめる。 */
+function checkRequired(opts: CliOptions, withValue: Record<string, StringOptionKey>): void {
+  for (const [flag, key] of Object.entries(withValue)) {
+    if (["--notes-file", "--timestamp", "--out", "--ungraded"].includes(flag)) continue;
+    if (!opts[key]) usage(`${flag} は必須`);
+  }
+  if (!["fail", "skip"].includes(opts.ungraded)) usage("--ungraded は fail | skip");
 }
 
 /** `--notes-file` の JSON（文字列配列）を読む。成果物の JSON とは形が違うので別扱い。 */
@@ -553,31 +558,41 @@ function loadRuns(opts: Options, evalDirs: string[]) {
       if (!present)
         throw new Error(`presentByEval に ${evalDir} が無い（evalDirs の全件をキーに持つ）`);
       present.push(configuration);
-      const runDirs = listDirs(configDir, "run-");
-      if (runDirs.length === 0) die(`${configDir}: run-* ディレクトリが無い`);
-      // `run-` に一致しないディレクトリも、同じく警告なしに落とさない（`run1` / `retry-run-2` 等）。
-      const strayRuns = listDirs(configDir, "").filter((n) => !runDirs.includes(n));
-      if (strayRuns.length > 0) {
-        die(
-          `run ディレクトリの名前が run-<番号> でない（${strayRuns.map((n) => `${evalDir}/${configuration}/${n}`).join(", ")}）。` +
-            "名前を揃えるか、iteration から外す",
-        );
-      }
-      let graded = 0;
-      for (const runDir of runDirs) {
-        const abs = join(configDir, runDir);
-        if (!existsSync(join(abs, "grading.json"))) {
-          // 汚染・`invalid_run` の run は `grading.json` を置かない運用。**警告なしに落とさない。**
-          ungraded.push(abs);
-          continue;
-        }
-        loaded.push(loadRun(abs, configuration, evalDir));
-        graded++;
-      }
-      perPair.set(`${evalDir}/${configuration}`, graded);
+      const pair = loadPairRuns(configDir, evalDir, configuration);
+      loaded.push(...pair.loaded);
+      ungraded.push(...pair.ungraded);
+      perPair.set(`${evalDir}/${configuration}`, pair.loaded.length);
     }
   }
   return { loaded, ungraded, perPair, presentByEval };
+}
+
+/** eval と configuration の 1 組の run を読む。採点の無い run は ungraded に分ける。 */
+function loadPairRuns(configDir: string, evalDir: string, configuration: string) {
+  const loaded: LoadedRun[] = [];
+  const ungraded: string[] = [];
+  for (const runDir of pairRunDirs(configDir, evalDir, configuration)) {
+    const abs = join(configDir, runDir);
+    // 汚染・`invalid_run` の run は `grading.json` を置かない運用。**警告なしに落とさない。**
+    if (existsSync(join(abs, "grading.json"))) loaded.push(loadRun(abs, configuration, evalDir));
+    else ungraded.push(abs);
+  }
+  return { loaded, ungraded };
+}
+
+/** eval と configuration の組ごとのディレクトリにある run-* を挙げる。run が無いときと、名前が run-<番号> でないディレクトリがあるときは落とす。 */
+function pairRunDirs(configDir: string, evalDir: string, configuration: string): string[] {
+  const runDirs = listDirs(configDir, "run-");
+  if (runDirs.length === 0) die(`${configDir}: run-* ディレクトリが無い`);
+  // `run-` に一致しないディレクトリも、同じく警告なしに落とさない（`run1` / `retry-run-2` 等）。
+  const strayRuns = listDirs(configDir, "").filter((n) => !runDirs.includes(n));
+  if (strayRuns.length > 0) {
+    die(
+      `run ディレクトリの名前が run-<番号> でない（${strayRuns.map((n) => `${evalDir}/${configuration}/${n}`).join(", ")}）。` +
+        "名前を揃えるか、iteration から外す",
+    );
+  }
+  return runDirs;
 }
 
 /** 採点の無い run を報告し、`--ungraded fail` なら落とす。採点済みの run が 0 件のときも落とす。 */

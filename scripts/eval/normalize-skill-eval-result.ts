@@ -628,12 +628,7 @@ function analyzeShellCommand(command: string, cwd: Cwd, depth = 0): ShellAnalysi
   for (const element of elements) {
     const target = plainCdTarget(element);
     if (target !== null) {
-      // A relative target other than `./…` / `../…` is looked up through CDPATH first.
-      const direct = target.startsWith("/") || /^\.\.?(?:\/|$)/u.test(target);
-      current =
-        direct && (target.startsWith("/") || current !== null)
-          ? resolveAgainst(current, target)
-          : null;
+      current = cdDestination(current, target);
       cwdAfter = current;
       continue;
     }
@@ -652,6 +647,15 @@ function analyzeShellCommand(command: string, cwd: Cwd, depth = 0): ShellAnalysi
     reads.push(...readOperands(element).map((path) => resolveRead(current, path)));
   }
   return { reads, cwdAfter };
+}
+
+// Where a plain `cd <target>` leaves the shell, given where it started.
+function cdDestination(current: Cwd, target: string): Cwd {
+  // A relative target other than `./…` / `../…` is looked up through CDPATH first.
+  const direct = target.startsWith("/") || /^\.\.?(?:\/|$)/u.test(target);
+  return direct && (target.startsWith("/") || current !== null)
+    ? resolveAgainst(current, target)
+    : null;
 }
 
 function stripQuotes(word: string): string {
@@ -909,21 +913,25 @@ function applyClaudeEvent(state: ClaudeTraceState, event: ClaudeEvent): void {
   // segment but never return its contents, and crediting them marks a clean
   // baseline contaminated.
   if (event.type === "user" && isArray(event.message?.content)) {
-    for (const block of event.message.content) {
-      if (typeof block === "object" && block !== null && block.type === "tool_result") {
-        applyToolResult(state, block);
-      }
+    for (const block of blocksOfType(event.message.content, "tool_result")) {
+      applyToolResult(state, block);
     }
     return;
   }
   if (event.type !== "assistant" || !isArray(event.message?.content)) {
     return;
   }
-  for (const block of event.message.content) {
-    if (typeof block === "object" && block !== null && block.type === "tool_use") {
-      applyToolUse(state, block);
-    }
+  for (const block of blocksOfType(event.message.content, "tool_use")) {
+    applyToolUse(state, block);
   }
+}
+
+/** message の content のうち、指定した type を持つ object の block。 */
+function blocksOfType<T>(content: readonly T[], type: string): Array<T & { type: string }> {
+  return content.filter(
+    (block): block is T & { type: string } =>
+      typeof block === "object" && block !== null && "type" in block && block.type === type,
+  );
 }
 
 // `--output-format json` writes one object; `--output-format stream-json --verbose`
@@ -1147,22 +1155,27 @@ export function codexContaminationSurface(rawText: string): string {
       kept.push(line);
       continue;
     }
-    const item = event?.item;
-    if (typeof item === "object" && item !== null) {
-      if (MENTION_ITEM_TYPES.has(item.type)) {
-        continue;
-      }
-      if (
-        item.type === "command_execution" &&
-        typeof item.command === "string" &&
-        isMentionOnlyCommand(item.command)
-      ) {
-        continue;
-      }
+    if (isMentionOnlyItem(event?.item)) {
+      continue;
     }
     kept.push(line);
   }
   return kept.length > 0 ? `${kept.join("\n")}\n` : "";
+}
+
+/** スキルの名前に触れるだけで、読んだ証拠にならない item か。 */
+function isMentionOnlyItem(item: CodexEvent["item"]): boolean {
+  if (typeof item !== "object" || item === null) {
+    return false;
+  }
+  if (MENTION_ITEM_TYPES.has(item.type)) {
+    return true;
+  }
+  return (
+    item.type === "command_execution" &&
+    typeof item.command === "string" &&
+    isMentionOnlyCommand(item.command)
+  );
 }
 
 // The harness installs the subject skill under one of these, by executor

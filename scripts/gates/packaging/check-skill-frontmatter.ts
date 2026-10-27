@@ -96,29 +96,20 @@ function nameViolations(data: Record<string, unknown>): string[] {
 //     private skill は skills/ にソースを持たず、publish / reinstall / skills-sync の
 //     どの方法でも frontmatter をチェックされないため、ここで明示的に対象へ加える。
 function listSkillFiles() {
-  const out = [];
+  return [
+    ...skillDirFiles("skills", () => true),
+    // private skill（.private-skill マーカーあり）だけを追加する。
+    ...skillDirFiles(".agents/skills", (dir) => existsSync(join(dir, ".private-skill"))),
+  ];
+}
 
-  const srcRoot = "skills";
-  if (existsSync(srcRoot)) {
-    for (const e of readdirSync(srcRoot, { withFileTypes: true })) {
-      if (!e.isDirectory()) continue;
-      const p = join(srcRoot, e.name, "SKILL.md");
-      if (existsSync(p)) out.push(p);
-    }
-  }
-
-  const installedRoot = ".agents/skills";
-  if (existsSync(installedRoot)) {
-    for (const e of readdirSync(installedRoot, { withFileTypes: true })) {
-      if (!e.isDirectory()) continue;
-      // private skill（.private-skill マーカーあり）だけを追加する。
-      if (!existsSync(join(installedRoot, e.name, ".private-skill"))) continue;
-      const p = join(installedRoot, e.name, "SKILL.md");
-      if (existsSync(p)) out.push(p);
-    }
-  }
-
-  return out;
+/** root の直下のディレクトリのうち、include を満たすものの SKILL.md。 */
+function skillDirFiles(root: string, include: (dir: string) => boolean): string[] {
+  if (!existsSync(root)) return [];
+  return readdirSync(root, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && include(join(root, e.name)))
+    .map((e) => join(root, e.name, "SKILL.md"))
+    .filter((p) => existsSync(p));
 }
 
 function main() {

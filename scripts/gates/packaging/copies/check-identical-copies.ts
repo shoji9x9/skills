@@ -50,15 +50,7 @@ export function parseGroups(data: unknown): CopyGroup[] {
   const seen = new Set<string>();
   return groups.map((group, i): CopyGroup => {
     const g = isRecord(group) ? group : {};
-    const files = g.files;
-    if (
-      !isArray(files) ||
-      files.length < 2 ||
-      !files.every((f): f is string => typeof f === "string") ||
-      files.includes("")
-    ) {
-      throw new Error(`groups[${i}].files は 2 件以上の空でない文字列の配列にする`);
-    }
+    const files = groupFiles(g.files, i);
     if (typeof g.reason !== "string" || !g.reason.trim()) {
       throw new Error(`groups[${i}].reason が無い（なぜ同一であるべきかを書く）`);
     }
@@ -66,18 +58,36 @@ export function parseGroups(data: unknown): CopyGroup[] {
     if (region !== undefined && (typeof region !== "string" || !REGION_NAME_RE.test(region))) {
       throw new Error(`groups[${i}].region は英小文字で始まる英小文字・数字・ハイフンの名前にする`);
     }
-    // 1 ファイルが属せるのは、ファイル全体を比べる組 1 つと、範囲の名前ごとの組 1 つずつである。
-    // 同じ関数のコピーどうしはファイル全体で比べ、種類の違うファイルとは範囲で比べる。
-    for (const f of files) {
-      const key = region === undefined ? f : `${f}#${region}`;
-      if (seen.has(key))
-        throw new Error(
-          `${f} が${region === undefined ? "" : `範囲「${region}」の`}組に複数回宣言されている`,
-        );
-      seen.add(key);
-    }
+    markSeen(seen, files, region);
     return { ...g, files, reason: g.reason, region };
   });
+}
+
+/** 組の files を、2 件以上の空でない文字列の配列として読む。 */
+function groupFiles(files: unknown, i: number): string[] {
+  if (
+    !isArray(files) ||
+    files.length < 2 ||
+    !files.every((f): f is string => typeof f === "string") ||
+    files.includes("")
+  ) {
+    throw new Error(`groups[${i}].files は 2 件以上の空でない文字列の配列にする`);
+  }
+  return files;
+}
+
+/** 組のファイルを seen に記録し、同じ種類の組に 2 回宣言されたファイルを例外にする。 */
+function markSeen(seen: Set<string>, files: readonly string[], region: string | undefined): void {
+  // 1 ファイルが属せるのは、ファイル全体を比べる組 1 つと、範囲の名前ごとの組 1 つずつである。
+  // 同じ関数のコピーどうしはファイル全体で比べ、種類の違うファイルとは範囲で比べる。
+  for (const f of files) {
+    const key = region === undefined ? f : `${f}#${region}`;
+    if (seen.has(key))
+      throw new Error(
+        `${f} が${region === undefined ? "" : `範囲「${region}」の`}組に複数回宣言されている`,
+      );
+    seen.add(key);
+  }
 }
 
 /**
@@ -137,35 +147,50 @@ export function checkIdenticalCopies(root: string) {
     const present = paths.filter((p) => !missing.includes(p));
     files += present.length;
     if (present.length < 2) continue;
-    const [base, ...rest] = present;
-    if (region === undefined) {
-      const baseBuf = readFileSync(join(root, base));
-      for (const p of rest) {
-        const buf = readFileSync(join(root, p));
-        if (!baseBuf.equals(buf)) {
-          const line = firstDifferentLine(baseBuf.toString("utf8"), buf.toString("utf8"));
-          violations.push(`${p}: ${base} と一致しない（最初の差分は ${line} 行目）`);
-        }
-      }
-      continue;
-    }
-    const bodies = present.map((p) => ({
-      p,
-      r: extractRegion(readFileSync(join(root, p), "utf8"), region),
-    }));
-    for (const { p, r } of bodies) if ("error" in r) violations.push(`${p}: ${r.error}`);
-    const baseRegion = bodies[0].r;
-    if ("error" in baseRegion) continue;
-    for (const { p, r } of bodies.slice(1)) {
-      if ("body" in r && r.body !== baseRegion.body) {
-        const line = firstDifferentLine(baseRegion.body, r.body);
-        violations.push(
-          `${p}: ${base} と範囲「${region}」が一致しない（範囲の中の最初の差分は ${line} 行目）`,
-        );
-      }
-    }
+    violations.push(
+      ...(region === undefined
+        ? wholeFileViolations(root, present)
+        : regionViolations(root, present, region)),
+    );
   }
   return { groups: groups.length, files, violations };
+}
+
+/** 組の先頭のファイル（base）と、残りのファイル全体を比べる。 */
+function wholeFileViolations(root: string, present: readonly string[]): string[] {
+  const [base, ...rest] = present;
+  const violations: string[] = [];
+  const baseBuf = readFileSync(join(root, base));
+  for (const p of rest) {
+    const buf = readFileSync(join(root, p));
+    if (!baseBuf.equals(buf)) {
+      const line = firstDifferentLine(baseBuf.toString("utf8"), buf.toString("utf8"));
+      violations.push(`${p}: ${base} と一致しない（最初の差分は ${line} 行目）`);
+    }
+  }
+  return violations;
+}
+
+/** 組の先頭のファイル（base）と残りのファイルとで、印で囲んだ範囲（region）の中身を比べる。 */
+function regionViolations(root: string, present: readonly string[], region: string): string[] {
+  const base = present[0];
+  const violations: string[] = [];
+  const bodies = present.map((p) => ({
+    p,
+    r: extractRegion(readFileSync(join(root, p), "utf8"), region),
+  }));
+  for (const { p, r } of bodies) if ("error" in r) violations.push(`${p}: ${r.error}`);
+  const baseRegion = bodies[0].r;
+  if ("error" in baseRegion) return violations;
+  for (const { p, r } of bodies.slice(1)) {
+    if ("body" in r && r.body !== baseRegion.body) {
+      const line = firstDifferentLine(baseRegion.body, r.body);
+      violations.push(
+        `${p}: ${base} と範囲「${region}」が一致しない（範囲の中の最初の差分は ${line} 行目）`,
+      );
+    }
+  }
+  return violations;
 }
 
 export function main(argv: string[]) {
