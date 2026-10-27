@@ -4,18 +4,41 @@
 import { inflateRawSync } from "node:zlib";
 
 /**
+ * zip の終わりの記録（end of central directory）の位置。見つからなければ -1。
+ * @param {Buffer} buf
+ * @returns {number}
+ */
+function findEocd(buf) {
+  const eocdSig = 0x06054b50;
+  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 22 - 65535); i -= 1) {
+    if (buf.readUInt32LE(i) === eocdSig) return i;
+  }
+  return -1;
+}
+
+/**
+ * 項目のローカルヘッダを確かめ、中身を展開して返す。local はローカルヘッダの位置、compSize は圧縮後の大きさ。
+ * @param {Buffer} buf
+ * @param {{ local: number; compSize: number; method: number; name: string }} e
+ * @returns {Buffer}
+ */
+function entryContent(buf, e) {
+  const { local, compSize, method, name } = e;
+  if (buf.readUInt32LE(local) !== 0x04034b50)
+    throw new Error(`zip のローカルヘッダが不正: ${name}`);
+  const start = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28);
+  const data = buf.subarray(start, start + compSize);
+  if (method === 0) return Buffer.from(data);
+  if (method === 8) return inflateRawSync(data);
+  throw new Error(`対応していない圧縮方式 ${method}: ${name}`);
+}
+
+/**
  * @param {Buffer} buf
  * @returns {Map<string, Buffer>} ファイル名 → 中身（ディレクトリの項目は除く）
  */
 export function unzip(buf) {
-  const eocdSig = 0x06054b50;
-  let eocd = -1;
-  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 22 - 65535); i -= 1) {
-    if (buf.readUInt32LE(i) === eocdSig) {
-      eocd = i;
-      break;
-    }
-  }
+  const eocd = findEocd(buf);
   if (eocd < 0) throw new Error("zip の終わりの記録が無い");
   const count = buf.readUInt16LE(eocd + 10);
   let off = buf.readUInt32LE(eocd + 16);
@@ -35,13 +58,7 @@ export function unzip(buf) {
     off += 46 + nameLen + extraLen + commentLen;
     if (name.endsWith("/")) continue;
     if (flags & 1) throw new Error(`暗号化された項目には対応していない: ${name}`);
-    if (buf.readUInt32LE(local) !== 0x04034b50)
-      throw new Error(`zip のローカルヘッダが不正: ${name}`);
-    const start = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28);
-    const data = buf.subarray(start, start + compSize);
-    if (method === 0) out.set(name, Buffer.from(data));
-    else if (method === 8) out.set(name, inflateRawSync(data));
-    else throw new Error(`対応していない圧縮方式 ${method}: ${name}`);
+    out.set(name, entryContent(buf, { local, compSize, method, name }));
   }
   return out;
 }

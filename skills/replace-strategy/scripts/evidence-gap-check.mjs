@@ -655,6 +655,38 @@ const usage = [
 ].join("\n");
 
 /**
+ * main で捕まえた例外を stderr に出し、終了コードを返す。
+ * @param {unknown} e
+ * @returns {number}
+ */
+function reportError(e) {
+  if (e instanceof NotApplicableError) {
+    process.stderr.write(`not-applicable: ${e.message}\n`);
+    return 4;
+  }
+  if (e instanceof UndecidableError) {
+    process.stderr.write(`undecidable: ${e.message}\n`);
+    return 3;
+  }
+  if (e instanceof UsageError) {
+    process.stderr.write(`error: ${e.message}\n${usage}\n`);
+    return 2;
+  }
+  // 読めない入力（ENOENT だけでなく EISDIR / EACCES 等）は入力の不備。
+  // 投げ直すと未捕捉例外の exit 1 になり、「宣言の無い未確認の口がある」と同じ終了コードになってしまう。
+  if (e instanceof Error && "code" in e && typeof e.code === "string") {
+    process.stderr.write(`error: ${e.message}\n${usage}\n`);
+    return 2;
+  }
+  // errno を持たない想定外の例外も同じ理由で exit 2（判定していない）として扱う。
+  // 投げ直すと Node の未捕捉例外が exit 1 になり、消費側が「書き戻しの抜けがある」と読んで
+  // 存在しない口を探すことになる。原因を追えるようスタックはそのまま出す。
+  const detail = e instanceof Error ? (e.stack ?? e.message) : String(e);
+  process.stderr.write(`error: 判定できない例外で終了した: ${detail}\n${usage}\n`);
+  return 2;
+}
+
+/**
  * @param {string[]} argv
  * @returns {number}
  */
@@ -682,30 +714,7 @@ export function main(argv) {
     process.stdout.write(`ok: 書き戻しの抜けは無い（evidence-gap-check ${VERSION}）\n`);
     return 0;
   } catch (e) {
-    if (e instanceof NotApplicableError) {
-      process.stderr.write(`not-applicable: ${e.message}\n`);
-      return 4;
-    }
-    if (e instanceof UndecidableError) {
-      process.stderr.write(`undecidable: ${e.message}\n`);
-      return 3;
-    }
-    if (e instanceof UsageError) {
-      process.stderr.write(`error: ${e.message}\n${usage}\n`);
-      return 2;
-    }
-    // 読めない入力（ENOENT だけでなく EISDIR / EACCES 等）は入力の不備。
-    // 投げ直すと未捕捉例外の exit 1 になり、「宣言の無い未確認の口がある」と同じ終了コードになってしまう。
-    if (e instanceof Error && "code" in e && typeof e.code === "string") {
-      process.stderr.write(`error: ${e.message}\n${usage}\n`);
-      return 2;
-    }
-    // errno を持たない想定外の例外も同じ理由で exit 2（判定していない）として扱う。
-    // 投げ直すと Node の未捕捉例外が exit 1 になり、消費側が「書き戻しの抜けがある」と読んで
-    // 存在しない口を探すことになる。原因を追えるようスタックはそのまま出す。
-    const detail = e instanceof Error ? (e.stack ?? e.message) : String(e);
-    process.stderr.write(`error: 判定できない例外で終了した: ${detail}\n${usage}\n`);
-    return 2;
+    return reportError(e);
   }
 }
 

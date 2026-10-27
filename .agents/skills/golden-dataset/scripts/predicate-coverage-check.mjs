@@ -298,6 +298,33 @@ export function splitList(cell) {
 }
 
 /**
+ * 1 文字読んで引用符と括弧の深さを進め、その文字が引用符・括弧の外の区切り（`,` `、` `／` `/`）かを返す。
+ *
+ * @param {{ depth: number, quote: string | null }} scan - 読んでいる位置の状態（この関数が更新する）
+ * @param {string} char
+ * @returns {boolean}
+ */
+function advanceToSeparator(scan, char) {
+  if (scan.quote !== null) {
+    if (char === scan.quote) scan.quote = null;
+    return false;
+  }
+  if (char === "'" || char === '"' || char === "`") {
+    scan.quote = char;
+    return false;
+  }
+  if (char === "(" || char === "（") {
+    scan.depth += 1;
+    return false;
+  }
+  if (char === ")" || char === "）") {
+    if (scan.depth > 0) scan.depth -= 1;
+    return false;
+  }
+  return scan.depth === 0 && (char === "," || char === "、" || char === "／" || char === "/");
+}
+
+/**
  * 区切り（`,` `、` `／` `/`）で分けるが、**引用符・括弧の内側では分けない**。
  *
  * 条件の中の区切りで割ると、`status IN ('pending','canceled')` が誤って 2 件の絞り込みと判定される。
@@ -310,31 +337,10 @@ export function splitTopLevel(value) {
   /** @type {string[]} */
   const parts = [];
   let current = "";
-  let depth = 0;
-  /** @type {string | null} */
-  let quote = null;
+  /** @type {{ depth: number, quote: string | null }} */
+  const scan = { depth: 0, quote: null };
   for (const char of value) {
-    if (quote !== null) {
-      current += char;
-      if (char === quote) quote = null;
-      continue;
-    }
-    if (char === "'" || char === '"' || char === "`") {
-      quote = char;
-      current += char;
-      continue;
-    }
-    if (char === "(" || char === "（") {
-      depth += 1;
-      current += char;
-      continue;
-    }
-    if (char === ")" || char === "）") {
-      if (depth > 0) depth -= 1;
-      current += char;
-      continue;
-    }
-    if (depth === 0 && (char === "," || char === "、" || char === "／" || char === "/")) {
+    if (advanceToSeparator(scan, char)) {
       parts.push(current);
       current = "";
       continue;

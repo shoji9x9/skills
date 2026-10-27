@@ -126,8 +126,8 @@
       "id": "wrapper-value-option-not-skipped",
       "why": "ラッパーの値を取るオプション（nice -n 5 など）の値を読み飛ばさない（Issue #678）",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "        i += option.width;",
-      "replace": "        i += 1;",
+      "find": "    i += option.width;",
+      "replace": "    i += 1;",
       "occurrences": 1,
       "expect_failing": [
         "isGitCommit timeout -s KILL 60 git commit → true",
@@ -160,8 +160,8 @@
       "id": "wrapper-chdir-ignored",
       "why": "ラッパーが作業ディレクトリを変える形（env -C・sudo -D）を、コミットする作業ディレクトリに当てない",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "        if (option.dir !== null) dirs.push(option.dir);",
-      "replace": "        if (false) dirs.push(option.dir);",
+      "find": "    if (option.dir !== null) dirs.push(option.dir);",
+      "replace": "    if (false) dirs.push(option.dir);",
       "occurrences": 1,
       "expect_failing": [
         "commitCwd env -C /o git commit → /o",
@@ -195,8 +195,8 @@
       "id": "wrapper-operand-not-skipped",
       "why": "timeout の引数（timeout 60 の 60）を読み飛ばさない（Issue #678）",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "      i += wrapper.operands;",
-      "replace": "      i += 0;",
+      "find": "  i += wrapper.operands;",
+      "replace": "  i += 0;",
       "occurrences": 1,
       "expect_failing": [
         "isGitCommit timeout 60 git commit -m x → true",
@@ -273,8 +273,8 @@
       "id": "cd-expansion-resolved",
       "why": "展開の要る cd の引数をそのまま当てる",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "        arg === \"\" || /^[-+]/.test(arg) || /[$`]/.test(arg) || arg.startsWith(\"~\")",
-      "replace": "        arg === \"\" || /^[-+]/.test(arg)",
+      "find": "  return arg === \"\" || /^[-+]/.test(arg) || /[$`]/.test(arg) || arg.startsWith(\"~\")",
+      "replace": "  return arg === \"\" || /^[-+]/.test(arg)",
       "occurrences": 1,
       "expect_failing": [
         "commitCwd cd \"$(git rev-parse --show-toplevel)\" && git commit → /w",
@@ -311,8 +311,8 @@
       "id": "current-branch-file-skipped",
       "why": "今のブランチのファイルも、範囲より古ければ読まない",
       "file": "skills/agent-usage/scripts/lib/records.mjs",
-      "find": "          if (opts.keep?.has(f)) return true;",
-      "replace": "          if (false) return true;",
+      "find": "  if (o.keep?.has(f)) return true;",
+      "replace": "  if (false) return true;",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook 今のブランチのファイルは、範囲より古い時刻でも読み、同じ行を書き直さない"
@@ -333,8 +333,8 @@
       "id": "record-tail-ignored",
       "why": "名前の時刻だけを見て、後から行を足したファイルを読まない",
       "file": "skills/agent-usage/scripts/lib/records.mjs",
-      "find": "          return last === null || last >= since;",
-      "replace": "          return false;",
+      "find": "  return last === null || last >= since;",
+      "replace": "  return false;",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook 名前の時刻が範囲より古くても最後の行が範囲の中のファイルは読み、別のブランチで同じ行を書き直さない",

@@ -11,8 +11,8 @@
       "id": "no-structured-match",
       "why": "match を読まず、すべての宣言を文全体の包含で照合する（修正前の形）",
       "file": "skills/parity-diff/scripts/diff-normalize.mjs",
-      "find": "      if (match !== null) {\n        if (\"invalid\" in match) continue;",
-      "replace": "      if (false) {\n        if (\"invalid\" in match) continue;",
+      "find": "  if (match !== null) {\n    if (\"invalid\" in match) return null;",
+      "replace": "  if (false) {\n    if (\"invalid\" in match) return null;",
       "occurrences": 1,
       "expect_failing": [
         "match があるときは item の文面では照合しない（別要素の差分を吸収しない）",

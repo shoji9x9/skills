@@ -649,6 +649,40 @@ function nextStructuralLine(lines, li) {
 }
 
 /**
+ * @typedef {{ joined: string, comments: string[], lineComments: string[] }} JoinedFlow
+ *   `joined` は鍵の行から連結した文字列、`comments` は要素の行の行末の注記、`lineComments` は独立したコメントの行。
+ */
+
+/**
+ * 折り返しの続きの 1 行を連結して読み直す（joinWrappedFlow の 1 行分）。
+ * @param {JoinedFlow} acc
+ * @param {{ trimmed: string, i: number }} at `trimmed` は続きの行（前後の空白を切った後）、`i` はその添字。
+ * @returns {{ items: string[], comments: string[], lineComments: string[], closing: string[], last: number } | "trailing" | undefined}
+ *   `undefined` は、まだ閉じていないので次の行へ進むことを表す。
+ */
+function joinFlowLine(acc, { trimmed, i }) {
+  const split = splitTrailingComment(trimmed);
+  acc.joined = `${acc.joined} ${split.code}`;
+  const flow = scanFlow(acc.joined.slice(acc.joined.indexOf(":") + 1).trim());
+  // 読めた要素はここで返す。呼び出し側で連結した後の文字列をもう一度取り出して読み直すと、値の切り出し方が
+  // 2 箇所に分かれて片方だけ直る余地が残るので、読み方はこの 1 箇所に閉じる。
+  // **閉じる行の注記は鍵の注記**（1 行で書けば鍵の行末に来る）なので、要素行の注記と分けて返す。
+  if (flow.items !== null) {
+    return {
+      items: flow.items,
+      comments: acc.comments,
+      lineComments: acc.lineComments,
+      closing: split.comment === "" ? [] : [split.comment],
+      last: i,
+    };
+  }
+  if (split.comment !== "") acc.comments.push(split.comment);
+  // 閉じた後に余りがある（`[a] b`）。**閉じてはいる**ので「閉じていない」とは案内しない。
+  if (flow.reason !== "unclosed") return "trailing";
+  return undefined;
+}
+
+/**
  * 折り返されたフロー形式のコンテナを、続きの行を連結して 1 つの値として読む。
  *
  * **連結するのは名指しした鍵（`growable_containers` / `registry_groups`）の値だけ。**
@@ -670,11 +704,8 @@ function nextStructuralLine(lines, li) {
  *   `closing` は閉じる行の注記（＝鍵の注記）、`last` は消費した最後の行の添字である。
  */
 function joinWrappedFlow(lines, key, scannedOut) {
-  let joined = key.head;
-  /** @type {string[]} 要素行に付いていた**行末**の注記（registry では単位にしない）。 */
-  const comments = [];
-  /** @type {string[]} 独立したコメント行（**常に単位にする**。消えたら落とす）。 */
-  const lineComments = [];
+  /** @type {JoinedFlow} */
+  const acc = { joined: key.head, comments: [], lineComments: [] };
   for (let i = key.start + 1; i < lines.length; i += 1) {
     const line = lines[i];
     const trimmed = line.trim();
@@ -685,7 +716,7 @@ function joinWrappedFlow(lines, key, scannedOut) {
       // **帰属材料には入れない**。連結が失敗したときは閉じ括弧が無いので、この注記がコンテナの
       // 内にあったのか外（次の構造行の手前）にあったのかを区別できない。入れると、外の注記を
       // 消しただけで「復元せず閉じ括弧を補う」が付く（閉じ直しても消した注記は戻らないので行き止まりの指示）。
-      lineComments.push(trimmed);
+      acc.lineComments.push(trimmed);
       continue;
     }
     // 鍵のブロックを抜けた＝**兄弟の構造**（新しい鍵・リスト要素）が同じか浅いインデントに現れた。
@@ -698,24 +729,8 @@ function joinWrappedFlow(lines, key, scannedOut) {
       /^[A-Za-z0-9_.-]+:(\s|$)/.test(trimmed) || trimmed === "-" || trimmed.startsWith("- ");
     if (indent <= key.keyIndent && sibling) return null;
     scannedOut.push(normalizeLine(trimmed));
-    const split = splitTrailingComment(trimmed);
-    joined = `${joined} ${split.code}`;
-    const flow = scanFlow(joined.slice(joined.indexOf(":") + 1).trim());
-    // 読めた要素はここで返す。呼び出し側で連結した後の文字列をもう一度取り出して読み直すと、値の切り出し方が
-    // 2 箇所に分かれて片方だけ直る余地が残るので、読み方はこの 1 箇所に閉じる。
-    // **閉じる行の注記は鍵の注記**（1 行で書けば鍵の行末に来る）なので、要素行の注記と分けて返す。
-    if (flow.items !== null) {
-      return {
-        items: flow.items,
-        comments,
-        lineComments,
-        closing: split.comment === "" ? [] : [split.comment],
-        last: i,
-      };
-    }
-    if (split.comment !== "") comments.push(split.comment);
-    // 閉じた後に余りがある（`[a] b`）。**閉じてはいる**ので「閉じていない」とは案内しない。
-    if (flow.reason !== "unclosed") return "trailing";
+    const read = joinFlowLine(acc, { trimmed, i });
+    if (read !== undefined) return read;
   }
   return null;
 }
@@ -866,17 +881,40 @@ function scanFlow(raw) {
  */
 
 /**
+ * 引用符の中の 1 文字を進める。同じ引用符が来たら引用符を閉じる。
+ * @param {FlowScan} scan
+ * @param {string} ch
+ * @returns {boolean} 引用符の中では外側の括弧は閉じないので、常に false
+ */
+function scanFlowQuotedChar(scan, ch) {
+  scan.cur += ch;
+  if (ch === scan.quote) scan.quote = null;
+  return false;
+}
+
+/**
+ * 閉じ括弧を 1 文字進める。外側の括弧が閉じたら true を返す（入れ子の閉じ括弧は要素の一部に入れる）。
+ * @param {FlowScan} scan
+ * @param {string} ch
+ * @returns {boolean}
+ */
+function scanFlowCloseChar(scan, ch) {
+  scan.depth -= 1;
+  if (scan.depth > 0) {
+    scan.cur += ch;
+    return false;
+  }
+  return true;
+}
+
+/**
  * フロー形式のコンテナを 1 文字進める。外側の括弧が閉じたら true を返す。
  * @param {FlowScan} scan
  * @param {string} ch
  * @returns {boolean}
  */
 function scanFlowChar(scan, ch) {
-  if (scan.quote !== null) {
-    scan.cur += ch;
-    if (ch === scan.quote) scan.quote = null;
-    return false;
-  }
+  if (scan.quote !== null) return scanFlowQuotedChar(scan, ch);
   // 引用符は**値の開始**でだけ開く。`opensQuoteAt` と同じ判定を同じ実装（`opensQuoteAfter`）で行う。
   // 「要素の先頭」に狭めると、マッピングの値（`{item: "…"}`）では、直前の `item:` があるので引用符が開かない。
   // すると値の中のカンマがペアの区切りと誤って判定される（`registryItemValue` が単位を `"順序は id` のような断片へ畳み、
@@ -892,14 +930,7 @@ function scanFlowChar(scan, ch) {
     if (scan.depth > 1) scan.cur += ch;
     return false;
   }
-  if (ch === "]" || ch === "}") {
-    scan.depth -= 1;
-    if (scan.depth > 0) {
-      scan.cur += ch;
-      return false;
-    }
-    return true;
-  }
+  if (ch === "]" || ch === "}") return scanFlowCloseChar(scan, ch);
   if (ch === "," && scan.depth === 1) {
     scan.items.push(scan.cur);
     scan.cur = "";
@@ -2712,6 +2743,33 @@ export function defaultManifestPath() {
   );
 }
 
+/** 値を 1 つ取る引数（`--exclude` を除く）。 */
+const VALUE_OPTIONS = new Set(["--root", "--manifest", "--base"]);
+
+/**
+ * `--exclude` の値を確かめて exclude に足す。
+ * @param {string | undefined} value
+ * @param {string[]} exclude
+ */
+function addExcludeId(value, exclude) {
+  if (value === undefined || value.startsWith("--") || value.trim() === "") {
+    throw new UsageError("--exclude に値が無い");
+  }
+  if (exclude.includes(value)) throw new UsageError(`--exclude の id が重複している: ${value}`);
+  exclude.push(value);
+}
+
+/**
+ * 値を取る引数（--root・--manifest・--base）の値を返す。値が無いか `--` で始まれば、使い方の誤りにする。
+ * @param {string} arg
+ * @param {string | undefined} value
+ * @returns {string}
+ */
+function optionValue(arg, value) {
+  if (value === undefined || value.startsWith("--")) throw new UsageError(`${arg} に値が無い`);
+  return value;
+}
+
 /**
  * @param {string[]} argv
  * @returns {{ root: string, manifest: string, base: string, exclude: string[] }}
@@ -2724,23 +2782,14 @@ export function parseArgs(argv) {
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === "--exclude") {
-      const value = argv[i + 1];
-      if (value === undefined || value.startsWith("--") || value.trim() === "") {
-        throw new UsageError(`${arg} に値が無い`);
-      }
-      if (exclude.includes(value)) throw new UsageError(`--exclude の id が重複している: ${value}`);
-      exclude.push(value);
+      addExcludeId(argv[i + 1], exclude);
       i += 1;
-      continue;
-    }
-    if (arg === "--root" || arg === "--manifest" || arg === "--base") {
-      const value = argv[i + 1];
-      if (value === undefined || value.startsWith("--")) throw new UsageError(`${arg} に値が無い`);
-      opts[arg.slice(2)] = value;
+    } else if (VALUE_OPTIONS.has(arg)) {
+      opts[arg.slice(2)] = optionValue(arg, argv[i + 1]);
       i += 1;
-      continue;
+    } else {
+      throw new UsageError(`不明な引数: ${arg}`);
     }
-    throw new UsageError(`不明な引数: ${arg}`);
   }
   if (!nonEmptyString(opts.root)) throw new UsageError("--root は必須（走査の起点を推測させない）");
   return {

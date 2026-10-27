@@ -113,6 +113,57 @@ function tokenTotal(rows) {
 }
 
 /**
+ * 使用量の行をまとめる単位（エージェント・セッション・モデルの組）の key。
+ * @param {Row} r
+ * @returns {string}
+ */
+function usageGroupOf(r) {
+  return `${r.agent ?? ""}\u0000${r.session ?? ""}\u0000${r.model ?? ""}`;
+}
+
+/**
+ * まとまり g について、作り直した行（rebuilt）と、この人の打ち消していない記録済みの行（recorded）と、
+ * 作り直した行がすべて書かれるか記録済みか（written）を返す。
+ * @param {{ existing: Map<string, Row>; unique: Map<string, Row>; person: string; lowerBound: number; canonical: (p: string | undefined) => string }} o
+ * @param {string} g
+ * @returns {{ rebuilt: Row[]; recorded: Row[]; written: boolean }}
+ */
+function usageGroupRows(o, g) {
+  const { existing, unique } = o;
+  /** @param {Row} r */
+  const inGroup = (r) => r.kind === "usage" && r.detail !== "cost-state" && usageGroupOf(r) === g;
+  const rebuilt = [...unique.values()].filter(inGroup);
+  const recorded = [...existing.values()].filter(
+    (r) => inGroup(r) && r.retracted !== "1" && o.canonical(r.person) === o.person,
+  );
+  const written = rebuilt.every(
+    (r) => existing.has(r.key ?? "") || (parseTime(r.start) ?? 0) >= o.lowerBound,
+  );
+  return { rebuilt, recorded, written };
+}
+
+/**
+ * 作り直した行（rebuilt）のうち、記録済みでなく、打ち消さない行（old）と時間が重なる行の key を withheld に足す。
+ * @param {{ rebuilt: readonly Row[]; old: readonly Row[]; existing: Map<string, Row>; withheld: Set<string> }} o
+ * @returns {void}
+ */
+function withholdOverlapping(o) {
+  const { rebuilt, old, existing, withheld } = o;
+  for (const r of rebuilt) {
+    if (existing.has(r.key ?? "")) continue;
+    const s = parseTime(r.start);
+    const e = parseTime(r.end);
+    if (s === null || e === null) continue;
+    const overlaps = old.some((x) => {
+      const xs = parseTime(x.start);
+      const xe = parseTime(x.end);
+      return xs !== null && xe !== null && s < xe && xs < e;
+    });
+    if (overlaps) withheld.add(r.key ?? "");
+  }
+}
+
+/**
  * 作らなくなった記録済みの行（stale）のうち、打ち消してよい行を打ち消しの行にして返す。
  * run・human-wait・prompt はメインのログだけから作るので、開始時刻が書く範囲の中なら打ち消す。
  * cost-state の使用量の行（そのモデルが応答に現れると作らなくなる）も、key に時刻を持たず区切り方で変わらないので、同じに扱う。
@@ -126,18 +177,16 @@ function tokenTotal(rows) {
  * @returns {{ rows: Row[]; withheld: Set<string> }}
  */
 export function retractableRows(o) {
-  const { stale, existing, unique } = o;
+  const { stale, existing } = o;
   /** @type {Row[]} */
   const rows = [];
   /** @type {Set<string>} */
   const withheld = new Set();
-  const groupOf = (/** @type {Row} */ r) =>
-    `${r.agent ?? ""}\u0000${r.session ?? ""}\u0000${r.model ?? ""}`;
   /** @type {Map<string, Row[]>} */
   const usageStale = new Map();
   for (const r of stale) {
     if (r.kind === "usage" && r.detail !== "cost-state") {
-      const g = groupOf(r);
+      const g = usageGroupOf(r);
       usageStale.set(g, [...(usageStale.get(g) ?? []), r]);
       continue;
     }
@@ -145,31 +194,12 @@ export function retractableRows(o) {
     if (start !== null && start >= o.lowerBound) rows.push({ ...r, retracted: "1" });
   }
   for (const [g, old] of usageStale) {
-    /** @param {Row} r */
-    const inGroup = (r) => r.kind === "usage" && r.detail !== "cost-state" && groupOf(r) === g;
-    const rebuilt = [...unique.values()].filter(inGroup);
-    const recorded = [...existing.values()].filter(
-      (r) => inGroup(r) && r.retracted !== "1" && o.canonical(r.person) === o.person,
-    );
-    const written = rebuilt.every(
-      (r) => existing.has(r.key ?? "") || (parseTime(r.start) ?? 0) >= o.lowerBound,
-    );
+    const { rebuilt, recorded, written } = usageGroupRows(o, g);
     if (written && tokenTotal(rebuilt) >= tokenTotal(recorded)) {
       for (const r of old) rows.push({ ...r, retracted: "1" });
       continue;
     }
-    for (const r of rebuilt) {
-      if (existing.has(r.key ?? "")) continue;
-      const s = parseTime(r.start);
-      const e = parseTime(r.end);
-      if (s === null || e === null) continue;
-      const overlaps = old.some((x) => {
-        const xs = parseTime(x.start);
-        const xe = parseTime(x.end);
-        return xs !== null && xe !== null && s < xe && xs < e;
-      });
-      if (overlaps) withheld.add(r.key ?? "");
-    }
+    withholdOverlapping({ rebuilt, old, existing, withheld });
   }
   return { rows, withheld };
 }

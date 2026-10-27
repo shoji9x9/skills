@@ -36,8 +36,8 @@
       "id": "naive-paren-count",
       "why": "関数擬似クラスの引数の終わりを、引用符と角括弧を見ない括弧勘定で探す（引用符の中の ( で後ろの :hover まで引数に含める）",
       "file": "skills/parity-component/scripts/page/css-rules-capture.page.mjs",
-      "find": "      if (c === '\"' || c === \"'\") {\n        quote = c;\n        continue;\n      }\n      if (c === \"(\" || c === \"[\") depth++;\n      else if (c === \")\" || c === \"]\") {\n        depth--;\n        if (depth === 0) return i + 1;",
-      "replace": "      if (c === \"(\") depth++;\n      else if (c === \")\") {\n        depth--;\n        if (depth === 0) return i + 1;",
+      "find": "    const close = scanUnquoted(selector, open, (c, _i, depth) =>\n      (c === \")\" || c === \"]\") && depth === 0 ? null : undefined,\n    );\n    return close < 0 ? selector.length : close + 1;",
+      "replace": "    let depth = 0;\n    for (let i = open; i < selector.length; i++) {\n      const c = selector[i];\n      if (c === \"\\\\\") {\n        i++;\n        continue;\n      }\n      if (c === \"(\") depth++;\n      else if (c === \")\") {\n        depth--;\n        if (depth === 0) return i + 1;\n      }\n    }\n    return selector.length;",
       "occurrences": 1,
       "expect_failing": [
         "モジュールの関数 引用符・角括弧を跨ぐ関数引数でも状態擬似クラスを剥がす",

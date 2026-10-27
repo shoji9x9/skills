@@ -1138,6 +1138,27 @@ function valuesByAxisOf(candidates, label, state) {
 }
 
 /**
+ * 1 つの軸で列挙した要素のうち、候補に現れず根拠も無いものを問題として数える。
+ *
+ * @param {unknown[]} list - enumeration.elements の 1 軸の配列
+ * @param {{ axisId: string, label: string, seen: Set<string>, justified: Set<string> }} axis
+ * @param {ProfiledState} state
+ */
+function checkAxisElements(list, { axisId, label, seen, justified }, state) {
+  for (const el of list) {
+    if (!isPlainObject(el) || !nonEmptyString(el.id)) continue;
+    const elementId = String(el.id);
+    if (seen.has(elementId)) continue;
+    // 「その要素はどの候補にもならない」と主張するには、根拠が要る（根拠を書けば先へ進めるようにする）。
+    if (justified.has(`${axisId}${ID_SEPARATOR}${elementId}`)) continue;
+    state.index.problems.push(
+      `${label}: 列挙した ${axisId} の要素 ${elementId} がどの候補にも現れない（代表だけを確認していないか。意図的なら enumeration.justified_absences に根拠を残す）`,
+    );
+    addUnmeasured(state.tally, 1);
+  }
+}
+
+/**
  * 「40 列を列挙したが候補は代表 1 列だけ」を落とす。列挙した要素が、自分の軸の候補に現れるかを見る。
  *
  * @param {Record<string, unknown>} enumeration
@@ -1156,17 +1177,7 @@ function checkEnumeratedElements(enumeration, axes, state) {
     }
     if (!axes.axesResolvable) continue; // 軸値が欠けている状態での判定は誤検出になる（上で未測定に数えている）
     const seen = axes.valuesByAxis.get(axisId) ?? new Set();
-    for (const el of list) {
-      if (!isPlainObject(el) || !nonEmptyString(el.id)) continue;
-      const elementId = String(el.id);
-      if (seen.has(elementId)) continue;
-      // 「その要素はどの候補にもならない」と主張するには、根拠が要る（根拠を書けば先へ進めるようにする）。
-      if (justified.has(`${axisId}${ID_SEPARATOR}${elementId}`)) continue;
-      problems.push(
-        `${label}: 列挙した ${axisId} の要素 ${elementId} がどの候補にも現れない（代表だけを確認していないか。意図的なら enumeration.justified_absences に根拠を残す）`,
-      );
-      addUnmeasured(state.tally, 1);
-    }
+    checkAxisElements(list, { axisId, label, seen, justified }, state);
   }
 }
 

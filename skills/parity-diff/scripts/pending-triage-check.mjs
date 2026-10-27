@@ -85,6 +85,31 @@ export function matchKey(v) {
 }
 
 /**
+ * slug 表の中の 1 行を読み、表の状態を進める。本体の行なら 1 列目を、ヘッダと区切りの行なら null を返す。
+ *
+ * @param {{ sawSlugTable: boolean, inSlugTable: boolean, sawSeparator: boolean }} table - 読んでいる表の状態（この関数が更新する）
+ * @param {string[]} cells
+ * @returns {string|null}
+ */
+function readSlugTableRow(table, cells) {
+  if (!table.inSlugTable) {
+    if (cells[0]?.toLowerCase() === "slug") {
+      table.inSlugTable = true;
+      table.sawSlugTable = true;
+      table.sawSeparator = false;
+    }
+    return null;
+  }
+  if (!table.sawSeparator) {
+    // 区切り行が無い表はヘッダと本体を区別できないので読まない。
+    if (/^:?-{2,}:?$/.test(cells[0] ?? "")) table.sawSeparator = true;
+    else table.inSlugTable = false;
+    return null;
+  }
+  return cells[0] ?? "";
+}
+
+/**
  * 機能インベントリ（`.replace/features.md`）から slug の集合を読む。
  *
  * slug は、機能・横断 API・バッチ・その他の Issue で**同じ名前空間**を共有する（replace-strategy の
@@ -104,35 +129,18 @@ export function parseFeatureSlugs(markdown) {
       .split("|")
       .map((c) => c.trim());
   const slugs = new Set();
-  let sawSlugTable = false;
-  let inSlugTable = false;
-  let sawSeparator = false;
+  const table = { sawSlugTable: false, inSlugTable: false, sawSeparator: false };
   for (const rawLine of markdown.split("\n")) {
     const line = rawLine.trim();
     if (!line.startsWith("|")) {
-      inSlugTable = false;
-      sawSeparator = false;
+      table.inSlugTable = false;
+      table.sawSeparator = false;
       continue;
     }
-    const cells = cellsOf(line);
-    if (!inSlugTable) {
-      if (cells[0]?.toLowerCase() === "slug") {
-        inSlugTable = true;
-        sawSlugTable = true;
-        sawSeparator = false;
-      }
-      continue;
-    }
-    if (!sawSeparator) {
-      // 区切り行が無い表はヘッダと本体を区別できないので読まない。
-      if (/^:?-{2,}:?$/.test(cells[0] ?? "")) sawSeparator = true;
-      else inSlugTable = false;
-      continue;
-    }
-    const slug = cells[0] ?? "";
-    if (slug !== "") slugs.add(slug);
+    const slug = readSlugTableRow(table, cellsOf(line));
+    if (slug !== null && slug !== "") slugs.add(slug);
   }
-  return sawSlugTable ? slugs : null;
+  return table.sawSlugTable ? slugs : null;
 }
 
 /**

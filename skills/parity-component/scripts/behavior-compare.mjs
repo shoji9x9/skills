@@ -579,6 +579,21 @@ function judgeObserved({ row, cell, expected, ctx }) {
 }
 
 /**
+ * 突き合わせ表の行 1 件の操作とインスタンスを読み、母集合から組み合わせを取得する。
+ * 操作かインスタンスが空でない文字列でなければ、key を null にする。
+ * @param {unknown} row
+ * @param {Map<string, { operation: string, instance: string }>} population
+ * @returns {{ op: unknown, inst: unknown, key: string | null, cell: { operation: string, instance: string } | undefined }}
+ */
+function lookupRowCell(row, population) {
+  const op = field(row, "operation");
+  const inst = field(row, "instance");
+  const key = nonEmptyString(op) && nonEmptyString(inst) ? cellKey(op, inst) : null;
+  const cell = key === null ? undefined : population.get(key);
+  return { op, inst, key, cell };
+}
+
+/**
  * 突き合わせ表の行を、母集合と基準に照らして判定する。
  * @param {{
  *   rows: unknown[],
@@ -592,10 +607,7 @@ function judgeRows({ rows, baseline, ctx }) {
   /** @type {Set<string>} */
   const seen = new Set();
   for (const row of rows) {
-    const op = field(row, "operation");
-    const inst = field(row, "instance");
-    const key = nonEmptyString(op) && nonEmptyString(inst) ? cellKey(op, inst) : null;
-    const cell = key === null ? undefined : population.get(key);
+    const { op, inst, key, cell } = lookupRowCell(row, population);
     if (key === null || cell === undefined) {
       findings.push({
         code: "behavior-unbaselined",

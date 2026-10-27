@@ -107,6 +107,16 @@ function settledOrDecided(resolution, missingReason) {
 }
 
 /**
+ * 絞り込みの値が指定されていて、要素の値と食い違うかを見る。要素の値が欠けていれば食い違いとして扱わない。
+ * @param {string | undefined} wanted 絞り込みの値
+ * @param {unknown} value 要素の値
+ * @returns {boolean}
+ */
+function differsFromScope(wanted, value) {
+  return wanted !== undefined && nonEmptyString(value) && value !== wanted;
+}
+
+/**
  * 範囲の絞り込み。材料が欠けた要素は範囲に入れる（判定できないときは失敗として扱う）。
  * @param {unknown} element
  * @param {{ mode?: string, phase?: string, slug?: string, target?: string }} scope
@@ -114,19 +124,9 @@ function settledOrDecided(resolution, missingReason) {
  */
 export function inScope(element, scope) {
   if (!isPlainObject(element)) return true;
-  if (scope.mode !== undefined) {
-    // 要素の mode が欠落していれば setup のものとして止める（references/autonomy.md「下流の前提判定」）。
-    const mode = element.mode;
-    if (nonEmptyString(mode) && mode !== scope.mode) return false;
-  }
-  if (scope.phase !== undefined) {
-    const phase = element.phase;
-    if (nonEmptyString(phase) && phase !== scope.phase) return false;
-  }
-  if (scope.target !== undefined) {
-    const target = element.target;
-    if (nonEmptyString(target) && target !== scope.target) return false;
-  }
+  if (differsFromScope(scope.mode, element.mode)) return false; // mode が欠落した要素は setup のものとして止める（references/autonomy.md「下流の前提判定」）
+  if (differsFromScope(scope.phase, element.phase)) return false;
+  if (differsFromScope(scope.target, element.target)) return false;
   if (scope.slug !== undefined) {
     // slugs が欠落・空の要素は範囲を決められないので、同じ target のすべての slug を止める。
     const slugs = element.slugs;

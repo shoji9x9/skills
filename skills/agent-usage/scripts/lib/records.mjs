@@ -116,6 +116,44 @@ export function lastObservedAt(path) {
  */
 
 /**
+ * since を指定したときに、ファイル f を読むか（ReadOptions の since と keep の説明のとおりに決める）。
+ * @param {{ f: string; recordsDir: string; since: number; keep: ReadonlySet<string> | undefined }} o
+ * @returns {boolean}
+ */
+function readsSince(o) {
+  const { f, recordsDir, since } = o;
+  if (o.keep?.has(f)) return true;
+  const t = fileStampTime(f);
+  if (t === null || t >= since) return true;
+  // 古い形（records/<person-id>/<時刻>-….csv・records/_github/<時刻>-….csv）は collect 1 回につき 1 ファイルで、
+  // 後から書き足さないので、名前の時刻だけで決まる
+  if (relative(recordsDir, f).split(sep).length < 3) return false;
+  // collect は行を後ろに足すので、最後の行の observed_at が最も新しい。これも範囲より前なら、中の行はすべて範囲より前に書いた行である。
+  // ファイルの更新時刻は使わない（clone や worktree の作成で、すべてのファイルが今の時刻になる）
+  const last = lastObservedAt(f);
+  return last === null || last >= since;
+}
+
+/**
+ * CSV から読んだ 1 行を確かめ、COLUMNS の列だけを持つ行にする。不正ならエラーにする。at はエラーに添える位置（ファイル:行）。
+ * @param {Record<string, string>} r
+ * @param {string} at
+ * @returns {Row}
+ */
+function recordRow(r, at) {
+  if (!r.key) throw new Error(`${at}: key が空`);
+  if (!r.kind || !isKind(r.kind)) throw new Error(`${at}: 知らない kind ${JSON.stringify(r.kind)}`);
+  // 打ち消しの列は、空（前の版の記録を含む）か 1 だけ。ほかの値を警告なしに通常の行として数えない
+  if (r.retracted !== undefined && r.retracted !== "" && r.retracted !== "1")
+    throw new Error(`${at}: retracted が空でも 1 でもない ${JSON.stringify(r.retracted)}`);
+  if (parseTime(r.observed_at) === null) throw new Error(`${at}: observed_at が時刻でない`);
+  /** @type {Row} */
+  const row = {};
+  for (const c of COLUMNS) if (r[c] !== undefined) row[c] = r[c];
+  return row;
+}
+
+/**
  * records/ の行を読む。種類・key・observed_at の無い行はエラーにする（手で直して不正になった行を、警告なしに捨てない）。
  * @param {string} recordsDir
  * @param {ReadOptions} [opts]
@@ -129,37 +167,13 @@ export function readRecords(recordsDir, opts = {}) {
   const files =
     since === undefined
       ? all
-      : all.filter((f) => {
-          if (opts.keep?.has(f)) return true;
-          const t = fileStampTime(f);
-          if (t === null || t >= since) return true;
-          // 古い形（records/<person-id>/<時刻>-….csv・records/_github/<時刻>-….csv）は collect 1 回につき 1 ファイルで、
-          // 後から書き足さないので、名前の時刻だけで決まる
-          if (relative(recordsDir, f).split(sep).length < 3) return false;
-          // collect は行を後ろに足すので、最後の行の observed_at が最も新しい。これも範囲より前なら、中の行はすべて範囲より前に書いた行である。
-          // ファイルの更新時刻は使わない（clone や worktree の作成で、すべてのファイルが今の時刻になる）
-          const last = lastObservedAt(f);
-          return last === null || last >= since;
-        });
+      : all.filter((f) => readsSince({ f, recordsDir, since, keep: opts.keep }));
   for (const f of files) {
     const where = relative(recordsDir, f);
     let n = 1;
     for (const r of parseCsv(readFileSync(f, "utf8"))) {
       n += 1;
-      if (!r.key) throw new Error(`${where}:${n}: key が空`);
-      if (!r.kind || !isKind(r.kind))
-        throw new Error(`${where}:${n}: 知らない kind ${JSON.stringify(r.kind)}`);
-      // 打ち消しの列は、空（前の版の記録を含む）か 1 だけ。ほかの値を警告なしに通常の行として数えない
-      if (r.retracted !== undefined && r.retracted !== "" && r.retracted !== "1")
-        throw new Error(
-          `${where}:${n}: retracted が空でも 1 でもない ${JSON.stringify(r.retracted)}`,
-        );
-      if (parseTime(r.observed_at) === null)
-        throw new Error(`${where}:${n}: observed_at が時刻でない`);
-      /** @type {Row} */
-      const row = {};
-      for (const c of COLUMNS) if (r[c] !== undefined) row[c] = r[c];
-      rows.push(row);
+      rows.push(recordRow(r, `${where}:${n}`));
     }
   }
   return { rows, files: files.length, skipped: all.length - files.length };

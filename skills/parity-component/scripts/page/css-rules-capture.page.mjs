@@ -190,6 +190,51 @@ export function collectInPage(el, options) {
   }
 
   /**
+   * 引用符の中の文字・エスケープ・引用符の開始を 1 件読み進める。
+   * 読み進めたら、読んだ最後の位置と引用符の状態を返す。引用符の外の通常の文字なら null を返す。
+   * 引用符の外のエスケープ（`.foo\\,bar` の `\\,`、`\\:` 等）も次の 1 文字ごと読み飛ばす。
+   * 飛ばさないと、エスケープされた区切り文字や `:` を、区切りや擬似クラスの開始と誤読する。
+   * @param {string} text
+   * @param {number} i いま見ている位置
+   * @param {string | null} quote いま中にいる引用符（外なら null）
+   * @returns {{ i: number, quote: string | null } | null}
+   */
+  function stepQuoted(text, i, quote) {
+    const c = text[i];
+    if (c === "\\") return { i: i + 1, quote };
+    if (quote) return { i, quote: c === quote ? null : quote };
+    if (c === '"' || c === "'") return { i, quote: c };
+    return null;
+  }
+
+  /**
+   * 引用符の外にある文字を先頭から 1 件ずつ visit に渡す。括弧（`(`・`[`）の深さを数え、その文字を読んだ後の深さも渡す。
+   * visit が数値を返したら、その位置まで読んだものとして続きから走査する。null を返したら走査を止め、その位置を返す。
+   * @param {string} text
+   * @param {number} start 走査を始める位置
+   * @param {(c: string, i: number, depth: number) => number | null | undefined} visit
+   * @returns {number} 止めた位置（最後まで走査したら -1）
+   */
+  function scanUnquoted(text, start, visit) {
+    let depth = 0;
+    let quote = null;
+    for (let i = start; i < text.length; i++) {
+      const step = stepQuoted(text, i, quote);
+      if (step) {
+        ({ i, quote } = step);
+        continue;
+      }
+      const c = text[i];
+      if (c === "(" || c === "[") depth++;
+      else if (c === ")" || c === "]") depth--;
+      const next = visit(c, i, depth);
+      if (next === null) return i;
+      if (next !== undefined) i = next;
+    }
+    return -1;
+  }
+
+  /**
    * セレクタリストをトップレベルのカンマで割る（括弧・文字列の中のカンマは区切りにしない）。
    * @param {string} text
    * @returns {string[]}
@@ -197,30 +242,15 @@ export function collectInPage(el, options) {
   function splitSelectorList(text) {
     /** @type {string[]} */
     const parts = [];
-    let depth = 0;
-    let quote = null;
     let start = 0;
-    for (let i = 0; i < text.length; i++) {
-      const c = text[i];
-      if (quote) {
-        if (c === "\\") i++;
-        else if (c === quote) quote = null;
-        continue;
-      }
-      // 引用符の外のエスケープ（`.foo\\,bar` の `\\,` 等）は次の 1 文字ごと読み飛ばす。
-      // 飛ばさないと、エスケープされた区切り文字で分割し、断片が無効なセレクタになって警告なしに捨てられる。
-      if (c === "\\") {
-        i++;
-        continue;
-      }
-      if (c === '"' || c === "'") quote = c;
-      else if (c === "(" || c === "[") depth++;
-      else if (c === ")" || c === "]") depth--;
-      else if (c === "," && depth === 0) {
+    // エスケープされた区切り文字で分割すると、断片が無効なセレクタになって警告なしに捨てられる（stepQuoted）。
+    scanUnquoted(text, 0, (c, i, depth) => {
+      if (c === "," && depth === 0) {
         parts.push(text.slice(start, i).trim());
         start = i + 1;
       }
-    }
+      return undefined;
+    });
     parts.push(text.slice(start).trim());
     return parts.filter((p) => p.length > 0);
   }
@@ -240,24 +270,14 @@ export function collectInPage(el, options) {
     let quote = null;
     let replaced = false;
     for (let i = 0; i < part.length; i++) {
+      // 引用符の中と、エスケープされた `&` は入れ子の印ではないので、読んだ文字をそのまま出す。
+      const step = stepQuoted(part, i, quote);
+      if (step) {
+        out += part.slice(i, step.i + 1);
+        ({ i, quote } = step);
+        continue;
+      }
       const c = part[i];
-      if (quote) {
-        out += c;
-        if (c === "\\") {
-          if (i + 1 < part.length) out += part[++i];
-        } else if (c === quote) quote = null;
-        continue;
-      }
-      if (c === "\\") {
-        out += c;
-        if (i + 1 < part.length) out += part[++i]; // エスケープされた `&` は入れ子の印ではない
-        continue;
-      }
-      if (c === '"' || c === "'") {
-        quote = c;
-        out += c;
-        continue;
-      }
       if (c === "[") depth++;
       else if (c === "]") depth--;
       else if (c === "&" && depth === 0) {
@@ -302,30 +322,10 @@ export function collectInPage(el, options) {
    * @returns {number}
    */
   function skipBalanced(selector, open) {
-    let depth = 0;
-    let quote = null;
-    for (let i = open; i < selector.length; i++) {
-      const c = selector[i];
-      if (quote) {
-        if (c === "\\") i++;
-        else if (c === quote) quote = null;
-        continue;
-      }
-      if (c === "\\") {
-        i++;
-        continue;
-      }
-      if (c === '"' || c === "'") {
-        quote = c;
-        continue;
-      }
-      if (c === "(" || c === "[") depth++;
-      else if (c === ")" || c === "]") {
-        depth--;
-        if (depth === 0) return i + 1;
-      }
-    }
-    return selector.length;
+    const close = scanUnquoted(selector, open, (c, _i, depth) =>
+      (c === ")" || c === "]") && depth === 0 ? null : undefined,
+    );
+    return close < 0 ? selector.length : close + 1;
   }
 
   /**
@@ -360,31 +360,12 @@ export function collectInPage(el, options) {
   function scanPseudos(selector) {
     /** @type {PseudoToken[]} */
     const found = [];
-    let depth = 0;
-    let quote = null;
-    for (let i = 0; i < selector.length; i++) {
-      const c = selector[i];
-      if (quote) {
-        if (c === "\\") i++;
-        else if (c === quote) quote = null;
-        continue;
-      }
-      if (c === "\\") {
-        i++; // 引用符の外のエスケープ（`\\:` 等）。飛ばさないと擬似クラスの開始と誤読する
-        continue;
-      }
-      if (c === '"' || c === "'") {
-        quote = c;
-        continue;
-      }
-      if (c === "(" || c === "[") depth++;
-      else if (c === ")" || c === "]") depth--;
-      else if (c === ":" && depth === 0) {
-        const token = readPseudo(selector, i);
-        found.push(token);
-        i = token.end - 1;
-      }
-    }
+    scanUnquoted(selector, 0, (c, i, depth) => {
+      if (c !== ":" || depth !== 0) return undefined;
+      const token = readPseudo(selector, i);
+      found.push(token);
+      return token.end - 1;
+    });
     return found;
   }
 

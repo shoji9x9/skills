@@ -146,6 +146,46 @@ function readRevisionChange(change, where, { skill, revision, seen, errors }) {
 }
 
 /**
+ * 改訂一覧の skill が parity-suite かを確かめ、違えば errors に足す。
+ * @param {unknown} skill
+ * @param {string[]} errors
+ */
+function checkRevisionsSkill(skill, errors) {
+  if (!nonEmptyString(skill)) errors.push("skill が空");
+  // 比べる意味（成果物の run.procedure_revision との大小）は parity-suite の改訂番号にしか無い。別のスキルの改訂一覧を
+  // 渡すと、番号が偶然合うだけで無関係な改訂を「当て済み」と認める。
+  else if (skill !== REVISIONS_SKILL)
+    errors.push(`skill が ${REVISIONS_SKILL} でない（別のスキルの改訂一覧）: ${skill}`);
+}
+
+/**
+ * 改訂一覧の revision を読む。整数でなければ null を返し、1 以上の整数でなければ errors に足す。
+ * @param {unknown} value
+ * @param {string[]} errors
+ * @returns {number | null}
+ */
+function readRevisionNumber(value, errors) {
+  // Number.isInteger が真なら数なので、typeof は型を絞るためだけにある（判定は変わらない）。
+  const revision = typeof value === "number" && Number.isInteger(value) ? value : null;
+  if (revision === null || revision < 1) {
+    errors.push("revision が 1 以上の整数でない");
+  }
+  return revision;
+}
+
+/**
+ * 1 から revision までの番号ごとに、changes の要素があるかを確かめ、無い番号を errors に足す。
+ * @param {number} revision
+ * @param {Set<number>} seen changes に現れた改訂番号
+ * @param {string[]} errors
+ */
+function checkRevisionsCovered(revision, seen, errors) {
+  for (let rev = 1; rev <= revision; rev += 1) {
+    if (!seen.has(rev)) errors.push(`revision ${rev} に対応する changes の要素が無い`);
+  }
+}
+
+/**
  * parity-suite の手順の改訂一覧を検証する。
  * @param {unknown} doc
  * @returns {{ ok: true, skill: string, revision: number, changes: RevisionChange[] } | { ok: false, errors: string[] }}
@@ -155,17 +195,8 @@ export function readRevisions(doc) {
   const errors = [];
   if (!isPlainObject(doc)) return { ok: false, errors: ["改訂一覧がオブジェクトでない"] };
   const skill = doc.skill;
-  if (!nonEmptyString(skill)) errors.push("skill が空");
-  // 比べる意味（成果物の run.procedure_revision との大小）は parity-suite の改訂番号にしか無い。別のスキルの改訂一覧を
-  // 渡すと、番号が偶然合うだけで無関係な改訂を「当て済み」と認める。
-  else if (skill !== REVISIONS_SKILL)
-    errors.push(`skill が ${REVISIONS_SKILL} でない（別のスキルの改訂一覧）: ${skill}`);
-  // Number.isInteger が真なら数なので、typeof は型を絞るためだけにある（判定は変わらない）。
-  const revision =
-    typeof doc.revision === "number" && Number.isInteger(doc.revision) ? doc.revision : null;
-  if (revision === null || revision < 1) {
-    errors.push("revision が 1 以上の整数でない");
-  }
+  checkRevisionsSkill(skill, errors);
+  const revision = readRevisionNumber(doc.revision, errors);
   if (!isArray(doc.changes)) {
     errors.push("changes が配列でない");
     return { ok: false, errors };
@@ -182,11 +213,7 @@ export function readRevisions(doc) {
   // 「最新の手順で作った」と読まれ、実在しない改訂との比較になる。
   // 1 から revision までのどの番号にも要素が要る。抜けた番号の改訂は対象の判定から消え、
   // その軸を一度も求めないまま exit 0 になる（最新の番号だけ確かめても抜けは見えない）。
-  if (revision !== null) {
-    for (let rev = 1; rev <= revision; rev += 1) {
-      if (!seen.has(rev)) errors.push(`revision ${rev} に対応する changes の要素が無い`);
-    }
-  }
+  if (revision !== null) checkRevisionsCovered(revision, seen, errors);
   if (errors.length > 0) return { ok: false, errors };
   // errors が空なら skill は REVISIONS_SKILL、revision は 1 以上の整数なので、次の行は型を絞るためだけにある（到達しない）。
   if (typeof skill !== "string" || revision === null)

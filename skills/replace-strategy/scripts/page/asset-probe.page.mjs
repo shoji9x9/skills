@@ -187,6 +187,39 @@ function bumpUrlRef(run, ref, { property, pseudo, el, rendered }) {
 }
 
 /**
+ * img・input[type=image] の src を数える。
+ * @param {ProbeRun} run
+ * @param {ProbedElement} el
+ * @param {{ tag: string, rendered: boolean }} at
+ */
+function scanImgSrc(run, el, { tag, rendered }) {
+  const src =
+    (typeof el.currentSrc === "string" && el.currentSrc) ||
+    (typeof el.src === "string" && el.src) ||
+    el.getAttribute("src") ||
+    "";
+  if (src) bump(run.images, { key: src, init: { src, kind: tag }, el, rendered });
+}
+
+/**
+ * SVG の image・use の href を数える。
+ * @param {ProbeRun} run
+ * @param {ProbedElement} el
+ * @param {{ tag: string, rendered: boolean }} at
+ */
+function scanSvgHref(run, el, { tag, rendered }) {
+  const href = el.getAttribute("href") || el.getAttribute("xlink:href") || "";
+  if (!href) return;
+  const ref = resolveRef(run, href, document.baseURI);
+  if (ref.localFragment) {
+    bumpUrlRef(run, ref, { property: tag, pseudo: null, el, rendered });
+  } else {
+    const init = { src: ref.url, kind: "svg-" + tag };
+    bump(run.images, { key: ref.url, init, el, rendered });
+  }
+}
+
+/**
  * img・input[type=image] の src と、SVG の image・use の href を数える。
  * @param {ProbeRun} run
  * @param {ProbedElement} el
@@ -195,22 +228,9 @@ function bumpUrlRef(run, ref, { property, pseudo, el, rendered }) {
 function scanImageElement(run, el, rendered) {
   const tag = el.tagName.toLowerCase();
   if (tag === "img" || (tag === "input" && el.type === "image")) {
-    const src =
-      (typeof el.currentSrc === "string" && el.currentSrc) ||
-      (typeof el.src === "string" && el.src) ||
-      el.getAttribute("src") ||
-      "";
-    if (src) bump(run.images, { key: src, init: { src, kind: tag }, el, rendered });
+    scanImgSrc(run, el, { tag, rendered });
   } else if (tag === "image" || tag === "use") {
-    const href = el.getAttribute("href") || el.getAttribute("xlink:href") || "";
-    if (!href) return;
-    const ref = resolveRef(run, href, document.baseURI);
-    if (ref.localFragment) {
-      bumpUrlRef(run, ref, { property: tag, pseudo: null, el, rendered });
-    } else {
-      const init = { src: ref.url, kind: "svg-" + tag };
-      bump(run.images, { key: ref.url, init, el, rendered });
-    }
+    scanSvgHref(run, el, { tag, rendered });
   }
 }
 

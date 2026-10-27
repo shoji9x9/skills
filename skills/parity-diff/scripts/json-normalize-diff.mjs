@@ -134,6 +134,56 @@ export function sortArrayAtPath(node, segs) {
 }
 
 /**
+ * 2 つの配列の同じ位置の要素を組にする。片方にしか無い位置は、もう片方を MISSING にする。
+ *
+ * @param {unknown[]} x
+ * @param {unknown[]} y
+ * @returns {Array<{ key:string, xv:unknown, yv:unknown }>}
+ */
+function arrayChildPairs(x, y) {
+  const len = Math.max(x.length, y.length);
+  const pairs = [];
+  for (let i = 0; i < len; i += 1) {
+    pairs.push({
+      key: String(i),
+      xv: i < x.length ? x[i] : MISSING,
+      yv: i < y.length ? y[i] : MISSING,
+    });
+  }
+  return pairs;
+}
+
+/**
+ * 2 つの JSON オブジェクトの同じキーの値を、キーの昇順に組にする。片方にしか無いキーは、もう片方を MISSING にする。
+ *
+ * @param {Record<string, unknown>} x
+ * @param {Record<string, unknown>} y
+ * @returns {Array<{ key:string, xv:unknown, yv:unknown }>}
+ */
+function objectChildPairs(x, y) {
+  const keys = [...new Set([...Object.keys(x), ...Object.keys(y)])].sort();
+  return keys.map((key) => ({
+    key,
+    xv: Object.prototype.hasOwnProperty.call(x, key) ? x[key] : MISSING,
+    yv: Object.prototype.hasOwnProperty.call(y, key) ? y[key] : MISSING,
+  }));
+}
+
+/**
+ * deepDiff が中へ進む子の組を返す。両方が配列か、両方が JSON オブジェクトのときだけ中へ進む。
+ * 片方だけが配列なら null を返し、呼び出し側が値ごと比べる。
+ *
+ * @param {unknown} x
+ * @param {unknown} y
+ * @returns {Array<{ key:string, xv:unknown, yv:unknown }> | null}
+ */
+function childPairs(x, y) {
+  if (isArray(x) && isArray(y)) return arrayChildPairs(x, y);
+  if (isPlainObject(x) && isPlainObject(y)) return objectChildPairs(x, y);
+  return null;
+}
+
+/**
  * 2 つの値を深く比較し、差分のパスと、現行と新側の値の組の配列を返す。キーは昇順にたどるので、結果の順序は入力で決まる。
  *
  * @param {unknown} a
@@ -150,23 +200,9 @@ export function deepDiff(a, b) {
    * @param {string} path - 比べる位置のパス
    */
   const walk = (x, y, path) => {
-    // 両方が配列か、両方が JSON オブジェクトのときだけ中へ進む。片方だけが配列なら、下で値ごと比べる。
-    if (isArray(x) && isArray(y)) {
-      const len = Math.max(x.length, y.length);
-      for (let i = 0; i < len; i += 1) {
-        const childPath = path ? `${path}.${i}` : String(i);
-        walk(i < x.length ? x[i] : MISSING, i < y.length ? y[i] : MISSING, childPath);
-      }
-      return;
-    }
-    if (isPlainObject(x) && isPlainObject(y)) {
-      const keys = [...new Set([...Object.keys(x), ...Object.keys(y)])].sort();
-      for (const key of keys) {
-        const childPath = path ? `${path}.${key}` : key;
-        const xv = Object.prototype.hasOwnProperty.call(x, key) ? x[key] : MISSING;
-        const yv = Object.prototype.hasOwnProperty.call(y, key) ? y[key] : MISSING;
-        walk(xv, yv, childPath);
-      }
+    const children = childPairs(x, y);
+    if (children !== null) {
+      for (const { key, xv, yv } of children) walk(xv, yv, path ? `${path}.${key}` : key);
       return;
     }
     // JSON.stringify(MISSING) は undefined なので、片側だけに無い値は、もう片方が "(absent)" という文字列でも差分になる。
@@ -179,16 +215,12 @@ export function deepDiff(a, b) {
 }
 
 /**
- * CLI エントリ。
- * `node json-normalize-diff.mjs <current.json> <new.json> [--ignore <path>...] [--sort-arrays <path>...]`
- * 差分があれば exit 1、無ければ exit 0、入力エラーは exit 2。
+ * CLI の引数を、位置引数と --ignore・--sort-arrays の値に分ける。
  *
- * @param {string[]} argv - process.argv.slice(2)
- * @returns {number} exit code
+ * @param {string[]} argv
+ * @returns {{ positionals:string[], ignore:string[], sortArrays:string[] }}
  */
-export function main(argv) {
-  const usage =
-    "usage: node json-normalize-diff.mjs <current.json> <new.json> [--ignore <path>]... [--sort-arrays <path>]...\n";
+function parseArgs(argv) {
   const positionals = [];
   const ignore = [];
   const sortArrays = [];
@@ -204,6 +236,39 @@ export function main(argv) {
       positionals.push(a);
     }
   }
+  return { positionals, ignore, sortArrays };
+}
+
+/**
+ * 現行と新側の値に、パスごとに同じ変換を順に当てる。空のパスは飛ばす。
+ *
+ * @param {[unknown, unknown]} pair - 現行と新側の値
+ * @param {string[]} paths
+ * @param {(node:unknown, segs:string[]) => unknown} transform
+ * @returns {[unknown, unknown]}
+ */
+function applyAtPaths([current, next], paths, transform) {
+  for (const p of paths) {
+    if (!p) continue;
+    const segs = segments(p);
+    current = transform(current, segs);
+    next = transform(next, segs);
+  }
+  return [current, next];
+}
+
+/**
+ * CLI エントリ。
+ * `node json-normalize-diff.mjs <current.json> <new.json> [--ignore <path>...] [--sort-arrays <path>...]`
+ * 差分があれば exit 1、無ければ exit 0、入力エラーは exit 2。
+ *
+ * @param {string[]} argv - process.argv.slice(2)
+ * @returns {number} exit code
+ */
+export function main(argv) {
+  const usage =
+    "usage: node json-normalize-diff.mjs <current.json> <new.json> [--ignore <path>]... [--sort-arrays <path>]...\n";
+  const { positionals, ignore, sortArrays } = parseArgs(argv);
   if (positionals.length !== 2) {
     process.stderr.write(usage);
     return 2;
@@ -218,16 +283,8 @@ export function main(argv) {
     process.stderr.write(`error: cannot read inputs: ${message}\n`);
     return 2;
   }
-  for (const p of ignore) {
-    if (!p) continue;
-    current = removePath(current, segments(p));
-    next = removePath(next, segments(p));
-  }
-  for (const p of sortArrays) {
-    if (!p) continue;
-    current = sortArrayAtPath(current, segments(p));
-    next = sortArrayAtPath(next, segments(p));
-  }
+  [current, next] = applyAtPaths([current, next], ignore, removePath);
+  [current, next] = applyAtPaths([current, next], sortArrays, sortArrayAtPath);
   const out = deepDiff(current, next);
   process.stdout.write(JSON.stringify(out, null, 2) + "\n");
   return out.length > 0 ? 1 : 0;

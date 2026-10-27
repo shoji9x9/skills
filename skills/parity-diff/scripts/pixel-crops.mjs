@@ -314,6 +314,20 @@ function pushUnvisitedNeighbors(x, y, { mask, visited, width, height, stack }) {
 }
 
 /**
+ * 画素の座標 (x, y) を含むように、最小と最大の座標を広げる（bounds をその場で更新する）。
+ *
+ * @param {{ minX:number, minY:number, maxX:number, maxY:number }} bounds
+ * @param {number} x
+ * @param {number} y
+ */
+function growBounds(bounds, x, y) {
+  if (x < bounds.minX) bounds.minX = x;
+  if (y < bounds.minY) bounds.minY = y;
+  if (x > bounds.maxX) bounds.maxX = x;
+  if (y > bounds.maxY) bounds.maxY = y;
+}
+
+/**
  * 差分マスクを 8 近傍で連結成分にクラスタリングする。ラスタ走査順にシードするため決定論的。
  *
  * @param {Uint8Array} mask
@@ -327,10 +341,7 @@ export function clusterComponents(mask, width, height) {
   const components = [];
   for (let start = 0; start < mask.length; start += 1) {
     if (mask[start] === 0 || visited[start] === 1) continue;
-    let minX = width;
-    let minY = height;
-    let maxX = 0;
-    let maxY = 0;
+    const bounds = { minX: width, minY: height, maxX: 0, maxY: 0 };
     let pixels = 0;
     const stack = [start];
     visited[start] = 1;
@@ -341,12 +352,10 @@ export function clusterComponents(mask, width, height) {
       const x = idx % width;
       const y = (idx - x) / width;
       pixels += 1;
-      if (x < minX) minX = x;
-      if (y < minY) minY = y;
-      if (x > maxX) maxX = x;
-      if (y > maxY) maxY = y;
+      growBounds(bounds, x, y);
       pushUnvisitedNeighbors(x, y, { mask, visited, width, height, stack });
     }
+    const { minX, minY, maxX, maxY } = bounds;
     components.push({
       pixels,
       bbox: { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 },
@@ -402,25 +411,20 @@ function absorbAroundCore(r, { remainingMask, width, height, pad }) {
   const x1 = Math.min(width - 1, r.bbox.x + r.bbox.width - 1 + pad);
   const y1 = Math.min(height - 1, r.bbox.y + r.bbox.height - 1 + pad);
   let count = 0;
-  let minX = width;
-  let minY = height;
-  let maxX = -1;
-  let maxY = -1;
+  const bounds = { minX: width, minY: height, maxX: -1, maxY: -1 };
   for (let y = y0; y <= y1; y += 1) {
     for (let x = x0; x <= x1; x += 1) {
       const idx = y * width + x;
       if (remainingMask[idx] !== 1) continue;
       remainingMask[idx] = 0;
       count += 1;
-      if (x < minX) minX = x;
-      if (y < minY) minY = y;
-      if (x > maxX) maxX = x;
-      if (y > maxY) maxY = y;
+      growBounds(bounds, x, y);
     }
   }
   const members = [r.bbox];
   let bbox = r.bbox;
   if (count > 0) {
+    const { minX, minY, maxX, maxY } = bounds;
     const halo = { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 };
     members.push(halo);
     bbox = unionBbox(bbox, halo);
