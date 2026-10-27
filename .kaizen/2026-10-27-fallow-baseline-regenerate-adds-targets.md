@@ -19,9 +19,9 @@ PR #800 で認知的複雑度の指摘を直した後、`docs/tooling.md` の手
 
 ## 根本原因
 
-- なぜ除外が足されたか: `--save-baseline` はその時点の結果をすべて書き出し、直した分を消すだけの更新ができない。
+- なぜ除外が足されたか: `--save-baseline` はその時点の結果をすべて書き出すので、直していない項目も足す。直した項目だけを外すのは `fallow baselines prune` である。
 - なぜ気付かずに commit したか: 作り直した後に、`finding_counts` と `identity_finding_counts` だけを旧版と比べ、`target_keys` を比べなかった。
-- なぜその比べ方になったか: `docs/tooling.md` の手順は「直したら `fallow health --save-baseline` で作り直す」とだけ書き、`--baseline-mode identity` も、作り直すと増える項目がありうることも書いていない。
+- なぜ save-baseline を使ったか: `docs/tooling.md` の手順が「直したら `fallow health --save-baseline` で作り直す」と書き、`prune` を挙げていなかった。手順を書いたときに、fallow のベースラインの更新のコマンドを `--help` で調べていなかった。
 
 ## 根拠
 
@@ -32,7 +32,7 @@ PR #800 で認知的複雑度の指摘を直した後、`docs/tooling.md` の手
 
 ## 提案
 
-`docs/tooling.md` で fallow のベースラインを作り直す手順に、health は `--baseline-mode identity` で作り直すことと、作り直した後に旧版と全項目（`target_keys` を含む）を比べて、旧版に無い項目を外すことを書く。
+`docs/tooling.md` で、直した項目をベースラインから外す手順を `fallow baselines prune` にし、`--save-baseline` は直した後の更新に使わないと書く。
 
-- 作り直しは除外を緩める変更になりうるので、旧版に無い項目が要るなら、PR に理由を書いて利用者に確かめる
-- dead-code のベースライン（`fallow --save-baseline`）も同じ形で比べる
+- dead-code・health・CRAP の 3 つのベースラインを、同じ `prune` で外す
+- 新しい指摘をベースラインに載せるのは除外を増やす変更なので、PR に理由を書いて利用者に確かめる
