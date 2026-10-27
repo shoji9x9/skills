@@ -20,7 +20,8 @@
 // 結果は node_modules/.cache/coverage/ に置く。HTML のレポートは report/index.html にある（GitHub Actions では作らない）。
 // --focus の結果は実行ごとのディレクトリに置く。次の --focus の実行が、終わった実行の結果のディレクトリを消す。
 // 終了コード: 0 はすべて閾値以上、1 は閾値を下回るファイルか設定の古い記述がある、またはテストが失敗した、
-// 2 は判定できない（設定の形の誤り・測定の失敗・前回の結果が無い）。
+// 2 は判定できない（設定の形の誤り・測定の失敗・前回の結果が無い・CRAP の検査に渡す V8 の記録を残せなかった）。
+// V8 の記録を残せなかったときも閾値は比べ、閾値を下回っていれば 1 を返す。
 import { spawnSync } from "node:child_process";
 import {
   existsSync,
@@ -187,16 +188,16 @@ function c8Args(
   ];
 }
 
-/** `measure` が受け取る、リポジトリの直下・結果の置き場所・vitest に渡す引数・V8 の記録を残すか。 */
+/** `measure` が受け取る、リポジトリの直下・結果の置き場所・vitest に渡す引数・private skill のディレクトリ。 */
 interface MeasureOptions {
   root: string;
   cache: string;
   vitestArgs: readonly string[];
+  privates: readonly string[];
 }
 
 /** c8 で vitest を実行して測る。テストの終了コードを返す。V8 の記録（`<cache>/v8`）は消さずに残し、扱いは main が決める（handleRecords）。 */
-function measure({ root, cache, vitestArgs }: MeasureOptions): number {
-  const privates = privateSkillDirs(root);
+function measure({ root, cache, vitestArgs, privates }: MeasureOptions): number {
   mkdirSync(cache, { recursive: true });
   const res = spawnSync("pnpm", c8Args(privates, cache, vitestArgs), {
     cwd: root,
@@ -230,7 +231,7 @@ function readV8Record(path: string): V8Record | null {
 /** projectScriptFilter の戻り値。 */
 interface ProjectScriptFilter {
   inProject: (url: unknown) => boolean;
-  sawSource: () => boolean;
+  isSource: (url: unknown) => boolean;
 }
 
 /**
@@ -238,7 +239,7 @@ interface ProjectScriptFilter {
  * 残すのは、`dirs` の下にある閾値を比べる対象（isMeasured）とテスト（`*.test.ts`）である。fallow はテストの関数の CRAP も測る。
  * そのうち、外部のパッケージから作った生成物（isVendored）と node_modules の下のものは残さない。
  * ファイルのパスに戻せない URL（`%2F` を含むものなど）は残さない。
- * `sawSource` は、閾値を比べる対象（テストでないスクリプト）の URL を 1 件でも残すと判定したかを返す。
+ * `isSource` は、URL が閾値を比べる対象（テストでないスクリプト）を指すかを返す。
  * node_modules は、対象のディレクトリより下だけで探す。リポジトリ自身が node_modules の下にあっても（テストの一時ディレクトリなど）残す。
  */
 function projectScriptFilter(root: string, dirs: readonly string[]): ProjectScriptFilter {
@@ -273,18 +274,19 @@ function projectScriptFilter(root: string, dirs: readonly string[]): ProjectScri
   };
   return {
     inProject: (url) => typeof url === "string" && kindOf(url) !== null,
-    sawSource: () => [...decided.values()].includes("source"),
+    isSource: (url) => typeof url === "string" && kindOf(url) === "source",
   };
 }
 
 /**
  * V8 の記録の 1 ファイルを、残すスクリプトの分（とそのソースマップ）に絞る。何も残らなければ消し、何も外れなければ書き直さない。
- * 残したか（kept）、何も残らず消したか（removed）、JSON でないか形が違うので消したか（unreadable）を返す。
+ * テストでないスクリプトを残したか（source）、テストだけを残したか（kept）、何も残らず消したか（removed）、
+ * JSON でないか形が違うので消したか（unreadable）を返す。ソースマップのキーは、残したかの判定に数えない。
  */
 function narrowRecordFile(
   path: string,
-  inProject: (url: unknown) => boolean,
-): "kept" | "removed" | "unreadable" {
+  { inProject, isSource }: ProjectScriptFilter,
+): "source" | "kept" | "removed" | "unreadable" {
   const record = readV8Record(path);
   const result = (record?.result ?? []).filter((entry) => isRecord(entry) && inProject(entry.url));
   const maps = Object.entries(record?.sourceMaps ?? {});
@@ -302,7 +304,16 @@ function narrowRecordFile(
     };
     writeFileSync(path, JSON.stringify(narrowed));
   }
-  return "kept";
+  return result.some((entry) => isRecord(entry) && isSource(entry.url)) ? "source" : "kept";
+}
+
+/** 絞れなかった V8 の記録のディレクトリを消す。消せなくても例外にせず、理由を出す（呼び出し側は残せなかったとして扱う）。 */
+function removeRecords(dir: string): void {
+  try {
+    rmSync(dir, { recursive: true, force: true });
+  } catch (error) {
+    console.error(`run-coverage: V8 の記録を消せない: ${errorMessage(error)}`);
+  }
 }
 
 /**
@@ -317,16 +328,13 @@ export function keepProjectCoverage(dir: string, root: string, dirs: readonly st
     console.error(`run-coverage: V8 の記録のディレクトリが無い: ${dir}`);
     return false;
   }
-  const counts = { kept: 0, removed: 0, unreadable: 0 };
-  let filter: ProjectScriptFilter;
+  const counts = { source: 0, kept: 0, removed: 0, unreadable: 0 };
   try {
-    filter = projectScriptFilter(root, dirs);
-    for (const name of readdirSync(dir)) {
-      counts[narrowRecordFile(join(dir, name), filter.inProject)] += 1;
-    }
+    const filter = projectScriptFilter(root, dirs);
+    for (const name of readdirSync(dir)) counts[narrowRecordFile(join(dir, name), filter)] += 1;
   } catch (error) {
     console.error(`run-coverage: V8 の記録を絞れないので消す: ${errorMessage(error)}`);
-    rmSync(dir, { recursive: true, force: true });
+    removeRecords(dir);
     return false;
   }
   if (counts.unreadable > 0) {
@@ -336,7 +344,7 @@ export function keepProjectCoverage(dir: string, root: string, dirs: readonly st
   }
   // 測る対象のスクリプトが 1 件も残らないのは、root と記録の URL が合わないときや、どの記録も読めなかったときである。
   // テストの記録だけが残っても、CRAP はソースのカバレッジを推定するので、残せなかったものとして扱う。
-  if (filter.sawSource()) return true;
+  if (counts.source > 0) return true;
   if (counts.kept + counts.removed > 0) {
     console.error(
       `run-coverage: 読めた V8 の記録 ${counts.kept + counts.removed} 件のどれにも ${pathToFileURL(root).href} の下の測る対象のスクリプト（テストを除く）が無い`,
@@ -435,13 +443,14 @@ function prepareCache(root: string, { focus, reuse }: CliArgs): string | undefin
 
 /** 測り（--reuse なら測らず）、測定値を読む。テストの失敗と判定できないことは、終了コードの数値で返す。 */
 function measureAndRead(
-  { root, cache, vitestArgs }: MeasureOptions,
+  options: MeasureOptions,
   reuse: boolean,
 ): { ok: true; measures: Map<string, FileMeasure> } | { ok: false; code: number } {
+  const { root, cache } = options;
   const c8Path = join(cache, "report", "coverage-summary.json");
   if (!reuse) {
     try {
-      const status = measure({ root, cache, vitestArgs });
+      const status = measure(options);
       if (status !== 0) {
         console.error(`run-coverage: テストが失敗した（exit ${status}）。カバレッジは比べない`);
         return { ok: false, code: 1 };
@@ -469,9 +478,9 @@ function measureAndRead(
  * coverage-final.json は名前の無い関数（コールバックなど）を持たないので、fallow はそれらのカバレッジを推定する。
  * --focus の結果は CRAP が読まず、実行ごとに別のディレクトリを作るので、残すと溜まる。テストが失敗した実行は CRAP まで進まない。どちらも記録を消して true を返す。
  */
-function handleRecords(root: string, cache: string, keep: boolean): boolean {
+function handleRecords({ root, cache, privates }: MeasureOptions, keep: boolean): boolean {
   const v8Dir = join(cache, "v8");
-  if (keep) return keepProjectCoverage(v8Dir, root, sourceDirs(privateSkillDirs(root)));
+  if (keep) return keepProjectCoverage(v8Dir, root, sourceDirs(privates));
   rmSync(v8Dir, { recursive: true, force: true });
   return true;
 }
@@ -533,8 +542,10 @@ export function main(
   // 結果の置き場所は、測ると決まってから作る（引数・設定・対象の誤りで止まる実行に、空のディレクトリを残さない）。
   const cache = prepareCache(root, args);
   if (cache === undefined) return 2;
-  const measured = measureAndRead({ root, cache, vitestArgs }, args.reuse);
-  const recordsLost = !args.reuse && !handleRecords(root, cache, measured.ok && focus.length === 0);
+  // private skill の一覧は 1 回だけ求め、c8 の測る範囲と残す V8 の記録の範囲に同じものを使う。
+  const options = { root, cache, vitestArgs, privates: privateSkillDirs(root) };
+  const measured = measureAndRead(options, args.reuse);
+  const recordsLost = !args.reuse && !handleRecords(options, measured.ok && focus.length === 0);
   if (!measured.ok) return measured.code;
   const { measures } = measured;
   if (focus.length > 0) return reportFocus({ config, files, measures, focus, cache });

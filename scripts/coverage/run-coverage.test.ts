@@ -531,13 +531,16 @@ test("keepProjectCoverage: 1 件も残らなければ（root と記録の URL �
   expect(readdirSync(dir)).toEqual([]);
 });
 
-test("keepProjectCoverage: テストの記録だけが残っても、ソースの記録が無ければ false を返す", () => {
+test("keepProjectCoverage: テストの記録だけが残っても、result にソースの記録が無ければ false を返す", () => {
   const root = makeTempDir("run-coverage-v8-testonly-");
   const dir = join(root, "v8");
   mkdirSync(dir);
+  // ソースのスクリプトがソースマップのキーにだけあり、result に無い記録も、ソースの記録としては数えない。
   writeFileSync(
     join(dir, "a.json"),
-    v8Record([pathToFileURL(join(root, "scripts/a.test.ts")).href]),
+    v8Record([pathToFileURL(join(root, "scripts/a.test.ts")).href], {
+      [pathToFileURL(join(root, "scripts/a.ts")).href]: { lineLengths: [1] },
+    }),
   );
   vi.spyOn(console, "error").mockImplementation(() => {});
   expect(keepProjectCoverage(dir, root, ["scripts/"])).toBe(false);
