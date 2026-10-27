@@ -15,17 +15,19 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { afterEach, expect, test, vi } from "vitest";
 import { makeTempDir, makeTempDirFactory } from "../lib/testing/test-tmpdir.ts";
 import {
   FOCUS_STALE_MS,
+  keepProjectCoverage,
   main,
   readC8Summary,
   sweepFocusDirs,
   targetFiles,
 } from "./run-coverage.ts";
 import { CHILD_TIMEOUT_MS } from "../lib/testing/child-timeout.ts";
+import { parseJsonAs } from "../lib/parse-as.ts";
 
 const SCRIPT = fileURLToPath(new URL("run-coverage.ts", import.meta.url));
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
@@ -245,6 +247,10 @@ test(
     const first = runMain([], root);
     expect(existsSync(stale), "通常の実行が前回の結果を消していない").toBe(false);
     expect(first.status, first.out).toBe(0);
+    // CRAP が読む V8 の記録を、測る対象のファイルの分だけ残す。リポジトリは node_modules の下にあるが、それでも残す。
+    expect(v8Urls(join(root, "node_modules", ".cache", "coverage", "v8"))).toEqual([
+      pathToFileURL(join(root, "skills/x/a.mjs")).href,
+    ]);
     expect(first.out).toMatch(/対象 1 ファイルのうち 1 ファイルが閾値以上（除外 0）/);
     const again = runMain(["--reuse"], root);
     expect(again.status, again.out).toBe(0);
@@ -278,6 +284,9 @@ test("main: --focus は当たるファイルだけを比べ、値を出す", { t
   const cache = join(root, "node_modules", ".cache");
   const [dir] = readdirSync(cache).filter((name) => name.startsWith("coverage-focus-"));
   expect(dir).toMatch(new RegExp(`^coverage-focus-${process.pid}-`));
+  expect(existsSync(join(cache, dir ?? "", "v8")), "--focus の実行が V8 の記録を残している").toBe(
+    false,
+  );
   sweepFocusDirs(root, Date.now() + 2 * FOCUS_STALE_MS);
   expect(readdirSync(cache)).toContain(dir);
 });
@@ -358,4 +367,91 @@ test("main: 結果の置き場所を用意できなければ、判定できな�
   const res = runMain(["--focus", "skills/x/a.mjs"], root);
   expect(res.status, res.out).toBe(2);
   expect(res.out).toMatch(/結果の置き場所を用意できない/);
+});
+
+/** V8 の記録（NODE_V8_COVERAGE の 1 ファイル）を、url の並びとソースマップから作る。 */
+const v8Record = (urls: unknown[], sourceMaps: Record<string, unknown> = {}) =>
+  JSON.stringify({
+    result: urls.map((url) => ({ scriptId: "1", url, functions: [] })),
+    timestamp: 1,
+    "source-map-cache": sourceMaps,
+  });
+
+/** V8 の記録のディレクトリに残っているスクリプトの URL を、重複を除いて並べる。 */
+function v8Urls(dir: string): string[] {
+  const urls = readdirSync(dir).flatMap((name) =>
+    parseJsonAs<{ result: { url: string }[] }>(readFileSync(join(dir, name), "utf8")).result.map(
+      (r) => r.url,
+    ),
+  );
+  return [...new Set(urls)].sort();
+}
+
+test("keepProjectCoverage: 対象のディレクトリの下のスクリプトの分だけを、ソースマップと一緒に残し、何も残らないファイルを消す", () => {
+  // リポジトリ自身を node_modules の下に置き、対象のディレクトリより下の node_modules だけを外すことを確かめる。
+  const root = join(makeTempDir("run-coverage-v8-"), "node_modules", "repo");
+  const dir = join(root, "v8");
+  mkdirSync(dir, { recursive: true });
+  const url = (rel: string) => pathToFileURL(join(root, rel)).href;
+  const map = { lineLengths: [1], data: { version: 3 } };
+  writeFileSync(
+    join(dir, "a.json"),
+    v8Record(
+      [
+        url("skills/x/a.mjs"),
+        url("scripts/y.ts"),
+        url("skillsX/b.mjs"),
+        url("skills/node_modules/c.mjs"),
+        url("other/d.mjs"),
+        "node:internal/main",
+        "",
+        42,
+      ],
+      { [url("scripts/y.ts")]: map, [url("other/d.mjs")]: map },
+    ),
+  );
+  writeFileSync(join(dir, "b.json"), v8Record([url("other/e.mjs"), "node:fs"]));
+  keepProjectCoverage(dir, root, ["scripts/", "skills/"]);
+  expect(readdirSync(dir)).toEqual(["a.json"]);
+  const kept = parseJsonAs<{ result: { url: string }[]; "source-map-cache": unknown }>(
+    readFileSync(join(dir, "a.json"), "utf8"),
+  );
+  expect(kept.result.map((r) => r.url)).toEqual([url("skills/x/a.mjs"), url("scripts/y.ts")]);
+  expect(kept["source-map-cache"]).toEqual({ [url("scripts/y.ts")]: map });
+});
+
+test.each([
+  ["JSON でない", "{"],
+  ["result が配列でない", JSON.stringify({ result: {} })],
+  ["result が無い", JSON.stringify({})],
+])(
+  "keepProjectCoverage: 読めないファイル（%s）は、c8 と同じく飛ばして消し、件数を出す",
+  (_, text) => {
+    const root = makeTempDir("run-coverage-v8-bad-");
+    const dir = join(root, "v8");
+    mkdirSync(dir);
+    writeFileSync(join(dir, "a.json"), v8Record([pathToFileURL(join(root, "skills/a.mjs")).href]));
+    writeFileSync(join(dir, "b.json"), text);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    keepProjectCoverage(dir, root, ["skills/"]);
+    expect(readdirSync(dir)).toEqual(["a.json"]);
+    expect(error.mock.calls).toEqual([
+      ["run-coverage: 読めない V8 の記録 1 件を飛ばした（c8 のレポートも使わない）"],
+    ]);
+  },
+);
+
+test("keepProjectCoverage: 記録を読めなければ（ディレクトリが置かれている）、ディレクトリごと消す", () => {
+  const root = makeTempDir("run-coverage-v8-io-");
+  const dir = join(root, "v8");
+  mkdirSync(join(dir, "sub"), { recursive: true });
+  const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  keepProjectCoverage(dir, root, ["skills/"]);
+  expect(existsSync(dir)).toBe(false);
+  expect(error.mock.calls[0]?.[0]).toMatch(/V8 の記録を絞れないので消す/);
+});
+
+test("keepProjectCoverage: 記録のディレクトリが無ければ何もしない", () => {
+  const root = makeTempDir("run-coverage-v8-none-");
+  expect(() => keepProjectCoverage(join(root, "v8"), root, ["skills/"])).not.toThrow();
 });

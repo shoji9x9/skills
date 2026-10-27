@@ -20,6 +20,8 @@ import {
   runProbeCli,
 } from "../../../skills/replace-strategy/scripts/lib/page-function.mjs";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
+import { assetProbeInPage } from "../../../skills/replace-strategy/scripts/page/asset-probe.page.mjs";
+import { roleProbeInPage } from "../../../skills/replace-strategy/scripts/page/role-probe.page.mjs";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 const SCRIPTS = fileURLToPath(
@@ -43,10 +45,35 @@ function runCli(name: string) {
 }
 
 /** ソースを globals だけを持つコンテキストで評価して呼び、evaluate_script と同じく JSON で返す。 */
-function evaluateInPage(source: string, globals: Record<string, unknown>): unknown {
+function evaluateSource(source: string, globals: Record<string, unknown>): unknown {
   const fn: unknown = vm.runInNewContext(source, { ...globals });
   if (typeof fn !== "function") throw new TypeError("ソースが関数式でない");
   return JSON.parse(JSON.stringify(fn()));
+}
+
+/** 包んだソースが呼ぶ本体と、それを export するページ用のファイルのモジュール。 */
+const PAGE_MAINS: Record<string, () => unknown> = { roleProbeInPage, assetProbeInPage };
+
+/**
+ * プローブの CLI が出したソースを evaluateSource で呼んで返す。
+ * 同じ globals で、ページ用のファイルを読み込んだモジュールの本体も呼び、結果が同じことを確かめる。
+ * 包んだソースは元のファイルと位置が違うので、ページ用のファイルのカバレッジ（CI の CRAP）は、モジュールの側の実行で数える。
+ */
+function evaluateInPage(source: string, globals: Record<string, unknown>): unknown {
+  const result = evaluateSource(source, globals);
+  const mainName = /\nreturn (\w+)\(\);\n\}\s*$/.exec(source)?.[1] ?? "";
+  const main = PAGE_MAINS[mainName];
+  if (main === undefined) throw new TypeError(`ソースが呼ぶ本体が分からない: ${mainName}`);
+  // 偽物のグローバルは本体を呼ぶ間だけ置き、比べる（vitest の expect が動く）前に戻す。
+  let moduleResult: unknown;
+  for (const [name, value] of Object.entries(globals)) vi.stubGlobal(name, value);
+  try {
+    moduleResult = JSON.parse(JSON.stringify(main()));
+  } finally {
+    vi.unstubAllGlobals();
+  }
+  expect(moduleResult, "モジュールの本体の結果").toEqual(result);
+  return result;
 }
 
 /** 計算後スタイルの偽物。指定の無いプロパティは空文字を返す。 */
@@ -118,7 +145,7 @@ test("pageFunctionSource: 最後の export の行だけを外し、コメント�
       "}",
     ].join("\n"),
   );
-  expect(evaluateInPage(source, {})).toEqual({
+  expect(evaluateSource(source, {})).toEqual({
     value: 21,
     limit: [2, "x"],
     cdn: "https:\n//cdn.example/app.js",

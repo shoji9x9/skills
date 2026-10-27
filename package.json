@@ -12,7 +12,7 @@
     "format:js:check": "oxfmt --check \"**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}\"",
     "lint:js": "oxlint",
     "lint:fallow": "fallow --skip dupes --baseline .config/fallow/dead-code-baseline.json --health-baseline .config/fallow/health-baseline.json --fail-on-issues --quiet --format compact || { rc=$?; echo 'fallow: 上の指摘を直す。使われていないコード（unused-*）は fallow fix --dry-run で提案を確かめてから fallow fix で直せる。誤検知は .config/fallow/base.jsonc で理由を書いて外す（docs/tooling.md「ファイルの間の関係（fallow）」）' >&2; exit $rc; }",
-    "lint:crap": "fallow health -c .config/fallow/crap.jsonc --coverage node_modules/.cache/coverage/report/coverage-final.json --baseline .config/fallow/crap-baseline.json --fail-on-issues --quiet --format compact",
+    "lint:crap": "fallow health -c .config/fallow/crap.jsonc --coverage node_modules/.cache/coverage/v8 --baseline .config/fallow/crap-baseline.json --fail-on-issues --quiet --format compact",
     "lint:duplicates": "node scripts/gates/code/check-duplicates.ts",
     "lint:prose": "node scripts/gates/prose/lint-prose.ts",
     "test": "vitest run",
