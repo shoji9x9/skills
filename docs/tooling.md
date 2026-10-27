@@ -90,6 +90,8 @@ pre-commit の検査は、他のジョブと同じく作業ツリーの内容に
 
 `oxlint.config.ts` の `options.typeAware` で、型の情報を使うルールを有効にする（`oxlint-tsgolint` が要る）。
 `correctness` の分類の型のルール（`restrict-template-expressions`・`no-base-to-string` など）と、依存するパッケージの非推奨の API の利用を見る `typescript/no-deprecated` である。
+型が `unknown` の値をメッセージに埋め込むときは、`String(x)` で包む（`restrict-template-expressions`）。
+`??` や真偽の判定で絞った値は型が `{}` になり、`String(x)` も `no-base-to-string` が検出する。`scripts/**` では `scripts/lib/show-value.ts` の `showValue` を使い、配布スキルでは `typeof` で文字列に絞るか `JSON.stringify` を使う。
 すぐに直せない既存の違反は、ほかのルールと同じく `oxlint-pending.ts` の一覧に載せて外す。
 
 #### ファイルの間の関係（fallow）
@@ -382,6 +384,8 @@ lefthook の pre-commit は、TypeScript か JavaScript（`ts`・`tsx`・`mts`�
 1 つのファイルの変更が import する側の型を変えるので、staged のファイルだけでなく全体を検査する。
 
 `tsconfig.json` は参照を束ねるだけで、対象と設定は次の 5 つで決める。共通の設定は `tsconfig.base.json` に置く。
+参照は `tsconfig.skills.json` を `tsconfig.repo.json` より先に挙げる。oxlint の型の情報を使うルール（`oxlint-tsgolint`）は、ファイルを含む参照のうち先に挙げたものの設定で型を読む。
+配布スキルの `.mjs` は両方に含まれ、`tsconfig.repo.json` の lib には `dom` が無いので、後に挙げると DOM の型が解決できず誤って検出される。
 
 | 設定 | 対象 | 解決の規則 |
 | --- | --- | --- |

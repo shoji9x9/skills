@@ -384,7 +384,7 @@ function renderEdge({ e, pts }, ei, verticals) {
     const mid = labelPoint(pts, e);
     // 全角（CJK 等の非 Latin-1）は ASCII より広いので、文字幅を出し分けて背景がラベルより
     // 狭くならないようにする（font-size 11 での概算: Latin-1 ≈ 6.5px / 全角 ≈ 11px）。
-    const textW = [...e.label].reduce((a, ch) => a + (/[\x20-\xff]/.test(ch) ? 6.5 : 11), 0);
+    const textW = Array.from(e.label).reduce((a, ch) => a + (/[\x20-\xff]/.test(ch) ? 6.5 : 11), 0);
     const w = Math.ceil(textW) + 12;
     out.push(
       `<rect x="${mid.x - w / 2}" y="${mid.y - 10}" width="${w}" height="18" rx="3" fill="#FFFFFF" fill-opacity="0.92"/>`,

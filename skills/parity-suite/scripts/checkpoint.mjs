@@ -237,24 +237,24 @@ const ENTRY_KEYS = ["at", "next_step", "roots", "files"];
  */
 function rootsProblem(c, roots, scan) {
   const { slugDir, prevRoots } = scan;
-  if (new Set(roots).size !== roots.length) return `${c.at} の roots に重複がある`;
+  if (new Set(roots).size !== roots.length) return `${String(c.at)} の roots に重複がある`;
   if (roots[0] !== slugDir) {
-    return `${c.at} の roots の先頭（${String(roots[0])}）が --dir（${slugDir}）でない`;
+    return `${String(c.at)} の roots の先頭（${String(roots[0])}）が --dir（${slugDir}）でない`;
   }
   if (roots.length < 2) {
-    return `${c.at} にスイートの根が無い（authored の --include が記録されていない）`;
+    return `${String(c.at)} にスイートの根が無い（authored の --include が記録されていない）`;
   }
   for (const r of roots.slice(1)) {
     if (r.startsWith("/") || r.split("/").some((seg) => seg === "" || seg === ".")) {
-      return `${c.at} の roots に正規化されていないパスがある: ${r}`;
+      return `${String(c.at)} の roots に正規化されていないパスがある: ${r}`;
     }
   }
   // 包含と重複は字面でなく実パスで判定する（字面の包含は実パスの包含に含まれる）
   const real = realRootProblem(scan.cwd, slugDir, roots.slice(1));
-  if (real !== null) return `${c.at} の ${real}`;
+  if (real !== null) return `${String(c.at)} の ${real}`;
   // W5
   if (prevRoots && !prevRoots.every((r, k) => roots[k] === r)) {
-    return `${c.at} の roots が前の区切りの roots を引き継いでいない`;
+    return `${String(c.at)} の roots が前の区切りの roots を引き継いでいない`;
   }
   return null;
 }
@@ -269,22 +269,23 @@ function filesProblem({ c, roots, files }, scan) {
   const { slugDir, prevFiles } = scan;
   const hash = /^[0-9a-f]{64}$/;
   for (const [f, h] of Object.entries(files)) {
-    if (typeof h !== "string" || !hash.test(h)) return `${c.at} の ${f} の指紋が sha256 でない`;
-    if (!roots.some((r) => under(f, r))) return `${c.at} の ${f} がどの根の下にも無い`;
+    if (typeof h !== "string" || !hash.test(h))
+      return `${String(c.at)} の ${f} の指紋が sha256 でない`;
+    if (!roots.some((r) => under(f, r))) return `${String(c.at)} の ${f} がどの根の下にも無い`;
     if ([...EXCLUDED_IN_DIR].some((n) => under(f, `${slugDir}/${n}`))) {
-      return `${c.at} の ${f} は指紋から外す名前の下にある`;
+      return `${String(c.at)} の ${f} は指紋から外す名前の下にある`;
     }
   }
   const fileKeys = Object.keys(files);
   // W7
   const emptyRoot = roots.slice(1).find((r) => !fileKeys.some((f) => under(f, r)));
   if (emptyRoot !== undefined)
-    return `${c.at} のスイートの根 ${emptyRoot} がファイルを 1 つも持たない`;
+    return `${String(c.at)} のスイートの根 ${emptyRoot} がファイルを 1 つも持たない`;
   // W8
   if (prevFiles) {
     const p = prevFiles;
     if (!fileKeys.some((f) => p[f] !== files[f])) {
-      return `${c.at} が前の区切りから追加・書き換えを 1 つも持たない`;
+      return `${String(c.at)} が前の区切りから追加・書き換えを 1 つも持たない`;
     }
   }
   // W9

@@ -1,5 +1,5 @@
 // dimension-fit.test.ts が使うヘルパーと fixture。
-import { expect, assert } from "vitest";
+import { expect, assert, vi } from "vitest";
 import { main } from "../../../../skills/parity-suite/scripts/dimension-fit.mjs";
 import { parseJsonAs } from "../../../lib/parse-as.ts";
 
@@ -117,10 +117,12 @@ export function run(argv: string[], files: Record<string, unknown>) {
   );
   let stdout = "";
   let stderr = "";
-  const ow = process.stdout.write;
-  const ew = process.stderr.write;
-  process.stdout.write = (s) => ((stdout += s), true);
-  process.stderr.write = (s) => ((stderr += s), true);
+  const ow = vi
+    .spyOn(process.stdout, "write")
+    .mockImplementation((s) => ((stdout += String(s)), true));
+  const ew = vi
+    .spyOn(process.stderr, "write")
+    .mockImplementation((s) => ((stderr += String(s)), true));
   let code;
   try {
     code = main(argv, {
@@ -133,8 +135,8 @@ export function run(argv: string[], files: Record<string, unknown>) {
       writeFile: (p, s) => fs.set(p, s),
     });
   } finally {
-    process.stdout.write = ow;
-    process.stderr.write = ew;
+    ow.mockRestore();
+    ew.mockRestore();
   }
   return {
     code,

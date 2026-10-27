@@ -2,6 +2,7 @@
 // parity-diff の pixel-crops.mjs と同じ計数規則であることも、同じ入力で突き合わせて固定する。
 
 import { expect, test } from "vitest";
+import { runCapturingStderr } from "../../../lib/testing/capture-stderr.ts";
 import { createRequire } from "node:module";
 import * as counter from "../../../../skills/parity-suite/scripts/pixel-strict-count.mjs";
 import * as crops from "../../../../skills/parity-diff/scripts/pixel-crops.mjs";
@@ -78,26 +79,15 @@ test("parity-diff の pixel-crops.mjs と同じ画素数・最大チャンネル
 
 // 終了コードだけを見ると区別できない。この環境には pngjs が無く、検査を外しても
 // 「pngjs is not installed」で同じ exit 2 になる。落ちた理由（stderr）まで固定する。
-async function runCapturingStderr(argv: string[]) {
-  const written: string[] = [];
-  const original = process.stderr.write;
-  process.stderr.write = (chunk) => {
-    written.push(String(chunk));
-    return true;
-  };
-  try {
-    const code = await counter.main(argv);
-    return { code, stderr: written.join("") };
-  } finally {
-    process.stderr.write = original;
-  }
+function runCounter(argv: string[]) {
+  return runCapturingStderr(counter.main, argv);
 }
 
 test.each([
   ["値が無い", ["a.png", "b.png", "--diff"]],
   ["値が空白だけ", ["a.png", "b.png", "--diff", "   "]],
 ])("--diff の%sなら、その理由で落ちる（基準値を埋め損ねたまま通さない）", async (_name, argv) => {
-  const { code, stderr } = await runCapturingStderr(argv);
+  const { code, stderr } = await runCounter(argv);
 
   expect(code).toBe(2);
   expect(stderr).toMatch(/--diff requires a path/);
@@ -109,7 +99,7 @@ test.each([
   ["値が無い", undefined],
 ])("--diff-color が 6 桁の 16 進でなければ（%s）、その理由で落ちる", async (_name, color) => {
   const argv = ["a.png", "b.png", "--diff-color", ...(color === undefined ? [] : [color])];
-  const { code, stderr } = await runCapturingStderr(argv);
+  const { code, stderr } = await runCounter(argv);
 
   expect(code).toBe(2);
   expect(stderr).toMatch(/--diff-color must be a 6-digit hex color/);
@@ -120,7 +110,7 @@ test.each([
   ["入力が 1 つ", ["a.png"]],
   ["入力が 3 つ", ["a.png", "b.png", "c.png"]],
 ])("入力の PNG が 2 つでなければ（%s）、使い方を出して落ちる", async (_name, argv) => {
-  const { code, stderr } = await runCapturingStderr(argv);
+  const { code, stderr } = await runCounter(argv);
 
   expect(code).toBe(2);
   expect(stderr).toMatch(/^usage: node pixel-strict-count\.mjs/);
@@ -139,7 +129,7 @@ const pngjsAvailable = (() => {
 test.skipIf(pngjsAvailable)(
   "pngjs が無ければ導入を促して落ちる（勝手にインストールしない）",
   async () => {
-    const { code, stderr } = await runCapturingStderr(["a.png", "b.png"]);
+    const { code, stderr } = await runCounter(["a.png", "b.png"]);
 
     expect(code).toBe(2);
     expect(stderr).toMatch(/pngjs is not installed/);

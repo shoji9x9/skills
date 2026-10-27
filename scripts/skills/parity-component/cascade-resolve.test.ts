@@ -201,7 +201,7 @@ test("feedback-message: 3 層の上書きで最後の層が勝つ（top / opacit
   expect(winnerOf(resolve(input, "top")).value).toBe("5px");
   expect(
     resolve(input, "top")
-      .losers.map((l) => l.value)
+      .losers.map((l) => String(l.value))
       .sort(),
   ).toEqual(["0px", "2px"]);
   expect(winnerOf(resolve(input, "opacity")).value).toBe("0.5");

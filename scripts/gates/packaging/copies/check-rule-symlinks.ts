@@ -99,7 +99,7 @@ function checkDocShape(root: string, doc: DocInstruction): string[] {
     );
   } else {
     // 文字数は、Copilot の数え方に近い符号位置の数で数える。行末の \r も 1 文字に数える。
-    const before = [...lines.slice(0, at).join("")].length;
+    const before = Array.from(lines.slice(0, at).join("")).length;
     if (before > REVIEW_READ_LIMIT) {
       out.push(
         `${doc.canon}: 「${doc.reviewedUntil}」より前が ${before} 文字ある。` +

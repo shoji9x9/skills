@@ -3348,8 +3348,11 @@ function printProfileList(profiles, profilesDir) {
         profiles: [...profiles.values()].map((p) => ({
           id: String(p.id),
           version: String(p.version),
-          name: String(p.name ?? ""),
-          applies_to: String(p.applies_to ?? ""),
+          name: typeof p.name === "string" || typeof p.name === "number" ? String(p.name) : "",
+          applies_to:
+            typeof p.applies_to === "string" || typeof p.applies_to === "number"
+              ? String(p.applies_to)
+              : "",
         })),
       },
       null,

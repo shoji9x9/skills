@@ -1852,7 +1852,7 @@ function checkNarrowWindows(ps) {
   } else if (minWidthOk && minWidth !== null && contentHeightOk && fitting === 0) {
     add(
       "overflow-fit-window-missing",
-      `${at} に min_width（${minWidth}）より狭く横にはみ出し、content_height（${contentHeight}）より高い窓が無い（中身が収まる高さの窓でないと、縦のはみ出しが頁の高さの決め方だけで決まらず 100vh と 100% を見分けられない）`,
+      `${at} に min_width（${minWidth}）より狭く横にはみ出し、content_height（${String(contentHeight)}）より高い窓が無い（中身が収まる高さの窓でないと、縦のはみ出しが頁の高さの決め方だけで決まらず 100vh と 100% を見分けられない）`,
     );
   }
 }
@@ -1900,7 +1900,7 @@ function capturePrecheck(metadata) {
   if (typeof metadata.mode !== "string" || !MODES.includes(metadata.mode)) {
     return structuralScopeResult({
       code: "mode-unknown",
-      message: `mode「${metadata.mode === undefined ? "（欠落）" : String(metadata.mode)}」が語彙外（${MODES.join(" / ")}）。判定を飛ばさない`,
+      message: `mode「${metadata.mode === undefined ? "（欠落）" : typeof metadata.mode === "string" ? metadata.mode : JSON.stringify(metadata.mode)}」が語彙外（${MODES.join(" / ")}）。判定を飛ばさない`,
     });
   }
   if (metadata.mode !== "feature") {

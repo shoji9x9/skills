@@ -184,7 +184,7 @@ function checkGeometry(entry, change, { instances, fromProject, readBytes }) {
     expected.push(key);
   }
   const declared = isArray(entry.declared_regions) ? entry.declared_regions.map(rectKey) : [];
-  if (declared.some((k) => k === null) || declared.length === 0) {
+  if (!declared.every((k) => k !== null) || declared.length === 0) {
     return "declared_regions が矩形の配列でない";
   }
   const a = [...declared].sort().join(" | ");

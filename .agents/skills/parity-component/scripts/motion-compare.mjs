@@ -1160,7 +1160,7 @@ export function main(
   try {
     loaded = loadBaseline(resolve(cwd, args["--baseline"]), "motions.json");
   } catch (error) {
-    return fail(`採取物を読めない: ${field(error, "message")}`);
+    return fail(`採取物を読めない: ${String(field(error, "message"))}`);
   }
   const result = compareMotions({
     metadata: loaded.metadata,

@@ -28,6 +28,7 @@ import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { isObjectLike, isPlainObject } from "./lib/guards.mjs";
 import { intentionalEntryText } from "./lib/intentional.mjs";
+import { valueText } from "./lib/value-text.mjs";
 
 /**
  * ツールのバージョン（原本）。分類の処理や出力の形を変えたら上げる。
@@ -96,10 +97,7 @@ function intentionalGroupEntries(registry, group) {
  * @returns {string}
  */
 export function normalizeValue(v) {
-  return String(v ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ");
+  return valueText(v).trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 /** 意図的差異レジストリの分類 3 群（照合の優先順）。 */
@@ -482,7 +480,7 @@ export function validateExceptions(exceptions, causes, slug) {
       problems.push(`${at}: missing slug — not used for matching`);
     } else if (slug && ex.slug !== slug) {
       problems.push(
-        `${at}: slug "${ex.slug}" does not match the target slug "${slug}" — not used for matching`,
+        `${at}: slug "${typeof ex.slug === "string" ? ex.slug : JSON.stringify(ex.slug)}" does not match the target slug "${slug}" — not used for matching`,
       );
     }
     // 照合キーの欠落は「どの値にも合う」ではなく不一致（1 エントリで N 件を畳めないようにする）。

@@ -367,7 +367,12 @@ const shfmtProblems = new Map<string, string | null>();
 /** execFileSync が投げたエラーの、子の stderr（空なら message）。 */
 function execErrorDetail(error: unknown): string {
   const stderr = error instanceof Error && "stderr" in error ? error.stderr : undefined;
-  return String(stderr || errorMessage(error));
+  const text = Buffer.isBuffer(stderr)
+    ? stderr.toString()
+    : typeof stderr === "string"
+      ? stderr
+      : "";
+  return text || errorMessage(error);
 }
 
 /** 実行環境にツールが無いことを表す取り出しの失敗（shellComments が missingTool を付けて投げる）。 */

@@ -369,18 +369,18 @@ function redactedContextOption(key: string, value: unknown): unknown {
     case "clientCertificates":
       return arrayOf(value, key)
         .map((c) => objectOf(c, key).origin)
-        .sort();
+        .sort(byText);
     case "storageState": {
       if (typeof value === "string") return { path: value };
       const state = objectOf(value, key);
       return {
         cookies: arrayOf(state.cookies ?? [], "storageState.cookies")
           .map((c) => objectOf(c, "storageState.cookies"))
-          .map((c) => `${c.domain}${c.path} ${c.name}`)
+          .map((c) => `${String(c.domain)}${String(c.path)} ${String(c.name)}`)
           .sort(),
         origins: arrayOf(state.origins ?? [], "storageState.origins")
           .map((o) => objectOf(o, "storageState.origins").origin)
-          .sort(),
+          .sort(byText),
       };
     }
     default:
@@ -419,7 +419,7 @@ function launchFingerprint(options: Record<string, unknown> | undefined): Record
     else if (key === "args")
       out[key] = arrayOf(value, "launchOptions.args").map((arg) => {
         if (typeof arg !== "string")
-          throw new TypeError(`launchOptions.args の要素が文字列でない: ${arg}`);
+          throw new TypeError(`launchOptions.args の要素が文字列でない: ${String(arg)}`);
         if (!arg.startsWith("-")) return "*";
         return arg.includes("=") ? `${arg.slice(0, arg.indexOf("="))}=*` : arg;
       });
@@ -438,6 +438,13 @@ function objectOf(value: unknown, name: string): Record<string, unknown> {
   return value;
 }
 
+// 文字列にした値の順（引数なしの sort と同じ順）。undefined は sort が比べずに末尾へ置く。
+function byText(a: unknown, b: unknown): number {
+  const x = String(a);
+  const y = String(b);
+  return x < y ? -1 : x > y ? 1 : 0;
+}
+
 function arrayOf(value: unknown, name: string): unknown[] {
   if (!isArray(value)) throw new TypeError(`${name} が配列でない: ${shapeOf(value)}`);
   return value;
@@ -448,7 +455,17 @@ function shapeOf(value: unknown): string {
   if (value === null) return "null";
   if (isArray(value)) return `配列（${value.length} 件）`;
   if (typeof value === "object") return `object（欄: ${Object.keys(value).join(", ") || "なし"}）`;
-  return `${typeof value} ${String(value)}`;
+  if (typeof value === "function") return `function ${value.name}`;
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    typeof value === "bigint" ||
+    typeof value === "symbol"
+  ) {
+    return `${typeof value} ${String(value)}`;
+  }
+  return typeof value;
 }
 
 // すべての頁が localhost・127.0.0.0/8・::1 を指せば loopback、1 つでも他を指せば remote

@@ -773,7 +773,7 @@ export function main(
   try {
     loaded = loadBaseline(resolve(cwd, args["--baseline"]), "behaviors.json");
   } catch (error) {
-    return fail(`採取物を読めない: ${field(error, "message")}`);
+    return fail(`採取物を読めない: ${String(field(error, "message"))}`);
   }
   const comparison = readComparison(resolve(cwd, args["--comparison"]));
   const result = compareBehaviors({

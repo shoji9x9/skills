@@ -3,6 +3,7 @@ import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path
 import { fileURLToPath } from "node:url";
 import { errorMessage } from "../lib/errors.ts";
 import { parseJsonAs } from "../lib/parse-as.ts";
+import { showValue } from "../lib/show-value.ts";
 
 const requiredArtifacts = [
   "contamination.txt",
@@ -70,7 +71,7 @@ function assertFingerprintMatches(source: string, expectedFingerprint: Fingerpri
   }
   if (actualFingerprint.fingerprint !== expectedFingerprint.fingerprint) {
     throw new Error(
-      `baseline fingerprint mismatch: expected ${expectedFingerprint.fingerprint}, got ${actualFingerprint.fingerprint ?? "missing"}`,
+      `baseline fingerprint mismatch: expected ${String(expectedFingerprint.fingerprint)}, got ${showValue(actualFingerprint.fingerprint ?? "missing")}`,
     );
   }
 }

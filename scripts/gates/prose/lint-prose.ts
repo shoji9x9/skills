@@ -100,13 +100,16 @@ async function lintExtracted(
     kind === "strings"
       ? result.messages.filter((m) => WORD_RULE_IDS.includes(m.ruleId))
       : result.messages;
-  return messages.map((m) => ({
-    ...m,
-    line: lines[m.line - 1] + 1,
-    column: Math.max(starts[m.line - 1], columns[m.line - 1] + m.column),
-    // sentence-length は Markdown の行番号を本文に書くので、元のファイルの行と食い違う。番号を外す。
-    message: kind === "strings" ? `（文字列）${m.message}` : m.message.replace(/^Line \d+ /, ""),
-  }));
+  return messages.map((m) => {
+    const { line, column } = m.loc.start;
+    return {
+      ...m,
+      line: lines[line - 1] + 1,
+      column: Math.max(starts[line - 1], columns[line - 1] + column),
+      // sentence-length は Markdown の行番号を本文に書くので、元のファイルの行と食い違う。番号を外す。
+      message: kind === "strings" ? `（文字列）${m.message}` : m.message.replace(/^Line \d+ /, ""),
+    };
+  });
 }
 
 /** `.md` 以外のファイルのコメントと文字列を lint し、指摘を行と桁の順に並べて返す。 */

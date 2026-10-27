@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { runCapturingStderr } from "../../lib/testing/capture-stderr.ts";
 import { encodePng } from "../../lib/testing/fake-pngjs.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import * as verify from "../../../skills/parity-diff/scripts/amend-verify.mjs";
@@ -39,19 +40,8 @@ export function scene() {
 
 // 終了コードだけでは区別できない（この環境には pngjs が無く、どの入力不備も exit 2 になりうる）。
 // 落ちた理由（stderr）まで固定する。
-export async function run(argv: string[]) {
-  const written: string[] = [];
-  const original = process.stderr.write;
-  process.stderr.write = (chunk) => {
-    written.push(String(chunk));
-    return true;
-  };
-  try {
-    const code = await verify.main(argv);
-    return { code, stderr: written.join("") };
-  } finally {
-    process.stderr.write = original;
-  }
+export function run(argv: string[]) {
+  return runCapturingStderr(verify.main, argv);
 }
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");

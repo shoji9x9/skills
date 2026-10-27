@@ -71,7 +71,7 @@ export function regionFromJson(value) {
   if (isPlainObject(value)) {
     const r = value;
     if ([r.x, r.y, r.width, r.height].some((v) => typeof v !== "number")) return null;
-    return parseRegion(`${r.x},${r.y},${r.width},${r.height}`);
+    return parseRegion(`${String(r.x)},${String(r.y)},${String(r.width)},${String(r.height)}`);
   }
   return null;
 }
@@ -497,7 +497,7 @@ function readExistingRecord(out, changeId) {
   // 別の変更宣言の記録へ混ぜない（どの変更で持ち越したかが読めなくなる）。
   if (changeId !== undefined && read.change_id !== undefined && read.change_id !== changeId) {
     return {
-      error: `--change-id ${changeId} differs from the existing record's change_id ${read.change_id}`,
+      error: `--change-id ${changeId} differs from the existing record's change_id ${typeof read.change_id === "string" ? read.change_id : JSON.stringify(read.change_id)}`,
     };
   }
   return { existing: read };

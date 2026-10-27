@@ -317,13 +317,13 @@ function fontFaceRow(run, ruleStyle, { sheetHref, base }) {
  */
 function walkRules(run, rules, sheet) {
   for (const rule of Array.from(rules)) {
-    if (rule.type === CSSRule.FONT_FACE_RULE) {
+    if (rule instanceof CSSFontFaceRule) {
       // @font-face の規則（CSSFontFaceRule）は必ず style を持つ。無ければ TypeError を投げて止める。
       const ruleStyle = rule.style;
       if (!ruleStyle) throw new TypeError("@font-face の規則に style がありません");
       run.fontFaces.push(fontFaceRow(run, ruleStyle, sheet));
-    } else if (rule.type === CSSRule.IMPORT_RULE && rule.styleSheet) {
-      visitSheet(run, rule.styleSheet);
+    } else if (rule instanceof CSSImportRule) {
+      if (rule.styleSheet) visitSheet(run, rule.styleSheet);
     } else if (rule.cssRules) {
       walkRules(run, rule.cssRules, sheet);
     }

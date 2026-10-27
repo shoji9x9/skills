@@ -2,10 +2,10 @@
   "files": [],
   "references": [
     {
-      "path": "./tsconfig.repo.json"
+      "path": "./tsconfig.skills.json"
     },
     {
-      "path": "./tsconfig.skills.json"
+      "path": "./tsconfig.repo.json"
     },
     {
       "path": "./tsconfig.templates.json"

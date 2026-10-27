@@ -138,7 +138,7 @@ function readRevisionChange(change, where, { skill, revision, seen, errors }) {
   const unknown = affects.filter((mode) => !isMode(mode));
   if (unknown.length > 0) errors.push(`${where}.affects に語彙外の mode: ${unknown.join(", ")}`);
   return {
-    id: `${skill}#${rev}`,
+    id: `${String(skill)}#${rev}`,
     revision: rev,
     axis: String(change.axis),
     affects: modes,

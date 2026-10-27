@@ -496,7 +496,7 @@ describe("findingsFromVulnerability（新しい形の vulnerabilities の 1 件�
         x: { version: "1.1.0" },
       },
     );
-    expect(result[0].current_versions.toSorted()).toEqual(["0.9.0", "1.0.0", "1.1.0"]);
+    expect(result[0].current_versions.map(String).toSorted()).toEqual(["0.9.0", "1.0.0", "1.1.0"]);
   });
 
   test("packages に無い nodes の版は書かない", () => {

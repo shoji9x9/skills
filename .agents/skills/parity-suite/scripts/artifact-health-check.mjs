@@ -2115,11 +2115,19 @@ function readDatasetVersions(s) {
     throw new UsageError("dataset/metadata.json がオブジェクトでない");
   const current = datasetMeta.version;
   const recorded = diffMeta.dataset_version;
-  if (current === undefined || current === null || String(current).trim() === "") {
+  if (
+    current === undefined ||
+    current === null ||
+    (typeof current === "string" && current.trim() === "")
+  ) {
     s.findings.push(`データセットの version が空のため鮮度を判定できない: ${datasetPath}`);
     return null;
   }
-  if (recorded === undefined || recorded === null || String(recorded).trim() === "") {
+  if (
+    recorded === undefined ||
+    recorded === null ||
+    (typeof recorded === "string" && recorded.trim() === "")
+  ) {
     s.findings.push(
       `diff-metadata.json の dataset_version が空で dataset_version_exempt も空（古いかどうかを判定できない）: ${diffPath}`,
     );

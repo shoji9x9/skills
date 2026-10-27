@@ -35,7 +35,7 @@ test("実リポジトリにコピーと private skill がそれぞれ 1 件以�
 const globs = loadYamlAs<{ globs: string[] }>(read(".markdownlint-cli2.yaml")).globs;
 const reincluded = globs
   .map((g) => /^\.agents\/skills\/([^/!*]+)\/\*\*\/\*\.md$/.exec(g)?.[1])
-  .filter(Boolean);
+  .filter((name) => name !== undefined);
 
 test("private skill が 1 件以上あり、すべてを名前で含め直している", () => {
   expect(reincluded.sort()).toEqual(sourceSkillNames(repoRoot));

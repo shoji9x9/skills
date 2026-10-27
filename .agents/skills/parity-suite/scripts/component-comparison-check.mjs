@@ -514,11 +514,11 @@ function judgeNotCompared(key, row, findings) {
   if (
     disposition !== undefined &&
     disposition !== null &&
-    !DISPOSITIONS.includes(String(disposition))
+    (typeof disposition !== "string" || !DISPOSITIONS.includes(disposition))
   ) {
     findings.push({
       code: "disposition-vocabulary",
-      message: `${key} の disposition「${String(disposition)}」は語彙外（${DISPOSITIONS.join(" / ")}）`,
+      message: `${key} の disposition「${typeof disposition === "string" ? disposition : JSON.stringify(disposition)}」は語彙外（${DISPOSITIONS.join(" / ")}）`,
     });
   }
   findings.push({

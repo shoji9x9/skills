@@ -98,7 +98,7 @@ test("マルチバイトの長い要約をバイト境界で割らずに切り�
 
   expect(isValidUtf8(stdout), stdout.toString("latin1")).toBe(true);
   const truncated = summaryOf(stdout);
-  expect([...truncated]).toHaveLength(120);
+  expect(Array.from(truncated)).toHaveLength(120);
   expect(truncated.endsWith("…")).toBe(true);
   expect(truncated.startsWith(`**${"あ".repeat(10)}`)).toBe(true);
 });
