@@ -13,7 +13,7 @@
 //   メジャーやマイナーの境目（「Node 24.2 より古い版」「vitest 5」）を表し、パッチの更新では古くならないからである。
 //   直後の語（「以上」「〜」など）では除かない。範囲の書き方は閉じないので、宣言と違う X.Y.Z はすべて違反にし、
 //   正しい記述（必要な最低のバージョンなど）は下の許可で通す。
-//   `-` の後は、プレリリースの語（PRERELEASE。`-rc.1` など）なら記述に含めて比べ、ほかの語（`-linux-x64` など）は含めない。
+//   X.Y.Z に空白を挟まずに続く接尾辞（`-rc.1`・`rc1`・`-linux-x64`。SUFFIX）は記述に含めて比べる。正しい記述は下の許可で通す。
 //   英語の文の文末の `.` は記述に含めない（Markdown の「Tested with Playwright X.Y.Z.」も読む）。`.` の後に数字が続く X.Y.Z.W は見ない。
 // - 走査対象は scripts/gates/docs/doc-scan-files.ts と同じ（Tier 1〜3）。Markdown はコードフェンスの外の本文を、
 //   それ以外はコメントの文章（scripts/lib/text/code-comments.ts）を読む。名前をバッククォートで囲んだ記述も読む。
@@ -21,8 +21,8 @@
 //   例の行（scripts/lib/doc-scan.ts の EXAMPLE_LINE_RE）は読まない。
 // - 違反の形だが正しい記述（上流のソースのタグ・古いバージョンの挙動の記録・必要な最低のバージョン）は、
 //   scripts/gates/docs/doc-allowed.json に規則 version-mention で理由付きで許可する（使われていない許可は失敗にする）。
-// 宣言を読めない（mise を起動できない・mise.toml を上書きする設定が残った場合を含む）・解決したバージョンが X.Y.Z でない・対象ファイルが 0 件のときは exit 2。違反は exit 1。
-import { spawnSync } from "node:child_process";
+// 宣言を読めない（mise を起動できない・mise.toml を上書きする設定が残った場合を含む）・宣言したバージョン（package.json の側は lockfile で解決したもの）が X.Y.Z でない・対象ファイルが 0 件のときは exit 2。違反は exit 1。
+import { spawnSync, type SpawnSyncOptionsWithStringEncoding } from "node:child_process";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, join, sep } from "node:path";
 import { applyAllowed, EXAMPLE_LINE_RE, fencedLines, loadAllowed } from "../../lib/doc-scan.ts";
@@ -43,9 +43,9 @@ const ALIASES = new Map([
   ["playwright", "@playwright/test"],
 ]);
 const SEMVER = /^\d+\.\d+\.\d+$/;
-// プレリリースの接尾辞の語（`-rc.1`・`-beta2` など）。この語で始まるときだけ、`-` の後も記述に含めて比べる。
-// それ以外の語（`-linux-x64` など）はバージョンの一部ではないので、`X.Y.Z` だけを比べる。
-const PRERELEASE = "(?:alpha|beta|rc|pre|preview|canary|next|dev|nightly)";
+// X.Y.Z に空白を挟まずに続く接尾辞（`-rc.1`・`rc1`・`-linux-x64`）。語を一覧にせず、続く文字はすべて記述の一部として読む。
+// 区切り（`.`・`-`）を必須にして、後戻りが文字数に対して増えない形にする。`+` の後（ビルドのメタデータ）は含めない。
+const SUFFIX = "(?:-?[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?";
 
 type Declared = Map<string, string>;
 
@@ -148,15 +148,29 @@ export function miseEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEn
   };
 }
 
+/** `mise ls --current --json` を起動する引数（cwd はリポジトリのルート、env は miseEnv）。 */
+export function miseInvocation(root: string): {
+  command: string;
+  args: string[];
+  options: SpawnSyncOptionsWithStringEncoding;
+} {
+  return {
+    command: "mise",
+    args: ["ls", "--current", "--json"],
+    options: {
+      cwd: root,
+      env: miseEnv(),
+      encoding: "utf8",
+      timeout: MISE_TIMEOUT_MS,
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  };
+}
+
 /** リポジトリのルートで `mise ls --current --json` を実行する。起動できない・0 以外で終わったときは例外にする。 */
 const runMiseList: MiseList = (root) => {
-  const r = spawnSync("mise", ["ls", "--current", "--json"], {
-    cwd: root,
-    env: miseEnv(),
-    encoding: "utf8",
-    timeout: MISE_TIMEOUT_MS,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  const { command, args, options } = miseInvocation(root);
+  const r = spawnSync(command, args, options);
   if (r.error) throw new Error(`mise を起動できない: ${r.error.message}`);
   if (r.status !== 0) throw new Error(`mise ls が ${r.status} で終わった: ${r.stderr.trim()}`);
   return r.stdout;
@@ -190,7 +204,7 @@ function miseTools(root: string, miseList: MiseList): [string, string][] {
 }
 
 /**
- * mise ls の 1 件が own（リポジトリの mise.toml）の宣言なら、解決したバージョンを返す。
+ * mise ls の 1 件が own（リポジトリの mise.toml）の宣言なら、宣言したバージョン（requested_version）を返す。
  * リポジトリの外の設定（グローバルの設定）の宣言なら undefined。
  * リポジトリの中の別の設定（mise.<env>.toml・mise.local.toml など）と、ファイルを持たない出所（環境変数など）の宣言は、
  * mise.toml の宣言を上書きしていて比べられないので例外にする。読み飛ばすと、そのツールだけが警告なしに突き合わせから抜ける。
@@ -231,7 +245,7 @@ function mentionPattern(declared: Declared) {
   const names = [...new Set([...declared.keys(), ...ALIASES.keys()])].sort(
     (a, b) => b.length - a.length,
   );
-  const source = `(?<![\\w@/.-])(${names.map(escapeRe).join("|")})(?:@|\\s*v?)(\\d+\\.\\d+\\.\\d+(?:-${PRERELEASE}(?:\\.?\\d+)*)?)(?!\\w|\\.\\d)`;
+  const source = `(?<![\\w@/.-])(${names.map(escapeRe).join("|")})(?:@|\\s*v?)(\\d+\\.\\d+\\.\\d+${SUFFIX})(?!\\w|\\.\\d)`;
   const built = { all: new RegExp(source, "gi"), probe: new RegExp(source, "i") };
   patterns.set(declared, built);
   return built;

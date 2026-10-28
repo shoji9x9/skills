@@ -16,7 +16,7 @@
 // | 名前の書き方 | 空白 / v / @ / バッククォート / 大文字 / 呼び名（Playwright・Node.js）                   |
 // |              | 呼び名と同じ名前の宣言（宣言を優先する）                                                 |
 // | 名前の境界   | 長い名前（@types/node）/ 名前を含む別の語（mynode）/ 宣言の無い名前（gh）               |
-// | バージョン   | X.Y.Z 一致 / X.Y.Z 不一致 / X.Y / X.Y.Z.W / - の後のプレリリースの語と、ほかの語        |
+// | バージョン   | X.Y.Z 一致 / X.Y.Z 不一致 / X.Y / X.Y.Z.W / 空白を挟まない接尾辞（-rc.1・rc1・-linux-x64）|
 // | 直後の語     | 以上 / 〜で続く上限 / + / 空白を挟んだ + / +sha512 / 句読点 / 文末の .（どれも除かない）  |
 // | 場所         | Markdown の本文 / コードフェンス / 例の行 / コメント / 文字列 / コメントを持たない拡張子 |
 // | 許可         | 使われる許可 / 使われない許可                                                            |
@@ -30,6 +30,7 @@ import {
   declaredVersions,
   findMismatches,
   miseEnv,
+  miseInvocation,
   type MiseList,
   RULE,
 } from "./check-version-mentions.ts";
@@ -243,6 +244,13 @@ test("mise を起動するときは、mise.toml を上書きする環境変数�
   });
 });
 
+test("mise ls は、上書きを外した環境変数を渡して起動する", () => {
+  expect(miseInvocation("/r").options).toMatchObject({
+    cwd: "/r",
+    env: expect.objectContaining({ MISE_OVERRIDE_CONFIG_FILENAMES: "mise.toml" }),
+  });
+});
+
 test.each([
   ["空白", "Playwright 1.63.0 で確かめた。", ["Playwright 1.63.0"]],
   ["v", "Node v24.17.0 で確かめた。", ["Node v24.17.0"]],
@@ -255,8 +263,14 @@ test.each([
   ["文末の .", "Tested with Playwright 1.63.0.", ["Playwright 1.63.0"]],
   ["空白を挟んだ +", "Node 24.0.0 + pnpm 11.0.0 で確かめた。", ["Node 24.0.0", "pnpm 11.0.0"]],
   ["packageManager のハッシュ", "`pnpm@11.0.0+sha512.abc` を書く。", ["pnpm@11.0.0"]],
-  ["プレリリースの語は接尾辞まで読む", "Node 24.0.0-rc.1 で確かめた。", ["Node 24.0.0-rc.1"]],
-  ["宣言と同じ X.Y.Z のプレリリース", "Node 26.12.1-beta2 で確かめた。", ["Node 26.12.1-beta2"]],
+  ["- の後の接尾辞まで読む", "Node 24.0.0-rc.1 で確かめた。", ["Node 24.0.0-rc.1"]],
+  ["宣言と同じ X.Y.Z の接尾辞", "Node 26.12.1-beta2 で確かめた。", ["Node 26.12.1-beta2"]],
+  [
+    "語の一覧に依らない接尾辞",
+    "Node 26.12.1-SNAPSHOT と node 26.12.1-linux-x64。",
+    ["Node 26.12.1-SNAPSHOT", "node 26.12.1-linux-x64"],
+  ],
+  ["- を挟まない接尾辞", "Python 3.15.0rc1 で確かめた。", ["Python 3.15.0rc1"]],
   ["直後の以上", "Python 3.8.0 以上が要る。", ["Python 3.8.0"]],
   ["直後の以下", "Node 24.0.0 以下で起きる。", ["Node 24.0.0"]],
   ["直後のより古い", "Node 24.2.0 より古い版。", ["Node 24.2.0"]],
@@ -271,7 +285,6 @@ test.each([
   ["X.Y だけ", "Node 24.2 より古い版。vitest 5 の出力。"],
   ["X.Y.Z.W", "Chrome 149.0.7827.155 と node 1.2.3.4。"],
   ["名前を含む別の語", "mynode 1.2.3 と node_modules 1.2.3。"],
-  ["宣言と同じ X.Y.Z の後の - と語", "Node 26.12.1-linux-x64 のバイナリ。"],
   ["宣言の無い名前", "gh 2.93.0 で確かめた。"],
   ["例の行", "例: `pnpm@11.0.0` を入れる。"],
 ])("食い違いとして扱わない: %s", (_name, text) => {
