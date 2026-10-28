@@ -13,7 +13,7 @@
 //   メジャーやマイナーの境目（「Node 24.2 より古い版」「vitest 5」）を表し、パッチの更新では古くならないからである。
 //   直後の語（「以上」「〜」など）では除かない。範囲の書き方は閉じないので、宣言と違う X.Y.Z はすべて違反にし、
 //   正しい記述（必要な最低のバージョンなど）は下の許可で通す。
-//   `-` の後（`-rc.1` のプレリリースも `-linux-x64` の語も）は記述に含めず、`X.Y.Z` だけを比べる。
+//   `-` の後は、プレリリースの語（PRERELEASE。`-rc.1` など）なら記述に含めて比べ、ほかの語（`-linux-x64` など）は含めない。
 //   英語の文の文末の `.` は記述に含めない（Markdown の「Tested with Playwright X.Y.Z.」も読む）。`.` の後に数字が続く X.Y.Z.W は見ない。
 // - 走査対象は scripts/gates/docs/doc-scan-files.ts と同じ（Tier 1〜3）。Markdown はコードフェンスの外の本文を、
 //   それ以外はコメントの文章（scripts/lib/text/code-comments.ts）を読む。名前をバッククォートで囲んだ記述も読む。
@@ -43,6 +43,9 @@ const ALIASES = new Map([
   ["playwright", "@playwright/test"],
 ]);
 const SEMVER = /^\d+\.\d+\.\d+$/;
+// プレリリースの接尾辞の語（`-rc.1`・`-beta2` など）。この語で始まるときだけ、`-` の後も記述に含めて比べる。
+// それ以外の語（`-linux-x64` など）はバージョンの一部ではないので、`X.Y.Z` だけを比べる。
+const PRERELEASE = "(?:alpha|beta|rc|pre|preview|canary|next|dev|nightly)";
 
 type Declared = Map<string, string>;
 
@@ -132,9 +135,9 @@ const MISE_TIMEOUT_MS = 30_000;
  * なるべく読ませない環境変数。上書きされると mise ls はその設定の宣言だけを返す。
  * ここで止めきれない上書きは、ownVersion が比べられないとして例外にする（止める種類を数え切ることを前提にしない）。
  */
-function miseEnv(): NodeJS.ProcessEnv {
+export function miseEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   const env = Object.fromEntries(
-    Object.entries(process.env).filter(
+    Object.entries(base).filter(
       ([k]) => k !== "MISE_ENV" && k !== "MISE_PROFILE" && !/^MISE_[A-Z0-9_]+_VERSION$/.test(k),
     ),
   );
@@ -162,9 +165,8 @@ const runMiseList: MiseList = (root) => {
 /**
  * mise.toml の [tools] の宣言を、mise 自身に解決させて読む（TOML を自前で解析しない）。
  * mise はグローバルの設定の宣言も返すので、`source.path` がリポジトリの mise.toml のものだけを使う。
- * バージョンは mise が解決したバージョン（`version`。mise.lock にそのツールの項目があればその値）で、package.json の側と同じく解決した値と比べる。
- * mise.toml がバージョンを X.Y.Z で固定しない（`node = "26"`）と、lock の項目が無い環境では解決した値がマシンごとに変わる。
- * X.Y.Z でなければ declaredVersions が例外にする。
+ * バージョンは宣言した値（`requested_version`）である。X.Y.Z でなければ declaredVersions が例外にする。
+ * X.Y.Z で固定しない宣言（`node = "26"`）は、解決した値が mise.lock の有無やマシンごとに変わり、比べる値が決まらないからである。
  * mise.toml が無ければ mise を起動しない。在るのに 1 件も読めない・形が違うときは例外にする。
  */
 function miseTools(root: string, miseList: MiseList): [string, string][] {
@@ -207,8 +209,9 @@ function ownVersion(name: string, entry: unknown, own: string): string | undefin
       `${source.path} が ${name} の宣言を上書きしていて、mise.toml の宣言と比べられない`,
     );
   }
-  const version = entry.version;
-  if (typeof version !== "string") throw new Error(`mise ls の ${name} に version が無い`);
+  const version = entry.requested_version;
+  if (typeof version !== "string")
+    throw new Error(`mise ls の ${name} に requested_version が無い`);
   return version;
 }
 
@@ -228,7 +231,7 @@ function mentionPattern(declared: Declared) {
   const names = [...new Set([...declared.keys(), ...ALIASES.keys()])].sort(
     (a, b) => b.length - a.length,
   );
-  const source = `(?<![\\w@/.-])(${names.map(escapeRe).join("|")})(?:@|\\s*v?)(\\d+\\.\\d+\\.\\d+)(?!\\w|\\.\\d)`;
+  const source = `(?<![\\w@/.-])(${names.map(escapeRe).join("|")})(?:@|\\s*v?)(\\d+\\.\\d+\\.\\d+(?:-${PRERELEASE}(?:\\.?\\d+)*)?)(?!\\w|\\.\\d)`;
   const built = { all: new RegExp(source, "gi"), probe: new RegExp(source, "i") };
   patterns.set(declared, built);
   return built;

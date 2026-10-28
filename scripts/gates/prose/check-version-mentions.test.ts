@@ -9,14 +9,14 @@
 // | 宣言の不備   | lockfile に無い依存 / X.Y.Z でない宣言 / importers の . が依存を持たない文書だけ         |
 // |              | package.json と mise.toml の食い違い / 依存が null / packageManager が文字列でない       |
 // |              | 依存と packageManager の食い違い                                                         |
-// | mise ls      | object でない / 値が配列でない / source.path が無い（環境変数など）/ version が無い       |
+// | mise ls      | object でない / 値が配列でない / source.path が無い（環境変数など）/ requested_version が無い |
 // |              | リポジトリの中の別の設定（mise.<env>.toml など）の宣言 / 宣言したと解決したの違い        |
 // |              | mise.toml の宣言が 1 件も無い / 起動できない・0 以外で終わる（例外をそのまま返す）       |
 // |              | 1 つのツールに複数のバージョン                                                           |
 // | 名前の書き方 | 空白 / v / @ / バッククォート / 大文字 / 呼び名（Playwright・Node.js）                   |
 // |              | 呼び名と同じ名前の宣言（宣言を優先する）                                                 |
 // | 名前の境界   | 長い名前（@types/node）/ 名前を含む別の語（mynode）/ 宣言の無い名前（gh）               |
-// | バージョン   | X.Y.Z 一致 / X.Y.Z 不一致 / X.Y / X.Y.Z.W / - の後の接尾辞（プレリリース・語）          |
+// | バージョン   | X.Y.Z 一致 / X.Y.Z 不一致 / X.Y / X.Y.Z.W / - の後のプレリリースの語と、ほかの語        |
 // | 直後の語     | 以上 / 〜で続く上限 / + / 空白を挟んだ + / +sha512 / 句読点 / 文末の .（どれも除かない）  |
 // | 場所         | Markdown の本文 / コードフェンス / 例の行 / コメント / 文字列 / コメントを持たない拡張子 |
 // | 許可         | 使われる許可 / 使われない許可                                                            |
@@ -29,6 +29,7 @@ import {
   checkVersionMentions,
   declaredVersions,
   findMismatches,
+  miseEnv,
   type MiseList,
   RULE,
 } from "./check-version-mentions.ts";
@@ -157,7 +158,7 @@ test.each([
 // 各行の 3 つ目は、その不備を判定した分岐のメッセージ。前の分岐や別の TypeError で落ちても通らないように確かめる。
 test.each<[string, MiseList, string | RegExp]>([
   ["X.Y.Z でない宣言", fakeMise({ node: "26" }), "X.Y.Z でなく"],
-  ["package.json と mise.toml の食い違い", fakeMise({ pnpm: "12.12.0" }), "食い違う"],
+  ["package.json と mise.toml の食い違い", fakeMise({ pnpm: "12.12.0" }), "mise.toml は"],
   ["mise.toml の宣言が 1 件も無い", fakeMise({}), "1 件も読めない"],
   ["出力が object でない", raw([]), "出力が object でない"],
   ["値が配列でない", raw({ node: {} }), "配列でない"],
@@ -183,19 +184,19 @@ test("mise.toml が 1 つのツールに複数のバージョンを宣言する�
   const miseList: MiseList = (root) =>
     JSON.stringify({
       node: ["26.12.1", "24.0.0"].map((v) => ({
-        version: v,
+        requested_version: v,
         source: { path: join(root, "mise.toml") },
       })),
     });
   expect(() => declaredVersions(makeRepo({}), miseList)).toThrow("複数のバージョン");
 });
 
-test("mise.toml の宣言に version が無いときは例外にする", () => {
+test("mise.toml の宣言に requested_version が無いときは例外にする", () => {
   const miseList: MiseList = (root) =>
     JSON.stringify({
-      node: [{ requested_version: "26.12.1", source: { path: join(root, "mise.toml") } }],
+      node: [{ version: "26.12.1", source: { path: join(root, "mise.toml") } }],
     });
-  expect(() => declaredVersions(makeRepo({}), miseList)).toThrow("version が無い");
+  expect(() => declaredVersions(makeRepo({}), miseList)).toThrow("requested_version が無い");
 });
 
 test("リポジトリの中の別の設定が mise.toml の宣言を上書きしたときは、比べられないとして例外にする", () => {
@@ -209,14 +210,37 @@ test("リポジトリの中の別の設定が mise.toml の宣言を上書きし
   expect(() => declaredVersions(makeRepo({}), miseList)).toThrow("上書き");
 });
 
-test("mise.toml の宣言は、宣言した値ではなく mise が解決したバージョンと比べる", () => {
-  const miseList: MiseList = (root) =>
-    JSON.stringify({
-      node: [
-        { version: "26.12.1", requested_version: "26", source: { path: join(root, "mise.toml") } },
-      ],
-    });
-  expect(declaredVersions(makeRepo({}), miseList).get("node")).toBe("26.12.1");
+test("mise.toml の宣言は宣言した値と比べ、X.Y.Z で固定しない宣言は比べられないとして例外にする", () => {
+  const miseList =
+    (requested: string): MiseList =>
+    (root) =>
+      JSON.stringify({
+        node: [
+          {
+            version: "26.12.1",
+            requested_version: requested,
+            source: { path: join(root, "mise.toml") },
+          },
+        ],
+      });
+  expect(declaredVersions(makeRepo({}), miseList("26.12.1")).get("node")).toBe("26.12.1");
+  expect(() => declaredVersions(makeRepo({}), miseList("26"))).toThrow("X.Y.Z でなく");
+});
+
+test("mise を起動するときは、mise.toml を上書きする環境変数を外し、上書きの設定を読ませない", () => {
+  const env = miseEnv({
+    PATH: "/bin",
+    MISE_ENV: "foo",
+    MISE_PROFILE: "bar",
+    MISE_NODE_VERSION: "20.0.0",
+    MISE_JOBS: "4",
+  });
+  expect(env).toEqual({
+    PATH: "/bin",
+    MISE_JOBS: "4",
+    MISE_OVERRIDE_CONFIG_FILENAMES: "mise.toml",
+    MISE_OVERRIDE_TOOL_VERSIONS_FILENAMES: "none",
+  });
 });
 
 test.each([
@@ -231,7 +255,8 @@ test.each([
   ["文末の .", "Tested with Playwright 1.63.0.", ["Playwright 1.63.0"]],
   ["空白を挟んだ +", "Node 24.0.0 + pnpm 11.0.0 で確かめた。", ["Node 24.0.0", "pnpm 11.0.0"]],
   ["packageManager のハッシュ", "`pnpm@11.0.0+sha512.abc` を書く。", ["pnpm@11.0.0"]],
-  ["- の後は読まず X.Y.Z だけを比べる", "Node 24.0.0-rc.1 で確かめた。", ["Node 24.0.0"]],
+  ["プレリリースの語は接尾辞まで読む", "Node 24.0.0-rc.1 で確かめた。", ["Node 24.0.0-rc.1"]],
+  ["宣言と同じ X.Y.Z のプレリリース", "Node 26.12.1-beta2 で確かめた。", ["Node 26.12.1-beta2"]],
   ["直後の以上", "Python 3.8.0 以上が要る。", ["Python 3.8.0"]],
   ["直後の以下", "Node 24.0.0 以下で起きる。", ["Node 24.0.0"]],
   ["直後のより古い", "Node 24.2.0 より古い版。", ["Node 24.2.0"]],
