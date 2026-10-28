@@ -61,6 +61,9 @@ export const TEST_BASELINE_PATH = ".config/jscpd/baseline-tests.json";
 
 /** テストだけを置くディレクトリ（リポジトリの根からのパス）。テストのヘルパーと fixture もここに置く。 */
 const TEST_DIRS = ["scripts/skills/", "scripts/lib/testing/"];
+/** テストのファイル（TEST_FILE_ROOT の下で、名前が TEST_FILE_SUFFIX で終わるもの）。isTestCode と TEST_GLOBS はここから作る。 */
+const TEST_FILE_ROOT = "scripts/";
+const TEST_FILE_SUFFIX = ".test.ts";
 /** テストどうしの重複の閾値。デフォルトの 50 では、各テストに書いた準備と assertion の短い並びが重複になる。 */
 const TEST_MIN_TOKENS = 100;
 
@@ -70,11 +73,11 @@ const TEST_MIN_TOKENS = 100;
  */
 export const isTestCode = (file: string) =>
   TEST_DIRS.some((d) => file.startsWith(d)) ||
-  (file.startsWith("scripts/") && file.endsWith(".test.ts"));
+  (file.startsWith(TEST_FILE_ROOT) && file.endsWith(TEST_FILE_SUFFIX));
 
 // 2 回目の走査に渡す glob。jscpd の --pattern はパスの途中にも一致するので、2 回目の走査に入っても isTestCode が
 // false のファイルは、2 回目では数えず、1 回目でテスト以外として数える（2 回の走査の keep を参照）。
-const TEST_GLOBS = ["scripts/**/*.test.ts", ...TEST_DIRS.map((d) => `${d}**`)];
+const TEST_GLOBS = [`${TEST_FILE_ROOT}**/*${TEST_FILE_SUFFIX}`, ...TEST_DIRS.map((d) => `${d}**`)];
 
 /** jscpd を 1 回実行する走査。keep は、その走査で数える重複か。 */
 type Scan = { name: string; baseline: string; args: string[]; keep: (c: Clone) => boolean };
