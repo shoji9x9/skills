@@ -19,12 +19,19 @@ export function isErrnoException(
   return error instanceof Error && "code" in error;
 }
 
-/** spawnSync の結果の終わり方（`exit 1`・`signal SIGTERM`・起動できなかった理由）。失敗のメッセージに書く。 */
+/**
+ * spawnSync の結果の終わり方。失敗のメッセージに書く。
+ * 終了コードがあれば `exit 1`、シグナルで止まれば `signal SIGTERM` と書く。
+ * 打ち切り（ETIMEDOUT）と出力の上限超え（ENOBUFS）は、シグナルと error の両方を持つので、`signal SIGTERM（spawnSync git ETIMEDOUT）` と書く。
+ * どちらも無ければ、起動できなかった理由を書く。
+ */
 export function spawnEnd(res: {
   status: number | null;
   signal: NodeJS.Signals | null;
   error?: Error;
 }): string {
-  if (res.error) return `起動できない: ${res.error.message}`;
-  return res.status !== null ? `exit ${res.status}` : `signal ${res.signal}`;
+  if (res.status !== null) return `exit ${res.status}`;
+  if (res.signal !== null)
+    return res.error ? `signal ${res.signal}（${res.error.message}）` : `signal ${res.signal}`;
+  return `起動できない: ${res.error?.message ?? "理由が分からない"}`;
 }

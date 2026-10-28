@@ -26,7 +26,7 @@ import { isCliEntry } from "../../lib/cli/entry.ts";
 export type Finding = { path: string; message: string };
 
 /** 全スキルの config-schemas/ のファイル。name は `<名前>.schema.json` の名前で、その形でなければ null。 */
-type SchemaFile = { skill: string; dir: string; file: string; name: string | null };
+export type SchemaFile = { skill: string; dir: string; file: string; name: string | null };
 
 function schemaFiles(root: string): SchemaFile[] {
   const skills = join(root, "skills");

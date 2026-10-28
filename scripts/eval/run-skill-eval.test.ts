@@ -886,9 +886,8 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
 
 describe.concurrent("run-skill-eval required sibling skills", () => {
   // A throwaway repository with a subject skill and a sibling, so the harness can be
-  // driven with a requires_skills declaration no real skill needs to carry. Scripts
-  // are copied into the throwaway repository because the harness runs its helpers
-  // from <repo>/scripts/eval.
+  // driven with a requires_skills declaration no real skill needs to carry. The
+  // harness runs its helpers from <repo>/scripts/eval, so they are placed there.
   function makeRepository(evalDefinition: Record<string, unknown>) {
     const root = tempDir("skill-eval-required-");
     copyHarness(root);

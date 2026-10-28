@@ -69,6 +69,16 @@ test.each([
     end: "signal SIGTERM",
   },
   {
+    label: "打ち切られた",
+    res: { status: null, signal: "SIGTERM" as const, error: new Error("spawnSync git ETIMEDOUT") },
+    end: "signal SIGTERM（spawnSync git ETIMEDOUT）",
+  },
+  {
+    label: "理由も無く終わり方が分からない",
+    res: { status: null, signal: null },
+    end: "起動できない: 理由が分からない",
+  },
+  {
     label: "起動できなかった",
     res: { status: null, signal: null, error: new Error("spawnSync git ENOENT") },
     end: "起動できない: spawnSync git ENOENT",

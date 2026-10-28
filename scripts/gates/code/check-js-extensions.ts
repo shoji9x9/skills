@@ -102,6 +102,9 @@ function findViolations(paths: readonly string[], privateSkills: readonly string
   return out;
 }
 
+/** git が応答しないときに、待ち続けないよう打ち切る時間。 */
+const GIT_TIMEOUT_MS = 60_000;
+
 /**
  * `dirs` の下の、追跡しているファイルと、無視されていない未追跡のファイル。
  * `.gitignore` のものを除くのは、テストが一時的に作る fixture（`scripts/` の下の `.cjs` など）を数えないため。
@@ -117,8 +120,7 @@ export function listFiles(
   const res = spawnSync(
     "git",
     ["ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", ...dirs],
-    // git ls-files はリポジトリ全体でも 1 秒かからない。応答しないときに待ち続けないよう打ち切る。
-    { cwd: root, encoding: "utf8", timeout: 60_000 },
+    { cwd: root, encoding: "utf8", timeout: GIT_TIMEOUT_MS },
   );
   if (res.status !== 0) {
     throw new Error(`git ls-files に失敗した（${spawnEnd(res)}）: ${res.stderr}`);
@@ -131,7 +133,7 @@ export function repoRoot(cwd: string): string {
   const res = spawnSync("git", ["rev-parse", "--show-toplevel"], {
     cwd,
     encoding: "utf8",
-    timeout: 60_000,
+    timeout: GIT_TIMEOUT_MS,
   });
   if (res.status !== 0) {
     throw new Error(
