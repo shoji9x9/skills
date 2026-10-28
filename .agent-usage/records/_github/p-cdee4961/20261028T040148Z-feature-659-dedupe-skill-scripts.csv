@@ -4,3 +4,6 @@ ci:40623031224:1,ci,2026-10-28T04:01:48.149Z,p-cdee4961,github-actions,,,,2026-1
 ci:40623031216:1,ci,2026-10-28T04:01:48.149Z,p-cdee4961,github-actions,,,,2026-10-28T02:47:57.000Z,2026-10-28T02:47:58.000Z,Asia/Tokyo,feature/659-dedupe-scripts,659,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 coverage:github:2026-10-27T02:47:10.452Z:2026-10-28T04:01:48.149Z,coverage,2026-10-28T04:01:48.149Z,p-cdee4961,,,,,2026-10-27T02:47:10.452Z,2026-10-28T04:01:48.149Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-27T04:01:48.149Z:2026-10-28T04:02:59.418Z,coverage,2026-10-28T04:02:59.418Z,p-cdee4961,,,,,2026-10-27T04:01:48.149Z,2026-10-28T04:02:59.418Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:40630255101:1,ci,2026-10-28T04:55:57.667Z,p-cdee4961,github-actions,,,,2026-10-28T04:04:40.000Z,2026-10-28T04:04:41.000Z,Asia/Tokyo,feature/659-dedupe-skill-scripts,659,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40630254938:1,ci,2026-10-28T04:55:57.667Z,p-cdee4961,github-actions,,,,2026-10-28T04:04:40.000Z,2026-10-28T04:11:31.000Z,Asia/Tokyo,feature/659-dedupe-skill-scripts,659,,,,,,,,,,CI;pull_request;failure,
+coverage:github:2026-10-27T04:02:59.418Z:2026-10-28T04:55:57.667Z,coverage,2026-10-28T04:55:57.667Z,p-cdee4961,,,,,2026-10-27T04:02:59.418Z,2026-10-28T04:55:57.667Z,Asia/Tokyo,,,,,,,,,,,,ok,
