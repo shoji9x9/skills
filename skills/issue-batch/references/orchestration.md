@@ -217,7 +217,7 @@ manifest に書いてよいのは、次のものだけである。
 - 検証名・結果・証拠 URL / SHA
 - `reviewed_through_sha`: push の前のローカルレビューを最後に当てた範囲の終わりの commit の SHA（「ローカルレビュー」）。
   `review_tool: local` の merge の前に確かめる記録（`local-review-record.sh`）とは別のもので、その代わりに使わない
-- `unreviewed_range`: ローカルレビューの上限に達したために、PR を作る前に手元でレビューしなかった範囲の配列。`pr-finalize-loop` のレビューに任せた範囲である（「手元でレビューしていない範囲の記録」）。
+- `unreviewed_range`: ローカルレビューの上限に達したために、push の前に手元でレビューしなかった範囲の配列。`pr-finalize-loop` のレビューに任せた範囲である（「手元でレビューしていない範囲の記録」）。
   要素は `{range, has_merge}` で、`range` は `<from>..<to>` の完全な SHA、`has_merge` は範囲に merge commit があるか（`git rev-list --merges <range>` が空でないか）である
 - BLOCKED / FAILED の停止の理由と残作業
 - `BRANCH_CLEANUP` のまま残した worktree の、引き継ぐファイルの一覧（「worktree に残った記録の引き継ぎ」）
@@ -315,7 +315,7 @@ Claude Code では、渡した範囲の終わり（`<to>`）の SHA である。
 ローカルレビューの上限（`max_local_review_iterations`）は、push の前に手元でレビューする回数の上限である。最初のレビューも 1 回に数える。
 回数を 0 から数え始めるのは、次の 2 つの場面だけである。
 
-- PR を作る前のローカルレビューを始めるとき（前の run から再開して、ローカルレビューを最初から行うときを含む。PR を既に持つ Issue の再開も、ここに当たる）
+- ローカルレビューを最初から始めるとき。PR を作る前の最初のレビューと、前の run から再開した Issue（PR を既に持つものを含む）で最初からやり直すときである
 - 「deployment 修復」で `LOCAL_REVIEWING` に戻ったとき
 
 1 つの範囲に当てるレビューの一式を 1 回に数える。Codex で範囲の commit ごとに実行する `codex review --commit` と、再開した Issue で足す base branch との差分のレビューは、同じ回に含める。
@@ -338,9 +338,9 @@ Claude Code では、直した変更を commit し、`<reviewed_through_sha の 
 それ以外の push では記録しない。PR を作った後の push は `pr-finalize-loop` がレビューする。
 
 1. 範囲を `<reviewed_through_sha の SHA>..<記録する時点の HEAD の完全な SHA>` とする。範囲に commit が無ければ、記録しない。
-2. 範囲に commit があれば、manifest の `unreviewed_range` に 1 件足す（要素の形は「worktree と manifest」の一覧）。
-   例外のファイル（Kaizen の学びと Hook の記録）だけの範囲も記録する。この時点では、抽出が変えたファイルの一覧が残っていないことがあり、例外かを判定できないからである。
-   follow-up PR の記録は、前の記録を消さずに足す。
+   記録の後、PR を作るまで（PR を既に持つ Issue ではその push まで）に commit を足したら、記録の範囲の終わりを足した後の HEAD に進める。
+2. 範囲で変わったファイルがすべて例外のファイルなら、記録しない。判定は、下の「ローカルレビューの後に生じた変更」の手順 2 と同じにする。
+3. それ以外は、manifest の `unreviewed_range` に 1 件足す（要素の形は「worktree と manifest」の一覧）。follow-up PR の記録は、前の記録を消さずに足す。
 
 ### ローカルレビューの後に生じた変更
 
@@ -365,6 +365,7 @@ exit 0 にならず値を読めなかったときは、handoff でも同じ設�
 1. 範囲に merge commit があるとき（ローカルレビューの後に base branch を merge したときなど）は、範囲に取り込んだ base の変更が入るので、この範囲ではレビューしない。
    代わりに、ローカルレビューと同じ方法で、取得し直した `origin/<base>` との差分全体をレビューし直す。
 2. 範囲で変わったファイルがすべて例外のファイルなら、このレビューは行わない。
+   抽出が変えたファイルの一覧が無いとき（前の run から再開した Issue など）は、`.kaizen/` の変更を例外にしない。Hook の記録は、上の状態とパスで判定できるので、一覧が無くても例外にする。
 3. それ以外は、範囲をそのままレビューする。例外のファイルが範囲に含まれても構わない。
 
 1 と 3 のレビューも、ローカルレビューの上限（`max_local_review_iterations`）の回数に数える。
