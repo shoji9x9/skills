@@ -29,7 +29,10 @@ KEDB 照合は「重複」「SKILL.md」「jscpd」で行い、一致は無か�
 
 ## 提案
 
-複数の配布スキルに同じ取り決めを足すときは、内容をそろえて文面は各スキルの言い回しで書くか、文面までそろえるなら `identical-copies.json` に範囲の組として登録する。
+複数の配布スキルに同じ取り決めを足すときは、内容をそろえて文面は各スキルの言い回しで書くか、文面までそろえるなら共通の部分を別のファイルに切り出して `identical-copies.json` に組として登録する。
+
+`identical-copies.json` の範囲の組（`region`）は、印の行を `//` か `#` で書くファイルのためのもので、Markdown の `SKILL.md` の一部には使えない。
+文面までそろえる例は、`references/review-threads.md` をファイル全体の組にした `pr-review-handle` と `pr-finalize-loop` である。
 
 - `docs/skill-development.md` の整合パスの節に、この 2 つの選び方を書き足す。
 - 機構は作らない。重複のチェックがその場で止めて直し方を示すので、手順の追記で足りる。
