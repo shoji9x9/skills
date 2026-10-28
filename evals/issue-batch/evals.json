@@ -73,9 +73,27 @@
       "prompt": "Issue 101 の実装後、現在の agent は Codex で、ローカルレビュー上限は 1。ローカルレビューから Kaizen、PR 作成までの handoff を dry-run で報告して。",
       "assertions": [
         "codex review --uncommitted で staged / unstaged / untracked をレビューする",
-        "妥当な指摘だけ修正し、検証後に上限内で再レビューする",
+        "上限 1 では、指摘を直した後に手元でレビューし直さず、直した変更を pr-finalize-loop のレビューに任せる",
         "kaizen extract --current --record-pending を使い apply / archive / delete を行わない",
         "PR 本文に Closes #101、検証、browser、Kaizen の結果を含める"
+      ],
+      "reachability": [
+        {
+          "assertion": "codex review --uncommitted で staged / unstaged / untracked をレビューする",
+          "prompt_quote": "現在の agent は Codex"
+        },
+        {
+          "assertion": "上限 1 では、指摘を直した後に手元でレビューし直さず、直した変更を pr-finalize-loop のレビューに任せる",
+          "prompt_quote": "ローカルレビュー上限は 1"
+        },
+        {
+          "assertion": "kaizen extract --current --record-pending を使い apply / archive / delete を行わない",
+          "prompt_quote": "ローカルレビューから Kaizen"
+        },
+        {
+          "assertion": "PR 本文に Closes #101、検証、browser、Kaizen の結果を含める",
+          "prompt_quote": "PR 作成までの handoff"
+        }
       ]
     },
     {
