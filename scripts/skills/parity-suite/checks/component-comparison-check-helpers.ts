@@ -201,7 +201,6 @@ export function runCarry(
       write: (s) => {
         output += s;
       },
-      writeErr: () => {},
     },
   );
   rmSync(p.root, { recursive: true, force: true });

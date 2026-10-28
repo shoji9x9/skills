@@ -23,3 +23,7 @@ coverage:github:2026-10-27T09:01:16.947Z:2026-10-28T09:10:32.341Z,coverage,2026-
 ci:40662305328:1,ci,2026-10-28T09:13:13.956Z,p-cdee4961,github-actions,,,,2026-10-28T09:11:25.000Z,2026-10-28T09:13:13.956Z,Asia/Tokyo,feature/659-dedupe-tests,659,,,,,,,,,,CI;pull_request;open,
 ci:40662305290:1,ci,2026-10-28T09:13:13.956Z,p-cdee4961,github-actions,,,,2026-10-28T09:11:25.000Z,2026-10-28T09:11:26.000Z,Asia/Tokyo,feature/659-dedupe-tests,659,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 coverage:github:2026-10-27T09:10:32.341Z:2026-10-28T09:13:13.956Z,coverage,2026-10-28T09:13:13.956Z,p-cdee4961,,,,,2026-10-27T09:10:32.341Z,2026-10-28T09:13:13.956Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:40662664990:1,ci,2026-10-28T09:22:20.233Z,p-cdee4961,github-actions,,,,2026-10-28T09:14:13.000Z,2026-10-28T09:14:14.000Z,Asia/Tokyo,feature/659-dedupe-tests,659,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40662664981:1,ci,2026-10-28T09:22:20.233Z,p-cdee4961,github-actions,,,,2026-10-28T09:14:13.000Z,2026-10-28T09:19:56.000Z,Asia/Tokyo,feature/659-dedupe-tests,659,,,,,,,,,,CI;pull_request;failure,
+ci:40662305328:1,ci,2026-10-28T09:22:20.233Z,p-cdee4961,github-actions,,,,2026-10-28T09:11:25.000Z,2026-10-28T09:15:39.000Z,Asia/Tokyo,feature/659-dedupe-tests,659,,,,,,,,,,CI;pull_request;cancelled,
+coverage:github:2026-10-27T09:13:13.956Z:2026-10-28T09:22:20.233Z,coverage,2026-10-28T09:22:20.233Z,p-cdee4961,,,,,2026-10-27T09:13:13.956Z,2026-10-28T09:22:20.233Z,Asia/Tokyo,,,,,,,,,,,,ok,
