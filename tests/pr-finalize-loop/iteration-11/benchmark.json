@@ -1,0 +1,351 @@
+{
+  "metadata": {
+    "skill_name": "pr-finalize-loop",
+    "skill_path": "<repo>/skills/pr-finalize-loop",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-28T07:20:02Z",
+    "evals_run": [1, 9, 12, 13, 14, 15, 18],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.375,
+        "passed": 3,
+        "failed": 5,
+        "total": 8,
+        "time_seconds": 18.614,
+        "tokens": 112158,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL から owner/repo/PR番号を抽出している",
+          "passed": true,
+          "evidence": "PR URL から repo を shoji9x9/skills、PR を #6 として扱い、一致の確認の表に挙げている"
+        },
+        {
+          "text": "着手前に現在の repo と PR の owner/repo の一致、および現在ブランチが PR の head ブランチかを確認している",
+          "passed": true,
+          "evidence": "着手前のチェックの表で、現在の repo と shoji9x9/skills の一致、ローカルブランチと PR の head ブランチの一致を確認しようとし、確認できずに止まっている"
+        },
+        {
+          "text": "gh pr checks --watch で CI の完了・成否を確認しようとしている",
+          "passed": false,
+          "evidence": "gh pr checks --watch に触れていない（GitHub に接続できず着手前で停止）"
+        },
+        {
+          "text": "GraphQL の reviewThreads を --paginate で取得し isResolved==false の未解決スレッドに絞っている",
+          "passed": false,
+          "evidence": "reviewThreads を --paginate で取得し isResolved==false に絞る方針に触れていない"
+        },
+        {
+          "text": "各スレッドで返信してから解決する（返信→解決の順）方針である",
+          "passed": false,
+          "evidence": "返信してから解決する順序に触れていない"
+        },
+        {
+          "text": "CI 修正とレビュー対応を両方終えてから関連ファイルだけを stage して commit/push する方針である",
+          "passed": false,
+          "evidence": "関連ファイルだけを stage して commit/push する方針に触れていない"
+        },
+        {
+          "text": "CI 成功かつ未解決スレッドなしを完了条件としてループを止める方針である",
+          "passed": false,
+          "evidence": "CI 成功かつ未解決スレッドなしを完了条件とする方針に触れていない"
+        },
+        {
+          "text": "ループ中はユーザー確認を挟まず自律で進める方針である",
+          "passed": true,
+          "evidence": "「ループ中は commit と push を自動で行います」と、ループ中に確認を挟まない方針を示している"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 25.261,
+        "tokens": 69565,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "HEAD への非著者レビューの body を取得して指摘を探す方針である（reviewThreads と comments.totalCount だけで指摘なしと結論していない）",
+          "passed": true,
+          "evidence": "「レビュー本文を切り詰めずに読む」「comments.totalCount が 0 でも、本文に指摘が無いとは限りません」と、HEAD への作成者以外のレビューの本文を読む方針を示している"
+        },
+        {
+          "text": "未解決スレッド 0 件・生成コメント 0 件でもレビュー本文に未対応の指摘が残り得ると述べている",
+          "passed": true,
+          "evidence": "「Copilot は、スレッドを作らずにレビュー本文に指摘や総評を書くことがあります」「comments.totalCount が 0 でも、本文に指摘が無いとは限りません」"
+        },
+        {
+          "text": "本文の指摘には返信先スレッドが無く resolve もできないため、トップレベルの PR コメントで対象箇所・判断・根拠を返す方針である",
+          "passed": true,
+          "evidence": "「直すか、直さない根拠を PR のトップレベルコメントに書いて返します」と、本文の指摘にはトップレベルのコメントで判断と根拠を返す方針を示している"
+        },
+        {
+          "text": "レビュー本文に未対応の指摘がある間は完了と判定しない（収束条件に本文の指摘を含める）方針である",
+          "passed": true,
+          "evidence": "「本文に、まだ返していない指摘があれば未収束です」とし、完了条件の表に「レビュー本文とトップレベルコメントに、対応していない指摘が無い」を含めている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 39.499,
+        "tokens": 102216,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "トップレベルの PR コメント（issues/<番号>/comments）を指摘の収集対象として読む方針である（スレッドと reviews[].body の 2 系統だけで指摘なしと結論していない）",
+          "passed": true,
+          "evidence": "gh api --paginate repos/<owner>/<repo>/issues/6/comments で、作成者と local-review の記録以外の投稿を読むとしている"
+        },
+        {
+          "text": "レビュアーが総評・軽微な指摘をトップレベルコメントに置く形を挙げている（スレッド 0 件・reviews[].body 空を根拠に「指摘なし・収束」と結論していない）",
+          "passed": true,
+          "evidence": "「Claude の GitHub Action は総評と軽い指摘を PR のトップレベルのコメントに書き、レビュー本文を空にします」と述べ、収束とは判定できないと結論"
+        },
+        {
+          "text": "トップレベルコメントは切り詰めずに全文読む（進行中検出の .body[:200] の取得を指摘収集に使い回さない）と述べている",
+          "passed": true,
+          "evidence": "「切り詰めずに全部読んでください」"
+        },
+        {
+          "text": "収束・完了判定の条件に「トップレベルコメントに未対応の指摘が無い」を含めている",
+          "passed": true,
+          "evidence": "完了条件の表に「レビュー本文とトップレベルのコメントに、対応していない指摘が無い」を含めている"
+        },
+        {
+          "text": "トップレベルコメントの指摘には返信先スレッドが無く resolve もできないため、自分のトップレベルコメントを唯一の証跡として判断と根拠を残す方針である",
+          "passed": false,
+          "evidence": "トップレベルの指摘には「手順 4 で対応し」とあるだけで、自分のトップレベルコメントを唯一の証跡として判断と根拠を残す方針を書いていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 14,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 57.413,
+        "tokens": 236360,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "review・thread・トップレベルコメント・timeline・check-runはcompact indexを先に取得し、未加工の全APIレスポンスを会話へ返さない方針である",
+          "passed": true,
+          "evidence": "「1 段目：毎回取る索引（本文は返さない）」の表で reviews・reviewThreads・トップレベルコメント・timeline・check-runs の索引を先に取り、2 回目以降は差分だけを会話に出すとしている"
+        },
+        {
+          "text": "review本文は現在HEADだけでなく、前回取得後に遅延到着した旧HEAD reviewも対象にしている",
+          "passed": true,
+          "evidence": "2 段目の全文取得の対象に「遅れて届いた前の HEAD へのレビュー」を含めている"
+        },
+        {
+          "text": "未解決review thread、新規または更新された非著者トップレベルコメント、レビュー到着判定に必要なcheck-run出力を全文取得する方針である",
+          "passed": false,
+          "evidence": "全文を読む対象に review 本文・新規または更新されたトップレベルコメント・CI の失敗ログを挙げたが、check-run は索引で「output は返さない」とし、レビュー到着判定に使う check-run の出力を全文取得する対象に挙げていない。未解決スレッドの全文の取得も、件数が増えたスレッドの読み直しに限っている"
+        },
+        {
+          "text": "同じreview/comment IDとupdatedAtの本文を反復ごとに再取得しない方針である",
+          "passed": true,
+          "evidence": "「前回の {id: updated_at} と違うものだけを本文取得の対象にする」「処理済みの集合に無い ID だけ」"
+        },
+        {
+          "text": "指摘の妥当性判断では全文を読み、進行中検出用のbody先頭切り詰めを流用しない方針である",
+          "passed": true,
+          "evidence": "「切り詰めずに読みます」「進行中かの判定に使う .body[:200] の取得は、指摘集めに使い回しません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 15,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 37.863,
+        "tokens": 123348,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "review_tool: claude-code では指摘 0 件のとき reviews[] にレコード自体が作られない形を扱っている",
+          "passed": true,
+          "evidence": "「claude-code は指摘が 0 件のとき、reviews[] にレコードを作らないことがあります。そのためレコードが無いことは「未レビュー」の根拠になりません」"
+        },
+        {
+          "text": "現在の headRefOid を commit ref にした check-runs API を使い、レビュー用 check-run の head_sha・status・conclusion・output の趣旨を確認する方針である",
+          "passed": true,
+          "evidence": "gh api --paginate repos/<o>/<r>/commits/<headRefOid>/check-runs で name・head_sha・status・conclusion・app.slug・output.title・output.summary を見るとしている"
+        },
+        {
+          "text": "正常完了した現在 HEAD の Claude レビュー用 check-runをレビュー到着証跡として認めている",
+          "passed": true,
+          "evidence": "「根拠に使えるのは、現在 HEAD の Claude Code Review の check-run が正常に完了していること」とし、HEAD はレビュー済み（check-run による）と判定"
+        },
+        {
+          "text": "push 後に作成・更新されたという時刻だけのレビューボットコメントを単独の到着証跡にせず、単独で使うなら本文に現在の完全な headRefOid が必要としている",
+          "passed": true,
+          "evidence": "「updated_at が push より後というだけでは根拠になりません」「本文に書かれた commit が現在の headRefOid と完全な SHA で一致すれば、追加の根拠になります」"
+        },
+        {
+          "text": "status: completed だけで合格にせず、失敗・timeout・skip・spend cap と、無関係な check-run を除外している",
+          "passed": true,
+          "evidence": "check-run の除外条件に head_sha の不一致・未完了・失敗/timeout/skip/cancel・spend cap・Claude のレビュー用と特定できないもの（dependency-review など）を挙げている"
+        },
+        {
+          "text": "レビュー到着と指摘なしを分け、レビュー本文・トップレベルコメント・check-run 出力に未対応指摘や失敗が無いことも確認してから収束と判定している",
+          "passed": true,
+          "evidence": "到着の根拠と、CI・未解決スレッド・スレッド外の指摘 0 件などの完了条件を分け、スレッド外の指摘は作成者以外の投稿を全文で集める条件を挙げている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 18,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 25.067,
+        "tokens": 121621,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Codexが指摘なしの場合にreviews[]を作らずトップレベルbotコメントだけを投稿する形を扱っている",
+          "passed": true,
+          "evidence": "「Codex は指摘がないと👀を外し、Reviewed commit と「指摘なし」を書いたトップレベルコメントだけを投稿して、reviews[] を作らないことがあります」"
+        },
+        {
+          "text": "Reviewed commitの短縮SHAを手で補完せずGitHub commits APIで完全SHAへ解決している",
+          "passed": true,
+          "evidence": "「短縮 SHA は自分で補わず、API で解決します」として gh api repos/<owner>/<repo>/commits/abc123def0 --jq .sha を示している"
+        },
+        {
+          "text": "解決した完全SHAと現在のheadRefOidが一致した場合だけレビュー完了証跡として認めている",
+          "passed": true,
+          "evidence": "「結果が abc123def0456789012345678901234567890123 と1文字ずつ完全に一致すれば、HEAD はレビュー済みです」"
+        },
+        {
+          "text": "SHAの解決失敗またはheadRefOidとの不一致をレビュー済みとして扱わない",
+          "passed": true,
+          "evidence": "「解決に失敗した、候補が複数ある、一致しない場合は根拠になりません。HEAD は未レビュー扱いです」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 26.916,
+        "tokens": 176152,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "common の review_tool の設定（codex）を参照して依頼先ツールを決めている",
+          "passed": true,
+          "evidence": "resolve-review-tool.sh を実行して value=copilot / source=default を得たと報告し、codex にするには設定ファイルか --review-tool codex が要ると判断している"
+        },
+        {
+          "text": "依頼は requested_reviewers ではなくトップレベル PR コメントへの @codex review 投稿で行う方針である",
+          "passed": true,
+          "evidence": "「@codex review をトップレベルのコメントに 1 回だけ投稿し」"
+        },
+        {
+          "text": "Copilot 専用の login（copilot-pull-request-reviewer[bot]）や review_requested タイムラインに依存しない方針である",
+          "passed": true,
+          "evidence": "レビュー済みの判定を作成者以外のレビューの commit.oid・HEAD の check-run・Codex のコメントで行い、Copilot 専用の login や review_requested に依存していない"
+        },
+        {
+          "text": "レビュー到着・進行中は非著者レビューや bot コメント等の汎用シグナルで判定する方針である",
+          "passed": true,
+          "evidence": "「作成者以外のレビューの commit.oid、HEAD の check-run、Codex のコメント」「作業中を示す bot のコメント」で到着と進行中を判定している"
+        },
+        {
+          "text": "mention は非冪等のため、現在の HEAD の push 以降に投稿された（投稿者を問わない）@codex review コメントがあれば再投稿せず、重複レビュー起動を避ける方針である",
+          "passed": true,
+          "evidence": "「push 完了時刻より後に投稿された @codex review のコメント（誰が投稿したかは問いません）」があれば依頼を保留し、無ければ 1 回だけ依頼すると述べている"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.8536,
+        "stddev": 0.2311,
+        "min": 0.375,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 32.9476,
+        "stddev": 13.0936,
+        "min": 18.614,
+        "max": 57.413
+      },
+      "tokens": {
+        "mean": 134488.5714,
+        "stddev": 55012.9672,
+        "min": 69565,
+        "max": 236360
+      }
+    }
+  },
+  "notes": [
+    "PR #820 で未解決スレッドの取得（GraphQL）・返信（REST）・解決（GraphQL）とトップレベルのコメントから集める対象を references/review-threads.md へ移したので、入力を変えていない eval 1・9・12・13・14・15・18 を、後退が無いかを見るために with_skill だけで 1 run ずつ実行した。without_skill は入力が変わらないので実行していない。",
+    "比べる記録の無い eval 1・12 と、前の記録（iteration-3、codex の gpt-5.6-sol）から 5/5 → 4/5 に下がった eval 14 は、origin/main（725931d1）の版のスキルを同じ条件（claude-code 2.1.312、opus、effort 指定なし、run-skill-eval/5）で実行した。eval 1 は 3/8、eval 12 は 4/4、eval 14 は 4/5 で、いずれも書き換え後の版と同じだった。",
+    "使い捨てのプロジェクトは git リポジトリではなく、sandbox の中では gh の認証が無効なので、どの run も着手前の確認で止まるか、手順の説明に留まった。"
+  ]
+}

@@ -1,0 +1,207 @@
+{
+  "metadata": {
+    "skill_name": "pr-review-handle",
+    "skill_path": "<repo>/skills/pr-review-handle",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-28T07:20:02Z",
+    "evals_run": [1, 7, 9, 10],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5714,
+        "passed": 4,
+        "failed": 3,
+        "total": 7,
+        "time_seconds": 23.591,
+        "tokens": 77591,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL から owner/repo/PR番号を抽出している",
+          "passed": true,
+          "evidence": "PR URL から PR の repo を shoji9x9/skills、番号を 42 として扱い、再実行のコマンドに gh pr checkout 42 を示している"
+        },
+        {
+          "text": "現在の repo と PR の owner/repo の一致を確認している",
+          "passed": true,
+          "evidence": "「現在の repo が PR の shoji9x9/skills と一致するか確認できず」として、基本フロー手順 2 の repo の一致の確認で止まっている"
+        },
+        {
+          "text": "GraphQL reviewThreads で未解決スレッドを取得しようとしている",
+          "passed": false,
+          "evidence": "「未解決スレッドの取得（GraphQL）も…できません」と gh の認証失敗を理由に挙げただけで、reviewThreads の取得を試みていない"
+        },
+        {
+          "text": "isResolved == false のスレッドのみ対象にする方針を示している",
+          "passed": false,
+          "evidence": "isResolved == false で絞る方針に触れていない"
+        },
+        {
+          "text": "各指摘をコードに照らして妥当性を判断する方針を示している",
+          "passed": true,
+          "evidence": "「未解決スレッド、レビュー本文、トップレベルのコメントを読み、1 件ずつ妥当か判断します。必要なものだけ直し」と述べている"
+        },
+        {
+          "text": "返信してから解決する順序で進めようとしている",
+          "passed": false,
+          "evidence": "「返信と resolve まで進めます」と並べただけで、返信してから解決する順序を方針として述べていない"
+        },
+        {
+          "text": "モード未指定なので commit/push を行わず通知して停止する方針である",
+          "passed": true,
+          "evidence": "「commit と push もさせる場合は --push を付けてください」と、モード未指定では commit/push しない方針を示している"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 26.91,
+        "tokens": 83019,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "トップレベルの PR コメント（issues/<番号>/comments）を指摘の収集対象として読む方針である",
+          "passed": true,
+          "evidence": "「トップレベルのコメントを、切り詰めずに全件読む」として gh api --paginate repos/<owner>/<repo>/issues/6/comments を示している"
+        },
+        {
+          "text": "レビュアーが総評・軽微な指摘をトップレベルコメントに置く形を挙げている（スレッド 0 件・reviews[].body 空を根拠に「指摘なし」と結論していない）",
+          "passed": true,
+          "evidence": "「Claude の GitHub Action が総評と指摘を PR のトップレベルのコメントに置いたときの典型的な形」とし、3 つの状態は「指摘なし」を意味しないと述べている"
+        },
+        {
+          "text": "トップレベルコメントは切り詰めずに全文読む（.body[:200] のような切り詰めた取得を指摘収集に使わない）と述べている",
+          "passed": true,
+          "evidence": "「依頼済みかを確かめるときは body[:60] に切り詰めて取得しますが、その結果を指摘集めに流用しないでください」と述べ、示したコマンドも body を切り詰めていない"
+        },
+        {
+          "text": "トップレベルコメントの指摘には返信先スレッドが無く resolve もできないため、自分のトップレベルコメントで判断と根拠を返す方針である",
+          "passed": true,
+          "evidence": "「スレッドが無いので resolve はできません。代わりに PR のトップレベルのコメントで、対象の箇所・判断・根拠・確かめた結果を返します…このコメントだけが対応の記録になります」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 20.45,
+        "tokens": 109220,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "common の review_tool の設定（codex）を参照して依頼先ツールを決めている",
+          "passed": true,
+          "evidence": "指定の common.jsonc が無いため review_tool: codex を確認できないと報告し、codex なら @codex review で依頼すると設定から依頼先を決める扱いをしている"
+        },
+        {
+          "text": "push 後に再レビュー依頼のタイミングをユーザーに確認する（今すぐ / CI 完了後 / 依頼しない）",
+          "passed": false,
+          "evidence": "「commit・push の後は、@codex review で再レビューを依頼するか確認します」とあるが、今すぐ / CI 完了後 / 依頼しない の選択肢を示していない"
+        },
+        {
+          "text": "依頼は requested_reviewers ではなくトップレベル PR コメントへの @codex review 投稿で行う方針である",
+          "passed": true,
+          "evidence": "「codex の場合、再レビューは PR のトップレベルに @codex review を投稿して依頼します」"
+        },
+        {
+          "text": "Copilot 専用の login（copilot-pull-request-reviewer[bot]）は使わない方針である",
+          "passed": false,
+          "evidence": "Copilot 専用の login を使わない方針に触れていない"
+        },
+        {
+          "text": "mention は非冪等のため、現在の HEAD の push 以降に投稿された（投稿者を問わない）@codex review コメントの有無を確認し、既にあれば再投稿せず重複レビュー起動を避ける方針である",
+          "passed": false,
+          "evidence": "@codex review の重複投稿を避ける確認に触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 24.132,
+        "tokens": 98228,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "レビュー本文（reviews[].body）を取得して指摘を探す方針である",
+          "passed": true,
+          "evidence": "gh api --paginate repos/<owner>/<repo>/pulls/6/reviews で body を全文表示する手順を示している"
+        },
+        {
+          "text": "未解決スレッド 0 件でもレビュー本文に指摘が残り得ると述べている",
+          "passed": true,
+          "evidence": "「次の 2 か所はスレッド数にもコメント数にも出てこないので、スレッドが 0 件でも未対応の指摘が残ることがあります」とレビュー本文を挙げている"
+        },
+        {
+          "text": "本文の指摘は resolve できないためトップレベルの PR コメントで返す方針である",
+          "passed": true,
+          "evidence": "「これらには返信先のスレッドがなく、resolve もできません。そこで、PR のトップレベルにコメントを 1 件書いて返します」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.7429,
+        "stddev": 0.3051,
+        "min": 0.4,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 23.7708,
+        "stddev": 2.6486,
+        "min": 20.45,
+        "max": 26.91
+      },
+      "tokens": {
+        "mean": 92014.5,
+        "stddev": 14417.5031,
+        "min": 77591,
+        "max": 109220
+      }
+    }
+  },
+  "notes": [
+    "PR #820 で未解決スレッドの取得（GraphQL）・返信（REST）・解決（GraphQL）とトップレベルのコメントから集める対象を references/review-threads.md へ移したので、入力を変えていない eval 1・7・9・10 を、後退が無いかを見るために with_skill だけで 1 run ずつ実行した。without_skill は入力が変わらないので実行していない。",
+    "比べる記録の無い eval 9 は、origin/main（725931d1）の版のスキルを同じ条件（claude-code 2.1.312、opus、effort 指定なし、run-skill-eval/5）で実行し、3/3 で同じだった。",
+    "使い捨てのプロジェクトは git リポジトリではなく、sandbox の中では gh の認証が無効なので、どの run も着手前の確認で止まるか、手順の説明に留まった。"
+  ]
+}

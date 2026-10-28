@@ -20,3 +20,4 @@ ci:40648597447:1,ci,2026-10-28T07:21:10.391Z,p-cdee4961,github-actions,,,,2026-1
 ci:40648597465:1,ci,2026-10-28T07:21:10.391Z,p-cdee4961,github-actions,,,,2026-10-28T07:12:36.000Z,2026-10-28T07:18:05.000Z,Asia/Tokyo,feature/659-dedupe-markdown,659,,,,,,,,,,CI;pull_request;success,
 ci:40648455899:1,ci,2026-10-28T07:21:10.391Z,p-cdee4961,github-actions,,,,2026-10-28T07:11:15.000Z,2026-10-28T07:14:10.000Z,Asia/Tokyo,feature/659-dedupe-markdown,659,,,,,,,,,,CI;pull_request;cancelled,
 coverage:github:2026-10-27T07:11:43.944Z:2026-10-28T07:21:10.391Z,coverage,2026-10-28T07:21:10.391Z,p-cdee4961,,,,,2026-10-27T07:11:43.944Z,2026-10-28T07:21:10.391Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-27T07:21:10.391Z:2026-10-28T07:21:53.110Z,coverage,2026-10-28T07:21:53.110Z,p-cdee4961,,,,,2026-10-27T07:21:10.391Z,2026-10-28T07:21:53.110Z,Asia/Tokyo,,,,,,,,,,,,ok,
