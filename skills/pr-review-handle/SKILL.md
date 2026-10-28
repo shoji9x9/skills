@@ -138,7 +138,7 @@ gh api --paginate repos/<owner>/<repo>/pulls/<番号>/reviews/<review-id>/commen
 
 ### 返信と解決
 
-返信の手順と、返信した後の解決の手順は [`references/review-threads.md`](references/review-threads.md) にある。返信していないスレッドは解決しない。
+返信の手順と、返信した後の解決の手順は [`references/review-threads.md`](references/review-threads.md) にある。参照先を読めなければ、返信も解決もせずに止まる。返信していないスレッドは解決しない。
 返信の本文は先にファイルに書き、`gh api` に `-F body=@<path>` で渡す（`gh api` に `--body-file` は無い）。
 
 ## 妥当性の判断ガイド

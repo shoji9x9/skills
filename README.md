@@ -88,11 +88,9 @@ gh skill update --all
 設定を読むスキルは、設定を JSONC（コメントを書ける JSON）のファイルから、すべて同じ置き場所と順序で読む。
 
 設定は、「リポジトリ」「人ごと・リポジトリ限定」「人ごと」の 3 つの層に置く。
-キーごとに置ける層が決まっていて、リポジトリで揃える値（マージの方式など）はリポジトリの層にだけ置ける。
-環境変数は、秘密の情報、プログラムが子プロセスに渡す値、他のツールが名前を決めている変数だけに使う。それ以外の値を `.env` などに置かない。
 
 読み書きは、各スキルに同梱した `scripts/skill-config/skill-config.mjs` で行う（Node.js が要る）。知らないキー・型の誤り・置けない層に書いたキーはエラーになる。
-各層の置き場所・値を探す順序・層の選び方・書き込みの決まり・旧い置き場所からの移行は、設定を読む各スキルが同じ内容で同梱する `references/config-files.md`（例: [`skills/kaizen/references/config-files.md`](skills/kaizen/references/config-files.md)）にある。
+各層の置き場所・値を探す順序・層の選び方・環境変数にする値・書き込みの決まり・旧い置き場所からの移行は、設定を読む各スキルが同じ内容で同梱する `references/config-files.md`（例: [`skills/kaizen/references/config-files.md`](skills/kaizen/references/config-files.md)）にある。
 キーの意味は、各スキルの文書とスキーマ（`config-schemas/`）にある。
 
 設定ファイルは、設定を作るスキル（`replace-strategy setup`、`browser-test setup`、`issue-batch setup` など）が、既にあるキーとコメントを変えずに作るか追記する。

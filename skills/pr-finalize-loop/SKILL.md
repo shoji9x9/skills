@@ -355,7 +355,8 @@ gh run view <run-id> --repo <owner>/<repo> --log-failed   # 失敗ジョブの�
 
 ### 未解決スレッドの取得・返信・解決
 
-未解決スレッドの全ページの取得（GraphQL）、返信（REST）、解決（GraphQL）の手順は [`references/review-threads.md`](references/review-threads.md) にある。
+未解決スレッドの一覧は、手順 1 のとおり [`references/state-query.md`](references/state-query.md) の索引で取得する。
+返信と解決に使う ID の取得（GraphQL）、返信（REST）、解決（GraphQL）の手順は [`references/review-threads.md`](references/review-threads.md) にある。参照先を読めなければ、返信も解決もせずに止まる。
 `isResolved == false` のスレッドだけを 1 件ずつ処理し、返信してから解決する。
 返信の本文は先にファイルに書き、`gh api` に `-F body=@<path>` で渡す（`gh api` に `--body-file` は無い）。
 

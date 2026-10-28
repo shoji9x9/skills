@@ -49,7 +49,7 @@
    commit message は `pnpm exec commitlint --edit <file>`、Markdown は `pnpm exec markdownlint-cli2 <path>`、
    `SKILL.md` の frontmatter は `node scripts/gates/packaging/check-skill-frontmatter.ts <path>` で確かめる。
 2. スキルの間でコピーしたファイルに、同じ修正を当てる。
-   `evals/<name>/README.md` のようにスキルごとにコピーしたファイルは、直す文字列で `grep -rn <キーワード> skills/ evals/` を実行し、すべてのコピーに同じ修正を当てる。
+   `references/review-threads.md`（pr-review-handle と pr-finalize-loop）や `references/config-files.md` のようにスキルごとにコピーしたファイルは、直す文字列で `grep -rn <キーワード> skills/ evals/` を実行し、すべてのコピーに同じ修正を当てる。
 3. ルールに書いた規律を、チェックが実際に強制しているかを確かめる。
    まず、その規律を破ったときにどのコード・lint・hook がエラーにするかを 1 つ挙げる。
    挙げられない規律は、仕組みで強制したものではなく規約である。散文に何か所書いても強制にはならない。
@@ -143,7 +143,7 @@ scripts/tools/reinstall-skill.sh <name>
 各スキルのテストケースは `evals/<name>/evals.json` にある。
 `evals/<name>/README.md` は、テストケースへの案内を持つ。スキルに固有の観点と前提があれば、それも置く。
 実行・採点・集計の共通の手順はこの節に書き、各スキルの `README.md` へ転記しない。
-README には、そのスキルに固有の実行例（prompt や fixture の渡し方）を置いてよい。
+README には、そのスキルの eval を実行するコマンドの例を置いてもよい。置くかは任意で、置くならこの節のコマンド例と同じ引数の形にする。
 
 新しく作った eval と変えた eval には `reachability` を書く。
 各 assertion を引き出す prompt の文を、`{ "assertion": "<assertions に実在するテキスト>", "prompt_quote": "<prompt 内の部分文字列>" }` の形で並べる。
