@@ -329,16 +329,7 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
   ])(
     "rejects baseline reuse with %s",
     async (_label, mutation: { prompt?: string; model?: string }) => {
-      const { directory, stub } = makeStub();
-      const source = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
-      const target = join(directory, "iteration-2", "eval-1", "without_skill", "run-1");
-      await runEval({
-        executor: "codex",
-        config: "without_skill",
-        prompt: "EXPECT_WITHOUT_SKILL",
-        output: source,
-        stub,
-      });
+      const { stub, source, target } = await withoutSkillSource();
       const result = await spawnAsync(
         join(repository, "scripts", "eval", "run-skill-eval.sh"),
         [
@@ -646,18 +637,9 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
       },
     ],
   ])("rejects a symlinked %s", async (_label, replaceWithSymlink) => {
-    const { directory, stub } = makeStub();
-    const source = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
-    const target = join(directory, "iteration-2", "eval-1", "without_skill", "run-1");
+    const { directory, stub, source, target } = await withoutSkillSource();
     const external = join(directory, "external-artifact");
     writeFileSync(external, "external\n", "utf8");
-    await runEval({
-      executor: "codex",
-      config: "without_skill",
-      prompt: "EXPECT_WITHOUT_SKILL",
-      output: source,
-      stub,
-    });
     replaceWithSymlink(source, external);
 
     await expect(
