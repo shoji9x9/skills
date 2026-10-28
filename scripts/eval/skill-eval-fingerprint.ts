@@ -156,7 +156,7 @@ export function parseArgs(argv: string[]): Record<string, string> {
     const flag = argv[index];
     const value = argv[index + 1];
     if (!flag?.startsWith("--") || value === undefined)
-      throw new Error("arguments must be --name value pairs");
+      throw new Error(`arguments must be --name value pairs (near ${flag ?? "<end>"})`);
     values[flag.slice(2)] = value;
   }
   return values;

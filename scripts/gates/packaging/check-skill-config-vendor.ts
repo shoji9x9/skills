@@ -23,7 +23,6 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
-  realpathSync,
   writeFileSync,
 } from "node:fs";
 import { createRequire } from "node:module";
@@ -211,7 +210,6 @@ export async function main(
   return 0;
 }
 
-const entry = process.argv[1];
-if (entry && realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url))) {
+if (import.meta.main) {
   process.exitCode = await main(process.argv.slice(2));
 }

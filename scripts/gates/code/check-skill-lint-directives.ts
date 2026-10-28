@@ -25,7 +25,7 @@ import { join } from "node:path";
 import ts from "typescript";
 import { jsCommentRanges } from "../../lib/text/code-comments.ts";
 import { errorMessage } from "../../lib/errors.ts";
-import { listFiles } from "./check-js-extensions.ts";
+import { listFiles, repoRoot } from "./check-js-extensions.ts";
 
 // 配布スキルで置ける JavaScript・TypeScript の拡張子だけを走査する（`.mjs` と雛形の `.ts`）。
 // 他の拡張子（`.js`・`.jsx`・`.tsx`・`.mts` など）は `check-js-extensions.ts` が配布スキルで禁じているので、
@@ -137,14 +137,6 @@ export function findViolations(root: string, skillFiles: readonly string[]): str
     }
   }
   return out;
-}
-
-function repoRoot(cwd: string): string {
-  const res = spawnSync("git", ["rev-parse", "--show-toplevel"], { cwd, encoding: "utf8" });
-  if (res.status !== 0) {
-    throw new Error(`git のリポジトリのルートを特定できない（exit ${res.status}）: ${res.stderr}`);
-  }
-  return res.stdout.trim();
 }
 
 function main(cwd = "."): number {

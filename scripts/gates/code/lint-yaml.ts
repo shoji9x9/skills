@@ -148,6 +148,6 @@ export function main(
   return 0;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   process.exit(main(process.argv.slice(2)));
 }

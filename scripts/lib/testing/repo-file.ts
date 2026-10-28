@@ -21,5 +21,7 @@ export function gitInit(root: string) {
     cwd: root,
     encoding: "utf8",
   });
-  if (r.status !== 0) throw new Error(r.stderr);
+  if (r.status !== 0) {
+    throw new Error(`git init に失敗した（exit ${r.status}）: ${r.error?.message ?? r.stderr}`);
+  }
 }

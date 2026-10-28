@@ -16,7 +16,6 @@
 
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 import { loadYaml } from "../../lib/text/yaml-as.ts";
 import { splitFrontmatter } from "../../lib/text/frontmatter.ts";
 import { isPlainObject } from "../../lib/guards.ts";
@@ -141,4 +140,4 @@ function main() {
 }
 
 // CLI として実行されたときだけ動かす（テストから import しても main は動かない）。
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+if (import.meta.main) main();

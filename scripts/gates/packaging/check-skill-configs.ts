@@ -11,9 +11,8 @@
 //   .local.jsonc は commit しないので CI には無いが、手元の pre-commit では確かめる。
 // - どのスキルもスキーマを持たない名前のファイルと、.jsonc でないファイル（旧い skills.yml など）は違反にする。
 // - 設定ファイルが 0 件か、スキーマが 0 件なら exit 2（対象 0 件を合格として扱わない）。
-import { existsSync, readdirSync, realpathSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { errorMessage } from "../../lib/errors.ts";
 // 読み取りは設定を読むスキルがすべて同じ内容で持つ（identical-copies.json の組）ので、どのコピーを使っても同じ結果になる。
 import {
@@ -144,7 +143,6 @@ export function main(root: string = join(import.meta.dirname, "../../..")): numb
   return 0;
 }
 
-const entry = process.argv[1];
-if (entry && realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url))) {
+if (import.meta.main) {
   process.exitCode = main();
 }
