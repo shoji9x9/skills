@@ -24,7 +24,8 @@ import { join } from "node:path";
 import { CONFIG_PATH, RULES, checkDocRefs, hasAnchor, main } from "./check-doc-refs.ts";
 import { KNOWN_RULES } from "../../lib/doc-scan.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
-import { CONFIG, found, makeRepo, repoRoot, script } from "./check-doc-refs-helpers.ts";
+import { CONFIG, found, makeRepo, script } from "./check-doc-refs-helpers.ts";
+import { REPO_ROOT } from "../../lib/testing/repo-file.ts";
 
 const KZ = ".kaizen/";
 
@@ -414,7 +415,7 @@ test("このチェック自身のテストは読まない", () => {
 });
 
 test("陰性: 実リポジトリは許可を当てると失敗 0 件", () => {
-  const r = checkDocRefs(repoRoot);
+  const r = checkDocRefs(REPO_ROOT);
   expect(r.failures).toEqual([]);
   expect(r.files).toBeGreaterThan(100);
 });

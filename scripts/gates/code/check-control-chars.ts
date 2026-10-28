@@ -14,10 +14,9 @@
 // 走査はバイト列（Buffer）で行う。文字列へ読み込むと不正シーケンスが置換文字へ丸められ、
 // 検出したいバイトが消える。`grep -lP '\x00'` は、`-a` が無いと、検出されるはずの既知の入力すら拾わない。
 import { execFileSync } from "node:child_process";
-import { readFileSync, realpathSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { errorCodeOrMessage, errorMessage } from "../../lib/errors.ts";
+import { errorCodeOrMessage } from "../../lib/errors.ts";
 
 // テキストとして扱う拡張子（lefthook の glob と同じ集合）。
 export const TEXT_EXTENSIONS = [
@@ -123,14 +122,4 @@ function main(argv: string[]) {
   return 0;
 }
 
-function isCliEntry() {
-  if (!process.argv[1]) return false;
-  try {
-    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
-  } catch (error) {
-    console.error(`control-chars: 起動パスを正規化できない: ${errorMessage(error)}`);
-    process.exit(1);
-  }
-}
-
-if (isCliEntry()) process.exit(main(process.argv.slice(2)));
+if (import.meta.main) process.exit(main(process.argv.slice(2)));

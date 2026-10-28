@@ -25,18 +25,32 @@ import {
 
 export type Finding = { path: string; message: string };
 
+/** 全スキルの config-schemas/ のファイル。name は `<名前>.schema.json` の名前で、その形でなければ null。 */
+type SchemaFile = { skill: string; dir: string; file: string; name: string | null };
+
+function schemaFiles(root: string): SchemaFile[] {
+  const skills = join(root, "skills");
+  return readdirSync(skills)
+    .sort()
+    .flatMap((skill) => {
+      const dir = join(skills, skill, "config-schemas");
+      if (!existsSync(dir)) return [];
+      return readdirSync(dir)
+        .sort()
+        .map((file) => ({
+          skill,
+          dir,
+          file,
+          name: /^(.+)\.schema\.json$/.exec(file)?.[1] ?? null,
+        }));
+    });
+}
+
 /** 設定の名前 → スキーマを持つスキルのディレクトリ（最初に見つかったもの）。 */
 export function schemaDirs(root: string): Map<string, string> {
   const out = new Map<string, string>();
-  const skills = join(root, "skills");
-  for (const skill of readdirSync(skills).sort()) {
-    const dir = join(skills, skill, "config-schemas");
-    if (!existsSync(dir)) continue;
-    for (const f of readdirSync(dir).sort()) {
-      const m = /^(.+)\.schema\.json$/.exec(f);
-      if (m && !out.has(m[1])) out.set(m[1], dir);
-    }
-  }
+  for (const { dir, name } of schemaFiles(root))
+    if (name !== null && !out.has(name)) out.set(name, dir);
   return out;
 }
 
@@ -45,26 +59,18 @@ export function schemaDirs(root: string): Map<string, string> {
  * @returns 読んだスキーマの数
  */
 function checkSchemas(root: string, findings: Finding[]): number {
-  const skills = join(root, "skills");
   let schemas = 0;
-  for (const skill of readdirSync(skills).sort()) {
-    const dir = join(skills, skill, "config-schemas");
-    if (!existsSync(dir)) continue;
-    for (const f of readdirSync(dir).sort()) {
-      const m = /^(.+)\.schema\.json$/.exec(f);
-      if (!m) {
-        findings.push({
-          path: `skills/${skill}/config-schemas/${f}`,
-          message: "<名前>.schema.json の形でない",
-        });
-        continue;
-      }
-      schemas++;
-      try {
-        loadSchema(dir, m[1]);
-      } catch (e) {
-        findings.push({ path: `skills/${skill}/config-schemas/${f}`, message: errorMessage(e) });
-      }
+  for (const { skill, dir, file, name } of schemaFiles(root)) {
+    const path = `skills/${skill}/config-schemas/${file}`;
+    if (name === null) {
+      findings.push({ path, message: "<名前>.schema.json の形でない" });
+      continue;
+    }
+    schemas++;
+    try {
+      loadSchema(dir, name);
+    } catch (e) {
+      findings.push({ path, message: errorMessage(e) });
     }
   }
   return schemas;

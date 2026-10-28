@@ -554,14 +554,4 @@ export function main(
   return reportAll(config, files, measures);
 }
 
-function isCliEntry(): boolean {
-  if (!process.argv[1]) return false;
-  try {
-    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
-  } catch (error) {
-    console.error(`run-coverage: 起動パスを正規化できない: ${errorMessage(error)}`);
-    process.exit(2);
-  }
-}
-
-if (isCliEntry()) process.exit(main(process.argv.slice(2)));
+if (import.meta.main) process.exit(main(process.argv.slice(2)));

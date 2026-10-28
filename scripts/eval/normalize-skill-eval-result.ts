@@ -10,11 +10,11 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join, posix, relative } from "node:path";
-import { fileURLToPath } from "node:url";
 import { errorMessage } from "../lib/errors.ts";
 import { parseJsonAs } from "../lib/parse-as.ts";
 import { isRecord } from "../lib/guards.ts";
 import { isArray } from "../lib/is-array.ts";
+import { parseArgs } from "./skill-eval-fingerprint.ts";
 
 const SCHEMA_VERSION = 1;
 
@@ -1661,19 +1661,6 @@ function determineFilesCreated(projectFiles: string, initialFilesRaw: string): s
     .sort();
 }
 
-function parseArgs(argv: string[]): Record<string, string> {
-  const values: Record<string, string> = {};
-  for (let index = 0; index < argv.length; index += 2) {
-    const key = argv[index];
-    const value = argv[index + 1];
-    if (!key?.startsWith("--") || value === undefined) {
-      throw new Error(`invalid argument near ${key ?? "<end>"}`);
-    }
-    values[key.slice(2)] = value;
-  }
-  return values;
-}
-
 function atomicWrite(path: string, contents: string): void {
   const temporary = `${path}.tmp-${process.pid}`;
   writeFileSync(temporary, contents, "utf8");
@@ -1823,15 +1810,7 @@ function main() {
   }
 }
 
-let isMain = false;
-if (process.argv[1]) {
-  try {
-    isMain = realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
-  } catch {
-    isMain = false;
-  }
-}
-if (isMain) {
+if (import.meta.main) {
   try {
     main();
   } catch (error) {

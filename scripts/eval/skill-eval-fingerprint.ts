@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
 import { relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { parseJsonAs } from "../lib/parse-as.ts";
 import { isArray } from "../lib/is-array.ts";
 
@@ -150,7 +149,8 @@ export function createFingerprint<T extends Record<string, unknown>>(input: T) {
   };
 }
 
-function parseArgs(argv: string[]): Record<string, string> {
+/** `--名前 値` の組を並べた引数を読む。normalize-skill-eval-result.ts も使う。 */
+export function parseArgs(argv: string[]): Record<string, string> {
   const values: Record<string, string> = {};
   for (let index = 0; index < argv.length; index += 2) {
     const flag = argv[index];
@@ -213,7 +213,7 @@ function main() {
   process.stdout.write(`${JSON.stringify(fingerprint, null, 2)}\n`);
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
+if (import.meta.main) {
   try {
     main();
   } catch (error) {

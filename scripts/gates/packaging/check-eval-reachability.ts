@@ -19,9 +19,8 @@
 //
 // reachability を書いていない既存の eval は、backlog（scripts/gates/packaging/eval-reachability-backlog.json）に
 // eval の id（`<skill_name>:<id>`）の一覧で載せて免除する。新しい eval は backlog に足さず reachability を書く。
-import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { errorCodeOrMessage, errorMessage } from "../../lib/errors.ts";
 import { isNonBlankString, isRecord } from "../../lib/guards.ts";
 import { showValue } from "../../lib/show-value.ts";
@@ -339,14 +338,4 @@ function main(argv: string[]) {
   return 0;
 }
 
-function isCliEntry() {
-  if (!process.argv[1]) return false;
-  try {
-    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
-  } catch (error) {
-    console.error(`eval-reachability: 起動パスを正規化できない: ${errorMessage(error)}`);
-    process.exit(1);
-  }
-}
-
-if (isCliEntry()) process.exit(main(process.argv.slice(2)));
+if (import.meta.main) process.exit(main(process.argv.slice(2)));

@@ -1,6 +1,5 @@
 import { cpSync, existsSync, lstatSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
 import { errorMessage } from "../lib/errors.ts";
 import { parseJsonAs } from "../lib/parse-as.ts";
 import { showValue } from "../lib/show-value.ts";
@@ -177,7 +176,7 @@ function main() {
   reuseBaseline(source, target, expectedPath);
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
+if (import.meta.main) {
   try {
     main();
   } catch (error) {

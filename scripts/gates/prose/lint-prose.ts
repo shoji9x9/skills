@@ -22,7 +22,7 @@
 // - 引数でファイルを渡したときは、そのうち対象に当たるものだけを見る（lefthook の staged_files）。
 // - 設定や辞書を読めない・対象が 0 件（全体を見る実行時）は exit 2、指摘は exit 1。
 import { execFileSync } from "node:child_process";
-import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createLinter, loadTextlintrc } from "textlint";
@@ -194,15 +194,4 @@ export async function main(argv: string[]): Promise<number> {
   return 0;
 }
 
-// CLI エントリ判定は両辺を実パスへ揃える（片側だけの解決は symlink 経由の起動で何もせずに終わる）。
-function isCliEntry() {
-  if (!process.argv[1]) return false;
-  try {
-    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
-  } catch (error) {
-    console.error(`lint-prose: 起動パスを正規化できない: ${errorMessage(error)}`);
-    process.exit(1);
-  }
-}
-
-if (isCliEntry()) process.exit(await main(process.argv.slice(2)));
+if (import.meta.main) process.exit(await main(process.argv.slice(2)));

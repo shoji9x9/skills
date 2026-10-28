@@ -10,11 +10,9 @@
 // 対象が 0 件なら、コマンドを実行せずに exit 2 にする（列挙できていないことを合格として扱わない）。
 // それ以外は、コマンドの終了コードを返す。
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, lstatSync, realpathSync } from "node:fs";
+import { existsSync, lstatSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { isAgentCopy } from "../../lib/source-scope.ts";
-import { errorMessage } from "../../lib/errors.ts";
 
 /** root の下で、拡張子が exts のいずれかに一致する実体のファイル（リポジトリ相対、昇順）。 */
 export function listSources(root: string, exts: string[]): string[] {
@@ -68,15 +66,4 @@ export function main(argv: string[], root: string = process.cwd()): number {
   return r.status ?? 1;
 }
 
-// CLI エントリ判定は両辺を実パスへ揃える（片側だけの解決は symlink 経由の起動で何もせずに終わる）。
-function isCliEntry() {
-  if (!process.argv[1]) return false;
-  try {
-    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
-  } catch (error) {
-    console.error(`run-on-sources: 起動パスを正規化できない: ${errorMessage(error)}`);
-    process.exit(1);
-  }
-}
-
-if (isCliEntry()) process.exit(main(process.argv.slice(2)));
+if (import.meta.main) process.exit(main(process.argv.slice(2)));

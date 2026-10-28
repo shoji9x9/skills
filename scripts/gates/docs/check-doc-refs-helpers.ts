@@ -1,19 +1,15 @@
 // check-doc-refs.test.ts のヘルパー（階層の原本と設定を持つ一時リポジトリを作り、見つけた違反を文字列にする）。
-import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { CONFIG_PATH, checkDocRefs } from "./check-doc-refs.ts";
 import { ALLOWED_PATH } from "../../lib/doc-scan.ts";
 import { TIERS_PATH } from "./doc-tiers.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
-import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
-import { write } from "../../lib/testing/repo-file.ts";
+import { gitInit, REPO_ROOT, write } from "../../lib/testing/repo-file.ts";
 
-export const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-export const script = join(repoRoot, "scripts/gates/docs/check-doc-refs.ts");
+export const script = join(REPO_ROOT, "scripts/gates/docs/check-doc-refs.ts");
 
-const TIERS = readFileSync(join(repoRoot, TIERS_PATH), "utf8");
+const TIERS = readFileSync(join(REPO_ROOT, TIERS_PATH), "utf8");
 export const CONFIG = {
   repo: "o/r",
   generated: [
@@ -41,12 +37,7 @@ export function makeRepo(
   };
   for (const [p, t] of Object.entries(all)) write(root, p, t);
   if (allowed) write(root, ALLOWED_PATH, JSON.stringify(allowed));
-  const r = spawnSync("git", ["init", "-q"], {
-    timeout: CHILD_TIMEOUT_MS,
-    cwd: root,
-    encoding: "utf8",
-  });
-  if (r.status !== 0) throw new Error(r.stderr);
+  gitInit(root);
   return root;
 }
 

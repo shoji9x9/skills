@@ -18,7 +18,7 @@
 //
 // textlint は応答を確かめるときだけ読み込む。読み込めない環境（依存を入れる前の worktree など）でも、
 // スタックトレースで終わらずに、確かめていないことを 1 行で示す。
-import { readFileSync, realpathSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -91,15 +91,4 @@ export async function main(
   return 2;
 }
 
-// CLI エントリ判定は両辺を実パスへ揃える（片側だけの解決は symlink 経由の起動で何もせずに終わる）。
-function isCliEntry() {
-  if (!process.argv[1]) return false;
-  try {
-    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
-  } catch (error) {
-    console.error(`response-word-check: 起動パスを正規化できない: ${errorMessage(error)}`);
-    process.exit(1);
-  }
-}
-
-if (isCliEntry()) process.exit(await main(readFileSync(0, "utf8")));
+if (import.meta.main) process.exit(await main(readFileSync(0, "utf8")));

@@ -28,13 +28,8 @@ import {
 } from "./check-time-sensitive-prose.ts";
 import { KNOWN_RULES } from "../../lib/doc-scan.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
-import {
-  makeGitRepo,
-  makeRepo,
-  repoRoot,
-  script,
-  texts,
-} from "./check-time-sensitive-prose-helpers.ts";
+import { REPO_ROOT } from "../../lib/testing/repo-file.ts";
+import { makeGitRepo, makeRepo, script, texts } from "./check-time-sensitive-prose-helpers.ts";
 
 const KZ = ".kaizen/";
 
@@ -104,7 +99,7 @@ test("陰性: 対象外（README.md・skills/・.md 以外）の件数は見な�
 });
 
 test("陰性: 実リポジトリの対象文書に件数・所要時間の記述が 0 件", () => {
-  const { files, violations } = checkMutationCountProse(repoRoot);
+  const { files, violations } = checkMutationCountProse(REPO_ROOT);
   expect(violations).toEqual([]);
   expect(files).toContain("AGENTS.md");
 });
@@ -384,7 +379,7 @@ test("許可の一覧の形の誤り（reason が無い・知らない規則・a
 });
 
 test("陰性: 実リポジトリは許可を当てると時間の語と日付の失敗が 0 件", () => {
-  const r = checkTimeWords(repoRoot);
+  const r = checkTimeWords(REPO_ROOT);
   expect(r.failures).toEqual([]);
   expect(r.files).toBeGreaterThan(100);
 });

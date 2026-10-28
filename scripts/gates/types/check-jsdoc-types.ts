@@ -10,9 +10,8 @@
 // 対象は `tsconfig.skills.json` の include と同じ、`skills/*/**/*.mjs`。
 // 構文は TypeScript のパーサで読む。文字列・正規表現・テンプレートの中の `/**` や `@ts-ignore` を、コメントとして扱わない。
 // 判定は構文だけで行い、型チェッカーは使わない。
-import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { listFiles, repoRoot } from "../code/check-js-extensions.ts";
 import { errorMessage } from "../../lib/errors.ts";
@@ -149,14 +148,4 @@ function main(cwd = "."): number {
   return 0;
 }
 
-function isCliEntry() {
-  if (!process.argv[1]) return false;
-  try {
-    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
-  } catch (error) {
-    console.error(`jsdoc-types: 起動パスを正規化できない: ${errorMessage(error)}`);
-    process.exit(1);
-  }
-}
-
-if (isCliEntry()) process.exit(main());
+if (import.meta.main) process.exit(main());

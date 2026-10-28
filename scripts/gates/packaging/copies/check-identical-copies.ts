@@ -21,9 +21,8 @@
 // - 1 ファイルは、ファイル全体の組と、範囲の名前ごとの組に 1 つずつ属せる。
 // - 宣言が読めない（JSON でない・形が違う・組が 0 件・同じ種類の組をまたいだ同じファイルの重複）は exit 2、
 //   ファイルが無い・一致しないは exit 1。
-import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { errorMessage } from "../../../lib/errors.ts";
 import { isRecord } from "../../../lib/guards.ts";
 import { isArray } from "../../../lib/is-array.ts";
@@ -220,15 +219,4 @@ export function main(argv: string[]) {
   return 0;
 }
 
-// CLI エントリ判定は両辺を実パスへ揃える（片側だけの解決は symlink 経由の起動でサイレント no-op になる）。
-function isCliEntry() {
-  if (!process.argv[1]) return false;
-  try {
-    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
-  } catch (error) {
-    console.error(`identical-copies: 起動パスを正規化できない: ${errorMessage(error)}`);
-    process.exit(1);
-  }
-}
-
-if (isCliEntry()) process.exit(main(process.argv.slice(2)));
+if (import.meta.main) process.exit(main(process.argv.slice(2)));

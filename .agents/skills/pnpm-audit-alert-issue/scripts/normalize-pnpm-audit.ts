@@ -1,6 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync, realpathSync, writeFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { readFileSync, writeFileSync } from "node:fs";
 import { errorMessage } from "../../../../scripts/lib/errors.ts";
 import { isRecord } from "../../../../scripts/lib/guards.ts";
 import { isArray } from "../../../../scripts/lib/is-array.ts";
@@ -401,14 +400,4 @@ function main(argv: string[]): number {
   return 0;
 }
 
-function isCliEntry(): boolean {
-  if (!process.argv[1]) return false;
-  try {
-    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
-  } catch (error) {
-    console.error(`normalize-pnpm-audit: 起動パスを正規化できない: ${errorMessage(error)}`);
-    process.exit(2);
-  }
-}
-
-if (isCliEntry()) process.exit(main(process.argv.slice(2)));
+if (import.meta.main) process.exit(main(process.argv.slice(2)));
