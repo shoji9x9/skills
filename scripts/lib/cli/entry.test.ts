@@ -1,6 +1,6 @@
 // isCliEntry のテスト。判定を誤ると、CLI として起動しても main を呼ばずに exit 0 で終わる。
 import { spawnSync } from "node:child_process";
-import { symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { beforeAll, expect, test } from "vitest";
@@ -56,3 +56,20 @@ test.each([
   expect(r.status, r.stderr).toBe(0);
   expect(r.out).toBe(expected);
 });
+
+// 権限が無く実パスにできない argv[1] は、起動されたかを判定できないので、合格（exit 0）にしない。
+test.skipIf(process.getuid?.() === 0)(
+  "argv[1] を権限の理由で実パスにできないときは、例外で 0 以外の終了にする",
+  () => {
+    const locked = join(dir, "locked");
+    mkdirSync(locked, { recursive: true });
+    chmodSync(locked, 0o000);
+    try {
+      const r = run("--input-type=module", "-e", 'await import("./cli.ts")', join(locked, "x.ts"));
+      expect(r.status).not.toBe(0);
+      expect(r.stderr).toContain("起動パスを正規化できない");
+    } finally {
+      chmodSync(locked, 0o700);
+    }
+  },
+);

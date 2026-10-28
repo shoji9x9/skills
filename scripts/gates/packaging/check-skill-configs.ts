@@ -26,7 +26,7 @@ import { isCliEntry } from "../../lib/cli/entry.ts";
 export type Finding = { path: string; message: string };
 
 /** 全スキルの config-schemas/ のファイル。name は `<名前>.schema.json` の名前で、その形でなければ null。 */
-export type SchemaFile = { skill: string; dir: string; file: string; name: string | null };
+type SchemaFile = { skill: string; dir: string; file: string; name: string | null };
 
 function schemaFiles(root: string): SchemaFile[] {
   const skills = join(root, "skills");
@@ -46,14 +46,16 @@ function schemaFiles(root: string): SchemaFile[] {
     });
 }
 
-/** 設定の名前 → スキーマを持つスキルのディレクトリ（最初に見つかったもの）。 */
-export function schemaDirs(
-  root: string,
-  files: readonly SchemaFile[] = schemaFiles(root),
-): Map<string, string> {
+/** スキーマのファイルの一覧から、設定の名前 → スキーマを持つスキルのディレクトリ（最初に見つかったもの）を作る。 */
+function dirsOf(files: readonly SchemaFile[]): Map<string, string> {
   const out = new Map<string, string>();
   for (const { dir, name } of files) if (name !== null && !out.has(name)) out.set(name, dir);
   return out;
+}
+
+/** 設定の名前 → スキーマを持つスキルのディレクトリ（最初に見つかったもの）。 */
+export function schemaDirs(root: string): Map<string, string> {
+  return dirsOf(schemaFiles(root));
 }
 
 /**
@@ -119,7 +121,7 @@ function checkConfigFiles(root: string, dirs: Map<string, string>, findings: Fin
 export function check(root: string): { findings: Finding[]; files: number; schemas: number } {
   const findings: Finding[] = [];
   const schemaList = schemaFiles(root);
-  const dirs = schemaDirs(root, schemaList);
+  const dirs = dirsOf(schemaList);
   const schemas = checkSchemas(schemaList, findings);
   const files = checkConfigFiles(root, dirs, findings);
   return { findings, files, schemas };

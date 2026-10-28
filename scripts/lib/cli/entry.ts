@@ -4,20 +4,28 @@
 import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { errorMessage, isErrnoException } from "../errors.ts";
 
-/** 実パス。解決できない（ファイルが無いなど）ときは、絶対パスにしただけの値。 */
+/**
+ * 実パス。ファイルが無い（ENOENT）ときは、絶対パスにしただけの値。
+ * それ以外の理由（権限など）で解決できないときは、起動されたかを判定できないので例外にする。
+ * 例外にしないと、チェックや Hook が main を呼ばずに exit 0 で終わり、合格として扱われる。
+ */
 function realOrResolved(path: string): string {
   try {
     return realpathSync(path);
-  } catch {
-    return resolve(path);
+  } catch (error) {
+    if (isErrnoException(error) && error.code === "ENOENT") return resolve(path);
+    throw new Error(`起動パスを正規化できない（${path}）: ${errorMessage(error)}`, {
+      cause: error,
+    });
   }
 }
 
 /**
  * `moduleUrl`（呼び出し元の `import.meta.url`）のファイルが、node に渡されたスクリプトか。
  * 両辺を実パスにそろえて比べる。片側だけを解決すると、シンボリックリンクから起動したときに何もせずに終わる。
- * node に渡されたスクリプトは読み込めた実在のファイルなので、解決できない `argv[1]` は、
+ * node に渡されたスクリプトは読み込めた実在のファイルなので、無い `argv[1]` は、
  * `node -e` の後ろの引数のようなスクリプトでない値である。そのときは、起動されていないと判定する。
  */
 export function isCliEntry(moduleUrl: string): boolean {

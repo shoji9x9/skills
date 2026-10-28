@@ -23,6 +23,6 @@ export function gitInit(root: string) {
     encoding: "utf8",
   });
   if (r.status !== 0) {
-    throw new Error(`git init に失敗した（${spawnEnd(r)}）: ${r.stderr}`);
+    throw new Error(`git init に失敗した（${spawnEnd(r)}）: ${r.stderr ?? ""}`);
   }
 }

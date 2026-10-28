@@ -123,7 +123,7 @@ export function listFiles(
     { cwd: root, encoding: "utf8", timeout: GIT_TIMEOUT_MS },
   );
   if (res.status !== 0) {
-    throw new Error(`git ls-files に失敗した（${spawnEnd(res)}）: ${res.stderr}`);
+    throw new Error(`git ls-files に失敗した（${spawnEnd(res)}）: ${res.stderr ?? ""}`);
   }
   return res.stdout.split("\0").filter((p) => p !== "");
 }
@@ -137,7 +137,7 @@ export function repoRoot(cwd: string): string {
   });
   if (res.status !== 0) {
     throw new Error(
-      `git のリポジトリのルートを特定できない（git rev-parse ${spawnEnd(res)}）: ${res.stderr}`,
+      `git のリポジトリのルートを特定できない（git rev-parse ${spawnEnd(res)}）: ${res.stderr ?? ""}`,
     );
   }
   return res.stdout.trim();
