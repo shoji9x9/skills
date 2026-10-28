@@ -117,10 +117,12 @@ export function listFiles(
   const res = spawnSync(
     "git",
     ["ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", ...dirs],
-    { cwd: root, encoding: "utf8" },
+    // git ls-files はリポジトリ全体でも 1 秒かからない。応答しないときに待ち続けないよう打ち切る。
+    { cwd: root, encoding: "utf8", timeout: 60_000 },
   );
   if (res.status !== 0) {
-    throw new Error(`git ls-files に失敗した（exit ${res.status}）: ${res.stderr}`);
+    const end = res.status !== null ? `exit ${res.status}` : (res.signal ?? "起動できない");
+    throw new Error(`git ls-files に失敗した（${end}）: ${res.error?.message ?? res.stderr}`);
   }
   return res.stdout.split("\0").filter((p) => p !== "");
 }
