@@ -217,7 +217,7 @@ manifest に書いてよいのは、次のものだけである。
 - 検証名・結果・証拠 URL / SHA
 - `reviewed_through_sha`: push の前のローカルレビューを最後に当てた範囲の終わりの commit の SHA（「ローカルレビュー」）。
   `review_tool: local` の merge の前に確かめる記録（`local-review-record.sh`）とは別のもので、その代わりに使わない
-- `unreviewed_range`: ローカルレビューの上限に達したために、push の前に手元でレビューしなかった範囲（`<from>..<to>` の完全な SHA）。`pr-finalize-loop` のレビューに任せた範囲である
+- `unreviewed_range`: ローカルレビューの上限に達したために、PR を作る前に手元でレビューしなかった範囲の配列。要素は `{range, has_merge}`（`range` は `<from>..<to>` の完全な SHA）。`pr-finalize-loop` のレビューに任せた範囲である（「手元でレビューしていない範囲の記録」）
 - BLOCKED / FAILED の停止の理由と残作業
 - `BRANCH_CLEANUP` のまま残した worktree の、引き継ぐファイルの一覧（「worktree に残った記録の引き継ぎ」）
 - SKIPPED の飛ばした理由
@@ -302,7 +302,7 @@ base branch との差分は、Codex と Copilot CLI では次の方法でレビ�
 
 指摘の有無ではなく範囲で、指定した対象に当たっていることを確かめる。指摘が 0 件の出力でも、範囲はこの方法で確かめられる。
 範囲を確かめられないか対象に当たっていないときと、base branch との差分をレビューできないエージェントでは、その Issue を BLOCKED にする。
-レビューした変更を含む commit の SHA を、manifest の `reviewed_through_sha` に記録する。前の run から再開した Issue（BLOCKED・FAILED・途中の状態で残ったもの）では、前の run の値を使わず、ローカルレビューを最初から行う。下の上限の回数も 0 から数える。「ローカルレビューの後に生じた変更」のレビューの範囲の起点にする。
+レビューした変更を含む commit の SHA を、manifest の `reviewed_through_sha` に記録する。前の run から再開した Issue（BLOCKED・FAILED・途中の状態で残ったもの）では、前の run の値を使わず、ローカルレビューを最初から行う（上限の回数の数え方は下）。「ローカルレビューの後に生じた変更」のレビューの範囲の起点にする。
 Claude Code では、渡した範囲の終わり（`<to>`）の SHA である。Codex と Copilot CLI では、レビューした差分だけを commit した直後の HEAD の SHA である。レビューの後に足した変更は、その commit に入れない。
 レビューした変更より前の commit を記録すると、レビュー済みの commit が次の範囲に入り、同じ変更をもう一度レビューすることになる。
 
@@ -312,23 +312,32 @@ Claude Code では、渡した範囲の終わり（`<to>`）の SHA である。
 指摘をコードと実測に照らして 1 件ずつ判断し、妥当なものだけ直す。直した後は、検証をやり直す。
 利用者の指示で、指摘を自動で直す指定（`/code-review` の `--fix` など）をレビューに付けたときも、その指定が作業ツリーに加えた直しを 1 件ずつ判断し、妥当でないものは戻す。戻した指摘は、直さなかった指摘として記録する（下）。
 ローカルレビューの上限（`max_local_review_iterations`）は、push の前に手元でレビューする回数の上限である。最初のレビューも 1 回に数える。
-回数は、PR を作る前のレビューと、「deployment 修復」で `LOCAL_REVIEWING` に戻ったときのレビューで、それぞれ 0 から数える。
+回数を 0 から数え始めるのは、次の 2 つの場面だけである。
+
+- PR を作る前のローカルレビューを始めるとき（前の run から再開して、ローカルレビューを最初から行うときを含む）
+- 「deployment 修復」で `LOCAL_REVIEWING` に戻ったとき
+
 1 つの範囲に当てるレビューの一式を 1 回に数える。Codex で範囲の commit ごとに実行する `codex review --commit` と、再開した Issue で足す base branch との差分のレビューは、同じ回に含める。
 最初のレビューから数えたレビューの回数が上限より少なければ、直した範囲をレビューし直す。
 Claude Code では、直した変更を commit し、`<reviewed_through_sha の SHA>..<HEAD の完全な SHA>` を範囲に渡してやり直し、`reviewed_through_sha` をその範囲の終わりに進める。
 直さなかった指摘は、その時点で、「判断の扱い」の 4 つの欄か `others` のうち当たるものに manifest へ記録する。
 
 レビューの回数が上限に達したら、最後のレビューの後に直した変更が残っていても、手元ではレビューせずに push へ進む。
-残った変更は、PR を作った後の `pr-finalize-loop` のレビューに任せる。
-そのときは、手元でレビューしていない範囲（`<reviewed_through_sha の SHA>..<push する HEAD の完全な SHA>`）を、manifest の `unreviewed_range` に記録する。
-記録は、PR を作る前（deployment 修復では follow-up PR を作る前）の push の直前に行い、範囲の終わりはその push の HEAD にする。上限に達した後に足した commit（読み直しの直しなど）も範囲に入る。
-最後のレビューの後に変わったファイルがすべて例外のファイル（下の「ローカルレビューの後に生じた変更」の Kaizen の学びと Hook の記録）なら、記録しない。
-PR を作った後の push は `pr-finalize-loop` がレビューするので、範囲に足さない。
-範囲に merge commit があるときは、取り込んだ base の変更も範囲に入ることを、最終報告の local review の欄に書く。
+残った変更は、PR を作った後の `pr-finalize-loop` のレビューに任せる。手元でレビューしていない範囲は、下の「手元でレビューしていない範囲の記録」で 1 回だけ記録する。
 直すたびに新しい指摘が出ることがあり、指摘を自動で直す指定を付けたレビューではほぼ毎回直しが出る。上限で止めずに任せるのは、そのためである。
 ただし、`review_tool` が `none` なら PR のレビューが無いので、任せずに push の前に BLOCKED にする。
 `review_tool` を読めないときも、push の前に BLOCKED にする（読み方は下の「ローカルレビューの後に生じた変更」と同じ）。
 機能を使えない場合と、人の判断が要る場合は BLOCKED にする。
+
+### 手元でレビューしていない範囲の記録
+
+記録は、PR（「deployment 修復」では follow-up PR）を作る直前に 1 回だけ行う。push のたびには行わない。PR を作った後の push は `pr-finalize-loop` がレビューするので、記録しない。
+
+1. 範囲を `<reviewed_through_sha の SHA>..<PR にする HEAD の完全な SHA>` とする。範囲に commit が無ければ、記録しない。
+2. 範囲の `git diff --name-status` で変わったファイルがすべて例外のファイル（下の「ローカルレビューの後に生じた変更」の Kaizen の学びと Hook の記録）なら、記録しない。
+   `review_tool` が `none` のときは、範囲に commit がある時点で上の段落のとおり push の前に BLOCKED にしているので、この記録には進まない。
+3. それ以外は、manifest の `unreviewed_range` に、`{range, has_merge}` を 1 件足す。`has_merge` は、範囲に merge commit があるか（`git rev-list --merges <範囲>` が空でないか）である。
+   follow-up PR の記録は、前の記録を消さずに足す。
 
 ### ローカルレビューの後に生じた変更
 
@@ -356,8 +365,7 @@ exit 0 にならず値を読めなかったときは、handoff でも同じ設�
 3. それ以外は、範囲をそのままレビューする。例外のファイルが範囲に含まれても構わない。
 
 1 と 3 のレビューも、ローカルレビューの上限（`max_local_review_iterations`）の回数に数える。
-回数が上限に達していたら、1 と 3 ではレビューせず、上の「ローカルレビュー」の上限に達したときと同じに扱う。
-`unreviewed_range` に記録して push し、`review_tool` が `none` なら push の前に BLOCKED にする。
+回数が上限に達していたら、1 と 3 ではレビューせず、上の「ローカルレビュー」の上限に達したときと同じに扱う（記録は「手元でレビューしていない範囲の記録」に従う。`review_tool` が `none` なら push の前に BLOCKED にする）。
 
 3 のレビューは、エージェントごとに次の方法で行う。
 
