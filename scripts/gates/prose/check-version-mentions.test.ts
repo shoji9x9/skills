@@ -8,9 +8,12 @@
 // |              | mise ls のほかの設定ファイルの宣言（グローバルの設定）/ mise.toml が無い                 |
 // | 宣言の不備   | lockfile に無い依存 / X.Y.Z でない宣言 / importers の . が依存を持たない文書だけ         |
 // |              | package.json と mise.toml の食い違い / 依存が null / packageManager が文字列でない       |
+// |              | 依存と packageManager の食い違い                                                         |
 // | mise ls      | object でない / 値が配列でない / source.path が無い / requested_version が無い           |
 // |              | mise.toml の宣言が 1 件も無い / 起動できない・0 以外で終わる（例外をそのまま返す）       |
+// |              | 1 つのツールに複数のバージョン                                                           |
 // | 名前の書き方 | 空白 / v / @ / バッククォート / 大文字 / 呼び名（Playwright・Node.js）                   |
+// |              | 呼び名と同じ名前の宣言（宣言を優先する）                                                 |
 // | 名前の境界   | 長い名前（@types/node）/ 名前を含む別の語（mynode）/ 宣言の無い名前（gh）               |
 // | バージョン   | X.Y.Z 一致 / X.Y.Z 不一致 / X.Y / X.Y.Z.W                                               |
 // | 直後の語     | 以上 / 〜で続く上限 / + / 空白を挟んだ + / +sha512 / 句読点 / 文末の .（どれも除かない）  |
@@ -137,6 +140,15 @@ test.each([
   ["依存を持つ importers の . が無い", { "pnpm-lock.yaml": LOCK.split("---\n")[1] }],
   ["package.json の依存が null", { "package.json": JSON.stringify({ dependencies: null }) }],
   ["packageManager が文字列でない", { "package.json": JSON.stringify({ packageManager: null }) }],
+  [
+    "依存と packageManager の食い違い",
+    {
+      "package.json": JSON.stringify({
+        devDependencies: { "@playwright/test": "^1.64.0" },
+        packageManager: "@playwright/test@1.60.0",
+      }),
+    },
+  ],
 ])("宣言を読めないときは例外にする: %s", (_name, files) => {
   expect(() => declaredVersions(makeRepo(files), fakeMise())).toThrow();
 });
@@ -158,6 +170,17 @@ test.each<[string, MiseList]>([
   ],
 ])("mise ls を読めないときは例外にする: %s", (_name, miseList) => {
   expect(() => declaredVersions(makeRepo({}), miseList)).toThrow();
+});
+
+test("mise.toml が 1 つのツールに複数のバージョンを宣言するときは、比べるバージョンを決められないとして例外にする", () => {
+  const miseList: MiseList = (root) =>
+    JSON.stringify({
+      node: ["26.12.1", "24.0.0"].map((v) => ({
+        requested_version: v,
+        source: { path: join(root, "mise.toml") },
+      })),
+    });
+  expect(() => declaredVersions(makeRepo({}), miseList)).toThrow("複数のバージョン");
 });
 
 test("mise.toml の宣言に requested_version が無いときは例外にする", () => {
@@ -196,6 +219,14 @@ test.each([
   ["例の行", "例: `pnpm@11.0.0` を入れる。"],
 ])("食い違いとして扱わない: %s", (_name, text) => {
   expect(mismatches("docs/a.md", text)).toEqual([]);
+});
+
+test("呼び名と同じ名前の宣言があれば、宣言のバージョンと比べる", () => {
+  const declared = new Map([...DECLARED, ["playwright", "1.60.0"]]);
+  const found = (text: string) =>
+    findMismatches({ file: "docs/a.md", markdown: true }, text, declared).map((m) => m.text);
+  expect(found("Playwright 1.60.0 で確かめた。")).toEqual([]);
+  expect(found("Playwright 1.64.1 で確かめた。")).toEqual(["Playwright 1.64.1"]);
 });
 
 test("Markdown はコードフェンスの外だけを読む", () => {

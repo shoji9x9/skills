@@ -5,7 +5,7 @@
 //
 // - 宣言: package.json の dependencies と devDependencies（バージョンは pnpm-lock.yaml の importers の `.` で解決したもの）、
 //   package.json の packageManager、mise.toml の [tools]。
-//   mise.toml は `mise ls --current --json` で mise に解決させて読む。
+//   mise.toml は `mise ls --current --json` で mise に解決させて読む。mise.toml を上書きする設定（mise.local.toml など）は読ませない。
 //   宣言の無いツール（gh・git・Chrome など）は見ない。
 // - 名前: 宣言の名前と、文書で使う呼び名（ALIASES）。大文字と小文字を区別しない。
 // - 記述: 名前の直後の `X.Y.Z`（`v` と `@` を前に付けた形を含む）。`X` と `X.Y` だけの記述は見ない。
@@ -34,11 +34,11 @@ import { isCliEntry } from "../../lib/cli/entry.ts";
 export const RULE = "version-mention";
 // このチェック自身のテストは、違反の fixture を本文に持つので読まない。
 const SELF_FIXTURES = ["scripts/gates/prose/check-version-mentions.test.ts"];
-// 文書で使う呼び名と、それが指す宣言の名前。
-const ALIASES: Record<string, string> = {
-  "node.js": "node",
-  playwright: "@playwright/test",
-};
+// 文書で使う呼び名と、それが指す宣言の名前。呼び名と同じ名前の宣言があれば、宣言を優先する。
+const ALIASES = new Map([
+  ["node.js", "node"],
+  ["playwright", "@playwright/test"],
+]);
 const SEMVER = /^\d+\.\d+\.\d+$/;
 
 type Declared = Map<string, string>;
@@ -74,14 +74,22 @@ function packageVersions(root: string): Declared {
     for (const name of Object.keys(deps))
       out.set(name.toLowerCase(), resolvedVersion(importer, name));
   }
-  const pm = pkg.packageManager;
-  if (pm !== undefined) {
-    if (typeof pm !== "string") throw new Error("package.json の packageManager が文字列でない");
-    const at = pm.lastIndexOf("@");
-    if (at <= 0) throw new Error(`package.json の packageManager「${pm}」に @ が無い`);
-    out.set(pm.slice(0, at).toLowerCase(), pm.slice(at + 1).split("+")[0]);
+  if (pkg.packageManager !== undefined) {
+    const [key, version] = packageManager(pkg.packageManager);
+    const dep = out.get(key);
+    if (dep !== undefined && dep !== version)
+      throw new Error(`${key} の宣言が食い違う（依存は ${dep}、packageManager は ${version}）`);
+    out.set(key, version);
   }
   return out;
+}
+
+/** package.json の packageManager（`名前@X.Y.Z+ハッシュ`）の名前（小文字）とバージョン。 */
+function packageManager(pm: unknown): [string, string] {
+  if (typeof pm !== "string") throw new Error("package.json の packageManager が文字列でない");
+  const at = pm.lastIndexOf("@");
+  if (at <= 0) throw new Error(`package.json の packageManager「${pm}」に @ が無い`);
+  return [pm.slice(0, at).toLowerCase(), pm.slice(at + 1).split("+")[0]];
 }
 
 /**
@@ -116,10 +124,26 @@ export type MiseList = (root: string) => string;
 
 const MISE_TIMEOUT_MS = 30_000;
 
+/**
+ * mise.toml の宣言を上書きする設定（mise.local.toml・mise.<env>.toml・.tool-versions・MISE_<TOOL>_VERSION）を読ませない環境変数。
+ * 上書きされると mise ls はその設定の宣言だけを返し、mise.toml の宣言が一覧から消える。
+ */
+function miseEnv(): NodeJS.ProcessEnv {
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(([k]) => !/^MISE_[A-Z0-9_]+_VERSION$/.test(k)),
+  );
+  return {
+    ...env,
+    MISE_OVERRIDE_CONFIG_FILENAMES: "mise.toml",
+    MISE_OVERRIDE_TOOL_VERSIONS_FILENAMES: "none",
+  };
+}
+
 /** リポジトリのルートで `mise ls --current --json` を実行する。起動できない・0 以外で終わったときは例外にする。 */
 const runMiseList: MiseList = (root) => {
   const r = spawnSync("mise", ["ls", "--current", "--json"], {
     cwd: root,
+    env: miseEnv(),
     encoding: "utf8",
     timeout: MISE_TIMEOUT_MS,
     stdio: ["ignore", "pipe", "pipe"],
@@ -144,10 +168,12 @@ function miseTools(root: string, miseList: MiseList): [string, string][] {
   const out: [string, string][] = [];
   for (const [name, entries] of Object.entries(listed)) {
     if (!isArray(entries)) throw new Error(`mise ls の ${name} が配列でない`);
-    for (const entry of entries) {
-      const version = ownVersion(name, entry, own);
-      if (version !== undefined) out.push([name, version]);
-    }
+    const versions = entries.flatMap((entry) => ownVersion(name, entry, own) ?? []);
+    if (versions.length > 1)
+      throw new Error(
+        `mise.toml が ${name} に複数のバージョン（${versions.join("、")}）を宣言していて、比べるバージョンを決められない`,
+      );
+    if (versions.length === 1) out.push([name, versions[0]]);
   }
   if (out.length === 0) throw new Error("mise.toml の宣言を mise ls から 1 件も読めない");
   return out;
@@ -178,7 +204,7 @@ const patterns = new WeakMap<Declared, { all: RegExp; probe: RegExp }>();
 function mentionPattern(declared: Declared) {
   const cached = patterns.get(declared);
   if (cached) return cached;
-  const names = [...new Set([...declared.keys(), ...Object.keys(ALIASES)])].sort(
+  const names = [...new Set([...declared.keys(), ...ALIASES.keys()])].sort(
     (a, b) => b.length - a.length,
   );
   const source = `(?<![\\w@/.-])(${names.map(escapeRe).join("|")})(?:@|\\s*v?)(\\d+\\.\\d+\\.\\d+)(?!\\w|\\.\\d)`;
@@ -215,7 +241,8 @@ export function findMismatches(
     const prose = raw.replace(/`/g, "");
     for (const m of prose.matchAll(re)) {
       const name = m[1].toLowerCase();
-      const want = declared.get(ALIASES[name] ?? name);
+      const alias = ALIASES.get(name);
+      const want = declared.get(name) ?? (alias === undefined ? undefined : declared.get(alias));
       if (want === undefined || want === m[2]) continue;
       out.push({ line: line + 1, text: m[0], message: `${m[0]}（宣言は ${want}）` });
     }
