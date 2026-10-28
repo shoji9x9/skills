@@ -16,10 +16,10 @@
 
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 import { loadYaml } from "../../lib/text/yaml-as.ts";
 import { splitFrontmatter } from "../../lib/text/frontmatter.ts";
 import { isPlainObject } from "../../lib/guards.ts";
+import { isCliEntry } from "../../lib/cli/entry.ts";
 
 const DESCRIPTION_MAX_BYTES = 1024;
 const NAME_MAX_LENGTH = 64;
@@ -141,4 +141,4 @@ function main() {
 }
 
 // CLI として実行されたときだけ動かす（テストから import しても main は動かない）。
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+if (isCliEntry(import.meta.url)) main();

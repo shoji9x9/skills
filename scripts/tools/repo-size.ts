@@ -15,9 +15,8 @@
 //
 // 終了コード: 0 は集計できた、2 は集計できない（git の失敗・ファイルが 0 件・スキルとして知らない名前の置き場所）。
 import { spawnSync } from "node:child_process";
-import { realpathSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { errorMessage } from "../lib/errors.ts";
+import { isCliEntry } from "../lib/cli/entry.ts";
 
 const KINDS = ["main", "test", "fixture"] as const;
 export type Kind = (typeof KINDS)[number];
@@ -294,15 +293,4 @@ export function main(args: readonly string[], cwd = "."): number {
   return 0;
 }
 
-// CLI として起動されたかは、両辺を実パスにそろえて比べる（片側だけを解決すると、symlink 経由の起動で何もせずに終わる）。
-function isCliEntry() {
-  if (!process.argv[1]) return false;
-  try {
-    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
-  } catch (error) {
-    console.error(`repo-size: 起動パスを正規化できない: ${errorMessage(error)}`);
-    process.exit(2);
-  }
-}
-
-if (isCliEntry()) process.exit(main(process.argv.slice(2)));
+if (isCliEntry(import.meta.url)) process.exit(main(process.argv.slice(2)));

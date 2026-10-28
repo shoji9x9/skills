@@ -11,9 +11,8 @@
 //   .local.jsonc は commit しないので CI には無いが、手元の pre-commit では確かめる。
 // - どのスキルもスキーマを持たない名前のファイルと、.jsonc でないファイル（旧い skills.yml など）は違反にする。
 // - 設定ファイルが 0 件か、スキーマが 0 件なら exit 2（対象 0 件を合格として扱わない）。
-import { existsSync, readdirSync, realpathSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { errorMessage } from "../../lib/errors.ts";
 // 読み取りは設定を読むスキルがすべて同じ内容で持つ（identical-copies.json の組）ので、どのコピーを使っても同じ結果になる。
 import {
@@ -22,49 +21,60 @@ import {
   loadSchema,
   readLayer,
 } from "../../../skills/kaizen/scripts/skill-config/skill-config.mjs";
+import { isCliEntry } from "../../lib/cli/entry.ts";
 
 export type Finding = { path: string; message: string };
 
+/** 全スキルの config-schemas/ のファイル。name は `<名前>.schema.json` の名前で、その形でなければ null。 */
+type SchemaFile = { skill: string; dir: string; file: string; name: string | null };
+
+function schemaFiles(root: string): SchemaFile[] {
+  const skills = join(root, "skills");
+  return readdirSync(skills)
+    .sort()
+    .flatMap((skill) => {
+      const dir = join(skills, skill, "config-schemas");
+      if (!existsSync(dir)) return [];
+      return readdirSync(dir)
+        .sort()
+        .map((file) => ({
+          skill,
+          dir,
+          file,
+          name: /^(.+)\.schema\.json$/.exec(file)?.[1] ?? null,
+        }));
+    });
+}
+
+/** スキーマのファイルの一覧から、設定の名前 → スキーマを持つスキルのディレクトリ（最初に見つかったもの）を作る。 */
+function dirsOf(files: readonly SchemaFile[]): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const { dir, name } of files) if (name !== null && !out.has(name)) out.set(name, dir);
+  return out;
+}
+
 /** 設定の名前 → スキーマを持つスキルのディレクトリ（最初に見つかったもの）。 */
 export function schemaDirs(root: string): Map<string, string> {
-  const out = new Map<string, string>();
-  const skills = join(root, "skills");
-  for (const skill of readdirSync(skills).sort()) {
-    const dir = join(skills, skill, "config-schemas");
-    if (!existsSync(dir)) continue;
-    for (const f of readdirSync(dir).sort()) {
-      const m = /^(.+)\.schema\.json$/.exec(f);
-      if (m && !out.has(m[1])) out.set(m[1], dir);
-    }
-  }
-  return out;
+  return dirsOf(schemaFiles(root));
 }
 
 /**
  * スキーマそのものを、全スキルの全ファイルについて読めるか確かめる（コピーの一致は identical-copies が見る）。
  * @returns 読んだスキーマの数
  */
-function checkSchemas(root: string, findings: Finding[]): number {
-  const skills = join(root, "skills");
+function checkSchemas(files: readonly SchemaFile[], findings: Finding[]): number {
   let schemas = 0;
-  for (const skill of readdirSync(skills).sort()) {
-    const dir = join(skills, skill, "config-schemas");
-    if (!existsSync(dir)) continue;
-    for (const f of readdirSync(dir).sort()) {
-      const m = /^(.+)\.schema\.json$/.exec(f);
-      if (!m) {
-        findings.push({
-          path: `skills/${skill}/config-schemas/${f}`,
-          message: "<名前>.schema.json の形でない",
-        });
-        continue;
-      }
-      schemas++;
-      try {
-        loadSchema(dir, m[1]);
-      } catch (e) {
-        findings.push({ path: `skills/${skill}/config-schemas/${f}`, message: errorMessage(e) });
-      }
+  for (const { skill, dir, file, name } of files) {
+    const path = `skills/${skill}/config-schemas/${file}`;
+    if (name === null) {
+      findings.push({ path, message: "<名前>.schema.json の形でない" });
+      continue;
+    }
+    schemas++;
+    try {
+      loadSchema(dir, name);
+    } catch (e) {
+      findings.push({ path, message: errorMessage(e) });
     }
   }
   return schemas;
@@ -110,8 +120,9 @@ function checkConfigFiles(root: string, dirs: Map<string, string>, findings: Fin
 /** 違反を列挙する。 */
 export function check(root: string): { findings: Finding[]; files: number; schemas: number } {
   const findings: Finding[] = [];
-  const dirs = schemaDirs(root);
-  const schemas = checkSchemas(root, findings);
+  const schemaList = schemaFiles(root);
+  const dirs = dirsOf(schemaList);
+  const schemas = checkSchemas(schemaList, findings);
   const files = checkConfigFiles(root, dirs, findings);
   return { findings, files, schemas };
 }
@@ -138,7 +149,6 @@ export function main(root: string = join(import.meta.dirname, "../../..")): numb
   return 0;
 }
 
-const entry = process.argv[1];
-if (entry && realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url))) {
+if (isCliEntry(import.meta.url)) {
   process.exitCode = main();
 }

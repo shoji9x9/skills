@@ -12,13 +12,13 @@
 // 判定: 応答の言語に数えない部分（コードブロック・インラインコード・引用・URL・ハーネスのタグの塊）を除いた本文で、
 // 日本語の文字（ひらがな・カタカナ・漢字）とラテン文字を数え、日本語の文字が極めて少ない応答を英語とみなす。
 // ラテン文字が少ない応答（「OK」やコマンドだけ）は判定の対象から外す。
-import { readFileSync, realpathSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { fileURLToPath } from "node:url";
 import { blankInlineCode, fencedLines } from "../lib/doc-scan.ts";
 import { errorMessage } from "../lib/errors.ts";
 import { isRecord } from "../lib/guards.ts";
 import { alreadyBlocked, recordBlocked } from "./stop-marker.ts";
+import { isCliEntry } from "../lib/cli/entry.ts";
 
 const HOOK = "response-language-check";
 
@@ -86,15 +86,4 @@ export function main(input: string, markerDir: string = tmpdir()): number {
   return 2;
 }
 
-// CLI エントリ判定は両辺を実パスへ揃える（片側だけの解決は symlink 経由の起動で何もせずに終わる）。
-function isCliEntry() {
-  if (!process.argv[1]) return false;
-  try {
-    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
-  } catch (error) {
-    console.error(`response-language-check: 起動パスを正規化できない: ${errorMessage(error)}`);
-    process.exit(1);
-  }
-}
-
-if (isCliEntry()) process.exit(main(readFileSync(0, "utf8")));
+if (isCliEntry(import.meta.url)) process.exit(main(readFileSync(0, "utf8")));

@@ -20,12 +20,13 @@
 // stage したままのファイルも、index から読む。
 // 走査したファイルが 0 件・git が失敗した・中身を読めないときは、判定できないので exit 2 にする。
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { jsCommentRanges } from "../../lib/text/code-comments.ts";
 import { errorMessage } from "../../lib/errors.ts";
+import { listFiles, repoRoot } from "./check-js-extensions.ts";
+import { isCliEntry } from "../../lib/cli/entry.ts";
 
 // 配布スキルで置ける JavaScript・TypeScript の拡張子だけを走査する（`.mjs` と雛形の `.ts`）。
 // 他の拡張子（`.js`・`.jsx`・`.tsx`・`.mts` など）は `check-js-extensions.ts` が配布スキルで禁じているので、
@@ -86,19 +87,6 @@ export function findDirectives(source: string, path = "a.ts"): string[] {
   return out;
 }
 
-/** `skills/` の下の、追跡しているファイルと無視されていない未追跡のファイル（ルートからのパス）。 */
-function listSkillFiles(root: string): string[] {
-  const res = spawnSync(
-    "git",
-    ["ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", "skills"],
-    { cwd: root, encoding: "utf8" },
-  );
-  if (res.status !== 0) {
-    throw new Error(`git ls-files に失敗した（exit ${res.status}）: ${res.stderr}`);
-  }
-  return res.stdout.split("\0").filter((p) => p !== "");
-}
-
 /** index にあるファイルのパスと blob の id。 */
 function indexBlobs(root: string, paths: readonly string[]): Map<string, string> {
   const res = spawnSync("git", ["ls-files", "-z", "--stage", "--", ...paths], {
@@ -147,20 +135,12 @@ export function findViolations(root: string, skillFiles: readonly string[]): str
   return out;
 }
 
-function repoRoot(cwd: string): string {
-  const res = spawnSync("git", ["rev-parse", "--show-toplevel"], { cwd, encoding: "utf8" });
-  if (res.status !== 0) {
-    throw new Error(`git のリポジトリのルートを特定できない（exit ${res.status}）: ${res.stderr}`);
-  }
-  return res.stdout.trim();
-}
-
 function main(cwd = "."): number {
   let root: string;
   let files: string[];
   try {
     root = repoRoot(cwd);
-    files = listSkillFiles(root);
+    files = listFiles(root, ["skills"]);
   } catch (error) {
     console.error(`skill-lint-directives: ${errorMessage(error)}`);
     return 2;
@@ -188,14 +168,4 @@ function main(cwd = "."): number {
   return 0;
 }
 
-function isCliEntry() {
-  if (!process.argv[1]) return false;
-  try {
-    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
-  } catch (error) {
-    console.error(`skill-lint-directives: 起動パスを正規化できない: ${errorMessage(error)}`);
-    process.exit(1);
-  }
-}
-
-if (isCliEntry()) process.exit(main());
+if (isCliEntry(import.meta.url)) process.exit(main());

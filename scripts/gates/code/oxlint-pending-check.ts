@@ -12,6 +12,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join, normalize, sep } from "node:path";
 import ts from "typescript";
 import { PENDING_FIXES, type PendingRule } from "./oxlint-pending.ts";
+import { isCliEntry } from "../../lib/cli/entry.ts";
 
 /**
  * ルールの判定と、一覧との突き合わせの結果を決めるファイルの起点。ここから相対 import をたどる。
@@ -93,7 +94,7 @@ export function checkPlan(
 // pre-commit から起動する。stdin に staged のファイル（削除を含む）を 1 行に 1 つ受け取り、
 // 検査するなら範囲（all か、ファイルの一覧）を出し、検査しないなら何も出さない。
 // pre-commit はこの出力を OXLINT_PENDING_PLAN でテストに渡し、テストは範囲を求め直さない。
-if (import.meta.main) {
+if (isCliEntry(import.meta.url)) {
   const staged = readFileSync(0, "utf8")
     .split("\n")
     .filter((f) => f !== "");

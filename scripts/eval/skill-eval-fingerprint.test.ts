@@ -120,7 +120,14 @@ test.each([
     label: "フラグの値が無い",
     script: FINGERPRINT_CLI,
     args: ["--prompt"],
-    stderr: /^skill-eval-fingerprint: arguments must be --name value pairs$/mu,
+    stderr:
+      /^skill-eval-fingerprint: arguments must be --name value pairs \(--prompt has no value\)$/mu,
+  },
+  {
+    label: "フラグが -- で始まらない",
+    script: FINGERPRINT_CLI,
+    args: ["prompt", "p"],
+    stderr: /^skill-eval-fingerprint: arguments must be --name value pairs \(near "prompt"\)$/mu,
   },
   {
     label: "必須の引数が無い",

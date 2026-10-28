@@ -19,10 +19,9 @@
 // （読めない行を警告なしに飛ばすと、そのスキルは「未掲載」とも「掲載済み」とも判定されない）。
 //
 // 配布スキル 0 件は、成功として扱わない。
-import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { errorMessage } from "../../lib/errors.ts";
+import { isCliEntry } from "../../lib/cli/entry.ts";
 
 const AGENTS_SECTION = "## 参照スキルガイド";
 const README_SECTION = "## 利用可能なスキル";
@@ -212,15 +211,4 @@ export function main(argv: string[]) {
   return 0;
 }
 
-// CLI エントリ判定は両辺を実パスへ揃える（片側だけの解決は symlink 経由の起動でサイレント no-op になる）。
-function isCliEntry() {
-  if (!process.argv[1]) return false;
-  try {
-    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
-  } catch (error) {
-    console.error(`skill-index: 起動パスを正規化できない: ${errorMessage(error)}`);
-    process.exit(1);
-  }
-}
-
-if (isCliEntry()) process.exit(main(process.argv.slice(2)));
+if (isCliEntry(import.meta.url)) process.exit(main(process.argv.slice(2)));

@@ -23,7 +23,6 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
-  realpathSync,
   writeFileSync,
 } from "node:fs";
 import { createRequire } from "node:module";
@@ -31,6 +30,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 import { errorMessage } from "../../lib/errors.ts";
+import { isCliEntry } from "../../lib/cli/entry.ts";
 
 const SCHEMA_DIR = "config-schemas";
 export const READER = "scripts/skill-config/skill-config.mjs";
@@ -211,7 +211,6 @@ export async function main(
   return 0;
 }
 
-const entry = process.argv[1];
-if (entry && realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url))) {
+if (isCliEntry(import.meta.url)) {
   process.exitCode = await main(process.argv.slice(2));
 }

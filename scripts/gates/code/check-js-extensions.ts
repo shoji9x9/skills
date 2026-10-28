@@ -19,9 +19,8 @@
 // 対象のファイルと出所をそろえるため（作業ツリーだけを消した stage 済みの違反や、空の `skills/<name>/` で判定がずれない）。
 // `.private-skill` の印で決めると、印を付け忘れた private skill がこの検査から外れる。
 import { spawnSync } from "node:child_process";
-import { realpathSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { errorMessage } from "../../lib/errors.ts";
+import { errorMessage, spawnEnd } from "../../lib/errors.ts";
+import { isCliEntry } from "../../lib/cli/entry.ts";
 
 // `.jsx` は `.tsx` と同じく、Node が実行できず `tsconfig.repo.json` の include にも入らない。
 const DISTRIBUTED_BANNED = [".js", ".cjs", ".mts", ".cts", ".tsx", ".jsx"];
@@ -103,42 +102,42 @@ function findViolations(paths: readonly string[], privateSkills: readonly string
   return out;
 }
 
+/** git が応答しないときに、待ち続けないよう打ち切る時間。 */
+const GIT_TIMEOUT_MS = 60_000;
+
 /**
- * 追跡しているファイルと、無視されていない未追跡のファイル。
- * `.gitignore` のものを除くのは、テストが `scripts/` の下に一時的に作る fixture（`.cjs` など）を数えないため。
+ * `dirs` の下の、追跡しているファイルと、無視されていない未追跡のファイル。
+ * `.gitignore` のものを除くのは、テストが一時的に作る fixture（`scripts/` の下の `.cjs` など）を数えないため。
  * 未追跡のファイルを含めるのは、`git add` の前に置いた違反も検出するため。
- * 1 回の `git ls-files` で全体を取り、規則はパスの接頭辞で振り分ける。
  * 作業ツリーに在るかでは絞らない。stage した違反を作業ツリーから消しても、commit には入るため。
  * `root` はリポジトリのルート（pathspec と返るパスは、起動した場所ではなくルートからの相対パスになる）。
+ * このファイルの検査は、1 回の `git ls-files` で全体を取り、規則をパスの接頭辞で振り分ける。
  */
-export function listFiles(root: string): string[] {
+export function listFiles(
+  root: string,
+  dirs: readonly string[] = ["skills", "scripts", ".agents/skills"],
+): string[] {
   const res = spawnSync(
     "git",
-    [
-      "ls-files",
-      "-z",
-      "--cached",
-      "--others",
-      "--exclude-standard",
-      "--",
-      "skills",
-      "scripts",
-      ".agents/skills",
-    ],
-    { cwd: root, encoding: "utf8" },
+    ["ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", ...dirs],
+    { cwd: root, encoding: "utf8", timeout: GIT_TIMEOUT_MS },
   );
   if (res.status !== 0) {
-    throw new Error(`git ls-files に失敗した（exit ${res.status}）: ${res.stderr}`);
+    throw new Error(`git ls-files に失敗した（${spawnEnd(res)}）: ${res.stderr ?? ""}`);
   }
   return res.stdout.split("\0").filter((p) => p !== "");
 }
 
 /** `cwd` を含むリポジトリのルート。どの場所から起動しても、同じ範囲を走査するため。 */
 export function repoRoot(cwd: string): string {
-  const res = spawnSync("git", ["rev-parse", "--show-toplevel"], { cwd, encoding: "utf8" });
+  const res = spawnSync("git", ["rev-parse", "--show-toplevel"], {
+    cwd,
+    encoding: "utf8",
+    timeout: GIT_TIMEOUT_MS,
+  });
   if (res.status !== 0) {
     throw new Error(
-      `git のリポジトリのルートを特定できない（git rev-parse exit ${res.status}）: ${res.stderr}`,
+      `git のリポジトリのルートを特定できない（git rev-parse ${spawnEnd(res)}）: ${res.stderr ?? ""}`,
     );
   }
   return res.stdout.trim();
@@ -185,14 +184,4 @@ function main(cwd = "."): number {
   return 0;
 }
 
-function isCliEntry() {
-  if (!process.argv[1]) return false;
-  try {
-    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
-  } catch (error) {
-    console.error(`js-extensions: 起動パスを正規化できない: ${errorMessage(error)}`);
-    process.exit(1);
-  }
-}
-
-if (isCliEntry()) process.exit(main());
+if (isCliEntry(import.meta.url)) process.exit(main());

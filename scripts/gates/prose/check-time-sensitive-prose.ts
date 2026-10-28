@@ -42,9 +42,8 @@
 // - 全角数字は NFKC で半角に揃えてから数える。コードフェンスの中も対象にする（出力例に書いた件数も同じく腐る）。
 //
 // 対象ファイル 0 件は成功として扱わない。
-import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   applyAllowed,
   blankInlineCode,
@@ -54,6 +53,7 @@ import {
 } from "../../lib/doc-scan.ts";
 import { scannedFiles } from "../docs/doc-scan-files.ts";
 import { errorMessage } from "../../lib/errors.ts";
+import { isCliEntry } from "../../lib/cli/entry.ts";
 
 // 対象: ルート直下のファイルと、配下を再帰で走査するディレクトリ。
 const TARGET_FILES = ["AGENTS.md"];
@@ -263,15 +263,4 @@ export function main(argv: string[]) {
   return 0;
 }
 
-// CLI エントリ判定は両辺を実パスへ揃える（片側だけの解決は symlink 経由の起動でサイレント no-op になる）。
-function isCliEntry() {
-  if (!process.argv[1]) return false;
-  try {
-    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
-  } catch (error) {
-    console.error(`time-sensitive-prose: 起動パスを正規化できない: ${errorMessage(error)}`);
-    process.exit(1);
-  }
-}
-
-if (isCliEntry()) process.exit(main(process.argv.slice(2)));
+if (isCliEntry(import.meta.url)) process.exit(main(process.argv.slice(2)));

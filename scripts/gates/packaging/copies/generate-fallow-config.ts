@@ -36,6 +36,7 @@ import {
   extractRegion,
   parseGroups,
 } from "./check-identical-copies.ts";
+import { isCliEntry } from "../../../lib/cli/entry.ts";
 
 /** oxfmt を入れたリポジトリ（このスクリプトのリポジトリ）。pnpm exec はここで実行する。 */
 const TOOL_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
@@ -244,4 +245,4 @@ export function main(argv: string[], root = process.cwd()): number {
   return 0;
 }
 
-if (import.meta.main) process.exit(main(process.argv.slice(2)));
+if (isCliEntry(import.meta.url)) process.exit(main(process.argv.slice(2)));

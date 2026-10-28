@@ -5,10 +5,10 @@
 // （openai/codex の codex-rs/core/src/agents_md.rs）。切り捨てられても警告はログに出るだけなので、気づかないまま
 // 後半の規約が届かなくなる。そこで、32 KiB を超えたら失敗にする。
 // AGENTS.md が無い・読めないときは判定できないので exit 2、サイズの違反は exit 1。
-import { readFileSync, realpathSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { errorMessage } from "../../../lib/errors.ts";
+import { isCliEntry } from "../../../lib/cli/entry.ts";
 
 const TARGET_PATH = "AGENTS.md";
 /** Codex の `project_doc_max_bytes` のデフォルト。 */
@@ -38,15 +38,4 @@ export function main(argv: string[]) {
   return 0;
 }
 
-// CLI エントリ判定は両辺を実パスへ揃える（片側だけの解決は symlink 経由の起動で何もせずに終わる）。
-function isCliEntry() {
-  if (!process.argv[1]) return false;
-  try {
-    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
-  } catch (error) {
-    console.error(`agents-md-size: 起動パスを正規化できない: ${errorMessage(error)}`);
-    process.exit(1);
-  }
-}
-
-if (isCliEntry()) process.exit(main(process.argv.slice(2)));
+if (isCliEntry(import.meta.url)) process.exit(main(process.argv.slice(2)));

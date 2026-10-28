@@ -49,7 +49,13 @@ const run = (args: string[]) =>
 function runCopiedCli(pct: number) {
   const root = makeTempDir("run-coverage-cli-");
   const RUNNER = ["coverage/run-coverage.ts", "coverage/check-coverage.ts"];
-  const LIB = ["lib/errors.ts", "lib/guards.ts", "lib/is-array.ts", "lib/source-scope.ts"];
+  const LIB = [
+    "lib/cli/entry.ts",
+    "lib/errors.ts",
+    "lib/guards.ts",
+    "lib/is-array.ts",
+    "lib/source-scope.ts",
+  ];
   for (const rel of [...RUNNER, ...LIB]) {
     mkdirSync(dirname(join(root, "scripts", rel)), { recursive: true });
     copyFileSync(join(ROOT, "scripts", rel), join(root, "scripts", rel));

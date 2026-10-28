@@ -18,11 +18,11 @@ import {
   realpathSync,
 } from "node:fs";
 import { join, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { fencedLines } from "../../../lib/doc-scan.ts";
 import { errorMessage } from "../../../lib/errors.ts";
 import { splitFrontmatter } from "../../../lib/text/frontmatter.ts";
 import { loadYamlAs } from "../../../lib/text/yaml-as.ts";
+import { isCliEntry } from "../../../lib/cli/entry.ts";
 
 export const CANON_DIR = ".agents/rules";
 
@@ -249,19 +249,7 @@ function lstatSafe(p: string) {
   }
 }
 
-// CLI エントリ判定は、両辺を実パスに揃える（片側だけを解決すると、symlink を通した起動で何もせずに終わる）。
-// 正規化に失敗したら「起動されていない」として扱わず、理由を出して非 0 で落とす。
-function isCliEntry() {
-  if (!process.argv[1]) return false;
-  try {
-    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
-  } catch (error) {
-    console.error(`rule-symlinks: 起動パスを正規化できない: ${errorMessage(error)}`);
-    process.exit(1);
-  }
-}
-
-if (isCliEntry()) {
+if (isCliEntry(import.meta.url)) {
   const root = process.argv[2] ?? process.cwd();
   const { rules, violations } = checkRuleSymlinks(root);
 
