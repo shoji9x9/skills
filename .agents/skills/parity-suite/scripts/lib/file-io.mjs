@@ -1,7 +1,8 @@
 // CLI がファイルの読み書きに使う関数と、パスを解決する作業ディレクトリ。
 // テストは子プロセスを起動せずに main を直接呼ぶので、これらを差し込めるようにする。
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
+import { cliIo } from "./check-cli.mjs";
 
 /**
  * @typedef {{ readFile: (p: string) => string, writeFile: (p: string, s: string) => void, cwd: string }} FileIo
@@ -13,11 +14,9 @@ import { readFileSync, writeFileSync } from "node:fs";
  * @returns {FileIo}
  */
 function fileIo(deps) {
-  return {
-    readFile: deps.readFile ?? ((p) => readFileSync(p, "utf8")),
-    writeFile: deps.writeFile ?? ((p, s) => writeFileSync(p, s)),
-    cwd: deps.cwd ?? process.cwd(),
-  };
+  // 読み取りと作業ディレクトリの既定値は、検査の CLI（check-cli.mjs の cliIo）と同じものを使う。
+  const { readFile, cwd } = cliIo(deps);
+  return { readFile, writeFile: deps.writeFile ?? ((p, s) => writeFileSync(p, s)), cwd };
 }
 
 export { fileIo };

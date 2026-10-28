@@ -115,6 +115,7 @@ function accessibleName(el) {
 // css-path-js:begin
 /**
  * 要素の位置を、body（または html）までの最大 5 段の `:nth-child` のセレクタで表す。
+ * body・html そのものは段を持たないので、空の位置を返さずにタグ名を返す。
  * @param {Element} el
  */
 function cssPath(el) {
@@ -128,7 +129,7 @@ function cssPath(el) {
     parts.unshift(cur.tagName.toLowerCase() + ":nth-child(" + idx + ")");
     cur = parent;
   }
-  return parts.join(" > ");
+  return parts.length > 0 ? parts.join(" > ") : el.tagName.toLowerCase();
 }
 // css-path-js:end
 

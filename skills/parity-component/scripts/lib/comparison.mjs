@@ -5,7 +5,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadBaseline } from "./baseline.mjs";
-import { parseFlagPairs, usageFailer, writeCheckResult } from "./check-cli.mjs";
+import { cliIo, parseFlagPairs, usageFailer, writeCheckResult } from "./check-cli.mjs";
 import { field, filled, isPlainObject, nonEmptyString } from "./guards.mjs";
 import { isArray } from "./is-array.mjs";
 
@@ -165,11 +165,7 @@ function readComparison(path) {
  * @returns {number} 終了コード
  */
 export function runCompareCli(argv, io, spec) {
-  const {
-    cwd = process.cwd(),
-    write = (s) => process.stdout.write(s),
-    writeErr = (s) => process.stderr.write(s),
-  } = io;
+  const { cwd, write, writeErr } = cliIo(io);
   // 引数・入力の誤りは判定結果ではないので stdout の JSON に混ぜず stderr へ知らせる（同梱スクリプト共通の CLI 規約）。
   const fail = usageFailer(writeErr, spec.usage);
   const parsed = parseFlagPairs(argv, COMPARE_ARGS);

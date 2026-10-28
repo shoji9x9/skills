@@ -25,7 +25,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 
-import { usageFailer, writeCheckResult } from "./lib/check-cli.mjs";
+import { cliIo, usageFailer, writeCheckResult } from "./lib/check-cli.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { field, filled, isObjectLike, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
@@ -253,14 +253,8 @@ export function checkLifecycle(metadata) {
  * @param {{ cwd?: string, write?: (s: string) => void, writeErr?: (s: string) => void }} [io]
  * @returns {number} 終了コード
  */
-export function main(
-  argv,
-  {
-    cwd = process.cwd(),
-    write = (s) => process.stdout.write(s),
-    writeErr = (s) => process.stderr.write(s),
-  } = {},
-) {
+export function main(argv, io = {}) {
+  const { cwd, write, writeErr } = cliIo(io);
   const fail = usageFailer(
     writeErr,
     "usage: lifecycle-check.mjs --build-metadata <new/<target>/build-metadata.json>",

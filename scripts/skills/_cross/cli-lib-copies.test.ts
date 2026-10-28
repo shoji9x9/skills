@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { isCliEntry as golden } from "../../../skills/golden-dataset/scripts/lib/cli.mjs";
 import { isCliEntry as issueStart } from "../../../skills/issue-start/scripts/lib/cli.mjs";
 import { isCliEntry as parityComponent } from "../../../skills/parity-component/scripts/lib/cli.mjs";
+import { isCliEntry as parityDiff } from "../../../skills/parity-diff/scripts/lib/cli.mjs";
 import { isCliEntry as replaceStrategy } from "../../../skills/replace-strategy/scripts/lib/cli.mjs";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
@@ -19,6 +20,7 @@ const COPIES = [
   { skill: "golden-dataset", isCliEntry: golden },
   { skill: "issue-start", isCliEntry: issueStart },
   { skill: "parity-component", isCliEntry: parityComponent },
+  { skill: "parity-diff", isCliEntry: parityDiff },
   { skill: "replace-strategy", isCliEntry: replaceStrategy },
 ];
 
