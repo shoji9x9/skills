@@ -29,7 +29,6 @@
 import { spawnSync } from "node:child_process";
 import {
   copyFileSync,
-  globSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -76,31 +75,6 @@ export const isTestCode = (file: string) =>
 // 2 回目の走査に渡す glob。jscpd の --pattern はパスの途中にも一致するので、2 回目の走査に入っても isTestCode が
 // false のファイルは、2 回目では数えず、1 回目でテスト以外として数える（2 回の走査の keep を参照）。
 const TEST_GLOBS = ["scripts/**/*.test.ts", ...TEST_DIRS.map((d) => `${d}**`)];
-
-/** jscpd の形式ごとに走査する拡張子（jscpd 5.4.2 で実測した。.jsx と .tsx は別の形式）。 */
-const FORMAT_EXTENSIONS: Record<string, string[]> = {
-  javascript: [".js", ".mjs", ".cjs"],
-  typescript: [".ts", ".mts", ".cts"],
-  bash: [".sh", ".bash"],
-  markdown: [".md", ".markdown"],
-};
-
-/**
- * テストのコード（jscpd が走査する拡張子）があるか。--pattern はパスの途中にも一致するので、2 回目の走査の件数ではこれを
- * 確かめられない。2 回目の走査が 0 件でも、テストのファイルがすべて閾値より小さいだけなら判定はできている。
- */
-function hasTestCode(root: string, extensions: readonly string[]): boolean {
-  return globSync("scripts/**/*", {
-    cwd: root,
-    withFileTypes: true,
-    exclude: (d) => d.name === "node_modules",
-  }).some(
-    (d) =>
-      d.isFile() &&
-      extensions.some((e) => d.name.endsWith(e)) &&
-      isTestCode(relative(root, join(d.parentPath, d.name)).split(sep).join("/")),
-  );
-}
 
 /** jscpd を 1 回実行する走査。keep は、その走査で数える重複か。 */
 type Scan = { name: string; baseline: string; args: string[]; keep: (c: Clone) => boolean };
@@ -241,32 +215,21 @@ export function regionReader(root: string): (file: string, region: string) => Ra
 /** jscpd のデフォルトのトークン数の閾値（.jscpd.json に minTokens が無いときに使われる）。 */
 const DEFAULT_MIN_TOKENS = 50;
 
-/** `.jscpd.json` から、このスクリプトが使う値（除外・全体の閾値・走査する拡張子）を読む。形が違えば例外にする。 */
-type Config = { ignore: string[]; minTokens: number; extensions: string[] };
-
-/** 設定の除外（`.jscpd.json` の `ignore`）。引数の `--ignore` は設定の除外を置き換えるので、読んで引数に含める。 */
-export function configIgnores(root: string): string[] {
-  return readConfig(root).ignore;
-}
-
-function readConfig(root: string): Config {
+/**
+ * `.jscpd.json` から、このスクリプトが使う値を読む。形が違えば例外にする。
+ * ignore は設定の除外で、引数の `--ignore` が設定の除外を置き換えるので、読んで引数に含める。minTokens は全体の閾値。
+ */
+export function readConfig(root: string): { ignore: string[]; minTokens: number } {
   const config: unknown = JSON.parse(readFileSync(join(root, CONFIG_PATH), "utf8"));
   if (!isRecord(config)) throw new Error(`${CONFIG_PATH} が object でない`);
-  const { ignore, format } = config;
+  const { ignore } = config;
   const minTokens = "minTokens" in config ? config.minTokens : DEFAULT_MIN_TOKENS;
   if (typeof minTokens !== "number" || !Number.isInteger(minTokens) || minTokens < 1)
     throw new Error(`${CONFIG_PATH} の minTokens が 1 以上の整数でない`);
-  if (!isArray(format) || format.length === 0)
-    throw new Error(`${CONFIG_PATH} の format が空でない配列でない`);
-  const extensions = format.flatMap((f) => {
-    const exts = typeof f === "string" ? FORMAT_EXTENSIONS[f] : undefined;
-    if (!exts) throw new Error(`${CONFIG_PATH} の format の ${String(f)} の拡張子を知らない`);
-    return exts;
-  });
   if (!isArray(ignore) || !ignore.every((g) => typeof g === "string" && g !== "")) {
     throw new Error(`${CONFIG_PATH} の ignore が空でない文字列の配列でない`);
   }
-  return { ignore: ignore.map(String), minTokens, extensions };
+  return { ignore: ignore.map(String), minTokens };
 }
 
 /** テストどうしの閾値が、全体の閾値（.jscpd.json の minTokens）より大きいことを確かめる。逆なら、テストの判定のほうが厳しくなる。 */
@@ -376,14 +339,12 @@ function runScans(
     scan,
     ...runJscpd(root, { scan, ignore, baseline: baselineOf(scan), updateBaseline }),
   }));
-  // 2 回目の走査は、テストのファイルがすべて閾値より小さいと 0 件になる。そのときは hasTestCode で確かめる。
-  const empty = results
-    .filter((r) => r.sources === 0 && r.scan === SCANS[0])
-    .map((r) => r.scan.name);
-  if (!hasTestCode(root, config.extensions)) empty.push("isTestCode に当たるファイル");
+  // 2 回目の走査が 0 件なら、テストどうしの重複を 1 件も判定していない（--pattern や除外が当たらないなど）ので、合格にしない。
+  // テストのファイルがすべて TEST_MIN_TOKENS より小さいときも 0 件になるが、このリポジトリのテストではその状態にならない。
+  const empty = results.filter((r) => r.sources === 0).map((r) => r.scan.name);
   if (empty.length) {
     throw new Error(
-      `走査したファイルが 0 件（${empty.join("・")}。設定の形式と除外、isTestCode を確かめる）`,
+      `走査したファイルが 0 件（${empty.join("・")}。設定の形式と除外、TEST_GLOBS を確かめる）`,
     );
   }
   return results;

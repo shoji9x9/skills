@@ -28,7 +28,7 @@ import {
   type Clone,
   DECLARED_PATH,
   TEST_BASELINE_PATH,
-  configIgnores,
+  readConfig,
   isDeclaredCopy,
   isTestCode,
   isUndeclaredCopy,
@@ -239,26 +239,22 @@ test("regionReader: 印が崩れていれば例外にする", () => {
   expect(() => regionReader(root)("x.ts", "r")).toThrow(/x\.ts/);
 });
 
-// ---- configIgnores ----
+// ---- readConfig ----
 
 test.each([
   ["ignore が無い", {}],
   ["空文字を含む", { ignore: ["a/**", ""] }],
   ["文字列でない要素を含む", { ignore: [1] }],
-])("configIgnores: %s なら例外にする", (_, config) => {
-  const root = makeTempDir("duplicates-config-");
-  write(root, CONFIG_PATH, JSON.stringify({ format: ["typescript"], ...config }));
-  expect(() => configIgnores(root)).toThrow(/ignore/);
-});
-
-test.each([
-  ["format が無い", { ignore: [] }, /format/],
-  ["format が知らない形式を含む", { format: ["typescript", "tsx"], ignore: [] }, /tsx/],
-  ["minTokens が 0", { format: ["typescript"], ignore: [], minTokens: 0 }, /minTokens/],
-])("configIgnores: %s なら例外にする", (_, config, message) => {
+])("readConfig: ignore が %s なら例外にする", (_, config) => {
   const root = makeTempDir("duplicates-config-");
   write(root, CONFIG_PATH, JSON.stringify(config));
-  expect(() => configIgnores(root)).toThrow(message);
+  expect(() => readConfig(root)).toThrow(/ignore/);
+});
+
+test("readConfig: minTokens が 0 なら例外にする", () => {
+  const root = makeTempDir("duplicates-config-");
+  write(root, CONFIG_PATH, JSON.stringify({ ignore: [], minTokens: 0 }));
+  expect(() => readConfig(root)).toThrow(/minTokens/);
 });
 
 // ---- main（実物の jscpd） ----
@@ -429,9 +425,9 @@ test.each<[string, Placement]>([
 });
 
 test.each([
-  ["全体の閾値以下", { minTokens: 100 }],
-  ["整数でない", { minTokens: "60" }],
-])("main: .jscpd.json の minTokens が、テストどうしの閾値に対して%sなら exit 2", (_, extra) => {
+  ["、テストどうしの閾値以上", { minTokens: 100 }],
+  ["、整数でない", { minTokens: "60" }],
+])("main: .jscpd.json の minTokens が%sなら exit 2", (_, extra) => {
   const root = makeRepo({ "a.ts": OTHER });
   write(
     root,
@@ -441,25 +437,8 @@ test.each([
   expect(main(["--update-baseline"], root)).toBe(2);
 });
 
-test("main: テストのディレクトリにコードの形式でないファイルしか無ければ、判定できないので exit 2", () => {
-  const root = makeRepo({
-    "a.ts": OTHER,
-    "other/scripts/t.test.ts": TEST_FILE,
-    "scripts/skills/x/data.json": "{}",
-  });
-  rmSync(join(root, "scripts/t.test.ts"));
-  expect(main(["--update-baseline"], root)).toBe(2);
-});
-
-test("main: テストのファイルがすべて閾値より小さく 2 回目の走査が 0 件でも、判定できるので通す", () => {
+test("main: テストのファイルがすべて閾値より小さく 2 回目の走査が 0 件なら、テストどうしを判定していないので exit 2", () => {
   const root = makeRepo({ "a.ts": OTHER, "scripts/t.test.ts": 'test("x", () => {});\n' });
-  expect(main(["--update-baseline"], root)).toBe(0);
-  expect(main([], root)).toBe(0);
-});
-
-test("main: scripts/ の外の .test.ts だけがあり、テストのコードが無ければ、判定できないので exit 2", () => {
-  const root = makeRepo({ "a.ts": OTHER, "other/scripts/t.test.ts": TEST_FILE });
-  rmSync(join(root, "scripts/t.test.ts"));
   expect(main(["--update-baseline"], root)).toBe(2);
 });
 
