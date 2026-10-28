@@ -26,14 +26,16 @@ query($endCursor: String) {
       }
     }
   }
-}' --jq '.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false) |
-  {threadId: .id, databaseId: .comments.nodes[0].databaseId, author: .comments.nodes[0].author.login,
+}' --jq '.data.repository.pullRequest.reviewThreads.nodes[] |
+  {id, isResolved, databaseId: .comments.nodes[0].databaseId, author: .comments.nodes[0].author.login,
    path: .comments.nodes[0].path, line: .comments.nodes[0].line, body: .comments.nodes[0].body}'
 ```
 
 `--paginate` は、`pageInfo { hasNextPage endCursor }` と `$endCursor` の変数があれば、全ページを自動でたどる。
-`--jq` で `isResolved == false` のスレッドだけを出力し、1 件ずつ処理する。解決済みのスレッドを含む応答の全体は出力しない。すべてのレビュアーを対象にし、作成者では絞らない。
-返信先には、先頭のコメントの `databaseId` を使う。
+`--jq` は、返信と解決に要る項目だけを、解決済みのスレッドも含めて出力する。解決済みも出すのは、レビューのコメントの件数と、取得できたスレッドを突き合わせるためである。
+処理するのは `isResolved == false` のスレッドだけで、1 件ずつ扱う。すべてのレビュアーを対象にし、作成者では絞らない。
+返信先には、先頭のコメントの `databaseId` を使う。`databaseId` が `null` のスレッド（先頭のコメントが削除されたものなど）には返信も解決もせず、そのスレッドの `id` を報告する。
+pr-finalize-loop は、この取得を使わず、`state-query.md` の索引の出力（`id` と `comments.nodes[0].databaseId`）を返信と解決に使う。
 
 ## 返信（REST）
 
