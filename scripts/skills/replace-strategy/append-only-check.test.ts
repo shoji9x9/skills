@@ -2428,13 +2428,8 @@ async function wrappedKeepRepo(wrapped: string) {
   return { root, manifest };
 }
 
-test.concurrent.each([
-  ["折り返しも配下ごと消費する（1 行への畳み込みで単位が消えない）", FLOW_WRAPPED_KEEP],
-  [
-    "開き括弧が次の行にある形も消費する（値の形で区別しない）",
-    ["      keep:", "      [", '        "テーブル名を保つ"', "      ] # 変えない"],
-  ],
-])("mutable_blocks の%s", async (_label, lines) => {
+/** keep を lines の形で書いた設定で、keep の値を 1 行に畳んで足しても、mutable_blocks として通すことを確かめる。 */
+async function expectWrappedKeepConsumed(lines: string[]) {
   const wrapped = lines.join("\n");
   const { root, manifest } = await wrappedKeepRepo(wrapped);
   writeConfig(
@@ -2448,6 +2443,19 @@ test.concurrent.each([
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
+}
+
+test.concurrent("mutable_blocks の折り返しも配下ごと消費する（1 行への畳み込みで単位が消えない）", async () => {
+  await expectWrappedKeepConsumed(FLOW_WRAPPED_KEEP);
+});
+
+test.concurrent("mutable_blocks でも、開き括弧が次の行にある形を消費する（値の形で区別しない）", async () => {
+  await expectWrappedKeepConsumed([
+    "      keep:",
+    "      [",
+    '        "テーブル名を保つ"',
+    "      ] # 変えない",
+  ]);
 });
 
 test.concurrent("mutable_blocks の折り返しでも、キーごと消せば落ちる（外しすぎていない）", async () => {
