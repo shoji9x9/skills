@@ -11,7 +11,7 @@
 //   ファイル全体の組は、同じ組の 2 つのファイルの間の重複を外す。範囲（`region`）を持つ組は、両方の断片がそれぞれの
 //   ファイルの範囲と重なる重複を外す。範囲の中に収まる条件にしないのは、範囲の印の行や直前の説明のコメントも同じなので、
 //   jscpd の断片が範囲の外へ数行広がるからである。範囲と重ならない重複は、登録していないコピーとして数える。
-// - テストのコード（`TEST_GLOBS`）どうしの重複は、閾値を上げた別の走査で判定する。テストは準備と assertion を各テストに書くので、
+// - テストのコード（`isTestCode`）どうしの重複は、閾値を上げた別の走査で判定する。テストは準備と assertion を各テストに書くので、
 //   短い並び（`expect(r.status).toBe(1)` が続くなど）は自然に重なる。1 回目の走査（デフォルトの閾値で全体）からはテストどうしの
 //   重複を除き、2 回目の走査（`TEST_MIN_TOKENS` でテストのコードだけ）の重複を数える。テストとテスト以外の間の重複は 1 回目で数える。
 //   jscpd の検出は閾値で断片の切り方が変わるので、1 回目の結果をトークン数で絞っても 2 回目と同じにならない。そのため走査を分ける。
@@ -76,7 +76,10 @@ export const isTestCode = (file: string) =>
 // false のファイルは、2 回目では数えず、1 回目でテスト以外として数える（2 回の走査の keep を参照）。
 const TEST_GLOBS = ["scripts/**/*.test.ts", ...TEST_DIRS.map((d) => `${d}**`)];
 
-/** テストのコードがあるか。--pattern はパスの途中にも一致するので、2 回目の走査の件数ではこれを確かめられない。 */
+/** jscpd が走査する形式（.jscpd.json の format）の拡張子。 */
+const CODE_FILE = /\.(?:[cm]?[jt]s|sh|md)$/;
+
+/** テストのコード（jscpd が走査する形式）があるか。--pattern はパスの途中にも一致するので、2 回目の走査の件数ではこれを確かめられない。 */
 function hasTestCode(root: string): boolean {
   return globSync("scripts/**/*", {
     cwd: root,
@@ -84,7 +87,9 @@ function hasTestCode(root: string): boolean {
     exclude: (d) => d.name === "node_modules",
   }).some(
     (d) =>
-      d.isFile() && isTestCode(relative(root, join(d.parentPath, d.name)).split(sep).join("/")),
+      d.isFile() &&
+      CODE_FILE.test(d.name) &&
+      isTestCode(relative(root, join(d.parentPath, d.name)).split(sep).join("/")),
   );
 }
 
@@ -234,6 +239,21 @@ export function configIgnores(root: string): string[] {
   return ignore.map(String);
 }
 
+/** jscpd のデフォルトのトークン数の閾値（.jscpd.json に minTokens が無いときに使われる）。 */
+const DEFAULT_MIN_TOKENS = 50;
+
+/** テストどうしの閾値が、全体の閾値（.jscpd.json の minTokens）より大きいことを確かめる。逆なら、テストの判定のほうが厳しくなる。 */
+function checkTestThreshold(root: string): void {
+  const config: unknown = JSON.parse(readFileSync(join(root, CONFIG_PATH), "utf8"));
+  const min = isRecord(config) && "minTokens" in config ? config.minTokens : DEFAULT_MIN_TOKENS;
+  if (typeof min !== "number" || !Number.isInteger(min) || min < 1)
+    throw new Error(`${CONFIG_PATH} の minTokens が 1 以上の整数でない`);
+  if (TEST_MIN_TOKENS <= min)
+    throw new Error(
+      `テストどうしの閾値（TEST_MIN_TOKENS: ${TEST_MIN_TOKENS}）が、${CONFIG_PATH} の minTokens（${min}）以下になっている`,
+    );
+}
+
 /** jscpd に渡す除外。設定の除外に、コピーとリンクと生成物を足す。 */
 function ignoreGlobs(root: string): string {
   return [...configIgnores(root), ...agentCopyGlobs(root), ...VENDORED_GLOBS].join(",");
@@ -327,15 +347,16 @@ function runScans(
   updateBaseline: boolean,
 ): { scan: Scan; sources: number; clones: Clone[] }[] {
   const ignore = ignoreGlobs(root);
+  checkTestThreshold(root);
   const results = SCANS.map((scan) => ({
     scan,
     ...runJscpd(root, { scan, ignore, baseline: baselineOf(scan), updateBaseline }),
   }));
   const empty = results.filter((r) => r.sources === 0).map((r) => r.scan.name);
-  if (!hasTestCode(root)) empty.push("TEST_GLOBS に当たるファイル");
+  if (!hasTestCode(root)) empty.push("isTestCode に当たるファイル");
   if (empty.length) {
     throw new Error(
-      `走査したファイルが 0 件（${empty.join("・")}。設定の形式と除外、TEST_GLOBS を確かめる）`,
+      `走査したファイルが 0 件（${empty.join("・")}。設定の形式と除外、isTestCode を確かめる）`,
     );
   }
   return results;

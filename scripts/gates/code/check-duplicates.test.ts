@@ -388,6 +388,7 @@ test.each<[string, Placement]>([
     "scripts/ の外の .test.ts はテストのコードとして扱わず、短い重複も失敗にする",
     { files: ["other/scripts/x.test.ts", "other/scripts/y.test.ts"], code: 1 },
   ],
+  ["1 つのテストのファイルの中の短い重複も数えない", { files: ["scripts/x.test.ts"], code: 0 }],
   [
     "テストのヘルパーどうしの短い重複も数えない",
     { files: ["scripts/skills/y/h-helpers.ts", "scripts/lib/testing/h.ts"], code: 0 },
@@ -415,6 +416,29 @@ test.each<[string, Placement]>([
     write(root, files[0], `${body}\n// ---\n${body.replaceAll("total", "sum")}`);
   else files.forEach((p) => write(root, p, body));
   expect(main([], root)).toBe(code);
+});
+
+test.each([
+  ["全体の閾値以下", { minTokens: 100 }],
+  ["整数でない", { minTokens: "60" }],
+])("main: .jscpd.json の minTokens が、テストどうしの閾値に対して%sなら exit 2", (_, extra) => {
+  const root = makeRepo({ "a.ts": OTHER });
+  write(
+    root,
+    CONFIG_PATH,
+    JSON.stringify({ format: REPO_FORMATS, ignore: ["**/node_modules/**"], ...extra }),
+  );
+  expect(main(["--update-baseline"], root)).toBe(2);
+});
+
+test("main: テストのディレクトリにコードの形式でないファイルしか無ければ、判定できないので exit 2", () => {
+  const root = makeRepo({
+    "a.ts": OTHER,
+    "other/scripts/t.test.ts": TEST_FILE,
+    "scripts/skills/x/data.json": "{}",
+  });
+  rmSync(join(root, "scripts/t.test.ts"));
+  expect(main(["--update-baseline"], root)).toBe(2);
 });
 
 test("main: scripts/ の外の .test.ts だけがあり、テストのコードが無ければ、判定できないので exit 2", () => {
