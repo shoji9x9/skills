@@ -247,8 +247,18 @@ test.each([
   ["文字列でない要素を含む", { ignore: [1] }],
 ])("configIgnores: %s なら例外にする", (_, config) => {
   const root = makeTempDir("duplicates-config-");
-  write(root, CONFIG_PATH, JSON.stringify(config));
+  write(root, CONFIG_PATH, JSON.stringify({ format: ["typescript"], ...config }));
   expect(() => configIgnores(root)).toThrow(/ignore/);
+});
+
+test.each([
+  ["format が無い", { ignore: [] }, /format/],
+  ["format が知らない形式を含む", { format: ["typescript", "tsx"], ignore: [] }, /tsx/],
+  ["minTokens が 0", { format: ["typescript"], ignore: [], minTokens: 0 }, /minTokens/],
+])("configIgnores: %s なら例外にする", (_, config, message) => {
+  const root = makeTempDir("duplicates-config-");
+  write(root, CONFIG_PATH, JSON.stringify(config));
+  expect(() => configIgnores(root)).toThrow(message);
 });
 
 // ---- main（実物の jscpd） ----
@@ -439,6 +449,12 @@ test("main: テストのディレクトリにコードの形式でないファ�
   });
   rmSync(join(root, "scripts/t.test.ts"));
   expect(main(["--update-baseline"], root)).toBe(2);
+});
+
+test("main: テストのファイルがすべて閾値より小さく 2 回目の走査が 0 件でも、判定できるので通す", () => {
+  const root = makeRepo({ "a.ts": OTHER, "scripts/t.test.ts": 'test("x", () => {});\n' });
+  expect(main(["--update-baseline"], root)).toBe(0);
+  expect(main([], root)).toBe(0);
 });
 
 test("main: scripts/ の外の .test.ts だけがあり、テストのコードが無ければ、判定できないので exit 2", () => {

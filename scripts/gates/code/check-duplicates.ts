@@ -16,9 +16,10 @@
 //   重複を除き、2 回目の走査（`TEST_MIN_TOKENS` でテストのコードだけ）の重複を数える。テストとテスト以外の間の重複は 1 回目で数える。
 //   jscpd の検出は閾値で断片の切り方が変わるので、1 回目の結果をトークン数で絞っても 2 回目と同じにならない。そのため走査を分ける。
 // - 既存の重複はベースライン（`.config/jscpd/baseline.json` と、テストどうしの `baseline-tests.json`。jscpd の指紋）に載せる。
-//   ベースラインに無い重複（jscpd の `isNew`）を失敗にする。jscpd の指紋は重複の中身から作るので、ベースラインにある重複と
-//   同じ中身の重複は、別のファイルの組でも新しいものとして報告されない（1 回目のベースラインにはテストどうしの重複の指紋も入る）。
-//   これは走査を分けたことによらず、jscpd の指紋の作り方による。jscpd のレポートは指紋を出さないので、ベースラインから除けない。
+//   ベースラインに無い重複（jscpd の `isNew`）を失敗にする。jscpd の指紋は重複の中身から作り、同じ指紋の件数も比べる。
+//   そのため、コピーを足すと新しい重複になるが、ベースラインにある組の片方を別のファイルに移した重複は新しいものとして報告されない
+//   （1 回目のベースラインにはテストどうしの重複の指紋も入る）。これは走査を分けたことによらず、jscpd の指紋の作り方による。
+//   jscpd のレポートは指紋を出さないので、ベースラインから除けない。
 //   直すかどうかは内容を見て決め、残すなら `--update-baseline` で載せ直す。
 // - `--update-baseline` は登録済みのコピーの重複もベースラインに載せる（jscpd のレポートは指紋を出さないので、ベースラインから除けない）。
 //   そのため、載せたときの組を `.config/jscpd/declared-groups.json` に控える。控えた組の 2 つのファイルの重複は、
@@ -76,11 +77,19 @@ export const isTestCode = (file: string) =>
 // false のファイルは、2 回目では数えず、1 回目でテスト以外として数える（2 回の走査の keep を参照）。
 const TEST_GLOBS = ["scripts/**/*.test.ts", ...TEST_DIRS.map((d) => `${d}**`)];
 
-/** jscpd が走査する形式（.jscpd.json の format）の拡張子。 */
-const CODE_FILE = /\.(?:[cm]?[jt]s|sh|md)$/;
+/** jscpd の形式ごとに走査する拡張子（jscpd 5.4.2 で実測した。.jsx と .tsx は別の形式）。 */
+const FORMAT_EXTENSIONS: Record<string, string[]> = {
+  javascript: [".js", ".mjs", ".cjs"],
+  typescript: [".ts", ".mts", ".cts"],
+  bash: [".sh", ".bash"],
+  markdown: [".md", ".markdown"],
+};
 
-/** テストのコード（jscpd が走査する形式）があるか。--pattern はパスの途中にも一致するので、2 回目の走査の件数ではこれを確かめられない。 */
-function hasTestCode(root: string): boolean {
+/**
+ * テストのコード（jscpd が走査する拡張子）があるか。--pattern はパスの途中にも一致するので、2 回目の走査の件数ではこれを
+ * 確かめられない。2 回目の走査が 0 件でも、テストのファイルがすべて閾値より小さいだけなら判定はできている。
+ */
+function hasTestCode(root: string, extensions: readonly string[]): boolean {
   return globSync("scripts/**/*", {
     cwd: root,
     withFileTypes: true,
@@ -88,7 +97,7 @@ function hasTestCode(root: string): boolean {
   }).some(
     (d) =>
       d.isFile() &&
-      CODE_FILE.test(d.name) &&
+      extensions.some((e) => d.name.endsWith(e)) &&
       isTestCode(relative(root, join(d.parentPath, d.name)).split(sep).join("/")),
   );
 }
@@ -229,25 +238,39 @@ export function regionReader(root: string): (file: string, region: string) => Ra
   };
 }
 
-/** 設定の除外（`.jscpd.json` の `ignore`）。引数の `--ignore` は設定の除外を置き換えるので、読んで引数に含める。 */
-export function configIgnores(root: string): string[] {
-  const config: unknown = JSON.parse(readFileSync(join(root, CONFIG_PATH), "utf8"));
-  const ignore = isRecord(config) ? config.ignore : undefined;
-  if (!isArray(ignore) || !ignore.every((g) => typeof g === "string" && g !== "")) {
-    throw new Error(`${CONFIG_PATH} の ignore が空でない文字列の配列でない`);
-  }
-  return ignore.map(String);
-}
-
 /** jscpd のデフォルトのトークン数の閾値（.jscpd.json に minTokens が無いときに使われる）。 */
 const DEFAULT_MIN_TOKENS = 50;
 
-/** テストどうしの閾値が、全体の閾値（.jscpd.json の minTokens）より大きいことを確かめる。逆なら、テストの判定のほうが厳しくなる。 */
-function checkTestThreshold(root: string): void {
+/** `.jscpd.json` から、このスクリプトが使う値（除外・全体の閾値・走査する拡張子）を読む。形が違えば例外にする。 */
+type Config = { ignore: string[]; minTokens: number; extensions: string[] };
+
+/** 設定の除外（`.jscpd.json` の `ignore`）。引数の `--ignore` は設定の除外を置き換えるので、読んで引数に含める。 */
+export function configIgnores(root: string): string[] {
+  return readConfig(root).ignore;
+}
+
+function readConfig(root: string): Config {
   const config: unknown = JSON.parse(readFileSync(join(root, CONFIG_PATH), "utf8"));
-  const min = isRecord(config) && "minTokens" in config ? config.minTokens : DEFAULT_MIN_TOKENS;
-  if (typeof min !== "number" || !Number.isInteger(min) || min < 1)
+  if (!isRecord(config)) throw new Error(`${CONFIG_PATH} が object でない`);
+  const { ignore, format } = config;
+  const minTokens = "minTokens" in config ? config.minTokens : DEFAULT_MIN_TOKENS;
+  if (typeof minTokens !== "number" || !Number.isInteger(minTokens) || minTokens < 1)
     throw new Error(`${CONFIG_PATH} の minTokens が 1 以上の整数でない`);
+  if (!isArray(format) || format.length === 0)
+    throw new Error(`${CONFIG_PATH} の format が空でない配列でない`);
+  const extensions = format.flatMap((f) => {
+    const exts = typeof f === "string" ? FORMAT_EXTENSIONS[f] : undefined;
+    if (!exts) throw new Error(`${CONFIG_PATH} の format の ${String(f)} の拡張子を知らない`);
+    return exts;
+  });
+  if (!isArray(ignore) || !ignore.every((g) => typeof g === "string" && g !== "")) {
+    throw new Error(`${CONFIG_PATH} の ignore が空でない文字列の配列でない`);
+  }
+  return { ignore: ignore.map(String), minTokens, extensions };
+}
+
+/** テストどうしの閾値が、全体の閾値（.jscpd.json の minTokens）より大きいことを確かめる。逆なら、テストの判定のほうが厳しくなる。 */
+function checkTestThreshold(min: number): void {
   if (TEST_MIN_TOKENS <= min)
     throw new Error(
       `テストどうしの閾値（TEST_MIN_TOKENS: ${TEST_MIN_TOKENS}）が、${CONFIG_PATH} の minTokens（${min}）以下になっている`,
@@ -255,8 +278,8 @@ function checkTestThreshold(root: string): void {
 }
 
 /** jscpd に渡す除外。設定の除外に、コピーとリンクと生成物を足す。 */
-function ignoreGlobs(root: string): string {
-  return [...configIgnores(root), ...agentCopyGlobs(root), ...VENDORED_GLOBS].join(",");
+function ignoreGlobs(root: string, ignore: readonly string[]): string {
+  return [...ignore, ...agentCopyGlobs(root), ...VENDORED_GLOBS].join(",");
 }
 
 /** 1 回の走査の入力。baseline は jscpd が読み書きするベースラインのファイル（絶対パス）。 */
@@ -346,14 +369,18 @@ function runScans(
   baselineOf: (scan: Scan) => string,
   updateBaseline: boolean,
 ): { scan: Scan; sources: number; clones: Clone[] }[] {
-  const ignore = ignoreGlobs(root);
-  checkTestThreshold(root);
+  const config = readConfig(root);
+  checkTestThreshold(config.minTokens);
+  const ignore = ignoreGlobs(root, config.ignore);
   const results = SCANS.map((scan) => ({
     scan,
     ...runJscpd(root, { scan, ignore, baseline: baselineOf(scan), updateBaseline }),
   }));
-  const empty = results.filter((r) => r.sources === 0).map((r) => r.scan.name);
-  if (!hasTestCode(root)) empty.push("isTestCode に当たるファイル");
+  // 2 回目の走査は、テストのファイルがすべて閾値より小さいと 0 件になる。そのときは hasTestCode で確かめる。
+  const empty = results
+    .filter((r) => r.sources === 0 && r.scan === SCANS[0])
+    .map((r) => r.scan.name);
+  if (!hasTestCode(root, config.extensions)) empty.push("isTestCode に当たるファイル");
   if (empty.length) {
     throw new Error(
       `走査したファイルが 0 件（${empty.join("・")}。設定の形式と除外、isTestCode を確かめる）`,
@@ -394,9 +421,11 @@ export function main(argv: string[], root = process.cwd()): number {
   // --update-baseline では、jscpd に一時ディレクトリへベースラインを書かせ、すべての走査が成功してから置き換える。
   // jscpd の失敗や走査の 0 件で、一部のベースラインだけが置き換わったまま残らないようにする。置き換えの途中のファイルの
   // 書き込みの失敗（容量不足など）までは防げないが、そのときも exit 2 になるので、--update-baseline を実行し直せば 3 つとも作り直す。
-  const staging = updateBaseline ? mkdtempSync(join(tmpdir(), "jscpd-baseline-")) : undefined;
+  let staging: string | undefined;
   const baselineOf = (scan: Scan) => join(staging ?? root, scan.baseline);
   try {
+    // 一時ディレクトリを作れないときも、判定できない（exit 2）として扱う。
+    if (updateBaseline) staging = mkdtempSync(join(tmpdir(), "jscpd-baseline-"));
     // ベースラインを書き換える前に宣言を読む。宣言が不正なら、ベースラインだけが置き換わったまま残らないよう、jscpd を実行しない。
     const groups = updateBaseline ? loadGroups(root) : [];
     const results = runScans(root, baselineOf, updateBaseline);
