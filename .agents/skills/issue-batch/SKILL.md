@@ -69,8 +69,8 @@ run の途中で判断待ちの `BLOCKED` にならないよう、run の前に�
    - 依存から決める実行の順（依存先を先にし、それ以外は入力の順で前の Issue を先にする）
    - run の前に利用者の判断が要るもの（複数の案・決まっていない方針・試していない機構を約束した受け入れ条件・対象から外す候補にする不確実性の高い Issue）。1 回の確認にまとめて、変更の前に決めてもらう。全体を停止するときは確認せず、停止の報告に載せる。
      `prepare` が Issue に記録した決定は読んで使い、同じ判断を確認し直さない
-2. `/tmp` に run manifest を作る。記録するのは、入力の順・実行の順・Issue の URL・状態・branch・worktree・PR の URL・試験の結果・停止の理由・飛ばした理由・対象から外した理由・判断待ちの項目・自分で判断して進めたもの（`self_decisions` の下の 4 つの欄と `others`）だけである。
-   試験の結果には、ローカルレビューの範囲の SHA（`reviewed_through_sha`・`unreviewed_range`）を含める。秘密の値と、変わる環境の URL は書かない。
+2. `/tmp` に run manifest を作る。記録するのは、入力の順・実行の順・Issue の URL・状態・branch・worktree・PR の URL・試験の結果・ローカルレビューの範囲の SHA・停止の理由・飛ばした理由・対象から外した理由・判断待ちの項目・自分で判断して進めたものだけである。
+   ローカルレビューの範囲の SHA は `reviewed_through_sha` と `unreviewed_range`、自分で判断して進めたものは `self_decisions` の下の 4 つの欄と `others` である。秘密の値と、変わる環境の URL は書かない。
 3. preflight で `EXCLUDED`・`SKIPPED`・`BLOCKED` にした Issue は、この手順から後を行わず、残りの Issue を進める（`references/orchestration.md`「全体 preflight」の最後の段落）。
    依存のある Issue は、同じ文書の「全体 preflight」の 6 の条件を満たしてから着手する。
    呼び出し元の worktree を checkout せず、Issue ごとに一意な隔離した worktree を `git-worktree` の取り決めで用意して、セッションを移す。
@@ -81,8 +81,8 @@ run の途中で判断待ちの `BLOCKED` にならないよう、run の前に�
    Claude Code では、範囲を渡すために、ローカルレビューの前に変更を commit する（`references/orchestration.md`「ローカルレビュー」）。
    ローカルレビューは、変更が小さいことを理由に省かない。省いてよい条件の一覧と、省いたときの記録は、`references/orchestration.md`「ローカルレビュー」で定義する。
    ローカルレビューは、上限（`max_local_review_iterations`）の回数まで行う。最初のレビューも、直した後のやり直しも、後に生じた変更のレビューも 1 回に数える。
-   上限に達したら、手元でレビューしていない直しは PR の `pr-finalize-loop` のレビューに任せて push し、その範囲を manifest に残す。`review_tool` が `none` なら push の前に BLOCKED にする（`references/orchestration.md`「ローカルレビュー」）。
-   最後のローカルレビューの後に生じた変更も push の前にレビューする。Kaizen の学びと、Hook が commit のたびに足す記録は例外とし、PR のレビューに任せる。`review_tool` が `none` なら例外を当てず、読めなければ push の前に BLOCKED にする（`references/orchestration.md`「ローカルレビューの後に生じた変更」）。
+   上限に達したら、手元でレビューしていない変更（直し・後に生じた変更）は PR の `pr-finalize-loop` のレビューに任せて push し、その範囲を manifest に残す。`review_tool` が `none` なら push の前に BLOCKED にする（`references/orchestration.md`「ローカルレビュー」）。
+   最後のローカルレビューの後に生じた変更も、回数が上限より少なければ push の前にレビューする。Kaizen の学びと、Hook が commit のたびに足す記録は例外とし、PR のレビューに任せる。`review_tool` が `none` なら例外を当てず、読めなければ push の前に BLOCKED にする（`references/orchestration.md`「ローカルレビューの後に生じた変更」）。
 5. PR は `pr-finalize-loop` に渡して収束させる。AI のレビューの依頼は、`pr-finalize-loop` にまとめる。
 6. head の SHA を固定し、決めた merge mode で merge する。`auto` は GitHub の auto-merge に任せ、`agent` は PR の状況を実際に確かめてから merge する。
    `pr-finalize-loop` が使った `review_tool` が `local` なら、どちらの mode でも、固定した SHA を手元でレビューした記録があることを確かめてから merge する（`references/orchestration.md`「merge、close、deployment」の 1）。
