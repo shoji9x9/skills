@@ -1161,16 +1161,21 @@ describe("compare", () => {
     expect(r.err).toContain("比べる新側の target が無い");
   });
 
+  /** 基準の 1 組目の lcp に override を重ねた、compareRun に渡す基準と metadata。 */
+  const withBaseLcp = (override: object) => {
+    const base = summarized();
+    const pairs = structuredClone(base.meta.performance.pairs);
+    pairs[0].metrics.lcp = { ...pairs[0].metrics.lcp, ...override };
+    const meta = { ...base.meta, performance: { ...base.meta.performance, pairs } };
+    return { base, meta };
+  };
+
   test.each([
     ["回数が下限より少ない", { n: 1, nulls: 1 }],
     ["nulls が負", { nulls: -1 }],
     ["nulls が n を超える", { nulls: 6 }],
   ])("基準の回数が範囲外なら exit 2: %s", (_, override) => {
-    const base = summarized();
-    const pairs = structuredClone(base.meta.performance.pairs);
-    pairs[0].metrics.lcp = { ...pairs[0].metrics.lcp, ...override };
-    const meta = { ...base.meta, performance: { ...base.meta.performance, pairs } };
-    const r = compareRun(samplesDoc("new", bothPairs()), { base, meta });
+    const r = compareRun(samplesDoc("new", bothPairs()), withBaseLcp(override));
     expect(r.code).toBe(2);
     expect(r.err).toContain("回数が範囲外");
   });
@@ -1180,11 +1185,7 @@ describe("compare", () => {
     ["四分位範囲が負", { iqr: -1 }],
     ["すべて null の組に数がある", { nulls: 5, median: 520, iqr: 20 }],
   ])("基準の median / iqr が回数と合わなければ exit 2: %s", (_, override) => {
-    const base = summarized();
-    const pairs = structuredClone(base.meta.performance.pairs);
-    pairs[0].metrics.lcp = { ...pairs[0].metrics.lcp, ...override };
-    const meta = { ...base.meta, performance: { ...base.meta.performance, pairs } };
-    const r = compareRun(samplesDoc("new", bothPairs()), { base, meta });
+    const r = compareRun(samplesDoc("new", bothPairs()), withBaseLcp(override));
     expect(r.code).toBe(2);
     expect(r.err).toContain("median / iqr が回数と合わない");
   });

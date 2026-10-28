@@ -2406,8 +2406,8 @@ test.concurrent("閉じた後に余りがある形は「閉じていない」と
   expect(unclosed.stdout).toMatch(/閉じていないフロー形式のコンテナがある: a\.keep/);
 });
 
-test.concurrent("mutable_blocks の折り返しも配下ごと消費する（1 行への畳み込みで単位が消えない）", async () => {
-  const wrapped = ["      keep: [", '        "テーブル名を保つ"', "      ] # 変えない"].join("\n");
+/** intentional_diffs.keep を wrapped の形に書いた設定と、keep を mutable_blocks にした manifest。 */
+async function wrappedKeepRepo(wrapped: string) {
   const root = await makeConfigRepo(
     CONFIG.replace(
       '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
@@ -2422,6 +2422,21 @@ test.concurrent("mutable_blocks の折り返しも配下ごと消費する（1 �
       mutable_blocks: ["skills.replace-strategy.intentional_diffs.keep"],
     },
   ]);
+  return { root, manifest };
+}
+
+test.concurrent.each([
+  [
+    "折り返しも配下ごと消費する（1 行への畳み込みで単位が消えない）",
+    ["      keep: [", '        "テーブル名を保つ"', "      ] # 変えない"],
+  ],
+  [
+    "開き括弧が次の行にある形も消費する（値の形で区別しない）",
+    ["      keep:", "      [", '        "テーブル名を保つ"', "      ] # 変えない"],
+  ],
+])("mutable_blocks の%s", async (_label, lines) => {
+  const wrapped = lines.join("\n");
+  const { root, manifest } = await wrappedKeepRepo(wrapped);
   writeConfig(
     root,
     readConfig(root).replace(
@@ -2437,58 +2452,11 @@ test.concurrent("mutable_blocks の折り返しも配下ごと消費する（1 �
 
 test.concurrent("mutable_blocks の折り返しでも、キーごと消せば落ちる（外しすぎていない）", async () => {
   const wrapped = ["      keep: [", '        "テーブル名を保つ"', "      ] # 変えない"].join("\n");
-  const root = await makeConfigRepo(
-    CONFIG.replace(
-      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
-      wrapped,
-    ),
-  );
-  const manifest = writeManifest(root, [
-    {
-      id: "project-config",
-      pattern: ".config/skills/*/skills.yml",
-      unit: "lines",
-      mutable_blocks: ["skills.replace-strategy.intentional_diffs.keep"],
-    },
-  ]);
+  const { root, manifest } = await wrappedKeepRepo(wrapped);
   writeConfig(root, readConfig(root).replace(`${wrapped}\n`, ""));
   const r = await run(root, ["--manifest", manifest]);
   expect(r.stdout).toMatch(/mutable-block/);
   expect(r.status).toBe(1);
-  rmSync(root, { recursive: true, force: true });
-});
-
-test.concurrent("mutable_blocks でも、開き括弧が次の行にある形を消費する（値の形で門番しない）", async () => {
-  const wrapped = [
-    "      keep:",
-    "      [",
-    '        "テーブル名を保つ"',
-    "      ] # 変えない",
-  ].join("\n");
-  const root = await makeConfigRepo(
-    CONFIG.replace(
-      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
-      wrapped,
-    ),
-  );
-  const manifest = writeManifest(root, [
-    {
-      id: "project-config",
-      pattern: ".config/skills/*/skills.yml",
-      unit: "lines",
-      mutable_blocks: ["skills.replace-strategy.intentional_diffs.keep"],
-    },
-  ]);
-  writeConfig(
-    root,
-    readConfig(root).replace(
-      wrapped,
-      '      keep: ["テーブル名を保つ", "項目名を保つ"] # 変えない',
-    ),
-  );
-  const r = await run(root, ["--manifest", manifest]);
-  expect(r.stdout).toMatch(/^ok: /m);
-  expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 

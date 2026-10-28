@@ -483,13 +483,14 @@ test("落とす: 移行元が CDN から配る資産へ、新側が同じ CDN �
   expect(r.code).toBe(1);
 });
 
-test("通す: 新側が転送（ハッシュ付きのパスへの 301 等）で配る資産も、参照は転送前の URL・バイトは最終応答で突き合う", async () => {
+/** フォントと favicon を突き合わせる。redirectedUrl の応答だけを、finalUrl への転送の後の応答にする。 */
+function runRedirectedFavicon(redirectedUrl: string, finalUrl: string) {
   const base = fetcherOf({
     ...SAME_FONTS,
     [`${CUR}/favicon.ico`]: "ico",
     [`${NEW}/favicon.ico`]: "ico",
   });
-  const r = await runCheck({
+  return runCheck({
     ledgerText: ledger(FAVICON_ROW),
     record: {
       entries: [
@@ -500,15 +501,16 @@ test("通す: 新側が転送（ハッシュ付きのパスへの 301 等）で�
     probes: [FONT_PROBE, probe({ icons: [{ rel: "icon", href: `${NEW}/favicon.ico` }] })],
     fetcher: async (url) => ({
       ...(await base(url)),
-      ...(url === `${NEW}/favicon.ico`
-        ? {
-            redirected: true,
-            finalUrl: `${NEW}/assets/favicon-abc.ico?sig=secret`,
-            contentType: "image/x-icon",
-          }
-        : {}),
+      ...(url === redirectedUrl ? { redirected: true, finalUrl, contentType: "image/x-icon" } : {}),
     }),
   });
+}
+
+test("通す: 新側が転送（ハッシュ付きのパスへの 301 等）で配る資産も、参照は転送前の URL・バイトは最終応答で突き合う", async () => {
+  const r = await runRedirectedFavicon(
+    `${NEW}/favicon.ico`,
+    `${NEW}/assets/favicon-abc.ico?sig=secret`,
+  );
   expect(r.stdout).toMatch(/^ok: /mu);
   expect(r.code).toBe(0);
   const favicon = r.written.asset_delivery_check.files.find((f) => f.kind === "favicon");
@@ -531,25 +533,7 @@ test.each([
     message: /\/favicon.ico は新側のオリジン（http:\/\/new.test）へ転送される/u,
   },
 ])("落とす: 転送を経由した直リンク（$label）", async ({ redirectedUrl, finalUrl, message }) => {
-  const base = fetcherOf({
-    ...SAME_FONTS,
-    [`${CUR}/favicon.ico`]: "ico",
-    [`${NEW}/favicon.ico`]: "ico",
-  });
-  const r = await runCheck({
-    ledgerText: ledger(FAVICON_ROW),
-    record: {
-      entries: [
-        FONT_ENTRY,
-        { kind: "favicon", files: [{ current: "/favicon.ico", new: "/favicon.ico" }] },
-      ],
-    },
-    probes: [FONT_PROBE, probe({ icons: [{ rel: "icon", href: `${NEW}/favicon.ico` }] })],
-    fetcher: async (url) => ({
-      ...(await base(url)),
-      ...(url === redirectedUrl ? { redirected: true, finalUrl, contentType: "image/x-icon" } : {}),
-    }),
-  });
+  const r = await runRedirectedFavicon(redirectedUrl, finalUrl);
   expect(r.stdout).toMatch(message);
   expect(r.code).toBe(1);
   expect(faviconOf(r.written).bytes_match).toBe(false);

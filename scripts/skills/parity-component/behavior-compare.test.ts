@@ -22,6 +22,7 @@ import {
 import { cellKey, isoDateTime } from "../../../skills/parity-component/scripts/lib/comparison.mjs";
 import { loadBaseline } from "../../../skills/parity-component/scripts/lib/baseline.mjs";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
+import { NON_OBJECT_COMPARISONS, expectNonObjectComparison } from "./comparison-helpers.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/parity-component/scripts/behavior-compare.mjs");
@@ -500,18 +501,10 @@ test.each([
   },
 );
 
-test.each([
-  ["文字列", "x", "string"],
-  ["配列", [], "配列"],
-])(
+test.each(NON_OBJECT_COMPARISONS)(
   "突き合わせ表がオブジェクトでない（%s）なら、値の型を書いて target の不一致として報告する",
   (_label, value, kind) => {
-    const findings = run({ comparison: value }).findings;
-    for (const code of ["comparison-target-mismatch", "comparison-component-mismatch"]) {
-      expect(findings).toContainEqual(
-        expect.objectContaining({ code, detail: `突き合わせ表がオブジェクトでない（${kind}）` }),
-      );
-    }
+    expectNonObjectComparison(run({ comparison: value }).findings, kind);
   },
 );
 

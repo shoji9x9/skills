@@ -4,7 +4,7 @@ import {
   checkCaptureScope,
   AXIS_CANDIDATES,
 } from "../../../../skills/parity-suite/scripts/capture-scope-check.mjs";
-import { parseJsonAs } from "../../../lib/parse-as.ts";
+import { runInMemory } from "../../../lib/testing/memory-cli.ts";
 
 /**
  * スクロールバーを表示した窓のはみ出しの実測（Issue #449）。差し替えたい部分だけ渡す。
@@ -248,26 +248,9 @@ function pick(override: MetadataOverride, key: keyof MetadataOverride, fallback:
   return key in override ? override[key] : fallback;
 }
 
-/**
- * main をメモリ上のファイルで回す。
- * @param {string[]} argv
- * @param {Record<string, string>} files
- */
-export function run(argv: string[], files: Record<string, string>) {
-  let output = "";
-  const code = main(argv, {
-    cwd: "/w",
-    readFile: (path) => {
-      if (!(path in files)) throw new Error("ENOENT");
-      return files[path];
-    },
-    write: (s) => {
-      output += s;
-    },
-  });
-  // stdout が空なら null。使う側は null のとき TypeError で失敗する（型を付ける前と同じ）ので、型には null を含めない
-  return { code, result: output === "" ? null : parseJsonAs<CliResult>(output) };
-}
+/** main をメモリ上のファイルで実行する。 */
+export const run = (argv: string[], files: Record<string, string>) =>
+  runInMemory<CliResult>(main, argv, files);
 
 // わざと欄を外した metadata も渡すので unknown で受ける（checkCaptureScope も unknown で受ける）
 export const codesOf = (metadata: unknown) =>

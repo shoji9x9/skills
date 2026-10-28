@@ -1,7 +1,8 @@
 // cli.test.ts のヘルパー。
 import { spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { expect } from "vitest";
 import { encodeProjectPath } from "../../../skills/agent-usage/scripts/lib/sources/discover.mjs";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
@@ -141,14 +142,47 @@ export function writeLogCopy(
   logLines: ReturnType<typeof setup>["logLines"],
   { tag, date }: { tag: string; date: string },
 ) {
-  const copy = logLines.map((l) => ({
+  const copy = copyLogLines(logLines, { tag, date });
+  writeFileSync(join(logDir, `s-${tag}.jsonl`), copy.map((l) => JSON.stringify(l)).join("\n"));
+}
+
+/** setup のログの、日付を date に、メッセージの ID を tag- 付きに替えた行。 */
+export function copyLogLines(
+  logLines: ReturnType<typeof setup>["logLines"],
+  { tag, date }: { tag: string; date: string },
+) {
+  return logLines.map((l) => ({
     ...l,
     timestamp: l.timestamp.replace("2026-10-01", date),
     ...(l.message && "id" in l.message
       ? { message: { ...l.message, id: `${tag}-${l.message.id}` } }
       : {}),
   }));
-  writeFileSync(join(logDir, `s-${tag}.jsonl`), copy.map((l) => JSON.stringify(l)).join("\n"));
+}
+
+/** 記録のディレクトリ（records）、その下の人のディレクトリ（person は名前）、ブランチのファイルのディレクトリ（branches）。 */
+export function recordDirs(repo: string) {
+  const records = join(repo, ".agent-usage", "records");
+  const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+  return { records, person, branches: join(records, person, "branches") };
+}
+
+/** setup の後、タイムゾーンを UTC にし、feature/5-x に移って 1 回 collect する。 */
+export function collectedOnBranch() {
+  const s = setup();
+  expect(s.cli("setup", "--time-zone", "UTC").status).toBe(0);
+  s.git("switch", "-q", "-c", "feature/5-x");
+  expect(s.cli("collect").status).toBe(0);
+  return { ...s, ...recordDirs(s.repo) };
+}
+
+/** report を作り、setup のログの日の usage.csv にある input_tokens を合計する。 */
+export function reportedInputTokens({ repo, cli }: Pick<ReturnType<typeof setup>, "repo" | "cli">) {
+  expect(cli("report").status).toBe(0);
+  const usage = readFileSync(join(repo, ".agent-usage", "report", "20261001", "usage.csv"), "utf8");
+  const [header, ...body] = usage.trim().split("\n");
+  const col = (header ?? "").split(",").indexOf("input_tokens");
+  return body.reduce((a, l) => a + Number(l.split(",")[col] ?? 0), 0);
 }
 
 /** setup のログをコピーして続けたセッションで、コピーの後に足した指示と、その応答 */

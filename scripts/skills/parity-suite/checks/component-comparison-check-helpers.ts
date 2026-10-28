@@ -15,6 +15,7 @@ import {
   writeJson,
 } from "../evidence/evidence-carry-fixture.ts";
 import { parseJsonAs } from "../../../lib/parse-as.ts";
+import { runInMemory } from "../../../lib/testing/memory-cli.ts";
 
 /** 移行元側の網羅表（present 2 件 ＋ absent / unmeasured 各 1 件）。 */
 export const COVERAGE = {
@@ -124,26 +125,9 @@ type CliResult = {
   counts: Record<string, number>;
 };
 
-/**
- * main をメモリ上のファイルで回す。
- * @param {string[]} argv
- * @param {Record<string, string>} files
- */
-export function run(argv: string[], files: Record<string, string>) {
-  let output = "";
-  const code = main(argv, {
-    cwd: "/w",
-    readFile: (path) => {
-      if (!(path in files)) throw new Error("ENOENT");
-      return files[path];
-    },
-    write: (s) => {
-      output += s;
-    },
-  });
-  // stdout が空なら null。使う側は null のとき TypeError で失敗する（型を付ける前と同じ）ので、型には null を含めない
-  return { code, result: output === "" ? null : parseJsonAs<CliResult>(output) };
-}
+/** main をメモリ上のファイルで実行する。 */
+export const run = (argv: string[], files: Record<string, string>) =>
+  runInMemory<CliResult>(main, argv, files);
 
 /** 現在の新側の版（`--replace-metadata` が読む形）。突き合わせ表の記録と同じ commit・clean。 */
 export const REPLACE_METADATA = { new: { commit: "abc123", dirty: false } };

@@ -191,6 +191,19 @@ describe("skill eval result normalization", () => {
   describe("skill read detection", () => {
     const evidenceFor = (rawText: string, executor = "claude-code") =>
       (executor === "codex" ? parseCodexTrace(rawText) : parseClaudeTrace(rawText)).skillEvidence;
+    /** box を対象に、Bash で command を 1 回だけ実行した run の記録。with_skill なら init に box を載せる。 */
+    const bashRunUsage = (config: "with_skill" | "without_skill", command: string) =>
+      buildSkillUsage({
+        config,
+        skill: "box",
+        evidence: evidenceFor(
+          claudeStream([
+            { type: "system", subtype: "init", skills: config === "with_skill" ? ["box"] : [] },
+            assistantToolUse("Bash", { command }),
+            RESULT_EVENT,
+          ]),
+        ),
+      });
 
     test("counts an explicit Skill invocation as read", () => {
       const usage = buildSkillUsage({
@@ -263,17 +276,7 @@ describe("skill eval result normalization", () => {
       ["cat --help before the path", "cat --help .claude/skills/box/SKILL.md"],
       ["head --version before the path", "head --version .claude/skills/box/SKILL.md"],
     ])("does not count %s as reading the skill", (_label, command) => {
-      const usage = buildSkillUsage({
-        config: "with_skill",
-        skill: "box",
-        evidence: evidenceFor(
-          claudeStream([
-            { type: "system", subtype: "init", skills: ["box"] },
-            assistantToolUse("Bash", { command }),
-            RESULT_EVENT,
-          ]),
-        ),
-      });
+      const usage = bashRunUsage("with_skill", command);
 
       expect(usage).toMatchObject({ read: false, invalid_run: true });
       assert.exists(usage, "buildSkillUsage が null を返した");
@@ -288,17 +291,7 @@ describe("skill eval result normalization", () => {
       ["sed", "sed -n '1,20p' .claude/skills/box/SKILL.md"],
       ["grep", "grep -n description .claude/skills/box/SKILL.md"],
     ])("counts %s as reading the skill", (_label, command) => {
-      const usage = buildSkillUsage({
-        config: "with_skill",
-        skill: "box",
-        evidence: evidenceFor(
-          claudeStream([
-            { type: "system", subtype: "init", skills: ["box"] },
-            assistantToolUse("Bash", { command }),
-            RESULT_EVENT,
-          ]),
-        ),
-      });
+      const usage = bashRunUsage("with_skill", command);
 
       expect(usage).toMatchObject({ read: true, invalid_run: false });
       assert.exists(usage, "buildSkillUsage が null を返した");
@@ -455,17 +448,7 @@ describe("skill eval result normalization", () => {
         "cat .claude/skills/box/../issue-start/SKILL.md",
       ],
     ])("takes no evidence from %s", (_label, command) => {
-      const usage = buildSkillUsage({
-        config: "without_skill",
-        skill: "box",
-        evidence: evidenceFor(
-          claudeStream([
-            { type: "system", subtype: "init", skills: [] },
-            assistantToolUse("Bash", { command }),
-            RESULT_EVENT,
-          ]),
-        ),
-      });
+      const usage = bashRunUsage("without_skill", command);
 
       expect(usage).toMatchObject({ read: false, unexpected_read: false });
       assert.exists(usage, "buildSkillUsage が null を返した");
@@ -479,17 +462,7 @@ describe("skill eval result normalization", () => {
       ["a read after a test", "test -e x && cat .claude/skills/box/SKILL.md"],
       ["a read after a redirect", "ls 2>&1 && cat .claude/skills/box/SKILL.md"],
     ])("counts %s in a successful and-list", (_label, command) => {
-      const usage = buildSkillUsage({
-        config: "without_skill",
-        skill: "box",
-        evidence: evidenceFor(
-          claudeStream([
-            { type: "system", subtype: "init", skills: [] },
-            assistantToolUse("Bash", { command }),
-            RESULT_EVENT,
-          ]),
-        ),
-      });
+      const usage = bashRunUsage("without_skill", command);
 
       expect(usage).toMatchObject({ read: true, unexpected_read: true });
       assert.exists(usage, "buildSkillUsage が null を返した");
@@ -582,17 +555,7 @@ describe("skill eval result normalization", () => {
       ["a sed script", "sed .claude/skills/box/SKILL.md report.txt"],
       ["an awk program", "awk .claude/skills/box/SKILL.md report.txt"],
     ])("does not treat %s as a file it read", (_label, command) => {
-      const usage = buildSkillUsage({
-        config: "without_skill",
-        skill: "box",
-        evidence: evidenceFor(
-          claudeStream([
-            { type: "system", subtype: "init", skills: [] },
-            assistantToolUse("Bash", { command }),
-            RESULT_EVENT,
-          ]),
-        ),
-      });
+      const usage = bashRunUsage("without_skill", command);
 
       expect(usage).toMatchObject({ read: false, unexpected_read: false });
       assert.exists(usage, "buildSkillUsage が null を返した");
@@ -604,17 +567,7 @@ describe("skill eval result normalization", () => {
       ["a display label", "diff --label .claude/skills/box/SKILL.md a b"],
       ["a short option value", "head -c .claude/skills/box/SKILL.md a"],
     ])("does not treat %s as a file it read", (_label, command) => {
-      const usage = buildSkillUsage({
-        config: "without_skill",
-        skill: "box",
-        evidence: evidenceFor(
-          claudeStream([
-            { type: "system", subtype: "init", skills: [] },
-            assistantToolUse("Bash", { command }),
-            RESULT_EVENT,
-          ]),
-        ),
-      });
+      const usage = bashRunUsage("without_skill", command);
 
       expect(usage).toMatchObject({ read: false, unexpected_read: false });
       assert.exists(usage, "buildSkillUsage が null を返した");
@@ -627,17 +580,7 @@ describe("skill eval result normalization", () => {
       ["an at suffix", "cat .claude/skills/box@backup/SKILL.md"],
       ["a dashed suffix", "cat .claude/skills/box-2/SKILL.md"],
     ])("does not match the subject inside %s", (_label, command) => {
-      const usage = buildSkillUsage({
-        config: "with_skill",
-        skill: "box",
-        evidence: evidenceFor(
-          claudeStream([
-            { type: "system", subtype: "init", skills: ["box"] },
-            assistantToolUse("Bash", { command }),
-            RESULT_EVENT,
-          ]),
-        ),
-      });
+      const usage = bashRunUsage("with_skill", command);
 
       expect(usage).toMatchObject({ read: false, invalid_run: true });
       assert.exists(usage, "buildSkillUsage が null を返した");

@@ -1,0 +1,7 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:40653369576:1,ci,2026-10-28T08:20:40.653Z,p-cdee4961,github-actions,,,,2026-10-28T07:56:57.000Z,2026-10-28T08:00:45.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:40653369646:1,ci,2026-10-28T08:20:40.653Z,p-cdee4961,github-actions,,,,2026-10-28T07:56:57.000Z,2026-10-28T07:57:22.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:40652793741:1,ci,2026-10-28T08:20:40.653Z,p-cdee4961,github-actions,,,,2026-10-28T07:51:38.000Z,2026-10-28T07:51:39.000Z,Asia/Tokyo,feature/659-dedupe-markdown,659,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40652793795:1,ci,2026-10-28T08:20:40.653Z,p-cdee4961,github-actions,,,,2026-10-28T07:51:38.000Z,2026-10-28T07:55:32.000Z,Asia/Tokyo,feature/659-dedupe-markdown,659,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-27T07:51:00.763Z:2026-10-28T08:20:40.653Z,coverage,2026-10-28T08:20:40.653Z,p-cdee4961,,,,,2026-10-27T07:51:00.763Z,2026-10-28T08:20:40.653Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-27T08:20:40.653Z:2026-10-28T08:21:36.788Z,coverage,2026-10-28T08:21:36.788Z,p-cdee4961,,,,,2026-10-27T08:20:40.653Z,2026-10-28T08:21:36.788Z,Asia/Tokyo,,,,,,,,,,,,ok,

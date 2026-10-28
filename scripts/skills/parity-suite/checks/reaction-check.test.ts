@@ -1581,29 +1581,32 @@ test("撮る状態が状態表示だけでも、ページを解けなければ�
   expect(r.stderr).toContain("target.ui_url が絶対 URL（http / https）でも");
 });
 
+/** 同じ path を 2 つの名前で持つページ。 */
+const ALIAS_PAGES = { 共有画面: "share", 共有画面の別名: "share" };
+
+/** コピーは別名を名乗り、検索は本名を名乗って同じ状態名を撮る形にする。reasons は、コピーと検索の shared_capture_reason。 */
+function shareUnderAliases(t: Table, reasons: (string | null)[]) {
+  t.state_displays.pages = Object.keys(ALIAS_PAGES).map((name) => stateDisplayRow(name));
+  t.operations[0].capture_page = "共有画面の別名";
+  t.operations[1].capture_page = "共有画面";
+  const it = searchOp(t).aftermath.look.items[1];
+  it.captured = "copy-toast";
+  it.covered_by = [];
+  copyOp(t).reactions[0].capture.shared_capture_reason = reasons[0];
+  it.shared_capture_reason = reasons[1];
+}
+
 test("別名のページ（同じ path の別の名前）は同じ 1 枚として数え、名乗りの照合も通す（Issue #484）", () => {
-  const pages = { 共有画面: "share", 共有画面の別名: "share" };
-  const metadata = pagesMeta("http://localhost:3000/", pages);
-  // コピーは別名を名乗り、検索は本名を名乗って同じ状態名を撮る
-  const share = (t: Table, reasons: (string | null)[]) => {
-    t.state_displays.pages = Object.keys(pages).map((name) => stateDisplayRow(name));
-    t.operations[0].capture_page = "共有画面の別名";
-    t.operations[1].capture_page = "共有画面";
-    const it = searchOp(t).aftermath.look.items[1];
-    it.captured = "copy-toast";
-    it.covered_by = [];
-    copyOp(t).reactions[0].capture.shared_capture_reason = reasons[0];
-    it.shared_capture_reason = reasons[1];
-  };
+  const metadata = pagesMeta("http://localhost:3000/", ALIAS_PAGES);
   const bare = run(
-    mutated((t: Table) => share(t, [null, null])),
+    mutated((t: Table) => shareUnderAliases(t, [null, null])),
     { metadata },
   );
   expect(bare.status).toBe(1);
   expect(bare.stderr).toContain('撮る状態 "共有画面の別名 の copy-toast" を');
   const both = run(
     mutated((t: Table) =>
-      share(t, [
+      shareUnderAliases(t, [
         "コピーの後に検索しても同じ通知が残り、1 枚に両方が記録されることを実 UI で確かめた",
         "同上",
       ]),
@@ -1615,20 +1618,9 @@ test("別名のページ（同じ path の別の名前）は同じ 1 枚とし�
 });
 
 test("ui_url が runtime で解けない相対の path も、同じ path の別名は同じ 1 枚として数える（Claude Code レビュー #524）", () => {
-  const pages = { 共有画面: "share", 共有画面の別名: "share" };
-  const metadata = pagesMeta("runtime", pages);
-  const share = (t: Table, reasons: (string | null)[]) => {
-    t.state_displays.pages = Object.keys(pages).map((name) => stateDisplayRow(name));
-    t.operations[0].capture_page = "共有画面の別名";
-    t.operations[1].capture_page = "共有画面";
-    const it = searchOp(t).aftermath.look.items[1];
-    it.captured = "copy-toast";
-    it.covered_by = [];
-    copyOp(t).reactions[0].capture.shared_capture_reason = reasons[0];
-    it.shared_capture_reason = reasons[1];
-  };
+  const metadata = pagesMeta("runtime", ALIAS_PAGES);
   const bare = run(
-    mutated((t: Table) => share(t, [null, null])),
+    mutated((t: Table) => shareUnderAliases(t, [null, null])),
     { metadata },
   );
   expect(bare.status).toBe(1);
@@ -1637,7 +1629,7 @@ test("ui_url が runtime で解けない相対の path も、同じ path の別�
   expect(parseJsonAs<CliOutput>(bare.stdout).capture_page_urls.checked).toBe(false);
   const both = run(
     mutated((t: Table) =>
-      share(t, [
+      shareUnderAliases(t, [
         "コピーの後に検索しても同じ通知が残り、1 枚に両方が記録されることを実 UI で確かめた",
         "同上",
       ]),
