@@ -1,0 +1,6 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:40666933463:1,ci,2026-10-28T11:27:04.354Z,p-cdee4961,github-actions,,,,2026-10-28T09:46:59.000Z,2026-10-28T09:50:34.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:40666038701:1,ci,2026-10-28T11:27:04.354Z,p-cdee4961,github-actions,,,,2026-10-28T09:40:10.000Z,2026-10-28T09:40:11.000Z,Asia/Tokyo,feature/659-dedupe-tests,659,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40666038566:1,ci,2026-10-28T11:27:04.354Z,p-cdee4961,github-actions,,,,2026-10-28T09:40:10.000Z,2026-10-28T09:45:43.000Z,Asia/Tokyo,feature/659-dedupe-tests,659,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-27T09:39:19.131Z:2026-10-28T11:27:04.354Z,coverage,2026-10-28T11:27:04.354Z,p-cdee4961,,,,,2026-10-27T09:39:19.131Z,2026-10-28T11:27:04.354Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-27T11:27:04.354Z:2026-10-28T11:52:18.898Z,coverage,2026-10-28T11:52:18.898Z,p-cdee4961,,,,,2026-10-27T11:27:04.354Z,2026-10-28T11:52:18.898Z,Asia/Tokyo,,,,,,,,,,,,ok,
