@@ -9,13 +9,14 @@
 // | 宣言の不備   | lockfile に無い依存 / X.Y.Z でない宣言 / importers の . が依存を持たない文書だけ         |
 // |              | package.json と mise.toml の食い違い / 依存が null / packageManager が文字列でない       |
 // |              | 依存と packageManager の食い違い                                                         |
-// | mise ls      | object でない / 値が配列でない / source.path が無い / requested_version が無い           |
+// | mise ls      | object でない / 値が配列でない / source.path が無い（環境変数など）/ version が無い       |
+// |              | リポジトリの中の別の設定（mise.<env>.toml など）の宣言 / 宣言したと解決したの違い        |
 // |              | mise.toml の宣言が 1 件も無い / 起動できない・0 以外で終わる（例外をそのまま返す）       |
 // |              | 1 つのツールに複数のバージョン                                                           |
 // | 名前の書き方 | 空白 / v / @ / バッククォート / 大文字 / 呼び名（Playwright・Node.js）                   |
 // |              | 呼び名と同じ名前の宣言（宣言を優先する）                                                 |
 // | 名前の境界   | 長い名前（@types/node）/ 名前を含む別の語（mynode）/ 宣言の無い名前（gh）               |
-// | バージョン   | X.Y.Z 一致 / X.Y.Z 不一致 / X.Y / X.Y.Z.W                                               |
+// | バージョン   | X.Y.Z 一致 / X.Y.Z 不一致 / X.Y / X.Y.Z.W / プレリリースの接尾辞                        |
 // | 直後の語     | 以上 / 〜で続く上限 / + / 空白を挟んだ + / +sha512 / 句読点 / 文末の .（どれも除かない）  |
 // | 場所         | Markdown の本文 / コードフェンス / 例の行 / コメント / 文字列 / コメントを持たない拡張子 |
 // | 許可         | 使われる許可 / 使われない許可                                                            |
@@ -160,7 +161,10 @@ test.each<[string, MiseList]>([
   ["出力が object でない", raw([])],
   ["値が配列でない", raw({ node: {} })],
   ["要素が object でない", raw({ node: [null] })],
-  ["source.path が無い", raw({ node: [{ requested_version: "26.12.1" }] })],
+  [
+    "source.path が無い（環境変数の出所）",
+    raw({ node: [{ version: "26.12.1", source: { type: "environment" } }] }),
+  ],
   ["JSON でない", () => "not json"],
   [
     "起動できない",
@@ -176,17 +180,40 @@ test("mise.toml が 1 つのツールに複数のバージョンを宣言する�
   const miseList: MiseList = (root) =>
     JSON.stringify({
       node: ["26.12.1", "24.0.0"].map((v) => ({
-        requested_version: v,
+        version: v,
         source: { path: join(root, "mise.toml") },
       })),
     });
   expect(() => declaredVersions(makeRepo({}), miseList)).toThrow("複数のバージョン");
 });
 
-test("mise.toml の宣言に requested_version が無いときは例外にする", () => {
+test("mise.toml の宣言に version が無いときは例外にする", () => {
   const miseList: MiseList = (root) =>
-    JSON.stringify({ node: [{ version: "26.12.1", source: { path: join(root, "mise.toml") } }] });
-  expect(() => declaredVersions(makeRepo({}), miseList)).toThrow("requested_version");
+    JSON.stringify({
+      node: [{ requested_version: "26.12.1", source: { path: join(root, "mise.toml") } }],
+    });
+  expect(() => declaredVersions(makeRepo({}), miseList)).toThrow("version が無い");
+});
+
+test("リポジトリの中の別の設定が mise.toml の宣言を上書きしたときは、比べられないとして例外にする", () => {
+  const miseList: MiseList = (root) => {
+    write(root, "mise.foo.toml", "");
+    return JSON.stringify({
+      node: [{ version: "24.0.0", source: { path: join(root, "mise.foo.toml") } }],
+      python: [{ version: "3.15.0", source: { path: join(root, "mise.toml") } }],
+    });
+  };
+  expect(() => declaredVersions(makeRepo({}), miseList)).toThrow("上書き");
+});
+
+test("mise.toml の宣言は、宣言した値ではなく mise が解決したバージョンと比べる", () => {
+  const miseList: MiseList = (root) =>
+    JSON.stringify({
+      node: [
+        { version: "26.12.1", requested_version: "26", source: { path: join(root, "mise.toml") } },
+      ],
+    });
+  expect(declaredVersions(makeRepo({}), miseList).get("node")).toBe("26.12.1");
 });
 
 test.each([
@@ -201,6 +228,8 @@ test.each([
   ["文末の .", "Tested with Playwright 1.63.0.", ["Playwright 1.63.0"]],
   ["空白を挟んだ +", "Node 24.0.0 + pnpm 11.0.0 で確かめた。", ["Node 24.0.0", "pnpm 11.0.0"]],
   ["packageManager のハッシュ", "`pnpm@11.0.0+sha512.abc` を書く。", ["pnpm@11.0.0"]],
+  ["宣言と同じ X.Y.Z のプレリリース", "Node 26.12.1-rc.1 で確かめた。", ["Node 26.12.1-rc.1"]],
+  ["プレリリースは接尾辞まで報告する", "Node 24.0.0-rc.1 で確かめた。", ["Node 24.0.0-rc.1"]],
   ["直後の以上", "Python 3.8.0 以上が要る。", ["Python 3.8.0"]],
   ["直後の以下", "Node 24.0.0 以下で起きる。", ["Node 24.0.0"]],
   ["直後のより古い", "Node 24.2.0 より古い版。", ["Node 24.2.0"]],

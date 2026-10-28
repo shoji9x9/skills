@@ -39,6 +39,12 @@
       "rule": "version-mention",
       "text": "pnpm 11.23.0",
       "reason": "エラーを確かめたバージョンの記録。配布先の pnpm はこのリポジトリの宣言と関係しない"
+    },
+    {
+      "file": "scripts/mutation/check-mutation-proof.test.ts",
+      "rule": "version-mention",
+      "text": "vitest 5.0.3",
+      "reason": "偽物の出力の形を、vitest 5.0.3 で実行して確かめた記録で、確かめたバージョンが意味を持つ"
     }
   ]
 }

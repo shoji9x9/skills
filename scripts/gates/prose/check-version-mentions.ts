@@ -12,16 +12,18 @@
 //   メジャーやマイナーの境目（「Node 24.2 より古い版」「vitest 5」）を表し、パッチの更新では古くならないからである。
 //   直後の語（「以上」「〜」など）では除かない。範囲の書き方は閉じないので、宣言と違う X.Y.Z はすべて違反にし、
 //   正しい記述（必要な最低のバージョンなど）は下の許可で通す。
-//   英語の文の文末の `.` は記述に含めない（「Tested with Playwright X.Y.Z.」も読む）。`.` の後に数字が続く X.Y.Z.W は見ない。
+//   プレリリースの接尾辞（`-rc.1` など）は記述に含めて比べる。
+//   英語の文の文末の `.` は記述に含めない（Markdown の「Tested with Playwright X.Y.Z.」も読む）。`.` の後に数字が続く X.Y.Z.W は見ない。
 // - 走査対象は scripts/gates/docs/doc-scan-files.ts と同じ（Tier 1〜3）。Markdown はコードフェンスの外の本文を、
 //   それ以外はコメントの文章（scripts/lib/text/code-comments.ts）を読む。名前をバッククォートで囲んだ記述も読む。
+//   code-comments.ts は日本語を含まない段落を返さないので、英語だけのコメントは読まない（このリポジトリのコメントは日本語で書く）。
 //   例の行（scripts/lib/doc-scan.ts の EXAMPLE_LINE_RE）は読まない。
 // - 違反の形だが正しい記述（上流のソースのタグ・古いバージョンの挙動の記録・必要な最低のバージョン）は、
 //   scripts/gates/docs/doc-allowed.json に規則 version-mention で理由付きで許可する（使われていない許可は失敗にする）。
 // 宣言を読めない（mise を起動できない場合を含む）・解決したバージョンが X.Y.Z でない・対象ファイルが 0 件のときは exit 2。違反は exit 1。
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, sep } from "node:path";
 import { applyAllowed, EXAMPLE_LINE_RE, fencedLines, loadAllowed } from "../../lib/doc-scan.ts";
 import { scannedFiles } from "../docs/doc-scan-files.ts";
 import { commentMarkdown, hasComments } from "../../lib/text/code-comments.ts";
@@ -125,12 +127,15 @@ export type MiseList = (root: string) => string;
 const MISE_TIMEOUT_MS = 30_000;
 
 /**
- * mise.toml の宣言を上書きする設定（mise.local.toml・mise.<env>.toml・.tool-versions・MISE_<TOOL>_VERSION）を読ませない環境変数。
- * 上書きされると mise ls はその設定の宣言だけを返し、mise.toml の宣言が一覧から消える。
+ * mise.toml の宣言を上書きする設定（mise.local.toml・mise.<env>.toml・.tool-versions・MISE_<TOOL>_VERSION・MISE_ENV）を、
+ * なるべく読ませない環境変数。上書きされると mise ls はその設定の宣言だけを返す。
+ * ここで止めきれない上書きは、ownVersion が比べられないとして例外にする（止める種類を数え切ることを前提にしない）。
  */
 function miseEnv(): NodeJS.ProcessEnv {
   const env = Object.fromEntries(
-    Object.entries(process.env).filter(([k]) => !/^MISE_[A-Z0-9_]+_VERSION$/.test(k)),
+    Object.entries(process.env).filter(
+      ([k]) => k !== "MISE_ENV" && !/^MISE_[A-Z0-9_]+_VERSION$/.test(k),
+    ),
   );
   return {
     ...env,
@@ -156,7 +161,8 @@ const runMiseList: MiseList = (root) => {
 /**
  * mise.toml の [tools] の宣言を、mise 自身に解決させて読む（TOML を自前で解析しない）。
  * mise はグローバルの設定の宣言も返すので、`source.path` がリポジトリの mise.toml のものだけを使う。
- * バージョンは宣言した値（`requested_version`）で、X.Y.Z でなければ declaredVersions が例外にする。
+ * バージョンは mise が解決したバージョン（`version`。mise.lock で固定した値）で、package.json の側と同じく解決した値と比べる。
+ * X.Y.Z でなければ declaredVersions が例外にする。
  * mise.toml が無ければ mise を起動しない。在るのに 1 件も読めない・形が違うときは例外にする。
  */
 function miseTools(root: string, miseList: MiseList): [string, string][] {
@@ -179,15 +185,28 @@ function miseTools(root: string, miseList: MiseList): [string, string][] {
   return out;
 }
 
-/** mise ls の 1 件が own（リポジトリの mise.toml）の宣言なら、宣言したバージョンを返す。ほかの設定の宣言なら undefined。 */
+/**
+ * mise ls の 1 件が own（リポジトリの mise.toml）の宣言なら、解決したバージョンを返す。
+ * リポジトリの外の設定（グローバルの設定）の宣言なら undefined。
+ * リポジトリの中の別の設定（mise.<env>.toml・mise.local.toml など）と、ファイルを持たない出所（環境変数など）の宣言は、
+ * mise.toml の宣言を上書きしていて比べられないので例外にする。読み飛ばすと、そのツールだけが警告なしに突き合わせから抜ける。
+ */
 function ownVersion(name: string, entry: unknown, own: string): string | undefined {
   if (!isRecord(entry)) throw new Error(`mise ls の ${name} の要素が object でない`);
-  const source = isRecord(entry.source) ? entry.source.path : undefined;
-  if (typeof source !== "string") throw new Error(`mise ls の ${name} に source.path が無い`);
-  if (!existsSync(source) || realpathSync(source) !== own) return undefined;
-  const version = entry.requested_version;
-  if (typeof version !== "string")
-    throw new Error(`mise ls の ${name} に requested_version が無い`);
+  const source = isRecord(entry.source) ? entry.source : {};
+  if (typeof source.path !== "string")
+    throw new Error(
+      `mise ls の ${name} の出所（${String(source.type)}）がファイルでなく、mise.toml の宣言と比べられない`,
+    );
+  const path = existsSync(source.path) ? realpathSync(source.path) : source.path;
+  if (path !== own) {
+    if (!path.startsWith(dirname(own) + sep)) return undefined;
+    throw new Error(
+      `${source.path} が ${name} の宣言を上書きしていて、mise.toml の宣言と比べられない`,
+    );
+  }
+  const version = entry.version;
+  if (typeof version !== "string") throw new Error(`mise ls の ${name} に version が無い`);
   return version;
 }
 
@@ -207,7 +226,7 @@ function mentionPattern(declared: Declared) {
   const names = [...new Set([...declared.keys(), ...ALIASES.keys()])].sort(
     (a, b) => b.length - a.length,
   );
-  const source = `(?<![\\w@/.-])(${names.map(escapeRe).join("|")})(?:@|\\s*v?)(\\d+\\.\\d+\\.\\d+)(?!\\w|\\.\\d)`;
+  const source = `(?<![\\w@/.-])(${names.map(escapeRe).join("|")})(?:@|\\s*v?)(\\d+\\.\\d+\\.\\d+(?:-[0-9a-z]+(?:\\.[0-9a-z]+)*)?)(?!\\w|\\.\\d)`;
   const built = { all: new RegExp(source, "gi"), probe: new RegExp(source, "i") };
   patterns.set(declared, built);
   return built;

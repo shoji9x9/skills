@@ -91,7 +91,7 @@ const lockDir = makeSharedTempDir("mutation-proof-lock-");
 // 引数は vitest と同じ `run <testFile> --reporter=json --outputFile=<path>` を受ける。
 // 結果は**実物の JSON reporter と同じ単位**で書く。
 // 単位は `testResults[].assertionResults[]` の `fullName` / `status` / `title` / `ancestorTitles` / `failureMessages` である。
-// 形は、fixture を本物の vitest 4 で実行した出力から作った。vitest 5 の出力でも、上の単位とフィールドは同じだった。
+// 形は、fixture を本物の vitest 4 で実行した出力から作った。vitest 5.0.3 の出力でも、上の単位とフィールドは同じだった。
 const STUB_COMMAND = join(lockDir, "stub-vitest.js");
 
 // 存在しえない pid（Linux の pid_max の上限より大きい）。中断で残った一時ファイルの名前に使う。
