@@ -1162,7 +1162,11 @@ describe("compare", () => {
   });
 
   /** 基準にある最初の組について、lcp に override を重ねる。返すのは、compareRun に渡す基準と metadata。 */
-  const withBaseLcp = (override: object) => {
+  const withBaseLcp = (
+    override: Partial<
+      ReturnType<typeof summarized>["meta"]["performance"]["pairs"][number]["metrics"]["lcp"]
+    >,
+  ) => {
     const base = summarized();
     const pairs = structuredClone(base.meta.performance.pairs);
     pairs[0].metrics.lcp = { ...pairs[0].metrics.lcp, ...override };

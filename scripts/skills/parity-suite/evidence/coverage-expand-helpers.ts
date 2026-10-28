@@ -354,13 +354,10 @@ export function profileProblems(
   return problems;
 }
 
-/** DataGrid の列挙。_cross のテストと同じ列挙を使う。 */
-export const enumeration = datagridEnumeration;
-
 /** 上の列挙から展開される全候補を present で埋めた網羅表。 */
 export function datagridCoverage() {
   const profile = bundledProfile("datagrid");
-  const { elements } = readEnumeration(enumeration(), profile, "t");
+  const { elements } = readEnumeration(datagridEnumeration(), profile, "t");
   const candidates: ExpandedCandidate[] = expandCandidates(profile, elements);
   return resolveVisualStates({
     slug: "order-list",
@@ -380,7 +377,7 @@ export function datagridCoverage() {
             id: "orders",
             page: "受注一覧",
             locator: "orders.grid",
-            enumeration: enumeration(),
+            enumeration: datagridEnumeration(),
             candidates: candidates.map((c) => c.id),
           },
         ],

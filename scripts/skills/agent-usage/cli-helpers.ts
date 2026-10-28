@@ -1,6 +1,6 @@
 // cli.test.ts のヘルパー。
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { expect } from "vitest";
 import { encodeProjectPath } from "../../../skills/agent-usage/scripts/lib/sources/discover.mjs";
@@ -164,6 +164,7 @@ export function copyLogLines(
 /** 記録を置くディレクトリ（records）、その下にある人ごとのディレクトリの名前（person）、ブランチごとのファイルを置くディレクトリ（branches）。 */
 export function recordDirs(repo: string) {
   const records = join(repo, ".agent-usage", "records");
+  expect(existsSync(records), "記録のディレクトリ（.agent-usage/records）が無い").toBe(true);
   const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
   // 無ければ branches が records/branches になり、呼び出し元が原因の分からない ENOENT で失敗する
   expect(person, "records の下に人ごとのディレクトリ（p-）が無い").not.toBe("");

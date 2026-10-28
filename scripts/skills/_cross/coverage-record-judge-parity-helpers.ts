@@ -87,11 +87,6 @@ export const { profiles } = loadProfiles(
 
 export const SLUG = "order-list";
 
-/** DataGrid の列挙（coverage-fixture-helpers.ts の datagridEnumeration）。記録の側と判定の側に同じ入力を渡す。 */
-export function enumeration(): Enumeration {
-  return datagridEnumeration();
-}
-
 const presentCell = (component: string, item: string, instance: string): Cell => ({
   component,
   item,
@@ -105,7 +100,7 @@ const presentCell = (component: string, item: string, instance: string): Cell =>
 export function profiled(): ProfiledFixture {
   const profile = profiles.get("datagrid");
   assert.exists(profile, "同梱プロファイル datagrid が無い");
-  const { elements } = readEnumeration(enumeration(), profile, "t");
+  const { elements } = readEnumeration(datagridEnumeration(), profile, "t");
   const candidates: ExpandedCandidate[] = expandCandidates(profile, elements);
   return {
     slug: SLUG,
@@ -121,7 +116,7 @@ export function profiled(): ProfiledFixture {
         instances: [
           {
             id: "orders",
-            enumeration: enumeration(),
+            enumeration: datagridEnumeration(),
             candidates: candidates.map((c) => c.id),
           },
         ],

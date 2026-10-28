@@ -34,7 +34,6 @@ import {
   chartCoverage,
   type Coverage,
   datagridCoverage,
-  enumeration,
   type EquivalenceClass,
   type ExpandedCandidate,
   expectBoxAndDisplayChecked,
@@ -86,6 +85,7 @@ import {
 } from "./coverage-expand-helpers.ts";
 import {
   componentInventory,
+  datagridEnumeration,
   findOrFail,
   instanceInventory,
   reconcile,
@@ -453,7 +453,7 @@ test("required_rules の代替の組の形を検査する", () => {
 test("初期非表示で表示切替できる列にも、行の選択の塗りの候補が立つ（Issue #471 レビュー）", () => {
   // 列を出してから行を選ぶ操作。初期表示の列だけを候補にすると、出した列の塗りの差が撮られない。
   const profile = bundledProfile("datagrid");
-  const en = enumeration();
+  const en = datagridEnumeration();
   en.elements.column.push({
     id: "memo",
     flags: {
@@ -1448,9 +1448,9 @@ test("列挙の出所も一次情報源を使わなかった理由を要求す�
   const profile = bundledProfile("datagrid");
 
   // 通ることの確認: current-source で列挙した記録は使える。
-  expect(readEnumeration(enumeration(), profile, "t").usable).toBe(true);
+  expect(readEnumeration(datagridEnumeration(), profile, "t").usable).toBe(true);
 
-  const walked = enumeration();
+  const walked = datagridEnumeration();
   walked.source.kind = "app-ui";
   walked.source.ref = "受注一覧を歩いた";
   const noReason = readEnumeration(walked, profile, "t");
@@ -1467,7 +1467,10 @@ test("列挙の出所も一次情報源を使わなかった理由を要求す�
   expect(readEnumeration(declared, profile, "t").usable).toBe(true);
 
   // 一次情報源を使ったのに理由が残っていれば機能していない免除として落とす。
-  const stale = { ...enumeration(), stronger_source_unavailable_reason: "未受領（古い記録）" };
+  const stale = {
+    ...datagridEnumeration(),
+    stronger_source_unavailable_reason: "未受領（古い記録）",
+  };
   const staleResult = readEnumeration(stale, profile, "t");
   expect(staleResult.usable).toBe(false);
   expect(staleResult.problems.join("\n")).toMatch(
@@ -1477,7 +1480,7 @@ test("列挙の出所も一次情報源を使わなかった理由を要求す�
   // complete: true なのに incomplete_reason が残る記録も同じ扱い（同じ表の中で「完全」と「未完了」を
   // 同時に主張させない）。集合の出所だけに当てて列挙側を素通りさせない。
   const staleReason = {
-    ...enumeration(),
+    ...datagridEnumeration(),
     incomplete_reason: "列定義が動的生成で読み切れない（complete を true へ直したときの残り）",
   };
   const staleReasonResult = readEnumeration(staleReason, profile, "t");
@@ -1487,9 +1490,9 @@ test("列挙の出所も一次情報源を使わなかった理由を要求す�
   );
 
   // 通ることの確認: null / キー無しは通る（常に落とす実装を弾く）。
-  expect(readEnumeration({ ...enumeration(), incomplete_reason: null }, profile, "t").usable).toBe(
-    true,
-  );
+  expect(
+    readEnumeration({ ...datagridEnumeration(), incomplete_reason: null }, profile, "t").usable,
+  ).toBe(true);
 });
 
 test("プロファイルの形式検査: enumeration.sources は強い順に並んでいなければ落とす", () => {

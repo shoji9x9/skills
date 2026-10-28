@@ -5,7 +5,6 @@ import * as expand from "../../../skills/parity-suite/scripts/coverage-expand.mj
 import * as check from "../../../skills/parity-diff/scripts/coverage-check.mjs";
 import {
   counts,
-  enumeration,
   fingerprintFixture,
   type Fixture,
   generic,
@@ -17,6 +16,7 @@ import {
   variant,
 } from "./coverage-record-judge-parity-helpers.ts";
 import {
+  datagridEnumeration,
   componentInventory,
   findOrFail,
   instanceInventory,
@@ -96,7 +96,9 @@ const CASES: Array<[string, "eq" | "ge", () => Fixture]> = [
   [
     "プロファイル: インスタンス id が空",
     "eq",
-    variant(profiled, (c) => grid(c).instances.push(invalidInput({ enumeration: enumeration() }))),
+    variant(profiled, (c) =>
+      grid(c).instances.push(invalidInput({ enumeration: datagridEnumeration() })),
+    ),
   ],
   [
     "プロファイル: インスタンス id に区切り文字",
