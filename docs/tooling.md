@@ -140,7 +140,7 @@ hotspot・一緒に変更されたファイルの組と、候補のうち一緒�
 ファイルの点数の要素のうち、使われていないコードと複雑度は上の検査が、CRAP は CI の検査が判定している。
 依存の数（fan-in・fan-out）と保守性の指数は、どの検査も判定しない。共通の部品は依存が多いのが役割で、保守性の指数を下げる主な原因の複雑な関数は、関数ごとの上限で止めている。
 
-複雑度の指摘はベースラインに載せず、関数を分けて直す。
+循環的複雑度と認知的複雑度の指摘はベースラインに載せず、関数を分けて直す。CRAP のベースラインの扱いは、下の CI の検査の項にある。
 すぐに直せない既存の指摘（使われていないコード・依存など）は、`.config/fallow/dead-code-baseline.json` に載せて外す。直したら、`fallow --skip dupes --skip health --save-baseline .config/fallow/dead-code-baseline.json` で作り直す。
 使われていない export は、`fallow fix --dry-run` で提案を確かめてから `fallow fix` で直す。`fallow fix` は `export` を外し、依存を消すので、pre-commit と CI では自動に適用しない。
 誤検知は、`base.jsonc` で理由を書いて外す。配布スキルには `fallow-ignore` のコメントを置かない。
@@ -150,6 +150,8 @@ CI だけで実行する検査が 2 つある。
 - `Unit tests` ジョブの CRAP（`pnpm run lint:crap`）: 複雑なのにテストが通っていない関数。カバレッジは、`pnpm run test:coverage` が残す V8 の記録（`node_modules/.cache/coverage/v8/`）を渡す。
   `coverage-final.json` は名前の無い関数（コールバックなど）を持たないので、渡すと fallow がそれらのカバレッジを推定する。
   カバレッジが無いと値を推定して誤検知が多くなるので、pre-commit には入れない。既存の指摘は `.config/fallow/crap-baseline.json`。
+  作り直すときは、`pnpm run test:coverage` を全体で実行してから `fallow health --complexity -c .config/fallow/crap.jsonc --coverage node_modules/.cache/coverage/v8 --save-baseline .config/fallow/crap-baseline.json` を実行する。
+  `--complexity` を外すと、判定に使わないリファクタリングの候補（`target_keys`）もベースラインに入る。
   ブラウザでだけ実行する関数（Playwright の spec の雛形 `skills/*/assets/*.spec.template.ts` と、eval の fixture をブラウザで作るジェネレータ）は、ユニットテストで実行できないので、ベースラインに載せたままにする
 - `Lint` ジョブの `Test weakening`（`fallow audit`）: PR が増やした、テストを弱める変更（`.skip`・`.only` の追加、テストのケースや assertion の減少、カバレッジの閾値の引き下げ）。PR のベースとの差分を見るので、PR でだけ実行する。
   意図して弱めるときは、理由を付けた `fallow-ignore-next-line weakened-tests` を書く
