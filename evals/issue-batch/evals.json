@@ -76,6 +76,24 @@
         "上限 1 では、指摘を直した後に手元でレビューし直さず、直した変更を pr-finalize-loop のレビューに任せる",
         "kaizen extract --current --record-pending を使い apply / archive / delete を行わない",
         "PR 本文に Closes #101、検証、browser、Kaizen の結果を含める"
+      ],
+      "reachability": [
+        {
+          "assertion": "codex review --uncommitted で staged / unstaged / untracked をレビューする",
+          "prompt_quote": "現在の agent は Codex"
+        },
+        {
+          "assertion": "上限 1 では、指摘を直した後に手元でレビューし直さず、直した変更を pr-finalize-loop のレビューに任せる",
+          "prompt_quote": "ローカルレビュー上限は 1"
+        },
+        {
+          "assertion": "kaizen extract --current --record-pending を使い apply / archive / delete を行わない",
+          "prompt_quote": "ローカルレビューから Kaizen"
+        },
+        {
+          "assertion": "PR 本文に Closes #101、検証、browser、Kaizen の結果を含める",
+          "prompt_quote": "PR 作成までの handoff"
+        }
       ]
     },
     {
