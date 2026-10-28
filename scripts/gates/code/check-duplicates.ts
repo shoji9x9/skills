@@ -28,6 +28,7 @@
 import { spawnSync } from "node:child_process";
 import {
   copyFileSync,
+  globSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -36,7 +37,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, dirname, join, matchesGlob, relative, sep } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { errorMessage } from "../../lib/errors.ts";
 import { isRecord } from "../../lib/guards.ts";
@@ -58,17 +59,34 @@ export const DECLARED_PATH = ".config/jscpd/declared-groups.json";
 /** テストのコードどうしで見つかった重複を載せるベースライン。 */
 export const TEST_BASELINE_PATH = ".config/jscpd/baseline-tests.json";
 
-/** テストのコード（リポジトリの根からのパス）。テストと、テストだけが使うヘルパー・fixture を置く場所。 */
-const TEST_GLOBS = ["scripts/**/*.test.ts", "scripts/skills/**", "scripts/lib/testing/**"];
+/** テストだけを置くディレクトリ（リポジトリの根からのパス）。テストのヘルパーと fixture もここに置く。 */
+const TEST_DIRS = ["scripts/skills/", "scripts/lib/testing/"];
 /** テストどうしの重複の閾値。デフォルトの 50 では、各テストに書いた準備と assertion の短い並びが重複になる。 */
 const TEST_MIN_TOKENS = 100;
 
-// jscpd の --pattern は . で始まるディレクトリやファイルにも一致するが、matchesGlob の ** と * は一致しない。
-// 2 回の走査でテストのコードの範囲をそろえるため、各要素の先頭の . を除いてから照合する。
-export const isTestCode = (file: string) => {
-  const name = file.replace(/(^|\/)\.+/g, "$1");
-  return TEST_GLOBS.some((g) => matchesGlob(name, g));
-};
+/**
+ * テストのコードか。`scripts/` の `*.test.ts` と、TEST_DIRS の中のファイル（. で始まる名前を含む）。
+ * glob の照合（matchesGlob）は . で始まる名前に当たらず、fixture の `.agents/` などを外すので、前方一致で判定する。
+ */
+export const isTestCode = (file: string) =>
+  TEST_DIRS.some((d) => file.startsWith(d)) ||
+  (file.startsWith("scripts/") && file.endsWith(".test.ts"));
+
+// 2 回目の走査に渡す glob。jscpd の --pattern はパスの途中にも一致するので、2 回目の走査に入っても isTestCode が
+// false のファイルは、2 回目では数えず、1 回目でテスト以外として数える（2 回の走査の keep を参照）。
+const TEST_GLOBS = ["scripts/**/*.test.ts", ...TEST_DIRS.map((d) => `${d}**`)];
+
+/** テストのコードがあるか。--pattern はパスの途中にも一致するので、2 回目の走査の件数ではこれを確かめられない。 */
+function hasTestCode(root: string): boolean {
+  return globSync("scripts/**/*", {
+    cwd: root,
+    withFileTypes: true,
+    exclude: (d) => d.name === "node_modules",
+  }).some(
+    (d) =>
+      d.isFile() && isTestCode(relative(root, join(d.parentPath, d.name)).split(sep).join("/")),
+  );
+}
 
 /** jscpd を 1 回実行する走査。keep は、その走査で数える重複か。 */
 type Scan = { name: string; baseline: string; args: string[]; keep: (c: Clone) => boolean };
@@ -252,6 +270,8 @@ function jscpdArgs(root: string, output: string, run: Run): string[] {
 /** jscpd を実行してレポートを読み、その走査で数える重複に絞る。断片の名前は root からの相対パスにする。失敗は例外にする。 */
 function runJscpd(root: string, run: Run): { sources: number; clones: Clone[] } {
   const output = mkdtempSync(join(tmpdir(), "jscpd-"));
+  // jscpd はベースラインを作るときに親のディレクトリを作らない。
+  if (run.updateBaseline) mkdirSync(dirname(run.baseline), { recursive: true });
   try {
     const res = spawnSync("pnpm", jscpdArgs(root, output, run), {
       cwd: TOOL_ROOT,
@@ -312,6 +332,7 @@ function runScans(
     ...runJscpd(root, { scan, ignore, baseline: baselineOf(scan), updateBaseline }),
   }));
   const empty = results.filter((r) => r.sources === 0).map((r) => r.scan.name);
+  if (!hasTestCode(root)) empty.push("TEST_GLOBS に当たるファイル");
   if (empty.length) {
     throw new Error(
       `走査したファイルが 0 件（${empty.join("・")}。設定の形式と除外、TEST_GLOBS を確かめる）`,
@@ -325,7 +346,7 @@ function replaceBaselines(root: string, staging: string, groups: readonly CopyGr
   for (const scan of SCANS) {
     const target = join(root, scan.baseline);
     mkdirSync(dirname(target), { recursive: true });
-    copyFileSync(join(staging, basename(scan.baseline)), target);
+    copyFileSync(join(staging, scan.baseline), target);
   }
   const files = groups.map((g) => [...g.files].sort());
   writeFileSync(join(root, DECLARED_PATH), `${JSON.stringify({ groups: files }, null, 2)}\n`);
@@ -353,8 +374,7 @@ export function main(argv: string[], root = process.cwd()): number {
   // jscpd の失敗や走査の 0 件で、一部のベースラインだけが置き換わったまま残らないようにする。置き換えの途中のファイルの
   // 書き込みの失敗（容量不足など）までは防げないが、そのときも exit 2 になるので、--update-baseline を実行し直せば 3 つとも作り直す。
   const staging = updateBaseline ? mkdtempSync(join(tmpdir(), "jscpd-baseline-")) : undefined;
-  const baselineOf = (scan: Scan) =>
-    staging ? join(staging, basename(scan.baseline)) : join(root, scan.baseline);
+  const baselineOf = (scan: Scan) => join(staging ?? root, scan.baseline);
   try {
     // ベースラインを書き換える前に宣言を読む。宣言が不正なら、ベースラインだけが置き換わったまま残らないよう、jscpd を実行しない。
     const groups = updateBaseline ? loadGroups(root) : [];
@@ -369,7 +389,8 @@ export function main(argv: string[], root = process.cwd()): number {
         results.flatMap((r) => r.clones),
       );
     replaceBaselines(root, staging, groups);
-    console.log(`duplicates: ベースラインを作り直した（${summary}）`);
+    // 1 回目のベースラインには、数えないテストどうしの重複の指紋も入るので、表示の件数より多い。
+    console.log(`duplicates: ベースラインを作り直した（数える重複の件数。${summary}）`);
     return 0;
   } catch (error) {
     console.error(`duplicates: 判定できない: ${errorMessage(error)}`);

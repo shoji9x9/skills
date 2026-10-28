@@ -417,6 +417,12 @@ test.each<[string, Placement]>([
   expect(main([], root)).toBe(code);
 });
 
+test("main: scripts/ の外の .test.ts だけがあり、テストのコードが無ければ、判定できないので exit 2", () => {
+  const root = makeRepo({ "a.ts": OTHER, "other/scripts/t.test.ts": TEST_FILE });
+  rmSync(join(root, "scripts/t.test.ts"));
+  expect(main(["--update-baseline"], root)).toBe(2);
+});
+
 test("main: テストのコードが無く 2 回目の走査が 0 件なら、判定できないので exit 2 にし、ベースラインを書かない", () => {
   const root = makeRepo({ "a.ts": OTHER });
   rmSync(join(root, "scripts/t.test.ts"));
@@ -436,6 +442,8 @@ test.each([
   ["scripts/lib/guards.ts", false],
   ["skills/kaizen/scripts/kaizen-archive.sh", false],
   ["skills/x/y.test.ts", false],
+  [".scripts/skills/c.ts", false],
+  ["scripts/.lib/testing/x.ts", false],
 ])("isTestCode: %s → %s", (file, expected) => {
   expect(isTestCode(file)).toBe(expected);
 });
