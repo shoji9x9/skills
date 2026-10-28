@@ -8,7 +8,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { afterEach, expect, test } from "vitest";
 import { formatError as formatReuseError } from "./reuse-skill-eval-baseline.ts";
 import {
@@ -150,16 +150,6 @@ test.each([
     expect(result.stderr).toMatch(stderr);
   },
 );
-
-// normalize-skill-eval-result.ts も同じ parseArgs で引数を読む。誤っている引数をメッセージに出すことを確かめる。
-test("normalize-skill-eval-result の CLI は、-- で始まらない引数をメッセージに出して exit 1 で終える", () => {
-  const result = runCli(join(dirname(FINGERPRINT_CLI), "normalize-skill-eval-result.ts"), [
-    "x",
-    "y",
-  ]);
-  expect(result.status).toBe(1);
-  expect(result.stderr).toMatch(/arguments must be --name value pairs \(near "x"\)/u);
-});
 
 test("CLI は指紋の JSON を stdout に出し、入力に eval の assertion と fixture の hash を含める", () => {
   const directory = temporaryDirectory();

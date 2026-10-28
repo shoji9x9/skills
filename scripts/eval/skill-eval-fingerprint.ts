@@ -3,7 +3,7 @@ import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { parseJsonAs } from "../lib/parse-as.ts";
 import { isArray } from "../lib/is-array.ts";
-import { parseArgs } from "../lib/cli-args.ts";
+import { parseArgs } from "../lib/cli/args.ts";
 
 // One entry of evals.json, as far as this reads it.
 type EvalDefinition = { id?: unknown; assertions?: unknown; requires_skills?: unknown };

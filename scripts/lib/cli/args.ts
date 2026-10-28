@@ -1,6 +1,6 @@
 // `--名前 値` の組を並べた CLI の引数を読む処理。
 
-/** `--名前 値` の組を並べた引数を読む。引数を誤っている箇所を、引用符で囲んでメッセージに出す。 */
+/** `--名前 値` の組を並べた引数を読む。`--` で始まらない引数は引用符で囲み、値の無いフラグはその名前をメッセージに出す。 */
 export function parseArgs(argv: string[]): Record<string, string> {
   const values: Record<string, string> = {};
   for (let index = 0; index < argv.length; index += 2) {
