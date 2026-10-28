@@ -21,7 +21,6 @@
 // 使い方: node lifecycle-check.mjs --build-metadata <new/<target>/build-metadata.json>
 // 終了コード: 0 ＝ 条件を満たす（対象でない場合を含む）、1 ＝ 不足が残る、2 ＝ 使い方の誤り・型崩れ。
 
-import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 
@@ -250,11 +249,11 @@ export function checkLifecycle(metadata) {
 /**
  * CLI 本体。
  * @param {string[]} argv
- * @param {{ cwd?: string, write?: (s: string) => void, writeErr?: (s: string) => void }} [io]
+ * @param {{ readFile?: (path: string) => string, cwd?: string, write?: (s: string) => void, writeErr?: (s: string) => void }} [io]
  * @returns {number} 終了コード
  */
 export function main(argv, io = {}) {
-  const { cwd, write, writeErr } = cliIo(io);
+  const { readFile, cwd, write, writeErr } = cliIo(io);
   const fail = usageFailer(
     writeErr,
     "usage: lifecycle-check.mjs --build-metadata <new/<target>/build-metadata.json>",
@@ -265,7 +264,7 @@ export function main(argv, io = {}) {
   if (!nonEmptyString(argv[1])) return fail("--build-metadata は必須（空白だけの値も不可）");
   let metadata;
   try {
-    metadata = JSON.parse(readFileSync(resolve(cwd, argv[1]), "utf8"));
+    metadata = JSON.parse(readFile(resolve(cwd, argv[1])));
   } catch (error) {
     return fail(`build-metadata.json を読めない: ${String(field(error, "message"))}`);
   }

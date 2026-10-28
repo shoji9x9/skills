@@ -207,3 +207,23 @@ test("順番の見本が catalog.stories にも載っていれば落とし、対
   ]);
   expect(checkLifecycle({ lifecycle: lifecycleOf() }).structural).toBe(true);
 });
+
+test("main は差し込んだ readFile で build-metadata.json を読み、cwd からのパスを渡す", () => {
+  const read: string[] = [];
+  const out: string[] = [];
+  const err: string[] = [];
+  const code = main(["--build-metadata", "new/x/build-metadata.json"], {
+    cwd: "/work",
+    readFile: (p: string) => {
+      read.push(p);
+      return "{}";
+    },
+    write: (s: string) => void out.push(s),
+    writeErr: (s: string) => void err.push(s),
+  });
+  // 中身（lifecycle が無い）を読めたので、読めない誤りではなく構造の誤りとして JSON を出す。
+  expect(code).toBe(2);
+  expect(read).toEqual(["/work/new/x/build-metadata.json"]);
+  expect(err).toEqual([]);
+  expect(parseJsonAs<{ structural: boolean }>(out.join("")).structural).toBe(true);
+});

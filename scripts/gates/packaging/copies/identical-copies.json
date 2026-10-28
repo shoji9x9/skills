@@ -99,7 +99,7 @@
         "skills/parity-component/scripts/lib/check-cli.mjs",
         "skills/golden-dataset/scripts/lib/check-cli.mjs"
       ],
-      "reason": "検査の CLI の引数の読み取りと、判定の結果の JSON の形と終了コード。スキルの中で完結させるためにコピーする。片方だけを直すと、同じ形の CLI がスキルごとに別の引数を受け付けたり、別の形の結果を出したりする"
+      "reason": "検査をする CLI が `--名前 値` の引数を読む処理と、判定した結果を JSON で書いて終了コードを返す処理。スキルの中で完結させるためにコピーする。片方だけを直すと、同じ形の CLI がスキルごとに別の引数を受け付けたり、別の形の結果を出したりする"
     },
     {
       "files": [

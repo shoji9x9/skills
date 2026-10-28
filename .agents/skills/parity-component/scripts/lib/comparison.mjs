@@ -1,4 +1,4 @@
-// parity-component の部品の比較（behavior-compare.mjs・motion-compare.mjs）が共有する処理。
+// 部品を比べる 2 つの CLI（behavior-compare.mjs・motion-compare.mjs）が共有する処理。
 // 突き合わせ表の読み取りと検査、比べないことを選んだ行（disposition）の検査、CLI 本体を置く。
 // 片方の CLI のファイルにこれらを置くと、その CLI を直したときにもう片方の判定と出力も変わり、版の管理が食い違う。
 
