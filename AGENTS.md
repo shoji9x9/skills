@@ -30,6 +30,7 @@ Claude Code・Codex・GitHub Copilot に対応した、マルチエージェン�
 | GitHub Actions | `actionlint` と `ghalint`、SHA の固定は `pinact` | `oxfmt` |
 
 `fallow` と `jscpd` は pre-commit と CI で実行する。すぐに直せない既存の指摘は、`.config/fallow/` と `.config/jscpd/` のベースラインに載せて外す。
+ただし、`fallow` の循環的複雑度と認知的複雑度の指摘はベースラインに載せず、関数を分けて直す。
 `fallow` のうち、カバレッジを使う CRAP と、テストを弱めた変更の検査（`fallow audit`）は CI だけで実行する。
 
 JavaScript の拡張子は、配布する `skills/**` では `.mjs` にする。配布しない `scripts/**` と private skill は TypeScript（`.ts`）で書く。

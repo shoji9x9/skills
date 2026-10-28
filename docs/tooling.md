@@ -132,7 +132,15 @@ fallow はドットで始まるディレクトリを走査しないので、イ�
 参照の向きは、fallow の構文の解析が読む参照（`import`・`export from`・`import()`・`require()`・`import type`・JSDoc の `{import("…")}`・`vi.mock`・`new URL`）で判定する。
 次の書き方は検出しないので、相対パスのモジュールを読むときは使わない。`createRequire` の戻り値を別名で呼ぶ、`vi.importActual`、`/// <reference path>`、相対パスの文字列を任意の関数に渡して読む、である。
 
-すぐに直せない既存の指摘は、`.config/fallow/dead-code-baseline.json` と `.config/fallow/health-baseline.json` に載せて外す。直したら、`fallow --save-baseline` と `fallow health --save-baseline` で作り直す。
+`pnpm run lint:fallow` と CI の CRAP（`pnpm run lint:crap`）は、`fallow health` の出力のうち、関数ごとの複雑度の指摘（`--complexity`）だけを検査する。
+ほかの出力（ファイルの点数・hotspot・一緒に変更されたファイルの組・リファクタリングの候補）は、`--fail-on-issues` を付けても失敗にならないので実行しない（全体の要約の数行だけは毎回出る）。
+これらは git の履歴や依存するファイルの数から計算し、コードを直しても値を下げられないものを含むので、ベースラインで外す対象にもしない。
+
+fallow の更新や閾値の変更で、変更していないファイルに循環的複雑度や認知的複雑度の指摘が出たら、その変更と同じ PR で関数を分けて直す。
+CRAP のベースラインの扱いは、下の CI の検査の項にある。
+すぐに直せない既存の指摘（使われていないコード・依存など）は、`.config/fallow/dead-code-baseline.json` に載せて外す。
+直したら、`pnpm exec fallow dead-code --save-baseline .config/fallow/dead-code-baseline.json` で作り直す。
+保存したファイルは `pnpm exec oxfmt .config/fallow/dead-code-baseline.json` で整形する。
 使われていない export は、`fallow fix --dry-run` で提案を確かめてから `fallow fix` で直す。`fallow fix` は `export` を外し、依存を消すので、pre-commit と CI では自動に適用しない。
 誤検知は、`base.jsonc` で理由を書いて外す。配布スキルには `fallow-ignore` のコメントを置かない。
 
@@ -141,6 +149,11 @@ CI だけで実行する検査が 2 つある。
 - `Unit tests` ジョブの CRAP（`pnpm run lint:crap`）: 複雑なのにテストが通っていない関数。カバレッジは、`pnpm run test:coverage` が残す V8 の記録（`node_modules/.cache/coverage/v8/`）を渡す。
   `coverage-final.json` は名前の無い関数（コールバックなど）を持たないので、渡すと fallow がそれらのカバレッジを推定する。
   カバレッジが無いと値を推定して誤検知が多くなるので、pre-commit には入れない。既存の指摘は `.config/fallow/crap-baseline.json`。
+  作り直すときは、`pnpm run test:coverage` を全体で実行してから、次のコマンドを実行する。
+  `pnpm exec fallow health --complexity -c .config/fallow/crap.jsonc --coverage node_modules/.cache/coverage/v8 --save-baseline .config/fallow/crap-baseline.json`
+  保存したファイルは `pnpm exec oxfmt` で整形する。
+  `pnpm run lint:fallow` が通る状態で作り直す。循環的複雑度と認知的複雑度の指摘が残っていると、その件数もベースラインに入る。
+  `--complexity` を外すと、判定に使わないリファクタリングの候補（`target_keys`）もベースラインに入る。
   ブラウザでだけ実行する関数（Playwright の spec の雛形 `skills/*/assets/*.spec.template.ts` と、eval の fixture をブラウザで作るジェネレータ）は、ユニットテストで実行できないので、ベースラインに載せたままにする
 - `Lint` ジョブの `Test weakening`（`fallow audit`）: PR が増やした、テストを弱める変更（`.skip`・`.only` の追加、テストのケースや assertion の減少、カバレッジの閾値の引き下げ）。PR のベースとの差分を見るので、PR でだけ実行する。
   意図して弱めるときは、理由を付けた `fallow-ignore-next-line weakened-tests` を書く
