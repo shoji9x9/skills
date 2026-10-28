@@ -279,10 +279,7 @@ export function main(
   return writeCheckResult(write, result, {
     tool: "lifecycle-check",
     version: VERSION,
-    fields: {
-      applies: result.applies,
-      findings: result.findings,
-    },
+    fields: { applies: result.applies },
   });
 }
 

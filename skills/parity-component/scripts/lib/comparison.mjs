@@ -194,9 +194,6 @@ export function runCompareCli(argv, io, spec) {
   return writeCheckResult(write, result, {
     tool: spec.tool,
     version: spec.version,
-    fields: {
-      judged: result.judged,
-      findings: result.findings,
-    },
+    fields: { judged: result.judged },
   });
 }

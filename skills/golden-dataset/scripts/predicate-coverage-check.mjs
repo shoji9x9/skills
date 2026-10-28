@@ -1706,9 +1706,7 @@ export function main(argv, deps = {}) {
   return writeCheckResult(write, result, {
     tool: "predicate-coverage-check",
     version: VERSION,
-    fields: {
-      findings: result.findings,
-    },
+    fields: {},
   });
 }
 

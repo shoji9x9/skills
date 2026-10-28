@@ -21,7 +21,7 @@ function parseFlagOpts(argv, known, usage) {
     }
     const v = argv[i + 1];
     if (v === undefined || v.startsWith("--")) {
-      process.stderr.write(usage);
+      process.stderr.write(`error: ${a} に値が無い\n${usage}`);
       return null;
     }
     if (opts[a.slice(2)] !== undefined) {
