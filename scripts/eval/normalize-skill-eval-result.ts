@@ -14,7 +14,7 @@ import { errorMessage } from "../lib/errors.ts";
 import { parseJsonAs } from "../lib/parse-as.ts";
 import { isRecord } from "../lib/guards.ts";
 import { isArray } from "../lib/is-array.ts";
-import { parseArgs } from "./skill-eval-fingerprint.ts";
+import { parseArgs } from "../lib/cli-args.ts";
 
 const SCHEMA_VERSION = 1;
 

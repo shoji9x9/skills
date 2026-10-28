@@ -127,7 +127,7 @@ test.each([
     label: "フラグが -- で始まらない",
     script: FINGERPRINT_CLI,
     args: ["prompt", "p"],
-    stderr: /^skill-eval-fingerprint: arguments must be --name value pairs \(near prompt\)$/mu,
+    stderr: /^skill-eval-fingerprint: arguments must be --name value pairs \(near "prompt"\)$/mu,
   },
   {
     label: "必須の引数が無い",
@@ -158,7 +158,7 @@ test("normalize-skill-eval-result の CLI は、-- で始まらない引数を�
     "y",
   ]);
   expect(result.status).toBe(1);
-  expect(result.stderr).toMatch(/arguments must be --name value pairs \(near x\)/u);
+  expect(result.stderr).toMatch(/arguments must be --name value pairs \(near "x"\)/u);
 });
 
 test("CLI は指紋の JSON を stdout に出し、入力に eval の assertion と fixture の hash を含める", () => {

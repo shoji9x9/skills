@@ -22,7 +22,8 @@ export function gitInit(root: string) {
     encoding: "utf8",
   });
   if (r.status !== 0) {
-    const end = r.status ?? r.signal;
+    const end =
+      r.status !== null ? `exit ${r.status}` : r.signal ? `signal ${r.signal}` : "起動できない";
     throw new Error(`git init に失敗した（${end}）: ${r.error?.message ?? r.stderr}`);
   }
 }

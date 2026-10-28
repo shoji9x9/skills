@@ -102,12 +102,12 @@ function findViolations(paths: readonly string[], privateSkills: readonly string
 }
 
 /**
- * 追跡しているファイルと、無視されていない未追跡のファイル。
- * `.gitignore` のものを除くのは、テストが `scripts/` の下に一時的に作る fixture（`.cjs` など）を数えないため。
+ * `dirs` の下の、追跡しているファイルと、無視されていない未追跡のファイル。
+ * `.gitignore` のものを除くのは、テストが一時的に作る fixture（`scripts/` の下の `.cjs` など）を数えないため。
  * 未追跡のファイルを含めるのは、`git add` の前に置いた違反も検出するため。
- * 1 回の `git ls-files` で全体を取り、規則はパスの接頭辞で振り分ける。
  * 作業ツリーに在るかでは絞らない。stage した違反を作業ツリーから消しても、commit には入るため。
- * `root` はリポジトリのルート（pathspec と返るパスは、起動した場所ではなくルートからの相対パスになる）。`dirs` は列挙するディレクトリ。
+ * `root` はリポジトリのルート（pathspec と返るパスは、起動した場所ではなくルートからの相対パスになる）。
+ * このファイルの検査は、1 回の `git ls-files` で全体を取り、規則をパスの接頭辞で振り分ける。
  */
 export function listFiles(
   root: string,

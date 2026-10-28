@@ -3,6 +3,7 @@ import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { parseJsonAs } from "../lib/parse-as.ts";
 import { isArray } from "../lib/is-array.ts";
+import { parseArgs } from "../lib/cli-args.ts";
 
 // One entry of evals.json, as far as this reads it.
 type EvalDefinition = { id?: unknown; assertions?: unknown; requires_skills?: unknown };
@@ -147,21 +148,6 @@ export function createFingerprint<T extends Record<string, unknown>>(input: T) {
     fingerprint: digest(`${JSON.stringify(inputs)}\n`),
     inputs,
   };
-}
-
-/** `--名前 値` の組を並べた引数を読む。 */
-export function parseArgs(argv: string[]): Record<string, string> {
-  const values: Record<string, string> = {};
-  for (let index = 0; index < argv.length; index += 2) {
-    const flag = argv[index];
-    const value = argv[index + 1];
-    if (!flag?.startsWith("--"))
-      throw new Error(`arguments must be --name value pairs (near ${flag})`);
-    if (value === undefined)
-      throw new Error(`arguments must be --name value pairs (${flag} has no value)`);
-    values[flag.slice(2)] = value;
-  }
-  return values;
 }
 
 function main() {

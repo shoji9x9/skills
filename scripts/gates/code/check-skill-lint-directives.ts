@@ -86,11 +86,6 @@ export function findDirectives(source: string, path = "a.ts"): string[] {
   return out;
 }
 
-/** `skills/` の下の、追跡しているファイルと無視されていない未追跡のファイル（ルートからのパス）。 */
-function listSkillFiles(root: string): string[] {
-  return listFiles(root, ["skills"]);
-}
-
 /** index にあるファイルのパスと blob の id。 */
 function indexBlobs(root: string, paths: readonly string[]): Map<string, string> {
   const res = spawnSync("git", ["ls-files", "-z", "--stage", "--", ...paths], {
@@ -144,7 +139,7 @@ function main(cwd = "."): number {
   let files: string[];
   try {
     root = repoRoot(cwd);
-    files = listSkillFiles(root);
+    files = listFiles(root, ["skills"]);
   } catch (error) {
     console.error(`skill-lint-directives: ${errorMessage(error)}`);
     return 2;
