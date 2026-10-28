@@ -20,6 +20,7 @@
 // `.private-skill` の印で決めると、印を付け忘れた private skill がこの検査から外れる。
 import { spawnSync } from "node:child_process";
 import { errorMessage } from "../../lib/errors.ts";
+import { isCliEntry } from "../../lib/cli/entry.ts";
 
 // `.jsx` は `.tsx` と同じく、Node が実行できず `tsconfig.repo.json` の include にも入らない。
 const DISTRIBUTED_BANNED = [".js", ".cjs", ".mts", ".cts", ".tsx", ".jsx"];
@@ -176,4 +177,4 @@ function main(cwd = "."): number {
   return 0;
 }
 
-if (import.meta.main) process.exit(main());
+if (isCliEntry(import.meta.url)) process.exit(main());

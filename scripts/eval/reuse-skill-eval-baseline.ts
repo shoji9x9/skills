@@ -3,6 +3,7 @@ import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path
 import { errorMessage } from "../lib/errors.ts";
 import { parseJsonAs } from "../lib/parse-as.ts";
 import { showValue } from "../lib/show-value.ts";
+import { isCliEntry } from "../lib/cli/entry.ts";
 
 const requiredArtifacts = [
   "contamination.txt",
@@ -176,7 +177,7 @@ function main() {
   reuseBaseline(source, target, expectedPath);
 }
 
-if (import.meta.main) {
+if (isCliEntry(import.meta.url)) {
   try {
     main();
   } catch (error) {

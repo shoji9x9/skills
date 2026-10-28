@@ -30,6 +30,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 import { errorMessage } from "../../lib/errors.ts";
+import { isCliEntry } from "../../lib/cli/entry.ts";
 
 const SCHEMA_DIR = "config-schemas";
 export const READER = "scripts/skill-config/skill-config.mjs";
@@ -210,6 +211,6 @@ export async function main(
   return 0;
 }
 
-if (import.meta.main) {
+if (isCliEntry(import.meta.url)) {
   process.exitCode = await main(process.argv.slice(2));
 }

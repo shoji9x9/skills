@@ -21,6 +21,7 @@
 // 配布スキル 0 件は、成功として扱わない。
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { isCliEntry } from "../../lib/cli/entry.ts";
 
 const AGENTS_SECTION = "## 参照スキルガイド";
 const README_SECTION = "## 利用可能なスキル";
@@ -210,4 +211,4 @@ export function main(argv: string[]) {
   return 0;
 }
 
-if (import.meta.main) process.exit(main(process.argv.slice(2)));
+if (isCliEntry(import.meta.url)) process.exit(main(process.argv.slice(2)));

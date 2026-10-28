@@ -26,6 +26,7 @@ import ts from "typescript";
 import { jsCommentRanges } from "../../lib/text/code-comments.ts";
 import { errorMessage } from "../../lib/errors.ts";
 import { listFiles, repoRoot } from "./check-js-extensions.ts";
+import { isCliEntry } from "../../lib/cli/entry.ts";
 
 // 配布スキルで置ける JavaScript・TypeScript の拡張子だけを走査する（`.mjs` と雛形の `.ts`）。
 // 他の拡張子（`.js`・`.jsx`・`.tsx`・`.mts` など）は `check-js-extensions.ts` が配布スキルで禁じているので、
@@ -167,4 +168,4 @@ function main(cwd = "."): number {
   return 0;
 }
 
-if (import.meta.main) process.exit(main());
+if (isCliEntry(import.meta.url)) process.exit(main());

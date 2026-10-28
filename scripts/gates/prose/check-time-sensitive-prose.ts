@@ -53,6 +53,7 @@ import {
 } from "../../lib/doc-scan.ts";
 import { scannedFiles } from "../docs/doc-scan-files.ts";
 import { errorMessage } from "../../lib/errors.ts";
+import { isCliEntry } from "../../lib/cli/entry.ts";
 
 // 対象: ルート直下のファイルと、配下を再帰で走査するディレクトリ。
 const TARGET_FILES = ["AGENTS.md"];
@@ -262,4 +263,4 @@ export function main(argv: string[]) {
   return 0;
 }
 
-if (import.meta.main) process.exit(main(process.argv.slice(2)));
+if (isCliEntry(import.meta.url)) process.exit(main(process.argv.slice(2)));

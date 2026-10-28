@@ -49,6 +49,7 @@ import {
   loadConfig,
 } from "./check-coverage.ts";
 import { VENDORED_GLOBS, isVendored } from "../lib/source-scope.ts";
+import { isCliEntry } from "../lib/cli/entry.ts";
 
 const CACHE = "node_modules/.cache/coverage";
 
@@ -554,4 +555,4 @@ export function main(
   return reportAll(config, files, measures);
 }
 
-if (import.meta.main) process.exit(main(process.argv.slice(2)));
+if (isCliEntry(import.meta.url)) process.exit(main(process.argv.slice(2)));

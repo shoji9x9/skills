@@ -36,6 +36,7 @@ import { hasStrings, stringMarkdown } from "../../lib/text/code-strings.ts";
 import { isAgentCopy, isVendored } from "../../lib/source-scope.ts";
 import { errorMessage } from "../../lib/errors.ts";
 import { WORD_RULE_IDS, withDashRule, wordRules } from "../../lib/text/textlint-word-rule.ts";
+import { isCliEntry } from "../../lib/cli/entry.ts";
 
 /** コメントを取り出せなかったファイルの指摘に付ける ruleId。 */
 const PARSE_RULE = "code-comments";
@@ -194,4 +195,4 @@ export async function main(argv: string[]): Promise<number> {
   return 0;
 }
 
-if (import.meta.main) process.exit(await main(process.argv.slice(2)));
+if (isCliEntry(import.meta.url)) process.exit(await main(process.argv.slice(2)));

@@ -18,6 +18,7 @@ import { blankInlineCode, fencedLines } from "../lib/doc-scan.ts";
 import { errorMessage } from "../lib/errors.ts";
 import { isRecord } from "../lib/guards.ts";
 import { alreadyBlocked, recordBlocked } from "./stop-marker.ts";
+import { isCliEntry } from "../lib/cli/entry.ts";
 
 const HOOK = "response-language-check";
 
@@ -85,4 +86,4 @@ export function main(input: string, markerDir: string = tmpdir()): number {
   return 2;
 }
 
-if (import.meta.main) process.exit(main(readFileSync(0, "utf8")));
+if (isCliEntry(import.meta.url)) process.exit(main(readFileSync(0, "utf8")));

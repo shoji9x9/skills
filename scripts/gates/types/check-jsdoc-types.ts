@@ -16,6 +16,7 @@ import ts from "typescript";
 import { listFiles, repoRoot } from "../code/check-js-extensions.ts";
 import { errorMessage } from "../../lib/errors.ts";
 import { isVendored } from "../../lib/source-scope.ts";
+import { isCliEntry } from "../../lib/cli/entry.ts";
 
 const TARGET_RE = /^skills\/[^/]+\/.*\.mjs$/;
 // TypeScript が指示として読む位置の @ts-*。行コメントは先頭、ブロックコメントは最後の行の先頭だけを読む
@@ -148,4 +149,4 @@ function main(cwd = "."): number {
   return 0;
 }
 
-if (import.meta.main) process.exit(main());
+if (isCliEntry(import.meta.url)) process.exit(main());

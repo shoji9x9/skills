@@ -27,6 +27,7 @@ import { isRecord } from "../lib/guards.ts";
 import { alreadyBlocked, recordBlocked } from "./stop-marker.ts";
 import { dashRule, wordRules } from "../lib/text/textlint-word-rule.ts";
 import { prose } from "./response-language-check.ts";
+import { isCliEntry } from "../lib/cli/entry.ts";
 
 const HOOK = "response-word-check";
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -91,4 +92,4 @@ export async function main(
   return 2;
 }
 
-if (import.meta.main) process.exit(await main(readFileSync(0, "utf8")));
+if (isCliEntry(import.meta.url)) process.exit(await main(readFileSync(0, "utf8")));

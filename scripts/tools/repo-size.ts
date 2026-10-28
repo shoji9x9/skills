@@ -16,6 +16,7 @@
 // 終了コード: 0 は集計できた、2 は集計できない（git の失敗・ファイルが 0 件・スキルとして知らない名前の置き場所）。
 import { spawnSync } from "node:child_process";
 import { errorMessage } from "../lib/errors.ts";
+import { isCliEntry } from "../lib/cli/entry.ts";
 
 const KINDS = ["main", "test", "fixture"] as const;
 export type Kind = (typeof KINDS)[number];
@@ -292,4 +293,4 @@ export function main(args: readonly string[], cwd = "."): number {
   return 0;
 }
 
-if (import.meta.main) process.exit(main(process.argv.slice(2)));
+if (isCliEntry(import.meta.url)) process.exit(main(process.argv.slice(2)));

@@ -13,6 +13,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, lstatSync } from "node:fs";
 import { join } from "node:path";
 import { isAgentCopy } from "../../lib/source-scope.ts";
+import { isCliEntry } from "../../lib/cli/entry.ts";
 
 /** root の下で、拡張子が exts のいずれかに一致する実体のファイル（リポジトリ相対、昇順）。 */
 export function listSources(root: string, exts: string[]): string[] {
@@ -66,4 +67,4 @@ export function main(argv: string[], root: string = process.cwd()): number {
   return r.status ?? 1;
 }
 
-if (import.meta.main) process.exit(main(process.argv.slice(2)));
+if (isCliEntry(import.meta.url)) process.exit(main(process.argv.slice(2)));

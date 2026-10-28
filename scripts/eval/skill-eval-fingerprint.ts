@@ -4,6 +4,7 @@ import { relative, resolve } from "node:path";
 import { parseJsonAs } from "../lib/parse-as.ts";
 import { isArray } from "../lib/is-array.ts";
 import { parseArgs } from "../lib/cli/args.ts";
+import { isCliEntry } from "../lib/cli/entry.ts";
 
 // One entry of evals.json, as far as this reads it.
 type EvalDefinition = { id?: unknown; assertions?: unknown; requires_skills?: unknown };
@@ -201,7 +202,7 @@ function main() {
   process.stdout.write(`${JSON.stringify(fingerprint, null, 2)}\n`);
 }
 
-if (import.meta.main) {
+if (isCliEntry(import.meta.url)) {
   try {
     main();
   } catch (error) {

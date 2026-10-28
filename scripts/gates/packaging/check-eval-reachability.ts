@@ -25,6 +25,7 @@ import { errorCodeOrMessage, errorMessage } from "../../lib/errors.ts";
 import { isNonBlankString, isRecord } from "../../lib/guards.ts";
 import { showValue } from "../../lib/show-value.ts";
 import { isArray } from "../../lib/is-array.ts";
+import { isCliEntry } from "../../lib/cli/entry.ts";
 
 export const BACKLOG_PATH = "scripts/gates/packaging/eval-reachability-backlog.json";
 
@@ -338,4 +339,4 @@ function main(argv: string[]) {
   return 0;
 }
 
-if (import.meta.main) process.exit(main(process.argv.slice(2)));
+if (isCliEntry(import.meta.url)) process.exit(main(process.argv.slice(2)));

@@ -22,6 +22,7 @@ import { fileURLToPath } from "node:url";
 import { loadYamlDocuments } from "../../lib/text/yaml-as.ts";
 import { errorMessage } from "../../lib/errors.ts";
 import { isAgentCopy } from "../../lib/source-scope.ts";
+import { isCliEntry } from "../../lib/cli/entry.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
@@ -148,6 +149,6 @@ export function main(
   return 0;
 }
 
-if (import.meta.main) {
+if (isCliEntry(import.meta.url)) {
   process.exit(main(process.argv.slice(2)));
 }

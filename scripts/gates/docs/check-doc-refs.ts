@@ -32,6 +32,7 @@ import { scannedFiles, type ScannedFile } from "./doc-scan-files.ts";
 import { errorMessage } from "../../lib/errors.ts";
 import { isRecord } from "../../lib/guards.ts";
 import { isArray } from "../../lib/is-array.ts";
+import { isCliEntry } from "../../lib/cli/entry.ts";
 
 export const CONFIG_PATH = "scripts/gates/docs/doc-refs.json";
 export const RULES = [
@@ -402,4 +403,4 @@ export function main(argv: string[]) {
   return 0;
 }
 
-if (import.meta.main) process.exit(main(process.argv.slice(2)));
+if (isCliEntry(import.meta.url)) process.exit(main(process.argv.slice(2)));

@@ -22,6 +22,7 @@ import { fencedLines } from "../../../lib/doc-scan.ts";
 import { errorMessage } from "../../../lib/errors.ts";
 import { splitFrontmatter } from "../../../lib/text/frontmatter.ts";
 import { loadYamlAs } from "../../../lib/text/yaml-as.ts";
+import { isCliEntry } from "../../../lib/cli/entry.ts";
 
 export const CANON_DIR = ".agents/rules";
 
@@ -248,7 +249,7 @@ function lstatSafe(p: string) {
   }
 }
 
-if (import.meta.main) {
+if (isCliEntry(import.meta.url)) {
   const root = process.argv[2] ?? process.cwd();
   const { rules, violations } = checkRuleSymlinks(root);
 

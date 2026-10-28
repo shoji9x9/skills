@@ -4,6 +4,7 @@ import { errorMessage } from "../../../../scripts/lib/errors.ts";
 import { isRecord } from "../../../../scripts/lib/guards.ts";
 import { isArray } from "../../../../scripts/lib/is-array.ts";
 import { parseJsonAs } from "../../../../scripts/lib/parse-as.ts";
+import { isCliEntry } from "../../../../scripts/lib/cli/entry.ts";
 
 // pnpm audit の JSON は版で形が変わるので、各フィールドは unknown として読み、使うところで確かめる。
 export type AuditRecord = Record<string, unknown>;
@@ -400,4 +401,4 @@ function main(argv: string[]): number {
   return 0;
 }
 
-if (import.meta.main) process.exit(main(process.argv.slice(2)));
+if (isCliEntry(import.meta.url)) process.exit(main(process.argv.slice(2)));

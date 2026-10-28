@@ -8,6 +8,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { errorMessage } from "../../../lib/errors.ts";
+import { isCliEntry } from "../../../lib/cli/entry.ts";
 
 const TARGET_PATH = "AGENTS.md";
 /** Codex の `project_doc_max_bytes` のデフォルト。 */
@@ -37,4 +38,4 @@ export function main(argv: string[]) {
   return 0;
 }
 
-if (import.meta.main) process.exit(main(process.argv.slice(2)));
+if (isCliEntry(import.meta.url)) process.exit(main(process.argv.slice(2)));

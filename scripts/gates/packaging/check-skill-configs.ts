@@ -21,6 +21,7 @@ import {
   loadSchema,
   readLayer,
 } from "../../../skills/kaizen/scripts/skill-config/skill-config.mjs";
+import { isCliEntry } from "../../lib/cli/entry.ts";
 
 export type Finding = { path: string; message: string };
 
@@ -46,10 +47,12 @@ function schemaFiles(root: string): SchemaFile[] {
 }
 
 /** 設定の名前 → スキーマを持つスキルのディレクトリ（最初に見つかったもの）。 */
-export function schemaDirs(root: string): Map<string, string> {
+export function schemaDirs(
+  root: string,
+  files: readonly SchemaFile[] = schemaFiles(root),
+): Map<string, string> {
   const out = new Map<string, string>();
-  for (const { dir, name } of schemaFiles(root))
-    if (name !== null && !out.has(name)) out.set(name, dir);
+  for (const { dir, name } of files) if (name !== null && !out.has(name)) out.set(name, dir);
   return out;
 }
 
@@ -57,9 +60,9 @@ export function schemaDirs(root: string): Map<string, string> {
  * スキーマそのものを、全スキルの全ファイルについて読めるか確かめる（コピーの一致は identical-copies が見る）。
  * @returns 読んだスキーマの数
  */
-function checkSchemas(root: string, findings: Finding[]): number {
+function checkSchemas(files: readonly SchemaFile[], findings: Finding[]): number {
   let schemas = 0;
-  for (const { skill, dir, file, name } of schemaFiles(root)) {
+  for (const { skill, dir, file, name } of files) {
     const path = `skills/${skill}/config-schemas/${file}`;
     if (name === null) {
       findings.push({ path, message: "<名前>.schema.json の形でない" });
@@ -115,8 +118,9 @@ function checkConfigFiles(root: string, dirs: Map<string, string>, findings: Fin
 /** 違反を列挙する。 */
 export function check(root: string): { findings: Finding[]; files: number; schemas: number } {
   const findings: Finding[] = [];
-  const dirs = schemaDirs(root);
-  const schemas = checkSchemas(root, findings);
+  const schemaList = schemaFiles(root);
+  const dirs = schemaDirs(root, schemaList);
+  const schemas = checkSchemas(schemaList, findings);
   const files = checkConfigFiles(root, dirs, findings);
   return { findings, files, schemas };
 }
@@ -143,6 +147,6 @@ export function main(root: string = join(import.meta.dirname, "../../..")): numb
   return 0;
 }
 
-if (import.meta.main) {
+if (isCliEntry(import.meta.url)) {
   process.exitCode = main();
 }
