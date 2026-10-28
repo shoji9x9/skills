@@ -1,4 +1,4 @@
-// 文書のチェック（check-doc-refs.ts・check-time-sensitive-prose.ts）が共有する、許可の一覧とテキストの読み方。
+// 文書のチェック（check-doc-refs.ts・check-time-sensitive-prose.ts・check-version-mentions.ts）が共有する、許可の一覧とテキストの読み方。
 //
 // 走査対象は scripts/gates/docs/doc-scan-files.ts で決める（scripts/lib/ は scripts/gates/ を import しないので、
 // 階層の設定を読む部分だけを分けている）。
@@ -35,7 +35,7 @@ export type Finding = EntryKey & { line: number; message?: string };
 export const distributedSkillDir = (file: string): string | null =>
   /^skills\/[^/]+(?=\/)/.exec(file)?.[0] ?? null;
 
-/** 例として書いた行（導入先の値や書式の例）。時間の記述と Issue 番号のチェックでは読まない。 */
+/** 例として書いた行（導入先の値や書式の例）。時間の記述・バージョンの記述・Issue 番号のチェックでは読まない。 */
 export const EXAMPLE_LINE_RE = /例[:：]|（例|\be\.g\./;
 
 /** Markdown の行ごとに、コードフェンスの中かを返す。 */
