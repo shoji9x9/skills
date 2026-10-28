@@ -325,17 +325,19 @@ Claude Code では、直した変更を commit し、`<reviewed_through_sha の 
 レビューの回数が上限に達したら、最後のレビューの後に直した変更が残っていても、手元ではレビューせずに push へ進む。
 残った変更は、PR を作った後の `pr-finalize-loop` のレビューに任せる。手元でレビューしていない範囲は、下の「手元でレビューしていない範囲の記録」で 1 回だけ記録する。
 直すたびに新しい指摘が出ることがあり、指摘を自動で直す指定を付けたレビューではほぼ毎回直しが出る。上限で止めずに任せるのは、そのためである。
-ただし、`review_tool` が `none` なら PR のレビューが無いので、任せずに push の前に BLOCKED にする。
-`review_tool` を読めないときも、push の前に BLOCKED にする（読み方は下の「ローカルレビューの後に生じた変更」と同じ）。
+ただし、任せる変更が残っているときに `review_tool` が `none` なら、PR のレビューが無いので、任せずに push の前に BLOCKED にする。`none` では例外のファイル（下）も任せる変更に数える。
+任せる変更が残っていて `review_tool` を読めないときも、push の前に BLOCKED にする（読み方は下の「ローカルレビューの後に生じた変更」と同じ）。
 機能を使えない場合と、人の判断が要る場合は BLOCKED にする。
 
 ### 手元でレビューしていない範囲の記録
 
-記録は、PR（「deployment 修復」では follow-up PR）を作る直前に 1 回だけ行う。push のたびには行わない。PR を作った後の push は `pr-finalize-loop` がレビューするので、記録しない。
+この記録は、ローカルレビューの回数が上限に達し、手元でレビューせずに push へ進んだ Issue でだけ行う。
+記録は、PR（「deployment 修復」では follow-up PR）を作る直前に 1 回だけ行う。PR を既に持つ Issue を再開したときは、上限に達した後の最初の push の直前に行う。
+それ以外の push では記録しない。PR を作った後の push は `pr-finalize-loop` がレビューする。
 
 1. 範囲を `<reviewed_through_sha の SHA>..<PR にする HEAD の完全な SHA>` とする。範囲に commit が無ければ、記録しない。
-2. 範囲の `git diff --name-status` で変わったファイルがすべて例外のファイル（下の「ローカルレビューの後に生じた変更」の Kaizen の学びと Hook の記録）なら、記録しない。
-   `review_tool` が `none` のときは、範囲に commit がある時点で上の段落のとおり push の前に BLOCKED にしているので、この記録には進まない。
+2. 範囲で変わったファイルがすべて例外のファイルなら、記録しない。例外かは、下の「ローカルレビューの後に生じた変更」と同じ方法で判定する。
+   Kaizen の学びは、抽出の前後の `git status` で挙げた、抽出が変えたファイルだけが例外である。手で書いた `.kaizen/` の変更は例外にしない。
 3. それ以外は、manifest の `unreviewed_range` に、`{range, has_merge}` を 1 件足す。`has_merge` は、範囲に merge commit があるか（`git rev-list --merges <範囲>` が空でないか）である。
    follow-up PR の記録は、前の記録を消さずに足す。
 

@@ -22,3 +22,7 @@ coverage:github:2026-10-27T22:02:40.924Z:2026-10-28T22:09:05.535Z,coverage,2026-
 coverage:github:2026-10-27T22:09:05.535Z:2026-10-28T22:09:49.306Z,coverage,2026-10-28T22:09:49.306Z,p-cdee4961,,,,,2026-10-27T22:09:05.535Z,2026-10-28T22:09:49.306Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-27T22:09:49.306Z:2026-10-28T22:10:15.309Z,coverage,2026-10-28T22:10:15.309Z,p-cdee4961,,,,,2026-10-27T22:09:49.306Z,2026-10-28T22:10:15.309Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-27T22:10:15.309Z:2026-10-28T22:10:46.151Z,coverage,2026-10-28T22:10:46.151Z,p-cdee4961,,,,,2026-10-27T22:10:15.309Z,2026-10-28T22:10:46.151Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:40778023194:1,ci,2026-10-28T22:17:17.960Z,p-cdee4961,github-actions,,,,2026-10-28T22:11:27.000Z,2026-10-28T22:11:28.000Z,Asia/Tokyo,feature/823-local-review-limit-counts-rounds,823,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40778023164:1,ci,2026-10-28T22:17:17.960Z,p-cdee4961,github-actions,,,,2026-10-28T22:11:27.000Z,2026-10-28T22:15:26.000Z,Asia/Tokyo,feature/823-local-review-limit-counts-rounds,823,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-27T22:10:46.151Z:2026-10-28T22:17:17.960Z,coverage,2026-10-28T22:17:17.960Z,p-cdee4961,,,,,2026-10-27T22:10:46.151Z,2026-10-28T22:17:17.960Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-27T22:17:17.960Z:2026-10-28T22:17:42.632Z,coverage,2026-10-28T22:17:42.632Z,p-cdee4961,,,,,2026-10-27T22:17:17.960Z,2026-10-28T22:17:42.632Z,Asia/Tokyo,,,,,,,,,,,,ok,
