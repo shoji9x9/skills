@@ -431,7 +431,7 @@ query($endCursor: String) {
 
 ### スレッド外に置かれた指摘（レビュー本文・トップレベルコメント）
 
-指摘が書かれる場所はスレッドだけではない。レビューの本文と PR のトップレベルのコメントにも置かれる。置き場所と実測した形、トップレベルのコメントから集める対象は、[`references/review-threads.md`](references/review-threads.md)「スレッドの外に置かれる指摘」にある。
+指摘が書かれる場所はスレッドだけではない。レビューの本文と PR のトップレベルのコメントにも置かれる。置き場所と実測した形、トップレベルのコメントから集める対象は、[`references/review-threads.md`](references/review-threads.md)「スレッドの外の指摘の形と集める対象」にある。
 
 取得は、[`references/state-query.md`](references/state-query.md) の 2 段の取得に従う。索引（1 段目）で本文を読む対象を決め、その本文だけを個別に取得する。
 

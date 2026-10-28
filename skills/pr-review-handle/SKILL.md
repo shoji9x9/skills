@@ -104,7 +104,7 @@ pr-review-handle <PR URL | 番号 | レビュー URL> [--push]
 
 ### スレッド外に置かれた指摘（レビュー本文・トップレベルコメント）
 
-指摘が書かれる場所はスレッドだけではない。レビューの本文と PR のトップレベルのコメントにも置かれる。置き場所と実測した形、トップレベルのコメントから集める対象は、[`references/review-threads.md`](references/review-threads.md)「スレッドの外に置かれる指摘」にある。
+指摘が書かれる場所はスレッドだけではない。レビューの本文と PR のトップレベルのコメントにも置かれる。置き場所と実測した形、トップレベルのコメントから集める対象は、[`references/review-threads.md`](references/review-threads.md)「スレッドの外の指摘の形と集める対象」にある。
 
 ```bash
 # レビューの本文
