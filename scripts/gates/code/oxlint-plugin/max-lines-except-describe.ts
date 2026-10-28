@@ -151,14 +151,16 @@ export function linesOf(fn: AstNode): number {
   return loc.end.line - loc.start.line + 1;
 }
 
-/** オプション `{ max }` のスキーマ。max-lines-except-page-entry.ts も同じオプションを受け付ける。 */
-export const MAX_OPTION_SCHEMA = [
-  {
-    type: "object",
-    properties: { max: { type: "integer", minimum: 1 } },
-    additionalProperties: false,
-  },
-];
+/** オプション `{ max }` のスキーマ。ルールごとに別のオブジェクトを返す（読み込む側が書き換えても、他のルールに及ばない）。 */
+export function maxOptionSchema() {
+  return [
+    {
+      type: "object",
+      properties: { max: { type: "integer", minimum: 1 } },
+      additionalProperties: false,
+    },
+  ];
+}
 
 /** オプション `{ max }` の上限。数でない値は、判定できないので例外にする。rule は例外のメッセージに書くルールの名前。 */
 export function maxOf(
@@ -177,7 +179,7 @@ export const maxLinesExceptDescribe = {
   meta: {
     type: "suggestion",
     docs: { description: "describe のコールバックを除いて、関数の行数に上限を当てる" },
-    schema: MAX_OPTION_SCHEMA,
+    schema: maxOptionSchema(),
   },
   create(context: Context) {
     const max = maxOf(context.options);

@@ -4,3 +4,6 @@ ci:40612089502:1,ci,2026-10-28T01:33:12.960Z,p-cdee4961,github-actions,,,,2026-1
 ci:40612089507:1,ci,2026-10-28T01:33:12.960Z,p-cdee4961,github-actions,,,,2026-10-28T00:57:45.000Z,2026-10-28T01:01:41.000Z,Asia/Tokyo,feature/659-split-duplicate-thresholds,659,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-27T00:56:57.849Z:2026-10-28T01:33:12.960Z,coverage,2026-10-28T01:33:12.960Z,p-cdee4961,,,,,2026-10-27T00:56:57.849Z,2026-10-28T01:33:12.960Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-27T01:33:12.960Z:2026-10-28T01:40:12.704Z,coverage,2026-10-28T01:40:12.704Z,p-cdee4961,,,,,2026-10-27T01:33:12.960Z,2026-10-28T01:40:12.704Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:40616523974:1,ci,2026-10-28T01:48:48.204Z,p-cdee4961,github-actions,,,,2026-10-28T01:41:18.000Z,2026-10-28T01:41:27.000Z,Asia/Tokyo,feature/659-dedupe-scripts,659,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40616524010:1,ci,2026-10-28T01:48:48.204Z,p-cdee4961,github-actions,,,,2026-10-28T01:41:18.000Z,2026-10-28T01:44:28.000Z,Asia/Tokyo,feature/659-dedupe-scripts,659,,,,,,,,,,CI;pull_request;failure,
+coverage:github:2026-10-27T01:40:12.704Z:2026-10-28T01:48:48.204Z,coverage,2026-10-28T01:48:48.204Z,p-cdee4961,,,,,2026-10-27T01:40:12.704Z,2026-10-28T01:48:48.204Z,Asia/Tokyo,,,,,,,,,,,,ok,

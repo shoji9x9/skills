@@ -88,7 +88,7 @@ export function findDirectives(source: string, path = "a.ts"): string[] {
 
 /** `skills/` の下の、追跡しているファイルと無視されていない未追跡のファイル（ルートからのパス）。 */
 function listSkillFiles(root: string): string[] {
-  return listFiles(root).filter((p) => p.startsWith("skills/"));
+  return listFiles(root, ["skills"]);
 }
 
 /** index にあるファイルのパスと blob の id。 */

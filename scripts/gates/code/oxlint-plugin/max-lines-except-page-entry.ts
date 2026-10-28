@@ -14,8 +14,8 @@ import {
   countedNode,
   isIife,
   linesOf,
-  MAX_OPTION_SCHEMA,
   maxOf,
+  maxOptionSchema,
 } from "./max-lines-except-describe.ts";
 
 const RULE = "max-lines-per-function-except-page-entry";
@@ -90,7 +90,7 @@ export const maxLinesExceptPageEntry = {
       description:
         "最上位で export した関数は入れ子の関数とコメントを除いてコードの残る行の数で、他の関数は全体の行数で上限を当てる",
     },
-    schema: MAX_OPTION_SCHEMA,
+    schema: maxOptionSchema(),
   },
   create(context: Context) {
     const max = maxOf(context.options, RULE);

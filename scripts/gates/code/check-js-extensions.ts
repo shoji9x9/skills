@@ -107,22 +107,15 @@ function findViolations(paths: readonly string[], privateSkills: readonly string
  * 未追跡のファイルを含めるのは、`git add` の前に置いた違反も検出するため。
  * 1 回の `git ls-files` で全体を取り、規則はパスの接頭辞で振り分ける。
  * 作業ツリーに在るかでは絞らない。stage した違反を作業ツリーから消しても、commit には入るため。
- * `root` はリポジトリのルート（pathspec と返るパスは、起動した場所ではなくルートからの相対パスになる）。
+ * `root` はリポジトリのルート（pathspec と返るパスは、起動した場所ではなくルートからの相対パスになる）。`dirs` は列挙するディレクトリ。
  */
-export function listFiles(root: string): string[] {
+export function listFiles(
+  root: string,
+  dirs: readonly string[] = ["skills", "scripts", ".agents/skills"],
+): string[] {
   const res = spawnSync(
     "git",
-    [
-      "ls-files",
-      "-z",
-      "--cached",
-      "--others",
-      "--exclude-standard",
-      "--",
-      "skills",
-      "scripts",
-      ".agents/skills",
-    ],
+    ["ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", ...dirs],
     { cwd: root, encoding: "utf8" },
   );
   if (res.status !== 0) {
