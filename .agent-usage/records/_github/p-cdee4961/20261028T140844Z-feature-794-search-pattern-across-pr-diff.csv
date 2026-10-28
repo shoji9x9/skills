@@ -1,0 +1,5 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:40694604774:1,ci,2026-10-28T14:08:44.400Z,p-cdee4961,github-actions,,,,2026-10-28T13:14:20.000Z,2026-10-28T13:18:28.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:40693895065:1,ci,2026-10-28T14:08:44.400Z,p-cdee4961,github-actions,,,,2026-10-28T13:09:35.000Z,2026-10-28T13:09:45.000Z,Asia/Tokyo,feature/659-fallow-complexity-only,659,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40693895246:1,ci,2026-10-28T14:08:44.400Z,p-cdee4961,github-actions,,,,2026-10-28T13:09:35.000Z,2026-10-28T13:12:55.000Z,Asia/Tokyo,feature/659-fallow-complexity-only,659,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-27T13:08:34.037Z:2026-10-28T14:08:44.400Z,coverage,2026-10-28T14:08:44.400Z,p-cdee4961,,,,,2026-10-27T13:08:34.037Z,2026-10-28T14:08:44.400Z,Asia/Tokyo,,,,,,,,,,,,ok,
