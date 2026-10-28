@@ -10,21 +10,8 @@
 - **前提が無い環境での停止パス**（replace-strategy setup / golden-dataset / parity-suite / parity-replace が未完了）
 - **禁止事項の拒否挙動**（検出させない・全画面を渡さない・モデルは分類のみ）
 
-設定・成果物が揃った状態でしか判定できないケース（環境別の green 証跡の扱い等）は、`evals.json` の `fixture` に置いた
-使い捨てプロジェクトの初期状態を `--fixture` で流し込んで検証する（fixture 自体は実行で変更されない）。
-
-## 実行例
-
-```bash
-scripts/eval/run-skill-eval.sh \
-  --skill parity-diff --config with_skill \
-  --prompt "parity-diff" \
-  --out tests/parity-diff/iteration-1/eval-1/with_skill/run-1 \
-  --model opus
-```
-
-fixture 付きの eval（`evals.json` に `fixture` があるもの）は、`--fixture evals/parity-diff/<fixture の値>` を足して実行する。
-例えば eval 4 は `--fixture evals/parity-diff/fixtures/green-only-local-dev` を足す。
+設定・成果物が揃った状態でしか判定できないケース（環境別の green 証跡の扱い等）は、`evals.json` の `fixture` に置いた初期状態を `--fixture` で流し込んで検証する（手順は `docs/skill-development.md`「eval 実行の隔離（必須）」）。
+例えば eval 4 は、その節のコマンド例に `--fixture evals/parity-diff/fixtures/green-only-local-dev` を足して実行する。
 
 - 使い捨てプロジェクトには `.replace/features.md`・設定・`.replace/parity/<slug>/metadata.json`・`replace-metadata.json` が無い。
   そのため eval 1 は「捏造せずに停止し、replace-strategy setup / golden-dataset / parity-suite / parity-replace を順に案内する」パスを検証する。
@@ -110,5 +97,3 @@ fixture 付きの eval（`evals.json` に `fixture` があるもの）は、`--f
   その場の更新とは、版の +1・状態列の `未`→`済`・Issue 列の `未起票`→番号・空配列への最初の追記である。
   一覧の `unit`（`lines` / `markdown-structure` / `json-arrays`）で突き合わせの単位を分け、誤検出で収束が止まらないようにした。
   回帰は、テスト側で検出されることの確認と、誤検知しないことの確認の両方で押さえている
-- 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
-- 集計（`benchmark.json`）は `node scripts/eval/build-skill-eval-benchmark.ts` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）

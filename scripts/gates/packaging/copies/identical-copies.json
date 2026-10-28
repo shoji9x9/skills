@@ -8,6 +8,34 @@
   "groups": [
     {
       "files": [
+        "skills/pr-review-handle/references/review-threads.md",
+        "skills/pr-finalize-loop/references/review-threads.md"
+      ],
+      "reason": "レビュースレッドを取得し、返信して解決する gh の手順。姉妹スキルで食い違うと、片方だけがページを取りこぼしたり、返信の本文の渡し方を誤ったりする"
+    },
+    {
+      "files": [
+        "skills/issue-create/assets/issue-templates/bug_report.md",
+        ".github/ISSUE_TEMPLATE/bug_report.md"
+      ],
+      "reason": "issue-create が同梱する Issue のテンプレートと、このリポジトリに導入したコピー。このリポジトリでも同梱のテンプレートと同じ節で起票する"
+    },
+    {
+      "files": [
+        "skills/issue-create/assets/issue-templates/feature_request.md",
+        ".github/ISSUE_TEMPLATE/feature_request.md"
+      ],
+      "reason": "issue-create が同梱する Issue のテンプレートと、このリポジトリに導入したコピー。このリポジトリでも同梱のテンプレートと同じ節で起票する"
+    },
+    {
+      "files": [
+        "skills/aws-architecture-diagram/assets/starter/icons/NOTICE.md",
+        "skills/aws-architecture-diagram/assets/samples/the-simple-webservice/icons/NOTICE.md"
+      ],
+      "reason": "同梱した AWS のアイコンの帰属の表示。アイコンを置く各ディレクトリが、同じ条件の表示を持つ"
+    },
+    {
+      "files": [
         "skills/pr-review-handle/references/review-tool.md",
         "skills/pr-finalize-loop/references/review-tool.md"
       ],

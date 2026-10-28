@@ -49,7 +49,8 @@
    commit message は `pnpm exec commitlint --edit <file>`、Markdown は `pnpm exec markdownlint-cli2 <path>`、
    `SKILL.md` の frontmatter は `node scripts/gates/packaging/check-skill-frontmatter.ts <path>` で確かめる。
 2. スキルの間でコピーしたファイルに、同じ修正を当てる。
-   `evals/<name>/README.md` のようにスキルごとにコピーしたファイルは、直す文字列で `grep -rn <キーワード> skills/ evals/` を実行し、すべてのコピーに同じ修正を当てる。
+   `identical-copies.json` に登録していないコピー（replace 系のスキルの `SKILL.md` にある、プロジェクトの設定を解決する節など）は、直す文字列で `grep -rn <キーワード> skills/ evals/` を実行し、すべてのコピーに同じ修正を当てる。
+   登録したコピー（`references/review-threads.md`・`references/config-files.md` など）は、`check-identical-copies.ts` が一致を確かめる。
 3. ルールに書いた規律を、チェックが実際に強制しているかを確かめる。
    まず、その規律を破ったときにどのコード・lint・hook がエラーにするかを 1 つ挙げる。
    挙げられない規律は、仕組みで強制したものではなく規約である。散文に何か所書いても強制にはならない。
@@ -140,7 +141,10 @@ scripts/tools/reinstall-skill.sh <name>
 
 ## 回帰テストを実行する
 
-各スキルのテストケースと手順は `evals/<name>/` の `evals.json` と `README.md` にある。
+各スキルのテストケースは `evals/<name>/evals.json` にある。
+`evals/<name>/README.md` は、テストケースへの案内を持つ。スキルに固有の観点と前提があれば、それも置く。
+実行・採点・集計の共通の手順はこの節に書き、各スキルの `README.md` へ転記しない。
+README には、そのスキルの eval を実行するコマンドの例を置いてもよい。置くかは任意で、置くならこの節のコマンド例と同じ引数の形にする。
 
 新しく作った eval と変えた eval には `reachability` を書く。
 各 assertion を引き出す prompt の文を、`{ "assertion": "<assertions に実在するテキスト>", "prompt_quote": "<prompt 内の部分文字列>" }` の形で並べる。
@@ -251,6 +255,7 @@ scripts/eval/run-skill-eval.sh \
 # 事前の状態（設定・.replace/ の成果物など）をコピーして実行する。fixture の原本は
 # evals/<name>/fixtures/<fixture名>/ に置き、evals.json のその eval に
 # "fixture": "fixtures/<fixture名>"（evals/<name>/ からの相対パス）を書く。fixture は実行しても変わらない。
+# 実行では、この値の前に evals/<name>/ を付けて --fixture evals/<name>/<fixture の値> と渡す。
 ```
 
 fixture のルートに実行権限のある `setup.sh` があれば、ハーネスはコピーの後、executor を起動する前に、使い捨てのプロジェクトの中でそれを実行する。

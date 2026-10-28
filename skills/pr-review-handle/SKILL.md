@@ -68,7 +68,7 @@ pr-review-handle <PR URL | 番号 | レビュー URL> [--push]
      | 返信だけ | 返信はするが、ファイルの修正・resolve・commit・push はしない。他の人が対応中のスレッドを閉じない。返信には判断と根拠だけを書き、直していないのに「修正した」「対応済み」と書かない |
      | 中止 | 何もせずに止まる |
 
-4. 未解決のレビュースレッドを取得する（後述の GraphQL）。各スレッドから、`threadId`、先頭のコメントの `databaseId`、本文、`path`、`line`、作成者を得る。
+4. 未解決のレビュースレッドを取得する（[`references/review-threads.md`](references/review-threads.md) の GraphQL）。各スレッドから、`threadId`、先頭のコメントの `databaseId`、本文、`path`、`line`、作成者を得る。
    - すべてのレビュアーを対象にする。作成者では絞らず、`isResolved == false` で絞る。
    - 解決済みのスレッドは飛ばす。
    - レビューの URL で review-id を渡されたら、そのレビューのコメントに絞る。
@@ -93,64 +93,25 @@ pr-review-handle <PR URL | 番号 | レビュー URL> [--push]
 作成者の login は API によって書き方が違う（REST では `Copilot`、GraphQL では `copilot-pull-request-reviewer`）。
 すべてのレビュアーを対象にするので作成者で絞る必要は無いが、特定のレビュアーだけを扱うときはこの違いに注意する。
 
-### 未解決スレッドの取得（GraphQL・全ページ取得）
+### 未解決スレッドの取得
 
-`threadId`（解決に要る）、解決の状態、先頭のコメントの `databaseId`（返信に要る）をまとめて取得できる。
-未解決のスレッドは 1 ページに収まらないことがあるので、`first: 50` のように 1 回だけ取得すると、50 件を超えた分を取りこぼす。
-`pageInfo` と `endCursor` を含めて、`--paginate` で全ページを取得する。
-
-```bash
-gh api graphql --paginate -f query='
-query($endCursor: String) {
-  repository(owner: "<owner>", name: "<repo>") {
-    pullRequest(number: <番号>) {
-      reviewThreads(first: 100, after: $endCursor) {
-        pageInfo { hasNextPage endCursor }
-        nodes {
-          id
-          isResolved
-          comments(first: 1) {
-            nodes { databaseId author { login } path line body }
-          }
-        }
-      }
-    }
-  }
-}'
-```
-
-`--paginate` は、`pageInfo { hasNextPage endCursor }` と `$endCursor` の変数があれば、全ページを自動でたどる。
-取得した `nodes` から、`isResolved == false` のスレッドだけを 1 件ずつ処理する。
+未解決スレッドの全ページを取得する GraphQL は [`references/review-threads.md`](references/review-threads.md) にある。参照先を読めなければ、`first: 50` のような 1 回だけの取得で代えず、取得せずに止まる。
 未解決のスレッドの数は、PR ごとに見れば実用上は限られるので、全件を取得してよい。
 件数が多くなりうる一覧は、指定した件数で警告なしに打ち切らずにページングを処理する。途中で終えてよいなら、終える条件を書いて順に処理する。
-返信先には、先頭のコメントの `databaseId` を使う。
-
 スレッドへの反映が遅れることに注意する。レビューが submit された直後は、レビュー（`reviews`）は取得できるのに、`reviewThreads` へのコメントの反映が遅れることがある（実測）。
 直近の、作成者以外のレビューの `comments.totalCount` と、取得できたスレッドを突き合わせる。Copilot なら、レビューの本文の「generated N comments」でも件数を確かめられる。
 合わなければ、間隔を空けて再取得する。未解決のスレッドが 0 件というだけで「指摘なし」と判断しない。
 
 ### スレッド外に置かれた指摘（レビュー本文・トップレベルコメント）
 
-指摘が書かれる場所はスレッドだけではない。集める対象は次の 3 つである。
-
-1. レビュースレッド（`reviewThreads`）
-2. レビューの本文（`reviews[].body`）
-3. PR のトップレベルのコメント（`issues/<番号>/comments`）
-
-2 と 3 は `reviewThreads` にも `comments.totalCount` にも現れない。
-そのため、未解決のスレッドが 0 件で、作られたコメントが 0 件でも、対応していない指摘が残っていることがある。実測で見つかった形は次の 2 つである。
-
-- レビューの本文: Copilot は、確信度の低い指摘を本文の `<details>` の中に `### Comments suppressed due to low confidence (N)` として入れ、ヘッダには `Comments generated: 0 new` と書く。
-  本文の冒頭には、`### 🟡 Not ready to approve` のような総合の判定も入る。
-- トップレベルのコメント: Claude の GitHub Action（`review_tool: claude-code`）は、総評と軽い指摘をトップレベルのコメントに置き、`reviews[].body` を空、`state` を `COMMENTED` にする。
-  この形では、指摘がスレッドにも本文にも現れない。
+指摘が書かれる場所はスレッドだけではない。レビューの本文と PR のトップレベルのコメントにも置かれる。置き場所と実測した形、トップレベルのコメントから集める対象は、[`references/review-threads.md`](references/review-threads.md)「スレッドの外の指摘の形と集める対象」にある。参照先を読めなければ、スレッドが 0 件でも「指摘なし」と判断せずに止まる。
 
 ```bash
-# 2 つ目: レビューの本文
+# レビューの本文
 gh api --paginate repos/<owner>/<repo>/pulls/<番号>/reviews \
   --jq '.[] | select(.commit_id=="<headRefOid>") | {id, user: .user.login, state, body}'
 
-# 3 つ目: トップレベルのコメント（本文は切り詰めない）
+# トップレベルのコメント（本文は切り詰めない）
 gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
   --jq '.[] | {id, login: .user.login, type: .user.type, created_at, updated_at, body}'
 ```
@@ -158,15 +119,9 @@ gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
 - トップレベルのコメントは切り詰めずに読む。
   mention で依頼済みかを判定するときは、同じ API を `body: .body[:60]` に切り詰めて取得する（[`references/review-tool.md`](references/review-tool.md)）。
   その取得を指摘の収集に使い回さない。切り詰めた後ろにある指摘を取りこぼす。
-- 対象は、自分（PR の作成者。このスキルが書いた依頼のコメントや対応の記録を含む）以外の投稿すべてである。
-  ただし、`review_tool: local` の記録のうち、PR の作成者か担当者が投稿したもの（本文が `<!-- pr-finalize-loop:local-review` で始まるコメント）は除く。
-  記録は担当者が投稿することもあり、作成者を除くだけでは除けない。
-  それ以外の人が投稿した、目印で始まるコメントは除かず、ほかのコメントと同じように指摘を集める。
-  記録の本文の指摘は、記録の `open` で追う（[`references/review-tool.md`](references/review-tool.md) の「local」）。
-  `select(.user.type=="Bot")` で bot に絞らない。人のレビュアーが総評をトップレベルに置くこともあるので、絞ると取りこぼす。
-  `.user.type` は bot か人かを区別するためだけに使い、集める対象の絞り込みには使わない。
+- 自分（PR の作成者）の投稿と、作成者か担当者が投稿した `<!-- pr-finalize-loop:local-review` で始まる記録は、集める対象から除く。それ以外の人が投稿した、目印で始まるコメントは除かない。`.user.type` で bot だけに絞らない。人のレビュアーが総評をトップレベルに置くこともある。
 - 特に `review_tool` が mention で依頼する方法（`claude-code`・`codex`）のときは、レビュアーが総評と指摘をトップレベルのコメントに置くものとして読む。`reviews[].body` が空でも指摘はある。
-- 2 と 3 の指摘には返信するスレッドが無く、`resolve` もできない。
+- レビューの本文とトップレベルのコメントにある指摘には、返信するスレッドが無く、`resolve` もできない。
   PR のトップレベルのコメントで、対象の箇所・判断・根拠・実測した結果を書いて返す。直した場合も、見送った場合も残す。
   指摘の側には対応の記録が残らないので、このコメントだけが証跡になる。
 - 総合の判定（`Not ready to approve` など）が残るときは、どの指摘に基づくのか、直したのか見送ったのかを報告に書く。
@@ -179,38 +134,12 @@ review-id を渡されたら、そのレビューの行に付いたコメント�
 gh api --paginate repos/<owner>/<repo>/pulls/<番号>/reviews/<review-id>/comments
 ```
 
-取得したコメントの `id` を、上の GraphQL の `databaseId` と突き合わせて、対象のスレッドを見つける。
+取得したコメントの `id` を、[`references/review-threads.md`](references/review-threads.md) の GraphQL で取得した `databaseId` と突き合わせて、対象のスレッドを見つける。
 
-### 返信（REST）
+### 返信と解決
 
-スレッドの先頭のコメントの `id`（`databaseId` と同じ）に返信する。
-本文はバッククォートや `$` を含みうるので、quoted heredoc（かファイルを書くツール）でファイルに書き、`-F body=@<path>` で渡す。`gh api` には `--body-file` が無い。
-
-```bash
-body_file=$(mktemp)
-cat > "$body_file" <<'EOF'
-<返信本文>
-EOF
-gh api --method POST \
-  repos/<owner>/<repo>/pulls/<番号>/comments/<comment-id>/replies \
-  -F body=@"$body_file"
-rc=$?
-rm -f "$body_file"
-(exit "$rc")  # gh の失敗を後片付けの終了コードで隠さない
-```
-
-### 解決（GraphQL）
-
-返信を投稿した後で、スレッドを解決する。
-
-```bash
-gh api graphql -f query='
-mutation {
-  resolveReviewThread(input: { threadId: "<threadId>" }) {
-    thread { isResolved }
-  }
-}'
-```
+返信の手順と、返信した後の解決の手順は [`references/review-threads.md`](references/review-threads.md) にある。参照先を読めなければ、返信も解決もせずに止まる。返信していないスレッドは解決しない。
+返信の本文は先にファイルに書き、`gh api` に `-F body=@<path>` で渡す（`gh api` に `--body-file` は無い）。
 
 ## 妥当性の判断ガイド
 

@@ -19,7 +19,7 @@ scripts/eval/run-skill-eval.sh \
   --out tests/parity-suite/iteration-1/eval-1/with_skill/run-1 \
   --model opus
 
-# fixture 付き eval（前提が揃った状態から始める。evals.json の "fixture" をスキルディレクトリ相対で解決する）
+# fixture 付き eval（前提が揃った状態から始める。evals.json の "fixture" の値の前に evals/parity-suite/ を付けて渡す）
 scripts/eval/run-skill-eval.sh \
   --skill parity-suite --config with_skill \
   --prompt "parity-suite --feature order-list --target current-test" \
@@ -162,5 +162,3 @@ scripts/eval/run-skill-eval.sh \
   3 つの比較方法と寸法の測定が緑のまま、利用者が縦のスクロールバーを見つけた状況を与え、未検証の一覧に書いて済ませる案を押し戻せるかを見る。
   ヘッドレス Chromium がスクロールバーを隠すことと、スクロールバーを表示した最小幅以下の窓で両側に当てる検査を足すことに到達するかを見る。
   プロンプトには撮影条件のキー名・起動引数を書かない
-- 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
-- 集計（`benchmark.json`）は `node scripts/eval/build-skill-eval-benchmark.ts` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）

@@ -9,21 +9,8 @@
 （replace-strategy setup 未完了、フェーズ A 未完了でのフェーズ B 要求）と、**禁止事項の拒否挙動**
 （本番参照・非決定論・非冪等の拒否）を対象にしている。
 
-設定・成果物が揃った状態でしか判定できないケース（投入先 target の選択規則等）は、`evals.json` の `fixture` に置いた
-使い捨てプロジェクトの初期状態を `--fixture` で流し込んで検証する（fixture 自体は実行で変更されない）。
-
-## 実行例
-
-```bash
-scripts/eval/run-skill-eval.sh \
-  --skill golden-dataset --config with_skill \
-  --prompt "golden-dataset" \
-  --out tests/golden-dataset/iteration-1/eval-1/with_skill/run-1 \
-  --model opus
-```
-
-fixture 付きの eval（`evals.json` に `fixture` があるもの）は、`--fixture evals/golden-dataset/<fixture の値>` を足して実行する。
-例えば eval 6 は `--fixture evals/golden-dataset/fixtures/dbless-target` を足す。
+設定・成果物が揃った状態でしか判定できないケース（投入先 target の選択規則等）は、`evals.json` の `fixture` に置いた初期状態を `--fixture` で流し込んで検証する（手順は `docs/skill-development.md`「eval 実行の隔離（必須）」）。
+例えば eval 6 は、その節のコマンド例に `--fixture evals/golden-dataset/fixtures/dbless-target` を足して実行する。
 
 - 使い捨てプロジェクトには `.replace/features.md`・設定・`.replace/dataset/metadata.json` が無い。
   そのため eval 1 は「捏造せずに停止し、setup を促す」パスを検証する。
@@ -80,5 +67,3 @@ fixture 付きの eval（`evals.json` に `fixture` があるもの）は、`--f
   そのため、取得できないときに待たず非 0 で終える形にも、排他が機能することの実測にも届かない。空の表を読む害も「比較が成立しない」までで、
   **空を正解として緑で通る**形は説明しない。
   冪等性と同時実行の区別（assertion 1）と、読み手との衝突（assertion 6）は baseline も自力で到達するので、後退の検知の項目として残す
-- 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
-- 集計（`benchmark.json`）は `node scripts/eval/build-skill-eval-benchmark.ts` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）

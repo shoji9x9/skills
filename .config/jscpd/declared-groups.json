@@ -1,6 +1,22 @@
 {
   "groups": [
     [
+      "skills/pr-finalize-loop/references/review-threads.md",
+      "skills/pr-review-handle/references/review-threads.md"
+    ],
+    [
+      ".github/ISSUE_TEMPLATE/bug_report.md",
+      "skills/issue-create/assets/issue-templates/bug_report.md"
+    ],
+    [
+      ".github/ISSUE_TEMPLATE/feature_request.md",
+      "skills/issue-create/assets/issue-templates/feature_request.md"
+    ],
+    [
+      "skills/aws-architecture-diagram/assets/samples/the-simple-webservice/icons/NOTICE.md",
+      "skills/aws-architecture-diagram/assets/starter/icons/NOTICE.md"
+    ],
+    [
       "skills/pr-finalize-loop/references/review-tool.md",
       "skills/pr-review-handle/references/review-tool.md"
     ],

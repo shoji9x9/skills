@@ -20,7 +20,7 @@ scripts/eval/run-skill-eval.sh \
   --out tests/parity-replace/iteration-1/eval-1/with_skill/run-1 \
   --model opus
 
-# fixture 付き eval（前提が揃った状態から始める。evals.json の "fixture" をスキルディレクトリ相対で解決する）
+# fixture 付き eval（前提が揃った状態から始める。evals.json の "fixture" の値の前に evals/parity-replace/ を付けて渡す）
 scripts/eval/run-skill-eval.sh \
   --skill parity-replace --config with_skill \
   --prompt "parity-replace --feature order-list --target develop （新側の作業ツリーは clean で、コミット SHA は local-dev で green になった abc1234def5678 と同一です）" \
@@ -95,5 +95,3 @@ scripts/eval/run-skill-eval.sh \
   バイト一致を確かめる対象に挙げず、突き合わせないときの承認の形を示さなかった。assertion 1・2 は Delta ではなく、後退の検知の項目として残す。
   baseline は contamination: clean / isolation: sandboxed。
   **iteration-29 で再取得した**（`used: false` の廃止に合わせて assertion 1 を改訂。各 config 1 run・claude-code / opus）: `with_skill` 5/5・`without_skill` 2/5 で、差が出たのは同じ assertion 3・4・5 だった
-- 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
-- 集計（`benchmark.json`）は `node scripts/eval/build-skill-eval-benchmark.ts` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）

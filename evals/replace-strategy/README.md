@@ -225,5 +225,3 @@ scripts/eval/run-skill-eval.sh \
   **iteration-43 で実測**（各 config 1 run・claude-code / opus）: `with_skill` 3/3・`without_skill` 1/3。**差が出たのは assertion 1・2** である。
   baseline も、スイート green が見た目の一致を示さないことには自力で気付く。しかし受け入れ条件には「スクリーンショット比較などの視覚差分チェック」を置き、
   `parity-diff` の収束（`converged: true`）には至らなかった。baseline は contamination: clean / isolation: sandboxed
-- 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
-- 集計（`benchmark.json`）は `node scripts/eval/build-skill-eval-benchmark.ts` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）

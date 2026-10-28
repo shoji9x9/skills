@@ -20,7 +20,7 @@ scripts/eval/run-skill-eval.sh \
   --out tests/parity-component/iteration-1/eval-1/with_skill/run-1 \
   --executor claude-code --model opus
 
-# fixture 付き eval（前提が揃った状態から始める。evals.json の "fixture" をスキルディレクトリ相対で解決する）
+# fixture 付き eval（前提が揃った状態から始める。evals.json の "fixture" の値の前に evals/parity-component/ を付けて渡す）
 scripts/eval/run-skill-eval.sh \
   --skill parity-component --config with_skill \
   --prompt "parity-component build --component button" \
