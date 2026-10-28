@@ -94,7 +94,7 @@ pr-review-handle <PR URL | 番号 | レビュー URL> [--push]
 
 ### 未解決スレッドの取得
 
-未解決スレッドの全ページを取得する GraphQL は [`references/review-threads.md`](references/review-threads.md) にある。
+未解決スレッドの全ページを取得する GraphQL は [`references/review-threads.md`](references/review-threads.md) にある。参照先を読めなければ、`first: 50` のような 1 回だけの取得で代えず、取得せずに止まる。
 未解決のスレッドの数は、PR ごとに見れば実用上は限られるので、全件を取得してよい。
 件数が多くなりうる一覧は、指定した件数で警告なしに打ち切らずにページングを処理する。途中で終えてよいなら、終える条件を書いて順に処理する。
 スレッドへの反映が遅れることに注意する。レビューが submit された直後は、レビュー（`reviews`）は取得できるのに、`reviewThreads` へのコメントの反映が遅れることがある（実測）。
@@ -118,7 +118,7 @@ gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
 - トップレベルのコメントは切り詰めずに読む。
   mention で依頼済みかを判定するときは、同じ API を `body: .body[:60]` に切り詰めて取得する（[`references/review-tool.md`](references/review-tool.md)）。
   その取得を指摘の収集に使い回さない。切り詰めた後ろにある指摘を取りこぼす。
-- 自分（PR の作成者）の投稿と、作成者か担当者が投稿した `<!-- pr-finalize-loop:local-review` で始まる記録は、集める対象から除く。bot だけに絞らない。人のレビュアーが総評をトップレベルに置くこともある。
+- 自分（PR の作成者）の投稿と、作成者か担当者が投稿した `<!-- pr-finalize-loop:local-review` で始まる記録は、集める対象から除く。それ以外の人が投稿した、目印で始まるコメントは除かない。`.user.type` で bot だけに絞らない。人のレビュアーが総評をトップレベルに置くこともある。
 - 特に `review_tool` が mention で依頼する方法（`claude-code`・`codex`）のときは、レビュアーが総評と指摘をトップレベルのコメントに置くものとして読む。`reviews[].body` が空でも指摘はある。
 - レビューの本文とトップレベルのコメントにある指摘には、返信するスレッドが無く、`resolve` もできない。
   PR のトップレベルのコメントで、対象の箇所・判断・根拠・実測した結果を書いて返す。直した場合も、見送った場合も残す。

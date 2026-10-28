@@ -356,7 +356,7 @@ gh run view <run-id> --repo <owner>/<repo> --log-failed   # 失敗ジョブの�
 ### 未解決スレッドの取得・返信・解決
 
 未解決スレッドの一覧は、手順 1 のとおり [`references/state-query.md`](references/state-query.md) の索引で取得する。
-返信と解決に使う ID の取得（GraphQL）、返信（REST）、解決（GraphQL）の手順は [`references/review-threads.md`](references/review-threads.md) にある。参照先を読めなければ、返信も解決もせずに止まる。
+索引はスレッドの `id` と先頭のコメントの `databaseId` を返すので、返信と解決にはそれを使う。返信（REST）と解決（GraphQL）の手順は [`references/review-threads.md`](references/review-threads.md) にある。参照先を読めなければ、返信も解決もせずに止まる。
 `isResolved == false` のスレッドだけを 1 件ずつ処理し、返信してから解決する。
 返信の本文は先にファイルに書き、`gh api` に `-F body=@<path>` で渡す（`gh api` に `--body-file` は無い）。
 
@@ -449,7 +449,7 @@ gh api repos/<owner>/<repo>/issues/comments/<comment-id> \
 - 反復ごとに、索引から本文を読む対象（HEAD への作成者以外のレビュー、前回の取得より後に届いたレビュー、未処理のレビュー）を決めて、`body` を読む。`state` が `COMMENTED` でも、本文に指摘や総合の判定が入る。
 - トップレベルのコメントも、反復ごとに、索引で新しいものと更新されたものを見つけて読む。
   特に `review_tool` が mention で依頼する方法（`claude-code`・`codex`）のときは、レビュアーが総評と指摘をここに置くものとして扱う。`reviews[].body` が空でも指摘はある。
-  自分（PR の作成者）の投稿と、作成者か担当者が投稿した `<!-- pr-finalize-loop:local-review` で始まる記録は、集める対象から除く。bot だけに絞らない。人のレビュアーが総評をトップレベルに置くこともある。
+  自分（PR の作成者）の投稿と、作成者か担当者が投稿した `<!-- pr-finalize-loop:local-review` で始まる記録は、集める対象から除く。それ以外の人が投稿した、目印で始まるコメントは除かない。`.user.type` で bot だけに絞らない。人のレビュアーが総評をトップレベルに置くこともある。
 - 切り詰めずに読む。「レビュー進行中の検出」の補助のシグナルは同じ API を `body: .body[:200]` で取得するが、それは進行中か完了かの判定のためである。
   その取得を指摘の収集に使い回さない。200 文字より後ろの指摘を取りこぼす。
 - レビューの本文とトップレベルのコメントにある指摘には、返信するスレッドが無く、`resolve` もできないので、PR のトップレベルのコメントで返す（手順 4 の 4）。

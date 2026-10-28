@@ -87,7 +87,9 @@ gh skill update --all
 
 設定を読むスキルは、設定を JSONC（コメントを書ける JSON）のファイルから、すべて同じ置き場所と順序で読む。
 
-設定は、「リポジトリ」「人ごと・リポジトリ限定」「人ごと」の 3 つの層に置く。
+設定は、「リポジトリ」「人ごと・リポジトリ限定」「人ごと」の 3 つの層のファイル（リポジトリの層なら `.config/skills/shoji9x9/<名前>.jsonc`）に置く。
+`<名前>` はスキル名か、複数のスキルが使うキーをまとめた `common` である。`shoji9x9` は配布元の名前で、インストール先のリポジトリ名ではない。
+値は、CLI のオプションと環境変数も含めて、決まった順に探す。
 
 読み書きは、各スキルに同梱した `scripts/skill-config/skill-config.mjs` で行う（Node.js が要る）。知らないキー・型の誤り・置けない層に書いたキーはエラーになる。
 各層の置き場所・値を探す順序・層の選び方・環境変数にする値・書き込みの決まり・旧い置き場所からの移行は、設定を読む各スキルが同じ内容で同梱する `references/config-files.md`（例: [`skills/kaizen/references/config-files.md`](skills/kaizen/references/config-files.md)）にある。

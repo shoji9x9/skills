@@ -49,7 +49,8 @@
    commit message は `pnpm exec commitlint --edit <file>`、Markdown は `pnpm exec markdownlint-cli2 <path>`、
    `SKILL.md` の frontmatter は `node scripts/gates/packaging/check-skill-frontmatter.ts <path>` で確かめる。
 2. スキルの間でコピーしたファイルに、同じ修正を当てる。
-   `references/review-threads.md`（pr-review-handle と pr-finalize-loop）や `references/config-files.md` のようにスキルごとにコピーしたファイルは、直す文字列で `grep -rn <キーワード> skills/ evals/` を実行し、すべてのコピーに同じ修正を当てる。
+   `identical-copies.json` に登録していないコピー（replace 系のスキルの `SKILL.md` にある、プロジェクトの設定を解決する節など）は、直す文字列で `grep -rn <キーワード> skills/ evals/` を実行し、すべてのコピーに同じ修正を当てる。
+   登録したコピー（`references/review-threads.md`・`references/config-files.md` など）は、`check-identical-copies.ts` が一致を確かめる。
 3. ルールに書いた規律を、チェックが実際に強制しているかを確かめる。
    まず、その規律を破ったときにどのコード・lint・hook がエラーにするかを 1 つ挙げる。
    挙げられない規律は、仕組みで強制したものではなく規約である。散文に何か所書いても強制にはならない。
