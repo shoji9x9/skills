@@ -16,7 +16,8 @@
 // | 名前の書き方 | 空白 / v / @ / バッククォート / 大文字 / 呼び名（Playwright・Node.js）                   |
 // |              | 呼び名と同じ名前の宣言（宣言を優先する）                                                 |
 // | 名前の境界   | 長い名前（@types/node）/ 名前を含む別の語（mynode）/ 宣言の無い名前（gh）               |
-// | バージョン   | X.Y.Z 一致 / X.Y.Z 不一致 / X.Y / X.Y.Z.W / 空白を挟まない接尾辞（-rc.1・rc1・-linux-x64）|
+// | バージョン   | X.Y.Z 一致 / X.Y.Z 不一致 / X.Y / X.Y.Z.W / 空白を挟まない接尾辞（-rc.1・rc1・-linux-x64・_・範囲）|
+// |              | Z が 2 桁以上の X.Y.Z.W（接尾辞として読まない）                                       |
 // | 直後の語     | 以上 / 〜で続く上限 / + / 空白を挟んだ + / +sha512 / 句読点 / 文末の .（どれも除かない）  |
 // | 場所         | Markdown の本文 / コードフェンス / 例の行 / コメント / 文字列 / コメントを持たない拡張子 |
 // | 許可         | 使われる許可 / 使われない許可                                                            |
@@ -244,11 +245,10 @@ test("mise を起動するときは、mise.toml を上書きする環境変数�
   });
 });
 
-test("mise ls は、上書きを外した環境変数を渡して起動する", () => {
-  expect(miseInvocation("/r").options).toMatchObject({
-    cwd: "/r",
-    env: expect.objectContaining({ MISE_OVERRIDE_CONFIG_FILENAMES: "mise.toml" }),
-  });
+test("mise ls は、上書きを外した環境変数（miseEnv の結果）をそのまま渡して起動する", () => {
+  const { command, args, options } = miseInvocation("/r");
+  expect([command, args, options.cwd]).toEqual(["mise", ["ls", "--current", "--json"], "/r"]);
+  expect(options.env).toEqual(miseEnv(process.env));
 });
 
 test.each([
@@ -271,6 +271,12 @@ test.each([
     ["Node 26.12.1-SNAPSHOT", "node 26.12.1-linux-x64"],
   ],
   ["- を挟まない接尾辞", "Python 3.15.0rc1 で確かめた。", ["Python 3.15.0rc1"]],
+  ["_ を含む接尾辞", "Node 26.12.1-linux_x64 のバイナリ。", ["Node 26.12.1-linux_x64"]],
+  [
+    "- でつないだ範囲は 1 つの記述として読む",
+    "Node 26.12.1-27.0.0 が要る。",
+    ["Node 26.12.1-27.0.0"],
+  ],
   ["直後の以上", "Python 3.8.0 以上が要る。", ["Python 3.8.0"]],
   ["直後の以下", "Node 24.0.0 以下で起きる。", ["Node 24.0.0"]],
   ["直後のより古い", "Node 24.2.0 より古い版。", ["Node 24.2.0"]],
@@ -283,7 +289,7 @@ test.each([
 test.each([
   ["宣言と一致", "Playwright 1.64.1 と @types/node 25.9.1 で確かめた。"],
   ["X.Y だけ", "Node 24.2 より古い版。vitest 5 の出力。"],
-  ["X.Y.Z.W", "Chrome 149.0.7827.155 と node 1.2.3.4。"],
+  ["X.Y.Z.W", "Chrome 149.0.7827.155 と node 1.2.3.4 と node 1.2.34.5 と Node 24.17.10.1。"],
   ["名前を含む別の語", "mynode 1.2.3 と node_modules 1.2.3。"],
   ["宣言の無い名前", "gh 2.93.0 で確かめた。"],
   ["例の行", "例: `pnpm@11.0.0` を入れる。"],

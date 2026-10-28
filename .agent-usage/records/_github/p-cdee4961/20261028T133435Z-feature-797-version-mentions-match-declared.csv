@@ -56,3 +56,6 @@ coverage:github:2026-10-27T23:22:19.673Z:2026-10-28T23:28:44.673Z,coverage,2026-
 ci:40787751400:1,ci,2026-10-28T23:36:09.144Z,p-cdee4961,github-actions,,,,2026-10-28T23:29:45.000Z,2026-10-28T23:29:56.000Z,Asia/Tokyo,feature/797-version-mentions-match-declared,797,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:40787751456:1,ci,2026-10-28T23:36:09.144Z,p-cdee4961,github-actions,,,,2026-10-28T23:29:45.000Z,2026-10-28T23:33:53.000Z,Asia/Tokyo,feature/797-version-mentions-match-declared,797,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-27T23:28:44.673Z:2026-10-28T23:36:09.144Z,coverage,2026-10-28T23:36:09.144Z,p-cdee4961,,,,,2026-10-27T23:28:44.673Z,2026-10-28T23:36:09.144Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:40788593397:1,ci,2026-10-28T23:42:20.804Z,p-cdee4961,github-actions,,,,2026-10-28T23:36:59.000Z,2026-10-28T23:37:00.000Z,Asia/Tokyo,feature/797-version-mentions-match-declared,797,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40788593369:1,ci,2026-10-28T23:42:20.804Z,p-cdee4961,github-actions,,,,2026-10-28T23:36:59.000Z,2026-10-28T23:41:01.000Z,Asia/Tokyo,feature/797-version-mentions-match-declared,797,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-27T23:36:09.144Z:2026-10-28T23:42:20.804Z,coverage,2026-10-28T23:42:20.804Z,p-cdee4961,,,,,2026-10-27T23:36:09.144Z,2026-10-28T23:42:20.804Z,Asia/Tokyo,,,,,,,,,,,,ok,
