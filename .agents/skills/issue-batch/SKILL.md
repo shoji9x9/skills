@@ -79,6 +79,8 @@ run の途中で判断待ちの `BLOCKED` にならないよう、run の前に�
    現在のエージェントのローカルレビュー、必要な検証、browser-test、`kaizen extract --current --record-pending`、commit・push・PR の作成である。
    Claude Code では、範囲を渡すために、ローカルレビューの前に変更を commit する（`references/orchestration.md`「ローカルレビュー」）。
    ローカルレビューは、変更が小さいことを理由に省かない。省いてよい条件の一覧と、省いたときの記録は、`references/orchestration.md`「ローカルレビュー」で定義する。
+   ローカルレビューは、上限（`max_local_review_iterations`）の回数まで行う。最初のレビューも、直した後のやり直しも、後に生じた変更のレビューも 1 回に数える。
+   上限に達したら、手元でレビューしていない直しは PR の `pr-finalize-loop` のレビューに任せて push し、その範囲を manifest に残す。`review_tool` が `none` なら push の前に BLOCKED にする（`references/orchestration.md`「ローカルレビュー」）。
    最後のローカルレビューの後に生じた変更も push の前にレビューする。Kaizen の学びと、Hook が commit のたびに足す記録は例外とし、PR のレビューに任せる。`review_tool` が `none` なら例外を当てず、読めなければ push の前に BLOCKED にする（`references/orchestration.md`「ローカルレビューの後に生じた変更」）。
 5. PR は `pr-finalize-loop` に渡して収束させる。AI のレビューの依頼は、`pr-finalize-loop` にまとめる。
 6. head の SHA を固定し、決めた merge mode で merge する。`auto` は GitHub の auto-merge に任せ、`agent` は PR の状況を実際に確かめてから merge する。
@@ -91,7 +93,7 @@ run の途中で判断待ちの `BLOCKED` にならないよう、run の前に�
 
 値は、CLI で明示した option、setup で決めた設定の順に決める。CLI で上書きしても、設定ファイルは書き換えない。
 
-- ローカルレビューの上限: setup の値。最初の候補は 1
+- ローカルレビューの上限（push の前に手元でレビューする回数。最初のレビューも数える）: setup の値。最初の候補は 1
 - PR の収束の上限: setup の値。最初の候補は 5
 - CI の待機: setup の値。最初の候補は false（CI とレビューを並行して進める）
 - run の途中で BLOCKED や FAILED になった後に続けるか: setup の値。最初の候補は true。`--stop-on-blocked` で、その run だけ止める側に上書きする。使う場面は `references/orchestration.md`「全体 preflight」の最後の段落で定義する
@@ -124,6 +126,7 @@ BLOCKED や FAILED の影響が Issue の隔離した worktree の中だけで�
 ## 最終報告
 
 実行の順に並べた表で、Issue・入力の順・最終状態・branch・worktree・PR・local review・tests・browser・Kaizen・merge・Issue close・deployment・cleanup・停止の理由・飛ばした理由・対象から外した理由を示す。
+local review の欄には、手元でレビューしていない範囲（`unreviewed_range`）があれば、その範囲も書く。
 表の後に、「判断待ち」と「自分で判断して進めたもの」の一覧を必ず載せる。0 件でも、無いことを書く。
 `SKIPPED` と `EXCLUDED` の Issue も表に載せる。`EXCLUDED` の対象から外した理由には、当たった兆候と利用者の選択か、外した依存先の番号を書く。
 判断待ちは、Issue ごとに論点・選択肢・推奨・決まった後に残る作業を示す。自分で判断して進めたものは、判断・根拠・覆すときに戻る工程を示す。
