@@ -5,14 +5,15 @@
 //
 // - 宣言: package.json の dependencies と devDependencies（バージョンは pnpm-lock.yaml の importers の `.` で解決したもの）、
 //   package.json の packageManager、mise.toml の [tools]。
-//   mise.toml は `mise ls --current --json` で mise に解決させて読む。mise.toml を上書きする設定（mise.local.toml など）は読ませない。
+//   mise.toml は `mise ls --current --json` で mise に解決させて読む。mise.toml を上書きする設定（mise.local.toml など）は読ませず、
+//   それでも上書きが残ったときは比べられないとして exit 2 にする。
 //   宣言の無いツール（gh・git・Chrome など）は見ない。
 // - 名前: 宣言の名前と、文書で使う呼び名（ALIASES）。大文字と小文字を区別しない。
 // - 記述: 名前の直後の `X.Y.Z`（`v` と `@` を前に付けた形を含む）。`X` と `X.Y` だけの記述は見ない。
 //   メジャーやマイナーの境目（「Node 24.2 より古い版」「vitest 5」）を表し、パッチの更新では古くならないからである。
 //   直後の語（「以上」「〜」など）では除かない。範囲の書き方は閉じないので、宣言と違う X.Y.Z はすべて違反にし、
 //   正しい記述（必要な最低のバージョンなど）は下の許可で通す。
-//   プレリリースの接尾辞（`-rc.1` など）は記述に含めて比べる。
+//   `-` の後（`-rc.1` のプレリリースも `-linux-x64` の語も）は記述に含めず、`X.Y.Z` だけを比べる。
 //   英語の文の文末の `.` は記述に含めない（Markdown の「Tested with Playwright X.Y.Z.」も読む）。`.` の後に数字が続く X.Y.Z.W は見ない。
 // - 走査対象は scripts/gates/docs/doc-scan-files.ts と同じ（Tier 1〜3）。Markdown はコードフェンスの外の本文を、
 //   それ以外はコメントの文章（scripts/lib/text/code-comments.ts）を読む。名前をバッククォートで囲んだ記述も読む。
@@ -20,7 +21,7 @@
 //   例の行（scripts/lib/doc-scan.ts の EXAMPLE_LINE_RE）は読まない。
 // - 違反の形だが正しい記述（上流のソースのタグ・古いバージョンの挙動の記録・必要な最低のバージョン）は、
 //   scripts/gates/docs/doc-allowed.json に規則 version-mention で理由付きで許可する（使われていない許可は失敗にする）。
-// 宣言を読めない（mise を起動できない場合を含む）・解決したバージョンが X.Y.Z でない・対象ファイルが 0 件のときは exit 2。違反は exit 1。
+// 宣言を読めない（mise を起動できない・mise.toml を上書きする設定が残った場合を含む）・解決したバージョンが X.Y.Z でない・対象ファイルが 0 件のときは exit 2。違反は exit 1。
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, join, sep } from "node:path";
@@ -127,14 +128,14 @@ export type MiseList = (root: string) => string;
 const MISE_TIMEOUT_MS = 30_000;
 
 /**
- * mise.toml の宣言を上書きする設定（mise.local.toml・mise.<env>.toml・.tool-versions・MISE_<TOOL>_VERSION・MISE_ENV）を、
+ * mise.toml の宣言を上書きする設定（mise.local.toml・mise.<env>.toml・.tool-versions・MISE_<TOOL>_VERSION・MISE_ENV・旧名の MISE_PROFILE）を、
  * なるべく読ませない環境変数。上書きされると mise ls はその設定の宣言だけを返す。
  * ここで止めきれない上書きは、ownVersion が比べられないとして例外にする（止める種類を数え切ることを前提にしない）。
  */
 function miseEnv(): NodeJS.ProcessEnv {
   const env = Object.fromEntries(
     Object.entries(process.env).filter(
-      ([k]) => k !== "MISE_ENV" && !/^MISE_[A-Z0-9_]+_VERSION$/.test(k),
+      ([k]) => k !== "MISE_ENV" && k !== "MISE_PROFILE" && !/^MISE_[A-Z0-9_]+_VERSION$/.test(k),
     ),
   );
   return {
@@ -161,7 +162,8 @@ const runMiseList: MiseList = (root) => {
 /**
  * mise.toml の [tools] の宣言を、mise 自身に解決させて読む（TOML を自前で解析しない）。
  * mise はグローバルの設定の宣言も返すので、`source.path` がリポジトリの mise.toml のものだけを使う。
- * バージョンは mise が解決したバージョン（`version`。mise.lock で固定した値）で、package.json の側と同じく解決した値と比べる。
+ * バージョンは mise が解決したバージョン（`version`。mise.lock にそのツールの項目があればその値）で、package.json の側と同じく解決した値と比べる。
+ * mise.toml がバージョンを X.Y.Z で固定しない（`node = "26"`）と、lock の項目が無い環境では解決した値がマシンごとに変わる。
  * X.Y.Z でなければ declaredVersions が例外にする。
  * mise.toml が無ければ mise を起動しない。在るのに 1 件も読めない・形が違うときは例外にする。
  */
@@ -226,7 +228,7 @@ function mentionPattern(declared: Declared) {
   const names = [...new Set([...declared.keys(), ...ALIASES.keys()])].sort(
     (a, b) => b.length - a.length,
   );
-  const source = `(?<![\\w@/.-])(${names.map(escapeRe).join("|")})(?:@|\\s*v?)(\\d+\\.\\d+\\.\\d+(?:-[0-9a-z]+(?:\\.[0-9a-z]+)*)?)(?!\\w|\\.\\d)`;
+  const source = `(?<![\\w@/.-])(${names.map(escapeRe).join("|")})(?:@|\\s*v?)(\\d+\\.\\d+\\.\\d+)(?!\\w|\\.\\d)`;
   const built = { all: new RegExp(source, "gi"), probe: new RegExp(source, "i") };
   patterns.set(declared, built);
   return built;

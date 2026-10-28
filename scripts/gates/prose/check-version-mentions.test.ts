@@ -16,7 +16,7 @@
 // | 名前の書き方 | 空白 / v / @ / バッククォート / 大文字 / 呼び名（Playwright・Node.js）                   |
 // |              | 呼び名と同じ名前の宣言（宣言を優先する）                                                 |
 // | 名前の境界   | 長い名前（@types/node）/ 名前を含む別の語（mynode）/ 宣言の無い名前（gh）               |
-// | バージョン   | X.Y.Z 一致 / X.Y.Z 不一致 / X.Y / X.Y.Z.W / プレリリースの接尾辞                        |
+// | バージョン   | X.Y.Z 一致 / X.Y.Z 不一致 / X.Y / X.Y.Z.W / - の後の接尾辞（プレリリース・語）          |
 // | 直後の語     | 以上 / 〜で続く上限 / + / 空白を挟んだ + / +sha512 / 句読点 / 文末の .（どれも除かない）  |
 // | 場所         | Markdown の本文 / コードフェンス / 例の行 / コメント / 文字列 / コメントを持たない拡張子 |
 // | 許可         | 使われる許可 / 使われない許可                                                            |
@@ -154,26 +154,29 @@ test.each([
   expect(() => declaredVersions(makeRepo(files), fakeMise())).toThrow();
 });
 
-test.each<[string, MiseList]>([
-  ["X.Y.Z でない宣言", fakeMise({ node: "26" })],
-  ["package.json と mise.toml の食い違い", fakeMise({ pnpm: "12.12.0" })],
-  ["mise.toml の宣言が 1 件も無い", fakeMise({})],
-  ["出力が object でない", raw([])],
-  ["値が配列でない", raw({ node: {} })],
-  ["要素が object でない", raw({ node: [null] })],
+// 各行の 3 つ目は、その不備を判定した分岐のメッセージ。前の分岐や別の TypeError で落ちても通らないように確かめる。
+test.each<[string, MiseList, string | RegExp]>([
+  ["X.Y.Z でない宣言", fakeMise({ node: "26" }), "X.Y.Z でなく"],
+  ["package.json と mise.toml の食い違い", fakeMise({ pnpm: "12.12.0" }), "食い違う"],
+  ["mise.toml の宣言が 1 件も無い", fakeMise({}), "1 件も読めない"],
+  ["出力が object でない", raw([]), "出力が object でない"],
+  ["値が配列でない", raw({ node: {} }), "配列でない"],
+  ["要素が object でない", raw({ node: [null] }), "要素が object でない"],
   [
     "source.path が無い（環境変数の出所）",
     raw({ node: [{ version: "26.12.1", source: { type: "environment" } }] }),
+    "ファイルでなく",
   ],
-  ["JSON でない", () => "not json"],
+  ["JSON でない", () => "not json", /JSON/],
   [
     "起動できない",
     () => {
       throw new Error("spawn mise ENOENT");
     },
+    "ENOENT",
   ],
-])("mise ls を読めないときは例外にする: %s", (_name, miseList) => {
-  expect(() => declaredVersions(makeRepo({}), miseList)).toThrow();
+])("mise ls を読めないときは例外にする: %s", (_name, miseList, message) => {
+  expect(() => declaredVersions(makeRepo({}), miseList)).toThrow(message);
 });
 
 test("mise.toml が 1 つのツールに複数のバージョンを宣言するときは、比べるバージョンを決められないとして例外にする", () => {
@@ -228,8 +231,7 @@ test.each([
   ["文末の .", "Tested with Playwright 1.63.0.", ["Playwright 1.63.0"]],
   ["空白を挟んだ +", "Node 24.0.0 + pnpm 11.0.0 で確かめた。", ["Node 24.0.0", "pnpm 11.0.0"]],
   ["packageManager のハッシュ", "`pnpm@11.0.0+sha512.abc` を書く。", ["pnpm@11.0.0"]],
-  ["宣言と同じ X.Y.Z のプレリリース", "Node 26.12.1-rc.1 で確かめた。", ["Node 26.12.1-rc.1"]],
-  ["プレリリースは接尾辞まで報告する", "Node 24.0.0-rc.1 で確かめた。", ["Node 24.0.0-rc.1"]],
+  ["- の後は読まず X.Y.Z だけを比べる", "Node 24.0.0-rc.1 で確かめた。", ["Node 24.0.0"]],
   ["直後の以上", "Python 3.8.0 以上が要る。", ["Python 3.8.0"]],
   ["直後の以下", "Node 24.0.0 以下で起きる。", ["Node 24.0.0"]],
   ["直後のより古い", "Node 24.2.0 より古い版。", ["Node 24.2.0"]],
@@ -244,6 +246,7 @@ test.each([
   ["X.Y だけ", "Node 24.2 より古い版。vitest 5 の出力。"],
   ["X.Y.Z.W", "Chrome 149.0.7827.155 と node 1.2.3.4。"],
   ["名前を含む別の語", "mynode 1.2.3 と node_modules 1.2.3。"],
+  ["宣言と同じ X.Y.Z の後の - と語", "Node 26.12.1-linux-x64 のバイナリ。"],
   ["宣言の無い名前", "gh 2.93.0 で確かめた。"],
   ["例の行", "例: `pnpm@11.0.0` を入れる。"],
 ])("食い違いとして扱わない: %s", (_name, text) => {
