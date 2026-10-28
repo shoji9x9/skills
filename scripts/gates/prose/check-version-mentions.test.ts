@@ -7,11 +7,11 @@
 // | 宣言の出所   | devDependencies（lockfile で解決）/ packageManager / mise.toml の [tools] / [tools] の外 |
 // | 宣言の不備   | lockfile に無い依存 / X.Y.Z でない宣言 / importers の . が依存を持たない文書だけ         |
 // |              | [tools] の読めない行（表の値・[tools.<名前>]）/ package.json と mise.toml の食い違い     |
-// | 宣言の書き方 | [tools] の後のコメント / 引用符で囲んだ名前                                              |
+// | 宣言の書き方 | [tools] の後のコメント / 二重引用符と一重引用符で囲んだ名前と値 / 依存が null          |
 // | 名前の書き方 | 空白 / v / @ / バッククォート / 大文字 / 呼び名（Playwright・Node.js）                   |
 // | 名前の境界   | 長い名前（@types/node）/ 名前を含む別の語（mynode）/ 宣言の無い名前（gh）               |
 // | バージョン   | X.Y.Z 一致 / X.Y.Z 不一致 / X.Y / X.Y.Z.W                                               |
-// | 直後の語     | 以上 / 以下 / より古い / + / 〜・- で続く上限 / 句読点 / 文末の .                        |
+// | 直後の語     | 以上 / 以下 / より古い / + / 空白を挟んだ + / +sha512 / 〜・- で続く上限 / 句読点 / 文末の . |
 // | 場所         | Markdown の本文 / コードフェンス / 例の行 / コメント / 文字列 / コメントを持たない拡張子 |
 // | 許可         | 使われる許可 / 使われない許可                                                            |
 // | CLI          | 違反なし / 違反あり / 宣言を読めない                                                     |
@@ -101,14 +101,19 @@ test.each([
   ["[tools] の表の値", { "mise.toml": `[tools]\nnode = { version = "26.12.1" }\n` }],
   ["[tools.<名前>] の表", { "mise.toml": `[tools.node]\nversion = "26.12.1"\n` }],
   ["package.json と mise.toml の食い違い", { "mise.toml": `[tools]\npnpm = "12.12.0"\n` }],
+  ["package.json の依存が null", { "package.json": JSON.stringify({ dependencies: null }) }],
 ])("宣言を読めないときは例外にする: %s", (_name, files) => {
   expect(() => declaredVersions(makeRepo(files))).toThrow();
 });
 
 test("[tools] の後のコメントと、引用符で囲んだ名前も読む", () => {
-  const mise = `[tools] # 版を固定する\n"node" = "26.12.1"\npython = "3.15.0" # 注記\n`;
+  const mise = `[tools] # 版を固定する\n"node" = "26.12.1"\npython = "3.15.0" # 注記\n'shfmt' = '3.14.1'\n`;
   const declared = declaredVersions(makeRepo({ "mise.toml": mise }));
-  expect([declared.get("node"), declared.get("python")]).toEqual(["26.12.1", "3.15.0"]);
+  expect([declared.get("node"), declared.get("python"), declared.get("shfmt")]).toEqual([
+    "26.12.1",
+    "3.15.0",
+    "3.14.1",
+  ]);
 });
 
 test.each([
@@ -121,6 +126,8 @@ test.each([
   ["長い名前は長い方で読む", "@types/node 25.0.0 の型。", ["@types/node 25.0.0"]],
   ["句読点の前", "（Playwright 1.63.0）", ["Playwright 1.63.0"]],
   ["文末の .", "Tested with Playwright 1.63.0.", ["Playwright 1.63.0"]],
+  ["空白を挟んだ +", "Node 24.0.0 + pnpm 11.0.0 で確かめた。", ["Node 24.0.0", "pnpm 11.0.0"]],
+  ["packageManager のハッシュ", "`pnpm@11.0.0+sha512.abc` を書く。", ["pnpm@11.0.0"]],
 ])("宣言と食い違う X.Y.Z を検出する: %s", (_name, text, want) => {
   expect(mismatches("docs/a.md", text)).toEqual(want);
 });
