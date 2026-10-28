@@ -30,6 +30,7 @@
 import { readFileSync } from "node:fs";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
+import { parseFlagOpts } from "./lib/flag-opts.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 import { intentionalEntryText } from "./lib/intentional.mjs";
 import { valueText } from "./lib/value-text.mjs";
@@ -665,27 +666,8 @@ const USAGE =
  * @returns {Record<string, string>|null}
  */
 function parseArgs(argv) {
-  /** @type {Record<string, string>} */
-  const opts = {};
-  for (let i = 0; i < argv.length; i += 1) {
-    const a = argv[i];
-    if (a !== "--registries" && a !== "--metadata" && a !== "--features") {
-      process.stderr.write(`unknown argument: ${a}\n${USAGE}`);
-      return null;
-    }
-    const v = argv[i + 1];
-    if (v === undefined) {
-      process.stderr.write(USAGE);
-      return null;
-    }
-    if (opts[a.slice(2)] !== undefined) {
-      // 同じフラグを重ねて指定したときに、警告なしに後のものを採らない（どちらを読んだかが出力から分からなくなる）。
-      process.stderr.write(`error: ${a} が複数回指定されている\n${USAGE}`);
-      return null;
-    }
-    opts[a.slice(2)] = v;
-    i += 1;
-  }
+  const opts = parseFlagOpts(argv, ["--registries", "--metadata", "--features"], USAGE);
+  if (opts === null) return null;
   if (!opts.registries || !opts.metadata) {
     process.stderr.write(USAGE);
     return null;

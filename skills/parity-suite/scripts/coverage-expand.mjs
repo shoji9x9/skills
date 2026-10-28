@@ -66,6 +66,7 @@ const HUMAN_DECIDED_ROW_FIELDS = ["captured", "reason", "shared_capture_reason"]
 /** 候補 id の区切り。軸値に含まれると id が衝突するため、列挙時に禁止する。 */
 const ID_SEPARATOR = "/";
 
+// coverage-fingerprint:begin
 /**
  * 表の指紋。conformance を除いた内容をキー順に正規化して sha256 を取る。
  * 記録側（parity-suite の coverage-expand.mjs）と判定側（parity-diff の coverage-check.mjs）で
@@ -103,13 +104,14 @@ export function captureFingerprint(capture) {
     )
     .digest("hex");
 }
+// coverage-fingerprint:end
 
-// ===== absence-evidence-contract:start =====
-// ここから contract:end までは、記録側（parity-suite の coverage-expand.mjs）と
+// absence-evidence-contract:begin
+// この印の間は、記録側（parity-suite の coverage-expand.mjs）と
 // 収束判定側（parity-diff の coverage-check.mjs）でバイト単位に同一へ保つ。
 // 配布スキルは実行時に参照する成果物を自分で同梱する規約のため共有モジュールにできず実体が複製される。
 // 片方だけ直すと「記録側は通すが収束側が弾く」（またはその逆）が起きるため、
-// 配布元のリポジトリのテストが、このマーカー間の一致を検査する。
+// 配布元のリポジトリのチェックが、この印の間の一致を検査する。
 
 /**
  * `instances[].applicable_states.source.kind` の語彙。
@@ -683,18 +685,20 @@ function enumerationSourceProblems(en, label) {
   return problems;
 }
 
-// ===== absence-evidence-contract:end =====
+// absence-evidence-contract:end
 
+// coverage-collect-ids:begin
 /**
- * 期待セルの展開に使える id を集める。`coverage-check.mjs` の `collectIds` と同じ規則にする。
- * id が空・重複の要素は識別できないので展開に使わず、その要素が関わるセルは未測定として数える。
+ * 期待セルの展開に使える id を集める。id が空・重複の要素は識別できないので展開に使わず、問題として記録する。
+ * その要素が関わるセルは、未測定として数える。
+ * id が空だと全要素が同じキーへ潰れ、1 行で全セルを満たせてしまう。重複は期待セルを二重に数える。
  * **警告なしに読み飛ばさない**（読み飛ばすと、識別できない要素があるのに conformance.ok: true になる）。
  * @param {unknown[]} entries
- * @param {string} label - 問題文に出す位置
+ * @param {string} label - 問題文に出す位置（例: 部品 grid の items）
  * @param {string[]} problems - 問題の追記先
- * @returns {{ids: string[], rejected: number}} rejected は展開に使えなかった要素数
+ * @returns {{ids: string[], rejected: number}} rejected は展開に使えなかった要素数（未測定として数える）
  */
-function collectGenericIds(entries, label, problems) {
+function collectIds(entries, label, problems) {
   /** @type {string[]} */
   const ids = [];
   /** @type {Set<string>} */
@@ -718,6 +722,7 @@ function collectGenericIds(entries, label, problems) {
   });
   return { ids, rejected };
 }
+// coverage-collect-ids:end
 
 /**
  * 網羅表のセル 1 件を採点する。判定規則の原本は `references/coverage.md`「部品網羅表」。
@@ -2042,8 +2047,8 @@ function reconcileGenericComponent(c, cid, st) {
     st.report.push(genericReport(c, cid));
     return;
   }
-  const itemIds = collectGenericIds(genericItems, `部品 ${cid} の items`, problems);
-  const instanceIds = collectGenericIds(genericInstances, `部品 ${cid} の instances`, problems);
+  const itemIds = collectIds(genericItems, `部品 ${cid} の items`, problems);
+  const instanceIds = collectIds(genericInstances, `部品 ${cid} の instances`, problems);
   // 期待セル数は「項目数 × インスタンス数」。id が空・重複の要素も項目／インスタンスとしては実在するので、
   // その要素が関わるセルは全て期待セルであり、識別できない以上すべて未測定になる
   // （読み飛ばすと、識別できない要素があるのに conformance.ok: true を出せる）。

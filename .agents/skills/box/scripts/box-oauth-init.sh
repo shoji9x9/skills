@@ -28,30 +28,10 @@ fi
 : "${BOX_CLIENT_ID:?BOX_CLIENT_ID が未設定}"
 : "${BOX_CLIENT_SECRET:?BOX_CLIENT_SECRET が未設定}"
 
-# 置き場所のデフォルトは ~/.config/box/refresh_token。
-# env/dotenv 経由の値は ~ が展開されないため、先頭 ~/ も下で決めるホームの下に直す
-token_file="${BOX_REFRESH_TOKEN_FILE:-}"
-stripped="${token_file#\~/}"
-token_src="保存先は BOX_REFRESH_TOKEN_FILE で指定した。"
-if [ -z "$token_file" ] || [ "$stripped" != "$token_file" ]; then
-	[ -n "$token_file" ] || stripped=".config/box/refresh_token"
-	# 関数が値を入れる変数を空で置く（shellcheck は source 先を読まないので、参照だけでは代入が見えない）
-	box_home_dir="" box_home_reason="" box_home_from=""
-	box_resolve_home
-	home_dir="${box_home_dir}"
-	home_reason="${box_home_reason}"
-	token_src="${box_home_from}"
-	# ホームが絶対パスに決まらないまま交換すると、受け取った refresh token を保存できず、認可からやり直すことになる。
-	# 認可コードは 1 回しか使えないので、認可コードを読む前に止める
-	case "${home_dir}" in
-	/*) ;;
-	*)
-		printf 'box-oauth-init: refresh token の置き場所を絶対パスに決められない。%sBOX_REFRESH_TOKEN_FILE に絶対パスを設定する（例: export BOX_REFRESH_TOKEN_FILE=/path/to/refresh_token）\n' "${home_reason}" >&2
-		exit 1
-		;;
-	esac
-	token_file="${home_dir}/$stripped"
-fi
+# refresh token の保存先を決める。ホームが絶対パスに決まらなければ、ここで止まる
+# 関数が値を入れる変数を空で置く（shellcheck は source 先を読まないので、参照だけでは代入が見えない）
+token_file="" token_src=""
+box_token_file box-oauth-init
 # 保存先のディレクトリを先に作り、書き込めるかを確かめる。ホームが書き込めない場所（/nonexistent など）でも、
 # BOX_REFRESH_TOKEN_FILE に書き込めない場所を指定しても、交換した後に保存できず認可からやり直すことになるので、
 # 認可コードを読む前に止める

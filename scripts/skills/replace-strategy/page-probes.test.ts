@@ -267,6 +267,21 @@ test("role-probe の CLI: 名前のある要素と無い要素を数え、role �
   });
 });
 
+test("role-probe の CLI: html 要素そのものが名前の無い標本なら、空の位置ではなくタグ名を記録する", () => {
+  const html = fakeElement("HTML", { tabindex: "0" });
+  const result = evaluateInPage("role-probe.mjs", {
+    document: {
+      querySelectorAll: () => [html],
+      body: {},
+      documentElement: html,
+      getElementById: () => null,
+    },
+    location: { pathname: "/" },
+    getComputedStyle: () => fakeStyle(),
+  });
+  expect(result).toMatchObject({ unnamedSamples: [{ tag: "html", path: "html" }] });
+});
+
 test("role-probe の CLI: 対象の要素が無いページでは割合を null にする", () => {
   const result = evaluateInPage("role-probe.mjs", {
     document: { querySelectorAll: () => [], body: {} },

@@ -49,7 +49,7 @@
     {
       "id": "approval",
       "why": "承認者の無い accepted を通す",
-      "file": "skills/parity-component/scripts/behavior-compare.mjs",
+      "file": "skills/parity-component/scripts/lib/comparison.mjs",
       "find": "!filled(field(row, \"approved_by\")) ||",
       "replace": "false ||",
       "occurrences": 1,
@@ -85,7 +85,7 @@
     {
       "id": "approved-at-iso",
       "why": "承認日時を ISO 8601 として検査しない",
-      "file": "skills/parity-component/scripts/behavior-compare.mjs",
+      "file": "skills/parity-component/scripts/lib/comparison.mjs",
       "find": "!isoDateTime(field(row, \"approved_at\"))",
       "replace": "!filled(field(row, \"approved_at\"))",
       "occurrences": 1,

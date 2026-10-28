@@ -48,16 +48,62 @@
       "skills/parity-suite/scripts/trait-compare.mjs"
     ],
     [
+      "skills/golden-dataset/scripts/lib/cli.mjs",
+      "skills/issue-start/scripts/lib/cli.mjs",
       "skills/parity-component/scripts/lib/cli.mjs",
       "skills/parity-diff/scripts/lib/cli.mjs",
       "skills/parity-suite/scripts/lib/cli.mjs",
       "skills/replace-strategy/scripts/lib/cli.mjs"
     ],
     [
+      "skills/golden-dataset/scripts/lib/check-cli.mjs",
+      "skills/parity-component/scripts/lib/check-cli.mjs",
+      "skills/parity-suite/scripts/lib/check-cli.mjs"
+    ],
+    [
+      "skills/issue-start/scripts/lib/flag-args.mjs",
+      "skills/replace-strategy/scripts/lib/flag-args.mjs"
+    ],
+    [
+      "skills/agent-usage/scripts/skill-config/skill-config.mjs",
+      "skills/golden-dataset/scripts/lib/cli.mjs",
+      "skills/issue-start/scripts/lib/cli.mjs",
       "skills/kaizen/scripts/skill-config/skill-config.mjs",
+      "skills/parity-component/scripts/lib/cli.mjs",
+      "skills/parity-diff/scripts/lib/cli.mjs",
       "skills/parity-suite/scripts/header-normalize.mjs",
       "skills/parity-suite/scripts/lib/cli.mjs",
-      "skills/parity-suite/scripts/trait-compare.mjs"
+      "skills/parity-suite/scripts/trait-compare.mjs",
+      "skills/replace-strategy/scripts/lib/cli.mjs"
+    ],
+    [
+      "skills/parity-diff/scripts/coverage-check.mjs",
+      "skills/parity-suite/scripts/coverage-expand.mjs"
+    ],
+    [
+      "skills/parity-diff/scripts/coverage-check.mjs",
+      "skills/parity-suite/scripts/coverage-expand.mjs"
+    ],
+    [
+      "skills/parity-diff/scripts/coverage-check.mjs",
+      "skills/parity-suite/scripts/coverage-expand.mjs"
+    ],
+    [
+      "skills/parity-diff/scripts/pixel-crops.mjs",
+      "skills/parity-suite/scripts/pixel-strict-count.mjs"
+    ],
+    [
+      "skills/parity-diff/scripts/amend-verify.mjs",
+      "skills/parity-diff/scripts/pixel-crops.mjs",
+      "skills/parity-suite/scripts/pixel-strict-count.mjs"
+    ],
+    [
+      "skills/replace-strategy/scripts/page/asset-probe.page.mjs",
+      "skills/replace-strategy/scripts/page/role-probe.page.mjs"
+    ],
+    [
+      "skills/git-worktree/scripts/git-worktree-branch-guard.sh",
+      "skills/kaizen/scripts/kaizen-precommit-gate.sh"
     ],
     ["skills/parity-diff/scripts/lib/json.mjs", "skills/parity-suite/scripts/lib/json.mjs"],
     [

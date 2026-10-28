@@ -19,11 +19,11 @@
 // 終了コード: 0 ＝ 条件を満たす（判定しない場合を含む）、1 ＝ 未突合・不整合が残る、2 ＝ 使い方の誤り・型崩れ。
 
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
 import { dirname, join, resolve, sep } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 
 import { EVIDENCE_CARRY_FILE, judgeCarry } from "./evidence-carry.mjs";
+import { cliIo, parseFlagPairs, writeCheckResult } from "./lib/check-cli.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
 import { isObjectLike, isPlainObject, nonEmptyString, toIterationCount } from "./lib/guards.mjs";
@@ -634,24 +634,7 @@ class InputError extends Error {}
  * @returns {Record<string, string>}
  */
 function parseArgs(argv) {
-  /** @type {Record<string, string>} */
-  const args = {};
-  for (let i = 0; i < argv.length; i += 1) {
-    const key = argv[i];
-    if (!key.startsWith("--")) {
-      throw new InputError(`不明な引数: ${key}`);
-    }
-    const value = argv[i + 1];
-    if (typeof value !== "string" || value.startsWith("--")) {
-      throw new InputError(`${key} に値がない`);
-    }
-    if (args[key] !== undefined) {
-      throw new InputError(`${key} が複数ある`);
-    }
-    args[key] = value;
-    i += 1;
-  }
-  const known = [
+  const parsed = parseFlagPairs(argv, [
     "--coverage",
     "--comparison",
     "--metadata",
@@ -661,12 +644,9 @@ function parseArgs(argv) {
     "--replace-root",
     "--evidence-carry",
     "--carry-to",
-  ];
-  const unknown = Object.keys(args).filter((k) => !known.includes(k));
-  if (unknown.length > 0) {
-    throw new InputError(`不明な引数: ${unknown.join(", ")}`);
-  }
-  return args;
+  ]);
+  if (parsed.error !== undefined) throw new InputError(parsed.error);
+  return parsed.args;
 }
 
 /**
@@ -780,45 +760,13 @@ function carryFor(args, parsed, { cwd, readBytes }) {
 }
 
 /**
- * 判定結果を stdout へ書き、終了コードを返す。
- * @param {ReturnType<typeof checkComponentComparison>} result
- * @param {(s: string) => void} write
- * @returns {number}
- */
-function writeResult(result, write) {
-  /**
-   * @param {Record<string, unknown>} obj
-   */
-  const out = (obj) =>
-    write(
-      `${JSON.stringify({ tool: "component-comparison-check", version: VERSION, ...obj }, null, 2)}\n`,
-    );
-  if (result.structural) {
-    out({ ok: false, structural: true, findings: result.findings, counts: result.counts });
-    return 2;
-  }
-  out({
-    ok: result.findings.length === 0,
-    judged: result.judged,
-    findings: result.findings,
-    // 持ち越し・従来の失敗の注記。無いときは出力の形を変えない。
-    ...(result.notes.length > 0 ? { notes: result.notes } : {}),
-    counts: { ...result.counts, findings: result.findings.length },
-  });
-  return result.findings.length === 0 ? 0 : 1;
-}
-
-/**
  * CLI 本体。
  * @param {string[]} argv
  * @param {{ readFile?: (path: string) => string, readBytes?: (path: string) => Buffer, cwd?: string, write?: (s: string) => void, writeErr?: (s: string) => void }} [deps]
  * @returns {number}
  */
 export function main(argv, deps = {}) {
-  const readFile = deps.readFile ?? ((p) => readFileSync(p, "utf8"));
-  const cwd = deps.cwd ?? process.cwd();
-  const write = deps.write ?? ((s) => process.stdout.write(s));
-  const writeErr = deps.writeErr ?? ((s) => process.stderr.write(s));
+  const { readFile, cwd, write, writeErr } = cliIo(deps);
   /** @type {Record<string, string>} */
   let args;
   /** @type {Record<string, unknown>} */
@@ -841,7 +789,16 @@ export function main(argv, deps = {}) {
     carryTo: args["--carry-to"] ?? null,
     carry: carryFor(args, parsed, { cwd, readBytes: deps.readBytes }),
   });
-  return writeResult(result, write);
+  return writeCheckResult(write, result, {
+    tool: "component-comparison-check",
+    version: VERSION,
+    fields: {
+      judged: result.judged,
+      findings: result.findings,
+      // 持ち越し・従来の失敗の注記。無いときは出力の形を変えない。
+      ...(result.notes.length > 0 ? { notes: result.notes } : {}),
+    },
+  });
 }
 
 if (isCliEntry(import.meta.url)) {

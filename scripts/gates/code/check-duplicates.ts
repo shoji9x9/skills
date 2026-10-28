@@ -207,7 +207,7 @@ export function regionReader(root: string): (file: string, region: string) => Ra
     const key = `${file}#${region}`;
     const hit = cache.get(key);
     if (hit) return hit;
-    const m = regionMarkers(readFileSync(join(root, file), "utf8"), region);
+    const m = regionMarkers(readFileSync(join(root, file), "utf8"), region, file);
     if ("error" in m) throw new Error(`${file}: ${m.error}`);
     // 0 始まりの印の行の間を、1 始まりの行番号にする（begin の次の行から、end の前の行まで）。
     const range = { start: m.begin + 2, end: m.end };

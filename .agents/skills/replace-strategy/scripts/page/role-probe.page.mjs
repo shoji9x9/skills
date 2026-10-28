@@ -112,20 +112,26 @@ function accessibleName(el) {
   return (el.getAttribute("placeholder") || "").trim();
 }
 
-/** @param {Element} el */
+// css-path-js:begin
+/**
+ * 要素の位置を、body（または html）までの最大 5 段の `:nth-child` のセレクタで表す。
+ * body・html そのものは段を持たないので、空の位置を返さずにタグ名を返す。
+ * @param {Element} el
+ */
 function cssPath(el) {
   const parts = [];
   /** @type {Element | null} */
   let cur = el;
-  while (cur && cur !== document.body && parts.length < 5) {
+  while (cur && cur !== document.body && cur !== document.documentElement && parts.length < 5) {
     /** @type {HTMLElement | null} */
     const parent = cur.parentElement;
     const idx = parent ? Array.from(parent.children).indexOf(cur) + 1 : 1;
     parts.unshift(cur.tagName.toLowerCase() + ":nth-child(" + idx + ")");
     cur = parent;
   }
-  return parts.join(" > ");
+  return parts.length > 0 ? parts.join(" > ") : el.tagName.toLowerCase();
 }
+// css-path-js:end
 
 /** @param {Element} el */
 function roleOf(el) {

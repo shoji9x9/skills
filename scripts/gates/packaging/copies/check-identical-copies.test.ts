@@ -232,6 +232,27 @@ test("陽性: 範囲の中が違えば、範囲の中の行番号を付けて落
   ]);
 });
 
+test("シェルのファイルは # の印で範囲を読み、// の印を印として読まない", () => {
+  const shell = "# is-array:begin\nf() { :; }\n# is-array:end\n";
+  const same = makeRepo({ "a/x.sh": shell, "b/x.sh": `#!/usr/bin/env bash\n${shell}` }, [
+    regionGroup("a/x.sh", "b/x.sh"),
+  ]);
+  expect(checkIdenticalCopies(same).violations).toEqual([]);
+  const differ = makeRepo(
+    { "a/x.sh": shell, "b/x.sh": "# is-array:begin\nf() { true; }\n# is-array:end\n" },
+    [regionGroup("a/x.sh", "b/x.sh")],
+  );
+  expect(checkIdenticalCopies(differ).violations).toEqual([
+    "b/x.sh: a/x.sh と範囲「is-array」が一致しない（範囲の中の最初の差分は 1 行目）",
+  ]);
+  const slashes = makeRepo({ "a/x.sh": shell, "b/x.sh": REGION }, [
+    regionGroup("a/x.sh", "b/x.sh"),
+  ]);
+  expect(checkIdenticalCopies(slashes).violations).toEqual([
+    "b/x.sh: 印「# is-array:begin」と「# is-array:end」が 1 つずつでない（0 件・0 件）",
+  ]);
+});
+
 test.each([
   ["印が無い", "function isArray() {}\n", /1 つずつでない（0 件・0 件）/],
   ["begin が重複", `// is-array:begin\n${REGION}`, /1 つずつでない（2 件・1 件）/],

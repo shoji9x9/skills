@@ -42,6 +42,32 @@ box_resolve_home() {
 	fi
 }
 
+# box_token_file <名前>: refresh token の保存先を決め、token_file と token_src に入れる。
+#   token_file: 保存先のパス。置き場所のデフォルトは ~/.config/box/refresh_token。
+#   token_src: 保存先を決めた方法を表示する文。
+# env/dotenv 経由の値は ~ が展開されないため、先頭 ~/ も box_resolve_home で決めたホームの下に直す。
+# ホームが絶対パスに決まらなければ、<名前> を付けて理由と設定の案内を stderr に書き、exit 1 で止める。
+# 決まらないまま進むと、受け取った refresh token を保存できない。認可コードは 1 回しか使えず、
+# Box は更新に使った古い refresh token を無効にするので、呼び出し側は認可コードを読む前と API を呼ぶ前にこれを呼ぶ。
+box_token_file() {
+	token_file="${BOX_REFRESH_TOKEN_FILE:-}"
+	local stripped="${token_file#\~/}"
+	token_src="保存先は BOX_REFRESH_TOKEN_FILE で指定した。"
+	if [ -z "$token_file" ] || [ "$stripped" != "$token_file" ]; then
+		[ -n "$token_file" ] || stripped=".config/box/refresh_token"
+		box_resolve_home
+		token_src="${box_home_from}"
+		case "${box_home_dir}" in
+		/*) ;;
+		*)
+			printf '%s: refresh token の置き場所を絶対パスに決められない。%sBOX_REFRESH_TOKEN_FILE に絶対パスを設定する（例: export BOX_REFRESH_TOKEN_FILE=/path/to/refresh_token）\n' "$1" "${box_home_reason}" >&2
+			exit 1
+			;;
+		esac
+		token_file="${box_home_dir}/$stripped"
+	fi
+}
+
 # box_can_save <path>: 保存先に書き込めるかを返す。保存はファイルへ直接書くので、ファイルが在ればファイルに、
 # 無ければディレクトリに書き込めるかを見る。
 # 保存先がディレクトリなら、書き込めてもファイルとして保存できない。

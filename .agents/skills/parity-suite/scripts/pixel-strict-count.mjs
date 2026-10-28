@@ -24,8 +24,11 @@ import { errorMessage } from "./lib/errors.mjs";
  */
 export const VERSION = "1";
 
+// diff-color:begin
 /**
- * 差分色判定のチャンネル許容差（既定）。`parity-diff` の pixel-crops.mjs と同じ値にする。
+ * 差分の色かを判定するときの、チャンネルの許容差（デフォルト）。
+ * 赤 `(255,0,0)` と、アンチエイリアスの色によく使われる黄 `(255,255,0)` を分けられる幅にする。
+ * 黄は緑のチャンネルが 255 で、赤の 0 から大きく離れるので除かれる。
  * @type {number}
  */
 export const DEFAULT_COLOR_TOLERANCE = 96;
@@ -44,6 +47,7 @@ export function hexToRgb(hex) {
     b: parseInt(s.slice(4, 6), 16),
   };
 }
+// diff-color:end
 
 /**
  * 差分画像でマークされた画素のマスクを作る（`--diff` を渡したときだけ使う）。
@@ -256,12 +260,20 @@ export async function main(argv) {
   return 0;
 }
 
+// async-cli-exit:begin
 if (isCliEntry(import.meta.url)) {
+  // 想定外の reject を握らないと未処理 rejection で exit 1 になり、
+  // 判定の結果の exit 1 と区別が付かないまま呼び出し側に伝わる。入力エラーと同じ exit 2 に寄せる。
+  // process.exit は書き込み中の stdout を捨てる（パイプが非同期のプラットフォームで出力が欠ける）ため、
+  // 終了コードだけ設定して自然終了させる。
   main(process.argv.slice(2))
-    .then((code) => process.exit(code))
+    .then((code) => {
+      process.exitCode = code;
+    })
     .catch((err) => {
-      const message = errorMessage(err);
+      const message = err instanceof Error ? err.message : String(err);
       process.stderr.write(`error: ${message}\n`);
-      process.exit(2);
+      process.exitCode = 2;
     });
 }
+// async-cli-exit:end

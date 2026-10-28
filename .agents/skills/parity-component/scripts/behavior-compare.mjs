@@ -33,18 +33,19 @@
 //
 // 終了コード: 0 ＝ 条件を満たす（判定しない場合を含む）、1 ＝ 未突合・不一致・記録の不備が残る、2 ＝ 使い方の誤り・型崩れ。
 
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
-import { loadBaseline } from "./lib/baseline.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
+import {
+  cellKey,
+  judgeDisposition,
+  readComparisonRows,
+  runCompareCli,
+  valueKind,
+} from "./lib/comparison.mjs";
 import { field, filled, isObjectLike, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
-/** ツールのバージョン（このスクリプトで定義する）。判定の規則・出力の形を変えたら上げる。 */
+/** ツールのバージョン（このスクリプトで定義する）。共有する lib/comparison.mjs・lib/check-cli.mjs を変えたときも含めて、判定の規則・出力の形を変えたら上げる。 */
 export const VERSION = "2";
-
-/** 突き合わせ表の行がとりうる扱いの語彙（このスクリプトで定義する）。null は「比べた」。 */
-export const DISPOSITIONS = ["accepted"];
 
 /** 操作の導出元の語彙（このスクリプトで定義する。metadata-template.json の capture.operation_source と同じ）。 */
 export const OPERATION_SOURCES = [
@@ -53,61 +54,6 @@ export const OPERATION_SOURCES = [
   "current-source",
   "app-ui",
 ];
-
-/**
- * ISO 8601 の日付・日時として読めるか（承認日時の検査。プレースホルダや自由記述を通さない）。
- * **暦の上で実在する値だけを通す。** `Date.parse("2026-02-30")` は 3 月 2 日へ繰り上げて成功するので、
- * 解析の成否ではなく各欄の範囲と、年月日を UTC で組み直して同じ日に戻ることを確かめる。
- * @param {unknown} value
- * @returns {boolean}
- */
-export function isoDateTime(value) {
-  if (typeof value !== "string") return false;
-  const m =
-    /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-](\d{2}):(\d{2}))?)?$/.exec(
-      value,
-    );
-  if (!m) return false;
-  const [year, month, day] = [Number(m[1]), Number(m[2]), Number(m[3])];
-  const date = new Date(Date.UTC(year, month - 1, day));
-  if (
-    date.getUTCFullYear() !== year ||
-    date.getUTCMonth() !== month - 1 ||
-    date.getUTCDate() !== day
-  ) {
-    return false;
-  }
-  /**
-   * @param {string | undefined} part
-   * @param {number} max
-   */
-  const within = (part, max) => part === undefined || Number(part) <= max;
-  return (
-    within(m[4], 23) && within(m[5], 59) && within(m[6], 59) && within(m[8], 23) && within(m[9], 59)
-  );
-}
-
-/**
- * 操作 × インスタンスの鍵。区切り文字を持つ連結にせず JSON の配列にする
- * （`("a|b","c")` と `("a","b|c")` が同じ鍵に潰れない）。
- * @param {string} operation
- * @param {string} instance
- * @returns {string}
- */
-export function cellKey(operation, instance) {
-  return JSON.stringify([operation, instance]);
-}
-
-/**
- * 入力の値の型を、利用者に表示する名前で返す（オブジェクトでない採取物や表を報告するときに使う）。
- * @param {unknown} value
- * @returns {string}
- */
-export function valueKind(value) {
-  if (value === null) return "null";
-  if (isArray(value)) return "配列";
-  return typeof value;
-}
 
 /**
  * キーを整列した正規形の JSON。オブジェクトのキー順だけが違う観測値を不一致にしない。
@@ -450,75 +396,6 @@ function readBehaviorBaseline({ instanceIds, behaviors, ctx }) {
 }
 
 /**
- * 突き合わせ表の target・component・rows を検査し、行の配列を返す。
- * @param {{ comparison: unknown, target: string, slug: unknown, findings: BehaviorFinding[] }} arg
- * @returns {unknown[]}
- */
-function readComparisonRows({ comparison, target, slug, findings }) {
-  // オブジェクトでない値は空の表として読む。どの欄も undefined になるので、直後の target の照合で不一致として報告する。
-  // target を書き忘れた表と見分けられるよう、オブジェクトでないときは値の型を書く。
-  const isTable = isPlainObject(comparison);
-  /** @type {Record<string, unknown>} */
-  const table = isTable ? comparison : {};
-  if (table.target !== target) {
-    findings.push({
-      code: "comparison-target-mismatch",
-      detail: isTable
-        ? `突き合わせ表の target が ${JSON.stringify(table.target)}（判定対象は ${JSON.stringify(target)}）`
-        : `突き合わせ表がオブジェクトでない（${valueKind(comparison)}）`,
-    });
-  }
-  if (table.component !== slug) {
-    findings.push({
-      code: "comparison-component-mismatch",
-      detail: isTable
-        ? `突き合わせ表の component が ${JSON.stringify(table.component)}（採取は ${JSON.stringify(slug)}）`
-        : `突き合わせ表がオブジェクトでない（${valueKind(comparison)}）`,
-    });
-  }
-  if (!isArray(table.rows)) {
-    findings.push({ code: "comparison-rows-invalid", detail: "rows が配列でない" });
-    return [];
-  }
-  return table.rows;
-}
-
-/**
- * 比べないことを選んだ行（disposition あり）を検査し、件数を数える。
- * @param {{ row: unknown, op: string, inst: string, disposition: unknown, ctx: BehaviorContext }} arg
- */
-function judgeDisposition({ row, op, inst, disposition, ctx }) {
-  const { findings, counts } = ctx;
-  // DISPOSITIONS は文字列だけなので、typeof は型を絞るためだけにある（判定は変わらない）。
-  if (typeof disposition !== "string" || !DISPOSITIONS.includes(disposition)) {
-    findings.push({
-      code: "behavior-disposition-invalid",
-      operation: op,
-      instance: inst,
-      detail: `disposition は null か ${DISPOSITIONS.join(" / ")}: ${JSON.stringify(disposition)}`,
-    });
-    counts.uncompared += 1;
-    return;
-  }
-  if (
-    !filled(field(row, "reason")) ||
-    !filled(field(row, "approved_by")) ||
-    !isoDateTime(field(row, "approved_at"))
-  ) {
-    findings.push({
-      code: "behavior-acceptance-unapproved",
-      operation: op,
-      instance: inst,
-      detail:
-        "accepted には記入済みの reason / approved_by と ISO 8601 の approved_at が要る（テンプレートのプレースホルダは承認ではない）",
-    });
-    counts.uncompared += 1;
-    return;
-  }
-  counts.accepted += 1;
-}
-
-/**
  * 比べた行の観測値を、現行の基準と突き合わせて件数を数える。
  * @param {{
  *   row: unknown,
@@ -624,7 +501,13 @@ function judgeRows({ rows, baseline, ctx }) {
     seen.add(key);
     const disposition = field(row, "disposition") ?? null;
     if (disposition !== null) {
-      judgeDisposition({ row, op: cell.operation, inst: cell.instance, disposition, ctx });
+      judgeDisposition({
+        row,
+        disposition,
+        prefix: "behavior",
+        where: { operation: cell.operation, instance: cell.instance },
+        ctx,
+      });
       continue;
     }
     judgeObserved({ row, cell, expected: baseline.get(key), ctx });
@@ -714,97 +597,21 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
 }
 
 /**
- * CLI の引数を読む。誤りがあれば error に理由を返す。
- * @param {string[]} argv
- * @returns {{ error: string } | { error?: undefined, args: Record<string, string> }}
- */
-function parseArgs(argv) {
-  /** @type {Record<string, string>} */
-  const args = {};
-  for (let i = 0; i < argv.length; i += 1) {
-    const key = argv[i];
-    if (!key.startsWith("--")) return { error: `不明な引数: ${key}` };
-    const value = argv[i + 1];
-    if (typeof value !== "string" || value.startsWith("--")) return { error: `${key} に値がない` };
-    if (args[key] !== undefined) return { error: `${key} が複数ある` };
-    args[key] = value;
-    i += 1;
-  }
-  const known = ["--baseline", "--comparison", "--target"];
-  const unknown = Object.keys(args).filter((k) => !known.includes(k));
-  if (unknown.length > 0) return { error: `不明な引数: ${unknown.join(", ")}` };
-  for (const key of known) {
-    // 空白だけの値を通さない。`--target " "` を受けると target の照合が別環境の記録を通す。
-    if (!nonEmptyString(args[key])) return { error: `${key} は必須（空白だけの値も不可）` };
-  }
-  return { args };
-}
-
-/**
- * 突き合わせ表を読む。無い・読めないのは「まだ突き合わせていない」と区別できないので、null を返して未突合として数える。
- * @param {string} path
- * @returns {unknown}
- */
-function readComparison(path) {
-  try {
-    return JSON.parse(readFileSync(path, "utf8"));
-  } catch {
-    return null;
-  }
-}
-
-/**
  * CLI 本体。
  * @param {string[]} argv
- * @param {{ cwd?: string, write?: (s: string) => void, writeErr?: (s: string) => void }} [io]
+ * @param {{ readFile?: (path: string) => string, cwd?: string, write?: (s: string) => void, writeErr?: (s: string) => void }} [io]
  * @returns {number} 終了コード
  */
-export function main(
-  argv,
-  {
-    cwd = process.cwd(),
-    write = (s) => process.stdout.write(s),
-    writeErr = (s) => process.stderr.write(s),
-  } = {},
-) {
-  /** @param {Record<string, unknown>} obj */
-  const out = (obj) =>
-    write(`${JSON.stringify({ tool: "behavior-compare", version: VERSION, ...obj }, null, 2)}\n`);
-  const usage =
-    "usage: behavior-compare.mjs --baseline <部品の成果物ディレクトリ> --comparison <new/<target>/behavior-comparison.json> --target <name>";
-  // 引数・入力の誤りは判定結果ではないので stdout の JSON に混ぜず stderr へ知らせる（同梱スクリプト共通の CLI 規約）。
-  /** @param {string} message */
-  const fail = (message) => {
-    writeErr(`error: ${message}\n${usage}\n`);
-    return 2;
-  };
-  const parsed = parseArgs(argv);
-  if (parsed.error !== undefined) return fail(parsed.error);
-  const { args } = parsed;
-  let loaded;
-  try {
-    loaded = loadBaseline(resolve(cwd, args["--baseline"]), "behaviors.json");
-  } catch (error) {
-    return fail(`採取物を読めない: ${String(field(error, "message"))}`);
-  }
-  const comparison = readComparison(resolve(cwd, args["--comparison"]));
-  const result = compareBehaviors({
-    metadata: loaded.metadata,
-    behaviors: loaded.byInstance,
-    comparison,
-    target: args["--target"],
+export function main(argv, io = {}) {
+  return runCompareCli(argv, io, {
+    tool: "behavior-compare",
+    version: VERSION,
+    usage:
+      "usage: behavior-compare.mjs --baseline <部品の成果物ディレクトリ> --comparison <new/<target>/behavior-comparison.json> --target <name>",
+    fileName: "behaviors.json",
+    judge: ({ metadata, byInstance, comparison, target }) =>
+      compareBehaviors({ metadata, behaviors: byInstance, comparison, target }),
   });
-  if (result.structural) {
-    out({ ok: false, structural: true, findings: result.findings, counts: result.counts });
-    return 2;
-  }
-  out({
-    ok: result.findings.length === 0,
-    judged: result.judged,
-    findings: result.findings,
-    counts: { ...result.counts, findings: result.findings.length },
-  });
-  return result.findings.length === 0 ? 0 : 1;
 }
 
 if (isCliEntry(import.meta.url)) {

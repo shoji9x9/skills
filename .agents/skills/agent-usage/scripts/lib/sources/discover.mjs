@@ -12,6 +12,7 @@ import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { isRecord } from "../config.mjs";
 import { normalizeRemote } from "../repo.mjs";
+import { filesUnder } from "../walk.mjs";
 
 /**
  * @typedef {object} LogFile
@@ -122,22 +123,6 @@ export function discoverClaude(roots, env = process.env) {
 }
 
 /**
- * @param {string} dir
- * @returns {string[]}
- */
-function walkJsonl(dir) {
-  if (!existsSync(dir)) return [];
-  /** @type {string[]} */
-  const out = [];
-  for (const ent of readdirSync(dir, { withFileTypes: true })) {
-    const p = join(dir, ent.name);
-    if (ent.isDirectory()) out.push(...walkJsonl(p));
-    else if (ent.isFile() && ent.name.endsWith(".jsonl")) out.push(p);
-  }
-  return out.sort();
-}
-
-/**
  * ファイルの最初の行を読む（全体を読まずに session_meta を確かめる）。
  * 読んだ塊ごとに文字列にすると、塊の境目で分かれた複数バイトの文字が置換文字になるので、バイトのままつないでから 1 回で文字列にする。
  * @param {string} path
@@ -211,7 +196,7 @@ export function discoverCodex(o) {
   const { roots, remote, env, inside } = o;
   /** @type {SessionSource[]} */
   const out = [];
-  for (const p of walkJsonl(codexSessionsDir(env))) {
+  for (const p of filesUnder(codexSessionsDir(env), ".jsonl")) {
     const payload = codexSessionMeta(p);
     if (payload === null || !codexInRepo(payload, { roots, remote, inside })) continue;
     const id =

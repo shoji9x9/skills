@@ -17,8 +17,8 @@ import { dirname, join } from "node:path";
 // 抽出範囲がソースの字句に依存しない。
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
-const START = "// ===== absence-evidence-contract:start =====";
-const END = "// ===== absence-evidence-contract:end =====";
+const START = "// absence-evidence-contract:begin";
+const END = "// absence-evidence-contract:end";
 
 const SOURCES = {
   "coverage-check": join(repoRoot, "skills/parity-diff/scripts/coverage-check.mjs"),

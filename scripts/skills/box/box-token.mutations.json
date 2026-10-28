@@ -7,54 +7,34 @@
   "test_file": "scripts/skills/box/box-token.test.ts",
   "mutations": [
     {
-      "id": "TOKEN-RAW-HOME",
+      "id": "HOME-TOKEN-RAW-HOME",
       "why": "決めたホームではなく HOME をそのまま使う（HOME が無いか空なら /.config/box に置く。Issue #704 の元の振る舞い）",
-      "file": "skills/box/scripts/box-token.sh",
-      "find": "token_file=\"${home_dir}/$stripped\"",
+      "file": "skills/box/scripts/lib/home.sh",
+      "find": "token_file=\"${box_home_dir}/$stripped\"",
       "replace": "token_file=\"${HOME:-}/$stripped\"",
       "occurrences": 1,
       "expect_failing": [
         "box-token.sh HOME が無く、保存先の指定も無いなら、ユーザーのデータベースのホームの下に保存する",
         "box-token.sh HOME が空で、保存先の指定も無いなら、ユーザーのデータベースのホームの下に保存する",
-        "box-token.sh HOME が空で、保存先が ~/ で始まるなら、ユーザーのデータベースのホームの下に保存する"
-      ]
-    },
-    {
-      "id": "TOKEN-NO-ABSOLUTE-CHECK",
-      "why": "ホームが絶対パスかを確かめない（API を呼んだ後に、新しい refresh token を相対パスに保存しようとする）",
-      "file": "skills/box/scripts/box-token.sh",
-      "find": "case \"${home_dir}\" in",
-      "replace": "case \"/${home_dir}\" in",
-      "occurrences": 1,
-      "expect_failing": [
-        "box-token.sh HOME が相対パスで保存先の指定が無いなら、API を呼ばずに BOX_REFRESH_TOKEN_FILE の設定を案内して止まる",
-        "box-token.sh HOME が相対パスで保存先が ~/ で始まるなら、API を呼ばずに BOX_REFRESH_TOKEN_FILE の設定を案内して止まる",
-        "box-token.sh HOME が無く、保存先の指定も無いとき、OS にユーザーの登録が無ければ、API を呼ばずに登録が無いことを示して止まる",
-        "box-token.sh HOME が空で、保存先の指定も無いとき、OS にユーザーの登録が無ければ、API を呼ばずに登録が無いことを示して止まる",
-        "box-token.sh（id が PATH に無い） HOME が無く、id が PATH に無ければ、API を呼ばずに、登録を確かめられないことを示して止まる"
-      ]
-    },
-    {
-      "id": "INIT-RAW-HOME",
-      "why": "決めたホームではなく HOME をそのまま使う（HOME が無いか空なら /.config/box に置く。Issue #704 の元の振る舞い）",
-      "file": "skills/box/scripts/box-oauth-init.sh",
-      "find": "token_file=\"${home_dir}/$stripped\"",
-      "replace": "token_file=\"${HOME:-}/$stripped\"",
-      "occurrences": 1,
-      "expect_failing": [
+        "box-token.sh HOME が空で、保存先が ~/ で始まるなら、ユーザーのデータベースのホームの下に保存する",
         "box-oauth-init.sh HOME が無く、保存先の指定も無いなら、ユーザーのデータベースのホームの下に保存する",
         "box-oauth-init.sh HOME が空で、保存先の指定も無いなら、ユーザーのデータベースのホームの下に保存する",
         "box-oauth-init.sh HOME が空で、保存先が ~/ で始まるなら、ユーザーのデータベースのホームの下に保存する"
       ]
     },
     {
-      "id": "INIT-NO-ABSOLUTE-CHECK",
-      "why": "ホームが絶対パスかを確かめない（認可コードを交換した後に、refresh token を相対パスに保存しようとする）",
-      "file": "skills/box/scripts/box-oauth-init.sh",
-      "find": "case \"${home_dir}\" in",
-      "replace": "case \"/${home_dir}\" in",
+      "id": "HOME-TOKEN-NO-ABSOLUTE-CHECK",
+      "why": "ホームが絶対パスかを確かめない（API を呼んだ後や認可コードを交換した後に、refresh token を相対パスに保存しようとする）",
+      "file": "skills/box/scripts/lib/home.sh",
+      "find": "case \"${box_home_dir}\" in",
+      "replace": "case \"/${box_home_dir}\" in",
       "occurrences": 1,
       "expect_failing": [
+        "box-token.sh HOME が相対パスで保存先の指定が無いなら、API を呼ばずに BOX_REFRESH_TOKEN_FILE の設定を案内して止まる",
+        "box-token.sh HOME が相対パスで保存先が ~/ で始まるなら、API を呼ばずに BOX_REFRESH_TOKEN_FILE の設定を案内して止まる",
+        "box-token.sh HOME が無く、保存先の指定も無いとき、OS にユーザーの登録が無ければ、API を呼ばずに登録が無いことを示して止まる",
+        "box-token.sh HOME が空で、保存先の指定も無いとき、OS にユーザーの登録が無ければ、API を呼ばずに登録が無いことを示して止まる",
+        "box-token.sh（id が PATH に無い） HOME が無く、id が PATH に無ければ、API を呼ばずに、登録を確かめられないことを示して止まる",
         "box-oauth-init.sh HOME が相対パスで保存先の指定が無いなら、認可コードを読む前に BOX_REFRESH_TOKEN_FILE の設定を案内して止まる",
         "box-oauth-init.sh HOME が相対パスで保存先が ~/ で始まるなら、認可コードを読む前に BOX_REFRESH_TOKEN_FILE の設定を案内して止まる",
         "box-oauth-init.sh HOME が無く、保存先の指定も無いとき、OS にユーザーの登録が無ければ、認可コードを読む前に登録が無いことを示して止まる",
@@ -63,9 +43,9 @@
       ]
     },
     {
-      "id": "TOKEN-NO-DEFAULT-FILE",
+      "id": "HOME-TOKEN-NO-DEFAULT-FILE",
       "why": "保存先の指定が無いときに、ホームの下のデフォルトに置かない（保存先が空のまま進む）",
-      "file": "skills/box/scripts/box-token.sh",
+      "file": "skills/box/scripts/lib/home.sh",
       "find": "if [ -z \"$token_file\" ] ||",
       "replace": "if false ||",
       "occurrences": 1,
@@ -77,17 +57,7 @@
         "box-token.sh refresh token がどこにも無ければ失敗し、参照したファイルを示す",
         "box-token.sh HOME が無く、保存先の指定も無いとき、OS にユーザーの登録が無ければ、API を呼ばずに登録が無いことを示して止まる",
         "box-token.sh HOME が空で、保存先の指定も無いとき、OS にユーザーの登録が無ければ、API を呼ばずに登録が無いことを示して止まる",
-        "box-token.sh（id が PATH に無い） HOME が無く、id が PATH に無ければ、API を呼ばずに、登録を確かめられないことを示して止まる"
-      ]
-    },
-    {
-      "id": "INIT-NO-DEFAULT-FILE",
-      "why": "保存先の指定が無いときに、ホームの下のデフォルトに置かない（保存先が空のまま進む）",
-      "file": "skills/box/scripts/box-oauth-init.sh",
-      "find": "if [ -z \"$token_file\" ] ||",
-      "replace": "if false ||",
-      "occurrences": 1,
-      "expect_failing": [
+        "box-token.sh（id が PATH に無い） HOME が無く、id が PATH に無ければ、API を呼ばずに、登録を確かめられないことを示して止まる",
         "box-oauth-init.sh HOME が無く、保存先の指定も無いなら、ユーザーのデータベースのホームの下に保存する",
         "box-oauth-init.sh HOME が空で、保存先の指定も無いなら、ユーザーのデータベースのホームの下に保存する",
         "box-oauth-init.sh HOME が相対パスで保存先の指定が無いなら、認可コードを読む前に BOX_REFRESH_TOKEN_FILE の設定を案内して止まる",

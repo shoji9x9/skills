@@ -54,15 +54,6 @@ import { loadPng } from "./lib/png.mjs";
  */
 export const VERSION = "4";
 
-/**
- * 差分の色かを判定するときの、チャンネルの許容差（デフォルト）。
- * 赤 `(255,0,0)` と、アンチエイリアスの色によく使われる黄 `(255,255,0)` を分けられる幅にする。
- * 黄は緑のチャンネルが 255 で、赤の 0 から大きく離れるので除かれる。
- *
- * @type {number}
- */
-export const DEFAULT_COLOR_TOLERANCE = 96;
-
 /** @typedef {{ x:number, y:number, width:number, height:number }} Rect */
 /** @typedef {{ width:number, height:number, data:Uint8Array }} PngImage */
 /**
@@ -74,9 +65,17 @@ export const DEFAULT_COLOR_TOLERANCE = 96;
  *             threshold_ratio:number, strict_ratio:number }} PixelSummary
  */
 
+// diff-color:begin
+/**
+ * 差分の色かを判定するときの、チャンネルの許容差（デフォルト）。
+ * 赤 `(255,0,0)` と、アンチエイリアスの色によく使われる黄 `(255,255,0)` を分けられる幅にする。
+ * 黄は緑のチャンネルが 255 で、赤の 0 から大きく離れるので除かれる。
+ * @type {number}
+ */
+export const DEFAULT_COLOR_TOLERANCE = 96;
+
 /**
  * 16 進カラー文字列（"ff0000" / "#ff0000"）を RGB に変換する。
- *
  * @param {string} hex
  * @returns {{ r:number, g:number, b:number } | null}
  */
@@ -89,6 +88,7 @@ export function hexToRgb(hex) {
     b: parseInt(s.slice(4, 6), 16),
   };
 }
+// diff-color:end
 
 /**
  * 画素が差分色（target）に近いかを判定する。各チャンネルが tol 以内なら差分画素とみなす。
@@ -1096,14 +1096,20 @@ export async function main(argv) {
   return hasCandidate || strictClustered.droppedClusters > 0 ? 1 : 0;
 }
 
+// async-cli-exit:begin
 if (isCliEntry(import.meta.url)) {
   // 想定外の reject を握らないと未処理 rejection で exit 1 になり、
-  // 「差分あり」（exit 1）と区別が付かないまま呼び出し側に伝わる。入力エラーと同じ exit 2 に寄せる。
+  // 判定の結果の exit 1 と区別が付かないまま呼び出し側に伝わる。入力エラーと同じ exit 2 に寄せる。
+  // process.exit は書き込み中の stdout を捨てる（パイプが非同期のプラットフォームで出力が欠ける）ため、
+  // 終了コードだけ設定して自然終了させる。
   main(process.argv.slice(2))
-    .then((code) => process.exit(code))
+    .then((code) => {
+      process.exitCode = code;
+    })
     .catch((err) => {
       const message = err instanceof Error ? err.message : String(err);
       process.stderr.write(`error: ${message}\n`);
-      process.exit(2);
+      process.exitCode = 2;
     });
 }
+// async-cli-exit:end
