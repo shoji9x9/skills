@@ -22,3 +22,7 @@ coverage:github:2026-10-27T12:20:03.470Z:2026-10-28T12:27:59.733Z,coverage,2026-
 ci:40688151625:1,ci,2026-10-28T12:36:28.304Z,p-cdee4961,github-actions,,,,2026-10-28T12:28:57.000Z,2026-10-28T12:28:59.000Z,Asia/Tokyo,feature/659-fallow-complexity-only,659,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:40688151564:1,ci,2026-10-28T12:36:28.304Z,p-cdee4961,github-actions,,,,2026-10-28T12:28:57.000Z,2026-10-28T12:31:39.000Z,Asia/Tokyo,feature/659-fallow-complexity-only,659,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-27T12:27:59.733Z:2026-10-28T12:36:28.304Z,coverage,2026-10-28T12:36:28.304Z,p-cdee4961,,,,,2026-10-27T12:27:59.733Z,2026-10-28T12:36:28.304Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:40689322387:1,ci,2026-10-28T12:42:09.520Z,p-cdee4961,github-actions,,,,2026-10-28T12:37:21.000Z,2026-10-28T12:37:22.000Z,Asia/Tokyo,feature/659-fallow-complexity-only,659,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40689322217:1,ci,2026-10-28T12:42:09.520Z,p-cdee4961,github-actions,,,,2026-10-28T12:37:20.000Z,2026-10-28T12:41:02.000Z,Asia/Tokyo,feature/659-fallow-complexity-only,659,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-27T12:36:28.304Z:2026-10-28T12:42:09.520Z,coverage,2026-10-28T12:42:09.520Z,p-cdee4961,,,,,2026-10-27T12:36:28.304Z,2026-10-28T12:42:09.520Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-27T12:42:09.520Z:2026-10-28T13:08:34.037Z,coverage,2026-10-28T13:08:34.037Z,p-cdee4961,,,,,2026-10-27T12:42:09.520Z,2026-10-28T13:08:34.037Z,Asia/Tokyo,,,,,,,,,,,,ok,

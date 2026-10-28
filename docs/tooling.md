@@ -139,7 +139,8 @@ fallow はドットで始まるディレクトリを走査しないので、イ�
 fallow の更新や閾値の変更で、変更していないファイルに循環的複雑度や認知的複雑度の指摘が出たら、その変更と同じ PR で関数を分けて直す。
 CRAP のベースラインの扱いは、下の CI の検査の項にある。
 すぐに直せない既存の指摘（使われていないコード・依存など）は、`.config/fallow/dead-code-baseline.json` に載せて外す。
-直したら、`fallow dead-code --save-baseline .config/fallow/dead-code-baseline.json` で作り直し、`pnpm exec oxfmt .config/fallow/dead-code-baseline.json` で整形する。
+直したら、`pnpm exec fallow dead-code --save-baseline .config/fallow/dead-code-baseline.json` で作り直す。
+保存したファイルは `pnpm exec oxfmt .config/fallow/dead-code-baseline.json` で整形する。
 使われていない export は、`fallow fix --dry-run` で提案を確かめてから `fallow fix` で直す。`fallow fix` は `export` を外し、依存を消すので、pre-commit と CI では自動に適用しない。
 誤検知は、`base.jsonc` で理由を書いて外す。配布スキルには `fallow-ignore` のコメントを置かない。
 
@@ -148,7 +149,8 @@ CI だけで実行する検査が 2 つある。
 - `Unit tests` ジョブの CRAP（`pnpm run lint:crap`）: 複雑なのにテストが通っていない関数。カバレッジは、`pnpm run test:coverage` が残す V8 の記録（`node_modules/.cache/coverage/v8/`）を渡す。
   `coverage-final.json` は名前の無い関数（コールバックなど）を持たないので、渡すと fallow がそれらのカバレッジを推定する。
   カバレッジが無いと値を推定して誤検知が多くなるので、pre-commit には入れない。既存の指摘は `.config/fallow/crap-baseline.json`。
-  作り直すときは、`pnpm run test:coverage` を全体で実行してから `fallow health --complexity -c .config/fallow/crap.jsonc --coverage node_modules/.cache/coverage/v8 --save-baseline .config/fallow/crap-baseline.json` を実行する。
+  作り直すときは、`pnpm run test:coverage` を全体で実行してから、次のコマンドを実行する。
+  `pnpm exec fallow health --complexity -c .config/fallow/crap.jsonc --coverage node_modules/.cache/coverage/v8 --save-baseline .config/fallow/crap-baseline.json`
   保存したファイルは `pnpm exec oxfmt` で整形する。
   `pnpm run lint:fallow` が通る状態で作り直す。循環的複雑度と認知的複雑度の指摘が残っていると、その件数もベースラインに入る。
   `--complexity` を外すと、判定に使わないリファクタリングの候補（`target_keys`）もベースラインに入る。
