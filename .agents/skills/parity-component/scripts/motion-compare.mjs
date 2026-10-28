@@ -38,14 +38,14 @@
 
 import { isArray } from "./lib/is-array.mjs";
 
+import { isCliEntry } from "./lib/cli.mjs";
 import {
   cellKey,
   judgeDisposition,
   readComparisonRows,
   runCompareCli,
   valueKind,
-} from "./behavior-compare.mjs";
-import { isCliEntry } from "./lib/cli.mjs";
+} from "./lib/comparison.mjs";
 import {
   field,
   filled,

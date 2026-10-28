@@ -697,6 +697,8 @@ test.each([
   ["引数が無い", [], "usage:"],
   ["--metadata が無い", ["--registries", "r.json"], "usage:"],
   ["値が無い", ["--registries"], "usage:"],
+  // 値を書き忘れた引数が、次の名前を値として取り込まない（読めないファイルではなく使い方の誤りにする）。
+  ["値の代わりに次の名前", ["--registries", "--metadata", "--metadata", "m.json"], "usage:"],
   [
     "同じフラグを 2 回",
     ["--registries", "a.json", "--registries", "b.json"],

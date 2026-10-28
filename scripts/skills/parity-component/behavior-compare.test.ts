@@ -17,10 +17,9 @@ import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import {
   VERSION,
   compareBehaviors,
-  cellKey,
-  isoDateTime,
   main,
 } from "../../../skills/parity-component/scripts/behavior-compare.mjs";
+import { cellKey, isoDateTime } from "../../../skills/parity-component/scripts/lib/comparison.mjs";
 import { loadBaseline } from "../../../skills/parity-component/scripts/lib/baseline.mjs";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 

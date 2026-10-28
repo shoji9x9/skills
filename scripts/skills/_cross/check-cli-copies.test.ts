@@ -2,6 +2,7 @@
 // 同じ内容のコピーを parity-suite・parity-component・golden-dataset が持つ。
 // コピーが同じ内容であることは identical-copies のチェックが確かめるが、カバレッジはファイルごとに測るので、どのコピーも実行する。
 
+import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
 import { isRecord } from "../../lib/guards.ts";
 import * as golden from "../../../skills/golden-dataset/scripts/lib/check-cli.mjs";
@@ -110,6 +111,22 @@ describe.each(COPIES)("$skill の lib/check-cli.mjs", ({ lib }) => {
     ]);
   });
 
+  test("writeCheckResult は fields に findings が無くても、fields の後に findings を書く", () => {
+    const out = sink();
+    const result = { structural: false, findings: ["x"], counts: { cells: 1 } };
+    expect(lib.writeCheckResult(out.write, result, { ...shape, fields: { judged: true } })).toBe(1);
+    const parsed: unknown = JSON.parse(out.chunks.join(""));
+    expect(Object.keys(isRecord(parsed) ? parsed : {})).toEqual([
+      "tool",
+      "version",
+      "ok",
+      "judged",
+      "findings",
+      "counts",
+    ]);
+    expect(parsed).toMatchObject({ findings: ["x"], counts: { cells: 1, findings: 1 } });
+  });
+
   test("cliIo は差し込まれた関数と cwd をそのまま返す", () => {
     const deps = {
       readFile: () => "x",
@@ -123,7 +140,7 @@ describe.each(COPIES)("$skill の lib/check-cli.mjs", ({ lib }) => {
   test("cliIo は省いたものを node:fs・process.cwd()・process の stdout と stderr で補う", () => {
     const io = lib.cliIo({});
     expect(io.cwd).toBe(process.cwd());
-    expect(io.readFile(new URL(import.meta.url).pathname)).toContain("cliIo は省いたもの");
+    expect(io.readFile(fileURLToPath(import.meta.url))).toContain("cliIo は省いたもの");
     expect(typeof io.write).toBe("function");
     expect(typeof io.writeErr).toBe("function");
   });

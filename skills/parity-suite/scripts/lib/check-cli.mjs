@@ -42,7 +42,8 @@ function usageFailer(writeErr, usage) {
 
 /**
  * 判定の結果を stdout へ JSON で書き、終了コードを返す（構造の誤りは 2、指摘があれば 1、無ければ 0）。
- * 出力は tool・version、ok、fields、counts の順に並べる。fields には findings を含め、出力での位置を呼び出し元が決める。
+ * 出力は tool・version、ok、fields、findings、counts の順に並べる。findings は常に result から書く。
+ * fields に findings を置くと、その位置に result の findings を書く（出力での位置だけを呼び出し元が決める）。
  * 結果が counts を持つときだけ counts を書き、構造の誤りでなければ指摘の件数を足す。
  * @param {(s: string) => void} write
  * @param {{ structural: boolean, findings: unknown[], counts?: Record<string, number> }} result
@@ -60,6 +61,7 @@ function writeCheckResult(write, result, { tool, version, fields }) {
   out({
     ok: result.findings.length === 0,
     ...fields,
+    findings: result.findings,
     ...(counts ? { counts: { ...counts, findings: result.findings.length } } : {}),
   });
   return result.findings.length === 0 ? 0 : 1;

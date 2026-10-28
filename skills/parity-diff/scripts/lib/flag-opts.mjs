@@ -3,7 +3,8 @@
 
 /**
  * `--名前 値` の組を、`--` を外した名前から値への対応にする。
- * `known` に無い引数・値の無い引数・同じ名前の 2 回目があれば、stderr に書いて null を返す。
+ * `known` に無い引数・値の無い引数（値が無いか、`--` で始まる）・同じ名前の 2 回目があれば、stderr に書いて null を返す。
+ * `--` で始まる値を受け取ると、値を書き忘れた引数が次の名前を値として取り込み、使い方の誤りではなく読めないファイルとして報告する。
  * @param {string[]} argv
  * @param {readonly string[]} known 受け付ける引数（`--` を含む）
  * @param {string} usage 使い方の文（末尾に改行を含む）
@@ -19,7 +20,7 @@ function parseFlagOpts(argv, known, usage) {
       return null;
     }
     const v = argv[i + 1];
-    if (v === undefined) {
+    if (v === undefined || v.startsWith("--")) {
       process.stderr.write(usage);
       return null;
     }
