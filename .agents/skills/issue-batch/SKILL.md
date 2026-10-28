@@ -69,7 +69,8 @@ run の途中で判断待ちの `BLOCKED` にならないよう、run の前に�
    - 依存から決める実行の順（依存先を先にし、それ以外は入力の順で前の Issue を先にする）
    - run の前に利用者の判断が要るもの（複数の案・決まっていない方針・試していない機構を約束した受け入れ条件・対象から外す候補にする不確実性の高い Issue）。1 回の確認にまとめて、変更の前に決めてもらう。全体を停止するときは確認せず、停止の報告に載せる。
      `prepare` が Issue に記録した決定は読んで使い、同じ判断を確認し直さない
-2. `/tmp` に run manifest を作る。記録するのは、入力の順・実行の順・Issue の URL・状態・branch・worktree・PR の URL・試験の結果・停止の理由・飛ばした理由・対象から外した理由・判断待ちの項目・自分で判断して進めたもの（`self_decisions` の下の 4 つの欄と `others`）だけである。秘密の値と、変わる環境の URL は書かない。
+2. `/tmp` に run manifest を作る。記録するのは、入力の順・実行の順・Issue の URL・状態・branch・worktree・PR の URL・試験の結果・停止の理由・飛ばした理由・対象から外した理由・判断待ちの項目・自分で判断して進めたもの（`self_decisions` の下の 4 つの欄と `others`）だけである。
+   試験の結果には、ローカルレビューの範囲の SHA（`reviewed_through_sha`・`unreviewed_range`）を含める。秘密の値と、変わる環境の URL は書かない。
 3. preflight で `EXCLUDED`・`SKIPPED`・`BLOCKED` にした Issue は、この手順から後を行わず、残りの Issue を進める（`references/orchestration.md`「全体 preflight」の最後の段落）。
    依存のある Issue は、同じ文書の「全体 preflight」の 6 の条件を満たしてから着手する。
    呼び出し元の worktree を checkout せず、Issue ごとに一意な隔離した worktree を `git-worktree` の取り決めで用意して、セッションを移す。
