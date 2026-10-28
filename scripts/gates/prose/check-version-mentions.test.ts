@@ -246,9 +246,17 @@ test("mise を起動するときは、mise.toml を上書きする環境変数�
 });
 
 test("mise ls は、上書きを外した環境変数（miseEnv の結果）をそのまま渡して起動する", () => {
-  const { command, args, options } = miseInvocation("/r");
+  const { command, args, options } = miseInvocation("/r", {
+    PATH: "/bin",
+    MISE_ENV: "foo",
+    MISE_NODE_VERSION: "20.0.0",
+  });
   expect([command, args, options.cwd]).toEqual(["mise", ["ls", "--current", "--json"], "/r"]);
-  expect(options.env).toEqual(miseEnv(process.env));
+  expect(options.env).toEqual({
+    PATH: "/bin",
+    MISE_OVERRIDE_CONFIG_FILENAMES: "mise.toml",
+    MISE_OVERRIDE_TOOL_VERSIONS_FILENAMES: "none",
+  });
 });
 
 test.each([
@@ -272,6 +280,8 @@ test.each([
   ],
   ["- を挟まない接尾辞", "Python 3.15.0rc1 で確かめた。", ["Python 3.15.0rc1"]],
   ["_ を含む接尾辞", "Node 26.12.1-linux_x64 のバイナリ。", ["Node 26.12.1-linux_x64"]],
+  [". で始まる英字の接尾辞", "Node 26.12.1.rc1 で確かめた。", ["Node 26.12.1.rc1"]],
+  ["_ の強調の中", "_Node 24.0.0_ で確かめた。", ["Node 24.0.0"]],
   [
     "- でつないだ範囲は 1 つの記述として読む",
     "Node 26.12.1-27.0.0 が要る。",
@@ -288,6 +298,7 @@ test.each([
 
 test.each([
   ["宣言と一致", "Playwright 1.64.1 と @types/node 25.9.1 で確かめた。"],
+  ["_ の強調の中で宣言と一致", "_Playwright 1.64.1_ で確かめた。"],
   ["X.Y だけ", "Node 24.2 より古い版。vitest 5 の出力。"],
   ["X.Y.Z.W", "Chrome 149.0.7827.155 と node 1.2.3.4 と node 1.2.34.5 と Node 24.17.10.1。"],
   ["名前を含む別の語", "mynode 1.2.3 と node_modules 1.2.3。"],
