@@ -1,0 +1,6 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:40641073913:1,ci,2026-10-28T06:48:29.105Z,p-cdee4961,github-actions,,,,2026-10-28T05:58:37.000Z,2026-10-28T06:02:40.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:40641073917:1,ci,2026-10-28T06:48:29.105Z,p-cdee4961,github-actions,,,,2026-10-28T05:58:37.000Z,2026-10-28T05:59:10.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:40639995270:1,ci,2026-10-28T06:48:29.105Z,p-cdee4961,github-actions,,,,2026-10-28T05:47:08.000Z,2026-10-28T05:47:17.000Z,Asia/Tokyo,feature/659-dedupe-skill-scripts,659,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40639995308:1,ci,2026-10-28T06:48:29.105Z,p-cdee4961,github-actions,,,,2026-10-28T05:47:08.000Z,2026-10-28T05:53:50.000Z,Asia/Tokyo,feature/659-dedupe-skill-scripts,659,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-27T05:45:55.833Z:2026-10-28T06:48:29.105Z,coverage,2026-10-28T06:48:29.105Z,p-cdee4961,,,,,2026-10-27T05:45:55.833Z,2026-10-28T06:48:29.105Z,Asia/Tokyo,,,,,,,,,,,,ok,
