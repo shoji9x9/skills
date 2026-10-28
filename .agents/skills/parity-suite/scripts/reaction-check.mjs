@@ -383,10 +383,10 @@ function recordCoveredBy(v, { path, chain }, { found, malformed }) {
  * `playwright test --list --reporter=json` の出力から、covered_by に書く名前 → テストの索引を作る。
  * 名前は「スペックのパス › describe の題 › テストの題」（パスは JSON の file そのまま＝Playwright の rootDir からの相対）。
  * 同じ名前に別のテストが 2 つ以上当たるもの（題に区切りを含む等）は曖昧として記録し、解決に使わせない。
- * 形式の出典は、https://playwright.dev/docs/test-reporters#json-reporter と、@playwright/test 1.63.0 の --list の実測である。
+ * 形式の出典は、https://playwright.dev/docs/test-reporters#json-reporter と、@playwright/test 1.64.1 の --list の実測である。
  * spec は projects ごとに別の要素で並び、ファイル自体の suite は題がファイルパスになる。題の空の describe は、一覧表示でも題に入らない。
  * test.skip / test.fixme は tests[].expectedStatus: skipped で残る。本文の中で条件付きに飛ばす test.skip(cond) と、
- * test.fail(title, fn) は、1.63.0 の --list では expectedStatus: passed のままで区別できない。
+ * test.fail(title, fn) は、1.64.1 の --list では expectedStatus: passed のままで区別できない。
  * @param {unknown} report
  * @returns {Map<string, { keys: Set<string>, projects: Set<string>, file: string, line: number | null }>}
  */

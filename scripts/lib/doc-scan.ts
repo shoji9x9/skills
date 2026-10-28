@@ -22,6 +22,7 @@ export const KNOWN_RULES = [
   "dist-repo-path",
   "time-word",
   "date",
+  "version-mention",
 ];
 
 /** 許可が一覧と突き合わせる組（ファイル・規則・一致した文字列）。 */

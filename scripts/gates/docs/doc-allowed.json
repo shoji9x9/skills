@@ -1,6 +1,6 @@
 {
   "$comment": [
-    "文書のチェック（check-doc-refs.ts・check-time-sensitive-prose.ts）の許可。形は scripts/lib/doc-scan.ts の冒頭を参照する。",
+    "文書のチェック（check-doc-refs.ts・check-time-sensitive-prose.ts・check-version-mentions.ts）の許可。形は scripts/lib/doc-scan.ts の冒頭を参照する。",
     "allowed: 違反の形だが正しい記述。reason を必ず書く。"
   ],
   "allowed": [
@@ -15,6 +15,30 @@
       "rule": "section",
       "text": "references/setup.md「定期実行（任意・GitHub Actions）」",
       "reason": "kaizen スキルの assets/kaizen-schedule.yml とバイト単位で同じ複製で、パスは kaizen スキルの中を指す"
+    },
+    {
+      "file": "scripts/skills/parity-suite/visual/element-shot.test.ts",
+      "rule": "version-mention",
+      "text": "Playwright v1.56.1",
+      "reason": "上流の Playwright のソースを v1.56.1 のタグで引用した出典で、入っているバージョンの記述ではない"
+    },
+    {
+      "file": "skills/parity-component/references/capture.md",
+      "rule": "version-mention",
+      "text": "Playwright v1.56.1",
+      "reason": "上流の Playwright のソースを v1.56.1 のタグで引用した出典（URL もそのタグを指す）で、入っているバージョンの記述ではない"
+    },
+    {
+      "file": "skills/dependabot-alert-issue/references/pnpm-transitive-update.md",
+      "rule": "version-mention",
+      "text": "pnpm 11.23.0",
+      "reason": "pnpm 11 と 12 の両方で同じ挙動になることの記録で、11 系のバージョンが意味を持つ"
+    },
+    {
+      "file": "skills/git-worktree/references/carry-in.md",
+      "rule": "version-mention",
+      "text": "pnpm 11.23.0",
+      "reason": "エラーを確かめたバージョンの記録。配布先の pnpm はこのリポジトリの宣言と関係しない"
     }
   ]
 }
