@@ -148,7 +148,7 @@ CI だけで実行する検査が 2 つある。
 #### 重複したコード（jscpd）
 
 同じ処理を複数の箇所にコピーすると、片方だけを直して食い違う。`scripts/gates/code/check-duplicates.ts` が jscpd（設定は `.jscpd.json`）で、JavaScript・TypeScript・シェル・Markdown の重複を検出する。テストも対象にする。
-閾値は jscpd のデフォルト（5 行・50 トークン）を使う。pre-commit と CI の `Lint` ジョブで、リポジトリ全体を検査する（`pnpm run lint:duplicates`）。
+閾値は、テストのコードどうしの重複（次の段落）を除き、jscpd のデフォルト（5 行・50 トークン）を使う。pre-commit と CI の `Lint` ジョブで、リポジトリ全体を検査する（`pnpm run lint:duplicates`）。
 
 テストのコード（`scripts/` の `*.test.ts`・`scripts/skills/`・`scripts/lib/testing/`。定義は `check-duplicates.ts` の `TEST_GLOBS`）どうしの重複は、閾値を 100 トークンに上げて判定する。
 テストは準備と assertion を各テストに書くので、50 トークンでは `expect(r.status).toBe(1)` が続くような短い並びも重複として数える。

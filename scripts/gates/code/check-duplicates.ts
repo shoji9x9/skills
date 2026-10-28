@@ -5,7 +5,7 @@
 // コピーするので、登録していないコピーが繰り返し生じる。
 //
 // 判定規則:
-// - jscpd の設定（閾値・形式・除外）は `.jscpd.json` に置く。インストール済みのコピーとリンク、外部のパッケージから作った生成物は、
+// - jscpd の設定（全体の閾値・形式・除外）は `.jscpd.json` に置く。テストどうしの閾値（`TEST_MIN_TOKENS`）だけは、このスクリプトに置く。インストール済みのコピーとリンク、外部のパッケージから作った生成物は、
 //   `scripts/lib/source-scope.ts` から計算して除く（jscpd は `.agents/` も走査するので、コピーの名前を設定に書き写さない）。
 // - 意図したコピー（`identical-copies.json` の組）どうしの重複は数えない。一致は `check-identical-copies.ts` が確かめる。
 //   ファイル全体の組は、同じ組の 2 つのファイルの間の重複を外す。範囲（`region`）を持つ組は、両方の断片がそれぞれの
@@ -16,7 +16,9 @@
 //   重複を除き、2 回目の走査（`TEST_MIN_TOKENS` でテストのコードだけ）の重複を数える。テストとテスト以外の間の重複は 1 回目で数える。
 //   jscpd の検出は閾値で断片の切り方が変わるので、1 回目の結果をトークン数で絞っても 2 回目と同じにならない。そのため走査を分ける。
 // - 既存の重複はベースライン（`.config/jscpd/baseline.json` と、テストどうしの `baseline-tests.json`。jscpd の指紋）に載せる。
-//   ベースラインに無い重複（jscpd の `isNew`）を失敗にする。
+//   ベースラインに無い重複（jscpd の `isNew`）を失敗にする。jscpd の指紋は重複の中身から作るので、ベースラインにある重複と
+//   同じ中身の重複は、別のファイルの組でも新しいものとして報告されない（1 回目のベースラインにはテストどうしの重複の指紋も入る）。
+//   これは走査を分けたことによらず、jscpd の指紋の作り方による。jscpd のレポートは指紋を出さないので、ベースラインから除けない。
 //   直すかどうかは内容を見て決め、残すなら `--update-baseline` で載せ直す。
 // - `--update-baseline` は登録済みのコピーの重複もベースラインに載せる（jscpd のレポートは指紋を出さないので、ベースラインから除けない）。
 //   そのため、載せたときの組を `.config/jscpd/declared-groups.json` に控える。控えた組の 2 つのファイルの重複は、
@@ -81,7 +83,9 @@ const SCANS: readonly Scan[] = [
     name: "テストどうし",
     baseline: TEST_BASELINE_PATH,
     args: ["--min-tokens", String(TEST_MIN_TOKENS), "--pattern", `{${TEST_GLOBS.join(",")}}`],
-    keep: () => true,
+    // jscpd の --pattern はパスの途中にも一致する（`other/scripts/a.test.ts` など）。TEST_GLOBS に当たらないファイルの重複は
+    // 1 回目で数えるので、ここでは両方がテストのコードの重複だけを数える。
+    keep: (c) => isTestCode(c.first.name) && isTestCode(c.second.name),
   },
 ];
 
@@ -346,7 +350,8 @@ export function main(argv: string[], root = process.cwd()): number {
     return 2;
   }
   // --update-baseline では、jscpd に一時ディレクトリへベースラインを書かせ、すべての走査が成功してから置き換える。
-  // 途中の走査が失敗したときに、一部のベースラインだけが置き換わったまま残らないようにする。
+  // jscpd の失敗や走査の 0 件で、一部のベースラインだけが置き換わったまま残らないようにする。置き換えの途中のファイルの
+  // 書き込みの失敗（容量不足など）までは防げないが、そのときも exit 2 になるので、--update-baseline を実行し直せば 3 つとも作り直す。
   const staging = updateBaseline ? mkdtempSync(join(tmpdir(), "jscpd-baseline-")) : undefined;
   const baselineOf = (scan: Scan) =>
     staging ? join(staging, basename(scan.baseline)) : join(root, scan.baseline);

@@ -385,6 +385,10 @@ test.each<[string, Placement]>([
     { files: ["scripts/x.test.ts", "scripts/skills/y/y.test.ts"], code: 0 },
   ],
   [
+    "scripts/ の外の .test.ts はテストのコードとして扱わず、短い重複も失敗にする",
+    { files: ["other/scripts/x.test.ts", "other/scripts/y.test.ts"], code: 1 },
+  ],
+  [
     "テストのヘルパーどうしの短い重複も数えない",
     { files: ["scripts/skills/y/h-helpers.ts", "scripts/lib/testing/h.ts"], code: 0 },
   ],
