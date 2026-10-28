@@ -354,7 +354,7 @@ export function profileProblems(
   return problems;
 }
 
-/** 上の列挙から展開される全候補を present で埋めた網羅表。 */
+/** DataGrid の列挙（_cross/coverage-fixture-helpers.ts の datagridEnumeration）から展開される全候補を、present で埋めた網羅表。 */
 export function datagridCoverage() {
   const profile = bundledProfile("datagrid");
   const { elements } = readEnumeration(datagridEnumeration(), profile, "t");
