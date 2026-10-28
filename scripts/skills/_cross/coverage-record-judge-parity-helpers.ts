@@ -10,15 +10,15 @@ import {
   readEnumeration,
 } from "../../../skills/parity-suite/scripts/coverage-expand.mjs";
 import { countCoverage as countCoverageRaw } from "../../../skills/parity-diff/scripts/coverage-check.mjs";
-import { reconcile } from "./coverage-fixture-helpers.ts";
+import { datagridEnumeration, reconcile } from "./coverage-fixture-helpers.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
 // 網羅表の fixture の形。型は基準の fixture（generic・profiled）が置く正規の形にする。
 // 変異が欄を消す箇所は `removeField(x, "field")` で、型に合わない値を入れる箇所は
 // invalidInput で渡す（どちらも型の外の入力であることを呼び出し側に残す）。
-export type EnumElement = { id: string; flags: Record<string, boolean> };
-export type Enumeration = {
+type EnumElement = { id: string; flags: Record<string, boolean> };
+type Enumeration = {
   source: { kind: string; ref: string; version: string; extracted_at: string; condition: string };
   complete: boolean;
   elements: Record<string, EnumElement[]>;
@@ -28,7 +28,7 @@ export type Candidate = { rule: string; axes: Record<string, string> };
 /** expandCandidates が返す候補。 */
 type ExpandedCandidate = Candidate & { id: string };
 /** fillSetProvenance の setInventory が書く形。 */
-export type SetInventory = {
+type SetInventory = {
   source: { kind: string; ref: string; version: string; condition: string };
   complete: boolean;
   incomplete_reason?: string;
@@ -53,7 +53,7 @@ export type GenericComponent = Provenance & {
   items: { id: string }[];
   instances: { id: string }[];
 };
-export type Cell = {
+type Cell = {
   component: string;
   item: string;
   instance: string;
@@ -87,41 +87,6 @@ export const { profiles } = loadProfiles(
 
 export const SLUG = "order-list";
 
-/** DataGrid の列挙（列 2・複数列の並べ替えの組 1・行を選ぶ手段 1・メニュー対象 1・メニュー項目 2・条件 1）。 */
-export function enumeration(): Enumeration {
-  const column = (id: string, filterable: boolean) => ({
-    id,
-    flags: {
-      initially_visible: true,
-      toggleable: false,
-      requires_horizontal_scroll: false,
-      filterable,
-      sortable: true,
-    },
-  });
-  return {
-    source: {
-      kind: "current-source",
-      ref: "src/grid/orderColumns.ts",
-      version: "rev-abc123",
-      extracted_at: "2026-09-03T00:00:00Z",
-      condition: "columns 配列の全要素",
-    },
-    complete: true,
-    elements: {
-      column: [column("price", true), column("name", false)],
-      "sort-combination": [{ id: "price-then-name", flags: {} }],
-      "row-selector": [{ id: "row-number", flags: {} }],
-      "menu-target": [{ id: "row", flags: { has_context_menu: true } }],
-      "menu-item": [
-        { id: "copy", flags: { enabled: true } },
-        { id: "delete", flags: { enabled: true } },
-      ],
-      "menu-condition": [{ id: "default", flags: {} }],
-    },
-  };
-}
-
 const presentCell = (component: string, item: string, instance: string): Cell => ({
   component,
   item,
@@ -135,7 +100,7 @@ const presentCell = (component: string, item: string, instance: string): Cell =>
 export function profiled(): ProfiledFixture {
   const profile = profiles.get("datagrid");
   assert.exists(profile, "同梱プロファイル datagrid が無い");
-  const { elements } = readEnumeration(enumeration(), profile, "t");
+  const { elements } = readEnumeration(datagridEnumeration(), profile, "t");
   const candidates: ExpandedCandidate[] = expandCandidates(profile, elements);
   return {
     slug: SLUG,
@@ -151,7 +116,7 @@ export function profiled(): ProfiledFixture {
         instances: [
           {
             id: "orders",
-            enumeration: enumeration(),
+            enumeration: datagridEnumeration(),
             candidates: candidates.map((c) => c.id),
           },
         ],

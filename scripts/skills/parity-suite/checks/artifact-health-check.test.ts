@@ -645,17 +645,23 @@ test("対応づけの記録を片側が持たない旧成果物は判定しな�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("誤検知しないことの確認: スイートの指紋が記録と一致すれば通す", () => {
-  const { root, metadataPath } = makeProject((m) => {
+/** 2 回の緑の記録に、今のスイートの指紋を書いたプロジェクト。 */
+function projectWithCurrentFingerprint() {
+  const project = makeProject((m) => {
     m.suite = mutatingSuite("placeholder");
   });
   const fp = suiteFingerprint(
     { specs: "e2e/parity/order-list", expectations: "e2e/parity/lib/expectations.ts" },
-    root,
+    project.root,
   ).fingerprint;
-  const meta = parseJsonAs<RepeatRunMetadata>(readFileSync(metadataPath, "utf8"));
+  const meta = parseJsonAs<RepeatRunMetadata>(readFileSync(project.metadataPath, "utf8"));
   for (const r of meta.suite.repeat_run.runs) r.suite_fingerprint = fp;
-  writeFileSync(metadataPath, JSON.stringify(meta, null, 2));
+  writeFileSync(project.metadataPath, JSON.stringify(meta, null, 2));
+  return project;
+}
+
+test("誤検知しないことの確認: スイートの指紋が記録と一致すれば通す", () => {
+  const { root, metadataPath } = projectWithCurrentFingerprint();
   const r = run(metadataPath);
   expect(r.stdout).toMatch(/スイートの指紋が記録と一致/);
   expect(r.status).toBe(0);
@@ -663,16 +669,7 @@ test("誤検知しないことの確認: スイートの指紋が記録と一致
 });
 
 test("2 回緑を記録した後にスペックを変えたら落ちる（記録が今のスイートのものでない）", () => {
-  const { root, metadataPath } = makeProject((m) => {
-    m.suite = mutatingSuite("placeholder");
-  });
-  const fp = suiteFingerprint(
-    { specs: "e2e/parity/order-list", expectations: "e2e/parity/lib/expectations.ts" },
-    root,
-  ).fingerprint;
-  const meta = parseJsonAs<RepeatRunMetadata>(readFileSync(metadataPath, "utf8"));
-  for (const r of meta.suite.repeat_run.runs) r.suite_fingerprint = fp;
-  writeFileSync(metadataPath, JSON.stringify(meta, null, 2));
+  const { root, metadataPath } = projectWithCurrentFingerprint();
   // 記録した後に後始末を外す（スペックのコードが変わる。コメントだけの書き換えは #457 で指紋に反映されない）。
   writeFileSync(
     join(root, "e2e/parity/order-list/orders.spec.ts"),
@@ -1096,16 +1093,7 @@ test("免除理由があっても dataset_version が null でなければ落と
 });
 
 test("期待値解決層を書き換えても指紋が変わらなければ素通りする、を塞ぐ", () => {
-  const { root, metadataPath } = makeProject((m) => {
-    m.suite = mutatingSuite("placeholder");
-  });
-  const fp = suiteFingerprint(
-    { specs: "e2e/parity/order-list", expectations: "e2e/parity/lib/expectations.ts" },
-    root,
-  ).fingerprint;
-  const meta = parseJsonAs<RepeatRunMetadata>(readFileSync(metadataPath, "utf8"));
-  for (const r of meta.suite.repeat_run.runs) r.suite_fingerprint = fp;
-  writeFileSync(metadataPath, JSON.stringify(meta, null, 2));
+  const { root, metadataPath } = projectWithCurrentFingerprint();
   // 記録した後に期待値だけを変える（スペックには触らない）。
   writeFileSync(
     join(root, "e2e/parity/lib/expectations.ts"),

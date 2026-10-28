@@ -232,21 +232,26 @@ test("撮影領域の外にある論理名は抜けになる", () => {
   expect(holeIdsOf(metadata)).toEqual(["list|default|desktop#offscreen:フッタの件数表示"]);
 });
 
+/** 文書の高さ 3200 のうち、上の 768 だけを撮った 1 ページ（list|default|desktop に下の抜けがある）。 */
+const belowFold = () => ({
+  scope: [
+    {
+      page: "list",
+      state: "default",
+      viewport: "desktop",
+      document: { width: 1366, height: 3200 },
+      captured: { width: 1366, height: 768 },
+      scroll_containers: [],
+      named_elements_outside: [],
+    },
+  ],
+  states: ["default"],
+  noise: [{ page: "list", state: "default", viewport: "desktop", pixel_diff: 0 }],
+});
+
 test("理由と gaps への参照が揃った宣言は抜けを通す（範囲を広げる以外の出口が在る）", () => {
   const metadata = metadataOf({
-    scope: [
-      {
-        page: "list",
-        state: "default",
-        viewport: "desktop",
-        document: { width: 1366, height: 3200 },
-        captured: { width: 1366, height: 768 },
-        scroll_containers: [],
-        named_elements_outside: [],
-      },
-    ],
-    states: ["default"],
-    noise: [{ page: "list", state: "default", viewport: "desktop", pixel_diff: 0 }],
+    ...belowFold(),
     exemptions: [
       {
         id: "list|default|desktop#below-fold",
@@ -260,19 +265,7 @@ test("理由と gaps への参照が揃った宣言は抜けを通す（範囲�
 
 test("宣言に reason / gaps_ref が無ければ落ちる", () => {
   const metadata = metadataOf({
-    scope: [
-      {
-        page: "list",
-        state: "default",
-        viewport: "desktop",
-        document: { width: 1366, height: 3200 },
-        captured: { width: 1366, height: 768 },
-        scroll_containers: [],
-        named_elements_outside: [],
-      },
-    ],
-    states: ["default"],
-    noise: [{ page: "list", state: "default", viewport: "desktop", pixel_diff: 0 }],
+    ...belowFold(),
     exemptions: [{ id: "list|default|desktop#below-fold" }],
   });
   const codes = codesOf(metadata);

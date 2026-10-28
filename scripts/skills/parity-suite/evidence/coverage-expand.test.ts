@@ -34,7 +34,6 @@ import {
   chartCoverage,
   type Coverage,
   datagridCoverage,
-  enumeration,
   type EquivalenceClass,
   type ExpandedCandidate,
   expectBoxAndDisplayChecked,
@@ -86,6 +85,7 @@ import {
 } from "./coverage-expand-helpers.ts";
 import {
   componentInventory,
+  datagridEnumeration,
   findOrFail,
   instanceInventory,
   reconcile,
@@ -274,6 +274,18 @@ test("列挙が未完了なら候補ゼロで素通りせず、理由も必須",
   expect(r.problems.join("\n")).toMatch(/列挙が未完了/);
 });
 
+/**
+ * 網羅表の最初の部品とインスタンスから、keep に当たらない項目・候補・セルを外す。
+ * 測る操作を削ると撮影状態の要求も変わるので、導出し直す。直さないと古い行が残り、テストの対象と無関係な problem が含まれる。
+ */
+function dropItems(cov: ReturnType<typeof datagridCoverage>, keep: (id: string) => boolean) {
+  const inst = cov.components[0].instances[0];
+  cov.components[0].items = cov.components[0].items.filter((i) => keep(i.id));
+  inst.candidates = inst.candidates.filter(keep);
+  cov.cells = cov.cells.filter((c) => c.component !== cov.components[0].id || keep(c.item));
+  resolveVisualStates(cov);
+}
+
 test("必須ルールの候補ゼロは justified_absences の根拠付きでだけ通す（行き止まりにしない）", () => {
   const cov = datagridCoverage();
   const inst = cov.components[0].instances[0];
@@ -281,13 +293,7 @@ test("必須ルールの候補ゼロは justified_absences の根拠付きでだ
   for (const axis of ["menu-target", "menu-item", "menu-condition"]) {
     inst.enumeration.elements[axis] = [];
   }
-  const keep = (id: string) => !id.startsWith("context-menu-");
-  cov.components[0].items = cov.components[0].items.filter((i) => keep(i.id));
-  inst.candidates = inst.candidates.filter(keep);
-  cov.cells = cov.cells.filter((c) => keep(c.item));
-  // 測る操作を削ったので撮影状態の要求も変わる。導出し直さないと古い行が残り、
-  // このテストの被験対象（必須ルールの免除）と無関係な problem が含まれる。
-  resolveVisualStates(cov);
+  dropItems(cov, (id) => !id.startsWith("context-menu-"));
 
   // 根拠が無ければ「列挙していない」と区別できないので落とす。
   const bare = reconcile(cov, bundled);
@@ -319,11 +325,7 @@ test("行の選択・複数列の並べ替えを持たないグリッドは、�
     const cov = datagridCoverage();
     const inst = cov.components[0].instances[0];
     inst.enumeration.elements[axis] = [];
-    const keep = (id: string) => !id.startsWith(`${rule}/`);
-    cov.components[0].items = cov.components[0].items.filter((i) => keep(i.id));
-    inst.candidates = inst.candidates.filter(keep);
-    cov.cells = cov.cells.filter((c) => keep(c.item));
-    resolveVisualStates(cov);
+    dropItems(cov, (id) => !id.startsWith(`${rule}/`));
 
     const bare = reconcile(cov, bundled);
     expect(bare.ok).toBe(false);
@@ -451,7 +453,7 @@ test("required_rules の代替の組の形を検査する", () => {
 test("初期非表示で表示切替できる列にも、行の選択の塗りの候補が立つ（Issue #471 レビュー）", () => {
   // 列を出してから行を選ぶ操作。初期表示の列だけを候補にすると、出した列の塗りの差が撮られない。
   const profile = bundledProfile("datagrid");
-  const en = enumeration();
+  const en = datagridEnumeration();
   en.elements.column.push({
     id: "memo",
     flags: {
@@ -656,21 +658,7 @@ test("同値クラスは宣言した軸以外で束ねられない", () => {
 });
 
 test("プロファイルの形式検査: 誤記したフラグ・未定義の軸・区切り文字を弾く", () => {
-  const base: Profile = {
-    id: "x",
-    version: "1",
-    applies_to: "テスト用",
-    axes: [{ id: "a", kind: "element", flags: ["on"] }],
-    enumeration: {
-      sources: ["current-source"],
-      procedure: "定義から a を抜く",
-      pitfalls: ["隠れている a を落とす"],
-      fail_closed: "読めなければ complete: false",
-    },
-    candidate_rules: [{ id: "r", axes: ["a"], guard: { "a.on": true }, visual_states: ["hover"] }],
-    required_rules: ["r"],
-    equivalence: { reducible_axes: ["a"] },
-  };
+  const base: Profile = { ...minimalProfile(), id: "x" };
   expect(validateProfile(base, "x.json")).toEqual([]);
   const typo = structuredClone(base);
   typo.candidate_rules[0].guard = { "a.onn": true };
@@ -687,21 +675,7 @@ test("プロファイルの形式検査: 誤記したフラグ・未定義の軸
 test("プロファイルの形式検査: enumeration の欠落・空フィールドを弾く", () => {
   // enumeration.sources が空だと readEnumeration の source.kind 検査が候補ゼロで素通りし、
   // どの列挙元でも通ってしまう（判定できないのに合格になる）。配布前に形式検査で落とす。
-  const base: Profile = {
-    id: "y",
-    version: "1",
-    applies_to: "テスト用",
-    axes: [{ id: "a", kind: "element", flags: ["on"] }],
-    enumeration: {
-      sources: ["current-source"],
-      procedure: "定義から a を抜く",
-      pitfalls: ["隠れている a を落とす"],
-      fail_closed: "読めなければ complete: false",
-    },
-    candidate_rules: [{ id: "r", axes: ["a"], guard: { "a.on": true }, visual_states: ["hover"] }],
-    required_rules: ["r"],
-    equivalence: { reducible_axes: ["a"] },
-  };
+  const base: Profile = { ...minimalProfile(), id: "y" };
   expect(validateProfile(base, "y.json")).toEqual([]);
   const missing = structuredClone(base);
   // わざと enumeration を欠落させる
@@ -1059,21 +1033,7 @@ test("項目の visual_states は省略・誤記・空理由なしを通さな�
 });
 
 test("プロファイルは visual_states の宣言を省略できない（未宣言の状態が警告なしに外れない）", () => {
-  const base: Profile = {
-    id: "z",
-    version: "1",
-    applies_to: "テスト用",
-    axes: [{ id: "a", kind: "element", flags: ["on"] }],
-    enumeration: {
-      sources: ["current-source"],
-      procedure: "定義から a を抜く",
-      pitfalls: ["隠れている a を落とす"],
-      fail_closed: "読めなければ complete: false",
-    },
-    candidate_rules: [{ id: "r", axes: ["a"], guard: { "a.on": true }, visual_states: ["hover"] }],
-    required_rules: ["r"],
-    equivalence: { reducible_axes: ["a"] },
-  };
+  const base: Profile = { ...minimalProfile(), id: "z" };
   expect(validateProfile(base, "z.json")).toEqual([]);
   for (const [mutate, pattern] of [
     [(p) => delete p.candidate_rules[0].visual_states, /visual_states が配列ではない/],
@@ -1209,29 +1169,7 @@ test("同じ撮影単位で状態名を使い回した行は根拠なしに通�
 test("--write は人が埋める欄を全部引き継ぐ（逃げ道が書き戻しで消えない）", () => {
   // shared_capture_reason を引き継がないと、手順 8 で必ず通す --write が根拠を消し、
   // 同じ実行の照合が「根拠なしの使い回し」で落ちる。逃げ道が構造的に死ぬ。
-  const cov: GenericCoverage = {
-    slug: "order-list",
-    components: [
-      {
-        id: "grid",
-        profile: null,
-        profile_absent_reason: "自作グリッドで適合プロファイルが無い",
-        items: [
-          { id: "filter-popup", visual_states: ["opens-container"], no_visual_state_reason: null },
-          { id: "ctx-menu", visual_states: ["opens-container"], no_visual_state_reason: null },
-        ],
-        instances: [{ id: "orders", page: "受注一覧", locator: "orders.grid" }],
-      },
-    ],
-    cells: ["filter-popup", "ctx-menu"].map((item) => ({
-      component: "grid",
-      item,
-      instance: "orders",
-      value: "present",
-      evidence: "実 UI で開いた",
-      covered_by: [`e2e/order-list.spec.ts > ${item}`],
-    })),
-  };
+  const cov = sharedPopupCoverage();
   fillVisualStateRows(cov);
   for (const row of rowsOf(cov)) {
     row.captured = "only-one-popup";
@@ -1510,9 +1448,9 @@ test("列挙の出所も一次情報源を使わなかった理由を要求す�
   const profile = bundledProfile("datagrid");
 
   // 通ることの確認: current-source で列挙した記録は使える。
-  expect(readEnumeration(enumeration(), profile, "t").usable).toBe(true);
+  expect(readEnumeration(datagridEnumeration(), profile, "t").usable).toBe(true);
 
-  const walked = enumeration();
+  const walked = datagridEnumeration();
   walked.source.kind = "app-ui";
   walked.source.ref = "受注一覧を歩いた";
   const noReason = readEnumeration(walked, profile, "t");
@@ -1529,7 +1467,10 @@ test("列挙の出所も一次情報源を使わなかった理由を要求す�
   expect(readEnumeration(declared, profile, "t").usable).toBe(true);
 
   // 一次情報源を使ったのに理由が残っていれば機能していない免除として落とす。
-  const stale = { ...enumeration(), stronger_source_unavailable_reason: "未受領（古い記録）" };
+  const stale = {
+    ...datagridEnumeration(),
+    stronger_source_unavailable_reason: "未受領（古い記録）",
+  };
   const staleResult = readEnumeration(stale, profile, "t");
   expect(staleResult.usable).toBe(false);
   expect(staleResult.problems.join("\n")).toMatch(
@@ -1539,7 +1480,7 @@ test("列挙の出所も一次情報源を使わなかった理由を要求す�
   // complete: true なのに incomplete_reason が残る記録も同じ扱い（同じ表の中で「完全」と「未完了」を
   // 同時に主張させない）。集合の出所だけに当てて列挙側を素通りさせない。
   const staleReason = {
-    ...enumeration(),
+    ...datagridEnumeration(),
     incomplete_reason: "列定義が動的生成で読み切れない（complete を true へ直したときの残り）",
   };
   const staleReasonResult = readEnumeration(staleReason, profile, "t");
@@ -1549,9 +1490,9 @@ test("列挙の出所も一次情報源を使わなかった理由を要求す�
   );
 
   // 通ることの確認: null / キー無しは通る（常に落とす実装を弾く）。
-  expect(readEnumeration({ ...enumeration(), incomplete_reason: null }, profile, "t").usable).toBe(
-    true,
-  );
+  expect(
+    readEnumeration({ ...datagridEnumeration(), incomplete_reason: null }, profile, "t").usable,
+  ).toBe(true);
 });
 
 test("プロファイルの形式検査: enumeration.sources は強い順に並んでいなければ落とす", () => {

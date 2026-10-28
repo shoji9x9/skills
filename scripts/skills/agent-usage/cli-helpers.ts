@@ -1,8 +1,10 @@
 // cli.test.ts のヘルパー。
 import { spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { expect } from "vitest";
 import { encodeProjectPath } from "../../../skills/agent-usage/scripts/lib/sources/discover.mjs";
+import { parseCsv } from "../../../skills/agent-usage/scripts/lib/csv.mjs";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
@@ -141,14 +143,54 @@ export function writeLogCopy(
   logLines: ReturnType<typeof setup>["logLines"],
   { tag, date }: { tag: string; date: string },
 ) {
-  const copy = logLines.map((l) => ({
+  const copy = copyLogLines(logLines, { tag, date });
+  writeFileSync(join(logDir, `s-${tag}.jsonl`), copy.map((l) => JSON.stringify(l)).join("\n"));
+}
+
+/** setup のログの、日付を date に、メッセージの ID を tag- 付きに替えた行。 */
+export function copyLogLines(
+  logLines: ReturnType<typeof setup>["logLines"],
+  { tag, date }: { tag: string; date: string },
+) {
+  return logLines.map((l) => ({
     ...l,
     timestamp: l.timestamp.replace("2026-10-01", date),
     ...(l.message && "id" in l.message
       ? { message: { ...l.message, id: `${tag}-${l.message.id}` } }
       : {}),
   }));
-  writeFileSync(join(logDir, `s-${tag}.jsonl`), copy.map((l) => JSON.stringify(l)).join("\n"));
+}
+
+/** 記録を置くディレクトリ（records）、その下にある人ごとのディレクトリの名前（person）、ブランチごとのファイルを置くディレクトリ（branches）。 */
+export function recordDirs(repo: string) {
+  const records = join(repo, ".agent-usage", "records");
+  expect(existsSync(records), "記録のディレクトリ（.agent-usage/records）が無い").toBe(true);
+  const people = readdirSync(records).filter((d) => d.startsWith("p-"));
+  // 0 件なら原因の分からない ENOENT で、2 件以上なら readdir の並び順で選んだ人の記録を読んで、呼び出し元が進んでしまう
+  expect(people, "records の下に人ごとのディレクトリ（p-）が 1 つだけでない").toHaveLength(1);
+  const person = people[0] ?? "";
+  return { records, person, branches: join(records, person, "branches") };
+}
+
+/** setup の後、タイムゾーンを UTC にし、feature/5-x に移って 1 回 collect する。 */
+export function collectedOnBranch() {
+  const s = setup();
+  expect(s.cli("setup", "--time-zone", "UTC").status).toBe(0);
+  s.git("switch", "-q", "-c", "feature/5-x");
+  expect(s.cli("collect").status).toBe(0);
+  return { ...s, ...recordDirs(s.repo) };
+}
+
+/**
+ * report を作り、setup が書いたログと同じ日付の usage.csv から、input_tokens を合計する。
+ * 合計が正の数でなければ失敗する。0 や NaN を返すと、二重に数えていないかを 0 と 0 で比べて通してしまう。
+ */
+export function reportedInputTokens({ repo, cli }: Pick<ReturnType<typeof setup>, "repo" | "cli">) {
+  expect(cli("report").status).toBe(0);
+  const usage = readFileSync(join(repo, ".agent-usage", "report", "20261001", "usage.csv"), "utf8");
+  const total = parseCsv(usage).reduce((a, row) => a + Number(row.input_tokens), 0);
+  expect(Number.isFinite(total) && total > 0, `input_tokens の合計: ${total}`).toBe(true);
+  return total;
 }
 
 /** setup のログをコピーして続けたセッションで、コピーの後に足した指示と、その応答 */
