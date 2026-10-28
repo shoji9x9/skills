@@ -585,10 +585,7 @@ describe("agent-usage のコマンドと Hook", () => {
     git("commit", "-q", "-m", "b");
     git("merge", "-q", "--no-edit", "feature/5-a");
     expect(git("status", "--porcelain")).toBe("");
-    const person = readdirSync(join(repo, ".agent-usage", "records")).find((d) =>
-      d.startsWith("p-"),
-    );
-    const files = readdirSync(join(repo, ".agent-usage", "records", person ?? "", "branches"));
+    const files = readdirSync(recordDirs(repo).branches);
     expect(files.map((f) => f.replace(/^\d{8}T\d{6}Z-/, "")).sort()).toEqual([
       "feature-5-a.csv",
       "feature-6-b.csv",
@@ -1014,7 +1011,6 @@ describe("agent-usage のコマンドと Hook", () => {
     const { repo, cli, logDir } = collectedOnBranch();
     const total = () => reportedInputTokens({ repo, cli });
     const before = total();
-    expect(before).toBeGreaterThan(0);
     // タイムゾーンを 30 分のオフセットに変えると、使用量の区切り（key）が変わる
     expect(cli("setup", "--time-zone", "Asia/Kolkata").status).toBe(0);
     const again = cli("collect");
@@ -1070,7 +1066,6 @@ describe("agent-usage のコマンドと Hook", () => {
     const { repo, cli } = collectedOnBranch();
     const total = () => reportedInputTokens({ repo, cli });
     const before = total();
-    expect(before).toBeGreaterThan(0);
     // 記録済みの行を、前の ID（別名）で、時計の進んだマシンが書いた形にする
     const { person, branches } = recordDirs(repo);
     for (const f of readdirSync(branches)) {

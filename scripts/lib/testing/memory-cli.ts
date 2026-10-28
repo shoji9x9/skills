@@ -37,5 +37,10 @@ export function runInMemory<Result>(
     };
   }
   const code = main(argv, io);
-  return { code, stderr, result: output === "" ? null : parseJsonAs<Result>(output) };
+  // 集めていない stderr を "" で返すと、出たエラーを確かめないまま空として扱われるので undefined にする
+  return {
+    code,
+    stderr: captureStderr ? stderr : undefined,
+    result: output === "" ? null : parseJsonAs<Result>(output),
+  };
 }

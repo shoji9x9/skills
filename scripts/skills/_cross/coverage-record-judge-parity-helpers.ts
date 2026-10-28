@@ -10,8 +10,7 @@ import {
   readEnumeration,
 } from "../../../skills/parity-suite/scripts/coverage-expand.mjs";
 import { countCoverage as countCoverageRaw } from "../../../skills/parity-diff/scripts/coverage-check.mjs";
-import { reconcile } from "./coverage-fixture-helpers.ts";
-import { enumeration as datagridEnumeration } from "../parity-suite/evidence/coverage-expand-helpers.ts";
+import { datagridEnumeration, reconcile } from "./coverage-fixture-helpers.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
@@ -88,7 +87,7 @@ export const { profiles } = loadProfiles(
 
 export const SLUG = "order-list";
 
-/** DataGrid の列挙。parity-suite のテストの列挙（coverage-expand-helpers.ts の enumeration）をそのまま使い、記録の側と判定の側に同じ入力を渡す。 */
+/** DataGrid の列挙（coverage-fixture-helpers.ts の datagridEnumeration）。記録の側と判定の側に同じ入力を渡す。 */
 export function enumeration(): Enumeration {
   return datagridEnumeration();
 }

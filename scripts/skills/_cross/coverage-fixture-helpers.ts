@@ -34,3 +34,49 @@ export function reconcile(
 ) {
   return reconcileRaw(fillSetProvenance(coverage), profiles, metadata);
 }
+
+/** DataGrid の列挙（coverage-expand と coverage-record-judge-parity のテストが使う。列 2・複数列の並べ替えの組 1・行を選ぶ手段 1・メニュー対象 1・メニュー項目 2・条件 1）。 */
+export function datagridEnumeration() {
+  return {
+    source: {
+      kind: "current-source",
+      ref: "src/grid/orderColumns.ts",
+      version: "rev-abc123",
+      extracted_at: "2026-09-03T00:00:00Z",
+      condition: "columns 配列の全要素。hidden も含め、横スクロールを右端まで送って確認した",
+    },
+    complete: true,
+    elements: {
+      column: [
+        {
+          id: "price",
+          flags: {
+            initially_visible: true,
+            toggleable: false,
+            requires_horizontal_scroll: false,
+            filterable: true,
+            sortable: true,
+          },
+        },
+        {
+          id: "name",
+          flags: {
+            initially_visible: true,
+            toggleable: false,
+            requires_horizontal_scroll: false,
+            filterable: false,
+            sortable: true,
+          },
+        },
+      ],
+      "sort-combination": [{ id: "price-then-name", flags: {} }],
+      "row-selector": [{ id: "row-number", flags: {} }],
+      "menu-target": [{ id: "row", flags: { has_context_menu: true } }],
+      "menu-item": [
+        { id: "copy", flags: { enabled: true } },
+        { id: "delete", flags: { enabled: true } },
+      ],
+      "menu-condition": [{ id: "default", flags: {} }],
+    },
+  };
+}

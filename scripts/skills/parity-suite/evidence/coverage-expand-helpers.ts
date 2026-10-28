@@ -18,7 +18,11 @@ import {
 import { isArray } from "../../../lib/is-array.ts";
 import { invalidInput, removeField } from "../../../lib/testing/test-input.ts";
 import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
-import { findOrFail, reconcile } from "../../_cross/coverage-fixture-helpers.ts";
+import {
+  datagridEnumeration,
+  findOrFail,
+  reconcile,
+} from "../../_cross/coverage-fixture-helpers.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 export const script = join(repoRoot, "skills/parity-suite/scripts/coverage-expand.mjs");
@@ -350,51 +354,8 @@ export function profileProblems(
   return problems;
 }
 
-/** DataGrid の列挙（列 2・複数列の並べ替えの組 1・行を選ぶ手段 1・メニュー対象 1・メニュー項目 2・条件 1）。 */
-export function enumeration() {
-  return {
-    source: {
-      kind: "current-source",
-      ref: "src/grid/orderColumns.ts",
-      version: "rev-abc123",
-      extracted_at: "2026-09-03T00:00:00Z",
-      condition: "columns 配列の全要素。hidden も含め、横スクロールを右端まで送って確認した",
-    },
-    complete: true,
-    elements: {
-      column: [
-        {
-          id: "price",
-          flags: {
-            initially_visible: true,
-            toggleable: false,
-            requires_horizontal_scroll: false,
-            filterable: true,
-            sortable: true,
-          },
-        },
-        {
-          id: "name",
-          flags: {
-            initially_visible: true,
-            toggleable: false,
-            requires_horizontal_scroll: false,
-            filterable: false,
-            sortable: true,
-          },
-        },
-      ],
-      "sort-combination": [{ id: "price-then-name", flags: {} }],
-      "row-selector": [{ id: "row-number", flags: {} }],
-      "menu-target": [{ id: "row", flags: { has_context_menu: true } }],
-      "menu-item": [
-        { id: "copy", flags: { enabled: true } },
-        { id: "delete", flags: { enabled: true } },
-      ],
-      "menu-condition": [{ id: "default", flags: {} }],
-    },
-  };
-}
+/** DataGrid の列挙。_cross のテストと同じ列挙を使う。 */
+export const enumeration = datagridEnumeration;
 
 /** 上の列挙から展開される全候補を present で埋めた網羅表。 */
 export function datagridCoverage() {
