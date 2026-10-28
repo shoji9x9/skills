@@ -426,9 +426,7 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(file).toBeDefined();
     // 新しいログが増えたら、Hook が collect して、同じブランチのファイルに足して stage する
     git("commit", "-q", "-m", "records");
-    const dir = readdirSync(join(repo, ".agent-usage", "records"));
-    const person = dir.find((d) => d.startsWith("p-")) ?? "";
-    const branches = join(repo, ".agent-usage", "records", person, "branches");
+    const { person, branches } = recordDirs(repo);
     const beforeText = readFileSync(join(repo, file ?? ""), "utf8");
     const passed = gate("git commit -m y");
     expect(passed.status).toBe(0);
@@ -686,9 +684,7 @@ describe("agent-usage のコマンドと Hook", () => {
     git("switch", "-q", "-c", "feature/5-x");
     expect(cli("collect", "--stage").status).toBe(0);
     // 他のマシンの時計が進んでいたことにする（デフォルトブランチに入るファイルの時刻が、今より後）
-    const records0 = join(repo, ".agent-usage", "records");
-    const person0 = readdirSync(records0).find((d) => d.startsWith("p-")) ?? "";
-    const branches0 = join(records0, person0, "branches");
+    const { branches: branches0 } = recordDirs(repo);
     const [created] = readdirSync(branches0);
     renameSync(join(branches0, created ?? ""), join(branches0, "20261005T000000Z-feature-5-x.csv"));
     git("add", "-A", ".agent-usage");

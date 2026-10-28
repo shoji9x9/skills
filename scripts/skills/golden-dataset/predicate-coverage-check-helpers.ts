@@ -1,5 +1,5 @@
 // predicate-coverage-check.test.ts のヘルパー。
-import { parseJsonAs } from "../../lib/parse-as.ts";
+import { runInMemory } from "../../lib/testing/memory-cli.ts";
 import {
   main,
   checkPredicateCoverage,
@@ -120,33 +120,9 @@ type CheckOutput = {
   findings: { code: string; message: string }[];
 };
 
-/**
- * main をメモリ上のファイルで回す。
- * @param {string[]} argv
- * @param {Record<string, string>} files
- */
-export function run(argv: string[], files: Record<string, string>) {
-  let output = "";
-  let errorOutput = "";
-  const code = main(argv, {
-    cwd: "/w",
-    readFile: (path) => {
-      if (!(path in files)) throw new Error("ENOENT");
-      return files[path];
-    },
-    write: (s) => {
-      output += s;
-    },
-    writeErr: (s) => {
-      errorOutput += s;
-    },
-  });
-  return {
-    code,
-    stderr: errorOutput,
-    result: output === "" ? null : parseJsonAs<CheckOutput>(output),
-  };
-}
+/** main をメモリ上のファイルで実行する。 */
+export const run = (argv: string[], files: Record<string, string>) =>
+  runInMemory<CheckOutput>(main, argv, files);
 
 /**
  * 既定の入力で検査し、findings の code 一覧を返す。

@@ -160,7 +160,7 @@ export function copyLogLines(
   }));
 }
 
-/** 記録のディレクトリ（records）、その下の人のディレクトリ（person は名前）、ブランチのファイルのディレクトリ（branches）。 */
+/** 記録を置くディレクトリ（records）、その下にある人ごとのディレクトリの名前（person）、ブランチごとのファイルを置くディレクトリ（branches）。 */
 export function recordDirs(repo: string) {
   const records = join(repo, ".agent-usage", "records");
   const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
@@ -176,12 +176,14 @@ export function collectedOnBranch() {
   return { ...s, ...recordDirs(s.repo) };
 }
 
-/** report を作り、setup のログの日の usage.csv にある input_tokens を合計する。 */
+/** report を作り、setup が書いたログと同じ日付の usage.csv から、input_tokens を合計する。 */
 export function reportedInputTokens({ repo, cli }: Pick<ReturnType<typeof setup>, "repo" | "cli">) {
   expect(cli("report").status).toBe(0);
   const usage = readFileSync(join(repo, ".agent-usage", "report", "20261001", "usage.csv"), "utf8");
   const [header, ...body] = usage.trim().split("\n");
   const col = (header ?? "").split(",").indexOf("input_tokens");
+  // 列が無いと合計が 0 になり、二重に数えていないかを 0 と 0 で比べることになる
+  expect(col).toBeGreaterThanOrEqual(0);
   return body.reduce((a, l) => a + Number(l.split(",")[col] ?? 0), 0);
 }
 

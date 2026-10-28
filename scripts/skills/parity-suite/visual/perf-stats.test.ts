@@ -1161,7 +1161,7 @@ describe("compare", () => {
     expect(r.err).toContain("比べる新側の target が無い");
   });
 
-  /** 基準の 1 組目の lcp に override を重ねた、compareRun に渡す基準と metadata。 */
+  /** 基準にある最初の組について、lcp に override を重ねる。返すのは、compareRun に渡す基準と metadata。 */
   const withBaseLcp = (override: object) => {
     const base = summarized();
     const pairs = structuredClone(base.meta.performance.pairs);
