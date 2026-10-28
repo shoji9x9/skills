@@ -88,7 +88,7 @@ setup は設定だけを扱い、Issue・branch・PR・merge・deployment を操
 | --- | --- | --- |
 | `--merge-mode` | `merge_mode` | `auto` \| `agent` だけ。CLI、設定の順に決める。決まらなければ停止する |
 | `--merge-method` | `merge_method` | CLI、設定の順に決める。決まらなければ停止する |
-| `--max-local-review-iterations` | `max_local_review_iterations` | 正の整数だけ。push の前に手元でレビューする回数の上限で、最初のレビューも数える。上限に達した後の直しは `pr-finalize-loop` に任せる（`references/orchestration.md`「ローカルレビュー」）。`review_tool` が `none` なら任せる先が無く、上限に達した後に変更（直し・Kaizen の学び・読み直しの直しなど）が出た Issue は BLOCKED になる。setup では `pr-finalize-loop` の `scripts/resolve-review-tool.sh` で `review_tool` を読み、`none` ならそのことを示して値を確かめる。読めなければ（スクリプトが無い、exit 0 にならない）、読めなかったことを示す。run でも読めなければ、上限に関わらず、ローカルレビューの後に変更が出た Issue は push の前に BLOCKED になる（`references/orchestration.md`「ローカルレビューの後に生じた変更」）。その影響も示して値を確かめる |
+| `--max-local-review-iterations` | `max_local_review_iterations` | 正の整数だけ。push の前に手元でレビューする回数の上限で、最初のレビューも数える。上限に達した後の直しは `pr-finalize-loop` に任せる（`references/orchestration.md`「ローカルレビュー」）。`review_tool` が `none` なら任せる先が無く、上限に達した後に変更（直し・Kaizen の学び・読み直しの直しなど）が出た Issue は BLOCKED になる。setup では `pr-finalize-loop` の `scripts/resolve-review-tool.sh` で `review_tool` を読み、`none` ならそのことを示して値を確かめる。読めなければ（スクリプトが無い、exit 0 にならない）、読めなかったことを示す。run でも読めなければ、Kaizen の学びか Hook の記録をレビューせずに PR に任せる場面と、上限に達した後に変更が残る場面で、push の前に BLOCKED になる（`references/orchestration.md`「ローカルレビュー」）。その影響も示して値を確かめる |
 | `--max-pr-iterations` | `max_pr_iterations` | `pr-finalize-loop --max-iterations` に渡す |
 | `--wait-ci-before-review` / `--no-wait-ci-before-review` | `wait_ci_before_review` | 両方の同時の指定を拒否する |
 | `--stop-on-blocked` | `continue_on_blocked` | その run だけ false として扱う |

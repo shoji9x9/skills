@@ -83,7 +83,7 @@ run の途中で判断待ちの `BLOCKED` にならないよう、run の前に�
    Claude Code では、範囲を渡すために、ローカルレビューの前に変更を commit する（`references/orchestration.md`「ローカルレビュー」）。
    ローカルレビューは、変更が小さいことを理由に省かない。省いてよい条件の一覧と、省いたときの記録は、`references/orchestration.md`「ローカルレビュー」で定義する。
    ローカルレビューは、上限（`max_local_review_iterations`）の回数まで行う。最初のレビューも、直した後のやり直しも、後に生じた変更のレビューも 1 回に数える。
-   上限に達したら、手元でレビューしていない変更（直し・後に生じた変更）は PR の `pr-finalize-loop` のレビューに任せて push し、PR を作る直前にその範囲を manifest に残す。`review_tool` が `none` なら push の前に BLOCKED にする（`references/orchestration.md`「ローカルレビュー」）。
+   上限に達したら、手元でレビューしていない変更（直し・後に生じた変更）は PR の `pr-finalize-loop` のレビューに任せて push し、`pr-finalize-loop` に渡す直前にその範囲を manifest に残す。`review_tool` が `none` なら push の前に BLOCKED にする（`references/orchestration.md`「ローカルレビュー」）。
    最後のローカルレビューの後に生じた変更も、回数が上限より少なければ push の前にレビューする。Kaizen の学びと、Hook が commit のたびに足す記録は例外とし、PR のレビューに任せる。`review_tool` が `none` なら例外を当てず、読めなければ push の前に BLOCKED にする（`references/orchestration.md`「ローカルレビューの後に生じた変更」）。
 5. PR は `pr-finalize-loop` に渡して収束させる。AI のレビューの依頼は、`pr-finalize-loop` にまとめる。
 6. head の SHA を固定し、決めた merge mode で merge する。`auto` は GitHub の auto-merge に任せ、`agent` は PR の状況を実際に確かめてから merge する。

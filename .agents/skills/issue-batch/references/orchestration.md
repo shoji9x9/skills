@@ -334,13 +334,13 @@ Claude Code では、直した変更を commit し、`<reviewed_through_sha の 
 ### 手元でレビューしていない範囲の記録
 
 この記録は、ローカルレビューの回数が上限に達し、手元でレビューせずに push へ進んだ Issue でだけ行う。
-記録は、PR（「deployment 修復」では follow-up PR）を作る直前に 1 回だけ行う。PR を既に持つ Issue を再開したときは、上限に達した後の最初の push の直前に行う。
-それ以外の push では記録しない。PR を作った後の push は `pr-finalize-loop` がレビューする。
+記録は、PR を `pr-finalize-loop` に渡す直前（「pr-finalize-loop への handoff」）に 1 回だけ計算する。push や commit のたびには行わない。
+handoff の後の push は `pr-finalize-loop` がレビューするので、記録しない。
 
-1. 範囲を `<reviewed_through_sha の SHA>..<記録する時点の HEAD の完全な SHA>` とする。範囲に commit が無ければ、記録しない。
-   記録の後、PR を作るまで（PR を既に持つ Issue ではその push まで）に commit を足したら、記録の範囲の終わりを足した後の HEAD に進める。
-2. 範囲で変わったファイルがすべて例外のファイルなら、記録しない。判定は、下の「ローカルレビューの後に生じた変更」の手順 2 と同じにする。
-3. それ以外は、manifest の `unreviewed_range` に 1 件足す（要素の形は「worktree と manifest」の一覧）。follow-up PR の記録は、前の記録を消さずに足す。
+1. 範囲を `<reviewed_through_sha の SHA>..<handoff する時点の PR の head の完全な SHA>` とする。範囲に commit が無ければ、記録しない。
+2. 範囲に commit があれば、manifest の `unreviewed_range` に 1 件足す（要素の形は「worktree と manifest」の一覧）。`has_merge` もこの時点で計算する。
+   例外のファイル（Kaizen の学びと Hook の記録）は範囲から除かない。記録は任せた範囲を示すだけで、止める条件には使わないので、広く記録しても振る舞いは変わらない。
+3. 「deployment 修復」の follow-up PR を渡すときは、同じ手順で計算し、前の記録を消さずに足す。
 
 ### ローカルレビューの後に生じた変更
 
@@ -365,7 +365,8 @@ exit 0 にならず値を読めなかったときは、handoff でも同じ設�
 1. 範囲に merge commit があるとき（ローカルレビューの後に base branch を merge したときなど）は、範囲に取り込んだ base の変更が入るので、この範囲ではレビューしない。
    代わりに、ローカルレビューと同じ方法で、取得し直した `origin/<base>` との差分全体をレビューし直す。
 2. 範囲で変わったファイルがすべて例外のファイルなら、このレビューは行わない。
-   抽出が変えたファイルの一覧が無いとき（前の run から再開した Issue など）は、`.kaizen/` の変更を例外にしない。Hook の記録は、上の状態とパスで判定できるので、一覧が無くても例外にする。
+   抽出が変えたファイルの一覧（抽出の前後の `git status` の比較）が無いとき（前の run から再開した Issue や、コンテキストの圧縮の後に比較の結果を持っていないとき）は、`.kaizen/` の変更を例外にしない。
+   Hook の記録は、`git diff --name-status` の状態（`A` か `M`）とパス（Hook の定める記録の置き場所）で判定できるので、一覧が無くても例外にする。
 3. それ以外は、範囲をそのままレビューする。例外のファイルが範囲に含まれても構わない。
 
 1 と 3 のレビューも、ローカルレビューの上限（`max_local_review_iterations`）の回数に数える。
