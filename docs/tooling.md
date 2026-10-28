@@ -137,6 +137,7 @@ fallow はドットで始まるディレクトリを走査しないので、イ�
 hotspot・一緒に変更されたファイルの組と、候補のうち一緒に変更されるのに import でつながっていないファイルの組（hidden coupling）は、git の履歴（commit の数と変更した行数）から計算する。
 そのため、横断の修正（lint の違反の修正など）で値が上がり、コードを直しても値を下げられない。
 各スキルに同梱した同じ内容のコピー、子プロセスとして起動するテスト、間接の import も、候補として出る。
+候補のうち依存の多いファイル（high impact）は、そのファイルに依存するファイルの数から出す。共通の部品は依存が多いのが役割なので、検査に使わない。
 ファイルの点数の要素のうち、使われていないコードと複雑度は上の検査が、CRAP は CI の検査が判定している。
 依存の数（fan-in・fan-out）と保守性の指数は、どの検査も判定しない。共通の部品は依存が多いのが役割で、保守性の指数を下げる主な原因の複雑な関数は、関数ごとの上限で止めている。
 
@@ -151,6 +152,7 @@ CI だけで実行する検査が 2 つある。
   `coverage-final.json` は名前の無い関数（コールバックなど）を持たないので、渡すと fallow がそれらのカバレッジを推定する。
   カバレッジが無いと値を推定して誤検知が多くなるので、pre-commit には入れない。既存の指摘は `.config/fallow/crap-baseline.json`。
   作り直すときは、`pnpm run test:coverage` を全体で実行してから `fallow health --complexity -c .config/fallow/crap.jsonc --coverage node_modules/.cache/coverage/v8 --save-baseline .config/fallow/crap-baseline.json` を実行する。
+  `pnpm run lint:fallow` が通る状態で作り直す。循環的複雑度と認知的複雑度の指摘が残っていると、その件数もベースラインに入る。
   `--complexity` を外すと、判定に使わないリファクタリングの候補（`target_keys`）もベースラインに入る。
   ブラウザでだけ実行する関数（Playwright の spec の雛形 `skills/*/assets/*.spec.template.ts` と、eval の fixture をブラウザで作るジェネレータ）は、ユニットテストで実行できないので、ベースラインに載せたままにする
 - `Lint` ジョブの `Test weakening`（`fallow audit`）: PR が増やした、テストを弱める変更（`.skip`・`.only` の追加、テストのケースや assertion の減少、カバレッジの閾値の引き下げ）。PR のベースとの差分を見るので、PR でだけ実行する。
