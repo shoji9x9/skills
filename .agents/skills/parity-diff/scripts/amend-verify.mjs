@@ -612,8 +612,11 @@ export async function main(argv) {
   return entries.every((e) => e.pass) ? 0 : 1;
 }
 
+// async-cli-exit:begin
 if (isCliEntry(import.meta.url)) {
-  // process.exit は書き込み中の stdout を捨てる（パイプが非同期のプラットフォームで --out なしの記録が欠ける）ため、
+  // 想定外の reject を握らないと未処理 rejection で exit 1 になり、
+  // 判定の結果の exit 1 と区別が付かないまま呼び出し側に伝わる。入力エラーと同じ exit 2 に寄せる。
+  // process.exit は書き込み中の stdout を捨てる（パイプが非同期のプラットフォームで出力が欠ける）ため、
   // 終了コードだけ設定して自然終了させる。
   main(process.argv.slice(2))
     .then((code) => {
@@ -625,3 +628,4 @@ if (isCliEntry(import.meta.url)) {
       process.exitCode = 2;
     });
 }
+// async-cli-exit:end

@@ -55,7 +55,7 @@ import {
   nonEmptyString,
 } from "./lib/guards.mjs";
 
-/** ツールのバージョン（このスクリプトで定義する）。判定の規則・許容差・出力の形を変えたら上げる。 */
+/** ツールのバージョン（このスクリプトで定義する）。共有する lib/comparison.mjs・lib/check-cli.mjs を変えたときも含めて、判定の規則・許容差・出力の形を変えたら上げる。 */
 export const VERSION = "2";
 
 /** 変化とみなす最小の差（原本は motion-probe.mjs の CHANGE_EPSILON。同じ値にする）。 */
@@ -1030,7 +1030,7 @@ export function compareMotions({ metadata, motions, comparison, target }) {
 /**
  * CLI 本体。
  * @param {string[]} argv
- * @param {{ cwd?: string, write?: (s: string) => void, writeErr?: (s: string) => void }} [io]
+ * @param {{ readFile?: (path: string) => string, cwd?: string, write?: (s: string) => void, writeErr?: (s: string) => void }} [io]
  * @returns {number} 終了コード
  */
 export function main(argv, io = {}) {

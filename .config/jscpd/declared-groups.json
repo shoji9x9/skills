@@ -93,6 +93,7 @@
       "skills/parity-suite/scripts/pixel-strict-count.mjs"
     ],
     [
+      "skills/parity-diff/scripts/amend-verify.mjs",
       "skills/parity-diff/scripts/pixel-crops.mjs",
       "skills/parity-suite/scripts/pixel-strict-count.mjs"
     ],

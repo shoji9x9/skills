@@ -2,7 +2,6 @@
 // 突き合わせ表の読み取りと検査、比べないことを選んだ行（disposition）の検査、CLI 本体を置く。
 // 片方の CLI のファイルにこれらを置くと、その CLI を直したときにもう片方の判定と出力も変わり、版の管理が食い違う。
 
-import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadBaseline } from "./baseline.mjs";
 import { cliIo, parseFlagPairs, usageFailer, writeCheckResult } from "./check-cli.mjs";
@@ -10,7 +9,7 @@ import { field, filled, isPlainObject, nonEmptyString } from "./guards.mjs";
 import { isArray } from "./is-array.mjs";
 
 /** 突き合わせ表の行がとりうる扱いの語彙。null は「比べた」。 */
-export const DISPOSITIONS = ["accepted"];
+const DISPOSITIONS = ["accepted"];
 
 /**
  * ISO 8601 の日付・日時として読めるか（承認日時の検査。プレースホルダや自由記述を通さない）。
@@ -146,12 +145,13 @@ const COMPARE_ARGS = ["--baseline", "--comparison", "--target"];
 
 /**
  * 突き合わせ表を読む。無い・読めないのは「まだ突き合わせていない」と区別できないので、null を返して未突合として数える。
+ * @param {(path: string) => string} readFile
  * @param {string} path
  * @returns {unknown}
  */
-function readComparison(path) {
+function readComparison(readFile, path) {
   try {
-    return JSON.parse(readFileSync(path, "utf8"));
+    return JSON.parse(readFile(path));
   } catch {
     return null;
   }
@@ -160,12 +160,12 @@ function readComparison(path) {
 /**
  * behavior-compare と motion-compare の CLI 本体。読む採取物の名前（fileName）と判定（judge）だけが違う。
  * @param {string[]} argv
- * @param {{ cwd?: string, write?: (s: string) => void, writeErr?: (s: string) => void }} io
+ * @param {{ readFile?: (path: string) => string, cwd?: string, write?: (s: string) => void, writeErr?: (s: string) => void }} io
  * @param {{ tool: string, version: string, usage: string, fileName: string, judge: (input: { metadata: unknown, byInstance: Record<string, unknown>, comparison: unknown, target: string }) => { structural: boolean, judged: boolean, findings: unknown[], counts: Record<string, number> } }} spec
  * @returns {number} 終了コード
  */
 export function runCompareCli(argv, io, spec) {
-  const { cwd, write, writeErr } = cliIo(io);
+  const { readFile, cwd, write, writeErr } = cliIo(io);
   // 引数・入力の誤りは判定結果ではないので stdout の JSON に混ぜず stderr へ知らせる（同梱スクリプト共通の CLI 規約）。
   const fail = usageFailer(writeErr, spec.usage);
   const parsed = parseFlagPairs(argv, COMPARE_ARGS);
@@ -184,7 +184,7 @@ export function runCompareCli(argv, io, spec) {
   const result = spec.judge({
     metadata: loaded.metadata,
     byInstance: loaded.byInstance,
-    comparison: readComparison(resolve(cwd, args["--comparison"])),
+    comparison: readComparison(readFile, resolve(cwd, args["--comparison"])),
     target: args["--target"],
   });
   return writeCheckResult(write, result, {

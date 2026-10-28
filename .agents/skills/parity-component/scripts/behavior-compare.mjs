@@ -44,7 +44,7 @@ import {
 } from "./lib/comparison.mjs";
 import { field, filled, isObjectLike, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
-/** ツールのバージョン（このスクリプトで定義する）。判定の規則・出力の形を変えたら上げる。 */
+/** ツールのバージョン（このスクリプトで定義する）。共有する lib/comparison.mjs・lib/check-cli.mjs を変えたときも含めて、判定の規則・出力の形を変えたら上げる。 */
 export const VERSION = "2";
 
 /** 操作の導出元の語彙（このスクリプトで定義する。metadata-template.json の capture.operation_source と同じ）。 */
@@ -599,7 +599,7 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
 /**
  * CLI 本体。
  * @param {string[]} argv
- * @param {{ cwd?: string, write?: (s: string) => void, writeErr?: (s: string) => void }} [io]
+ * @param {{ readFile?: (path: string) => string, cwd?: string, write?: (s: string) => void, writeErr?: (s: string) => void }} [io]
  * @returns {number} 終了コード
  */
 export function main(argv, io = {}) {

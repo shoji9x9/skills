@@ -159,7 +159,8 @@
     {
       "files": [
         "skills/parity-suite/scripts/pixel-strict-count.mjs",
-        "skills/parity-diff/scripts/pixel-crops.mjs"
+        "skills/parity-diff/scripts/pixel-crops.mjs",
+        "skills/parity-diff/scripts/amend-verify.mjs"
       ],
       "region": "async-cli-exit",
       "reason": "非同期の main を CLI として実行し、想定外の reject を exit 2 にする処理。片方だけを直すと、想定外の失敗を判定の結果の exit 1 として返すスクリプトが残る"

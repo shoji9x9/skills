@@ -426,6 +426,27 @@ test("CLI: 引数の欠落・空白だけの target は exit 2", () => {
   expect(errors.join("")).toMatch(/^usage: behavior-compare\.mjs /m);
 });
 
+test("CLI: 突き合わせ表は差し込んだ readFile で読む", () => {
+  const dir = baselineDir();
+  const read: string[] = [];
+  const writes: string[] = [];
+  const io = {
+    cwd: dir,
+    readFile: (p: string) => {
+      read.push(p);
+      return JSON.stringify(comparisonOf());
+    },
+    write: (s: string) => writes.push(s),
+    writeErr: () => {},
+  };
+  // 突き合わせ表のファイルは置かない。差し込んだ readFile が返す表で判定する。
+  expect(main(["--baseline", dir, "--comparison", "table.json", "--target", "preview"], io)).toBe(
+    0,
+  );
+  expect(read).toEqual([join(dir, "table.json")]);
+  expect(parseJsonAs<CliOutput>(writes.join("")).counts.matched).toBe(4);
+});
+
 test("baseline の外を指す behaviors.json は読まない", () => {
   const dir = baselineDir();
   const outside = makeTempDir("behavior-compare-outside-");
