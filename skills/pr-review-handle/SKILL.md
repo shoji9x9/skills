@@ -119,7 +119,6 @@ gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
 - トップレベルのコメントは切り詰めずに読む。
   mention で依頼済みかを判定するときは、同じ API を `body: .body[:60]` に切り詰めて取得する（[`references/review-tool.md`](references/review-tool.md)）。
   その取得を指摘の収集に使い回さない。切り詰めた後ろにある指摘を取りこぼす。
-- 集める対象は、[`references/review-threads.md`](references/review-threads.md)「スレッドの外に置かれる指摘」に従う。
 - 特に `review_tool` が mention で依頼する方法（`claude-code`・`codex`）のときは、レビュアーが総評と指摘をトップレベルのコメントに置くものとして読む。`reviews[].body` が空でも指摘はある。
 - レビューの本文とトップレベルのコメントにある指摘には、返信するスレッドが無く、`resolve` もできない。
   PR のトップレベルのコメントで、対象の箇所・判断・根拠・実測した結果を書いて返す。直した場合も、見送った場合も残す。

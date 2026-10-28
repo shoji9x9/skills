@@ -140,7 +140,7 @@ scripts/tools/reinstall-skill.sh <name>
 
 ## 回帰テストを実行する
 
-各スキルのテストケースは `evals/<name>/evals.json` に、テストの観点とスキルに固有の前提は `evals/<name>/README.md` にある。
+各スキルのテストケースは `evals/<name>/evals.json` に、`evals/<name>/README.md` は、テストケースへの案内と、スキルに固有の観点や前提があればそれを持つ。
 実行・採点・集計の手順はこの節に書き、各スキルの `README.md` へ転記しない。
 
 新しく作った eval と変えた eval には `reachability` を書く。
@@ -252,6 +252,7 @@ scripts/eval/run-skill-eval.sh \
 # 事前の状態（設定・.replace/ の成果物など）をコピーして実行する。fixture の原本は
 # evals/<name>/fixtures/<fixture名>/ に置き、evals.json のその eval に
 # "fixture": "fixtures/<fixture名>"（evals/<name>/ からの相対パス）を書く。fixture は実行しても変わらない。
+# 実行では、この値の前に evals/<name>/ を付けて --fixture evals/<name>/<fixture の値> と渡す。
 ```
 
 fixture のルートに実行権限のある `setup.sh` があれば、ハーネスはコピーの後、executor を起動する前に、使い捨てのプロジェクトの中でそれを実行する。
