@@ -19,7 +19,7 @@
 // 対象のファイルと出所をそろえるため（作業ツリーだけを消した stage 済みの違反や、空の `skills/<name>/` で判定がずれない）。
 // `.private-skill` の印で決めると、印を付け忘れた private skill がこの検査から外れる。
 import { spawnSync } from "node:child_process";
-import { errorMessage } from "../../lib/errors.ts";
+import { errorMessage, spawnEnd } from "../../lib/errors.ts";
 import { isCliEntry } from "../../lib/cli/entry.ts";
 
 // `.jsx` は `.tsx` と同じく、Node が実行できず `tsconfig.repo.json` の include にも入らない。
@@ -121,18 +121,21 @@ export function listFiles(
     { cwd: root, encoding: "utf8", timeout: 60_000 },
   );
   if (res.status !== 0) {
-    const end = res.status !== null ? `exit ${res.status}` : (res.signal ?? "起動できない");
-    throw new Error(`git ls-files に失敗した（${end}）: ${res.error?.message ?? res.stderr}`);
+    throw new Error(`git ls-files に失敗した（${spawnEnd(res)}）: ${res.stderr}`);
   }
   return res.stdout.split("\0").filter((p) => p !== "");
 }
 
 /** `cwd` を含むリポジトリのルート。どの場所から起動しても、同じ範囲を走査するため。 */
 export function repoRoot(cwd: string): string {
-  const res = spawnSync("git", ["rev-parse", "--show-toplevel"], { cwd, encoding: "utf8" });
+  const res = spawnSync("git", ["rev-parse", "--show-toplevel"], {
+    cwd,
+    encoding: "utf8",
+    timeout: 60_000,
+  });
   if (res.status !== 0) {
     throw new Error(
-      `git のリポジトリのルートを特定できない（git rev-parse exit ${res.status}）: ${res.stderr}`,
+      `git のリポジトリのルートを特定できない（git rev-parse ${spawnEnd(res)}）: ${res.stderr}`,
     );
   }
   return res.stdout.trim();

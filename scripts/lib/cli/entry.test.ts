@@ -21,8 +21,15 @@ beforeAll(() => {
   symlinkSync(join(dir, "cli.ts"), join(dir, "link.ts"));
 });
 
-const run = (...args: string[]) =>
-  spawnSync(process.execPath, args, { encoding: "utf8", timeout: CHILD_TIMEOUT_MS });
+/** dir で node を起動し、終了コードと stdout の 1 行目を返す。 */
+const run = (...args: string[]) => {
+  const r = spawnSync(process.execPath, args, {
+    cwd: dir,
+    encoding: "utf8",
+    timeout: CHILD_TIMEOUT_MS,
+  });
+  return { status: r.status, stderr: r.stderr, out: r.stdout.trim() };
+};
 
 test.each([
   { label: "スクリプトを直接起動した", args: ["cli.ts"], expected: "true" },
@@ -33,22 +40,19 @@ test.each([
     expected: "true",
   },
   { label: "別のスクリプトから import された", args: ["importer.ts"], expected: "false" },
+  // node -e の後ろの引数は argv[1] になる。実在しないパスなので解決できない。
+  {
+    label: "node -e で import され、argv[1] が実在しないパスである",
+    args: ["--input-type=module", "-e", 'await import("./cli.ts")', "missing"],
+    expected: "false",
+  },
+  {
+    label: "node -e で import され、argv[1] が無い",
+    args: ["--input-type=module", "-e", 'await import("./cli.ts")'],
+    expected: "false",
+  },
 ])("$label ときは $expected を返す", ({ args, expected }) => {
-  const r = spawnSync(process.execPath, args, {
-    cwd: dir,
-    encoding: "utf8",
-    timeout: CHILD_TIMEOUT_MS,
-  });
+  const r = run(...args);
   expect(r.status, r.stderr).toBe(0);
-  expect(r.stdout.trim()).toBe(expected);
-});
-
-test("node に渡したスクリプトが無いときは false を返す（node -e など）", () => {
-  const r = run(
-    "--input-type=module",
-    "-e",
-    `import { isCliEntry } from ${JSON.stringify(ENTRY)}; console.log(isCliEntry(${JSON.stringify(pathToFileURL(join(dir, "cli.ts")).href)}));`,
-  );
-  expect(r.status, r.stderr).toBe(0);
-  expect(r.stdout.trim()).toBe("false");
+  expect(r.out).toBe(expected);
 });

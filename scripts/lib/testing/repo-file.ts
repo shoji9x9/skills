@@ -4,6 +4,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CHILD_TIMEOUT_MS } from "./child-timeout.ts";
+import { spawnEnd } from "../errors.ts";
 
 /** このリポジトリのルート。 */
 export const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
@@ -22,8 +23,6 @@ export function gitInit(root: string) {
     encoding: "utf8",
   });
   if (r.status !== 0) {
-    const end =
-      r.status !== null ? `exit ${r.status}` : r.signal ? `signal ${r.signal}` : "起動できない";
-    throw new Error(`git init に失敗した（${end}）: ${r.error?.message ?? r.stderr}`);
+    throw new Error(`git init に失敗した（${spawnEnd(r)}）: ${r.stderr}`);
   }
 }

@@ -18,3 +18,13 @@ export function isErrnoException(
 ): error is NodeJS.ErrnoException & { readonly __isErrnoException: true } {
   return error instanceof Error && "code" in error;
 }
+
+/** spawnSync の結果の終わり方（`exit 1`・`signal SIGTERM`・起動できなかった理由）。失敗のメッセージに書く。 */
+export function spawnEnd(res: {
+  status: number | null;
+  signal: NodeJS.Signals | null;
+  error?: Error;
+}): string {
+  if (res.error) return `起動できない: ${res.error.message}`;
+  return res.status !== null ? `exit ${res.status}` : `signal ${res.signal}`;
+}
