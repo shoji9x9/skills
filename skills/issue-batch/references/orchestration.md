@@ -217,7 +217,8 @@ manifest に書いてよいのは、次のものだけである。
 - 検証名・結果・証拠 URL / SHA
 - `reviewed_through_sha`: push の前のローカルレビューを最後に当てた範囲の終わりの commit の SHA（「ローカルレビュー」）。
   `review_tool: local` の merge の前に確かめる記録（`local-review-record.sh`）とは別のもので、その代わりに使わない
-- `unreviewed_range`: ローカルレビューの上限に達したために、PR を作る前に手元でレビューしなかった範囲の配列。要素は `{range, has_merge}`（`range` は `<from>..<to>` の完全な SHA）。`pr-finalize-loop` のレビューに任せた範囲である（「手元でレビューしていない範囲の記録」）
+- `unreviewed_range`: ローカルレビューの上限に達したために、PR を作る前に手元でレビューしなかった範囲の配列。`pr-finalize-loop` のレビューに任せた範囲である（「手元でレビューしていない範囲の記録」）。
+  要素は `{range, has_merge}` で、`range` は `<from>..<to>` の完全な SHA、`has_merge` は範囲に merge commit があるか（`git rev-list --merges <range>` が空でないか）である
 - BLOCKED / FAILED の停止の理由と残作業
 - `BRANCH_CLEANUP` のまま残した worktree の、引き継ぐファイルの一覧（「worktree に残った記録の引き継ぎ」）
 - SKIPPED の飛ばした理由
@@ -314,7 +315,7 @@ Claude Code では、渡した範囲の終わり（`<to>`）の SHA である。
 ローカルレビューの上限（`max_local_review_iterations`）は、push の前に手元でレビューする回数の上限である。最初のレビューも 1 回に数える。
 回数を 0 から数え始めるのは、次の 2 つの場面だけである。
 
-- PR を作る前のローカルレビューを始めるとき（前の run から再開して、ローカルレビューを最初から行うときを含む）
+- PR を作る前のローカルレビューを始めるとき（前の run から再開して、ローカルレビューを最初から行うときを含む。PR を既に持つ Issue の再開も、ここに当たる）
 - 「deployment 修復」で `LOCAL_REVIEWING` に戻ったとき
 
 1 つの範囲に当てるレビューの一式を 1 回に数える。Codex で範囲の commit ごとに実行する `codex review --commit` と、再開した Issue で足す base branch との差分のレビューは、同じ回に含める。
@@ -325,8 +326,9 @@ Claude Code では、直した変更を commit し、`<reviewed_through_sha の 
 レビューの回数が上限に達したら、最後のレビューの後に直した変更が残っていても、手元ではレビューせずに push へ進む。
 残った変更は、PR を作った後の `pr-finalize-loop` のレビューに任せる。手元でレビューしていない範囲は、下の「手元でレビューしていない範囲の記録」で 1 回だけ記録する。
 直すたびに新しい指摘が出ることがあり、指摘を自動で直す指定を付けたレビューではほぼ毎回直しが出る。上限で止めずに任せるのは、そのためである。
-ただし、任せる変更が残っているときに `review_tool` が `none` なら、PR のレビューが無いので、任せずに push の前に BLOCKED にする。`none` では例外のファイル（下）も任せる変更に数える。
+ただし、任せる変更が残っているときに `review_tool` が `none` なら、PR のレビューが無いので、任せずに push の前に BLOCKED にする。
 任せる変更が残っていて `review_tool` を読めないときも、push の前に BLOCKED にする（読み方は下の「ローカルレビューの後に生じた変更」と同じ）。
+この 2 つでは、例外のファイル（下）も任せる変更に数える。例外は、`review_tool` が `none` でないと分かったときだけ当てるからである。
 機能を使えない場合と、人の判断が要る場合は BLOCKED にする。
 
 ### 手元でレビューしていない範囲の記録
@@ -335,10 +337,9 @@ Claude Code では、直した変更を commit し、`<reviewed_through_sha の 
 記録は、PR（「deployment 修復」では follow-up PR）を作る直前に 1 回だけ行う。PR を既に持つ Issue を再開したときは、上限に達した後の最初の push の直前に行う。
 それ以外の push では記録しない。PR を作った後の push は `pr-finalize-loop` がレビューする。
 
-1. 範囲を `<reviewed_through_sha の SHA>..<PR にする HEAD の完全な SHA>` とする。範囲に commit が無ければ、記録しない。
-2. 範囲で変わったファイルがすべて例外のファイルなら、記録しない。例外かは、下の「ローカルレビューの後に生じた変更」と同じ方法で判定する。
-   Kaizen の学びは、抽出の前後の `git status` で挙げた、抽出が変えたファイルだけが例外である。手で書いた `.kaizen/` の変更は例外にしない。
-3. それ以外は、manifest の `unreviewed_range` に、`{range, has_merge}` を 1 件足す。`has_merge` は、範囲に merge commit があるか（`git rev-list --merges <範囲>` が空でないか）である。
+1. 範囲を `<reviewed_through_sha の SHA>..<記録する時点の HEAD の完全な SHA>` とする。範囲に commit が無ければ、記録しない。
+2. 範囲に commit があれば、manifest の `unreviewed_range` に 1 件足す（要素の形は「worktree と manifest」の一覧）。
+   例外のファイル（Kaizen の学びと Hook の記録）だけの範囲も記録する。この時点では、抽出が変えたファイルの一覧が残っていないことがあり、例外かを判定できないからである。
    follow-up PR の記録は、前の記録を消さずに足す。
 
 ### ローカルレビューの後に生じた変更
