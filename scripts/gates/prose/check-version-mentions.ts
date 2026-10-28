@@ -4,26 +4,30 @@
 // バージョンを書かなくても意味が通る文には書かない（writing-style の規則 9）。残した記述をこのチェックが宣言と突き合わせる。
 //
 // - 宣言: package.json の dependencies と devDependencies（バージョンは pnpm-lock.yaml の importers の `.` で解決したもの）、
-//   package.json の packageManager、mise.toml の [tools]。宣言の無いツール（gh・git・Chrome など）は見ない。
+//   package.json の packageManager、mise.toml の [tools]。
+//   mise.toml は `mise ls --current --json` で mise に解決させて読む。
+//   宣言の無いツール（gh・git・Chrome など）は見ない。
 // - 名前: 宣言の名前と、文書で使う呼び名（ALIASES）。大文字と小文字を区別しない。
 // - 記述: 名前の直後の `X.Y.Z`（`v` と `@` を前に付けた形を含む）。`X` と `X.Y` だけの記述は見ない。
 //   メジャーやマイナーの境目（「Node 24.2 より古い版」「vitest 5」）を表し、パッチの更新では古くならないからである。
-//   範囲と境目（直後の「以上」「以下」「以降」「未満」「より前」「より古い」「より新しい」「より後」「まで」、
-//   直後の `+`、`-`・`–`・`〜`・`～`（全角のチルダ）・`~` で続く上限）も見ない。
+//   直後の語（「以上」「〜」など）では除かない。範囲の書き方は閉じないので、宣言と違う X.Y.Z はすべて違反にし、
+//   正しい記述（必要な最低のバージョンなど）は下の許可で通す。
 //   英語の文の文末の `.` は記述に含めない（「Tested with Playwright X.Y.Z.」も読む）。`.` の後に数字が続く X.Y.Z.W は見ない。
 // - 走査対象は scripts/gates/docs/doc-scan-files.ts と同じ（Tier 1〜3）。Markdown はコードフェンスの外の本文を、
 //   それ以外はコメントの文章（scripts/lib/text/code-comments.ts）を読む。名前をバッククォートで囲んだ記述も読む。
 //   例の行（scripts/lib/doc-scan.ts の EXAMPLE_LINE_RE）は読まない。
-// - 違反の形だが正しい記述（上流のソースのタグ・古いバージョンの挙動の記録）は、
+// - 違反の形だが正しい記述（上流のソースのタグ・古いバージョンの挙動の記録・必要な最低のバージョン）は、
 //   scripts/gates/docs/doc-allowed.json に規則 version-mention で理由付きで許可する（使われていない許可は失敗にする）。
-// 宣言を読めない・解決したバージョンが X.Y.Z でない・対象ファイルが 0 件のときは exit 2。違反は exit 1。
-import { existsSync, readFileSync } from "node:fs";
+// 宣言を読めない（mise を起動できない場合を含む）・解決したバージョンが X.Y.Z でない・対象ファイルが 0 件のときは exit 2。違反は exit 1。
+import { spawnSync } from "node:child_process";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { applyAllowed, EXAMPLE_LINE_RE, fencedLines, loadAllowed } from "../../lib/doc-scan.ts";
 import { scannedFiles } from "../docs/doc-scan-files.ts";
 import { commentMarkdown, hasComments } from "../../lib/text/code-comments.ts";
 import { loadYamlDocuments } from "../../lib/text/yaml-as.ts";
 import { isRecord } from "../../lib/guards.ts";
+import { isArray } from "../../lib/is-array.ts";
 import { errorMessage } from "../../lib/errors.ts";
 import { isCliEntry } from "../../lib/cli/entry.ts";
 
@@ -36,17 +40,13 @@ const ALIASES: Record<string, string> = {
   playwright: "@playwright/test",
 };
 const SEMVER = /^\d+\.\d+\.\d+$/;
-// 範囲と境目を表す、記述の直後の語。`+` は X.Y.Z に続けて書き、後に語が続かないものだけを範囲として扱う。
-// 空白を挟んだ `+`（「Node X.Y.Z + pnpm」）と、packageManager のハッシュ（`pnpm@X.Y.Z+sha512.…`）は範囲ではない。
-const RANGE_AFTER =
-  /^(?:\+(?!\w)|\s*(?:以上|以下|以降|未満|より(?:前|古|新|後)|まで|[-–〜～~]\s*\d))/;
 
 type Declared = Map<string, string>;
 
 /** package.json・pnpm-lock.yaml・mise.toml から、宣言した名前（小文字）とバージョンを読む。 */
-export function declaredVersions(root: string): Declared {
+export function declaredVersions(root: string, miseList: MiseList = runMiseList): Declared {
   const out = packageVersions(root);
-  for (const [name, version] of miseTools(root)) {
+  for (const [name, version] of miseTools(root, miseList)) {
     const key = name.toLowerCase();
     const other = out.get(key);
     if (other !== undefined && other !== version)
@@ -111,46 +111,58 @@ function resolvedVersion(importer: Record<string, unknown>, name: string): strin
   throw new Error(`pnpm-lock.yaml の importers の . に ${name} が無い`);
 }
 
+/** `mise ls --current --json` の出力（JSON の文字列）を返す関数。テストは偽物を渡す。 */
+export type MiseList = (root: string) => string;
+
+const MISE_TIMEOUT_MS = 30_000;
+
+/** リポジトリのルートで `mise ls --current --json` を実行する。起動できない・0 以外で終わったときは例外にする。 */
+const runMiseList: MiseList = (root) => {
+  const r = spawnSync("mise", ["ls", "--current", "--json"], {
+    cwd: root,
+    encoding: "utf8",
+    timeout: MISE_TIMEOUT_MS,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (r.error) throw new Error(`mise を起動できない: ${r.error.message}`);
+  if (r.status !== 0) throw new Error(`mise ls が ${r.status} で終わった: ${r.stderr.trim()}`);
+  return r.stdout;
+};
+
 /**
- * mise.toml の [tools] の `名前 = "バージョン"`（名前と値は、二重引用符と一重引用符のどちらで囲んでもよい）。
- * [tools] の中でこの形に読めない行（表や配列の値・[tools.<名前>] の表・`node.version` のようにドットで区切ったキー）は、
- * 宣言を読めないとして例外にする。表の見出しより前に書いた `tools.<名前> = …` と `tools = { … }` も例外にする。
- * 引用符で囲まない名前は、TOML の bare key（英数字・`_`・`-`）だけを読む。
+ * mise.toml の [tools] の宣言を、mise 自身に解決させて読む（TOML を自前で解析しない）。
+ * mise はグローバルの設定の宣言も返すので、`source.path` がリポジトリの mise.toml のものだけを使う。
+ * バージョンは宣言した値（`requested_version`）で、X.Y.Z でなければ declaredVersions が例外にする。
+ * mise.toml が無ければ mise を起動しない。在るのに 1 件も読めない・形が違うときは例外にする。
  */
-function miseTools(root: string): [string, string][] {
+function miseTools(root: string, miseList: MiseList): [string, string][] {
   const path = join(root, "mise.toml");
   if (!existsSync(path)) return [];
+  const own = realpathSync(path);
+  const listed: unknown = JSON.parse(miseList(root));
+  if (!isRecord(listed)) throw new Error("mise ls の出力が object でない");
   const out: [string, string][] = [];
-  let inTools = false;
-  let inRoot = true;
-  for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
-    if (/^\s*\[/.test(line)) {
-      inTools = isToolsHeader(line);
-      inRoot = false;
-      continue;
+  for (const [name, entries] of Object.entries(listed)) {
+    if (!isArray(entries)) throw new Error(`mise ls の ${name} が配列でない`);
+    for (const entry of entries) {
+      const version = ownVersion(name, entry, own);
+      if (version !== undefined) out.push([name, version]);
     }
-    // 表の見出しより前の `tools.node = …` と `tools = { … }` も [tools] の宣言なので、読めないとして扱う。
-    if (inRoot && /^\s*(?:tools|"tools"|'tools')\s*[.=]/.test(line))
-      throw new Error(`mise.toml の「${line.trim()}」を読めない`);
-    if (inTools && !/^\s*(?:#.*)?$/.test(line)) out.push(toolEntry(line));
   }
+  if (out.length === 0) throw new Error("mise.toml の宣言を mise ls から 1 件も読めない");
   return out;
 }
 
-/** 表の見出しが [tools] か。[tools.<名前>]・["tools"] は同じ宣言を別の形で書いたものなので、読めないとして扱う。 */
-function isToolsHeader(line: string): boolean {
-  if (/^\s*\[\s*(?:tools\s*\.|["']tools["'])/.test(line))
-    throw new Error(`mise.toml の「${line.trim()}」を読めない`);
-  return /^\s*\[\s*tools\s*\]\s*(?:#.*)?$/.test(line);
-}
-
-/** [tools] の 1 行の名前とバージョン。 */
-function toolEntry(line: string): [string, string] {
-  const m = /^\s*(?:"([^"]+)"|'([^']+)'|([\w-]+))\s*=\s*(?:"([^"]*)"|'([^']*)')\s*(?:#.*)?$/.exec(
-    line,
-  );
-  if (!m) throw new Error(`mise.toml の [tools] の「${line.trim()}」を読めない`);
-  return [m[1] ?? m[2] ?? m[3], m[4] ?? m[5]];
+/** mise ls の 1 件が own（リポジトリの mise.toml）の宣言なら、宣言したバージョンを返す。ほかの設定の宣言なら undefined。 */
+function ownVersion(name: string, entry: unknown, own: string): string | undefined {
+  if (!isRecord(entry)) throw new Error(`mise ls の ${name} の要素が object でない`);
+  const source = isRecord(entry.source) ? entry.source.path : undefined;
+  if (typeof source !== "string") throw new Error(`mise ls の ${name} に source.path が無い`);
+  if (!existsSync(source) || realpathSync(source) !== own) return undefined;
+  const version = entry.requested_version;
+  if (typeof version !== "string")
+    throw new Error(`mise ls の ${name} に requested_version が無い`);
+  return version;
 }
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
@@ -202,7 +214,6 @@ export function findMismatches(
     if (EXAMPLE_LINE_RE.test(raw)) continue;
     const prose = raw.replace(/`/g, "");
     for (const m of prose.matchAll(re)) {
-      if (RANGE_AFTER.test(prose.slice(m.index + m[0].length))) continue;
       const name = m[1].toLowerCase();
       const want = declared.get(ALIASES[name] ?? name);
       if (want === undefined || want === m[2]) continue;
@@ -212,8 +223,8 @@ export function findMismatches(
   return out;
 }
 
-export function checkVersionMentions(root: string) {
-  const declared = declaredVersions(root);
+export function checkVersionMentions(root: string, miseList: MiseList = runMiseList) {
+  const declared = declaredVersions(root, miseList);
   const files = scannedFiles(root, { exclude: SELF_FIXTURES });
   const found = [];
   for (const { file, markdown } of files) {

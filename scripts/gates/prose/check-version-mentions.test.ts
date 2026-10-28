@@ -4,16 +4,16 @@
 //
 // | 軸           | 値                                                                                     |
 // | ------------ | -------------------------------------------------------------------------------------- |
-// | 宣言の出所   | devDependencies（lockfile で解決）/ packageManager / mise.toml の [tools] / [tools] の外 |
+// | 宣言の出所   | devDependencies（lockfile で解決）/ packageManager / mise ls の mise.toml の宣言         |
+// |              | mise ls のほかの設定ファイルの宣言（グローバルの設定）/ mise.toml が無い                 |
 // | 宣言の不備   | lockfile に無い依存 / X.Y.Z でない宣言 / importers の . が依存を持たない文書だけ         |
-// |              | [tools] の読めない行（表の値・[tools.<名前>]・["tools"]・ドットで区切ったキー）          |
-// |              | 表の見出しより前の tools.<名前>・tools = { } / 見出しより前の tools 以外のキー           |
 // |              | package.json と mise.toml の食い違い / 依存が null / packageManager が文字列でない       |
-// | 宣言の書き方 | [tools] の後のコメント / 二重引用符と一重引用符で囲んだ名前と値                          |
+// | mise ls      | object でない / 値が配列でない / source.path が無い / requested_version が無い           |
+// |              | mise.toml の宣言が 1 件も無い / 起動できない・0 以外で終わる（例外をそのまま返す）       |
 // | 名前の書き方 | 空白 / v / @ / バッククォート / 大文字 / 呼び名（Playwright・Node.js）                   |
 // | 名前の境界   | 長い名前（@types/node）/ 名前を含む別の語（mynode）/ 宣言の無い名前（gh）               |
 // | バージョン   | X.Y.Z 一致 / X.Y.Z 不一致 / X.Y / X.Y.Z.W                                               |
-// | 直後の語     | 以上 / 以下 / より古い / + / 空白を挟んだ + / +sha512 / 〜・～・-・~ で続く上限 / 句読点 / 文末の . |
+// | 直後の語     | 以上 / 〜で続く上限 / + / 空白を挟んだ + / +sha512 / 句読点 / 文末の .（どれも除かない）  |
 // | 場所         | Markdown の本文 / コードフェンス / 例の行 / コメント / 文字列 / コメントを持たない拡張子 |
 // | 許可         | 使われる許可 / 使われない許可                                                            |
 // | CLI          | 違反なし / 違反あり / 宣言を読めない                                                     |
@@ -25,6 +25,7 @@ import {
   checkVersionMentions,
   declaredVersions,
   findMismatches,
+  type MiseList,
   RULE,
 } from "./check-version-mentions.ts";
 import { ALLOWED_PATH, KNOWN_RULES } from "../../lib/doc-scan.ts";
@@ -61,22 +62,48 @@ importers:
         specifier: ^25.0.0
         version: 25.9.1(peer@1.0.0)
 `;
-const MISE = `[settings]\nlockfile = true\n[tools]\nnode = "26.12.1"\npython = "3.15.0"\n`;
+// mise.toml の中身は読まない（宣言は mise ls の出力から読む）。在ることだけが mise を起動する条件になる。
+const MISE = `[tools]\nnode = "26.12.1"\npython = "3.15.0"\n`;
 
-function makeRepo(files: Record<string, string>, { allowed }: { allowed?: object } = {}) {
+function makeRepo(files: Record<string, string | null>, { allowed }: { allowed?: object } = {}) {
   const root = makeTempDir("version-mentions-");
-  const all: Record<string, string> = {
+  const all: Record<string, string | null> = {
     [TIERS_PATH]: readFileSync(join(REPO_ROOT, TIERS_PATH), "utf8"),
     "package.json": PACKAGE,
     "pnpm-lock.yaml": LOCK,
     "mise.toml": MISE,
     ...files,
   };
-  for (const [p, t] of Object.entries(all)) write(root, p, t);
+  for (const [p, t] of Object.entries(all)) if (t !== null) write(root, p, t);
   if (allowed) writeFileSync(join(root, ALLOWED_PATH), JSON.stringify(allowed));
   gitInit(root);
   return root;
 }
+
+/** mise ls --current --json の偽物。tools はリポジトリの mise.toml の宣言、global はグローバルの設定の宣言。 */
+function fakeMise(
+  tools: Record<string, string> = { node: "26.12.1", python: "3.15.0" },
+  global: Record<string, string> = { "aws-cli": "2.38.4", node: "24.0.0" },
+): MiseList {
+  return (root) => {
+    const out: Record<string, unknown[]> = {};
+    const add = (name: string, version: string, path: string) =>
+      (out[name] ??= []).push({
+        version,
+        requested_version: version,
+        source: { type: "mise.toml", path },
+      });
+    const globalPath = join(makeTempDir("version-mentions-global-"), "config.toml");
+    writeFileSync(globalPath, "");
+    for (const [n, v] of Object.entries(global)) add(n, v, globalPath);
+    for (const [n, v] of Object.entries(tools)) add(n, v, join(root, "mise.toml"));
+    return JSON.stringify(out);
+  };
+}
+const raw =
+  (json: unknown): MiseList =>
+  () =>
+    JSON.stringify(json);
 
 const DECLARED = new Map([
   ["@playwright/test", "1.64.1"],
@@ -88,9 +115,18 @@ const DECLARED = new Map([
 const mismatches = (file: string, text: string) =>
   findMismatches({ file, markdown: file.endsWith(".md") }, text, DECLARED).map((m) => m.text);
 
-test("宣言は lockfile で解決したバージョン・packageManager・mise の [tools] から読む", () => {
-  const root = makeRepo({ "mise.toml": `${MISE}[env]\nshfmt = "1.0.0"\n` });
-  expect(Object.fromEntries(declaredVersions(root))).toEqual(Object.fromEntries(DECLARED));
+test("宣言は lockfile で解決したバージョン・packageManager・mise ls の mise.toml の宣言から読む", () => {
+  // グローバルの設定の node 24.0.0 と aws-cli は、mise.toml の宣言ではないので読まない。
+  expect(Object.fromEntries(declaredVersions(makeRepo({}), fakeMise()))).toEqual(
+    Object.fromEntries(DECLARED),
+  );
+});
+
+test("mise.toml が無ければ mise を起動しない", () => {
+  const never: MiseList = () => {
+    throw new Error("起動した");
+  };
+  expect(declaredVersions(makeRepo({ "mise.toml": null }), never).has("node")).toBe(false);
 });
 
 test.each([
@@ -98,34 +134,36 @@ test.each([
     "lockfile に無い依存",
     { "package.json": JSON.stringify({ devDependencies: { vitest: "^5" } }) },
   ],
-  ["X.Y.Z でない宣言", { "mise.toml": `[tools]\nnode = "26"\n` }],
   ["依存を持つ importers の . が無い", { "pnpm-lock.yaml": LOCK.split("---\n")[1] }],
-  ["[tools] の表の値", { "mise.toml": `[tools]\nnode = { version = "26.12.1" }\n` }],
-  ["[tools.<名前>] の表", { "mise.toml": `[tools.node]\nversion = "26.12.1"\n` }],
-  ["package.json と mise.toml の食い違い", { "mise.toml": `[tools]\npnpm = "12.12.0"\n` }],
   ["package.json の依存が null", { "package.json": JSON.stringify({ dependencies: null }) }],
   ["packageManager が文字列でない", { "package.json": JSON.stringify({ packageManager: null }) }],
-  ["[tools] のドットで区切ったキー", { "mise.toml": `[tools]\nnode.version = "26.12.1"\n` }],
-  ["表の見出しより前の tools.<名前>", { "mise.toml": `tools.pnpm = "12.12.0"\n[settings]\n` }],
-  ["表の見出しより前の tools = { }", { "mise.toml": `tools = { pnpm = "12.12.0" }\n` }],
-  ['引用符で囲んだ ["tools"] の表', { "mise.toml": `["tools"]\npnpm = "12.12.0"\n` }],
 ])("宣言を読めないときは例外にする: %s", (_name, files) => {
-  expect(() => declaredVersions(makeRepo(files))).toThrow();
+  expect(() => declaredVersions(makeRepo(files), fakeMise())).toThrow();
 });
 
-test("[tools] の後のコメントと、引用符で囲んだ名前も読む", () => {
-  const mise = `[tools] # 版を固定する\n"node" = "26.12.1"\npython = "3.15.0" # 注記\n'shfmt' = '3.14.1'\n`;
-  const declared = declaredVersions(makeRepo({ "mise.toml": mise }));
-  expect([declared.get("node"), declared.get("python"), declared.get("shfmt")]).toEqual([
-    "26.12.1",
-    "3.15.0",
-    "3.14.1",
-  ]);
+test.each<[string, MiseList]>([
+  ["X.Y.Z でない宣言", fakeMise({ node: "26" })],
+  ["package.json と mise.toml の食い違い", fakeMise({ pnpm: "12.12.0" })],
+  ["mise.toml の宣言が 1 件も無い", fakeMise({})],
+  ["出力が object でない", raw([])],
+  ["値が配列でない", raw({ node: {} })],
+  ["要素が object でない", raw({ node: [null] })],
+  ["source.path が無い", raw({ node: [{ requested_version: "26.12.1" }] })],
+  ["JSON でない", () => "not json"],
+  [
+    "起動できない",
+    () => {
+      throw new Error("spawn mise ENOENT");
+    },
+  ],
+])("mise ls を読めないときは例外にする: %s", (_name, miseList) => {
+  expect(() => declaredVersions(makeRepo({}), miseList)).toThrow();
 });
 
-test("表の見出しより前の tools 以外のキーは読み飛ばす", () => {
-  const mise = `min_version = "2026.1.0"\ntools_dir = "x"\n[tools]\nnode = "26.12.1"\n`;
-  expect(declaredVersions(makeRepo({ "mise.toml": mise })).get("node")).toBe("26.12.1");
+test("mise.toml の宣言に requested_version が無いときは例外にする", () => {
+  const miseList: MiseList = (root) =>
+    JSON.stringify({ node: [{ version: "26.12.1", source: { path: join(root, "mise.toml") } }] });
+  expect(() => declaredVersions(makeRepo({}), miseList)).toThrow("requested_version");
 });
 
 test.each([
@@ -140,6 +178,11 @@ test.each([
   ["文末の .", "Tested with Playwright 1.63.0.", ["Playwright 1.63.0"]],
   ["空白を挟んだ +", "Node 24.0.0 + pnpm 11.0.0 で確かめた。", ["Node 24.0.0", "pnpm 11.0.0"]],
   ["packageManager のハッシュ", "`pnpm@11.0.0+sha512.abc` を書く。", ["pnpm@11.0.0"]],
+  ["直後の以上", "Python 3.8.0 以上が要る。", ["Python 3.8.0"]],
+  ["直後の以下", "Node 24.0.0 以下で起きる。", ["Node 24.0.0"]],
+  ["直後のより古い", "Node 24.2.0 より古い版。", ["Node 24.2.0"]],
+  ["〜で続く上限", "Python 3.12.0〜3.13.0 が要る。", ["Python 3.12.0"]],
+  ["直後の +", "Playwright 1.60.0+ が要る。", ["Playwright 1.60.0"]],
 ])("宣言と食い違う X.Y.Z を検出する: %s", (_name, text, want) => {
   expect(mismatches("docs/a.md", text)).toEqual(want);
 });
@@ -148,14 +191,6 @@ test.each([
   ["宣言と一致", "Playwright 1.64.1 と @types/node 25.9.1 で確かめた。"],
   ["X.Y だけ", "Node 24.2 より古い版。vitest 5 の出力。"],
   ["X.Y.Z.W", "Chrome 149.0.7827.155 と node 1.2.3.4。"],
-  ["以上", "Python 3.8.0 以上が要る。"],
-  ["より古い", "Node 24.2.0 より古い版。"],
-  ["〜で続く上限", "Python 3.12.0〜3.13.0 が要る。"],
-  ["- で続く上限", "Python 3.12.0-3.13.0 が要る。"],
-  ["~ で続く上限", "Python 3.12.0 ~ 3.13.0 が要る。"],
-  ["全角の ～ で続く上限", "Python 3.12.0～3.13.0 が要る。"],
-  ["以下", "Node 24.0.0 以下で起きる。"],
-  ["+", "Playwright 1.60.0+ が要る。"],
   ["名前を含む別の語", "mynode 1.2.3 と node_modules 1.2.3。"],
   ["宣言の無い名前", "gh 2.93.0 で確かめた。"],
   ["例の行", "例: `pnpm@11.0.0` を入れる。"],
@@ -187,10 +222,11 @@ test("許可した記述は通し、使われていない許可は失敗にす�
   });
   const files = { "docs/a.md": "pnpm 11.23.0 で確かめた。\n" };
   expect(
-    checkVersionMentions(makeRepo(files, { allowed: allowed("pnpm 11.23.0") })).failures,
+    checkVersionMentions(makeRepo(files, { allowed: allowed("pnpm 11.23.0") }), fakeMise())
+      .failures,
   ).toEqual([]);
   expect(
-    checkVersionMentions(makeRepo(files, { allowed: allowed("pnpm 11.0.0") })).failures,
+    checkVersionMentions(makeRepo(files, { allowed: allowed("pnpm 11.0.0") }), fakeMise()).failures,
   ).toHaveLength(2);
 });
 
@@ -201,15 +237,18 @@ test("規則は許可の一覧に書ける", () => {
 const run = (root: string) =>
   spawnSync(process.execPath, [script, root], { encoding: "utf8", timeout: CHILD_TIMEOUT_MS });
 
+// CLI は本物の mise を起動するので、mise の信頼の設定が要らないよう mise.toml を置かないリポジトリで確かめる。
 test("CLI: 違反なしは 0、違反ありは 1、宣言を読めないときは 2", () => {
-  const ok = run(makeRepo({ "docs/a.md": "Playwright 1.64.1 で確かめた。\n" }));
+  const ok = run(makeRepo({ "mise.toml": null, "docs/a.md": "Playwright 1.64.1 で確かめた。\n" }));
   expect([ok.status, ok.stdout]).toEqual([0, expect.stringContaining("OK")]);
-  const ng = run(makeRepo({ "docs/a.md": "Playwright 1.63.0 で確かめた。\n" }));
+  const ng = run(makeRepo({ "mise.toml": null, "docs/a.md": "Playwright 1.63.0 で確かめた。\n" }));
   expect([ng.status, ng.stderr]).toEqual([
     1,
     expect.stringContaining("docs/a.md:1: [version-mention] Playwright 1.63.0（宣言は 1.64.1）"),
   ]);
-  const broken = run(makeRepo({ "mise.toml": `[tools]\nnode = "lts"\n` }));
+  const broken = run(
+    makeRepo({ "mise.toml": null, "package.json": JSON.stringify({ packageManager: "pnpm" }) }),
+  );
   expect([broken.status, broken.stderr]).toEqual([2, expect.stringContaining("チェックできない")]);
 });
 
