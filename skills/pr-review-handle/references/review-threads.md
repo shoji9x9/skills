@@ -26,11 +26,13 @@ query($endCursor: String) {
       }
     }
   }
-}'
+}' --jq '.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false) |
+  {threadId: .id, databaseId: .comments.nodes[0].databaseId, author: .comments.nodes[0].author.login,
+   path: .comments.nodes[0].path, line: .comments.nodes[0].line, body: .comments.nodes[0].body}'
 ```
 
 `--paginate` は、`pageInfo { hasNextPage endCursor }` と `$endCursor` の変数があれば、全ページを自動でたどる。
-取得した `nodes` から、`isResolved == false` のスレッドだけを 1 件ずつ処理する。すべてのレビュアーを対象にし、作成者では絞らない。
+`--jq` で `isResolved == false` のスレッドだけを出力し、1 件ずつ処理する。解決済みのスレッドを含む応答の全体は出力しない。すべてのレビュアーを対象にし、作成者では絞らない。
 返信先には、先頭のコメントの `databaseId` を使う。
 
 ## 返信（REST）
