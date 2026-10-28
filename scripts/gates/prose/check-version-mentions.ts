@@ -9,7 +9,7 @@
 // - 記述: 名前の直後の `X.Y.Z`（`v` と `@` を前に付けた形を含む）。`X` と `X.Y` だけの記述は見ない。
 //   メジャーやマイナーの境目（「Node 24.2 より古い版」「vitest 5」）を表し、パッチの更新では古くならないからである。
 //   範囲と境目（直後の「以上」「以下」「以降」「未満」「より前」「より古い」「より新しい」「より後」「まで」、
-//   直後の `+`、`-`・`–`・`〜`・`~` で続く上限）も見ない。
+//   直後の `+`、`-`・`–`・`〜`・`～`（全角のチルダ）・`~` で続く上限）も見ない。
 //   英語の文の文末の `.` は記述に含めない（「Tested with Playwright X.Y.Z.」も読む）。`.` の後に数字が続く X.Y.Z.W は見ない。
 // - 走査対象は scripts/gates/docs/doc-scan-files.ts と同じ（Tier 1〜3）。Markdown はコードフェンスの外の本文を、
 //   それ以外はコメントの文章（scripts/lib/text/code-comments.ts）を読む。名前をバッククォートで囲んだ記述も読む。
@@ -39,7 +39,7 @@ const SEMVER = /^\d+\.\d+\.\d+$/;
 // 範囲と境目を表す、記述の直後の語。`+` は X.Y.Z に続けて書き、後に語が続かないものだけを範囲として扱う。
 // 空白を挟んだ `+`（「Node X.Y.Z + pnpm」）と、packageManager のハッシュ（`pnpm@X.Y.Z+sha512.…`）は範囲ではない。
 const RANGE_AFTER =
-  /^(?:\+(?!\w)|\s*(?:以上|以下|以降|未満|より(?:前|古|新|後)|まで|[-–〜~]\s*\d))/;
+  /^(?:\+(?!\w)|\s*(?:以上|以下|以降|未満|より(?:前|古|新|後)|まで|[-–〜～~]\s*\d))/;
 
 type Declared = Map<string, string>;
 
@@ -75,9 +75,8 @@ function packageVersions(root: string): Declared {
       out.set(name.toLowerCase(), resolvedVersion(importer, name));
   }
   const pm = pkg.packageManager;
-  if (pm !== undefined && typeof pm !== "string")
-    throw new Error("package.json の packageManager が文字列でない");
-  if (typeof pm === "string") {
+  if (pm !== undefined) {
+    if (typeof pm !== "string") throw new Error("package.json の packageManager が文字列でない");
     const at = pm.lastIndexOf("@");
     if (at <= 0) throw new Error(`package.json の packageManager「${pm}」に @ が無い`);
     out.set(pm.slice(0, at).toLowerCase(), pm.slice(at + 1).split("+")[0]);
@@ -115,28 +114,43 @@ function resolvedVersion(importer: Record<string, unknown>, name: string): strin
 /**
  * mise.toml の [tools] の `名前 = "バージョン"`（名前と値は、二重引用符と一重引用符のどちらで囲んでもよい）。
  * [tools] の中でこの形に読めない行（表や配列の値・[tools.<名前>] の表・`node.version` のようにドットで区切ったキー）は、
- * 宣言を読めないとして例外にする。引用符で囲まない名前は、TOML の bare key（英数字・`_`・`-`）だけを読む。
+ * 宣言を読めないとして例外にする。表の見出しより前に書いた `tools.<名前> = …` と `tools = { … }` も例外にする。
+ * 引用符で囲まない名前は、TOML の bare key（英数字・`_`・`-`）だけを読む。
  */
 function miseTools(root: string): [string, string][] {
   const path = join(root, "mise.toml");
   if (!existsSync(path)) return [];
   const out: [string, string][] = [];
   let inTools = false;
+  let inRoot = true;
   for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
     if (/^\s*\[/.test(line)) {
-      if (/^\s*\[\s*tools\s*\./.test(line))
-        throw new Error(`mise.toml の「${line.trim()}」を読めない`);
-      inTools = /^\s*\[\s*tools\s*\]\s*(?:#.*)?$/.test(line);
+      inTools = isToolsHeader(line);
+      inRoot = false;
       continue;
     }
-    if (!inTools || /^\s*(?:#.*)?$/.test(line)) continue;
-    const m = /^\s*(?:"([^"]+)"|'([^']+)'|([\w-]+))\s*=\s*(?:"([^"]*)"|'([^']*)')\s*(?:#.*)?$/.exec(
-      line,
-    );
-    if (!m) throw new Error(`mise.toml の [tools] の「${line.trim()}」を読めない`);
-    out.push([m[1] ?? m[2] ?? m[3], m[4] ?? m[5]]);
+    // 表の見出しより前の `tools.node = …` と `tools = { … }` も [tools] の宣言なので、読めないとして扱う。
+    if (inRoot && /^\s*(?:tools|"tools"|'tools')\s*[.=]/.test(line))
+      throw new Error(`mise.toml の「${line.trim()}」を読めない`);
+    if (inTools && !/^\s*(?:#.*)?$/.test(line)) out.push(toolEntry(line));
   }
   return out;
+}
+
+/** 表の見出しが [tools] か。[tools.<名前>]・["tools"] は同じ宣言を別の形で書いたものなので、読めないとして扱う。 */
+function isToolsHeader(line: string): boolean {
+  if (/^\s*\[\s*(?:tools\s*\.|["']tools["'])/.test(line))
+    throw new Error(`mise.toml の「${line.trim()}」を読めない`);
+  return /^\s*\[\s*tools\s*\]\s*(?:#.*)?$/.test(line);
+}
+
+/** [tools] の 1 行の名前とバージョン。 */
+function toolEntry(line: string): [string, string] {
+  const m = /^\s*(?:"([^"]+)"|'([^']+)'|([\w-]+))\s*=\s*(?:"([^"]*)"|'([^']*)')\s*(?:#.*)?$/.exec(
+    line,
+  );
+  if (!m) throw new Error(`mise.toml の [tools] の「${line.trim()}」を読めない`);
+  return [m[1] ?? m[2] ?? m[3], m[4] ?? m[5]];
 }
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
