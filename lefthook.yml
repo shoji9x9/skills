@@ -167,7 +167,7 @@ pre-commit:
           - name: fallow
             # ファイルの間の関係（使われていないコード・依存・複雑度・参照の向き・循環参照）。1 ファイルの変更が他のファイルの判定を変える
             # （最後の呼び出し元を消すと、変更していないファイルの export が使われなくなる）ので、渡されたファイルではなく全体を検査する。
-            # 使われていないコードと依存の既存の指摘は .config/fallow/dead-code-baseline.json で外す。複雑度はベースラインに載せず、関数を分けて直す。
+            # ベースラインの扱いは docs/tooling.md「ファイルの間の関係（fallow）」。
             glob: "{*.{js,mjs,cjs,jsx,ts,tsx,mts,cts},package.json,pnpm-lock.yaml,.fallowrc.json,.config/fallow/*}"
             run: pnpm run lint:fallow
           - name: duplicates

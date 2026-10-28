@@ -132,9 +132,9 @@ fallow はドットで始まるディレクトリを走査しないので、イ�
 参照の向きは、fallow の構文の解析が読む参照（`import`・`export from`・`import()`・`require()`・`import type`・JSDoc の `{import("…")}`・`vi.mock`・`new URL`）で判定する。
 次の書き方は検出しないので、相対パスのモジュールを読むときは使わない。`createRequire` の戻り値を別名で呼ぶ、`vi.importActual`、`/// <reference path>`、相対パスの文字列を任意の関数に渡して読む、である。
 
-`pnpm run lint:fallow` は、`fallow health` の出力のうち、関数ごとの複雑度の指摘（`--complexity`）だけを検査する。
+`pnpm run lint:fallow` と CI の CRAP（`pnpm run lint:crap`）は、`fallow health` の出力のうち、関数ごとの複雑度の指摘（`--complexity`）だけを検査する。
 ほかの出力（ファイルの点数・hotspot・一緒に変更されたファイルの組・リファクタリングの候補）は、`--fail-on-issues` を付けても失敗にならないので実行しない（全体の要約の数行だけは毎回出る）。
-hotspot・一緒に変更されたファイルの組・候補の hidden coupling は、git の履歴（commit の数と変更した行数）から計算する。
+hotspot・一緒に変更されたファイルの組と、候補のうち一緒に変更されるのに import でつながっていないファイルの組（hidden coupling）は、git の履歴（commit の数と変更した行数）から計算する。
 そのため、横断の修正（lint の違反の修正など）で値が上がり、コードを直しても値を下げられない。
 各スキルに同梱した同じ内容のコピー、子プロセスとして起動するテスト、間接の import も、候補として出る。
 ファイルの点数の要素のうち、使われていないコードと複雑度は上の検査が、CRAP は CI の検査が判定している。

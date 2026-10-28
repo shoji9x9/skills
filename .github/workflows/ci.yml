@@ -63,7 +63,7 @@ jobs:
       - name: Fallow config is generated
         run: node scripts/gates/packaging/copies/generate-fallow-config.ts --check
       # ファイルの間の関係（使われていないコード・依存・複雑度・参照の向き・循環参照）。
-      # 使われていないコードと依存の既存の指摘は .config/fallow/dead-code-baseline.json で外す。複雑度はベースラインに載せず、関数を分けて直す。
+      # ベースラインの扱いは docs/tooling.md「ファイルの間の関係（fallow）」。
       - name: Structure (fallow)
         run: pnpm run lint:fallow
       # PR が増やした、テストを弱める変更（.skip・.only の追加、テストのケースや assertion の減少、カバレッジの閾値の引き下げ）。
