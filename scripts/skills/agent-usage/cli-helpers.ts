@@ -4,6 +4,7 @@ import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { expect } from "vitest";
 import { encodeProjectPath } from "../../../skills/agent-usage/scripts/lib/sources/discover.mjs";
+import { parseCsv } from "../../../skills/agent-usage/scripts/lib/csv.mjs";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
@@ -164,6 +165,8 @@ export function copyLogLines(
 export function recordDirs(repo: string) {
   const records = join(repo, ".agent-usage", "records");
   const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+  // 無ければ branches が records/branches になり、呼び出し元が原因の分からない ENOENT で失敗する
+  expect(person, "records の下に人ごとのディレクトリ（p-）が無い").not.toBe("");
   return { records, person, branches: join(records, person, "branches") };
 }
 
@@ -176,15 +179,16 @@ export function collectedOnBranch() {
   return { ...s, ...recordDirs(s.repo) };
 }
 
-/** report を作り、setup が書いたログと同じ日付の usage.csv から、input_tokens を合計する。 */
+/**
+ * report を作り、setup が書いたログと同じ日付の usage.csv から、input_tokens を合計する。
+ * 合計が正の数でなければ失敗する。0 や NaN を返すと、二重に数えていないかを 0 と 0 で比べて通してしまう。
+ */
 export function reportedInputTokens({ repo, cli }: Pick<ReturnType<typeof setup>, "repo" | "cli">) {
   expect(cli("report").status).toBe(0);
   const usage = readFileSync(join(repo, ".agent-usage", "report", "20261001", "usage.csv"), "utf8");
-  const [header, ...body] = usage.trim().split("\n");
-  const col = (header ?? "").split(",").indexOf("input_tokens");
-  // 列が無いと合計が 0 になり、二重に数えていないかを 0 と 0 で比べることになる
-  expect(col).toBeGreaterThanOrEqual(0);
-  return body.reduce((a, l) => a + Number(l.split(",")[col] ?? 0), 0);
+  const total = parseCsv(usage).reduce((a, row) => a + Number(row.input_tokens), 0);
+  expect(Number.isFinite(total) && total > 0, `input_tokens の合計: ${total}`).toBe(true);
+  return total;
 }
 
 /** setup のログをコピーして続けたセッションで、コピーの後に足した指示と、その応答 */

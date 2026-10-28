@@ -88,7 +88,7 @@ export const { profiles } = loadProfiles(
 
 export const SLUG = "order-list";
 
-/** DataGrid の列挙（列 2・複数列の並べ替えの組 1・行を選ぶ手段 1・メニュー対象 1・メニュー項目 2・条件 1）。parity-suite のテストと同じ列挙を使う。 */
+/** DataGrid の列挙。parity-suite のテストの列挙（coverage-expand-helpers.ts の enumeration）をそのまま使い、記録の側と判定の側に同じ入力を渡す。 */
 export function enumeration(): Enumeration {
   return datagridEnumeration();
 }

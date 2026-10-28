@@ -6,32 +6,36 @@ export type MemoryIo = {
   cwd: string;
   readFile: (path: string) => string;
   write: (s: string) => void;
-  writeErr: (s: string) => void;
+  writeErr?: (s: string) => void;
 };
 
 /**
- * main をメモリ上のファイルで実行し、終了コード・stdout の JSON・stderr を返す。
+ * main をメモリ上のファイルで実行し、終了コードと stdout の JSON を返す。
  * cwd は /w に固定し、files に無いパスの読み取りは ENOENT にする。stdout が空なら result は null。
+ * captureStderr のときだけ stderr を返り値に集める。そうでなければ main のデフォルト（process.stderr）に出し、失敗の理由をテストの出力に残す。
  */
 export function runInMemory<Result>(
   main: (argv: string[], io: MemoryIo) => number,
   argv: string[],
-  files: Record<string, string>,
+  { files, captureStderr = false }: { files: Record<string, string>; captureStderr?: boolean },
 ) {
   let output = "";
   let stderr = "";
-  const code = main(argv, {
+  const io: MemoryIo = {
     cwd: "/w",
     readFile: (path) => {
-      if (!(path in files)) throw new Error("ENOENT");
+      if (!Object.hasOwn(files, path)) throw new Error("ENOENT");
       return files[path];
     },
     write: (s) => {
       output += s;
     },
-    writeErr: (s) => {
+  };
+  if (captureStderr) {
+    io.writeErr = (s) => {
       stderr += s;
-    },
-  });
+    };
+  }
+  const code = main(argv, io);
   return { code, stderr, result: output === "" ? null : parseJsonAs<Result>(output) };
 }

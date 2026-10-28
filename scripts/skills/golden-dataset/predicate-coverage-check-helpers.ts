@@ -122,7 +122,7 @@ type CheckOutput = {
 
 /** main をメモリ上のファイルで実行する。 */
 export const run = (argv: string[], files: Record<string, string>) =>
-  runInMemory<CheckOutput>(main, argv, files);
+  runInMemory<CheckOutput>(main, argv, { files, captureStderr: true });
 
 /**
  * 既定の入力で検査し、findings の code 一覧を返す。

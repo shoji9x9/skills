@@ -250,7 +250,7 @@ function pick(override: MetadataOverride, key: keyof MetadataOverride, fallback:
 
 /** main をメモリ上のファイルで実行する。 */
 export const run = (argv: string[], files: Record<string, string>) =>
-  runInMemory<CliResult>(main, argv, files);
+  runInMemory<CliResult>(main, argv, { files });
 
 // わざと欄を外した metadata も渡すので unknown で受ける（checkCaptureScope も unknown で受ける）
 export const codesOf = (metadata: unknown) =>
