@@ -1,0 +1,137 @@
+{
+  "metadata": {
+    "skill_name": "issue-batch",
+    "skill_path": "<repo>/skills/issue-batch",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-28T21:48:56Z",
+    "evals_run": [8],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 56.145,
+        "tokens": 347937,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "codex review --uncommitted で staged / unstaged / untracked をレビューする",
+          "passed": true,
+          "evidence": "1-1・1-2 で codex review --uncommitted を、staged・unstaged・untracked が対象であることを --help で確かめてから実行すると書いた"
+        },
+        {
+          "text": "上限 1 では、指摘を直した後に手元でレビューし直さず、直した変更を pr-finalize-loop のレビューに任せる",
+          "passed": true,
+          "evidence": "1-6「上限が 1 なので、直した分は手元でレビューし直しません」と、2 で unreviewed_range を記録して PR のレビューに任せる、6 で pr-finalize-loop がその範囲を見ると書いた"
+        },
+        {
+          "text": "kaizen extract --current --record-pending を使い apply / archive / delete を行わない",
+          "passed": true,
+          "evidence": "4 の 2 で kaizen extract --current --record-pending を使い、apply・archive・delete はしないと書いた"
+        },
+        {
+          "text": "PR 本文に Closes #101、検証、browser、Kaizen の結果を含める",
+          "passed": true,
+          "evidence": "5 の 3 で PR 本文に Closes #101・静的な検査・browser-test の結果か対象外の根拠・Kaizen の結果を入れると書いた"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 32.413,
+        "tokens": 110972,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "codex review --uncommitted で staged / unstaged / untracked をレビューする",
+          "passed": false,
+          "evidence": "codex review --uncommitted に触れていない。レビュアーは別のエージェントを推奨している"
+        },
+        {
+          "text": "上限 1 では、指摘を直した後に手元でレビューし直さず、直した変更を pr-finalize-loop のレビューに任せる",
+          "passed": false,
+          "evidence": "再レビューしないとは書いたが、直した変更を pr-finalize-loop のレビューに任せるとは書いていない。残った指摘は Kaizen と PR 本文に引き継ぐとした"
+        },
+        {
+          "text": "kaizen extract --current --record-pending を使い apply / archive / delete を行わない",
+          "passed": false,
+          "evidence": "kaizen extract --current --record-pending を使っていない。docs/kaizen/ などへのメモを候補にした"
+        },
+        {
+          "text": "PR 本文に Closes #101、検証、browser、Kaizen の結果を含める",
+          "passed": false,
+          "evidence": "PR 本文の案に browser の結果が無い"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 56.145,
+        "stddev": 0,
+        "min": 56.145,
+        "max": 56.145
+      },
+      "tokens": {
+        "mean": 347937,
+        "stddev": 0,
+        "min": 347937,
+        "max": 347937
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0,
+        "stddev": 0,
+        "min": 0,
+        "max": 0
+      },
+      "time_seconds": {
+        "mean": 32.413,
+        "stddev": 0,
+        "min": 32.413,
+        "max": 32.413
+      },
+      "tokens": {
+        "mean": 110972,
+        "stddev": 0,
+        "min": 110972,
+        "max": 110972
+      }
+    },
+    "delta": {
+      "pass_rate": "+1.00",
+      "time_seconds": "+23.7",
+      "tokens": "+236965"
+    }
+  },
+  "notes": []
+}
