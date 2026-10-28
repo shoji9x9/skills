@@ -212,18 +212,15 @@ export function regionReader(root: string): (file: string, region: string) => Ra
   };
 }
 
-/** jscpd のデフォルトのトークン数の閾値（.jscpd.json に minTokens が無いときに使われる）。 */
-const DEFAULT_MIN_TOKENS = 50;
-
 /**
  * `.jscpd.json` から、このスクリプトが使う値を読む。形が違えば例外にする。
- * ignore は設定の除外で、引数の `--ignore` が設定の除外を置き換えるので、読んで引数に含める。minTokens は全体の閾値。
+ * ignore は設定の除外で、引数の `--ignore` が設定の除外を置き換えるので、読んで引数に含める。minTokens は全体の閾値で、TEST_MIN_TOKENS と比べるので、jscpd のデフォルトに任せず必須にする。
  */
 export function readConfig(root: string): { ignore: string[]; minTokens: number } {
   const config: unknown = JSON.parse(readFileSync(join(root, CONFIG_PATH), "utf8"));
   if (!isRecord(config)) throw new Error(`${CONFIG_PATH} が object でない`);
   const { ignore } = config;
-  const minTokens = "minTokens" in config ? config.minTokens : DEFAULT_MIN_TOKENS;
+  const { minTokens } = config;
   if (typeof minTokens !== "number" || !Number.isInteger(minTokens) || minTokens < 1)
     throw new Error(`${CONFIG_PATH} の minTokens が 1 以上の整数でない`);
   if (!isArray(ignore) || !ignore.every((g) => typeof g === "string" && g !== "")) {
@@ -340,7 +337,7 @@ function runScans(
     ...runJscpd(root, { scan, ignore, baseline: baselineOf(scan), updateBaseline }),
   }));
   // 2 回目の走査が 0 件なら、テストどうしの重複を 1 件も判定していない（--pattern や除外が当たらないなど）ので、合格にしない。
-  // テストのファイルがすべて TEST_MIN_TOKENS より小さいときも 0 件になるが、このリポジトリのテストではその状態にならない。
+  // テストのファイルがすべて TEST_MIN_TOKENS より小さいときも 0 件になり exit 2 になる。そうなったら TEST_MIN_TOKENS を見直す。
   const empty = results.filter((r) => r.sources === 0).map((r) => r.scan.name);
   if (empty.length) {
     throw new Error(

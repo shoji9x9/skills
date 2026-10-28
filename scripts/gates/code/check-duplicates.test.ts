@@ -247,13 +247,16 @@ test.each([
   ["文字列でない要素を含む", { ignore: [1] }],
 ])("readConfig: ignore が %s なら例外にする", (_, config) => {
   const root = makeTempDir("duplicates-config-");
-  write(root, CONFIG_PATH, JSON.stringify(config));
+  write(root, CONFIG_PATH, JSON.stringify({ minTokens: 50, ...config }));
   expect(() => readConfig(root)).toThrow(/ignore/);
 });
 
-test("readConfig: minTokens が 0 なら例外にする", () => {
+test.each([
+  ["0", { minTokens: 0 }],
+  ["無い", {}],
+])("readConfig: minTokens が %s なら例外にする", (_, config) => {
   const root = makeTempDir("duplicates-config-");
-  write(root, CONFIG_PATH, JSON.stringify({ ignore: [], minTokens: 0 }));
+  write(root, CONFIG_PATH, JSON.stringify({ ignore: [], ...config }));
   expect(() => readConfig(root)).toThrow(/minTokens/);
 });
 
@@ -335,7 +338,7 @@ function makeRepo(files: Record<string, string>, groups: unknown[] = UNRELATED) 
   write(
     root,
     CONFIG_PATH,
-    JSON.stringify({ format: REPO_FORMATS, ignore: ["**/node_modules/**"] }),
+    JSON.stringify({ minTokens: 50, format: REPO_FORMATS, ignore: ["**/node_modules/**"] }),
   );
   write(root, DECLARATION_PATH, JSON.stringify({ groups }));
   for (const [p, t] of Object.entries({ "scripts/t.test.ts": TEST_FILE, ...files }))
@@ -432,7 +435,11 @@ test.each([
   write(
     root,
     CONFIG_PATH,
-    JSON.stringify({ format: REPO_FORMATS, ignore: ["**/node_modules/**"], ...extra }),
+    JSON.stringify({
+      format: REPO_FORMATS,
+      ignore: ["**/node_modules/**"],
+      ...extra,
+    }),
   );
   expect(main(["--update-baseline"], root)).toBe(2);
 });
