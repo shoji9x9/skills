@@ -162,5 +162,3 @@ scripts/eval/run-skill-eval.sh \
   3 つの比較方法と寸法の測定が緑のまま、利用者が縦のスクロールバーを見つけた状況を与え、未検証の一覧に書いて済ませる案を押し戻せるかを見る。
   ヘッドレス Chromium がスクロールバーを隠すことと、スクロールバーを表示した最小幅以下の窓で両側に当てる検査を足すことに到達するかを見る。
   プロンプトには撮影条件のキー名・起動引数を書かない
-- 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
-- 集計（`benchmark.json`）は `node scripts/eval/build-skill-eval-benchmark.ts` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）

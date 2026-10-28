@@ -124,7 +124,7 @@ push の後などに再レビューを依頼する AI レビュアーは、CLI �
      着手する前だけでなく、各反復の最初にも確かめ、無くなった対象の CI とレビューを待ち続けない。
    - CI: `gh pr checks <番号> --repo <owner>/<repo> --watch --fail-fast` で完了を待つ（どれかが失敗した時点で抜ける）。
      push の直後は、チェックがまだ登録されておらず、すぐに `no checks` が返ることがある。そのときは間隔を空けて数回まで確かめ直す。
-   - 未解決のレビュースレッド: [`references/review-threads.md`](references/review-threads.md) の GraphQL を `--paginate` で全件取得し、`isResolved == false` で絞る。すべてのレビュアーを対象にし、作成者では絞らない。
+   - 未解決のレビュースレッド: [`references/state-query.md`](references/state-query.md) の reviewThreads の索引を `--paginate` で全件取得し、`isResolved == false` で絞る。すべてのレビュアーを対象にし、作成者では絞らない。
    - 現在の HEAD がレビュー済みかを判定する（後述の「HEAD のレビュー済み判定」）。
      根拠に使うのは、レビュー、現在の HEAD のレビュー用の check-run、現在の HEAD の完全な commit の OID を書いたレビューの bot のコメントである。
    - レビューが進行中かを確かめる。現在の HEAD に進行中のレビュー（PR の作成時や push のときの自動レビューを含む）や、進行中のレビューのエージェントが無いかを見る。
@@ -356,6 +356,7 @@ gh run view <run-id> --repo <owner>/<repo> --log-failed   # 失敗ジョブの�
 
 未解決スレッドの全ページの取得（GraphQL）、返信（REST）、解決（GraphQL）の手順は [`references/review-threads.md`](references/review-threads.md) にある。
 `isResolved == false` のスレッドだけを 1 件ずつ処理し、返信してから解決する。
+返信の本文は先にファイルに書き、`gh api` に `-F body=@<path>` で渡す（`gh api` に `--body-file` は無い）。
 
 ### HEAD のレビュー済み判定
 
