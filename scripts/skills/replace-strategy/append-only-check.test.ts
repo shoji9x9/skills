@@ -2406,6 +2406,9 @@ test.concurrent("閉じた後に余りがある形は「閉じていない」と
   expect(unclosed.stdout).toMatch(/閉じていないフロー形式のコンテナがある: a\.keep/);
 });
 
+/** intentional_diffs.keep を、開き括弧の後で折り返したフロー形式で書いた行。 */
+const FLOW_WRAPPED_KEEP = ["      keep: [", '        "テーブル名を保つ"', "      ] # 変えない"];
+
 /** intentional_diffs.keep を wrapped の形に書いた設定と、keep を mutable_blocks にした manifest。 */
 async function wrappedKeepRepo(wrapped: string) {
   const root = await makeConfigRepo(
@@ -2426,10 +2429,7 @@ async function wrappedKeepRepo(wrapped: string) {
 }
 
 test.concurrent.each([
-  [
-    "折り返しも配下ごと消費する（1 行への畳み込みで単位が消えない）",
-    ["      keep: [", '        "テーブル名を保つ"', "      ] # 変えない"],
-  ],
+  ["折り返しも配下ごと消費する（1 行への畳み込みで単位が消えない）", FLOW_WRAPPED_KEEP],
   [
     "開き括弧が次の行にある形も消費する（値の形で区別しない）",
     ["      keep:", "      [", '        "テーブル名を保つ"', "      ] # 変えない"],
@@ -2451,7 +2451,7 @@ test.concurrent.each([
 });
 
 test.concurrent("mutable_blocks の折り返しでも、キーごと消せば落ちる（外しすぎていない）", async () => {
-  const wrapped = ["      keep: [", '        "テーブル名を保つ"', "      ] # 変えない"].join("\n");
+  const wrapped = FLOW_WRAPPED_KEEP.join("\n");
   const { root, manifest } = await wrappedKeepRepo(wrapped);
   writeConfig(root, readConfig(root).replace(`${wrapped}\n`, ""));
   const r = await run(root, ["--manifest", manifest]);

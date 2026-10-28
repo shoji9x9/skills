@@ -17,6 +17,16 @@ export type MemoryIo = {
 export function runInMemory<Result>(
   main: (argv: string[], io: MemoryIo) => number,
   argv: string[],
+  options: { files: Record<string, string>; captureStderr: true },
+): { code: number; stderr: string; result: Result | null };
+export function runInMemory<Result>(
+  main: (argv: string[], io: MemoryIo) => number,
+  argv: string[],
+  options: { files: Record<string, string>; captureStderr?: false },
+): { code: number; result: Result | null };
+export function runInMemory<Result>(
+  main: (argv: string[], io: MemoryIo) => number,
+  argv: string[],
   { files, captureStderr = false }: { files: Record<string, string>; captureStderr?: boolean },
 ) {
   let output = "";
@@ -37,10 +47,7 @@ export function runInMemory<Result>(
     };
   }
   const code = main(argv, io);
-  // 集めていない stderr を "" で返すと、出たエラーを確かめないまま空として扱われるので undefined にする
-  return {
-    code,
-    stderr: captureStderr ? stderr : undefined,
-    result: output === "" ? null : parseJsonAs<Result>(output),
-  };
+  const result = output === "" ? null : parseJsonAs<Result>(output);
+  // 集めていない stderr は返さない。空の文字列で返すと、出たエラーを確かめないまま空として扱われる
+  return captureStderr ? { code, stderr, result } : { code, result };
 }

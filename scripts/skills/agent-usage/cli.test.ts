@@ -999,12 +999,8 @@ describe("agent-usage のコマンドと Hook", () => {
       "utf8",
     );
     // usage.csv は日付・人・エージェント・モデルでまとめる。10-02 の行は、このセッションの 18:40Z の応答（100 トークン）だけ
-    const [header, ...body] = usage.trim().split("\n");
-    const cols = (header ?? "").split(",");
-    const oct2 = body
-      .map((l) => l.split(","))
-      .filter((c) => c[cols.indexOf("date")] === "2026-10-02");
-    expect(oct2.map((c) => c[cols.indexOf("input_tokens")])).toEqual(["100"]);
+    const oct2 = parseCsv(usage).filter((row) => row.date === "2026-10-02");
+    expect(oct2.map((row) => row.input_tokens)).toEqual(["100"]);
   });
 
   test("区切り方が変わった記録済みの行は打ち消し、report は二重に数えない", () => {
@@ -1206,12 +1202,9 @@ describe("agent-usage のコマンドと Hook", () => {
       const dir = join(repo, ".agent-usage", "report");
       const day = readdirSync(dir)[0] ?? "";
       const usage = readFileSync(join(dir, day, "usage.csv"), "utf8");
-      const [header, ...body] = usage.trim().split("\n");
-      const cols = (header ?? "").split(",");
-      return body
-        .map((l) => l.split(","))
-        .filter((c) => (c[cols.indexOf("date")] ?? "").startsWith("2026-07"))
-        .reduce((a, c) => a + Number(c[cols.indexOf("input_tokens")] ?? 0), 0);
+      return parseCsv(usage)
+        .filter((row) => (row.date ?? "").startsWith("2026-07"))
+        .reduce((a, row) => a + Number(row.input_tokens), 0);
     };
     const before = tokens();
     expect(before).toBeGreaterThan(0);

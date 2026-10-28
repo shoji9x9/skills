@@ -35,7 +35,7 @@ export function reconcile(
   return reconcileRaw(fillSetProvenance(coverage), profiles, metadata);
 }
 
-/** DataGrid の列挙（coverage-expand と coverage-record-judge-parity のテストが使う。列 2・複数列の並べ替えの組 1・行を選ぶ手段 1・メニュー対象 1・メニュー項目 2・条件 1）。 */
+/** DataGrid の列挙（列 2・複数列の並べ替えの組 1・行を選ぶ手段 1・メニュー対象 1・メニュー項目 2・条件 1）。 */
 export function datagridEnumeration() {
   return {
     source: {

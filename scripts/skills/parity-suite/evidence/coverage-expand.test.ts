@@ -282,7 +282,7 @@ function dropItems(cov: ReturnType<typeof datagridCoverage>, keep: (id: string) 
   const inst = cov.components[0].instances[0];
   cov.components[0].items = cov.components[0].items.filter((i) => keep(i.id));
   inst.candidates = inst.candidates.filter(keep);
-  cov.cells = cov.cells.filter((c) => keep(c.item));
+  cov.cells = cov.cells.filter((c) => c.component !== cov.components[0].id || keep(c.item));
   resolveVisualStates(cov);
 }
 

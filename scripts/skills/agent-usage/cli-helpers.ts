@@ -165,9 +165,10 @@ export function copyLogLines(
 export function recordDirs(repo: string) {
   const records = join(repo, ".agent-usage", "records");
   expect(existsSync(records), "記録のディレクトリ（.agent-usage/records）が無い").toBe(true);
-  const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
-  // 無ければ branches が records/branches になり、呼び出し元が原因の分からない ENOENT で失敗する
-  expect(person, "records の下に人ごとのディレクトリ（p-）が無い").not.toBe("");
+  const people = readdirSync(records).filter((d) => d.startsWith("p-"));
+  // 0 件なら原因の分からない ENOENT で、2 件以上なら readdir の並び順で選んだ人の記録を読んで、呼び出し元が進んでしまう
+  expect(people, "records の下に人ごとのディレクトリ（p-）が 1 つだけでない").toHaveLength(1);
+  const person = people[0] ?? "";
   return { records, person, branches: join(records, person, "branches") };
 }
 
