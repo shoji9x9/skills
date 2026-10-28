@@ -87,10 +87,8 @@ gh skill update --all
 
 設定を読むスキルは、設定を JSONC（コメントを書ける JSON）のファイルから、すべて同じ置き場所と順序で読む。
 
-設定は 3 つの層に置く。
-リポジトリの層は `.config/skills/shoji9x9/<名前>.jsonc` で、このリポジトリの全員に適用し、commit する。
-人ごと・リポジトリ限定の層は `.config/skills/shoji9x9/<名前>.local.jsonc` で、このリポジトリの自分だけに適用し、gitignore にする。
-人ごとの層は `${XDG_CONFIG_HOME:-~/.config}/skills/shoji9x9/<名前>.jsonc` で、このマシンの自分のすべてのリポジトリに適用する。リポジトリの外にあるので commit しない。
+設定は、「リポジトリ」「人ごと・リポジトリ限定」「人ごと」の 3 つの層に置く。
+各層の置き場所・値を適用する範囲・commit するかは、[`skills/kaizen/references/config-files.md`](skills/kaizen/references/config-files.md)「層と置き場所」にある。
 
 `<名前>` はスキル名か、複数のスキルが使うキーをまとめた `common` である。`shoji9x9` は配布元の名前で、インストール先のリポジトリ名ではない。
 値は、CLI のオプション → 環境変数（プログラムが渡す値だけ）→ 人ごと・リポジトリ限定 → 人ごと → リポジトリ → デフォルトの順に探す。

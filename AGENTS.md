@@ -50,7 +50,7 @@ skills/<name>/          スキルの実体（gh skill publish の対象）
   config-schemas/       設定のスキーマ（設定を読むスキルだけ。読み取りは scripts/skill-config/ に同梱する）
 evals/<name>/           回帰テスト（配布しないので skills/<name>/ の外に置く）
   evals.json            回帰テストの定義
-  README.md             テストケースへの案内と、あればテストの観点とスキルに固有の前提（実行の手順は docs/skill-development.md）
+  README.md             テストケースへの案内。スキルに固有の観点と前提があれば、それも置く（実行の手順は docs/skill-development.md）
   fixtures/             eval の初期状態
 tests/<name>/           テスト結果（git にはサマリーだけを入れる）
   iteration-N/

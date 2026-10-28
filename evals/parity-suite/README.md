@@ -19,7 +19,7 @@ scripts/eval/run-skill-eval.sh \
   --out tests/parity-suite/iteration-1/eval-1/with_skill/run-1 \
   --model opus
 
-# fixture 付き eval（前提が揃った状態から始める。evals.json の "fixture" をスキルディレクトリ相対で解決する）
+# fixture 付き eval（前提が揃った状態から始める。evals.json の "fixture" の値の前に evals/parity-suite/ を付けて渡す）
 scripts/eval/run-skill-eval.sh \
   --skill parity-suite --config with_skill \
   --prompt "parity-suite --feature order-list --target current-test" \

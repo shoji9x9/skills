@@ -140,8 +140,10 @@ scripts/tools/reinstall-skill.sh <name>
 
 ## 回帰テストを実行する
 
-各スキルのテストケースは `evals/<name>/evals.json` に、`evals/<name>/README.md` は、テストケースへの案内と、スキルに固有の観点や前提があればそれを持つ。
-実行・採点・集計の手順はこの節に書き、各スキルの `README.md` へ転記しない。
+各スキルのテストケースは `evals/<name>/evals.json` にある。
+`evals/<name>/README.md` は、テストケースへの案内を持つ。スキルに固有の観点と前提があれば、それも置く。
+実行・採点・集計の共通の手順はこの節に書き、各スキルの `README.md` へ転記しない。
+README には、そのスキルに固有の実行例（prompt や fixture の渡し方）を置いてよい。
 
 新しく作った eval と変えた eval には `reachability` を書く。
 各 assertion を引き出す prompt の文を、`{ "assertion": "<assertions に実在するテキスト>", "prompt_quote": "<prompt 内の部分文字列>" }` の形で並べる。
