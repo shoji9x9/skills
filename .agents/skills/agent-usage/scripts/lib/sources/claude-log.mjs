@@ -13,7 +13,7 @@ import { readFileSync } from "node:fs";
 import { isArray } from "../is-array.mjs";
 import { isRecord } from "../config.mjs";
 import { normalizeModel, zeroTokens } from "../pricing.mjs";
-import { emptySummary, touch } from "./session.mjs";
+import { emptySummary, parseLogLine, touch } from "./session.mjs";
 import { parseTime } from "../time.mjs";
 
 /** @typedef {import("./session.mjs").SessionSummary} SessionSummary */
@@ -131,29 +131,6 @@ export function classifyUserEntry(entry) {
  * @property {Record<string, unknown> | null} message
  * @property {number} ts
  */
-
-/**
- * JSON の 1 行を読む。空行は null を返し、読めない行は invalidLines に数えて null を返す。
- * @param {SessionSummary} s
- * @param {string} line
- * @returns {Record<string, unknown> | null}
- */
-function parseEntry(s, line) {
-  if (line.trim() === "") return null;
-  /** @type {unknown} */
-  let entry;
-  try {
-    entry = JSON.parse(line);
-  } catch {
-    s.invalidLines += 1;
-    return null;
-  }
-  if (!isRecord(entry)) {
-    s.invalidLines += 1;
-    return null;
-  }
-  return entry;
-}
 
 /**
  * cost-state の 1 モデルの使用量。
@@ -363,7 +340,7 @@ export function addClaudeLog(s, text, main) {
     lastBranch: s.branches.length > 0 ? s.branches[s.branches.length - 1].branch : "",
   };
   for (const line of text.split("\n")) {
-    const entry = parseEntry(s, line);
+    const entry = parseLogLine(s, line);
     if (entry) addClaudeEntry(st, entry);
   }
   s.messages = [...st.byId.entries()].map(([key, m]) => ({

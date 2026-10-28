@@ -37,13 +37,14 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { loadBaseline } from "./lib/baseline.mjs";
+import { parseFlagPairs, usageFailer, writeCheckResult } from "./lib/check-cli.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { field, filled, isObjectLike, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
 /** ツールのバージョン（このスクリプトで定義する）。判定の規則・出力の形を変えたら上げる。 */
 export const VERSION = "2";
 
-/** 突き合わせ表の行がとりうる扱いの語彙（このスクリプトで定義する）。null は「比べた」。 */
+/** 突き合わせ表の行がとりうる扱いの語彙（motion-compare.mjs も使う）。null は「比べた」。 */
 export const DISPOSITIONS = ["accepted"];
 
 /** 操作の導出元の語彙（このスクリプトで定義する。metadata-template.json の capture.operation_source と同じ）。 */
@@ -451,10 +452,10 @@ function readBehaviorBaseline({ instanceIds, behaviors, ctx }) {
 
 /**
  * 突き合わせ表の target・component・rows を検査し、行の配列を返す。
- * @param {{ comparison: unknown, target: string, slug: unknown, findings: BehaviorFinding[] }} arg
+ * @param {{ comparison: unknown, target: string, slug: unknown, findings: Record<string, unknown>[] }} arg
  * @returns {unknown[]}
  */
-function readComparisonRows({ comparison, target, slug, findings }) {
+export function readComparisonRows({ comparison, target, slug, findings }) {
   // オブジェクトでない値は空の表として読む。どの欄も undefined になるので、直後の target の照合で不一致として報告する。
   // target を書き忘れた表と見分けられるよう、オブジェクトでないときは値の型を書く。
   const isTable = isPlainObject(comparison);
@@ -484,17 +485,23 @@ function readComparisonRows({ comparison, target, slug, findings }) {
 }
 
 /**
- * 比べないことを選んだ行（disposition あり）を検査し、件数を数える。
- * @param {{ row: unknown, op: string, inst: string, disposition: unknown, ctx: BehaviorContext }} arg
+ * 比べないことを選んだ行（disposition あり）を検査し、件数を数える。語彙と承認を確かめる。
+ * behavior-compare と motion-compare が使う。指摘の code の接頭辞（prefix）と、指摘に付ける位置（where）だけが違う。
+ * @param {{
+ *   row: unknown,
+ *   disposition: unknown,
+ *   prefix: "behavior" | "motion",
+ *   where: Record<string, unknown>,
+ *   ctx: { findings: Record<string, unknown>[], counts: { uncompared: number, accepted: number } },
+ * }} arg
  */
-function judgeDisposition({ row, op, inst, disposition, ctx }) {
+export function judgeDisposition({ row, disposition, prefix, where, ctx }) {
   const { findings, counts } = ctx;
   // DISPOSITIONS は文字列だけなので、typeof は型を絞るためだけにある（判定は変わらない）。
   if (typeof disposition !== "string" || !DISPOSITIONS.includes(disposition)) {
     findings.push({
-      code: "behavior-disposition-invalid",
-      operation: op,
-      instance: inst,
+      code: `${prefix}-disposition-invalid`,
+      ...where,
       detail: `disposition は null か ${DISPOSITIONS.join(" / ")}: ${JSON.stringify(disposition)}`,
     });
     counts.uncompared += 1;
@@ -506,9 +513,8 @@ function judgeDisposition({ row, op, inst, disposition, ctx }) {
     !isoDateTime(field(row, "approved_at"))
   ) {
     findings.push({
-      code: "behavior-acceptance-unapproved",
-      operation: op,
-      instance: inst,
+      code: `${prefix}-acceptance-unapproved`,
+      ...where,
       detail:
         "accepted には記入済みの reason / approved_by と ISO 8601 の approved_at が要る（テンプレートのプレースホルダは承認ではない）",
     });
@@ -624,7 +630,13 @@ function judgeRows({ rows, baseline, ctx }) {
     seen.add(key);
     const disposition = field(row, "disposition") ?? null;
     if (disposition !== null) {
-      judgeDisposition({ row, op: cell.operation, inst: cell.instance, disposition, ctx });
+      judgeDisposition({
+        row,
+        disposition,
+        prefix: "behavior",
+        where: { operation: cell.operation, instance: cell.instance },
+        ctx,
+      });
       continue;
     }
     judgeObserved({ row, cell, expected: baseline.get(key), ctx });
@@ -713,32 +725,8 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
   return { structural: false, judged: true, findings: ctx.findings, counts };
 }
 
-/**
- * CLI の引数を読む。誤りがあれば error に理由を返す。
- * @param {string[]} argv
- * @returns {{ error: string } | { error?: undefined, args: Record<string, string> }}
- */
-function parseArgs(argv) {
-  /** @type {Record<string, string>} */
-  const args = {};
-  for (let i = 0; i < argv.length; i += 1) {
-    const key = argv[i];
-    if (!key.startsWith("--")) return { error: `不明な引数: ${key}` };
-    const value = argv[i + 1];
-    if (typeof value !== "string" || value.startsWith("--")) return { error: `${key} に値がない` };
-    if (args[key] !== undefined) return { error: `${key} が複数ある` };
-    args[key] = value;
-    i += 1;
-  }
-  const known = ["--baseline", "--comparison", "--target"];
-  const unknown = Object.keys(args).filter((k) => !known.includes(k));
-  if (unknown.length > 0) return { error: `不明な引数: ${unknown.join(", ")}` };
-  for (const key of known) {
-    // 空白だけの値を通さない。`--target " "` を受けると target の照合が別環境の記録を通す。
-    if (!nonEmptyString(args[key])) return { error: `${key} は必須（空白だけの値も不可）` };
-  }
-  return { args };
-}
+/** behavior-compare と motion-compare が受け付ける引数。どれも必須。 */
+const COMPARE_ARGS = ["--baseline", "--comparison", "--target"];
 
 /**
  * 突き合わせ表を読む。無い・読めないのは「まだ突き合わせていない」と区別できないので、null を返して未突合として数える。
@@ -754,57 +742,65 @@ function readComparison(path) {
 }
 
 /**
+ * behavior-compare と motion-compare の CLI 本体。読む採取物の名前（fileName）と判定（judge）だけが違う。
+ * @param {string[]} argv
+ * @param {{ cwd?: string, write?: (s: string) => void, writeErr?: (s: string) => void }} io
+ * @param {{ tool: string, version: string, usage: string, fileName: string, judge: (input: { metadata: unknown, byInstance: Record<string, unknown>, comparison: unknown, target: string }) => { structural: boolean, judged: boolean, findings: unknown[], counts: Record<string, number> } }} spec
+ * @returns {number} 終了コード
+ */
+export function runCompareCli(argv, io, spec) {
+  const {
+    cwd = process.cwd(),
+    write = (s) => process.stdout.write(s),
+    writeErr = (s) => process.stderr.write(s),
+  } = io;
+  // 引数・入力の誤りは判定結果ではないので stdout の JSON に混ぜず stderr へ知らせる（同梱スクリプト共通の CLI 規約）。
+  const fail = usageFailer(writeErr, spec.usage);
+  const parsed = parseFlagPairs(argv, COMPARE_ARGS);
+  if (parsed.error !== undefined) return fail(parsed.error);
+  const { args } = parsed;
+  for (const key of COMPARE_ARGS) {
+    // 空白だけの値を通さない。`--target " "` を受けると target の照合が別環境の記録を通す。
+    if (!nonEmptyString(args[key])) return fail(`${key} は必須（空白だけの値も不可）`);
+  }
+  let loaded;
+  try {
+    loaded = loadBaseline(resolve(cwd, args["--baseline"]), spec.fileName);
+  } catch (error) {
+    return fail(`採取物を読めない: ${String(field(error, "message"))}`);
+  }
+  const result = spec.judge({
+    metadata: loaded.metadata,
+    byInstance: loaded.byInstance,
+    comparison: readComparison(resolve(cwd, args["--comparison"])),
+    target: args["--target"],
+  });
+  return writeCheckResult(write, result, {
+    tool: spec.tool,
+    version: spec.version,
+    fields: {
+      judged: result.judged,
+      findings: result.findings,
+    },
+  });
+}
+
+/**
  * CLI 本体。
  * @param {string[]} argv
  * @param {{ cwd?: string, write?: (s: string) => void, writeErr?: (s: string) => void }} [io]
  * @returns {number} 終了コード
  */
-export function main(
-  argv,
-  {
-    cwd = process.cwd(),
-    write = (s) => process.stdout.write(s),
-    writeErr = (s) => process.stderr.write(s),
-  } = {},
-) {
-  /** @param {Record<string, unknown>} obj */
-  const out = (obj) =>
-    write(`${JSON.stringify({ tool: "behavior-compare", version: VERSION, ...obj }, null, 2)}\n`);
-  const usage =
-    "usage: behavior-compare.mjs --baseline <部品の成果物ディレクトリ> --comparison <new/<target>/behavior-comparison.json> --target <name>";
-  // 引数・入力の誤りは判定結果ではないので stdout の JSON に混ぜず stderr へ知らせる（同梱スクリプト共通の CLI 規約）。
-  /** @param {string} message */
-  const fail = (message) => {
-    writeErr(`error: ${message}\n${usage}\n`);
-    return 2;
-  };
-  const parsed = parseArgs(argv);
-  if (parsed.error !== undefined) return fail(parsed.error);
-  const { args } = parsed;
-  let loaded;
-  try {
-    loaded = loadBaseline(resolve(cwd, args["--baseline"]), "behaviors.json");
-  } catch (error) {
-    return fail(`採取物を読めない: ${String(field(error, "message"))}`);
-  }
-  const comparison = readComparison(resolve(cwd, args["--comparison"]));
-  const result = compareBehaviors({
-    metadata: loaded.metadata,
-    behaviors: loaded.byInstance,
-    comparison,
-    target: args["--target"],
+export function main(argv, io = {}) {
+  return runCompareCli(argv, io, {
+    tool: "behavior-compare",
+    version: VERSION,
+    usage:
+      "usage: behavior-compare.mjs --baseline <部品の成果物ディレクトリ> --comparison <new/<target>/behavior-comparison.json> --target <name>",
+    fileName: "behaviors.json",
+    judge: ({ metadata, byInstance, comparison, target }) =>
+      compareBehaviors({ metadata, behaviors: byInstance, comparison, target }),
   });
-  if (result.structural) {
-    out({ ok: false, structural: true, findings: result.findings, counts: result.counts });
-    return 2;
-  }
-  out({
-    ok: result.findings.length === 0,
-    judged: result.judged,
-    findings: result.findings,
-    counts: { ...result.counts, findings: result.findings.length },
-  });
-  return result.findings.length === 0 ? 0 : 1;
 }
 
 if (isCliEntry(import.meta.url)) {

@@ -23,6 +23,7 @@ import { writeFileAtomic } from "./atomic.mjs";
 import { parseCsv, toCsv } from "./csv.mjs";
 import { COLUMNS, contentSignature, isKind, signature } from "./rows.mjs";
 import { parseTime } from "./time.mjs";
+import { filesUnder } from "./walk.mjs";
 
 /** @typedef {import("./rows.mjs").Row} Row */
 
@@ -40,22 +41,6 @@ export const GITHUB_KINDS = ["ci", "review-wait", "review", "coverage"];
  */
 export function usageDir(root) {
   return join(root, ".agent-usage");
-}
-
-/**
- * @param {string} dir
- * @returns {string[]}
- */
-function csvFiles(dir) {
-  if (!existsSync(dir)) return [];
-  /** @type {string[]} */
-  const out = [];
-  for (const ent of readdirSync(dir, { withFileTypes: true })) {
-    const p = join(dir, ent.name);
-    if (ent.isDirectory()) out.push(...csvFiles(p));
-    else if (ent.isFile() && ent.name.endsWith(".csv")) out.push(p);
-  }
-  return out.sort();
 }
 
 /**
@@ -162,7 +147,7 @@ function recordRow(r, at) {
 export function readRecords(recordsDir, opts = {}) {
   /** @type {Row[]} */
   const rows = [];
-  const all = csvFiles(recordsDir);
+  const all = filesUnder(recordsDir, ".csv");
   const since = opts.since;
   const files =
     since === undefined

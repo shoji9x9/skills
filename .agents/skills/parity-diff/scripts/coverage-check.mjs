@@ -36,6 +36,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
+import { parseFlagOpts } from "./lib/flag-opts.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 import { canonicalize } from "./lib/json.mjs";
 
@@ -71,12 +72,12 @@ const VALUES = ["present", "absent", "unmeasured"];
 /** 候補 id と同値クラスの members の区切り（parity-suite の coverage-profiles.md で定義する）。 */
 const ID_SEPARATOR = "/";
 
-// ===== absence-evidence-contract:start =====
-// ここから contract:end までは、記録側（parity-suite の coverage-expand.mjs）と
+// absence-evidence-contract:begin
+// この印の間は、記録側（parity-suite の coverage-expand.mjs）と
 // 収束判定側（parity-diff の coverage-check.mjs）でバイト単位に同一へ保つ。
 // 配布スキルは実行時に参照する成果物を自分で同梱する規約のため共有モジュールにできず実体が複製される。
 // 片方だけ直すと「記録側は通すが収束側が弾く」（またはその逆）が起きるため、
-// 配布元のリポジトリのテストが、このマーカー間の一致を検査する。
+// 配布元のリポジトリのチェックが、この印の間の一致を検査する。
 
 /**
  * `instances[].applicable_states.source.kind` の語彙。
@@ -650,7 +651,7 @@ function enumerationSourceProblems(en, label) {
   return problems;
 }
 
-// ===== absence-evidence-contract:end =====
+// absence-evidence-contract:end
 
 /**
  * metadata.json の撮影条件から、記録側と同じ形の指紋を取る。
@@ -734,10 +735,12 @@ export function readDeclaration(metadata) {
   };
 }
 
+// coverage-collect-ids:begin
 /**
- * 部品・項目・インスタンスの id 列を取り出す。空 id と重複 id は展開に使わず問題として記録する
- * （id が空だと全要素が同じキーへ潰れ、1 行で全セルを満たせてしまう。重複は期待セルを二重に数える）。
- *
+ * 期待セルの展開に使える id を集める。id が空・重複の要素は識別できないので展開に使わず、問題として記録する。
+ * その要素が関わるセルは、未測定として数える。
+ * id が空だと全要素が同じキーへ潰れ、1 行で全セルを満たせてしまう。重複は期待セルを二重に数える。
+ * **警告なしに読み飛ばさない**（読み飛ばすと、識別できない要素があるのに conformance.ok: true になる）。
  * @param {unknown[]} entries
  * @param {string} label - 問題文に出す位置（例: 部品 grid の items）
  * @param {string[]} problems - 問題の追記先
@@ -767,13 +770,14 @@ function collectIds(entries, label, problems) {
   });
   return { ids, rejected };
 }
+// coverage-collect-ids:end
 
+// coverage-fingerprint:begin
 /**
  * 表の指紋。conformance を除いた内容をキー順に正規化して sha256 を取る。
  * 記録側（parity-suite の coverage-expand.mjs）と判定側（parity-diff の coverage-check.mjs）で
  * 同じ値になる必要がある。両者を突き合わせる往復テストは、配布元のリポジトリにある。
  * 様式は reaction-check.mjs の tableFingerprint と同じ。
- *
  * @param {Record<string, unknown>} table
  * @returns {string}
  */
@@ -787,7 +791,6 @@ export function coverageFingerprint(table) {
 /**
  * 撮影条件の指紋。撮影状態の照合に実際に使った入力（slug・ページ名・状態名・ポップアップの状態名）だけを取る。
  * 配列は並びで指紋が変わらないよう整列する（内容が同じなら同じ指紋にする）。
- *
  * @param {{slug?: string, pageNames?: string[], states: string[], popupStates: string[]}} capture
  * @returns {string}
  */
@@ -807,6 +810,7 @@ export function captureFingerprint(capture) {
     )
     .digest("hex");
 }
+// coverage-fingerprint:end
 
 /**
  * 部品の items から 項目 id → 軸値（items[].candidate.axes）の索引を作る。
@@ -1711,27 +1715,8 @@ const USAGE =
  * @returns {Record<string, string>|null}
  */
 function parseArgs(argv) {
-  /** @type {Record<string, string>} */
-  const opts = {};
-  for (let i = 0; i < argv.length; i += 1) {
-    const a = argv[i];
-    if (a !== "--metadata" && a !== "--coverage") {
-      process.stderr.write(`unknown argument: ${a}\n${USAGE}`);
-      return null;
-    }
-    const v = argv[i + 1];
-    if (v === undefined) {
-      process.stderr.write(USAGE);
-      return null;
-    }
-    if (opts[a.slice(2)] !== undefined) {
-      // 同じフラグを重ねて指定したときに、警告なしに後のものを採らない（どちらを読んだかが出力から分からなくなる）。
-      process.stderr.write(`error: ${a} が複数回指定されている\n${USAGE}`);
-      return null;
-    }
-    opts[a.slice(2)] = v;
-    i += 1;
-  }
+  const opts = parseFlagOpts(argv, ["--metadata", "--coverage"], USAGE);
+  if (opts === null) return null;
   if (!opts.metadata) {
     process.stderr.write(USAGE);
     return null;

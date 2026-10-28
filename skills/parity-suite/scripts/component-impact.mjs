@@ -25,9 +25,10 @@
 //
 // 終了コード: 0 ＝ 全機能を判定できた、1 ＝ 判定不能が 1 件以上（どの機能のページとも一致しない影響インスタンスを含む）、2 ＝ 使い方の誤り・入力が読めない・変更宣言の型崩れ。
 
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
+import { cliIo, parseFlagPairs } from "./lib/check-cli.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
 import { isPlaceholder, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
@@ -749,7 +750,7 @@ class InputError extends Error {}
  */
 function resolveIo(deps) {
   return {
-    readFile: deps.readFile ?? ((p) => readFileSync(p, "utf8")),
+    ...cliIo(deps),
     readdir: deps.readdir ?? ((p) => readdirSync(p)),
     isDirectory:
       deps.isDirectory ??
@@ -762,9 +763,6 @@ function resolveIo(deps) {
       }),
     exists: deps.exists ?? ((p) => existsSync(p)),
     writeFile: deps.writeFile ?? ((p, s) => writeFileSync(p, s)),
-    cwd: deps.cwd ?? process.cwd(),
-    write: deps.write ?? ((s) => process.stdout.write(s)),
-    writeErr: deps.writeErr ?? ((s) => process.stderr.write(s)),
   };
 }
 
@@ -774,24 +772,15 @@ function resolveIo(deps) {
  * @returns {Record<string, string>}
  */
 function parseArgs(argv) {
-  const known = ["--change", "--component-metadata", "--parity-root", "--feature", "--out"];
-  /** @type {Record<string, string>} */
-  const args = {};
-  for (let i = 0; i < argv.length; i += 1) {
-    const key = argv[i];
-    if (!key.startsWith("--") || !known.includes(key)) {
-      throw new InputError(`不明な引数: ${key}`);
-    }
-    const value = argv[i + 1];
-    if (typeof value !== "string" || value.startsWith("--")) {
-      throw new InputError(`${key} に値がない`);
-    }
-    if (args[key] !== undefined) {
-      throw new InputError(`${key} が複数ある`);
-    }
-    args[key] = value;
-    i += 1;
-  }
+  const parsed = parseFlagPairs(argv, [
+    "--change",
+    "--component-metadata",
+    "--parity-root",
+    "--feature",
+    "--out",
+  ]);
+  if (parsed.error !== undefined) throw new InputError(parsed.error);
+  const { args } = parsed;
   for (const key of ["--change", "--component-metadata", "--parity-root"]) {
     if (!args[key]) throw new InputError(`${key} は必須`);
   }

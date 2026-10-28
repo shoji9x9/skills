@@ -36,12 +36,15 @@
 //
 // 終了コード: 0 ＝ 条件を満たす（判定しない場合を含む）、1 ＝ 未突合・不一致・記録の不備が残る、2 ＝ 使い方の誤り・型崩れ。
 
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 
-import { cellKey, isoDateTime, valueKind } from "./behavior-compare.mjs";
-import { loadBaseline } from "./lib/baseline.mjs";
+import {
+  cellKey,
+  judgeDisposition,
+  readComparisonRows,
+  runCompareCli,
+  valueKind,
+} from "./behavior-compare.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import {
   field,
@@ -54,9 +57,6 @@ import {
 
 /** ツールのバージョン（このスクリプトで定義する）。判定の規則・許容差・出力の形を変えたら上げる。 */
 export const VERSION = "2";
-
-/** 突き合わせ表の行がとりうる扱いの語彙（このスクリプトで定義する）。null は「比べた」。 */
-export const DISPOSITIONS = ["accepted"];
 
 /** 変化とみなす最小の差（原本は motion-probe.mjs の CHANGE_EPSILON。同じ値にする）。 */
 export const CHANGE_EPSILON = { px: 0.01, opacity: 0.001 };
@@ -826,80 +826,6 @@ function buildBaseline(ctx, motions, instanceIds) {
 }
 
 /**
- * 突き合わせ表の target と component を照合し、行の配列を返す。
- * オブジェクトでない値は空の表として読む。どの欄も undefined になるので、target の照合で不一致として報告する。
- * target を書き忘れた表と見分けられるよう、オブジェクトでないときは値の型を書く。
- * @param {MotionContext} ctx
- * @param {unknown} comparison
- * @param {{ target: string, slug: unknown }} expected
- * @returns {unknown[]}
- */
-function readComparisonRows(ctx, comparison, { target, slug }) {
-  const { findings } = ctx;
-  const isTable = isPlainObject(comparison);
-  /** @type {Record<string, unknown>} */
-  const table = isTable ? comparison : {};
-  if (table.target !== target) {
-    findings.push({
-      code: "comparison-target-mismatch",
-      detail: isTable
-        ? `突き合わせ表の target が ${JSON.stringify(table.target)}（判定対象は ${JSON.stringify(target)}）`
-        : `突き合わせ表がオブジェクトでない（${valueKind(comparison)}）`,
-    });
-  }
-  if (table.component !== slug) {
-    findings.push({
-      code: "comparison-component-mismatch",
-      detail: isTable
-        ? `突き合わせ表の component が ${JSON.stringify(table.component)}（採取は ${JSON.stringify(slug)}）`
-        : `突き合わせ表がオブジェクトでない（${valueKind(comparison)}）`,
-    });
-  }
-  if (!isArray(table.rows)) {
-    findings.push({ code: "comparison-rows-invalid", detail: "rows が配列でない" });
-    return [];
-  }
-  return table.rows;
-}
-
-/**
- * disposition を持つ行（比べずに受け入れる行）を数える。語彙と承認を確かめる。
- * @param {MotionContext} ctx
- * @param {unknown} row
- * @param {{ transition: unknown, instance: unknown, disposition: unknown }} cell
- */
-function countDisposedRow(ctx, row, { transition: tr, instance: inst, disposition }) {
-  const { findings, counts } = ctx;
-  // DISPOSITIONS は文字列だけなので、typeof は型を絞るためだけにある（判定は変わらない）。
-  if (typeof disposition !== "string" || !DISPOSITIONS.includes(disposition)) {
-    findings.push({
-      code: "motion-disposition-invalid",
-      transition: tr,
-      instance: inst,
-      detail: `disposition は null か ${DISPOSITIONS.join(" / ")}: ${JSON.stringify(disposition)}`,
-    });
-    counts.uncompared += 1;
-    return;
-  }
-  if (
-    !filled(field(row, "reason")) ||
-    !filled(field(row, "approved_by")) ||
-    !isoDateTime(field(row, "approved_at"))
-  ) {
-    findings.push({
-      code: "motion-acceptance-unapproved",
-      transition: tr,
-      instance: inst,
-      detail:
-        "accepted には記入済みの reason / approved_by と ISO 8601 の approved_at が要る（テンプレートのプレースホルダは承認ではない）",
-    });
-    counts.uncompared += 1;
-    return;
-  }
-  counts.accepted += 1;
-}
-
-/**
  * 新側の時系列を読む。読めなければ指摘を足して null を返す。
  * @param {MotionContext} ctx
  * @param {unknown} row
@@ -997,7 +923,13 @@ function judgeRows(ctx, rows, seen) {
     seen.add(key);
     const disposition = field(row, "disposition") ?? null;
     if (disposition !== null) {
-      countDisposedRow(ctx, row, { transition: tr, instance: inst, disposition });
+      judgeDisposition({
+        row,
+        disposition,
+        prefix: "motion",
+        where: { transition: tr, instance: inst },
+        ctx,
+      });
       continue;
     }
     judgeRow(ctx, row, { key, transition: tr, instance: inst });
@@ -1012,7 +944,12 @@ function judgeRows(ctx, rows, seen) {
  */
 function judgeComparison(ctx, comparison, expected) {
   const { findings, counts, population } = ctx;
-  const rows = readComparisonRows(ctx, comparison, expected);
+  const rows = readComparisonRows({
+    comparison,
+    target: expected.target,
+    slug: expected.slug,
+    findings: ctx.findings,
+  });
   /** @type {Set<string>} */
   const seen = new Set();
   judgeRows(ctx, rows, seen);
@@ -1091,94 +1028,21 @@ export function compareMotions({ metadata, motions, comparison, target }) {
 }
 
 /**
- * 引数を読む。値の無い引数・重複・不明な引数・必須の欠落は、理由を返す。
- * @param {string[]} argv
- * @returns {{ args: Record<string, string> } | { error: string }}
- */
-function parseArgs(argv) {
-  /** @type {Record<string, string>} */
-  const args = {};
-  for (let i = 0; i < argv.length; i += 1) {
-    const key = argv[i];
-    if (!key.startsWith("--")) return { error: `不明な引数: ${key}` };
-    const value = argv[i + 1];
-    if (typeof value !== "string" || value.startsWith("--")) return { error: `${key} に値がない` };
-    if (args[key] !== undefined) return { error: `${key} が複数ある` };
-    args[key] = value;
-    i += 1;
-  }
-  const known = ["--baseline", "--comparison", "--target"];
-  const unknown = Object.keys(args).filter((k) => !known.includes(k));
-  if (unknown.length > 0) return { error: `不明な引数: ${unknown.join(", ")}` };
-  for (const key of known) {
-    if (!nonEmptyString(args[key])) return { error: `${key} は必須（空白だけの値も不可）` };
-  }
-  return { args };
-}
-
-/**
- * 突き合わせ表を読む（読めなければ null。compareMotions が comparison-missing として数える）。
- * @param {string} path
- * @returns {unknown}
- */
-function readComparison(path) {
-  try {
-    return JSON.parse(readFileSync(path, "utf8"));
-  } catch {
-    return null;
-  }
-}
-
-/**
  * CLI 本体。
  * @param {string[]} argv
  * @param {{ cwd?: string, write?: (s: string) => void, writeErr?: (s: string) => void }} [io]
  * @returns {number} 終了コード
  */
-export function main(
-  argv,
-  {
-    cwd = process.cwd(),
-    write = (s) => process.stdout.write(s),
-    writeErr = (s) => process.stderr.write(s),
-  } = {},
-) {
-  /** @param {Record<string, unknown>} obj */
-  const out = (obj) =>
-    write(`${JSON.stringify({ tool: "motion-compare", version: VERSION, ...obj }, null, 2)}\n`);
-  const usage =
-    "usage: motion-compare.mjs --baseline <部品の成果物ディレクトリ> --comparison <new/<target>/motion-comparison.json> --target <name>";
-  /** @param {string} message */
-  const fail = (message) => {
-    writeErr(`error: ${message}\n${usage}\n`);
-    return 2;
-  };
-  const parsed = parseArgs(argv);
-  if ("error" in parsed) return fail(parsed.error);
-  const { args } = parsed;
-  let loaded;
-  try {
-    loaded = loadBaseline(resolve(cwd, args["--baseline"]), "motions.json");
-  } catch (error) {
-    return fail(`採取物を読めない: ${String(field(error, "message"))}`);
-  }
-  const result = compareMotions({
-    metadata: loaded.metadata,
-    motions: loaded.byInstance,
-    comparison: readComparison(resolve(cwd, args["--comparison"])),
-    target: args["--target"],
+export function main(argv, io = {}) {
+  return runCompareCli(argv, io, {
+    tool: "motion-compare",
+    version: VERSION,
+    usage:
+      "usage: motion-compare.mjs --baseline <部品の成果物ディレクトリ> --comparison <new/<target>/motion-comparison.json> --target <name>",
+    fileName: "motions.json",
+    judge: ({ metadata, byInstance, comparison, target }) =>
+      compareMotions({ metadata, motions: byInstance, comparison, target }),
   });
-  if (result.structural) {
-    out({ ok: false, structural: true, findings: result.findings, counts: result.counts });
-    return 2;
-  }
-  out({
-    ok: result.findings.length === 0,
-    judged: result.judged,
-    findings: result.findings,
-    counts: { ...result.counts, findings: result.findings.length },
-  });
-  return result.findings.length === 0 ? 0 : 1;
 }
 
 if (isCliEntry(import.meta.url)) {

@@ -12,7 +12,7 @@
 import { readFileSync } from "node:fs";
 import { isRecord } from "../config.mjs";
 import { zeroTokens } from "../pricing.mjs";
-import { emptySummary, touch } from "./session.mjs";
+import { emptySummary, parseLogLine, touch } from "./session.mjs";
 import { parseTime } from "../time.mjs";
 
 /** @typedef {import("./session.mjs").SessionSummary} SessionSummary */
@@ -60,28 +60,6 @@ export function codexTokens(usage) {
  * @property {boolean} seenMeta
  * @property {string} lastCountTotal
  */
-
-/**
- * JSON の 1 行を読む。読めない行は invalidLines に数えて null を返す。
- * @param {SessionSummary} s
- * @param {string} line
- * @returns {Record<string, unknown> | null}
- */
-function parseEntry(s, line) {
-  /** @type {unknown} */
-  let entry;
-  try {
-    entry = JSON.parse(line);
-  } catch {
-    s.invalidLines += 1;
-    return null;
-  }
-  if (!isRecord(entry)) {
-    s.invalidLines += 1;
-    return null;
-  }
-  return entry;
-}
 
 /**
  * @param {SessionSummary} s
@@ -285,7 +263,7 @@ export function parseCodexLog(text, fallbackId) {
   for (const line of text.split("\n")) {
     if (line.trim() === "") continue;
     st.index += 1;
-    const entry = parseEntry(st.s, line);
+    const entry = parseLogLine(st.s, line);
     if (entry) addCodexEntry(st, entry);
   }
   finishCodexSummary(st);

@@ -177,7 +177,7 @@ jscpd は 3 か所以上の重複を 2 つずつの組で報告するので、1 
 | `code/check-skill-lint-directives.ts` | 配布スキルの、このリポジトリの lint の設定を前提にした抑止コメント（`.agents/rules/distributed-skill-stack-independence.md`） |
 | `types/check-jsdoc-types.ts` | 配布スキルの `.mjs` で、型の検査を外す JSDoc の書き方（「型の検査」の節） |
 | `packaging/check-skill-frontmatter.ts` | `SKILL.md` の frontmatter |
-| `packaging/copies/check-identical-copies.ts` | 同じ内容であるべきコピー。組は `scripts/gates/packaging/copies/identical-copies.json` に書く。`region` を持つ組は、印 `// <region>:begin` と `// <region>:end` の間だけを比べる |
+| `packaging/copies/check-identical-copies.ts` | 同じ内容であるべきコピー。組は `scripts/gates/packaging/copies/identical-copies.json` に書く。`region` を持つ組は、印 `// <region>:begin` と `// <region>:end`（シェルのファイルでは `# <region>:begin` と `# <region>:end`）の間だけを比べる |
 | `packaging/check-skill-config-vendor.ts` | 配布スキルに同梱する設定の読み取り（`scripts/skill-config/`）。同梱した jsonc-parser（`vendor/`）が devDependency の版から作った内容と一致するか。版を上げたら `--fix` で作り直す |
 | `packaging/check-skill-configs.ts` | このリポジトリのスキルの設定（`.config/skills/shoji9x9/*.jsonc`）が、各スキルのスキーマ（`skills/<name>/config-schemas/`）に合うか |
 | `prose/check-time-sensitive-prose.ts` | 日付・「現状は」「当面」を Tier 1〜3 の文書とコメントに書いていないか。変異の件数や全件の実測値は `mutation-proof.yml` だけに書く |

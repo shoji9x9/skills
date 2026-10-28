@@ -25,9 +25,9 @@
 //
 // 終了コード: 0 ＝ 条件を満たす、1 ＝ 不備が残る（設計へ戻す）、2 ＝ 使い方の誤り・表が読めない。
 
-import { readFileSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { cliIo, parseFlagPairs, usageFailer, writeCheckResult } from "./lib/check-cli.mjs";
+import { isCliEntry } from "./lib/cli.mjs";
 import { stepFence, unclosedFenceMessage } from "./lib/fence.mjs";
 import { isArray } from "./lib/is-array.mjs";
 
@@ -1631,38 +1631,6 @@ const USAGE =
   "usage: predicate-coverage-check.mjs --features <.replace/features.md> --design <.replace/dataset/design.md> [--verification <.replace/dataset/verification.md>]";
 
 /**
- * `--key value` の並びを読む。誤りがあれば、そのメッセージを返す。
- *
- * @param {string[]} argv
- * @returns {{ error: string } | { args: Record<string, string> }}
- */
-function parseCliArgs(argv) {
-  /** @type {Record<string, string>} */
-  const args = {};
-  for (let i = 0; i < argv.length; i += 1) {
-    const key = argv[i];
-    if (!key.startsWith("--")) {
-      return { error: `不明な引数: ${key}` };
-    }
-    const value = argv[i + 1];
-    if (typeof value !== "string" || value.startsWith("--")) {
-      return { error: `${key} に値がない` };
-    }
-    if (args[key] !== undefined) {
-      return { error: `${key} が複数ある` };
-    }
-    args[key] = value;
-    i += 1;
-  }
-  const known = ["--features", "--design", "--verification"];
-  const unknown = Object.keys(args).filter((k) => !known.includes(k));
-  if (unknown.length > 0) {
-    return { error: `不明な引数: ${unknown.join(", ")}` };
-  }
-  return { args };
-}
-
-/**
  * 引数から、読む入力の名前とパスの組を決める。誤りがあれば、そのメッセージを返す。
  *
  * @param {Record<string, string>} args
@@ -1721,22 +1689,10 @@ function readInputs(inputs, { readFile, cwd }) {
  * @returns {number}
  */
 export function main(argv, deps = {}) {
-  const readFile = deps.readFile ?? ((p) => readFileSync(p, "utf8"));
-  const cwd = deps.cwd ?? process.cwd();
-  const write = deps.write ?? ((s) => process.stdout.write(s));
-  const writeErr = deps.writeErr ?? ((s) => process.stderr.write(s));
-  /**
-   * 引数・入力の誤りを stderr へ知らせる（判定結果ではないので stdout の JSON には混ぜない）。
-   *
-   * @param {string} message
-   * @returns {number}
-   */
-  const fail = (message) => {
-    writeErr(`error: ${message}\n${USAGE}\n`);
-    return 2;
-  };
-  const parsed = parseCliArgs(argv);
-  if ("error" in parsed) return fail(parsed.error);
+  const { readFile, cwd, write, writeErr } = cliIo(deps);
+  const fail = usageFailer(writeErr, USAGE);
+  const parsed = parseFlagPairs(argv, ["--features", "--design", "--verification"]);
+  if (parsed.error !== undefined) return fail(parsed.error);
   const listed = listInputs(parsed.args);
   if ("error" in listed) return fail(listed.error);
   const read = readInputs(listed.inputs, { readFile, cwd });
@@ -1747,47 +1703,16 @@ export function main(argv, deps = {}) {
     designMarkdown: sources.design,
     verificationMarkdown: sources.verification ?? null,
   });
-  return reportResult(result, write);
-}
-
-/**
- * 判定結果を stdout へ JSON で書き、終了コードを返す。
- *
- * @param {{ findings: Finding[], counts: Record<string, number>, structural: boolean }} result
- * @param {(s: string) => void} write
- * @returns {number}
- */
-function reportResult(result, write) {
-  /** @param {Record<string, unknown>} obj */
-  const out = (obj) =>
-    write(
-      `${JSON.stringify({ tool: "predicate-coverage-check", version: VERSION, ...obj }, null, 2)}\n`,
-    );
-  if (result.structural) {
-    out({ ok: false, structural: true, findings: result.findings, counts: result.counts });
-    return 2;
-  }
-  out({
-    ok: result.findings.length === 0,
-    findings: result.findings,
-    counts: { ...result.counts, findings: result.findings.length },
+  return writeCheckResult(write, result, {
+    tool: "predicate-coverage-check",
+    version: VERSION,
+    fields: {
+      findings: result.findings,
+    },
   });
-  return result.findings.length === 0 ? 0 : 1;
 }
 
-// CLI として起動されたかは、両辺を実パスに解決してから比べる（シンボリックリンクから起動したときに、何もせずに終わらないように）。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   // process.exit は書き込み中の stdout を捨てるため、終了コードだけ設定して自然終了させる。
   process.exitCode = main(process.argv.slice(2));
 }

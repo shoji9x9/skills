@@ -22,9 +22,10 @@
 // TypeScript 構文は使わない（型は JSDoc）。
 
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { isCliEntry } from "./lib/cli.mjs";
+import { makeIo, parseFlagArgs } from "./lib/flag-args.mjs";
 import { isArray } from "./lib/is-array.mjs";
 
 /**
@@ -752,25 +753,6 @@ const KNOWN_ARGS = new Set([
 ]);
 
 /**
- * 引数を読む。値を持たない引数・未知の引数・重複を誤りにする。
- * @param {string[]} argv
- * @returns {{ error: string } | { error: null, args: Record<string, string> }}
- */
-function parseArgs(argv) {
-  /** @type {Record<string, string>} */
-  const args = {};
-  for (let i = 0; i < argv.length; i += 2) {
-    const key = argv[i];
-    if (!KNOWN_ARGS.has(key)) return { error: `未知の引数: ${key}` };
-    const value = argv[i + 1];
-    if (value === undefined || value.startsWith("--")) return { error: `${key} に値が無い` };
-    if (Object.hasOwn(args, key)) return { error: `${key} が重複している` };
-    args[key] = value;
-  }
-  return { error: null, args };
-}
-
-/**
  * 必須の引数と --head の形を確かめる。
  * @param {Record<string, string>} args
  * @returns {string | null} 誤りの文。無ければ null
@@ -867,8 +849,8 @@ function allowLaterOf(value) {
  * @returns {{ error: string } | { error: null, input: Parameters<typeof checkAcceptance>[0] }}
  */
 function inputFromArgs(argv, cwd) {
-  const parsedArgs = parseArgs(argv);
-  if (parsedArgs.error !== null) return parsedArgs;
+  const parsedArgs = parseFlagArgs(argv, KNOWN_ARGS);
+  if (parsedArgs.error !== undefined) return { error: parsedArgs.error };
   const { args } = parsedArgs;
   const error = argsError(args);
   if (error !== null) return { error };
@@ -899,13 +881,9 @@ function inputFromArgs(argv, cwd) {
  */
 export function main(argv, deps = {}) {
   const cwd = deps.cwd ?? process.cwd();
-  const out = (/** @type {unknown} */ value) =>
-    (deps.stdout ?? ((s) => process.stdout.write(s)))(`${JSON.stringify(value, null, 2)}\n`);
+  const { out, fail } = makeIo(deps, USAGE);
   const prepared = inputFromArgs(argv, cwd);
-  if (prepared.error !== null) {
-    (deps.stderr ?? ((s) => process.stderr.write(s)))(`${prepared.error}\n${USAGE}\n`);
-    return 2;
-  }
+  if (prepared.error !== null) return fail(prepared.error);
   const result = checkAcceptance(prepared.input);
   if (result.structural) {
     out({ ok: false, structural: true, error: result.error });
@@ -923,19 +901,7 @@ export function main(argv, deps = {}) {
   return result.findings.length === 0 ? 0 : 1;
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる（シンボリックリンク経由の起動でサイレント no-op にしない）。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   // process.exit は書き込み中の stdout を捨てるため、終了コードだけ設定して自然終了させる。
   process.exitCode = main(process.argv.slice(2));
 }

@@ -37,9 +37,9 @@
 //
 // 終了コード: 0 ＝ 条件を満たす、1 ＝ 抜け・不整合が残る（採取へ戻す）、2 ＝ 使い方の誤り・型崩れ。
 
-import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
+import { cliIo, parseFlagPairs, usageFailer, writeCheckResult } from "./lib/check-cli.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
 import {
@@ -2293,63 +2293,19 @@ function checkHoleExemption(hole, exemption, findings) {
 }
 
 /**
- * CLI の引数を読む。誤りがあれば、その説明を `error` に入れて返す。
- * @param {string[]} argv
- * @returns {{ args: Record<string, string>, error: null } | { args: null, error: string }}
- */
-function parseArgs(argv) {
-  /** @type {Record<string, string>} */
-  const args = {};
-  for (let i = 0; i < argv.length; i += 1) {
-    const key = argv[i];
-    if (!key.startsWith("--")) {
-      return { args: null, error: `不明な引数: ${key}` };
-    }
-    const value = argv[i + 1];
-    if (typeof value !== "string" || value.startsWith("--")) {
-      return { args: null, error: `${key} に値がない` };
-    }
-    if (args[key] !== undefined) {
-      return { args: null, error: `${key} が複数ある` };
-    }
-    args[key] = value;
-    i += 1;
-  }
-  const unknown = Object.keys(args).filter((k) => k !== "--metadata");
-  if (unknown.length > 0) {
-    return { args: null, error: `不明な引数: ${unknown.join(", ")}` };
-  }
-  return { args, error: null };
-}
-
-/**
  * CLI 本体。
  * @param {string[]} argv
  * @param {{ readFile?: (path: string) => string, cwd?: string, write?: (s: string) => void, writeErr?: (s: string) => void }} [deps]
  * @returns {number}
  */
 export function main(argv, deps = {}) {
-  const readFile = deps.readFile ?? ((p) => readFileSync(p, "utf8"));
-  const cwd = deps.cwd ?? process.cwd();
-  const write = deps.write ?? ((s) => process.stdout.write(s));
-  const writeErr = deps.writeErr ?? ((s) => process.stderr.write(s));
-  const usage = "usage: capture-scope-check.mjs --metadata <.replace/parity/<slug>/metadata.json>";
-  /**
-   * 引数・入力の誤りを stderr へ知らせる（判定結果ではないので stdout の JSON には混ぜない）。
-   * @param {string} message
-   * @returns {number}
-   */
-  const fail = (message) => {
-    writeErr(`error: ${message}\n${usage}\n`);
-    return 2;
-  };
-  /** @param {Record<string, unknown>} obj */
-  const out = (obj) =>
-    write(
-      `${JSON.stringify({ tool: "capture-scope-check", version: VERSION, ...obj }, null, 2)}\n`,
-    );
-  const parsed = parseArgs(argv);
-  if (parsed.args === null) {
+  const { readFile, cwd, write, writeErr } = cliIo(deps);
+  const fail = usageFailer(
+    writeErr,
+    "usage: capture-scope-check.mjs --metadata <.replace/parity/<slug>/metadata.json>",
+  );
+  const parsed = parseFlagPairs(argv, ["--metadata"]);
+  if (parsed.error !== undefined) {
     return fail(parsed.error);
   }
   const metadataPath = parsed.args["--metadata"];
@@ -2363,18 +2319,15 @@ export function main(argv, deps = {}) {
     return fail(`${metadataPath} を読めない: ${errorMessage(error)}`);
   }
   const result = checkCaptureScope(metadata);
-  if (result.structural) {
-    out({ ok: false, structural: true, findings: result.findings, counts: result.counts });
-    return 2;
-  }
-  out({
-    ok: result.findings.length === 0,
-    judged: result.judged,
-    findings: result.findings,
-    holes: result.holes,
-    counts: { ...result.counts, findings: result.findings.length },
+  return writeCheckResult(write, result, {
+    tool: "capture-scope-check",
+    version: VERSION,
+    fields: {
+      judged: result.judged,
+      findings: result.findings,
+      holes: result.holes,
+    },
   });
-  return result.findings.length === 0 ? 0 : 1;
 }
 
 if (isCliEntry(import.meta.url)) {

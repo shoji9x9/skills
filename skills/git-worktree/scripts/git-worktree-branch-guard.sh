@@ -46,6 +46,7 @@ esac
 # 取り出せないのは、対象のキーが 1 つも無いときと、`\u` を含むときである。JSON はキーも `\u` で書けるので、
 # `"command"` のようなキーをここでは見つけられないが、jq はそれをコマンドとして読む。
 # 外部のコマンドもサブシェルも起動しない（結果を変数で返すのはそのため）。
+# hook-tool-text:begin
 hook_tool_text() { # $1: Hook の JSON
 	local rest="${1:-}" head found=1
 	local re='"(tool_name|toolName|tool_input|toolArgs|input|command)"[[:space:]]*:[[:space:]]*"(([^"\\]|\\.)*)"'
@@ -62,6 +63,7 @@ hook_tool_text() { # $1: Hook の JSON
 	done
 	return "${found}"
 }
+# hook-tool-text:end
 
 # 入力の全体に語があっても、`cwd`・`transcript_path` の値にあるだけなら、jq / python3 を起動せずに終える。
 # パスにこの語を含む worktree の中のセッションでは、上の照合はすべての呼び出しで通るためである。

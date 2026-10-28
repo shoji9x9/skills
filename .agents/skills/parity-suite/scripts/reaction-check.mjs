@@ -43,12 +43,13 @@
 // TypeScript 構文は使わない（型は JSDoc）。
 
 import { createHash } from "node:crypto";
-import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 
 import { pageForUrl, pageKey, resolvePages } from "./page-identity.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
+import { fileIo } from "./lib/file-io.mjs";
 import { errorMessage } from "./lib/errors.mjs";
 import {
   isInteger,
@@ -3929,9 +3930,7 @@ function pageNameSet(pages) {
 export function main(argv, deps = {}) {
   /** @type {MainIo} */
   const io = {
-    readFile: deps.readFile ?? ((p) => readFileSync(p, "utf8")),
-    writeFile: deps.writeFile ?? ((p, s) => writeFileSync(p, s)),
-    cwd: deps.cwd ?? process.cwd(),
+    ...fileIo(deps),
     stdout: deps.out ?? ((s) => process.stdout.write(s)),
     stderr: deps.err ?? ((s) => process.stderr.write(s)),
   };
@@ -3955,7 +3954,7 @@ const USAGE =
 
 /**
  * main の入出力（テストが差し込む）。
- * @typedef {{ readFile: (p: string) => string, writeFile: (p: string, s: string) => void, cwd: string, stdout: (s: string) => void, stderr: (s: string) => void }} MainIo
+ * @typedef {import("./lib/file-io.mjs").FileIo & { stdout: (s: string) => void, stderr: (s: string) => void }} MainIo
  */
 
 /**

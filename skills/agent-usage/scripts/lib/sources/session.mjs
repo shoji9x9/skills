@@ -2,6 +2,8 @@
 // 解析の処理（claude-log.mjs・codex-log.mjs）がこの形を作り、collect はこの形だけを読む。
 // 要約は JSON にしてキャッシュするので、関数や Map を持たせない。
 
+import { isRecord } from "../config.mjs";
+
 /** @typedef {import("../pricing.mjs").Tokens} Tokens */
 
 /**
@@ -109,4 +111,28 @@ export function branchAt(s, ts) {
 export function issueOf(branch) {
   const m = /(?:^|\/)(\d+)-/.exec(branch);
   return m ? m[1] : "";
+}
+
+/**
+ * ログの 1 行を JSON のオブジェクトとして読む。空の行は null を返す。
+ * JSON として読めない行と、オブジェクトでない行は、`s.invalidLines` に数えて null を返す。
+ * @param {SessionSummary} s
+ * @param {string} line
+ * @returns {Record<string, unknown> | null}
+ */
+export function parseLogLine(s, line) {
+  if (line.trim() === "") return null;
+  /** @type {unknown} */
+  let entry;
+  try {
+    entry = JSON.parse(line);
+  } catch {
+    s.invalidLines += 1;
+    return null;
+  }
+  if (!isRecord(entry)) {
+    s.invalidLines += 1;
+    return null;
+  }
+  return entry;
 }

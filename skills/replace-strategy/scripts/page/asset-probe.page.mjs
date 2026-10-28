@@ -52,7 +52,11 @@ const URL_PROPS = [
 ];
 const MAX_SAMPLES = 3;
 
-/** @param {Element} el */
+// css-path-js:begin
+/**
+ * 要素の位置を、body（または html）までの最大 5 段の `:nth-child` のセレクタで表す。
+ * @param {Element} el
+ */
 function cssPath(el) {
   const parts = [];
   /** @type {Element | null} */
@@ -66,6 +70,7 @@ function cssPath(el) {
   }
   return parts.join(" > ");
 }
+// css-path-js:end
 
 /** @param {Element} el */
 function isRendered(el) {

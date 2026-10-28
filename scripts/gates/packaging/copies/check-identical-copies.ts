@@ -15,7 +15,8 @@
 //   その部分を共有ファイルから SKILL.md 側へ移してから組に入れる。
 // - 例外は、ファイルの一部だけが共通な組（`region` を持つ組）。種類の違うファイル（ユーティリティの原本と、
 //   利用者のプロジェクトへ 1 ファイルだけコピーする雛形）が、同じ関数を持つ場合に使う。比べるのは、
-//   印の行 `// <region>:begin` と `// <region>:end` の間だけである。範囲は見出しの解析ではなく明示した印で決め、
+//   印の行 `// <region>:begin` と `// <region>:end` の間だけである（シェルのファイルでは `# <region>:begin` と
+//   `# <region>:end`）。範囲は見出しの解析ではなく明示した印で決め、
 //   印が 1 組だけ無い（無い・重複・逆順）ファイルは違反にする。印が崩れたまま比べずに通さないためである。
 // - 組の最初のファイルを基準にし、違うファイルは最初に食い違う行番号を報告する。
 // - 1 ファイルは、ファイル全体の組と、範囲の名前ごとの組に 1 つずつ属せる。
@@ -90,17 +91,25 @@ function markSeen(seen: Set<string>, files: readonly string[], region: string | 
   }
 }
 
+/** 印の行のコメントの記号。シェル（`.sh`）は `#`、それ以外（JavaScript・TypeScript）は `//` にする。 */
+function markerPrefix(path: string): string {
+  return path.endsWith(".sh") ? "#" : "//";
+}
+
 /**
  * 印の行 `// <region>:begin` と `// <region>:end` の行番号（0 始まり）。印が 1 組だけ無ければ、理由を返す。
+ * シェルのファイル（`path` が `.sh` で終わる）では、印の行を `# <region>:begin` と `# <region>:end` にする。
  * 範囲の中身は、2 つの印の行の間（印の行を含まない）である。
  */
 export function regionMarkers(
   text: string,
   region: string,
+  path: string,
 ): { begin: number; end: number } | { error: string } {
   const lines = text.split("\n");
-  const begin = `// ${region}:begin`;
-  const end = `// ${region}:end`;
+  const prefix = markerPrefix(path);
+  const begin = `${prefix} ${region}:begin`;
+  const end = `${prefix} ${region}:end`;
   const at = (marker: string) => lines.flatMap((l, i) => (l.trim() === marker ? [i] : []));
   const [b, e] = [at(begin), at(end)];
   if (b.length !== 1 || e.length !== 1) {
@@ -112,9 +121,13 @@ export function regionMarkers(
   return { begin: b[0], end: e[0] };
 }
 
-/** 印の行 `// <region>:begin` と `// <region>:end` の間（印の行を含まない）。印が 1 組だけ無ければ、理由を返す。 */
-export function extractRegion(text: string, region: string): { body: string } | { error: string } {
-  const m = regionMarkers(text, region);
+/** 印の行の間（印の行を含まない。印の形は regionMarkers）。印が 1 組だけ無ければ、理由を返す。 */
+export function extractRegion(
+  text: string,
+  region: string,
+  path: string,
+): { body: string } | { error: string } {
+  const m = regionMarkers(text, region, path);
   if ("error" in m) return m;
   return {
     body: text
@@ -177,7 +190,7 @@ function regionViolations(root: string, present: readonly string[], region: stri
   const violations: string[] = [];
   const bodies = present.map((p) => ({
     p,
-    r: extractRegion(readFileSync(join(root, p), "utf8"), region),
+    r: extractRegion(readFileSync(join(root, p), "utf8"), region, p),
   }));
   for (const { p, r } of bodies) if ("error" in r) violations.push(`${p}: ${r.error}`);
   const baseRegion = bodies[0].r;

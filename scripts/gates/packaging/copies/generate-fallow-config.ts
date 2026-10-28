@@ -152,7 +152,7 @@ export function exportedNames(text: string, path: string): string[] {
 
 /** 範囲の印の間の行。印が崩れていれば例外にする。 */
 function regionText(text: string, region: string, path: string): string {
-  const m = extractRegion(text, region);
+  const m = extractRegion(text, region, path);
   if ("error" in m) throw new Error(`${path}: ${m.error}`);
   return m.body;
 }

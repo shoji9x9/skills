@@ -1,6 +1,6 @@
 {
   "$comment": [
-    "同一であるべきコピーの組（scripts/gates/packaging/copies/check-identical-copies.ts が検査する）。region の無い組はファイル全体を、region を持つ組は印 // <region>:begin〜// <region>:end の間だけをバイト単位で比べる。",
+    "同一であるべきコピーの組（scripts/gates/packaging/copies/check-identical-copies.ts が検査する）。region の無い組はファイル全体を、region を持つ組は印 // <region>:begin〜// <region>:end（シェルのファイルでは # <region>:begin〜# <region>:end）の間だけをバイト単位で比べる。",
     "配布スキルは実行時に読むものを自分の中に同梱するので、姉妹スキルが同じ手順を持つとコピーになる。",
     "組の宣言は観測（今一致しているもの）からではなく、同一であるべき理由から書く。",
     "region は、種類の違うファイル（.mjs のユーティリティと、1 ファイルだけコピーして使うツールや雛形）が同じ関数を持つ場合に使う。1 ファイルは、ファイル全体の組 1 つと、region ごとの組 1 つずつに属せる。"
@@ -87,19 +87,98 @@
         "skills/parity-suite/scripts/lib/cli.mjs",
         "skills/parity-diff/scripts/lib/cli.mjs",
         "skills/parity-component/scripts/lib/cli.mjs",
-        "skills/replace-strategy/scripts/lib/cli.mjs"
+        "skills/replace-strategy/scripts/lib/cli.mjs",
+        "skills/golden-dataset/scripts/lib/cli.mjs",
+        "skills/issue-start/scripts/lib/cli.mjs"
       ],
       "reason": "配布スキルの .mjs が使う CLI の起動の判定 isCliEntry。スキルの中で完結させるためにコピーする。片方だけを直すと、シンボリックリンクから起動したときの振る舞いがスキルごとに食い違う"
+    },
+    {
+      "files": [
+        "skills/parity-suite/scripts/lib/check-cli.mjs",
+        "skills/parity-component/scripts/lib/check-cli.mjs",
+        "skills/golden-dataset/scripts/lib/check-cli.mjs"
+      ],
+      "reason": "検査の CLI の引数の読み取りと、判定の結果の JSON の形と終了コード。スキルの中で完結させるためにコピーする。片方だけを直すと、同じ形の CLI がスキルごとに別の引数を受け付けたり、別の形の結果を出したりする"
+    },
+    {
+      "files": [
+        "skills/replace-strategy/scripts/lib/flag-args.mjs",
+        "skills/issue-start/scripts/lib/flag-args.mjs"
+      ],
+      "reason": "`--名前 値` の引数の読み取りと、結果の JSON・誤りの出力。スキルの中で完結させるためにコピーする。片方だけを直すと、同じ形の CLI がスキルごとに別の引数を受け付ける"
     },
     {
       "files": [
         "skills/parity-suite/scripts/lib/cli.mjs",
         "skills/parity-suite/scripts/trait-compare.mjs",
         "skills/parity-suite/scripts/header-normalize.mjs",
-        "skills/kaizen/scripts/skill-config/skill-config.mjs"
+        "skills/parity-component/scripts/lib/cli.mjs",
+        "skills/parity-diff/scripts/lib/cli.mjs",
+        "skills/replace-strategy/scripts/lib/cli.mjs",
+        "skills/golden-dataset/scripts/lib/cli.mjs",
+        "skills/issue-start/scripts/lib/cli.mjs",
+        "skills/kaizen/scripts/skill-config/skill-config.mjs",
+        "skills/agent-usage/scripts/skill-config/skill-config.mjs"
       ],
       "region": "cli-entry-js",
       "reason": "trait-compare.mjs と header-normalize.mjs は利用者のプロジェクトへ 1 ファイルだけコピーして使い、隣のファイルを import できないので、lib/cli.mjs の isCliEntry と同じ関数を持つ。片方だけを直すと、コピーの側だけがシンボリックリンクからの起動で何もせずに終わる"
+    },
+    {
+      "files": [
+        "skills/parity-suite/scripts/coverage-expand.mjs",
+        "skills/parity-diff/scripts/coverage-check.mjs"
+      ],
+      "region": "absence-evidence-contract",
+      "reason": "absent セルの証拠の形と、集合の出所の検査。記録側（parity-suite の coverage-expand.mjs）と収束を判定する側（parity-diff の coverage-check.mjs）が同じ規則で見る。片方だけを直すと、記録側は通すが収束側が弾く（またはその逆）"
+    },
+    {
+      "files": [
+        "skills/parity-suite/scripts/coverage-expand.mjs",
+        "skills/parity-diff/scripts/coverage-check.mjs"
+      ],
+      "region": "coverage-collect-ids",
+      "reason": "期待セルの展開に使う id の集め方。記録側（coverage-expand.mjs）と収束を判定する側（coverage-check.mjs）が同じ規則で空・重複の id を外さないと、片方だけが期待セルを別の数で数える"
+    },
+    {
+      "files": [
+        "skills/parity-suite/scripts/coverage-expand.mjs",
+        "skills/parity-diff/scripts/coverage-check.mjs"
+      ],
+      "region": "coverage-fingerprint",
+      "reason": "網羅表と撮影条件の指紋。記録側（coverage-expand.mjs）が書いた指紋を、収束を判定する側（coverage-check.mjs）が同じ式で作り直して突き合わせる。片方だけを直すと、指紋が一致しなくなる"
+    },
+    {
+      "files": [
+        "skills/parity-suite/scripts/pixel-strict-count.mjs",
+        "skills/parity-diff/scripts/pixel-crops.mjs"
+      ],
+      "region": "diff-color",
+      "reason": "差分画像で差分の色を見分ける許容差と、色の読み取り。parity-suite の pixel-strict-count.mjs がノイズ基準値を、parity-diff の pixel-crops.mjs が現新の差を同じ規則で数える。片方だけを直すと、基準値と現新の差を別の軸で比べる"
+    },
+    {
+      "files": [
+        "skills/parity-suite/scripts/pixel-strict-count.mjs",
+        "skills/parity-diff/scripts/pixel-crops.mjs"
+      ],
+      "region": "async-cli-exit",
+      "reason": "非同期の main を CLI として実行し、想定外の reject を exit 2 にする処理。片方だけを直すと、想定外の失敗を判定の結果の exit 1 として返すスクリプトが残る"
+    },
+    {
+      "files": [
+        "skills/replace-strategy/scripts/page/role-probe.page.mjs",
+        "skills/replace-strategy/scripts/page/asset-probe.page.mjs"
+      ],
+      "region": "css-path-js",
+      "reason": "ページで実行するコードは関数式に包んでページへ渡すので、隣のファイルを import できず、同じ関数を持つ。片方だけを直すと、同じ要素の位置がプローブごとに別のセレクタで記録される"
+    },
+    {
+      "files": [
+        "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+        "skills/git-worktree/scripts/git-worktree-branch-guard.sh"
+      ],
+      "region": "hook-tool-text",
+      "reason": "Hook の入力から、ツールの名前と入力の値だけを取り出す処理。どちらの Hook も、パスに語を含む作業ツリーの中で jq・python3 を起動せずに終えるために使う。片方だけを直すと、同じ入力を Hook ごとに別の範囲で読む"
     },
     {
       "files": [

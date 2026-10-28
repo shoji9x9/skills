@@ -26,10 +26,10 @@
 // 決定論的: 乱数・現在時刻に依存しない。TypeScript 構文は使わない（型は JSDoc）。
 
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
+import { fileIo } from "./lib/file-io.mjs";
 import { errorMessage } from "./lib/errors.mjs";
 import { isFiniteNumber, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
@@ -826,7 +826,7 @@ function printResult(obj) {
 
 /**
  * main が使う入出力。
- * @typedef {{ readFile: (p: string) => string, writeFile: (p: string, s: string) => void, cwd: string }} Io
+ * @typedef {import("./lib/file-io.mjs").FileIo} Io
  */
 
 /**
@@ -1084,12 +1084,7 @@ function writeErrorRecords(paths, message, writeCheck) {
  * @returns {number}
  */
 export function main(argv, deps = {}) {
-  /** @type {Io} */
-  const io = {
-    readFile: deps.readFile ?? ((p) => readFileSync(p, "utf8")),
-    writeFile: deps.writeFile ?? ((p, s) => writeFileSync(p, s)),
-    cwd: deps.cwd ?? process.cwd(),
-  };
+  const io = fileIo(deps);
   const [mode, ...rest] = argv;
   const checkWritePaths = mode === "check" ? collectCheckWritePaths(rest, io.cwd) : [];
   /** @type {CheckState} */

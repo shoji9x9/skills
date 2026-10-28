@@ -25,6 +25,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 
+import { usageFailer, writeCheckResult } from "./lib/check-cli.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { field, filled, isObjectLike, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
@@ -260,15 +261,10 @@ export function main(
     writeErr = (s) => process.stderr.write(s),
   } = {},
 ) {
-  /** @param {Record<string, unknown>} obj */
-  const out = (obj) =>
-    write(`${JSON.stringify({ tool: "lifecycle-check", version: VERSION, ...obj }, null, 2)}\n`);
-  const usage = "usage: lifecycle-check.mjs --build-metadata <new/<target>/build-metadata.json>";
-  /** @param {string} message */
-  const fail = (message) => {
-    writeErr(`error: ${message}\n${usage}\n`);
-    return 2;
-  };
+  const fail = usageFailer(
+    writeErr,
+    "usage: lifecycle-check.mjs --build-metadata <new/<target>/build-metadata.json>",
+  );
   if (argv.length !== 2 || argv[0] !== "--build-metadata") {
     return fail(argv.length === 0 ? "--build-metadata は必須" : `不明な引数: ${argv.join(" ")}`);
   }
@@ -280,12 +276,14 @@ export function main(
     return fail(`build-metadata.json を読めない: ${String(field(error, "message"))}`);
   }
   const result = checkLifecycle(metadata);
-  if (result.structural) {
-    out({ ok: false, structural: true, findings: result.findings });
-    return 2;
-  }
-  out({ ok: result.findings.length === 0, applies: result.applies, findings: result.findings });
-  return result.findings.length === 0 ? 0 : 1;
+  return writeCheckResult(write, result, {
+    tool: "lifecycle-check",
+    version: VERSION,
+    fields: {
+      applies: result.applies,
+      findings: result.findings,
+    },
+  });
 }
 
 if (isCliEntry(import.meta.url)) {
