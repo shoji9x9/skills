@@ -158,8 +158,8 @@ test("CLI: 対象の違反を、パスと行番号の付いた一覧で報告し
   const root = makeRepo({
     "skills/demo/scripts/bad.mjs": "const a = /** @type {string} */ (v);\n",
     "skills/demo/scripts/ok.mjs": "/** @type {string[]} */\nconst a = [];\n",
-    // 走査の範囲（skills/・scripts/・.agents/skills/）にあるが、skills/ の外なので対象にしない。
-    "scripts/out.mjs": "// @ts-ignore\n",
+    // 走査の範囲（skills/）にあるが、skills/<name>/ の外なので対象にしない。
+    "skills/out.mjs": "// @ts-ignore\n",
   });
   const r = runCli(root);
   expect(r.status).toBe(1);
