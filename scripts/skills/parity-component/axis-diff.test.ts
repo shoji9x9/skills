@@ -313,6 +313,13 @@ test("CLI: --out は出力先パスを要求し、実際に書く", () => {
   expect(twice.stderr).toContain("--out が重複している");
   expect(twice.stdout).toBe("");
 
+  for (const value of ["-", "-x.json"]) {
+    const dashed = runCli(manifest, ["--out", value]);
+    expect(dashed.status).toBe(2);
+    expect(dashed.stderr).toContain("--out に値が無い");
+    expect(dashed.stdout).toBe("");
+  }
+
   const dir = makeTempDir("axis-diff-");
   const out = join(dir, "axes.json");
   const ok = runCli(manifest, ["--out", out]);
@@ -724,6 +731,24 @@ test("--baseline は採取物から決定論的にマニフェストを組み立
   const recorded = JSON.parse(readFileSync(join(repoFixture, "axes.json"), "utf8"));
   expect(generated).toEqual(recorded);
   expect(generated.measured).toBeGreaterThan(0);
+});
+
+test("--out の値が空文字なら、次の引数を出力先として読まずに exit 2", () => {
+  // 空文字を除いてから読むと、`--out "" keep.json` が keep.json を出力先として読み、その中身を上書きする。
+  const repoFixture = join(
+    repoRoot,
+    "evals/parity-component/fixtures/catalog-unset/.replace/components/button",
+  );
+  const dir = makeTempDir("axis-diff-");
+  const keep = join(dir, "keep.json");
+  writeFileSync(keep, "{}");
+  const r = spawnSync(process.execPath, [script, "--baseline", repoFixture, "--out", "", keep], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("--out に値が無い");
+  expect(readFileSync(keep, "utf8")).toBe("{}");
 });
 
 test("--baseline は宣言の無い欠落を警告なしに除外しない", () => {

@@ -894,6 +894,11 @@ function parseOptions(mode, rest) {
       : { values: common, bools: ["--write"] },
   );
   if (parsed.error !== undefined) throw new UsageError(parsed.error);
+  // parseFlags は空の値だけを誤りにする。空白だけの値も値の書き忘れとして扱う。
+  // 通すと、`--tolerance " "` が Number で 0 になり、許容幅 0 として警告なしに判定する。
+  for (const [name, value] of Object.entries(parsed.strings)) {
+    if (!nonEmptyString(value)) throw new UsageError(`${name} に値が無い`);
+  }
   // --write は、check では strings に、fit では bools に入る。
   return Object.fromEntries(
     [...Object.entries(parsed.strings), ...Object.entries(parsed.bools)].map(([name, value]) => [

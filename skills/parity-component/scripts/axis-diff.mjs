@@ -762,6 +762,9 @@ export function diffAxes(manifest) {
   };
 }
 
+/** CLI の値を取る名前。 */
+const VALUE_OPTIONS = ["--baseline", "--out"];
+
 /**
  * CLI の引数を読む。
  * 受け付けるオプションは `--baseline <dir>` と `--out <path>` だけである。`--` で始まるトークンをまとめて読み飛ばすと、
@@ -769,18 +772,21 @@ export function diffAxes(manifest) {
  * すると、成果物を作らないまま標準出力へ書いて exit 0 になる。--out が軸の成果物を作る前提の工程は、
  * ファイルが無いことに気付かないまま次へ進む。そのため、知らないオプションは受け付けない。
  * 位置引数（マニフェスト）は 1 つまで受け付ける。2 つ目を受け付けると、片方を警告なしに捨てる。
- * @param {string[]} args 空文字を除いた引数
+ * `-` で始まる値（`--out -` など）は、値の書き忘れとして扱う。受け付けると、`-` という名前のファイルへ書く。
+ * @param {string[]} args 位置引数の空文字を除いた引数（値を取る名前の直後の空文字は残す）
  * @returns {{ positionals: string[], baseline: string | null, out: string | null, error?: undefined } | { error: string }}
  */
 function parseCliArgs(args) {
-  const parsed = parseFlags(args, { values: ["--baseline", "--out"], positionals: 1 });
+  const parsed = parseFlags(args, { values: VALUE_OPTIONS, positionals: 1 });
   if (parsed.error !== undefined) return { error: parsed.error };
-  const { flags, positionals } = parsed;
-  const text = (/** @type {string} */ name) => {
-    const value = flags[name];
-    return typeof value === "string" ? value : null;
+  const { strings, positionals } = parsed;
+  const dashed = VALUE_OPTIONS.find((name) => strings[name]?.startsWith("-"));
+  if (dashed !== undefined) return { error: `${dashed} に値が無い` };
+  return {
+    positionals,
+    baseline: strings["--baseline"] ?? null,
+    out: strings["--out"] ?? null,
   };
-  return { positionals, baseline: text("--baseline"), out: text("--out") };
 }
 
 /**
@@ -807,7 +813,11 @@ function writeUsageError({ positionals = [], baseline = null, error }) {
  * @returns {number} 終了コード
  */
 export function main(argv) {
-  const parsed = parseCliArgs(argv.filter((a) => a !== ""));
+  // 空文字の位置引数（空の変数の展開など）は除く。値を取る名前の直後の空文字は残し、parseFlags に値の書き忘れとして止めさせる。
+  // 除くと、`--out "" manifest.json` が manifest.json を出力先として読み、マニフェストを上書きする。
+  const parsed = parseCliArgs(
+    argv.filter((a, i) => a !== "" || VALUE_OPTIONS.includes(argv[i - 1] ?? "")),
+  );
   if (parsed.error !== undefined) {
     writeUsageError(parsed);
     return 2;

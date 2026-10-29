@@ -151,6 +151,17 @@ test("CLI として動くことの確認: 子プロセスとして起動して�
   expect(r.status).toBe(2);
 });
 
+test.each([["--root"], ["--tests"]])(
+  "CLI: %s の値が空白だけなら、値の書き忘れとして exit 2 にする",
+  (name) => {
+    const { dir } = run(baseTable());
+    const r = cli(dir, [name, "  "]);
+    expect(r.stderr).toContain(`error: ${name} に値が無い`);
+    expect(r.stdout).toBe("");
+    expect(r.status).toBe(2);
+  },
+);
+
 test("別オリジンの文書は、移行元の本来の配置でも別オリジンになる根拠があれば通す（Issue #450）", () => {
   const t = mutated((x: Table) => {
     x.document_origins["共有ダイアログの iframe"] = "cross-origin";

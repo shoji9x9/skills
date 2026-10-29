@@ -45,6 +45,10 @@ function readArgs(argv, script) {
   if (parsed.error === undefined) return parsed;
   console.error(`error: ${parsed.error}`);
   console.error(script.usage);
+  // スクリプトの使い方には、このモジュールが読む引数が無い。書かないと、受け付ける引数を読み手が知る方法が無い。
+  console.error(
+    "  共通: [--dir <dir>] [--icon-dir <dir>] [--out-dir <dir>] [--timeout-ms <ms>] [--no-sandbox]",
+  );
   process.exit(2);
 }
 

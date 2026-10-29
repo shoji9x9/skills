@@ -4000,6 +4000,9 @@ function readFlags(argv, cwd) {
   });
   if (parsed.error !== undefined) return { error: parsed.error, options: null };
   const { strings, bools } = parsed;
+  // parseFlags は空の値だけを誤りにする。空白だけの値も値の書き忘れとして扱う。
+  const blank = Object.keys(strings).find((name) => !nonEmptyString(strings[name]));
+  if (blank !== undefined) return { error: `${blank} に値が無い`, options: null };
   const root = strings["--root"];
   const options = {
     metadataPath: strings["--metadata"] ?? null,
