@@ -1,6 +1,6 @@
 /**
- * チェック（`scripts/gates/`）が使う git の呼び出し。
- * pre-commit で実行するチェックが git の応答を待ち続けて commit を止めないよう、すべての呼び出しに打ち切りの時間を付ける。
+ * チェック（`check-js-extensions.ts`・`check-skill-lint-directives.ts`・`check-jsdoc-types.ts`）が使う git の呼び出し。
+ * pre-commit で実行するチェックが git の応答を待ち続けて commit を止めないよう、このモジュールの呼び出しにはすべて打ち切りの時間を付ける。
  * 失敗（0 以外の終了・打ち切り・起動の失敗）は、何を読もうとしたかと終わり方（spawnEnd）を書いて投げる。
  */
 import { spawnSync } from "node:child_process";
@@ -30,7 +30,7 @@ export interface GitOptions {
  */
 export function runGit(
   cwd: string,
-  args: readonly string[],
+  args: readonly [string, ...string[]],
   options: GitOptions & { readonly what: string },
 ): string {
   const { what } = options;
@@ -41,7 +41,7 @@ export function runGit(
     maxBuffer: GIT_MAX_BUFFER,
   });
   if (res.status !== 0) {
-    throw new Error(`${what}（git ${args[0] ?? ""} ${spawnEnd(res)}）: ${res.stderr ?? ""}`);
+    throw new Error(`${what}（git ${args[0]} ${spawnEnd(res)}）: ${res.stderr ?? ""}`);
   }
   return res.stdout;
 }
@@ -51,7 +51,8 @@ export function repoRoot(cwd: string, options?: GitOptions): string {
   return runGit(cwd, ["rev-parse", "--show-toplevel"], {
     ...options,
     what: "git のリポジトリのルートを特定できない",
-  }).trim();
+    // 末尾の改行だけを外す。trim はディレクトリ名の末尾の空白も消す
+  }).replace(/\r?\n$/, "");
 }
 
 /**

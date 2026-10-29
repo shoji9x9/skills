@@ -7,8 +7,8 @@
 //
 // 期待値は runGit の doc コメント（`<what>（git <サブコマンド> <終わり方>）: <stderr>`）と spawnEnd の書き方から決める。
 import { chmodSync, realpathSync } from "node:fs";
-import { join } from "node:path";
-import { expect, test } from "vitest";
+import { dirname, join } from "node:path";
+import { expect, onTestFinished, test, vi } from "vitest";
 import { indexBlobs, listFiles, readBlob, repoRoot, runGit } from "./git.ts";
 import { gitInit, write } from "./testing/repo-file.ts";
 import { makeTempDir } from "./testing/test-tmpdir.ts";
@@ -28,6 +28,11 @@ test("listFiles・indexBlobs・readBlob は、追跡しているファイルと 
   runGit(root, ["add", "skills/a.mjs"], { what: "add" });
   write(root, "skills/a.mjs", "worktree\n");
   expect(listFiles(root, ["skills"])).toEqual(["skills/a.mjs"]);
+  // 未追跡のファイルは含め、.gitignore のファイルは除く
+  write(root, "skills/new.mjs", "x\n");
+  write(root, "skills/ignored.mjs", "x\n");
+  write(root, ".gitignore", "skills/ignored.mjs\n");
+  expect(listFiles(root, ["skills"]).sort()).toEqual(["skills/a.mjs", "skills/new.mjs"]);
   const blobs = indexBlobs(root, ["skills/a.mjs"]);
   const blob = blobs.get("skills/a.mjs");
   expect(blob).toMatch(/^[0-9a-f]{40,64}$/);
@@ -36,6 +41,11 @@ test("listFiles・indexBlobs・readBlob は、追跡しているファイルと 
 
 test("0 以外の終了は、何をしようとしたかと終了コードと stderr を書いて投げる", () => {
   const dir = makeTempDir("git-norepo-");
+  // 一時ディレクトリがリポジトリの中にある環境でも、上位のリポジトリを探さない
+  vi.stubEnv("GIT_CEILING_DIRECTORIES", dirname(dir));
+  onTestFinished(() => {
+    vi.unstubAllEnvs();
+  });
   expect(() => repoRoot(dir)).toThrow(
     /^git のリポジトリのルートを特定できない（git rev-parse exit 128）: fatal: not a git repository/u,
   );

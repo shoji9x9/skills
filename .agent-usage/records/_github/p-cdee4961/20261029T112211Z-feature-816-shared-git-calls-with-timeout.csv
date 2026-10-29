@@ -5,3 +5,6 @@ ci:40856578527:1,ci,2026-10-29T11:22:11.820Z,p-cdee4961,github-actions,,,,2026-1
 ci:40856578613:1,ci,2026-10-29T11:22:11.820Z,p-cdee4961,github-actions,,,,2026-10-29T10:18:57.000Z,2026-10-29T10:23:23.000Z,Asia/Tokyo,feature/812-script-input-parsing,812,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-28T10:17:56.276Z:2026-10-29T11:22:11.820Z,coverage,2026-10-29T11:22:11.820Z,p-cdee4961,,,,,2026-10-28T10:17:56.276Z,2026-10-29T11:22:11.820Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-28T11:22:11.820Z:2026-10-29T11:28:02.691Z,coverage,2026-10-29T11:28:02.691Z,p-cdee4961,,,,,2026-10-28T11:22:11.820Z,2026-10-29T11:28:02.691Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:40865970122:1,ci,2026-10-29T11:36:47.854Z,p-cdee4961,github-actions,,,,2026-10-29T11:30:54.000Z,2026-10-29T11:30:55.000Z,Asia/Tokyo,feature/816-shared-git-calls-with-timeout,816,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40865969909:1,ci,2026-10-29T11:36:47.854Z,p-cdee4961,github-actions,,,,2026-10-29T11:30:53.000Z,2026-10-29T11:35:02.000Z,Asia/Tokyo,feature/816-shared-git-calls-with-timeout,816,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-28T11:28:02.691Z:2026-10-29T11:36:47.854Z,coverage,2026-10-29T11:36:47.854Z,p-cdee4961,,,,,2026-10-28T11:28:02.691Z,2026-10-29T11:36:47.854Z,Asia/Tokyo,,,,,,,,,,,,ok,
