@@ -20,3 +20,6 @@ coverage:github:2026-10-28T15:13:55.647Z:2026-10-29T15:25:58.371Z,coverage,2026-
 ci:40901672331:1,ci,2026-10-29T15:43:06.508Z,p-cdee4961,github-actions,,,,2026-10-29T15:27:00.000Z,2026-10-29T15:34:11.000Z,Asia/Tokyo,feature/818-shared-flag-parser,818,,,,,,,,,,CI;pull_request;failure,
 ci:40901672333:1,ci,2026-10-29T15:43:06.508Z,p-cdee4961,github-actions,,,,2026-10-29T15:27:00.000Z,2026-10-29T15:27:01.000Z,Asia/Tokyo,feature/818-shared-flag-parser,818,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 coverage:github:2026-10-28T15:25:58.371Z:2026-10-29T15:43:06.508Z,coverage,2026-10-29T15:43:06.508Z,p-cdee4961,,,,,2026-10-28T15:25:58.371Z,2026-10-29T15:43:06.508Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:40904548282:1,ci,2026-10-29T15:51:07.048Z,p-cdee4961,github-actions,,,,2026-10-29T15:44:08.000Z,2026-10-29T15:44:09.000Z,Asia/Tokyo,feature/818-shared-flag-parser,818,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40904548351:1,ci,2026-10-29T15:51:07.048Z,p-cdee4961,github-actions,,,,2026-10-29T15:44:08.000Z,2026-10-29T15:49:51.000Z,Asia/Tokyo,feature/818-shared-flag-parser,818,,,,,,,,,,CI;pull_request;failure,
+coverage:github:2026-10-28T15:43:06.508Z:2026-10-29T15:51:07.048Z,coverage,2026-10-29T15:51:07.048Z,p-cdee4961,,,,,2026-10-28T15:43:06.508Z,2026-10-29T15:51:07.048Z,Asia/Tokyo,,,,,,,,,,,,ok,
