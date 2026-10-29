@@ -781,10 +781,11 @@ function parseCliArgs(args) {
   if (parsed.error !== undefined) return { error: parsed.error };
   const { strings } = parsed;
   // 空文字の位置引数（空の変数の展開など）は除く。位置引数（マニフェスト）は 1 つまで受け付ける。
-  const positionals = parsed.positionals.filter((arg) => arg !== "");
-  if (positionals.length > 1) return { error: `不明な引数: ${positionals[1]}` };
+  // 値の誤りを、位置引数の数の誤りより先に報告する（移す前と同じ順）。
   const dashed = VALUE_OPTIONS.find((name) => strings[name]?.startsWith("-"));
   if (dashed !== undefined) return { error: `${dashed} に値が無い` };
+  const positionals = parsed.positionals.filter((arg) => arg !== "");
+  if (positionals.length > 1) return { error: `不明な引数: ${positionals[1]}` };
   return {
     positionals,
     baseline: strings["--baseline"] ?? null,

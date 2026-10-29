@@ -1295,12 +1295,10 @@ const COMMAND_FLAGS = {
  * @returns {{ pos: string[]; flags: Record<string, string | true> }}
  */
 function parseArgs(argv) {
-  // parseFlags は `-` だけの引数を標準入力を指す位置引数として扱うが、この CLI は標準入力を読まない。
-  // `--` より前の `-` は、移す前と同じく受け付けない引数として扱う（`--` より後は位置引数として受け付ける）。
-  const end = argv.indexOf("--");
-  if (argv.slice(0, end < 0 ? argv.length : end).includes("-"))
-    throw new UsageError("不明な引数: -");
+  // この CLI は標準入力を読まないので、`--` より前の `-` だけの引数は、移す前と同じく受け付けない（stdin: false）。
+  // `--root -` のような名前の値の `-` と、`--` より後の `-` は受け付ける。
   const parsed = parseFlags(argv, {
+    stdin: false,
     values: [...VALUED_FLAGS],
     bools: [...BARE_FLAGS],
     positionals: Number.POSITIVE_INFINITY,
@@ -1319,7 +1317,8 @@ function parseArgs(argv) {
  * - dashValues: values のうち、`--` で始まる値を受け付ける名前（CSS のカスタムプロパティなど）
  * - positionals: 位置引数（`-` で始まらない引数・`-` だけの引数・`--` より後の引数）の最大の数（省略すると 0）
  * - equals: true なら `--名前=値` の形も受け付ける
- * @typedef {{ values?: readonly string[], repeat?: readonly string[], bools?: readonly string[], dashValues?: readonly string[], positionals?: number, equals?: boolean }} FlagSpec
+ * - stdin: false なら、`-` だけの引数を位置引数にせず、受け付けない引数にする（標準入力を読まない CLI）。名前の値としての `-` は受け付ける
+ * @typedef {{ values?: readonly string[], repeat?: readonly string[], bools?: readonly string[], dashValues?: readonly string[], positionals?: number, equals?: boolean, stdin?: boolean }} FlagSpec
  */
 
 /**
@@ -1371,8 +1370,8 @@ function parseFlags(argv, spec) {
  */
 function readFlagArg(argv, i, state) {
   const arg = argv[i];
-  // `-` だけの引数は、標準入力を指す位置引数として扱う。
-  if (!arg.startsWith("-") || arg === "-") {
+  // `-` だけの引数は、標準入力を指す位置引数として扱う（stdin: false の CLI を除く）。
+  if (!arg.startsWith("-") || (arg === "-" && state.spec.stdin !== false)) {
     const error = pushPositional(arg, state);
     return error ? { error } : { next: i };
   }

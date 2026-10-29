@@ -127,6 +127,16 @@ describe.each(COPIES)("$skill の lib/flags.mjs", ({ lib }) => {
     expect(parseFlags(["--"], { values: ["--out"] })).toEqual({ error: "不明な引数: --" });
   });
 
+  test("parseFlags: stdin: false なら `-` だけの位置引数を受け付けず、名前の値と `--` より後の `-` は受け付ける", () => {
+    const spec = { values: ["--root"], positionals: 2, stdin: false };
+    expect(parseFlags(["a", "-"], spec)).toEqual({ error: "不明な引数: -" });
+    expect(parseFlags(["--root", "-", "a"], spec)).toMatchObject({
+      strings: { "--root": "-" },
+      positionals: ["a"],
+    });
+    expect(parseFlags(["--", "-"], spec)).toMatchObject({ positionals: ["-"] });
+  });
+
   test.each([
     ["空白だけの値", ["--file", "  "], "--file に値が無い"],
     ["`-` 1 つで始まる受け付ける名前（-h）", ["--file", "-h"], "--file に値が無い"],
