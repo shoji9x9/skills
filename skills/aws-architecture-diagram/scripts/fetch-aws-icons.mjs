@@ -20,28 +20,16 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { diagramConfig } from "./diagram-config.mjs";
 
-const config = diagramConfig(process.argv.slice(2));
+const config = diagramConfig(process.argv.slice(2), {
+  values: ["--out", "--only"],
+  usage: "usage: node fetch-aws-icons.mjs [--only id,...] [--out <dir>]",
+});
 const diagramDir = config.dir;
 const ICONS_PAGE = "https://aws.amazon.com/architecture/icons/";
 
-// フラグが在ることと値を区別する。値が無いときや、次が別のフラグ（--）のときは、エラーにする。
-// 警告なしに次のフラグを値として扱ったり、全件の取得として扱ったりしない。
 /** @param {string} name */
 function arg(name) {
-  const argv = config.rest;
-  const eq = argv.find((a) => a.startsWith(`${name}=`));
-  if (eq) {
-    const v = eq.slice(name.length + 1);
-    if (!v) throw new Error(`${name}= には値を指定してください（例: ${name}=lambda,dynamodb）`);
-    return v;
-  }
-  const i = argv.indexOf(name);
-  if (i < 0) return undefined;
-  const v = argv[i + 1];
-  if (v === undefined || v.startsWith("--")) {
-    throw new Error(`${name} には値を指定してください（例: ${name} lambda,dynamodb）`);
-  }
-  return v;
+  return config.strings[name];
 }
 
 const OUT_DIR = arg("--out") ?? join(config.iconDir, "aws-icons");

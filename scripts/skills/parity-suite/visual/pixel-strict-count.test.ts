@@ -84,31 +84,49 @@ function runCounter(argv: string[]) {
 }
 
 test.each([
-  ["値が無い", ["a.png", "b.png", "--diff"]],
-  ["値が空白だけ", ["a.png", "b.png", "--diff", "   "]],
-])("--diff の%sなら、その理由で落ちる（基準値を埋め損ねたまま通さない）", async (_name, argv) => {
-  const { code, stderr } = await runCounter(argv);
+  ["値が無い", ["a.png", "b.png", "--diff"], /error: --diff に値が無い/],
+  ["値が空", ["a.png", "b.png", "--diff", ""], /error: --diff に値が無い/],
+  ["値が空白だけ", ["a.png", "b.png", "--diff", "   "], /error: --diff に値が無い/],
+])(
+  "--diff の%sなら、その理由で落ちる（基準値を埋め損ねたまま通さない）",
+  async (_name, argv, reason) => {
+    const { code, stderr } = await runCounter(argv);
 
-  expect(code).toBe(2);
-  expect(stderr).toMatch(/--diff requires a path/);
-});
+    expect(code).toBe(2);
+    expect(stderr).toMatch(reason);
+  },
+);
 
 test.each([
   ["3 桁", "f00"],
   ["16 進でない文字を含む", "gg0000"],
-  ["値が無い", undefined],
 ])("--diff-color が 6 桁の 16 進でなければ（%s）、その理由で落ちる", async (_name, color) => {
-  const argv = ["a.png", "b.png", "--diff-color", ...(color === undefined ? [] : [color])];
-  const { code, stderr } = await runCounter(argv);
+  const { code, stderr } = await runCounter(["a.png", "b.png", "--diff-color", color]);
 
   expect(code).toBe(2);
   expect(stderr).toMatch(/--diff-color must be a 6-digit hex color/);
 });
 
 test.each([
+  ["--diff-color の値が無い", ["a.png", "b.png", "--diff-color"], /error: --diff-color に値が無い/],
+  [
+    "--diff の重複",
+    ["a.png", "b.png", "--diff", "d.png", "--diff", "e.png"],
+    /error: --diff が重複している/,
+  ],
+  ["入力が 3 つ", ["a.png", "b.png", "c.png"], /error: 不明な引数: c\.png/],
+  ["不明な名前", ["a.png", "b.png", "--bogus"], /error: 不明な引数: --bogus/],
+])("引数の誤り（%s）は、その理由と使い方を出して落ちる", async (_name, argv, reason) => {
+  const { code, stderr } = await runCounter(argv);
+
+  expect(code).toBe(2);
+  expect(stderr).toMatch(reason);
+  expect(stderr).toMatch(/^usage: node pixel-strict-count\.mjs/m);
+});
+
+test.each([
   ["入力が無い", []],
   ["入力が 1 つ", ["a.png"]],
-  ["入力が 3 つ", ["a.png", "b.png", "c.png"]],
 ])("入力の PNG が 2 つでなければ（%s）、使い方を出して落ちる", async (_name, argv) => {
   const { code, stderr } = await runCounter(argv);
 

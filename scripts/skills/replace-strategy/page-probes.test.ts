@@ -242,7 +242,7 @@ test.each([
     expect(r.status).toBe(2);
     expect(r.stdout).toBe("");
     expect(r.stderr).toBe(
-      `未知の引数: ${arg}\nusage: node ${name}（引数を取らない。stdout に evaluate_script へ渡す関数式を出す）\n`,
+      `不明な引数: ${arg}\nusage: node ${name}（引数を取らない。stdout に evaluate_script へ渡す関数式を出す）\n`,
     );
   },
 );

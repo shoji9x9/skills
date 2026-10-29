@@ -1,30 +1,7 @@
-// 検査の CLI（`--名前 値` の引数を読み、判定の結果を stdout へ JSON で書くもの）に共通する処理。
+// 検査の CLI（`--名前 値` の引数を読み、判定の結果を stdout へ JSON で書くもの）に共通する処理。引数は lib/flags.mjs の parseFlags で読む。
 // このファイルは、同じ内容を複数の配布スキルが持つ。スキルの中で完結させるため、共有せずにコピーする。
 
 import { readFileSync } from "node:fs";
-
-/**
- * `--名前 値` の組を読む。`known` に無い引数・値の無い名前・2 回目の名前があれば、error に理由を入れて返す。
- * 名前は値より先に確かめる。値を確かめてからでは、値の無い未知の引数を「値がない」と報告し、受け付ける引数のように読める。
- * 必須の引数と値の中身は、各 CLI が受け取った後に確かめる。
- * @param {string[]} argv
- * @param {readonly string[]} known 受け付ける名前
- * @returns {{ args: Record<string, string>, error?: undefined } | { args?: undefined, error: string }}
- */
-function parseFlagPairs(argv, known) {
-  /** @type {Record<string, string>} */
-  const args = {};
-  for (let i = 0; i < argv.length; i += 1) {
-    const key = argv[i];
-    if (!known.includes(key)) return { error: `不明な引数: ${key}` };
-    const value = argv[i + 1];
-    if (typeof value !== "string" || value.startsWith("--")) return { error: `${key} に値がない` };
-    if (args[key] !== undefined) return { error: `${key} が複数ある` };
-    args[key] = value;
-    i += 1;
-  }
-  return { args };
-}
 
 /**
  * 理由と使い方を stderr へ書いて 2 を返す関数を作る。
@@ -82,4 +59,4 @@ function cliIo(deps) {
   };
 }
 
-export { cliIo, parseFlagPairs, usageFailer, writeCheckResult };
+export { cliIo, usageFailer, writeCheckResult };

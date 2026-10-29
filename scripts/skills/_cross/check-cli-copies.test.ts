@@ -1,4 +1,4 @@
-// 配布スキルの lib/check-cli.mjs（検査の CLI の引数の読み取り・誤りの出力・結果の JSON）のテスト。
+// 配布スキルの lib/check-cli.mjs（検査の CLI の誤りの出力・結果の JSON）のテスト。
 // 同じ内容のコピーを parity-suite・parity-component・golden-dataset が持つ。
 // コピーが同じ内容であることは identical-copies のチェックが確かめるが、カバレッジはファイルごとに測るので、どのコピーも実行する。
 
@@ -22,21 +22,6 @@ function sink() {
 }
 
 describe.each(COPIES)("$skill の lib/check-cli.mjs", ({ lib }) => {
-  test.each([
-    { argv: [], expected: { args: {} } },
-    { argv: ["--a", "1", "--b", "x y"], expected: { args: { "--a": "1", "--b": "x y" } } },
-    { argv: ["a"], expected: { error: "不明な引数: a" } },
-    { argv: ["--a"], expected: { error: "--a に値がない" } },
-    { argv: ["--a", "--b"], expected: { error: "--a に値がない" } },
-    { argv: ["--a", "1", "--a", "2"], expected: { error: "--a が複数ある" } },
-    { argv: ["--c", "1", "--d", "2"], expected: { error: "不明な引数: --c" } },
-    // 値の無い未知の引数も、値の誤りではなく未知の引数として報告する。
-    { argv: ["--a", "1", "--c"], expected: { error: "不明な引数: --c" } },
-    { argv: ["--c", "--a", "1"], expected: { error: "不明な引数: --c" } },
-  ])("parseFlagPairs($argv) は $expected を返す", ({ argv, expected }) => {
-    expect(lib.parseFlagPairs(argv, ["--a", "--b"])).toEqual(expected);
-  });
-
   test("usageFailer は理由と使い方を stderr に書いて 2 を返す", () => {
     const err = sink();
     expect(lib.usageFailer(err.write, "usage: x")("理由")).toBe(2);

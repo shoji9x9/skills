@@ -1533,6 +1533,7 @@ describe("agent-usage のコマンドと Hook", () => {
     const { cli } = setup();
     const bad = cli("collect", "--nope");
     expect(bad.status).toBe(2);
+    expect(bad.stderr).toMatch(/^agent-usage: 不明な引数: --nope$/m);
     expect(bad.stderr).toMatch(/^usage: /m);
     expect(cli("report", "--since").status).toBe(2);
     expect(cli("unknown").status).toBe(2);
@@ -1607,8 +1608,9 @@ describe("agent-usage のコマンドの入力と状態", () => {
     [
       "同じ引数が 2 回ある",
       ["setup", "--time-zone", "UTC", "--time-zone", "UTC"],
-      /--time-zone が 2 回ある/,
+      /--time-zone が重複している/,
     ],
+    ["値が -- で始まる", ["setup", "--time-zone", "--billing"], /--time-zone に値が無い/],
   ])("setup は、%s なら使い方を出して 2 で止める", (_case, args, message) => {
     const { cli } = setup();
     const r = cli(...args);

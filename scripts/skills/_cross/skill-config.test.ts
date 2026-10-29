@@ -1117,7 +1117,28 @@ describe.each(COPIES)("%s", (copy) => {
       expect(JSON.parse(readFileSync(s.paths.repo, "utf8"))).toEqual({ either: -1 });
       const r = await cli(["set", "t", "either", "-1", ...args], s.env, s.root);
       expect(r.code).toBe(2);
-      expect(r.err).toMatch(/知らないオプション -1（- で始まる値は -- の後に置く）/);
+      expect(r.err).toMatch(/^error: 不明な引数: -1\n/);
+      expect(r.err).toMatch(/- で始まる値（負の数など）は、-- の後に置く/);
+      // -- の後の --layer はオプションとして読まず、位置引数の 1 つとして数える
+      const after = await cli(
+        [
+          "set",
+          "t",
+          "--root",
+          s.root,
+          "--schema-dir",
+          s.schemaDir,
+          "--",
+          "either",
+          "-1",
+          "--layer",
+          "repo",
+        ],
+        s.env,
+        s.root,
+      );
+      expect(after.code).toBe(2);
+      expect(after.err).toMatch(/^error: set の引数の数が違う\n/);
     });
 
     test("--root を省くと cwd のリポジトリのルートを使う", async () => {
@@ -1137,7 +1158,11 @@ describe.each(COPIES)("%s", (copy) => {
       ["知らないサブコマンド", ["remove", "t"]],
       ["知らないオプション", ["get", "t", "k", "--force"]],
       ["値の無いオプション", ["get", "t", "k", "--root"]],
+      ["値が -- で始まるオプション", ["get", "t", "k", "--cli-value", "--raw"]],
       ["空の値のオプション", ["get", "t", "k", "--root", ""]],
+      ["空白だけの値のオプション", ["get", "t", "k", "--root", "  "]],
+      ["値が -h のオプション", ["get", "t", "k", "--root", "-h"]],
+      ["-- より前の - だけの引数（この CLI は標準入力を読まない）", ["get", "t", "-"]],
       ["get の引数の数", ["get", "t"]],
       ["dump の引数の数", ["dump", "t", "x"]],
       ["validate の引数の数", ["validate", "t", "x"]],
@@ -1161,7 +1186,11 @@ describe.each(COPIES)("%s", (copy) => {
       const r = await cli([...argv, "--schema-dir", s.schemaDir], s.env, s.root);
       expect(r.code).toBe(2);
       expect(r.err).toMatch(/^error: [\s\S]*usage:/);
-      if (_name.endsWith("2 回")) expect(r.err).toMatch(/を 2 回渡している/);
+      if (_name.endsWith("2 回")) expect(r.err).toMatch(/^error: --(layer|raw) が重複している\n/);
+      if (_name.startsWith("知らないオプション"))
+        expect(r.err).toMatch(/^error: 不明な引数: --force\n/);
+      if (/^(値の無い|空の値|空白だけの値|値が -)/.test(_name))
+        expect(r.err).toMatch(/^error: --(root|cli-value) に値が無い\n/);
       if (_name.endsWith("関係しないオプション")) expect(r.err).toMatch(/に --[a-z-]+ は渡せない/);
     });
 

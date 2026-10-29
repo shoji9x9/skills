@@ -30,7 +30,7 @@
 import { readFileSync } from "node:fs";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
-import { parseFlagOpts } from "./lib/flag-opts.mjs";
+import { parseCheckArgs } from "./lib/check-args.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 import { intentionalEntryText } from "./lib/intentional.mjs";
 import { valueText } from "./lib/value-text.mjs";
@@ -671,13 +671,11 @@ const USAGE =
  * @returns {Record<string, string>|null}
  */
 function parseArgs(argv) {
-  const opts = parseFlagOpts(argv, ["--registries", "--metadata", "--features"], USAGE);
-  if (opts === null) return null;
-  if (!opts.registries || !opts.metadata) {
-    process.stderr.write(USAGE);
-    return null;
-  }
-  return opts;
+  return parseCheckArgs(argv, {
+    values: ["--registries", "--metadata", "--features"],
+    required: ["registries", "metadata"],
+    usage: USAGE,
+  });
 }
 
 /**

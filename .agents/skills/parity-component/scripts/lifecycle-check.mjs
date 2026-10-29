@@ -26,6 +26,7 @@ import { isArray } from "./lib/is-array.mjs";
 
 import { cliIo, usageFailer, writeCheckResult } from "./lib/check-cli.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
+import { parseFlags } from "./lib/flags.mjs";
 import { field, filled, isObjectLike, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
 /** ツールのバージョン（このスクリプトで定義する）。判定の規則・出力の形を変えたら上げる。 */
@@ -258,13 +259,14 @@ export function main(argv, io = {}) {
     writeErr,
     "usage: lifecycle-check.mjs --build-metadata <new/<target>/build-metadata.json>",
   );
-  if (argv.length !== 2 || argv[0] !== "--build-metadata") {
-    return fail(argv.length === 0 ? "--build-metadata は必須" : `不明な引数: ${argv.join(" ")}`);
-  }
-  if (!nonEmptyString(argv[1])) return fail("--build-metadata は必須（空白だけの値も不可）");
+  const parsed = parseFlags(argv, { values: ["--build-metadata"] });
+  if (parsed.error !== undefined) return fail(parsed.error);
+  // 空白だけの値は、parseFlags が値の書き忘れとして止める。
+  const path = parsed.strings["--build-metadata"];
+  if (path === undefined) return fail("--build-metadata は必須");
   let metadata;
   try {
-    metadata = JSON.parse(readFile(resolve(cwd, argv[1])));
+    metadata = JSON.parse(readFile(resolve(cwd, path)));
   } catch (error) {
     return fail(`build-metadata.json を読めない: ${String(field(error, "message"))}`);
   }

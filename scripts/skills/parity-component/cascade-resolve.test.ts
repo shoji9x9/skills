@@ -562,7 +562,69 @@ test("--property は CSS カスタムプロパティも受け取る", () => {
     { timeout: CHILD_TIMEOUT_MS, encoding: "utf8" },
   );
   expect(swallowed.status).toBe(2);
-  expect(swallowed.stderr).toMatch(/--property requires a value/);
+  expect(swallowed.stderr).toMatch(/--property に値が無い/);
+});
+
+test("CLI: --property の値に、値を取らない引数（--allow-incomplete）を書いたら値が無いとして exit 2（#773）", () => {
+  const out = runCli(["--property", "--allow-incomplete"]);
+  expect(out.status).toBe(2);
+  expect(out.stderr).toMatch(/--property に値が無い/);
+});
+
+test("CLI: --state と --property は繰り返してよく、値を 1 つの引数に 1 つずつ受け取る", () => {
+  const out = runCli(
+    [
+      "--css-rules",
+      "in.json",
+      "--state",
+      "default",
+      "--state",
+      "hover",
+      "--property",
+      "color",
+      "--property",
+      "--brand",
+    ],
+    {
+      "in.json": doc({
+        matched: [
+          {
+            order: 1,
+            selector: ".btn",
+            declarations: [decl("color", "red"), decl("--brand", "blue")],
+          },
+        ],
+      }),
+    },
+  );
+  expect(out.status, out.stderr).toBe(0);
+  // 結果の並びはプロパティ名の順なので、並びを比べずに値の集合で比べる。
+  const values = parseJsonAs<CliReport>(out.stdout).results.map((r) => r.winner.value);
+  expect(values).toHaveLength(2);
+  expect(values).toEqual(expect.arrayContaining(["red", "blue"]));
+});
+
+test("CLI: --css-rules を 2 回書いたら exit 2", () => {
+  const out = runCli([
+    "--css-rules",
+    "a.json",
+    "--css-rules",
+    "b.json",
+    "--state",
+    "default",
+    "--all",
+  ]);
+  expect(out.status).toBe(2);
+  expect(out.stderr).toMatch(/--css-rules が重複している/);
+});
+
+test("CLI: 受け付けない引数と空白だけの値は exit 2", () => {
+  const unknown = runCli(["--css-rules", "in.json", "--state", "default", "--all", "--bogus"]);
+  expect(unknown.status).toBe(2);
+  expect(unknown.stderr).toMatch(/不明な引数: --bogus/);
+  const blank = runCli(["--css-rules", "in.json", "--state", " ", "--all"]);
+  expect(blank.status).toBe(2);
+  expect(blank.stderr).toMatch(/--state に値が無い/);
 });
 
 test("採取スキーマが違う入力は読まない", () => {

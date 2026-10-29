@@ -28,7 +28,8 @@
 import { existsSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
-import { cliIo, parseFlagPairs } from "./lib/check-cli.mjs";
+import { cliIo } from "./lib/check-cli.mjs";
+import { parseFlags } from "./lib/flags.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
 import { isPlaceholder, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
@@ -772,15 +773,11 @@ function resolveIo(deps) {
  * @returns {Record<string, string>}
  */
 function parseArgs(argv) {
-  const parsed = parseFlagPairs(argv, [
-    "--change",
-    "--component-metadata",
-    "--parity-root",
-    "--feature",
-    "--out",
-  ]);
+  const parsed = parseFlags(argv, {
+    values: ["--change", "--component-metadata", "--parity-root", "--feature", "--out"],
+  });
   if (parsed.error !== undefined) throw new InputError(parsed.error);
-  const { args } = parsed;
+  const args = parsed.strings;
   for (const key of ["--change", "--component-metadata", "--parity-root"]) {
     if (!args[key]) throw new InputError(`${key} は必須`);
   }

@@ -39,7 +39,8 @@
 
 import { resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
-import { cliIo, parseFlagPairs, usageFailer, writeCheckResult } from "./lib/check-cli.mjs";
+import { cliIo, usageFailer, writeCheckResult } from "./lib/check-cli.mjs";
+import { parseFlags } from "./lib/flags.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
 import {
@@ -2304,11 +2305,11 @@ export function main(argv, deps = {}) {
     writeErr,
     "usage: capture-scope-check.mjs --metadata <.replace/parity/<slug>/metadata.json>",
   );
-  const parsed = parseFlagPairs(argv, ["--metadata"]);
+  const parsed = parseFlags(argv, { values: ["--metadata"] });
   if (parsed.error !== undefined) {
     return fail(parsed.error);
   }
-  const metadataPath = parsed.args["--metadata"];
+  const metadataPath = parsed.strings["--metadata"];
   if (!metadataPath) {
     return fail("--metadata は必須");
   }
