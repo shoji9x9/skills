@@ -1,0 +1,6 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:40800746163:1,ci,2026-10-29T01:37:16.285Z,p-cdee4961,github-actions,,,,2026-10-29T01:29:39.000Z,2026-10-29T01:33:50.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:40800745260:1,ci,2026-10-29T01:37:16.285Z,p-cdee4961,github-actions,,,,2026-10-29T01:29:38.000Z,2026-10-29T01:30:00.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:40800150501:1,ci,2026-10-29T01:37:16.285Z,p-cdee4961,github-actions,,,,2026-10-29T01:23:40.000Z,2026-10-29T01:23:41.000Z,Asia/Tokyo,feature/794-search-pattern-across-pr-diff,794,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40800150601:1,ci,2026-10-29T01:37:16.285Z,p-cdee4961,github-actions,,,,2026-10-29T01:23:40.000Z,2026-10-29T01:27:45.000Z,Asia/Tokyo,feature/794-search-pattern-across-pr-diff,794,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-28T01:22:55.711Z:2026-10-29T01:37:16.285Z,coverage,2026-10-29T01:37:16.285Z,p-cdee4961,,,,,2026-10-28T01:22:55.711Z,2026-10-29T01:37:16.285Z,Asia/Tokyo,,,,,,,,,,,,ok,
