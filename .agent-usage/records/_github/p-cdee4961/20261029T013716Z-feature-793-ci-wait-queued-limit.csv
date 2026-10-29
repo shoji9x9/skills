@@ -26,3 +26,7 @@ coverage:github:2026-10-28T02:11:20.081Z:2026-10-29T02:16:49.719Z,coverage,2026-
 ci:40805465899:1,ci,2026-10-29T02:35:40.178Z,p-cdee4961,github-actions,,,,2026-10-29T02:17:25.000Z,2026-10-29T02:17:34.000Z,Asia/Tokyo,feature/793-ci-wait-queued-limit,793,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:40805466130:2,ci,2026-10-29T02:35:40.178Z,p-cdee4961,github-actions,,,,2026-10-29T02:34:22.000Z,2026-10-29T02:35:40.178Z,Asia/Tokyo,feature/793-ci-wait-queued-limit,793,,,,,,,,,,CI;pull_request;open,
 coverage:github:2026-10-28T02:16:49.719Z:2026-10-29T02:35:40.178Z,coverage,2026-10-29T02:35:40.178Z,p-cdee4961,,,,,2026-10-28T02:16:49.719Z,2026-10-29T02:35:40.178Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:40807352974:1,ci,2026-10-29T02:40:09.661Z,p-cdee4961,github-actions,,,,2026-10-29T02:36:26.000Z,2026-10-29T02:36:34.000Z,Asia/Tokyo,feature/793-ci-wait-queued-limit,793,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40807352994:1,ci,2026-10-29T02:40:09.661Z,p-cdee4961,github-actions,,,,2026-10-29T02:36:26.000Z,2026-10-29T02:40:09.661Z,Asia/Tokyo,feature/793-ci-wait-queued-limit,793,,,,,,,,,,CI;pull_request;open,
+ci:40805466130:2,ci,2026-10-29T02:40:09.661Z,p-cdee4961,github-actions,,,,2026-10-29T02:34:22.000Z,2026-10-29T02:37:14.000Z,Asia/Tokyo,feature/793-ci-wait-queued-limit,793,,,,,,,,,,CI;pull_request;cancelled,
+coverage:github:2026-10-28T02:35:40.178Z:2026-10-29T02:40:09.661Z,coverage,2026-10-29T02:40:09.661Z,p-cdee4961,,,,,2026-10-28T02:35:40.178Z,2026-10-29T02:40:09.661Z,Asia/Tokyo,,,,,,,,,,,,ok,
