@@ -194,7 +194,7 @@
     },
     {
       "id": "per-spec-readonly-unbound",
-      "why": "状態を変えないスペックの 1 回の緑を現在の版に結びつけない（Codex レビュー）",
+      "why": "状態を変えないスペックの 1 回の緑を現在のバージョンに結びつけない（Codex レビュー）",
       "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
       "find": "  for (const spec of readOnly) {\n",
       "replace": "  for (const spec of []) {\n",

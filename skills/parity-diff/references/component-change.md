@@ -79,7 +79,7 @@
    ```bash
    # 先の検査の失敗を後の検査の成功で上書きしない（非 0 をそのまま返す）。対話シェルを閉じないよう ( ) で囲む
    (
-     # 検証先の版は変更宣言から機械的に取る（表示から書き写さない）。続けて当てた宣言があるなら最後の宣言を渡す
+     # 検証先のバージョンは変更宣言から機械的に取る（表示から書き写さない）。続けて当てた宣言があるなら最後の宣言を渡す
      AFTER=$(node -e 'const c = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(String(c.commits?.after ?? ""))' \
        .replace/components/<slug>/changes/<change-id>.json)
      [ -n "$AFTER" ] || { echo "変更宣言の commits.after が読めない" >&2; exit 2; }

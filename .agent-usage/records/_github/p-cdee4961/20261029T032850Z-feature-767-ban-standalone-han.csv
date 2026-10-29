@@ -7,3 +7,6 @@ coverage:github:2026-10-28T03:28:50.790Z:2026-10-29T03:29:09.037Z,coverage,2026-
 coverage:github:2026-10-28T03:29:09.037Z:2026-10-29T03:32:15.994Z,coverage,2026-10-29T03:32:15.994Z,p-cdee4961,,,,,2026-10-28T03:29:09.037Z,2026-10-29T03:32:15.994Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-28T03:32:15.994Z:2026-10-29T03:47:43.253Z,coverage,2026-10-29T03:47:43.253Z,p-cdee4961,,,,,2026-10-28T03:32:15.994Z,2026-10-29T03:47:43.253Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-28T03:47:43.253Z:2026-10-29T03:49:24.204Z,coverage,2026-10-29T03:49:24.204Z,p-cdee4961,,,,,2026-10-28T03:47:43.253Z,2026-10-29T03:49:24.204Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:40814477078:1,ci,2026-10-29T04:05:26.040Z,p-cdee4961,github-actions,,,,2026-10-29T03:51:25.000Z,2026-10-29T03:51:26.000Z,Asia/Tokyo,feature/767-ban-standalone-han,767,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40814477041:1,ci,2026-10-29T04:05:26.040Z,p-cdee4961,github-actions,,,,2026-10-29T03:51:25.000Z,2026-10-29T03:58:09.000Z,Asia/Tokyo,feature/767-ban-standalone-han,767,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-28T03:49:24.204Z:2026-10-29T04:05:26.040Z,coverage,2026-10-29T04:05:26.040Z,p-cdee4961,,,,,2026-10-28T03:49:24.204Z,2026-10-29T04:05:26.040Z,Asia/Tokyo,,,,,,,,,,,,ok,

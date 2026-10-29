@@ -78,36 +78,36 @@
   # 停止する分岐は非 0 で終える（手順に組み込んだときに停止を表示したまま撮影へ進ませない）。対話シェルを閉じないよう ( ) で囲む
   (
     if [ -n "$DELIVERED" ] && [ -z "$COMMIT_CHECK" ]; then
-      # 稼働中の版を機械で確かめる手段が無い。ローカルの HEAD はデプロイ済みの版を表さないので比べない
+      # 稼働中のバージョンを機械で確かめる手段が無い。ローカルの HEAD はデプロイ済みのバージョンを表さないので比べない
       echo "停止: commit_check が無い配信型 target。commit ${RECORDED:-（読めない）} がデプロイ済みか利用者に確認する"; exit 1
     elif [ -n "$COMMIT_CHECK" ]; then
-      # 配信型 target: 稼働中のコードの版は commit_check だけが知っている（HEAD はデプロイ済みの版を表さない）
+      # 配信型 target: 稼働中のコードのバージョンは commit_check だけが知っている（HEAD はデプロイ済みのバージョンを表さない）
       # 終了コードはパイプへ流す前に検査する（パイプの末尾の tr に隠れて、失敗した確認を成功扱いしない）
-      RAW=$(bash -c "$COMMIT_CHECK" </dev/null) || { echo "停止: commit_check が失敗した（撮る版を特定できない）"; exit 1; }
+      RAW=$(bash -c "$COMMIT_CHECK" </dev/null) || { echo "停止: commit_check が失敗した（撮るバージョンを特定できない）"; exit 1; }
       CAPTURE=$(printf '%s' "$RAW" | tr -d '[:space:]' | tr 'A-F' 'a-f')
       WANT=$(printf '%s' "$RECORDED" | tr 'A-F' 'a-f')
     else
       CAPTURE=$(git -C <新側リポジトリ> rev-parse --verify HEAD)
       if [ -n "$CAPTURE" ] && [ -n "$(git -C <新側リポジトリ> status --porcelain)" ]; then
-        echo "停止: 新側の作業ツリーに未コミットの変更がある（撮る版を特定できない）"; exit 1
+        echo "停止: 新側の作業ツリーに未コミットの変更がある（撮るバージョンを特定できない）"; exit 1
       fi
       WANT=$(git -C <新側リポジトリ> rev-parse --verify --quiet "${RECORDED}^{commit}")
     fi
     if [ -z "$CAPTURE" ]; then
       # リポジトリのパス違い・commit_check の失敗等で空になると、下の比較が空同士で「一致」に倒れる
-      echo "停止: 撮る版を読めない（新側リポジトリの HEAD / commit_check の出力が空）"; exit 1
+      echo "停止: 撮るバージョンを読めない（新側リポジトリの HEAD / commit_check の出力が空）"; exit 1
     elif [ "$RECORDED" = none ]; then
-      echo "照合しない: 照合相手が none（版の対応は反復回数で取る）"
+      echo "照合しない: 照合相手が none（バージョンの対応は反復回数で取る）"
     elif ! printf '%s' "$RECORDED" | grep -Eqix '[0-9a-f]{40}|[0-9a-f]{64}'; then
       # rev-parse は短縮 SHA や参照名（main 等）も完全 SHA へ展開するので、展開する前の値を検査する
       echo "停止: 照合相手が完全な SHA でない（${RECORDED:-（読めない）}）"; exit 1
     elif ! printf '%s' "$CAPTURE" | grep -Eqx '[0-9a-f]{40}|[0-9a-f]{64}' || ! printf '%s' "$WANT" | grep -Eqx '[0-9a-f]{40}|[0-9a-f]{64}'; then
-      # 短縮 SHA・16 進でない値同士の一致（両方 deadbeef 等）を版の一致にしない
-      echo "停止: 完全な SHA でない（照合相手 ${RECORDED:-（読めない）} / 撮る版 $CAPTURE）"; exit 1
+      # 短縮 SHA・16 進でない値同士の一致（両方 deadbeef 等）をバージョンの一致にしない
+      echo "停止: 完全な SHA でない（照合相手 ${RECORDED:-（読めない）} / 撮るバージョン $CAPTURE）"; exit 1
     elif [ "$WANT" = "$CAPTURE" ]; then
       echo "一致: $CAPTURE"
     else
-      echo "停止: 照合相手の版 ${RECORDED:-（読めない）} と撮る版 $CAPTURE が違う"; exit 1
+      echo "停止: 照合相手のバージョン ${RECORDED:-（読めない）} と撮るバージョン $CAPTURE が違う"; exit 1
     fi
   )
   ```

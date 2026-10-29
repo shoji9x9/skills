@@ -293,7 +293,7 @@
     数え直しは、インストール済みの `replace-strategy` のスクリプトが行う。
 
     ```bash
-    node <replace-strategy の skill>/scripts/append-only-check.mjs --root . --base <機能に着手した時点の版>
+    node <replace-strategy の skill>/scripts/append-only-check.mjs --root . --base <機能に着手した時点のバージョン>
     ```
 
     終了コードは次のとおりである。どの 0 件も合格として扱わない。機能を閉じる時点では、追記専用の成果物はあり、commit もされているはずだからである。

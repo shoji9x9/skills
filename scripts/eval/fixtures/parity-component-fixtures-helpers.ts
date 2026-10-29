@@ -118,7 +118,7 @@ function checkTools(tools: Metadata["capture"]["tools"], problems: string[]) {
   if (tools.traits_version !== traitCapture.VERSION) {
     problems.push(`traits_version ${String(tools.traits_version)} ≠ ${traitCapture.VERSION}`);
   }
-  // element-shot.mjs のバージョンも突き合わせる。build 手順 1 のツール版判定がこの値を読むので、
+  // element-shot.mjs のバージョンも突き合わせる。build 手順 1 でツールのバージョンを判定するときにこの値を読むので、
   // 欠けていると eval が実装の分岐へ届かず前段で止まる。
   if (tools.element_shot_version !== elementShot.VERSION) {
     problems.push(

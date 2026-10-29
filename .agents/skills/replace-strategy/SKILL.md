@@ -471,7 +471,7 @@ Issue の種類は 6 つある。ゴールデンデータセット／横断 API�
   - 縮んでいないことのチェックは、同梱の [`scripts/append-only-check.mjs`](scripts/append-only-check.mjs) が git の履歴と突き合わせて行う。コピーせず、スキルの中から実行する。
 
     ```bash
-    node <skill>/scripts/append-only-check.mjs --root . --base <比較元の版>
+    node <skill>/scripts/append-only-check.mjs --root . --base <比較元のバージョン>
     ```
 
   - 各項目の `id` は一覧の中で一意にし、キーパスはルートからの完全なパスで名指しする。

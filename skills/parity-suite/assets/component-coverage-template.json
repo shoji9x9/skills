@@ -9,7 +9,7 @@
     "source": {
       "kind": "<current-source | config | app-ui。強い順で、current-source（受領した現行ソース）が一次情報源。app-ui は実 UI を歩いて列挙した場合>",
       "ref": "<列挙元の所在（テンプレートのパスと範囲・設定名・画面と手順）>",
-      "version": "<列挙元の版（コミット SHA・資料の版）。対象版が残らないと後から突き合わせられない>",
+      "version": "<列挙元のバージョン（コミット SHA・資料のバージョン）。対象版が残らないと後から突き合わせられない>",
       "condition": "<抽出条件。どの画面のどの範囲を全部拾ったか（共通ブロック・マスターページ・部分ビューを含めたか）>"
     },
     "stronger_source_unavailable_reason": "<kind が current-source 以外のときだけ、受領ソースから列挙できなかった理由（未受領・難読化・動的生成で追えない等）。current-source で列挙したなら null にする。使ったのに理由が残っていると、弱い情報源から起こしたと誤読される>",
@@ -20,16 +20,16 @@
     {
       "id": "<部品 id。cells から参照する>",
       "name": "<部品名（例: 商用データグリッド）>",
-      "version": "<現行アプリが使っている版。入手できなければ unknown>",
+      "version": "<現行アプリが使っているバージョン。入手できなければ unknown>",
       "profile": "<網羅プロファイル id（references/coverage-profiles.md の同梱プロファイル）。適合するものが無ければ null。キーごと省略しない。省略は暗黙の汎用扱いになり、構成要素ごとの候補が導出されないまま通る>",
       "profile_absent_reason": "<profile: null のときだけ、適合プロファイルが無い理由。同じ理由を gaps.md の未検証領域にも残す。空だと coverage-expand.mjs / coverage-check.mjs が落とす。profile を宣言したときは null>",
-      "profile_version": "<coverage-expand.mjs が --write で書き戻す、展開に使ったプロファイルの版。同梱プロファイルの版と違えば候補を展開し直す>",
+      "profile_version": "<coverage-expand.mjs が --write で書き戻す、展開に使ったプロファイルのバージョン。同梱プロファイルのバージョンと違えば候補を展開し直す>",
       "instance_inventory": {
         "_note": "インスタンスの集合（この部品をどの画面に何個置いたか）の出所と完全性。instances[] の行を 1 つ落としても表の上では欠けが見えないため、行ごとの根拠ではなく集合の側で宣言する。受領ソースが読めるならそこから配置を数え、画面は期待値の確定に使う。",
         "source": {
           "kind": "<current-source | config | app-ui。強い順で current-source が一次情報源。component_inventory と同じ語彙>",
           "ref": "<配置を数えた元の所在（テンプレートのパス・設定名・画面と手順）>",
-          "version": "<列挙元の版（コミット SHA・資料の版）>",
+          "version": "<列挙元のバージョン（コミット SHA・資料のバージョン）>",
           "condition": "<抽出条件。どの画面・どの共通ブロックまで数えたか>"
         },
         "stronger_source_unavailable_reason": "<kind が current-source 以外のときだけ、受領ソースから数えられなかった理由。current-source なら null>",
@@ -38,7 +38,7 @@
       },
       "source": {
         "kind": "<vendor-feature-list | vendor-test-spec | official-sample | current-source | app-ui。項目集合の列挙をどこから起こしたか。受領した現行ソースから起こしたなら current-source（app-ui に倒すと、静的に全部読んだのか画面に出ていたものを数えたのかが後から区別できない）。ベンダー資料もソースも入手できず実 UI から洗い出した場合だけ app-ui>",
-        "ref": "<資料の所在（URL・ファイルパス・文書名と版）。app-ui のときは洗い出しに使った画面と手順>",
+        "ref": "<資料の所在（URL・ファイルパス・文書名とバージョン）。app-ui のときは洗い出しに使った画面と手順>",
         "retrieved_at": "<資料を参照した日時（ISO 8601）>",
         "note": "<資料は列挙の生成源であって比較の正解ではない。正解は動いている現行アプリ>"
       },
@@ -69,7 +69,7 @@
             "source": {
               "kind": "<profile | vendor-spec | current-source | app-ui>",
               "ref": "<状態を導出した機械可読manifest・資料・ソース・画面の所在>",
-              "version": "<導出元の版・commit SHA>",
+              "version": "<導出元のバージョン・commit SHA>",
               "condition": "<どのトリガー・viewport・scroll・データ・権限軸を列挙したか>"
             },
             "complete": true,
@@ -85,7 +85,7 @@
             "source": {
               "kind": "<current-source | config | app-ui。プロファイルの enumeration.sources にあるものだけで、並びは強い順（current-source が一次情報源）。ソース・設定は候補集合の抽出に使い、UI 操作の期待値は動作中の現行アプリで確定する>",
               "ref": "<列挙元の所在（ファイルパス・設定名・画面と手順）>",
-              "version": "<列挙元の版（コミット SHA・設定のリビジョン）。対象版が残らないと後から突き合わせられない>",
+              "version": "<列挙元のバージョン（コミット SHA・設定のリビジョン）。対象版が残らないと後から突き合わせられない>",
               "extracted_at": "<列挙した日時（ISO 8601）>",
               "condition": "<抽出条件。何を全部拾ったか、プロファイルの enumeration.pitfalls をどう潰したかを書く>"
             },

@@ -19,7 +19,7 @@
     },
     {
       "id": "patched-from-first-version",
-      "why": "patched を範囲の >= から取らず、最初の版を取る（修正版の無い <0.0.0 から 0.0.0 を作る）",
+      "why": "patched を範囲の >= から取らず、最初のバージョンを取る（修正版の無い <0.0.0 から 0.0.0 を作る）",
       "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
       "find": "range.match(/>=\\s*([0-9][^\\s|,]*)/);",
       "replace": "range.match(/([0-9][^\\s|,]*)/);",
