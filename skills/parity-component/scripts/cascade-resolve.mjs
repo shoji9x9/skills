@@ -180,8 +180,9 @@ function skipEscape(s, start) {
   }
   if (hex === 0) return j + 1; // `\.` のような 1 文字エスケープ
   // 終端の空白 1 つを消費する。CSS は CRLF を改行 1 個として読むので、`\r\n` は 2 文字とも消費する
+  // 終わりの空白は CSS の空白（空白・タブ・改行・CR・FF）だけで、NBSP などは識別子の一部である
   if (s.startsWith("\r\n", j)) return j + 2;
-  if (j < s.length && /\s/.test(s[j])) j += 1;
+  if (j < s.length && /[ \t\n\r\f]/.test(s[j])) j += 1;
   return j;
 }
 
@@ -442,7 +443,9 @@ function lastTopLevelCombinator(selector) {
       continue;
     }
     depth += bracketDelta(ch);
-    if (depth === 0 && (/\s/.test(ch) || ch === ">" || ch === "+" || ch === "~")) lastBreak = i;
+    // 子孫結合子は CSS の空白（空白・タブ・改行・CR・FF）だけで、NBSP などは識別子の一部である
+    if (depth === 0 && (/[ \t\n\r\f]/.test(ch) || ch === ">" || ch === "+" || ch === "~"))
+      lastBreak = i;
   }
   return lastBreak;
 }

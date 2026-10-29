@@ -400,12 +400,17 @@ export function isGitCommit(command) {
   return substitutions.some((inner) => isGitCommit(inner));
 }
 
+/** ラッパーのオプションを読み切れない理由。一意に決まらない省略形（`env --de`）。 */
+const AMBIGUOUS_OPTION = -1;
+/** ラッパーのオプションを読み切れない理由。語に分けられない splitOptions の値（`env -S 'git "commit"'`）。 */
+const UNSPLITTABLE_VALUE = -2;
+
 /**
  * 単純なコマンドの先頭にある前置き（変数の代入・シェルの予約語・ラッパーとそのオプション）を読み飛ばし、
  * 実行するコマンドの名前の位置を返す。ラッパーが作業ディレクトリを変える指定は dirs に足す。
  * @param {string[]} words splitOptions の値を語に分けて置き換えるので、呼び出し元のコピーを渡す
  * @param {string[]} dirs
- * @returns {number} ラッパーのオプションを読み切れなければ -1（一意に決まらない省略形・語に分けられない splitOptions の値）
+ * @returns {number} ラッパーのオプションを読み切れなければ、その理由（AMBIGUOUS_OPTION・UNSPLITTABLE_VALUE）
  */
 function skipCommandPrefixes(words, dirs) {
   let i = 0;
@@ -418,7 +423,7 @@ function skipCommandPrefixes(words, dirs) {
     const wrapper = i < words.length ? COMMAND_WRAPPERS.get(words[i]) : undefined;
     if (wrapper !== undefined) {
       i = skipWrapperOptions(wrapper, words, { start: i + 1, dirs });
-      if (i < 0) return -1;
+      if (i < 0) return i;
       continue;
     }
     return i;
@@ -432,7 +437,7 @@ function skipCommandPrefixes(words, dirs) {
  * @param {CommandWrapper} wrapper
  * @param {string[]} words
  * @param {{ start: number; dirs: string[] }} at start はラッパーの名前の次の位置、dirs は作業ディレクトリを足す先
- * @returns {number} 読み切れなければ -1（一意に決まらない省略形・語に分けられない splitOptions の値）
+ * @returns {number} 読み切れなければ、その理由（AMBIGUOUS_OPTION・UNSPLITTABLE_VALUE）
  */
 function skipWrapperOptions(wrapper, words, at) {
   const { dirs } = at;
@@ -442,10 +447,10 @@ function skipWrapperOptions(wrapper, words, at) {
     // 作業ディレクトリを変えるオプション（`env -C <dir>`・`sudo -D <dir>`）は、git の -C より先に当たる
     const option = readWrapperOption(wrapper, words, i);
     // 一意に決まらない省略形は、次の語が値かコマンドかを決められないので、読むのをやめて呼び出し元に任せる
-    if (option.ambiguous === true) return -1;
+    if (option.ambiguous === true) return AMBIGUOUS_OPTION;
     if (option.split !== undefined) {
       // GNU env は値の中の引用符・エスケープ・`${VAR}`・`#` を自分で解釈するので、それらを含む値は語に分けられない
-      if (/["'\\$#]/.test(option.split)) return -1;
+      if (/["'\\$#]/.test(option.split)) return UNSPLITTABLE_VALUE;
       words.splice(i, option.width, ...option.split.split(/\s+/).filter((w) => w !== ""));
       continue;
     }
@@ -467,14 +472,8 @@ function commitDirsOf(input) {
   /** @type {string[]} */
   const dirs = [];
   let i = skipCommandPrefixes(words, dirs);
-  // ラッパーのオプションを読み切れないときは、git の語の後ろに commit の語があればコミットとして扱う（止める側に寄せる）。
-  // 語に分けられない -S の値（`env -S 'git "commit"'`）の中も読むため、各語を空白で分け、引用符と `\` を外してから探す。
-  // 読み切れたラッパーの指定も、後ろが値かコマンドかを決められないので当てず、作業ディレクトリは変えない
-  if (i < 0) {
-    const pieces = words.flatMap((w) => w.split(/\s+/)).map((w) => w.replace(/["'\\]/g, ""));
-    const git = pieces.findIndex((w) => w.split("/").pop() === "git");
-    return git >= 0 && pieces.indexOf("commit", git + 1) !== -1 ? [] : null;
-  }
+  // ラッパーのオプションを読み切れないときは止める側に寄せ、読み切れたラッパーの指定も当てず、作業ディレクトリは変えない
+  if (i < 0) return unreadCommitDirs(words, i);
   if (i >= words.length || words[i].split("/").pop() !== "git") return null;
   i += 1;
   while (i < words.length && words[i].startsWith("-")) {
@@ -482,6 +481,22 @@ function commitDirsOf(input) {
     i += GIT_VALUE_OPTIONS.includes(words[i]) ? 2 : 1;
   }
   return words[i] === "commit" ? dirs : null;
+}
+
+/**
+ * ラッパーのオプションを読み切れなかった語の列（commitDirsOf の代わりの判定）。コミットとして扱うなら [] を、そうでなければ null を返す。
+ * @param {readonly string[]} words
+ * @param {number} reason AMBIGUOUS_OPTION か UNSPLITTABLE_VALUE
+ * @returns {string[] | null}
+ */
+function unreadCommitDirs(words, reason) {
+  // 語に分けられない -S の値は、GNU env が解釈する引用符・エスケープ（`\_`・`\t`）・`${VAR}` の後の語の境目を決められないので、
+  // 語をつないだ文字列で git の語の後ろに commit の文字列があればコミットとして扱う
+  if (reason === UNSPLITTABLE_VALUE)
+    return /\bgit\b[\s\S]*commit/.test(words.join(" ")) ? [] : null;
+  // 一意に決まらない省略形は、git の語の後ろに commit の語があればコミットとして扱う（`git log --grep=commit` はコミットにしない）
+  const git = words.findIndex((w) => w.split("/").pop() === "git");
+  return git >= 0 && words.indexOf("commit", git + 1) !== -1 ? [] : null;
 }
 
 /**

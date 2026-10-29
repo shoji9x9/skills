@@ -127,11 +127,12 @@ function readSlugTableRow(table, cells) {
  */
 export function parseFeatureSlugs(markdown) {
   /** @param {string} line */
+  // GFM と同じく、エスケープした `\|` は列の区切りにしない（ヘッダと区切り行の列の数を比べるため）
   const cellsOf = (line) =>
     line
       .replace(/^\|/, "")
-      .replace(/\|$/, "")
-      .split("|")
+      .replace(/(?<!\\)\|$/, "")
+      .split(/(?<!\\)\|/)
       .map((c) => c.trim());
   const slugs = new Set();
   const table = { sawSlugTable: false, inSlugTable: false, sawSeparator: false, headerCells: 0 };

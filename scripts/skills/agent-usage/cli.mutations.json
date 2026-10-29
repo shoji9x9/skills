@@ -138,7 +138,9 @@
         "isGitCommit nice --adj 5 git commit → true",
         "isGitCommit sudo --ch /tmp git commit → true",
         "isGitCommit timeout --sig KILL 5 git commit → true",
-        "isGitCommit xargs --max-a 1 git commit → true"
+        "isGitCommit xargs --max-a 1 git commit → true",
+        "isGitCommit env -S 'git ${EMPTY}commit' → true",
+        "isGitCommit env -S 'git\\_commit' → true"
       ]
     },
     {
@@ -787,17 +789,23 @@
         "isGitCommit env -S 'git \"commit\"' → true",
         "isGitCommit env -S 'x y' git commit → false",
         "isGitCommit env -S git commit -m x → true",
-        "isGitCommit env -iS'git' commit → true"
+        "isGitCommit env -iS'git' commit → true",
+        "isGitCommit env -S 'git ${EMPTY}commit' → true",
+        "isGitCommit env -S 'git\\_commit' → true"
       ]
     },
     {
       "id": "unsplittable-split-value-guessed",
       "why": "引用符などを含む env -S の値も空白で語に分け、止める側に寄せない",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "      if (/[\"'\\\\$#]/.test(option.split)) return -1;",
-      "replace": "      if (option.split === null) return -1;",
+      "find": "      if (/[\"'\\\\$#]/.test(option.split)) return UNSPLITTABLE_VALUE;",
+      "replace": "      if (option.split === null) return UNSPLITTABLE_VALUE;",
       "occurrences": 1,
-      "expect_failing": ["isGitCommit env -S 'git \"commit\"' → true"]
+      "expect_failing": [
+        "isGitCommit env -S 'git \"commit\"' → true",
+        "isGitCommit env -S 'git ${EMPTY}commit' → true",
+        "isGitCommit env -S 'git\\_commit' → true"
+      ]
     },
     {
       "id": "long-option-prefix-ignored",
