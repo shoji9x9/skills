@@ -19,13 +19,12 @@
 // pre-commit では commit に入る中身を、CI では commit の中身（作業ツリーと同じ）を見る。作業ツリーから消して
 // stage したままのファイルも、index から読む。
 // 走査したファイルが 0 件・git が失敗した・中身を読めないときは、判定できないので exit 2 にする。
-import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import ts from "typescript";
 import { jsCommentRanges } from "../../lib/text/code-comments.ts";
 import { errorMessage } from "../../lib/errors.ts";
-import { listFiles, repoRoot } from "./check-js-extensions.ts";
+import { indexBlobs, listFiles, readBlob, repoRoot } from "../../lib/git.ts";
 import { isCliEntry } from "../../lib/cli/entry.ts";
 
 // 配布スキルで置ける JavaScript・TypeScript の拡張子だけを走査する（`.mjs` と雛形の `.ts`）。
@@ -87,35 +86,10 @@ export function findDirectives(source: string, path = "a.ts"): string[] {
   return out;
 }
 
-/** index にあるファイルのパスと blob の id。 */
-function indexBlobs(root: string, paths: readonly string[]): Map<string, string> {
-  const res = spawnSync("git", ["ls-files", "-z", "--stage", "--", ...paths], {
-    cwd: root,
-    encoding: "utf8",
-  });
-  if (res.status !== 0) {
-    throw new Error(`git ls-files --stage に失敗した（exit ${res.status}）: ${res.stderr}`);
-  }
-  const map = new Map<string, string>();
-  for (const entry of res.stdout.split("\0")) {
-    const m = /^\d+ ([0-9a-f]+) \d+\t(.+)$/s.exec(entry);
-    if (m) map.set(m[2], m[1]);
-  }
-  return map;
-}
-
 /** ファイルの中身。index にあれば staged の blob、無ければ作業ツリーから読む。どちらにも無ければ null。 */
 function readSource(root: string, path: string, blobs: Map<string, string>): string | null {
   const blob = blobs.get(path);
-  if (blob) {
-    const res = spawnSync("git", ["cat-file", "blob", blob], { cwd: root, encoding: "utf8" });
-    if (res.status !== 0) {
-      throw new Error(
-        `${path}: staged の中身を読めない（git cat-file exit ${res.status}）: ${res.stderr}`,
-      );
-    }
-    return res.stdout;
-  }
+  if (blob) return readBlob(root, blob, path);
   const abs = join(root, path);
   return existsSync(abs) ? readFileSync(abs, "utf8") : null;
 }

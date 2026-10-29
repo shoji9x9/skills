@@ -1,0 +1,6 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:40857233758:1,ci,2026-10-29T11:22:11.820Z,p-cdee4961,github-actions,,,,2026-10-29T10:23:53.000Z,2026-10-29T10:24:16.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:40857233627:1,ci,2026-10-29T11:22:11.820Z,p-cdee4961,github-actions,,,,2026-10-29T10:23:52.000Z,2026-10-29T10:28:00.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:40856578527:1,ci,2026-10-29T11:22:11.820Z,p-cdee4961,github-actions,,,,2026-10-29T10:18:57.000Z,2026-10-29T10:18:58.000Z,Asia/Tokyo,feature/812-script-input-parsing,812,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40856578613:1,ci,2026-10-29T11:22:11.820Z,p-cdee4961,github-actions,,,,2026-10-29T10:18:57.000Z,2026-10-29T10:23:23.000Z,Asia/Tokyo,feature/812-script-input-parsing,812,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-28T10:17:56.276Z:2026-10-29T11:22:11.820Z,coverage,2026-10-29T11:22:11.820Z,p-cdee4961,,,,,2026-10-28T10:17:56.276Z,2026-10-29T11:22:11.820Z,Asia/Tokyo,,,,,,,,,,,,ok,

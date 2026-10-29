@@ -13,7 +13,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import ts from "typescript";
-import { listFiles, repoRoot } from "../code/check-js-extensions.ts";
+import { listFiles, repoRoot } from "../../lib/git.ts";
 import { errorMessage } from "../../lib/errors.ts";
 import { isVendored } from "../../lib/source-scope.ts";
 import { isCliEntry } from "../../lib/cli/entry.ts";
@@ -120,7 +120,7 @@ function main(cwd = "."): number {
   let files: string[];
   try {
     root = repoRoot(cwd);
-    files = listFiles(root).filter(isTarget);
+    files = listFiles(root, ["skills", "scripts", ".agents/skills"]).filter(isTarget);
   } catch (error) {
     console.error(`jsdoc-types: ${errorMessage(error)}`);
     return 2;
