@@ -299,7 +299,9 @@ effort を指定できるのは、`review_tool: local` で Claude Code の `/cod
   - `--watch` は、ジョブが `queued` のまま runner が割り当てられなくても返らない。
     そのため、`--watch --fail-fast` はバックグラウンドで実行し、待っている間に、runner が割り当てられないジョブを一定の間隔で別に確かめる。`--watch` は打ち切らない。
     バックグラウンドの実行は、終わったことと終了コードを受け取れ、途中で止められる方法にする（Claude Code の `run_in_background` など。stdin は `</dev/null` にする）。
+    エージェントに止める機能が無く、シェルのバックグラウンド（`&`）で起動するなら、起動したときに PID をファイルに残し、止めるときは `kill "$(cat <file>)"` で止める。
     `--watch` が返ったら、別に確かめるのをやめ、「CI 状態の確認」の手順で CI を判定する。push の直後の exit 0 は、必須チェックが登録される前のことがあるからである。
+    判定でまだ終わっていないチェックが見つかったら、`--watch` をもう一度バックグラウンドで起動し、runner が割り当てられないジョブの確認も続ける。メモに残した初めて見つけた時刻は、そのまま使う。
   - 確かめるのは、HEAD のすべての workflow run の、`status` が `queued` で `runner_name` が null のジョブである。
     run の `status` は 1 つのジョブが始まると `in_progress` になるので、run では絞らない。
 
@@ -313,7 +315,7 @@ effort を指定できるのは、`review_tool: local` で Claude Code の `/cod
     `gh run view --json jobs` は `runner_name` を返さないので使わない。
     形は <https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-repository> と <https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run> で確かめた。
   - 待った時間は、そのジョブ（`id`）を初めてこの状態で見つけた確認からの時間で測る。`created_at` からは測らない。他のジョブや run を待つ `pending` の時間が入るからである。
-    同じ run に `in_progress` のジョブがある間は、待った時間に数えない。前のジョブ（`needs` の相手など）を待っているだけのことがあるからである。
+    `needs` で前のジョブを待つジョブは、前のジョブが終わるまで jobs API の一覧に出ないので、この状態では見つからない（GitHub-hosted の runner で確かめた）。
     初めて見つけた時刻は GitHub から取り直せないので、ジョブの `id` とともに進み具合のメモ（「長時間実行・コンテキストの引き継ぎ」）に残す。
   - 上限は 30 分にする。runner の空き（同時に実行できる数の上限、1 台だけの self-hosted の runner）を待つ `queued` も、`runner_name` が null になるからである。
   - 上限を超えても同じジョブが `queued` のままで `runner_name` が null なら、runner が割り当てられていない（Actions の予算の上限、存在しないラベルの runner の指定、runner の空きが無い状態が続いているなど）。
