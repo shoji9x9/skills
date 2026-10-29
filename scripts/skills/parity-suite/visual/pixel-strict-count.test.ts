@@ -86,7 +86,7 @@ function runCounter(argv: string[]) {
 test.each([
   ["値が無い", ["a.png", "b.png", "--diff"], /error: --diff に値が無い/],
   ["値が空", ["a.png", "b.png", "--diff", ""], /error: --diff に値が無い/],
-  ["値が空白だけ", ["a.png", "b.png", "--diff", "   "], /--diff requires a path/],
+  ["値が空白だけ", ["a.png", "b.png", "--diff", "   "], /error: --diff に値が無い/],
 ])(
   "--diff の%sなら、その理由で落ちる（基準値を埋め損ねたまま通さない）",
   async (_name, argv, reason) => {

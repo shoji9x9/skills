@@ -226,14 +226,10 @@ function parseArgs(argv) {
   const names = ["--ignore", "--sort-arrays"];
   const parsed = parseFlags(argv, { values: names, repeat: names, positionals: 2 });
   if (parsed.error !== undefined) return { error: parsed.error };
-  const list = (/** @type {string} */ name) => {
-    const value = parsed.flags[name];
-    return isArray(value) ? value : [];
-  };
   return {
     positionals: parsed.positionals,
-    ignore: list("--ignore"),
-    sortArrays: list("--sort-arrays"),
+    ignore: parsed.lists["--ignore"] ?? [],
+    sortArrays: parsed.lists["--sort-arrays"] ?? [],
   };
 }
 

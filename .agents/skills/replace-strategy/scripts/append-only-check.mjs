@@ -76,7 +76,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
-import { parseFlags } from "./lib/flags.mjs";
+import { parseFlags, stripDashes } from "./lib/flags.mjs";
 import { errorMessage } from "./lib/errors.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 import { parseJsonOrThrow } from "./lib/json.mjs";
@@ -2747,14 +2747,13 @@ export function defaultManifestPath() {
 }
 
 /**
- * `--exclude` の id を確かめる。空白だけの id と、同じ id の 2 回目は使い方の誤りにする。
+ * `--exclude` の id を確かめる。同じ id の 2 回目は使い方の誤りにする（空白だけの id は parseFlags が止める）。
  * @param {string[]} exclude
  */
 function checkExcludeIds(exclude) {
   /** @type {string[]} */
   const seen = [];
   for (const value of exclude) {
-    if (value.trim() === "") throw new UsageError("--exclude に値が無い");
     if (seen.includes(value)) throw new UsageError(`--exclude の id が重複している: ${value}`);
     seen.push(value);
   }
@@ -2770,15 +2769,8 @@ export function parseArgs(argv) {
     repeat: ["--exclude"],
   });
   if (parsed.error !== undefined) throw new UsageError(parsed.error);
-  const { flags } = parsed;
-  /** @type {Record<string, string>} */
-  const opts = {};
-  for (const name of ["--root", "--manifest", "--base"]) {
-    const value = flags[name];
-    if (typeof value === "string") opts[name.slice(2)] = value;
-  }
-  const excludeValue = flags["--exclude"];
-  const exclude = isArray(excludeValue) ? excludeValue : [];
+  const opts = stripDashes(parsed.strings);
+  const exclude = parsed.lists["--exclude"] ?? [];
   checkExcludeIds(exclude);
   if (!nonEmptyString(opts.root)) throw new UsageError("--root は必須（走査の起点を推測させない）");
   return {

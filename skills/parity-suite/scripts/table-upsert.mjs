@@ -27,7 +27,7 @@ import { resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
-import { parseFlags } from "./lib/flags.mjs";
+import { parseFlags, stripDashes } from "./lib/flags.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
 class UsageError extends Error {}
@@ -270,9 +270,7 @@ function resolveIo(deps) {
 function parseOptions(rest) {
   const parsed = parseFlags(rest, { values: ["--file", "--array", "--key", "--from", "--match"] });
   if (parsed.error !== undefined) throw new UsageError(parsed.error);
-  return Object.fromEntries(
-    Object.entries(parsed.strings).map(([name, value]) => [name.slice(2), value]),
-  );
+  return stripDashes(parsed.strings);
 }
 
 /**

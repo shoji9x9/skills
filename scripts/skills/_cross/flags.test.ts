@@ -102,6 +102,24 @@ describe.each(COPIES)("$skill の lib/flags.mjs", ({ parseFlags }) => {
     expect(parseFlags(["--bogus=1"], spec)).toEqual({ error: "不明な引数: --bogus=1" });
   });
 
+  test("parseFlags: `--` の後は、`-` で始まる引数も位置引数にする。上限も同じに当てる", () => {
+    const spec = { values: ["--out"], positionals: 2 };
+    expect(parseFlags(["--out", "o", "--", "-a.json", "--out"], spec)).toMatchObject({
+      strings: { "--out": "o" },
+      positionals: ["-a.json", "--out"],
+    });
+    expect(parseFlags(["--", "a", "b", "c"], spec)).toEqual({ error: "不明な引数: c" });
+    expect(parseFlags(["-a.json"], spec)).toEqual({ error: "不明な引数: -a.json" });
+  });
+
+  test.each([
+    ["空白だけの値", ["--file", "  "], "--file に値が無い"],
+    ["`-` 1 つで始まる受け付ける名前（-h）", ["--file", "-h"], "--file に値が無い"],
+    ["`--` だけの値", ["--file", "--"], "--file に値が無い"],
+  ])("parseFlags: %s は値の書き忘れとして誤りにする", (_, argv, error) => {
+    expect(parseFlags(argv, { values: ["--file"], bools: ["-h"] })).toEqual({ error });
+  });
+
   test("parseFlags: 名前の種類ごとの表に分けて返す（strings・lists・bools）", () => {
     expect(parseFlags(["--file", "a", "--state", "s", "--all"], SPEC)).toEqual({
       flags: { "--file": "a", "--state": ["s"], "--all": true },

@@ -31,7 +31,7 @@ import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { fileIo } from "./lib/file-io.mjs";
 import { errorMessage } from "./lib/errors.mjs";
-import { parseFlags } from "./lib/flags.mjs";
+import { parseFlags, stripDashes } from "./lib/flags.mjs";
 import { isFiniteNumber, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
 /**
@@ -893,19 +893,10 @@ function parseOptions(mode, rest) {
       ? { values: [...common, "--write", "--current-samples"] }
       : { values: common, bools: ["--write"] },
   );
+  // 空白だけの値（`--tolerance " "` など）は、parseFlags が値の書き忘れとして止める。
   if (parsed.error !== undefined) throw new UsageError(parsed.error);
-  // parseFlags は空の値だけを誤りにする。空白だけの値も値の書き忘れとして扱う。
-  // 通すと、`--tolerance " "` が Number で 0 になり、許容幅 0 として警告なしに判定する。
-  for (const [name, value] of Object.entries(parsed.strings)) {
-    if (!nonEmptyString(value)) throw new UsageError(`${name} に値が無い`);
-  }
   // --write は、check では strings に、fit では bools に入る。
-  return Object.fromEntries(
-    [...Object.entries(parsed.strings), ...Object.entries(parsed.bools)].map(([name, value]) => [
-      name.slice(2),
-      value,
-    ]),
-  );
+  return stripDashes({ ...parsed.strings, ...parsed.bools });
 }
 
 /**

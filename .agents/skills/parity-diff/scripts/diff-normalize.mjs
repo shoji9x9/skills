@@ -26,7 +26,7 @@
 import { readFileSync } from "node:fs";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
-import { parseFlags } from "./lib/flags.mjs";
+import { parseFlags, stripDashes } from "./lib/flags.mjs";
 import { isObjectLike, isPlainObject } from "./lib/guards.mjs";
 import { intentionalEntryText } from "./lib/intentional.mjs";
 import { valueText } from "./lib/value-text.mjs";
@@ -722,13 +722,7 @@ const VALUE_FLAGS = ["--registries", "--slug", "--page", "--state", "--viewport"
 function splitArgs(argv) {
   const parsed = parseFlags(argv, { values: VALUE_FLAGS, positionals: 1 });
   if (parsed.error !== undefined) return { error: parsed.error };
-  /** @type {Record<string, string | undefined>} */
-  const opts = {};
-  for (const name of VALUE_FLAGS) {
-    const value = parsed.flags[name];
-    if (typeof value === "string") opts[name.slice(2)] = value;
-  }
-  return { positionals: parsed.positionals, opts };
+  return { positionals: parsed.positionals, opts: stripDashes(parsed.strings) };
 }
 
 /**

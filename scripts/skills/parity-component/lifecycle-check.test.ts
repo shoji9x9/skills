@@ -192,6 +192,7 @@ test("main: 受け付けない引数・値の無い --build-metadata・2 回目�
     [["a.json"], "不明な引数: a.json"],
     [["--build-metadata"], "--build-metadata に値が無い"],
     [["--build-metadata", "--bogus"], "--build-metadata に値が無い"],
+    [["--build-metadata", "  "], "--build-metadata に値が無い"],
     [
       ["--build-metadata", "a.json", "--build-metadata", "b.json"],
       "--build-metadata が重複している",

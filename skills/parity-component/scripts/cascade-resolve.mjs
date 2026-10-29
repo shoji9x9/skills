@@ -1358,19 +1358,6 @@ const FLAG_SPEC = {
 };
 
 /**
- * 空白だけの値を、値の書き忘れとして扱う（誤りは UsageError を投げる）。parseFlags は空の値だけを誤りにする。
- * @param {Record<string, string | string[] | true>} flags
- * @returns {void}
- */
-function rejectBlankValues(flags) {
-  for (const name of FLAG_SPEC.values ?? []) {
-    const value = flags[name];
-    const list = isArray(value) ? value : typeof value === "string" ? [value] : [];
-    if (list.some((v) => v.trim() === "")) throw new UsageError(`${name} に値が無い`);
-  }
-}
-
-/**
  * 必須の `--state` と、`--property` と `--all` の組み合わせを確かめる（誤りは UsageError を投げる）。
  * @param {{ states: string[], properties: string[], all: boolean }} args
  * @returns {void}
@@ -1398,13 +1385,12 @@ function checkArgCombination({ states, properties, all }) {
 function parseArgs(argv) {
   const parsed = parseFlags(argv, FLAG_SPEC);
   if (parsed.error !== undefined) throw new UsageError(parsed.error);
-  const { flags, strings, lists, bools } = parsed;
+  const { strings, lists, bools } = parsed;
   const cssRules = strings["--css-rules"] ?? null;
   const states = lists["--state"] ?? [];
   const properties = lists["--property"] ?? [];
   const all = bools["--all"] === true;
   const allowIncomplete = bools["--allow-incomplete"] === true;
-  rejectBlankValues(flags);
   if (cssRules === null) throw new UsageError("--css-rules is required");
   checkArgCombination({ states, properties, all });
   return { cssRules, states, properties, all, allowIncomplete };

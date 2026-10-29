@@ -261,9 +261,9 @@ export function main(argv, io = {}) {
   );
   const parsed = parseFlags(argv, { values: ["--build-metadata"] });
   if (parsed.error !== undefined) return fail(parsed.error);
-  const path = parsed.flags["--build-metadata"];
-  if (typeof path !== "string") return fail("--build-metadata は必須");
-  if (!nonEmptyString(path)) return fail("--build-metadata は必須（空白だけの値も不可）");
+  // 空白だけの値は、parseFlags が値の書き忘れとして止める。
+  const path = parsed.strings["--build-metadata"];
+  if (path === undefined) return fail("--build-metadata は必須");
   let metadata;
   try {
     metadata = JSON.parse(readFile(resolve(cwd, path)));

@@ -311,8 +311,8 @@ const FLAG_SETTERS = new Map([
 
 /**
  * 引数のフラグを読む。誤りは文字列で返す。
- * 名前の誤り・値の無い名前・2 回目の名前は parseFlags が見つける。繰り返してよいのは --region だけである。
- * 空白だけの値は、値の書き忘れとして扱う（parseFlags は空の値だけを誤りにする）。
+ * 名前の誤り・値の無い名前（空白だけの値を含む）・2 回目の名前は parseFlags が見つける。繰り返してよいのは --region だけである。
+ * 値の中身は argv の順に確かめ、誤りのある値が複数あれば、argv で最初のものを報告する。
  *
  * @param {string[]} argv
  * @returns {{ error: string } | Flags}
@@ -322,14 +322,11 @@ function readFlags(argv) {
   if (parsed.error !== undefined) return { error: parsed.error };
   /** @type {Flags} */
   const flags = { single: { regions: [] }, margin: 0, marginGiven: false };
-  for (const [name, setter] of FLAG_SETTERS) {
-    const raw = parsed.flags[name];
-    const values = isArray(raw) ? raw : typeof raw === "string" ? [raw] : [];
-    for (const value of values) {
-      if (value.trim() === "") return { error: `${name} に値が無い` };
-      const error = setter(flags, value);
-      if (error !== undefined) return { error };
-    }
+  // parseFlags が通した argv は、位置引数を持たないので「名前 値」の組だけが並ぶ（末尾に `--` が付くことはある）。
+  for (let i = 0; i + 1 < argv.length; i += 2) {
+    const setter = FLAG_SETTERS.get(argv[i]);
+    const error = setter?.(flags, argv[i + 1]);
+    if (error !== undefined) return { error };
   }
   return flags;
 }

@@ -752,15 +752,8 @@ const SINGLE_OPTIONS = [
 function collectArgs(argv) {
   const parsed = parseFlags(argv, { values: [...SINGLE_OPTIONS, "--probe"], repeat: ["--probe"] });
   if (parsed.error !== undefined) throw new UsageError(parsed.error);
-  /** @type {Record<string, string>} */
-  const opts = {};
-  for (const name of SINGLE_OPTIONS) {
-    const value = parsed.flags[name];
-    if (typeof value === "string") opts[name] = value;
-  }
-  const probeValues = parsed.flags["--probe"];
-  const probes = isArray(probeValues) ? probeValues.map((value) => resolve(value)) : [];
-  return { opts, probes };
+  const probes = (parsed.lists["--probe"] ?? []).map((value) => resolve(value));
+  return { opts: parsed.strings, probes };
 }
 
 /**

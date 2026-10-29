@@ -23,7 +23,7 @@ import { isAbsolute, resolve, sep } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
-import { parseFlags } from "./lib/flags.mjs";
+import { parseFlags, stripDashes } from "./lib/flags.mjs";
 import { isPlainObject, nonEmptyString, nonNegativeNumber } from "./lib/guards.mjs";
 
 /**
@@ -1173,13 +1173,8 @@ function parseArgs(command, rest) {
   const parsed = parseFlags(rest, FLAG_SPECS[command]);
   if (parsed.error !== undefined) throw new UsageError(parsed.error);
   const { strings, lists, bools } = parsed;
-  /** @type {Record<string, string>} */
-  const opts = {};
-  for (const name of ["--metadata", "--samples", "--target"]) {
-    const value = strings[name];
-    if (value !== undefined) opts[name.slice(2)] = value;
-  }
-  if (command === "compare" && strings["--write"] !== undefined) opts.write = strings["--write"];
+  // compare の --write は値（書き込み先）を取るので strings に入り、summarize の --write は bools に入る。
+  const opts = stripDashes(strings);
   const floorSpecs = lists["--floor"] ?? [];
   const relativeFloorSpecs = lists["--relative-floor"] ?? [];
   const writeFlag = command === "summarize" && bools["--write"] === true;

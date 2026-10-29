@@ -39,7 +39,7 @@ import { isArray } from "./lib/is-array.mjs";
 import { EVIDENCE_CARRY_FILE, judgeCarry } from "./evidence-carry.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
-import { parseFlags } from "./lib/flags.mjs";
+import { parseFlags, stripDashes } from "./lib/flags.mjs";
 import { isPlainObject, nonEmptyString, toIterationCount } from "./lib/guards.mjs";
 import { realPathOf } from "./lib/paths.mjs";
 
@@ -2274,13 +2274,7 @@ const VALUE_FLAGS = [
 function readArgv(argv) {
   const parsed = parseFlags(argv, { values: VALUE_FLAGS, bools: ["--fingerprint"] });
   if (parsed.error !== undefined) throw new UsageError(parsed.error);
-  /** @type {Record<string, string>} */
-  const opts = {};
-  for (const name of VALUE_FLAGS) {
-    const value = parsed.flags[name];
-    if (typeof value === "string") opts[name.slice(2)] = value;
-  }
-  return { opts, fingerprint: parsed.flags["--fingerprint"] === true };
+  return { opts: stripDashes(parsed.strings), fingerprint: parsed.bools["--fingerprint"] === true };
 }
 
 /**
@@ -2289,7 +2283,6 @@ function readArgv(argv) {
  * @param {Record<string, string>} opts
  */
 function validateCarryTo(opts) {
-  if (!nonEmptyString(opts["carry-to"])) throw new UsageError("--carry-to が空");
   if (!nonEmptyString(opts.target)) {
     throw new UsageError(
       "--carry-to には --target が要る（持ち越しは工程の成果物について判定する）",
@@ -2404,7 +2397,6 @@ function collectSections({ metadata, root, slugDir, args }) {
     checkUnmeasured(metadata, { stage: args.stage }),
   ];
   if (args.target !== null) {
-    if (!nonEmptyString(args.target)) throw new UsageError("--target が空");
     sections.push(
       checkStage({
         root,

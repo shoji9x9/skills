@@ -250,12 +250,33 @@ test.each([
   ["値の無い --ignore", ["--ignore"], "--ignore に値が無い"],
   ["次の名前を値に取る --ignore", ["--ignore", "--sort-arrays", "items"], "--ignore に値が無い"],
   ["空の --sort-arrays", ["--sort-arrays", ""], "--sort-arrays に値が無い"],
+  ["空白だけの --ignore", ["--ignore", "  "], "--ignore に値が無い"],
 ])("引数の誤り（%s）は、差分を出さずに exit 2 にする", (_name, args, reason) => {
   const r = runCli("{}", "{}", args);
   expect(r.stderr).toContain(`error: ${reason}`);
   expect(r.stderr).toContain("usage: node json-normalize-diff.mjs");
   expect(r.stdout).toBe("");
   expect(r.status).toBe(2);
+});
+
+test("-- の後は、- で始まる名前のファイルも位置引数として読む", () => {
+  const dir = makeTempDir("json-normalize-diff-");
+  writeFileSync(join(dir, "-a.json"), JSON.stringify({ a: 1, b: 1 }));
+  writeFileSync(join(dir, "b.json"), JSON.stringify({ a: 2, b: 1 }));
+  const run = (args: string[]) =>
+    spawnSync(process.execPath, [script, ...args], {
+      cwd: dir,
+      encoding: "utf8",
+      timeout: CHILD_TIMEOUT_MS,
+    });
+  const r = run(["--ignore", "a", "--", "-a.json", "b.json"]);
+  expect(r.stderr).toBe("");
+  expect(diffsOf(r.stdout)).toEqual([]);
+  expect(r.status).toBe(0);
+  // -- の前では、- で始まる引数は名前として読み、知らない名前として落とす
+  const before = run(["-a.json", "b.json"]);
+  expect(before.stderr).toContain("error: 不明な引数: -a.json");
+  expect(before.status).toBe(2);
 });
 
 test("--ignore と --sort-arrays は繰り返してよい", () => {

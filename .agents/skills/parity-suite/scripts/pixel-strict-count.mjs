@@ -145,7 +145,7 @@ const USAGE =
 
 /**
  * CLI の引数。
- * @typedef {{ positionals: string[], diffPath: string | undefined, diffRequested: boolean, diffColor: string }} CliArgs
+ * @typedef {{ positionals: string[], diffPath: string | undefined, diffColor: string }} CliArgs
  */
 
 /**
@@ -159,15 +159,12 @@ function parseArgs(argv) {
     process.stderr.write(`error: ${parsed.error}\n${USAGE}`);
     return null;
   }
-  const diff = parsed.strings["--diff"];
-  const diffColor = parsed.strings["--diff-color"];
-  // 「--diff を渡していない」と「--diff の値が空白だけ」を区別する。区別しないと、値が空白に展開された呼び出しが
+  // 空白だけの --diff は、parseFlags が値の書き忘れとして止める。通すと、値が空白に展開された呼び出しが
   // strict_only_pixels: null のまま exit 0 で通り、基準値を埋められないまま 2 回目の採取物が消える。
   return {
     positionals: parsed.positionals,
-    diffPath: diff,
-    diffRequested: diff !== undefined,
-    diffColor: diffColor ?? "ff0000",
+    diffPath: parsed.strings["--diff"],
+    diffColor: parsed.strings["--diff-color"] ?? "ff0000",
   };
 }
 
@@ -176,13 +173,9 @@ function parseArgs(argv) {
  * @param {CliArgs} args
  * @returns {{ r:number, g:number, b:number } | null}
  */
-function checkArgs({ positionals, diffPath, diffRequested, diffColor }) {
+function checkArgs({ positionals, diffColor }) {
   if (positionals.length !== 2) {
     process.stderr.write(USAGE);
-    return null;
-  }
-  if (diffRequested && (diffPath === undefined || diffPath.trim() === "")) {
-    process.stderr.write("error: --diff requires a path to the recorded tool's diff image\n");
     return null;
   }
   const target = hexToRgb(diffColor);

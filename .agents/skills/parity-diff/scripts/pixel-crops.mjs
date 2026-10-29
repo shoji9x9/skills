@@ -707,10 +707,7 @@ function parseCliArgs(argv) {
     positionals: 3,
   });
   if (parsed.error !== undefined) return { error: `error: ${parsed.error}\n${USAGE}` };
-  const text = (/** @type {string} */ name) => {
-    const value = parsed.flags[name];
-    return typeof value === "string" ? value : undefined;
-  };
+  const text = (/** @type {string} */ name) => parsed.strings[name];
   options.positionals = parsed.positionals;
   options.out = text("--out");
   for (const [name, key] of NUMBER_FLAGS) {

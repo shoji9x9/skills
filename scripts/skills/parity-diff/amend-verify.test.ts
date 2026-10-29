@@ -330,6 +330,16 @@ test.each([
     [...base, "--region", "0,0,1,1", "--margin", "-1"],
     /--margin must be a non-negative number/,
   ],
+  [
+    "誤りのある値が 2 つ（--margin が先）",
+    [...base, "--margin", "abc", "--region", "bad"],
+    /--margin must be a non-negative number: abc/,
+  ],
+  [
+    "誤りのある値が 2 つ（--region が先）",
+    [...base, "--region", "bad", "--margin", "abc"],
+    /--region must be x,y,w,h with w,h > 0: bad/,
+  ],
   ["知らない引数", [...base, "--region", "0,0,1,1", "--foo", "x"], /不明な引数: --foo/],
   ["--pairs と --pair の併用", ["--pairs", "x.json", "--pair", "p"], /cannot be combined/],
 ])("%s なら exit 2（その理由で落ちる）", async (_name, argv, message) => {

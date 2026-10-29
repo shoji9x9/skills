@@ -663,27 +663,23 @@ function checkRequiredArgs(args) {
   }
   // **鮮度の照合相手を省けるようにしない**。省くと `comparison-implementation-stale` が
   // 一度も評価されず、記録の後に新側を変えても古い証拠で収束する。
-  if (!args["--replace-metadata"] || args["--replace-metadata"].trim() === "") {
+  if (!args["--replace-metadata"]) {
     throw new InputError(
-      "--replace-metadata は必須（空白だけの値も不可。現在の新側のバージョンと突き合わせないと、記録の鮮度を確かめられない）",
+      "--replace-metadata は必須（現在の新側のバージョンと突き合わせないと、記録の鮮度を確かめられない）",
     );
   }
   // `--target` を省ける形にすると、別環境で採った突き合わせ表がそのまま通る
   // （`comparison-target-mismatch` は照合相手が渡されたときにしか機能しない）。
   // 突き合わせは環境別の記録なので、判定対象の target を必ず受け取る。
-  // **空白だけの値を通さない**。CLI の truthy 判定は通るのに、判定側は非空文字列でないと
-  // 「渡されていない」として target 照合を飛ばすため、別環境の記録が通る。
-  if (!args["--target"] || args["--target"].trim() === "") {
+  // 空白だけの値は、parseFlags が値の書き忘れとして止める。
+  if (!args["--target"]) {
     throw new InputError(
-      "--target は必須（空白だけの値も不可。突き合わせ表は環境別の記録なので、別 target の記録を通さない）",
+      "--target は必須（突き合わせ表は環境別の記録なので、別 target の記録を通さない）",
     );
   }
   // --carry-to は持ち越しを判定させる指定なので、差分を取るリポジトリが無いまま受け付けない。
   if (args["--carry-to"] !== undefined) {
-    if (args["--carry-to"].trim() === "") {
-      throw new InputError("--carry-to が空");
-    }
-    if (args["--new-repo"] === undefined || args["--new-repo"].trim() === "") {
+    if (args["--new-repo"] === undefined) {
       throw new InputError(
         "--carry-to には --new-repo が要る（描画入力の差分を新側リポジトリで取る）",
       );

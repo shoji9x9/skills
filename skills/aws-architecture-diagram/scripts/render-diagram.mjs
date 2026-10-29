@@ -74,8 +74,8 @@ function specFor(name) {
 
 // --env の指定を読む（--env a,b / --env=a,b いずれも受ける）。値が無いときは、diagramConfig が誤りとして止める。
 function resolveEnvs() {
-  const value = config.flags["--env"];
-  if (typeof value !== "string") return Object.keys(environments); // --env 無し = 全環境
+  const value = config.strings["--env"];
+  if (value === undefined) return Object.keys(environments); // --env 無し = 全環境
   const list = value
     .split(",")
     .map((s) => s.trim())

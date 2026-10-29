@@ -29,8 +29,7 @@ const ICONS_PAGE = "https://aws.amazon.com/architecture/icons/";
 
 /** @param {string} name */
 function arg(name) {
-  const v = config.flags[name];
-  return typeof v === "string" ? v : undefined;
+  return config.strings[name];
 }
 
 const OUT_DIR = arg("--out") ?? join(config.iconDir, "aws-icons");

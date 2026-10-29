@@ -24,7 +24,7 @@ const VALUED = ["--dir", "--icon-dir", "--out-dir", "--timeout-ms"];
  * @property {string} outDir SVG の出力先
  * @property {boolean} noSandbox Chrome のサンドボックスを無効にするか
  * @property {number} timeoutMs PNG への変換を打ち切る時間（ミリ秒）
- * @property {Record<string, string | string[] | true>} flags スクリプトが受け付ける引数の値（このモジュールが読む引数も入る）
+ * @property {Record<string, string>} strings 値を取る引数の値。キーは `--` を含む名前で、このモジュールが読む引数も入る
  * @property {string[]} positionals 位置引数
  */
 
@@ -33,7 +33,7 @@ const VALUED = ["--dir", "--icon-dir", "--out-dir", "--timeout-ms"];
  * `--名前=値` の形も受け付ける。誤りがあれば、理由と使い方を stderr に出して exit 2 で止める。
  * @param {string[]} argv
  * @param {{ values?: readonly string[], positionals?: number, usage: string }} script スクリプトが受け付ける引数と使い方
- * @returns {{ flags: Record<string, string | string[] | true>, positionals: string[] }}
+ * @returns {import("./lib/flags.mjs").ParsedFlags}
  */
 function readArgs(argv, script) {
   const parsed = parseFlags(argv, {
@@ -63,7 +63,7 @@ function readArgs(argv, script) {
 export function diagramConfig(argv, script, o = {}) {
   const cwd = o.cwd ?? process.cwd();
   const env = o.env ?? process.env;
-  const { flags, positionals } = readArgs(argv, script);
+  const { strings, bools, positionals } = readArgs(argv, script);
   const root = findRoot(cwd);
   /** @type {ReturnType<typeof loadConfig>} */
   let r;
@@ -81,21 +81,21 @@ export function diagramConfig(argv, script, o = {}) {
   };
   /** @param {string} name */
   const fromCli = (name) => {
-    const v = flags[name];
-    return typeof v === "string" ? resolve(cwd, v) : undefined;
+    const v = strings[name];
+    return v === undefined ? undefined : resolve(cwd, v);
   };
   const dir = fromCli("--dir") ?? fromRoot("diagram_dir") ?? cwd;
   const iconDir = fromCli("--icon-dir") ?? fromRoot("icon_dir") ?? join(dir, "icons");
   const outDir = fromCli("--out-dir") ?? fromRoot("out_dir") ?? join(dir, "out");
-  const noSandbox = flags["--no-sandbox"] === true || r.chrome_no_sandbox?.value === true;
-  const rawTimeout = flags["--timeout-ms"];
+  const noSandbox = bools["--no-sandbox"] === true || r.chrome_no_sandbox?.value === true;
+  const rawTimeout = strings["--timeout-ms"];
   let timeoutMs =
     typeof r.chrome_timeout_ms?.value === "number" ? r.chrome_timeout_ms.value : 120000;
-  if (typeof rawTimeout === "string") {
+  if (rawTimeout !== undefined) {
     // 数でない値や 0 以下を受け付けると、打ち切りが無効になり、応答しない Chrome を待ち続ける
     if (!/^[1-9]\d*$/.test(rawTimeout))
       throw new Error("--timeout-ms には 1 以上の整数を指定してください");
     timeoutMs = Number(rawTimeout);
   }
-  return { dir, iconDir, outDir, noSandbox, timeoutMs, flags, positionals };
+  return { dir, iconDir, outDir, noSandbox, timeoutMs, strings, positionals };
 }

@@ -28,7 +28,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
-import { parseFlags } from "./lib/flags.mjs";
+import { parseFlags, stripDashes } from "./lib/flags.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 import { canonicalize } from "./lib/json.mjs";
 
@@ -3377,15 +3377,9 @@ function parseArgs(argv) {
     process.stderr.write(`error: ${parsed.error}\n${USAGE}`);
     return 2;
   }
-  const { flags } = parsed;
-  /** @type {Record<string, string>} */
-  const opts = {};
-  for (const name of ["--coverage", "--profiles", "--metadata"]) {
-    const value = flags[name];
-    if (typeof value === "string") opts[name.slice(2)] = value;
-  }
-  const write = flags["--write"] === true;
-  const list = flags["--list-profiles"] === true;
+  const opts = stripDashes(parsed.strings);
+  const write = parsed.bools["--write"] === true;
+  const list = parsed.bools["--list-profiles"] === true;
   if (!list && !opts.coverage) {
     process.stderr.write(USAGE);
     return 2;

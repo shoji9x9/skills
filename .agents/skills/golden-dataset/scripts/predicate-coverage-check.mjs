@@ -1650,13 +1650,8 @@ function listInputs(args) {
     ["design", designPath],
   ];
   // `--verification` は任意だが、**値が空白だけのときは未指定へ丸めない**。丸めると 6 節の検査が飛び、
-  // 指定したつもりの利用者に「実測して問題なし」と同じ出力を返す。空の値は、引数を読む parseFlags が先に止める。
-  if (verificationPath !== undefined) {
-    if (verificationPath.trim() === "") {
-      return { error: "--verification に空の値が渡っている（省略するか、実在するパスを渡す）" };
-    }
-    inputs.push(["verification", verificationPath]);
-  }
+  // 指定したつもりの利用者に「実測して問題なし」と同じ出力を返す。空白だけの値は、引数を読む parseFlags が先に止める。
+  if (verificationPath !== undefined) inputs.push(["verification", verificationPath]);
   return { inputs };
 }
 
