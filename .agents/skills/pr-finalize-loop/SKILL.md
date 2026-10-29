@@ -161,27 +161,27 @@ push の後などに再レビューを依頼する AI レビュアーは、CLI �
    1. 該当する `path` の `line` の付近を読み、指摘がコードの事実と合うかを評価する。
    2. 妥当で直す必要があれば、対象のファイルを直す。
       指摘が特定の行の誤りではなく書き方の形（規則の違反・単位の書き方など）を指すなら、直す前に、その形を PR の差分で足した行全体で検索する。
-      差分は、次のコマンドで取り、`+` の行を検索する。
+      差分は、次の 2 つのコマンドで取り、`+` の行を検索する。2 つは別々に実行し、1 つ目が成功してから 2 つ目を実行する。
 
       ```bash
-      git fetch -q --no-tags <remote> "+refs/heads/<PR のベースブランチ>:refs/worktree/pr-review/base" \
-        && fork_point=$(git merge-base refs/worktree/pr-review/base HEAD) && git diff "$fork_point" -U0
+      git fetch --no-tags <remote> "+refs/heads/<PR のベースブランチ>:refs/worktree/pr-review/base"
+      fork_point=$(git merge-base refs/worktree/pr-review/base HEAD) && git diff "$fork_point" -U0
       ```
 
       `<remote>` は、PR のベースリポジトリを指す remote である（多くは `origin`。fork から出した PR では `upstream` などのこともある）。
-      取得したベースブランチは、worktree ごとに分かれる専用の ref（`refs/worktree/pr-review/base`）に置いて比べる。
-      古いベースと比べると、PR に無い行まで差分に入るからである。
-      手元のベースブランチは古いことがある。`<remote>/<PR のベースブランチ>` は、remote に設定した refspec にそのブランチが含まれないと更新されない。
-      `FETCH_HEAD` は、別の fetch で書き換わる。
-      `-q` を付けた `git fetch` は、成功すると何も出さない。stderr に何か出て 0 以外で終わったら、`git fetch` が失敗している（remote の名前の誤り・認証切れなど）。原因を直してやり直す。
-      何も出さずに 1 で終わったら、`git merge-base` が分岐点を見つけられていない。
-      shallow clone（`git rev-parse --is-shallow-repository` が `true`）なら、`git fetch --unshallow <remote>` で履歴を取得してから、このコマンドをやり直す。
+      取得したベースブランチは、専用の ref（`refs/worktree/pr-review/base`）に置いて比べる。
+      手元のベースブランチは古いことがあり、古いベースと比べると PR に無い行まで差分に入る。
+      `<remote>/<PR のベースブランチ>` は、remote に設定した refspec にそのブランチが含まれないと更新されない。`FETCH_HEAD` は、別の fetch で書き換わる。
+      `refs/worktree/` の下の ref は worktree の間で共有されないので、別の worktree で同じ手順を実行しても取り合わない（<https://git-scm.com/docs/git-worktree> の REFS の節）。
+      1 つ目が 0 以外で終わったら、`git fetch` が失敗している（remote の名前の誤り・認証切れなど）。原因を直してやり直す。
+      2 つ目が何も出さずに 1 で終わったら、`git merge-base` が分岐点を見つけられていない。
+      shallow clone（`git rev-parse --is-shallow-repository` が `true`）なら、`git fetch --unshallow <remote>` で履歴を取得してから、2 つのコマンドをやり直す。
       shallow clone でなければ、`<remote>` が PR のベースリポジトリを指すかを `git remote -v` で確かめ、直してからやり直す。
-      このコマンドは分岐点と作業ツリーを比べるので、この反復でまだ commit していない修正の行と、まだ push していない commit の行も検索の対象に入る（commit は手順 5 でまとめて行う）。
+      2 つ目のコマンドは分岐点と作業ツリーを比べるので、この反復でまだ commit していない修正の行と、まだ push していない commit の行も検索の対象に入る（commit は手順 5 でまとめて行う）。
       `git diff refs/worktree/pr-review/base...HEAD` のように HEAD までの commit だけを比べるコマンドでは、まだ commit していない修正の行が対象に入らない。
       まだ commit していない新しいファイル（この反復で作ったものなど）は、`git add -N <path>` で登録するまで、この差分に入らない。
       PR に入れないファイルを登録したら、検索の後に `git reset -- <path>` で登録を戻す。
-      検索を終えたら、`git update-ref -d refs/worktree/pr-review/base` で ref を消す。
+      検索を終えたとき、途中で止めたときのどちらも、`git update-ref -d refs/worktree/pr-review/base` で ref を消す（ref が無ければ何もしない）。
       作業ツリーに PR に入れない変更があれば、その行も差分に入るので、見つかった行から外す。
       整形（折り返し・空白）だけで変わった行も `+` の行に入る。その行に前からある問題は、下に挙げる直さない根拠の 2 つ目（指摘が PR の範囲の外にある）に当たるので、まとめて直す対象から外す。
       検索の語は、レビューが示した語や箇所に限らず、形を表す語に広げる（時間の単位なら「秒」「分」「前後」「約」）。

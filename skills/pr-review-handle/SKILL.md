@@ -82,24 +82,25 @@ pr-review-handle <PR URL | 番号 | レビュー URL> [--push]
       - 妥当で直す必要があれば、対象のファイルを直す。
         書き方の形（規則の違反・単位の書き方など）を指す指摘なら、同じ形が PR の別の行にも無いかを先に探す。
         `<remote>` には、PR のベースリポジトリを指す remote を使う（多くは `origin`。fork から出した PR では `upstream` などのこともある）。
-        探す対象は、下のコマンドの出力の `+` の行である。ベースブランチは専用の ref（`refs/worktree/pr-review/base`）に取得する。
+        探す対象は、下の 2 行目の出力の `+` の行である。ベースブランチは専用の ref（`refs/worktree/pr-review/base`）に取得する。1 行目が失敗したら 2 行目を実行しないよう、別々に実行する。
 
         ```bash
-        git fetch -q --no-tags <remote> "+refs/heads/<PR のベースブランチ>:refs/worktree/pr-review/base" \
-          && since=$(git merge-base refs/worktree/pr-review/base HEAD) && git diff "$since" -U0
+        git fetch --no-tags <remote> "+refs/heads/<PR のベースブランチ>:refs/worktree/pr-review/base"
+        since=$(git merge-base refs/worktree/pr-review/base HEAD) && git diff "$since" -U0
         ```
 
         手元のベースブランチや `<remote>/<PR のベースブランチ>` と比べると、古い版との差分に PR に無い行が入る。`FETCH_HEAD` は後の fetch で変わるので、これも使わない。
-        `refs/worktree/` の下の ref は worktree ごとに分かれるので、別の worktree で同じ手順を実行しても取り合わない。
+        `refs/worktree/` の下の ref は worktree の間で共有されないので（<https://git-scm.com/docs/git-worktree> の REFS の節）、別の worktree で同じ手順を実行しても取り合わない。
         分岐点と作業ツリーを比べるので、前のスレッドで直してまだ commit していない行と、まだ push していない commit の行も対象に入る。
-        `-q` を付けた fetch は成功すると何も出さないので、stderr に何か出て止まったら `git fetch` の失敗である。原因を直して、このコマンドをやり直す。
-        何も出さずに 1 で終わったら、`git merge-base` が分岐点を見つけられていない。
-        shallow clone（`git rev-parse --is-shallow-repository` が `true`）なら、`git fetch --unshallow <remote>` の後にやり直す。
+        1 行目が 0 以外で終わったら `git fetch` の失敗なので、原因を直してやり直す。
+        2 行目が何も出さずに 1 で終わったら、`git merge-base` が分岐点を見つけられていない。
+        shallow clone（`git rev-parse --is-shallow-repository` が `true`）なら、`git fetch --unshallow <remote>` の後に 2 行ともやり直す。
         そうでなければ、`<remote>` がベースリポジトリを指すかを `git remote -v` で確かめ、直してからやり直す。
         手順 3 で head ブランチと違うブランチのまま進めたときは、このコマンドではそのブランチの変更を探すことになる。
-        代わりに `gh pr diff <番号> --repo <owner>/<repo>` の `+` の行を探す。前のスレッドで直してまだ commit していない行は、直したファイルに絞った `git diff HEAD -U0 -- <path>` の `+` の行で足す。
+        代わりに `gh pr diff <番号> --repo <owner>/<repo>` の `+` の行を探す。
+        前のスレッドで直してまだ commit していない行は、`git status --short` で直したファイルをすべて挙げ、`git diff HEAD -U0 -- <path>...` の `+` の行で足す。
         まだ commit していない新しいファイル（前のスレッドで作ったものなど）は、先に `git add -N <path>` で登録しておかないと差分に現れない。PR に入れないファイルを登録したら、探した後に `git reset -- <path>` で登録を戻す。
-        探し終えたら、`git update-ref -d refs/worktree/pr-review/base` で ref を消す。
+        探し終えたとき、途中で止めたときのどちらも、`git update-ref -d refs/worktree/pr-review/base` で ref を消す（ref が無ければ何もしない）。
         PR と関係の無い作業ツリーの変更は、直す対象にしない。整形（折り返し・空白）だけで変わった行に前からある問題も、直す対象にしない。
         語はレビューが挙げたものから広げ（時間の単位なら「秒」「分」「前後」「約」）、当たった行を 1 件ずつ読んで、同じ形だけを一緒に直す。
         検索した語と、見つかった件数・直した件数は、返信に書く。
