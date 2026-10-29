@@ -772,6 +772,34 @@
       ]
     },
     {
+      "id": "split-option-not-spliced",
+      "why": "env -S の値を語に分けて置き換えず、値を読み飛ばすだけにする",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "    if (option.split !== undefined) {",
+      "replace": "    if (option.split === null) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "isGitCommit env -S 'git commit' → true",
+        "commitCwd env --split-string '-C /tmp' git commit → /tmp",
+        "commitCwd env -S'-C sub' git commit → /w/sub",
+        "isGitCommit env --split 'x y' git commit → false",
+        "isGitCommit env --split='-i git' commit → true",
+        "isGitCommit env -S 'git \"commit\"' → true",
+        "isGitCommit env -S 'x y' git commit → false",
+        "isGitCommit env -S git commit -m x → true",
+        "isGitCommit env -iS'git' commit → true"
+      ]
+    },
+    {
+      "id": "unsplittable-split-value-guessed",
+      "why": "引用符などを含む env -S の値も空白で語に分け、止める側に寄せない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "      if (/[\"'\\\\$#]/.test(option.split)) return -1;",
+      "replace": "      if (option.split === null) return -1;",
+      "occurrences": 1,
+      "expect_failing": ["isGitCommit env -S 'git \"commit\"' → true"]
+    },
+    {
       "id": "long-option-prefix-ignored",
       "why": "長いオプションの省略形（`env --chd`）を正式な名前にせず、値を取らない語として読み、次の語をコマンドにする",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",

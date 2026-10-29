@@ -467,11 +467,13 @@ function commitDirsOf(input) {
   /** @type {string[]} */
   const dirs = [];
   let i = skipCommandPrefixes(words, dirs);
-  // ラッパーのオプションを読み切れないときは、語をつないだ文字列で git の後ろに commit があればコミットとして扱う（止める側に寄せる）。
-  // 語に分けられない -S の値（`env -S 'git "commit"'`）の中も、この文字列に入る。
+  // ラッパーのオプションを読み切れないときは、git の語の後ろに commit の語があればコミットとして扱う（止める側に寄せる）。
+  // 語に分けられない -S の値（`env -S 'git "commit"'`）の中も読むため、各語を空白で分け、引用符と `\` を外してから探す。
   // 読み切れたラッパーの指定も、後ろが値かコマンドかを決められないので当てず、作業ディレクトリは変えない
   if (i < 0) {
-    return /\bgit\b[\s\S]*\bcommit\b/.test(words.join(" ")) ? [] : null;
+    const pieces = words.flatMap((w) => w.split(/\s+/)).map((w) => w.replace(/["'\\]/g, ""));
+    const git = pieces.findIndex((w) => w.split("/").pop() === "git");
+    return git >= 0 && pieces.indexOf("commit", git + 1) !== -1 ? [] : null;
   }
   if (i >= words.length || words[i].split("/").pop() !== "git") return null;
   i += 1;
@@ -534,7 +536,7 @@ function resolveLongOption(wrapper, name) {
 
 /**
  * ラッパーの words[i]（`-` で始まる語）を getopt と同じ規則で読み、読み飛ばす語の数（値を次の語に取るなら 2）と、
- * 作業ディレクトリを変えるオプション（chdirOptions）の値を返す。
+ * 作業ディレクトリを変えるオプション（chdirOptions）の値（dir）と、語に分けるオプション（splitOptions）の値（split）を返す。
  * 長いオプションは `--opt <value>`・`--opt=<value>` を読む。短いオプションは、他のオプションとまとめた形（`env -iC <dir>`）と、
  * 値を続けて書いた形（`-C<dir>`・`nice -n5`）を読む。まとめた形では、値を取る最初のオプションより後ろの文字をその値として読む。
  * @param {CommandWrapper} wrapper
@@ -550,9 +552,11 @@ function readWrapperOption(wrapper, words, i) {
     const name = `-${word[k]}`;
     if (!wrapper.valueOptions.includes(name)) continue;
     const rest = word.slice(k + 1);
-    return rest === ""
-      ? optionWithValue(wrapper, name, { width: 2, value: next })
-      : optionWithValue(wrapper, name, { width: 1, value: rest });
+    return optionWithValue(
+      wrapper,
+      name,
+      rest === "" ? { width: 2, value: next } : { width: 1, value: rest },
+    );
   }
   return { width: 1, dir: null };
 }

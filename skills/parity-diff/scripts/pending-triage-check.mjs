@@ -88,7 +88,7 @@ export function matchKey(v) {
 /**
  * slug 表の中の 1 行を読み、表の状態を進める。本体の行なら 1 列目を、ヘッダと区切りの行なら null を返す。
  *
- * @param {{ sawSlugTable: boolean, inSlugTable: boolean, sawSeparator: boolean }} table - 読んでいる表の状態（この関数が更新する）
+ * @param {{ sawSlugTable: boolean, inSlugTable: boolean, sawSeparator: boolean, headerCells: number }} table - 読んでいる表の状態（この関数が更新する）。headerCells はヘッダの列の数
  * @param {string[]} cells
  * @returns {string|null}
  */
@@ -98,13 +98,16 @@ function readSlugTableRow(table, cells) {
       table.inSlugTable = true;
       table.sawSlugTable = true;
       table.sawSeparator = false;
+      table.headerCells = cells.length;
     }
     return null;
   }
   if (!table.sawSeparator) {
     // 区切り行が無い表はヘッダと本体を区別できないので読まない。
     // GFM の区切り行のハイフンは 1 個以上（`|-|-|` も区切り行）。1 列目の空欄を `-` で書いた本体の行と分けるため、すべての列を見る。
-    if (cells.length > 0 && cells.every((c) => /^:?-+:?$/.test(c))) table.sawSeparator = true;
+    // GFM は列の数がヘッダと違う区切り行を表として読まない。
+    const separator = cells.length === table.headerCells && cells.every((c) => /^:?-+:?$/.test(c));
+    if (separator) table.sawSeparator = true;
     else table.inSlugTable = false;
     return null;
   }
@@ -131,7 +134,7 @@ export function parseFeatureSlugs(markdown) {
       .split("|")
       .map((c) => c.trim());
   const slugs = new Set();
-  const table = { sawSlugTable: false, inSlugTable: false, sawSeparator: false };
+  const table = { sawSlugTable: false, inSlugTable: false, sawSeparator: false, headerCells: 0 };
   for (const rawLine of markdown.split("\n")) {
     const line = rawLine.trim();
     if (!line.startsWith("|")) {

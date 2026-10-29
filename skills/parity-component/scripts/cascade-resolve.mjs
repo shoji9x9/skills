@@ -179,7 +179,9 @@ function skipEscape(s, start) {
     hex += 1;
   }
   if (hex === 0) return j + 1; // `\.` のような 1 文字エスケープ
-  if (j < s.length && /\s/.test(s[j])) j += 1; // 終端の空白 1 つを消費する
+  // 終端の空白 1 つを消費する。CSS は CRLF を改行 1 個として読むので、`\r\n` は 2 文字とも消費する
+  if (s.startsWith("\r\n", j)) return j + 2;
+  if (j < s.length && /\s/.test(s[j])) j += 1;
   return j;
 }
 
@@ -411,15 +413,13 @@ export function specificity(selector) {
 }
 
 /**
- * CSS のエスケープ（start の `\`）の次の位置。16 進のエスケープ（`\31 `）は 1〜6 桁の 16 進数と、それを閉じる空白 1 個までを含む。
- * それ以外は `\` と次の 1 文字。
+ * CSS のエスケープ（start の `\`）の次の位置。読み方は skipEscape と同じで、末尾の `\` だけは投げずに文字列の終わりを返す。
  * @param {string} s
  * @param {number} start
  * @returns {number}
  */
 function escapeEnd(s, start) {
-  const hex = /^[0-9a-fA-F]{1,6}[ \t\n\r\f]?/.exec(s.slice(start + 1, start + 8));
-  return Math.min(start + 1 + (hex === null ? 1 : hex[0].length), s.length);
+  return start + 1 >= s.length ? s.length : skipEscape(s, start);
 }
 
 /**

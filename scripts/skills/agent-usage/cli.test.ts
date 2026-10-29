@@ -155,6 +155,9 @@ describe("isGitCommit", () => {
     ["sudo --ch /tmp git commit", true],
     // 同じラッパーと値の形で、commit を実行しないもの
     ["env -iC git commit", false],
+    // 一意に決まらない省略形の後ろでも、commit の語が無いもの（--grep=commit・commit-tree）はコミットと判定しない
+    ["env --de x git log --grep=commit", false],
+    ["sudo --ch /tmp git commit-tree x", false],
     ["timeout 60 git commit-tree abc", false],
     ["timeout 60 git log --grep commit", false],
     ["echo timeout git commit", false],

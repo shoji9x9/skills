@@ -1161,6 +1161,8 @@ test.each([
   [String.raw`.btn:hover.\31 0`, []],
   [String.raw`.btn:hover.\31  span`, ["hover"]],
   [String.raw`.a\3A hover span`, []],
+  // CSS は CRLF を改行 1 個として読むので、16 進のエスケープを閉じる `\r\n` も結合子ではない
+  [".btn:hover.\\31\r\n0", []],
 ])("statesOutsideSubject はエスケープした `:` を擬似クラスに数えない: %s", (selector, expected) => {
   expect(statesOutsideSubject(selector, ["hover"])).toEqual(expected);
 });
