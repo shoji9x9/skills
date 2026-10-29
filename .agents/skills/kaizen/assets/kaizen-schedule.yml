@@ -442,8 +442,8 @@ jobs:
           # 手動実行でもランナーのタイムゾーンに依存しない値になる。
           title="$ISSUE_TITLE_PREFIX ($(date -u +%F))"
 
-          # 追跡 Issue の照会（接頭辞での照合・フォールバック・打ち切りの判定・読めないときに止める処理）は
-          # 原本を同梱のスクリプト 1 本だけに置く。
+          # 追跡 Issue の照会（接頭辞での照合・フォールバック・打ち切りの判定・読めないときに止める処理）の
+          # 原本は、同梱のスクリプト 1 本だけに置く。
           # `numbers` / `scanned` / `truncated` と `warn_if_truncated` はそこで定義される。
           # shellcheck source=/dev/null
           . "$TRACKING_LIB"

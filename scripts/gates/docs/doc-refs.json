@@ -93,6 +93,10 @@
     ],
     "allowed": [
       {
+        "name": "README.md",
+        "reason": "導入先のリポジトリにも一般に在る文書の名前"
+      },
+      {
         "name": "copilot-instructions.md",
         "reason": "GitHub Copilot の指示を置く標準のファイル名で、導入先の .github/ にも在る"
       },
@@ -115,6 +119,14 @@
       {
         "name": "release.yml",
         "reason": "issue-batch の設定例で、導入先のワークフローの名前として書いている"
+      },
+      {
+        "name": "index.html",
+        "reason": "agent-usage の report が出力するファイルと、Web の配信で一般に使う名前として書いている"
+      },
+      {
+        "name": "preview.html",
+        "reason": "aws-architecture-diagram の preview が作業ディレクトリに作るファイルとして書いている"
       },
       {
         "name": "word-list.md",

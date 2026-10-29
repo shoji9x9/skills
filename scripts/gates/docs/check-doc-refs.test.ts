@@ -406,11 +406,28 @@ test("陽性: Markdown のコードフェンスの中の名前も落とす", () 
   ]);
 });
 
+test("陽性: 同じ名前のファイルが別のスキルにだけあっても落とす", () => {
+  const file = "skills/s/SKILL.md";
+  const root = makeRepo({ "skills/t/outdated.yml": "x\n", [file]: "`outdated.yml`\n" });
+  expect(found(root)).toEqual([`${file}:1 dist-repo-path outdated.yml`]);
+});
+
+test("陽性: 拡張子が文書の走査の対象でないファイル（.jsonc）の名前も落とす", () => {
+  // sources の下が .jsonc だけでも、ファイルが無いとして例外にしない。
+  const config = { ...CONFIG, repo_files: { sources: [".config/x/"], allowed: [] } };
+  const file = "skills/s/SKILL.md";
+  const root = makeRepo(
+    { ".config/x/base.jsonc": "{}\n", [file]: "`base.jsonc` を見る\n" },
+    { config },
+  );
+  expect(found(root)).toEqual([`${file}:1 dist-repo-path base.jsonc`]);
+});
+
 test.each<{ label: string; files: Record<string, string> }>([
   { label: "配布スキルの外の文書", files: { "docs/a.md": "outdated.yml とずらす\n" } },
   {
-    label: "skills/ にも同じ名前のファイルがある",
-    files: { "skills/t/outdated.yml": "x\n", "skills/s/SKILL.md": "`outdated.yml`\n" },
+    label: "書いた側のスキルにも同じ名前のファイルがある",
+    files: { "skills/s/assets/outdated.yml": "x\n", "skills/s/SKILL.md": "`outdated.yml`\n" },
   },
   {
     label: "repo_files.sources の外にだけある名前",

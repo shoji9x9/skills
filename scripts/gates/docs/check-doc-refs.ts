@@ -22,8 +22,7 @@
 // 対象ファイル 0 件・設定の形の誤りは exit 2。違反・使われていない許可は exit 1。
 import { existsSync, readFileSync } from "node:fs";
 import { basename, dirname, join, normalize } from "node:path";
-import { TEXT_EXTENSIONS } from "../code/check-control-chars.ts";
-import { listSources } from "../tooling/run-on-sources.ts";
+import { listAllSources } from "../tooling/run-on-sources.ts";
 import {
   applyAllowed,
   blankInlineCode,
@@ -323,7 +322,7 @@ function checkTierRefs(ctx: LineContext, linkSpans: [number, number][]) {
     for (const m of line.matchAll(TESTS_RE))
       at("tier-down", m[0], `eval の結果 ${m[0]} を参照している`);
   if (!EXAMPLE_LINE_RE.test(line)) checkIssueRefs(ctx);
-  if (dist) checkRepoFileNames(ctx, [...linkSpans, ...checkRepoPathRefs(ctx, dist)]);
+  if (dist) checkRepoFileNames(ctx, dist, [...linkSpans, ...checkRepoPathRefs(ctx, dist)]);
 }
 
 /** 行が Issue・PR を参照していないかを確かめる。 */
@@ -357,26 +356,43 @@ function checkRepoPathRefs({ root, line, at }: LineContext, dist: string): [numb
 const FILE_NAME_RE = /(?<![\w.-])([\w.-]+\.[A-Za-z0-9]+)(?![\w-]|\.[A-Za-z0-9])/g;
 
 /** このリポジトリにしか無いファイルの名前を、配布スキル（dist）の行が書いていないかを確かめる。 */
-function checkRepoFileNames({ line, repoNames, at }: LineContext, reported: [number, number][]) {
+function checkRepoFileNames(ctx: LineContext, dist: string, reported: [number, number][]) {
+  const { line, repoNames, at } = ctx;
+  // 同じ名前のファイルを書いた側のスキルが持てば、導入先にも届くので数えない。他のスキルは導入先に在るとは限らない。
+  const own = repoNames.skillNames.get(dist);
   for (const m of line.matchAll(FILE_NAME_RE)) {
     const name = m[1];
     const origin = repoNames.names.get(name);
-    if (origin === undefined || reported.some(([s, e]) => m.index >= s && m.index < e)) continue;
+    if (origin === undefined || own?.has(name)) continue;
+    if (reported.some(([s, e]) => m.index >= s && m.index < e)) continue;
     if (repoNames.allowed.has(name)) repoNames.used.add(name);
-    else at("dist-repo-path", name, `このリポジトリの ${origin} を名前で参照している`);
+    else at("dist-repo-path", name, `このリポジトリにしか無い ${origin} を参照している`);
   }
 }
 
 /** 名前で書くと誤りになるファイルの名前（repo_files）と、名前ごとの許可が使われたか。 */
-type RepoNames = { names: Map<string, string>; allowed: Set<string>; used: Set<string> };
+type RepoNames = {
+  names: Map<string, string>;
+  /** 配布スキルのディレクトリごとの、その中のファイルの名前。 */
+  skillNames: Map<string, Set<string>>;
+  allowed: Set<string>;
+  used: Set<string>;
+};
 
 /**
- * repo_files.sources の下のファイルの名前と、その在りか。skills/ に同じ名前のファイルがあるもの・拡張子の無いものは除く。
+ * repo_files.sources の下のファイル（拡張子を問わない）の名前と、その在りか。拡張子の無いものは除く。
+ * 配布スキルごとの名前の一覧も返す（書いた側のスキルに同じ名前があれば、checkRepoFileNames が数えない）。
  * 追跡ファイルが 1 件も無い sources は、宣言が古いので例外にする。
  */
 function repoFileNames(root: string, { sources, allowed }: RepoFilesConfig): RepoNames {
-  const files = listSources(root, TEXT_EXTENSIONS);
-  const inSkills = new Set(files.filter((f) => f.startsWith("skills/")).map((f) => basename(f)));
+  const files = listAllSources(root);
+  const skillNames = new Map<string, Set<string>>();
+  for (const f of files) {
+    const dist = distributedSkillDir(f);
+    if (dist === null) continue;
+    if (!skillNames.has(dist)) skillNames.set(dist, new Set());
+    skillNames.get(dist)?.add(basename(f));
+  }
   const names = new Map<string, string>();
   for (const s of sources) {
     const under = files.filter((f) => f.startsWith(s));
@@ -384,10 +400,10 @@ function repoFileNames(root: string, { sources, allowed }: RepoFilesConfig): Rep
       throw new Error(`${CONFIG_PATH}: repo_files.sources の ${s} にファイルが無い`);
     for (const f of under) {
       const n = basename(f);
-      if (/\.[A-Za-z0-9]+$/.test(n) && !inSkills.has(n) && !names.has(n)) names.set(n, f);
+      if (/\.[A-Za-z0-9]+$/.test(n) && !names.has(n)) names.set(n, f);
     }
   }
-  return { names, allowed: new Set(allowed.map((e) => e.name)), used: new Set() };
+  return { names, skillNames, allowed: new Set(allowed.map((e) => e.name)), used: new Set() };
 }
 
 /**
