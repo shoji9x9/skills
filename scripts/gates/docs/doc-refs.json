@@ -127,10 +127,6 @@
       {
         "name": "preview.html",
         "reason": "aws-architecture-diagram の preview が作業ディレクトリに作るファイルとして書いている"
-      },
-      {
-        "name": "word-list.md",
-        "reason": "writing-style の設定例で、導入先の使わない語の一覧のパスとして書いている"
       }
     ]
   }

@@ -273,13 +273,14 @@ type LineContext = FileContext & {
 
 /**
  * Markdown のリンク `[...](相対パス)` の先が在るかと、配布スキルの外を指していないかを確かめる（link 規則）。
- * 確かめたリンク先の範囲を返し、checkRepoFileNames がリンク先の名前を重ねて報告しないようにする。
+ * リンク全体（文字列の `[` からリンク先の `)` まで）の範囲を返し、checkRepoFileNames がリンクの中の名前を重ねて報告しないようにする。
  */
 function checkLinks({ root, file, dist, line, at }: LineContext): [number, number][] {
   const spans: [number, number][] = [];
   for (const m of blankInlineCode(line).matchAll(/\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
     const target = m[1];
-    spans.push([m.index, m.index + m[0].length]);
+    const open = line.lastIndexOf("[", m.index);
+    spans.push([open >= 0 ? open : m.index, m.index + m[0].length]);
     if (/^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith("#") || target.startsWith("<"))
       continue;
     const rel = linkPath(file, target);
@@ -322,7 +323,11 @@ function checkTierRefs(ctx: LineContext, linkSpans: [number, number][]) {
     for (const m of line.matchAll(TESTS_RE))
       at("tier-down", m[0], `eval の結果 ${m[0]} を参照している`);
   if (!EXAMPLE_LINE_RE.test(line)) checkIssueRefs(ctx);
-  if (dist) checkRepoFileNames(ctx, dist, [...linkSpans, ...checkRepoPathRefs(ctx, dist)]);
+  if (dist) {
+    const reported = [...linkSpans, ...checkRepoPathRefs(ctx, dist)];
+    // 例の行は導入先の値を書いたものなので、名前では読まない（Issue・PR の番号と同じ扱い）。
+    if (!EXAMPLE_LINE_RE.test(line)) checkRepoFileNames(ctx, dist, reported);
+  }
 }
 
 /** 行が Issue・PR を参照していないかを確かめる。 */
@@ -353,6 +358,7 @@ function checkRepoPathRefs({ root, line, at }: LineContext, dist: string): [numb
 
 // ファイル名を 1 つのトークンとして読む。前が `/` のもの（パスの末尾）も当てる。
 // 前後に名前の文字が続くもの（`my-outdated.yml`・`outdated.yml.bak`）は別の名前なので当てない。
+// 拡張子の無い名前（`CODEOWNERS`）と、`.` で始まりドットが 1 つの名前（`.gitignore`）は、この形に当たらないので検出しない。
 const FILE_NAME_RE = /(?<![\w.-])([\w.-]+\.[A-Za-z0-9]+)(?![\w-]|\.[A-Za-z0-9])/g;
 
 /** このリポジトリにしか無いファイルの名前を、配布スキル（dist）の行が書いていないかを確かめる。 */
@@ -365,8 +371,13 @@ function checkRepoFileNames(ctx: LineContext, dist: string, reported: [number, n
     const origin = repoNames.names.get(name);
     if (origin === undefined || own?.has(name)) continue;
     if (reported.some(([s, e]) => m.index >= s && m.index < e)) continue;
+    // パスの末尾なら、書いたパスがこのリポジトリに在るときだけ数え、在りかにはそのパスを示す。
+    // 無いパスは導入先のパスか誤記で、同じ名前の別のファイルを指していない。
+    const dir = /[\w./-]*$/.exec(line.slice(0, m.index))?.[0] ?? "";
+    const path = dir === "" ? origin : `${dir}${name}`;
+    if (dir !== "" && !existsSync(join(ctx.root, path))) continue;
     if (repoNames.allowed.has(name)) repoNames.used.add(name);
-    else at("dist-repo-path", name, `このリポジトリにしか無い ${origin} を参照している`);
+    else at("dist-repo-path", name, `このリポジトリにしか無い ${path} を参照している`);
   }
 }
 

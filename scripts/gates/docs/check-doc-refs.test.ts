@@ -406,6 +406,28 @@ test("陽性: Markdown のコードフェンスの中の名前も落とす", () 
   ]);
 });
 
+test("陽性: 在るパスの末尾の名前は、書いたパスを在りかとして示す", () => {
+  const file = "skills/s/SKILL.md";
+  const r = checkDocRefs(makeRepo({ [file]: "`.github/workflows/outdated.yml` を見る\n" }));
+  expect(r.failures).toEqual([
+    `${file}:1: [dist-repo-path] このリポジトリにしか無い .github/workflows/outdated.yml を参照している`,
+  ]);
+});
+
+test("陰性: このリポジトリに無いパスの末尾の名前は、同じ名前の別のファイルとして数えない", () => {
+  expect(found(makeRepo({ "skills/s/SKILL.md": "`.ci/x/outdated.yml` を置く\n" }))).toEqual([]);
+});
+
+test("陰性: 例の行の名前は数えない", () => {
+  expect(found(makeRepo({ "skills/s/SKILL.md": "例: `outdated.yml` を置く\n" }))).toEqual([]);
+});
+
+test("陽性: Markdown のリンクの文字列の名前は、リンクの規則の 1 件だけにする", () => {
+  const file = "skills/s/SKILL.md";
+  const root = makeRepo({ [file]: "[outdated.yml](../../.github/workflows/outdated.yml)\n" });
+  expect(found(root)).toEqual([`${file}:1 dist-repo-path ../../.github/workflows/outdated.yml`]);
+});
+
 test("陽性: 同じ名前のファイルが別のスキルにだけあっても落とす", () => {
   const file = "skills/s/SKILL.md";
   const root = makeRepo({ "skills/t/outdated.yml": "x\n", [file]: "`outdated.yml`\n" });

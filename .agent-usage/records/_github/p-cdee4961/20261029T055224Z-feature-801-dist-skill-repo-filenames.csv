@@ -20,3 +20,6 @@ ci:40818081615:1,ci,2026-10-29T05:52:24.881Z,p-cdee4961,github-actions,,,,2026-1
 coverage:github:2026-10-28T04:33:58.599Z:2026-10-29T05:52:24.881Z,coverage,2026-10-29T05:52:24.881Z,p-cdee4961,,,,,2026-10-28T04:33:58.599Z,2026-10-29T05:52:24.881Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-28T05:52:24.881Z:2026-10-29T05:57:25.514Z,coverage,2026-10-29T05:57:25.514Z,p-cdee4961,,,,,2026-10-28T05:52:24.881Z,2026-10-29T05:57:25.514Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-28T05:57:25.514Z:2026-10-29T06:08:54.800Z,coverage,2026-10-29T06:08:54.800Z,p-cdee4961,,,,,2026-10-28T05:57:25.514Z,2026-10-29T06:08:54.800Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:40827809267:1,ci,2026-10-29T06:18:44.924Z,p-cdee4961,github-actions,,,,2026-10-29T06:12:20.000Z,2026-10-29T06:12:29.000Z,Asia/Tokyo,feature/801-dist-skill-repo-filenames,801,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40827809317:1,ci,2026-10-29T06:18:44.924Z,p-cdee4961,github-actions,,,,2026-10-29T06:12:20.000Z,2026-10-29T06:16:35.000Z,Asia/Tokyo,feature/801-dist-skill-repo-filenames,801,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-28T06:08:54.800Z:2026-10-29T06:18:44.924Z,coverage,2026-10-29T06:18:44.924Z,p-cdee4961,,,,,2026-10-28T06:08:54.800Z,2026-10-29T06:18:44.924Z,Asia/Tokyo,,,,,,,,,,,,ok,
