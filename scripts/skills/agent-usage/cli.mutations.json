@@ -143,7 +143,9 @@
         "isGitCommit env -S 'git\\_commit' → true",
         "isGitCommit env -S 'g\"i\"t commit' → true",
         "isGitCommit env -S 'git com${E}mit' → true",
-        "isGitCommit sudo --ch /tmp env -S 'git commit' → true"
+        "isGitCommit sudo --ch /tmp env -S 'git commit' → true",
+        "isGitCommit 入れ子の省略形と -S: env --de x env -S 'sudo --ch /tmp git commit' → true",
+        "isGitCommit 入れ子の省略形と -S: sudo --ch /tmp env -S 'env --de x git commit' → true"
       ]
     },
     {
@@ -797,7 +799,9 @@
         "isGitCommit env -S 'git\\_commit' → true",
         "isGitCommit env -S 'g\"i\"t commit' → true",
         "isGitCommit env -S 'git com${E}mit' → true",
-        "isGitCommit sudo --ch /tmp env -S 'git commit' → true"
+        "isGitCommit sudo --ch /tmp env -S 'git commit' → true",
+        "isGitCommit 入れ子の省略形と -S: env --de x env -S 'sudo --ch /tmp git commit' → true",
+        "isGitCommit 入れ子の省略形と -S: sudo --ch /tmp env -S 'env --de x git commit' → true"
       ]
     },
     {
@@ -840,7 +844,30 @@
       "expect_failing": [
         "isGitCommit env --de x git commit → true",
         "isGitCommit sudo --ch /tmp env -S 'git commit' → true",
-        "isGitCommit sudo --ch /tmp git commit → true"
+        "isGitCommit sudo --ch /tmp git commit → true",
+        "isGitCommit 入れ子の省略形と -S: env --de x env -S 'sudo --ch /tmp git commit' → true",
+        "isGitCommit 入れ子の省略形と -S: sudo --ch /tmp env -S 'env --de x git commit' → true"
+      ]
+    },
+    {
+      "id": "nested-ambiguous-reread",
+      "why": "読み直しの中の省略形でも読み直し、省略形を重ねた入力で 2^n の時間をかける",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "  if (!retry) return null;",
+      "replace": "  if (retry === null) return null;",
+      "occurrences": 1,
+      "expect_failing": ["isGitCommit 一意に決まらない省略形を 24 段重ねても、1 秒以内に判定する"]
+    },
+    {
+      "id": "spliced-tail-not-reread",
+      "why": "読み直しの中で -S の値を語に分けた後に現れる省略形を、読み直さずに飛ばす",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "retry: retry || spliced",
+      "replace": "retry: retry",
+      "occurrences": 1,
+      "expect_failing": [
+        "isGitCommit 入れ子の省略形と -S: sudo --ch /tmp env -S 'env --de x git commit' → true",
+        "isGitCommit 入れ子の省略形と -S: env --de x env -S 'sudo --ch /tmp git commit' → true"
       ]
     },
     {
@@ -870,7 +897,9 @@
         "isGitCommit env --de x git commit → true",
         "isGitCommit sudo --ch /tmp git commit → true",
         "isGitCommit env --split='-i git' commit → true",
-        "isGitCommit sudo --ch /tmp env -S 'git commit' → true"
+        "isGitCommit sudo --ch /tmp env -S 'git commit' → true",
+        "isGitCommit 入れ子の省略形と -S: env --de x env -S 'sudo --ch /tmp git commit' → true",
+        "isGitCommit 入れ子の省略形と -S: sudo --ch /tmp env -S 'env --de x git commit' → true"
       ]
     },
     {
@@ -882,7 +911,9 @@
       "occurrences": 1,
       "expect_failing": [
         "isGitCommit env --de x git commit → true",
-        "commitCwd sudo --ch /tmp git commit → /w"
+        "commitCwd sudo --ch /tmp git commit → /w",
+        "isGitCommit 入れ子の省略形と -S: env --de x env -S 'sudo --ch /tmp git commit' → true",
+        "isGitCommit 入れ子の省略形と -S: sudo --ch /tmp env -S 'env --de x git commit' → true"
       ]
     }
   ]

@@ -200,6 +200,21 @@ describe("isGitCommit", () => {
   ])("%s → %s", (cmd, expected) => {
     expect(isGitCommit(cmd)).toBe(expected);
   });
+
+  // 読み直しの中で -S の値を語に分けた後に現れる省略形も、分けた後の語の列を読み直す
+  test.each([
+    "sudo --ch /tmp env -S 'env --de x git commit'",
+    "env --de x env -S 'sudo --ch /tmp git commit'",
+  ])("入れ子の省略形と -S: %s → true", (cmd) => {
+    expect(isGitCommit(cmd)).toBe(true);
+  });
+
+  // 読み直しの中でさらに読み直すと、省略形を重ねた数の 2^n の時間がかかる（n=24 で 10 秒ほど）
+  test("一意に決まらない省略形を 24 段重ねても、1 秒以内に判定する", () => {
+    const started = performance.now();
+    expect(isGitCommit("sudo --ch ".repeat(24) + "ls")).toBe(false);
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
 });
 
 describe("commitCwd", () => {

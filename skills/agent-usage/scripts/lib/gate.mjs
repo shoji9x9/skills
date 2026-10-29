@@ -465,7 +465,8 @@ function skipWrapperOptions(wrapper, words, at) {
  * 単純なコマンド（語の列）が git commit なら、ラッパーの `env -C`・`sudo -D` と git の `-C` で指定したディレクトリを指定の順に返す。
  * git commit でなければ null。
  * @param {readonly string[]} input
- * @param {boolean} [retry] 一意に決まらない省略形の後ろを各位置から読み直すか。読み直しの中では false にする
+ * @param {boolean} [retry] 一意に決まらない省略形の後ろを各位置から読み直すか。読み直しの中では false にする。
+ *   false でも、-S の値を語に分けて語の列が変わったときは、分けた後の語の列を読み直す
  * @returns {string[] | null}
  */
 function commitDirsOf(input, retry = true) {
@@ -473,8 +474,10 @@ function commitDirsOf(input, retry = true) {
   /** @type {string[]} */
   const dirs = [];
   let i = skipCommandPrefixes(words, dirs);
-  // ラッパーのオプションを読み切れないときは止める側に寄せ、読み切れたラッパーの指定も当てず、作業ディレクトリは変えない
-  if (i < 0) return unreadCommitDirs(words, { reason: i, retry });
+  // ラッパーのオプションを読み切れないときは止める側に寄せ、読み切れたラッパーの指定も当てず、作業ディレクトリは変えない。
+  // -S の値を語に分けた後の語の列は、呼び出し元のループが読んでいないので、読み直しの中でも読み直す
+  const spliced = words.length !== input.length || words.some((w, j) => w !== input[j]);
+  if (i < 0) return unreadCommitDirs(words, { reason: i, retry: retry || spliced });
   if (i >= words.length || words[i].split("/").pop() !== "git") return null;
   i += 1;
   while (i < words.length && words[i].startsWith("-")) {
@@ -503,7 +506,7 @@ function unreadCommitDirs(words, at) {
   }
   // 一意に決まらない省略形は、後ろのどの語からコマンドが始まるかを決められないので、各位置から読み直し、
   // どれかが git commit ならコミットとして扱う（`git log --grep 'fix commit'` はコミットにしない）。
-  // 読み直しの中の省略形は、その後ろの位置もこのループが読むので、読み直さずに飛ばす（入れ子で 2^n にしない）
+  // 読み直しの中の省略形は、-S の値を分けていなければ、その後ろの位置もこのループが読むので、読み直さずに飛ばす（入れ子で 2^n にしない）
   if (!retry) return null;
   for (let k = 1; k < words.length; k += 1) {
     if (commitDirsOf(words.slice(k), false) !== null) return [];
