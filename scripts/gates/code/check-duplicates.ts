@@ -154,9 +154,8 @@ export function parseReport(value: unknown): { sources: number; clones: Clone[] 
 type Range = { start: number; end: number };
 
 /**
- * 範囲の組の files に、並べたファイルとファイル全体の組で一致するコピーを足した組を返す。ファイル全体の組はそのまま返す。
- * 範囲の組には、ファイル全体の組のファイルを 1 つ（どれでもよい）だけ並べればよい。コピーはそのファイルとバイト単位で同じなので、
- * 同じ範囲を持つ。1 ファイルが属せるファイル全体の組は 1 つだけ（loadGroups が確かめる）なので、組をまたいでまとめる必要は無い。
+ * 範囲の組の files に、並べたファイルとファイル全体の組で一致するコピーを足した組を返す（冒頭の判定規則）。ファイル全体の組はそのまま返す。
+ * groups は loadGroups の組で、1 ファイルが属せるファイル全体の組は 1 つだけである。
  */
 export function withCopies(groups: readonly CopyGroup[]): CopyGroup[] {
   const copiesOf = new Map<string, readonly string[]>();
