@@ -47,3 +47,6 @@ ci:40797728032:1,ci,2026-10-29T01:01:59.299Z,p-cdee4961,github-actions,,,,2026-1
 coverage:github:2026-10-28T00:59:52.179Z:2026-10-29T01:01:59.299Z,coverage,2026-10-29T01:01:59.299Z,p-cdee4961,,,,,2026-10-28T00:59:52.179Z,2026-10-29T01:01:59.299Z,Asia/Tokyo,,,,,,,,,,,,ok,
 ci:40797728032:1,ci,2026-10-29T01:07:34.207Z,p-cdee4961,github-actions,,,,2026-10-29T01:00:35.000Z,2026-10-29T01:03:47.000Z,Asia/Tokyo,feature/794-search-pattern-across-pr-diff,794,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-28T01:01:59.299Z:2026-10-29T01:07:34.207Z,coverage,2026-10-29T01:07:34.207Z,p-cdee4961,,,,,2026-10-28T01:01:59.299Z,2026-10-29T01:07:34.207Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:40798551574:1,ci,2026-10-29T01:16:53.195Z,p-cdee4961,github-actions,,,,2026-10-29T01:08:18.000Z,2026-10-29T01:08:19.000Z,Asia/Tokyo,feature/794-search-pattern-across-pr-diff,794,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40798551563:1,ci,2026-10-29T01:16:53.195Z,p-cdee4961,github-actions,,,,2026-10-29T01:08:18.000Z,2026-10-29T01:12:20.000Z,Asia/Tokyo,feature/794-search-pattern-across-pr-diff,794,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-28T01:07:34.207Z:2026-10-29T01:16:53.195Z,coverage,2026-10-29T01:16:53.195Z,p-cdee4961,,,,,2026-10-28T01:07:34.207Z,2026-10-29T01:16:53.195Z,Asia/Tokyo,,,,,,,,,,,,ok,
