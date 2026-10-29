@@ -9,7 +9,7 @@ name: Kaizen schedule
 
 on:
   schedule:
-    # 毎週月曜 01:00 UTC (10:00 JST)。outdated.yml（00:00 UTC）とずらす。
+    # 毎週月曜 01:00 UTC (10:00 JST)。同じ runner を使うほかの週次の処理と時刻をずらす。
     - cron: "0 1 * * 1"
   workflow_dispatch:
     inputs:
@@ -430,7 +430,7 @@ jobs:
 
           # `settings` は必ず 10 進の件数を書く。空や数値でないまま進むと、`= 0` は文字列の比較
           # なので「未適用あり」と判定され、件数の抜けたコメントを投稿しつつ Issue を更新する
-          # （実測）。`outdated.yml` の `has_outdated` の検証と同じく、gh を呼ぶ前にエラーにする。
+          # （実測）。Issue を触る前に止めるため、gh を呼ぶ前にエラーにする。
           case "$PENDING_COUNT" in
           '' | *[!0-9]*)
             echo "pending_count=\"$PENDING_COUNT\" が 10 進の件数でない。追跡 Issue を触らずに落とす" >&2
@@ -443,7 +443,7 @@ jobs:
           title="$ISSUE_TITLE_PREFIX ($(date -u +%F))"
 
           # 追跡 Issue の照会（接頭辞での照合・フォールバック・打ち切りの判定・読めないときに止める処理）は
-          # `outdated.yml` と共通なので、原本は同梱のスクリプト 1 本だけに置く。
+          # 原本を同梱のスクリプト 1 本だけに置く。
           # `numbers` / `scanned` / `truncated` と `warn_if_truncated` はそこで定義される。
           # shellcheck source=/dev/null
           . "$TRACKING_LIB"
