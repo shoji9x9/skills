@@ -4,7 +4,7 @@
 // | ------------ | -------------------------------------------------------- |
 // | 終わり方     | 成功 / 0 以外の終了 / 打ち切り / 起動できない            |
 // | 呼び出し     | runGit / repoRoot / listFiles / indexBlobs / readBlob    |
-// | ルートの名前 | 通常 / 末尾が空白 / 末尾が CR                            |
+// | ルートの名前 | 通常 / 末尾が空白（出力の改行は LF / CRLF）              |
 // | ファイル     | 追跡 / 未追跡 / .gitignore / stage した後に作業ツリーから消した |
 //
 // 期待値は runGit の doc コメント（`<what>（git <サブコマンド> <終わり方>）: <stderr>`）と spawnEnd の書き方から決める。
@@ -22,17 +22,17 @@ test("repoRoot はリポジトリの中の場所から、ルートを返す", ()
   expect(repoRoot(join(root, "a", "b"))).toBe(realpathSync(root));
 });
 
-test("repoRoot は末尾の LF だけを外し、名前の末尾の CR は残す", () => {
-  const dir = makeTempDir("git-cr-");
+test("repoRoot は、CRLF で出力する git でも末尾の改行だけを外す", () => {
+  const dir = makeTempDir("git-crlf-");
   const fake = join(dir, "fake-git");
-  // 引数が rev-parse --show-toplevel のときだけ、名前が CR で終わるルートを出力する
+  // 引数が rev-parse --show-toplevel のときだけ、名前の末尾が空白のルートを CRLF で出力する
   write(
     dir,
     "fake-git",
-    '#!/bin/sh\n[ "$*" = "rev-parse --show-toplevel" ] || exit 9\nprintf \'/x/repo\\r\\n\'\n',
+    '#!/bin/sh\n[ "$*" = "rev-parse --show-toplevel" ] || exit 9\nprintf \'/x/repo \\r\\n\'\n',
   );
   chmodSync(fake, 0o755);
-  expect(repoRoot(dir, { command: fake })).toBe("/x/repo\r");
+  expect(repoRoot(dir, { command: fake })).toBe("/x/repo ");
 });
 
 test("repoRoot は、ディレクトリ名の末尾の空白を消さない", () => {
