@@ -44,7 +44,7 @@ pr-finalize-loop <PR URL> [--max-iterations <N>] [--wait-ci-before-review] [--re
 
 ## 前提
 
-- ツール: `gh`（GitHub CLI。`gh api graphql`・`gh pr checks`・`gh run view` を含む）、`git`
+- ツール: `gh`（GitHub CLI。`gh api graphql`・`gh api` の REST・`gh pr checks`・`gh run view`・`gh run list`・`gh run cancel`・`gh run rerun` を含む）、`git`
 - 前提スキル: なし。レビューへの対応のやり方は [[pr-review-handle]] と同じだが、このスキルは自律して動く版を中に持ち、単独で動く
 - MCP: なし
 - シェル: bash（POSIX 互換シェル）。コマンド例は bash で書いているので、Windows では WSL や Git Bash などの bash 環境で実行する
@@ -278,7 +278,7 @@ effort を指定できるのは、`review_tool: local` で Claude Code の `/cod
 | 完了 | CI がすべて成功し、未解決のスレッドが無く、レビューの本文とトップレベルのコメントに対応していない指摘が無く、HEAD がレビュー済みである。`review_tool: none` では HEAD がレビュー済みかを問わず、CI がすべて成功し、未解決のスレッドが無く、スレッドの外の指摘にも対応していれば完了とする |
 | レビュー未着で待機終了 | 上のうち HEAD がレビュー済みであることだけを満たさず、レビューが現れるのを待つ時間が上限に達した |
 | 最大反復到達 | 「反復の段階と effort」の最後の段階の回数を使い切った（effort を下げられないツールでは `--max-iterations` に達した）。または、進み具合のメモを失って段階が分からなくなり、1 回だけ反復した（「完了」「レビュー未着で待機終了」「判断待ちで終了」の条件を満たせば、そちらにする）。段階ごとの effort と反復の回数を書く。残っている CI の失敗、未解決のスレッド、スレッドの外（レビューの本文とトップレベルのコメント）の指摘を書く。止まった時点の HEAD が「HEAD のレビュー済み判定」でレビュー済みでなければ、そのことを書く（`none` を除く）。その HEAD の CI が終わっていなければ、終わっていないと書く |
-| 行き詰まり | 同じ CI の失敗が良くならず、新しく打てる手が無い。失敗の内容と、どうすれば直せそうかを報告する。ジョブに runner が割り当てられないまま始まらない時間の上限を超えたときと、ベースブランチとの競合で CI が起動しないときも、ここで止まる（「ポーリングと待機」） |
+| 行き詰まり | 同じ CI の失敗が良くならず、新しく打てる手が無い。失敗の内容と、どうすれば直せそうかを報告する。ジョブが始まらない時間の上限を超えたときと、ベースブランチとの競合で CI が起動しないとき（競合があるかを判定できないときを含む）も、ここで止まる（「ポーリングと待機」） |
 | 仕上げ対象なし | 着手する前か、ループの中の状態の取得で見つける。PR が OPEN でない（`MERGED` か `CLOSED`）。ループの途中で他の人のマージやクローズで対象が無くなったときも同じように止まる |
 | 前提不一致 | 着手する前に止まる。repo が一致しない、または現在のブランチが PR の head と一致しない |
 | 判断待ちで終了 | `--defer-decisions` のときだけ。CI がすべて成功し、残りの未解決のスレッドとスレッドの外の指摘が、すべて判断待ちにした人の判断が要る指摘であり、HEAD がレビュー済みである（`review_tool: none` を除く）。判断待ちの一覧（指摘の URL・選択肢・推奨）を書く。「完了」とは別の止まった理由にする |
@@ -296,18 +296,33 @@ effort を指定できるのは、`review_tool: local` で Claude Code の `/cod
 - CI の完了を待つ: `gh pr checks --watch` に任せる。gh が中でポーリングし、完了するまで待つ。間隔は `--interval <秒>` で決める。自分で短い間隔のループを書いて呼び続けない。
   - `--watch` は、ジョブが始まらないまま（`queued` のまま runner が割り当てられないまま）でも返らない。そのため、始まらない時間には別に上限を置く。
     上限は、同じリポジトリで観測した、ジョブの作成から開始までの時間（ジョブの `created_at` から `started_at` まで）の数倍にする。
-  - 上限を超えたら、HEAD の workflow run を `gh run list --commit <HEAD の SHA> --json databaseId,status` で挙げる。
-    始まっていない run のジョブを `gh api --paginate repos/<owner>/<repo>/actions/runs/<run-id>/jobs` で取得し、`status`・`runner_name`・`labels` を見る。
+    観測には、直近に完了した run のジョブを、下の `gh api` と同じ呼び出しで取得して使う。
+    `--watch` は自分では終わらないので、上限で打ち切れる形（`timeout` コマンド、またはバックグラウンドで起動して上限の時刻に確かめる方法）で起動する。
+    上限で打ち切ったら、次の手順でジョブを調べる。始まっていないジョブ（`status` が `in_progress` と `completed` 以外）が無ければ、`--watch` を起動し直す。
+  - 上限を超えたら、HEAD の workflow run を `gh run list --repo <owner>/<repo> --commit <HEAD の SHA> --json databaseId,status` で挙げる。
+    始まっていない run のジョブを次のコマンドで取得し、`status`・`runner_name`・`labels` を見る。
+
+    ```bash
+    gh api --paginate repos/<owner>/<repo>/actions/runs/<run-id>/jobs \
+      --jq '.jobs[] | {name, status, runner_name, labels, created_at, started_at}'
+    ```
+
+    この API はページごとに `total_count` と `jobs` を持つオブジェクトを返すので、`--jq` でページをまたいでジョブだけを並べる。
     `gh run view --json jobs` は `runner_name` を返さないので使わない。
     形は <https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run> で確かめた。
   - `runner_name` が null のまま `queued` なら、runner が割り当てられていない（Actions の予算の上限、存在しないラベルの runner の指定など）。
     原因はリポジトリの外にあることが多く、ループの中では除けない。`run-id`・ジョブの名前・`labels`・待った時間を書いて「行き詰まり」として止まり、利用者に知らせる。
-  - 原因を除いた後に再開したら、`gh run cancel <run-id>` で取り消してから `gh run rerun <run-id>` で再実行する。原因を除いた後も、`queued` のままのジョブが動き出さないことがあるからである。
-  - step が 0 件のまま失敗したジョブも、runner が割り当てられなかったことを示す。CI の失敗として直す前と再実行する前に、同じように `runner_name` と `labels` を確かめる。
+  - ジョブの `status` には、`queued`・`in_progress`・`completed` のほかに `waiting`・`requested`・`pending` がある。
+    `waiting` は environment の保護ルールによる承認待ちで、人が承認するまで始まらない。`requested` と `pending` は、他のジョブや同じ concurrency の group の run を待っている。
+    どれも runner の割り当ての問題とは別に扱う。上限を超えても変わらなければ、`run-id`・ジョブの名前・`status`・待った時間を書いて「行き詰まり」として止まる。
+  - 原因を除いた後に再開したら、`gh run cancel <run-id> --repo <owner>/<repo>` で取り消してから `gh run rerun <run-id> --repo <owner>/<repo>` で再実行する。原因を除いた後も、`queued` のままのジョブが動き出さないことがあるからである。
+    取り消しは非同期で、`completed` になる前の run は再実行できない。`gh run view <run-id> --repo <owner>/<repo> --json status` が `completed` になるのを、上限を決めて待ってから再実行する。
+  - step が 0 件のまま失敗したジョブも、runner が割り当てられなかったことを示す場合がある。CI の失敗として直す前と再実行する前に、同じように `runner_name` と `labels` を確かめる。
 - `no checks` を確かめ直す: push の直後にチェックがまだ登録されていなければ、数回まで確かめ直す。
   確かめ直す前と、`--watch` が飛ばすだけのチェック（`skipping`）しか無い状態で終わったときは、`gh pr view <番号> --repo <owner>/<repo> --json mergeable` で競合を確かめる。
   `mergeable` が `CONFLICTING` なら、ベースブランチとの競合で `pull_request` のワークフローが起動していない。待ち直さずに「行き詰まり」として止まり、競合していることを報告する。
-  `UNKNOWN` は GitHub が計算している途中なので、間隔を空けて取得し直す。
+  `UNKNOWN` は GitHub が計算している途中なので、間隔を空けて数回まで取得し直す。
+  それでも `UNKNOWN` なら、競合が無いとは扱わない。「行き詰まり」として止まり、`mergeable` を判定できなかったことを報告する。
   競合が無いのに登録されなければ、この HEAD では CI が実行されないとみなして CI を待つのをやめ、収束の判定に進む。CI が無いこと自体は失敗ではない。
 - レビューが現れるのを待つ（`--watch` にあたるものが無い）: レビューを依頼した後、一定の間隔で未解決のスレッドとレビューがあるかを再取得し、上限まで待つ。
   上限を超えたら、その反復はレビューが届かないまま閉じ、CI などの作業を進める。届かなかったことは報告に残す。

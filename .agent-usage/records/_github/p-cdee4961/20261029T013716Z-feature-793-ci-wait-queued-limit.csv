@@ -4,3 +4,6 @@ ci:40800745260:1,ci,2026-10-29T01:37:16.285Z,p-cdee4961,github-actions,,,,2026-1
 ci:40800150501:1,ci,2026-10-29T01:37:16.285Z,p-cdee4961,github-actions,,,,2026-10-29T01:23:40.000Z,2026-10-29T01:23:41.000Z,Asia/Tokyo,feature/794-search-pattern-across-pr-diff,794,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:40800150601:1,ci,2026-10-29T01:37:16.285Z,p-cdee4961,github-actions,,,,2026-10-29T01:23:40.000Z,2026-10-29T01:27:45.000Z,Asia/Tokyo,feature/794-search-pattern-across-pr-diff,794,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-28T01:22:55.711Z:2026-10-29T01:37:16.285Z,coverage,2026-10-29T01:37:16.285Z,p-cdee4961,,,,,2026-10-28T01:22:55.711Z,2026-10-29T01:37:16.285Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-28T01:37:16.285Z:2026-10-29T01:43:19.824Z,coverage,2026-10-29T01:43:19.824Z,p-cdee4961,,,,,2026-10-28T01:37:16.285Z,2026-10-29T01:43:19.824Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-28T01:43:19.824Z:2026-10-29T01:44:28.677Z,coverage,2026-10-29T01:44:28.677Z,p-cdee4961,,,,,2026-10-28T01:43:19.824Z,2026-10-29T01:44:28.677Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-28T01:44:28.677Z:2026-10-29T01:44:55.366Z,coverage,2026-10-29T01:44:55.366Z,p-cdee4961,,,,,2026-10-28T01:44:28.677Z,2026-10-29T01:44:55.366Z,Asia/Tokyo,,,,,,,,,,,,ok,
