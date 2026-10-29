@@ -1,0 +1,7 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:40871067896:1,ci,2026-10-29T12:20:41.822Z,p-cdee4961,github-actions,,,,2026-10-29T12:10:13.000Z,2026-10-29T12:14:13.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:40870290680:1,ci,2026-10-29T12:20:41.822Z,p-cdee4961,github-actions,,,,2026-10-29T12:04:23.000Z,2026-10-29T12:04:24.000Z,Asia/Tokyo,feature/816-shared-git-calls-with-timeout,816,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40870290591:1,ci,2026-10-29T12:20:41.822Z,p-cdee4961,github-actions,,,,2026-10-29T12:04:23.000Z,2026-10-29T12:09:46.000Z,Asia/Tokyo,feature/816-shared-git-calls-with-timeout,816,,,,,,,,,,CI;pull_request;success,
+ci:40869806521:1,ci,2026-10-29T12:20:41.822Z,p-cdee4961,github-actions,,,,2026-10-29T12:00:47.000Z,2026-10-29T12:05:43.000Z,Asia/Tokyo,feature/816-shared-git-calls-with-timeout,816,,,,,,,,,,CI;pull_request;cancelled,
+coverage:github:2026-10-28T12:03:44.275Z:2026-10-29T12:20:41.822Z,coverage,2026-10-29T12:20:41.822Z,p-cdee4961,,,,,2026-10-28T12:03:44.275Z,2026-10-29T12:20:41.822Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-28T12:20:41.822Z:2026-10-29T12:21:41.978Z,coverage,2026-10-29T12:21:41.978Z,p-cdee4961,,,,,2026-10-28T12:20:41.822Z,2026-10-29T12:21:41.978Z,Asia/Tokyo,,,,,,,,,,,,ok,

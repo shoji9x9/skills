@@ -10,6 +10,7 @@
 // | ------------------------ | --------------------------------------------------------------------------- |
 // | レポート                 | 正しい形 / object でない / duplicates が配列でない / sources が無いか負 / isNew が真偽値でない / format が空か無い / lines が 1 以上の整数でない / 断片の名前が空 / 行が整数でない |
 // | 重複の 2 つのファイル    | 同じファイル / 同じ組（ファイル全体） / 片方だけが組 / 組に無い              |
+// | 範囲の組に並べたファイル | 両方 / 片方が、代表とファイル全体の組で一致するコピー（組 1 つ・組をまたぐ） / 片方がどちらの組にも無い |
 // | 範囲を持つ組             | 両方が範囲と重なる / 片方が範囲と重ならない / 範囲の境界の行で重なる / 印が崩れている |
 // | 設定の ignore            | 文字列の配列 / 無い / 空文字を含む                                           |
 // | 引数                     | なし / --update-baseline / 知らない引数                                      |
@@ -36,6 +37,7 @@ import {
   main,
   parseReport,
   regionReader,
+  wholeCopies,
 } from "./check-duplicates.ts";
 import { DECLARATION_PATH } from "../packaging/copies/check-identical-copies.ts";
 import { isRecord } from "../../lib/guards.ts";
@@ -175,11 +177,59 @@ test.each([
   expect(isDeclaredCopy(c, [fileGroup, regionGroup], rangeOf)).toBe(expected);
 });
 
+// 範囲の組には、ファイル全体の組（fileGroup）の代表 a.mjs だけを並べる。b.mjs と c.mjs は a.mjs とバイト単位で同じなので、同じ範囲を持つ。
+const repGroup = { files: ["a.mjs", "r.ts"], reason: "雛形に同じ関数を持つ", region: "cli-entry" };
+/** 2 つ目のファイル全体の組。c.mjs を fileGroup と共有するので、d.mjs も a.mjs とバイト単位で同じになる。 */
+const chainGroup = { files: ["c.mjs", "d.mjs"], reason: "別の姉妹スキルが同じ処理を持つ" };
+const repRanges: Record<string, { start: number; end: number }> = {
+  "a.mjs": { start: 5, end: 15 },
+  "b.mjs": { start: 5, end: 15 },
+  "c.mjs": { start: 5, end: 15 },
+  "d.mjs": { start: 5, end: 15 },
+  "r.ts": { start: 30, end: 40 },
+  "z.mjs": { start: 5, end: 15 },
+};
+const repRangeOf = (file: string) => repRanges[file];
+const inRange: [Span, Span] = [
+  [6, 14],
+  [31, 39],
+];
+
+test.each([
+  ["範囲の組の代表とファイル全体で一致するコピー", clone("b.mjs", "r.ts", inRange), true],
+  [
+    "範囲の組の代表と、組をまたいでファイル全体で一致するコピー",
+    clone("d.mjs", "r.ts", inRange),
+    true,
+  ],
+  ["組をまたいでファイル全体で一致するコピーどうし", clone("b.mjs", "d.mjs"), true],
+  [
+    "代表のコピーでも、断片が範囲と重ならない",
+    clone("b.mjs", "r.ts", [
+      [16, 25],
+      [31, 39],
+    ]),
+    false,
+  ],
+  ["どちらの組にも入っていないファイル", clone("z.mjs", "r.ts", inRange), false],
+  ["どちらの組にも入っていないファイルと、代表のコピー", clone("z.mjs", "b.mjs", inRange), false],
+])("isDeclaredCopy（ファイル全体の組のコピー）: %s → %s", (_, c, expected) => {
+  expect(isDeclaredCopy(c, [fileGroup, chainGroup, repGroup], repRangeOf)).toBe(expected);
+});
+
+test("wholeCopies: ファイル全体の組を共有するファイルでまとめ、範囲の組と組に無いファイルはまとめない", () => {
+  const copies = wholeCopies([fileGroup, repGroup, chainGroup]);
+  expect([...copies("d.mjs")].sort()).toEqual(["a.mjs", "b.mjs", "c.mjs", "d.mjs"]);
+  expect([...copies("r.ts")]).toEqual(["r.ts"]);
+  expect([...copies("z.mjs")]).toEqual(["z.mjs"]);
+});
+
 // ---- isUndeclaredCopy ----
 
 const declared = [
   ["a.mjs", "c.mjs"],
   ["x.ts", "y.ts"],
+  ["b.mjs", "r.ts"],
 ];
 
 test.each([
@@ -195,6 +245,18 @@ test.each([
     c: clone("x.ts", "y.ts"),
     groups: [regionGroup],
     expected: false,
+  },
+  {
+    name: "範囲の組から外したコピーが、代表とファイル全体で一致する",
+    c: clone("b.mjs", "r.ts"),
+    groups: [fileGroup, repGroup],
+    expected: false,
+  },
+  {
+    name: "範囲の組から外したコピーが、ファイル全体の組からも外れた",
+    c: clone("b.mjs", "r.ts"),
+    groups: [repGroup],
+    expected: true,
   },
   { name: "控えた組に無い", c: clone("p.mjs", "q.mjs"), groups: [], expected: false },
   { name: "控えた組に片方だけ", c: clone("a.mjs", "q.mjs"), groups: [], expected: false },

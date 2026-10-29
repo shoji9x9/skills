@@ -11,6 +11,9 @@
 //   ファイル全体の組は、同じ組の 2 つのファイルの間の重複を外す。範囲（`region`）を持つ組は、両方の断片がそれぞれの
 //   ファイルの範囲と重なる重複を外す。範囲の中に収まる条件にしないのは、範囲の印の行や直前の説明のコメントも同じなので、
 //   jscpd の断片が範囲の外へ数行広がるからである。範囲と重ならない重複は、登録していないコピーとして数える。
+//   ファイル全体の組で一致を確かめたファイルどうしは同じファイルとして扱う。範囲の組に代表の 1 ファイルがあれば、
+//   代表とファイル全体で一致するコピーも、その範囲の組に入っているものとして判定する。外れるのはバイト単位で同じだと
+//   確かめたコピーとの重複だけなので、コピーを足すたびに範囲の組にも並べる必要は無い。
 // - テストのコード（`isTestCode`）どうしの重複は、閾値を上げた別の走査で判定する。テストは準備と assertion を各テストに書くので、
 //   短い並び（`expect(r.status).toBe(1)` が続くなど）は自然に重なる。1 回目の走査（デフォルトの閾値で全体）からはテストどうしの
 //   重複を除き、2 回目の走査（`TEST_MIN_TOKENS` でテストのコードだけ）の重複を数える。テストとテスト以外の間の重複は 1 回目で数える。
@@ -152,7 +155,29 @@ export function parseReport(value: unknown): { sources: number; clones: Clone[] 
 type Range = { start: number; end: number };
 
 /**
+ * ファイル全体の組でバイト単位の一致を確かめたファイルの集まりを返す関数。組をまたいで同じファイルを持つ組はまとめる。
+ * どの組にも無いファイルは、そのファイルだけの集まりにする。
+ */
+export function wholeCopies(groups: readonly CopyGroup[]): (file: string) => ReadonlySet<string> {
+  const classOf = new Map<string, Set<string>>();
+  for (const g of groups) {
+    if (g.region !== undefined) continue;
+    const merged = new Set(g.files.flatMap((f) => [...(classOf.get(f) ?? [f])]));
+    for (const f of merged) classOf.set(f, merged);
+  }
+  return (file) => classOf.get(file) ?? new Set([file]);
+}
+
+/** 組の中に、file か、file とファイル全体で一致するコピーがあるか。範囲の組には代表の 1 ファイルだけを並べればよい。 */
+const inGroup = (g: CopyGroup, file: string, copies: (file: string) => ReadonlySet<string>) => {
+  const same = copies(file);
+  return g.files.some((f) => same.has(f));
+};
+
+/**
  * 意図したコピーどうしの重複か。同じ組に属する 2 つのファイルの間の重複で、範囲を持つ組なら両方の断片がそれぞれの範囲と重なるもの。
+ * 属するかは、ファイル全体の組で一致を確かめたコピーを同じファイルとして判定する（wholeCopies）。
+ * 範囲はコピーの側のファイルから読む。コピーは代表とバイト単位で同じなので、同じ印を持つ。
  * rangeOf は、ファイルと範囲の名前から、範囲の中身の行を返す。
  */
 export function isDeclaredCopy(
@@ -162,10 +187,12 @@ export function isDeclaredCopy(
 ): boolean {
   const { first, second } = clone;
   if (first.name === second.name) return false;
+  const copies = wholeCopies(groups);
+  if (copies(first.name).has(second.name)) return true;
   const overlaps = (f: Fragment, r: Range) => f.start <= r.end && f.end >= r.start;
   return groups.some((g) => {
-    if (!g.files.includes(first.name) || !g.files.includes(second.name)) return false;
-    if (g.region === undefined) return true;
+    if (g.region === undefined) return false;
+    if (!inGroup(g, first.name, copies) || !inGroup(g, second.name, copies)) return false;
     return (
       overlaps(first, rangeOf(first.name, g.region)) &&
       overlaps(second, rangeOf(second.name, g.region))
@@ -173,7 +200,10 @@ export function isDeclaredCopy(
   });
 }
 
-/** 控えた組のどれかに 2 つのファイルが入っていて、今の組のどれにも一緒に入っていない重複か（組を宣言から外した後に残ったコピー）。 */
+/**
+ * 控えた組のどれかに 2 つのファイルが入っていて、今の組のどれにも一緒に入っていない重複か（組を宣言から外した後に残ったコピー）。
+ * 今の組に入っているかは、isDeclaredCopy と同じく、ファイル全体の組で一致を確かめたコピーを同じファイルとして判定する。
+ */
 export function isUndeclaredCopy(
   clone: Clone,
   declared: readonly (readonly string[])[],
@@ -181,9 +211,13 @@ export function isUndeclaredCopy(
 ): boolean {
   const { first, second } = clone;
   if (first.name === second.name) return false;
+  const copies = wholeCopies(groups);
   const together = (files: readonly string[]) =>
     files.includes(first.name) && files.includes(second.name);
-  return declared.some(together) && !groups.some((g) => together(g.files));
+  const stillDeclared = groups.some(
+    (g) => inGroup(g, first.name, copies) && inGroup(g, second.name, copies),
+  );
+  return declared.some(together) && !stillDeclared;
 }
 
 /** 控えた組を読む。書き手（loadGroups の組）と同じく、1 件以上で、各組が 2 つ以上のファイルを持つ。形が違えば例外にする。 */
