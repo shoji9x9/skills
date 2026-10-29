@@ -45,7 +45,7 @@
 | PDF・帳票 | **抜き出したテキストと構造**（バイト列の一致は取らない） | 生成するツールの版・生成日時・オブジェクトの順で、見た目が同じでもバイト列が変わる |
 
 - レガシーの文字コードのテキストも、復号して読める。Node の `TextDecoder('shift_jis')` で復号できる。
-  full ICU を同梱した Node v24.17.0（`process.config.variables.icu_small === false`）で、`new TextDecoder('shift_jis')` が Shift_JIS のバイト列を復号できることを実測した。
+  full ICU を同梱した Node（`process.config.variables.icu_small === false`）で、`new TextDecoder('shift_jis')` が Shift_JIS のバイト列を復号できることを実測した。
   small-icu のビルドでは同じ呼び出しが失敗するので、比較に使う Node が full ICU かを先に確かめる。
 - 判定はバイト列の比較で行い、復号は差分の説明に使う。どの文字がどう文字化けしたかを人が読めるようにするためである。復号した結果で判定すると、文字コードと BOM の差が消える。
 - xlsx と PDF は、内容を抜き出してから比べる。抜き出した結果を JSON にすれば、同梱のツール（`parity-diff` の `scripts/json-normalize-diff.mjs`）で正規化と決定論的な比較ができる。

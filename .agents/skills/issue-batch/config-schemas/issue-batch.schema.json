@@ -22,7 +22,7 @@
       "x-layers": ["repo"]
     },
     "max_local_review_iterations": {
-      "description": "PR を作る前のローカルレビューの上限の回数",
+      "description": "push の前に手元でレビューする回数の上限。最初のレビューも数える",
       "type": "integer",
       "minimum": 1,
       "x-layers": ["repo"]

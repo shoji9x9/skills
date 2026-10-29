@@ -858,7 +858,7 @@ export function suiteOf(list: TestList, file: string): Suite {
 }
 
 /**
- * `playwright test --list --reporter=json` の出力の形（@playwright/test 1.63.0 の実測）で、テストの一覧を作る。
+ * `playwright test --list --reporter=json` の出力の形（@playwright/test 1.64.1 の実測）で、テストの一覧を作る。
  * 名前は「スペックのパス › 題 …」で、最初の区切りの前をファイル、残りを describe と題に割る。spec は projects ごとに別の要素で並ぶ。
  * @param {string[]} names
  * @param {string[]} [projects]

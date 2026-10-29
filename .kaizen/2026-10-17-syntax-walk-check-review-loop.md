@@ -2,7 +2,7 @@
 date: 2026-10-17
 type: rule
 priority: high
-confidence: high
+confidence: medium
 status: pending
 applied-to: []
 session: claude-code
@@ -21,6 +21,7 @@ PR #682 で、型ガードの絞る型を検査する `check-type-guard-brands.t
 
 - なぜ抜けが続いたか → 型述語を置ける場所を、思いついた書き方から 1 つずつ列挙した。型述語は宣言・注釈・文脈の型のどこからでも付くので、構文の形は閉じない
 - なぜ形を変えなかったか → `.agents/rules/state-space-and-mutation-proof.md` の「レビューが同じ種類の誤りを 3 回以上指摘したら、入力の形式を疑う」を、2 巡目の時点で当てなかった
+- なぜ取り決めの文書でも起きたか（PR #824）→ 3 回の基準を持つ rule の `paths` が `skills/*/references/**` を含まず、取り決めの文書を直すときに読み込まれなかった。前の根本原因（2 巡目で当てなかった）は、この再発には当たらない
 - 代わりの方法 → 型チェッカーの `getSignatureFromDeclaration` と `getTypePredicateOfSignature` なら、別名・オーバーロード・文脈の型を TypeScript 自身が解決する
 
 ## 根拠
@@ -33,6 +34,8 @@ PR #682（型述語）、PR #698（子プロセスの起動の参照）、Issue 
 型述語のように書き方が多い宣言を読むチェックは、構文を自分でたどる前に、型チェッカーの API で読めるかを確かめる。
 
 - 適用先候補: `.agents/rules/state-space-and-mutation-proof.md` の「ソースコードのコメント・文字列・構文を判定するチェックは、既存のパーサで読む」に、型の情報（型述語・別名の解決）が要るなら型チェッカーで読むことを足す
+- 適用先候補（PR #824 の再発から）: 3 回の基準を、チェックのコードだけでなく取り決めの文書の条件にも当てる。置き場所は、取り決めの文書を直すときに読み込まれる場所（`AGENTS.md` の「確かめ方」か、`skills/*/references/**` を `paths` に持つ rule）にする
+- 確信度は、PR #824 で前の根本原因が取り決めの文書には足りないと分かったので、high から medium に下げた
 - `check-type-guard-brands.ts` は、PR #682 の反復 4 で型チェッカーで読む形に変えた（リポジトリ全体で約 4 秒）
 
 ## 再発（PR #698、Issue #663）
@@ -49,3 +52,13 @@ PR #682（型述語）、PR #698（子プロセスの起動の参照）、Issue 
 レビューで `require()`（`createRequire` で作った関数を含む）と型の `import("…")` の抜けを指摘された。
 同じプラグインの `describe` の判定でも、名前の根だけを見たため `suite.add` の引数まで除外していた。
 原因は前の 2 件と同じで、構文の形を文法や型チェッカーから導かず、思いついた書き方から列挙したことである。
+
+## 再発（PR #824、取り決めの文書）
+
+チェックではなく、issue-batch の取り決めの文書（`orchestration.md`）で起きた。
+手元でレビューしていない範囲（`unreviewed_range`）を記録する条件を、レビューの指摘が出るたびに 1 つずつ足した（記録の時点・例外のファイル・merge commit・後の push・再開した Issue）。
+3 巡続けて、記録の条件の抜けを指摘された。3 巡目で、記録を「PR を作る直前に 1 回だけ計算する」節にまとめると、push ごとの条件が要らなくなった。
+列挙の仕方は前の 3 件と同じで、記録する場面を思いついた順に挙げた。
+違うのは、「同じ種類の誤りを 3 回以上指摘されたら入力の形式を疑う」の基準が読み込まれなかったことである。
+その基準を持つ `.agents/rules/state-space-and-mutation-proof.md` の `paths` は `scripts/**`・`skills/*/scripts/**`・`evals/**` である。`skills/*/references/**` の取り決めの文書を直すときには読み込まれない。
+対策は「## 提案」の適用先候補に足した。

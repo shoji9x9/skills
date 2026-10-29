@@ -194,6 +194,7 @@ jscpd は 3 か所以上の重複を 2 つずつの組で報告するので、1 
 | `packaging/check-skill-config-vendor.ts` | 配布スキルに同梱する設定の読み取り（`scripts/skill-config/`）。同梱した jsonc-parser（`vendor/`）が devDependency の版から作った内容と一致するか。版を上げたら `--fix` で作り直す |
 | `packaging/check-skill-configs.ts` | このリポジトリのスキルの設定（`.config/skills/shoji9x9/*.jsonc`）が、各スキルのスキーマ（`skills/<name>/config-schemas/`）に合うか |
 | `prose/check-time-sensitive-prose.ts` | 日付・「現状は」「当面」を Tier 1〜3 の文書とコメントに書いていないか。変異の件数や全件の実測値は `mutation-proof.yml` だけに書く |
+| `prose/check-version-mentions.ts` | Tier 1〜3 の文書とコメントに書いた「<ツール> X.Y.Z」が、リポジトリで宣言したバージョンと食い違っていないか。依存を上げたら、食い違う記述を直す |
 | `docs/check-doc-refs.ts` | リンクと節名の実在、参照の向き。節名は、パス（バッククォート・リンク・スキル名付き）の後に「」で書いたものを照合する。間に「の」や空白を挟んでもよく、節名でない語句を引用するときは名詞を挟む。導入先で生成するファイルは `scripts/gates/docs/doc-refs.json`、違反の形だが正しい記述の許可は `scripts/gates/docs/doc-allowed.json` に書く |
 | `packaging/check-skill-index.ts` | スキルガイド・README とスキルの実体の対応 |
 | `prose/lint-prose.ts` | 人が読む Markdown の文章と、JavaScript・TypeScript・シェル・YAML のコメントの文章。JavaScript・TypeScript の文字列と `evals/<name>/evals.json` の prompt・expected_output・assertions には、使わない語の規則だけを当てる（取り出し方は `scripts/lib/text/code-strings.ts`）。シェルのコメントは `shfmt --to-json` の構文木から取り出すので、shfmt（`mise.toml` で版を固定）が要る |
@@ -339,6 +340,10 @@ Markdown に加えて、JavaScript・TypeScript・シェル・YAML のコメン�
 
 規則 5 のダッシュでつないだ強調（`——` と、字形の違う `――`・`──`・`－－`）は、`lint-prose.ts` と応答の Stop の Hook が検出する。
 規則 9 の時期の語（「現状は」「当面」など）と日付は、`scripts/gates/prose/check-time-sensitive-prose.ts` が検出する。
+`scripts/gates/prose/check-version-mentions.ts` は、ツールのバージョンを書いた記述のうち、宣言（`package.json` と `pnpm-lock.yaml`、`mise.toml` の `[tools]`）と食い違うものを検出する（規則 9）。
+`mise.toml` の宣言は `mise ls --current --json` で mise に解決させて読む。`mise.toml` を上書きする設定（`mise.local.toml`・`MISE_ENV` など）は読ませない。mise を起動できない環境と、それでも `mise ls` が上書きの宣言を返した環境では、チェックできないとして exit 2 で止まる。
+範囲の書き方（「以上」「〜」など）でも、宣言と違う `X.Y.Z` は違反にする。必要な最低のバージョンのように正しい記述は、`scripts/gates/docs/doc-allowed.json` に理由付きで許可する。
+バージョンを書かなくても意味が通るかは判定できないので、書いた人とレビューする人が確かめる。
 それ以外の形を含め、規則 1・3・5・9・10 は機械では判定しきれない。書いた人とレビューする人が確かめる。
 規則 10 の分かりにくさは意味から来るので、語の並びで検出すると誤検知と見逃しが避けられない。そのため lint にしない。
 
