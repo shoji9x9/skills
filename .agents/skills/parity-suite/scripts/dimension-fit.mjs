@@ -521,7 +521,7 @@ function unjudgedResult(dm, status, viewportCount) {
   }
   if (status === "not_required" && viewportCount < 2) {
     throw new UsageError(
-      "ビューポートが 1 つの撮影で dimension_model.status: not_required は使えない（1 点の px を並べたバージョン組が 3 つの比較方法で緑になる）",
+      "ビューポートが 1 つの撮影で dimension_model.status: not_required は使えない（1 点の px を並べたレイアウトが 3 つの比較方法で緑になる）",
     );
   }
   return { judged: false, reason: `dimension_model.status: ${status}（${dm.reason}）` };

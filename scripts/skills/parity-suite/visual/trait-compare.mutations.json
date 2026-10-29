@@ -34,8 +34,8 @@
       "replace": "  } else if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "text_owners を片側だけが持つ（採取ツールの版違い）なら missing で出す（ベースラインだけが持つ）",
-        "text_owners を片側だけが持つ（採取ツールの版違い）なら missing で出す（採取だけが持つ）"
+        "text_owners を片側だけが持つ（採取ツールのバージョン違い）なら missing で出す（ベースラインだけが持つ）",
+        "text_owners を片側だけが持つ（採取ツールのバージョン違い）なら missing で出す（採取だけが持つ）"
       ]
     },
     {

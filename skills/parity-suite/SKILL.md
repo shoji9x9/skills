@@ -148,7 +148,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
   新側専用は `new`（`parity-replace` の green の検証用）からも除外し、採取専用の `new-capture` プロジェクトで実行する。
   `new` に残すと、green の検証がテストを集める時点で失敗する
 - 撮影したビューポートの 1 点で合うことを、「寸法が合う」として扱わない。
-  3 つの比較方法はその点でしか比べないので、1 点で実測した px を並べた新側のバージョン組でも、すべての比較が緑になる。
+  3 つの比較方法はその点でしか比べないので、1 点で実測した px を並べた新側のレイアウトでも、すべての比較が緑になる。
   feature モードでは、窓の大きさを変えて位置と寸法の式を読み、`metadata.json` の `capture_conditions.dimension_model` をキーごと省かない。
   ビューポートが 1 つなら、`measured` か、理由を付けた `not_measured` にする。
   未測定を `gaps.md` に書いて済ませない。`parity-replace` への引き渡しの条件として、`dimension_model` に残す

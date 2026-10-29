@@ -41,7 +41,7 @@
         "normalizeAudit（audit の JSON 全体） vulnerabilities の値が null なら、どこが違うかを書いた Error を投げる",
         "normalizeAudit（audit の JSON 全体） vulnerabilities の値が配列 なら、どこが違うかを書いた Error を投げる",
         "normalizeAudit（audit の JSON 全体） vulnerabilities が数 なら、どこが違うかを書いた Error を投げる",
-        "normalizeAudit（audit の JSON 全体） packages の項目が null なら版は無いものとして読み、どの vulnerability も読まない項目の形は確かめない",
+        "normalizeAudit（audit の JSON 全体） packages の項目が null ならバージョンは無いものとして読み、どの vulnerability も読まない項目の形は確かめない",
         "normalizeAudit（audit の JSON 全体） 読む packages の項目が文字列 なら、どこが違うかを書いた Error を投げる",
         "normalizeAudit（audit の JSON 全体） 読む packages の項目が配列 なら、どこが違うかを書いた Error を投げる"
       ]
@@ -79,7 +79,7 @@
       "occurrences": 1,
       "expect_failing": [
         "normalizeAudit（audit の JSON 全体） 古い形と新しい形に同じ組があれば、欠けた欄を後の finding で補う",
-        "normalizeAudit（audit の JSON 全体） 同じ package と ghsa の組は 1 件にまとめ、版・パス・範囲の重複を除く"
+        "normalizeAudit（audit の JSON 全体） 同じ package と ghsa の組は 1 件にまとめ、バージョン・パス・範囲の重複を除く"
       ]
     },
     {

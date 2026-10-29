@@ -44,7 +44,7 @@
       "expect_failing": [
         "履歴を追記せずに floors を緩めると落ちる",
         "履歴を追記せずに relative_floors を緩めると落ちる",
-        "履歴を持たない前の版の基準で floors を変えても、追記しなければ落ちる",
+        "履歴を持たない前のバージョンの基準で floors を変えても、追記しなければ落ちる",
         "floors を消しても、追記しなければ落ちる",
         "初めて書く performance でも、履歴が無ければ落ちる",
         "key を持たない json-arrays でも pinned_values で単独の値を固定できる"
