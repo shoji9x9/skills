@@ -161,22 +161,22 @@ push の後などに再レビューを依頼する AI レビュアーは、CLI �
    1. 該当する `path` の `line` の付近を読み、指摘がコードの事実と合うかを評価する。
    2. 妥当で直す必要があれば、対象のファイルを直す。
       指摘が特定の行の誤りではなく書き方の形（規則の違反・単位の書き方など）を指すなら、直す前に、その形を PR の差分で足した行全体で検索する。
-      差分は、次の 2 つのコマンドで取り、`+` の行を検索する。1 行ずつ実行し、それぞれの終了コードを確かめる。
+      差分は、次のコマンドで取り、`+` の行を検索する。
 
       ```bash
-      git fetch <remote> <PR のベースブランチ>
-      fork_point=$(git merge-base FETCH_HEAD HEAD) && git diff "$fork_point" -U0
+      git fetch --no-tags <remote> "+refs/heads/<PR のベースブランチ>:refs/pr-review/base" \
+        && fork_point=$(git merge-base refs/pr-review/base HEAD) && git diff "$fork_point" -U0
       ```
 
       `<remote>` は、PR のベースリポジトリを指す remote である（多くは `origin`。fork から出した PR では `upstream` などのこともある）。
-      手元のベースブランチは古いことがあり、それと比べた差分には PR に無い行まで含まれるので、取得し直したもの（`FETCH_HEAD`）と比べる。
-      `<remote>/<PR のベースブランチ>` は使わない。remote に設定した refspec にそのブランチが含まれないと、fetch しても更新されないからである。
-      `FETCH_HEAD` は別の `git fetch` で書き換わるので、2 つのコマンドの間に別の fetch を実行しない。
-      1 つ目が失敗したら（remote の名前の誤り・認証切れなど）、原因を直してやり直す。
-      2 つ目が何も出さずに 0 以外で終わったら、`git merge-base` が分岐点を見つけられていない。
-      shallow clone（`git rev-parse --is-shallow-repository` が `true`）なら、`git fetch --unshallow <remote>` で履歴を取得してから 2 つ目をやり直す。
-      2 つ目のコマンドは分岐点と作業ツリーを比べるので、この反復でまだ commit していない修正の行と、まだ push していない commit の行も検索の対象に入る（commit は手順 5 でまとめて行う）。
-      `git diff FETCH_HEAD...HEAD` のように HEAD までの commit だけを比べるコマンドでは、まだ commit していない修正の行が対象に入らない。
+      取得したベースブランチを専用の ref（`refs/pr-review/base`）に置いて比べる。
+      手元のベースブランチは古いことがあり、`<remote>/<PR のベースブランチ>` は remote に設定した refspec にそのブランチが含まれないと更新されず、`FETCH_HEAD` は別の fetch で書き換わるからである。
+      `git fetch` が失敗すると、stderr に `fatal:` の行を出して 0 以外で終わる（remote の名前の誤り・認証切れなど）。原因を直してやり直す。
+      `git merge-base` が分岐点を見つけられないと、何も出さずに 1 で終わる。
+      shallow clone（`git rev-parse --is-shallow-repository` が `true`）なら、`git fetch --unshallow <remote>` で履歴を取得してから、このコマンドをやり直す。
+      shallow clone でなければ、`<remote>` が PR のベースリポジトリを指すかを `git remote -v` で確かめ、直してからやり直す。
+      このコマンドは分岐点と作業ツリーを比べるので、この反復でまだ commit していない修正の行と、まだ push していない commit の行も検索の対象に入る（commit は手順 5 でまとめて行う）。
+      `git diff refs/pr-review/base...HEAD` のように HEAD までの commit だけを比べるコマンドでは、まだ commit していない修正の行が対象に入らない。
       まだ commit していない新しいファイル（この反復で作ったものなど）は、`git add -N <path>` で登録するまで、この差分に入らない。
       PR に入れないファイルを登録したら、検索の後に `git reset -- <path>` で登録を戻す。
       作業ツリーに PR に入れない変更があれば、その行も差分に入るので、見つかった行から外す。

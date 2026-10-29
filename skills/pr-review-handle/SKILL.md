@@ -82,18 +82,21 @@ pr-review-handle <PR URL | 番号 | レビュー URL> [--push]
       - 妥当で直す必要があれば、対象のファイルを直す。
         書き方の形（規則の違反・単位の書き方など）を指す指摘なら、同じ形が PR の別の行にも無いかを先に探す。
         `<remote>` には、PR のベースリポジトリを指す remote を使う（多くは `origin`。fork から出した PR では `upstream` などのこともある）。
-        探す対象は、下の 2 つのコマンドで取った差分の、`+` の行である。終了コードを 1 つずつ見るため、2 つは別々に実行する。
+        探す対象は、下のコマンドの出力の `+` の行である。ベースブランチは専用の ref（`refs/pr-review/base`）に取得する。
 
         ```bash
-        git fetch <remote> <PR のベースブランチ>
-        fork_point=$(git merge-base FETCH_HEAD HEAD) && git diff "$fork_point" -U0
+        git fetch --no-tags <remote> "+refs/heads/<PR のベースブランチ>:refs/pr-review/base" \
+          && fork_point=$(git merge-base refs/pr-review/base HEAD) && git diff "$fork_point" -U0
         ```
 
-        手元のベースブランチと比べた差分には PR に無い行まで含まれることがあるので、取得し直したもの（`FETCH_HEAD`）と比べる。間に別の fetch を挟むと `FETCH_HEAD` が変わる。
+        手元のベースブランチや `<remote>/<PR のベースブランチ>` と比べると、古い版との差分に PR に無い行が入る。`FETCH_HEAD` は後の fetch で変わるので、これも使わない。
         分岐点と作業ツリーを比べるので、前のスレッドで直してまだ commit していない行と、まだ push していない commit の行も対象に入る。
-        `git fetch` が失敗したら、原因を直してやり直す。
-        `git merge-base` が何も出さずに失敗したら分岐点が手元に無いので、shallow clone（`git rev-parse --is-shallow-repository` が `true`）なら `git fetch --unshallow <remote>` の後にやり直す。
-        手順 3 で head ブランチと違うブランチのまま進めたときは、このコマンドではそのブランチの変更を探すことになるので、代わりに `gh pr diff <番号> --repo <owner>/<repo>` の `+` の行を探す。
+        stderr に `fatal:` の行が出て止まったら、`git fetch` が失敗している。原因を直して、このコマンドをやり直す。
+        何も出さずに 1 で終わったら、`git merge-base` が分岐点を見つけられていない。
+        shallow clone（`git rev-parse --is-shallow-repository` が `true`）なら、`git fetch --unshallow <remote>` の後にやり直す。
+        そうでなければ、`<remote>` がベースリポジトリを指すかを `git remote -v` で確かめ、直してからやり直す。
+        手順 3 で head ブランチと違うブランチのまま進めたときは、このコマンドではそのブランチの変更を探すことになる。
+        代わりに `gh pr diff <番号> --repo <owner>/<repo>` の `+` の行を探し、前のスレッドで直してまだ commit していない行は `git diff HEAD -U0` の `+` の行で足す。
         まだ commit していない新しいファイル（前のスレッドで作ったものなど）は、先に `git add -N <path>` で登録しておかないと差分に現れない。PR に入れないファイルを登録したら、探した後に `git reset -- <path>` で登録を戻す。
         PR と関係の無い作業ツリーの変更は、直す対象にしない。整形（折り返し・空白）だけで変わった行に前からある問題も、直す対象にしない。
         語はレビューが挙げたものから広げ（時間の単位なら「秒」「分」「前後」「約」）、当たった行を 1 件ずつ読んで、同じ形だけを一緒に直す。
