@@ -1,14 +1,17 @@
 import {
   chmodSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   readFileSync,
+  readlinkSync,
+  realpathSync,
   renameSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 import { assert, describe, expect, test } from "vitest";
 import { spawnAsync } from "../lib/spawn-async.ts";
 import { CHILD_TIMEOUT_MS } from "../lib/testing/child-timeout.ts";
@@ -673,12 +676,12 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
     const outside = join(directory, "outside");
     mkdirSync(outside);
     writeFileSync(join(outside, "trace.jsonl"), "{}\n", "utf8");
-    pointRawTraceThrough(source, outside, "trace.jsonl");
+    pointRawTraceThrough(source, relative(source, outside), "trace.jsonl");
 
     const result = await reuseDirectly(source, target);
 
     expect(result.status).toBe(1);
-    expect(result.stderr).toMatch(/baseline raw_trace escapes the source run/u);
+    expect(result.stderr).toMatch(/baseline symlink escapes the source run: via$/mu);
     expect(existsSync(target)).toBe(false);
   });
 
@@ -686,30 +689,70 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
     const { directory, source, target } = await withoutSkillSource();
     const outside = join(directory, "outside-outputs");
     renameSync(join(source, "outputs"), outside);
-    symlinkSync(outside, join(source, "outputs"));
+    symlinkSync(relative(source, outside), join(source, "outputs"));
+
+    const result = await reuseDirectly(source, target);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/baseline symlink escapes the source run: outputs$/mu);
+    expect(existsSync(target)).toBe(false);
+  });
+
+  test("rejects a symlink outside the required artifacts that points outside the source", async () => {
+    const { directory, source, target } = await withoutSkillSource();
+    writeFileSync(join(directory, "secret.txt"), "secret\n", "utf8");
+    symlinkSync(
+      relative(join(source, "project-files"), join(directory, "secret.txt")),
+      join(source, "project-files", "leak.txt"),
+    );
 
     const result = await reuseDirectly(source, target);
 
     expect(result.status).toBe(1);
     expect(result.stderr).toMatch(
-      /baseline artifact escapes the source run: outputs\/metrics\.json/u,
+      /baseline symlink escapes the source run: project-files\/leak\.txt$/mu,
     );
     expect(existsSync(target)).toBe(false);
   });
 
-  test("accepts a raw_trace through a symlinked directory that stays inside the source", async () => {
+  test("rejects a relative symlink that leaves the source and comes back through another link", async () => {
     const { source, target } = await withoutSkillSource();
-    const rawName = readJson<ResultFile>(join(source, "result.json")).raw_trace.replace(
-      /^raw\//u,
-      "",
-    );
+    symlinkSync(source, join(dirname(source), "run-alias"));
+    const rawName = basename(readJson<ResultFile>(join(source, "result.json")).raw_trace);
+    pointRawTraceThrough(source, join("..", "run-alias", "raw"), rawName);
+
+    const result = await reuseDirectly(source, target);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/baseline symlink escapes the source run: via$/mu);
+    expect(existsSync(target)).toBe(false);
+  });
+
+  test("rejects an absolute symlink even when it points inside the source", async () => {
+    const { source, target } = await withoutSkillSource();
+    const rawName = basename(readJson<ResultFile>(join(source, "result.json")).raw_trace);
     pointRawTraceThrough(source, join(source, "raw"), rawName);
+
+    const result = await reuseDirectly(source, target);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/baseline symlink must be relative: via$/mu);
+    expect(existsSync(target)).toBe(false);
+  });
+
+  test("accepts a raw_trace through a relative symlink that stays inside the source and keeps it inside the target", async () => {
+    const { source, target } = await withoutSkillSource();
+    const rawName = basename(readJson<ResultFile>(join(source, "result.json")).raw_trace);
+    pointRawTraceThrough(source, "raw", rawName);
 
     const result = await reuseDirectly(source, target);
 
     expect(result.stderr).toBe("");
     expect(result.status).toBe(0);
-    expect(readJson(join(target, "baseline-reuse.json"))).toMatchObject({ source_run: "run-1" });
+    expect(readlinkSync(join(target, "via"))).toBe("raw");
+    expect(realpathSync(join(target, "via", rawName))).toBe(
+      join(realpathSync(target), "raw", rawName),
+    );
   });
 
   test("accepts a source reached through a symlinked ancestor directory", async () => {
@@ -723,6 +766,36 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
     expect(result.status).toBe(0);
     expect(existsSync(join(target, "baseline-reuse.json"))).toBe(true);
     expect(existsSync(source)).toBe(true);
+  });
+
+  test("copies the contents when the source run directory itself is a symlink", async () => {
+    const { directory, source, target } = await withoutSkillSource();
+    const real = join(directory, "real-run");
+    renameSync(source, real);
+    symlinkSync(real, source);
+
+    const result = await reuseDirectly(source, target);
+
+    expect(result.stderr).toBe("");
+    expect(result.status).toBe(0);
+    expect(lstatSync(target).isSymbolicLink()).toBe(false);
+    expect(existsSync(join(target, "baseline-reuse.json"))).toBe(true);
+    expect(existsSync(join(real, "baseline-reuse.json"))).toBe(false);
+  });
+
+  test("rejects a target nested inside the source when the source is reached through a symlink", async () => {
+    const { directory, source } = await withoutSkillSource();
+    const alias = join(directory, "alias");
+    symlinkSync(join(directory, "iteration-1"), alias);
+
+    const result = await reuseDirectly(
+      join(alias, "eval-1", "without_skill", "run-1"),
+      join(source, "nested"),
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/reuse target must not be the source or nested inside it/u);
+    expect(existsSync(join(source, "nested"))).toBe(false);
   });
 
   test("keeps Claude Code as the default executor for existing callers", async () => {
