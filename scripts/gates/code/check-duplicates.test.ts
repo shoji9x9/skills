@@ -222,6 +222,17 @@ test("withCopies: 範囲の組にファイル全体の組のコピーを足し�
   ]);
   // ファイル全体の組が無ければ、範囲の組はそのまま。
   expect(withCopies([repGroup])).toEqual([repGroup]);
+  // 2 つのファイル全体の組のファイルを 1 つずつ並べると、両方の組のコピーを足す。
+  const otherGroup = { files: ["m.mjs", "n.mjs"], reason: "別の姉妹スキルが同じ処理を持つ" };
+  const twoReps = { ...repGroup, files: ["a.mjs", "m.mjs", "r.ts"] };
+  expect(withCopies([fileGroup, otherGroup, twoReps])[2]?.files).toEqual([
+    "a.mjs",
+    "b.mjs",
+    "c.mjs",
+    "m.mjs",
+    "n.mjs",
+    "r.ts",
+  ]);
   // 同じファイル全体の組のファイルを 2 つ並べても、コピーを重複して足さない。範囲の組を先に置いても同じに広げる。
   const both = { ...repGroup, files: ["a.mjs", "c.mjs", "r.ts"] };
   expect(withCopies([both, fileGroup])).toEqual([
