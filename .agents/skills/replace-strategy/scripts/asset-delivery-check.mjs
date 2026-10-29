@@ -817,7 +817,8 @@ function preScanWrite(argv) {
   const i = argv.indexOf("--write");
   if (i < 0) return null;
   const v = argv[i + 1];
-  return v === undefined || v === "" || v.startsWith("--") ? null : resolve(v);
+  // parseFlags が値の書き忘れとして止める値（空白だけ・`--` で始まる値）は、書き込み先にしない。
+  return v === undefined || v.trim() === "" || v.startsWith("--") ? null : resolve(v);
 }
 
 /**

@@ -131,7 +131,7 @@ test.each([
 test.each([
   ["知らない引数", ["--verbose"], "error: 不明な引数: --verbose"],
   ["位置引数", ["prod"], "error: 不明な引数: prod"],
-  ["値を取らない引数の = の形", ["--no-sandbox=1"], "error: 不明な引数: --no-sandbox=1"],
+  ["値を取らない引数の = の形", ["--no-sandbox=1"], "error: --no-sandbox は値を取らない"],
 ])("%sは、使い方を出して 2 で止める", (_label, args, message) => {
   const dir = diagramDir(threeEnvs);
   const { status, stderr } = render(dir, args);

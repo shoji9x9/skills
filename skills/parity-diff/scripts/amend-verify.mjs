@@ -322,11 +322,14 @@ function readFlags(argv) {
   if (parsed.error !== undefined) return { error: parsed.error };
   /** @type {Flags} */
   const flags = { single: { regions: [] }, margin: 0, marginGiven: false };
-  // parseFlags が通した argv は、位置引数を持たないので「名前 値」の組だけが並ぶ（末尾に `--` が付くことはある）。
-  for (let i = 0; i + 1 < argv.length; i += 2) {
+  // 値の中身は argv の順に確かめ、誤りが複数あれば argv で最初のものを報告する。parseFlags は、受け付ける名前と同じ値を
+  // 値の書き忘れとして止めるので、名前に当たる要素の次は必ずその値である。
+  for (let i = 0; i < argv.length; i += 1) {
     const setter = FLAG_SETTERS.get(argv[i]);
-    const error = setter?.(flags, argv[i + 1]);
+    if (setter === undefined) continue;
+    const error = setter(flags, argv[i + 1]);
     if (error !== undefined) return { error };
+    i += 1;
   }
   return flags;
 }

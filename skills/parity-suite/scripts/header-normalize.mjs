@@ -63,20 +63,21 @@ function isArray(value) {
 /**
  * `--名前 値` の引数を読む。誤りがあれば、error に理由を入れて返す。
  * 誤りの文は、未知の名前と多すぎる位置引数が「不明な引数: <引数>」、値の無い名前が「<名前> に値が無い」、
- * 同じ名前の 2 回目が「<名前> が重複している」である。値が無いとは、値が末尾で無い・空白だけ・その CLI が受け付ける名前と同じ・
+ * 同じ名前の 2 回目が「<名前> が重複している」、値を取らない名前に `=値` を付けたものが「<名前> は値を取らない」である。値が無いとは、値が末尾で無い・空白だけ・その CLI が受け付ける名前と同じ・
  * `--` で始まる（dashValues の名前を除く）のどれかである。`--` だけの引数はオプションの終わりで、その後はすべて位置引数にする。名前は値より先に確かめる。値を先に確かめると、値の無い未知の引数を
  * 「値が無い」と報告し、受け付ける引数のように読める。必須の引数と値の中身は、各 CLI が受け取った後に確かめる。
  * @param {readonly string[]} argv
  * @param {FlagSpec} spec
- * 結果は、名前の種類ごとの表（strings は値を 1 つ取る名前、lists は繰り返してよい名前、bools は値を取らない名前）と、
- * それらをまとめた flags である。キーは `--` を含む名前である。
+ * 結果は、名前の種類ごとの表（strings は値を 1 つ取る名前、lists は繰り返してよい名前、bools は値を取らない名前）と
+ * 位置引数である。表のキーは `--` を含む名前である。
  * @returns {ParsedFlags | { error: string }}
  */
 function parseFlags(argv, spec) {
   /** @type {FlagState} */
-  const state = { spec, flags: {}, strings: {}, lists: {}, bools: {}, positionals: [] };
+  const state = { spec, seen: new Set(), strings: {}, lists: {}, bools: {}, positionals: [] };
   for (let i = 0; i < argv.length; i += 1) {
-    if (argv[i] === "--") {
+    // 位置引数を取らない CLI では、`--` も受け付けない引数として扱う。
+    if (argv[i] === "--" && (spec.positionals ?? 0) > 0) {
       const rest = argv.slice(i + 1).map((arg) => pushPositional(arg, i, state));
       const failed = rest.find((step) => "error" in step);
       if (failed && "error" in failed) return { error: failed.error };
@@ -86,18 +87,18 @@ function parseFlags(argv, spec) {
     if ("error" in step) return { error: step.error };
     i = step.next;
   }
-  const { flags, strings, lists, bools, positionals } = state;
-  return { flags, strings, lists, bools, positionals };
+  const { strings, lists, bools, positionals } = state;
+  return { strings, lists, bools, positionals };
 }
 
 /**
  * parseFlags の結果。
- * @typedef {{ flags: Record<string, string | string[] | true>, strings: Record<string, string>, lists: Record<string, string[]>, bools: Record<string, true>, positionals: string[], error?: undefined }} ParsedFlags
+ * @typedef {{ strings: Record<string, string>, lists: Record<string, string[]>, bools: Record<string, true>, positionals: string[], error?: undefined }} ParsedFlags
  */
 
 /**
- * parseFlags が読み進める途中の状態。
- * @typedef {Omit<ParsedFlags, "error"> & { spec: FlagSpec }} FlagState
+ * parseFlags が読み進める途中の状態。seen は、読んだ名前（同じ名前の 2 回目を見つけるため）である。
+ * @typedef {Omit<ParsedFlags, "error"> & { spec: FlagSpec, seen: Set<string> }} FlagState
  */
 
 /**
@@ -113,13 +114,25 @@ function readFlagArg(argv, i, state) {
   if (!arg.startsWith("-") || arg === "-") return pushPositional(arg, i, state);
   const eq = state.spec.equals && arg.startsWith("--") ? arg.indexOf("=") : -1;
   if (eq <= 0 && state.spec.bools?.includes(arg)) return setBoolFlag(arg, i, state);
-  const name = eq > 0 ? arg.slice(0, eq) : arg;
-  if (!(state.spec.values?.includes(name) ?? false)) return { error: `不明な引数: ${arg}` };
-  const value = eq > 0 ? arg.slice(eq + 1) : argv[i + 1];
+  const inline = eq > 0 ? { name: arg.slice(0, eq), value: arg.slice(eq + 1) } : null;
+  return readValueFlag({ argv, i, inline }, state);
+}
+
+/**
+ * 値を取る名前を読む。inline は `--名前=値` の形の名前と値で、無ければ次の要素を値にする。
+ * @param {{ argv: readonly string[], i: number, inline: { name: string, value: string } | null }} at
+ * @param {FlagState} state
+ * @returns {{ next: number } | { error: string }}
+ */
+function readValueFlag({ argv, i, inline }, state) {
+  const name = inline?.name ?? argv[i];
+  if (inline && state.spec.bools?.includes(name)) return { error: `${name} は値を取らない` };
+  if (!(state.spec.values?.includes(name) ?? false)) return { error: `不明な引数: ${argv[i]}` };
+  const value = inline ? inline.value : argv[i + 1];
   if (value === undefined || missingValue(name, value, state.spec))
     return { error: `${name} に値が無い` };
   const error = storeFlagValue(name, value, state);
-  return error ? { error } : { next: eq > 0 ? i : i + 1 };
+  return error ? { error } : { next: inline ? i : i + 1 };
 }
 
 /**
@@ -137,21 +150,21 @@ function pushPositional(arg, i, state) {
 }
 
 /**
- * 値を取らない名前を flags に入れる。2 回目なら誤りの文を返す。
+ * 値を取らない名前を bools に入れる。2 回目なら誤りの文を返す。
  * @param {string} name
  * @param {number} i
  * @param {FlagState} state
  * @returns {{ next: number } | { error: string }}
  */
 function setBoolFlag(name, i, state) {
-  if (state.flags[name] !== undefined) return { error: `${name} が重複している` };
-  state.flags[name] = true;
+  if (state.seen.has(name)) return { error: `${name} が重複している` };
+  state.seen.add(name);
   state.bools[name] = true;
   return { next: i };
 }
 
 /**
- * 値を取る名前の値を flags に入れる。繰り返してよい名前は配列に足し、それ以外の 2 回目は誤りの文を返す。
+ * 値を取る名前の値を strings か lists に入れる。繰り返してよい名前は配列に足し、それ以外の 2 回目は誤りの文を返す。
  * @param {string} name
  * @param {string} value
  * @param {FlagState} state
@@ -160,11 +173,10 @@ function setBoolFlag(name, i, state) {
 function storeFlagValue(name, value, state) {
   if (state.spec.repeat?.includes(name)) {
     state.lists[name] = [...(state.lists[name] ?? []), value];
-    state.flags[name] = state.lists[name];
     return undefined;
   }
-  if (state.flags[name] !== undefined) return `${name} が重複している`;
-  state.flags[name] = value;
+  if (state.seen.has(name)) return `${name} が重複している`;
+  state.seen.add(name);
   state.strings[name] = value;
   return undefined;
 }
@@ -178,7 +190,8 @@ function storeFlagValue(name, value, state) {
  * @returns {boolean}
  */
 function missingValue(name, value, spec) {
-  if (value.trim() === "") return true;
+  // `--`（オプションの終わり）は、dashValues の名前でも値として受け付けない。
+  if (value.trim() === "" || value === "--") return true;
   if ((spec.values?.includes(value) ?? false) || (spec.bools?.includes(value) ?? false))
     return true;
   return value.startsWith("--") && !(spec.dashValues?.includes(name) ?? false);

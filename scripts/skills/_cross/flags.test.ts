@@ -53,7 +53,10 @@ describe.each(COPIES)("$skill の lib/flags.mjs", ({ parseFlags }) => {
     ["`-` で始まる値（`--` でない）", ["--file", "-"], { "--file": "-" }],
     ["引数なし", [], {}],
   ])("parseFlags: %s", (_, argv, flags) => {
-    expect(parseFlags(argv, SPEC)).toMatchObject({ flags, positionals: [] });
+    const parsed = parseFlags(argv, SPEC);
+    if (parsed.error !== undefined) throw new Error(parsed.error);
+    expect({ ...parsed.strings, ...parsed.lists, ...parsed.bools }).toEqual(flags);
+    expect(parsed.positionals).toEqual([]);
   });
 
   test.each([
@@ -80,7 +83,7 @@ describe.each(COPIES)("$skill の lib/flags.mjs", ({ parseFlags }) => {
   test("parseFlags: 位置引数は上限まで受け付け、超えたら誤りにする。`-` だけの引数も位置引数として数える", () => {
     const spec = { values: ["--out"], positionals: 2 };
     expect(parseFlags(["a", "--out", "o", "-"], spec)).toMatchObject({
-      flags: { "--out": "o" },
+      strings: { "--out": "o" },
       positionals: ["a", "-"],
     });
     expect(parseFlags(["a", "b", "c"], spec)).toEqual({ error: "不明な引数: c" });
@@ -89,16 +92,16 @@ describe.each(COPIES)("$skill の lib/flags.mjs", ({ parseFlags }) => {
   test("parseFlags: equals なら `--名前=値` を受け付け、値の検査と重複の検査を同じに当てる", () => {
     const spec = { values: ["--env"], bools: ["--all"], equals: true };
     expect(parseFlags(["--env=prod"], spec)).toMatchObject({
-      flags: { "--env": "prod" },
+      strings: { "--env": "prod" },
       positionals: [],
     });
     expect(parseFlags(["--env", "prod"], spec)).toMatchObject({
-      flags: { "--env": "prod" },
+      strings: { "--env": "prod" },
       positionals: [],
     });
     expect(parseFlags(["--env="], spec)).toEqual({ error: "--env に値が無い" });
     expect(parseFlags(["--env=a", "--env", "b"], spec)).toEqual({ error: "--env が重複している" });
-    expect(parseFlags(["--all=1"], spec)).toEqual({ error: "不明な引数: --all=1" });
+    expect(parseFlags(["--all=1"], spec)).toEqual({ error: "--all は値を取らない" });
     expect(parseFlags(["--bogus=1"], spec)).toEqual({ error: "不明な引数: --bogus=1" });
   });
 
@@ -110,19 +113,22 @@ describe.each(COPIES)("$skill の lib/flags.mjs", ({ parseFlags }) => {
     });
     expect(parseFlags(["--", "a", "b", "c"], spec)).toEqual({ error: "不明な引数: c" });
     expect(parseFlags(["-a.json"], spec)).toEqual({ error: "不明な引数: -a.json" });
+    // 位置引数を取らない CLI では、`--` も受け付けない。
+    expect(parseFlags(["--"], { values: ["--out"] })).toEqual({ error: "不明な引数: --" });
   });
 
   test.each([
     ["空白だけの値", ["--file", "  "], "--file に値が無い"],
     ["`-` 1 つで始まる受け付ける名前（-h）", ["--file", "-h"], "--file に値が無い"],
     ["`--` だけの値", ["--file", "--"], "--file に値が無い"],
+    ["dashValues の名前でも `--` だけの値", ["--prop", "--"], "--prop に値が無い"],
   ])("parseFlags: %s は値の書き忘れとして誤りにする", (_, argv, error) => {
-    expect(parseFlags(argv, { values: ["--file"], bools: ["-h"] })).toEqual({ error });
+    const spec = { values: ["--file", "--prop"], bools: ["-h"], dashValues: ["--prop"] };
+    expect(parseFlags(argv, spec)).toEqual({ error });
   });
 
   test("parseFlags: 名前の種類ごとの表に分けて返す（strings・lists・bools）", () => {
     expect(parseFlags(["--file", "a", "--state", "s", "--all"], SPEC)).toEqual({
-      flags: { "--file": "a", "--state": ["s"], "--all": true },
       strings: { "--file": "a" },
       lists: { "--state": ["s"] },
       bools: { "--all": true },
