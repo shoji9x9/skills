@@ -9,6 +9,12 @@ import { spawnEnd } from "./errors.ts";
 /** git が応答しないときに、待ち続けないよう打ち切る時間。 */
 const GIT_TIMEOUT_MS = 60_000;
 
+/**
+ * stdout の上限（バイト）。spawnSync のデフォルトの 1 MiB では、ファイルの一覧や大きな blob で ENOBUFS になる。
+ * 他のチェック（`lint-yaml.ts` など）の `git ls-files` と同じ値にする。
+ */
+const GIT_MAX_BUFFER = 1 << 28;
+
 /** 打ち切りの時間と起動するコマンド。テストが打ち切りと起動の失敗を作るために変えられる。 */
 export interface GitOptions {
   /** 打ち切る時間（ミリ秒）。デフォルトは GIT_TIMEOUT_MS */
@@ -32,6 +38,7 @@ export function runGit(
     cwd,
     encoding: "utf8",
     timeout: options.timeoutMs ?? GIT_TIMEOUT_MS,
+    maxBuffer: GIT_MAX_BUFFER,
   });
   if (res.status !== 0) {
     throw new Error(`${what}（git ${args[0] ?? ""} ${spawnEnd(res)}）: ${res.stderr ?? ""}`);

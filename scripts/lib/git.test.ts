@@ -6,7 +6,7 @@
 // | 呼び出し     | runGit / repoRoot / listFiles / indexBlobs / readBlob    |
 //
 // 期待値は runGit の doc コメント（`<what>（git <サブコマンド> <終わり方>）: <stderr>`）と spawnEnd の書き方から決める。
-import { chmodSync } from "node:fs";
+import { chmodSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "vitest";
 import { indexBlobs, listFiles, readBlob, repoRoot, runGit } from "./git.ts";
@@ -17,7 +17,7 @@ test("repoRoot はリポジトリの中の場所から、ルートを返す", ()
   const root = makeTempDir("git-root-");
   gitInit(root);
   write(root, "a/b/c.txt", "x");
-  expect(repoRoot(join(root, "a", "b"))).toBe(repoRoot(root));
+  expect(repoRoot(join(root, "a", "b"))).toBe(realpathSync(root));
 });
 
 test("listFiles・indexBlobs・readBlob は、追跡しているファイルと staged の中身を読む", () => {
@@ -52,7 +52,7 @@ test("読めない blob は、ファイルのパスを書いて投げる", () =>
 test("応答しない git は打ち切り、打ち切ったことが分かるメッセージで投げる", () => {
   const dir = makeTempDir("git-timeout-");
   const fake = join(dir, "fake-git");
-  write(dir, "fake-git", "#!/bin/sh\nsleep 10\n");
+  write(dir, "fake-git", "#!/bin/sh\nexec sleep 10\n");
   chmodSync(fake, 0o755);
   const started = performance.now();
   expect(() => repoRoot(dir, { command: fake, timeoutMs: 200 })).toThrow(

@@ -120,7 +120,7 @@ function main(cwd = "."): number {
   let files: string[];
   try {
     root = repoRoot(cwd);
-    files = listFiles(root, ["skills", "scripts", ".agents/skills"]).filter(isTarget);
+    files = listFiles(root, ["skills"]).filter(isTarget);
   } catch (error) {
     console.error(`jsdoc-types: ${errorMessage(error)}`);
     return 2;
