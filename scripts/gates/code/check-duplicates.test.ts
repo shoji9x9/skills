@@ -213,8 +213,11 @@ test.each([
   ],
   ["どちらの組にも入っていないファイル", clone("z.mjs", "r.ts", inRange), false],
   ["どちらの組にも入っていないファイルと、代表のコピー", clone("z.mjs", "b.mjs", inRange), false],
+  ["代表のコピーと、代表を含まない範囲の組のファイル", clone("b.mjs", "x.ts", inRange), false],
 ])("isDeclaredCopy（ファイル全体の組のコピー）: %s → %s", (_, c, expected) => {
-  expect(isDeclaredCopy(c, [fileGroup, chainGroup, repGroup], repRangeOf)).toBe(expected);
+  expect(isDeclaredCopy(c, [fileGroup, chainGroup, repGroup, regionGroup], repRangeOf)).toBe(
+    expected,
+  );
 });
 
 test("wholeCopies: ファイル全体の組を共有するファイルでまとめ、範囲の組と組に無いファイルはまとめない", () => {
@@ -565,6 +568,18 @@ test("main: 登録済みのコピーをベースラインに載せた後で組�
   expect(main([], root)).toBe(1);
   // 残すと決めてベースラインを作り直すと、控えた組からも外れて通る。
   expect(runs()).toEqual([0, 0]);
+});
+
+test("main: 控えた範囲の組には、代表とファイル全体で一致するコピーも含める", () => {
+  // 範囲の組には代表の b.ts だけを並べる。c.ts は b.ts とファイル全体で一致するコピーなので、r.ts と同じ範囲を持つ。
+  // 控えに c.ts が無いと、後でファイル全体の組を外したときに、c.ts と r.ts の重複を宣言から外したコピーとして失敗にできない。
+  const cliEntry = { files: ["b.ts", "r.ts"], reason: "雛形に同じ関数を持つ", region: "cli-entry" };
+  const root = makeRepo({ "a.ts": OTHER }, [...SISTERS, cliEntry]);
+  expect(main(["--update-baseline"], root)).toBe(0);
+  expect(loadDeclared(root)).toEqual([
+    ["b.ts", "c.ts"],
+    ["b.ts", "c.ts", "r.ts"],
+  ]);
 });
 
 test("main: 走査したファイルが 0 件なら判定できないので exit 2", () => {

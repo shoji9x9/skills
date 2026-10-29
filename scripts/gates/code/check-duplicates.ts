@@ -392,7 +392,10 @@ function replaceBaselines(root: string, staging: string, groups: readonly CopyGr
     mkdirSync(dirname(target), { recursive: true });
     copyFileSync(join(staging, scan.baseline), target);
   }
-  const files = groups.map((g) => [...g.files].sort());
+  // 判定（isDeclaredCopy）はファイル全体で一致するコピーを組に入っているものとして扱うので、控えにもコピーを含める。
+  // 組に並べたファイルだけを控えると、後でファイル全体の組を外したときに、範囲の組の代表のコピーとの重複が控えた組に無く、失敗にならない。
+  const copies = wholeCopies(groups);
+  const files = groups.map((g) => [...new Set(g.files.flatMap((f) => [...copies(f)]))].sort());
   writeFileSync(join(root, DECLARED_PATH), `${JSON.stringify({ groups: files }, null, 2)}\n`);
 }
 
