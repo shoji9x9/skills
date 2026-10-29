@@ -44,13 +44,24 @@ export function formatError(error: unknown): string {
     : String(error);
 }
 
-/** 必須の成果物がそろい、どれもシンボリックリンクでないことを確かめる。 */
+/** path が root の外にあるかを、パスの字面で判定する。 */
+function escapes(root: string, path: string): boolean {
+  const relativePath = relative(root, path);
+  return relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath);
+}
+
+/** 必須の成果物がそろい、どれもシンボリックリンクでなく、source の中にあることを確かめる。 */
 function assertArtifactsPresent(source: string): void {
   for (const artifact of requiredArtifacts) {
     const artifactPath = resolve(source, artifact);
     if (!existsSync(artifactPath)) throw new Error(`baseline artifact missing: ${artifact}`);
     if (lstatSync(artifactPath).isSymbolicLink()) {
       throw new Error(`baseline artifact must not be a symlink: ${artifact}`);
+    }
+    // outputs/metrics.json のように途中のディレクトリを持つ成果物は、
+    // そのディレクトリがシンボリックリンクだと source の外を指す。
+    if (escapes(realpathSync(source), realpathSync(artifactPath))) {
+      throw new Error(`baseline artifact escapes the source run: ${artifact}`);
     }
   }
 }
@@ -76,12 +87,6 @@ function assertFingerprintMatches(source: string, expectedFingerprint: Fingerpri
   }
 }
 
-/** path が root の外にあるかを、パスの字面で判定する。 */
-function escapes(root: string, path: string): boolean {
-  const relativePath = relative(root, path);
-  return relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath);
-}
-
 /** baseline の実行が成功し、raw_trace が source の中にある空でない通常のファイルを指すことを確かめる。 */
 function assertSucceededWithRawTrace(source: string): void {
   const result = readJson<{ status?: unknown; exit_code?: unknown; raw_trace?: unknown }>(
@@ -95,11 +100,6 @@ function assertSucceededWithRawTrace(source: string): void {
   }
   const rawTrace = resolve(source, result.raw_trace);
   if (escapes(source, rawTrace)) throw new Error("baseline raw_trace escapes the source run");
-  // 途中のディレクトリがシンボリックリンクだと、字面では中でも source の外を指す。
-  // 両辺を同じ realpath で解決して比べ、source の中を指すリンクだけを受け入れる（#766）。
-  if (existsSync(rawTrace) && escapes(realpathSync(source), realpathSync(rawTrace))) {
-    throw new Error("baseline raw_trace escapes the source run");
-  }
   if (
     !existsSync(rawTrace) ||
     lstatSync(rawTrace).isSymbolicLink() ||
@@ -107,6 +107,11 @@ function assertSucceededWithRawTrace(source: string): void {
     readFileSync(rawTrace).length === 0
   ) {
     throw new Error(`baseline raw trace missing or empty: ${result.raw_trace}`);
+  }
+  // 途中のディレクトリがシンボリックリンクだと、字面では中でも source の外を指す。
+  // 両辺を同じ realpath で解決して比べ、source の中を指すリンクだけを受け入れる（#766）。
+  if (escapes(realpathSync(source), realpathSync(rawTrace))) {
+    throw new Error("baseline raw_trace escapes the source run");
   }
 }
 

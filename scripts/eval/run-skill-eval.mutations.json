@@ -33,7 +33,7 @@
       "id": "raw-trace-realpath-skipped",
       "why": "raw_trace を realpath で解決して比べる判定を外す（途中のシンボリックリンクで source の外を指すものを受け入れる。#766）",
       "file": "scripts/eval/reuse-skill-eval-baseline.ts",
-      "find": "if (existsSync(rawTrace) && escapes(realpathSync(source), realpathSync(rawTrace))) {",
+      "find": "if (escapes(realpathSync(source), realpathSync(rawTrace))) {",
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": [
@@ -44,8 +44,8 @@
       "id": "raw-trace-realpath-one-side",
       "why": "raw_trace だけを realpath で解決し、source は字面のまま比べる（source がシンボリックリンクの下にあると、正しい baseline を外として扱う。#766）",
       "file": "scripts/eval/reuse-skill-eval-baseline.ts",
-      "find": "if (existsSync(rawTrace) && escapes(realpathSync(source), realpathSync(rawTrace))) {",
-      "replace": "if (existsSync(rawTrace) && escapes(source, realpathSync(rawTrace))) {",
+      "find": "if (escapes(realpathSync(source), realpathSync(rawTrace))) {",
+      "replace": "if (escapes(source, realpathSync(rawTrace))) {",
       "occurrences": 1,
       "expect_failing": [
         "run-skill-eval executor compatibility accepts a source reached through a symlinked ancestor directory"
@@ -53,13 +53,24 @@
     },
     {
       "id": "raw-trace-any-symlink-rejected",
-      "why": "解決の前後でパスが変わるもの（source の中を指すリンクを含む）をすべて外として扱う（#766 の prepare で受け入れると決めた形を落とす）",
+      "why": "解決の前後でパスが変わるもの（source の中を指すリンクを含む）をすべて外として扱う（source の中を指すリンクを経由する正しい raw_trace を落とす）",
       "file": "scripts/eval/reuse-skill-eval-baseline.ts",
-      "find": "if (existsSync(rawTrace) && escapes(realpathSync(source), realpathSync(rawTrace))) {",
-      "replace": "if (existsSync(rawTrace) && relative(source, rawTrace) !== relative(realpathSync(source), realpathSync(rawTrace))) {",
+      "find": "if (escapes(realpathSync(source), realpathSync(rawTrace))) {",
+      "replace": "if (relative(source, rawTrace) !== relative(realpathSync(source), realpathSync(rawTrace))) {",
       "occurrences": 1,
       "expect_failing": [
         "run-skill-eval executor compatibility accepts a raw_trace through a symlinked directory that stays inside the source"
+      ]
+    },
+    {
+      "id": "artifact-realpath-skipped",
+      "why": "必須の成果物を realpath で解決して比べる判定を外す（途中のディレクトリのシンボリックリンクで source の外を指すものを受け入れる）",
+      "file": "scripts/eval/reuse-skill-eval-baseline.ts",
+      "find": "if (escapes(realpathSync(source), realpathSync(artifactPath))) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "run-skill-eval executor compatibility rejects a required artifact whose parent directory is a symlink to outside the source"
       ]
     }
   ]

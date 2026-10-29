@@ -3,6 +3,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -605,16 +606,7 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
       }),
     ).rejects.toThrow();
     expect(existsSync(target)).toBe(false);
-    const result = await spawnAsync(
-      "node",
-      [
-        join(repository, "scripts", "eval", "reuse-skill-eval-baseline.ts"),
-        source,
-        target,
-        join(source, "eval-fingerprint.json"),
-      ],
-      { timeout: CHILD_TIMEOUT_MS },
-    );
+    const result = await reuseDirectly(source, target);
     expect(result.stderr).toMatch(errorPattern);
   });
 
@@ -687,6 +679,21 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toMatch(/baseline raw_trace escapes the source run/u);
+    expect(existsSync(target)).toBe(false);
+  });
+
+  test("rejects a required artifact whose parent directory is a symlink to outside the source", async () => {
+    const { directory, source, target } = await withoutSkillSource();
+    const outside = join(directory, "outside-outputs");
+    renameSync(join(source, "outputs"), outside);
+    symlinkSync(outside, join(source, "outputs"));
+
+    const result = await reuseDirectly(source, target);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(
+      /baseline artifact escapes the source run: outputs\/metrics\.json/u,
+    );
     expect(existsSync(target)).toBe(false);
   });
 
