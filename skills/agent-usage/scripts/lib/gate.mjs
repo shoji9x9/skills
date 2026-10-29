@@ -490,16 +490,21 @@ function commitDirsOf(input) {
  * @returns {string[] | null}
  */
 function unreadCommitDirs(words, reason) {
-  // GNU env が -S の値の中で解釈する書き方（引用符・`\` のエスケープ・`${VAR}`）を外し、値の中の語も空白で分けて読む。
-  // 文法を書き写して語に分けるのではなく、外した後の文字列で探して止める側に寄せる（止めすぎる形は references/setup.md の表にある）
-  const pieces = words
-    .flatMap((w) => w.split(/\s+/))
-    .map((w) => w.replace(/\$\{[^}]*\}|["'\\]/g, ""));
-  // 語に分けられない -S の値は、外した後の文字列で git の後ろに commit があればコミットとして扱う（`git\_commit` は git commit）
-  if (reason === UNSPLITTABLE_VALUE) return /git[\s\S]*commit/.test(pieces.join(" ")) ? [] : null;
-  // 一意に決まらない省略形は、git の語の後ろに commit の語があればコミットとして扱う（`git log --grep=commit` はコミットにしない）
-  const git = pieces.findIndex((w) => w.split("/").pop() === "git");
-  return git >= 0 && pieces.indexOf("commit", git + 1) !== -1 ? [] : null;
+  // 語に分けられない -S の値は、GNU env が値の中で解釈する書き方を外した文字列で探し、止める側に寄せる。
+  // 引用符と `${VAR}` は消し、`\` のエスケープ（`\_`・`\t` は区切り）は空白にする。止めすぎる形は references/setup.md の表にある
+  if (reason === UNSPLITTABLE_VALUE) {
+    const text = words
+      .join(" ")
+      .replace(/\$\{[^}]*\}|["']/g, "")
+      .replace(/\\./g, " ");
+    return /\bgit\b[\s\S]*commit/.test(text) ? [] : null;
+  }
+  // 一意に決まらない省略形は、後ろのどの語からコマンドが始まるかを決められないので、各位置から読み直し、
+  // どれかが git commit ならコミットとして扱う（`git log --grep 'fix commit'` はコミットにしない）
+  for (let k = 1; k < words.length; k += 1) {
+    if (commitDirsOf(words.slice(k)) !== null) return [];
+  }
+  return null;
 }
 
 /**

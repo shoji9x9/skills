@@ -165,6 +165,11 @@ describe("isGitCommit", () => {
     // 一意に決まらない省略形の後ろでも、commit の語が無いもの（--grep=commit・commit-tree）はコミットと判定しない
     ["env --de x git log --grep=commit", false],
     ["sudo --ch /tmp git commit-tree x", false],
+    // シェルが 1 語として読んだ引数（引用符の中）は、空白で分け直さない
+    ["sudo --ch /tmp git log --grep 'fix commit'", false],
+    ['env --de x echo "git commit"', false],
+    // 語に分けられない -S の値でも、git を含む別の語（.github・digit）の後ろの commit はコミットにしない
+    ["env -S '\"x\"' cat .github/commit.md", false],
     ["timeout 60 git commit-tree abc", false],
     ["timeout 60 git log --grep commit", false],
     ["echo timeout git commit", false],

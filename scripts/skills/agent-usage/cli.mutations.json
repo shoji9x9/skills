@@ -796,7 +796,8 @@
         "isGitCommit env -S 'git ${EMPTY}commit' → true",
         "isGitCommit env -S 'git\\_commit' → true",
         "isGitCommit env -S 'g\"i\"t commit' → true",
-        "isGitCommit env -S 'git com${E}mit' → true"
+        "isGitCommit env -S 'git com${E}mit' → true",
+        "isGitCommit sudo --ch /tmp env -S 'git commit' → true"
       ]
     },
     {
@@ -816,12 +817,18 @@
     },
     {
       "id": "unsplittable-value-read-as-words",
-      "why": "語に分けられない env -S の値も、一意に決まらない省略形と同じく語の一致で判定し、文字列で探さない",
+      "why": "語に分けられない env -S の値も、一意に決まらない省略形と同じく後ろの各位置から読み直し、書き方を外した文字列で探さない",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "  if (reason === UNSPLITTABLE_VALUE) return",
-      "replace": "  if (reason === null) return",
+      "find": "  if (reason === UNSPLITTABLE_VALUE) {",
+      "replace": "  if (reason === null) {",
       "occurrences": 1,
-      "expect_failing": ["isGitCommit env -S 'git\\_commit' → true"]
+      "expect_failing": [
+        "isGitCommit env -S 'git\\_commit' → true",
+        "isGitCommit env -S 'g\"i\"t commit' → true",
+        "isGitCommit env -S 'git \"commit\"' → true",
+        "isGitCommit env -S 'git ${EMPTY}commit' → true",
+        "isGitCommit env -S 'git com${E}mit' → true"
+      ]
     },
     {
       "id": "long-option-prefix-ignored",

@@ -587,6 +587,7 @@ test("詳細度の数え方", () => {
   expect(specificity("#a")).toEqual([1, 0, 0]);
   // NBSP は CSS の空白ではなく識別子の文字なので、型セレクタとして数える
   expect(specificity(".a \u00a0 .b")).toEqual([0, 2, 1]);
+  expect(specificity(":is(\u00a0.a)")).toEqual([0, 1, 1]);
   expect(specificity("[data-x='y']")).toEqual([0, 1, 0]);
   expect(specificity("a:hover")).toEqual([0, 1, 1]);
   expect(specificity("li::before")).toEqual([0, 0, 2]);

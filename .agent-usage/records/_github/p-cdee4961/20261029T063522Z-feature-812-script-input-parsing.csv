@@ -41,3 +41,6 @@ coverage:github:2026-10-28T08:26:00.566Z:2026-10-29T08:28:15.065Z,coverage,2026-
 ci:40842474549:1,ci,2026-10-29T08:56:38.821Z,p-cdee4961,github-actions,,,,2026-10-29T08:29:18.000Z,2026-10-29T08:29:19.000Z,Asia/Tokyo,feature/812-script-input-parsing,812,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:40842474520:1,ci,2026-10-29T08:56:38.821Z,p-cdee4961,github-actions,,,,2026-10-29T08:29:18.000Z,2026-10-29T08:33:31.000Z,Asia/Tokyo,feature/812-script-input-parsing,812,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-28T08:28:15.065Z:2026-10-29T08:56:38.821Z,coverage,2026-10-29T08:56:38.821Z,p-cdee4961,,,,,2026-10-28T08:28:15.065Z,2026-10-29T08:56:38.821Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:40845923746:1,ci,2026-10-29T09:23:23.744Z,p-cdee4961,github-actions,,,,2026-10-29T08:57:41.000Z,2026-10-29T08:57:42.000Z,Asia/Tokyo,feature/812-script-input-parsing,812,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40845923602:1,ci,2026-10-29T09:23:23.744Z,p-cdee4961,github-actions,,,,2026-10-29T08:57:41.000Z,2026-10-29T09:01:54.000Z,Asia/Tokyo,feature/812-script-input-parsing,812,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-28T08:56:38.821Z:2026-10-29T09:23:23.744Z,coverage,2026-10-29T09:23:23.744Z,p-cdee4961,,,,,2026-10-28T08:56:38.821Z,2026-10-29T09:23:23.744Z,Asia/Tokyo,,,,,,,,,,,,ok,

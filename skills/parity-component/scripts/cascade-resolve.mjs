@@ -162,6 +162,15 @@ export class UndecidableSelector extends Error {}
 const IDENT_CHAR = /[-\w -￿]/;
 
 /**
+ * 前後の CSS の空白（空白・タブ・改行・CR・FF）を除く。String#trim は NBSP なども除くので、識別子の文字を消してしまう。
+ * @param {string} s
+ * @returns {string}
+ */
+function cssTrim(s) {
+  return s.replace(/^[ \t\n\r\f]+|[ \t\n\r\f]+$/g, "");
+}
+
+/**
  * エスケープを飛ばした次の位置。
  * CSS のエスケープは `\` ＋ 1 文字とは限らない。16 進エスケープは `\` ＋ 16 進数 1〜6 桁で、
  * 直後の空白 1 つが終端記号として消費される（`.\31 23` は「123」というクラス 1 つ）。
@@ -314,14 +323,14 @@ function splitTopLevel(text) {
  * @returns {[number, number, number]}
  */
 function maxOfArgument(name, argument) {
-  if (argument === null || argument.trim() === "") {
+  if (argument === null || cssTrim(argument) === "") {
     throw new UndecidableSelector(`:${name}() has no argument`);
   }
   /** @type {[number, number, number] | null} */
   let best = null;
   for (const branch of splitTopLevel(argument)) {
-    if (branch.trim() === "") throw new UndecidableSelector(`:${name}() has an empty branch`);
-    const value = specificity(branch.trim());
+    if (cssTrim(branch) === "") throw new UndecidableSelector(`:${name}() has an empty branch`);
+    const value = specificity(cssTrim(branch));
     if (best === null || compareSpecificity(value, best) > 0) best = value;
   }
   // splitTopLevel は 1 件以上を返し、各枝は値を決めるか投げるので、ここで null にはならない（型の絞り込みのため）。
@@ -398,7 +407,7 @@ function tokenSpecificity(s, i) {
  * @returns {[number, number, number]}
  */
 export function specificity(selector) {
-  if (typeof selector !== "string" || selector.trim() === "") {
+  if (typeof selector !== "string" || cssTrim(selector) === "") {
     throw new UndecidableSelector("selector is empty");
   }
   /** @type {[number, number, number]} */
