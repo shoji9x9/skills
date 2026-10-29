@@ -28,6 +28,39 @@
       "expect_failing": [
         "run-skill-eval executor compatibility calls a codex baseline CHECK-BROKEN when its contamination surface is empty"
       ]
+    },
+    {
+      "id": "raw-trace-realpath-skipped",
+      "why": "raw_trace を realpath で解決して比べる判定を外す（途中のシンボリックリンクで source の外を指すものを受け入れる。#766）",
+      "file": "scripts/eval/reuse-skill-eval-baseline.ts",
+      "find": "if (existsSync(rawTrace) && escapes(realpathSync(source), realpathSync(rawTrace))) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "run-skill-eval executor compatibility rejects a raw_trace that reaches outside the source through a symlinked directory"
+      ]
+    },
+    {
+      "id": "raw-trace-realpath-one-side",
+      "why": "raw_trace だけを realpath で解決し、source は字面のまま比べる（source がシンボリックリンクの下にあると、正しい baseline を外として扱う。#766）",
+      "file": "scripts/eval/reuse-skill-eval-baseline.ts",
+      "find": "if (existsSync(rawTrace) && escapes(realpathSync(source), realpathSync(rawTrace))) {",
+      "replace": "if (existsSync(rawTrace) && escapes(source, realpathSync(rawTrace))) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "run-skill-eval executor compatibility accepts a source reached through a symlinked ancestor directory"
+      ]
+    },
+    {
+      "id": "raw-trace-any-symlink-rejected",
+      "why": "解決の前後でパスが変わるもの（source の中を指すリンクを含む）をすべて外として扱う（#766 の prepare で受け入れると決めた形を落とす）",
+      "file": "scripts/eval/reuse-skill-eval-baseline.ts",
+      "find": "if (existsSync(rawTrace) && escapes(realpathSync(source), realpathSync(rawTrace))) {",
+      "replace": "if (existsSync(rawTrace) && relative(source, rawTrace) !== relative(realpathSync(source), realpathSync(rawTrace))) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "run-skill-eval executor compatibility accepts a raw_trace through a symlinked directory that stays inside the source"
+      ]
     }
   ]
 }

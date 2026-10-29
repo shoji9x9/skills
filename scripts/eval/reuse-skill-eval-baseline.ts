@@ -1,4 +1,4 @@
-import { cpSync, existsSync, lstatSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, lstatSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { errorMessage } from "../lib/errors.ts";
 import { parseJsonAs } from "../lib/parse-as.ts";
@@ -76,6 +76,12 @@ function assertFingerprintMatches(source: string, expectedFingerprint: Fingerpri
   }
 }
 
+/** path が root の外にあるかを、パスの字面で判定する。 */
+function escapes(root: string, path: string): boolean {
+  const relativePath = relative(root, path);
+  return relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath);
+}
+
 /** baseline の実行が成功し、raw_trace が source の中にある空でない通常のファイルを指すことを確かめる。 */
 function assertSucceededWithRawTrace(source: string): void {
   const result = readJson<{ status?: unknown; exit_code?: unknown; raw_trace?: unknown }>(
@@ -88,12 +94,10 @@ function assertSucceededWithRawTrace(source: string): void {
     throw new Error("baseline result has no raw_trace path");
   }
   const rawTrace = resolve(source, result.raw_trace);
-  const relativeRawTrace = relative(source, rawTrace);
-  if (
-    relativeRawTrace === ".." ||
-    relativeRawTrace.startsWith(`..${sep}`) ||
-    isAbsolute(relativeRawTrace)
-  ) {
+  if (escapes(source, rawTrace)) throw new Error("baseline raw_trace escapes the source run");
+  // 途中のディレクトリがシンボリックリンクだと、字面では中でも source の外を指す。
+  // 両辺を同じ realpath で解決して比べ、source の中を指すリンクだけを受け入れる（#766）。
+  if (existsSync(rawTrace) && escapes(realpathSync(source), realpathSync(rawTrace))) {
     throw new Error("baseline raw_trace escapes the source run");
   }
   if (

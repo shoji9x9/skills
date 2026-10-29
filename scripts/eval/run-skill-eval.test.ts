@@ -655,6 +655,69 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
     expect(existsSync(target)).toBe(false);
   });
 
+  /** raw_trace を、source の中の dir（シンボリックリンク）の下のファイルに付け替える。 */
+  function pointRawTraceThrough(source: string, linkTarget: string, rawName: string) {
+    symlinkSync(linkTarget, join(source, "via"));
+    const resultPath = join(source, "result.json");
+    const result = readJson<ResultFile>(resultPath);
+    writeFileSync(resultPath, `${JSON.stringify({ ...result, raw_trace: `via/${rawName}` })}\n`);
+  }
+
+  function reuseDirectly(source: string, target: string) {
+    return spawnAsync(
+      "node",
+      [
+        join(repository, "scripts", "eval", "reuse-skill-eval-baseline.ts"),
+        source,
+        target,
+        join(source, "eval-fingerprint.json"),
+      ],
+      { timeout: CHILD_TIMEOUT_MS },
+    );
+  }
+
+  test("rejects a raw_trace that reaches outside the source through a symlinked directory", async () => {
+    const { directory, source, target } = await withoutSkillSource();
+    const outside = join(directory, "outside");
+    mkdirSync(outside);
+    writeFileSync(join(outside, "trace.jsonl"), "{}\n", "utf8");
+    pointRawTraceThrough(source, outside, "trace.jsonl");
+
+    const result = await reuseDirectly(source, target);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/baseline raw_trace escapes the source run/u);
+    expect(existsSync(target)).toBe(false);
+  });
+
+  test("accepts a raw_trace through a symlinked directory that stays inside the source", async () => {
+    const { source, target } = await withoutSkillSource();
+    const rawName = readJson<ResultFile>(join(source, "result.json")).raw_trace.replace(
+      /^raw\//u,
+      "",
+    );
+    pointRawTraceThrough(source, join(source, "raw"), rawName);
+
+    const result = await reuseDirectly(source, target);
+
+    expect(result.stderr).toBe("");
+    expect(result.status).toBe(0);
+    expect(readJson(join(target, "baseline-reuse.json"))).toMatchObject({ source_run: "run-1" });
+  });
+
+  test("accepts a source reached through a symlinked ancestor directory", async () => {
+    const { directory, source, target } = await withoutSkillSource();
+    const alias = join(directory, "alias");
+    symlinkSync(join(directory, "iteration-1"), alias);
+
+    const result = await reuseDirectly(join(alias, "eval-1", "without_skill", "run-1"), target);
+
+    expect(result.stderr).toBe("");
+    expect(result.status).toBe(0);
+    expect(existsSync(join(target, "baseline-reuse.json"))).toBe(true);
+    expect(existsSync(source)).toBe(true);
+  });
+
   test("keeps Claude Code as the default executor for existing callers", async () => {
     const { directory, stub } = makeStub();
     const output = join(directory, "iteration-1", "eval-1", "with_skill", "run-1");
