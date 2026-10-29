@@ -33,58 +33,59 @@
       "id": "symlink-escape-allowed",
       "why": "source の木のシンボリックリンクが source の外を指しても受け入れる（途中のディレクトリを通して外のファイルを読む）",
       "file": "scripts/eval/reuse-skill-eval-baseline.ts",
-      "find": "          escapes(realSource, resolve(directory, link)) ||\n          !existsSync(path) ||\n          escapes(realSource, realpathSync(path))",
-      "replace": "          false",
+      "find": "        if (escapes(realSource, linkTarget)) {",
+      "replace": "        if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "run-skill-eval executor compatibility rejects a raw_trace that reaches outside the source through a symlinked directory",
         "run-skill-eval executor compatibility rejects a required artifact whose parent directory is a symlink to outside the source",
-        "run-skill-eval executor compatibility rejects a symlink outside the required artifacts that points outside the source",
-        "run-skill-eval executor compatibility rejects a relative symlink that leaves the source and comes back through another link"
+        "run-skill-eval executor compatibility rejects a symlink outside the required artifacts that points outside the source"
       ]
     },
     {
-      "id": "symlink-realpath-only",
-      "why": "リンク先の字面を見ず、realpath だけで中かを判定する（外へ出て別のリンクで戻るリンクは、target にコピーすると target の外を指す）",
+      "id": "dangling-symlink-unreported",
+      "why": "壊れたリンクを別のメッセージで報告しない（realpath の例外で止まり、原因が分からない）",
       "file": "scripts/eval/reuse-skill-eval-baseline.ts",
-      "find": "          escapes(realSource, resolve(directory, link)) ||\n",
+      "find": "        if (!existsSync(path)) throw new Error(`baseline symlink is dangling: ${name}`);\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "run-skill-eval executor compatibility rejects a relative symlink that leaves the source and comes back through another link"
+        "run-skill-eval executor compatibility rejects a dangling symlink with its own message"
       ]
     },
     {
-      "id": "absolute-symlink-allowed",
-      "why": "絶対パスのリンクを受け入れる（target にコピーした後も元の source を指す）",
+      "id": "loop-symlink-allowed",
+      "why": "自分を含むディレクトリを指すリンクを受け入れる（実体に置き換えるコピーが終わらない）",
       "file": "scripts/eval/reuse-skill-eval-baseline.ts",
-      "find": "        if (isAbsolute(link)) throw new Error(`baseline symlink must be relative: ${name}`);\n",
+      "find": "        if (!escapes(linkTarget, directory)) {",
+      "replace": "        if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "run-skill-eval executor compatibility rejects a symlink to a directory that contains it"
+      ]
+    },
+    {
+      "id": "absolute-raw-trace-allowed",
+      "why": "絶対パスの raw_trace を受け入れる（target にコピーした後も元の source を指す）",
+      "file": "scripts/eval/reuse-skill-eval-baseline.ts",
+      "find": "  if (isAbsolute(result.raw_trace)) throw new Error(\"baseline raw_trace must be relative\");\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "run-skill-eval executor compatibility rejects an absolute symlink even when it points inside the source"
+        "run-skill-eval executor compatibility rejects an absolute raw_trace even when it points inside the source"
       ]
     },
     {
-      "id": "copy-from-literal-source",
-      "why": "実体ではなく字面の source からコピーする（source の run 自体がリンクだと、target もリンクになる）",
+      "id": "copy-keeps-symlinks",
+      "why": "source の中のリンクをリンクのままコピーする（target のリンクが元の source を指す）",
       "file": "scripts/eval/reuse-skill-eval-baseline.ts",
-      "find": "  cpSync(realSource, target, { recursive: true, errorOnExist: true, verbatimSymlinks: true });",
-      "replace": "  cpSync(source, target, { recursive: true, errorOnExist: true, verbatimSymlinks: true });",
-      "occurrences": 1,
-      "expect_failing": [
-        "run-skill-eval executor compatibility copies the contents when the source run directory itself is a symlink"
-      ]
-    },
-    {
-      "id": "copy-rewrites-symlinks",
-      "why": "相対のリンクを絶対パスに書き換えてコピーする（target のリンクが元の source を指す）",
-      "file": "scripts/eval/reuse-skill-eval-baseline.ts",
-      "find": "  cpSync(realSource, target, { recursive: true, errorOnExist: true, verbatimSymlinks: true });",
+      "find": "  cpSync(realSource, target, { recursive: true, errorOnExist: true, dereference: true });",
       "replace": "  cpSync(realSource, target, { recursive: true, errorOnExist: true });",
       "occurrences": 1,
       "expect_failing": [
-        "run-skill-eval executor compatibility accepts a raw_trace through a relative symlink that stays inside the source and keeps it inside the target"
+        "run-skill-eval executor compatibility accepts a raw_trace through a relative symlink to a directory inside the source and copies it as a directory",
+        "run-skill-eval executor compatibility accepts a raw_trace through an absolute symlink to a directory inside the source and copies it as a directory",
+        "run-skill-eval executor compatibility accepts a raw_trace through a relative symlink that leaves the source and comes back through another link to a directory inside the source and copies it as a directory"
       ]
     },
     {

@@ -4,8 +4,6 @@ import {
   lstatSync,
   mkdirSync,
   readFileSync,
-  readlinkSync,
-  realpathSync,
   renameSync,
   rmSync,
   symlinkSync,
@@ -715,44 +713,72 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
     expect(existsSync(target)).toBe(false);
   });
 
-  test("rejects a relative symlink that leaves the source and comes back through another link", async () => {
+  test.each([
+    ["a relative symlink", () => "raw"],
+    ["an absolute symlink", (source: string) => join(source, "raw")],
+    [
+      "a relative symlink that leaves the source and comes back through another link",
+      (source: string) => {
+        symlinkSync(source, join(dirname(source), "run-alias"));
+        return join("..", "run-alias", "raw");
+      },
+    ],
+  ])(
+    "accepts a raw_trace through %s to a directory inside the source and copies it as a directory",
+    async (_label, linkTo) => {
+      const { source, target } = await withoutSkillSource();
+      const rawName = basename(readJson<ResultFile>(join(source, "result.json")).raw_trace);
+      pointRawTraceThrough(source, linkTo(source), rawName);
+
+      const result = await reuseDirectly(source, target);
+
+      expect(result.stderr).toBe("");
+      expect(result.status).toBe(0);
+      expect(lstatSync(join(target, "via")).isSymbolicLink()).toBe(false);
+      expect(readFileSync(join(target, "via", rawName))).toEqual(
+        readFileSync(join(source, "raw", rawName)),
+      );
+    },
+  );
+
+  test("rejects a dangling symlink with its own message", async () => {
     const { source, target } = await withoutSkillSource();
-    symlinkSync(source, join(dirname(source), "run-alias"));
-    const rawName = basename(readJson<ResultFile>(join(source, "result.json")).raw_trace);
-    pointRawTraceThrough(source, join("..", "run-alias", "raw"), rawName);
+    pointRawTraceThrough(source, join("raw", "missing"), "x.jsonl");
 
     const result = await reuseDirectly(source, target);
 
     expect(result.status).toBe(1);
-    expect(result.stderr).toMatch(/baseline symlink escapes the source run: via$/mu);
+    expect(result.stderr).toMatch(/baseline symlink is dangling: via$/mu);
     expect(existsSync(target)).toBe(false);
   });
 
-  test("rejects an absolute symlink even when it points inside the source", async () => {
+  test("rejects a symlink to a directory that contains it", async () => {
     const { source, target } = await withoutSkillSource();
-    const rawName = basename(readJson<ResultFile>(join(source, "result.json")).raw_trace);
-    pointRawTraceThrough(source, join(source, "raw"), rawName);
+    symlinkSync("..", join(source, "raw", "loop"));
 
     const result = await reuseDirectly(source, target);
 
     expect(result.status).toBe(1);
-    expect(result.stderr).toMatch(/baseline symlink must be relative: via$/mu);
-    expect(existsSync(target)).toBe(false);
-  });
-
-  test("accepts a raw_trace through a relative symlink that stays inside the source and keeps it inside the target", async () => {
-    const { source, target } = await withoutSkillSource();
-    const rawName = basename(readJson<ResultFile>(join(source, "result.json")).raw_trace);
-    pointRawTraceThrough(source, "raw", rawName);
-
-    const result = await reuseDirectly(source, target);
-
-    expect(result.stderr).toBe("");
-    expect(result.status).toBe(0);
-    expect(readlinkSync(join(target, "via"))).toBe("raw");
-    expect(realpathSync(join(target, "via", rawName))).toBe(
-      join(realpathSync(target), "raw", rawName),
+    expect(result.stderr).toMatch(
+      /baseline symlink points to a directory that contains it: raw\/loop$/mu,
     );
+    expect(existsSync(target)).toBe(false);
+  });
+
+  test("rejects an absolute raw_trace even when it points inside the source", async () => {
+    const { source, target } = await withoutSkillSource();
+    const resultPath = join(source, "result.json");
+    const recorded = readJson<ResultFile>(resultPath);
+    writeFileSync(
+      resultPath,
+      `${JSON.stringify({ ...recorded, raw_trace: join(source, recorded.raw_trace) })}\n`,
+    );
+
+    const result = await reuseDirectly(source, target);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/baseline raw_trace must be relative/u);
+    expect(existsSync(target)).toBe(false);
   });
 
   test("accepts a source reached through a symlinked ancestor directory", async () => {
