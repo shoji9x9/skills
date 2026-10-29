@@ -177,6 +177,32 @@ test("CLI: 揃った記録で exit 0、実行パスの抜けで exit 1、引数�
   expect(err).toMatch(/必須/);
 });
 
+test("main: 受け付けない引数・値の無い --build-metadata・2 回目の --build-metadata は exit 2", () => {
+  const run = (argv: string[]) => {
+    let err = "";
+    const code = main(argv, {
+      readFile: () => "{}",
+      write: () => {},
+      writeErr: (s: string) => (err += s),
+    });
+    return { code, err };
+  };
+  for (const [argv, reason] of [
+    [["--build-metadata", "a.json", "--bogus"], "不明な引数: --bogus"],
+    [["a.json"], "不明な引数: a.json"],
+    [["--build-metadata"], "--build-metadata に値が無い"],
+    [["--build-metadata", "--bogus"], "--build-metadata に値が無い"],
+    [
+      ["--build-metadata", "a.json", "--build-metadata", "b.json"],
+      "--build-metadata が重複している",
+    ],
+  ] as const) {
+    const { code, err } = run([...argv]);
+    expect(code, argv.join(" ")).toBe(2);
+    expect(err).toContain(`error: ${reason}`);
+  }
+});
+
 test("eval fixture の完了済みの記録（対象でない部品）は通る", () => {
   const metadata = parseJsonAs<{ lifecycle: unknown }>(
     readFileSync(

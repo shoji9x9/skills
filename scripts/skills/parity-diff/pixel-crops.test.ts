@@ -758,6 +758,34 @@ test.each([
   expect(res.stdout).toBe("");
 });
 
+test.each([
+  [
+    "知らない名前",
+    ["a.png", "b.png", "c.png", "--out", "o", "--bogus", "1"],
+    "不明な引数: --bogus",
+  ],
+  ["4 つ目の位置引数", ["a.png", "b.png", "c.png", "d.png", "--out", "o"], "不明な引数: d.png"],
+  ["値の無い --out", ["a.png", "b.png", "c.png", "--out"], "--out に値が無い"],
+  [
+    "次の名前を値に取る --out",
+    ["a.png", "b.png", "c.png", "--out", "--pad", "1"],
+    "--out に値が無い",
+  ],
+  [
+    "2 回目の --pad",
+    ["a.png", "b.png", "c.png", "--out", "o", "--pad", "1", "--pad", "2"],
+    "--pad が重複している",
+  ],
+])("引数の誤りは理由と使い方を出して exit 2（%s）", (_label, argv, reason) => {
+  const res = spawnSync(process.execPath, ["--import", HOOKS, SCRIPT, ...argv], {
+    encoding: "utf8",
+    timeout: CHILD_TIMEOUT_MS,
+  });
+  expect(res.status).toBe(2);
+  expect(res.stderr).toContain(`error: ${reason}\nusage: `);
+  expect(res.stdout).toBe("");
+});
+
 const ONE_PIXEL = { current: [BASE], next: [BASE], diff: [WHITE] };
 
 test.each([

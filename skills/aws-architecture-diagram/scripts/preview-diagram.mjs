@@ -17,12 +17,13 @@ import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { diagramConfig } from "./diagram-config.mjs";
 
-const config = diagramConfig(process.argv.slice(2));
+const USAGE = "usage: node preview-diagram.mjs <env名 | SVGファイル名>";
+const config = diagramConfig(process.argv.slice(2), { positionals: 1, usage: USAGE });
 const OUT_DIR = config.outDir;
 
-const arg = config.rest[0];
+const arg = config.positionals[0];
 if (!arg) {
-  console.error("usage: node preview-diagram.mjs <env名 | SVGファイル名>");
+  console.error(USAGE);
   process.exit(1);
 }
 // env 名（拡張子なし）で渡されたら architecture-<env>.svg に読み替える。

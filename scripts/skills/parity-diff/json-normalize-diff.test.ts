@@ -220,10 +220,15 @@ test("--ignore の index は、その要素だけを null にして除き、範�
   expect(untouched.status).toBe(1);
 });
 
-test("値の無い --ignore / --sort-arrays は読み飛ばし、比較は続ける", () => {
-  const r = runCli('{"a":1}', '{"a":2}', ["--ignore", "", "--sort-arrays"]);
-  expect(diffsOf(r.stdout)).toEqual([{ path: "a", current: 1, new: 2 }]);
-  expect(r.status).toBe(1);
+test("値の無い --ignore / --sort-arrays は読み飛ばさず、比べずに exit 2 にする", () => {
+  // 読み飛ばすと、外したつもりのパスが比較に残ったまま差分として報告される。
+  const empty = runCli('{"a":1}', '{"a":2}', ["--ignore", ""]);
+  expect(empty.stderr).toContain("error: --ignore に値が無い");
+  expect(empty.stdout).toBe("");
+  expect(empty.status).toBe(2);
+  const missing = runCli('{"a":1}', '{"a":2}', ["--sort-arrays"]);
+  expect(missing.stderr).toContain("error: --sort-arrays に値が無い");
+  expect(missing.status).toBe(2);
 });
 
 test("入力のファイルが 2 つでなければ、使い方を出して exit 2 にする", () => {
@@ -237,6 +242,28 @@ test("入力のファイルが 2 つでなければ、使い方を出して exit
   expect(r.stderr).toContain("usage: node json-normalize-diff.mjs");
   expect(r.stdout).toBe("");
   expect(r.status).toBe(2);
+});
+
+test.each([
+  ["知らない名前", ["--bogus", "a"], "不明な引数: --bogus"],
+  ["3 つ目の位置引数", ["extra.json"], "不明な引数: extra.json"],
+  ["値の無い --ignore", ["--ignore"], "--ignore に値が無い"],
+  ["次の名前を値に取る --ignore", ["--ignore", "--sort-arrays", "items"], "--ignore に値が無い"],
+  ["空の --sort-arrays", ["--sort-arrays", ""], "--sort-arrays に値が無い"],
+])("引数の誤り（%s）は、差分を出さずに exit 2 にする", (_name, args, reason) => {
+  const r = runCli("{}", "{}", args);
+  expect(r.stderr).toContain(`error: ${reason}`);
+  expect(r.stderr).toContain("usage: node json-normalize-diff.mjs");
+  expect(r.stdout).toBe("");
+  expect(r.status).toBe(2);
+});
+
+test("--ignore と --sort-arrays は繰り返してよい", () => {
+  const current = JSON.stringify({ a: 1, b: 1, c: [2, 1] });
+  const next = JSON.stringify({ a: 2, b: 2, c: [1, 2] });
+  const r = runCli(current, next, ["--ignore", "a", "--ignore", "b", "--sort-arrays", "c"]);
+  expect(diffsOf(r.stdout)).toEqual([]);
+  expect(r.status).toBe(0);
 });
 
 test.each([

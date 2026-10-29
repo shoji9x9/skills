@@ -1117,7 +1117,8 @@ describe.each(COPIES)("%s", (copy) => {
       expect(JSON.parse(readFileSync(s.paths.repo, "utf8"))).toEqual({ either: -1 });
       const r = await cli(["set", "t", "either", "-1", ...args], s.env, s.root);
       expect(r.code).toBe(2);
-      expect(r.err).toMatch(/知らないオプション -1（- で始まる値は -- の後に置く）/);
+      expect(r.err).toMatch(/^error: 不明な引数: -1\n/);
+      expect(r.err).toMatch(/- で始まる値（負の数など）は、-- の後に置く/);
     });
 
     test("--root を省くと cwd のリポジトリのルートを使う", async () => {
@@ -1137,6 +1138,7 @@ describe.each(COPIES)("%s", (copy) => {
       ["知らないサブコマンド", ["remove", "t"]],
       ["知らないオプション", ["get", "t", "k", "--force"]],
       ["値の無いオプション", ["get", "t", "k", "--root"]],
+      ["値が -- で始まるオプション", ["get", "t", "k", "--cli-value", "--raw"]],
       ["空の値のオプション", ["get", "t", "k", "--root", ""]],
       ["get の引数の数", ["get", "t"]],
       ["dump の引数の数", ["dump", "t", "x"]],
@@ -1161,7 +1163,11 @@ describe.each(COPIES)("%s", (copy) => {
       const r = await cli([...argv, "--schema-dir", s.schemaDir], s.env, s.root);
       expect(r.code).toBe(2);
       expect(r.err).toMatch(/^error: [\s\S]*usage:/);
-      if (_name.endsWith("2 回")) expect(r.err).toMatch(/を 2 回渡している/);
+      if (_name.endsWith("2 回")) expect(r.err).toMatch(/^error: --(layer|raw) が重複している\n/);
+      if (_name.startsWith("知らないオプション"))
+        expect(r.err).toMatch(/^error: 不明な引数: --force\n/);
+      if (_name.startsWith("値の無い") || _name.startsWith("空の値") || _name.startsWith("値が --"))
+        expect(r.err).toMatch(/^error: --(root|cli-value) に値が無い\n/);
       if (_name.endsWith("関係しないオプション")) expect(r.err).toMatch(/に --[a-z-]+ は渡せない/);
     });
 

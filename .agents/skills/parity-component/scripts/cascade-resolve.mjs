@@ -48,6 +48,7 @@
 import { readFileSync } from "node:fs";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
+import { parseFlags } from "./lib/flags.mjs";
 import { isObjectLike, isPlainObject } from "./lib/guards.mjs";
 
 /**
@@ -1343,25 +1344,30 @@ const USAGE = [
   "exit 0=全て resolved / absent、1=undecidable が 1 件以上、2=入力エラー",
 ].join("\n");
 
-/** 値として受け取らない既知のフラグ名。 */
-const FLAGS = new Set(["--css-rules", "--state", "--property", "--all"]);
+/**
+ * 受け付ける引数。`--state` と `--property` は繰り返してよい。
+ * CSS カスタムプロパティ（`--brand-color`）は `--property` の値として正当なので、`--property` は `--` で始まる値を受け付ける。
+ * 取り違えを拾うため、このスクリプトが受け付ける名前（`--allow-incomplete` など）は値として受け取らない。
+ * @type {import("./lib/flags.mjs").FlagSpec}
+ */
+const FLAG_SPEC = {
+  values: ["--css-rules", "--state", "--property"],
+  repeat: ["--state", "--property"],
+  bools: ["--all", "--allow-incomplete"],
+  dashValues: ["--property"],
+};
 
 /**
- * フラグの値を読む。値が無い・空・フラグに見えるなら投げる。
- * CSS カスタムプロパティ（`--brand-color`）は `--property` の値として正当なので、
- * 「`--` で始まる」だけでは弾かない（弾くと custom property の勝者を確定できない）。
- * 取り違えを拾うため、既知のフラグ名そのものは値として受け取らない。
- * @param {string} name フラグ名
- * @param {string | undefined} value フラグの次の引数
- * @returns {string}
+ * 空白だけの値を、値の書き忘れとして扱う（誤りは UsageError を投げる）。parseFlags は空の値だけを誤りにする。
+ * @param {Record<string, string | string[] | true>} flags
+ * @returns {void}
  */
-function flagValue(name, value) {
-  const looksLikeFlag =
-    value !== undefined && value.startsWith("--") && (name !== "--property" || FLAGS.has(value));
-  if (value === undefined || value.trim() === "" || looksLikeFlag) {
-    throw new UsageError(`${name} requires a value`);
+function rejectBlankValues(flags) {
+  for (const name of FLAG_SPEC.values ?? []) {
+    const value = flags[name];
+    const list = isArray(value) ? value : typeof value === "string" ? [value] : [];
+    if (list.some((v) => v.trim() === "")) throw new UsageError(`${name} に値が無い`);
   }
-  return value;
 }
 
 /**
@@ -1390,23 +1396,15 @@ function checkArgCombination({ states, properties, all }) {
  * @returns {{ cssRules: string, states: string[], properties: string[], all: boolean, allowIncomplete: boolean }}
  */
 function parseArgs(argv) {
-  let cssRules = null;
-  const states = [];
-  const properties = [];
-  let all = false;
-  let allowIncomplete = false;
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    const takesValue = arg === "--css-rules" || arg === "--state" || arg === "--property";
-    const value = takesValue ? flagValue(arg, argv[i + 1]) : "";
-    if (takesValue) i += 1;
-    if (arg === "--css-rules") cssRules = value;
-    else if (arg === "--state") states.push(value);
-    else if (arg === "--property") properties.push(value);
-    else if (arg === "--all") all = true;
-    else if (arg === "--allow-incomplete") allowIncomplete = true;
-    else throw new UsageError(`unknown argument ${JSON.stringify(arg)}`);
-  }
+  const parsed = parseFlags(argv, FLAG_SPEC);
+  if (parsed.error !== undefined) throw new UsageError(parsed.error);
+  const { flags, strings, lists, bools } = parsed;
+  const cssRules = strings["--css-rules"] ?? null;
+  const states = lists["--state"] ?? [];
+  const properties = lists["--property"] ?? [];
+  const all = bools["--all"] === true;
+  const allowIncomplete = bools["--allow-incomplete"] === true;
+  rejectBlankValues(flags);
   if (cssRules === null) throw new UsageError("--css-rules is required");
   checkArgCombination({ states, properties, all });
   return { cssRules, states, properties, all, allowIncomplete };

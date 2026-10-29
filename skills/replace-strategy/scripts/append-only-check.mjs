@@ -76,6 +76,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
+import { parseFlags } from "./lib/flags.mjs";
 import { errorMessage } from "./lib/errors.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 import { parseJsonOrThrow } from "./lib/json.mjs";
@@ -2745,31 +2746,18 @@ export function defaultManifestPath() {
   );
 }
 
-/** 値を 1 つ取る引数（`--exclude` を除く）。 */
-const VALUE_OPTIONS = new Set(["--root", "--manifest", "--base"]);
-
 /**
- * `--exclude` の値を確かめて exclude に足す。
- * @param {string | undefined} value
+ * `--exclude` の id を確かめる。空白だけの id と、同じ id の 2 回目は使い方の誤りにする。
  * @param {string[]} exclude
  */
-function addExcludeId(value, exclude) {
-  if (value === undefined || value.startsWith("--") || value.trim() === "") {
-    throw new UsageError("--exclude に値が無い");
+function checkExcludeIds(exclude) {
+  /** @type {string[]} */
+  const seen = [];
+  for (const value of exclude) {
+    if (value.trim() === "") throw new UsageError("--exclude に値が無い");
+    if (seen.includes(value)) throw new UsageError(`--exclude の id が重複している: ${value}`);
+    seen.push(value);
   }
-  if (exclude.includes(value)) throw new UsageError(`--exclude の id が重複している: ${value}`);
-  exclude.push(value);
-}
-
-/**
- * 値を取る引数（--root・--manifest・--base）の値を返す。値が無いか `--` で始まれば、使い方の誤りにする。
- * @param {string} arg
- * @param {string | undefined} value
- * @returns {string}
- */
-function optionValue(arg, value) {
-  if (value === undefined || value.startsWith("--")) throw new UsageError(`${arg} に値が無い`);
-  return value;
 }
 
 /**
@@ -2777,22 +2765,21 @@ function optionValue(arg, value) {
  * @returns {{ root: string, manifest: string, base: string, exclude: string[] }}
  */
 export function parseArgs(argv) {
+  const parsed = parseFlags(argv, {
+    values: ["--root", "--manifest", "--base", "--exclude"],
+    repeat: ["--exclude"],
+  });
+  if (parsed.error !== undefined) throw new UsageError(parsed.error);
+  const { flags } = parsed;
   /** @type {Record<string, string>} */
   const opts = {};
-  /** @type {string[]} */
-  const exclude = [];
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (arg === "--exclude") {
-      addExcludeId(argv[i + 1], exclude);
-      i += 1;
-    } else if (VALUE_OPTIONS.has(arg)) {
-      opts[arg.slice(2)] = optionValue(arg, argv[i + 1]);
-      i += 1;
-    } else {
-      throw new UsageError(`不明な引数: ${arg}`);
-    }
+  for (const name of ["--root", "--manifest", "--base"]) {
+    const value = flags[name];
+    if (typeof value === "string") opts[name.slice(2)] = value;
   }
+  const excludeValue = flags["--exclude"];
+  const exclude = isArray(excludeValue) ? excludeValue : [];
+  checkExcludeIds(exclude);
   if (!nonEmptyString(opts.root)) throw new UsageError("--root は必須（走査の起点を推測させない）");
   return {
     root: resolve(opts.root),

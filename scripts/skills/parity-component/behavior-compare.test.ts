@@ -427,6 +427,24 @@ test("CLI: 引数の欠落・空白だけの target は exit 2", () => {
   expect(errors.join("")).toMatch(/^usage: behavior-compare\.mjs /m);
 });
 
+test("CLI: 受け付けない引数・値の無い名前・2 回目の名前は、理由を書いて exit 2", () => {
+  const dir = baselineDir();
+  const full = ["--baseline", dir, "--comparison", "x.json", "--target", "preview"];
+  for (const [argv, reason] of [
+    [[...full, "--bogus", "v"], "不明な引数: --bogus"],
+    [["--baseline", dir, "--comparison", "--target", "preview"], "--comparison に値が無い"],
+    [[...full, "--target"], "--target に値が無い"],
+    [[...full, "--target", "other"], "--target が重複している"],
+  ] as const) {
+    const writes: string[] = [];
+    let err = "";
+    const io = { write: (s: string) => void writes.push(s), writeErr: (s: string) => (err += s) };
+    expect(main([...argv], io), argv.join(" ")).toBe(2);
+    expect(writes).toEqual([]);
+    expect(err).toContain(`error: ${reason}`);
+  }
+});
+
 test("CLI: 突き合わせ表は差し込んだ readFile で読む", () => {
   const dir = baselineDir();
   const read: string[] = [];

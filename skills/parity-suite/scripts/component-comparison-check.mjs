@@ -23,7 +23,8 @@ import { dirname, join, resolve, sep } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 
 import { EVIDENCE_CARRY_FILE, judgeCarry } from "./evidence-carry.mjs";
-import { cliIo, parseFlagPairs, writeCheckResult } from "./lib/check-cli.mjs";
+import { cliIo, writeCheckResult } from "./lib/check-cli.mjs";
+import { parseFlags } from "./lib/flags.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
 import { isObjectLike, isPlainObject, nonEmptyString, toIterationCount } from "./lib/guards.mjs";
@@ -634,19 +635,21 @@ class InputError extends Error {}
  * @returns {Record<string, string>}
  */
 function parseArgs(argv) {
-  const parsed = parseFlagPairs(argv, [
-    "--coverage",
-    "--comparison",
-    "--metadata",
-    "--replace-metadata",
-    "--target",
-    "--new-repo",
-    "--replace-root",
-    "--evidence-carry",
-    "--carry-to",
-  ]);
+  const parsed = parseFlags(argv, {
+    values: [
+      "--coverage",
+      "--comparison",
+      "--metadata",
+      "--replace-metadata",
+      "--target",
+      "--new-repo",
+      "--replace-root",
+      "--evidence-carry",
+      "--carry-to",
+    ],
+  });
   if (parsed.error !== undefined) throw new InputError(parsed.error);
-  return parsed.args;
+  return parsed.strings;
 }
 
 /**

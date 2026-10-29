@@ -36,7 +36,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
-import { parseFlagOpts } from "./lib/flag-opts.mjs";
+import { parseCheckArgs } from "./lib/check-args.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 import { canonicalize } from "./lib/json.mjs";
 
@@ -1717,13 +1717,11 @@ const USAGE =
  * @returns {Record<string, string>|null}
  */
 function parseArgs(argv) {
-  const opts = parseFlagOpts(argv, ["--metadata", "--coverage"], USAGE);
-  if (opts === null) return null;
-  if (!opts.metadata) {
-    process.stderr.write(USAGE);
-    return null;
-  }
-  return opts;
+  return parseCheckArgs(argv, {
+    values: ["--metadata", "--coverage"],
+    required: ["metadata"],
+    usage: USAGE,
+  });
 }
 
 /**

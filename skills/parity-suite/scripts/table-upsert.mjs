@@ -27,6 +27,7 @@ import { resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
+import { parseFlags } from "./lib/flags.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
 class UsageError extends Error {}
@@ -261,30 +262,17 @@ function resolveIo(deps) {
 
 /**
  * サブコマンドの後の引数を、名前（-- を除く）から値への対応にする。
+ * 同じ引数を重ねると後勝ちで警告なしに別のファイル・配列・鍵を書き換えうるので、parseFlags が重複として止める。
+ * "-" は --from の標準入力の指定なので、parseFlags は値として受ける。
  * @param {string[]} rest
  * @returns {Record<string, string>}
  */
 function parseOptions(rest) {
-  /** @type {Record<string, string>} */
-  const opts = {};
-  for (let i = 0; i < rest.length; i += 1) {
-    const a = rest[i];
-    if (!["--file", "--array", "--key", "--from", "--match"].includes(a)) {
-      throw new UsageError(`不明な引数 ${a}`);
-    }
-    const v = rest[i + 1];
-    // "-" は --from の標準入力の指定なので値として受ける
-    if (v === undefined || v === "" || (v.startsWith("--") && v !== "-")) {
-      throw new UsageError(`${a} に値が無い`);
-    }
-    // 同じ引数を重ねると後勝ちで警告なしに別のファイル・配列・鍵を書き換えうるので、曖昧な呼び出しは止める
-    if (Object.hasOwn(opts, a.slice(2))) {
-      throw new UsageError(`${a} が重複している`);
-    }
-    opts[a.slice(2)] = v;
-    i += 1;
-  }
-  return opts;
+  const parsed = parseFlags(rest, { values: ["--file", "--array", "--key", "--from", "--match"] });
+  if (parsed.error !== undefined) throw new UsageError(parsed.error);
+  return Object.fromEntries(
+    Object.entries(parsed.strings).map(([name, value]) => [name.slice(2), value]),
+  );
 }
 
 /**

@@ -275,7 +275,7 @@ test("CLI: 余った位置引数を警告なしに先勝ちにしない", () => 
     encoding: "utf8",
   });
   expect(r.status).toBe(2);
-  expect(r.stderr).toContain("マニフェストは 1 つだけ");
+  expect(r.stderr).toContain(`不明な引数: ${second}`);
 });
 
 test("CLI: 知らないオプションを警告なしに捨てない", () => {
@@ -291,7 +291,7 @@ test("CLI: 知らないオプションを警告なしに捨てない", () => {
   for (const bad of [["--otu=out.json"], ["--out=out.json"], ["--verbose"]]) {
     const r = runCli(manifest, bad);
     expect(r.status).toBe(2);
-    expect(r.stderr).toContain("未知のオプション");
+    expect(r.stderr).toContain(`不明な引数: ${bad[0]}`);
     expect(r.stdout).toBe("");
   }
 });
@@ -306,7 +306,12 @@ test("CLI: --out は出力先パスを要求し、実際に書く", () => {
   };
   const missing = runCli(manifest, ["--out"]);
   expect(missing.status).toBe(2);
-  expect(missing.stderr).toContain("--out には出力先パス");
+  expect(missing.stderr).toContain("--out に値が無い");
+
+  const twice = runCli(manifest, ["--out", "a.json", "--out", "b.json"]);
+  expect(twice.status).toBe(2);
+  expect(twice.stderr).toContain("--out が重複している");
+  expect(twice.stdout).toBe("");
 
   const dir = makeTempDir("axis-diff-");
   const out = join(dir, "axes.json");

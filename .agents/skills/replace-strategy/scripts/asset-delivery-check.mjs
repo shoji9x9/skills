@@ -38,6 +38,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
+import { parseFlags } from "./lib/flags.mjs";
 import { errorMessage } from "./lib/errors.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 import { parseJsonOrThrow } from "./lib/json.mjs";
@@ -733,40 +734,32 @@ export async function check(input) {
   };
 }
 
+/** 値を 1 つ取り、1 回だけ指定できる引数。 */
+const SINGLE_OPTIONS = [
+  "--assets",
+  "--record",
+  "--current-base",
+  "--new-base",
+  "--write",
+  "--timeout-ms",
+];
+
 /**
  * 引数を名前ごとに集める。--probe は何度でも指定でき、それ以外は 1 回だけ。
  * @param {string[]} argv
  * @returns {{ opts: Record<string, string>, probes: string[] }}
  */
 function collectArgs(argv) {
+  const parsed = parseFlags(argv, { values: [...SINGLE_OPTIONS, "--probe"], repeat: ["--probe"] });
+  if (parsed.error !== undefined) throw new UsageError(parsed.error);
   /** @type {Record<string, string>} */
   const opts = {};
-  /** @type {string[]} */
-  const probes = [];
-  const single = new Set([
-    "--assets",
-    "--record",
-    "--current-base",
-    "--new-base",
-    "--write",
-    "--timeout-ms",
-  ]);
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (arg === "--probe" || single.has(arg)) {
-      const value = argv[i + 1];
-      if (value === undefined || value.startsWith("--")) throw new UsageError(`${arg} に値が無い`);
-      i += 1;
-      if (arg === "--probe") {
-        probes.push(resolve(value));
-        continue;
-      }
-      if (opts[arg] !== undefined) throw new UsageError(`${arg} が 2 回指定されている`);
-      opts[arg] = value;
-      continue;
-    }
-    throw new UsageError(`不明な引数: ${arg}`);
+  for (const name of SINGLE_OPTIONS) {
+    const value = parsed.flags[name];
+    if (typeof value === "string") opts[name] = value;
   }
+  const probeValues = parsed.flags["--probe"];
+  const probes = isArray(probeValues) ? probeValues.map((value) => resolve(value)) : [];
   return { opts, probes };
 }
 
@@ -831,7 +824,7 @@ function preScanWrite(argv) {
   const i = argv.indexOf("--write");
   if (i < 0) return null;
   const v = argv[i + 1];
-  return v === undefined || v.startsWith("--") ? null : resolve(v);
+  return v === undefined || v === "" || v.startsWith("--") ? null : resolve(v);
 }
 
 /**

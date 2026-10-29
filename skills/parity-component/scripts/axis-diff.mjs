@@ -33,6 +33,7 @@ import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
+import { parseFlags } from "./lib/flags.mjs";
 import { field, isFiniteNumber, isObjectLike, isPlainObject } from "./lib/guards.mjs";
 
 /** ツールのバージョン（このツールで定義する）。出力スキーマを変えたら上げる。 */
@@ -762,83 +763,39 @@ export function diffAxes(manifest) {
 }
 
 /**
- * 既知のオプション a とその次の引数 value を読み、値を values に入れる。
- * 2 回目の指定と値の欠落は error に返す（両方なら 2 回目の指定を先に返す）。値を読んだら consumed を true にする。
- * @param {{
- *   a: string,
- *   value: string | undefined,
- *   option: { key: "baseline" | "out", what: string },
- *   seen: Set<string>,
- *   values: { baseline: string | null, out: string | null },
- * }} input
- * @returns {{ error: string | null, consumed: boolean }}
- */
-function applyOption({ a, value, option, seen, values }) {
-  const duplicate = seen.has(a) ? `${a} は 1 回だけ指定する` : null;
-  seen.add(a);
-  if (value === undefined || value.startsWith("-")) {
-    return { error: duplicate || `${a} には${option.what}を続ける`, consumed: false };
-  }
-  values[option.key] = value;
-  return { error: duplicate, consumed: true };
-}
-
-/**
  * CLI の引数を読む。
  * 受け付けるオプションは `--baseline <dir>` と `--out <path>` だけである。`--` で始まるトークンをまとめて読み飛ばすと、
  * `--otu=result.json` のような綴りの誤りや `--out=path` の等号の形が、警告なしに無視される。
  * すると、成果物を作らないまま標準出力へ書いて exit 0 になる。--out が軸の成果物を作る前提の工程は、
  * ファイルが無いことに気付かないまま次へ進む。そのため、知らないオプションは受け付けない。
+ * 位置引数（マニフェスト）は 1 つまで受け付ける。2 つ目を受け付けると、片方を警告なしに捨てる。
  * @param {string[]} args 空文字を除いた引数
- * @returns {{ positionals: string[], baseline: string | null, out: string | null, badOption: string | null }}
- *   badOption は最初に見つかった誤り（無ければ null）
+ * @returns {{ positionals: string[], baseline: string | null, out: string | null, error?: undefined } | { error: string }}
  */
 function parseCliArgs(args) {
-  const positionals = [];
-  /** @type {{ baseline: string | null, out: string | null }} */
-  const values = { baseline: null, out: null };
-  /** @type {Set<string>} */
-  const seen = new Set();
-  /** @type {string | null} */
-  let badOption = null;
-  /** @type {Record<string, { key: "baseline" | "out", what: string }>} */
-  const options = {
-    "--baseline": { key: "baseline", what: "採取物のディレクトリ" },
-    "--out": { key: "out", what: "出力先パス" },
+  const parsed = parseFlags(args, { values: ["--baseline", "--out"], positionals: 1 });
+  if (parsed.error !== undefined) return { error: parsed.error };
+  const { flags, positionals } = parsed;
+  const text = (/** @type {string} */ name) => {
+    const value = flags[name];
+    return typeof value === "string" ? value : null;
   };
-  for (let i = 0; i < args.length; i++) {
-    const a = args[i];
-    if (!a.startsWith("-") || a === "-") {
-      positionals.push(a);
-      continue;
-    }
-    const option = Object.hasOwn(options, a) ? options[a] : undefined;
-    if (option === undefined) {
-      badOption = badOption || `未知のオプション: ${a}`;
-      continue;
-    }
-    const { error, consumed } = applyOption({ a, value: args[i + 1], option, seen, values });
-    badOption = badOption || error;
-    if (consumed) i++;
-  }
-  return { positionals, ...values, badOption };
+  return { positionals, baseline: text("--baseline"), out: text("--out") };
 }
 
 /**
  * 使い方の誤りを stderr に書く。
- * @param {{ positionals: string[], baseline: string | null, badOption: string | null }} parsed
+ * @param {{ positionals?: string[], baseline?: string | null, error?: string }} parsed
  */
-function writeUsageError({ positionals, baseline, badOption }) {
+function writeUsageError({ positionals = [], baseline = null, error }) {
   process.stderr.write(
     "usage: node axis-diff.mjs (<manifest.json> | --baseline <dir>) [--out <path>]\n",
   );
-  if (badOption) process.stderr.write(`error: ${badOption}\n`);
-  if (baseline !== null && positionals.length > 0) {
+  if (error !== undefined) process.stderr.write(`error: ${error}\n`);
+  else if (baseline !== null && positionals.length > 0) {
     process.stderr.write(
       `error: --baseline とマニフェストは併用しない: ${positionals.join(", ")}\n`,
     );
-  } else if (positionals.length > 1) {
-    process.stderr.write(`error: マニフェストは 1 つだけ指定する: ${positionals.join(", ")}\n`);
   } else if (positionals.length === 0) {
     process.stderr.write("error: マニフェストか --baseline を指定する\n");
   }
@@ -851,10 +808,14 @@ function writeUsageError({ positionals, baseline, badOption }) {
  */
 export function main(argv) {
   const parsed = parseCliArgs(argv.filter((a) => a !== ""));
-  const { positionals, baseline, out, badOption } = parsed;
+  if (parsed.error !== undefined) {
+    writeUsageError(parsed);
+    return 2;
+  }
+  const { positionals, baseline, out } = parsed;
   const input = positionals[0];
   const expectedPositionals = baseline === null ? 1 : 0;
-  if (positionals.length !== expectedPositionals || badOption) {
+  if (positionals.length !== expectedPositionals) {
     writeUsageError(parsed);
     return 2;
   }

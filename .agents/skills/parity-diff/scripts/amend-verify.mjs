@@ -30,6 +30,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
+import { parseFlags } from "./lib/flags.mjs";
 import { isPlainObject } from "./lib/guards.mjs";
 import { loadPng } from "./lib/png.mjs";
 
@@ -310,27 +311,25 @@ const FLAG_SETTERS = new Map([
 
 /**
  * 引数のフラグを読む。誤りは文字列で返す。
+ * 名前の誤り・値の無い名前・2 回目の名前は parseFlags が見つける。繰り返してよいのは --region だけである。
+ * 空白だけの値は、値の書き忘れとして扱う（parseFlags は空の値だけを誤りにする）。
  *
  * @param {string[]} argv
  * @returns {{ error: string } | Flags}
  */
-function parseFlags(argv) {
+function readFlags(argv) {
+  const parsed = parseFlags(argv, { values: [...FLAG_SETTERS.keys()], repeat: ["--region"] });
+  if (parsed.error !== undefined) return { error: parsed.error };
   /** @type {Flags} */
   const flags = { single: { regions: [] }, margin: 0, marginGiven: false };
-  /** @param {number} i */
-  const valueOf = (i) => {
-    const v = argv[i + 1];
-    return v === undefined || v.trim() === "" || v.startsWith("--") ? undefined : v;
-  };
-  for (let i = 0; i < argv.length; i += 1) {
-    const flag = argv[i];
-    const value = valueOf(i);
-    const setter = FLAG_SETTERS.get(flag);
-    if (setter === undefined) return { error: `unknown argument: ${flag}` };
-    if (value === undefined) return { error: `${flag} requires a value` };
-    i += 1;
-    const error = setter(flags, value);
-    if (error !== undefined) return { error };
+  for (const [name, setter] of FLAG_SETTERS) {
+    const raw = parsed.flags[name];
+    const values = isArray(raw) ? raw : typeof raw === "string" ? [raw] : [];
+    for (const value of values) {
+      if (value.trim() === "") return { error: `${name} に値が無い` };
+      const error = setter(flags, value);
+      if (error !== undefined) return { error };
+    }
   }
   return flags;
 }
@@ -457,7 +456,7 @@ function pairsFileSpecs({ pairsPath, margin, marginGiven, changeId, out }) {
  * @returns {{ error: string } | { specs: PairSpec[], changeId?: string, out?: string }}
  */
 export function parseArgs(argv) {
-  const flags = parseFlags(argv);
+  const flags = readFlags(argv);
   if ("error" in flags) return flags;
   const { single, pairsPath } = flags;
   const singleGiven =

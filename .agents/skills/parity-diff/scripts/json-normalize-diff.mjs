@@ -18,6 +18,7 @@
 import { readFileSync } from "node:fs";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
+import { parseFlags } from "./lib/flags.mjs";
 import { isPlainObject } from "./lib/guards.mjs";
 import { canonicalize } from "./lib/json.mjs";
 
@@ -215,28 +216,25 @@ export function deepDiff(a, b) {
 }
 
 /**
- * CLI の引数を、位置引数と --ignore・--sort-arrays の値に分ける。
+ * CLI の引数を、位置引数と --ignore・--sort-arrays の値に分ける。どちらの名前も繰り返してよい。
+ * 誤り（知らない名前・値の無い名前・3 つ目の位置引数）は文字列で返す。
  *
  * @param {string[]} argv
- * @returns {{ positionals:string[], ignore:string[], sortArrays:string[] }}
+ * @returns {{ positionals:string[], ignore:string[], sortArrays:string[], error?: undefined } | { error: string }}
  */
 function parseArgs(argv) {
-  const positionals = [];
-  const ignore = [];
-  const sortArrays = [];
-  for (let i = 0; i < argv.length; i += 1) {
-    const a = argv[i];
-    if (a === "--ignore") {
-      ignore.push(argv[i + 1]);
-      i += 1;
-    } else if (a === "--sort-arrays") {
-      sortArrays.push(argv[i + 1]);
-      i += 1;
-    } else {
-      positionals.push(a);
-    }
-  }
-  return { positionals, ignore, sortArrays };
+  const names = ["--ignore", "--sort-arrays"];
+  const parsed = parseFlags(argv, { values: names, repeat: names, positionals: 2 });
+  if (parsed.error !== undefined) return { error: parsed.error };
+  const list = (/** @type {string} */ name) => {
+    const value = parsed.flags[name];
+    return isArray(value) ? value : [];
+  };
+  return {
+    positionals: parsed.positionals,
+    ignore: list("--ignore"),
+    sortArrays: list("--sort-arrays"),
+  };
 }
 
 /**
@@ -268,7 +266,12 @@ function applyAtPaths([current, next], paths, transform) {
 export function main(argv) {
   const usage =
     "usage: node json-normalize-diff.mjs <current.json> <new.json> [--ignore <path>]... [--sort-arrays <path>]...\n";
-  const { positionals, ignore, sortArrays } = parseArgs(argv);
+  const parsed = parseArgs(argv);
+  if (parsed.error !== undefined) {
+    process.stderr.write(`error: ${parsed.error}\n${usage}`);
+    return 2;
+  }
+  const { positionals, ignore, sortArrays } = parsed;
   if (positionals.length !== 2) {
     process.stderr.write(usage);
     return 2;

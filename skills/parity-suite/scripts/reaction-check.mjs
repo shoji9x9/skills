@@ -51,6 +51,7 @@ import { pageForUrl, pageKey, resolvePages } from "./page-identity.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { fileIo } from "./lib/file-io.mjs";
 import { errorMessage } from "./lib/errors.mjs";
+import { parseFlags } from "./lib/flags.mjs";
 import {
   isInteger,
   isPlaceholder,
@@ -3972,7 +3973,7 @@ const USAGE =
  * @returns {{ error: string, options: null } | { error: null, options: MainOptions }}
  */
 function parseArgs(argv, cwd) {
-  const flags = parseFlags(argv, cwd);
+  const flags = readFlags(argv, cwd);
   if (flags.error !== null) return { error: flags.error, options: null };
   const { metadataPath, write, recorded, sheet } = flags.options;
   const argError =
@@ -3987,46 +3988,28 @@ function parseArgs(argv, cwd) {
 }
 
 /**
- * 引数を 1 つずつ読む（組み合わせの検査は parseArgs が行う）。
+ * 引数を読む（組み合わせの検査は parseArgs が行う）。--root は cwd からの絶対パスにする。
  * @param {string[]} argv
  * @param {string} cwd
  * @returns {{ error: string, options: null } | { error: null, options: Omit<MainOptions, "metadataPath"> & { metadataPath: string | null } }}
  */
-function parseFlags(argv, cwd) {
+function readFlags(argv, cwd) {
+  const parsed = parseFlags(argv, {
+    values: ["--metadata", "--root", "--tests"],
+    bools: ["--write", "--recorded", "--audit-sheet"],
+  });
+  if (parsed.error !== undefined) return { error: parsed.error, options: null };
+  const { strings, bools } = parsed;
+  const root = strings["--root"];
   const options = {
-    /** @type {string | null} */ metadataPath: null,
-    root: cwd,
-    /** @type {string | null} */ testsPath: null,
-    write: false,
-    recorded: false,
-    sheet: false,
+    metadataPath: strings["--metadata"] ?? null,
+    root: root === undefined ? cwd : resolve(cwd, root),
+    testsPath: strings["--tests"] ?? null,
+    write: bools["--write"] === true,
+    recorded: bools["--recorded"] === true,
+    sheet: bools["--audit-sheet"] === true,
   };
-  for (let i = 0; i < argv.length; i += 1) {
-    const a = argv[i];
-    if (a === "--metadata" || a === "--root" || a === "--tests") {
-      const v = argv[i + 1];
-      if (!nonEmptyString(v) || v.startsWith("--"))
-        return { error: `${a} に値が無い`, options: null };
-      setValueFlag(options, a, { value: v, cwd });
-      i += 1;
-    } else if (a === "--write") options.write = true;
-    else if (a === "--recorded") options.recorded = true;
-    else if (a === "--audit-sheet") options.sheet = true;
-    else return { error: `不明な引数 ${a}`, options: null };
-  }
   return { error: null, options };
-}
-
-/**
- * 値を取る引数（--metadata・--tests・--root）の値を options に入れる。--root は cwd からの絶対パスにする。
- * @param {{ metadataPath: string | null, root: string, testsPath: string | null }} options
- * @param {string} flag
- * @param {{ value: string, cwd: string }} arg
- */
-function setValueFlag(options, flag, { value, cwd }) {
-  if (flag === "--metadata") options.metadataPath = value;
-  else if (flag === "--tests") options.testsPath = value;
-  else options.root = resolve(cwd, value);
 }
 
 /**

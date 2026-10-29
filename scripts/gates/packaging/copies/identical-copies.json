@@ -127,14 +127,37 @@
         "skills/parity-component/scripts/lib/check-cli.mjs",
         "skills/golden-dataset/scripts/lib/check-cli.mjs"
       ],
-      "reason": "検査をする CLI が `--名前 値` の引数を読む処理と、判定した結果を JSON で書いて終了コードを返す処理。スキルの中で完結させるためにコピーする。片方だけを直すと、同じ形の CLI がスキルごとに別の引数を受け付けたり、別の形の結果を出したりする"
+      "reason": "検査をする CLI が、判定した結果を JSON で書いて終了コードを返す処理と、誤りの出力。スキルの中で完結させるためにコピーする。片方だけを直すと、同じ形の CLI がスキルごとに別の形の結果を出す"
     },
     {
       "files": [
         "skills/replace-strategy/scripts/lib/flag-args.mjs",
         "skills/issue-start/scripts/lib/flag-args.mjs"
       ],
-      "reason": "`--名前 値` の引数の読み取りと、結果の JSON・誤りの出力。スキルの中で完結させるためにコピーする。片方だけを直すと、同じ形の CLI がスキルごとに別の引数を受け付ける"
+      "reason": "結果の JSON と誤りの出力。スキルの中で完結させるためにコピーする。片方だけを直すと、同じ形の CLI がスキルごとに別の形で結果と誤りを出す"
+    },
+    {
+      "files": [
+        "skills/parity-suite/scripts/lib/flags.mjs",
+        "skills/parity-component/scripts/lib/flags.mjs",
+        "skills/parity-diff/scripts/lib/flags.mjs",
+        "skills/golden-dataset/scripts/lib/flags.mjs",
+        "skills/replace-strategy/scripts/lib/flags.mjs",
+        "skills/issue-start/scripts/lib/flags.mjs",
+        "skills/agent-usage/scripts/lib/flags.mjs",
+        "skills/aws-architecture-diagram/scripts/lib/flags.mjs"
+      ],
+      "reason": "配布スキルの CLI が `--名前 値` の引数を読む部品（parseFlags）。スキルの中で完結させるためにコピーする。片方だけを直すと、同じ誤り（未知の名前・値の無い名前・同じ名前の 2 回目）をスキルごとに別の文で報告するか、受け付けてしまう"
+    },
+    {
+      "files": [
+        "skills/parity-suite/scripts/lib/flags.mjs",
+        "skills/parity-suite/scripts/trait-compare.mjs",
+        "skills/parity-suite/scripts/header-normalize.mjs",
+        "skills/kaizen/scripts/skill-config/skill-config.mjs"
+      ],
+      "region": "parse-flags-js",
+      "reason": "trait-compare.mjs と header-normalize.mjs は利用者のプロジェクトへ 1 ファイルだけコピーして使い、隣のファイルを import できないので、lib/flags.mjs の parseFlags と同じ関数を持つ。skill-config.mjs も、スキルの中で完結させるために同じ関数を持つ。各スキルの lib/flags.mjs と skill-config.mjs は、それぞれファイル全体の組で互いに同じだと確かめているので、この組にはそれぞれ 1 ファイルだけを並べる。片方だけを直すと、コピーの側だけが別の規則で引数を読む"
     },
     {
       "files": [

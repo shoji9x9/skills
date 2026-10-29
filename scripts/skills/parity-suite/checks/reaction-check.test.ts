@@ -145,7 +145,7 @@ test("CLI として動くことの確認: 子プロセスとして起動して�
 test("CLI として動くことの確認: 子プロセスとして起動しても、使い方の誤りは exit 2 で usage を stderr に出す", () => {
   const { dir } = run(baseTable());
   const r = cli(dir, ["--bogus"]);
-  expect(r.stderr).toContain("error: 不明な引数 --bogus");
+  expect(r.stderr).toContain("error: 不明な引数: --bogus");
   expect(r.stderr).toMatch(/^usage: reaction-check\.mjs/m);
   expect(r.stdout).toBe("");
   expect(r.status).toBe(2);

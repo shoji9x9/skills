@@ -19,7 +19,10 @@ import { pathToFileURL } from "node:url";
 import { diagramConfig } from "./diagram-config.mjs";
 import { renderDiagram } from "./diagram-engine.mjs";
 
-const config = diagramConfig(process.argv.slice(2));
+const config = diagramConfig(process.argv.slice(2), {
+  values: ["--env"],
+  usage: "usage: node render-diagram.mjs [--env a,b]",
+});
 const diagramDir = config.dir;
 const ICON_DIR = config.iconDir;
 const OUT_DIR = config.outDir;
@@ -69,25 +72,10 @@ function specFor(name) {
   return { ...baseSpec, title: env.title ?? baseSpec.title };
 }
 
-// --env の指定を取り出す（--env a,b / --env=a,b いずれも受ける）。
-// フラグの有無と値を区別する（--env を付けたのに値が空、を全環境と取り違えないため）。
-function envArg() {
-  const argv = config.rest;
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (a === "--env") return { present: true, value: argv[i + 1] };
-    if (a.startsWith("--env=")) return { present: true, value: a.slice("--env=".length) };
-  }
-  return { present: false };
-}
-
+// --env の指定を読む（--env a,b / --env=a,b いずれも受ける）。値が無いときは、diagramConfig が誤りとして止める。
 function resolveEnvs() {
-  const { present, value } = envArg();
-  if (!present) return Object.keys(environments); // --env 無し = 全環境
-  // 値が無い／次トークンが別フラグ（--）のときは、それを環境名扱いせず明示エラーにする。
-  if (value === undefined || value.startsWith("--")) {
-    throw new Error("--env には環境名を指定してください（例: --env prod,local）。省略時は全環境。");
-  }
+  const value = config.flags["--env"];
+  if (typeof value !== "string") return Object.keys(environments); // --env 無し = 全環境
   const list = value
     .split(",")
     .map((s) => s.trim())

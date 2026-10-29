@@ -322,20 +322,63 @@ test.each([
     ["--pair", "p", "--prev-new", "a.png", "--current", "c.png", "--region", "0,0,1,1"],
     /--new is required/,
   ],
-  ["値が無い", [...base, "--region"], /--region requires a value/],
-  ["値が空白だけ", [...base, "--region", "  "], /--region requires a value/],
+  ["値が無い", [...base, "--region"], /--region に値が無い/],
+  ["値が空白だけ", [...base, "--region", "  "], /--region に値が無い/],
+  ["値が次の名前", [...base, "--margin", "--region", "0,0,1,1"], /--margin に値が無い/],
   [
     "margin が負",
     [...base, "--region", "0,0,1,1", "--margin", "-1"],
     /--margin must be a non-negative number/,
   ],
-  ["知らない引数", [...base, "--region", "0,0,1,1", "--foo", "x"], /unknown argument: --foo/],
+  ["知らない引数", [...base, "--region", "0,0,1,1", "--foo", "x"], /不明な引数: --foo/],
   ["--pairs と --pair の併用", ["--pairs", "x.json", "--pair", "p"], /cannot be combined/],
 ])("%s なら exit 2（その理由で落ちる）", async (_name, argv, message) => {
   const { code, stderr } = await run(argv);
 
   expect(code).toBe(2);
   expect(stderr).toMatch(message);
+});
+
+test.each([
+  ["--pair", "q|hover|desktop"],
+  ["--prev-new", "x.png"],
+  ["--new", "x.png"],
+  ["--current", "x.png"],
+])(
+  "parseArgs: %s を 2 回書いたら重複として誤りにする（後の値を警告なしに採らない。#773）",
+  (name, value) => {
+    const argv = [...base, "--region", "0,0,1,1", name, value];
+    expect(verify.parseArgs(argv)).toEqual({ error: `${name} が重複している` });
+  },
+);
+
+test.each([
+  ["--margin", "1"],
+  ["--change-id", "c"],
+  ["--out", "o.json"],
+])("parseArgs: %s を 2 回書いたら重複として誤りにする", (name, value) => {
+  const argv = [...base, "--region", "0,0,1,1", name, value, name, value];
+  expect(verify.parseArgs(argv)).toEqual({ error: `${name} が重複している` });
+});
+
+test("parseArgs: --pairs を 2 回書いたら重複として誤りにする", () => {
+  expect(verify.parseArgs(["--pairs", "a.json", "--pairs", "b.json"])).toEqual({
+    error: "--pairs が重複している",
+  });
+});
+
+test("parseArgs: --region は繰り返してよく、書いた順にすべて受け取る", () => {
+  const parsed = verify.parseArgs([...base, "--region", "0,0,1,1", "--region", "2,2,3,3"]);
+  expect(parsed).toMatchObject({
+    specs: [
+      {
+        regions: [
+          { x: 0, y: 0, width: 1, height: 1 },
+          { x: 2, y: 2, width: 3, height: 3 },
+        ],
+      },
+    ],
+  });
 });
 
 test.each([

@@ -717,15 +717,20 @@ test("棚卸しの記録がキーごと無ければ未実施として exit 1（�
 test.each([
   ["引数が無い", [], "usage:"],
   ["--metadata が無い", ["--registries", "r.json"], "usage:"],
-  ["値が無い", ["--registries"], "usage:"],
+  ["値が無い", ["--registries"], "error: --registries に値が無い"],
   // 値を書き忘れた引数が、次の名前を値として取り込まない（読めないファイルではなく使い方の誤りにする）。
-  ["値の代わりに次の名前", ["--registries", "--metadata", "--metadata", "m.json"], "usage:"],
+  [
+    "値の代わりに次の名前",
+    ["--registries", "--metadata", "--metadata", "m.json"],
+    "error: --registries に値が無い",
+  ],
   [
     "同じフラグを 2 回",
     ["--registries", "a.json", "--registries", "b.json"],
-    "が複数回指定されている",
+    "error: --registries が重複している",
   ],
-  ["知らない引数", ["--foo"], "unknown argument: --foo"],
+  ["知らない引数", ["--foo"], "error: 不明な引数: --foo"],
+  ["位置引数", ["extra"], "error: 不明な引数: extra"],
 ])("CLI の使い方の誤り（%s）は exit 2", (_name, args, message) => {
   const r = runArgs(args);
 
