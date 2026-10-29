@@ -584,7 +584,7 @@ test("main: 登録済みのコピーをベースラインに載せた後で組�
   expect(runs()).toEqual([0, 0]);
 });
 
-test("main: 控えた範囲の組には、並べたファイルとファイル全体で一致するコピーも含める", () => {
+test("--update-baseline が控えた範囲の組にはコピーも入り、ファイル全体の組を外すと isUndeclaredCopy がそのコピーを検出する", () => {
   // 範囲の組には b.ts だけを並べる。c.ts は b.ts とファイル全体で一致するコピーなので、r.ts と同じ範囲を持つ。
   // 控えに c.ts が無いと、後でファイル全体の組を外したときに、c.ts と r.ts の重複を宣言から外したコピーとして失敗にできない。
   const cliEntry = { files: ["b.ts", "r.ts"], reason: "雛形に同じ関数を持つ", region: "cli-entry" };
@@ -599,25 +599,22 @@ test("main: 控えた範囲の組には、並べたファイルとファイル�
   expect(isUndeclaredCopy(clone("c.ts", "r.ts"), declared, withCopies([cliEntry]))).toBe(true);
 });
 
-// 範囲の組には、ファイル全体の組（b.ts・c.ts）のファイルを 1 つだけ並べる。jscpd が r.ts との重複を b.ts と c.ts のどちらで
-// 報告しても、並べていない側のコピーとの重複が残るので、両方の並べ方で確かめる。
-test.each([["b.ts"], ["c.ts"]])(
-  "main: 範囲の組に %s だけを並べても、もう一方のコピーと範囲の組のファイルの重複を通す",
-  (listed) => {
-    const cliEntry = {
-      files: [listed, "r.ts"],
-      reason: "雛形に同じ関数を持つ",
-      region: "cli-entry",
-    };
-    const root = makeRepo({ "a.ts": OTHER }, [...SISTERS, cliEntry]);
-    expect(main(["--update-baseline"], root)).toBe(0);
-    const region = `// cli-entry:begin\n${BODY}// cli-entry:end\n`;
-    write(root, "b.ts", region);
-    write(root, "c.ts", region);
-    write(root, "r.ts", OTHER.replaceAll("label", "nameOf") + region);
-    expect(main([], root)).toBe(0);
-  },
-);
+// 範囲の組には、ファイル全体の組（b.ts・c.ts）のうち c.ts だけを並べる。jscpd は r.ts との重複を、先に見つけた b.ts の側で
+// 報告する。並べていない b.ts と r.ts の重複を通すには範囲の組を広げる処理が要る（b.ts を並べると広げなくても通る）。
+test("main: 範囲の組に並べていないコピーと、範囲の組のファイルの重複を通す", () => {
+  const cliEntry = {
+    files: ["c.ts", "r.ts"],
+    reason: "雛形に同じ関数を持つ",
+    region: "cli-entry",
+  };
+  const root = makeRepo({ "a.ts": OTHER }, [...SISTERS, cliEntry]);
+  expect(main(["--update-baseline"], root)).toBe(0);
+  const region = `// cli-entry:begin\n${BODY}// cli-entry:end\n`;
+  write(root, "b.ts", region);
+  write(root, "c.ts", region);
+  write(root, "r.ts", OTHER.replaceAll("label", "nameOf") + region);
+  expect(main([], root)).toBe(0);
+});
 
 test("main: 走査したファイルが 0 件なら判定できないので exit 2", () => {
   const root = makeRepo({ "a.md": "# a\n" });
