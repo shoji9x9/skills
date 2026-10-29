@@ -810,15 +810,17 @@ const usage = [
 
 /**
  * --write の先を引数の解析より先に拾う（後続の引数の不備で exit 2 になっても前回の合格を残さないため）。
+ * --write を 2 回書いて重複で止まるときも、どちらの先にも前回の合格を残さないよう、すべての先を返す。
  * @param {string[]} argv
- * @returns {string | null}
+ * @returns {string[]}
  */
 function preScanWrite(argv) {
-  const i = argv.indexOf("--write");
-  if (i < 0) return null;
-  const v = argv[i + 1];
-  // parseFlags が値の書き忘れとして止める値（空白だけ・`--` で始まる値）は、書き込み先にしない。
-  return v === undefined || v.trim() === "" || v.startsWith("--") ? null : resolve(v);
+  return argv.flatMap((arg, i) => {
+    const v = argv[i + 1];
+    // parseFlags が値の書き忘れとして止める値（空白だけ・`--` で始まる値）は、書き込み先にしない。
+    if (arg !== "--write" || v === undefined || v.trim() === "" || v.startsWith("--")) return [];
+    return [resolve(v)];
+  });
 }
 
 /**
@@ -888,10 +890,10 @@ function successRecord({ findings, files, counts }, fingerprints) {
 /**
  * 判定していない（exit 2）ことを stderr に出し、--write の先があれば失敗として記録する。
  * @param {unknown} e
- * @param {{ writeTarget: string | null, fingerprints: Fingerprints, writeFile: (p: string, s: string) => void }} options
+ * @param {{ writeTargets: string[], fingerprints: Fingerprints, writeFile: (p: string, s: string) => void }} options
  * @returns {number}
  */
-function reportUsageFailure(e, { writeTarget, fingerprints, writeFile }) {
+function reportUsageFailure(e, { writeTargets, fingerprints, writeFile }) {
   const message =
     e instanceof UsageError
       ? e.message
@@ -900,7 +902,7 @@ function reportUsageFailure(e, { writeTarget, fingerprints, writeFile }) {
         : `判定できない例外で終了した: ${e instanceof Error ? (e.stack ?? e.message) : String(e)}`;
   process.stderr.write(`error: ${message}\n${usage}\n`);
   // exit 2 でも前回の合格を残さない（判定していないことを記録に残す）
-  if (writeTarget !== null) {
+  for (const writeTarget of new Set(writeTargets)) {
     try {
       writeResult(
         writeTarget,
@@ -929,7 +931,7 @@ function reportUsageFailure(e, { writeTarget, fingerprints, writeFile }) {
  */
 export async function main(argv, deps = {}) {
   const writeFile = deps.writeFile ?? ((p, s) => writeFileSync(p, s));
-  const writeTarget = preScanWrite(argv);
+  const writeTargets = preScanWrite(argv);
   /** @type {Fingerprints} */
   const fingerprints = { ledger: null, record: null, probes: [] };
   try {
@@ -963,7 +965,7 @@ export async function main(argv, deps = {}) {
     );
     return 0;
   } catch (e) {
-    return reportUsageFailure(e, { writeTarget, fingerprints, writeFile });
+    return reportUsageFailure(e, { writeTargets, fingerprints, writeFile });
   }
 }
 

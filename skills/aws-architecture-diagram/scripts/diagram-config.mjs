@@ -15,7 +15,16 @@ import { parseFlags } from "./lib/flags.mjs";
 import { ConfigError, findRoot, loadConfig } from "./skill-config/skill-config.mjs";
 
 /** このモジュールが読む、値を取る引数。 */
-const VALUED = ["--dir", "--icon-dir", "--out-dir", "--timeout-ms"];
+/** このモジュールが読む、値を取る引数と、使い方に出す値の形。 */
+const VALUED_FORMS = {
+  "--dir": "<dir>",
+  "--icon-dir": "<dir>",
+  "--out-dir": "<dir>",
+  "--timeout-ms": "<ms>",
+};
+const VALUED = Object.keys(VALUED_FORMS);
+/** このモジュールが読む、値を取らない引数。 */
+const BOOLS = ["--no-sandbox"];
 
 /**
  * @typedef {object} DiagramConfig
@@ -38,7 +47,7 @@ const VALUED = ["--dir", "--icon-dir", "--out-dir", "--timeout-ms"];
 function readArgs(argv, script) {
   const parsed = parseFlags(argv, {
     values: [...VALUED, ...(script.values ?? [])],
-    bools: ["--no-sandbox"],
+    bools: BOOLS,
     positionals: script.positionals ?? 0,
     equals: true,
   });
@@ -46,9 +55,11 @@ function readArgs(argv, script) {
   console.error(`error: ${parsed.error}`);
   console.error(script.usage);
   // スクリプトの使い方には、このモジュールが読む引数が無い。書かないと、受け付ける引数を読み手が知る方法が無い。
-  console.error(
-    "  共通: [--dir <dir>] [--icon-dir <dir>] [--out-dir <dir>] [--timeout-ms <ms>] [--no-sandbox]",
-  );
+  const common = [
+    ...Object.entries(VALUED_FORMS).map(([name, form]) => `${name} ${form}`),
+    ...BOOLS,
+  ];
+  console.error(`  共通: ${common.map((arg) => `[${arg}]`).join(" ")}`);
   process.exit(2);
 }
 

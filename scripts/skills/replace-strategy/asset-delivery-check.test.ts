@@ -12,6 +12,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { parseJsonAs } from "../../lib/parse-as.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 import {
   check,
@@ -743,6 +744,23 @@ test("判定しない: 引数の不備でも --write の先に失敗を記録す
   });
   expect(r.code).toBe(2);
   expect(r.written.asset_delivery_check.ok).toBe(false);
+});
+
+test("判定しない: --write を 2 回書いて重複で止まるときも、どちらの先にも失敗を記録する", async () => {
+  const second = join(makeTempDir("asset-delivery-write-"), "second.json");
+  writeFileSync(second, JSON.stringify({ asset_delivery_check: { ok: true } }));
+  const r = await runCheck({
+    record: { entries: [] },
+    extraArgs: ["--write", second],
+    metadata: { asset_delivery_check: { ok: true } },
+  });
+  expect(r.code).toBe(2);
+  expect(r.stderr).toMatch(/--write が重複している/u);
+  expect(r.written.asset_delivery_check.ok).toBe(false);
+  const secondDoc = parseJsonAs<{ asset_delivery_check: { ok: boolean } }>(
+    readFileSync(second, "utf8"),
+  );
+  expect(secondDoc.asset_delivery_check.ok).toBe(false);
 });
 
 // ---- CLI（本物の取得） ----

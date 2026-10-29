@@ -69,12 +69,13 @@
       "id": "failure-write-off",
       "why": "exit 2 で前回の合格を replace-metadata.json に残す",
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "  if (writeTarget !== null) {\n",
-      "replace": "  if (false) {\n",
+      "find": "  for (const writeTarget of new Set(writeTargets)) {\n",
+      "replace": "  for (const writeTarget of []) {\n",
       "occurrences": 1,
       "expect_failing": [
         "判定しない: exit 2 でも前回の合格を上書きし、ok: false と error を書く",
         "判定しない: 引数の不備でも --write の先に失敗を記録する",
+        "判定しない: --write を 2 回書いて重複で止まるときも、どちらの先にも失敗を記録する",
         "判定しない: --new-base が http(s) で始まっても URL として読めなければ、使い方の誤りとして exit 2 で止める",
         "判定しない: --current-base が http(s) で始まっても URL として読めなければ、使い方の誤りとして exit 2 で止める"
       ]
