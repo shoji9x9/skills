@@ -154,7 +154,7 @@ test.each([
   { n: "ベースラインだけが持つ", b: [], c: undefined, e: "present", a: "absent" },
   { n: "採取だけが持つ", b: undefined, c: [], e: "absent", a: "present" },
 ])(
-  "text_owners を片側だけが持つ（採取ツールの版違い）なら missing で出す（$n）",
+  "text_owners を片側だけが持つ（採取ツールのバージョン違い）なら missing で出す（$n）",
   ({ b, c, e, a }) => {
     expect(compareTraits([trait(b)], [trait(c)])).toEqual([
       { name: "toolbar.settings", kind: "missing", prop: "text_owners", expected: e, actual: a },
@@ -236,7 +236,7 @@ test.each([
   expect(compareTraits([grid(expected)], [grid(actual)]).map((d: Diff) => d.prop)).toEqual(props);
 });
 
-test("片側だけが scroll のキーを持つ（採取ツールの版違い）なら missing で出す", () => {
+test("片側だけが scroll のキーを持つ（採取ツールのバージョン違い）なら missing で出す", () => {
   const legacy = trait([], "dialog.grid");
   expect(compareTraits([grid(null)], [legacy])).toEqual([
     { name: "dialog.grid", kind: "missing", prop: "scroll", expected: "present", actual: "absent" },

@@ -5,7 +5,7 @@
 // 終わり: 次の区切りの前の、最後の応答の完了。
 // 外部待ち: 応答の完了から自動の再開（バックグラウンドの処理の通知など）までは、run の中の外部待ちとして数える。
 // 応答の途中の人の指示（処理中に追加で送った指示）は、run を区切らない。
-// 応答の完了が 1 件も記録されていないログ（古い版）は、各区切りの前の最後の応答の時刻を完了とみなす。
+// 応答の完了が 1 件も記録されていないログ（古いバージョン）は、各区切りの前の最後の応答の時刻を完了とみなす。
 
 /** @typedef {import("./session.mjs").SessionSummary} SessionSummary */
 
@@ -72,7 +72,7 @@ export function inferTurnEnds(s) {
  * @returns {TimelineEvent[]}
  */
 function timelineEvents(s) {
-  // 完了の記録が無いログ（古い版）は応答の時刻から推定する。中断はどちらの場合も完了に足す
+  // 完了の記録が無いログ（古いバージョン）は応答の時刻から推定する。中断はどちらの場合も完了に足す
   const turnEnds = [...(s.turnEnds.length > 0 ? s.turnEnds : inferTurnEnds(s)), ...s.interrupts];
   /** @type {TimelineEvent[]} */
   const events = [];

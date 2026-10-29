@@ -23,7 +23,7 @@
 //     （page/trait-capture.page.mjs の captureElement。getBoundingClientRect() は相対幾何のために既に読んでいる）。
 //   - 装飾が子ノードに乗っている。名前を付けた要素の計算値は一致するのに、子の inline style が
 //     見た目を変えている。子の計算値は採らず、inline style の在否と値だけを記録する。
-//     画素の差を、フォントの版・ヒンティングの切り分けへ持っていかずに済むようにするためである
+//     画素の差を、フォントのバージョン・ヒンティングの切り分けへ持っていかずに済むようにするためである
 //     （照合には使わない診断材料。原本の説明は references/baseline.md）。
 //
 // 文字の持ち主（text_owners）: 固定集合の font 系は「名前を付けた要素そのもの」の値でしかない。
@@ -105,7 +105,7 @@ import { PAGE_VERSION, captureElement } from "./page/trait-capture.page.mjs";
 export const VERSION = "6";
 
 /**
- * page ファイルの PAGE_VERSION が、このスクリプトの VERSION と同じかを確かめる。違えば、片方だけを古い版のまま
+ * page ファイルの PAGE_VERSION が、このスクリプトの VERSION と同じかを確かめる。違えば、片方だけを古いバージョンのまま
  * コピーしてあるので、採らずに失敗する。
  * @param {string} pageVersion
  */

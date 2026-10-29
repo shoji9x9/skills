@@ -1,0 +1,7 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:40810426856:1,ci,2026-10-29T03:28:50.790Z,p-cdee4961,github-actions,,,,2026-10-29T03:08:22.000Z,2026-10-29T03:12:20.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:40809977972:1,ci,2026-10-29T03:28:50.790Z,p-cdee4961,github-actions,,,,2026-10-29T03:03:46.000Z,2026-10-29T03:07:49.000Z,Asia/Tokyo,feature/778-bump-pnpm-python,778,,,,,,,,,,CI;pull_request;success,
+ci:40809977979:1,ci,2026-10-29T03:28:50.790Z,p-cdee4961,github-actions,,,,2026-10-29T03:03:46.000Z,2026-10-29T03:03:56.000Z,Asia/Tokyo,feature/778-bump-pnpm-python,778,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+coverage:github:2026-10-28T02:59:14.184Z:2026-10-29T03:28:50.790Z,coverage,2026-10-29T03:28:50.790Z,p-cdee4961,,,,,2026-10-28T02:59:14.184Z,2026-10-29T03:28:50.790Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-28T03:28:50.790Z:2026-10-29T03:29:09.037Z,coverage,2026-10-29T03:29:09.037Z,p-cdee4961,,,,,2026-10-28T03:28:50.790Z,2026-10-29T03:29:09.037Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-28T03:29:09.037Z:2026-10-29T03:32:15.994Z,coverage,2026-10-29T03:32:15.994Z,p-cdee4961,,,,,2026-10-28T03:29:09.037Z,2026-10-29T03:32:15.994Z,Asia/Tokyo,,,,,,,,,,,,ok,

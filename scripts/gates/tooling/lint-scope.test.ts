@@ -195,10 +195,10 @@ test("lefthook の formatter-scope は、整形の範囲を変えるファイル
     ".markdownlint.yaml",
     "oxfmt.config.ts",
     ...imported,
-    // ツールの版を決めるファイル（版が変わると整形する種類も変わりうる）。
+    // ツールのバージョンを決めるファイル（バージョンが変わると整形する種類も変わりうる）。
     "package.json",
     "pnpm-lock.yaml",
-    // pnpm の overrides・catalog も版を変える。
+    // pnpm の overrides・catalog もバージョンを変える。
     "pnpm-workspace.yaml",
     "scripts/gates/tooling/formatter-scope.test.ts",
   ];

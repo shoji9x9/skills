@@ -1,6 +1,6 @@
 # skills/** の main マージで自動リリースする。
 # semantic-release は --dry-run で次バージョンの算出のみに使い、タグ／Release は
-# gh skill publish が作る（版の真実は git タグ。main への書き戻しはしない）。
+# gh skill publish が作る（バージョンの真実は git タグ。main への書き戻しはしない）。
 # 前提: リポジトリに agent-skills topic を付与済みであること。publish の topic 付与は
 # 自動 GITHUB_TOKEN の権限では行えないため、初回のみ手動で付与する
 # （gh repo edit <owner>/<repo> --add-topic agent-skills）。

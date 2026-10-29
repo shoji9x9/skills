@@ -2,7 +2,7 @@
 # git-worktree branch guard (PreToolUse hook)
 #
 # worktree を作る手段に branch を作らせる呼び出しを見つけ、**通知だけ**して通す。
-# Issue に紐づかない worktree（過去の版を読む・使い捨ての検証）にも正当な用途があるため、
+# Issue に紐づかない worktree（過去のバージョンを読む・使い捨ての検証）にも正当な用途があるため、
 # ブロックはしない。
 #
 # 見つける呼び出しは次のとおりである。

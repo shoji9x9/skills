@@ -2,7 +2,7 @@
 // 引数の誤りは CLI を子プロセスで起動して確かめる。
 // 測定から比べるまでの通しの実行は、最小のリポジトリ（ソース 1 つ・テスト 1 つ・シェル 1 つ）を作り、main を同じプロセスで呼んで確かめる。
 // 最小のリポジトリは node_modules/.cache/ の下に作り、package.json と node_modules を置かない。
-// リポジトリの外では mise が pnpm の版を決められない。package.json を置くと、pnpm exec がそこを別のプロジェクトとして依存を入れ直す。
+// リポジトリの外では mise が pnpm のバージョンを決められない。package.json を置くと、pnpm exec がそこを別のプロジェクトとして依存を入れ直す。
 // 置かなければ、pnpm と Node はリポジトリの直下の package.json と node_modules を使う。
 import { spawnSync } from "node:child_process";
 import {

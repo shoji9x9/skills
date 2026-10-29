@@ -5,9 +5,9 @@
 //   （ecosystem は npm、manifest は pnpm-lock.yaml、scope は unknown、advisory_url は GHSA の URL）
 // - `skills/dependabot-alert-issue/SKILL.md` の「外部 audit findings 入力」
 //   同じ package と ghsa の組はまとめ、current_versions と dependency_paths の重複を除く。
-//   patched_versions を 1 つの版に変えられなければ、patched を空にする。
+//   patched_versions を 1 つのバージョンに変えられなければ、patched を空にする。
 //
-// pnpm audit の JSON は版で形が変わる。古い形は `advisories`（id ごとの advisory と findings）、
+// pnpm audit の JSON はバージョンで形が変わる。古い形は `advisories`（id ごとの advisory と findings）、
 // 新しい形は `vulnerabilities`（パッケージごとの via・nodes・fixAvailable）を持つ。
 // 分岐の組み合わせは関数の粒度で確かめ、CLI の粒度は引数・終了コード・出力ファイルのつなぎだけに絞る。
 import { describe, expect, test } from "vitest";
@@ -61,7 +61,7 @@ function finding(fields: Partial<Finding>): Finding {
 }
 
 describe("fromAdvisory（古い形の advisories の 1 件）", () => {
-  test("advisory の欄から finding を作り、findings の版とパスを重複なく集める", () => {
+  test("advisory の欄から finding を作り、findings のバージョンとパスを重複なく集める", () => {
     expect(
       fromAdvisory({
         module_name: "example",
@@ -185,7 +185,7 @@ describe("fromAdvisory（古い形の advisories の 1 件）", () => {
     [">=1.2.3", "1.2.3"],
     [">= 2.0.1", "2.0.1"],
     [">=4.17.21 || >=5.0.0", "4.17.21"],
-    // 修正版の無い advisory（npm は <0.0.0 で表す）は、1 つの版に変えられないので patched を空にする。
+    // 修正版の無い advisory（npm は <0.0.0 で表す）は、1 つのバージョンに変えられないので patched を空にする。
     ["<0.0.0", ""],
     ["", ""],
   ])("patched_versions %j から patched %j を作る", (range, expected) => {
@@ -220,7 +220,7 @@ describe("fromAdvisory（古い形の advisories の 1 件）", () => {
     expect(result.patched).toBe("");
   });
 
-  test("findings の要素が配列でない単独の値でも、版とパスを読む", () => {
+  test("findings の要素が配列でない単独の値でも、バージョンとパスを読む", () => {
     const result = fromAdvisory({
       module_name: "x",
       findings: { version: "1.0.0", paths: "project>x" },
@@ -229,7 +229,7 @@ describe("fromAdvisory（古い形の advisories の 1 件）", () => {
     expect(result.dependency_paths).toEqual(["project>x"]);
   });
 
-  test("findings のスカラーの要素と空の版は読まずに飛ばす", () => {
+  test("findings のスカラーの要素と空のバージョンは読まずに飛ばす", () => {
     const result = fromAdvisory({
       module_name: "x",
       findings: ["text", 3, { version: "", paths: [] }, { version: "2.0.0" }],
@@ -389,7 +389,7 @@ describe("findingsFromVulnerability（新しい形の vulnerabilities の 1 件�
     expect(result.severity).toBe("critical");
   });
 
-  test("advisory の patched_versions があれば、fixAvailable の版より patched_versions を書く", () => {
+  test("advisory の patched_versions があれば、fixAvailable のバージョンより patched_versions を書く", () => {
     const [result] = findingsFromVulnerability(
       "x",
       { via: [{ url: GHSA_URL, patched_versions: ">=2.0.0" }], fixAvailable: { version: "3.0.0" } },
@@ -399,7 +399,7 @@ describe("findingsFromVulnerability（新しい形の vulnerabilities の 1 件�
     expect(result.patched).toBe("3.0.0");
   });
 
-  test("fixAvailable が true だけで版を持たなければ、patched は advisory の範囲から作る", () => {
+  test("fixAvailable が true だけでバージョンを持たなければ、patched は advisory の範囲から作る", () => {
     const [result] = findingsFromVulnerability(
       "x",
       { via: [{ url: GHSA_URL, patched_versions: ">=2.0.0" }], fixAvailable: true },
@@ -486,7 +486,7 @@ describe("findingsFromVulnerability（新しい形の vulnerabilities の 1 件�
     expect(byName.package).toBe("named");
   });
 
-  test("今の版を、nodes・version・パッケージ名・node_modules のパスから重複なく集める", () => {
+  test("今のバージョンを、nodes・version・パッケージ名・node_modules のパスから重複なく集める", () => {
     const result = findingsFromVulnerability(
       "x",
       { version: "1.0.0", nodes: ["node_modules/a/node_modules/x", "node_modules/x"] },
@@ -499,7 +499,7 @@ describe("findingsFromVulnerability（新しい形の vulnerabilities の 1 件�
     expect(result[0].current_versions.map(String).toSorted()).toEqual(["0.9.0", "1.0.0", "1.1.0"]);
   });
 
-  test("packages に無い nodes の版は書かない", () => {
+  test("packages に無い nodes のバージョンは書かない", () => {
     const [result] = findingsFromVulnerability("x", { nodes: ["node_modules/x"] }, {});
     expect(result.current_versions).toEqual([]);
     expect(result.dependency_paths).toEqual(["node_modules/x"]);
@@ -511,7 +511,7 @@ describe("normalizeAudit（audit の JSON 全体）", () => {
     expect(normalizeAudit({})).toEqual([]);
   });
 
-  test("packages の項目が null なら版は無いものとして読み、どの vulnerability も読まない項目の形は確かめない", () => {
+  test("packages の項目が null ならバージョンは無いものとして読み、どの vulnerability も読まない項目の形は確かめない", () => {
     const result = normalizeAudit(
       auditJson({
         vulnerabilities: { x: { severity: "high" } },
@@ -577,7 +577,7 @@ describe("normalizeAudit（audit の JSON 全体）", () => {
     expect(normalizeAudit(auditJson({ advisories: { "1": { title: "no package" } } }))).toEqual([]);
   });
 
-  test("同じ package と ghsa の組は 1 件にまとめ、版・パス・範囲の重複を除く", () => {
+  test("同じ package と ghsa の組は 1 件にまとめ、バージョン・パス・範囲の重複を除く", () => {
     const result = normalizeAudit(
       auditJson({
         advisories: {

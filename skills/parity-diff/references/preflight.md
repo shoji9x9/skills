@@ -37,32 +37,32 @@
 | 前提スキルの未解決の保留 | setup・`golden-dataset` のフェーズ A・選んだ target のフェーズ B・対象の slug の `parity-suite`・選んだ target の `parity-replace` について、範囲が一致する未解決の保留が無い。`.replace/parity/<slug>/new/<target>/pending-decisions.json` も含める。ファイルが無ければ保留は無い。`resolution` があっても、`blocks` の工程が済んでいなければ未解決である。見る記録先と範囲の原本は、`replace-strategy` の `references/autonomy.md`「下流の前提判定」である。数え方の原本は、同じファイルの「保留の状態」の `pending-decisions-check.mjs` である | 保留を抱えたスキル |
 | parity-replace の新側の green | `.replace/parity/<slug>/new/<target>/replace-metadata.json` の `suite.new_green: true` | `parity-replace`（同じ `--target` で新側を green にする） |
 | target の名前の一致 | 同じファイルの `new.target` が、解決した target の名前と一致する | 止まる（別の環境の green の証跡を使い回さない） |
-| 新側の版の一致 | 同じファイルの `new.commit`（green を取った版）が、これから撮る新側の版と一致する（下の「新側の版の一致」） | `parity-replace`（同じ `--target` で、撮る版の green を記録し直す） |
+| 新側のバージョンの一致 | 同じファイルの `new.commit`（green を取ったバージョン）が、これから撮る新側のバージョンと一致する（下の「新側のバージョンの一致」） | `parity-replace`（同じ `--target` で、撮るバージョンの green を記録し直す） |
 | Node.js と新側への疎通 | Node.js が使え、選んだ target の `url`（`new.ui_url` と同じ）に疎通できる。api-resource モードでは、`api_url`（`new.api_url` と同じ。省いたときは `ui_url`）にも疎通できる。`url_command` の target は、解決した後の URL へ疎通する（`new.ui_url` の記録は `"runtime"`） | 止まる（環境を整える） |
 
 - 選んだ target の `replace-metadata.json` が無いか、`suite.new_green` が偽なら、「その環境ではまだ green の証跡が無い」として止まる。別の環境の証跡で代えない（環境ごとに独立している）
 - `parity-replace` の「完了」を待つのではなく、`suite.new_green` を前提にする。差分ゼロはこのスキルとの往復で達成するので、`parity-replace` 単体の完了の条件には差分ゼロが含まれない
 - スイートは実行し直さない。新側に対して green かどうかは、`suite.new_green` のキーで判定する
 
-### 新側の版の一致
+### 新側のバージョンの一致
 
-`suite.new_green` は、その green を取った版（`new.commit`）でしか成り立たない。
+`suite.new_green` は、その green を取ったバージョン（`new.commit`）でしか成り立たない。
 新側のコードを変えた後にこのスキルだけを実行し直すと、採取・自己ノイズの 2 回の撮影・検出を最後まで実行した後で、収束の判定の `artifact-health-check` で失敗する。
 撮る前に、ここで止める。
 
-- 撮る版は、次のように決まる。
+- 撮るバージョンは、次のように決まる。
   - ローカルで起動する target（`start` を持つ）は、新側のリポジトリ（設定の `new.repo`）の作業ツリーの `HEAD`。
   - 配信型の target（`start` を持たない）で `commit_check` を持つものは、URL の書き方（固定の `url` か `url_command` か）に関わらず、その出力。
     照合の原本は [`capture-new.md`](capture-new.md)「URL の受け渡し」、`commit_check` の定義の原本は `replace-strategy` の `references/project-config.md` にある。
-  - 配信型の target で `commit_check` を持たないものは、撮る版を機械で知る方法が無い。
+  - 配信型の target で `commit_check` を持たないものは、撮るバージョンを機械で知る方法が無い。
     「対象の環境に commit `<照合相手の SHA>` がデプロイ済みか」を利用者に確かめ、確認が取れるまで撮らない。
     これは `parity-replace` の軽い方法と同じ扱いである。`--autonomous` では判断待ちの保留に記録し、この機能の撮影を始めない。確かめたことと回答は、`diff.md` の前提確認の表に書く
 - 部品の改修をまとめて再検証する場合（`--component-change`）は、照合相手が変更宣言の `commits.after` になる。
   `new.commit` は改修前の記録のままである（原本は [`component-change.md`](component-change.md)「使う場面と使わない場面」）。
   下の照合は、`CHANGE` に変更宣言のパスを入れると、照合相手を `commits.after` に切り替える。
   `new.commit` のまま照合すると、正しい一括の再検証でも止まってしまう
-- 照合相手（ふつうは `new.commit`、一括の再検証では `commits.after`）を原本から読み、撮る版と完全な SHA で突き合わせる（表示から書き写さない）。
-  撮る版は、`COMMIT_CHECK` が空ならローカルの作業ツリーの `HEAD` で、配信型の target の `commit_check` を入れればその出力である（完全な SHA を出すこと。短縮した SHA は一致しないものとして止まる）。
+- 照合相手（ふつうは `new.commit`、一括の再検証では `commits.after`）を原本から読み、撮るバージョンと完全な SHA で突き合わせる（表示から書き写さない）。
+  撮るバージョンは、`COMMIT_CHECK` が空ならローカルの作業ツリーの `HEAD` で、配信型の target の `commit_check` を入れればその出力である（完全な SHA を出すこと。短縮した SHA は一致しないものとして止まる）。
   `commit_check` を持たない配信型の target は、`DELIVERED=1` にする（ローカルの `HEAD` と比べず、利用者の確認が要るとして止まる）。
 
   ```bash
@@ -112,9 +112,9 @@
   )
   ```
 
-- 一致しなければ撮らずに止まり、同じ `--target` で `parity-replace` を実行するよう案内する（撮る版で新側の green を記録し直す）。
-  `new.commit` が読めないときと、リポジトリに無い版のときも、一致しないものとして扱う（合格として扱わない）
-- 収束の判定の `artifact-health-check` の照合（[`convergence.md`](convergence.md)）は残す。撮った後に版が変わったときに、ここで見つかる
+- 一致しなければ撮らずに止まり、同じ `--target` で `parity-replace` を実行するよう案内する（撮るバージョンで新側の green を記録し直す）。
+  `new.commit` が読めないときと、リポジトリに無いバージョンのときも、一致しないものとして扱う（合格として扱わない）
+- 収束の判定の `artifact-health-check` の照合（[`convergence.md`](convergence.md)）は残す。撮った後にバージョンが変わったときに、ここで見つかる
 
 ## モード別の追加要求（`metadata.json.mode` で分岐）
 
@@ -123,7 +123,7 @@
 
 | モード | 追加で求めるもの | 欠けたときの差し戻し先 |
 |---|---|---|
-| feature | `metadata.json` に `capture_conditions.popup_inventory` のキーがあること（無い旧成果物は、静止を待つ処理を入れる前の採取である。承認済みの例外の扱いは [`capture-new.md`](capture-new.md)「条件一致の先行検証」）。`noise_baseline[]` が対象の page・state・viewport の数だけあること。`artifacts_storage.baseline_pointer` の実体（`baseline/`）があること。下の「差分ツールの版の一致確認」 | `parity-suite`（ノイズの基準値の測定は、現行のアプリを動かす `parity-suite` の仕事である） |
+| feature | `metadata.json` に `capture_conditions.popup_inventory` のキーがあること（無い旧成果物は、静止を待つ処理を入れる前の採取である。承認済みの例外の扱いは [`capture-new.md`](capture-new.md)「条件一致の先行検証」）。`noise_baseline[]` が対象の page・state・viewport の数だけあること。`artifacts_storage.baseline_pointer` の実体（`baseline/`）があること。下の「差分ツールのバージョンの一致確認」 | `parity-suite`（ノイズの基準値の測定は、現行のアプリを動かす `parity-suite` の仕事である） |
 | api-resource | 現行の応答の record（`metadata.json.suite.specs` のスイートと録画）が実体としてある。比べるのは、同梱の `json-normalize-diff.mjs` などだけ | `parity-suite` |
 | batch | 現行のバッチの出力のベースライン（DB の状態と生成ファイル）が実体としてある | `parity-suite` |
 
@@ -134,14 +134,14 @@
 ## データセットバージョンの三者整合
 
 `.replace/dataset/metadata.json` の `changes[].affects` を、`golden-dataset` の `references/versioning.md` に従って読む。
-`metadata.json.dataset_version` と `phase_b.<slug>.<target>.dataset_version`（選んだ新側 target のエントリ）のそれぞれについて、その版より後に、対象の slug に影響する変更が無いことを確かめる。
+`metadata.json.dataset_version` と `phase_b.<slug>.<target>.dataset_version`（選んだ新側 target のエントリ）のそれぞれについて、そのバージョンより後に、対象の slug に影響する変更が無いことを確かめる。
 `version` は 1 から始まり単調に増える整数で、論理データが変わったときだけ 1 増える（フェーズ B では増えない）。
 影響を判定する前に、dataset の今の version と各記録の version が整数で、各記録が `1..今の version` に収まることを確かめる。
 今より先の version、0 以下、整数でない値、欠けた値のときは、整合が取れないものとして差分検出を始めずに止まる。
 
 | 状態 | 意味 | 対応 |
 |---|---|---|
-| 両方の記録の後に、対象の slug に影響する変更が無い | ベースラインも新側への投入も、対象のデータに追いついている（数値が今の版より古くてもよい） | 差分検出へ進む |
+| 両方の記録の後に、対象の slug に影響する変更が無い | ベースラインも新側への投入も、対象のデータに追いついている（数値が今のバージョンより古くてもよい） | 差分検出へ進む |
 | ベースラインを記録した後の `affects` が、対象の slug と重なる | ベースラインの側が古くなった | `parity-suite` にベースラインをもう一度取得するよう促して止まる |
 | phase B の記録が無いか、記録した後の `affects` が対象の slug と重なる | その target への新側の投入をしていないか、対象のデータが古い | `golden-dataset`（フェーズ B）へ、同じ target で差し戻して止まる |
 | `changes` が無いか不正、または slug が実際に参照するテーブルを判定できない | 影響が無いことを示せない | 全体に影響するものとして扱い、記録の version が今より古い側（ベースラインなら `parity-suite`、phase B なら `golden-dataset` のフェーズ B）へ差し戻して止まる。`changes` と実際に参照するテーブルは、次に `golden-dataset` のフェーズ A を実行したときに作り直す（原本は `golden-dataset` の `references/versioning.md`） |
@@ -168,12 +168,12 @@
   免除して未検証と記録するか、ユーザーに `seedable: true` を足すよう促して止まるかのどちらかにし、勝手に投入しない
 - ベースラインを記録した後の変更が対象の slug に影響しないことは、免除するかどうかに関わらず確かめる
 
-## 差分ツールの版の一致確認（feature モードのみ）
+## 差分ツールのバージョンの一致確認（feature モードのみ）
 
 `parity-diff` は、`parity-suite` が強度チェックで健全なことを確かめた差分ツールを、そのまま使い回す。
 ここが一致しないと「検証済み」という前提が成り立たなくなるので、一致を確かめる。
 `api-resource` と `batch` は、画素と特性照合の差分ツールを使わないので、この節の確認はしない。
-比べるのは同梱の `json-normalize-diff.mjs` で、その版は `diff-metadata.json.differ_versions` に記録する。
+比べるのは同梱の `json-normalize-diff.mjs` で、そのバージョンは `diff-metadata.json.differ_versions` に記録する。
 
 - プロジェクト側の `trait-compare.mjs` の `VERSION` が、`metadata.json.differ.trait_compare` に記録した値と等しい
 - プロジェクト側の `trait-capture.mjs` の `VERSION` が、`metadata.json.traits.tool` に記録した値と等しい

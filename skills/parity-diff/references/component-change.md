@@ -72,7 +72,7 @@
    - exit 2（入力の不備、`pngjs` が無い）は判定していないので、合格として扱わない。`pngjs` を導入してよいかは、ユーザーに確認する
 5. 持ち越しを記録し、鮮度の検査で確かめる。影響する機能の `evidence-carry.json` に `{"change": "<変更宣言のパス>", "amend_verify": "<手順 4 の記録のパス>"}` を追記する。
    `diff-metadata.json` の `new.commit` は書き換えず、改修前の記録のまま残す。
-   持ち越しは「記録の版から今の版へ」の向きで、変更宣言の `commits.before` から `after` をたどって判定する。
+   持ち越しは「記録のバージョンから今のバージョンへ」の向きで、変更宣言の `commits.before` から `after` をたどって判定する。
    記録を `after` に書き換えると向きが逆になり、正しく宣言した改修まで、説明できない差分として失敗する。
    撮った新側の SHA（`commits.after`）は、`diff.md` の前提確認の表に書く（下の「記録」）。そのうえで、機能ごとに次の検査を通す。
 
@@ -98,9 +98,9 @@
      デフォルトから外れる配置のときだけ、`--replace-root` と `--evidence-carry` を渡す（`--evidence-carry` は `component-comparison-check.mjs` だけ）
    - 検査は、SHA の食い違いを、次の 2 つが成り立つときだけ通す。
      そのページの描画の入力（`replace-metadata.json` の `new.render_inputs`）の差分が、持ち越した変更宣言の `files` に収まること。影響する組が、合格の記録で覆われていること
-   - `--carry-to` を省かない。一括の再検証の直後は、`replace-metadata.json` の `new.commit` も改修前の版のままで、記録と一致する。
+   - `--carry-to` を省かない。一括の再検証の直後は、`replace-metadata.json` の `new.commit` も改修前のバージョンのままで、記録と一致する。
      そのため `--carry-to` が無いと持ち越しは評価されず、`evidence-carry.json` が無い・不正・宣言で説明できない差分がある状態でも通ってしまう。
-     `--carry-to` を渡すと、記録の版からその版への持ち越しを、SHA の一致に関わらず判定する（記録の版が `none` なら判定できないので失敗する）
+     `--carry-to` を渡すと、記録のバージョンからそのバージョンへの持ち越しを、SHA の一致に関わらず判定する（記録のバージョンが `none` なら判定できないので失敗する）
    - 失敗したら、持ち越しは成り立っていない。描画の入力が無い機能や、宣言の外のファイルが変わっている機能は、同じ target の `parity-replace` からやり直す。
      収束の判定は、通常どおり [`convergence.md`](convergence.md) に従う
 

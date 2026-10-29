@@ -7,7 +7,7 @@
 //   2. D が空なら描画入力は変わっていないので、持ち越す。
 //   3. D の各ファイルが、evidence-carry.json の carries が指す変更宣言（parity-component の
 //      component-change.json）の files のどれかに含まれることを確かめる。
-//      加えて、記録の版から今の版までのそのファイルの変化が、宣言した改修（commits.before → commits.after）の
+//      加えて、記録のバージョンから今のバージョンまでのそのファイルの変化が、宣言した改修（commits.before → commits.after）の
 //      連鎖で説明できることを確かめる（宣言の後に宣言外の編集が無い）。
 //   4. 使った変更宣言ごとに、component-impact.mjs の computeImpact をこの機能で再計算する。
 //      影響なしなら持ち越す。影響ありなら、amend-verify.mjs の記録が影響する組を全部覆い、全組が pass で、
@@ -326,7 +326,7 @@ class CarryStop extends Error {
  */
 
 /**
- * 記録の版と今の版（入力の字面と、git で解いた完全な SHA）。
+ * 記録のバージョンと今のバージョン（入力の字面と、git で解いた完全な SHA）。
  * @typedef {{ recorded: string, wanted: string, recordedFull: string, wantedFull: string }} CommitRange
  */
 
@@ -435,7 +435,7 @@ function verifyCommit(git, sha, label) {
 }
 
 /**
- * pathspec 1 つが、どちらかの版で 1 つ以上のファイルに当たるか。
+ * pathspec 1 つが、どちらかのバージョンで 1 つ以上のファイルに当たるか。
  * @param {GitState} git
  * @param {string} spec
  * @param {{ emptyTree: string, commits: string[] }} against
@@ -465,7 +465,7 @@ function specHits(git, spec, { emptyTree, commits }) {
 }
 
 /**
- * 各 pathspec がどちらかの版で 1 つ以上のファイルに当たることを確かめる。当たらない pathspec（綴り違い・起点違い）は
+ * 各 pathspec がどちらかのバージョンで 1 つ以上のファイルに当たることを確かめる。当たらない pathspec（綴り違い・起点違い）は
  * 差分が常に空になり、描画入力が変わっても「差分なし」で持ち越してしまう。空の木からの差分で数える
  * （ls-tree は pathspec の magic を解さない）。
  * @param {GitState} git
@@ -488,7 +488,7 @@ function checkSpecsHit(git, renderInputs, range) {
   );
   if (unmatchedSpecs.length > 0) {
     throw new CarryStop(
-      `new.render_inputs の pathspec がどちらの版のファイルにも当たらない: ${unmatchedSpecs.join(", ")}（当たらない描画入力は差分が常に空になり、持ち越しの根拠にならない。新側リポジトリ最上位からの相対で書く）`,
+      `new.render_inputs の pathspec がどちらのバージョンのファイルにも当たらない: ${unmatchedSpecs.join(", ")}（当たらない描画入力は差分が常に空になり、持ち越しの根拠にならない。新側リポジトリ最上位からの相対で書く）`,
     );
   }
 }
@@ -671,7 +671,7 @@ function reaches(edges, start, goal) {
 }
 
 /**
- * 各ファイルの記録の版 → 今の版の変化が、宣言した改修（before → after の blob）の連鎖で辿れるか。
+ * 各ファイルの記録のバージョン → 今のバージョンの変化が、宣言した改修（before → after の blob）の連鎖で辿れるか。
  * files に名前があるだけの古い宣言で、その後の宣言外の編集を持ち越さない。辿れないファイルは findings に足す。
  * @param {GitState} git
  * @param {{ changed: string[], used: { change: CarryChange }[], range: CommitRange }} diff
@@ -1010,8 +1010,8 @@ function renderInputDiff(input, state) {
   const recorded = String(input.recordedCommit).trim();
   const wanted = String(input.wantedCommit).trim();
   const git = { ...state, repo: openRepo(input.repo, state) };
-  const recordedFull = verifyCommit(git, recorded, "記録した版");
-  const wantedFull = verifyCommit(git, wanted, "今の版");
+  const recordedFull = verifyCommit(git, recorded, "記録したバージョン");
+  const wantedFull = verifyCommit(git, wanted, "今のバージョン");
   if (recordedFull === null || wantedFull === null) throw new CarryStop(null);
   const range = { recorded, wanted, recordedFull, wantedFull };
   checkSpecsHit(git, renderInputs, range);

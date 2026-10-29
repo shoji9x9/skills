@@ -71,7 +71,7 @@ scripts/eval/run-skill-eval.sh \
   **差が出たのは assertion 1・4** である。baseline は `内蔵` の行に「据え置きが自然」と書きながら、**指示どおり 3 件とも自前実装で進める**表を作った。
   覆した行は「状態列は触らず理由欄で失効を表現する」とした（原本の `取り消し済み` に至らない）。
   assertion 2・3・5 は Delta ではなく、後退の検知の項目として残す。baseline は contamination: clean / isolation: sandboxed。
-  **iteration-23（fixture が矛盾していた版）との違いを残す**。そのときに差が出たのは assertion 2・4 で、baseline は `機能固有` を
+  **iteration-23（fixture が矛盾していたバージョン）との違いを残す**。そのときに差が出たのは assertion 2・4 で、baseline は `機能固有` を
   「台帳は更新不要」と読んで、採否の決定そのものを回避していた。fixture の `適用範囲: order-list` と理由 `/orders/:id でしか使わない` の
   食い違いが、「このフェーズの対象外」への逃げ道になっていたためである。**矛盾を消したら、assertion 2 は baseline も到達した**。
   fixture の矛盾が差を作っていた実例なので、Delta の内訳は fixture の整合と合わせて読む

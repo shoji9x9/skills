@@ -396,7 +396,7 @@ describe("summarize", () => {
       expect(history[1].relative_floors.lcp).toBe(0.3);
     });
 
-    test("履歴を持たない前の版の基準で下限を変えると、変えた後の値を 1 件記録する", () => {
+    test("履歴を持たない前のバージョンの基準で下限を変えると、変えた後の値を 1 件記録する", () => {
       const { floor_history: _, ...legacy } = summarized(curDoc).meta.performance;
       const r = resummarize(legacy, ["--floor", "tbt=80"]);
       expect(r.code).toBe(0);
@@ -405,7 +405,7 @@ describe("summarize", () => {
       expect(history[0].floors.tbt).toBe(80);
     });
 
-    test("履歴を持たない前の版の基準は、同じ下限で採り直しても今の下限を 1 件記録する", () => {
+    test("履歴を持たない前のバージョンの基準は、同じ下限で採り直しても今の下限を 1 件記録する", () => {
       const { floor_history: _, ...legacy } = summarized(curDoc).meta.performance;
       const r = resummarize(legacy);
       expect(r.code).toBe(0);
@@ -477,7 +477,7 @@ describe("summarize", () => {
       expect(r.read(META).performance.floors.lcp).toBe(120);
     });
 
-    test("前の版の基準に割合の下限が無ければ、デフォルトを使って通し直せる", () => {
+    test("前のバージョンの基準に割合の下限が無ければ、デフォルトを使って通し直せる", () => {
       // compare は「summarize を通し直す」と案内するので、summarize がここで止まると復旧できない
       const {
         floor_history: _h,
@@ -626,7 +626,7 @@ describe("summarize", () => {
       },
     ],
     [
-      "ブラウザの版が null",
+      "ブラウザのバージョンが null",
       {
         [CUR]: samplesDoc("current", bothPairs(), {
           environment: { ...environment(), browser_version: null },
@@ -642,7 +642,7 @@ describe("summarize", () => {
       },
     ],
     [
-      "ブラウザの版が文字列でない",
+      "ブラウザのバージョンが文字列でない",
       {
         [CUR]: samplesDoc("current", bothPairs(), {
           environment: { ...environment(), browser_version: { major: 153 } },
@@ -952,7 +952,7 @@ describe("compare", () => {
   });
 
   test.each([
-    ["ブラウザの版", { environment: { ...environment(), browser_version: "154.0" } }],
+    ["ブラウザのバージョン", { environment: { ...environment(), browser_version: "154.0" } }],
     ["channel", { environment: { ...environment(), channel: "chrome" } }],
     [
       "CPU",
@@ -1098,7 +1098,7 @@ describe("compare", () => {
     expect(r.err).toContain("performance.relative_floors が無い");
   });
 
-  test("基準の tool_version が今の版と違えば exit 2", () => {
+  test("基準の tool_version が今のバージョンと違えば exit 2", () => {
     const base = summarized();
     const meta = { ...base.meta, performance: { ...base.meta.performance, tool_version: "0" } };
     const r = compareRun(samplesDoc("new", bothPairs()), { base, meta });
@@ -1222,7 +1222,7 @@ describe("compare", () => {
   });
 
   test.each([
-    ["ブラウザの版", { environment: { ...environment(), browser_version: "154.0" } }],
+    ["ブラウザのバージョン", { environment: { ...environment(), browser_version: "154.0" } }],
     ["待つ時間", { settings: { ...settings(), settle_ms: 2000 } }],
   ])("基準の環境・測り方を新側に合わせて書き換えていれば、判定せず exit 1: %s", (_, changed) => {
     // 現側の採取と sha256 はそのままで、performance の環境・測り方だけを新側の値に書き換えて env_mismatch を避ける

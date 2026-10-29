@@ -18,11 +18,11 @@
 // DOM の道筋（path）では突き合わせない。入れ子の深さが違う現・新（span に文字を持つ現行と、要素自身が
 // 文字を持つ新側）の比較こそが目的だからである。文字列が違う組は寸法を比べない（別の文字の幅は比べられない）が、
 // 書体の差は出す。件数の違いは、はみ出した側の行を 1 件ずつ出す。
-// 片側だけが text_owners を持つ（採取ツールの版違い）なら kind "missing" で出し、警告なしに比較を省かない。
+// 片側だけが text_owners を持つ（採取ツールのバージョン違い）なら kind "missing" で出し、警告なしに比較を省かない。
 //
 // スクロールする領域（scroll。trait-capture.mjs VERSION 6 以降）では、次の差を kind "scroll" で出す。
 // スクロールする領域かどうか（null か否か）、はみ出しの有無、スクロールバーが取った幅・高さ（alignTolerance 付き）、
-// 見た目の宣言と ::-webkit-scrollbar 系の計算値である。片側だけがキーを持つ（採取ツールの版違い）なら text_owners と同じく kind "missing"。
+// 見た目の宣言と ::-webkit-scrollbar 系の計算値である。片側だけがキーを持つ（採取ツールのバージョン違い）なら text_owners と同じく kind "missing"。
 //
 // 決定論的: 乱数・現在時刻に依存しない。Playwright に依存しない（純粋な JS）。
 // TypeScript 構文は使わない（型は JSDoc）。
@@ -398,7 +398,7 @@ function pushDuplicates(baselineEntries, captureEntries, out) {
 }
 
 /**
- * 片側だけがキーを持つ（採取ツールの版違い）ことを kind "missing" で積む。
+ * 片側だけがキーを持つ（採取ツールのバージョン違い）ことを kind "missing" で積む。
  * @param {{ name: string, out: Diff[] }} ctx
  * @param {string} prop
  * @param {{ expected: boolean, actual: boolean }} has
@@ -438,7 +438,7 @@ function diffEntryTextOwners(ctx, base, cap) {
  * @param {Trait} cap
  */
 function diffEntryScroll(ctx, base, cap) {
-  // scroll は null（スクロールする領域でない）を正規の値に持つので、キーの在否で版違いを見る
+  // scroll は null（スクロールする領域でない）を正規の値に持つので、キーの在否でバージョン違いを見る
   const baseHasScroll = Object.hasOwn(base, "scroll");
   const capHasScroll = Object.hasOwn(cap, "scroll");
   if (baseHasScroll && capHasScroll) {

@@ -29,7 +29,7 @@ test("merge key を展開する", () => {
 });
 
 test("merge key の値がマッピングでなければ例外にする", () => {
-  // 文言は js-yaml の版で変わるので、例外になることだけを確かめる（merge key を持たないスキーマでは例外にならない）。
+  // 文言は js-yaml のバージョンで変わるので、例外になることだけを確かめる（merge key を持たないスキーマでは例外にならない）。
   expect(() => loadYaml("b:\n  <<: 1\n")).toThrow();
 });
 
@@ -60,7 +60,7 @@ test("`on`・`yes` は真偽値ではなく文字列のキーとして読む（G
   expect(loadYamlAs<Record<string, unknown>>("on: push\nyes: 1\n")).toEqual({ on: "push", yes: 1 });
 });
 
-// yaml-as.ts の冒頭に書いた「4 と違う形」を固定する。js-yaml の版で変わったら、冒頭のコメントと lint-yaml の説明も直す。
+// yaml-as.ts の冒頭に書いた「4 と違う形」を固定する。js-yaml のバージョンで変わったら、冒頭のコメントと lint-yaml の説明も直す。
 test("`0b11` は js-yaml 4 と違い文字列として読む", () => {
   expect(loadYamlAs<{ a: unknown }>("a: 0b11\n").a).toBe("0b11");
 });

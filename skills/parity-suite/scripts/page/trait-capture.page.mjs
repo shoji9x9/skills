@@ -7,7 +7,7 @@
 // 出力の形（採る値・キー・正規化）を変えたら、trait-capture.mjs の VERSION とこのファイルの PAGE_VERSION を同じ値に上げる。
 // trait-capture.mjs は、2 つが違えば採らずに失敗する（利用者が片方だけをコピーし直した場合を見つけるため）。
 
-/** このファイルの版。trait-capture.mjs の VERSION と同じ値にする。 */
+/** このファイルのバージョン。trait-capture.mjs の VERSION と同じ値にする。 */
 export const PAGE_VERSION = "6";
 
 /** @typedef {{ x: number, y: number, width: number, height: number }} Rect */

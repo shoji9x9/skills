@@ -72,7 +72,7 @@ test.each(VENDORED_TOOLS)("%s は 1 ファイルだけコピーした先で impo
   const r = importCopy(copyTool(tool, []));
   expect(r.stderr).toBe("");
   expect(r.status).toBe(0);
-  // 読み込めたうえで、ツールの版（metadata.json に記録する値）を取り出せる。
+  // 読み込めたうえで、ツールのバージョン（metadata.json に記録する値）を取り出せる。
   expect(r.stdout.split(",")).toContain("VERSION");
 });
 

@@ -291,7 +291,7 @@ function makeCarryRepo(root: string): { repo: string; base: string; component: s
  * 持ち越しの fixture 一式を作る。
  *
  * 新側リポジトリ（<root>/app）の履歴: base（初期）→ component（Button.tsx を宣言どおり直す）。以降のコミットは各テストが積む。
- * 変更宣言 hover-shadow は base → component。記録の版 base・今の版 component が既定。
+ * 変更宣言 hover-shadow は base → component。記録のバージョン base・今のバージョン component が既定。
  * `root` を渡すと既存のプロジェクト（artifact-health-check.test.ts の makeProject 等）へ足し、
  * 機能の metadata.json は書かない（呼び出し側が featureMetadata の capture_conditions をコピーする）。
  * `makeDir` は `root` を渡さないときにプロジェクトを作る関数で、デフォルトは `makeTempDir`。

@@ -59,7 +59,7 @@ export { collectInPage as collectMatchedRules };
  *    また、シャドウの部品では外側の規則を当たったものとして含んでいるので、採り直す。
  *    ホスト自身のシャドウルートは `:host` 系だけを unresolved に残し、残りを
  *    `counts.host_scope_skipped` に数える（`shadow_host` で対象がホストだったかを出す）。
- *    **2 の定義は、この PR がマージされた状態を指す**。版を上げてから同じ PR の中で 2 の形を
+ *    **2 の定義は、この PR がマージされた状態を指す**。バージョンを上げてから同じ PR の中で 2 の形を
  *    足しているが、2 が main に入ったことは一度も無いので、外に「別の 2」で採った成果物は存在しない。
  * 3: 自分の根にある `::part()` / `::slotted()` の規則を matched に入れず unresolved に残す。
  *    2 はそれを擬似要素として剥がして判定し、`.host::part(label)` をホストに、`::slotted(*)` を

@@ -13,15 +13,15 @@ peer-keyed transitive は、`pnpm update <pkg>` や `pnpm update <pkg>@<version>
 親（例: devDependency として指定している別のパッケージ）の range が patched version を許していても、lockfile を残したままの update では上がらない。
 確実に上げるには、lockfile を最初から作り直す（`rm -rf node_modules pnpm-lock.yaml && pnpm install`）必要があることがある。
 
-作り直すと、対象以外の依存もまとめて新しい版に上がる（実例: vitest・oxlint・semantic-release・@types/node など約 20 のパッケージが上がった）。
+作り直すと、対象以外の依存もまとめて新しいバージョンに上がる（実例: vitest・oxlint・semantic-release・@types/node など約 20 のパッケージが上がった）。
 `pnpm.overrides` や lockfile の手での編集を使わずに、対象の 1 件だけを狙って上げることはできない場合がある。
 
 plain transitive は、patched version が分かっていても、バージョンを付けずに `pnpm update <pkg>` を使う。
 `pnpm update <pkg>@<version>` と明示すると、無指定なら届く同じ入力でも、exit 0 でエラーも lockfile の差分も無いまま何も変わらないことがある。
-版を指定しても機能しないことがある、というだけではない。版を指定すると、plain transitive で機能する無指定の方法が使えなくなる。
+バージョンを指定しても機能しないことがある、というだけではない。バージョンを指定すると、plain transitive で機能する無指定の方法が使えなくなる。
 
 無指定で届いた場合も、対象の 1 件だけが更新されるとは限らない。
-`pnpm update` は、range の中に新しい版がある別の plain transitive も同時に上げることがある。
+`pnpm update` は、range の中に新しいバージョンがある別の plain transitive も同時に上げることがある。
 実例では、`pnpm update undici` が nanoid・postcss・@napi-rs/wasm-runtime・@tybys/wasm-util も上げた。
 ただの `pnpm install --lockfile-only` では差分が出ない。したがって、これは `update` に特有の広い解決し直しで、peer-keyed だけの問題ではない。
 
@@ -52,7 +52,7 @@ update が上げない理由（lockfile にある transitive の解決を残す�
    `.npmrc` に秘密の値があるときは、一時ディレクトリの権限を絞り、調べ終えたら消す
 3. リポジトリと同じ pnpm の実体を使い、元の有効な値を作った global config・環境変数・CLI の上書きも同じ条件にする。
    コピー先へ cd する前に、コピー先で使うツールをすべて（`pnpm` だけでなく `node` も）リポジトリの中で実体のパスに解決しておく（mise なら `pnpm_bin=$(mise which pnpm)`・`node_bin=$(mise which node)`）。
-   バージョンマネージャの shim は cwd の設定で版を決めるので、コピー先で `pnpm` や `node` を名前で呼ぶと、起動できないか、グローバルの設定の別の版で動く。
+   バージョンマネージャの shim は cwd の設定でバージョンを決めるので、コピー先で `pnpm` や `node` を名前で呼ぶと、起動できないか、グローバルの設定の別のバージョンで動く。
    `node_modules/.bin` の bin は中で `node` を PATH から名前で呼ぶので、`node` の実体のディレクトリを PATH の先頭に足す（`PATH="$(dirname "$node_bin"):$PATH"`）。
    コピー先のそれぞれで `pnpm config get minimumReleaseAge` をもう一度実行し、元と同じ有効な値であることを確かめる。
    pnpm 11 以降では、`minimumReleaseAge` などのプロジェクトの設定は `pnpm-workspace.yaml` から、レジストリと認証の設定は `.npmrc` から読まれる
@@ -68,7 +68,7 @@ update が上げない理由（lockfile にある transitive の解決を残す�
 親（direct 依存）を一度アンインストールすると、lockfile からその下の依存の解決が消える。
 同じ range で入れ直すと、その下の依存だけが解決し直される。上がるのはその下の依存に限られ、作り直しのように全体が上がることはない。
 
-先に、親の依存の宣言が range か、版を固定した exact pin かを確かめる。exact pin（`1.2.3` に固定）なら、この手順でも上がらず、上流を待つことになる。
+先に、親の依存の宣言が range か、バージョンを固定した exact pin かを確かめる。exact pin（`1.2.3` に固定）なら、この手順でも上がらず、上流を待つことになる。
 
 この手順を一時ディレクトリのコピーで試すときも、手順 1 の `node` を含めて使うツールをすべて、cd する前に実体のパスへ解決しておく（「リリース年齢の制限で何も変わらない場合を切り分ける」の手順 3 と同じ）。
 下のコマンド例はリポジトリの中で実行する形なので、コピー先では `node` と `pnpm` を解決した実体のパス（`"$node_bin"`・`"$pnpm_bin"`）に置き換える。

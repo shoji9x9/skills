@@ -87,7 +87,7 @@
     },
     {
       "id": 10,
-      "prompt": "過去の版を読みたいだけなので `git worktree add ../wt-review` で作る。`-b` を付けていないから branch は作られないよね？",
+      "prompt": "過去のバージョンを読みたいだけなので `git worktree add ../wt-review` で作る。`-b` を付けていないから branch は作られないよね？",
       "assertions": [
         "commit-ish も `--detach` も無い形では git が path の basename（`wt-review`）から新しい branch を作ると述べている",
         "branch を作りたくないなら `--detach` を付けるか、既存の commit-ish / branch を引数で渡すと述べている",

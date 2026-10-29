@@ -493,7 +493,11 @@ test.each([
     (t: Table) => feedback(t).patterns.push({ id: "toast", regex: "x", example: "x" }),
     "重複している",
   ],
-  ["走査した版が空", (t: Table) => (feedback(t).source.version = ""), "source.version が空"],
+  [
+    "走査したバージョンが空",
+    (t: Table) => (feedback(t).source.version = ""),
+    "source.version が空",
+  ],
   [
     "declared: false で reason が空",
     (t: Table) => (t.feedback_calls = { declared: false, reason: "" }),
@@ -568,7 +572,7 @@ test("feedback_calls.declared: false ならハンドラの出所は要求しな�
   expect(run(t).status).toBe(0);
 });
 
-test("走査した版が測定した版と違えば落とす", () => {
+test("走査したバージョンが測定したバージョンと違えば落とす", () => {
   const r = run(mutated((t: Table) => (feedback(t).source.version = "def456")));
   expect(r.status).toBe(1);
   expect(r.stderr).toContain("target.commit（abc123）と違う");
@@ -576,9 +580,9 @@ test("走査した版が測定した版と違えば落とす", () => {
 
 test.each([
   ["target.commit が none", { commit: "none" }, {}],
-  ["走査した版が none", {}, { version: "none" }],
+  ["走査したバージョンが none", {}, { version: "none" }],
 ])(
-  "版を照合できないとき理由が無ければ落とし、理由があれば通す: %s",
+  "バージョンを照合できないとき理由が無ければ落とし、理由があれば通す: %s",
   (_n, targetPatch, sourcePatch) => {
     const metadata = {
       slug: "share",
@@ -594,7 +598,7 @@ test.each([
         pages: [{ name: "共有画面", path: "share" }],
       },
     };
-    // 走査する 2 つの範囲（フィードバック呼び出しと表への書き込み）は同じ版を照合する
+    // 走査する 2 つの範囲（フィードバック呼び出しと表への書き込み）は同じバージョンを照合する
     const sources = (t: Table) => [feedback(t).source, writes(t).source];
     const noReason = run(
       mutated((t: Table) => sources(t).forEach((src) => Object.assign(src, sourcePatch))),
@@ -618,7 +622,7 @@ test.each([
   },
 );
 
-test("版が一致しているのに照合不能の理由が埋まっていれば落とす", () => {
+test("バージョンが一致しているのに照合不能の理由が埋まっていれば落とす", () => {
   const r = run(mutated((t: Table) => (feedback(t).source.version_unverified_reason = "不明")));
   expect(r.status).toBe(1);
   expect(r.stderr).toContain("version_unverified_reason が埋まっている");
@@ -2182,7 +2186,7 @@ test.each([
     "verification が語彙",
   ],
   [
-    "走査した版が違う",
+    "走査したバージョンが違う",
     (t: Table) => (writes(t).source.version = "def456"),
     "side_effect_writes.source.version（def456）",
   ],

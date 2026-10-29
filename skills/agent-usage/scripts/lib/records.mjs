@@ -128,7 +128,7 @@ function readsSince(o) {
 function recordRow(r, at) {
   if (!r.key) throw new Error(`${at}: key が空`);
   if (!r.kind || !isKind(r.kind)) throw new Error(`${at}: 知らない kind ${JSON.stringify(r.kind)}`);
-  // 打ち消しの列は、空（前の版の記録を含む）か 1 だけ。ほかの値を警告なしに通常の行として数えない
+  // 打ち消しの列は、空（前のバージョンの記録を含む）か 1 だけ。ほかの値を警告なしに通常の行として数えない
   if (r.retracted !== undefined && r.retracted !== "" && r.retracted !== "1")
     throw new Error(`${at}: retracted が空でも 1 でもない ${JSON.stringify(r.retracted)}`);
   if (parseTime(r.observed_at) === null) throw new Error(`${at}: observed_at が時刻でない`);
@@ -256,7 +256,7 @@ export function branchFiles(dir, label) {
 /**
  * ブランチのファイル（path）に行を足す。ファイルが無ければ作る。
  * 見出しが今の列と同じなら、既存の内容をそのまま残して後ろに足すので、git の差分は足した行だけになる（改行は既存のファイルに合わせる）。
- * 見出しが違う（列の違う版が書いた）ときだけ、今の列と既存の列を合わせた見出しで全体を書き直す（知らない列の値を落とさない）。
+ * 見出しが違う（列の違うバージョンが書いた）ときだけ、今の列と既存の列を合わせた見出しで全体を書き直す（知らない列の値を落とさない）。
  * @param {string} path
  * @param {readonly Row[]} rows
  * @returns {string}

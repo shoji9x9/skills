@@ -269,7 +269,12 @@ test.each([
     text: "なお目下は見送る。\n",
     want: ["time-word:目下"],
   },
-  { label: "ISO の日付", file: "a.md", text: "2026-09-19 時点の版。\n", want: ["date:2026-09-19"] },
+  {
+    label: "ISO の日付",
+    file: "a.md",
+    text: "2026-09-19 時点のバージョン。\n",
+    want: ["date:2026-09-19"],
+  },
   { label: "年月", file: "a.md", text: "2026 年 9 月に変えた。\n", want: ["date:2026 年 9 月"] },
   {
     label: "スラッシュ区切りの日付",
@@ -359,7 +364,7 @@ test("許可: 一致する記述は通し、使われなくなった許可は失
     { file: "docs/c.md", rule: "section", text: "x.md「y」", reason: "例" },
   ];
   const root = makeGitRepo(
-    { "AGENTS.md": "本文\n", "docs/a.md": "2026-09-19 の版\n" },
+    { "AGENTS.md": "本文\n", "docs/a.md": "2026-09-19 のバージョン\n" },
     { allowed: { allowed } },
   );
   // 他のチェックの規則（section）の許可は、このチェックでは使われていないと判定しない。

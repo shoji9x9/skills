@@ -572,7 +572,7 @@ test("採取スキーマが違う入力は読まない", () => {
   );
 });
 
-test("inline_declarations を持たない入力（版 1）は読まない", () => {
+test("inline_declarations を持たない入力（バージョン 1）は読まない", () => {
   const old = doc();
   delete old.inline_declarations;
   expect(() => resolveCascade(old, { states: ["default"], properties: ["color"] })).toThrow(

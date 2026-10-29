@@ -6,7 +6,7 @@
 // 割り当て外の種類が変わらないこと（と、割り当てた種類は変わること）を確かめる。
 //
 // fixture はリポジトリの外の一時ディレクトリに置き、設定をそこへコピーする（scripts/ の下に置くと、他のテストの走査に入る）。
-// リポジトリの外では mise の shim の node が版を決められないので、ツールの本体を process.execPath で起動する。
+// リポジトリの外では mise の shim の node がバージョンを決められないので、ツールの本体を process.execPath で起動する。
 import { expect, test } from "vitest";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { spawnSync } from "node:child_process";

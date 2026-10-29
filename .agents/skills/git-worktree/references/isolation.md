@@ -27,7 +27,7 @@ Claude Code には `EnterWorktree` と `ExitWorktree` があり、セッショ�
 入った後は、worktree の外に出るおそれのある git の操作を、ハーネスが拒否する。
 
 以下は、公式のドキュメント（[Run parallel sessions with worktrees](https://code.claude.com/docs/en/worktrees)）と、
-2.1.243 の実装、`EnterWorktree` のツールの定義の本文を突き合わせて確かめた。版が変わったら読み直す。
+2.1.243 の実装、`EnterWorktree` のツールの定義の本文を突き合わせて確かめた。バージョンが変わったら読み直す。
 
 ## 入った後はハーネスが強制する
 

@@ -961,7 +961,7 @@ test("page ファイルの PAGE_VERSION は、element-shot.mjs の VERSION と�
   expect(PAGE_VERSION).toBe(VERSION);
 });
 
-test("assertPageVersion は、page ファイルの版が VERSION と違えば失敗し、同じなら通る", () => {
+test("assertPageVersion は、page ファイルのバージョンが VERSION と違えば失敗し、同じなら通る", () => {
   expect(() => assertPageVersion(`${VERSION}-old`)).toThrow(
     /PAGE_VERSION .* but element-shot.mjs has VERSION/,
   );

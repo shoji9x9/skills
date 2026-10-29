@@ -108,7 +108,7 @@ test("陽性: rect と合わない element.png を検出する", () => {
   expect(checkComponent(dir).join("\n")).toContain("users-create / default: element.png");
 });
 
-test("陽性: element.shot.json の欠落・版違い・実寸違いを検出する", () => {
+test("陽性: element.shot.json の欠落・バージョン違い・実寸違いを検出する", () => {
   const dir = copyFixture();
   rmSync(join(dir, "baseline/orders-search/default/element.shot.json"));
   edit(join(dir, "baseline/users-create/default/element.shot.json"), (r: ShotRecord) => {

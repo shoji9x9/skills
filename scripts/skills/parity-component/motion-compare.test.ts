@@ -510,7 +510,7 @@ test("on_complete が列挙に無い操作を指す・trigger が無い遷移は
   expect(run({ metadata: noTrigger }).structural).toBe(true);
 });
 
-test("プローブの版が記録と違う時系列は比べない（採取スキーマが違う）", () => {
+test("プローブのバージョンが記録と違う時系列は比べない（採取スキーマが違う）", () => {
   const result = run({
     comparison: {
       component: "feedback-message",

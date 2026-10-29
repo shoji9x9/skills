@@ -37,7 +37,7 @@
  * 1 回目と 2 回目の差分量（pixel_diff / trait_diffs）を測るのはスペックの仕事ではない。
  * 記録済みの画素差分ツールと trait-compare に、下の 2 つの出力ディレクトリを渡して測る。
  *
- * 撮影に使ったブラウザの同一性（ブラウザ名・版・userAgent・channel・headless・ブラウザ側とランナーの OS）は
+ * 撮影に使ったブラウザの同一性（ブラウザ名・バージョン・userAgent・channel・headless・ブラウザ側とランナーの OS）は
  * `new/<target>/browser-identity.<pass>.json` に書き出す。parity-diff が自己ノイズの測定値を再利用するかを決める
  * 指紋（diff-metadata.json の noise_measurement.fingerprint.capture_conditions）へ入れる。
  */
@@ -208,7 +208,7 @@ if (scrollbars === "shown") {
   test.use({ launchOptions: { ignoreDefaultArgs: ["--hide-scrollbars"] } });
 }
 
-// 撮影に使ったブラウザの同一性。launched でも、ランナー・OS の移動、Playwright の更新による版の変化、
+// 撮影に使ったブラウザの同一性。launched でも、ランナー・OS の移動、Playwright の更新によるバージョンの変化、
 // channel / headless の変更で描画環境は変わる。parity-diff はこれを自己ノイズの指紋へ入れ、前回と違えば測り直す。
 // 2 回目（noise）も書き、1 回目と違えば同じ環境で 2 回撮れていないので parity-diff が測定を捨てる。
 // 書き出し先は outRoot の外（noise-pass2/ は測定後に消える。組のディレクトリ 3 段の外に置く）
@@ -234,7 +234,7 @@ let identityRecorded = false;
 //   同じブラウザに設定を当てない別のコンテキストを作って読み、閉じる（cdp では接続先の機械、launched では起動した機械）
 // - userAgentData は安全なコンテキストにしか無い。Playwright が開いた直後の about:blank は安全なコンテキストでない（実測）ので、
 //   合成した https の URL を route で返した頁で読む。撮影に使うページは移動させない（verifyScrollbars は about:blank で測る取り決めである）
-// - 拾うのは platform / platformVersion / architecture の 3 キーだけ（getHighEntropyValues は brands・mobile も返す。版は product が持つ）
+// - 拾うのは platform / platformVersion / architecture の 3 キーだけ（getHighEntropyValues は brands・mobile も返す。バージョンは product が持つ）
 // - userAgentData を持たないブラウザ（Firefox / WebKit）は navigator.platform だけを残す。cdp の接続先は Chromium 系で、
 //   現側の記録にこの形は capture-scope-check.mjs が通さない（Chromium の platform も縮められている）ので、cdp の照合では食い違いとして止まる
 const BROWSER_OS_PROBE_URL = "https://parity-browser-os.invalid/";
@@ -432,7 +432,7 @@ async function verifyCdpBrowser(page: import("@playwright/test").Page): Promise<
     const identity = metadata.capture_conditions.browser_identity;
     const product = page.context().browser()?.version();
     const userAgent = await page.evaluate(() => navigator.userAgent);
-    // reduced UA は OS の版を固定値に縮めるので、product と userAgent だけでは OS の版・アーキテクチャが違う機械を見分けられない
+    // reduced UA は OS のバージョンを固定値に縮めるので、product と userAgent だけでは OS のバージョン・アーキテクチャが違う機械を見分けられない
     const os = await readBrowserOs(page.context().browser());
     if (identity && !Object.hasOwn(identity, "browser_os")) {
       throw new Error(

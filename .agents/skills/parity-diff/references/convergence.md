@@ -110,9 +110,9 @@
     読めないことを「比べない」として扱うと、記録が正しくても `capture_conditions` を消しただけで、古い要約が収束を通してしまう
     （`checked: true` は撮影条件と突き合わせたという主張なので、突き合わせる相手が読めない時点で成り立たない）。
 
-    生成した側の版も確かめる。`conformance.tool` が `coverage-expand` で、`tool_version` が `coverage-check.mjs` の `MIN_COVERAGE_EXPAND_VERSION` 以上でなければ失敗にする。
+    生成した側のバージョンも確かめる。`conformance.tool` が `coverage-expand` で、`tool_version` が `coverage-check.mjs` の `MIN_COVERAGE_EXPAND_VERSION` 以上でなければ失敗にする。
     指紋は「その表を忠実に反映したか」しか示さないので、誤った導出の規則で作った要約でも指紋は一致する。
-    版を見ないと、スキルを上げても、既知の欠陥を持つ要約が収束を通り続ける（下限を上げるのは導出の意味を変えたときで、理由はその定数のコメントに残す）。
+    バージョンを見ないと、スキルを上げても、既知の欠陥を持つ要約が収束を通り続ける（下限を上げるのは導出の意味を変えたときで、理由はその定数のコメントに残す）。
     指紋が無いと、`--write` の後に網羅表へ項目を足したり、`metadata.json` から撮る状態を消したりしても、古い要約のまま通る。
     その結果、必要な撮影をしないまま収束する（`reactions.json` の `conformance.table_fingerprint` と同じ形である）。
 
@@ -184,14 +184,14 @@
 
     失敗にするのは次のものである。
     - `present` なのに突き合わせの行が無いもの、`compared: true` なのに起点・当たり判定・完了の観測が欠けているもの
-    - 突き合わせを取った新側の版（`new_implementation.commit`）が無いか、今の `replace-metadata.json` の `new.commit` と違うもの（記録の後に実装が変わっている）。
+    - 突き合わせを取った新側のバージョン（`new_implementation.commit`）が無いか、今の `replace-metadata.json` の `new.commit` と違うもの（記録の後に実装が変わっている）。
       `--new-repo` を渡し、部品の改修の持ち越しが覆う違いは通す
     - `new.commit` が `none`（新側が git で管理されていない）のときに、`new_implementation.iteration` と `loop.iterations` が違うもの。
       両側が `none` なら文字列の比較は常に一致するので、新しさは反復の回数で確かめる
     - そのどちらかを読めないもの（`comparison-implementation-unversionable`）。代わりに確かめる手段が無いことを、合格として扱わない（規則は `parity-suite` の `references/coverage.md` で定義する）
-    - どちらかの `dirty` が `false` でないもの（commit していない変更を持つ作業ツリーの記録は、commit で版を特定できない。欠落と真偽値でない値も失敗にする）
+    - どちらかの `dirty` が `false` でないもの（commit していない変更を持つ作業ツリーの記録は、commit でバージョンを特定できない。欠落と真偽値でない値も失敗にする）
     - `--replace-metadata` を渡していないもの（照合の相手が無いと新しさの確認そのものが飛ぶので、この引数は省けない）
-    - `new.dirty: true`（commit していない変更があると、版に結び付かない）
+    - `new.dirty: true`（commit していない変更があると、バージョンに結び付かない）
     - `compared: false` の理由が無いもの、承認記録の無い `accepted`、網羅表の指紋と合わない古い記録、別の target の記録、網羅表に無いセルの記録
     - 網羅表と突き合わせ表のどちらかに、同じ鍵（`component|item|instance`）の行が 2 つ以上あるもの（1 つのセルが 2 回数えられる）
 
@@ -245,7 +245,7 @@
          - 分類されていないスペックがあるもの
          - 命名規則に当たらない JS / TS 系のファイルが、`specs` にも `shared_files` にも無いもの
          - 状態を変えるスペックを含む直近の 2 回が無いか、緑でないもの
-         - 状態を変えないスペックの直近の記録が緑でないか、今の版でないもの
+         - 状態を変えないスペックの直近の記録が緑でないか、今のバージョンでないもの
          - そのスペックの指紋か、基になる `shared_fingerprint` が今と違うもの
     3. 未測定
        - `unmeasured.entries` に `disposition: blocking` が残るもの。語彙の外の値と、承認記録が空のものは `blocking` として数える
@@ -253,21 +253,21 @@
        - `new/<target>/replace-metadata.json` の `suite.new_green` が真なのに、同じ場所に `diff-metadata.json` が無いもの
        - `diff-metadata.json` が今の新側に対応していないもの（`new.commit` が `replace-metadata.json` と違う、または `iteration` が `loop.iterations` と違う）。
          ただし SHA の違いは、`--new-repo` を渡したときに限り、部品の改修の持ち越し（`evidence-carry.json`。[`component-change.md`](component-change.md) の手順 5）が覆えば通す。
-         記録と `replace-metadata.json` の版が一致したままの一括再検証の直後は、検証先の版を `--carry-to` で渡したときだけ持ち越しを判定する（同じ手順 5）
-       - `dataset_version` を読めないもの、今の版より新しいもの、区間の `changes[].affects` に `*` があるもの、`changes` の履歴が不正なもの
+         記録と `replace-metadata.json` のバージョンが一致したままの一括再検証の直後は、検証先のバージョンを `--carry-to` で渡したときだけ持ち越しを判定する（同じ手順 5）
+       - `dataset_version` を読めないもの、今のバージョンより新しいもの、区間の `changes[].affects` に `*` があるもの、`changes` の履歴が不正なもの
 
-    対応づけを版だけに任せない。データセットを変えずに `parity-replace` が実装を作り直すと、前の反復で収束した `diff-metadata.json` が `dataset_version` の一致だけでこのチェックを満たす。
+    対応づけをバージョンだけに任せない。データセットを変えずに `parity-replace` が実装を作り直すと、前の反復で収束した `diff-metadata.json` が `dataset_version` の一致だけでこのチェックを満たす。
     差分を採り直していないのに、「済んだ」ように見えてしまう。そのため、両方の成果物が持つ識別子（新側の commit の SHA と反復の回数）で結び付ける。
     `new.commit` が `none` のとき、または片方が記録を持たない古い成果物のときは、その軸を判定せず、理由を出力に残す。
-    `replace-metadata.json` の `new.dirty: true` は失敗にする。commit していない変更のある作業ツリーでは「差分を採った実装」を特定できず、同じ版・同じ反復のまま中身だけが変わった実装を見逃すからである
+    `replace-metadata.json` の `new.dirty: true` は失敗にする。commit していない変更のある作業ツリーでは「差分を採った実装」を特定できず、同じバージョン・同じ反復のまま中身だけが変わった実装を見逃すからである
     （`parity-replace` の軽い手順も、両側の `dirty: false` を適用の条件にしている）。
     `new.commit` が `none` でも失敗にする。commit の比べ方を選ぶ前にこれを見る（`none` の分岐に入ると、この判定に届かない）。
-    両方の成果物の `new.target` を `--target` と突き合わせる。同じ commit・同じ反復は環境をまたいで一致しうるので、版だけでは「別の target のディレクトリへコピーしただけの成果物」を見分けられない。
+    両方の成果物の `new.target` を `--target` と突き合わせる。同じ commit・同じ反復は環境をまたいで一致しうるので、バージョンだけでは「別の target のディレクトリへコピーしただけの成果物」を見分けられない。
     `dataset_version_exempt` で免除するのは、`dataset_version: null` と対になっているときだけである。
-    理由の文字列が残っているだけで版のチェックを飛ばすと、投入対象の target に古い免除の文字列が残ったまま、新しさの判定がまるごと外れる。
+    理由の文字列が残っているだけでバージョンのチェックを飛ばすと、投入対象の target に古い免除の文字列が残ったまま、新しさの判定がまるごと外れる。
 
     数値が古いだけでは失敗にしない。古くなったかは `golden-dataset` の `references/versioning.md` で定義する。
-    記録した版から今までの `changes[].affects` が、slug が実際に参照するテーブルと重なるときだけ、古くなったとする。
+    記録したバージョンから今までの `changes[].affects` が、slug が実際に参照するテーブルと重なるときだけ、古くなったとする。
     実際に参照するテーブルの導き方は `golden-dataset` の側の取り決めなので、このスクリプトは同じ実装をもう 1 つ作らない。重なりを見るまでもなく確定する形だけを失敗にする（重なりの判定は preflight が行う）。
     投入対象でない target（`db` を持たない、または `seedable` の無い読み取り専用のもの）は、`dataset_version: null` にして `dataset_version_exempt` に理由を書き、免除する
     （[`preflight.md`](preflight.md) で定義する）。この免除は正規の記録なので、失敗にしない。
@@ -287,7 +287,7 @@
     スクリプトが見つからないときは、判定を飛ばさずに停止し、`gh skill install shoji9x9/skills parity-suite` を促す。
   - 追記専用の成果物が縮んでいない（一覧は `replace-strategy` の `assets/append-only-manifest.json` で定義する）。
     決定を積み上げる成果物は、既存の内容を消さずに追記すると定めてある。
-    対象は、設定ファイル、`features.md` / `components.md` / `assets.md` / `dependencies.md` / `weaknesses.md`、インスタンス例外の台帳とその根拠、`gaps.md`、データセットの版の記録である。
+    対象は、設定ファイル、`features.md` / `components.md` / `assets.md` / `dependencies.md` / `weaknesses.md`、インスタンス例外の台帳とその根拠、`gaps.md`、データセットのバージョンの記録である。
     ところが、追記であることを確かめないと、丸ごと書き直しても、今の状態が整合していればすべて通ってしまう。
     失われるのは過去の決定（なぜこの差分を許容したのか、いつ誰が承認したのか）で、収束の判定は今の状態しか見ないので、`converged: true` になりうる。
     数え直しは、インストール済みの `replace-strategy` のスクリプトが行う。
@@ -303,7 +303,7 @@
 
     突き合わせの単位は、一覧の `unit` で決める（`lines` / `markdown-structure` / `json-arrays`）。
     すべてを行として比べると、原本が明示的に求めるその場での更新が「失われた行」として誤って判定され、決定を 1 つも捨てていない成果物で収束が止まる。
-    その場での更新とは、版の +1、状態の列の `未`→`済`、Issue の列の `未起票`→番号、最終更新の日時などである。
+    その場での更新とは、バージョンの +1、状態の列の `未`→`済`、Issue の列の `未起票`→番号、最終更新の日時などである。
     - `lines` では、鍵を名指しして単位を変える。
       `growable_containers` は、追記だけを許す鍵を要素ごとの単位に広げる（`component_diffs`）。
       `registry_groups` は、鍵をまたいで要素が移る台帳（`intentional_diffs` の `keep` / `may_change` / `pending`）を、グループに共通の要素の単位に広げる。
@@ -321,8 +321,8 @@
       `transitions`（明示した `<変更前>-><変更後>` だけ。`unmeasured.entries` の `blocking->accepted` など）で開ける。
     - どれも空白をまとめてから突き合わせるので、フォーマッタの桁そろえでは失敗しない。
 
-    `--base` には、機能に着手した時点の版を渡す。デフォルトの `HEAD` は、作業ツリーと直近の commit の比較である。
-    そのため、書き直しを commit した後は差が無く、何かが失われていても通ってしまう（着手した時点の版は、`git merge-base` や、機能のブランチが分かれた点から取る）。
+    `--base` には、機能に着手した時点のバージョンを渡す。デフォルトの `HEAD` は、作業ツリーと直近の commit の比較である。
+    そのため、書き直しを commit した後は差が無く、何かが失われていても通ってしまう（着手した時点のバージョンは、`git merge-base` や、機能のブランチが分かれた点から取る）。
   - 性能の比較に、回帰と判定できない組が残っていない。
     `metadata.json` の `performance.declared` が `true` のときだけ判定に入り、`perf-stats.mjs compare` が exit 0 であること（手順の原本は [`detect.md`](detect.md)「性能の比較」）。
     `regressed` は要対応として差し戻しに入り、`noisy`・`missing`・`env_mismatch`・古い基準は差し戻さずに採り直す（`env_mismatch` は `parity-suite` での採り直しを利用者へ案内して停止する）。

@@ -20,7 +20,7 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..",
 const CANON = "skills/kaizen/assets/kaizen-schedule.yml";
 const WIRED = ".github/workflows/kaizen-schedule.yml";
 
-// **pin を含めた完全一致に戻した。** 前の版は `uses:` の SHA とバージョンコメントを
+// **pin を含めた完全一致に戻した。** 前のバージョンは `uses:` の SHA とバージョンコメントを
 // 正規化して比較していた。それだと配布テンプレートの pin が**恒久的に古いまま**になり、
 // どの検査でも検出されない。`pinact run --check` は SHA とコメントの整合を見るだけで、
 // そのバージョンが最新かは見ないからである。

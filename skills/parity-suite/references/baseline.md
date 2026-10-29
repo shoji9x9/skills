@@ -78,7 +78,7 @@
 - 採取には、同梱の [`../scripts/trait-capture.mjs`](../scripts/trait-capture.mjs) をプロジェクト側の `<parity_suite_dir>/parity/lib/tools/vendor/` にコピーして使う。
   この場所はデフォルトで、コピー専用のサブディレクトリである（置き方の方針は [`locator-mapping.md`](locator-mapping.md)）。
   trait-capture.mjs は、ページで実行する本体を `./page/trait-capture.page.mjs` から import する。
-  そのため、同梱の [`../scripts/page/trait-capture.page.mjs`](../scripts/page/trait-capture.page.mjs) も同じ版から、コピー先の `page/`（デフォルトは `vendor/page/`）へコピーする。
+  そのため、同梱の [`../scripts/page/trait-capture.page.mjs`](../scripts/page/trait-capture.page.mjs) も同じバージョンから、コピー先の `page/`（デフォルトは `vendor/page/`）へコピーする。
   要素単位の撮影に element-shot.mjs を使う場合も、[`../scripts/page/element-shot.page.mjs`](../scripts/page/element-shot.page.mjs) を同じ `page/` へコピーする。
   何を採ったか（対象の要素・プロパティの集合・状態）を `metadata.json` に残し、`parity-diff` が同じ条件で照合できるようにする。
 
@@ -195,7 +195,7 @@
   - この照合は、`metadata.json` を書いた手順 8 で通す。
   - 記録には網羅表と撮影条件の指紋が入るので、通した後に表や撮影条件を書き換えたら、`--write` から通し直す（書き換えたまま古い要約を残すと、`parity-diff` が失敗にする）。
   - スキルを更新して導出の意味が変わったときも、通し直す。
-    `parity-diff` は記録に残った生成側の版が下限以上かを見るので、古い規則で作った要約は、指紋が合っていても収束させない。
+    `parity-diff` は記録に残った生成側のバージョンが下限以上かを見るので、古い規則で作った要約は、指紋が合っていても収束させない。
   - `kind: opens-container` は、`states` にあるだけでは足りず、次の節の `popup_inventory` にも行が要る。
 - 導出は下限であって、上限ではない。操作から導けない状態（`error` や、初期表示のバリアント）は、手で `states` に足す。
   部品に依らない操作（ロゴ、Clear など）の後に残る見た目と戻り先は、反応の網羅表の `aftermath` が操作ごとに数える（[`coverage.md`](coverage.md)「押した後に残るもの（`aftermath`）」）。
@@ -1003,8 +1003,8 @@ if (capturing) {
 - 無いことは欠けではない。後の工程は `noise-pass2/` の実体を求めず（`parity-diff` の前提の確認を含む）、不足として `gaps.md` にも記録しない。
   中断で残っていた場合も入力ではないので、捨ててよい。
 - 測り直しはいつでもできる。撮影条件は `capture_conditions` に記録してあるので、基準値を検算したくなったら、同じ条件で撮り直す（次の測定も同じ場所に書く）。
-- `artifacts` の設定（`retention` / `storage`）の対象ではない。`retention` は版（撮り直した過去の版を残すか）の設定で、`storage` は残す大きなバイナリの保存先の設定である。
-  2 回目は同じ版の一時的な作業物で、どちらの軸にも当たらない。
+- `artifacts` の設定（`retention` / `storage`）の対象ではない。`retention` はバージョン（撮り直した過去のバージョンを残すか）の設定で、`storage` は残す大きなバイナリの保存先の設定である。
+  2 回目は同じバージョンの一時的な作業物で、どちらの軸にも当たらない。
 - 新側も同じ扱いにする（`parity-diff` が測る自己ノイズの 2 回目。原本は `parity-diff` の `references/capture-new.md`）。
 
 ## 性能のベースラインとノイズ基準値
@@ -1057,7 +1057,7 @@ if (capturing) {
   デフォルトより緩い下限は、`parity-diff` の `compare` が結果と報告に載せる（判定は変えない）。
   下限を変えるときは、`summarize --write` に `--floor`・`--relative-floor` を渡して通し直す。`metadata.json` を手で書き換えない。
   渡さなかった指標は、記録した前の下限を引き継ぐ。デフォルトを使うのは初めての集計だけで、デフォルトに戻すときも値を渡す。
-  引き継ぐのは `floor_history` の最後の要素で、`declared` に関わらず履歴があれば履歴から引き継ぐ。履歴が無い前の版の基準だけ、`declared: true` なら `floors`・`relative_floors` から引き継ぐ。
+  引き継ぐのは `floor_history` の最後の要素で、`declared` に関わらず履歴があれば履歴から引き継ぐ。履歴が無い前のバージョンの基準だけ、`declared: true` なら `floors`・`relative_floors` から引き継ぐ。
   そのため、履歴を追記せずに手で書き換えた下限は引き継がない。履歴の要素の中身が正しい決定かは、どのツールも確かめない（`append-only-check.mjs` が確かめるのは、変更が履歴に残ることだけ）。
   `summarize` は、履歴が空か、履歴の最後の要素か書き換える前の `floors`・`relative_floors` と下限が違えば、`performance.floor_history` に 1 件追記する。
   下限は採取から導けないので、`compare` は値の正しさを確かめられない。
@@ -1065,7 +1065,7 @@ if (capturing) {
   判定の規則（許容幅を超えた悪化・新側のばらつき・値の欠け・環境の違い）の原本は [`../scripts/perf-stats.mjs`](../scripts/perf-stats.mjs) で、`parity-diff` が `compare` で使う。
 - 現側と新側の比較は、同じ機械・同じブラウザ・同じ測り方で採った値どうしでしか成り立たない。
   採取ファイルの `environment` と `settings`（ウォームアップ・待つ時間・キャッシュ・並列の数）が違えば、`compare` は判定せずに止まる。
-  `environment` は、ブラウザの名前・版・`channel`・`headless`、ランナーの OS・アーキテクチャ・CPU の型番と数、target の置き場所、コンテキストの設定、ブラウザの起動の設定（`use.launchOptions`）である。
+  `environment` は、ブラウザの名前・バージョン・`channel`・`headless`、ランナーの OS・アーキテクチャ・CPU の型番と数、target の置き場所、コンテキストの設定、ブラウザの起動の設定（`use.launchOptions`）である。
   起動の設定は、`args` は値を伏せた形（`--flag=value` は `--flag=*`、フラグでない要素は `*`）、`env` は実行したシェルと値が違う変数の名前だけ、`proxy` は `server`・`bypass` だけを残す。
   `args` の値だけが違う場合（`--window-size` の寸法など）は区別できないので、両側で同じ起動の設定を使う。
   新側を別の機械で測るなら、その機械で現側も採り直し、`summarize` を通し直す。
@@ -1083,7 +1083,7 @@ if (capturing) {
   `capture_conditions` のページ（name・path）かビューポート（label・寸法）を変えたときも、`performance.capture` と合わなくなるので、採り直して `summarize` を通し直す。
   採取ファイルは採ったときの組の定義（`capture`）を持つので、採り直さずに `summarize` だけを通し直すと exit 2 になる。
   `compare` は基準の統計を現側の採取ファイルから計算し直して突き合わせるので、`performance.pairs` を手で書き換えても判定には使われない。
-  `perf-stats.mjs` の版（`performance.tool_version`）が変わったときも、`compare` は基準を読まずに exit 2 になる
+  `perf-stats.mjs` のバージョン（`performance.tool_version`）が変わったときも、`compare` は基準を読まずに exit 2 になる
 - feature モードでは、`performance` をキーごと省かない。比べられない事情（target の性能が日によって大きく揺れるなど）があるときだけ `declared: false` と `reason` を書き、`gaps.md` にも同じ文言を残す。
   commit 済みの `floors`・`relative_floors` を消すときは、`floor_history` を残したまま、その項目を持たない要素（`{}` など）を 1 件追記する。
   追記しないと、`replace-strategy` の `append-only-check.mjs` が exit 1 にする。
@@ -1130,7 +1130,7 @@ node <skill>/scripts/artifact-health-check.mjs --metadata .replace/parity/<slug>
 
 ## 状態を変えるスイートは 2 回続けて緑にする
 
-記録は、「どの版のスイートを回したか」に結びつける。
+記録は、「どのバージョンのスイートを回したか」に結びつける。
 2 回緑を記録した後にスペックを書き換えたり、後始末を外したりしても、実行の結果と時刻だけを見るチェックは緑のまま通る。
 今のスイートは一度も 2 回続けて回っていないのに、後始末の誤ったスイートが現行アプリを書き換え続けることになる。
 

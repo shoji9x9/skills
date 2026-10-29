@@ -15,7 +15,7 @@ Issue #540 で、配布スキルの検査のうち利用者の pre-commit・CI �
 分類は「検査が何を読むか（コミット済みの成果物だけか・決定論的か）」で行い、最初は 4 本を組み込む側にした（下の 2 の後で 3 本になった）。
 
 1. `append-only-check` は対象に `.config/skills/*/skills.yml`（全スキルの設定）を含む。工程の中では収束判定が
-   機能着手時の版と比べるだけだったが、起点では毎 commit が対象になる。**他スキル（browser-test）の値を直す正当な編集も
+   機能着手時のバージョンと比べるだけだったが、起点では毎 commit が対象になる。**他スキル（browser-test）の値を直す正当な編集も
    exit 1** になることを、利用者の質問を受けて初めて実測した。最初の報告では「スキルの取り決めどおり」と書いていた。
    `--exclude` を足して設定ファイルを外すことで対処した。
 2. `predicate-coverage-check` は features.md（replace-strategy が書く）と design.md（golden-dataset が書く）を突き合わせる。

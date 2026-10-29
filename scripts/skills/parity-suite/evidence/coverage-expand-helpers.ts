@@ -1351,7 +1351,7 @@ export function expectComponentShapeRejected() {
     /プロファイル nope が同梱ディレクトリに無い/,
   );
   expect(unknownProfile.unmeasured).toBeGreaterThanOrEqual(20);
-  // 版の違いは展開し直しの指示として残す（候補は同じなので未測定には数えない）。
+  // バージョンの違いは展開し直しの指示として残す（候補は同じなので未測定には数えない）。
   expectRejected(
     (cov) => (grid(cov).profile_version = "999"),
     /記録されたプロファイル版（999）が同梱プロファイル（3）と違う/,

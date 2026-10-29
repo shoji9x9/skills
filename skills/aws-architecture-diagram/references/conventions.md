@@ -14,7 +14,7 @@ AWS 構成図を、交差が少なく、軸が揃い、ラベルが読める状�
   出典は [yWorks – Drawing Orthogonal Diagrams](https://www.yworks.com/pages/drawing-orthogonal-diagrams)。
 - 矢印は流れの向きを表す。性質の違う線（認証・非同期）は破線で区別する。
   出典は [C4 model – Notation](https://c4model.com/diagrams/notation)。
-- AWS 公式アイコンには、ラベルを必ず付ける。線は直線を優先し、余白を取り、アイコンの版を混在させない。
+- AWS 公式アイコンには、ラベルを必ず付ける。線は直線を優先し、余白を取り、アイコンのバージョンを混在させない。
   出典は [AWS Architecture Icons](https://aws.amazon.com/architecture/icons/) と [AWS diagram guidelines](https://dev.to/aws-builders/aws-architecture-diagrams-guidelines-595d)。
 
 ## 本スキル固有のルール
@@ -52,7 +52,7 @@ starter kit の描画エンジン（`diagram-engine.mjs`）は、一部を機械
 - キャンバスの端に余白を取る。最も外側のグループの枠がキャンバスの端に接しないよう、`W`・`H` に余白（おおむね 50px 以上）を持たせる。
 - ラベル（`lp`）は、線の出ていない辺（top・bottom・left・right）に寄せる。ラベルを置いた辺に線を引いたら、`lp` を別の空いた辺へ移す。
 - アイコンは、AWS 公式（`aws-icons/`）と AWS 以外（`browser`・`internet` など）を使い分ける。
-  取得の方法と出典は [icons.md](icons.md) にある。版を混在させない。
+  取得の方法と出典は [icons.md](icons.md) にある。バージョンを混在させない。
 
 ## 生成と品質確認
 

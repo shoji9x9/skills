@@ -123,7 +123,7 @@ scripts/eval/run-skill-eval.sh \
   そのため、リポジトリ側のユニットテスト `scripts/skills/parity-suite/evidence/coverage-expand.test.ts` と `scripts/skills/parity-diff/coverage-check.test.ts` が確かめる。
   反応の網羅表の照合（空欄・証拠の欠け・呼び出しの記録の抜け・表の指紋）は、`scripts/skills/parity-suite/checks/reaction-check.test.ts` が確かめる
 - eval 38 は、採取対象が「画面に描かれているもの」かの回帰（Issue #386）である。
-  固定プロパティ集合が全一致で緑なのに画素だけ差が出る状況から、書体の版・ヒンティングの切り分けへ進む案を押し戻せるかを見る。
+  固定プロパティ集合が全一致で緑なのに画素だけ差が出る状況から、書体のバージョン・ヒンティングの切り分けへ進む案を押し戻せるかを見る。
   対象は、採取した要素の矩形の確認、画面の外へ置かれたコピー、論理名の付け直し、同梱ツールが文書の外の要素で採取を失敗させること（欠落へ変換しない）、`child_inline_styles`、マッピング修正後の採り直しである。
   プロンプトには固定プロパティ集合の件数を書かない（初版で書いたところ、件数が現行と合わないことを手がかりに、「採取が古い」という別の筋へ寄った。iteration-36）。
   矩形の判定そのもの（文書の外で落ちる・折り返し下やスクロール外は通る・面積 0 は判定から外す）と、子の inline style の記録は、`scripts/skills/parity-suite/visual/trait-capture.test.ts` が確かめる

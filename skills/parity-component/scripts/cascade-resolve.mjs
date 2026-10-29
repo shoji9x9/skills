@@ -562,7 +562,7 @@ function unknownOrderReason(tierName, candidates) {
  */
 
 /**
- * css-rules.json の版を確かめ、tool_version を返す。
+ * css-rules.json のバージョンを確かめ、tool_version を返す。
  * @param {Record<string, unknown>} document
  * @returns {string}
  */

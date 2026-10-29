@@ -3,7 +3,7 @@
 // docs/tooling.md「JavaScript の拡張子」の住み分けに対応する自動ガード:
 //   - 配布物は `.mjs`: 配布スキル（`skills/**`）は利用者の Node で動くので、ESM を拡張子で保証する。
 //     よって `skills/**` の `.js`・`.cjs`・`.mts`・`.cts`・`.tsx`・`.jsx` は違反。
-//     `.ts` も違反（型を消して実行できる版を利用者に求めない）。
+//     `.ts` も違反（型を消して実行できるバージョンを利用者に求めない）。
 //     ただし `skills/<name>/assets/` の `.ts`（`.d.ts` を含む）は、利用者のプロジェクトへ置く雛形なので対象外。
 //   - 非配布物は `.ts`: リポジトリ内ツール（`scripts/**`）は TypeScript で書き、`pnpm run typecheck` で型を検査する。
 //     よって `scripts/**` の `.js`・`.mjs`・`.cjs` は違反。

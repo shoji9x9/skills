@@ -136,7 +136,7 @@ scripts/tools/reinstall-skill.sh <name>
 `gh skill install` には、このメタデータを足さないようにするオプションが無い（`gh skill install --help` で確かめる）。
 
 このスクリプトはこのリポジトリの開発用のツールで、配布スキルには含めない。
-まだ公開していない手元の編集を `.agents/` と `.claude/` に反映するためのもので、公開済みの版を更新する `gh skill update` とは役割が違い、代わりにもならない。
+まだ公開していない手元の編集を `.agents/` と `.claude/` に反映するためのもので、公開済みのバージョンを更新する `gh skill update` とは役割が違い、代わりにもならない。
 配布スキルの利用者は `gh skill install` と `gh skill update` を使う（README のインストール手順にある）。
 
 ## 回帰テストを実行する
@@ -154,7 +154,7 @@ README には、そのスキルの eval を実行するコマンドの例を置�
 新しい eval をこの一覧に足さない。既存の eval を変えたら、`reachability` を書いて一覧から消す。
 
 配布スキルのうちエージェントが読む文書（`SKILL.md`・`references/`・`assets/`）を規則に合わせて書き換えたら、eval の入力が変わっていなくても、そのスキルの eval を `with_skill` で実行する。
-前回から下がったものは、書き換え前の版と同じ条件で比べる。コメントの行だけを変えたとき（スクリプトや `assets/` の設定ファイルのコメントなど）は対象にしない。
+前回から下がったものは、書き換え前のバージョンと同じ条件で比べる。コメントの行だけを変えたとき（スクリプトや `assets/` の設定ファイルのコメントなど）は対象にしない。
 
 ### 実走の既定スコープ（変更確認と benchmark を分ける）
 
@@ -185,7 +185,7 @@ eval の実行には 2 つの目的があり、必要な run の数が大きく�
   どの iteration もその eval を含まなければ、比べる記録は無いものとして扱う。
   前から在る eval で比べる記録がまだ無いときも、止まって依頼者に確認せず、変更確認のまま進める。
   「比べる記録が無いので、with_skill の結果が下がったかを判断できない」ことを PR の本文に書き、benchmark の実行を残りの作業として挙げる。`issue-batch` では、最終報告にも同じことを載せる。
-  ただし、上の「回帰テストを実行する」で書き換え前の版と比べる対象（エージェントが読む文書を規則に合わせて書き換えたとき。コメントの行だけの変更は除く）に当たるときは、旧版を実行して比べる。
+  ただし、上の「回帰テストを実行する」で書き換え前のバージョンと比べる対象（エージェントが読む文書を規則に合わせて書き換えたとき。コメントの行だけの変更は除く）に当たるときは、旧版を実行して比べる。
   このときは判断できないとは書かず、旧版と比べた結果を PR の本文に書く。
   新しく足した eval は、それより前の iteration に結果が無いので、PR に書くことも、benchmark の実行を残りの作業にすることも要らない。
 - 起動する前に、どの eval のどの入力が変わったかと、run の総数を書き出してから実行する。
@@ -197,10 +197,10 @@ eval の実行には 2 つの目的があり、必要な run の数が大きく�
 #### without-skill baseline の再利用
 
 次のものがすべて同じなら、成功した既存の `without_skill` の run を再利用できる。
-prompt、対象の eval の assertion と `requires_skills`、fixture の相対パス・内容・実行権限、executor、model、reasoning effort、CLI の版、ハーネスの版である。
+prompt、対象の eval の assertion と `requires_skills`、fixture の相対パス・内容・実行権限、executor、model、reasoning effort、CLI のバージョン、ハーネスのバージョンである。
 同じかどうかは `scripts/eval/run-skill-eval.sh` が作る `eval-fingerprint.json` で判断し、目で見たりファイル名だけで判断したりしない。
 再利用するときは、assertion が欠けないように `--eval-id` を、実行時のデフォルト値が変わらないように `--model` と `--reasoning-effort` を指定する。
-executor の CLI の版を取得できなければ止める。
+executor の CLI のバージョンを取得できなければ止める。
 
 ```bash
 scripts/eval/run-skill-eval.sh \
@@ -214,7 +214,7 @@ scripts/eval/run-skill-eval.sh \
 再利用するときは executor を起動しない。
 コピーする前に次のことを確かめる。元の run が成功したこと。`contamination.txt` が `clean` で `isolation.txt` が `sandboxed` であること。
 必要な成果物が揃っていること。fingerprint のすべての項目が一致すること。
-`baseline-reuse.json` に、再利用元・fingerprint・executor・model・reasoning effort・CLI とハーネスの版を記録する。
+`baseline-reuse.json` に、再利用元・fingerprint・executor・model・reasoning effort・CLI とハーネスのバージョンを記録する。
 一致しない・欠けている・汚染の判定が不正のいずれかなら exit 6 で止め、新しい run を求める。
 自動で新しい LLM の run を実行すると、かかったコストが見えなくなるので、そうしない。
 
@@ -491,12 +491,12 @@ node scripts/eval/build-skill-eval-benchmark.ts tests/<name>/iteration-N \
 - `notes` は文章なので、スクリプトは作らない。`--notes-file`（1 行に 1 つの note を書いたテキストか、文字列の配列の JSON）で渡す。
 - 既存の `benchmark.json` は、`--force` を付けない限り上書きしない。手で足した備考を消さないためである。
 - `time_seconds` と `tokens` は `timing.json` から、`tool_calls` と `errors` は `outputs/metrics.json` から取る。
-  model・reasoning effort・CLI とハーネスの版は、各 run の `result.json` と `timing.json` にある。
+  model・reasoning effort・CLI とハーネスのバージョンは、各 run の `result.json` と `timing.json` にある。
 - `benchmark.md` は人が書く。このスクリプトが作るのは `benchmark.json` だけである。
   テストの結果に手元の絶対パスやユーザー固有の情報が含まれるときは、commit の前に `<repo>` や `<home>` などのプレースホルダに置き換える。
 
 スキルのインストールの手順やセットアップの手順を変えたときも、そのスキルの eval を実行する。
 テストの結果に手元の絶対パスやユーザー固有の情報が含まれるときは、commit の前に `<repo>` や `<home>` などのプレースホルダに置き換える。
 
-まだ commit していないスキルの変更で benchmark を取るとき、worktree で分けると HEAD の古い版を測ってしまう。
-読み取りだけの試し実行なら、分けずに作業ツリーの版を測るか、先に commit する。
+まだ commit していないスキルの変更で benchmark を取るとき、worktree で分けると HEAD の古いバージョンを測ってしまう。
+読み取りだけの試し実行なら、分けずに作業ツリーのバージョンを測るか、先に commit する。

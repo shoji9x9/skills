@@ -517,7 +517,7 @@ function readExisting(o) {
   const windowStart = o.now - RECORD_WINDOW_MS;
   const last = loadLastCollect(o.lastPath, o.person, o.now);
   const collectedInWindow = last !== null && last >= windowStart;
-  // 範囲の中で collect していなければ（この版にした後の最初の collect・新しい clone）、範囲より古い行もすべて書くので、
+  // 範囲の中で collect していなければ（このバージョンにした後の最初の collect・新しい clone）、範囲より古い行もすべて書くので、
   // 記録も全体を読み、記録済みの行を重ねて書かない
   const read = collectedInWindow
     ? readRecords(o.recordsDir, { since: windowStart, keep: o.keep })

@@ -12,7 +12,7 @@
 // | 対象件数     | 0 件 / 1 件 / 複数件                                            |
 //
 // 検出されることの確認は、合成した fixture だけでなく**実データ**でも行う。このリポジトリで実際に
-// NUL が含まれていた kaizen ノートの、修正前の版（NUL を戻したもの）を入力にする。
+// NUL が含まれていた kaizen ノートの、修正前のバージョン（NUL を戻したもの）を入力にする。
 // 誤検知しないことの確認は、実リポジトリ全体で行う（修正後は 0 件）。
 import { assert, test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
@@ -71,7 +71,7 @@ test("対象拡張子の判定: テキストだけを拾う", () => {
   expect(isTextPath("a/README")).toBe(false);
 });
 
-test("検出の確認（実データ）: 混入していた版を入力にすると検出する", () => {
+test("検出の確認（実データ）: 混入していたバージョンを入力にすると検出する", () => {
   // ノートは適用後に .kaizen/archive/ へ移るので、両方の置き場を見る。
   // 見つからないときは skip せず落とす（検出の確認に使う入力が消えたまま、成功になるのを防ぐ）。
   const NOTE = "2026-09-18-control-characters-rejected-in-tool-arguments.md";

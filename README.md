@@ -47,7 +47,7 @@ Claude Code・Codex・GitHub Copilot に対応した、マルチエージェン�
 
 ## 前提条件
 
-- [GitHub CLI](https://cli.github.com/) の v2.90.0 以降。`gh skill` コマンドは v2.90.0 で導入された（[リリースノート](https://github.com/cli/cli/releases/tag/v2.90.0)）。版は `gh --version` で確かめる。
+- [GitHub CLI](https://cli.github.com/) の v2.90.0 以降。`gh skill` コマンドは v2.90.0 で導入された（[リリースノート](https://github.com/cli/cli/releases/tag/v2.90.0)）。バージョンは `gh --version` で確かめる。
 - `gh auth login` で GitHub に認証済みであること
 
 ## インストール

@@ -463,7 +463,7 @@ status check の context だけを見ると、ruleset が workflow そのもの�
    [GitHub REST: Get branch protection](https://docs.github.com/en/rest/branches/branch-protection#get-branch-protection)）。片方が 404 でも「必須チェックが無い」と判定せず、もう片方を確かめる。
    rules の API はページングの対象なので、`gh api --paginate` ですべてのページを取得する。デフォルトのページの結果だけを全件として扱わない。ページの取得が途中で失敗した場合も、必須 CI を取得できないものとして確定しない。
    返された ruleset の rule は、type で先に絞らず、すべてを棚卸しする。現行の API の `required_status_checks` に加えて、`workflows` の `parameters.workflows[]` が指す必須の workflow や、`code_scanning` など自動の検査を強制する rule も対象にする。
-   必須の workflow は、`repository_id` から定義元のリポジトリを解決し、`path` と、指定されていれば `ref` / `sha` の版を読む。これから追加されるものを含め、CI・workflow・検査を強制しうる未知の rule type を分類しないまま無視せず、意味を公式の仕様で確かめられるまで確定しない。
+   必須の workflow は、`repository_id` から定義元のリポジトリを解決し、`path` と、指定されていれば `ref` / `sha` のバージョンを読む。これから追加されるものを含め、CI・workflow・検査を強制しうる未知の rule type を分類しないまま無視せず、意味を公式の仕様で確かめられるまで確定しない。
 2. 必須の status check の context は、文字列から job を推測せず、対象のブランチに向けた実在の PR や commit で作られた check run の `name` と照合し、check run の workflow / job へたどる。
    同じ名前の job が複数の workflow にある、matrix などで実行時に名前が展開される、まだ check run が作られていない、など一意に対応できない状態では確定しない。
    GitHub も、required status checks では job の名前をすべての workflow で一意にするよう求めている
@@ -884,7 +884,7 @@ DB の接続情報もアプリの認証情報も、スキルは環境変数か�
   この設定の対象は、スクリーンショットなどの大きなバイナリだけである。
 - ここで決めるのはデフォルトの値で、`artifacts.overrides.<slug>` で機能ごとに上書きできる（`.gitattributes` はパスを指定できるので、`git-lfs` も機能の単位で成り立つ）。
   上書きは `parity-suite` が受け取り、実際に選ばれた保存先を `metadata.json` に記録する。
-- `retention` は版についての設定で、同じ版の 2 回目の採取（ノイズの測定のため）には当てない。
+- `retention` はバージョンについての設定で、同じバージョンの 2 回目の採取（ノイズの測定のため）には当てない。
   ノイズの基準値と新側の自分のノイズを測るための 2 回目の採取物は、基準値を記録したら削除する一時的な作業物として扱う。
   `storage` の選択にも、コミットの対象（テキストは Git）にも入れない（手順の原本は `parity-suite` の `references/baseline.md`、新側は `parity-diff` の `references/capture-new.md`）。
 

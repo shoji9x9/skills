@@ -213,7 +213,7 @@ export function countCoverage(
 /** coverage-expand が書き戻すプロファイル適合の記録（無い・ok: false は収束させない）。 */
 export const conformance: Conformance = {
   tool: "coverage-expand",
-  // 撮影状態の要約は生成側の版が下限以上のときだけ信頼される（導出の意味論が変わった版）。
+  // 撮影状態の要約は生成側のバージョンが下限以上のときだけ信頼される（導出の意味論が変わったバージョン）。
   tool_version: String(MIN_COVERAGE_EXPAND_VERSION),
   ok: true,
   visual_states: { checked: true, rows: 0, undecided: 0, missing_states: [] },

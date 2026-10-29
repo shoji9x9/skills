@@ -9,7 +9,7 @@
 //      baseline_dir に在るのに entries に無いファイルは未宣言として落とす（宣言の無いものだけを落とす）。
 //   2. 反復実行（suite.state_mutating / suite.repeat_run）: 状態を変えるスイートは 2 回続けて緑であることを求める。
 //      1 回目は初期状態から始まるため後始末の有無が結果に現れない。
-//      記録は suite_fingerprint で「どの版のスイートを回したか」に結びつける。
+//      記録は suite_fingerprint で「どのバージョンのスイートを回したか」に結びつける。
 //      結びつけないと、2 回緑を記録した後にスペックや後始末を変えても、古い記録で緑のまま通る。
 //      repeat_run.specs（スペックごとの分類）を持つ成果物は、スペック単位で判定する。
 //      2 回を求めるのは状態を変えるスペックだけで、記録はスペックごとの指紋と共通部分の指紋に結びつける。
@@ -20,7 +20,7 @@
 //      （converged が偽でも落とさない）。dataset_version は数値の一致では見ない。陳腐化の原本は
 //      golden-dataset の references/versioning.md で、ここでは交差を見るまでもなく確定する形だけを落とす。
 //      投入対象でない target は dataset_version: null ＋ dataset_version_exempt で免除される（parity-diff の references/preflight.md）。
-//      --carry-to <SHA> を渡すと、diff-metadata.json の new.commit からその版への持ち越しも必ず判定する。
+//      --carry-to <SHA> を渡すと、diff-metadata.json の new.commit からそのバージョンへの持ち越しも必ず判定する。
 //      部品改修の一括再検証の直後は、replace-metadata.json の new.commit が改修前のままで、食い違いの判定が呼ばれないためである。
 //
 // 何をしないか: 採取・加工・スイートの実行はしない。ここでは記録と実体を突き合わせるだけ。
@@ -766,7 +766,7 @@ const NO_SUITE_SOURCE = `suite.${SUITE_SOURCE_KEYS.join(" / ")} がどれも宣�
  * 現在のスイートの指紋を計算する。
  *
  * 2 回緑を記録した後にスペックを書き換えたり後始末を外したりしても、記録だけを見る検査は緑のまま通る。
- * 記録が「どの版のスイートを 2 回回したか」を持たないためで、指紋を記録・照合して初めて
+ * 記録が「どのバージョンのスイートを 2 回回したか」を持たないためで、指紋を記録・照合して初めて
  * 「いまのスイートが 2 回続けて回った」と言える。
  *
  * 列挙は宣言されたパス（suite.specs / locator_map / expectations / interactions / tools）から行い、
@@ -1243,13 +1243,13 @@ function checkRepeatRunPerSpec(suiteObj, record, root) {
 
   const { runRecords, withoutSpecPrints } = readPerSpecRuns(record);
   findings.push(...mutatingSpecFindings(mutating, runRecords, current));
-  // 状態を変えないスペックは 1 回の緑で足りるが、その 1 回も現在の版に結びつける。
+  // 状態を変えないスペックは 1 回の緑で足りるが、その 1 回も現在のバージョンに結びつける。
   // 結びつけないと、状態を変えないスペックを書き換えた（壊した）後も、状態を変えるスペックの記録だけで通る
   const readOnly = current.specFiles.filter((f) => declared.get(f) === false);
   findings.push(...readOnlySpecFindings(readOnly, runRecords, current));
   /** @type {string[]} */
   const notes = [
-    `スペック単位で判定: 状態を変えるスペック ${mutating.length} 件は 2 回続けての緑、状態を変えないスペック ${readOnly.length} 件は現在の版での 1 回の緑で足りる（共通部分 ${current.sharedFiles} ファイル、current_excluded ${excluded.length} 件）`,
+    `スペック単位で判定: 状態を変えるスペック ${mutating.length} 件は 2 回続けての緑、状態を変えないスペック ${readOnly.length} 件は現在のバージョンでの 1 回の緑で足りる（共通部分 ${current.sharedFiles} ファイル、current_excluded ${excluded.length} 件）`,
   ];
   if (withoutSpecPrints > 0) {
     notes.push(
@@ -1373,7 +1373,7 @@ function runsWithSpec(list, spec) {
 }
 
 /**
- * 状態を変えるスペックごとに、直近 2 回の記録が緑で、現在のスペックと共通部分の版に結びつくかを数える。
+ * 状態を変えるスペックごとに、直近 2 回の記録が緑で、現在のスペックと共通部分のバージョンに結びつくかを数える。
  * @param {string[]} mutating
  * @param {Record<string, unknown>[]} list - repeat_run.runs（すべてオブジェクト）
  * @param {{ shared: string | null, specs: Record<string, string> }} current
@@ -1403,7 +1403,7 @@ function mutatingSpecFindings(mutating, list, current) {
     );
     if (shared.some((fp) => fp === null)) {
       findings.push(
-        `スペック ${spec} の記録に shared_fingerprint が無い（スペックが共通に読む部分のどの版で回したか対応づかない）`,
+        `スペック ${spec} の記録に shared_fingerprint が無い（スペックが共通に読む部分のどのバージョンで回したか対応づかない）`,
       );
     } else if (shared.some((fp) => fp !== current.shared)) {
       findings.push(
@@ -1416,7 +1416,7 @@ function mutatingSpecFindings(mutating, list, current) {
 }
 
 /**
- * 状態を変えないスペックごとに、直近の記録が緑で、現在のスペックと共通部分の版に結びつくかを数える。
+ * 状態を変えないスペックごとに、直近の記録が緑で、現在のスペックと共通部分のバージョンに結びつくかを数える。
  * @param {string[]} readOnly
  * @param {Record<string, unknown>[]} list - repeat_run.runs（すべてオブジェクト）
  * @param {{ shared: string | null, specs: Record<string, string> }} current
@@ -1604,7 +1604,7 @@ function suiteFingerprintBinding(tailRecords, suiteObj, root) {
   if (!prints.every((p) => nonEmptyString(p))) {
     return {
       findings: [
-        "連続する 2 回のうち片方だけ suite_fingerprint を持つ（どの版のスイートを回したか対応づかない）",
+        "連続する 2 回のうち片方だけ suite_fingerprint を持つ（どのバージョンのスイートを回したか対応づかない）",
       ],
       notes: [],
     };
@@ -1764,7 +1764,7 @@ function judgeUnmeasuredEntry(entry, i, seen) {
 }
 
 /**
- * 整数として読める値に直す（数値・数字だけの文字列を受ける）。版と反復回数の両方で使う。
+ * 整数として読める値に直す（数値・数字だけの文字列を受ける）。バージョンと反復回数の両方で使う。
  * @param {unknown} v
  * @returns {number | null}
  */
@@ -1775,7 +1775,7 @@ function toInteger(v) {
 }
 
 /**
- * 記録済みの版 V より後、現在の版 C までの changes[].affects を集める。
+ * 記録済みのバージョン V より後、現在のバージョン C までの changes[].affects を集める。
  * 履歴が不正（欠番・重複・affects が配列でない）なときは null を返す。
  * 原本（golden-dataset の references/versioning.md）が「影響なしとして扱わない」と定めているため、
  * 呼び出し側はこれを陳腐化として扱う。
@@ -1796,15 +1796,15 @@ export function affectsBetween(changes, v, c) {
   for (let i = 1; i <= c; i += 1) if (!byVersion.has(i)) return null;
   /** @type {string[]} */
   const out = [];
-  // 1 から c までの版がすべて在ることは、直前で確かめている
+  // 1 から c までのバージョンがすべて在ることは、直前で確かめている
   for (let i = v + 1; i <= c; i += 1) out.push(...(byVersion.get(i) ?? []));
   return [...new Set(out)];
 }
 
 /**
- * changes[] の 1 件から版と affects を読む。不正（版が読めない・既に読んだ版・affects が文字列の配列でない）なら null。
+ * changes[] の 1 件からバージョンと affects を読む。不正（バージョンが読めない・既に読んだバージョン・affects が文字列の配列でない）なら null。
  * @param {unknown} change
- * @param {Map<number, string[]>} byVersion - 既に読んだ版（重複の検出に使う。この関数は足さない）
+ * @param {Map<number, string[]>} byVersion - 既に読んだバージョン（重複の検出に使う。この関数は足さない）
  * @returns {{ ver: number, affects: string[] } | null}
  */
 function readChange(change, byVersion) {
@@ -1825,9 +1825,9 @@ function readChange(change, byVersion) {
  * component-comparison-check.mjs の comparison-implementation-stale と同じ関数で判定し、2 つのチェックの判定を揃える。
  *
  * carryTo（--carry-to）を渡すと、replace-metadata.json の new.commit とは別に、diff-metadata.json の new.commit から
- * その版への持ち越しを必ず judgeCarry で判定する。部品改修の一括再検証の直後は両方の記録が改修前の版で
+ * そのバージョンへの持ち越しを必ず judgeCarry で判定する。部品改修の一括再検証の直後は両方の記録が改修前のバージョンで
  * 一致し、上の食い違いの判定が呼ばれないため、不正な evidence-carry.json がその場で見つからない。
- * 判定できない状態（工程の節を判定しない・記録の版が SHA でない）は合格として扱わない。
+ * 判定できない状態（工程の節を判定しない・記録のバージョンが SHA でない）は合格として扱わない。
  * @param {{ root: string, slugDir: string, target: string, newRepo?: string | null, replaceRoot?: string | null, featureMetadata?: unknown, carryTo?: string | null }} ctx
  * @returns {{ judged: boolean, findings: string[], notes: string[] }}
  */
@@ -1960,13 +1960,13 @@ function judgeStageTargets(s) {
   // none の枝へ入ると dirty の判定へ到達せず、同じ反復のまま中身だけ変わった実装が素通りする。
   if (s.replaceNew !== null && s.replaceNew.dirty === true) {
     s.findings.push(
-      `新側の版を特定できない（replace-metadata.json の new.dirty: true。未コミット変更があるので版の同一性を確かめられない）: ${s.diffPath}`,
+      `新側のバージョンを特定できない（replace-metadata.json の new.dirty: true。未コミット変更があるのでバージョンの同一性を確かめられない）: ${s.diffPath}`,
     );
   }
 }
 
 /**
- * 記録の版から今の版へ、証跡を持ち越せるかを evidence-carry.mjs の judgeCarry で判定する。
+ * 記録のバージョンから今のバージョンへ、証跡を持ち越せるかを evidence-carry.mjs の judgeCarry で判定する。
  * @param {StageState} s
  * @param {string} recordedCommit
  * @param {string} wantedCommit
@@ -1992,19 +1992,19 @@ function carryFrom(s, recordedCommit, wantedCommit) {
 function judgeStageCommits(s) {
   const replaceCommit = s.replaceNew === null ? undefined : s.replaceNew.commit;
   const diffCommit = s.diffNew === null ? undefined : s.diffNew.commit;
-  // judgedWanted: 食い違いの判定で既に judgeCarry に掛けた「今の版」。--carry-to が同じ版なら二重に判定しない。
-  // versionDelegatedToIteration: commit が `none` センチネルで、版の対応が反復回数だけに委ねられたか。
+  // judgedWanted: 食い違いの判定で既に judgeCarry に掛けた「今のバージョン」。--carry-to が同じバージョンなら二重に判定しない。
+  // versionDelegatedToIteration: commit が `none` センチネルで、バージョンの対応が反復回数だけに委ねられたか。
   // 委ねた先も読めないときに、合格として扱わないための材料（反復回数の判定で使う）。
   if (!nonEmptyString(replaceCommit) || !nonEmptyString(diffCommit)) {
     s.notes.push(
-      "new.commit を片側が持たないため新側の版の対応を判定しない（旧成果物）: 記録があれば次の実行から判定する",
+      "new.commit を片側が持たないため新側のバージョンの対応を判定しない（旧成果物）: 記録があれば次の実行から判定する",
     );
     return { judgedWanted: null, versionDelegatedToIteration: false };
   }
   const wanted = String(replaceCommit).trim();
   const recordedCommit = String(diffCommit).trim();
   // **反復回数へ委ねるのは、両側とも `${NO_COMMIT}` のときだけである**。片側だけが `none` なら、
-  // 記録した SHA と現在の `none`（またはその逆）は同じ版を指さない。反復回数が
+  // 記録した SHA と現在の `none`（またはその逆）は同じバージョンを指さない。反復回数が
   // たまたま一致しただけで合格として扱うと、git 管理の有無が変わった新側で古い成果物が通る
   // （component-comparison-check.mjs と同じ規則。原本は references/coverage.md）。
   if (wanted === NO_COMMIT && recordedCommit === NO_COMMIT) {
@@ -2021,7 +2021,7 @@ function judgeStageCommits(s) {
     s.notes.push(...carry.notes.map((note) => `${note}: ${s.diffPath}`));
   } else {
     s.findings.push(
-      `diff-metadata.json が今の新側の版に対応していない（new.commit ${recordedCommit} ≠ replace-metadata.json の ${wanted}）: ${s.diffPath}`,
+      `diff-metadata.json が今の新側のバージョンに対応していない（new.commit ${recordedCommit} ≠ replace-metadata.json の ${wanted}）: ${s.diffPath}`,
     );
     s.findings.push(...carry.findings.map((f) => `証跡を持ち越せない: ${f}`));
     s.notes.push(...carry.notes);
@@ -2030,7 +2030,7 @@ function judgeStageCommits(s) {
 }
 
 /**
- * --carry-to: 記録の版から検証先の版への持ち越しを、replace-metadata.json の new.commit に依らず判定する。
+ * --carry-to: 記録のバージョンから検証先のバージョンへの持ち越しを、replace-metadata.json の new.commit に依らず判定する。
  * @param {StageState} s
  * @param {string | null} judgedWanted
  */
@@ -2041,7 +2041,7 @@ function judgeCarryTo(s, judgedWanted) {
     const recorded = nonEmptyString(diffCommit) ? String(diffCommit).trim() : null;
     if (recorded === null || recorded === NO_COMMIT) {
       s.findings.push(
-        `--carry-to ${carryTo} への持ち越しを判定できない（diff-metadata.json の new.commit が ${recorded ?? "無い"}。記録の版が SHA でないと描画入力の差分を取れない）: ${diffPath}`,
+        `--carry-to ${carryTo} への持ち越しを判定できない（diff-metadata.json の new.commit が ${recorded ?? "無い"}。記録のバージョンが SHA でないと描画入力の差分を取れない）: ${diffPath}`,
       );
       return;
     }
@@ -2050,7 +2050,7 @@ function judgeCarryTo(s, judgedWanted) {
       s.notes.push(...carry.notes.map((note) => `--carry-to ${carryTo}: ${note}: ${diffPath}`));
     } else {
       s.findings.push(
-        `diff-metadata.json の証跡を --carry-to の版へ持ち越せない（new.commit ${recorded} → ${carryTo}）: ${diffPath}`,
+        `diff-metadata.json の証跡を --carry-to のバージョンへ持ち越せない（new.commit ${recorded} → ${carryTo}）: ${diffPath}`,
       );
       s.findings.push(...carry.findings.map((f) => `証跡を持ち越せない: ${f}`));
       s.notes.push(...carry.notes);
@@ -2074,12 +2074,12 @@ function judgeStageIteration(s, versionDelegatedToIteration) {
       );
     }
   } else if (versionDelegatedToIteration) {
-    // **委譲した先が読めないことを合格として扱わない**。commit が `none` の枝は、版の対応を
+    // **委譲した先が読めないことを合格として扱わない**。commit が `none` の枝は、バージョンの対応を
     // 反復回数へ委ねている。その反復回数も読めないと、実装を変えても古い成果物が、
-    // 版の検査を 1 つも受けずに通ってしまう（component-comparison-check.mjs の
+    // バージョンの検査を 1 つも受けずに通ってしまう（component-comparison-check.mjs の
     // comparison-implementation-unversionable と同じ扱いにする）。
     s.findings.push(
-      `新側の版を対応づける指標が無い（new.commit が ${NO_COMMIT} なのに iteration: ${recordedIteration === null ? "読めない" : recordedIteration} / loop.iterations: ${iterations === null ? "読めない" : iterations}）: ${s.diffPath}`,
+      `新側のバージョンを対応づける指標が無い（new.commit が ${NO_COMMIT} なのに iteration: ${recordedIteration === null ? "読めない" : recordedIteration} / loop.iterations: ${iterations === null ? "読めない" : iterations}）: ${s.diffPath}`,
     );
   } else {
     s.notes.push(
@@ -2089,7 +2089,7 @@ function judgeStageIteration(s, versionDelegatedToIteration) {
 }
 
 /**
- * データセットの版で diff-metadata.json の鮮度を見る。converged が偽でも落とさない。
+ * データセットのバージョンで diff-metadata.json の鮮度を見る。converged が偽でも落とさない。
  * @param {StageState} s
  */
 function judgeStageDataset(s) {
@@ -2119,7 +2119,7 @@ function datasetVersionExempted(s) {
   }
   if (!nonEmptyString(exempt)) return false;
   // 免除は「dataset_version: null ＋ 理由」という閉じた対（原本の定める形）。
-  // 理由が残っているだけで版の検査を飛ばすと、投入対象の target に古い免除文字列が残ったまま
+  // 理由が残っているだけでバージョンの検査を飛ばすと、投入対象の target に古い免除文字列が残ったまま
   // 鮮度の判定が丸ごと外れる。対になっていなければ免除ではなく記録の不整合として落とす。
   if (diffMeta.dataset_version !== null) {
     s.findings.push(
@@ -2135,7 +2135,7 @@ function datasetVersionExempted(s) {
 }
 
 /**
- * データセットの現在の版と、diff-metadata.json に記録した版を読む。読めなければ所見を足して null を返す。
+ * データセットの現在のバージョンと、diff-metadata.json に記録したバージョンを読む。読めなければ所見を足して null を返す。
  * @param {StageState} s
  * @returns {{ v: number, c: number, datasetMeta: Record<string, unknown>, datasetPath: string } | null}
  */
@@ -2144,7 +2144,7 @@ function readDatasetVersions(s) {
   const datasetPath = join(s.ctx.root, ".replace", "dataset", "metadata.json");
   if (!existsSync(datasetPath)) {
     s.findings.push(
-      `データセットの版を読めないため鮮度を判定できない（判定不能を合格として扱わない）: ${datasetPath}`,
+      `データセットのバージョンを読めないため鮮度を判定できない（判定不能を合格として扱わない）: ${datasetPath}`,
     );
     return null;
   }
@@ -2183,7 +2183,7 @@ function readDatasetVersions(s) {
 }
 
 /**
- * 記録した版 v と現在の版 c の区間を見る。判定を続けてよいなら true を返す。
+ * 記録したバージョン v と現在のバージョン c の区間を見る。判定を続けてよいなら true を返す。
  * @param {StageState} s
  * @param {{ v: number, c: number, datasetMeta: Record<string, unknown>, datasetPath: string }} versions
  * @returns {boolean}
@@ -2193,7 +2193,7 @@ function judgeDatasetRange(s, { v, c, datasetMeta, datasetPath }) {
   // 記録済み V・現在 C として 1 <= V <= C を確かめ、V < change.version <= C の affects が
   // slug の実効参照テーブルと交差するときだけ陳腐化する。実効参照テーブルは .replace/features.md から導く。
   // 導出規則の原本は golden-dataset 側にあるため、ここで 2 つ目の実装を作らない。
-  // ここで落とすのは、交差を見るまでもなく陳腐化が確定する形（版が読めない・区間に * がある・履歴が不正）だけである。
+  // ここで落とすのは、交差を見るまでもなく陳腐化が確定する形（バージョンが読めない・区間に * がある・履歴が不正）だけである。
   if (v < 1 || v > c) {
     s.findings.push(
       `dataset_version の範囲が不正（記録 ${v} / 現在 ${c}。1 <= 記録 <= 現在 を満たさない）: ${s.diffPath}`,
@@ -2442,7 +2442,7 @@ const usage = [
   "  --target    新側 target 名。渡したときだけ工程の成果物（diff-metadata.json）の在否と鮮度を判定する",
   "  --stage     呼び出し元の工程。diff（デフォルト・収束判定。未測定の blocking で落とす） | suite（完了判定。blocking は落とさない）",
   "  --new-repo  新側リポジトリの最上位。new.commit が食い違うとき、new.render_inputs の差分で証跡を持ち越せるかを判定する（無ければ持ち越さない）",
-  "  --carry-to  検証先の新側の版（部品改修の一括再検証では変更宣言の commits.after）。diff-metadata.json の new.commit からこの版への持ち越しを、replace-metadata.json の new.commit が同じでも必ず判定する（--target と --new-repo が要る）",
+  "  --carry-to  検証先の新側のバージョン（部品改修の一括再検証では変更宣言の commits.after）。diff-metadata.json の new.commit からこのバージョンへの持ち越しを、replace-metadata.json の new.commit が同じでも必ず判定する（--target と --new-repo が要る）",
   "  --fingerprint  検査せず、反復実行の記録に書く指紋（suite_fingerprint / shared_fingerprint / spec_fingerprints）を JSON で出す",
   "  --replace-root  .replace ディレクトリ（省略時は <root>/.replace）。変更宣言・部品 metadata・evidence-carry.json の相対パスはその親から解決する",
   "exit: 0 = 条件を満たす（判定しない節を含む） / 1 = 未検証・不整合が残る / 2 = 使い方の誤り・型の誤り",

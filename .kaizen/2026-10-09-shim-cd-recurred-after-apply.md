@@ -14,7 +14,7 @@ session: claude-code
 Issue #425 で 2026-09-30-temp-dir-cwd-breaks-mise-shim（適用先: AGENTS.md・acceptance.md・pnpm-transitive-update.md）を applied にした。
 その同じセッションで、commit message を scratchpad へ heredoc で書くため、`cd /tmp/claude-1000 && cat > c1.txt ... ; pnpm --dir <repo> exec commitlint ...` を実行した。
 `mise ERROR No version is set for shim: pnpm` で 4 回とも起動自体が失敗した（6 回目の再発）。
-`--dir` を付ければリポジトリの設定で動くと考えたが、shim は pnpm 自体の版を cwd で決めるので、`--dir` では変わらない。
+`--dir` を付ければリポジトリの設定で動くと考えたが、shim は pnpm 自体のバージョンを cwd で決めるので、`--dir` では変わらない。
 
 ## 根本原因
 
@@ -38,7 +38,7 @@ KEDB: 2026-09-30-temp-dir-cwd-breaks-mise-shim（applied）、archive/2026-09-03
 提案の guard のルールは作らず、原因の側で閉じた（利用者の決定）。
 呼び出しの形を読むルールは列挙が尽きず（`2026-10-09-fix-at-cause-before-caller-check`）、失敗そのものは副作用の無い大きなエラーで気づけるので、止める費用に見合わないと判断した。
 
-- 利用者のグローバルの mise 設定（`~/.config/mise/config.toml`）に `node` と `pnpm` のデフォルトの版を置き、`mise lock --global` を `$HOME` から実行した
+- 利用者のグローバルの mise 設定（`~/.config/mise/config.toml`）に `node` と `pnpm` のデフォルトのバージョンを置き、`mise lock --global` を `$HOME` から実行した
 - 確かめた結果: `/tmp` から shim の `pnpm --version`・`node --version` が起動する。グローバル設定を外した同じ呼び出しは `No version is set for shim: pnpm` で失敗する
-- 各プロジェクトの `mise.toml` の版が優先されるので、プロジェクトの間で版をそろえる必要はない
+- 各プロジェクトの `mise.toml` のバージョンが優先されるので、プロジェクトの間でバージョンをそろえる必要はない
 - 範囲はこの PC だけである。他の環境で同じ失敗が起きたら、同じ設定を入れるかをその環境の利用者が決める

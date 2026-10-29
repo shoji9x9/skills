@@ -178,7 +178,7 @@
         "version 5 より後の v6 と v7 の affects を両方調べ、role-admin だけを再取得対象にしている",
         "order-list は orders と roles / audit_logs が交差しないため、header は実効参照テーブルが空集合のため再取得不要としている",
         "再取得不要な order-list と header の dataset_version を 7 へ書き換えず、採取時の 5 を保持すると説明している",
-        "最新 1 版の affects だけを見る、または数値の 5 < 7 だけで全件を陳腐化する判定を採っていない"
+        "最新 1 バージョンの affects だけを見る、または数値の 5 < 7 だけで全件を陳腐化する判定を採っていない"
       ]
     },
     {

@@ -202,7 +202,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
    詳しくは [`references/component-api.md`](references/component-api.md) にある。
 7. 成果物を記録する。書くものは次の 3 つである。
    - `component-api.md`: 固定と可変の割り出しと、引数の候補
-   - `metadata.json`: 撮影条件・ノイズ基準値・ツールの版・データセットの版・`capture.complete`
+   - `metadata.json`: 撮影条件・ノイズ基準値・ツールのバージョン・データセットのバージョン・`capture.complete`
    - `gaps.md`: 採れなかった箇所と理由
 
    `inaccessible` か `unresolved` が 0 でなければ、必ず `gaps.md` に残す。
@@ -214,13 +214,13 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
    判定は 2 段で行う。先に設定の宣言と採取物の実体を全部調べ、欠けがあれば、下の 3 項目（古くなっていないかの判定）に進まずに、見つけた欠けをすべて挙げて停止する。
    宣言と実体はプロジェクトの中のファイルを読むだけで決まるが、古くなっていないかの判定は `parity-suite` 同梱ツールなど、外の実体に依存する。
    順番を決めないと、外の実体のせいで先に止まった実行が宣言の欠けを報告せず、利用者は直して再実行するたびに別の欠けに当たる。
-   - ツールの版を比べる。`metadata.json` の `capture.tools` に記録された版と集合を、今使うツールの実際の版と集合と突き合わせる。
-     版は `traits_version`・`element_shot_version`・`css_rules_version`・`axis_diff_version`・`motion_probe_version`（動きのある部品だけ）で、集合は `traits_property_set` である。
+   - ツールのバージョンを比べる。`metadata.json` の `capture.tools` に記録されたバージョンと集合を、今使うツールの実際のバージョンと集合と突き合わせる。
+     バージョンは `traits_version`・`element_shot_version`・`css_rules_version`・`axis_diff_version`・`motion_probe_version`（動きのある部品だけ）で、集合は `traits_property_set` である。
      違っていれば実装に進まず、`capture` からやり直す。採取のスキーマが違う基準は、比較の入力にならない。
    - 軸を導き直す。`node <skill>/scripts/axis-diff.mjs --baseline .replace/components/<slug>/ --out <一時パス>` を実行し、exit 0 で、記録済みの `axes.json` と一致することを確かめる。
      `metadata.json` の `axes.ok` と、`axes.json` が在ることだけでは、採取物が変わった後の古い軸や、手で直した軸がそのまま引数の設計に渡る（出力からは区別できない）。
-   - データセットの版を比べる（データ依存の部品だけ）。`metadata.json` の `dataset_version` と今の版の間の `changes[].affects` が、その部品の実効参照テーブルと交差するなら、古くなっている。
-     版の数値が古いだけでは、古くなったと判定しない。無関係なテーブルが変わるたびに、採り直しを強いることになるからである。
+   - データセットのバージョンを比べる（データ依存の部品だけ）。`metadata.json` の `dataset_version` と今のバージョンの間の `changes[].affects` が、その部品の実効参照テーブルと交差するなら、古くなっている。
+     バージョンの数値が古いだけでは、古くなったと判定しない。無関係なテーブルが変わるたびに、採り直しを強いることになるからである。
      導き方の規則と、導けないときに停止する取り決めの原本は、`golden-dataset` の `references/versioning.md` である。
 
    選択した新側の target が `auth.roles` を持つなら、カタログに到達する前に、`capture` と同じやり方で `storageState` を用意する（原本は `parity-suite` の `references/auth.md`）。
@@ -265,7 +265,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
    次に `node <skill>/scripts/behavior-compare.mjs --baseline .replace/components/<slug>/ --comparison <その表> --target <target>` を通す。
    一致しないものは要対応として手順 4 へ戻す。現行の挙動を引き継がないと判断するなら、利用者に上げる。詳しくは [`references/behavior.md`](references/behavior.md) にある。
 
-   動きも突き合わせる。`capture` と同じ遷移を、見本で同じ版のプローブで採り、`new/<target>/motion-comparison.json` に書く。
+   動きも突き合わせる。`capture` と同じ遷移を、見本で同じバージョンのプローブで採り、`new/<target>/motion-comparison.json` に書く。
    次に `node <skill>/scripts/motion-compare.mjs --baseline .replace/components/<slug>/ --comparison <その表> --target <target>` を通す。
    一致しないものは要対応として手順 4 へ戻す。動きを引き継がないと判断するなら、利用者に上げる。詳しくは [`references/motion.md`](references/motion.md) にある。
 8. 完了を判定する。次のすべてを満たしたら完了である。
@@ -292,7 +292,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
    issue-start <番号> --acceptance --out .replace/components/<slug>/new/<target>/acceptance.json --decisions .replace/components/<slug>/new/<target>/build-metadata.json
    ```
 
-   - 渡す前に、`build-metadata.json` の `verification` と `pending_decisions` を確定して commit する。commit していない変更が残ると、表が根拠の版を固定できない。
+   - 渡す前に、`build-metadata.json` の `verification` と `pending_decisions` を確定して commit する。commit していない変更が残ると、表が根拠のバージョンを固定できない。
    - 検査の結果は、後から同じファイルの `acceptance` に書く。`loop.stopped_reason` もこのときに書き、次の commit に含める。検査の前に「収束」と書かない。
    - 表を作り直すときは、`commit` をその時点の HEAD にする。手順と表の様式の原本は、`issue-start` の `references/acceptance.md` である。
    - `--allow-later` は渡さない。部品の Issue の条件は、すべてこのスキルの完了で満たす条件だからである（`replace-strategy` の `references/features-issues.md`「共通部品 Issue」）。
@@ -363,8 +363,8 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 - `parity-suite` から受け取るもの: 特性採取ツールと差分ツール、撮影条件とノイズ基準値の規約、状態網羅の導出源の考え方。
   対象の slug で `parity-suite` を実行しておくことは前提にしない。部品の採取に、ページ単位のスイートは要らない。
 - `parity-suite` へ渡すものは無い。ただし、機能の採取が始まったら、部品の基準は、そのインスタンスの現行側のベースラインと同じ現行アプリを指している。
-  データセットの版が上がったときに部品の基準が古くなるかは、版の数値だけでは決まらない。
-  記録した版から今までの `changes[].affects` が、その部品の実効参照テーブルと交差するときだけ、古くなったと判定する（原本は `golden-dataset` の `references/versioning.md`）。
+  データセットのバージョンが上がったときに部品の基準が古くなるかは、バージョンの数値だけでは決まらない。
+  記録したバージョンから今までの `changes[].affects` が、その部品の実効参照テーブルと交差するときだけ、古くなったと判定する（原本は `golden-dataset` の `references/versioning.md`）。
   部品の slug の実効参照テーブルは、インスタンスのページ → `features.md` のページ一覧 → 機能の slug → テーブルの順にたどり、和集合をとって求める。
 - `parity-replace` との関係: 機能の実装中に共通部品を変える必要が出たときの取り決めは、[`references/amend.md`](references/amend.md) で定義し、`parity-replace` はそこに任せる。
   逆に、敵対的レビューとテーマ寄せの手順は `parity-replace` の references が原本で、このスキルがそこに任せる。

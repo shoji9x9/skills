@@ -8,7 +8,7 @@
 | Codex | `.codex/hooks.json` または `.codex/config.toml` の `[hooks]` テーブル | SessionStart, PreToolUse, PostToolUse, Stop |
 | Copilot | `.github/hooks/*.json`（ファイル名は任意） | sessionStart, preToolUse, postToolUse, sessionEnd |
 
-イベントの一覧、入力の JSON、exit code の意味はエージェントごとに違い、版が上がると増える。
+イベントの一覧、入力の JSON、exit code の意味はエージェントごとに違い、バージョンが上がると増える。
 上の列は例なので、使うイベントは各エージェントの公式のリファレンスで確かめる。
 
 - [Claude Code Hooks reference](https://code.claude.com/docs/en/hooks)

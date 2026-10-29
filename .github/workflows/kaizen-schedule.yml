@@ -128,7 +128,7 @@ jobs:
       #
       # **レポートと追跡 Issue の照会は、同じディレクトリから採る。** 片方だけ見つかる
       # ディレクトリは古い（または一部が欠けた）インストールなので、そこから採ると、
-      # レポートは新しいのに照会は古い版、という組み合わせで実行されうる。両方がそろった
+      # レポートは新しいのに照会は古いバージョン、という組み合わせで実行されうる。両方がそろった
       # ディレクトリだけを使い、そろわなければエラーにする。
       - name: Locate kaizen scripts
         id: locate
@@ -270,9 +270,9 @@ jobs:
           MODEL: ${{ steps.settings.outputs.model }}
         run: |
           # メジャーを固定する。`uses:` の SHA pin と違い、インラインの install は pinact も
-          # Dependabot も見ない。版を 1 つに固定すると、更新する手段が無いまま古い CLI が配布先に
-          # 残り、その版が unpublish されると install が失敗する。メジャーの範囲なら、破壊的な変更を
-          # 避けつつ修正は入る。最新の版は `npm view @github/copilot version` で確かめる。
+          # Dependabot も見ない。バージョンを 1 つに固定すると、更新する手段が無いまま古い CLI が配布先に
+          # 残り、そのバージョンが unpublish されると install が失敗する。メジャーの範囲なら、破壊的な変更を
+          # 避けつつ修正は入る。最新のバージョンは `npm view @github/copilot version` で確かめる。
           npm install -g "@github/copilot@^1"
           model_args=()
           if [ -n "$MODEL" ]; then

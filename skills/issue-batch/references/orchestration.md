@@ -256,7 +256,7 @@ Issue ごとの専用の worktree で、`issue-start <Issue URL> --pr` と同じ
   範囲を省くと、upstream より先の commit と commit していない変更が対象になり、upstream が無ければローカルの `main` と比べる。
   ローカルの `main` が古いと、取り込み済みの他の PR の変更まで対象に入るので、範囲を必ず渡す。範囲を渡すために、レビューの前に変更を commit する。
   commit する前に `git status` で変更を挙げ、Issue の変更に関係するファイルだけを stage する。
-  レビューの後に要らないと分かった変更は、新しいファイルなら消す commit を、既存のファイルの変更なら base の版に戻す commit を足す（`--amend` と force push は使わない）。
+  レビューの後に要らないと分かった変更は、新しいファイルなら消す commit を、既存のファイルの変更なら base のバージョンに戻す commit を足す（`--amend` と force push は使わない）。
   足した commit で戻しても、元の中身は履歴に残る。秘密を含むファイルを commit したときは push せず、その Issue を BLOCKED にして、履歴から取り除く方法を利用者に任せる。
   非対話の `claude -p` で呼ぶ方法は、今の CLI で実際に実行して動いた場合だけ使う。動かなければ BLOCKED にする（[Claude Code commands](https://code.claude.com/docs/en/commands)）。
 - GitHub Copilot CLI: `/review` の後に、レビューの対象を文で書いて渡す（[GitHub Docs](https://docs.github.com/en/copilot/how-tos/copilot-cli/automate-copilot-cli/run-cli-programmatically#code-review-a-branch)）。
@@ -597,7 +597,7 @@ stage しただけの新しいファイル、stage した後に書き足した `
 
 1. この Issue の片付けは後に回し、worktree を残したまま次の Issue に進む。manifest には、状態を `BRANCH_CLEANUP` のまま、引き継ぐファイルの一覧を残りの作業として記録する。
 2. 次の Issue の worktree に入った後、最初の commit の前に、その branch がこの Issue の merge commit を含むことを `git merge-base --is-ancestor <merge commit の OID> HEAD` で確かめる。
-   含まない branch（再開した branch など）に複製すると、base にある同じパスの記録（merge の前の版）と内容が違うので、base との merge で add/add の競合になる。その Issue には引き継がずに、さらに次の Issue に回す。
+   含まない branch（再開した branch など）に複製すると、base にある同じパスの記録（merge の前のバージョン）と内容が違うので、base との merge で add/add の競合になる。その Issue には引き継がずに、さらに次の Issue に回す。
    引き継がない branch でも、その Issue の commit で Hook が同じ応答の行を書くことがあり、後で引き継ぐと同じ行が 2 つのファイルに入る。この重なりは、その Hook を持つスキルの定め（`agent-usage` なら `agent-usage` の `references/records.md`「重複の扱い」）で扱う。
    含むなら、引き継ぐファイルを同じ相対パスに複製する。
 3. 複製したファイルは、次の Issue の作業の commit に入れる。記録だけの branch と PR は作らない。

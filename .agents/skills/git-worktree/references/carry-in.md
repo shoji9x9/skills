@@ -8,7 +8,7 @@ worktree は checkout なので、`.gitignore` の対象のファイルは入ら
 Claude Code には、ファイルを運ぶ方法が 2 つある。`.worktreeinclude` は公式のドキュメント
 （[Copy gitignored files into worktrees](https://code.claude.com/docs/en/worktrees#copy-gitignored-files-into-worktrees)）に書かれている。
 `worktree.symlinkDirectories` は公式のドキュメントに書かれておらず、2.1.243 の実装を読んで確かめた挙動である。
-書かれていない設定は予告なく変わることがあるので、頼る前に版を固定して確かめ直す。
+書かれていない設定は予告なく変わることがあるので、頼る前にバージョンを固定して確かめ直す。
 
 | 方法 | 設定 | 向いているもの | 実体 |
 | --- | --- | --- | --- |

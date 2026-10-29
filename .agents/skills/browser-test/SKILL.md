@@ -60,7 +60,7 @@ browser-test setup
     ブラウザ本体の送信を避けるなら、`--executablePath` に Playwright の headless shell（`chromium_headless_shell-<revision>/.../chrome-headless-shell`）を渡す
     （出典: <https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/docs/configuration.md>）。
     MCP が公式に対応するのは Google Chrome と Chrome for Testing なので、headless shell で使うツールは、使う前に 1 度動くことを確かめる。
-    revision は Playwright の版ごとに変わるので、`playwright-core/browsers.json` の `chromium-headless-shell` の `revision` から組み立てる
+    revision は Playwright のバージョンごとに変わるので、`playwright-core/browsers.json` の `chromium-headless-shell` の `revision` から組み立てる
 - WSL で実行する場合は、Chrome 本体と CJK フォント（`fonts-noto-cjk`。日本語の文字化けを防ぐ）が要る。
 - ツール: `git`（確認のスコープを導く）、`curl`（ローカル環境が動いているかを確かめる）
 - Node.js: 設定ファイルを読み書きするときだけ要る（同梱の `scripts/skill-config/skill-config.mjs`）。設定ファイルが 1 つでもあるのに Node.js が無ければ、推定に進まずに止まる

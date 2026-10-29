@@ -286,7 +286,7 @@ function waitForDevToolsUrl(proc: ChromeProcess) {
 }
 
 /**
- * DevTools の HTTP エンドポイントからページのターゲットとブラウザの版を取得し、ページへの WebSocket を開く。
+ * DevTools の HTTP エンドポイントからページのターゲットとブラウザのバージョンを取得し、ページへの WebSocket を開く。
  * 開く前の socket も `connection.ws` に入れ、shutdown が閉じられるようにする。
  */
 async function openPageSocket(wsUrl: string, connection: Connection) {
@@ -558,7 +558,7 @@ function writeBaseline(dir: string, captured: Captured[]): void {
   }
 }
 
-/** metadata.json の capture（状態・操作・動き・ツールの版）を、このスクリプトの宣言と同梱のツールの版で上書きする。 */
+/** metadata.json の capture（状態・操作・動き・ツールのバージョン）を、このスクリプトの宣言と同梱のツールのバージョンで上書きする。 */
 function updateCaptureDeclarations(meta: FixtureMetadata): void {
   meta.capture.states = STATES;
   meta.capture.operations = OPERATIONS;

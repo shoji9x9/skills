@@ -110,6 +110,8 @@ test.each([
   ["CSS の背景色", "前景色と背景色を指定する。"],
   ["図の背景", "角をラベルの背景で隠さない。"],
   ["経緯の意味の背景", "この変更の背景を書く。"],
+  ["熟語の旧版・現行版", "旧版と現行版を同じ条件で実行する。"],
+  ["熟語の修正版・初版", "修正版が出るまで初版を使う。"],
 ])("陰性: %s は検出しない", async (_, sentence) => {
   const root = makeRepo({ "doc.md": `# 例\n\n${sentence}\n` });
   expect((await lintProse({ root })).violations).toEqual([]);

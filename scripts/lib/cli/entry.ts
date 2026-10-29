@@ -1,6 +1,6 @@
 // CLI として起動されたかの判定。
-// `import.meta.main` は Node 24.2・22.18 より古い版に無く、`.ts` を実行できる 23.6〜24.1 では undefined になる。
-// その版で起動すると、Hook とチェックが main を呼ばずに exit 0 で終わるので、版に依らない判定にする。
+// `import.meta.main` は Node 24.2・22.18 より古いバージョンに無く、`.ts` を実行できる 23.6〜24.1 では undefined になる。
+// そのバージョンで起動すると、Hook とチェックが main を呼ばずに exit 0 で終わるので、バージョンに依らない判定にする。
 import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";

@@ -2278,7 +2278,7 @@ function compilePatterns(patterns, { patIds, label, problems }) {
 }
 
 /**
- * 走査範囲と走査した版の欠けを返す。走査した版が測定した現行の版と違えば、測定側にだけある呼び出しが走査に現れない。
+ * 走査範囲と走査したバージョンの欠けを返す。走査したバージョンが測定した現行のバージョンと違えば、測定側にだけある呼び出しが走査に現れない。
  * @param {unknown} src
  * @param {unknown} targetCommit - metadata.json の target.commit（undefined なら照合しない）
  * @param {string} label - 例: feedback_calls.source
@@ -2289,7 +2289,8 @@ function sourceProblems(src, targetCommit, label) {
   if (!isPlainObject(src) || paths.length === 0 || !paths.every(nonEmptyString)) {
     return [`${label}.paths が空（走査範囲が無い）`];
   }
-  if (!nonEmptyString(src.version)) return [`${label}.version が空（どの版を走査したか残らない）`];
+  if (!nonEmptyString(src.version))
+    return [`${label}.version が空（どのバージョンを走査したか残らない）`];
   if (targetCommit === undefined) return [];
   const measured = nonEmptyString(targetCommit) && targetCommit !== "none" ? targetCommit : null;
   const unverified = nonEmptyString(src.version_unverified_reason);
@@ -2297,17 +2298,17 @@ function sourceProblems(src, targetCommit, label) {
     return unverified
       ? []
       : [
-          `走査した版と metadata.json の target.commit を照合できない（どちらかが none）のに ${label}.version_unverified_reason が空`,
+          `走査したバージョンと metadata.json の target.commit を照合できない（どちらかが none）のに ${label}.version_unverified_reason が空`,
         ];
   }
   if (src.version !== measured) {
     return [
-      `${label}.version（${src.version}）が metadata.json の target.commit（${measured}）と違う（測定した版と別の版を走査している）`,
+      `${label}.version（${src.version}）が metadata.json の target.commit（${measured}）と違う（測定したバージョンと別のバージョンを走査している）`,
     ];
   }
   if (unverified) {
     return [
-      `${label}: 走査した版が target.commit と一致しているのに version_unverified_reason が埋まっている`,
+      `${label}: 走査したバージョンが target.commit と一致しているのに version_unverified_reason が埋まっている`,
     ];
   }
   return [];
@@ -2565,7 +2566,7 @@ function scanWriteSites(src, compiled, { recordedCount, ctx, summary }) {
   for (const key of recordedCount.keys()) {
     if (!foundKeys.has(key))
       problems.push(
-        `side_effect_writes.sites: 記録された ${key} がソースに見つからない（版の食い違い・行ずれ）`,
+        `side_effect_writes.sites: 記録された ${key} がソースに見つからない（バージョンの食い違い・行ずれ）`,
       );
   }
 }
@@ -3545,7 +3546,9 @@ function compareFeedbackScan(scan, { handlerRefs, recordedCount }, env) {
   }
   for (const key of recordedCount.keys()) {
     if (!foundKeys.has(key))
-      problems.push(`call_sites: 記録された ${key} がソースに見つからない（版の食い違い・行ずれ）`);
+      problems.push(
+        `call_sites: 記録された ${key} がソースに見つからない（バージョンの食い違い・行ずれ）`,
+      );
   }
 }
 
@@ -4122,7 +4125,7 @@ function checkedMetadata(metadata) {
   if (!isPlainObject(target) || !nonEmptyString(target.name)) {
     throw new UsageError("metadata.json の target.name が空");
   }
-  // 欠落を明示の none と同じ免除へ流さない（照合不能の理由さえ書けば任意の版を通せてしまう）
+  // 欠落を明示の none と同じ免除へ流さない（照合不能の理由さえ書けば任意のバージョンを通せてしまう）
   if (!nonEmptyString(target.commit)) {
     throw new UsageError(
       "metadata.json の target.commit が空（コミット SHA か、入手不可なら none を書く）",

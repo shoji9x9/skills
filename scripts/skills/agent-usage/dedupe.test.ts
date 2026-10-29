@@ -6,7 +6,7 @@
 //   外す側の事象   外した応答の最後の時刻まで（以前）と、その後。
 //
 // 入力の軸（collectLocal のキャッシュ）: 正しい要約・無限大を null にした要約・トークン数が数でない・配列でない欄・
-//   読めないファイル・版の違い・このリポジトリでないセッションの判定の材料（読める・読めない・ルートが変わる）。
+//   読めないファイル・バージョンの違い・このリポジトリでないセッションの判定の材料（読める・読めない・ルートが変わる）。
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -275,7 +275,7 @@ describe("collectLocal のキャッシュ", () => {
     expect(second.rows).toEqual(first.rows);
   });
 
-  test("読めないキャッシュのファイルと、版の違うキャッシュは使わずに解析し直す", () => {
+  test("読めないキャッシュのファイルと、バージョンの違うキャッシュは使わずに解析し直す", () => {
     const f = fixture(session);
     const first = f.collect();
     const path = cachePath(f.commonDir);

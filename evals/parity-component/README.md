@@ -138,7 +138,7 @@ eval 5・6 は、`evals.json` の `requires_skills` で `parity-suite` を両方
 結果は `tests/parity-component/iteration-2/` にある。読み取れたことは 4 つある。
 
 - **eval 5 は目的の分岐へ到達し、最も大きな差が出た。** `with_skill` は、カタログの取り決めのドキュメントと baseURL の欠落を挙げて停止した。
-  あわせて、`build` の前提の検証（採取物 8 組の実在の確認・`--baseline` での軸の再導出と `axes.json` の一致・スクリプトの版の突き合わせ）を実行している。
+  あわせて、`build` の前提の検証（採取物 8 組の実在の確認・`--baseline` での軸の再導出と `axes.json` の一致・スクリプトのバージョンの突き合わせ）を実行している。
   `without_skill` は停止せず、**部品を実装して見本まで書いた**（1/6）。前段のチェックを解消したので、この eval が測りたかった差がそのまま出た
 - **eval 3 は今回も差が 0 件だった**（上記「eval 3 は Delta ではなく後退の検知のためのもの」の再確認）。`without_skill` も、網羅表が動作しか数えていないことを自力で述べた
 - **eval 6 は iteration-2 で 4/5 だったのを直して、iteration-3 で 5/5 にした。**
@@ -151,7 +151,7 @@ eval 5・6 は、`evals.json` の `requires_skills` で `parity-suite` を両方
   否定形の assertion は停止した run では自動的に満たされやすく、差には寄与しない。**後退の検知のためだけのもの**として扱う
 
 - **iteration-4（#354）で採取物を作り直した後、eval 5・6 を実行し直した。** eval 5 は with 6/6・without 1/6、eval 6 は with 5/5・without 2/5 だった。
-  どちらも目的の分岐へ到達した（`with_skill` は、`axes.json` の再導出の一致とツールの版の一致を確かめたうえで、カタログ未宣言で停止した）。
+  どちらも目的の分岐へ到達した（`with_skill` は、`axes.json` の再導出の一致とツールのバージョンの一致を確かめたうえで、カタログ未宣言で停止した）。
   詳細は [`tests/parity-component/iteration-4/benchmark.md`](../../tests/parity-component/iteration-4/benchmark.md)
 
 - **iteration-5（PR #358 のレビュー対応）で、`metadata.json` で `null` だった撮影条件・ノイズ基準値を採取から埋めて、実行し直した。**

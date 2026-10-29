@@ -5,7 +5,7 @@
 // 失われるのは過去の決定（なぜ許容したか・いつ誰が承認したか）で、収束の判定は現在の状態しか見ない。
 //
 // 追記だけなら exit 0 になり、整形だけでは落ちないことも確かめる。これが無いと「常に落とす」実装と区別できない。
-// 併せて、原本が明示的に求めるその場の更新（状態列の 未→済・Issue 列の 未起票→番号・版の +1・
+// 併せて、原本が明示的に求めるその場の更新（状態列の 未→済・Issue 列の 未起票→番号・バージョンの +1・
 // 空配列への最初の追記）を、誤って縮小と判定しないことも測る。誤検出するチェックは収束を止めるだけで、
 // 決定を 1 つも守らない。
 
@@ -3035,7 +3035,7 @@ test.concurrent("履歴を追記せずに relative_floors を緩めると落ち�
   rmSync(root, { recursive: true, force: true });
 });
 
-test.concurrent("履歴を持たない前の版の基準で floors を変えても、追記しなければ落ちる", async () => {
+test.concurrent("履歴を持たない前のバージョンの基準で floors を変えても、追記しなければ落ちる", async () => {
   const { floor_history: _, ...legacy } = seededPerformance();
   const { root, edit } = await makePerfRepo(legacy);
   edit((perf) => {

@@ -74,7 +74,7 @@
 
 ## 突き合わせ（build）
 
-- カタログで、その遷移の初期状態の見本（`build-metadata.json` の `catalog.stories` にある見本）を開き、同じ `trigger` を同じ版のプローブで採る（1 回でよい。揺れは現行の 2 回から測る）。
+- カタログで、その遷移の初期状態の見本（`build-metadata.json` の `catalog.stories` にある見本）を開き、同じ `trigger` を同じバージョンのプローブで採る（1 回でよい。揺れは現行の 2 回から測る）。
   結果と見本の識別子を、`new/<target>/motion-comparison.json` に書く（形の原本: [`../assets/motion-comparison-template.json`](../assets/motion-comparison-template.json)）。
   検査は識別子が空でないことしか見ないので、`catalog.stories` の見本を書くのは、手順の側の規律である。
   順番を検査するための見本（[`lifecycle.md`](lifecycle.md)）は書かない

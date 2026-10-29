@@ -83,7 +83,7 @@ export const formula = (w: Win) => ({
   grid: { x: 20, y: 120, width: w.width - 40, height: w.height - 132 },
 });
 
-/** 1366×768 の実測 px をそのまま並べた版組（新側の失敗形）。 */
+/** 1366×768 の実測 px をそのまま並べたバージョン組（新側の失敗形）。 */
 export const pinned = () => formula(WINDOWS[0]);
 
 /**

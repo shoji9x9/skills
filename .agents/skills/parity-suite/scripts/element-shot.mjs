@@ -70,7 +70,7 @@ import { PAGE_VERSION, measureInPage } from "./page/element-shot.page.mjs";
 export const VERSION = "6";
 
 /**
- * page ファイルの PAGE_VERSION が、このスクリプトの VERSION と同じかを確かめる。違えば、片方だけを古い版のまま
+ * page ファイルの PAGE_VERSION が、このスクリプトの VERSION と同じかを確かめる。違えば、片方だけを古いバージョンのまま
  * コピーしてあるので、採らずに失敗する。
  * @param {string} pageVersion
  */

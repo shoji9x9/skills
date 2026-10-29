@@ -600,7 +600,7 @@ function setInventoryProblems(raw, label) {
 function setSourceProblems(block, label) {
   const source = isPlainObject(block.source) ? block.source : null;
   if (source === null) {
-    return [`${label}.source が無い（どの版のどこから何を条件に列挙したか残らない）`];
+    return [`${label}.source が無い（どのバージョンのどこから何を条件に列挙したか残らない）`];
   }
   /** @type {string[]} */
   const problems = [];

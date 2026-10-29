@@ -28,5 +28,5 @@ iteration-11 の run は `--reasoning-effort` を付けずに実行しており�
 後で baseline として再利用しうる eval の run は、`--model` と `--reasoning-effort` を必ず明示して実行し、空の effort のまま記録しない。
 
 - `run-skill-eval.sh` で、`--reasoning-effort` を付けない新しい run に「この run は `--reuse-baseline` で再利用できない」と stderr で警告するか、`--model` を付けた run では `--reasoning-effort` も必須にする
-- または、元の run と再利用の側の effort がどちらも空なら一致として扱えるようにする（実行時のデフォルト値が変わりうるので、CLI の版の一致を条件にする）
+- または、元の run と再利用の側の effort がどちらも空なら一致として扱えるようにする（実行時のデフォルト値が変わりうるので、CLI のバージョンの一致を条件にする）
 - `docs/skill-development.md` の「without-skill baseline の再利用」に、元の run も effort を明示して実行しておく必要があることを書く

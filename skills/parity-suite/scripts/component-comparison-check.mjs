@@ -140,7 +140,7 @@ function checkObservedImplementation(comparison, target, { findings }) {
       message: `突き合わせ表の target「${String(comparison.target)}」が判定対象の target「${String(target)}」と違う（別環境の記録で収束させない）`,
     });
   }
-  // **突き合わせは新側の実装の版に紐づく**。target・slug・網羅表の指紋だけで縛ると、
+  // **突き合わせは新側の実装のバージョンに紐づく**。target・slug・網羅表の指紋だけで縛ると、
   // 記録した後に新側を変えても古い証拠が通る。当たり判定・完了の退行はスイートの green に
   // 出ないので、この工程が唯一の網になる。
   const observed = comparison.new_implementation;
@@ -149,17 +149,17 @@ function checkObservedImplementation(comparison, target, { findings }) {
     findings.push({
       code: "comparison-implementation-unrecorded",
       message:
-        "突き合わせ表に new_implementation.commit が無い（どの版の新側を操作した記録か決まらず、実装を変えても古い証拠が通る）",
+        "突き合わせ表に new_implementation.commit が無い（どのバージョンの新側を操作した記録か決まらず、実装を変えても古い証拠が通る）",
     });
   }
-  // **記録した版が「汚れていない」ことまで求める。** commit だけを鍵にすると、未コミットの変更を
-  // 抱えた作業ツリーで操作した記録が同じ commit の記録として通り、鍵が版を指さなくなる。
+  // **記録したバージョンが「汚れていない」ことまで求める。** commit だけを鍵にすると、未コミットの変更を
+  // 抱えた作業ツリーで操作した記録が同じ commit の記録として通り、鍵がバージョンを指さなくなる。
   // 欠落・非真偽値は「調べていない」ので、false 以外を不合格にする。
   const observedDirty = isObjectLike(observed) ? observed.dirty : undefined;
   if (observedDirty !== false) {
     findings.push({
       code: "comparison-implementation-dirty",
-      message: `突き合わせ表の new_implementation.dirty が false でない（${observedDirty === undefined ? "欠落" : JSON.stringify(observedDirty)}）。未コミットの変更を抱えた作業ツリーで操作した記録は、commit で版を特定できない`,
+      message: `突き合わせ表の new_implementation.dirty が false でない（${observedDirty === undefined ? "欠落" : JSON.stringify(observedDirty)}）。未コミットの変更を抱えた作業ツリーで操作した記録は、commit でバージョンを特定できない`,
     });
   }
   return { observed, observedCommit };
@@ -183,16 +183,16 @@ function checkNoCommitFreshness({ input, report, observed }, { recorded, wanted 
   // `none` になり、実装をいくら変えても `none !== none` は常に偽で、古い記録が鮮度検査を
   // 永久に素通りする。artifact-health-check.mjs の checkStage と同じく反復回数へ退く。
   // **退き先が無いことを合格として扱わない**。材料（どちらかの反復回数）が読めなければ不合格にする。
-  // **片側だけが `none` なら、その時点で記録と現在は別の版である**。記録した SHA と現在の `none`
-  // （またはその逆）は同じ版を指さない。反復回数がたまたま一致しただけで合格として扱うと、
+  // **片側だけが `none` なら、その時点で記録と現在は別のバージョンである**。記録した SHA と現在の `none`
+  // （またはその逆）は同じバージョンを指さない。反復回数がたまたま一致しただけで合格として扱うと、
   // git 管理の有無が変わった新側で、古い記録が警告なしに通る。ここで不合格にし、反復回数の検査へは進まない。
   // 進めると、取り決めの上で `iteration` を書く義務が無い SHA 記録に対して
   // `comparison-implementation-unversionable`（「iteration を書き足せ」と読める）が同時に出て、
-  // 実際に必要な直し方（同じ版でもう一度測る）と案内がずれる。
+  // 実際に必要な直し方（同じバージョンでもう一度測る）と案内がずれる。
   if (recorded !== wanted) {
     findings.push({
       code: "comparison-implementation-stale",
-      message: `突き合わせ表の new_implementation.commit「${recorded}」が現在の新側「${wanted}」と違う（片側だけが ${NO_COMMIT} なので、反復回数が一致しても同じ版を指さない。同じ版で記録し直す）`,
+      message: `突き合わせ表の new_implementation.commit「${recorded}」が現在の新側「${wanted}」と違う（片側だけが ${NO_COMMIT} なので、反復回数が一致しても同じバージョンを指さない。同じバージョンで記録し直す）`,
     });
     return;
   }
@@ -208,12 +208,12 @@ function checkNoCommitFreshness({ input, report, observed }, { recorded, wanted 
   if (recordedIteration === null || wantedIteration === null) {
     findings.push({
       code: "comparison-implementation-unversionable",
-      message: `new.commit が ${NO_COMMIT}（新側リポジトリのコミットを持たない）なのに反復回数で版を対応づけられない（突き合わせ表の new_implementation.iteration: ${recordedIteration === null ? "読めない" : recordedIteration} / replace-metadata.json の loop.iterations: ${wantedIteration === null ? "読めない" : wantedIteration}）。どちらの鮮度指標も無いと、実装を変えても古い記録が通る`,
+      message: `new.commit が ${NO_COMMIT}（新側リポジトリのコミットを持たない）なのに反復回数でバージョンを対応づけられない（突き合わせ表の new_implementation.iteration: ${recordedIteration === null ? "読めない" : recordedIteration} / replace-metadata.json の loop.iterations: ${wantedIteration === null ? "読めない" : wantedIteration}）。どちらの鮮度指標も無いと、実装を変えても古い記録が通る`,
     });
   } else if (recordedIteration !== wantedIteration) {
     findings.push({
       code: "comparison-implementation-stale",
-      message: `突き合わせ表の new_implementation.iteration「${recordedIteration}」が現在の新側の反復回数「${wantedIteration}」と違う（new.commit が ${NO_COMMIT} なので反復回数で判定する。記録の後に実装が変わっている。同じ版で記録し直す）`,
+      message: `突き合わせ表の new_implementation.iteration「${recordedIteration}」が現在の新側の反復回数「${wantedIteration}」と違う（new.commit が ${NO_COMMIT} なので反復回数で判定する。記録の後に実装が変わっている。同じバージョンで記録し直す）`,
     });
   }
 }
@@ -241,7 +241,7 @@ function checkShaMismatch({ input, report, replaceNew }, { recorded, wanted }) {
   }
   findings.push({
     code: "comparison-implementation-stale",
-    message: `突き合わせ表の new_implementation.commit「${recorded}」が現在の新側「${wanted}」と違う（記録の後に実装が変わっている。同じ版で記録し直す）`,
+    message: `突き合わせ表の new_implementation.commit「${recorded}」が現在の新側「${wanted}」と違う（記録の後に実装が変わっている。同じバージョンで記録し直す）`,
   });
   if (carry !== null) {
     for (const message of carry.findings) {
@@ -255,7 +255,7 @@ function checkShaMismatch({ input, report, replaceNew }, { recorded, wanted }) {
 }
 
 /**
- * 記録した版と現在の new.commit を突き合わせる。食い違いの判定で judgeCarry に掛けうる「今の版」を返す（掛けなければ null）。
+ * 記録したバージョンと現在の new.commit を突き合わせる。食い違いの判定で judgeCarry に掛けうる「今のバージョン」を返す（掛けなければ null）。
  * @param {Freshness} f
  * @param {unknown} observedCommit
  * @returns {string | null}
@@ -266,7 +266,7 @@ function checkCommitFreshness(f, observedCommit) {
     f.report.findings.push({
       code: "replace-metadata-commit-missing",
       message:
-        "replace-metadata.json の new.commit が無い（現在の新側の版が読めないので、突き合わせの鮮度を確かめられない）",
+        "replace-metadata.json の new.commit が無い（現在の新側のバージョンが読めないので、突き合わせの鮮度を確かめられない）",
     });
     return null;
   }
@@ -282,7 +282,7 @@ function checkCommitFreshness(f, observedCommit) {
 }
 
 /**
- * --carry-to: 記録の版から検証先の版への持ち越しを、現在の new.commit に依らず判定する。
+ * --carry-to: 記録のバージョンから検証先のバージョンへの持ち越しを、現在の new.commit に依らず判定する。
  * @param {Freshness} f
  * @param {{ observedCommit: unknown, judgedWanted: string | null }} judged
  * @returns {void}
@@ -291,7 +291,7 @@ function checkCarryTo({ input, report, replaceNew }, { observedCommit, judgedWan
   const { findings } = report;
   const carryTo = nonEmptyString(input.carryTo) ? String(input.carryTo).trim() : null;
   const recordedCommit = nonEmptyString(observedCommit) ? String(observedCommit).trim() : null;
-  // 食い違いの判定は SHA 同士が違うときだけ judgeCarry を呼ぶ。同じ版へ既に掛けたなら繰り返さない。
+  // 食い違いの判定は SHA 同士が違うときだけ judgeCarry を呼ぶ。同じバージョンへ既に掛けたなら繰り返さない。
   const alreadyJudged =
     judgedWanted === carryTo &&
     recordedCommit !== null &&
@@ -302,7 +302,7 @@ function checkCarryTo({ input, report, replaceNew }, { observedCommit, judgedWan
     if (recordedCommit === null || recordedCommit === NO_COMMIT) {
       findings.push({
         code: "evidence-carry-unverifiable",
-        message: `--carry-to ${carryTo} への持ち越しを判定できない（突き合わせ表の new_implementation.commit が ${recordedCommit ?? "無い"}。記録の版が SHA でないと描画入力の差分を取れない）`,
+        message: `--carry-to ${carryTo} への持ち越しを判定できない（突き合わせ表の new_implementation.commit が ${recordedCommit ?? "無い"}。記録のバージョンが SHA でないと描画入力の差分を取れない）`,
       });
     } else if (typeof input.carry !== "function") {
       findings.push({
@@ -334,7 +334,7 @@ function reportCarryTo(carry, { carryTo, recordedCommit }, { findings, notes }) 
   }
   findings.push({
     code: "evidence-carry-rejected",
-    message: `突き合わせ表の証跡を --carry-to の版へ持ち越せない（new_implementation.commit ${recordedCommit} → ${carryTo}）`,
+    message: `突き合わせ表の証跡を --carry-to のバージョンへ持ち越せない（new_implementation.commit ${recordedCommit} → ${carryTo}）`,
   });
   for (const message of carry.findings) {
     findings.push({
@@ -346,7 +346,7 @@ function reportCarryTo(carry, { carryTo, recordedCommit }, { findings, notes }) 
 }
 
 /**
- * 突き合わせ表の鮮度を、replace-metadata.json の現在の新側の版と突き合わせる。
+ * 突き合わせ表の鮮度を、replace-metadata.json の現在の新側のバージョンと突き合わせる。
  * @param {ComparisonInput} input
  * @param {{ observed: unknown, observedCommit: unknown }} implementation
  * @param {Report} report
@@ -365,19 +365,19 @@ function checkFreshness(input, { observed, observedCommit }, report) {
     report.findings.push({
       code: "replace-metadata-unusable",
       message:
-        "replace-metadata.json を new オブジェクトを持つ形で読めない（現在の新側の版が分からず、突き合わせの鮮度を確かめられない。省略・型の誤りを免除にしない）",
+        "replace-metadata.json を new オブジェクトを持つ形で読めない（現在の新側のバージョンが分からず、突き合わせの鮮度を確かめられない。省略・型の誤りを免除にしない）",
     });
     return;
   }
   /** @type {Freshness} */
   const f = { input, report, observed, replaceNew };
-  // 食い違いの判定で judgeCarry に掛けうる「今の版」。--carry-to が同じ版なら二重に判定しない。
+  // 食い違いの判定で judgeCarry に掛けうる「今のバージョン」。--carry-to が同じバージョンなら二重に判定しない。
   const judgedWanted = checkCommitFreshness(f, observedCommit);
   checkCarryTo(f, { observedCommit, judgedWanted });
   if (replaceNew.dirty !== false) {
     report.findings.push({
       code: "replace-metadata-dirty",
-      message: `replace-metadata.json の new.dirty が false でない（${replaceNew.dirty === undefined ? "欠落" : JSON.stringify(replaceNew.dirty)}）。未コミットの変更があると、突き合わせをどの版に紐づけたか決まらない`,
+      message: `replace-metadata.json の new.dirty が false でない（${replaceNew.dirty === undefined ? "欠落" : JSON.stringify(replaceNew.dirty)}）。未コミットの変更があると、突き合わせをどのバージョンに紐づけたか決まらない`,
     });
   }
 }
@@ -572,9 +572,9 @@ function judgeCell(key, row, findings) {
  * `carry`（任意）は new_implementation.commit と現在の new.commit が両側とも SHA で食い違うときに呼ぶ持ち越しの判定
  * （evidence-carry.mjs の judgeCarry を包んだもの。CLI が組み立てる）。渡されなければ従来どおり stale で落とす。
  * artifact-health-check.mjs の checkStage も同じ judgeCarry で判定し、2 つのチェックの判定を揃える。
- * `carryTo`（任意。--carry-to）を渡すと、new_implementation.commit からその版への持ち越しを、現在の new.commit が
- * 記録と同じでも必ず判定する（部品改修の一括再検証の直後は両方が改修前の版で一致する）。
- * 判定できない（記録の版が SHA でない・carry が無い）ときは合格として扱わない。
+ * `carryTo`（任意。--carry-to）を渡すと、new_implementation.commit からそのバージョンへの持ち越しを、現在の new.commit が
+ * 記録と同じでも必ず判定する（部品改修の一括再検証の直後は両方が改修前のバージョンで一致する）。
+ * 判定できない（記録のバージョンが SHA でない・carry が無い）ときは合格として扱わない。
  * @param {ComparisonInput} input
  * @returns {{ findings: {code:string, message:string}[], notes: string[], counts: Record<string, number>, structural: boolean, judged: boolean }}
  */
@@ -662,7 +662,7 @@ function checkRequiredArgs(args) {
   // 一度も評価されず、記録の後に新側を変えても古い証拠で収束する。
   if (!args["--replace-metadata"] || args["--replace-metadata"].trim() === "") {
     throw new InputError(
-      "--replace-metadata は必須（空白だけの値も不可。現在の新側の版と突き合わせないと、記録の鮮度を確かめられない）",
+      "--replace-metadata は必須（空白だけの値も不可。現在の新側のバージョンと突き合わせないと、記録の鮮度を確かめられない）",
     );
   }
   // `--target` を省ける形にすると、別環境で採った突き合わせ表がそのまま通る

@@ -313,7 +313,7 @@ test("suite.new_green が真なのに diff-metadata.json が無ければ落と�
   rmSync(root, { recursive: true, force: true });
 });
 
-/** 新側の版と反復を両成果物に記録した状態（対応づけが通ることを確かめる基になる状態）。 */
+/** 新側のバージョンと反復を両成果物に記録した状態（対応づけが通ることを確かめる基になる状態）。 */
 const CORRELATED = {
   replace: {
     new: { target: "local-dev", commit: "a".repeat(40), dirty: false },
@@ -339,7 +339,7 @@ test("記録後の changes[].affects に * があれば陳腐化として落と�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("版が古いだけで区間の affects に * が無ければ落とさない（交差判定は golden-dataset で定義する）", () => {
+test("バージョンが古いだけで区間の affects に * が無ければ落とさない（交差判定は golden-dataset で定義する）", () => {
   const { root, slugDir, metadataPath } = makeProject();
   writeStage(slugDir, { dataset_version: 6, converged: true });
   const r = run(metadataPath, ["--target", "local-dev"]);
@@ -396,7 +396,7 @@ test("dataset_version が空で免除理由も空なら落とす", () => {
   rmSync(root, { recursive: true, force: true });
 });
 
-test("記録済みの版が現在より新しければ落とす（巻き戻し・破損）", () => {
+test("記録済みのバージョンが現在より新しければ落とす（巻き戻し・破損）", () => {
   const { root, slugDir, metadataPath } = makeProject();
   writeStage(slugDir, { dataset_version: 8, converged: true });
   const r = run(metadataPath, ["--target", "local-dev"]);
@@ -414,7 +414,7 @@ test("dataset_version_exempt が文字列でも null でもなければ型崩れ
   rmSync(root, { recursive: true, force: true });
 });
 
-test("converged: false でも版が一致していれば落とさない", () => {
+test("converged: false でもバージョンが一致していれば落とさない", () => {
   const { root, slugDir, metadataPath } = makeProject();
   writeFileSync(
     join(slugDir, "new/local-dev/replace-metadata.json"),
@@ -556,7 +556,7 @@ test("suite が配列など型崩れなら exit 2", () => {
   rmSync(root, { recursive: true, force: true });
 });
 
-test("誤検知しないことの確認: 新側の版と反復が対応していれば工程の節を通す", () => {
+test("誤検知しないことの確認: 新側のバージョンと反復が対応していれば工程の節を通す", () => {
   const { root, slugDir, metadataPath } = makeProject();
   writeStage(
     slugDir,
@@ -596,7 +596,7 @@ test("新側のコミットが変わった diff-metadata.json は通さない", 
     CORRELATED.replace,
   );
   const r = run(metadataPath, ["--target", "local-dev"]);
-  expect(r.stdout).toMatch(/今の新側の版に対応していない/);
+  expect(r.stdout).toMatch(/今の新側のバージョンに対応していない/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
@@ -630,7 +630,7 @@ test("new.dirty: true なら SHA が一致しても通さない（判定不能�
     },
   );
   const r = run(metadataPath, ["--target", "local-dev"]);
-  expect(r.stdout).toMatch(/新側の版を特定できない.*new\.dirty: true/);
+  expect(r.stdout).toMatch(/新側のバージョンを特定できない.*new\.dirty: true/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
@@ -1034,13 +1034,13 @@ test("new.commit が none でも dirty なら落とす（コミットの比較�
     { new: { target: "local-dev", commit: "none", dirty: true }, loop: { iterations: 3 } },
   );
   const r = run(metadataPath, ["--target", "local-dev"]);
-  expect(r.stdout).toMatch(/新側の版を特定できない.*new\.dirty: true/);
+  expect(r.stdout).toMatch(/新側のバージョンを特定できない.*new\.dirty: true/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
 test("別の環境の成果物をコピーしただけなら落とす（new.target と --target の照合）", () => {
-  // 同じコミット・同じ反復は環境をまたいで一致しうるので、版だけではコピーを見分けられない。
+  // 同じコミット・同じ反復は環境をまたいで一致しうるので、バージョンだけではコピーを見分けられない。
   const { root, slugDir, metadataPath } = makeProject();
   writeStage(
     slugDir,
@@ -1187,8 +1187,8 @@ test("read_by が本当に無いときは従来どおり「無い」と報告す
   rmSync(root, { recursive: true, force: true });
 });
 
-// new.commit が none の枝は版の対応を反復回数へ委ねている。委ねた先も読めないと、
-// 版の検査を 1 つも通らないまま古い成果物が素通りする（委譲先が無いことを合格として扱わない）。
+// new.commit が none の枝はバージョンの対応を反復回数へ委ねている。委ねた先も読めないと、
+// バージョンの検査を 1 つも通らないまま古い成果物が素通りする（委譲先が無いことを合格として扱わない）。
 test.each([
   ["記録側の iteration が無い", undefined, { iterations: 3 }],
   ["現在側の loop.iterations が無い", 3, {}],
@@ -1211,7 +1211,7 @@ test.each([
     { new: { target: "local-dev", commit: "none", dirty: false }, loop },
   );
   const r = run(metadataPath, ["--target", "local-dev"]);
-  expect(r.stdout).toMatch(/新側の版を対応づける指標が無い（new\.commit が none なのに/);
+  expect(r.stdout).toMatch(/新側のバージョンを対応づける指標が無い（new\.commit が none なのに/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
@@ -1225,12 +1225,12 @@ test("commit が実在の SHA なら反復回数の片側欠落は従来どお�
   );
   const r = run(metadataPath, ["--target", "local-dev"]);
   expect(r.stdout).toMatch(/反復の対応を判定しない（旧成果物）/);
-  expect(r.stdout).not.toMatch(/新側の版を対応づける指標が無い/);
+  expect(r.stdout).not.toMatch(/新側のバージョンを対応づける指標が無い/);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-// 反復回数へ委ねてよいのは両側とも none のときだけ。片側だけ none は別の版なので、
+// 反復回数へ委ねてよいのは両側とも none のときだけ。片側だけ none は別のバージョンなので、
 // 反復回数が一致しても合格として扱わない（component-comparison-check.mjs と同じ規則）。
 test.each([
   ["記録が none・現在が SHA", "none", "a".repeat(40)],
@@ -1248,7 +1248,7 @@ test.each([
     { new: { target: "local-dev", commit: now, dirty: false }, loop: { iterations: 3 } },
   );
   const r = run(metadataPath, ["--target", "local-dev"]);
-  expect(r.stdout).toMatch(/今の新側の版に対応していない/);
+  expect(r.stdout).toMatch(/今の新側のバージョンに対応していない/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
@@ -1268,7 +1268,7 @@ test("反復回数は数字列を受けない（姉妹のチェックスクリ�
     { new: { target: "local-dev", commit: "none", dirty: false }, loop: { iterations: 3 } },
   );
   const r = run(metadataPath, ["--target", "local-dev"]);
-  expect(r.stdout).toMatch(/新側の版を対応づける指標が無い/);
+  expect(r.stdout).toMatch(/新側のバージョンを対応づける指標が無い/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
@@ -1280,7 +1280,7 @@ test("反復回数は数字列を受けない（姉妹のチェックスクリ�
 test("持ち越し: 描画入力の差分が変更宣言で説明でき機能に影響しなければ exit 0（注記付き）", () => {
   const { root, metadataPath, carry } = carryProject([["list", "default", "desktop"]]);
   const r = run(metadataPath, ["--target", "local-dev", "--new-repo", carry.repo]);
-  expect(r.stdout).not.toMatch(/今の新側の版に対応していない/);
+  expect(r.stdout).not.toMatch(/今の新側のバージョンに対応していない/);
   expect(r.stdout).toMatch(/^note: .*証跡を持ち越す/m);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
@@ -1307,7 +1307,7 @@ test("持ち越し: 影響する組が amend-verify で pass でなければ従�
     pairs: [amendVerifyPair(root, "list|hover|desktop", { pass: false })],
   });
   const r = run(metadataPath, ["--target", "local-dev", "--new-repo", carry.repo]);
-  expect(r.stdout).toMatch(/今の新側の版に対応していない/);
+  expect(r.stdout).toMatch(/今の新側のバージョンに対応していない/);
   expect(r.stdout).toMatch(/^warn: 証跡を持ち越せない: .*pass でない/m);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1321,7 +1321,7 @@ test("持ち越し: 宣言外のファイルが変わっていれば落とす（
   replace.new.commit = theme;
   writeFileSync(replacePath, JSON.stringify(replace));
   const r = run(metadataPath, ["--target", "local-dev", "--new-repo", carry.repo]);
-  expect(r.stdout).toMatch(/今の新側の版に対応していない/);
+  expect(r.stdout).toMatch(/今の新側のバージョンに対応していない/);
   expect(r.stdout).toMatch(/証跡を持ち越せない: .*src\/theme\.css/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1330,7 +1330,7 @@ test("持ち越し: 宣言外のファイルが変わっていれば落とす（
 test("持ち越し: --new-repo が無ければ持ち越さない（判定不能を合格にしない）", () => {
   const { root, metadataPath } = carryProject([["list", "default", "desktop"]]);
   const r = run(metadataPath, ["--target", "local-dev"]);
-  expect(r.stdout).toMatch(/今の新側の版に対応していない/);
+  expect(r.stdout).toMatch(/今の新側のバージョンに対応していない/);
   expect(r.stdout).toMatch(/証跡を持ち越せない: --new-repo/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1366,7 +1366,7 @@ test("持ち越し: render_inputs が無ければ従来のメッセージのま�
   const { root, metadataPath, carry } = carryProject([["list", "default", "desktop"]], {});
   const r = run(metadataPath, ["--target", "local-dev", "--new-repo", carry.repo]);
   expect(r.stdout).toContain(
-    `warn: diff-metadata.json が今の新側の版に対応していない（new.commit ${carry.commits.base} ≠ replace-metadata.json の ${carry.commits.component}）`,
+    `warn: diff-metadata.json が今の新側のバージョンに対応していない（new.commit ${carry.commits.base} ≠ replace-metadata.json の ${carry.commits.component}）`,
   );
   expect(r.stdout).not.toMatch(/証跡を持ち越せない/);
   expect(r.stdout).toMatch(/^note: .*render_inputs.*持ち越せない/m);
@@ -1423,7 +1423,7 @@ test.each([
     `状態を変えないスペック ${ORDERS} の直近の記録が緑でない`,
   ],
 ])(
-  "#473: 状態を変えないスペックの 1 回の緑が現在の版に結びつかなければ落とす: %s",
+  "#473: 状態を変えないスペックの 1 回の緑が現在のバージョンに結びつかなければ落とす: %s",
   (name, mutate, needle) => {
     const { root, metadataPath } = perSpecProject();
     recordRuns(metadataPath, name === "記録が無い" ? [LOCALE] : [LOCALE, ORDERS], {

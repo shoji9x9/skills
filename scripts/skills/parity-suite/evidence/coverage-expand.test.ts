@@ -383,7 +383,7 @@ test("必須ルールの代替の組は、どれか 1 つが候補を生めば�
 });
 
 test("代替の組の全てのルールが候補 0 件なら、全てに根拠が要る（1 つだけの根拠では通さない）", () => {
-  // row-select-revealed の軸を column だけにした版。row-selector を根拠付きで空にしても、
+  // row-select-revealed の軸を column だけにしたバージョン。row-selector を根拠付きで空にしても、
   // row-select-revealed は column が実在するので根拠にならず、組として列挙の抜けと区別できない。
   const dg = structuredClone(bundledProfile("datagrid"));
   findOrFail(
