@@ -166,7 +166,7 @@ Hook のスクリプトは、エージェントが普段書く形の `git commit
 
 | 形 | 例 | スクリプトの読み方と、避ける書き方 |
 | --- | --- | --- |
-| 語に分けられない値を `env -S` に渡す | `env -S '"x"' cat .git/commit`・`env -S 'git log --grep=commit "x"'` | 値に引用符・`\`・`$`・`#` があると、引用符と `${VAR}` を消し、`\` のエスケープを空白にした文字列で、`git` の語の後ろに `commit` があれば commit と判定する。値に引用符などを書かない |
+| 語に分けられない値を `env -S` に渡す | `env -S '"x"' cat .git/commit`・`env -S '"x"' git-lfs commit`・`env -S 'git log --grep=commit "x"'` | 値に引用符・`\`・`$`・`#` があると、引用符と `${VAR}` を消し、`\` のエスケープを空白にした文字列で、`git` の語の後ろに `commit` があれば commit と判定する。値に引用符などを書かない |
 | git のパスを調べる `command -v` | `command -v git commit` | `command` を後ろのコマンドを実行するコマンドとして読み、`-v` を読み飛ばして、後ろを commit と判定する。判断が無ければ止め、判断が「記録する」なら collect して stage する。`command -v git` だけを書く |
 
 ## 3. 動作を確かめる

@@ -168,6 +168,8 @@ describe("isGitCommit", () => {
     // シェルが 1 語として読んだ引数（引用符の中）は、空白で分け直さない
     ["sudo --ch /tmp git log --grep 'fix commit'", false],
     ['env --de x echo "git commit"', false],
+    // 省略形の無い `sudo sh -c 'git commit'` と同じく、sh -c の引数の中は読まない
+    ["sudo --ch /tmp sh -c 'git commit'", false],
     // 語に分けられない -S の値でも、git を含む別の語（.github・digit）の後ろの commit はコミットにしない
     ["env -S '\"x\"' cat .github/commit.md", false],
     ["timeout 60 git commit-tree abc", false],

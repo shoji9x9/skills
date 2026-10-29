@@ -465,15 +465,16 @@ function skipWrapperOptions(wrapper, words, at) {
  * 単純なコマンド（語の列）が git commit なら、ラッパーの `env -C`・`sudo -D` と git の `-C` で指定したディレクトリを指定の順に返す。
  * git commit でなければ null。
  * @param {readonly string[]} input
+ * @param {boolean} [retry] 一意に決まらない省略形の後ろを各位置から読み直すか。読み直しの中では false にする
  * @returns {string[] | null}
  */
-function commitDirsOf(input) {
+function commitDirsOf(input, retry = true) {
   const words = [...input];
   /** @type {string[]} */
   const dirs = [];
   let i = skipCommandPrefixes(words, dirs);
   // ラッパーのオプションを読み切れないときは止める側に寄せ、読み切れたラッパーの指定も当てず、作業ディレクトリは変えない
-  if (i < 0) return unreadCommitDirs(words, i);
+  if (i < 0) return unreadCommitDirs(words, { reason: i, retry });
   if (i >= words.length || words[i].split("/").pop() !== "git") return null;
   i += 1;
   while (i < words.length && words[i].startsWith("-")) {
@@ -486,10 +487,11 @@ function commitDirsOf(input) {
 /**
  * ラッパーのオプションを読み切れなかった語の列（commitDirsOf の代わりの判定）。コミットとして扱うなら [] を、そうでなければ null を返す。
  * @param {readonly string[]} words
- * @param {number} reason AMBIGUOUS_OPTION か UNSPLITTABLE_VALUE
+ * @param {{ reason: number; retry: boolean }} at reason は AMBIGUOUS_OPTION か UNSPLITTABLE_VALUE、retry は commitDirsOf と同じ
  * @returns {string[] | null}
  */
-function unreadCommitDirs(words, reason) {
+function unreadCommitDirs(words, at) {
+  const { reason, retry } = at;
   // 語に分けられない -S の値は、GNU env が値の中で解釈する書き方を外した文字列で探し、止める側に寄せる。
   // 引用符と `${VAR}` は消し、`\` のエスケープ（`\_`・`\t` は区切り）は空白にする。止めすぎる形は references/setup.md の表にある
   if (reason === UNSPLITTABLE_VALUE) {
@@ -500,9 +502,11 @@ function unreadCommitDirs(words, reason) {
     return /\bgit\b[\s\S]*commit/.test(text) ? [] : null;
   }
   // 一意に決まらない省略形は、後ろのどの語からコマンドが始まるかを決められないので、各位置から読み直し、
-  // どれかが git commit ならコミットとして扱う（`git log --grep 'fix commit'` はコミットにしない）
+  // どれかが git commit ならコミットとして扱う（`git log --grep 'fix commit'` はコミットにしない）。
+  // 読み直しの中の省略形は、その後ろの位置もこのループが読むので、読み直さずに飛ばす（入れ子で 2^n にしない）
+  if (!retry) return null;
   for (let k = 1; k < words.length; k += 1) {
-    if (commitDirsOf(words.slice(k)) !== null) return [];
+    if (commitDirsOf(words.slice(k), false) !== null) return [];
   }
   return null;
 }

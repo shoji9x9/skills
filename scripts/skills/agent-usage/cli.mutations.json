@@ -831,6 +831,28 @@
       ]
     },
     {
+      "id": "ambiguous-tail-not-reread",
+      "why": "一意に決まらない省略形の後ろを各位置から読み直さず、コミットとして扱わない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "    if (commitDirsOf(words.slice(k), false) !== null) return [];",
+      "replace": "    if (k < 0) return [];",
+      "occurrences": 1,
+      "expect_failing": [
+        "isGitCommit env --de x git commit → true",
+        "isGitCommit sudo --ch /tmp env -S 'git commit' → true",
+        "isGitCommit sudo --ch /tmp git commit → true"
+      ]
+    },
+    {
+      "id": "unsplittable-git-boundary-dropped",
+      "why": "語に分けられない -S の値で、git の語の境界を見ず、git を含む別の語（.github）の後ろの commit もコミットにする",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "return /\\bgit\\b[\\s\\S]*commit/.test(text)",
+      "replace": "return /git[\\s\\S]*commit/.test(text)",
+      "occurrences": 1,
+      "expect_failing": ["isGitCommit env -S '\"x\"' cat .github/commit.md → false"]
+    },
+    {
       "id": "long-option-prefix-ignored",
       "why": "長いオプションの省略形（`env --chd`）を正式な名前にせず、値を取らない語として読み、次の語をコマンドにする",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
