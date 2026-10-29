@@ -1,5 +1,5 @@
 /**
- * チェック（`check-js-extensions.ts`・`check-skill-lint-directives.ts`・`check-jsdoc-types.ts`）が使う git の呼び出し。
+ * チェック（`scripts/gates/`）が git を呼び出すための共通の部品。
  * pre-commit で実行するチェックが git の応答を待ち続けて commit を止めないよう、このモジュールの呼び出しにはすべて打ち切りの時間を付ける。
  * 失敗（0 以外の終了・打ち切り・起動の失敗）は、何を読もうとしたかと終わり方（spawnEnd）を書いて投げる。
  */
@@ -48,11 +48,12 @@ export function runGit(
 
 /** `cwd` を含むリポジトリのルート。どの場所から起動しても、同じ範囲を走査するため。 */
 export function repoRoot(cwd: string, options?: GitOptions): string {
-  return runGit(cwd, ["rev-parse", "--show-toplevel"], {
+  const out = runGit(cwd, ["rev-parse", "--show-toplevel"], {
     ...options,
     what: "git のリポジトリのルートを特定できない",
-    // 末尾の改行だけを外す。trim はディレクトリ名の末尾の空白も消す
-  }).replace(/\r?\n$/, "");
+  });
+  // 末尾の改行だけを外す。trim はディレクトリ名の末尾の空白も消す
+  return out.replace(/\r?\n$/, "");
 }
 
 /**
