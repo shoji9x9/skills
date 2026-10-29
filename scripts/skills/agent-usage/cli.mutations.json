@@ -140,7 +140,10 @@
         "isGitCommit timeout --sig KILL 5 git commit → true",
         "isGitCommit xargs --max-a 1 git commit → true",
         "isGitCommit env -S 'git ${EMPTY}commit' → true",
-        "isGitCommit env -S 'git\\_commit' → true"
+        "isGitCommit env -S 'git\\_commit' → true",
+        "isGitCommit env -S 'g\"i\"t commit' → true",
+        "isGitCommit env -S 'git com${E}mit' → true",
+        "isGitCommit sudo --ch /tmp env -S 'git commit' → true"
       ]
     },
     {
@@ -791,7 +794,9 @@
         "isGitCommit env -S git commit -m x → true",
         "isGitCommit env -iS'git' commit → true",
         "isGitCommit env -S 'git ${EMPTY}commit' → true",
-        "isGitCommit env -S 'git\\_commit' → true"
+        "isGitCommit env -S 'git\\_commit' → true",
+        "isGitCommit env -S 'g\"i\"t commit' → true",
+        "isGitCommit env -S 'git com${E}mit' → true"
       ]
     },
     {
@@ -804,8 +809,19 @@
       "expect_failing": [
         "isGitCommit env -S 'git \"commit\"' → true",
         "isGitCommit env -S 'git ${EMPTY}commit' → true",
-        "isGitCommit env -S 'git\\_commit' → true"
+        "isGitCommit env -S 'git\\_commit' → true",
+        "isGitCommit env -S 'g\"i\"t commit' → true",
+        "isGitCommit env -S 'git com${E}mit' → true"
       ]
+    },
+    {
+      "id": "unsplittable-value-read-as-words",
+      "why": "語に分けられない env -S の値も、一意に決まらない省略形と同じく語の一致で判定し、文字列で探さない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "  if (reason === UNSPLITTABLE_VALUE) return",
+      "replace": "  if (reason === null) return",
+      "occurrences": 1,
+      "expect_failing": ["isGitCommit env -S 'git\\_commit' → true"]
     },
     {
       "id": "long-option-prefix-ignored",
@@ -824,7 +840,8 @@
         "commitCwd sudo --chd /o git -C x commit → /o/x",
         "isGitCommit env --de x git commit → true",
         "isGitCommit sudo --ch /tmp git commit → true",
-        "isGitCommit env --split='-i git' commit → true"
+        "isGitCommit env --split='-i git' commit → true",
+        "isGitCommit sudo --ch /tmp env -S 'git commit' → true"
       ]
     },
     {

@@ -637,6 +637,8 @@ test.each([
   ["列の数がヘッダと違う", "| slug | x |\n| - |\n| a | b |", []],
   // エスケープした `\|` は列の区切りではない
   ["ヘッダに \\|", "| slug | a \\| b |\n|---|---|\n| s1 | x |", ["s1"]],
+  // セルの中の `\|` は GFM と同じく `|` として読む
+  ["セルに \\|", "| slug | x |\n|---|---|\n| a\\|b | x |", ["a|b"]],
 ])("parseFeatureSlugs は区切り行（%s）の表から slug を読む", (_label, markdown, expected) => {
   // slug のヘッダがあれば、区切り行が読めなくても null ではなく空の集合を返す（区切り行の無い slug 表の exit 2 のテストを参照）
   const slugs = parseFeatureSlugs(markdown);

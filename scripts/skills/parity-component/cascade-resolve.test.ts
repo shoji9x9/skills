@@ -585,6 +585,8 @@ test("詳細度の数え方", () => {
   expect(specificity("div")).toEqual([0, 0, 1]);
   expect(specificity(".a")).toEqual([0, 1, 0]);
   expect(specificity("#a")).toEqual([1, 0, 0]);
+  // NBSP は CSS の空白ではなく識別子の文字なので、型セレクタとして数える
+  expect(specificity(".a \u00a0 .b")).toEqual([0, 2, 1]);
   expect(specificity("[data-x='y']")).toEqual([0, 1, 0]);
   expect(specificity("a:hover")).toEqual([0, 1, 1]);
   expect(specificity("li::before")).toEqual([0, 0, 2]);
@@ -1163,8 +1165,8 @@ test.each([
   [String.raw`.a\3A hover span`, []],
   // CSS は CRLF を改行 1 個として読むので、16 進のエスケープを閉じる `\r\n` も結合子ではない
   [".btn:hover.\\31\r\n0", []],
-  // NBSP は CSS の空白ではないので、エスケープの終わりにも結合子にもならない
-  [".btn:hover.\\31\u00a0x", []],
+  // NBSP は CSS の空白ではないので、結合子にならない
+  [".btn:hover\u00a0.x", []],
 ])("statesOutsideSubject はエスケープした `:` を擬似クラスに数えない: %s", (selector, expected) => {
   expect(statesOutsideSubject(selector, ["hover"])).toEqual(expected);
 });

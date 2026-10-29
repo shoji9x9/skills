@@ -369,7 +369,8 @@ function tokenSpecificity(s, i) {
   if (ch === "\\") return { value: [0, 0, 1], next: skipIdent(s, i) };
   // 以降のトークン判定は skipIdent がエスケープ全体を消費する前提で進む。
   if (ch === '"' || ch === "'") return { value: [0, 0, 0], next: skipString(s, i) };
-  if (/\s/.test(ch) || ch === ">" || ch === "+" || ch === "~" || ch === "|") {
+  // 結合子の空白は CSS の空白だけで、NBSP などは識別子の文字として型セレクタに数える
+  if (/[ \t\n\r\f]/.test(ch) || ch === ">" || ch === "+" || ch === "~" || ch === "|") {
     return { value: [0, 0, 0], next: i + 1 };
   }
   if (ch === ",") {

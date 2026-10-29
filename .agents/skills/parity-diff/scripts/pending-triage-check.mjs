@@ -133,7 +133,7 @@ export function parseFeatureSlugs(markdown) {
       .replace(/^\|/, "")
       .replace(/(?<!\\)\|$/, "")
       .split(/(?<!\\)\|/)
-      .map((c) => c.trim());
+      .map((c) => c.trim().replaceAll("\\|", "|"));
   const slugs = new Set();
   const table = { sawSlugTable: false, inSlugTable: false, sawSeparator: false, headerCells: 0 };
   for (const rawLine of markdown.split("\n")) {

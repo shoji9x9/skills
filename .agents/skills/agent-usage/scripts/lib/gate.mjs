@@ -490,13 +490,16 @@ function commitDirsOf(input) {
  * @returns {string[] | null}
  */
 function unreadCommitDirs(words, reason) {
-  // 語に分けられない -S の値は、GNU env が解釈する引用符・エスケープ（`\_`・`\t`）・`${VAR}` の後の語の境目を決められないので、
-  // 語をつないだ文字列で git の語の後ろに commit の文字列があればコミットとして扱う
-  if (reason === UNSPLITTABLE_VALUE)
-    return /\bgit\b[\s\S]*commit/.test(words.join(" ")) ? [] : null;
+  // GNU env が -S の値の中で解釈する書き方（引用符・`\` のエスケープ・`${VAR}`）を外し、値の中の語も空白で分けて読む。
+  // 文法を書き写して語に分けるのではなく、外した後の文字列で探して止める側に寄せる（止めすぎる形は references/setup.md の表にある）
+  const pieces = words
+    .flatMap((w) => w.split(/\s+/))
+    .map((w) => w.replace(/\$\{[^}]*\}|["'\\]/g, ""));
+  // 語に分けられない -S の値は、外した後の文字列で git の後ろに commit があればコミットとして扱う（`git\_commit` は git commit）
+  if (reason === UNSPLITTABLE_VALUE) return /git[\s\S]*commit/.test(pieces.join(" ")) ? [] : null;
   // 一意に決まらない省略形は、git の語の後ろに commit の語があればコミットとして扱う（`git log --grep=commit` はコミットにしない）
-  const git = words.findIndex((w) => w.split("/").pop() === "git");
-  return git >= 0 && words.indexOf("commit", git + 1) !== -1 ? [] : null;
+  const git = pieces.findIndex((w) => w.split("/").pop() === "git");
+  return git >= 0 && pieces.indexOf("commit", git + 1) !== -1 ? [] : null;
 }
 
 /**

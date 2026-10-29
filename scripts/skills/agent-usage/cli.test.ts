@@ -153,6 +153,10 @@ describe("isGitCommit", () => {
     // GNU env が解釈するエスケープと ${VAR} の後ろの commit も、語に分けずに探す
     ["env -S 'git\\_commit'", true],
     ["env -S 'git ${EMPTY}commit'", true],
+    ["env -S 'git com${E}mit'", true],
+    ["env -S 'g\"i\"t commit'", true],
+    // 一意に決まらない省略形の後ろの -S の値の中も読む
+    ["sudo --ch /tmp env -S 'git commit'", true],
     // 一意に決まらない省略形（--debug と --default-signal、--chdir と --chroot）は、git の語の後ろに commit の語があればコミットとして扱う
     ["env --de x git commit", true],
     ["sudo --ch /tmp git commit", true],
