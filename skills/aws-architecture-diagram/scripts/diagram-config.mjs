@@ -14,7 +14,6 @@ import { join, resolve } from "node:path";
 import { parseFlags } from "./lib/flags.mjs";
 import { ConfigError, findRoot, loadConfig } from "./skill-config/skill-config.mjs";
 
-/** このモジュールが読む、値を取る引数。 */
 /** このモジュールが読む、値を取る引数と、使い方に出す値の形。 */
 const VALUED_FORMS = {
   "--dir": "<dir>",

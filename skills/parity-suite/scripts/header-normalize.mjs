@@ -66,10 +66,10 @@ function isArray(value) {
  * 同じ名前の 2 回目が「<名前> が重複している」、値を取らない名前に `=値` を付けたものが「<名前> は値を取らない」である。値が無いとは、名前が末尾にあって値が続かない・値が空白だけ・その CLI が受け付ける名前と同じ・
  * `--` で始まる（dashValues の名前を除く）のどれかである。`--` だけの引数はオプションの終わりで、その後はすべて位置引数にする。名前は値より先に確かめる。値を先に確かめると、値の無い未知の引数を
  * 「値が無い」と報告し、受け付ける引数のように読める。必須の引数と値の中身は、各 CLI が受け取った後に確かめる。
- * @param {readonly string[]} argv
- * @param {FlagSpec} spec
  * 結果は、名前の種類ごとの表（strings は値を 1 つ取る名前、lists は繰り返してよい名前、bools は値を取らない名前）と
  * 位置引数である。表のキーは `--` を含む名前である。
+ * @param {readonly string[]} argv
+ * @param {FlagSpec} spec
  * @returns {ParsedFlags | { error: string }}
  */
 function parseFlags(argv, spec) {
