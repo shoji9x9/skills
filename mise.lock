@@ -196,76 +196,76 @@ url = "https://github.com/suzuki-shunsuke/pinact/releases/download/v5.0.1/pinact
 provenance = "github-attestations"
 
 [[tools.pnpm]]
-version = "12.13.0"
+version = "12.15.0"
 backend = "aqua:pnpm/pnpm"
 
 [tools.pnpm."platforms.linux-arm64"]
-checksum = "sha256:1e1b4d7ddef2577d7b50444a30b76bf4f62dcb45039ef0c4454a377384a36618"
-url = "https://github.com/pnpm/pnpm/releases/download/v12.13.0/pnpm-linux-arm64.tar.gz"
+checksum = "sha256:d7ce93a2c7d847d3a34bd3f559b60c14f578b1320c17cc352a2c5c5fdf956117"
+url = "https://github.com/pnpm/pnpm/releases/download/v12.15.0/pnpm-linux-arm64.tar.gz"
 provenance = "github-attestations"
 
 [tools.pnpm."platforms.linux-arm64-musl"]
-checksum = "sha256:948d410fe403f1cd87d70d618480dc8b97429cd2287c6fb9777ec77f17a851c3"
-url = "https://github.com/pnpm/pnpm/releases/download/v12.13.0/pnpm-linux-arm64-musl.tar.gz"
+checksum = "sha256:1188ef8a57bfc5786f3f739a98067242e531a4636e3f52e9e9ddc75564ea804d"
+url = "https://github.com/pnpm/pnpm/releases/download/v12.15.0/pnpm-linux-arm64-musl.tar.gz"
 provenance = "github-attestations"
 
 [tools.pnpm."platforms.linux-x64"]
-checksum = "sha256:7a796532f2b8801e7fab92389cb02c7ada0cdfbaaded5d291052d83e52c06047"
-url = "https://github.com/pnpm/pnpm/releases/download/v12.13.0/pnpm-linux-x64.tar.gz"
+checksum = "sha256:55b5ed0092bd11176c1669598e231ae52e7cedac59de6efd0d415730f37d0598"
+url = "https://github.com/pnpm/pnpm/releases/download/v12.15.0/pnpm-linux-x64.tar.gz"
 provenance = "github-attestations"
 
 [tools.pnpm."platforms.linux-x64-musl"]
-checksum = "sha256:402f3df5c7ae51271a13f34bfbdb97ef5aaab0ae359d8ef825574307dc59db13"
-url = "https://github.com/pnpm/pnpm/releases/download/v12.13.0/pnpm-linux-x64-musl.tar.gz"
+checksum = "sha256:d33802cc987dcfbe02a991473764ba25ad1b2344189e2097a2570baed66f008a"
+url = "https://github.com/pnpm/pnpm/releases/download/v12.15.0/pnpm-linux-x64-musl.tar.gz"
 provenance = "github-attestations"
 
 [tools.pnpm."platforms.macos-arm64"]
-checksum = "sha256:697961ea2f337fff60bd59ed25991d6165826751bc75ee4b7fad6923b7584c6e"
-url = "https://github.com/pnpm/pnpm/releases/download/v12.13.0/pnpm-darwin-arm64.tar.gz"
+checksum = "sha256:6a41a2877773e97f19832067187cc6fc82e186d8a2cf91fec4b4c1a5fbd6ef27"
+url = "https://github.com/pnpm/pnpm/releases/download/v12.15.0/pnpm-darwin-arm64.tar.gz"
 provenance = "github-attestations"
 
 [tools.pnpm."platforms.windows-x64"]
-checksum = "sha256:7e235180c70c0fc6f7805af1a19a3c277d7c30ce2db17045f5dd430e37ee582e"
-url = "https://github.com/pnpm/pnpm/releases/download/v12.13.0/pnpm-win32-x64.zip"
+checksum = "sha256:84cf69db1be19e95bb4e5bef329291a046f2821b390d87e00f5690809d8a2ed7"
+url = "https://github.com/pnpm/pnpm/releases/download/v12.15.0/pnpm-win32-x64.zip"
 provenance = "github-attestations"
 
 [[tools.python]]
-version = "3.15.0"
+version = "3.15.2"
 backend = "core:python"
 
 [tools.python."platforms.linux-arm64"]
-checksum = "sha256:00345e47b7f42d10ec60d28b2ccad6b1f33c40697f0ae57ee15d70896efad0b5"
-url = "https://github.com/astral-sh/python-build-standalone/releases/download/20261009/cpython-3.15.0+20261009-aarch64-unknown-linux-gnu-install_only_stripped.tar.gz"
+checksum = "sha256:0f23351c03b39beb880de668976074fcc3c082d9c3b03d0b43185632b2b270a0"
+url = "https://github.com/astral-sh/python-build-standalone/releases/download/20261026/cpython-3.15.2+20261026-aarch64-unknown-linux-gnu-install_only_stripped.tar.gz"
 provenance = "github-attestations"
 
 [tools.python."platforms.linux-arm64-musl"]
-checksum = "sha256:93040cac939b6702a8e29e07b14d5eefa1a3b2589697baa46c805a159c716860"
-url = "https://github.com/astral-sh/python-build-standalone/releases/download/20261009/cpython-3.15.0+20261009-aarch64-unknown-linux-musl-install_only_stripped.tar.gz"
+checksum = "sha256:2996760114a56a9cbe9111f8a55e8a2e67735c1ff5b5da1bbdedf06ccc26dbb4"
+url = "https://github.com/astral-sh/python-build-standalone/releases/download/20261026/cpython-3.15.2+20261026-aarch64-unknown-linux-musl-install_only_stripped.tar.gz"
 provenance = "github-attestations"
 
 [tools.python."platforms.linux-x64"]
-checksum = "sha256:46edc8f6fccade47dc38001ef2d4094d9cedd21a1863d9b44b2a02c1ee76b94d"
-url = "https://github.com/astral-sh/python-build-standalone/releases/download/20261009/cpython-3.15.0+20261009-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz"
+checksum = "sha256:7b03163a980c607ba8194709d4a4086735a7a9c488cc475b098157306927b36b"
+url = "https://github.com/astral-sh/python-build-standalone/releases/download/20261026/cpython-3.15.2+20261026-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz"
 provenance = "github-attestations"
 
 [tools.python."platforms.linux-x64-musl"]
-checksum = "sha256:465ec05200a3668954fb88d1ed150298b13c277b5c64c95c5866dc2901e29e85"
-url = "https://github.com/astral-sh/python-build-standalone/releases/download/20261009/cpython-3.15.0+20261009-x86_64-unknown-linux-musl-install_only_stripped.tar.gz"
+checksum = "sha256:9723f525ec21a52e5e3b18165ad3d553f1af38aba76125ddae25b156ed9c9202"
+url = "https://github.com/astral-sh/python-build-standalone/releases/download/20261026/cpython-3.15.2+20261026-x86_64-unknown-linux-musl-install_only_stripped.tar.gz"
 provenance = "github-attestations"
 
 [tools.python."platforms.macos-arm64"]
-checksum = "sha256:473e6213a1c55da12e60642249a6201fe9dca841b4ad8c59149798846ed87c62"
-url = "https://github.com/astral-sh/python-build-standalone/releases/download/20261009/cpython-3.15.0+20261009-aarch64-apple-darwin-install_only_stripped.tar.gz"
+checksum = "sha256:1b1b03fca8aa351698403f3d100ee83db7a5d99748fc7707681ac31a6a846ad9"
+url = "https://github.com/astral-sh/python-build-standalone/releases/download/20261026/cpython-3.15.2+20261026-aarch64-apple-darwin-install_only_stripped.tar.gz"
 provenance = "github-attestations"
 
 [tools.python."platforms.macos-x64"]
-checksum = "sha256:76253e5619694b66e817a091bbdbf3db89bb0aff6d77a9ac7aae2ce96218ed0d"
-url = "https://github.com/astral-sh/python-build-standalone/releases/download/20261009/cpython-3.15.0+20261009-x86_64-apple-darwin-install_only_stripped.tar.gz"
+checksum = "sha256:6ec04346b578656b5d5597144cbe0f4773acea6af6048cb8fe0cac3e92c702ac"
+url = "https://github.com/astral-sh/python-build-standalone/releases/download/20261026/cpython-3.15.2+20261026-x86_64-apple-darwin-install_only_stripped.tar.gz"
 provenance = "github-attestations"
 
 [tools.python."platforms.windows-x64"]
-checksum = "sha256:0943854634fa0fc4faf2a37d900bc7e1a6f89afd7ac576b22d17f39142c63b55"
-url = "https://github.com/astral-sh/python-build-standalone/releases/download/20261009/cpython-3.15.0+20261009-x86_64-pc-windows-msvc-install_only_stripped.tar.gz"
+checksum = "sha256:02e532b60e720aa3d77e757c349ae9cc945441c05851fa646336fc9ff0403041"
+url = "https://github.com/astral-sh/python-build-standalone/releases/download/20261026/cpython-3.15.2+20261026-x86_64-pc-windows-msvc-install_only_stripped.tar.gz"
 provenance = "github-attestations"
 
 [[tools.shellcheck]]

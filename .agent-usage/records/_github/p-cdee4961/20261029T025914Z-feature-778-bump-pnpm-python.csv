@@ -1,0 +1,6 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:40808913723:1,ci,2026-10-29T02:59:14.184Z,p-cdee4961,github-actions,,,,2026-10-29T02:52:29.000Z,2026-10-29T02:53:01.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:40808913671:1,ci,2026-10-29T02:59:14.184Z,p-cdee4961,github-actions,,,,2026-10-29T02:52:29.000Z,2026-10-29T02:56:30.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:40808465478:1,ci,2026-10-29T02:59:14.184Z,p-cdee4961,github-actions,,,,2026-10-29T02:47:47.000Z,2026-10-29T02:47:55.000Z,Asia/Tokyo,feature/793-ci-wait-queued-limit,793,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40808465476:1,ci,2026-10-29T02:59:14.184Z,p-cdee4961,github-actions,,,,2026-10-29T02:47:47.000Z,2026-10-29T02:52:00.000Z,Asia/Tokyo,feature/793-ci-wait-queued-limit,793,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-28T02:47:05.011Z:2026-10-29T02:59:14.184Z,coverage,2026-10-29T02:59:14.184Z,p-cdee4961,,,,,2026-10-28T02:47:05.011Z,2026-10-29T02:59:14.184Z,Asia/Tokyo,,,,,,,,,,,,ok,
