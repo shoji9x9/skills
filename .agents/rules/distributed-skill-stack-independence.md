@@ -27,7 +27,7 @@ applyTo: "skills/**"
 - 任意の依存で、無いときの振る舞いを決めて「前提」に書いたもの（`jq` か `python3` があれば使い、無ければ機能を減らして動く、など）。
 - 例として挙げる書き方（「lefthook など」「mise・asdf など」）と、特定のツールを使うプロジェクトでだけ読む手順（pnpm の推移的な依存の更新など）。
 - 未使用でも報告されず、その規則が無いプロジェクトでは何もしない指示のコメント（textlint・markdownlint・shellcheck）。
-- 特定のツールと版で確かめたという実測の記録。
+- 特定のツールとバージョンで確かめたという実測の記録。
 
 使われない抑止を報告されうる指示のコメントは、`scripts/gates/code/check-skill-lint-directives.ts` が lefthook の pre-commit と CI の `Lint` ジョブでチェックする。
 基底ドキュメントの決め打ちは、`distributed-skill-base-doc-generalization.md` で扱う。

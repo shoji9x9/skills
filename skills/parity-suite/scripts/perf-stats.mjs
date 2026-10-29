@@ -31,7 +31,7 @@ import { isPlainObject, nonEmptyString, nonNegativeNumber } from "./lib/guards.m
  */
 export const VERSION = "2";
 
-/** 採取の形式の版。雛形の `PERF_SAMPLES_VERSION` と同じ値にする。 */
+/** 採取の形式のバージョン。雛形の `PERF_SAMPLES_VERSION` と同じ値にする。 */
 export const SAMPLES_VERSION = "1";
 
 /** 比べる指標。`lcp`・`tbt`・`ttfb` はミリ秒、`cls` は単位の無いスコアである。 */
@@ -180,7 +180,7 @@ function isKeyPart(v) {
 }
 
 /**
- * 採取の版・側・target・slug が、期待するものと一致するかを確かめる。
+ * 採取のバージョン・側・target・slug が、期待するものと一致するかを確かめる。
  * @param {Record<string, unknown>} doc
  * @param {{ side: "current" | "new", slug: string, target: (string|null) }} expect
  */
@@ -538,7 +538,7 @@ export function summarize(metadata, samplesDoc, opts) {
  * 変えた記録を残し、replace-strategy の append-only-check.mjs が、履歴を追記せずに下限を変えた変更を落とす。
  * 比べる相手は、前の performance.floors ではなく履歴の最後の要素である。append-only-check.mjs も最後の要素と今の値を突き合わせる。
  * 前の floors と比べると、手で書き換えた下限に summarize を通し直しても追記されず、チェックが通らないまま残る。
- * 履歴が空なら（雛形のまま・履歴を持たない前の版の基準）、今の下限を最初の記録として追記する。
+ * 履歴が空なら（雛形のまま・履歴を持たない前のバージョンの基準）、今の下限を最初の記録として追記する。
  * 既存の要素は変えずにそのまま残す。
  * @param {unknown} previous - 書き換える前の metadata.json の performance
  * @param {unknown} samplesDoc
@@ -605,11 +605,11 @@ function inheritedSource(previous, key) {
  * 記録した下限を引き継ぐ。省いただけで決めた下限がデフォルトへ戻ると、
  * 採り直しのときにフラグを付け忘れただけで下限が変わり、デフォルトより緩くなければ compare の loosened_floors にも出ない。
  * 引き継ぐのは floor_history の最後の要素（記録した決定）である。declared に関わらず、履歴があれば履歴から引き継ぐ。
- * 履歴が無いときだけ、集計済み（declared: true）の前の performance の表を使う（履歴を持たない前の版の基準）。
+ * 履歴が無いときだけ、集計済み（declared: true）の前の performance の表を使う（履歴を持たない前のバージョンの基準）。
  * 今の表から引き継ぐと、手で緩めた下限にフラグなしで summarize を通しただけで、その値が正規の記録として履歴に残る。
  * 同じ理由で、履歴の最後の要素がオブジェクトでなければ、今の表へ戻らずに使い方の誤りにする。
  * 履歴も無く集計済みでもなければ（performance が無い・雛形のまま）、デフォルトを使う。
- * 引き継ぐ表や指標が無ければ、その分はデフォルトを使う（前の版の基準でも summarize で通し直せるようにする）。
+ * 引き継ぐ表や指標が無ければ、その分はデフォルトを使う（前のバージョンの基準でも summarize で通し直せるようにする）。
  * 値が在るのに 0 以上の数でなければ、デフォルトへ戻さずに使い方の誤りにする。ただし、その指標をフラグで渡したときは上書きするので止めない。
  * @param {unknown} previous - 書き換える前の metadata.json の performance
  * @param {{ key: string, defaults: Record<string, number>, overridden?: string[] }} spec - key は `floors` か `relative_floors`、overridden はフラグで渡した指標
@@ -845,7 +845,7 @@ function checkBaseline(metadata, opts) {
   }
   checkFloorTables(perf);
   if (perf.tool_version !== VERSION) {
-    // 判定の規則が変わった版で、古い版が書いた基準を読まない
+    // 判定の規則が変わったバージョンで、古いバージョンが書いた基準を読まない
     throw new UsageError(
       `performance.tool_version ${JSON.stringify(perf.tool_version)} が ${VERSION} でない（summarize を通し直す）`,
     );

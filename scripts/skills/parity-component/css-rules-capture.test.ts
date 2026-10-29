@@ -820,7 +820,7 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
   });
 });
 
-test("captureMatchedRules は論理名とツール版を付けて返す", async () => {
+test("captureMatchedRules は論理名とツールのバージョンを付けて返す", async () => {
   const el = fakeElement(buildSheets());
   const locator = {
     evaluate: <Arg>(fn: (el: FakeElement, options: Arg) => unknown, options: Arg) =>

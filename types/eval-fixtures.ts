@@ -3,7 +3,7 @@
 // 型は fixture が使う範囲だけを書く。fixture に import を足したら、ここにも足す。
 // 雛形の宣言（types/parity-templates.ts）とは分ける。同じプロジェクトに入れると、互いの検査で一致してしまう。
 
-// 市販のデータグリッド（current-environment-bootstrap の fixture。版は fixture の package.json にある）
+// 市販のデータグリッド（current-environment-bootstrap の fixture。バージョンは fixture の package.json にある）
 declare module "@progress/kendo-react-grid" {
   import type { ComponentType, ReactNode } from "react";
   export const Grid: ComponentType<{

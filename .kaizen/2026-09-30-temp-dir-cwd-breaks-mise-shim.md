@@ -29,7 +29,7 @@ scratchpad へ複製して cd し、`/home/.../node_modules/.bin/oxfmt --check` 
 `AGENTS.md`「技術スタック」には「リポジトリの外では `mise which <tool>` で実体のパスを取得して使う」
 「`./node_modules/.bin/<tool>` を直接指定しない」が既にある。基底ドキュメントの規約があっても再発した。
 
-- なぜ 1: node の shim は cwd がリポジトリの外だと版を決められない
+- なぜ 1: node の shim は cwd がリポジトリの外だとバージョンを決められない
 - なぜ 2: 複製先で確かめる形を選び、`node_modules/.bin` を絶対パスで指定すれば動くと考えた（bin のシバンが `node` の shim を通ることを見落とした）
 - なぜ 3: 規約は文章だけで、`cd <リポジトリ外>` と shim 経由のツールの組み合わせを止める仕組みが無い
 

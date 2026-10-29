@@ -278,7 +278,7 @@ describe.concurrent("変異の判定", () => {
     expect(res.status, res.out).toBe(0);
     // スタブを使ったことを必ず出力する（注入に気づかないまま測るのを防ぐ）。
     expect(res.out).toContain("テスト用の注入");
-    // 変異は必ず戻す（戻せないと以降の run が別の版を測る）。
+    // 変異は必ず戻す（戻せないと以降の run が別のバージョンを測る）。
     expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
   });
 

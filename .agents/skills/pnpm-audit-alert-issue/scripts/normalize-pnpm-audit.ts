@@ -6,7 +6,7 @@ import { isArray } from "../../../../scripts/lib/is-array.ts";
 import { parseJsonAs } from "../../../../scripts/lib/parse-as.ts";
 import { isCliEntry } from "../../../../scripts/lib/cli/entry.ts";
 
-// pnpm audit の JSON は版で形が変わるので、各フィールドは unknown として読み、使うところで確かめる。
+// pnpm audit の JSON はバージョンで形が変わるので、各フィールドは unknown として読み、使うところで確かめる。
 export type AuditRecord = Record<string, unknown>;
 export type Packages = Record<string, { version?: unknown } | undefined>;
 export type AuditJson = {
@@ -203,8 +203,8 @@ function advisoryFromVia(via: unknown): AuditRecord {
 }
 
 /**
- * packages から 1 つの項目の版を読む。項目が無い（null を含む）なら undefined。
- * 読む項目が object でなければ、今の版が警告なしに抜けるので、どの項目かを書いた Error を投げる。
+ * packages から 1 つの項目のバージョンを読む。項目が無い（null を含む）なら undefined。
+ * 読む項目が object でなければ、今のバージョンが警告なしに抜けるので、どの項目かを書いた Error を投げる。
  * 読まない項目（どの vulnerability も指さないもの）の形は確かめない。
  */
 function packageVersion(packages: Packages | undefined, key: string): unknown {
@@ -343,7 +343,7 @@ function entriesOf(value: unknown, name: string): [string, unknown][] {
 export function normalizeAudit(raw: unknown): Finding[] {
   if (!isRecord(raw)) throw new Error("全体が object でない");
   const audit: AuditJson = raw;
-  // packages は今の版を読むためだけに使う。欄の形はここで確かめ、項目の形は読むとき（packageVersion）に確かめる。
+  // packages は今のバージョンを読むためだけに使う。欄の形はここで確かめ、項目の形は読むとき（packageVersion）に確かめる。
   entriesOf(audit.packages, "packages");
   const findings: Finding[] = [];
 

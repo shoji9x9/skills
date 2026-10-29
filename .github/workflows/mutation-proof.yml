@@ -3,7 +3,7 @@
 # PR の CI（`ci.yml` の `Mutation proof (PR)`）は**差分に当たる宣言だけ**を測る。全件は直列で 1 時間を超え
 # （見積もりと実測は下の jobs のコメント）、毎 PR で払うコストとしては重い。
 # PR は、差分選択がたどらないファイル（`scripts/lib/`・`scripts/` の外のコード・テストが import せずに実行時に読む fixture）の更新や
-# 依存の版上げで検査が変わった宣言を測らない（docs/tooling.md）。その範囲を確かめるため、全件は週次で測り直す（Issue #747）。
+# 依存のバージョン上げで検査が変わった宣言を測らない（docs/tooling.md）。その範囲を確かめるため、全件は週次で測り直す（Issue #747）。
 name: Mutation proof
 
 on:

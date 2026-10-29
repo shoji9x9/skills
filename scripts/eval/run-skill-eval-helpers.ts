@@ -237,7 +237,7 @@ export function expectRunContractUsage(
   }
 }
 
-/** 版を答えない codex を PATH の先頭に置き、SKILL_EVAL_CLI_VERSION を外した環境を返す。 */
+/** バージョンを答えない codex を PATH の先頭に置き、SKILL_EVAL_CLI_VERSION を外した環境を返す。 */
 export function envWithoutCliVersion(directory: string, stub: string) {
   const fakeCodex = join(directory, "codex");
   writeFileSync(fakeCodex, "#!/usr/bin/env bash\nexit 91\n", "utf8");

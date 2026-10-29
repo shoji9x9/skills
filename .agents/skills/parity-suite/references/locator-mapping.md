@@ -301,7 +301,7 @@ PARITY_CURRENT_UI_URL=<url> PARITY_CURRENT_API_URL=<url> npx playwright test --p
   （出典: <https://playwright.dev/docs/api/class-browser#browser-version>・起動と接続の選択肢 <https://playwright.dev/docs/api/class-testoptions>（`connectOptions` を含む）・<https://playwright.dev/docs/api/class-browsertype#browser-type-connect>）。
 - 描画するブラウザの側の OS（`browser_os`）は、下の `readBrowserOs` と同じ読み方・同じ正規化で読む。
   `parity-diff` の新側の採取の雛形（`assets/capture-new.spec.template.ts`）が同じ関数を持ち、キーの集合と値のすべてが一致するかで照合する（読み方を変えるなら、両方を変える）。
-  Chromium は UA の OS の版を固定の値に縮めて返す（reduced UA）。そのため、`product` と `user_agent` だけでは、OS の版やアーキテクチャが違う機械を見分けられない。
+  Chromium は UA の OS のバージョンを固定の値に縮めて返す（reduced UA）。そのため、`product` と `user_agent` だけでは、OS のバージョンやアーキテクチャが違う機械を見分けられない。
   - 撮影に使うコンテキストでは読まない。
     `use` の `userAgent`（デバイスの設定を含む）を当てると、Playwright は `userAgentData` もその文字列から作って上書きする。
     Linux の機械で Mac の UA を当てると、`platform` が `macOS` になる（実測）。同じブラウザに、設定を当てない別のコンテキストを作って読み、閉じる。
@@ -309,7 +309,7 @@ PARITY_CURRENT_UI_URL=<url> PARITY_CURRENT_API_URL=<url> npx playwright test --p
     `navigator.userAgentData` は安全なコンテキストにしか無く、Playwright が開いた直後の `about:blank` は安全なコンテキストではない（実測）。
     合成した https の URL を `route` で返したページで読む（ネットワークには出ない）。
   - 取得するのは `platform`・`platformVersion`・`architecture` の 3 つのキーだけである。
-    `getHighEntropyValues` は `brands`・`mobile` も返す。版は `product` が持つ。
+    `getHighEntropyValues` は `brands`・`mobile` も返す。バージョンは `product` が持つ。
     Linux の Chromium は `platformVersion` を空文字で返す（実測）ので、空はそのまま残す。
   - `cdp` では、`navigator.platform` で代わりにすることを認めない。接続先は Chromium 系で、`navigator.platform` も縮められているので、同じ抜けが残る。
     `capture-scope-check.mjs` は、`cdp` なのに `browser_os` が無い記録（`browser-os-missing`）と、3 つのキーの文字列でない記録（`browser-os-invalid`）を失敗にする。

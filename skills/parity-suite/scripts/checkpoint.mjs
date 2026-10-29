@@ -33,7 +33,7 @@ import { isPlainObject } from "./lib/guards.mjs";
 import { realPathOf } from "./lib/paths.mjs";
 
 /**
- * ツールのバージョン（原本）。指紋の取り方・記録の形を変えたら上げる。版が違う記録は verify で落ちる。
+ * ツールのバージョン（原本）。指紋の取り方・記録の形を変えたら上げる。バージョンが違う記録は verify で落ちる。
  * @type {string}
  */
 export const VERSION = "1";

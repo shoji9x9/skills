@@ -113,19 +113,19 @@ function pngSize(path: string) {
   return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
 }
 
-/** metadata.json に記録したツールの版とコピー先のパスを、同梱のツールと突き合わせる。 */
+/** metadata.json に記録したツールのバージョンとコピー先のパスを、同梱のツールと突き合わせる。 */
 function checkTools(tools: Metadata["capture"]["tools"], problems: string[]) {
   if (tools.traits_version !== traitCapture.VERSION) {
     problems.push(`traits_version ${String(tools.traits_version)} ≠ ${traitCapture.VERSION}`);
   }
-  // element-shot.mjs の版も突き合わせる。build 手順 1 のツール版判定がこの値を読むので、
+  // element-shot.mjs のバージョンも突き合わせる。build 手順 1 でツールのバージョンを判定するときにこの値を読むので、
   // 欠けていると eval が実装の分岐へ届かず前段で止まる。
   if (tools.element_shot_version !== elementShot.VERSION) {
     problems.push(
       `element_shot_version ${String(tools.element_shot_version)} ≠ ${elementShot.VERSION}`,
     );
   }
-  // テンプレートはコピー先のパスも記録させる（`traits` と対）。版だけ埋めてパスを書かない
+  // テンプレートはコピー先のパスも記録させる（`traits` と対）。バージョンだけ埋めてパスを書かない
   // 採取物を fixture が手本にしてしまうため、パス側も揃っていることを検査する。
   for (const key of ["traits", "element_shot"]) {
     if (typeof tools[key] !== "string" || tools[key] === "") {
@@ -246,10 +246,10 @@ function compareShotRecord(capture: StateCapture, shot: ShotRecord, problems: st
   }
 }
 
-/** element.shot.json が在り、宣言した版で、element.png の実寸と一致することを検査する。 */
+/** element.shot.json が在り、宣言したバージョンで、element.png の実寸と一致することを検査する。 */
 function checkShot(capture: StateCapture, problems: string[]) {
   // element.shot.json は element.png と同じ run の記録。宣言した element_shot_version の出力と
-  // 名乗る以上、記録が在り、その版で、PNG の実寸と一致していなければならない。
+  // 名乗る以上、記録が在り、そのバージョンで、PNG の実寸と一致していなければならない。
   const { where, base, png } = capture;
   const shotPath = join(base, "element.shot.json");
   const shot = existsSync(shotPath) ? readJson<ShotRecord>(shotPath) : null;

@@ -122,7 +122,7 @@ Issue のタイトルの規約（conventional commits に似た接頭辞など�
 - 依存のバージョンが固定されている。親の依存がバージョンを固定している transitive 依存などで、manifest を直接上げても解決できない
 - transitive 依存が patched version に届くかを確かめていない。親の range が patched version を許していても、パッケージマネージャの実装によっては、通常の更新の操作で解決し直されないことがある（pnpm の詳細は [`references/pnpm-transitive-update.md`](references/pnpm-transitive-update.md)）。
   親の range が許していることだけを理由に、transitive 依存を「すぐ着手できる」に分類しない。
-  実際に patched version に届くことを確かめるか、確かめられないなら「lockfile の更新で関係のない依存の版も上がりうる」ことを Issue に書いてから分類する
+  実際に patched version に届くことを確かめるか、確かめられないなら「lockfile の更新で関係のない依存のバージョンも上がりうる」ことを Issue に書いてから分類する
 
 すぐ着手できない脆弱性については、妨げを解消する既存の Issue を調べる。
 妨げになっているパッケージ（修正版を出す上流、またはバージョンを固定している親）に、それを取り除く Issue・PR が既にあることがある。

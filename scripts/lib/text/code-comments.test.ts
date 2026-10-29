@@ -283,7 +283,7 @@ describe("シェル", () => {
   test.each([
     ["PATH に無い", () => makeTempDir("no-shfmt-")],
     [
-      "shim が版を解決できない（exit 1）",
+      "shim がバージョンを解決できない（exit 1）",
       () => {
         const dir = makeTempDir("shfmt-shim-");
         writeFileSync(

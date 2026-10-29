@@ -134,7 +134,7 @@ test("CLI: stdin の staged のファイルから範囲を出し、検査しな�
   expect(run("pnpm-lock.yaml\n")).toBe("all\n");
 });
 
-test("実リポジトリ: きっかけのファイルに、設定・プラグイン・それらが import するファイル・版を決めるファイルが入る", () => {
+test("実リポジトリ: きっかけのファイルに、設定・プラグイン・それらが import するファイル・バージョンを決めるファイルが入る", () => {
   const sources = pendingSources(REPO_DIR);
   for (const f of [
     "scripts/gates/code/oxlint-pending.test.ts",

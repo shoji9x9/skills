@@ -44,7 +44,7 @@ Chart・Tree・DatePicker などを足すときに、共通の処理や中心の
   ソースと設定は、候補の集合を取り出すのに使う。UI の操作の期待値は、動いている現行アプリで確定する。静的な解析だけで確認済みにしない。
   「ソースに `sortable: true` と書いてある」は候補であって、実測ではない。
 - 列挙は `instances[].enumeration` に記録する。
-  `source`（`kind`・`ref`・`version`・`extracted_at`・`condition`）は出所で、どの版のどこから、何を条件に取り出したかを後からたどれる形にする。
+  `source`（`kind`・`ref`・`version`・`extracted_at`・`condition`）は出所で、どのバージョンのどこから、何を条件に取り出したかを後からたどれる形にする。
   `condition` には、取り出した条件を書く（例: 「グリッドの定義の `columns` 配列のすべての要素。`hidden` も含める」）。
 - ソースを読めない場合は、確認済みにしない。
   `complete: false` と `incomplete_reason` に、「実際の UI から列挙する手順」と「足りないもの」を書く。

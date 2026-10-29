@@ -366,7 +366,7 @@ function startsComment(line: string, i: number): boolean {
 
 /**
  * PATH とカレントディレクトリの組ごとに、shfmt を起動できるかを 1 回だけ確かめた結果（エラーの文、または null）。
- * mise の shim が版を解決できるかは、カレントディレクトリ（mise.toml があるか）でも変わる。
+ * mise の shim がバージョンを解決できるかは、カレントディレクトリ（mise.toml があるか）でも変わる。
  */
 const shfmtProblems = new Map<string, string | null>();
 
@@ -391,7 +391,7 @@ export function isMissingToolError(error: unknown): error is MissingToolError {
 
 /**
  * shfmt を起動できるかを `shfmt --version` で確かめる。起動できない理由は、PATH に無い（ENOENT）ことに加えて、
- * mise の shim が版を解決できない（設定の無いディレクトリ、未インストールの版）ことがある。shim は後者で exit 1 になり、
+ * mise の shim がバージョンを解決できない（設定の無いディレクトリ、未インストールのバージョン）ことがある。shim は後者で exit 1 になり、
  * 解析の失敗と同じ形になるので、解析の前にツールの有無だけを分けて確かめる。
  */
 function shfmtProblem(): string | null | undefined {
@@ -402,7 +402,7 @@ function shfmtProblem(): string | null | undefined {
       execFileSync("shfmt", ["--version"], { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" });
     } catch (error) {
       const detail = execErrorDetail(error).trim().split("\n")[0];
-      problem = `shfmt を起動できない（${detail}）。mise の shim が PATH にあり、mise.toml の版が入っているかを確かめる`;
+      problem = `shfmt を起動できない（${detail}）。mise の shim が PATH にあり、mise.toml のバージョンが入っているかを確かめる`;
     }
     shfmtProblems.set(key, problem);
   }

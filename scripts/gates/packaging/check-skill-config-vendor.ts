@@ -2,7 +2,7 @@
 // 配布スキルに同梱する設定の読み取り（scripts/skill-config/）が、原本と一致しているかをチェックする（lefthook pre-commit + CI）。
 //
 // なぜ要るか: 配布スキルは利用者のプロジェクトに依存を install できないので、JSONC のパーサ（jsonc-parser）を
-// スキルごとに同梱する。同梱物を手で直したり、devDependency の版を上げて作り直し忘れたりすると、
+// スキルごとに同梱する。同梱物を手で直したり、devDependency のバージョンを上げて作り直し忘れたりすると、
 // スキルごとに読み方が食い違うか、原本と違うコードを配ることになる。
 //
 // 判定規則:
@@ -38,7 +38,7 @@ export const VENDOR_DIR = "scripts/skill-config/vendor";
 export const VENDOR_FILES = ["jsonc-parser.mjs", "jsonc-parser.d.mts", "LICENSE.md"] as const;
 export const SHARED_DOC = "references/config-files.md";
 
-/** jsonc-parser のパッケージのディレクトリと版。 */
+/** jsonc-parser のパッケージのディレクトリとバージョン。 */
 export function jsoncParserPackage(root: string): { dir: string; version: string } {
   const require = createRequire(join(root, "package.json"));
   const pkgJson = require.resolve("jsonc-parser/package.json");
@@ -66,7 +66,7 @@ export async function renderVendor(
   });
   const out = result.outputFiles[0];
   if (out === undefined) throw new Error("esbuild の出力が無い");
-  // esbuild が書く出所のコメントは node_modules の実パス（pnpm の版を含む）なので、手元と CI で同じになる
+  // esbuild が書く出所のコメントは node_modules の実パス（pnpm のバージョンを含む）なので、手元と CI で同じになる
   const header = [
     `// jsonc-parser ${version}（MIT。ライセンスは同じディレクトリの LICENSE.md）を 1 ファイルにまとめた生成物。手で直さない。`,
     // 配布スキルはスキルの外のファイルを参照しない（check-doc-refs の dist-repo-path）ので、作るツールの名前だけを書く
@@ -200,7 +200,7 @@ export async function main(
   for (const f of findings) process.stderr.write(`${f.path}: ${f.message}\n`);
   if (findings.length > 0) {
     process.stderr.write(
-      "check-skill-config-vendor: 食い違いがある。vendor/ は --fix で作り直す（jsonc-parser の版を変えたときも同じ）\n",
+      "check-skill-config-vendor: 食い違いがある。vendor/ は --fix で作り直す（jsonc-parser のバージョンを変えたときも同じ）\n",
     );
     return 1;
   }

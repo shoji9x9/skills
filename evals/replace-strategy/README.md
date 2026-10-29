@@ -74,7 +74,7 @@ scripts/eval/run-skill-eval.sh \
 - eval 27 は fixture 無しで、会話だけで判定できる取り決めを検証する。
   対象ブランチの ruleset の全ページ・全 rule type / classic branch protection から、必須 status check と必須 workflow を取得する。
   status check の context は、実在する check run の name から workflow / job へたどる。
-  必須 workflow は、定義元・版・job の呼び先までたどる。そのうえで `verification_commands.full` と突き合わせることを検証する。
+  必須 workflow は、定義元・バージョン・job の呼び先までたどる。そのうえで `verification_commands.full` と突き合わせることを検証する。
   prompt には同名の job・matrix の展開・check run の未生成を一次情報として置き、context の文字列から job を推測せず、一意な実測の対応ができるまで確定しない分岐へ到達させる。
   既知の `Test` / required workflow の欠落を prompt に明示するのは、診断を当てさせるためではない。
   **差がある状態で確定を拒むこと、共通の集約コマンドまたは必須 CI 上の乖離の検査まで、将来の drift への対策として要求すること**を測るためである
@@ -110,7 +110,7 @@ scripts/eval/run-skill-eval.sh \
   **iteration-32 の実測は、assertion 2 を変更する前のもの**である（塞ぎ方を「#102 へ足す / 別 Issue」の両方で可としていた）。
   機能行が Issue 番号を共有しない規則を足したので、assertion 2 を「別 Issue を起こす」へ狭め、番号の共有の検出を assertion 7 として追加した。
   **assertion を変えたので、既存の run は再利用せずに再取得する**（`docs/skill-development.md`「without-skill baseline の再利用」）。
-  旧 run はその規則を持たない版のスキルで実行しており、読み直して採点すると旧仕様を固定することになる。
+  旧 run はその規則を持たないバージョンのスキルで実行しており、読み直して採点すると旧仕様を固定することになる。
   **iteration-36 で実測**（変更確認のスコープ・各 config 1 run・claude-code / opus）: `with_skill` 7/7・`without_skill` 4/7。
   baseline は contamination: clean / isolation: sandboxed。**差が出たのは assertion 2・6・7** である。
   **iteration-39 で再実測**（fixture の横断 API 行の根拠を、口の明示的な列挙へ変えたため。同じスコープ）: `with_skill` 7/7・`without_skill` 3/7。
@@ -125,7 +125,7 @@ scripts/eval/run-skill-eval.sh \
   prompt の末尾で `.replace/features.md` への書き戻しを求めているのは、assertion 6 に**到達**させるためである。
   採点材料は `project-files/.replace/features.md` なので、報告だけで終わる run では真偽を測れない。
   列名（`受け入れ条件`）・値の語彙（`未対応` / 空欄の書き分け）は渡していないので、差は残る。
-  **（以下は、assertion 2 を狭めて 7 を追加する前＝6 assertion の版の履歴である。現行の評価は上の iteration-36 を見る。この段落を現行の eval の根拠に使わない）**
+  **（以下は、assertion 2 を狭めて 7 を追加する前＝6 assertion のバージョンの履歴である。現行の評価は上の iteration-36 を見る。この段落を現行の eval の根拠に使わない）**
   iteration-32: `with_skill` 6/6・`without_skill` 4/6 で、差が出たのは当時の assertion 4・6 だけだった。
   当時から変わらない観察は 2 つある。1 つは、fixture の features.md が空の「受け入れ条件」列を持つので、**列を埋めること自体は baseline にも誘導される**ことである。
   もう 1 つは、baseline が横断の記述を、**消費側の確認**ではなく `#101` 自身の引き受けの不足として扱いがちなことである。

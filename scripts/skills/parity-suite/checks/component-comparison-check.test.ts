@@ -197,7 +197,7 @@ test("指紋の欄そのものが無い記録も落ちる", () => {
   expect(codesOf({ comparison })).toContain("coverage-fingerprint-missing");
 });
 
-test("突き合わせは新側の版に紐づける（記録後に実装が変わったら落ちる）", () => {
+test("突き合わせは新側のバージョンに紐づける（記録後に実装が変わったら落ちる）", () => {
   // target・slug・網羅表の指紋だけでは、記録の後に新側を変えても古い証拠が通る。
   const stale = checkComponentComparison({
     coverage: COVERAGE,
@@ -207,7 +207,7 @@ test("突き合わせは新側の版に紐づける（記録後に実装が変�
   }).findings.map((f) => f.code);
   expect(stale).toContain("comparison-implementation-stale");
 
-  // 同じ版なら通る（通ることの確認）。
+  // 同じバージョンなら通る（通ることの確認）。
   const fresh = checkComponentComparison({
     coverage: COVERAGE,
     comparison: comparisonOf(),
@@ -216,7 +216,7 @@ test("突き合わせは新側の版に紐づける（記録後に実装が変�
   }).findings;
   expect(fresh).toEqual([]);
 
-  // 版を記録していない突き合わせ表と、未コミットの新側は落とす。
+  // バージョンを記録していない突き合わせ表と、未コミットの新側は落とす。
   expect(codesOf({ comparison: comparisonOf({ new_implementation: undefined }) })).toContain(
     "comparison-implementation-unrecorded",
   );
@@ -355,7 +355,7 @@ test("replace-metadata が new オブジェクトを持たなければ鮮度を�
   expect(codesOf()).not.toContain("replace-metadata-unusable");
 });
 
-test("版の記録は dirty: false まで求める（未コミットの作業ツリーは commit が版を指さない）", () => {
+test("バージョンの記録は dirty: false まで求める（未コミットの作業ツリーは commit がバージョンを指さない）", () => {
   for (const dirty of [undefined, true, "false", null]) {
     const comparison = comparisonOf({ new_implementation: { commit: "abc123", dirty } });
     expect(codesOf({ comparison })).toContain("comparison-implementation-dirty");
@@ -417,7 +417,7 @@ test.each([
   },
 );
 
-// 片側だけが none なら必要な直し方は「同じ版で再取得する」なので stale だけを出す。
+// 片側だけが none なら必要な直し方は「同じバージョンで再取得する」なので stale だけを出す。
 // 反復回数の検査まで進めると、仕様上 iteration を書く義務が無い SHA 記録に対して
 // unversionable（「iteration を書き足せ」と読める）が併発し、案内と実際の直し方がずれる。
 test("片側だけが none なら stale だけを出し、iteration の欠落は問わない", () => {
@@ -439,7 +439,7 @@ test("commit が実在の SHA なら従来どおり文字列で判定する（�
 });
 
 // 片側だけが none のとき、反復回数がたまたま一致しただけで合格として扱わない。
-// `none` と実在の SHA は同じ版を指さないので、反復回数の検査とは別に必ず落とす。
+// `none` と実在の SHA は同じバージョンを指さないので、反復回数の検査とは別に必ず落とす。
 test.each([
   {
     label: "記録が SHA・現在が none",
@@ -532,7 +532,7 @@ test("持ち越し: render_inputs が無ければ従来の stale だけで落と
   const { base, component } = p.commits;
   const { code, result } = runCarry(p);
   expect(result.findings.map((f) => f.code)).toEqual(["comparison-implementation-stale"]);
-  // 利用者が記録し直す版を決められるよう、記録した版と現在の版の両方を示す。
+  // 利用者が記録し直すバージョンを決められるよう、記録したバージョンと現在のバージョンの両方を示す。
   expect(result.findings[0]?.message).toContain(base);
   expect(result.findings[0]?.message).toContain(component);
   expect(result.notes.join("\n")).toContain("render_inputs");

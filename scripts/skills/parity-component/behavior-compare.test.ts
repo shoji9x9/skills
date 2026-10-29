@@ -292,7 +292,7 @@ test("比べないことを選ぶには承認が要る（承認があれば acce
           operation: r.operation,
           instance: r.instance,
           disposition: "accepted",
-          reason: "版差を許容",
+          reason: "バージョン差を許容",
           approved_by: "owner",
           approved_at: "2026-09-23",
         }
@@ -556,7 +556,7 @@ test("テンプレートのプレースホルダのままの承認は承認と�
     operation: "corner-click",
     instance: "orders",
     disposition: "accepted",
-    reason: "版差を許容",
+    reason: "バージョン差を許容",
     approved_by: "owner",
     approved_at: "2026-09-23T10:00:00Z",
     ...override,

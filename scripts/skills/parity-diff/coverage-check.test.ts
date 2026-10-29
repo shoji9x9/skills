@@ -900,7 +900,7 @@ test("いまの撮影条件を読めないときは照合済みとして扱わ�
 });
 
 // 指紋は「その表を忠実に転記したか」しか言わない。誤った導出規則で作られた要約も指紋は一致するので、
-// 生成側の版を見ないとスキルを上げても既知の欠陥を持つ要約が通り続ける（Issue #389 のレビュー指摘）。
+// 生成側のバージョンを見ないとスキルを上げても既知の欠陥を持つ要約が通り続ける（Issue #389 のレビュー指摘）。
 test("撮影状態の要約は下限より古い導出規則で作られていたら通さない", () => {
   const base = () => {
     const cov = full();
@@ -925,7 +925,7 @@ test("撮影状態の要約は下限より古い導出規則で作られてい�
     expect(countCoverageRaw(withVersion(String(version)), "order-list", now).problems).toEqual([]);
   }
 
-  // 下限より古い版・非数値・空は落とす（「判定しない」として扱わない）。
+  // 下限より古いバージョン・非数値・空は落とす（「判定しない」として扱わない）。
   for (const version of [String(MIN_COVERAGE_EXPAND_VERSION - 1), "x", ""]) {
     const problems = countCoverageRaw(withVersion(version), "order-list", now).problems;
     expect(problems.join("\n")).toMatch(

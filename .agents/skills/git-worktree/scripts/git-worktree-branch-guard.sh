@@ -2,7 +2,7 @@
 # git-worktree branch guard (PreToolUse hook)
 #
 # worktree を作る手段に branch を作らせる呼び出しを見つけ、**通知だけ**して通す。
-# Issue に紐づかない worktree（過去の版を読む・使い捨ての検証）にも正当な用途があるため、
+# Issue に紐づかない worktree（過去のバージョンを読む・使い捨ての検証）にも正当な用途があるため、
 # ブロックはしない。
 #
 # 見つける呼び出しは次のとおりである。
@@ -423,7 +423,7 @@ esac
 # --- 通知 ---------------------------------------------------------------------
 
 read -r -d '' notice <<NOTICE || true
-git-worktree: ${detected}。worktree の作成手段に branch を作らせると、branch 名がその機構の命名規則になり（EnterWorktree は \`worktree-<名前>\`、\`/\` は \`+\` に置換）、既定の base も \`origin/<デフォルト branch>\` に変わるため、Issue との紐付け（linked branches）が作られません。Issue に着手中なら、先に \`gh issue develop <番号> --name "<branch 名>" --base <ベース>\`（\`--checkout\` は付けない）で branch を作り、その**既存 branch** に worktree を張ってください（EnterWorktree なら \`path\`、CLI なら \`git worktree add <パス> <branch>\`）。Issue に紐づかない worktree（過去の版を読む・使い捨ての検証）ならこのまま進めて構いません。
+git-worktree: ${detected}。worktree の作成手段に branch を作らせると、branch 名がその機構の命名規則になり（EnterWorktree は \`worktree-<名前>\`、\`/\` は \`+\` に置換）、既定の base も \`origin/<デフォルト branch>\` に変わるため、Issue との紐付け（linked branches）が作られません。Issue に着手中なら、先に \`gh issue develop <番号> --name "<branch 名>" --base <ベース>\`（\`--checkout\` は付けない）で branch を作り、その**既存 branch** に worktree を張ってください（EnterWorktree なら \`path\`、CLI なら \`git worktree add <パス> <branch>\`）。Issue に紐づかない worktree（過去のバージョンを読む・使い捨ての検証）ならこのまま進めて構いません。
 NOTICE
 
 json_escape() { # $1: 文字列

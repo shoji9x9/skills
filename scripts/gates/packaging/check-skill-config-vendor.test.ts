@@ -156,7 +156,7 @@ describe("check", () => {
 });
 
 describe("renderVendor", () => {
-  test("生成物の先頭に版を書き、型とライセンスは jsonc-parser のファイルそのものにする", async () => {
+  test("生成物の先頭にバージョンを書き、型とライセンスは jsonc-parser のファイルそのものにする", async () => {
     const { dir, version } = jsoncParserPackage(repoRoot);
     const v = await renderVendor(repoRoot);
     expect(v["jsonc-parser.mjs"].split("\n")[0]).toContain(`jsonc-parser ${version}（MIT`);
@@ -175,7 +175,7 @@ describe("main", () => {
     expect(r.err).toContain("vendor/ は --fix で作り直す");
   });
 
-  test("食い違いが無ければ exit 0 で、スキルの数と版を出す", async () => {
+  test("食い違いが無ければ exit 0 で、スキルの数とバージョンを出す", async () => {
     const { root, put } = makeRepo();
     put("skills/a/config-schemas/a.schema.json", "{}");
     put(`skills/a/${READER}`);
@@ -193,7 +193,7 @@ describe("main", () => {
     expect(r).toMatchObject({ code: 2, err: expect.stringContaining("知らない引数: --check") });
   });
 
-  test("実リポジトリ: 同梱物は devDependency の版と一致している", async () => {
+  test("実リポジトリ: 同梱物は devDependency のバージョンと一致している", async () => {
     expect((await runMain([], repoRoot)).code).toBe(0);
   });
 });

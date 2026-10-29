@@ -923,7 +923,7 @@ const UNCHANGED_INPUTS =
  *   - その宣言の `test_file`、`test_file` から相対の import を間接のものまでたどった `scripts/` の `.ts`（`scripts/lib/` を除く。`supportFiles`）、いずれかの変異の対象ファイルが変わった
  *
  * それ以外の宣言は PR では測らない。たどらないファイル（`scripts/lib/`・`scripts/` の外のコード・テストが import せずに実行時に読む fixture）や
- * 依存の版の変更で検査が変わった宣言も含むので、週次の全件の実行で確かめる（docs/tooling.md）。
+ * 依存のバージョンの変更で検査が変わった宣言も含むので、週次の全件の実行で確かめる（docs/tooling.md）。
  * **選んだ／飛ばした理由は必ず出力する**（0 件を警告なしに成功にしない）。
  */
 function selectChangedSpecs(specs: Spec[], ref: string): Spec[] {

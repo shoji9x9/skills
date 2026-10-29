@@ -877,7 +877,7 @@ describe("agent-usage のコマンドと Hook", () => {
     const crlf = readFileSync(file, "utf8");
     expect(crlf.startsWith(text.replace(/\n/g, "\r\n"))).toBe(true);
     expect(crlf.replace(/\r\n/g, "")).not.toContain("\n");
-    // 新しい版が足した列（この版が知らない列）の値は、書き直しても落とさない
+    // 新しいバージョンが足した列（このバージョンが知らない列）の値は、書き直しても落とさない
     const [header, ...body] = text.trim().split("\n");
     writeFileSync(
       file,
@@ -957,7 +957,7 @@ describe("agent-usage のコマンドと Hook", () => {
   test("見出しの列が今と違うファイルに足すときは、今の列で書き直す", () => {
     const { git, cli, branches } = collectedOnBranch();
     const file = join(branches, readdirSync(branches)[0] ?? "");
-    // 列の少ない版が書いたファイル（detail の列が無い）
+    // 列の少ないバージョンが書いたファイル（detail の列が無い）
     const columns = [...COLUMNS].filter((c) => c !== "detail");
     writeFileSync(file, toCsv(columns, parseCsv(readFileSync(file, "utf8"))));
     git("commit", "-q", "--allow-empty", "-m", "work");
@@ -1221,7 +1221,7 @@ describe("agent-usage のコマンドと Hook", () => {
     const baseline = readFileSync(join(out, "usage.csv"), "utf8");
     const { branches } = recordDirs(repo);
     const [name] = readdirSync(branches);
-    // 最後の列（retracted）を除いた、前の版の形にする
+    // 最後の列（retracted）を除いた、前のバージョンの形にする
     const text = readFileSync(join(branches, name ?? ""), "utf8");
     const old = text
       .trim()

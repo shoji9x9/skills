@@ -12,7 +12,7 @@ session: claude-code
 
 ## 事象
 
-PR #541 で parity-diff の preflight.md に「新側の版の一致」の照合スクリプト（撮る前に止めるチェック）を書いた。
+PR #541 で parity-diff の preflight.md に「新側のバージョンの一致」の照合スクリプト（撮る前に止めるチェック）を書いた。
 初版は 7 状態だけ実測して出し、Copilot レビューが 1 周ごとに別の抜けを 1 件ずつ見つけた。見つかった順に次のとおり。
 
 1. 一括再検証の照合相手（commits.after）

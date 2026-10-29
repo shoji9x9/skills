@@ -228,7 +228,7 @@ function addCodexEntry(st, entry) {
  */
 function finishCodexSummary(st) {
   const s = st.s;
-  // token_usage_record のある版では token_count も同じ応答を数えるので、片方だけを使う
+  // token_usage_record のあるバージョンでは token_count も同じ応答を数えるので、片方だけを使う
   s.messages = st.fromRecords.length > 0 ? st.fromRecords : st.fromCounts;
   if (s.subagent) {
     s.prompts = [];

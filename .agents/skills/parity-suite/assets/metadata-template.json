@@ -18,7 +18,7 @@
     "procedure_revision": "<採取した時点の assets/procedure-revisions.json の revision（整数で書く）。確かめる軸を足した改訂より小さい成果物は、replace-strategy の procedure-staleness-check.mjs が旧手順で特性化した機能として列挙する。書き換えるのは特性化をやり直したときだけ（部分的な追記で上げない）>",
     "autonomous": "<--autonomous で起動した実行なら true、それ以外は false（真偽値で書く）>"
   },
-  "dataset_version": "<採取時の .replace/dataset/metadata.json の version。その版より後の changes[].affects がこの slug の実効参照テーブルと交差すれば陳腐化として再取得する。数値が古いだけなら有効>",
+  "dataset_version": "<採取時の .replace/dataset/metadata.json の version。そのバージョンより後の changes[].affects がこの slug の実効参照テーブルと交差すれば陳腐化として再取得する。数値が古いだけなら有効>",
   "suite": {
     "dir": "<parity_suite_dir。未指定時 e2e/>",
     "specs": "<スペックのパス（推測させないため実際のパスを記録）>",
@@ -29,18 +29,18 @@
     "interactions": "<操作アダプタのパス>",
     "dimension": "<寸法の決まり方の測定スペックのパス（既定 <parity_suite_dir>/parity/<slug>/dimension/）。current / new の両プロジェクトに含め、PARITY_DIMENSION_CAPTURE=1 の実行でだけ書く（強度チェック等で上書きさせない）。current は .replace/parity/<slug>/dimension-samples.json、new は .replace/parity/<slug>/new/<PARITY_NEW_TARGET>/dimension-samples.json へ書く>",
     "perf": "<性能の採取スペックのパス（既定 <parity_suite_dir>/parity/<slug>/perf/perf.spec.ts。parity-suite の assets/perf-capture.spec.template.ts から起こす）。current / new の両プロジェクトに含め、PARITY_PERF_CAPTURE=1 の実行でだけ書く。current は .replace/parity/<slug>/perf-samples.json、new は .replace/parity/<slug>/new/<PARITY_NEW_TARGET>/perf-samples.json へ書く。performance.declared: false なら null>",
-    "tools": "<決定論的ツール（trait-capture / trait-compare / 応答ヘッダーを録画するなら header-normalize のコピー）のパス（パスを 1 つだけ書く。trait-capture・element-shot は隣の page/ の本体のコピーを import するので、コピー専用サブディレクトリをディレクトリで書く。ファイルのパスで書くと、page/ のコピーがスイートの指紋に入らないので、artifact-health-check はスイートの指紋を計算するときに判定できないとして失敗にする。版は traits.tool・differ.* の側に書く）。コピー専用サブディレクトリ（既定 <parity_suite_dir>/parity/lib/tools/vendor/）に置き、プロジェクト自作ツールと同居させない>",
+    "tools": "<決定論的ツール（trait-capture / trait-compare / 応答ヘッダーを録画するなら header-normalize のコピー）のパス（パスを 1 つだけ書く。trait-capture・element-shot は隣の page/ の本体のコピーを import するので、コピー専用サブディレクトリをディレクトリで書く。ファイルのパスで書くと、page/ のコピーがスイートの指紋に入らないので、artifact-health-check はスイートの指紋を計算するときに判定できないとして失敗にする。バージョンは traits.tool・differ.* の側に書く）。コピー専用サブディレクトリ（既定 <parity_suite_dir>/parity/lib/tools/vendor/）に置き、プロジェクト自作ツールと同居させない>",
     "auth_roles": [
       "<特性化に使ったロール名（設定 targets[].auth.roles のキー。認証不要なら空配列）>"
     ],
     "current_green": true,
     "state_mutating": "<このスイートが現行アプリの状態を変えるか（書き込み・更新・削除を含むか）を真偽値で書く。artifact_health.declared: true では省略しない。判断の原本は parity-suite の references/baseline.md「状態を変えるスイートは 2 回続けて緑にする」>",
     "repeat_run": {
-      "_note": "状態を変えるスイートの反復実行の記録。state_mutating: true のときだけ検査に入る（false では runs を空配列にし reason を書く）。1 回目は初期状態から始まるため後始末の有無が結果に現れない。2 回続けて緑になって初めて後始末が効いたことの証拠になる。記録は suite_fingerprint で「どの版のスイートを回したか」に結びつける（結びつけないと、記録した後にスペックや後始末を変えても古い記録で通る）。原本は parity-suite の references/baseline.md「状態を変えるスイートは 2 回続けて緑にする」。",
+      "_note": "状態を変えるスイートの反復実行の記録。state_mutating: true のときだけ検査に入る（false では runs を空配列にし reason を書く）。1 回目は初期状態から始まるため後始末の有無が結果に現れない。2 回続けて緑になって初めて後始末が効いたことの証拠になる。記録は suite_fingerprint で「どのバージョンのスイートを回したか」に結びつける（結びつけないと、記録した後にスペックや後始末を変えても古い記録で通る）。原本は parity-suite の references/baseline.md「状態を変えるスイートは 2 回続けて緑にする」。",
       "cleanup_in_suite": "<後始末（反対の操作）をスイートの中に置いたか。外のツールに頼ると回した人が忘れた時点で次の実行が失敗し、しかもその失敗は「現行が変わった」と同じ見え方になる。state_mutating: true では true でなければ未検証として数える>",
       "specs": [
         {
-          "_note": "任意（推奨）。書くとスペック単位で判定する。このとき 2 回続けての緑を求めるのは state_mutating: true のスペックだけで、state_mutating: false のスペックは現在の版での 1 回の緑の記録で足りる。変えたスペックだけを回し直せば足りる。書かなければ suite_fingerprint でスイート全体を判定する。suite.specs の下のスペック（Playwright 既定の testMatch に当たる *.spec.* / *.test.* と、ここに書いたファイル）はすべて分類する（分類漏れは未検証として落ちる）。原本は parity-suite の references/baseline.md「スペック単位で記録する」。",
+          "_note": "任意（推奨）。書くとスペック単位で判定する。このとき 2 回続けての緑を求めるのは state_mutating: true のスペックだけで、state_mutating: false のスペックは現在のバージョンでの 1 回の緑の記録で足りる。変えたスペックだけを回し直せば足りる。書かなければ suite_fingerprint でスイート全体を判定する。suite.specs の下のスペック（Playwright 既定の testMatch に当たる *.spec.* / *.test.* と、ここに書いたファイル）はすべて分類する（分類漏れは未検証として落ちる）。原本は parity-suite の references/baseline.md「スペック単位で記録する」。",
           "path": "<スペックのリポジトリルート基準の相対パス>",
           "state_mutating": "<このスペックが現行アプリの状態を変えるかを真偽値で。現側専用の採取・ノイズ測定・強度チェックは、現行へ保存する操作を含まなければ false>",
           "reason": "<判断の根拠（必須）。検査は字面で裏づけないので、レビューで読まれる記録として書く。迷ったら true>"
@@ -66,7 +66,7 @@
           "spec_fingerprints": {
             "<その回に回したスペックのパス>": "<そのスペックの指紋（sha256-nc:<16 進>）。specs を書いたときに書き、その回に回したスペックの分だけを --fingerprint の出力から転記する>"
           },
-          "suite_fingerprint": "<specs を書かないときに書く。その回に回したスイートの指紋（sha256-nc:<16 進>）。artifact-health-check.mjs が suite.specs / locator_map / expectations / interactions / tools の宣言パスから再計算して照合する（ディレクトリは再帰、パスはソート、各ファイルの sha256 を連結して sha256）。TypeScript（.ts .mts .cts）はコメントを除いた内容で数えるので、注記だけの書き換えでは取り直しにならない（文字列・テンプレート・正規表現の中身と、ツールへの指示コメント〈@ts-expect-error・///・/*! */・eslint- 等〉は除かない）。.js 系・.jsx / .tsx（JSX のテキストの // をコメントと区別できない）を含むそれ以外の拡張子は生バイト。旧方式の sha256: で記録済みの runs は旧方式（コメントも含めた生バイト）で照合する。手で計算せず artifact-health-check.mjs --fingerprint の出力から転記する。連続する 2 回で同じ値になり、かつ現在のスイートと一致することを求める。記録をスイートの版に結びつけないと、2 回緑を記録した後にスペックや後始末を変えても古い記録で緑のまま通る。キーごと持たない旧成果物はこの軸を判定しない>"
+          "suite_fingerprint": "<specs を書かないときに書く。その回に回したスイートの指紋（sha256-nc:<16 進>）。artifact-health-check.mjs が suite.specs / locator_map / expectations / interactions / tools の宣言パスから再計算して照合する（ディレクトリは再帰、パスはソート、各ファイルの sha256 を連結して sha256）。TypeScript（.ts .mts .cts）はコメントを除いた内容で数えるので、注記だけの書き換えでは取り直しにならない（文字列・テンプレート・正規表現の中身と、ツールへの指示コメント〈@ts-expect-error・///・/*! */・eslint- 等〉は除かない）。.js 系・.jsx / .tsx（JSX のテキストの // をコメントと区別できない）を含むそれ以外の拡張子は生バイト。旧方式の sha256: で記録済みの runs は旧方式（コメントも含めた生バイト）で照合する。手で計算せず artifact-health-check.mjs --fingerprint の出力から転記する。連続する 2 回で同じ値になり、かつ現在のスイートと一致することを求める。記録をスイートのバージョンに結びつけないと、2 回緑を記録した後にスペックや後始末を変えても古い記録で緑のまま通る。キーごと持たない旧成果物はこの軸を判定しない>"
         }
       ],
       "reason": "<state_mutating: false のときだけ、状態を変えないと判断した根拠。true では null>"
@@ -113,7 +113,7 @@
     "viewer_environment": "<想定利用者環境との一致。「一致: <確かめ方（例: 利用者環境のブラウザへ接続して撮り、CSS.getPlatformFontsForNode で描いた書体を読んだ）>」か「乖離: <内容と gaps.md の該当箇所>」の 2 形だけ。未確認・確かめ方の無い一致は capture-scope-check.mjs が落とし parity-diff が収束させない。乖離のまま撮ると、採取環境でだけ成立する一致（フォントフォールバック・システム UI 由来の既定値）を差分ツールが見逃す。原本は parity-suite の references/baseline.md「採取環境と利用者環境の乖離」>",
     "browser": "<launched | cdp。launched は Playwright が起動したブラウザ、cdp は選択した target の browser.cdp_url（利用者環境で起動した Chromium 系ブラウザ）へ connectOverCDP で接続して撮った。parity-diff の新側採取が同じ扱いで撮るために必須（片側だけ利用者環境で撮ると環境の差がそのまま差分に出る）>",
     "browser_identity": {
-      "_note": "browser が cdp のときだけ書く（launched では null）。現側で接続した利用者環境のブラウザの同一性。parity-diff の新側採取が、接続したブラウザと照合して別の機械・別の版で撮るのを止める。browser_os は描画するブラウザ側の OS で、use の userAgent を当てない別のコンテキストの安全なコンテキストの頁で navigator.userAgentData.getHighEntropyValues から platform / platformVersion / architecture の 3 キーだけを拾う（navigator.platform への代替は認めない。キーの過不足は capture-scope-check.mjs が落とす）。読み方の原本は parity-suite の references/locator-mapping.md「利用者環境のブラウザへ接続する」。",
+      "_note": "browser が cdp のときだけ書く（launched では null）。現側で接続した利用者環境のブラウザの同一性。parity-diff の新側採取が、接続したブラウザと照合して別の機械・別のバージョンで撮るのを止める。browser_os は描画するブラウザ側の OS で、use の userAgent を当てない別のコンテキストの安全なコンテキストの頁で navigator.userAgentData.getHighEntropyValues から platform / platformVersion / architecture の 3 キーだけを拾う（navigator.platform への代替は認めない。キーの過不足は capture-scope-check.mjs が落とす）。読み方の原本は parity-suite の references/locator-mapping.md「利用者環境のブラウザへ接続する」。",
       "product": "<Playwright の browser.version() の値>",
       "user_agent": "<撮影したページで読んだ navigator.userAgent>",
       "browser_os": {
@@ -351,7 +351,7 @@
   "differ": {
     "trait_compare": "<プロジェクト側 trait-compare.mjs のパスと VERSION 値>",
     "header_normalize": {
-      "_note": "応答ヘッダーを録画したときだけ書く（録画しないなら header_normalize 自体を null にする。api-resource / batch モードでも省略しない）。parity-diff は新側を同じ版・同じ一覧で正規化できるときだけヘッダーを比べる。原本は parity-suite の references/api-batch.md「応答ヘッダー」。",
+      "_note": "応答ヘッダーを録画したときだけ書く（録画しないなら header_normalize 自体を null にする。api-resource / batch モードでも省略しない）。parity-diff は新側を同じバージョン・同じ一覧で正規化できるときだけヘッダーを比べる。原本は parity-suite の references/api-batch.md「応答ヘッダー」。",
       "path": "<プロジェクト側 header-normalize.mjs のパス（suite.tools のコピー専用ディレクトリの中）>",
       "version": "<そのコピーの VERSION 値>",
       "headers": [

@@ -59,12 +59,12 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
   `channel` を指定するか `headless: false` にすると、完全版の Chromium か Google Chrome が起動し、ブラウザ本体が起動しただけで Google へ送信する（原本は `parity-suite` の `SKILL.md`「前提」）
 - このスキルは現行アプリを動かさない。ノイズ基準値と視覚ベースラインの測定は `parity-suite` が行う。このスキルが撮るのは新側だけである。
 - 判定の詳細は [`references/preflight.md`](references/preflight.md) にある。
-  target の解決・起動・モードごとの要求・確かめるキーのフルパス・データセットの版の三者の整合・差分ツールの版の一致・反復の上限を扱う。
+  target の解決・起動・モードごとの要求・確かめるキーのフルパス・データセットのバージョンの三者の整合・差分ツールのバージョンの一致・反復の上限を扱う。
 
 ## 厳守の制約（禁止事項）
 
 - 差分の調査は、十分な証拠を最も安く得られる方法から始める。原因は次の順に切り分ける。
-  1. 選択した target から採取した差分の成果物・観測記録（前提の確認で、対象の版・採取の時点・条件が一致すると確かめたもの）
+  1. 選択した target から採取した差分の成果物・観測記録（前提の確認で、対象のバージョン・採取の時点・条件が一致すると確かめたもの）
   2. 現行と新側のソースコード
   3. API の実際の動作
   4. UI の実際の動作
@@ -86,7 +86,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
   解析ツールは `metadata.json.differ.file_extract` に記録された値を使い、自分で選び直さない。
   現側と抽出ツールが変わると、差分がツールの差か実装の差かを切り分けられないからである（原本は `replace-strategy` の `references/file-io.md`）。
 - テキストの幅や字形の差を、切り分けずに分類しない。「同じフォント名だから」という理由で、環境ノイズや許容にしない。
-  差は版（`head.fontRevision`）とヒンティング命令の有無で決まるので、[`references/font-diff.md`](references/font-diff.md) の手順で切り分けてから分類する。
+  差はバージョン（`head.fontRevision`）とヒンティング命令の有無で決まるので、[`references/font-diff.md`](references/font-diff.md) の手順で切り分けてから分類する。
 - コンポーネントの差分を、インスタンス単位の無視リストで吸収しない。クラスやトークンの単位の系統差 T（`component_diffs`）で宣言し、T から外れたものを検出する。
   ただし、画素の検出でしか出ない差（computed style は一致し、描画だけが違う）には T の照合キーが無く、`component_diffs` では吸収されない。
   その差を置ける場所は、インスタンス例外（`property: pixel`）だけである（レジストリごとにどの比較方法に使われるかは [`references/normalize.md`](references/normalize.md) で定義する）。
@@ -130,7 +130,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
   `suite.new_green` が真なのに無いか古い `diff-metadata.json`。
   `converged` が偽でも失敗にはしない。失敗にするのは「無い」と「古い」だけである。スクリプトが無ければ、判定を飛ばさずに停止する。判定は [`references/convergence.md`](references/convergence.md) で定義する。
 - 追記専用の成果物が縮んだ状態で、`converged: true` にしない。インストール済みの `replace-strategy` の
-  `scripts/append-only-check.mjs --root . --base <機能に着手した時点の版>` で数え直し、exit 0 以外なら止めて、過去の決定を元に戻す。
+  `scripts/append-only-check.mjs --root . --base <機能に着手した時点のバージョン>` で数え直し、exit 0 以外なら止めて、過去の決定を元に戻す。
   デフォルトの `HEAD` は使わない。書き直しを commit した後の `HEAD` は作業ツリーと同じなので、何かが失われていても通ってしまう。
   収束の判定は今の状態しか見ないので、積み上げた文書を丸ごと書き直しても、「なぜ許容したのか・いつ誰が承認したのか」が消えたまま通る。
   対象が 0 件のときは合格として扱わない。一覧は `replace-strategy` の `assets/append-only-manifest.json` で定義する。
@@ -189,7 +189,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
   - 差分ツールやフォント解析ツールを入れるか
   - `on_diff` のドキュメントが指示する起票（越えない線）
   - `references.dependency_policy` の確認
-  - `commit_check` の無い配信型の target で、照合する相手の版がデプロイ済みかの確認。確認が取れるまで、その機能は撮らない（[`references/preflight.md`](references/preflight.md)「新側の版の一致」）
+  - `commit_check` の無い配信型の target で、照合する相手のバージョンがデプロイ済みかの確認。確認が取れるまで、その機能は撮らない（[`references/preflight.md`](references/preflight.md)「新側のバージョンの一致」）
 - 保留にしても進める工程
   - 要対応の差分の `parity-replace` への差し戻し（同じ `--autonomous` を引き継ぐ）
   - 他の候補のトリアージ、網羅表と反応の数え直し、`blocked_by` の検証、成果物の更新
@@ -202,9 +202,9 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 
 詳細は各 reference に書いてある。番号の順に進める。
 
-1. target の解決と前提の確認（[`references/preflight.md`](references/preflight.md)）。対象の target を決めてから、停止条件・データセットの版が古くなっていないか・差分ツールの版の一致・反復の上限を確かめる。
+1. target の解決と前提の確認（[`references/preflight.md`](references/preflight.md)）。対象の target を決めてから、停止条件・データセットのバージョンが古くなっていないか・差分ツールのバージョンの一致・反復の上限を確かめる。
    選択した target の `new/<target>/replace-metadata.json` が無いか、`suite.new_green` でなければ、「その環境ではまだ green 証跡が無い」として停止し、同じ `--target` での `parity-replace` を案内する。
-   green を取った版（`new.commit`。`--component-change` の一括再検証では変更の宣言の `commits.after`）が、撮る新側の版と違うときも、撮らずに同じく停止する。
+   green を取ったバージョン（`new.commit`。`--component-change` の一括再検証では変更の宣言の `commits.after`）が、撮る新側のバージョンと違うときも、撮らずに同じく停止する。
    前提が欠けていれば、成果物を作り出さずに停止し、依存の順に案内する。
 2. モードで分ける。`metadata.json.mode` で、feature（3 つの比較方法）/ api-resource / batch に分ける。api-resource と batch では、画面の 3 つの比較方法を使わない（[`references/api-batch.md`](references/api-batch.md)）。
 3. 新側のベースラインを取得する（[`references/capture-new.md`](references/capture-new.md)）。
@@ -228,7 +228,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 6. LLM でトリアージする（[`references/triage.md`](references/triage.md)）。正規化の後に残った候補だけを、1 件ずつ crop の対で見せる。
    モデルに聞くのは、要対応／許容／環境ノイズの 3 値である。どれとも判断できない候補は、未説明のまま残す（`diff.md` の分類の欄には未説明も並ぶ）。
    「許容」はユーザーの承認で確定し、承認は原因の単位で行う（同じ原因の N インスタンスを 1 回で確定する。代表のインスタンスの判断の材料と件数 N を UI に載せる）。
-   テキストの幅や字形の差は、分類の前にフォントの差を切り分ける（版の差かヒンティングの差か。[`references/font-diff.md`](references/font-diff.md)）。
+   テキストの幅や字形の差は、分類の前にフォントの差を切り分ける（バージョンの差かヒンティングの差か。[`references/font-diff.md`](references/font-diff.md)）。
 7. 収束を判定し、差し戻す（[`references/convergence.md`](references/convergence.md)）。判定するのは差分ツールである。状態は 4 つある（収束／他機能待ち／判断待ち／未収束）。
    収束の条件に入れるものと、数え直しに使うスクリプトは次のとおりである。
    - 部品網羅表の未測定。現側の `metadata.json.component_coverage` が `declared: true` のとき、[`scripts/coverage-check.mjs`](scripts/coverage-check.mjs) で数え直す（目視で数えない。判定しなかった場合は、理由を記録して未検証に残す）。
@@ -299,8 +299,8 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
     突き合わせていないものが残れば、収束させずに `parity-replace` へ戻す（様式は `parity-suite` で定義する）
   - 新側の green の証拠（`suite.new_green`）
   - target の名前と新側の URL（`new.{target,ui_url,api_url}`）。`url_command` の target では `"runtime"` が記録されるので、target の設定から解決し直す
-  - 新側のマッピングの例外と、実装で前提にしたデータセットの版（`dataset_version`）
-  - データセットの版が古くなったかは、この値では判定しない。判定は [`references/preflight.md`](references/preflight.md) の三者の整合（`metadata.json`・データセットの `changes`・`phase_b.<slug>.<target>`）で行う
+  - 新側のマッピングの例外と、実装で前提にしたデータセットのバージョン（`dataset_version`）
+  - データセットのバージョンが古くなったかは、この値では判定しない。判定は [`references/preflight.md`](references/preflight.md) の三者の整合（`metadata.json`・データセットの `changes`・`phase_b.<slug>.<target>`）で行う
 - `parity-replace` へ差し戻すもの: 要対応の差分が残り、target の `on_diff` が無い（デフォルト）か、そのドキュメントが修正を指示するとき、`diff.md` を差し戻しの入力として同じ target で渡す。
   反復の回数の記録と上限の管理（`--max-iterations` のデフォルトは 5）は、`parity-replace` がその target の `replace-metadata.json` の `loop.*` で行う（環境ごとに独立している）。
   上限を超えたら、差し戻さずに停止してユーザーへ上げる。

@@ -521,14 +521,14 @@ function unjudgedResult(dm, status, viewportCount) {
   }
   if (status === "not_required" && viewportCount < 2) {
     throw new UsageError(
-      "ビューポートが 1 つの撮影で dimension_model.status: not_required は使えない（1 点の px を並べた版組が 3 つの比較方法で緑になる）",
+      "ビューポートが 1 つの撮影で dimension_model.status: not_required は使えない（1 点の px を並べたレイアウトが 3 つの比較方法で緑になる）",
     );
   }
   return { judged: false, reason: `dimension_model.status: ${status}（${dm.reason}）` };
 }
 
 /**
- * measured の dimension_model から、ツールの版・許容・測定窓を読む。
+ * measured の dimension_model から、ツールのバージョン・許容・測定窓を読む。
  * @param {Record<string, unknown>} dm
  * @param {{ width: number, height: number }[]} viewports
  * @returns {{ tolerance: number, windows: { width: number, height: number }[] }}

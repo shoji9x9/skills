@@ -28,14 +28,14 @@
     },
     {
       "id": "one-sided-skip",
-      "why": "片側だけが text_owners を持つ（版違い）ときに黙って比較を省く",
+      "why": "片側だけが text_owners を持つ（バージョン違い）ときに黙って比較を省く",
       "file": "skills/parity-suite/scripts/trait-compare.mjs",
       "find": "  } else if (baseHas !== capHas) {",
       "replace": "  } else if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "text_owners を片側だけが持つ（採取ツールの版違い）なら missing で出す（ベースラインだけが持つ）",
-        "text_owners を片側だけが持つ（採取ツールの版違い）なら missing で出す（採取だけが持つ）"
+        "text_owners を片側だけが持つ（採取ツールのバージョン違い）なら missing で出す（ベースラインだけが持つ）",
+        "text_owners を片側だけが持つ（採取ツールのバージョン違い）なら missing で出す（採取だけが持つ）"
       ]
     },
     {

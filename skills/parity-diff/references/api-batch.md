@@ -14,7 +14,7 @@
 - 突き合わせるもの: ステータス・ボディ・並び順・ページング・エラー応答と、応答ヘッダーのうち `.replace/response-headers.json`（横断の応答ヘッダーの一覧）に載るもの
   - 防御のヘッダーは有無と値を比べ、露出を抑えるヘッダーは付かないことを比べる。
   - `json-normalize-diff.mjs` はヘッダーの値の一部だけを伏せることができず、差分の両側の値を出力する。
-    そのため、渡す前に新側の応答ヘッダーを正規化する。使うのは、現側の録画と同じ `parity-suite` の `header-normalize.mjs`（`metadata.json.differ.header_normalize.path` のコピー。版が録画とそろう）である。
+    そのため、渡す前に新側の応答ヘッダーを正規化する。使うのは、現側の録画と同じ `parity-suite` の `header-normalize.mjs`（`metadata.json.differ.header_normalize.path` のコピー。バージョンが録画とそろう）である。
   - 現側は、録画がすでに正規化されている。
   - 絞り込み（付け手が `unknown` の行は比べない）、名前の小文字化、`Set-Cookie` と `nonce-` の伏せ方の規則は、そのスクリプトで定義する。ここへ転記しない。
   - 一覧は、`.replace/response-headers.json` を `--header-list` で渡して読ませる。呼び方と終了コードの原本は、`parity-suite` の `references/api-batch.md`「応答ヘッダー」にある
@@ -24,8 +24,8 @@
   - 記録した `version` が `"1"` である（一覧を `survey.md` の表から読む旧版で、`--header-list` を受け付けない）。
   - 記録した `headers` が、今の一覧（同じコピーの `--header-list .replace/response-headers.json --list` の出力）と食い違う。
 
-  版が違うと、規則の差が「現新の差」として出る。一覧が違うと、録画の後に足したヘッダーや外したヘッダーが「現新の差」として出るか、外したヘッダーの後退を警告なしに見落とす。
-  新側の正規化も、記録した `path` のコピーで行う（スキルのディレクトリに同梱した版を使わない）。
+  バージョンが違うと、規則の差が「現新の差」として出る。一覧が違うと、録画の後に足したヘッダーや外したヘッダーが「現新の差」として出るか、外したヘッダーの後退を警告なしに見落とす。
+  新側の正規化も、記録した `path` のコピーで行う（スキルのディレクトリに同梱したバージョンを使わない）。
   比べなかったことを `diff.md` の未検証領域に残し、`parity-suite` で録り直すよう促す。
   一覧が無い（正規化が exit 3 で終わる）ときも、同じように比べずに未検証領域に残す
 - 現側の機能を、`parity-suite` の手順の改訂 2 より前に特性化していた場合（`.replace/parity/<slug>/metadata.json` の `run.procedure_revision` が 2 未満か、キーが無い）は、次のように扱う。

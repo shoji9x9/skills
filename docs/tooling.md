@@ -5,10 +5,10 @@
 ## 技術スタック
 
 - スキルは GitHub CLI（`gh skill`、v2.90.0 以上）と Agent Skills 仕様で管理する。
-- パッケージマネージャは pnpm で、版は mise で管理する。
-  版は `mise.toml`、`package.json` の `packageManager` と `devEngines.packageManager`、`pnpm-lock.yaml` の 4 か所に書く。
+- パッケージマネージャは pnpm で、バージョンは mise で管理する。
+  バージョンは `mise.toml`、`package.json` の `packageManager` と `devEngines.packageManager`、`pnpm-lock.yaml` の 4 か所に書く。
   npm は使わず、`package-lock.json` を作らない。誤って別のパッケージマネージャを使うと、`devEngines` が警告する。
-  4 か所をそろえて版を上げる手順と、不具合のある版を避ける方法は [`docs/package-manager.md`](package-manager.md) にある。
+  4 か所をそろえてバージョンを上げる手順と、不具合のあるバージョンを避ける方法は [`docs/package-manager.md`](package-manager.md) にある。
 - フォーマッタとリンタは「リントと整形」の表のとおりである。prettier は使わない。
 - テストは skill-creator で行う。eval viewer には Python 3.8 以上が要る。結果の集計は `scripts/eval/build-skill-eval-benchmark.ts`（Node）で行う。
 - 実行環境は mise で管理する。
@@ -21,7 +21,7 @@
 この場合は、Node のモジュール解決（`createRequire(...).resolve("<pkg>/package.json")` の `bin`）でエントリを求め、`node` で起動してよい。
 `scripts/mutation/check-mutation-proof.ts` は、子プロセスの vitest をこの方法で起動する。この場合も `.bin` のパスは直接書かない。
 
-mise の shim は、cwd の設定の階層からツールの版を決める。
+mise の shim は、cwd の設定の階層からツールのバージョンを決める。
 リポジトリの外の cwd（`/tmp` など）からコマンド名だけで起動すると、`No version is set for shim` で失敗する。グローバルのデフォルトが無いためで、untrusted とは別の失敗である。
 リポジトリの外で動かす検証では、`mise which <tool>` で実体のパスを取得して渡すか、cwd をリポジトリの中に保つ。
 
@@ -191,13 +191,13 @@ jscpd は 3 か所以上の重複を 2 つずつの組で報告するので、1 
 | `types/check-jsdoc-types.ts` | 配布スキルの `.mjs` で、型の検査を外す JSDoc の書き方（「型の検査」の節） |
 | `packaging/check-skill-frontmatter.ts` | `SKILL.md` の frontmatter |
 | `packaging/copies/check-identical-copies.ts` | 同じ内容であるべきコピー。組は `scripts/gates/packaging/copies/identical-copies.json` に書く。`region` を持つ組は、印 `// <region>:begin` と `// <region>:end`（シェルのファイルでは `# <region>:begin` と `# <region>:end`）の間だけを比べる |
-| `packaging/check-skill-config-vendor.ts` | 配布スキルに同梱する設定の読み取り（`scripts/skill-config/`）。同梱した jsonc-parser（`vendor/`）が devDependency の版から作った内容と一致するか。版を上げたら `--fix` で作り直す |
+| `packaging/check-skill-config-vendor.ts` | 配布スキルに同梱する設定の読み取り（`scripts/skill-config/`）。同梱した jsonc-parser（`vendor/`）が devDependency のバージョンから作った内容と一致するか。バージョンを上げたら `--fix` で作り直す |
 | `packaging/check-skill-configs.ts` | このリポジトリのスキルの設定（`.config/skills/shoji9x9/*.jsonc`）が、各スキルのスキーマ（`skills/<name>/config-schemas/`）に合うか |
 | `prose/check-time-sensitive-prose.ts` | 日付・「現状は」「当面」を Tier 1〜3 の文書とコメントに書いていないか。変異の件数や全件の実測値は `mutation-proof.yml` だけに書く |
 | `prose/check-version-mentions.ts` | Tier 1〜3 の文書とコメントに書いた「<ツール> X.Y.Z」が、リポジトリで宣言したバージョンと食い違っていないか。依存を上げたら、食い違う記述を直す |
 | `docs/check-doc-refs.ts` | リンクと節名の実在、参照の向き。節名は、パス（バッククォート・リンク・スキル名付き）の後に「」で書いたものを照合する。間に「の」や空白を挟んでもよく、節名でない語句を引用するときは名詞を挟む。導入先で生成するファイルは `scripts/gates/docs/doc-refs.json`、違反の形だが正しい記述の許可は `scripts/gates/docs/doc-allowed.json` に書く |
 | `packaging/check-skill-index.ts` | スキルガイド・README とスキルの実体の対応 |
-| `prose/lint-prose.ts` | 人が読む Markdown の文章と、JavaScript・TypeScript・シェル・YAML のコメントの文章。JavaScript・TypeScript の文字列と `evals/<name>/evals.json` の prompt・expected_output・assertions には、使わない語の規則だけを当てる（取り出し方は `scripts/lib/text/code-strings.ts`）。シェルのコメントは `shfmt --to-json` の構文木から取り出すので、shfmt（`mise.toml` で版を固定）が要る |
+| `prose/lint-prose.ts` | 人が読む Markdown の文章と、JavaScript・TypeScript・シェル・YAML のコメントの文章。JavaScript・TypeScript の文字列と `evals/<name>/evals.json` の prompt・expected_output・assertions には、使わない語の規則だけを当てる（取り出し方は `scripts/lib/text/code-strings.ts`）。シェルのコメントは `shfmt --to-json` の構文木から取り出すので、shfmt（`mise.toml` でバージョンを固定）が要る |
 | `docs/agents-md/check-agents-md-size.ts` | `AGENTS.md` のサイズが、Codex が読む上限（`project_doc_max_bytes` のデフォルトの 32 KiB）を超えていないか |
 
 ### カバレッジ（CI で実行）
@@ -226,7 +226,7 @@ PR では、差分に関係する定義だけを測る（`--changed-since origin
 - 共有のライブラリ（`scripts/lib/`）
 - `scripts/` の外のコード（`skills/` の `.mjs` など）
 - `.ts` でない相対の import と、テストが import せずに実行時に読むファイル（fixture など）
-- 依存の版
+- 依存のバージョン
 
 すべての定義を測ると、PR ごとには払えない時間がかかる。実測値は `.github/workflows/mutation-proof.yml` のコメントにある。
 1 つの変異につき対象のテストファイルを 1 回実行するので、対象のテストは子プロセスを起動せず `main` を直接呼ぶ。CLI として起動するテストは、変異を検出できることを確かめる数本に絞る。
@@ -244,7 +244,7 @@ CI では、選んだ変異を matrix で 12 個のシャードに分けて並�
 ランナーのテストは `describe.concurrent` で並べて実行するので、テストの間でロック・復元情報・fixture を共有しない。
 
 すべての定義は、週に 1 回の定期実行（`.github/workflows/mutation-proof.yml`）で測る。
-対象もチェックも変わっていない定義は前回の結果が有効だが、共有ライブラリやツールの版が変わると前提が成り立たなくなることがあるので、測り直す。
+対象もチェックも変わっていない定義は前回の結果が有効だが、共有ライブラリやツールのバージョンが変わると前提が成り立たなくなることがあるので、測り直す。
 
 pre-commit には入れない。実行中に対象のファイルを書き換えて戻すので、staged の変更と混在すると取り違える。
 同じ作業ツリーでは並列にも実行しない。同時の実行はロックで止めるが、無関係な `pnpm test` と重なると、変異を入れた途中の状態を読んで無関係なテストが失敗する（実測）。
@@ -360,7 +360,7 @@ JavaScript の拡張子は、配布するかどうかで使い分ける。新し
 | 種類 | 拡張子 | 理由 |
 | --- | --- | --- |
 | 配布スキル（`skills/**`）の JavaScript | `.mjs` | インストール先の `package.json` の `type` に依らず、Node が常に ESM として読むため |
-| リポジトリ内のツールとテスト（`scripts/**/*.ts`）、配布しない private skill のスクリプト | `.ts` | `pnpm run typecheck` で型を検査するため。Node（`mise.toml` の版）が型を消して直接実行するので、ビルドは要らない |
+| リポジトリ内のツールとテスト（`scripts/**/*.ts`）、配布しない private skill のスクリプト | `.ts` | `pnpm run typecheck` で型を検査するため。Node（`mise.toml` のバージョン）が型を消して直接実行するので、ビルドは要らない |
 | ツールが読む設定 | `.ts` | 各ツールが `.ts` を自動で探して読むため |
 
 private skill は、`.private-skill` を持ち、`.agents/skills/<name>/` にだけ在るスキルである。
@@ -381,7 +381,7 @@ catch の値は `errors.ts`、わざと不正な入力と欄の削除は `test-i
 例外は、ミューテーションテストのランナーである。`scripts/lib/` を import せず、同じ helper をファイルの中に持つ。
 テストがランナーのファイルだけをリポジトリの外にコピーして起動するからである。
 private skill は配布せず、このリポジトリの中でだけ動くので、`scripts/lib/` の helper を import して使う。
-配布スキルは `.mjs` のままにする。利用者の Node で動くので、`.ts` にすると利用者に求める Node の版が上がる。
+配布スキルは `.mjs` のままにする。利用者の Node で動くので、`.ts` にすると利用者に求める Node のバージョンが上がる。
 
 ツールが読む `.ts` の設定は次のとおりである。
 

@@ -118,7 +118,7 @@ node <parity-suite の skill>/scripts/perf-stats.mjs compare \
 
 リポジトリのルートで実行する（現側の採取ファイルを `performance.samples` のパスで読み、集計の後に採り直されていないかを sha256 で確かめる）。
 `--write` は今回の実行の `diff-metadata.json` の `performance` だけを書き換える。手順 3 でこの実行の `diff-metadata.json`（自己ノイズの測定値など）を書いた後に通す。
-前の反復のファイルに書くと、反復と版の記録が古いまま `performance` だけが新しくなる。ファイルが無ければ exit 2 になる（判定の結果は先に標準出力へ出る）。
+前の反復のファイルに書くと、反復とバージョンの記録が古いまま `performance` だけが新しくなる。ファイルが無ければ exit 2 になる（判定の結果は先に標準出力へ出る）。
 結果は手で転記しない。
 `--target` は比べる新側の target で、採取ファイルの `target` と違えば exit 2 になる（別の target で採った値を、置き場所の違う target の値として比べない）。
 

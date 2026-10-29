@@ -1,6 +1,6 @@
 # agent-usage: 自分の GitHub Actions で実行したレビューの使用量を、artifact（名前 agent-usage-review-claude・agent-usage-review-codex）に残す手順の雛形。
 # レビューする job の steps の最後に、使う Action に合う方を足す。collect がこの artifact を取得して費用を記録する。
-# uses の版は、使っている他の workflow と同じ方法（SHA の固定など）で決める。
+# uses のバージョンは、使っている他の workflow と同じ方法（SHA の固定など）で決める。
 
 # --- Claude Code の Action（anthropics/claude-code-action）の後に足す ---
 # レビューの step に id: claude を付けておく。

@@ -58,7 +58,7 @@ API の特性化も、画面と同じ Playwright のランナーで行う。`req
   record するヘッダーは、同梱の [`../scripts/header-normalize.mjs`](../scripts/header-normalize.mjs) の `normalizeHeaders` を通した出力だけを書く。
   規則はスクリプトの冒頭のコメントで定義する。ここへ転記しない。`parity-diff` も新側の応答を同じスクリプトで正規化してから比べるので、規則を 2 か所に書かない。
   - スイートからは、`trait-capture.mjs` と同じく、`suite.tools` のコピー専用のディレクトリ（デフォルトは `<parity_suite_dir>/parity/lib/tools/vendor/`）へコピーして import する。
-    `VERSION` が `"1"` のコピーは `survey.md` の表を読む古い版で、`--header-list` を受け付けない。録り直す機能では、同梱の版をコピーし直す
+    `VERSION` が `"1"` のコピーは `survey.md` の表を読む古いバージョンで、`--header-list` を受け付けない。録り直す機能では、同梱のバージョンをコピーし直す
   - 一覧は `loadHeaderList(<リポジトリのルートから解決した .replace/response-headers.json の絶対パス>)` で読む。
     `.replace/` ごと見つからないパスは、「一覧が無い」ではなく入力の誤りになる。
     ファイルを自分で読んで `parseHeaderList` へ渡さない。ファイルが無いときに「一覧が無い」へ変える処理を通らないからである。
@@ -67,12 +67,12 @@ API の特性化も、画面と同じ Playwright のランナーで行う。`req
     それ以外の例外は、一覧の形の誤りである。たとえば、語彙に無い値やキー・欠けた欄・未測定と行の併存・同じヘッダーの行どうしで付く応答が重なることである。
     `replace-strategy` の測定の 7 で一覧を直してから採る（自分で一覧を書き換えない）
   - 使ったコピーのパス・`VERSION`・録画に使った一覧（`--list` の出力）を、`metadata.json.differ.header_normalize` に記録する。
-    `suite.tools` はスイートの指紋が読むパスなので、版を混ぜない。
-    `parity-diff` は、新側を同じ版・同じ一覧で正規化できるときだけヘッダーを比べる。
-    版が違うと規則の差が、一覧が違うと足された・外されたヘッダーが、誤って現新の差分と判定される
+    `suite.tools` はスイートの指紋が読むパスなので、バージョンを混ぜない。
+    `parity-diff` は、新側を同じバージョン・同じ一覧で正規化できるときだけヘッダーを比べる。
+    バージョンが違うと規則の差が、一覧が違うと足された・外されたヘッダーが、誤って現新の差分と判定される
   - CLI は、記録したプロジェクト側のコピーから起動する。
     `node <differ.header_normalize.path> --header-list .replace/response-headers.json <headers.json>` は正規化した JSON を、`--list` は比べるヘッダー名の配列を出力する。
-    スキルのディレクトリの同梱の版からは起動しない。`gh skill update` で同梱の版だけが上がると、記録した版と実行した版が食い違う。
+    スキルのディレクトリの同梱のバージョンからは起動しない。`gh skill update` で同梱のバージョンだけが上がると、記録したバージョンと実行したバージョンが食い違う。
     終了コードは、0 が出力、2 が入力の誤り、3 が一覧が無いことを表す
 - 付け手が `unknown` の行は assertion にしない（`current.origin: received-assets` で、再構築のデフォルト値である可能性があるもの）。固定すると、再構築のデフォルト値を現行の仕様として守ることになる。
   同じヘッダーに付け手の決まった行と `unknown` の行が混在する場合、正規化はそのヘッダーを録画に残さない（応答の種類を区別できないため）。

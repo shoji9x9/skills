@@ -110,7 +110,7 @@ else
 	printf '%s: 共通ライブラリを読めないため、機能を減らして動きます: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
 fi
 # 共通ライブラリを読めない（配布物の欠落・一部だけの展開）ときは、session 単位にする前の agent 単位の
-# 名前だけを扱う版を定義して、機能を減らして動く。チェックの判定を止めないための代わりの実装で、複数のセッションの
+# 名前だけを扱うバージョンを定義して、機能を減らして動く。チェックの判定を止めないための代わりの実装で、複数のセッションの
 # 分離は失われる（以前と同じく奪い合う）が、止める条件は緩めない。
 if ! declare -f kaizen_sentinel_key_of >/dev/null 2>&1; then
 	kaizen_hook_fields() { printf '\n\n\n'; }
@@ -124,7 +124,7 @@ if ! declare -f kaizen_sentinel_key_of >/dev/null 2>&1; then
 		local base=${1##*/}
 		printf '%s' "${base#.pending-extract}"
 	}
-	# 機能を減らした版は自分のツリーだけを見る（すべての作業ツリーを探すようにする前の振る舞い）。worktree をまたいだセンチネルは
+	# 機能を減らしたバージョンは自分のツリーだけを見る（すべての作業ツリーを探すようにする前の振る舞い）。worktree をまたいだセンチネルは
 	# 見つからないが、止める条件は緩めない。
 	kaizen_worktree_kaizen_dirs() { printf '%s\0' "$(pwd)/.kaizen"; }
 	kaizen_find_control_file() {
@@ -1214,10 +1214,10 @@ epoch_from_stamp() { # $1: タイムスタンプ
 	# 暦の計算は共通ライブラリ（kaizen-hook-common.sh）が持つ。読めずに機能を減らして動く環境では、
 	# タイムスタンプを「判定できない」として返す。回収は削除なので、算術のエラーを握りつぶして
 	# 0 を返すと 1970 年として扱われ、動いているセンチネルまで古いとみなして消す。
-	# **機能を減らした版に暦の計算を足しても、回収は動かない。** その版の `kaizen_sentinel_key_of` は空を返し、
+	# **機能を減らしたバージョンに暦の計算を足しても、回収は動かない。** そのバージョンの `kaizen_sentinel_key_of` は空を返し、
 	# 持ち主を特定できないセンチネルは、sweep_expired_foreign_sentinels がどれも対象外にする
 	# （自分の側として扱う）。回収が成り立つのはライブラリを読めた構成だけで、これは暦の計算を
-	# ライブラリに移す前から変わらない（2 つの構成と新旧 2 つの版の、4 通りを実測して確かめた）。
+	# ライブラリに移す前から変わらない（2 つの構成と新旧 2 つのバージョンの、4 通りを実測して確かめた）。
 	declare -f kaizen_days_from_civil >/dev/null 2>&1 || return 1
 	printf '%s' $(($(kaizen_days_from_civil "${y}" "${mo}" "${d}") * 86400 + hh * 3600 + mi * 60 + ss))
 }

@@ -57,7 +57,7 @@ GitHub は `linguist-generated` の付いたファイルを、PR の差分で最
 
 - `if` は、git 以外の Bash の呼び出しで、スクリプトそのものを起動しないための絞り込みである。
   `Bash(git commit *)` にしないのは、`git -C <dir> commit` のようにオプションを挟んだ形に当たらないためである。`Bash(git *)` はこの形に当たる（Claude Code 2.1.302 で実測）。
-  `Bash(git *)` は、heredoc の中の `git commit`（`bash <<'EOF'` の本文）に当たらない（同じ版で実測）。
+  `Bash(git *)` は、heredoc の中の `git commit`（`bash <<'EOF'` の本文）に当たらない（同じバージョンで実測）。
   ドキュメントによると、照合は前方一致なので、パスを付けた git（`/usr/bin/git commit`）と、照合の前に取り除かれないコマンドの後ろの git（`env A=1 git commit`・`sudo git commit`・`exec git commit`）にも当たらない。
   取り除かれるのは `timeout`・`time`・`nice`・`nohup`・`stdbuf`・`command`・`builtin` で、この後ろの git には当たる（[Claude Code permissions](https://code.claude.com/docs/en/permissions) の Wrappers の節）。
   スクリプトは、この 7 つと `sudo`・`env`・`xargs`・`exec` を、値を取るオプションと引数（`timeout 60`・`nice -n 5`・`sudo -u <user>`）ごと読み飛ばし、後ろの `git commit` をコミットと判定する。
@@ -210,8 +210,8 @@ Hook のスクリプトは、エージェントが普段書く形の `git commit
 `record` を置くと、確認を受けずに各自の利用実績が記録されてコミットに入るので、置く前にリポジトリを使う人の同意を得る。
 反対の向きもある。人の設定の `record` は、リポジトリの設定の `decline` より優先する。そのため、記録しないと決めたリポジトリでも、人の設定に `record` を置いた人のコミットには明細が入る。人の設定に `record` を置く人は、このことを知ったうえで置く。
 
-`defaultDecision` を知らない古い版の agent-usage は、知らないキーとしてエラーにする。
-人の設定はマシンのすべてのリポジトリで共有するので、人の設定に置くときは、そのマシンで使うすべてのリポジトリのスキルを、このキーを読める版に更新してから置く。
+`defaultDecision` を知らない古いバージョンの agent-usage は、知らないキーとしてエラーにする。
+人の設定はマシンのすべてのリポジトリで共有するので、人の設定に置くときは、そのマシンで使うすべてのリポジトリのスキルを、このキーを読めるバージョンに更新してから置く。
 リポジトリの設定に置くときも、そのリポジトリを使う人のスキルを先に更新する。
 
 ### 使い捨ての環境と、HOME に書けない環境

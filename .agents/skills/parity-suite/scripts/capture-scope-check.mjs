@@ -1359,7 +1359,7 @@ export const BROWSER_MODES = ["launched", "cdp"];
 
 /**
  * `cdp` の `browser_identity.browser_os` のキー（`navigator.userAgentData.getHighEntropyValues` から、この 3 つだけを拾った形）。
- * Chromium は UA の OS 版を固定値に縮めて返す（reduced UA）ので、`product` と `user_agent` だけでは OS の版・アーキテクチャが違う機械を見分けられない。
+ * Chromium は UA の OS バージョンを固定値に縮めて返す（reduced UA）ので、`product` と `user_agent` だけでは OS のバージョン・アーキテクチャが違う機械を見分けられない。
  * `navigator.platform` への代替は認めない。`cdp` の接続先は Chromium 系で、`platform` も縮められており同じ抜けが残るからである。
  * 正規化と読み方（安全なコンテキストの頁で読む）の原本は parity-suite の references/locator-mapping.md「利用者環境のブラウザへ接続する」。
  */
@@ -1422,7 +1422,7 @@ function checkBrowserOs(os) {
     return [
       {
         code: "browser-os-missing",
-        message: `capture_conditions.browser が cdp なのに browser_identity.browser_os（${BROWSER_OS_KEYS.join(" / ")}）が無い（reduced UA では OS の版・アーキテクチャが違う機械を見分けられない）`,
+        message: `capture_conditions.browser が cdp なのに browser_identity.browser_os（${BROWSER_OS_KEYS.join(" / ")}）が無い（reduced UA では OS のバージョン・アーキテクチャが違う機械を見分けられない）`,
       },
     ];
   }

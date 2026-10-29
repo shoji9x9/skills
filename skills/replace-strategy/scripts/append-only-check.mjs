@@ -9,12 +9,12 @@
 //
 // 1. 追記専用の成果物を、機械可読な一覧（assets/append-only-manifest.json）から読む。
 //    --exclude <id> で項目を外せる。一覧に無い id と、全項目の除外は exit 2 にする。外した id は出力に必ず出す。
-// 2. 一覧のパターンに一致する追跡ファイルを列挙し、比較元の版（デフォルトは HEAD）の内容を git から取得する。
+// 2. 一覧のパターンに一致する追跡ファイルを列挙し、比較元のバージョン（デフォルトは HEAD）の内容を git から取得する。
 // 3. 比較元に在った「単位」が、現在も全部残っているかを数える（多重度まで見る）。
 // 4. 比較元に在ったファイルが消えていれば、失敗にする。
 //
 // 突き合わせの単位は、一覧の unit で決める。全部を行として比べると、その場の更新が「失われた行」と誤って判定される。
-// その場の更新とは、各文書の原本が明示的に求めている更新（版の +1・状態列の 未→済・Issue 列の 未起票→番号・最終更新の日時）である。
+// その場の更新とは、各文書の原本が明示的に求めている更新（バージョンの +1・状態列の 未→済・Issue 列の 未起票→番号・最終更新の日時）である。
 // すると、決定を 1 つも捨てていない成果物で、収束が止まる。unit は次の 3 つである。
 //
 // - lines（デフォルト）: 空白を畳んだ行の多重集合。書き換えずに積み上げるだけの台帳に使う。
@@ -65,7 +65,7 @@
 //
 // 追記の中身が妥当かは見ない。消えていないことだけを数える。
 //
-// 判定できないときは失敗として扱う（exit 2）。git が使えない・比較元の版を読めない・対象が 0 件・
+// 判定できないときは失敗として扱う（exit 2）。git が使えない・比較元のバージョンを読めない・対象が 0 件・
 // 一覧の unit が語彙にない・比較元のツリーに在るのに内容を取り出せないファイルがある、のどれかに当たるときである。
 //
 // 決定論的に動く（乱数と現在時刻に依存しない）。TypeScript の構文は使わない（型は JSDoc で書く）。
@@ -1310,7 +1310,7 @@ function canonicalJson(value) {
  * 一覧が配列と宣言したパスの値を読む。まだ無ければ空とみなす（積み上げた要素も無い）。
  * @param {unknown} parsed
  * @param {string} path
- * @param {string} label 失敗メッセージ用（ファイル名＋版）
+ * @param {string} label 失敗メッセージ用（ファイル名＋バージョン）
  * @returns {unknown[]}
  */
 function declaredArrayAt(parsed, path, label) {
@@ -1326,7 +1326,7 @@ function declaredArrayAt(parsed, path, label) {
  * JSON の指定した配列の要素を数える。
  * @param {string} text
  * @param {{ arrays: string[], key?: string | null }} spec `key` を指定すると、要素そのものではなくこの項目の値を同一性にする
- * @param {string} label 失敗メッセージ用（ファイル名＋版）
+ * @param {string} label 失敗メッセージ用（ファイル名＋バージョン）
  * @returns {Map<string, number>} 単位 → 出現回数
  */
 export function jsonArrayUnits(text, spec, label) {
@@ -1657,7 +1657,7 @@ function lastSegment(path) {
  * @param {{ blocks: string[], growable: string[], registryGroups: RegistryGroup[] }} options
  *   `blocks` は配下を単位から外すキーパス、`growable` は要素ごとの単位に展開するキーパス（追記だけを許す配列）、
  *   `registryGroups` は鍵をまたぐ移動を許すグループ。
- * @param {string} label 失敗メッセージ用（ファイル名＋版）
+ * @param {string} label 失敗メッセージ用（ファイル名＋バージョン）
  * @returns {Map<string, number>}
  */
 export function jsoncTreeUnits(text, options, label) {
@@ -1802,7 +1802,7 @@ function addJsoncComments(tree, text, skippedPaths) {
  * 一覧の unit に従って単位を数える。
  * @param {string} text
  * @param {{ unit: string, arrays: string[], key?: string | null, mutableColumns?: string[], fillOnlyColumns?: string[], mutableBullets?: string[], mutableBlocks?: string[], growableContainers?: string[], registryGroups?: RegistryGroup[] }} artifact
- * @param {{ label: string, wrappedOut?: WrappedContainer[] }} context `label` は失敗メッセージ用（ファイル名＋版）。
+ * @param {{ label: string, wrappedOut?: WrappedContainer[] }} context `label` は失敗メッセージ用（ファイル名＋バージョン）。
  *   `wrappedOut` は連結しても閉じないフロー形式のコンテナを積む先（診断用。帰属判定の材料を伴う）。
  * @returns {Map<string, number>}
  */
@@ -2443,7 +2443,7 @@ function selectArtifacts(manifestPath, exclude) {
 }
 
 /**
- * root が git の作業ツリーの中にあり、比較元の版を解決できることを確かめ、トップレベルから root までの prefix を返す。
+ * root が git の作業ツリーの中にあり、比較元のバージョンを解決できることを確かめ、トップレベルから root までの prefix を返す。
  *
  * root がリポジトリのトップレベルとは限らない（.replace が monorepo の一階層下に在る等）。
  * ls-tree はデフォルトで cwd 相対のパスを返す一方、`git show <rev>:<path>` の path はトップレベル起点なので、
@@ -2460,7 +2460,7 @@ function repoPrefix(root, base) {
   }
   const baseRev = git(root, ["rev-parse", "--verify", `${base}^{commit}`]);
   if (baseRev.status !== 0) {
-    throw new UsageError(`比較元の版を解決できない: ${base}（${baseRev.stderr.trim()}）`);
+    throw new UsageError(`比較元のバージョンを解決できない: ${base}（${baseRev.stderr.trim()}）`);
   }
   const top = git(root, ["rev-parse", "--show-toplevel"]);
   if (top.status !== 0 || top.stdout.trim() === "") {
@@ -2478,7 +2478,7 @@ function repoPrefix(root, base) {
 }
 
 /**
- * 比較元の版に在る、root の配下のファイルを、root からの相対パスで返す。
+ * 比較元のバージョンに在る、root の配下のファイルを、root からの相対パスで返す。
  * 比較元に在って作業ツリーから消えたファイルも対象にする（消失は縮小の極端な形）。
  * @param {string} root
  * @param {string} base
@@ -2488,7 +2488,9 @@ function repoPrefix(root, base) {
 function trackedFilesAt(root, base, prefix) {
   const tracked = git(root, ["ls-tree", "-r", "--name-only", "--full-tree", "-z", base]);
   if (tracked.status !== 0) {
-    throw new UsageError(`比較元の版のファイル一覧を取れない: ${base}（${tracked.stderr.trim()}）`);
+    throw new UsageError(
+      `比較元のバージョンのファイル一覧を取れない: ${base}（${tracked.stderr.trim()}）`,
+    );
   }
   return tracked.stdout
     .split("\0")
@@ -2630,7 +2632,7 @@ function compareArtifactFile(ctx, file, artifact) {
  * 比較元に在った単位が現在も残っているかを数え、失われていれば finding を返す。
  * @param {{ before: string, after: string }} texts
  * @param {ManifestArtifact} artifact
- * @param {{ file: string, base: string }} where ファイルの相対パスと比較元の版
+ * @param {{ file: string, base: string }} where ファイルの相対パスと比較元のバージョン
  * @returns {string | null}
  */
 function lostUnitsFinding(texts, artifact, where) {
@@ -2805,7 +2807,7 @@ const usage = [
   "usage: append-only-check.mjs --root <dir> [--manifest <path>] [--base <rev>] [--exclude <id>]...",
   "  --root      リポジトリルート（必須。走査の起点を推測させない）",
   "  --manifest  追記専用の成果物の一覧（既定: スキル同梱の assets/append-only-manifest.json）",
-  "  --base      比較元の版（既定: HEAD）",
+  "  --base      比較元のバージョン（既定: HEAD）",
   "  --exclude   突き合わせない一覧の項目の id（繰り返し可。一覧に無い id・全項目の除外は exit 2）",
   "exit: 0 = 縮んでいない / 1 = 単位が失われている・成果物が消えている・比較元に在る成果物が 0 件 / 2 = 使い方の誤り・判定不能・作業ツリーの対象 0 件",
 ].join("\n");

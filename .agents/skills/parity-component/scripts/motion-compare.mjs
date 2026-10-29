@@ -586,7 +586,7 @@ function readMotionDeclaration(metadata, target) {
   if (!filled(probeVersion)) {
     return {
       error:
-        "capture.tools.motion_probe_version が空（どの版のプローブで採った時系列かを照合できない）",
+        "capture.tools.motion_probe_version が空（どのバージョンのプローブで採った時系列かを照合できない）",
     };
   }
   return {

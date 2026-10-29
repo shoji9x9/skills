@@ -56,13 +56,13 @@ export const VERSION = "16";
 // 18 で操作を終えた後に残る見た目の種別（after-operation）を足した。17 以前の要約は
 // 選択の塗り・絞り込みの印・並べ替えの印の行を 1 行も持たず、撮られなかった差が「差 0 件」に戻る。
 // 20 は同じ Issue のレビューで確定した候補の生成規則（表示切替で出す列の選択の塗り・複数列の並べ替えの
-// 両方の向き・必須ルールの代替の組）。18・19 はその途中の版で、これらの候補を持たない要約でも通ってしまう。
+// 両方の向き・必須ルールの代替の組）。18・19 はその途中のバージョンで、これらの候補を持たない要約でも通ってしまう。
 // 指紋（table / capture）が示すのは「その表を忠実に転記したか」だけなので、誤った意味論で作られた要約も
-// 指紋は一致する。版を見ないと、スキルを上げても、既知の欠陥を持つ要約が収束を通り続ける。
+// 指紋は一致する。バージョンを見ないと、スキルを上げても、既知の欠陥を持つ要約が収束を通り続ける。
 //
 // **導出の意味論を変えたらここを上げる。** 上げ忘れると、古い規則で作られた成果物が警告なしに通る。
-// 姉妹の reaction-check.mjs は、記録する側と判定する側が同じスクリプトなので、版の完全な一致を求められる。
-// こちらは coverage-expand と coverage-check が別のスクリプトで、版も別々に上がるので、下限で見る。
+// 姉妹の reaction-check.mjs は、記録する側と判定する側が同じスクリプトなので、バージョンの完全な一致を求められる。
+// こちらは coverage-expand と coverage-check が別のスクリプトで、バージョンも別々に上がるので、下限で見る。
 export const MIN_COVERAGE_EXPAND_VERSION = 20;
 const COVERAGE_EXPAND_TOOL = "coverage-expand";
 
@@ -566,7 +566,7 @@ function setInventoryProblems(raw, label) {
 function setSourceProblems(block, label) {
   const source = isPlainObject(block.source) ? block.source : null;
   if (source === null) {
-    return [`${label}.source が無い（どの版のどこから何を条件に列挙したか残らない）`];
+    return [`${label}.source が無い（どのバージョンのどこから何を条件に列挙したか残らない）`];
   }
   /** @type {string[]} */
   const problems = [];
@@ -1099,7 +1099,9 @@ function profiledEnumerationProblems(enumeration, label) {
   const staleProblems = staleIncompleteReasonProblems(enumeration, label);
   if (staleProblems.length > 0) return staleProblems;
   if (!isPlainObject(enumeration.source)) {
-    return [`${label}: enumeration.source が無い（どの版のどこから何を条件に抜いたか残らない）`];
+    return [
+      `${label}: enumeration.source が無い（どのバージョンのどこから何を条件に抜いたか残らない）`,
+    ];
   }
   // 出所の語彙と「一次情報源を使わなかった理由」は、記録する側（coverage-expand.mjs）と同じ関数で見る。
   // 出所不明の kind や、受領ソースが読めるのに実 UI の歩行だけで列挙した記録を通さない。
@@ -1367,7 +1369,7 @@ function visualStatesProblems(visual, cov, captureFingerprintNow) {
 }
 
 /**
- * 撮影状態の要約が、照合済みで、信頼できる版の coverage-expand が書いたものかを確かめる。
+ * 撮影状態の要約が、照合済みで、信頼できるバージョンの coverage-expand が書いたものかを確かめる。
  * 確かめられなければ指摘を返す。
  *
  * @param {Record<string, unknown>} conf - conformance
@@ -1388,7 +1390,7 @@ function visualStatesOriginProblem(conf, visual) {
     Number(conf.tool_version) < MIN_COVERAGE_EXPAND_VERSION
   ) {
     // 指紋が示すのは「その表を忠実に転記したか」だけである。誤った意味論で作られた要約も指紋は一致するので、
-    // 版を見ないと、スキルを上げても既知の欠陥を持つ要約が通り続ける。
+    // バージョンを見ないと、スキルを上げても既知の欠陥を持つ要約が通り続ける。
     // 欠落と数値でない値は「判定しない」として扱わず、失敗にする（検証できないことは、満たしたことにならない）。
     return `conformance.visual_states は ${COVERAGE_EXPAND_TOOL} ${MIN_COVERAGE_EXPAND_VERSION} 以降の導出規則で作られている必要がある（記録: ${nonEmptyString(conf.tool_version) ? String(conf.tool_version) : "（空）"}）。15 以前は要求元をルール id でまとめて縮約してはいけない軸まで畳み、19 以前は操作を終えた後に残る見た目（after-operation）の候補を導かないか、途中の規則で導いていた。coverage-expand.mjs を --metadata 付きで通し直す`;
   }

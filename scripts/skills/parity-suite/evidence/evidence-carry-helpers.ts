@@ -94,7 +94,7 @@ const comparisonCheck = join(
 );
 
 /**
- * 両方のチェックが読む成果物を、記録の版 recorded・今の版 wanted で書く。
+ * 両方のチェックが読む成果物を、記録のバージョン recorded・今のバージョン wanted で書く。
  * @param {ReturnType<typeof project>} p
  * @param {string} recorded
  * @param {string} wanted
@@ -125,7 +125,7 @@ export function writeCheckerInputs(p: Project, recorded: string, wanted: string)
 }
 
 /**
- * component-comparison-check が読む部品の網羅表と比較の記録を、記録の版 recorded で書く。
+ * component-comparison-check が読む部品の網羅表と比較の記録を、記録のバージョン recorded で書く。
  * @param {ReturnType<typeof project>} p
  * @param {string} recorded
  */

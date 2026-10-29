@@ -163,7 +163,7 @@
         "info / success で 15 秒後に自動で閉じる時間を、プローブで閉じる遷移の遅れとして測ると述べている",
         "自動で閉じる時間（時間の値）を behaviors.json の観測値にしていない",
         "「アニメーションは対象外」を理由に動きを採らない計画にしていない",
-        "motion-probe.mjs のコピー元を parity-suite ではなく parity-component 自身の scripts/ とし、版を capture.tools.motion_probe_version に記録すると述べている"
+        "motion-probe.mjs のコピー元を parity-suite ではなく parity-component 自身の scripts/ とし、バージョンを capture.tools.motion_probe_version に記録すると述べている"
       ],
       "reachability": [
         {
@@ -207,7 +207,7 @@
           "prompt_quote": "何を・どの順で・どの条件で採り"
         },
         {
-          "assertion": "motion-probe.mjs のコピー元を parity-suite ではなく parity-component 自身の scripts/ とし、版を capture.tools.motion_probe_version に記録すると述べている",
+          "assertion": "motion-probe.mjs のコピー元を parity-suite ではなく parity-component 自身の scripts/ とし、バージョンを capture.tools.motion_probe_version に記録すると述べている",
           "prompt_quote": "どのファイルのどの欄へ記録するか"
         }
       ]

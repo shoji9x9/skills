@@ -18,7 +18,7 @@
   その場合は、その iframe の URL をページとして開いて撮る（[`capture.md`](capture.md) の同じ節）
 - 差分ツール（trait-compare.mjs）がプロジェクト側に無ければ、採取と同じ手順で `parity-suite` から用意する。
   手順は [`capture.md`](capture.md)「`parity-suite` 同梱ツールの用意」で、既にあるコピーが同梱版と違えば止まる
-- 採取ツールの版を突き合わせる。trait-capture.mjs・element-shot.mjs・css-rules-capture.mjs の `VERSION` が `metadata.json` の記録値と違うなら、
+- 採取ツールのバージョンを突き合わせる。trait-capture.mjs・element-shot.mjs・css-rules-capture.mjs の `VERSION` が `metadata.json` の記録値と違うなら、
   片側だけ新しい形で採った成果物になる。**比較へ進まず、両側を採り直す**（止まるのが正しい振る舞いである）
 - カタログ側も、状態へ遷移したら、撮る要素の矩形が落ち着くまで待ってから撮る（[`capture.md`](capture.md)「状態への遷移は呼び出し側が行う」）
 - カタログ側の自己ノイズも、同じ条件で 2 回撮って測る。現行のノイズ基準値を、そのままカタログへ当てない。描画する要素の数が違えば、揺れ方も違う

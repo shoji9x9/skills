@@ -62,7 +62,7 @@ updates:
         patterns: ["*"]
         exclude-patterns: ["oxfmt", "markdownlint-cli2"]
         update-types: ["minor", "patch"]
-      # --- major: 版をそろえて使う組だけを 1 PR にまとめる（片方だけでは peer が合わない） ---
+      # --- major: バージョンをそろえて使う組だけを 1 PR にまとめる（片方だけでは peer が合わない） ---
       commitlint-major:
         patterns: ["@commitlint/*"]
         update-types: ["major"]

@@ -58,7 +58,7 @@ test.each([
 });
 
 // 集合の中身が変わったら version を上げる取り決め（parity-diff は property_set を正とする）。
-// 陳腐化判定はこの版でしか働かないので、集合だけ変えて版を据え置く変異をここで落とす。
+// 陳腐化判定はこのバージョンでしか働かないので、集合だけ変えてバージョンを据え置く変異をここで落とす。
 test("固定集合の要素数と VERSION が対応している", () => {
   expect(FIXED_PROPERTIES).toHaveLength(48);
   expect(VERSION).toBe("6");
@@ -1046,7 +1046,7 @@ test("page ファイルの PAGE_VERSION は、trait-capture.mjs の VERSION と�
   expect(PAGE_VERSION).toBe(VERSION);
 });
 
-test("assertPageVersion は、page ファイルの版が VERSION と違えば失敗し、同じなら通る", () => {
+test("assertPageVersion は、page ファイルのバージョンが VERSION と違えば失敗し、同じなら通る", () => {
   expect(() => assertPageVersion(`${VERSION}-old`)).toThrow(
     /PAGE_VERSION .* but trait-capture.mjs has VERSION/,
   );

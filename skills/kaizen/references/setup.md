@@ -52,13 +52,13 @@ ls -d .agents .claude .github .codex 2>/dev/null
 設定ファイルを書き換える作業（kaizen の Hook セットアップ等）でブロックされたら、適用すべき内容を
 一時ファイルに書き出し、ユーザーに `! cp <tmp> <設定ファイル>` 等での適用を依頼する。
 
-**ブロックされないこともある。** ガードが効くかは版と権限モードに依るので、
+**ブロックされないこともある。** ガードが効くかはバージョンと権限モードに依るので、
 **権限・検査を緩める設定変更は、止められるかどうかに関わらず人に確認する。**
 下表の可否は前提にせず、その場で実測した結果を優先する。
 
 | エージェント | 自己設定ファイル | 編集可否 |
 |------------|---------------|---------|
-| Claude Code | `.claude/settings.json` と `~/.claude/settings.json` | **版と権限モードで変わる。前提にせず実測する**（ある版 × `defaultMode: auto` では確認なく両方書けた。1 環境 1 回の実測なので「可」の側にも一般化しない） |
+| Claude Code | `.claude/settings.json` と `~/.claude/settings.json` | **バージョンと権限モードで変わる。前提にせず実測する**（あるバージョン × `defaultMode: auto` では確認なく両方書けた。1 環境 1 回の実測なので「可」の側にも一般化しない） |
 | Codex | `.codex/config.toml` / hooks | 現状は可（ただし credentials/auth/profile 等の上書きは制限） |
 | GitHub Copilot | `.github/agents/`（指示） | 不可（ハードブロック） |
 | GitHub Copilot | `.github/hooks/`（フック） | 可（手動承認ガードの設定を推奨） |
@@ -769,7 +769,7 @@ claude に許す `Write` は書き込む先を限らないので、エージェ�
 - ほかのエージェントに指定した場合は、使わなかったことを stderr に出す（警告なしに無視すると、effort を指定したつもりの run とデフォルトの run を、出力で区別できない）。
 - 入力名は、各 action の `action.yml` と、Copilot CLI のプログラム実行リファレンス（`-p` / `--model` / `-s` / `--allow-tool` / `--no-ask-user`）で確かめた。
   リファレンスは <https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-programmatic-reference> にある。
-  ワークフローが固定した action の版を上げるときは、入力名を同じ元の情報で確かめ直す。
+  ワークフローが固定した action のバージョンを上げるときは、入力名を同じ元の情報で確かめ直す。
 
 #### 設定（優先順位のある 3 つの層）
 
@@ -816,7 +816,7 @@ claude に許す `Write` は書き込む先を限らないので、エージェ�
   - Issue には、この 2 つが別の文言で出る
 - `kaizen-schedule-report.sh` と `tracking-issue-lib.sh` がそろったディレクトリが無い場合だけは、失敗させる。
   材料を作れないまま先へ進むと、空の Issue が「異常なし」として出てしまう。照会のスクリプトが欠けたまま進むと、追跡 Issue を取得できない。
-  片方だけのディレクトリは使わない（古いインストールから照会の古い版を読まないようにする）
+  片方だけのディレクトリは使わない（古いインストールから照会の古いバージョンを読まないようにする）
 
 ## 使わない方式
 

@@ -36,7 +36,7 @@ jobs:
       - uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde # v5.2.1
       - name: Detect outdated tools
         id: detect
-        # mise outdated は各ツールの版の一覧を GitHub API から取得する。mise-action は v5.1.1 から
+        # mise outdated は各ツールのバージョンの一覧を GitHub API から取得する。mise-action は v5.1.1 から
         # MISE_GITHUB_TOKEN を後のステップへ渡さないので、ここで渡す。渡さないと未認証の上限
         # （ランナーの IP で共有される）に当たって失敗する。
         env:

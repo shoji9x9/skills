@@ -88,7 +88,7 @@ pr-review-handle <PR URL | 番号 | レビュー URL> [--push]
         since=$(git merge-base refs/worktree/pr-review/base HEAD) && git diff "$since" -U0
         ```
 
-        手元のベースブランチや `<remote>/<PR のベースブランチ>` と比べると、古い版との差分に PR に無い行が入る。`FETCH_HEAD` は後の fetch で変わるので、これも使わない。
+        手元のベースブランチや `<remote>/<PR のベースブランチ>` と比べると、古いバージョンとの差分に PR に無い行が入る。`FETCH_HEAD` は後の fetch で変わるので、これも使わない。
         `refs/worktree/` の下の ref は worktree の間で共有されないので（<https://git-scm.com/docs/git-worktree> の REFS の節）、別の worktree で同じ手順を実行しても取り合わない。
         分岐点と作業ツリーを比べるので、前のスレッドで直してまだ commit していない行と、まだ push していない commit の行も対象に入る。
         1 行目が 0 以外で終わったら `git fetch` の失敗なので、原因を直してやり直す。

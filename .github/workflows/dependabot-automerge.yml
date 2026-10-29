@@ -91,7 +91,7 @@ jobs:
             echo "全依存が >=1.0 の minor/patch のため自動マージを予約する"
             echo "decision=automerge" >>"$GITHUB_OUTPUT"
           else
-            echo "0.x 依存を含む（または版が判定不能）ため手動レビューへ回す"
+            echo "0.x 依存を含む（またはバージョンが判定不能）ため手動レビューへ回す"
             echo "decision=review" >>"$GITHUB_OUTPUT"
           fi
 

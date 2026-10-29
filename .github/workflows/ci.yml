@@ -151,7 +151,7 @@ jobs:
   # （ステップ自体は縮まないが、PR 全体の待ち時間が縮む。Issue #478）。
   #
   # 差分に当たる宣言だけを測る。差分選択がたどらないファイル（`scripts/lib/`・`scripts/` の外のコード・
-  # テストが import せずに実行時に読む fixture）や依存の版の変更で検査が変わった宣言は、PR では測らない。
+  # テストが import せずに実行時に読む fixture）や依存のバージョンの変更で検査が変わった宣言は、PR では測らない。
   # その範囲は全件の定期実行（`.github/workflows/mutation-proof.yml`）が週次で測る（docs/tooling.md）。
   # **pre-commit には入れない**。実行中は対象ファイルを書き換えて戻すため、staged な変更と
   # 混在すると取り違えが起きる。

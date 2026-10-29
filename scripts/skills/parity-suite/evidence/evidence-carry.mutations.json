@@ -18,7 +18,7 @@
     },
     {
       "id": "chain-gap",
-      "why": "宣言の後の宣言外の編集（連鎖が今の版まで届かない）を持ち越す",
+      "why": "宣言の後の宣言外の編集（連鎖が今のバージョンまで届かない）を持ち越す",
       "file": "skills/parity-suite/scripts/evidence-carry.mjs",
       "find": "if (!reaches(edges, start, goal)) {",
       "replace": "if (false) {",
@@ -51,7 +51,7 @@
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "render_inputs の pathspec がどちらの版のファイルにも当たらない: D が空でも持ち越さない"
+        "render_inputs の pathspec がどちらのバージョンのファイルにも当たらない: D が空でも持ち越さない"
       ]
     },
     {
@@ -111,7 +111,7 @@
         "--carry-to: 一括再検証の直後に evidence-carry.json が無い: 両方とも落とす（--carry-to 無しは従来どおり通る）",
         "--carry-to: 一括再検証の直後に evidence-carry.json が不正な JSON になっている: 両方とも落とす",
         "--carry-to: 宣言で説明できない差分がある: 両方とも落とし、そのファイルを挙げる",
-        "--carry-to: 記録の版が none: 判定できないので両方とも落とす"
+        "--carry-to: 記録のバージョンが none: 判定できないので両方とも落とす"
       ]
     },
     {
@@ -137,7 +137,7 @@
         "--carry-to: 一括再検証の直後に evidence-carry.json が無い: 両方とも落とす（--carry-to 無しは従来どおり通る）",
         "--carry-to: 一括再検証の直後に evidence-carry.json が不正な JSON になっている: 両方とも落とす",
         "--carry-to: 宣言で説明できない差分がある: 両方とも落とし、そのファイルを挙げる",
-        "--carry-to: 記録の版が none: 判定できないので両方とも落とす"
+        "--carry-to: 記録のバージョンが none: 判定できないので両方とも落とす"
       ]
     }
   ]

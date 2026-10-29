@@ -216,7 +216,7 @@ pre-commit:
             # so it runs on every commit rather than relying on path-glob matching.
             run: node scripts/gates/packaging/copies/check-skills-sync.ts
           - name: skill-config-vendor
-            # 配布スキルに同梱する jsonc-parser が devDependency の版から作った内容と一致するか。版を上げた commit でも確かめる。
+            # 配布スキルに同梱する jsonc-parser が devDependency のバージョンから作った内容と一致するか。バージョンを上げた commit でも確かめる。
             glob: "{skills/*/config-schemas/*,skills/*/scripts/skill-config/**,skills/*/references/config-files.md,package.json,pnpm-lock.yaml}"
             run: node scripts/gates/packaging/check-skill-config-vendor.ts
           - name: skill-configs
@@ -265,7 +265,7 @@ pre-commit:
             run: pnpm exec vitest run scripts/gates/tooling/lint-scope.test.ts
           - name: formatter-scope
             # 整形ツールが書き換える種類を設定で閉じていること（実物のツールで確かめる）。設定を変えた commit で実行する。
-            # oxfmt の設定が import するファイルと、ツールの版を決めるファイルも、整形の範囲を変えるので含める
+            # oxfmt の設定が import するファイルと、ツールのバージョンを決めるファイルも、整形の範囲を変えるので含める
             # （含めることは scripts/gates/tooling/lint-scope.test.ts が確かめる）。
             glob: "{.markdownlint-cli2.yaml,.markdownlint.yaml,oxfmt.config.ts,scripts/lib/source-scope.ts,package.json,pnpm-lock.yaml,pnpm-workspace.yaml,scripts/gates/tooling/formatter-scope.test.ts}"
             run: pnpm exec vitest run scripts/gates/tooling/formatter-scope.test.ts

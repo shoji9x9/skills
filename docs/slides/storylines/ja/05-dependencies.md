@@ -17,8 +17,8 @@
 4. dependabot-alert-issue。設定の `ignore` と `dismiss` を当て、既に Issue や PR があるものを飛ばす → 残りをすぐ着手できるかで分類してまとめる → 下書きと dismiss の候補を、承認を得てから実行する。
    Dependabot alerts のほかに、外部の audit の結果も入力にできる。呼び出し方は `dependabot-alert-issue`。
    根拠: `skills/dependabot-alert-issue/SKILL.md` の冒頭・「使い方」・「基本フロー」・「外部 audit findings 入力」
-5. すぐ着手できるかで分ける。すぐ着手できないもの（修正版が無い、公開から日数がたっていない、親の依存が版を固定している）は、着手できるようになる条件を Issue に書く。
-   すぐ着手できるものは severity ごとに、すぐ着手できないものはパッケージと修正された版の組ごとにまとめる。
+5. すぐ着手できるかで分ける。すぐ着手できないもの（修正版が無い、公開から日数がたっていない、親の依存がバージョンを固定している）は、着手できるようになる条件を Issue に書く。
+   すぐ着手できるものは severity ごとに、すぐ着手できないものはパッケージと修正されたバージョンの組ごとにまとめる。
    根拠: `skills/dependabot-alert-issue/SKILL.md`「着手可否の判定」「グルーピング」
 6. 設定。merge の方式（`merge_method`）、公開から着手までの最小の日数（`minimum_release_age_days`）、無視と dismiss の条件を、設定ファイルに書く。
    根拠: `skills/dependabot-merge/SKILL.md`「セットアップ（マージ方式の選択）」、`skills/dependabot-alert-issue/SKILL.md`「セットアップ（特別処理・リリース年齢の設定）」

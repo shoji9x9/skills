@@ -16,7 +16,7 @@
     "skill_version": "<parity-component のバージョン>",
     "autonomous": "<--autonomous で起動した実行なら true、それ以外は false（真偽値で書く）>"
   },
-  "dataset_version": "<採取時の .replace/dataset/metadata.json の version。データ依存部品の抽出データの出所でもある。陳腐化は版の数値では決まらず、この版から現在までの changes[].affects がこの部品の実効参照テーブルと交差するときだけ。判定規則の原本は golden-dataset の references/versioning.md>",
+  "dataset_version": "<採取時の .replace/dataset/metadata.json の version。データ依存部品の抽出データの出所でもある。陳腐化はバージョンの数値では決まらず、このバージョンから現在までの changes[].affects がこの部品の実効参照テーブルと交差するときだけ。判定規則の原本は golden-dataset の references/versioning.md>",
   "capture": {
     "complete": "<採取が**比較の母集合**（instances × capture.states − 宣言済みの unreachable_states）で完了したか。全インスタンス × 全状態ではない。宣言済みの到達不能な組み合わせを数えると、正当な採取が永久に false のまま build を塞ぐ。build はこの値が true のときだけ進む。真偽値で書く>",
     "states": [
@@ -57,7 +57,7 @@
     ],
     "tools": {
       "traits": "<parity-suite 同梱 trait-capture.mjs のコピー先パス>",
-      "traits_version": "<trait-capture.mjs の VERSION。build の前提検証でいま使うツールの版と突き合わせ、一致しなければ実装へ進まず capture からやり直す>",
+      "traits_version": "<trait-capture.mjs の VERSION。build の前提検証でいま使うツールのバージョンと突き合わせ、一致しなければ実装へ進まず capture からやり直す>",
       "traits_property_set": [
         "<trait-capture.mjs の FIXED_PROPERTIES の要素。配列で持つ（parity-suite の metadata の traits.property_set と同じ形。build が集合として突き合わせるため、文字列に畳まない）>"
       ],
@@ -67,7 +67,7 @@
       "axis_diff_version": "<parity-component 同梱 axis-diff.mjs の VERSION>",
       "motion_probe": "<parity-component 同梱 motion-probe.mjs のコピー先パス（動きの無い部品では null）>",
       "motion_probe_version": "<motion-probe.mjs の VERSION（コピーしたファイルから読む）。motion-compare.mjs が時系列の probe_version と突き合わせる。動きの無い部品では null>",
-      "pixel_differ": "<画素差分ツールと版（プロジェクトが選ぶ。例: pixelmatch / odiff）>"
+      "pixel_differ": "<画素差分ツールとバージョン（プロジェクトが選ぶ。例: pixelmatch / odiff）>"
     }
   },
   "instances": [

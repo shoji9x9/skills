@@ -46,7 +46,7 @@ pr-finalize-loop <PR URL> [--max-iterations <N>] [--wait-ci-before-review] [--re
 ## 前提
 
 - ツール: `gh`（GitHub CLI。`gh api graphql`・`gh api` の REST・`gh pr checks`・`gh run view`・`gh run cancel`・`gh run rerun` を含む）、`git`
-- 前提スキル: なし。レビューへの対応のやり方は [[pr-review-handle]] と同じだが、このスキルは自律して動く版を中に持ち、単独で動く
+- 前提スキル: なし。レビューへの対応のやり方は [[pr-review-handle]] と同じだが、このスキルは自律して動くバージョンを中に持ち、単独で動く
 - MCP: なし
 - シェル: bash（POSIX 互換シェル）。コマンド例は bash で書いているので、Windows では WSL や Git Bash などの bash 環境で実行する
 - ランタイム: pnpm や python は要らない。ただし、CI を直すときに、対象のリポジトリのランタイムが要ることはある

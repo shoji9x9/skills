@@ -80,7 +80,7 @@
   キーごと無い旧成果物の後方互換、`gaps.md` を人向けの説明としてそのまま残すことである。
   **assertion は 2 度直している**。初版（iteration-29）の強度チェックの assertion は、prompt が強度チェックに触れないので、
   両方の config が無条件に pass する空振りだった。そのため削除した。
-  2 版目（iteration-30）で要求していた `approved_by` / `approved_at` というキー名は、**`parity-suite` の `metadata-template.json` で定義されている**。
+  2 バージョン目（iteration-30）で要求していた `approved_by` / `approved_at` というキー名は、**`parity-suite` の `metadata-template.json` で定義されている**。
   `with_skill` には対象スキルの成果物しかコピーされないので、**原理的に到達できない**
   （`.agents/rules/eval-assertion-discrimination.md`「到達できるか」が名指ししている失敗）。
   そこで、本スキルの `references/convergence.md` で読める粒度（承認記録が空なら `blocking`）へ直し、iteration-31 で測り直した。結果は `with_skill` 6/6 / `without_skill` 2/6 である。
@@ -94,6 +94,6 @@
   検査そのもの（単位の喪失・消失・整形だけでは落ちない・多重度・サブディレクトリ root・`unit` 別の突き合わせ）は、
   `scripts/skills/replace-strategy/append-only-check.test.ts` が確かめる。
   **PR #398 のレビューで、行の多重集合で比べると、原本が求めるその場の更新が「失われた行」と誤って判定されることを実測した**。
-  その場の更新とは、版の +1・状態列の `未`→`済`・Issue 列の `未起票`→番号・空配列への最初の追記である。
+  その場の更新とは、バージョンの +1・状態列の `未`→`済`・Issue 列の `未起票`→番号・空配列への最初の追記である。
   一覧の `unit`（`lines` / `markdown-structure` / `json-arrays`）で突き合わせの単位を分け、誤検出で収束が止まらないようにした。
   回帰は、テスト側で検出されることの確認と、誤検知しないことの確認の両方で押さえている

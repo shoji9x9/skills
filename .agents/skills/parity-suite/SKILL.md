@@ -65,7 +65,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
 
 - 仕様の確認は、十分な証拠が得られるいちばん安い方法から始める。
   調べる順は、実行ログ・観測記録 → 現行のソースコード → API の実際の動作 → UI の実際の動作である。
-  実行ログ・観測記録は、選択した現行の target から取得し、対象の版・採った時点・条件を追跡できるものに限る。
+  実行ログ・観測記録は、選択した現行の target から取得し、対象のバージョン・採った時点・条件を追跡できるものに限る。
   下位の証拠だけでは assertion にする挙動を確定できない場合に限って、次へ進む。
   調べる費用は、実行ログ・観測記録 < ソースコード < API の操作 < UI の操作の順に高くなるからである。
   必要な証拠が得られた時点で止め、API や UI の操作は、証拠が足りない場合だけ行う。
@@ -147,7 +147,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
   新側専用は `new`（`parity-replace` の green の検証用）からも除外し、採取専用の `new-capture` プロジェクトで実行する。
   `new` に残すと、green の検証がテストを集める時点で失敗する
 - 撮影したビューポートの 1 点で合うことを、「寸法が合う」として扱わない。
-  3 つの比較方法はその点でしか比べないので、1 点で実測した px を並べた新側の版組でも、すべての比較が緑になる。
+  3 つの比較方法はその点でしか比べないので、1 点で実測した px を並べた新側のレイアウトでも、すべての比較が緑になる。
   feature モードでは、窓の大きさを変えて位置と寸法の式を読み、`metadata.json` の `capture_conditions.dimension_model` をキーごと省かない。
   ビューポートが 1 つなら、`measured` か、理由を付けた `not_measured` にする。
   未測定を `gaps.md` に書いて済ませない。`parity-replace` への引き渡しの条件として、`dimension_model` に残す
@@ -461,7 +461,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
 
 - `artifact_health`（採取物ごとの、読むスペックと「何から作ったか」）
 - `suite.state_mutating` / `suite.repeat_run`。状態を変えるスイートは、2 回続けて緑にし、各回に `suite_fingerprint` を記録する。
-  スイートを変えたら、2 回続けて実行し直す。記録を版に結びつけないと、後でスペックや後始末を変えても、古い記録で通ってしまう。
+  スイートを変えたら、2 回続けて実行し直す。記録をバージョンに結びつけないと、後でスペックや後始末を変えても、古い記録で通ってしまう。
   `repeat_run.specs` でスペックごとに分類すれば、2 回を求めるのは状態を変えるスペックだけになり、変えたスペックだけを実行し直せば足りる。
   指紋は、`artifact-health-check.mjs --fingerprint` の出力から転記する。
   戻す操作はスイートの中に置き、`repeat_run.cleanup_in_suite: true` と記録する。
@@ -526,7 +526,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
   実行するときは、プロジェクトの側の `<parity_suite_dir>/parity/lib/tools/vendor/`（デフォルト）にコピーして使い、コピー先のディレクトリを `metadata.json` の `suite.tools` に記録する。
   ファイルのパスで書くと、artifact-health-check はスイートの指紋を計算するときに判定できないとして失敗にする（理由は [`references/baseline.md`](references/baseline.md)）。
   trait-capture.mjs と element-shot.mjs は、ページで実行する本体を [`scripts/page/`](scripts/page/) の `trait-capture.page.mjs`・`element-shot.page.mjs` から import する。
-  そのため、この 2 つをコピーするときは、対になる page ファイルも同じ版から、コピー先の隣の `page/`（デフォルトは `vendor/page/`）へコピーする。
+  そのため、この 2 つをコピーするときは、対になる page ファイルも同じバージョンから、コピー先の隣の `page/`（デフォルトは `vendor/page/`）へコピーする。
   コピーは修正しない取り決めなので、プロジェクトが自作したツールとパスで分けられる、コピー専用のサブディレクトリに置く（置き方は [`references/locator-mapping.md`](references/locator-mapping.md)）
 - 網羅プロファイルと、[`scripts/coverage-expand.mjs`](scripts/coverage-expand.mjs)・[`scripts/pixel-strict-count.mjs`](scripts/pixel-strict-count.mjs) は、コピーしない。
   スキルの中のスクリプトをそのまま実行する（`gh skill update` の自動更新を反映させるため）。
@@ -555,7 +555,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
   `artifact-health-check.mjs` と `component-comparison-check.mjs` が import し、このライブラリ自身は `component-impact.mjs` を import する。
   この 4 本は、同じディレクトリに置いたまま呼ぶ。
   持ち越しは、両方の検査に `--new-repo` を渡したときだけ評価される。
-  記録と `replace-metadata.json` の版が一致している一括再検証の直後は、検証先の版を `--carry-to` で渡したときだけ評価される（手順は `parity-diff` の `references/component-change.md` で定義する）
+  記録と `replace-metadata.json` のバージョンが一致している一括再検証の直後は、検証先のバージョンを `--carry-to` で渡したときだけ評価される（手順は `parity-diff` の `references/component-change.md` で定義する）
 
 ## 姉妹スキルとの連携
 

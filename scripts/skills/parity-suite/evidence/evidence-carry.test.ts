@@ -195,7 +195,7 @@ test.concurrent("宣言の後に宣言外の編集がある（files に名前が
   expect(result.findings.join("\n")).toContain("連鎖で説明できない");
 });
 
-test.concurrent("2 つの宣言が連鎖して記録の版から今の版までを説明する: 持ち越す", () => {
+test.concurrent("2 つの宣言が連鎖して記録のバージョンから今のバージョンまでを説明する: 持ち越す", () => {
   const p = project({ scope: [["list", "default", "desktop"]] });
   const later = commit(
     p.repo,
@@ -536,11 +536,11 @@ test.concurrent.each([
   expect(result.findings.join("\n")).toContain(expected);
 });
 
-test.concurrent("記録の版のコミットが新側リポジトリに無い: 落とす", () => {
+test.concurrent("記録のバージョンのコミットが新側リポジトリに無い: 落とす", () => {
   const p = project();
   const result = judge(p, { recordedCommit: "0123456789abcdef0123456789abcdef01234567" });
   expect(result.ok).toBe(false);
-  expect(result.findings.join("\n")).toContain("記録した版 のコミット");
+  expect(result.findings.join("\n")).toContain("記録したバージョン のコミット");
 });
 
 test.concurrent("コミットが 16 進でない（git へオプションとして渡さない）: 落とす", () => {
@@ -587,7 +587,7 @@ test.concurrent("両チェックの一致: 持ち越せる fixture では両方�
   writeCheckerInputs(p, p.commits.base, p.commits.component);
   const { health, comparison, comparisonResult } = await runBoth(p);
   expect(health.stdout).toContain("証跡を持ち越す");
-  expect(health.stdout).not.toContain("今の新側の版に対応していない");
+  expect(health.stdout).not.toContain("今の新側のバージョンに対応していない");
   assert.exists(comparisonResult);
   expect(comparisonResult.findings).toEqual([]);
   expect(comparisonResult.notes.join("\n")).toContain("証跡を持ち越す");
@@ -601,7 +601,7 @@ test.concurrent("両チェックの一致: 宣言外のファイルが変わっ�
   writeCheckerInputs(p, p.commits.base, theme);
   const { health, comparison, comparisonResult } = await runBoth(p);
   expect(health.status).toBe(1);
-  expect(health.stdout).toContain("今の新側の版に対応していない");
+  expect(health.stdout).toContain("今の新側のバージョンに対応していない");
   expect(health.stdout).toContain("証跡を持ち越せない");
   expect(health.stdout).toContain("src/theme.css");
   expect(comparison.status).toBe(1);
@@ -612,7 +612,7 @@ test.concurrent("両チェックの一致: 宣言外のファイルが変わっ�
   expect(comparisonResult.findings.map((f) => f.message).join("\n")).toContain("src/theme.css");
 });
 
-test.concurrent("render_inputs の pathspec がどちらの版のファイルにも当たらない: D が空でも持ち越さない", () => {
+test.concurrent("render_inputs の pathspec がどちらのバージョンのファイルにも当たらない: D が空でも持ち越さない", () => {
   const p = project();
   const unrelated = commit(p.repo, { "README.md": "app v2\n" }, "readme");
   const result = judge(p, {
@@ -668,8 +668,8 @@ test.concurrent("影響インスタンスのページが別の機能のページ
 });
 
 // --carry-to（Issue #469）。部品改修の一括再検証の直後は diff-metadata.json・component-comparison.json・
-// replace-metadata.json の版がどれも改修前で一致し、食い違いの判定（judgeCarry）が呼ばれない。
-// 検証先の版を明示すると、記録の版からその版への持ち越しをその場で判定する。
+// replace-metadata.json のバージョンがどれも改修前で一致し、食い違いの判定（judgeCarry）が呼ばれない。
+// 検証先のバージョンを明示すると、記録のバージョンからそのバージョンへの持ち越しをその場で判定する。
 
 test.concurrent("--carry-to: 一括再検証の直後で持ち越せる: 両方とも合格し、持ち越しを判定した注記を残す", async () => {
   const p = project();
@@ -693,7 +693,7 @@ test.concurrent("--carry-to: 一括再検証の直後に evidence-carry.json が
   const p = project();
   writeCheckerInputs(p, p.commits.base, p.commits.base);
   rmSync(p.evidenceCarryPath);
-  // 既存の呼び出し（検証先の版を明示しない）の挙動は変えない: 版が一致するので持ち越しを評価せず通る。
+  // 既存の呼び出し（検証先のバージョンを明示しない）の挙動は変えない: バージョンが一致するので持ち越しを評価せず通る。
   const before = await runBoth(p);
   expect(before.health.status).toBe(0);
   expect(before.comparison.status).toBe(0);
@@ -701,13 +701,13 @@ test.concurrent("--carry-to: 一括再検証の直後に evidence-carry.json が
     carryTo: p.commits.component,
   });
   expect(health.status).toBe(1);
-  expect(health.stdout).toContain("--carry-to の版へ持ち越せない");
+  expect(health.stdout).toContain("--carry-to のバージョンへ持ち越せない");
   expect(health.stdout).toContain("src/components/Button.tsx");
   expect(comparison.status).toBe(1);
   assert.exists(comparisonResult);
   const messages = comparisonResult.findings.map((f) => `${f.code} ${f.message}`).join("\n");
   expect(messages).toContain(
-    "evidence-carry-rejected 突き合わせ表の証跡を --carry-to の版へ持ち越せない",
+    "evidence-carry-rejected 突き合わせ表の証跡を --carry-to のバージョンへ持ち越せない",
   );
   expect(messages).toContain("src/components/Button.tsx");
 });
@@ -720,7 +720,7 @@ test.concurrent("--carry-to: 一括再検証の直後に evidence-carry.json が
     carryTo: p.commits.component,
   });
   expect(health.status).toBe(1);
-  expect(health.stdout).toContain("--carry-to の版へ持ち越せない");
+  expect(health.stdout).toContain("--carry-to のバージョンへ持ち越せない");
   expect(comparison.status).toBe(1);
   assert.exists(comparisonResult);
   expect(comparisonResult.findings.map((f) => f.code)).toContain("evidence-carry-rejected");
@@ -732,14 +732,14 @@ test.concurrent("--carry-to: 宣言で説明できない差分がある: 両方�
   writeCheckerInputs(p, p.commits.base, p.commits.base);
   const { health, comparison, comparisonResult } = await runBoth(p, { carryTo: theme });
   expect(health.status).toBe(1);
-  expect(health.stdout).toContain("--carry-to の版へ持ち越せない");
+  expect(health.stdout).toContain("--carry-to のバージョンへ持ち越せない");
   expect(health.stdout).toContain("src/theme.css");
   expect(comparison.status).toBe(1);
   assert.exists(comparisonResult);
   expect(comparisonResult.findings.map((f) => f.message).join("\n")).toContain("src/theme.css");
 });
 
-test.concurrent("--carry-to: 記録の版が none: 判定できないので両方とも落とす", async () => {
+test.concurrent("--carry-to: 記録のバージョンが none: 判定できないので両方とも落とす", async () => {
   const p = project();
   writeCheckerInputs(p, "none", "none");
   const { health, comparison, comparisonResult } = await runBoth(p, {
@@ -775,7 +775,7 @@ test.concurrent("--carry-to: suite.new_green が真でない: 工程の節を飛
   expect(health.stdout).toContain("への持ち越しを判定できない（suite.new_green が真でない");
 });
 
-test.concurrent("--carry-to: replace-metadata.json の new.commit と同じ版: 同じ判定を重ねて出さない", async () => {
+test.concurrent("--carry-to: replace-metadata.json の new.commit と同じバージョン: 同じ判定を重ねて出さない", async () => {
   const p = project();
   const theme = commit(p.repo, { "src/theme.css": ":root { --accent: red; }\n" }, "theme");
   writeCheckerInputs(p, p.commits.base, theme);

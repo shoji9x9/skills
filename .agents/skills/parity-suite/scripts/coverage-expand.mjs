@@ -600,7 +600,7 @@ function setInventoryProblems(raw, label) {
 function setSourceProblems(block, label) {
   const source = isPlainObject(block.source) ? block.source : null;
   if (source === null) {
-    return [`${label}.source が無い（どの版のどこから何を条件に列挙したか残らない）`];
+    return [`${label}.source が無い（どのバージョンのどこから何を条件に列挙したか残らない）`];
   }
   /** @type {string[]} */
   const problems = [];
@@ -2127,7 +2127,7 @@ function reconcileProfiledComponent(c, cid, st) {
   }
   if (nonEmptyString(c.profile_version) && String(c.profile_version) !== String(profile.version)) {
     problems.push(
-      `部品 ${cid}: 記録されたプロファイル版（${String(c.profile_version)}）が同梱プロファイル（${String(profile.version)}）と違う — 候補を展開し直す`,
+      `部品 ${cid}: 記録されたプロファイルのバージョン（${String(c.profile_version)}）が同梱プロファイルのバージョン（${String(profile.version)}）と違う。候補を展開し直す`,
     );
   }
 

@@ -1,7 +1,7 @@
 # スキル評価の executor の仕様
 
 `scripts/eval/run-skill-eval.sh` は同じ `evals/<name>/evals.json` を Claude Code と Codex で実行し、executor 固有の出力を共通 artifact へ正規化する。
-Anthropic 版 `skill-creator` と既存の集計・viewer は変更しない。
+Anthropic バージョン `skill-creator` と既存の集計・viewer は変更しない。
 
 ## Executor の選択
 
@@ -75,7 +75,7 @@ tests/<skill>/iteration-N/
 
 `timing.json` は同じ `executor` と、`total_tokens`、開始・終了時刻、ミリ秒・秒の実測時間を持つ。
 各 run の `eval-fingerprint.json` は、次の値を正規化した JSON にまとめ、SHA-256 のハッシュにしたものである。
-prompt、対象の assertion、fixture、`requires_skills`（名前と、置いた内容のハッシュ）、executor、model、reasoning effort、CLI と harness の版。
+prompt、対象の assertion、fixture、`requires_skills`（名前と、置いた内容のハッシュ）、executor、model、reasoning effort、CLI と harness のバージョン。
 `without_skill` の `--reuse-baseline` は、fingerprint が一致し成果物がそろっていることを確かめてから、前の run を再利用する。再利用した run には `baseline-reuse.json` を足す。
 `scripts/eval/normalize-skill-eval-result.ts` とそのテストが、どちらの executor でも必須のフィールドがあることと、token の数え方がそろっていることを確かめる。
 `outputs/metrics.json` の `tool_calls` と `total_tool_calls` は、raw trace から数えられる run にだけ置く。
@@ -105,7 +105,7 @@ Codex はファイルを操作するときに同じディレクトリの `codex-
 その `permissions.filesystem.deny_read` で、CLI の起動に使う `auth.json` を、エージェントが実行するシェルのコマンドから読めないようにする。ホストの `/etc` は変えない。
 
 この隔離は、eval の run の中でエージェントが実行するシェルのコマンドから内容を読み出すプローブで実測する。
-`cat "$CODEX_HOME/auth.json" >/dev/null` は 0 以外で終了しなければならない。エラーの文言は版によって違うので、判定には使わない。
+`cat "$CODEX_HOME/auth.json" >/dev/null` は 0 以外で終了しなければならない。エラーの文言はバージョンによって違うので、判定には使わない。
 同じ run で、fixture と `.agents/skills/<name>/SKILL.md` は読めなければならない。
 deny-read の公式仕様と system requirements の配置は [OpenAI: Managed configuration](https://learn.chatgpt.com/docs/enterprise/managed-configuration) を参照する。
 

@@ -265,7 +265,7 @@ describe("照会の原本（tracking-issue-lib.sh）", () => {
 // 探索は配布先の構成でだけ失敗する（本リポには 4 つの探索先のうち 1 つが必ず在る）。
 // レポートと lib が**同じディレクトリに揃っている**ことを条件にしてあるので、
 // 片方だけのディレクトリを採らないことを、実際に実行して測る。
-describe("kaizen スクリプトの探索（レポートと照会を同じ版から採る）", () => {
+describe("kaizen スクリプトの探索（レポートと照会を同じバージョンから採る）", () => {
   const wfPath = ".github/workflows/kaizen-schedule.yml";
   const SEARCH_DIRS = [
     ".claude/skills/kaizen/scripts",

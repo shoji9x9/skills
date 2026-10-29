@@ -60,7 +60,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
   - 上の setup・フェーズ A・`parity-suite` と、下のフェーズ B（slug × target）は、未解決の保留があれば、証拠があっても未完了として扱う。
     見る保留の範囲の原本は `replace-strategy` の `references/autonomy.md`「下流の前提判定」
   - `golden-dataset` のフェーズ B は、新側スキーマが確定した後の実行で、選んだ target が投入対象のときだけ判定する。
-    `.replace/dataset/metadata.json` の `phase_b.<slug>.<target>.dataset_version` があり、その版より後の `changes[].affects` が slug の実効参照テーブルと交差しないことで判定する。
+    `.replace/dataset/metadata.json` の `phase_b.<slug>.<target>.dataset_version` があり、そのバージョンより後の `changes[].affects` が slug の実効参照テーブルと交差しないことで判定する。
     影響する変更があれば、`golden-dataset --phase b --feature <slug> --target <target>` を先に実行する。数値が古いだけなら投入し直さない。
     判定の取り決めは `golden-dataset` の `references/versioning.md` を参照する
   - 投入対象は、設定の `dataset_mode` で決まる。`db`（デフォルト）なら `db.seedable: true` の target だけ、`static` ならすべての target である（取り決めの原本は `replace-strategy` の `references/project-config.md`）。
@@ -70,7 +70,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 ## 厳守の制約（禁止事項）
 
 - 仕様の確認は、十分な証拠が得られる最もコストの低い方法から始める。調べる順は次のとおりで、下位の証拠だけでは実装の判断を確定できない場合に限って次へ進む。
-  1. 選んだ target から採取し、前提のチェックで対象の版・採取の時点・条件の一致を確かめたパリティ成果物と観測記録
+  1. 選んだ target から採取し、前提のチェックで対象のバージョン・採取の時点・条件の一致を確かめたパリティ成果物と観測記録
   2. 現行のソースコード
   3. API の実際の動作
   4. UI の実際の動作
@@ -107,7 +107,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
     （収束は生の差分がゼロであることを求めない。原本は `parity-diff` の `references/convergence.md`「収束の定義」）
   - 収束する前に `parity-diff` が止まった（要対応・他の機能待ち・判断待ち・反復の上限）ときは、その差分と止まった理由をそのまま報告してよい。禁じるのは、一致や収束を主張することだけである
   - 報告の書き方は、手順 8 の「完了の報告」に従う
-- 撮影したビューポートで測った px を並べて、版組を作らない。3 つの比較方法はその 1 点でしか比べないので、1 点の px を並べた版組は、すべての比較方法で緑のまま、別の窓の幅で崩れる。
+- 撮影したビューポートで測った px を並べて、レイアウトを作らない。3 つの比較方法はその 1 点でしか比べないので、1 点の px を並べたレイアウトは、すべての比較方法で緑のまま、別の窓の幅で崩れる。
   位置と寸法は、`parity-suite` が読み取った式（`metadata.json` の `capture_conditions.dimension_model.fits`）で組み、完了の判定で `dimension-fit.mjs check` を通す（手順 8）
 - 振る舞いを保つことと、品質を改善することを、同じフェーズで狙わない。レガシーの奇妙な挙動も再現する
 - リントを off にして差異を避けない。ロケータマッピングの層が現側の非セマンティックな部分を隔離しているので、新側を改善してもスイートは失敗しない
@@ -283,7 +283,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
      書き先は `.replace/parity/<slug>/new/<target>/component-comparison.json` である（環境別。様式の原本は `parity-suite` の `assets/component-comparison-template.json`）。
      起点・当たり判定・完了の 3 点を観測して記録する。
      突き合わせられないセルは理由を書く。突き合わせないことを選ぶなら、**利用者の承認**（`disposition: accepted` と `approved_by`・`approved_at`）を得る
-   - 記録には新側の版（`new_implementation.commit` にそのときの `new.commit`、`dirty: false`）も書く。書かないと、記録の後に実装を変えても古い証拠が通る
+   - 記録には新側のバージョン（`new_implementation.commit` にそのときの `new.commit`、`dirty: false`）も書く。書かないと、記録の後に実装を変えても古い証拠が通る
      （当たり判定と完了の退行はスイートの green に出ないので、この工程が唯一の確認になる）
    - `new.commit` が `none`（新側が git の管理を持たない）なら、`new_implementation.iteration` にそのときの `loop.iterations` も書く。
      `none` どうしの比較は常に一致するので、書かないと鮮度の検査が一度も機能しない（検査は `comparison-implementation-unversionable` で失敗にする）
@@ -401,7 +401,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
      （batch モードの完了の判定にある「出力の一致」（[`references/paging.md`](references/paging.md)）は、スイートのベースラインに対する判定で、現行との一致の報告ではない）
    - 次の工程として、同じ target を渡した `parity-diff --feature <slug> --target <target>` を案内する（`--autonomous` の実行なら、そのまま委譲する）
    - 同じ target の `diff-metadata.json` がすでに `converged: true` でも、このスキルはそれを収束の報告に使わない。
-     収束の入力は新側だけでなく、現側のベースライン・データセットの版・撮影の条件・差分ツールの設定にも及び、その鮮度は `parity-diff` の前提確認（`parity-diff` の `references/preflight.md`）だけが判定する。
+     収束の入力は新側だけでなく、現側のベースライン・データセットのバージョン・撮影の条件・差分ツールの設定にも及び、その鮮度は `parity-diff` の前提確認（`parity-diff` の `references/preflight.md`）だけが判定する。
      収束を報告するのは、そのとき `parity-diff` を実行して得た結果に基づく場合だけにする
 9. `parity-diff` との往復ループ: 差し戻されたときは、`.replace/parity/<slug>/new/<target>/diff.md` を入力に、該当するページのフェーズから再開する（頭から作り直さない）。
    - 対象の target の `on_diff` ドキュメントがあれば、それに従って修正・反映・再テストを進める（無ければ、修正して対象の target でテストし直す）
@@ -433,7 +433,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
   4. スイートを新側に対して green にする
   5. 検証コマンド（`verification_commands.full`。この手順でも、完了の判定は全体を走査する）
   6. 手順 8（`new/<target>/replace-metadata.json` へ証跡を記録する）
-- green にならなければ、まずデータを疑う（フェーズ B を行っていない、データセットの版が合わない）。次に環境の差（URL・起動・外部の依存・認証）を疑う。
+- green にならなければ、まずデータを疑う（フェーズ B を行っていない、データセットのバージョンが合わない）。次に環境の差（URL・起動・外部の依存・認証）を疑う。
   実装を触るのは、同じ実装が動いているという前提が成り立たないと分かった場合だけで、そのときはこの手順を抜けて、通常の流れ（手順 4 以降）で直す
 
 ## 成果物

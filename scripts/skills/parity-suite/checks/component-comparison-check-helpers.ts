@@ -129,7 +129,7 @@ type CliResult = {
 export const run = (argv: string[], files: Record<string, string>) =>
   runInMemory<CliResult>(main, argv, { files });
 
-/** 現在の新側の版（`--replace-metadata` が読む形）。突き合わせ表の記録と同じ commit・clean。 */
+/** 現在の新側のバージョン（`--replace-metadata` が読む形）。突き合わせ表の記録と同じ commit・clean。 */
 export const REPLACE_METADATA = { new: { commit: "abc123", dirty: false } };
 
 export const codesOf = (

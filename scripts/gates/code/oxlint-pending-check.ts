@@ -2,7 +2,7 @@
 //
 // 一覧と実際の違反は、2 つの向きでずれる。直したのに一覧に残った組（古い組）と、直さずに一覧から消した組（一覧に無い違反）である。
 // 検査する範囲は、staged のファイルから決める。
-// - ルールの判定か一覧の外し方を変えるファイル（oxlint.config.ts とプラグインから import をたどったファイルと、oxlint の版を決めるファイル）
+// - ルールの判定か一覧の外し方を変えるファイル（oxlint.config.ts とプラグインから import をたどったファイルと、oxlint のバージョンを決めるファイル）
 //   が staged なら、リポジトリ全体を検査する。一覧から組を消しただけの commit も、ここに当たる。
 // - そうでなければ、一覧と staged が重なるファイルだけを検査する。関数の大きさのルールはファイルごとに判定するので、
 //   staged でないファイルの組はずれない。
@@ -25,7 +25,7 @@ const SOURCE_ENTRIES = [
   "scripts/gates/code/oxlint-plugin/run-oxlint.ts",
   "scripts/gates/code/oxlint-pending-check.ts",
 ];
-/** oxlint と依存の版を決めるファイルと、突き合わせのテスト自身（テストの補助まで import はたどらない）。 */
+/** oxlint と依存のバージョンを決めるファイルと、突き合わせのテスト自身（テストの補助まで import はたどらない）。 */
 const VERSION_FILES = [
   "package.json",
   "pnpm-lock.yaml",
@@ -62,7 +62,7 @@ export function importClosure(root: string, entries: readonly string[]): Set<str
   return seen;
 }
 
-/** 検査し直すきっかけになるファイル（import をたどったファイルと、版を決めるファイル）。 */
+/** 検査し直すきっかけになるファイル（import をたどったファイルと、バージョンを決めるファイル）。 */
 export function pendingSources(root: string): Set<string> {
   return new Set([...importClosure(root, SOURCE_ENTRIES), ...VERSION_FILES]);
 }
