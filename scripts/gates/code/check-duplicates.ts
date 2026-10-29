@@ -11,7 +11,7 @@
 //   ファイル全体の組は、同じ組の 2 つのファイルの間の重複を外す。範囲（`region`）を持つ組は、両方の断片がそれぞれの
 //   ファイルの範囲と重なる重複を外す。範囲の中に収まる条件にしないのは、範囲の印の行や直前の説明のコメントも同じなので、
 //   jscpd の断片が範囲の外へ数行広がるからである。範囲と重ならない重複は、登録していないコピーとして数える。
-//   範囲の組に並べたファイルがファイル全体の組にも入っていれば、そのファイル全体の組の他のファイル（バイト単位で同じだと確かめたコピー）も
+//   範囲の組に並べたファイルと同じファイル全体の組に入っているファイル（バイト単位で同じだと確かめたコピー）も、
 //   範囲の組に入っているものとして判定する（withCopies）。範囲の組には、ファイル全体の組のファイルを 1 つだけ並べればよい。
 // - テストのコード（`isTestCode`）どうしの重複は、閾値を上げた別の走査で判定する。テストは準備と assertion を各テストに書くので、
 //   短い並び（`expect(r.status).toBe(1)` が続くなど）は自然に重なる。1 回目の走査（デフォルトの閾値で全体）からはテストどうしの
@@ -157,7 +157,6 @@ type Range = { start: number; end: number };
  * 範囲の組の files に、並べたファイルとファイル全体の組で一致するコピーを足した組を返す。ファイル全体の組はそのまま返す。
  * 範囲の組には、ファイル全体の組のファイルを 1 つ（どれでもよい）だけ並べればよい。コピーはそのファイルとバイト単位で同じなので、
  * 同じ範囲を持つ。1 ファイルが属せるファイル全体の組は 1 つだけ（loadGroups が確かめる）なので、組をまたいでまとめる必要は無い。
- * 判定（isDeclaredCopy・isUndeclaredCopy）と控えの書き込みは、これを当てた組（loadCopyGroups）を使う。
  */
 export function withCopies(groups: readonly CopyGroup[]): CopyGroup[] {
   const copiesOf = new Map<string, readonly string[]>();
@@ -177,7 +176,7 @@ function loadCopyGroups(root: string): CopyGroup[] {
 
 /**
  * 意図したコピーどうしの重複か。同じ組に属する 2 つのファイルの間の重複で、範囲を持つ組なら両方の断片がそれぞれの範囲と重なるもの。
- * groups は withCopies を当てた組。範囲の組に足したコピーの範囲も、コピーの側のファイルから読む。
+ * groups は loadCopyGroups の組。
  * rangeOf は、ファイルと範囲の名前から、範囲の中身の行を返す。
  */
 export function isDeclaredCopy(
@@ -200,7 +199,7 @@ export function isDeclaredCopy(
 
 /**
  * 控えた組のどれかに 2 つのファイルが入っていて、今の組のどれにも一緒に入っていない重複か（組を宣言から外した後に残ったコピー）。
- * groups は withCopies を当てた組。
+ * groups は loadCopyGroups の組。
  */
 export function isUndeclaredCopy(
   clone: Clone,
@@ -386,7 +385,6 @@ function replaceBaselines(root: string, staging: string, groups: readonly CopyGr
     mkdirSync(dirname(target), { recursive: true });
     copyFileSync(join(staging, scan.baseline), target);
   }
-  // groups は withCopies を当てた組なので、範囲の組の控えにはコピーも入る。
   const files = groups.map((g) => [...g.files].sort());
   writeFileSync(join(root, DECLARED_PATH), `${JSON.stringify({ groups: files }, null, 2)}\n`);
 }
