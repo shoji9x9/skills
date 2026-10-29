@@ -243,6 +243,10 @@ pre-commit:
             # 時間がたつと正しくなくなる記述（日付・「現状は」「当面」と、変異の件数・全件の実測値）を
             # Tier 1〜3 の文書とコメントに書いていないか。許可は scripts/gates/docs/doc-allowed.json。
             run: node scripts/gates/prose/check-time-sensitive-prose.ts
+          - name: version-mentions
+            # 文書とコメントに書いた「<ツール> X.Y.Z」が、package.json・pnpm-lock.yaml・mise.toml の宣言と食い違っていないか。
+            # 依存を上げる commit と、文書を直す commit のどちらでも食い違いが起きるので、全体を見る。
+            run: node scripts/gates/prose/check-version-mentions.ts
           - name: doc-refs
             # 文書のリンク・節名の実在と、参照の向き（Tier 4 と、配布スキルからリポジトリ固有のものへの参照）。
             # 参照される側の変更（見出しの変更・ファイルの移動）で参照する側が失敗するので、全体を見る。

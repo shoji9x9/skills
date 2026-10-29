@@ -39,7 +39,7 @@
 // `page/` のファイルもスキルの中に置いたまま使うので、このスクリプトだけを別の場所へコピーしても動かない。
 //
 // 本体がページで動くことも確かめた。Chrome for Testing 153.0.8010.12 の chrome-headless-shell を使った。
-// Playwright 1.64.0 の chromium.launch({ executablePath }) で起動し、captureMatchedRules で同じページの複数の要素を採った。
+// Playwright の chromium.launch({ executablePath }) で起動し、captureMatchedRules で同じページの複数の要素を採った。
 // 要素には、`:hover` などの状態擬似クラス・`@media`・`@import`・`!important`・シャドウ DOM・
 // クロスオリジンで読めないスタイルシートが当たる。
 // 偽の CSSOM に対するユニットテストは、配布元のリポジトリにある（素朴な走査が同じ入力で取りこぼすことも、あわせて示している）。

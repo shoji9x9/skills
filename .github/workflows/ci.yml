@@ -114,6 +114,8 @@ jobs:
         run: node scripts/gates/packaging/copies/check-identical-copies.ts
       - name: Time-sensitive prose (mutation counts, dates, 現状は / 当面)
         run: node scripts/gates/prose/check-time-sensitive-prose.ts
+      - name: Version mentions (docs and comments vs declared versions)
+        run: node scripts/gates/prose/check-version-mentions.ts
       - name: Document references (links, section names, tier direction)
         run: node scripts/gates/docs/check-doc-refs.ts
       - name: Skill index (AGENTS.md / README.md vs skills/)

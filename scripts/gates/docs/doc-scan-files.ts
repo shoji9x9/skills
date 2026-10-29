@@ -1,4 +1,4 @@
-// 文書のチェック（check-doc-refs.ts・check-time-sensitive-prose.ts）が共有する、走査対象。
+// 文書のチェック（check-doc-refs.ts・check-time-sensitive-prose.ts・check-version-mentions.ts）が共有する、走査対象。
 //
 // 走査対象は、テキストの実体のファイル（コピーとリンクを除く。scripts/lib/source-scope.ts）のうち、
 // Tier 4（経過の記録）と階層の外（eval の入力）を除いたもの。階層は scripts/gates/docs/doc-tiers.json で決める。
