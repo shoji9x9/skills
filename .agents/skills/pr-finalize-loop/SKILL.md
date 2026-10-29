@@ -123,7 +123,7 @@ push の後などに再レビューを依頼する AI レビュアーは、CLI �
    - PR の状態を確かめ直す。`gh pr view <番号> --repo <owner>/<repo> --json state` を再取得し、`OPEN` でなくなっていたら（他の人のマージやクローズなどで対象が無くなったら）、仕上げる対象が無くなったとして止まる。
      着手する前だけでなく、各反復の最初にも確かめ、無くなった対象の CI とレビューを待ち続けない。
    - CI: `gh pr checks <番号> --repo <owner>/<repo> --watch --fail-fast` で完了を待つ（どれかが失敗した時点で抜ける）。
-     待っている間は、始まらないジョブを「ポーリングと待機」の手順で別に確かめる。`--watch` は、ジョブが始まらないままでも返らないからである。
+     待っている間は、runner が割り当てられないジョブを「ポーリングと待機」の手順で別に確かめる。`--watch` は、そのジョブが始まらないままでも返らないからである。
      push の直後は、チェックがまだ登録されておらず、すぐに `no checks` が返ることがある。そのときは間隔を空けて数回まで確かめ直す。
    - 未解決のレビュースレッド: [`references/state-query.md`](references/state-query.md) の reviewThreads の索引を `--paginate` で全件取得し、`isResolved == false` で絞る。すべてのレビュアーを対象にし、作成者では絞らない。
    - 現在の HEAD がレビュー済みかを判定する（後述の「HEAD のレビュー済み判定」）。
@@ -296,8 +296,9 @@ effort を指定できるのは、`review_tool: local` で Claude Code の `/cod
 
 - CI の完了を待つ: `gh pr checks --watch` に任せる。gh が中でポーリングし、完了するまで待つ。間隔は `--interval <秒>` で決める。自分で短い間隔のループを書いて呼び続けない。
   - `--watch` は、ジョブが `queued` のまま runner が割り当てられなくても返らない。
-    そのため、`--watch --fail-fast` は終了コードを受け取れる形のバックグラウンドで実行し、待っている間に、runner が割り当てられないジョブを一定の間隔で別に確かめる。`--watch` は打ち切らない。
-    `--watch` が返ったら、別に確かめるのをやめ、その終了コードで CI を判定する。
+    そのため、`--watch --fail-fast` はバックグラウンドで実行し、待っている間に、runner が割り当てられないジョブを一定の間隔で別に確かめる。`--watch` は打ち切らない。
+    バックグラウンドの実行は、終わったことと終了コードを受け取れ、途中で止められる方法にする（Claude Code の `run_in_background` など。stdin は `</dev/null` にする）。
+    `--watch` が返ったら、別に確かめるのをやめ、「CI 状態の確認」の手順で CI を判定する。push の直後の exit 0 は、必須チェックが登録される前のことがあるからである。
   - 確かめるのは、HEAD のすべての workflow run の、`status` が `queued` で `runner_name` が null のジョブである。
     run の `status` は 1 つのジョブが始まると `in_progress` になるので、run では絞らない。
 
@@ -311,8 +312,9 @@ effort を指定できるのは、`review_tool: local` で Claude Code の `/cod
     `gh run view --json jobs` は `runner_name` を返さないので使わない。
     形は <https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-repository> と <https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run> で確かめた。
   - 待った時間は、そのジョブ（`id`）を初めてこの状態で見つけた確認からの時間で測る。`created_at` からは測らない。他のジョブや run を待つ `pending` の時間が入るからである。
+    同じ run に `in_progress` のジョブがある間は、待った時間に数えない。前のジョブ（`needs` の相手など）を待っているだけのことがあるからである。
+    初めて見つけた時刻は GitHub から取り直せないので、ジョブの `id` とともに進み具合のメモ（「長時間実行・コンテキストの引き継ぎ」）に残す。
   - 上限は 30 分にする。runner の空き（同時に実行できる数の上限、1 台だけの self-hosted の runner）を待つ `queued` も、`runner_name` が null になるからである。
-    同じリポジトリでジョブの作成から開始まで（`created_at` から `started_at` まで）が普段から長いなら、その時間の 5 倍が 30 分より長ければ、その値にする。
   - 上限を超えても同じジョブが `queued` のままで `runner_name` が null なら、runner が割り当てられていない（Actions の予算の上限、存在しないラベルの runner の指定、runner の空きが無い状態が続いているなど）。
     原因はリポジトリの外にあることが多く、ループの中では除けない。`--watch` を止め、`run-id`・ジョブの名前・`labels`・待った時間を書いて「行き詰まり」として止まり、利用者に知らせる。
   - `waiting`（environment の保護ルールによる待ち）・`requested`・`pending` のジョブは、runner の割り当てとは別の待ちなので、この確認では止めない。
@@ -345,7 +347,7 @@ effort を指定できるのは、`review_tool: local` で Claude Code の `/cod
 収束には時間がかかり、途中でコンテキストの自動圧縮（auto-compaction）が起きることがある。それに耐えるため、状態は GitHub にある実際の状態から取得し直す。
 
 - 各反復は、GitHub の実際の状態から再開できるようにする。手順 1 で CI の状態と未解決のスレッドを取得し直す。保存済みの返信と解決から、実際の状態を組み立て直せる。
-- 反復の回数の予算（`--max-iterations`）と行き詰まりの検知だけは、記憶に頼りやすい。「何回目の反復か」「今の段階の effort と、その段階で残っている回数」「段階を下げた時点の HEAD の完全な SHA」「直近の CI の失敗の要点」を短い進み具合のメモに残し、再開するときの起点にする。
+- 反復の回数の予算（`--max-iterations`）と行き詰まりの検知だけは、記憶に頼りやすい。「何回目の反復か」「今の段階の effort と、その段階で残っている回数」「段階を下げた時点の HEAD の完全な SHA」「直近の CI の失敗の要点」「runner が割り当てられないジョブの `id` と、初めて見つけた時刻」を短い進み具合のメモに残し、再開するときの起点にする。
   メモを失ったら、GitHub の実際の状態から今の状況を導き直す。残りの作業が無ければ、反復を足さずに今の状況を報告して止まる。
   そのときは HEAD がレビュー済みかを取得し直して確かめ、レビューされていなければ「完了」ではなく「レビュー未着で待機終了」として報告する。予算がはっきりしないことを、レビューがそろった根拠にしない。
 
