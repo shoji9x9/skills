@@ -81,18 +81,18 @@ pr-review-handle <PR URL | 番号 | レビュー URL> [--push]
       - 妥当で直す必要があれば、対象のファイルを直す。
         書き方の形（規則の違反・単位の書き方など）を指す指摘なら、同じ形が PR の別の行にも無いかを先に探す。
         `<remote>` には、PR のベースリポジトリを指す remote を使う（多くは `origin`。fork から出した PR では `upstream` などのこともある）。
-        探す対象は、次の 1 行で取った差分の、`+` の行である。`&&` でつないでいるので、どれかが失敗すると後のコマンドは実行されない。
+        探す対象は、次のコマンドで取った差分の、`+` の行である。
 
         ```bash
-        git fetch <remote> <PR のベースブランチ> && fetched=$(git rev-parse FETCH_HEAD) \
-          && fork_point=$(git merge-base "$fetched" HEAD) && git diff "$fork_point" -U0
+        git fetch <remote> <PR のベースブランチ> && fork_point=$(git merge-base FETCH_HEAD HEAD) && git diff "$fork_point" -U0
         ```
 
         このコマンドは分岐点と作業ツリーを比べるので、前のスレッドで直してまだ commit していない行も対象に入る。
         手元のベースブランチと比べた差分には PR に無い行まで含まれることがあるので、取得し直したもの（`FETCH_HEAD`）と比べる。
-        `FETCH_HEAD` は次の `git fetch` で書き換わるので、fetch の直後に SHA を変数に保存して比べる。
-        手順 3 で head ブランチと違うブランチのまま進めたときや、`merge-base` が失敗して 0 以外で終わったとき（shallow clone など）は、`gh pr diff <番号> --repo <owner>/<repo>` の `+` の行を探す。
-        まだ push していない commit と、まだ commit していない修正は、手順 3 で取った `headRefOid` を使い、`git diff <headRefOid> -U0` の `+` の行で足す。
+        どこかのコマンドが失敗すると、後のコマンドは実行されない。`git fetch` で止まったら（stderr で分かる）、原因を直してやり直す。
+        手順 3 で head ブランチと違うブランチのまま進めたときと、`git merge-base` だけが失敗したとき（shallow clone など）は、`gh pr diff <番号> --repo <owner>/<repo>` の `+` の行を探す。
+        前のスレッドで直してまだ commit していない行は、`git diff HEAD -U0` の `+` の行で足す。
+        commit してまだ push していない行は、この 2 つのどちらにも入らない。`git log @{u}..HEAD` に commit が出たら、`git show <commit> -U0` の `+` の行も探す。
         まだ commit していない新しいファイル（前のスレッドで作ったものなど）は、先に `git add -N <path>` で登録しておかないと、どちらの `git diff` にも現れない。PR に入れないファイルを登録したら、探した後に `git reset -- <path>` で登録を戻す。
         PR と関係の無い作業ツリーの変更は、直す対象にしない。整形（折り返し・空白）だけで変わった行に前からある問題も、直す対象にしない。
         語はレビューが挙げたものから広げ（時間の単位なら「秒」「分」「前後」「約」）、当たった行を 1 件ずつ読んで、同じ形だけを一緒に直す。

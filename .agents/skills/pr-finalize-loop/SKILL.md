@@ -164,21 +164,22 @@ push の後などに再レビューを依頼する AI レビュアーは、CLI �
       差分は、次のコマンドで取り、`+` の行を検索する。
 
       ```bash
-      git fetch <remote> <PR のベースブランチ> && base=$(git rev-parse FETCH_HEAD) && mb=$(git merge-base "$base" HEAD) && git diff "$mb" -U0
+      git fetch <remote> <PR のベースブランチ> && fork_point=$(git merge-base FETCH_HEAD HEAD) && git diff "$fork_point" -U0
       ```
 
       `<remote>` は、PR のベースリポジトリを指す remote である（多くは `origin`。fork から出した PR では `upstream` などのこともある）。
       手元のベースブランチは古いことがあり、それと比べた差分には PR に無い行まで含まれるので、取得し直したもの（`FETCH_HEAD`）と比べる。
       `<remote>/<PR のベースブランチ>` は使わない。remote に設定した refspec にそのブランチが含まれないと、fetch しても更新されないからである。
-      `FETCH_HEAD` は次の `git fetch` で書き換わるので、fetch の直後に SHA を変数に保存して比べる。
-      `merge-base` が失敗して 0 以外で終わったら（shallow clone で分岐点が手元に無いときなど）、`gh pr diff <番号> --repo <owner>/<repo>` の `+` の行を検索する。
-      まだ push していない commit と、まだ commit していない修正は、`git diff <PR の head の SHA> -U0` の `+` の行で足す（SHA は `gh pr view <番号> --repo <owner>/<repo> --json headRefOid` で取得する）。
-      これらのコマンドは比べる相手と作業ツリーを比べるので、この反復でまだ commit していない修正の行も検索の対象に入る（commit は手順 5 でまとめて行う）。
+      `&&` でつないでいるので、`git fetch` か `git merge-base` が失敗すると `git diff` は実行されない。どちらで止まったかは stderr で見分ける。
+      `git fetch` が失敗したら（remote の名前の誤り・認証切れなど）、原因を直してやり直す。
+      `git merge-base` だけが失敗したら（shallow clone で分岐点が手元に無いときなど）、`gh pr diff <番号> --repo <owner>/<repo>` の `+` の行を検索する。
+      この反復でまだ commit していない修正は `gh pr diff` に入らないので、`git diff HEAD -U0` の `+` の行で足す（commit は手順 5 でまとめて行う）。
+      上のコマンドと `git diff HEAD -U0` は作業ツリーと比べるので、まだ commit していない修正の行も検索の対象に入る。
       `git diff FETCH_HEAD...HEAD` のように HEAD までの commit だけを比べるコマンドでは、その行が対象に入らない。
       まだ commit していない新しいファイル（この反復で作ったものなど）は、`git add -N <path>` で登録するまで、どちらの `git diff` にも入らない。
       PR に入れないファイルを登録したら、検索の後に `git reset -- <path>` で登録を戻す。
       作業ツリーに PR に入れない変更があれば、その行も差分に入るので、見つかった行から外す。
-      整形（折り返し・空白）だけで変わった行も `+` の行に入る。その行に前からある問題は、下の範囲の規則で範囲の外に当たるので、まとめて直す対象から外す。
+      整形（折り返し・空白）だけで変わった行も `+` の行に入る。その行に前からある問題は、下に挙げる直さない根拠の 2 つ目（指摘が PR の範囲の外にある）に当たるので、まとめて直す対象から外す。
       検索の語は、レビューが示した語や箇所に限らず、形を表す語に広げる（時間の単位なら「秒」「分」「前後」「約」）。
       広げた語は別の意味の語（「部分」の「分」など）にも当たるので、見つかった行を 1 件ずつ読み、同じ形のものだけをまとめて直す。
       指摘された行だけを直すと、同じ形の箇所が次の反復で指摘され、反復が増える。返信には、検索した語・見つかった件数・直した件数を書く。
