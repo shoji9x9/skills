@@ -2751,11 +2751,11 @@ export function defaultManifestPath() {
  * @param {string[]} exclude
  */
 function checkExcludeIds(exclude) {
-  /** @type {string[]} */
-  const seen = [];
+  /** @type {Set<string>} */
+  const seen = new Set();
   for (const value of exclude) {
-    if (seen.includes(value)) throw new UsageError(`--exclude の id が重複している: ${value}`);
-    seen.push(value);
+    if (seen.has(value)) throw new UsageError(`--exclude の id が重複している: ${value}`);
+    seen.add(value);
   }
 }
 

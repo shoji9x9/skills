@@ -12,27 +12,37 @@
 // | 誤りの順序     | 未知の名前で値が無い（未知を先に報告する）                                             |
 
 import { describe, expect, test } from "vitest";
-import { parseFlags as AgentUsage } from "../../../skills/agent-usage/scripts/lib/flags.mjs";
-import { parseFlags as AwsArchitectureDiagram } from "../../../skills/aws-architecture-diagram/scripts/lib/flags.mjs";
-import { parseFlags as GoldenDataset } from "../../../skills/golden-dataset/scripts/lib/flags.mjs";
-import { parseFlags as IssueStart } from "../../../skills/issue-start/scripts/lib/flags.mjs";
-import { parseFlags as ParityComponent } from "../../../skills/parity-component/scripts/lib/flags.mjs";
-import { parseFlags as ParityDiff } from "../../../skills/parity-diff/scripts/lib/flags.mjs";
-import { parseFlags as ParitySuite } from "../../../skills/parity-suite/scripts/lib/flags.mjs";
-import { parseFlags as ReplaceStrategy } from "../../../skills/replace-strategy/scripts/lib/flags.mjs";
+import * as AgentUsage from "../../../skills/agent-usage/scripts/lib/flags.mjs";
+import * as AwsArchitectureDiagram from "../../../skills/aws-architecture-diagram/scripts/lib/flags.mjs";
+import * as GoldenDataset from "../../../skills/golden-dataset/scripts/lib/flags.mjs";
+import * as IssueStart from "../../../skills/issue-start/scripts/lib/flags.mjs";
+import * as ParityComponent from "../../../skills/parity-component/scripts/lib/flags.mjs";
+import * as ParityDiff from "../../../skills/parity-diff/scripts/lib/flags.mjs";
+import * as ParitySuite from "../../../skills/parity-suite/scripts/lib/flags.mjs";
+import * as ReplaceStrategy from "../../../skills/replace-strategy/scripts/lib/flags.mjs";
 
 const COPIES = [
-  { skill: "agent-usage", parseFlags: AgentUsage },
-  { skill: "aws-architecture-diagram", parseFlags: AwsArchitectureDiagram },
-  { skill: "golden-dataset", parseFlags: GoldenDataset },
-  { skill: "issue-start", parseFlags: IssueStart },
-  { skill: "parity-component", parseFlags: ParityComponent },
-  { skill: "parity-diff", parseFlags: ParityDiff },
-  { skill: "parity-suite", parseFlags: ParitySuite },
-  { skill: "replace-strategy", parseFlags: ReplaceStrategy },
+  { skill: "agent-usage", lib: AgentUsage },
+  { skill: "aws-architecture-diagram", lib: AwsArchitectureDiagram },
+  { skill: "golden-dataset", lib: GoldenDataset },
+  { skill: "issue-start", lib: IssueStart },
+  { skill: "parity-component", lib: ParityComponent },
+  { skill: "parity-diff", lib: ParityDiff },
+  { skill: "parity-suite", lib: ParitySuite },
+  { skill: "replace-strategy", lib: ReplaceStrategy },
 ];
 
-describe.each(COPIES)("$skill の lib/flags.mjs", ({ parseFlags }) => {
+describe.each(COPIES)("$skill の lib/flags.mjs", ({ lib }) => {
+  const { parseFlags } = lib;
+
+  test("stripDashes: 表のキーから先頭の `--` を外し、値はそのまま返す", () => {
+    expect(lib.stripDashes({ "--out": "a", "--state": ["s"], "-h": true })).toEqual({
+      out: "a",
+      state: ["s"],
+      "-h": true,
+    });
+  });
+
   const SPEC = {
     values: ["--file", "--state", "--property"],
     repeat: ["--state", "--property"],

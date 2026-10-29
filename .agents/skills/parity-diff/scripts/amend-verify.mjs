@@ -322,14 +322,15 @@ function readFlags(argv) {
   if (parsed.error !== undefined) return { error: parsed.error };
   /** @type {Flags} */
   const flags = { single: { regions: [] }, margin: 0, marginGiven: false };
-  // 値の中身は argv の順に確かめ、誤りが複数あれば argv で最初のものを報告する。parseFlags は、受け付ける名前と同じ値を
-  // 値の書き忘れとして止めるので、名前に当たる要素の次は必ずその値である。
-  for (let i = 0; i < argv.length; i += 1) {
-    const setter = FLAG_SETTERS.get(argv[i]);
-    if (setter === undefined) continue;
-    const error = setter(flags, argv[i + 1]);
-    if (error !== undefined) return { error };
-    i += 1;
+  // 値は parseFlags の結果から読む。argv からは名前が最初に現れた順だけを取り、誤りが複数あれば先に現れた名前のものを報告する。
+  const { strings, lists } = parsed;
+  const order = [...new Set(argv.filter((a) => a in strings || a in lists))];
+  for (const name of order) {
+    const setter = FLAG_SETTERS.get(name);
+    for (const value of lists[name] ?? [strings[name]]) {
+      const error = setter?.(flags, value);
+      if (error !== undefined) return { error };
+    }
   }
   return flags;
 }

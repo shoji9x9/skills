@@ -751,6 +751,17 @@ test("--out の値が空文字なら、次の引数を出力先として読ま�
   expect(readFileSync(keep, "utf8")).toBe("{}");
 });
 
+test("`--` より後の `--out` は位置引数として読み、直後の空文字を値として残さない", () => {
+  // 1 つ前の要素で値の位置を決めると、`-- --out ""` の空文字が残り、中身の無い「不明な引数: 」で止まる。
+  const r = spawnSync(process.execPath, [script, "--", "--out", ""], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("マニフェストを読めない");
+  expect(r.stderr).not.toContain("不明な引数");
+});
+
 test("--baseline は宣言の無い欠落を警告なしに除外しない", () => {
   // 到達不能と宣言していない状態の traits.json が無ければ、読みに行って落ちる。
   const dir = makeTempDir("axis-diff-baseline-");

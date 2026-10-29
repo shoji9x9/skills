@@ -815,8 +815,12 @@ function writeUsageError({ positionals = [], baseline = null, error }) {
 export function main(argv) {
   // 空文字の位置引数（空の変数の展開など）は除く。値を取る名前の直後の空文字は残し、parseFlags に値の書き忘れとして止めさせる。
   // 除くと、`--out "" manifest.json` が manifest.json を出力先として読み、マニフェストを上書きする。
+  // `--` より後はすべて位置引数なので、1 つ前の要素を名前として扱わない。
+  const end = argv.indexOf("--");
   const parsed = parseCliArgs(
-    argv.filter((a, i) => a !== "" || VALUE_OPTIONS.includes(argv[i - 1] ?? "")),
+    argv.filter(
+      (a, i) => a !== "" || ((end < 0 || i < end) && VALUE_OPTIONS.includes(argv[i - 1] ?? "")),
+    ),
   );
   if (parsed.error !== undefined) {
     writeUsageError(parsed);

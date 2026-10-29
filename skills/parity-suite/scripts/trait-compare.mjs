@@ -71,7 +71,7 @@ function isArray(value) {
 /**
  * `--名前 値` の引数を読む。誤りがあれば、error に理由を入れて返す。
  * 誤りの文は、未知の名前と多すぎる位置引数が「不明な引数: <引数>」、値の無い名前が「<名前> に値が無い」、
- * 同じ名前の 2 回目が「<名前> が重複している」、値を取らない名前に `=値` を付けたものが「<名前> は値を取らない」である。値が無いとは、値が末尾で無い・空白だけ・その CLI が受け付ける名前と同じ・
+ * 同じ名前の 2 回目が「<名前> が重複している」、値を取らない名前に `=値` を付けたものが「<名前> は値を取らない」である。値が無いとは、名前が末尾にあって値が続かない・値が空白だけ・その CLI が受け付ける名前と同じ・
  * `--` で始まる（dashValues の名前を除く）のどれかである。`--` だけの引数はオプションの終わりで、その後はすべて位置引数にする。名前は値より先に確かめる。値を先に確かめると、値の無い未知の引数を
  * 「値が無い」と報告し、受け付ける引数のように読める。必須の引数と値の中身は、各 CLI が受け取った後に確かめる。
  * @param {readonly string[]} argv
@@ -86,9 +86,8 @@ function parseFlags(argv, spec) {
   for (let i = 0; i < argv.length; i += 1) {
     // 位置引数を取らない CLI では、`--` も受け付けない引数として扱う。
     if (argv[i] === "--" && (spec.positionals ?? 0) > 0) {
-      const rest = argv.slice(i + 1).map((arg) => pushPositional(arg, i, state));
-      const failed = rest.find((step) => "error" in step);
-      if (failed && "error" in failed) return { error: failed.error };
+      const error = pushRest(argv.slice(i + 1), state);
+      if (error) return { error };
       break;
     }
     const step = readFlagArg(argv, i, state);
@@ -141,6 +140,20 @@ function readValueFlag({ argv, i, inline }, state) {
     return { error: `${name} に値が無い` };
   const error = storeFlagValue(name, value, state);
   return error ? { error } : { next: inline ? i : i + 1 };
+}
+
+/**
+ * `--` より後の引数をすべて位置引数として足す。上限を超えたら、最初に超えた引数の誤りの文を返す。
+ * @param {readonly string[]} rest
+ * @param {FlagState} state
+ * @returns {string | undefined}
+ */
+function pushRest(rest, state) {
+  for (const arg of rest) {
+    const step = pushPositional(arg, 0, state);
+    if ("error" in step) return step.error;
+  }
+  return undefined;
 }
 
 /**
