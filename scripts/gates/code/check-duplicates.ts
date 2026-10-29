@@ -155,12 +155,17 @@ type Range = { start: number; end: number };
 
 /**
  * 範囲の組の files に、並べたファイルとファイル全体の組で一致するコピーを足した組を返す（冒頭の判定規則）。ファイル全体の組はそのまま返す。
- * groups は loadGroups の組で、1 ファイルが属せるファイル全体の組は 1 つだけである。
+ * 1 ファイルが属せるファイル全体の組は 1 つだけである（loadGroups が確かめる）。2 つ以上の組にあれば、どちらで広げるか決まらないので例外にする。
  */
 export function withCopies(groups: readonly CopyGroup[]): CopyGroup[] {
   const copiesOf = new Map<string, readonly string[]>();
-  for (const g of groups)
-    if (g.region === undefined) for (const f of g.files) copiesOf.set(f, g.files);
+  for (const g of groups) {
+    if (g.region !== undefined) continue;
+    for (const f of g.files) {
+      if (copiesOf.has(f)) throw new Error(`${f} が 2 つ以上のファイル全体の組にある`);
+      copiesOf.set(f, g.files);
+    }
+  }
   return groups.map((g) =>
     g.region === undefined
       ? g

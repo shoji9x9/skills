@@ -220,6 +220,9 @@ test("withCopies: 範囲の組にファイル全体の組のコピーを足し�
     { ...repGroup, files: ["a.mjs", "b.mjs", "c.mjs", "r.ts"] },
     regionGroup,
   ]);
+  // 1 ファイルが 2 つのファイル全体の組にあれば、どちらで広げるか決まらないので例外にする。
+  const overlapping = { files: ["a.mjs", "m.mjs"], reason: "別の姉妹スキルが同じ処理を持つ" };
+  expect(() => withCopies([fileGroup, overlapping, repGroup])).toThrow(/a\.mjs/);
   // ファイル全体の組が無ければ、範囲の組はそのまま。
   expect(withCopies([repGroup])).toEqual([repGroup]);
   // 2 つのファイル全体の組のファイルを 1 つずつ並べると、両方の組のコピーを足す。

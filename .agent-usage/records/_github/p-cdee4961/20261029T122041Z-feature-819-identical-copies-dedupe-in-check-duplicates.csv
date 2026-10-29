@@ -28,3 +28,6 @@ ci:40879886044:1,ci,2026-10-29T13:23:45.482Z,p-cdee4961,github-actions,,,,2026-1
 ci:40879886022:1,ci,2026-10-29T13:23:45.482Z,p-cdee4961,github-actions,,,,2026-10-29T13:12:56.000Z,2026-10-29T13:17:17.000Z,Asia/Tokyo,feature/819-identical-copies-dedupe-in-check-duplicates,819,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-28T13:11:59.484Z:2026-10-29T13:23:45.482Z,coverage,2026-10-29T13:23:45.482Z,p-cdee4961,,,,,2026-10-28T13:11:59.484Z,2026-10-29T13:23:45.482Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-28T13:23:45.482Z:2026-10-29T13:24:46.205Z,coverage,2026-10-29T13:24:46.205Z,p-cdee4961,,,,,2026-10-28T13:23:45.482Z,2026-10-29T13:24:46.205Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:40881841222:1,ci,2026-10-29T13:31:06.656Z,p-cdee4961,github-actions,,,,2026-10-29T13:25:47.000Z,2026-10-29T13:25:48.000Z,Asia/Tokyo,feature/819-identical-copies-dedupe-in-check-duplicates,819,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40881841210:1,ci,2026-10-29T13:31:06.656Z,p-cdee4961,github-actions,,,,2026-10-29T13:25:47.000Z,2026-10-29T13:30:00.000Z,Asia/Tokyo,feature/819-identical-copies-dedupe-in-check-duplicates,819,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-28T13:24:46.205Z:2026-10-29T13:31:06.656Z,coverage,2026-10-29T13:31:06.656Z,p-cdee4961,,,,,2026-10-28T13:24:46.205Z,2026-10-29T13:31:06.656Z,Asia/Tokyo,,,,,,,,,,,,ok,
