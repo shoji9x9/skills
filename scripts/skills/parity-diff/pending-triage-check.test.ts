@@ -631,6 +631,8 @@ test.each([
   ["ハイフン 2 個", "| slug | x |\n| -- | -- |\n| a | b |", ["a"]],
   ["揃えの指定", "| slug | x |\n|:-:|-:|\n| a | b |", ["a"]],
   ["区切り行が無い", "| slug | x |\n| a | b |", []],
+  // 1 列目の空欄を `-` で書いた本体の行は、区切り行ではない
+  ["1 列目だけが -", "| slug | x |\n| - | b |\n| a | b |", []],
 ])("parseFeatureSlugs は区切り行（%s）の表から slug を読む", (_label, markdown, expected) => {
   expect([...(parseFeatureSlugs(markdown) ?? [])]).toEqual(expected);
 });

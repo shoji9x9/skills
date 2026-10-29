@@ -411,6 +411,18 @@ export function specificity(selector) {
 }
 
 /**
+ * CSS のエスケープ（start の `\`）の次の位置。16 進のエスケープ（`\31 `）は 1〜6 桁の 16 進数と、それを閉じる空白 1 個までを含む。
+ * それ以外は `\` と次の 1 文字。
+ * @param {string} s
+ * @param {number} start
+ * @returns {number}
+ */
+function escapeEnd(s, start) {
+  const hex = /^[0-9a-fA-F]{1,6}[ \t\n\r\f]?/.exec(s.slice(start + 1, start + 8));
+  return Math.min(start + 1 + (hex === null ? 1 : hex[0].length), s.length);
+}
+
+/**
  * トップレベル（括弧の外）にある最後の結合子（空白・`>`・`+`・`~`）の位置。無ければ -1。
  * @param {string} selector
  * @returns {number}
@@ -421,7 +433,7 @@ function lastTopLevelCombinator(selector) {
   for (let i = 0; i < selector.length; i += 1) {
     const ch = selector[i];
     if (ch === "\\") {
-      i += 1;
+      i = escapeEnd(selector, i) - 1;
       continue;
     }
     // 引用符の中（`[title="]"]`）の括弧と空白は、深さにも結合子にも数えない。
@@ -447,8 +459,9 @@ function blankStrings(text) {
   while (i < text.length) {
     const ch = text[i];
     if (ch === "\\") {
-      out += " ".repeat(Math.min(2, text.length - i));
-      i += 2;
+      const end = escapeEnd(text, i);
+      out += " ".repeat(end - i);
+      i = end;
       continue;
     }
     if (ch === '"' || ch === "'") {

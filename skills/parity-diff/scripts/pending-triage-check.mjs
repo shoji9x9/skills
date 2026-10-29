@@ -103,8 +103,8 @@ function readSlugTableRow(table, cells) {
   }
   if (!table.sawSeparator) {
     // 区切り行が無い表はヘッダと本体を区別できないので読まない。
-    // GFM の区切り行のハイフンは 1 個以上（`|-|-|` も区切り行）。
-    if (/^:?-+:?$/.test(cells[0] ?? "")) table.sawSeparator = true;
+    // GFM の区切り行のハイフンは 1 個以上（`|-|-|` も区切り行）。1 列目の空欄を `-` で書いた本体の行と分けるため、すべての列を見る。
+    if (cells.length > 0 && cells.every((c) => /^:?-+:?$/.test(c))) table.sawSeparator = true;
     else table.inSlugTable = false;
     return null;
   }

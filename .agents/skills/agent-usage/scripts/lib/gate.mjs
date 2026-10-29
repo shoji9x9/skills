@@ -55,6 +55,7 @@ const SHELL_PREFIXES = ["if", "then", "elif", "else", "while", "until", "do", "{
  * @property {readonly string[]} [chdirOptions] 後ろのコマンドの作業ディレクトリを変えるオプション（`env -C <dir>`）。valueOptions にも入れる
  * @property {readonly string[]} [longOptions] valueOptions に無い長いオプション（値を取らないもの）。
  *   省略形（`--chd`）を一意な前方一致で読むために、valueOptions の長いオプションと合わせて、そのコマンドの長いオプションをすべて挙げる
+ * @property {readonly string[]} [splitOptions] 値を空白で語に分け、その位置に置いてからオプションを読み直すオプション（`env -S`）。valueOptions にも入れる
  */
 
 /**
@@ -74,6 +75,8 @@ const COMMAND_WRAPPERS = new Map([
       valueOptions: ["-u", "--unset", "-C", "--chdir", "-a", "--argv0", "-S", "--split-string"],
       operands: 0,
       chdirOptions: ["-C", "--chdir"],
+      // GNU env は -S の値を語に分けて残りの引数の前に置き、オプションを読み直す（`env -S '-C /tmp' git commit` は /tmp で実行する）
+      splitOptions: ["-S", "--split-string"],
       longOptions: [
         "--block-signal",
         "--debug",
@@ -400,9 +403,9 @@ export function isGitCommit(command) {
 /**
  * 単純なコマンドの先頭にある前置き（変数の代入・シェルの予約語・ラッパーとそのオプション）を読み飛ばし、
  * 実行するコマンドの名前の位置を返す。ラッパーが作業ディレクトリを変える指定は dirs に足す。
- * @param {readonly string[]} words
+ * @param {string[]} words splitOptions の値を語に分けて置き換えるので、呼び出し元のコピーを渡す
  * @param {string[]} dirs
- * @returns {number} ラッパーのオプションに一意に決まらない省略形があれば -1
+ * @returns {number} ラッパーのオプションを読み切れなければ -1（一意に決まらない省略形・語に分けられない splitOptions の値）
  */
 function skipCommandPrefixes(words, dirs) {
   let i = 0;
@@ -425,10 +428,11 @@ function skipCommandPrefixes(words, dirs) {
 /**
  * ラッパーの名前の次（start）から、ラッパーのオプションと被演算子を読み飛ばした位置を返す。
  * 作業ディレクトリを変えるオプションの値は dirs に足す。
+ * splitOptions の値は、空白で語に分けてオプションと値の位置に置き換え、その位置から読み直す。
  * @param {CommandWrapper} wrapper
- * @param {readonly string[]} words
+ * @param {string[]} words
  * @param {{ start: number; dirs: string[] }} at start はラッパーの名前の次の位置、dirs は作業ディレクトリを足す先
- * @returns {number} 一意に決まらない省略形の長いオプションがあれば -1
+ * @returns {number} 読み切れなければ -1（一意に決まらない省略形・語に分けられない splitOptions の値）
  */
 function skipWrapperOptions(wrapper, words, at) {
   const { dirs } = at;
@@ -439,6 +443,12 @@ function skipWrapperOptions(wrapper, words, at) {
     const option = readWrapperOption(wrapper, words, i);
     // 一意に決まらない省略形は、次の語が値かコマンドかを決められないので、読むのをやめて呼び出し元に任せる
     if (option.ambiguous === true) return -1;
+    if (option.split !== undefined) {
+      // GNU env は値の中の引用符・エスケープ・`${VAR}`・`#` を自分で解釈するので、それらを含む値は語に分けられない
+      if (/["'\\$#]/.test(option.split)) return -1;
+      words.splice(i, option.width, ...option.split.split(/\s+/).filter((w) => w !== ""));
+      continue;
+    }
     if (option.dir !== null) dirs.push(option.dir);
     i += option.width;
   }
@@ -449,18 +459,19 @@ function skipWrapperOptions(wrapper, words, at) {
 /**
  * 単純なコマンド（語の列）が git commit なら、ラッパーの `env -C`・`sudo -D` と git の `-C` で指定したディレクトリを指定の順に返す。
  * git commit でなければ null。
- * @param {readonly string[]} words
+ * @param {readonly string[]} input
  * @returns {string[] | null}
  */
-function commitDirsOf(words) {
+function commitDirsOf(input) {
+  const words = [...input];
   /** @type {string[]} */
   const dirs = [];
   let i = skipCommandPrefixes(words, dirs);
-  // ラッパーのオプションを読み切れないときは、git の語の後ろに commit の語があればコミットとして扱う（止める側に寄せる）。
+  // ラッパーのオプションを読み切れないときは、語をつないだ文字列で git の後ろに commit があればコミットとして扱う（止める側に寄せる）。
+  // 語に分けられない -S の値（`env -S 'git "commit"'`）の中も、この文字列に入る。
   // 読み切れたラッパーの指定も、後ろが値かコマンドかを決められないので当てず、作業ディレクトリは変えない
   if (i < 0) {
-    const git = words.findIndex((w) => w.split("/").pop() === "git");
-    return git >= 0 && words.indexOf("commit", git + 1) > git ? [] : null;
+    return /\bgit\b[\s\S]*\bcommit\b/.test(words.join(" ")) ? [] : null;
   }
   if (i >= words.length || words[i].split("/").pop() !== "git") return null;
   i += 1;
@@ -476,16 +487,30 @@ function commitDirsOf(words) {
  * @param {CommandWrapper} wrapper
  * @param {string} word
  * @param {string | null} next
- * @returns {{ width: number, dir: string | null, ambiguous?: boolean }}
+ * @returns {{ width: number, dir: string | null, ambiguous?: boolean, split?: string }}
  */
 function readLongWrapperOption(wrapper, word, next) {
-  const chdir = wrapper.chdirOptions ?? [];
   const eq = word.indexOf("=");
   const name = resolveLongOption(wrapper, eq === -1 ? word : word.slice(0, eq));
   if (name === null) return { width: 1, dir: null, ambiguous: true };
-  if (eq !== -1) return { width: 1, dir: chdir.includes(name) ? word.slice(eq + 1) : null };
-  const takesValue = wrapper.valueOptions.includes(name);
-  return { width: takesValue ? 2 : 1, dir: takesValue && chdir.includes(name) ? next : null };
+  if (eq !== -1) return optionWithValue(wrapper, name, { width: 1, value: word.slice(eq + 1) });
+  if (!wrapper.valueOptions.includes(name)) return { width: 1, dir: null };
+  return optionWithValue(wrapper, name, { width: 2, value: next });
+}
+
+/**
+ * 値を取るオプション name の読み方。splitOptions なら値を split に、chdirOptions なら値を dir に入れる。戻り値は readWrapperOption と同じ。
+ * @param {CommandWrapper} wrapper
+ * @param {string} name 正式な名前（`-C`・`--chdir`）
+ * @param {{ width: number; value: string | null }} at width は読み飛ばす語の数（値が次の語なら 2）、value はオプションの値（次の語が無ければ null）
+ * @returns {{ width: number, dir: string | null, split?: string }}
+ */
+function optionWithValue(wrapper, name, at) {
+  const { width, value } = at;
+  if ((wrapper.splitOptions ?? []).includes(name) && value !== null) {
+    return { width, dir: null, split: value };
+  }
+  return { width, dir: (wrapper.chdirOptions ?? []).includes(name) ? value : null };
 }
 
 /**
@@ -515,21 +540,19 @@ function resolveLongOption(wrapper, name) {
  * @param {CommandWrapper} wrapper
  * @param {readonly string[]} words
  * @param {number} i
- * @returns {{ width: number, dir: string | null, ambiguous?: boolean }}
+ * @returns {{ width: number, dir: string | null, ambiguous?: boolean, split?: string }}
  */
 function readWrapperOption(wrapper, words, i) {
   const word = words[i];
   const next = i + 1 < words.length ? words[i + 1] : null;
   if (word.startsWith("--")) return readLongWrapperOption(wrapper, word, next);
-  const chdir = wrapper.chdirOptions ?? [];
   for (let k = 1; k < word.length; k += 1) {
     const name = `-${word[k]}`;
     if (!wrapper.valueOptions.includes(name)) continue;
     const rest = word.slice(k + 1);
-    return {
-      width: rest === "" ? 2 : 1,
-      dir: chdir.includes(name) ? (rest === "" ? next : rest) : null,
-    };
+    return rest === ""
+      ? optionWithValue(wrapper, name, { width: 2, value: next })
+      : optionWithValue(wrapper, name, { width: 1, value: rest });
   }
   return { width: 1, dir: null };
 }

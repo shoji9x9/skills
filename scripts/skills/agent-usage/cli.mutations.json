@@ -40,7 +40,8 @@
         "commitCwd git -C ../o -c a=b commit → /o",
         "commitCwd cd /r; git -C sub commit → /r/sub",
         "commitCwd env --chdir=sub git -C x commit → /w/sub/x",
-        "commitCwd sudo --chdir /o git -C x commit → /o/x"
+        "commitCwd sudo --chdir /o git -C x commit → /o/x",
+        "commitCwd sudo --chd /o git -C x commit → /o/x"
       ]
     },
     {
@@ -119,7 +120,25 @@
         "isGitCommit sudo -h host git commit → true",
         "isGitCommit sudo -c class git commit → true",
         "isGitCommit sudo -a type git commit → true",
-        "isGitCommit env -a name git commit → true"
+        "isGitCommit env -a name git commit → true",
+        "commitCwd env --chd /tmp git commit → /tmp",
+        "commitCwd env --chd=sub git commit → /w/sub",
+        "commitCwd env --split-string '-C /tmp' git commit → /tmp",
+        "commitCwd env -S'-C sub' git commit → /w/sub",
+        "commitCwd sudo --chd /o git -C x commit → /o/x",
+        "isGitCommit env --chd /tmp git commit -m x → true",
+        "isGitCommit env --chd=/tmp git commit → true",
+        "isGitCommit env --de x git commit → true",
+        "isGitCommit env --nul git commit → true",
+        "isGitCommit env --split='-i git' commit → true",
+        "isGitCommit env -S 'git \"commit\"' → true",
+        "isGitCommit env -S 'git commit' → true",
+        "isGitCommit env -S git commit -m x → true",
+        "isGitCommit env -iS'git' commit → true",
+        "isGitCommit nice --adj 5 git commit → true",
+        "isGitCommit sudo --ch /tmp git commit → true",
+        "isGitCommit timeout --sig KILL 5 git commit → true",
+        "isGitCommit xargs --max-a 1 git commit → true"
       ]
     },
     {
@@ -153,7 +172,15 @@
         "commitCwd sudo -ED /o git commit → /o",
         "isGitCommit sudo -c class git commit → true",
         "isGitCommit sudo -a type git commit → true",
-        "isGitCommit env -a name git commit → true"
+        "isGitCommit env -a name git commit → true",
+        "commitCwd env --chd /tmp git commit → /tmp",
+        "commitCwd env --split-string '-C /tmp' git commit → /tmp",
+        "commitCwd env -S'-C sub' git commit → /w/sub",
+        "commitCwd sudo --chd /o git -C x commit → /o/x",
+        "isGitCommit env --chd /tmp git commit -m x → true",
+        "isGitCommit nice --adj 5 git commit → true",
+        "isGitCommit timeout --sig KILL 5 git commit → true",
+        "isGitCommit xargs --max-a 1 git commit → true"
       ]
     },
     {
@@ -171,7 +198,12 @@
         "commitCwd sudo --chdir /o git -C x commit → /o/x",
         "commitCwd env -iC /o git commit → /o",
         "commitCwd env -iCsub git commit → /w/sub",
-        "commitCwd sudo -ED /o git commit → /o"
+        "commitCwd sudo -ED /o git commit → /o",
+        "commitCwd env --chd /tmp git commit → /tmp",
+        "commitCwd env --chd=sub git commit → /w/sub",
+        "commitCwd env --split-string '-C /tmp' git commit → /tmp",
+        "commitCwd env -S'-C sub' git commit → /w/sub",
+        "commitCwd sudo --chd /o git -C x commit → /o/x"
       ]
     },
     {
@@ -188,7 +220,8 @@
         "isGitCommit env -iC git commit → false",
         "commitCwd env -iC /o git commit → /o",
         "commitCwd env -iCsub git commit → /w/sub",
-        "commitCwd sudo -ED /o git commit → /o"
+        "commitCwd sudo -ED /o git commit → /o",
+        "isGitCommit env -iS'git' commit → true"
       ]
     },
     {
@@ -204,7 +237,8 @@
         "isGitCommit timeout --signal=KILL 1m git commit → true",
         "isGitCommit nohup nice -n 5 timeout 60 git commit → true",
         "isGitCommit timeout 60 /usr/bin/git commit → true",
-        "isGitCommit cd /r && timeout 60 git -C sub commit → true"
+        "isGitCommit cd /r && timeout 60 git -C sub commit → true",
+        "isGitCommit timeout --sig KILL 5 git commit → true"
       ]
     },
     {
@@ -753,7 +787,8 @@
         "commitCwd env --chd=sub git commit → /w/sub",
         "commitCwd sudo --chd /o git -C x commit → /o/x",
         "isGitCommit env --de x git commit → true",
-        "isGitCommit sudo --ch /tmp git commit → true"
+        "isGitCommit sudo --ch /tmp git commit → true",
+        "isGitCommit env --split='-i git' commit → true"
       ]
     },
     {

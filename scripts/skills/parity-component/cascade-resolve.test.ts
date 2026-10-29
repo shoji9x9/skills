@@ -1157,6 +1157,10 @@ test.each([
   [String.raw`.a\:hover span`, []],
   [String.raw`.a\\:hover span`, ["hover"]],
   [String.raw`.a\:hover:hover span`, ["hover"]],
+  // 16 進のエスケープ（`\31 ` は `1`）を閉じる空白は、結合子ではない
+  [String.raw`.btn:hover.\31 0`, []],
+  [String.raw`.btn:hover.\31  span`, ["hover"]],
+  [String.raw`.a\3A hover span`, []],
 ])("statesOutsideSubject はエスケープした `:` を擬似クラスに数えない: %s", (selector, expected) => {
   expect(statesOutsideSubject(selector, ["hover"])).toEqual(expected);
 });
