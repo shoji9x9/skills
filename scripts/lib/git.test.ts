@@ -20,6 +20,14 @@ test("repoRoot はリポジトリの中の場所から、ルートを返す", ()
   expect(repoRoot(join(root, "a", "b"))).toBe(realpathSync(root));
 });
 
+test("repoRoot は、CRLF の出力でも末尾の改行だけを外す", () => {
+  const dir = makeTempDir("git-crlf-");
+  const fake = join(dir, "fake-git");
+  write(dir, "fake-git", "#!/bin/sh\nprintf '/x/repo \\r\\n'\n");
+  chmodSync(fake, 0o755);
+  expect(repoRoot(dir, { command: fake })).toBe("/x/repo ");
+});
+
 test("repoRoot は、ディレクトリ名の末尾の空白を消さない", () => {
   const root = join(makeTempDir("git-space-"), "repo ");
   write(root, "a.txt", "x");
@@ -40,14 +48,19 @@ test("listFiles・indexBlobs・readBlob は、追跡しているファイルと 
   write(root, "skills/ignored.mjs", "x\n");
   write(root, ".gitignore", "skills/ignored.mjs\n");
   expect(listFiles(root, ["skills"]).sort()).toEqual(["skills/a.mjs", "skills/new.mjs"]);
-  // stage した後に作業ツリーから消したファイルも返す（commit には入るため）
-  rmSync(join(root, "skills", "a.mjs"));
-  expect(listFiles(root, ["skills"]).sort()).toEqual(["skills/a.mjs", "skills/new.mjs"]);
-  write(root, "skills/a.mjs", "worktree\n");
   const blobs = indexBlobs(root, ["skills/a.mjs"]);
   const blob = blobs.get("skills/a.mjs");
   expect(blob).toMatch(/^[0-9a-f]{40,64}$/);
   expect(readBlob(root, blob ?? "", "skills/a.mjs")).toBe("staged\n");
+});
+
+test("listFiles は、stage した後に作業ツリーから消したファイルも返す（commit には入るため）", () => {
+  const root = makeTempDir("git-deleted-");
+  gitInit(root);
+  write(root, "skills/a.mjs", "x\n");
+  runGit(root, ["add", "skills/a.mjs"], { what: "add" });
+  rmSync(join(root, "skills", "a.mjs"));
+  expect(listFiles(root, ["skills"])).toEqual(["skills/a.mjs"]);
 });
 
 test("0 以外の終了は、何をしようとしたかと終了コードと stderr を書いて投げる", () => {

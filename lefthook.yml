@@ -233,8 +233,9 @@ pre-commit:
             run: node scripts/gates/code/check-skill-lint-directives.ts
           - name: jsdoc-types
             # 配布スキルの .mjs で、型の検査を外す JSDoc の書き方（型の表明・any・@ts-ignore など）を禁じる。
-            # 構文だけで判定するので、.mjs かチェック自身か、チェックが読む scripts/lib/ のモジュールが staged のときだけ実行する。
-            glob: "{*.mjs,*check-jsdoc-types.ts,scripts/lib/**}"
+            # 構文だけで判定するので、.mjs・チェック自身・scripts/lib/ のファイル・TypeScript のバージョンを決めるファイルが staged のときだけ実行する。
+            # scripts/lib/ は、チェックが読むモジュール（git.ts・source-scope.ts など）を 1 つずつ挙げず、ディレクトリごと対象にする。
+            glob: "{*.mjs,*check-jsdoc-types.ts,scripts/lib/**,package.json,pnpm-lock.yaml}"
             run: node scripts/gates/types/check-jsdoc-types.ts
           - name: identical-copies
             # 同一であるべきコピー（scripts/gates/packaging/copies/identical-copies.json で宣言）の一致。

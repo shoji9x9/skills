@@ -11,3 +11,7 @@ coverage:github:2026-10-28T11:28:02.691Z:2026-10-29T11:36:47.854Z,coverage,2026-
 ci:40866860604:1,ci,2026-10-29T11:41:01.315Z,p-cdee4961,github-actions,,,,2026-10-29T11:37:49.000Z,2026-10-29T11:37:50.000Z,Asia/Tokyo,feature/816-shared-git-calls-with-timeout,816,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:40866860593:1,ci,2026-10-29T11:41:01.315Z,p-cdee4961,github-actions,,,,2026-10-29T11:37:49.000Z,2026-10-29T11:41:01.315Z,Asia/Tokyo,feature/816-shared-git-calls-with-timeout,816,,,,,,,,,,CI;pull_request;open,
 coverage:github:2026-10-28T11:36:47.854Z:2026-10-29T11:41:01.315Z,coverage,2026-10-29T11:41:01.315Z,p-cdee4961,,,,,2026-10-28T11:36:47.854Z,2026-10-29T11:41:01.315Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:40867391712:1,ci,2026-10-29T11:45:51.866Z,p-cdee4961,github-actions,,,,2026-10-29T11:42:01.000Z,2026-10-29T11:42:02.000Z,Asia/Tokyo,feature/816-shared-git-calls-with-timeout,816,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40867391704:1,ci,2026-10-29T11:45:51.866Z,p-cdee4961,github-actions,,,,2026-10-29T11:42:01.000Z,2026-10-29T11:45:51.866Z,Asia/Tokyo,feature/816-shared-git-calls-with-timeout,816,,,,,,,,,,CI;pull_request;open,
+ci:40866860593:1,ci,2026-10-29T11:45:51.866Z,p-cdee4961,github-actions,,,,2026-10-29T11:37:49.000Z,2026-10-29T11:42:09.000Z,Asia/Tokyo,feature/816-shared-git-calls-with-timeout,816,,,,,,,,,,CI;pull_request;cancelled,
+coverage:github:2026-10-28T11:41:01.315Z:2026-10-29T11:45:51.866Z,coverage,2026-10-29T11:45:51.866Z,p-cdee4961,,,,,2026-10-28T11:41:01.315Z,2026-10-29T11:45:51.866Z,Asia/Tokyo,,,,,,,,,,,,ok,
