@@ -222,6 +222,12 @@ test("withCopies: 範囲の組にファイル全体の組のコピーを足し�
   ]);
   // ファイル全体の組が無ければ、範囲の組はそのまま。
   expect(withCopies([repGroup])).toEqual([repGroup]);
+  // 同じファイル全体の組のファイルを 2 つ並べても、コピーを重複して足さない。範囲の組を先に置いても同じに広げる。
+  const both = { ...repGroup, files: ["a.mjs", "c.mjs", "r.ts"] };
+  expect(withCopies([both, fileGroup])).toEqual([
+    { ...both, files: ["a.mjs", "b.mjs", "c.mjs", "r.ts"] },
+    fileGroup,
+  ]);
 });
 
 // ---- isUndeclaredCopy ----
@@ -581,6 +587,26 @@ test("main: 控えた範囲の組には、並べたファイルとファイル�
   // ファイル全体の組を外すと、c.ts と r.ts の重複は宣言から外したコピーになる。
   expect(isUndeclaredCopy(clone("c.ts", "r.ts"), declared, withCopies([cliEntry]))).toBe(true);
 });
+
+// 範囲の組には、ファイル全体の組（b.ts・c.ts）のファイルを 1 つだけ並べる。jscpd が r.ts との重複を b.ts と c.ts のどちらで
+// 報告しても、並べていない側のコピーとの重複が残るので、両方の並べ方で確かめる。
+test.each([["b.ts"], ["c.ts"]])(
+  "main: 範囲の組に %s だけを並べても、もう一方のコピーと範囲の組のファイルの重複を通す",
+  (listed) => {
+    const cliEntry = {
+      files: [listed, "r.ts"],
+      reason: "雛形に同じ関数を持つ",
+      region: "cli-entry",
+    };
+    const root = makeRepo({ "a.ts": OTHER }, [...SISTERS, cliEntry]);
+    expect(main(["--update-baseline"], root)).toBe(0);
+    const region = `// cli-entry:begin\n${BODY}// cli-entry:end\n`;
+    write(root, "b.ts", region);
+    write(root, "c.ts", region);
+    write(root, "r.ts", OTHER.replaceAll("label", "nameOf") + region);
+    expect(main([], root)).toBe(0);
+  },
+);
 
 test("main: 走査したファイルが 0 件なら判定できないので exit 2", () => {
   const root = makeRepo({ "a.md": "# a\n" });
