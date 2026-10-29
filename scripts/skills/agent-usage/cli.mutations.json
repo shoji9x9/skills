@@ -736,6 +736,37 @@
       "expect_failing": [
         "agent-usage のコマンドと Hook report は渡した期間を meta.json と HTML の見出しに残し、期間を省いたレポートと記録の最初の日を --since に渡したレポートを区別できる"
       ]
+    },
+    {
+      "id": "long-option-prefix-ignored",
+      "why": "長いオプションの省略形（`env --chd`）を正式な名前にせず、値を取らない語として読み、次の語をコマンドにする",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "const hits = known.filter((o) => o.startsWith(name));",
+      "replace": "const hits = known.filter((o) => o === name);",
+      "occurrences": 1,
+      "expect_failing": [
+        "isGitCommit env --chd /tmp git commit -m x → true",
+        "isGitCommit timeout --sig KILL 5 git commit → true",
+        "isGitCommit nice --adj 5 git commit → true",
+        "isGitCommit xargs --max-a 1 git commit → true",
+        "commitCwd env --chd /tmp git commit → /tmp",
+        "commitCwd env --chd=sub git commit → /w/sub",
+        "commitCwd sudo --chd /o git -C x commit → /o/x",
+        "isGitCommit env --de x git commit → true",
+        "isGitCommit sudo --ch /tmp git commit → true"
+      ]
+    },
+    {
+      "id": "ambiguous-long-option-guessed",
+      "why": "一意に決まらない省略形を最初の候補として読み、止める側に寄せない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "return hits.length === 1 ? hits[0] : null;",
+      "replace": "return hits[0];",
+      "occurrences": 1,
+      "expect_failing": [
+        "isGitCommit env --de x git commit → true",
+        "commitCwd sudo --ch /tmp git commit → /w"
+      ]
     }
   ]
 }

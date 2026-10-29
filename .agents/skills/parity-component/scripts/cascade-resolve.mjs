@@ -424,10 +424,42 @@ function lastTopLevelCombinator(selector) {
       i += 1;
       continue;
     }
+    // 引用符の中（`[title="]"]`）の括弧と空白は、深さにも結合子にも数えない。
+    if (ch === '"' || ch === "'") {
+      i = skipString(selector, i, { lenient: true }) - 1;
+      continue;
+    }
     depth += bracketDelta(ch);
     if (depth === 0 && (/\s/.test(ch) || ch === ">" || ch === "+" || ch === "~")) lastBreak = i;
   }
   return lastBreak;
+}
+
+/**
+ * 引用符で囲んだ文字列の中身を空白に置き換える（位置は変えない）。
+ * @param {string} text
+ * @returns {string}
+ */
+function blankStrings(text) {
+  let out = "";
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === "\\") {
+      out += text.slice(i, i + 2);
+      i += 2;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      const end = Math.min(skipString(text, i, { lenient: true }), text.length);
+      out += ch + " ".repeat(Math.max(end - i - 2, 0)) + (end - i >= 2 ? text[end - 1] : "");
+      i = end;
+      continue;
+    }
+    out += ch;
+    i += 1;
+  }
+  return out;
 }
 
 /**
@@ -447,7 +479,8 @@ export function statesOutsideSubject(selector, states) {
   // トップレベルの結合子で分割し、最後の断片を主語とする（括弧・文字列の中では分割しない）。
   const lastBreak = lastTopLevelCombinator(selector);
   if (lastBreak < 0) return []; // 結合子が無い＝主語だけのセレクタ
-  const outside = selector.slice(0, lastBreak + 1);
+  // 引用符の中の `:hover` などは状態擬似クラスではないので、照合の前に空白に置き換える。
+  const outside = blankStrings(selector.slice(0, lastBreak + 1));
   const found = [];
   for (const state of states) {
     // 名前は小文字で記録されるが、セレクタ側の綴りは大小どちらもありうる。

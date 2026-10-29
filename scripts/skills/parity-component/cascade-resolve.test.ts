@@ -1140,6 +1140,18 @@ test("statesOutsideSubject は主語の内外を区別する", () => {
   expect(statesOutsideSubject(".a .b", [])).toEqual([]);
 });
 
+// 主語より前の属性セレクタの引用符の中（Issue #812）。括弧・空白・`:hover` を、深さ・結合子・状態に数えない。
+test.each([
+  ['a[title="]"]:hover span', ["hover"]],
+  ["a[title=']']:hover span", ["hover"]],
+  ['a[title="x"]:hover span', ["hover"]],
+  ['a[title="x y"] span', []],
+  ['a[title=":hover"] span', []],
+  ['a[title="]"] span:hover', []],
+])("statesOutsideSubject は引用符の中を読み飛ばす: %s", (selector, expected) => {
+  expect(statesOutsideSubject(selector, ["hover"])).toEqual(expected);
+});
+
 test("文字列でない状態名を持つ規則は、勝者にせず状態が不明な候補にする", () => {
   // 状態名が読めない規則は成否を決められない。名前の判定から外すだけだと、条件の無い規則として勝者になる。
   const input = doc({

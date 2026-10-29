@@ -53,6 +53,8 @@ const SHELL_PREFIXES = ["if", "then", "elif", "else", "while", "until", "do", "{
  * @property {readonly string[]} valueOptions 値を次の語に取るオプション。`--opt=value`・`-n5` の形は 1 語なので、ここに無くてよい
  * @property {number} operands オプションの後に取る引数の数（`timeout 60` の 60）
  * @property {readonly string[]} [chdirOptions] 後ろのコマンドの作業ディレクトリを変えるオプション（`env -C <dir>`）。valueOptions にも入れる
+ * @property {readonly string[]} [longOptions] valueOptions に無い長いオプション（値を取らないもの）。
+ *   省略形（`--chd`）を一意な前方一致で読むために、valueOptions の長いオプションと合わせて、そのコマンドの長いオプションをすべて挙げる
  */
 
 /**
@@ -60,6 +62,7 @@ const SHELL_PREFIXES = ["if", "then", "elif", "else", "while", "until", "do", "{
  * 一覧は、Claude Code が `if` の照合の前に取り除くもの（timeout・time・nice・nohup・stdbuf・command・builtin。
  * https://code.claude.com/docs/en/permissions の Wrappers の節）に、sudo・env・xargs・exec を足したもの。
  * 7 つだけにすると `sudo git commit` を見逃す。kaizen の kaizen-precommit-gate.sh も同じ一覧を持つ。
+ * longOptions は、GNU coreutils 9.7・sudo 1.9.16p2・findutils の xargs の `--help` と、GNU time のマニュアルから取った。
  * @type {ReadonlyMap<string, CommandWrapper>}
  */
 const COMMAND_WRAPPERS = new Map([
@@ -71,12 +74,34 @@ const COMMAND_WRAPPERS = new Map([
       valueOptions: ["-u", "--unset", "-C", "--chdir", "-a", "--argv0"],
       operands: 0,
       chdirOptions: ["-C", "--chdir"],
+      longOptions: [
+        "--block-signal",
+        "--debug",
+        "--default-signal",
+        "--help",
+        "--ignore-environment",
+        "--ignore-signal",
+        "--list-signal-handling",
+        "--null",
+        "--split-string",
+        "--version",
+      ],
     },
   ],
   ["exec", { valueOptions: ["-a"], operands: 0 }],
-  ["nice", { valueOptions: ["-n", "--adjustment"], operands: 0 }],
-  ["nohup", { valueOptions: [], operands: 0 }],
-  ["stdbuf", { valueOptions: ["-i", "-o", "-e", "--input", "--output", "--error"], operands: 0 }],
+  [
+    "nice",
+    { valueOptions: ["-n", "--adjustment"], operands: 0, longOptions: ["--help", "--version"] },
+  ],
+  ["nohup", { valueOptions: [], operands: 0, longOptions: ["--help", "--version"] }],
+  [
+    "stdbuf",
+    {
+      valueOptions: ["-i", "-o", "-e", "--input", "--output", "--error"],
+      operands: 0,
+      longOptions: ["--help", "--version"],
+    },
+  ],
   [
     "sudo",
     {
@@ -110,10 +135,43 @@ const COMMAND_WRAPPERS = new Map([
       ],
       operands: 0,
       chdirOptions: ["-D", "--chdir"],
+      longOptions: [
+        "--askpass",
+        "--background",
+        "--bell",
+        "--edit",
+        "--help",
+        "--list",
+        "--login",
+        "--non-interactive",
+        "--preserve-env",
+        "--preserve-groups",
+        "--remove-timestamp",
+        "--reset-timestamp",
+        "--set-home",
+        "--shell",
+        "--stdin",
+        "--validate",
+        "--version",
+      ],
     },
   ],
-  ["time", { valueOptions: ["-f", "--format", "-o", "--output"], operands: 0 }],
-  ["timeout", { valueOptions: ["-s", "--signal", "-k", "--kill-after"], operands: 1 }],
+  [
+    "time",
+    {
+      valueOptions: ["-f", "--format", "-o", "--output"],
+      operands: 0,
+      longOptions: ["--append", "--help", "--portability", "--quiet", "--verbose", "--version"],
+    },
+  ],
+  [
+    "timeout",
+    {
+      valueOptions: ["-s", "--signal", "-k", "--kill-after"],
+      operands: 1,
+      longOptions: ["--foreground", "--help", "--preserve-status", "--verbose", "--version"],
+    },
+  ],
   [
     "xargs",
     {
@@ -134,6 +192,20 @@ const COMMAND_WRAPPERS = new Map([
         "--process-slot-var",
       ],
       operands: 0,
+      longOptions: [
+        "--eof",
+        "--exit",
+        "--help",
+        "--interactive",
+        "--max-lines",
+        "--no-run-if-empty",
+        "--null",
+        "--open-tty",
+        "--replace",
+        "--show-limits",
+        "--verbose",
+        "--version",
+      ],
     },
   ],
 ]);
@@ -331,7 +403,7 @@ export function isGitCommit(command) {
  * 実行するコマンドの名前の位置を返す。ラッパーが作業ディレクトリを変える指定は dirs に足す。
  * @param {readonly string[]} words
  * @param {string[]} dirs
- * @returns {number}
+ * @returns {number} ラッパーのオプションに一意に決まらない省略形があれば -1
  */
 function skipCommandPrefixes(words, dirs) {
   let i = 0;
@@ -344,6 +416,7 @@ function skipCommandPrefixes(words, dirs) {
     const wrapper = i < words.length ? COMMAND_WRAPPERS.get(words[i]) : undefined;
     if (wrapper !== undefined) {
       i = skipWrapperOptions(wrapper, words, { start: i + 1, dirs });
+      if (i < 0) return -1;
       continue;
     }
     return i;
@@ -356,7 +429,7 @@ function skipCommandPrefixes(words, dirs) {
  * @param {CommandWrapper} wrapper
  * @param {readonly string[]} words
  * @param {{ start: number; dirs: string[] }} at start はラッパーの名前の次の位置、dirs は作業ディレクトリを足す先
- * @returns {number}
+ * @returns {number} 一意に決まらない省略形の長いオプションがあれば -1
  */
 function skipWrapperOptions(wrapper, words, at) {
   const { dirs } = at;
@@ -365,6 +438,8 @@ function skipWrapperOptions(wrapper, words, at) {
   while (i < words.length && words[i].startsWith("-")) {
     // 作業ディレクトリを変えるオプション（`env -C <dir>`・`sudo -D <dir>`）は、git の -C より先に当たる
     const option = readWrapperOption(wrapper, words, i);
+    // 一意に決まらない省略形は、次の語が値かコマンドかを決められないので、読むのをやめて呼び出し元に任せる
+    if (option.ambiguous === true) return -1;
     if (option.dir !== null) dirs.push(option.dir);
     i += option.width;
   }
@@ -382,6 +457,11 @@ function commitDirsOf(words) {
   /** @type {string[]} */
   const dirs = [];
   let i = skipCommandPrefixes(words, dirs);
+  // ラッパーのオプションを読み切れないときは、後ろに git と commit の語があればコミットとして扱う（止める側に寄せる）
+  if (i < 0)
+    return words.some((w) => w.split("/").pop() === "git") && words.includes("commit")
+      ? dirs
+      : null;
   if (i >= words.length || words[i].split("/").pop() !== "git") return null;
   i += 1;
   while (i < words.length && words[i].startsWith("-")) {
@@ -396,16 +476,35 @@ function commitDirsOf(words) {
  * @param {CommandWrapper} wrapper
  * @param {string} word
  * @param {string | null} next
- * @returns {{ width: number, dir: string | null }}
+ * @returns {{ width: number, dir: string | null, ambiguous?: boolean }}
  */
 function readLongWrapperOption(wrapper, word, next) {
   const chdir = wrapper.chdirOptions ?? [];
   const eq = word.indexOf("=");
-  if (eq !== -1) {
-    return { width: 1, dir: chdir.includes(word.slice(0, eq)) ? word.slice(eq + 1) : null };
-  }
-  const takesValue = wrapper.valueOptions.includes(word);
-  return { width: takesValue ? 2 : 1, dir: takesValue && chdir.includes(word) ? next : null };
+  const name = resolveLongOption(wrapper, eq === -1 ? word : word.slice(0, eq));
+  if (name === null) return { width: 1, dir: null, ambiguous: true };
+  if (eq !== -1) return { width: 1, dir: chdir.includes(name) ? word.slice(eq + 1) : null };
+  const takesValue = wrapper.valueOptions.includes(name);
+  return { width: takesValue ? 2 : 1, dir: takesValue && chdir.includes(name) ? next : null };
+}
+
+/**
+ * 長いオプションの名前を、getopt_long と同じく一意な前方一致で正式な名前にする（`env --chd` は `--chdir`）。
+ * 名前がそのまま一覧にあれば（省略していなければ）それを返す。どれにも当たらない名前（`--` を含む）はそのまま返す。
+ * 2 つ以上に当たる省略形は、値を取るかを決められないので null を返す。
+ * @param {CommandWrapper} wrapper
+ * @param {string} name `--` で始まる名前（`=` より前）
+ * @returns {string | null}
+ */
+function resolveLongOption(wrapper, name) {
+  const known = [
+    ...wrapper.valueOptions.filter((o) => o.startsWith("--")),
+    ...(wrapper.longOptions ?? []),
+  ];
+  if (name === "--" || known.includes(name)) return name;
+  const hits = known.filter((o) => o.startsWith(name));
+  if (hits.length === 0) return name;
+  return hits.length === 1 ? hits[0] : null;
 }
 
 /**
@@ -416,7 +515,7 @@ function readLongWrapperOption(wrapper, word, next) {
  * @param {CommandWrapper} wrapper
  * @param {readonly string[]} words
  * @param {number} i
- * @returns {{ width: number, dir: string | null }}
+ * @returns {{ width: number, dir: string | null, ambiguous?: boolean }}
  */
 function readWrapperOption(wrapper, words, i) {
   const word = words[i];

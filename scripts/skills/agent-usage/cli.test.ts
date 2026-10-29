@@ -135,6 +135,17 @@ describe("isGitCommit", () => {
     ["env -iC/o git commit", true],
     ["env -iu HOME git commit", true],
     ["sudo -Eu alice git commit", true],
+    // 長いオプションの省略形（getopt_long の一意な前方一致。Issue #812）。値を取るかは正式な名前で決める
+    ["env --chd /tmp git commit -m x", true],
+    ["env --chd=/tmp git commit", true],
+    ["timeout --sig KILL 5 git commit", true],
+    ["nice --adj 5 git commit", true],
+    ["xargs --max-a 1 git commit", true],
+    // 値を取らない長いオプションの省略形は、次の語をコマンドとして読む
+    ["env --nul git commit", true],
+    // 一意に決まらない省略形（--debug と --default-signal、--chdir と --chroot）は、git と commit の語があればコミットとして扱う
+    ["env --de x git commit", true],
+    ["sudo --ch /tmp git commit", true],
     // 同じラッパーと値の形で、commit を実行しないもの
     ["env -iC git commit", false],
     ["timeout 60 git commit-tree abc", false],
@@ -155,6 +166,9 @@ describe("isGitCommit", () => {
     ["xargs -n 1 git log commit", false],
     ["sudo -- git status", false],
     ["timeout 60 /usr/bin/git status", false],
+    ["env --chd /tmp pwd", false],
+    ["env --chd /tmp git status", false],
+    ["env --de x echo hi", false],
   ])("%s → %s", (cmd, expected) => {
     expect(isGitCommit(cmd)).toBe(expected);
   });
@@ -191,6 +205,12 @@ describe("commitCwd", () => {
     // sudo の -C は作業ディレクトリではない（close-from）
     ["sudo -C 3 git commit", "/w"],
     ["env -u HOME git commit", "/w"],
+    // 長いオプションの省略形（Issue #812）
+    ["env --chd /tmp git commit", "/tmp"],
+    ["env --chd=sub git commit", "/w/sub"],
+    ["sudo --chd /o git -C x commit", "/o/x"],
+    // 一意に決まらない省略形は、作業ディレクトリを決められないので変えない
+    ["sudo --ch /tmp git commit", "/w"],
   ])("%s → %s", (cmd, expected) => {
     expect(commitCwd(cmd, "/w")).toBe(expected);
   });
