@@ -99,7 +99,7 @@ test("makeTempDirFactory で作ったものは describe を抜けると消える
 
 // 標的の語をそのまま書くと、このファイル自身が検査に引っかかる（検査対象から外さずに済むよう分けて組む）。
 const MK = "mkdtemp";
-// 一時ディレクトリを直に作る呼び出し。`fs.` 付き・`fs.promises` の API も含む。
+// 一時ディレクトリを直に作る呼び出し。`fs.` 付きと、`node:fs/promises` から import した呼び出しも含む。
 const DIRECT = new RegExp(`\\b${MK}(?:Sync)?\\s*\\(`);
 // `/tmp` 以外（リポジトリ内等）へ作り、後片付けを自前で持つ呼び出しは、同じ行に理由を書いて免除する。
 const EXEMPT = /\/\/ tmpdir-ok: \S/;

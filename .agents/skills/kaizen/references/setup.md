@@ -58,7 +58,7 @@ ls -d .agents .claude .github .codex 2>/dev/null
 
 | エージェント | 自己設定ファイル | 編集可否 |
 |------------|---------------|---------|
-| Claude Code | `.claude/settings.json` と `~/.claude/settings.json` | **版と権限モードで変わる。前提にせず実測する**（あるバージョン × `defaultMode: auto` では確認なく両方書けた。1 環境 1 回の実測なので「可」の側にも一般化しない） |
+| Claude Code | `.claude/settings.json` と `~/.claude/settings.json` | **バージョンと権限モードで変わる。前提にせず実測する**（あるバージョン × `defaultMode: auto` では確認なく両方書けた。1 環境 1 回の実測なので「可」の側にも一般化しない） |
 | Codex | `.codex/config.toml` / hooks | 現状は可（ただし credentials/auth/profile 等の上書きは制限） |
 | GitHub Copilot | `.github/agents/`（指示） | 不可（ハードブロック） |
 | GitHub Copilot | `.github/hooks/`（フック） | 可（手動承認ガードの設定を推奨） |

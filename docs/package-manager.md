@@ -26,6 +26,6 @@ checksum・integrity・URL のようにツール名を含まない行が必ず�
 
 ## broken バージョンを避ける
 
-採用する前に、選んだバージョンが deprecated や broken になっていないかを `pnpm view <版> deprecated` で確かめる。
+採用する前に、選んだバージョンが deprecated や broken になっていないかを `pnpm view <バージョン> deprecated` で確かめる。
 broken なら、修正版を厳密なバージョンの指定で採用する。`minimum_release_age` の 7 日のフィルタは、厳密に指定したバージョンには当てはまらない。
-`mise upgrade --bump` は 7 日を過ぎた最新版を選ぶだけで、broken な版を除かない。そのため、修正版が出て 7 日たっていないと、broken な版を選んでしまう。
+`mise upgrade --bump` は 7 日を過ぎた最新版を選ぶだけで、broken なバージョンを除かない。そのため、修正版が出て 7 日たっていないと、broken なバージョンを選んでしまう。

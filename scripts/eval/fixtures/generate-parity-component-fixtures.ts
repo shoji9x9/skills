@@ -9,7 +9,7 @@
 //   - `parity-suite` の trait-capture.mjs（計算後スタイル・擬似要素・rect）
 //   - `parity-component` の css-rules-capture.mjs（当たっている CSS 規則）
 //   - 要素単位のスクリーンショット（element.png）
-// を採り、`axis-diff.mjs --baseline` 相当で axes.json を組み立て、metadata.json のツール版・
+// を採り、`axis-diff.mjs --baseline` 相当で axes.json を組み立て、metadata.json のツールのバージョン・
 // プロパティ集合・軸の件数を実物の値で更新する。整合は scripts/eval/fixtures/parity-component-fixtures.test.ts が CI で検査する。
 //
 // ページは HTTP で配信せず文書として流し込む。開発環境（WSL2 上の headless Chrome 149）で

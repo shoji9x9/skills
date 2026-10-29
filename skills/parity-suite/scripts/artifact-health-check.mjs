@@ -2009,7 +2009,7 @@ function judgeStageCommits(s) {
   // （component-comparison-check.mjs と同じ規則。原本は references/coverage.md）。
   if (wanted === NO_COMMIT && recordedCommit === NO_COMMIT) {
     s.notes.push(
-      `new.commit が ${NO_COMMIT}（新側リポジトリのコミットを持たない）ため版の対応は反復回数だけで判定する: ${s.diffPath}`,
+      `new.commit が ${NO_COMMIT}（新側リポジトリのコミットを持たない）ためバージョンの対応は反復回数だけで判定する: ${s.diffPath}`,
     );
     return { judgedWanted: null, versionDelegatedToIteration: true };
   }

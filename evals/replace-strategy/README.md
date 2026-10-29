@@ -74,7 +74,7 @@ scripts/eval/run-skill-eval.sh \
 - eval 27 は fixture 無しで、会話だけで判定できる取り決めを検証する。
   対象ブランチの ruleset の全ページ・全 rule type / classic branch protection から、必須 status check と必須 workflow を取得する。
   status check の context は、実在する check run の name から workflow / job へたどる。
-  必須 workflow は、定義元・版・job の呼び先までたどる。そのうえで `verification_commands.full` と突き合わせることを検証する。
+  必須 workflow は、定義元・バージョン・job の呼び先までたどる。そのうえで `verification_commands.full` と突き合わせることを検証する。
   prompt には同名の job・matrix の展開・check run の未生成を一次情報として置き、context の文字列から job を推測せず、一意な実測の対応ができるまで確定しない分岐へ到達させる。
   既知の `Test` / required workflow の欠落を prompt に明示するのは、診断を当てさせるためではない。
   **差がある状態で確定を拒むこと、共通の集約コマンドまたは必須 CI 上の乖離の検査まで、将来の drift への対策として要求すること**を測るためである

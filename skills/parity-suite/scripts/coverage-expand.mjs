@@ -2127,7 +2127,7 @@ function reconcileProfiledComponent(c, cid, st) {
   }
   if (nonEmptyString(c.profile_version) && String(c.profile_version) !== String(profile.version)) {
     problems.push(
-      `部品 ${cid}: 記録されたプロファイル版（${String(c.profile_version)}）が同梱プロファイル（${String(profile.version)}）と違う — 候補を展開し直す`,
+      `部品 ${cid}: 記録されたプロファイルのバージョン（${String(c.profile_version)}）が同梱プロファイル（${String(profile.version)}）と違う — 候補を展開し直す`,
     );
   }
 

@@ -20,7 +20,7 @@
     {
       "revision": 3,
       "added_at": "2026-09-30",
-      "axis": "応答ヘッダーの正規化のバージョンと一覧の記録",
+      "axis": "応答ヘッダーの正規化の版と一覧の記録",
       "affects": ["feature", "api-resource"],
       "summary": "応答ヘッダーの録画を同梱の scripts/header-normalize.mjs（プロジェクト側コピー）で正規化し、使ったコピーのパス・VERSION・録画に使った一覧（--list の出力）を metadata.json の differ.header_normalize に記録する（references/api-batch.md「応答ヘッダー」）。parity-diff はこの記録が無い・版か一覧が食い違う機能のヘッダーを比べず未検証に残すので、改訂 2 で録画して閉じた機能も含めて、録り直すか当てないかを機能ごとに .replace/procedure-changes.md へ記録する"
     },
