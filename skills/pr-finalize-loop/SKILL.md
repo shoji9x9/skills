@@ -298,31 +298,32 @@ effort を指定できるのは、`review_tool: local` で Claude Code の `/cod
 - CI の完了を待つ: `gh pr checks --watch` に任せる。gh が中でポーリングし、完了するまで待つ。間隔は `--interval <秒>` で決める。自分で短い間隔のループを書いて呼び続けない。
   - `--watch` は、ジョブが始まらないまま（`queued` のまま runner が割り当てられないまま）でも返らない。
     そのため、`--watch` はバックグラウンドで待たせたまま、始まっていないジョブを一定の間隔で別に確かめる。`--watch` は打ち切らない。
-    `--watch` を起動したら PID を保存する。`--watch` が返ったら、別に確かめるのをやめる。「行き詰まり」で止まるときは、保存した PID で `--watch` を終了させてから止まる。
-  - 確かめるジョブは、HEAD のすべての workflow run の、始まっていないジョブ（`status` が `in_progress` と `completed` 以外）である。
+    `--watch` は、パイプを挟まずに `gh pr checks <番号> --repo <owner>/<repo> --watch > <ログ> 2>&1 </dev/null & echo $! > <PID のファイル>` の形で起動し、PID をファイルに残す。
+    `--watch` が返ったら、別に確かめるのをやめる。「行き詰まり」で止まるときは、`kill "$(cat <PID のファイル>)"` で `--watch` を終了させてから止まる。
+  - 確かめるジョブは、HEAD のすべての workflow run の、`status` が `queued` か `waiting` のジョブである。
     run の `status` は 1 つのジョブが始まると `in_progress` になるので、run では絞らない。
 
     ```bash
     gh api --paginate "repos/<owner>/<repo>/actions/runs?head_sha=<HEAD の SHA>&per_page=100" --jq '.workflow_runs[].id'
     gh api --paginate "repos/<owner>/<repo>/actions/runs/<run-id>/jobs?per_page=100" \
-      --jq '.jobs[] | select(.status != "completed" and .status != "in_progress") | {name, status, runner_name, labels, created_at}'
+      --jq '.jobs[] | select(.status == "queued" or .status == "waiting") | {name, status, runner_name, labels, created_at}'
     ```
 
     どちらの API もページごとにオブジェクトを返すので、`--jq` でページをまたいで run の ID とジョブだけを並べる。
     `gh run view --json jobs` は `runner_name` を返さないので使わない。
     形は <https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-repository> と <https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run> で確かめた。
-  - 待った時間は、ジョブごとに、現在の時刻とそのジョブの `created_at` の差で測る。`--watch` を起動してからの時間では測らない。
-    現在の時刻は、手元の時計がずれていることがあるので、API の応答の `Date` ヘッダ（`gh api -i` で見える）から取る。
-  - 上限は、同じリポジトリで観測した、ジョブの作成から開始まで（`created_at` から `started_at` まで）の時間の数倍にし、10 分を下回らないようにする。
-    観測には、`gh api "repos/<owner>/<repo>/actions/runs?status=completed&per_page=5"` で取得した直近の run のジョブを使う。
-    jobs の API の `--jq` は `select(.conclusion == "success") | {created_at, started_at}` にし、実行されたジョブだけを使う。skipped や開始前に取り消したジョブは、開始までの時間が 0 秒近くになるからである。
-    使えるジョブが 1 件も無ければ、上限は 30 分にする。
-  - 上限を超えて `queued` のままで、`runner_name` が null なら、runner が割り当てられていない（Actions の予算の上限、存在しないラベルの runner の指定など）。
+  - ジョブの `status` には `queued`・`in_progress`・`completed`・`waiting`・`requested`・`pending` がある。
+    `waiting` は environment の保護ルールによる承認待ちで、人が承認するまで始まらない。見つけたら待たずに、`run-id`・ジョブの名前を書いて「行き詰まり」として止まる。
+    `requested` と `pending` は、他のジョブや concurrency の group の別の run を待っている。待っている相手のジョブや run は、それぞれこの手順で確かめられるので、ここでは上限を当てない。
+  - `queued` のジョブは、待った時間に上限を置く。待った時間は、ジョブごとに、現在の時刻とそのジョブの `created_at` の差で測る。`--watch` を起動してからの時間では測らない。
+    現在の時刻は、手元の時計がずれていることがあるので、ジョブの取得とは別の `gh api -i /rate_limit` の応答の `Date` ヘッダから取る。
+  - 上限は、同じリポジトリで観測した、ジョブの作成から開始まで（`created_at` から `started_at` まで）の時間の中央値の 5 倍にし、30 分を下回らないようにする。
+    下限を長めにするのは、runner の空き（同時に実行できる数の上限、1 台だけの self-hosted の runner）を待つ `queued` も、`runner_name` が null になるからである。
+    観測には、`gh api "repos/<owner>/<repo>/actions/runs?status=success&per_page=5" --jq '.workflow_runs[].id'` で取得した直近の run を使う。
+    それぞれの run のジョブを、上と同じ jobs の API で `--jq '.jobs[] | select(.conclusion == "success") | {created_at, started_at}'` にして取得する。
+    実行されたジョブだけを使うのは、skipped や開始前に取り消したジョブは開始までの時間が 0 秒近くになるからである。使えるジョブが 1 件も無ければ、上限は 30 分にする。
+  - 上限を超えて `queued` のままで、`runner_name` が null なら、runner が割り当てられていない（Actions の予算の上限、存在しないラベルの runner の指定、runner の空きが無い状態が続いているなど）。
     原因はリポジトリの外にあることが多く、ループの中では除けない。`run-id`・ジョブの名前・`labels`・待った時間を書いて「行き詰まり」として止まり、利用者に知らせる。
-  - ジョブの `status` には、`queued`・`in_progress`・`completed` のほかに `waiting`・`requested`・`pending` がある。
-    `waiting` は environment の保護ルールによる承認待ちで、人が承認するまで始まらない。`requested` と `pending` は、他のジョブや同じ concurrency の group の run を待っている。
-    どれも runner の割り当ての問題とは別に扱う。`waiting` は、上限を超えても変わらなければ、`run-id`・ジョブの名前・`status`・待った時間を書いて「行き詰まり」として止まる。
-    `requested` と `pending` は、待っている相手のジョブや run が動いている間は上限に数えない。HEAD の run に `in_progress` のジョブが無いまま上限を超えたときだけ、同じように止まる。
   - 原因を除いた後に再開したら、`gh run cancel <run-id> --repo <owner>/<repo>` で取り消してから `gh run rerun <run-id> --repo <owner>/<repo>` で再実行する。原因を除いた後も、`queued` のままのジョブが動き出さないことがあるからである。
     取り消しは非同期で、`completed` になる前の run は再実行できない。`gh run view <run-id> --repo <owner>/<repo> --json status` が `completed` になるのを、上限を決めて待ってから再実行する。
   - step が 0 件のまま失敗したジョブも、runner が割り当てられなかったことを示す場合がある。CI の失敗として直す前と再実行する前に、同じように `runner_name` と `labels` を確かめる。
