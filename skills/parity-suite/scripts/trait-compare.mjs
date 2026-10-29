@@ -118,7 +118,10 @@ function parseFlags(argv, spec) {
 function readFlagArg(argv, i, state) {
   const arg = argv[i];
   // `-` だけの引数は、標準入力を指す位置引数として扱う。
-  if (!arg.startsWith("-") || arg === "-") return pushPositional(arg, i, state);
+  if (!arg.startsWith("-") || arg === "-") {
+    const error = pushPositional(arg, state);
+    return error ? { error } : { next: i };
+  }
   const eq = state.spec.equals && arg.startsWith("--") ? arg.indexOf("=") : -1;
   if (eq <= 0 && state.spec.bools?.includes(arg)) return setBoolFlag(arg, i, state);
   const inline = eq > 0 ? { name: arg.slice(0, eq), value: arg.slice(eq + 1) } : null;
@@ -150,8 +153,8 @@ function readValueFlag({ argv, i, inline }, state) {
  */
 function pushRest(rest, state) {
   for (const arg of rest) {
-    const step = pushPositional(arg, 0, state);
-    if ("error" in step) return step.error;
+    const error = pushPositional(arg, state);
+    if (error) return error;
   }
   return undefined;
 }
@@ -159,15 +162,13 @@ function pushRest(rest, state) {
 /**
  * 位置引数を足す。上限を超えたら誤りの文を返す。
  * @param {string} arg
- * @param {number} i
  * @param {FlagState} state
- * @returns {{ next: number } | { error: string }}
+ * @returns {string | undefined}
  */
-function pushPositional(arg, i, state) {
-  if (state.positionals.length >= (state.spec.positionals ?? 0))
-    return { error: `不明な引数: ${arg}` };
+function pushPositional(arg, state) {
+  if (state.positionals.length >= (state.spec.positionals ?? 0)) return `不明な引数: ${arg}`;
   state.positionals.push(arg);
-  return { next: i };
+  return undefined;
 }
 
 /**

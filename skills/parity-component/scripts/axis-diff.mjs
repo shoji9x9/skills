@@ -773,13 +773,16 @@ const VALUE_OPTIONS = ["--baseline", "--out"];
  * ファイルが無いことに気付かないまま次へ進む。そのため、知らないオプションは受け付けない。
  * 位置引数（マニフェスト）は 1 つまで受け付ける。2 つ目を受け付けると、片方を警告なしに捨てる。
  * `-` で始まる値（`--out -` など）は、値の書き忘れとして扱う。受け付けると、`-` という名前のファイルへ書く。
- * @param {string[]} args 位置引数の空文字を除いた引数（値を取る名前の直後の空文字は残す）
+ * @param {string[]} args CLI の引数（空文字の位置引数は、読んだ後に除く）
  * @returns {{ positionals: string[], baseline: string | null, out: string | null, error?: undefined } | { error: string }}
  */
 function parseCliArgs(args) {
-  const parsed = parseFlags(args, { values: VALUE_OPTIONS, positionals: 1 });
+  const parsed = parseFlags(args, { values: VALUE_OPTIONS, positionals: Number.POSITIVE_INFINITY });
   if (parsed.error !== undefined) return { error: parsed.error };
-  const { strings, positionals } = parsed;
+  const { strings } = parsed;
+  // 空文字の位置引数（空の変数の展開など）は除く。位置引数（マニフェスト）は 1 つまで受け付ける。
+  const positionals = parsed.positionals.filter((arg) => arg !== "");
+  if (positionals.length > 1) return { error: `不明な引数: ${positionals[1]}` };
   const dashed = VALUE_OPTIONS.find((name) => strings[name]?.startsWith("-"));
   if (dashed !== undefined) return { error: `${dashed} に値が無い` };
   return {
@@ -813,15 +816,9 @@ function writeUsageError({ positionals = [], baseline = null, error }) {
  * @returns {number} 終了コード
  */
 export function main(argv) {
-  // 空文字の位置引数（空の変数の展開など）は除く。値を取る名前の直後の空文字は残し、parseFlags に値の書き忘れとして止めさせる。
-  // 除くと、`--out "" manifest.json` が manifest.json を出力先として読み、マニフェストを上書きする。
-  // `--` より後はすべて位置引数なので、1 つ前の要素を名前として扱わない。
-  const end = argv.indexOf("--");
-  const parsed = parseCliArgs(
-    argv.filter(
-      (a, i) => a !== "" || ((end < 0 || i < end) && VALUE_OPTIONS.includes(argv[i - 1] ?? "")),
-    ),
-  );
+  // 空文字は parseFlags に渡してから位置引数の側だけで除く。先に除くと、`--out "" manifest.json` が manifest.json を
+  // 出力先として読み、マニフェストを上書きする。
+  const parsed = parseCliArgs(argv);
   if (parsed.error !== undefined) {
     writeUsageError(parsed);
     return 2;

@@ -340,6 +340,27 @@ test.each([
     [...base, "--region", "bad", "--margin", "abc"],
     /--region must be x,y,w,h with w,h > 0: bad/,
   ],
+  [
+    "繰り返す --region の間に誤りのある --margin がある",
+    [...base, "--region", "0,0,1,1", "--margin", "-1", "--region", "bad"],
+    /--margin must be a non-negative number: -1/,
+  ],
+  [
+    "値が Object の継承したプロパティ名（constructor）",
+    [
+      "--pair",
+      "constructor",
+      "--prev-new",
+      "a.png",
+      "--new",
+      "b.png",
+      "--current",
+      "c.png",
+      "--region",
+      "bad",
+    ],
+    /--region must be x,y,w,h with w,h > 0: bad/,
+  ],
   ["知らない引数", [...base, "--region", "0,0,1,1", "--foo", "x"], /不明な引数: --foo/],
   ["--pairs と --pair の併用", ["--pairs", "x.json", "--pair", "p"], /cannot be combined/],
 ])("%s なら exit 2（その理由で落ちる）", async (_name, argv, message) => {
