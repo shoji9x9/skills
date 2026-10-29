@@ -1152,6 +1152,15 @@ test.each([
   expect(statesOutsideSubject(selector, ["hover"])).toEqual(expected);
 });
 
+// エスケープした `\:` は識別子の一部（`.a\:hover`）。エスケープした `\\` の後ろの `:hover` は擬似クラスである。
+test.each([
+  [String.raw`.a\:hover span`, []],
+  [String.raw`.a\\:hover span`, ["hover"]],
+  [String.raw`.a\:hover:hover span`, ["hover"]],
+])("statesOutsideSubject はエスケープした `:` を擬似クラスに数えない: %s", (selector, expected) => {
+  expect(statesOutsideSubject(selector, ["hover"])).toEqual(expected);
+});
+
 test("文字列でない状態名を持つ規則は、勝者にせず状態が不明な候補にする", () => {
   // 状態名が読めない規則は成否を決められない。名前の判定から外すだけだと、条件の無い規則として勝者になる。
   const input = doc({

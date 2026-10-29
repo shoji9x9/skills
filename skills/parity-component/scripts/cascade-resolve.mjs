@@ -436,7 +436,8 @@ function lastTopLevelCombinator(selector) {
 }
 
 /**
- * 引用符で囲んだ文字列の中身を空白に置き換える（位置は変えない）。
+ * 引用符で囲んだ文字列の中身と、エスケープ（`\:`）を空白に置き換える（位置は変えない）。
+ * エスケープした `:` は識別子の一部（`.a\:hover`）で、擬似クラスの始まりではない。
  * @param {string} text
  * @returns {string}
  */
@@ -446,7 +447,7 @@ function blankStrings(text) {
   while (i < text.length) {
     const ch = text[i];
     if (ch === "\\") {
-      out += text.slice(i, i + 2);
+      out += " ".repeat(Math.min(2, text.length - i));
       i += 2;
       continue;
     }
@@ -479,7 +480,7 @@ export function statesOutsideSubject(selector, states) {
   // トップレベルの結合子で分割し、最後の断片を主語とする（括弧・文字列の中では分割しない）。
   const lastBreak = lastTopLevelCombinator(selector);
   if (lastBreak < 0) return []; // 結合子が無い＝主語だけのセレクタ
-  // 引用符の中の `:hover` などは状態擬似クラスではないので、照合の前に空白に置き換える。
+  // 引用符の中とエスケープした `\:` の後ろの `hover` などは状態擬似クラスではないので、照合の前に空白に置き換える。
   const outside = blankStrings(selector.slice(0, lastBreak + 1));
   const found = [];
   for (const state of states) {

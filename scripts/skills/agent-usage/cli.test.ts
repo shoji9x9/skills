@@ -143,7 +143,10 @@ describe("isGitCommit", () => {
     ["xargs --max-a 1 git commit", true],
     // 値を取らない長いオプションの省略形は、次の語をコマンドとして読む
     ["env --nul git commit", true],
-    // 一意に決まらない省略形（--debug と --default-signal、--chdir と --chroot）は、git と commit の語があればコミットとして扱う
+    // env の -S（--split-string）は値を取る。値の中は読まない
+    ["env -S 'x y' git commit", true],
+    ["env --split 'x y' git commit", true],
+    // 一意に決まらない省略形（--debug と --default-signal、--chdir と --chroot）は、git の語の後ろに commit の語があればコミットとして扱う
     ["env --de x git commit", true],
     ["sudo --ch /tmp git commit", true],
     // 同じラッパーと値の形で、commit を実行しないもの
@@ -169,6 +172,8 @@ describe("isGitCommit", () => {
     ["env --chd /tmp pwd", false],
     ["env --chd /tmp git status", false],
     ["env --de x echo hi", false],
+    ["env --de x echo commit git", false],
+    ["env -S 'git commit'", false],
   ])("%s → %s", (cmd, expected) => {
     expect(isGitCommit(cmd)).toBe(expected);
   });
@@ -211,6 +216,10 @@ describe("commitCwd", () => {
     ["sudo --chd /o git -C x commit", "/o/x"],
     // 一意に決まらない省略形は、作業ディレクトリを決められないので変えない
     ["sudo --ch /tmp git commit", "/w"],
+    // 一意に決まらない省略形より前の指定（--chd /a）も当てない
+    ["env --chd /a --de x git commit", "/w"],
+    // -S の値の中の -C は、作業ディレクトリの指定として読まない
+    ["env --split-string '-C /tmp' git commit", "/w"],
   ])("%s → %s", (cmd, expected) => {
     expect(commitCwd(cmd, "/w")).toBe(expected);
   });

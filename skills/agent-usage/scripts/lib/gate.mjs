@@ -61,7 +61,7 @@ const SHELL_PREFIXES = ["if", "then", "elif", "else", "while", "until", "do", "{
  * 後ろのコマンドを実行するコマンド（ラッパー）。`-` で始まる語と、valueOptions の値と、operands の数の引数を読み飛ばす。
  * 一覧は、Claude Code が `if` の照合の前に取り除くもの（timeout・time・nice・nohup・stdbuf・command・builtin。
  * https://code.claude.com/docs/en/permissions の Wrappers の節）に、sudo・env・xargs・exec を足したもの。
- * 7 つだけにすると `sudo git commit` を見逃す。kaizen の kaizen-precommit-gate.sh も同じ一覧を持つ。
+ * 7 つだけにすると `sudo git commit` を見逃す。kaizen の kaizen-precommit-gate.sh も同じラッパーの一覧を持つが、長いオプションの省略形は読まない。
  * longOptions は、GNU coreutils 9.7・sudo 1.9.16p2・findutils の xargs の `--help` と、GNU time のマニュアルから取った。
  * @type {ReadonlyMap<string, CommandWrapper>}
  */
@@ -71,7 +71,7 @@ const COMMAND_WRAPPERS = new Map([
   [
     "env",
     {
-      valueOptions: ["-u", "--unset", "-C", "--chdir", "-a", "--argv0"],
+      valueOptions: ["-u", "--unset", "-C", "--chdir", "-a", "--argv0", "-S", "--split-string"],
       operands: 0,
       chdirOptions: ["-C", "--chdir"],
       longOptions: [
@@ -83,7 +83,6 @@ const COMMAND_WRAPPERS = new Map([
         "--ignore-signal",
         "--list-signal-handling",
         "--null",
-        "--split-string",
         "--version",
       ],
     },
@@ -457,11 +456,12 @@ function commitDirsOf(words) {
   /** @type {string[]} */
   const dirs = [];
   let i = skipCommandPrefixes(words, dirs);
-  // ラッパーのオプションを読み切れないときは、後ろに git と commit の語があればコミットとして扱う（止める側に寄せる）
-  if (i < 0)
-    return words.some((w) => w.split("/").pop() === "git") && words.includes("commit")
-      ? dirs
-      : null;
+  // ラッパーのオプションを読み切れないときは、git の語の後ろに commit の語があればコミットとして扱う（止める側に寄せる）。
+  // 読み切れたラッパーの指定も、後ろが値かコマンドかを決められないので当てず、作業ディレクトリは変えない
+  if (i < 0) {
+    const git = words.findIndex((w) => w.split("/").pop() === "git");
+    return git >= 0 && words.indexOf("commit", git + 1) > git ? [] : null;
+  }
   if (i >= words.length || words[i].split("/").pop() !== "git") return null;
   i += 1;
   while (i < words.length && words[i].startsWith("-")) {
