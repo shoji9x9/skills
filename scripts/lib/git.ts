@@ -52,8 +52,8 @@ export function repoRoot(cwd: string, options?: GitOptions): string {
     ...options,
     what: "git のリポジトリのルートを特定できない",
   });
-  // 末尾の改行だけを外す。trim はディレクトリ名の末尾の空白も消す
-  return out.replace(/\r?\n$/, "");
+  // 末尾の LF だけを外す（git は LF で終える）。trim はディレクトリ名の末尾の空白と CR も消す
+  return out.replace(/\n$/, "");
 }
 
 /**
