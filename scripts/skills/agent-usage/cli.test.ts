@@ -135,8 +135,43 @@ describe("isGitCommit", () => {
     ["env -iC/o git commit", true],
     ["env -iu HOME git commit", true],
     ["sudo -Eu alice git commit", true],
+    // 長いオプションの省略形（getopt_long の一意な前方一致。Issue #812）。値を取るかは正式な名前で決める
+    ["env --chd /tmp git commit -m x", true],
+    ["env --chd=/tmp git commit", true],
+    ["timeout --sig KILL 5 git commit", true],
+    ["nice --adj 5 git commit", true],
+    ["xargs --max-a 1 git commit", true],
+    // 値を取らない長いオプションの省略形は、次の語をコマンドとして読む
+    ["env --nul git commit", true],
+    // env の -S（--split-string）の値は、語に分けてその位置に置いてから読み直す（GNU env と同じ）
+    ["env -S git commit -m x", true],
+    ["env -S 'git commit'", true],
+    ["env --split='-i git' commit", true],
+    ["env -iS'git' commit", true],
+    // 引用符などを含んで語に分けられない値は、git の後ろに commit があればコミットとして扱う
+    ["env -S 'git \"commit\"'", true],
+    // GNU env が解釈するエスケープと ${VAR} の後ろの commit も、語に分けずに探す
+    ["env -S 'git\\_commit'", true],
+    ["env -S 'git ${EMPTY}commit'", true],
+    ["env -S 'git com${E}mit'", true],
+    ["env -S 'g\"i\"t commit'", true],
+    // 一意に決まらない省略形の後ろの -S の値の中も読む
+    ["sudo --ch /tmp env -S 'git commit'", true],
+    // 一意に決まらない省略形（--debug と --default-signal、--chdir と --chroot）は、git の語の後ろに commit の語があればコミットとして扱う
+    ["env --de x git commit", true],
+    ["sudo --ch /tmp git commit", true],
     // 同じラッパーと値の形で、commit を実行しないもの
     ["env -iC git commit", false],
+    // 一意に決まらない省略形の後ろでも、commit の語が無いもの（--grep=commit・commit-tree）はコミットと判定しない
+    ["env --de x git log --grep=commit", false],
+    ["sudo --ch /tmp git commit-tree x", false],
+    // シェルが 1 語として読んだ引数（引用符の中）は、空白で分け直さない
+    ["sudo --ch /tmp git log --grep 'fix commit'", false],
+    ['env --de x echo "git commit"', false],
+    // 省略形の無い `sudo sh -c 'git commit'` と同じく、sh -c の引数の中は読まない
+    ["sudo --ch /tmp sh -c 'git commit'", false],
+    // 語に分けられない -S の値でも、git を含む別の語（.github・digit）の後ろの commit はコミットにしない
+    ["env -S '\"x\"' cat .github/commit.md", false],
     ["timeout 60 git commit-tree abc", false],
     ["timeout 60 git log --grep commit", false],
     ["echo timeout git commit", false],
@@ -155,8 +190,30 @@ describe("isGitCommit", () => {
     ["xargs -n 1 git log commit", false],
     ["sudo -- git status", false],
     ["timeout 60 /usr/bin/git status", false],
+    ["env --chd /tmp pwd", false],
+    ["env --chd /tmp git status", false],
+    ["env --de x echo hi", false],
+    ["env --de x echo commit git", false],
+    // -S の値の先頭がコマンドになる（実行するのは x）
+    ["env -S 'x y' git commit", false],
+    ["env --split 'x y' git commit", false],
   ])("%s → %s", (cmd, expected) => {
     expect(isGitCommit(cmd)).toBe(expected);
+  });
+
+  // 読み直しの中で -S の値を語に分けた後に現れる省略形も、分けた後の語の列を読み直す
+  test.each([
+    "sudo --ch /tmp env -S 'env --de x git commit'",
+    "env --de x env -S 'sudo --ch /tmp git commit'",
+  ])("入れ子の省略形と -S: %s → true", (cmd) => {
+    expect(isGitCommit(cmd)).toBe(true);
+  });
+
+  // 読み直しの中でさらに読み直すと、省略形を重ねた数の 2^n の時間がかかる（n=24 で 10 秒ほど）
+  test("一意に決まらない省略形を 24 段重ねても、1 秒以内に判定する", () => {
+    const started = performance.now();
+    expect(isGitCommit("sudo --ch ".repeat(24) + "ls")).toBe(false);
+    expect(performance.now() - started).toBeLessThan(1000);
   });
 });
 
@@ -191,6 +248,17 @@ describe("commitCwd", () => {
     // sudo の -C は作業ディレクトリではない（close-from）
     ["sudo -C 3 git commit", "/w"],
     ["env -u HOME git commit", "/w"],
+    // 長いオプションの省略形（Issue #812）
+    ["env --chd /tmp git commit", "/tmp"],
+    ["env --chd=sub git commit", "/w/sub"],
+    ["sudo --chd /o git -C x commit", "/o/x"],
+    // 一意に決まらない省略形は、作業ディレクトリを決められないので変えない
+    ["sudo --ch /tmp git commit", "/w"],
+    // 一意に決まらない省略形より前の指定（--chd /a）も当てない
+    ["env --chd /a --de x git commit", "/w"],
+    // -S の値の中の -C も、作業ディレクトリの指定として読む
+    ["env --split-string '-C /tmp' git commit", "/tmp"],
+    ["env -S'-C sub' git commit", "/w/sub"],
   ])("%s → %s", (cmd, expected) => {
     expect(commitCwd(cmd, "/w")).toBe(expected);
   });

@@ -40,7 +40,8 @@
         "commitCwd git -C ../o -c a=b commit → /o",
         "commitCwd cd /r; git -C sub commit → /r/sub",
         "commitCwd env --chdir=sub git -C x commit → /w/sub/x",
-        "commitCwd sudo --chdir /o git -C x commit → /o/x"
+        "commitCwd sudo --chdir /o git -C x commit → /o/x",
+        "commitCwd sudo --chd /o git -C x commit → /o/x"
       ]
     },
     {
@@ -119,7 +120,32 @@
         "isGitCommit sudo -h host git commit → true",
         "isGitCommit sudo -c class git commit → true",
         "isGitCommit sudo -a type git commit → true",
-        "isGitCommit env -a name git commit → true"
+        "isGitCommit env -a name git commit → true",
+        "commitCwd env --chd /tmp git commit → /tmp",
+        "commitCwd env --chd=sub git commit → /w/sub",
+        "commitCwd env --split-string '-C /tmp' git commit → /tmp",
+        "commitCwd env -S'-C sub' git commit → /w/sub",
+        "commitCwd sudo --chd /o git -C x commit → /o/x",
+        "isGitCommit env --chd /tmp git commit -m x → true",
+        "isGitCommit env --chd=/tmp git commit → true",
+        "isGitCommit env --de x git commit → true",
+        "isGitCommit env --nul git commit → true",
+        "isGitCommit env --split='-i git' commit → true",
+        "isGitCommit env -S 'git \"commit\"' → true",
+        "isGitCommit env -S 'git commit' → true",
+        "isGitCommit env -S git commit -m x → true",
+        "isGitCommit env -iS'git' commit → true",
+        "isGitCommit nice --adj 5 git commit → true",
+        "isGitCommit sudo --ch /tmp git commit → true",
+        "isGitCommit timeout --sig KILL 5 git commit → true",
+        "isGitCommit xargs --max-a 1 git commit → true",
+        "isGitCommit env -S 'git ${EMPTY}commit' → true",
+        "isGitCommit env -S 'git\\_commit' → true",
+        "isGitCommit env -S 'g\"i\"t commit' → true",
+        "isGitCommit env -S 'git com${E}mit' → true",
+        "isGitCommit sudo --ch /tmp env -S 'git commit' → true",
+        "isGitCommit 入れ子の省略形と -S: env --de x env -S 'sudo --ch /tmp git commit' → true",
+        "isGitCommit 入れ子の省略形と -S: sudo --ch /tmp env -S 'env --de x git commit' → true"
       ]
     },
     {
@@ -153,7 +179,15 @@
         "commitCwd sudo -ED /o git commit → /o",
         "isGitCommit sudo -c class git commit → true",
         "isGitCommit sudo -a type git commit → true",
-        "isGitCommit env -a name git commit → true"
+        "isGitCommit env -a name git commit → true",
+        "commitCwd env --chd /tmp git commit → /tmp",
+        "commitCwd env --split-string '-C /tmp' git commit → /tmp",
+        "commitCwd env -S'-C sub' git commit → /w/sub",
+        "commitCwd sudo --chd /o git -C x commit → /o/x",
+        "isGitCommit env --chd /tmp git commit -m x → true",
+        "isGitCommit nice --adj 5 git commit → true",
+        "isGitCommit timeout --sig KILL 5 git commit → true",
+        "isGitCommit xargs --max-a 1 git commit → true"
       ]
     },
     {
@@ -171,7 +205,12 @@
         "commitCwd sudo --chdir /o git -C x commit → /o/x",
         "commitCwd env -iC /o git commit → /o",
         "commitCwd env -iCsub git commit → /w/sub",
-        "commitCwd sudo -ED /o git commit → /o"
+        "commitCwd sudo -ED /o git commit → /o",
+        "commitCwd env --chd /tmp git commit → /tmp",
+        "commitCwd env --chd=sub git commit → /w/sub",
+        "commitCwd env --split-string '-C /tmp' git commit → /tmp",
+        "commitCwd env -S'-C sub' git commit → /w/sub",
+        "commitCwd sudo --chd /o git -C x commit → /o/x"
       ]
     },
     {
@@ -188,7 +227,8 @@
         "isGitCommit env -iC git commit → false",
         "commitCwd env -iC /o git commit → /o",
         "commitCwd env -iCsub git commit → /w/sub",
-        "commitCwd sudo -ED /o git commit → /o"
+        "commitCwd sudo -ED /o git commit → /o",
+        "isGitCommit env -iS'git' commit → true"
       ]
     },
     {
@@ -204,7 +244,8 @@
         "isGitCommit timeout --signal=KILL 1m git commit → true",
         "isGitCommit nohup nice -n 5 timeout 60 git commit → true",
         "isGitCommit timeout 60 /usr/bin/git commit → true",
-        "isGitCommit cd /r && timeout 60 git -C sub commit → true"
+        "isGitCommit cd /r && timeout 60 git -C sub commit → true",
+        "isGitCommit timeout --sig KILL 5 git commit → true"
       ]
     },
     {
@@ -735,6 +776,144 @@
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook report は渡した期間を meta.json と HTML の見出しに残し、期間を省いたレポートと記録の最初の日を --since に渡したレポートを区別できる"
+      ]
+    },
+    {
+      "id": "split-option-not-spliced",
+      "why": "env -S の値を語に分けて置き換えず、値を読み飛ばすだけにする",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "    if (option.split !== undefined) {",
+      "replace": "    if (option.split === null) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "isGitCommit env -S 'git commit' → true",
+        "commitCwd env --split-string '-C /tmp' git commit → /tmp",
+        "commitCwd env -S'-C sub' git commit → /w/sub",
+        "isGitCommit env --split 'x y' git commit → false",
+        "isGitCommit env --split='-i git' commit → true",
+        "isGitCommit env -S 'git \"commit\"' → true",
+        "isGitCommit env -S 'x y' git commit → false",
+        "isGitCommit env -S git commit -m x → true",
+        "isGitCommit env -iS'git' commit → true",
+        "isGitCommit env -S 'git ${EMPTY}commit' → true",
+        "isGitCommit env -S 'git\\_commit' → true",
+        "isGitCommit env -S 'g\"i\"t commit' → true",
+        "isGitCommit env -S 'git com${E}mit' → true",
+        "isGitCommit sudo --ch /tmp env -S 'git commit' → true",
+        "isGitCommit 入れ子の省略形と -S: env --de x env -S 'sudo --ch /tmp git commit' → true",
+        "isGitCommit 入れ子の省略形と -S: sudo --ch /tmp env -S 'env --de x git commit' → true"
+      ]
+    },
+    {
+      "id": "unsplittable-split-value-guessed",
+      "why": "引用符などを含む env -S の値も空白で語に分け、止める側に寄せない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "      if (/[\"'\\\\$#]/.test(option.split)) return UNSPLITTABLE_VALUE;",
+      "replace": "      if (option.split === null) return UNSPLITTABLE_VALUE;",
+      "occurrences": 1,
+      "expect_failing": [
+        "isGitCommit env -S 'git \"commit\"' → true",
+        "isGitCommit env -S 'git ${EMPTY}commit' → true",
+        "isGitCommit env -S 'git\\_commit' → true",
+        "isGitCommit env -S 'g\"i\"t commit' → true",
+        "isGitCommit env -S 'git com${E}mit' → true"
+      ]
+    },
+    {
+      "id": "unsplittable-value-read-as-words",
+      "why": "語に分けられない env -S の値も、一意に決まらない省略形と同じく後ろの各位置から読み直し、書き方を外した文字列で探さない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "  if (reason === UNSPLITTABLE_VALUE) {",
+      "replace": "  if (reason === null) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "isGitCommit env -S 'git\\_commit' → true",
+        "isGitCommit env -S 'g\"i\"t commit' → true",
+        "isGitCommit env -S 'git \"commit\"' → true",
+        "isGitCommit env -S 'git ${EMPTY}commit' → true",
+        "isGitCommit env -S 'git com${E}mit' → true"
+      ]
+    },
+    {
+      "id": "ambiguous-tail-not-reread",
+      "why": "一意に決まらない省略形の後ろを各位置から読み直さず、コミットとして扱わない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "    if (commitDirsOf(words.slice(k), false) !== null) return [];",
+      "replace": "    if (k < 0) return [];",
+      "occurrences": 1,
+      "expect_failing": [
+        "isGitCommit env --de x git commit → true",
+        "isGitCommit sudo --ch /tmp env -S 'git commit' → true",
+        "isGitCommit sudo --ch /tmp git commit → true",
+        "isGitCommit 入れ子の省略形と -S: env --de x env -S 'sudo --ch /tmp git commit' → true",
+        "isGitCommit 入れ子の省略形と -S: sudo --ch /tmp env -S 'env --de x git commit' → true"
+      ]
+    },
+    {
+      "id": "nested-ambiguous-reread",
+      "why": "読み直しの中の省略形でも読み直し、省略形を重ねた入力で 2^n の時間をかける",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "  if (!retry) return null;",
+      "replace": "  if (retry === null) return null;",
+      "occurrences": 1,
+      "expect_failing": ["isGitCommit 一意に決まらない省略形を 24 段重ねても、1 秒以内に判定する"]
+    },
+    {
+      "id": "spliced-tail-not-reread",
+      "why": "読み直しの中で -S の値を語に分けた後に現れる省略形を、読み直さずに飛ばす",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "retry: retry || spliced",
+      "replace": "retry: retry",
+      "occurrences": 1,
+      "expect_failing": [
+        "isGitCommit 入れ子の省略形と -S: sudo --ch /tmp env -S 'env --de x git commit' → true",
+        "isGitCommit 入れ子の省略形と -S: env --de x env -S 'sudo --ch /tmp git commit' → true"
+      ]
+    },
+    {
+      "id": "unsplittable-git-boundary-dropped",
+      "why": "語に分けられない -S の値で、git の語の境界を見ず、git を含む別の語（.github）の後ろの commit もコミットにする",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "return /\\bgit\\b[\\s\\S]*commit/.test(text)",
+      "replace": "return /git[\\s\\S]*commit/.test(text)",
+      "occurrences": 1,
+      "expect_failing": ["isGitCommit env -S '\"x\"' cat .github/commit.md → false"]
+    },
+    {
+      "id": "long-option-prefix-ignored",
+      "why": "長いオプションの省略形（`env --chd`）を正式な名前にせず、値を取らない語として読み、次の語をコマンドにする",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "const hits = known.filter((o) => o.startsWith(name));",
+      "replace": "const hits = known.filter((o) => o === name);",
+      "occurrences": 1,
+      "expect_failing": [
+        "isGitCommit env --chd /tmp git commit -m x → true",
+        "isGitCommit timeout --sig KILL 5 git commit → true",
+        "isGitCommit nice --adj 5 git commit → true",
+        "isGitCommit xargs --max-a 1 git commit → true",
+        "commitCwd env --chd /tmp git commit → /tmp",
+        "commitCwd env --chd=sub git commit → /w/sub",
+        "commitCwd sudo --chd /o git -C x commit → /o/x",
+        "isGitCommit env --de x git commit → true",
+        "isGitCommit sudo --ch /tmp git commit → true",
+        "isGitCommit env --split='-i git' commit → true",
+        "isGitCommit sudo --ch /tmp env -S 'git commit' → true",
+        "isGitCommit 入れ子の省略形と -S: env --de x env -S 'sudo --ch /tmp git commit' → true",
+        "isGitCommit 入れ子の省略形と -S: sudo --ch /tmp env -S 'env --de x git commit' → true"
+      ]
+    },
+    {
+      "id": "ambiguous-long-option-guessed",
+      "why": "一意に決まらない省略形を最初の候補として読み、止める側に寄せない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "return hits.length === 1 ? hits[0] : null;",
+      "replace": "return hits[0];",
+      "occurrences": 1,
+      "expect_failing": [
+        "isGitCommit env --de x git commit → true",
+        "commitCwd sudo --ch /tmp git commit → /w",
+        "isGitCommit 入れ子の省略形と -S: env --de x env -S 'sudo --ch /tmp git commit' → true",
+        "isGitCommit 入れ子の省略形と -S: sudo --ch /tmp env -S 'env --de x git commit' → true"
       ]
     }
   ]

@@ -585,6 +585,9 @@ test("詳細度の数え方", () => {
   expect(specificity("div")).toEqual([0, 0, 1]);
   expect(specificity(".a")).toEqual([0, 1, 0]);
   expect(specificity("#a")).toEqual([1, 0, 0]);
+  // NBSP は CSS の空白ではなく識別子の文字なので、型セレクタとして数える
+  expect(specificity(".a \u00a0 .b")).toEqual([0, 2, 1]);
+  expect(specificity(":is(\u00a0.a)")).toEqual([0, 1, 1]);
   expect(specificity("[data-x='y']")).toEqual([0, 1, 0]);
   expect(specificity("a:hover")).toEqual([0, 1, 1]);
   expect(specificity("li::before")).toEqual([0, 0, 2]);
@@ -1138,6 +1141,35 @@ test("statesOutsideSubject は主語の内外を区別する", () => {
   expect(statesOutsideSubject(".btn:hover", ["hover"])).toEqual([]);
   expect(statesOutsideSubject(".a .b:hover", ["hover"])).toEqual([]);
   expect(statesOutsideSubject(".a .b", [])).toEqual([]);
+});
+
+// 主語より前の属性セレクタの引用符の中（Issue #812）。括弧・空白・`:hover` を、深さ・結合子・状態に数えない。
+test.each([
+  ['a[title="]"]:hover span', ["hover"]],
+  ["a[title=']']:hover span", ["hover"]],
+  ['a[title="x"]:hover span', ["hover"]],
+  ['a[title="x y"] span', []],
+  ['a[title=":hover"] span', []],
+  ['a[title="]"] span:hover', []],
+])("statesOutsideSubject は引用符の中を読み飛ばす: %s", (selector, expected) => {
+  expect(statesOutsideSubject(selector, ["hover"])).toEqual(expected);
+});
+
+// エスケープした `\:` は識別子の一部（`.a\:hover`）。エスケープした `\\` の後ろの `:hover` は擬似クラスである。
+test.each([
+  [String.raw`.a\:hover span`, []],
+  [String.raw`.a\\:hover span`, ["hover"]],
+  [String.raw`.a\:hover:hover span`, ["hover"]],
+  // 16 進のエスケープ（`\31 ` は `1`）を閉じる空白は、結合子ではない
+  [String.raw`.btn:hover.\31 0`, []],
+  [String.raw`.btn:hover.\31  span`, ["hover"]],
+  [String.raw`.a\3A hover span`, []],
+  // CSS は CRLF を改行 1 個として読むので、16 進のエスケープを閉じる `\r\n` も結合子ではない
+  [".btn:hover.\\31\r\n0", []],
+  // NBSP は CSS の空白ではないので、結合子にならない
+  [".btn:hover\u00a0.x", []],
+])("statesOutsideSubject はエスケープした `:` を擬似クラスに数えない: %s", (selector, expected) => {
+  expect(statesOutsideSubject(selector, ["hover"])).toEqual(expected);
 });
 
 test("文字列でない状態名を持つ規則は、勝者にせず状態が不明な候補にする", () => {

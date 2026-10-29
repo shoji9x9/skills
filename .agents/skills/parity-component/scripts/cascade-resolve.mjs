@@ -162,6 +162,15 @@ export class UndecidableSelector extends Error {}
 const IDENT_CHAR = /[-\w -￿]/;
 
 /**
+ * 前後の CSS の空白（空白・タブ・改行・CR・FF）を除く。String#trim は NBSP なども除くので、識別子の文字を消してしまう。
+ * @param {string} s
+ * @returns {string}
+ */
+function cssTrim(s) {
+  return s.replace(/^[ \t\n\r\f]+|[ \t\n\r\f]+$/g, "");
+}
+
+/**
  * エスケープを飛ばした次の位置。
  * CSS のエスケープは `\` ＋ 1 文字とは限らない。16 進エスケープは `\` ＋ 16 進数 1〜6 桁で、
  * 直後の空白 1 つが終端記号として消費される（`.\31 23` は「123」というクラス 1 つ）。
@@ -179,7 +188,10 @@ function skipEscape(s, start) {
     hex += 1;
   }
   if (hex === 0) return j + 1; // `\.` のような 1 文字エスケープ
-  if (j < s.length && /\s/.test(s[j])) j += 1; // 終端の空白 1 つを消費する
+  // 終端の空白 1 つを消費する。CSS は CRLF を改行 1 個として読むので、`\r\n` は 2 文字とも消費する
+  // 終わりの空白は CSS の空白（空白・タブ・改行・CR・FF）だけで、NBSP などは識別子の一部である
+  if (s.startsWith("\r\n", j)) return j + 2;
+  if (j < s.length && /[ \t\n\r\f]/.test(s[j])) j += 1;
   return j;
 }
 
@@ -311,14 +323,14 @@ function splitTopLevel(text) {
  * @returns {[number, number, number]}
  */
 function maxOfArgument(name, argument) {
-  if (argument === null || argument.trim() === "") {
+  if (argument === null || cssTrim(argument) === "") {
     throw new UndecidableSelector(`:${name}() has no argument`);
   }
   /** @type {[number, number, number] | null} */
   let best = null;
   for (const branch of splitTopLevel(argument)) {
-    if (branch.trim() === "") throw new UndecidableSelector(`:${name}() has an empty branch`);
-    const value = specificity(branch.trim());
+    if (cssTrim(branch) === "") throw new UndecidableSelector(`:${name}() has an empty branch`);
+    const value = specificity(cssTrim(branch));
     if (best === null || compareSpecificity(value, best) > 0) best = value;
   }
   // splitTopLevel は 1 件以上を返し、各枝は値を決めるか投げるので、ここで null にはならない（型の絞り込みのため）。
@@ -366,7 +378,8 @@ function tokenSpecificity(s, i) {
   if (ch === "\\") return { value: [0, 0, 1], next: skipIdent(s, i) };
   // 以降のトークン判定は skipIdent がエスケープ全体を消費する前提で進む。
   if (ch === '"' || ch === "'") return { value: [0, 0, 0], next: skipString(s, i) };
-  if (/\s/.test(ch) || ch === ">" || ch === "+" || ch === "~" || ch === "|") {
+  // 結合子の空白は CSS の空白だけで、NBSP などは識別子の文字として型セレクタに数える
+  if (/[ \t\n\r\f]/.test(ch) || ch === ">" || ch === "+" || ch === "~" || ch === "|") {
     return { value: [0, 0, 0], next: i + 1 };
   }
   if (ch === ",") {
@@ -394,7 +407,7 @@ function tokenSpecificity(s, i) {
  * @returns {[number, number, number]}
  */
 export function specificity(selector) {
-  if (typeof selector !== "string" || selector.trim() === "") {
+  if (typeof selector !== "string" || cssTrim(selector) === "") {
     throw new UndecidableSelector("selector is empty");
   }
   /** @type {[number, number, number]} */
@@ -411,6 +424,16 @@ export function specificity(selector) {
 }
 
 /**
+ * CSS のエスケープ（start の `\`）の次の位置。読み方は skipEscape と同じで、末尾の `\` だけは投げずに文字列の終わりを返す。
+ * @param {string} s
+ * @param {number} start
+ * @returns {number}
+ */
+function escapeEnd(s, start) {
+  return start + 1 >= s.length ? s.length : skipEscape(s, start);
+}
+
+/**
  * トップレベル（括弧の外）にある最後の結合子（空白・`>`・`+`・`~`）の位置。無ければ -1。
  * @param {string} selector
  * @returns {number}
@@ -421,13 +444,49 @@ function lastTopLevelCombinator(selector) {
   for (let i = 0; i < selector.length; i += 1) {
     const ch = selector[i];
     if (ch === "\\") {
-      i += 1;
+      i = escapeEnd(selector, i) - 1;
+      continue;
+    }
+    // 引用符の中（`[title="]"]`）の括弧と空白は、深さにも結合子にも数えない。
+    if (ch === '"' || ch === "'") {
+      i = skipString(selector, i, { lenient: true }) - 1;
       continue;
     }
     depth += bracketDelta(ch);
-    if (depth === 0 && (/\s/.test(ch) || ch === ">" || ch === "+" || ch === "~")) lastBreak = i;
+    // 子孫結合子は CSS の空白（空白・タブ・改行・CR・FF）だけで、NBSP などは識別子の一部である
+    if (depth === 0 && (/[ \t\n\r\f]/.test(ch) || ch === ">" || ch === "+" || ch === "~"))
+      lastBreak = i;
   }
   return lastBreak;
+}
+
+/**
+ * 引用符で囲んだ文字列の中身と、エスケープ（`\:`）を空白に置き換える（位置は変えない）。
+ * エスケープした `:` は識別子の一部（`.a\:hover`）で、擬似クラスの始まりではない。
+ * @param {string} text
+ * @returns {string}
+ */
+function blankStrings(text) {
+  let out = "";
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === "\\") {
+      const end = escapeEnd(text, i);
+      out += " ".repeat(end - i);
+      i = end;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      const end = Math.min(skipString(text, i, { lenient: true }), text.length);
+      out += ch + " ".repeat(Math.max(end - i - 2, 0)) + (end - i >= 2 ? text[end - 1] : "");
+      i = end;
+      continue;
+    }
+    out += ch;
+    i += 1;
+  }
+  return out;
 }
 
 /**
@@ -447,7 +506,8 @@ export function statesOutsideSubject(selector, states) {
   // トップレベルの結合子で分割し、最後の断片を主語とする（括弧・文字列の中では分割しない）。
   const lastBreak = lastTopLevelCombinator(selector);
   if (lastBreak < 0) return []; // 結合子が無い＝主語だけのセレクタ
-  const outside = selector.slice(0, lastBreak + 1);
+  // 引用符の中とエスケープした `\:` の後ろの `hover` などは状態擬似クラスではないので、照合の前に空白に置き換える。
+  const outside = blankStrings(selector.slice(0, lastBreak + 1));
   const found = [];
   for (const state of states) {
     // 名前は小文字で記録されるが、セレクタ側の綴りは大小どちらもありうる。

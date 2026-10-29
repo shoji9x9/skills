@@ -62,6 +62,10 @@ GitHub は `linguist-generated` の付いたファイルを、PR の差分で最
   取り除かれるのは `timeout`・`time`・`nice`・`nohup`・`stdbuf`・`command`・`builtin` で、この後ろの git には当たる（[Claude Code permissions](https://code.claude.com/docs/en/permissions) の Wrappers の節）。
   スクリプトは、この 7 つと `sudo`・`env`・`xargs`・`exec` を、値を取るオプションと引数（`timeout 60`・`nice -n 5`・`sudo -u <user>`）ごと読み飛ばし、後ろの `git commit` をコミットと判定する。
   短いオプションをまとめた形（`env -iC <dir>`・`sudo -Eu <user>`）も、getopt と同じく、値を取る最初のオプションの後ろをその値として読む。
+  長いオプションの省略形（`env --chd <dir>`）は、getopt_long と同じく一意な前方一致で正式な名前（`--chdir`）として読む。
+  2 つ以上のオプションに当たる省略形（`sudo --ch` は `--chdir` と `--chroot`）は、値を取るかを決められないので、後ろの語のどれかから `git commit` として読めればコミットと判定する（`git log --grep commit` はコミットにしない）。作業ディレクトリは、それより前の指定（`env --chd <dir> --de`）も含めて変えない。
+  `env -S <文字列>`（`--split-string`）は、GNU env と同じく値を空白で語に分け、その位置に置いてからオプションを読み直す（`env -S '-C <dir> git' commit` は `<dir>` でのコミット）。
+  値に引用符・`\`・`$`・`#` があると語に分けられないので、引用符と `${VAR}` を消し、`\` のエスケープを空白にした文字列で、`git` の語の後ろに `commit` があればコミットと判定し、作業ディレクトリは変えない。止めすぎる形は、下の「commit と判定する形」の表にある。
   スクリプトが値を取ると知らないオプション（ラッパーごとに一覧を持つ）の値は、後ろのコマンドとして読むので、その後ろの `git commit` をコミットと判定しない。
   `if` に当たらないコミットではスクリプトが起動しないので、その時点の記録は作られず、判断の無いブランチでも確認を求めない。記録は、次にスクリプトが起動したコミットの collect がまとめて作る。ブランチの最後のコミットがこの形だと、その分の記録は PR に入らない。
   `if` を外すとこれらも検出できるが、スクリプトは heredoc の本文を読み飛ばさないので、git を実行しない heredoc（`cat > f <<'EOF'` の本文の行頭の `git commit`）もコミットと判定し、判断の無いブランチで止めるか、コミットしない呼び出しで記録を stage する。
@@ -152,7 +156,7 @@ Hook のスクリプトは、エージェントが普段書く形の `git commit
 | 形 | 例 | スクリプトの読み方 |
 | --- | --- | --- |
 | エイリアス・変数で書く | `alias gc='git commit'; gc`・`G=git; $G commit` | 名前が `git` でないコマンドとして読む |
-| 別のコマンドの引数やスクリプトの中に書く | `sh -c 'git commit'`・`eval git commit`・`env -S 'git commit'`・`./scripts/commit.sh` | 引数やスクリプトの中は読まない。`env -S` は、後ろの引用を 1 語のコマンドとして読む |
+| 別のコマンドの引数やスクリプトの中に書く | `sh -c 'git commit'`・`eval git commit`・`./scripts/commit.sh` | 引数やスクリプトの中は読まない |
 | 関数置換の中に書く | `echo ${ git commit; }`・`echo "${ git commit; }"` | 引用の有無に関わらず、`${ …; }` の中を読まない |
 | `coproc` の後ろに書く | `coproc git commit` | `coproc` を予約語としてもラッパーとしても読まない |
 | `git` や `commit` の語を引用符で分ける | `g"it" commit`・`git "comm"it` | 検出されるかは決まらない。Node.js を起動する前の絞り込みは、Hook の入力の JSON 全体に `git` と `commit` の語がこの順であるかを見る。他の欄（`cwd`・`transcript_path` など）に語が無ければ、ここで通す。あれば Node.js の判定に渡り、引用を外して commit と判定する |
@@ -162,6 +166,7 @@ Hook のスクリプトは、エージェントが普段書く形の `git commit
 
 | 形 | 例 | スクリプトの読み方と、避ける書き方 |
 | --- | --- | --- |
+| 語に分けられない値を `env -S` に渡す | `env -S '"x"' cat .git/commit`・`env -S '"x"' git-lfs commit`・`env -S 'git log --grep=commit "x"'` | 値に引用符・`\`・`$`・`#` があると、引用符と `${VAR}` を消し、`\` のエスケープを空白にした文字列で、`git` の語の後ろに `commit` があれば commit と判定する。値に引用符などを書かない |
 | git のパスを調べる `command -v` | `command -v git commit` | `command` を後ろのコマンドを実行するコマンドとして読み、`-v` を読み飛ばして、後ろを commit と判定する。判断が無ければ止め、判断が「記録する」なら collect して stage する。`command -v git` だけを書く |
 
 ## 3. 動作を確かめる
