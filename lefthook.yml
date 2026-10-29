@@ -233,12 +233,12 @@ pre-commit:
             run: node scripts/gates/code/check-skill-lint-directives.ts
           - name: jsdoc-types
             # 配布スキルの .mjs で、型の検査を外す JSDoc の書き方（型の表明・any・@ts-ignore など）を禁じる。
-            # 結果を変えるファイルが staged のときだけ実行する。対象は .mjs、チェックとチェックが読む scripts/lib/ の .ts、
-            # TypeScript のバージョンを決めるファイル（package.json・pnpm-lock.yaml・pnpm-workspace.yaml）、このファイルである。
-            # 読むモジュールは 1 つずつ挙げず、*.ts で含める。
-            # glob を付けるのは、チェックが作業ツリーを読むからである。付けないと、関係の無い commit が stage していない変更で止まる。
-            # stage していない .mjs の違反は、その .mjs を commit するときに検出する。
-            glob: "{*.mjs,*.ts,package.json,pnpm-lock.yaml,pnpm-workspace.yaml,lefthook.yml}"
+            # 結果を変えるファイルが staged のときだけ実行する。対象は .mjs、チェック自身とチェックが読む scripts/lib/ の .ts、
+            # TypeScript のバージョンを決めるファイル、このファイルである。scripts/lib/ のモジュールは 1 つずつ挙げず、ディレクトリで含める。
+            # TypeScript のバージョンは package.json と pnpm-lock.yaml で決まり、pnpm-workspace.yaml に overrides か catalog を置くとそこでも決まる。
+            # チェックは作業ツリーの .mjs を全件読むので、実行した commit は、stage していない .mjs の違反でも止まる。
+            # glob は、この止まり方を、結果を変えるファイルを stage した commit に限るために付ける。
+            glob: "{*.mjs,scripts/gates/types/*.ts,scripts/lib/*.ts,scripts/lib/**/*.ts,package.json,pnpm-lock.yaml,pnpm-workspace.yaml,lefthook.yml}"
             run: node scripts/gates/types/check-jsdoc-types.ts
           - name: identical-copies
             # 同一であるべきコピー（scripts/gates/packaging/copies/identical-copies.json で宣言）の一致。
