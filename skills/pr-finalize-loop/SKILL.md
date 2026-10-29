@@ -45,7 +45,7 @@ pr-finalize-loop <PR URL> [--max-iterations <N>] [--wait-ci-before-review] [--re
 
 ## 前提
 
-- ツール: `gh`（GitHub CLI。`gh api graphql`・`gh api` の REST・`gh pr checks`・`gh run view`・`gh run list`・`gh run cancel`・`gh run rerun` を含む）、`git`
+- ツール: `gh`（GitHub CLI。`gh api graphql`・`gh api` の REST・`gh pr checks`・`gh run view`・`gh run cancel`・`gh run rerun` を含む）、`git`
 - 前提スキル: なし。レビューへの対応のやり方は [[pr-review-handle]] と同じだが、このスキルは自律して動く版を中に持ち、単独で動く
 - MCP: なし
 - シェル: bash（POSIX 互換シェル）。コマンド例は bash で書いているので、Windows では WSL や Git Bash などの bash 環境で実行する
@@ -124,6 +124,7 @@ push の後などに再レビューを依頼する AI レビュアーは、CLI �
    - PR の状態を確かめ直す。`gh pr view <番号> --repo <owner>/<repo> --json state` を再取得し、`OPEN` でなくなっていたら（他の人のマージやクローズなどで対象が無くなったら）、仕上げる対象が無くなったとして止まる。
      着手する前だけでなく、各反復の最初にも確かめ、無くなった対象の CI とレビューを待ち続けない。
    - CI: `gh pr checks <番号> --repo <owner>/<repo> --watch --fail-fast` で完了を待つ（どれかが失敗した時点で抜ける）。
+     待っている間は、始まらないジョブを「ポーリングと待機」の手順で別に確かめる。`--watch` は、ジョブが始まらないままでも返らないからである。
      push の直後は、チェックがまだ登録されておらず、すぐに `no checks` が返ることがある。そのときは間隔を空けて数回まで確かめ直す。
    - 未解決のレビュースレッド: [`references/state-query.md`](references/state-query.md) の reviewThreads の索引を `--paginate` で全件取得し、`isResolved == false` で絞る。すべてのレビュアーを対象にし、作成者では絞らない。
    - 現在の HEAD がレビュー済みかを判定する（後述の「HEAD のレビュー済み判定」）。
@@ -295,23 +296,24 @@ effort を指定できるのは、`review_tool: local` で Claude Code の `/cod
 待つときは必ず上限を決める。終わらない待ちと、ポーリングのしすぎの両方を避ける。具体的な間隔と回数は、リポジトリの CI にかかる時間に合わせて変えてよい。
 
 - CI の完了を待つ: `gh pr checks --watch` に任せる。gh が中でポーリングし、完了するまで待つ。間隔は `--interval <秒>` で決める。自分で短い間隔のループを書いて呼び続けない。
-  - `--watch` は、ジョブが始まらないまま（`queued` のまま runner が割り当てられないまま）でも返らない。そのため、始まらない時間には別に上限を置く。
-    上限は、同じリポジトリで観測した、ジョブの作成から開始までの時間（ジョブの `created_at` から `started_at` まで）の数倍にする。
-    観測には、直近に完了した run のジョブを、下の `gh api` と同じ呼び出しで取得して使う。
-    `--watch` は自分では終わらないので、上限で打ち切れる形（`timeout` コマンド、またはバックグラウンドで起動して上限の時刻に確かめる方法）で起動する。
-    上限で打ち切ったら、次の手順でジョブを調べる。始まっていないジョブ（`status` が `in_progress` と `completed` 以外）が無ければ、`--watch` を起動し直す。
-  - 上限を超えたら、HEAD の workflow run を `gh run list --repo <owner>/<repo> --commit <HEAD の SHA> --json databaseId,status` で挙げる。
-    始まっていない run のジョブを次のコマンドで取得し、`status`・`runner_name`・`labels` を見る。
+  - `--watch` は、ジョブが始まらないまま（`queued` のまま runner が割り当てられないまま）でも返らない。
+    そのため、`--watch` はバックグラウンドで待たせたまま、始まっていないジョブを一定の間隔で別に確かめる。`--watch` は打ち切らない。
+  - 確かめるジョブは、HEAD のすべての workflow run の、完了していないジョブである。run の `status` は 1 つのジョブが始まると `in_progress` になるので、run では絞らない。
 
     ```bash
-    gh api --paginate repos/<owner>/<repo>/actions/runs/<run-id>/jobs \
-      --jq '.jobs[] | {name, status, runner_name, labels, created_at, started_at}'
+    gh api --paginate "repos/<owner>/<repo>/actions/runs?head_sha=<HEAD の SHA>&per_page=100" --jq '.workflow_runs[].id'
+    gh api --paginate "repos/<owner>/<repo>/actions/runs/<run-id>/jobs?per_page=100" \
+      --jq '.jobs[] | select(.status != "completed") | {name, status, runner_name, labels, created_at}'
     ```
 
-    この API はページごとに `total_count` と `jobs` を持つオブジェクトを返すので、`--jq` でページをまたいでジョブだけを並べる。
+    どちらの API もページごとにオブジェクトを返すので、`--jq` でページをまたいで中身だけを並べる。
     `gh run view --json jobs` は `runner_name` を返さないので使わない。
-    形は <https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run> で確かめた。
-  - `runner_name` が null のまま `queued` なら、runner が割り当てられていない（Actions の予算の上限、存在しないラベルの runner の指定など）。
+    形は <https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-repository> と <https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run> で確かめた。
+  - 待った時間は、ジョブごとに、現在の時刻とそのジョブの `created_at` の差で測る。`--watch` を起動してからの時間では測らない。`needs` で後から作られたジョブは、作られてからの時間だけを待っている。
+    上限は、同じリポジトリで観測した、ジョブの作成から開始まで（`created_at` から `started_at` まで）の時間の数倍にする。
+    観測には、`gh api "repos/<owner>/<repo>/actions/runs?status=completed&per_page=5"` で取得した直近の run のジョブを、上と同じ呼び出しで使う（`select` は外す）。
+    完了した run が 1 件も無ければ、上限は 30 分にする。
+  - 上限を超えて `queued` のままで、`runner_name` が null なら、runner が割り当てられていない（Actions の予算の上限、存在しないラベルの runner の指定など）。
     原因はリポジトリの外にあることが多く、ループの中では除けない。`run-id`・ジョブの名前・`labels`・待った時間を書いて「行き詰まり」として止まり、利用者に知らせる。
   - ジョブの `status` には、`queued`・`in_progress`・`completed` のほかに `waiting`・`requested`・`pending` がある。
     `waiting` は environment の保護ルールによる承認待ちで、人が承認するまで始まらない。`requested` と `pending` は、他のジョブや同じ concurrency の group の run を待っている。
