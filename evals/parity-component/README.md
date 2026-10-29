@@ -106,7 +106,7 @@ fixture をさらに削っても、差は戻らない。items と evidence は�
 つまり、**eval 5・6 はどちらも目的の分岐へ到達していなかった**。参照ドキュメントの実体・`element.png`・採取した成果物の一式を足して解消してある。
 あわせて、前提の判定を機械的に行えるように、**`baseline/<instance>/<state>/` のファイル名を `element.png` / `traits.json` / `css-rules.json` に固定**した（`SKILL.md` と `references/capture.md` で定義する）。
 
-**採取物（`baseline/`・`axes.json`・`metadata.json` のツールのバージョンとプロパティ集合・軸の件数）は、手で書かない。** 手で作った採取物は、次の形で不正になっていた（Issue #354）。
+**採取物（`baseline/`・`axes.json`・`metadata.json` に記録したツールのバージョンとプロパティ集合・軸の件数）は、手で書かない。** 手で作った採取物は、次の形で不正になっていた（Issue #354）。
 `traits_property_set` が実物の `FIXED_PROPERTIES` と違う、`css-rules.json` の宣言が `traits.json` の計算値と食い違う、`element.png` がプレースホルダ、の 3 つである。
 `catalog-unset` / `breaking-change-request` の `button` は、リポジトリの `scripts/eval/fixtures/generate-parity-component-fixtures.ts` で生成した。
 このスクリプトは、headless Chrome で最小のページに trait-capture.mjs・css-rules-capture.mjs・要素のスクリーンショットを当てる（2 回採って一致を確かめている）。

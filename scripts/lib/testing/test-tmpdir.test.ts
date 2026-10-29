@@ -99,7 +99,7 @@ test("makeTempDirFactory で作ったものは describe を抜けると消える
 
 // 標的の語をそのまま書くと、このファイル自身が検査に引っかかる（検査対象から外さずに済むよう分けて組む）。
 const MK = "mkdtemp";
-// 一時ディレクトリを直に作る呼び出し。`fs.` 付きと、`node:fs/promises` から import した呼び出しも含む。
+// 一時ディレクトリを直に作る呼び出し。`fs.` 付き・`fs.promises` 経由・`node:fs/promises` から import した呼び出しも含む。
 const DIRECT = new RegExp(`\\b${MK}(?:Sync)?\\s*\\(`);
 // `/tmp` 以外（リポジトリ内等）へ作り、後片付けを自前で持つ呼び出しは、同じ行に理由を書いて免除する。
 const EXEMPT = /\/\/ tmpdir-ok: \S/;
@@ -127,6 +127,7 @@ describe("findDirectMkdtemp", () => {
     ["Sync", `const d = ${MK}Sync(join(tmpdir(), "x-"));`],
     ["名前空間付き", `const d = fs.${MK}Sync(join(os.tmpdir(), "x-"));`],
     ["promises", `const d = await ${MK}(join(tmpdir(), "x-"));`],
+    ["fs.promises 経由", `const d = await fs.promises.${MK}(join(tmpdir(), "x-"));`],
     ["引数を変数で渡す", `const d = ${MK}Sync(prefix);`],
     ["理由の無い免除", `const d = ${MK}Sync(join(tmpdir(), "x-")); // tmpdir-ok:`],
   ])("直呼び（%s）を拾う", (_, line) => {
