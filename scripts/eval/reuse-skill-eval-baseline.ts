@@ -7,7 +7,6 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
-  statSync,
   type Stats,
   writeFileSync,
 } from "node:fs";
@@ -208,9 +207,29 @@ function isExistError(error: unknown): boolean {
   );
 }
 
-/** 作りかけの target を消す。消せなかったときは、元の失敗と消せなかった理由の両方を報告する。 */
-function removePartialTarget(target: string, cause: unknown): never {
+/**
+ * コピーした木のファイルとディレクトリに、所有者の書き込みを足す。cpSync は mode もコピーするので、
+ * 読み取り専用の baseline（chmod -R a-w で守ったもの）を再利用すると、target も書き換えも削除もできなくなる。
+ * リンクなど通常のファイルとディレクトリ以外は、chmod が指す先に当たるので触らない。
+ */
+function makeTreeOwnerWritable(root: string): void {
+  const visit = (path: string): void => {
+    const stat = lstatSync(path);
+    if (!stat.isDirectory() && !stat.isFile()) return;
+    // 種類のビットを除き、権限のビットだけに所有者の書き込みを足す。
+    chmodSync(path, (stat.mode & 0o7777) | 0o200);
+    if (stat.isDirectory()) for (const name of readdirSync(path)) visit(join(path, name));
+  };
+  visit(root);
+}
+
+/**
+ * 作りかけの target を消す。先に所有者の書き込みを足し、読み取り専用のコピーでも消せるようにする。
+ * それでも消せなかったとき（target の親に書き込めないなど）は、元の失敗と消せなかった理由の両方を報告する。
+ */
+export function removePartialTarget(target: string, cause: unknown): never {
   try {
+    if (lstatSync(target, { throwIfNoEntry: false })) makeTreeOwnerWritable(target);
     rmSync(target, { recursive: true, force: true });
   } catch (cleanupError) {
     throw new Error(
@@ -227,8 +246,7 @@ function removePartialTarget(target: string, cause: unknown): never {
  * 既にある target に当たった失敗（isExistError）では、target を消さずにそのまま投げる。
  * それ以外の理由で失敗したら（拒否・EACCES・書き込みの失敗）、この呼び出しが作った target を消す。
  * 消せなかったときは、元の失敗と消せなかった理由の両方を報告する（removePartialTarget）。
- * cpSync はディレクトリの mode もコピーするので、読み取り専用の baseline でも記録を書けるよう、
- * target のルートに所有者の書き込みを足す。
+ * 読み取り専用の baseline でも記録を書けるよう、コピーした後に木の全体へ所有者の書き込みを足す（makeTreeOwnerWritable）。
  */
 function copyVerifiedTree(realSource: string, target: string, writeRecord: () => void): void {
   try {
@@ -242,7 +260,7 @@ function copyVerifiedTree(realSource: string, target: string, writeRecord: () =>
         return true;
       },
     });
-    chmodSync(target, statSync(target).mode | 0o200);
+    makeTreeOwnerWritable(target);
     writeRecord();
   } catch (error) {
     if (isExistError(error)) throw error;

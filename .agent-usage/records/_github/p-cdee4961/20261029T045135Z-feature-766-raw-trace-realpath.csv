@@ -50,3 +50,6 @@ ci:40999524783:1,ci,2026-10-30T04:00:28.065Z,p-cdee4961,github-actions,,,,2026-1
 coverage:github:2026-10-29T03:48:17.948Z:2026-10-30T04:00:28.065Z,coverage,2026-10-30T04:00:28.065Z,p-cdee4961,,,,,2026-10-29T03:48:17.948Z,2026-10-30T04:00:28.065Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-29T04:00:28.065Z:2026-10-30T04:01:35.031Z,coverage,2026-10-30T04:01:35.031Z,p-cdee4961,,,,,2026-10-29T04:00:28.065Z,2026-10-30T04:01:35.031Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-29T04:01:35.031Z:2026-10-30T04:02:26.425Z,coverage,2026-10-30T04:02:26.425Z,p-cdee4961,,,,,2026-10-29T04:01:35.031Z,2026-10-30T04:02:26.425Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:41000721480:1,ci,2026-10-30T04:13:08.644Z,p-cdee4961,github-actions,,,,2026-10-30T04:03:13.000Z,2026-10-30T04:03:14.000Z,Asia/Tokyo,feature/766-raw-trace-realpath,766,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:41000721412:1,ci,2026-10-30T04:13:08.644Z,p-cdee4961,github-actions,,,,2026-10-30T04:03:13.000Z,2026-10-30T04:07:22.000Z,Asia/Tokyo,feature/766-raw-trace-realpath,766,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-29T04:02:26.425Z:2026-10-30T04:13:08.644Z,coverage,2026-10-30T04:13:08.644Z,p-cdee4961,,,,,2026-10-29T04:02:26.425Z,2026-10-30T04:13:08.644Z,Asia/Tokyo,,,,,,,,,,,,ok,

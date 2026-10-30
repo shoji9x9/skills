@@ -4,6 +4,7 @@ import {
   linkSync,
   lstatSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   renameSync,
   rmSync,
@@ -32,6 +33,7 @@ import {
   writeSubjectSkill,
 } from "./run-skill-eval-helpers.ts";
 import { readJson } from "./read-json-helpers.ts";
+import { removePartialTarget } from "./reuse-skill-eval-baseline.ts";
 
 /** socket のパスの長さの上限に収まる、短い /tmp の下の一時ディレクトリ（afterAll で消す）。 */
 const shortTempDir = makeTempDirFactory("sk-", "/tmp");
@@ -830,43 +832,55 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
     },
   );
 
-  test("reuses a read-only source and leaves the target root writable", async () => {
-    const { source, target } = await withoutSkillSource();
-    chmodSync(source, 0o555);
-    try {
-      const result = await reuseDirectly(source, target);
-
-      expect(result.stderr).toBe("");
-      expect(result.status).toBe(0);
-      expect(existsSync(join(target, "baseline-reuse.json"))).toBe(true);
-    } finally {
-      chmodSync(source, 0o755);
+  /** chmod -R a-w と同じく、木のファイルとディレクトリから書き込みを外す。戻すときは mode に 0o755 / 0o644 を渡す。 */
+  function setTreeMode(root: string, directoryMode: number, fileMode: number): void {
+    for (const name of readdirSync(root)) {
+      const path = join(root, name);
+      if (lstatSync(path).isDirectory()) setTreeMode(path, directoryMode, fileMode);
+      else chmodSync(path, fileMode);
     }
-  });
+    chmodSync(root, directoryMode);
+  }
 
+  // root はファイルの権限を無視して書けるので、読み取り専用の木を作れない。
   test.skipIf(process.getuid?.() === 0)(
-    "reports both failures when the partly copied target cannot be removed",
+    "reuses a read-only source and leaves the copied tree writable",
     async () => {
       const { source, target } = await withoutSkillSource();
-      // 読み取り専用のディレクトリは、mode ごとコピーされて後片付けの rmSync を止める。
-      const readOnly = join(source, "project-files", "read-only");
-      mkdirSync(readOnly);
-      writeFileSync(join(readOnly, "kept.txt"), "kept\n", "utf8");
-      chmodSync(readOnly, 0o555);
-      // 前の再利用の記録が読み取り専用で残っていると、コピーした後の記録の書き込みが EACCES で失敗する。
+      // 前に再利用した run には baseline-reuse.json があり、chmod -R a-w ではそれも読み取り専用になる。
       writeFileSync(join(source, "baseline-reuse.json"), "{}\n", "utf8");
-      chmodSync(join(source, "baseline-reuse.json"), 0o444);
+      setTreeMode(source, 0o555, 0o444);
       try {
         const result = await reuseDirectly(source, target);
 
-        // 前提: cpSync がディレクトリの mode をコピーしたこと。外れると、後片付けが成功して下の分岐に達しない。
-        expect(lstatSync(join(target, "project-files", "read-only")).mode & 0o777).toBe(0o555);
-        expect(result.status).toBe(1);
-        expect(result.stderr).toMatch(/EACCES.*the partly copied target could not be removed: /u);
+        expect(result.stderr).toBe("");
+        expect(result.status).toBe(0);
+        for (const path of [target, join(target, "outputs"), join(target, "baseline-reuse.json")]) {
+          expect(lstatSync(path).mode & 0o200).toBe(0o200);
+        }
+        expect(readFileSync(join(target, "baseline-reuse.json"), "utf8")).toContain("reused_from");
       } finally {
-        chmodSync(readOnly, 0o755);
-        const copied = join(target, "project-files", "read-only");
-        if (existsSync(copied)) chmodSync(copied, 0o755);
+        setTreeMode(source, 0o755, 0o644);
+      }
+    },
+  );
+
+  test.skipIf(process.getuid?.() === 0)(
+    "reports both failures when the partly copied target cannot be removed",
+    () => {
+      const { directory } = makeStub();
+      const parent = join(directory, "read-only-parent");
+      const target = join(parent, "run-1");
+      mkdirSync(target, { recursive: true });
+      writeFileSync(join(target, "partial.txt"), "partial\n", "utf8");
+      // target の親に書き込めないと、target の中を書き込めるようにしても target 自体を消せない。
+      chmodSync(parent, 0o555);
+      try {
+        expect(() => removePartialTarget(target, new Error("copy failed"))).toThrow(
+          /^copy failed; the partly copied target could not be removed: .*EACCES/u,
+        );
+      } finally {
+        chmodSync(parent, 0o755);
       }
     },
   );
