@@ -288,3 +288,12 @@ quoted heredoc の python の本文に `git-worktree` を含むものも拒否�
 新しく出た形は、`/usr/bin/time` のように、実行するコマンドの名前を引数に取るコマンドである。「### apply のときに確かめること」の条件にも、この形を当てる。
 どれも単独の呼び出しに分けるか、Write ツールでスクリプトにして実行する形に直して通した。
 この学びは pending として注入されていたが、最初の拒否が起きるまで書き方は変わらなかった。
+
+### 再発の記録（#766 の作り直し）
+
+2026-10-30、issue-batch の run の #766 で、worktree に入った後の Bash の呼び出しが 8 回ほど拒否された。
+拒否された形は、`mise trust` と `pnpm install` と `git diff` を `;` でつないだ呼び出しである。
+コメントに `git` の語を含む TypeScript の本文を、python の quoted heredoc で渡した呼び出しも拒否された。
+`kaizen-candidate-scan.sh` を変数のパスと `</dev/null` 付きで起動した呼び出しと、`git commit` の出力をファイルに書いて `; rc=$?` を続けた呼び出しも拒否された。
+manifest を更新する JSON の heredoc と python の起動を並べた呼び出しも、本文に `git` を含まないのに拒否された。
+どれも単独の呼び出しに分けるか、Write ツールでスクリプトにして絶対パスで実行する形に直して通した。
