@@ -288,3 +288,11 @@ quoted heredoc の python の本文に `git-worktree` を含むものも拒否�
 新しく出た形は、`/usr/bin/time` のように、実行するコマンドの名前を引数に取るコマンドである。「### apply のときに確かめること」の条件にも、この形を当てる。
 どれも単独の呼び出しに分けるか、Write ツールでスクリプトにして実行する形に直して通した。
 この学びは pending として注入されていたが、最初の拒否が起きるまで書き方は変わらなかった。
+
+### 再発の記録（#801）
+
+2026-10-30、issue-batch の run の #801 で、worktree に入った後の Bash の呼び出しが 5 回ほど拒否された。
+多くは、#797 と同じく `.github/workflows/` のパスを引数に取る呼び出し（`cp`・`cmp`・`actionlint`）である。
+`.github` の語に `git` が含まれるので、git を実行しないコマンドでも `names git in a form too complex to verify` で拒否される。
+新しく出た形は、`git show HEAD:<パス>` をプロセス置換で 2 つ並べて `diff` に渡す呼び出しである。
+単独の呼び出しに分けるか、Read ツールで読む形に直した。
