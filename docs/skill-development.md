@@ -282,6 +282,9 @@ setup が 0 以外で終わったら、executor を起動せずに eval を失�
 
 - `run-skill-eval.sh` は両方の configuration を `scripts/eval/eval-sandbox.sh` を通して起動する。
   このスクリプトは bwrap で、作業ツリー・兄弟の run の `/tmp`・OS のミラー・エージェントの記録の 4 つを読めなくする。
+  利用者の設定（`~/.claude.json`・`~/.claude/settings.json`）は、そのまま読ませない。
+  `~/.claude.json` は空の `{}` に、`settings.json` は API に接続するのに要るキーだけを残したコピー（`scripts/eval/sanitize-claude-settings.ts`）に差し替える。
+  hooks や権限の設定には、リポジトリの場所や学びのノートの名前が書かれていて、without_skill の run がそれを読んで答えに使ったことがある。
   各 run には、遮断できたかを書いた `isolation.txt` を必ず残す。`without_skill` には、判定を書いた `contamination.txt` も残す。
   `SKILL_EVAL_RUNNER` を指定したときはそれを優先し、遮断は確かめていないものとして記録する。
 - `with_skill` も隔離するのは、比べる差をスキルの有無だけにするためである。
