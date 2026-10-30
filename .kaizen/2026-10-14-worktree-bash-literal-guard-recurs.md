@@ -298,3 +298,11 @@ quoted heredoc の python の本文に `git-worktree` を含むものも拒否�
 manifest を更新する JSON の heredoc と python の起動を並べた呼び出しも、本文に `git` を含まないのに拒否された。
 どれも単独の呼び出しに分けるか、Write ツールでスクリプトにして絶対パスで実行する形に直して通した。
 同じ作業の PR の反復 2 でも、変数に入れた scratchpad のパスを `sed -i` に渡した呼び出しが、`runs sed with a value computed at runtime` で拒否された。
+
+### 再発の記録（#801）
+
+2026-10-30、issue-batch の run の #801 で、worktree に入った後の Bash の呼び出しが 5 回ほど拒否された。
+多くは、#797 と同じく `.github/workflows/` のパスを引数に取る呼び出し（`cp`・`cmp`・`actionlint`）である。
+`.github` の語に `git` が含まれるので、git を実行しないコマンドでも `names git in a form too complex to verify` で拒否される。
+新しく出た形は、`git show HEAD:<パス>` をプロセス置換で 2 つ並べて `diff` に渡す呼び出しである。
+単独の呼び出しに分けるか、Read ツールで読む形に直した。

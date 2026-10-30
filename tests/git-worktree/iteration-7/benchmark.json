@@ -1,0 +1,171 @@
+{
+  "metadata": {
+    "skill_name": "git-worktree",
+    "skill_path": "<repo>/skills/git-worktree",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-30T07:02:43Z",
+    "evals_run": [12],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 12,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 38.207,
+        "tokens": 75871,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "branch を git branch <名前> main で作ってから、既存の branch に worktree を張ると述べている",
+          "passed": true,
+          "evidence": "git branch feature/login main と git branch feature/search main で作り、-b を付けずに git worktree add で既存の branch に張っている"
+        },
+        {
+          "text": "片付ける前の確認で、ベースに取り込まれていない commit を git rev-list ... --not main で確かめると述べている",
+          "passed": true,
+          "evidence": "(b) で git -C ... rev-list --max-count=1 HEAD --not main を挙げ、--not --remotes ではなくこちらで確かめるとしている"
+        },
+        {
+          "text": "取り込まれたかを git branch --merged main の出力で確かめると述べている",
+          "passed": true,
+          "evidence": "git branch --merged main --format='%(refname:short)' | grep -Fx 'feature/login' で完全一致を確かめている"
+        },
+        {
+          "text": "feature/login は git branch -d で削除し、-D を使わないと述べている",
+          "passed": true,
+          "evidence": "git branch -d feature/login に「-D ではなく -d」と添えている"
+        },
+        {
+          "text": "feature/search は git branch --merged に載らないので削除せず、残して報告すると述べている",
+          "passed": true,
+          "evidence": "feature/search は --merged に載らず確かめられないので、worktree も branch も残して報告するとしている"
+        },
+        {
+          "text": "git push origin --delete を実行しないと述べている",
+          "passed": true,
+          "evidence": "「リモートが無いので、git push origin --delete は実行しない」"
+        },
+        {
+          "text": "実行はせず説明に留めている（git の実行・ファイルの変更を行っていない）",
+          "passed": true,
+          "evidence": "冒頭で実行も変更もしていないと述べ、project-tree.txt にはスキルを置いた .claude だけがある"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.7143,
+        "passed": 5,
+        "failed": 2,
+        "total": 7,
+        "time_seconds": 42.003,
+        "tokens": 21529,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "branch を git branch <名前> main で作ってから、既存の branch に worktree を張ると述べている",
+          "passed": false,
+          "evidence": "主な手順は git worktree add -b で branch を作らせる形で、git branch で作る形は「分けて書くなら」の別案にとどまる"
+        },
+        {
+          "text": "片付ける前の確認で、ベースに取り込まれていない commit を git rev-list ... --not main で確かめると述べている",
+          "passed": true,
+          "evidence": "git log --oneline main..feature/login で main に無い commit が 0 件かを確かめている。--not main と同じ範囲を指す"
+        },
+        {
+          "text": "取り込まれたかを git branch --merged main の出力で確かめると述べている",
+          "passed": true,
+          "evidence": "git branch --merged main | grep feature/login を挙げている"
+        },
+        {
+          "text": "feature/login は git branch -d で削除し、-D を使わないと述べている",
+          "passed": true,
+          "evidence": "git branch -d feature/login（小文字 -d）としている"
+        },
+        {
+          "text": "feature/search は git branch --merged に載らないので削除せず、残して報告すると述べている",
+          "passed": false,
+          "evidence": "feature/search は git cherry で内容を照合した後、git branch -D で削除するとしている"
+        },
+        {
+          "text": "git push origin --delete を実行しないと述べている",
+          "passed": true,
+          "evidence": "remote が無いので push を前提にした操作は出てこないと述べ、push --delete を挙げていない"
+        },
+        {
+          "text": "実行はせず説明に留めている（git の実行・ファイルの変更を行っていない）",
+          "passed": true,
+          "evidence": "冒頭で実行も変更もしていないと述べ、project-tree.txt は . だけである"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 38.207,
+        "stddev": 0,
+        "min": 38.207,
+        "max": 38.207
+      },
+      "tokens": {
+        "mean": 75871,
+        "stddev": 0,
+        "min": 75871,
+        "max": 75871
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.7143,
+        "stddev": 0,
+        "min": 0.7143,
+        "max": 0.7143
+      },
+      "time_seconds": {
+        "mean": 42.003,
+        "stddev": 0,
+        "min": 42.003,
+        "max": 42.003
+      },
+      "tokens": {
+        "mean": 21529,
+        "stddev": 0,
+        "min": 21529,
+        "max": 21529
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.29",
+      "time_seconds": "-3.8",
+      "tokens": "+54342"
+    }
+  },
+  "notes": [
+    "変更確認（Issue #835）。新しく足した eval 12 だけを with_skill と without_skill で 1 run ずつ実行した（claude-code、opus、effort 指定なし）。",
+    "eval 12 は新しい eval なので、比べる記録は無い。with_skill は 7/7、without_skill は 5/7 で、branch を git worktree add -b で作らせないことと、squash で取り込んだ branch を -D で消さずに残すことで差が出た。",
+    "without_skill が pass した 5 本は、git の一般の知識で答えられるので、後退の検出のために置く。"
+  ]
+}

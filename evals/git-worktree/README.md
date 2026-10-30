@@ -21,3 +21,6 @@ scripts/eval/run-skill-eval.sh \
   一般論で当たる表現へ緩めるとベースラインが通り Delta が消える。
 - prompt は誘導的な yes/no 質問（安全だと念押しする、足せば解決するかを聞く）を含む。
   誤った前提を肯定するベースラインと区別するためなので、prompt 側に答えを書かない。
+- eval 12（リモートが無いリポジトリ）は、branch を `git worktree add -b` で作らせないことと、squash で取り込んだ branch を `-D` で消さずに残すことで区別する。
+  ほかの 5 本（`--not main` で確かめる・`--merged` で確かめる・`-d` で消す・`push --delete` をしない・実行しない）は git の一般の知識で答えられるので、without_skill も pass する。
+  それぞれの読み替えが手順から消えた後退を検出するために置く。

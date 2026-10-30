@@ -115,6 +115,10 @@ git worktree add "<worktree パス>" "feature/<番号>-<説明>"
 # 3. セッションをそこへ移す（EnterWorktree に path を渡す）
 ```
 
+リモートが無いリポジトリ（`git remote` の出力が空）では、Issue も `gh issue develop` も使えない。
+そのときは、呼び出し側が `git branch "<名前>" "<ベース>"` で branch を作ってから渡す。手順 2 と 3 は同じである。
+この読み替えは、リモートが無いときだけに当てる。GitHub 以外のリモート（GitLab など）を持つリポジトリは対象外で、呼び出し側のワークフローで branch を作る。
+
 その後、移ったことを実際に確かめる。
 
 ```bash
@@ -131,6 +135,7 @@ PreToolUse で捕まえて通知する（[branch-guard-hook.md](branch-guard-hoo
 **回復できるのは、commit しておらず、作られた branch がベースと同じコミットを指している間だけである。**
 `gh issue develop` が作る branch はベースの先端を指すので、commit した後では使えない。
 その場合は commit を移すかの判断が要るので、呼び出し側か利用者に返す。
+リモートが無いリポジトリでは紐付ける Issue が無いので、下の手順のうち 2（名前を変える）だけを行う。1・3・4 は `origin` と `gh` を使うので実行しない。
 
 1. リモートに同じ名前の branch が無いことを確かめる。remote-tracking ref は fetch しないと古いままなので、
    `git ls-remote --exit-code --heads origin '<名前>'` でリモートに直接問い合わせる（終了コード 2 は「無い」）。
