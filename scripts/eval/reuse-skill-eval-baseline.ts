@@ -10,7 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { errorMessage } from "../lib/errors.ts";
+import { errorMessage, isErrnoException } from "../lib/errors.ts";
 import { parseJsonAs } from "../lib/parse-as.ts";
 import { showValue } from "../lib/show-value.ts";
 import { isCliEntry } from "../lib/cli/entry.ts";
@@ -73,9 +73,9 @@ function realpathOfNearest(path: string): string {
 }
 
 /** パスを解決する処理の失敗（祖先が指す先の無いリンク・途中がファイル）を、どの引数かが分かる形で報告する。 */
-function resolving<T>(label: string, path: string, resolve: (path: string) => T): T {
+function resolving<T>(label: string, path: string, resolvePath: (path: string) => T): T {
   try {
-    return resolve(path);
+    return resolvePath(path);
   } catch (error) {
     throw new Error(`${label} cannot be resolved: ${path}: ${errorMessage(error)}`);
   }
@@ -183,6 +183,10 @@ function assertCleanAndIsolated(source: string): void {
 }
 
 /** 再利用してよい baseline かを、source を realpath で解決した実体（realSource）で確かめる。 */
+/**
+ * 再利用してよい baseline かを、source を realpath で解決した実体で確かめる。
+ * run のディレクトリ自体のリンクは、解決すると見えなくなるので、呼び出し元の reuseBaseline が解決の前に確かめる。
+ */
 function validateReusableBaseline(realSource: string, expectedFingerprint: Fingerprint): void {
   assertOnlyFilesAndDirectories(realSource);
   assertArtifactsPresent(realSource);
@@ -191,10 +195,27 @@ function validateReusableBaseline(realSource: string, expectedFingerprint: Finge
   assertCleanAndIsolated(realSource);
 }
 
-/** 既にある target に当たったときの cpSync の失敗か。この呼び出しが target を作っていないので、消さない。 */
+/**
+ * 既にある target に当たったときの cpSync の失敗か。この呼び出しが target を作っていないので、消さない。
+ * 既にあるディレクトリには ERR_FS_CP_EEXIST、既にあるファイルには ERR_FS_CP_DIR_TO_NON_DIR が返る（Node で実測）。
+ */
 function isExistError(error: unknown): boolean {
-  const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
-  return code === "ERR_FS_CP_EEXIST" || code === "EEXIST";
+  return (
+    isErrnoException(error) &&
+    ["ERR_FS_CP_EEXIST", "ERR_FS_CP_DIR_TO_NON_DIR", "EEXIST"].includes(String(error.code))
+  );
+}
+
+/** 作りかけの target を消す。消せなかったときは、元の失敗と消せなかった理由の両方を報告する。 */
+function removePartialTarget(target: string, cause: unknown): never {
+  try {
+    rmSync(target, { recursive: true, force: true });
+  } catch (cleanupError) {
+    throw new Error(
+      `${errorMessage(cause)}; the partly copied target could not be removed: ${target}: ${errorMessage(cleanupError)}`,
+    );
+  }
+  throw cause;
 }
 
 /**
@@ -208,13 +229,16 @@ function copyVerifiedTree(realSource: string, target: string, writeRecord: () =>
       recursive: true,
       force: false,
       errorOnExist: true,
-      filter: (path) =>
-        path === realSource || Boolean(assertFileOrDirectory(path, relative(realSource, path))),
+      // 拒否するときは例外を投げる。false を返して要素を飛ばすことはしない。
+      filter: (path) => {
+        if (path !== realSource) assertFileOrDirectory(path, relative(realSource, path));
+        return true;
+      },
     });
     writeRecord();
   } catch (error) {
-    if (!isExistError(error)) rmSync(target, { recursive: true, force: true });
-    throw error;
+    if (isExistError(error)) throw error;
+    removePartialTarget(target, error);
   }
 }
 

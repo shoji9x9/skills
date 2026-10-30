@@ -96,11 +96,12 @@
       "id": "partial-target-kept",
       "why": "コピーが途中で失敗したとき（EACCES など）に、この呼び出しが作った target を消さない（次の実行が already exists で止まる）",
       "file": "scripts/eval/reuse-skill-eval-baseline.ts",
-      "find": "    if (!isExistError(error)) rmSync(target, { recursive: true, force: true });",
-      "replace": "    if (false) rmSync(target, { recursive: true, force: true });",
+      "find": "    rmSync(target, { recursive: true, force: true });",
+      "replace": "    void target;",
       "occurrences": 1,
       "expect_failing": [
-        "run-skill-eval executor compatibility removes the partly copied target when the copy fails on an unreadable file"
+        "run-skill-eval executor compatibility removes the partly copied target when the copy fails on an unreadable file",
+        "run-skill-eval executor compatibility reports both failures when the partly copied target cannot be removed"
       ]
     }
   ]

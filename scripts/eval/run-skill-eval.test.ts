@@ -830,6 +830,24 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
     },
   );
 
+  test.skipIf(process.getuid?.() === 0)(
+    "reports both failures when the partly copied target cannot be removed",
+    async () => {
+      const { source, target } = await withoutSkillSource();
+      // cpSync はディレクトリの mode もコピーするので、target も書き込めず、記録の書き込みと後片付けが失敗する。
+      chmodSync(source, 0o555);
+      try {
+        const result = await reuseDirectly(source, target);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toMatch(/EACCES.*the partly copied target could not be removed: /u);
+      } finally {
+        chmodSync(source, 0o755);
+        if (existsSync(target)) chmodSync(target, 0o755);
+      }
+    },
+  );
+
   test("accepts a hard link to a file outside the source and copies it as a regular file", async () => {
     const { directory, source, target } = await withoutSkillSource();
     const outside = join(directory, "shared.txt");
