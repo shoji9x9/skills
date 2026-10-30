@@ -94,7 +94,7 @@
     },
     {
       "id": "partial-target-kept",
-      "why": "コピーが途中で失敗したとき（EACCES など）に、この呼び出しが作った target を消さない（次の実行が already exists で止まる）",
+      "why": "コピーが途中で失敗したとき（EACCES など）に、この呼び出しが作った target を消さない（次の実行が already exists で止まり、消せなかったことも報告されない）",
       "file": "scripts/eval/reuse-skill-eval-baseline.ts",
       "find": "    rmSync(target, { recursive: true, force: true });",
       "replace": "    void target;",
@@ -102,6 +102,28 @@
       "expect_failing": [
         "run-skill-eval executor compatibility removes the partly copied target when the copy fails on an unreadable file",
         "run-skill-eval executor compatibility reports both failures when the partly copied target cannot be removed"
+      ]
+    },
+    {
+      "id": "cleanup-failure-hidden",
+      "why": "後片付けの失敗だけを投げ、元の失敗を報告しない（なぜコピーが失敗したかが分からない）",
+      "file": "scripts/eval/reuse-skill-eval-baseline.ts",
+      "find": "  } catch (cleanupError) {\n    throw new Error(",
+      "replace": "  } catch (cleanupError) {\n    if (cleanupError) throw cleanupError;\n    throw new Error(",
+      "occurrences": 1,
+      "expect_failing": [
+        "run-skill-eval executor compatibility reports both failures when the partly copied target cannot be removed"
+      ]
+    },
+    {
+      "id": "read-only-target-root",
+      "why": "target のルートに書き込みを足さない（読み取り専用の baseline を再利用すると、記録を書けずに必ず失敗する）",
+      "file": "scripts/eval/reuse-skill-eval-baseline.ts",
+      "find": "    chmodSync(target, statSync(target).mode | 0o200);",
+      "replace": "    void statSync;",
+      "occurrences": 1,
+      "expect_failing": [
+        "run-skill-eval executor compatibility reuses a read-only source and leaves the target root writable"
       ]
     }
   ]

@@ -830,20 +830,43 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
     },
   );
 
+  test("reuses a read-only source and leaves the target root writable", async () => {
+    const { source, target } = await withoutSkillSource();
+    chmodSync(source, 0o555);
+    try {
+      const result = await reuseDirectly(source, target);
+
+      expect(result.stderr).toBe("");
+      expect(result.status).toBe(0);
+      expect(existsSync(join(target, "baseline-reuse.json"))).toBe(true);
+    } finally {
+      chmodSync(source, 0o755);
+    }
+  });
+
   test.skipIf(process.getuid?.() === 0)(
     "reports both failures when the partly copied target cannot be removed",
     async () => {
       const { source, target } = await withoutSkillSource();
-      // cpSync はディレクトリの mode もコピーするので、target も書き込めず、記録の書き込みと後片付けが失敗する。
-      chmodSync(source, 0o555);
+      // 読み取り専用のディレクトリは、mode ごとコピーされて後片付けの rmSync を止める。
+      const readOnly = join(source, "project-files", "read-only");
+      mkdirSync(readOnly);
+      writeFileSync(join(readOnly, "kept.txt"), "kept\n", "utf8");
+      chmodSync(readOnly, 0o555);
+      // 前の再利用の記録が読み取り専用で残っていると、コピーした後の記録の書き込みが EACCES で失敗する。
+      writeFileSync(join(source, "baseline-reuse.json"), "{}\n", "utf8");
+      chmodSync(join(source, "baseline-reuse.json"), 0o444);
       try {
         const result = await reuseDirectly(source, target);
 
+        // 前提: cpSync がディレクトリの mode をコピーしたこと。外れると、後片付けが成功して下の分岐に達しない。
+        expect(lstatSync(join(target, "project-files", "read-only")).mode & 0o777).toBe(0o555);
         expect(result.status).toBe(1);
         expect(result.stderr).toMatch(/EACCES.*the partly copied target could not be removed: /u);
       } finally {
-        chmodSync(source, 0o755);
-        if (existsSync(target)) chmodSync(target, 0o755);
+        chmodSync(readOnly, 0o755);
+        const copied = join(target, "project-files", "read-only");
+        if (existsSync(copied)) chmodSync(copied, 0o755);
       }
     },
   );

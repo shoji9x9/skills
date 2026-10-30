@@ -1,4 +1,5 @@
 import {
+  chmodSync,
   cpSync,
   existsSync,
   lstatSync,
@@ -6,6 +7,7 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  statSync,
   type Stats,
   writeFileSync,
 } from "node:fs";
@@ -182,10 +184,10 @@ function assertCleanAndIsolated(source: string): void {
   }
 }
 
-/** 再利用してよい baseline かを、source を realpath で解決した実体（realSource）で確かめる。 */
 /**
  * 再利用してよい baseline かを、source を realpath で解決した実体で確かめる。
- * run のディレクトリ自体のリンクは、解決すると見えなくなるので、呼び出し元の reuseBaseline が解決の前に確かめる。
+ * run のディレクトリ自体のリンクは解決した実体では見えないので、呼び出し元の reuseBaseline が、
+ * 解決していない source の lstat で確かめる。
  */
 function validateReusableBaseline(realSource: string, expectedFingerprint: Fingerprint): void {
   assertOnlyFilesAndDirectories(realSource);
@@ -213,6 +215,7 @@ function removePartialTarget(target: string, cause: unknown): never {
   } catch (cleanupError) {
     throw new Error(
       `${errorMessage(cause)}; the partly copied target could not be removed: ${target}: ${errorMessage(cleanupError)}`,
+      { cause },
     );
   }
   throw cause;
@@ -220,8 +223,12 @@ function removePartialTarget(target: string, cause: unknown): never {
 
 /**
  * 確かめた木を target にコピーし、再利用の記録を書く。確かめた後に足されたリンクや FIFO も、コピーする要素ごとに
- * 同じ判定で拒否する。ルートは確かめた realSource なので filter を当てず、既にある target は force: false の
- * EEXIST で止める。それ以外の理由で失敗したら（拒否・EACCES・書き込みの失敗）、この呼び出しが作った target を消す。
+ * 同じ判定で拒否する。ルートは確かめた realSource なので filter を当てない。
+ * 既にある target に当たった失敗（isExistError）では、target を消さずにそのまま投げる。
+ * それ以外の理由で失敗したら（拒否・EACCES・書き込みの失敗）、この呼び出しが作った target を消す。
+ * 消せなかったときは、元の失敗と消せなかった理由の両方を報告する（removePartialTarget）。
+ * cpSync はディレクトリの mode もコピーするので、読み取り専用の baseline でも記録を書けるよう、
+ * target のルートに所有者の書き込みを足す。
  */
 function copyVerifiedTree(realSource: string, target: string, writeRecord: () => void): void {
   try {
@@ -235,6 +242,7 @@ function copyVerifiedTree(realSource: string, target: string, writeRecord: () =>
         return true;
       },
     });
+    chmodSync(target, statSync(target).mode | 0o200);
     writeRecord();
   } catch (error) {
     if (isExistError(error)) throw error;
