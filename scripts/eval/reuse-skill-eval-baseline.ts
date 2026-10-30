@@ -5,6 +5,7 @@ import {
   readdirSync,
   readFileSync,
   realpathSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -70,14 +71,30 @@ function realpathOfNearest(path: string): string {
   return join(realpathSync(existing), ...rest);
 }
 
-/** 必須の成果物がそろい、どれもシンボリックリンクでないことを確かめる。 */
+/** realpathOfNearest の失敗（祖先が指す先の無いリンク・途中がファイル）を、どの引数かが分かる形で報告する。 */
+function resolveForComparison(label: string, path: string): string {
+  try {
+    return realpathOfNearest(path);
+  } catch (error) {
+    throw new Error(`${label} cannot be resolved: ${path}: ${errorMessage(error)}`);
+  }
+}
+
+/** 必須の成果物がそろっていることを確かめる。リンクでないことは assertOnlyFilesAndDirectories が先に確かめる。 */
 function assertArtifactsPresent(source: string): void {
   for (const artifact of requiredArtifacts) {
-    const artifactPath = resolve(source, artifact);
-    if (!existsSync(artifactPath)) throw new Error(`baseline artifact missing: ${artifact}`);
-    if (lstatSync(artifactPath).isSymbolicLink()) {
-      throw new Error(`baseline artifact must not be a symlink: ${artifact}`);
+    if (!existsSync(resolve(source, artifact))) {
+      throw new Error(`baseline artifact missing: ${artifact}`);
     }
+  }
+}
+
+/** 通常のファイルとディレクトリ以外の要素を、木を確かめるときとコピーするときの両方で同じ文で拒否する。 */
+function assertFileOrDirectory(path: string, name: string): void {
+  const stat = lstatSync(path);
+  if (stat.isSymbolicLink()) throw new Error(`baseline contains a symlink: ${name}`);
+  if (!stat.isDirectory() && !stat.isFile()) {
+    throw new Error(`baseline contains an entry that is not a file or directory: ${name}`);
   }
 }
 
@@ -87,22 +104,19 @@ function assertArtifactsPresent(source: string): void {
  * 受け入れるなら、リンクごとに 3 つを判定することになる。途中のディレクトリを通して source の外を読むか・
  * 循環するか・確かめた後に指す先が変わるかである。
  * FIFO・socket・デバイスも、読むと止まるか外の状態に依存するので受け入れない。
- * ハードリンクは受け入れる。lstat では source の外のファイルと共有しているかを判定できず、
- * リポジトリの中で git や pnpm が作るハードリンクまで止めてしまうからである。
+ * ハードリンクは受け入れる（Issue #766 の prepare の決定）。lstat の nlink では、同じ実体を持つ相手が
+ * source の中か外かを判定できない。
  */
 function assertOnlyFilesAndDirectories(realSource: string): void {
   const walk = (directory: string): void => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const path = join(directory, entry.name);
-      const name = relative(realSource, path);
-      if (entry.isSymbolicLink()) throw new Error(`baseline contains a symlink: ${name}`);
+      assertFileOrDirectory(path, relative(realSource, path));
       if (entry.isDirectory()) walk(path);
-      else if (!entry.isFile()) {
-        throw new Error(`baseline contains an entry that is not a file or directory: ${name}`);
-      }
     }
   };
-  walk(realSource);
+  // source が無いときは、assertArtifactsPresent が欠けた成果物の名前で報告する。
+  if (lstatSync(realSource, { throwIfNoEntry: false })?.isDirectory()) walk(realSource);
 }
 
 /** baseline の fingerprint が期待した fingerprint と同じ形式・同じ値であることを確かめる。 */
@@ -164,19 +178,48 @@ function assertCleanAndIsolated(source: string): void {
   }
 }
 
-/** 再利用してよい baseline かを確かめ、コピー元にする source の実体のパスを返す。 */
-function validateReusableBaseline(source: string, expectedFingerprint: Fingerprint): string {
+/** 再利用してよい baseline かを、source を realpath で解決した実体（realSource）で確かめる。 */
+function validateReusableBaseline(
+  source: string,
+  realSource: string,
+  expectedFingerprint: Fingerprint,
+): void {
   // run のディレクトリ自体のリンクも、木の中のリンクと同じに受け入れない。祖先のリンクは受け入れる。
   if (lstatSync(source, { throwIfNoEntry: false })?.isSymbolicLink()) {
     throw new Error("baseline contains a symlink: .");
   }
-  assertArtifactsPresent(source);
-  const realSource = realpathSync(source);
   assertOnlyFilesAndDirectories(realSource);
+  assertArtifactsPresent(realSource);
   assertFingerprintMatches(realSource, expectedFingerprint);
   assertSucceededWithRawTrace(realSource);
   assertCleanAndIsolated(realSource);
-  return realSource;
+}
+
+/**
+ * 確かめた木を target にコピーする。確かめた後に足されたリンクや FIFO も、コピーする要素ごとに同じ判定で拒否し、
+ * 拒否したときは途中まで作った target を消す。target は直前に無いことを確かめ、force: false で既存の target に重ねない。
+ */
+function copyVerifiedTree(realSource: string, target: string): void {
+  let rejected = false;
+  try {
+    cpSync(realSource, target, {
+      recursive: true,
+      force: false,
+      errorOnExist: true,
+      filter: (path) => {
+        try {
+          assertFileOrDirectory(path, relative(realSource, path) || ".");
+        } catch (error) {
+          rejected = true;
+          throw error;
+        }
+        return true;
+      },
+    });
+  } catch (error) {
+    if (rejected) rmSync(target, { recursive: true, force: true });
+    throw error;
+  }
 }
 
 function reuseBaseline(sourceValue: string, targetValue: string, expectedPath: string): void {
@@ -188,19 +231,24 @@ function reuseBaseline(sourceValue: string, targetValue: string, expectedPath: s
   ) {
     throw new Error("reusable baseline source must be under without_skill/run-N");
   }
-  // 指す先の無いリンクも在るとして扱う。cpSync はそれをコピー先にすると、例外を投げずに node ごと異常終了する。
-  // realpath で解決する前に確かめ、target のリンクを ENOENT ではなくこのメッセージで報告する。
-  if (lstatSync(target, { throwIfNoEntry: false })) {
-    throw new Error(`reuse target already exists: ${target}`);
+  let targetStat;
+  try {
+    targetStat = lstatSync(target, { throwIfNoEntry: false });
+  } catch (error) {
+    throw new Error(`reuse target cannot be resolved: ${target}: ${errorMessage(error)}`);
   }
+  // 指す先の無いリンクも在るとして扱う。cpSync はそれをコピー先にすると、例外を投げずに node ごと異常終了する。
+  // target 自体のリンクは、realpath で解決する前に、ENOENT ではなくこのメッセージで報告する。
+  if (targetStat?.isSymbolicLink()) throw new Error(`reuse target already exists: ${target}`);
   // source がシンボリックリンクの下にあっても同じ結果になるよう、両辺を同じ realpath で解決して比べる。
-  const realTarget = realpathOfNearest(target);
-  if (!escapes(realpathOfNearest(source), realTarget)) {
+  const realSource = resolveForComparison("reusable baseline source", source);
+  if (!escapes(realSource, resolveForComparison("reuse target", target))) {
     throw new Error("reuse target must not be the source or nested inside it");
   }
+  if (targetStat) throw new Error(`reuse target already exists: ${target}`);
   const expectedFingerprint = readJson<Fingerprint>(expectedPath, "expected fingerprint");
-  const realSource = validateReusableBaseline(source, expectedFingerprint);
-  cpSync(realSource, target, { recursive: true, errorOnExist: true });
+  validateReusableBaseline(source, realSource, expectedFingerprint);
+  copyVerifiedTree(realSource, target);
   writeFileSync(
     resolve(target, "baseline-reuse.json"),
     `${JSON.stringify(

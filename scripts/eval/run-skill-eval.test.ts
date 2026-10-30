@@ -16,6 +16,7 @@ import { basename, join, relative } from "node:path";
 import { assert, describe, expect, test } from "vitest";
 import { spawnAsync } from "../lib/spawn-async.ts";
 import { CHILD_TIMEOUT_MS } from "../lib/testing/child-timeout.ts";
+import { makeTempDirFactory } from "../lib/testing/test-tmpdir.ts";
 import {
   copyHarness,
   envWithoutCliVersion,
@@ -31,6 +32,9 @@ import {
   writeSubjectSkill,
 } from "./run-skill-eval-helpers.ts";
 import { readJson } from "./read-json-helpers.ts";
+
+/** socket のパスの長さの上限に収まる、短い /tmp の下の一時ディレクトリ（afterAll で消す）。 */
+const shortTempDir = makeTempDirFactory("sk-", "/tmp");
 
 /** codex の without_skill の run を iteration-1 に作り、再利用先として iteration-2 の同じ位置を返す。 */
 async function withoutSkillSource() {
@@ -769,19 +773,22 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
     [
       "a FIFO",
       async (path: string) => {
-        execFileSync("mkfifo", [path]);
+        execFileSync("mkfifo", [path], { timeout: CHILD_TIMEOUT_MS });
         return () => {};
       },
     ],
     [
       "a socket",
       async (path: string) => {
+        // socket のパスには上限（約 104〜108 バイト）があるので、短い /tmp の下で listen してから移す。
+        const short = shortTempDir("s");
         const server = createServer();
-        // listen の失敗（パスの長さの上限など）は error イベントで届くので、待ち続けないように reject する。
+        // listen の失敗は error イベントで届くので、待ち続けないように reject する。
         await new Promise<void>((done, fail) => {
           server.once("error", fail);
-          server.listen(path, done);
+          server.listen(join(short, "s"), done);
         });
+        renameSync(join(short, "s"), path);
         return () => server.close();
       },
     ],
@@ -857,6 +864,26 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
     expect(result.stderr).toContain(`reuse target already exists: ${target}`);
     expect(lstatSync(target).isSymbolicLink()).toBe(true);
     expect(existsSync(join(source, "nested"))).toBe(false);
+  });
+
+  test("rejects the source itself as the target with the nesting message", async () => {
+    const { source } = await withoutSkillSource();
+
+    const result = await reuseDirectly(source, source);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/reuse target must not be the source or nested inside it/u);
+  });
+
+  test("reports a target under a regular file as unresolvable", async () => {
+    const { directory, source } = await withoutSkillSource();
+    writeFileSync(join(directory, "plain"), "x\n", "utf8");
+    const target = join(directory, "plain", "run-1");
+
+    const result = await reuseDirectly(source, target);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`reuse target cannot be resolved: ${target}: `);
   });
 
   test("rejects a target nested inside the source when the source is reached through a symlink", async () => {

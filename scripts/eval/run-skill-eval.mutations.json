@@ -44,8 +44,8 @@
       "id": "target-literal-source",
       "why": "target が source の中にあるかを、source の字面で判定する（リンクを通した source の中の target を見逃す）",
       "file": "scripts/eval/reuse-skill-eval-baseline.ts",
-      "find": "  if (!escapes(realpathOfNearest(source), realTarget)) {",
-      "replace": "  if (!escapes(source, realTarget)) {",
+      "find": "  if (!escapes(realSource, resolveForComparison(\"reuse target\", target))) {",
+      "replace": "  if (!escapes(source, resolveForComparison(\"reuse target\", target))) {",
       "occurrences": 1,
       "expect_failing": [
         "run-skill-eval executor compatibility rejects a target nested inside the source when the source is reached through a symlink"
@@ -55,8 +55,8 @@
       "id": "symlink-in-tree-allowed",
       "why": "source の木のシンボリックリンクを受け入れる（外を指すリンク・循環・差し替えを判定することになる）",
       "file": "scripts/eval/reuse-skill-eval-baseline.ts",
-      "find": "      if (entry.isSymbolicLink()) throw new Error(`baseline contains a symlink: ${name}`);",
-      "replace": "      if (false) throw new Error(`baseline contains a symlink: ${name}`);",
+      "find": "  if (stat.isSymbolicLink()) throw new Error(`baseline contains a symlink: ${name}`);",
+      "replace": "  if (false) throw new Error(`baseline contains a symlink: ${name}`);",
       "occurrences": 1,
       "expect_failing": [
         "run-skill-eval executor compatibility rejects a directory link to outside that raw_trace reads through, since the baseline contains no symlinks",
@@ -84,8 +84,8 @@
       "id": "special-file-allowed",
       "why": "FIFO・socket など、通常のファイルとディレクトリ以外を受け入れる（読むと止まるか、外の状態に依存する）",
       "file": "scripts/eval/reuse-skill-eval-baseline.ts",
-      "find": "      else if (!entry.isFile()) {",
-      "replace": "      else if (false) {",
+      "find": "  if (!stat.isDirectory() && !stat.isFile()) {",
+      "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "run-skill-eval executor compatibility rejects a FIFO inside the source",

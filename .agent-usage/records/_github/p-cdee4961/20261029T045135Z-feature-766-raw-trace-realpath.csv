@@ -32,3 +32,7 @@ coverage:github:2026-10-29T02:51:32.126Z:2026-10-30T03:03:05.705Z,coverage,2026-
 coverage:github:2026-10-29T03:03:05.705Z:2026-10-30T03:04:01.424Z,coverage,2026-10-30T03:04:01.424Z,p-cdee4961,,,,,2026-10-29T03:03:05.705Z,2026-10-30T03:04:01.424Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-29T03:04:01.424Z:2026-10-30T03:05:01.484Z,coverage,2026-10-30T03:05:01.484Z,p-cdee4961,,,,,2026-10-29T03:04:01.424Z,2026-10-30T03:05:01.484Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-29T03:05:01.484Z:2026-10-30T03:05:58.760Z,coverage,2026-10-30T03:05:58.760Z,p-cdee4961,,,,,2026-10-29T03:05:01.484Z,2026-10-30T03:05:58.760Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:40995589697:1,ci,2026-10-30T03:19:36.237Z,p-cdee4961,github-actions,,,,2026-10-30T03:07:30.000Z,2026-10-30T03:07:31.000Z,Asia/Tokyo,feature/766-raw-trace-realpath,766,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:40995589632:1,ci,2026-10-30T03:19:36.237Z,p-cdee4961,github-actions,,,,2026-10-30T03:07:30.000Z,2026-10-30T03:11:50.000Z,Asia/Tokyo,feature/766-raw-trace-realpath,766,,,,,,,,,,CI;pull_request;failure,
+coverage:github:2026-10-29T03:05:58.760Z:2026-10-30T03:19:36.237Z,coverage,2026-10-30T03:19:36.237Z,p-cdee4961,,,,,2026-10-29T03:05:58.760Z,2026-10-30T03:19:36.237Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-29T03:19:36.237Z:2026-10-30T03:23:33.639Z,coverage,2026-10-30T03:23:33.639Z,p-cdee4961,,,,,2026-10-29T03:19:36.237Z,2026-10-30T03:23:33.639Z,Asia/Tokyo,,,,,,,,,,,,ok,
