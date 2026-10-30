@@ -106,6 +106,49 @@
         "作り直すときの注意として、`rm -rf node_modules/` のように**末尾スラッシュを付ける**とリンクを辿って共有ツリーの実体の中身が消え、しかも終了コードは 0 で成功に見えると警告している",
         "末尾スラッシュ無しの `rm -rf node_modules` ならリンクだけが消えて実体は残ると区別している"
       ]
+    },
+    {
+      "id": 12,
+      "prompt": "GitHub を使わず、手元の git だけで開発しているリポジトリで git-worktree を使う場面を、コマンドの実行やファイルの変更はせずに説明して。`git remote` の出力は空で、Issue も PR も無い。ベースの branch は main である。feature/login と feature/search の 2 つの作業を、それぞれ worktree に隔離したい。1. worktree に入る前に、branch をどう用意するかを、実行するコマンドで示して。2. 作業が終わった後、feature/login は main に git merge（merge commit あり）で取り込み、feature/search は git merge --squash で取り込んだ。それぞれの worktree と branch を片付けてよいかの確かめ方と、片付けるときのコマンドを示して。",
+      "assertions": [
+        "branch を git branch <名前> main で作ってから、既存の branch に worktree を張ると述べている",
+        "片付ける前の確認で、ベースに取り込まれていない commit を git rev-list ... --not main で確かめると述べている",
+        "取り込まれたかを git branch --merged main の出力で確かめると述べている",
+        "feature/login は git branch -d で削除し、-D を使わないと述べている",
+        "feature/search は git branch --merged に載らないので削除せず、残して報告すると述べている",
+        "git push origin --delete を実行しないと述べている",
+        "実行はせず説明に留めている（git の実行・ファイルの変更を行っていない）"
+      ],
+      "reachability": [
+        {
+          "assertion": "branch を git branch <名前> main で作ってから、既存の branch に worktree を張ると述べている",
+          "prompt_quote": "worktree に入る前に、branch をどう用意するかを、実行するコマンドで示して。"
+        },
+        {
+          "assertion": "片付ける前の確認で、ベースに取り込まれていない commit を git rev-list ... --not main で確かめると述べている",
+          "prompt_quote": "片付けてよいかの確かめ方"
+        },
+        {
+          "assertion": "取り込まれたかを git branch --merged main の出力で確かめると述べている",
+          "prompt_quote": "main に git merge（merge commit あり）で取り込み"
+        },
+        {
+          "assertion": "feature/login は git branch -d で削除し、-D を使わないと述べている",
+          "prompt_quote": "片付けるときのコマンドを示して。"
+        },
+        {
+          "assertion": "feature/search は git branch --merged に載らないので削除せず、残して報告すると述べている",
+          "prompt_quote": "feature/search は git merge --squash で取り込んだ。"
+        },
+        {
+          "assertion": "git push origin --delete を実行しないと述べている",
+          "prompt_quote": "`git remote` の出力は空で、Issue も PR も無い。"
+        },
+        {
+          "assertion": "実行はせず説明に留めている（git の実行・ファイルの変更を行っていない）",
+          "prompt_quote": "コマンドの実行やファイルの変更はせずに説明して。"
+        }
+      ]
     }
   ]
 }
