@@ -788,7 +788,12 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
           server.once("error", fail);
           server.listen(join(short, "s"), done);
         });
-        renameSync(join(short, "s"), path);
+        try {
+          renameSync(join(short, "s"), path);
+        } catch (error) {
+          server.close();
+          throw error;
+        }
         return () => server.close();
       },
     ],
@@ -807,6 +812,23 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
       close();
     }
   });
+
+  // root はファイルの権限を無視して読めるので、読めないファイルを作れない。
+  test.skipIf(process.getuid?.() === 0)(
+    "removes the partly copied target when the copy fails on an unreadable file",
+    async () => {
+      const { source, target } = await withoutSkillSource();
+      const unreadable = join(source, "project-files", "unreadable.txt");
+      writeFileSync(unreadable, "secret\n", "utf8");
+      chmodSync(unreadable, 0o000);
+
+      const result = await reuseDirectly(source, target);
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/EACCES/u);
+      expect(existsSync(target)).toBe(false);
+    },
+  );
 
   test("accepts a hard link to a file outside the source and copies it as a regular file", async () => {
     const { directory, source, target } = await withoutSkillSource();

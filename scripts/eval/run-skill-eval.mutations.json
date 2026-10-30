@@ -44,8 +44,8 @@
       "id": "target-literal-source",
       "why": "target が source の中にあるかを、source の字面で判定する（リンクを通した source の中の target を見逃す）",
       "file": "scripts/eval/reuse-skill-eval-baseline.ts",
-      "find": "  if (!escapes(realSource, resolveForComparison(\"reuse target\", target))) {",
-      "replace": "  if (!escapes(source, resolveForComparison(\"reuse target\", target))) {",
+      "find": "  if (!escapes(realSource, resolving(\"reuse target\", target, realpathOfNearest))) {",
+      "replace": "  if (!escapes(source, resolving(\"reuse target\", target, realpathOfNearest))) {",
       "occurrences": 1,
       "expect_failing": [
         "run-skill-eval executor compatibility rejects a target nested inside the source when the source is reached through a symlink"
@@ -90,6 +90,17 @@
       "expect_failing": [
         "run-skill-eval executor compatibility rejects a FIFO inside the source",
         "run-skill-eval executor compatibility rejects a socket inside the source"
+      ]
+    },
+    {
+      "id": "partial-target-kept",
+      "why": "コピーが途中で失敗したとき（EACCES など）に、この呼び出しが作った target を消さない（次の実行が already exists で止まる）",
+      "file": "scripts/eval/reuse-skill-eval-baseline.ts",
+      "find": "    if (!isExistError(error)) rmSync(target, { recursive: true, force: true });",
+      "replace": "    if (false) rmSync(target, { recursive: true, force: true });",
+      "occurrences": 1,
+      "expect_failing": [
+        "run-skill-eval executor compatibility removes the partly copied target when the copy fails on an unreadable file"
       ]
     }
   ]
