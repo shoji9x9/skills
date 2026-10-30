@@ -53,7 +53,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde # v5.2.1
+      - uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
       - run: pnpm install --frozen-lockfile
       # 宣言のパスを渡さないので、`scripts/**/*.mutations.json` の全件から、`--shard` がこのシャードの分を選ぶ。宣言 0 件は成功として扱わない（スクリプト側で exit 2）。
       - name: Mutation proof (all specs, one shard)
