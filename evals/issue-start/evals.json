@@ -3,15 +3,46 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "https://github.com/shoji9x9/skills/issues/12 に着手したい",
+      "prompt": "https://github.com/shoji9x9/skills/issues/12 に着手したい。この環境は GitHub に接続できないので、gh のコマンドと GitHub に接続する git のコマンド（fetch・ls-remote など）は実行せず、手順とコマンドを示して。Issue の取得結果は次のとおりとする。タイトルは「mise outdated tool versions」、状態は OPEN、担当者は自分だけ、コメントは 0 件。本文は、mise で管理するツールの node に新しいバージョン（24.16.0 から 26.3.0）があり、採用するなら `mise upgrade <tool> --bump` を実行する、という内容である。",
+      "fixture": "fixtures/repo-develop-base",
       "assertions": [
         "Issue URL から owner/repo/issue番号を抽出している",
         "現在の repo と Issue の owner/repo の一致を確認している",
-        "gh issue view で Issue 内容を確認しようとしている",
+        "Issue の内容（title・body・コメント）を gh issue view で確認する手順を示している",
         "feature/12-<英語の短い説明> 形式のブランチ名を決めている",
-        "同番号ブランチの重複を local/remote で確認している",
+        "同じ番号のブランチが無いかを local と remote の両方で確認する手順を示している",
         "gh issue develop --base <規約から解決したベースブランチ> --checkout でブランチを作成しようとしている（ベースブランチを main に固定せず、リポジトリの規約から解決した値を使っている）",
         "モード未指定なので commit/push/PR は行っていない"
+      ],
+      "reachability": [
+        {
+          "assertion": "Issue URL から owner/repo/issue番号を抽出している",
+          "prompt_quote": "https://github.com/shoji9x9/skills/issues/12"
+        },
+        {
+          "assertion": "現在の repo と Issue の owner/repo の一致を確認している",
+          "prompt_quote": "https://github.com/shoji9x9/skills/issues/12"
+        },
+        {
+          "assertion": "Issue の内容（title・body・コメント）を gh issue view で確認する手順を示している",
+          "prompt_quote": "手順とコマンドを示して"
+        },
+        {
+          "assertion": "feature/12-<英語の短い説明> 形式のブランチ名を決めている",
+          "prompt_quote": "に着手したい"
+        },
+        {
+          "assertion": "同じ番号のブランチが無いかを local と remote の両方で確認する手順を示している",
+          "prompt_quote": "に着手したい"
+        },
+        {
+          "assertion": "gh issue develop --base <規約から解決したベースブランチ> --checkout でブランチを作成しようとしている（ベースブランチを main に固定せず、リポジトリの規約から解決した値を使っている）",
+          "prompt_quote": "に着手したい"
+        },
+        {
+          "assertion": "モード未指定なので commit/push/PR は行っていない",
+          "prompt_quote": "に着手したい"
+        }
       ]
     },
     {

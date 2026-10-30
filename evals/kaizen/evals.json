@@ -277,13 +277,16 @@
     },
     {
       "id": 20,
-      "prompt": "kaizen のコミット前のチェックを Claude Code / Codex / Copilot に組み込みたい。全 Bash 呼び出しを遅くしない Hook 設定を示したうえで、次を 1 つの報告にまとめて: (1) commit でない Bash 呼び出しのとき、チェックは何を起動せずに終わるか。(2) 候補ゼロを検証できたとき、どのファイルをどこまで更新し、どのファイルを作らないか。(3) Codex と Copilot のセンチネルが同時に残っている状態で Codex 側の候補ゼロ transcript を走査したら、どちらが消えて commit はどうなるか。(4) 逆に、どんなときブロックと判定されるか。(5) ブロックされたエージェントが commit を通すまでに済ませるべき範囲はどこまでか。",
+      "prompt": "kaizen のコミット前のチェックを Claude Code / Codex / Copilot に組み込みたい。全 Bash 呼び出しを遅くしない Hook 設定を示したうえで、次を 1 つの報告にまとめて: (1) commit でない Bash 呼び出しのとき、チェックは何を起動せずに終わるか。(2) 候補ゼロを検証できたとき、transcript のどの範囲を走査し、どのファイルをどこまで更新し、どのファイルを作らないか。(3) Codex と Copilot のセンチネルが同時に残っている状態で Codex 側の候補ゼロ transcript を走査したら、どちらが消えて commit はどうなるか。(4) 逆に、どんなときブロックと判定されるか。(5) ブロックされたエージェントが commit を通すまでに済ませるべき範囲はどこまでか。",
       "assertions": [
         "Claude Code・Codex・Copilot のどれも handler の if で絞らず（Claude Code の if は git -C <dir> commit や heredoc の中の git commit で起動しないため）、スクリプト内の Bash prefilter で非 commit の呼び出しを速く終える",
         "非 commit の prefilter は jq・python・git を起動せず終了すると説明している",
-        "transcript_path と自セッションの .kaizen/.extract-checkpoint.<session key> の間だけを走査し、検証済み候補ゼロなら checkpoint と自セッションのセンチネルだけを更新して .extract-done.<session key> は作らず commit を通す",
+        "走査するのは transcript_path の transcript のうち、自セッションの .kaizen/.extract-checkpoint.<session key> が記録した位置より後だけであると説明している",
+        "検証済み候補ゼロなら checkpoint と自セッションのセンチネルだけを更新して .extract-done.<session key> は作らず commit を通す",
         "Codex と Copilot のセンチネルが同時にある状態で Codex の候補ゼロ transcript を走査すると、Codex のセンチネルだけを削除し Copilot のぶんは残す。残った Copilot 分が自セッション（または key を持たない旧形式）なら exit 2 でブロックし、別セッションのものなら警告に留めて commit は通すと区別している",
-        "候補あり、既知 container の未知・欠損 subtype、不正な JSON、読めない transcript、jq 不在、内部 timeout は失敗として扱って kaizen --current を促すと説明している",
+        "候補があるときはブロックし、kaizen --current を促すと説明している",
+        "判定できない transcript（既知 container の未知・欠損 subtype、不正な JSON、読めない transcript）を候補ゼロとして扱わず、ブロックすると説明している",
+        "jq が無いときと内部の timeout も、候補ゼロとして扱わずブロックすると説明している",
         "コミットの既定クリティカルパスは抽出・記録と extract-done までで、apply は明示選択時だけ続ける"
       ],
       "reachability": [
@@ -296,15 +299,27 @@
           "prompt_quote": "(1) commit でない Bash 呼び出しのとき、チェックは何を起動せずに終わるか"
         },
         {
-          "assertion": "transcript_path と自セッションの .kaizen/.extract-checkpoint.<session key> の間だけを走査し、検証済み候補ゼロなら checkpoint と自セッションのセンチネルだけを更新して .extract-done.<session key> は作らず commit を通す",
-          "prompt_quote": "(2) 候補ゼロを検証できたとき、どのファイルをどこまで更新し、どのファイルを作らないか"
+          "assertion": "走査するのは transcript_path の transcript のうち、自セッションの .kaizen/.extract-checkpoint.<session key> が記録した位置より後だけであると説明している",
+          "prompt_quote": "transcript のどの範囲を走査し"
+        },
+        {
+          "assertion": "検証済み候補ゼロなら checkpoint と自セッションのセンチネルだけを更新して .extract-done.<session key> は作らず commit を通す",
+          "prompt_quote": "どのファイルをどこまで更新し、どのファイルを作らないか"
         },
         {
           "assertion": "Codex と Copilot のセンチネルが同時にある状態で Codex の候補ゼロ transcript を走査すると、Codex のセンチネルだけを削除し Copilot のぶんは残す。残った Copilot 分が自セッション（または key を持たない旧形式）なら exit 2 でブロックし、別セッションのものなら警告に留めて commit は通すと区別している",
           "prompt_quote": "(3) Codex と Copilot のセンチネルが同時に残っている状態で"
         },
         {
-          "assertion": "候補あり、既知 container の未知・欠損 subtype、不正な JSON、読めない transcript、jq 不在、内部 timeout は失敗として扱って kaizen --current を促すと説明している",
+          "assertion": "候補があるときはブロックし、kaizen --current を促すと説明している",
+          "prompt_quote": "(4) 逆に、どんなときブロックと判定されるか"
+        },
+        {
+          "assertion": "判定できない transcript（既知 container の未知・欠損 subtype、不正な JSON、読めない transcript）を候補ゼロとして扱わず、ブロックすると説明している",
+          "prompt_quote": "(4) 逆に、どんなときブロックと判定されるか"
+        },
+        {
+          "assertion": "jq が無いときと内部の timeout も、候補ゼロとして扱わずブロックすると説明している",
           "prompt_quote": "(4) 逆に、どんなときブロックと判定されるか"
         },
         {

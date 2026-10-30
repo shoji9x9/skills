@@ -98,7 +98,7 @@
     },
     {
       "id": 9,
-      "prompt": "pr-finalize-loop 6 — push 後に新しい HEAD が未レビュー",
+      "prompt": "pr-finalize-loop 6 — push 後に新しい HEAD が未レビュー\n\nこのサンドボックスは GitHub に接続できず、git リポジトリでもない。shoji9x9/skills の clone の中で実行している前提で、gh や git のコマンドは実行せず、実行する手順とコマンドを示して。取得できた状態は次のとおり。PR #6 は自分が作成した PR である。CI はすべて成功し、未解決のレビュースレッドは 0 件。push の後、PR にはコメントもレビューもまだ付いていない。",
       "fixture": "fixtures/review-tool-codex",
       "expected_output": "新しい HEAD が未レビューなら、requested_reviewers ではなくトップレベル PR コメントに @codex review を投稿して依頼し、進行中・到着を汎用シグナルで確認してループを続ける。",
       "assertions": [
@@ -133,7 +133,7 @@
     },
     {
       "id": 10,
-      "prompt": "pr-finalize-loop 6",
+      "prompt": "pr-finalize-loop 6\n\nこのサンドボックスは GitHub に接続できず、git リポジトリでもない。shoji9x9/skills の clone の中で実行している前提で、gh や git のコマンドは実行せず、実行する手順とコマンドを示して。取得できた状態は次のとおり。PR #6 は自分が作成した PR である。CI はすべて成功している。未解決のレビュースレッドが 1 件あり、指摘は事実として正しく、PR の変更の範囲の中にある。現在の HEAD にはレビューが付いていない。",
       "fixture": "fixtures/review-tool-none",
       "expected_output": "AI レビュアーへの再依頼をせず、CI 全成功かつ未解決スレッド無しで完了とする（HEAD レビュー済みを条件にしない）。",
       "assertions": [
@@ -157,7 +157,7 @@
         },
         {
           "assertion": "未解決スレッドの返信・解決は通常どおり行う方針である",
-          "prompt_quote": "pr-finalize-loop 6"
+          "prompt_quote": "未解決のレビュースレッドが 1 件あり"
         }
       ]
     },
@@ -307,7 +307,7 @@
     },
     {
       "id": 17,
-      "prompt": "PR #6 の収束だけ AI レビューを止めたい。設定ファイルは変えずに今回を実行し、次回の通常実行へ何が残るかも報告して。",
+      "prompt": "PR #6 の収束だけ AI レビューを止めたい。設定ファイルは変えずに今回を実行し、次回の通常実行へ何が残るかも報告して。\n\nこのサンドボックスは GitHub に接続できず、git リポジトリでもない。shoji9x9/skills の clone の中で実行している前提で、gh や git のコマンドは実行せず、実行する手順とコマンドを示して。取得できた状態は次のとおり。PR #6 は自分が作成した PR で、CI は実行中である。",
       "fixture": "fixtures/review-tool-local-override",
       "expected_output": "今回だけ --review-tool none を使い、次回は自分だけの設定（.config/skills/shoji9x9/common.local.jsonc の review_tool: codex）が共有の common.jsonc より優先される。どちらの設定ファイルも変更しない。",
       "assertions": [

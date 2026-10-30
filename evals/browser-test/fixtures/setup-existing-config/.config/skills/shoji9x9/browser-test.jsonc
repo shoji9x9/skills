@@ -1,0 +1,12 @@
+// browser-test の設定。環境を足すときは、チームのレビューを通す。
+{
+  "environments": [
+    // QA チームが毎朝データを入れ直す共有の環境
+    {
+      "name": "staging",
+      "url": "https://staging.shop.example.com",
+      "auth": "user",
+      "forbidden_actions": ["注文の確定", "決済"]
+    }
+  ]
+}
