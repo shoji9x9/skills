@@ -313,3 +313,14 @@ manifest を更新する JSON の heredoc と python の起動を並べた呼び
 新しく出た形は、`evals/` のパスと `grep` を `;` でつないだ呼び出しで、`runs a string through eval` として拒否された。パスの `evals` の語を、シェルの `eval` と読んだと考えられる。
 ほかは、変数で組み立てたパスを `python3` に渡す呼び出しと、`gh api` の `--jq` の式を含む複合の呼び出しである。
 単独の呼び出しに分けるか、Write ツールでスクリプトにして絶対パスで実行する形に直した。
+
+### 再発の記録（#843）
+
+2026-10-30、#843 の作業（issue-start から git-worktree enter）で、worktree に入った後の Bash の呼び出しが 5 回拒否された。
+1 回目は、worktree に入った直後の準備で、`git rev-parse`・`for` ループの `cp`・`mise trust` を `&&` と `;` でつないだ形である（#669 の 1 つ目の箇条と同じ）。
+2 回目は、`git fetch`・`git log`・`pnpm install`・`pnpm update` を `;` でつないだ形である。
+3 回目は、scratchpad のパスを変数 `S` に入れ、`pnpm run` などの出力先に使った複合の呼び出しである（`runs pnpm with a value computed at runtime`）。
+4 回目は、`node --input-type=module` の quoted heredoc の後に `; echo rc=$?` と `pnpm why` をつないだ形である（`this command is too complex to verify`）。
+5 回目は、変数 `F` に入れたパスを引用符で囲まずに `sed -n` に渡した形である（#681 と #651 の merge の箇条と同じ）。
+どれも、単独の呼び出しに分けるか、Write ツールでスクリプトにして絶対パスで実行するか、Read ツールで読む形に直して通した。
+この学びはセッション開始時に注入されていたが、worktree に入った最初の準備の処理で同じ形を書いた。新しい形は、変数を `pnpm` の出力先に使った 3 回目だけである。
