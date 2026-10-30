@@ -115,6 +115,10 @@ git worktree add "<worktree パス>" "feature/<番号>-<説明>"
 # 3. セッションをそこへ移す（EnterWorktree に path を渡す）
 ```
 
+リモートが無いリポジトリ（`git remote` の出力が空）では、Issue も `gh issue develop` も使えない。
+そのときは、呼び出し側が `git branch "<名前>" "<ベース>"` で branch を作ってから渡す。手順 2 と 3 は同じである。
+この読み替えは、リモートが無いときだけに当てる。GitHub 以外のリモート（GitLab など）を持つリポジトリは対象外で、呼び出し側のワークフローで branch を作る。
+
 その後、移ったことを実際に確かめる。
 
 ```bash

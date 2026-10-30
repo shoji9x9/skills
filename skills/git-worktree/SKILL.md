@@ -35,6 +35,7 @@ git-worktree cleanup [<worktree パス>]
 - 前提スキル: なし
 - シェル: bash。Windows では WSL や Git Bash などを使う
 - 任意: `jq` か `python3`。同梱の Hook（`scripts/git-worktree-branch-guard.sh`）が入力を構造として読むのに使い、どちらも無ければ通知しない
+- 任意: `gh`。cleanup で、squash merge などで取り込まれた branch の PR が merge 済みかを確かめるのに使う。リモートが無いリポジトリでは使わない（[`references/cleanup.md`](references/cleanup.md)）
 - Node.js: 設定ファイル（`location`・`carry_in`）を読み書きするときだけ要る（同梱の `scripts/skill-config/skill-config.mjs`）
 
 セッションを移す機能が無いエージェントでは、隔離は成り立たない。`git worktree add` だけを実行して
@@ -131,6 +132,7 @@ worktree を作る手段（`git worktree add -b` や `EnterWorktree` の `name`�
 4. `git worktree list` をもう一度実行して、解除されたことを確かめる。
 5. 名前が完全一致した ref だけを削除する。glob は使わない。
    squash merge や rebase merge された branch は `git branch -d` が拒否するので、PR が MERGED であることを確かめてから削除する。
+   リモートが無い（`git remote` の出力が空の）リポジトリでは、PR の代わりに `git branch --merged <ベース>` で確かめる（[`references/cleanup.md`](references/cleanup.md)）。
 6. どれかが失敗したら止め、何が残ったかを報告する。
 
 ## 破ってはいけない前提
