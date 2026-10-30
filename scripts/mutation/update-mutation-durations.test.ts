@@ -130,6 +130,23 @@ describe("main", () => {
   });
 
   test.each([
+    ["JSON オブジェクトでない", "[]"],
+    ["default_seconds が無い", JSON.stringify({ seconds_per_run: {} })],
+    ["default_seconds が 0", JSON.stringify({ default_seconds: 0, seconds_per_run: {} })],
+    ["seconds_per_run が配列", JSON.stringify({ default_seconds: 1, seconds_per_run: [] })],
+    [
+      "seconds_per_run の値が文字列",
+      JSON.stringify({ default_seconds: 1, seconds_per_run: { [A]: "10" } }),
+    ],
+  ])("見積もりのファイルの%sときは書き換えずに 2 を返す", (_case, content) => {
+    const { root, file, log } = repo();
+    writeFileSync(file, content);
+    const path = log([`=== ${A} → t`, "時間: 12.0 秒（1 変異、基準 run を含む）"].join("\n"));
+    expect(main([path], root)).toBe(2);
+    expect(readFileSync(file, "utf8")).toBe(content);
+  });
+
+  test.each([
     ["引数が無い", () => []],
     ["ログを読めない", ({ root }: { root: string }) => [join(root, "missing.log")]],
     ["「時間:」の行が無い", ({ log }: { log: (t: string) => string }) => [log("何も無い\n")]],

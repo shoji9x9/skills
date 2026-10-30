@@ -20,7 +20,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { errorMessage } from "../lib/errors.ts";
 import { isCliEntry } from "../lib/cli/entry.ts";
-import { parseJsonAs } from "../lib/parse-as.ts";
+import { isPlainObject } from "../lib/guards.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const DURATIONS_FILE = "scripts/mutation/mutation-durations.json";
@@ -29,6 +29,27 @@ const DURATIONS_FILE = "scripts/mutation/mutation-durations.json";
 export type Measured = Map<string, { seconds: number; runs: number }>;
 
 export type Durations = { default_seconds: number; seconds_per_run: Record<string, number> };
+
+/**
+ * 見積もりのファイルを読む。ランナー（`check-mutation-proof.ts` の `loadDurations`）が受け付ける形
+ * （`default_seconds` と、`seconds_per_run` のすべての値が正の有限数）でなければ、例外にする。
+ * 形の誤ったファイルを読んで書き戻すと、ランナーが次の実行で読めなくなる。
+ */
+function readDurations(text: string): Durations {
+  const parsed: unknown = JSON.parse(text);
+  const isSeconds = (v: unknown): v is number =>
+    typeof v === "number" && Number.isFinite(v) && v > 0;
+  if (!isPlainObject(parsed)) throw new Error("見積もりのファイルが JSON オブジェクトでない");
+  const { default_seconds: defaultSeconds, seconds_per_run: perRun } = parsed;
+  if (!isSeconds(defaultSeconds)) throw new Error("default_seconds が正の数でない");
+  if (!isPlainObject(perRun)) throw new Error("seconds_per_run がオブジェクトでない");
+  const seconds: Record<string, number> = {};
+  for (const [spec, value] of Object.entries(perRun)) {
+    if (!isSeconds(value)) throw new Error(`seconds_per_run の ${spec} が正の数でない`);
+    seconds[spec] = value;
+  }
+  return { default_seconds: defaultSeconds, seconds_per_run: seconds };
+}
 
 const SPEC_LINE = /=== (\S+\.mutations\.json) → /;
 const TIME_LINE = /時間: (\d+(?:\.\d+)?) 秒（(\d+) 変異、基準 run を含む）/;
@@ -123,7 +144,7 @@ export function main(argv: string[], root = repoRoot): number {
   let durations: Durations;
   try {
     measured = parseTimings(argv.map((f) => readFileSync(f, "utf8")).join("\n"));
-    durations = parseJsonAs<Durations>(readFileSync(path, "utf8"));
+    durations = readDurations(readFileSync(path, "utf8"));
   } catch (err) {
     console.error(`更新できない: ${errorMessage(err)}`);
     return 2;
