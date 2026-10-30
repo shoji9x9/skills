@@ -33,7 +33,8 @@ import {
 import { branchLabel } from "../../../skills/agent-usage/scripts/lib/records.mjs";
 import { localHourStart } from "../../../skills/agent-usage/scripts/lib/time.mjs";
 import { parseJsonAs } from "../../lib/parse-as.ts";
-import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { spawnAsync } from "../../lib/spawn-async.ts";
+import { makeTempDirFactory } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 import {
   repoConfigOf,
@@ -43,10 +44,13 @@ import {
   copyLogLines,
   recordDirs,
   collectedOnBranch,
+  onFeatureBranch,
+  writeSubagentLog,
   reportedInputTokens,
   continuedLogLines,
   CLI,
   GATE,
+  type Setup,
 } from "./cli-helpers.ts";
 
 describe("isGitCommit", () => {
@@ -264,165 +268,167 @@ describe("commitCwd", () => {
   });
 });
 
-describe("agent-usage のコマンドと Hook", () => {
-  test("setup 前は Hook が何もせず通し、collect はセットアップを求めて失敗する", () => {
-    const { git, cli, gate } = setup();
-    git("switch", "-q", "-c", "feature/5-x");
-    expect(gate("git commit -m x").status).toBe(0);
-    const r = cli("collect", "--no-github");
+describe.concurrent("agent-usage のコマンドと Hook", () => {
+  test("setup 前は Hook が何もせず通し、collect はセットアップを求めて失敗する", async () => {
+    const { git, cli, gate } = await setup();
+    await git("switch", "-q", "-c", "feature/5-x");
+    expect((await gate("git commit -m x")).status).toBe(0);
+    const r = await cli("collect", "--no-github");
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/setup/);
     // Hook は何もしないので、status も判断を「未決定」と出さない
-    expect(cli("status").stdout).toMatch(/^このブランチの判断: 対象外（\.agent-usage\/ が無い/m);
+    expect((await cli("status")).stdout).toMatch(
+      /^このブランチの判断: 対象外（\.agent-usage\/ が無い/m,
+    );
   });
 
-  test("判断の無い feature ブランチのコミットを止め、記録しないと決めたら通す。デフォルトブランチでは止めない", () => {
-    const { git, cli, gate } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    expect(gate("git commit -m x").status).toBe(0);
-    git("switch", "-q", "-c", "feature/5-x");
-    expect(gate("git status").status).toBe(0);
-    const blocked = gate("git add a && git commit -m x");
+  test("判断の無い feature ブランチのコミットを止め、記録しないと決めたら通す。デフォルトブランチでは止めない", async () => {
+    const { git, cli, gate } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    expect((await gate("git commit -m x")).status).toBe(0);
+    await git("switch", "-q", "-c", "feature/5-x");
+    expect((await gate("git status")).status).toBe(0);
+    const blocked = await gate("git add a && git commit -m x");
     expect(blocked.status).toBe(2);
     expect(blocked.stderr).toMatch(/collect --stage/);
     expect(blocked.stderr).toMatch(/decline/);
-    expect(cli("decline").status).toBe(0);
-    expect(gate("git commit -m x").status).toBe(0);
+    expect((await cli("decline")).status).toBe(0);
+    expect((await gate("git commit -m x")).status).toBe(0);
   });
 
-  test("判断の無いブランチでは、defaultDecision に従って止めずに通す。人の設定がリポジトリの設定より優先する", () => {
-    const { tmp, repo, git, cli, gate } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    git("switch", "-q", "-c", "feature/5-x");
+  test("判断の無いブランチでは、defaultDecision に従って止めずに通す。人の設定がリポジトリの設定より優先する", async () => {
+    const { tmp, repo, git, cli, gate } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    await git("switch", "-q", "-c", "feature/5-x");
     const repoConfig = repoConfigOf(repo);
     const userConfig = userConfigOf(tmp);
     const user = parseJsonAs<Record<string, unknown>>(readFileSync(userConfig, "utf8"));
-    const staged = () => git("diff", "--cached", "--name-only").trim();
+    const staged = async () => (await git("diff", "--cached", "--name-only")).trim();
 
     // リポジトリの設定が decline: 記録せずに通す
     writeFileSync(repoConfig, JSON.stringify({ defaultDecision: "decline" }));
-    const declined = gate("git commit -m x");
+    const declined = await gate("git commit -m x");
     expect(declined.status).toBe(0);
     expect(declined.stderr).toContain(`${repoConfig} の defaultDecision: decline`);
-    expect(staged()).toBe("");
-    expect(cli("status").stdout).toMatch(/未決定（defaultDecision: decline、/);
+    expect(await staged()).toBe("");
+    expect((await cli("status")).stdout).toMatch(/未決定（defaultDecision: decline、/);
 
     // 人の設定の record が、リポジトリの設定の decline より優先する。記録して stage し、出所を出す
     writeFileSync(userConfig, JSON.stringify({ ...user, defaultDecision: "record" }));
-    const recorded = gate("git commit -m x");
+    const recorded = await gate("git commit -m x");
     expect(recorded.status).toBe(0);
     expect(recorded.stderr + recorded.stdout).toContain(`${userConfig} の defaultDecision: record`);
-    expect(staged()).toMatch(/\.agent-usage\/records\//);
+    expect(await staged()).toMatch(/\.agent-usage\/records\//);
 
     // setup を実行し直しても、人の設定の defaultDecision は残る
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
     expect(
       parseJsonAs<Record<string, unknown>>(readFileSync(userConfig, "utf8")).defaultDecision,
     ).toBe("record");
 
     // ブランチの判断は defaultDecision より優先する
-    expect(cli("decline").status).toBe(0);
-    git("reset", "-q");
-    expect(gate("git commit -m x").status).toBe(0);
-    expect(staged()).toBe("");
+    expect((await cli("decline")).status).toBe(0);
+    await git("reset", "-q");
+    expect((await gate("git commit -m x")).status).toBe(0);
+    expect(await staged()).toBe("");
 
     // 反対の組み合わせ: 人の設定の decline が、リポジトリの設定の record より優先する
-    git("switch", "-q", "-c", "feature/6-y");
+    await git("switch", "-q", "-c", "feature/6-y");
     writeFileSync(repoConfig, JSON.stringify({ defaultDecision: "record" }));
     writeFileSync(userConfig, JSON.stringify({ ...user, defaultDecision: "decline" }));
-    const userDeclined = gate("git commit -m x");
+    const userDeclined = await gate("git commit -m x");
     expect(userDeclined.status).toBe(0);
     expect(userDeclined.stderr).toContain(`${userConfig} の defaultDecision: decline`);
-    expect(staged()).toBe("");
+    expect(await staged()).toBe("");
   });
 
-  test("リポジトリの defaultDecision は、人の設定が無い人には当てずに止めて setup を求め、人の ID を作らない。デフォルトブランチの status は対象外と出す", () => {
-    const { tmp, repo, git, cli, gate } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+  test("リポジトリの defaultDecision は、人の設定が無い人には当てずに止めて setup を求め、人の ID を作らない。デフォルトブランチの status は対象外と出す", async () => {
+    const { tmp, repo, git, cli, gate } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
     writeFileSync(repoConfigOf(repo), JSON.stringify({ defaultDecision: "record" }));
-    expect(cli("status").stdout).toMatch(/このブランチの判断: 対象外（デフォルトブランチ/);
-    git("switch", "-q", "-c", "feature/5-x");
+    expect((await cli("status")).stdout).toMatch(/このブランチの判断: 対象外（デフォルトブランチ/);
+    await git("switch", "-q", "-c", "feature/5-x");
     const userConfig = userConfigOf(tmp);
     rmSync(userConfig);
-    const staged = () => git("diff", "--cached", "--name-only").trim();
+    const staged = async () => (await git("diff", "--cached", "--name-only")).trim();
     // status も、人の設定が無い人には defaultDecision を当てないと出す
-    expect(cli("status").stdout).toMatch(
+    expect((await cli("status")).stdout).toMatch(
       /このブランチの判断: 未決定（defaultDecision: record、.*人の設定が無いので、コミットの前の確認は止めて setup を求める）/,
     );
 
     // リポジトリの record は、人の設定が無い人には当てない。止めて setup を求め、人の ID を作らない
-    const recorded = gate("git commit -m x");
+    const recorded = await gate("git commit -m x");
     expect(recorded.status).toBe(2);
     expect(recorded.stderr).toContain(`人の設定（${userConfig}）が無い`);
     expect(recorded.stderr).toMatch(/setup を実行して人の ID を作る/);
     expect(existsSync(userConfig)).toBe(false);
-    expect(staged()).toBe("");
+    expect(await staged()).toBe("");
 
     // decline も同じく当てない
     writeFileSync(repoConfigOf(repo), JSON.stringify({ defaultDecision: "decline" }));
-    const declined = gate("git commit -m x");
+    const declined = await gate("git commit -m x");
     expect(declined.status).toBe(2);
     expect(declined.stderr).toContain(`人の設定（${userConfig}）が無い`);
 
     // 案内どおり decline を実行すれば、人の設定が無くても通り、人の ID は作らない
-    expect(cli("decline").status).toBe(0);
-    expect(gate("git commit -m x").status).toBe(0);
+    expect((await cli("decline")).status).toBe(0);
+    expect((await gate("git commit -m x")).status).toBe(0);
     expect(existsSync(userConfig)).toBe(false);
   });
 
-  test("ブランチの判断が「記録する」でも、人の設定が無ければ止めて、Hook からは人の ID を作らない。status も止めると出す", () => {
-    const { tmp, git, cli, gate } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    git("switch", "-q", "-c", "feature/5-x");
-    expect(cli("collect", "--stage", "--no-github").status).toBe(0);
-    git("reset", "-q");
+  test("ブランチの判断が「記録する」でも、人の設定が無ければ止めて、Hook からは人の ID を作らない。status も止めると出す", async () => {
+    const { tmp, git, cli, gate } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    await git("switch", "-q", "-c", "feature/5-x");
+    expect((await cli("collect", "--stage", "--no-github")).status).toBe(0);
+    await git("reset", "-q");
     const userConfig = userConfigOf(tmp);
     rmSync(userConfig);
-    expect(cli("status").stdout).toMatch(
+    expect((await cli("status")).stdout).toMatch(
       /^このブランチの判断: record（人の設定が無いので、コミットの前の確認は止めて setup を求める）$/m,
     );
 
-    const r = gate("git commit -m x");
+    const r = await gate("git commit -m x");
     expect(r.status).toBe(2);
     expect(r.stderr).toContain(`人の設定（${userConfig}）が無い`);
     // 前の ID を持つ人が別の ID を作らないよう、--person-id を案内する
     expect(r.stderr).toContain("--person-id");
     expect(existsSync(userConfig)).toBe(false);
-    expect(git("diff", "--cached", "--name-only").trim()).toBe("");
+    expect((await git("diff", "--cached", "--name-only")).trim()).toBe("");
   });
 
-  test("人の設定が無いとき、引数を誤った setup と report は人の設定を作らず、判断を確かめる案内は setup --person-id を示す", () => {
-    const { tmp, git, cli, gate } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    git("switch", "-q", "-c", "feature/5-x");
-    expect(cli("collect", "--no-github").status).toBe(0);
+  test("人の設定が無いとき、引数を誤った setup と report は人の設定を作らず、判断を確かめる案内は setup --person-id を示す", async () => {
+    const { tmp, git, cli, gate } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    await git("switch", "-q", "-c", "feature/5-x");
+    expect((await cli("collect", "--no-github")).status).toBe(0);
     const userConfig = userConfigOf(tmp);
     rmSync(userConfig);
 
     // どの設定にも defaultDecision が無ければ確かめる。collect が新しい ID を作る前に、既存の ID を使う方法を案内する
-    const ask = gate("git commit -m x");
+    const ask = await gate("git commit -m x");
     expect(ask.status).toBe(2);
     expect(ask.stderr).toContain(`人の設定（${userConfig}）がまだ無いので`);
     expect(ask.stderr).toContain("setup --person-id <その ID>");
     expect(existsSync(userConfig)).toBe(false);
 
     // report は人の設定を読むだけで作らない
-    expect(cli("report").status).toBe(0);
+    expect((await cli("report")).status).toBe(0);
     expect(existsSync(userConfig)).toBe(false);
 
     // setup は、引数の誤りで止まったときに人の設定を残さない
-    expect(cli("setup", "--person-id", "p-1234").status).toBe(2);
+    expect((await cli("setup", "--person-id", "p-1234")).status).toBe(2);
     expect(existsSync(userConfig)).toBe(false);
-    expect(cli("setup", "--time-zone", "Nowhere/Zone").status).toBe(2);
+    expect((await cli("setup", "--time-zone", "Nowhere/Zone")).status).toBe(2);
     expect(existsSync(userConfig)).toBe(false);
     // --billing の誤りも引数の誤り（exit 2）として扱い、まだ無い設定ファイルの誤りとして示さない
-    const badBilling = cli("setup", "--billing", "User");
+    const badBilling = await cli("setup", "--billing", "User");
     expect(badBilling.status).toBe(2);
     expect(badBilling.stderr).toContain("--billing は none か user にする");
     expect(existsSync(userConfig)).toBe(false);
 
     // 正しい引数なら、指定した ID で作る
-    expect(cli("setup", "--person-id", "p-0123abcd", "--time-zone", "UTC").status).toBe(0);
+    expect((await cli("setup", "--person-id", "p-0123abcd", "--time-zone", "UTC")).status).toBe(0);
     expect(parseJsonAs<Record<string, unknown>>(readFileSync(userConfig, "utf8")).personId).toBe(
       "p-0123abcd",
     );
@@ -432,34 +438,34 @@ describe("agent-usage のコマンドと Hook", () => {
   const UNREADABLE_DEFAULT_DECISION =
     /設定を読めない: .*defaultDecision: "(yes|ask)" は "record"・"decline"・null のどれでもない/;
 
-  test("defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる", () => {
-    const { tmp, repo, git, cli, gate } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    git("switch", "-q", "-c", "feature/5-x");
+  test("defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる", async () => {
+    const { tmp, repo, git, cli, gate } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    await git("switch", "-q", "-c", "feature/5-x");
     const repoConfig = repoConfigOf(repo);
     const userConfig = userConfigOf(tmp);
     const user = parseJsonAs<Record<string, unknown>>(readFileSync(userConfig, "utf8"));
 
     writeFileSync(repoConfig, JSON.stringify({ defaultDecision: "yes" }));
-    const badRepo = gate("git commit -m x");
+    const badRepo = await gate("git commit -m x");
     expect(badRepo.status).toBe(2);
     expect(badRepo.stderr).toMatch(UNREADABLE_DEFAULT_DECISION);
     // 設定を読めなくても、記録しない側で先へ進める方法を案内する
     expect(badRepo.stderr).toMatch(/decline を実行してからコミット/);
     // status は設定を読めなくても止まらず、理由をブランチの判断の行に出す
-    const status = cli("status");
+    const status = await cli("status");
     expect(status.status).toBe(0);
     expect(status.stdout).toMatch(/このブランチの判断: 未決定（設定を読めない: .*defaultDecision/);
     expect(status.stdout).toContain("人の設定: ");
 
     writeFileSync(repoConfig, "{}");
     writeFileSync(userConfig, JSON.stringify({ ...user, defaultDecision: "ask" }));
-    const badUser = gate("git commit -m x");
+    const badUser = await gate("git commit -m x");
     expect(badUser.status).toBe(2);
     expect(badUser.stderr).toMatch(UNREADABLE_DEFAULT_DECISION);
 
     writeFileSync(userConfig, JSON.stringify(user));
-    const ask = gate("git commit -m x");
+    const ask = await gate("git commit -m x");
     expect(ask.status).toBe(2);
     expect(ask.stderr).toMatch(/defaultDecision（record か decline）を置きます/);
     // 人の設定がある人には、setup --person-id の案内を出さない
@@ -467,36 +473,36 @@ describe("agent-usage のコマンドと Hook", () => {
 
     // null は置いていないのと同じに扱い、読めない設定として止めずに確かめる
     writeFileSync(repoConfig, JSON.stringify({ defaultDecision: null }));
-    const askNull = gate("git commit -m x");
+    const askNull = await gate("git commit -m x");
     expect(askNull.status).toBe(2);
     expect(askNull.stderr).toMatch(/defaultDecision（record か decline）を置きます/);
 
     // 判断の記録を読めなくても、status は止まらずに理由を出す
     mkdirSync(join(repo, ".git", "agent-usage"), { recursive: true });
     writeFileSync(join(repo, ".git", "agent-usage", "decisions.json"), "");
-    const badDecisions = cli("status");
+    const badDecisions = await cli("status");
     expect(badDecisions.status).toBe(0);
     expect(badDecisions.stdout).toMatch(/^このブランチの判断: 判断の記録を読めない: /m);
     expect(badDecisions.stdout).toContain("人の設定: ");
   });
 
-  test("collect --stage は明細を書いて stage し、記録すると決めたブランチのコミットでは Hook が collect して通す", () => {
-    const { repo, git, cli, gate } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    git("switch", "-q", "-c", "feature/5-x");
-    const first = cli("collect", "--stage");
+  test("collect --stage は明細を書いて stage し、記録すると決めたブランチのコミットでは Hook が collect して通す", async () => {
+    const { repo, git, cli, gate } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    await git("switch", "-q", "-c", "feature/5-x");
+    const first = await cli("collect", "--stage");
     expect(first.status).toBe(0);
     expect(first.stdout).toMatch(/新しい行: \d+/);
-    const staged = git("diff", "--cached", "--name-only").trim().split("\n");
+    const staged = (await git("diff", "--cached", "--name-only")).trim().split("\n");
     const file = staged.find((p) =>
       /^\.agent-usage\/records\/p-[0-9a-f]{8}\/branches\/\d{8}T\d{6}Z-feature-5-x\.csv$/.test(p),
     );
     expect(file).toBeDefined();
     // 新しいログが増えたら、Hook が collect して、同じブランチのファイルに足して stage する
-    git("commit", "-q", "-m", "records");
+    await git("commit", "-q", "-m", "records");
     const { person, branches } = recordDirs(repo);
     const beforeText = readFileSync(join(repo, file ?? ""), "utf8");
-    const passed = gate("git commit -m y");
+    const passed = await gate("git commit -m y");
     expect(passed.status).toBe(0);
     // ログは変わっていないので、増えるのはテストが今した commit（reflog の人の commit）の行だけで、既存の行の後ろに足す
     expect(readdirSync(branches)).toHaveLength(1);
@@ -505,37 +511,37 @@ describe("agent-usage のコマンドと Hook", () => {
     const added = afterText.slice(beforeText.length).trim().split("\n");
     expect(added.length).toBeGreaterThan(0);
     expect(added.every((l) => l.startsWith("activity:commit:"))).toBe(true);
-    expect(git("diff", "--cached", "--name-only")).toMatch(/\.agent-usage\/records\//);
+    expect(await git("diff", "--cached", "--name-only")).toMatch(/\.agent-usage\/records\//);
     // もう一度 Hook を通しても、同じ内容は書き直さず、ファイルも増えない
-    expect(gate("git commit -m z").status).toBe(0);
+    expect((await gate("git commit -m z")).status).toBe(0);
     expect(readFileSync(join(repo, file ?? ""), "utf8")).toBe(afterText);
     expect(readdirSync(join(repo, ".agent-usage", "records", person))).toEqual(["branches"]);
   });
 
-  test("記録すると決めたブランチで人ごとの設定を読めなければ、記録せずにコミットを止めて理由を返す", () => {
-    const { tmp, git, cli, gate } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    git("switch", "-q", "-c", "feature/5-x");
-    expect(cli("collect", "--stage").status).toBe(0);
-    git("commit", "-q", "-m", "records");
+  test("記録すると決めたブランチで人ごとの設定を読めなければ、記録せずにコミットを止めて理由を返す", async () => {
+    const { tmp, git, cli, gate } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    await git("switch", "-q", "-c", "feature/5-x");
+    expect((await cli("collect", "--stage")).status).toBe(0);
+    await git("commit", "-q", "-m", "records");
     const userConfig = userConfigOf(tmp);
     const user = parseJsonAs<Record<string, unknown>>(readFileSync(userConfig, "utf8"));
     writeFileSync(userConfig, JSON.stringify({ ...user, typo: 1 }));
-    const blocked = gate("git commit -m y");
+    const blocked = await gate("git commit -m y");
     expect(blocked.status).toBe(2);
     expect(blocked.stderr).toMatch(/設定を読めない: .*知らないキー "typo"/);
     expect(blocked.stderr).toMatch(/decline を実行してからコミット/);
     // status も、判断の記録ではなく設定を読めないことを理由に出す
-    const status = cli("status");
+    const status = await cli("status");
     expect(status.status).toBe(0);
     expect(status.stdout).toMatch(
       /このブランチの判断: record（設定を読めない: .*知らないキー "typo"/,
     );
   });
 
-  test("report は report/<日付>/ に HTML と 3 つの CSV と meta.json を書き、費用と稼働を集計する", () => {
-    const { repo, cli } = collectedOnBranch();
-    const r = cli("report");
+  test("report は report/<日付>/ に HTML と 3 つの CSV と meta.json を書き、費用と稼働を集計する", async () => {
+    const { repo, cli } = await collectedOnBranch();
+    const r = await cli("report");
     expect(r.status).toBe(0);
     const out = join(repo, ".agent-usage", "report", "20261001");
     for (const f of ["index.html", "usage.csv", "intervals.csv", "reviews.csv", "meta.json"])
@@ -547,15 +553,15 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(readFileSync(join(out, "index.html"), "utf8")).toMatch(
       /<title>エージェントの利用実績<\/title>/,
     );
-    expect(cli("report", "--since", "2026-10-02", "--until", "2026-10-01").status).toBe(1);
-    expect(cli("report", "--since", "10/01").status).toBe(1);
+    expect((await cli("report", "--since", "2026-10-02", "--until", "2026-10-01")).status).toBe(1);
+    expect((await cli("report", "--since", "10/01")).status).toBe(1);
   });
 
-  test("report は渡した期間を meta.json と HTML の見出しに残し、期間を省いたレポートと記録の最初の日を --since に渡したレポートを区別できる", () => {
-    const { repo, cli } = collectedOnBranch();
-    const report = (...args: string[]) => {
+  test("report は渡した期間を meta.json と HTML の見出しに残し、期間を省いたレポートと記録の最初の日を --since に渡したレポートを区別できる", async () => {
+    const { repo, cli } = await collectedOnBranch();
+    const report = async (...args: string[]) => {
       const out = join(repo, ".agent-usage", `out-${args.length}`);
-      const r = cli("report", ...args, "--out", out);
+      const r = await cli("report", ...args, "--out", out);
       expect(r.status).toBe(0);
       return {
         period: /期間: (.+)$/m.exec(r.stdout)?.[1],
@@ -563,10 +569,10 @@ describe("agent-usage のコマンドと Hook", () => {
         html: readFileSync(join(out, "index.html"), "utf8"),
       };
     };
-    const none = report();
+    const none = await report();
     // fixture の記録の最初の日を --since に渡す。期間の値は、期間を省いたときと同じになる
-    const since = report("--since", "2026-10-01");
-    const both = report("--since", "2026-10-01", "--until", "2026-10-01");
+    const since = await report("--since", "2026-10-01");
+    const both = await report("--since", "2026-10-01", "--until", "2026-10-01");
     expect(none.period).toBe(since.period);
     const meta = { period: none.period, generated_at: expect.any(String), time_zone: "UTC" };
     expect(none.meta).toEqual({ since: null, until: null, ...meta });
@@ -577,13 +583,13 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(both.html).toContain("期間の指定: --since 2026-10-01 --until 2026-10-01 /");
   });
 
-  test("Hook が実行された worktree のパスを覚え、その worktree を削除した後も collect がログを集める", () => {
-    const { tmp, repo, git, cli, gate } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    git("add", ".agent-usage");
-    git("commit", "-q", "-m", "setup");
+  test("Hook が実行された worktree のパスを覚え、その worktree を削除した後も collect がログを集める", async () => {
+    const { tmp, repo, git, cli, gate } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    await git("add", ".agent-usage");
+    await git("commit", "-q", "-m", "setup");
     const wt = join(tmp, "wt");
-    git("worktree", "add", "-q", "-b", "feature/7-wt", wt);
+    await git("worktree", "add", "-q", "-b", "feature/7-wt", wt);
     // worktree のパスのディレクトリにだけあるログ
     const dir = join(tmp, "claude", encodeProjectPath(wt));
     mkdirSync(dir, { recursive: true });
@@ -609,10 +615,10 @@ describe("agent-usage のコマンドと Hook", () => {
     ];
     writeFileSync(join(dir, "s-wt.jsonl"), lines.map((l) => JSON.stringify(l)).join("\n"));
     // 判断の無いブランチで止まるときも、パスは覚える
-    expect(gate("git commit -m x", wt).status).toBe(2);
-    git("worktree", "remove", "--force", wt);
-    git("switch", "-q", "-c", "feature/8-main");
-    expect(cli("collect").status).toBe(0);
+    expect((await gate("git commit -m x", wt)).status).toBe(2);
+    await git("worktree", "remove", "--force", wt);
+    await git("switch", "-q", "-c", "feature/8-main");
+    expect((await cli("collect")).status).toBe(0);
     const { records, person } = recordDirs(repo);
     const text = readdirSync(join(records, person, "branches"))
       .map((f) => readFileSync(join(records, person, "branches", f), "utf8"))
@@ -620,39 +626,39 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(text).toMatch(/usage:claude-code:s-wt:/);
   });
 
-  test("Hook は、前に書いて stage されなかった記録も stage する", () => {
-    const { repo, git, cli, gate } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    git("switch", "-q", "-c", "feature/5-x");
-    expect(cli("collect", "--stage").status).toBe(0);
-    git("commit", "-q", "-m", "records");
+  test("Hook は、前に書いて stage されなかった記録も stage する", async () => {
+    const { repo, git, cli, gate } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    await git("switch", "-q", "-c", "feature/5-x");
+    expect((await cli("collect", "--stage")).status).toBe(0);
+    await git("commit", "-q", "-m", "records");
     // 手動の collect（--stage なし）が足した記録は stage されない
-    git("commit", "-q", "--allow-empty", "-m", "work");
-    expect(cli("collect").status).toBe(0);
-    const unstaged = git("diff", "--name-only", "--", ".agent-usage/records").trim();
+    await git("commit", "-q", "--allow-empty", "-m", "work");
+    expect((await cli("collect")).status).toBe(0);
+    const unstaged = (await git("diff", "--name-only", "--", ".agent-usage/records")).trim();
     expect(unstaged).not.toBe("");
-    expect(gate("git commit -m y").status).toBe(0);
-    const staged = git("diff", "--cached", "--name-only").trim().split("\n");
+    expect((await gate("git commit -m y")).status).toBe(0);
+    const staged = (await git("diff", "--cached", "--name-only")).trim().split("\n");
     for (const f of unstaged.split("\n")) expect(staged).toContain(f);
     expect(existsSync(join(repo, unstaged.split("\n")[0] ?? ""))).toBe(true);
   });
 
-  test("2 つのブランチで並行して記録しても、merge で記録のファイルが競合しない", () => {
-    const { repo, git, cli } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    git("add", ".agent-usage");
-    git("commit", "-q", "-m", "setup");
-    git("switch", "-q", "-c", "feature/5-a");
-    expect(cli("collect", "--stage").status).toBe(0);
-    git("commit", "-q", "-m", "a");
-    expect(cli("collect", "--stage").status).toBe(0);
-    git("commit", "-q", "--allow-empty", "-m", "a2");
-    git("switch", "-q", "main");
-    git("switch", "-q", "-c", "feature/6-b");
-    expect(cli("collect", "--stage").status).toBe(0);
-    git("commit", "-q", "-m", "b");
-    git("merge", "-q", "--no-edit", "feature/5-a");
-    expect(git("status", "--porcelain")).toBe("");
+  test("2 つのブランチで並行して記録しても、merge で記録のファイルが競合しない", async () => {
+    const { repo, git, cli } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    await git("add", ".agent-usage");
+    await git("commit", "-q", "-m", "setup");
+    await git("switch", "-q", "-c", "feature/5-a");
+    expect((await cli("collect", "--stage")).status).toBe(0);
+    await git("commit", "-q", "-m", "a");
+    expect((await cli("collect", "--stage")).status).toBe(0);
+    await git("commit", "-q", "--allow-empty", "-m", "a2");
+    await git("switch", "-q", "main");
+    await git("switch", "-q", "-c", "feature/6-b");
+    expect((await cli("collect", "--stage")).status).toBe(0);
+    await git("commit", "-q", "-m", "b");
+    await git("merge", "-q", "--no-edit", "feature/5-a");
+    expect(await git("status", "--porcelain")).toBe("");
     const files = readdirSync(recordDirs(repo).branches);
     expect(files.map((f) => f.replace(/^\d{8}T\d{6}Z-/, "")).sort()).toEqual([
       "feature-5-a.csv",
@@ -660,18 +666,18 @@ describe("agent-usage のコマンドと Hook", () => {
     ]);
   });
 
-  test("古い形（collect 1 回につき 1 ファイル）と新しい形が混在しても、report の結果は同じ", () => {
-    const { repo, cli, records, person, branches } = collectedOnBranch();
+  test("古い形（collect 1 回につき 1 ファイル）と新しい形が混在しても、report の結果は同じ", async () => {
+    const { repo, cli, records, person, branches } = await collectedOnBranch();
     const [name] = readdirSync(branches);
     const text = readFileSync(join(branches, name ?? ""), "utf8");
-    const report = () => {
-      expect(cli("report").status).toBe(0);
+    const report = async () => {
+      expect((await cli("report")).status).toBe(0);
       const out = join(repo, ".agent-usage", "report", "20261001");
       return ["usage.csv", "intervals.csv", "reviews.csv"].map((f) =>
         readFileSync(join(out, f), "utf8"),
       );
     };
-    const onlyNew = report();
+    const onlyNew = await report();
     const [header, ...body] = text.trim().split("\n");
     expect(body.length).toBeGreaterThan(1);
     const half = Math.ceil(body.length / 2);
@@ -681,17 +687,17 @@ describe("agent-usage のコマンドと Hook", () => {
       join(records, person, "20261001T110000Z-5.csv"),
       `${[header, ...body.slice(0, half)].join("\n")}\n`,
     );
-    expect(report()).toEqual(onlyNew);
+    expect(await report()).toEqual(onlyNew);
     // すべてを古い形のファイルに移す
     rmSync(branches, { recursive: true });
     writeFileSync(join(records, person, "20261001T110000Z-5.csv"), text);
-    expect(report()).toEqual(onlyNew);
+    expect(await report()).toEqual(onlyNew);
   });
 
-  test("collect は範囲より古いファイルを読まず、範囲の外の key を書き直しても report の結果は変わらない", () => {
-    const { repo, cli, records, person, branches } = collectedOnBranch();
+  test("collect は範囲より古いファイルを読まず、範囲の外の key を書き直しても report の結果は変わらない", async () => {
+    const { repo, cli, records, person, branches } = await collectedOnBranch();
     const [name] = readdirSync(branches);
-    expect(cli("report").status).toBe(0);
+    expect((await cli("report")).status).toBe(0);
     const out = join(repo, ".agent-usage", "report", "20261001");
     const baseline = readFileSync(join(out, "usage.csv"), "utf8");
     // 同じ行を、範囲（60 日）より古い時刻の古い形のファイルに移す
@@ -702,21 +708,20 @@ describe("agent-usage のコマンドと Hook", () => {
       join(records, person, "20260701T000000Z-5.csv"),
       text.replaceAll("2026-10-01T12:00:00.000Z", "2026-07-01T00:00:00.000Z"),
     );
-    const again = cli("collect");
+    const again = await cli("collect");
     expect(again.stdout).toMatch(/範囲より古いので読まなかった記録のファイル: 1/);
     // 読まなかったので、同じ key の行をもう一度書く（重複）
     expect(readFileSync(join(branches, readdirSync(branches)[0] ?? ""), "utf8")).toContain(
       "usage:claude-code:s1:",
     );
-    expect(cli("report").status).toBe(0);
+    expect((await cli("report")).status).toBe(0);
     expect(readFileSync(join(out, "usage.csv"), "utf8")).toBe(baseline);
   });
 
-  test("1 つのブランチで時刻を変えて何回 collect しても、記録のファイルは人別・GitHub のそれぞれ 1 つまで", () => {
-    const { tmp, repo, git, cli, cliWith } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    git("remote", "add", "origin", "https://github.com/example-org/example-repo.git");
-    git("switch", "-q", "-c", "feature/5-x");
+  test("1 つのブランチで時刻を変えて何回 collect しても、記録のファイルは人別・GitHub のそれぞれ 1 つまで", async () => {
+    const { tmp, repo, git, cliWith } = await onFeatureBranch(
+      "https://github.com/example-org/example-repo.git",
+    );
     // 偽の gh: api は失敗する（取得した期間の行が、取得の失敗として毎回書かれる）
     const bin = join(tmp, "bin");
     mkdirSync(bin, { recursive: true });
@@ -727,8 +732,8 @@ describe("agent-usage のコマンドと Hook", () => {
       "2026-10-01T13:00:00Z",
       "2026-10-02T09:00:00Z",
     ].entries()) {
-      git("commit", "-q", "--allow-empty", "-m", `work ${i}`);
-      const r = cliWith({ AGENT_USAGE_NOW: now, PATH: path }, "collect", "--stage");
+      await git("commit", "-q", "--allow-empty", "-m", `work ${i}`);
+      const r = await cliWith({ AGENT_USAGE_NOW: now, PATH: path }, "collect", "--stage");
       expect(r.status).toBe(0);
       expect(r.stdout).toMatch(/書いた: /);
     }
@@ -743,48 +748,48 @@ describe("agent-usage のコマンドと Hook", () => {
     ]);
   });
 
-  test("デフォルトブランチに入った（squash merge された）ブランチのファイルには足さず、新しいファイルを作る", () => {
-    const { tmp, repo, git, cli, cliWith } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    git("switch", "-q", "-c", "feature/5-x");
-    expect(cli("collect", "--stage").status).toBe(0);
+  test("デフォルトブランチに入った（squash merge された）ブランチのファイルには足さず、新しいファイルを作る", async () => {
+    const { tmp, repo, git, cli, cliWith } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    await git("switch", "-q", "-c", "feature/5-x");
+    expect((await cli("collect", "--stage")).status).toBe(0);
     // 他のマシンの時計が進んでいたことにする（デフォルトブランチに入るファイルの時刻が、今より後）
     const { branches: branches0 } = recordDirs(repo);
     const [created] = readdirSync(branches0);
     renameSync(join(branches0, created ?? ""), join(branches0, "20261005T000000Z-feature-5-x.csv"));
-    git("add", "-A", ".agent-usage");
-    git("commit", "-q", "-m", "records");
+    await git("add", "-A", ".agent-usage");
+    await git("commit", "-q", "-m", "records");
     // squash merge と同じく、今の内容を、このブランチの commit を祖先に持たない 1 つの commit として origin の main に入れる
     const origin = join(tmp, "origin.git");
     expect(
       spawnSync("git", ["init", "-q", "--bare", origin], { timeout: CHILD_TIMEOUT_MS }).status,
     ).toBe(0);
-    git("remote", "add", "origin", origin);
-    const squash = git("commit-tree", "HEAD^{tree}", "-p", "main", "-m", "squash").trim();
-    git("push", "-q", "origin", `${squash}:refs/heads/main`);
-    git("fetch", "-q", "origin");
+    await git("remote", "add", "origin", origin);
+    const squash = (await git("commit-tree", "HEAD^{tree}", "-p", "main", "-m", "squash")).trim();
+    await git("push", "-q", "origin", `${squash}:refs/heads/main`);
+    await git("fetch", "-q", "origin");
     const { branches } = recordDirs(repo);
     const [first] = readdirSync(branches);
     const before = readFileSync(join(branches, first ?? ""), "utf8");
     // 同じブランチで作業を続ける（同じ秒の collect でも、名前が重ならない）
-    git("commit", "-q", "--allow-empty", "-m", "more");
-    expect(cliWith({}, "collect", "--stage").status).toBe(0);
+    await git("commit", "-q", "--allow-empty", "-m", "more");
+    expect((await cliWith({}, "collect", "--stage")).status).toBe(0);
     const files = readdirSync(branches);
     expect(files).toHaveLength(2);
     // 新しいファイルは、デフォルトブランチに入ったファイルより後に並び、次の collect はそれに足す
     expect(files[1]).toBe("20261005T000001Z-feature-5-x.csv");
-    git("commit", "-q", "--allow-empty", "-m", "more2");
-    expect(cliWith({}, "collect", "--stage").status).toBe(0);
+    await git("commit", "-q", "--allow-empty", "-m", "more2");
+    expect((await cliWith({}, "collect", "--stage")).status).toBe(0);
     expect(readdirSync(branches)).toHaveLength(2);
     expect(readFileSync(join(branches, first ?? ""), "utf8")).toBe(before);
-    git("commit", "-q", "-m", "more records");
+    await git("commit", "-q", "-m", "more records");
     // デフォルトブランチを取り込んでも競合しない（git は競合すると 0 以外で終わり、未解決のパスを残す）
-    git("merge", "-q", "--no-edit", "origin/main");
-    expect(git("diff", "--name-only", "--diff-filter=U")).toBe("");
+    await git("merge", "-q", "--no-edit", "origin/main");
+    expect(await git("diff", "--name-only", "--diff-filter=U")).toBe("");
   });
 
-  test("古い形のファイルは、名前の時刻だけで読むかを決める（末尾を読まない）", () => {
-    const { cli, records, person } = collectedOnBranch();
+  test("古い形のファイルは、名前の時刻だけで読むかを決める（末尾を読まない）", async () => {
+    const { cli, records, person } = await collectedOnBranch();
     // 名前の時刻は範囲より古く、最後の行は範囲の中（古い形は後から書き足さないので、この組み合わせは読まない）
     writeFileSync(
       join(records, person, "20260701T000000Z-5.csv"),
@@ -793,16 +798,16 @@ describe("agent-usage のコマンドと Hook", () => {
         "utf8",
       ),
     );
-    expect(cli("collect").stdout).toMatch(/範囲より古いので読まなかった記録のファイル: 1/);
+    expect((await cli("collect")).stdout).toMatch(/範囲より古いので読まなかった記録のファイル: 1/);
   });
 
-  test("この clone で初めての collect は、記録の全体を読み、範囲より古い記録済みの行を重ねて書かない", () => {
-    const { repo, git, cli, logDir, logLines } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    git("switch", "-q", "-c", "feature/5-x");
+  test("この clone で初めての collect は、記録の全体を読み、範囲より古い記録済みの行を重ねて書かない", async () => {
+    const { repo, git, cli, logDir, logLines } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    await git("switch", "-q", "-c", "feature/5-x");
     // 範囲より古いセッションのログを、古い形のファイルに記録済みにしておく
     writeLogCopy(logDir, logLines, { tag: "old", date: "2026-07-01" });
-    expect(cli("collect").status).toBe(0);
+    expect((await cli("collect")).status).toBe(0);
     const { records, person, branches } = recordDirs(repo);
     const [name] = readdirSync(branches);
     writeFileSync(
@@ -815,7 +820,7 @@ describe("agent-usage のコマンドと Hook", () => {
     rmSync(branches, { recursive: true });
     // 新しい clone と同じ状態（last-collect.json が無い）
     rmSync(join(repo, ".git", "agent-usage", "last-collect.json"));
-    const again = cli("collect");
+    const again = await cli("collect");
     expect(again.stdout).not.toMatch(/範囲より古いので読まなかった/);
     // 記録済みの行は書かないので、新しいブランチのファイルは作られないか、古い行を含まない
     const text = existsSync(branches)
@@ -826,26 +831,26 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(text).not.toContain("usage:claude-code:s-old:");
   });
 
-  test("デフォルトブランチ自身では、push した後も同じファイルに足す", () => {
-    const { tmp, repo, git, cliWith } = setup();
-    expect(cliWith({}, "setup", "--time-zone", "UTC").status).toBe(0);
-    expect(cliWith({}, "collect", "--stage").status).toBe(0);
-    git("commit", "-q", "-m", "records");
+  test("デフォルトブランチ自身では、push した後も同じファイルに足す", async () => {
+    const { tmp, repo, git, cliWith } = await setup();
+    expect((await cliWith({}, "setup", "--time-zone", "UTC")).status).toBe(0);
+    expect((await cliWith({}, "collect", "--stage")).status).toBe(0);
+    await git("commit", "-q", "-m", "records");
     const origin = join(tmp, "origin.git");
     expect(
       spawnSync("git", ["init", "-q", "--bare", origin], { timeout: CHILD_TIMEOUT_MS }).status,
     ).toBe(0);
-    git("remote", "add", "origin", origin);
-    git("push", "-q", "origin", "HEAD:main");
-    git("fetch", "-q", "origin");
-    git("commit", "-q", "--allow-empty", "-m", "more");
-    expect(cliWith({ AGENT_USAGE_NOW: "2026-10-01T13:00:00Z" }, "collect").status).toBe(0);
+    await git("remote", "add", "origin", origin);
+    await git("push", "-q", "origin", "HEAD:main");
+    await git("fetch", "-q", "origin");
+    await git("commit", "-q", "--allow-empty", "-m", "more");
+    expect((await cliWith({ AGENT_USAGE_NOW: "2026-10-01T13:00:00Z" }, "collect")).status).toBe(0);
     const { records, person } = recordDirs(repo);
     expect(readdirSync(join(records, person, "branches"))).toHaveLength(1);
   });
 
-  test("今のブランチのファイルは、範囲より古い時刻でも読み、同じ行を書き直さない", () => {
-    const { cli, branches } = collectedOnBranch();
+  test("今のブランチのファイルは、範囲より古い時刻でも読み、同じ行を書き直さない", async () => {
+    const { cli, branches } = await collectedOnBranch();
     const [name] = readdirSync(branches);
     // そのブランチで最後に collect したのも範囲より前だったことにする（名前の時刻と observed_at）
     const renamed = join(branches, "20260701T000000Z-feature-5-x.csv");
@@ -856,17 +861,17 @@ describe("agent-usage のコマンドと Hook", () => {
       original.replaceAll("2026-10-01T12:00:00.000Z", "2026-07-01T00:00:00.000Z"),
     );
     const before = readFileSync(renamed, "utf8");
-    const again = cli("collect");
+    const again = await cli("collect");
     expect(again.stdout).toMatch(/新しい行: 0/);
     expect(readdirSync(branches)).toEqual(["20260701T000000Z-feature-5-x.csv"]);
     expect(readFileSync(renamed, "utf8")).toBe(before);
   });
 
-  test("この clone で範囲の中に collect していれば、範囲より古いログの行は書かない（していなければ書く）", () => {
-    const { repo, cli, logDir, logLines } = collectedOnBranch();
+  test("この clone で範囲の中に collect していれば、範囲より古いログの行は書かない（していなければ書く）", async () => {
+    const { repo, cli, logDir, logLines } = await collectedOnBranch();
     // 範囲（60 日）より古いセッションのログを足す
     writeLogCopy(logDir, logLines, { tag: "old", date: "2026-07-01" });
-    const skipped = cli("collect");
+    const skipped = await cli("collect");
     expect(skipped.status).toBe(0);
     // 書かなかった行の件数を出す（取りこぼしに気づけるように）
     expect(skipped.stdout).toMatch(/開始時刻が範囲より古いので書かなかった行: [1-9]/);
@@ -878,18 +883,18 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(read()).not.toContain("usage:claude-code:s-old:");
     // 別の clone（別のマシン）で記録した行が範囲の中にあっても、この clone で collect していなければ、古い行も書く
     rmSync(join(repo, ".git", "agent-usage", "last-collect.json"));
-    expect(cli("collect").status).toBe(0);
+    expect((await cli("collect")).status).toBe(0);
     expect(read()).toContain("usage:claude-code:s-old:");
   });
 
-  test("名前の時刻が範囲より古くても最後の行が範囲の中のファイルは読み、別のブランチで同じ行を書き直さない", () => {
-    const { git, cli, branches } = collectedOnBranch();
+  test("名前の時刻が範囲より古くても最後の行が範囲の中のファイルは読み、別のブランチで同じ行を書き直さない", async () => {
+    const { git, cli, branches } = await collectedOnBranch();
     const [name] = readdirSync(branches);
     // 長く続いたブランチ: 初めて collect したのは範囲より前で、最近も行を足した（最後の行の observed_at は今）
     renameSync(join(branches, name ?? ""), join(branches, "20260701T000000Z-feature-5-x.csv"));
-    git("switch", "-q", "-c", "feature/6-y");
-    git("commit", "-q", "--allow-empty", "-m", "work");
-    const again = cli("collect");
+    await git("switch", "-q", "-c", "feature/6-y");
+    await git("commit", "-q", "--allow-empty", "-m", "work");
+    const again = await cli("collect");
     expect(again.status).toBe(0);
     expect(again.stdout).not.toMatch(/範囲より古いので読まなかった/);
     const other = readdirSync(branches).filter((f) => f.endsWith("-feature-6-y.csv"));
@@ -897,8 +902,8 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(text).not.toContain("usage:claude-code:s1:");
   });
 
-  test("この clone で最後に collect したのが範囲より前なら、範囲より古いログの行も書く", () => {
-    const { repo, cli, logDir, logLines } = collectedOnBranch();
+  test("この clone で最後に collect したのが範囲より前なら、範囲より古いログの行も書く", async () => {
+    const { repo, cli, logDir, logLines } = await collectedOnBranch();
     const state = join(repo, ".git", "agent-usage", "last-collect.json");
     const readState = (): Record<string, unknown> => {
       const v: unknown = JSON.parse(readFileSync(state, "utf8"));
@@ -912,7 +917,7 @@ describe("agent-usage のコマンドと Hook", () => {
     // 時計が進んでいたときに保存した、今より後の時刻は信じない（範囲の中で collect していないとして扱う）
     writeFileSync(state, JSON.stringify({ [person]: "2030-01-01T00:00:00.000Z" }));
     writeLogCopy(logDir, logLines, { tag: "future", date: "2026-07-10" });
-    expect(cli("collect").status).toBe(0);
+    expect((await cli("collect")).status).toBe(0);
     expect(readState()[person]).toBe("2026-10-01T12:00:00.000Z");
     const branches0 = join(repo, ".agent-usage", "records", person, "branches");
     expect(
@@ -924,7 +929,7 @@ describe("agent-usage のコマンドと Hook", () => {
     writeFileSync(state, JSON.stringify({ [person]: "2026-07-01T00:00:00.000Z" }));
     // 前回の collect の後（範囲より前）のセッションのログを足す
     writeLogCopy(logDir, logLines, { tag: "old", date: "2026-07-15" });
-    expect(cli("collect").status).toBe(0);
+    expect((await cli("collect")).status).toBe(0);
     const branches = join(repo, ".agent-usage", "records", person, "branches");
     const text = readdirSync(branches)
       .map((f) => readFileSync(join(branches, f), "utf8"))
@@ -934,14 +939,14 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(readState()[person]).toBe("2026-10-01T12:00:00.000Z");
   });
 
-  test("ブランチのファイルの改行と、知らない列を保って足す", () => {
-    const { git, cli, branches } = collectedOnBranch();
+  test("ブランチのファイルの改行と、知らない列を保って足す", async () => {
+    const { git, cli, branches } = await collectedOnBranch();
     const file = join(branches, readdirSync(branches)[0] ?? "");
     const text = readFileSync(file, "utf8");
     // CRLF のファイル（Windows の core.autocrlf）には、CRLF のまま後ろに足す
     writeFileSync(file, text.replace(/\n/g, "\r\n"));
-    git("commit", "-q", "--allow-empty", "-m", "work");
-    expect(cli("collect").status).toBe(0);
+    await git("commit", "-q", "--allow-empty", "-m", "work");
+    expect((await cli("collect")).status).toBe(0);
     const crlf = readFileSync(file, "utf8");
     expect(crlf.startsWith(text.replace(/\n/g, "\r\n"))).toBe(true);
     expect(crlf.replace(/\r\n/g, "")).not.toContain("\n");
@@ -951,8 +956,8 @@ describe("agent-usage のコマンドと Hook", () => {
       file,
       `${[`${header},future_col`, ...body.map((l) => `${l},keep-me`)].join("\n")}\n`,
     );
-    git("commit", "-q", "--allow-empty", "-m", "work2");
-    expect(cli("collect").status).toBe(0);
+    await git("commit", "-q", "--allow-empty", "-m", "work2");
+    expect((await cli("collect")).status).toBe(0);
     const merged = readFileSync(file, "utf8");
     expect(merged.split("\n")[0]).toMatch(/,future_col$/);
     expect(merged.split("keep-me").length - 1).toBe(body.length);
@@ -970,16 +975,16 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(label.length).toBeLessThanOrEqual(100);
   });
 
-  test("範囲より古い開始時刻の行でも、読んだ記録に同じ key があって内容が変われば書く", () => {
-    const { repo, git, cli, logDir, logLines } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    git("switch", "-q", "-c", "feature/5-x");
+  test("範囲より古い開始時刻の行でも、読んだ記録に同じ key があって内容が変われば書く", async () => {
+    const { repo, git, cli, logDir, logLines } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    await git("switch", "-q", "-c", "feature/5-x");
     // 範囲より古いセッションのログ（初めての collect なので書く）
     const old = copyLogLines(logLines, { tag: "old", date: "2026-07-01" });
     const write = (lines: unknown[]) =>
       writeFileSync(join(logDir, "s-old.jsonl"), lines.map((l) => JSON.stringify(l)).join("\n"));
     write(old);
-    expect(cli("collect").status).toBe(0);
+    expect((await cli("collect")).status).toBe(0);
     const { branches } = recordDirs(repo);
     const read = () =>
       readdirSync(branches)
@@ -1003,43 +1008,43 @@ describe("agent-usage のコマンドと Hook", () => {
         },
       },
     ]);
-    expect(cli("collect").status).toBe(0);
+    expect((await cli("collect")).status).toBe(0);
     expect(read().length).toBeGreaterThan(before.length);
   });
 
-  test("英数字以外を含むブランチの名前は、ハッシュを足して別のブランチと別のファイルにする", () => {
-    const { repo, git, cli } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    git("switch", "-q", "-c", "feature/日本語");
-    expect(cli("collect").status).toBe(0);
-    git("switch", "-q", "main");
-    git("switch", "-q", "-c", "feature/中文");
-    git("commit", "-q", "--allow-empty", "-m", "work");
-    expect(cli("collect").status).toBe(0);
+  test("英数字以外を含むブランチの名前は、ハッシュを足して別のブランチと別のファイルにする", async () => {
+    const { repo, git, cli } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    await git("switch", "-q", "-c", "feature/日本語");
+    expect((await cli("collect")).status).toBe(0);
+    await git("switch", "-q", "main");
+    await git("switch", "-q", "-c", "feature/中文");
+    await git("commit", "-q", "--allow-empty", "-m", "work");
+    expect((await cli("collect")).status).toBe(0);
     const { records, person } = recordDirs(repo);
     const files = readdirSync(join(records, person, "branches"));
     expect(files).toHaveLength(2);
     for (const f of files) expect(f).toMatch(/^\d{8}T\d{6}Z-feature-[0-9a-f]{8}\.csv$/);
   });
 
-  test("見出しの列が今と違うファイルに足すときは、今の列で書き直す", () => {
-    const { git, cli, branches } = collectedOnBranch();
+  test("見出しの列が今と違うファイルに足すときは、今の列で書き直す", async () => {
+    const { git, cli, branches } = await collectedOnBranch();
     const file = join(branches, readdirSync(branches)[0] ?? "");
     // 列の少ないバージョンが書いたファイル（detail の列が無い）
     const columns = [...COLUMNS].filter((c) => c !== "detail");
     writeFileSync(file, toCsv(columns, parseCsv(readFileSync(file, "utf8"))));
-    git("commit", "-q", "--allow-empty", "-m", "work");
-    const again = cli("collect");
+    await git("commit", "-q", "--allow-empty", "-m", "work");
+    const again = await cli("collect");
     expect(again.status).toBe(0);
     expect(again.stdout).toMatch(/書いた: /);
     expect(readFileSync(file, "utf8").split("\n")[0]).toBe(COLUMNS.join(","));
-    expect(cli("report").status).toBe(0);
+    expect((await cli("report")).status).toBe(0);
   });
 
-  test("オフセットが 30 分のタイムゾーンでは、日付の境目の前後の使用量をそれぞれの日に入れる", () => {
-    const { repo, git, cli, logDir } = setup();
-    expect(cli("setup", "--time-zone", "Asia/Kolkata").status).toBe(0);
-    git("switch", "-q", "-c", "feature/5-x");
+  test("オフセットが 30 分のタイムゾーンでは、日付の境目の前後の使用量をそれぞれの日に入れる", async () => {
+    const { repo, git, cli, logDir } = await setup();
+    expect((await cli("setup", "--time-zone", "Asia/Kolkata")).status).toBe(0);
+    await git("switch", "-q", "-c", "feature/5-x");
     // 18:20Z は IST の前日の 23:50、18:40Z は IST の翌日の 00:10（どちらも UTC では 18 時台）
     const msg = (id: string, ts: string) => ({
       type: "assistant",
@@ -1060,8 +1065,8 @@ describe("agent-usage のコマンドと Hook", () => {
       msg("k2", "2026-10-01T18:40:00.000Z"),
     ];
     writeFileSync(join(logDir, "s-ist.jsonl"), lines.map((l) => JSON.stringify(l)).join("\n"));
-    expect(cli("collect").status).toBe(0);
-    expect(cli("report").status).toBe(0);
+    expect((await cli("collect")).status).toBe(0);
+    expect((await cli("report")).status).toBe(0);
     const usage = readFileSync(
       join(repo, ".agent-usage", "report", "20261001", "usage.csv"),
       "utf8",
@@ -1071,27 +1076,27 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(oct2.map((row) => row.input_tokens)).toEqual(["100"]);
   });
 
-  test("区切り方が変わった記録済みの行は打ち消し、report は二重に数えない", () => {
-    const { repo, cli, logDir } = collectedOnBranch();
+  test("区切り方が変わった記録済みの行は打ち消し、report は二重に数えない", async () => {
+    const { repo, cli, logDir } = await collectedOnBranch();
     const total = () => reportedInputTokens({ repo, cli });
-    const before = total();
+    const before = await total();
     // タイムゾーンを 30 分のオフセットに変えると、使用量の区切り（key）が変わる
-    expect(cli("setup", "--time-zone", "Asia/Kolkata").status).toBe(0);
-    const again = cli("collect");
+    expect((await cli("setup", "--time-zone", "Asia/Kolkata")).status).toBe(0);
+    const again = await cli("collect");
     expect(again.stdout).toMatch(/打ち消した行（ログはあるが、今は作らなくなった行）: [1-9]/);
-    expect(total()).toBe(before);
+    expect(await total()).toBe(before);
     // 打ち消し済みの行は、次の collect で打ち消しの行を書き足さない
-    expect(cli("collect").stdout).not.toMatch(/打ち消した行/);
+    expect((await cli("collect")).stdout).not.toMatch(/打ち消した行/);
     // ログが消えたセッションの行は、作れないだけなので打ち消さない
     rmSync(join(logDir, "s1.jsonl"));
-    expect(cli("collect").stdout).not.toMatch(/打ち消した行/);
-    expect(total()).toBe(before);
+    expect((await cli("collect")).stdout).not.toMatch(/打ち消した行/);
+    expect(await total()).toBe(before);
   });
 
-  test("引き継いだ側のセッションの指示・稼働の行は、元のセッションのログが見つかると打ち消す", () => {
-    const { repo, git, cli, logDir, logLines } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    git("switch", "-q", "-c", "feature/5-x");
+  test("引き継いだ側のセッションの指示・稼働の行は、元のセッションのログが見つかると打ち消す", async () => {
+    const { repo, git, cli, logDir, logLines } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    await git("switch", "-q", "-c", "feature/5-x");
     // 元のセッション（s1）のログが見えない間に、それをコピーして続けたセッション（s2）だけを記録する
     const original = join(logDir, "s1.jsonl");
     const aside = join(logDir, "..", "s1.jsonl.aside");
@@ -1101,10 +1106,10 @@ describe("agent-usage のコマンドと Hook", () => {
       join(logDir, "s2.jsonl"),
       [...logLines, ...extra].map((l) => JSON.stringify(l)).join("\n"),
     );
-    expect(cli("collect").status).toBe(0);
+    expect((await cli("collect")).status).toBe(0);
     // 元のログが見つかると、コピーした範囲の s2 の行は作らなくなるので、打ち消す
     renameSync(aside, original);
-    const again = cli("collect");
+    const again = await cli("collect");
     expect(again.status).toBe(0);
     expect(again.stdout).toMatch(/打ち消した行（ログはあるが、今は作らなくなった行）: [1-9]/);
     const { branches } = recordDirs(repo);
@@ -1126,10 +1131,10 @@ describe("agent-usage のコマンドと Hook", () => {
     ).toBe(true);
   });
 
-  test("別名で記録した行と、observed_at が今より後の行も打ち消し、report は二重に数えない", () => {
-    const { repo, cli } = collectedOnBranch();
+  test("別名で記録した行と、observed_at が今より後の行も打ち消し、report は二重に数えない", async () => {
+    const { repo, cli } = await collectedOnBranch();
     const total = () => reportedInputTokens({ repo, cli });
-    const before = total();
+    const before = await total();
     // 記録済みの行を、前の ID（別名）で、時計の進んだマシンが書いた形にする
     const { person, branches } = recordDirs(repo);
     for (const f of readdirSync(branches)) {
@@ -1142,72 +1147,58 @@ describe("agent-usage のコマンドと Hook", () => {
       writeFileSync(file, toCsv([...COLUMNS], rows));
     }
     writeFileSync(repoConfigOf(repo), JSON.stringify({ aliases: { "p-00000001": person } }));
-    expect(total()).toBe(before);
-    expect(cli("setup", "--time-zone", "Asia/Kolkata").status).toBe(0);
-    const again = cli("collect");
+    expect(await total()).toBe(before);
+    expect((await cli("setup", "--time-zone", "Asia/Kolkata")).status).toBe(0);
+    const again = await cli("collect");
     expect(again.stdout).toMatch(/打ち消した行（ログはあるが、今は作らなくなった行）: [1-9]/);
-    expect(total()).toBe(before);
+    expect(await total()).toBe(before);
     // 打ち消しが反映されたので、次の collect で打ち消しの行を書き足さない
-    expect(cli("collect").stdout).not.toMatch(/打ち消した行/);
+    expect((await cli("collect")).stdout).not.toMatch(/打ち消した行/);
   });
 
-  test("サブエージェントのログしか残っていないセッションの行は、打ち消さない", () => {
-    const { repo, git, cli, logDir } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    git("switch", "-q", "-c", "feature/5-x");
-    const sub = join(logDir, "s1", "subagents");
-    mkdirSync(sub, { recursive: true });
-    const line = {
-      type: "assistant",
+  test("サブエージェントのログしか残っていないセッションの行は、打ち消さない", async () => {
+    const { repo, git, cli, logDir } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    await git("switch", "-q", "-c", "feature/5-x");
+    writeSubagentLog({ repo, logDir }, "agent-a.jsonl", {
+      id: "sa1",
+      model: "claude-opus-5-5",
+      input: 5,
       timestamp: "2026-10-01T10:05:00.000Z",
-      cwd: repo,
-      message: {
-        id: "sa1",
-        model: "claude-opus-5-5",
-        usage: { input_tokens: 5, output_tokens: 0 },
-      },
-    };
-    writeFileSync(join(sub, "agent-a.jsonl"), JSON.stringify(line));
-    expect(cli("collect").status).toBe(0);
+    });
+    expect((await cli("collect")).status).toBe(0);
     // メインのログが消えると、指示・稼働・待ちの行は作れなくなるが、ログが消えただけなので打ち消さない
     rmSync(join(logDir, "s1.jsonl"));
-    const again = cli("collect");
+    const again = await cli("collect");
     expect(again.status).toBe(0);
     expect(again.stdout).not.toMatch(/打ち消した行/);
   });
 
-  test("サブエージェントのログだけが消えたセッションの使用量は、区切り方が変わっても打ち消さない", () => {
-    const { repo, git, cli, logDir } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    git("switch", "-q", "-c", "feature/5-x");
+  test("サブエージェントのログだけが消えたセッションの使用量は、区切り方が変わっても打ち消さない", async () => {
+    const { repo, git, cli, logDir } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    await git("switch", "-q", "-c", "feature/5-x");
     // メインのログがあるので、サブエージェントの応答はメインのセッションにまとめて数える（別のモデル・別の時間帯）
-    const sub = join(logDir, "s1", "subagents");
-    mkdirSync(sub, { recursive: true });
-    const line = {
-      type: "assistant",
+    const sub = writeSubagentLog({ repo, logDir }, "agent-b.jsonl", {
+      id: "sa2",
+      model: "claude-haiku-5-5",
+      input: 7,
       timestamp: "2026-10-01T11:05:00.000Z",
-      cwd: repo,
-      message: {
-        id: "sa2",
-        model: "claude-haiku-5-5",
-        usage: { input_tokens: 7, output_tokens: 0 },
-      },
-    };
-    writeFileSync(join(sub, "agent-b.jsonl"), JSON.stringify(line));
-    expect(cli("collect").status).toBe(0);
+    });
+    expect((await cli("collect")).status).toBe(0);
     // サブエージェントのログだけが先に消えても、その使用量は打ち消さない（メインのログはある）
     rmSync(sub, { recursive: true });
-    const again = cli("collect");
+    const again = await cli("collect");
     expect(again.status).toBe(0);
     expect(again.stdout).not.toMatch(/打ち消した行/);
     // 区切り方が変わっても、作り直した使用量が減るモデル（ログの欠けたサブエージェントのモデル）の行は打ち消さず、
     // 前の区切りの行と重なる新しい行も書かない（両方を数えて二重にしない）
     const total = () => reportedInputTokens({ repo, cli });
-    const before = total();
-    expect(cli("setup", "--time-zone", "Asia/Kolkata").status).toBe(0);
-    expect(cli("collect").status).toBe(0);
-    expect(total()).toBe(before);
-    expect(cli("report").status).toBe(0);
+    const before = await total();
+    expect((await cli("setup", "--time-zone", "Asia/Kolkata")).status).toBe(0);
+    expect((await cli("collect")).status).toBe(0);
+    expect(await total()).toBe(before);
+    expect((await cli("report")).status).toBe(0);
     const usage = readFileSync(
       join(repo, ".agent-usage", "report", "20261001", "usage.csv"),
       "utf8",
@@ -1215,37 +1206,30 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(usage).toMatch(/claude-haiku-5-5/);
   });
 
-  test("同じモデルのサブエージェントのログが消えた後に区切り方を変えても、重なる新しい行を書かず二重に数えない", () => {
-    const { repo, git, cli, logDir } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    git("switch", "-q", "-c", "feature/5-x");
-    const sub = join(logDir, "s1", "subagents");
-    mkdirSync(sub, { recursive: true });
-    const line = {
-      type: "assistant",
+  test("同じモデルのサブエージェントのログが消えた後に区切り方を変えても、重なる新しい行を書かず二重に数えない", async () => {
+    const { repo, git, cli, logDir } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    await git("switch", "-q", "-c", "feature/5-x");
+    const sub = writeSubagentLog({ repo, logDir }, "agent-c.jsonl", {
+      id: "sa3",
+      model: "claude-opus-5-5",
+      input: 7,
       timestamp: "2026-10-01T10:05:00.000Z",
-      cwd: repo,
-      message: {
-        id: "sa3",
-        model: "claude-opus-5-5",
-        usage: { input_tokens: 7, output_tokens: 0 },
-      },
-    };
-    writeFileSync(join(sub, "agent-c.jsonl"), JSON.stringify(line));
-    expect(cli("collect").status).toBe(0);
+    });
+    expect((await cli("collect")).status).toBe(0);
     const total = () => reportedInputTokens({ repo, cli });
-    const before = total();
+    const before = await total();
     // メインと同じモデルの使用量が減るので、前の区切りの行は打ち消さず、それと重なる新しい区切りの行も書かない
     rmSync(sub, { recursive: true });
-    expect(cli("setup", "--time-zone", "Asia/Kolkata").status).toBe(0);
-    const again = cli("collect");
+    expect((await cli("setup", "--time-zone", "Asia/Kolkata")).status).toBe(0);
+    const again = await cli("collect");
     expect(again.status).toBe(0);
     expect(again.stdout).not.toMatch(/打ち消した行/);
-    expect(total()).toBe(before);
+    expect(await total()).toBe(before);
   });
 
-  test("打ち消しの列が空でも 1 でもない記録は、読むときに失敗にする", () => {
-    const { cli, branches } = collectedOnBranch();
+  test("打ち消しの列が空でも 1 でもない記録は、読むときに失敗にする", async () => {
+    const { cli, branches } = await collectedOnBranch();
     const [name] = readdirSync(branches);
     const file = join(branches, name ?? "");
     const [header, first, ...rest] = readFileSync(file, "utf8").trim().split("\n");
@@ -1253,20 +1237,20 @@ describe("agent-usage のコマンドと Hook", () => {
       file,
       `${[header, `${(first ?? "").replace(/,$/, "")},true`, ...rest].join("\n")}\n`,
     );
-    const r = cli("report");
+    const r = await cli("report");
     expect(r.status).not.toBe(0);
     expect(r.stderr).toMatch(/retracted が空でも 1 でもない/);
   });
 
-  test("開始時刻が範囲より古い行は、区切り方が変わっても打ち消さず、使用量を残す", () => {
-    const { repo, git, cli, logDir, logLines } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    git("switch", "-q", "-c", "feature/5-x");
+  test("開始時刻が範囲より古い行は、区切り方が変わっても打ち消さず、使用量を残す", async () => {
+    const { repo, git, cli, logDir, logLines } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    await git("switch", "-q", "-c", "feature/5-x");
     // 範囲（60 日）より古いセッション。初めての collect なので書く
     writeLogCopy(logDir, logLines, { tag: "old", date: "2026-07-01" });
-    expect(cli("collect").status).toBe(0);
-    const tokens = () => {
-      expect(cli("report", "--since", "2026-06-01").status).toBe(0);
+    expect((await cli("collect")).status).toBe(0);
+    const tokens = async () => {
+      expect((await cli("report", "--since", "2026-06-01")).status).toBe(0);
       const dir = join(repo, ".agent-usage", "report");
       const day = readdirSync(dir)[0] ?? "";
       const usage = readFileSync(join(dir, day, "usage.csv"), "utf8");
@@ -1274,18 +1258,18 @@ describe("agent-usage のコマンドと Hook", () => {
         .filter((row) => (row.date ?? "").startsWith("2026-07"))
         .reduce((a, row) => a + Number(row.input_tokens), 0);
     };
-    const before = tokens();
+    const before = await tokens();
     expect(before).toBeGreaterThan(0);
     // 区切り方を変えても、範囲より古い行は書き直さないので、打ち消さない
-    expect(cli("setup", "--time-zone", "Asia/Kolkata").status).toBe(0);
-    expect(cli("collect").status).toBe(0);
-    expect(tokens()).toBe(before);
+    expect((await cli("setup", "--time-zone", "Asia/Kolkata")).status).toBe(0);
+    expect((await cli("collect")).status).toBe(0);
+    expect(await tokens()).toBe(before);
   });
 
-  test("打ち消しの列が無い古い記録も読み、report は同じ値を出す", () => {
-    const { repo, cli } = collectedOnBranch();
+  test("打ち消しの列が無い古い記録も読み、report は同じ値を出す", async () => {
+    const { repo, cli } = await collectedOnBranch();
     const out = join(repo, ".agent-usage", "report", "20261001");
-    expect(cli("report").status).toBe(0);
+    expect((await cli("report")).status).toBe(0);
     const baseline = readFileSync(join(out, "usage.csv"), "utf8");
     const { branches } = recordDirs(repo);
     const [name] = readdirSync(branches);
@@ -1298,7 +1282,7 @@ describe("agent-usage のコマンドと Hook", () => {
       .join("\n");
     expect(old.split("\n")[0]).not.toMatch(/retracted/);
     writeFileSync(join(branches, name ?? ""), `${old}\n`);
-    expect(cli("report").status).toBe(0);
+    expect((await cli("report")).status).toBe(0);
     expect(readFileSync(join(out, "usage.csv"), "utf8")).toBe(baseline);
   });
 
@@ -1315,27 +1299,29 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(new Date(localHourStart(Date.parse(at), tz)).toISOString()).toBe(expected);
   });
 
-  test("origin が GitHub でなければ、GitHub を取得しない", () => {
-    const { git, cli } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    git("remote", "add", "origin", "https://gitlab.com/group/sub/repo.git");
-    git("switch", "-q", "-c", "feature/5-x");
-    const sub = cli("collect");
+  test("origin が GitHub でなければ、GitHub を取得しない", async () => {
+    const { git, cli } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    await git("remote", "add", "origin", "https://gitlab.com/group/sub/repo.git");
+    await git("switch", "-q", "-c", "feature/5-x");
+    const sub = await cli("collect");
     expect(sub.status).toBe(0);
     expect(sub.stdout).toMatch(/GitHub: 取得していない（.*の形でない）/);
-    git("remote", "set-url", "origin", "https://gitlab.com/owner/repo.git");
-    const flat = cli("collect");
+    await git("remote", "set-url", "origin", "https://gitlab.com/owner/repo.git");
+    const flat = await cli("collect");
     expect(flat.status).toBe(0);
     expect(flat.stdout).toMatch(/GitHub: 取得していない（origin のホスト gitlab\.com は/);
     expect(flat.stdout).toMatch(/gh auth login --hostname gitlab\.com/);
-    expect(cli("collect", "--no-github").stdout).toMatch(/GitHub: 取得していない（--no-github）/);
+    expect((await cli("collect", "--no-github")).stdout).toMatch(
+      /GitHub: 取得していない（--no-github）/,
+    );
   });
 
-  test("ログインで GitHub と判定したホストには、環境変数の GH_ENTERPRISE_TOKEN を送らない", () => {
-    const { tmp, git, cli, cliWith } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    git("remote", "add", "origin", "https://ghe.invalid/example-org/example-repo.git");
-    git("switch", "-q", "-c", "feature/5-x");
+  test("ログインで GitHub と判定したホストには、環境変数の GH_ENTERPRISE_TOKEN を送らない", async () => {
+    const { tmp, git, cli, cliWith } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    await git("remote", "add", "origin", "https://ghe.invalid/example-org/example-repo.git");
+    await git("switch", "-q", "-c", "feature/5-x");
     // 偽の gh: auth token は成功し、api は受け取った GH_ENTERPRISE_TOKEN を記録して失敗する
     const bin = join(tmp, "bin");
     mkdirSync(bin, { recursive: true });
@@ -1350,15 +1336,15 @@ describe("agent-usage のコマンドと Hook", () => {
     const marker = join(tmp, "logged-in");
     const base = { PATH: path, GH_LOG: log, GH_LOGGED_IN: marker, GH_ENTERPRISE_TOKEN: "secret" };
     // 環境変数の token だけでは、ログインとして数えない
-    const envOnly = cliWith({ ...base, GH_TOKEN: "t" }, "collect");
+    const envOnly = await cliWith({ ...base, GH_TOKEN: "t" }, "collect");
     expect(envOnly.stdout).toMatch(/GitHub: 取得していない（.*no oauth token/);
     writeFileSync(marker, "");
-    const viaLogin = cliWith({ ...base, GH_TOKEN: "t" }, "collect");
+    const viaLogin = await cliWith({ ...base, GH_TOKEN: "t" }, "collect");
     expect(viaLogin.stdout).not.toMatch(/GitHub: 取得していない/);
     expect(readFileSync(log, "utf8")).toMatch(/^(\[\])+$/);
     // GH_HOST で指定したホストには、これまでどおり環境変数の token で問い合わせる
     writeFileSync(log, "");
-    cliWith({ ...base, GH_HOST: "ghe.invalid" }, "collect");
+    await cliWith({ ...base, GH_HOST: "ghe.invalid" }, "collect");
     expect(readFileSync(log, "utf8")).toMatch(/^(\[secret\])+$/);
     // auth token を持たない古い gh では、更新が要ることを理由に出す
     writeFileSync(
@@ -1368,7 +1354,7 @@ describe("agent-usage のコマンドと Hook", () => {
         mode: 0o755,
       },
     );
-    const old = cliWith({ PATH: path }, "collect");
+    const old = await cliWith({ PATH: path }, "collect");
     expect(old.stdout).toMatch(/GitHub: 取得していない（.*gh を更新する/);
   });
 
@@ -1457,11 +1443,11 @@ describe("agent-usage のコマンドと Hook", () => {
   // 取得した期間の coverage の行は、停止の分類に使う段がすべて取れたときだけ ok にする。
   // 課金 API と artifact の失敗は費用の行が欠けるだけなので、その期間を判定不能（ok でない）にしない。
   // 課金 API と artifact を数えない分岐は、aggregate.test.ts の classifyingFailuresOf のテストが確かめる。
-  test("collect の coverage: Actions の run の取得も失敗したら、その段だけを挙げて判定不能にする", () => {
-    const { tmp, repo, git, cli, cliWith } = setup();
-    expect(cli("setup", "--time-zone", "UTC", "--billing", "user").status).toBe(0);
-    git("remote", "add", "origin", "https://github.com/example-org/example-repo.git");
-    git("switch", "-q", "-c", "feature/5-x");
+  test("collect の coverage: Actions の run の取得も失敗したら、その段だけを挙げて判定不能にする", async () => {
+    const { tmp, repo, git, cli, cliWith } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC", "--billing", "user")).status).toBe(0);
+    await git("remote", "add", "origin", "https://github.com/example-org/example-repo.git");
+    await git("switch", "-q", "-c", "feature/5-x");
     // 偽の gh: 自分の login・PR・Actions の run は空の結果を返し、artifact と課金 API は失敗する
     const bin = join(tmp, "bin");
     mkdirSync(bin, { recursive: true });
@@ -1481,7 +1467,10 @@ describe("agent-usage のコマンドと Hook", () => {
       ].join("\n"),
       { mode: 0o755 },
     );
-    const r = cliWith({ PATH: `${bin}:${process.env.PATH ?? ""}`, FAIL_RUNS: "runs" }, "collect");
+    const r = await cliWith(
+      { PATH: `${bin}:${process.env.PATH ?? ""}`, FAIL_RUNS: "runs" },
+      "collect",
+    );
     expect(r.status, r.stderr).toBe(0);
     // 失敗した段は、coverage の判定に使わなくても collect の出力に出す
     expect(r.stdout).toMatch(/artifacts/);
@@ -1496,62 +1485,61 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(coverage[0]?.detail).not.toMatch(/billing|artifacts/);
   });
 
-  test("ポートを含み、gh にログインしていないホストの origin は、理由を出して取得しない", () => {
-    const { git, cli } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    git("remote", "add", "origin", "ssh://git@ghe.invalid:7999/example-org/example-repo.git");
-    git("switch", "-q", "-c", "feature/5-x");
-    expect(cli("collect").stdout).toMatch(/GitHub: 取得していない（.*ポートを含み/);
+  test("ポートを含み、gh にログインしていないホストの origin は、理由を出して取得しない", async () => {
+    const { git, cli } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    await git("remote", "add", "origin", "ssh://git@ghe.invalid:7999/example-org/example-repo.git");
+    await git("switch", "-q", "-c", "feature/5-x");
+    expect((await cli("collect")).stdout).toMatch(/GitHub: 取得していない（.*ポートを含み/);
   });
 
-  test("Hook の collect も、GitHub を取得しなかった理由を出す", () => {
-    const { git, cli, gate } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    git("remote", "add", "origin", "https://gitlab.com/owner/repo.git");
-    git("switch", "-q", "-c", "feature/5-x");
-    expect(cli("collect", "--stage").status).toBe(0);
-    const r = gate("git commit -m x");
+  test("Hook の collect も、GitHub を取得しなかった理由を出す", async () => {
+    const { git, cli, gate } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    await git("remote", "add", "origin", "https://gitlab.com/owner/repo.git");
+    await git("switch", "-q", "-c", "feature/5-x");
+    expect((await cli("collect", "--stage")).status).toBe(0);
+    const r = await gate("git commit -m x");
     expect(r.status).toBe(0);
     expect(r.stdout + r.stderr).toMatch(/GitHub は取得していない: origin のホスト gitlab\.com は/);
   });
 
-  test("gate は、確認の処理の誤り（不正な AGENT_USAGE_NOW）ではコミットを止めない", () => {
-    const { repo, cli } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    const r = spawnSync("node", [CLI, "gate", "--agent", "claude-code"], {
+  test("gate は、確認の処理の誤り（不正な AGENT_USAGE_NOW）ではコミットを止めない", async () => {
+    const { repo, cli } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    const r = await spawnAsync("node", [CLI, "gate", "--agent", "claude-code"], {
       timeout: CHILD_TIMEOUT_MS,
       cwd: repo,
       env: { ...process.env, AGENT_USAGE_NOW: "not-a-time" },
-      encoding: "utf8",
       input: JSON.stringify({ cwd: repo, tool_input: { command: "git commit -m x" } }),
     });
     expect(r.status).toBe(0);
     expect(r.stderr).toMatch(/確認をせずに通します/);
   });
 
-  test("知らない引数と値の無い引数は、使い方を出して 2 で止める", () => {
-    const { cli } = setup();
-    const bad = cli("collect", "--nope");
+  test("知らない引数と値の無い引数は、使い方を出して 2 で止める", async () => {
+    const { cli } = await setup();
+    const bad = await cli("collect", "--nope");
     expect(bad.status).toBe(2);
     expect(bad.stderr).toMatch(/^agent-usage: 不明な引数: --nope$/m);
     expect(bad.stderr).toMatch(/^usage: /m);
-    expect(cli("report", "--since").status).toBe(2);
-    expect(cli("unknown").status).toBe(2);
+    expect((await cli("report", "--since")).status).toBe(2);
+    expect((await cli("unknown")).status).toBe(2);
   });
 });
 
 // コマンドの入力の誤りと、表示する状態（SKILL.md の status・setup・decline）。
-describe("agent-usage のコマンドの入力と状態", () => {
-  test("status は、セットアップの有無・ブランチ・判断・人の設定を表示する", () => {
-    const { tmp, git, cli } = setup();
-    const before = cli("status");
+describe.concurrent("agent-usage のコマンドの入力と状態", () => {
+  test("status は、セットアップの有無・ブランチ・判断・人の設定を表示する", async () => {
+    const { tmp, git, cli } = await setup();
+    const before = await cli("status");
     expect(before.status).toBe(0);
     expect(before.stdout).toMatch(/^セットアップ: 未（.*\.agent-usage）$/m);
     expect(before.stdout).toMatch(/^ブランチ: main \/ デフォルトブランチ: \(不明\)$/m);
     // setup の前なので、デフォルトブランチかより先に、.agent-usage/ が無いことを理由に出す（Hook と同じ順）
     expect(before.stdout).toMatch(/^このブランチの判断: 対象外（\.agent-usage\/ が無い/m);
     expect(before.stdout).toMatch(/^人の設定: \(無い\)$/m);
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
     // origin/HEAD があれば、それをデフォルトブランチとして表示する
     const origin = join(tmp, "origin.git");
     expect(
@@ -1559,39 +1547,39 @@ describe("agent-usage のコマンドの入力と状態", () => {
         timeout: CHILD_TIMEOUT_MS,
       }).status,
     ).toBe(0);
-    git("remote", "add", "origin", origin);
-    git("push", "-q", "origin", "HEAD:trunk");
-    git("remote", "set-head", "origin", "trunk");
-    git("switch", "-q", "-c", "feature/5-x");
-    expect(cli("decline").status).toBe(0);
-    const after = cli("status");
+    await git("remote", "add", "origin", origin);
+    await git("push", "-q", "origin", "HEAD:trunk");
+    await git("remote", "set-head", "origin", "trunk");
+    await git("switch", "-q", "-c", "feature/5-x");
+    expect((await cli("decline")).status).toBe(0);
+    const after = await cli("status");
     expect(after.stdout).toMatch(/^セットアップ: 済み/m);
     expect(after.stdout).toMatch(/^ブランチ: feature\/5-x \/ デフォルトブランチ: trunk$/m);
     expect(after.stdout).toMatch(/^このブランチの判断: decline$/m);
     expect(after.stdout).toMatch(/^人の設定: .*"timeZone": "UTC"/m);
-    git("switch", "-q", "--detach");
-    const detached = cli("status");
+    await git("switch", "-q", "--detach");
+    const detached = await cli("status");
     expect(detached.stdout).toMatch(/^ブランチ: \(detached\) /m);
     expect(detached.stdout).toMatch(/^このブランチの判断: -$/m);
   });
 
-  test("origin/HEAD のデフォルトブランチでは、main 以外の名前でもコミットを止めない", () => {
-    const { tmp, git, cli, gate } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+  test("origin/HEAD のデフォルトブランチでは、main 以外の名前でもコミットを止めない", async () => {
+    const { tmp, git, cli, gate } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
     const origin = join(tmp, "origin.git");
     expect(
       spawnSync("git", ["init", "-q", "--bare", "-b", "trunk", origin], {
         timeout: CHILD_TIMEOUT_MS,
       }).status,
     ).toBe(0);
-    git("remote", "add", "origin", origin);
-    git("switch", "-q", "-c", "trunk");
-    git("push", "-q", "origin", "trunk");
-    git("remote", "set-head", "origin", "trunk");
-    expect(gate("git commit -m x").status).toBe(0);
+    await git("remote", "add", "origin", origin);
+    await git("switch", "-q", "-c", "trunk");
+    await git("push", "-q", "origin", "trunk");
+    await git("remote", "set-head", "origin", "trunk");
+    expect((await gate("git commit -m x")).status).toBe(0);
     // origin/HEAD が分かるときは、main もデフォルトブランチとして扱わない
-    git("switch", "-q", "main");
-    expect(gate("git commit -m x").status).toBe(2);
+    await git("switch", "-q", "main");
+    expect((await gate("git commit -m x")).status).toBe(2);
   });
 
   test.each([
@@ -1611,44 +1599,44 @@ describe("agent-usage のコマンドの入力と状態", () => {
       /--time-zone が重複している/,
     ],
     ["値が -- で始まる", ["setup", "--time-zone", "--billing"], /--time-zone に値が無い/],
-  ])("setup は、%s なら使い方を出して 2 で止める", (_case, args, message) => {
-    const { cli } = setup();
-    const r = cli(...args);
+  ])("setup は、%s なら使い方を出して 2 で止める", async (_case, args, message) => {
+    const { cli } = await setup();
+    const r = await cli(...args);
     expect(r.status).toBe(2);
     expect(r.stderr).toMatch(message);
     expect(r.stderr).toMatch(/^usage: /m);
   });
 
-  test("decline は、detached HEAD では判断を記録せずに失敗する", () => {
-    const { repo, git, cli } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    git("switch", "-q", "--detach");
-    const r = cli("decline");
+  test("decline は、detached HEAD では判断を記録せずに失敗する", async () => {
+    const { repo, git, cli } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    await git("switch", "-q", "--detach");
+    const r = await cli("decline");
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/ブランチの上にいない（detached HEAD）/);
     expect(existsSync(join(repo, ".git", "agent-usage", "decisions.json"))).toBe(false);
   });
 
-  test("detached HEAD の collect --stage は、detached の名前のファイルに書き、判断は記録しない", () => {
-    const { repo, git, cli } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    git("switch", "-q", "--detach");
-    const r = cli("collect", "--stage");
+  test("detached HEAD の collect --stage は、detached の名前のファイルに書き、判断は記録しない", async () => {
+    const { repo, git, cli } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    await git("switch", "-q", "--detach");
+    const r = await cli("collect", "--stage");
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toMatch(/書いた: .*\/branches\/\d{8}T\d{6}Z-detached\.csv$/m);
     expect(existsSync(join(repo, ".git", "agent-usage", "decisions.json"))).toBe(false);
   });
 
-  test("collect は、人の設定が無ければ作ったことと、読めなかったログの行の数を出す", () => {
-    const { tmp, git, cli, logDir, logLines } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    git("switch", "-q", "-c", "feature/5-x");
+  test("collect は、人の設定が無ければ作ったことと、読めなかったログの行の数を出す", async () => {
+    const { tmp, git, cli, logDir, logLines } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    await git("switch", "-q", "-c", "feature/5-x");
     rmSync(join(tmp, "xdg"), { recursive: true });
     writeFileSync(
       join(logDir, "s1.jsonl"),
       [...logLines.map((l) => JSON.stringify(l)), "{ not json"].join("\n"),
     );
-    const r = cli("collect");
+    const r = await cli("collect");
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toMatch(/^人の ID を作った: p-[0-9a-f]{8}（/m);
     expect(r.stdout).toMatch(/^読めなかったログの行: 1$/m);
@@ -1659,14 +1647,14 @@ describe("agent-usage のコマンドの入力と状態", () => {
     ["人の時刻が文字列でない", (person: string) => JSON.stringify({ [person]: 1 })],
   ])(
     "last-collect.json が%sなら、範囲の中で collect していないとして扱い、範囲より古いログの行も書いて作り直す",
-    (_case, broken) => {
-      const { repo, cli, logDir, logLines } = collectedOnBranch();
+    async (_case, broken) => {
+      const { repo, cli, logDir, logLines } = await collectedOnBranch();
       // 範囲（60 日）より古いセッションのログを足す
       writeLogCopy(logDir, logLines, { tag: "old", date: "2026-07-01" });
       const { records, person } = recordDirs(repo);
       const last = join(repo, ".git", "agent-usage", "last-collect.json");
       writeFileSync(last, broken(person));
-      const r = cli("collect");
+      const r = await cli("collect");
       expect(r.status, r.stderr).toBe(0);
       expect(r.stdout).not.toMatch(/開始時刻が範囲より古いので書かなかった行/);
       const branches = join(records, person, "branches");
@@ -1681,11 +1669,10 @@ describe("agent-usage のコマンドの入力と状態", () => {
     },
   );
 
-  test("GitHub を前に取得した期間があれば、その終わりから 1 日さかのぼって取得する", () => {
-    const { tmp, repo, git, cli, cliWith } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    git("remote", "add", "origin", "https://github.com/example-org/example-repo.git");
-    git("switch", "-q", "-c", "feature/5-x");
+  test("GitHub を前に取得した期間があれば、その終わりから 1 日さかのぼって取得する", async () => {
+    const { tmp, repo, cliWith } = await onFeatureBranch(
+      "https://github.com/example-org/example-repo.git",
+    );
     const bin = join(tmp, "bin");
     mkdirSync(bin, { recursive: true });
     writeFileSync(
@@ -1704,8 +1691,11 @@ describe("agent-usage のコマンドの入力と状態", () => {
       { mode: 0o755 },
     );
     const path = `${bin}:${process.env.PATH ?? ""}`;
-    expect(cliWith({ PATH: path }, "collect").status).toBe(0);
-    const second = cliWith({ PATH: path, AGENT_USAGE_NOW: "2026-10-03T12:00:00Z" }, "collect");
+    expect((await cliWith({ PATH: path }, "collect")).status).toBe(0);
+    const second = await cliWith(
+      { PATH: path, AGENT_USAGE_NOW: "2026-10-03T12:00:00Z" },
+      "collect",
+    );
     expect(second.status).toBe(0);
     const dir = join(repo, ".agent-usage", "records", "_github");
     const coverage = readdirSync(dir)
@@ -1728,54 +1718,57 @@ describe("agent-usage のコマンドの入力と状態", () => {
       "#!/bin/sh\nexit 3\n",
       /gh auth token が失敗した: exit 3/,
     ],
-  ])("ログインを確かめられないホストは、%s 理由を出して取得しない", (_case, script, reason) => {
-    const { tmp, git, cli, cliWith } = setup();
-    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    git("remote", "add", "origin", "https://ghe.invalid/o/r.git");
-    git("switch", "-q", "-c", "feature/5-x");
-    // PATH には collect が使う node と git だけを置き、gh は置かない（置くなら偽物）
-    const bin = join(tmp, "bin");
-    mkdirSync(bin, { recursive: true });
-    for (const tool of ["node", "git"]) {
-      const real = spawnSync("bash", ["-c", `command -v ${tool}`], {
-        encoding: "utf8",
-        timeout: CHILD_TIMEOUT_MS,
-      }).stdout.trim();
-      expect(real).not.toBe("");
-      symlinkSync(real, join(bin, tool));
-    }
-    if (script !== "") writeFileSync(join(bin, "gh"), script, { mode: 0o755 });
-    const r = cliWith({ PATH: bin }, "collect");
-    expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout).toMatch(/GitHub: 取得していない（origin のホスト ghe\.invalid は/);
-    expect(r.stdout).toMatch(reason);
-  });
+  ])(
+    "ログインを確かめられないホストは、%s 理由を出して取得しない",
+    async (_case, script, reason) => {
+      const { tmp, git, cli, cliWith } = await setup();
+      expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+      await git("remote", "add", "origin", "https://ghe.invalid/o/r.git");
+      await git("switch", "-q", "-c", "feature/5-x");
+      // PATH には collect が使う node と git だけを置き、gh は置かない（置くなら偽物）
+      const bin = join(tmp, "bin");
+      mkdirSync(bin, { recursive: true });
+      for (const tool of ["node", "git"]) {
+        const real = spawnSync("bash", ["-c", `command -v ${tool}`], {
+          encoding: "utf8",
+          timeout: CHILD_TIMEOUT_MS,
+        }).stdout.trim();
+        expect(real).not.toBe("");
+        symlinkSync(real, join(bin, tool));
+      }
+      if (script !== "") writeFileSync(join(bin, "gh"), script, { mode: 0o755 });
+      const r = await cliWith({ PATH: bin }, "collect");
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.stdout).toMatch(/GitHub: 取得していない（origin のホスト ghe\.invalid は/);
+      expect(r.stdout).toMatch(reason);
+    },
+  );
 });
 
 // precommit-gate.sh が、確認の処理を実行できないときにコミットを止めないこと（スクリプトの冒頭の取り決め）。
-describe("precommit-gate.sh の、確認を実行できないとき", () => {
+describe.concurrent("precommit-gate.sh の、確認を実行できないとき", () => {
   const input = JSON.stringify({ cwd: "/tmp", tool_input: { command: "git commit -m x" } });
   const bash = spawnSync("bash", ["-c", "command -v bash"], {
     encoding: "utf8",
     timeout: CHILD_TIMEOUT_MS,
   }).stdout.trim();
+  const newTempDir = makeTempDirFactory("agent-usage-gate-");
   /** precommit-gate.sh をコピーしたディレクトリ（同梱の agent-usage.mjs を置き換えられる）。 */
   function copied(mjs: string | null) {
-    const dir = makeTempDir("agent-usage-gate-");
+    const dir = newTempDir("gate-");
     writeFileSync(join(dir, "precommit-gate.sh"), readFileSync(GATE, "utf8"));
     if (mjs !== null) writeFileSync(join(dir, "agent-usage.mjs"), mjs);
     return join(dir, "precommit-gate.sh");
   }
   const run = (script: string, env: NodeJS.ProcessEnv, stdin = input) =>
-    spawnSync(bash, [script, "claude-code"], {
-      encoding: "utf8",
+    spawnAsync(bash, [script, "claude-code"], {
       input: stdin,
       env,
       timeout: CHILD_TIMEOUT_MS,
     });
 
-  test("git commit を含まない入力は、同梱の agent-usage.mjs が無くても何も出さずに通す", () => {
-    const r = run(
+  test("git commit を含まない入力は、同梱の agent-usage.mjs が無くても何も出さずに通す", async () => {
+    const r = await run(
       copied(null),
       { PATH: process.env.PATH ?? "" },
       JSON.stringify({ tool_input: { command: "git status" } }),
@@ -1784,20 +1777,20 @@ describe("precommit-gate.sh の、確認を実行できないとき", () => {
     expect(r.stderr).toBe("");
   });
 
-  test("同梱の agent-usage.mjs を読めなければ、確認をせずに通す", () => {
-    const r = run(copied(null), { PATH: process.env.PATH ?? "" });
+  test("同梱の agent-usage.mjs を読めなければ、確認をせずに通す", async () => {
+    const r = await run(copied(null), { PATH: process.env.PATH ?? "" });
     expect(r.status).toBe(0);
     expect(r.stderr).toMatch(/同梱の agent-usage\.mjs を読めないので、確認をせずに通します/);
   });
 
-  test("node が無ければ、確認をせずに通す", () => {
-    const bin = makeTempDir("agent-usage-nonode-");
+  test("node が無ければ、確認をせずに通す", async () => {
+    const bin = newTempDir("nonode-");
     const dirname = spawnSync("bash", ["-c", "command -v dirname"], {
       encoding: "utf8",
       timeout: CHILD_TIMEOUT_MS,
     }).stdout.trim();
     symlinkSync(dirname, join(bin, "dirname"));
-    const r = run(copied("process.exit(2);\n"), { PATH: bin });
+    const r = await run(copied("process.exit(2);\n"), { PATH: bin });
     expect(r.status).toBe(0);
     expect(r.stderr).toMatch(/node が無いので、確認をせずに通します/);
   });
@@ -1808,8 +1801,8 @@ describe("precommit-gate.sh の、確認を実行できないとき", () => {
     [3, 0, true],
   ])(
     "確認の処理が %i で終わったら %i で終わる（0 と 2 以外では止めない）",
-    (code, expected, warned) => {
-      const r = run(copied(`process.exit(${code});\n`), { PATH: process.env.PATH ?? "" });
+    async (code, expected, warned) => {
+      const r = await run(copied(`process.exit(${code});\n`), { PATH: process.env.PATH ?? "" });
       expect(r.status).toBe(expected);
       if (warned)
         expect(r.stderr).toContain(
@@ -1824,11 +1817,11 @@ describe("precommit-gate.sh の、確認を実行できないとき", () => {
 // 最後の行を判定できない形（次の表）なら、ファイル全体を読む。読んだことは、同じ key の行を別のブランチで書き直さないことで確かめる。
 // 範囲の中の最後の行を読む形は「名前の時刻が範囲より古くても…」が、範囲より古い最後の行で読まない形は
 // 「collect は範囲より古いファイルを読まず…」が確かめる。
-describe("読む範囲の判定で、最後の行を判定できないブランチのファイル", () => {
+describe.concurrent("読む範囲の判定で、最後の行を判定できないブランチのファイル", () => {
   const OLD = "2026-07-01T00:00:00.000Z";
   /** 記録済みのファイルを範囲より古い時刻のファイルにして末尾に tail を足し、別のブランチに移る。 */
-  function prepare(tail: string) {
-    const { git, cli, branches } = collectedOnBranch();
+  async function prepare(tail: string) {
+    const { git, cli, branches } = await collectedOnBranch();
     const [name] = readdirSync(branches);
     const text = readFileSync(join(branches, name ?? ""), "utf8").replaceAll(
       "2026-10-01T12:00:00.000Z",
@@ -1837,8 +1830,8 @@ describe("読む範囲の判定で、最後の行を判定できないブラン�
     rmSync(join(branches, name ?? ""));
     const old = join(branches, "20260701T000000Z-feature-5-x.csv");
     writeFileSync(old, `${text}${tail}`);
-    git("switch", "-q", "-c", "feature/6-y");
-    git("commit", "-q", "--allow-empty", "-m", "work");
+    await git("switch", "-q", "-c", "feature/6-y");
+    await git("commit", "-q", "--allow-empty", "-m", "work");
     const written = () =>
       readdirSync(branches)
         .filter((f) => f.endsWith("-feature-6-y.csv"))
@@ -1872,28 +1865,28 @@ describe("読む範囲の判定で、最後の行を判定できないブラン�
         person: "a\nb,c,2025-01-01T00:00:00.000Z,d",
       }),
     ],
-  ])("%s なら、ファイル全体を読む", (_case, tail) => {
-    const { cli, written } = prepare(tail);
-    const r = cli("collect");
+  ])("%s なら、ファイル全体を読む", async (_case, tail) => {
+    const { cli, written } = await prepare(tail);
+    const r = await cli("collect");
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).not.toMatch(/範囲より古いので読まなかった/);
     expect(written()).not.toContain("usage:claude-code:s1:");
   });
 
-  test("見出しだけのファイルも読む（読まなかったファイルとして数えない）", () => {
-    const { cli, records, person } = collectedOnBranch();
+  test("見出しだけのファイルも読む（読まなかったファイルとして数えない）", async () => {
+    const { cli, records, person } = await collectedOnBranch();
     writeFileSync(
       join(records, person, "branches", "20260701T000000Z-feature-4-w.csv"),
       `${COLUMNS.join(",")}\n`,
     );
-    const r = cli("collect");
+    const r = await cli("collect");
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).not.toMatch(/範囲より古いので読まなかった/);
   });
 
-  test("最後の行の observed_at が時刻でなければ、ファイル全体を読んでその行をエラーにする", () => {
-    const { cli } = prepare(line({ key: "x:bad", kind: "coverage", observed_at: "nope" }));
-    const r = cli("collect");
+  test("最後の行の observed_at が時刻でなければ、ファイル全体を読んでその行をエラーにする", async () => {
+    const { cli } = await prepare(line({ key: "x:bad", kind: "coverage", observed_at: "nope" }));
+    const r = await cli("collect");
     expect(r.status).not.toBe(0);
     expect(r.stderr).toMatch(/20260701T000000Z-feature-5-x\.csv:\d+: observed_at が時刻でない/);
   });
@@ -1901,10 +1894,10 @@ describe("読む範囲の判定で、最後の行を判定できないブラン�
   // root は読み取りの権限が無くてもファイルを開けるので、開けないファイルを作れない
   test.skipIf(process.getuid?.() === 0)(
     "開けないファイルは、読まなかったことにせずエラーにする",
-    () => {
-      const { cli, old } = prepare("");
+    async () => {
+      const { cli, old } = await prepare("");
       chmodSync(old, 0o000);
-      const r = cli("collect");
+      const r = await cli("collect");
       expect(r.status).not.toBe(0);
       expect(r.stderr).toMatch(/EACCES/);
     },
@@ -2003,36 +1996,35 @@ describe("retractableRows", () => {
 // - merge の後に commit を足して、head の commit が HEAD と違うなら、記録する。
 // - PR が merge されずに閉じたなら、記録する。
 // - gh が失敗したら、記録する。
-describe("merge 済みのブランチの Hook", () => {
-  type Setup = ReturnType<typeof setup>;
-  function recordByDefault(s: Setup) {
-    expect(s.cli("setup", "--time-zone", "UTC").status).toBe(0);
+describe.concurrent("merge 済みのブランチの Hook", () => {
+  async function recordByDefault(s: Setup) {
+    expect((await s.cli("setup", "--time-zone", "UTC")).status).toBe(0);
     const userConfig = userConfigOf(s.tmp);
     const user = parseJsonAs<Record<string, unknown>>(readFileSync(userConfig, "utf8"));
     writeFileSync(userConfig, JSON.stringify({ ...user, defaultDecision: "record" }));
   }
-  function setOriginMain(s: Setup, ref: string) {
-    s.git("update-ref", "refs/remotes/origin/main", ref);
-    s.git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main");
+  async function setOriginMain(s: Setup, ref: string) {
+    await s.git("update-ref", "refs/remotes/origin/main", ref);
+    await s.git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main");
   }
   /** feature/5-x を main に merge commit で取り込んで origin/main にし、feature/5-x に戻ると、Hook は記録せずに通す。 */
-  function expectSkippedAfterMerge(s: Setup) {
-    s.git("switch", "-q", "main");
-    s.git("merge", "-q", "--no-ff", "-m", "merge", "feature/5-x");
-    setOriginMain(s, "main");
-    s.git("switch", "-q", "feature/5-x");
-    const r = s.gate("git commit -m x");
+  async function expectSkippedAfterMerge(s: Setup) {
+    await s.git("switch", "-q", "main");
+    await s.git("merge", "-q", "--no-ff", "-m", "merge", "feature/5-x");
+    await setOriginMain(s, "main");
+    await s.git("switch", "-q", "feature/5-x");
+    const r = await s.gate("git commit -m x");
     expect(r.status).toBe(0);
     expect(r.stderr + r.stdout).toMatch(/merge 済み（HEAD が origin\/main に含まれる）/);
-    expect(staged(s)).toBe("");
+    expect(await staged(s)).toBe("");
   }
-  function ownCommit(s: Setup) {
+  async function ownCommit(s: Setup) {
     writeFileSync(join(s.repo, "b.txt"), "b\n");
-    s.git("add", "b.txt");
-    s.git("commit", "-q", "-m", "b");
+    await s.git("add", "b.txt");
+    await s.git("commit", "-q", "-m", "b");
   }
   /** `gh api` の偽物。PR の一覧（--slurp のページの配列）には prs を返し、それ以外の API は失敗させる。prs が null なら常に失敗させる */
-  function fakeGh(s: Setup, prs: unknown[] | null) {
+  async function fakeGh(s: Setup, prs: unknown[] | null) {
     const bin = join(s.tmp, "bin");
     mkdirSync(bin, { recursive: true });
     const body =
@@ -2040,37 +2032,37 @@ describe("merge 済みのブランチの Hook", () => {
         ? "echo fail >&2\nexit 1\n"
         : `case "$*" in\n*pulls?state=closed*) printf '%s' '${JSON.stringify([prs])}' ;;\n*) echo fail >&2; exit 1 ;;\nesac\n`;
     writeFileSync(join(bin, "gh"), `#!/bin/sh\n${body}`, { mode: 0o755 });
-    s.git("remote", "add", "origin", "https://github.com/o/r.git");
+    await s.git("remote", "add", "origin", "https://github.com/o/r.git");
     return { PATH: `${bin}:${process.env.PATH ?? ""}` };
   }
-  const staged = (s: Setup) => s.git("diff", "--cached", "--name-only").trim();
+  const staged = async (s: Setup) => (await s.git("diff", "--cached", "--name-only")).trim();
 
-  test("自分の commit を merge commit で取り込んだブランチでは、collect も stage もせずに、merge 済みと出して通す", () => {
-    const s = setup();
-    recordByDefault(s);
-    s.git("switch", "-q", "-c", "feature/5-x");
-    ownCommit(s);
-    s.git("switch", "-q", "main");
-    s.git("merge", "-q", "--no-ff", "-m", "merge", "feature/5-x");
-    setOriginMain(s, "main");
-    s.git("switch", "-q", "feature/5-x");
-    const r = s.gate("git commit -m x");
+  test("自分の commit を merge commit で取り込んだブランチでは、collect も stage もせずに、merge 済みと出して通す", async () => {
+    const s = await setup();
+    await recordByDefault(s);
+    await s.git("switch", "-q", "-c", "feature/5-x");
+    await ownCommit(s);
+    await s.git("switch", "-q", "main");
+    await s.git("merge", "-q", "--no-ff", "-m", "merge", "feature/5-x");
+    await setOriginMain(s, "main");
+    await s.git("switch", "-q", "feature/5-x");
+    const r = await s.gate("git commit -m x");
     expect(r.status).toBe(0);
     expect(r.stderr + r.stdout).toMatch(
       /merge 済み（HEAD が origin\/main に含まれる）なので、記録しない/,
     );
-    expect(staged(s)).toBe("");
+    expect(await staged(s)).toBe("");
   });
 
-  test("作った直後で自分の commit が無いブランチは、HEAD がデフォルトブランチの祖先でも merge 済みとせずに記録する", () => {
-    const s = setup();
-    recordByDefault(s);
-    setOriginMain(s, "main");
-    s.git("switch", "-q", "-c", "feature/5-x");
-    const r = s.gate("git commit -m x");
+  test("作った直後で自分の commit が無いブランチは、HEAD がデフォルトブランチの祖先でも merge 済みとせずに記録する", async () => {
+    const s = await setup();
+    await recordByDefault(s);
+    await setOriginMain(s, "main");
+    await s.git("switch", "-q", "-c", "feature/5-x");
+    const r = await s.gate("git commit -m x");
     expect(r.status).toBe(0);
     expect(r.stderr + r.stdout).not.toMatch(/merge 済み/);
-    expect(staged(s)).toMatch(/\.agent-usage\/records\//);
+    expect(await staged(s)).toMatch(/\.agent-usage\/records\//);
   });
 
   test.each([
@@ -2078,116 +2070,118 @@ describe("merge 済みのブランチの Hook", () => {
     ["ブランチの reflog が無い", "noreflog"],
   ])(
     "HEAD がデフォルトブランチの祖先でも、%s のブランチは merge 済みとせずに記録する",
-    (_name, kind) => {
-      const s = setup();
-      recordByDefault(s);
-      s.git("switch", "-q", "-c", "feature/5-x");
+    async (_name, kind) => {
+      const s = await setup();
+      await recordByDefault(s);
+      await s.git("switch", "-q", "-c", "feature/5-x");
       if (kind === "ff") {
         // 古い main から作ったブランチを、進んだ origin/main に fast-forward する
-        s.git("switch", "-q", "main");
-        ownCommit(s);
-        setOriginMain(s, "main");
-        s.git("switch", "-q", "feature/5-x");
-        s.git("merge", "-q", "--ff-only", "origin/main");
+        await s.git("switch", "-q", "main");
+        await ownCommit(s);
+        await setOriginMain(s, "main");
+        await s.git("switch", "-q", "feature/5-x");
+        await s.git("merge", "-q", "--ff-only", "origin/main");
       } else {
-        ownCommit(s);
-        s.git("switch", "-q", "main");
-        s.git("merge", "-q", "--no-ff", "-m", "merge", "feature/5-x");
-        setOriginMain(s, "main");
-        s.git("switch", "-q", "feature/5-x");
-        s.git("reflog", "expire", "--expire=all", "refs/heads/feature/5-x");
+        await ownCommit(s);
+        await s.git("switch", "-q", "main");
+        await s.git("merge", "-q", "--no-ff", "-m", "merge", "feature/5-x");
+        await setOriginMain(s, "main");
+        await s.git("switch", "-q", "feature/5-x");
+        await s.git("reflog", "expire", "--expire=all", "refs/heads/feature/5-x");
       }
-      const r = s.gate("git commit -m x");
+      const r = await s.gate("git commit -m x");
       expect(r.status).toBe(0);
       expect(r.stderr + r.stdout).not.toMatch(/merge 済み/);
-      expect(staged(s)).toMatch(/\.agent-usage\/records\//);
+      expect(await staged(s)).toMatch(/\.agent-usage\/records\//);
     },
   );
 
-  test("デフォルトブランチを merge commit で取り込んだ後に merge したブランチも、記録しない", () => {
-    const s = setup();
-    recordByDefault(s);
-    s.git("switch", "-q", "-c", "feature/5-x");
-    ownCommit(s);
-    s.git("switch", "-q", "main");
+  test("デフォルトブランチを merge commit で取り込んだ後に merge したブランチも、記録しない", async () => {
+    const s = await setup();
+    await recordByDefault(s);
+    await s.git("switch", "-q", "-c", "feature/5-x");
+    await ownCommit(s);
+    await s.git("switch", "-q", "main");
     writeFileSync(join(s.repo, "c.txt"), "c\n");
-    s.git("add", "c.txt");
-    s.git("commit", "-q", "-m", "c");
-    s.git("switch", "-q", "feature/5-x");
+    await s.git("add", "c.txt");
+    await s.git("commit", "-q", "-m", "c");
+    await s.git("switch", "-q", "feature/5-x");
     // ブランチの reflog の最新の行は「merge main: Merge made by ...」になる
-    s.git("merge", "-q", "--no-ff", "-m", "update", "main");
-    expectSkippedAfterMerge(s);
+    await s.git("merge", "-q", "--no-ff", "-m", "update", "main");
+    await expectSkippedAfterMerge(s);
   });
 
   test.each([
     ["cherry-pick で作った commit", "pick"],
     ["衝突を解いて commit した cherry-pick", "pick-continue"],
     ["revert で作った commit", "revert"],
-  ])("HEAD が %s で、merge commit で取り込んだブランチも、記録しない", (_name, kind) => {
-    const s = setup();
-    recordByDefault(s);
-    s.git("switch", "-q", "-c", "other");
+  ])("HEAD が %s で、merge commit で取り込んだブランチも、記録しない", async (_name, kind) => {
+    const s = await setup();
+    await recordByDefault(s);
+    await s.git("switch", "-q", "-c", "other");
     writeFileSync(join(s.repo, "c.txt"), "other\n");
-    s.git("add", "c.txt");
-    s.git("commit", "-q", "-m", "other");
-    s.git("switch", "-q", "-c", "feature/5-x", "main");
-    if (kind === "pick") s.git("cherry-pick", "other");
+    await s.git("add", "c.txt");
+    await s.git("commit", "-q", "-m", "other");
+    await s.git("switch", "-q", "-c", "feature/5-x", "main");
+    if (kind === "pick") await s.git("cherry-pick", "other");
     else if (kind === "revert") {
-      ownCommit(s);
-      s.git("revert", "--no-edit", "HEAD");
+      await ownCommit(s);
+      await s.git("revert", "--no-edit", "HEAD");
     } else {
       writeFileSync(join(s.repo, "c.txt"), "mine\n");
-      s.git("add", "c.txt");
-      s.git("commit", "-q", "-m", "mine");
+      await s.git("add", "c.txt");
+      await s.git("commit", "-q", "-m", "mine");
       // 衝突するので cherry-pick は 0 以外で止まる。解いて commit すると「commit (cherry-pick): 」を書く
-      expect(() => s.git("cherry-pick", "other")).toThrow();
+      await expect(s.git("cherry-pick", "other")).rejects.toThrow();
       writeFileSync(join(s.repo, "c.txt"), "both\n");
-      s.git("add", "c.txt");
-      s.git("commit", "-q", "--no-edit");
+      await s.git("add", "c.txt");
+      await s.git("commit", "-q", "--no-edit");
     }
-    expectSkippedAfterMerge(s);
+    await expectSkippedAfterMerge(s);
   });
 
-  test("status は、記録すると決めた merge 済みのブランチで、コミットの前の確認が記録しないことを出す", () => {
-    const s = setup();
-    recordByDefault(s);
-    s.git("switch", "-q", "-c", "feature/5-x");
-    ownCommit(s);
-    s.git("switch", "-q", "main");
-    s.git("merge", "-q", "--no-ff", "-m", "merge", "feature/5-x");
-    setOriginMain(s, "main");
-    s.git("switch", "-q", "feature/5-x");
-    const r = s.cli("status");
+  test("status は、記録すると決めた merge 済みのブランチで、コミットの前の確認が記録しないことを出す", async () => {
+    const s = await setup();
+    await recordByDefault(s);
+    await s.git("switch", "-q", "-c", "feature/5-x");
+    await ownCommit(s);
+    await s.git("switch", "-q", "main");
+    await s.git("merge", "-q", "--no-ff", "-m", "merge", "feature/5-x");
+    await setOriginMain(s, "main");
+    await s.git("switch", "-q", "feature/5-x");
+    const r = await s.cli("status");
     expect(r.status).toBe(0);
     expect(r.stdout).toMatch(
       /defaultDecision: record、[^\n]*（merge 済み（HEAD が origin\/main に含まれる）なので、コミットの前の確認は記録しない）/,
     );
   });
 
-  test("squash merge のように HEAD が祖先でなくても、head の commit が HEAD と同じ merge 済みの PR があれば記録しない", () => {
-    const s = setup();
-    recordByDefault(s);
-    setOriginMain(s, "main");
-    s.git("switch", "-q", "-c", "feature/5-x");
-    ownCommit(s);
-    const head = s.git("rev-parse", "HEAD").trim();
-    const env = fakeGh(s, [{ number: 7, merged_at: "2026-10-01T11:00:00Z", head: { sha: head } }]);
-    const r = s.gateWith(env, "git commit -m x");
+  test("squash merge のように HEAD が祖先でなくても、head の commit が HEAD と同じ merge 済みの PR があれば記録しない", async () => {
+    const s = await setup();
+    await recordByDefault(s);
+    await setOriginMain(s, "main");
+    await s.git("switch", "-q", "-c", "feature/5-x");
+    await ownCommit(s);
+    const head = (await s.git("rev-parse", "HEAD")).trim();
+    const env = await fakeGh(s, [
+      { number: 7, merged_at: "2026-10-01T11:00:00Z", head: { sha: head } },
+    ]);
+    const r = await s.gateWith(env, "git commit -m x");
     expect(r.status).toBe(0);
     expect(r.stderr + r.stdout).toMatch(/merge 済み（PR #7 が merge 済み）なので、記録しない/);
-    expect(staged(s)).toBe("");
+    expect(await staged(s)).toBe("");
   });
 
   // merge 済みの worktree に残った明細を別のブランチに引き継ぐと、同じ key の行が 2 つのファイルに入る
-  test("同じ key の行が別のブランチのファイルにもあっても、report は二重に数えない", () => {
-    const s = setup();
-    expect(s.cli("setup", "--time-zone", "UTC").status).toBe(0);
-    s.git("switch", "-q", "-c", "feature/5-x");
-    expect(s.cli("collect", "--no-github").status).toBe(0);
+  test("同じ key の行が別のブランチのファイルにもあっても、report は二重に数えない", async () => {
+    const s = await setup();
+    expect((await s.cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    await s.git("switch", "-q", "-c", "feature/5-x");
+    expect((await s.cli("collect", "--no-github")).status).toBe(0);
     const out = join(s.repo, ".agent-usage", "report", "20261001");
     const read = () =>
       ["usage.csv", "intervals.csv"].map((f) => readFileSync(join(out, f), "utf8"));
-    expect(s.cli("report").status).toBe(0);
+    expect((await s.cli("report")).status).toBe(0);
     const before = read();
     expect(before[1]?.split("\n").filter((l) => l.startsWith("run,"))).toHaveLength(2);
     const records = join(s.repo, ".agent-usage", "records");
@@ -2203,7 +2197,7 @@ describe("merge 済みのブランチの Hook", () => {
       }
     }
     expect(copied).toBeGreaterThan(0);
-    expect(s.cli("report").status).toBe(0);
+    expect((await s.cli("report")).status).toBe(0);
     expect(read()).toEqual(before);
   });
 
@@ -2211,23 +2205,23 @@ describe("merge 済みのブランチの Hook", () => {
     ["merge の後に commit を足して、head の commit が HEAD と違う", "other"],
     ["merge されずに閉じた", "unmerged"],
     ["gh が失敗する", "fail"],
-  ])("PR で merge 済みと決められないとき（%s）は、記録する", (_name, kind) => {
-    const s = setup();
-    recordByDefault(s);
-    setOriginMain(s, "main");
-    s.git("switch", "-q", "-c", "feature/5-x");
-    ownCommit(s);
-    const head = s.git("rev-parse", "HEAD").trim();
+  ])("PR で merge 済みと決められないとき（%s）は、記録する", async (_name, kind) => {
+    const s = await setup();
+    await recordByDefault(s);
+    await setOriginMain(s, "main");
+    await s.git("switch", "-q", "-c", "feature/5-x");
+    await ownCommit(s);
+    const head = (await s.git("rev-parse", "HEAD")).trim();
     const prs =
       kind === "fail"
         ? null
         : kind === "other"
           ? [{ number: 7, merged_at: "2026-10-01T11:00:00Z", head: { sha: "0".repeat(40) } }]
           : [{ number: 7, merged_at: null, head: { sha: head } }];
-    const env = fakeGh(s, prs);
-    const r = s.gateWith(env, "git commit -m x");
+    const env = await fakeGh(s, prs);
+    const r = await s.gateWith(env, "git commit -m x");
     expect(r.status).toBe(0);
     expect(r.stderr + r.stdout).not.toMatch(/merge 済み/);
-    expect(staged(s)).toMatch(/\.agent-usage\/records\//);
+    expect(await staged(s)).toMatch(/\.agent-usage\/records\//);
   });
 });

@@ -1,9 +1,10 @@
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
+import { spawnAsync } from "../../../lib/spawn-async.ts";
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
+import { makeTempDirFactory } from "../../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 
 // kaizen-status-check.sh は awk で frontmatter の applied-to を読む。値が
@@ -16,6 +17,18 @@ import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 // skill-reinstall ルールで同期される。
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 const script = join(repoRoot, "skills/kaizen/scripts/kaizen-status-check.sh");
+
+// テストは並べて実行する（`test.concurrent`。Issue #684）。各テストは自分の一時ディレクトリだけを読み書きし、
+// 環境変数は子プロセスにだけ渡すので、テストの間で共有する状態は無い。一時ディレクトリは makeTempDirFactory で作る。
+const newTempDir = makeTempDirFactory("kaizen-status-check-test-");
+
+/** dir の .kaizen を、kaizen-status-check.sh で検査する。 */
+function runScript(dir: string, env: NodeJS.ProcessEnv = {}) {
+  return spawnAsync("bash", [script], {
+    timeout: CHILD_TIMEOUT_MS,
+    env: { ...process.env, CLAUDE_PROJECT_DIR: dir, ...env },
+  });
+}
 
 function note(status: string, appliedTo: string) {
   return `---
@@ -31,18 +44,14 @@ session: claude-code
 `;
 }
 
-function runCheck(content: string) {
-  const dir = makeTempDir("kaizen-status-check-");
+async function runCheck(content: string) {
+  const dir = newTempDir("kaizen-status-check-");
   try {
     mkdirSync(join(dir, ".kaizen"));
     writeFileSync(join(dir, ".kaizen", "2026-08-10-note.md"), content);
     // CLAUDE_PROJECT_DIR を渡さないとスクリプトは git rev-parse にフォールバックし、
     // 検体ではなくこのリポジトリ自身の .kaizen を検査してしまう。
-    const result = spawnSync("bash", [script], {
-      timeout: CHILD_TIMEOUT_MS,
-      env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
-      encoding: "utf8",
-    });
+    const result = await runScript(dir);
     return { status: result.status, stderr: result.stderr ?? "" };
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -157,17 +166,20 @@ const REJECTED = [
   },
 ];
 
-test.each(ACCEPTED)("適用先を読める形式は通す: $name", ({ status, appliedTo }) => {
-  const { status: exitCode, stderr } = runCheck(note(status, appliedTo));
+test.concurrent.each(ACCEPTED)("適用先を読める形式は通す: $name", async ({ status, appliedTo }) => {
+  const { status: exitCode, stderr } = await runCheck(note(status, appliedTo));
   expect(stderr).toBe("");
   expect(exitCode).toBe(0);
 });
 
-test.each(REJECTED)("不整合は exit 2 で止める: $name", ({ status, appliedTo, message }) => {
-  const { status: exitCode, stderr } = runCheck(note(status, appliedTo));
-  expect(stderr).toContain(message);
-  expect(exitCode).toBe(2);
-});
+test.concurrent.each(REJECTED)(
+  "不整合は exit 2 で止める: $name",
+  async ({ status, appliedTo, message }) => {
+    const { status: exitCode, stderr } = await runCheck(note(status, appliedTo));
+    expect(stderr).toContain(message);
+    expect(exitCode).toBe(2);
+  },
+);
 
 // applied-to の継続行の終わりを「キー名が [[:alnum:]_-]+ のキー行」で判定していた頃は、
 // それ以外の文字を含むキー（`kedb.ref:` や引用符付きキー）の後ろで継続状態が残り、
@@ -194,22 +206,22 @@ ${key}: |
 学びの本文。
 `;
 
-test.each(KEY_CHARSET_CASES)(
+test.concurrent.each(KEY_CHARSET_CASES)(
   "後続キーのブロックスカラー本文を applied-to へ吸い込まない: $name",
-  ({ key }) => {
+  async ({ key }) => {
     // 空配列 × pending は整合しているので通らなければならない。
-    const empty = runCheck(noteWithBlockKey("pending", " []", key));
+    const empty = await runCheck(noteWithBlockKey("pending", " []", key));
     expect(empty.stderr).toBe("");
     expect(empty.status).toBe(0);
 
     // 同じ本文でも applied × 空配列は不整合として検出できること（緩めすぎを検出できることの確認。
     // 継続行を吸い込んでいた頃は、ここが誤って「非空」と判定され、exit 0 で素通りしていた）。
-    const appliedEmpty = runCheck(noteWithBlockKey("applied", " []", key));
+    const appliedEmpty = await runCheck(noteWithBlockKey("applied", " []", key));
     expect(appliedEmpty.stderr).toContain("status is applied but applied-to is empty");
     expect(appliedEmpty.status).toBe(2);
 
     // 折り返された非空配列は、後続キーが何であれ非空のまま検出できること。
-    const wrapped = runCheck(noteWithBlockKey("pending", '\n  ["a.md"]', key));
+    const wrapped = await runCheck(noteWithBlockKey("pending", '\n  ["a.md"]', key));
     expect(wrapped.stderr).toContain("applied-to is set but status is pending");
     expect(wrapped.status).toBe(2);
   },
@@ -234,11 +246,11 @@ session: claude-code
 
 const WRAPPED_MESSAGE = "is wrapped onto the next line";
 
-function runCheckOnBody(
+async function runCheckOnBody(
   body: string,
   { status = "pending", appliedTo = "[]", archived = false } = {},
 ) {
-  const dir = makeTempDir("kaizen-lead-");
+  const dir = newTempDir("kaizen-lead-");
   try {
     const noteDir = archived ? join(dir, ".kaizen", "archive") : join(dir, ".kaizen");
     mkdirSync(noteDir, { recursive: true });
@@ -248,11 +260,7 @@ function runCheckOnBody(
       // INDEX.md を整合させ、この検体で出る stderr が折り返し由来かを区別できるようにする。
       writeFileSync(join(dir, ".kaizen", "archive", "INDEX.md"), "- `2026-01-01-note.md` — 学び\n");
     }
-    const result = spawnSync("bash", [script], {
-      timeout: CHILD_TIMEOUT_MS,
-      env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
-      encoding: "utf8",
-    });
+    const result = await runScript(dir);
     return { status: result.status, stderr: result.stderr ?? "" };
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -344,17 +352,20 @@ const INTACT_LEADS = [
   },
 ];
 
-test.each(WRAPPED_LEADS)("先頭段落の折り返しを報告する: $name", ({ body, section }) => {
-  const { status: exitCode, stderr } = runCheckOnBody(body);
-  expect(stderr).toContain(WRAPPED_MESSAGE);
-  // どの節を見て報告したかまで固定する。節の選択が注入側とズレると、
-  // 「報告はされるが直す場所が違う」状態になる。
-  expect(stderr).toContain(section);
-  expect(exitCode).toBe(2);
-});
+test.concurrent.each(WRAPPED_LEADS)(
+  "先頭段落の折り返しを報告する: $name",
+  async ({ body, section }) => {
+    const { status: exitCode, stderr } = await runCheckOnBody(body);
+    expect(stderr).toContain(WRAPPED_MESSAGE);
+    // どの節を見て報告したかまで固定する。節の選択が注入側とズレると、
+    // 「報告はされるが直す場所が違う」状態になる。
+    expect(stderr).toContain(section);
+    expect(exitCode).toBe(2);
+  },
+);
 
-test.each(INTACT_LEADS)("要約が完結する形は通す: $name", ({ body }) => {
-  const { status: exitCode, stderr } = runCheckOnBody(body);
+test.concurrent.each(INTACT_LEADS)("要約が完結する形は通す: $name", async ({ body }) => {
+  const { status: exitCode, stderr } = await runCheckOnBody(body);
   expect(stderr).toBe("");
   expect(exitCode).toBe(0);
 });
@@ -364,18 +375,18 @@ test.each(INTACT_LEADS)("要約が完結する形は通す: $name", ({ body }) =
 // 置き場所だけを変えた対照検体で固定する。
 const WRAPPED_BODY = "\n## 提案\n\n折り返された提案の\n続き。\n";
 
-test.each([
+test.concurrent.each([
   { name: "applied", options: { status: "applied", appliedTo: '["a.md"]' } },
   { name: "rejected", options: { status: "rejected", appliedTo: '["a.md"]' } },
   { name: "archive 配下", options: { archived: true } },
-])("注入対象外の学びは折り返しを報告しない: $name", ({ options }) => {
-  const { status: exitCode, stderr } = runCheckOnBody(WRAPPED_BODY, options);
+])("注入対象外の学びは折り返しを報告しない: $name", async ({ options }) => {
+  const { status: exitCode, stderr } = await runCheckOnBody(WRAPPED_BODY, options);
   expect(stderr).not.toContain(WRAPPED_MESSAGE);
   expect(exitCode).toBe(0);
 });
 
-test("同じ本文でも pending なら報告する（対照）", () => {
-  const { status: exitCode, stderr } = runCheckOnBody(WRAPPED_BODY);
+test.concurrent("同じ本文でも pending なら報告する（対照）", async () => {
+  const { status: exitCode, stderr } = await runCheckOnBody(WRAPPED_BODY);
   expect(stderr).toContain(WRAPPED_MESSAGE);
   expect(exitCode).toBe(2);
 });
@@ -402,10 +413,10 @@ function realAwkPath() {
   return (found.stdout ?? "").trim();
 }
 
-test("折り返し検査が実行できなかったら素通りさせない", () => {
+test.concurrent("折り返し検査が実行できなかったら素通りさせない", async () => {
   const realAwk = realAwkPath();
   expect(realAwk).not.toBe("");
-  const dir = makeTempDir("kaizen-lead-awk-");
+  const dir = newTempDir("kaizen-lead-awk-");
   try {
     mkdirSync(join(dir, ".kaizen"), { recursive: true });
     writeFileSync(
@@ -418,19 +429,11 @@ test("折り返し検査が実行できなかったら素通りさせない", ()
     writeFileSync(stub, AWK_STUB(realAwk), { mode: 0o755 });
 
     // 誤検知しないことの確認: stub 無しなら同じ検体は通る（=stub が原因だと区別できる）。
-    const intact = spawnSync("bash", [script], {
-      timeout: CHILD_TIMEOUT_MS,
-      env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
-      encoding: "utf8",
-    });
+    const intact = await runScript(dir);
     expect(intact.stderr ?? "").toBe("");
     expect(intact.status).toBe(0);
 
-    const broken = spawnSync("bash", [script], {
-      timeout: CHILD_TIMEOUT_MS,
-      env: { ...process.env, CLAUDE_PROJECT_DIR: dir, PATH: `${binDir}:${process.env.PATH}` },
-      encoding: "utf8",
-    });
+    const broken = await runScript(dir, { PATH: `${binDir}:${process.env.PATH}` });
     expect(broken.stderr ?? "").toContain("could not inspect the lead paragraph");
     // 理由まで添える（frontmatter 読み取りと同じ）。捨てると「検査できなかった」とだけ言われ、
     // 何を直せばいいか分からないまま commit できない状態になる。
@@ -494,13 +497,13 @@ session: claude-code
 対策を書く。
 `;
 
-function runCheckTyped({
+async function runCheckTyped({
   type = "hook",
   status = "applied",
   appliedTo = '["docs/a.md"]',
   archived = false,
 }) {
-  const dir = makeTempDir("kaizen-docs-only-");
+  const dir = newTempDir("kaizen-docs-only-");
   try {
     const noteDir = archived ? join(dir, ".kaizen", "archive") : join(dir, ".kaizen");
     mkdirSync(noteDir, { recursive: true });
@@ -508,11 +511,7 @@ function runCheckTyped({
     if (archived) {
       writeFileSync(join(dir, ".kaizen", "archive", "INDEX.md"), "- `2026-01-01-note.md` — 学び\n");
     }
-    const result = spawnSync("bash", [script], {
-      timeout: CHILD_TIMEOUT_MS,
-      env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
-      encoding: "utf8",
-    });
+    const result = await runScript(dir);
     return { status: result.status, stderr: result.stderr ?? "" };
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -549,49 +548,58 @@ const NOT_WARNED = [
   { name: "archive 配下は履歴なので対象外", note: { archived: true } },
 ];
 
-test.each(WARNED)("機構と宣言して doc だけで閉じたら警告する: $name", ({ note }) => {
-  const { status: exitCode, stderr } = runCheckTyped(note);
-  expect(stderr).toContain(WARNING_MESSAGE);
-  expect(stderr).toContain("type is hook");
-  // 警告は遮断しない。ここが 2 になると、意図してドキュメントへ寄せる判断を通せなくなる。
-  expect(exitCode).toBe(0);
-});
+test.concurrent.each(WARNED)(
+  "機構と宣言して doc だけで閉じたら警告する: $name",
+  async ({ note }) => {
+    const { status: exitCode, stderr } = await runCheckTyped(note);
+    expect(stderr).toContain(WARNING_MESSAGE);
+    expect(stderr).toContain("type is hook");
+    // 警告は遮断しない。ここが 2 になると、意図してドキュメントへ寄せる判断を通せなくなる。
+    expect(exitCode).toBe(0);
+  },
+);
 
-test.each(NOT_WARNED)("警告しない: $name", ({ note }) => {
-  const { status: exitCode, stderr } = runCheckTyped(note);
+test.concurrent.each(NOT_WARNED)("警告しない: $name", async ({ note }) => {
+  const { status: exitCode, stderr } = await runCheckTyped(note);
   expect(stderr).not.toContain(WARNING_MESSAGE);
   expect(exitCode).toBe(0);
 });
 
-test.each(["pending", "forgotten"])("applied 以外の status では警告しない: %s", (status) => {
-  // applied-to に値を入れて doc 判定へ到達させる（空だと判定の手前で外れ、status の条件が
-  // 機能しているかを測れない）。この形は lifecycle の不整合なので、別の検査が exit 2 で失敗させる。
-  // そこへ警告を重ねても直す先が増えるだけなので、警告は出さないことを固定する。
-  const { status: exitCode, stderr } = runCheckTyped({ status, appliedTo: '["docs/a.md"]' });
-  expect(stderr).toContain(`applied-to is set but status is ${status}`);
-  expect(stderr).not.toContain(WARNING_MESSAGE);
-  expect(exitCode).toBe(2);
-});
+test.concurrent.each(["pending", "forgotten"])(
+  "applied 以外の status では警告しない: %s",
+  async (status) => {
+    // applied-to に値を入れて doc 判定へ到達させる（空だと判定の手前で外れ、status の条件が
+    // 機能しているかを測れない）。この形は lifecycle の不整合なので、別の検査が exit 2 で失敗させる。
+    // そこへ警告を重ねても直す先が増えるだけなので、警告は出さないことを固定する。
+    const { status: exitCode, stderr } = await runCheckTyped({
+      status,
+      appliedTo: '["docs/a.md"]',
+    });
+    expect(stderr).toContain(`applied-to is set but status is ${status}`);
+    expect(stderr).not.toContain(WARNING_MESSAGE);
+    expect(exitCode).toBe(2);
+  },
+);
 
 // --- status: forgotten（Issue #339） ---
 //
 // 忘却は「適用しないまま一旦終わりにする」決着なので、pending と同じく適用先を持たない。
 // 未知の status として弾くと自動忘却が commit を止め、逆に何でも受理すると
 // `applied-to` を持ったまま forgotten にした取り違えを見逃す。両側を固定する。
-test("forgotten は applied-to が空なら通す", () => {
-  const { status: exitCode, stderr } = runCheck(note("forgotten", " []"));
+test.concurrent("forgotten は applied-to が空なら通す", async () => {
+  const { status: exitCode, stderr } = await runCheck(note("forgotten", " []"));
   expect(stderr).toBe("");
   expect(exitCode).toBe(0);
 });
 
-test("forgotten なのに applied-to があれば止める", () => {
-  const { status: exitCode, stderr } = runCheck(note("forgotten", ' ["a.md"]'));
+test.concurrent("forgotten なのに applied-to があれば止める", async () => {
+  const { status: exitCode, stderr } = await runCheck(note("forgotten", ' ["a.md"]'));
   expect(stderr).toContain("applied-to is set but status is forgotten");
   expect(exitCode).toBe(2);
 });
 
-test("未知の status は依然として止める（受理集合を広げすぎていない）", () => {
-  const { status: exitCode, stderr } = runCheck(note("forgoten", " []"));
+test.concurrent("未知の status は依然として止める（受理集合を広げすぎていない）", async () => {
+  const { status: exitCode, stderr } = await runCheck(note("forgoten", " []"));
   expect(stderr).toContain("unknown status: forgoten");
   expect(exitCode).toBe(2);
 });
@@ -616,19 +624,19 @@ session: claude-code
 `;
 }
 
-test.each([
+test.concurrent.each([
   ["high", "confidence: high"],
   ["medium", "confidence: medium"],
   ["low", "confidence: low"],
   ["値の後の空白", "confidence: low   "],
   ["欄が無い（欄を足す前のノート）", "kedb: none"],
-])("confidence を受け付ける: %s", (_name, line) => {
-  const { status: exitCode, stderr } = runCheck(noteWithConfidence(line));
+])("confidence を受け付ける: %s", async (_name, line) => {
+  const { status: exitCode, stderr } = await runCheck(noteWithConfidence(line));
   expect(stderr).toBe("");
   expect(exitCode).toBe(0);
 });
 
-test.each([
+test.concurrent.each([
   ["未知の値", "confidence: certain", "unknown confidence: certain"],
   ["大文字", "confidence: High", "unknown confidence: High"],
   ["空の値", "confidence:", "unknown confidence: <empty>"],
@@ -654,40 +662,40 @@ test.each([
     "confidence: bogus\nconfidence: high",
     "confidence is declared 2 times",
   ],
-])("confidence の値を拒否する: %s", (_name, line, message) => {
-  const { status: exitCode, stderr } = runCheck(noteWithConfidence(line));
+])("confidence の値を拒否する: %s", async (_name, line, message) => {
+  const { status: exitCode, stderr } = await runCheck(noteWithConfidence(line));
   expect(stderr).toContain(message);
   expect(exitCode).toBe(2);
 });
 
 // status と type の値の `|` は、read のフィールドをずらすので全角の `｜` に置き換える（confidence と同じ）。
-test("status の値の | で後ろのフィールドがずれない", () => {
-  const { status: exitCode, stderr } = runCheck(note("pending|x", " []"));
+test.concurrent("status の値の | で後ろのフィールドがずれない", async () => {
+  const { status: exitCode, stderr } = await runCheck(note("pending|x", " []"));
   expect(stderr).toContain("unknown status: pending｜x");
   expect(exitCode).toBe(2);
 });
 
-test("type の値の | で後ろのフィールドがずれない", () => {
+test.concurrent("type の値の | で後ろのフィールドがずれない", async () => {
   const content = note("applied", ' ["docs/a.md"]').replace("type: doc", "type: hook|x");
-  const { status: exitCode, stderr } = runCheck(content);
+  const { status: exitCode, stderr } = await runCheck(content);
   // type は語でないので止めるが、フィールドがずれていなければ、報告はその 1 件だけになる
   expect(stderr).toContain("type is not a plain word");
   expect(stderr).toContain("1 problem(s)");
   expect(exitCode).toBe(2);
 });
 
-test("本文に書いた confidence: は frontmatter として読まない", () => {
+test.concurrent("本文に書いた confidence: は frontmatter として読まない", async () => {
   const content = noteWithConfidence("confidence: low").replace(
     "学びの本文。",
     "学びの本文。\nconfidence: unknown-in-body",
   );
-  const { status: exitCode, stderr } = runCheck(content);
+  const { status: exitCode, stderr } = await runCheck(content);
   expect(stderr).toBe("");
   expect(exitCode).toBe(0);
 });
 
-test("コロンの後に空白が無い形と重なったキーを、1 回の実行でまとめて報告する", () => {
-  const { status: exitCode, stderr } = runCheck(
+test.concurrent("コロンの後に空白が無い形と重なったキーを、1 回の実行でまとめて報告する", async () => {
+  const { status: exitCode, stderr } = await runCheck(
     noteWithConfidence("confidence:high\nconfidence: bogus"),
   );
   expect(stderr).toContain("confidence needs a space after the colon");
@@ -696,8 +704,8 @@ test("コロンの後に空白が無い形と重なったキーを、1 回の実
   expect(exitCode).toBe(2);
 });
 
-test("重なったキーの前の不正な値も報告する", () => {
-  const { status: exitCode, stderr } = runCheck(
+test.concurrent("重なったキーの前の不正な値も報告する", async () => {
+  const { status: exitCode, stderr } = await runCheck(
     noteWithConfidence("confidence: bogus\nconfidence: high"),
   );
   expect(stderr).toContain("confidence is declared 2 times");
@@ -705,8 +713,8 @@ test("重なったキーの前の不正な値も報告する", () => {
   expect(exitCode).toBe(2);
 });
 
-test("重なったキーの不正な値は、すべてを 1 回の実行で報告する", () => {
-  const { status: exitCode, stderr } = runCheck(
+test.concurrent("重なったキーの不正な値は、すべてを 1 回の実行で報告する", async () => {
+  const { status: exitCode, stderr } = await runCheck(
     noteWithConfidence("confidence: bogus\nconfidence: other"),
   );
   expect(stderr).toContain("confidence is declared 2 times");
@@ -714,8 +722,8 @@ test("重なったキーの不正な値は、すべてを 1 回の実行で報�
   expect(exitCode).toBe(2);
 });
 
-test("重なったキーの前の空の値も報告する", () => {
-  const { status: exitCode, stderr } = runCheck(
+test.concurrent("重なったキーの前の空の値も報告する", async () => {
+  const { status: exitCode, stderr } = await runCheck(
     noteWithConfidence("confidence:\nconfidence: high"),
   );
   expect(stderr).toContain("confidence is declared 2 times");
@@ -723,8 +731,8 @@ test("重なったキーの前の空の値も報告する", () => {
   expect(exitCode).toBe(2);
 });
 
-test("コロンの後に空白が無い不正な値は、空白と値の両方を報告する", () => {
-  const { status: exitCode, stderr } = runCheck(noteWithConfidence("confidence:bogus"));
+test.concurrent("コロンの後に空白が無い不正な値は、空白と値の両方を報告する", async () => {
+  const { status: exitCode, stderr } = await runCheck(noteWithConfidence("confidence:bogus"));
   expect(stderr).toContain("confidence needs a space after the colon");
   expect(stderr).toContain("unknown confidence: bogus");
   expect(exitCode).toBe(2);
@@ -753,7 +761,7 @@ session: claude-code
 `;
 }
 
-test.each([
+test.concurrent.each([
   ["status の重なり", { status: "status: pending\nstatus: applied" }, "status is declared 2 times"],
   [
     "引用符で囲んだキーと重なった status",
@@ -846,21 +854,21 @@ test.each([
   // YAML の明示的なキーは、キーと値が別の行になり、1 行で読めない
   ["明示的なキーの status", { status: "? status\n: pending" }, "uses a YAML explicit key"],
   ["値の無い明示的なキー", { appliedTo: "applied-to: []\n?" }, "uses a YAML explicit key"],
-])("status・type・applied-to の形を拒否する: %s", (_name, lines, message) => {
-  const { status: exitCode, stderr } = runCheck(noteWithKeys(lines));
+])("status・type・applied-to の形を拒否する: %s", async (_name, lines, message) => {
+  const { status: exitCode, stderr } = await runCheck(noteWithKeys(lines));
   expect(stderr).toContain(message);
   expect(exitCode).toBe(2);
 });
 
-test.each([
+test.concurrent.each([
   ["1 回ずつのキー", {}],
   ["_ と - を含む語", { type: "type: rule_doc-1" }],
   ["値の後の空白", { status: "status: pending  " }],
   // `?` で始まっても、キーの名前の一部なら明示的なキーではない
   ["? で始まる名前のキー", { appliedTo: "applied-to: []\n?x: 1" }],
   ["flow 配列の applied-to", { status: "status: applied", appliedTo: 'applied-to: ["docs/a.md"]' }],
-])("status・type・applied-to の形を受け付ける: %s", (_name, lines) => {
-  const { status: exitCode, stderr } = runCheck(noteWithKeys(lines));
+])("status・type・applied-to の形を受け付ける: %s", async (_name, lines) => {
+  const { status: exitCode, stderr } = await runCheck(noteWithKeys(lines));
   expect(stderr).toBe("");
   expect(exitCode).toBe(0);
 });
@@ -868,7 +876,7 @@ test.each([
 // priority と date も、status・type と同じく、キーの重なりと 1 行で読めない形を止める（Issue #744）。
 // 同梱のスクリプト（kaizen_frontmatter_values）は、行末のコメントと引用符を値の一部として読むので、
 // 読み方を広げずに、priority は語、date は YYYY-MM-DD の形だけを受け付ける。
-test.each([
+test.concurrent.each([
   [
     "priority の重なり",
     { priority: "priority: low\npriority: high" },
@@ -909,37 +917,37 @@ test.each([
   ["date のアンカー", { date: "date: &d 2026-10-21" }, "date uses a YAML anchor or alias"],
   ["コロンの前に空白がある date のキー", { date: "date : 2026-10-21" }, "date key is quoted"],
   ["明示的なキーの priority", { priority: "? priority\n: low" }, "uses a YAML explicit key"],
-])("priority と date の形を拒否する: %s", (_name, lines, message) => {
-  const { status: exitCode, stderr } = runCheck(noteWithKeys(lines));
+])("priority と date の形を拒否する: %s", async (_name, lines, message) => {
+  const { status: exitCode, stderr } = await runCheck(noteWithKeys(lines));
   expect(stderr).toContain(message);
   expect(exitCode).toBe(2);
 });
 
-test.each([
+test.concurrent.each([
   ["語の priority", { priority: "priority: high" }],
   ["空の priority", { priority: "priority:" }],
   ["priority が無い", { priority: "kedb: none" }],
   ["YYYY-MM-DD の date", { date: "date: 2026-01-09" }],
   ["空の date", { date: "date:" }],
   ["date が無い", { date: "kedb: none" }],
-])("priority と date の形を受け付ける: %s", (_name, lines) => {
-  const { status: exitCode, stderr } = runCheck(noteWithKeys(lines));
+])("priority と date の形を受け付ける: %s", async (_name, lines) => {
+  const { status: exitCode, stderr } = await runCheck(noteWithKeys(lines));
   expect(stderr).toBe("");
   expect(exitCode).toBe(0);
 });
 
-test("archive のノートには、priority と date の重なりと形のチェックを当てない", () => {
+test.concurrent("archive のノートには、priority と date の重なりと形のチェックを当てない", async () => {
   const content = noteWithKeys({
     status: "status: applied",
     priority: "priority: low # メモ\npriority: high",
     date: "date: 2026/08/10",
     appliedTo: 'applied-to: ["docs/a.md"]',
   });
-  const archived = runCheckArchived(content);
+  const archived = await runCheckArchived(content);
   expect(archived.stderr).toBe("");
   expect(archived.status).toBe(0);
   // 同じノートを archive の外に置くと止める（対照）
-  const current = runCheck(content);
+  const current = await runCheck(content);
   expect(current.stderr).toContain("priority is declared 2 times");
   expect(current.stderr).toContain("priority is not a plain word");
   expect(current.stderr).toContain("date is not a YYYY-MM-DD date");
@@ -947,7 +955,7 @@ test("archive のノートには、priority と date の重なりと形のチェ
 });
 
 // date は形に加えて、暦の日付として読めるかを確かめる。忘却は読めない日付のノートを、報告せずに候補から外す。
-test.each([
+test.concurrent.each([
   ["13 月", "date: 2026-13-01"],
   ["0 月", "date: 2026-00-10"],
   ["0 日", "date: 2026-10-00"],
@@ -956,34 +964,34 @@ test.each([
   ["4 月 31 日", "date: 2026-04-31"],
   ["うるう年でない年の 2 月 29 日", "date: 2025-02-29"],
   ["400 で割り切れない 100 の倍数の年の 2 月 29 日", "date: 1900-02-29"],
-])("暦の日付として読めない date を拒否する: %s", (_name, date) => {
-  const { status: exitCode, stderr } = runCheck(noteWithKeys({ date }));
+])("暦の日付として読めない date を拒否する: %s", async (_name, date) => {
+  const { status: exitCode, stderr } = await runCheck(noteWithKeys({ date }));
   expect(stderr).toContain("date is not a real calendar date");
   expect(exitCode).toBe(2);
 });
 
-test.each([
+test.concurrent.each([
   ["うるう年の 2 月 29 日", "date: 2024-02-29"],
   ["400 で割り切れる年の 2 月 29 日", "date: 2000-02-29"],
   ["12 月 31 日", "date: 2026-12-31"],
-])("暦の日付として読める date を受け付ける: %s", (_name, date) => {
-  const { status: exitCode, stderr } = runCheck(noteWithKeys({ date }));
+])("暦の日付として読める date を受け付ける: %s", async (_name, date) => {
+  const { status: exitCode, stderr } = await runCheck(noteWithKeys({ date }));
   expect(stderr).toBe("");
   expect(exitCode).toBe(0);
 });
 
 // priority は high・medium・low のどれか。打ち間違いは、注入では末尾に回り、忘却では候補から外れ続ける。
-test.each([
+test.concurrent.each([
   ["打ち間違い", "priority: hgih"],
   ["大文字", "priority: High"],
-])("priority の値を拒否する: %s", (_name, priority) => {
-  const { status: exitCode, stderr } = runCheck(noteWithKeys({ priority }));
+])("priority の値を拒否する: %s", async (_name, priority) => {
+  const { status: exitCode, stderr } = await runCheck(noteWithKeys({ priority }));
   expect(stderr).toContain("priority is not high, medium or low");
   expect(exitCode).toBe(2);
 });
 
-test("形の誤った date は、暦の日付のチェックで重ねて報告しない", () => {
-  const { status: exitCode, stderr } = runCheck(noteWithKeys({ date: "date: 2026/13/01" }));
+test.concurrent("形の誤った date は、暦の日付のチェックで重ねて報告しない", async () => {
+  const { status: exitCode, stderr } = await runCheck(noteWithKeys({ date: "date: 2026/13/01" }));
   expect(stderr).toContain("date is not a YYYY-MM-DD date");
   expect(stderr).not.toContain("date is not a real calendar date");
   expect(stderr).toContain("1 problem(s)");
@@ -991,8 +999,8 @@ test("形の誤った date は、暦の日付のチェックで重ねて報告�
 });
 
 // キーが重なったときは、同梱のスクリプト（kaizen_frontmatter_values）と同じく最初の値を使う。
-test("重なった status は、最初の値で applied-to との整合を確かめる", () => {
-  const { status: exitCode, stderr } = runCheck(
+test.concurrent("重なった status は、最初の値で applied-to との整合を確かめる", async () => {
+  const { status: exitCode, stderr } = await runCheck(
     noteWithKeys({ status: "status: applied\nstatus: pending" }),
   );
   expect(stderr).toContain("status is declared 2 times");
@@ -1000,8 +1008,8 @@ test("重なった status は、最初の値で applied-to との整合を確か
   expect(exitCode).toBe(2);
 });
 
-test("重なった type は、最初の値で機構の宣言を確かめる", () => {
-  const { status: exitCode, stderr } = runCheck(
+test.concurrent("重なった type は、最初の値で機構の宣言を確かめる", async () => {
+  const { status: exitCode, stderr } = await runCheck(
     noteWithKeys({
       status: "status: applied",
       type: "type: hook\ntype: doc",
@@ -1014,35 +1022,35 @@ test("重なった type は、最初の値で機構の宣言を確かめる", ()
 });
 
 // archive のノートは注入されず、同梱のスクリプトも読まないので、過去の書き方（行末のコメント・引用符で囲んだ confidence）を理由に止めない。
-test("archive のノートは、status・type・confidence の行末のコメントと confidence の引用符を落として確かめる", () => {
+test.concurrent("archive のノートは、status・type・confidence の行末のコメントと confidence の引用符を落として確かめる", async () => {
   const content = noteWithKeys({
     status: "status: applied # 対策済み",
     type: "type: doc # 文書で閉じた",
     appliedTo: 'applied-to: ["docs/a.md"]\nconfidence: "low" # 1 回の観測',
   });
-  const archived = runCheckArchived(content);
+  const archived = await runCheckArchived(content);
   expect(archived.stderr).toBe("");
   expect(archived.status).toBe(0);
   // 同じノートを archive の外に置くと止める（対照）
-  const current = runCheck(content);
+  const current = await runCheck(content);
   expect(current.stderr).toContain("status is not a plain word");
   expect(current.stderr).toContain('unknown confidence: "low" # 1 回の観測');
   expect(current.status).toBe(2);
 });
 
-test("archive のノートでも、コメントを落とした後の未知の値は止める", () => {
+test.concurrent("archive のノートでも、コメントを落とした後の未知の値は止める", async () => {
   const content = noteWithKeys({
     status: "status: done # 対策済み",
     appliedTo: 'applied-to: ["docs/a.md"]\nconfidence: "certain"',
   });
-  const archived = runCheckArchived(content);
+  const archived = await runCheckArchived(content);
   expect(archived.stderr).toContain("unknown status: done");
   expect(archived.stderr).toContain("unknown confidence: certain");
   expect(archived.status).toBe(2);
 });
 
 // applied-to の要素も、ブロックシーケンスと flow 配列の両方の形で、アンカー・エイリアス・タグを止める。
-test.each([
+test.concurrent.each([
   ["ブロックシーケンスのエイリアス", "applied-to:\n  - *ref"],
   ["ブロックシーケンスのアンカー", "applied-to:\n  - &a docs/a.md"],
   ["ブロックシーケンスのタグ", "applied-to:\n  - !!str docs/a.md"],
@@ -1050,34 +1058,34 @@ test.each([
   ["flow 配列のエイリアス", "applied-to: [*ref]"],
   ["flow 配列の 2 つ目の要素のアンカー", 'applied-to: ["docs/a.md", &a docs/b.md]'],
   ["flow 配列のタグ", "applied-to: [!!str docs/a.md]"],
-])("applied-to の要素の形を拒否する: %s", (_name, appliedTo) => {
-  const { status: exitCode, stderr } = runCheck(
+])("applied-to の要素の形を拒否する: %s", async (_name, appliedTo) => {
+  const { status: exitCode, stderr } = await runCheck(
     noteWithKeys({ status: "status: applied", appliedTo }),
   );
   expect(stderr).toContain("applied-to has an element with a YAML anchor, alias, tag");
   expect(exitCode).toBe(2);
 });
 
-test.each([
+test.concurrent.each([
   ["引用符で囲んだ要素", 'applied-to: ["*x.md", "&y.md", "!z.md"]'],
   ["引用符で囲んだブロックシーケンスの要素", "applied-to:\n  - '*x.md'"],
   ["引用符の中の , の後に記号がある要素", 'applied-to: ["docs/a, *b.md"]'],
   ["エスケープした引用符の後に , と記号がある要素", 'applied-to: ["docs/a\\", &b.md"]'],
-])("applied-to の要素の形を受け付ける: %s", (_name, appliedTo) => {
-  const { status: exitCode, stderr } = runCheck(
+])("applied-to の要素の形を受け付ける: %s", async (_name, appliedTo) => {
+  const { status: exitCode, stderr } = await runCheck(
     noteWithKeys({ status: "status: applied", appliedTo }),
   );
   expect(stderr).toBe("");
   expect(exitCode).toBe(0);
 });
 
-test.each([
+test.concurrent.each([
   ["エイリアス", "applied-to: *ref", "uses a YAML anchor or alias"],
   ["タグ", "applied-to: !!seq [docs/a.md]", "has a YAML tag"],
 ])(
   "値そのものに付けた applied-to の%sは、要素の問題として重ねて数えない",
-  (_name, appliedTo, message) => {
-    const { status: exitCode, stderr } = runCheck(
+  async (_name, appliedTo, message) => {
+    const { status: exitCode, stderr } = await runCheck(
       noteWithKeys({ status: "status: applied", appliedTo }),
     );
     expect(stderr).toContain(message);
@@ -1087,18 +1095,18 @@ test.each([
   },
 );
 
-test("本文に書いた status: は、キーの重なりとして数えない", () => {
+test.concurrent("本文に書いた status: は、キーの重なりとして数えない", async () => {
   const content = noteWithKeys({}).replace(
     "学びの本文。",
     "学びの本文。\nstatus: applied\ntype: hook",
   );
-  const { status: exitCode, stderr } = runCheck(content);
+  const { status: exitCode, stderr } = await runCheck(content);
   expect(stderr).toBe("");
   expect(exitCode).toBe(0);
 });
 
-test("キーの重なりと値の形を、1 回の実行でまとめて報告する", () => {
-  const { status: exitCode, stderr } = runCheck(
+test.concurrent("キーの重なりと値の形を、1 回の実行でまとめて報告する", async () => {
+  const { status: exitCode, stderr } = await runCheck(
     noteWithKeys({ status: "status: pending\nstatus: !!str pending", type: "type: >-\n  doc" }),
   );
   expect(stderr).toContain("status is declared 2 times");
@@ -1108,20 +1116,20 @@ test("キーの重なりと値の形を、1 回の実行でまとめて報告す
 });
 
 // キーに属性（アンカー・タグ）を 2 つ付けた行も、同じキーとして数える。confidence のキーも同じに数える。
-test.each([
+test.concurrent.each([
   [
     "属性を 2 つ付けた status",
     { status: "status: applied\n&a !!str status: pending" },
     "status is declared 2 times",
   ],
-])("属性を付けたキーの重なりを報告する: %s", (_name, lines, message) => {
-  const { status: exitCode, stderr } = runCheck(noteWithKeys(lines));
+])("属性を付けたキーの重なりを報告する: %s", async (_name, lines, message) => {
+  const { status: exitCode, stderr } = await runCheck(noteWithKeys(lines));
   expect(stderr).toContain(message);
   expect(exitCode).toBe(2);
 });
 
-test("アンカーを付けた confidence のキーも、重なりとキーの属性として報告する", () => {
-  const { status: exitCode, stderr } = runCheck(
+test.concurrent("アンカーを付けた confidence のキーも、重なりとキーの属性として報告する", async () => {
+  const { status: exitCode, stderr } = await runCheck(
     noteWithConfidence("confidence: high\n&k confidence: low"),
   );
   expect(stderr).toContain("confidence is declared 2 times");
@@ -1131,8 +1139,8 @@ test("アンカーを付けた confidence のキーも、重なりとキーの�
   expect(exitCode).toBe(2);
 });
 
-test("applied-to が重なったとき、前のキーの値の形に関わらず、後のキーの要素も確かめる", () => {
-  const { status: exitCode, stderr } = runCheck(
+test.concurrent("applied-to が重なったとき、前のキーの値の形に関わらず、後のキーの要素も確かめる", async () => {
+  const { status: exitCode, stderr } = await runCheck(
     noteWithKeys({ status: "status: applied", appliedTo: "applied-to: *x\napplied-to: [*y]" }),
   );
   expect(stderr).toContain("applied-to uses a YAML anchor or alias");
@@ -1141,48 +1149,44 @@ test("applied-to が重なったとき、前のキーの値の形に関わらず
 });
 
 // archive のノートは注入されず書き換えもしないので、キーの重なりと形のチェックを当てない。
-function runCheckArchived(content: string) {
-  const dir = makeTempDir("kaizen-status-check-");
+async function runCheckArchived(content: string) {
+  const dir = newTempDir("kaizen-status-check-");
   try {
     mkdirSync(join(dir, ".kaizen", "archive"), { recursive: true });
     writeFileSync(join(dir, ".kaizen", "archive", "2026-08-10-note.md"), content);
     writeFileSync(join(dir, ".kaizen", "archive", "INDEX.md"), "- `2026-08-10-note.md` — 学び\n");
-    const result = spawnSync("bash", [script], {
-      timeout: CHILD_TIMEOUT_MS,
-      env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
-      encoding: "utf8",
-    });
+    const result = await runScript(dir);
     return { status: result.status, stderr: result.stderr ?? "" };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 }
 
-test("archive のノートには、キーの重なりと形のチェックを当てない", () => {
+test.concurrent("archive のノートには、キーの重なりと形のチェックを当てない", async () => {
   const content = noteWithKeys({
     status: "status: applied\nstatus:applied",
     type: "type: >-\n  doc",
     appliedTo: 'applied-to: ["docs/a.md"]',
   });
-  const archived = runCheckArchived(content);
+  const archived = await runCheckArchived(content);
   expect(archived.stderr).toBe("");
   expect(archived.status).toBe(0);
   // 同じノートを archive の外に置くと止める（対照）
-  const current = runCheck(content);
+  const current = await runCheck(content);
   expect(current.stderr).toContain("status is declared 2 times");
   expect(current.status).toBe(2);
 });
 
 // confidence のキーの形（引用符・コロンの前の空白・属性）は、status・type などのキーの形のチェックと同じく archive のノートには当てない。
-test.each([
+test.concurrent.each([
   ["属性を付けたキー", "&a confidence: high"],
   ["引用符で囲んだキー", '"confidence": high'],
-])("archive のノートには、confidence のキーの形のチェックも当てない: %s", (_name, line) => {
-  const archived = runCheckArchived(noteWithConfidence(line));
+])("archive のノートには、confidence のキーの形のチェックも当てない: %s", async (_name, line) => {
+  const archived = await runCheckArchived(noteWithConfidence(line));
   expect(archived.stderr).toBe("");
   expect(archived.status).toBe(0);
   // 同じノートを archive の外に置くと止める（対照）
-  const current = runCheck(noteWithConfidence(line));
+  const current = await runCheck(noteWithConfidence(line));
   expect(current.stderr).toContain(
     "confidence key is quoted, has a space before the colon, or has an anchor or tag",
   );
@@ -1190,8 +1194,8 @@ test.each([
 });
 
 // ブロックシーケンスの要素は 1 つの文字列なので、要素の中の , の後の記号は要素の先頭ではない
-test("ブロックシーケンスの要素の中にある , の後の記号では止めない", () => {
-  const { status: exitCode, stderr } = runCheck(
+test.concurrent("ブロックシーケンスの要素の中にある , の後の記号では止めない", async () => {
+  const { status: exitCode, stderr } = await runCheck(
     noteWithKeys({
       status: "status: applied",
       appliedTo: "applied-to:\n  - docs/a.md (rule, !important)",
@@ -1202,7 +1206,7 @@ test("ブロックシーケンスの要素の中にある , の後の記号で�
 });
 
 // status と type は 1 つの語なので、英数字・_・- だけの語のほかは、記号の種類に関わらず止める
-test.each([
+test.concurrent.each([
   ["flow の配列の type", { type: "type: [hook]" }],
   ["flow の mapping の status", { status: "status: {a: b}" }],
   ["@ で始まる type", { type: "type: @doc" }],
@@ -1211,18 +1215,18 @@ test.each([
   ["引用符で囲んだ type", { type: 'type: "hook"' }],
   ["片側だけの引用符の status", { status: "status: 'applied" }],
   ["空白を含む type", { type: "type: rule doc" }],
-])("status と type の語でない値を拒否する: %s", (_name, lines) => {
-  const { status: exitCode, stderr } = runCheck(noteWithKeys(lines));
+])("status と type の語でない値を拒否する: %s", async (_name, lines) => {
+  const { status: exitCode, stderr } = await runCheck(noteWithKeys(lines));
   expect(stderr).toMatch(/(status|type) is not a plain word/);
   expect(exitCode).toBe(2);
 });
 
 // ブロックシーケンスの要素の入れ子の集合とブロックスカラーも止める
-test.each([
+test.concurrent.each([
   ["入れ子の flow 配列", "applied-to:\n  - [*ref]"],
   ["ブロックスカラー", "applied-to:\n  - |\n    docs/a.md"],
-])("ブロックシーケンスの要素の集合を拒否する: %s", (_name, appliedTo) => {
-  const { status: exitCode, stderr } = runCheck(
+])("ブロックシーケンスの要素の集合を拒否する: %s", async (_name, appliedTo) => {
+  const { status: exitCode, stderr } = await runCheck(
     noteWithKeys({ status: "status: applied", appliedTo }),
   );
   expect(stderr).toContain("applied-to has an element with");

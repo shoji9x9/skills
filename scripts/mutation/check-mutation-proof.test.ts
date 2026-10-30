@@ -1390,6 +1390,8 @@ describe.concurrent("宣言ごとの時間", () => {
       new RegExp(`\\d+\\.\\d 秒  ${escapeRe(relative(repoRoot, specB))}（2 変異）`),
     );
     expect(res.stdout.trimEnd().split("\n").at(-1)).toBe("mutation-proof: 3 proven / 0 failed");
+    // 見積もりは --shard の割り当てにだけ読むので、--shard の無い実行では比べない
+    expect(res.stdout).not.toContain("見積もり");
   });
 });
 
@@ -1443,6 +1445,27 @@ describe.concurrent("--shard", () => {
     const passed = shards.flatMap((s) => s.passed);
     expect(passed.toSorted(), "N 本を合わせて全件にならない").toEqual(all.toSorted());
   }
+
+  test("1 回の実行の秒数が見積もりから大きくずれた宣言だけを、ずれとして出す", async () => {
+    // A の見積もりは 1 回 100 秒で、実測（1 秒未満）との差が 2 回の合計で 30 秒を超える。
+    // B の見積もりはデフォルトの 1 秒で、比は大きくても差の合計が 30 秒に満たないので出さない。
+    const a = specOf("A", 1);
+    const b = specOf("B", 1);
+    const res = await runRunner(a, b, "--shard", "1/1", durations({ [a]: 100 }));
+    expect(res.status, res.out).toBe(0);
+    const drifts = [
+      ...res.stdout.matchAll(/^見積もりとのずれ: 1 回 \d+\.\d 秒（見積もり (\S+) 秒）/gm),
+    ];
+    expect(
+      drifts.map((m) => m[1]),
+      res.stdout,
+    ).toEqual(["100"]);
+    expect(res.stdout).toContain("見積もりからずれた宣言: 1 件");
+    // 0 件でも出す（比べたことが出力で分かる）
+    const none = await runRunner(b, "--shard", "1/1", durations());
+    expect(none.status, none.out).toBe(0);
+    expect(none.stdout).toContain("見積もりからずれた宣言: 0 件");
+  });
 
   test("宣言を単位に割り当て、基準 run は宣言ごとに 1 つのシャードでだけ測る", async () => {
     const specs = [specOf("A", 2), specOf("B", 2)];
