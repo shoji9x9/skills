@@ -65,7 +65,9 @@ function escapes(root: string, path: string): boolean {
 function realpathOfNearest(path: string): string {
   const rest: string[] = [];
   let existing = path;
-  // existsSync はリンクをたどるので、指す先の無いリンクを「無い」と判定して、その先を見ずに祖先へ上がる。
+  // existsSync ではなく lstat で在るかを確かめる。existsSync はリンクをたどるので、指す先の無いリンクを「無い」と
+  // 判定して祖先へ上がってしまう。lstat はリンク自体を在ると判定するので、その位置で realpathSync が解決できない
+  // ことを報告できる。
   while (!lstatSync(existing, { throwIfNoEntry: false }) && dirname(existing) !== existing) {
     rest.unshift(basename(existing));
     existing = dirname(existing);
