@@ -61,6 +61,7 @@ worktree を作る手段（`git worktree add -b` や `EnterWorktree` の `name`�
 呼び出し側が branch を用意していなければ、worktree を作らずにその旨を述べて停止する。
 停止したときに「このスキルを使わず私が直接 branch を作りましょうか」のような、スキルの外の代わりの方法を提案しない。
 必要な branch の名前と、それを作る手順（Issue のワークフロー）を示して、呼び出し側へ返す。
+リモートが無い（`git remote` の出力が空の）リポジトリでは、Issue のワークフローの代わりに `git branch <名前> <ベース>` を示す（[`references/isolation.md`](references/isolation.md)）。
 
 この規律は、文書に書くだけでは守られない。このスキルを呼ばずに worktree を作れば、指示は読まれないからである。
 そこで `setup` で設定する branch guard hook が、branch を作るコマンドを PreToolUse で捕まえて通知する

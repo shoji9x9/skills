@@ -135,6 +135,7 @@ PreToolUse で捕まえて通知する（[branch-guard-hook.md](branch-guard-hoo
 **回復できるのは、commit しておらず、作られた branch がベースと同じコミットを指している間だけである。**
 `gh issue develop` が作る branch はベースの先端を指すので、commit した後では使えない。
 その場合は commit を移すかの判断が要るので、呼び出し側か利用者に返す。
+リモートが無いリポジトリでは紐付ける Issue が無いので、下の手順のうち 2（名前を変える）だけを行う。1・3・4 は `origin` と `gh` を使うので実行しない。
 
 1. リモートに同じ名前の branch が無いことを確かめる。remote-tracking ref は fetch しないと古いままなので、
    `git ls-remote --exit-code --heads origin '<名前>'` でリモートに直接問い合わせる（終了コード 2 は「無い」）。

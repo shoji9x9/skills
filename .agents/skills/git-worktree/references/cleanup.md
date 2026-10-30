@@ -22,10 +22,15 @@ git -C "<worktree パス>" rev-list --max-count=1 HEAD --not --remotes
 
 リモートが無いリポジトリ（`git remote` の出力が空）では、`--not --remotes` が何も除かないので、この確認は commit があれば必ず出力する。
 そのときは push の代わりに、ベースの branch に取り込まれていない commit を確かめる。出力があれば削除しない。
+`<ベース>` は呼び出し側から受け取る。受け取っていなければ推測せず、呼び出し側か利用者に確かめる。
 
 ```bash
-git -C "<worktree パス>" rev-list --max-count=1 HEAD --not "<ベース>"
+git -C "<worktree パス>" rev-list --max-count=1 HEAD --not "refs/heads/<ベース>" --
 ```
+
+ベースの branch が無いときや、同じ名前のファイルがあって引数を解釈できないとき、このコマンドは何も出力せずに 0 以外で終わる。
+終了コードが 0 以外なら、出力が空でも削除しない。
+`git merge --squash` で取り込んだ branch の commit はベースから辿れないので、この確認は必ず出力する。その worktree も branch も残して報告する。
 
 ### 2. 削除する対象が期待と完全一致することを確かめ直す
 
@@ -93,7 +98,7 @@ gh pr view "<PR URL | 番号>" --json state,mergedAt,headRefName
 リモートが無いリポジトリ（`git remote` の出力が空）には PR が無いので、PR の代わりに、ベースの branch に取り込まれたかを git で確かめる。
 
 ```bash
-git branch --merged "<ベース>" --format='%(refname:short)'
+git branch --merged "refs/heads/<ベース>" --format='%(refname:short)'
 ```
 
 出力の行に、削除する branch と完全一致する行があるときだけ、`git branch -d "<branch>"` で削除する。`-D` は使わない。
