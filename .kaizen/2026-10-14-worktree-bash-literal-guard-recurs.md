@@ -297,3 +297,4 @@ quoted heredoc の python の本文に `git-worktree` を含むものも拒否�
 `kaizen-candidate-scan.sh` を変数のパスと `</dev/null` 付きで起動した呼び出しと、`git commit` の出力をファイルに書いて `; rc=$?` を続けた呼び出しも拒否された。
 manifest を更新する JSON の heredoc と python の起動を並べた呼び出しも、本文に `git` を含まないのに拒否された。
 どれも単独の呼び出しに分けるか、Write ツールでスクリプトにして絶対パスで実行する形に直して通した。
+同じ作業の PR の反復 2 でも、変数に入れた scratchpad のパスを `sed -i` に渡した呼び出しが、`runs sed with a value computed at runtime` で拒否された。
