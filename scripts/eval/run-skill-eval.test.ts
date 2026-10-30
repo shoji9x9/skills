@@ -777,7 +777,11 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
       "a socket",
       async (path: string) => {
         const server = createServer();
-        await new Promise<void>((done) => server.listen(path, done));
+        // listen の失敗（パスの長さの上限など）は error イベントで届くので、待ち続けないように reject する。
+        await new Promise<void>((done, fail) => {
+          server.once("error", fail);
+          server.listen(path, done);
+        });
         return () => server.close();
       },
     ],
@@ -840,6 +844,19 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
     expect(result.status).toBe(0);
     expect(existsSync(join(target, "baseline-reuse.json"))).toBe(true);
     expect(existsSync(source)).toBe(true);
+  });
+
+  test("rejects a target that is a dangling symlink into the source without aborting", async () => {
+    const { directory, source } = await withoutSkillSource();
+    const target = join(directory, "dangling-target");
+    symlinkSync(join(source, "nested"), target);
+
+    const result = await reuseDirectly(source, target);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`reuse target already exists: ${target}`);
+    expect(lstatSync(target).isSymbolicLink()).toBe(true);
+    expect(existsSync(join(source, "nested"))).toBe(false);
   });
 
   test("rejects a target nested inside the source when the source is reached through a symlink", async () => {

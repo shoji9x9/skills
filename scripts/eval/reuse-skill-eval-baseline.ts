@@ -62,7 +62,8 @@ function escapes(root: string, path: string): boolean {
 function realpathOfNearest(path: string): string {
   const rest: string[] = [];
   let existing = path;
-  while (!existsSync(existing) && dirname(existing) !== existing) {
+  // existsSync はリンクをたどるので、指す先の無いリンクを「無い」と判定して、その先を見ずに祖先へ上がる。
+  while (!lstatSync(existing, { throwIfNoEntry: false }) && dirname(existing) !== existing) {
     rest.unshift(basename(existing));
     existing = dirname(existing);
   }
@@ -83,8 +84,9 @@ function assertArtifactsPresent(source: string): void {
 /**
  * source の木に、通常のファイルとディレクトリ以外が無いことを確かめる（#766）。
  * ハーネスが書く baseline はリンクを含まないので、シンボリックリンクは指す先に関わらず受け入れない。
- * 受け入れると、途中のディレクトリを通して source の外を読む・循環する・確かめた後に指す先が変わる、を
- * それぞれ判定することになる。FIFO・socket・デバイスも、読むと止まるか外の状態に依存するので受け入れない。
+ * 受け入れるなら、リンクごとに 3 つを判定することになる。途中のディレクトリを通して source の外を読むか・
+ * 循環するか・確かめた後に指す先が変わるかである。
+ * FIFO・socket・デバイスも、読むと止まるか外の状態に依存するので受け入れない。
  * ハードリンクは受け入れる。lstat では source の外のファイルと共有しているかを判定できず、
  * リポジトリの中で git や pnpm が作るハードリンクまで止めてしまうからである。
  */
@@ -141,7 +143,7 @@ function assertSucceededWithRawTrace(source: string): void {
   // source の木にリンクが無いことは assertOnlyFilesAndDirectories が確かめるので、字面で比べれば足りる。
   if (escapes(source, rawTrace)) throw new Error("baseline raw_trace escapes the source run");
   const stat = lstatSync(rawTrace, { throwIfNoEntry: false });
-  if (!stat || stat.isSymbolicLink() || !stat.isFile() || stat.size === 0) {
+  if (!stat || !stat.isFile() || stat.size === 0) {
     throw new Error(`baseline raw trace missing or empty: ${result.raw_trace}`);
   }
 }
@@ -186,12 +188,16 @@ function reuseBaseline(sourceValue: string, targetValue: string, expectedPath: s
   ) {
     throw new Error("reusable baseline source must be under without_skill/run-N");
   }
+  // 指す先の無いリンクも在るとして扱う。cpSync はそれをコピー先にすると、例外を投げずに node ごと異常終了する。
+  // realpath で解決する前に確かめ、target のリンクを ENOENT ではなくこのメッセージで報告する。
+  if (lstatSync(target, { throwIfNoEntry: false })) {
+    throw new Error(`reuse target already exists: ${target}`);
+  }
   // source がシンボリックリンクの下にあっても同じ結果になるよう、両辺を同じ realpath で解決して比べる。
   const realTarget = realpathOfNearest(target);
   if (!escapes(realpathOfNearest(source), realTarget)) {
     throw new Error("reuse target must not be the source or nested inside it");
   }
-  if (existsSync(target)) throw new Error(`reuse target already exists: ${target}`);
   const expectedFingerprint = readJson<Fingerprint>(expectedPath, "expected fingerprint");
   const realSource = validateReusableBaseline(source, expectedFingerprint);
   cpSync(realSource, target, { recursive: true, errorOnExist: true });
