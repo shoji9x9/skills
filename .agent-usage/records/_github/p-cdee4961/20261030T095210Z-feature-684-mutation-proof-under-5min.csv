@@ -30,3 +30,6 @@ ci:41039464606:1,ci,2026-10-30T10:16:06.751Z,p-cdee4961,github-actions,,,,2026-1
 ci:41039196083:1,ci,2026-10-30T10:16:06.751Z,p-cdee4961,github-actions,,,,2026-10-30T10:13:48.000Z,2026-10-30T10:15:53.000Z,Asia/Tokyo,feature/843-bump-undici-zod-fast-uri,843,,,,,,,,,,Running Copilot Code Review;dynamic;success,
 ci:41039064855:1,ci,2026-10-30T10:16:06.751Z,p-cdee4961,github-actions,,,,2026-10-30T10:12:44.000Z,2026-10-30T10:16:06.751Z,Asia/Tokyo,feature/843-bump-undici-zod-fast-uri,843,,,,,,,,,,CI;pull_request;open,
 coverage:github:2026-10-29T10:14:43.974Z:2026-10-30T10:16:06.751Z,coverage,2026-10-30T10:16:06.751Z,p-cdee4961,,,,,2026-10-29T10:14:43.974Z,2026-10-30T10:16:06.751Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:41039464606:1,ci,2026-10-30T10:16:30.390Z,p-cdee4961,github-actions,,,,2026-10-30T10:15:55.000Z,2026-10-30T10:16:30.390Z,Asia/Tokyo,feature/684-mutation-proof-under-5min,684,,,,,,,,,,CI;pull_request;open,
+ci:41039064855:1,ci,2026-10-30T10:16:30.390Z,p-cdee4961,github-actions,,,,2026-10-30T10:12:44.000Z,2026-10-30T10:16:30.390Z,Asia/Tokyo,feature/843-bump-undici-zod-fast-uri,843,,,,,,,,,,CI;pull_request;open,
+coverage:github:2026-10-29T10:16:06.751Z:2026-10-30T10:16:30.390Z,coverage,2026-10-30T10:16:30.390Z,p-cdee4961,,,,,2026-10-29T10:16:06.751Z,2026-10-30T10:16:30.390Z,Asia/Tokyo,,,,,,,,,,,,ok,

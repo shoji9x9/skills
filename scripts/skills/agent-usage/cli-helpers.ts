@@ -1,16 +1,20 @@
 // cli.test.ts のヘルパー。
-import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { expect } from "vitest";
 import { encodeProjectPath } from "../../../skills/agent-usage/scripts/lib/sources/discover.mjs";
 import { parseCsv } from "../../../skills/agent-usage/scripts/lib/csv.mjs";
-import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { spawnAsync } from "../../lib/spawn-async.ts";
+import { makeTempDirFactory } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const SCRIPTS = join(import.meta.dirname, "../../../skills/agent-usage/scripts");
 export const CLI = join(SCRIPTS, "agent-usage.mjs");
 export const GATE = join(SCRIPTS, "precommit-gate.sh");
+
+// テストは並べて実行する（`describe.concurrent`。Issue #684）ので、一時ディレクトリは makeTempDirFactory で作る。
+// この関数を import したファイルの afterAll で、まとめて消す。
+const newTempDir = makeTempDirFactory("agent-usage-cli-");
 
 /** リポジトリの設定のファイル。書く前にディレクトリを作る。 */
 export function repoConfigOf(repo: string): string {
@@ -47,6 +51,9 @@ function envOf(tmp: string) {
     GIT_COMMITTER_EMAIL: "t@example.com",
   };
 }
+
+/** setup が返すもの。 */
+export type Setup = Awaited<ReturnType<typeof setup>>;
 
 /** Claude Code のログ: 2 回の指示と、その応答 */
 function claudeLogLines(repo: string) {
@@ -92,43 +99,40 @@ function claudeLogLines(repo: string) {
   ];
 }
 
-export function setup() {
-  const tmp = makeTempDir("agent-usage-cli-");
+/**
+ * 使い捨てのリポジトリ（1 commit）と Claude Code のログを作り、CLI・Hook・git を起動する関数を返す。
+ * 子プロセスは spawnAsync で起動する。テストを並べたときに、待っている間に別のテストが進む。
+ */
+export async function setup() {
+  const tmp = newTempDir("t-");
   const repo = join(tmp, "repo");
   mkdirSync(repo);
   const env = envOf(tmp);
-  const git = (...args: string[]) => {
-    const r = spawnSync("git", args, {
-      timeout: CHILD_TIMEOUT_MS,
-      cwd: repo,
-      env,
-      encoding: "utf8",
-    });
+  const git = async (...args: string[]) => {
+    const r = await spawnAsync("git", args, { timeout: CHILD_TIMEOUT_MS, cwd: repo, env });
     if (r.status !== 0) throw new Error(r.stderr);
     return r.stdout;
   };
-  git("init", "-q", "-b", "main");
+  await git("init", "-q", "-b", "main");
   writeFileSync(join(repo, "a.txt"), "a\n");
-  git("add", "a.txt");
-  git("commit", "-q", "-m", "init");
+  await git("add", "a.txt");
+  await git("commit", "-q", "-m", "init");
   const dir = join(tmp, "claude", encodeProjectPath(repo));
   mkdirSync(dir, { recursive: true });
   const lines = claudeLogLines(repo);
   writeFileSync(join(dir, "s1.jsonl"), lines.map((l) => JSON.stringify(l)).join("\n"));
   const cliWith = (extra: NodeJS.ProcessEnv, ...args: string[]) =>
-    spawnSync("node", [CLI, ...args], {
+    spawnAsync("node", [CLI, ...args], {
       timeout: CHILD_TIMEOUT_MS,
       cwd: repo,
       env: { ...env, ...extra },
-      encoding: "utf8",
     });
   const cli = (...args: string[]) => cliWith({}, ...args);
   const gateWith = (extra: NodeJS.ProcessEnv, command: string, cwd = repo) =>
-    spawnSync("bash", [GATE, "claude-code"], {
+    spawnAsync("bash", [GATE, "claude-code"], {
       timeout: CHILD_TIMEOUT_MS,
       cwd,
       env: { ...env, ...extra },
-      encoding: "utf8",
       input: JSON.stringify({ cwd, tool_input: { command } }),
     });
   const gate = (command: string, cwd = repo) => gateWith({}, command, cwd);
@@ -140,7 +144,7 @@ export function setup() {
  */
 export function writeLogCopy(
   logDir: string,
-  logLines: ReturnType<typeof setup>["logLines"],
+  logLines: Setup["logLines"],
   { tag, date }: { tag: string; date: string },
 ) {
   const copy = copyLogLines(logLines, { tag, date });
@@ -149,7 +153,7 @@ export function writeLogCopy(
 
 /** setup のログの、日付を date に、メッセージの ID を tag- 付きに替えた行。 */
 export function copyLogLines(
-  logLines: ReturnType<typeof setup>["logLines"],
+  logLines: Setup["logLines"],
   { tag, date }: { tag: string; date: string },
 ) {
   return logLines.map((l) => ({
@@ -172,12 +176,19 @@ export function recordDirs(repo: string) {
   return { records, person, branches: join(records, person, "branches") };
 }
 
+/** setup の後、タイムゾーンを UTC にし、feature/5-x に移る。origin を渡すと、移る前に origin として足す。 */
+export async function onFeatureBranch(origin?: string) {
+  const s = await setup();
+  expect((await s.cli("setup", "--time-zone", "UTC")).status).toBe(0);
+  if (origin !== undefined) await s.git("remote", "add", "origin", origin);
+  await s.git("switch", "-q", "-c", "feature/5-x");
+  return s;
+}
+
 /** setup の後、タイムゾーンを UTC にし、feature/5-x に移って 1 回 collect する。 */
-export function collectedOnBranch() {
-  const s = setup();
-  expect(s.cli("setup", "--time-zone", "UTC").status).toBe(0);
-  s.git("switch", "-q", "-c", "feature/5-x");
-  expect(s.cli("collect").status).toBe(0);
+export async function collectedOnBranch() {
+  const s = await onFeatureBranch();
+  expect((await s.cli("collect")).status).toBe(0);
   return { ...s, ...recordDirs(s.repo) };
 }
 
@@ -185,12 +196,34 @@ export function collectedOnBranch() {
  * report を作り、setup が書いたログと同じ日付の usage.csv から、input_tokens を合計する。
  * 合計が正の数でなければ失敗する。0 や NaN を返すと、二重に数えていないかを 0 と 0 で比べて通してしまう。
  */
-export function reportedInputTokens({ repo, cli }: Pick<ReturnType<typeof setup>, "repo" | "cli">) {
-  expect(cli("report").status).toBe(0);
+export async function reportedInputTokens({ repo, cli }: Pick<Setup, "repo" | "cli">) {
+  expect((await cli("report")).status).toBe(0);
   const usage = readFileSync(join(repo, ".agent-usage", "report", "20261001", "usage.csv"), "utf8");
   const total = parseCsv(usage).reduce((a, row) => a + Number(row.input_tokens), 0);
   expect(Number.isFinite(total) && total > 0, `input_tokens の合計: ${total}`).toBe(true);
   return total;
+}
+
+/** setup のセッション（s1）のサブエージェントのログ（`s1/subagents/<file>`）に、応答 1 件を書き、そのディレクトリを返す。 */
+export function writeSubagentLog(
+  { repo, logDir }: Pick<Setup, "repo" | "logDir">,
+  file: string,
+  message: { id: string; model: string; input: number; timestamp: string },
+) {
+  const sub = join(logDir, "s1", "subagents");
+  mkdirSync(sub, { recursive: true });
+  const line = {
+    type: "assistant",
+    timestamp: message.timestamp,
+    cwd: repo,
+    message: {
+      id: message.id,
+      model: message.model,
+      usage: { input_tokens: message.input, output_tokens: 0 },
+    },
+  };
+  writeFileSync(join(sub, file), JSON.stringify(line));
+  return sub;
 }
 
 /** setup のログをコピーして続けたセッションで、コピーの後に足した指示と、その応答 */
