@@ -50,6 +50,15 @@ describe("ランナーのログの読み取り", () => {
     expect(() => parseTimings([gh("shard 2", `=== ${A} → t`), orphan].join("\n"))).toThrow(
       /2 行目/,
     );
+    // 途中で止まった run: 「時間:」の行が無いまま、次の「=== 」の行が来るか、ログが終わる
+    expect(() =>
+      parseTimings([gh("shard 1", `=== ${A} → t`), gh("shard 1", `=== ${B} → t`)].join("\n")),
+    ).toThrow(new RegExp(`2 行目の前に、${A}`));
+    expect(() =>
+      parseTimings(
+        [gh("shard 1", `=== ${A} → t`), orphan, gh("shard 2", `=== ${B} → t`)].join("\n"),
+      ),
+    ).toThrow(new RegExp(`shard 2: ${B}`));
     // 1 つの「=== 」の行に、2 つの「時間:」の行を対応づけない
     expect(() => parseTimings([gh("shard 1", `=== ${A} → t`), orphan, orphan].join("\n"))).toThrow(
       /3 行目/,
@@ -111,10 +120,27 @@ describe("main", () => {
     expect(parseJsonAs<Durations>(readFileSync(file, "utf8")).seconds_per_run).toEqual({ [A]: 6 });
   });
 
+  test("複数の run のログを渡すと、実行の回数で重みを付けた平均で書き換える", () => {
+    const { root, file, log } = repo();
+    // 1 つ目: 2 回で 12 秒。2 つ目: 4 回で 36 秒。合計 48 秒 ÷ 6 回 = 8 秒（1 回あたりの単純な平均の 7.5 秒にはしない）
+    const first = log([`=== ${A} → t`, "時間: 12.0 秒（1 変異、基準 run を含む）"].join("\n"));
+    const second = log(`=== ${A} → t\n時間: 36.0 秒（3 変異、基準 run を含む）\n`);
+    expect(main([first, second], root)).toBe(0);
+    expect(parseJsonAs<Durations>(readFileSync(file, "utf8")).seconds_per_run).toEqual({ [A]: 8 });
+  });
+
   test.each([
     ["引数が無い", () => []],
     ["ログを読めない", ({ root }: { root: string }) => [join(root, "missing.log")]],
     ["「時間:」の行が無い", ({ log }: { log: (t: string) => string }) => [log("何も無い\n")]],
+    [
+      "「時間:」の行が無い宣言がある（途中で止まった run）",
+      ({ log }: { log: (t: string) => string }) => [
+        log(
+          [`=== ${A} → t`, "時間: 12.0 秒（1 変異、基準 run を含む）", `=== ${A} → t`].join("\n"),
+        ),
+      ],
+    ],
     [
       "対応しない「時間:」の行がある",
       ({ log }: { log: (t: string) => string }) => [log("時間: 1.0 秒（1 変異、基準 run を含む）")],

@@ -1476,14 +1476,15 @@ function measurePlans(
 }
 
 /** 宣言ごとの所要時間を、長い順に出力する。 */
-function printTimings(timings: Timing[]) {
+function printTimings(timings: Timing[], compared: boolean) {
   console.log("\n宣言ごとの時間（長い順）:");
   for (const t of [...timings].sort((a, b) => b.seconds - a.seconds)) {
     console.log(`  ${t.seconds.toFixed(1).padStart(8)} 秒  ${t.spec}（${t.count} 変異）`);
   }
-  const drifted = timings.filter((t) => t.drifted).length;
-  if (drifted > 0) {
-    console.log(`見積もりからずれた宣言: ${drifted} 件（上の「見積もりとのずれ」の行）`);
+  // 見積もりと比べた実行（--shard）では 0 件でも出す。出さないと「比べてずれが無い」と「比べていない」が同じ出力になる
+  if (compared) {
+    const drifted = timings.filter((t) => t.drifted).length;
+    console.log(`見積もりからずれた宣言: ${drifted} 件（「見積もりとのずれ」の行）`);
   }
 }
 
@@ -1506,7 +1507,7 @@ function main() {
 
   const { proven, failures, timings } = measurePlans(plans, durations);
   // 集計の行（mutation-proof: ...）を最後の行に保つため、その前に出す。
-  printTimings(timings);
+  printTimings(timings, durations !== undefined);
   console.log(
     `\nmutation-proof: ${proven} proven / ${failures} failed` +
       (skipped ? ` / ${skipped} skipped（--only）` : ""),

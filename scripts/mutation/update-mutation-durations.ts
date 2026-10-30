@@ -36,6 +36,8 @@ const TIME_LINE = /時間: (\d+(?:\.\d+)?) 秒（(\d+) 変異、基準 run を�
 /**
  * ランナーのログから、宣言ごとの実測を合計する。
  * `時間:` の行が、同じジョブの直前の `=== ` の行と対応しなければ、例外にする（どの宣言の時間か分からない）。
+ * `時間:` の行が無いまま次の `=== ` の行が来るか、ログが終わった宣言も、例外にする。
+ * 途中で止まった run のログは、どの宣言を測り終えたかを確かめられないので、一部の実測で見積もりを書き換えない。
  */
 export function parseTimings(text: string): Measured {
   const measured: Measured = new Map();
@@ -45,6 +47,12 @@ export function parseTimings(text: string): Measured {
     const job = line.includes("\t") ? line.slice(0, line.indexOf("\t")) : "";
     const spec = SPEC_LINE.exec(line);
     if (spec) {
+      const unfinished = current.get(job);
+      if (unfinished !== undefined) {
+        throw new Error(
+          `${index + 1} 行目の前に、${unfinished} の「時間:」の行が無い（run が途中で止まった）`,
+        );
+      }
       current.set(job, spec[1] ?? "");
       return;
     }
@@ -60,6 +68,12 @@ export function parseTimings(text: string): Measured {
     sum.runs += Number(time[2]) + 1;
     measured.set(name, sum);
   });
+  if (current.size > 0) {
+    const names = [...current].map(([job, name]) => (job === "" ? name : `${job}: ${name}`));
+    throw new Error(
+      `「時間:」の行が無いままログが終わった宣言がある（run が途中で止まった）: ${names.join(", ")}`,
+    );
+  }
   return measured;
 }
 

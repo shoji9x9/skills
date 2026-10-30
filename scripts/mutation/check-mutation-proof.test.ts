@@ -1461,6 +1461,10 @@ describe.concurrent("--shard", () => {
       res.stdout,
     ).toEqual(["100"]);
     expect(res.stdout).toContain("見積もりからずれた宣言: 1 件");
+    // 0 件でも出す（比べたことが出力で分かる）
+    const none = await runRunner(b, "--shard", "1/1", durations());
+    expect(none.status, none.out).toBe(0);
+    expect(none.stdout).toContain("見積もりからずれた宣言: 0 件");
   });
 
   test("宣言を単位に割り当て、基準 run は宣言ごとに 1 つのシャードでだけ測る", async () => {
