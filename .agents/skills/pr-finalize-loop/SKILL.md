@@ -350,6 +350,8 @@ effort を指定できるのは、`review_tool: local` で Claude Code の `/cod
     各 environment の待った時間は、その environment を pending deployments の応答で初めて見つけた確認の時刻と、その environment の wait timer の終わる時刻の遅いほうから測る。
     初めて見つけた時刻は、run の ID と environment の名前とともにメモに残す。ジョブの `id` の時刻は使わない。どのジョブがどの environment を待つかを決められないからである。
     どれか 1 つの environment が上限を超えたら、上限を超えたとみなす。ほかの environment の wait timer が後で終わることは、その environment の待った時間を減らさない。
+    pending deployments の API が失敗したとき（権限の不足・一時的なエラー）と、`waiting` のジョブがあるのに空の配列を返したときは、environment の起点を記録できない。
+    そのときは wait timer の待ちを除かず、`waiting` のジョブを初めて見つけた確認の時刻から測る。報告には、environment を判定できなかったことと、API の応答（エラーか空か）を書く。
     上限を超えた時点で同じ run に `in_progress` のジョブがあれば、まだ止めない（`queued` と同じ理由）。
     同じ run に `in_progress` のジョブが無くなった後の確認でも同じ状態なら、`--watch` を止める。
     run の ID・ジョブの名前・状態・待った時間を書き、`waiting` のジョブなら待っている environment の名前と `reviewers`（空なら空と）も書いて、「行き詰まり」として止まり、利用者に知らせる。
