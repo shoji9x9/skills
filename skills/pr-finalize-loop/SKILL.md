@@ -340,13 +340,16 @@ effort を指定できるのは、`review_tool: local` で Claude Code の `/cod
     ```
 
     `wait_timer` は分の単位で、0 より大きく `wait_timer_started_at` が null でない environment は、wait timer が終わるのを待っている。
-    `wait_timer_started_at` に `wait_timer` を足した時刻までは正常な待ちなので、上限の時間に数えない。1 つの run に複数の environment があれば、いちばん遅く終わる時刻を使う。
+    `wait_timer_started_at` に `wait_timer` を足した時刻までは正常な待ちなので、上限の時間に数えない。
     `reviewers` が空でない environment は、承認を待っている。
     どちらにも当たらない environment（custom deployment protection rule で待つものなど）も、承認待ちと同じ上限で扱う。
     形は <https://docs.github.com/en/rest/actions/workflow-runs#get-pending-deployments-for-a-workflow-run> で確かめた。
     `wait_timer` の単位は <https://docs.github.com/en/rest/deployments/environments#create-or-update-an-environment> で確かめた。
     environment を作るのはリポジトリの設定の変更なので、承認待ちの状態は作って確かめていない。
-  - 上限は、`queued` と同じ 30 分にする。待った時間は、初めて見つけた確認の時刻から測る。wait timer の終わる時刻がそれより後なら、その時刻から測る。
+  - 上限は、`queued` と同じ 30 分にする。待った時間は、初めて見つけた確認の時刻から測る。
+    `waiting` のジョブがある run では、待った時間を environment ごとに測る。jobs API ではジョブと environment を対応づけられないので、run の単位で取得した environment を 1 つずつ数える。
+    各 environment の待った時間は、初めて見つけた確認の時刻と、その environment の wait timer の終わる時刻の遅いほうから測る。
+    どれか 1 つの environment が上限を超えたら、上限を超えたとみなす。ほかの environment の wait timer が後で終わることは、その environment の待った時間を減らさない。
     上限を超えた時点で同じ run に `in_progress` のジョブがあれば、まだ止めない（`queued` と同じ理由）。
     同じ run に `in_progress` のジョブが無くなった後の確認でも同じ状態なら、`--watch` を止める。
     run の ID・ジョブの名前・状態・待った時間を書き、`waiting` のジョブなら待っている environment の名前と `reviewers`（空なら空と）も書いて、「行き詰まり」として止まり、利用者に知らせる。
