@@ -8,3 +8,5 @@ ci:41009200748:1,ci,2026-10-30T05:50:26.900Z,p-cdee4961,github-actions,,,,2026-1
 ci:41009200796:1,ci,2026-10-30T05:50:26.900Z,p-cdee4961,github-actions,,,,2026-10-30T05:34:41.000Z,2026-10-30T05:40:03.000Z,Asia/Tokyo,feature/801-dist-skill-repo-filenames,801,,,,,,,,,,CI;pull_request;success,
 ci:41008829433:1,ci,2026-10-30T05:50:26.900Z,p-cdee4961,github-actions,,,,2026-10-30T05:30:40.000Z,2026-10-30T05:35:58.000Z,Asia/Tokyo,feature/801-dist-skill-repo-filenames,801,,,,,,,,,,CI;pull_request;cancelled,
 coverage:github:2026-10-29T05:33:57.011Z:2026-10-30T05:50:26.900Z,coverage,2026-10-30T05:50:26.900Z,p-cdee4961,,,,,2026-10-29T05:33:57.011Z,2026-10-30T05:50:26.900Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-29T05:50:26.900Z:2026-10-30T05:54:32.935Z,coverage,2026-10-30T05:54:32.935Z,p-cdee4961,,,,,2026-10-29T05:50:26.900Z,2026-10-30T05:54:32.935Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-29T05:54:32.935Z:2026-10-30T05:56:00.733Z,coverage,2026-10-30T05:56:00.733Z,p-cdee4961,,,,,2026-10-29T05:54:32.935Z,2026-10-30T05:56:00.733Z,Asia/Tokyo,,,,,,,,,,,,ok,
