@@ -256,6 +256,11 @@ function reuseBaseline(sourceValue: string, targetValue: string, expectedPath: s
   ) {
     throw new Error("reusable baseline source must be under without_skill/run-N");
   }
+  // run のディレクトリ自体のリンクも、木の中のリンクと同じに受け入れない。祖先のリンクは受け入れる。
+  // 指す先の無いリンクと循環するリンクも同じ文で拒否するよう、realpath で解決する前に確かめる。
+  if (lstatSync(source, { throwIfNoEntry: false })?.isSymbolicLink()) {
+    throw new Error("baseline contains a symlink: .");
+  }
   const targetStat = resolving("reuse target", target, (path) =>
     lstatSync(path, { throwIfNoEntry: false }),
   );
@@ -269,10 +274,6 @@ function reuseBaseline(sourceValue: string, targetValue: string, expectedPath: s
   }
   if (targetStat) throw new Error(`reuse target already exists: ${target}`);
   const expectedFingerprint = readJson<Fingerprint>(expectedPath, "expected fingerprint");
-  // run のディレクトリ自体のリンクも、木の中のリンクと同じに受け入れない。祖先のリンクは受け入れる。
-  if (lstatSync(source, { throwIfNoEntry: false })?.isSymbolicLink()) {
-    throw new Error("baseline contains a symlink: .");
-  }
   validateReusableBaseline(realSource, expectedFingerprint);
   const record = reuseRecord(sourceValue, source, expectedFingerprint);
   copyVerifiedTree(realSource, target, () =>

@@ -77,7 +77,9 @@
       "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "run-skill-eval executor compatibility rejects a source run directory that is itself a symlink"
+        "run-skill-eval executor compatibility rejects a source run directory that is itself a symlink that points at a real run",
+        "run-skill-eval executor compatibility rejects a source run directory that is itself a symlink that points at nothing",
+        "run-skill-eval executor compatibility rejects a source run directory that is itself a symlink that points at itself"
       ]
     },
     {

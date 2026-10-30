@@ -758,11 +758,15 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
     expect(existsSync(target)).toBe(false);
   });
 
-  test("rejects a source run directory that is itself a symlink", async () => {
+  test.each([
+    ["points at a real run", (real: string, _source: string) => real],
+    ["points at nothing", (real: string, _source: string) => `${real}-missing`],
+    ["points at itself", (_real: string, source: string) => source],
+  ])("rejects a source run directory that is itself a symlink that %s", async (_label, linkTo) => {
     const { directory, source, target } = await withoutSkillSource();
     const real = join(directory, "real-run");
     renameSync(source, real);
-    symlinkSync(real, source);
+    symlinkSync(linkTo(real, source), source);
 
     const result = await reuseDirectly(source, target);
 
