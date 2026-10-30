@@ -349,6 +349,8 @@ effort を指定できるのは、`review_tool: local` で Claude Code の `/cod
     `waiting` のジョブがある run では、待った時間を environment ごとに測る。jobs API ではジョブと environment を対応づけられないので、run の単位で取得した environment を 1 つずつ数える。
     各 environment の待った時間は、その environment を pending deployments の応答で初めて見つけた確認の時刻と、その environment の wait timer の終わる時刻の遅いほうから測る。
     初めて見つけた時刻は、run の ID と environment の名前とともにメモに残す。ジョブの `id` の時刻は使わない。どのジョブがどの environment を待つかを決められないからである。
+    応答からその environment が消えたら（承認や wait timer の終わりで待ちが解けたら）、メモの時刻を捨てる。
+    もう一度現れたら、その確認の時刻を新しく記録する。前の待ちの時間を、次の待ちの上限に数えないためである。
     どれか 1 つの environment が上限を超えたら、上限を超えたとみなす。ほかの environment の wait timer が後で終わることは、その environment の待った時間を減らさない。
     pending deployments の API が失敗したとき（権限の不足・一時的なエラー）と、`waiting` のジョブがあるのに空の配列を返したときは、environment の起点を記録できない。
     そのときは wait timer の待ちを除かず、`waiting` のジョブを初めて見つけた確認の時刻から測る。報告には、environment を判定できなかったことと、API の応答（エラーか空か）を書く。
