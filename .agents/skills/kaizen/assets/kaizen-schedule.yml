@@ -9,7 +9,7 @@ name: Kaizen schedule
 
 on:
   schedule:
-    # 毎週月曜 01:00 UTC (10:00 JST)。ほかの週次のワークフローと実行の時刻をずらす。
+    # 毎週月曜 01:00 UTC (10:00 JST)。同じ時刻に動く週次のワークフローがあれば、cron をずらす。
     - cron: "0 1 * * 1"
   workflow_dispatch:
     inputs:
@@ -430,7 +430,7 @@ jobs:
 
           # `settings` は必ず 10 進の件数を書く。空や数値でないまま進むと、`= 0` は文字列の比較
           # なので「未適用あり」と判定され、件数の抜けたコメントを投稿しつつ Issue を更新する
-          # （実測）。Issue を触る前に止めるため、gh を呼ぶ前にエラーにする。
+          # （実測）。そのため、gh を呼ぶ前にエラーにする。
           case "$PENDING_COUNT" in
           '' | *[!0-9]*)
             echo "pending_count=\"$PENDING_COUNT\" が 10 進の件数でない。追跡 Issue を触らずに落とす" >&2

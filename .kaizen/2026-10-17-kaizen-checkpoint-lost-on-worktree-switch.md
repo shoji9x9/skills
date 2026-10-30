@@ -2,6 +2,7 @@
 date: 2026-10-17
 type: hook
 priority: high
+confidence: high
 status: pending
 applied-to: []
 session: claude-code
@@ -62,7 +63,9 @@ kaizen のコミット前の確認は、セッションが worktree を移って
 - A を解除した後も確かめる。処理位置は `.gitignore` の対象なので、`git worktree remove` が A と一緒に消す。
   issue-batch は Issue ごとに worktree を片付けるので、この場合も起きる。パスの違いを許すだけでは直らないので、処理位置を git の共通のディレクトリに置くか、解除する前に移す方法を合わせて決める
 
-### 再発の記録（#801）
+## 根拠
+
+同じ原因（処理位置の 1 行目が移す前の transcript を指す）での再発が続き、1 行目だけを書き換えると候補が減ることを毎回確かめたので high とする。
 
 2026-10-30、issue-batch の run で、#766 の worktree から #801 の worktree へ移った後の 2 回目の `git commit` でも、チェックが 8 秒の期限に達して止めた。
 処理位置は main のチェックアウトにあり、1 行目は #766 の worktree の transcript（60 MB）を指していた。1 行目だけを移った後のパスに書き換えた複製を走査ツールに渡すと、候補は 2 件になった。

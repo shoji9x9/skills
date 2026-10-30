@@ -2,7 +2,8 @@ name: Outdated tools
 
 on:
   schedule:
-    # 毎週月曜 00:00 UTC (09:00 JST)。kaizen-schedule.yml（01:00 UTC）と実行の時刻をずらす。
+    # 毎週月曜 00:00 UTC (09:00 JST)。kaizen-schedule.yml と mutation-proof.yml の週次と時刻をずらしている。
+    # どれかの cron を変えるときは、ほかの 2 つと重ならないかを確かめる。
     - cron: "0 0 * * 1"
   workflow_dispatch: {}
 
@@ -93,6 +94,7 @@ jobs:
           # `detect` は true / false のどちらかを必ず書く。それ以外（未設定・別表記）は
           # 「検出が失敗した」なので、`!= true` で閉じる側＝「全ツール最新」という結論として
           # 扱わず失敗させる（追跡 Issue を誤って閉じると、次の run まで更新が埋もれる）。
+          # kaizen-schedule.yml の PENDING_COUNT も、同じ形で gh を呼ぶ前に確かめる。片方を直すときは、もう片方も確かめる。
           case "$HAS_OUTDATED" in
           true | false) ;;
           *)
