@@ -488,11 +488,25 @@ test("CLI は --align-tolerance の値で端揃えを比べる", () => {
 test.each([
   ["負の数", ["-1"]],
   ["数でない", ["abc"]],
-  ["値が無い", []],
 ])("CLI は --align-tolerance が 0 以上の数でなければ（%s）、比較せず exit 2", (_label, value) => {
   const r = runCli([trait([])], [trait([])], ["--align-tolerance", ...value]);
   expect(r.status).toBe(2);
   expect(r.stderr).toContain("--align-tolerance must be a non-negative number");
+});
+
+test.each([
+  ["値が無い", ["--align-tolerance"], "error: --align-tolerance に値が無い"],
+  [
+    "名前の重複",
+    ["--align-tolerance", "1", "--align-tolerance", "2"],
+    "error: --align-tolerance が重複している",
+  ],
+  ["不明な名前", ["--bogus"], "error: 不明な引数: --bogus"],
+])("CLI は引数の誤り（%s）を、理由と使い方を出して exit 2 にする", (_label, extra, reason) => {
+  const r = runCli([trait([])], [trait([])], extra);
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain(reason);
+  expect(r.stderr).toContain("usage: node trait-compare.mjs");
 });
 
 test.each([

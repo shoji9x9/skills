@@ -29,6 +29,7 @@ import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
+import { parseFlags } from "./lib/flags.mjs";
 import { isPlainObject } from "./lib/guards.mjs";
 import { realPathOf } from "./lib/paths.mjs";
 
@@ -390,43 +391,20 @@ export function recordProblem(rec, slugDir, opts) {
  */
 
 /**
- * 引数の名前が --dir・--at・--include のどれかで、値が在ることを確かめて、値を返す。
- * @param {string} a - 引数の名前
- * @param {string | undefined} v - 引数の次の要素
- * @returns {string}
- */
-function argValue(a, v) {
-  if (a !== "--dir" && a !== "--at" && a !== "--include") {
-    throw new UsageError(`不明な引数 ${a}`);
-  }
-  if (v === undefined || v === "" || v.startsWith("--")) {
-    throw new UsageError(`${a} に値が無い`);
-  }
-  return v;
-}
-
-/**
  * サブコマンドの後の引数を読む。--include だけは重ねてよい。
+ * --include 以外を重ねると後勝ちで警告なしに別の区切り・別の slug を扱うので、parseFlags が重複として止める。
  * @param {string[]} rest
  * @returns {{ dir: string | null, at: string | null, includes: string[] }}
  */
 function parseArgs(rest) {
-  let dir = null;
-  let at = null;
-  /** @type {string[]} */
-  const includes = [];
-  for (let i = 0; i < rest.length; i += 1) {
-    const a = rest[i];
-    const v = argValue(a, rest[i + 1]);
-    // --include 以外を重ねると後勝ちで警告なしに別の区切り・別の slug を扱うので止める
-    if ((a === "--dir" && dir !== null) || (a === "--at" && at !== null)) {
-      throw new UsageError(`${a} が重複している`);
-    }
-    if (a === "--dir") dir = v;
-    else if (a === "--at") at = v;
-    else includes.push(v);
-    i += 1;
-  }
+  const parsed = parseFlags(rest, {
+    values: ["--dir", "--at", "--include"],
+    repeat: ["--include"],
+  });
+  if (parsed.error !== undefined) throw new UsageError(parsed.error);
+  const dir = parsed.strings["--dir"] ?? null;
+  const at = parsed.strings["--at"] ?? null;
+  const includes = parsed.lists["--include"] ?? [];
   return { dir, at, includes };
 }
 

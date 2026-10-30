@@ -17,6 +17,7 @@
 import { readFileSync } from "node:fs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
+import { parseFlags } from "./lib/flags.mjs";
 
 /**
  * ツールのバージョン（原本）。計数規則・出力形状を変えたら上げる。
@@ -144,34 +145,27 @@ const USAGE =
 
 /**
  * CLI の引数。
- * @typedef {{ positionals: string[], diffPath: string | undefined, diffRequested: boolean, diffColor: string }} CliArgs
+ * @typedef {{ positionals: string[], diffPath: string | undefined, diffColor: string }} CliArgs
  */
 
 /**
- * 引数を読む。
+ * 引数を読む。誤りは stderr に書いて null を返す。
  * @param {string[]} argv
- * @returns {CliArgs}
+ * @returns {CliArgs | null}
  */
 function parseArgs(argv) {
-  const positionals = [];
-  let diffPath;
-  // 「--diff を渡していない」と「--diff の値が空」を区別する。区別しないと、値が空に展開された呼び出しが
-  // strict_only_pixels: null のまま exit 0 で通り、基準値を埋められないまま 2 回目の採取物が消える。
-  let diffRequested = false;
-  let diffColor = "ff0000";
-  for (let i = 0; i < argv.length; i += 1) {
-    if (argv[i] === "--diff") {
-      diffRequested = true;
-      diffPath = argv[i + 1];
-      i += 1;
-    } else if (argv[i] === "--diff-color") {
-      diffColor = argv[i + 1];
-      i += 1;
-    } else {
-      positionals.push(argv[i]);
-    }
+  const parsed = parseFlags(argv, { values: ["--diff", "--diff-color"], positionals: 2 });
+  if (parsed.error !== undefined) {
+    process.stderr.write(`error: ${parsed.error}\n${USAGE}`);
+    return null;
   }
-  return { positionals, diffPath, diffRequested, diffColor };
+  // 空白だけの --diff は、parseFlags が値の書き忘れとして止める。通すと、値が空白に展開された呼び出しが
+  // strict_only_pixels: null のまま exit 0 で通り、基準値を埋められないまま 2 回目の採取物が消える。
+  return {
+    positionals: parsed.positionals,
+    diffPath: parsed.strings["--diff"],
+    diffColor: parsed.strings["--diff-color"] ?? "ff0000",
+  };
 }
 
 /**
@@ -179,13 +173,9 @@ function parseArgs(argv) {
  * @param {CliArgs} args
  * @returns {{ r:number, g:number, b:number } | null}
  */
-function checkArgs({ positionals, diffPath, diffRequested, diffColor }) {
+function checkArgs({ positionals, diffColor }) {
   if (positionals.length !== 2) {
     process.stderr.write(USAGE);
-    return null;
-  }
-  if (diffRequested && (diffPath === undefined || String(diffPath).trim() === "")) {
-    process.stderr.write("error: --diff requires a path to the recorded tool's diff image\n");
     return null;
   }
   const target = hexToRgb(diffColor);
@@ -239,6 +229,7 @@ function readCaptures(PNG, positionals, diffPath) {
  */
 export async function main(argv) {
   const args = parseArgs(argv);
+  if (!args) return 2;
   const target = checkArgs(args);
   if (!target) return 2;
   const PNG = await loadPng();

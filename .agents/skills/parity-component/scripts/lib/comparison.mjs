@@ -4,8 +4,9 @@
 
 import { resolve } from "node:path";
 import { loadBaseline } from "./baseline.mjs";
-import { cliIo, parseFlagPairs, usageFailer, writeCheckResult } from "./check-cli.mjs";
-import { field, filled, isPlainObject, nonEmptyString } from "./guards.mjs";
+import { cliIo, usageFailer, writeCheckResult } from "./check-cli.mjs";
+import { parseFlags } from "./flags.mjs";
+import { field, filled, isPlainObject } from "./guards.mjs";
 import { isArray } from "./is-array.mjs";
 
 /** 突き合わせ表の行がとりうる扱いの語彙。null は「比べた」。 */
@@ -168,12 +169,12 @@ export function runCompareCli(argv, io, spec) {
   const { readFile, cwd, write, writeErr } = cliIo(io);
   // 引数・入力の誤りは判定結果ではないので stdout の JSON に混ぜず stderr へ知らせる（同梱スクリプト共通の CLI 規約）。
   const fail = usageFailer(writeErr, spec.usage);
-  const parsed = parseFlagPairs(argv, COMPARE_ARGS);
+  const parsed = parseFlags(argv, { values: COMPARE_ARGS });
   if (parsed.error !== undefined) return fail(parsed.error);
-  const { args } = parsed;
+  const args = parsed.strings;
+  // 空白だけの値（`--target " "` など）は、parseFlags が値の書き忘れとして止める。
   for (const key of COMPARE_ARGS) {
-    // 空白だけの値を通さない。`--target " "` を受けると target の照合が別環境の記録を通す。
-    if (!nonEmptyString(args[key])) return fail(`${key} は必須（空白だけの値も不可）`);
+    if (args[key] === undefined) return fail(`${key} は必須`);
   }
   let loaded;
   try {

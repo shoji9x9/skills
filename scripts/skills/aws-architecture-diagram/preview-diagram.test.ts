@@ -183,6 +183,18 @@ test.each([
 });
 
 test.each([
+  ["--timeout-ms の値が無い", ["prod", "--timeout-ms"], "error: --timeout-ms に値が無い"],
+  ["--out-dir が 2 回ある", ["prod", "--out-dir", "x"], "error: --out-dir が重複している"],
+  ["位置引数が 2 つある", ["prod", "local"], "error: 不明な引数: local"],
+])("CLI の%sときは、使い方を出して Chrome を起動せずに 2 で止める", (_label, args, message) => {
+  const r = run({ args });
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain(message);
+  expect(r.stderr).toContain("usage: node preview-diagram.mjs <env名 | SVGファイル名>");
+  expect(r.chromeArgs).toEqual([]);
+});
+
+test.each([
   ["--timeout-ms", "abc"],
   ["--timeout-ms", "0"],
 ])("CLI の %s %s は、Chrome を起動せずにエラーにする", (flag, value) => {

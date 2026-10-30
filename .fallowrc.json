@@ -42,11 +42,19 @@
       "exports": ["Locator", "Page"]
     },
     {
+      "file": "skills/agent-usage/scripts/lib/flags.mjs",
+      "exports": ["*"]
+    },
+    {
       "file": "skills/agent-usage/scripts/lib/is-array.mjs",
       "exports": ["*"]
     },
     {
       "file": "skills/agent-usage/scripts/skill-config/skill-config.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/aws-architecture-diagram/scripts/lib/flags.mjs",
       "exports": ["*"]
     },
     {
@@ -90,6 +98,10 @@
       "exports": ["*"]
     },
     {
+      "file": "skills/golden-dataset/scripts/lib/flags.mjs",
+      "exports": ["*"]
+    },
+    {
       "file": "skills/golden-dataset/scripts/lib/is-array.mjs",
       "exports": ["*"]
     },
@@ -110,6 +122,10 @@
       "exports": ["*"]
     },
     {
+      "file": "skills/issue-start/scripts/lib/flags.mjs",
+      "exports": ["*"]
+    },
+    {
       "file": "skills/issue-start/scripts/lib/is-array.mjs",
       "exports": ["*"]
     },
@@ -126,6 +142,10 @@
       "exports": ["*"]
     },
     {
+      "file": "skills/parity-component/scripts/lib/flags.mjs",
+      "exports": ["*"]
+    },
+    {
       "file": "skills/parity-component/scripts/lib/is-array.mjs",
       "exports": ["*"]
     },
@@ -139,6 +159,10 @@
     },
     {
       "file": "skills/parity-diff/scripts/lib/cli.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/parity-diff/scripts/lib/flags.mjs",
       "exports": ["*"]
     },
     {
@@ -179,6 +203,10 @@
     },
     {
       "file": "skills/replace-strategy/scripts/lib/errors.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/replace-strategy/scripts/lib/flags.mjs",
       "exports": ["*"]
     },
     {

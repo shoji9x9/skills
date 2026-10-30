@@ -644,7 +644,7 @@ test("CLI: 揃った採取物と突き合わせ表で exit 0、行を欠くと e
       writeErr: (s: string) => (err += s),
     }),
   ).toBe(2);
-  expect(err).toMatch(/必須/);
+  expect(err).toContain("error: --target に値が無い");
 });
 
 test("eval fixture の button は動きの無い部品として宣言済みで、build の前提（型崩れにならない）を通る", async () => {

@@ -10,6 +10,7 @@
 // | ------------------------ | --------------------------------------------------------------------------- |
 // | レポート                 | 正しい形 / object でない / duplicates が配列でない / sources が無いか負 / isNew が真偽値でない / format が空か無い / lines が 1 以上の整数でない / 断片の名前が空 / 行が整数でない |
 // | 重複の 2 つのファイル    | 同じファイル / 同じ組（ファイル全体） / 片方だけが組 / 組に無い              |
+// | 範囲の組に並べたファイル | 両方 / 片方が、並べたファイルとファイル全体の組で一致するコピー / 片方がどちらの組にも無い |
 // | 範囲を持つ組             | 両方が範囲と重なる / 片方が範囲と重ならない / 範囲の境界の行で重なる / 印が崩れている |
 // | 設定の ignore            | 文字列の配列 / 無い / 空文字を含む                                           |
 // | 引数                     | なし / --update-baseline / 知らない引数                                      |
@@ -36,6 +37,7 @@ import {
   main,
   parseReport,
   regionReader,
+  withCopies,
 } from "./check-duplicates.ts";
 import { DECLARATION_PATH } from "../packaging/copies/check-identical-copies.ts";
 import { isRecord } from "../../lib/guards.ts";
@@ -175,11 +177,79 @@ test.each([
   expect(isDeclaredCopy(c, [fileGroup, regionGroup], rangeOf)).toBe(expected);
 });
 
+// 範囲の組には、ファイル全体の組（fileGroup）のファイルのうち a.mjs だけを並べる。b.mjs と c.mjs は a.mjs とバイト単位で同じなので、同じ範囲を持つ。
+const repGroup = { files: ["a.mjs", "r.ts"], reason: "雛形に同じ関数を持つ", region: "cli-entry" };
+const repRanges: Record<string, { start: number; end: number }> = {
+  "a.mjs": { start: 5, end: 15 },
+  "b.mjs": { start: 5, end: 15 },
+  "c.mjs": { start: 5, end: 15 },
+  "r.ts": { start: 30, end: 40 },
+  "z.mjs": { start: 5, end: 15 },
+};
+const repRangeOf = (file: string) => repRanges[file];
+const inRange: [Span, Span] = [
+  [6, 14],
+  [31, 39],
+];
+
+test.each([
+  ["範囲の組に並べたファイルとファイル全体で一致するコピー", clone("b.mjs", "r.ts", inRange), true],
+  [
+    "コピーでも、断片が範囲と重ならない",
+    clone("b.mjs", "r.ts", [
+      [16, 25],
+      [31, 39],
+    ]),
+    false,
+  ],
+  ["どちらの組にも入っていないファイル", clone("z.mjs", "r.ts", inRange), false],
+  ["どちらの組にも入っていないファイルと、コピー", clone("z.mjs", "b.mjs", inRange), false],
+  [
+    "コピーと、そのファイル全体の組を含まない範囲の組のファイル",
+    clone("b.mjs", "x.ts", inRange),
+    false,
+  ],
+])("isDeclaredCopy（ファイル全体の組のコピー）: %s → %s", (_, c, expected) => {
+  const groups = withCopies([fileGroup, repGroup, regionGroup]);
+  expect(isDeclaredCopy(c, groups, repRangeOf)).toBe(expected);
+});
+
+test("withCopies: 範囲の組にファイル全体の組のコピーを足し、ファイル全体の組と、コピーを持たない範囲の組は変えない", () => {
+  expect(withCopies([fileGroup, repGroup, regionGroup])).toEqual([
+    fileGroup,
+    { ...repGroup, files: ["a.mjs", "b.mjs", "c.mjs", "r.ts"] },
+    regionGroup,
+  ]);
+  // 1 ファイルが 2 つのファイル全体の組にあれば、どちらで広げるか決まらないので例外にする。
+  const overlapping = { files: ["a.mjs", "m.mjs"], reason: "別の姉妹スキルが同じ処理を持つ" };
+  expect(() => withCopies([fileGroup, overlapping, repGroup])).toThrow(/a\.mjs/);
+  // ファイル全体の組が無ければ、範囲の組はそのまま。
+  expect(withCopies([repGroup])).toEqual([repGroup]);
+  // 2 つのファイル全体の組のファイルを 1 つずつ並べると、両方の組のコピーを足す。
+  const otherGroup = { files: ["m.mjs", "n.mjs"], reason: "別の姉妹スキルが同じ処理を持つ" };
+  const twoReps = { ...repGroup, files: ["a.mjs", "m.mjs", "r.ts"] };
+  expect(withCopies([fileGroup, otherGroup, twoReps])[2]?.files).toEqual([
+    "a.mjs",
+    "b.mjs",
+    "c.mjs",
+    "m.mjs",
+    "n.mjs",
+    "r.ts",
+  ]);
+  // 同じファイル全体の組のファイルを 2 つ並べても、コピーを重複して足さない。範囲の組を先に置いても同じに広げる。
+  const both = { ...repGroup, files: ["a.mjs", "c.mjs", "r.ts"] };
+  expect(withCopies([both, fileGroup])).toEqual([
+    { ...both, files: ["a.mjs", "b.mjs", "c.mjs", "r.ts"] },
+    fileGroup,
+  ]);
+});
+
 // ---- isUndeclaredCopy ----
 
 const declared = [
   ["a.mjs", "c.mjs"],
   ["x.ts", "y.ts"],
+  ["b.mjs", "r.ts"],
 ];
 
 test.each([
@@ -195,6 +265,18 @@ test.each([
     c: clone("x.ts", "y.ts"),
     groups: [regionGroup],
     expected: false,
+  },
+  {
+    name: "範囲の組から外したコピーが、並べたファイルとファイル全体で一致する",
+    c: clone("b.mjs", "r.ts"),
+    groups: withCopies([fileGroup, repGroup]),
+    expected: false,
+  },
+  {
+    name: "範囲の組から外したコピーが、ファイル全体の組からも外れた",
+    c: clone("b.mjs", "r.ts"),
+    groups: withCopies([repGroup]),
+    expected: true,
   },
   { name: "控えた組に無い", c: clone("p.mjs", "q.mjs"), groups: [], expected: false },
   { name: "控えた組に片方だけ", c: clone("a.mjs", "q.mjs"), groups: [], expected: false },
@@ -503,6 +585,38 @@ test("main: 登録済みのコピーをベースラインに載せた後で組�
   expect(main([], root)).toBe(1);
   // 残すと決めてベースラインを作り直すと、控えた組からも外れて通る。
   expect(runs()).toEqual([0, 0]);
+});
+
+test("--update-baseline が控えた範囲の組にはコピーも入り、ファイル全体の組を外すと isUndeclaredCopy がそのコピーを検出する", () => {
+  // 範囲の組には b.ts だけを並べる。c.ts は b.ts とファイル全体で一致するコピーなので、r.ts と同じ範囲を持つ。
+  // 控えに c.ts が無いと、後でファイル全体の組を外したときに、c.ts と r.ts の重複を宣言から外したコピーとして失敗にできない。
+  const cliEntry = { files: ["b.ts", "r.ts"], reason: "雛形に同じ関数を持つ", region: "cli-entry" };
+  const root = makeRepo({ "a.ts": OTHER }, [...SISTERS, cliEntry]);
+  expect(main(["--update-baseline"], root)).toBe(0);
+  const declared = loadDeclared(root);
+  expect(declared).toEqual([
+    ["b.ts", "c.ts"],
+    ["b.ts", "c.ts", "r.ts"],
+  ]);
+  // ファイル全体の組を外すと、c.ts と r.ts の重複は宣言から外したコピーになる。
+  expect(isUndeclaredCopy(clone("c.ts", "r.ts"), declared, withCopies([cliEntry]))).toBe(true);
+});
+
+// 範囲の組には、ファイル全体の組（b.ts・c.ts）のうち c.ts だけを並べる。jscpd は r.ts との重複を、先に見つけた b.ts の側で
+// 報告する。並べていない b.ts と r.ts の重複を通すには範囲の組を広げる処理が要る（b.ts を並べると広げなくても通る）。
+test("main: 範囲の組に並べていないコピーと、範囲の組のファイルの重複を通す", () => {
+  const cliEntry = {
+    files: ["c.ts", "r.ts"],
+    reason: "雛形に同じ関数を持つ",
+    region: "cli-entry",
+  };
+  const root = makeRepo({ "a.ts": OTHER }, [...SISTERS, cliEntry]);
+  expect(main(["--update-baseline"], root)).toBe(0);
+  const region = `// cli-entry:begin\n${BODY}// cli-entry:end\n`;
+  write(root, "b.ts", region);
+  write(root, "c.ts", region);
+  write(root, "r.ts", OTHER.replaceAll("label", "nameOf") + region);
+  expect(main([], root)).toBe(0);
 });
 
 test("main: 走査したファイルが 0 件なら判定できないので exit 2", () => {

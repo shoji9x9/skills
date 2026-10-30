@@ -562,7 +562,69 @@ test("--property は CSS カスタムプロパティも受け取る", () => {
     { timeout: CHILD_TIMEOUT_MS, encoding: "utf8" },
   );
   expect(swallowed.status).toBe(2);
-  expect(swallowed.stderr).toMatch(/--property requires a value/);
+  expect(swallowed.stderr).toMatch(/--property に値が無い/);
+});
+
+test("CLI: --property の値に、値を取らない引数（--allow-incomplete）を書いたら値が無いとして exit 2（#773）", () => {
+  const out = runCli(["--property", "--allow-incomplete"]);
+  expect(out.status).toBe(2);
+  expect(out.stderr).toMatch(/--property に値が無い/);
+});
+
+test("CLI: --state と --property は繰り返してよく、値を 1 つの引数に 1 つずつ受け取る", () => {
+  const out = runCli(
+    [
+      "--css-rules",
+      "in.json",
+      "--state",
+      "default",
+      "--state",
+      "hover",
+      "--property",
+      "color",
+      "--property",
+      "--brand",
+    ],
+    {
+      "in.json": doc({
+        matched: [
+          {
+            order: 1,
+            selector: ".btn",
+            declarations: [decl("color", "red"), decl("--brand", "blue")],
+          },
+        ],
+      }),
+    },
+  );
+  expect(out.status, out.stderr).toBe(0);
+  // 結果の並びはプロパティ名の順なので、並びを比べずに値の集合で比べる。
+  const values = parseJsonAs<CliReport>(out.stdout).results.map((r) => r.winner.value);
+  expect(values).toHaveLength(2);
+  expect(values).toEqual(expect.arrayContaining(["red", "blue"]));
+});
+
+test("CLI: --css-rules を 2 回書いたら exit 2", () => {
+  const out = runCli([
+    "--css-rules",
+    "a.json",
+    "--css-rules",
+    "b.json",
+    "--state",
+    "default",
+    "--all",
+  ]);
+  expect(out.status).toBe(2);
+  expect(out.stderr).toMatch(/--css-rules が重複している/);
+});
+
+test("CLI: 受け付けない引数と空白だけの値は exit 2", () => {
+  const unknown = runCli(["--css-rules", "in.json", "--state", "default", "--all", "--bogus"]);
+  expect(unknown.status).toBe(2);
+  expect(unknown.stderr).toMatch(/不明な引数: --bogus/);
+  const blank = runCli(["--css-rules", "in.json", "--state", " ", "--all"]);
+  expect(blank.status).toBe(2);
+  expect(blank.stderr).toMatch(/--state に値が無い/);
 });
 
 test("採取スキーマが違う入力は読まない", () => {
@@ -585,6 +647,9 @@ test("詳細度の数え方", () => {
   expect(specificity("div")).toEqual([0, 0, 1]);
   expect(specificity(".a")).toEqual([0, 1, 0]);
   expect(specificity("#a")).toEqual([1, 0, 0]);
+  // NBSP は CSS の空白ではなく識別子の文字なので、型セレクタとして数える
+  expect(specificity(".a \u00a0 .b")).toEqual([0, 2, 1]);
+  expect(specificity(":is(\u00a0.a)")).toEqual([0, 1, 1]);
   expect(specificity("[data-x='y']")).toEqual([0, 1, 0]);
   expect(specificity("a:hover")).toEqual([0, 1, 1]);
   expect(specificity("li::before")).toEqual([0, 0, 2]);
@@ -1138,6 +1203,35 @@ test("statesOutsideSubject は主語の内外を区別する", () => {
   expect(statesOutsideSubject(".btn:hover", ["hover"])).toEqual([]);
   expect(statesOutsideSubject(".a .b:hover", ["hover"])).toEqual([]);
   expect(statesOutsideSubject(".a .b", [])).toEqual([]);
+});
+
+// 主語より前の属性セレクタの引用符の中（Issue #812）。括弧・空白・`:hover` を、深さ・結合子・状態に数えない。
+test.each([
+  ['a[title="]"]:hover span', ["hover"]],
+  ["a[title=']']:hover span", ["hover"]],
+  ['a[title="x"]:hover span', ["hover"]],
+  ['a[title="x y"] span', []],
+  ['a[title=":hover"] span', []],
+  ['a[title="]"] span:hover', []],
+])("statesOutsideSubject は引用符の中を読み飛ばす: %s", (selector, expected) => {
+  expect(statesOutsideSubject(selector, ["hover"])).toEqual(expected);
+});
+
+// エスケープした `\:` は識別子の一部（`.a\:hover`）。エスケープした `\\` の後ろの `:hover` は擬似クラスである。
+test.each([
+  [String.raw`.a\:hover span`, []],
+  [String.raw`.a\\:hover span`, ["hover"]],
+  [String.raw`.a\:hover:hover span`, ["hover"]],
+  // 16 進のエスケープ（`\31 ` は `1`）を閉じる空白は、結合子ではない
+  [String.raw`.btn:hover.\31 0`, []],
+  [String.raw`.btn:hover.\31  span`, ["hover"]],
+  [String.raw`.a\3A hover span`, []],
+  // CSS は CRLF を改行 1 個として読むので、16 進のエスケープを閉じる `\r\n` も結合子ではない
+  [".btn:hover.\\31\r\n0", []],
+  // NBSP は CSS の空白ではないので、結合子にならない
+  [".btn:hover\u00a0.x", []],
+])("statesOutsideSubject はエスケープした `:` を擬似クラスに数えない: %s", (selector, expected) => {
+  expect(statesOutsideSubject(selector, ["hover"])).toEqual(expected);
 });
 
 test("文字列でない状態名を持つ規則は、勝者にせず状態が不明な候補にする", () => {

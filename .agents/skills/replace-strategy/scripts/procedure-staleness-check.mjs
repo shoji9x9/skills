@@ -32,7 +32,8 @@ import { join, resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
-import { makeIo, parseFlagArgs } from "./lib/flag-args.mjs";
+import { makeIo } from "./lib/flag-args.mjs";
+import { parseFlags } from "./lib/flags.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 import { stepFence } from "./lib/fence.mjs";
 import {
@@ -798,10 +799,11 @@ const USAGE =
  * @returns {{ args: Record<string, string>, error?: undefined } | { args?: undefined, error: string }}
  */
 function parseArgs(argv) {
-  const known = new Set(["--revisions", "--ledger", "--parity-dir", "--change"]);
-  const parsed = parseFlagArgs(argv, known);
+  const parsed = parseFlags(argv, {
+    values: ["--revisions", "--ledger", "--parity-dir", "--change"],
+  });
   if (parsed.error !== undefined) return parsed;
-  const { args } = parsed;
+  const args = parsed.strings;
   // 改訂一覧を省略可能にすると、スキルの手順の改訂が、警告なしに判定から消える。
   if (args["--revisions"] === undefined) return { error: "--revisions は必須" };
   return { args };

@@ -200,13 +200,13 @@ test("空の verification は「渡していない」に丸めない（検査ご
   expect(codesOf()).not.toContain("verification-table-missing");
   // CLI 側でも、空の値を未指定へ丸めず使い方の誤りとして落とす
   // （読める空ファイルを置いて、ENOENT ではなく空の値そのもので落ちることを見る）。
-  expect(
-    run(["--features", "f.md", "--design", "d.md", "--verification", " "], {
-      "/w/f.md": FEATURES,
-      "/w/d.md": designOf(),
-      "/w/ ": "",
-    }).code,
-  ).toBe(2);
+  const blank = run(["--features", "f.md", "--design", "d.md", "--verification", " "], {
+    "/w/f.md": FEATURES,
+    "/w/d.md": designOf(),
+    "/w/ ": "",
+  });
+  expect(blank.code).toBe(2);
+  expect(blank.stderr).toContain("--verification に値が無い");
 });
 
 test("転記から 1 slug が抜けると落ちる（役割が「読み取りだけ」と判定されてしまう前に拾う）", () => {

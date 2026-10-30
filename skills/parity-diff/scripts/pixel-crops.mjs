@@ -44,6 +44,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { isCliEntry } from "./lib/cli.mjs";
+import { parseFlags } from "./lib/flags.mjs";
 import { loadPng } from "./lib/png.mjs";
 
 /**
@@ -682,10 +683,11 @@ const NUMBER_FLAGS = new Map([
  */
 
 /**
- * 引数を読む。値の検査は validateOptions が行う。
+ * 引数を読む。知らない名前・値の無い名前・2 回目の名前・4 つ目の位置引数は、使い方の誤りとして返す。
+ * 値の検査は validateOptions が行う。
  *
  * @param {string[]} argv
- * @returns {CliOptions}
+ * @returns {{ error: string } | CliOptions}
  */
 function parseCliArgs(argv) {
   /** @type {CliOptions} */
@@ -700,22 +702,19 @@ function parseCliArgs(argv) {
     strictMinCluster: 4,
     strictMaxRegions: 20,
   };
-  for (let i = 0; i < argv.length; i += 1) {
-    const a = argv[i];
-    if (a === "--out") {
-      options.out = argv[i + 1];
-      i += 1;
-    } else if (NUMBER_FLAGS.has(a)) {
-      const key = NUMBER_FLAGS.get(a);
-      if (key !== undefined) options[key] = Number(argv[i + 1]);
-      i += 1;
-    } else if (a === "--diff-color") {
-      options.diffColor = argv[i + 1];
-      i += 1;
-    } else {
-      options.positionals.push(a);
-    }
+  const parsed = parseFlags(argv, {
+    values: ["--out", ...NUMBER_FLAGS.keys(), "--diff-color"],
+    positionals: 3,
+  });
+  if (parsed.error !== undefined) return { error: `error: ${parsed.error}\n${USAGE}` };
+  const text = (/** @type {string} */ name) => parsed.strings[name];
+  options.positionals = parsed.positionals;
+  options.out = text("--out");
+  for (const [name, key] of NUMBER_FLAGS) {
+    const value = text(name);
+    if (value !== undefined) options[key] = Number(value);
   }
+  options.diffColor = text("--diff-color") ?? options.diffColor;
   return options;
 }
 
@@ -943,6 +942,7 @@ function warnStrictOnly({
  */
 async function prepareInputs(argv) {
   const options = parseCliArgs(argv);
+  if ("error" in options) return options;
   const { positionals, out } = options;
   if (positionals.length !== 3 || !out) return { error: USAGE };
   const validated = validateOptions(options);
