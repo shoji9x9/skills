@@ -11,7 +11,7 @@
     "scripts/gates/tooling/formatter-scope.mutations.json": 1.8,
     "scripts/gates/tooling/lint-scope.mutations.json": 0.7,
     "scripts/lib/spawn-async.mutations.json": 1.3,
-    "scripts/lib/testing/vitest-git-env-setup.mutations.json": 0.7,
+    "scripts/lib/testing/vitest-child-env-setup.mutations.json": 0.7,
     "scripts/mutation/check-mutation-proof.mutations.json": 12.3,
     "scripts/skills/_cross/skill-script-cli-entry.mutations.json": 5.7,
     "scripts/skills/box/box-folder.mutations.json": 1.7,

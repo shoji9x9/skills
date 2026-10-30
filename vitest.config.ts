@@ -14,9 +14,10 @@ export default defineConfig({
     experimental: { viteModuleRunner: false },
     // 収集より前に、異常終了で残った使い捨て fixture を掃く（理由はスクリプト内のコメント）。
     globalSetup: ["scripts/lib/testing/vitest-global-setup.ts"],
-    // テストが起動する git に、hook が渡したリポジトリの指定（GIT_DIR など）を渡さない（理由はスクリプト内のコメント）。
+    // テストが起動する子プロセスに、hook が渡したリポジトリの指定（GIT_DIR など）と、
+    // GitHub Actions のジョブへ追記するファイルのパス（GITHUB_STEP_SUMMARY など）を渡さない（理由はスクリプト内のコメント）。
     setupFiles: [
-      "scripts/lib/testing/vitest-git-env-setup.ts",
+      "scripts/lib/testing/vitest-child-env-setup.ts",
       "scripts/lib/testing/vitest-coverage-setup.ts",
     ],
     // 残りはファイル並列で実行し、書き換えるテストだけを後のグループで単独に実行する。
