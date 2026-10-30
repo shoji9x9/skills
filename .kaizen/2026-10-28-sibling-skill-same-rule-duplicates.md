@@ -3,8 +3,8 @@ date: 2026-10-28
 type: doc
 priority: low
 confidence: medium
-status: pending
-applied-to: []
+status: applied
+applied-to: [docs/skill-development.md, skills/pr-finalize-loop/references/pattern-search.md, skills/pr-review-handle/references/pattern-search.md, scripts/gates/packaging/copies/identical-copies.json]
 session: claude-code
 ---
 
