@@ -96,12 +96,27 @@
     },
     {
       "id": 7,
-      "prompt": "設定で minimum_release_age_days を 3 にしてる。昨日リリースされたパッチ版がある high alert はどう判定される？",
+      "prompt": "昨日リリースされたパッチ版がある high alert はどう判定される？",
+      "fixture": "fixtures/minimum-release-age",
       "expected_output": "解決バージョンの公開からの経過が 3 日未満なので「すぐ着手できない」に分類し、リリース年齢が条件のため待つ旨を着手可能条件に明記する。",
       "assertions": [
         "minimum_release_age_days の設定を読み、解決バージョンの公開日からの経過と比較する方針である",
         "経過が閾値未満のためすぐ着手できないと分類している",
         "リリース年齢が着手可能条件である旨を Issue に明記する方針である"
+      ],
+      "reachability": [
+        {
+          "assertion": "minimum_release_age_days の設定を読み、解決バージョンの公開日からの経過と比較する方針である",
+          "prompt_quote": "昨日リリースされたパッチ版"
+        },
+        {
+          "assertion": "経過が閾値未満のためすぐ着手できないと分類している",
+          "prompt_quote": "high alert はどう判定される？"
+        },
+        {
+          "assertion": "リリース年齢が着手可能条件である旨を Issue に明記する方針である",
+          "prompt_quote": "high alert はどう判定される？"
+        }
       ]
     },
     {

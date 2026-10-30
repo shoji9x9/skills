@@ -98,7 +98,8 @@
     },
     {
       "id": 9,
-      "prompt": "pr-finalize-loop 6（.config/skills/shoji9x9/common.jsonc で review_tool: codex）— push 後に新しい HEAD が未レビュー",
+      "prompt": "pr-finalize-loop 6 — push 後に新しい HEAD が未レビュー",
+      "fixture": "fixtures/review-tool-codex",
       "expected_output": "新しい HEAD が未レビューなら、requested_reviewers ではなくトップレベル PR コメントに @codex review を投稿して依頼し、進行中・到着を汎用シグナルで確認してループを続ける。",
       "assertions": [
         "common の review_tool の設定（codex）を参照して依頼先ツールを決めている",
@@ -110,15 +111,15 @@
       "reachability": [
         {
           "assertion": "common の review_tool の設定（codex）を参照して依頼先ツールを決めている",
-          "prompt_quote": "common.jsonc で review_tool: codex"
+          "prompt_quote": "pr-finalize-loop 6"
         },
         {
           "assertion": "依頼は requested_reviewers ではなくトップレベル PR コメントへの @codex review 投稿で行う方針である",
-          "prompt_quote": "review_tool: codex"
+          "prompt_quote": "push 後に新しい HEAD が未レビュー"
         },
         {
           "assertion": "Copilot 専用の login（copilot-pull-request-reviewer[bot]）や review_requested タイムラインに依存しない方針である",
-          "prompt_quote": "review_tool: codex"
+          "prompt_quote": "push 後に新しい HEAD が未レビュー"
         },
         {
           "assertion": "レビュー到着・進行中は非著者レビューや bot コメント等の汎用シグナルで判定する方針である",
@@ -132,7 +133,8 @@
     },
     {
       "id": 10,
-      "prompt": "pr-finalize-loop 6（review_tool: none）",
+      "prompt": "pr-finalize-loop 6",
+      "fixture": "fixtures/review-tool-none",
       "expected_output": "AI レビュアーへの再依頼をせず、CI 全成功かつ未解決スレッド無しで完了とする（HEAD レビュー済みを条件にしない）。",
       "assertions": [
         "common の review_tool の設定（none）を参照している",
@@ -143,15 +145,15 @@
       "reachability": [
         {
           "assertion": "common の review_tool の設定（none）を参照している",
-          "prompt_quote": "review_tool: none"
+          "prompt_quote": "pr-finalize-loop 6"
         },
         {
           "assertion": "AI レビュアーへの再レビュー依頼を一切行わない方針である",
-          "prompt_quote": "review_tool: none"
+          "prompt_quote": "pr-finalize-loop 6"
         },
         {
           "assertion": "収束・完了判定から「HEAD がレビュー済み」条件を外し、CI 全成功かつ未解決スレッド無しで完了とする方針である",
-          "prompt_quote": "review_tool: none"
+          "prompt_quote": "pr-finalize-loop 6"
         },
         {
           "assertion": "未解決スレッドの返信・解決は通常どおり行う方針である",
@@ -183,7 +185,8 @@
     },
     {
       "id": 13,
-      "prompt": "pr-finalize-loop 6（.config/skills/shoji9x9/common.jsonc で review_tool: claude-code）— CI は必須チェックすべて成功、未解決レビュースレッドは 0 件、reviews[].body も空（state は COMMENTED）だよ。これで収束と判定していい？",
+      "prompt": "pr-finalize-loop 6 — CI は必須チェックすべて成功、未解決レビュースレッドは 0 件、reviews[].body も空（state は COMMENTED）だよ。これで収束と判定していい？",
+      "fixture": "fixtures/review-tool-claude-code",
       "expected_output": "スレッドとレビュー本文だけを根拠に収束と判定せず、トップレベルの PR コメント（issues/<番号>/comments）を切り詰めずに読んで未対応の指摘を探す。指摘があればスレッドが無いため自分のトップレベルコメントで判断と根拠を返し、対応済みになるまで完了と判定しない。",
       "assertions": [
         "トップレベルの PR コメント（issues/<番号>/comments）を指摘の収集対象として読む方針である（スレッドと reviews[].body の 2 系統だけで指摘なしと結論していない）",
@@ -203,7 +206,7 @@
         },
         {
           "assertion": "トップレベルコメントは切り詰めずに全文読む（進行中検出の .body[:200] の取得を指摘収集に使い回さない）と述べている",
-          "prompt_quote": "review_tool: claude-code"
+          "prompt_quote": "reviews[].body も空"
         },
         {
           "assertion": "収束・完了判定の条件に「トップレベルコメントに未対応の指摘が無い」を含めている",
@@ -229,7 +232,8 @@
     },
     {
       "id": 15,
-      "prompt": "pr-finalize-loop 6（review_tool: claude-code）— 現在 HEAD の Claude レビューは指摘 0 件で、reviews[] に Claude のレコードが無い。現在 HEAD の Claude Code Review check-run は正常完了し、push 後に更新された bot のトップレベルコメントにも『新たな指摘なし』とある。CI は全成功、未解決スレッドと未対応のスレッド外指摘も 0 件。この状態の判定と、確認に使う API・除外条件を1つの報告にまとめて。",
+      "prompt": "pr-finalize-loop 6 — 現在 HEAD の Claude レビューは指摘 0 件で、reviews[] に Claude のレコードが無い。現在 HEAD の Claude Code Review check-run は正常完了し、push 後に更新された bot のトップレベルコメントにも『新たな指摘なし』とある。CI は全成功、未解決スレッドと未対応のスレッド外指摘も 0 件。この状態の判定と、確認に使う API・除外条件を1つの報告にまとめて。",
+      "fixture": "fixtures/review-tool-claude-code",
       "expected_output": "reviews[] が空でも未レビューと決めつけず、現在 HEAD の正常完了した Claude レビュー用 check-run をレビュー到着証跡として認め、指摘収集と整合確認を別途通して収束と判定する。push 後という時刻だけの bot コメントは単独証跡にしない。",
       "assertions": [
         "review_tool: claude-code では指摘 0 件のとき reviews[] にレコード自体が作られない形を扱っている",
@@ -238,11 +242,38 @@
         "push 後に作成・更新されたという時刻だけのレビューボットコメントを単独の到着証跡にせず、単独で使うなら本文に現在の完全な headRefOid が必要としている",
         "status: completed だけで合格にせず、失敗・timeout・skip・spend cap と、無関係な check-run を除外している",
         "レビュー到着と指摘なしを分け、レビュー本文・トップレベルコメント・check-run 出力に未対応指摘や失敗が無いことも確認してから収束と判定している"
+      ],
+      "reachability": [
+        {
+          "assertion": "review_tool: claude-code では指摘 0 件のとき reviews[] にレコード自体が作られない形を扱っている",
+          "prompt_quote": "reviews[] に Claude のレコードが無い"
+        },
+        {
+          "assertion": "現在の headRefOid を commit ref にした check-runs API を使い、レビュー用 check-run の head_sha・status・conclusion・output の趣旨を確認する方針である",
+          "prompt_quote": "確認に使う API"
+        },
+        {
+          "assertion": "正常完了した現在 HEAD の Claude レビュー用 check-runをレビュー到着証跡として認めている",
+          "prompt_quote": "Claude Code Review check-run は正常完了し"
+        },
+        {
+          "assertion": "push 後に作成・更新されたという時刻だけのレビューボットコメントを単独の到着証跡にせず、単独で使うなら本文に現在の完全な headRefOid が必要としている",
+          "prompt_quote": "push 後に更新された bot のトップレベルコメント"
+        },
+        {
+          "assertion": "status: completed だけで合格にせず、失敗・timeout・skip・spend cap と、無関係な check-run を除外している",
+          "prompt_quote": "除外条件"
+        },
+        {
+          "assertion": "レビュー到着と指摘なしを分け、レビュー本文・トップレベルコメント・check-run 出力に未対応指摘や失敗が無いことも確認してから収束と判定している",
+          "prompt_quote": "この状態の判定"
+        }
       ]
     },
     {
       "id": 16,
-      "prompt": "pr-finalize-loop 6（review_tool: claude-code）— 現在 HEAD の reviews[] は空。成功した Lint check、前の HEAD で開始して現在 HEAD のpush後に完了・更新されたがcommit OIDを本文に含まないClaude botコメント、現在 HEAD で working のClaude botコメント、著者自身の『レビュー完了』コメントがある。この状態をレビュー済みにできるか、各候補の扱いと次の行動を1つの報告にまとめて。",
+      "prompt": "pr-finalize-loop 6 — 現在 HEAD の reviews[] は空。成功した Lint check、前の HEAD で開始して現在 HEAD のpush後に完了・更新されたがcommit OIDを本文に含まないClaude botコメント、現在 HEAD で working のClaude botコメント、著者自身の『レビュー完了』コメントがある。この状態をレビュー済みにできるか、各候補の扱いと次の行動を1つの報告にまとめて。",
+      "fixture": "fixtures/review-tool-claude-code",
       "expected_output": "いずれも現在 HEAD のレビュー正常完了を証明しないため未レビューと判定する。無関係なcheck、push後に遅延完了した旧HEADのコメント、進行中コメント、著者コメントを除外し、進行中なら上限付きで待って再評価する。",
       "assertions": [
         "Lint の成功はレビュー用 check-run ではないためレビュー到着証跡から除外している",
@@ -250,11 +281,34 @@
         "working のレビューボットコメントを完了扱いせず、上限付きで完了を待って再評価する方針である",
         "PR 著者自身のコメントをレビュー到着証跡から除外している",
         "有効な証跡が無いため現在 HEAD は未レビューと判定し、完了後の再評価または再レビュー依頼へ進む方針である"
+      ],
+      "reachability": [
+        {
+          "assertion": "Lint の成功はレビュー用 check-run ではないためレビュー到着証跡から除外している",
+          "prompt_quote": "成功した Lint check"
+        },
+        {
+          "assertion": "旧HEADで開始して現在HEADのpush後に完了・更新されたコメントでも、現在の完全なheadRefOidを本文に含まなければ単独の証拠にしていない",
+          "prompt_quote": "commit OIDを本文に含まないClaude botコメント"
+        },
+        {
+          "assertion": "working のレビューボットコメントを完了扱いせず、上限付きで完了を待って再評価する方針である",
+          "prompt_quote": "working のClaude botコメント"
+        },
+        {
+          "assertion": "PR 著者自身のコメントをレビュー到着証跡から除外している",
+          "prompt_quote": "著者自身の『レビュー完了』コメント"
+        },
+        {
+          "assertion": "有効な証跡が無いため現在 HEAD は未レビューと判定し、完了後の再評価または再レビュー依頼へ進む方針である",
+          "prompt_quote": "この状態をレビュー済みにできるか"
+        }
       ]
     },
     {
       "id": 17,
-      "prompt": "PR #6 の収束だけ AI レビューを止めたい。このリポジトリでの自分の普段の設定は Codex、プロジェクトの共有既定は Copilot。設定ファイルは変えずに今回を実行し、次回の通常実行へ何が残るかも報告して。",
+      "prompt": "PR #6 の収束だけ AI レビューを止めたい。設定ファイルは変えずに今回を実行し、次回の通常実行へ何が残るかも報告して。",
+      "fixture": "fixtures/review-tool-local-override",
       "expected_output": "今回だけ --review-tool none を使い、次回は自分だけの設定（.config/skills/shoji9x9/common.local.jsonc の review_tool: codex）が共有の common.jsonc より優先される。どちらの設定ファイルも変更しない。",
       "assertions": [
         "pr-finalize-loop 6 --review-tool none を今回の実行方法として示している",
@@ -269,7 +323,7 @@
         },
         {
           "assertion": "次回 CLI 指定が無ければ common.local.jsonc の codex を使うと説明している",
-          "prompt_quote": "このリポジトリでの自分の普段の設定は Codex"
+          "prompt_quote": "次回の通常実行へ何が残るかも報告して"
         },
         {
           "assertion": ".config/skills/shoji9x9/common.jsonc と common.local.jsonc を変更しない方針である",
@@ -283,13 +337,32 @@
     },
     {
       "id": 18,
-      "prompt": "pr-finalize-loop 6（review_tool: codex）— @codex review の👀は消え、reviews[]は空。Codex botのトップレベルコメントは『指摘なし』とReviewed commit `abc123def0`を示し、PRのheadRefOidは`abc123def0456789012345678901234567890123`。この状態をどう判定する？",
+      "prompt": "pr-finalize-loop 6 — @codex review の👀は消え、reviews[]は空。Codex botのトップレベルコメントは『指摘なし』とReviewed commit `abc123def0`を示し、PRのheadRefOidは`abc123def0456789012345678901234567890123`。この状態をどう判定する？",
+      "fixture": "fixtures/review-tool-codex",
       "expected_output": "短縮SHAを手で補完せずGitHub commits APIで完全SHAへ解決し、headRefOidとの完全一致を確認できればCodexレビュー完了・指摘なしの証跡として認める。解決失敗や不一致ならレビュー済みにしない。",
       "assertions": [
         "Codexが指摘なしの場合にreviews[]を作らずトップレベルbotコメントだけを投稿する形を扱っている",
         "Reviewed commitの短縮SHAを手で補完せずGitHub commits APIで完全SHAへ解決している",
         "解決した完全SHAと現在のheadRefOidが一致した場合だけレビュー完了証跡として認めている",
         "SHAの解決失敗またはheadRefOidとの不一致をレビュー済みとして扱わない"
+      ],
+      "reachability": [
+        {
+          "assertion": "Codexが指摘なしの場合にreviews[]を作らずトップレベルbotコメントだけを投稿する形を扱っている",
+          "prompt_quote": "reviews[]は空"
+        },
+        {
+          "assertion": "Reviewed commitの短縮SHAを手で補完せずGitHub commits APIで完全SHAへ解決している",
+          "prompt_quote": "Reviewed commit `abc123def0`"
+        },
+        {
+          "assertion": "解決した完全SHAと現在のheadRefOidが一致した場合だけレビュー完了証跡として認めている",
+          "prompt_quote": "PRのheadRefOidは"
+        },
+        {
+          "assertion": "SHAの解決失敗またはheadRefOidとの不一致をレビュー済みとして扱わない",
+          "prompt_quote": "この状態をどう判定する？"
+        }
       ]
     },
     {
@@ -365,7 +438,8 @@
     },
     {
       "id": 21,
-      "prompt": "pr-finalize-loop 42 --max-iterations 3 で回している途中の場面を、コマンドの実行やファイルの変更はせずに説明して。PR #42 は自分が作成した PR で、review_tool は copilot。いまは 3 回目（最後）の反復。CI はすべて成功している。未解決のレビュースレッドが 1 件あり、PR で足したコメントの文が、リポジトリの docs/writing-style.md が定める書き方に反するという指摘である。指摘は事実として正しく、PR の変更の範囲の中にある。直し方も 1 つに決まる。直すと push して再レビューを受けることになるが、反復はこれが最後。この指摘をどう扱うかと、ループがどの止まった理由で止まり、何を報告するかを述べて。",
+      "prompt": "pr-finalize-loop 42 --max-iterations 3 で回している途中の場面を、コマンドの実行やファイルの変更はせずに説明して。PR #42 は自分が作成した PR である。いまは 3 回目（最後）の反復。CI はすべて成功している。未解決のレビュースレッドが 1 件あり、PR で足したコメントの文が、リポジトリの docs/writing-style.md が定める書き方に反するという指摘である。指摘は事実として正しく、PR の変更の範囲の中にある。直し方も 1 つに決まる。直すと push して再レビューを受けることになるが、反復はこれが最後。この指摘をどう扱うかと、ループがどの止まった理由で止まり、何を報告するかを述べて。",
+      "fixture": "fixtures/review-tool-copilot",
       "expected_output": "最後の反復でも規約の指摘を直して返信・解決し、最大反復到達として止まり、直した HEAD が未レビューであることを報告する。",
       "assertions": [
         "反復の残りが少ないこと（最後の反復であること）を、指摘を見送る理由にしないと述べている",
