@@ -295,4 +295,4 @@ quoted heredoc の python の本文に `git-worktree` を含むものも拒否�
 多くは、#797 と同じく `.github/workflows/` のパスを引数に取る呼び出し（`cp`・`cmp`・`actionlint`）である。
 `.github` の語に `git` が含まれるので、git を実行しないコマンドでも `names git in a form too complex to verify` で拒否される。
 新しく出た形は、`git show HEAD:<パス>` をプロセス置換で 2 つ並べて `diff` に渡す呼び出しである。
-パスを `".gi""thub"` のように分けて組み立てたスクリプトにして、絶対パスで実行する形に直して通した。
+単独の呼び出しに分けるか、Read ツールで読む形に直した。
