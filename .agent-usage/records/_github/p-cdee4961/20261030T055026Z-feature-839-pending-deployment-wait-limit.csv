@@ -1,0 +1,10 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+review:5708478884,review,2026-10-30T05:50:26.900Z,p-cdee4961,copilot,,,,2026-10-30T05:37:28.000Z,2026-10-30T05:37:28.000Z,Asia/Tokyo,feature/801-dist-skill-repo-filenames,801,,,,,,,0.520000,estimate-bundled,,pr=833;author=shoji9x9;state=commented,
+review-wait:833:copilot:2026-10-30T05:34:43.000Z,review-wait,2026-10-30T05:50:26.900Z,p-cdee4961,copilot,,,,2026-10-30T05:34:43.000Z,2026-10-30T05:37:28.000Z,Asia/Tokyo,feature/801-dist-skill-repo-filenames,801,,,,,,,,,,pr=833,
+ci:41009804131:1,ci,2026-10-30T05:50:26.900Z,p-cdee4961,github-actions,,,,2026-10-30T05:41:12.000Z,2026-10-30T05:41:36.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:41009804115:1,ci,2026-10-30T05:50:26.900Z,p-cdee4961,github-actions,,,,2026-10-30T05:41:12.000Z,2026-10-30T05:45:25.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:41009219145:1,ci,2026-10-30T05:50:26.900Z,p-cdee4961,github-actions,,,,2026-10-30T05:34:53.000Z,2026-10-30T05:37:28.000Z,Asia/Tokyo,feature/801-dist-skill-repo-filenames,801,,,,,,,,,,Running Copilot Code Review;dynamic;success,
+ci:41009200748:1,ci,2026-10-30T05:50:26.900Z,p-cdee4961,github-actions,,,,2026-10-30T05:34:41.000Z,2026-10-30T05:34:42.000Z,Asia/Tokyo,feature/801-dist-skill-repo-filenames,801,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:41009200796:1,ci,2026-10-30T05:50:26.900Z,p-cdee4961,github-actions,,,,2026-10-30T05:34:41.000Z,2026-10-30T05:40:03.000Z,Asia/Tokyo,feature/801-dist-skill-repo-filenames,801,,,,,,,,,,CI;pull_request;success,
+ci:41008829433:1,ci,2026-10-30T05:50:26.900Z,p-cdee4961,github-actions,,,,2026-10-30T05:30:40.000Z,2026-10-30T05:35:58.000Z,Asia/Tokyo,feature/801-dist-skill-repo-filenames,801,,,,,,,,,,CI;pull_request;cancelled,
+coverage:github:2026-10-29T05:33:57.011Z:2026-10-30T05:50:26.900Z,coverage,2026-10-30T05:50:26.900Z,p-cdee4961,,,,,2026-10-29T05:33:57.011Z,2026-10-30T05:50:26.900Z,Asia/Tokyo,,,,,,,,,,,,ok,

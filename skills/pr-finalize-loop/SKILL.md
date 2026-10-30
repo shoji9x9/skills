@@ -124,7 +124,7 @@ push の後などに再レビューを依頼する AI レビュアーは、CLI �
    - PR の状態を確かめ直す。`gh pr view <番号> --repo <owner>/<repo> --json state` を再取得し、`OPEN` でなくなっていたら（他の人のマージやクローズなどで対象が無くなったら）、仕上げる対象が無くなったとして止まる。
      着手する前だけでなく、各反復の最初にも確かめ、無くなった対象の CI とレビューを待ち続けない。
    - CI: `gh pr checks <番号> --repo <owner>/<repo> --watch --fail-fast` で完了を待つ（どれかが失敗した時点で抜ける）。
-     待っている間は、runner が割り当てられないジョブを「ポーリングと待機」の手順で別に確かめる。`--watch` は、そのジョブが始まらないままでも返らないからである。
+     待っている間は、runner が割り当てられないジョブと、承認などを待つジョブを「ポーリングと待機」の手順で別に確かめる。`--watch` は、そのジョブが始まらないままでも返らないからである。
      push の直後は、チェックがまだ登録されておらず、すぐに `no checks` が返ることがある。そのときは間隔を空けて数回まで確かめ直す。
    - 未解決のレビュースレッド: [`references/state-query.md`](references/state-query.md) の reviewThreads の索引を `--paginate` で全件取得し、`isResolved == false` で絞る。すべてのレビュアーを対象にし、作成者では絞らない。
    - 現在の HEAD がレビュー済みかを判定する（後述の「HEAD のレビュー済み判定」）。
@@ -280,7 +280,7 @@ effort を指定できるのは、`review_tool: local` で Claude Code の `/cod
 | 完了 | CI がすべて成功し、未解決のスレッドが無く、レビューの本文とトップレベルのコメントに対応していない指摘が無く、HEAD がレビュー済みである。`review_tool: none` では HEAD がレビュー済みかを問わず、CI がすべて成功し、未解決のスレッドが無く、スレッドの外の指摘にも対応していれば完了とする |
 | レビュー未着で待機終了 | 上のうち HEAD がレビュー済みであることだけを満たさず、レビューが現れるのを待つ時間が上限に達した |
 | 最大反復到達 | 「反復の段階と effort」の最後の段階の回数を使い切った（effort を下げられないツールでは `--max-iterations` に達した）。または、進み具合のメモを失って段階が分からなくなり、1 回だけ反復した（「完了」「レビュー未着で待機終了」「判断待ちで終了」の条件を満たせば、そちらにする）。段階ごとの effort と反復の回数を書く。残っている CI の失敗、未解決のスレッド、スレッドの外（レビューの本文とトップレベルのコメント）の指摘を書く。止まった時点の HEAD が「HEAD のレビュー済み判定」でレビュー済みでなければ、そのことを書く（`none` を除く）。その HEAD の CI が終わっていなければ、終わっていないと書く |
-| 行き詰まり | 同じ CI の失敗が良くならず、新しく打てる手が無い。失敗の内容と、どうすれば直せそうかを報告する。runner が割り当てられないジョブが上限を超えて始まらないときと、ベースブランチとの競合で CI が起動しないとき（競合があるかを判定できないときを含む）も、ここで止まる（「ポーリングと待機」） |
+| 行き詰まり | 同じ CI の失敗が良くならず、新しく打てる手が無い。失敗の内容と、どうすれば直せそうかを報告する。runner が割り当てられないジョブと、承認などを待つジョブが上限を超えて始まらないときと、ベースブランチとの競合で CI が起動しないとき（競合があるかを判定できないときを含む）も、ここで止まる（「ポーリングと待機」） |
 | 仕上げ対象なし | 着手する前か、ループの中の状態の取得で見つける。PR が OPEN でない（`MERGED` か `CLOSED`）。ループの途中で他の人のマージやクローズで対象が無くなったときも同じように止まる |
 | 前提不一致 | 着手する前に止まる。repo が一致しない、または現在のブランチが PR の head と一致しない |
 | 判断待ちで終了 | `--defer-decisions` のときだけ。CI がすべて成功し、残りの未解決のスレッドとスレッドの外の指摘が、すべて判断待ちにした人の判断が要る指摘であり、HEAD がレビュー済みである（`review_tool: none` を除く）。判断待ちの一覧（指摘の URL・選択肢・推奨）を書く。「完了」とは別の止まった理由にする |
@@ -324,7 +324,33 @@ effort を指定できるのは、`review_tool: local` で Claude Code の `/cod
     同じ run に `in_progress` のジョブが無くなった後の確認でも同じ状態なら、次の項目のとおりに止まる。
   - 上限を超えても同じジョブが `queued` のままで `runner_name` が null なら、runner が割り当てられていない（Actions の予算の上限、存在しないラベルの runner の指定、runner の空きが無い状態が続いているなど）。
     原因はリポジトリの外にあることが多く、ループの中では除けない。`--watch` を止め、`run-id`・ジョブの名前・`labels`・待った時間を書いて「行き詰まり」として止まり、利用者に知らせる。
-  - `waiting`（environment の保護ルールによる待ち）・`requested`・`pending` のジョブは、runner の割り当てとは別の待ちなので、この確認では止めない。
+  - `waiting`（environment の保護ルールによる待ち）・`requested`・`pending` のジョブは、runner の割り当てとは別の待ちである。
+    `--watch` はこの状態のジョブでも返らないので、上と同じ間隔で別に確かめ、上限を置く。
+    jobs API で `status` がこの 3 つのどれかのジョブを見つけ、上と同じく初めて見つけた時刻をジョブの `id` とともにメモに残す。
+
+    ```bash
+    gh api --paginate "repos/<owner>/<repo>/actions/runs/<run-id>/jobs?per_page=100" \
+      --jq '.jobs[] | select(.status == "waiting" or .status == "requested" or .status == "pending") | {id, name, status}'
+    ```
+
+  - `waiting` のジョブがある run は、何を待っているかを pending deployments の API で確かめる。
+    jobs API にはジョブと environment を結ぶ欄が無いので、run の単位で取得する。
+
+    ```bash
+    gh api "repos/<owner>/<repo>/actions/runs/<run-id>/pending_deployments" \
+      --jq '.[] | {environment: .environment.name, wait_timer, wait_timer_started_at, reviewers: [.reviewers[] | .reviewer.login // .reviewer.slug]}'
+    ```
+
+    `wait_timer` は分の単位で、0 より大きく `wait_timer_started_at` が null でない environment は、wait timer が終わるのを待っている。
+    `wait_timer_started_at` に `wait_timer` を足した時刻までは正常な待ちなので、上限の時間に数えない。
+    `reviewers` が空でない environment は、承認を待っている。
+    形は <https://docs.github.com/en/rest/actions/workflow-runs#get-pending-deployments-for-a-workflow-run> で確かめた。
+    `wait_timer` の単位は <https://docs.github.com/en/rest/deployments/environments#create-or-update-an-environment> で確かめた。
+    environment を作るのはリポジトリの設定の変更なので、承認待ちの状態は作って確かめていない。
+  - 上限は、`queued` と同じ 30 分にする。待った時間は、初めて見つけた確認の時刻から測る。wait timer の終わる時刻がそれより後なら、その時刻から測る。
+    上限を超えた時点で同じ run に `in_progress` のジョブがあれば、まだ止めない（`queued` と同じ理由）。
+    同じ run に `in_progress` のジョブが無くなった後の確認でも同じ状態なら、`--watch` を止める。
+    run の ID・ジョブの名前・状態・待った時間を書き、承認待ちなら environment の名前と `reviewers` も書いて、「行き詰まり」として止まり、利用者に知らせる。
   - runner が割り当てられなかったことが原因で止まり、その原因を除いた後に再開したら、run を取り消してから再実行する。原因を除いた後も、`queued` のままのジョブが動き出さないことがあるからである。
     取り消しは `gh run cancel <run-id> --repo <owner>/<repo>` で行う。取り消しは非同期で、`completed` になる前の run は再実行できない。
     `gh run view <run-id> --repo <owner>/<repo> --json status` が `completed` になるのを上限を決めて待ってから、`gh run rerun <run-id> --repo <owner>/<repo>` を実行する。
@@ -354,7 +380,7 @@ effort を指定できるのは、`review_tool: local` で Claude Code の `/cod
 収束には時間がかかり、途中でコンテキストの自動圧縮（auto-compaction）が起きることがある。それに耐えるため、状態は GitHub にある実際の状態から取得し直す。
 
 - 各反復は、GitHub の実際の状態から再開できるようにする。手順 1 で CI の状態と未解決のスレッドを取得し直す。保存済みの返信と解決から、実際の状態を組み立て直せる。
-- 反復の回数の予算（`--max-iterations`）と行き詰まりの検知だけは、記憶に頼りやすい。「何回目の反復か」「今の段階の effort と、その段階で残っている回数」「段階を下げた時点の HEAD の完全な SHA」「直近の CI の失敗の要点」「runner が割り当てられないジョブの `id` と、初めて見つけた時刻」を短い進み具合のメモに残し、再開するときの起点にする。
+- 反復の回数の予算（`--max-iterations`）と行き詰まりの検知だけは、記憶に頼りやすい。「何回目の反復か」「今の段階の effort と、その段階で残っている回数」「段階を下げた時点の HEAD の完全な SHA」「直近の CI の失敗の要点」「上限を置いて待つジョブの `id` と初めて見つけた時刻」を短い進み具合のメモに残し、再開するときの起点にする。
   メモを失ったら、GitHub の実際の状態から今の状況を導き直す。残りの作業が無ければ、反復を足さずに今の状況を報告して止まる。
   そのときは HEAD がレビュー済みかを取得し直して確かめ、レビューされていなければ「完了」ではなく「レビュー未着で待機終了」として報告する。予算がはっきりしないことを、レビューがそろった根拠にしない。
 
