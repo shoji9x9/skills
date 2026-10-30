@@ -1,16 +1,23 @@
 import {
   chmodSync,
   existsSync,
+  linkSync,
+  lstatSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { execFileSync } from "node:child_process";
+import { createServer } from "node:net";
+import { basename, join, relative } from "node:path";
 import { assert, describe, expect, test } from "vitest";
 import { spawnAsync } from "../lib/spawn-async.ts";
 import { CHILD_TIMEOUT_MS } from "../lib/testing/child-timeout.ts";
+import { makeTempDirFactory } from "../lib/testing/test-tmpdir.ts";
 import {
   copyHarness,
   envWithoutCliVersion,
@@ -26,6 +33,10 @@ import {
   writeSubjectSkill,
 } from "./run-skill-eval-helpers.ts";
 import { readJson } from "./read-json-helpers.ts";
+import { removePartialTarget } from "./reuse-skill-eval-baseline.ts";
+
+/** socket のパスの長さの上限に収まる、短い /tmp の下の一時ディレクトリ（afterAll で消す）。 */
+const shortTempDir = makeTempDirFactory("sk-", "/tmp");
 
 /** codex の without_skill の run を iteration-1 に作り、再利用先として iteration-2 の同じ位置を返す。 */
 async function withoutSkillSource() {
@@ -605,16 +616,7 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
       }),
     ).rejects.toThrow();
     expect(existsSync(target)).toBe(false);
-    const result = await spawnAsync(
-      "node",
-      [
-        join(repository, "scripts", "eval", "reuse-skill-eval-baseline.ts"),
-        source,
-        target,
-        join(source, "eval-fingerprint.json"),
-      ],
-      { timeout: CHILD_TIMEOUT_MS },
-    );
+    const result = await reuseDirectly(source, target);
     expect(result.stderr).toMatch(errorPattern);
   });
 
@@ -653,6 +655,331 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
       }),
     ).rejects.toThrow();
     expect(existsSync(target)).toBe(false);
+  });
+
+  /** raw_trace を、source の中の dir（シンボリックリンク）の下のファイルに付け替える。 */
+  function pointRawTraceThrough(source: string, linkTarget: string, rawName: string) {
+    symlinkSync(linkTarget, join(source, "via"));
+    const resultPath = join(source, "result.json");
+    const result = readJson<ResultFile>(resultPath);
+    writeFileSync(resultPath, `${JSON.stringify({ ...result, raw_trace: `via/${rawName}` })}\n`);
+  }
+
+  function reuseDirectly(source: string, target: string) {
+    return spawnAsync(
+      "node",
+      [
+        join(repository, "scripts", "eval", "reuse-skill-eval-baseline.ts"),
+        source,
+        target,
+        join(source, "eval-fingerprint.json"),
+      ],
+      { timeout: CHILD_TIMEOUT_MS },
+    );
+  }
+
+  test.each([
+    [
+      "a directory link to outside that raw_trace reads through",
+      "via",
+      (directory: string, source: string) => {
+        const outside = join(directory, "outside");
+        mkdirSync(outside);
+        writeFileSync(join(outside, "trace.jsonl"), "{}\n", "utf8");
+        pointRawTraceThrough(source, relative(source, outside), "trace.jsonl");
+      },
+    ],
+    [
+      "a parent directory of a required artifact linked to outside",
+      "outputs",
+      (directory: string, source: string) => {
+        const outside = join(directory, "outside-outputs");
+        renameSync(join(source, "outputs"), outside);
+        symlinkSync(relative(source, outside), join(source, "outputs"));
+      },
+    ],
+    [
+      "a file link to outside that no artifact names",
+      "project-files/leak.txt",
+      (directory: string, source: string) => {
+        writeFileSync(join(directory, "secret.txt"), "secret\n", "utf8");
+        symlinkSync(
+          relative(join(source, "project-files"), join(directory, "secret.txt")),
+          join(source, "project-files", "leak.txt"),
+        );
+      },
+    ],
+    [
+      "a relative directory link inside the source",
+      "via",
+      (_directory: string, source: string) => {
+        const rawName = basename(readJson<ResultFile>(join(source, "result.json")).raw_trace);
+        pointRawTraceThrough(source, "raw", rawName);
+      },
+    ],
+    [
+      "an absolute directory link inside the source",
+      "via",
+      (_directory: string, source: string) => {
+        const rawName = basename(readJson<ResultFile>(join(source, "result.json")).raw_trace);
+        pointRawTraceThrough(source, join(source, "raw"), rawName);
+      },
+    ],
+    [
+      "a file link inside the source",
+      "project-files/alias.txt",
+      (_directory: string, source: string) => {
+        writeFileSync(join(source, "project-files", "real.txt"), "real\n", "utf8");
+        symlinkSync("real.txt", join(source, "project-files", "alias.txt"));
+      },
+    ],
+    [
+      "a dangling link",
+      "via",
+      (_directory: string, source: string) => {
+        pointRawTraceThrough(source, join("raw", "missing"), "x.jsonl");
+      },
+    ],
+    [
+      "a link to a directory that contains it",
+      "raw/loop",
+      (_directory: string, source: string) => {
+        symlinkSync("..", join(source, "raw", "loop"));
+      },
+    ],
+  ])("rejects %s, since the baseline contains no symlinks", async (_label, name, addLink) => {
+    const { directory, source, target } = await withoutSkillSource();
+    addLink(directory, source);
+
+    const result = await reuseDirectly(source, target);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`baseline contains a symlink: ${name}\n`);
+    expect(existsSync(target)).toBe(false);
+  });
+
+  test.each([
+    ["points at a real run", (real: string, _source: string) => real],
+    ["points at nothing", (real: string, _source: string) => `${real}-missing`],
+    ["points at itself", (_real: string, source: string) => source],
+  ])("rejects a source run directory that is itself a symlink that %s", async (_label, linkTo) => {
+    const { directory, source, target } = await withoutSkillSource();
+    const real = join(directory, "real-run");
+    renameSync(source, real);
+    symlinkSync(linkTo(real, source), source);
+
+    const result = await reuseDirectly(source, target);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("baseline contains a symlink: .\n");
+    expect(existsSync(target)).toBe(false);
+  });
+
+  test.each([
+    [
+      "a FIFO",
+      async (path: string) => {
+        execFileSync("mkfifo", [path], { timeout: CHILD_TIMEOUT_MS });
+        return () => {};
+      },
+    ],
+    [
+      "a socket",
+      async (path: string) => {
+        // socket のパスには上限（約 104〜108 バイト）があるので、短い /tmp の下で listen してから移す。
+        const short = shortTempDir("s");
+        const server = createServer();
+        // listen の失敗は error イベントで届くので、待ち続けないように reject する。
+        await new Promise<void>((done, fail) => {
+          server.once("error", fail);
+          server.listen(join(short, "s"), done);
+        });
+        try {
+          renameSync(join(short, "s"), path);
+        } catch (error) {
+          server.close();
+          throw error;
+        }
+        return () => server.close();
+      },
+    ],
+  ])("rejects %s inside the source", async (_label, create) => {
+    const { source, target } = await withoutSkillSource();
+    const close = await create(join(source, "project-files", "special"));
+    try {
+      const result = await reuseDirectly(source, target);
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain(
+        "baseline contains an entry that is not a file or directory: project-files/special\n",
+      );
+      expect(existsSync(target)).toBe(false);
+    } finally {
+      close();
+    }
+  });
+
+  // root はファイルの権限を無視して読めるので、読めないファイルを作れない。
+  test.skipIf(process.getuid?.() === 0)(
+    "removes the partly copied target when the copy fails on an unreadable file",
+    async () => {
+      const { source, target } = await withoutSkillSource();
+      const unreadable = join(source, "project-files", "unreadable.txt");
+      writeFileSync(unreadable, "secret\n", "utf8");
+      chmodSync(unreadable, 0o000);
+
+      const result = await reuseDirectly(source, target);
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/EACCES/u);
+      expect(existsSync(target)).toBe(false);
+    },
+  );
+
+  /** chmod -R a-w と同じく、木のファイルとディレクトリから書き込みを外す。戻すときは mode に 0o755 / 0o644 を渡す。 */
+  function setTreeMode(root: string, directoryMode: number, fileMode: number): void {
+    for (const name of readdirSync(root)) {
+      const path = join(root, name);
+      if (lstatSync(path).isDirectory()) setTreeMode(path, directoryMode, fileMode);
+      else chmodSync(path, fileMode);
+    }
+    chmodSync(root, directoryMode);
+  }
+
+  // root はファイルの権限を無視して書けるので、読み取り専用の木を作れない。
+  test.skipIf(process.getuid?.() === 0)(
+    "reuses a read-only source and leaves the copied tree writable",
+    async () => {
+      const { source, target } = await withoutSkillSource();
+      // 前に再利用した run には baseline-reuse.json があり、chmod -R a-w ではそれも読み取り専用になる。
+      writeFileSync(join(source, "baseline-reuse.json"), "{}\n", "utf8");
+      setTreeMode(source, 0o555, 0o444);
+      try {
+        const result = await reuseDirectly(source, target);
+
+        expect(result.stderr).toBe("");
+        expect(result.status).toBe(0);
+        for (const path of [target, join(target, "outputs"), join(target, "baseline-reuse.json")]) {
+          expect(lstatSync(path).mode & 0o200).toBe(0o200);
+        }
+        expect(readFileSync(join(target, "baseline-reuse.json"), "utf8")).toContain("reused_from");
+      } finally {
+        setTreeMode(source, 0o755, 0o644);
+      }
+    },
+  );
+
+  test.skipIf(process.getuid?.() === 0)(
+    "reports both failures when the partly copied target cannot be removed",
+    () => {
+      const { directory } = makeStub();
+      const parent = join(directory, "read-only-parent");
+      const target = join(parent, "run-1");
+      mkdirSync(target, { recursive: true });
+      writeFileSync(join(target, "partial.txt"), "partial\n", "utf8");
+      // target の親に書き込めないと、target の中を書き込めるようにしても target 自体を消せない。
+      chmodSync(parent, 0o555);
+      try {
+        expect(() => removePartialTarget(target, new Error("copy failed"))).toThrow(
+          /^copy failed; the partly copied target could not be removed: .*EACCES/u,
+        );
+      } finally {
+        chmodSync(parent, 0o755);
+      }
+    },
+  );
+
+  test("accepts a hard link to a file outside the source and copies it as a regular file", async () => {
+    const { directory, source, target } = await withoutSkillSource();
+    const outside = join(directory, "shared.txt");
+    writeFileSync(outside, "shared\n", "utf8");
+    linkSync(outside, join(source, "project-files", "shared.txt"));
+
+    const result = await reuseDirectly(source, target);
+
+    expect(result.stderr).toBe("");
+    expect(result.status).toBe(0);
+    const copied = join(target, "project-files", "shared.txt");
+    expect(lstatSync(copied).isFile()).toBe(true);
+    expect(lstatSync(copied).nlink).toBe(1);
+    expect(readFileSync(copied, "utf8")).toBe("shared\n");
+  });
+
+  test("rejects an absolute raw_trace even when it points inside the source", async () => {
+    const { source, target } = await withoutSkillSource();
+    const resultPath = join(source, "result.json");
+    const recorded = readJson<ResultFile>(resultPath);
+    writeFileSync(
+      resultPath,
+      `${JSON.stringify({ ...recorded, raw_trace: join(source, recorded.raw_trace) })}\n`,
+    );
+
+    const result = await reuseDirectly(source, target);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/baseline raw_trace must be relative/u);
+    expect(existsSync(target)).toBe(false);
+  });
+
+  test("accepts a source reached through a symlinked ancestor directory", async () => {
+    const { directory, source, target } = await withoutSkillSource();
+    const alias = join(directory, "alias");
+    symlinkSync(join(directory, "iteration-1"), alias);
+
+    const result = await reuseDirectly(join(alias, "eval-1", "without_skill", "run-1"), target);
+
+    expect(result.stderr).toBe("");
+    expect(result.status).toBe(0);
+    expect(existsSync(join(target, "baseline-reuse.json"))).toBe(true);
+    expect(existsSync(source)).toBe(true);
+  });
+
+  test("rejects a target that is a dangling symlink into the source without aborting", async () => {
+    const { directory, source } = await withoutSkillSource();
+    const target = join(directory, "dangling-target");
+    symlinkSync(join(source, "nested"), target);
+
+    const result = await reuseDirectly(source, target);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`reuse target already exists: ${target}`);
+    expect(lstatSync(target).isSymbolicLink()).toBe(true);
+    expect(existsSync(join(source, "nested"))).toBe(false);
+  });
+
+  test("rejects the source itself as the target with the nesting message", async () => {
+    const { source } = await withoutSkillSource();
+
+    const result = await reuseDirectly(source, source);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/reuse target must not be the source or nested inside it/u);
+  });
+
+  test("reports a target under a regular file as unresolvable", async () => {
+    const { directory, source } = await withoutSkillSource();
+    writeFileSync(join(directory, "plain"), "x\n", "utf8");
+    const target = join(directory, "plain", "run-1");
+
+    const result = await reuseDirectly(source, target);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`reuse target cannot be resolved: ${target}: `);
+  });
+
+  test("rejects a target nested inside the source when the source is reached through a symlink", async () => {
+    const { directory, source } = await withoutSkillSource();
+    const alias = join(directory, "alias");
+    symlinkSync(join(directory, "iteration-1"), alias);
+
+    const result = await reuseDirectly(
+      join(alias, "eval-1", "without_skill", "run-1"),
+      join(source, "nested"),
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/reuse target must not be the source or nested inside it/u);
+    expect(existsSync(join(source, "nested"))).toBe(false);
   });
 
   test("keeps Claude Code as the default executor for existing callers", async () => {

@@ -27,6 +27,11 @@ pre-commit はどちらも通った。commit の前に全件の vitest を流し
 手元では `scripts/gates` のテストだけを実行して push し、CI の Unit tests が `scripts/lib/testing/child-timeout.test.ts`（全テストファイルの子プロセスの起動を走査する）で落ちた。
 pre-commit は通り、CI を 1 周失った。
 
+再発（2026-10-30、Issue #766・PR #832）: FIFO を作るテストで `execFileSync("mkfifo", …)` に `timeout` を付けずに push し、CI の Unit tests が `child-timeout.test.ts` で落ちた。
+手元では変えた `run-skill-eval.test.ts` だけを実行していた。
+直す途中で socket のテストに `mkdtempSync` を直に書き、この学びを読み直して `test-tmpdir.test.ts` を実行するまで気付かなかった。
+こちらは push の前に見つけて直した。
+
 ## 根本原因
 
 - なぜ落ちたか → リポジトリの規約（`makeTempDir` を使う）を知らずに直呼びした

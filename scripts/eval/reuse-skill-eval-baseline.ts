@@ -1,5 +1,16 @@
-import { cpSync, existsSync, lstatSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import {
+  chmodSync,
+  cpSync,
+  existsSync,
+  lstatSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  type Stats,
+  writeFileSync,
+} from "node:fs";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { errorMessage } from "../lib/errors.ts";
 import { parseJsonAs } from "../lib/parse-as.ts";
 import { showValue } from "../lib/show-value.ts";
@@ -44,15 +55,75 @@ export function formatError(error: unknown): string {
     : String(error);
 }
 
-/** 必須の成果物がそろい、どれもシンボリックリンクでないことを確かめる。 */
+/** path が root の外にあるかを、パスの字面で判定する。 */
+function escapes(root: string, path: string): boolean {
+  const relativePath = relative(root, path);
+  return relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath);
+}
+
+/** 存在しない末尾を残したまま、存在する最も近い祖先までを realpath で解決する。 */
+function realpathOfNearest(path: string): string {
+  const rest: string[] = [];
+  let existing = path;
+  // existsSync ではなく lstat で在るかを確かめる。existsSync はリンクをたどるので、指す先の無いリンクを「無い」と
+  // 判定して祖先へ上がってしまう。lstat はリンク自体を在ると判定するので、その位置で realpathSync が解決できない
+  // ことを報告できる。
+  while (!lstatSync(existing, { throwIfNoEntry: false }) && dirname(existing) !== existing) {
+    rest.unshift(basename(existing));
+    existing = dirname(existing);
+  }
+  return join(realpathSync(existing), ...rest);
+}
+
+/** パスを解決する処理の失敗（祖先が指す先の無いリンク・途中がファイル）を、どの引数かが分かる形で報告する。 */
+function resolving<T>(label: string, path: string, resolvePath: (path: string) => T): T {
+  try {
+    return resolvePath(path);
+  } catch (error) {
+    throw new Error(`${label} cannot be resolved: ${path}: ${errorMessage(error)}`);
+  }
+}
+
+/** 必須の成果物がそろっていることを確かめる。リンクでないことは assertOnlyFilesAndDirectories が先に確かめる。 */
 function assertArtifactsPresent(source: string): void {
   for (const artifact of requiredArtifacts) {
-    const artifactPath = resolve(source, artifact);
-    if (!existsSync(artifactPath)) throw new Error(`baseline artifact missing: ${artifact}`);
-    if (lstatSync(artifactPath).isSymbolicLink()) {
-      throw new Error(`baseline artifact must not be a symlink: ${artifact}`);
+    if (!existsSync(resolve(source, artifact))) {
+      throw new Error(`baseline artifact missing: ${artifact}`);
     }
   }
+}
+
+/**
+ * 通常のファイルとディレクトリ以外の要素を拒否する。
+ * 判定に使った lstat の結果を返し、呼び出し側はそれで再帰するかを決める（readdir の型と食い違わないように）。
+ */
+function assertFileOrDirectory(path: string, name: string): Stats {
+  const stat = lstatSync(path);
+  if (stat.isSymbolicLink()) throw new Error(`baseline contains a symlink: ${name}`);
+  if (!stat.isDirectory() && !stat.isFile()) {
+    throw new Error(`baseline contains an entry that is not a file or directory: ${name}`);
+  }
+  return stat;
+}
+
+/**
+ * source の木に、通常のファイルとディレクトリ以外が無いことを確かめる（#766）。
+ * ハーネスが書く baseline はリンクを含まないので、シンボリックリンクは指す先に関わらず受け入れない。
+ * 受け入れるなら、リンクごとに 3 つを判定することになる。途中のディレクトリを通して source の外を読むか・
+ * 循環するか・確かめた後に指す先が変わるかである。
+ * FIFO・socket・デバイスも、読むと止まるか外の状態に依存するので受け入れない。
+ * ハードリンクは受け入れる（Issue #766 の prepare の決定）。lstat の nlink では、同じ実体を持つ相手が
+ * source の中か外かを判定できない。
+ */
+function assertOnlyFilesAndDirectories(realSource: string): void {
+  const walk = (directory: string): void => {
+    for (const name of readdirSync(directory)) {
+      const path = join(directory, name);
+      if (assertFileOrDirectory(path, relative(realSource, path)).isDirectory()) walk(path);
+    }
+  };
+  // source が無いときは、assertArtifactsPresent が欠けた成果物の名前で報告する。
+  if (lstatSync(realSource, { throwIfNoEntry: false })?.isDirectory()) walk(realSource);
 }
 
 /** baseline の fingerprint が期待した fingerprint と同じ形式・同じ値であることを確かめる。 */
@@ -87,21 +158,13 @@ function assertSucceededWithRawTrace(source: string): void {
   if (typeof result.raw_trace !== "string" || !result.raw_trace) {
     throw new Error("baseline result has no raw_trace path");
   }
+  // 絶対パスは、target にコピーした後も元の source を指すので受け入れない。
+  if (isAbsolute(result.raw_trace)) throw new Error("baseline raw_trace must be relative");
   const rawTrace = resolve(source, result.raw_trace);
-  const relativeRawTrace = relative(source, rawTrace);
-  if (
-    relativeRawTrace === ".." ||
-    relativeRawTrace.startsWith(`..${sep}`) ||
-    isAbsolute(relativeRawTrace)
-  ) {
-    throw new Error("baseline raw_trace escapes the source run");
-  }
-  if (
-    !existsSync(rawTrace) ||
-    lstatSync(rawTrace).isSymbolicLink() ||
-    !lstatSync(rawTrace).isFile() ||
-    readFileSync(rawTrace).length === 0
-  ) {
+  // source の木にリンクが無いことは assertOnlyFilesAndDirectories が確かめるので、字面で比べれば足りる。
+  if (escapes(source, rawTrace)) throw new Error("baseline raw_trace escapes the source run");
+  const stat = lstatSync(rawTrace, { throwIfNoEntry: false });
+  if (!stat || !stat.isFile() || stat.size === 0) {
     throw new Error(`baseline raw trace missing or empty: ${result.raw_trace}`);
   }
 }
@@ -122,11 +185,68 @@ function assertCleanAndIsolated(source: string): void {
   }
 }
 
-function validateReusableBaseline(source: string, expectedFingerprint: Fingerprint): void {
-  assertArtifactsPresent(source);
-  assertFingerprintMatches(source, expectedFingerprint);
-  assertSucceededWithRawTrace(source);
-  assertCleanAndIsolated(source);
+/**
+ * 再利用してよい baseline かを、source を realpath で解決した実体で確かめる。
+ * run のディレクトリ自体のリンクは解決した実体では見えないので、呼び出し元の reuseBaseline が、
+ * 解決していない source の lstat で確かめる。
+ */
+function validateReusableBaseline(realSource: string, expectedFingerprint: Fingerprint): void {
+  assertOnlyFilesAndDirectories(realSource);
+  assertArtifactsPresent(realSource);
+  assertFingerprintMatches(realSource, expectedFingerprint);
+  assertSucceededWithRawTrace(realSource);
+  assertCleanAndIsolated(realSource);
+}
+
+/**
+ * コピーした木のファイルとディレクトリに、所有者の書き込みを足す。cpSync は mode もコピーするので、
+ * 読み取り専用の baseline（chmod -R a-w で守ったもの）を再利用すると、target も書き換えも削除もできなくなる。
+ * リンクなど通常のファイルとディレクトリ以外は、chmod が指す先に当たるので触らない。
+ */
+function makeTreeOwnerWritable(root: string): void {
+  const visit = (path: string): void => {
+    const stat = lstatSync(path);
+    if (!stat.isDirectory() && !stat.isFile()) return;
+    // 種類のビットを除き、権限のビットだけに所有者の書き込みを足す。
+    chmodSync(path, (stat.mode & 0o7777) | 0o200);
+    if (stat.isDirectory()) for (const name of readdirSync(path)) visit(join(path, name));
+  };
+  visit(root);
+}
+
+/**
+ * 作りかけの target を消す。先に所有者の書き込みを足し、読み取り専用のコピーでも消せるようにする。
+ * それでも消せなかったとき（target の親に書き込めないなど）は、元の失敗と消せなかった理由の両方を報告する。
+ */
+export function removePartialTarget(target: string, cause: unknown): never {
+  try {
+    if (lstatSync(target, { throwIfNoEntry: false })) makeTreeOwnerWritable(target);
+    rmSync(target, { recursive: true, force: true });
+  } catch (cleanupError) {
+    throw new Error(
+      `${errorMessage(cause)}; the partly copied target could not be removed: ${target}: ${errorMessage(cleanupError)}`,
+      { cause },
+    );
+  }
+  throw cause;
+}
+
+/**
+ * 確かめた木を target にコピーし、再利用の記録を書く。
+ * 確かめた後に source の中身が変わる場合と、並行して実行した別の呼び出しが target を作る場合は扱わない
+ * （PR #832 の判断）。eval の木は同じ利用者が手元で順に実行するハーネスが書き、並行して書き換える書き手がいない。
+ * コピーか記録の書き込みに失敗したら（EACCES など）、この呼び出しが作った target を消す。
+ * 消せなかったときは、元の失敗と消せなかった理由の両方を報告する（removePartialTarget）。
+ * 読み取り専用の baseline でも記録を書けるよう、コピーした後に木の全体へ所有者の書き込みを足す（makeTreeOwnerWritable）。
+ */
+function copyVerifiedTree(realSource: string, target: string, writeRecord: () => void): void {
+  try {
+    cpSync(realSource, target, { recursive: true, force: false, errorOnExist: true });
+    makeTreeOwnerWritable(target);
+    writeRecord();
+  } catch (error) {
+    removePartialTarget(target, error);
+  }
 }
 
 function reuseBaseline(sourceValue: string, targetValue: string, expectedPath: string): void {
@@ -138,33 +258,53 @@ function reuseBaseline(sourceValue: string, targetValue: string, expectedPath: s
   ) {
     throw new Error("reusable baseline source must be under without_skill/run-N");
   }
-  if (source === target || relative(source, target).split(sep)[0] !== "..") {
+  // run のディレクトリ自体のリンクも、木の中のリンクと同じに受け入れない。祖先のリンクは受け入れる。
+  // 指す先の無いリンクと循環するリンクも同じ文で拒否するよう、realpath で解決する前に確かめる。
+  if (lstatSync(source, { throwIfNoEntry: false })?.isSymbolicLink()) {
+    throw new Error("baseline contains a symlink: .");
+  }
+  const targetStat = resolving("reuse target", target, (path) =>
+    lstatSync(path, { throwIfNoEntry: false }),
+  );
+  // 指す先の無いリンクも在るとして扱う。cpSync はそれをコピー先にすると、例外を投げずに node ごと異常終了する。
+  // target 自体のリンクは、realpath で解決する前に、ENOENT ではなくこのメッセージで報告する。
+  if (targetStat?.isSymbolicLink()) throw new Error(`reuse target already exists: ${target}`);
+  // source がシンボリックリンクの下にあっても同じ結果になるよう、両辺を同じ realpath で解決して比べる。
+  const realSource = resolving("reusable baseline source", source, realpathOfNearest);
+  if (!escapes(realSource, resolving("reuse target", target, realpathOfNearest))) {
     throw new Error("reuse target must not be the source or nested inside it");
   }
-  if (existsSync(target)) throw new Error(`reuse target already exists: ${target}`);
+  if (targetStat) throw new Error(`reuse target already exists: ${target}`);
   const expectedFingerprint = readJson<Fingerprint>(expectedPath, "expected fingerprint");
-  validateReusableBaseline(source, expectedFingerprint);
-  cpSync(source, target, { recursive: true, errorOnExist: true });
-  writeFileSync(
-    resolve(target, "baseline-reuse.json"),
-    `${JSON.stringify(
-      {
-        schema_version: 1,
-        reused_from: isAbsolute(sourceValue) ? source : sourceValue,
-        source_run: basename(source),
-        source_configuration: basename(dirname(source)),
-        fingerprint: expectedFingerprint.fingerprint,
-        executor: expectedFingerprint.inputs.executor,
-        model: expectedFingerprint.inputs.model,
-        reasoning_effort: expectedFingerprint.inputs.reasoning_effort,
-        cli_version: expectedFingerprint.inputs.cli_version,
-        harness_version: expectedFingerprint.inputs.harness_version,
-      },
-      null,
-      2,
-    )}\n`,
-    "utf8",
+  validateReusableBaseline(realSource, expectedFingerprint);
+  const record = reuseRecord(sourceValue, source, expectedFingerprint);
+  copyVerifiedTree(realSource, target, () =>
+    writeFileSync(resolve(target, "baseline-reuse.json"), record, "utf8"),
   );
+}
+
+/** target に書く baseline-reuse.json の本文。 */
+function reuseRecord(
+  sourceValue: string,
+  source: string,
+  expectedFingerprint: Fingerprint,
+): string {
+  return `${JSON.stringify(
+    {
+      schema_version: 1,
+      reused_from: isAbsolute(sourceValue) ? source : sourceValue,
+      source_run: basename(source),
+      source_configuration: basename(dirname(source)),
+      fingerprint: expectedFingerprint.fingerprint,
+      executor: expectedFingerprint.inputs.executor,
+      model: expectedFingerprint.inputs.model,
+      reasoning_effort: expectedFingerprint.inputs.reasoning_effort,
+      cli_version: expectedFingerprint.inputs.cli_version,
+      harness_version: expectedFingerprint.inputs.harness_version,
+    },
+    null,
+    2,
+  )}\n`;
 }
 
 function main() {
