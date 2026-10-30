@@ -246,6 +246,7 @@ node scripts/mutation/update-mutation-durations.ts run.log
 ```
 
 このツールは、定義ごとに `時間:` の X の合計 ÷ (N + 1) の合計を、1 回の実行の秒数として書き込む。ログに無い定義の見積もりは変えない。
+CI の 1 回の実行の秒数は、run ごとに 2 割ほど変わる。複数の run のログを渡すと、それらの合計で平均するので、見積もりのばらつきが小さくなる。
 定義を足したら、見積もりも足す（`mutations-declaration.test.ts` が、どの定義にも見積もりがあることを確かめる）。最初は手元の実行のログを同じツールに渡す。
 文書を含む変更は、push の前に手元でも `--changed-since origin/main` を実行する。文書を読むテストを持つ定義も選ばれるので、文書の書き換えで落ちる定義を CI の前に見つけられる。
 `--changed-since` は commit の差分（`origin/main...HEAD`）だけを見るので、commit した後に実行する。commit する前は「変更ファイル: 0 件」になり、何も測らない。

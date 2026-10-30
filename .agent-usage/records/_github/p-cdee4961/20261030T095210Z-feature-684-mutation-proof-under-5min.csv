@@ -43,3 +43,6 @@ ci:41041611823:1,ci,2026-10-30T10:42:32.339Z,p-cdee4961,github-actions,,,,2026-1
 ci:41041611950:1,ci,2026-10-30T10:42:32.339Z,p-cdee4961,github-actions,,,,2026-10-30T10:33:27.000Z,2026-10-30T10:38:40.000Z,Asia/Tokyo,feature/684-mutation-proof-under-5min,684,,,,,,,,,,CI;pull_request;success,
 ci:41041281551:1,ci,2026-10-30T10:42:32.339Z,p-cdee4961,github-actions,,,,2026-10-30T10:30:43.000Z,2026-10-30T10:34:52.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
 coverage:github:2026-10-29T10:32:49.858Z:2026-10-30T10:42:32.339Z,coverage,2026-10-30T10:42:32.339Z,p-cdee4961,,,,,2026-10-29T10:32:49.858Z,2026-10-30T10:42:32.339Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:41042845518:1,ci,2026-10-30T10:51:58.329Z,p-cdee4961,github-actions,,,,2026-10-30T10:43:36.000Z,2026-10-30T10:43:37.000Z,Asia/Tokyo,feature/684-mutation-proof-under-5min,684,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:41042845489:1,ci,2026-10-30T10:51:58.329Z,p-cdee4961,github-actions,,,,2026-10-30T10:43:36.000Z,2026-10-30T10:48:41.000Z,Asia/Tokyo,feature/684-mutation-proof-under-5min,684,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-29T10:42:32.339Z:2026-10-30T10:51:58.329Z,coverage,2026-10-30T10:51:58.329Z,p-cdee4961,,,,,2026-10-29T10:42:32.339Z,2026-10-30T10:51:58.329Z,Asia/Tokyo,,,,,,,,,,,,ok,
