@@ -671,8 +671,8 @@ test.each([
     "--component-metadata は必須",
   ],
   ["不明な引数", [...baseArgs, "--verbose", "x"], "不明な引数"],
-  ["値の無い引数", [...baseArgs, "--feature"], "--feature に値がない"],
-  ["引数の重複", [...baseArgs, "--change", "c.json"], "--change が複数ある"],
+  ["値の無い引数", [...baseArgs, "--feature"], "--feature に値が無い"],
+  ["引数の重複", [...baseArgs, "--change", "c.json"], "--change が重複している"],
 ])("CLI: 使い方の誤りは exit 2: %s", (_label, argv, needle) => {
   const { code, errors } = run(argv, filesOf());
   expect(code).toBe(2);

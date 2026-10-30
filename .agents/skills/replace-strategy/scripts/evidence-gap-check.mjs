@@ -34,6 +34,7 @@ import { resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isPlainObject } from "./lib/guards.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
+import { parseFlags } from "./lib/flags.mjs";
 import { parseJsonOrThrow } from "./lib/json.mjs";
 import { collapse, parseTables, unclosedFenceMessage } from "./lib/markdown.mjs";
 
@@ -620,26 +621,18 @@ export function check(input) {
  * @returns {{ features: string, slug: string, unmeasured: string | null }}
  */
 export function parseArgs(argv) {
-  /** @type {Record<string, string>} */
-  const opts = {};
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (arg === "--features" || arg === "--slug" || arg === "--unmeasured") {
-      const value = argv[i + 1];
-      if (value === undefined || value.startsWith("--")) throw new UsageError(`${arg} に値が無い`);
-      if (opts[arg.slice(2)] !== undefined) throw new UsageError(`${arg} が 2 回指定されている`);
-      opts[arg.slice(2)] = value;
-      i += 1;
-      continue;
-    }
-    throw new UsageError(`不明な引数: ${arg}`);
-  }
-  if (!opts.features) throw new UsageError("--features は必須（探索先を推測させない）");
-  if (!opts.slug) throw new UsageError("--slug は必須（対象を推測させない）");
+  const parsed = parseFlags(argv, { values: ["--features", "--slug", "--unmeasured"] });
+  if (parsed.error !== undefined) throw new UsageError(parsed.error);
+  const { strings } = parsed;
+  const features = strings["--features"];
+  const slug = strings["--slug"];
+  const unmeasured = strings["--unmeasured"];
+  if (!features) throw new UsageError("--features は必須（探索先を推測させない）");
+  if (!slug) throw new UsageError("--slug は必須（対象を推測させない）");
   return {
-    features: resolve(opts.features),
-    slug: collapse(opts.slug),
-    unmeasured: opts.unmeasured === undefined ? null : resolve(opts.unmeasured),
+    features: resolve(features),
+    slug: collapse(slug),
+    unmeasured: unmeasured === undefined ? null : resolve(unmeasured),
   };
 }
 

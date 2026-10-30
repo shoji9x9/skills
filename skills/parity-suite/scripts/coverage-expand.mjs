@@ -28,6 +28,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
+import { parseFlags, stripDashes } from "./lib/flags.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 import { canonicalize } from "./lib/json.mjs";
 
@@ -3362,54 +3363,23 @@ const USAGE =
   "       node coverage-expand.mjs --list-profiles [--profiles <dir>]\n";
 
 /**
- * 値を取るフラグ 1 つを opts へ読む。値が無い・重複指定なら stderr に出して false を返す。
- * @param {string} a - フラグ（`--coverage` など）
- * @param {string | undefined} v - フラグの次の引数
- * @param {Record<string, string>} opts - 読んだ値の追記先
- * @returns {boolean}
- */
-function readValueFlag(a, v, opts) {
-  if (v === undefined) {
-    process.stderr.write(USAGE);
-    return false;
-  }
-  if (opts[a.slice(2)] !== undefined) {
-    // 同じフラグの重複指定を警告なしに後勝ちにしない（どちらを読んだか出力から分からなくなる）。
-    process.stderr.write(`error: ${a} が複数回指定されている\n${USAGE}`);
-    return false;
-  }
-  opts[a.slice(2)] = v;
-  return true;
-}
-
-/**
  * CLI の引数を読む。使い方の誤りなら stderr に出して終了コード 2 を返す。
+ * 同じフラグの重複指定は、警告なしに後勝ちにすると、どちらを読んだか出力から分からなくなるので、parseFlags が止める。
  * @param {string[]} argv
  * @returns {number | {opts: Record<string, string>, write: boolean, list: boolean}}
  */
 function parseArgs(argv) {
-  /** @type {Record<string, string>} */
-  const opts = {};
-  let write = false;
-  let list = false;
-  for (let i = 0; i < argv.length; i += 1) {
-    const a = argv[i];
-    if (a === "--write") {
-      write = true;
-      continue;
-    }
-    if (a === "--list-profiles") {
-      list = true;
-      continue;
-    }
-    if (a === "--coverage" || a === "--profiles" || a === "--metadata") {
-      if (!readValueFlag(a, argv[i + 1], opts)) return 2;
-      i += 1;
-      continue;
-    }
-    process.stderr.write(`unknown argument: ${a}\n${USAGE}`);
+  const parsed = parseFlags(argv, {
+    values: ["--coverage", "--profiles", "--metadata"],
+    bools: ["--write", "--list-profiles"],
+  });
+  if (parsed.error !== undefined) {
+    process.stderr.write(`error: ${parsed.error}\n${USAGE}`);
     return 2;
   }
+  const opts = stripDashes(parsed.strings);
+  const write = parsed.bools["--write"] === true;
+  const list = parsed.bools["--list-profiles"] === true;
   if (!list && !opts.coverage) {
     process.stderr.write(USAGE);
     return 2;

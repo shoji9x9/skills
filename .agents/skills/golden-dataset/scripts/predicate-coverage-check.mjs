@@ -26,8 +26,9 @@
 // 終了コード: 0 ＝ 条件を満たす、1 ＝ 不備が残る（設計へ戻す）、2 ＝ 使い方の誤り・表が読めない。
 
 import { resolve } from "node:path";
-import { cliIo, parseFlagPairs, usageFailer, writeCheckResult } from "./lib/check-cli.mjs";
+import { cliIo, usageFailer, writeCheckResult } from "./lib/check-cli.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
+import { parseFlags } from "./lib/flags.mjs";
 import { stepFence, unclosedFenceMessage } from "./lib/fence.mjs";
 import { isArray } from "./lib/is-array.mjs";
 
@@ -1648,14 +1649,9 @@ function listInputs(args) {
     ["features", featuresPath],
     ["design", designPath],
   ];
-  // `--verification` は任意だが、**値が空のときは未指定へ丸めない**。丸めると 6 節の検査が飛び、
-  // 指定したつもりの利用者に「実測して問題なし」と同じ出力を返す。
-  if (verificationPath !== undefined) {
-    if (verificationPath.trim() === "") {
-      return { error: "--verification に空の値が渡っている（省略するか、実在するパスを渡す）" };
-    }
-    inputs.push(["verification", verificationPath]);
-  }
+  // `--verification` は任意だが、**値が空白だけのときは未指定へ丸めない**。丸めると 6 節の検査が飛び、
+  // 指定したつもりの利用者に「実測して問題なし」と同じ出力を返す。空白だけの値は、引数を読む parseFlags が先に止める。
+  if (verificationPath !== undefined) inputs.push(["verification", verificationPath]);
   return { inputs };
 }
 
@@ -1691,9 +1687,10 @@ function readInputs(inputs, { readFile, cwd }) {
 export function main(argv, deps = {}) {
   const { readFile, cwd, write, writeErr } = cliIo(deps);
   const fail = usageFailer(writeErr, USAGE);
-  const parsed = parseFlagPairs(argv, ["--features", "--design", "--verification"]);
+  const parsed = parseFlags(argv, { values: ["--features", "--design", "--verification"] });
   if (parsed.error !== undefined) return fail(parsed.error);
-  const listed = listInputs(parsed.args);
+  const args = parsed.strings;
+  const listed = listInputs(args);
   if ("error" in listed) return fail(listed.error);
   const read = readInputs(listed.inputs, { readFile, cwd });
   if ("error" in read) return fail(read.error);

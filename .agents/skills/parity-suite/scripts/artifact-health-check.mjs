@@ -39,6 +39,7 @@ import { isArray } from "./lib/is-array.mjs";
 import { EVIDENCE_CARRY_FILE, judgeCarry } from "./evidence-carry.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
+import { parseFlags, stripDashes } from "./lib/flags.mjs";
 import { isPlainObject, nonEmptyString, toIterationCount } from "./lib/guards.mjs";
 import { realPathOf } from "./lib/paths.mjs";
 
@@ -2255,7 +2256,7 @@ export function parseArgs(argv) {
 }
 
 /** 値を 1 つ取る引数。 */
-const VALUE_FLAGS = new Set([
+const VALUE_FLAGS = [
   "--metadata",
   "--root",
   "--target",
@@ -2263,7 +2264,7 @@ const VALUE_FLAGS = new Set([
   "--new-repo",
   "--replace-root",
   "--carry-to",
-]);
+];
 
 /**
  * argv を読み、値を取る引数（先頭の -- を外した名前 → 値）と --fingerprint の有無を返す。
@@ -2271,27 +2272,9 @@ const VALUE_FLAGS = new Set([
  * @returns {{ opts: Record<string, string>, fingerprint: boolean }}
  */
 function readArgv(argv) {
-  /** @type {Record<string, string>} */
-  const opts = {};
-  let fingerprint = false;
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (arg === "--fingerprint") {
-      fingerprint = true;
-      continue;
-    }
-    if (VALUE_FLAGS.has(arg)) {
-      const value = argv[i + 1];
-      if (value === undefined || value.startsWith("--")) throw new UsageError(`${arg} に値が無い`);
-      opts[arg.slice(2)] = value;
-      i += 1;
-      continue;
-    }
-    throw new UsageError(
-      `使い方: artifact-health-check.mjs --metadata <path> [--root <dir>] [--target <name>] [--stage diff|suite] [--new-repo <path>] [--replace-root <dir>] [--carry-to <SHA>] [--fingerprint]（不明な引数: ${arg}）`,
-    );
-  }
-  return { opts, fingerprint };
+  const parsed = parseFlags(argv, { values: VALUE_FLAGS, bools: ["--fingerprint"] });
+  if (parsed.error !== undefined) throw new UsageError(parsed.error);
+  return { opts: stripDashes(parsed.strings), fingerprint: parsed.bools["--fingerprint"] === true };
 }
 
 /**
@@ -2300,7 +2283,6 @@ function readArgv(argv) {
  * @param {Record<string, string>} opts
  */
 function validateCarryTo(opts) {
-  if (!nonEmptyString(opts["carry-to"])) throw new UsageError("--carry-to が空");
   if (!nonEmptyString(opts.target)) {
     throw new UsageError(
       "--carry-to には --target が要る（持ち越しは工程の成果物について判定する）",
@@ -2415,7 +2397,6 @@ function collectSections({ metadata, root, slugDir, args }) {
     checkUnmeasured(metadata, { stage: args.stage }),
   ];
   if (args.target !== null) {
-    if (!nonEmptyString(args.target)) throw new UsageError("--target が空");
     sections.push(
       checkStage({
         root,

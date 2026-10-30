@@ -25,7 +25,8 @@ import { resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
-import { makeIo, parseFlagArgs } from "./lib/flag-args.mjs";
+import { makeIo } from "./lib/flag-args.mjs";
+import { parseFlags } from "./lib/flags.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
 /**
@@ -186,10 +187,11 @@ const USAGE =
  * @returns {{ args: Record<string, string>, error?: undefined } | { args?: undefined, error: string }}
  */
 function parseArgs(argv) {
-  const known = new Set(["--file", "--mode", "--phase", "--slug", "--target"]);
-  const parsed = parseFlagArgs(argv, known);
+  const parsed = parseFlags(argv, {
+    values: ["--file", "--mode", "--phase", "--slug", "--target"],
+  });
   if (parsed.error !== undefined) return parsed;
-  const { args } = parsed;
+  const args = parsed.strings;
   if (args["--file"] === undefined) return { error: "--file は必須" };
   if (args["--phase"] !== undefined && !["a", "b"].includes(args["--phase"])) {
     return { error: `--phase は a か b: ${args["--phase"]}` };

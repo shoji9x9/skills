@@ -48,6 +48,7 @@
 import { readFileSync } from "node:fs";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
+import { parseFlags } from "./lib/flags.mjs";
 import { isObjectLike, isPlainObject } from "./lib/guards.mjs";
 
 /**
@@ -162,6 +163,15 @@ export class UndecidableSelector extends Error {}
 const IDENT_CHAR = /[-\w -￿]/;
 
 /**
+ * 前後の CSS の空白（空白・タブ・改行・CR・FF）を除く。String#trim は NBSP なども除くので、識別子の文字を消してしまう。
+ * @param {string} s
+ * @returns {string}
+ */
+function cssTrim(s) {
+  return s.replace(/^[ \t\n\r\f]+|[ \t\n\r\f]+$/g, "");
+}
+
+/**
  * エスケープを飛ばした次の位置。
  * CSS のエスケープは `\` ＋ 1 文字とは限らない。16 進エスケープは `\` ＋ 16 進数 1〜6 桁で、
  * 直後の空白 1 つが終端記号として消費される（`.\31 23` は「123」というクラス 1 つ）。
@@ -179,7 +189,10 @@ function skipEscape(s, start) {
     hex += 1;
   }
   if (hex === 0) return j + 1; // `\.` のような 1 文字エスケープ
-  if (j < s.length && /\s/.test(s[j])) j += 1; // 終端の空白 1 つを消費する
+  // 終端の空白 1 つを消費する。CSS は CRLF を改行 1 個として読むので、`\r\n` は 2 文字とも消費する
+  // 終わりの空白は CSS の空白（空白・タブ・改行・CR・FF）だけで、NBSP などは識別子の一部である
+  if (s.startsWith("\r\n", j)) return j + 2;
+  if (j < s.length && /[ \t\n\r\f]/.test(s[j])) j += 1;
   return j;
 }
 
@@ -311,14 +324,14 @@ function splitTopLevel(text) {
  * @returns {[number, number, number]}
  */
 function maxOfArgument(name, argument) {
-  if (argument === null || argument.trim() === "") {
+  if (argument === null || cssTrim(argument) === "") {
     throw new UndecidableSelector(`:${name}() has no argument`);
   }
   /** @type {[number, number, number] | null} */
   let best = null;
   for (const branch of splitTopLevel(argument)) {
-    if (branch.trim() === "") throw new UndecidableSelector(`:${name}() has an empty branch`);
-    const value = specificity(branch.trim());
+    if (cssTrim(branch) === "") throw new UndecidableSelector(`:${name}() has an empty branch`);
+    const value = specificity(cssTrim(branch));
     if (best === null || compareSpecificity(value, best) > 0) best = value;
   }
   // splitTopLevel は 1 件以上を返し、各枝は値を決めるか投げるので、ここで null にはならない（型の絞り込みのため）。
@@ -366,7 +379,8 @@ function tokenSpecificity(s, i) {
   if (ch === "\\") return { value: [0, 0, 1], next: skipIdent(s, i) };
   // 以降のトークン判定は skipIdent がエスケープ全体を消費する前提で進む。
   if (ch === '"' || ch === "'") return { value: [0, 0, 0], next: skipString(s, i) };
-  if (/\s/.test(ch) || ch === ">" || ch === "+" || ch === "~" || ch === "|") {
+  // 結合子の空白は CSS の空白だけで、NBSP などは識別子の文字として型セレクタに数える
+  if (/[ \t\n\r\f]/.test(ch) || ch === ">" || ch === "+" || ch === "~" || ch === "|") {
     return { value: [0, 0, 0], next: i + 1 };
   }
   if (ch === ",") {
@@ -394,7 +408,7 @@ function tokenSpecificity(s, i) {
  * @returns {[number, number, number]}
  */
 export function specificity(selector) {
-  if (typeof selector !== "string" || selector.trim() === "") {
+  if (typeof selector !== "string" || cssTrim(selector) === "") {
     throw new UndecidableSelector("selector is empty");
   }
   /** @type {[number, number, number]} */
@@ -411,6 +425,16 @@ export function specificity(selector) {
 }
 
 /**
+ * CSS のエスケープ（start の `\`）の次の位置。読み方は skipEscape と同じで、末尾の `\` だけは投げずに文字列の終わりを返す。
+ * @param {string} s
+ * @param {number} start
+ * @returns {number}
+ */
+function escapeEnd(s, start) {
+  return start + 1 >= s.length ? s.length : skipEscape(s, start);
+}
+
+/**
  * トップレベル（括弧の外）にある最後の結合子（空白・`>`・`+`・`~`）の位置。無ければ -1。
  * @param {string} selector
  * @returns {number}
@@ -421,13 +445,49 @@ function lastTopLevelCombinator(selector) {
   for (let i = 0; i < selector.length; i += 1) {
     const ch = selector[i];
     if (ch === "\\") {
-      i += 1;
+      i = escapeEnd(selector, i) - 1;
+      continue;
+    }
+    // 引用符の中（`[title="]"]`）の括弧と空白は、深さにも結合子にも数えない。
+    if (ch === '"' || ch === "'") {
+      i = skipString(selector, i, { lenient: true }) - 1;
       continue;
     }
     depth += bracketDelta(ch);
-    if (depth === 0 && (/\s/.test(ch) || ch === ">" || ch === "+" || ch === "~")) lastBreak = i;
+    // 子孫結合子は CSS の空白（空白・タブ・改行・CR・FF）だけで、NBSP などは識別子の一部である
+    if (depth === 0 && (/[ \t\n\r\f]/.test(ch) || ch === ">" || ch === "+" || ch === "~"))
+      lastBreak = i;
   }
   return lastBreak;
+}
+
+/**
+ * 引用符で囲んだ文字列の中身と、エスケープ（`\:`）を空白に置き換える（位置は変えない）。
+ * エスケープした `:` は識別子の一部（`.a\:hover`）で、擬似クラスの始まりではない。
+ * @param {string} text
+ * @returns {string}
+ */
+function blankStrings(text) {
+  let out = "";
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === "\\") {
+      const end = escapeEnd(text, i);
+      out += " ".repeat(end - i);
+      i = end;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      const end = Math.min(skipString(text, i, { lenient: true }), text.length);
+      out += ch + " ".repeat(Math.max(end - i - 2, 0)) + (end - i >= 2 ? text[end - 1] : "");
+      i = end;
+      continue;
+    }
+    out += ch;
+    i += 1;
+  }
+  return out;
 }
 
 /**
@@ -447,7 +507,8 @@ export function statesOutsideSubject(selector, states) {
   // トップレベルの結合子で分割し、最後の断片を主語とする（括弧・文字列の中では分割しない）。
   const lastBreak = lastTopLevelCombinator(selector);
   if (lastBreak < 0) return []; // 結合子が無い＝主語だけのセレクタ
-  const outside = selector.slice(0, lastBreak + 1);
+  // 引用符の中とエスケープした `\:` の後ろの `hover` などは状態擬似クラスではないので、照合の前に空白に置き換える。
+  const outside = blankStrings(selector.slice(0, lastBreak + 1));
   const found = [];
   for (const state of states) {
     // 名前は小文字で記録されるが、セレクタ側の綴りは大小どちらもありうる。
@@ -1283,26 +1344,18 @@ const USAGE = [
   "exit 0=全て resolved / absent、1=undecidable が 1 件以上、2=入力エラー",
 ].join("\n");
 
-/** 値として受け取らない既知のフラグ名。 */
-const FLAGS = new Set(["--css-rules", "--state", "--property", "--all"]);
-
 /**
- * フラグの値を読む。値が無い・空・フラグに見えるなら投げる。
- * CSS カスタムプロパティ（`--brand-color`）は `--property` の値として正当なので、
- * 「`--` で始まる」だけでは弾かない（弾くと custom property の勝者を確定できない）。
- * 取り違えを拾うため、既知のフラグ名そのものは値として受け取らない。
- * @param {string} name フラグ名
- * @param {string | undefined} value フラグの次の引数
- * @returns {string}
+ * 受け付ける引数。`--state` と `--property` は繰り返してよい。
+ * CSS カスタムプロパティ（`--brand-color`）は `--property` の値として正当なので、`--property` は `--` で始まる値を受け付ける。
+ * 取り違えを拾うため、このスクリプトが受け付ける名前（`--allow-incomplete` など）は値として受け取らない。
+ * @type {import("./lib/flags.mjs").FlagSpec}
  */
-function flagValue(name, value) {
-  const looksLikeFlag =
-    value !== undefined && value.startsWith("--") && (name !== "--property" || FLAGS.has(value));
-  if (value === undefined || value.trim() === "" || looksLikeFlag) {
-    throw new UsageError(`${name} requires a value`);
-  }
-  return value;
-}
+const FLAG_SPEC = {
+  values: ["--css-rules", "--state", "--property"],
+  repeat: ["--state", "--property"],
+  bools: ["--all", "--allow-incomplete"],
+  dashValues: ["--property"],
+};
 
 /**
  * 必須の `--state` と、`--property` と `--all` の組み合わせを確かめる（誤りは UsageError を投げる）。
@@ -1330,23 +1383,14 @@ function checkArgCombination({ states, properties, all }) {
  * @returns {{ cssRules: string, states: string[], properties: string[], all: boolean, allowIncomplete: boolean }}
  */
 function parseArgs(argv) {
-  let cssRules = null;
-  const states = [];
-  const properties = [];
-  let all = false;
-  let allowIncomplete = false;
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    const takesValue = arg === "--css-rules" || arg === "--state" || arg === "--property";
-    const value = takesValue ? flagValue(arg, argv[i + 1]) : "";
-    if (takesValue) i += 1;
-    if (arg === "--css-rules") cssRules = value;
-    else if (arg === "--state") states.push(value);
-    else if (arg === "--property") properties.push(value);
-    else if (arg === "--all") all = true;
-    else if (arg === "--allow-incomplete") allowIncomplete = true;
-    else throw new UsageError(`unknown argument ${JSON.stringify(arg)}`);
-  }
+  const parsed = parseFlags(argv, FLAG_SPEC);
+  if (parsed.error !== undefined) throw new UsageError(parsed.error);
+  const { strings, lists, bools } = parsed;
+  const cssRules = strings["--css-rules"] ?? null;
+  const states = lists["--state"] ?? [];
+  const properties = lists["--property"] ?? [];
+  const all = bools["--all"] === true;
+  const allowIncomplete = bools["--allow-incomplete"] === true;
   if (cssRules === null) throw new UsageError("--css-rules is required");
   checkArgCombination({ states, properties, all });
   return { cssRules, states, properties, all, allowIncomplete };

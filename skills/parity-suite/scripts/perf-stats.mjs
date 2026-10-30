@@ -23,6 +23,7 @@ import { isAbsolute, resolve, sep } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
+import { parseFlags, stripDashes } from "./lib/flags.mjs";
 import { isPlainObject, nonEmptyString, nonNegativeNumber } from "./lib/guards.mjs";
 
 /**
@@ -1152,22 +1153,15 @@ function realInsideRoot(path, io) {
   return real === root || real.startsWith(root.endsWith(sep) ? root : `${root}${sep}`);
 }
 
-/**
- * 値を取る引数がサブコマンドで受け付けるものかと、値が在るかを確かめて、値を返す。
- * @param {"summarize" | "compare"} command
- * @param {string} a - 引数の名前
- * @param {string | undefined} v - 引数の次の要素
- * @returns {string}
- */
-function flagValue(command, a, v) {
-  const allowed =
-    command === "summarize"
-      ? ["--metadata", "--samples", "--floor", "--relative-floor"]
-      : ["--metadata", "--samples", "--target", "--write"];
-  if (!allowed.includes(a)) throw new UsageError(`不明な引数 ${a}`);
-  if (v === undefined || v === "" || v.startsWith("--")) throw new UsageError(`${a} に値が無い`);
-  return v;
-}
+/** サブコマンドごとに受け付ける引数。--floor と --relative-floor だけは重ねてよい。 */
+const FLAG_SPECS = {
+  summarize: {
+    values: ["--metadata", "--samples", "--floor", "--relative-floor"],
+    repeat: ["--floor", "--relative-floor"],
+    bools: ["--write"],
+  },
+  compare: { values: ["--metadata", "--samples", "--target", "--write"] },
+};
 
 /**
  * サブコマンドの後の引数を読む。
@@ -1176,32 +1170,14 @@ function flagValue(command, a, v) {
  * @returns {{ opts: Record<string, string>, floorSpecs: string[], relativeFloorSpecs: string[], writeFlag: boolean }}
  */
 function parseArgs(command, rest) {
-  /** @type {Record<string, string>} */
-  const opts = {};
-  /** @type {string[]} */
-  const floorSpecs = [];
-  /** @type {string[]} */
-  const relativeFloorSpecs = [];
-  let writeFlag = false;
-  for (let i = 0; i < rest.length; i += 1) {
-    const a = rest[i];
-    if (command === "summarize" && a === "--write") {
-      writeFlag = true;
-      continue;
-    }
-    const v = flagValue(command, a, rest[i + 1]);
-    i += 1;
-    if (a === "--floor") {
-      floorSpecs.push(v);
-      continue;
-    }
-    if (a === "--relative-floor") {
-      relativeFloorSpecs.push(v);
-      continue;
-    }
-    if (Object.hasOwn(opts, a.slice(2))) throw new UsageError(`${a} が重複している`);
-    opts[a.slice(2)] = v;
-  }
+  const parsed = parseFlags(rest, FLAG_SPECS[command]);
+  if (parsed.error !== undefined) throw new UsageError(parsed.error);
+  const { strings, lists, bools } = parsed;
+  // compare の --write は値（書き込み先）を取るので strings に入り、summarize の --write は bools に入る。
+  const opts = stripDashes(strings);
+  const floorSpecs = lists["--floor"] ?? [];
+  const relativeFloorSpecs = lists["--relative-floor"] ?? [];
+  const writeFlag = command === "summarize" && bools["--write"] === true;
   if (!opts.metadata || !opts.samples) throw new UsageError("--metadata と --samples が要る");
   return { opts, floorSpecs, relativeFloorSpecs, writeFlag };
 }

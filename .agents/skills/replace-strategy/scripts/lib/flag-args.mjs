@@ -1,27 +1,5 @@
-// `--名前 値` の形の引数だけを受け付ける CLI が共有する、引数の読み取りと、stdout・stderr への出力。
-// 必須の引数と値の検査は、各 CLI が受け取った後に行う。
+// `--名前 値` の形の引数だけを受け付ける CLI が共有する、stdout・stderr への出力。引数は lib/flags.mjs の parseFlags で読む。
 // このファイルは、同じ内容を複数の配布スキルが持つ。スキルの中で完結させるため、共有せずにコピーする。
-
-/**
- * `--名前 値` の組を読む。未知の名前・値の無い名前・2 回目の名前があれば、error に理由を入れて返す。
- * @param {string[]} argv
- * @param {ReadonlySet<string>} known 受け付ける名前
- * @returns {{ args: Record<string, string>, error?: undefined } | { args?: undefined, error: string }}
- */
-function parseFlagArgs(argv, known) {
-  /** @type {Record<string, string>} */
-  const args = {};
-  for (let i = 0; i < argv.length; i += 1) {
-    const key = argv[i];
-    if (!known.has(key)) return { error: `未知の引数: ${key}` };
-    const value = argv[i + 1];
-    if (value === undefined || value.startsWith("--")) return { error: `${key} に値が無い` };
-    if (Object.hasOwn(args, key)) return { error: `${key} が重複している` };
-    args[key] = value;
-    i += 1;
-  }
-  return { args };
-}
 
 /**
  * @typedef {{ out: (value: unknown) => void, fail: (message: string) => number }} Io
@@ -43,4 +21,4 @@ function makeIo(deps, usage) {
   return { out, fail };
 }
 
-export { makeIo, parseFlagArgs };
+export { makeIo };

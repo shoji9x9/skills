@@ -26,6 +26,7 @@
 import { readFileSync } from "node:fs";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
+import { parseFlags, stripDashes } from "./lib/flags.mjs";
 import { isObjectLike, isPlainObject } from "./lib/guards.mjs";
 import { intentionalEntryText } from "./lib/intentional.mjs";
 import { valueText } from "./lib/value-text.mjs";
@@ -712,25 +713,16 @@ function jsonKind(v) {
 const VALUE_FLAGS = ["--registries", "--slug", "--page", "--state", "--viewport", "--noise"];
 
 /**
- * 引数を位置引数と値を取るオプションに分ける。
+ * 引数を位置引数と値を取るオプションに分ける。誤り（知らない名前・値の無い名前・2 回目の名前・2 つ目の位置引数）は文字列で返す。
+ * opts のキーは、名前から `--` を外したものである。
  *
  * @param {string[]} argv
- * @returns {{ positionals: string[], opts: Record<string, string | undefined> }}
+ * @returns {{ positionals: string[], opts: Record<string, string | undefined>, error?: undefined } | { error: string }}
  */
 function splitArgs(argv) {
-  const positionals = [];
-  /** @type {Record<string, string | undefined>} */
-  const opts = {};
-  for (let i = 0; i < argv.length; i += 1) {
-    const a = argv[i];
-    if (VALUE_FLAGS.includes(a)) {
-      opts[a.slice(2)] = argv[i + 1];
-      i += 1;
-    } else {
-      positionals.push(a);
-    }
-  }
-  return { positionals, opts };
+  const parsed = parseFlags(argv, { values: VALUE_FLAGS, positionals: 1 });
+  if (parsed.error !== undefined) return { error: parsed.error };
+  return { positionals: parsed.positionals, opts: stripDashes(parsed.strings) };
 }
 
 /**
@@ -882,7 +874,12 @@ function warnUnusedProse({ registries, diffs, classified, ctx }) {
 export function main(argv) {
   const usage =
     "usage: node diff-normalize.mjs <trait-diffs.json> --registries <registries.json> --slug <slug> [--page <p> --state <s> --viewport <v>] [--noise <metadata.json>]\n";
-  const { positionals, opts } = splitArgs(argv);
+  const split = splitArgs(argv);
+  if (split.error !== undefined) {
+    process.stderr.write(`error: ${split.error}\n${usage}`);
+    return 2;
+  }
+  const { positionals, opts } = split;
   if (positionals.length !== 1 || !opts.registries || !opts.slug) {
     process.stderr.write(usage);
     return 2;

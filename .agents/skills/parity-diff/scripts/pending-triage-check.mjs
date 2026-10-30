@@ -30,7 +30,7 @@
 import { readFileSync } from "node:fs";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
-import { parseFlagOpts } from "./lib/flag-opts.mjs";
+import { parseCheckArgs } from "./lib/check-args.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 import { intentionalEntryText } from "./lib/intentional.mjs";
 import { valueText } from "./lib/value-text.mjs";
@@ -88,7 +88,7 @@ export function matchKey(v) {
 /**
  * slug 表の中の 1 行を読み、表の状態を進める。本体の行なら 1 列目を、ヘッダと区切りの行なら null を返す。
  *
- * @param {{ sawSlugTable: boolean, inSlugTable: boolean, sawSeparator: boolean }} table - 読んでいる表の状態（この関数が更新する）
+ * @param {{ sawSlugTable: boolean, inSlugTable: boolean, sawSeparator: boolean, headerCells: number }} table - 読んでいる表の状態（この関数が更新する）。headerCells はヘッダの列の数
  * @param {string[]} cells
  * @returns {string|null}
  */
@@ -98,12 +98,16 @@ function readSlugTableRow(table, cells) {
       table.inSlugTable = true;
       table.sawSlugTable = true;
       table.sawSeparator = false;
+      table.headerCells = cells.length;
     }
     return null;
   }
   if (!table.sawSeparator) {
     // 区切り行が無い表はヘッダと本体を区別できないので読まない。
-    if (/^:?-{2,}:?$/.test(cells[0] ?? "")) table.sawSeparator = true;
+    // GFM の区切り行のハイフンは 1 個以上（`|-|-|` も区切り行）。1 列目の空欄を `-` で書いた本体の行と分けるため、すべての列を見る。
+    // GFM は列の数がヘッダと違う区切り行を表として読まない。
+    const separator = cells.length === table.headerCells && cells.every((c) => /^:?-+:?$/.test(c));
+    if (separator) table.sawSeparator = true;
     else table.inSlugTable = false;
     return null;
   }
@@ -123,14 +127,15 @@ function readSlugTableRow(table, cells) {
  */
 export function parseFeatureSlugs(markdown) {
   /** @param {string} line */
+  // GFM と同じく、エスケープした `\|` は列の区切りにしない（ヘッダと区切り行の列の数を比べるため）
   const cellsOf = (line) =>
     line
       .replace(/^\|/, "")
-      .replace(/\|$/, "")
-      .split("|")
-      .map((c) => c.trim());
+      .replace(/(?<!\\)\|$/, "")
+      .split(/(?<!\\)\|/)
+      .map((c) => c.trim().replaceAll("\\|", "|"));
   const slugs = new Set();
-  const table = { sawSlugTable: false, inSlugTable: false, sawSeparator: false };
+  const table = { sawSlugTable: false, inSlugTable: false, sawSeparator: false, headerCells: 0 };
   for (const rawLine of markdown.split("\n")) {
     const line = rawLine.trim();
     if (!line.startsWith("|")) {
@@ -666,13 +671,11 @@ const USAGE =
  * @returns {Record<string, string>|null}
  */
 function parseArgs(argv) {
-  const opts = parseFlagOpts(argv, ["--registries", "--metadata", "--features"], USAGE);
-  if (opts === null) return null;
-  if (!opts.registries || !opts.metadata) {
-    process.stderr.write(USAGE);
-    return null;
-  }
-  return opts;
+  return parseCheckArgs(argv, {
+    values: ["--registries", "--metadata", "--features"],
+    required: ["registries", "metadata"],
+    usage: USAGE,
+  });
 }
 
 /**

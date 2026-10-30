@@ -559,16 +559,18 @@ test.each<[string, { issueData?: Record<string, unknown>; tableData?: unknown }]
   expect(r.json?.structural).toBe(true);
 });
 
-test.each<[string, string[]]>([
-  ["未知の引数", ["--nope", "x"]],
-  ["値の無い引数", ["--head"]],
-  ["次の引数を値として読まない", ["--root", "--head"]],
-  ["同じ引数の重複", ["--root", ".", "--root", "."]],
-])("引数の誤りは exit 2 で使い方を出す: %s", (_label, extra) => {
+test.each<[string, string[], string]>([
+  ["未知の引数", ["--nope", "x"], "不明な引数: --nope"],
+  ["余分な位置引数", ["extra"], "不明な引数: extra"],
+  ["値の無い引数", ["--head"], "--head に値が無い"],
+  ["空の値", ["--root", ""], "--root に値が無い"],
+  ["次の引数を値として読まない", ["--root", "--head"], "--root に値が無い"],
+  ["同じ引数の重複", ["--root", ".", "--root", "."], "--root が重複している"],
+])("引数の誤りは exit 2 で理由と使い方を出す: %s", (_label, extra, reason) => {
   const r = run({ extra });
   expect(r.code).toBe(2);
   expect(r.json).toBeNull();
-  expect(r.stderr).toContain("usage:");
+  expect(r.stderr).toContain(`${reason}\nusage:`);
 });
 
 test("JSON として読めない入力ファイルと、pending_decisions の無い --decisions は exit 2", () => {

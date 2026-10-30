@@ -29,6 +29,7 @@ import { configPaths } from "./skill-config/skill-config.mjs";
 import { decisionFor, saveDecision } from "./lib/decisions.mjs";
 import { gateDecision, readHookInput } from "./lib/gate.mjs";
 import { branchMerged } from "./lib/merged.mjs";
+import { parseFlags } from "./lib/flags.mjs";
 import { git, isDecisionBranch, repoInfo } from "./lib/repo.mjs";
 import { usageDir } from "./lib/records.mjs";
 import { runCollect } from "./lib/run-collect.mjs";
@@ -48,25 +49,19 @@ const USAGE = [
 ].join("\n");
 
 /**
+ * サブコマンドの引数を読む。誤りは UsageError にする。
  * @param {string[]} args
  * @param {readonly string[]} flags 値を取らない引数
  * @param {readonly string[]} options 値を取る引数
  * @returns {{ flags: Set<string>; options: Map<string, string> }}
  */
 function parseArgs(args, flags, options) {
-  const out = { flags: new Set(), options: new Map() };
-  for (let i = 0; i < args.length; i += 1) {
-    const a = args[i];
-    if (flags.includes(a)) out.flags.add(a);
-    else if (options.includes(a)) {
-      const v = args[i + 1];
-      if (v === undefined || v === "") throw new UsageError(`${a} に値が無い`);
-      if (out.options.has(a)) throw new UsageError(`${a} が 2 回ある`);
-      out.options.set(a, v);
-      i += 1;
-    } else throw new UsageError(`知らない引数: ${a}`);
-  }
-  return out;
+  const parsed = parseFlags(args, { values: options, bools: flags });
+  if (parsed.error !== undefined) throw new UsageError(parsed.error);
+  return {
+    flags: new Set(Object.keys(parsed.bools)),
+    options: new Map(Object.entries(parsed.strings)),
+  };
 }
 
 class UsageError extends Error {}

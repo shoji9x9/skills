@@ -31,6 +31,7 @@ import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { fileIo } from "./lib/file-io.mjs";
 import { errorMessage } from "./lib/errors.mjs";
+import { parseFlags, stripDashes } from "./lib/flags.mjs";
 import { isFiniteNumber, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
 /**
@@ -878,54 +879,24 @@ function makeCheckWriter(io, state) {
 }
 
 /**
- * 値を取るオプションか。--write は check でだけ値（書き込み先）を取る。
- * @param {"fit" | "check"} mode
- * @param {string} a
- */
-function takesValue(mode, a) {
-  return (
-    a === "--samples" ||
-    a === "--metadata" ||
-    a === "--tolerance" ||
-    (mode === "check" && (a === "--write" || a === "--current-samples"))
-  );
-}
-
-/**
- * 値を取るオプションの値を確かめて opts に入れる。
- * @param {Record<string, string | true>} opts - 読んだオプション（書き足す）
- * @param {string} a - オプションの名前
- * @param {string | undefined} v - オプションの次の要素
- */
-function setValueOption(opts, a, v) {
-  if (!nonEmptyString(v) || v.startsWith("--")) throw new UsageError(`${a} に値が無い`);
-  // 同じオプションの重複は後勝ちにしない（どちらの値で動いたかが曖昧になる）
-  if (Object.hasOwn(opts, a.slice(2))) throw new UsageError(`${a} が重複している`);
-  opts[a.slice(2)] = v;
-}
-
-/**
- * モードの後の引数を読む。
+ * モードの後の引数を読む。--write は、check では値（書き込み先）を取り、fit では値を取らない。
+ * 同じオプションの重複は、どちらの値で動いたかが曖昧になるので、parseFlags が止める。
  * @param {"fit" | "check"} mode
  * @param {string[]} rest
  * @returns {Record<string, string | true>}
  */
 function parseOptions(mode, rest) {
-  /** @type {Record<string, string | true>} */
-  const opts = {};
-  for (let i = 0; i < rest.length; i += 1) {
-    const a = rest[i];
-    if (a === "--write" && mode === "fit") {
-      if (opts.write === true) throw new UsageError("--write が重複している");
-      opts.write = true;
-    } else if (takesValue(mode, a)) {
-      setValueOption(opts, a, rest[i + 1]);
-      i += 1;
-    } else {
-      throw new UsageError(`不明な引数 ${a}`);
-    }
-  }
-  return opts;
+  const common = ["--samples", "--metadata", "--tolerance"];
+  const parsed = parseFlags(
+    rest,
+    mode === "check"
+      ? { values: [...common, "--write", "--current-samples"] }
+      : { values: common, bools: ["--write"] },
+  );
+  // 空白だけの値（`--tolerance " "` など）は、parseFlags が値の書き忘れとして止める。
+  if (parsed.error !== undefined) throw new UsageError(parsed.error);
+  // --write は、check では strings に、fit では bools に入る。
+  return stripDashes({ ...parsed.strings, ...parsed.bools });
 }
 
 /**
