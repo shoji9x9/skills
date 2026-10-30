@@ -77,6 +77,7 @@ tests/<skill>/iteration-N/
 各 run の `eval-fingerprint.json` は、次の値を正規化した JSON にまとめ、SHA-256 のハッシュにしたものである。
 prompt、対象の assertion、fixture、`requires_skills`（名前と、置いた内容のハッシュ）、executor、model、reasoning effort、CLI と harness のバージョン。
 `without_skill` の `--reuse-baseline` は、fingerprint が一致し成果物がそろっていることを確かめてから、前の run を再利用する。run の中にシンボリックリンクか、通常のファイルとディレクトリ以外（FIFO・socket など）があれば、再利用しない。再利用した run には `baseline-reuse.json` を足す。
+この確認は、確かめてからコピーし終えるまでの間に、前の run と再利用の先を別の処理が書き換えないことを前提にする。eval の run は同じ利用者が手元で順に実行するので、並行して書き換える処理は無い。
 `scripts/eval/normalize-skill-eval-result.ts` とそのテストが、どちらの executor でも必須のフィールドがあることと、token の数え方がそろっていることを確かめる。
 `outputs/metrics.json` の `tool_calls` と `total_tool_calls` は、raw trace から数えられる run にだけ置く。
 ツールの記録を持たない trace（古い `--output-format json` の、`result` イベントが 1 つだけのもの）では、`0` で埋めずに省く。

@@ -92,7 +92,7 @@ function assertArtifactsPresent(source: string): void {
 }
 
 /**
- * 通常のファイルとディレクトリ以外の要素を、木を確かめるときとコピーするときの両方で同じ文で拒否する。
+ * 通常のファイルとディレクトリ以外の要素を拒否する。
  * 判定に使った lstat の結果を返し、呼び出し側はそれで再帰するかを決める（readdir の型と食い違わないように）。
  */
 function assertFileOrDirectory(path: string, name: string): Stats {
@@ -241,8 +241,9 @@ export function removePartialTarget(target: string, cause: unknown): never {
 }
 
 /**
- * 確かめた木を target にコピーし、再利用の記録を書く。確かめた後に足されたリンクや FIFO も、コピーする要素ごとに
- * 同じ判定で拒否する。ルートは確かめた realSource なので filter を当てない。
+ * 確かめた木を target にコピーし、再利用の記録を書く。
+ * 確かめた後に source の中身が変わる場合と、並行して実行した別の呼び出しが target を作る場合は扱わない
+ * （PR #832 の判断）。eval の木は同じ利用者が手元で順に実行するハーネスが書き、並行して書き換える書き手がいない。
  * 既にある target に当たった失敗（isExistError）では、target を消さずにそのまま投げる。
  * それ以外の理由で失敗したら（拒否・EACCES・書き込みの失敗）、この呼び出しが作った target を消す。
  * 消せなかったときは、元の失敗と消せなかった理由の両方を報告する（removePartialTarget）。
@@ -250,16 +251,7 @@ export function removePartialTarget(target: string, cause: unknown): never {
  */
 function copyVerifiedTree(realSource: string, target: string, writeRecord: () => void): void {
   try {
-    cpSync(realSource, target, {
-      recursive: true,
-      force: false,
-      errorOnExist: true,
-      // 拒否するときは例外を投げる。false を返して要素を飛ばすことはしない。
-      filter: (path) => {
-        if (path !== realSource) assertFileOrDirectory(path, relative(realSource, path));
-        return true;
-      },
-    });
+    cpSync(realSource, target, { recursive: true, force: false, errorOnExist: true });
     makeTreeOwnerWritable(target);
     writeRecord();
   } catch (error) {
