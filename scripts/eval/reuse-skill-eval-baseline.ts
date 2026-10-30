@@ -11,7 +11,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { errorMessage, isErrnoException } from "../lib/errors.ts";
+import { errorMessage } from "../lib/errors.ts";
 import { parseJsonAs } from "../lib/parse-as.ts";
 import { showValue } from "../lib/show-value.ts";
 import { isCliEntry } from "../lib/cli/entry.ts";
@@ -197,17 +197,6 @@ function validateReusableBaseline(realSource: string, expectedFingerprint: Finge
 }
 
 /**
- * 既にある target に当たったときの cpSync の失敗か。この呼び出しが target を作っていないので、消さない。
- * 既にあるディレクトリには ERR_FS_CP_EEXIST、既にあるファイルには ERR_FS_CP_DIR_TO_NON_DIR が返る（Node で実測）。
- */
-function isExistError(error: unknown): boolean {
-  return (
-    isErrnoException(error) &&
-    ["ERR_FS_CP_EEXIST", "ERR_FS_CP_DIR_TO_NON_DIR", "EEXIST"].includes(String(error.code))
-  );
-}
-
-/**
  * コピーした木のファイルとディレクトリに、所有者の書き込みを足す。cpSync は mode もコピーするので、
  * 読み取り専用の baseline（chmod -R a-w で守ったもの）を再利用すると、target も書き換えも削除もできなくなる。
  * リンクなど通常のファイルとディレクトリ以外は、chmod が指す先に当たるので触らない。
@@ -244,8 +233,7 @@ export function removePartialTarget(target: string, cause: unknown): never {
  * 確かめた木を target にコピーし、再利用の記録を書く。
  * 確かめた後に source の中身が変わる場合と、並行して実行した別の呼び出しが target を作る場合は扱わない
  * （PR #832 の判断）。eval の木は同じ利用者が手元で順に実行するハーネスが書き、並行して書き換える書き手がいない。
- * 既にある target に当たった失敗（isExistError）では、target を消さずにそのまま投げる。
- * それ以外の理由で失敗したら（拒否・EACCES・書き込みの失敗）、この呼び出しが作った target を消す。
+ * コピーか記録の書き込みに失敗したら（EACCES など）、この呼び出しが作った target を消す。
  * 消せなかったときは、元の失敗と消せなかった理由の両方を報告する（removePartialTarget）。
  * 読み取り専用の baseline でも記録を書けるよう、コピーした後に木の全体へ所有者の書き込みを足す（makeTreeOwnerWritable）。
  */
@@ -255,7 +243,6 @@ function copyVerifiedTree(realSource: string, target: string, writeRecord: () =>
     makeTreeOwnerWritable(target);
     writeRecord();
   } catch (error) {
-    if (isExistError(error)) throw error;
     removePartialTarget(target, error);
   }
 }
