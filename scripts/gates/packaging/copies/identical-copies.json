@@ -15,6 +15,13 @@
     },
     {
       "files": [
+        "skills/pr-review-handle/references/pattern-search.md",
+        "skills/pr-finalize-loop/references/pattern-search.md"
+      ],
+      "reason": "書き方の形を指す指摘を、PR の差分全体で探す手順（Issue #794 で足し、#840 でまとめた）。姉妹スキルで食い違うと、片方だけが古いベースと比べたり、まだ commit していない行を探し損ねたりする"
+    },
+    {
+      "files": [
         "skills/issue-create/assets/issue-templates/bug_report.md",
         ".github/ISSUE_TEMPLATE/bug_report.md"
       ],
