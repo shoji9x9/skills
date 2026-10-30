@@ -22,7 +22,7 @@ applyTo: "skills/**"
 - このリポジトリのツールの選択（pnpm・mise・oxlint・リポジトリ内のパス）を前提に、手順やスクリプトが動く書き方。
 - このリポジトリにしか無いファイル（ワークフロー・スクリプト・設定）を、パスを書かずに名前だけで挙げる記述（「`outdated.yml` とずらす」など）。
   導入先には同じ名前のファイルが無いことが多く、読む人は何を指すのかを読み取れない。同じ名前の別のファイルがあれば、それと取り違える。
-  名前を書かずに、何をするかだけを書く（「同じ runner を使うほかの週次の処理と時刻をずらす」など）。
+  名前を書かずに、何をするかだけを書く（「ほかの週次のワークフローと実行の時刻をずらす」など）。
 
 ## 許すもの
 
@@ -31,8 +31,9 @@ applyTo: "skills/**"
 - 例として挙げる書き方（「lefthook など」「mise・asdf など」）と、特定のツールを使うプロジェクトでだけ読む手順（pnpm の推移的な依存の更新など）。
 - 未使用でも報告されず、その規則が無いプロジェクトでは何もしない指示のコメント（textlint・markdownlint・shellcheck）。
 - 特定のツールとバージョンで確かめたという実測の記録。
+- 配布元のリポジトリを名前で示したうえで、そこにあるファイルを挙げる記述（生成したファイルの先頭の「配布元（`<owner>/<repo>`）の `<スクリプト>` で作る」など）。
 
 使われない抑止を報告されうる指示のコメントは、`scripts/gates/code/check-skill-lint-directives.ts` が lefthook の pre-commit と CI の `Lint` ジョブでチェックする。
-このリポジトリのパスを書いた記述は、`scripts/gates/docs/check-doc-refs.ts` が `dist-repo-path` で検出する。
-パスを書かずにファイル名だけを書いた記述は検出しないので、レビューで確かめる。
+このリポジトリの `docs/`・`.agents/rules/`・`scripts/`・`evals/`・`tests/` の下のパスを書いた記述は、`scripts/gates/docs/check-doc-refs.ts` が `dist-repo-path` で検出する。
+`.github/` とリポジトリの直下のファイル（`lefthook.yml` など）のパスと、パスを書かずにファイル名だけを書いた記述は検出しないので、レビューで確かめる。
 基底ドキュメントの決め打ちは、`distributed-skill-base-doc-generalization.md` で扱う。

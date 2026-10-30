@@ -2,7 +2,8 @@ name: Outdated tools
 
 on:
   schedule:
-    - cron: "0 0 * * 1" # 毎週月曜 00:00 UTC (09:00 JST)
+    # 毎週月曜 00:00 UTC (09:00 JST)。kaizen-schedule.yml（01:00 UTC）と実行の時刻をずらす。
+    - cron: "0 0 * * 1"
   workflow_dispatch: {}
 
 concurrency:

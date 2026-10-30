@@ -40,3 +40,6 @@ ci:40910402057:1,ci,2026-10-30T04:17:33.216Z,p-cdee4961,github-actions,,,,2026-1
 ci:40909081970:1,ci,2026-10-30T04:17:33.216Z,p-cdee4961,github-actions,,,,2026-10-29T16:11:20.000Z,2026-10-29T16:11:27.000Z,Asia/Tokyo,feature/818-shared-flag-parser,818,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:40909081738:1,ci,2026-10-30T04:17:33.216Z,p-cdee4961,github-actions,,,,2026-10-29T16:11:20.000Z,2026-10-29T16:17:49.000Z,Asia/Tokyo,feature/818-shared-flag-parser,818,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-28T16:10:19.584Z:2026-10-30T04:17:33.216Z,coverage,2026-10-30T04:17:33.216Z,p-cdee4961,,,,,2026-10-28T16:10:19.584Z,2026-10-30T04:17:33.216Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:41001762281:1,ci,2026-10-30T04:24:24.887Z,p-cdee4961,github-actions,,,,2026-10-30T04:14:12.000Z,2026-10-30T04:18:18.000Z,Asia/Tokyo,feature/766-raw-trace-realpath,766,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-29T04:17:33.216Z:2026-10-30T04:24:24.887Z,coverage,2026-10-30T04:24:24.887Z,p-cdee4961,,,,,2026-10-29T04:17:33.216Z,2026-10-30T04:24:24.887Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-29T04:24:24.887Z:2026-10-30T04:25:36.874Z,coverage,2026-10-30T04:25:36.874Z,p-cdee4961,,,,,2026-10-29T04:24:24.887Z,2026-10-30T04:25:36.874Z,Asia/Tokyo,,,,,,,,,,,,ok,
