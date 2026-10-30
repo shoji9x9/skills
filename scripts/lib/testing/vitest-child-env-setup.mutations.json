@@ -1,15 +1,15 @@
 {
   "$comment": [
-    "vitest-git-env-setup.test.ts の検出能力を示す変異の一覧。",
+    "vitest-child-env-setup.test.ts の検出能力を示す変異の一覧。",
     "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
   ],
-  "test_file": "scripts/lib/testing/vitest-git-env-setup.test.ts",
+  "test_file": "scripts/lib/testing/vitest-child-env-setup.test.ts",
   "mutations": [
     {
       "id": "not-cleared-on-import",
       "why": "モジュールを読み込んでも process.env から外さない",
-      "file": "scripts/lib/testing/vitest-git-env-setup.ts",
+      "file": "scripts/lib/testing/vitest-child-env-setup.ts",
       "find": "clearRepoLocalGitEnv(process.env);",
       "replace": "",
       "occurrences": 1,
@@ -20,7 +20,7 @@
     {
       "id": "list-entry-dropped",
       "why": "一覧から GIT_WORK_TREE が抜けても、一覧の名前だけで組み立てたテストは通ってしまう",
-      "file": "scripts/lib/testing/vitest-git-env-setup.ts",
+      "file": "scripts/lib/testing/vitest-child-env-setup.ts",
       "find": "  \"GIT_WORK_TREE\",\n",
       "replace": "",
       "occurrences": 1,

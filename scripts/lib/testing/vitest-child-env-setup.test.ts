@@ -1,19 +1,24 @@
-// setupFiles が外す git の環境変数の範囲と、読み込んだだけで外すことの回帰テスト。
+// setupFiles が外す環境変数（git と GitHub Actions）の範囲と、読み込んだだけで外すことの回帰テスト。
 //
 // | 軸         | 値                                                                    |
 // | ---------- | --------------------------------------------------------------------- |
 // | 名前       | 一覧の名前 / GIT_CONFIG_KEY_<n>・GIT_CONFIG_VALUE_<n> / 一覧に無い名前 |
 // | 一致       | 完全一致 / 一覧の名前を前方に含む別の名前                             |
-// | 呼び出し方 | 関数を呼ぶ / モジュールを読み込むだけ                                 |
-// | 一覧の出所 | 実物の `git rev-parse --local-env-vars` の出力                         |
+// | 呼び出し方 | 関数を呼ぶ / モジュールを読み込むだけ（git と GitHub Actions の両方） |
+// | 一覧の出所 | git: 実物の `git rev-parse --local-env-vars` の出力                    |
+// |            | GitHub Actions: 文書の environment files をテストに直接書いた名前     |
 import { spawnSync } from "node:child_process";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { expect, test } from "vitest";
 import config from "../../../vitest.config.ts";
 import { makeTempDir } from "./test-tmpdir.ts";
-import { REPO_LOCAL_GIT_ENV, clearRepoLocalGitEnv } from "./vitest-git-env-setup.ts";
+import {
+  REPO_LOCAL_GIT_ENV,
+  clearActionsFileCommandEnv,
+  clearRepoLocalGitEnv,
+} from "./vitest-child-env-setup.ts";
 
 test("一覧の名前と GIT_CONFIG_KEY_<n>・GIT_CONFIG_VALUE_<n> を消し、他の名前は残す", () => {
   const env: NodeJS.ProcessEnv = {
@@ -39,12 +44,40 @@ test("一覧の名前と GIT_CONFIG_KEY_<n>・GIT_CONFIG_VALUE_<n> を消し、�
   ]);
 });
 
+test("GitHub Actions のジョブへ追記するファイルの変数を消し、他の GITHUB_ の変数は残す", () => {
+  const env: NodeJS.ProcessEnv = {
+    GITHUB_ACTIONS: "true",
+    GITHUB_WORKSPACE: "/w",
+    GITHUB_STEP_SUMMARYX: "keep",
+    PATH: "/bin",
+  };
+  // 一覧から名前が抜けても気付けるように、一覧を回さず、文書の名前をここに直接書く
+  const fromDocs = [
+    "GITHUB_ARTIFACTS",
+    "GITHUB_ENV",
+    "GITHUB_OUTPUT",
+    "GITHUB_PATH",
+    "GITHUB_STATE",
+    "GITHUB_STEP_SUMMARY",
+  ];
+  for (const name of fromDocs) env[name] = "/tmp/x";
+
+  clearActionsFileCommandEnv(env);
+
+  expect(Object.keys(env).sort()).toEqual([
+    "GITHUB_ACTIONS",
+    "GITHUB_STEP_SUMMARYX",
+    "GITHUB_WORKSPACE",
+    "PATH",
+  ]);
+});
+
 // spawnSync は同期の呼び出しで vitest のタイムアウトが発火しないので、呼び出しごとにタイムアウトを付ける。
 const TIMEOUT_MS = 10_000;
 
 test("実物の git が挙げるリポジトリに固有の変数を、一覧がすべて含む", () => {
   const res = spawnSync("git", ["rev-parse", "--local-env-vars"], {
-    cwd: makeTempDir("vitest-git-env-setup-"),
+    cwd: makeTempDir("vitest-child-env-setup-"),
     encoding: "utf8",
     timeout: TIMEOUT_MS,
   });
@@ -55,11 +88,11 @@ test("実物の git が挙げるリポジトリに固有の変数を、一覧が
 });
 
 test("実リポジトリの vitest.config.ts が、他の setupFiles より先にこの setup を読み込む", () => {
-  expect(config.test?.setupFiles?.[0]).toBe("scripts/lib/testing/vitest-git-env-setup.ts");
+  expect(config.test?.setupFiles?.[0]).toBe("scripts/lib/testing/vitest-child-env-setup.ts");
 });
 
 test("読み込んだだけで外すので、GIT_DIR を受け継いだ子の git の commit が元のリポジトリに入らない", () => {
-  const dir = makeTempDir("vitest-git-env-setup-");
+  const dir = makeTempDir("vitest-child-env-setup-");
   // 手元の ~/.gitconfig とシステムの設定（core.hooksPath など）を読ませない
   const isolated = { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
   const git = (cwd: string, args: string[]) =>
@@ -70,7 +103,7 @@ test("読み込んだだけで外すので、GIT_DIR を受け継いだ子の gi
     mkdirSync(repo);
     expect(git(repo, ["init", "-q"]).status).toBe(0);
   }
-  const setupUrl = pathToFileURL(join(import.meta.dirname, "vitest-git-env-setup.ts")).href;
+  const setupUrl = pathToFileURL(join(import.meta.dirname, "vitest-child-env-setup.ts")).href;
   // 子は own で commit する。GIT_DIR を外さないと、commit は victim に入る。
   const script = [
     `await import(${JSON.stringify(setupUrl)});`,
@@ -89,4 +122,26 @@ test("読み込んだだけで外すので、GIT_DIR を受け継いだ子の gi
   expect(child.status, child.stderr).toBe(0);
   expect(git(victim, ["rev-parse", "-q", "--verify", "HEAD"]).status).not.toBe(0);
   expect(git(own, ["rev-list", "--count", "HEAD"]).stdout.trim()).toBe("1");
+});
+
+test("読み込んだだけで外すので、GITHUB_STEP_SUMMARY を受け継いだ子が起動したプロセスは、ジョブの要約に書き込まない", () => {
+  const summary = join(makeTempDir("vitest-child-env-setup-"), "summary.md");
+  writeFileSync(summary, "");
+  const setupUrl = pathToFileURL(join(import.meta.dirname, "vitest-child-env-setup.ts")).href;
+  // 子は setup を読み込んでから孫を起動する。孫は、変数を受け継いでいればそのファイルに追記する（子の vitest と同じ振る舞い）。
+  const script = [
+    `await import(${JSON.stringify(setupUrl)});`,
+    `const { spawnSync } = await import("node:child_process");`,
+    `const append = 'if (process.env.GITHUB_STEP_SUMMARY) require("node:fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY, "grandchild")';`,
+    `process.exit(spawnSync(process.execPath, ["-e", append], { timeout: ${TIMEOUT_MS} }).status ?? 1);`,
+  ].join("\n");
+
+  const child = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
+    encoding: "utf8",
+    env: { ...process.env, GITHUB_STEP_SUMMARY: summary },
+    timeout: TIMEOUT_MS * 2,
+  });
+
+  expect(child.status, child.stderr).toBe(0);
+  expect(readFileSync(summary, "utf8")).toBe("");
 });

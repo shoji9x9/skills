@@ -118,7 +118,9 @@ fixture も、原本（テンプレート・スキーマの文書・同梱の雛
 - 書き込みは、`scripts/lib/testing/test-tmpdir.ts` の `makeTempDir`・`makeTempDirFactory` で作った一時ディレクトリの中だけで行う。リポジトリの tracked のファイルを書き換えない
 - テストする処理が読む環境変数（`HOME`・`PATH`・`LC_ALL`・`CLAUDE_PROJECT_DIR` など）は、テストの中で一時ディレクトリかリポジトリの中を指す値に固定する。手元の `~/` の中身に結果を左右させない
 - git の hook（lefthook の pre-commit など）から実行すると、git がテストに `GIT_DIR` などを渡す。worktree で hook を実行すると、テストが一時ディレクトリで起動した git がそれを受け継ぎ、起動したリポジトリに commit や branch を書き込む。
-  `scripts/lib/testing/vitest-git-env-setup.ts` が各テストファイルの前に `process.env` から外すので、子プロセスの環境は `process.env` から組み立てる。vitest の外で git を起動するランナーは、同じ変数を自分で外す
+  `scripts/lib/testing/vitest-child-env-setup.ts` が各テストファイルの前に `process.env` から外すので、子プロセスの環境は `process.env` から組み立てる。vitest の外で git を起動するランナーは、同じ変数を自分で外す
+- CI では、GitHub Actions がジョブの要約・出力を追記するファイルのパス（`GITHUB_STEP_SUMMARY`・`GITHUB_OUTPUT` など）をテストに渡す。
+  子プロセスがそれを受け継ぐとジョブに書き込むので、同じ setup が `process.env` から外す。これらを読む処理をテストするときは、一時ディレクトリのファイルを指す値をテストの中で渡す
 - ネットワークに接続しない。時刻に依存する処理は、時刻を引数や環境変数で渡せるようにして、固定した値でテストする
 - 子プロセスにはタイムアウトを付ける。付けないと、止まった子プロセスを待つテストは `vitest.config.ts` の `testTimeout` まで待ってから失敗し、原因が出力に残らない。
   値は `scripts/lib/testing/child-timeout.ts` の `CHILD_TIMEOUT_MS` を使い、起動のオプションのオブジェクトに `timeout` のキーで書く。
