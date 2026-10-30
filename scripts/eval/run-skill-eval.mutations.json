@@ -30,41 +30,6 @@
       ]
     },
     {
-      "id": "symlink-escape-allowed",
-      "why": "source の木のシンボリックリンクが source の外を指しても受け入れる（途中のディレクトリを通して外のファイルを読む）",
-      "file": "scripts/eval/reuse-skill-eval-baseline.ts",
-      "find": "        if (escapes(realSource, linkTarget)) {",
-      "replace": "        if (false) {",
-      "occurrences": 1,
-      "expect_failing": [
-        "run-skill-eval executor compatibility rejects a raw_trace that reaches outside the source through a symlinked directory",
-        "run-skill-eval executor compatibility rejects a required artifact whose parent directory is a symlink to outside the source",
-        "run-skill-eval executor compatibility rejects a symlink outside the required artifacts that points outside the source"
-      ]
-    },
-    {
-      "id": "dangling-symlink-unreported",
-      "why": "壊れたリンクを別のメッセージで報告しない（realpath の例外で止まり、原因が分からない）",
-      "file": "scripts/eval/reuse-skill-eval-baseline.ts",
-      "find": "        if (!existsSync(path)) throw new Error(`baseline symlink is dangling: ${name}`);\n",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "run-skill-eval executor compatibility rejects a dangling symlink with its own message"
-      ]
-    },
-    {
-      "id": "loop-symlink-allowed",
-      "why": "自分を含むディレクトリを指すリンクを受け入れる（実体に置き換えるコピーが終わらない）",
-      "file": "scripts/eval/reuse-skill-eval-baseline.ts",
-      "find": "        if (!escapes(linkTarget, directory)) {",
-      "replace": "        if (false) {",
-      "occurrences": 1,
-      "expect_failing": [
-        "run-skill-eval executor compatibility rejects a symlink to a directory that contains it"
-      ]
-    },
-    {
       "id": "absolute-raw-trace-allowed",
       "why": "絶対パスの raw_trace を受け入れる（target にコピーした後も元の source を指す）",
       "file": "scripts/eval/reuse-skill-eval-baseline.ts",
@@ -76,19 +41,6 @@
       ]
     },
     {
-      "id": "copy-keeps-symlinks",
-      "why": "source の中のリンクをリンクのままコピーする（target のリンクが元の source を指す）",
-      "file": "scripts/eval/reuse-skill-eval-baseline.ts",
-      "find": "  cpSync(realSource, target, { recursive: true, errorOnExist: true, dereference: true });",
-      "replace": "  cpSync(realSource, target, { recursive: true, errorOnExist: true });",
-      "occurrences": 1,
-      "expect_failing": [
-        "run-skill-eval executor compatibility accepts a raw_trace through a relative symlink to a directory inside the source and copies it as a directory",
-        "run-skill-eval executor compatibility accepts a raw_trace through an absolute symlink to a directory inside the source and copies it as a directory",
-        "run-skill-eval executor compatibility accepts a raw_trace through a relative symlink that leaves the source and comes back through another link to a directory inside the source and copies it as a directory"
-      ]
-    },
-    {
       "id": "target-literal-source",
       "why": "target が source の中にあるかを、source の字面で判定する（リンクを通した source の中の target を見逃す）",
       "file": "scripts/eval/reuse-skill-eval-baseline.ts",
@@ -97,6 +49,47 @@
       "occurrences": 1,
       "expect_failing": [
         "run-skill-eval executor compatibility rejects a target nested inside the source when the source is reached through a symlink"
+      ]
+    },
+    {
+      "id": "symlink-in-tree-allowed",
+      "why": "source の木のシンボリックリンクを受け入れる（外を指すリンク・循環・差し替えを判定することになる）",
+      "file": "scripts/eval/reuse-skill-eval-baseline.ts",
+      "find": "      if (entry.isSymbolicLink()) throw new Error(`baseline contains a symlink: ${name}`);",
+      "replace": "      if (false) throw new Error(`baseline contains a symlink: ${name}`);",
+      "occurrences": 1,
+      "expect_failing": [
+        "run-skill-eval executor compatibility rejects a directory link to outside that raw_trace reads through, since the baseline contains no symlinks",
+        "run-skill-eval executor compatibility rejects a parent directory of a required artifact linked to outside, since the baseline contains no symlinks",
+        "run-skill-eval executor compatibility rejects a file link to outside that no artifact names, since the baseline contains no symlinks",
+        "run-skill-eval executor compatibility rejects a relative directory link inside the source, since the baseline contains no symlinks",
+        "run-skill-eval executor compatibility rejects an absolute directory link inside the source, since the baseline contains no symlinks",
+        "run-skill-eval executor compatibility rejects a file link inside the source, since the baseline contains no symlinks",
+        "run-skill-eval executor compatibility rejects a dangling link, since the baseline contains no symlinks",
+        "run-skill-eval executor compatibility rejects a link to a directory that contains it, since the baseline contains no symlinks"
+      ]
+    },
+    {
+      "id": "symlink-run-dir-allowed",
+      "why": "run のディレクトリ自体がシンボリックリンクでも受け入れる（target が元の source の中身を指す）",
+      "file": "scripts/eval/reuse-skill-eval-baseline.ts",
+      "find": "  if (lstatSync(source, { throwIfNoEntry: false })?.isSymbolicLink()) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "run-skill-eval executor compatibility rejects a source run directory that is itself a symlink"
+      ]
+    },
+    {
+      "id": "special-file-allowed",
+      "why": "FIFO・socket など、通常のファイルとディレクトリ以外を受け入れる（読むと止まるか、外の状態に依存する）",
+      "file": "scripts/eval/reuse-skill-eval-baseline.ts",
+      "find": "      else if (!entry.isFile()) {",
+      "replace": "      else if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "run-skill-eval executor compatibility rejects a FIFO inside the source",
+        "run-skill-eval executor compatibility rejects a socket inside the source"
       ]
     }
   ]

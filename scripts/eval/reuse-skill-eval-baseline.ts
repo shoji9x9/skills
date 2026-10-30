@@ -81,27 +81,22 @@ function assertArtifactsPresent(source: string): void {
 }
 
 /**
- * source の木の中のシンボリックリンクを、実体が source の中にあるものだけに限る（#766）。
- * source の外を指すリンクがあると、必須の成果物や raw_trace が途中のディレクトリを通して外のファイルを読む。
- * 受け入れたリンクは、コピーのときに実体へ置き換えるので（dereference）、target にはリンクが残らない。
- * 自分を含むディレクトリを指すリンクは、置き換えると終わらないので受け入れない。
+ * source の木に、通常のファイルとディレクトリ以外が無いことを確かめる（#766）。
+ * ハーネスが書く baseline はリンクを含まないので、シンボリックリンクは指す先に関わらず受け入れない。
+ * 受け入れると、途中のディレクトリを通して source の外を読む・循環する・確かめた後に指す先が変わる、を
+ * それぞれ判定することになる。FIFO・socket・デバイスも、読むと止まるか外の状態に依存するので受け入れない。
+ * ハードリンクは受け入れる。lstat では source の外のファイルと共有しているかを判定できず、
+ * リポジトリの中で git や pnpm が作るハードリンクまで止めてしまうからである。
  */
-function assertSymlinksStayInside(realSource: string): void {
+function assertOnlyFilesAndDirectories(realSource: string): void {
   const walk = (directory: string): void => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const path = join(directory, entry.name);
       const name = relative(realSource, path);
-      if (entry.isSymbolicLink()) {
-        if (!existsSync(path)) throw new Error(`baseline symlink is dangling: ${name}`);
-        const linkTarget = realpathSync(path);
-        if (escapes(realSource, linkTarget)) {
-          throw new Error(`baseline symlink escapes the source run: ${name}`);
-        }
-        if (!escapes(linkTarget, directory)) {
-          throw new Error(`baseline symlink points to a directory that contains it: ${name}`);
-        }
-      } else if (entry.isDirectory()) {
-        walk(path);
+      if (entry.isSymbolicLink()) throw new Error(`baseline contains a symlink: ${name}`);
+      if (entry.isDirectory()) walk(path);
+      else if (!entry.isFile()) {
+        throw new Error(`baseline contains an entry that is not a file or directory: ${name}`);
       }
     }
   };
@@ -143,7 +138,7 @@ function assertSucceededWithRawTrace(source: string): void {
   // 絶対パスは、target にコピーした後も元の source を指すので受け入れない。
   if (isAbsolute(result.raw_trace)) throw new Error("baseline raw_trace must be relative");
   const rawTrace = resolve(source, result.raw_trace);
-  // 途中のディレクトリのシンボリックリンクは、assertSymlinksStayInside が source の中を指すものに限る。
+  // source の木にリンクが無いことは assertOnlyFilesAndDirectories が確かめるので、字面で比べれば足りる。
   if (escapes(source, rawTrace)) throw new Error("baseline raw_trace escapes the source run");
   const stat = lstatSync(rawTrace, { throwIfNoEntry: false });
   if (!stat || stat.isSymbolicLink() || !stat.isFile() || stat.size === 0) {
@@ -169,9 +164,13 @@ function assertCleanAndIsolated(source: string): void {
 
 /** 再利用してよい baseline かを確かめ、コピー元にする source の実体のパスを返す。 */
 function validateReusableBaseline(source: string, expectedFingerprint: Fingerprint): string {
+  // run のディレクトリ自体のリンクも、木の中のリンクと同じに受け入れない。祖先のリンクは受け入れる。
+  if (lstatSync(source, { throwIfNoEntry: false })?.isSymbolicLink()) {
+    throw new Error("baseline contains a symlink: .");
+  }
   assertArtifactsPresent(source);
   const realSource = realpathSync(source);
-  assertSymlinksStayInside(realSource);
+  assertOnlyFilesAndDirectories(realSource);
   assertFingerprintMatches(realSource, expectedFingerprint);
   assertSucceededWithRawTrace(realSource);
   assertCleanAndIsolated(realSource);
@@ -195,9 +194,7 @@ function reuseBaseline(sourceValue: string, targetValue: string, expectedPath: s
   if (existsSync(target)) throw new Error(`reuse target already exists: ${target}`);
   const expectedFingerprint = readJson<Fingerprint>(expectedPath, "expected fingerprint");
   const realSource = validateReusableBaseline(source, expectedFingerprint);
-  // 確かめた実体の木からコピーする。source の中のリンクは、run 自体のリンクも含めて実体に置き換え、
-  // target が元の source を指さないようにする。
-  cpSync(realSource, target, { recursive: true, errorOnExist: true, dereference: true });
+  cpSync(realSource, target, { recursive: true, errorOnExist: true });
   writeFileSync(
     resolve(target, "baseline-reuse.json"),
     `${JSON.stringify(

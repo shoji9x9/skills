@@ -1,6 +1,7 @@
 import {
   chmodSync,
   existsSync,
+  linkSync,
   lstatSync,
   mkdirSync,
   readFileSync,
@@ -9,7 +10,9 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { basename, dirname, join, relative } from "node:path";
+import { execFileSync } from "node:child_process";
+import { createServer } from "node:net";
+import { basename, join, relative } from "node:path";
 import { assert, describe, expect, test } from "vitest";
 import { spawnAsync } from "../lib/spawn-async.ts";
 import { CHILD_TIMEOUT_MS } from "../lib/testing/child-timeout.ts";
@@ -669,100 +672,145 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
     );
   }
 
-  test("rejects a raw_trace that reaches outside the source through a symlinked directory", async () => {
+  test.each([
+    [
+      "a directory link to outside that raw_trace reads through",
+      "via",
+      (directory: string, source: string) => {
+        const outside = join(directory, "outside");
+        mkdirSync(outside);
+        writeFileSync(join(outside, "trace.jsonl"), "{}\n", "utf8");
+        pointRawTraceThrough(source, relative(source, outside), "trace.jsonl");
+      },
+    ],
+    [
+      "a parent directory of a required artifact linked to outside",
+      "outputs",
+      (directory: string, source: string) => {
+        const outside = join(directory, "outside-outputs");
+        renameSync(join(source, "outputs"), outside);
+        symlinkSync(relative(source, outside), join(source, "outputs"));
+      },
+    ],
+    [
+      "a file link to outside that no artifact names",
+      "project-files/leak.txt",
+      (directory: string, source: string) => {
+        writeFileSync(join(directory, "secret.txt"), "secret\n", "utf8");
+        symlinkSync(
+          relative(join(source, "project-files"), join(directory, "secret.txt")),
+          join(source, "project-files", "leak.txt"),
+        );
+      },
+    ],
+    [
+      "a relative directory link inside the source",
+      "via",
+      (_directory: string, source: string) => {
+        const rawName = basename(readJson<ResultFile>(join(source, "result.json")).raw_trace);
+        pointRawTraceThrough(source, "raw", rawName);
+      },
+    ],
+    [
+      "an absolute directory link inside the source",
+      "via",
+      (_directory: string, source: string) => {
+        const rawName = basename(readJson<ResultFile>(join(source, "result.json")).raw_trace);
+        pointRawTraceThrough(source, join(source, "raw"), rawName);
+      },
+    ],
+    [
+      "a file link inside the source",
+      "project-files/alias.txt",
+      (_directory: string, source: string) => {
+        writeFileSync(join(source, "project-files", "real.txt"), "real\n", "utf8");
+        symlinkSync("real.txt", join(source, "project-files", "alias.txt"));
+      },
+    ],
+    [
+      "a dangling link",
+      "via",
+      (_directory: string, source: string) => {
+        pointRawTraceThrough(source, join("raw", "missing"), "x.jsonl");
+      },
+    ],
+    [
+      "a link to a directory that contains it",
+      "raw/loop",
+      (_directory: string, source: string) => {
+        symlinkSync("..", join(source, "raw", "loop"));
+      },
+    ],
+  ])("rejects %s, since the baseline contains no symlinks", async (_label, name, addLink) => {
     const { directory, source, target } = await withoutSkillSource();
-    const outside = join(directory, "outside");
-    mkdirSync(outside);
-    writeFileSync(join(outside, "trace.jsonl"), "{}\n", "utf8");
-    pointRawTraceThrough(source, relative(source, outside), "trace.jsonl");
+    addLink(directory, source);
 
     const result = await reuseDirectly(source, target);
 
     expect(result.status).toBe(1);
-    expect(result.stderr).toMatch(/baseline symlink escapes the source run: via$/mu);
+    expect(result.stderr).toContain(`baseline contains a symlink: ${name}\n`);
     expect(existsSync(target)).toBe(false);
   });
 
-  test("rejects a required artifact whose parent directory is a symlink to outside the source", async () => {
+  test("rejects a source run directory that is itself a symlink", async () => {
     const { directory, source, target } = await withoutSkillSource();
-    const outside = join(directory, "outside-outputs");
-    renameSync(join(source, "outputs"), outside);
-    symlinkSync(relative(source, outside), join(source, "outputs"));
+    const real = join(directory, "real-run");
+    renameSync(source, real);
+    symlinkSync(real, source);
 
     const result = await reuseDirectly(source, target);
 
     expect(result.status).toBe(1);
-    expect(result.stderr).toMatch(/baseline symlink escapes the source run: outputs$/mu);
-    expect(existsSync(target)).toBe(false);
-  });
-
-  test("rejects a symlink outside the required artifacts that points outside the source", async () => {
-    const { directory, source, target } = await withoutSkillSource();
-    writeFileSync(join(directory, "secret.txt"), "secret\n", "utf8");
-    symlinkSync(
-      relative(join(source, "project-files"), join(directory, "secret.txt")),
-      join(source, "project-files", "leak.txt"),
-    );
-
-    const result = await reuseDirectly(source, target);
-
-    expect(result.status).toBe(1);
-    expect(result.stderr).toMatch(
-      /baseline symlink escapes the source run: project-files\/leak\.txt$/mu,
-    );
+    expect(result.stderr).toContain("baseline contains a symlink: .\n");
     expect(existsSync(target)).toBe(false);
   });
 
   test.each([
-    ["a relative symlink", () => "raw"],
-    ["an absolute symlink", (source: string) => join(source, "raw")],
     [
-      "a relative symlink that leaves the source and comes back through another link",
-      (source: string) => {
-        symlinkSync(source, join(dirname(source), "run-alias"));
-        return join("..", "run-alias", "raw");
+      "a FIFO",
+      async (path: string) => {
+        execFileSync("mkfifo", [path]);
+        return () => {};
       },
     ],
-  ])(
-    "accepts a raw_trace through %s to a directory inside the source and copies it as a directory",
-    async (_label, linkTo) => {
-      const { source, target } = await withoutSkillSource();
-      const rawName = basename(readJson<ResultFile>(join(source, "result.json")).raw_trace);
-      pointRawTraceThrough(source, linkTo(source), rawName);
-
+    [
+      "a socket",
+      async (path: string) => {
+        const server = createServer();
+        await new Promise<void>((done) => server.listen(path, done));
+        return () => server.close();
+      },
+    ],
+  ])("rejects %s inside the source", async (_label, create) => {
+    const { source, target } = await withoutSkillSource();
+    const close = await create(join(source, "project-files", "special"));
+    try {
       const result = await reuseDirectly(source, target);
 
-      expect(result.stderr).toBe("");
-      expect(result.status).toBe(0);
-      expect(lstatSync(join(target, "via")).isSymbolicLink()).toBe(false);
-      expect(readFileSync(join(target, "via", rawName))).toEqual(
-        readFileSync(join(source, "raw", rawName)),
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain(
+        "baseline contains an entry that is not a file or directory: project-files/special\n",
       );
-    },
-  );
-
-  test("rejects a dangling symlink with its own message", async () => {
-    const { source, target } = await withoutSkillSource();
-    pointRawTraceThrough(source, join("raw", "missing"), "x.jsonl");
-
-    const result = await reuseDirectly(source, target);
-
-    expect(result.status).toBe(1);
-    expect(result.stderr).toMatch(/baseline symlink is dangling: via$/mu);
-    expect(existsSync(target)).toBe(false);
+      expect(existsSync(target)).toBe(false);
+    } finally {
+      close();
+    }
   });
 
-  test("rejects a symlink to a directory that contains it", async () => {
-    const { source, target } = await withoutSkillSource();
-    symlinkSync("..", join(source, "raw", "loop"));
+  test("accepts a hard link to a file outside the source and copies it as a regular file", async () => {
+    const { directory, source, target } = await withoutSkillSource();
+    const outside = join(directory, "shared.txt");
+    writeFileSync(outside, "shared\n", "utf8");
+    linkSync(outside, join(source, "project-files", "shared.txt"));
 
     const result = await reuseDirectly(source, target);
 
-    expect(result.status).toBe(1);
-    expect(result.stderr).toMatch(
-      /baseline symlink points to a directory that contains it: raw\/loop$/mu,
-    );
-    expect(existsSync(target)).toBe(false);
+    expect(result.stderr).toBe("");
+    expect(result.status).toBe(0);
+    const copied = join(target, "project-files", "shared.txt");
+    expect(lstatSync(copied).isFile()).toBe(true);
+    expect(lstatSync(copied).nlink).toBe(1);
+    expect(readFileSync(copied, "utf8")).toBe("shared\n");
   });
 
   test("rejects an absolute raw_trace even when it points inside the source", async () => {
@@ -792,21 +840,6 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
     expect(result.status).toBe(0);
     expect(existsSync(join(target, "baseline-reuse.json"))).toBe(true);
     expect(existsSync(source)).toBe(true);
-  });
-
-  test("copies the contents when the source run directory itself is a symlink", async () => {
-    const { directory, source, target } = await withoutSkillSource();
-    const real = join(directory, "real-run");
-    renameSync(source, real);
-    symlinkSync(real, source);
-
-    const result = await reuseDirectly(source, target);
-
-    expect(result.stderr).toBe("");
-    expect(result.status).toBe(0);
-    expect(lstatSync(target).isSymbolicLink()).toBe(false);
-    expect(existsSync(join(target, "baseline-reuse.json"))).toBe(true);
-    expect(existsSync(join(real, "baseline-reuse.json"))).toBe(false);
   });
 
   test("rejects a target nested inside the source when the source is reached through a symlink", async () => {
