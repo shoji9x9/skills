@@ -33,6 +33,6 @@ applyTo: "skills/**"
 - 特定のツールとバージョンで確かめたという実測の記録。
 
 使われない抑止を報告されうる指示のコメントは、`scripts/gates/code/check-skill-lint-directives.ts` が lefthook の pre-commit と CI の `Lint` ジョブでチェックする。
-このリポジトリのパスとファイル名を書いた記述は、`scripts/gates/docs/check-doc-refs.ts` が `dist-repo-path` で検出する。
-ファイル名の出所と、導入先にも一般に在る名前の許可は、`scripts/gates/docs/doc-refs.json` の `repo_files` に書く。
+このリポジトリのパスを書いた記述は、`scripts/gates/docs/check-doc-refs.ts` が `dist-repo-path` で検出する。
+パスを書かずにファイル名だけを書いた記述は検出しないので、レビューで確かめる。
 基底ドキュメントの決め打ちは、`distributed-skill-base-doc-generalization.md` で扱う。

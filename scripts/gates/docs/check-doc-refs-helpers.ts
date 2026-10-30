@@ -16,7 +16,6 @@ export const CONFIG = {
     { ref: "gaps.md", skills: ["s"], template: "skills/s/assets/gaps-template.md" },
     { ref: "other.md", skills: ["t"], template: "skills/s/assets/gaps-template.md" },
   ],
-  repo_files: { sources: [".github/", "docs/"], allowed: [] },
 };
 
 /** 階層の原本・設定・参照先を持つ一時リポジトリ。 */
@@ -34,7 +33,6 @@ export function makeRepo(
     "skills/s/SKILL.md": "# S\n",
     "skills/s/references/ref.md": "# Ref\n\n## 参照の節\n",
     "skills/s/assets/gaps-template.md": "# Gaps\n\n## 特性化できなかった箇所\n",
-    ".github/workflows/outdated.yml": "name: outdated\n",
     ...files,
   };
   for (const [p, t] of Object.entries(all)) write(root, p, t);

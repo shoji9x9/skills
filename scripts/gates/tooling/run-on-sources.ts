@@ -17,15 +17,6 @@ import { isCliEntry } from "../../lib/cli/entry.ts";
 
 /** root の下で、拡張子が exts のいずれかに一致する実体のファイル（リポジトリ相対、昇順）。 */
 export function listSources(root: string, exts: string[]): string[] {
-  return listFiles(root, (rel) => exts.some((e: string) => rel.endsWith(`.${e}`)));
-}
-
-/** root の下の実体のファイル（拡張子を問わない。リポジトリ相対、昇順）。 */
-export function listAllSources(root: string): string[] {
-  return listFiles(root, () => true);
-}
-
-function listFiles(root: string, keep: (rel: string) => boolean): string[] {
   const out = execFileSync(
     "git",
     ["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
@@ -37,7 +28,7 @@ function listFiles(root: string, keep: (rel: string) => boolean): string[] {
   );
   const files = out
     .split("\0")
-    .filter((rel) => rel && keep(rel))
+    .filter((rel) => rel && exts.some((e: string) => rel.endsWith(`.${e}`)))
     .filter((rel) => !rel.startsWith("node_modules/") && !isAgentCopy(root, rel))
     .filter((rel) => {
       const abs = join(root, rel);

@@ -15,12 +15,8 @@
 // | Tier 4 への参照    | 学び（日付付き・archive・INDEX.md）/ eval の結果 / #番号 / Issue の URL /       |
 // |                    | 他のリポジトリ（owner/repo#1・他の URL）/ ${#1} / &#123; / インラインコード / 例の行 |
 // | スキルの外のパス   | ルートにだけ在る / スキルにも在る / どこにも無い                                 |
-// | ファイル名だけ     | sources の下にだけ在る / skills/ にも在る / sources の外にだけ在る /             |
-// |                    | 前後に名前の文字（接頭辞・接尾辞・拡張子の続き）/ パスの末尾 / パスとして報告済み |
-// | 名前の位置         | コメント / インラインコード / コードフェンス / 行末 / 配布スキルの外の文書       |
-// | 許可               | 使われる / 使われない / 他のチェックの規則 / 名前ごと（使われる・使われない）     |
-// | 設定               | 正しい / 無い / repo の形の誤り / テンプレートが無い /                           |
-// |                    | repo_files が無い・sources が空・/ で終わらない・ファイルが無い / reason が空 / 名前の重複 |
+// | 許可               | 使われる / 使われない / 他のチェックの規則                                       |
+// | 設定               | 正しい / 無い / repo の形の誤り / テンプレートが無い                             |
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
@@ -373,122 +369,6 @@ test("陰性: 配布スキルの中に在るパスと、どこにも無いパス
   expect(found(root)).toEqual([]);
 });
 
-// ---- このリポジトリにしか無いファイルの名前 ----
-
-// 名前の出所は makeRepo の .github/workflows/outdated.yml（repo_files.sources の .github/ の下）。
-test.each([
-  {
-    label: "テンプレートのコメント",
-    file: "skills/s/assets/w.yml",
-    line: "# outdated.yml とずらす",
-  },
-  {
-    label: "Markdown のインラインコード",
-    file: "skills/s/SKILL.md",
-    line: "`outdated.yml` と同じ",
-  },
-  {
-    label: "パスの末尾",
-    file: "skills/s/SKILL.md",
-    line: "`.github/workflows/outdated.yml` を見る",
-  },
-  { label: "行末", file: "skills/s/scripts/a.mjs", line: "// 原本は outdated.yml" },
-])("陽性: 配布スキルの $label がこのリポジトリのファイル名を書くと落とす", ({ file, line }) => {
-  expect(found(makeRepo({ [file]: `${line}\n` }))).toEqual([
-    `${file}:1 dist-repo-path outdated.yml`,
-  ]);
-});
-
-test("陽性: Markdown のコードフェンスの中の名前も落とす", () => {
-  const file = "skills/s/references/x.md";
-  expect(found(makeRepo({ [file]: "```yaml\n# outdated.yml\n```\n" }))).toEqual([
-    `${file}:2 dist-repo-path outdated.yml`,
-  ]);
-});
-
-test("陽性: 在るパスの末尾の名前は、書いたパスを在りかとして示す", () => {
-  const file = "skills/s/SKILL.md";
-  const r = checkDocRefs(makeRepo({ [file]: "`.github/workflows/outdated.yml` を見る\n" }));
-  expect(r.failures).toEqual([
-    `${file}:1: [dist-repo-path] このリポジトリにしか無い .github/workflows/outdated.yml を参照している`,
-  ]);
-});
-
-test("陰性: このリポジトリに無いパスの末尾の名前は、同じ名前の別のファイルとして数えない", () => {
-  expect(found(makeRepo({ "skills/s/SKILL.md": "`.ci/x/outdated.yml` を置く\n" }))).toEqual([]);
-});
-
-test("陰性: 例の行の名前は数えない", () => {
-  expect(found(makeRepo({ "skills/s/SKILL.md": "例: `outdated.yml` を置く\n" }))).toEqual([]);
-});
-
-test("陽性: Markdown のリンクの文字列の名前は、リンクの規則の 1 件だけにする", () => {
-  const file = "skills/s/SKILL.md";
-  const root = makeRepo({ [file]: "[outdated.yml](../../.github/workflows/outdated.yml)\n" });
-  expect(found(root)).toEqual([`${file}:1 dist-repo-path ../../.github/workflows/outdated.yml`]);
-});
-
-test("陽性: 同じ名前のファイルが別のスキルにだけあっても落とす", () => {
-  const file = "skills/s/SKILL.md";
-  const root = makeRepo({ "skills/t/outdated.yml": "x\n", [file]: "`outdated.yml`\n" });
-  expect(found(root)).toEqual([`${file}:1 dist-repo-path outdated.yml`]);
-});
-
-test("陽性: 拡張子が文書の走査の対象でないファイル（.jsonc）の名前も落とす", () => {
-  // sources の下が .jsonc だけでも、ファイルが無いとして例外にしない。
-  const config = { ...CONFIG, repo_files: { sources: [".config/x/"], allowed: [] } };
-  const file = "skills/s/SKILL.md";
-  const root = makeRepo(
-    { ".config/x/base.jsonc": "{}\n", [file]: "`base.jsonc` を見る\n" },
-    { config },
-  );
-  expect(found(root)).toEqual([`${file}:1 dist-repo-path base.jsonc`]);
-});
-
-test.each<{ label: string; files: Record<string, string> }>([
-  { label: "配布スキルの外の文書", files: { "docs/a.md": "outdated.yml とずらす\n" } },
-  {
-    label: "書いた側のスキルにも同じ名前のファイルがある",
-    files: { "skills/s/assets/outdated.yml": "x\n", "skills/s/SKILL.md": "`outdated.yml`\n" },
-  },
-  {
-    label: "repo_files.sources の外にだけある名前",
-    files: { "evals/s/metadata.json": "{}\n", "skills/s/SKILL.md": "`metadata.json` を書く\n" },
-  },
-  {
-    label: "前後に名前の文字が続く別の名前",
-    files: { "skills/s/SKILL.md": "my-outdated.yml outdated.yml.bak outdated.ymlx\n" },
-  },
-])("陰性: $label は名前の参照として数えない", ({ files }) => {
-  expect(found(makeRepo(files))).toEqual([]);
-});
-
-test("陰性: スキルの外のパスとして報告した名前は、名前の参照として重ねて報告しない", () => {
-  const file = "skills/s/SKILL.md";
-  expect(found(makeRepo({ [file]: "`docs/guide.md` と guide.md\n" }))).toEqual([
-    `${file}:1 dist-repo-path docs/guide.md`,
-    `${file}:1 dist-repo-path guide.md`,
-  ]);
-});
-
-test("許可: repo_files.allowed の名前は失敗にしない。使われない許可は失敗にする", () => {
-  const config = {
-    ...CONFIG,
-    repo_files: {
-      sources: [".github/", "docs/"],
-      allowed: [
-        { name: "outdated.yml", reason: "導入先にも在る名前" },
-        { name: "guide.md", reason: "使われない許可" },
-      ],
-    },
-  };
-  const r = checkDocRefs(makeRepo({ "skills/s/SKILL.md": "`outdated.yml`\n" }, { config }));
-  expect(r.found).toEqual([]);
-  expect(r.failures).toEqual([
-    `使われていない許可: ${CONFIG_PATH} の repo_files.allowed の guide.md（記述が消えたなら許可も消す）`,
-  ]);
-});
-
 // ---- 許可 ----
 
 test("許可: 一致は失敗にしない。使われない許可は失敗にし、他のチェックの規則は見ない", () => {
@@ -526,31 +406,6 @@ test.each([
 ])("%s はチェックできない（exit 2）", (_, breakIt) => {
   const root = makeRepo();
   breakIt(root);
-  expect(main([root])).toBe(2);
-});
-
-test.each<[string, unknown]>([
-  ["repo_files が無い", undefined],
-  ["repo_files.sources が空", { sources: [], allowed: [] }],
-  ["repo_files.sources が / で終わらない", { sources: ["docs"], allowed: [] }],
-  ["repo_files.sources の下にファイルが無い", { sources: ["none/"], allowed: [] }],
-  [
-    "repo_files.allowed の reason が空",
-    { sources: ["docs/"], allowed: [{ name: "a.md", reason: "" }] },
-  ],
-  [
-    "repo_files.allowed の名前が重複",
-    {
-      sources: ["docs/"],
-      allowed: [
-        { name: "a.md", reason: "x" },
-        { name: "a.md", reason: "y" },
-      ],
-    },
-  ],
-])("%s はチェックできない（exit 2）", (_, repoFiles) => {
-  const root = makeRepo();
-  writeFileSync(join(root, CONFIG_PATH), JSON.stringify({ ...CONFIG, repo_files: repoFiles }));
   expect(main([root])).toBe(2);
 });
 

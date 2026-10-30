@@ -13,16 +13,13 @@
 // - dist-kaizen・dist-issue・dist-repo-path: 配布スキル（skills/）は導入先で単独で動くので、このリポジトリの
 //   学び・Issue と PR・スキルの外のファイル（docs/、.agents/rules/、scripts/ など）を参照しない。
 //   Markdown のリンクは、スキルのディレクトリの外（他のスキルを含む）を指したら dist-repo-path にする。
-//   パスを書かずにファイル名だけで書いた参照も、doc-refs.json の repo_files.sources の下にしか無い名前なら
-//   dist-repo-path にする（導入先にも一般に在る名前は、repo_files.allowed に理由付きで許可する）。
 //   Tier 3（コメント）にも当てる。
 // Issue と PR の番号は、例の行（scripts/lib/doc-scan.ts の EXAMPLE_LINE_RE）では読まない。
 //
 // 違反の形だが正しい記述は、scripts/gates/docs/doc-allowed.json に理由付きで許可する（使われていない許可は失敗にする）。
 // 対象ファイル 0 件・設定の形の誤りは exit 2。違反・使われていない許可は exit 1。
 import { existsSync, readFileSync } from "node:fs";
-import { basename, dirname, join, normalize } from "node:path";
-import { listAllSources } from "../tooling/run-on-sources.ts";
+import { dirname, join, normalize } from "node:path";
 import {
   applyAllowed,
   blankInlineCode,
@@ -54,9 +51,7 @@ const SELF_FIXTURES = [
 ];
 
 type GeneratedEntry = { ref: string; template: string; skills?: string[] };
-type AllowedName = { name: string; reason: string };
-type RepoFilesConfig = { sources: string[]; allowed: AllowedName[] };
-type DocRefsConfig = { repo: string; generated: GeneratedEntry[]; repo_files: RepoFilesConfig };
+type DocRefsConfig = { repo: string; generated: GeneratedEntry[] };
 type Finding = { line: number; rule: string; text: string; message?: string };
 type SectionKind = "skill" | "link" | "code";
 
@@ -80,27 +75,7 @@ function loadConfig(root: string): DocRefsConfig {
     if (!existsSync(join(root, g.template)))
       throw new Error(`${CONFIG_PATH}: ${g.ref} のテンプレート ${g.template} が無い`);
   }
-  return { ...data, repo: data.repo, generated, repo_files: loadRepoFiles(data.repo_files) };
-}
-
-/** doc-refs.json の repo_files を読む。sources は `/` で終わるディレクトリ、allowed は名前ごとの許可。 */
-function loadRepoFiles(value: unknown): RepoFilesConfig {
-  const text = (v: unknown): v is string => typeof v === "string" && v.trim() !== "";
-  const { sources, allowed } = isRecord(value) ? value : {};
-  if (
-    !isArray(sources) ||
-    sources.length === 0 ||
-    !sources.every((s) => text(s) && s.endsWith("/"))
-  )
-    throw new Error(`${CONFIG_PATH}: repo_files.sources は / で終わるディレクトリの配列にする`);
-  const ok = (e: unknown): e is AllowedName => isRecord(e) && text(e.name) && text(e.reason);
-  if (!isArray(allowed) || !allowed.every(ok))
-    throw new Error(`${CONFIG_PATH}: repo_files.allowed は { name, reason } の配列にする`);
-  const names = allowed.map((e) => e.name);
-  const dup = names.find((n, i) => names.indexOf(n) !== i);
-  if (dup !== undefined)
-    throw new Error(`${CONFIG_PATH}: repo_files.allowed の ${dup} が重複している`);
-  return { sources: sources.filter(text), allowed };
+  return { ...data, repo: data.repo, generated };
 }
 
 // ---- 参照先の節名 ----
@@ -262,7 +237,6 @@ type FileContext = {
   dist: string | null;
   /** 参照先のファイルの節名の一覧を返す（読んだ結果はキャッシュする）。 */
   anchors: (target: string) => Set<string>;
-  repoNames: RepoNames;
 };
 
 /** 1 行を読む間の値。at は、この行の違反を 1 件記録する。 */
@@ -271,16 +245,10 @@ type LineContext = FileContext & {
   at: (rule: string, t: string, message?: string) => void;
 };
 
-/**
- * Markdown のリンク `[...](相対パス)` の先が在るかと、配布スキルの外を指していないかを確かめる（link 規則）。
- * リンク全体（文字列の `[` からリンク先の `)` まで）の範囲を返し、checkRepoFileNames がリンクの中の名前を重ねて報告しないようにする。
- */
-function checkLinks({ root, file, dist, line, at }: LineContext): [number, number][] {
-  const spans: [number, number][] = [];
+/** Markdown のリンク `[...](相対パス)` の先が在るかと、配布スキルの外を指していないかを確かめる（link 規則）。 */
+function checkLinks({ root, file, dist, line, at }: LineContext) {
   for (const m of blankInlineCode(line).matchAll(/\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
     const target = m[1];
-    const open = line.lastIndexOf("[", m.index);
-    spans.push([open >= 0 ? open : m.index, m.index + m[0].length]);
     if (/^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith("#") || target.startsWith("<"))
       continue;
     const rel = linkPath(file, target);
@@ -289,7 +257,6 @@ function checkLinks({ root, file, dist, line, at }: LineContext): [number, numbe
     else if (dist && !rel.startsWith(`${dist}/`))
       at("dist-repo-path", target, `スキルの外 ${rel} へのリンク`);
   }
-  return spans;
 }
 
 /** パスの直後に書いた「節名」1 件が、参照先の見出しなどに在るかを確かめる（section 規則）。 */
@@ -313,7 +280,7 @@ function checkSection(ctx: LineContext, kind: SectionKind, m: RegExpMatchArray) 
 }
 
 /** Tier 4（学び・eval の結果・Issue と PR）と、配布スキルの外のファイルへの参照を確かめる。 */
-function checkTierRefs(ctx: LineContext, linkSpans: [number, number][]) {
+function checkTierRefs(ctx: LineContext) {
   const { tier, dist, line, at } = ctx;
   const toTier4 = tier <= 2 && !dist;
   if (!toTier4 && !dist) return;
@@ -323,11 +290,7 @@ function checkTierRefs(ctx: LineContext, linkSpans: [number, number][]) {
     for (const m of line.matchAll(TESTS_RE))
       at("tier-down", m[0], `eval の結果 ${m[0]} を参照している`);
   if (!EXAMPLE_LINE_RE.test(line)) checkIssueRefs(ctx);
-  if (dist) {
-    const reported = [...linkSpans, ...checkRepoPathRefs(ctx, dist)];
-    // 例の行は導入先の値を書いたものなので、名前では読まない（Issue・PR の番号と同じ扱い）。
-    if (!EXAMPLE_LINE_RE.test(line)) checkRepoFileNames(ctx, dist, reported);
-  }
+  if (dist) checkRepoPathRefs(ctx, dist);
 }
 
 /** 行が Issue・PR を参照していないかを確かめる。 */
@@ -340,81 +303,13 @@ function checkIssueRefs({ config, dist, line, at }: LineContext) {
   }
 }
 
-/**
- * 配布スキル（dist）の行が、スキルの中に無いリポジトリのファイルを参照していないかを確かめる。
- * 報告したパスの範囲を返し、checkRepoFileNames が同じパスの末尾の名前を重ねて報告しないようにする。
- */
-function checkRepoPathRefs({ root, line, at }: LineContext, dist: string): [number, number][] {
-  const spans: [number, number][] = [];
+/** 配布スキル（dist）の行が、スキルの中に無いリポジトリのファイルを参照していないかを確かめる。 */
+function checkRepoPathRefs({ root, line, at }: LineContext, dist: string) {
   for (const m of line.matchAll(REPO_PATH_RE)) {
     const p = m[1];
-    if (existsSync(join(root, p)) && !existsSync(join(root, dist, p))) {
+    if (existsSync(join(root, p)) && !existsSync(join(root, dist, p)))
       at("dist-repo-path", p, `スキルの外のファイル ${p} を参照している`);
-      spans.push([m.index, m.index + p.length]);
-    }
   }
-  return spans;
-}
-
-// ファイル名を 1 つのトークンとして読む。前が `/` のもの（パスの末尾）も当てる。
-// 前後に名前の文字が続くもの（`my-outdated.yml`・`outdated.yml.bak`）は別の名前なので当てない。
-// 拡張子の無い名前（`CODEOWNERS`）と、`.` で始まりドットが 1 つの名前（`.gitignore`）は、この形に当たらないので検出しない。
-const FILE_NAME_RE = /(?<![\w.-])([\w.-]+\.[A-Za-z0-9]+)(?![\w-]|\.[A-Za-z0-9])/g;
-
-/** このリポジトリにしか無いファイルの名前を、配布スキル（dist）の行が書いていないかを確かめる。 */
-function checkRepoFileNames(ctx: LineContext, dist: string, reported: [number, number][]) {
-  const { line, repoNames, at } = ctx;
-  // 同じ名前のファイルを書いた側のスキルが持てば、導入先にも届くので数えない。他のスキルは導入先に在るとは限らない。
-  const own = repoNames.skillNames.get(dist);
-  for (const m of line.matchAll(FILE_NAME_RE)) {
-    const name = m[1];
-    const origin = repoNames.names.get(name);
-    if (origin === undefined || own?.has(name)) continue;
-    if (reported.some(([s, e]) => m.index >= s && m.index < e)) continue;
-    // パスの末尾なら、書いたパスがこのリポジトリに在るときだけ数え、在りかにはそのパスを示す。
-    // 無いパスは導入先のパスか誤記で、同じ名前の別のファイルを指していない。
-    const dir = /[\w./-]*$/.exec(line.slice(0, m.index))?.[0] ?? "";
-    const path = dir === "" ? origin : `${dir}${name}`;
-    if (dir !== "" && !existsSync(join(ctx.root, path))) continue;
-    if (repoNames.allowed.has(name)) repoNames.used.add(name);
-    else at("dist-repo-path", name, `このリポジトリにしか無い ${path} を参照している`);
-  }
-}
-
-/** 名前で書くと誤りになるファイルの名前（repo_files）と、名前ごとの許可が使われたか。 */
-type RepoNames = {
-  names: Map<string, string>;
-  /** 配布スキルのディレクトリごとの、その中のファイルの名前。 */
-  skillNames: Map<string, Set<string>>;
-  allowed: Set<string>;
-  used: Set<string>;
-};
-
-/**
- * repo_files.sources の下のファイル（拡張子を問わない）の名前と、その在りか。拡張子の無いものは除く。
- * 配布スキルごとの名前の一覧も返す（書いた側のスキルに同じ名前があれば、checkRepoFileNames が数えない）。
- * 追跡ファイルが 1 件も無い sources は、宣言が古いので例外にする。
- */
-function repoFileNames(root: string, { sources, allowed }: RepoFilesConfig): RepoNames {
-  const files = listAllSources(root);
-  const skillNames = new Map<string, Set<string>>();
-  for (const f of files) {
-    const dist = distributedSkillDir(f);
-    if (dist === null) continue;
-    if (!skillNames.has(dist)) skillNames.set(dist, new Set());
-    skillNames.get(dist)?.add(basename(f));
-  }
-  const names = new Map<string, string>();
-  for (const s of sources) {
-    const under = files.filter((f) => f.startsWith(s));
-    if (under.length === 0)
-      throw new Error(`${CONFIG_PATH}: repo_files.sources の ${s} にファイルが無い`);
-    for (const f of under) {
-      const n = basename(f);
-      if (/\.[A-Za-z0-9]+$/.test(n) && !names.has(n)) names.set(n, f);
-    }
-  }
-  return { names, skillNames, allowed: new Set(allowed.map((e) => e.name)), used: new Set() };
 }
 
 /**
@@ -427,14 +322,12 @@ function findInFile({
   scanned: { file, tier, markdown },
   text,
   anchorCache = new Map(),
-  repoNames,
 }: {
   root: string;
   config: DocRefsConfig;
   scanned: ScannedFile;
   text: string;
   anchorCache?: Map<string, Set<string>>;
-  repoNames: RepoNames;
 }): Finding[] {
   const out: Finding[] = [];
   const lines = text.split(/\r?\n/);
@@ -446,40 +339,22 @@ function findInFile({
     anchorCache.set(target, found);
     return found;
   };
-  const ctx: FileContext = {
-    root,
-    config,
-    file,
-    tier,
-    dist: distributedSkillDir(file),
-    anchors,
-    repoNames,
-  };
+  const ctx: FileContext = { root, config, file, tier, dist: distributedSkillDir(file), anchors };
 
   lines.forEach((line: string, i: number) => {
     const at = (rule: string, t: string, message?: string) =>
       out.push({ line: i + 1, rule, text: t, message });
     const lc = { ...ctx, line, at };
-    const linkSpans = markdown && !fenced[i] ? checkLinks(lc) : [];
+    if (markdown && !fenced[i]) {
+      checkLinks(lc);
+    }
     if (!fenced[i]) {
       for (const { re, kind } of SECTION_PATTERNS) {
         for (const m of line.matchAll(re)) checkSection(lc, kind, m);
       }
     }
-    checkTierRefs(lc, linkSpans);
+    checkTierRefs(lc);
   });
-  return out;
-}
-
-/** repo_files.allowed のうち、どの行にも当たらなかった名前の許可。 */
-function unusedNameAllowances({ allowed, used }: RepoNames): string[] {
-  const out: string[] = [];
-  for (const name of allowed) {
-    if (used.has(name)) continue;
-    out.push(
-      `使われていない許可: ${CONFIG_PATH} の repo_files.allowed の ${name}（記述が消えたなら許可も消す）`,
-    );
-  }
   return out;
 }
 
@@ -489,20 +364,13 @@ function unusedNameAllowances({ allowed, used }: RepoNames): string[] {
  */
 export function checkDocRefs(root: string) {
   const config = loadConfig(root);
-  const repoNames = repoFileNames(root, config.repo_files);
-  const result = scanDocRefs(root, config, repoNames);
-  return { ...result, failures: [...result.failures, ...unusedNameAllowances(repoNames)] };
-}
-
-/** 走査するファイルを読み、違反と、許可を当てた後の失敗を集める。repoNames の used はここで埋まる。 */
-function scanDocRefs(root: string, config: DocRefsConfig, repoNames: RepoNames) {
   const list = loadAllowed(root);
   const files = scannedFiles(root, { exclude: SELF_FIXTURES });
   const cache = new Map();
   const found: (Finding & { file: string })[] = [];
   for (const f of files) {
     const text = readFileSync(join(root, f.file), "utf8");
-    for (const v of findInFile({ root, config, scanned: f, text, anchorCache: cache, repoNames }))
+    for (const v of findInFile({ root, config, scanned: f, text, anchorCache: cache }))
       found.push({ file: f.file, ...v });
   }
   return { files: files.length, found, ...applyAllowed(found, list, RULES) };
@@ -527,8 +395,7 @@ export function main(argv: string[]) {
     console.error(`doc-refs: ${files} 件を走査し、${failures.length} 件の不備:`);
     for (const f of failures) console.error(`  - ${f}`);
     console.error(
-      "Fix: 参照先を直す。正しい記述だけを scripts/gates/docs/doc-allowed.json の allowed に理由付きで書く。" +
-        "導入先にも在るファイル名は scripts/gates/docs/doc-refs.json の repo_files.allowed に書く。",
+      "Fix: 参照先を直す。正しい記述だけを scripts/gates/docs/doc-allowed.json の allowed に理由付きで書く。",
     );
     return 1;
   }

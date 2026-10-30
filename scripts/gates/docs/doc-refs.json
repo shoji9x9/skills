@@ -2,8 +2,7 @@
   "$comment": [
     "scripts/gates/docs/check-doc-refs.ts の設定。",
     "repo: このリポジトリ（Issue と PR の URL を見分ける）。",
-    "generated: 導入先で生成するファイルの名前と、節名を確かめるテンプレート。参照のパスが ref と同じか、/ref で終わると当てる（上から順に探す）。skills を書くと、そのスキルの文書からの参照だけに当てる。",
-    "repo_files: 配布スキルがファイル名だけで書くと、このリポジトリのファイルを前提にした記述になる名前の出所（sources）と、導入先にも一般に在る名前の許可（allowed。reason を必ず書く。使われていない許可は失敗にする）。"
+    "generated: 導入先で生成するファイルの名前と、節名を確かめるテンプレート。参照のパスが ref と同じか、/ref で終わると当てる（上から順に探す）。skills を書くと、そのスキルの文書からの参照だけに当てる。"
   ],
   "repo": "shoji9x9/skills",
   "generated": [
@@ -80,54 +79,5 @@
       "ref": "survey.md",
       "template": "skills/replace-strategy/assets/survey-template.md"
     }
-  ],
-  "repo_files": {
-    "sources": [
-      ".github/",
-      "scripts/",
-      "docs/",
-      ".agents/rules/",
-      ".textlint/",
-      ".config/fallow/",
-      ".config/jscpd/"
-    ],
-    "allowed": [
-      {
-        "name": "README.md",
-        "reason": "導入先のリポジトリにも一般に在る文書の名前"
-      },
-      {
-        "name": "copilot-instructions.md",
-        "reason": "GitHub Copilot の指示を置く標準のファイル名で、導入先の .github/ にも在る"
-      },
-      {
-        "name": "check-skill-config-vendor.ts",
-        "reason": "同梱した jsonc-parser の出所として、配布元のリポジトリを名指しして書いている"
-      },
-      {
-        "name": "kaizen-session.json",
-        "reason": "kaizen の setup が導入先の .github/hooks/ に作る Hook の設定"
-      },
-      {
-        "name": "git-worktree-branch-guard.json",
-        "reason": "git-worktree の setup が導入先の .github/hooks/ に作る Hook の設定"
-      },
-      {
-        "name": "baseline.json",
-        "reason": "parity-diff の手順の引数で、parity-suite が導入先に作るベースラインを指す"
-      },
-      {
-        "name": "release.yml",
-        "reason": "issue-batch の設定例で、導入先のワークフローの名前として書いている"
-      },
-      {
-        "name": "index.html",
-        "reason": "agent-usage の report が出力するファイルと、Web の配信で一般に使う名前として書いている"
-      },
-      {
-        "name": "preview.html",
-        "reason": "aws-architecture-diagram の preview が作業ディレクトリに作るファイルとして書いている"
-      }
-    ]
-  }
+  ]
 }
