@@ -1345,9 +1345,13 @@ function buildPlans(specs: Spec[], only: Set<string> | null): { plans: Plan[]; s
  * どの変異もちょうど 1 つのシャードに入る（N 本を合わせると全件）。選び方（`--changed-since`・`--only`）は変えない。
  * このシャードに割り当てられた変異が無ければ、そのことを出力して false を返す（呼び出し側は測らずに終わる）。
  */
-function applyShard(plans: Plan[], shard: { index: number; total: number }): boolean {
+function applyShard(
+  plans: Plan[],
+  shard: { index: number; total: number },
+  durations: Durations,
+): boolean {
   const total = plans.reduce((n, p) => n + p.targeted.length, 0);
-  const assigned = assignShard(plans, shard, loadDurations());
+  const assigned = assignShard(plans, shard, durations);
   plans.forEach((p, i) => (p.targeted = assigned[i]));
   const mine = plans.reduce((n, p) => n + p.targeted.length, 0);
   console.log(
@@ -1412,11 +1416,43 @@ function measureMutation(m: Mutation, testFile: string): boolean {
   return false;
 }
 
-/** 宣言ごとの所要時間（基準 run を含む）。 */
-type Timing = { spec: string; count: number; seconds: number };
+/** 宣言ごとの所要時間（基準 run を含む）。`drifted` は、1 回の実行の秒数が見積もりからずれたか（`isDrifted`）。 */
+type Timing = { spec: string; count: number; seconds: number; drifted: boolean };
+
+/**
+ * 1 回の実行の秒数（perRun）が見積もり（estimate）からずれたか。比が 1.5 倍以上（か、その逆数以下）で、
+ * ずれが runs 回の合計で 30 秒以上のときにずれたとする（1 回が短い宣言は、割り当ての釣り合いをほとんど変えない）。
+ */
+function isDrifted(perRun: number, estimate: number, runs: number): boolean {
+  const ratio = perRun / estimate;
+  if (ratio < 1.5 && ratio > 1 / 1.5) return false;
+  return Math.abs(perRun - estimate) * runs >= 30;
+}
+
+/**
+ * 1 回の実行の秒数（基準 run を含めた回数で割る）が見積もりからずれていたら（`isDrifted`）、そのことを出力して true を返す。
+ * 見積もりは `--shard` の割り当てにだけ使うので、`--shard` の無い実行（durations が無い）では比べない。
+ */
+function reportDrift(
+  { spec, count, seconds }: Omit<Timing, "drifted">,
+  durations?: Durations,
+): boolean {
+  if (durations === undefined) return false;
+  const perRun = seconds / (count + 1);
+  const estimate = durations.seconds.get(spec) ?? durations.defaultSeconds;
+  if (!isDrifted(perRun, estimate, count + 1)) return false;
+  console.log(
+    `見積もりとのずれ: 1 回 ${perRun.toFixed(1)} 秒（見積もり ${estimate} 秒）。` +
+      "scripts/mutation/update-mutation-durations.ts で見積もりを更新する",
+  );
+  return true;
+}
 
 /** 宣言ごとに基準 run と各変異を測り、実証できた数・できなかった数・宣言ごとの所要時間を返す。 */
-function measurePlans(plans: Plan[]): { proven: number; failures: number; timings: Timing[] } {
+function measurePlans(
+  plans: Plan[],
+  durations?: Durations,
+): { proven: number; failures: number; timings: Timing[] } {
   let proven = 0;
   let failures = 0;
   // 宣言ごとの所要時間（基準 run を含む）。全件の実行で、次に縮める宣言を数字で選ぶために出す（Issue #588）。
@@ -1431,8 +1467,10 @@ function measurePlans(plans: Plan[]): { proven: number; failures: number; timing
       else failures++;
     }
     const seconds = (performance.now() - specStart) / 1000;
-    timings.push({ spec: relative(repoRoot, spec.specPath), count: targeted.length, seconds });
+    const specRel = relative(repoRoot, spec.specPath);
     console.log(`時間: ${seconds.toFixed(1)} 秒（${targeted.length} 変異、基準 run を含む）`);
+    const timing = { spec: specRel, count: targeted.length, seconds };
+    timings.push({ ...timing, drifted: reportDrift(timing, durations) });
   }
   return { proven, failures, timings };
 }
@@ -1443,6 +1481,10 @@ function printTimings(timings: Timing[]) {
   for (const t of [...timings].sort((a, b) => b.seconds - a.seconds)) {
     console.log(`  ${t.seconds.toFixed(1).padStart(8)} 秒  ${t.spec}（${t.count} 変異）`);
   }
+  const drifted = timings.filter((t) => t.drifted).length;
+  if (drifted > 0) {
+    console.log(`見積もりからずれた宣言: ${drifted} 件（上の「見積もりとのずれ」の行）`);
+  }
 }
 
 function main() {
@@ -1451,7 +1493,8 @@ function main() {
   const specs = selectSpecs(files, changedSince);
   if (specs === null) return;
   const { plans, skipped } = buildPlans(specs, only);
-  if (shard && !applyShard(plans, shard)) return;
+  const durations = shard ? loadDurations() : undefined;
+  if (shard && durations && !applyShard(plans, shard, durations)) return;
 
   if (list) {
     // 測る変異を 1 行に 1 件ずつ出して終わる（基準 run も変異も実行しない）。
@@ -1461,7 +1504,7 @@ function main() {
     return;
   }
 
-  const { proven, failures, timings } = measurePlans(plans);
+  const { proven, failures, timings } = measurePlans(plans, durations);
   // 集計の行（mutation-proof: ...）を最後の行に保つため、その前に出す。
   printTimings(timings);
   console.log(
