@@ -124,7 +124,7 @@ push の後などに再レビューを依頼する AI レビュアーは、CLI �
    - PR の状態を確かめ直す。`gh pr view <番号> --repo <owner>/<repo> --json state` を再取得し、`OPEN` でなくなっていたら（他の人のマージやクローズなどで対象が無くなったら）、仕上げる対象が無くなったとして止まる。
      着手する前だけでなく、各反復の最初にも確かめ、無くなった対象の CI とレビューを待ち続けない。
    - CI: `gh pr checks <番号> --repo <owner>/<repo> --watch --fail-fast` で完了を待つ（どれかが失敗した時点で抜ける）。
-     待っている間は、runner が割り当てられないジョブを「ポーリングと待機」の手順で別に確かめる。`--watch` は、そのジョブが始まらないままでも返らないからである。
+     待っている間は、runner が割り当てられないジョブと、承認などを待つジョブを「ポーリングと待機」の手順で別に確かめる。`--watch` は、そのジョブが始まらないままでも返らないからである。
      push の直後は、チェックがまだ登録されておらず、すぐに `no checks` が返ることがある。そのときは間隔を空けて数回まで確かめ直す。
    - 未解決のレビュースレッド: [`references/state-query.md`](references/state-query.md) の reviewThreads の索引を `--paginate` で全件取得し、`isResolved == false` で絞る。すべてのレビュアーを対象にし、作成者では絞らない。
    - 現在の HEAD がレビュー済みかを判定する（後述の「HEAD のレビュー済み判定」）。
@@ -162,33 +162,11 @@ push の後などに再レビューを依頼する AI レビュアーは、CLI �
    `review_tool: local` で `check` が `status=open` を返したら、その記録（出力の `record`）の本文に書いた、直すと決めた指摘も対象にする。この記録は、スレッドの外の指摘を集める処理が読まないので、ここで読む。
    1. 該当する `path` の `line` の付近を読み、指摘がコードの事実と合うかを評価する。
    2. 妥当で直す必要があれば、対象のファイルを直す。
-      指摘が特定の行の誤りではなく書き方の形（規則の違反・単位の書き方など）を指すなら、直す前に、その形を PR の差分で足した行全体で検索する。
-      差分は、次の 2 つのコマンドで取り、`+` の行を検索する。2 つは別々に実行し、1 つ目が成功してから 2 つ目を実行する。
-
-      ```bash
-      git fetch --no-tags <remote> "+refs/heads/<PR のベースブランチ>:refs/worktree/pr-review/base"
-      fork_point=$(git merge-base refs/worktree/pr-review/base HEAD) && git diff "$fork_point" -U0
-      ```
-
-      `<remote>` は、PR のベースリポジトリを指す remote である（多くは `origin`。fork から出した PR では `upstream` などのこともある）。
-      取得したベースブランチは、専用の ref（`refs/worktree/pr-review/base`）に置いて比べる。
-      手元のベースブランチは古いことがあり、古いベースと比べると PR に無い行まで差分に入る。
-      `<remote>/<PR のベースブランチ>` は、remote に設定した refspec にそのブランチが含まれないと更新されない。`FETCH_HEAD` は、別の fetch で書き換わる。
-      `refs/worktree/` の下の ref は worktree の間で共有されないので、別の worktree で同じ手順を実行しても取り合わない（<https://git-scm.com/docs/git-worktree> の REFS の節）。
-      1 つ目が 0 以外で終わったら、`git fetch` が失敗している（remote の名前の誤り・認証切れなど）。原因を直してやり直す。
-      2 つ目が何も出さずに 1 で終わったら、`git merge-base` が分岐点を見つけられていない。
-      shallow clone（`git rev-parse --is-shallow-repository` が `true`）なら、`git fetch --unshallow <remote>` で履歴を取得してから、2 つのコマンドをやり直す。
-      shallow clone でなければ、`<remote>` が PR のベースリポジトリを指すかを `git remote -v` で確かめ、直してからやり直す。
-      2 つ目のコマンドは分岐点と作業ツリーを比べるので、この反復でまだ commit していない修正の行と、まだ push していない commit の行も検索の対象に入る（commit は手順 5 でまとめて行う）。
-      `git diff refs/worktree/pr-review/base...HEAD` のように HEAD までの commit だけを比べるコマンドでは、まだ commit していない修正の行が対象に入らない。
-      まだ commit していない新しいファイル（この反復で作ったものなど）は、`git add -N <path>` で登録するまで、この差分に入らない。
-      PR に入れないファイルを登録したら、検索の後に `git reset -- <path>` で登録を戻す。
-      検索を終えたとき、途中で止めたときのどちらも、`git update-ref -d refs/worktree/pr-review/base` で ref を消す（ref が無ければ何もしない）。
-      作業ツリーに PR に入れない変更があれば、その行も差分に入るので、見つかった行から外す。
-      整形（折り返し・空白）だけで変わった行も `+` の行に入る。その行に前からある問題は、下に挙げる直さない根拠の 2 つ目（指摘が PR の範囲の外にある）に当たるので、まとめて直す対象から外す。
-      検索の語は、レビューが示した語や箇所に限らず、形を表す語に広げる（時間の単位なら「秒」「分」「前後」「約」）。
-      広げた語は別の意味の語（「部分」の「分」など）にも当たるので、見つかった行を 1 件ずつ読み、同じ形のものだけをまとめて直す。
-      指摘された行だけを直すと、同じ形の箇所が次の反復で指摘され、反復が増える。返信には、検索した語・見つかった件数・直した件数を書く。
+      指摘が特定の行の誤りではなく書き方の形（規則の違反・単位の書き方など）を指すなら、直す前に、その形を PR の差分で足した行全体で探す。
+      差分の取り方・見つかった行の扱い・返信に書くことは、[`references/pattern-search.md`](references/pattern-search.md) で定義する。ここへ転記しない。
+      参照先を読めなければ、指摘された行だけを直して済ませず、探せなかったことを返信に書く。
+      この反復でまだ commit していない修正の行も探す対象に入る（commit は手順 5 でまとめて行う）。
+      整形だけで変わった行に前からある問題は、下に挙げる直さない根拠の 2 つ目（指摘が PR の範囲の外にある）に当たる。
       直さないなら、その根拠を用意する。直さない根拠にしてよいのは、次の 3 つだけである。`--defer-decisions` のときだけ、4 つ目も使える。
       - 指摘が事実と違う（別の仕組みですでに対処している場合と、Issue やリポジトリの文書に書かれた設計の意図と食い違う場合を含む）
       - 指摘が PR の範囲の外にある。範囲の中は次の 3 つで、同じ PR で直す。PR が閉じる Issue の受け入れ条件のうちまだ満たしていない項目・この PR が意味を変えた行にある問題・この PR の変更が影響する箇所に生んだ問題である。
@@ -280,7 +258,7 @@ effort を指定できるのは、`review_tool: local` で Claude Code の `/cod
 | 完了 | CI がすべて成功し、未解決のスレッドが無く、レビューの本文とトップレベルのコメントに対応していない指摘が無く、HEAD がレビュー済みである。`review_tool: none` では HEAD がレビュー済みかを問わず、CI がすべて成功し、未解決のスレッドが無く、スレッドの外の指摘にも対応していれば完了とする |
 | レビュー未着で待機終了 | 上のうち HEAD がレビュー済みであることだけを満たさず、レビューが現れるのを待つ時間が上限に達した |
 | 最大反復到達 | 「反復の段階と effort」の最後の段階の回数を使い切った（effort を下げられないツールでは `--max-iterations` に達した）。または、進み具合のメモを失って段階が分からなくなり、1 回だけ反復した（「完了」「レビュー未着で待機終了」「判断待ちで終了」の条件を満たせば、そちらにする）。段階ごとの effort と反復の回数を書く。残っている CI の失敗、未解決のスレッド、スレッドの外（レビューの本文とトップレベルのコメント）の指摘を書く。止まった時点の HEAD が「HEAD のレビュー済み判定」でレビュー済みでなければ、そのことを書く（`none` を除く）。その HEAD の CI が終わっていなければ、終わっていないと書く |
-| 行き詰まり | 同じ CI の失敗が良くならず、新しく打てる手が無い。失敗の内容と、どうすれば直せそうかを報告する。runner が割り当てられないジョブが上限を超えて始まらないときと、ベースブランチとの競合で CI が起動しないとき（競合があるかを判定できないときを含む）も、ここで止まる（「ポーリングと待機」） |
+| 行き詰まり | 同じ CI の失敗が良くならず、新しく打てる手が無い。失敗の内容と、どうすれば直せそうかを報告する。runner が割り当てられないジョブか、承認などを待つジョブが上限を超えて始まらないときも、ここで止まる。ベースブランチとの競合で CI が起動しないとき（競合があるかを判定できないときを含む）も同じである（「ポーリングと待機」） |
 | 仕上げ対象なし | 着手する前か、ループの中の状態の取得で見つける。PR が OPEN でない（`MERGED` か `CLOSED`）。ループの途中で他の人のマージやクローズで対象が無くなったときも同じように止まる |
 | 前提不一致 | 着手する前に止まる。repo が一致しない、または現在のブランチが PR の head と一致しない |
 | 判断待ちで終了 | `--defer-decisions` のときだけ。CI がすべて成功し、残りの未解決のスレッドとスレッドの外の指摘が、すべて判断待ちにした人の判断が要る指摘であり、HEAD がレビュー済みである（`review_tool: none` を除く）。判断待ちの一覧（指摘の URL・選択肢・推奨）を書く。「完了」とは別の止まった理由にする |
@@ -297,20 +275,21 @@ effort を指定できるのは、`review_tool: local` で Claude Code の `/cod
 
 - CI の完了を待つ: `gh pr checks --watch` に任せる。gh が中でポーリングし、完了するまで待つ。間隔は `--interval <秒>` で決める。自分で短い間隔のループを書いて呼び続けない。
   - `--watch` は、ジョブが `queued` のまま runner が割り当てられなくても返らない。
-    そのため、`--watch --fail-fast` はバックグラウンドで実行し、待っている間に、runner が割り当てられないジョブを一定の間隔で別に確かめる。`--watch` は打ち切らない。
+    そのため、`--watch --fail-fast` はバックグラウンドで実行し、待っている間に、runner が割り当てられないジョブと、承認などを待つジョブを一定の間隔で別に確かめる。`--watch` は打ち切らない。
     バックグラウンドの実行は、終わったことと終了コードを受け取れ、途中で止められる方法にする（Claude Code の `run_in_background` など。stdin は `</dev/null` にする）。
     エージェントにそのような実行の機能が無ければ、`--watch` を使わない。`--watch` を付けない `gh pr checks` と下の確認を、`--interval` と同じ間隔を空けて交互に実行する。
     `--watch` が 0 以外で返ったら、起動し直さずに「CI 状態の確認」で失敗したチェックがあるかを確かめる。あれば手順 3 で直し、無ければ（`no checks` や API のエラーで返ったとき）「`no checks` を確かめ直す」と同じに扱う。
     0 で返ったら、別に確かめるのをやめ、「CI 状態の確認」の手順で CI を判定する。push の直後の exit 0 は、必須チェックが登録される前のことがあるからである。
-    判定でまだ終わっていないチェックが見つかったら、`--interval` の間隔を空けてから `--watch` をもう一度バックグラウンドで起動し、runner が割り当てられないジョブの確認も続ける。メモに残した初めて見つけた時刻は、そのまま使う。
+    判定でまだ終わっていないチェックが見つかったら、`--interval` の間隔を空けてから `--watch` をもう一度バックグラウンドで起動し、runner が割り当てられないジョブと、承認などを待つジョブの確認も続ける。メモに残した初めて見つけた時刻は、そのまま使う。
     すぐに 0 で返ることが 3 回続いたら、起動し直すのをやめ、「`no checks` を確かめ直す」と同じに扱う。
   - 確かめるのは、HEAD のすべての workflow run の、`status` が `queued` で `runner_name` が null のジョブである。
+    承認などを待つジョブ（`waiting`・`requested`・`pending`。後述）も、同じ取得で見つける。
     run の `status` は 1 つのジョブが始まると `in_progress` になるので、run では絞らない。
 
     ```bash
     gh api --paginate "repos/<owner>/<repo>/actions/runs?head_sha=<HEAD の SHA>&per_page=100" --jq '.workflow_runs[].id'
     gh api --paginate "repos/<owner>/<repo>/actions/runs/<run-id>/jobs?per_page=100" \
-      --jq '.jobs[] | select(.status == "queued" and .runner_name == null) | {id, name, labels}'
+      --jq '.jobs[] | select((.status == "queued" and .runner_name == null) or .status == "waiting" or .status == "requested" or .status == "pending") | {id, name, status, labels}'
     ```
 
     どちらの API もページごとにオブジェクトを返すので、`--jq` でページをまたいで run の ID とジョブだけを並べる。
@@ -324,7 +303,39 @@ effort を指定できるのは、`review_tool: local` で Claude Code の `/cod
     同じ run に `in_progress` のジョブが無くなった後の確認でも同じ状態なら、次の項目のとおりに止まる。
   - 上限を超えても同じジョブが `queued` のままで `runner_name` が null なら、runner が割り当てられていない（Actions の予算の上限、存在しないラベルの runner の指定、runner の空きが無い状態が続いているなど）。
     原因はリポジトリの外にあることが多く、ループの中では除けない。`--watch` を止め、`run-id`・ジョブの名前・`labels`・待った時間を書いて「行き詰まり」として止まり、利用者に知らせる。
-  - `waiting`（environment の保護ルールによる待ち）・`requested`・`pending` のジョブは、runner の割り当てとは別の待ちなので、この確認では止めない。
+  - `waiting`（environment の保護ルールによる待ち）・`requested`・`pending` のジョブは、runner の割り当てとは別の待ちである。
+    `--watch` はこの状態のジョブでも返らないので、上と同じ間隔で別に確かめ、上限を置く。
+    上の jobs API の取得で `status` がこの 3 つのどれかのジョブを見つけ、上と同じく初めて見つけた時刻をジョブの `id` と状態とともにメモに残す。
+    同じジョブの状態が変わったら（`waiting` から `queued` になったときなど）、新しい状態で初めて見つけた時刻を記録し直す。
+    前の状態で待った時間を、次の状態の上限に数えないためである。
+
+  - `waiting` のジョブがある run は、何を待っているかを pending deployments の API で確かめる。
+    jobs API にはジョブと environment を結ぶ欄が無いので、run の単位で取得する。
+
+    ```bash
+    gh api "repos/<owner>/<repo>/actions/runs/<run-id>/pending_deployments" \
+      --jq '.[] | {environment: .environment.name, wait_timer, wait_timer_started_at, reviewers: [.reviewers[] | .reviewer.login // .reviewer.slug]}'
+    ```
+
+    `wait_timer` は分の単位で、0 より大きく `wait_timer_started_at` が null でない environment は、wait timer が終わるのを待っている。
+    `wait_timer_started_at` に `wait_timer` を足した時刻までは正常な待ちなので、上限の時間に数えない。
+    `reviewers` が空でない environment は、承認を待っている。
+    どちらにも当たらない environment（custom deployment protection rule で待つものなど）も、承認待ちと同じ上限で扱う。
+    形は <https://docs.github.com/en/rest/actions/workflow-runs#get-pending-deployments-for-a-workflow-run> で確かめた。
+    `wait_timer` の単位は <https://docs.github.com/en/rest/deployments/environments#create-or-update-an-environment> で確かめた。
+    environment を作るのはリポジトリの設定の変更なので、承認待ちの状態は作って確かめていない。
+  - 上限は、`queued` と同じ 30 分にする。待った時間は、初めて見つけた確認の時刻から測る。
+    `waiting` のジョブがある run では、待った時間を environment ごとに測る。jobs API ではジョブと environment を対応づけられないので、run の単位で取得した environment を 1 つずつ数える。
+    各 environment の待った時間は、その environment を pending deployments の応答で初めて見つけた確認の時刻と、その environment の wait timer の終わる時刻の遅いほうから測る。
+    初めて見つけた時刻は、run の ID と environment の名前とともにメモに残す。ジョブの `id` の時刻は使わない。どのジョブがどの environment を待つかを決められないからである。
+    応答からその environment が消えたら（承認や wait timer の終わりで待ちが解けたら）、メモの時刻を捨てる。
+    もう一度現れたら、その確認の時刻を新しく記録する。前の待ちの時間を、次の待ちの上限に数えないためである。
+    どれか 1 つの environment が上限を超えたら、上限を超えたとみなす。ほかの environment の wait timer が後で終わることは、その environment の待った時間を減らさない。
+    pending deployments の API が失敗したとき（権限の不足・一時的なエラー）と、`waiting` のジョブがあるのに空の配列を返したときは、environment の起点を記録できない。
+    そのときは wait timer の待ちを除かず、`waiting` のジョブを初めて見つけた確認の時刻から測る。報告には、environment を判定できなかったことと、API の応答（エラーか空か）を書く。
+    上限を超えた時点で同じ run に `in_progress` のジョブがあれば、まだ止めない（`queued` と同じ理由）。
+    同じ run に `in_progress` のジョブが無くなった後の確認でも同じ状態なら、`--watch` を止める。
+    run の ID・ジョブの名前・状態・待った時間を書き、`waiting` のジョブなら待っている environment の名前と `reviewers`（空なら空と）も書いて、「行き詰まり」として止まり、利用者に知らせる。
   - runner が割り当てられなかったことが原因で止まり、その原因を除いた後に再開したら、run を取り消してから再実行する。原因を除いた後も、`queued` のままのジョブが動き出さないことがあるからである。
     取り消しは `gh run cancel <run-id> --repo <owner>/<repo>` で行う。取り消しは非同期で、`completed` になる前の run は再実行できない。
     `gh run view <run-id> --repo <owner>/<repo> --json status` が `completed` になるのを上限を決めて待ってから、`gh run rerun <run-id> --repo <owner>/<repo>` を実行する。
@@ -354,7 +365,8 @@ effort を指定できるのは、`review_tool: local` で Claude Code の `/cod
 収束には時間がかかり、途中でコンテキストの自動圧縮（auto-compaction）が起きることがある。それに耐えるため、状態は GitHub にある実際の状態から取得し直す。
 
 - 各反復は、GitHub の実際の状態から再開できるようにする。手順 1 で CI の状態と未解決のスレッドを取得し直す。保存済みの返信と解決から、実際の状態を組み立て直せる。
-- 反復の回数の予算（`--max-iterations`）と行き詰まりの検知だけは、記憶に頼りやすい。「何回目の反復か」「今の段階の effort と、その段階で残っている回数」「段階を下げた時点の HEAD の完全な SHA」「直近の CI の失敗の要点」「runner が割り当てられないジョブの `id` と、初めて見つけた時刻」を短い進み具合のメモに残し、再開するときの起点にする。
+- 反復の回数の予算（`--max-iterations`）と行き詰まりの検知だけは、記憶に頼りやすい。「何回目の反復か」「今の段階の effort と、その段階で残っている回数」「段階を下げた時点の HEAD の完全な SHA」「直近の CI の失敗の要点」「上限を置いて待つジョブの `id`・状態と、その状態で初めて見つけた時刻」を短い進み具合のメモに残し、再開するときの起点にする。
+  `waiting` の run では、environment ごとの初めて見つけた時刻も残す。
   メモを失ったら、GitHub の実際の状態から今の状況を導き直す。残りの作業が無ければ、反復を足さずに今の状況を報告して止まる。
   そのときは HEAD がレビュー済みかを取得し直して確かめ、レビューされていなければ「完了」ではなく「レビュー未着で待機終了」として報告する。予算がはっきりしないことを、レビューがそろった根拠にしない。
 

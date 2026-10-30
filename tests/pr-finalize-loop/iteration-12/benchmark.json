@@ -1,0 +1,171 @@
+{
+  "metadata": {
+    "skill_name": "pr-finalize-loop",
+    "skill_path": "<repo>/skills/pr-finalize-loop",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-30T06:11:33Z",
+    "evals_run": [23],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 23,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 28.727,
+        "tokens": 75940,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "wait timer が終わる 10:20 までの待ちを、上限の時間に数えないと述べている",
+          "passed": true,
+          "evidence": "「10:20 までは正常な待ちで、上限の時間には数えません」と書き、起点を 10:20 にしている"
+        },
+        {
+          "text": "10:35 の時点では止めずに待ち続けると述べている",
+          "passed": true,
+          "evidence": "「10:35 の判断：待ち続ける」で、起点から 15 分で上限に届かないとしている"
+        },
+        {
+          "text": "待つ上限を 30 分とし、10:55 の時点で上限を超えたと判断している",
+          "passed": true,
+          "evidence": "「上限は 30 分なので 10:50 に上限に達します」「10:55 … 上限の 30 分を超えています」"
+        },
+        {
+          "text": "10:55 で止まる理由を「行き詰まり」としている",
+          "passed": true,
+          "evidence": "「止まった理由は「行き詰まり」」と見出しに書いている"
+        },
+        {
+          "text": "報告に run の ID（7001）・ジョブの名前（deploy）・状態（waiting）・待った時間を書くと述べている",
+          "passed": true,
+          "evidence": "報告に run ID 7001・ジョブ deploy（id 9001）・状態 waiting・待った時間 35 分を挙げている"
+        },
+        {
+          "text": "報告に environment の名前（production）と reviewers（alice）を書くと述べている",
+          "passed": true,
+          "evidence": "報告に environment production と reviewers alice を挙げている"
+        },
+        {
+          "text": "実行はせず説明に留めている（gh の実行・ファイルの変更を行っていない）",
+          "passed": true,
+          "evidence": "冒頭で実行も変更もしていないと述べ、project-tree.txt にはスキルを置いた .claude だけがあり、作ったファイルは無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 23,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4286,
+        "passed": 3,
+        "failed": 4,
+        "total": 7,
+        "time_seconds": 35.684,
+        "tokens": 20608,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "wait timer が終わる 10:20 までの待ちを、上限の時間に数えないと述べている",
+          "passed": false,
+          "evidence": "10:20 にタイマーが切れたことは述べるが、上限の時間という考えが無く、数えないかを述べていない"
+        },
+        {
+          "text": "10:35 の時点では止めずに待ち続けると述べている",
+          "passed": true,
+          "evidence": "「10:35 の判断：止めずに、もう1回だけ待つ」"
+        },
+        {
+          "text": "待つ上限を 30 分とし、10:55 の時点で上限を超えたと判断している",
+          "passed": false,
+          "evidence": "30 分の上限を置かず、2 回続けて変化が無いことを止める根拠にしている"
+        },
+        {
+          "text": "10:55 で止まる理由を「行き詰まり」としている",
+          "passed": false,
+          "evidence": "止まった理由を「CI 待ちで停止」としており、「行き詰まり」と書いていない"
+        },
+        {
+          "text": "報告に run の ID（7001）・ジョブの名前（deploy）・状態（waiting）・待った時間を書くと述べている",
+          "passed": false,
+          "evidence": "run 7001・deploy・waiting は書くが、待った時間（分）を書かず、確認の時刻だけを並べている"
+        },
+        {
+          "text": "報告に environment の名前（production）と reviewers（alice）を書くと述べている",
+          "passed": true,
+          "evidence": "報告に environment production と必須レビュアー alice を挙げている"
+        },
+        {
+          "text": "実行はせず説明に留めている（gh の実行・ファイルの変更を行っていない）",
+          "passed": true,
+          "evidence": "冒頭で実行も変更もしていないと述べ、project-tree.txt は空（. のみ）"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 28.727,
+        "stddev": 0,
+        "min": 28.727,
+        "max": 28.727
+      },
+      "tokens": {
+        "mean": 75940,
+        "stddev": 0,
+        "min": 75940,
+        "max": 75940
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.4286,
+        "stddev": 0,
+        "min": 0.4286,
+        "max": 0.4286
+      },
+      "time_seconds": {
+        "mean": 35.684,
+        "stddev": 0,
+        "min": 35.684,
+        "max": 35.684
+      },
+      "tokens": {
+        "mean": 20608,
+        "stddev": 0,
+        "min": 20608,
+        "max": 20608
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.57",
+      "time_seconds": "-7.0",
+      "tokens": "+55332"
+    }
+  },
+  "notes": [
+    "変更確認（PR #841、Issue #839）。新しく足した eval 23 だけを with_skill と without_skill で 1 run ずつ実行した（claude-code、opus、effort 指定なし）。",
+    "eval 23 は新しい eval なので、比べる記録は無い。with_skill は 7/7、without_skill は 3/7 で、30 分の上限・wait timer の時間を数えない扱い・「行き詰まり」・待った時間の報告で差が出た。",
+    "without_skill が pass した 3 本（10:35 で待ち続ける・environment と reviewers を報告する・実行しない）は、場面の説明から推測できるので、後退の検出のために置く。"
+  ]
+}

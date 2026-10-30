@@ -306,3 +306,10 @@ manifest を更新する JSON の heredoc と python の起動を並べた呼び
 `.github` の語に `git` が含まれるので、git を実行しないコマンドでも `names git in a form too complex to verify` で拒否される。
 新しく出た形は、`git show HEAD:<パス>` をプロセス置換で 2 つ並べて `diff` に渡す呼び出しである。
 単独の呼び出しに分けるか、Read ツールで読む形に直した。
+
+### 再発の記録（#839）
+
+2026-10-30、issue-batch の run の #839 で、worktree に入った後の Bash の呼び出しが 4 回拒否された。
+新しく出た形は、`evals/` のパスと `grep` を `;` でつないだ呼び出しで、`runs a string through eval` として拒否された。パスの `evals` の語を、シェルの `eval` と読んだと考えられる。
+ほかは、変数で組み立てたパスを `python3` に渡す呼び出しと、`gh api` の `--jq` の式を含む複合の呼び出しである。
+単独の呼び出しに分けるか、Write ツールでスクリプトにして絶対パスで実行する形に直した。

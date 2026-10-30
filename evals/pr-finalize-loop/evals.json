@@ -449,6 +449,49 @@
           "prompt_quote": "コマンドの実行やファイルの変更はせずに説明して。"
         }
       ]
+    },
+    {
+      "id": 23,
+      "prompt": "pr-finalize-loop 42 --review-tool none で回している途中の場面を、コマンドの実行やファイルの変更はせずに説明して。PR #42 は自分が作成した PR で、未解決のレビュースレッドは無い。CI の完了を gh pr checks --watch でバックグラウンドに待っているが、返ってこない。10:00 の確認で、HEAD の workflow run 7001 のジョブ deploy（id 9001）を、jobs API の status が waiting の状態で初めて見つけた。同じ run のほかのジョブはすべて completed である。run 7001 の pending deployments の API は、environment production について wait_timer 20、wait_timer_started_at 10:00、reviewers に alice を返した。10:35 と 10:55 の確認でも、ジョブ deploy は waiting のままで、API の応答も同じだった。10:35 と 10:55 のそれぞれの時点でどう判断するかと、止まるならその理由と報告に書くことを述べて。",
+      "assertions": [
+        "wait timer が終わる 10:20 までの待ちを、上限の時間に数えないと述べている",
+        "10:35 の時点では止めずに待ち続けると述べている",
+        "待つ上限を 30 分とし、10:55 の時点で上限を超えたと判断している",
+        "10:55 で止まる理由を「行き詰まり」としている",
+        "報告に run の ID（7001）・ジョブの名前（deploy）・状態（waiting）・待った時間を書くと述べている",
+        "報告に environment の名前（production）と reviewers（alice）を書くと述べている",
+        "実行はせず説明に留めている（gh の実行・ファイルの変更を行っていない）"
+      ],
+      "reachability": [
+        {
+          "assertion": "wait timer が終わる 10:20 までの待ちを、上限の時間に数えないと述べている",
+          "prompt_quote": "wait_timer 20、wait_timer_started_at 10:00"
+        },
+        {
+          "assertion": "10:35 の時点では止めずに待ち続けると述べている",
+          "prompt_quote": "10:35 と 10:55 のそれぞれの時点でどう判断するか"
+        },
+        {
+          "assertion": "待つ上限を 30 分とし、10:55 の時点で上限を超えたと判断している",
+          "prompt_quote": "10:35 と 10:55 の確認でも、ジョブ deploy は waiting のままで"
+        },
+        {
+          "assertion": "10:55 で止まる理由を「行き詰まり」としている",
+          "prompt_quote": "止まるならその理由と報告に書くことを述べて。"
+        },
+        {
+          "assertion": "報告に run の ID（7001）・ジョブの名前（deploy）・状態（waiting）・待った時間を書くと述べている",
+          "prompt_quote": "HEAD の workflow run 7001 のジョブ deploy（id 9001）"
+        },
+        {
+          "assertion": "報告に environment の名前（production）と reviewers（alice）を書くと述べている",
+          "prompt_quote": "environment production について"
+        },
+        {
+          "assertion": "実行はせず説明に留めている（gh の実行・ファイルの変更を行っていない）",
+          "prompt_quote": "コマンドの実行やファイルの変更はせずに説明して。"
+        }
+      ]
     }
   ]
 }
