@@ -69,14 +69,17 @@ test("マニフェストにあるのに ZIP に無い id は、ファイル名�
 });
 
 test.each([
-  ["--only の値が無い", ["--only"], "--only には値を指定してください"],
-  ["--only の次が別のフラグ", ["--only", "--verbose"], "--only には値を指定してください"],
-  ["--only= の後が空", ["--only="], "--only= には値を指定してください"],
-  ["--only の有効な id が 0 件", ["--only", " , "], "--only に有効な id がありません"],
-  ["--out の値が無い", ["--out"], "--out には値を指定してください"],
-])("%s ときは、取得せずにエラーにする", (_label, args, message) => {
+  ["--only の値が無い", ["--only"], "error: --only に値が無い", 2],
+  ["--only の次が別のフラグ", ["--only", "--out"], "error: --only に値が無い", 2],
+  ["--only= の後が空", ["--only="], "error: --only に値が無い", 2],
+  ["--only の有効な id が 0 件", ["--only", " , "], "--only に有効な id がありません", 1],
+  ["--out の値が無い", ["--out"], "error: --out に値が無い", 2],
+  ["--only が 2 回ある", ["--only", "lambda", "--only", "s3"], "error: --only が重複している", 2],
+  ["知らない引数がある", ["--verbose"], "error: 不明な引数: --verbose", 2],
+  ["位置引数がある", ["lambda"], "error: 不明な引数: lambda", 2],
+])("%s ときは、取得せずにエラーにする", (...[, args, message, status]) => {
   const r = run({ args });
-  expect(r.status).not.toBe(0);
+  expect(r.status).toBe(status);
   expect(r.stderr).toContain(message);
   expect(r.requested).toEqual([]);
   expect(r.written).toEqual([]);

@@ -746,6 +746,32 @@ test("CLI: --list は比べるヘッダー名を名前順の配列で出す（�
   expect(JSON.parse(chunks.stdout)).toEqual(["content-security-policy", "x-frame-options"]);
 });
 
+test.each([
+  ["値が無い", (list: string) => [list, "--header-list"], "error: --header-list に値が無い"],
+  [
+    "名前の重複",
+    (list: string) => ["--header-list", list, "--header-list", list, "--list"],
+    "error: --header-list が重複している",
+  ],
+  [
+    "不明な名前",
+    (list: string) => ["--header-list", list, "--bogus"],
+    "error: 不明な引数: --bogus",
+  ],
+  [
+    "多すぎる位置引数",
+    (list: string) => ["--header-list", list, "a.json", "b.json"],
+    "error: 不明な引数: b.json",
+  ],
+])("CLI: 引数の誤り（%s）は、理由と使い方を出して exit 2", (_label, argvOf, reason) => {
+  const { listPath } = writeInputs(doc([row("X-Frame-Options")]), {});
+  const { chunks, io } = capture();
+  expect(main(argvOf(listPath), io)).toBe(2);
+  expect(chunks.stderr).toContain(reason);
+  expect(chunks.stderr).toContain("usage: node header-normalize.mjs");
+  expect(chunks.stdout).toBe("");
+});
+
 test("一覧: loadHeaderList は一覧のファイルが無ければ NoHeaderListError、あれば一覧を返す", () => {
   const { listPath } = writeInputs(doc([row("X-Frame-Options")]), {});
   expect(() => loadHeaderList(join(dirname(listPath), "missing.json"))).toThrow(NoHeaderListError);

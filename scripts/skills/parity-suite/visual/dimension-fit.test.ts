@@ -608,6 +608,38 @@ test.each([
   expect(r.stderr).toMatch(/重複している/);
 });
 
+test.each([
+  [
+    "fit の --tolerance",
+    ["fit", "--samples", "s.json", "--metadata", "m.json", "--tolerance", " "],
+  ],
+  [
+    "check の --write",
+    [
+      "check",
+      "--metadata",
+      "m.json",
+      "--current-samples",
+      "s.json",
+      "--samples",
+      "n.json",
+      "--write",
+      " ",
+    ],
+  ],
+])(
+  "%s の値が空白だけなら、値の書き忘れとして exit 2（許容幅 0・空白の名前のファイルとして扱わない）",
+  (_, argv) => {
+    const r = run(argv, {
+      "/w/m.json": fittedMetadata(),
+      "/w/n.json": samplesOf(formula),
+      "/w/s.json": samplesOf(formula),
+    });
+    expect(r.code).toBe(2);
+    expect(r.stderr).toMatch(/--(tolerance|write) に値が無い/);
+  },
+);
+
 test("fit: 全ての窓で表示されない要素は採取の失敗として exit 2（照合 0 件のモデルを作らない）", () => {
   const layout = (w: Win) => ({ ...formula(w), grid: null });
   const r = run(["fit", "--samples", "s.json", "--metadata", "m.json"], {

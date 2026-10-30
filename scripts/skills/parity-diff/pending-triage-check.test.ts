@@ -68,6 +68,7 @@ import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 import { SLUG, run, script } from "./pending-triage-check-helpers.ts";
+import { parseFeatureSlugs } from "../../../skills/parity-diff/scripts/pending-triage-check.mjs";
 
 /** pending-triage-check.mjs が stdout に出す要約のうち、テストが読む欄。 */
 type TriageSummary = {
@@ -624,6 +625,26 @@ test("区切り行の無い slug 表は機能インベントリとして読ま�
   expect(r.stderr).toContain(`対象 slug が機能インベントリに無い（${SLUG}）`);
 });
 
+// GFM の区切り行のハイフンは 1 個以上（Issue #812）。`:` で揃えを書いた形と、区切り行の無い表も並べる。
+test.each([
+  ["ハイフン 1 個", "| slug | x |\n|-|-|\n| a | b |", ["a"]],
+  ["ハイフン 2 個", "| slug | x |\n| -- | -- |\n| a | b |", ["a"]],
+  ["揃えの指定", "| slug | x |\n|:-:|-:|\n| a | b |", ["a"]],
+  ["区切り行が無い", "| slug | x |\n| a | b |", []],
+  // 1 列目の空欄を `-` で書いた本体の行は、区切り行ではない
+  ["1 列目だけが -", "| slug | x |\n| - | b |\n| a | b |", []],
+  // GFM は列の数がヘッダと違う区切り行を表として読まない
+  ["列の数がヘッダと違う", "| slug | x |\n| - |\n| a | b |", []],
+  // エスケープした `\|` は列の区切りではない
+  ["ヘッダに \\|", "| slug | a \\| b |\n|---|---|\n| s1 | x |", ["s1"]],
+  // セルの中の `\|` は GFM と同じく `|` として読む
+  ["セルに \\|", "| slug | x |\n|---|---|\n| a\\|b | x |", ["a|b"]],
+])("parseFeatureSlugs は区切り行（%s）の表から slug を読む", (_label, markdown, expected) => {
+  // slug のヘッダがあれば、区切り行が読めなくても null ではなく空の集合を返す（区切り行の無い slug 表の exit 2 のテストを参照）
+  const slugs = parseFeatureSlugs(markdown);
+  expect(slugs === null ? null : [...slugs]).toEqual(expected);
+});
+
 /** 設定ファイルと成果物を、渡した内容（文字列ならそのまま）で書く。 */
 function writeInputs(work: string, input: { registries?: unknown; metadata?: unknown }) {
   const registries = join(work, "registries.json");
@@ -696,15 +717,20 @@ test("棚卸しの記録がキーごと無ければ未実施として exit 1（�
 test.each([
   ["引数が無い", [], "usage:"],
   ["--metadata が無い", ["--registries", "r.json"], "usage:"],
-  ["値が無い", ["--registries"], "usage:"],
+  ["値が無い", ["--registries"], "error: --registries に値が無い"],
   // 値を書き忘れた引数が、次の名前を値として取り込まない（読めないファイルではなく使い方の誤りにする）。
-  ["値の代わりに次の名前", ["--registries", "--metadata", "--metadata", "m.json"], "usage:"],
+  [
+    "値の代わりに次の名前",
+    ["--registries", "--metadata", "--metadata", "m.json"],
+    "error: --registries に値が無い",
+  ],
   [
     "同じフラグを 2 回",
     ["--registries", "a.json", "--registries", "b.json"],
-    "が複数回指定されている",
+    "error: --registries が重複している",
   ],
-  ["知らない引数", ["--foo"], "unknown argument: --foo"],
+  ["知らない引数", ["--foo"], "error: 不明な引数: --foo"],
+  ["位置引数", ["extra"], "error: 不明な引数: extra"],
 ])("CLI の使い方の誤り（%s）は exit 2", (_name, args, message) => {
   const r = runArgs(args);
 

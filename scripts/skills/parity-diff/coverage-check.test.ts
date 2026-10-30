@@ -827,7 +827,27 @@ test("CLI: 同じフラグの重複指定は後勝ちにせず exit 2", () => {
     encoding: "utf8",
   });
   expect(r.status).toBe(2);
-  expect(r.stderr).toMatch(/複数回指定/);
+  expect(r.stderr).toMatch(/error: --metadata が重複している/);
+});
+
+test.each([
+  ["知らない名前", ["--metadata", "a.json", "--bogus", "x"], "error: 不明な引数: --bogus"],
+  ["位置引数", ["--metadata", "a.json", "extra"], "error: 不明な引数: extra"],
+  ["値の無い --coverage", ["--metadata", "a.json", "--coverage"], "error: --coverage に値が無い"],
+  [
+    "次の名前を値に取る --metadata",
+    ["--metadata", "--coverage", "c.json"],
+    "error: --metadata に値が無い",
+  ],
+])("CLI: 引数の誤り（%s）は使い方を添えて exit 2", (_name, args, message) => {
+  const r = spawnSync(process.execPath, [script, ...args], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain(message);
+  expect(r.stderr).toContain("usage: node coverage-check.mjs");
+  expect(r.stdout).toBe("");
 });
 
 // 要約は記録時点の入力についての主張でしかない。--write の後に表や撮影条件を書き換えても

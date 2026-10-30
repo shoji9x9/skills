@@ -56,6 +56,18 @@
         "勝者と同じ詳細度の`all` の候補の order が null なら、order が無いことを理由に undecidable にする",
         "勝者と同じ詳細度の状態が不明な候補の order が null なら、order が無いことを理由に undecidable にする"
       ]
+    },
+    {
+      "id": "combinator-scan-reads-strings",
+      "why": "主語より前の結合子を探すときに引用符の中を読み飛ばさず、`]` で括弧の深さを誤る",
+      "file": "skills/parity-component/scripts/cascade-resolve.mjs",
+      "find": "      i = skipString(selector, i, { lenient: true }) - 1;\n      continue;",
+      "replace": "      i += 0;",
+      "occurrences": 1,
+      "expect_failing": [
+        "statesOutsideSubject は引用符の中を読み飛ばす: a[title=\"]\"]:hover span",
+        "statesOutsideSubject は引用符の中を読み飛ばす: a[title=']']:hover span"
+      ]
     }
   ]
 }

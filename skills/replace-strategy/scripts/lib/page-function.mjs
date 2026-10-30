@@ -11,6 +11,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { errorMessage } from "./errors.mjs";
+import { parseFlags } from "./flags.mjs";
 
 /**
  * ページで実行するコードのファイルを読み、最後の行の本体の export だけを外して、関数式で包んだソースを返す。
@@ -46,8 +47,9 @@ function pageFunctionSource(pageFile, mainName) {
  * @returns {number}
  */
 function runProbeCli(argv, { source, usage }) {
-  if (argv.length > 0) {
-    process.stderr.write(`未知の引数: ${argv[0]}\n${usage}\n`);
+  const parsed = parseFlags(argv, {});
+  if (parsed.error !== undefined) {
+    process.stderr.write(`${parsed.error}\n${usage}\n`);
     return 2;
   }
   /** @type {string} */

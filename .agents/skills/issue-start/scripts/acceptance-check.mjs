@@ -25,7 +25,8 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { isCliEntry } from "./lib/cli.mjs";
-import { makeIo, parseFlagArgs } from "./lib/flag-args.mjs";
+import { makeIo } from "./lib/flag-args.mjs";
+import { parseFlags } from "./lib/flags.mjs";
 import { isArray } from "./lib/is-array.mjs";
 
 /**
@@ -742,7 +743,7 @@ const USAGE =
   "--table <突き合わせ表> [--head <現在の HEAD の完全 SHA>] [--root <ファイル:行 の起点>] " +
   "[--decisions <pending_decisions を持つ JSON>] [--allow-later <後工程名,...>]";
 
-const KNOWN_ARGS = new Set([
+const KNOWN_ARGS = [
   "--issue",
   "--issue-html",
   "--table",
@@ -750,7 +751,7 @@ const KNOWN_ARGS = new Set([
   "--root",
   "--decisions",
   "--allow-later",
-]);
+];
 
 /**
  * 必須の引数と --head の形を確かめる。
@@ -849,9 +850,9 @@ function allowLaterOf(value) {
  * @returns {{ error: string } | { error: null, input: Parameters<typeof checkAcceptance>[0] }}
  */
 function inputFromArgs(argv, cwd) {
-  const parsedArgs = parseFlagArgs(argv, KNOWN_ARGS);
+  const parsedArgs = parseFlags(argv, { values: KNOWN_ARGS });
   if (parsedArgs.error !== undefined) return { error: parsedArgs.error };
-  const { args } = parsedArgs;
+  const args = parsedArgs.strings;
   const error = argsError(args);
   if (error !== null) return { error };
   const json = readJsonArgs(args, cwd);

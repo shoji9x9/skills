@@ -52,8 +52,8 @@ function diagramDir(envs: string): string {
   return dir;
 }
 
-/** 場所は CLI のオプションで渡す。extra は後ろに付けるので、同じオプションを上書きする。 */
-function render(dir: string, args: string[], extra: string[] = []) {
+/** 場所は CLI のオプションで渡す。places で、アイコンと出力先の場所を変えられる。 */
+function render(dir: string, args: string[], places: { icons?: string; out?: string } = {}) {
   const cwd = makeTempDir("diagram-cli-cwd-");
   const result = spawnSync(
     process.execPath,
@@ -63,10 +63,9 @@ function render(dir: string, args: string[], extra: string[] = []) {
       "--dir",
       dir,
       "--icon-dir",
-      starterIcons,
+      places.icons ?? starterIcons,
       "--out-dir",
-      join(dir, "out"),
-      ...extra,
+      places.out ?? join(dir, "out"),
     ],
     {
       // 手元の設定ファイルを読まないよう、git の外の一時ディレクトリで実行し、人ごとの設定の置き場所も一時ディレクトリにする
@@ -116,15 +115,29 @@ test.each([
 });
 
 test.each([
-  ["値が無い", ["--env"]],
-  ["次が別のフラグ", ["--env", "--verbose"]],
-  ["区切りだけで名前が 0 件", ["--env", ", ,"]],
-  ["= の後が空", ["--env="]],
-])("--env の%sときは、全環境として扱わずエラーにする", (_label, args) => {
+  ["値が無い", ["--env"], "error: --env に値が無い", 2],
+  ["次が別のフラグ", ["--env", "--dir"], "error: --env に値が無い", 2],
+  ["区切りだけで名前が 0 件", ["--env", ", ,"], "--env には環境名を指定してください", 1],
+  ["= の後が空", ["--env="], "error: --env に値が無い", 2],
+  ["指定が 2 回ある", ["--env", "prod", "--env=stg"], "error: --env が重複している", 2],
+])("--env の%sときは、全環境として扱わずエラーにする", (...[, args, message, code]) => {
   const dir = diagramDir(threeEnvs);
   const { status, stderr } = render(dir, args);
-  expect(status).not.toBe(0);
-  expect(stderr).toContain("--env には環境名を指定してください");
+  expect(status).toBe(code);
+  expect(stderr).toContain(message);
+  expect(outFiles(dir)).toEqual([]);
+});
+
+test.each([
+  ["知らない引数", ["--verbose"], "error: 不明な引数: --verbose"],
+  ["位置引数", ["prod"], "error: 不明な引数: prod"],
+  ["値を取らない引数の = の形", ["--no-sandbox=1"], "error: --no-sandbox は値を取らない"],
+])("%sは、使い方を出して 2 で止める", (_label, args, message) => {
+  const dir = diagramDir(threeEnvs);
+  const { status, stderr } = render(dir, args);
+  expect(status).toBe(2);
+  expect(stderr).toContain(message);
+  expect(stderr).toContain("usage: node render-diagram.mjs [--env a,b]");
   expect(outFiles(dir)).toEqual([]);
 });
 
@@ -190,11 +203,7 @@ test("同梱の見本は、spec から生成した図が commit してある SVG
   for (const id of ["api-gateway", "lambda", "dynamodb"]) {
     writeFileSync(join(icons, "aws-icons", `${id}.svg`), '<svg viewBox="0 0 64 64"><rect/></svg>');
   }
-  const { status, stderr } = render(
-    sampleDir,
-    [],
-    ["--icon-dir", icons, "--out-dir", join(work, "out")],
-  );
+  const { status, stderr } = render(sampleDir, [], { icons, out: join(work, "out") });
   expect(stderr).toBe("");
   expect(status).toBe(0);
   expect(readdirSync(join(work, "out"))).toEqual(["architecture-prod.svg"]);
@@ -242,7 +251,7 @@ test("リポジトリの設定の diagram_dir・icon_dir・out_dir を、リポ�
 
 test("使わなくなった環境変数 DIAGRAM_DIR が残っていれば、移行の手順を示して 1 で止める", () => {
   const dir = diagramDir(threeEnvs);
-  const { status, stderr } = render(dir, [], []);
+  const { status, stderr } = render(dir, []);
   expect(status).toBe(0);
   const cwd = makeTempDir("diagram-cli-cwd-");
   const r = spawnSync(process.execPath, [renderScript, "--dir", dir], {

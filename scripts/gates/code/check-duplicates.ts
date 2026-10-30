@@ -11,6 +11,8 @@
 //   ファイル全体の組は、同じ組の 2 つのファイルの間の重複を外す。範囲（`region`）を持つ組は、両方の断片がそれぞれの
 //   ファイルの範囲と重なる重複を外す。範囲の中に収まる条件にしないのは、範囲の印の行や直前の説明のコメントも同じなので、
 //   jscpd の断片が範囲の外へ数行広がるからである。範囲と重ならない重複は、登録していないコピーとして数える。
+//   範囲の組に並べたファイルがファイル全体の組に入っていれば、その組のコピー（バイト単位で同じだと確かめたファイル）も、
+//   範囲の組に入っているものとして判定する（withCopies）。範囲の組には、ファイル全体の組のファイルを 1 つだけ並べればよい。
 // - テストのコード（`isTestCode`）どうしの重複は、閾値を上げた別の走査で判定する。テストは準備と assertion を各テストに書くので、
 //   短い並び（`expect(r.status).toBe(1)` が続くなど）は自然に重なる。1 回目の走査（デフォルトの閾値で全体）からはテストどうしの
 //   重複を除き、2 回目の走査（`TEST_MIN_TOKENS` でテストのコードだけ）の重複を数える。テストとテスト以外の間の重複は 1 回目で数える。
@@ -152,7 +154,33 @@ export function parseReport(value: unknown): { sources: number; clones: Clone[] 
 type Range = { start: number; end: number };
 
 /**
+ * 範囲の組の files に、並べたファイルとファイル全体の組で一致するコピーを足した組を返す（冒頭の判定規則）。ファイル全体の組はそのまま返す。
+ * 1 ファイルが属せるファイル全体の組は 1 つだけである（loadGroups が確かめる）。2 つ以上の組にあれば、どちらで広げるか決まらないので例外にする。
+ */
+export function withCopies(groups: readonly CopyGroup[]): CopyGroup[] {
+  const copiesOf = new Map<string, readonly string[]>();
+  for (const g of groups) {
+    if (g.region !== undefined) continue;
+    for (const f of g.files) {
+      if (copiesOf.has(f)) throw new Error(`${f} が 2 つ以上のファイル全体の組にある`);
+      copiesOf.set(f, g.files);
+    }
+  }
+  return groups.map((g) =>
+    g.region === undefined
+      ? g
+      : { ...g, files: [...new Set(g.files.flatMap((f) => copiesOf.get(f) ?? [f]))] },
+  );
+}
+
+/** 宣言を読み、範囲の組をファイル全体の組のコピーで広げた組を返す。判定と控えの書き込みは、この組を使う。 */
+function loadCopyGroups(root: string): CopyGroup[] {
+  return withCopies(loadGroups(root));
+}
+
+/**
  * 意図したコピーどうしの重複か。同じ組に属する 2 つのファイルの間の重複で、範囲を持つ組なら両方の断片がそれぞれの範囲と重なるもの。
+ * groups は loadCopyGroups の組。
  * rangeOf は、ファイルと範囲の名前から、範囲の中身の行を返す。
  */
 export function isDeclaredCopy(
@@ -173,7 +201,10 @@ export function isDeclaredCopy(
   });
 }
 
-/** 控えた組のどれかに 2 つのファイルが入っていて、今の組のどれにも一緒に入っていない重複か（組を宣言から外した後に残ったコピー）。 */
+/**
+ * 控えた組のどれかに 2 つのファイルが入っていて、今の組のどれにも一緒に入っていない重複か（組を宣言から外した後に残ったコピー）。
+ * groups は loadCopyGroups の組。
+ */
 export function isUndeclaredCopy(
   clone: Clone,
   declared: readonly (readonly string[])[],
@@ -306,7 +337,7 @@ function describe(c: Clone): string {
 
 /** ベースラインに無く登録済みのコピーでもない重複と、組を宣言から外した後に残ったコピーを報告する。終了コードを返す。 */
 function report(root: string, summary: string, clones: Clone[]): number {
-  const groups = loadGroups(root);
+  const groups = loadCopyGroups(root);
   const declared = loadDeclared(root);
   const rangeOf = regionReader(root);
   const fresh = clones.filter((c) =>
@@ -389,7 +420,7 @@ export function main(argv: string[], root = process.cwd()): number {
     // 一時ディレクトリを作れないときも、判定できない（exit 2）として扱う。
     if (updateBaseline) staging = mkdtempSync(join(tmpdir(), "jscpd-baseline-"));
     // ベースラインを書き換える前に宣言を読む。宣言が不正なら、ベースラインだけが置き換わったまま残らないよう、jscpd を実行しない。
-    const groups = updateBaseline ? loadGroups(root) : [];
+    const groups = updateBaseline ? loadCopyGroups(root) : [];
     const results = runScans(root, baselineOf, updateBaseline);
     const summary = results
       .map((r) => `${r.scan.name}: ${r.sources} ファイル・${r.clones.length} 件`)

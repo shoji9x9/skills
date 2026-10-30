@@ -18,8 +18,8 @@
 // ただし作業ツリーではなく、走査したファイルの一覧（index と未追跡のファイル）から決める。
 // 対象のファイルと出所をそろえるため（作業ツリーだけを消した stage 済みの違反や、空の `skills/<name>/` で判定がずれない）。
 // `.private-skill` の印で決めると、印を付け忘れた private skill がこの検査から外れる。
-import { spawnSync } from "node:child_process";
-import { errorMessage, spawnEnd } from "../../lib/errors.ts";
+import { errorMessage } from "../../lib/errors.ts";
+import { listFiles, repoRoot } from "../../lib/git.ts";
 import { isCliEntry } from "../../lib/cli/entry.ts";
 
 // `.jsx` は `.tsx` と同じく、Node が実行できず `tsconfig.repo.json` の include にも入らない。
@@ -102,46 +102,8 @@ function findViolations(paths: readonly string[], privateSkills: readonly string
   return out;
 }
 
-/** git が応答しないときに、待ち続けないよう打ち切る時間。 */
-const GIT_TIMEOUT_MS = 60_000;
-
-/**
- * `dirs` の下の、追跡しているファイルと、無視されていない未追跡のファイル。
- * `.gitignore` のものを除くのは、テストが一時的に作る fixture（`scripts/` の下の `.cjs` など）を数えないため。
- * 未追跡のファイルを含めるのは、`git add` の前に置いた違反も検出するため。
- * 作業ツリーに在るかでは絞らない。stage した違反を作業ツリーから消しても、commit には入るため。
- * `root` はリポジトリのルート（pathspec と返るパスは、起動した場所ではなくルートからの相対パスになる）。
- * このファイルの検査は、1 回の `git ls-files` で全体を取り、規則をパスの接頭辞で振り分ける。
- */
-export function listFiles(
-  root: string,
-  dirs: readonly string[] = ["skills", "scripts", ".agents/skills"],
-): string[] {
-  const res = spawnSync(
-    "git",
-    ["ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", ...dirs],
-    { cwd: root, encoding: "utf8", timeout: GIT_TIMEOUT_MS },
-  );
-  if (res.status !== 0) {
-    throw new Error(`git ls-files に失敗した（${spawnEnd(res)}）: ${res.stderr ?? ""}`);
-  }
-  return res.stdout.split("\0").filter((p) => p !== "");
-}
-
-/** `cwd` を含むリポジトリのルート。どの場所から起動しても、同じ範囲を走査するため。 */
-export function repoRoot(cwd: string): string {
-  const res = spawnSync("git", ["rev-parse", "--show-toplevel"], {
-    cwd,
-    encoding: "utf8",
-    timeout: GIT_TIMEOUT_MS,
-  });
-  if (res.status !== 0) {
-    throw new Error(
-      `git のリポジトリのルートを特定できない（git rev-parse ${spawnEnd(res)}）: ${res.stderr ?? ""}`,
-    );
-  }
-  return res.stdout.trim();
-}
+/** 走査する範囲。1 回の `git ls-files` で全体を取り、規則をパスの接頭辞で振り分ける。 */
+const SCAN_DIRS = ["skills", "scripts", ".agents/skills"];
 
 /** 走査したファイルの一覧のうち、`.agents/skills/<name>/` にあって `skills/<name>/` に無いスキルの名前。 */
 function privateSkillNames(files: readonly string[]): string[] {
@@ -161,7 +123,7 @@ function main(cwd = "."): number {
   let files: string[];
   try {
     root = repoRoot(cwd);
-    files = listFiles(root);
+    files = listFiles(root, SCAN_DIRS);
   } catch (error) {
     console.error(`js-extensions: ${errorMessage(error)}`);
     return 2;

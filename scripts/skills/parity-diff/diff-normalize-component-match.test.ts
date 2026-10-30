@@ -93,6 +93,47 @@ function runCli(componentDiffs: unknown, diffs: unknown[]) {
   return { status: r.status, stderr: r.stderr, classified: parseJsonAs<Classified[]>(r.stdout) };
 }
 
+const emptyRegistries = {
+  intentional_diffs: { keep: [], may_change: [], pending: [] },
+  component_diffs: [],
+  component_diff_exceptions: [],
+  component_diff_exception_causes: [],
+};
+
+test.each([
+  // --slug を 2 回書くと、後の値を警告なしに採っていた（#773）。
+  ["--slug の 2 回目", ["--slug", "b"], "--slug が重複している"],
+  // 名前は値より先に確かめ、値は 2 回目かどうかより先に確かめる。
+  ["2 回目の --slug に値が無い", ["--slug", "--page", "main"], "--slug に値が無い"],
+  ["値の無い --page", ["--page"], "--page に値が無い"],
+  ["次の名前を値に取る --page", ["--page", "--viewport", "1280x800"], "--page に値が無い"],
+  ["知らない名前", ["--bogus", "x"], "不明な引数: --bogus"],
+  ["2 つ目の位置引数", ["extra.json"], "不明な引数: extra.json"],
+])("CLI: %s は使い方の誤りとして exit 2", (_name, args, reason) => {
+  const r = runRaw(emptyRegistries, [], args);
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain(`error: ${reason}`);
+  expect(r.stdout).toBe("");
+});
+
+test("CLI: 値を書き忘れた --slug が次の名前（--page）を値として取り込まない（#773）", () => {
+  const dir = makeTempDir("diff-normalize-");
+  const registriesPath = join(dir, "registries.json");
+  const input = join(dir, "diffs.json");
+  writeFileSync(registriesPath, JSON.stringify(emptyRegistries));
+  writeFileSync(input, "[]");
+  const r = spawnSync(
+    process.execPath,
+    [script, input, "--registries", registriesPath, "--slug", "--page"],
+    {
+      encoding: "utf8",
+      timeout: CHILD_TIMEOUT_MS,
+    },
+  );
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("error: --slug に値が無い");
+});
+
 test("宣言した要素が T から逸脱していれば deviates_T として浮かせる", () => {
   expect(matchComponentT(diff("filter-popup", "5.2969px"), [popupT])).toEqual({
     status: "deviates_T",

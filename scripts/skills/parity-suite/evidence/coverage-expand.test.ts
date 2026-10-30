@@ -787,7 +787,7 @@ test("CLI: 引数不足・重複指定は exit 2", () => {
     },
   );
   expect(dup.status).toBe(2);
-  expect(dup.stderr).toMatch(/複数回指定/);
+  expect(dup.stderr).toMatch(/--coverage が重複している/);
 });
 
 test("CLI --list-profiles は同梱プロファイルを列挙する", () => {
@@ -1650,8 +1650,8 @@ test("CLI: 不明な引数・値の無いフラグ・読めない入力は exit 
   const cov = datagridCoverage();
   const files = { "component-coverage.json": cov, "metadata.json": metadataFor(cov) };
   for (const [args, extraFiles, pattern] of [
-    [["--coverage", "component-coverage.json", "--nope"], {}, /unknown argument: --nope/],
-    [["--coverage"], {}, /^usage: /m],
+    [["--coverage", "component-coverage.json", "--nope"], {}, /error: 不明な引数: --nope/],
+    [["--coverage"], {}, /error: --coverage に値が無い\n^usage: /m],
     [["--coverage", "missing.json"], {}, /網羅表を読めない: missing.json/],
     [
       ["--coverage", "component-coverage.json", "--metadata", "broken.json"],
