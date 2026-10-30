@@ -20,6 +20,18 @@ git -C "<worktree パス>" rev-list --max-count=1 HEAD --not --remotes
 
 出力があれば、push していない commit が残っている。削除しない。
 
+リモートが無いリポジトリ（`git remote` の出力が空）では、`--not --remotes` が何も除かないので、この確認は commit があれば必ず出力する。
+そのときは push の代わりに、ベースの branch に取り込まれていない commit を確かめる。出力があれば削除しない。
+`<ベース>` は呼び出し側から受け取る。受け取っていなければ推測せず、呼び出し側か利用者に確かめる。
+
+```bash
+git -C "<worktree パス>" rev-list --max-count=1 HEAD --not "refs/heads/<ベース>" --
+```
+
+ベースの branch が無いときや、同じ名前のファイルがあって引数を解釈できないとき、このコマンドは何も出力せずに 0 以外で終わる。
+終了コードが 0 以外なら、出力が空でも削除しない。
+`git merge --squash` で取り込んだ branch の commit はベースから辿れないので、この確認は必ず出力する。その worktree も branch も残して報告する。
+
 ### 2. 削除する対象が期待と完全一致することを確かめ直す
 
 `git worktree list --porcelain` をもう一度実行し、
@@ -63,7 +75,21 @@ git worktree list --porcelain
 
 ### 5. ref を削除する（完全一致だけ）
 
-local、remote の順に、名前が完全一致した ref だけを削除する。
+リモートが無いリポジトリ（`git remote` の出力が空）では、この節の下の手順（`git branch -d` と `gh pr view`）に進まず、ここで扱う。
+`git branch -d` は、リモートが無いと今の checkout の HEAD に取り込まれたかで判定するので、HEAD がベース以外のときは、ベースに取り込まれていない branch も削除できてしまう。
+PR も無いので、PR の代わりに、ベースの branch に取り込まれたかを git で確かめる。
+
+```bash
+git branch --merged "refs/heads/<ベース>" --format='%(refname:short)'
+```
+
+出力の行に、削除する branch と完全一致する行があるときだけ、`git branch -d "<branch>"` で削除する。`-D` は使わない。
+`git push origin --delete` は、削除するリモートの branch が無いので実行しない。
+merge と fast-forward で取り込んだ branch はこの出力に載るが、`git merge --squash` で取り込んだ branch は載らず、`git branch -d` も拒否する（実測）。
+載らない branch は削除せず、取り込まれたかを確かめられなかったとして残して報告する。
+この読み替えは、リモートが無いときだけに当てる。GitHub 以外のリモート（GitLab など）を持つリポジトリは対象外で、取り込まれたかを呼び出し側のワークフローで確かめる。
+
+リモートがあるときは、local、remote の順に、名前が完全一致した ref だけを削除する。
 
 ```bash
 git branch -d "<branch>"
@@ -96,6 +122,6 @@ gh pr view "<PR URL | 番号>" --json state,mergedAt,headRefName
 | 状況 | 扱い |
 | --- | --- |
 | dirty（commit していない変更や、未追跡のファイルがある） | 削除しない。絶対パスと残りの作業を報告する |
-| push していない commit がある | 削除しない。push 先を確かめてから判断する |
+| push していない commit がある | 削除しない。push 先を確かめてから判断する。リモートが無いリポジトリでは、ベースに取り込まれていない commit がある場合に読み替える |
 | 作業が BLOCKED / FAILED で終わった | 削除しない。再開できる状態のまま残す |
 | そのセッションが作ったのではない worktree | 削除しない。呼び出し側か利用者に確認する |

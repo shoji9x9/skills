@@ -657,6 +657,10 @@ gh skill install shoji9x9/skills multiagent-setup --agent <利用するエージ
 pending の学びは、コミット前のチェックが抽出を促す一方で、適用されるきっかけが無い。
 閾値に達すれば自動の忘却が対象にするが、忘却は「適用せずに終わりにする」決着なので、適用する機会そのものを作るために、週に 1 回棚卸しする。
 
+リモートが無い（`git remote` の出力が空の）リポジトリでは、GitHub Actions も Issue も使えないので、この定期実行を設定しない。
+代わりに、週に 1 回、`/kaizen apply` で pending の学びを適用し、`/kaizen forget --list` で適用されないまま古くなった学びを確かめるよう、利用者に案内する。
+GitHub 以外のリモート（GitLab など）を持つリポジトリは、この読み替えの対象外である。
+
 前提として、kaizen スキル本体がリポジトリにコミットされている必要がある。
 
 - ワークフローは、checkout した作業ツリーの中だけを探し（`.claude/` / `.agents/` / `.github/` の下の各 `skills/kaizen/scripts/`）、見つからなければ意図して `exit 1` する。
