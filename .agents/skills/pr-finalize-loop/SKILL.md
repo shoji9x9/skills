@@ -347,7 +347,8 @@ effort を指定できるのは、`review_tool: local` で Claude Code の `/cod
     environment を作るのはリポジトリの設定の変更なので、承認待ちの状態は作って確かめていない。
   - 上限は、`queued` と同じ 30 分にする。待った時間は、初めて見つけた確認の時刻から測る。
     `waiting` のジョブがある run では、待った時間を environment ごとに測る。jobs API ではジョブと environment を対応づけられないので、run の単位で取得した environment を 1 つずつ数える。
-    各 environment の待った時間は、初めて見つけた確認の時刻と、その environment の wait timer の終わる時刻の遅いほうから測る。
+    各 environment の待った時間は、その environment を pending deployments の応答で初めて見つけた確認の時刻と、その environment の wait timer の終わる時刻の遅いほうから測る。
+    初めて見つけた時刻は、run の ID と environment の名前とともにメモに残す。ジョブの `id` の時刻は使わない。どのジョブがどの environment を待つかを決められないからである。
     どれか 1 つの environment が上限を超えたら、上限を超えたとみなす。ほかの environment の wait timer が後で終わることは、その environment の待った時間を減らさない。
     上限を超えた時点で同じ run に `in_progress` のジョブがあれば、まだ止めない（`queued` と同じ理由）。
     同じ run に `in_progress` のジョブが無くなった後の確認でも同じ状態なら、`--watch` を止める。
@@ -382,6 +383,7 @@ effort を指定できるのは、`review_tool: local` で Claude Code の `/cod
 
 - 各反復は、GitHub の実際の状態から再開できるようにする。手順 1 で CI の状態と未解決のスレッドを取得し直す。保存済みの返信と解決から、実際の状態を組み立て直せる。
 - 反復の回数の予算（`--max-iterations`）と行き詰まりの検知だけは、記憶に頼りやすい。「何回目の反復か」「今の段階の effort と、その段階で残っている回数」「段階を下げた時点の HEAD の完全な SHA」「直近の CI の失敗の要点」「上限を置いて待つジョブの `id`・状態と、その状態で初めて見つけた時刻」を短い進み具合のメモに残し、再開するときの起点にする。
+  `waiting` の run では、environment ごとの初めて見つけた時刻も残す。
   メモを失ったら、GitHub の実際の状態から今の状況を導き直す。残りの作業が無ければ、反復を足さずに今の状況を報告して止まる。
   そのときは HEAD がレビュー済みかを取得し直して確かめ、レビューされていなければ「完了」ではなく「レビュー未着で待機終了」として報告する。予算がはっきりしないことを、レビューがそろった根拠にしない。
 
