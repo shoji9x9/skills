@@ -32,7 +32,7 @@ applyTo: "skills/**"
 - 未使用でも報告されず、その規則が無いプロジェクトでは何もしない指示のコメント（textlint・markdownlint・shellcheck）。
 - 特定のツールとバージョンで確かめたという実測の記録。
 - 配布元のリポジトリを名前で示したうえで、そこにあるファイルを名前で挙げる記述（生成したファイルの先頭の「配布元（`<owner>/<repo>`）の `<スクリプト>` で作る」など）。
-  パスで書くと、下の `dist-repo-path` が違反にするので、ファイル名だけで書く。
+  配布元のパスは導入先に無いので、パスは書かずにファイル名だけで書く。
 
 使われない抑止を報告されうる指示のコメントは、`scripts/gates/code/check-skill-lint-directives.ts` が lefthook の pre-commit と CI の `Lint` ジョブでチェックする。
 このリポジトリのパスを書いた記述の一部（決まったディレクトリの下にある実在のパスと、リンク）は、`scripts/gates/docs/check-doc-refs.ts` が `dist-repo-path` で検出する。

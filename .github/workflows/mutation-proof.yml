@@ -8,7 +8,8 @@ name: Mutation proof
 
 on:
   schedule:
-    # 毎週月曜 02:00 UTC (11:00 JST)。kaizen-schedule（01:00 UTC）とずらす。
+    # 毎週月曜 02:00 UTC (11:00 JST)。kaizen-schedule.yml と outdated.yml の週次と時刻をずらしている。
+    # どれかの cron を変えるときは、ほかの 2 つと重ならないかを確かめる。
     - cron: "0 2 * * 1"
   workflow_dispatch: {}
 

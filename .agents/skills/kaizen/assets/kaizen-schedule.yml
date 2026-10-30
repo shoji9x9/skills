@@ -9,7 +9,7 @@ name: Kaizen schedule
 
 on:
   schedule:
-    # 毎週月曜 01:00 UTC (10:00 JST)。同じ時刻に動く週次のワークフローがあれば、cron をずらす。
+    # 毎週月曜 01:00 UTC (10:00 JST)。実行の時間帯が重なる週次のワークフローがあれば、cron をずらす。
     - cron: "0 1 * * 1"
   workflow_dispatch:
     inputs:
