@@ -75,7 +75,21 @@ git worktree list --porcelain
 
 ### 5. ref を削除する（完全一致だけ）
 
-local、remote の順に、名前が完全一致した ref だけを削除する。
+リモートが無いリポジトリ（`git remote` の出力が空）では、この節の下の手順（`git branch -d` と `gh pr view`）に進まず、ここで扱う。
+`git branch -d` は、リモートが無いと今の checkout の HEAD に取り込まれたかで判定するので、HEAD がベース以外のときは、ベースに取り込まれていない branch も削除できてしまう。
+PR も無いので、PR の代わりに、ベースの branch に取り込まれたかを git で確かめる。
+
+```bash
+git branch --merged "refs/heads/<ベース>" --format='%(refname:short)'
+```
+
+出力の行に、削除する branch と完全一致する行があるときだけ、`git branch -d "<branch>"` で削除する。`-D` は使わない。
+`git push origin --delete` は、削除するリモートの branch が無いので実行しない。
+merge と fast-forward で取り込んだ branch はこの出力に載るが、`git merge --squash` で取り込んだ branch は載らず、`git branch -d` も拒否する（実測）。
+載らない branch は削除せず、取り込まれたかを確かめられなかったとして残して報告する。
+この読み替えは、リモートが無いときだけに当てる。GitHub 以外のリモート（GitLab など）を持つリポジトリは対象外で、取り込まれたかを呼び出し側のワークフローで確かめる。
+
+リモートがあるときは、local、remote の順に、名前が完全一致した ref だけを削除する。
 
 ```bash
 git branch -d "<branch>"
@@ -94,18 +108,6 @@ gh pr view "<PR URL | 番号>" --json state,mergedAt,headRefName
 
 `state` が `MERGED` で、`headRefName` が削除する branch と完全一致した場合だけ、`git branch -D "<branch>"` に進む。
 一致しない場合や確かめられない場合は削除せず、branch を残して報告する。
-
-リモートが無いリポジトリ（`git remote` の出力が空）には PR が無いので、PR の代わりに、ベースの branch に取り込まれたかを git で確かめる。
-
-```bash
-git branch --merged "refs/heads/<ベース>" --format='%(refname:short)'
-```
-
-出力の行に、削除する branch と完全一致する行があるときだけ、`git branch -d "<branch>"` で削除する。`-D` は使わない。
-`git push origin --delete` は、削除するリモートの branch が無いので実行しない。
-merge と fast-forward で取り込んだ branch はこの出力に載るが、`git merge --squash` で取り込んだ branch は載らず、`git branch -d` も拒否する（実測）。
-載らない branch は削除せず、取り込まれたかを確かめられなかったとして残して報告する。
-この読み替えは、リモートが無いときだけに当てる。GitHub 以外のリモート（GitLab など）を持つリポジトリは対象外で、取り込まれたかを呼び出し側のワークフローで確かめる。
 
 **glob は使わない。** `feature/223-*` のようなパターンで削除しない。
 `gh pr merge --delete-branch` のように「ついでに消す」方法も使わない。消す対象を自分で確かめていないからである。
