@@ -1,0 +1,319 @@
+{
+  "metadata": {
+    "skill_name": "dependabot-alert-issue",
+    "skill_path": "<repo>/skills/dependabot-alert-issue",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-30T15:15:10Z",
+    "evals_run": [5],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 26.013,
+        "tokens": 109622,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "dismiss 対象は引数ではなく .config/skills/shoji9x9/dependabot-alert-issue.jsonc に書く方針である",
+          "passed": true,
+          "evidence": "『設定ファイルに dismiss ルールを書いて』として .config/skills/shoji9x9/dependabot-alert-issue.jsonc に dismiss 配列（package: lodash 等）を足す方針。設定ファイルは書き換えていない（project-files は空、raw/ に Write・Edit・append の実行なし）"
+        },
+        {
+          "text": "設定ファイルへの書き込みは同梱の skill-config.mjs の append（dismiss の配列に要素を足す）で行う方針で、既にある minimum_release_age_days・ignore とコメントを消す・書き換える手順（ファイル全体の書き直し・手での編集）を示していない",
+          "passed": false,
+          "evidence": "skill-config.mjs append dismiss の手順は示したが、主の手順として『次のように dismiss を足します』とファイル全体の jsonc を示し、append は『手で編集する代わりに』の代替扱い。示した全体の jsonc では既存のコメント（『公開から 3 日たっていない…』『テストでしか使わない…』）が消えている"
+        },
+        {
+          "text": "dismiss 該当 alert は Issue 化対象から外す方針である",
+          "passed": true,
+          "evidence": "『ルールに当たる alert は Issue の対象から外れ』『lodash の alert は dismiss の候補に回り、Issue の下書きからは外れる』と説明"
+        },
+        {
+          "text": "gh api --method PATCH で state=dismissed・dismissed_reason・dismissed_comment を渡して却下する方針である",
+          "passed": true,
+          "evidence": "応答が gh api -X/--method PATCH .../dependabot/alerts/<number> に -f state=dismissed・dismissed_reason=not_used・dismissed_comment=... を渡す手順を示している（raw/ に gh の実行は無い）"
+        },
+        {
+          "text": "dismiss も承認を得てから実行する方針である",
+          "passed": true,
+          "evidence": "『実際の却下は、下書きを見てあなたが承認した後に行います』『承認すると…次の API が実行されます』と承認後に dismiss する方針"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 25.984,
+        "tokens": 109789,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "dismiss 対象は引数ではなく .config/skills/shoji9x9/dependabot-alert-issue.jsonc に書く方針である",
+          "passed": true,
+          "evidence": "『設定ファイルに dismiss ルールを書いて』として .config/skills/shoji9x9/dependabot-alert-issue.jsonc に dismiss 配列（package: lodash 等）を足す方針。設定ファイルは書き換えていない（project-files は空、raw/ に Write・Edit・append の実行なし）"
+        },
+        {
+          "text": "設定ファイルへの書き込みは同梱の skill-config.mjs の append（dismiss の配列に要素を足す）で行う方針で、既にある minimum_release_age_days・ignore とコメントを消す・書き換える手順（ファイル全体の書き直し・手での編集）を示していない",
+          "passed": false,
+          "evidence": "skill-config.mjs append dismiss の手順は示したが、主の手順として『次のように dismiss を足します』とファイル全体の jsonc を示し、append は『手で編集する代わりに』の代替扱い。示した全体の jsonc では既存のコメント（『公開から 3 日たっていない…』『テストでしか使わない…』）が消えている"
+        },
+        {
+          "text": "dismiss 該当 alert は Issue 化対象から外す方針である",
+          "passed": true,
+          "evidence": "『ルールに当たる alert は Issue の対象から外れ』『lodash の alert は dismiss の候補に回り、Issue の下書きからは外れる』と説明"
+        },
+        {
+          "text": "gh api --method PATCH で state=dismissed・dismissed_reason・dismissed_comment を渡して却下する方針である",
+          "passed": true,
+          "evidence": "応答が gh api -X/--method PATCH .../dependabot/alerts/<number> に -f state=dismissed・dismissed_reason=not_used・dismissed_comment=... を渡す手順を示している（raw/ に gh の実行は無い）"
+        },
+        {
+          "text": "dismiss も承認を得てから実行する方針である",
+          "passed": true,
+          "evidence": "『実際の却下は、下書きを見てあなたが承認した後に行います』『承認すると…次の API が実行されます』と承認後に dismiss する方針"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 33.885,
+        "tokens": 157240,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "dismiss 対象は引数ではなく .config/skills/shoji9x9/dependabot-alert-issue.jsonc に書く方針である",
+          "passed": true,
+          "evidence": "『設定ファイルに dismiss ルールを書いて』として .config/skills/shoji9x9/dependabot-alert-issue.jsonc に dismiss 配列（package: lodash 等）を足す方針。設定ファイルは書き換えていない（project-files は空、raw/ に Write・Edit・append の実行なし）"
+        },
+        {
+          "text": "設定ファイルへの書き込みは同梱の skill-config.mjs の append（dismiss の配列に要素を足す）で行う方針で、既にある minimum_release_age_days・ignore とコメントを消す・書き換える手順（ファイル全体の書き直し・手での編集）を示していない",
+          "passed": false,
+          "evidence": "skill-config.mjs append dismiss の手順（run-3 は append に --unique-by package も付けている）は示したが、主の手順として『次のように dismiss を足します』とファイル全体の jsonc を示し、append は『手で編集する代わりに』の代替扱い。示した全体の jsonc では既存のコメント（『公開から 3 日たっていない…』『テストでしか使わない…』）が消えている"
+        },
+        {
+          "text": "dismiss 該当 alert は Issue 化対象から外す方針である",
+          "passed": true,
+          "evidence": "『ルールに当たる alert は Issue の対象から外れ』『lodash の alert は dismiss の候補に回り、Issue の下書きからは外れる』と説明"
+        },
+        {
+          "text": "gh api --method PATCH で state=dismissed・dismissed_reason・dismissed_comment を渡して却下する方針である",
+          "passed": true,
+          "evidence": "応答が gh api -X/--method PATCH .../dependabot/alerts/<number> に -f state=dismissed・dismissed_reason=not_used・dismissed_comment=... を渡す手順を示している（raw/ に gh の実行は無い）"
+        },
+        {
+          "text": "dismiss も承認を得てから実行する方針である",
+          "passed": true,
+          "evidence": "『実際の却下は、下書きを見てあなたが承認した後に行います』『承認すると…次の API が実行されます』と承認後に dismiss する方針"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 30.701,
+        "tokens": 87767,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "dismiss 対象は引数ではなく .config/skills/shoji9x9/dependabot-alert-issue.jsonc に書く方針である",
+          "passed": false,
+          "evidence": "lodash を設定の ignore（Issue にしない）に足す案だけで、dismiss の対象を設定に書く方針は無い。dismiss は gh で手作業で別に行うとしている"
+        },
+        {
+          "text": "設定ファイルへの書き込みは同梱の skill-config.mjs の append（dismiss の配列に要素を足す）で行う方針で、既にある minimum_release_age_days・ignore とコメントを消す・書き換える手順（ファイル全体の書き直し・手での編集）を示していない",
+          "passed": false,
+          "evidence": "skill-config.mjs の append に触れず、ファイル全体を書いた jsonc を示して手で編集（PR で反映）する案になっている"
+        },
+        {
+          "text": "dismiss 該当 alert は Issue 化対象から外す方針である",
+          "passed": true,
+          "evidence": "ignore に lodash を書けば『その alert は Issue になりません』として lodash の alert を Issue の対象から外している"
+        },
+        {
+          "text": "gh api --method PATCH で state=dismissed・dismissed_reason・dismissed_comment を渡して却下する方針である",
+          "passed": true,
+          "evidence": "応答が gh api -X/--method PATCH .../dependabot/alerts/<number> に -f state=dismissed・dismissed_reason=not_used・dismissed_comment=... を渡す手順を示している（raw/ に gh の実行は無い）"
+        },
+        {
+          "text": "dismiss も承認を得てから実行する方針である",
+          "passed": false,
+          "evidence": "dismiss はユーザーが自分で gh か画面で実行する手順として示しただけで、承認を得てからエージェントが実行する方針は述べていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 28.254,
+        "tokens": 56234,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "dismiss 対象は引数ではなく .config/skills/shoji9x9/dependabot-alert-issue.jsonc に書く方針である",
+          "passed": false,
+          "evidence": "lodash を設定の ignore（Issue にしない）に足す案だけで、dismiss の対象を設定に書く方針は無い。dismiss は gh で手作業で別に行うとしている"
+        },
+        {
+          "text": "設定ファイルへの書き込みは同梱の skill-config.mjs の append（dismiss の配列に要素を足す）で行う方針で、既にある minimum_release_age_days・ignore とコメントを消す・書き換える手順（ファイル全体の書き直し・手での編集）を示していない",
+          "passed": false,
+          "evidence": "skill-config.mjs の append に触れず、ファイル全体を書いた jsonc を示して手で編集（PR で反映）する案になっている"
+        },
+        {
+          "text": "dismiss 該当 alert は Issue 化対象から外す方針である",
+          "passed": true,
+          "evidence": "ignore に lodash を書けば『その alert は Issue になりません』として lodash の alert を Issue の対象から外している"
+        },
+        {
+          "text": "gh api --method PATCH で state=dismissed・dismissed_reason・dismissed_comment を渡して却下する方針である",
+          "passed": true,
+          "evidence": "応答が gh api -X/--method PATCH .../dependabot/alerts/<number> に -f state=dismissed・dismissed_reason=not_used・dismissed_comment=... を渡す手順を示している（raw/ に gh の実行は無い）"
+        },
+        {
+          "text": "dismiss も承認を得てから実行する方針である",
+          "passed": false,
+          "evidence": "dismiss はユーザーが自分で gh か画面で実行する手順として示しただけで、承認を得てからエージェントが実行する方針は述べていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 32.633,
+        "tokens": 57124,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "dismiss 対象は引数ではなく .config/skills/shoji9x9/dependabot-alert-issue.jsonc に書く方針である",
+          "passed": false,
+          "evidence": "lodash を設定の ignore（Issue にしない）に足す案だけで、dismiss の対象を設定に書く方針は無い。dismiss は gh で手作業で別に行うとしている"
+        },
+        {
+          "text": "設定ファイルへの書き込みは同梱の skill-config.mjs の append（dismiss の配列に要素を足す）で行う方針で、既にある minimum_release_age_days・ignore とコメントを消す・書き換える手順（ファイル全体の書き直し・手での編集）を示していない",
+          "passed": false,
+          "evidence": "skill-config.mjs の append に触れず、ファイル全体を書いた jsonc を示して手で編集（PR で反映）する案になっている"
+        },
+        {
+          "text": "dismiss 該当 alert は Issue 化対象から外す方針である",
+          "passed": true,
+          "evidence": "ignore に lodash を書けば『その alert は Issue になりません』として lodash の alert を Issue の対象から外している"
+        },
+        {
+          "text": "gh api --method PATCH で state=dismissed・dismissed_reason・dismissed_comment を渡して却下する方針である",
+          "passed": true,
+          "evidence": "応答が gh api -X/--method PATCH .../dependabot/alerts/<number> に -f state=dismissed・dismissed_reason=not_used・dismissed_comment=... を渡す手順を示している（raw/ に gh の実行は無い）"
+        },
+        {
+          "text": "dismiss も承認を得てから実行する方針である",
+          "passed": false,
+          "evidence": "dismiss はユーザーが自分で gh か画面で実行する手順として示しただけで、承認を得てからエージェントが実行する方針は述べていない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.8,
+        "stddev": 0,
+        "min": 0.8,
+        "max": 0.8
+      },
+      "time_seconds": {
+        "mean": 28.6273,
+        "stddev": 4.5533,
+        "min": 25.984,
+        "max": 33.885
+      },
+      "tokens": {
+        "mean": 125550.3333,
+        "stddev": 27444.1834,
+        "min": 109622,
+        "max": 157240
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.4,
+        "stddev": 0,
+        "min": 0.4,
+        "max": 0.4
+      },
+      "time_seconds": {
+        "mean": 30.5293,
+        "stddev": 2.1945,
+        "min": 28.254,
+        "max": 32.633
+      },
+      "tokens": {
+        "mean": 67041.6667,
+        "stddev": 17954.1807,
+        "min": 56234,
+        "max": 87767
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.40",
+      "time_seconds": "-1.9",
+      "tokens": "+58509"
+    }
+  },
+  "notes": []
+}

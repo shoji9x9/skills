@@ -1,0 +1,127 @@
+{
+  "metadata": {
+    "skill_name": "dependabot-alert-issue",
+    "skill_path": "<repo>/skills/dependabot-alert-issue",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-30T15:15:10Z",
+    "evals_run": [7],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 17.881,
+        "tokens": 72797,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "minimum_release_age_days の設定を読み、解決バージョンの公開日からの経過と比較する方針である",
+          "passed": true,
+          "evidence": "raw/ で skill-config.mjs dump により設定を読み、『minimum_release_age_days: 3…経過は約 1 日で、3 日に届きません』と比較している"
+        },
+        {
+          "text": "経過が閾値未満のためすぐ着手できないと分類している",
+          "passed": true,
+          "evidence": "『結論: 「すぐ着手できない」になります』『リリース年齢が足りないと判定されます』"
+        },
+        {
+          "text": "リリース年齢が着手可能条件である旨を Issue に明記する方針である",
+          "passed": true,
+          "evidence": "Issue 本文に『妨げ: 解決バージョンの公開から 3 日経っていない』『着手できる日: 2026-11-02 ごろ』を書くと述べている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 19.871,
+        "tokens": 73082,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "minimum_release_age_days の設定を読み、解決バージョンの公開日からの経過と比較する方針である",
+          "passed": true,
+          "evidence": "raw/ で設定ファイルを cat して minimum_release_age_days: 3 を読み、『公開から 1 日…1 日 < 3 日』と公開日からの経過と比較している"
+        },
+        {
+          "text": "経過が閾値未満のためすぐ着手できないと分類している",
+          "passed": true,
+          "evidence": "『1 日 < 3 日のため、まだ採用できない状態』『すぐには更新対象になりません』と、閾値未満のためすぐ着手できない側に分類している"
+        },
+        {
+          "text": "リリース年齢が着手可能条件である旨を Issue に明記する方針である",
+          "passed": false,
+          "evidence": "『Issue だけ先に作って「修正版の公開から日数待ち」と書くのか…確認できていません』と述べ、リリース年齢の条件を Issue に明記する方針を示していない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 17.881,
+        "stddev": 0,
+        "min": 17.881,
+        "max": 17.881
+      },
+      "tokens": {
+        "mean": 72797,
+        "stddev": 0,
+        "min": 72797,
+        "max": 72797
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.6667,
+        "stddev": 0,
+        "min": 0.6667,
+        "max": 0.6667
+      },
+      "time_seconds": {
+        "mean": 19.871,
+        "stddev": 0,
+        "min": 19.871,
+        "max": 19.871
+      },
+      "tokens": {
+        "mean": 73082,
+        "stddev": 0,
+        "min": 73082,
+        "max": 73082
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.33",
+      "time_seconds": "-2.0",
+      "tokens": "-285"
+    }
+  },
+  "notes": []
+}

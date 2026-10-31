@@ -1,0 +1,319 @@
+{
+  "metadata": {
+    "skill_name": "pr-finalize-loop",
+    "skill_path": "<repo>/skills/pr-finalize-loop",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-30T15:15:12Z",
+    "evals_run": [13],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 13,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 26.924,
+        "tokens": 70590,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "トップレベルの PR コメント（issues/<番号>/comments）を指摘の収集対象として読む方針である（スレッドと reviews[].body の 2 系統だけで指摘なしと結論していない）",
+          "passed": true,
+          "evidence": "応答が issues/<番号>/comments を `gh api --paginate .../issues/6/comments` で読む手順を示している"
+        },
+        {
+          "text": "レビュアーが総評・軽微な指摘をトップレベルコメントに置く形を挙げている（スレッド 0 件・reviews[].body 空を根拠に「指摘なし・収束」と結論していない）",
+          "passed": true,
+          "evidence": "「claude-code か codex のときは、総評と指摘がトップレベルのコメントに置かれる」と挙げ、「まだ収束とは判定できません」と結論している"
+        },
+        {
+          "text": "トップレベルコメントは切り詰めずに全文読む（進行中検出の .body[:200] の取得を指摘収集に使い回さない）と述べている",
+          "passed": true,
+          "evidence": "「トップレベルのコメントを、切り詰めずに読む必要があります」と述べている"
+        },
+        {
+          "text": "収束・完了判定の条件に「トップレベルコメントに未対応の指摘が無い」を含めている",
+          "passed": true,
+          "evidence": "完了条件に「レビューの本文とトップレベルのコメントに、対応していない指摘が無い」を含めている"
+        },
+        {
+          "text": "トップレベルコメントの指摘には返信先スレッドが無く resolve もできないため、自分のトップレベルコメントを唯一の証跡として判断と根拠を残す方針である",
+          "passed": false,
+          "evidence": "トップレベルの指摘には返信先スレッドが無く resolve できないので自分のトップレベルコメントを唯一の証跡にする、という方針を述べていない（対応の記録コメントに触れるのは HEAD のレビュー時刻の比較だけ）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 20.074,
+        "tokens": 73853,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "トップレベルの PR コメント（issues/<番号>/comments）を指摘の収集対象として読む方針である（スレッドと reviews[].body の 2 系統だけで指摘なしと結論していない）",
+          "passed": true,
+          "evidence": "応答が issues/<番号>/comments を `gh api --paginate .../issues/6/comments` で読む手順を示している"
+        },
+        {
+          "text": "レビュアーが総評・軽微な指摘をトップレベルコメントに置く形を挙げている（スレッド 0 件・reviews[].body 空を根拠に「指摘なし・収束」と結論していない）",
+          "passed": true,
+          "evidence": "「claude-code/codex は、総評や指摘を PR のトップレベルのコメントに書きます」と挙げ、「まだ収束とは判定できません」と結論している"
+        },
+        {
+          "text": "トップレベルコメントは切り詰めずに全文読む（進行中検出の .body[:200] の取得を指摘収集に使い回さない）と述べている",
+          "passed": true,
+          "evidence": "「issues/<番号>/comments の新しいコメントと更新されたコメントを、切り詰めずに読む必要があります」と述べている"
+        },
+        {
+          "text": "収束・完了判定の条件に「トップレベルコメントに未対応の指摘が無い」を含めている",
+          "passed": true,
+          "evidence": "「1〜5 がすべて満たされている → 完了」とし、2 に「トップレベルのコメントに未対応の指摘がないか」を含めている"
+        },
+        {
+          "text": "トップレベルコメントの指摘には返信先スレッドが無く resolve もできないため、自分のトップレベルコメントを唯一の証跡として判断と根拠を残す方針である",
+          "passed": false,
+          "evidence": "トップレベルの指摘に自分のトップレベルコメントで判断と根拠を返し、それを唯一の証跡にする方針を述べていない（「トップレベルでの回答」は HEAD のレビュー時刻の比較で触れるだけ）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 18.877,
+        "tokens": 70091,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "トップレベルの PR コメント（issues/<番号>/comments）を指摘の収集対象として読む方針である（スレッドと reviews[].body の 2 系統だけで指摘なしと結論していない）",
+          "passed": true,
+          "evidence": "応答が issues/<番号>/comments を `gh api --paginate .../issues/6/comments` で読む手順を示している"
+        },
+        {
+          "text": "レビュアーが総評・軽微な指摘をトップレベルコメントに置く形を挙げている（スレッド 0 件・reviews[].body 空を根拠に「指摘なし・収束」と結論していない）",
+          "passed": true,
+          "evidence": "「claude-code や codex は総評と指摘をこちらに書くので、reviews[].body が空でも指摘が残っていることがあります」と挙げ、収束と判定していない"
+        },
+        {
+          "text": "トップレベルコメントは切り詰めずに全文読む（進行中検出の .body[:200] の取得を指摘収集に使い回さない）と述べている",
+          "passed": true,
+          "evidence": "「作成者以外のコメントを、切り詰めずに読む必要があります」と述べている"
+        },
+        {
+          "text": "収束・完了判定の条件に「トップレベルコメントに未対応の指摘が無い」を含めている",
+          "passed": true,
+          "evidence": "「1〜3 がすべて通れば完了」とし、2 に「トップレベルコメントの指摘」を含めている"
+        },
+        {
+          "text": "トップレベルコメントの指摘には返信先スレッドが無く resolve もできないため、自分のトップレベルコメントを唯一の証跡として判断と根拠を残す方針である",
+          "passed": false,
+          "evidence": "自分のトップレベルコメントを唯一の証跡として判断と根拠を残す方針を述べていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 21.903,
+        "tokens": 63240,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "トップレベルの PR コメント（issues/<番号>/comments）を指摘の収集対象として読む方針である（スレッドと reviews[].body の 2 系統だけで指摘なしと結論していない）",
+          "passed": true,
+          "evidence": "「Conversation コメント（issue comments）を見ていない ← 一番大事」として `gh api .../issues/6/comments` を示している"
+        },
+        {
+          "text": "レビュアーが総評・軽微な指摘をトップレベルコメントに置く形を挙げている（スレッド 0 件・reviews[].body 空を根拠に「指摘なし・収束」と結論していない）",
+          "passed": true,
+          "evidence": "「Claude Code のレビューは、指摘をレビュー本文ではなく PR の Conversation 欄に普通のコメントとして書くことがよくあります」と挙げ、「まだ収束とは判定しないでください」と結論している"
+        },
+        {
+          "text": "トップレベルコメントは切り詰めずに全文読む（進行中検出の .body[:200] の取得を指摘収集に使い回さない）と述べている",
+          "passed": false,
+          "evidence": "切り詰めずに全文読むことは述べていない（jq に body を含めるだけで、切り詰めへの言及が無い）"
+        },
+        {
+          "text": "収束・完了判定の条件に「トップレベルコメントに未対応の指摘が無い」を含めている",
+          "passed": true,
+          "evidence": "「上の 1〜4 をすべて確かめ…指摘が 1 件もなければ収束」「1 で指摘が見つかった場合はループを続けて」と、1（issue comments）を条件に含めている"
+        },
+        {
+          "text": "トップレベルコメントの指摘には返信先スレッドが無く resolve もできないため、自分のトップレベルコメントを唯一の証跡として判断と根拠を残す方針である",
+          "passed": false,
+          "evidence": "トップレベルの指摘に自分のトップレベルコメントで判断と根拠を残す方針を述べていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 24.152,
+        "tokens": 40770,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "トップレベルの PR コメント（issues/<番号>/comments）を指摘の収集対象として読む方針である（スレッドと reviews[].body の 2 系統だけで指摘なしと結論していない）",
+          "passed": true,
+          "evidence": "「PR の会話欄のコメント（issue comments）」を `gh api .../issues/6/comments` で取得すると述べている"
+        },
+        {
+          "text": "レビュアーが総評・軽微な指摘をトップレベルコメントに置く形を挙げている（スレッド 0 件・reviews[].body 空を根拠に「指摘なし・収束」と結論していない）",
+          "passed": true,
+          "evidence": "「ボットや人間が、レビューではなく通常コメントとして指摘を残していることがあります」と挙げ、「まだ収束とは判定できません」と結論している"
+        },
+        {
+          "text": "トップレベルコメントは切り詰めずに全文読む（進行中検出の .body[:200] の取得を指摘収集に使い回さない）と述べている",
+          "passed": false,
+          "evidence": "切り詰めずに全文読むことは述べていない"
+        },
+        {
+          "text": "収束・完了判定の条件に「トップレベルコメントに未対応の指摘が無い」を含めている",
+          "passed": true,
+          "evidence": "「特に1と2で、まだ対応していない指摘が見つかった場合は、ループを続けるべき」と、会話欄コメントを収束の条件に含めている"
+        },
+        {
+          "text": "トップレベルコメントの指摘には返信先スレッドが無く resolve もできないため、自分のトップレベルコメントを唯一の証跡として判断と根拠を残す方針である",
+          "passed": false,
+          "evidence": "トップレベルの指摘に自分のトップレベルコメントで判断と根拠を残す方針を述べていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 29.305,
+        "tokens": 84458,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "トップレベルの PR コメント（issues/<番号>/comments）を指摘の収集対象として読む方針である（スレッドと reviews[].body の 2 系統だけで指摘なしと結論していない）",
+          "passed": true,
+          "evidence": "「PR 会話欄のコメント（issue comments）を見ていない」として `gh pr view 6 --json comments` で確認するよう述べている"
+        },
+        {
+          "text": "レビュアーが総評・軽微な指摘をトップレベルコメントに置く形を挙げている（スレッド 0 件・reviews[].body 空を根拠に「指摘なし・収束」と結論していない）",
+          "passed": true,
+          "evidence": "「review_tool: claude-code の場合、レビュー結果のまとめは会話欄のコメントとして投稿されることがあります」と挙げ、「まだ収束と判定できません」と結論している"
+        },
+        {
+          "text": "トップレベルコメントは切り詰めずに全文読む（進行中検出の .body[:200] の取得を指摘収集に使い回さない）と述べている",
+          "passed": false,
+          "evidence": "切り詰めずに全文読むことは述べていない"
+        },
+        {
+          "text": "収束・完了判定の条件に「トップレベルコメントに未対応の指摘が無い」を含めている",
+          "passed": true,
+          "evidence": "チェックリストに「最新 HEAD 以降の会話欄コメントに、対応が必要な指摘がない」を含めている"
+        },
+        {
+          "text": "トップレベルコメントの指摘には返信先スレッドが無く resolve もできないため、自分のトップレベルコメントを唯一の証跡として判断と根拠を残す方針である",
+          "passed": false,
+          "evidence": "トップレベルの指摘に自分のトップレベルコメントで判断と根拠を残す方針を述べていない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.8,
+        "stddev": 0,
+        "min": 0.8,
+        "max": 0.8
+      },
+      "time_seconds": {
+        "mean": 21.9583,
+        "stddev": 4.3418,
+        "min": 18.877,
+        "max": 26.924
+      },
+      "tokens": {
+        "mean": 71511.3333,
+        "stddev": 2043.2333,
+        "min": 70091,
+        "max": 73853
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.6,
+        "stddev": 0,
+        "min": 0.6,
+        "max": 0.6
+      },
+      "time_seconds": {
+        "mean": 25.12,
+        "stddev": 3.7948,
+        "min": 21.903,
+        "max": 29.305
+      },
+      "tokens": {
+        "mean": 62822.6667,
+        "stddev": 21846.9898,
+        "min": 40770,
+        "max": 84458
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.20",
+      "time_seconds": "-3.2",
+      "tokens": "+8689"
+    }
+  },
+  "notes": []
+}

@@ -1,0 +1,667 @@
+{
+  "metadata": {
+    "skill_name": "current-environment-bootstrap",
+    "skill_path": "<repo>/skills/current-environment-bootstrap",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-30T15:15:10Z",
+    "evals_run": [1, 3],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 210.646,
+        "tokens": 733965,
+        "tool_calls": 15,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "受領資産を「受領済み／導出可能／不足」の 3 区分で個別に分類し、DDL・公式 seed・データ辞書を受領済みとして記録している",
+          "passed": true,
+          "evidence": "assets-inventory.md 2 節で全カテゴリを受領済み／不足／該当なしで分類し、schema.sql を「DB スキーマ｜受領済み」、initial_data.sql を「受領済み（出所・利用許可が未確認のため使用保留）」、data-dictionary.md を「データ辞書・コード値・状態遷移｜受領済み」と記録"
+        },
+        {
+          "text": "DB エンジン版・文字コード・照合順序・タイムゾーン・sql_mode を受領スキーマの記載を根拠に復元し、環境の既定値で補完していない",
+          "passed": false,
+          "evidence": "版 8.0.36・utf8mb4・utf8mb4_ja_0900_as_cs は schema.sql を根拠に確定し、デフォルト値での補完も無い。ただしタイムゾーン Asia/Tokyo と sql_mode はヘッダに記載があるのに、適用階層が不明として schema.md で「不足」にしており、受領スキーマの記載を根拠に復元していない"
+        },
+        {
+          "text": "orders.status の値と正常系遷移をデータ辞書の記載を根拠に「確定済み」として扱い、推測扱いにも確認待ちにもしていない",
+          "passed": false,
+          "evidence": "semantics.md で orders.status の値は確定済みだが、正常系遷移（0→1→2 など）は「確認待ちの意味論」に置き Q-9 で質問している（データ辞書の記載を根拠に確定していない）"
+        },
+        {
+          "text": "暫定起動データは起動・ログイン・主要画面到達のための最小限であり、ゴールデンデータセットは golden-dataset が別途構築すると区別している（暫定データを比較の正解として扱っていない）",
+          "passed": false,
+          "evidence": "暫定起動データは作っておらず（provisional_seeded_at: null）、成果物にも応答にも、暫定データとゴールデンデータセット（golden-dataset が別途構築する）を区別する記述が無い"
+        },
+        {
+          "text": "この環境では現行アプリを実際に起動・ログイン・画面到達できないため、それらを実測済みとして記録せず未検証として扱っている",
+          "passed": true,
+          "evidence": "metadata.json は status: blocked、verified_at: null、rebuild_reproduced: false。応答「起動・ログイン・画面への到達は確認できていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 211.808,
+        "tokens": 797928,
+        "tool_calls": 17,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "受領資産を「受領済み／導出可能／不足」の 3 区分で個別に分類し、DDL・公式 seed・データ辞書を受領済みとして記録している",
+          "passed": true,
+          "evidence": "assets-inventory.md 2 節で受領済み／不足／該当なし（＋一部受領済み・一部不足）で分類し、schema.sql を「受領済み（テーブル・制約・ビュー）」、initial_data.sql を「受領済み（利用許可は確認待ち）」、データ辞書を「受領済み」と記録"
+        },
+        {
+          "text": "DB エンジン版・文字コード・照合順序・タイムゾーン・sql_mode を受領スキーマの記載を根拠に復元し、環境の既定値で補完していない",
+          "passed": false,
+          "evidence": "版・文字コード・照合順序は確定し、sql_mode も「一部確定」、デフォルト値での補完も無い。ただしタイムゾーン Asia/Tokyo はヘッダに記載があるのに、階層が判別できないとして schema.md で「不足」にしており、記載を根拠に復元していない"
+        },
+        {
+          "text": "orders.status の値と正常系遷移をデータ辞書の記載を根拠に「確定済み」として扱い、推測扱いにも確認待ちにもしていない",
+          "passed": true,
+          "evidence": "semantics.md 確定済みに「orders.status の初期状態と状態遷移｜登録時は 0。正常系は 0→1→2。0 と 1 からは 9 へ…」を data-dictionary.md を根拠に記録"
+        },
+        {
+          "text": "暫定起動データは起動・ログイン・主要画面到達のための最小限であり、ゴールデンデータセットは golden-dataset が別途構築すると区別している（暫定データを比較の正解として扱っていない）",
+          "passed": false,
+          "evidence": "暫定起動データは未投入で、暫定データとゴールデンデータセット（golden-dataset が別途構築する）を区別する記述が成果物にも応答にも無い"
+        },
+        {
+          "text": "この環境では現行アプリを実際に起動・ログイン・画面到達できないため、それらを実測済みとして記録せず未検証として扱っている",
+          "passed": true,
+          "evidence": "metadata.json は status: blocked、verified_at: null。応答「起動・ログイン・画面到達の検証…のどれもできません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 130.606,
+        "tokens": 431063,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "受領資産を「受領済み／導出可能／不足」の 3 区分で個別に分類し、DDL・公式 seed・データ辞書を受領済みとして記録している",
+          "passed": false,
+          "evidence": "assets-inventory.md 2 節で seed（initial_data.sql）を「不足（出所・利用許可が不明）」に分類しており、公式 seed を受領済みとして記録していない（DDL とデータ辞書は受領済み）"
+        },
+        {
+          "text": "DB エンジン版・文字コード・照合順序・タイムゾーン・sql_mode を受領スキーマの記載を根拠に復元し、環境の既定値で補完していない",
+          "passed": false,
+          "evidence": "版・文字コード・照合順序は確定し、デフォルト値での補完も無い。ただしタイムゾーン Asia/Tokyo を「不足」、sql_mode を「不足寄り」にしており、ヘッダの記載を根拠に復元していない"
+        },
+        {
+          "text": "orders.status の値と正常系遷移をデータ辞書の記載を根拠に「確定済み」として扱い、推測扱いにも確認待ちにもしていない",
+          "passed": false,
+          "evidence": "semantics.md を作っておらず（工程 3 で停止）、orders.status の正常系遷移を確定済みとして記録した成果物が無い。assets-inventory.md には値 0/1/2/9 の一致と「遷移の規則はコードからは出ない（データ辞書にはある）」だけ"
+        },
+        {
+          "text": "暫定起動データは起動・ログイン・主要画面到達のための最小限であり、ゴールデンデータセットは golden-dataset が別途構築すると区別している（暫定データを比較の正解として扱っていない）",
+          "passed": false,
+          "evidence": "暫定起動データは未作成で、ゴールデンデータセットとの区別の記述が成果物にも応答にも無い"
+        },
+        {
+          "text": "この環境では現行アプリを実際に起動・ログイン・画面到達できないため、それらを実測済みとして記録せず未検証として扱っている",
+          "passed": true,
+          "evidence": "metadata.json は status: blocked、verified_at: null。応答「起動・ログイン・主要な 4 画面…への到達の確認」を埋まるまでできないことに挙げている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 253.607,
+        "tokens": 925412,
+        "tool_calls": 16,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スキーマと DB 設定（文字コード・照合順序・タイムゾーン。接続時の設定を含む）は受領資産に値と根拠があるものとして扱い、データ意味論（orders.status の意味と遷移など）は確定できないものとして、別々の項目で判定している（両者をまとめて「復元できた」と書いていない）",
+          "passed": true,
+          "evidence": "schema.md 1・2 節でエンジン・文字コード・照合順序・TZ を global-variables.txt・my.cnf・context.xml（セッション／接続の行）を根拠に「確定」とし、意味論は semantics.md で確定 2・確認待ち 12 として別に記録"
+        },
+        {
+          "text": "OrderStatus の enum から値の候補（0/1/2/3/9）を導出できても意味と遷移が一意でないため、推測で確定させず「確認待ち」として記録している",
+          "passed": true,
+          "evidence": "semantics.md: 値の集合 0,1,2,3,9 だけを確定し、S-4（意味）・S-5（初期状態と遷移）は「候補なし」で確認待ち（Q-4・Q-5）"
+        },
+        {
+          "text": "先方・SME 向け質問票を生成し、対象項目・必要な判断・候補と導出元・未回答時の影響を含めている",
+          "passed": true,
+          "evidence": "questionnaire.md の各 Q に「決めていただきたいこと」「候補」（導出元つき）「ここまでに分かっていること」「未回答時の影響」がある"
+        },
+        {
+          "text": "起動・ログインに必須の項目（app_users の権限区分など）と、起動には必須でない項目（orders.status の遷移・customers.rank_code）を区別し、確認待ちが 1 件でもあることを理由に一律で停止していない",
+          "passed": true,
+          "evidence": "semantics.md で S-1・S-2 を「起動に必須」と明記し、S-4・S-5・S-7 は parity-suite への影響として扱う。停止理由は起動に必須な項目だけ"
+        },
+        {
+          "text": "確定できない意味論に依存する機能は、その機能の parity-suite を開始できないこととして引き継いでいる",
+          "passed": true,
+          "evidence": "semantics.md S-4・S-5: 「受注一覧の…シナリオを確定できず、parity-suite を開始できない」"
+        },
+        {
+          "text": "metadata.json の blocked_on に、起動・ログインに必須の項目（app_users の権限区分など）が確認待ちであることか、起動・認証・主要画面への到達を実測していないことを停止理由として挙げ、起動に必須でない確認待ち（orders.status の遷移・customers.rank_code）を停止理由に挙げていない",
+          "passed": true,
+          "evidence": "blocked_on は password_hash・role_code などの起動必須の意味論、起動資産の不足、構築の未実測。orders.status・rank_code は挙げていない"
+        },
+        {
+          "text": "metadata.json の handoff.boot_requirements に、`golden-dataset` のフェーズ A のデータ設計に含める起動要件（app_users のログイン用ユーザーと権限区分など）を記録している",
+          "passed": true,
+          "evidence": "handoff.boot_requirements: 「admin ロールのログインユーザー（app_users。password_hash の方式は Q-1、role_code の値は Q-2…）」"
+        },
+        {
+          "text": "metadata.json の semantics.pending_features に、確認待ちの意味論（orders.status・customers.rank_code）が影響する機能を空にせず記録している",
+          "passed": true,
+          "evidence": "semantics.pending_features: [ログイン, 受注一覧, 受注の状態遷移, 得意先一覧]"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 300.865,
+        "tokens": 921107,
+        "tool_calls": 18,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スキーマと DB 設定（文字コード・照合順序・タイムゾーン。接続時の設定を含む）は受領資産に値と根拠があるものとして扱い、データ意味論（orders.status の意味と遷移など）は確定できないものとして、別々の項目で判定している（両者をまとめて「復元できた」と書いていない）",
+          "passed": true,
+          "evidence": "schema.md で DB 設定とセッション／接続（context.xml の connectionCollation・connectionTimeZone・connectionInitSqls）を値と根拠つきで記録し、資産分類で DB 設定は受領済み。意味論は semantics.md で別に確認待ち 10 件。接続層は Connector/J の版が不明として注記するが、値と根拠は持つ"
+        },
+        {
+          "text": "OrderStatus の enum から値の候補（0/1/2/3/9）を導出できても意味と遷移が一意でないため、推測で確定させず「確認待ち」として記録している",
+          "passed": true,
+          "evidence": "semantics.md: 受け付ける値の集合 0,1,2,3,9 だけを確定し、意味・初期状態（Q-7）と遷移（Q-6）は「候補なし」で確認待ち"
+        },
+        {
+          "text": "先方・SME 向け質問票を生成し、対象項目・必要な判断・候補と導出元・未回答時の影響を含めている",
+          "passed": true,
+          "evidence": "questionnaire.md の各 Q に「必要な判断」「候補」（env.md などの導出元つき）「ここまでに分かっていること」「未回答時の影響」がある"
+        },
+        {
+          "text": "起動・ログインに必須の項目（app_users の権限区分など）と、起動には必須でない項目（orders.status の遷移・customers.rank_code）を区別し、確認待ちが 1 件でもあることを理由に一律で停止していない",
+          "passed": true,
+          "evidence": "blocked_on は password_hash・role_code・アプリ資産・構築未実行だけで、orders.status の遷移と rank_code は確認待ちのまま停止理由にしていない"
+        },
+        {
+          "text": "確定できない意味論に依存する機能は、その機能の parity-suite を開始できないこととして引き継いでいる",
+          "passed": true,
+          "evidence": "semantics.md: 「受注系の parity-suite を開始できない」、assets-inventory.md M-8: rank_code → 「得意先系機能の parity-suite」"
+        },
+        {
+          "text": "metadata.json の blocked_on に、起動・ログインに必須の項目（app_users の権限区分など）が確認待ちであることか、起動・認証・主要画面への到達を実測していないことを停止理由として挙げ、起動に必須でない確認待ち（orders.status の遷移・customers.rank_code）を停止理由に挙げていない",
+          "passed": true,
+          "evidence": "blocked_on: 「工程 6: 起動に必須の意味論が確認待ち（app_users.password_hash の形式、app_users.role_code の値）」ほか。status・rank_code は無い"
+        },
+        {
+          "text": "metadata.json の handoff.boot_requirements に、`golden-dataset` のフェーズ A のデータ設計に含める起動要件（app_users のログイン用ユーザーと権限区分など）を記録している",
+          "passed": true,
+          "evidence": "handoff.boot_requirements: 「ADMIN 相当と OPERATOR 相当のロールのユーザーをそれぞれ 1 件以上」など"
+        },
+        {
+          "text": "metadata.json の semantics.pending_features に、確認待ちの意味論（orders.status・customers.rank_code）が影響する機能を空にせず記録している",
+          "passed": true,
+          "evidence": "semantics.pending_features: [ログイン, 受注一覧, 受注の状態更新, 得意先一覧]"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 263.051,
+        "tokens": 728514,
+        "tool_calls": 15,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スキーマと DB 設定（文字コード・照合順序・タイムゾーン。接続時の設定を含む）は受領資産に値と根拠があるものとして扱い、データ意味論（orders.status の意味と遷移など）は確定できないものとして、別々の項目で判定している（両者をまとめて「復元できた」と書いていない）",
+          "passed": true,
+          "evidence": "schema.md でセッション／接続を context.xml を根拠に「確定」、資産分類で DB 設定は受領済み。意味論は semantics.md で確認待ち 11 件として別に記録"
+        },
+        {
+          "text": "OrderStatus の enum から値の候補（0/1/2/3/9）を導出できても意味と遷移が一意でないため、推測で確定させず「確認待ち」として記録している",
+          "passed": true,
+          "evidence": "semantics.md: 集合 {0,1,2,3,9} だけ確定。遷移は「0→1→2→3 の順序はコード値からの推測に過ぎず採らない」として確認待ち（Q-8・Q-9）"
+        },
+        {
+          "text": "先方・SME 向け質問票を生成し、対象項目・必要な判断・候補と導出元・未回答時の影響を含めている",
+          "passed": true,
+          "evidence": "questionnaire.md の各 Q に「必要な判断」「候補」（OrderStatus.java などの導出元）「ここまでに分かっていること」「未回答時の影響」がある"
+        },
+        {
+          "text": "起動・ログインに必須の項目（app_users の権限区分など）と、起動には必須でない項目（orders.status の遷移・customers.rank_code）を区別し、確認待ちが 1 件でもあることを理由に一律で停止していない",
+          "passed": true,
+          "evidence": "progress: step6 blocked (Q-1, Q-2, Q-3)。起動必須は認証の項目だけで、status・rank_code は停止理由にしていない"
+        },
+        {
+          "text": "確定できない意味論に依存する機能は、その機能の parity-suite を開始できないこととして引き継いでいる",
+          "passed": true,
+          "evidence": "semantics.md: 「受注一覧の parity-suite を開始できない」「得意先一覧の parity-suite を開始できない」"
+        },
+        {
+          "text": "metadata.json の blocked_on に、起動・ログインに必須の項目（app_users の権限区分など）が確認待ちであることか、起動・認証・主要画面への到達を実測していないことを停止理由として挙げ、起動に必須でない確認待ち（orders.status の遷移・customers.rank_code）を停止理由に挙げていない",
+          "passed": true,
+          "evidence": "blocked_on は認証の意味論・アプリ本体の未受領・構築の未実測だけ"
+        },
+        {
+          "text": "metadata.json の handoff.boot_requirements に、`golden-dataset` のフェーズ A のデータ設計に含める起動要件（app_users のログイン用ユーザーと権限区分など）を記録している",
+          "passed": true,
+          "evidence": "handoff.boot_requirements: 「認証ユーザー: app_users に少なくとも 1 件（ハッシュ方式・role_code は Q-1・Q-2 の回答に従う）」"
+        },
+        {
+          "text": "metadata.json の semantics.pending_features に、確認待ちの意味論（orders.status・customers.rank_code）が影響する機能を空にせず記録している",
+          "passed": true,
+          "evidence": "semantics.pending_features: [ログイン, 受注一覧, 受注の状態更新, 得意先一覧]"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 22.682,
+        "tokens": 109312,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "受領資産を「受領済み／導出可能／不足」の 3 区分で個別に分類し、DDL・公式 seed・データ辞書を受領済みとして記録している",
+          "passed": false,
+          "evidence": "current-environment-bootstrap が無いとして止まり、ファイルを 1 つも作っていない（project-tree.txt に .replace が無い）。分類の記録が無い"
+        },
+        {
+          "text": "DB エンジン版・文字コード・照合順序・タイムゾーン・sql_mode を受領スキーマの記載を根拠に復元し、環境の既定値で補完していない",
+          "passed": false,
+          "evidence": "成果物が無く、DB 設定を復元した記録が無い"
+        },
+        {
+          "text": "orders.status の値と正常系遷移をデータ辞書の記載を根拠に「確定済み」として扱い、推測扱いにも確認待ちにもしていない",
+          "passed": false,
+          "evidence": "成果物が無く、orders.status の意味論を扱った記録が無い（応答は「中身の意味は読んでいません」など）"
+        },
+        {
+          "text": "暫定起動データは起動・ログイン・主要画面到達のための最小限であり、ゴールデンデータセットは golden-dataset が別途構築すると区別している（暫定データを比較の正解として扱っていない）",
+          "passed": false,
+          "evidence": "暫定起動データについて何も作っておらず、区別の記述も無い"
+        },
+        {
+          "text": "この環境では現行アプリを実際に起動・ログイン・画面到達できないため、それらを実測済みとして記録せず未検証として扱っている",
+          "passed": false,
+          "evidence": "何も記録していない。起動・ログイン・画面到達を未検証として扱った記録（metadata.json など）が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 34.311,
+        "tokens": 110744,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "受領資産を「受領済み／導出可能／不足」の 3 区分で個別に分類し、DDL・公式 seed・データ辞書を受領済みとして記録している",
+          "passed": false,
+          "evidence": "current-environment-bootstrap が無いとして止まり、ファイルを 1 つも作っていない（project-tree.txt に .replace が無い）。分類の記録が無い"
+        },
+        {
+          "text": "DB エンジン版・文字コード・照合順序・タイムゾーン・sql_mode を受領スキーマの記載を根拠に復元し、環境の既定値で補完していない",
+          "passed": false,
+          "evidence": "成果物が無く、DB 設定を復元した記録が無い"
+        },
+        {
+          "text": "orders.status の値と正常系遷移をデータ辞書の記載を根拠に「確定済み」として扱い、推測扱いにも確認待ちにもしていない",
+          "passed": false,
+          "evidence": "成果物が無く、orders.status の意味論を扱った記録が無い（応答は「中身の意味は読んでいません」など）"
+        },
+        {
+          "text": "暫定起動データは起動・ログイン・主要画面到達のための最小限であり、ゴールデンデータセットは golden-dataset が別途構築すると区別している（暫定データを比較の正解として扱っていない）",
+          "passed": false,
+          "evidence": "暫定起動データについて何も作っておらず、区別の記述も無い"
+        },
+        {
+          "text": "この環境では現行アプリを実際に起動・ログイン・画面到達できないため、それらを実測済みとして記録せず未検証として扱っている",
+          "passed": false,
+          "evidence": "何も記録していない。起動・ログイン・画面到達を未検証として扱った記録（metadata.json など）が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 37.115,
+        "tokens": 117618,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "受領資産を「受領済み／導出可能／不足」の 3 区分で個別に分類し、DDL・公式 seed・データ辞書を受領済みとして記録している",
+          "passed": false,
+          "evidence": "current-environment-bootstrap が無いとして止まり、ファイルを 1 つも作っていない（project-tree.txt に .replace が無い）。分類の記録が無い"
+        },
+        {
+          "text": "DB エンジン版・文字コード・照合順序・タイムゾーン・sql_mode を受領スキーマの記載を根拠に復元し、環境の既定値で補完していない",
+          "passed": false,
+          "evidence": "成果物が無く、DB 設定を復元した記録が無い"
+        },
+        {
+          "text": "orders.status の値と正常系遷移をデータ辞書の記載を根拠に「確定済み」として扱い、推測扱いにも確認待ちにもしていない",
+          "passed": false,
+          "evidence": "成果物が無く、orders.status の意味論を扱った記録が無い（応答は「中身の意味は読んでいません」など）"
+        },
+        {
+          "text": "暫定起動データは起動・ログイン・主要画面到達のための最小限であり、ゴールデンデータセットは golden-dataset が別途構築すると区別している（暫定データを比較の正解として扱っていない）",
+          "passed": false,
+          "evidence": "暫定起動データについて何も作っておらず、区別の記述も無い"
+        },
+        {
+          "text": "この環境では現行アプリを実際に起動・ログイン・画面到達できないため、それらを実測済みとして記録せず未検証として扱っている",
+          "passed": false,
+          "evidence": "何も記録していない。起動・ログイン・画面到達を未検証として扱った記録（metadata.json など）が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.375,
+        "passed": 3,
+        "failed": 5,
+        "total": 8,
+        "time_seconds": 98.89,
+        "tokens": 461845,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スキーマと DB 設定（文字コード・照合順序・タイムゾーン。接続時の設定を含む）は受領資産に値と根拠があるものとして扱い、データ意味論（orders.status の意味と遷移など）は確定できないものとして、別々の項目で判定している（両者をまとめて「復元できた」と書いていない）",
+          "passed": true,
+          "evidence": ".replace/bootstrap-precheck.md の表で DB 設定・スキーマを「復元可能」、DB 接続設定を別行、orders.status・rank_code の意味を「不明」「一部」として別の行で判定"
+        },
+        {
+          "text": "OrderStatus の enum から値の候補（0/1/2/3/9）を導出できても意味と遷移が一意でないため、推測で確定させず「確認待ち」として記録している",
+          "passed": true,
+          "evidence": "bootstrap-precheck.md: orders.status は「S0/S1/S2/S3/S9 の符号のみ…不明」として質問 Q7・Q8 に回し、意味を推測で決めていない"
+        },
+        {
+          "text": "先方・SME 向け質問票を生成し、対象項目・必要な判断・候補と導出元・未回答時の影響を含めている",
+          "passed": false,
+          "evidence": "質問票は質問文だけで、項目ごとの候補と導出元・未回答時の影響が無い"
+        },
+        {
+          "text": "起動・ログインに必須の項目（app_users の権限区分など）と、起動には必須でない項目（orders.status の遷移・customers.rank_code）を区別し、確認待ちが 1 件でもあることを理由に一律で停止していない",
+          "passed": true,
+          "evidence": "「起動阻害」を app_users と WAR の行にだけ付け、status・rank_code は起動不可の理由に挙げていない"
+        },
+        {
+          "text": "確定できない意味論に依存する機能は、その機能の parity-suite を開始できないこととして引き継いでいる",
+          "passed": false,
+          "evidence": "意味論が未確定の機能を parity-suite を開始できないこととして引き継ぐ記述が無い"
+        },
+        {
+          "text": "metadata.json の blocked_on に、起動・ログインに必須の項目（app_users の権限区分など）が確認待ちであることか、起動・認証・主要画面への到達を実測していないことを停止理由として挙げ、起動に必須でない確認待ち（orders.status の遷移・customers.rank_code）を停止理由に挙げていない",
+          "passed": false,
+          "evidence": ".replace/bootstrap/metadata.json を作っていない"
+        },
+        {
+          "text": "metadata.json の handoff.boot_requirements に、`golden-dataset` のフェーズ A のデータ設計に含める起動要件（app_users のログイン用ユーザーと権限区分など）を記録している",
+          "passed": false,
+          "evidence": "metadata.json が無く handoff.boot_requirements も無い"
+        },
+        {
+          "text": "metadata.json の semantics.pending_features に、確認待ちの意味論（orders.status・customers.rank_code）が影響する機能を空にせず記録している",
+          "passed": false,
+          "evidence": "metadata.json が無く semantics.pending_features も無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 2,
+        "failed": 6,
+        "total": 8,
+        "time_seconds": 88.762,
+        "tokens": 276220,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スキーマと DB 設定（文字コード・照合順序・タイムゾーン。接続時の設定を含む）は受領資産に値と根拠があるものとして扱い、データ意味論（orders.status の意味と遷移など）は確定できないものとして、別々の項目で判定している（両者をまとめて「復元できた」と書いていない）",
+          "passed": true,
+          "evidence": "current-rebuilt.md の表で DB 設定・スキーマ・DB 接続定義を「復元可」、業務定義（status・rank_code）を「不足」として別の行で判定"
+        },
+        {
+          "text": "OrderStatus の enum から値の候補（0/1/2/3/9）を導出できても意味と遷移が一意でないため、推測で確定させず「確認待ち」として記録している",
+          "passed": true,
+          "evidence": "status の意味を「不明」として質問 6・order_flow.properties の提供依頼に回し、推測で埋めていない"
+        },
+        {
+          "text": "先方・SME 向け質問票を生成し、対象項目・必要な判断・候補と導出元・未回答時の影響を含めている",
+          "passed": false,
+          "evidence": "質問票は依頼文の列挙で、項目ごとの候補と導出元・未回答時の影響が無い"
+        },
+        {
+          "text": "起動・ログインに必須の項目（app_users の権限区分など）と、起動には必須でない項目（orders.status の遷移・customers.rank_code）を区別し、確認待ちが 1 件でもあることを理由に一律で停止していない",
+          "passed": false,
+          "evidence": "「起動に必要な最小の受領物」に order_flow.properties（状態遷移の定義）を含め、起動に必須でない遷移を起動要件と区別していない"
+        },
+        {
+          "text": "確定できない意味論に依存する機能は、その機能の parity-suite を開始できないこととして引き継いでいる",
+          "passed": false,
+          "evidence": "parity-suite を開始できないことの引き継ぎが無い"
+        },
+        {
+          "text": "metadata.json の blocked_on に、起動・ログインに必須の項目（app_users の権限区分など）が確認待ちであることか、起動・認証・主要画面への到達を実測していないことを停止理由として挙げ、起動に必須でない確認待ち（orders.status の遷移・customers.rank_code）を停止理由に挙げていない",
+          "passed": false,
+          "evidence": ".replace/bootstrap/metadata.json を作っていない"
+        },
+        {
+          "text": "metadata.json の handoff.boot_requirements に、`golden-dataset` のフェーズ A のデータ設計に含める起動要件（app_users のログイン用ユーザーと権限区分など）を記録している",
+          "passed": false,
+          "evidence": "metadata.json が無く handoff.boot_requirements も無い"
+        },
+        {
+          "text": "metadata.json の semantics.pending_features に、確認待ちの意味論（orders.status・customers.rank_code）が影響する機能を空にせず記録している",
+          "passed": false,
+          "evidence": "metadata.json が無く semantics.pending_features も無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.375,
+        "passed": 3,
+        "failed": 5,
+        "total": 8,
+        "time_seconds": 103.768,
+        "tokens": 242059,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スキーマと DB 設定（文字コード・照合順序・タイムゾーン。接続時の設定を含む）は受領資産に値と根拠があるものとして扱い、データ意味論（orders.status の意味と遷移など）は確定できないものとして、別々の項目で判定している（両者をまとめて「復元できた」と書いていない）",
+          "passed": true,
+          "evidence": "bootstrap-preflight-notes.md の表で DB 設定・スキーマを「復元できる」、ステータス・ランクの意味と遷移を「分からない」として別の行で判定"
+        },
+        {
+          "text": "OrderStatus の enum から値の候補（0/1/2/3/9）を導出できても意味と遷移が一意でないため、推測で確定させず「確認待ち」として記録している",
+          "passed": true,
+          "evidence": "「status は 0/1/2/3/9…意味が書かれていない」「推測で埋めていない項目: …ステータス・ランクの意味、遷移」"
+        },
+        {
+          "text": "先方・SME 向け質問票を生成し、対象項目・必要な判断・候補と導出元・未回答時の影響を含めている",
+          "passed": false,
+          "evidence": "質問票は質問文だけで、項目ごとの候補と導出元・未回答時の影響が無い"
+        },
+        {
+          "text": "起動・ログインに必須の項目（app_users の権限区分など）と、起動には必須でない項目（orders.status の遷移・customers.rank_code）を区別し、確認待ちが 1 件でもあることを理由に一律で停止していない",
+          "passed": true,
+          "evidence": "起動できない理由はアプリ一式の不足と app_users（ハッシュ方式・ロール）で、status・rank_code は起動の判断に挙げていない"
+        },
+        {
+          "text": "確定できない意味論に依存する機能は、その機能の parity-suite を開始できないこととして引き継いでいる",
+          "passed": false,
+          "evidence": "parity-suite を開始できないことの引き継ぎが無い"
+        },
+        {
+          "text": "metadata.json の blocked_on に、起動・ログインに必須の項目（app_users の権限区分など）が確認待ちであることか、起動・認証・主要画面への到達を実測していないことを停止理由として挙げ、起動に必須でない確認待ち（orders.status の遷移・customers.rank_code）を停止理由に挙げていない",
+          "passed": false,
+          "evidence": ".replace/bootstrap/metadata.json を作っていない"
+        },
+        {
+          "text": "metadata.json の handoff.boot_requirements に、`golden-dataset` のフェーズ A のデータ設計に含める起動要件（app_users のログイン用ユーザーと権限区分など）を記録している",
+          "passed": false,
+          "evidence": "metadata.json が無く handoff.boot_requirements も無い"
+        },
+        {
+          "text": "metadata.json の semantics.pending_features に、確認待ちの意味論（orders.status・customers.rank_code）が影響する機能を空にせず記録している",
+          "passed": false,
+          "evidence": "metadata.json が無く semantics.pending_features も無い"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.7,
+        "stddev": 0.3521,
+        "min": 0.2,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 228.4305,
+        "stddev": 58.7221,
+        "min": 130.606,
+        "max": 300.865
+      },
+      "tokens": {
+        "mean": 756331.5,
+        "stddev": 181407.343,
+        "min": 431063,
+        "max": 925412
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.1667,
+        "stddev": 0.1882,
+        "min": 0,
+        "max": 0.375
+      },
+      "time_seconds": {
+        "mean": 64.2547,
+        "stddev": 36.6688,
+        "min": 22.682,
+        "max": 103.768
+      },
+      "tokens": {
+        "mean": 219633,
+        "stddev": 139144.7193,
+        "min": 109312,
+        "max": 461845
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.53",
+      "time_seconds": "+164.2",
+      "tokens": "+536699"
+    }
+  },
+  "notes": []
+}
