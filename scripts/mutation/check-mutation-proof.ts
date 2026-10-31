@@ -35,12 +35,15 @@
 //
 // 終了コード: 0 = 全変異が実証できた / 1 = 実証できない変異がある / 2 = 使い方・宣言・前提の誤り
 import { spawnSync } from "node:child_process";
+import { createHash, randomUUID } from "node:crypto";
 import {
   chmodSync,
+  closeSync,
   existsSync,
   linkSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readdirSync,
   readFileSync,
   realpathSync,
@@ -51,7 +54,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { createRequire } from "node:module";
-import { tmpdir } from "node:os";
+import { constants as osConstants, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -156,7 +159,7 @@ type Piece = { plan: Plan; mutations: Mutation[]; cost: number };
 type SettleState = "mutated" | "original" | "removed" | "foreign" | "unrestored";
 /** テストファイルを 1 回実行した結果（`runTests`）。 */
 type RunResult =
-  | { ran: false; reason: string }
+  | { ran: false; reason: string; timedOut?: true }
   | { ran: true; results: Map<string, string>; failed: Set<string> };
 /** vitest の JSON レポータの結果のうち、`runTests` が読む部分。 */
 type VitestReport = {
@@ -164,7 +167,7 @@ type VitestReport = {
 };
 /** 1 変異の判定（`proveMutation`）。 */
 type ProveResult =
-  | { ok: false; reason: string }
+  | { ok: false; reason: string; timedOut?: true }
   | { ok: true; failed: string[]; ignored: string[] };
 
 /**
@@ -591,12 +594,39 @@ function restorePending() {
   }
 }
 
-// **signal handler は置かない。** `main()` は `spawnSync` だけの完全な同期処理なので、
-// 届いた signal の JS コールバックはスタックが空くまで dispatch されず、`main()` が終わる前に
-// 実行されることはない（最小プローブで実測）。登録するだけだと `SIGTERM` の既定動作
-// （terminate）が外れて `kill` でも止まらなくなり、「中断を扱っている」という誤った保証になる。
+// **SIGTERM・SIGINT・SIGHUP を受けても、その場では終わらない。** 変異を戻してから、128 + signal の番号で終わる。
+// テストが中で起動した入れ子のランナーは、外側のランナーが時間切れでテストのプロセスグループに送る SIGTERM を受ける。
+// そこで既定の動作（その場で終わる）のままだと、入れ子のランナーが当てた変異が作業ツリーに残る。
 //
-// 中断（SIGKILL を含む）で変異が残る可能性は、**次回起動時の復元**で受ける（`recoveryPath`）。
+// テストは `spawnSync` で待つので、届いた signal の JS コールバックは、スタックが空くまで実行されない（最小プローブで実測）。
+// 中断は 2 か所で知る。1 つは、テストのプロセスグループも同じ signal を受け、包む側のプロセスが知らせてきたとき（`runTests`）。
+// もう 1 つは、このハンドラが実行されたときで、変異ごとの測定の合間に `setImmediate` で待って実行させる（`yieldToSignals`）。
+// ハンドラは自分で終わる。測定に入る前に main が戻るとき（`--list`・測る宣言が無いとき）でも、0 で終わらないようにする。
+// ハンドラが実行されるのはスタックが空のときだけで、そのとき当てている変異は無いので、終わっても変異は残らない。
+// ランナーの PID だけに signal を送ったときは、実行中のテストファイルが終わってから（上限は `IDLE_TIMEOUT_MS`）終わる。
+//
+// SIGKILL などで変異が残る可能性は、**次回起動時の復元**で受ける（`recoveryPath`）。
+let interruptedBy: "SIGTERM" | "SIGINT" | "SIGHUP" | null = null;
+for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"] as const) {
+  process.on(signal, () => {
+    interruptedBy ??= signal;
+    exitIfInterrupted();
+  });
+}
+
+/** signal を受けていれば、当てた変異を戻して（exit ハンドラ）、128 + signal の番号で終わる。 */
+function exitIfInterrupted() {
+  if (interruptedBy === null) return;
+  console.error(`mutation-proof: ${interruptedBy} を受けたので、変異を戻して終わる`);
+  process.exit(128 + osConstants.signals[interruptedBy]);
+}
+
+/** 届いた signal のハンドラを実行させてから、受けていれば終わる。 */
+async function yieldToSignals() {
+  await new Promise((resolve) => setImmediate(resolve));
+  exitIfInterrupted();
+}
+
 process.on("exit", () => {
   restorePending();
   cleanupTempDirs();
@@ -1105,29 +1135,13 @@ function runTests(testFile: string): RunResult {
   tempDirs.add(dir);
   const outFile = join(dir, "result.json");
   try {
-    const command = testCommand();
-    const res = spawnSync(
-      command.file,
-      [...command.prefix, "run", testFile, "--reporter=json", `--outputFile=${outFile}`],
-      {
-        cwd: repoRoot,
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "pipe"],
-        // 子 vitest に、使用中の fixture を掃かせない（`scripts/lib/testing/vitest-global-setup.ts`）。
-        env: { ...process.env, MUTATION_PROOF_CHILD: "1" },
-      },
-    );
-    // **起動できなかったのは「実証の失敗」ではない。** spawn 自体が失敗すると、理由は
-    // `res.error` にだけ入り、stdout/stderr は null になる。そのままだと、誤って理由なしの FAIL
-    // （exit 1 =「実証できない変異がある」）と判定される。前提の誤りとして exit 2 にする。
-    if (res.error) {
-      die(`テストを起動できない（${command.file}）: ${res.error.message}`);
+    const res = spawnTests(testFile, outFile, dir);
+    if (res.kind === "timeout") {
+      return { ran: false, timedOut: true, reason: `${res.detail}\n${tail(res.output)}` };
     }
+    const output = tail(res.output);
     if (!existsSync(outFile)) {
-      return {
-        ran: false,
-        reason: `vitest が結果を出さなかった: ${tail(res.stderr || res.stdout)}`,
-      };
+      return { ran: false, reason: `vitest が結果を出さなかった: ${output}` };
     }
     let report: VitestReport;
     try {
@@ -1137,16 +1151,237 @@ function runTests(testFile: string): RunResult {
     }
     const results = collectResults(report);
     if (results.size === 0) {
-      return {
-        ran: false,
-        reason: `テストが 1 件も実行されなかった: ${tail(res.stderr || res.stdout)}`,
-      };
+      return { ran: false, reason: `テストが 1 件も実行されなかった: ${output}` };
     }
     const failed = new Set([...results].filter(([, s]) => s === "failed").map(([n]) => n));
     return { ran: true, results, failed };
   } finally {
     rmSync(dir, { recursive: true, force: true });
     tempDirs.delete(dir);
+  }
+}
+
+/**
+ * テストが進まない時間の上限（ミリ秒）。包む側のプロセス（`test-group-wrapper.ts`）が、この時間テストが進まなければ止める。
+ * テストの合計の時間には上限を付けない。変異で非同期の待ちが増えたテストは `testTimeout` で落ちて先へ進むので、
+ * 合計の上限では、重いテストファイルで検出できている変異まで時間切れにしてしまう（PR #776 のレビュー）。
+ * 150 秒は、このリポジトリのテストごとの上限の最大（120 秒）に余裕を足した値である。
+ * 実行中のテストの上限がそれより長ければ、包む側がそのテストの上限に余裕を足した値まで待つ。
+ */
+const IDLE_TIMEOUT_MS = 150_000;
+/** 時間切れで SIGTERM を送ってから SIGKILL を送るまでの猶予。入れ子のランナーが変異を戻す時間を見込む。 */
+const KILL_GRACE_MS = 10_000;
+
+/**
+ * 上の 2 つの値を、環境変数で差し替えられる（**テスト用の seam**。使ったら必ず印字する）。
+ * 時間切れのテストを、150 秒待たずに確かめるためである。
+ */
+const injectedMs = new Map<string, number>();
+function limitMs(name: string, fallback: number): number {
+  const cached = injectedMs.get(name);
+  if (cached !== undefined) return cached;
+  const raw = process.env[name];
+  let value = fallback;
+  if (raw !== undefined) {
+    value = Number(raw);
+    if (!/^[1-9][0-9]*$/.test(raw) || !Number.isSafeInteger(value)) {
+      die(`${name} が正の整数でない: ${JSON.stringify(raw)}`);
+    }
+    console.error(`時間の上限: ${name}=${raw}（テスト用の注入）`);
+  }
+  injectedMs.set(name, value);
+  return value;
+}
+
+/**
+ * 包む側のプロセスが stderr の 1 行で知らせる印（`test-group-wrapper.ts` の `WRAPPER_MARK`）。
+ * 起動ごとの ID を入れ、テストが中で起動した入れ子のランナーの知らせと区別する。
+ */
+function wrapperMark(runId: string): string {
+  return `mutation-proof-wrapper[${runId}]: `;
+}
+const scriptDir = dirname(fileURLToPath(import.meta.url));
+const WRAPPER_PATH = join(scriptDir, "test-group-wrapper.ts");
+const REPORTER_PATH = join(scriptDir, "progress-reporter.ts");
+
+type WrapperEvent = { event?: unknown; [key: string]: unknown };
+
+/** 出力から、包む側のプロセスの知らせを取り出す。 */
+function wrapperEvents(output: string, mark: string): WrapperEvent[] {
+  return output
+    .split("\n")
+    .filter((line) => line.startsWith(mark))
+    .map((line) => {
+      try {
+        return parseJsonAs<WrapperEvent>(line.slice(mark.length));
+      } catch {
+        return { event: "unreadable", line };
+      }
+    });
+}
+
+/** 時間切れの知らせを、理由の 1 行にする。 */
+function timeoutDetail(ev: WrapperEvent): string {
+  const seconds = Math.round(Number(ev.limitMs) / 1000);
+  const last = isLastTest(ev.last)
+    ? `最後に${ev.last.kind === "ready" ? "始まった" : "終わった"}テスト: ${ev.last.name}`
+    : // vitest はテストの開始をまとめて送るので、ワーカーが同期のループで止まると、開始の知らせが届かないことがある（実測）
+      "テストの開始の知らせが 1 件も届いていない";
+  return `時間切れ: テストが ${seconds} 秒進まなかった（${last}）`;
+}
+
+function isLastTest(value: unknown): value is { kind: string; name: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "kind" in value &&
+    typeof value.kind === "string" &&
+    "name" in value &&
+    typeof value.name === "string"
+  );
+}
+
+/**
+ * テストのコマンドを、包む側のプロセス（`test-group-wrapper.ts`）から起動して待つ。
+ * テストの出力はファイルに書かせる。パイプにすると、テストが別のセッションに起動したプロセスがパイプを持ち続けたとき、
+ * `spawnSync` がそのプロセスの終わりまで戻らない。
+ * 時間切れなら `timeout` を返し、それ以外は出力を返す。起動できない・プロセスが残った・signal を受けたときは終わる。
+ */
+function spawnTests(
+  testFile: string,
+  outFile: string,
+  dir: string,
+): { kind: "done" | "timeout"; output: string; detail?: string } {
+  const command = testCommand();
+  // ランナーをこのファイルだけ別の場所にコピーして起動されたとき、包む側を見つけられないのは前提の誤りである。
+  if (!existsSync(WRAPPER_PATH)) die(`包む側のプロセスが無い: ${WRAPPER_PATH}`);
+  const logFile = join(dir, "output.log");
+  const runId = randomUUID();
+  const fd = openSync(logFile, "w");
+  let res;
+  try {
+    res = spawnSync(
+      process.execPath,
+      [
+        WRAPPER_PATH,
+        command.file,
+        ...command.prefix,
+        "run",
+        testFile,
+        "--reporter=json",
+        `--outputFile=${outFile}`,
+        `--reporter=${REPORTER_PATH}`,
+      ],
+      {
+        cwd: repoRoot,
+        stdio: ["ignore", fd, fd],
+        env: {
+          ...process.env,
+          // 子 vitest に、使用中の fixture を掃かせない（`scripts/lib/testing/vitest-global-setup.ts`）。
+          MUTATION_PROOF_CHILD: "1",
+          MUTATION_PROOF_PROGRESS_FILE: join(dir, "progress.log"),
+          MUTATION_PROOF_WRAPPER_IDLE_MS: String(
+            limitMs("MUTATION_PROOF_IDLE_TIMEOUT_MS", IDLE_TIMEOUT_MS),
+          ),
+          MUTATION_PROOF_WRAPPER_RUN_ID: runId,
+          MUTATION_PROOF_WRAPPER_GRACE_MS: String(
+            limitMs("MUTATION_PROOF_KILL_GRACE_MS", KILL_GRACE_MS),
+          ),
+        },
+      },
+    );
+  } finally {
+    closeSync(fd);
+  }
+  if (res.error) die(`包む側のプロセスを起動できない: ${res.error.message}`);
+  return judgeWrapper(readFileSync(logFile, "utf8"), command.file, wrapperMark(runId));
+}
+
+/** 包む側のプロセスの知らせから、テストの実行の終わり方を決める。 */
+function judgeWrapper(
+  output: string,
+  commandFile: string,
+  mark: string,
+): { kind: "done" | "timeout"; output: string; detail?: string } {
+  const events = wrapperEvents(output, mark);
+  const kinds = new Set(events.map((e) => e.event));
+  // **起動できなかったのは「実証の失敗」ではない。** そのままだと、誤って理由なしの FAIL
+  // （exit 1 =「実証できない変異がある」）と判定される。前提の誤りとして exit 2 にする。
+  const spawnError = events.find((e) => e.event === "spawn-error");
+  if (spawnError) die(`テストを起動できない（${commandFile}）: ${String(spawnError.message)}`);
+  const configError = events.find((e) => e.event === "config-error");
+  if (configError) die(`包む側のプロセスの設定が誤っている: ${String(configError.message)}`);
+  if (kinds.has("leftover")) {
+    die(`テストのプロセスグループを止めても、プロセスが残っている（手で止める）:\n${tail(output)}`);
+  }
+  const signal = events.find((e) => e.event === "signal");
+  if (signal) {
+    // ランナーも同じ signal を受けている（テストのグループと同じ端末・同じ送り手）。変異を戻して終わる。
+    interruptedBy ??= isInterruptSignal(signal.signal) ? signal.signal : "SIGTERM";
+    exitIfInterrupted();
+  }
+  // 知らせの行は、理由に添える出力の末尾から除く。
+  const testOutput = output
+    .split("\n")
+    .filter((line) => !line.startsWith(mark))
+    .join("\n");
+  const timeout = events.find((e) => e.event === "timeout");
+  if (timeout) return { kind: "timeout", output: testOutput, detail: timeoutDetail(timeout) };
+  if (kinds.size > 0) die(`包む側のプロセスの知らせを読めない:\n${tail(output)}`);
+  return { kind: "done", output: testOutput };
+}
+
+function isInterruptSignal(value: unknown): value is "SIGTERM" | "SIGINT" | "SIGHUP" {
+  return value === "SIGTERM" || value === "SIGINT" || value === "SIGHUP";
+}
+
+/**
+ * 追跡しているファイルのうち、HEAD から変わっているものと、その内容のハッシュ。
+ * 時間切れで止めたテストが、作業ツリーに変異を残していないかを確かめるために、測る前と比べる。
+ * 追跡していないファイルは比べない。並んで実行中のテストが置く fixture を、残った変更として報告しないためである。
+ */
+function trackedChanges(): Map<string, string> {
+  const res = spawnSync("git", ["status", "--porcelain=v1", "-z", "--untracked-files=no"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  if (res.error || res.status !== 0) {
+    die(`作業ツリーの状態を読めない（git status）: ${res.error?.message ?? tail(res.stderr)}`);
+  }
+  const changes = new Map<string, string>();
+  const entries = res.stdout.split("\0");
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
+    if (entry.length < 4) continue;
+    const path = entry.slice(3);
+    // 名前の変更とコピーは、次の要素が元の名前である
+    if (/[RC]/.test(entry.slice(0, 2))) i++;
+    changes.set(path, contentHash(join(repoRoot, path)));
+  }
+  return changes;
+}
+
+function contentHash(path: string): string {
+  try {
+    return createHash("sha256").update(readFileSync(path)).digest("hex");
+  } catch (err) {
+    return `<読めない: ${errorMessage(err)}>`;
+  }
+}
+
+/**
+ * 時間切れで止めた後に、`before` から変わった追跡しているファイルがあれば、一覧を出して exit 2 にする。
+ * 止めたテストが中で起動した処理（入れ子のランナーなど）が、変異を戻さずに終わった可能性がある。
+ */
+function checkLeftoverChanges(before: Map<string, string>) {
+  const after = trackedChanges();
+  const changed = sorted(
+    [...new Set([...before.keys(), ...after.keys()])].filter((p) => before.get(p) !== after.get(p)),
+  );
+  if (changed.length > 0) {
+    die(
+      `時間切れで止めたテストの後に、追跡しているファイルが変わっている（変異が残った可能性がある。内容を確かめて戻す）: ${changed.join(" / ")}`,
+    );
   }
 }
 
@@ -1256,7 +1491,7 @@ function settleAfterRun({
 
 /** 変異を当てた実行の結果を、宣言した assertion と突き合わせて判定する。 */
 function judgeRun(mutation: Mutation, run: RunResult): ProveResult {
-  if (!run.ran) return { ok: false, reason: run.reason };
+  if (!run.ran) return { ok: false, reason: run.reason, ...(run.timedOut && { timedOut: true }) };
   const expected = new Set(mutation.expect);
   const missing = sorted([...expected].filter((n) => !run.failed.has(n)));
   // 実リポジトリを読むテストは、落ちても宣言外として数えない（`REAL_REPO_MARK`）。
@@ -1368,10 +1603,14 @@ function applyShard(
   return true;
 }
 
-/** 基準 run（変異を入れない実行）を測り、緑であることと、宣言したテスト名が実在することを確かめる。 */
-function checkBaseline(spec: Spec, targeted: Mutation[]) {
+/**
+ * 基準 run（変異を入れない実行）を測り、緑であることと、宣言したテスト名が実在することを確かめる。
+ * `before` は、測る前の追跡しているファイルの変更（`trackedChanges`）。時間切れの後に比べる。
+ */
+function checkBaseline(spec: Spec, targeted: Mutation[], before: Map<string, string>) {
   // **基準は先に測る。** 変異前が緑でなければ、落ちた原因を変異に帰属できない。
   const baseline = runTests(spec.testFile);
+  if (!baseline.ran && baseline.timedOut) checkLeftoverChanges(before);
   if (!baseline.ran) die(`基準 run を実行できなかった: ${baseline.reason}`);
   if (baseline.failed.size > 0) {
     die(`基準 run が緑でない（先に直す）: ${sorted(baseline.failed).join(" / ")}`);
@@ -1388,8 +1627,11 @@ function checkBaseline(spec: Spec, targeted: Mutation[]) {
   }
 }
 
-/** 1 変異を測って、PASS か FAIL を出力する。実証できたら true を返す。 */
-function measureMutation(m: Mutation, testFile: string): boolean {
+/**
+ * 1 変異を測って、PASS か FAIL を出力する。実証できたら true を返す。
+ * `before` は、測る前の追跡しているファイルの変更（`trackedChanges`）。時間切れの後に比べる。
+ */
+function measureMutation(m: Mutation, testFile: string, before: Map<string, string>): boolean {
   let res: ProveResult;
   try {
     res = proveMutation(m, testFile);
@@ -1403,6 +1645,8 @@ function measureMutation(m: Mutation, testFile: string): boolean {
     }
     die(`${m.id} の変異を当てられない: ${err.cause.message}`);
   }
+  // 自分の変異は proveMutation が戻している。それ以外のファイルが変わっていれば、止めたテストが残したものである。
+  if (!res.ok && res.timedOut) checkLeftoverChanges(before);
   if (res.ok) {
     console.log(`PASS ${m.id}: ${m.why}`);
     console.log(`     → 落ちた: ${res.failed.join(" / ")}`);
@@ -1448,23 +1692,31 @@ function reportDrift(
   return true;
 }
 
-/** 宣言ごとに基準 run と各変異を測り、実証できた数・できなかった数・宣言ごとの所要時間を返す。 */
-function measurePlans(
+/**
+ * 宣言ごとに基準 run と各変異を測り、実証できた数・できなかった数・宣言ごとの所要時間を返す。
+ * 実行ごとに `yieldToSignals` で待ち、届いた signal で終わる。
+ */
+async function measurePlans(
   plans: Plan[],
   durations?: Durations,
-): { proven: number; failures: number; timings: Timing[] } {
+): Promise<{ proven: number; failures: number; timings: Timing[] }> {
   let proven = 0;
   let failures = 0;
   // 宣言ごとの所要時間（基準 run を含む）。全件の実行で、次に縮める宣言を数字で選ぶために出す（Issue #588）。
   const timings: Timing[] = [];
+  // テストのコマンドを解決できないのは前提の誤りなので、作業ツリーの状態を読む前に止める。
+  testCommand();
   for (const { spec, targeted } of plans) {
     if (targeted.length === 0) continue;
     const specStart = performance.now();
     console.log(`\n=== ${relative(repoRoot, spec.specPath)} → ${spec.testFile}`);
-    checkBaseline(spec, targeted);
+    const before = trackedChanges();
+    checkBaseline(spec, targeted, before);
+    await yieldToSignals();
     for (const m of targeted) {
-      if (measureMutation(m, spec.testFile)) proven++;
+      if (measureMutation(m, spec.testFile, before)) proven++;
       else failures++;
+      await yieldToSignals();
     }
     const seconds = (performance.now() - specStart) / 1000;
     const specRel = relative(repoRoot, spec.specPath);
@@ -1488,7 +1740,7 @@ function printTimings(timings: Timing[], compared: boolean) {
   }
 }
 
-function main() {
+async function main() {
   const { files, only, changedSince, shard, list } = parseArgs(process.argv.slice(2));
   prepareWorkTree(list);
   const specs = selectSpecs(files, changedSince);
@@ -1505,7 +1757,7 @@ function main() {
     return;
   }
 
-  const { proven, failures, timings } = measurePlans(plans, durations);
+  const { proven, failures, timings } = await measurePlans(plans, durations);
   // 集計の行（mutation-proof: ...）を最後の行に保つため、その前に出す。
   printTimings(timings, durations !== undefined);
   console.log(
@@ -1516,4 +1768,4 @@ function main() {
   if (proven === 0) die("実証できた変異が 0 件（対象 0 件を成功として扱わない）");
 }
 
-main();
+await main();
