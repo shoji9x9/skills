@@ -77,7 +77,7 @@
     },
     {
       "id": 7,
-      "prompt": "pr-review-handle 42 --push\n\nこのサンドボックスは GitHub に接続できず、git リポジトリでもない。shoji9x9/skills の clone の中で実行している前提で、gh や git のコマンドは実行せず、実行する手順とコマンドを示して。取得できた状態は次のとおり。PR #42 は自分が作成した PR である。未解決のレビュースレッドが 2 件あり、どちらも指摘は事実として正しく、直し方が 1 つに決まる。直した commit を push した後、PR には新しいコメントもレビューもまだ付いていない。",
+      "prompt": "pr-review-handle 42 --push\n\nこのサンドボックスは GitHub に接続できず、git リポジトリでもない。shoji9x9/skills の clone の中で実行している前提で、GitHub に接続するコマンド（gh・git fetch など）は実行せず、実行する手順とコマンドを示して。手元のファイルの読み取りと、スキルに同梱のスクリプトの実行はしてよい。取得できた状態は次のとおり。PR #42 は自分が作成した PR である。未解決のレビュースレッドが 2 件あり、どちらも指摘は事実として正しく、直し方が 1 つに決まる。直した commit を push した後、PR には新しいコメントもレビューもまだ付いていない。",
       "fixture": "fixtures/review-tool-codex",
       "expected_output": "レビュー対応・commit・push の後、再レビュー依頼のタイミングを確認し、依頼時は requested_reviewers ではなくトップレベル PR コメントに @codex review を投稿して依頼する。",
       "assertions": [
@@ -112,7 +112,7 @@
     },
     {
       "id": 8,
-      "prompt": "pr-review-handle 42 — 指摘はすべて返信のみで対応でき、コード修正は不要な前提\n\nこのサンドボックスは GitHub に接続できず、git リポジトリでもない。shoji9x9/skills の clone の中で実行している前提で、gh や git のコマンドは実行せず、実行する手順とコマンドを示して。取得できた状態は次のとおり。PR #42 は自分が作成した PR である。未解決のレビュースレッドが 2 件ある。",
+      "prompt": "pr-review-handle 42 — 指摘はすべて返信のみで対応でき、コード修正は不要な前提\n\nこのサンドボックスは GitHub に接続できず、git リポジトリでもない。shoji9x9/skills の clone の中で実行している前提で、GitHub に接続するコマンド（gh・git fetch など）は実行せず、実行する手順とコマンドを示して。手元のファイルの読み取りと、スキルに同梱のスクリプトの実行はしてよい。取得できた状態は次のとおり。PR #42 は自分が作成した PR である。未解決のレビュースレッドが 2 件ある。",
       "fixture": "fixtures/review-tool-none",
       "expected_output": "未解決スレッドへの返信・解決まで行い、review_tool が none のため再レビュー依頼の確認自体を省略して完了する。",
       "assertions": [

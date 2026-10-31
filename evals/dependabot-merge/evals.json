@@ -3,7 +3,7 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "https://github.com/shoji9x9/skills/pull/42 をマージして（vitest を 4.1.7 から 4.2.0 に上げる Dependabot PR）\n\nこのサンドボックスは GitHub に接続できず、git リポジトリでもない。shoji9x9/skills の clone の中で実行している前提で、gh や git のコマンドは実行せず、実行する手順とコマンドを示して。取得できた状態は次のとおり。PR #42 の著者は dependabot[bot] で、必須チェックはすべて成功している。vitest 4.2.0 のリリースノートには、オプションの追加と不具合の修正だけが書かれている。",
+      "prompt": "https://github.com/shoji9x9/skills/pull/42 をマージして（vitest を 4.1.7 から 4.2.0 に上げる Dependabot PR）\n\nこのサンドボックスは GitHub に接続できず、git リポジトリでもない。shoji9x9/skills の clone の中で実行している前提で、GitHub に接続するコマンド（gh・git fetch など）は実行せず、実行する手順とコマンドを示して。手元のファイルの読み取りと、スキルに同梱のスクリプトの実行はしてよい。取得できた状態は次のとおり。PR #42 の著者は dependabot[bot] で、必須チェックはすべて成功している。vitest 4.2.0 のリリースノートには、オプションの追加と不具合の修正だけが書かれている。",
       "expected_output": "著者が Dependabot か確認し、CI 成功を確認、>=1.0 のマイナー更新として影響を確認し、判断を PR コメントに記録してから設定の merge_method でマージする。",
       "assertions": [
         "PR URL から owner/repo/PR番号を抽出している",
@@ -52,7 +52,7 @@
     },
     {
       "id": 2,
-      "prompt": "dependabot-merge 51 — oxfmt を 0.52.0 から 0.53.0 に上げる PR。0.x なので影響をよく見てから判断して\n\nこのサンドボックスは GitHub に接続できず、git リポジトリでもない。shoji9x9/skills の clone の中で実行している前提で、gh や git のコマンドは実行せず、実行する手順とコマンドを示して。取得できた状態は次のとおり。PR #51 の著者は dependabot[bot] で、必須チェックはすべて成功している。oxfmt 0.53.0 のリリースノートには、設定ファイルのキーの名前を 1 つ変えたことが書かれている。",
+      "prompt": "dependabot-merge 51 — oxfmt を 0.52.0 から 0.53.0 に上げる PR。0.x なので影響をよく見てから判断して\n\nこのサンドボックスは GitHub に接続できず、git リポジトリでもない。shoji9x9/skills の clone の中で実行している前提で、GitHub に接続するコマンド（gh・git fetch など）は実行せず、実行する手順とコマンドを示して。手元のファイルの読み取りと、スキルに同梱のスクリプトの実行はしてよい。取得できた状態は次のとおり。PR #51 の著者は dependabot[bot] で、必須チェックはすべて成功している。oxfmt 0.53.0 のリリースノートには、設定ファイルのキーの名前を 1 つ変えたことが書かれている。",
       "expected_output": "0.x のマイナー更新は破壊的変更があり得るため changelog で API 変更等を確認し、安全ならマージ、リスクや判断不能なら課題と解決策を PR コメントに残して停止する。",
       "assertions": [
         "PR番号のみのため現在の repo を対象にしている",
