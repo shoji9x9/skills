@@ -4,3 +4,7 @@ ci:41057743573:1,ci,2026-10-31T00:49:51.329Z,p-cdee4961,github-actions,,,,2026-1
 ci:41057743487:2,ci,2026-10-31T00:49:51.329Z,p-cdee4961,github-actions,,,,2026-10-30T12:49:40.000Z,2026-10-30T12:54:00.000Z,Asia/Tokyo,feature/850-child-vitest-step-summary,850,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-29T12:43:37.106Z:2026-10-31T00:49:51.329Z,coverage,2026-10-31T00:49:51.329Z,p-cdee4961,,,,,2026-10-29T12:43:37.106Z,2026-10-31T00:49:51.329Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-30T00:49:51.329Z:2026-10-31T00:51:54.852Z,coverage,2026-10-31T00:51:54.852Z,p-cdee4961,,,,,2026-10-30T00:49:51.329Z,2026-10-31T00:51:54.852Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:41152703167:1,ci,2026-10-31T04:56:28.190Z,p-cdee4961,github-actions,,,,2026-10-31T00:54:51.000Z,2026-10-31T00:54:52.000Z,Asia/Tokyo,feature/777-mutation-runner-child-timeout,777,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:41152703185:1,ci,2026-10-31T04:56:28.190Z,p-cdee4961,github-actions,,,,2026-10-31T00:54:51.000Z,2026-10-31T01:02:29.000Z,Asia/Tokyo,feature/777-mutation-runner-child-timeout,777,,,,,,,,,,CI;pull_request;failure,
+coverage:github:2026-10-30T00:51:54.852Z:2026-10-31T04:56:28.190Z,coverage,2026-10-31T04:56:28.190Z,p-cdee4961,,,,,2026-10-30T00:51:54.852Z,2026-10-31T04:56:28.190Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-30T04:56:28.190Z:2026-10-31T05:04:53.666Z,coverage,2026-10-31T05:04:53.666Z,p-cdee4961,,,,,2026-10-30T04:56:28.190Z,2026-10-31T05:04:53.666Z,Asia/Tokyo,,,,,,,,,,,,ok,
