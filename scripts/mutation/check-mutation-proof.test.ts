@@ -16,9 +16,11 @@ import {
 } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, relative } from "node:path";
+import { spawn, spawnSync } from "node:child_process";
 import { spawnAsync } from "../lib/spawn-async.ts";
 import { makeSharedTempDir, makeTempDirFactory } from "../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../lib/testing/child-timeout.ts";
+import { gitInit } from "../lib/testing/repo-file.ts";
 
 // `check-mutation-proof.ts` は「変異が当たったこと」と「狙ったテストが落ちたこと」の両方で
 // 判定する。**当たらなかった変異を成功として扱わない**のがこのチェックの主目的なので、
@@ -106,8 +108,48 @@ const testFile = resolve(args[1]);
 const out = args.find((a) => a.startsWith("--outputFile=")).slice("--outputFile=".length);
 const def = JSON.parse(readFileSync(testFile, "utf8"));
 const content = readFileSync(join(dirname(testFile), def.target), "utf8");
+const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 // 所要時間の差を作る（\`sleepMs\` を持つ fixture だけ。宣言ごとの時間の並びを確かめるため）。
-if (def.sleepMs) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, def.sleepMs);
+if (def.sleepMs) sleep(def.sleepMs);
+// 本物の progress-reporter と同じ形の行を書きながら、時間をかける（\`steps\` を持つ fixture だけ）。
+const progress = process.env.MUTATION_PROOF_PROGRESS_FILE;
+const note = (line) => progress && require("node:fs").appendFileSync(progress, line + "\\n");
+for (const step of def.steps ?? []) {
+  note("ready\\t" + (step.timeout ?? 0) + "\\t" + step.id + "\\t" + step.id);
+  sleep(step.ms);
+  note("result\\t" + step.id + "\\t" + step.id);
+}
+// 終わらなくなる（\`hang\` を持つ fixture だけ）。\`always\` が無ければ、変異した run（対象が unless と違う）だけ。
+const hang = def.hang && (def.hang.always || content !== def.hang.unless) ? def.hang : null;
+if (hang) {
+  const pids = [process.pid];
+  // forks のワーカーのように、同じプロセスグループに無限ループの子を残す。
+  if (hang.worker) {
+    const worker = require("node:child_process").spawn(process.execPath, ["-e", "for(;;){}"], {
+      stdio: "ignore",
+    });
+    pids.push(worker.pid);
+  }
+  // 改行で終えない出力の途中で止まる状態を作る（包む側の知らせが、この行の後ろに続く）。
+  if (hang.partial) process.stderr.write("進み具合 50%");
+  // 止められたテストが、対象の外のファイルに変異を残した状態を作る。
+  if (hang.touch) writeFileSync(hang.touch.path, hang.touch.content);
+  writeFileSync(hang.pidFile, pids.join("\\n"));
+  if (hang.onTerm === "exit") {
+    // 入れ子のランナーのように、SIGTERM を受けたら後始末をして終わる。
+    process.on("SIGTERM", () => {
+      writeFileSync(hang.pidFile + ".term", "SIGTERM");
+      process.exit(143);
+    });
+    setInterval(() => {}, 1000);
+  } else if (hang.onTerm === "ignore") {
+    process.on("SIGTERM", () => {});
+    setInterval(() => {}, 1000);
+  } else {
+    for (;;) {}
+  }
+  return;
+}
 // 実行中に対象を外から編集する状態を作る（\`editDuringRun\` を持つ fixture だけ）。
 const editing = Boolean(def.editDuringRun && content !== def.editDuringRun.unless);
 if (editing) {
@@ -117,6 +159,8 @@ if (editing) {
   else if (def.editDuringRun.remove) unlinkSync(targetPath);
   else if (def.editDuringRun.append) writeFileSync(targetPath, content + def.editDuringRun.append);
 }
+// 入れ子のランナーの知らせ（別の ID）を、テストの出力に出す（\`foreignMark\` を持つ fixture だけ）。
+if (def.foreignMark) console.error('mutation-proof-wrapper[other-run]: {"event":"leftover","pgid":1}');
 const assertionResults = def.tests.map((t) => {
   const ok = content.includes(t.contains);
   return {
@@ -162,14 +206,23 @@ function makeFixture({
   real = false,
   stubTests = STUB_TESTS,
   sleepMs,
-}: { real?: boolean; stubTests?: { name: string; contains: string }[]; sleepMs?: number } = {}) {
+  stub = {},
+}: {
+  real?: boolean;
+  stubTests?: { name: string; contains: string }[];
+  sleepMs?: number;
+  // スタブの振る舞いを足すキー（`steps`・`hang`）。
+  stub?: Record<string, unknown>;
+} = {}) {
   const dir = makeFixtureDir("case-");
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "target.sh"), FIXTURE_TARGET);
   const testName = real ? "fixture.test.ts" : "fixture.stub.json";
   writeFileSync(
     join(dir, testName),
-    real ? FIXTURE_TEST : JSON.stringify({ target: "target.sh", tests: stubTests, sleepMs }),
+    real
+      ? FIXTURE_TEST
+      : JSON.stringify({ target: "target.sh", tests: stubTests, sleepMs, ...stub }),
   );
   return {
     dir,
@@ -204,6 +257,10 @@ function runnerEnv(env: Env): NodeJS.ProcessEnv {
     MUTATION_PROOF_LOCK: join(lockDir, `run-${++runSeq}.lock`),
     // デフォルトはスタブ。本物の vitest を通すテストは `REAL` で外す。
     MUTATION_PROOF_TEST_COMMAND: STUB_COMMAND,
+    // 時間の上限の注入は、外側（手元の設定や、このファイルを測る外側のランナー）から引き継がない。
+    // 引き継ぐと、上限を指定しないテストまで短い上限で測り、変異と関係なく落ちる。
+    MUTATION_PROOF_IDLE_TIMEOUT_MS: undefined,
+    MUTATION_PROOF_KILL_GRACE_MS: undefined,
     ...env,
   };
   // `undefined` を渡したキーは「継承しない」の意味にする（ambient な値を測定に混ぜない）。
@@ -553,8 +610,8 @@ describe.concurrent("宣言と前提の検証（実行する前に落とす）",
     expect(out).toContain("vitest を解決できない");
   });
 
-  // signal handler は同期の `main()` では dispatch されない（登録すると `kill` も機能しなくなる）。
-  // 中断で変異が残る可能性は**次回起動の復元**で受ける、という取り決めを固定する。
+  // SIGKILL のように、ランナーが変異を戻せずに終わる中断もある。
+  // そこで変異が残る可能性は**次回起動の復元**で受ける、という取り決めを固定する。
   test("前回の中断で残った変異を次回起動で戻す", async () => {
     const fx = makeFixture();
     const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
@@ -1644,6 +1701,335 @@ describe.concurrent("--shard", () => {
     expect(res.status, res.out).toBe(2);
     expect(res.out).toMatch(/--shard (は <i>\/<N>|の i が N を超えている|の値が大きすぎる)/);
     expect(res.out).not.toContain("PASS G");
+  });
+});
+
+// 時間切れの上限を短くする env（`MUTATION_PROOF_IDLE_TIMEOUT_MS` などはテスト用の seam）。
+// 包む側は 0.5 秒ごとに確かめるので、上限は 1.5 秒にする。
+const FAST: Env = { MUTATION_PROOF_IDLE_TIMEOUT_MS: "1500", MUTATION_PROOF_KILL_GRACE_MS: "1000" };
+
+/** pid のプロセスがいるか。EPERM は、いるが signal を送れない状態なので、いるとして扱う。 */
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return err instanceof Error && "code" in err && err.code === "EPERM";
+  }
+}
+
+/** スタブが書いた pid の一覧（`hang.pidFile`）を読む。 */
+function readPids(file: string): number[] {
+  return readFileSync(file, "utf8").split("\n").filter(Boolean).map(Number);
+}
+
+/** `ms` の間、`check` が真になるのを待つ。真になれば true。 */
+async function waitUntil(check: () => boolean, ms: number): Promise<boolean> {
+  const deadline = Date.now() + ms;
+  while (!check()) {
+    if (Date.now() >= deadline) return false;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return true;
+}
+
+/** スタブが終わらなくなったときに pid を書くファイル（テストごとに別の場所）。 */
+function pidFilePath(): string {
+  return join(mkdtempSync(join(lockDir, "hang-")), "pids"); // tmpdir-ok: lockDir（makeSharedTempDir）の下・afterAll で消す
+}
+
+/**
+ * ランナーを自分のプロセスグループで起動する。端末の Ctrl-C のように、グループへ signal を送るテストで使う。
+ * `stop` は、テストが途中で失敗しても、ランナーとその子が残らないようにグループごと SIGKILL する。
+ */
+function spawnRunnerGroup(spec: string, env: Env) {
+  const child = spawn(process.execPath, [RUNNER, spec], {
+    cwd: repoRoot,
+    env: runnerEnv(env),
+    detached: true,
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: CHILD_TIMEOUT_MS,
+  });
+  let out = "";
+  child.stdout.on("data", (d: Buffer) => (out += d.toString()));
+  child.stderr.on("data", (d: Buffer) => (out += d.toString()));
+  const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) =>
+    child.on("exit", (code, signal) => resolve({ code, signal })),
+  );
+  const pid = child.pid;
+  if (pid === undefined) throw new Error("ランナーを起動できない");
+  return {
+    pid,
+    exited,
+    out: () => out,
+    stop() {
+      try {
+        process.kill(-pid, "SIGKILL");
+      } catch {
+        /* 終わっていれば送る相手がいない */
+      }
+    },
+  };
+}
+
+/**
+ * 変異した run で終わらなくなるスタブを、自分のグループで起動したランナーで測り始め、スタブが pid を書くまで待つ。
+ * 時間切れより先に signal を送るテストで使うので、上限はデフォルトのままにする。
+ */
+async function startHungRunner() {
+  const pidFile = pidFilePath();
+  const fx = makeFixture({ stub: { hang: { unless: FIXTURE_TARGET, worker: true, pidFile } } });
+  const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+  const runner = spawnRunnerGroup(spec, {});
+  if (!(await waitUntil(() => existsSync(pidFile), 15_000))) {
+    runner.stop();
+    throw new Error(`スタブが終わらない状態にならなかった: ${runner.out()}`);
+  }
+  return { fx, runner, pids: readPids(pidFile) };
+}
+
+describe.concurrent("時間切れ（テストが進まない）", () => {
+  test("変異でテストが終わらなくなったら、時間切れの FAIL にして、同じグループのワーカーごと止める", async () => {
+    const pidFile = pidFilePath();
+    const fx = makeFixture({ stub: { hang: { unless: FIXTURE_TARGET, worker: true, pidFile } } });
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const res = await runRunner(spec, FAST);
+    expect(res.status, res.out).toBe(1);
+    expect(res.out).toContain("FAIL G");
+    expect(res.out).toContain(
+      "時間切れ: テストが 2 秒進まなかった（テストの開始の知らせが 1 件も届いていない）",
+    );
+    expect(res.out).toContain("時間の上限: MUTATION_PROOF_IDLE_TIMEOUT_MS=1500（テスト用の注入）");
+    expect(res.out, "包む側の知らせの行を理由に入れた").not.toContain("mutation-proof-wrapper[");
+    expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
+    const pids = readPids(pidFile);
+    expect(pids, "ワーカーを起動していない").toHaveLength(2);
+    expect(await waitUntil(() => !pids.some(isAlive), 3000), `残った: ${pids.join(", ")}`).toBe(
+      true,
+    );
+  });
+
+  test("テストが進んでいる間は、合計が上限を超えても止めない", async () => {
+    const steps = [1, 2, 3].map((n) => ({ id: `step-${n}`, ms: 1000 }));
+    const fx = makeFixture({ stub: { steps } });
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const res = await runRunner(spec, FAST);
+    expect(res.status, res.out).toBe(0);
+    expect(res.out).toContain("PASS G");
+  });
+
+  test("実行中のテストの上限が長ければ、上限を過ぎてもそのテストの上限まで待つ", async () => {
+    const fx = makeFixture({ stub: { steps: [{ id: "slow", timeout: 1, ms: 2500 }] } });
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const res = await runRunner(spec, FAST);
+    expect(res.status, res.out).toBe(0);
+    expect(res.out).toContain("PASS G");
+  });
+
+  test("時間切れの理由に、最後に始まったテストの名前を出す", async () => {
+    const pidFile = pidFilePath();
+    const fx = makeFixture({
+      stub: {
+        steps: [{ id: "before-hang", ms: 0 }],
+        hang: { unless: FIXTURE_TARGET, pidFile },
+      },
+    });
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const res = await runRunner(spec, FAST);
+    expect(res.status, res.out).toBe(1);
+    expect(res.out).toContain("最後に終わったテスト: before-hang");
+  });
+
+  test("テストが改行で終えていない出力の途中で止まっても、時間切れの知らせを読む", async () => {
+    const pidFile = pidFilePath();
+    const fx = makeFixture({ stub: { hang: { unless: FIXTURE_TARGET, partial: true, pidFile } } });
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const res = await runRunner(spec, FAST);
+    expect(res.status, res.out).toBe(1);
+    expect(res.out).toContain("時間切れ: テストが 2 秒進まなかった");
+  });
+
+  test("テストの出力に出た別の実行の知らせ（入れ子のランナーのもの）は、自分への知らせとして読まない", async () => {
+    const fx = makeFixture({ stub: { foreignMark: true } });
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const res = await runRunner(spec, FAST);
+    expect(res.status, res.out).toBe(0);
+    expect(res.out).toContain("PASS G");
+  });
+
+  test("包む側の設定の誤りは、理由を知らせて exit 2 で終わる", async () => {
+    const { status, out } = await runNode(["scripts/mutation/test-group-wrapper.ts", "true"], {
+      cwd: repoRoot,
+      env: {
+        ...runnerEnv({}),
+        MUTATION_PROOF_WRAPPER_RUN_ID: "probe",
+        MUTATION_PROOF_PROGRESS_FILE: join(lockDir, "unused-progress"),
+        MUTATION_PROOF_WRAPPER_IDLE_MS: "0",
+        MUTATION_PROOF_WRAPPER_GRACE_MS: "1000",
+      },
+    });
+    expect(status, out).toBe(2);
+    expect(out).toContain(
+      'mutation-proof-wrapper[probe]: {"event":"config-error","message":"MUTATION_PROOF_WRAPPER_IDLE_MS が正の整数でない: \\"0\\""}',
+    );
+  });
+
+  test("基準 run が時間切れなら exit 2", async () => {
+    const pidFile = pidFilePath();
+    const fx = makeFixture({ stub: { hang: { always: true, pidFile } } });
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const res = await runRunner(spec, FAST);
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("基準 run を実行できなかった: 時間切れ");
+  });
+
+  test("止めるときは SIGKILL の前に SIGTERM を送り、テストに後始末をさせる", async () => {
+    const pidFile = pidFilePath();
+    const fx = makeFixture({ stub: { hang: { unless: FIXTURE_TARGET, onTerm: "exit", pidFile } } });
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const res = await runRunner(spec, { ...FAST, MUTATION_PROOF_KILL_GRACE_MS: "5000" });
+    expect(res.status, res.out).toBe(1);
+    expect(res.out).toContain("時間切れ");
+    expect(existsSync(`${pidFile}.term`), "SIGTERM を受けていない").toBe(true);
+  });
+
+  test("SIGTERM で終わらないテストは、猶予の後に SIGKILL で止める", async () => {
+    const pidFile = pidFilePath();
+    const fx = makeFixture({
+      stub: { hang: { unless: FIXTURE_TARGET, onTerm: "ignore", pidFile } },
+    });
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const res = await runRunner(spec, FAST);
+    expect(res.status, res.out).toBe(1);
+    expect(res.out).toContain("時間切れ");
+    const pids = readPids(pidFile);
+    expect(await waitUntil(() => !pids.some(isAlive), 3000), `残った: ${pids.join(", ")}`).toBe(
+      true,
+    );
+  });
+
+  test("端末の Ctrl-C（グループへの SIGINT）で、テストのプロセスを止め、変異を戻して 130 で終わる", async () => {
+    const { fx, runner, pids } = await startHungRunner();
+    try {
+      process.kill(-runner.pid, "SIGINT");
+      const { code } = await runner.exited;
+      expect(code, runner.out()).toBe(130);
+      expect(runner.out()).toContain("SIGINT を受けたので、変異を戻して終わる");
+      expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
+      expect(await waitUntil(() => !pids.some(isAlive), 3000), `残った: ${pids.join(", ")}`).toBe(
+        true,
+      );
+    } finally {
+      runner.stop();
+    }
+  });
+
+  test("ランナーの PID だけに SIGTERM を送ると、実行中のテストが終わってから変異を戻して 143 で終わる", async () => {
+    const fx = makeFixture({ sleepMs: 1500 });
+    const spec = fx.spec([
+      mutation({ file: relative(repoRoot, fx.target) }),
+      mutation({ id: "G2", file: relative(repoRoot, fx.target) }),
+    ]);
+    const runner = spawnRunnerGroup(spec, {});
+    try {
+      expect(await waitUntil(() => runner.out().includes("baseline:"), 15_000), runner.out()).toBe(
+        true,
+      );
+      process.kill(runner.pid, "SIGTERM");
+      const { code } = await runner.exited;
+      expect(code, runner.out()).toBe(143);
+      expect(runner.out()).toContain("SIGTERM を受けたので、変異を戻して終わる");
+      expect(runner.out(), "次の変異を測った").not.toContain("G2:");
+      expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
+    } finally {
+      runner.stop();
+    }
+  });
+
+  test("ランナーが SIGKILL で終わっても、包む側がテストのプロセスグループを止める", async () => {
+    const { runner, pids } = await startHungRunner();
+    try {
+      process.kill(runner.pid, "SIGKILL");
+      await runner.exited;
+      // 包む側は 0.5 秒ごとに親を確かめ、猶予（デフォルト 10 秒）の前に SIGTERM で止める。
+      expect(await waitUntil(() => !pids.some(isAlive), 5000), `残った: ${pids.join(", ")}`).toBe(
+        true,
+      );
+    } finally {
+      runner.stop();
+    }
+  });
+});
+
+/** 時間切れの後の作業ツリーを確かめるテスト用に、ランナー一式を git リポジトリにコピーする。 */
+function makeGitCopy(hang: Record<string, unknown>) {
+  const root = mkdtempSync(join(lockDir, "git-copy-")); // tmpdir-ok: lockDir（makeSharedTempDir）の下・afterAll で消す
+  mkdirSync(join(root, "scripts", "mutation"), { recursive: true });
+  for (const name of ["check-mutation-proof.ts", "test-group-wrapper.ts", "progress-reporter.ts"]) {
+    copyFileSync(
+      join(repoRoot, "scripts", "mutation", name),
+      join(root, "scripts", "mutation", name),
+    );
+  }
+  writeFileSync(join(root, "scripts", "target.sh"), FIXTURE_TARGET);
+  writeFileSync(join(root, "scripts", "other.txt"), "original\n");
+  writeFileSync(
+    join(root, "scripts", "fixture.stub.json"),
+    JSON.stringify({ target: "target.sh", tests: STUB_TESTS, hang }),
+  );
+  const spec = join(root, "scripts", "case.mutations.json");
+  writeFileSync(
+    spec,
+    JSON.stringify({
+      test_file: "scripts/fixture.stub.json",
+      mutations: [mutation({ file: "scripts/target.sh" })],
+    }),
+  );
+  gitInit(root);
+  for (const args of [
+    ["add", "-A"],
+    ["-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "init"],
+  ]) {
+    const r = spawnSync("git", args, { cwd: root, encoding: "utf8", timeout: CHILD_TIMEOUT_MS });
+    if (r.status !== 0) throw new Error(`git ${args.join(" ")} に失敗した: ${r.stderr}`);
+  }
+  return { root, spec };
+}
+
+describe.concurrent("時間切れの後の作業ツリー", () => {
+  test("時間切れの後に、追跡しているファイルが対象の外で変わっていれば exit 2", async () => {
+    const pidFile = pidFilePath();
+    const tmp = makeGitCopy({ unless: FIXTURE_TARGET, pidFile });
+    const other = join(tmp.root, "scripts", "other.txt");
+    writeFileSync(
+      join(tmp.root, "scripts", "fixture.stub.json"),
+      JSON.stringify({
+        target: "target.sh",
+        tests: STUB_TESTS,
+        hang: { unless: FIXTURE_TARGET, pidFile, touch: { path: other, content: "mutated\n" } },
+      }),
+    );
+    const { status, out } = await runNode([join(tmp.root, RUNNER), tmp.spec], {
+      cwd: tmp.root,
+      env: runnerEnv({ ...FAST, MUTATION_PROOF_LOCK: join(tmp.root, "lock") }),
+    });
+    expect(status, out).toBe(2);
+    expect(out).toContain("追跡しているファイルが変わっている");
+    // 自分の対象は戻してから比べるので、一覧は対象の外の 1 件だけになる。
+    expect(out).toMatch(/変わっている（[^\n]*）: scripts\/other\.txt$/m);
+    expect(readFileSync(join(tmp.root, "scripts", "target.sh"), "utf8")).toBe(FIXTURE_TARGET);
+  });
+
+  test("時間切れでも、対象の外が変わっていなければ FAIL（exit 1）で続ける", async () => {
+    const pidFile = pidFilePath();
+    const tmp = makeGitCopy({ unless: FIXTURE_TARGET, pidFile });
+    const { status, out } = await runNode([join(tmp.root, RUNNER), tmp.spec], {
+      cwd: tmp.root,
+      env: runnerEnv({ ...FAST, MUTATION_PROOF_LOCK: join(tmp.root, "lock") }),
+    });
+    expect(status, out).toBe(1);
+    expect(out).toContain("FAIL G");
+    expect(out).toContain("時間切れ");
   });
 });
 

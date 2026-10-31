@@ -1,0 +1,6 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:41062047805:1,ci,2026-10-31T00:49:51.329Z,p-cdee4961,github-actions,,,,2026-10-30T13:17:47.000Z,2026-10-30T13:22:06.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:41057743573:1,ci,2026-10-31T00:49:51.329Z,p-cdee4961,github-actions,,,,2026-10-30T12:45:22.000Z,2026-10-30T12:45:33.000Z,Asia/Tokyo,feature/850-child-vitest-step-summary,850,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:41057743487:2,ci,2026-10-31T00:49:51.329Z,p-cdee4961,github-actions,,,,2026-10-30T12:49:40.000Z,2026-10-30T12:54:00.000Z,Asia/Tokyo,feature/850-child-vitest-step-summary,850,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-29T12:43:37.106Z:2026-10-31T00:49:51.329Z,coverage,2026-10-31T00:49:51.329Z,p-cdee4961,,,,,2026-10-29T12:43:37.106Z,2026-10-31T00:49:51.329Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-30T00:49:51.329Z:2026-10-31T00:51:54.852Z,coverage,2026-10-31T00:51:54.852Z,p-cdee4961,,,,,2026-10-30T00:49:51.329Z,2026-10-31T00:51:54.852Z,Asia/Tokyo,,,,,,,,,,,,ok,
