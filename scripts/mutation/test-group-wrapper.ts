@@ -14,6 +14,7 @@
 // `MUTATION_PROOF_WRAPPER_GRACE_MS` は、SIGTERM を送ってから SIGKILL を送るまでの猶予（ミリ秒）である。
 // 名前は、ランナーのテスト用の注入（`MUTATION_PROOF_IDLE_TIMEOUT_MS` など）と分ける。
 // 同じ名前にすると、テストが中で起動した入れ子のランナーが、外側の値を注入として読む。
+// 包む側は、自分が使う猶予を `MUTATION_PROOF_OUTER_GRACE_MS` で子に渡す（`effectiveGrace`）。
 //
 // ランナーへの知らせは、stderr の `mutation-proof-wrapper[<ID>]: ` で始まる 1 行の JSON で渡す（`notify`）。
 // 終了コードだけでは、テストのコマンドが同じ値で終わった場合と区別できないからである。
@@ -48,6 +49,19 @@ function configError(message: string): never {
   process.exit(2);
 }
 
+/**
+ * SIGTERM を送ってから SIGKILL を送るまでの猶予を決める。
+ * テストが中で起動した入れ子のランナーの包む側は、外側の包む側が止めるグループの中にいる。
+ * 入れ子の猶予が外側と同じだと、入れ子の包む側が自分のグループを止め終える前に、外側の SIGKILL で終わる。
+ * 入れ子のグループは外側のグループの外にいるので、SIGTERM で終わらないテストがそのまま残る。
+ * そこで、外側の猶予（`MUTATION_PROOF_OUTER_GRACE_MS`）があれば、その半分を超えない値にする。
+ */
+function effectiveGrace(own: number): number {
+  if (process.env.MUTATION_PROOF_OUTER_GRACE_MS === undefined) return own;
+  const outer = positiveInt("MUTATION_PROOF_OUTER_GRACE_MS");
+  return Math.max(1, Math.min(own, Math.floor(outer / 2)));
+}
+
 function positiveInt(name: string): number {
   const raw = process.env[name] ?? "";
   const value = Number(raw);
@@ -60,7 +74,7 @@ function positiveInt(name: string): number {
 const progressFile = process.env.MUTATION_PROOF_PROGRESS_FILE ?? "";
 if (progressFile === "") configError("MUTATION_PROOF_PROGRESS_FILE が無い");
 const idleMs = positiveInt("MUTATION_PROOF_WRAPPER_IDLE_MS");
-const graceMs = positiveInt("MUTATION_PROOF_WRAPPER_GRACE_MS");
+const graceMs = effectiveGrace(positiveInt("MUTATION_PROOF_WRAPPER_GRACE_MS"));
 const [file, ...args] = process.argv.slice(2);
 if (file === undefined) configError("起動するコマンドが無い");
 
@@ -172,7 +186,10 @@ function checkProgress() {
     const [kind, ...rest] = line.split("\t");
     if (kind === "ready") {
       const [timeout, id] = rest;
-      running.set(id ?? "", Number(timeout) || 0);
+      // 子が書く行なので、上限に使うのは正の安全な整数だけにする。`Infinity` などを受けると、時間切れにできなくなる。
+      // それ以外の値の行は、実行中のテストとして数えない（上限を延ばさない）。進んだことには数える。
+      const value = Number(timeout);
+      if (Number.isSafeInteger(value) && value > 0) running.set(id ?? "", value);
     } else if (kind === "result") {
       running.delete(rest[0] ?? "");
     } else {
@@ -204,7 +221,11 @@ const timer = setInterval(() => {
   checkProgress();
 }, POLL_MS);
 
-child = spawn(file, args, { stdio: "inherit", detached: true });
+child = spawn(file, args, {
+  stdio: "inherit",
+  detached: true,
+  env: { ...process.env, MUTATION_PROOF_OUTER_GRACE_MS: String(graceMs) },
+});
 child.on("error", (err) => {
   notify({ event: "spawn-error", message: err.message });
   process.exit(127);

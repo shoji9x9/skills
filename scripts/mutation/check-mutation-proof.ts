@@ -600,7 +600,9 @@ function restorePending() {
 //
 // テストは `spawnSync` で待つので、届いた signal の JS コールバックは、スタックが空くまで実行されない（最小プローブで実測）。
 // 中断は 2 か所で知る。1 つは、テストのプロセスグループも同じ signal を受け、包む側のプロセスが知らせてきたとき（`runTests`）。
-// もう 1 つは、変異ごとの測定の合間に `setImmediate` で待ち、このハンドラを実行させたとき（`exitIfInterrupted`）。
+// もう 1 つは、このハンドラが実行されたときで、変異ごとの測定の合間に `setImmediate` で待って実行させる（`yieldToSignals`）。
+// ハンドラは自分で終わる。測定に入る前に main が戻るとき（`--list`・測る宣言が無いとき）でも、0 で終わらないようにする。
+// ハンドラが実行されるのはスタックが空のときだけで、そのとき当てている変異は無いので、終わっても変異は残らない。
 // ランナーの PID だけに signal を送ったときは、実行中のテストファイルが終わってから（上限は `IDLE_TIMEOUT_MS`）終わる。
 //
 // SIGKILL などで変異が残る可能性は、**次回起動時の復元**で受ける（`recoveryPath`）。
@@ -608,6 +610,7 @@ let interruptedBy: "SIGTERM" | "SIGINT" | "SIGHUP" | null = null;
 for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"] as const) {
   process.on(signal, () => {
     interruptedBy ??= signal;
+    exitIfInterrupted();
   });
 }
 

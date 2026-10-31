@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { afterAll, describe, expect, test } from "vitest";
 import {
   chmodSync,
   copyFileSync,
@@ -123,9 +123,16 @@ for (const step of def.steps ?? []) {
 const hang = def.hang && (def.hang.always || content !== def.hang.unless) ? def.hang : null;
 if (hang) {
   const pids = [process.pid];
-  // forks のワーカーのように、同じプロセスグループに無限ループの子を残す。
+  // 親（包む側）が先に終わったら自分で終わる。包む側が止めずに終わると（後始末の SIGKILL・変異を入れた包む側）、
+  // 包む側の外のグループに残り、CPU を使い続けて後のテストを遅くする（実測で 13 時間残った）。
+  const parent = process.ppid;
+  const exitIfOrphaned = () => {
+    if (process.ppid !== parent) process.exit(1);
+  };
+  // forks のワーカーのように、同じプロセスグループに無限ループの子を残す。ワーカーも、親（スタブ）が替わったら終わる。
   if (hang.worker) {
-    const worker = require("node:child_process").spawn(process.execPath, ["-e", "for(;;){}"], {
+    const loop = "const p = process.ppid; for (;;) { if (process.ppid !== p) process.exit(1); }";
+    const worker = require("node:child_process").spawn(process.execPath, ["-e", loop], {
       stdio: "ignore",
     });
     pids.push(worker.pid);
@@ -141,12 +148,12 @@ if (hang) {
       writeFileSync(hang.pidFile + ".term", "SIGTERM");
       process.exit(143);
     });
-    setInterval(() => {}, 1000);
+    setInterval(exitIfOrphaned, 200);
   } else if (hang.onTerm === "ignore") {
     process.on("SIGTERM", () => {});
-    setInterval(() => {}, 1000);
+    setInterval(exitIfOrphaned, 200);
   } else {
-    for (;;) {}
+    for (;;) exitIfOrphaned();
   }
   return;
 }
@@ -261,6 +268,7 @@ function runnerEnv(env: Env): NodeJS.ProcessEnv {
     // 引き継ぐと、上限を指定しないテストまで短い上限で測り、変異と関係なく落ちる。
     MUTATION_PROOF_IDLE_TIMEOUT_MS: undefined,
     MUTATION_PROOF_KILL_GRACE_MS: undefined,
+    MUTATION_PROOF_OUTER_GRACE_MS: undefined,
     ...env,
   };
   // `undefined` を渡したキーは「継承しない」の意味にする（ambient な値を測定に混ぜない）。
@@ -1734,9 +1742,23 @@ async function waitUntil(check: () => boolean, ms: number): Promise<boolean> {
 }
 
 /** スタブが終わらなくなったときに pid を書くファイル（テストごとに別の場所）。 */
+const pidFiles = new Set<string>();
 function pidFilePath(): string {
-  return join(mkdtempSync(join(lockDir, "hang-")), "pids"); // tmpdir-ok: lockDir（makeSharedTempDir）の下・afterAll で消す
+  const path = join(mkdtempSync(join(lockDir, "hang-")), "pids"); // tmpdir-ok: lockDir（makeSharedTempDir）の下・afterAll で消す
+  pidFiles.add(path);
+  return path;
 }
+
+// テストが途中で落ちても、スタブが書いた pid のうち生きているものを止める。
+// スタブは親が替わると自分で終わるが、包む側が生きたまま止まらない誤り（変異）では残る。
+afterAll(() => {
+  for (const file of pidFiles) {
+    if (!existsSync(file)) continue;
+    for (const pid of readPids(file)) {
+      if (isAlive(pid)) process.kill(pid, "SIGKILL");
+    }
+  }
+});
 
 /**
  * ランナーを自分のプロセスグループで起動する。端末の Ctrl-C のように、グループへ signal を送るテストで使う。
