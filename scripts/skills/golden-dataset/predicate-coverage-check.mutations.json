@@ -157,6 +157,18 @@
         "対象テーブル表の機能／リソースの列と述語の消費側 slug の列も、/ で並べれば複数の slug として読む",
         "対象テーブル表の機能／リソースの列と述語の消費側 slug の列も、／ で並べれば複数の slug として読む"
       ]
+    },
+    {
+      "id": "predicate-consumers-not-split-by-slash",
+      "why": "述語の表の「消費側 slug」列だけ / と ／ で区切らず、並べた slug を 1 つとして読む（Issue #856）",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "const consumerList = splitList(row[\"消費側 slug\"]);",
+      "replace": "const consumerList = splitList(row[\"消費側 slug\"], { slash: false });",
+      "occurrences": 1,
+      "expect_failing": [
+        "対象テーブル表の機能／リソースの列と述語の消費側 slug の列も、/ で並べれば複数の slug として読む",
+        "対象テーブル表の機能／リソースの列と述語の消費側 slug の列も、／ で並べれば複数の slug として読む"
+      ]
     }
   ]
 }
