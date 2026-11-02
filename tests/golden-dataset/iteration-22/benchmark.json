@@ -1,0 +1,439 @@
+{
+  "metadata": {
+    "skill_name": "golden-dataset",
+    "skill_path": "<repo>/skills/golden-dataset",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-30T15:15:11Z",
+    "evals_run": [8],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4444,
+        "passed": 4,
+        "failed": 5,
+        "total": 9,
+        "time_seconds": 271.137,
+        "tokens": 1723954,
+        "tool_calls": 26,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "db を持つ target が 1 つも無いことを理由に停止していない",
+          "passed": true,
+          "evidence": "静的データとして content/works を対象に設計とツールの更新まで進めた。停止理由は features.md の書式と投入先の確認（pending-decisions.json）で、db を持つ target が無いことではない"
+        },
+        {
+          "text": "設定の dataset_mode: static を読み、投入先を target の DB ではなく dataset_static_paths（content/works）配下だと判定している",
+          "passed": true,
+          "evidence": "design.md 冒頭「フェーズ A（dataset_mode: static）」、テーブルを「content/works（静的データ）」とし、main.ts の OUT_DIR は content/works"
+        },
+        {
+          "text": "current-site/src/works-list.ts を読み、ページサイズ 6、publishedAt 降順＋id 同値順、tag 絞り込み、tag 変更時の page 保持を消費側パラメータの根拠にしている",
+          "passed": true,
+          "evidence": "design.md の消費側パラメータ表に「published_at DESC、同値は id ASC」「tags.includes(tag)」「6（切替なし）」、根拠 current-site/src/works-list.ts、空状態は updateTagQuery の page 保持を経路にしている"
+        },
+        {
+          "text": "gaps.md の 2 件（ページ送り・空状態）を design.md へ追記し、投入ツール（seed/src/main.ts）を更新して再生成している",
+          "passed": false,
+          "evidence": "design.md へ 2 件を追記し seed/src/main.ts も更新したが、content/works は 001・002 の 2 件のまま（project-tree）。再生成は一時コピーでだけ行い、リポジトリには投入していない"
+        },
+        {
+          "text": "生成・削除の対象が dataset_static_paths 配下に収まっており、その外のファイルを書き換えていない",
+          "passed": true,
+          "evidence": "main.ts の生成・削除は OUT_DIR=content/works 配下のみ。ロックは seed/.seed.lock で終了時に削除。raw の Write/Edit/Bash でも content/works・seed/・.replace/dataset 以外の書き換えは無い"
+        },
+        {
+          "text": "metadata.json の version を 1 から 2 へ上げている",
+          "passed": false,
+          "evidence": "metadata.json は fixture と同一で version: 1 のまま"
+        },
+        {
+          "text": "metadata.json の changes に version 2 と、実際に変更した静的データ単位だけを affects として追記し、過去版の履歴を保持している",
+          "passed": false,
+          "evidence": "metadata.json は fixture と同一。changes に version 2 を追記していない"
+        },
+        {
+          "text": "metadata.json の current.fingerprint を再計算して更新し、current.target と current.seeded_at は null のままにしている",
+          "passed": false,
+          "evidence": "metadata.json は fixture と同一で current.fingerprint は v1 の値のまま（target・seeded_at は null）"
+        },
+        {
+          "text": "version 2 の affects と各 slug の実効参照データを照合し、影響する parity-suite だけのベースライン再取得を案内している",
+          "passed": false,
+          "evidence": "metadata.json に version 2 の affects が無く、affects と slug の実効参照データの照合を行っていない。応答は works-list の parity-suite 再実行を案内するだけ"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.4444,
+        "passed": 4,
+        "failed": 5,
+        "total": 9,
+        "time_seconds": 239.913,
+        "tokens": 1636289,
+        "tool_calls": 23,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "db を持つ target が 1 つも無いことを理由に停止していない",
+          "passed": true,
+          "evidence": "静的データとして content/works を対象に設計とツールの更新まで進めた。停止理由は features.md の書式と投入先の確認（pending-decisions.json）で、db を持つ target が無いことではない"
+        },
+        {
+          "text": "設定の dataset_mode: static を読み、投入先を target の DB ではなく dataset_static_paths（content/works）配下だと判定している",
+          "passed": true,
+          "evidence": "design.md 冒頭「フェーズ A（dataset_mode: static）」、テーブルを「content/works（静的データ）」とし、main.ts の OUT_DIR は content/works"
+        },
+        {
+          "text": "current-site/src/works-list.ts を読み、ページサイズ 6、publishedAt 降順＋id 同値順、tag 絞り込み、tag 変更時の page 保持を消費側パラメータの根拠にしている",
+          "passed": true,
+          "evidence": "design.md の消費側パラメータ表に「published_at DESC、同値は id ASC」「tags.includes(tag)」「6（切替なし）」、根拠 current-site/src/works-list.ts、空状態は updateTagQuery の page 保持を経路にしている"
+        },
+        {
+          "text": "gaps.md の 2 件（ページ送り・空状態）を design.md へ追記し、投入ツール（seed/src/main.ts）を更新して再生成している",
+          "passed": false,
+          "evidence": "design.md へ 2 件を追記し seed/src/main.ts も更新したが、content/works は 001・002 の 2 件のまま（project-tree）。再生成は一時コピーでだけ行い、リポジトリには投入していない"
+        },
+        {
+          "text": "生成・削除の対象が dataset_static_paths 配下に収まっており、その外のファイルを書き換えていない",
+          "passed": true,
+          "evidence": "main.ts の生成・削除は OUT_DIR=content/works 配下のみ。ロックは seed/.seed.lock で終了時に削除。raw の Write/Edit/Bash でも content/works・seed/・.replace/dataset 以外の書き換えは無い"
+        },
+        {
+          "text": "metadata.json の version を 1 から 2 へ上げている",
+          "passed": false,
+          "evidence": "metadata.json は fixture と同一で version: 1 のまま"
+        },
+        {
+          "text": "metadata.json の changes に version 2 と、実際に変更した静的データ単位だけを affects として追記し、過去版の履歴を保持している",
+          "passed": false,
+          "evidence": "metadata.json は fixture と同一。changes に version 2 を追記していない"
+        },
+        {
+          "text": "metadata.json の current.fingerprint を再計算して更新し、current.target と current.seeded_at は null のままにしている",
+          "passed": false,
+          "evidence": "metadata.json は fixture と同一で current.fingerprint は v1 の値のまま（target・seeded_at は null）"
+        },
+        {
+          "text": "version 2 の affects と各 slug の実効参照データを照合し、影響する parity-suite だけのベースライン再取得を案内している",
+          "passed": false,
+          "evidence": "metadata.json に version 2 の affects が無く、affects と slug の実効参照データの照合を行っていない。応答は works-list の parity-suite 再実行を案内するだけ"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.4444,
+        "passed": 4,
+        "failed": 5,
+        "total": 9,
+        "time_seconds": 298.811,
+        "tokens": 1507141,
+        "tool_calls": 21,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "db を持つ target が 1 つも無いことを理由に停止していない",
+          "passed": true,
+          "evidence": "静的データとして content/works を対象に設計とツールの更新まで進めた。停止理由は features.md の書式と投入先の確認（pending-decisions.json）で、db を持つ target が無いことではない"
+        },
+        {
+          "text": "設定の dataset_mode: static を読み、投入先を target の DB ではなく dataset_static_paths（content/works）配下だと判定している",
+          "passed": true,
+          "evidence": "design.md 冒頭「フェーズ A（dataset_mode: static）」、テーブルを「content/works（静的データ）」とし、main.ts の OUT_DIR は content/works"
+        },
+        {
+          "text": "current-site/src/works-list.ts を読み、ページサイズ 6、publishedAt 降順＋id 同値順、tag 絞り込み、tag 変更時の page 保持を消費側パラメータの根拠にしている",
+          "passed": true,
+          "evidence": "design.md の消費側パラメータ表に「published_at DESC、同値は id ASC」「tags.includes(tag)」「6（切替なし）」、根拠 current-site/src/works-list.ts、空状態は updateTagQuery の page 保持を経路にしている"
+        },
+        {
+          "text": "gaps.md の 2 件（ページ送り・空状態）を design.md へ追記し、投入ツール（seed/src/main.ts）を更新して再生成している",
+          "passed": false,
+          "evidence": "design.md へ 2 件を追記し seed/src/main.ts も更新したが、content/works は 001・002 の 2 件のまま（project-tree）。再生成は一時コピーでだけ行い、リポジトリには投入していない"
+        },
+        {
+          "text": "生成・削除の対象が dataset_static_paths 配下に収まっており、その外のファイルを書き換えていない",
+          "passed": true,
+          "evidence": "main.ts の生成・削除は OUT_DIR=content/works 配下のみ。ロックは seed/.seed.lock で終了時に削除。raw の Write/Edit/Bash でも content/works・seed/・.replace/dataset 以外の書き換えは無い"
+        },
+        {
+          "text": "metadata.json の version を 1 から 2 へ上げている",
+          "passed": false,
+          "evidence": "metadata.json は fixture と同一で version: 1 のまま"
+        },
+        {
+          "text": "metadata.json の changes に version 2 と、実際に変更した静的データ単位だけを affects として追記し、過去版の履歴を保持している",
+          "passed": false,
+          "evidence": "metadata.json は fixture と同一。changes に version 2 を追記していない"
+        },
+        {
+          "text": "metadata.json の current.fingerprint を再計算して更新し、current.target と current.seeded_at は null のままにしている",
+          "passed": false,
+          "evidence": "metadata.json は fixture と同一で current.fingerprint は v1 の値のまま（target・seeded_at は null）"
+        },
+        {
+          "text": "version 2 の affects と各 slug の実効参照データを照合し、影響する parity-suite だけのベースライン再取得を案内している",
+          "passed": false,
+          "evidence": "metadata.json に version 2 の affects が無く、affects と slug の実効参照データの照合を行っていない。応答は works-list の parity-suite 再実行を案内するだけ"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.7778,
+        "passed": 7,
+        "failed": 2,
+        "total": 9,
+        "time_seconds": 75.099,
+        "tokens": 227732,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "db を持つ target が 1 つも無いことを理由に停止していない",
+          "passed": true,
+          "evidence": "db を持つ target の有無で止まらず、content/works を 8 件に再生成した"
+        },
+        {
+          "text": "設定の dataset_mode: static を読み、投入先を target の DB ではなく dataset_static_paths（content/works）配下だと判定している",
+          "passed": true,
+          "evidence": "応答「書き込んだのは … content/works（dataset_static_paths）」、main.ts の OUT_DIR は content/works で DB へは投入していない"
+        },
+        {
+          "text": "current-site/src/works-list.ts を読み、ページサイズ 6、publishedAt 降順＋id 同値順、tag 絞り込み、tag 変更時の page 保持を消費側パラメータの根拠にしている",
+          "passed": true,
+          "evidence": "works-list.ts の listWorks を実データに通して確認し、design.md に PAGE_SIZE=6、published_at 順で同日は id 昇順の境界、tag 絞り込み、tag 変更時の page 保持を根拠として記載（降順は明記していないが listWorks の実行結果で確かめている）"
+        },
+        {
+          "text": "gaps.md の 2 件（ページ送り・空状態）を design.md へ追記し、投入ツール（seed/src/main.ts）を更新して再生成している",
+          "passed": true,
+          "evidence": "design.md の gaps 由来の追加履歴に 2 行（ページネーション・空状態）を追記、main.ts に 003〜008 を追加し content/works を 8 件に再生成。採点時に複製で main.ts を再実行し生成物が一致（exit 0）"
+        },
+        {
+          "text": "生成・削除の対象が dataset_static_paths 配下に収まっており、その外のファイルを書き換えていない",
+          "passed": true,
+          "evidence": "main.ts の削除・生成は OUT_DIR=content/works 配下の .md のみ。raw の Bash の書き込みは /tmp の検査用ファイルだけで、リポジトリの他ファイルは .replace/dataset と seed のみ更新"
+        },
+        {
+          "text": "metadata.json の version を 1 から 2 へ上げている",
+          "passed": true,
+          "evidence": "metadata.json の version を 1 から 2 に変更"
+        },
+        {
+          "text": "metadata.json の changes に version 2 と、実際に変更した静的データ単位だけを affects として追記し、過去版の履歴を保持している",
+          "passed": false,
+          "evidence": "changes に {version: 2, affects: [\"works-list\"]} を追記し v1 の履歴は残したが、affects に静的データの単位（content/works）ではなく slug を書いている"
+        },
+        {
+          "text": "metadata.json の current.fingerprint を再計算して更新し、current.target と current.seeded_at は null のままにしている",
+          "passed": true,
+          "evidence": "current.fingerprint を sha256:6fc4edb4… に再計算。target・seeded_at は null のまま"
+        },
+        {
+          "text": "version 2 の affects と各 slug の実効参照データを照合し、影響する parity-suite だけのベースライン再取得を案内している",
+          "passed": false,
+          "evidence": "affects に slug（works-list）を直接書いており、静的データの affects と slug の実効参照データを照合していない。案内は「影響を受けるのは works-list だけ」のみ"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 6,
+        "failed": 3,
+        "total": 9,
+        "time_seconds": 77.462,
+        "tokens": 143187,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "db を持つ target が 1 つも無いことを理由に停止していない",
+          "passed": true,
+          "evidence": "db を持つ target の有無で止まらず、content/works を 8 件に再生成した"
+        },
+        {
+          "text": "設定の dataset_mode: static を読み、投入先を target の DB ではなく dataset_static_paths（content/works）配下だと判定している",
+          "passed": true,
+          "evidence": "応答「書き込んだのは … content/works（dataset_static_paths）」、main.ts の OUT_DIR は content/works で DB へは投入していない"
+        },
+        {
+          "text": "current-site/src/works-list.ts を読み、ページサイズ 6、publishedAt 降順＋id 同値順、tag 絞り込み、tag 変更時の page 保持を消費側パラメータの根拠にしている",
+          "passed": true,
+          "evidence": "works-list.ts の listWorks を実データに通して確認し、design.md に PAGE_SIZE=6、published_at 順で同日は id 昇順の境界、tag 絞り込み、tag 変更時の page 保持を根拠として記載（降順は明記していないが listWorks の実行結果で確かめている）"
+        },
+        {
+          "text": "gaps.md の 2 件（ページ送り・空状態）を design.md へ追記し、投入ツール（seed/src/main.ts）を更新して再生成している",
+          "passed": true,
+          "evidence": "design.md の gaps 由来の追加履歴に 2 行（ページネーション・空状態）を追記、main.ts に 003〜008 を追加し content/works を 8 件に再生成。採点時に複製で main.ts を再実行し生成物が一致（exit 0）"
+        },
+        {
+          "text": "生成・削除の対象が dataset_static_paths 配下に収まっており、その外のファイルを書き換えていない",
+          "passed": true,
+          "evidence": "main.ts の削除・生成は OUT_DIR=content/works 配下の .md のみ。raw の Bash の書き込みは /tmp の検査用ファイルだけで、リポジトリの他ファイルは .replace/dataset と seed のみ更新"
+        },
+        {
+          "text": "metadata.json の version を 1 から 2 へ上げている",
+          "passed": true,
+          "evidence": "metadata.json の version を 1 から 2 に変更"
+        },
+        {
+          "text": "metadata.json の changes に version 2 と、実際に変更した静的データ単位だけを affects として追記し、過去版の履歴を保持している",
+          "passed": false,
+          "evidence": "changes に {version: 2, affects: [\"works-list\"]} を追記し v1 の履歴は残したが、affects に静的データの単位（content/works）ではなく slug を書いている"
+        },
+        {
+          "text": "metadata.json の current.fingerprint を再計算して更新し、current.target と current.seeded_at は null のままにしている",
+          "passed": false,
+          "evidence": "current.fingerprint を null にしており再計算していない（応答「計算方法がわからなかったため…null」）"
+        },
+        {
+          "text": "version 2 の affects と各 slug の実効参照データを照合し、影響する parity-suite だけのベースライン再取得を案内している",
+          "passed": false,
+          "evidence": "affects に slug（works-list）を直接書いており、静的データの affects と slug の実効参照データを照合していない。案内は「影響を受けるのは works-list だけ」のみ"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.7778,
+        "passed": 7,
+        "failed": 2,
+        "total": 9,
+        "time_seconds": 70.602,
+        "tokens": 169461,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "db を持つ target が 1 つも無いことを理由に停止していない",
+          "passed": true,
+          "evidence": "db を持つ target の有無で止まらず、content/works を 8 件に再生成した"
+        },
+        {
+          "text": "設定の dataset_mode: static を読み、投入先を target の DB ではなく dataset_static_paths（content/works）配下だと判定している",
+          "passed": true,
+          "evidence": "応答「書き込んだのは … content/works（dataset_static_paths）」、main.ts の OUT_DIR は content/works で DB へは投入していない"
+        },
+        {
+          "text": "current-site/src/works-list.ts を読み、ページサイズ 6、publishedAt 降順＋id 同値順、tag 絞り込み、tag 変更時の page 保持を消費側パラメータの根拠にしている",
+          "passed": true,
+          "evidence": "works-list.ts の listWorks を実データに通して確認し、design.md に PAGE_SIZE=6、published_at 順で同日は id 昇順の境界、tag 絞り込み、tag 変更時の page 保持を根拠として記載（降順は明記していないが listWorks の実行結果で確かめている）"
+        },
+        {
+          "text": "gaps.md の 2 件（ページ送り・空状態）を design.md へ追記し、投入ツール（seed/src/main.ts）を更新して再生成している",
+          "passed": true,
+          "evidence": "design.md の gaps 由来の追加履歴に 2 行（ページネーション・空状態）を追記、main.ts に 003〜008 を追加し content/works を 8 件に再生成。採点時に複製で main.ts を再実行し生成物が一致（exit 0）"
+        },
+        {
+          "text": "生成・削除の対象が dataset_static_paths 配下に収まっており、その外のファイルを書き換えていない",
+          "passed": true,
+          "evidence": "main.ts の削除・生成は OUT_DIR=content/works 配下の .md のみ。raw の Bash の書き込みは /tmp の検査用ファイルだけで、リポジトリの他ファイルは .replace/dataset と seed のみ更新"
+        },
+        {
+          "text": "metadata.json の version を 1 から 2 へ上げている",
+          "passed": true,
+          "evidence": "metadata.json の version を 1 から 2 に変更"
+        },
+        {
+          "text": "metadata.json の changes に version 2 と、実際に変更した静的データ単位だけを affects として追記し、過去版の履歴を保持している",
+          "passed": false,
+          "evidence": "changes に {version: 2, affects: [\"works-list\"]} を追記し v1 の履歴は残したが、affects に静的データの単位（content/works）ではなく slug を書いている"
+        },
+        {
+          "text": "metadata.json の current.fingerprint を再計算して更新し、current.target と current.seeded_at は null のままにしている",
+          "passed": true,
+          "evidence": "current.fingerprint を sha256:ab8981d6… に再計算。target・seeded_at は null のまま"
+        },
+        {
+          "text": "version 2 の affects と各 slug の実効参照データを照合し、影響する parity-suite だけのベースライン再取得を案内している",
+          "passed": false,
+          "evidence": "affects に slug（works-list）を直接書いており、静的データの affects と slug の実効参照データを照合していない。案内は「影響を受けるのは works-list だけ」のみ"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.4444,
+        "stddev": 0,
+        "min": 0.4444,
+        "max": 0.4444
+      },
+      "time_seconds": {
+        "mean": 269.9537,
+        "stddev": 29.4668,
+        "min": 239.913,
+        "max": 298.811
+      },
+      "tokens": {
+        "mean": 1622461.3333,
+        "stddev": 109065.909,
+        "min": 1507141,
+        "max": 1723954
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.7408,
+        "stddev": 0.0641,
+        "min": 0.6667,
+        "max": 0.7778
+      },
+      "time_seconds": {
+        "mean": 74.3877,
+        "stddev": 3.4849,
+        "min": 70.602,
+        "max": 77.462
+      },
+      "tokens": {
+        "mean": 180126.6667,
+        "stddev": 43269.8693,
+        "min": 143187,
+        "max": 227732
+      }
+    },
+    "delta": {
+      "pass_rate": "-0.30",
+      "time_seconds": "+195.6",
+      "tokens": "+1442335"
+    }
+  },
+  "notes": []
+}

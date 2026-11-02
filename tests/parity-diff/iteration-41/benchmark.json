@@ -1,0 +1,349 @@
+{
+  "metadata": {
+    "skill_name": "parity-diff",
+    "skill_path": "<repo>/skills/parity-diff",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-30T15:15:12Z",
+    "evals_run": [14],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 14,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8333,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 75.787,
+        "tokens": 398334,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "前回の blocked_by や前回の有効マスク集合を引き継がず、features.md のページ一覧と同じ target の各 replace-metadata.json を読み直している",
+          "passed": true,
+          "evidence": "「前回の blocked_by（stale-feature）は引き継がず」。導出の表で features.md のページ一覧と grid-settings/new/preview/replace-metadata.json・export/new/preview/replace-metadata.json（無し）を読み直している"
+        },
+        {
+          "text": "同じページで suite.new_green が false または証跡が無い grid-settings / export だけを共同居住マスクの有効集合にし、別 target や green の slug を含めていない",
+          "passed": true,
+          "evidence": "有効集合は grid-settings（new_green=false）と export（証跡無し）の 2 件だけ"
+        },
+        {
+          "text": "新側 root の欠落を停止理由や blocked_by の根拠にせず、現側ベースラインで測定済みの page × state × viewport の bbox を同じ座標で両作業画像へ適用し、適用詳細を capture_conditions_verified.cofeature_masks（恒久 masks とは別キー）へ記録する扱いを示している",
+          "passed": true,
+          "evidence": "「これを停止の理由にも blocked_by の根拠にもしません」「現側で測った同じ bbox を、現側と新側の作業用コピーの同じ座標に当てます」「capture_conditions_verified.cofeature_masks[]…恒久マスクの検証結果は capture_conditions_verified.masks に書きます…混ぜません」"
+        },
+        {
+          "text": "対象撮影組の bbox 欠落・不正・画像外・所有領域の曖昧さを blocked_by や片側マスクで通さず parity-suite へ戻して停止すると示している",
+          "passed": false,
+          "evidence": "search.root の bbox が無い点を parity-suite の課題と述べるが、撮影組の bbox の欠落・不正・画像外・所有領域の曖昧さを blocked_by や片側マスクで通さず parity-suite へ戻して停止する、という規則は示していない"
+        },
+        {
+          "text": "特性と aria は現側 root 配下を除外し、新側 root が無ければ欠落自体を差分にせず、存在する場合だけ対応配下と bbox 整合を確認すると説明している",
+          "passed": true,
+          "evidence": "特性は「現側の入力から grid-settings.root と export.root を除きました。新側には対応する root が無いので、新側では何も除きません」、aria も現側から除外。root が無いのは「通常の状態」、root が現れたら「その矩形が現側の bbox に収まるかを確かめる」"
+        },
+        {
+          "text": "依存先が green になった次回はマスクを外して全面比較し、マスク済み領域を差分件数や blocked_by に数えないと説明している",
+          "passed": true,
+          "evidence": "「両方が green になった回は有効な集合が空になります。その回は全面を比べ」「マスクした領域は、差分の件数にも blocked_by にも数えません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 14,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.8333,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 85.71,
+        "tokens": 398168,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "前回の blocked_by や前回の有効マスク集合を引き継がず、features.md のページ一覧と同じ target の各 replace-metadata.json を読み直している",
+          "passed": true,
+          "evidence": "「前回の blocked_by（stale-feature）は引き継がず」。features.md のページ一覧と同じ preview の replace-metadata.json を読み直している"
+        },
+        {
+          "text": "同じページで suite.new_green が false または証跡が無い grid-settings / export だけを共同居住マスクの有効集合にし、別 target や green の slug を含めていない",
+          "passed": true,
+          "evidence": "有効集合は grid-settings（new_green=false）と export（証跡無し）の 2 件だけ"
+        },
+        {
+          "text": "新側 root の欠落を停止理由や blocked_by の根拠にせず、現側ベースラインで測定済みの page × state × viewport の bbox を同じ座標で両作業画像へ適用し、適用詳細を capture_conditions_verified.cofeature_masks（恒久 masks とは別キー）へ記録する扱いを示している",
+          "passed": false,
+          "evidence": "root 欠落を停止理由や blocked_by にしないこと、capture_conditions_verified.cofeature_masks（masks と別）への記録は示しているが、現側の bbox を同じ座標で両方の作業画像へ当てる扱いを述べていない（画素は「マスクを当てられません。未検証」とだけある）"
+        },
+        {
+          "text": "対象撮影組の bbox 欠落・不正・画像外・所有領域の曖昧さを blocked_by や片側マスクで通さず parity-suite へ戻して停止すると示している",
+          "passed": true,
+          "evidence": "「撮影の組に bbox が無い／寸法が正でない／画像の外にはみ出す／持ち主があいまい」の場合は「マスクも blocked_by も使わず、parity-suite へ戻して止めます」"
+        },
+        {
+          "text": "特性と aria は現側 root 配下を除外し、新側 root が無ければ欠落自体を差分にせず、存在する場合だけ対応配下と bbox 整合を確認すると説明している",
+          "passed": true,
+          "evidence": "特性は両側の作業用コピーから 2 つの root を除外、aria は現側の 2 ノードを除く前提（対応表が無く未検証と明記）。「新側の root が無いときは…確認は不要。将来 root が出てきて、その矩形が bbox からはみ出したら…止めます」"
+        },
+        {
+          "text": "依存先が green になった次回はマスクを外して全面比較し、マスク済み領域を差分件数や blocked_by に数えないと説明している",
+          "passed": true,
+          "evidence": "「最後の機能が外れた回には、その領域も含めて全面を比べます」「マスクした領域は、差分の件数にも blocked_by にも数えません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 14,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.8333,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 66.899,
+        "tokens": 284004,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "前回の blocked_by や前回の有効マスク集合を引き継がず、features.md のページ一覧と同じ target の各 replace-metadata.json を読み直している",
+          "passed": true,
+          "evidence": "「前回の blocked_by（stale-feature）は引き継がず」。導出の表で features.md の /orders の行と同じ preview の replace-metadata.json を読み直している"
+        },
+        {
+          "text": "同じページで suite.new_green が false または証跡が無い grid-settings / export だけを共同居住マスクの有効集合にし、別 target や green の slug を含めていない",
+          "passed": true,
+          "evidence": "有効集合は grid-settings と export の 2 領域だけ"
+        },
+        {
+          "text": "新側 root の欠落を停止理由や blocked_by の根拠にせず、現側ベースラインで測定済みの page × state × viewport の bbox を同じ座標で両作業画像へ適用し、適用詳細を capture_conditions_verified.cofeature_masks（恒久 masks とは別キー）へ記録する扱いを示している",
+          "passed": true,
+          "evidence": "「grid-settings と export の root が無いのは…正常な状態」「画素：同じ座標・同じ色を、現側と新側の作業用コピーの両方に当てます」「capture_conditions_verified.cofeature_masks[] に書きます。恒久マスク…は capture_conditions_verified.masks だけに書き、共同居住マスクは混ぜません」"
+        },
+        {
+          "text": "対象撮影組の bbox 欠落・不正・画像外・所有領域の曖昧さを blocked_by や片側マスクで通さず parity-suite へ戻して停止すると示している",
+          "passed": false,
+          "evidence": "停止理由は現側 metadata の項目不足で parity-suite へ戻すとしているが、撮影組の bbox の欠落・不正・画像外・所有領域の曖昧さのときに parity-suite へ戻して停止する規則は示していない（search.root との重なりは「採取の時点で確かめる必要」とだけある）"
+        },
+        {
+          "text": "特性と aria は現側 root 配下を除外し、新側 root が無ければ欠落自体を差分にせず、存在する場合だけ対応配下と bbox 整合を確認すると説明している",
+          "passed": true,
+          "evidence": "特性は現側の 2 root を入力から除き、aria も現側の 2 ノードを除外。「新側に root がありません。正常な状態なので、エラーにも aria の差分にもしません。root が無いので…照合はしません」"
+        },
+        {
+          "text": "依存先が green になった次回はマスクを外して全面比較し、マスク済み領域を差分件数や blocked_by に数えないと説明している",
+          "passed": true,
+          "evidence": "「その次の run でその slug を自動的に外し、その領域も含めて比べます」「2 件とも外れた最後の run では、全面を比べます」「マスクした領域は、差分の件数にも blocked_by にも数えません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 14,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 56.377,
+        "tokens": 120220,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "前回の blocked_by や前回の有効マスク集合を引き継がず、features.md のページ一覧と同じ target の各 replace-metadata.json を読み直している",
+          "passed": true,
+          "evidence": "前回の blocked_by（stale-feature / old-1）は引き継がないと明記。features.md の同居機能と grid-settings/new/preview/replace-metadata.json・export/new/preview（無し）を読み直している"
+        },
+        {
+          "text": "同じページで suite.new_green が false または証跡が無い grid-settings / export だけを共同居住マスクの有効集合にし、別 target や green の slug を含めていない",
+          "passed": true,
+          "evidence": "マスク対象は grid-settings と export の 2 機能だけ"
+        },
+        {
+          "text": "新側 root の欠落を停止理由や blocked_by の根拠にせず、現側ベースラインで測定済みの page × state × viewport の bbox を同じ座標で両作業画像へ適用し、適用詳細を capture_conditions_verified.cofeature_masks（恒久 masks とは別キー）へ記録する扱いを示している",
+          "passed": false,
+          "evidence": "記録先を diff-metadata.json の独自キー cofeature_masked と capture_conditions.cofeature_masks にしており、capture_conditions_verified.cofeature_masks を示していない。両方の作業画像へ同じ座標で当てる扱いも述べていない"
+        },
+        {
+          "text": "対象撮影組の bbox 欠落・不正・画像外・所有領域の曖昧さを blocked_by や片側マスクで通さず parity-suite へ戻して停止すると示している",
+          "passed": false,
+          "evidence": "bbox の欠落・不正・画像外・所有領域の曖昧さのときに parity-suite へ戻して停止する扱いを示していない"
+        },
+        {
+          "text": "特性と aria は現側 root 配下を除外し、新側 root が無ければ欠落自体を差分にせず、存在する場合だけ対応配下と bbox 整合を確認すると説明している",
+          "passed": false,
+          "evidence": "新側に無い grid-settings.root・export.root・aria の 2 ノードを「同居機能に起因する差分は 4 件」と差分として数えており、欠落自体を差分にしない扱いになっていない"
+        },
+        {
+          "text": "依存先が green になった次回はマスクを外して全面比較し、マスク済み領域を差分件数や blocked_by に数えないと説明している",
+          "passed": false,
+          "evidence": "解除後は「差分が残った場合は…その機能の差分として扱います」とあるが、マスク済み領域を差分件数に数えないとは述べず、今回も欠落を差分 4 件として数えている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 14,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 62.33,
+        "tokens": 83619,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "前回の blocked_by や前回の有効マスク集合を引き継がず、features.md のページ一覧と同じ target の各 replace-metadata.json を読み直している",
+          "passed": true,
+          "evidence": "前回の blocked_by は使っていないと明記。features.md の同居機能と grid-settings の replace-metadata.json（new_green: false）、export の metadata 無しを確認"
+        },
+        {
+          "text": "同じページで suite.new_green が false または証跡が無い grid-settings / export だけを共同居住マスクの有効集合にし、別 target や green の slug を含めていない",
+          "passed": true,
+          "evidence": "マスク対象は grid-settings と export だけ"
+        },
+        {
+          "text": "新側 root の欠落を停止理由や blocked_by の根拠にせず、現側ベースラインで測定済みの page × state × viewport の bbox を同じ座標で両作業画像へ適用し、適用詳細を capture_conditions_verified.cofeature_masks（恒久 masks とは別キー）へ記録する扱いを示している",
+          "passed": false,
+          "evidence": "blocked_by を「{slug:\"grid-settings\", evidence:\"dom-roots.json に grid-settings.root なし / new_green=false\"}」で作り直すと提案し、root の欠落を blocked_by の根拠にしている。記録先も capture_conditions.cofeature_masks で、capture_conditions_verified.cofeature_masks ではない"
+        },
+        {
+          "text": "対象撮影組の bbox 欠落・不正・画像外・所有領域の曖昧さを blocked_by や片側マスクで通さず parity-suite へ戻して停止すると示している",
+          "passed": false,
+          "evidence": "bbox の欠落・不正・画像外・所有領域の曖昧さのときに parity-suite へ戻して停止する扱いを示していない"
+        },
+        {
+          "text": "特性と aria は現側 root 配下を除外し、新側 root が無ければ欠落自体を差分にせず、存在する場合だけ対応配下と bbox 整合を確認すると説明している",
+          "passed": false,
+          "evidence": "traits と aria から 2 つの root を除外するとは述べるが、新側に root が存在する場合だけ対応配下と bbox 整合を確認する扱いを述べていない"
+        },
+        {
+          "text": "依存先が green になった次回はマスクを外して全面比較し、マスク済み領域を差分件数や blocked_by に数えないと説明している",
+          "passed": false,
+          "evidence": "解除後に比較をやり直すとは述べるが、マスク済み領域を差分件数や blocked_by に数えないとは述べず、同居機能を blocked_by に入れる提案をしている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 14,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 3,
+        "failed": 3,
+        "total": 6,
+        "time_seconds": 84.639,
+        "tokens": 122520,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "前回の blocked_by や前回の有効マスク集合を引き継がず、features.md のページ一覧と同じ target の各 replace-metadata.json を読み直している",
+          "passed": true,
+          "evidence": "前回の blocked_by を根拠として使っていないと明記。導出の表で features.md と grid-settings の replace-metadata.json・export の記録無しを読み直している"
+        },
+        {
+          "text": "同じページで suite.new_green が false または証跡が無い grid-settings / export だけを共同居住マスクの有効集合にし、別 target や green の slug を含めていない",
+          "passed": true,
+          "evidence": "マスク対象は grid-settings と export の 2 機能だけ"
+        },
+        {
+          "text": "新側 root の欠落を停止理由や blocked_by の根拠にせず、現側ベースラインで測定済みの page × state × viewport の bbox を同じ座標で両作業画像へ適用し、適用詳細を capture_conditions_verified.cofeature_masks（恒久 masks とは別キー）へ記録する扱いを示している",
+          "passed": false,
+          "evidence": "旧側 bbox を両方の画像の同じ座標に当てるとは述べるが、記録先を diff-metadata.json の独自キー cofeature_masks_applied としており、capture_conditions_verified.cofeature_masks を示していない"
+        },
+        {
+          "text": "対象撮影組の bbox 欠落・不正・画像外・所有領域の曖昧さを blocked_by や片側マスクで通さず parity-suite へ戻して停止すると示している",
+          "passed": false,
+          "evidence": "bbox の欠落・不正・画像外・所有領域の曖昧さのときに parity-suite へ戻して停止する扱いを示していない（未検証は null で残す提案）"
+        },
+        {
+          "text": "特性と aria は現側 root 配下を除外し、新側 root が無ければ欠落自体を差分にせず、存在する場合だけ対応配下と bbox 整合を確認すると説明している",
+          "passed": false,
+          "evidence": "root の欠落を差分にしないとは述べるが、新側に root が現れた場合は「範囲を旧側 bbox ∪ 新側 bbox に作り直す」としており、対応配下と bbox 整合を確かめる扱いになっていない"
+        },
+        {
+          "text": "依存先が green になった次回はマスクを外して全面比較し、マスク済み領域を差分件数や blocked_by に数えないと説明している",
+          "passed": true,
+          "evidence": "解除の条件で new_green が true になったらマスクと除外をやめて再実行し、「マスク範囲の中の差分も別に集計して記録する（合否には使わない）」、blocked_by は「まだ空」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.8333,
+        "stddev": 0,
+        "min": 0.8333,
+        "max": 0.8333
+      },
+      "time_seconds": {
+        "mean": 76.132,
+        "stddev": 9.4102,
+        "min": 66.899,
+        "max": 85.71
+      },
+      "tokens": {
+        "mean": 360168.6667,
+        "stddev": 65960.5884,
+        "min": 284004,
+        "max": 398334
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.3889,
+        "stddev": 0.0962,
+        "min": 0.3333,
+        "max": 0.5
+      },
+      "time_seconds": {
+        "mean": 67.782,
+        "stddev": 14.8989,
+        "min": 56.377,
+        "max": 84.639
+      },
+      "tokens": {
+        "mean": 108786.3333,
+        "stddev": 21825.8677,
+        "min": 83619,
+        "max": 122520
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.44",
+      "time_seconds": "+8.4",
+      "tokens": "+251382"
+    }
+  },
+  "notes": []
+}

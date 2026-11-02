@@ -1,0 +1,12 @@
+{
+  "name": "shop-front",
+  "private": true,
+  "scripts": {
+    "dev": "vite --port 5173",
+    "build": "vite build",
+    "preview": "vite preview --port 4173"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  }
+}

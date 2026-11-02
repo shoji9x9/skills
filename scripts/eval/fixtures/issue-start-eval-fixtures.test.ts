@@ -77,6 +77,16 @@ test("fetch-failure fixture has no usable remote PR base and fetch fails", () =>
   ).not.toBe(0);
 });
 
+test("develop-base fixture checks out main with origin pointing at GitHub and develop one commit ahead", () => {
+  const directory = prepareFixture("repo-develop-base");
+
+  expect(git(directory, "branch", "--show-current")).toBe("main");
+  expect(git(directory, "remote", "get-url", "origin")).toBe("git@github.com:shoji9x9/skills.git");
+  expect(git(directory, "rev-parse", "origin/main")).toBe(git(directory, "rev-parse", "main"));
+  expect(git(directory, "rev-list", "--count", "origin/main..origin/develop")).toBe("1");
+  expect(git(directory, "rev-list", "--count", "origin/develop..origin/main")).toBe("0");
+});
+
 test("all pre-push evals map to a fixture and do not state the expected outcome", () => {
   const evals = parseJsonAs<{ evals: { id: number; fixture: string; prompt: string }[] }>(
     readFileSync(join(repository, "evals", "issue-start", "evals.json"), "utf8"),

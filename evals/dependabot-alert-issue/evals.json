@@ -51,11 +51,12 @@
     },
     {
       "id": 5,
-      "prompt": "うちは lodash を本番では使ってないので、その alert は Issue にせず dismiss したい。dependabot-alert-issue でできる？",
+      "prompt": "うちは lodash を本番では使ってないので、その alert は Issue にせず dismiss したい。dependabot-alert-issue でできる？できるなら、設定の書き方と、実際に dismiss するときの手順も教えて。",
+      "fixture": "fixtures/existing-config",
       "expected_output": ".config/skills/shoji9x9/dependabot-alert-issue.jsonc の dismiss に lodash の dismiss 設定（reason/comment）を非破壊で書き、該当 alert は Issue 化せず、ユーザー承認後に gh api で Dismissal comment 付きで dismiss する。",
       "assertions": [
         "dismiss 対象は引数ではなく .config/skills/shoji9x9/dependabot-alert-issue.jsonc に書く方針である",
-        "設定ファイルへの書き込みは非破壊（既存のキー・値・コメントを変更しない）である",
+        "設定ファイルへの書き込みは同梱の skill-config.mjs の append（dismiss の配列に要素を足す）で行う方針で、既にある minimum_release_age_days・ignore とコメントを消す・書き換える手順（ファイル全体の書き直し・手での編集）を示していない",
         "dismiss 該当 alert は Issue 化対象から外す方針である",
         "gh api --method PATCH で state=dismissed・dismissed_reason・dismissed_comment を渡して却下する方針である",
         "dismiss も承認を得てから実行する方針である"
@@ -66,8 +67,8 @@
           "prompt_quote": "Issue にせず dismiss したい"
         },
         {
-          "assertion": "設定ファイルへの書き込みは非破壊（既存のキー・値・コメントを変更しない）である",
-          "prompt_quote": "Issue にせず dismiss したい"
+          "assertion": "設定ファイルへの書き込みは同梱の skill-config.mjs の append（dismiss の配列に要素を足す）で行う方針で、既にある minimum_release_age_days・ignore とコメントを消す・書き換える手順（ファイル全体の書き直し・手での編集）を示していない",
+          "prompt_quote": "設定の書き方"
         },
         {
           "assertion": "dismiss 該当 alert は Issue 化対象から外す方針である",
@@ -75,7 +76,7 @@
         },
         {
           "assertion": "gh api --method PATCH で state=dismissed・dismissed_reason・dismissed_comment を渡して却下する方針である",
-          "prompt_quote": "dismiss したい"
+          "prompt_quote": "実際に dismiss するときの手順も教えて"
         },
         {
           "assertion": "dismiss も承認を得てから実行する方針である",
@@ -96,12 +97,27 @@
     },
     {
       "id": 7,
-      "prompt": "設定で minimum_release_age_days を 3 にしてる。昨日リリースされたパッチ版がある high alert はどう判定される？",
+      "prompt": "昨日リリースされたパッチ版がある high alert はどう判定される？",
+      "fixture": "fixtures/minimum-release-age",
       "expected_output": "解決バージョンの公開からの経過が 3 日未満なので「すぐ着手できない」に分類し、リリース年齢が条件のため待つ旨を着手可能条件に明記する。",
       "assertions": [
         "minimum_release_age_days の設定を読み、解決バージョンの公開日からの経過と比較する方針である",
         "経過が閾値未満のためすぐ着手できないと分類している",
         "リリース年齢が着手可能条件である旨を Issue に明記する方針である"
+      ],
+      "reachability": [
+        {
+          "assertion": "minimum_release_age_days の設定を読み、解決バージョンの公開日からの経過と比較する方針である",
+          "prompt_quote": "昨日リリースされたパッチ版"
+        },
+        {
+          "assertion": "経過が閾値未満のためすぐ着手できないと分類している",
+          "prompt_quote": "high alert はどう判定される？"
+        },
+        {
+          "assertion": "リリース年齢が着手可能条件である旨を Issue に明記する方針である",
+          "prompt_quote": "high alert はどう判定される？"
+        }
       ]
     },
     {

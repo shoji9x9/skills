@@ -54,10 +54,11 @@
     {
       "id": 5,
       "prompt": "browser-test setup",
+      "fixture": "fixtures/setup-existing-config",
       "assertions": [
         "リポジトリ探索（package.json の scripts・dev サーバ設定・README 等）から環境・起動コマンドの候補を推定している",
         "環境 URL・認証・起動方法・環境ごとの禁止操作（forbidden_actions）をユーザーに確認しようとしている",
-        ".config/skills/shoji9x9/browser-test.jsonc の environments だけを非破壊に書こうとしている（既存の他のキー・値・コメントを変更しない）",
+        "記録は同梱の skill-config.mjs で行い、既にある staging の環境を残したまま、同じ name の無い環境だけを append（--unique-by name）で足す方針である（ファイル全体の書き直し・手での編集・staging の値やコメントの変更を示していない）",
         "回帰確認（ページ巡回）を始めていない"
       ],
       "reachability": [
@@ -70,7 +71,7 @@
           "prompt_quote": "browser-test setup"
         },
         {
-          "assertion": ".config/skills/shoji9x9/browser-test.jsonc の environments だけを非破壊に書こうとしている（既存の他のキー・値・コメントを変更しない）",
+          "assertion": "記録は同梱の skill-config.mjs で行い、既にある staging の環境を残したまま、同じ name の無い環境だけを append（--unique-by name）で足す方針である（ファイル全体の書き直し・手での編集・staging の値やコメントの変更を示していない）",
           "prompt_quote": "setup"
         },
         {

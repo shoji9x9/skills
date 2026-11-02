@@ -1,0 +1,577 @@
+{
+  "metadata": {
+    "skill_name": "replace-strategy",
+    "skill_path": "<repo>/skills/replace-strategy",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-30T15:15:12Z",
+    "evals_run": [6, 16],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 16,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 29,
+        "tokens": 207351,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "実行基盤と利用マネージドサービスは references.architecture の決定記録に含めると答え、別キーに切らない理由（読むスキル・工程・未整備のときの挙動が architecture と同じで、分けると同じ決定が 2 ファイルに散る）を示している",
+          "passed": true,
+          "evidence": "「実行基盤は、もともと architecture に書く内容」「読むスキル、読む工程、未整備のときの動き（止まる）が architecture と同じなので、キーを分けると同じ決定が 2 か所に散らばります」"
+        },
+        {
+          "text": "コーディング規約は references.coding_conventions という別キーで受け取ると答え、architecture が骨格（どこに何を置くか）・coding_conventions が骨格の上の書き方という境界を示している",
+          "passed": false,
+          "evidence": "coding_conventions を既存の専用キーとして示しているが、architecture を骨格・coding_conventions を骨格の上の書き方とする境界を述べていない"
+        },
+        {
+          "text": "未整備のときの挙動が両者で違うこと（architecture は parity-replace が部品の採否・実装工程に入らず停止する／coding_conventions は停止しない）を示している",
+          "passed": true,
+          "evidence": "「未整備のときの動きも違い、architecture は止まりますが、規約は止まりません」"
+        },
+        {
+          "text": "references にキーを足すときは references 表へ「読むスキルと工程」「整備されていないときの動作」を併せて追記する取り決めに触れ、キーだけ足しても下流スキルは読まないと述べている",
+          "passed": true,
+          "evidence": "「project-config.md の references 表に、どのスキルがどの工程で読むか、未整備のときにどう動くかを書き足す」「新しいキーは、足しただけでは誰も読みません」"
+        },
+        {
+          "text": "実行基盤を別ファイルに書きたい場合は architecture の決定記録からリンクする形を示している（新キーを足す提案を採っていない）",
+          "passed": true,
+          "evidence": "「ファイルを分けたいときは、architecture のドキュメントから別ファイルへリンクしてください」。新キーは足さない結論"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 16,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 36.038,
+        "tokens": 175559,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "実行基盤と利用マネージドサービスは references.architecture の決定記録に含めると答え、別キーに切らない理由（読むスキル・工程・未整備のときの挙動が architecture と同じで、分けると同じ決定が 2 ファイルに散る）を示している",
+          "passed": true,
+          "evidence": "「読むスキル、読む工程、整備されていないときの動作が architecture と全部同じだから」「新しく足すと同じ決定が 2 か所に分かれてしまいます」"
+        },
+        {
+          "text": "コーディング規約は references.coding_conventions という別キーで受け取ると答え、architecture が骨格（どこに何を置くか）・coding_conventions が骨格の上の書き方という境界を示している",
+          "passed": true,
+          "evidence": "「規約は coding_conventions に入れます」「骨格（architecture）とは別扱いで」"
+        },
+        {
+          "text": "未整備のときの挙動が両者で違うこと（architecture は parity-replace が部品の採否・実装工程に入らず停止する／coding_conventions は停止しない）を示している",
+          "passed": true,
+          "evidence": "「骨格が無いと止まる、規約が無くても止まらない」"
+        },
+        {
+          "text": "references にキーを足すときは references 表へ「読むスキルと工程」「整備されていないときの動作」を併せて追記する取り決めに触れ、キーだけ足しても下流スキルは読まないと述べている",
+          "passed": false,
+          "evidence": "「project-config.md の表と各スキル側のキー表に行を追加しないと、下流のスキルからは無いのと同じ」とあるが、表に「読むスキルと工程」「整備されていないときの動作」を書く取り決めには触れていない"
+        },
+        {
+          "text": "実行基盤を別ファイルに書きたい場合は architecture の決定記録からリンクする形を示している（新キーを足す提案を採っていない）",
+          "passed": true,
+          "evidence": "「別ファイルにしたいときは、architecture の決定記録からリンクします」。新キーは足さない結論"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 16,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 32.077,
+        "tokens": 223448,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "実行基盤と利用マネージドサービスは references.architecture の決定記録に含めると答え、別キーに切らない理由（読むスキル・工程・未整備のときの挙動が architecture と同じで、分けると同じ決定が 2 ファイルに散る）を示している",
+          "passed": true,
+          "evidence": "「実行基盤は、このキーに含める。別のキーには分けない」「読むスキル・読む工程・整備されていないときの動作がすべて architecture と同じなので、キーを分けると同じ決定が 2 か所に散らばります」"
+        },
+        {
+          "text": "コーディング規約は references.coding_conventions という別キーで受け取ると答え、architecture が骨格（どこに何を置くか）・coding_conventions が骨格の上の書き方という境界を示している",
+          "passed": true,
+          "evidence": "「coding_conventions は『骨格の上の書き方（…）』を受け持つキー」「骨格（architecture）の文書は人が書きます」"
+        },
+        {
+          "text": "未整備のときの挙動が両者で違うこと（architecture は parity-replace が部品の採否・実装工程に入らず停止する／coding_conventions は停止しない）を示している",
+          "passed": false,
+          "evidence": "未整備のときの挙動が architecture と coding_conventions で違う（停止する／しない）ことを述べていない"
+        },
+        {
+          "text": "references にキーを足すときは references 表へ「読むスキルと工程」「整備されていないときの動作」を併せて追記する取り決めに触れ、キーだけ足しても下流スキルは読まないと述べている",
+          "passed": false,
+          "evidence": "「references の表に行を足す」「片方だけを足した状態は…どのスキルもそのキーを読みません」とあるが、表に「読むスキルと工程」「整備されていないときの動作」を書く取り決めには触れていない"
+        },
+        {
+          "text": "実行基盤を別ファイルに書きたい場合は architecture の決定記録からリンクする形を示している（新キーを足す提案を採っていない）",
+          "passed": true,
+          "evidence": "「インフラだけを別ファイルにしたい場合は、architecture の決定記録からリンクします」。新キーは足さない結論"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 58.58,
+        "tokens": 426089,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "新側の状態を target（環境）ごとに分けて報告している（local-dev と develop を別々の状態として示している）",
+          "passed": true,
+          "evidence": "機能ごとの表を「order-list / local-dev」「order-list / develop」の 2 列に分けて状態を示している"
+        },
+        {
+          "text": "local-dev を差分検出まで実施済み（収束済み）、develop をその環境では未実施として区別している",
+          "passed": true,
+          "evidence": "local-dev は「green 済み、差分検出も実施済み」「1 / 5 回で収束」、develop は「その環境では未実施」"
+        },
+        {
+          "text": "db を持たない develop を「フェーズ B 未実施の疑い」として報告していない（投入対象外として扱っている）",
+          "passed": true,
+          "evidence": "develop のフェーズ B を「対象外（DB の定義が無い）」と記載し、未実施の疑いとしていない"
+        },
+        {
+          "text": "差し戻しループの状態（loop.iterations 1 / max_iterations 5）を報告に含めている",
+          "passed": true,
+          "evidence": "「往復 | 1 / 5 回で収束（converged: true）」"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
+          "passed": true,
+          "evidence": "raw/ のツール呼び出しは読み取り（cat・find・ls・--help 付きのスクリプト・読み取り専用のチェックスクリプト）だけで Write/Edit は無く、project-files/ は fixture と一致"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 72.02,
+        "tokens": 576226,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "新側の状態を target（環境）ごとに分けて報告している（local-dev と develop を別々の状態として示している）",
+          "passed": true,
+          "evidence": "表に local-dev の各行と別に「develop（新側の配信型）| 未実施。new/develop/ がありません」の行を置いている"
+        },
+        {
+          "text": "local-dev を差分検出まで実施済み（収束済み）、develop をその環境では未実施として区別している",
+          "passed": true,
+          "evidence": "local-dev は「差分検出の 1 回目で収束」、develop は「未実施」"
+        },
+        {
+          "text": "db を持たない develop を「フェーズ B 未実施の疑い」として報告していない（投入対象外として扱っている）",
+          "passed": true,
+          "evidence": "「DB が定義されていないので、フェーズ B の対象外です」"
+        },
+        {
+          "text": "差し戻しループの状態（loop.iterations 1 / max_iterations 5）を報告に含めている",
+          "passed": true,
+          "evidence": "「往復 | 1 回 / 上限 5 回」"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
+          "passed": true,
+          "evidence": "raw/ のツール呼び出しは読み取り（cat・find・ls・--help 付きのスクリプト・読み取り専用のチェックスクリプト）だけで Write/Edit は無く、project-files/ は fixture と一致"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 47.43,
+        "tokens": 333924,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "新側の状態を target（環境）ごとに分けて報告している（local-dev と develop を別々の状態として示している）",
+          "passed": true,
+          "evidence": "表に「新側 local-dev」「新側 develop」の別の列を設けている"
+        },
+        {
+          "text": "local-dev を差分検出まで実施済み（収束済み）、develop をその環境では未実施として区別している",
+          "passed": true,
+          "evidence": "local-dev は「converged: true」、develop は「未実施（new/develop/ が無い）」"
+        },
+        {
+          "text": "db を持たない develop を「フェーズ B 未実施の疑い」として報告していない（投入対象外として扱っている）",
+          "passed": true,
+          "evidence": "「DB 定義が無いので、フェーズ B の対象外」"
+        },
+        {
+          "text": "差し戻しループの状態（loop.iterations 1 / max_iterations 5）を報告に含めている",
+          "passed": true,
+          "evidence": "「往復 1/5」"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
+          "passed": true,
+          "evidence": "raw/ のツール呼び出しは読み取り（cat・find・ls・--help 付きのスクリプト・読み取り専用のチェックスクリプト）だけで Write/Edit は無く、project-files/ は fixture と一致"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 16,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 22.81,
+        "tokens": 55263,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "実行基盤と利用マネージドサービスは references.architecture の決定記録に含めると答え、別キーに切らない理由（読むスキル・工程・未整備のときの挙動が architecture と同じで、分けると同じ決定が 2 ファイルに散る）を示している",
+          "passed": false,
+          "evidence": "replace-strategy.jsonc もスキーマも見つからないとして一般論で答えている。実行基盤は target.platform のような新しいキーに書くと提案し、references.architecture に触れていない"
+        },
+        {
+          "text": "コーディング規約は references.coding_conventions という別キーで受け取ると答え、architecture が骨格（どこに何を置くか）・coding_conventions が骨格の上の書き方という境界を示している",
+          "passed": false,
+          "evidence": "規約は references.newRepoConventions（仮のキー）にポインタを置くと提案し、coding_conventions も骨格との境界も示していない"
+        },
+        {
+          "text": "未整備のときの挙動が両者で違うこと（architecture は parity-replace が部品の採否・実装工程に入らず停止する／coding_conventions は停止しない）を示している",
+          "passed": false,
+          "evidence": "未整備のときの挙動の違いに触れていない"
+        },
+        {
+          "text": "references にキーを足すときは references 表へ「読むスキルと工程」「整備されていないときの動作」を併せて追記する取り決めに触れ、キーだけ足しても下流スキルは読まないと述べている",
+          "passed": false,
+          "evidence": "references 表へ追記する取り決めに触れていない。スキーマ検証で落ちる可能性を一般論で述べるだけ"
+        },
+        {
+          "text": "実行基盤を別ファイルに書きたい場合は architecture の決定記録からリンクする形を示している（新キーを足す提案を採っていない）",
+          "passed": false,
+          "evidence": "target.platform と newRepoConventions という新キーを足す提案をしており、architecture からのリンクを示していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 16,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 28.358,
+        "tokens": 92268,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "実行基盤と利用マネージドサービスは references.architecture の決定記録に含めると答え、別キーに切らない理由（読むスキル・工程・未整備のときの挙動が architecture と同じで、分けると同じ決定が 2 ファイルに散る）を示している",
+          "passed": false,
+          "evidence": "replace-strategy.jsonc もスキーマも見つからないとして一般論で答えている。実行基盤は「新側を説明するセクション」に置く候補を挙げるだけで、references.architecture に触れていない"
+        },
+        {
+          "text": "コーディング規約は references.coding_conventions という別キーで受け取ると答え、architecture が骨格（どこに何を置くか）・coding_conventions が骨格の上の書き方という境界を示している",
+          "passed": false,
+          "evidence": "規約は別ファイルに書いて references から参照すると答えるが、coding_conventions のキーも骨格との境界も示していない"
+        },
+        {
+          "text": "未整備のときの挙動が両者で違うこと（architecture は parity-replace が部品の採否・実装工程に入らず停止する／coding_conventions は停止しない）を示している",
+          "passed": false,
+          "evidence": "未整備のときの挙動の違いに触れていない"
+        },
+        {
+          "text": "references にキーを足すときは references 表へ「読むスキルと工程」「整備されていないときの動作」を併せて追記する取り決めに触れ、キーだけ足しても下流スキルは読まないと述べている",
+          "passed": false,
+          "evidence": "references 表へ追記する取り決めに触れていない。「読み込む側のツールが新しいキーを無視する」を一般論で述べるだけ"
+        },
+        {
+          "text": "実行基盤を別ファイルに書きたい場合は architecture の決定記録からリンクする形を示している（新キーを足す提案を採っていない）",
+          "passed": false,
+          "evidence": "「スキーマを確認するまで待って」と保留しており、architecture の決定記録からリンクする形を示していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 16,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 22.918,
+        "tokens": 55243,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "実行基盤と利用マネージドサービスは references.architecture の決定記録に含めると答え、別キーに切らない理由（読むスキル・工程・未整備のときの挙動が architecture と同じで、分けると同じ決定が 2 ファイルに散る）を示している",
+          "passed": false,
+          "evidence": "replace-strategy.jsonc もスキーマも見つからないとして一般論で答えている。実行基盤は target.platform に書くと提案し、references.architecture に触れていない"
+        },
+        {
+          "text": "コーディング規約は references.coding_conventions という別キーで受け取ると答え、architecture が骨格（どこに何を置くか）・coding_conventions が骨格の上の書き方という境界を示している",
+          "passed": false,
+          "evidence": "規約は newCodingConventions という新キーを例に挙げ、coding_conventions も骨格との境界も示していない"
+        },
+        {
+          "text": "未整備のときの挙動が両者で違うこと（architecture は parity-replace が部品の採否・実装工程に入らず停止する／coding_conventions は停止しない）を示している",
+          "passed": false,
+          "evidence": "未整備のときの挙動の違いに触れていない"
+        },
+        {
+          "text": "references にキーを足すときは references 表へ「読むスキルと工程」「整備されていないときの動作」を併せて追記する取り決めに触れ、キーだけ足しても下流スキルは読まないと述べている",
+          "passed": false,
+          "evidence": "references 表へ追記する取り決めに触れていない"
+        },
+        {
+          "text": "実行基盤を別ファイルに書きたい場合は architecture の決定記録からリンクする形を示している（新キーを足す提案を採っていない）",
+          "passed": false,
+          "evidence": "規約用の新キー 1 つの追加を推奨しており、architecture の決定記録からリンクする形を示していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 51.146,
+        "tokens": 95129,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "新側の状態を target（環境）ごとに分けて報告している（local-dev と develop を別々の状態として示している）",
+          "passed": true,
+          "evidence": "工程表に「環境」列があり、local-dev の行と develop の行を分けている"
+        },
+        {
+          "text": "local-dev を差分検出まで実施済み（収束済み）、develop をその環境では未実施として区別している",
+          "passed": true,
+          "evidence": "local-dev の差分比較は「収束」、develop は「PR 作成と develop へのマージ | 未着手 | develop 側の記録がない」"
+        },
+        {
+          "text": "db を持たない develop を「フェーズ B 未実施の疑い」として報告していない（投入対象外として扱っている）",
+          "passed": false,
+          "evidence": "develop の根拠に「データベース設定とデータセットも未定義」を挙げ、次の手順で「develop には db 設定がないので、検証方法もあわせて決める」と未解決の課題として扱い、投入対象外として扱っていない"
+        },
+        {
+          "text": "差し戻しループの状態（loop.iterations 1 / max_iterations 5）を報告に含めている",
+          "passed": false,
+          "evidence": "「1 回目で収束」とだけあり、max_iterations 5 に触れていない"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
+          "passed": true,
+          "evidence": "raw/ のツール呼び出しは読み取り（cat・find・ls・--help 付きのスクリプト・読み取り専用のチェックスクリプト）だけで Write/Edit は無く、project-files/ は fixture と一致"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 44.9,
+        "tokens": 122025,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "新側の状態を target（環境）ごとに分けて報告している（local-dev と develop を別々の状態として示している）",
+          "passed": true,
+          "evidence": "フェーズ表に「置き換え実装（local-dev）」「差分確認（local-dev）」と「develop target」を別の行で示している"
+        },
+        {
+          "text": "local-dev を差分検出まで実施済み（収束済み）、develop をその環境では未実施として区別している",
+          "passed": true,
+          "evidence": "local-dev は「収束済み」、develop は「まだ何も記録がありません」"
+        },
+        {
+          "text": "db を持たない develop を「フェーズ B 未実施の疑い」として報告していない（投入対象外として扱っている）",
+          "passed": true,
+          "evidence": "develop について db やデータ投入の欠落を課題として挙げておらず、フェーズ B 未実施の疑いを報告していない"
+        },
+        {
+          "text": "差し戻しループの状態（loop.iterations 1 / max_iterations 5）を報告に含めている",
+          "passed": true,
+          "evidence": "「ループ 1 回目（上限 5 回）」"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
+          "passed": true,
+          "evidence": "raw/ のツール呼び出しは読み取り（cat・find・ls・--help 付きのスクリプト・読み取り専用のチェックスクリプト）だけで Write/Edit は無く、project-files/ は fixture と一致"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 35.031,
+        "tokens": 61352,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "新側の状態を target（環境）ごとに分けて報告している（local-dev と develop を別々の状態として示している）",
+          "passed": true,
+          "evidence": "工程表で local-dev の行と「develop 環境（PR マージ後に自動デプロイ）」の行を分けている"
+        },
+        {
+          "text": "local-dev を差分検出まで実施済み（収束済み）、develop をその環境では未実施として区別している",
+          "passed": true,
+          "evidence": "local-dev は「converged: true と記録」、develop は「何も実施していない」"
+        },
+        {
+          "text": "db を持たない develop を「フェーズ B 未実施の疑い」として報告していない（投入対象外として扱っている）",
+          "passed": true,
+          "evidence": "develop について db やデータ投入の欠落を課題として挙げておらず、フェーズ B 未実施の疑いを報告していない"
+        },
+        {
+          "text": "差し戻しループの状態（loop.iterations 1 / max_iterations 5）を報告に含めている",
+          "passed": false,
+          "evidence": "「1回で完了」とだけあり、max_iterations 5 に触れていない"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
+          "passed": true,
+          "evidence": "raw/ のツール呼び出しは読み取り（cat・find・ls・--help 付きのスクリプト・読み取り専用のチェックスクリプト）だけで Write/Edit は無く、project-files/ は fixture と一致"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.8667,
+        "stddev": 0.1633,
+        "min": 0.6,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 45.8575,
+        "stddev": 16.8482,
+        "min": 29,
+        "max": 72.02
+      },
+      "tokens": {
+        "mean": 323766.1667,
+        "stddev": 154848.7656,
+        "min": 175559,
+        "max": 576226
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.4,
+        "stddev": 0.4561,
+        "min": 0,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 34.1938,
+        "stddev": 11.777,
+        "min": 22.81,
+        "max": 51.146
+      },
+      "tokens": {
+        "mean": 80213.3333,
+        "stddev": 27268.2751,
+        "min": 55243,
+        "max": 122025
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.47",
+      "time_seconds": "+11.7",
+      "tokens": "+243553"
+    }
+  },
+  "notes": []
+}

@@ -199,6 +199,25 @@ eval の実行には 2 つの目的があり、必要な run の数が大きく�
   ユーザーの指定やスキル固有の指定があればそれを優先し、対応する executor が無いエージェントではユーザーに確認する。
   選び方は [`skill-eval-executors.md`](skill-eval-executors.md)「Executor の選択」で定義する。
 
+#### 前回の記録との比べ方
+
+変更確認や benchmark の結果を前回の記録と比べるときは、次の決まりに従う。
+比べる記録の選び方は、上の「変更確認の結果と比べる記録」の箇条で決める。
+
+- assertion ごとの合否で比べる。pass_rate は要約として添えるだけにし、上がった・下がったの判断に使わない。
+  pass_rate が同じでも、満たした assertion が入れ替わっていることがある。
+- assertion は文で対応づける。文が変わった assertion は、前回の記録と比べず、新しい assertion として扱う。
+  `benchmark.md` に「文を変えたので比べない」と書く。文が同じ assertion だけを比べる。
+- 3 run の記録と比べるときは、3 run すべてを範囲にする。
+  前回の 3 run のうち 1 run でも満たした assertion を、今回の run がすべて満たさなかったときだけ「下がった」とする。
+- 1 run どうしで比べて下がったときは、回帰かばらつきかを決めない。
+  `benchmark.md` に「1 run では区別できない」と書き、その eval の 3 run の実行を残りの作業に挙げる（実行するかは依頼者が決める）。
+- 結果を良くするために run を実行し直さない。実行し直してよいのは、run が評価として成り立たなかったときだけである。
+  汚染の判定が `clean` でない、ハーネスや起動の失敗、利用上限で途中で止まった、の 3 つに当たる。実行し直した run と理由は `benchmark.md` に書く。
+- executor が違う記録とは比べない。「比べる記録は無い」として扱う（「それでも executor を切り替えるときの運用」の 4 と同じ）。
+- `without_skill` の baseline を再利用した run は、再利用した iteration の 1 run として数え、元の run と別の run として数えない。
+  `benchmark.md` に再利用元の iteration を書く。
+
 #### without-skill baseline の再利用
 
 次のものがすべて同じなら、成功した既存の `without_skill` の run を再利用できる。
@@ -282,6 +301,9 @@ setup が 0 以外で終わったら、executor を起動せずに eval を失�
 
 - `run-skill-eval.sh` は両方の configuration を `scripts/eval/eval-sandbox.sh` を通して起動する。
   このスクリプトは bwrap で、作業ツリー・兄弟の run の `/tmp`・OS のミラー・エージェントの記録の 4 つを読めなくする。
+  利用者の設定（`~/.claude.json`・`~/.claude/settings.json`）は、そのまま読ませない。
+  `~/.claude.json` は空の `{}` に、`settings.json` は API に接続するのに要るキーだけを残したコピー（`scripts/eval/sanitize-claude-settings.ts`）に差し替える。
+  hooks や権限の設定には、リポジトリの場所や学びのノートの名前が書かれていて、without_skill の run がそれを読んで答えに使ったことがある。
   各 run には、遮断できたかを書いた `isolation.txt` を必ず残す。`without_skill` には、判定を書いた `contamination.txt` も残す。
   `SKILL_EVAL_RUNNER` を指定したときはそれを優先し、遮断は確かめていないものとして記録する。
 - `with_skill` も隔離するのは、比べる差をスキルの有無だけにするためである。

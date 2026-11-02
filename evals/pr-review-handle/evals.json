@@ -77,7 +77,8 @@
     },
     {
       "id": 7,
-      "prompt": "pr-review-handle 42 --push（.config/skills/shoji9x9/common.jsonc で review_tool: codex）",
+      "prompt": "pr-review-handle 42 --push\n\nこのサンドボックスは GitHub に接続できず、git リポジトリでもない。shoji9x9/skills の clone の中で実行している前提で、GitHub に接続するコマンド（gh・git fetch など）は実行せず、実行する手順とコマンドを示して。手元のファイルの読み取りと、スキルに同梱のスクリプトの実行はしてよい。取得できた状態は次のとおり。PR #42 は自分が作成した PR である。未解決のレビュースレッドが 2 件あり、どちらも指摘は事実として正しく、直し方が 1 つに決まる。直した commit を push した後、PR には新しいコメントもレビューもまだ付いていない。",
+      "fixture": "fixtures/review-tool-codex",
       "expected_output": "レビュー対応・commit・push の後、再レビュー依頼のタイミングを確認し、依頼時は requested_reviewers ではなくトップレベル PR コメントに @codex review を投稿して依頼する。",
       "assertions": [
         "common の review_tool の設定（codex）を参照して依頼先ツールを決めている",
@@ -89,29 +90,30 @@
       "reachability": [
         {
           "assertion": "common の review_tool の設定（codex）を参照して依頼先ツールを決めている",
-          "prompt_quote": "common.jsonc で review_tool: codex"
+          "prompt_quote": "pr-review-handle 42 --push"
         },
         {
           "assertion": "push 後に再レビュー依頼のタイミングをユーザーに確認する（今すぐ / CI 完了後 / 依頼しない）",
-          "prompt_quote": "--push"
+          "prompt_quote": "直した commit を push した後"
         },
         {
           "assertion": "依頼は requested_reviewers ではなくトップレベル PR コメントへの @codex review 投稿で行う方針である",
-          "prompt_quote": "review_tool: codex"
+          "prompt_quote": "pr-review-handle 42 --push"
         },
         {
           "assertion": "Copilot 専用の login（copilot-pull-request-reviewer[bot]）は使わない方針である",
-          "prompt_quote": "review_tool: codex"
+          "prompt_quote": "pr-review-handle 42 --push"
         },
         {
           "assertion": "mention は非冪等のため、現在の HEAD の push 以降に投稿された（投稿者を問わない）@codex review コメントの有無を確認し、既にあれば再投稿せず重複レビュー起動を避ける方針である",
-          "prompt_quote": "review_tool: codex"
+          "prompt_quote": "PR には新しいコメントもレビューもまだ付いていない"
         }
       ]
     },
     {
       "id": 8,
-      "prompt": "pr-review-handle 42（review_tool: none 設定）— 指摘はすべて返信のみで対応でき、コード修正は不要な前提",
+      "prompt": "pr-review-handle 42 — 指摘はすべて返信のみで対応でき、コード修正は不要な前提\n\nこのサンドボックスは GitHub に接続できず、git リポジトリでもない。shoji9x9/skills の clone の中で実行している前提で、GitHub に接続するコマンド（gh・git fetch など）は実行せず、実行する手順とコマンドを示して。手元のファイルの読み取りと、スキルに同梱のスクリプトの実行はしてよい。取得できた状態は次のとおり。PR #42 は自分が作成した PR である。未解決のレビュースレッドが 2 件ある。",
+      "fixture": "fixtures/review-tool-none",
       "expected_output": "未解決スレッドへの返信・解決まで行い、review_tool が none のため再レビュー依頼の確認自体を省略して完了する。",
       "assertions": [
         "common の review_tool の設定（none）を参照している",
@@ -121,15 +123,15 @@
       "reachability": [
         {
           "assertion": "common の review_tool の設定（none）を参照している",
-          "prompt_quote": "review_tool: none 設定"
+          "prompt_quote": "pr-review-handle 42"
         },
         {
           "assertion": "未解決スレッドへの返信・解決は通常どおり行う手順になっている",
-          "prompt_quote": "指摘はすべて返信のみで対応でき"
+          "prompt_quote": "未解決のレビュースレッドが 2 件ある"
         },
         {
           "assertion": "AI レビュアーへの再レビュー依頼をせず、その要否確認も省略して完了する方針である",
-          "prompt_quote": "review_tool: none 設定"
+          "prompt_quote": "pr-review-handle 42"
         }
       ]
     },
@@ -145,13 +147,32 @@
     },
     {
       "id": 10,
-      "prompt": "pr-review-handle 6（review_tool: claude-code 設定）— 未解決レビュースレッドは 0 件で、reviews[].body も空（state は COMMENTED）なんだ。対応することはある？",
+      "prompt": "pr-review-handle 6 — 未解決レビュースレッドは 0 件で、reviews[].body も空（state は COMMENTED）なんだ。対応することはある？",
+      "fixture": "fixtures/review-tool-claude-code",
       "expected_output": "スレッドとレビュー本文の 2 系統だけで「指摘なし」と結論せず、トップレベルの PR コメント（issues/<番号>/comments）を切り詰めずに読んで指摘を探す。指摘は resolve できないため自分のトップレベルコメントで判断と根拠を返す。",
       "assertions": [
         "トップレベルの PR コメント（issues/<番号>/comments）を指摘の収集対象として読む方針である",
         "レビュアーが総評・軽微な指摘をトップレベルコメントに置く形を挙げている（スレッド 0 件・reviews[].body 空を根拠に「指摘なし」と結論していない）",
         "トップレベルコメントは切り詰めずに全文読む（.body[:200] のような切り詰めた取得を指摘収集に使わない）と述べている",
         "トップレベルコメントの指摘には返信先スレッドが無く resolve もできないため、自分のトップレベルコメントで判断と根拠を返す方針である"
+      ],
+      "reachability": [
+        {
+          "assertion": "トップレベルの PR コメント（issues/<番号>/comments）を指摘の収集対象として読む方針である",
+          "prompt_quote": "対応することはある？"
+        },
+        {
+          "assertion": "レビュアーが総評・軽微な指摘をトップレベルコメントに置く形を挙げている（スレッド 0 件・reviews[].body 空を根拠に「指摘なし」と結論していない）",
+          "prompt_quote": "reviews[].body も空"
+        },
+        {
+          "assertion": "トップレベルコメントは切り詰めずに全文読む（.body[:200] のような切り詰めた取得を指摘収集に使わない）と述べている",
+          "prompt_quote": "対応することはある？"
+        },
+        {
+          "assertion": "トップレベルコメントの指摘には返信先スレッドが無く resolve もできないため、自分のトップレベルコメントで判断と根拠を返す方針である",
+          "prompt_quote": "対応することはある？"
+        }
       ]
     },
     {
