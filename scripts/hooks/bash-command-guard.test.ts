@@ -15,7 +15,7 @@
 // 止める入力だけのテストでは、「全部落とす実装」と区別が付かない。
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { delimiter, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeSharedTempDir } from "../lib/testing/test-tmpdir.ts";
@@ -389,19 +389,36 @@ test.each([
   expect(r.stderr).toMatch(/full command line/);
 });
 
-// 共通ライブラリを読めない配置（スクリプトだけを別の場所に置いた状態）では、判定できないので検査を続け、そのことを stderr に残す。
-test("kaizen の共通ライブラリを読めなければ、Copilot の登録の入力でも止め、判定していないことを stderr に残す", () => {
-  const dir = makeSharedTempDir("bash-command-guard-no-lib-");
-  const copied = join(dir, "bash-command-guard.sh");
-  writeFileSync(copied, readFileSync(script, "utf8"));
-  const r = spawnSync("bash", [copied], {
-    timeout: CHILD_TIMEOUT_MS,
-    input: JSON.stringify(copilotPascal),
-    encoding: "utf8",
-    cwd: repoRoot,
-    env: { ...process.env, COPILOT_CLI: "1" },
-  });
-  expect(r.status).toBe(2);
-  expect(r.stderr).toMatch(/共通ライブラリを読めないため、Copilot の呼び出しかを判定していない/);
-  expect(r.stderr).toMatch(/full command line/);
-});
+// 判定の関数を読めない配置では、判定できないので検査を続け、そのことを stderr に残す。
+// スクリプトは、新しく作った一時ディレクトリ <dir> の <dir>/scripts/hooks/ に置く。スクリプトが読むライブラリ（../../.agents/...）は <dir> の中を指すので、
+// TMPDIR の場所（リポジトリの中かどうか）に依らずに、ライブラリの有無を決められる。
+test.each([
+  { name: "共通ライブラリが無い", library: undefined },
+  {
+    name: "共通ライブラリはあるが判定の関数が無い（古いコピー）",
+    library: "kaizen_other() { :; }\n",
+  },
+])(
+  "$name なら、Copilot の登録の入力でも止め、判定していないことを stderr に残す",
+  ({ library }) => {
+    const dir = makeSharedTempDir("bash-command-guard-no-lib-");
+    mkdirSync(join(dir, "scripts", "hooks"), { recursive: true });
+    const copied = join(dir, "scripts", "hooks", "bash-command-guard.sh");
+    writeFileSync(copied, readFileSync(script, "utf8"));
+    if (library !== undefined) {
+      const libDir = join(dir, ".agents", "skills", "kaizen", "scripts");
+      mkdirSync(libDir, { recursive: true });
+      writeFileSync(join(libDir, "kaizen-hook-common.sh"), library);
+    }
+    const r = spawnSync("bash", [copied], {
+      timeout: CHILD_TIMEOUT_MS,
+      input: JSON.stringify(copilotPascal),
+      encoding: "utf8",
+      cwd: repoRoot,
+      env: { ...process.env, COPILOT_CLI: "1" },
+    });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/判定の関数を読めないため、Copilot の呼び出しかを判定していない/);
+    expect(r.stderr).toMatch(/full command line/);
+  },
+);

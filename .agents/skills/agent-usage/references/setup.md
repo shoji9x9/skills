@@ -110,7 +110,7 @@ GitHub は `linguist-generated` の付いたファイルを、PR の差分で最
 | 状況 | 振る舞い |
 | --- | --- |
 | `git commit` を実行しない | 通す。判定が扱う書き方と、`git commit` を実行しても検出しない形の主な例は、下の「コミットと判定しない形と、コミットと判定する形」にある |
-| GitHub Copilot CLI が、Claude Code 用の登録（`.claude/settings.json`。引数 `claude-code`）としてこの Hook を呼んだ | 下のどの行よりも先に判定し、確認も記録もせずに通す。Copilot は `.claude/settings.json` の Hook も実行するが、このスキルは Copilot のログを読まない。環境変数 `COPILOT_CLI` が空でなく、入力の最上位に `timestamp` と `hook_event_name` があるときに、Copilot が呼んだと判定する（[GitHub Copilot hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference)）。引数 `codex` の登録には当てない |
+| GitHub Copilot CLI が、Claude Code 用の登録（`.claude/settings.json`。引数 `claude-code`）としてこの Hook を呼んだ | 確認も記録もせずに通す。Copilot は `.claude/settings.json` の Hook も実行するが、このスキルは Copilot のログを読まない。環境変数 `COPILOT_CLI` が空でなく、入力の最上位に `timestamp` と `hook_event_name` があるときに、Copilot が呼んだと判定する（[GitHub Copilot hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference)）。判定するのは、`git commit` を検出して同梱の `agent-usage.mjs` を起動した後で、下の `.agent-usage/` の有無からの行より先である。判定は引数が `claude-code` の登録にだけ当て、ほかの引数（`codex` など）の登録には当てない |
 | `.agent-usage/` が無い・detached HEAD・デフォルトブランチ | 通す |
 | ブランチの判断が無く、人の設定にもリポジトリの設定にも `defaultDecision` が無い | 止める（exit 2）。stderr で、利用者に確かめて `collect --stage` か `decline` を実行するよう求める |
 | ブランチの判断が無く、どれかの層の設定に `defaultDecision` がある（どれかの層の設定を読めないときは、値があっても、下の「設定を読めない」の行に当たる） | 止めずに、その値（`.local.jsonc`・人ごと・リポジトリの順で最初の値）を判断として扱う。下の「記録しない」「記録する」と同じに振る舞い、従った設定のパスを stderr に出す。ただし人の設定が無ければ、下の「人の設定が無く」の行に当たる |

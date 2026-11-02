@@ -42,3 +42,7 @@ ci:41522860399:1,ci,2026-11-02T21:11:06.399Z,p-cdee4961,github-actions,,,,2026-1
 coverage:github:2026-11-01T20:54:38.809Z:2026-11-02T21:11:06.399Z,coverage,2026-11-02T21:11:06.399Z,p-cdee4961,,,,,2026-11-01T20:54:38.809Z,2026-11-02T21:11:06.399Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-11-01T21:11:06.399Z:2026-11-02T21:16:34.510Z,coverage,2026-11-02T21:16:34.510Z,p-cdee4961,,,,,2026-11-01T21:11:06.399Z,2026-11-02T21:16:34.510Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-11-01T21:16:34.510Z:2026-11-02T21:17:30.362Z,coverage,2026-11-02T21:17:30.362Z,p-cdee4961,,,,,2026-11-01T21:16:34.510Z,2026-11-02T21:17:30.362Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:41527092202:1,ci,2026-11-02T21:26:38.752Z,p-cdee4961,github-actions,,,,2026-11-02T21:18:09.000Z,2026-11-02T21:18:10.000Z,Asia/Tokyo,feature/858-copilot-safe-claude-hooks,858,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:41527092223:1,ci,2026-11-02T21:26:38.752Z,p-cdee4961,github-actions,,,,2026-11-02T21:18:09.000Z,2026-11-02T21:22:31.000Z,Asia/Tokyo,feature/858-copilot-safe-claude-hooks,858,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-11-01T21:17:30.362Z:2026-11-02T21:26:38.752Z,coverage,2026-11-02T21:26:38.752Z,p-cdee4961,,,,,2026-11-01T21:17:30.362Z,2026-11-02T21:26:38.752Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-01T21:26:38.752Z:2026-11-02T22:44:07.901Z,coverage,2026-11-02T22:44:07.901Z,p-cdee4961,,,,,2026-11-01T21:26:38.752Z,2026-11-02T22:44:07.901Z,Asia/Tokyo,,,,,,,,,,,,ok,
