@@ -189,7 +189,9 @@ done
 # to reach the API (sanitize-claude-settings.ts holds the allowlist).
 if [ -e "${home}/.claude/settings.json" ]; then
 	scratch_settings="$(mktemp)"
-	node "$(dirname "${self}")/sanitize-claude-settings.ts" "${home}/.claude/settings.json" "${scratch_settings}" || {
+	# Run node from the repo: the cwd here is the disposable project under /tmp, where a
+	# version manager's shim (mise) may not resolve node.
+	(cd "${repo}" && node "$(dirname "${self}")/sanitize-claude-settings.ts" "${home}/.claude/settings.json" "${scratch_settings}") || {
 		echo "eval-sandbox: cannot sanitize ${home}/.claude/settings.json" >&2
 		exit 3
 	}
