@@ -116,6 +116,13 @@ done
   Claude Code と Codex は同じ構造（イベント→（任意の `matcher`＋）`hooks` 配列→`type: command`）である。`matcher` は任意で、省くとすべてに一致する。Copilot は、加えてトップレベルに `version` を持つ。
 - Codex の `matcher` は正規表現で、PreToolUse は `Bash` に限る。SessionStart は `startup` / `resume` / `clear` / `compact` のすべてでマーカーを管理する必要があるので、省いてすべてに一致させる。`Stop` も matcher が無視されるので省く。
 - Codex は、設定ファイルをマージしただけでは Hook を実行しない。3 つの定義をマージした後、4-4 の信頼の手順まで済ませる。
+- Copilot CLI は、`.github/hooks/*.json` に加えて `.claude/settings.json` の Hook も実行する（[GitHub Copilot hooks configuration](https://docs.github.com/en/copilot/reference/hooks-configuration)）。
+  `.claude/settings.json` の Hook だけを止める設定は無い。
+  そこで、引数なしで呼ばれた `kaizen-stop-mark.sh` と `kaizen-precommit-gate.sh` は、Copilot の入力を見分けたら何もせずに exit 0 で終える。
+  見分ける条件は、入力の最上位に `timestamp` があり、環境変数 `COPILOT_CLI` が空でないことである。
+  Copilot も Hook に `CLAUDE_PROJECT_DIR` を渡すので、`CLAUDE_PROJECT_DIR` の有無では見分けられない。
+  Copilot のセッションの記録とチェックは、`.github/hooks/kaizen-session.json` の登録（`-copilot` 付き）だけが行う。
+  そのため、Copilot を使うプロジェクトでは、`.claude/settings.json` があっても Copilot の Hook を省かない。
 
 #### 4-1. タスク終了時の Hook（センチネルの記録だけ）
 

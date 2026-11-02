@@ -20,7 +20,7 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { makeSharedTempDir, makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
@@ -40,17 +40,25 @@ function runStopMark(
     sessionId = "s1",
     transcriptPath,
     includeTranscriptField = true,
+    extra = {},
+    copilotCli = false,
   }: {
     suffix?: string;
     sessionId?: string;
     transcriptPath?: string;
     includeTranscriptField?: boolean;
+    // 入力の JSON に足す項目（Copilot の入力の `timestamp` など）。
+    extra?: Record<string, unknown>;
+    // Copilot CLI が Hook に渡す COPILOT_CLI=1 を付けるか。付けないときは空にし、テストを
+    // 起動した環境の値を引き継がない。CLAUDE_PROJECT_DIR は Copilot も渡すので、どちらでも付ける。
+    copilotCli?: boolean;
   } = {},
 ) {
   const payload = {
     session_id: sessionId,
     cwd,
     ...(includeTranscriptField ? { transcript_path: transcriptPath ?? "" } : {}),
+    ...extra,
   };
   const args = suffix ? [suffix] : [];
   return spawnSync("bash", [script, ...args], {
@@ -58,7 +66,7 @@ function runStopMark(
     cwd,
     input: JSON.stringify(payload),
     encoding: "utf8",
-    env: { ...process.env, CLAUDE_PROJECT_DIR: cwd },
+    env: { ...process.env, CLAUDE_PROJECT_DIR: cwd, COPILOT_CLI: copilotCli ? "1" : "" },
   });
 }
 
@@ -206,5 +214,134 @@ describe("copilot は transcript が無くても従来どおりセンチネル�
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
+  });
+});
+
+// Copilot CLI は `.claude/settings.json` の Hook も実行する（Issue #853）。Stop は応答が終わるたびに
+// 実行されるので（agentStop）、引数なしの登録がそのままセンチネルを作ると、Copilot のセッションに
+// claude-code の名前のセンチネルが立つ。入力の最上位の `timestamp` と、環境変数 COPILOT_CLI が空でないことの
+// 両方が Copilot を示すときだけ、何もせずに終える。Copilot は CLAUDE_PROJECT_DIR も渡すので、どのケースにも付ける。
+// 入力の形は https://docs.github.com/en/copilot/reference/hooks-configuration の PascalCase の Stop に合わせる。
+describe("Claude Code 用の登録（引数なし）を Copilot が呼んだとき", () => {
+  const copilotStop = {
+    hook_event_name: "Stop",
+    timestamp: "2026-11-02T00:00:00.000Z",
+    stop_reason: "end_turn",
+    stop_hook_active: false,
+  };
+
+  // どのケースも読める transcript を渡す。判定が無ければセンチネルを立てる入力なので、
+  // 「立てない」が判定によるものか、transcript が無いためかを区別できる。
+  function withTranscript(cwd: string) {
+    const transcript = join(cwd, "events.jsonl");
+    writeFileSync(transcript, "{}\n");
+    return transcript;
+  }
+
+  test("timestamp があり COPILOT_CLI が空でないなら、センチネルを立てずに exit 0", () => {
+    const cwd = makeProject();
+    try {
+      const result = runStopMark(cwd, {
+        transcriptPath: withTranscript(cwd),
+        extra: copilotStop,
+        copilotCli: true,
+      });
+      expect(result.status).toBe(0);
+      expect(sentinelFiles(cwd)).toEqual([]);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test.each([
+    ["COPILOT_CLI が空（Claude Code が呼んだ）", copilotStop, false],
+    ["timestamp が無い（Copilot のシェルから起動した Claude Code）", {}, true],
+  ])("%s なら、これまでどおり claude-code のセンチネルを立てる", (_name, extra, copilotCli) => {
+    const cwd = makeProject();
+    try {
+      const result = runStopMark(cwd, {
+        transcriptPath: withTranscript(cwd),
+        extra,
+        copilotCli,
+      });
+      expect(result.status).toBe(0);
+      const files = sentinelFiles(cwd);
+      expect(files).toEqual([".pending-extract.s1"]);
+      const lines = readFileSync(join(cwd, ".kaizen", files[0]), "utf8").split("\n");
+      expect(lines[2]).toBe("claude-code");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("-copilot を渡した呼び出し（.github/hooks の sessionEnd）は、Copilot の入力でもセンチネルを立てる", () => {
+    const cwd = makeProject();
+    try {
+      const result = runStopMark(cwd, {
+        suffix: "-copilot",
+        includeTranscriptField: false,
+        sessionId: "p1",
+        extra: { timestamp: 1793588988760, reason: "complete" },
+        copilotCli: true,
+      });
+      expect(result.status).toBe(0);
+      expect(sentinelFiles(cwd)).toEqual([".pending-extract-copilot.p1"]);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+});
+
+// 判定の関数（kaizen-hook-common.sh の kaizen_payload_is_copilot）を、jq がある環境と無い環境で直接確かめる。
+// jq が無いときは、生の JSON でエスケープされていない `"timestamp":` を探す。
+describe("kaizen_payload_is_copilot", () => {
+  const lib = join(repoRoot, "skills/kaizen/scripts/kaizen-hook-common.sh");
+  // 空のディレクトリだけの PATH。判定の関数は bash の組み込みと jq しか使わないので、jq だけを外せる。
+  const noJqPath = makeSharedTempDir("kaizen-no-jq-path-");
+  const bash = spawnSync("bash", ["-c", "command -v bash"], { encoding: "utf8" }).stdout.trim();
+
+  function isCopilot(json: string, { jq, copilotCli }: { jq: boolean; copilotCli: string }) {
+    return spawnSync(bash, ["-c", 'source "$1"; kaizen_payload_is_copilot "$2"', "_", lib, json], {
+      timeout: CHILD_TIMEOUT_MS,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        CLAUDE_PROJECT_DIR: "/p",
+        COPILOT_CLI: copilotCli,
+        ...(jq ? {} : { PATH: noJqPath }),
+      },
+    }).status;
+  }
+
+  test("前提: jq がある環境では jq を解決でき、無い環境では解決できない", () => {
+    expect(spawnSync(bash, ["-c", "command -v jq"], { env: process.env }).status).toBe(0);
+    expect(spawnSync(bash, ["-c", "command -v jq"], { env: { PATH: noJqPath } }).status).toBe(1);
+  });
+
+  const top = JSON.stringify({ session_id: "s", timestamp: "2026-11-02T00:00:00Z", cwd: "/x" });
+  const numeric = JSON.stringify({ sessionId: "s", timestamp: 1793588988760, cwd: "/x" });
+  const inString = JSON.stringify({ tool_input: { command: 'echo "timestamp": 1' } });
+  const none = JSON.stringify({ session_id: "s", cwd: "/x", tool_input: { command: "ls" } });
+
+  test.each([
+    { name: "最上位に timestamp（文字列）・COPILOT_CLI=1", json: top, cli: "1", expected: 0 },
+    {
+      name: "最上位に timestamp（数値。camelCase のイベント）・COPILOT_CLI=1",
+      json: numeric,
+      cli: "1",
+      expected: 0,
+    },
+    { name: "最上位に timestamp・COPILOT_CLI が空", json: top, cli: "", expected: 1 },
+    { name: "timestamp が無い", json: none, cli: "1", expected: 1 },
+    { name: "timestamp がコマンドの文字列の中にだけある", json: inString, cli: "1", expected: 1 },
+    { name: "入力が空", json: "", cli: "1", expected: 1 },
+  ])("$name（jq あり・なし）", ({ json, cli, expected }) => {
+    expect(isCopilot(json, { jq: true, copilotCli: cli })).toBe(expected);
+    expect(isCopilot(json, { jq: false, copilotCli: cli })).toBe(expected);
+  });
+
+  test("jq があれば、入れ子のキーの timestamp は最上位として扱わない", () => {
+    const nested = JSON.stringify({ tool_input: { timestamp: 1 } });
+    expect(isCopilot(nested, { jq: true, copilotCli: "1" })).toBe(1);
   });
 });

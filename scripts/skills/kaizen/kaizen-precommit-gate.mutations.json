@@ -254,6 +254,18 @@
       "expect_failing": [
         "事前の絞り込みはツールの名前と入力だけを見る 対象のキーが無い入力は、入力の全体で判定する"
       ]
+    },
+    {
+      "id": "GATE-COPILOT-IGNORES-COPILOT-CLI",
+      "why": "Copilot の判定で COPILOT_CLI を見ない（入力に timestamp がある Claude Code の呼び出しを Copilot と見誤り、チェックをせずに commit を通す）",
+      "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
+      "find": "\t[ -n \"${COPILOT_CLI:-}\" ] || return 1",
+      "replace": "\t:",
+      "occurrences": 1,
+      "expect_failing": [
+        "Claude Code 用の登録（引数なし）を Copilot が呼んだとき COPILOT_CLI が空（Claude Code が呼んだ） なら、これまでどおり他のセッションの警告を exit 1 で出す",
+        "事前の絞り込みはツールの名前と入力だけを見る コマンドに語があれば次の段に進み、commit でなければ jq を 1 回だけ起動して通す"
+      ]
     }
   ]
 }

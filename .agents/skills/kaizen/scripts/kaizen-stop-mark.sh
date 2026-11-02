@@ -60,6 +60,17 @@ else
 	printf '%s: 共通ライブラリを読めないため、機能を減らして動きます: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
 fi
 
+# Claude Code 用の登録（引数なし）を GitHub Copilot CLI が呼んだときは、センチネルを作らずに終える。
+# Copilot は `.claude/settings.json` の Stop を、応答が終わるたびに実行する（agentStop）。ここで作ると、
+# Copilot のセッションに claude-code の名前のセンチネルが立つ。Copilot の記録は候補の走査で判定できないので、
+# そのセンチネルは同じセッションの次の commit から毎回チェックを止める。
+# Copilot のセンチネルは `.github/hooks/` の sessionEnd（`-copilot` 付き）が、セッションの終わりに 1 回だけ作る。
+# 判定の条件は kaizen-hook-common.sh の kaizen_payload_is_copilot にある。共通ライブラリを読めなければ判定できないので、これまでどおり続ける。
+if [ -z "${suffix}" ] && declare -f kaizen_payload_is_copilot >/dev/null 2>&1 &&
+	kaizen_payload_is_copilot "${input}"; then
+	exit 0
+fi
+
 session_id=""
 transcript=""
 payload_cwd=""
