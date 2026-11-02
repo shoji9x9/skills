@@ -21,7 +21,7 @@ Issue #705 の項目 2 の benchmark（前回より満たした件数が少な�
 
 ## 前回より下がったものと、その原因
 
-- eval 8 の原因と対応: fixture の design.md に、後から足された predicate-coverage-check が求める「述語ごとの分岐網羅」の表が無く、チェックが exit 2 で止まる。この変更とは関係しない。fixture を直す作業を後の作業の Issue に回す。
+- eval 8 の原因と対応: fixture の design.md に、後から足された predicate-coverage-check が求める「述語ごとの分岐網羅」の表が無く、チェックが exit 2 で止まる。この変更とは関係しない。fixture を直す作業を後の作業の Issue（#856） に回す。
 
 ## 実行し直した run
 

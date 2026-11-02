@@ -24,7 +24,7 @@ Issue #705 の変更確認（入力を変えた eval を 1 run ずつ）であ�
 - eval 13: 前回は満たし、今回はどの run も満たさなかった assertion がある。
   - bootstrap/seed.sh の暫定起動データやそのツールを流用・改造せず、dataset_tool_dir（seed/）に本スキルの投入ツールを作る方針を示している
   - 確認待ちの orders.status の意味・遷移・初期値を推測や一般論で確定させず、確定済みの意味論だけを設計の根拠にしている
-- eval 13 の原因と対応: requires_skills を宣言したので前回より先に進み、手順 1 の投入先の DB への接続の確認で止まった。fixture に投入先の DB が無く、assertion が問う設計の段に届かない。後の作業の Issue で、届く入力を決める。
+- eval 13 の原因と対応: requires_skills を宣言したので前回より先に進み、手順 1 の投入先の DB への接続の確認で止まった。fixture に投入先の DB が無く、assertion が問う設計の段に届かない。後の作業の Issue（#856） で、届く入力を決める。
 
 ## 実行し直した run
 

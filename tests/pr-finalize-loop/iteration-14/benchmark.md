@@ -36,11 +36,11 @@ Issue #705 の変更確認（入力を変えた eval を 1 run ずつ）であ�
 - eval 9: 前回は満たし、今回はどの run も満たさなかった assertion がある。
   - common の review_tool の設定（codex）を参照して依頼先ツールを決めている
   - Copilot 専用の login（copilot-pull-request-reviewer[bot]）や review_requested タイムラインに依存しない方針である
-- eval 9 の原因と対応: prompt の「gh や git のコマンドは実行せず」に従い、resolve-review-tool.sh も実行せず、fixture の設定を読まずに copilot を前提にした。この変更が原因である。禁止の範囲を GitHub に接続するコマンドに絞り、スクリプトの実行は許す文に直した。直した prompt で実行し直す。
+- eval 9 の原因と対応: prompt の「gh や git のコマンドは実行せず」に従い、resolve-review-tool.sh も実行せず、fixture の設定を読まずに copilot を前提にした。この変更が原因である。禁止の範囲を GitHub に接続するコマンドに絞り、スクリプトの実行は許す文に直した。直した prompt で実行し直した（iteration-15）。
 - eval 10: 前回は満たし、今回はどの run も満たさなかった assertion がある。
   - common の review_tool の設定（none）を参照している
   - AI レビュアーへの再レビュー依頼を一切行わない方針である
-- eval 10 の原因と対応: #9 と同じ原因である。同じ文に直し、実行し直す。
+- eval 10 の原因と対応: #9 と同じ原因である。同じ文に直し、実行し直した（iteration-15）。
 
 ## 実行し直した run
 

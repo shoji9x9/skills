@@ -27,10 +27,10 @@ Issue #705 の変更確認（入力を変えた eval を 1 run ずつ）であ�
 
 - eval 7: 前回は満たし、今回はどの run も満たさなかった assertion がある。
   - common の review_tool の設定（codex）を参照して依頼先ツールを決めている
-- eval 7 の原因と対応: pr-finalize-loop#9 と同じ原因である。同じ文に直し、実行し直す。
+- eval 7 の原因と対応: pr-finalize-loop#9 と同じ原因である。同じ文に直し、実行し直した（iteration-9）。
 - eval 8: 前回は満たし、今回はどの run も満たさなかった assertion がある。
   - common の review_tool の設定（none）を参照している
-- eval 8 の原因と対応: pr-finalize-loop#9 と同じ原因である。同じ文に直し、実行し直す。
+- eval 8 の原因と対応: pr-finalize-loop#9 と同じ原因である。同じ文に直し、実行し直した（iteration-9）。
 
 ## 実行し直した run
 

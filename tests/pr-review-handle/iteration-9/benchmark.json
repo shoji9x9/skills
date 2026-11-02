@@ -1,0 +1,213 @@
+{
+  "metadata": {
+    "skill_name": "pr-review-handle",
+    "skill_path": "<repo>/skills/pr-review-handle",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-02T05:07:07Z",
+    "evals_run": [7, 8],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 49.606,
+        "tokens": 220833,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "common の review_tool の設定（codex）を参照して依頼先ツールを決めている",
+          "passed": true,
+          "evidence": "resolve-review-tool.sh で「review_tool は codex（source=repo）」と解決し、@codex review の mention で頼むと決めている"
+        },
+        {
+          "text": "push 後に再レビュー依頼のタイミングをユーザーに確認する（今すぐ / CI 完了後 / 依頼しない）",
+          "passed": true,
+          "evidence": "手順 7 で「今すぐ依頼」「CI 完了後に依頼」「依頼しない」の 3 つから選んでもらう形にし、選ぶまで依頼を保留している"
+        },
+        {
+          "text": "依頼は requested_reviewers ではなくトップレベル PR コメントへの @codex review 投稿で行う方針である",
+          "passed": true,
+          "evidence": "`gh api --method POST repos/shoji9x9/skills/issues/42/comments -f body=\"@codex review\"` でトップレベルのコメントとして依頼する"
+        },
+        {
+          "text": "Copilot 専用の login（copilot-pull-request-reviewer[bot]）は使わない方針である",
+          "passed": true,
+          "evidence": "Copilot 専用の login を使わず、bot のレビュー・コメントや 👀 のリアクションで到着を判定している"
+        },
+        {
+          "text": "mention は非冪等のため、現在の HEAD の push 以降に投稿された（投稿者を問わない）@codex review コメントの有無を確認し、既にあれば再投稿せず重複レビュー起動を避ける方針である",
+          "passed": true,
+          "evidence": "手順 6 で投稿者を絞らずに @codex review のコメントを取得し push 時刻より後のものがあるかを見て、「mention は投稿し直すたびにレビューが 1 つ増えるので、1 回だけ投稿します」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 41.56,
+        "tokens": 201260,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "common の review_tool の設定（none）を参照している",
+          "passed": true,
+          "evidence": "resolve-review-tool.sh の結果「value=none / source=repo（common.jsonc の \"review_tool\": \"none\"）」"
+        },
+        {
+          "text": "未解決スレッドへの返信・解決は通常どおり行う手順になっている",
+          "passed": true,
+          "evidence": "手順 4 で replies に返信し、「返信が成功した後に限り」resolveReviewThread で解決する"
+        },
+        {
+          "text": "AI レビュアーへの再レビュー依頼をせず、その要否確認も省略して完了する方針である",
+          "passed": true,
+          "evidence": "「再レビューは依頼しません。返信と解決が済んだ時点で完了になり、『今すぐ依頼／依頼しない』の確認も省きます」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 82.632,
+        "tokens": 98709,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "common の review_tool の設定（codex）を参照して依頼先ツールを決めている",
+          "passed": true,
+          "evidence": "common.jsonc の {\"review_tool\": \"codex\"} を読み、「review_tool: codex の場合」として依頼する"
+        },
+        {
+          "text": "push 後に再レビュー依頼のタイミングをユーザーに確認する（今すぐ / CI 完了後 / 依頼しない）",
+          "passed": false,
+          "evidence": "手順 6 で `gh pr comment 42 --body '@codex review'` をそのまま実行する手順で、依頼のタイミングをユーザーに確認していない"
+        },
+        {
+          "text": "依頼は requested_reviewers ではなくトップレベル PR コメントへの @codex review 投稿で行う方針である",
+          "passed": true,
+          "evidence": "`gh pr comment 42 --body '@codex review'` でトップレベルのコメントとして依頼する"
+        },
+        {
+          "text": "Copilot 専用の login（copilot-pull-request-reviewer[bot]）は使わない方針である",
+          "passed": true,
+          "evidence": "Copilot 専用の login は手順のどこにも使っていない"
+        },
+        {
+          "text": "mention は非冪等のため、現在の HEAD の push 以降に投稿された（投稿者を問わない）@codex review コメントの有無を確認し、既にあれば再投稿せず重複レビュー起動を避ける方針である",
+          "passed": false,
+          "evidence": "依頼の前に、push 後の @codex review コメントの有無を確かめる手順が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 39.962,
+        "tokens": 131586,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "common の review_tool の設定（none）を参照している",
+          "passed": true,
+          "evidence": "`.config/skills/shoji9x9/common.jsonc` の \"review_tool\": \"none\" を読んでいる"
+        },
+        {
+          "text": "未解決スレッドへの返信・解決は通常どおり行う手順になっている",
+          "passed": true,
+          "evidence": "手順 2 で addPullRequestReviewThreadReply による返信、手順 3 で resolveReviewThread による解決を示している"
+        },
+        {
+          "text": "AI レビュアーへの再レビュー依頼をせず、その要否確認も省略して完了する方針である",
+          "passed": true,
+          "evidence": "「review_tool: none なので、再レビューの依頼は送りません」。要否の確認も挟まずに「何も出力されなければ完了」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 45.583,
+        "stddev": 5.6894,
+        "min": 41.56,
+        "max": 49.606
+      },
+      "tokens": {
+        "mean": 211046.5,
+        "stddev": 13840.201,
+        "min": 201260,
+        "max": 220833
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.8,
+        "stddev": 0.2828,
+        "min": 0.6,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 61.297,
+        "stddev": 30.1722,
+        "min": 39.962,
+        "max": 82.632
+      },
+      "tokens": {
+        "mean": 115147.5,
+        "stddev": 23247.5496,
+        "min": 98709,
+        "max": 131586
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.20",
+      "time_seconds": "-15.7",
+      "tokens": "+95899"
+    }
+  },
+  "notes": []
+}
