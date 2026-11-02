@@ -1,0 +1,189 @@
+{
+  "metadata": {
+    "skill_name": "golden-dataset",
+    "skill_path": "/home/shoji9x9/projects/skills/skills/golden-dataset",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-02T12:55:46Z",
+    "evals_run": [8],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 9,
+        "failed": 0,
+        "total": 9,
+        "time_seconds": 182.47,
+        "tokens": 1350904,
+        "tool_calls": 23,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "db を持つ target が 1 つも無いことを理由に停止していない",
+          "passed": true,
+          "evidence": "db target の不在では停止せず、project-files の content/works が 001〜007 の 7 件になり、seed/src/main.ts・.replace/dataset（design.md・metadata.json・新規 verification.md）を更新した"
+        },
+        {
+          "text": "設定の dataset_mode: static を読み、投入先を target の DB ではなく dataset_static_paths（content/works）配下だと判定している",
+          "passed": true,
+          "evidence": "prompt は投入先のパスを書いていないが、raw で同梱の skill-config.mjs により `get replace-strategy dataset_mode` が value=\"static\"、`dataset_static_paths` が value=[\"content/works\"]（source=repo）を返したのを確かめてから書き込んだ。seed/src/main.ts 冒頭「golden-dataset フェーズ A（dataset_mode: static）の投入ツール」「書き込み先は設定の dataset_static_paths 配下だけに限る」、応答「書き込み先が設定で許された `content/works` だけであることと、テスト用データだというあなたの確認の両方がそろったので、投入しました」"
+        },
+        {
+          "text": "current-site/src/works-list.ts を読み、ページサイズ 6、publishedAt 降順＋id 同値順、tag 絞り込み、tag 変更時の page 保持を消費側パラメータの根拠にしている",
+          "passed": true,
+          "evidence": "design.md の消費側パラメータ「published_at DESC、同値は id ASC｜6（切替なし）｜current-site/src/works-list.ts の listWorks と PAGE_SIZE を読んだ」、空状態の行「UI は tag 変更時に page を保持する」、述語の行「listWorks の tags.includes(tag) を読んだ」。ページ境界の根拠「PAGE_SIZE=6、listWorks の slice、updateTagQuery が page を保持」。raw で works-list.ts を cat し、生成データを listWorks に通している"
+        },
+        {
+          "text": "gaps.md の 2 件（ページ送り・空状態）を design.md へ追記し、投入ツール（seed/src/main.ts）を更新して再生成している",
+          "passed": true,
+          "evidence": "design.md に「空リストになるケース｜含めた」「ページネーションが 2 ページ以上｜含めた｜7 件（PAGE_SIZE 6 で 2 ページ）」と、追加履歴に version 2 の行（出典 .replace/parity/works-list/gaps.md「一覧のページネーション」「タグ絞り込みの空状態」）。seed/src/main.ts に 003〜007 を追加し、content/works は 7 ファイルに再生成（001・002 はフィクスチャと同一）"
+        },
+        {
+          "text": "生成・削除の対象が dataset_static_paths 配下に収まっており、その外のファイルを書き換えていない",
+          "passed": true,
+          "evidence": "フィクスチャ（evals/golden-dataset/fixtures/static-dataset）との diff で変わったのは content/works・seed/src/main.ts・新規 seed/src/lock.ts・.replace/dataset の 3 ファイルだけ。current-site/src/works-list.ts・gaps.md・features.md は差分なし。ロック seed/.seed.lock は project-tree.txt に無く、検査用スクリプトはプロジェクト外の /tmp/gd-scratch に書いて削除した"
+        },
+        {
+          "text": "metadata.json の version を 1 から 2 へ上げている",
+          "passed": true,
+          "evidence": "project-files/.replace/dataset/metadata.json の \"version\": 2（フィクスチャは 1）"
+        },
+        {
+          "text": "metadata.json の changes に version 2 と、実際に変更した静的データ単位だけを affects として追記し、過去版の履歴を保持している",
+          "passed": true,
+          "evidence": "metadata.json の changes が [{version:1, affects:[\"*\"]}, {version:2, affects:[\"content/works\"]}]。v1 の履歴を残し、v2 の affects は静的データ単位 content/works だけ"
+        },
+        {
+          "text": "metadata.json の current.fingerprint を再計算して更新し、current.target と current.seeded_at は null のままにしている",
+          "passed": true,
+          "evidence": "metadata.json の current.fingerprint が sha256:c3b066c7…badd8 に更新。採点時に verification.md 記載の算出方法（ファイル名昇順に「content/works/<名前> + NUL + 内容 + NUL」を SHA-256）で project-files の content/works を計算し一致を確認。current.target と current.seeded_at は null のまま"
+        },
+        {
+          "text": "version 2 の affects と各 slug の実効参照データを照合し、影響する parity-suite だけのベースライン再取得を案内している",
+          "passed": true,
+          "evidence": "応答「変えたデータは `content/works` だけなので、撮り直しが要るのはこれを読む **works-list** の基準データだけです」。v2 の affects（content/works）と、features.md で content/works を参照する slug（works-list だけ。raw で features.md を cat している）を対応づけ、影響する parity-suite だけを案内している"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 6,
+        "failed": 3,
+        "total": 9,
+        "time_seconds": 83.152,
+        "tokens": 180934,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "db を持つ target が 1 つも無いことを理由に停止していない",
+          "passed": true,
+          "evidence": "db target の不在では停止せず、content/works を 001〜008 の 8 件に再生成し、seed/src/main.ts・design.md・metadata.json を更新した"
+        },
+        {
+          "text": "設定の dataset_mode: static を読み、投入先を target の DB ではなく dataset_static_paths（content/works）配下だと判定している",
+          "passed": false,
+          "evidence": "raw で .config/skills/shoji9x9/replace-strategy.jsonc を cat したが、dataset_mode から投入先を判定した記述は応答・成果物・raw の発言に無い（design.md の dataset_mode 表記はフィクスチャのコメントのまま）。投入先は既存の seed/src/main.ts の `const OUT_DIR = \"content/works\"` をそのまま使っており、応答の「書き換えたのは `content/works/`（dataset_static_paths の範囲）」は書き換えた後の範囲の説明で、設定から投入先を決めた根拠になっていない"
+        },
+        {
+          "text": "current-site/src/works-list.ts を読み、ページサイズ 6、publishedAt 降順＋id 同値順、tag 絞り込み、tag 変更時の page 保持を消費側パラメータの根拠にしている",
+          "passed": true,
+          "evidence": "design.md の空状態の行「2 ページ目で tag を accessibility（または print）に切り替えると updateTagQuery が page=2 を保持するため 0 件」、述語の行「listWorks の tags.includes(tag) を読んだ」、既存の消費側パラメータ（published_at DESC・同値は id ASC・6）を維持。raw で works-list.ts を cat し、listWorks と updateTagQuery に生成データを通している"
+        },
+        {
+          "text": "gaps.md の 2 件（ページ送り・空状態）を design.md へ追記し、投入ツール（seed/src/main.ts）を更新して再生成している",
+          "passed": true,
+          "evidence": "design.md に「空リストになるケース｜含めた」「ページネーションが 2 ページ以上｜含めた｜全 8 件で 6＋2」と、追加履歴に version 2 の行（出典 gaps.md「一覧のページネーション」「タグ絞り込みの空状態」）。seed/src/main.ts に 003〜008 を追加し、content/works は 8 ファイルに再生成"
+        },
+        {
+          "text": "生成・削除の対象が dataset_static_paths 配下に収まっており、その外のファイルを書き換えていない",
+          "passed": true,
+          "evidence": "フィクスチャとの diff で変わったのは content/works・seed/src/main.ts・design.md・metadata.json だけ。works-list.ts・gaps.md・features.md は差分なし。検査用スクリプトはプロジェクト外の /tmp/check-works.ts に書いて削除した"
+        },
+        {
+          "text": "metadata.json の version を 1 から 2 へ上げている",
+          "passed": true,
+          "evidence": "metadata.json の \"version\": 2"
+        },
+        {
+          "text": "metadata.json の changes に version 2 と、実際に変更した静的データ単位だけを affects として追記し、過去版の履歴を保持している",
+          "passed": false,
+          "evidence": "metadata.json の changes の version 2 が affects: [\"works-list\"] で、静的データ単位（content/works）ではなく slug を書いている。v1 の履歴は保持"
+        },
+        {
+          "text": "metadata.json の current.fingerprint を再計算して更新し、current.target と current.seeded_at は null のままにしている",
+          "passed": true,
+          "evidence": "current.fingerprint を sha256:69fe67f0…cc89 に更新。採点時に応答記載の方法（content/works/*.md をファイル名順に連結して sha256）で project-files を計算し一致。current.target と current.seeded_at は null のまま"
+        },
+        {
+          "text": "version 2 の affects と各 slug の実効参照データを照合し、影響する parity-suite だけのベースライン再取得を案内している",
+          "passed": false,
+          "evidence": "応答は「parity-suite で works-list のベースラインを取り直し」だけで、affects と各 slug の実効参照データを照合していない（affects 自体が slug）"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 182.47,
+        "stddev": 0,
+        "min": 182.47,
+        "max": 182.47
+      },
+      "tokens": {
+        "mean": 1350904,
+        "stddev": 0,
+        "min": 1350904,
+        "max": 1350904
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.6667,
+        "stddev": 0,
+        "min": 0.6667,
+        "max": 0.6667
+      },
+      "time_seconds": {
+        "mean": 83.152,
+        "stddev": 0,
+        "min": 83.152,
+        "max": 83.152
+      },
+      "tokens": {
+        "mean": 180934,
+        "stddev": 0,
+        "min": 180934,
+        "max": 180934
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.33",
+      "time_seconds": "+99.3",
+      "tokens": "+1169970"
+    }
+  },
+  "notes": [
+    "Issue #856 の変更確認（入力を変えた eval を with_skill・without_skill で 1 run ずつ）。比べ方は docs/skill-development.md「前回の記録との比べ方」に従う。"
+  ]
+}
