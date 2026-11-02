@@ -81,14 +81,14 @@
     },
     {
       "id": 3,
-      "prompt": "agent-usage の usage.csv で、出たばかりのモデルの費用が 0 で cost_unknown_buckets が数えられている。どうすれば費用に入る？ ログはもう消えているかもしれない。コマンドの実行やファイルの変更はせず、答えだけ教えて。",
+      "prompt": "agent-usage の usage.csv で、出たばかりのモデルの費用が 0 で cost_unknown_buckets が数えられている。どうすれば費用に入る？ ログはもう消えているかもしれない。collect や report の実行と、記録や設定のファイルの変更はせず、答えだけ教えて。スキルの文書やスクリプトを読むのはよい。",
       "expected_output": "同梱の単価表にそのモデルが無いので、記録の時点で費用を空欄（cost_source が unknown）にし、トークン数だけを記録している。リポジトリの設定（.config/skills/shoji9x9/agent-usage.jsonc）の pricing に、そのモデルの単価（USD / 100 万トークン、input と output は必須、cacheRead などは任意）を足して report を実行し直せば、記録されたトークン数から費用を計算し直す（cost_sources は repo@report）。ログが消えていても、トークン数は記録に残っているので計算できる。モデル名の末尾の [1m] と日付は除いて引く。",
       "assertions": [
         "単価表にそのモデルが無いので、記録の時点で費用を空欄にしてトークン数だけを記録していると説明している",
         "リポジトリの設定（.config/skills/shoji9x9/agent-usage.jsonc）の pricing に、そのモデルの単価（input と output は必須）を足すと答えている",
         "単価を足して report を実行し直せば、記録されたトークン数から費用を計算し直すと答えている",
         "ログが消えていても、トークン数が記録に残っているので計算できると答えている",
-        "コマンドを実行せずに答えている（読み取りの grep などのコマンドも実行していない）"
+        "collect・report を実行せず、記録・設定のファイルも変更せずに答えている（スキルの文書とスクリプトの読み取りは問わない）"
       ],
       "reachability": [
         {
@@ -108,8 +108,8 @@
           "prompt_quote": "ログはもう消えているかもしれない"
         },
         {
-          "assertion": "コマンドを実行せずに答えている（読み取りの grep などのコマンドも実行していない）",
-          "prompt_quote": "コマンドの実行やファイルの変更はせず"
+          "assertion": "collect・report を実行せず、記録・設定のファイルも変更せずに答えている（スキルの文書とスクリプトの読み取りは問わない）",
+          "prompt_quote": "collect や report の実行と、記録や設定のファイルの変更はせず"
         }
       ]
     }
