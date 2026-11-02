@@ -46,3 +46,8 @@ coverage:github:2026-11-01T12:45:54.164Z:2026-11-02T12:56:00.936Z,coverage,2026-
 ci:41448751621:1,ci,2026-11-02T13:02:37.365Z,p-cdee4961,github-actions,,,,2026-11-02T12:56:25.000Z,2026-11-02T12:56:26.000Z,Asia/Tokyo,feature/856-fix-eval-fixture-skill-failures,856,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:41448751825:1,ci,2026-11-02T13:02:37.365Z,p-cdee4961,github-actions,,,,2026-11-02T12:56:25.000Z,2026-11-02T13:01:06.000Z,Asia/Tokyo,feature/856-fix-eval-fixture-skill-failures,856,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-11-01T12:56:00.936Z:2026-11-02T13:02:37.365Z,coverage,2026-11-02T13:02:37.365Z,p-cdee4961,,,,,2026-11-01T12:56:00.936Z,2026-11-02T13:02:37.365Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-01T13:02:37.365Z:2026-11-02T13:03:14.007Z,coverage,2026-11-02T13:03:14.007Z,p-cdee4961,,,,,2026-11-01T13:02:37.365Z,2026-11-02T13:03:14.007Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-01T13:03:14.007Z:2026-11-02T13:03:43.708Z,coverage,2026-11-02T13:03:43.708Z,p-cdee4961,,,,,2026-11-01T13:03:14.007Z,2026-11-02T13:03:43.708Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:41449734313:1,ci,2026-11-02T13:04:16.634Z,p-cdee4961,github-actions,,,,2026-11-02T13:03:45.000Z,2026-11-02T13:03:46.000Z,Asia/Tokyo,feature/856-fix-eval-fixture-skill-failures,856,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:41449734429:1,ci,2026-11-02T13:04:16.634Z,p-cdee4961,github-actions,,,,2026-11-02T13:03:45.000Z,2026-11-02T13:04:16.634Z,Asia/Tokyo,feature/856-fix-eval-fixture-skill-failures,856,,,,,,,,,,CI;pull_request;open,
+coverage:github:2026-11-01T13:03:43.708Z:2026-11-02T13:04:16.634Z,coverage,2026-11-02T13:04:16.634Z,p-cdee4961,,,,,2026-11-01T13:03:43.708Z,2026-11-02T13:04:16.634Z,Asia/Tokyo,,,,,,,,,,,,ok,

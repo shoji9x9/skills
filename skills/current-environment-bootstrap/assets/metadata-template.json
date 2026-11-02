@@ -3,6 +3,10 @@
   "status": "<blocked | handed-off>",
   "blocked_on": ["<停止理由。status が blocked のときだけ。例: 起動に必須の semantics が確認待ち>"],
   "questionnaire_refs": ["<質問票の該当項目。例: Q-3>"],
+  "stopped_at_step": "<止まった工程の番号（数値で書く）。--resume はこの工程から再開する。handed-off なら null>",
+  "continued_steps": [
+    "<止まった後も続けた工程の番号（数値で書く）。工程 3 の不足の後に工程 4〜6 を続けたときは 4・5・6。無ければ空配列>"
+  ],
   "origin": "received-assets",
   "generated_at": "<生成日時（ISO 8601）>",
   "updated_at": "<最終更新日時（ISO 8601）>",
