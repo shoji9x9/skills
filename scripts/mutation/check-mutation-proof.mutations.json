@@ -136,6 +136,29 @@
       "expect_failing": [
         "宣言と前提の検証（実行する前に落とす） 復元情報の対象がリポジトリ外を指すシンボリックリンクなら、外の実体を書き換えずに exit 2"
       ]
+    },
+    {
+      "id": "LEFTOVER-CHANGES",
+      "why": "時間切れで止めたテストが対象の外に残した変更を見ない（変異が作業ツリーに残ったまま続ける）",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "  if (changed.length > 0) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "時間切れの後の作業ツリー 時間切れの後に、追跡しているファイルが対象の外で変わっていれば exit 2"
+      ]
+    },
+    {
+      "id": "TERM-BEFORE-KILL",
+      "why": "時間切れで最初から SIGKILL を送る（入れ子のランナーが変異を戻せない）",
+      "file": "scripts/mutation/test-group-wrapper.ts",
+      "find": "  signalGroup(pgid, \"SIGTERM\");",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "時間切れ（テストが進まない） 止めるときは SIGKILL の前に SIGTERM を送り、テストに後始末をさせる",
+        "時間切れ（テストが進まない） ランナーが SIGKILL で終わっても、包む側がテストのプロセスグループを止める"
+      ]
     }
   ]
 }

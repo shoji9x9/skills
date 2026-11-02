@@ -41,6 +41,8 @@
     { "file": "scripts/gates/code/oxlint-plugin/plugin.ts", "exports": ["default"] },
     // vitest が設定の globalSetup でパスから読む。
     { "file": "scripts/lib/testing/vitest-global-setup.ts", "exports": ["setup"] },
+    // ミューテーションテストのランナーが、子の vitest の --reporter でパスから読ませる。
+    { "file": "scripts/mutation/progress-reporter.ts", "exports": ["default"] },
     // 子プロセスで、fake-pngjs-hooks.ts が pngjs の import をこのファイルに向ける。
     { "file": "scripts/lib/testing/fake-pngjs.ts", "exports": ["PNG"] },
     // 配布スキルが読む pngjs（import("pngjs")）と playwright（JSDoc の import('playwright')）の型。

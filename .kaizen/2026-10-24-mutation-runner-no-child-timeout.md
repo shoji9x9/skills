@@ -3,7 +3,8 @@ date: 2026-10-24
 type: hook
 priority: high
 confidence: high
-status: pending
+status: applied
+applied-to: [scripts/mutation/check-mutation-proof.ts, scripts/mutation/test-group-wrapper.ts, docs/tooling.md]
 ---
 
 # ミューテーションテストのランナーが子の vitest にタイムアウトを付けず、無限ループになる変異で終わらない

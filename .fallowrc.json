@@ -30,6 +30,10 @@
       "exports": ["setup"]
     },
     {
+      "file": "scripts/mutation/progress-reporter.ts",
+      "exports": ["default"]
+    },
+    {
       "file": "scripts/lib/testing/fake-pngjs.ts",
       "exports": ["PNG"]
     },
