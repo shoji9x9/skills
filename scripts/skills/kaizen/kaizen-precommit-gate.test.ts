@@ -2401,6 +2401,102 @@ describe.concurrent("kaizen の設定を読めないときはコミットを止�
   });
 });
 
+// Copilot CLI は `.claude/settings.json` の Hook も実行する（Issue #853）。引数なしの登録がそのまま判定すると、
+// 他のセッションの警告を exit 1 で返し、Copilot はそれを「hook errored」として commit を拒否する。
+// 入力の最上位の `timestamp` と、環境変数 COPILOT_CLI が空でないことの両方が Copilot を示すときだけ、何もせずに通す。
+// Copilot は CLAUDE_PROJECT_DIR も渡すので、どのケースにも付ける。
+// Copilot 用の判定は `.github/hooks` の登録（`-copilot` 付き）が行う。
+// 入力の形は https://docs.github.com/en/copilot/reference/hooks-configuration の PascalCase の PreToolUse に合わせる。
+describe.concurrent("Claude Code 用の登録（引数なし）を Copilot が呼んだとき", () => {
+  const own = "copilot-own-1";
+  const foreign = "copilot-foreign-1";
+
+  async function gateWith(
+    cwd: string,
+    {
+      timestamp,
+      copilotCli,
+      args = [],
+      withoutJsonTools = false,
+    }: { timestamp: boolean; copilotCli: boolean; args?: string[]; withoutJsonTools?: boolean },
+  ) {
+    const input = JSON.stringify({
+      hook_event_name: "PreToolUse",
+      session_id: own,
+      ...(timestamp ? { timestamp: "2026-11-02T00:00:00.000Z" } : {}),
+      cwd,
+      tool_name: "Bash",
+      tool_input: { command: "git commit -m x" },
+    });
+    return await spawnAsync("bash", [join(scriptsDir, "kaizen-precommit-gate.sh"), ...args], {
+      timeout: CHILD_TIMEOUT_MS,
+      cwd,
+      input,
+      env: (() => {
+        const env = kaizenEnv(cwd, { CLAUDE_PROJECT_DIR: cwd, COPILOT_CLI: copilotCli ? "1" : "" });
+        // jq と python3 を外した PATH。Copilot かを判定できない環境を作る。
+        if (withoutJsonTools) env.PATH = pathWithout(cwd, ["jq", "python3"], env.PATH ?? "");
+        return env;
+      })(),
+    });
+  }
+
+  // 他のセッションのセンチネル（transcript の記録が無いので、自動では解消されない）を置く。
+  // 判定が無ければ、引数なしのチェックは警告を出して exit 1 になる入力である。
+  function withForeignSentinel() {
+    const cwd = makeProject();
+    writeFileSync(
+      join(cwd, ".kaizen", `.pending-extract.${foreign}`),
+      `2099-01-01T00:00:00Z\n\nclaude-code\n${foreign}\n`,
+    );
+    return cwd;
+  }
+
+  test("他のセッションのセンチネルがあっても、何も出さずに exit 0 で通す", async () => {
+    const cwd = withForeignSentinel();
+    const gate = await gateWith(cwd, { timestamp: true, copilotCli: true });
+    expect(gate.status, gate.stderr).toBe(0);
+    expect(gate.stderr).toBe("");
+  });
+
+  test("自分のセッションのセンチネルがあっても止めない（判定は .github/hooks の登録に任せる）", async () => {
+    const cwd = makeProject();
+    writeFileSync(
+      join(cwd, ".kaizen", `.pending-extract.${own}`),
+      `2099-01-01T00:00:00Z\n\nclaude-code\n${own}\n`,
+    );
+    const gate = await gateWith(cwd, { timestamp: true, copilotCli: true });
+    expect(gate.status, gate.stderr).toBe(0);
+  });
+
+  test.each([
+    ["COPILOT_CLI が空（Claude Code が呼んだ）", true, false],
+    ["timestamp が無い（Copilot のシェルから起動した Claude Code）", false, true],
+  ])(
+    "%s なら、これまでどおり他のセッションの警告を exit 1 で出す",
+    async (_name, timestamp, copilotCli) => {
+      const cwd = withForeignSentinel();
+      const gate = await gateWith(cwd, { timestamp, copilotCli });
+      expect(gate.status, gate.stderr).toBe(1);
+      expect(gate.stderr).toMatch(/他セッションの未抽出センチネルが残っています/);
+    },
+  );
+
+  test("jq も python3 も無ければ Copilot かを判定できないので、これまでどおり他のセッションの警告を exit 1 で出す", async () => {
+    const cwd = withForeignSentinel();
+    const gate = await gateWith(cwd, { timestamp: true, copilotCli: true, withoutJsonTools: true });
+    expect(gate.status, gate.stderr).toBe(1);
+    expect(gate.stderr).toMatch(/他セッションの未抽出センチネルが残っています/);
+  });
+
+  test("-copilot を渡した呼び出しは、Copilot の入力でも判定して、警告を exit 0 で返す", async () => {
+    const cwd = withForeignSentinel();
+    const gate = await gateWith(cwd, { timestamp: true, copilotCli: true, args: ["-copilot"] });
+    expect(gate.status, gate.stderr).toBe(0);
+    expect(gate.stderr).toMatch(/他セッションの未抽出センチネルが残っています/);
+  });
+});
+
 // 使える秒数を前回と比べるので、締め切りの describe と同じく並べずに、ファイルの最後で実行する。
 // テストを並べない指定は自分の describe の中でしか直列にならず、隣の concurrent な suite のテストとは並んで始まる（vitest 4 で実測）。
 describe("他セッション分の走査結果の再利用（使える秒数を比べる）", () => {

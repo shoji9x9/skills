@@ -138,6 +138,17 @@ if ! declare -f kaizen_sentinel_key_of >/dev/null 2>&1; then
 	kaizen_config_value() { return 1; }
 fi
 
+# Claude Code 用の登録（引数なし）を GitHub Copilot CLI が呼んだときは、何もせずに通す。
+# Copilot は `.claude/settings.json` の Hook も実行するので、このチェックは Copilot のセッションで 2 回起動する。
+# Copilot 用のチェックは `.github/hooks/` の登録（`-copilot` 付き）が行う。引数なしのまま続けると、
+# 他のセッションの警告を exit 1 で返し、Copilot はそれを「hook errored」として commit を拒否する。
+# 判定の条件は kaizen-hook-common.sh の kaizen_payload_is_copilot にある。
+# 共通ライブラリを読めないときは判定できないので、これまでどおり続ける（Copilot を見分けないだけで、止める条件は緩めない）。
+if [ -z "${gate_suffix}" ] && declare -f kaizen_payload_is_copilot >/dev/null 2>&1 &&
+	kaizen_payload_is_copilot "${input}"; then
+	exit 0
+fi
+
 # Hook の入力から command を取り出す。jq が無い・正しく動かない環境では
 # python3 を使い、それも無ければ生の JSON の command フィールドで判定する（機能を減らして動く）。
 # transcript_path・session_id・cwd と、git rev-parse によるプロジェクトの直下は、commit と判定した後で求める。

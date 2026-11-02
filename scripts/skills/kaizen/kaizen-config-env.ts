@@ -14,6 +14,9 @@ export function kaizenEnv(
 ): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env };
   for (const k of Object.keys(env)) if (k.startsWith("KAIZEN_")) delete env[k];
+  // Copilot CLI のシェルからテストを実行すると COPILOT_CLI=1 を引き継ぎ、スクリプトが Copilot の判定で
+  // jq を余分に起動する（起動の回数を数えるテストが手元の環境で変わる）。必要なテストは extra で渡す。
+  delete env.COPILOT_CLI;
   env.XDG_CONFIG_HOME = join(dir, ".test-xdg");
   env.PATH = `${dirname(process.execPath)}:${process.env.PATH ?? ""}`;
   for (const [k, v] of Object.entries(extra)) {
