@@ -34,3 +34,7 @@ ci:41420806644:1,ci,2026-11-02T11:48:51.906Z,p-cdee4961,github-actions,,,,2026-1
 ci:41420806638:1,ci,2026-11-02T11:48:51.906Z,p-cdee4961,github-actions,,,,2026-11-02T09:27:33.000Z,2026-11-02T09:31:57.000Z,Asia/Tokyo,feature/853-copilot-kaizen-hook-exit,853,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-11-01T09:26:14.170Z:2026-11-02T11:48:51.906Z,coverage,2026-11-02T11:48:51.906Z,p-cdee4961,,,,,2026-11-01T09:26:14.170Z,2026-11-02T11:48:51.906Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-11-01T11:48:51.906Z:2026-11-02T11:49:19.096Z,coverage,2026-11-02T11:49:19.096Z,p-cdee4961,,,,,2026-11-01T11:48:51.906Z,2026-11-02T11:49:19.096Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:41440015930:1,ci,2026-11-02T11:57:53.856Z,p-cdee4961,github-actions,,,,2026-11-02T11:51:02.000Z,2026-11-02T11:51:03.000Z,Asia/Tokyo,feature/856-fix-eval-fixture-skill-failures,856,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:41440015873:1,ci,2026-11-02T11:57:53.856Z,p-cdee4961,github-actions,,,,2026-11-02T11:51:02.000Z,2026-11-02T11:54:00.000Z,Asia/Tokyo,feature/856-fix-eval-fixture-skill-failures,856,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-11-01T11:49:19.096Z:2026-11-02T11:57:53.856Z,coverage,2026-11-02T11:57:53.856Z,p-cdee4961,,,,,2026-11-01T11:49:19.096Z,2026-11-02T11:57:53.856Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-01T11:57:53.856Z:2026-11-02T12:44:44.071Z,coverage,2026-11-02T12:44:44.071Z,p-cdee4961,,,,,2026-11-01T11:57:53.856Z,2026-11-02T12:44:44.071Z,Asia/Tokyo,,,,,,,,,,,,ok,

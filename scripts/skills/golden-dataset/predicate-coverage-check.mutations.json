@@ -102,21 +102,27 @@
     },
     {
       "id": "static-path-split-by-slash",
-      "why": "一覧のセルを / でも区切り、static の単位名のパス（content/works）を 2 つの表に割る（Issue #856）",
+      "why": "features.md のテーブルの列も / と ／ で区切り、static の単位名のパス（content/works）を 2 つの表に割る（Issue #856）",
       "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
-      "find": "return scan.depth === 0 && (char === \",\" || char === \"、\");",
-      "replace": "return scan.depth === 0 && (char === \",\" || char === \"、\" || char === \"/\");",
+      "find": "splitList(row[source.column], { slash: false })",
+      "replace": "splitList(row[source.column])",
       "occurrences": 1,
-      "expect_failing": ["static の単位名のパス（content/works）は / で割らずに 1 つの表として読む"]
+      "expect_failing": [
+        "static の単位名のパス（content/works）は / で割らずに 1 つの表として読む",
+        "全角の ／ を含む単位名（content／works）も割らずに 1 つの表として読む"
+      ]
     },
     {
-      "id": "static-path-split-by-fullwidth-slash",
-      "why": "一覧のセルを全角の ／ でも区切り、単位名（content／works）を 2 つの表に割る（Issue #856）",
+      "id": "filter-slash-not-split",
+      "why": "絞り込みの列などでも / と ／ を区切りにせず、並べた絞り込みを 1 つとして読む（Issue #856）",
       "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
-      "find": "return scan.depth === 0 && (char === \",\" || char === \"、\");",
-      "replace": "return scan.depth === 0 && (char === \",\" || char === \"、\" || char === \"／\");",
+      "find": "(slash && (char === \"／\" || char === \"/\"))",
+      "replace": "false",
       "occurrences": 1,
-      "expect_failing": ["全角の ／ を含む単位名（content／works）も割らずに 1 つの表として読む"]
+      "expect_failing": [
+        "絞り込みの列は / で並べても複数の絞り込みとして読む（テーブルの列の扱いを広げない）",
+        "絞り込みの列は ／ で並べても複数の絞り込みとして読む（テーブルの列の扱いを広げない）"
+      ]
     }
   ]
 }

@@ -284,14 +284,20 @@ export function rowsAsRecords(table) {
  *
  * **空欄と `-` を同じに扱わない**。空欄は「まだ調べていない」で、`-` だけが「調べた結果ゼロ件」。
  *
+ * `slash` が false のときは、`/` と `／` で区切らない。features.md の「テーブル」「参照テーブル」列だけがこれを使う。
+ * `dataset_mode: static` の単位名は `dataset_static_paths` のパス（`content/works`）で書くので、
+ * `/` で区切るとパスが 2 つの名前に割れ、design.md の対象テーブル表（区切らずに読む）と突き合わなくなる。
+ * 絞り込みの列・slug の一覧・識別子の列は、`/` で並べた書き方（`status / category`）を読むために区切る。
+ *
  * @param {string} cell
+ * @param {{ slash?: boolean }} [options]
  * @returns {{ kind: "blank" | "none" | "items", items: string[] }}
  */
-export function splitList(cell) {
+export function splitList(cell, { slash = true } = {}) {
   const value = normalizeCell(cell);
   if (value === "") return { kind: "blank", items: [] };
   if (value === NONE_SENTINEL) return { kind: "none", items: [] };
-  const items = splitTopLevel(value)
+  const items = splitTopLevel(value, slash)
     .map((v) => normalizeCell(v))
     .filter((v) => v !== "" && v !== NONE_SENTINEL);
   if (items.length === 0) return { kind: "blank", items: [] };
@@ -299,16 +305,15 @@ export function splitList(cell) {
 }
 
 /**
- * 1 文字読んで引用符と括弧の深さを進め、その文字が引用符・括弧の外の区切り（`,` `、`）かを返す。
- *
- * `/` と `／` は区切りにしない。`dataset_mode: static` の単位名は `dataset_static_paths` のパス（`content/works`）で書くので、
- * `/` で区切るとパスが 2 つの名前に割れ、design.md の対象テーブル表（区切らずに読む）と突き合わなくなる。
+ * 1 文字読んで引用符と括弧の深さを進め、その文字が引用符・括弧の外の区切りかを返す。
+ * 区切りは `,` `、` と、`slash` が true のときの `／` `/` である。
  *
  * @param {{ depth: number, quote: string | null }} scan - 読んでいる位置の状態（この関数が更新する）
  * @param {string} char
+ * @param {boolean} slash - `/` と `／` を区切りにするか
  * @returns {boolean}
  */
-function advanceToSeparator(scan, char) {
+function advanceToSeparator(scan, char, slash) {
   if (scan.quote !== null) {
     if (char === scan.quote) scan.quote = null;
     return false;
@@ -325,26 +330,28 @@ function advanceToSeparator(scan, char) {
     if (scan.depth > 0) scan.depth -= 1;
     return false;
   }
-  return scan.depth === 0 && (char === "," || char === "、");
+  if (scan.depth !== 0) return false;
+  return char === "," || char === "、" || (slash && (char === "／" || char === "/"));
 }
 
 /**
- * 区切り（`,` `、`）で分けるが、**引用符・括弧の内側では分けない**。
+ * 区切り（`,` `、` と、`slash` が true のときの `／` `/`）で分けるが、**引用符・括弧の内側では分けない**。
  *
  * 条件の中の区切りで割ると、`status IN ('pending','canceled')` が誤って 2 件の絞り込みと判定される。
  * すると、正しく列挙した設計が「述語行が無い」として失敗する（exit 0 に到達できない誤検知）。
  *
  * @param {string} value
+ * @param {boolean} [slash] - `/` と `／` を区切りにするか（デフォルトは true）
  * @returns {string[]}
  */
-export function splitTopLevel(value) {
+export function splitTopLevel(value, slash = true) {
   /** @type {string[]} */
   const parts = [];
   let current = "";
   /** @type {{ depth: number, quote: string | null }} */
   const scan = { depth: 0, quote: null };
   for (const char of value) {
-    if (advanceToSeparator(scan, char)) {
+    if (advanceToSeparator(scan, char, slash)) {
       parts.push(current);
       current = "";
       continue;
@@ -504,7 +511,7 @@ export function collectConsumers(featuresMarkdown) {
 function collectConsumerRow(acc, source, row) {
   const { consumers, findings } = acc;
   const slug = normalizeCell(row.slug);
-  const list = splitList(row[source.column]);
+  const list = splitList(row[source.column], { slash: false });
   // **テーブルを挙げているのに slug が空の行を、警告なしに捨てない**。捨てるとその参照が突き合わせに入らず、
   // design.md からそのテーブルが丸ごと抜けていても、転記の抜けとして出なくなる。
   if (slug === "") {

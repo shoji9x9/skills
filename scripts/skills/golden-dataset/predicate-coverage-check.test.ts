@@ -154,25 +154,28 @@ test("全角の ／ を含む単位名（content／works）も割らずに 1 つ
   expect(codesOf({ features, design })).toEqual([]);
 });
 
-test("区切りの , と 、 は従来どおり複数の表として読む（対照）", () => {
-  // `/` を区切りから外しても、文書が示す並べ方は割れることを確かめる。
-  const features = STATIC_FEATURES.replace(
-    "| works-list | 制作実績一覧 | content/works |",
-    "| works-list | 制作実績一覧 | content/works、content/tags |",
-  );
-  assert(features !== STATIC_FEATURES, "機能一覧のテーブルを差し替えられていない");
-  const design = designOf({
-    targets: ["| content/works | works-list | 7 | 投入する | Markdown と frontmatter |"],
-    params: ["| works-list | content/works | tags | published_at DESC | 6 | 実測 |"],
-    predicates: [
-      "| works-tags | content/works | works-list | tags に 'web' を含む | URL の tag（変換なし） | 4 | 3 | 踏める | - | 一覧の絞り込み |",
-    ],
-    idRanges: [
-      '| content/works | id | "001"〜"007" | 3 桁の文字列 | works-list | -。文字列のまま比べる | 届く | - | 同値順を読んだ |',
-    ],
-  });
-  expect(codesOf({ features, design })).toContain("copy-missing-table");
-});
+test.each([",", "、"])(
+  "区切りの %s は、テーブルの列でも複数の表として読む（対照）",
+  (separator) => {
+    // テーブルの列で `/` を区切りから外しても、文書が示す並べ方は割れることを確かめる。
+    const features = STATIC_FEATURES.replace(
+      "| works-list | 制作実績一覧 | content/works |",
+      `| works-list | 制作実績一覧 | content/works${separator} content/tags |`,
+    );
+    assert(features !== STATIC_FEATURES, "機能一覧のテーブルを差し替えられていない");
+    const design = designOf({
+      targets: ["| content/works | works-list | 7 | 投入する | Markdown と frontmatter |"],
+      params: ["| works-list | content/works | tags | published_at DESC | 6 | 実測 |"],
+      predicates: [
+        "| works-tags | content/works | works-list | tags に 'web' を含む | URL の tag（変換なし） | 4 | 3 | 踏める | - | 一覧の絞り込み |",
+      ],
+      idRanges: [
+        '| content/works | id | "001"〜"007" | 3 桁の文字列 | works-list | -。文字列のまま比べる | 届く | - | 同値順を読んだ |',
+      ],
+    });
+    expect(codesOf({ features, design })).toContain("copy-missing-table");
+  },
+);
 
 test("エスケープされたパイプはセルの区切りにしない（列がずれて無関係な finding になる）", () => {
   // `\|` で割ると、述語の後ろの列が 1 つずつずれ、真の行数が数値として読めなくなる。
@@ -462,6 +465,26 @@ test("1 行に複数の絞り込みが並ぶとき、述語 1 本で全部を満
   expect(codes).toContain("predicate-filter-not-enumerated");
   expect(codes).not.toContain("predicate-not-enumerated");
 });
+
+test.each(["/", "／"])(
+  "絞り込みの列は %s で並べても複数の絞り込みとして読む（テーブルの列の扱いを広げない）",
+  (separator) => {
+    // 区切らずに 1 つとして読むと、owner_id の述語行が無いことを見逃す。
+    const codes = codesOf({
+      design: designOf({
+        params: [
+          `| order | orders | status ${separator} owner_id | ordered_at DESC | 20 | 実測 |`,
+          "| order | order_items | order_id | id ASC | - | 実測 |",
+          "| report | reports | owner_id | created_at DESC | 20 | 実測 |",
+          "| user | users | active | id ASC | - | 実測 |",
+          "| user | roles | role | id ASC | - | 実測 |",
+          "| monthly-summary | orders | ordered_at | - | - | 実測 |",
+        ],
+      }),
+    });
+    expect(codes).toContain("predicate-filter-not-enumerated");
+  },
+);
 
 test("誤検知しないことの確認: 並んだ絞り込みそれぞれに述語行があれば通る", () => {
   const codes = codesOf({
