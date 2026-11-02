@@ -94,7 +94,7 @@
     },
     {
       "id": 8,
-      "prompt": "parity-suite の gaps.md でページ送りと空状態のデータ不足が出た。golden-dataset でデータを追加して",
+      "prompt": "parity-suite の gaps.md でページ送りと空状態のデータ不足が出た。golden-dataset でデータを追加して。投入先がテスト用のデータであることは確認済みで、書き換えてよい。",
       "fixture": "fixtures/static-dataset",
       "assertions": [
         "db を持つ target が 1 つも無いことを理由に停止していない",
@@ -152,7 +152,7 @@
     {
       "id": 13,
       "fixture": "fixtures/bootstrap-handoff",
-      "prompt": "golden-dataset",
+      "prompt": "golden-dataset。投入先の DB にはこの環境から接続できないので、DB に接続するコマンドは実行せず、投入もしないで、フェーズ A のデータ設計まで進めて。手元のファイルの読み取りと、スキルに同梱のスクリプトの実行はしてよい。",
       "requires_skills": ["replace-strategy"],
       "assertions": [
         "current.origin: received-assets を踏まえ .replace/bootstrap/metadata.json の status: handed-off を確認してからフェーズ A に入っている",

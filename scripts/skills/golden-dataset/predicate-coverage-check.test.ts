@@ -100,6 +100,83 @@ test("条件の中にカンマがある絞り込みでも、述語行があれ�
   expect(codes).toEqual([]);
 });
 
+/** dataset_mode: static の features.md。単位名は dataset_static_paths のパスで書く。 */
+const STATIC_FEATURES = md(
+  "# 機能インベントリ（features）",
+  "",
+  "## 機能一覧",
+  "",
+  "| slug | 機能名 | テーブル | Issue |",
+  "|---|---|---|---|",
+  "| works-list | 制作実績一覧 | content/works | 未起票 |",
+  "",
+  "## 横断 API（リソース単位）",
+  "",
+  "| slug | リソース | fan-out（利用機能 slug） | 参照テーブル | Issue |",
+  "|---|---|---|---|---|",
+  "",
+  "## バッチ",
+  "",
+  "| slug | バッチ名 | 入力 | 参照テーブル | Issue |",
+  "|---|---|---|---|---|",
+);
+
+test("static の単位名のパス（content/works）は / で割らずに 1 つの表として読む", () => {
+  // `/` で割ると、features.md の側だけが content と works の 2 つの表になり、
+  // 区切らずに読む design.md の対象テーブル表と突き合わず、転記の抜けと余りが出る。
+  const design = designOf({
+    targets: ["| content/works | works-list | 7 | 投入する | Markdown と frontmatter |"],
+    params: ["| works-list | content/works | tags | published_at DESC | 6 | 実測 |"],
+    predicates: [
+      "| works-tags | content/works | works-list | tags に 'web' を含む | URL の tag（変換なし） | 4 | 3 | 踏める | - | 一覧の絞り込み |",
+    ],
+    idRanges: [
+      '| content/works | id | "001"〜"007" | 3 桁の文字列 | works-list | -。文字列のまま比べる | 届く | - | 同値順を読んだ |',
+    ],
+  });
+  expect(codesOf({ features: STATIC_FEATURES, design })).toEqual([]);
+});
+
+test("全角の ／ を含む単位名（content／works）も割らずに 1 つの表として読む", () => {
+  const unit = "content／works";
+  const features = STATIC_FEATURES.replace("| content/works |", `| ${unit} |`);
+  assert(features !== STATIC_FEATURES, "機能一覧のテーブルを差し替えられていない");
+  const design = designOf({
+    targets: [`| ${unit} | works-list | 7 | 投入する | Markdown と frontmatter |`],
+    params: [`| works-list | ${unit} | tags | published_at DESC | 6 | 実測 |`],
+    predicates: [
+      `| works-tags | ${unit} | works-list | tags に 'web' を含む | URL の tag（変換なし） | 4 | 3 | 踏める | - | 一覧の絞り込み |`,
+    ],
+    idRanges: [
+      `| ${unit} | id | "001"〜"007" | 3 桁の文字列 | works-list | -。文字列のまま比べる | 届く | - | 同値順を読んだ |`,
+    ],
+  });
+  expect(codesOf({ features, design })).toEqual([]);
+});
+
+test.each([",", "、"])(
+  "区切りの %s は、テーブルの列でも複数の表として読む（対照）",
+  (separator) => {
+    // テーブルの列で `/` を区切りから外しても、文書が示す並べ方は割れることを確かめる。
+    const features = STATIC_FEATURES.replace(
+      "| works-list | 制作実績一覧 | content/works |",
+      `| works-list | 制作実績一覧 | content/works${separator} content/tags |`,
+    );
+    assert(features !== STATIC_FEATURES, "機能一覧のテーブルを差し替えられていない");
+    const design = designOf({
+      targets: ["| content/works | works-list | 7 | 投入する | Markdown と frontmatter |"],
+      params: ["| works-list | content/works | tags | published_at DESC | 6 | 実測 |"],
+      predicates: [
+        "| works-tags | content/works | works-list | tags に 'web' を含む | URL の tag（変換なし） | 4 | 3 | 踏める | - | 一覧の絞り込み |",
+      ],
+      idRanges: [
+        '| content/works | id | "001"〜"007" | 3 桁の文字列 | works-list | -。文字列のまま比べる | 届く | - | 同値順を読んだ |',
+      ],
+    });
+    expect(codesOf({ features, design })).toContain("copy-missing-table");
+  },
+);
+
 test("エスケープされたパイプはセルの区切りにしない（列がずれて無関係な finding になる）", () => {
   // `\|` で割ると、述語の後ろの列が 1 つずつずれ、真の行数が数値として読めなくなる。
   const design = designOf().replace("| status = 'shipped' |", "| status = 'x\\|y' |");
@@ -388,6 +465,61 @@ test("1 行に複数の絞り込みが並ぶとき、述語 1 本で全部を満
   expect(codes).toContain("predicate-filter-not-enumerated");
   expect(codes).not.toContain("predicate-not-enumerated");
 });
+
+test.each(["/", "／"])(
+  "絞り込みの列は %s で並べても複数の絞り込みとして読む（テーブルの列の扱いを広げない）",
+  (separator) => {
+    // 区切らずに 1 つとして読むと、owner_id の述語行が無いことを見逃す。
+    const codes = codesOf({
+      design: designOf({
+        params: [
+          `| order | orders | status ${separator} owner_id | ordered_at DESC | 20 | 実測 |`,
+          "| order | order_items | order_id | id ASC | - | 実測 |",
+          "| report | reports | owner_id | created_at DESC | 20 | 実測 |",
+          "| user | users | active | id ASC | - | 実測 |",
+          "| user | roles | role | id ASC | - | 実測 |",
+          "| monthly-summary | orders | ordered_at | - | - | 実測 |",
+        ],
+      }),
+    });
+    expect(codes).toContain("predicate-filter-not-enumerated");
+  },
+);
+
+test.each(["/", "／"])("消費側 slug の列は %s で並べても複数の slug として読む", (separator) => {
+  // 区切らずに 1 つとして読むと、「order / monthly-summary」という slug が features.md に無いことになる。
+  const design = designOf().replace(
+    "| order, monthly-summary | 文字列のまま SQL のパラメータへ渡す（変換なし）",
+    `| order ${separator} monthly-summary | 文字列のまま SQL のパラメータへ渡す（変換なし）`,
+  );
+  assert(design !== designOf(), "識別子の値の範囲の消費側 slug を差し替えられていない");
+  expect(codesOf({ design })).toEqual([]);
+});
+
+test.each(["/", "／"])(
+  "対象テーブル表の機能／リソースの列と述語の消費側 slug の列も、%s で並べれば複数の slug として読む",
+  (separator) => {
+    // 区切らずに 1 つとして読むと、「order / monthly-summary」という slug が features.md に無いことになる。
+    const design = designOf()
+      .replace(
+        "| orders | order, monthly-summary | 41 |",
+        `| orders | order ${separator} monthly-summary | 41 |`,
+      )
+      .replace(
+        "| orders-status | orders | order |",
+        `| orders-status | orders | order ${separator} monthly-summary |`,
+      );
+    assert(
+      design.includes(`| orders | order ${separator} monthly-summary | 41 |`),
+      "対象テーブル表の行を差し替えられていない",
+    );
+    assert(
+      design.includes(`| orders-status | orders | order ${separator} monthly-summary |`),
+      "述語の行を差し替えられていない",
+    );
+    expect(codesOf({ design })).toEqual([]);
+  },
+);
 
 test("誤検知しないことの確認: 並んだ絞り込みそれぞれに述語行があれば通る", () => {
   const codes = codesOf({
@@ -935,6 +1067,11 @@ test.each([
   [
     "列に複数の列が並んでいる",
     "| orders | id, parent_id | 12 桁 | 8 桁 | order, monthly-summary | 変換なし | 届く | - | 読了 |",
+    "id-range-column-multiple",
+  ],
+  [
+    "列に / で複数の列が並んでいる（識別子の列は / でも区切る）",
+    "| orders | id / parent_id | 12 桁 | 8 桁 | order, monthly-summary | 変換なし | 届く | - | 読了 |",
     "id-range-column-multiple",
   ],
   [

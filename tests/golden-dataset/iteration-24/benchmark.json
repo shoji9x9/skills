@@ -1,0 +1,275 @@
+{
+  "metadata": {
+    "skill_name": "golden-dataset",
+    "skill_path": "/home/shoji9x9/projects/skills/skills/golden-dataset",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-02T09:25:17Z",
+    "evals_run": [8, 13],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 13,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 209.617,
+        "tokens": 1456792,
+        "tool_calls": 22,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "current.origin: received-assets を踏まえ .replace/bootstrap/metadata.json の status: handed-off を確認してからフェーズ A に入っている",
+          "passed": true,
+          "evidence": "raw/ で .replace/bootstrap/metadata.json を cat した後に design.md を書いている。design.md 12 行目に「現行環境の由来: `received-assets`（`.replace/bootstrap/metadata.json` の `status: handed-off` を確認済み）」とある。"
+        },
+        {
+          "text": "handoff.boot_requirements の起動要件（ADMIN / OPERATOR の app_users、customers 1 件以上）をフェーズ A のデータ設計に含めている（事前削除で暫定起動データが置き換わるため）",
+          "passed": true,
+          "evidence": "design.md の app_users の節に ADMIN（id 101）・OPERATOR（id 102）の 2 件を、handoff.boot_requirements と「投入は暫定起動データを事前の削除で置き換えるので」という理由付きで含めている。customers は 14 件。"
+        },
+        {
+          "text": "bootstrap/seed.sh の暫定起動データやそのツールを流用・改造せず、dataset_tool_dir（seed/）に本スキルの投入ツールを作る方針を示している",
+          "passed": true,
+          "evidence": "design.md 142 行目に「暫定起動データ（bootstrap/seed.sh の C0001 / C0002…）は流用していない（禁止事項 13）…投入ツールは `seed/` に置き、`bootstrap/` とは分ける」とある。"
+        },
+        {
+          "text": "確認待ちの orders.status の意味・遷移・初期値を推測や一般論で確定させず、確定済みの意味論だけを設計の根拠にしている",
+          "passed": true,
+          "evidence": "design.md で orders を 0 件にし、「候補 0/1/2/3/9 は確認待ちの行なので根拠にしない」と書いている。権限の値集合は「semantics.md の確定済みの行」を根拠にしている。"
+        },
+        {
+          "text": "確認待ちのため最低限のシナリオを確定できない機能（order-list）を verification.md の「意味論が未確定の機能」へ slug 単位で記録する方針を示している（値を捏造して埋めていない）",
+          "passed": true,
+          "evidence": "design.md 128 行目に「意味論が未確定の機能として、手順 6 で `verification.md` の「意味論が未確定の機能」に `order-list` を記録する」とあり、orders の値は作っていない。raw/ に DB へ接続するコマンドは無い。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8889,
+        "passed": 8,
+        "failed": 1,
+        "total": 9,
+        "time_seconds": 193.283,
+        "tokens": 1239715,
+        "tool_calls": 20,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "db を持つ target が 1 つも無いことを理由に停止していない",
+          "passed": true,
+          "evidence": "project-tree.txt と project-files に content/works の 8 件・seed/src/main.ts・.replace/dataset の更新があり、db target の不在では停止せず投入まで進めた"
+        },
+        {
+          "text": "設定の dataset_mode: static を読み、投入先を target の DB ではなく dataset_static_paths（content/works）配下だと判定している",
+          "passed": true,
+          "evidence": "design.md 冒頭「フェーズ A（dataset_mode: static）」、affects「content/works」。応答「設定上の書き込み許可（dataset_static_paths）も確認済み」、verification.md「削除・生成の対象は content/works 配下だけ（ツールの assertWritable で検査）」"
+        },
+        {
+          "text": "current-site/src/works-list.ts を読み、ページサイズ 6、publishedAt 降順＋id 同値順、tag 絞り込み、tag 変更時の page 保持を消費側パラメータの根拠にしている",
+          "passed": true,
+          "evidence": "design.md の消費側パラメータの行「published_at DESC、同値は id ASC｜6（切替なし）｜current-site/src/works-list.ts の listWorks・PAGE_SIZE を読んだ。page はタグ変更時も保持される（同ファイルの updateTagQuery とコメント）」、述語の行に tags.includes(tag) の絞り込み"
+        },
+        {
+          "text": "gaps.md の 2 件（ページ送り・空状態）を design.md へ追記し、投入ツール（seed/src/main.ts）を更新して再生成している",
+          "passed": true,
+          "evidence": "design.md に「空リストになるケース｜含めた（v2）」「ページネーションが 2 ページ以上｜含めた（v2）」、追加履歴に version 2 の行（gaps.md の 2 件を出典に記載）。seed/src/main.ts に 003〜008 を追加し、content/works は 001〜008 の 8 ファイルに再生成されている（001・002 はフィクスチャと同一）"
+        },
+        {
+          "text": "生成・削除の対象が dataset_static_paths 配下に収まっており、その外のファイルを書き換えていない",
+          "passed": true,
+          "evidence": "フィクスチャと比べて変わったのは content/works・seed/src/main.ts・.replace/dataset（design.md・metadata.json・新規 verification.md）だけ。current-site/src/works-list.ts・gaps.md・features.md は差分なし。ロック seed/.seed.lock は実行の終わりに削除され project-tree に無い"
+        },
+        {
+          "text": "metadata.json の version を 1 から 2 へ上げている",
+          "passed": true,
+          "evidence": "project-files/.replace/dataset/metadata.json の \"version\": 2（フィクスチャは 1）"
+        },
+        {
+          "text": "metadata.json の changes に version 2 と、実際に変更した静的データ単位だけを affects として追記し、過去版の履歴を保持している",
+          "passed": true,
+          "evidence": "metadata.json の changes が [{version:1, affects:[\"*\"]}, {version:2, affects:[\"content/works\"]}]。v1 の履歴を残し、v2 の affects は静的データ単位 content/works だけ"
+        },
+        {
+          "text": "metadata.json の current.fingerprint を再計算して更新し、current.target と current.seeded_at は null のままにしている",
+          "passed": true,
+          "evidence": "metadata.json の current.fingerprint が sha256:38fd0939…f9c に更新。採点時に verification.md 記載の算出方法（ファイル名昇順に「content/works/<名前> + NUL + 内容 + NUL」を SHA-256）で project-files の content/works を計算し一致を確認。current.target と current.seeded_at は null のまま"
+        },
+        {
+          "text": "version 2 の affects と各 slug の実効参照データを照合し、影響する parity-suite だけのベースライン再取得を案内している",
+          "passed": false,
+          "evidence": "応答は「データが変わったので、works-list のベースラインを parity-suite で取り直してください」とだけ書き、version 2 の affects（content/works）と各 slug の実効参照データ（features.md のテーブル列）を照合した記述が成果物にも応答にも無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 52.774,
+        "tokens": 163374,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "current.origin: received-assets を踏まえ .replace/bootstrap/metadata.json の status: handed-off を確認してからフェーズ A に入っている",
+          "passed": false,
+          "evidence": "raw/ で .replace/bootstrap/metadata.json を cat してはいるが、status: handed-off を確認した記述が応答に無く、フェーズ A に入る条件として扱っていない（成果物は 0 件）。"
+        },
+        {
+          "text": "handoff.boot_requirements の起動要件（ADMIN / OPERATOR の app_users、customers 1 件以上）をフェーズ A のデータ設計に含めている（事前削除で暫定起動データが置き換わるため）",
+          "passed": false,
+          "evidence": "応答の下書きは「app_users はどの列にも書かれていないので、ルール上は対象から外れます」とし、インベントリへ追記するかの判断を保留している。ADMIN / OPERATOR の行を設計に含めていない。"
+        },
+        {
+          "text": "bootstrap/seed.sh の暫定起動データやそのツールを流用・改造せず、dataset_tool_dir（seed/）に本スキルの投入ツールを作る方針を示している",
+          "passed": true,
+          "evidence": "応答の設計方針に「置き場所は設定の `dataset_tool_dir: seed/`、言語は TypeScript」とあり、bootstrap/seed.sh とは別のツールとして扱い、全件削除で衝突することを指摘している。流用の記述は無い。"
+        },
+        {
+          "text": "確認待ちの orders.status の意味・遷移・初期値を推測や一般論で確定させず、確定済みの意味論だけを設計の根拠にしている",
+          "passed": false,
+          "evidence": "応答の orders の設計に「`status` は候補の 0／1／2／3／9 をすべて 1 件以上入れます」とあり、確認待ち（Q-2）の候補値をデータの根拠にしている。order_no の最大 20 文字も、形式が未確定と書きつつ使っている。"
+        },
+        {
+          "text": "確認待ちのため最低限のシナリオを確定できない機能（order-list）を verification.md の「意味論が未確定の機能」へ slug 単位で記録する方針を示している（値を捏造して埋めていない）",
+          "passed": true,
+          "evidence": "応答の「3. 意味論が未確定の機能（本来は `verification.md` に記録するもの）」に order-list を slug 単位で挙げ、status の意味・遷移・初期値が確認待ちと記録する方針を示している。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 6,
+        "failed": 3,
+        "total": 9,
+        "time_seconds": 156.456,
+        "tokens": 181692,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "db を持つ target が 1 つも無いことを理由に停止していない",
+          "passed": true,
+          "evidence": "db target の不在では停止せず、content/works を 13 件に再生成し design.md・metadata.json・seed/src/main.ts を更新した"
+        },
+        {
+          "text": "設定の dataset_mode: static を読み、投入先を target の DB ではなく dataset_static_paths（content/works）配下だと判定している",
+          "passed": false,
+          "evidence": "raw で .config/skills/shoji9x9/replace-strategy.jsonc を cat したが、dataset_mode: static や dataset_static_paths から投入先を判定した記述が応答・成果物に無い（design.md の dataset_mode 表記はフィクスチャのまま）。既存の投入ツールと prompt に従って content/works を書き換えただけ"
+        },
+        {
+          "text": "current-site/src/works-list.ts を読み、ページサイズ 6、publishedAt 降順＋id 同値順、tag 絞り込み、tag 変更時の page 保持を消費側パラメータの根拠にしている",
+          "passed": true,
+          "evidence": "design.md に updateTagQuery の page 保持、tags.includes の絞り込みを根拠にした述語の行を追加し、既存の消費側パラメータ（published_at DESC・同値は id ASC・6）を維持。raw で current-site/src/works-list.ts を読み、node で listWorks に v2 データを通している"
+        },
+        {
+          "text": "gaps.md の 2 件（ページ送り・空状態）を design.md へ追記し、投入ツール（seed/src/main.ts）を更新して再生成している",
+          "passed": true,
+          "evidence": "design.md に「空リストになるケース｜含めた」「ページネーションが 2 ページ以上｜含めた」と、gaps.md の 2 件を出典にした version 2 の追加履歴を追記。seed/src/main.ts に 003〜013 を追加し、content/works は 13 ファイルに再生成"
+        },
+        {
+          "text": "生成・削除の対象が dataset_static_paths 配下に収まっており、その外のファイルを書き換えていない",
+          "passed": true,
+          "evidence": "フィクスチャと比べて変わったのは content/works・seed/src/main.ts・design.md・metadata.json だけ。works-list.ts・gaps.md・features.md は差分なし。検査用スクリプトはプロジェクト外の /tmp に書いた"
+        },
+        {
+          "text": "metadata.json の version を 1 から 2 へ上げている",
+          "passed": true,
+          "evidence": "metadata.json の \"version\": 2"
+        },
+        {
+          "text": "metadata.json の changes に version 2 と、実際に変更した静的データ単位だけを affects として追記し、過去版の履歴を保持している",
+          "passed": false,
+          "evidence": "metadata.json の changes の version 2 が affects: [\"works-list\"] で、静的データ単位（content/works）ではなく slug を書いている。v1 の履歴は保持"
+        },
+        {
+          "text": "metadata.json の current.fingerprint を再計算して更新し、current.target と current.seeded_at は null のままにしている",
+          "passed": true,
+          "evidence": "current.fingerprint を sha256:69a93ced…308 に更新。採点時に応答記載の方法（content/works/*.md をファイル名順に連結して sha256）で計算し一致。current.target と current.seeded_at は null のまま"
+        },
+        {
+          "text": "version 2 の affects と各 slug の実効参照データを照合し、影響する parity-suite だけのベースライン再取得を案内している",
+          "passed": false,
+          "evidence": "応答は「parity-suite で works-list のベースラインを取り直してください」だけで、affects と各 slug の実効参照データを照合していない（affects 自体が slug）"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9445,
+        "stddev": 0.0786,
+        "min": 0.8889,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 201.45,
+        "stddev": 11.5499,
+        "min": 193.283,
+        "max": 209.617
+      },
+      "tokens": {
+        "mean": 1348253.5,
+        "stddev": 153496.6187,
+        "min": 1239715,
+        "max": 1456792
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5333,
+        "stddev": 0.1886,
+        "min": 0.4,
+        "max": 0.6667
+      },
+      "time_seconds": {
+        "mean": 104.615,
+        "stddev": 73.3142,
+        "min": 52.774,
+        "max": 156.456
+      },
+      "tokens": {
+        "mean": 172533,
+        "stddev": 12952.782,
+        "min": 163374,
+        "max": 181692
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.41",
+      "time_seconds": "+96.8",
+      "tokens": "+1175721"
+    }
+  },
+  "notes": [
+    "Issue #856 の変更確認（入力を変えた eval を with_skill・without_skill で 1 run ずつ）。比べ方は docs/skill-development.md「前回の記録との比べ方」に従う。"
+  ]
+}
