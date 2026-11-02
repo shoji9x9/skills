@@ -346,3 +346,17 @@ manifest を更新する JSON の heredoc と python の起動を並べた呼び
 4 回目は、node をバックグラウンドで起動し、`$!` の PID に `kill` を送って `wait` する計測の処理を 1 回の呼び出しに書いた形である（`this command is too complex to verify`）。
 どれも、単独の呼び出しに分けるか、Write ツールでスクリプトにして絶対パスで実行する形に直して通した。新しい形は、`$!` と `wait` を使う 4 回目だけである。
 この学びはセッション開始時に注入されていたが、1 回目は worktree に入った直後の準備の処理で起きた。
+
+### 再発の記録（#858）
+
+2026-11-02、Issue #858 の作業（issue-start から worktree に入った後、pr-finalize-loop まで）で、Bash の呼び出しが 10 回以上拒否された。
+新しく出た形は 2 つある。
+
+- `git add -- <パスの一覧>` の単独の呼び出しが、パスに含む `git-worktree` の語を git の呼び出しとして数えられ、`names git more than once` で拒否された。
+  `git add -A` に書き換えて通した
+- `pnpm exec oxlint <ディレクトリの一覧>` が、引数の `scripts/skills/git-worktree` を git の起動として読まれ、`runs pnpm with a git command among its operands` で拒否された。
+  引数を外して全体に当てて通した
+
+ほかは既知の形（`for` ループ・heredoc・`;` でつないだ複合コマンド・`gh api graphql` の query）だった。
+どれも、単独の呼び出しに分けるか、Write ツールでスクリプトにして絶対パスで実行して通した。
+パスに `git` を含むディレクトリ（`git-worktree`）を引数に渡すだけでも拒否されるので、Hook の条件を設計するときは、コマンド名だけでなく引数の語も対象にする。
