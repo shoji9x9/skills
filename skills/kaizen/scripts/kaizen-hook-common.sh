@@ -98,18 +98,30 @@ kaizen_hook_fields() { # $1: Hook の JSON
 # COPILOT_CLI を引き継ぎうるが、Claude Code の入力には `timestamp` が無いので、この関数は 1 を返す。
 # 逆に Copilot を見誤った場合は、引数なしの処理がそのまま実行されるだけで、警告が拒否として扱われるなどの形で表に出る。
 #
-# 最上位のキーかどうかは、jq があれば jq で読む。無ければ、生の JSON でエスケープされていない
-# `"timestamp":` を探す。コマンドの文字列の中では `\"timestamp\"` になるので当たらない。
-# 入れ子のオブジェクトのキーには当たりうるが、その場合も COPILOT_CLI が空なら 1 を返す。
+# 最上位のキーかどうかは、JSON として読んで確かめる。jq があれば jq で、無ければ python3 で読む。
+# どちらも無いときと、JSON として読めないときは、判定できないので 1 を返す（引数なしの処理をそのまま続ける）。
+# 生の文字列を探す形にしないのは、入れ子のキーや不正な入力を Copilot と判定し、チェックを省くからである。
 kaizen_payload_is_copilot() { # $1: Hook の JSON
-	local json="${1:-}" re='(^|[^\\])"timestamp"[[:space:]]*:'
+	local json="${1:-}"
 	[ -n "${COPILOT_CLI:-}" ] || return 1
 	[ -n "${json}" ] || return 1
 	if command -v jq >/dev/null 2>&1; then
-		printf '%s' "${json}" | jq -e 'type == "object" and has("timestamp")' >/dev/null 2>&1
-		return
+		# jq は読めない入力で 2 や 5 を返すので、0 か 1 にそろえる。
+		printf '%s' "${json}" | jq -e 'type == "object" and has("timestamp")' >/dev/null 2>&1 || return 1
+		return 0
 	fi
-	[[ ${json} =~ ${re} ]]
+	if command -v python3 >/dev/null 2>&1; then
+		printf '%s' "${json}" | python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(1)
+sys.exit(0 if isinstance(d, dict) and "timestamp" in d else 1)
+' >/dev/null 2>&1 || return 1
+		return 0
+	fi
+	return 1
 }
 
 # session id を制御ファイル名に使える key へ正規化する。空入力は空 key（＝従来の agent 単位）。

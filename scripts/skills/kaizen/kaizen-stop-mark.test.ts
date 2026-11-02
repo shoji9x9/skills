@@ -16,6 +16,7 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
@@ -292,18 +293,32 @@ describe("Claude Code 用の登録（引数なし）を Copilot が呼んだと�
   });
 });
 
-// 判定の関数（kaizen-hook-common.sh の kaizen_payload_is_copilot）を、jq がある環境と無い環境で直接確かめる。
-// jq が無いときは、生の JSON でエスケープされていない `"timestamp":` を探す。
+// 判定の関数（kaizen-hook-common.sh の kaizen_payload_is_copilot）を、JSON を読むツールの 3 つの構成で直接確かめる。
+// jq があれば jq で、無ければ python3 で読む。どちらも無ければ判定できないので、常に 1（Copilot と扱わない）を返す。
 describe("kaizen_payload_is_copilot", () => {
   const lib = join(repoRoot, "skills/kaizen/scripts/kaizen-hook-common.sh");
-  // 空のディレクトリだけの PATH。判定の関数は bash の組み込みと jq しか使わないので、jq だけを外せる。
-  const noJqPath = makeSharedTempDir("kaizen-no-jq-path-");
   const bash = spawnSync("bash", ["-c", "command -v bash"], {
     timeout: CHILD_TIMEOUT_MS,
     encoding: "utf8",
   }).stdout.trim();
+  const python3 = spawnSync(bash, ["-c", "command -v python3"], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  }).stdout.trim();
+  // 判定の関数は bash の組み込みと jq・python3 しか使わないので、PATH を差し替えてツールだけを外せる。
+  // python3 だけの PATH は、python3 へのリンクだけを置いたディレクトリにする。
+  const noToolPath = makeSharedTempDir("kaizen-no-json-tool-path-");
+  const pythonOnlyPath = makeSharedTempDir("kaizen-python-only-path-");
+  symlinkSync(python3, join(pythonOnlyPath, "python3"));
+  type Tool = "jq" | "python3" | "none";
+  const pathFor: Record<Tool, string | undefined> = {
+    jq: undefined,
+    python3: pythonOnlyPath,
+    none: noToolPath,
+  };
 
-  function isCopilot(json: string, { jq, copilotCli }: { jq: boolean; copilotCli: string }) {
+  function isCopilot(json: string, { tool, copilotCli }: { tool: Tool; copilotCli: string }) {
+    const path = pathFor[tool];
     return spawnSync(bash, ["-c", 'source "$1"; kaizen_payload_is_copilot "$2"', "_", lib, json], {
       timeout: CHILD_TIMEOUT_MS,
       encoding: "utf8",
@@ -311,28 +326,32 @@ describe("kaizen_payload_is_copilot", () => {
         ...process.env,
         CLAUDE_PROJECT_DIR: "/p",
         COPILOT_CLI: copilotCli,
-        ...(jq ? {} : { PATH: noJqPath }),
+        ...(path ? { PATH: path } : {}),
       },
     }).status;
   }
 
-  test("前提: jq がある環境では jq を解決でき、無い環境では解決できない", () => {
-    expect(
-      spawnSync(bash, ["-c", "command -v jq"], { timeout: CHILD_TIMEOUT_MS, env: process.env })
-        .status,
-    ).toBe(0);
-    expect(
-      spawnSync(bash, ["-c", "command -v jq"], {
-        timeout: CHILD_TIMEOUT_MS,
-        env: { PATH: noJqPath },
-      }).status,
-    ).toBe(1);
+  function resolves(name: string, path: string | undefined) {
+    return spawnSync(bash, ["-c", `command -v ${name}`], {
+      timeout: CHILD_TIMEOUT_MS,
+      env: path ? { PATH: path } : process.env,
+    }).status;
+  }
+
+  test("前提: 各構成で、意図したツールだけを解決できる", () => {
+    expect(resolves("jq", undefined)).toBe(0);
+    expect(resolves("jq", pythonOnlyPath)).toBe(1);
+    expect(resolves("python3", pythonOnlyPath)).toBe(0);
+    expect(resolves("jq", noToolPath)).toBe(1);
+    expect(resolves("python3", noToolPath)).toBe(1);
   });
 
   const top = JSON.stringify({ session_id: "s", timestamp: "2026-11-02T00:00:00Z", cwd: "/x" });
   const numeric = JSON.stringify({ sessionId: "s", timestamp: 1793588988760, cwd: "/x" });
   const inString = JSON.stringify({ tool_input: { command: 'echo "timestamp": 1' } });
+  const nested = JSON.stringify({ tool_input: { timestamp: 1 } });
   const none = JSON.stringify({ session_id: "s", cwd: "/x", tool_input: { command: "ls" } });
+  const broken = '{"timestamp": 1, "cwd": ';
 
   test.each([
     { name: "最上位に timestamp（文字列）・COPILOT_CLI=1", json: top, cli: "1", expected: 0 },
@@ -345,14 +364,15 @@ describe("kaizen_payload_is_copilot", () => {
     { name: "最上位に timestamp・COPILOT_CLI が空", json: top, cli: "", expected: 1 },
     { name: "timestamp が無い", json: none, cli: "1", expected: 1 },
     { name: "timestamp がコマンドの文字列の中にだけある", json: inString, cli: "1", expected: 1 },
+    { name: "timestamp が入れ子のキーにだけある", json: nested, cli: "1", expected: 1 },
+    { name: "JSON として読めない", json: broken, cli: "1", expected: 1 },
     { name: "入力が空", json: "", cli: "1", expected: 1 },
-  ])("$name（jq あり・なし）", ({ json, cli, expected }) => {
-    expect(isCopilot(json, { jq: true, copilotCli: cli })).toBe(expected);
-    expect(isCopilot(json, { jq: false, copilotCli: cli })).toBe(expected);
+  ])("$name（jq・python3 で同じ結果）", ({ json, cli, expected }) => {
+    expect(isCopilot(json, { tool: "jq", copilotCli: cli })).toBe(expected);
+    expect(isCopilot(json, { tool: "python3", copilotCli: cli })).toBe(expected);
   });
 
-  test("jq があれば、入れ子のキーの timestamp は最上位として扱わない", () => {
-    const nested = JSON.stringify({ tool_input: { timestamp: 1 } });
-    expect(isCopilot(nested, { jq: true, copilotCli: "1" })).toBe(1);
+  test("jq も python3 も無ければ、最上位に timestamp があっても Copilot と扱わない", () => {
+    expect(isCopilot(top, { tool: "none", copilotCli: "1" })).toBe(1);
   });
 });
