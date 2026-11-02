@@ -94,7 +94,7 @@
     },
     {
       "id": 8,
-      "prompt": "parity-suite の gaps.md でページ送りと空状態のデータ不足が出た。golden-dataset でデータを追加して。content/works はテスト用のデータで、投入して書き換えてよい。",
+      "prompt": "parity-suite の gaps.md でページ送りと空状態のデータ不足が出た。golden-dataset でデータを追加して。投入先がテスト用のデータであることは確認済みで、書き換えてよい。",
       "fixture": "fixtures/static-dataset",
       "assertions": [
         "db を持つ target が 1 つも無いことを理由に停止していない",
