@@ -1,0 +1,149 @@
+{
+  "metadata": {
+    "skill_name": "agent-usage",
+    "skill_path": "/home/shoji9x9/projects/skills/skills/agent-usage",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-02T09:25:18Z",
+    "evals_run": [3],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 36.416,
+        "tokens": 199091,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "単価表にそのモデルが無いので、記録の時点で費用を空欄にしてトークン数だけを記録していると説明している",
+          "passed": true,
+          "evidence": "応答に「単価表に無いモデルの行は、記録のときに `cost_usd` を空にして `cost_source=unknown` とし、トークン数だけを残しています（records.md の「費用」の表）」とある。"
+        },
+        {
+          "text": "リポジトリの設定（.config/skills/shoji9x9/agent-usage.jsonc）の pricing に、そのモデルの単価（input と output は必須）を足すと答えている",
+          "passed": true,
+          "evidence": "応答に「リポジトリの設定 `.config/skills/shoji9x9/agent-usage.jsonc` の `pricing` に、そのモデルの単価を足して」「`input` と `output` は必須です」とある。"
+        },
+        {
+          "text": "単価を足して report を実行し直せば、記録されたトークン数から費用を計算し直すと答えている",
+          "passed": true,
+          "evidence": "応答に「report は、`cost_usd` が空の行を今の単価表…で計算し直します。材料は記録済みの input_tokens…output_tokens」「report を実行し直せば、費用に入ります」とある。"
+        },
+        {
+          "text": "ログが消えていても、トークン数が記録に残っているので計算できると答えている",
+          "passed": true,
+          "evidence": "応答に「ログが消えていても大丈夫で、collect をやり直す必要はありません」「ログは読みません（report.mjs:486 の usageCost）」とある。"
+        },
+        {
+          "text": "collect・report を実行せず、記録・設定のファイルも変更せずに答えている（スキルの文書とスクリプトの読み取りは問わない）",
+          "passed": true,
+          "evidence": "raw/ のツール呼び出しは find・grep・sed によるスキルの文書とスクリプトの読み取りだけで、collect・report の実行も Write・Edit も無い。project-tree.txt にも変更されたファイルは無い。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 97.785,
+        "tokens": 177620,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "単価表にそのモデルが無いので、記録の時点で費用を空欄にしてトークン数だけを記録していると説明している",
+          "passed": false,
+          "evidence": "応答は「（推測）」と断ったうえで「費用を出せず、0 として数えていると思われます」と書き、collect の時点で費用まで保存する作りの可能性も並べている。記録の時点で費用を空欄にしてトークン数だけを記録すると説明していない。"
+        },
+        {
+          "text": "リポジトリの設定（.config/skills/shoji9x9/agent-usage.jsonc）の pricing に、そのモデルの単価（input と output は必須）を足すと答えている",
+          "passed": false,
+          "evidence": "応答は「価格表は、スキルのスクリプトに組み込みの表か、設定ファイルの上書き用項目のどちらかにあるはず」「スキル側の価格表を更新するのが本筋」とし、.config/skills/shoji9x9/agent-usage.jsonc の pricing と input/output が必須であることを答えていない。"
+        },
+        {
+          "text": "単価を足して report を実行し直せば、記録されたトークン数から費用を計算し直すと答えている",
+          "passed": false,
+          "evidence": "応答は「各行にトークン数が残っている場合は…report を実行し直すだけ」と「collect の時点で費用まで計算して保存する作りの場合は…再収集が必要」の 2 案を並べ、どちらかを答えていない。"
+        },
+        {
+          "text": "ログが消えていても、トークン数が記録に残っているので計算できると答えている",
+          "passed": false,
+          "evidence": "応答は「ログが消えていても大丈夫かどうかは、usage.csv の中身で決まります」とし、ログが消えれば直せない可能性も挙げている。トークン数が記録に残るので計算できるとは答えていない。"
+        },
+        {
+          "text": "collect・report を実行せず、記録・設定のファイルも変更せずに答えている（スキルの文書とスクリプトの読み取りは問わない）",
+          "passed": true,
+          "evidence": "raw/ のツール呼び出しは find・ls・cat・grep の読み取りだけで、collect・report の実行も Write・Edit も無い。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 36.416,
+        "stddev": 0,
+        "min": 36.416,
+        "max": 36.416
+      },
+      "tokens": {
+        "mean": 199091,
+        "stddev": 0,
+        "min": 199091,
+        "max": 199091
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.2,
+        "stddev": 0,
+        "min": 0.2,
+        "max": 0.2
+      },
+      "time_seconds": {
+        "mean": 97.785,
+        "stddev": 0,
+        "min": 97.785,
+        "max": 97.785
+      },
+      "tokens": {
+        "mean": 177620,
+        "stddev": 0,
+        "min": 177620,
+        "max": 177620
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.80",
+      "time_seconds": "-61.4",
+      "tokens": "+21471"
+    }
+  },
+  "notes": [
+    "Issue #856 の変更確認（入力を変えた eval を with_skill・without_skill で 1 run ずつ）。比べ方は docs/skill-development.md「前回の記録との比べ方」に従う。"
+  ]
+}

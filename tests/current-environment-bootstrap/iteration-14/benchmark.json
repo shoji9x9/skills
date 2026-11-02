@@ -1,0 +1,245 @@
+{
+  "metadata": {
+    "skill_name": "current-environment-bootstrap",
+    "skill_path": "/home/shoji9x9/projects/skills/skills/current-environment-bootstrap",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-02T09:25:17Z",
+    "evals_run": [1, 2],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 182.334,
+        "tokens": 565157,
+        "tool_calls": 14,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "受領資産を「受領済み／導出可能／不足」の 3 区分で個別に分類し、DDL・公式 seed・データ辞書を受領済みとして記録している",
+          "passed": false,
+          "evidence": "assets-inventory.md で schema.sql・data-dictionary.md は受領済みだが、received/db/seed/initial_data.sql（先頭行「現行システムの公式初期投入データ（検証環境構築手順書 4.2 節で使用するもの）」）を「出所不明」、seed カテゴリを「不足」とし、中身も開いていない。公式 seed を受領済みとして記録していない"
+        },
+        {
+          "text": "DB エンジン版・文字コード・照合順序・タイムゾーン・sql_mode を受領スキーマの記載を根拠に復元し、環境の既定値で補完していない",
+          "passed": true,
+          "evidence": "schema.md 1・2 節で バージョン 8.0.36、DB／テーブルの utf8mb4・utf8mb4_ja_0900_as_cs、タイムゾーン Asia/Tokyo、sql_mode を schema.sql 2〜8 行目を根拠に「確定（受領値で復元する。層は Q-7 で確認）」。インスタンス層・セッション層は既定値で補わず「不足」"
+        },
+        {
+          "text": "orders.status の値と正常系遷移をデータ辞書の記載を根拠に「確定済み」として扱い、推測扱いにも確認待ちにもしていない",
+          "passed": false,
+          "evidence": "semantics.md を作っておらず metadata.json の semantics.confirmed は 0。assets-inventory.md は「遷移・初期状態は…データ辞書側に記載あり。工程 4 で台帳化」とするだけで、正常系遷移を確定済みとして記録していない"
+        },
+        {
+          "text": "暫定起動データは起動・ログイン・主要画面到達のための最小限であり、ゴールデンデータセットは golden-dataset が別途構築すると区別している（暫定データを比較の正解として扱っていない）",
+          "passed": false,
+          "evidence": "暫定起動データを作っておらず（provisional_seeded_at: null）、成果物と応答に暫定データとゴールデンデータセット（golden-dataset が別途構築する）を区別する記述が無い"
+        },
+        {
+          "text": "この環境では現行アプリを実際に起動・ログイン・画面到達できないため、それらを実測済みとして記録せず未検証として扱っている",
+          "passed": true,
+          "evidence": "metadata.json が status: blocked、verified_at: null、rebuild_reproduced: false。応答「起動・ログイン・画面到達の確認も行っていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 4,
+        "failed": 2,
+        "total": 6,
+        "time_seconds": 242.998,
+        "tokens": 865520,
+        "tool_calls": 14,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "DDL そのものが受領されていないことを停止理由にせず、マイグレーションから決定論的に完全復元できるかを検証する方針を示し、空の DB へ実際に全マイグレーションを適用して最終スキーマを得る手順を示している（机上判定で済ませていない）",
+          "passed": false,
+          "evidence": "schema.md「復元の方法: 併用を予定（マイグレーション全適用 …）」、assets-inventory.md「実際に空の DB へ流して最終スキーマを得ることを確かめていないため『導出可能』にしない」と検証の方針はあるが、空の DB へ全マイグレーションを適用する具体的な手順（コマンドや順序の手順）は示していない。.Designer.cs が無いので適用できないとして R-2 で DDL の受領を依頼して止まっている"
+        },
+        {
+          "text": "並び順を決める設定がインスタンス既定（BINARY）ではなくアプリ接続時のログオン処理で上書きされていることを捉え、セッション／接続レベルの設定を復元対象に含めている（インスタンス既定だけをコピーして「復元できた」としていない）",
+          "passed": true,
+          "evidence": "schema.md 2 節でインスタンス NLS_SORT=BINARY と、セッション／接続の行に logon_trigger.sql 由来の NLS_SORT=JAPANESE_M・NLS_COMP=LINGUISTIC を分けて記録。metadata.json の handoff.boot_requirements に「SHIPAPP 接続時のセッションの NLS（TRG_APP_LOGON…）」を含める"
+        },
+        {
+          "text": "マイグレーションが表現しない領域（照合／ソート順・ログオン処理）を個別に立て、マイグレーションだけを見て「全部入っている」と判定していない",
+          "passed": true,
+          "evidence": "schema.md 5 節に「MAX_STRING_SIZE、スキーマ／テーブル／カラムの照合（EF Core のマイグレーションは照合を表現していない）」「ログオントリガーの適用範囲」「マイグレーション外のオブジェクト」を個別の行で立て、3 節の各行を「不足（マイグレーション外の変更の有無が不明）」としている"
+        },
+        {
+          "text": "キャラクタセット・DB タイムゾーン・バージョン互換パラメータを受領した環境メモの記載を根拠に確定し、環境の既定値で警告なしに補完していない",
+          "passed": true,
+          "evidence": "schema.md 1・2 節で キャラクタセット AL32UTF8／AL16UTF16、タイムゾーン「DB タイムゾーン Asia/Tokyo｜確定（受領値で復元する。…Q-10 で確認する。回答待ちで止めない）」、COMPATIBLE = 19.0.0「確定」。いずれも received/docs/env.md を根拠にしている"
+        },
+        {
+          "text": "初期ユーザーのパスワードのように受領資産が値を持たない項目（データ辞書は「構築担当が設定する」とだけ記す）を推測で埋めず確認待ちまたは不足として扱い、接続文字列からは環境変数名だけを控えている",
+          "passed": false,
+          "evidence": "パスワードは推測で埋めず Q-1 と boot_requirements で回答待ちにし、接続先の値（db-stg・SHIPSTG）も転記していない。しかし接続文字列の環境変数名 SHIP_DB_PASSWORD をどの成果物にも控えていない（schema.md 6 節は設定由来の CURRENT_DB_URL だけ）"
+        },
+        {
+          "text": "受領資産だけでは工程 7（起動・認証・主要画面到達）を実測できないため handed-off を名乗らず、metadata.json に status: blocked と停止理由・未確認項目（handoff.unconfirmed）・フェーズ A へ引き継ぐ起動要件（handoff.boot_requirements）を記録し、下流（golden-dataset / parity-suite）が引き継げる形にしている",
+          "passed": true,
+          "evidence": "metadata.json に status: blocked、blocked_on 3 件、handoff.unconfirmed 3 件、handoff.boot_requirements 3 件（ADMIN／OPERATOR の APP_USERS、セッション NLS）を記録し、handed-off を名乗っていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 22.25,
+        "tokens": 157028,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "受領資産を「受領済み／導出可能／不足」の 3 区分で個別に分類し、DDL・公式 seed・データ辞書を受領済みとして記録している",
+          "passed": false,
+          "evidence": "スキルが無いとして停止し、project-tree.txt に .replace が無い。分類の記録が無い"
+        },
+        {
+          "text": "DB エンジン版・文字コード・照合順序・タイムゾーン・sql_mode を受領スキーマの記載を根拠に復元し、環境の既定値で補完していない",
+          "passed": false,
+          "evidence": "成果物が無く、DB 設定を復元した記録が無い"
+        },
+        {
+          "text": "orders.status の値と正常系遷移をデータ辞書の記載を根拠に「確定済み」として扱い、推測扱いにも確認待ちにもしていない",
+          "passed": false,
+          "evidence": "成果物が無く、orders.status の意味論を扱った記録が無い"
+        },
+        {
+          "text": "暫定起動データは起動・ログイン・主要画面到達のための最小限であり、ゴールデンデータセットは golden-dataset が別途構築すると区別している（暫定データを比較の正解として扱っていない）",
+          "passed": false,
+          "evidence": "暫定起動データについての作成も区別の記述も無い"
+        },
+        {
+          "text": "この環境では現行アプリを実際に起動・ログイン・画面到達できないため、それらを実測済みとして記録せず未検証として扱っている",
+          "passed": false,
+          "evidence": "記録を何も残しておらず、起動・ログイン・画面到達を未検証として扱った記録（metadata.json など）が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 6,
+        "total": 6,
+        "time_seconds": 30.646,
+        "tokens": 107377,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "DDL そのものが受領されていないことを停止理由にせず、マイグレーションから決定論的に完全復元できるかを検証する方針を示し、空の DB へ実際に全マイグレーションを適用して最終スキーマを得る手順を示している（机上判定で済ませていない）",
+          "passed": false,
+          "evidence": "スキルが無いとして停止し、project-tree.txt に .replace が無い。マイグレーションの適用の方針も手順も示していない"
+        },
+        {
+          "text": "並び順を決める設定がインスタンス既定（BINARY）ではなくアプリ接続時のログオン処理で上書きされていることを捉え、セッション／接続レベルの設定を復元対象に含めている（インスタンス既定だけをコピーして「復元できた」としていない）",
+          "passed": false,
+          "evidence": "成果物が無く、照合のセッション／接続レベルの設定を扱った記録が無い"
+        },
+        {
+          "text": "マイグレーションが表現しない領域（照合／ソート順・ログオン処理）を個別に立て、マイグレーションだけを見て「全部入っている」と判定していない",
+          "passed": false,
+          "evidence": "成果物が無く、マイグレーションが表現しない領域を立てた記録が無い"
+        },
+        {
+          "text": "キャラクタセット・DB タイムゾーン・バージョン互換パラメータを受領した環境メモの記載を根拠に確定し、環境の既定値で警告なしに補完していない",
+          "passed": false,
+          "evidence": "成果物が無く、キャラクタセット・タイムゾーン・互換パラメータを確定した記録が無い"
+        },
+        {
+          "text": "初期ユーザーのパスワードのように受領資産が値を持たない項目（データ辞書は「構築担当が設定する」とだけ記す）を推測で埋めず確認待ちまたは不足として扱い、接続文字列からは環境変数名だけを控えている",
+          "passed": false,
+          "evidence": "成果物が無く、初期ユーザーのパスワードや接続文字列を扱った記録が無い"
+        },
+        {
+          "text": "受領資産だけでは工程 7（起動・認証・主要画面到達）を実測できないため handed-off を名乗らず、metadata.json に status: blocked と停止理由・未確認項目（handoff.unconfirmed）・フェーズ A へ引き継ぐ起動要件（handoff.boot_requirements）を記録し、下流（golden-dataset / parity-suite）が引き継げる形にしている",
+          "passed": false,
+          "evidence": "metadata.json を作っておらず、status: blocked や handoff の記録が無い"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.5333,
+        "stddev": 0.1886,
+        "min": 0.4,
+        "max": 0.6667
+      },
+      "time_seconds": {
+        "mean": 212.666,
+        "stddev": 42.8959,
+        "min": 182.334,
+        "max": 242.998
+      },
+      "tokens": {
+        "mean": 715338.5,
+        "stddev": 212388.7141,
+        "min": 565157,
+        "max": 865520
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0,
+        "stddev": 0,
+        "min": 0,
+        "max": 0
+      },
+      "time_seconds": {
+        "mean": 26.448,
+        "stddev": 5.9369,
+        "min": 22.25,
+        "max": 30.646
+      },
+      "tokens": {
+        "mean": 132202.5,
+        "stddev": 35108.5588,
+        "min": 107377,
+        "max": 157028
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.53",
+      "time_seconds": "+186.2",
+      "tokens": "+583136"
+    }
+  },
+  "notes": [
+    "Issue #856 の変更確認（入力を変えた eval を with_skill・without_skill で 1 run ずつ）。比べ方は docs/skill-development.md「前回の記録との比べ方」に従う。"
+  ]
+}

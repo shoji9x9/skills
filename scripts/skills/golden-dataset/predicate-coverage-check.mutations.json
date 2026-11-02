@@ -99,6 +99,76 @@
       "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": ["design.md の閉じないコードフェンスは、構造の不備として合格にしない"]
+    },
+    {
+      "id": "static-path-split-by-slash",
+      "why": "features.md のテーブルの列も / と ／ で区切り、static の単位名のパス（content/works）を 2 つの表に割る（Issue #856）",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "splitList(row[source.column], { slash: false })",
+      "replace": "splitList(row[source.column])",
+      "occurrences": 1,
+      "expect_failing": [
+        "static の単位名のパス（content/works）は / で割らずに 1 つの表として読む",
+        "全角の ／ を含む単位名（content／works）も割らずに 1 つの表として読む"
+      ]
+    },
+    {
+      "id": "filter-slash-not-split",
+      "why": "絞り込みの列・slug の一覧・識別子の列でも / と ／ を区切りにせず、並べた値を 1 つとして読む（Issue #856）",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "(slash && (char === \"／\" || char === \"/\"))",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": [
+        "絞り込みの列は / で並べても複数の絞り込みとして読む（テーブルの列の扱いを広げない）",
+        "絞り込みの列は ／ で並べても複数の絞り込みとして読む（テーブルの列の扱いを広げない）",
+        "消費側 slug の列は / で並べても複数の slug として読む",
+        "消費側 slug の列は ／ で並べても複数の slug として読む",
+        "識別子の値の範囲の不備: 列に / で複数の列が並んでいる（識別子の列は / でも区切る）",
+        "対象テーブル表の機能／リソースの列と述語の消費側 slug の列も、/ で並べれば複数の slug として読む",
+        "対象テーブル表の機能／リソースの列と述語の消費側 slug の列も、／ で並べれば複数の slug として読む"
+      ]
+    },
+    {
+      "id": "split-list-default-no-slash",
+      "why": "splitList のデフォルトを / で区切らない側にし、テーブルの列以外でも / を区切りにしない（Issue #856）",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "export function splitList(cell, { slash = true } = {}) {",
+      "replace": "export function splitList(cell, { slash = false } = {}) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "絞り込みの列は / で並べても複数の絞り込みとして読む（テーブルの列の扱いを広げない）",
+        "絞り込みの列は ／ で並べても複数の絞り込みとして読む（テーブルの列の扱いを広げない）",
+        "消費側 slug の列は / で並べても複数の slug として読む",
+        "消費側 slug の列は ／ で並べても複数の slug として読む",
+        "識別子の値の範囲の不備: 列に / で複数の列が並んでいる（識別子の列は / でも区切る）",
+        "対象テーブル表の機能／リソースの列と述語の消費側 slug の列も、/ で並べれば複数の slug として読む",
+        "対象テーブル表の機能／リソースの列と述語の消費側 slug の列も、／ で並べれば複数の slug として読む"
+      ]
+    },
+    {
+      "id": "target-table-slugs-not-split-by-slash",
+      "why": "対象テーブル表の「features.md の機能／リソース」列だけ / と ／ で区切らず、並べた slug を 1 つとして読む（Issue #856）",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "splitList(row[\"features.md の機能／リソース\"])",
+      "replace": "splitList(row[\"features.md の機能／リソース\"], { slash: false })",
+      "occurrences": 1,
+      "expect_failing": [
+        "対象テーブル表の機能／リソースの列と述語の消費側 slug の列も、/ で並べれば複数の slug として読む",
+        "対象テーブル表の機能／リソースの列と述語の消費側 slug の列も、／ で並べれば複数の slug として読む"
+      ]
+    },
+    {
+      "id": "predicate-consumers-not-split-by-slash",
+      "why": "述語の表の「消費側 slug」列だけ / と ／ で区切らず、並べた slug を 1 つとして読む（Issue #856）",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "const consumerList = splitList(row[\"消費側 slug\"]);",
+      "replace": "const consumerList = splitList(row[\"消費側 slug\"], { slash: false });",
+      "occurrences": 1,
+      "expect_failing": [
+        "対象テーブル表の機能／リソースの列と述語の消費側 slug の列も、/ で並べれば複数の slug として読む",
+        "対象テーブル表の機能／リソースの列と述語の消費側 slug の列も、／ で並べれば複数の slug として読む"
+      ]
     }
   ]
 }

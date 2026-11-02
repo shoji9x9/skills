@@ -3,6 +3,7 @@
 <!-- golden-dataset がフェーズ A（dataset_mode: static）で生成したもの（fixture の初期状態）。 -->
 
 - version: 1
+- affects: *
 - base_time: 2026-05-01T00:00:00Z
 - 最終更新: 2026-05-01T09:12:00Z
 
@@ -10,9 +11,9 @@
 
 <!-- static のため「テーブル」は静的データの単位（ファイル／コレクション）と読み替える。 -->
 
-| テーブル | features.md の機能／リソース | 件数 | 備考（FK 親・必須項目） |
-|---|---|---|---|
-| content/works（Markdown ＋ frontmatter） | works-list | 2 | 必須: id / title / published_at / cover。id は一意 |
+| テーブル | features.md の機能／リソース | 件数 | 役割 | 備考（FK 親・必須項目） |
+|---|---|---|---|---|
+| content/works | works-list | 2 | 投入する | Markdown ＋ frontmatter。必須: id / title / published_at / cover。id は一意 |
 
 ## 含めたエッジケース
 
@@ -27,6 +28,31 @@
 | ページネーションが 2 ページ以上 | 未カバー | 2 件のため 1 ページで終わる |
 | ソート順が判別できる並び | 含めた | published_at を 7 日ずらして配置 |
 
+## 消費側パラメータ
+
+| 機能／リソース slug | テーブル | 絞り込み列・条件 | 並び替え列・方向・同値順 | ページサイズ／切替候補 | 根拠 |
+|---|---|---|---|---|---|
+| works-list | content/works | tags（URL の tag を含む行。tag 無しは全件） | published_at DESC、同値は id ASC | 6（切替なし） | current-site/src/works-list.ts の listWorks と PAGE_SIZE を読んだ |
+
+## 述語ごとの分岐網羅
+
+| 述語 id | テーブル | 消費側 slug | 述語（列・条件） | 値の出どころ | 真の行数 | 偽の行数 | 判定 | 扱い | 根拠 |
+|---|---|---|---|---|---:|---:|---|---|---|
+| works-tags-accessibility | content/works | works-list | tags に 'accessibility' を含む | URL の tag。データ中の tags から候補を作る。変換なし | 1 | 1 | 踏める | - | listWorks の tags.includes(tag) を読んだ |
+| works-tags-web | content/works | works-list | tags に 'web' を含む | URL の tag。データ中の tags から候補を作る。変換なし | 2 | 0 | 踏めない | gaps に記録 | 偽の側（空状態）は初回設計で表示確認の対象外とした。parity-suite で不足が分かったら足す |
+
+## 識別子の値の範囲
+
+| テーブル | 列 | データセットの値の範囲 | 実運用の値の範囲 | 消費側 slug | 受け取る型・変換 | 届くか | 扱い | 根拠 |
+|---|---|---|---|---|---|---|---|---|
+| content/works | id | "001"〜"002"（3 桁の文字列） | 3 桁の文字列（ファイル名の連番） | works-list | -。文字列のまま localeCompare で比べる | 届く | - | listWorks の同値順を読んだ |
+
+## ページネーション境界
+
+| 対象一覧 | 確認した操作 | 表示件数 P | 必要ページ数 K | 採用件数 | 算出根拠・確認方法 |
+|---|---|---:|---:|---:|---|
+| 制作実績一覧 | なし（初回設計の対象外） | 6 | 1 | 2 | ページ送りは未カバー。「未カバーの領域と理由」に記録した |
+
 ## 未カバーの領域と理由
 
 | 未カバーの領域 | 理由 |
@@ -39,6 +65,6 @@
 
 ## gaps 由来の追加履歴
 
-| version | 追加したパターン | 由来（gaps の箇所） |
-|---|---|---|
-| （なし） | （なし） | （なし） |
+| version | affects | 追加したパターン | 由来（gaps の箇所） |
+|---|---|---|---|
+| （なし） | （なし） | （なし） | （なし） |

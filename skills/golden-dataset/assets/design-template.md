@@ -3,7 +3,7 @@
 <!-- golden-dataset が .replace/dataset/design.md として作る。このファイルの形式は golden-dataset で定義する。 -->
 <!-- 「確認済みにしない」原則: 含めなかったパターンは、理由を付けて残す。代表性を「確認済み」と宣言しない。 -->
 <!-- 各行は例。実際の対象テーブル・値・理由で置き換える。 -->
-<!-- dataset_mode: static では、「テーブル」を静的データの単位（ファイル／コレクション）に、「FK・必須項目」をファイルの間の参照と必須のフィールドに読み替える。 -->
+<!-- dataset_mode: static では、「テーブル」を静的データの単位（ファイル／コレクション）に、「FK・必須項目」をファイルの間の参照と必須のフィールドに読み替える。単位は dataset_static_paths のパスのまま書く（content/works など）。 -->
 
 - version: （metadata.json の version と同じ値）
 - affects: （この version で変えたテーブル／静的データの単位。metadata.json の changes と同じ値）
