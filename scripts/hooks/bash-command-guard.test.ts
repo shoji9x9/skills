@@ -15,7 +15,7 @@
 // 止める入力だけのテストでは、「全部落とす実装」と区別が付かない。
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, readdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { delimiter, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeSharedTempDir } from "../lib/testing/test-tmpdir.ts";
@@ -325,6 +325,108 @@ test.each([
     timeout: CHILD_TIMEOUT_MS,
   });
   expect(r.stderr).not.toMatch(/検査していない/);
+  expect(r.status).toBe(2);
+  expect(r.stderr).toMatch(/full command line/);
+});
+
+// --- Copilot が .claude/settings.json の登録として呼んだとき（Issue #858） ---
+//
+// Copilot CLI は `.claude/settings.json` の Hook も実行する。この Hook は `.github/hooks/kaizen-session.json` にも
+// 引数なしで登録してあるので、`.claude/settings.json` の登録として呼ばれたときだけ何もせずに通す。
+// 入力の形は Copilot CLI 1.0.105 で記録したものに合わせる。PascalCase の登録だけが hook_event_name を持ち、timestamp は文字列になる。
+// 止める入力（OFFENDING）を使うので、通したことが判定によるものか、コマンドが危険でないためかを区別できる。
+const copilotPascal = {
+  hook_event_name: "PreToolUse",
+  session_id: "cp-1",
+  timestamp: "2026-11-02T11:47:41.710Z",
+  cwd: repoRoot,
+  tool_name: "Bash",
+  tool_input: { command: OFFENDING },
+};
+const copilotCamel = {
+  sessionId: "cp-1",
+  timestamp: 1793620061710,
+  cwd: repoRoot,
+  toolName: "bash",
+  toolArgs: { command: OFFENDING },
+};
+
+// node だけの環境（jq が無い）。jq と node の実体が同じディレクトリ（mise の shim など）にあることがあるので、
+// node はラッパーで足す。jq の在るディレクトリは、jq 以外へのリンクを置いたディレクトリに差し替える。
+// ディレクトリごと外すと、jq が /usr/bin に在る環境（GitHub Actions の ubuntu など）では bash・tr・grep も解決できなくなる。
+const nodeOnlyEnv = (() => {
+  const node = process.execPath;
+  const bin = makeSharedTempDir("bash-command-guard-node-only-");
+  writeFileSync(join(bin, "node"), `#!/bin/sh\nexec '${node}' "$@"\n`);
+  chmodSync(join(bin, "node"), 0o755);
+  const withoutJq = (entry: string) => {
+    if (!existsSync(join(entry, "jq"))) return entry;
+    const mirror = makeSharedTempDir("bash-command-guard-no-jq-");
+    for (const name of readdirSync(entry)) {
+      if (name !== "jq") symlinkSync(join(entry, name), join(mirror, name));
+    }
+    return mirror;
+  };
+  const kept = (process.env.PATH ?? "")
+    .split(delimiter)
+    .filter((entry) => entry !== "")
+    .map(withoutJq);
+  return { ...process.env, PATH: [bin, ...kept].join(delimiter) };
+})();
+
+const runCopilot = (payload: unknown, copilotCli: string, env: NodeJS.ProcessEnv = process.env) =>
+  spawnSync("bash", [script], {
+    timeout: CHILD_TIMEOUT_MS,
+    input: JSON.stringify(payload),
+    encoding: "utf8",
+    cwd: repoRoot,
+    env: { ...env, COPILOT_CLI: copilotCli },
+  });
+
+test("node だけの環境を作れる（jq が無く node が在る。作れなければ node の分岐の検証は無意味）", () => {
+  const probe = (name: string) =>
+    spawnSync("bash", ["-c", `command -v ${name}`], { env: nodeOnlyEnv, timeout: CHILD_TIMEOUT_MS })
+      .status;
+  expect(probe("jq")).not.toBe(0);
+  expect(probe("node")).toBe(0);
+});
+
+test.each([
+  ["jq", process.env],
+  ["jq が無く node だけ", nodeOnlyEnv],
+])("Copilot の .claude/settings.json の登録（PascalCase）は通す（%s）", (_name, env) => {
+  const r = runCopilot(copilotPascal, "1", env);
+  expect(r.status).toBe(0);
+  expect(r.stderr).toBe("");
+});
+
+test.each([
+  {
+    name: "COPILOT_CLI が空（Claude Code が呼んだ）",
+    payload: copilotPascal,
+    copilotCli: "",
+    env: process.env,
+  },
+  {
+    name: "timestamp が無い（Copilot のシェルから起動した Claude Code）",
+    payload: { ...copilotPascal, timestamp: undefined },
+    copilotCli: "1",
+    env: process.env,
+  },
+  {
+    name: ".github/hooks の登録（camelCase。hook_event_name が無い）",
+    payload: copilotCamel,
+    copilotCli: "1",
+    env: process.env,
+  },
+  {
+    name: ".github/hooks の登録（jq が無く node だけ）",
+    payload: copilotCamel,
+    copilotCli: "1",
+    env: nodeOnlyEnv,
+  },
+])("$name は止める", ({ payload, copilotCli, env }) => {
+  const r = runCopilot(payload, copilotCli, env);
   expect(r.status).toBe(2);
   expect(r.stderr).toMatch(/full command line/);
 });

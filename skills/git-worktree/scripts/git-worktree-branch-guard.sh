@@ -74,6 +74,38 @@ if hook_tool_text "${input}"; then
 	esac
 fi
 
+# Claude Code 用の登録（`.claude/settings.json`）を GitHub Copilot CLI が呼んだときは、何もせずに終える。
+# Copilot は `.claude/settings.json` の Hook も実行する（https://docs.github.com/en/copilot/reference/hooks-configuration）。
+# Copilot 用の通知は `.github/hooks/` の登録が行うので、続けると同じ呼び出しを 2 回調べる。
+# 判定は 3 つの条件がすべて成り立つときだけ 0 にする。
+#   - 環境変数 COPILOT_CLI が空でない（Copilot CLI 1.0.105 が Hook に COPILOT_CLI=1 を渡すことを実測した）
+#   - 入力の最上位に `timestamp` がある（Copilot は入れ、Claude Code は入れない）
+#   - 入力の最上位に `hook_event_name` がある。Copilot は PascalCase のイベント名で書いた登録（`.claude/settings.json` の形）にだけ入れ、
+#     camelCase で書いた `.github/hooks/` の登録には入れない（https://docs.github.com/en/copilot/reference/hooks-reference。1.0.105 で確かめた）
+# Copilot のシェルから起動した Claude Code は COPILOT_CLI を引き継ぎうるが、その入力には `timestamp` が無い。
+# 最上位のキーかは JSON として読んで確かめる。jq も python3 も無いときと読めないときは判定できないので、これまでどおり続ける。
+copilot_claude_settings_payload() { # $1: Hook の JSON
+	[ -n "${COPILOT_CLI:-}" ] || return 1
+	[ -n "${1:-}" ] || return 1
+	if command -v jq >/dev/null 2>&1; then
+		printf '%s' "$1" | jq -e 'type == "object" and has("timestamp") and has("hook_event_name")' >/dev/null 2>&1
+		return
+	fi
+	if command -v python3 >/dev/null 2>&1; then
+		printf '%s' "$1" | python3 -c 'import json, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(1)
+sys.exit(0 if isinstance(d, dict) and "timestamp" in d and "hook_event_name" in d else 1)' >/dev/null 2>&1
+		return
+	fi
+	return 1
+}
+if copilot_claude_settings_payload "${input}"; then
+	exit 0
+fi
+
 # --- payload の取り出し ---------------------------------------------------------
 # tool 名とコマンド文字列を取る。Copilot 判定に使うので、どちらのキー名で取れたかを覚えておく。
 tool_name=""

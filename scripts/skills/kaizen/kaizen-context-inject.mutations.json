@@ -1,0 +1,20 @@
+{
+  "$comment": [
+    "kaizen-context-inject.test.ts のうち、Copilot が .claude/settings.json の登録として呼んだときだけ何もせずに終えること（Issue #858）を守るテストの検出能力を示す変異の一覧。",
+    "各変異は、置換が当たったことと、expect_failing のテストだけが落ちたことの両方で判定する（scripts/mutation/check-mutation-proof.ts）。"
+  ],
+  "test_file": "scripts/skills/kaizen/kaizen-context-inject.test.ts",
+  "mutations": [
+    {
+      "id": "INJECT-COPILOT-IGNORES-EVENT-NAME",
+      "why": "Copilot の判定で hook_event_name を見ない（.github/hooks の camelCase の sessionStart まで .claude/settings.json の登録と見誤り、Copilot のセッションでマーカーを消さず学びも出さない）",
+      "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
+      "find": "\t\tprintf '%s' \"${json}\" | jq -e 'type == \"object\" and has(\"timestamp\") and has(\"hook_event_name\")' >/dev/null 2>&1 || return 1",
+      "replace": "\t\tprintf '%s' \"${json}\" | jq -e 'type == \"object\" and has(\"timestamp\")' >/dev/null 2>&1 || return 1",
+      "occurrences": 1,
+      "expect_failing": [
+        "Copilot が呼んだとき .github/hooks の登録（camelCase。hook_event_name が無い） なら、マーカーを消して学びを出す"
+      ]
+    }
+  ]
+}

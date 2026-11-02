@@ -32,6 +32,29 @@ case "${input}" in
 *) exit 0 ;;
 esac
 
+# Claude Code 用の登録（`.claude/settings.json`）を GitHub Copilot CLI が呼んだときは、何もせずに通す。
+# Copilot は `.github/hooks/kaizen-session.json` の登録も実行するので、Copilot の検査はそちらが行う。
+# 判定の条件と理由は multiagent-setup の references/hooks.md「Copilot は Claude Code の設定ファイルの Hook も実行する」にある。
+# COPILOT_CLI が空でなく、入力の最上位に `timestamp` と `hook_event_name` がある（PascalCase のイベント名で書いた登録の形）ときだけ通す。
+# `.github/hooks/` の camelCase の登録からの入力には `hook_event_name` が無いので、検査を続ける。
+# jq も node も無いときと、JSON として読めないときは判定できないので、検査を続ける。
+copilot_claude_settings_payload() {
+	[ -n "${COPILOT_CLI:-}" ] || return 1
+	if command -v jq >/dev/null 2>&1; then
+		printf '%s' "${input}" | jq -e 'type == "object" and has("timestamp") and has("hook_event_name")' >/dev/null 2>&1
+		return
+	fi
+	if command -v node >/dev/null 2>&1; then
+		printf '%s' "${input}" |
+			node -e 'let s="";process.stdin.on("data",(d)=>{s+=d;}).on("end",()=>{let d;try{d=JSON.parse(s);}catch{process.exit(1);}const ok=d!==null&&typeof d==="object"&&!Array.isArray(d)&&"timestamp" in d&&"hook_event_name" in d;process.exit(ok?0:1);});'
+		return
+	fi
+	return 1
+}
+if copilot_claude_settings_payload; then
+	exit 0
+fi
+
 # Hook payload の形はエージェントごとに違う。Claude Code は `tool_input.command`、Codex は
 # `toolArgs`（オブジェクトのことも JSON 文字列のこともある）、Copilot は `input.command` /
 # 素の `command`。`.tool_input.command` だけを読むと、他の 2 つのエージェントでは command が空になり、

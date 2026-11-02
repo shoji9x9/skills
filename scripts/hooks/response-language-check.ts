@@ -15,9 +15,8 @@
 import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { blankInlineCode, fencedLines } from "../lib/doc-scan.ts";
-import { errorMessage } from "../lib/errors.ts";
-import { isRecord } from "../lib/guards.ts";
-import { alreadyBlocked, recordBlocked } from "./stop-marker.ts";
+import { recordBlocked } from "./stop-marker.ts";
+import { stopResponse } from "./stop-input.ts";
 import { isCliEntry } from "../lib/cli/entry.ts";
 
 const HOOK = "response-language-check";
@@ -64,22 +63,10 @@ export const REWRITE_REQUEST =
 
 /** Hook として実行する。戻り値は終了コード（0: 通す、2: 書き直させる、1: 入力を読めない）。 */
 export function main(input: string, markerDir: string = tmpdir()): number {
-  let payload: unknown;
-  try {
-    payload = JSON.parse(input);
-  } catch (error) {
-    // Stop で 2 を返すと書き直しを求めることになる。読めない入力では求めず、エラーとして見えるようにする。
-    console.error(`response-language-check: 入力の JSON を読めない: ${errorMessage(error)}`);
-    return 1;
-  }
-  if (!isRecord(payload)) {
-    console.error("response-language-check: 入力がオブジェクトでない");
-    return 1;
-  }
-  if (alreadyBlocked(HOOK, payload, markerDir)) return 0;
-  const message = payload.last_assistant_message;
-  // ツールの呼び出しだけで終わったターンなど、本文が無ければ判定しない。
-  if (typeof message !== "string" || message.trim() === "") return 0;
+  // 入力を読めない・Copilot から呼ばれた・既に止めた・本文が無いときは、確かめずに終える（stop-input.ts）。
+  const response = stopResponse(HOOK, input, markerDir);
+  if (typeof response === "number") return response;
+  const { payload, message } = response;
   if (!judge(message).english) return 0;
   console.error(REWRITE_REQUEST);
   recordBlocked(HOOK, payload, markerDir);

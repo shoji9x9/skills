@@ -24,6 +24,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   rmSync(markerDir, { recursive: true, force: true });
 });
 
@@ -35,14 +36,52 @@ const ENGLISH =
 const JAPANESE =
   "レビューの指摘を直し、ランナーのテストが通りました。ミューテーションテストの全件をバックグラウンドで実行しています。";
 
-function run(input: string): { status: number; stderr: string } {
+// COPILOT_CLI はテストごとに決める。テストを実行するシェル（Copilot の中など）の値を引き継がない。
+function run(input: string, copilotCli = ""): { status: number; stderr: string } {
   const errors: string[] = [];
   vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
     errors.push(args.join(" "));
   });
+  vi.stubEnv("COPILOT_CLI", copilotCli);
   const status = main(input, markerDir);
   return { status, stderr: errors.join("\n") };
 }
+
+// --- Copilot が .claude/settings.json の登録として呼んだとき（Issue #858） ---
+//
+// Copilot CLI は `.claude/settings.json` の Stop も応答のたびに実行する。その呼び出しでは、判定もせず、印も消さずに通す。
+// Copilot CLI 1.0.105 の Stop の入力には last_assistant_message が無いが、判定によって通したことを区別するため、英語の本文を入れる。
+// 入力の形は記録したものに合わせる。PascalCase の登録だけが hook_event_name を持ち、timestamp は文字列になる。
+const COPILOT_TIMESTAMP = "2026-11-02T11:47:43.154Z";
+
+test("通す: Copilot の .claude/settings.json の登録なら、英語でも判定せず、前の印も消さない", () => {
+  const marker = blockedMarker("response-language-check", "s", markerDir);
+  if (!marker) throw new Error("印のパスを作れない");
+  writeFileSync(marker, "");
+  const input = hook({ timestamp: COPILOT_TIMESTAMP, last_assistant_message: ENGLISH });
+  expect(run(input, "1")).toEqual({ status: 0, stderr: "" });
+  expect(existsSync(marker)).toBe(true);
+});
+
+test.each([
+  [
+    "COPILOT_CLI が空（Claude Code が呼んだ）",
+    hook({ timestamp: COPILOT_TIMESTAMP, last_assistant_message: ENGLISH }),
+    "",
+  ],
+  [
+    "timestamp が無い（Copilot のシェルから起動した Claude Code）",
+    hook({ last_assistant_message: ENGLISH }),
+    "1",
+  ],
+  [
+    "hook_event_name が無い（camelCase の .github/hooks の登録の形）",
+    JSON.stringify({ sessionId: "s", timestamp: 1793620063154, last_assistant_message: ENGLISH }),
+    "1",
+  ],
+])("書き直させる: %s なら、英語の応答を確かめる", (_label, input, copilotCli) => {
+  expect(run(input, copilotCli).status).toBe(2);
+});
 
 // --- 誤検知しないことの確認（通す） ---
 

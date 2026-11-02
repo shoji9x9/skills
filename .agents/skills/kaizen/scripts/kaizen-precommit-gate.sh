@@ -142,10 +142,10 @@ fi
 # Copilot は `.claude/settings.json` の Hook も実行するので、このチェックは Copilot のセッションで 2 回起動する。
 # Copilot 用のチェックは `.github/hooks/` の登録（`-copilot` 付き）が行う。引数なしのまま続けると、
 # 他のセッションの警告を exit 1 で返し、Copilot はそれを「hook errored」として commit を拒否する。
-# 判定の条件は kaizen-hook-common.sh の kaizen_payload_is_copilot にある。
+# 判定の条件は kaizen-hook-common.sh の kaizen_payload_is_copilot_claude_settings にある。
 # 共通ライブラリを読めないときは判定できないので、これまでどおり続ける（Copilot を見分けないだけで、止める条件は緩めない）。
-if [ -z "${gate_suffix}" ] && declare -f kaizen_payload_is_copilot >/dev/null 2>&1 &&
-	kaizen_payload_is_copilot "${input}"; then
+if [ -z "${gate_suffix}" ] && declare -f kaizen_payload_is_copilot_claude_settings >/dev/null 2>&1 &&
+	kaizen_payload_is_copilot_claude_settings "${input}"; then
 	exit 0
 fi
 

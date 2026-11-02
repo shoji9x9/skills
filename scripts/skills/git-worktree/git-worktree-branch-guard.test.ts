@@ -1,11 +1,11 @@
-import { test, expect } from "vitest";
+import { describe, test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
-import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { makeSharedTempDir, makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 // git-worktree-branch-guard.sh は「worktree の作成手段が branch を作る呼び出し方」だけを通知する。
 // 通知のみでブロックしないため、取りこぼしは警告なしに起き、誤検知は通知の信頼を
@@ -206,6 +206,77 @@ test("Copilot の camelCase payload には ask で通知する", () => {
   expect(parsed.permissionDecision).toBe("ask");
   expect(parsed.permissionDecisionReason).toContain("gh issue develop");
   expect(parsed.hookSpecificOutput).toBeUndefined();
+});
+
+// Copilot CLI は `.claude/settings.json` の Hook も実行する（Issue #858）。`.claude/settings.json` の登録として呼ばれたら
+// 何もせずに exit 0 で終え、Copilot の通知は `.github/hooks/` の登録に任せる。
+// 入力の形は Copilot CLI 1.0.105 で記録したものに合わせる。PascalCase の登録だけが hook_event_name を持ち、timestamp は文字列になる。
+describe("Copilot が .claude/settings.json の登録として呼んだとき", () => {
+  const command = "git worktree add -b feature/x /tmp/wt";
+  const pascal = {
+    hook_event_name: "PreToolUse",
+    session_id: "cp-1",
+    timestamp: "2026-11-02T11:47:41.710Z",
+    cwd: "/repo",
+    tool_name: "Bash",
+    tool_input: { command },
+  };
+  const camel = {
+    sessionId: "cp-1",
+    timestamp: 1793620061710,
+    cwd: "/repo",
+    toolName: "bash",
+    toolArgs: { command },
+  };
+  // python3 だけを置いた PATH。jq が無い環境の分岐を作る。bash の組み込み以外に使うのは jq と python3 だけである。
+  // PATH を差し替えると bash も解決できなくなるので、bash は絶対パスで起動する。
+  const which = (name: string) =>
+    spawnSync("bash", ["-c", `command -v ${name}`], {
+      timeout: CHILD_TIMEOUT_MS,
+      encoding: "utf8",
+    }).stdout.trim();
+  const bashPath = which("bash");
+  const python3 = which("python3");
+  const hasPython3 = python3 !== "";
+  const pythonOnlyPath = makeSharedTempDir("worktree-guard-python-only-");
+  if (hasPython3) symlinkSync(python3, join(pythonOnlyPath, "python3"));
+
+  function runAs(payload: unknown, copilotCli: string, path?: string) {
+    const result = spawnSync(bashPath, [script], {
+      timeout: CHILD_TIMEOUT_MS,
+      input: JSON.stringify(payload),
+      encoding: "utf8",
+      env: { ...process.env, COPILOT_CLI: copilotCli, ...(path ? { PATH: path } : {}) },
+    });
+    return { status: result.status, stdout: (result.stdout ?? "").trim() };
+  }
+
+  test("PascalCase の登録の入力で COPILOT_CLI が空でなければ、通知せずに exit 0", () => {
+    expect(runAs(pascal, "1")).toEqual({ status: 0, stdout: "" });
+  });
+
+  test("COPILOT_CLI が空（Claude Code が呼んだ）なら、additionalContext で通知する", () => {
+    const { status, stdout } = runAs(pascal, "");
+    expect(status).toBe(0);
+    expect(stdout).toContain("additionalContext");
+  });
+
+  test("timestamp が無い（Copilot のシェルから起動した Claude Code）なら、通知する", () => {
+    const { timestamp: _omit, ...withoutTimestamp } = pascal;
+    expect(runAs(withoutTimestamp, "1").stdout).toContain("additionalContext");
+  });
+
+  test(".github/hooks の登録（camelCase。hook_event_name が無い）なら、ask で通知する", () => {
+    expect(runAs(camel, "1").stdout).toContain('"permissionDecision":"ask"');
+  });
+
+  test.skipIf(!hasPython3)("jq が無く python3 だけでも、PascalCase の登録なら通知しない", () => {
+    expect(runAs(pascal, "1", pythonOnlyPath)).toEqual({ status: 0, stdout: "" });
+  });
+
+  test.skipIf(!hasPython3)("jq が無く python3 だけでも、camelCase の登録なら通知する", () => {
+    expect(runAs(camel, "1", pythonOnlyPath).stdout).toContain('"permissionDecision":"ask"');
+  });
 });
 
 // 事前の絞り込みは、Hook の入力のうちツールの名前と入力（`tool_name`・`tool_input`・Copilot の `toolArgs`）だけを見る（Issue #678）。

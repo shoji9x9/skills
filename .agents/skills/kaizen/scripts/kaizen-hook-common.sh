@@ -87,13 +87,17 @@ kaizen_hook_fields() { # $1: Hook の JSON
 # kaizen は Copilot 用の処理を `.github/hooks/` の登録（`-copilot` 付き）に置くので、
 # 引数なしの登録が Copilot から呼ばれたら、呼び出し側は何もせずに exit 0 で終える。
 #
-# 判定は 2 つの条件がどちらも Copilot を示すときだけ 0 にする。
+# 判定は 3 つの条件がすべて成り立つときだけ 0 にする。
 #   - 入力の最上位に `timestamp` がある。Copilot はイベント名の書き方（camelCase・PascalCase）に関わらず入れる
 #     （上の出典）。Claude Code の入力の共通の項目には無い（https://code.claude.com/docs/en/hooks）。
+#   - 入力の最上位に `hook_event_name` がある。Copilot は、設定に PascalCase のイベント名（`.claude/settings.json` の形）で
+#     書いた登録にだけ入れ、camelCase のイベント名（`.github/hooks/` の形）で書いた登録には入れない。
+#     出典は https://docs.github.com/en/copilot/reference/hooks-reference で、Copilot CLI 1.0.105 で両方の入力を記録して確かめた。
+#     この条件で、同じスクリプトを `.github/hooks/` にも登録したとき、そちらの呼び出しまで飛ばすことを防ぐ。
 #   - 環境変数 COPILOT_CLI が空でない。Copilot CLI 1.0.105 が Hook のプロセスに COPILOT_CLI=1 を渡すことを実測した。
 #     Copilot の出典には、Hook に渡す環境変数の記載が無い。
 #     CLAUDE_PROJECT_DIR は使えない。同じ実測で、Copilot も Hook に CLAUDE_PROJECT_DIR（COPILOT_PROJECT_DIR と同じ値）を渡していた。
-# 片方だけで判定しないのは、見誤ったときの害が向きで違うからである。Claude Code を Copilot と見誤ると、
+# 入力の条件と環境変数の条件の片方だけで判定しないのは、見誤ったときの害が向きで違うからである。Claude Code を Copilot と見誤ると、
 # コミット前のチェックが何もせずに通し、誤りが外から見えない。Copilot のシェルから Claude Code を起動すると
 # COPILOT_CLI を引き継ぎうるが、Claude Code の入力には `timestamp` が無いので、この関数は 1 を返す。
 # 逆に Copilot を見誤った場合は、引数なしの処理がそのまま実行されるだけで、警告が拒否として扱われるなどの形で表に出る。
@@ -101,13 +105,13 @@ kaizen_hook_fields() { # $1: Hook の JSON
 # 最上位のキーかどうかは、JSON として読んで確かめる。jq があれば jq で、無ければ python3 で読む。
 # どちらも無いときと、JSON として読めないときは、判定できないので 1 を返す（引数なしの処理をそのまま続ける）。
 # 生の文字列を探す形にしないのは、入れ子のキーや不正な入力を Copilot と判定し、チェックを省くからである。
-kaizen_payload_is_copilot() { # $1: Hook の JSON
+kaizen_payload_is_copilot_claude_settings() { # $1: Hook の JSON
 	local json="${1:-}"
 	[ -n "${COPILOT_CLI:-}" ] || return 1
 	[ -n "${json}" ] || return 1
 	if command -v jq >/dev/null 2>&1; then
 		# jq は読めない入力で 2 や 5 を返すので、0 か 1 にそろえる。
-		printf '%s' "${json}" | jq -e 'type == "object" and has("timestamp")' >/dev/null 2>&1 || return 1
+		printf '%s' "${json}" | jq -e 'type == "object" and has("timestamp") and has("hook_event_name")' >/dev/null 2>&1 || return 1
 		return 0
 	fi
 	if command -v python3 >/dev/null 2>&1; then
@@ -117,7 +121,7 @@ try:
     d = json.load(sys.stdin)
 except Exception:
     sys.exit(1)
-sys.exit(0 if isinstance(d, dict) and "timestamp" in d else 1)
+sys.exit(0 if isinstance(d, dict) and "timestamp" in d and "hook_event_name" in d else 1)
 ' >/dev/null 2>&1 || return 1
 		return 0
 	fi

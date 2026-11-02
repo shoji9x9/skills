@@ -2403,7 +2403,8 @@ describe.concurrent("kaizen の設定を読めないときはコミットを止�
 
 // Copilot CLI は `.claude/settings.json` の Hook も実行する（Issue #853）。引数なしの登録がそのまま判定すると、
 // 他のセッションの警告を exit 1 で返し、Copilot はそれを「hook errored」として commit を拒否する。
-// 入力の最上位の `timestamp` と、環境変数 COPILOT_CLI が空でないことの両方が Copilot を示すときだけ、何もせずに通す。
+// 入力の最上位に `timestamp` と `hook_event_name`（PascalCase の登録の形）があり、環境変数 COPILOT_CLI が空でないときだけ、
+// 何もせずに通す（Issue #858 で hook_event_name を足した）。
 // Copilot は CLAUDE_PROJECT_DIR も渡すので、どのケースにも付ける。
 // Copilot 用の判定は `.github/hooks` の登録（`-copilot` 付き）が行う。
 // 入力の形は https://docs.github.com/en/copilot/reference/hooks-configuration の PascalCase の PreToolUse に合わせる。

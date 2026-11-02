@@ -27,7 +27,7 @@ import {
 } from "./lib/config.mjs";
 import { configPaths } from "./skill-config/skill-config.mjs";
 import { decisionFor, saveDecision } from "./lib/decisions.mjs";
-import { gateDecision, readHookInput } from "./lib/gate.mjs";
+import { gateDecision, isCopilotClaudeSettingsInput, readHookInput } from "./lib/gate.mjs";
 import { branchMerged } from "./lib/merged.mjs";
 import { parseFlags } from "./lib/flags.mjs";
 import { git, isDecisionBranch, repoInfo } from "./lib/repo.mjs";
@@ -305,7 +305,9 @@ function reportCommand(rest, context) {
 function gateCommand(rest, context) {
   const a = parseArgs(rest, [], ["--agent"]);
   const agent = a.options.get("--agent") ?? "claude-code";
-  const input = readHookInput(readFileSync(0, "utf8"));
+  const text = readFileSync(0, "utf8");
+  if (isCopilotClaudeSettingsInput(text, process.env)) return 0;
+  const input = readHookInput(text);
   const verdict = gateDecision(input, {
     fallbackCwd: context.cwd,
     now: context.now,
