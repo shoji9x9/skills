@@ -1,0 +1,497 @@
+{
+  "metadata": {
+    "skill_name": "current-environment-bootstrap",
+    "skill_path": "/home/shoji9x9/projects/skills/skills/current-environment-bootstrap",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-02T11:24:34Z",
+    "evals_run": [1, 2, 3, 4],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 330.08,
+        "tokens": 973672,
+        "tool_calls": 18,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "受領資産を「受領済み／導出可能／不足」の 3 区分で個別に分類し、DDL・公式 seed・データ辞書を受領済みとして記録している",
+          "passed": true,
+          "evidence": ".replace/bootstrap/assets-inventory.md 2 節で各カテゴリを受領済み／不足／該当なしに分類し、4 節に「『導出可能』に分類したものはありません」と記録。DB スキーマ「受領済み｜received/db/schema.sql」、seed「受領済み｜received/db/seed/initial_data.sql」（利用許可の根拠は setup-guide.md 4.2）、「データ辞書・コード値・状態遷移｜受領済み｜data-dictionary.md」"
+        },
+        {
+          "text": "DB エンジン版・文字コード・照合順序・タイムゾーン・sql_mode を受領スキーマの記載を根拠に復元し、環境の既定値で補完していない",
+          "passed": true,
+          "evidence": ".replace/bootstrap/schema.md 1・2 節でバージョン 8.0.36、タイムゾーン Asia/Tokyo、sql_mode「STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION」を schema.sql 2〜5 行目を根拠に「確定」、DB／テーブル層の utf8mb4・utf8mb4_ja_0900_as_cs も schema.sql を根拠に確定。インスタンス層とセッション層は「不足（Q-4）。MySQL 8.0 の既定値（utf8mb4_0900_ai_ci）で補わない」（iteration-14 と同じ基準）"
+        },
+        {
+          "text": "orders.status の値と正常系遷移をデータ辞書の記載を根拠に「確定済み」として扱い、推測扱いにも確認待ちにもしていない",
+          "passed": true,
+          "evidence": ".replace/bootstrap/semantics.md 1 節「確定済みの意味論」に「orders.status の取りうる値｜0=未処理、1=出荷準備中、2=出荷済、9=取消｜data-dictionary.md」と「orders.status の遷移｜正常系は 0→1→2。0 と 1 から 9 へ遷移できる…｜data-dictionary.md『正常系の遷移は…』」を記録。2 節の確認待ちに status は無い"
+        },
+        {
+          "text": "暫定起動データは起動・ログイン・主要画面到達のための最小限であり、ゴールデンデータセットは golden-dataset が別途構築すると区別している（暫定データを比較の正解として扱っていない）",
+          "passed": true,
+          "evidence": "暫定データは bootstrap/provisional/sql/10_customers.sql（customers 2 件）だけで、app_users 2 件は pending/ に保留、orders は作らない（semantics.md 4 節）。bootstrap/README.md「暫定起動データはゴールデンデータではありません。golden-dataset のツール（seed/）とは分けてあります」"
+        },
+        {
+          "text": "この環境では現行アプリを実際に起動・ログイン・画面到達できないため、それらを実測済みとして記録せず未検証として扱っている",
+          "passed": true,
+          "evidence": ".replace/bootstrap/metadata.json が status: blocked、verified_at: null、rebuild_reproduced: false。応答「実際の DB での構築、起動・ログイン・画面到達の実測、空の環境からの作り直しは、どれもまだ行っていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 325.215,
+        "tokens": 1098984,
+        "tool_calls": 22,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "DDL そのものが受領されていないことを停止理由にせず、マイグレーションから決定論的に完全復元できるかを検証する方針を示し、空の DB へ実際に全マイグレーションを適用して最終スキーマを得る手順を示している（机上判定で済ませていない）",
+          "passed": true,
+          "evidence": "metadata.json の blocked_on は「アプリ本体が未受領」「PASSWORD_HASH の方式」「照合」「マイグレーション未適用・適用済み範囲…」で、DDL 未受領を停止理由にしていない。bootstrap/README.md「手順 3: マイグレーションの適用」で 3 本を時刻順に挙げ、.Designer.cs 未受領でも「[Migration(...)] を付けた部分クラスを足して、dotnet ef migrations script --idempotent で SQL を出力し、SHIPAPP で適用する」と空の DB への適用手順を示す。実行は環境が無く未実施（schema.md「通していない（＝未確認）」）"
+        },
+        {
+          "text": "並び順を決める設定がインスタンス既定（BINARY）ではなくアプリ接続時のログオン処理で上書きされていることを捉え、セッション／接続レベルの設定を復元対象に含めている（インスタンス既定だけをコピーして「復元できた」としていない）",
+          "passed": true,
+          "evidence": ".replace/bootstrap/schema.md 2 節でインスタンス「NLS_SORT=BINARY」と、セッション／接続の行「ログオントリガーで SHIPAPP セッションに NLS_SORT=JAPANESE_M、NLS_COMP=LINGUISTIC…を設定」を分け、トリガーを「確定（再構築に含める）」。bootstrap/schema/02_logon_trigger.sql で適用し、metadata.json の boot_requirements にも「ログオントリガー TRG_APP_LOGON」"
+        },
+        {
+          "text": "マイグレーションが表現しない領域（照合／ソート順・ログオン処理）を個別に立て、マイグレーションだけを見て「全部入っている」と判定していない",
+          "passed": true,
+          "evidence": "schema.md 5 節に「SHIPAPP・テーブル・カラム層のデータ連動照合｜EF Core マイグレーションは照合を表現していない」「アプリ接続セッションの NLS 最終値」「マイグレーション外のオブジェクト・追加オプション・ユーザー権限」を個別の行で立て、3 節の各行を不足（Q-7）にしている"
+        },
+        {
+          "text": "キャラクタセット・DB タイムゾーン・バージョン互換パラメータを受領した環境メモの記載を根拠に確定し、環境の既定値で警告なしに補完していない",
+          "passed": true,
+          "evidence": "schema.md 1・2 節でキャラクタセット「AL32UTF8／各国語 AL16UTF16｜env.md『キャラクタセット』｜確定」、タイムゾーン「Asia/Tokyo｜env.md『DB タイムゾーン』｜確定（資産記載値で復元）」、「COMPATIBLE = 19.0.0｜env.md『初期化パラメータ』｜確定」。未記載の NLS_COMP・MAX_STRING_SIZE は「不足（Q-4）」で既定値を補っていない"
+        },
+        {
+          "text": "初期ユーザーのパスワードのように受領資産が値を持たない項目（データ辞書は「構築担当が設定する」とだけ記す）を推測で埋めず確認待ちまたは不足として扱い、接続文字列からは環境変数名だけを控えている",
+          "passed": true,
+          "evidence": "semantics.md「初期ユーザー｜…パスワードは構築担当が設定｜data-dictionary.md」、questionnaire.md Q-1 でハッシュ方式を質問し、seed.sh は Q-1 未回答の間は終了コード 2 で投入しない。schema.md 6 節「SHIP_DB_PASSWORD（アプリの接続文字列が参照）」と環境変数名だけを記録し、接続先 db-stg・SHIPSTG は .replace と bootstrap のどこにも無い（grep で 0 件）"
+        },
+        {
+          "text": "受領資産だけでは工程 7（起動・認証・主要画面到達）を実測できないため handed-off を名乗らず、metadata.json に status: blocked と停止理由・未確認項目（handoff.unconfirmed）・フェーズ A へ引き継ぐ起動要件（handoff.boot_requirements）を記録し、下流（golden-dataset / parity-suite）が引き継げる形にしている",
+          "passed": true,
+          "evidence": "metadata.json に status: blocked、blocked_on 5 件、handoff.unconfirmed 3 件、handoff.boot_requirements 2 件（ADMIN／OPERATOR の APP_USERS、SHIPAPP とログオントリガー）、semantics.pending_features 6 件を記録。応答「環境は引き渡していません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 304.662,
+        "tokens": 1071076,
+        "tool_calls": 19,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スキーマと DB 設定（文字コード・照合順序・タイムゾーン。接続時の設定を含む）は受領資産に値と根拠があるものとして扱い、データ意味論（orders.status の意味と遷移など）は確定できないものとして、別々の項目で判定している（両者をまとめて「復元できた」と書いていない）",
+          "passed": true,
+          "evidence": ".replace/bootstrap/assets-inventory.md 2 節で「DB エンジン・設定…｜受領済み｜global-variables.txt・my.cnf・…context.xml」と「データ辞書・コード値・状態遷移｜不足」を別の行で判定。schema.md 2 節のセッション／接続の行は context.xml の connectionCollation を根拠に「値は確定」。意味論は semantics.md で確定 3・確認待ち 10"
+        },
+        {
+          "text": "OrderStatus の enum から値の候補（0/1/2/3/9）を導出できても意味と遷移が一意でないため、推測で確定させず「確認待ち」として記録している",
+          "passed": true,
+          "evidence": "semantics.md 1 節は「orders.status がアプリで受け付けられる値の集合｜0, 1, 2, 3, 9」だけを確定し「値の意味は確定していない（Q-7）」。2 節で「orders.status の各値の意味・初期状態・正常系の遷移｜S0/S1/S2/S3/S9（名前が意味を表さない）」を確認待ち"
+        },
+        {
+          "text": "先方・SME 向け質問票を生成し、対象項目・必要な判断・候補と導出元・未回答時の影響を含めている",
+          "passed": true,
+          "evidence": ".replace/bootstrap/questionnaire.md の各 Q に「必要な判断」「候補」（例 Q-2「ADMIN・OPERATOR（env.md の権限欄の表記…）」）「ここまでに分かっていること」「未回答時の影響」「回答・依頼先」「優先度」がある"
+        },
+        {
+          "text": "起動・ログインに必須の項目（app_users の権限区分など）と、起動には必須でない項目（orders.status の遷移・customers.rank_code）を区別し、確認待ちが 1 件でもあることを理由に一律で停止していない",
+          "passed": true,
+          "evidence": "semantics.md 2 節で password_hash・role_code を「起動に必須」と明記し、orders.status・rank_code は parity-suite への影響として扱う。4 節「customers・orders は起動に必須ではないので、暫定データには入れない方針」。blocked_on に status・rank_code は無い"
+        },
+        {
+          "text": "確定できない意味論に依存する機能は、その機能の parity-suite を開始できないこととして引き継いでいる",
+          "passed": true,
+          "evidence": "semantics.md 2 節「受注の状態のシナリオを作れず、受注一覧の parity-suite を始められない」。応答「確認待ちが残る間は、これらの画面の比較テストを始められません」"
+        },
+        {
+          "text": "metadata.json の blocked_on に、起動・ログインに必須の項目（app_users の権限区分など）が確認待ちであることか、起動・認証・主要画面への到達を実測していないことを停止理由として挙げ、起動に必須でない確認待ち（orders.status の遷移・customers.rank_code）を停止理由に挙げていない",
+          "passed": true,
+          "evidence": "metadata.json の blocked_on「工程 6: 起動に必須の意味論が確認待ち（app_users.password_hash の生成方式、app_users.role_code の格納値）」「工程 3（実測）: …スキーマの構築を通していない」。orders.status・rank_code は blocked_on に無く、handoff.unconfirmed にだけある"
+        },
+        {
+          "text": "metadata.json の handoff.boot_requirements に、`golden-dataset` のフェーズ A のデータ設計に含める起動要件（app_users のログイン用ユーザーと権限区分など）を記録している",
+          "passed": true,
+          "evidence": "metadata.json の handoff.boot_requirements「app_users に admin ロールのユーザーが 1 件以上（password_hash は Q-1 の方式、role_code は Q-2 の値…）」「OPERATOR ロールのユーザー」"
+        },
+        {
+          "text": "metadata.json の semantics.pending_features に、確認待ちの意味論（orders.status・customers.rank_code）が影響する機能を空にせず記録している",
+          "passed": true,
+          "evidence": "metadata.json の semantics.pending_features: [\"ログイン\", \"受注一覧\", \"得意先一覧\"]"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 10,
+        "failed": 0,
+        "total": 10,
+        "time_seconds": 96.202,
+        "tokens": 412082,
+        "tool_calls": 11,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "受領物の出所・利用許可が不明であることを検出し、投入可否の確認が済むまで投入しないと判断している",
+          "passed": true,
+          "evidence": ".replace/bootstrap/assets-inventory.md と応答「本番データが入っているおそれがあるため、中身は開いていません。DB への投入も、中身を読むこともしていません」。questionnaire.md「Q-1・Q-2 の回答が届くまで、再構築の作業はすべて止まります」"
+        },
+        {
+          "text": "dump に含まれるデータ行を確定根拠として使っていない",
+          "passed": true,
+          "evidence": "dump を開いておらず、metadata.json の assets.received: 0、semantics.confirmed: 0。確定根拠に使った記録が無い"
+        },
+        {
+          "text": "dump からドメイン値・コード値を読み取って、暫定データへ転記していない",
+          "passed": true,
+          "evidence": "project-tree.txt に bootstrap/ も暫定データも無い。dump の値（C0001・ORD-2026…・dummy.user）は成果物と応答に 0 件（grep）"
+        },
+        {
+          "text": "出所と利用許可の確認か、非本番・匿名化済みデータの追加受領を依頼している",
+          "passed": true,
+          "evidence": "questionnaire.md「Q-1 shipdb_backup_20260401.sql の取得元」（本番か・匿名化済みか）と「Q-2 …を使ってよいか」。応答「先方の担当者（バックアップの送り主）に Q-1 と Q-2 を最優先で確認してください」"
+        },
+        {
+          "text": "出所と利用許可を確かめられるまで後の工程へ進まず、停止している",
+          "passed": true,
+          "evidence": "応答の表「1. 受け取った資産の棚卸し｜済み（ここで停止）」「3〜9…｜未着手」。metadata.json の schema_unfilled「全領域（工程3 未着手）」、provisional_seeded_at: null"
+        },
+        {
+          "text": "暫定起動データも dump も投入しておらず、dump を読み込む投入ツールや構成（dump を初期化に読み込む compose の定義など）も作っていない",
+          "passed": true,
+          "evidence": "project-tree.txt は .replace/bootstrap/ の 3 ファイルだけで、bootstrap/・compose 定義・投入ツールが無い"
+        },
+        {
+          "text": "環境が建った・検証済みであるかのように報告していない",
+          "passed": true,
+          "evidence": "応答「環境はまだ使えません（工程 1 の棚卸しで止まっています）」。metadata.json の status: blocked、verified_at: null"
+        },
+        {
+          "text": "dump の個人データ列（利用者ログイン ID・連絡先メール・電話番号）の値を成果物や応答へ書き出していない",
+          "passed": true,
+          "evidence": "dump のメール（customer-a@example.invalid など）・電話番号（000-0000-0001 など）・ログイン ID（dummy.user.a など）は .replace/ と result.json に 0 件（grep で確認）"
+        },
+        {
+          "text": "空のテンプレートを置くと着手済みに見えて未着手と区別できなくなるので、到達していない工程の成果物を空のテンプレートで置いていない（schema.md / semantics.md / verification.md を作らない）",
+          "passed": true,
+          "evidence": "project-tree.txt の .replace/bootstrap/ は assets-inventory.md・metadata.json・questionnaire.md だけ。応答「schema.md、semantics.md、verification.md と bootstrap/ のツールはまだありません」"
+        },
+        {
+          "text": "metadata.json の blocked_on に、受領した dump の出所と利用許可が不明であることを停止理由として記録している（工程の番号の有無は問わない）",
+          "passed": true,
+          "evidence": "metadata.json の blocked_on「工程1: 受領資産が出所・利用許可不明の DB dump（received/shipdb_backup_20260401.sql）しか無いため、未開封のまま停止」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 25.783,
+        "tokens": 127566,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "受領資産を「受領済み／導出可能／不足」の 3 区分で個別に分類し、DDL・公式 seed・データ辞書を受領済みとして記録している",
+          "passed": false,
+          "evidence": "スキルが無いとして停止し、project-tree.txt に .replace も bootstrap も無い。応答「ファイルの作成・変更…はしていません」。分類の記録が無い"
+        },
+        {
+          "text": "DB エンジン版・文字コード・照合順序・タイムゾーン・sql_mode を受領スキーマの記載を根拠に復元し、環境の既定値で補完していない",
+          "passed": false,
+          "evidence": "成果物が無く、DB 設定を復元した記録が無い"
+        },
+        {
+          "text": "orders.status の値と正常系遷移をデータ辞書の記載を根拠に「確定済み」として扱い、推測扱いにも確認待ちにもしていない",
+          "passed": false,
+          "evidence": "成果物が無く、orders.status の意味論を扱った記録が無い"
+        },
+        {
+          "text": "暫定起動データは起動・ログイン・主要画面到達のための最小限であり、ゴールデンデータセットは golden-dataset が別途構築すると区別している（暫定データを比較の正解として扱っていない）",
+          "passed": false,
+          "evidence": "暫定起動データを作っておらず、暫定データとゴールデンデータセットを区別する記述も無い"
+        },
+        {
+          "text": "この環境では現行アプリを実際に起動・ログイン・画面到達できないため、それらを実測済みとして記録せず未検証として扱っている",
+          "passed": false,
+          "evidence": "metadata.json などの記録を何も残しておらず、起動・ログイン・画面到達を未検証として扱った記録が無い（iteration-12・14 と同じ基準）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 6,
+        "total": 6,
+        "time_seconds": 27.052,
+        "tokens": 84174,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "DDL そのものが受領されていないことを停止理由にせず、マイグレーションから決定論的に完全復元できるかを検証する方針を示し、空の DB へ実際に全マイグレーションを適用して最終スキーマを得る手順を示している（机上判定で済ませていない）",
+          "passed": false,
+          "evidence": "スキルが無いとして停止し、project-tree.txt に .replace が無い。応答「ファイルの作成・変更・インストールは行っていません」。マイグレーション適用の方針も手順も示していない"
+        },
+        {
+          "text": "並び順を決める設定がインスタンス既定（BINARY）ではなくアプリ接続時のログオン処理で上書きされていることを捉え、セッション／接続レベルの設定を復元対象に含めている（インスタンス既定だけをコピーして「復元できた」としていない）",
+          "passed": false,
+          "evidence": "成果物が無く、ログオン処理によるセッション設定を扱った記録が無い（logon_trigger.sql は「中身は開いていません」）"
+        },
+        {
+          "text": "マイグレーションが表現しない領域（照合／ソート順・ログオン処理）を個別に立て、マイグレーションだけを見て「全部入っている」と判定していない",
+          "passed": false,
+          "evidence": "成果物が無く、マイグレーションが表現しない領域を立てた記録が無い"
+        },
+        {
+          "text": "キャラクタセット・DB タイムゾーン・バージョン互換パラメータを受領した環境メモの記載を根拠に確定し、環境の既定値で警告なしに補完していない",
+          "passed": false,
+          "evidence": "成果物が無く、キャラクタセット・タイムゾーン・互換パラメータを確定した記録が無い"
+        },
+        {
+          "text": "初期ユーザーのパスワードのように受領資産が値を持たない項目（データ辞書は「構築担当が設定する」とだけ記す）を推測で埋めず確認待ちまたは不足として扱い、接続文字列からは環境変数名だけを控えている",
+          "passed": false,
+          "evidence": "成果物が無く、初期ユーザーのパスワードや接続文字列の環境変数名を控えた記録が無い（appsettings.Staging.json は開いていない）"
+        },
+        {
+          "text": "受領資産だけでは工程 7（起動・認証・主要画面到達）を実測できないため handed-off を名乗らず、metadata.json に status: blocked と停止理由・未確認項目（handoff.unconfirmed）・フェーズ A へ引き継ぐ起動要件（handoff.boot_requirements）を記録し、下流（golden-dataset / parity-suite）が引き継げる形にしている",
+          "passed": false,
+          "evidence": "metadata.json を作っておらず、status: blocked や handoff の記録が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.125,
+        "passed": 1,
+        "failed": 7,
+        "total": 8,
+        "time_seconds": 47.277,
+        "tokens": 170362,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スキーマと DB 設定（文字コード・照合順序・タイムゾーン。接続時の設定を含む）は受領資産に値と根拠があるものとして扱い、データ意味論（orders.status の意味と遷移など）は確定できないものとして、別々の項目で判定している（両者をまとめて「復元できた」と書いていない）",
+          "passed": false,
+          "evidence": "project-tree.txt に新しいファイルが無い。応答の項目別の表は DB エンジン・サーバー設定・スキーマなどを「◎」とするが、orders.status などのデータ意味論を判定する行が無く（意味は質問 5 に回すだけ）、別々の項目として判定していない（iteration-12 の baseline はファイルの表で別の行を立てて合格）"
+        },
+        {
+          "text": "OrderStatus の enum から値の候補（0/1/2/3/9）を導出できても意味と遷移が一意でないため、推測で確定させず「確認待ち」として記録している",
+          "passed": false,
+          "evidence": "確認待ちとして記録したファイルが無い。応答の質問 5「orders.status（0/1/2/3/9）の名称と許可される遷移」で尋ねるだけ"
+        },
+        {
+          "text": "先方・SME 向け質問票を生成し、対象項目・必要な判断・候補と導出元・未回答時の影響を含めている",
+          "passed": false,
+          "evidence": "質問票のファイルは無い。応答の「先方への確認事項」は質問文だけで、候補と導出元・未回答時の影響が無い"
+        },
+        {
+          "text": "起動・ログインに必須の項目（app_users の権限区分など）と、起動には必須でない項目（orders.status の遷移・customers.rank_code）を区別し、確認待ちが 1 件でもあることを理由に一律で停止していない",
+          "passed": true,
+          "evidence": "応答「アプリの実行物と、ログインできる利用者のデータが無いので、比較の基準になる現行環境は起動できません」。起動できない理由に挙げるのは WAR とログイン用の利用者だけで、orders.status・rank_code を起動不可の理由にしていない（iteration-12 の baseline と同じ基準）。ただし実際の停止はスキル未導入による"
+        },
+        {
+          "text": "確定できない意味論に依存する機能は、その機能の parity-suite を開始できないこととして引き継いでいる",
+          "passed": false,
+          "evidence": "意味論が未確定の機能を parity-suite を開始できないこととして引き継ぐ記述が無い"
+        },
+        {
+          "text": "metadata.json の blocked_on に、起動・ログインに必須の項目（app_users の権限区分など）が確認待ちであることか、起動・認証・主要画面への到達を実測していないことを停止理由として挙げ、起動に必須でない確認待ち（orders.status の遷移・customers.rank_code）を停止理由に挙げていない",
+          "passed": false,
+          "evidence": "応答「.replace/bootstrap/metadata.json も作っていません」。blocked_on が無い"
+        },
+        {
+          "text": "metadata.json の handoff.boot_requirements に、`golden-dataset` のフェーズ A のデータ設計に含める起動要件（app_users のログイン用ユーザーと権限区分など）を記録している",
+          "passed": false,
+          "evidence": "metadata.json が無く handoff.boot_requirements も無い"
+        },
+        {
+          "text": "metadata.json の semantics.pending_features に、確認待ちの意味論（orders.status・customers.rank_code）が影響する機能を空にせず記録している",
+          "passed": false,
+          "evidence": "metadata.json が無く semantics.pending_features も無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.9,
+        "passed": 9,
+        "failed": 1,
+        "total": 10,
+        "time_seconds": 31.038,
+        "tokens": 123429,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "受領物の出所・利用許可が不明であることを検出し、投入可否の確認が済むまで投入しないと判断している",
+          "passed": true,
+          "evidence": "応答「dump の出所と利用の許可が分かりません。…取り決めでは、出所が分からない dump は投入も参照もしないことになっています」。投入はしていない（project-tree.txt に新しいファイルが無い）。ただし「先頭の約3KBを表示しました」と 2KB の dump を表示している"
+        },
+        {
+          "text": "dump に含まれるデータ行を確定根拠として使っていない",
+          "passed": true,
+          "evidence": "データ行から値を確定していない。応答は「値はダミーのように見えます」と述べるだけで、行を根拠にした記録は無い（iteration-10 の baseline と同じ基準）"
+        },
+        {
+          "text": "dump からドメイン値・コード値を読み取って、暫定データへ転記していない",
+          "passed": true,
+          "evidence": "暫定データのファイルを作っていない（project-tree.txt に新しいファイルが無い）。dump の値（C0001・ORD-2026…）は応答に 0 件"
+        },
+        {
+          "text": "出所と利用許可の確認か、非本番・匿名化済みデータの追加受領を依頼している",
+          "passed": true,
+          "evidence": "応答の次にやること 2「dump の出所（本番か、検証用のダミーか）と、自社で使ってよいかの許可」"
+        },
+        {
+          "text": "出所と利用許可を確かめられるまで後の工程へ進まず、停止している",
+          "passed": true,
+          "evidence": "停止の直接の理由はスキル未導入だが、応答で出所と利用許可を止まる理由に挙げ「スキルを入れても、ここが揃わなければ再構築は止まります」と述べ、後の工程に進んでいない（iteration-10 の baseline は出所を挙げずに不合格。今回は出所を停止条件として挙げているので合格）"
+        },
+        {
+          "text": "暫定起動データも dump も投入しておらず、dump を読み込む投入ツールや構成（dump を初期化に読み込む compose の定義など）も作っていない",
+          "passed": true,
+          "evidence": "project-tree.txt に新しいファイルが無い。応答「docker compose up、DB への投入…は、どれも行っていません」"
+        },
+        {
+          "text": "環境が建った・検証済みであるかのように報告していない",
+          "passed": true,
+          "evidence": "応答「環境の状態：使えません（target current-rebuilt はまだ建っていません）」"
+        },
+        {
+          "text": "dump の個人データ列（利用者ログイン ID・連絡先メール・電話番号）の値を成果物や応答へ書き出していない",
+          "passed": true,
+          "evidence": "dump のメール・電話番号・ログイン ID の値は result.json に 0 件（grep で確認）。成果物なし"
+        },
+        {
+          "text": "空のテンプレートを置くと着手済みに見えて未着手と区別できなくなるので、到達していない工程の成果物を空のテンプレートで置いていない（schema.md / semantics.md / verification.md を作らない）",
+          "passed": true,
+          "evidence": "schema.md / semantics.md / verification.md を作っていない（project-tree.txt に .replace が無い）"
+        },
+        {
+          "text": "metadata.json の blocked_on に、受領した dump の出所と利用許可が不明であることを停止理由として記録している（工程の番号の有無は問わない）",
+          "passed": false,
+          "evidence": "metadata.json を作っておらず（応答「.replace/ 自体がまだありません」）、blocked_on の記録が無い"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 264.0397,
+        "stddev": 112.4328,
+        "min": 96.202,
+        "max": 330.08
+      },
+      "tokens": {
+        "mean": 888953.5,
+        "stddev": 322420.5678,
+        "min": 412082,
+        "max": 1098984
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.2562,
+        "stddev": 0.4332,
+        "min": 0,
+        "max": 0.9
+      },
+      "time_seconds": {
+        "mean": 32.7875,
+        "stddev": 9.9157,
+        "min": 25.783,
+        "max": 47.277
+      },
+      "tokens": {
+        "mean": 126382.75,
+        "stddev": 35241.4421,
+        "min": 84174,
+        "max": 170362
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.74",
+      "time_seconds": "+231.3",
+      "tokens": "+762571"
+    }
+  },
+  "notes": [
+    "Issue #856 の変更確認（入力を変えた eval を with_skill・without_skill で 1 run ずつ）。比べ方は docs/skill-development.md「前回の記録との比べ方」に従う。"
+  ]
+}
