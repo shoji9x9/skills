@@ -486,6 +486,16 @@ test.each(["/", "／"])(
   },
 );
 
+test.each(["/", "／"])("消費側 slug の列は %s で並べても複数の slug として読む", (separator) => {
+  // 区切らずに 1 つとして読むと、「order / monthly-summary」という slug が features.md に無いことになる。
+  const design = designOf().replace(
+    "| order, monthly-summary | 文字列のまま SQL のパラメータへ渡す（変換なし）",
+    `| order ${separator} monthly-summary | 文字列のまま SQL のパラメータへ渡す（変換なし）`,
+  );
+  assert(design !== designOf(), "識別子の値の範囲の消費側 slug を差し替えられていない");
+  expect(codesOf({ design })).toEqual([]);
+});
+
 test("誤検知しないことの確認: 並んだ絞り込みそれぞれに述語行があれば通る", () => {
   const codes = codesOf({
     design: designOf({
@@ -1032,6 +1042,11 @@ test.each([
   [
     "列に複数の列が並んでいる",
     "| orders | id, parent_id | 12 桁 | 8 桁 | order, monthly-summary | 変換なし | 届く | - | 読了 |",
+    "id-range-column-multiple",
+  ],
+  [
+    "列に / で複数の列が並んでいる（識別子の列は / でも区切る）",
+    "| orders | id / parent_id | 12 桁 | 8 桁 | order, monthly-summary | 変換なし | 届く | - | 読了 |",
     "id-range-column-multiple",
   ],
   [

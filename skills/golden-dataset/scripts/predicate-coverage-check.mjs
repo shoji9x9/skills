@@ -297,7 +297,7 @@ export function splitList(cell, { slash = true } = {}) {
   const value = normalizeCell(cell);
   if (value === "") return { kind: "blank", items: [] };
   if (value === NONE_SENTINEL) return { kind: "none", items: [] };
-  const items = splitTopLevel(value, slash)
+  const items = splitTopLevel(value, { slash })
     .map((v) => normalizeCell(v))
     .filter((v) => v !== "" && v !== NONE_SENTINEL);
   if (items.length === 0) return { kind: "blank", items: [] };
@@ -341,10 +341,10 @@ function advanceToSeparator(scan, char, slash) {
  * すると、正しく列挙した設計が「述語行が無い」として失敗する（exit 0 に到達できない誤検知）。
  *
  * @param {string} value
- * @param {boolean} [slash] - `/` と `／` を区切りにするか（デフォルトは true）
+ * @param {{ slash?: boolean }} [options] - `slash` は `/` と `／` を区切りにするか（デフォルトは true。splitList と同じ）
  * @returns {string[]}
  */
-export function splitTopLevel(value, slash = true) {
+export function splitTopLevel(value, { slash = true } = {}) {
   /** @type {string[]} */
   const parts = [];
   let current = "";

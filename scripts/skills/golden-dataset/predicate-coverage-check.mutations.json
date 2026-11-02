@@ -114,14 +114,32 @@
     },
     {
       "id": "filter-slash-not-split",
-      "why": "絞り込みの列などでも / と ／ を区切りにせず、並べた絞り込みを 1 つとして読む（Issue #856）",
+      "why": "絞り込みの列・slug の一覧・識別子の列でも / と ／ を区切りにせず、並べた値を 1 つとして読む（Issue #856）",
       "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
       "find": "(slash && (char === \"／\" || char === \"/\"))",
       "replace": "false",
       "occurrences": 1,
       "expect_failing": [
         "絞り込みの列は / で並べても複数の絞り込みとして読む（テーブルの列の扱いを広げない）",
-        "絞り込みの列は ／ で並べても複数の絞り込みとして読む（テーブルの列の扱いを広げない）"
+        "絞り込みの列は ／ で並べても複数の絞り込みとして読む（テーブルの列の扱いを広げない）",
+        "消費側 slug の列は / で並べても複数の slug として読む",
+        "消費側 slug の列は ／ で並べても複数の slug として読む",
+        "識別子の値の範囲の不備: 列に / で複数の列が並んでいる（識別子の列は / でも区切る）"
+      ]
+    },
+    {
+      "id": "split-list-default-no-slash",
+      "why": "splitList のデフォルトを / で区切らない側にし、テーブルの列以外でも / を区切りにしない（Issue #856）",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "export function splitList(cell, { slash = true } = {}) {",
+      "replace": "export function splitList(cell, { slash = false } = {}) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "絞り込みの列は / で並べても複数の絞り込みとして読む（テーブルの列の扱いを広げない）",
+        "絞り込みの列は ／ で並べても複数の絞り込みとして読む（テーブルの列の扱いを広げない）",
+        "消費側 slug の列は / で並べても複数の slug として読む",
+        "消費側 slug の列は ／ で並べても複数の slug として読む",
+        "識別子の値の範囲の不備: 列に / で複数の列が並んでいる（識別子の列は / でも区切る）"
       ]
     }
   ]
