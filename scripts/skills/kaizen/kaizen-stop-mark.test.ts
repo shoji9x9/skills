@@ -334,9 +334,11 @@ describe("kaizen_payload_is_copilot", () => {
   }).stdout.trim();
   // 判定の関数は bash の組み込みと jq・python3 しか使わないので、PATH を差し替えてツールだけを外せる。
   // python3 だけの PATH は、python3 へのリンクだけを置いたディレクトリにする。
+  // jq は mise で固定した前提のツールだが、python3 は前提にしないので、無い環境では python3 のケースを飛ばす。
+  const hasPython3 = python3 !== "";
   const noToolPath = makeSharedTempDir("kaizen-no-json-tool-path-");
   const pythonOnlyPath = makeSharedTempDir("kaizen-python-only-path-");
-  symlinkSync(python3, join(pythonOnlyPath, "python3"));
+  if (hasPython3) symlinkSync(python3, join(pythonOnlyPath, "python3"));
   type Tool = "jq" | "python3" | "none";
   const pathFor: Record<Tool, string | undefined> = {
     jq: undefined,
@@ -365,13 +367,19 @@ describe("kaizen_payload_is_copilot", () => {
     }).status;
   }
 
-  test("前提: 各構成で、意図したツールだけを解決できる", () => {
+  test("前提: jq を解決でき、ツールを外した PATH では jq も python3 も解決できない", () => {
     expect(resolves("jq", undefined)).toBe(0);
-    expect(resolves("jq", pythonOnlyPath)).toBe(1);
-    expect(resolves("python3", pythonOnlyPath)).toBe(0);
     expect(resolves("jq", noToolPath)).toBe(1);
     expect(resolves("python3", noToolPath)).toBe(1);
   });
+
+  test.skipIf(!hasPython3)(
+    "前提: python3 だけの PATH では、python3 を解決でき jq を解決できない",
+    () => {
+      expect(resolves("python3", pythonOnlyPath)).toBe(0);
+      expect(resolves("jq", pythonOnlyPath)).toBe(1);
+    },
+  );
 
   const top = JSON.stringify({ session_id: "s", timestamp: "2026-11-02T00:00:00Z", cwd: "/x" });
   const numeric = JSON.stringify({ sessionId: "s", timestamp: 1793588988760, cwd: "/x" });
@@ -380,7 +388,7 @@ describe("kaizen_payload_is_copilot", () => {
   const none = JSON.stringify({ session_id: "s", cwd: "/x", tool_input: { command: "ls" } });
   const broken = '{"timestamp": 1, "cwd": ';
 
-  test.each([
+  const cases = [
     { name: "最上位に timestamp（文字列）・COPILOT_CLI=1", json: top, cli: "1", expected: 0 },
     {
       name: "最上位に timestamp（数値。camelCase のイベント）・COPILOT_CLI=1",
@@ -394,8 +402,13 @@ describe("kaizen_payload_is_copilot", () => {
     { name: "timestamp が入れ子のキーにだけある", json: nested, cli: "1", expected: 1 },
     { name: "JSON として読めない", json: broken, cli: "1", expected: 1 },
     { name: "入力が空", json: "", cli: "1", expected: 1 },
-  ])("$name（jq・python3 で同じ結果）", ({ json, cli, expected }) => {
+  ];
+
+  test.each(cases)("$name（jq）", ({ json, cli, expected }) => {
     expect(isCopilot(json, { tool: "jq", copilotCli: cli })).toBe(expected);
+  });
+
+  test.skipIf(!hasPython3).each(cases)("$name（python3 だけ）", ({ json, cli, expected }) => {
     expect(isCopilot(json, { tool: "python3", copilotCli: cli })).toBe(expected);
   });
 
