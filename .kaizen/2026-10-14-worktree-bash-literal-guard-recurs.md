@@ -357,6 +357,9 @@ manifest を更新する JSON の heredoc と python の起動を並べた呼び
 - `pnpm exec oxlint <ディレクトリの一覧>` が、引数の `scripts/skills/git-worktree` を git の起動として読まれ、`runs pnpm with a git command among its operands` で拒否された。
   引数を外して全体に当てて通した
 
-ほかは既知の形（`for` ループ・heredoc・`;` でつないだ複合コマンド・`gh api graphql` の query）だった。
+ほかは既知の形（`for` ループ・heredoc・`;` でつないだ複合コマンド・`gh api graphql` の query・本文に `git` の語を含む python の quoted heredoc）だった。
+python の heredoc は、同じセッションでこの節を書いた後にも書いて拒否された。
 どれも、単独の呼び出しに分けるか、Write ツールでスクリプトにして絶対パスで実行して通した。
-パスに `git` を含むディレクトリ（`git-worktree`）を引数に渡すだけでも拒否されるので、Hook の条件を設計するときは、コマンド名だけでなく引数の語も対象にする。
+ハーネスは、パスに `git` を含むディレクトリ（`git-worktree`）を引数に渡すだけでも、git の起動として数えて拒否する。
+「## 提案」の Hook は、この拒否より先に直し方を示すためのものなので、ハーネスが拒否する形を拾えるように、条件をコマンド名だけでなく引数の語にも当てる。
+引数の語に当てると、ハーネスが通す呼び出し（`git-worktree` のパスを含む `ls` など）にも案内が出るので、案内は止めずに通知だけにする。
