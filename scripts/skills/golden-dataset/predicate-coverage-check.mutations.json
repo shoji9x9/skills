@@ -99,6 +99,24 @@
       "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": ["design.md の閉じないコードフェンスは、構造の不備として合格にしない"]
+    },
+    {
+      "id": "static-path-split-by-slash",
+      "why": "一覧のセルを / でも区切り、static の単位名のパス（content/works）を 2 つの表に割る（Issue #856）",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "return scan.depth === 0 && (char === \",\" || char === \"、\");",
+      "replace": "return scan.depth === 0 && (char === \",\" || char === \"、\" || char === \"/\");",
+      "occurrences": 1,
+      "expect_failing": ["static の単位名のパス（content/works）は / で割らずに 1 つの表として読む"]
+    },
+    {
+      "id": "static-path-split-by-fullwidth-slash",
+      "why": "一覧のセルを全角の ／ でも区切り、単位名（content／works）を 2 つの表に割る（Issue #856）",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "return scan.depth === 0 && (char === \",\" || char === \"、\");",
+      "replace": "return scan.depth === 0 && (char === \",\" || char === \"、\" || char === \"／\");",
+      "occurrences": 1,
+      "expect_failing": ["全角の ／ を含む単位名（content／works）も割らずに 1 つの表として読む"]
     }
   ]
 }

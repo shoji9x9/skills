@@ -37,7 +37,7 @@ import { isArray } from "./lib/is-array.mjs";
  *
  * @type {string}
  */
-export const VERSION = "4";
+export const VERSION = "5";
 
 /**
  * 役割の語彙（原本）。
@@ -299,7 +299,10 @@ export function splitList(cell) {
 }
 
 /**
- * 1 文字読んで引用符と括弧の深さを進め、その文字が引用符・括弧の外の区切り（`,` `、` `／` `/`）かを返す。
+ * 1 文字読んで引用符と括弧の深さを進め、その文字が引用符・括弧の外の区切り（`,` `、`）かを返す。
+ *
+ * `/` と `／` は区切りにしない。`dataset_mode: static` の単位名は `dataset_static_paths` のパス（`content/works`）で書くので、
+ * `/` で区切るとパスが 2 つの名前に割れ、design.md の対象テーブル表（区切らずに読む）と突き合わなくなる。
  *
  * @param {{ depth: number, quote: string | null }} scan - 読んでいる位置の状態（この関数が更新する）
  * @param {string} char
@@ -322,11 +325,11 @@ function advanceToSeparator(scan, char) {
     if (scan.depth > 0) scan.depth -= 1;
     return false;
   }
-  return scan.depth === 0 && (char === "," || char === "、" || char === "／" || char === "/");
+  return scan.depth === 0 && (char === "," || char === "、");
 }
 
 /**
- * 区切り（`,` `、` `／` `/`）で分けるが、**引用符・括弧の内側では分けない**。
+ * 区切り（`,` `、`）で分けるが、**引用符・括弧の内側では分けない**。
  *
  * 条件の中の区切りで割ると、`status IN ('pending','canceled')` が誤って 2 件の絞り込みと判定される。
  * すると、正しく列挙した設計が「述語行が無い」として失敗する（exit 0 に到達できない誤検知）。
