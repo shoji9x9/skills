@@ -121,6 +121,8 @@ done
   そこで、引数なしで呼ばれた `kaizen-stop-mark.sh` と `kaizen-precommit-gate.sh` は、Copilot の入力を見分けたら何もせずに exit 0 で終える。
   見分ける条件は、入力の最上位に `timestamp` があり、環境変数 `COPILOT_CLI` が空でないことである。
   Copilot も Hook に `CLAUDE_PROJECT_DIR` を渡すので、`CLAUDE_PROJECT_DIR` の有無では見分けられない。
+  最上位の `timestamp` は、入力を JSON として読んで確かめる（`jq` があれば `jq`、無ければ `python3`）。
+  どちらも無い環境では見分けられないので、2 つのスクリプトはこれまでどおり動き、Copilot の commit を拒否することがある。Copilot を使うなら、`jq` か `python3` を入れる。
   Copilot のセッションの記録とチェックは、`.github/hooks/kaizen-session.json` の登録（`-copilot` 付き）だけが行う。
   そのため、Copilot を使うプロジェクトでは、`.claude/settings.json` があっても Copilot の Hook を省かない。
 

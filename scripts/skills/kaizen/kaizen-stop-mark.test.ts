@@ -23,6 +23,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeSharedTempDir, makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
+import { pathWithout } from "./kaizen-config-env.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/kaizen/scripts/kaizen-stop-mark.sh");
@@ -43,6 +44,7 @@ function runStopMark(
     includeTranscriptField = true,
     extra = {},
     copilotCli = false,
+    withoutJsonTools = false,
   }: {
     suffix?: string;
     sessionId?: string;
@@ -53,6 +55,8 @@ function runStopMark(
     // Copilot CLI が Hook に渡す COPILOT_CLI=1 を付けるか。付けないときは空にし、テストを
     // 起動した環境の値を引き継がない。CLAUDE_PROJECT_DIR は Copilot も渡すので、どちらでも付ける。
     copilotCli?: boolean;
+    // jq と python3 を外した PATH で実行する（Copilot かを判定できない環境）。
+    withoutJsonTools?: boolean;
   } = {},
 ) {
   const payload = {
@@ -67,7 +71,14 @@ function runStopMark(
     cwd,
     input: JSON.stringify(payload),
     encoding: "utf8",
-    env: { ...process.env, CLAUDE_PROJECT_DIR: cwd, COPILOT_CLI: copilotCli ? "1" : "" },
+    env: {
+      ...process.env,
+      CLAUDE_PROJECT_DIR: cwd,
+      COPILOT_CLI: copilotCli ? "1" : "",
+      ...(withoutJsonTools
+        ? { PATH: pathWithout(cwd, ["jq", "python3"], process.env.PATH ?? "") }
+        : {}),
+    },
   });
 }
 
@@ -270,6 +281,22 @@ describe("Claude Code 用の登録（引数なし）を Copilot が呼んだと�
       expect(files).toEqual([".pending-extract.s1"]);
       const lines = readFileSync(join(cwd, ".kaizen", files[0]), "utf8").split("\n");
       expect(lines[2]).toBe("claude-code");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("jq も python3 も無ければ Copilot かを判定できないので、これまでどおり claude-code のセンチネルを立てる", () => {
+    const cwd = makeProject();
+    try {
+      const result = runStopMark(cwd, {
+        transcriptPath: withTranscript(cwd),
+        extra: copilotStop,
+        copilotCli: true,
+        withoutJsonTools: true,
+      });
+      expect(result.status).toBe(0);
+      expect(sentinelFiles(cwd)).toEqual([".pending-extract.s1"]);
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }

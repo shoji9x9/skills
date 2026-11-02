@@ -2417,7 +2417,8 @@ describe.concurrent("Claude Code 用の登録（引数なし）を Copilot が�
       timestamp,
       copilotCli,
       args = [],
-    }: { timestamp: boolean; copilotCli: boolean; args?: string[] },
+      withoutJsonTools = false,
+    }: { timestamp: boolean; copilotCli: boolean; args?: string[]; withoutJsonTools?: boolean },
   ) {
     const input = JSON.stringify({
       hook_event_name: "PreToolUse",
@@ -2431,7 +2432,12 @@ describe.concurrent("Claude Code 用の登録（引数なし）を Copilot が�
       timeout: CHILD_TIMEOUT_MS,
       cwd,
       input,
-      env: kaizenEnv(cwd, { CLAUDE_PROJECT_DIR: cwd, COPILOT_CLI: copilotCli ? "1" : "" }),
+      env: (() => {
+        const env = kaizenEnv(cwd, { CLAUDE_PROJECT_DIR: cwd, COPILOT_CLI: copilotCli ? "1" : "" });
+        // jq と python3 を外した PATH。Copilot かを判定できない環境を作る。
+        if (withoutJsonTools) env.PATH = pathWithout(cwd, ["jq", "python3"], env.PATH ?? "");
+        return env;
+      })(),
     });
   }
 
@@ -2475,6 +2481,13 @@ describe.concurrent("Claude Code 用の登録（引数なし）を Copilot が�
       expect(gate.stderr).toMatch(/他セッションの未抽出センチネルが残っています/);
     },
   );
+
+  test("jq も python3 も無ければ Copilot かを判定できないので、これまでどおり他のセッションの警告を exit 1 で出す", async () => {
+    const cwd = withForeignSentinel();
+    const gate = await gateWith(cwd, { timestamp: true, copilotCli: true, withoutJsonTools: true });
+    expect(gate.status, gate.stderr).toBe(1);
+    expect(gate.stderr).toMatch(/他セッションの未抽出センチネルが残っています/);
+  });
 
   test("-copilot を渡した呼び出しは、Copilot の入力でも判定して、警告を exit 0 で返す", async () => {
     const cwd = withForeignSentinel();
