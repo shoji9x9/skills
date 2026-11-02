@@ -9,6 +9,11 @@ test.each([
     { model: "opus", apiKeyHelper: "/bin/key" },
   ],
   [
+    "Bedrock の認証に使う awsAuthRefresh と awsCredentialExport",
+    { awsAuthRefresh: "aws sso login", awsCredentialExport: "/bin/creds", hooks: {} },
+    { awsAuthRefresh: "aws sso login", awsCredentialExport: "/bin/creds" },
+  ],
+  [
     "env は接続先の接頭辞を持つ名前だけを残す",
     {
       env: { ANTHROPIC_API_KEY: "k", CLAUDE_CODE_USE_BEDROCK: "1", AWS_REGION: "r", MY_TOOL: "x" },

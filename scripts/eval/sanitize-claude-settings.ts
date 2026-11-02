@@ -8,7 +8,7 @@ import { isRecord } from "../lib/guards.ts";
 import { errorMessage } from "../lib/errors.ts";
 import { isCliEntry } from "../lib/cli/entry.ts";
 
-const KEPT_KEYS = ["model", "apiKeyHelper"];
+const KEPT_KEYS = ["model", "apiKeyHelper", "awsAuthRefresh", "awsCredentialExport"];
 const KEPT_ENV_PREFIXES = ["ANTHROPIC_", "CLAUDE_CODE_", "AWS_", "VERTEX_", "CLOUD_ML_"];
 
 /** 許可リストのキーだけを残した設定を返す。元が JSON のオブジェクトでなければ例外にする。 */
