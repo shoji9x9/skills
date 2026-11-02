@@ -1,0 +1,379 @@
+{
+  "metadata": {
+    "skill_name": "issue-start",
+    "skill_path": "<repo>/skills/issue-start",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-30T15:15:11Z",
+    "evals_run": [1],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 39.477,
+        "tokens": 118257,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue URL から owner/repo/issue番号を抽出している",
+          "passed": true,
+          "evidence": "`gh issue view 12 --repo shoji9x9/skills --json title,body,comments,...` で owner/repo と 12 を使っている"
+        },
+        {
+          "text": "現在の repo と Issue の owner/repo の一致を確認している",
+          "passed": true,
+          "evidence": "確認の表に「origin は git@github.com:shoji9x9/skills.git で、Issue のリポジトリと一致」とある（raw でも git remote -v を実行）"
+        },
+        {
+          "text": "Issue の内容（title・body・コメント）を gh issue view で確認する手順を示している",
+          "passed": true,
+          "evidence": "`gh issue view 12 --repo shoji9x9/skills --json title,body,comments,createdAt...` を手順に示している"
+        },
+        {
+          "text": "feature/12-<英語の短い説明> 形式のブランチ名を決めている",
+          "passed": true,
+          "evidence": "ブランチ名を `feature/12-upgrade-mise-node` に決めている"
+        },
+        {
+          "text": "同じ番号のブランチが無いかを local と remote の両方で確認する手順を示している",
+          "passed": true,
+          "evidence": "local は `git branch --list 'feature/12-*'` を実行して 0 件、remote は `git ls-remote --heads origin 'refs/heads/feature/12-*'` を手順に示している"
+        },
+        {
+          "text": "gh issue develop --base <規約から解決したベースブランチ> --checkout でブランチを作成しようとしている（ベースブランチを main に固定せず、リポジトリの規約から解決した値を使っている）",
+          "passed": true,
+          "evidence": "`gh issue develop 12 ... --name \"feature/12-upgrade-mise-node\" --base develop --checkout`。develop は AGENTS.md の「PR は develop 向け」から解決（common.jsonc が無いことも確かめている）"
+        },
+        {
+          "text": "モード未指定なので commit/push/PR は行っていない",
+          "passed": true,
+          "evidence": "raw/ の呼び出しは読み取りの Bash だけで、git commit・push・gh pr create は実行していない。commit と PR のコマンドは手順として示しただけ"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 37.53,
+        "tokens": 141059,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue URL から owner/repo/issue番号を抽出している",
+          "passed": true,
+          "evidence": "`gh issue view 12 --repo shoji9x9/skills --json title,body,comments,...` で owner/repo と 12 を使っている"
+        },
+        {
+          "text": "現在の repo と Issue の owner/repo の一致を確認している",
+          "passed": true,
+          "evidence": "確認の表に「origin は git@github.com:shoji9x9/skills.git で、Issue のリポジトリと一致」とある（raw でも git remote -v を実行）"
+        },
+        {
+          "text": "Issue の内容（title・body・コメント）を gh issue view で確認する手順を示している",
+          "passed": true,
+          "evidence": "`gh issue view 12 --repo shoji9x9/skills --json title,body,comments,createdAt...` を手順に示している"
+        },
+        {
+          "text": "feature/12-<英語の短い説明> 形式のブランチ名を決めている",
+          "passed": true,
+          "evidence": "ブランチ名を `feature/12-update-mise-tool-versions` に決めている"
+        },
+        {
+          "text": "同じ番号のブランチが無いかを local と remote の両方で確認する手順を示している",
+          "passed": true,
+          "evidence": "local は `git branch --list 'feature/12-*'` を実行して 0 件、remote は `git ls-remote --heads origin 'refs/heads/feature/12-*'` を手順に示している"
+        },
+        {
+          "text": "gh issue develop --base <規約から解決したベースブランチ> --checkout でブランチを作成しようとしている（ベースブランチを main に固定せず、リポジトリの規約から解決した値を使っている）",
+          "passed": true,
+          "evidence": "`gh issue develop 12 ... --name \"feature/12-update-mise-tool-versions\" --base develop --checkout`。develop は AGENTS.md の「PR は develop 向け」から解決（common.jsonc が無いことも確かめている）"
+        },
+        {
+          "text": "モード未指定なので commit/push/PR は行っていない",
+          "passed": true,
+          "evidence": "raw/ の呼び出しは読み取りの Bash だけで、git commit・push・gh pr create は実行していない。commit と PR のコマンドは手順として示しただけ"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 39.979,
+        "tokens": 142080,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue URL から owner/repo/issue番号を抽出している",
+          "passed": true,
+          "evidence": "`gh issue view 12 --repo shoji9x9/skills --json title,body,comments,...` で owner/repo と 12 を使っている"
+        },
+        {
+          "text": "現在の repo と Issue の owner/repo の一致を確認している",
+          "passed": true,
+          "evidence": "確認の表に「origin は git@github.com:shoji9x9/skills.git で、Issue のリポジトリと一致」とある（raw でも git remote -v を実行）"
+        },
+        {
+          "text": "Issue の内容（title・body・コメント）を gh issue view で確認する手順を示している",
+          "passed": true,
+          "evidence": "`gh issue view 12 --repo shoji9x9/skills --json title,body,comments,createdAt...` を手順に示している"
+        },
+        {
+          "text": "feature/12-<英語の短い説明> 形式のブランチ名を決めている",
+          "passed": true,
+          "evidence": "ブランチ名を `feature/12-update-mise-node-version` に決めている"
+        },
+        {
+          "text": "同じ番号のブランチが無いかを local と remote の両方で確認する手順を示している",
+          "passed": true,
+          "evidence": "local は `git branch --list 'feature/12-*'` を実行して 0 件、remote は `git ls-remote --heads origin 'refs/heads/feature/12-*'` を手順に示している"
+        },
+        {
+          "text": "gh issue develop --base <規約から解決したベースブランチ> --checkout でブランチを作成しようとしている（ベースブランチを main に固定せず、リポジトリの規約から解決した値を使っている）",
+          "passed": true,
+          "evidence": "`gh issue develop 12 ... --name \"feature/12-update-mise-node-version\" --base develop --checkout`。develop は AGENTS.md の「PR は develop 向け」から解決（common.jsonc が無いことも確かめている）"
+        },
+        {
+          "text": "モード未指定なので commit/push/PR は行っていない",
+          "passed": true,
+          "evidence": "raw/ の呼び出しは読み取りの Bash だけで、git commit・push・gh pr create は実行していない。commit と PR のコマンドは手順として示しただけ"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4286,
+        "passed": 3,
+        "failed": 4,
+        "total": 7,
+        "time_seconds": 40.448,
+        "tokens": 79546,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue URL から owner/repo/issue番号を抽出している",
+          "passed": true,
+          "evidence": "手順で `gh issue view 12 --repo shoji9x9/skills` を使い、owner/repo と番号 12 を取り出している"
+        },
+        {
+          "text": "現在の repo と Issue の owner/repo の一致を確認している",
+          "passed": false,
+          "evidence": "`git remote -v` は実行したが、応答に origin と Issue の owner/repo を突き合わせた結果が無い"
+        },
+        {
+          "text": "Issue の内容（title・body・コメント）を gh issue view で確認する手順を示している",
+          "passed": true,
+          "evidence": "`gh issue view 12 --repo shoji9x9/skills --comments` を手順に示している（title・body・コメントを表示する）"
+        },
+        {
+          "text": "feature/12-<英語の短い説明> 形式のブランチ名を決めている",
+          "passed": false,
+          "evidence": "ブランチ名は `chore/12-mise-node-upgrade` で、feature/12-<説明> の形ではない"
+        },
+        {
+          "text": "同じ番号のブランチが無いかを local と remote の両方で確認する手順を示している",
+          "passed": false,
+          "evidence": "同じ番号のブランチを local（git branch --list）でも remote（ls-remote）でも確かめる手順が無い"
+        },
+        {
+          "text": "gh issue develop --base <規約から解決したベースブランチ> --checkout でブランチを作成しようとしている（ベースブランチを main に固定せず、リポジトリの規約から解決した値を使っている）",
+          "passed": false,
+          "evidence": "`git switch -c chore/12-mise-node-upgrade origin/develop` で作る手順で、gh issue develop を使っていない"
+        },
+        {
+          "text": "モード未指定なので commit/push/PR は行っていない",
+          "passed": true,
+          "evidence": "raw/ の呼び出しは読み取りの Bash だけで、git commit・push・gh pr create は実行していない。commit と PR のコマンドは手順として示しただけ"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.4286,
+        "passed": 3,
+        "failed": 4,
+        "total": 7,
+        "time_seconds": 33.096,
+        "tokens": 78529,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue URL から owner/repo/issue番号を抽出している",
+          "passed": true,
+          "evidence": "手順で `gh issue view 12 --repo shoji9x9/skills` を使い、owner/repo と番号 12 を取り出している"
+        },
+        {
+          "text": "現在の repo と Issue の owner/repo の一致を確認している",
+          "passed": false,
+          "evidence": "`git remote -v` は実行したが、応答に origin と Issue の owner/repo を突き合わせた結果が無い"
+        },
+        {
+          "text": "Issue の内容（title・body・コメント）を gh issue view で確認する手順を示している",
+          "passed": true,
+          "evidence": "`gh issue view 12 --repo shoji9x9/skills --comments` を手順に示している（title・body・コメントを表示する）"
+        },
+        {
+          "text": "feature/12-<英語の短い説明> 形式のブランチ名を決めている",
+          "passed": false,
+          "evidence": "ブランチ名は `chore/12-upgrade-node-mise` で、feature/12-<説明> の形ではない"
+        },
+        {
+          "text": "同じ番号のブランチが無いかを local と remote の両方で確認する手順を示している",
+          "passed": false,
+          "evidence": "同じ番号のブランチを local（git branch --list）でも remote（ls-remote）でも確かめる手順が無い"
+        },
+        {
+          "text": "gh issue develop --base <規約から解決したベースブランチ> --checkout でブランチを作成しようとしている（ベースブランチを main に固定せず、リポジトリの規約から解決した値を使っている）",
+          "passed": false,
+          "evidence": "`git switch -c chore/12-upgrade-node-mise origin/develop` で作る手順で、gh issue develop を使っていない"
+        },
+        {
+          "text": "モード未指定なので commit/push/PR は行っていない",
+          "passed": true,
+          "evidence": "raw/ の呼び出しは読み取りの Bash だけで、git commit・push・gh pr create は実行していない。commit と PR のコマンドは手順として示しただけ"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.4286,
+        "passed": 3,
+        "failed": 4,
+        "total": 7,
+        "time_seconds": 30.988,
+        "tokens": 79117,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue URL から owner/repo/issue番号を抽出している",
+          "passed": true,
+          "evidence": "手順で `gh issue view 12 --repo shoji9x9/skills` を使い、owner/repo と番号 12 を取り出している"
+        },
+        {
+          "text": "現在の repo と Issue の owner/repo の一致を確認している",
+          "passed": false,
+          "evidence": "`git remote -v` は実行したが、応答に origin と Issue の owner/repo を突き合わせた結果が無い"
+        },
+        {
+          "text": "Issue の内容（title・body・コメント）を gh issue view で確認する手順を示している",
+          "passed": true,
+          "evidence": "`gh issue view 12 --repo shoji9x9/skills --comments` を手順に示している（title・body・コメントを表示する）"
+        },
+        {
+          "text": "feature/12-<英語の短い説明> 形式のブランチ名を決めている",
+          "passed": false,
+          "evidence": "ブランチ名は `chore/12-mise-upgrade-node` で、feature/12-<説明> の形ではない"
+        },
+        {
+          "text": "同じ番号のブランチが無いかを local と remote の両方で確認する手順を示している",
+          "passed": false,
+          "evidence": "同じ番号のブランチを local（git branch --list）でも remote（ls-remote）でも確かめる手順が無い"
+        },
+        {
+          "text": "gh issue develop --base <規約から解決したベースブランチ> --checkout でブランチを作成しようとしている（ベースブランチを main に固定せず、リポジトリの規約から解決した値を使っている）",
+          "passed": false,
+          "evidence": "`git switch -c chore/12-mise-upgrade-node origin/develop` で作る手順で、gh issue develop を使っていない"
+        },
+        {
+          "text": "モード未指定なので commit/push/PR は行っていない",
+          "passed": true,
+          "evidence": "raw/ の呼び出しは読み取りの Bash だけで、git commit・push・gh pr create は実行していない。commit と PR のコマンドは手順として示しただけ"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 38.9953,
+        "stddev": 1.2936,
+        "min": 37.53,
+        "max": 39.979
+      },
+      "tokens": {
+        "mean": 133798.6667,
+        "stddev": 13469.156,
+        "min": 118257,
+        "max": 142080
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.4286,
+        "stddev": 0,
+        "min": 0.4286,
+        "max": 0.4286
+      },
+      "time_seconds": {
+        "mean": 34.844,
+        "stddev": 4.9663,
+        "min": 30.988,
+        "max": 40.448
+      },
+      "tokens": {
+        "mean": 79064,
+        "stddev": 510.5673,
+        "min": 78529,
+        "max": 79546
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.57",
+      "time_seconds": "+4.2",
+      "tokens": "+54735"
+    }
+  },
+  "notes": []
+}

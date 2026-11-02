@@ -7,16 +7,17 @@ import { makeTempDir } from "../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../lib/testing/child-timeout.ts";
 
 export const sourceScript = resolve(dirname(fileURLToPath(import.meta.url)), "eval-sandbox.sh");
+const sanitizeScript = resolve(dirname(sourceScript), "sanitize-claude-settings.ts");
 
 /** worktree の親のマウントを確かめるテスト用に、CLI・git・bwrap のスタブを bin に置く。 */
-export function writeWorktreeFakeBin(fakeBin: string, sharedParent: string, capturedArgs: string) {
+export function writeWorktreeFakeBin(fakeBin: string, worktrees: string[], capturedArgs: string) {
   writeFileSync(join(fakeBin, "claude-wrapper"), "#!/usr/bin/env bash\nexit 99\n", {
     mode: 0o755,
   });
   writeFileSync(
     join(fakeBin, "git"),
     `#!/usr/bin/env bash
-printf 'worktree %s/one\\nworktree %s/two\\nworktree /tmp/three\\n' "${sharedParent}" "${sharedParent}"
+printf 'worktree %s\\n' ${worktrees.map((w) => `"${w}"`).join(" ")}
 `,
     { mode: 0o755 },
   );
@@ -44,8 +45,17 @@ printf '%s\\n' "$@" >"${capturedArgs}"
 // | 引数                | CLI の引数 / 無し / --verify だけ                                  |
 // | ホストの ~/.claude  | 印が無い / この検査の印 / 別の内容の同名ファイル                   |
 // | cwd                 | /tmp の下 / /tmp の外                                              |
+// | ホストの settings.json | 無い / 許可リストの外のキーを含む / JSON でない                 |
 const FAKE_BWRAP = `#!/usr/bin/env bash
 printf '%s\\n' "$@" >"$FAKE_BWRAP_ARGS"
+# settings.json に bind されたコピーを、終了時に消される前に残す。
+if [ -n "\${FAKE_BWRAP_SETTINGS:-}" ]; then
+  prev2="" prev1=""
+  for a in "$@"; do
+    if [ "$prev2" = "--ro-bind" ] && [ "$a" = "$HOME/.claude/settings.json" ]; then cp -- "$prev1" "$FAKE_BWRAP_SETTINGS"; fi
+    prev2="$prev1" prev1="$a"
+  done
+fi
 case "\${FAKE_BWRAP_MODE:-ok}" in
 leak) printf 'SENTINEL-EVAL-SANDBOX-ESCAPE' >"$HOME/.claude/.eval-sandbox-escape-probe" ;;
 fail) exit 1 ;;
@@ -110,6 +120,8 @@ export function sandbox(args: string[], options: SandboxOptions = {}) {
   mkdirSync(bin);
   // 内容を変えずにコピーする（同じ内容のスクリプトは、カバレッジで原本の実行として数える）。
   writeFileSync(copiedScript, readFileSync(sourceScript), { mode: 0o755 });
+  // settings.json のコピーを作るスクリプトは、相対 import を原本の側で解決させるためにリンクで置く。
+  symlinkSync(sanitizeScript, join(dirname(copiedScript), "sanitize-claude-settings.ts"));
   const cli = options.cli ?? "claude";
   writeSandboxFakeBin(bin, cli, options);
   const env: Record<string, string> = {

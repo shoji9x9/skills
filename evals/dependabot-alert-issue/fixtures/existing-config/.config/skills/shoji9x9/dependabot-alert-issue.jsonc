@@ -1,0 +1,7 @@
+// dependabot-alert-issue の設定。変えるときは PR でレビューする。
+{
+  // 公開から 3 日たっていない修正バージョンは、すぐ着手できない側に分ける
+  "minimum_release_age_days": 3,
+  // テストでしか使わないパッケージの alert は Issue にしない
+  "ignore": ["devDependencies の eslint-plugin-* の alert"]
+}

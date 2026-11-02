@@ -1,0 +1,243 @@
+{
+  "metadata": {
+    "skill_name": "agent-usage",
+    "skill_path": "<repo>/skills/agent-usage",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-30T15:15:09Z",
+    "evals_run": [2, 3],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 26.927,
+        "tokens": 78101,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "判定不能は GitHub の情報を取得していない期間（coverage が ok でない期間）の停止だと説明している",
+          "passed": true,
+          "evidence": "「判定不能（unknown）は、GitHub の情報（CI・レビュー）を取れていない期間の停止」「判定不能（coverage が ok でない期間）」"
+        },
+        {
+          "text": "初めての取得は最大 60 日前からなので、それより前の期間は判定不能になると説明している",
+          "passed": true,
+          "evidence": "「初めての取得は最大 60 日前までしか遡らないので、それより古い停止は判定不能のまま」"
+        },
+        {
+          "text": "gh が無い・認証できない・取得に失敗した期間も判定不能になると説明している",
+          "passed": true,
+          "evidence": "表に「gh が無い、または認証していない」「取得の途中で失敗した」を挙げている"
+        },
+        {
+          "text": "collect の出力に、取得に失敗した段が出ると説明している",
+          "passed": true,
+          "evidence": "「collect の出力に「GitHub の取得に失敗」…が出ていないか見る」、coverage に failed:<段> が残ると説明（スキルの「失敗した段は collect の出力に「GitHub の取得に失敗」として出る」に一致）"
+        },
+        {
+          "text": "gh を使える状態で collect を実行し直すと、前回の取得の終わりから（1 日さかのぼって）取得されると答えている",
+          "passed": true,
+          "evidence": "「--no-github を付けずに collect を実行し直す…取得は、最後に成功した取得の終わりの 1 日前から始まります」"
+        },
+        {
+          "text": "report の --since で、取得していない古い期間を集計から外せると答えている",
+          "passed": true,
+          "evidence": "「その部分は report --since <日付> で期間から外す」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 40.47,
+        "tokens": 184670,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "単価表にそのモデルが無いので、記録の時点で費用を空欄にしてトークン数だけを記録していると説明している",
+          "passed": true,
+          "evidence": "「単価表に無いモデルの行は、collect のときに費用を空欄（cost_source は unknown）にし、トークン数だけを records/ に残しています」"
+        },
+        {
+          "text": "リポジトリの設定（.config/skills/shoji9x9/agent-usage.jsonc）の pricing に、そのモデルの単価（input と output は必須）を足すと答えている",
+          "passed": true,
+          "evidence": "「.config/skills/shoji9x9/agent-usage.jsonc の pricing」「input と output は必須」"
+        },
+        {
+          "text": "単価を足して report を実行し直せば、記録されたトークン数から費用を計算し直すと答えている",
+          "passed": true,
+          "evidence": "「report は、費用が空欄の行を、その時点の単価表とトークン数で計算し直します」"
+        },
+        {
+          "text": "ログが消えていても、トークン数が記録に残っているので計算できると答えている",
+          "passed": true,
+          "evidence": "「記録にトークン数がある限り、元のログは要りません」"
+        },
+        {
+          "text": "コマンドを実行せずに答えている（読み取りの grep などのコマンドも実行していない）",
+          "passed": false,
+          "evidence": "raw/ で Bash による読み取りの grep・sed・ls を 4 回実行している（例: grep -n -A35 \"^function usageCost\" scripts/lib/report/report.mjs）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 6,
+        "total": 6,
+        "time_seconds": 28.177,
+        "tokens": 88658,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "判定不能は GitHub の情報を取得していない期間（coverage が ok でない期間）の停止だと説明している",
+          "passed": false,
+          "evidence": "JSONL の stop_reason が null になることが原因と推測しており、GitHub の取得や coverage に触れていない"
+        },
+        {
+          "text": "初めての取得は最大 60 日前からなので、それより前の期間は判定不能になると説明している",
+          "passed": false,
+          "evidence": "60 日の取得範囲に触れていない"
+        },
+        {
+          "text": "gh が無い・認証できない・取得に失敗した期間も判定不能になると説明している",
+          "passed": false,
+          "evidence": "gh の有無・認証・取得失敗に触れていない"
+        },
+        {
+          "text": "collect の出力に、取得に失敗した段が出ると説明している",
+          "passed": false,
+          "evidence": "collect の出力に触れていない"
+        },
+        {
+          "text": "gh を使える状態で collect を実行し直すと、前回の取得の終わりから（1 日さかのぼって）取得されると答えている",
+          "passed": false,
+          "evidence": "collect の再実行と取得の開始位置に触れていない"
+        },
+        {
+          "text": "report の --since で、取得していない古い期間を集計から外せると答えている",
+          "passed": false,
+          "evidence": "report --since に触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 18.637,
+        "tokens": 36721,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "単価表にそのモデルが無いので、記録の時点で費用を空欄にしてトークン数だけを記録していると説明している",
+          "passed": true,
+          "evidence": "「ツールの料金表にその新モデルがないため…トークン数は集計されていますが、単価がないので費用を出せず」（空欄ではなく 0 と述べるが、単価表に無くトークン数だけ残る仕組みは説明している）"
+        },
+        {
+          "text": "リポジトリの設定（.config/skills/shoji9x9/agent-usage.jsonc）の pricing に、そのモデルの単価（input と output は必須）を足すと答えている",
+          "passed": false,
+          "evidence": ".config/skills/shoji9x9/agent-usage.jsonc の pricing を挙げず、追加先を「README や --help で確認」としている"
+        },
+        {
+          "text": "単価を足して report を実行し直せば、記録されたトークン数から費用を計算し直すと答えている",
+          "passed": false,
+          "evidence": "「再計算する機能がツールにあればそれを使います。なければ…自分で計算」と、report の再実行で計算し直されるとは答えていない"
+        },
+        {
+          "text": "ログが消えていても、トークン数が記録に残っているので計算できると答えている",
+          "passed": false,
+          "evidence": "トークン数が残っている場合と残っていない場合（過去分は戻せない）を並べ、記録に残っているので計算できるとは答えていない"
+        },
+        {
+          "text": "コマンドを実行せずに答えている（読み取りの grep などのコマンドも実行していない）",
+          "passed": true,
+          "evidence": "raw/ のツール呼び出しは Read 1 回（README.md）だけで、Bash は実行していない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9,
+        "stddev": 0.1414,
+        "min": 0.8,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 33.6985,
+        "stddev": 9.5763,
+        "min": 26.927,
+        "max": 40.47
+      },
+      "tokens": {
+        "mean": 131385.5,
+        "stddev": 75355.6626,
+        "min": 78101,
+        "max": 184670
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.2,
+        "stddev": 0.2828,
+        "min": 0,
+        "max": 0.4
+      },
+      "time_seconds": {
+        "mean": 23.407,
+        "stddev": 6.7458,
+        "min": 18.637,
+        "max": 28.177
+      },
+      "tokens": {
+        "mean": 62689.5,
+        "stddev": 36725.0049,
+        "min": 36721,
+        "max": 88658
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.70",
+      "time_seconds": "+10.3",
+      "tokens": "+68696"
+    }
+  },
+  "notes": []
+}

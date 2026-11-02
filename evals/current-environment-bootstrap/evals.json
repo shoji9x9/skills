@@ -4,19 +4,43 @@
     {
       "id": 1,
       "fixture": "fixtures/assets-complete",
-      "prompt": "current-environment-bootstrap",
+      "prompt": "current-environment-bootstrap --target current-rebuilt",
+      "requires_skills": ["replace-strategy"],
       "assertions": [
         "受領資産を「受領済み／導出可能／不足」の 3 区分で個別に分類し、DDL・公式 seed・データ辞書を受領済みとして記録している",
         "DB エンジン版・文字コード・照合順序・タイムゾーン・sql_mode を受領スキーマの記載を根拠に復元し、環境の既定値で補完していない",
         "orders.status の値と正常系遷移をデータ辞書の記載を根拠に「確定済み」として扱い、推測扱いにも確認待ちにもしていない",
         "暫定起動データは起動・ログイン・主要画面到達のための最小限であり、ゴールデンデータセットは golden-dataset が別途構築すると区別している（暫定データを比較の正解として扱っていない）",
         "この環境では現行アプリを実際に起動・ログイン・画面到達できないため、それらを実測済みとして記録せず未検証として扱っている"
+      ],
+      "reachability": [
+        {
+          "assertion": "受領資産を「受領済み／導出可能／不足」の 3 区分で個別に分類し、DDL・公式 seed・データ辞書を受領済みとして記録している",
+          "prompt_quote": "current-environment-bootstrap --target current-rebuilt"
+        },
+        {
+          "assertion": "DB エンジン版・文字コード・照合順序・タイムゾーン・sql_mode を受領スキーマの記載を根拠に復元し、環境の既定値で補完していない",
+          "prompt_quote": "current-environment-bootstrap --target current-rebuilt"
+        },
+        {
+          "assertion": "orders.status の値と正常系遷移をデータ辞書の記載を根拠に「確定済み」として扱い、推測扱いにも確認待ちにもしていない",
+          "prompt_quote": "current-environment-bootstrap --target current-rebuilt"
+        },
+        {
+          "assertion": "暫定起動データは起動・ログイン・主要画面到達のための最小限であり、ゴールデンデータセットは golden-dataset が別途構築すると区別している（暫定データを比較の正解として扱っていない）",
+          "prompt_quote": "current-environment-bootstrap --target current-rebuilt"
+        },
+        {
+          "assertion": "この環境では現行アプリを実際に起動・ログイン・画面到達できないため、それらを実測済みとして記録せず未検証として扱っている",
+          "prompt_quote": "current-environment-bootstrap --target current-rebuilt"
+        }
       ]
     },
     {
       "id": 2,
       "fixture": "fixtures/assets-migrations-only",
-      "prompt": "current-environment-bootstrap",
+      "prompt": "current-environment-bootstrap --target current-rebuilt",
+      "requires_skills": ["replace-strategy"],
       "assertions": [
         "DDL そのものが受領されていないことを停止理由にせず、マイグレーションから決定論的に完全復元できるかを検証する方針を示し、空の DB へ実際に全マイグレーションを適用して最終スキーマを得る手順を示している（机上判定で済ませていない）",
         "並び順を決める設定がインスタンス既定（BINARY）ではなくアプリ接続時のログオン処理で上書きされていることを捉え、セッション／接続レベルの設定を復元対象に含めている（インスタンス既定だけをコピーして「復元できた」としていない）",
@@ -24,6 +48,32 @@
         "キャラクタセット・DB タイムゾーン・バージョン互換パラメータを受領した環境メモの記載を根拠に確定し、環境の既定値で警告なしに補完していない",
         "初期ユーザーのパスワードのように受領資産が値を持たない項目（データ辞書は「構築担当が設定する」とだけ記す）を推測で埋めず確認待ちまたは不足として扱い、接続文字列からは環境変数名だけを控えている",
         "受領資産だけでは工程 7（起動・認証・主要画面到達）を実測できないため handed-off を名乗らず、metadata.json に status: blocked と停止理由・未確認項目（handoff.unconfirmed）・フェーズ A へ引き継ぐ起動要件（handoff.boot_requirements）を記録し、下流（golden-dataset / parity-suite）が引き継げる形にしている"
+      ],
+      "reachability": [
+        {
+          "assertion": "DDL そのものが受領されていないことを停止理由にせず、マイグレーションから決定論的に完全復元できるかを検証する方針を示し、空の DB へ実際に全マイグレーションを適用して最終スキーマを得る手順を示している（机上判定で済ませていない）",
+          "prompt_quote": "current-environment-bootstrap --target current-rebuilt"
+        },
+        {
+          "assertion": "並び順を決める設定がインスタンス既定（BINARY）ではなくアプリ接続時のログオン処理で上書きされていることを捉え、セッション／接続レベルの設定を復元対象に含めている（インスタンス既定だけをコピーして「復元できた」としていない）",
+          "prompt_quote": "current-environment-bootstrap --target current-rebuilt"
+        },
+        {
+          "assertion": "マイグレーションが表現しない領域（照合／ソート順・ログオン処理）を個別に立て、マイグレーションだけを見て「全部入っている」と判定していない",
+          "prompt_quote": "current-environment-bootstrap --target current-rebuilt"
+        },
+        {
+          "assertion": "キャラクタセット・DB タイムゾーン・バージョン互換パラメータを受領した環境メモの記載を根拠に確定し、環境の既定値で警告なしに補完していない",
+          "prompt_quote": "current-environment-bootstrap --target current-rebuilt"
+        },
+        {
+          "assertion": "初期ユーザーのパスワードのように受領資産が値を持たない項目（データ辞書は「構築担当が設定する」とだけ記す）を推測で埋めず確認待ちまたは不足として扱い、接続文字列からは環境変数名だけを控えている",
+          "prompt_quote": "current-environment-bootstrap --target current-rebuilt"
+        },
+        {
+          "assertion": "受領資産だけでは工程 7（起動・認証・主要画面到達）を実測できないため handed-off を名乗らず、metadata.json に status: blocked と停止理由・未確認項目（handoff.unconfirmed）・フェーズ A へ引き継ぐ起動要件（handoff.boot_requirements）を記録し、下流（golden-dataset / parity-suite）が引き継げる形にしている",
+          "prompt_quote": "current-environment-bootstrap --target current-rebuilt"
+        }
       ]
     },
     {

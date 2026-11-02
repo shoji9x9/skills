@@ -1,0 +1,79 @@
+{
+  "metadata": {
+    "skill_name": "agent-usage",
+    "skill_path": "<repo>/skills/agent-usage",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-14T05:27:57Z",
+    "evals_run": [2],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 31.563,
+        "tokens": 98398,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "判定不能は GitHub の情報を取得していない期間（coverage が ok でない期間）の停止だと説明している",
+          "passed": true,
+          "evidence": "「GitHub の情報を取れていない期間（coverage 行が ok でない期間）の停止」"
+        },
+        {
+          "text": "初めての取得は最大 60 日前からなので、それより前の期間は判定不能になると説明している",
+          "passed": true,
+          "evidence": "「初めての取得は最大 60 日前までです。それより古い run の後の停止は、取りようがありません」"
+        },
+        {
+          "text": "gh が無い・認証できない・取得に失敗した期間も判定不能になり、collect の出力に失敗した段が出ると説明している",
+          "passed": true,
+          "evidence": "gh が無い・auth が切れている・通信の失敗など。「collect の出力に『GitHub の取得に失敗』と出ていれば、これが原因」"
+        },
+        {
+          "text": "gh を使える状態で collect を実行し直すと、前回の取得の終わりから（1 日さかのぼって）取得されると答えている",
+          "passed": true,
+          "evidence": "「失敗した期間は、次の collect が取り直します（最後に成功した取得の終わりの 1 日前から）」"
+        },
+        {
+          "text": "report の --since で、取得していない古い期間を集計から外せると答えている",
+          "passed": true,
+          "evidence": "「report --since <日付> で取得できている期間に絞ります」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 31.563,
+        "stddev": 0,
+        "min": 31.563,
+        "max": 31.563
+      },
+      "tokens": {
+        "mean": 98398,
+        "stddev": 0,
+        "min": 98398,
+        "max": 98398
+      }
+    }
+  },
+  "notes": []
+}

@@ -4,12 +4,31 @@
     {
       "id": 1,
       "fixture": "fixtures/preflight-ready",
-      "prompt": "issue-batch run 101 102 を実行する前の全体 preflight と、その後の正常系の状態遷移を最終報告にまとめて。外部変更はせず dry-run として説明して。",
+      "prompt": "issue-batch run 101 102 を実行する前の全体 preflight と、その後の正常系の状態遷移を最終報告にまとめて。外部変更はせず dry-run として説明して。このサンドボックスは GitHub に接続できないので、gh のコマンドは実行せず、確かめる手順として示して。",
+      "requires_skills": ["git-worktree", "issue-start", "kaizen", "pr-finalize-loop"],
       "assertions": [
         "2 Issue を入力順に保持し、1 Issue 1 worktree / branch / PR で直列処理すると述べている",
         "変更前に repo 一致、OPEN、本文と全コメント、依存関係、既存 branch / PR / worktree、設定、権限を全件確認する",
-        "呼び出し元を checkout せず /tmp の隔離 worktree と秘密値を含まない manifest を使う",
+        "呼び出し元を checkout せず、Issue ごとに隔離した worktree を git-worktree の取り決めで用意し、/tmp に置く run manifest に秘密値を書かない",
         "DONE を MERGED、CLOSED、exact-SHA deployment、local / remote branch 削除の全成立後だけ付ける"
+      ],
+      "reachability": [
+        {
+          "assertion": "2 Issue を入力順に保持し、1 Issue 1 worktree / branch / PR で直列処理すると述べている",
+          "prompt_quote": "issue-batch run 101 102"
+        },
+        {
+          "assertion": "変更前に repo 一致、OPEN、本文と全コメント、依存関係、既存 branch / PR / worktree、設定、権限を全件確認する",
+          "prompt_quote": "全体 preflight"
+        },
+        {
+          "assertion": "呼び出し元を checkout せず、Issue ごとに隔離した worktree を git-worktree の取り決めで用意し、/tmp に置く run manifest に秘密値を書かない",
+          "prompt_quote": "正常系の状態遷移"
+        },
+        {
+          "assertion": "DONE を MERGED、CLOSED、exact-SHA deployment、local / remote branch 削除の全成立後だけ付ける",
+          "prompt_quote": "正常系の状態遷移"
+        }
       ]
     },
     {

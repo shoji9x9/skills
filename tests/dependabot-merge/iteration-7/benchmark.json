@@ -1,0 +1,273 @@
+{
+  "metadata": {
+    "skill_name": "dependabot-merge",
+    "skill_path": "<repo>/skills/dependabot-merge",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-30T15:15:10Z",
+    "evals_run": [1, 2],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 26.893,
+        "tokens": 80116,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL から owner/repo/PR番号を抽出している",
+          "passed": true,
+          "evidence": "応答の手順に OWNER_REPO=shoji9x9/skills・PR=42 を置いている"
+        },
+        {
+          "text": "現在の repo と PR の owner/repo の一致を確認している",
+          "passed": true,
+          "evidence": "手順 1「gh repo view --json nameWithOwner」で現在の repo が shoji9x9/skills か確認し、違えば中断"
+        },
+        {
+          "text": "PR の著者が Dependabot か確認している",
+          "passed": true,
+          "evidence": "手順 2「gh pr view $PR --json author --jq .author.login」で dependabot を含むか確認"
+        },
+        {
+          "text": "gh pr checks で CI の成功を確認しようとしている",
+          "passed": true,
+          "evidence": "手順 3「gh pr checks $PR --repo $OWNER_REPO --required」"
+        },
+        {
+          "text": "changelog/release notes など更新内容から影響を確認する方針を示している",
+          "passed": true,
+          "evidence": "判断の節でリリースノート（オプションの追加と不具合の修正だけ）から影響を評価し、手順 4 で files・diff を確認"
+        },
+        {
+          "text": "マージ前に判断の根拠を PR コメントに記録する方針を示している",
+          "passed": true,
+          "evidence": "手順 6「判断の根拠を PR コメントに残す（必ずマージより先に行う）」で gh pr comment --body-file"
+        },
+        {
+          "text": ".config/skills/shoji9x9/dependabot-merge.jsonc の merge_method を参照し、無ければ squash をデフォルトにする方針である",
+          "passed": true,
+          "evidence": "手順 5 で dependabot-merge.jsonc があれば skill-config.mjs get merge_method、無ければ squash"
+        },
+        {
+          "text": "安全と判断した場合に gh pr merge でマージしようとしている",
+          "passed": true,
+          "evidence": "手順 7「gh pr merge --\"$METHOD\" $PR --repo $OWNER_REPO」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 31.601,
+        "tokens": 80687,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR番号のみのため現在の repo を対象にしている",
+          "passed": true,
+          "evidence": "gh repo view で現在の repo が shoji9x9/skills であることを確かめ、その repo の PR 51 を対象にしている"
+        },
+        {
+          "text": "0.x のマイナー更新は破壊的変更があり得ると認識している",
+          "passed": true,
+          "evidence": "「0.x のマイナー更新なので、破壊的な変更がありえます」"
+        },
+        {
+          "text": "changelog/release notes で破壊的変更（API変更・削除・挙動変更）の有無を確認する方針を示している",
+          "passed": true,
+          "evidence": "手順 3 で PR 本文・diff を読み、名前が変わったキーを特定し、手順 4 でリポジトリでの使用箇所を確認する"
+        },
+        {
+          "text": "判断の根拠を PR コメントに記録しようとしている",
+          "passed": true,
+          "evidence": "手順 6 と B のどちらでも gh pr comment --body-file で判断の根拠をコメントする"
+        },
+        {
+          "text": "リスクあり/判断不能ならマージせず、課題と解決策をコメントに残して停止する方針である",
+          "passed": true,
+          "evidence": "結論「今はマージを保留する」、B の場合はマージせず課題と対処をコメントに残す"
+        },
+        {
+          "text": "マージ方式を、リポジトリ規約からの推測ではなく設定 .config/skills/shoji9x9/dependabot-merge.jsonc の merge_method（無ければ squash 既定）から決める方針を示している",
+          "passed": true,
+          "evidence": "手順 6 で skill-config.mjs get dependabot-merge merge_method、設定ファイルが無い場合は squash"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.625,
+        "passed": 5,
+        "failed": 3,
+        "total": 8,
+        "time_seconds": 27.412,
+        "tokens": 38440,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL から owner/repo/PR番号を抽出している",
+          "passed": true,
+          "evidence": "gh pr view 42 --repo shoji9x9/skills の形で owner/repo と番号を使っている"
+        },
+        {
+          "text": "現在の repo と PR の owner/repo の一致を確認している",
+          "passed": false,
+          "evidence": "現在の clone の repo と PR の owner/repo を突き合わせる手順が無い（--repo 指定だけ）"
+        },
+        {
+          "text": "PR の著者が Dependabot か確認している",
+          "passed": true,
+          "evidence": "判断材料の表で著者 dependabot[bot] を確認し、手順 1 で author・commits の著者も確認"
+        },
+        {
+          "text": "gh pr checks で CI の成功を確認しようとしている",
+          "passed": true,
+          "evidence": "手順 2「gh pr checks 42 --repo shoji9x9/skills --required」"
+        },
+        {
+          "text": "changelog/release notes など更新内容から影響を確認する方針を示している",
+          "passed": true,
+          "evidence": "表に「リリースノートが追加と修正だけ（マイナー更新）」とあり、差分の確認も手順 1 にある"
+        },
+        {
+          "text": "マージ前に判断の根拠を PR コメントに記録する方針を示している",
+          "passed": false,
+          "evidence": "PR コメントに判断の根拠を残す手順が無い"
+        },
+        {
+          "text": ".config/skills/shoji9x9/dependabot-merge.jsonc の merge_method を参照し、無ければ squash をデフォルトにする方針である",
+          "passed": false,
+          "evidence": "dependabot-merge.jsonc の merge_method に触れず、gh repo view の許可状況から --squash を選んでいる"
+        },
+        {
+          "text": "安全と判断した場合に gh pr merge でマージしようとしている",
+          "passed": true,
+          "evidence": "手順 5「gh pr merge 42 --repo shoji9x9/skills --squash --match-head-commit」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 3,
+        "failed": 3,
+        "total": 6,
+        "time_seconds": 32.857,
+        "tokens": 42062,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR番号のみのため現在の repo を対象にしている",
+          "passed": true,
+          "evidence": "gh pr view 51 を --repo なしで実行し、現在の clone の repo を対象にしている"
+        },
+        {
+          "text": "0.x のマイナー更新は破壊的変更があり得ると認識している",
+          "passed": true,
+          "evidence": "「0.x でのキー名変更は破壊的変更になり得ます」"
+        },
+        {
+          "text": "changelog/release notes で破壊的変更（API変更・削除・挙動変更）の有無を確認する方針を示している",
+          "passed": true,
+          "evidence": "手順 2 で gh release view により oxfmt 0.53.0 のリリースノートから変更キーと非推奨か削除かを確認"
+        },
+        {
+          "text": "判断の根拠を PR コメントに記録しようとしている",
+          "passed": false,
+          "evidence": "PR コメントに判断の根拠を記録する手順が無い"
+        },
+        {
+          "text": "リスクあり/判断不能ならマージせず、課題と解決策をコメントに残して停止する方針である",
+          "passed": false,
+          "evidence": "リスクありの場合に PR へ課題と解決策をコメントせず、Dependabot のブランチに修正を push する手順を示している"
+        },
+        {
+          "text": "マージ方式を、リポジトリ規約からの推測ではなく設定 .config/skills/shoji9x9/dependabot-merge.jsonc の merge_method（無ければ squash 既定）から決める方針を示している",
+          "passed": false,
+          "evidence": "merge_method の設定に触れず「リポジトリのマージ方式に合わせる」と推測で決めている"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 29.247,
+        "stddev": 3.3291,
+        "min": 26.893,
+        "max": 31.601
+      },
+      "tokens": {
+        "mean": 80401.5,
+        "stddev": 403.758,
+        "min": 80116,
+        "max": 80687
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5625,
+        "stddev": 0.0884,
+        "min": 0.5,
+        "max": 0.625
+      },
+      "time_seconds": {
+        "mean": 30.1345,
+        "stddev": 3.8502,
+        "min": 27.412,
+        "max": 32.857
+      },
+      "tokens": {
+        "mean": 40251,
+        "stddev": 2561.1408,
+        "min": 38440,
+        "max": 42062
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.44",
+      "time_seconds": "-0.9",
+      "tokens": "+40151"
+    }
+  },
+  "notes": []
+}

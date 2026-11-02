@@ -111,20 +111,24 @@ test("deduplicates worktree parent mounts and leaves /tmp to the sibling-run mou
   temporaryDirectories.push(root);
   const repo = join(root, "repo");
   const project = join(root, "project");
-  const sharedParent = join(root, "shared");
+  // 共有の親は、既に隠す親（リポジトリの親と /tmp）の外の実在するパスにする。
+  // bwrap はスタブで引数を記録するだけなので、/usr に tmpfs は置かれない。
+  const sharedParent = "/usr";
+  const nestedParent = join(repo, ".claude", "worktrees");
   const fakeHome = join(root, "home");
   const fakeBin = join(root, "bin");
   const copiedScript = join(repo, "scripts", "eval", "eval-sandbox.sh");
   const capturedArgs = join(root, "bwrap-args.txt");
   mkdirSync(dirname(copiedScript), { recursive: true });
   mkdirSync(project);
-  mkdirSync(sharedParent);
+  mkdirSync(nestedParent, { recursive: true });
   mkdirSync(fakeHome);
   mkdirSync(fakeBin);
   writeFileSync(copiedScript, readFileSync(sourceScript));
   chmodSync(copiedScript, 0o755);
 
-  writeWorktreeFakeBin(fakeBin, sharedParent, capturedArgs);
+  const worktrees = ["/usr/one", "/usr/two", "/tmp/three", join(nestedParent, "four")];
+  writeWorktreeFakeBin(fakeBin, worktrees, capturedArgs);
 
   const result = spawnSync(copiedScript, ["--version"], {
     timeout: CHILD_TIMEOUT_MS,
@@ -143,6 +147,9 @@ test("deduplicates worktree parent mounts and leaves /tmp to the sibling-run mou
   const tmpfsTargets = args.flatMap((arg, index) => (arg === "--tmpfs" ? [args[index + 1]] : []));
   expect(tmpfsTargets.filter((target) => target === sharedParent)).toHaveLength(1);
   expect(tmpfsTargets.filter((target) => target === "/tmp")).toHaveLength(1);
+  // リポジトリの親を隠した後に、その下の worktree の親を重ねて隠さない。
+  expect(tmpfsTargets).toContain(root);
+  expect(tmpfsTargets).not.toContain(nestedParent);
 });
 
 test.each([
@@ -235,4 +242,51 @@ test("cwd が /tmp の外なら、/tmp を隠すだけで cwd を戻さない", 
   const binds = bwrapArgs.flatMap((arg, i) => (arg === "--bind" ? [bwrapArgs[i + 1]] : []));
   expect(binds).not.toContain("/");
   expect(bwrapArgs[bwrapArgs.lastIndexOf("--chdir") + 1]).toBe("/");
+});
+
+/** ホストの ~/.claude/settings.json を置いてスクリプトを起動し、bind されたコピーを読む。 */
+function sandboxWithSettings(settings: string | null) {
+  const root = makeTempDir("eval-sandbox-settings-");
+  const home = join(root, "home");
+  mkdirSync(join(home, ".claude"), { recursive: true });
+  if (settings !== null) writeFileSync(join(home, ".claude", "settings.json"), settings);
+  const copied = join(root, "bound-settings.json");
+  const run = sandbox(["--version"], { env: { HOME: home, FAKE_BWRAP_SETTINGS: copied } });
+  return { ...run, home, bound: existsSync(copied) ? readFileSync(copied, "utf8") : null };
+}
+
+test("settings.json は、許可リストのキーだけを残したコピーを bind し、元のファイルは bind しない", () => {
+  const original = JSON.stringify({
+    model: "opus",
+    hooks: { Stop: [{ hooks: [{ type: "command", command: "bash ~/x/kaizen-stop-mark.sh" }] }] },
+    autoMode: { environment: ["Trusted repo: /home/u/projects/skills"] },
+    env: { ANTHROPIC_BASE_URL: "https://example.test", COMPACT_PLUS_PRIMARY_BACKEND: "claude -p" },
+  });
+  const { result, bwrapArgs, home, bound } = sandboxWithSettings(original);
+  expect(result.status, result.stderr).toBe(0);
+  if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
+  const target = join(home, ".claude", "settings.json");
+  const sources = bwrapArgs.flatMap((arg, i) =>
+    arg === "--ro-bind" && bwrapArgs[i + 2] === target ? [bwrapArgs[i + 1]] : [],
+  );
+  expect(sources).toHaveLength(1);
+  expect(sources[0]).not.toBe(target);
+  expect(JSON.parse(bound ?? "null")).toEqual({
+    model: "opus",
+    env: { ANTHROPIC_BASE_URL: "https://example.test" },
+  });
+});
+
+test("settings.json が無ければ、settings.json を bind しない", () => {
+  const { result, bwrapArgs, home } = sandboxWithSettings(null);
+  expect(result.status, result.stderr).toBe(0);
+  if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
+  expect(bwrapArgs).not.toContain(join(home, ".claude", "settings.json"));
+});
+
+test("settings.json を JSON として読めなければ、exit 3 で止め、bwrap を起動しない", () => {
+  const { result, bwrapArgs } = sandboxWithSettings("{ not json");
+  expect(result.status).toBe(3);
+  expect(result.stderr).toMatch(/cannot sanitize .*settings\.json/u);
+  expect(bwrapArgs).toBeNull();
 });

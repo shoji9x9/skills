@@ -101,11 +101,13 @@ args+=(--ro-bind "${home}" "${home}")
 # "corrupted"). `mktemp` lands in /tmp, resolved here on the host before the /tmp
 # tmpfs below hides it inside the sandbox.
 scratch_state="$(mktemp)"
+scratch_settings=""
 scratch_etc=""
 host_etc_mount=""
 # shellcheck disable=SC2329 # invoked by the EXIT trap below
 cleanup() {
 	rm -f -- "${scratch_state}"
+	[ -z "${scratch_settings}" ] || rm -f -- "${scratch_settings}"
 	[ -z "${scratch_etc}" ] || rm -rf -- "${scratch_etc}"
 	[ -z "${host_etc_mount}" ] || rmdir -- "${host_etc_mount}" 2>/dev/null || true
 }
@@ -135,7 +137,14 @@ if command -v git >/dev/null 2>&1; then
 		wt_parent="$(dirname "${wt}")"
 		# Already covered by ${repo_parent} (or by the /tmp tmpfs below), or a path
 		# whose removal would take the disposable project with it.
-		[ -z "${hidden_worktree_parents["${wt_parent}"]+present}" ] || continue
+		# A parent under one already hidden must be skipped too: bwrap creates the
+		# mount point inside the outer tmpfs, so the repo dir reappears (empty but
+		# listable) and `--verify` stage 1 reports it as REACHABLE.
+		covered=""
+		for hidden in "${!hidden_worktree_parents[@]}"; do
+			case "${wt_parent}/" in "${hidden}"/*) covered=1 ;; esac
+		done
+		[ -z "${covered}" ] || continue
 		case "${PWD}/" in "${wt_parent}"/*) continue ;; esac
 		if [ -e "${wt_parent}" ]; then
 			hidden_worktree_parents["${wt_parent}"]=1
@@ -166,14 +175,28 @@ done
 #    writable scratch the CLI needs under a read-only $HOME. Only what the CLI needs
 #    to start is bound back, read-only.
 args+=(--tmpfs "${home}/.claude")
-# settings.json / .credentials.json: the CLI needs them to start. CLAUDE.md: the
+# .credentials.json: the CLI needs it to start. CLAUDE.md: the
 # user-global instruction file is NOT skill content, and hiding it from baselines
 # only would make the two configurations differ by more than the skill under test.
 # Reopening that route is guarded — `--verify` scans $HOME, so a CLAUDE.md that did
 # restate skill content would surface as a marker hit.
-for f in settings.json .credentials.json CLAUDE.md; do
+for f in .credentials.json CLAUDE.md; do
 	[ -e "${home}/.claude/${f}" ] && args+=(--ro-bind "${home}/.claude/${f}" "${home}/.claude/${f}")
 done
+# settings.json is NOT bound as is: it holds the user's hooks, permissions and the
+# autoMode environment text, which names this repo's path and .kaizen/ notes — a
+# without_skill run read them. Bind a copy that keeps only the keys the CLI needs
+# to reach the API (sanitize-claude-settings.ts holds the allowlist).
+if [ -e "${home}/.claude/settings.json" ]; then
+	scratch_settings="$(mktemp)"
+	# Run node from the repo: the cwd here is the disposable project under /tmp, where a
+	# version manager's shim (mise) may not resolve node.
+	(cd "${repo}" && node "$(dirname "${self}")/sanitize-claude-settings.ts" "${home}/.claude/settings.json" "${scratch_settings}") || {
+		echo "eval-sandbox: cannot sanitize ${home}/.claude/settings.json" >&2
+		exit 3
+	}
+	args+=(--ro-bind "${scratch_settings}" "${home}/.claude/settings.json")
+fi
 declare -A hidden_agent_dirs=()
 for d in "${home}/.codex" "${codex_home}" "${home}/.copilot" "${home}/.agents" "${home}/.vscode-server"; do
 	[ -e "${d}" ] || continue

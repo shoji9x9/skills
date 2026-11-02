@@ -1,0 +1,187 @@
+{
+  "metadata": {
+    "skill_name": "kaizen",
+    "skill_path": "<repo>/skills/kaizen",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-30T15:15:11Z",
+    "evals_run": [20],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 20,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 9,
+        "failed": 0,
+        "total": 9,
+        "time_seconds": 63.58,
+        "tokens": 603060,
+        "tool_calls": 11,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Claude Code・Codex・Copilot のどれも handler の if で絞らず（Claude Code の if は git -C <dir> commit や heredoc の中の git commit で起動しないため）、スクリプト内の Bash prefilter で非 commit の呼び出しを速く終える",
+          "passed": true,
+          "evidence": "「if（例: Bash(git commit *)）は付けないでください。付けると git -C <dir> commit や heredoc の中の commit でスクリプトが起動せず」、3 エージェントとも matcher だけで、速さはスクリプト冒頭の絞り込みで確保"
+        },
+        {
+          "text": "非 commit の prefilter は jq・python・git を起動せず終了すると説明している",
+          "passed": true,
+          "evidence": "(1)「bash の組み込みの照合だけで終わります。jq も python3 も git も起動しません」"
+        },
+        {
+          "text": "走査するのは transcript_path の transcript のうち、自セッションの .kaizen/.extract-checkpoint.<session key> が記録した位置より後だけであると説明している",
+          "passed": true,
+          "evidence": "(2)「自分のセッションの checkpoint（.kaizen/.extract-checkpoint.<session key>）が記録しているバイト位置から…transcript の終わりまで」"
+        },
+        {
+          "text": "検証済み候補ゼロなら checkpoint と自セッションのセンチネルだけを更新して .extract-done.<session key> は作らず commit を通す",
+          "passed": true,
+          "evidence": "(2) checkpoint を進めて自分のセンチネルだけを消し、「.kaizen/.extract-done.<key> は作りません」。commit が通ることは (3)・(4) で説明"
+        },
+        {
+          "text": "Codex と Copilot のセンチネルが同時にある状態で Codex の候補ゼロ transcript を走査すると、Codex のセンチネルだけを削除し Copilot のぶんは残す。残った Copilot 分が自セッション（または key を持たない旧形式）なら exit 2 でブロックし、別セッションのものなら警告に留めて commit は通すと区別している",
+          "passed": true,
+          "evidence": "(3) Codex のセンチネルだけを消し Copilot は残り、別セッション分は exit 1 の警告で commit は通る。(4) で自分のセッションのセンチネルと key を持たない旧形式は自分の分としてブロックすると区別"
+        },
+        {
+          "text": "候補があるときはブロックし、kaizen --current を促すと説明している",
+          "passed": true,
+          "evidence": "(4)「候補あり」でブロック、(5)「kaizen --current で…抽出して記録」"
+        },
+        {
+          "text": "判定できない transcript（既知 container の未知・欠損 subtype、不正な JSON、読めない transcript）を候補ゼロとして扱わず、ブロックすると説明している",
+          "passed": true,
+          "evidence": "(4)「判定できない: 形式が分からない…transcript_path が無い」をブロックに含める（不正な JSON・読めない transcript を個別には挙げていない）"
+        },
+        {
+          "text": "jq が無いときと内部の timeout も、候補ゼロとして扱わずブロックすると説明している",
+          "passed": true,
+          "evidence": "(4)「jq が無い、timeout コマンドが無い、締め切り超過」でブロック"
+        },
+        {
+          "text": "コミットの既定クリティカルパスは抽出・記録と extract-done までで、apply は明示選択時だけ続ける",
+          "passed": true,
+          "evidence": "(5)「apply（成果物への反映）は要りません。ユーザーが「今すぐ適用」を選んだときだけ続けます」、抽出・記録・extract-done までを範囲としている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 9,
+        "total": 9,
+        "time_seconds": 47.708,
+        "tokens": 191158,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Claude Code・Codex・Copilot のどれも handler の if で絞らず（Claude Code の if は git -C <dir> commit や heredoc の中の git commit で起動しないため）、スクリプト内の Bash prefilter で非 commit の呼び出しを速く終える",
+          "passed": false,
+          "evidence": "Hook の if: \"Bash(git commit*)\" で絞る案を示している"
+        },
+        {
+          "text": "非 commit の prefilter は jq・python・git を起動せず終了すると説明している",
+          "passed": false,
+          "evidence": "スクリプト冒頭で exit 0 する一般論だけで、jq・python・git を起動しないとは説明していない"
+        },
+        {
+          "text": "走査するのは transcript_path の transcript のうち、自セッションの .kaizen/.extract-checkpoint.<session key> が記録した位置より後だけであると説明している",
+          "passed": false,
+          "evidence": "「(1)〜(5) の具体的な回答は控えます」として走査範囲を説明していない"
+        },
+        {
+          "text": "検証済み候補ゼロなら checkpoint と自セッションのセンチネルだけを更新して .extract-done.<session key> は作らず commit を通す",
+          "passed": false,
+          "evidence": "候補ゼロのときに更新するファイルと作らないファイルを説明していない"
+        },
+        {
+          "text": "Codex と Copilot のセンチネルが同時にある状態で Codex の候補ゼロ transcript を走査すると、Codex のセンチネルだけを削除し Copilot のぶんは残す。残った Copilot 分が自セッション（または key を持たない旧形式）なら exit 2 でブロックし、別セッションのものなら警告に留めて commit は通すと区別している",
+          "passed": false,
+          "evidence": "Codex と Copilot のセンチネルの扱いを説明していない"
+        },
+        {
+          "text": "候補があるときはブロックし、kaizen --current を促すと説明している",
+          "passed": false,
+          "evidence": "ブロックの条件と kaizen --current を説明していない"
+        },
+        {
+          "text": "判定できない transcript（既知 container の未知・欠損 subtype、不正な JSON、読めない transcript）を候補ゼロとして扱わず、ブロックすると説明している",
+          "passed": false,
+          "evidence": "判定できない transcript の扱いを説明していない"
+        },
+        {
+          "text": "jq が無いときと内部の timeout も、候補ゼロとして扱わずブロックすると説明している",
+          "passed": false,
+          "evidence": "jq が無いときと timeout の扱いを説明していない"
+        },
+        {
+          "text": "コミットの既定クリティカルパスは抽出・記録と extract-done までで、apply は明示選択時だけ続ける",
+          "passed": false,
+          "evidence": "クリティカルパスと apply の扱いを説明していない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 63.58,
+        "stddev": 0,
+        "min": 63.58,
+        "max": 63.58
+      },
+      "tokens": {
+        "mean": 603060,
+        "stddev": 0,
+        "min": 603060,
+        "max": 603060
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0,
+        "stddev": 0,
+        "min": 0,
+        "max": 0
+      },
+      "time_seconds": {
+        "mean": 47.708,
+        "stddev": 0,
+        "min": 47.708,
+        "max": 47.708
+      },
+      "tokens": {
+        "mean": 191158,
+        "stddev": 0,
+        "min": 191158,
+        "max": 191158
+      }
+    },
+    "delta": {
+      "pass_rate": "+1.00",
+      "time_seconds": "+15.9",
+      "tokens": "+411902"
+    }
+  },
+  "notes": []
+}

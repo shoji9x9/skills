@@ -1,0 +1,289 @@
+{
+  "metadata": {
+    "skill_name": "browser-test",
+    "skill_path": "<repo>/skills/browser-test",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-30T15:15:09Z",
+    "evals_run": [5],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 31.369,
+        "tokens": 139758,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "リポジトリ探索（package.json の scripts・dev サーバ設定・README 等）から環境・起動コマンドの候補を推定している",
+          "passed": true,
+          "evidence": "raw: package.json・README を cat し vite.config 等の有無も ls。応答『package.json の dev スクリプト（vite --port 5173）と README…から決めました』"
+        },
+        {
+          "text": "環境 URL・認証・起動方法・環境ごとの禁止操作（forbidden_actions）をユーザーに確認しようとしている",
+          "passed": true,
+          "evidence": "推定値（URL・start・auth）を仮定として示し『違うところがあれば言ってください』、forbidden_actions と他の環境の有無を『確認してほしいこと』で尋ねている（記録は確認前に済ませている）"
+        },
+        {
+          "text": "記録は同梱の skill-config.mjs で行い、既にある staging の環境を残したまま、同じ name の無い環境だけを append（--unique-by name）で足す方針である（ファイル全体の書き直し・手での編集・staging の値やコメントの変更を示していない）",
+          "passed": true,
+          "evidence": "raw: skill-config.mjs append browser-test environments ... --layer repo --unique-by name を実行（exit=0）。直後の cat で staging の値・コメントが元のまま、local だけが末尾に追加"
+        },
+        {
+          "text": "回帰確認（ページ巡回）を始めていない",
+          "passed": true,
+          "evidence": "raw に chrome-devtools の呼び出し・dev サーバーの起動は無い（Skill・Bash 4 回だけ）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 36.48,
+        "tokens": 140198,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "リポジトリ探索（package.json の scripts・dev サーバ設定・README 等）から環境・起動コマンドの候補を推定している",
+          "passed": true,
+          "evidence": "raw: README・package.json・既存設定を読み、vite.config の有無を ls。推定した local 環境を根拠つきの表で示している"
+        },
+        {
+          "text": "環境 URL・認証・起動方法・環境ごとの禁止操作（forbidden_actions）をユーザーに確認しようとしている",
+          "passed": true,
+          "evidence": "『決めていただきたいこと』で forbidden_actions・置く層・preview 環境を尋ね、推定値の表を示して『内容に問題がなければ…実行してください』と了承を求めている。実ファイルには書いていない"
+        },
+        {
+          "text": "記録は同梱の skill-config.mjs で行い、既にある staging の環境を残したまま、同じ name の無い環境だけを append（--unique-by name）で足す方針である（ファイル全体の書き直し・手での編集・staging の値やコメントの変更を示していない）",
+          "passed": true,
+          "evidence": "一時ディレクトリのコピーで skill-config.mjs append --layer repo --unique-by name を試し staging とコメントが残ることを確認、同じコマンドを記録の手順として提示"
+        },
+        {
+          "text": "回帰確認（ページ巡回）を始めていない",
+          "passed": true,
+          "evidence": "raw に chrome-devtools の呼び出し・dev サーバーの起動は無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 53.851,
+        "tokens": 244221,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "リポジトリ探索（package.json の scripts・dev サーバ設定・README 等）から環境・起動コマンドの候補を推定している",
+          "passed": true,
+          "evidence": "raw: package.json・README を cat。応答『README.md と package.json の dev から推定しました』"
+        },
+        {
+          "text": "環境 URL・認証・起動方法・環境ごとの禁止操作（forbidden_actions）をユーザーに確認しようとしている",
+          "passed": false,
+          "evidence": "確認の依頼はチームのレビュー・ローカルの禁止操作・他の環境の有無だけで、推定した URL・認証・起動方法は『推定した値で進めました』と確定扱いにし、ユーザーに確かめていない"
+        },
+        {
+          "text": "記録は同梱の skill-config.mjs で行い、既にある staging の環境を残したまま、同じ name の無い環境だけを append（--unique-by name）で足す方針である（ファイル全体の書き直し・手での編集・staging の値やコメントの変更を示していない）",
+          "passed": true,
+          "evidence": "raw: skill-config.mjs append ... --layer repo --unique-by name（exit=0）。直後の cat で staging の値・コメントが元のまま、local だけが追加"
+        },
+        {
+          "text": "回帰確認（ページ巡回）を始めていない",
+          "passed": true,
+          "evidence": "raw に chrome-devtools の呼び出し・dev サーバーの起動は無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 26.163,
+        "tokens": 118375,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "リポジトリ探索（package.json の scripts・dev サーバ設定・README 等）から環境・起動コマンドの候補を推定している",
+          "passed": true,
+          "evidence": "raw: cat package.json README.md、既存設定も読み、README の URL・ログイン不要から local を推定"
+        },
+        {
+          "text": "環境 URL・認証・起動方法・環境ごとの禁止操作（forbidden_actions）をユーザーに確認しようとしている",
+          "passed": false,
+          "evidence": "auth の値と禁止操作の見直しは促しているが、URL・起動方法は確かめず、記録も確認前に済ませている"
+        },
+        {
+          "text": "記録は同梱の skill-config.mjs で行い、既にある staging の環境を残したまま、同じ name の無い環境だけを append（--unique-by name）で足す方針である（ファイル全体の書き直し・手での編集・staging の値やコメントの変更を示していない）",
+          "passed": false,
+          "evidence": "raw: Edit ツールで browser-test.jsonc を手で編集（skill-config.mjs append を使っていない）"
+        },
+        {
+          "text": "回帰確認（ページ巡回）を始めていない",
+          "passed": true,
+          "evidence": "raw に chrome-devtools の呼び出し・dev サーバーの起動は無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 25.396,
+        "tokens": 95518,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "リポジトリ探索（package.json の scripts・dev サーバ設定・README 等）から環境・起動コマンドの候補を推定している",
+          "passed": true,
+          "evidence": "raw: package.json・README・設定を読み、local（5173）と preview（4173）の候補を挙げている"
+        },
+        {
+          "text": "環境 URL・認証・起動方法・環境ごとの禁止操作（forbidden_actions）をユーザーに確認しようとしている",
+          "passed": false,
+          "evidence": "レビューで確かめる点として auth の値と禁止操作だけを挙げ、URL・起動方法を確認する問いが無い"
+        },
+        {
+          "text": "記録は同梱の skill-config.mjs で行い、既にある staging の環境を残したまま、同じ name の無い環境だけを append（--unique-by name）で足す方針である（ファイル全体の書き直し・手での編集・staging の値やコメントの変更を示していない）",
+          "passed": false,
+          "evidence": "skill-config.mjs を使わず、ファイル全体を書き直した変更案を提示している"
+        },
+        {
+          "text": "回帰確認（ページ巡回）を始めていない",
+          "passed": true,
+          "evidence": "raw に chrome-devtools の呼び出し・dev サーバーの起動は無い（ms-playwright のキャッシュを ls しただけ）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 24.707,
+        "tokens": 155754,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "リポジトリ探索（package.json の scripts・dev サーバ設定・README 等）から環境・起動コマンドの候補を推定している",
+          "passed": true,
+          "evidence": "raw: cat package.json README.md。応答『追加した内容は README の記載どおりです』"
+        },
+        {
+          "text": "環境 URL・認証・起動方法・環境ごとの禁止操作（forbidden_actions）をユーザーに確認しようとしている",
+          "passed": false,
+          "evidence": "auth の値と forbidden_actions の見直しは促すが、URL・起動方法は確かめず、記録も確認前に済ませている"
+        },
+        {
+          "text": "記録は同梱の skill-config.mjs で行い、既にある staging の環境を残したまま、同じ name の無い環境だけを append（--unique-by name）で足す方針である（ファイル全体の書き直し・手での編集・staging の値やコメントの変更を示していない）",
+          "passed": false,
+          "evidence": "raw: Edit ツールで browser-test.jsonc を手で編集し、local を staging の前に挿入（skill-config.mjs append を使っていない）"
+        },
+        {
+          "text": "回帰確認（ページ巡回）を始めていない",
+          "passed": true,
+          "evidence": "raw に chrome-devtools の呼び出し・dev サーバーの起動は無い"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9167,
+        "stddev": 0.1443,
+        "min": 0.75,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 40.5667,
+        "stddev": 11.785,
+        "min": 31.369,
+        "max": 53.851
+      },
+      "tokens": {
+        "mean": 174725.6667,
+        "stddev": 60185.1262,
+        "min": 139758,
+        "max": 244221
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5,
+        "stddev": 0,
+        "min": 0.5,
+        "max": 0.5
+      },
+      "time_seconds": {
+        "mean": 25.422,
+        "stddev": 0.7283,
+        "min": 24.707,
+        "max": 26.163
+      },
+      "tokens": {
+        "mean": 123215.6667,
+        "stddev": 30408.3535,
+        "min": 95518,
+        "max": 155754
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.42",
+      "time_seconds": "+15.1",
+      "tokens": "+51510"
+    }
+  },
+  "notes": []
+}

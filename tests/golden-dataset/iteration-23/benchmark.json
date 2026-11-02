@@ -1,0 +1,147 @@
+{
+  "metadata": {
+    "skill_name": "golden-dataset",
+    "skill_path": "<repo>/skills/golden-dataset",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-30T15:15:11Z",
+    "evals_run": [13],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 13,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 93.601,
+        "tokens": 689420,
+        "tool_calls": 13,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "current.origin: received-assets を踏まえ .replace/bootstrap/metadata.json の status: handed-off を確認してからフェーズ A に入っている",
+          "passed": true,
+          "evidence": "raw で .replace/bootstrap/* を cat した後に手順 1 の前提確認へ進み、応答に「起動準備（.replace/bootstrap/metadata.json）は status: handed-off で完了しています」。フェーズ A の手順 1 で CURRENT_DB_URL 未設定により停止"
+        },
+        {
+          "text": "handoff.boot_requirements の起動要件（ADMIN / OPERATOR の app_users、customers 1 件以上）をフェーズ A のデータ設計に含めている（事前削除で暫定起動データが置き換わるため）",
+          "passed": false,
+          "evidence": "design.md を作らずに手順 1 で停止した（project-tree は fixture と同一で成果物なし）。応答で「起動に必要なデータは設計に必ず入れます」と予定を述べたのみで、データ設計に含めた記録は無い"
+        },
+        {
+          "text": "bootstrap/seed.sh の暫定起動データやそのツールを流用・改造せず、dataset_tool_dir（seed/）に本スキルの投入ツールを作る方針を示している",
+          "passed": false,
+          "evidence": "raw に bootstrap/ への書き込みは無いが、seed.sh を流用しないことや seed/ に本スキルの投入ツールを作る方針は応答に述べていない（dataset_tool_dir: seed/ を読めたと書いたのみ。bootstrap と同じ SQL＋シェルにする案も挙げている）"
+        },
+        {
+          "text": "確認待ちの orders.status の意味・遷移・初期値を推測や一般論で確定させず、確定済みの意味論だけを設計の根拠にしている",
+          "passed": false,
+          "evidence": "orders.status を推測で確定させてはいない（「受注データを作れません」）が、設計を作っておらず、確定済みの意味論を設計の根拠にした成果物が無い"
+        },
+        {
+          "text": "確認待ちのため最低限のシナリオを確定できない機能（order-list）を verification.md の「意味論が未確定の機能」へ slug 単位で記録する方針を示している（値を捏造して埋めていない）",
+          "passed": true,
+          "evidence": "応答「フェーズ A では、『意味論が未確定の機能』として verification.md に残すことになります」と order-list を slug で挙げ、値を埋めていない（ファイルは作っていない）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 29.364,
+        "tokens": 212447,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "current.origin: received-assets を踏まえ .replace/bootstrap/metadata.json の status: handed-off を確認してからフェーズ A に入っている",
+          "passed": false,
+          "evidence": "handed-off は確認したが、スキル未インストールを理由に停止し、フェーズ A に入っていない（成果物なし）"
+        },
+        {
+          "text": "handoff.boot_requirements の起動要件（ADMIN / OPERATOR の app_users、customers 1 件以上）をフェーズ A のデータ設計に含めている（事前削除で暫定起動データが置き換わるため）",
+          "passed": false,
+          "evidence": "データ設計を作っていない"
+        },
+        {
+          "text": "bootstrap/seed.sh の暫定起動データやそのツールを流用・改造せず、dataset_tool_dir（seed/）に本スキルの投入ツールを作る方針を示している",
+          "passed": false,
+          "evidence": "seed.sh を正解として流用しないとは述べたが、seed/ に投入ツールを作る方針は示していない（ツールを書かずに停止）"
+        },
+        {
+          "text": "確認待ちの orders.status の意味・遷移・初期値を推測や一般論で確定させず、確定済みの意味論だけを設計の根拠にしている",
+          "passed": false,
+          "evidence": "orders.status を確定させてはいないが、設計を作っておらず根拠にした成果物が無い"
+        },
+        {
+          "text": "確認待ちのため最低限のシナリオを確定できない機能（order-list）を verification.md の「意味論が未確定の機能」へ slug 単位で記録する方針を示している（値を捏造して埋めていない）",
+          "passed": false,
+          "evidence": "「order-list は意味が未確定の機能になります」と述べたのみで、verification.md の「意味論が未確定の機能」へ記録する方針は示していない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.4,
+        "stddev": 0,
+        "min": 0.4,
+        "max": 0.4
+      },
+      "time_seconds": {
+        "mean": 93.601,
+        "stddev": 0,
+        "min": 93.601,
+        "max": 93.601
+      },
+      "tokens": {
+        "mean": 689420,
+        "stddev": 0,
+        "min": 689420,
+        "max": 689420
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0,
+        "stddev": 0,
+        "min": 0,
+        "max": 0
+      },
+      "time_seconds": {
+        "mean": 29.364,
+        "stddev": 0,
+        "min": 29.364,
+        "max": 29.364
+      },
+      "tokens": {
+        "mean": 212447,
+        "stddev": 0,
+        "min": 212447,
+        "max": 212447
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.40",
+      "time_seconds": "+64.2",
+      "tokens": "+476973"
+    }
+  },
+  "notes": []
+}

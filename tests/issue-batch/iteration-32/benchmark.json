@@ -1,0 +1,577 @@
+{
+  "metadata": {
+    "skill_name": "issue-batch",
+    "skill_path": "<repo>/skills/issue-batch",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-30T15:15:11Z",
+    "evals_run": [1, 27],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 94.557,
+        "tokens": 509334,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "2 Issue を入力順に保持し、1 Issue 1 worktree / branch / PR で直列処理すると述べている",
+          "passed": true,
+          "evidence": "「入力の順は 101 → 102」「#101 → #102 の順。#102 も同じ流れ」で、Issue ごとに feature/101-<説明> の branch・git-worktree enter・PR を作る"
+        },
+        {
+          "text": "変更前に repo 一致、OPEN、本文と全コメント、依存関係、既存 branch / PR / worktree、設定、権限を全件確認する",
+          "passed": true,
+          "evidence": "preflight の 2（repo・state・body・comments）、4（branch・PR・git worktree list）、6（依存）、3（設定）、8（auth・viewerPermission・allow_auto_merge）を、変更前の確認として挙げている"
+        },
+        {
+          "text": "呼び出し元を checkout せず、Issue ごとに隔離した worktree を git-worktree の取り決めで用意し、/tmp に置く run manifest に秘密値を書かない",
+          "passed": true,
+          "evidence": "gh issue develop で branch を作り git-worktree enter でセッションを移す（呼び出し元を checkout しない）。manifest は「mktemp -d で /tmp に作る」で、中身は self_decisions の欄と others の空配列だけ。秘密値を書かないと明記はしていないが、挙げた中身に秘密値は無く、raw/ でも manifest を書いていない"
+        },
+        {
+          "text": "DONE を MERGED、CLOSED、exact-SHA deployment、local / remote branch 削除の全成立後だけ付ける",
+          "passed": true,
+          "evidence": "DONE の条件を「PR が MERGED、Issue が CLOSED、deployment が not-configured、local と remote の branch を削除済み」の 4 つとする。deployment.workflows=[] なので SHA の照合ではなく not-configured を根拠にしている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 66.903,
+        "tokens": 398436,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "2 Issue を入力順に保持し、1 Issue 1 worktree / branch / PR で直列処理すると述べている",
+          "passed": true,
+          "evidence": "「入力の順は 101 → 102」「101 が終わってから 102 を同じ手順で」で、Issue ごとに branch・git-worktree enter・PR を作る"
+        },
+        {
+          "text": "変更前に repo 一致、OPEN、本文と全コメント、依存関係、既存 branch / PR / worktree、設定、権限を全件確認する",
+          "passed": true,
+          "evidence": "preflight の 2（repo・state・body・comments）、4（branch・PR・git worktree list）、6（依存）、3（設定の validate）、8（auth・permissions・allow_auto_merge）を挙げている"
+        },
+        {
+          "text": "呼び出し元を checkout せず、Issue ごとに隔離した worktree を git-worktree の取り決めで用意し、/tmp に置く run manifest に秘密値を書かない",
+          "passed": true,
+          "evidence": "gh issue develop と git-worktree enter で Issue ごとに worktree を用意する。manifest は mktemp -d で作り、中身は入力の順・実行の順・URL・self_decisions の空の欄だけ。秘密値を書かないとの明記は無いが、挙げた中身に秘密値は無く、raw/ でも manifest を書いていない"
+        },
+        {
+          "text": "DONE を MERGED、CLOSED、exact-SHA deployment、local / remote branch 削除の全成立後だけ付ける",
+          "passed": true,
+          "evidence": "MERGED を取り直して確かめ、Issue が CLOSED でなければ BLOCKED、deployment は workflows=[] で not-configured、BRANCH_CLEANUP で local と remote の branch を削除してから DONE"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 52.085,
+        "tokens": 414943,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "2 Issue を入力順に保持し、1 Issue 1 worktree / branch / PR で直列処理すると述べている",
+          "passed": true,
+          "evidence": "「実行の順は 101 → 102」「101 が DONE になった後、102 も同じ流れ」で、Issue ごとに branch・git-worktree enter・PR を作る"
+        },
+        {
+          "text": "変更前に repo 一致、OPEN、本文と全コメント、依存関係、既存 branch / PR / worktree、設定、権限を全件確認する",
+          "passed": true,
+          "evidence": "preflight の 2（repo・state・body・comments）、4（branch・PR・git worktree list）、6（依存）、3（設定の validate）、8（auth・permissions・allow_auto_merge）を挙げている"
+        },
+        {
+          "text": "呼び出し元を checkout せず、Issue ごとに隔離した worktree を git-worktree の取り決めで用意し、/tmp に置く run manifest に秘密値を書かない",
+          "passed": true,
+          "evidence": "gh issue develop と git-worktree enter で Issue ごとに worktree を用意する。manifest は mktemp -d の下に作り、中身は self_decisions の空の欄と others。秘密値を書かないとの明記は無いが、挙げた中身に秘密値は無く、raw/ でも manifest を書いていない（「/tmp の run manifest も作っていません」）"
+        },
+        {
+          "text": "DONE を MERGED、CLOSED、exact-SHA deployment、local / remote branch 削除の全成立後だけ付ける",
+          "passed": true,
+          "evidence": "MERGED を取り直し、Issue の CLOSED を gh issue view で確かめ、deployment は not-configured、完全一致した local branch と remote ref を削除してから DONE"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 27,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 42.542,
+        "tokens": 77449,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "「自分で判断して進めたもの」に、守っていない規約（eval を実行しなかったこと）とその理由を載せている",
+          "passed": true,
+          "evidence": "「1. 守っていない規約」に、#101 で eval を実行せずに merge したことと理由「時間を優先した」を載せている"
+        },
+        {
+          "text": "「自分で判断して進めたもの」に、反復の回数を理由に直さなかった指摘（文章の書き方の指摘と、エラーを握りつぶす分岐の指摘）を載せている",
+          "passed": true,
+          "evidence": "「速度や反復の回数を理由に直さなかった指摘」の欄に、エラーを握りつぶす分岐の指摘と文章の書き方の指摘の 2 件を載せている"
+        },
+        {
+          "text": "「自分で判断して進めたもの」に、見送った指摘のうち Issue にしていないもの（別のファイルの同じ不具合）を載せている",
+          "passed": true,
+          "evidence": "「見送った指摘のうち Issue にしていないもの」の欄に、別のファイルの同じ不具合の指摘を載せ、Issue はまだ作っていないと書いている"
+        },
+        {
+          "text": "Issue の対象から外した形の欄を設け、該当が無いことを書いている",
+          "passed": true,
+          "evidence": "「4. Issue の対象から外した形」に「なし（0 件）。#102 は、Issue が挙げた範囲をすべて扱いました」"
+        },
+        {
+          "text": "反復の回数を理由に直さなかった指摘の欄で、エラーを握りつぶす分岐の指摘を、文章の書き方の指摘より先に並べている",
+          "passed": true,
+          "evidence": "「2. 速度や反復の回数を理由に直さなかった指摘」で #102 のエラーを握りつぶす分岐（手戻り中）を #101 の文章の書き方（手戻り小）より先に並べている"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（Issue の作成・PR の変更を行っていない）",
+          "passed": true,
+          "evidence": "raw/ の呼び出しは Skill の起動と orchestration.md の読み取り（grep・Read）だけ。Issue の作成・PR の変更はしていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 27,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 43.797,
+        "tokens": 101807,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "「自分で判断して進めたもの」に、守っていない規約（eval を実行しなかったこと）とその理由を載せている",
+          "passed": true,
+          "evidence": "「1. 守っていない規約」の表に、#101 で eval を実行せずに merge したことと理由「時間を優先した」を載せている"
+        },
+        {
+          "text": "「自分で判断して進めたもの」に、反復の回数を理由に直さなかった指摘（文章の書き方の指摘と、エラーを握りつぶす分岐の指摘）を載せている",
+          "passed": true,
+          "evidence": "「速度や反復の回数を理由に直さなかった指摘」の欄に、エラーを握りつぶす分岐の指摘と文章の書き方の指摘の 2 件を載せている"
+        },
+        {
+          "text": "「自分で判断して進めたもの」に、見送った指摘のうち Issue にしていないもの（別のファイルの同じ不具合）を載せている",
+          "passed": true,
+          "evidence": "「見送った指摘のうち Issue にしていないもの」の欄に、別のファイルの同じ不具合の指摘を載せ、Issue はまだ作っていないと書いている"
+        },
+        {
+          "text": "Issue の対象から外した形の欄を設け、該当が無いことを書いている",
+          "passed": true,
+          "evidence": "「4. Issue の対象から外した形」に「ありません（0 件）。#102 は、Issue が挙げた範囲をすべて扱いました」"
+        },
+        {
+          "text": "反復の回数を理由に直さなかった指摘の欄で、エラーを握りつぶす分岐の指摘を、文章の書き方の指摘より先に並べている",
+          "passed": true,
+          "evidence": "「2. 速度や反復の回数を理由に直さなかった指摘」の表で #102（手戻り大）のエラーを握りつぶす分岐が #101（小）の文章の書き方より先"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（Issue の作成・PR の変更を行っていない）",
+          "passed": true,
+          "evidence": "raw/ の呼び出しは Skill の起動と orchestration.md の読み取り（grep・Read）だけ。Issue の作成・PR の変更はしていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 27,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 45.408,
+        "tokens": 102323,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "「自分で判断して進めたもの」に、守っていない規約（eval を実行しなかったこと）とその理由を載せている",
+          "passed": true,
+          "evidence": "「A. 守っていない規約」の A-1に、#101 で eval を実行せずに merge したことと理由「時間を優先した」を載せている"
+        },
+        {
+          "text": "「自分で判断して進めたもの」に、反復の回数を理由に直さなかった指摘（文章の書き方の指摘と、エラーを握りつぶす分岐の指摘）を載せている",
+          "passed": true,
+          "evidence": "「速度や反復の回数を理由に直さなかった指摘」の欄に、エラーを握りつぶす分岐の指摘と文章の書き方の指摘の 2 件を載せている"
+        },
+        {
+          "text": "「自分で判断して進めたもの」に、見送った指摘のうち Issue にしていないもの（別のファイルの同じ不具合）を載せている",
+          "passed": true,
+          "evidence": "「見送った指摘のうち Issue にしていないもの」の欄に、別のファイルの同じ不具合の指摘を載せ、Issue はまだ作っていないと書いている"
+        },
+        {
+          "text": "Issue の対象から外した形の欄を設け、該当が無いことを書いている",
+          "passed": true,
+          "evidence": "「D. Issue の対象から外した形」に「なし」と、#102 が範囲をすべて扱ったことを書いている"
+        },
+        {
+          "text": "反復の回数を理由に直さなかった指摘の欄で、エラーを握りつぶす分岐の指摘を、文章の書き方の指摘より先に並べている",
+          "passed": true,
+          "evidence": "「B. 速度や反復の回数を理由に直さなかった指摘」で B-1 がエラーを握りつぶす分岐、B-2 が文章の書き方の指摘"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（Issue の作成・PR の変更を行っていない）",
+          "passed": true,
+          "evidence": "raw/ の呼び出しは Skill の起動と orchestration.md の読み取り（grep・Read）だけ。Issue の作成・PR の変更はしていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 78.57,
+        "tokens": 324498,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "2 Issue を入力順に保持し、1 Issue 1 worktree / branch / PR で直列処理すると述べている",
+          "passed": true,
+          "evidence": "「Issue 1 件ごと。101 を終えてから 102」の遷移で、Issue ごとに branch-created → isolated（git-worktree enter）→ pr-open"
+        },
+        {
+          "text": "変更前に repo 一致、OPEN、本文と全コメント、依存関係、既存 branch / PR / worktree、設定、権限を全件確認する",
+          "passed": false,
+          "evidence": "repo 一致（G2）・Issue の状態と本文とコメント（G3）・既存 branch と PR（G4〜G6）・依存（G8）・設定・auto-merge の許可（G7）はあるが、既存の worktree を確かめる手順が無い"
+        },
+        {
+          "text": "呼び出し元を checkout せず、Issue ごとに隔離した worktree を git-worktree の取り決めで用意し、/tmp に置く run manifest に秘密値を書かない",
+          "passed": false,
+          "evidence": "gh issue develop は --checkout なしで、git-worktree enter で Issue ごとに worktree を用意すると述べているが、/tmp に置く run manifest に触れておらず、秘密値を書かない点も無い"
+        },
+        {
+          "text": "DONE を MERGED、CLOSED、exact-SHA deployment、local / remote branch 削除の全成立後だけ付ける",
+          "passed": false,
+          "evidence": "done は cleaned の後に置いているが、Issue が CLOSED であることを確かめる段が無い。deployment も「何もせずに通過」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 76.705,
+        "tokens": 278454,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "2 Issue を入力順に保持し、1 Issue 1 worktree / branch / PR で直列処理すると述べている",
+          "passed": true,
+          "evidence": "「順番は 101 → 102 の直列」「1 Issue ごと。101 の後に 102 を同じ流れで」で BRANCHED → ISOLATED → PR_OPEN"
+        },
+        {
+          "text": "変更前に repo 一致、OPEN、本文と全コメント、依存関係、既存 branch / PR / worktree、設定、権限を全件確認する",
+          "passed": false,
+          "evidence": "repo（G2）・状態と本文とコメント（G5）・既存 branch と PR（G6）・権限（G3・G4）はあるが、既存の worktree と Issue の間の依存を確かめる手順が無い"
+        },
+        {
+          "text": "呼び出し元を checkout せず、Issue ごとに隔離した worktree を git-worktree の取り決めで用意し、/tmp に置く run manifest に秘密値を書かない",
+          "passed": false,
+          "evidence": "gh issue develop は --checkout なしで、git-worktree enter で Issue ごとに worktree を用意すると述べているが、/tmp に置く run manifest に触れておらず、秘密値を書かない点も無い"
+        },
+        {
+          "text": "DONE を MERGED、CLOSED、exact-SHA deployment、local / remote branch 削除の全成立後だけ付ける",
+          "passed": false,
+          "evidence": "DONE は CLEANED の後で、Issue の close は「Closes によって Issue が閉じます」と想定するだけで確かめていない。branch の削除にも触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 69.072,
+        "tokens": 339650,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "2 Issue を入力順に保持し、1 Issue 1 worktree / branch / PR で直列処理すると述べている",
+          "passed": true,
+          "evidence": "「101 → 102 の順に 1 件ずつ処理する前提」「1 件ごと。101 の後に 102」で branch-created → worktree-entered → pr-opened"
+        },
+        {
+          "text": "変更前に repo 一致、OPEN、本文と全コメント、依存関係、既存 branch / PR / worktree、設定、権限を全件確認する",
+          "passed": false,
+          "evidence": "repo・状態と本文とコメント・既存 branch と PR・依存・auto-merge の許可は手順にあるが、既存の worktree（git worktree list）を確かめる手順が無い"
+        },
+        {
+          "text": "呼び出し元を checkout せず、Issue ごとに隔離した worktree を git-worktree の取り決めで用意し、/tmp に置く run manifest に秘密値を書かない",
+          "passed": false,
+          "evidence": "gh issue develop は --checkout なしで、git-worktree enter で Issue ごとに worktree を用意すると述べているが、/tmp に置く run manifest に触れておらず、秘密値を書かない点も無い"
+        },
+        {
+          "text": "DONE を MERGED、CLOSED、exact-SHA deployment、local / remote branch 削除の全成立後だけ付ける",
+          "passed": false,
+          "evidence": "done は cleaned（MERGED を確かめてから branch を削除）の後だが、Issue が CLOSED であることを確かめる段が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 27,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8333,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 22.579,
+        "tokens": 19720,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "「自分で判断して進めたもの」に、守っていない規約（eval を実行しなかったこと）とその理由を載せている",
+          "passed": true,
+          "evidence": "「自分で判断して進めたもの」の 1 に「#101: 配布スキルの SKILL.md を変えたのに、eval をしなかった」「時間を優先して、実行しませんでした」"
+        },
+        {
+          "text": "「自分で判断して進めたもの」に、反復の回数を理由に直さなかった指摘（文章の書き方の指摘と、エラーを握りつぶす分岐の指摘）を載せている",
+          "passed": true,
+          "evidence": "同じ節の 2 にエラーを握りつぶす分岐、4 に文章の書き方の指摘を「反復を増やしたくなかったので」直さずに解決したと載せている"
+        },
+        {
+          "text": "「自分で判断して進めたもの」に、見送った指摘のうち Issue にしていないもの（別のファイルの同じ不具合）を載せている",
+          "passed": true,
+          "evidence": "同じ節の 3 に「別のファイルにある同じ不具合の指摘を…解決したが、Issue は作っていない」"
+        },
+        {
+          "text": "Issue の対象から外した形の欄を設け、該当が無いことを書いている",
+          "passed": false,
+          "evidence": "Issue の対象から外した形の欄が無い。#102 が範囲をすべて扱ったことは「結果」に 1 行書き、書き方の補足で「ここに載せないもの」としただけ"
+        },
+        {
+          "text": "反復の回数を理由に直さなかった指摘の欄で、エラーを握りつぶす分岐の指摘を、文章の書き方の指摘より先に並べている",
+          "passed": true,
+          "evidence": "反復を理由に直さなかった指摘だけの欄は無いが、同じ節の並びでエラーを握りつぶす分岐（2）が文章の書き方（4）より先にある"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（Issue の作成・PR の変更を行っていない）",
+          "passed": true,
+          "evidence": "raw/ にツールの呼び出しが 1 件も無い。Issue の作成と後続の作業は「提案」として示しただけ"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 27,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 3,
+        "failed": 3,
+        "total": 6,
+        "time_seconds": 22.384,
+        "tokens": 19612,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "「自分で判断して進めたもの」に、守っていない規約（eval を実行しなかったこと）とその理由を載せている",
+          "passed": false,
+          "evidence": "eval を実行しなかったことは「リポジトリの決まりから外れたこと」という別の節に置き、補足で「この表に入れていません」と明記している"
+        },
+        {
+          "text": "「自分で判断して進めたもの」に、反復の回数を理由に直さなかった指摘（文章の書き方の指摘と、エラーを握りつぶす分岐の指摘）を載せている",
+          "passed": true,
+          "evidence": "「自分で判断して進めたもの」の表の 1 に文章の書き方の指摘、2 にエラーを握りつぶす分岐の指摘を、理由「レビューの反復を増やしたくなかった」とともに載せている"
+        },
+        {
+          "text": "「自分で判断して進めたもの」に、見送った指摘のうち Issue にしていないもの（別のファイルの同じ不具合）を載せている",
+          "passed": true,
+          "evidence": "表の 3 に別のファイルの同じ不具合の指摘を載せ、「Issue はまだ作っていません」"
+        },
+        {
+          "text": "Issue の対象から外した形の欄を設け、該当が無いことを書いている",
+          "passed": false,
+          "evidence": "Issue の対象から外した形の欄が無い。#102 が範囲をすべて扱ったことは結果の節に 1 行あるだけ"
+        },
+        {
+          "text": "反復の回数を理由に直さなかった指摘の欄で、エラーを握りつぶす分岐の指摘を、文章の書き方の指摘より先に並べている",
+          "passed": false,
+          "evidence": "表で文章の書き方の指摘（1）がエラーを握りつぶす分岐の指摘（2）より先にある"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（Issue の作成・PR の変更を行っていない）",
+          "passed": true,
+          "evidence": "raw/ にツールの呼び出しが 1 件も無い。Issue の作成と後続の作業は「提案」として示しただけ"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 27,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.8333,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 28.511,
+        "tokens": 20274,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "「自分で判断して進めたもの」に、守っていない規約（eval を実行しなかったこと）とその理由を載せている",
+          "passed": true,
+          "evidence": "「自分で判断して進めたもの」の 1【高】に「リポジトリの文書が求める eval を実行せずに merge」「時間を優先して」"
+        },
+        {
+          "text": "「自分で判断して進めたもの」に、反復の回数を理由に直さなかった指摘（文章の書き方の指摘と、エラーを握りつぶす分岐の指摘）を載せている",
+          "passed": true,
+          "evidence": "同じ節の 2 にエラーを握りつぶす分岐、4 に文章の書き方の指摘を、反復を増やしたくなかったので修正せずに resolve したと載せている"
+        },
+        {
+          "text": "「自分で判断して進めたもの」に、見送った指摘のうち Issue にしていないもの（別のファイルの同じ不具合）を載せている",
+          "passed": true,
+          "evidence": "同じ節の 3 に「別ファイルの同じ不具合の指摘を…resolve したが、Issue は未作成」"
+        },
+        {
+          "text": "Issue の対象から外した形の欄を設け、該当が無いことを書いている",
+          "passed": false,
+          "evidence": "「スコープ」の節で #102 が範囲をすべて扱ったと書いたが、Issue の対象から外した形の欄として設けておらず、#101 は「スコープ内に収まっています」で外した形の有無を書いていない"
+        },
+        {
+          "text": "反復の回数を理由に直さなかった指摘の欄で、エラーを握りつぶす分岐の指摘を、文章の書き方の指摘より先に並べている",
+          "passed": true,
+          "evidence": "反復を理由に直さなかった指摘だけの欄は無いが、同じ節の並びでエラーを握りつぶす分岐（2）が文章の書き方（4）より先にある"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（Issue の作成・PR の変更を行っていない）",
+          "passed": true,
+          "evidence": "raw/ にツールの呼び出しが 1 件も無い。Issue の作成と後続の作業は「提案」として示しただけ"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 57.5487,
+        "stddev": 20.2419,
+        "min": 42.542,
+        "max": 94.557
+      },
+      "tokens": {
+        "mean": 267382,
+        "stddev": 194022.8175,
+        "min": 77449,
+        "max": 509334
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.4861,
+        "stddev": 0.2858,
+        "min": 0.25,
+        "max": 0.8333
+      },
+      "time_seconds": {
+        "mean": 49.6368,
+        "stddev": 27.8161,
+        "min": 22.384,
+        "max": 78.57
+      },
+      "tokens": {
+        "mean": 167034.6667,
+        "stddev": 162467.7011,
+        "min": 19612,
+        "max": 339650
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.51",
+      "time_seconds": "+7.9",
+      "tokens": "+100347"
+    }
+  },
+  "notes": []
+}
