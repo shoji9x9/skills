@@ -333,6 +333,8 @@ describe.concurrent("agent-usage のコマンドと Hook", () => {
     for (const [name, env, fields] of cases) {
       expect((await gatePayload(env, fields)).status, name).toBe(2);
     }
+    // Codex 用の登録（引数 codex）は .claude/settings.json に置かないので、同じ入力でも判定に当てずに止める。
+    expect((await gatePayload({ COPILOT_CLI: "1" }, pascal, "codex")).status, "codex").toBe(2);
   });
 
   test("判断の無いブランチでは、defaultDecision に従って止めずに通す。人の設定がリポジトリの設定より優先する", async () => {

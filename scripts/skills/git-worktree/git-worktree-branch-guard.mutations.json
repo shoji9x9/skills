@@ -27,8 +27,8 @@
       "id": "WT-COPILOT-IGNORES-EVENT-NAME",
       "why": "Copilot の判定で hook_event_name を見ない（.github/hooks の camelCase の登録まで .claude/settings.json の登録と見誤り、Copilot の通知を警告なしに止める）",
       "file": "skills/git-worktree/scripts/git-worktree-branch-guard.sh",
-      "find": "\t\tprintf '%s' \"$1\" | jq -e 'type == \"object\" and has(\"timestamp\") and has(\"hook_event_name\")' >/dev/null 2>&1",
-      "replace": "\t\tprintf '%s' \"$1\" | jq -e 'type == \"object\" and has(\"timestamp\")' >/dev/null 2>&1",
+      "find": "(if has(\"timestamp\") and has(\"hook_event_name\") then \"1\" else \"0\" end)",
+      "replace": "(if has(\"timestamp\") then \"1\" else \"0\" end)",
       "occurrences": 1,
       "expect_failing": [
         "Copilot が .claude/settings.json の登録として呼んだとき .github/hooks の登録（camelCase。hook_event_name が無い）なら、ask で通知する"

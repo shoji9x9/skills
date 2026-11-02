@@ -15,7 +15,7 @@
 // 止める入力だけのテストでは、「全部落とす実装」と区別が付かない。
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { delimiter, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeSharedTempDir } from "../lib/testing/test-tmpdir.ts";
@@ -386,5 +386,22 @@ test.each([
 ])("$name は止める", ({ payload, copilotCli }) => {
   const r = runCopilot(payload, copilotCli);
   expect(r.status).toBe(2);
+  expect(r.stderr).toMatch(/full command line/);
+});
+
+// 共通ライブラリを読めない配置（スクリプトだけを別の場所に置いた状態）では、判定できないので検査を続け、そのことを stderr に残す。
+test("kaizen の共通ライブラリを読めなければ、Copilot の登録の入力でも止め、判定していないことを stderr に残す", () => {
+  const dir = makeSharedTempDir("bash-command-guard-no-lib-");
+  const copied = join(dir, "bash-command-guard.sh");
+  writeFileSync(copied, readFileSync(script, "utf8"));
+  const r = spawnSync("bash", [copied], {
+    timeout: CHILD_TIMEOUT_MS,
+    input: JSON.stringify(copilotPascal),
+    encoding: "utf8",
+    cwd: repoRoot,
+    env: { ...process.env, COPILOT_CLI: "1" },
+  });
+  expect(r.status).toBe(2);
+  expect(r.stderr).toMatch(/共通ライブラリを読めないため、Copilot の呼び出しかを判定していない/);
   expect(r.stderr).toMatch(/full command line/);
 });

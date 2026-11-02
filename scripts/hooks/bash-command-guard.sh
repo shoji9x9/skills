@@ -43,6 +43,9 @@ if [ -r "${kaizen_lib}" ]; then
 	# 共通ライブラリはインストール済みのコピーで、source 先を静的に追えない。
 	# shellcheck source=/dev/null
 	. "${kaizen_lib}"
+else
+	# 危険語を含む入力でだけここに来るので、毎回の呼び出しには出ない。判定を省いたことを、0 件と区別できるよう残す。
+	echo "bash-command-guard: kaizen の共通ライブラリを読めないため、Copilot の呼び出しかを判定していない: ${kaizen_lib}" >&2
 fi
 if declare -f kaizen_payload_is_copilot_claude_settings >/dev/null 2>&1 &&
 	kaizen_payload_is_copilot_claude_settings "${input}"; then
