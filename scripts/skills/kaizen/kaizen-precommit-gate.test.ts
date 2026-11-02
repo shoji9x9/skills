@@ -2419,10 +2419,18 @@ describe.concurrent("Claude Code 用の登録（引数なし）を Copilot が�
       copilotCli,
       args = [],
       withoutJsonTools = false,
-    }: { timestamp: boolean; copilotCli: boolean; args?: string[]; withoutJsonTools?: boolean },
+      eventName = true,
+    }: {
+      timestamp: boolean;
+      copilotCli: boolean;
+      args?: string[];
+      withoutJsonTools?: boolean;
+      // false で hook_event_name を外す（camelCase の .github/hooks の登録の形）
+      eventName?: boolean;
+    },
   ) {
     const input = JSON.stringify({
-      hook_event_name: "PreToolUse",
+      ...(eventName ? { hook_event_name: "PreToolUse" } : {}),
       session_id: own,
       ...(timestamp ? { timestamp: "2026-11-02T00:00:00.000Z" } : {}),
       cwd,
@@ -2482,6 +2490,14 @@ describe.concurrent("Claude Code 用の登録（引数なし）を Copilot が�
       expect(gate.stderr).toMatch(/他セッションの未抽出センチネルが残っています/);
     },
   );
+
+  // Issue #858 で判定を狭めた回帰のケース。引数なしの登録に camelCase（.github/hooks の形）の入力が来たら、判定を続ける。
+  test("hook_event_name が無い（camelCase の登録の形）なら、これまでどおり他のセッションの警告を exit 1 で出す", async () => {
+    const cwd = withForeignSentinel();
+    const gate = await gateWith(cwd, { timestamp: true, copilotCli: true, eventName: false });
+    expect(gate.status, gate.stderr).toBe(1);
+    expect(gate.stderr).toMatch(/他セッションの未抽出センチネルが残っています/);
+  });
 
   test("jq も python3 も無ければ Copilot かを判定できないので、これまでどおり他のセッションの警告を exit 1 で出す", async () => {
     const cwd = withForeignSentinel();

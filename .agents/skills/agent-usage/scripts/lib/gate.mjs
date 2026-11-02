@@ -23,6 +23,7 @@ import { rememberWorktrees } from "./sources/worktrees.mjs";
  * @typedef {object} HookInput
  * @property {string} command
  * @property {string} cwd
+ * @property {boolean} copilotClaudeSettings Copilot が Claude Code 用の登録として呼んだか（isCopilotClaudeSettings）
  */
 
 /**
@@ -37,41 +38,35 @@ import { rememberWorktrees } from "./sources/worktrees.mjs";
  * - 入力の最上位に `hook_event_name` がある。Copilot は PascalCase のイベント名で書いた登録にだけ入れる
  *   （https://docs.github.com/en/copilot/reference/hooks-reference。1.0.105 で確かめた）
  * Copilot のシェルから起動した Claude Code は COPILOT_CLI を引き継ぎうるが、その入力には `timestamp` が無いので false になる。
- * JSON として読めない入力は判定できないので false を返す（確認を続ける）。
- * @param {string} text Hook の JSON
+ * JSON として読めない入力は判定できないので、readHookInput が false にする（確認を続ける）。
+ * @param {Record<string, unknown>} raw Hook の JSON を読んだ値
  * @param {NodeJS.ProcessEnv} env
  * @returns {boolean}
  */
-export function isCopilotClaudeSettingsInput(text, env) {
-  if (!env.COPILOT_CLI) return false;
-  /** @type {unknown} */
-  let raw;
-  try {
-    raw = JSON.parse(text);
-  } catch {
-    return false;
-  }
-  return isRecord(raw) && "timestamp" in raw && "hook_event_name" in raw;
+function isCopilotClaudeSettings(raw, env) {
+  return Boolean(env.COPILOT_CLI) && "timestamp" in raw && "hook_event_name" in raw;
 }
 
 /**
  * Hook の JSON から、実行しようとしているコマンドと cwd を取る（Claude Code と Codex は tool_input.command）。
+ * Copilot が Claude Code 用の登録として呼んだかも、同じ 1 回の読み取りで判定する。
  * @param {string} text
+ * @param {NodeJS.ProcessEnv} env
  * @returns {HookInput}
  */
-export function readHookInput(text) {
+export function readHookInput(text, env) {
   /** @type {unknown} */
   let raw;
   try {
     raw = JSON.parse(text);
   } catch {
-    return { command: "", cwd: "" };
+    return { command: "", cwd: "", copilotClaudeSettings: false };
   }
-  if (!isRecord(raw)) return { command: "", cwd: "" };
+  if (!isRecord(raw)) return { command: "", cwd: "", copilotClaudeSettings: false };
   const input = isRecord(raw.tool_input) ? raw.tool_input : {};
   const command = typeof input.command === "string" ? input.command : "";
   const cwd = typeof raw.cwd === "string" ? raw.cwd : "";
-  return { command, cwd };
+  return { command, cwd, copilotClaudeSettings: isCopilotClaudeSettings(raw, env) };
 }
 
 /** コマンドの前に来るシェルの予約語（`if x; then git commit; fi` の then など）。 */

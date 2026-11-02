@@ -34,24 +34,18 @@ esac
 
 # Claude Code 用の登録（`.claude/settings.json`）を GitHub Copilot CLI が呼んだときは、何もせずに通す。
 # Copilot は `.github/hooks/kaizen-session.json` の登録も実行するので、Copilot の検査はそちらが行う。
-# 判定の条件と理由は multiagent-setup の references/hooks.md「Copilot は Claude Code の設定ファイルの Hook も実行する」にある。
-# COPILOT_CLI が空でなく、入力の最上位に `timestamp` と `hook_event_name` がある（PascalCase のイベント名で書いた登録の形）ときだけ通す。
+# 判定は、同じ登録の仕方をする kaizen の Hook と同じ関数（kaizen-hook-common.sh の kaizen_payload_is_copilot_claude_settings）で行う。
+# 条件と理由は multiagent-setup の references/hooks.md「Copilot は Claude Code の設定ファイルの Hook も実行する」にある。
 # `.github/hooks/` の camelCase の登録からの入力には `hook_event_name` が無いので、検査を続ける。
-# jq も node も無いときと、JSON として読めないときは判定できないので、検査を続ける。
-copilot_claude_settings_payload() {
-	[ -n "${COPILOT_CLI:-}" ] || return 1
-	if command -v jq >/dev/null 2>&1; then
-		printf '%s' "${input}" | jq -e 'type == "object" and has("timestamp") and has("hook_event_name")' >/dev/null 2>&1
-		return
-	fi
-	if command -v node >/dev/null 2>&1; then
-		printf '%s' "${input}" |
-			node -e 'let s="";process.stdin.on("data",(d)=>{s+=d;}).on("end",()=>{let d;try{d=JSON.parse(s);}catch{process.exit(1);}const ok=d!==null&&typeof d==="object"&&!Array.isArray(d)&&"timestamp" in d&&"hook_event_name" in d;process.exit(ok?0:1);});'
-		return
-	fi
-	return 1
-}
-if copilot_claude_settings_payload; then
+# 共通ライブラリを読めないときと、関数が判定できないとき（jq も python3 も無い・JSON として読めない）は、検査を続ける。
+kaizen_lib="$(dirname "${BASH_SOURCE[0]}")/../../.agents/skills/kaizen/scripts/kaizen-hook-common.sh"
+if [ -r "${kaizen_lib}" ]; then
+	# 共通ライブラリはインストール済みのコピーで、source 先を静的に追えない。
+	# shellcheck source=/dev/null
+	. "${kaizen_lib}"
+fi
+if declare -f kaizen_payload_is_copilot_claude_settings >/dev/null 2>&1 &&
+	kaizen_payload_is_copilot_claude_settings "${input}"; then
 	exit 0
 fi
 

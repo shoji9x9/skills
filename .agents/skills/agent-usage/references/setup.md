@@ -118,6 +118,7 @@ GitHub は `linguist-generated` の付いたファイルを、PR の差分で最
 | 判断が「記録しない」 | 通す |
 | 判断が「記録する」で、ブランチが merge 済み | collect も stage もせずに通し、merge 済みと決めた方法を stderr に出す。決め方は下の表の後に書く |
 | 判断が「記録する」 | collect を実行し、`.agent-usage/records/` を stage して通す（前に書いて stage されなかった記録も入る）。collect が失敗したら止める。Hook の collect は常に GitHub も取得する（`--no-github` は手動の collect だけ）。コミットが実行されなかったときに stage が残る場合の扱いは、[SKILL.md「コミットの前の確認」](../SKILL.md)にある |
+| GitHub Copilot CLI が、Claude Code 用の登録（`.claude/settings.json`）としてこの Hook を呼んだ | 確認も記録もせずに通す。Copilot は `.claude/settings.json` の Hook も実行するが、このスキルは Copilot のログを読まない。環境変数 `COPILOT_CLI` が空でなく、入力の最上位に `timestamp` と `hook_event_name` があるときに、Copilot が呼んだと判定する（[GitHub Copilot hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference)） |
 | Node.js が無い・同梱のスクリプトを読めない・想定外の失敗 | 確認をせずに通し、その旨を stderr に出す（記録の仕組みの不具合で作業を止めない） |
 
 判断と collect は、git commit を実行する作業ディレクトリ（`-C <dir>` と前の `cd <dir>` を当てた先）のリポジトリで行う。

@@ -250,7 +250,7 @@ describe("Claude Code 用の登録（引数なし）を Copilot が呼んだと�
     return transcript;
   }
 
-  test("timestamp があり COPILOT_CLI が空でないなら、センチネルを立てずに exit 0", () => {
+  test("timestamp と hook_event_name があり COPILOT_CLI が空でないなら、センチネルを立てずに exit 0", () => {
     const cwd = makeProject();
     try {
       const result = runStopMark(cwd, {
@@ -268,6 +268,12 @@ describe("Claude Code 用の登録（引数なし）を Copilot が呼んだと�
   test.each([
     ["COPILOT_CLI が空（Claude Code が呼んだ）", copilotStop, false],
     ["timestamp が無い（Copilot のシェルから起動した Claude Code）", {}, true],
+    // Issue #858 で判定を狭めた回帰のケース。引数なしの登録に camelCase（.github/hooks の形）の入力が来たら、処理を続ける。
+    [
+      "hook_event_name が無い（camelCase の登録の形）",
+      { timestamp: 1793588988760, stopReason: "end_turn" },
+      true,
+    ],
   ])("%s なら、これまでどおり claude-code のセンチネルを立てる", (_name, extra, copilotCli) => {
     const cwd = makeProject();
     try {

@@ -27,7 +27,7 @@ import {
 } from "./lib/config.mjs";
 import { configPaths } from "./skill-config/skill-config.mjs";
 import { decisionFor, saveDecision } from "./lib/decisions.mjs";
-import { gateDecision, isCopilotClaudeSettingsInput, readHookInput } from "./lib/gate.mjs";
+import { gateDecision, readHookInput } from "./lib/gate.mjs";
 import { branchMerged } from "./lib/merged.mjs";
 import { parseFlags } from "./lib/flags.mjs";
 import { git, isDecisionBranch, repoInfo } from "./lib/repo.mjs";
@@ -305,9 +305,9 @@ function reportCommand(rest, context) {
 function gateCommand(rest, context) {
   const a = parseArgs(rest, [], ["--agent"]);
   const agent = a.options.get("--agent") ?? "claude-code";
-  const text = readFileSync(0, "utf8");
-  if (isCopilotClaudeSettingsInput(text, process.env)) return 0;
-  const input = readHookInput(text);
+  const input = readHookInput(readFileSync(0, "utf8"), process.env);
+  // Copilot が Claude Code 用の登録として呼んだら、確認も記録もせずに通す（gate.mjs の isCopilotClaudeSettings）。
+  if (input.copilotClaudeSettings) return 0;
   const verdict = gateDecision(input, {
     fallbackCwd: context.cwd,
     now: context.now,
