@@ -18,8 +18,9 @@
    Hook は、各エージェントの設定ファイルから `.agents/hooks/scripts/` の共通のスクリプトを呼ぶ。
    根拠: `skills/multiagent-setup/references/skills.md`・`skills/multiagent-setup/references/rules.md`「ディレクトリ構造」、
    `skills/multiagent-setup/references/docs.md`「ファイル別役割」、`skills/multiagent-setup/references/hooks.md`
-4. 流れ。操作の対象を決める（依頼の文から推測し、決められなければ利用者に尋ねる）→ 対象のエージェントを確かめる（今ある設定のディレクトリを見て、依頼に無ければ尋ねる）→ 対象ごとの手順で作る → 後処理（スキルを作ったら skill-creator での検証を提案する）。
-   根拠: `skills/multiagent-setup/SKILL.md`「フロー」
+4. 流れ。操作の対象を決める（依頼の文から推測し、決められなければ利用者に尋ねる）→ 対象のエージェントを確かめる（今ある設定のディレクトリを見て、依頼に無ければ尋ねる）→ 対象ごとの手順で作る → 後処理（スキルを作ったら、スキルの有無で比べた結果を示す）。
+   スキルは、スキルが無い状態で同じ依頼をさせ、期待する振る舞いが起きないことを確かめてから書く。
+   根拠: `skills/multiagent-setup/SKILL.md`「フロー」、`skills/multiagent-setup/references/skills.md`「スキル作成手順」
 5. どれにするかの判断。手順はスキル、特定のファイルを触るときの規約はルール、決まったイベントで自動で実行する処理は Hook、それ以外はドキュメントにする。
    根拠: `skills/multiagent-setup/references/component-selection.md`「最初の振り分け」
 6. 成果物。`AGENTS.md` と、`.agents/` の実体と、各エージェント用のリンク。

@@ -346,3 +346,10 @@ manifest を更新する JSON の heredoc と python の起動を並べた呼び
 4 回目は、node をバックグラウンドで起動し、`$!` の PID に `kill` を送って `wait` する計測の処理を 1 回の呼び出しに書いた形である（`this command is too complex to verify`）。
 どれも、単独の呼び出しに分けるか、Write ツールでスクリプトにして絶対パスで実行する形に直して通した。新しい形は、`$!` と `wait` を使う 4 回目だけである。
 この学びはセッション開始時に注入されていたが、1 回目は worktree に入った直後の準備の処理で起きた。
+
+### 再発の記録（#861）
+
+2026-11-03、#861 の作業（issue-start から git-worktree enter）で、worktree に入った後の Bash の呼び出しが 1 回拒否された。
+形は、issue-start の基本フロー step 8 の現状の確認で、`git fetch`・`git rev-list`・`git log` を `&&` でつなぎ、`pnpm exec markdownlint-cli2` の動作確認まで 1 回の呼び出しに書いたものである（#843 の 2 回目と同じ）。
+単独の呼び出し 3 回に分けて通した。新しい形は無い。
+issue-start の step 8 の例は 1 つのコードブロックに複数の git コマンドを並べているので、worktree に入った後はその形のまま書き写すと拒否される。
