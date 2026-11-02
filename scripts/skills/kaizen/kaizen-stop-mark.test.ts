@@ -298,7 +298,10 @@ describe("kaizen_payload_is_copilot", () => {
   const lib = join(repoRoot, "skills/kaizen/scripts/kaizen-hook-common.sh");
   // 空のディレクトリだけの PATH。判定の関数は bash の組み込みと jq しか使わないので、jq だけを外せる。
   const noJqPath = makeSharedTempDir("kaizen-no-jq-path-");
-  const bash = spawnSync("bash", ["-c", "command -v bash"], { encoding: "utf8" }).stdout.trim();
+  const bash = spawnSync("bash", ["-c", "command -v bash"], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  }).stdout.trim();
 
   function isCopilot(json: string, { jq, copilotCli }: { jq: boolean; copilotCli: string }) {
     return spawnSync(bash, ["-c", 'source "$1"; kaizen_payload_is_copilot "$2"', "_", lib, json], {
@@ -314,8 +317,16 @@ describe("kaizen_payload_is_copilot", () => {
   }
 
   test("前提: jq がある環境では jq を解決でき、無い環境では解決できない", () => {
-    expect(spawnSync(bash, ["-c", "command -v jq"], { env: process.env }).status).toBe(0);
-    expect(spawnSync(bash, ["-c", "command -v jq"], { env: { PATH: noJqPath } }).status).toBe(1);
+    expect(
+      spawnSync(bash, ["-c", "command -v jq"], { timeout: CHILD_TIMEOUT_MS, env: process.env })
+        .status,
+    ).toBe(0);
+    expect(
+      spawnSync(bash, ["-c", "command -v jq"], {
+        timeout: CHILD_TIMEOUT_MS,
+        env: { PATH: noJqPath },
+      }).status,
+    ).toBe(1);
   });
 
   const top = JSON.stringify({ session_id: "s", timestamp: "2026-11-02T00:00:00Z", cwd: "/x" });
