@@ -23,3 +23,4 @@ ci:41451889118:1,ci,2026-11-02T13:42:58.361Z,p-cdee4961,github-actions,,,,2026-1
 ci:41451888953:1,ci,2026-11-02T13:42:58.361Z,p-cdee4961,github-actions,,,,2026-11-02T13:18:48.000Z,2026-11-02T13:23:25.000Z,Asia/Tokyo,feature/856-fix-eval-fixture-skill-failures,856,,,,,,,,,,CI;pull_request;success,
 ci:41450994926:1,ci,2026-11-02T13:42:58.361Z,p-cdee4961,github-actions,,,,2026-11-02T13:12:38.000Z,2026-11-02T13:17:03.000Z,Asia/Tokyo,feature/856-fix-eval-fixture-skill-failures,856,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-11-01T13:15:58.568Z:2026-11-02T13:42:58.361Z,coverage,2026-11-02T13:42:58.361Z,p-cdee4961,,,,,2026-11-01T13:15:58.568Z,2026-11-02T13:42:58.361Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-01T13:42:58.361Z:2026-11-02T13:43:56.785Z,coverage,2026-11-02T13:43:56.785Z,p-cdee4961,,,,,2026-11-01T13:42:58.361Z,2026-11-02T13:43:56.785Z,Asia/Tokyo,,,,,,,,,,,,ok,
