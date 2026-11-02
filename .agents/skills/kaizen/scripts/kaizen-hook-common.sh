@@ -3,6 +3,7 @@
 #
 # 提供するもの:
 #   - Hook の stdin JSON から文字列フィールドを取り出す（jq/python3 に依存しない）
+#   - Claude Code 用の登録を GitHub Copilot CLI が呼んだかを判定する
 #   - session id を制御ファイル名に使える key へ正規化する
 #   - `.kaizen/` を解決するプロジェクトルートを決める（worktree 対応）
 #   - リポジトリの全作業ツリーの `.kaizen/` を列挙し、制御ファイルをそこから探す
@@ -74,6 +75,53 @@ kaizen_hook_fields() { # $1: Hook の JSON
 		"$(kaizen_json_string_field "${json}" session_id sessionId)" \
 		"$(kaizen_json_string_field "${json}" transcript_path transcriptPath)" \
 		"$(kaizen_json_string_field "${json}" cwd)"
+}
+
+# Claude Code 用の登録（`.claude/settings.json`。引数なし）から、GitHub Copilot CLI が呼んだかを判定する。
+# 0 = Copilot と判定した / 1 = それ以外（判定できないときも 1）。$1 = Hook の JSON。
+#
+# Copilot CLI は、`.github/hooks/*.json` に加えて `.claude/settings.json` の Hook も読み、実行する。
+# 出典は https://docs.github.com/en/copilot/reference/hooks-configuration の
+# 「`.claude/settings.json` and `.claude/settings.local.json` ... are also read」である。
+# `.claude/settings.json` の Hook だけを止める設定は無い（`disableAllHooks` はすべての Hook を止める）。
+# kaizen は Copilot 用の処理を `.github/hooks/` の登録（`-copilot` 付き）に置くので、
+# 引数なしの登録が Copilot から呼ばれたら、呼び出し側は何もせずに exit 0 で終える。
+#
+# 判定は 2 つの条件がどちらも Copilot を示すときだけ 0 にする。
+#   - 入力の最上位に `timestamp` がある。Copilot はイベント名の書き方（camelCase・PascalCase）に関わらず入れる
+#     （上の出典）。Claude Code の入力の共通の項目には無い（https://code.claude.com/docs/en/hooks）。
+#   - 環境変数 COPILOT_CLI が空でない。Copilot CLI 1.0.105 が Hook のプロセスに COPILOT_CLI=1 を渡すことを実測した。
+#     Copilot の出典には、Hook に渡す環境変数の記載が無い。
+#     CLAUDE_PROJECT_DIR は使えない。同じ実測で、Copilot も Hook に CLAUDE_PROJECT_DIR（COPILOT_PROJECT_DIR と同じ値）を渡していた。
+# 片方だけで判定しないのは、見誤ったときの害が向きで違うからである。Claude Code を Copilot と見誤ると、
+# コミット前のチェックが何もせずに通し、誤りが外から見えない。Copilot のシェルから Claude Code を起動すると
+# COPILOT_CLI を引き継ぎうるが、Claude Code の入力には `timestamp` が無いので、この関数は 1 を返す。
+# 逆に Copilot を見誤った場合は、引数なしの処理がそのまま実行されるだけで、警告が拒否として扱われるなどの形で表に出る。
+#
+# 最上位のキーかどうかは、JSON として読んで確かめる。jq があれば jq で、無ければ python3 で読む。
+# どちらも無いときと、JSON として読めないときは、判定できないので 1 を返す（引数なしの処理をそのまま続ける）。
+# 生の文字列を探す形にしないのは、入れ子のキーや不正な入力を Copilot と判定し、チェックを省くからである。
+kaizen_payload_is_copilot() { # $1: Hook の JSON
+	local json="${1:-}"
+	[ -n "${COPILOT_CLI:-}" ] || return 1
+	[ -n "${json}" ] || return 1
+	if command -v jq >/dev/null 2>&1; then
+		# jq は読めない入力で 2 や 5 を返すので、0 か 1 にそろえる。
+		printf '%s' "${json}" | jq -e 'type == "object" and has("timestamp")' >/dev/null 2>&1 || return 1
+		return 0
+	fi
+	if command -v python3 >/dev/null 2>&1; then
+		printf '%s' "${json}" | python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(1)
+sys.exit(0 if isinstance(d, dict) and "timestamp" in d else 1)
+' >/dev/null 2>&1 || return 1
+		return 0
+	fi
+	return 1
 }
 
 # session id を制御ファイル名に使える key へ正規化する。空入力は空 key（＝従来の agent 単位）。
