@@ -500,23 +500,23 @@ test.each(["/", "／"])(
   "対象テーブル表の機能／リソースの列と述語の消費側 slug の列も、%s で並べれば複数の slug として読む",
   (separator) => {
     // 区切らずに 1 つとして読むと、「order / monthly-summary」という slug が features.md に無いことになる。
-    const design = designOf({
-      targets: [
-        `| orders | order ${separator} monthly-summary | 41 | 投入する | FK 親 |`,
-        "| order_items | order | 80 | 投入する | orders の子 |",
-        "| reports | report | 6 | 投入する | - |",
-        "| users | user | 4 | 投入する | - |",
-        "| roles | user | 3 | 投入する | - |",
-      ],
-      predicates: [
-        `| orders-status | orders | order ${separator} monthly-summary | status = 'shipped' | 画面の入力値（変換なし） | 3 | 38 | 踏める | - | /orders の SELECT を読了 |`,
-        "| orders-month | orders | monthly-summary | ordered_at の月境界 | 画面の入力値（変換なし） | 12 | 29 | 踏める | - | バッチの入力条件 |",
-        "| items-order | order_items | order | order_id = :id | 画面の入力値（変換なし） | 4 | 76 | 踏める | - | 明細の絞り込み |",
-        "| reports-owner | reports | report | owner_id = :me | 画面の入力値（変換なし） | 2 | 4 | 踏める | - | 一覧の所有者条件 |",
-        "| users-active | users | user | active = true | 画面の入力値（変換なし） | 3 | 1 | 踏める | - | 共通ヘッダの利用者 |",
-        "| roles-admin | roles | user | role = 'admin' | 画面の入力値（変換なし） | 1 | 2 | 踏める | - | ロール表示 |",
-      ],
-    });
+    const design = designOf()
+      .replace(
+        "| orders | order, monthly-summary | 41 |",
+        `| orders | order ${separator} monthly-summary | 41 |`,
+      )
+      .replace(
+        "| orders-status | orders | order |",
+        `| orders-status | orders | order ${separator} monthly-summary |`,
+      );
+    assert(
+      design.includes(`| orders | order ${separator} monthly-summary | 41 |`),
+      "対象テーブル表の行を差し替えられていない",
+    );
+    assert(
+      design.includes(`| orders-status | orders | order ${separator} monthly-summary |`),
+      "述語の行を差し替えられていない",
+    );
     expect(codesOf({ design })).toEqual([]);
   },
 );
