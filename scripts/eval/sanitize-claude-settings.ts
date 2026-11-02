@@ -10,6 +10,16 @@ import { isCliEntry } from "../lib/cli/entry.ts";
 
 const KEPT_KEYS = ["model", "apiKeyHelper", "awsAuthRefresh", "awsCredentialExport"];
 const KEPT_ENV_PREFIXES = ["ANTHROPIC_", "CLAUDE_CODE_", "AWS_", "VERTEX_", "CLOUD_ML_"];
+// プロキシを経由して API に接続する環境と、独自の CA 証明書を使う環境で要る名前（完全一致）。
+const KEPT_ENV_NAMES = [
+  "HTTP_PROXY",
+  "HTTPS_PROXY",
+  "NO_PROXY",
+  "http_proxy",
+  "https_proxy",
+  "no_proxy",
+  "NODE_EXTRA_CA_CERTS",
+];
 
 /** 許可リストのキーだけを残した設定を返す。元が JSON のオブジェクトでなければ例外にする。 */
 export function sanitizeClaudeSettings(text: string): Record<string, unknown> {
@@ -23,7 +33,10 @@ export function sanitizeClaudeSettings(text: string): Record<string, unknown> {
   if (env !== undefined) {
     if (!isRecord(env)) throw new Error("settings.json の env がオブジェクトでない");
     const keptEnv = Object.fromEntries(
-      Object.entries(env).filter(([name]) => KEPT_ENV_PREFIXES.some((p) => name.startsWith(p))),
+      Object.entries(env).filter(
+        ([name]) =>
+          KEPT_ENV_NAMES.includes(name) || KEPT_ENV_PREFIXES.some((p) => name.startsWith(p)),
+      ),
     );
     if (Object.keys(keptEnv).length > 0) kept.env = keptEnv;
   }

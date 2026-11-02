@@ -20,6 +20,20 @@ test.each([
     },
     { env: { ANTHROPIC_API_KEY: "k", CLAUDE_CODE_USE_BEDROCK: "1", AWS_REGION: "r" } },
   ],
+  [
+    "env はプロキシと CA 証明書の名前も残し、似た名前は残さない",
+    {
+      env: {
+        HTTPS_PROXY: "http://p:8080",
+        no_proxy: "localhost",
+        NODE_EXTRA_CA_CERTS: "/ca.pem",
+        HTTPS_PROXY_EXTRA: "x",
+      },
+    },
+    {
+      env: { HTTPS_PROXY: "http://p:8080", no_proxy: "localhost", NODE_EXTRA_CA_CERTS: "/ca.pem" },
+    },
+  ],
   ["env が許可リストの名前を 1 つも持たなければ、env を置かない", { env: { MY_TOOL: "x" } }, {}],
   ["接頭辞を途中に含むだけの名前は残さない", { env: { MY_ANTHROPIC_KEY: "x" } }, {}],
 ])("%s", (_label, input, expected) => {
