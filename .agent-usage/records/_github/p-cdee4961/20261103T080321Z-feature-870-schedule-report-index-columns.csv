@@ -26,3 +26,6 @@ coverage:github:2026-11-02T08:43:28.308Z:2026-11-03T08:49:06.914Z,coverage,2026-
 ci:41606224202:1,ci,2026-11-03T08:54:06.624Z,p-cdee4961,github-actions,,,,2026-11-03T08:50:03.000Z,2026-11-03T08:50:04.000Z,Asia/Tokyo,feature/870-schedule-report-index-columns,870,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:41606224189:1,ci,2026-11-03T08:54:06.624Z,p-cdee4961,github-actions,,,,2026-11-03T08:50:03.000Z,2026-11-03T08:53:32.000Z,Asia/Tokyo,feature/870-schedule-report-index-columns,870,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-11-02T08:49:06.914Z:2026-11-03T08:54:06.624Z,coverage,2026-11-03T08:54:06.624Z,p-cdee4961,,,,,2026-11-02T08:49:06.914Z,2026-11-03T08:54:06.624Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:41606854188:1,ci,2026-11-03T08:58:12.281Z,p-cdee4961,github-actions,,,,2026-11-03T08:55:04.000Z,2026-11-03T08:55:05.000Z,Asia/Tokyo,feature/870-schedule-report-index-columns,870,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:41606854021:1,ci,2026-11-03T08:58:12.281Z,p-cdee4961,github-actions,,,,2026-11-03T08:55:04.000Z,2026-11-03T08:58:12.281Z,Asia/Tokyo,feature/870-schedule-report-index-columns,870,,,,,,,,,,CI;pull_request;open,
+coverage:github:2026-11-02T08:54:06.624Z:2026-11-03T08:58:12.281Z,coverage,2026-11-03T08:58:12.281Z,p-cdee4961,,,,,2026-11-02T08:54:06.624Z,2026-11-03T08:58:12.281Z,Asia/Tokyo,,,,,,,,,,,,ok,
