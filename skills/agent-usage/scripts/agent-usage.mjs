@@ -28,7 +28,7 @@ import {
 import { configPaths } from "./skill-config/skill-config.mjs";
 import { decisionFor, saveDecision } from "./lib/decisions.mjs";
 import { gateDecision, readHookInput } from "./lib/gate.mjs";
-import { branchMerged } from "./lib/merged.mjs";
+import { branchesRecordedElsewhere, branchMerged } from "./lib/merged.mjs";
 import { parseFlags } from "./lib/flags.mjs";
 import { git, isDecisionBranch, repoInfo } from "./lib/repo.mjs";
 import { usageDir } from "./lib/records.mjs";
@@ -92,9 +92,7 @@ function printCollect(r) {
   if (r.olderRowsSkipped > 0)
     console.log(`開始時刻が範囲より古いので書かなかった行: ${r.olderRowsSkipped}`);
   for (const [branch, n] of Object.entries(r.otherWorktreeRows))
-    console.log(
-      `別の作業ツリーが checkout しているので書かなかった行（その作業ツリーの collect が書く）: ${branch} ${n}`,
-    );
+    console.log(`別の作業ツリーの collect が記録するので書かなかった行: ${branch} ${n}`);
   if (r.retractedRows > 0)
     console.log(`打ち消した行（ログはあるが、今は作らなくなった行）: ${r.retractedRows}`);
   if (r.duplicateMessages > 0)
@@ -235,6 +233,7 @@ function collectCommand(rest, context) {
     env: process.env,
     github: !a.flags.has("--no-github"),
     gh: null,
+    elsewhere: branchesRecordedElsewhere(repo, process.env),
   });
   printCollect(r);
   if (a.flags.has("--stage")) {

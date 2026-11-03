@@ -79,7 +79,7 @@ export function isDecisionBranch(repo) {
  * @property {string} root 今の作業ツリーのルート
  * @property {string} commonDir git の共通のディレクトリ（worktree で共有する）
  * @property {string[]} worktrees すべての作業ツリーのルート
- * @property {string[]} otherBranches 今の作業ツリー以外の作業ツリーが checkout しているブランチ（ディレクトリが消えて prunable になったものを除く）
+ * @property {{ path: string; branch: string }[]} otherWorktrees 今の作業ツリー以外の、ブランチを checkout している作業ツリー（ディレクトリが消えて prunable になったものを除く）
  * @property {string} remote origin を normalizeRemote した形（無ければ空）
  * @property {string} branch 今のブランチ（detached なら空）
  * @property {string | null} defaultBranch リモートのデフォルトブランチ（分からなければ null）
@@ -119,14 +119,14 @@ export function repoInfo(cwd) {
   const list = parseWorktreeList(git(["worktree", "list", "--porcelain"], root));
   const worktrees = list.map((w) => w.path);
   if (!worktrees.includes(root)) worktrees.push(root);
-  const otherBranches = list
+  const otherWorktrees = list
     .filter((w) => w.path !== root && !w.prunable && w.branch !== "")
-    .map((w) => w.branch);
+    .map((w) => ({ path: w.path, branch: w.branch }));
   const remote = normalizeRemote(gitOrNull(["remote", "get-url", "origin"], root) ?? "");
   const branch = (gitOrNull(["symbolic-ref", "--quiet", "--short", "HEAD"], root) ?? "").trim();
   const head = gitOrNull(["symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"], root);
   const defaultBranch = head ? head.trim().replace(/^refs\/remotes\/origin\//, "") : null;
-  return { root, commonDir, worktrees, otherBranches, remote, branch, defaultBranch };
+  return { root, commonDir, worktrees, otherWorktrees, remote, branch, defaultBranch };
 }
 
 /**

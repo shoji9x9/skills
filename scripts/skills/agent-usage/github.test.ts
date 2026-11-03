@@ -200,28 +200,6 @@ describe("collectGitHub", () => {
     expect(res.failures).toEqual(["pulls: HTTP 502", "pulls (open): HTTP 502"]);
   });
 
-  test.each([
-    ["open な PR の検索も取れたら、PR がすべて閉じたブランチを返す", false, ["feature/1-x"]],
-    ["open な PR の検索に失敗したら、閉じたブランチを返さない", true, []],
-  ])("%s", (_name, failOpen, closed) => {
-    const closedPr = prNode([], { headRefName: "feature/1-x", closedAt: "2026-10-01T11:00:00Z" });
-    const inner = fakeGh([closedPr]);
-    const gh: Gh = (args, opts) => {
-      if (args[0] === "graphql" && args.some((a) => a.includes("is:open"))) {
-        if (failOpen) throw new Error("HTTP 502");
-        return Buffer.from(
-          JSON.stringify([
-            { data: { search: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [] } } },
-          ]),
-        );
-      }
-      return inner(args, opts);
-    };
-    const res = collectGitHub(options(gh));
-    expect(res.failures.some((f) => f.startsWith("pulls (open)"))).toBe(failOpen);
-    expect(res.closedBranches).toEqual(closed);
-  });
-
   test("人の設定で billing が user のときだけ、課金 API の日別の実額を billing の行にする", () => {
     const calls: string[] = [];
     const gh: Gh = (args) => {

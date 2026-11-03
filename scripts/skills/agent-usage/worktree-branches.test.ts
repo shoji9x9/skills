@@ -1,20 +1,26 @@
-// 別の作業ツリーが checkout しているブランチの行を、今のブランチの記録に書かないこと（Issue #871）を確かめる。
+// 別の作業ツリーの collect が記録するブランチの行を、今のブランチの記録に書かないこと（Issue #871）を確かめる。
 //
-// 入力の軸（行の branch 列）:
-//   今のブランチ／別の作業ツリーが checkout しているブランチ／どの作業ツリーも checkout していないブランチ／空（coverage など）。
-// 別の作業ツリーのブランチを外さない条件:
-//   デフォルトブランチ（origin/HEAD が無ければ main・master）／取得した PR がすべて閉じた／作業ツリーが prunable（ディレクトリが消えた）。
+// 外すブランチ（branchesRecordedElsewhere）の入力の軸:
+//   別の作業ツリーのブランチの判断: 記録する／記録しない／無い／判断の記録を読めない。
+//   merge 済みか: まだ／済み（HEAD がデフォルトブランチに含まれる）。
+//   ブランチの種類: デフォルトブランチ／それ以外。
+//   作業ツリー: ある／ディレクトリが消えた（prunable）／消した。
+// 外す処理（withoutOtherWorktrees）の入力の軸:
+//   行の branch 列: 外すブランチ／それ以外／空。打ち消しの行か。
 // 作業ツリーの一覧の形: branch／detached／prunable（理由あり・なし）／locked。
 
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { parseCsv } from "../../../skills/agent-usage/scripts/lib/csv.mjs";
-import { parseWorktreeList } from "../../../skills/agent-usage/scripts/lib/repo.mjs";
+import { saveDecision } from "../../../skills/agent-usage/scripts/lib/decisions.mjs";
+import { branchesRecordedElsewhere } from "../../../skills/agent-usage/scripts/lib/merged.mjs";
+import { parseWorktreeList, repoInfo } from "../../../skills/agent-usage/scripts/lib/repo.mjs";
 import { withoutOtherWorktrees } from "../../../skills/agent-usage/scripts/lib/run-collect.mjs";
-import { closedBranchesOf } from "../../../skills/agent-usage/scripts/lib/sources/github.mjs";
 import { encodeProjectPath } from "../../../skills/agent-usage/scripts/lib/sources/discover.mjs";
 import { recordDirs, setup, type Setup } from "./cli-helpers.ts";
+
+const NOW = Date.parse("2026-10-01T12:00:00Z");
 
 describe("parseWorktreeList", () => {
   test("作業ツリーごとに、パス・ブランチ・prunable かを読む", () => {
@@ -57,146 +63,107 @@ describe("parseWorktreeList", () => {
   });
 });
 
-describe("closedBranchesOf", () => {
-  const pr = (number: number, branch: string, closedAt: number | null) => ({
-    number,
-    branch,
-    author: "me",
-    sha: "abc",
-    closedAt,
-  });
-
-  test("PR がすべて閉じたブランチだけを返し、open な PR が 1 つでもあるブランチは返さない", () => {
-    expect(
-      closedBranchesOf([
-        pr(1, "feature/1-closed", 1),
-        pr(2, "feature/1-closed", 2),
-        pr(3, "feature/2-reopened", 1),
-        pr(4, "feature/2-reopened", null),
-        pr(5, "feature/3-open", null),
-      ]),
-    ).toEqual(["feature/1-closed"]);
-  });
-
-  test("PR が無ければ空にする", () => {
-    expect(closedBranchesOf([])).toEqual([]);
-  });
-});
-
 describe("withoutOtherWorktrees", () => {
-  const repo = (o: { branch: string; otherBranches: string[]; defaultBranch: string | null }) => ({
-    root: "/r",
-    commonDir: "/r/.git",
-    worktrees: ["/r"],
-    remote: "",
-    ...o,
-  });
-  const rows = ["feature/1-here", "feature/2-there", "feature/3-nowhere", "main", "master", ""].map(
-    (branch) => ({ key: `k:${branch}`, branch }),
-  );
-  const keptBranches = (r: { rows: { branch?: string }[] }) => r.rows.map((x) => x.branch);
+  const rows = ["feature/1-here", "feature/2-there", "main", ""].map((branch) => ({
+    key: `k:${branch}`,
+    branch,
+  }));
 
-  test("別の作業ツリーが checkout しているブランチの行だけを外し、ブランチごとの件数を返す", () => {
-    const r = withoutOtherWorktrees([...rows, { key: "k2", branch: "feature/2-there" }], {
-      repo: repo({
-        branch: "feature/1-here",
-        otherBranches: ["feature/2-there"],
-        defaultBranch: "main",
-      }),
-      closedBranches: [],
-    });
-    expect(keptBranches(r)).toEqual(["feature/1-here", "feature/3-nowhere", "main", "master", ""]);
+  test("渡したブランチの行だけを外し、ブランチごとの件数を返す", () => {
+    const r = withoutOtherWorktrees(
+      [...rows, { key: "k2", branch: "feature/2-there" }],
+      new Set(["feature/2-there"]),
+    );
+    expect(r.rows.map((x) => x.branch)).toEqual(["feature/1-here", "main", ""]);
     expect(r.elsewhere).toEqual({ "feature/2-there": 2 });
   });
 
-  test("デフォルトブランチは、別の作業ツリーが checkout していても外さない", () => {
-    const r = withoutOtherWorktrees(rows, {
-      repo: repo({ branch: "feature/1-here", otherBranches: ["main"], defaultBranch: "main" }),
-      closedBranches: [],
-    });
-    expect(keptBranches(r)).toEqual(rows.map((x) => x.branch));
+  test("外すブランチが無ければ、すべての行を残す", () => {
+    const r = withoutOtherWorktrees(rows, new Set());
+    expect(r.rows).toEqual(rows);
     expect(r.elsewhere).toEqual({});
   });
 
-  test("origin/HEAD が無ければ、main と master をデフォルトブランチとして外さない", () => {
-    const r = withoutOtherWorktrees(rows, {
-      repo: repo({
-        branch: "feature/1-here",
-        otherBranches: ["main", "master", "feature/2-there"],
-        defaultBranch: null,
-      }),
-      closedBranches: [],
-    });
-    expect(r.elsewhere).toEqual({ "feature/2-there": 1 });
-  });
-
-  test("origin/HEAD が main 以外なら、main は外す対象になる", () => {
-    const r = withoutOtherWorktrees(rows, {
-      repo: repo({ branch: "feature/1-here", otherBranches: ["main"], defaultBranch: "develop" }),
-      closedBranches: [],
-    });
-    expect(r.elsewhere).toEqual({ main: 1 });
-  });
-
-  test("取得した PR がすべて閉じたブランチは、別の作業ツリーが checkout していても外さない", () => {
-    const r = withoutOtherWorktrees(rows, {
-      repo: repo({
-        branch: "feature/1-here",
-        otherBranches: ["feature/2-there"],
-        defaultBranch: "main",
-      }),
-      closedBranches: ["feature/2-there"],
-    });
-    expect(keptBranches(r)).toEqual(rows.map((x) => x.branch));
-  });
-
-  test("打ち消しの行は、別の作業ツリーが checkout しているブランチでも外さない", () => {
-    const r = withoutOtherWorktrees(
-      [{ key: "k:r", branch: "feature/2-there", retracted: "1" }, ...rows],
-      {
-        repo: repo({
-          branch: "feature/1-here",
-          otherBranches: ["feature/2-there"],
-          defaultBranch: "main",
-        }),
-        closedBranches: [],
-      },
-    );
-    expect(r.rows.filter((x) => x.retracted === "1").map((x) => x.key)).toEqual(["k:r"]);
-    expect(r.elsewhere).toEqual({ "feature/2-there": 1 });
-  });
-
-  test("今のブランチは、一覧に入っていても外さない", () => {
-    const r = withoutOtherWorktrees(rows, {
-      repo: repo({
-        branch: "feature/1-here",
-        otherBranches: ["feature/1-here"],
-        defaultBranch: "main",
-      }),
-      closedBranches: [],
-    });
+  test("打ち消しの行は、外すブランチの行でも残す", () => {
+    const retraction = { key: "k:old", branch: "feature/2-there", retracted: "1" };
+    const r = withoutOtherWorktrees([retraction], new Set(["feature/2-there"]));
+    expect(r.rows).toEqual([retraction]);
     expect(r.elsewhere).toEqual({});
-  });
-
-  test("detached の作業ツリー（今のブランチが空）でも、branch 列が空の行は外さない", () => {
-    const r = withoutOtherWorktrees(rows, {
-      repo: repo({ branch: "", otherBranches: ["feature/1-here"], defaultBranch: "main" }),
-      closedBranches: [],
-    });
-    expect(r.elsewhere).toEqual({ "feature/1-here": 1 });
-    expect(keptBranches(r)).toContain("");
   });
 });
 
-describe.concurrent("別の作業ツリーのブランチの行を書かない collect", () => {
-  /** 共有の作業ツリーを feature/8-main にし、feature/7-wt の作業ツリーと、そこで動いたセッションのログを作る。 */
+/** 共有の作業ツリーを feature/8-main にし、別の作業ツリーを足す関数を返す。 */
+async function sharedOnFeature() {
+  const s = await setup();
+  expect((await s.cli("setup", "--time-zone", "UTC")).status).toBe(0);
+  await s.git("add", ".agent-usage");
+  await s.git("commit", "-q", "-m", "setup");
+  await s.git("switch", "-q", "-c", "feature/8-main");
+  const commonDir = join(s.repo, ".git");
+  /** 別の作業ツリーを、新しいブランチ（main なら既存の main）で作る。 */
+  const addWorktree = async (name: string, branch: string) => {
+    const wt = join(s.tmp, name);
+    if (branch === "main") await s.git("worktree", "add", "-q", wt, "main");
+    else await s.git("worktree", "add", "-q", "-b", branch, wt);
+    return wt;
+  };
+  const record = (branch: string, decision: "record" | "decline" = "record") =>
+    saveDecision(commonDir, { branch, decision, now: NOW });
+  const elsewhere = () => [...branchesRecordedElsewhere(repoInfo(s.repo), {}, null)].sort();
+  return { ...s, commonDir, addWorktree, record, elsewhere };
+}
+
+describe.concurrent("branchesRecordedElsewhere", () => {
+  test("判断が「記録する」で merge していないブランチだけを返す", async () => {
+    const s = await sharedOnFeature();
+    await s.addWorktree("wt-a", "feature/1-a");
+    await s.addWorktree("wt-b", "feature/2-b");
+    await s.addWorktree("wt-c", "feature/3-c");
+    s.record("feature/1-a");
+    s.record("feature/2-b", "decline");
+    expect(s.elsewhere()).toEqual(["feature/1-a"]);
+  });
+
+  test("merge 済みのブランチは、判断が「記録する」でも返さない", async () => {
+    const s = await sharedOnFeature();
+    const wt = await s.addWorktree("wt-a", "feature/1-a");
+    s.record("feature/1-a");
+    await s.git("-C", wt, "commit", "-q", "--allow-empty", "-m", "work");
+    expect(s.elsewhere()).toEqual(["feature/1-a"]);
+    const head = (await s.git("-C", wt, "rev-parse", "HEAD")).trim();
+    await s.git("update-ref", "refs/remotes/origin/main", head);
+    expect(s.elsewhere()).toEqual([]);
+  });
+
+  test("デフォルトブランチは、判断が「記録する」でも返さない", async () => {
+    const s = await sharedOnFeature();
+    await s.addWorktree("wt-main", "main");
+    s.record("main");
+    expect(s.elsewhere()).toEqual([]);
+  });
+
+  test("ディレクトリが消えて prunable になった作業ツリーのブランチは返さない", async () => {
+    const s = await sharedOnFeature();
+    const wt = await s.addWorktree("wt-a", "feature/1-a");
+    s.record("feature/1-a");
+    rmSync(wt, { recursive: true, force: true });
+    expect(s.elsewhere()).toEqual([]);
+  });
+
+  test("判断の記録を読めなければ、どのブランチも返さない", async () => {
+    const s = await sharedOnFeature();
+    await s.addWorktree("wt-a", "feature/1-a");
+    s.record("feature/1-a");
+    writeFileSync(join(s.commonDir, "agent-usage", "decisions.json"), "{");
+    expect(s.elsewhere()).toEqual([]);
+  });
+});
+
+describe.concurrent("別の作業ツリーの collect が記録するブランチの行を書かない collect", () => {
+  /** feature/7-wt の作業ツリーと、そこで動いたセッションのログを作る。 */
   async function withWorktree() {
-    const s = await setup();
-    expect((await s.cli("setup", "--time-zone", "UTC")).status).toBe(0);
-    await s.git("add", ".agent-usage");
-    await s.git("commit", "-q", "-m", "setup");
-    const wt = join(s.tmp, "wt");
-    await s.git("worktree", "add", "-q", "-b", "feature/7-wt", wt);
+    const s = await sharedOnFeature();
+    const wt = await s.addWorktree("wt", "feature/7-wt");
     const dir = join(s.tmp, "claude", encodeProjectPath(wt));
     mkdirSync(dir, { recursive: true });
     const lines = [
@@ -221,7 +188,6 @@ describe.concurrent("別の作業ツリーのブランチの行を書かない c
       },
     ];
     writeFileSync(join(dir, "s-wt.jsonl"), lines.map((l) => JSON.stringify(l)).join("\n"));
-    await s.git("switch", "-q", "-c", "feature/8-main");
     return { ...s, wt };
   }
 
@@ -234,12 +200,13 @@ describe.concurrent("別の作業ツリーのブランチの行を書かない c
       .map((r) => r.branch ?? "");
   }
 
-  test("別の作業ツリーのブランチの行は書かず、その件数を出し、作業ツリーを消した後の collect で書く", async () => {
+  test("別の作業ツリーが記録するブランチの行は書かず、その件数を出し、作業ツリーを消した後の collect で書く", async () => {
     const s = await withWorktree();
+    s.record("feature/7-wt");
     const r = await s.cli("collect", "--no-github");
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toMatch(
-      /別の作業ツリーが checkout しているので書かなかった行.*: feature\/7-wt \d+/,
+      /別の作業ツリーの collect が記録するので書かなかった行: feature\/7-wt \d+/,
     );
     const before = writtenBranches(s);
     expect(before.length).toBeGreaterThan(0);
@@ -248,57 +215,15 @@ describe.concurrent("別の作業ツリーのブランチの行を書かない c
     await s.git("worktree", "remove", "--force", s.wt);
     const again = await s.cli("collect", "--no-github");
     expect(again.status, again.stderr).toBe(0);
-    expect(again.stdout).not.toMatch(/別の作業ツリーが checkout している/);
+    expect(again.stdout).not.toMatch(/別の作業ツリーの collect が記録する/);
     expect(writtenBranches(s)).toContain("feature/7-wt");
   });
 
-  test("ディレクトリが消えて prunable になった作業ツリーのブランチの行は書く", async () => {
+  test("別の作業ツリーのブランチに判断が無ければ、その行を書く", async () => {
     const s = await withWorktree();
-    rmSync(s.wt, { recursive: true, force: true });
     const r = await s.cli("collect", "--no-github");
     expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout).not.toMatch(/別の作業ツリーが checkout している/);
-    expect(writtenBranches(s)).toContain("feature/7-wt");
-  });
-
-  test("取得した PR がすべて閉じたブランチの行は、別の作業ツリーが checkout していても書く", async () => {
-    const s = await withWorktree();
-    await s.git("remote", "add", "origin", "https://github.com/example-org/example-repo.git");
-    const bin = join(s.tmp, "bin");
-    mkdirSync(bin, { recursive: true });
-    const page = (nodes: unknown[]) =>
-      JSON.stringify([
-        { data: { search: { pageInfo: { hasNextPage: false, endCursor: null }, nodes } } },
-      ]);
-    const closedPr = {
-      number: 7,
-      headRefName: "feature/7-wt",
-      author: { login: "me" },
-      headRefOid: "abc",
-      closedAt: "2026-10-01T11:30:00Z",
-      timelineItems: { pageInfo: { hasNextPage: false }, nodes: [] },
-    };
-    writeFileSync(join(bin, "updated.json"), page([closedPr]));
-    writeFileSync(join(bin, "open.json"), page([]));
-    writeFileSync(
-      join(bin, "gh"),
-      [
-        "#!/bin/sh",
-        `d='${bin}'`,
-        'case "$*" in',
-        '  "api user") echo \'{"login":"me"}\' ;;',
-        '  *is:open*) cat "$d/open.json" ;;',
-        '  *graphql*) cat "$d/updated.json" ;;',
-        '  *) echo \'[{"workflow_runs":[],"artifacts":[],"check_runs":[]}]\' ;;',
-        "esac",
-        "",
-      ].join("\n"),
-      { mode: 0o755 },
-    );
-    const r = await s.cliWith({ PATH: `${bin}:${process.env.PATH ?? ""}` }, "collect");
-    expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout).not.toMatch(/GitHub の取得に失敗/);
-    expect(r.stdout).not.toMatch(/別の作業ツリーが checkout している/);
+    expect(r.stdout).not.toMatch(/別の作業ツリーの collect が記録する/);
     expect(writtenBranches(s)).toContain("feature/7-wt");
   });
 });

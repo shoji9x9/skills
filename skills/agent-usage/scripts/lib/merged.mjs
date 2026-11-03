@@ -12,6 +12,7 @@
 //   origin が無い・GitHub でない・gh が無い・取得に失敗したときは、2 では merge 済みとしない（記録を止めない）。
 
 import { isRecord } from "./config.mjs";
+import { decisionFor } from "./decisions.mjs";
 import { defaultBranches, gitOrNull } from "./repo.mjs";
 import { ghLoginError, githubTarget } from "./run-collect.mjs";
 import { getAll, makeGh, withoutEnvTokens } from "./sources/github.mjs";
@@ -36,6 +37,44 @@ export function branchMerged(repo, env, gh = null) {
   const byPr = mergedByPullRequest(repo, head, { env, gh });
   if (byPr !== "") return { merged: true, how: byPr };
   return { merged: false, how: "" };
+}
+
+/**
+ * 別の作業ツリーが checkout していて、その作業ツリーのコミットの前の確認が記録するブランチ。
+ * collect は、このブランチの行を今のブランチの記録に書かず、その作業ツリーの collect に任せる（並行するブランチの行を混ぜないため）。
+ * その作業ツリーが記録しないブランチは含めない。含めると、その行がどの記録にも書かれないからである。
+ * 記録しないのは、デフォルトブランチ・判断が「記録する」でないブランチ（判断が無いブランチを含む）・merge 済みのブランチである。
+ * 判断の記録を読めないときも、記録するかが分からないので含めない。
+ * @param {import("./repo.mjs").RepoInfo} repo
+ * @param {NodeJS.ProcessEnv} env
+ * @param {import("./sources/github.mjs").GhRunner | null} [gh] テストで差し替える（null なら gh を使う）
+ * @returns {Set<string>}
+ */
+export function branchesRecordedElsewhere(repo, env, gh = null) {
+  const skip = new Set([repo.branch, ...defaultBranches(repo)]);
+  /** @type {Set<string>} */
+  const out = new Set();
+  for (const w of repo.otherWorktrees) {
+    if (w.branch === "" || skip.has(w.branch) || out.has(w.branch)) continue;
+    if (!decidedToRecord(repo.commonDir, w.branch)) continue;
+    // merge 済みかは、その作業ツリーのコミットの前の確認と同じ方法で決める
+    if (branchMerged({ ...repo, root: w.path, branch: w.branch }, env, gh).merged) continue;
+    out.add(w.branch);
+  }
+  return out;
+}
+
+/**
+ * @param {string} commonDir
+ * @param {string} branch
+ * @returns {boolean}
+ */
+function decidedToRecord(commonDir, branch) {
+  try {
+    return decisionFor(commonDir, branch) === "record";
+  } catch {
+    return false;
+  }
 }
 
 /**

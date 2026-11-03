@@ -329,6 +329,7 @@ export function ghLoginError(host, env) {
  * @property {NodeJS.ProcessEnv} env
  * @property {boolean} github
  * @property {GhRunner | null} gh テストで差し替える（null なら gh を使う）
+ * @property {ReadonlySet<string>} elsewhere 書かない行のブランチ（別の作業ツリーの collect が記録するブランチ。merged.mjs の branchesRecordedElsewhere で決める）
  */
 
 /**
@@ -348,7 +349,7 @@ export function ghLoginError(host, env) {
  * @property {number} skippedFiles 範囲より古いので読まなかった記録のファイルの数
  * @property {number} olderRowsSkipped 開始時刻が範囲より古いので書かなかった行の数
  * @property {number} retractedRows 打ち消した行の数
- * @property {Record<string, number>} otherWorktreeRows 別の作業ツリーが checkout しているので書かなかった行の数（ブランチごと）
+ * @property {Record<string, number>} otherWorktreeRows 別の作業ツリーの collect が記録するので書かなかった行の数（ブランチごと）
  */
 
 /**
@@ -373,15 +374,15 @@ export function runCollect(o) {
   const github =
     target.reason === ""
       ? fetchGitHub({ o, target, since, settings, existing, commands: local.commands })
-      : { rows: [], failures: [], closedBranches: [] };
+      : { rows: [], failures: [] };
   candidates.push(...github.rows);
   const { unique, conflicts } = uniqueByKey(candidates);
   const { rows: retractions, withheld } = retractionsOf({ read, unique, local, settings });
   const { fresh, olderRowsSkipped } = freshRows({ unique, existing, withheld, lowerBound });
-  const { rows, elsewhere } = withoutOtherWorktrees(stampRows(fresh, retractions, now), {
-    repo,
-    closedBranches: github.closedBranches,
-  });
+  const { rows, elsewhere } = withoutOtherWorktrees(
+    stampRows(fresh, retractions, now),
+    o.elsewhere,
+  );
   const written = writeBranchRows(rows, targets);
   saveLastCollect(lastPath, person, now);
   return {
@@ -399,28 +400,21 @@ export function runCollect(o) {
     keyConflicts: conflicts,
     skippedFiles: read.skipped,
     olderRowsSkipped,
-    retractedRows: rows.filter((r) => r.retracted === "1").length,
+    retractedRows: retractions.length,
     otherWorktreeRows: elsewhere,
   };
 }
 
 /**
- * 別の作業ツリーが checkout しているブランチの行を外す。その行は、その作業ツリーの collect が自分のブランチのファイルに書く。
+ * 別の作業ツリーの collect が記録するブランチの行を外す。その行は、その作業ツリーの collect が自分のブランチのファイルに書く。
  * 外さないと、並行して開発するブランチの CI とセッションの行が、今のブランチの記録に入る。
- * 次のブランチの行は外さない（今と同じく、今のブランチのファイルに書く）。
- * - デフォルトブランチ: そのブランチで collect することが少ないので、外すとどこにも書かれない
- * - 取得した PR がすべて閉じたブランチ: merge した後は、そのブランチの作業ツリーが記録しない（コミットの前の確認が止める）ので、
- *   外すと、最後のコミットより後の CI などがどこにも書かれない
- * - どの作業ツリーも checkout していないブランチ（作業ツリーを消した後のブランチを含む）
- * 打ち消しの行も外さない。元の行は今の作業ツリーの記録にあり、その作業ツリーの collect は元の行を読まないので打ち消せない。
+ * 外すブランチは、呼び出し元が merged.mjs の branchesRecordedElsewhere で決める。
+ * 打ち消しの行は外さない。元の行は今の作業ツリーの記録にあり、その作業ツリーの collect は元の行を読まないので打ち消せない。
  * @param {readonly Row[]} rows
- * @param {{ repo: RepoInfo; closedBranches: readonly string[] }} o
+ * @param {ReadonlySet<string>} other 外すブランチ
  * @returns {{ rows: Row[]; elsewhere: Record<string, number> }} elsewhere は外したブランチごとの行数
  */
-export function withoutOtherWorktrees(rows, o) {
-  const { repo } = o;
-  const keep = new Set([repo.branch, ...defaultBranches(repo), ...o.closedBranches]);
-  const other = new Set(repo.otherBranches.filter((b) => !keep.has(b)));
+export function withoutOtherWorktrees(rows, other) {
   /** @type {Record<string, number>} */
   const elsewhere = {};
   const kept = rows.filter((r) => {
@@ -594,7 +588,7 @@ function githubTargetOf(o) {
 /**
  * GitHub から行を取得し、取得した期間の coverage の行を足す。
  * @param {{ o: CollectOptions; target: GitHubTarget; since: number; settings: Settings; existing: Map<string, Row>; commands: { ts: number; text: string }[] }} a
- * @returns {{ rows: Row[]; failures: string[]; closedBranches: string[] }}
+ * @returns {{ rows: Row[]; failures: string[] }}
  */
 function fetchGitHub(a) {
   const { o, target, since, settings } = a;
@@ -617,11 +611,7 @@ function fetchGitHub(a) {
     gh,
   });
   const coverage = coverageRow({ since, now: o.now, person, tz, failures: res.failures });
-  return {
-    rows: [...res.rows, coverage],
-    failures: res.failures,
-    closedBranches: res.closedBranches,
-  };
+  return { rows: [...res.rows, coverage], failures: res.failures };
 }
 
 /**

@@ -530,7 +530,6 @@ export function runRows(runs, o) {
  * @typedef {object} GitHubResult
  * @property {Row[]} rows
  * @property {string[]} failures 取得に失敗した段（空なら全部取れた）
- * @property {string[]} closedBranches 取得した PR がすべて閉じているブランチ（open な PR が 1 つでもあれば含めない）
  */
 
 /**
@@ -581,21 +580,7 @@ export function collectGitHub(o) {
   if (o.config.ci.external) collectExternalCi(c, prs);
   collectArtifacts(c);
   if (o.billing === "user" && c.me !== "") collectBilling(c);
-  // PR の取得に失敗した段があると、open な PR を取りこぼしてブランチを閉じたと判定しうるので、閉じたブランチを返さない
-  const pullsFailed = failures.some((f) => f.startsWith("pulls"));
-  return { rows: c.rows, failures, closedBranches: pullsFailed ? [] : closedBranchesOf(prs) };
-}
-
-/**
- * 取得した PR がすべて閉じているブランチ。同じ名前のブランチで PR を作り直したら、open な PR があるブランチは含めない。
- * @param {readonly PullRequest[]} prs
- * @returns {string[]}
- */
-export function closedBranchesOf(prs) {
-  const open = new Set(prs.filter((p) => p.closedAt === null).map((p) => p.branch));
-  return [
-    ...new Set(prs.filter((p) => p.closedAt !== null && !open.has(p.branch)).map((p) => p.branch)),
-  ];
+  return { rows: c.rows, failures };
 }
 
 /**

@@ -13,7 +13,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { defaultDecisionOf, hasPerson, isRecord, userConfigPath } from "./config.mjs";
 import { decisionFor } from "./decisions.mjs";
-import { branchMerged } from "./merged.mjs";
+import { branchesRecordedElsewhere, branchMerged } from "./merged.mjs";
 import { git, isDecisionBranch, repoInfo } from "./repo.mjs";
 import { usageDir } from "./records.mjs";
 import { runCollect } from "./run-collect.mjs";
@@ -842,7 +842,14 @@ function recordCommit(repo, context, note) {
       message: `agent-usage: このブランチは merge 済み（${merged.how}）なので、記録しない${note}`,
     };
   try {
-    const r = runCollect({ repo, now: context.now, env: process.env, github: true, gh: null });
+    const r = runCollect({
+      repo,
+      now: context.now,
+      env: process.env,
+      github: true,
+      gh: null,
+      elsewhere: branchesRecordedElsewhere(repo, process.env),
+    });
     // 今回書いたファイルに加えて、前回書いて stage されなかった（index.lock などで失敗した、手動の collect で書いた）記録も入れる
     git(["add", "--", ".agent-usage/records"], repo.root);
     const notes =
