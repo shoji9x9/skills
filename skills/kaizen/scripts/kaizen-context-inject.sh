@@ -169,11 +169,40 @@ fi
 count=$(wc -l <"${pending_index}")
 count=${count//[[:space:]]/}
 
-echo "## kaizen: 未適用の学び（${count} 件）"
+# 注入する件数の上限（設定の inject_max_entries）。キーが無ければ上限を設けない。
+# 設定を読めないときは、注入を止めずに全件を出し、上限を当てなかったことを 1 行で示す。
+# このフックはセッションの開始を止めない（常に exit 0）ので、忘却のように止まる側には寄せない。
+# 上限で学びを省くと、エージェントは省かれたことに気付けない。読めない設定で上限を当てると、
+# 意図しない数で学びを省くことになるので、ここでは省かない側を選ぶ。
+max_entries=""
+config_note=""
+if declare -f kaizen_config_load >/dev/null 2>&1; then
+	if kaizen_config_load; then
+		max_entries=$(kaizen_config_value inject_max_entries || true)
+		# スキーマが 1 以上の整数に限るので、ここで別の形が来るのは読み取りの不具合である。全件を出す側にする。
+		[[ "${max_entries}" =~ ^[1-9][0-9]*$ ]] || max_entries=""
+	else
+		printf '%s: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_config_error:-}" >&2
+		config_note="kaizen の設定を読めないので、件数の上限（inject_max_entries）を当てずに全件を出す。理由は \`node ${kaizen_lib_dir:-<kaizen スキル>/scripts}/skill-config/skill-config.mjs validate kaizen\` で確かめる。"
+	fi
+fi
+shown=${count}
+if [ -n "${max_entries}" ] && [ "${count}" -gt "${max_entries}" ]; then
+	shown=${max_entries}
+fi
+
+if [ "${shown}" -lt "${count}" ]; then
+	echo "## kaizen: 未適用の学び（${count} 件のうち ${shown} 件）"
+else
+	echo "## kaizen: 未適用の学び（${count} 件）"
+fi
 echo ""
 echo "このプロジェクトには以下の未適用（status: pending）の学びがあります。"
 echo "関連する作業では内容を踏まえ、同じ失敗を繰り返さないこと（根本原因分析の KEDB 照合の起点）。"
 echo "confidence は根本原因と提案の確かさである。low の学びは、提案を適用する前に根本原因を確かめ直す。unknown は、確信度が分からない学び（欄を足す前に書いたもの、値が空のもの）である。"
+if [ -n "${config_note}" ]; then
+	echo "${config_note}"
+fi
 echo ""
 
 # 指定見出し（例「## 提案」）直後の最初の非空行を返す。見出しは前方一致で判定し、
@@ -187,8 +216,12 @@ first_line_under() {
 # 要約は「## 提案」（＝一般化された行動規律）を優先する。事象（個別事案）の冒頭だけだと
 # 過去の特定インシデントとしか結び付かず、別文脈での再発を防ぐトリガーになりにくい。
 # 提案が無い古い学びは「## 事象」にフォールバックする。
+emitted=0
 while IFS=$'\t' read -r _rank _date f; do
 	[ -n "$f" ] || continue
+	# 並びは priority の降順、同じ priority は日付の昇順なので、先頭から上限まで出すと、低い priority と新しい学びが省かれる。
+	[ "${emitted}" -lt "${shown}" ] || break
+	emitted=$((emitted + 1))
 	# meta も frontmatter に限る。全文を grep すると、本文の `type:` などを拾って誤った値になる。
 	# confidence が無い学びは、欄を足す前に書いたもので、確信度が分からないものとして扱う（references/extract.md）。
 	# 確信度の低い学びを高い学びと同じ見え方にしないよう、無いときも unknown と出す。
@@ -220,6 +253,20 @@ while IFS=$'\t' read -r _rank _date f; do
 	fi
 	echo "- \`${f}\` — ${meta}— ${summary}"
 done <"${pending_index}"
+
+# 省いた件数を priority ごとに示す。high が省かれたかどうかを、エージェントが読み取れるようにする。
+if [ "${shown}" -lt "${count}" ]; then
+	omitted_breakdown=$(awk -F '\t' -v skip="${shown}" '
+		NR > skip { n[$1]++ }
+		END {
+			split("high medium low 不明", label, " ")
+			sep = ""
+			for (r = 0; r <= 3; r++) if (n[r] > 0) { printf "%s%s %d 件", sep, label[r + 1], n[r]; sep = "・" }
+		}' "${pending_index}" 2>/dev/null || true)
+	# 内訳を数えられなかったときは、空の括弧を出さずに件数だけを示す。
+	echo ""
+	echo "ほか $((count - shown)) 件${omitted_breakdown:+（${omitted_breakdown}）}は、設定の inject_max_entries（${max_entries}）を超えたので省いた。省いた学びは、\`.kaizen/*.md\` のうち frontmatter が \`status: pending\` のノートである。"
+fi
 
 echo ""
 echo "詳細は各ファイルを参照。適用するには kaizen スキルの apply フローを使う。"
