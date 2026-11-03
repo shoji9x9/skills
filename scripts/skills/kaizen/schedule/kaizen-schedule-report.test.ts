@@ -484,7 +484,7 @@ describe("pending の数え方と並び", () => {
   const cells = (row: string) =>
     row
       .slice(2, -2)
-      .split(/(?<!\\) \| /)
+      .split(/(?<!\\)\|/)
       .map((c) => c.trim());
 
   test("date と type にタブや | がある学びでも、Issue の表の列がずれない", () => {
@@ -528,6 +528,43 @@ describe("pending の数え方と並び", () => {
         "- `.kaizen/pi|pe.md`（priority: low / type: rule）",
         "- `.kaizen/back\\\\slash.md`（priority: low / type: rule）",
       ]);
+      // 書き分けたパスがあるときだけ、元のパスへの戻し方を prompt に書く（エージェントがノートを開けるように）。
+      expect(run(p, ["prompt"]).stdout).toContain("に戻してから開く");
+    });
+  });
+
+  test("改行が CRLF のノートでも、要約に CR を入れず、提案の行を要約にする", () => {
+    withProject({ notes: { crlf: {} } }, (p) => {
+      const file = join(p.dir, ".kaizen", "crlf.md");
+      writeFileSync(file, readFileSync(file, "utf8").replaceAll("\n", "\r\n"));
+      const body = run(p, ["issue"]).stdout;
+      expect(body).not.toContain("\r");
+      expect(tableRows(body).map(cells)).toStrictEqual([
+        ["medium", "rule", "2026-09-01", "`.kaizen/crlf.md`", "crlf の提案行。"],
+      ]);
+    });
+  });
+
+  // 共通ライブラリが古いバージョンで kaizen_days_from_date を持たないときは、日付で並べないことを stderr に出す。
+  test("共通ライブラリに kaizen_days_from_date が無ければ、日付で並べないと警告する", () => {
+    withProject({ notes: { a: {} } }, (p) => {
+      const solo = join(p.dir, "old-lib");
+      mkdirSync(solo, { recursive: true });
+      const target = join(solo, "kaizen-schedule-report.sh");
+      copyFileSync(script, target);
+      const lib = readFileSync(join(scriptDir, "kaizen-hook-common.sh"), "utf8");
+      assert.include(lib, "kaizen_days_from_date() {", "共通ライブラリに関数の定義が無い");
+      writeFileSync(
+        join(solo, "kaizen-hook-common.sh"),
+        lib.replace("kaizen_days_from_date() {", "kaizen_days_from_date_removed() {"),
+      );
+      const res = run({ dir: p.dir, target }, ["issue"]);
+      expect(res.status).toBe(0);
+      expect(res.stderr).toContain("学びを日付で並べない");
+      expect(res.stdout).toContain(".kaizen/a.md");
+    });
+    withProject({ notes: { a: {} } }, (p) => {
+      expect(run(p, ["issue"]).stderr).not.toContain("学びを日付で並べない");
     });
   });
 
@@ -554,6 +591,7 @@ describe("pending の数え方と並び", () => {
       expect(out).toContain(".kaizen/a.md");
       expect(out).toContain(".kaizen/b.md");
       expect(out).toContain("リポジトリを変更しない");
+      expect(out).not.toContain("に戻してから開く");
     });
   });
 });

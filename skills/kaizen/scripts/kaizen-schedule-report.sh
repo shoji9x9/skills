@@ -107,8 +107,9 @@ parse_bool() {
 }
 
 # 指定見出し（例「## 提案」）直後の最初の非空行を返す。見出しは前方一致で判定する。
+# 行末の CR は先に落とす。改行が CRLF のノートでは、CR だけの行を空でない行として読み、要約に CR が入って Issue の表の行が分かれる。
 first_line_under() {
-	awk -v h="$1" 'index($0, h) == 1 {f = 1; next} f && NF {print; exit}' "$2" 2>/dev/null || true
+	awk -v h="$1" '{sub(/\r$/, "")} index($0, h) == 1 {f = 1; next} f && NF {print; exit}' "$2" 2>/dev/null || true
 }
 
 # pending なノートを priority 降順・日付昇順に並べた索引を一時ファイルに作り、パスを pending_index に入れる。
@@ -134,7 +135,16 @@ build_pending_index() {
 	pending_priorities=()
 	pending_types=()
 	pending_index=$(mktemp)
+	# 途中で止まったときも一時ファイルを残さない（set -e で rm -f まで届かない場合がある）。
+	trap 'rm -f "${pending_index}"' EXIT
 	[ -d .kaizen ] || return 0
+	# 日付を確かめる関数は共通ライブラリにある。古いバージョンの共通ライブラリには無いので、そのときは日付で並べず、そのことを出力する
+	# （機能を減らして動いた実行と本番の構成の実行を、出力で区別できるようにする）。
+	local check_dates=1
+	if ! declare -f kaizen_days_from_date >/dev/null 2>&1; then
+		check_dates=0
+		warn "kaizen-hook-common.sh に kaizen_days_from_date が無いため、学びを日付で並べない（共通ライブラリが古いバージョン）"
+	fi
 	for f in .kaizen/*.md; do
 		[ -e "${f}" ] || continue
 		# status は frontmatter 限定で判定する。全文 grep だと本文やコードブロックの
@@ -155,7 +165,7 @@ build_pending_index() {
 		# 並べ替えのキーには、共通ライブラリが暦の日付として読める date だけを使う（忘却と同じ読み方）。
 		# 読めない date は、日付の無いノートと同じく同じ priority の最後に置く。
 		sort_key=9999-99-99
-		if declare -f kaizen_days_from_date >/dev/null 2>&1 && kaizen_days_from_date "${date_value}" >/dev/null; then
+		if [ "${check_dates}" = 1 ] && kaizen_days_from_date "${date_value}" >/dev/null; then
 			sort_key=${date_value}
 		fi
 		printf '%s\t%s\t%s\n' "${rank}" "${sort_key}" "${#pending_files[@]}" >>"${pending_index}"
@@ -420,13 +430,23 @@ EOS
 		return 0
 	fi
 
-	echo
+	local items=() shown_path escaped=0
 	while IFS=$'\t' read -r _rank _sort_key idx; do
+		shown_path=$(one_line "${pending_files[idx]}")
+		[ "${shown_path}" = "${pending_files[idx]}" ] || escaped=1
 		# shellcheck disable=SC2016
-		printf -- '- `%s`（priority: %s / type: %s）\n' "$(one_line "${pending_files[idx]}")" \
-			"$(one_line "${pending_priorities[idx]}")" "$(one_line "${pending_types[idx]}")"
+		items+=("$(printf -- '- `%s`（priority: %s / type: %s）' "${shown_path}" \
+			"$(one_line "${pending_priorities[idx]}")" "$(one_line "${pending_types[idx]}")")")
 	done <"${pending_index}"
 	rm -f "${pending_index}"
+	echo
+	# 書き分けたパスがあれば、元のパスへの戻し方を書く。書かないと、エージェントは書き分けた文字列のままノートを開こうとして失敗する。
+	if [ "${escaped}" = 1 ]; then
+		# shellcheck disable=SC2016
+		printf '%s\n' '次のパスのうち `\` を含むものは、`\\`・`\n`・`\r`・`\v`・`\f` を、それぞれ `\`・改行・CR・垂直タブ・改ページに戻してから開く。'
+		echo
+	fi
+	printf '%s\n' "${items[@]}"
 }
 
 case "${1-}" in
