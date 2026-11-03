@@ -12,7 +12,7 @@
 //   origin が無い・GitHub でない・gh が無い・取得に失敗したときは、2 では merge 済みとしない（記録を止めない）。
 
 import { existsSync } from "node:fs";
-import { isRecord } from "./config.mjs";
+import { defaultDecisionOf, hasPerson, isRecord } from "./config.mjs";
 import { loadDecisions } from "./decisions.mjs";
 import { usageDir } from "./records.mjs";
 import { defaultBranches, gitOrNull } from "./repo.mjs";
@@ -46,8 +46,8 @@ export function branchMerged(repo, env, gh = null) {
  * collect は、記録するブランチの行を今のブランチの記録に書かず、その作業ツリーの collect に任せる（並行するブランチの行を混ぜないため）。
  * その作業ツリーが記録しないブランチでは false を返す。true を返すと、その行がどの記録にも書かれないからである。
  * true を返すのは、次の 4 つをすべて満たすブランチだけである。別の作業ツリーが checkout している。その作業ツリーに `.agent-usage/` がある。
- * 判断が「記録する」である。merge 済みでない。
- * デフォルトブランチ・判断が無いブランチ・判断の記録を読めないときは false を返す。
+ * その作業ツリーでコミットするときの確認が記録すると決める（ブランチの判断か defaultDecision。decidedToRecord）。merge 済みでない。
+ * デフォルトブランチと、判断の記録を読めないときは false を返す。
  * GitHub を取得しない collect（github が false）では、squash merge した後かを PR で確かめられないので、すべて false を返す。
  * 判定は、行に現れたブランチだけを、初めて聞かれたときに行って覚える（コミットのたびに作業ツリーの数だけ gh を呼ばないため）。
  * @param {import("./repo.mjs").RepoInfo} repo
@@ -72,14 +72,29 @@ export function branchesRecordedElsewhere(repo, o) {
       decisions ??= decisionsOrEmpty(repo.commonDir);
       result =
         existsSync(usageDir(path)) &&
-        Object.hasOwn(decisions, branch) &&
-        decisions[branch].decision === "record" &&
+        decidedToRecord({ decisions, path, branch, env: o.env }) &&
         // merge 済みかは、その作業ツリーでコミットするときの確認と同じ方法で決める
         !branchMerged({ ...repo, root: path, branch }, o.env, o.gh ?? null).merged;
     }
     known.set(branch, result);
     return result;
   };
+}
+
+/**
+ * その作業ツリーでコミットするときの確認が、このブランチを記録すると決めるか（gate.mjs の resolveDecision と同じ順で決める）。
+ * ブランチの判断があればそれに従う。無ければ、その作業ツリーで読む設定の defaultDecision に従い、人の設定がある人だけ記録する。
+ * 設定を読めないときは、その確認がコミットを止めて記録しないので、false を返す。
+ * @param {{ decisions: Record<string, { decision: string }>; path: string; branch: string; env: NodeJS.ProcessEnv }} o
+ * @returns {boolean}
+ */
+function decidedToRecord(o) {
+  if (Object.hasOwn(o.decisions, o.branch)) return o.decisions[o.branch].decision === "record";
+  try {
+    return defaultDecisionOf(o.path, o.env)?.decision === "record" && hasPerson(o.env);
+  } catch {
+    return false;
+  }
 }
 
 /**

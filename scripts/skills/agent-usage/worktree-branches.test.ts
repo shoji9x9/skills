@@ -18,9 +18,12 @@ import { parseCsv } from "../../../skills/agent-usage/scripts/lib/csv.mjs";
 import { saveDecision } from "../../../skills/agent-usage/scripts/lib/decisions.mjs";
 import { branchesRecordedElsewhere } from "../../../skills/agent-usage/scripts/lib/merged.mjs";
 import { parseWorktreeList, repoInfo } from "../../../skills/agent-usage/scripts/lib/repo.mjs";
-import { withoutOtherWorktrees } from "../../../skills/agent-usage/scripts/lib/run-collect.mjs";
+import {
+  otherWorktreeRowsNote,
+  withoutOtherWorktrees,
+} from "../../../skills/agent-usage/scripts/lib/run-collect.mjs";
 import { encodeProjectPath } from "../../../skills/agent-usage/scripts/lib/sources/discover.mjs";
-import { recordDirs, setup, type Setup } from "./cli-helpers.ts";
+import { recordDirs, repoConfigOf, setup, type Setup } from "./cli-helpers.ts";
 
 const NOW = Date.parse("2026-10-01T12:00:00Z");
 
@@ -113,6 +116,24 @@ describe("withoutOtherWorktrees", () => {
   });
 });
 
+describe("otherWorktreeRowsNote", () => {
+  test("外したブランチごとの件数を、ブランチの順に「、」でつなぐ", () => {
+    const note = otherWorktreeRowsNote(
+      new Map([
+        ["feature/1-a", 2],
+        ["feature/2-b", 1],
+      ]),
+    );
+    expect(note).toBe(
+      "別の作業ツリーの collect が記録するので書かなかった行: feature/1-a 2、feature/2-b 1",
+    );
+  });
+
+  test("外した行が無ければ空にする", () => {
+    expect(otherWorktreeRowsNote(new Map())).toBe("");
+  });
+});
+
 /** 共有の作業ツリーを feature/8-main にし、別の作業ツリーを足す関数を返す。 */
 async function sharedOnFeature() {
   const s = await setup();
@@ -131,8 +152,10 @@ async function sharedOnFeature() {
   const record = (branch: string, decision: "record" | "decline" = "record") =>
     saveDecision(commonDir, { branch, decision, now: NOW });
   /** 外すと判定したブランチ。判定の関数は 1 回ごとに作り直す（覚えた結果を次の確認に持ち越さない）。 */
-  const elsewhere = (github = true) => {
-    const isElsewhere = branchesRecordedElsewhere(repoInfo(s.repo), { env: {}, github, gh: null });
+  // 人の設定は setup が tmp の下に作った層を読む（手元の設定を読まない）
+  const env = { XDG_CONFIG_HOME: join(s.tmp, "xdg") };
+  const elsewhere = (github = true, e: NodeJS.ProcessEnv | undefined = env) => {
+    const isElsewhere = branchesRecordedElsewhere(repoInfo(s.repo), { env: e, github, gh: null });
     const candidates = ["feature/1-a", "feature/2-b", "feature/3-c", "feature/8-main", "main", ""];
     return candidates.filter((b) => isElsewhere(b));
   };
@@ -192,6 +215,26 @@ describe.concurrent("branchesRecordedElsewhere", () => {
     s.record("feature/1-a");
     expect(s.elsewhere()).toEqual([]);
   });
+
+  test.each([
+    {
+      name: "record で人の設定がある",
+      decision: "record",
+      withPerson: true,
+      expected: ["feature/1-a"],
+    },
+    { name: "record でも人の設定が無い", decision: "record", withPerson: false, expected: [] },
+    { name: "decline", decision: "decline", withPerson: true, expected: [] },
+  ])(
+    "判断が無いブランチは、その作業ツリーの defaultDecision が $name なら、その結果に従う",
+    async ({ decision, withPerson, expected }) => {
+      const s = await sharedOnFeature();
+      const wt = await s.addWorktree("wt-a", "feature/1-a");
+      writeFileSync(repoConfigOf(wt), JSON.stringify({ defaultDecision: decision }));
+      const env = withPerson ? undefined : { XDG_CONFIG_HOME: join(s.tmp, "no-person") };
+      expect(s.elsewhere(true, env)).toEqual(expected);
+    },
+  );
 
   test("GitHub を取得しない collect では、どのブランチも返さない", async () => {
     const s = await sharedOnFeature();
