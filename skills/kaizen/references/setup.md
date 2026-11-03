@@ -13,6 +13,7 @@ Hook からエージェント自身を呼び出して LLM を動かすことは�
   - commit を止める動作は、すべてのエージェント（Claude Code / Codex / Copilot）で機能する。transcript を渡さない Copilot では、候補 0 件のときに通す動作だけを使わず、安全側（`kaizen --current` を促して止める）として扱う。
 - セッション開始時の Hook（参照を注入する役）: `.kaizen/` の未適用（`status: pending`）の学びの要約を stdout に出し、エージェントのコンテキストに参照データとして渡す。
   これで、過去の学びを踏まえて作業を始められる（KEDB 照合の起点）。
+  注入する件数の上限は、設定の `inject_max_entries` で決められる（`references/housekeeping.md`「注入する件数の上限」）。
   - Claude Code は、SessionStart の stdout をコンテキストに注入する。
   - Codex は、plain text の stdout を extra developer context として追加する（[Codex Hooks — SessionStart](https://learn.chatgpt.com/docs/hooks#sessionstart)）。
   - Copilot は、注入されるかがドキュメントからは分からない。注入されれば役に立ち、されなくても害は無い、という扱いにする。

@@ -139,8 +139,15 @@ fi
 # ベストエフォート（常に exit 0）を守るため、一時ファイルの作成・追記・整列が失敗したら
 # 注入を諦めて正常終了する。set -e のままだと mktemp 不在・TMPDIR 不正・書き込み失敗で
 # SessionStart フックが非 0 終了し、学びの供給という加点機能がセッション開始を汚す。
+# priority と順位・表示名の対応は、この配列の 1 か所で決める（省いた件数の内訳も同じ配列から表示名を取る）。
+# 最後の要素は、どの値にも一致しない priority（不明）の表示名である。
+rank_labels=(high medium low 不明)
+unknown_rank=$((${#rank_labels[@]} - 1))
 pending_index=$(mktemp 2>/dev/null) || exit 0
 trap 'rm -f "${pending_index}"' EXIT
+# 索引はタブ区切りの 1 行 1 件で、列は順位・日付・pending_files の添字である。
+# パスと frontmatter の値はタブや改行を含みうるので、索引には入れない。パスは配列に持ち、日付は形を確かめてから入れる。
+pending_files=()
 for f in .kaizen/*.md; do
 	[ -e "${f}" ] || continue
 	# status も frontmatter 限定で判定する。全文 grep だと本文やコードブロックの
@@ -151,15 +158,25 @@ for f in .kaizen/*.md; do
 		IFS= read -r date_value
 	} <<<"$(kaizen_frontmatter_values "${f}" status priority date)" || true
 	[ "${status}" = "pending" ] || continue
-	case "${priority}" in
-	high) rank=0 ;;
-	medium) rank=1 ;;
-	low) rank=2 ;;
-	*) rank=3 ;;
-	esac
-	printf '%s\t%s\t%s\n' "${rank}" "${date_value:-9999-99-99}" "${f}" >>"${pending_index}" || exit 0
+	# 順位は rank_labels の添字で、priority の値が一致した位置にする。一致しなければ最後（不明）にする。
+	rank=${unknown_rank}
+	for ((i = 0; i < unknown_rank; i++)); do
+		if [ "${priority}" = "${rank_labels[i]}" ]; then
+			rank=${i}
+		fi
+	done
+	# 日付は、共通ライブラリが暦の日付として読めるときだけ並べ替えに使う（忘却と同じ読み方）。
+	# 読めなければ、日付の無い学びと同じく同じ priority の最後に置く。
+	# 共通ライブラリにこの関数が無いときは、日付を確かめられないので並べ替えに使わない（ほかのスクリプトと同じく、在るかを確かめてから呼ぶ）。
+	sort_date=9999-99-99
+	if declare -f kaizen_days_from_date >/dev/null 2>&1 && kaizen_days_from_date "${date_value}" >/dev/null; then
+		sort_date=${date_value}
+	fi
+	printf '%s\t%s\t%s\n' "${rank}" "${sort_date}" "${#pending_files[@]}" >>"${pending_index}" || exit 0
+	pending_files+=("${f}")
 done
-sort -t $'\t' -k1,1n -k2,2 -k3,3 "${pending_index}" -o "${pending_index}" 2>/dev/null || exit 0
+# 同じ順位と日付の中は、添字（glob が並べたパスの順）で並べる。
+sort -t $'\t' -k1,1n -k2,2 -k3,3n "${pending_index}" -o "${pending_index}" 2>/dev/null || exit 0
 
 if [ ! -s "${pending_index}" ]; then
 	exit 0
@@ -169,11 +186,45 @@ fi
 count=$(wc -l <"${pending_index}")
 count=${count//[[:space:]]/}
 
-echo "## kaizen: 未適用の学び（${count} 件）"
+# 注入する件数の上限（設定の inject_max_entries）。キーが無ければ上限を設けない。
+# 設定を読めないときは、注入を止めずに全件を出し、上限を当てなかったことと理由を 1 行で示す。
+# このフックはセッションの開始を止めない（常に exit 0）ので、忘却のように何もせずに止まることはしない。
+# 読めない設定で上限を当てると、利用者が意図しない件数の学びを省くことになるので、全件を出す。
+# 理由は stdout の 1 行にも入れる。Claude Code は exit 0 の SessionStart の stderr を文脈に入れないので、
+# stderr だけでは、エージェントが理由を読めない。
+max_entries=""
+max_entries_source=""
+config_note=""
+if declare -f kaizen_config_load >/dev/null 2>&1; then
+	if kaizen_config_load; then
+		max_entries=$(kaizen_config_value inject_max_entries || true)
+		# 上限を読んだ層（repo・local・user）。人ごとの層に置いた上限は別のリポジトリにも当たるので、出所を示す。
+		max_entries_source=$(kaizen_config_source inject_max_entries || true)
+		# スキーマの検査で 1 以上の整数に限られている。算術式に渡す前に、形だけを確かめておく。
+		[[ "${max_entries}" =~ ^[1-9][0-9]*$ ]] || max_entries=""
+	else
+		printf '%s: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_config_error:-}" >&2
+		# 理由は複数行になりうるので、改行を空白に置き換えて 1 行に収める。
+		config_note="kaizen の設定を読めないので、inject_max_entries を設定していても件数の上限を当てずに全件を出す。理由: ${kaizen_config_error//$'\n'/ }"
+	fi
+fi
+shown=${count}
+if [ -n "${max_entries}" ] && [ "${count}" -gt "${max_entries}" ]; then
+	shown=${max_entries}
+fi
+
+if [ "${shown}" -lt "${count}" ]; then
+	echo "## kaizen: 未適用の学び（${count} 件のうち ${shown} 件）"
+else
+	echo "## kaizen: 未適用の学び（${count} 件）"
+fi
 echo ""
 echo "このプロジェクトには以下の未適用（status: pending）の学びがあります。"
 echo "関連する作業では内容を踏まえ、同じ失敗を繰り返さないこと（根本原因分析の KEDB 照合の起点）。"
 echo "confidence は根本原因と提案の確かさである。low の学びは、提案を適用する前に根本原因を確かめ直す。unknown は、確信度が分からない学び（欄を足す前に書いたもの、値が空のもの）である。"
+if [ -n "${config_note}" ]; then
+	echo "${config_note}"
+fi
 echo ""
 
 # 指定見出し（例「## 提案」）直後の最初の非空行を返す。見出しは前方一致で判定し、
@@ -187,8 +238,20 @@ first_line_under() {
 # 要約は「## 提案」（＝一般化された行動規律）を優先する。事象（個別事案）の冒頭だけだと
 # 過去の特定インシデントとしか結び付かず、別文脈での再発を防ぐトリガーになりにくい。
 # 提案が無い古い学びは「## 事象」にフォールバックする。
-while IFS=$'\t' read -r _rank _date f; do
-	[ -n "$f" ] || continue
+emitted=0
+omitted=()
+for ((i = 0; i <= unknown_rank; i++)); do
+	omitted[i]=0
+done
+while IFS=$'\t' read -r rank _date idx; do
+	f=${pending_files[idx]}
+	# 並びは priority の降順、同じ priority は日付の昇順なので、先頭から上限まで出すと、低い priority と新しい学びが省かれる。
+	# 上限を超えた行は出さずに、省いた件数を順位ごとに数える。
+	if [ "${emitted}" -ge "${shown}" ]; then
+		omitted[rank]=$((omitted[rank] + 1))
+		continue
+	fi
+	emitted=$((emitted + 1))
 	# meta も frontmatter に限る。全文を grep すると、本文の `type:` などを拾って誤った値になる。
 	# confidence が無い学びは、欄を足す前に書いたもので、確信度が分からないものとして扱う（references/extract.md）。
 	# 確信度の低い学びを高い学びと同じ見え方にしないよう、無いときも unknown と出す。
@@ -218,8 +281,29 @@ while IFS=$'\t' read -r _rank _date f; do
 	if [ "${#summary}" -gt 120 ] && grep -qi 'utf-\{0,1\}8' <<<"$(locale charmap 2>/dev/null)"; then
 		summary="${summary:0:119}…"
 	fi
-	echo "- \`${f}\` — ${meta}— ${summary}"
+	# パスの \・改行・CR・垂直タブ・改ページを、\\・\n・\r・\v・\f と書いて 1 行に収める。
+	# そのまま出すと、改行の後ろが別の行（見出しや学びの行）として読まれる。\ を先に書き分けるので、表示から元のパスを一意に戻せる。
+	# printf %q は使わない。ロケールが C だと日本語をバイトごとの 8 進で書き、どの学びか読めなくなるからである。タブは行を分けないので、そのまま出す。
+	shown_path=${f//\\/\\\\}
+	shown_path=${shown_path//$'\n'/\\n}
+	shown_path=${shown_path//$'\r'/\\r}
+	shown_path=${shown_path//$'\v'/\\v}
+	shown_path=${shown_path//$'\f'/\\f}
+	echo "- \`${shown_path}\` — ${meta}— ${summary}"
 done <"${pending_index}"
+
+# 省いた件数を priority ごとに示す。high が省かれたかどうかを、エージェントが読み取れるようにする。
+if [ "${shown}" -lt "${count}" ]; then
+	omitted_breakdown=""
+	for ((i = 0; i <= unknown_rank; i++)); do
+		if [ "${omitted[i]}" -gt 0 ]; then
+			omitted_breakdown="${omitted_breakdown:+${omitted_breakdown}・}${rank_labels[$i]} ${omitted[i]} 件"
+		fi
+	done
+	echo ""
+	# 内訳が空になったときは、空の括弧を出さずに件数だけを示す。層を取得できなかったときは、層を書かない。
+	echo "ほか $((count - shown)) 件${omitted_breakdown:+（${omitted_breakdown}）}は、設定の inject_max_entries（${max_entries}${max_entries_source:+。読んだ層: ${max_entries_source}}）を超えたので省いた。省いた学びは、\`.kaizen/*.md\` のうち frontmatter が \`status: pending\` で、上の一覧に無いノートである。"
+fi
 
 echo ""
 echo "詳細は各ファイルを参照。適用するには kaizen スキルの apply フローを使う。"
