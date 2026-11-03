@@ -2,7 +2,7 @@
   // 定期実行（.github/workflows/kaizen-schedule.yml）を有効にする。
   // デフォルトは false（opt-in）なので、このキーが無いと週次の棚卸しは skip される。
   "schedule_enabled": true,
-  // セッション開始時に注入する pending の学びの件数の上限（priority の高い順に注入する）。
+  // セッション開始時に、pending の学びを何件まで注入するか（priority の高い順に注入する）。
   // 省いた件数に high が出たら、上限を上げずに、high の学びを適用するか priority を見直す。
   "inject_max_entries": 30
 }

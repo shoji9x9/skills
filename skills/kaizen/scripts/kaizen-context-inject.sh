@@ -151,13 +151,14 @@ for f in .kaizen/*.md; do
 		IFS= read -r date_value
 	} <<<"$(kaizen_frontmatter_values "${f}" status priority date)" || true
 	[ "${status}" = "pending" ] || continue
+	# 4 列目の表示名は、省いた件数の内訳に使う。priority と順位の対応は、ここの 1 か所で決める。
 	case "${priority}" in
-	high) rank=0 ;;
-	medium) rank=1 ;;
-	low) rank=2 ;;
-	*) rank=3 ;;
+	high) rank=0 label=high ;;
+	medium) rank=1 label=medium ;;
+	low) rank=2 label=low ;;
+	*) rank=3 label=不明 ;;
 	esac
-	printf '%s\t%s\t%s\n' "${rank}" "${date_value:-9999-99-99}" "${f}" >>"${pending_index}" || exit 0
+	printf '%s\t%s\t%s\t%s\n' "${rank}" "${date_value:-9999-99-99}" "${f}" "${label}" >>"${pending_index}" || exit 0
 done
 sort -t $'\t' -k1,1n -k2,2 -k3,3 "${pending_index}" -o "${pending_index}" 2>/dev/null || exit 0
 
@@ -170,10 +171,11 @@ count=$(wc -l <"${pending_index}")
 count=${count//[[:space:]]/}
 
 # 注入する件数の上限（設定の inject_max_entries）。キーが無ければ上限を設けない。
-# 設定を読めないときは、注入を止めずに全件を出し、上限を当てなかったことを 1 行で示す。
-# このフックはセッションの開始を止めない（常に exit 0）ので、忘却のように止まる側には寄せない。
-# 上限で学びを省くと、エージェントは省かれたことに気付けない。読めない設定で上限を当てると、
-# 意図しない数で学びを省くことになるので、ここでは省かない側を選ぶ。
+# 設定を読めないときは、注入を止めずに全件を出し、上限を当てなかったことと理由を 1 行で示す。
+# このフックはセッションの開始を止めない（常に exit 0）ので、忘却のように何もせずに止まることはしない。
+# 読めない設定で上限を当てると、利用者が意図しない件数の学びを省くことになるので、全件を出す。
+# 理由は stdout の 1 行にも入れる。Claude Code は exit 0 の SessionStart の stderr を文脈に入れないので、
+# stderr だけでは、エージェントが理由を読めない。
 max_entries=""
 config_note=""
 if declare -f kaizen_config_load >/dev/null 2>&1; then
@@ -183,7 +185,8 @@ if declare -f kaizen_config_load >/dev/null 2>&1; then
 		[[ "${max_entries}" =~ ^[1-9][0-9]*$ ]] || max_entries=""
 	else
 		printf '%s: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_config_error:-}" >&2
-		config_note="kaizen の設定を読めないので、件数の上限（inject_max_entries）を当てずに全件を出す。理由は \`node ${kaizen_lib_dir:-<kaizen スキル>/scripts}/skill-config/skill-config.mjs validate kaizen\` で確かめる。"
+		# 理由は複数行になりうるので、改行を空白に置き換えて 1 行に収める。
+		config_note="kaizen の設定を読めないので、inject_max_entries を設定していても件数の上限を当てずに全件を出す。理由: ${kaizen_config_error//$'\n'/ }"
 	fi
 fi
 shown=${count}
@@ -217,7 +220,7 @@ first_line_under() {
 # 過去の特定インシデントとしか結び付かず、別文脈での再発を防ぐトリガーになりにくい。
 # 提案が無い古い学びは「## 事象」にフォールバックする。
 emitted=0
-while IFS=$'\t' read -r _rank _date f; do
+while IFS=$'\t' read -r _rank _date f _label; do
 	[ -n "$f" ] || continue
 	# 並びは priority の降順、同じ priority は日付の昇順なので、先頭から上限まで出すと、低い priority と新しい学びが省かれる。
 	[ "${emitted}" -lt "${shown}" ] || break
@@ -256,13 +259,11 @@ done <"${pending_index}"
 
 # 省いた件数を priority ごとに示す。high が省かれたかどうかを、エージェントが読み取れるようにする。
 if [ "${shown}" -lt "${count}" ]; then
+	# 並びは順位の昇順なので、表示名を初めて見た順に並べると priority の高い順になる。
 	omitted_breakdown=$(awk -F '\t' -v skip="${shown}" '
-		NR > skip { n[$1]++ }
-		END {
-			split("high medium low 不明", label, " ")
-			sep = ""
-			for (r = 0; r <= 3; r++) if (n[r] > 0) { printf "%s%s %d 件", sep, label[r + 1], n[r]; sep = "・" }
-		}' "${pending_index}" 2>/dev/null || true)
+		NR > skip { if (!($4 in n)) order[++k] = $4; n[$4]++ }
+		END { for (i = 1; i <= k; i++) printf "%s%s %d 件", (i > 1 ? "・" : ""), order[i], n[order[i]] }
+		' "${pending_index}" 2>/dev/null || true)
 	# 内訳を数えられなかったときは、空の括弧を出さずに件数だけを示す。
 	echo ""
 	echo "ほか $((count - shown)) 件${omitted_breakdown:+（${omitted_breakdown}）}は、設定の inject_max_entries（${max_entries}）を超えたので省いた。省いた学びは、\`.kaizen/*.md\` のうち frontmatter が \`status: pending\` のノートである。"

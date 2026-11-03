@@ -310,31 +310,59 @@ describe("注入する件数の上限", () => {
     expect(injected(stdout)).toEqual(ordered.slice(0, 2));
   });
 
+  // 設定を読めないときの 1 行。理由も同じ行に入れる（exit 0 の SessionStart の stderr は、エージェントの文脈に入らない）。
+  const NOTE =
+    "kaizen の設定を読めないので、inject_max_entries を設定していても件数の上限を当てずに全件を出す。理由: ";
+  function noteLine(stdout: string) {
+    return stdout.split("\n").find((l) => l.startsWith(NOTE)) ?? "";
+  }
+
   test.each([
-    ["0", "0"],
-    ["文字列", '"20"'],
+    ["0", '{ "inject_max_entries": 0 }\n', "inject_max_entries"],
+    ["文字列", '{ "inject_max_entries": "20" }\n', "inject_max_entries"],
+    // 上限と関係の無いキーの誤りでも、設定を読めないので同じ 1 行を出し、原因のキーを理由に書く。
+    [
+      "別のキーの誤り",
+      '{ "inject_max_entries": 2, "forget_after_days": "x" }\n',
+      "forget_after_days",
+    ],
   ])(
-    "値が不正（%s）なら、上限を当てずに全件を出し、当てなかったことを 1 行で示す",
-    (_name, value) => {
-      const { stdout, stderr } = run(repoWith(`{ "inject_max_entries": ${value} }\n`));
+    "設定が不正（%s）なら、上限を当てずに全件を出し、当てなかったことと理由を 1 行で示す",
+    (_name, config, key) => {
+      const { stdout } = run(repoWith(config));
       expect(injected(stdout)).toEqual(ordered);
-      expect(stdout).toContain(
-        "kaizen の設定を読めないので、件数の上限（inject_max_entries）を当てずに全件を出す。",
-      );
+      expect(noteLine(stdout)).toContain(key);
       expect(stdout).not.toContain("ほか ");
-      expect(stderr).toContain("inject_max_entries");
     },
   );
 
-  test("設定ファイルがあって node が無ければ、上限を当てずに全件を出し、当てなかったことを 1 行で示す", () => {
+  test("設定ファイルがあって node が無ければ、上限を当てずに全件を出し、当てなかったことと理由を 1 行で示す", () => {
     const dir = repoWith('{ "inject_max_entries": 2 }\n');
-    const { stdout, stderr } = run(dir, {
+    const { stdout } = run(dir, {
       PATH: pathWithout(dir, ["node"], process.env.PATH ?? ""),
     });
     expect(injected(stdout)).toEqual(ordered);
-    expect(stdout).toContain(
-      "kaizen の設定を読めないので、件数の上限（inject_max_entries）を当てずに全件を出す。",
+    expect(noteLine(stdout)).toContain("node が要る");
+  });
+
+  test("人ごとの層に置いた上限も当てる", () => {
+    const dir = repoWith();
+    const userDir = join(dir, ".test-xdg", "skills", "shoji9x9");
+    mkdirSync(userDir, { recursive: true });
+    writeFileSync(join(userDir, "kaizen.jsonc"), '{ "inject_max_entries": 4 }\n');
+    const { stdout } = run(dir);
+    expect(injected(stdout)).toEqual(ordered.slice(0, 4));
+    expect(stdout).toContain("ほか 1 件（low 1 件）");
+  });
+
+  test("priority が無い学びは並びの最後に置き、省いたときは不明として数える", () => {
+    const dir = repoWith('{ "inject_max_entries": 4 }\n');
+    writeFileSync(
+      join(dir, ".kaizen", "f-unknown.md"),
+      "---\ndate: 2026-08-01\ntype: rule\nstatus: pending\n---\n\n## 提案\n\nf-unknown\n",
     );
-    expect(stderr).toContain("node が要る");
+    const { stdout } = run(dir);
+    expect(injected(stdout)).toEqual(ordered.slice(0, 4));
+    expect(stdout).toContain("ほか 2 件（low 1 件・不明 1 件）");
   });
 });
