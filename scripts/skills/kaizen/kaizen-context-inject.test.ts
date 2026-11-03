@@ -311,6 +311,7 @@ describe("注入する件数の上限", () => {
     writeFileSync(join(dir, ".gitignore"), "/.config/skills/shoji9x9/*.local.jsonc\n");
     const { stdout } = run(dir);
     expect(injected(stdout)).toEqual(ordered.slice(0, 2));
+    expect(stdout).toContain("設定の inject_max_entries（2。読んだ層: local）");
   });
 
   // 設定を読めないときの 1 行。理由も同じ行に入れる（exit 0 の SessionStart の stderr は、エージェントの文脈に入らない）。
@@ -370,6 +371,33 @@ describe("注入する件数の上限", () => {
     const { stdout } = run(dir);
     expect(injected(stdout)).toEqual(["a\tb"]);
     expect(stdout).toContain("ほか 5 件（high 2 件・medium 2 件・low 1 件）");
+  });
+
+  test("ファイル名にタブを含む学びが省く側に入っても、priority ごとの件数に数える", () => {
+    const dir = repoWith('{ "inject_max_entries": 2 }\n');
+    writeFileSync(
+      join(dir, ".kaizen", "z\tlow.md"),
+      "---\ndate: 2026-09-09\ntype: rule\npriority: low\nstatus: pending\n---\n\n## 提案\n\ntab\n",
+    );
+    const { stdout } = run(dir);
+    expect(injected(stdout)).toEqual(ordered.slice(0, 2));
+    expect(stdout).toContain("ほか 4 件（medium 2 件・low 2 件）");
+  });
+
+  // 索引は 1 行 1 件なので、改行を含むファイル名は行を分け、別の列を順位として読ませる。
+  // 順位は算術式の添字に使うので、そのまま読むとフックが 0 以外で終わるか、値の中のコマンドを実行する。
+  test("ファイル名に改行を含む学びは注入せず、件数にも数えない", () => {
+    const dir = repoWith('{ "inject_max_entries": 2 }\n');
+    writeFileSync(
+      join(dir, ".kaizen", "n\nx[$(touch pwned)]\t9\tz.md"),
+      "---\ndate: 2026-08-01\ntype: rule\npriority: high\nstatus: pending\n---\n\n## 提案\n\nnl\n",
+    );
+    const { stdout, stderr } = run(dir);
+    expect(injected(stdout)).toEqual(ordered.slice(0, 2));
+    expect(stdout).toContain("## kaizen: 未適用の学び（5 件のうち 2 件）");
+    expect(stdout).toContain("ほか 3 件（medium 2 件・low 1 件）");
+    expect(stderr).toContain("ファイル名に改行を含む学びは注入しない");
+    expect(existsSync(join(dir, "pwned"))).toBe(false);
   });
 
   test("priority が無い学びは並びの最後に置き、省いたときは不明として数える", () => {
