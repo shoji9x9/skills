@@ -65,9 +65,9 @@ fi
 # Copilot のセッションに claude-code の名前のセンチネルが立つ。Copilot の記録は候補の走査で判定できないので、
 # そのセンチネルは同じセッションの次の commit から毎回チェックを止める。
 # Copilot のセンチネルは `.github/hooks/` の sessionEnd（`-copilot` 付き）が、セッションの終わりに 1 回だけ作る。
-# 判定の条件は kaizen-hook-common.sh の kaizen_payload_is_copilot にある。共通ライブラリを読めなければ判定できないので、これまでどおり続ける。
-if [ -z "${suffix}" ] && declare -f kaizen_payload_is_copilot >/dev/null 2>&1 &&
-	kaizen_payload_is_copilot "${input}"; then
+# 判定の条件は kaizen-hook-common.sh の kaizen_payload_is_copilot_claude_settings にある。共通ライブラリを読めなければ判定できないので、これまでどおり続ける。
+if [ -z "${suffix}" ] && declare -f kaizen_payload_is_copilot_claude_settings >/dev/null 2>&1 &&
+	kaizen_payload_is_copilot_claude_settings "${input}"; then
 	exit 0
 fi
 

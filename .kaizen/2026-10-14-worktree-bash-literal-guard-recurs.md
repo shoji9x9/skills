@@ -346,3 +346,26 @@ manifest を更新する JSON の heredoc と python の起動を並べた呼び
 4 回目は、node をバックグラウンドで起動し、`$!` の PID に `kill` を送って `wait` する計測の処理を 1 回の呼び出しに書いた形である（`this command is too complex to verify`）。
 どれも、単独の呼び出しに分けるか、Write ツールでスクリプトにして絶対パスで実行する形に直して通した。新しい形は、`$!` と `wait` を使う 4 回目だけである。
 この学びはセッション開始時に注入されていたが、1 回目は worktree に入った直後の準備の処理で起きた。
+
+### 再発の記録（#858）
+
+2026-11-02、Issue #858 の作業（issue-start から worktree に入った後、pr-finalize-loop まで）で、Bash の呼び出しが 10 回以上拒否された。
+新しく出た形は 2 つある。
+
+- `git add -- <パスの一覧>` の単独の呼び出しが、パスに含む `git-worktree` の語を git の呼び出しとして数えられ、`names git more than once` で拒否された。
+  `git add -A` に書き換えて通した
+- `pnpm exec oxlint <ディレクトリの一覧>` が、引数の `scripts/skills/git-worktree` を git の起動として読まれ、`runs pnpm with a git command among its operands` で拒否された。
+  引数を外して全体に当てて通した
+
+ほかは既知の形（`for` ループ・heredoc・`;` でつないだ複合コマンド・`gh api graphql` の query・本文に `git` の語を含む python の quoted heredoc）だった。
+エージェントは、同じセッションでこの節を書いた後にも python の heredoc を書き、ハーネスがそれを拒否した。
+どれも、単独の呼び出しに分けるか、Write ツールでスクリプトにして絶対パスで実行して通した。
+ハーネスは、パスに `git` を含む引数（`git-worktree`）を次の形で持つ呼び出しを、git の起動として数えて拒否した。
+
+- git を起動しない呼び出しで、別のコマンドを起動するツール（`pnpm exec` など）の引数にそのパスを 1 つでも持つ（`runs pnpm with a git command among its operands`）
+- git を起動しない呼び出しで、そのパスを 2 つ以上持つ（PR #865 のレビューのセッションで観測した `diff -r` での 2 つのディレクトリの比較。`names git more than once`）
+- git を 1 回だけ起動する呼び出しで、そのパスを 1 つでも持つ（`git add -- <パスの一覧>`。パスが 2 回目の git として数えられ、`names git more than once`）
+
+一方、`git-worktree` のパスを 1 つだけ引数に持つ `sed -n` は通した。
+「## 提案」の Hook は、この拒否より先に直し方を示すためのものなので、ハーネスが拒否する形を拾えるように、条件をコマンド名だけでなく引数の語にも当てる。
+引数の語に当てると、ハーネスが通す呼び出し（パスを 1 つだけ持つ `sed -n` など）にも案内が出るので、案内は止めずに通知だけにする。

@@ -231,8 +231,8 @@ describe("copilot は transcript が無くても従来どおりセンチネル�
 
 // Copilot CLI は `.claude/settings.json` の Hook も実行する（Issue #853）。Stop は応答が終わるたびに
 // 実行されるので（agentStop）、引数なしの登録がそのままセンチネルを作ると、Copilot のセッションに
-// claude-code の名前のセンチネルが立つ。入力の最上位の `timestamp` と、環境変数 COPILOT_CLI が空でないことの
-// 両方が Copilot を示すときだけ、何もせずに終える。Copilot は CLAUDE_PROJECT_DIR も渡すので、どのケースにも付ける。
+// claude-code の名前のセンチネルが立つ。入力の最上位に `timestamp` と `hook_event_name`（PascalCase の登録の形）があり、
+// 環境変数 COPILOT_CLI が空でないときだけ、何もせずに終える。Copilot は CLAUDE_PROJECT_DIR も渡すので、どのケースにも付ける。
 // 入力の形は https://docs.github.com/en/copilot/reference/hooks-configuration の PascalCase の Stop に合わせる。
 describe("Claude Code 用の登録（引数なし）を Copilot が呼んだとき", () => {
   const copilotStop = {
@@ -250,7 +250,7 @@ describe("Claude Code 用の登録（引数なし）を Copilot が呼んだと�
     return transcript;
   }
 
-  test("timestamp があり COPILOT_CLI が空でないなら、センチネルを立てずに exit 0", () => {
+  test("timestamp と hook_event_name があり COPILOT_CLI が空でないなら、センチネルを立てずに exit 0", () => {
     const cwd = makeProject();
     try {
       const result = runStopMark(cwd, {
@@ -268,6 +268,12 @@ describe("Claude Code 用の登録（引数なし）を Copilot が呼んだと�
   test.each([
     ["COPILOT_CLI が空（Claude Code が呼んだ）", copilotStop, false],
     ["timestamp が無い（Copilot のシェルから起動した Claude Code）", {}, true],
+    // Issue #858 で判定を狭めた回帰のケース。引数なしの登録に camelCase（.github/hooks の形）の入力が来たら、処理を続ける。
+    [
+      "hook_event_name が無い（camelCase の登録の形）",
+      { timestamp: 1793588988760, stopReason: "end_turn" },
+      true,
+    ],
   ])("%s なら、これまでどおり claude-code のセンチネルを立てる", (_name, extra, copilotCli) => {
     const cwd = makeProject();
     try {
@@ -320,9 +326,9 @@ describe("Claude Code 用の登録（引数なし）を Copilot が呼んだと�
   });
 });
 
-// 判定の関数（kaizen-hook-common.sh の kaizen_payload_is_copilot）を、JSON を読むツールの 3 つの構成で直接確かめる。
+// 判定の関数（kaizen-hook-common.sh の kaizen_payload_is_copilot_claude_settings）を、JSON を読むツールの 3 つの構成で直接確かめる。
 // jq があれば jq で、無ければ python3 で読む。どちらも無ければ判定できないので、常に 1（Copilot と扱わない）を返す。
-describe("kaizen_payload_is_copilot", () => {
+describe("kaizen_payload_is_copilot_claude_settings", () => {
   const lib = join(repoRoot, "skills/kaizen/scripts/kaizen-hook-common.sh");
   const bash = spawnSync("bash", ["-c", "command -v bash"], {
     timeout: CHILD_TIMEOUT_MS,
@@ -348,16 +354,20 @@ describe("kaizen_payload_is_copilot", () => {
 
   function isCopilot(json: string, { tool, copilotCli }: { tool: Tool; copilotCli: string }) {
     const path = pathFor[tool];
-    return spawnSync(bash, ["-c", 'source "$1"; kaizen_payload_is_copilot "$2"', "_", lib, json], {
-      timeout: CHILD_TIMEOUT_MS,
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        CLAUDE_PROJECT_DIR: "/p",
-        COPILOT_CLI: copilotCli,
-        ...(path ? { PATH: path } : {}),
+    return spawnSync(
+      bash,
+      ["-c", 'source "$1"; kaizen_payload_is_copilot_claude_settings "$2"', "_", lib, json],
+      {
+        timeout: CHILD_TIMEOUT_MS,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          CLAUDE_PROJECT_DIR: "/p",
+          COPILOT_CLI: copilotCli,
+          ...(path ? { PATH: path } : {}),
+        },
       },
-    }).status;
+    ).status;
   }
 
   function resolves(name: string, path: string | undefined) {
@@ -381,25 +391,52 @@ describe("kaizen_payload_is_copilot", () => {
     },
   );
 
-  const top = JSON.stringify({ session_id: "s", timestamp: "2026-11-02T00:00:00Z", cwd: "/x" });
-  const numeric = JSON.stringify({ sessionId: "s", timestamp: 1793588988760, cwd: "/x" });
-  const inString = JSON.stringify({ tool_input: { command: 'echo "timestamp": 1' } });
-  const nested = JSON.stringify({ tool_input: { timestamp: 1 } });
+  // 入力の形は、Copilot CLI 1.0.105 で記録した入力に合わせる。`.claude/settings.json`（PascalCase）の登録には
+  // hook_event_name と文字列の timestamp が、`.github/hooks/`（camelCase）の登録には数値の timestamp だけがある。
+  const top = JSON.stringify({
+    hook_event_name: "PreToolUse",
+    session_id: "s",
+    timestamp: "2026-11-02T00:00:00Z",
+    cwd: "/x",
+  });
+  const camel = JSON.stringify({ sessionId: "s", timestamp: 1793588988760, cwd: "/x" });
+  const noTimestamp = JSON.stringify({ hook_event_name: "PreToolUse", session_id: "s" });
+  const inString = JSON.stringify({
+    hook_event_name: "PreToolUse",
+    tool_input: { command: 'echo "timestamp": 1' },
+  });
+  const nested = JSON.stringify({ hook_event_name: "PreToolUse", tool_input: { timestamp: 1 } });
+  const eventNested = JSON.stringify({
+    timestamp: 1793588988760,
+    toolArgs: { hook_event_name: "PreToolUse" },
+  });
   const none = JSON.stringify({ session_id: "s", cwd: "/x", tool_input: { command: "ls" } });
-  const broken = '{"timestamp": 1, "cwd": ';
+  const broken = '{"timestamp": 1, "hook_event_name": "Stop", "cwd": ';
 
   const cases = [
-    { name: "最上位に timestamp（文字列）・COPILOT_CLI=1", json: top, cli: "1", expected: 0 },
     {
-      name: "最上位に timestamp（数値。camelCase のイベント）・COPILOT_CLI=1",
-      json: numeric,
+      name: "最上位に timestamp と hook_event_name（PascalCase の登録）・COPILOT_CLI=1",
+      json: top,
       cli: "1",
       expected: 0,
     },
-    { name: "最上位に timestamp・COPILOT_CLI が空", json: top, cli: "", expected: 1 },
-    { name: "timestamp が無い", json: none, cli: "1", expected: 1 },
+    {
+      name: "最上位に timestamp だけ（camelCase の .github/hooks の登録）・COPILOT_CLI=1",
+      json: camel,
+      cli: "1",
+      expected: 1,
+    },
+    { name: "PascalCase の登録・COPILOT_CLI が空", json: top, cli: "", expected: 1 },
+    { name: "hook_event_name だけで timestamp が無い", json: noTimestamp, cli: "1", expected: 1 },
+    { name: "timestamp も hook_event_name も無い", json: none, cli: "1", expected: 1 },
     { name: "timestamp がコマンドの文字列の中にだけある", json: inString, cli: "1", expected: 1 },
     { name: "timestamp が入れ子のキーにだけある", json: nested, cli: "1", expected: 1 },
+    {
+      name: "hook_event_name が入れ子のキーにだけある",
+      json: eventNested,
+      cli: "1",
+      expected: 1,
+    },
     { name: "JSON として読めない", json: broken, cli: "1", expected: 1 },
     { name: "入力が空", json: "", cli: "1", expected: 1 },
   ];
@@ -412,7 +449,7 @@ describe("kaizen_payload_is_copilot", () => {
     expect(isCopilot(json, { tool: "python3", copilotCli: cli })).toBe(expected);
   });
 
-  test("jq も python3 も無ければ、最上位に timestamp があっても Copilot と扱わない", () => {
+  test("jq も python3 も無ければ、PascalCase の登録の入力でも Copilot と扱わない", () => {
     expect(isCopilot(top, { tool: "none", copilotCli: "1" })).toBe(1);
   });
 });

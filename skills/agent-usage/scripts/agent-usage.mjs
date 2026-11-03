@@ -305,7 +305,10 @@ function reportCommand(rest, context) {
 function gateCommand(rest, context) {
   const a = parseArgs(rest, [], ["--agent"]);
   const agent = a.options.get("--agent") ?? "claude-code";
-  const input = readHookInput(readFileSync(0, "utf8"));
+  const input = readHookInput(readFileSync(0, "utf8"), process.env);
+  // Copilot が Claude Code 用の登録（--agent claude-code）として呼んだら、確認も記録もせずに通す（gate.mjs の isCopilotClaudeSettings）。
+  // Codex 用の登録（--agent codex）は .claude/settings.json に置かないので、判定に当てない。
+  if (agent === "claude-code" && input.copilotClaudeSettings) return 0;
   const verdict = gateDecision(input, {
     fallbackCwd: context.cwd,
     now: context.now,

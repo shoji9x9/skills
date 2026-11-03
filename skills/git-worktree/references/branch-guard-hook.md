@@ -43,6 +43,12 @@ Copilot の `preToolUse` の出力は、許可の判定だけに使うもので�
 どちらの形で出すかは payload のキー（snake_case の `tool_name` か、camelCase の `toolName` か）で切り替わるので、
 設定で指定するものは無い。
 
+Copilot は、`.github/hooks/` に加えて `.claude/settings.json` の Hook も実行する（<https://docs.github.com/en/copilot/reference/hooks-configuration>）。
+両方に登録すると、1 つの呼び出しを 2 回調べることになる。そこでスクリプトは、Copilot が `.claude/settings.json` の登録として呼んだと見分けたら、何もせずに exit 0 で終える。
+見分ける条件は、環境変数 `COPILOT_CLI` が空でなく、入力の最上位に `timestamp` と `hook_event_name` があることである。
+Copilot は、PascalCase のイベント名で書いた登録（`.claude/settings.json` の形）にだけ `hook_event_name` を入れる（<https://docs.github.com/en/copilot/reference/hooks-reference>）。
+そのため、`.github/hooks/` の登録は、下の例のとおり camelCase の `preToolUse` で書く。PascalCase で書くと、その登録も何もせずに終わる。
+
 `jq` も `python3` も無い環境では、payload を構造として取り出せないので、何も通知しない。
 ここでコマンドの文字列をそのまま照合する方法に切り替えると、`worktree` を含むだけの無関係な呼び出しに通知を出し続け、
 通知そのものが無視されるようになる。

@@ -128,15 +128,46 @@ export async function setup() {
       env: { ...env, ...extra },
     });
   const cli = (...args: string[]) => cliWith({}, ...args);
-  const gateWith = (extra: NodeJS.ProcessEnv, command: string, cwd = repo) =>
-    spawnAsync("bash", [GATE, "claude-code"], {
+  const { gateWith, gatePayload } = gateRunners(env, repo);
+  const gate = (command: string, cwd = repo) => gateWith({}, command, cwd);
+  return {
+    tmp,
+    repo,
+    git,
+    cli,
+    cliWith,
+    gate,
+    gateWith,
+    gatePayload,
+    logDir: dir,
+    logLines: lines,
+  };
+}
+
+/** コミット前の Hook（precommit-gate.sh）を起動する関数を返す。 */
+function gateRunners(env: NodeJS.ProcessEnv, repo: string) {
+  const run = (
+    extra: NodeJS.ProcessEnv,
+    input: Record<string, unknown>,
+    { cwd, agent = "claude-code" }: { cwd: string; agent?: string | null },
+  ) =>
+    // agent が null なら、引数を渡さずに起動する（引数を省いた登録）
+    spawnAsync("bash", agent === null ? [GATE] : [GATE, agent], {
       timeout: CHILD_TIMEOUT_MS,
       cwd,
       env: { ...env, ...extra },
-      input: JSON.stringify({ cwd, tool_input: { command } }),
+      input: JSON.stringify(input),
     });
-  const gate = (command: string, cwd = repo) => gateWith({}, command, cwd);
-  return { tmp, repo, git, cli, cliWith, gate, gateWith, logDir: dir, logLines: lines };
+  const gateWith = (extra: NodeJS.ProcessEnv, command: string, cwd = repo) =>
+    run(extra, { cwd, tool_input: { command } }, { cwd });
+  // Hook の入力の項目を足して渡す（Copilot が足す timestamp・hook_event_name など）。
+  // agent は Hook の引数（claude-code・codex。null は引数なし）。省くと claude-code を渡す。
+  const gatePayload = (
+    extra: NodeJS.ProcessEnv,
+    fields: Record<string, unknown>,
+    agent?: string | null,
+  ) => run(extra, { cwd: repo, ...fields }, { cwd: repo, agent });
+  return { gateWith, gatePayload };
 }
 
 /**

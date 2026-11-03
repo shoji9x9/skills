@@ -118,11 +118,16 @@ done
 - Codex は、設定ファイルをマージしただけでは Hook を実行しない。3 つの定義をマージした後、4-4 の信頼の手順まで済ませる。
 - Copilot CLI は、`.github/hooks/*.json` に加えて `.claude/settings.json` の Hook も実行する（[GitHub Copilot hooks configuration](https://docs.github.com/en/copilot/reference/hooks-configuration)）。
   `.claude/settings.json` の Hook だけを止める設定は無い。
-  そこで、引数なしで呼ばれた `kaizen-stop-mark.sh` と `kaizen-precommit-gate.sh` は、Copilot の入力を見分けたら何もせずに exit 0 で終える。
-  見分ける条件は、入力の最上位に `timestamp` があり、環境変数 `COPILOT_CLI` が空でないことである。
+  そこで、引数なしで呼ばれた `kaizen-stop-mark.sh`・`kaizen-precommit-gate.sh` と `kaizen-context-inject.sh` は、
+  Copilot が `.claude/settings.json` の登録として呼んだと見分けたら、何もせずに exit 0 で終える。
+  見分ける条件は、入力の最上位に `timestamp` と `hook_event_name` があり、環境変数 `COPILOT_CLI` が空でないことである。
+  Copilot は、PascalCase のイベント名で書いた登録（`.claude/settings.json` の形）にだけ `hook_event_name` を入れる
+  （[GitHub Copilot hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference)）。
+  そのため、`.github/hooks/kaizen-session.json` の `sessionStart` に引数なしで登録した `kaizen-context-inject.sh` は、判定に当たらずに処理を続ける。
+  `.github/hooks/` のイベント名は、下の例のとおり camelCase で書く。
   Copilot も Hook に `CLAUDE_PROJECT_DIR` を渡すので、`CLAUDE_PROJECT_DIR` の有無では見分けられない。
-  最上位の `timestamp` は、入力を JSON として読んで確かめる（`jq` があれば `jq`、無ければ `python3`）。
-  どちらも無い環境では見分けられないので、2 つのスクリプトはこれまでどおり動き、Copilot の commit を拒否することがある。Copilot を使うなら、`jq` か `python3` を入れる。
+  最上位のキーは、入力を JSON として読んで確かめる（`jq` があれば `jq`、無ければ `python3`）。
+  どちらも無い環境では見分けられないので、3 つのスクリプトはこれまでどおり動く。`kaizen-precommit-gate.sh` は、Copilot の commit を拒否することがある。Copilot を使うなら、`jq` か `python3` を入れる。
   Copilot のセッションの記録とチェックは、`.github/hooks/kaizen-session.json` の登録（`-copilot` 付き）だけが行う。
   そのため、Copilot を使うプロジェクトでは、`.claude/settings.json` があっても Copilot の Hook を省かない。
 
