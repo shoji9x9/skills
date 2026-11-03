@@ -154,12 +154,14 @@ async function sharedOnFeature() {
   /** 外すと判定したブランチ。判定の関数は 1 回ごとに作り直す（覚えた結果を次の確認に持ち越さない）。 */
   // 人の設定は setup が tmp の下に作った層を読む（手元の設定を読まない）
   const env = { XDG_CONFIG_HOME: join(s.tmp, "xdg") };
-  const elsewhere = (github = true, e: NodeJS.ProcessEnv | undefined = env) => {
+  // 人の設定が無い人の層（setup を実行していないディレクトリ）
+  const noPerson = { XDG_CONFIG_HOME: join(s.tmp, "no-person") };
+  const elsewhere = (github = true, e: NodeJS.ProcessEnv = env) => {
     const isElsewhere = branchesRecordedElsewhere(repoInfo(s.repo), { env: e, github, gh: null });
     const candidates = ["feature/1-a", "feature/2-b", "feature/3-c", "feature/8-main", "main", ""];
     return candidates.filter((b) => isElsewhere(b));
   };
-  return { ...s, commonDir, addWorktree, record, elsewhere };
+  return { ...s, commonDir, addWorktree, record, elsewhere, env, noPerson };
 }
 
 describe.concurrent("branchesRecordedElsewhere", () => {
@@ -199,11 +201,28 @@ describe.concurrent("branchesRecordedElsewhere", () => {
     expect(s.elsewhere()).toEqual([]);
   });
 
-  test("判断の記録を読めなければ、どのブランチも返さない", async () => {
+  test("判断の記録を読めなければ、defaultDecision が record でも、どのブランチも返さない", async () => {
+    const s = await sharedOnFeature();
+    const wt = await s.addWorktree("wt-a", "feature/1-a");
+    writeFileSync(repoConfigOf(wt), JSON.stringify({ defaultDecision: "record" }));
+    expect(s.elsewhere()).toEqual(["feature/1-a"]);
+    mkdirSync(join(s.commonDir, "agent-usage"), { recursive: true });
+    writeFileSync(join(s.commonDir, "agent-usage", "decisions.json"), "{");
+    expect(s.elsewhere()).toEqual([]);
+  });
+
+  test("判断が「記録する」でも、人の設定が無ければ返さない", async () => {
     const s = await sharedOnFeature();
     await s.addWorktree("wt-a", "feature/1-a");
     s.record("feature/1-a");
-    writeFileSync(join(s.commonDir, "agent-usage", "decisions.json"), "{");
+    expect(s.elsewhere(true, s.env)).toEqual(["feature/1-a"]);
+    expect(s.elsewhere(true, s.noPerson)).toEqual([]);
+  });
+
+  test("その作業ツリーの設定を読めなければ、判断が無いブランチを返さない", async () => {
+    const s = await sharedOnFeature();
+    const wt = await s.addWorktree("wt-a", "feature/1-a");
+    writeFileSync(repoConfigOf(wt), "{");
     expect(s.elsewhere()).toEqual([]);
   });
 
@@ -231,8 +250,7 @@ describe.concurrent("branchesRecordedElsewhere", () => {
       const s = await sharedOnFeature();
       const wt = await s.addWorktree("wt-a", "feature/1-a");
       writeFileSync(repoConfigOf(wt), JSON.stringify({ defaultDecision: decision }));
-      const env = withPerson ? undefined : { XDG_CONFIG_HOME: join(s.tmp, "no-person") };
-      expect(s.elsewhere(true, env)).toEqual(expected);
+      expect(s.elsewhere(true, withPerson ? s.env : s.noPerson)).toEqual(expected);
     },
   );
 

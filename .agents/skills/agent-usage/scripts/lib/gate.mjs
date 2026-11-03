@@ -781,6 +781,7 @@ function rememberWorktreesQuietly(repo) {
 
 /**
  * ブランチの判断を読む。判断が無ければ defaultDecision に従う。コミットを止めるなら、その結果を返す。
+ * merged.mjs の decidedToRecord が、別の作業ツリーの行を外すかを同じ順で決める。判断の順を変えるときは、両方を変える。
  * @param {import("./repo.mjs").RepoInfo} repo
  * @param {GateContext} context
  * @returns {ResolvedDecision | GateResult}
