@@ -12,8 +12,7 @@ Claude Code・Codex・GitHub Copilot の 3 つのエージェントが共有で�
 ## 前提
 
 - ツール: `gh`（`gh skill` 拡張）、`git`
-- 前提スキル: なし（スキルを作った後の評価に `skill-creator` を使えるが、必須ではない）。
-  スキルを書く前と書いた後の振る舞いの確認は、`skill-creator` が無くても行う。
+- 前提スキル: なし（スキルを作った後の評価に `skill-creator` を使えるが、必須ではない）
 - MCP: なし
 - シェル: bash（POSIX 互換のシェル）。
   コマンドの例（シンボリックリンクの作成など）は bash を前提にしているので、Windows では WSL や Git Bash などの bash の環境で実行する。
