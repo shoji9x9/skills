@@ -190,6 +190,13 @@ one_line() {
 	printf '%s' "${s}"
 }
 
+# one_line で書き分けたパスを元に戻す方法を出す。Issue の表と prompt の両方で、書き分けたパスがあるときだけ出す。
+# 置き換える組を並べるだけでは、上から順に置き換えて誤ったパスにする読み手がいるので、読む順序も書く。
+escape_note() {
+	# shellcheck disable=SC2016
+	printf '%s\n' 'パスの中の `\` は、次の 1 文字と組で読む（`\\` は `\`、`\n` は改行、`\r` は CR、`\v` は垂直タブ、`\f` は改ページ）。左から順に読み、戻した文字をもう一度読まない。'
+}
+
 # Issue の表のセルに入れる値を返す。1 行に収めたうえで、列の区切りとして読まれる `|` を `\|` と書く。
 # GitHub の表は、コードスパンの中の `|` も列の区切りとして読み、`\|` なら `|` と表示する。タブは列を分けないので、そのまま出す。
 # 表示から元の値を一意に戻せるのは、コードスパンで囲むノートの列だけである。コードスパンの外の列（優先度・種別・記録日）では、
@@ -208,8 +215,9 @@ summary_of() {
 	# SC2016: sed の式はシェル展開させないリテラル正規表現なので単一引用符が正しい。
 	# shellcheck disable=SC2016
 	summary=$(printf '%s' "${summary}" | sed -E 's/^- +//; s/^`type:[^`]*`。?[[:space:]]*//' || true)
-	# 表のセルに入れるので `|` と改行を落とす。
+	# 表のセルに入れるので `|` を置き換え、行の途中の CR を空白にする（GitHub は単独の CR も行の終わりとして読み、表の行が分かれる）。
 	summary=${summary//|/｜}
+	summary=${summary//$'\r'/ }
 	# 予算どおりに切り詰める。`cut -c` は使わない。GNU coreutils ではバイト単位で切るので、
 	# 日本語が文字の途中で切れる（kaizen-context-inject.sh と同じ理由・同じ方式）。
 	# bash のパラメータ展開は UTF-8 ロケールでは文字単位なので、途中で切れない。UTF-8 でなければ
@@ -333,7 +341,7 @@ cmd_config() {
 }
 
 cmd_issue() {
-	local count _rank _sort_key idx shown
+	local count _rank _sort_key idx shown escaped=0
 	resolve_config
 	build_pending_index
 	count=${#pending_files[@]}
@@ -355,6 +363,7 @@ cmd_issue() {
 	shown=0
 	while IFS=$'\t' read -r _rank _sort_key idx; do
 		[ "${shown}" -lt "${MAX_TABLE_ROWS}" ] || break
+		[ "$(one_line "${pending_files[idx]}")" = "${pending_files[idx]}" ] || escaped=1
 		# SC2016: 表のセルを囲むバックティックはリテラル。展開させない意図で単一引用符が正しい。
 		# shellcheck disable=SC2016
 		printf '| %s | %s | %s | `%s` | %s |\n' \
@@ -364,6 +373,11 @@ cmd_issue() {
 		shown=$((shown + 1))
 	done <"${pending_index}"
 	rm -f "${pending_index}"
+	# 書き分けたパスがあれば、元のパスへの戻し方を書く。書かないと、表からコピーしたパスでノートを開けない。
+	if [ "${escaped}" = 1 ]; then
+		echo
+		escape_note
+	fi
 	if [ "${count}" -gt "${shown}" ]; then
 		echo
 		echo "> 優先度の高い ${shown} 件だけを載せています（Issue 本文の文字数上限を超えないため）。"
@@ -442,8 +456,7 @@ EOS
 	echo
 	# 書き分けたパスがあれば、元のパスへの戻し方を書く。書かないと、エージェントは書き分けた文字列のままノートを開こうとして失敗する。
 	if [ "${escaped}" = 1 ]; then
-		# shellcheck disable=SC2016
-		printf '%s\n' '次のパスのうち `\` を含むものは、`\\`・`\n`・`\r`・`\v`・`\f` を、それぞれ `\`・改行・CR・垂直タブ・改ページに戻してから開く。'
+		escape_note
 		echo
 	fi
 	printf '%s\n' "${items[@]}"

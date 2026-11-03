@@ -513,41 +513,45 @@ describe("pending の数え方と並び", () => {
       const body = run(p, ["issue"]).stdout;
       expect(body).toContain("**4 件**");
       expect(body).not.toContain("残り");
+      // 書き分けたパスがあるときだけ、元のパスへの戻し方（読む順序を含む）を Issue と prompt に書く。
+      expect(body).toContain("左から順に読み、戻した文字をもう一度読まない");
       expect(tableRows(body).map((r) => cells(r).slice(0, 4))).toStrictEqual([
         ["high", "rule", "2026-09-01", "`.kaizen/new\\nline.md`"],
         ["medium", "rule", "2026-09-01", "`.kaizen/ta\tb.md`"],
         ["low", "rule", "2026-09-01", "`.kaizen/pi\\|pe.md`"],
         ["low", "rule", "2026-09-02", "`.kaizen/back\\\\slash.md`"],
       ]);
-      const items = run(p, ["prompt"])
-        .stdout.split("\n")
-        .filter((l) => l.startsWith("- `.kaizen/"));
+      const prompt = run(p, ["prompt"]).stdout;
+      expect(prompt).toContain("左から順に読み、戻した文字をもう一度読まない");
+      const items = prompt.split("\n").filter((l) => l.startsWith("- `.kaizen/"));
       expect(items).toStrictEqual([
         "- `.kaizen/new\\nline.md`（priority: high / type: rule）",
         "- `.kaizen/ta\tb.md`（priority: medium / type: rule）",
         "- `.kaizen/pi|pe.md`（priority: low / type: rule）",
         "- `.kaizen/back\\\\slash.md`（priority: low / type: rule）",
       ]);
-      // 書き分けたパスがあるときだけ、元のパスへの戻し方を prompt に書く（エージェントがノートを開けるように）。
-      expect(run(p, ["prompt"]).stdout).toContain("に戻してから開く");
     });
   });
 
-  test("改行が CRLF のノートでも、要約に CR を入れず、提案の行を要約にする", () => {
-    withProject({ notes: { crlf: {} } }, (p) => {
+  test("改行が CRLF のノートや行の途中に CR がある提案でも、要約に CR を入れず、提案の行を要約にする", () => {
+    withProject({ notes: { crlf: {}, mid: { proposal: "foo\rbar" } } }, (p) => {
       const file = join(p.dir, ".kaizen", "crlf.md");
       writeFileSync(file, readFileSync(file, "utf8").replaceAll("\n", "\r\n"));
       const body = run(p, ["issue"]).stdout;
       expect(body).not.toContain("\r");
       expect(tableRows(body).map(cells)).toStrictEqual([
         ["medium", "rule", "2026-09-01", "`.kaizen/crlf.md`", "crlf の提案行。"],
+        ["medium", "rule", "2026-09-01", "`.kaizen/mid.md`", "foo bar"],
       ]);
     });
   });
 
   // 共通ライブラリが古いバージョンで kaizen_days_from_date を持たないときは、日付で並べないことを stderr に出す。
   test("共通ライブラリに kaizen_days_from_date が無ければ、日付で並べないと警告する", () => {
-    withProject({ notes: { a: {} } }, (p) => {
+    // パスの順と日付の順が逆になる 2 件（`a.md` が新しい日付、`b.md` が古い日付）で、日付で並べないことを確かめる。
+    const notes = { a: { date: "2026-12-01" }, b: { date: "2026-01-01" } };
+    const order = (stdout: string) => tableRows(stdout).map((r) => cells(r)[3]);
+    withProject({ notes }, (p) => {
       const solo = join(p.dir, "old-lib");
       mkdirSync(solo, { recursive: true });
       const target = join(solo, "kaizen-schedule-report.sh");
@@ -561,10 +565,12 @@ describe("pending の数え方と並び", () => {
       const res = run({ dir: p.dir, target }, ["issue"]);
       expect(res.status).toBe(0);
       expect(res.stderr).toContain("学びを日付で並べない");
-      expect(res.stdout).toContain(".kaizen/a.md");
+      expect(order(res.stdout)).toStrictEqual(["`.kaizen/a.md`", "`.kaizen/b.md`"]);
     });
-    withProject({ notes: { a: {} } }, (p) => {
-      expect(run(p, ["issue"]).stderr).not.toContain("学びを日付で並べない");
+    withProject({ notes }, (p) => {
+      const res = run(p, ["issue"]);
+      expect(res.stderr).not.toContain("学びを日付で並べない");
+      expect(order(res.stdout)).toStrictEqual(["`.kaizen/b.md`", "`.kaizen/a.md`"]);
     });
   });
 
@@ -591,7 +597,7 @@ describe("pending の数え方と並び", () => {
       expect(out).toContain(".kaizen/a.md");
       expect(out).toContain(".kaizen/b.md");
       expect(out).toContain("リポジトリを変更しない");
-      expect(out).not.toContain("に戻してから開く");
+      expect(out).not.toContain("左から順に読み、戻した文字をもう一度読まない");
     });
   });
 });
