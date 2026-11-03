@@ -273,6 +273,8 @@ describe("注入する件数の上限", () => {
     expect(injected(stdout)).toEqual(ordered);
     expect(stdout).toContain("## kaizen: 未適用の学び（5 件）\n");
     expect(stdout).not.toContain("ほか ");
+    // 設定を読めたときは、読めないときの 1 行を出さない。
+    expect(stdout).not.toContain("kaizen の設定を読めないので");
   });
 
   test("上限が件数より小さければ、並びの先頭から上限まで出し、省いた件数を priority ごとに示す", () => {
@@ -280,8 +282,9 @@ describe("注入する件数の上限", () => {
     expect(injected(stdout)).toEqual(ordered.slice(0, 3));
     expect(stdout).toContain("## kaizen: 未適用の学び（5 件のうち 3 件）\n");
     expect(stdout).toContain(
-      "ほか 2 件（medium 1 件・low 1 件）は、設定の inject_max_entries（3）を超えたので省いた。",
+      "ほか 2 件（medium 1 件・low 1 件）は、設定の inject_max_entries（3。読んだ層: repo）を超えたので省いた。",
     );
+    expect(stdout).not.toContain("kaizen の設定を読めないので");
   });
 
   test("high も省くときは、省いた件数に high を含める", () => {
@@ -352,7 +355,21 @@ describe("注入する件数の上限", () => {
     writeFileSync(join(userDir, "kaizen.jsonc"), '{ "inject_max_entries": 4 }\n');
     const { stdout } = run(dir);
     expect(injected(stdout)).toEqual(ordered.slice(0, 4));
-    expect(stdout).toContain("ほか 1 件（low 1 件）");
+    expect(stdout).toContain(
+      "ほか 1 件（low 1 件）は、設定の inject_max_entries（4。読んだ層: user）",
+    );
+  });
+
+  // 索引はタブ区切りで、パスは最後の列にある。ファイル名にタブを含んでも、パスを途中で切らない。
+  test("ファイル名にタブを含む学びも、パスを切らずに出す", () => {
+    const dir = repoWith('{ "inject_max_entries": 1 }\n');
+    writeFileSync(
+      join(dir, ".kaizen", "a\tb.md"),
+      "---\ndate: 2026-08-01\ntype: rule\npriority: high\nstatus: pending\n---\n\n## 提案\n\ntab\n",
+    );
+    const { stdout } = run(dir);
+    expect(injected(stdout)).toEqual(["a\tb"]);
+    expect(stdout).toContain("ほか 5 件（high 2 件・medium 2 件・low 1 件）");
   });
 
   test("priority が無い学びは並びの最後に置き、省いたときは不明として数える", () => {
