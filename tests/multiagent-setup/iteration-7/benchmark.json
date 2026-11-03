@@ -1,0 +1,137 @@
+{
+  "metadata": {
+    "skill_name": "multiagent-setup",
+    "skill_path": "<repo>/skills/multiagent-setup",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-03T04:12:34Z",
+    "evals_run": [1],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 187.845,
+        "tokens": 220551,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "応答が、期待する振る舞いを利用者に確かめているか、スキルが無い状態とスキルを入れた状態で同じ依頼を実行させて比べた結果を示している（応答で判定する）",
+          "passed": true,
+          "evidence": "非対話のため期待する振る舞いを自分で決めたと明示したうえで、スキル無しとスキル有りを新しい claude -p で 1 回ずつ実行し、3 項目の比較表を示している"
+        },
+        {
+          "text": "SKILL.md を作成した場合は、.agents/skills/<name>/SKILL.md に置き、name: と description: frontmatter フィールドを持たせている（作成しなかった場合は満たしたものとする）",
+          "passed": true,
+          "evidence": "project-tree に ./.agents があり、raw に作成した .agents/skills/ts-format/SKILL.md の 'name: ts-format' と description が出ている"
+        },
+        {
+          "text": "SKILL.md を作成した場合は、.claude/skills/<name> を .agents/skills/<name> へのシンボリックリンクにしている（作成しなかった場合は満たしたものとする）",
+          "passed": true,
+          "evidence": "raw の ls 出力に 'ts-format -> ../../.agents/skills/ts-format' がある"
+        },
+        {
+          "text": "ユーザー設定（~/.claude/ 等）は変更されていない",
+          "passed": true,
+          "evidence": "試験は /tmp/fmt-eval/ で行い、~/.claude への書き込みは raw に無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 49.125,
+        "tokens": 93510,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "応答が、期待する振る舞いを利用者に確かめているか、スキルが無い状態とスキルを入れた状態で同じ依頼を実行させて比べた結果を示している（応答で判定する）",
+          "passed": false,
+          "evidence": "振る舞いを確かめる問いも、スキルの有無の比較も無い。試したのは検出スクリプトだけで、実際の整形は『まだ』と述べている"
+        },
+        {
+          "text": "SKILL.md を作成した場合は、.agents/skills/<name>/SKILL.md に置き、name: と description: frontmatter フィールドを持たせている（作成しなかった場合は満たしたものとする）",
+          "passed": false,
+          "evidence": "SKILL.md を .claude/skills/format-ts/ に作成し、.agents/skills/ には置いていない（project-tree に .agents が無い）"
+        },
+        {
+          "text": "SKILL.md を作成した場合は、.claude/skills/<name> を .agents/skills/<name> へのシンボリックリンクにしている（作成しなかった場合は満たしたものとする）",
+          "passed": false,
+          "evidence": ".claude/skills/format-ts は実体のディレクトリで、シンボリックリンクではない"
+        },
+        {
+          "text": "ユーザー設定（~/.claude/ 等）は変更されていない",
+          "passed": true,
+          "evidence": "~/.claude には書き込まず、移すかは利用者に任せると述べている"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 187.845,
+        "stddev": 0,
+        "min": 187.845,
+        "max": 187.845
+      },
+      "tokens": {
+        "mean": 220551,
+        "stddev": 0,
+        "min": 220551,
+        "max": 220551
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.25,
+        "stddev": 0,
+        "min": 0.25,
+        "max": 0.25
+      },
+      "time_seconds": {
+        "mean": 49.125,
+        "stddev": 0,
+        "min": 49.125,
+        "max": 49.125
+      },
+      "tokens": {
+        "mean": 93510,
+        "stddev": 0,
+        "min": 93510,
+        "max": 93510
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.75",
+      "time_seconds": "+138.7",
+      "tokens": "+127041"
+    }
+  },
+  "notes": []
+}

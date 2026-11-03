@@ -20,8 +20,9 @@ There is no "Where people decide" section. The only decision people make with th
    Sources: `skills/multiagent-setup/references/skills.md`, `skills/multiagent-setup/references/rules.md` "ディレクトリ構造",
    `skills/multiagent-setup/references/docs.md` "ファイル別役割", `skills/multiagent-setup/references/hooks.md`
 4. Flow. Decide the target of the operation (infer it from the request, and ask the user if that is not possible) → check the target agents (look at the existing configuration directories,
-   and ask if the request does not say) → create each target with its own steps → follow-up (after creating a skill, suggest verifying it with skill-creator).
-   Sources: `skills/multiagent-setup/SKILL.md` "フロー"
+   and ask if the request does not say) → create each target with its own steps → follow-up (after creating a skill, show the runs without and with it).
+   A skill is written after looking at the result of the same request run without it. If every expected behavior occurs in all three runs, ask the user whether to create it.
+   Sources: `skills/multiagent-setup/SKILL.md` "フロー", `skills/multiagent-setup/references/skills.md` "スキル作成手順"
 5. Choosing a component. Steps become a skill, conventions for touching specific files become a rule, processing that runs automatically on a given event becomes a hook, and everything else
    becomes documentation.
    Sources: `skills/multiagent-setup/references/component-selection.md` "最初の振り分け"
