@@ -67,3 +67,5 @@ coverage:github:2026-11-02T11:09:49.006Z:2026-11-03T11:11:43.960Z,coverage,2026-
 ci:41625561619:1,ci,2026-11-03T11:13:11.258Z,p-cdee4961,github-actions,,,,2026-11-03T11:12:07.000Z,2026-11-03T11:12:09.000Z,Asia/Tokyo,feature/868-pr-skills-split-mechanics-review-reply,868,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:41625561598:1,ci,2026-11-03T11:13:11.258Z,p-cdee4961,github-actions,,,,2026-11-03T11:12:07.000Z,2026-11-03T11:13:11.258Z,Asia/Tokyo,feature/868-pr-skills-split-mechanics-review-reply,868,,,,,,,,,,CI;pull_request;open,
 coverage:github:2026-11-02T11:11:43.960Z:2026-11-03T11:13:11.258Z,coverage,2026-11-03T11:13:11.258Z,p-cdee4961,,,,,2026-11-02T11:11:43.960Z,2026-11-03T11:13:11.258Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:41625561598:1,ci,2026-11-03T11:14:11.580Z,p-cdee4961,github-actions,,,,2026-11-03T11:12:07.000Z,2026-11-03T11:14:11.580Z,Asia/Tokyo,feature/868-pr-skills-split-mechanics-review-reply,868,,,,,,,,,,CI;pull_request;open,
+coverage:github:2026-11-02T11:13:11.258Z:2026-11-03T11:14:11.580Z,coverage,2026-11-03T11:14:11.580Z,p-cdee4961,,,,,2026-11-02T11:13:11.258Z,2026-11-03T11:14:11.580Z,Asia/Tokyo,,,,,,,,,,,,ok,
