@@ -395,39 +395,60 @@ test.each([
 // ライブラリを置くケースは、ライブラリが stderr に目印を出す。目印が出たことで、置いたライブラリを実際に読んだと分かる
 // （スクリプトが読むパスとテストが置くパスがずれると、「ライブラリが無い」と同じ分岐を通って同じ stderr になるため）。
 const LIB_MARKER = "probe-library-loaded";
+// library を <dir>/.agents/skills/kaizen/scripts/kaizen-hook-common.sh に置き（undefined なら置かない）、Copilot の登録の入力で起動する。
+function runWithLibrary(library: string | undefined) {
+  const dir = makeTempDir("bash-command-guard-no-lib-");
+  mkdirSync(join(dir, "scripts", "hooks"), { recursive: true });
+  const copied = join(dir, "scripts", "hooks", "bash-command-guard.sh");
+  writeFileSync(copied, readFileSync(script, "utf8"));
+  if (library !== undefined) {
+    const libDir = join(dir, ".agents", "skills", "kaizen", "scripts");
+    mkdirSync(libDir, { recursive: true });
+    writeFileSync(join(libDir, "kaizen-hook-common.sh"), library);
+  }
+  return spawnSync("bash", [copied], {
+    timeout: CHILD_TIMEOUT_MS,
+    input: JSON.stringify(copilotPascal),
+    encoding: "utf8",
+    cwd: repoRoot,
+    env: { ...process.env, COPILOT_CLI: "1" },
+  });
+}
+
+// 読み込みの途中で 0 以外を返すコマンドや未定義の変数の参照があっても、set -e・set -u で exit 1 にならない
+// （Claude Code は exit 2 だけを拒否とする）。
+const FAILING_PREFIX = `echo ${LIB_MARKER} >&2\nfalse\necho "$UNDEFINED_VARIABLE_FOR_858" >/dev/null\n`;
+
 test.each([
   { name: "共通ライブラリが無い", library: undefined },
   {
     name: "共通ライブラリはあるが判定の関数が無い（古いコピー）",
     library: `echo ${LIB_MARKER} >&2\nkaizen_other() { :; }\n`,
   },
-  // 読み込みの途中で 0 以外を返すコマンドがあっても、set -e で exit 1 にならない（Claude Code は exit 2 だけを拒否とする）。
   {
-    name: "共通ライブラリの途中で 0 以外を返すコマンドがあり、判定の関数も無い",
-    library: `echo ${LIB_MARKER} >&2\nfalse\nkaizen_other() { :; }\n`,
+    name: "共通ライブラリの途中で 0 以外を返すコマンドと未定義の変数の参照があり、判定の関数も無い",
+    library: `${FAILING_PREFIX}kaizen_other() { :; }\n`,
   },
 ])(
   "$name なら、Copilot の登録の入力でも止め、判定していないことを stderr に残す",
   ({ library }) => {
-    const dir = makeTempDir("bash-command-guard-no-lib-");
-    mkdirSync(join(dir, "scripts", "hooks"), { recursive: true });
-    const copied = join(dir, "scripts", "hooks", "bash-command-guard.sh");
-    writeFileSync(copied, readFileSync(script, "utf8"));
-    if (library !== undefined) {
-      const libDir = join(dir, ".agents", "skills", "kaizen", "scripts");
-      mkdirSync(libDir, { recursive: true });
-      writeFileSync(join(libDir, "kaizen-hook-common.sh"), library);
-    }
-    const r = spawnSync("bash", [copied], {
-      timeout: CHILD_TIMEOUT_MS,
-      input: JSON.stringify(copilotPascal),
-      encoding: "utf8",
-      cwd: repoRoot,
-      env: { ...process.env, COPILOT_CLI: "1" },
-    });
+    const r = runWithLibrary(library);
     expect(r.status).toBe(2);
     expect(r.stderr).toMatch(/判定の関数を読めないため、Copilot の呼び出しかを判定していない/);
     expect(r.stderr).toMatch(/full command line/);
     expect(r.stderr.includes(LIB_MARKER)).toBe(library !== undefined);
   },
 );
+
+// 読み込みの途中で失敗しても、その後に定義された判定の関数を使い、Copilot の登録の入力を通す。
+// 判定の関数は、インストール済みのコピーと同じ中身の原本（skills/kaizen の共通ライブラリ）を後ろに付けて使う。
+test("共通ライブラリの途中で失敗しても、判定の関数があれば Copilot の登録の入力を通す", () => {
+  const original = readFileSync(
+    join(repoRoot, "skills/kaizen/scripts/kaizen-hook-common.sh"),
+    "utf8",
+  );
+  const r = runWithLibrary(`${FAILING_PREFIX}${original}`);
+  expect(r.stderr).toContain(LIB_MARKER);
+  expect(r.status).toBe(0);
+  expect(r.stderr).not.toMatch(/full command line/);
+});

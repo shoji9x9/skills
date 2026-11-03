@@ -40,11 +40,15 @@ esac
 # 共通ライブラリを読めないときと、関数が判定できないとき（jq も python3 も無い・JSON として読めない）は、検査を続ける。
 kaizen_lib="$(dirname "${BASH_SOURCE[0]}")/../../.agents/skills/kaizen/scripts/kaizen-hook-common.sh"
 if [ -r "${kaizen_lib}" ]; then
+	# 読み込みの間だけ set -e と set -u を外す。外さないと、ライブラリの途中で 0 以外を返すコマンドや未定義の変数の参照で、
+	# このスクリプトが exit 1 で終わる。Claude Code は exit 1 を拒否として扱わないので、危険なコマンドを検査せずに通す。
+	# Copilot（.github/hooks の登録）は exit 1 も拒否として扱うので、外すと、そこで拒否していた入力も下の検査に進む（検査の結果で止める）。
+	# ライブラリの中の `exit` はここでは止められない。関数が定義されたかは、次の declare -f で確かめる。
+	set +eu
 	# 共通ライブラリはインストール済みのコピーで、source 先を静的に追えない。
-	# set -e のままだと、ライブラリの途中のコマンドが 0 以外を返したときに exit 1 で終わり、Claude Code は検査せずに通す（exit 2 だけが拒否）。
-	# `||` の左に置いて、読み込みの途中の失敗でスクリプトを終わらせない。関数が定義されたかは、次の declare -f で確かめる。
 	# shellcheck source=/dev/null
-	. "${kaizen_lib}" || true
+	. "${kaizen_lib}"
+	set -eu
 fi
 # ライブラリを読めないときと、読めても関数が無いとき（古いコピー）は、判定を省いたことを、0 件と区別できるよう残す。
 # 危険語を含む入力でだけここに来るので、毎回の呼び出しには出ない。

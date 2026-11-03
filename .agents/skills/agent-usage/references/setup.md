@@ -109,7 +109,7 @@ GitHub は `linguist-generated` の付いたファイルを、PR の差分で最
 
 | 状況 | 振る舞い |
 | --- | --- |
-| GitHub Copilot CLI が、Claude Code 用の登録（`.claude/settings.json`）としてこの Hook を呼んだ | 確認も記録もせずに通す。Copilot は `.claude/settings.json` の Hook も実行するが、このスキルは Copilot のログを読まない。環境変数 `COPILOT_CLI` が空でなく、入力の最上位に `timestamp` と `hook_event_name` があるときに、Copilot が呼んだと判定する（[GitHub Copilot hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference)）。判定は、引数が `claude-code` の登録と、引数を省いた登録（`claude-code` として扱う）に当て、`codex` の登録には当てない。判定の順は次の段落にある |
+| GitHub Copilot CLI が、Claude Code 用の登録（`.claude/settings.json`）としてこの Hook を呼んだ | 確認も記録もせずに通す。Copilot は `.claude/settings.json` の Hook も実行するが、このスキルは Copilot のログを読まない。環境変数 `COPILOT_CLI` が空でなく、入力の最上位に `timestamp` と `hook_event_name` があるときに、Copilot が呼んだと判定する（[GitHub Copilot hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference)）。判定は、引数が `claude-code` の登録と、引数を省いた登録（`claude-code` として扱う）に当て、それ以外の引数（`codex` など）の登録には当てない。判定の順は次の段落にある |
 | `git commit` を実行しない | 通す。判定が扱う書き方と、`git commit` を実行しても検出しない形の主な例は、下の「コミットと判定しない形と、コミットと判定する形」にある |
 | `.agent-usage/` が無い・detached HEAD・デフォルトブランチ | 通す |
 | ブランチの判断が無く、人の設定にもリポジトリの設定にも `defaultDecision` が無い | 止める（exit 2）。stderr で、利用者に確かめて `collect --stage` か `decline` を実行するよう求める |
@@ -122,10 +122,11 @@ GitHub は `linguist-generated` の付いたファイルを、PR の差分で最
 | Node.js が無い・同梱のスクリプトを読めない・想定外の失敗 | 確認をせずに通し、その旨を stderr に出す（記録の仕組みの不具合で作業を止めない） |
 
 判定の順は次のとおりである。
-まず Hook のスクリプト（`precommit-gate.sh`）が、入力に `git` と `commit` の語が無ければ通す。
-次に、Node.js と同梱の `agent-usage.mjs` があるかを確かめ、無ければ「Node.js が無い」の行のとおりに通す。
+まず Hook のスクリプト（`precommit-gate.sh`）が、入力の文字列を部分一致で見る。`git` の後に `commit` が続く箇所も、行継続（`\` と改行）も無ければ、`agent-usage.mjs` を起動せずに通す。
+語の境界は見ないので、`digit commitment` のような文字列も次へ進む。
+次に、同梱の `agent-usage.mjs` を読めるか、その後で Node.js があるかを確かめ、どちらかが無ければ「Node.js が無い」の行のとおりに通す。
 `agent-usage.mjs` は、最初に Copilot の行を判定し、その後で `git commit` を実行するか（「`git commit` を実行しない」の行）と、残りの行を判定する。
-そのため、`echo "git commit"` のように `git commit` を実行しない呼び出しでも、Copilot の行が先に当たる。どちらの行でも通すので、振る舞いは変わらない。
+そのため、Copilot が `.claude/settings.json` の登録として呼んだときは、`echo "git commit"` のように `git commit` を実行しない呼び出しでも、Copilot の行が先に当たる。どちらの行でも通すので、振る舞いは変わらない。
 
 判断と collect は、git commit を実行する作業ディレクトリ（`-C <dir>` と前の `cd <dir>` を当てた先）のリポジトリで行う。
 デフォルトブランチは、`origin/HEAD` から決める。分からなければ `main` と `master` をデフォルトブランチとして扱う。

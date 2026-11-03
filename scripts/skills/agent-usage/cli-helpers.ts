@@ -149,9 +149,10 @@ function gateRunners(env: NodeJS.ProcessEnv, repo: string) {
   const run = (
     extra: NodeJS.ProcessEnv,
     input: Record<string, unknown>,
-    { cwd, agent = "claude-code" }: { cwd: string; agent?: string },
+    { cwd, agent = "claude-code" }: { cwd: string; agent?: string | null },
   ) =>
-    spawnAsync("bash", [GATE, agent], {
+    // agent が null なら、引数を渡さずに起動する（引数を省いた登録）
+    spawnAsync("bash", agent === null ? [GATE] : [GATE, agent], {
       timeout: CHILD_TIMEOUT_MS,
       cwd,
       env: { ...env, ...extra },
@@ -159,9 +160,13 @@ function gateRunners(env: NodeJS.ProcessEnv, repo: string) {
     });
   const gateWith = (extra: NodeJS.ProcessEnv, command: string, cwd = repo) =>
     run(extra, { cwd, tool_input: { command } }, { cwd });
-  // Hook の入力の項目を足して渡す（Copilot が足す timestamp・hook_event_name など）。agent は Hook の引数（claude-code・codex）。
-  const gatePayload = (extra: NodeJS.ProcessEnv, fields: Record<string, unknown>, agent?: string) =>
-    run(extra, { cwd: repo, ...fields }, { cwd: repo, agent });
+  // Hook の入力の項目を足して渡す（Copilot が足す timestamp・hook_event_name など）。
+  // agent は Hook の引数（claude-code・codex。null は引数なし）。省くと claude-code を渡す。
+  const gatePayload = (
+    extra: NodeJS.ProcessEnv,
+    fields: Record<string, unknown>,
+    agent?: string | null,
+  ) => run(extra, { cwd: repo, ...fields }, { cwd: repo, agent });
   return { gateWith, gatePayload };
 }
 
