@@ -111,25 +111,30 @@ first_line_under() {
 	awk -v h="$1" 'index($0, h) == 1 {f = 1; next} f && NF {print; exit}' "$2" 2>/dev/null || true
 }
 
-# pending なノートを priority 降順・日付昇順に並べた索引を一時ファイルへ作り、パスを返す。
-# 各行は `rank <TAB> sort key <TAB> date <TAB> priority <TAB> type <TAB> path`。
+# pending なノートを priority 降順・日付昇順に並べた索引を一時ファイルに作り、パスを pending_index に入れる。
+# 索引の各行は `rank <TAB> sort key <TAB> 添字` で、添字は pending_files などの配列の位置である。
+# パスと frontmatter の値（date・priority・type）はタブや改行を含みうるので、索引には入れずに配列に持つ。
+# 索引に入れると、読むときに列がずれたり、1 件が 2 行に分かれたりする。
+# 配列を呼び出し側に残すため、この関数はコマンド置換（サブシェル）で呼ばない。
 #
 # **ソート用のセンチネルと表示値を兼用しない。** 日付が無いノートを末尾へ回すための
 # `9999-99-99` をそのまま表示に使うと、Issue の「記録日」列にありもしない日付が出る
-# （priority / type は `unknown` になるのに、date だけ誤った値になる）。列を分ける。
+# （priority / type は `unknown` になるのに、date だけ誤った値になる）。並べ替えのキーと表示する日付を分ける。
+pending_index=""
 build_pending_index() {
-	local index f status priority date_value type_value rank sort_key
+	local f status priority date_value type_value rank sort_key
 	# frontmatter の欄は、共通ライブラリの kaizen_frontmatter_values で読む（同梱のスクリプトで読み方を 1 つにする）。
 	# 共通ライブラリを読めないときは、どの学びが pending かを判定できないので、0 件と区別できるように止める。
 	if ! declare -f kaizen_frontmatter_values >/dev/null 2>&1; then
 		echo "kaizen-schedule-report: kaizen-hook-common.sh を読めないため、学びの status を読めない" >&2
 		return 1
 	fi
-	index=$(mktemp)
-	[ -d .kaizen ] || {
-		printf '%s' "${index}"
-		return 0
-	}
+	pending_files=()
+	pending_dates=()
+	pending_priorities=()
+	pending_types=()
+	pending_index=$(mktemp)
+	[ -d .kaizen ] || return 0
 	for f in .kaizen/*.md; do
 		[ -e "${f}" ] || continue
 		# status は frontmatter 限定で判定する。全文 grep だと本文やコードブロックの
@@ -147,14 +152,42 @@ build_pending_index() {
 		low) rank=2 ;;
 		*) rank=3 ;;
 		esac
-		sort_key=${date_value:-9999-99-99}
-		printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
-			"${rank}" "${sort_key}" "${date_value:-unknown}" \
-			"${priority:-unknown}" "${type_value:-unknown}" "${f}" \
-			>>"${index}"
+		# 並べ替えのキーには、共通ライブラリが暦の日付として読める date だけを使う（忘却と同じ読み方）。
+		# 読めない date は、日付の無いノートと同じく同じ priority の最後に置く。
+		sort_key=9999-99-99
+		if declare -f kaizen_days_from_date >/dev/null 2>&1 && kaizen_days_from_date "${date_value}" >/dev/null; then
+			sort_key=${date_value}
+		fi
+		printf '%s\t%s\t%s\n' "${rank}" "${sort_key}" "${#pending_files[@]}" >>"${pending_index}"
+		pending_files+=("${f}")
+		pending_dates+=("${date_value:-unknown}")
+		pending_priorities+=("${priority:-unknown}")
+		pending_types+=("${type_value:-unknown}")
 	done
-	sort -t $'\t' -k1,1n -k2,2 -k6,6 "${index}" -o "${index}"
-	printf '%s' "${index}"
+	# 同じ順位と日付の中は、添字（glob が並べたパスの順）で並べる。
+	sort -t $'\t' -k1,1n -k2,2 -k3,3n "${pending_index}" -o "${pending_index}"
+}
+
+# 1 行に収めて出す値の \・改行・CR・垂直タブ・改ページを、\\・\n・\r・\v・\f と書く（kaizen-context-inject.sh と同じ書き方）。
+# そのまま出すと、改行の後ろが Issue の表やプロンプトの別の行として読まれる。\ を先に書き分けるので、表示から元の値を一意に戻せる。
+# printf %q は使わない。ロケールが C だと日本語をバイトごとの 8 進で書き、どの学びか読めなくなるからである。
+one_line() {
+	local s=${1//\\/\\\\}
+	s=${s//$'\n'/\\n}
+	s=${s//$'\r'/\\r}
+	s=${s//$'\v'/\\v}
+	s=${s//$'\f'/\\f}
+	printf '%s' "${s}"
+}
+
+# Issue の表のセルに入れる値を返す。1 行に収めたうえで、列の区切りとして読まれる `|` を `\|` と書く。
+# GitHub の表は、コードスパンの中の `|` も列の区切りとして読み、`\|` なら `|` と表示する。タブは列を分けないので、そのまま出す。
+# 表示から元の値を一意に戻せるのは、コードスパンで囲むノートの列だけである。コードスパンの外の列（優先度・種別・記録日）では、
+# GitHub が `\\` を `\` と表示するので、戻せるとは限らない。この 3 列は frontmatter の 1 行の値で改行を含まないので、行と列がずれないことだけを守る。
+table_cell() {
+	local s
+	s=$(one_line "$1")
+	printf '%s' "${s//|/\\|}"
 }
 
 summary_of() {
@@ -263,7 +296,7 @@ resolve_config() {
 # ---- 出力 --------------------------------------------------------------------
 
 cmd_config() {
-	local index count
+	local count
 	resolve_config
 	if [ -n "${config_unloadable}" ]; then
 		# 共通ライブラリを読めないときは、学びの status を読めないので pending を数えられない。
@@ -271,10 +304,9 @@ cmd_config() {
 		# workflow は pending_count を 10 進の件数として読むので、0 を書く。
 		count=0
 	else
-		index=$(build_pending_index)
-		count=$(wc -l <"${index}")
-		count=${count//[[:space:]]/}
-		rm -f "${index}"
+		build_pending_index
+		count=${#pending_files[@]}
+		rm -f "${pending_index}"
 	fi
 	# pending が 0 件なら、エージェントを起動しても読む材料が無い。起動する前に notify に切り替える。
 	if [ "${count}" -eq 0 ] && [ "${resolved_mode}" = agent ]; then
@@ -291,11 +323,10 @@ cmd_config() {
 }
 
 cmd_issue() {
-	local index count rank sort_key date_value priority type_value f shown
+	local count _rank _sort_key idx shown
 	resolve_config
-	index=$(build_pending_index)
-	count=$(wc -l <"${index}")
-	count=${count//[[:space:]]/}
+	build_pending_index
+	count=${#pending_files[@]}
 
 	echo "\`.kaizen/\` に未適用（\`status: pending\`）の学びが **${count} 件** あります。"
 	echo
@@ -305,23 +336,24 @@ cmd_issue() {
 	echo
 
 	if [ "${count}" -eq 0 ]; then
-		rm -f "${index}"
+		rm -f "${pending_index}"
 		return 0
 	fi
 
 	echo "| 優先度 | 種別 | 記録日 | ノート | 提案の要約 |"
 	echo "| --- | --- | --- | --- | --- |"
 	shown=0
-	while IFS=$'\t' read -r rank sort_key date_value priority type_value f; do
-		[ -n "${f}" ] || continue
+	while IFS=$'\t' read -r _rank _sort_key idx; do
 		[ "${shown}" -lt "${MAX_TABLE_ROWS}" ] || break
 		# SC2016: 表のセルを囲むバックティックはリテラル。展開させない意図で単一引用符が正しい。
 		# shellcheck disable=SC2016
 		printf '| %s | %s | %s | `%s` | %s |\n' \
-			"${priority}" "${type_value}" "${date_value}" "${f}" "$(summary_of "${f}")"
+			"$(table_cell "${pending_priorities[idx]}")" "$(table_cell "${pending_types[idx]}")" \
+			"$(table_cell "${pending_dates[idx]}")" "$(table_cell "${pending_files[idx]}")" \
+			"$(summary_of "${pending_files[idx]}")"
 		shown=$((shown + 1))
-	done <"${index}"
-	rm -f "${index}"
+	done <"${pending_index}"
+	rm -f "${pending_index}"
 	if [ "${count}" -gt "${shown}" ]; then
 		echo
 		echo "> 優先度の高い ${shown} 件だけを載せています（Issue 本文の文字数上限を超えないため）。"
@@ -330,11 +362,10 @@ cmd_issue() {
 }
 
 cmd_prompt() {
-	local index count f
+	local count _rank _sort_key idx
 	resolve_config
-	index=$(build_pending_index)
-	count=$(wc -l <"${index}")
-	count=${count//[[:space:]]/}
+	build_pending_index
+	count=${#pending_files[@]}
 
 	cat <<'EOS'
 あなたはこのリポジトリの kaizen（失敗からの学びを成果物へ反映する仕組み）の定期レビュー担当です。
@@ -385,17 +416,17 @@ EOS
 	if [ "${count}" -eq 0 ]; then
 		echo
 		echo "（0 件。対象が無いのでその旨だけを報告してください。）"
-		rm -f "${index}"
+		rm -f "${pending_index}"
 		return 0
 	fi
 
 	echo
-	while IFS=$'\t' read -r _rank _sort_key _date priority type_value f; do
-		[ -n "${f}" ] || continue
+	while IFS=$'\t' read -r _rank _sort_key idx; do
 		# shellcheck disable=SC2016
-		printf -- '- `%s`（priority: %s / type: %s）\n' "${f}" "${priority}" "${type_value}"
-	done <"${index}"
-	rm -f "${index}"
+		printf -- '- `%s`（priority: %s / type: %s）\n' "$(one_line "${pending_files[idx]}")" \
+			"$(one_line "${pending_priorities[idx]}")" "$(one_line "${pending_types[idx]}")"
+	done <"${pending_index}"
+	rm -f "${pending_index}"
 }
 
 case "${1-}" in

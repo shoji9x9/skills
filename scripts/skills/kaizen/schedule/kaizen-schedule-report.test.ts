@@ -23,6 +23,7 @@ import { kaizenEnv, pathWithout, writeKaizenConfig } from "../kaizen-config-env.
 // | model       | 妥当 / 不正（空白入り） / 未設定                                  |
 // | effort      | codex に指定 / codex 以外に指定 / 不正 / 未設定                   |
 // | pending     | 0 件 / 1 件 / 複数件（priority 降順・日付昇順）                    |
+// | 学びの値     | パス・date・type にタブ・改行・`|`・`\` を含む / 暦の日付として読めない date |
 // | 機能を減らす | 共通ライブラリ欠落 × kaizen.jsonc あり / なし                       |
 // | 読めない設定 | 旧い .kaizen/config / パーミッション / node が無い × 設定ファイルあり・なし |
 //
@@ -473,6 +474,77 @@ describe("pending の数え方と並び", () => {
   test("上限以下なら切り詰めの注記を出さない", () => {
     withProject({ notes: { a: {}, b: {} } }, (p) => {
       expect(run(p, ["issue"]).stdout).not.toContain("残り");
+    });
+  });
+
+  // 索引はタブ区切りの 1 行 1 件なので、パスと frontmatter の値を索引に入れると、タブで列がずれ、改行で 1 件が 2 行に分かれる。
+  // Issue の表では `|` も列を分ける。各行を、エスケープしていない `|` で分けたセルの数で確かめる。
+  const tableRows = (body: string) =>
+    body.split("\n").filter((l) => l.startsWith("| ") && l.includes(".kaizen/"));
+  const cells = (row: string) =>
+    row
+      .slice(2, -2)
+      .split(/(?<!\\) \| /)
+      .map((c) => c.trim());
+
+  test("date と type にタブや | がある学びでも、Issue の表の列がずれない", () => {
+    const notes = {
+      tab: { priority: "high", date: "2026-09-01\tx", type: "rule\tdoc" },
+      pipe: { priority: "low", date: "2026-09-03", type: "rule|x" },
+    };
+    withProject({ notes }, (p) => {
+      const rows = tableRows(run(p, ["issue"]).stdout);
+      expect(rows.map(cells)).toStrictEqual([
+        ["high", "rule\tdoc", "2026-09-01\tx", "`.kaizen/tab.md`", "tab の提案行。"],
+        ["low", "rule\\|x", "2026-09-03", "`.kaizen/pipe.md`", "pipe の提案行。"],
+      ]);
+    });
+  });
+
+  test("ファイル名に改行・タブ・| ・\\ がある学びも、表と prompt では 1 件を 1 行に出し、件数を数え違えない", () => {
+    const notes = {
+      "new\nline": { priority: "high", date: "2026-09-01" },
+      "ta\tb": { priority: "medium", date: "2026-09-01" },
+      "pi|pe": { priority: "low", date: "2026-09-01" },
+      "back\\slash": { priority: "low", date: "2026-09-02" },
+    };
+    withProject({ notes }, (p) => {
+      expect(run(p, ["config"]).settings.pending_count).toBe("4");
+      const body = run(p, ["issue"]).stdout;
+      expect(body).toContain("**4 件**");
+      expect(body).not.toContain("残り");
+      expect(tableRows(body).map((r) => cells(r).slice(0, 4))).toStrictEqual([
+        ["high", "rule", "2026-09-01", "`.kaizen/new\\nline.md`"],
+        ["medium", "rule", "2026-09-01", "`.kaizen/ta\tb.md`"],
+        ["low", "rule", "2026-09-01", "`.kaizen/pi\\|pe.md`"],
+        ["low", "rule", "2026-09-02", "`.kaizen/back\\\\slash.md`"],
+      ]);
+      const items = run(p, ["prompt"])
+        .stdout.split("\n")
+        .filter((l) => l.startsWith("- `.kaizen/"));
+      expect(items).toStrictEqual([
+        "- `.kaizen/new\\nline.md`（priority: high / type: rule）",
+        "- `.kaizen/ta\tb.md`（priority: medium / type: rule）",
+        "- `.kaizen/pi|pe.md`（priority: low / type: rule）",
+        "- `.kaizen/back\\\\slash.md`（priority: low / type: rule）",
+      ]);
+    });
+  });
+
+  // 並べ替えには、暦の日付として読める date だけを使う。読めない date は日付の無い学びと同じく、同じ priority の最後に置き、表示は元の値のままにする。
+  test("暦の日付として読めない date は、同じ priority の最後に並べ、元の値を表示する", () => {
+    const notes = {
+      bad: { date: "2026-02-31" },
+      late: { date: "2026-12-01" },
+      early: { date: "2026-01-01" },
+    };
+    withProject({ notes }, (p) => {
+      const rows = tableRows(run(p, ["issue"]).stdout).map(cells);
+      expect(rows.map((c) => [c[3], c[2]])).toStrictEqual([
+        ["`.kaizen/early.md`", "2026-01-01"],
+        ["`.kaizen/late.md`", "2026-12-01"],
+        ["`.kaizen/bad.md`", "2026-02-31"],
+      ]);
     });
   });
 
