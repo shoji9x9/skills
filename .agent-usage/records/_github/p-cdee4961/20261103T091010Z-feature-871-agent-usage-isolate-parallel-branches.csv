@@ -38,3 +38,4 @@ ci:41614604947:1,ci,2026-11-03T10:01:27.968Z,p-cdee4961,github-actions,,,,2026-1
 ci:41613793038:1,ci,2026-11-03T10:01:27.968Z,p-cdee4961,github-actions,,,,2026-11-03T09:46:49.000Z,2026-11-03T09:46:50.000Z,Asia/Tokyo,feature/868-pr-skills-split-mechanics-review-reply,868,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:41613793034:1,ci,2026-11-03T10:01:27.968Z,p-cdee4961,github-actions,,,,2026-11-03T09:46:49.000Z,2026-11-03T09:51:17.000Z,Asia/Tokyo,feature/868-pr-skills-split-mechanics-review-reply,868,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-11-02T09:40:34.147Z:2026-11-03T10:01:27.968Z,coverage,2026-11-03T10:01:27.968Z,p-cdee4961,,,,,2026-11-02T09:40:34.147Z,2026-11-03T10:01:27.968Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-02T10:01:27.968Z:2026-11-03T10:02:33.177Z,coverage,2026-11-03T10:02:33.177Z,p-cdee4961,,,,,2026-11-02T10:01:27.968Z,2026-11-03T10:02:33.177Z,Asia/Tokyo,,,,,,,,,,,,ok,
