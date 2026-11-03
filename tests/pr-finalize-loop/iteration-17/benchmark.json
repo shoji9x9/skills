@@ -1,0 +1,251 @@
+{
+  "metadata": {
+    "skill_name": "pr-finalize-loop",
+    "skill_path": "<repo>/skills/pr-finalize-loop",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-03T10:01:44Z",
+    "evals_run": [9, 12, 16, 18, 23],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 12,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 25.985,
+        "tokens": 134664,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "HEAD への非著者レビューの body を取得して指摘を探す方針である（reviewThreads と comments.totalCount だけで指摘なしと結論していない）",
+          "passed": true,
+          "evidence": "「スレッドが 0 件でも、本文とトップレベルのコメントは切り詰めずに読みます」"
+        },
+        {
+          "text": "未解決スレッド 0 件・生成コメント 0 件でもレビュー本文に未対応の指摘が残り得ると述べている",
+          "passed": true,
+          "evidence": "本文には「スレッドにならない指摘や、前回の指摘を『未対応』として載せ直したもの」が入ることがあると述べた"
+        },
+        {
+          "text": "本文の指摘には返信先スレッドが無く resolve もできないため、トップレベルの PR コメントで対象箇所・判断・根拠を返す方針である",
+          "passed": true,
+          "evidence": "本文の指摘への対応はトップレベルのコメントで記録し、その対応記録と突き合わせると述べた。報告には直したか根拠を付けて見送ったかを書く"
+        },
+        {
+          "text": "レビュー本文に未対応の指摘がある間は完了と判定しない（収束条件に本文の指摘を含める）方針である",
+          "passed": true,
+          "evidence": "収束の条件の表で「レビュー本文・トップレベルコメントに未対応の指摘が無い」を未確認とし、完了と判定しない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 16,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 34.049,
+        "tokens": 201118,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Lint の成功はレビュー用 check-run ではないためレビュー到着証跡から除外している",
+          "passed": true,
+          "evidence": "成功した Lint check は「通常の CI で、Claude のレビュー用の check-run ではありません」として根拠にしない"
+        },
+        {
+          "text": "旧HEADで開始して現在HEADのpush後に完了・更新されたコメントでも、現在の完全なheadRefOidを本文に含まなければ単独の証拠にしていない",
+          "passed": true,
+          "evidence": "commit OID の無い完了コメントは「時刻だけでは根拠になりません」として単独の証拠にしない"
+        },
+        {
+          "text": "working のレビューボットコメントを完了扱いせず、上限付きで完了を待って再評価する方針である",
+          "passed": true,
+          "evidence": "working のコメントは根拠にせず、上限を決めて finished になるのを待ってから判定をやり直す"
+        },
+        {
+          "text": "PR 著者自身のコメントをレビュー到着証跡から除外している",
+          "passed": true,
+          "evidence": "著者自身の「レビュー完了」コメントは「レビュー済みの判定と指摘の収集の両方から必ず除きます」"
+        },
+        {
+          "text": "有効な証跡が無いため現在 HEAD は未レビューと判定し、完了後の再評価または再レビュー依頼へ進む方針である",
+          "passed": true,
+          "evidence": "「現時点ではレビュー済みにできません」とし、完了を待って再評価し、上限を超えたら再依頼の判断に戻る"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 18,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 32.532,
+        "tokens": 172338,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Codexが指摘なしの場合にreviews[]を作らずトップレベルbotコメントだけを投稿する形を扱っている",
+          "passed": true,
+          "evidence": "指摘 0 件のとき Codex は reviews[] を作らずトップレベルのコメントだけを投稿する形を扱った"
+        },
+        {
+          "text": "Reviewed commitの短縮SHAを手で補完せずGitHub commits APIで完全SHAへ解決している",
+          "passed": true,
+          "evidence": "`gh api repos/<owner>/<repo>/commits/abc123def0 --jq .sha` で完全な SHA に解決し、見た目で補完しない"
+        },
+        {
+          "text": "解決した完全SHAと現在のheadRefOidが一致した場合だけレビュー完了証跡として認めている",
+          "passed": true,
+          "evidence": "解決した完全な SHA が headRefOid と 1 文字ずつ一致する場合だけ採用する"
+        },
+        {
+          "text": "SHAの解決失敗またはheadRefOidとの不一致をレビュー済みとして扱わない",
+          "passed": true,
+          "evidence": "解決の失敗・候補が複数・不一致の場合は根拠にならないと列挙した"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 23,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 37.562,
+        "tokens": 129497,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "wait timer が終わる 10:20 までの待ちを、上限の時間に数えないと述べている",
+          "passed": true,
+          "evidence": "10:00〜10:20 は wait timer による正常な待ちなので上限の時間に数えない"
+        },
+        {
+          "text": "10:35 の時点では止めずに待ち続けると述べている",
+          "passed": true,
+          "evidence": "10:35 では待った時間が 15 分で、止めずに待ち続ける"
+        },
+        {
+          "text": "待つ上限を 30 分とし、10:55 の時点で上限を超えたと判断している",
+          "passed": true,
+          "evidence": "上限を 30 分とし、10:55 の時点で 35 分となり上限を超えたと判断した"
+        },
+        {
+          "text": "10:55 で止まる理由を「行き詰まり」としている",
+          "passed": true,
+          "evidence": "止まった理由を「行き詰まり」とした"
+        },
+        {
+          "text": "報告に run の ID（7001）・ジョブの名前（deploy）・状態（waiting）・待った時間を書くと述べている",
+          "passed": true,
+          "evidence": "報告に run の ID 7001・ジョブ deploy・状態 waiting・待った時間 35 分を書く"
+        },
+        {
+          "text": "報告に environment の名前（production）と reviewers（alice）を書くと述べている",
+          "passed": true,
+          "evidence": "報告に environment production と reviewers alice を書く"
+        },
+        {
+          "text": "実行はせず説明に留めている（gh の実行・ファイルの変更を行っていない）",
+          "passed": true,
+          "evidence": "冒頭で「コマンドの実行もファイルの変更もしていません」と述べた"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 52.671,
+        "tokens": 308602,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "common の review_tool の設定（codex）を参照して依頼先ツールを決めている",
+          "passed": true,
+          "evidence": "resolve-review-tool.sh を実行し value=codex / source=repo を得て依頼先を codex に決めた"
+        },
+        {
+          "text": "依頼は requested_reviewers ではなくトップレベル PR コメントへの @codex review 投稿で行う方針である",
+          "passed": true,
+          "evidence": "`gh api --method POST .../issues/6/comments -f body=\"@codex review\"` でトップレベルのコメントとして依頼する"
+        },
+        {
+          "text": "Copilot 専用の login（copilot-pull-request-reviewer[bot]）や review_requested タイムラインに依存しない方針である",
+          "passed": true,
+          "evidence": "Copilot の login や review_requested を使わず、作成者以外のレビュー・Codex bot のコメント・check-run で判定する"
+        },
+        {
+          "text": "レビュー到着・進行中は非著者レビューや bot コメント等の汎用シグナルで判定する方針である",
+          "passed": true,
+          "evidence": "レビュー済みの判定に、作成者以外のレビュー・Codex のレビュー用 check-run・bot コメントの Reviewed commit を使う"
+        },
+        {
+          "text": "mention は非冪等のため、現在の HEAD の push 以降に投稿された（投稿者を問わない）@codex review コメントがあれば再投稿せず、重複レビュー起動を避ける方針である",
+          "passed": true,
+          "evidence": "手順 3 (a) で push より後の @codex review コメントを投稿者で絞らずに探し、あれば依頼済みとみなす"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 36.5598,
+        "stddev": 9.9364,
+        "min": 25.985,
+        "max": 52.671
+      },
+      "tokens": {
+        "mean": 189243.8,
+        "stddev": 72838.5497,
+        "min": 129497,
+        "max": 308602
+      }
+    }
+  },
+  "notes": []
+}
