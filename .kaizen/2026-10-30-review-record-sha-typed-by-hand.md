@@ -1,7 +1,7 @@
 ---
 date: 2026-10-30
 type: doc
-priority: low
+priority: medium
 confidence: high
 status: pending
 applied-to: []
@@ -15,6 +15,11 @@ session: claude-code
 issue-batch の run の #766（PR #832）で、pr-finalize-loop の反復 3 の記録を `local-review-record.sh post` で投稿した。
 `--sha` に、`git log --oneline` に表示された短い SHA の後ろを補って組み立てた 40 桁を渡し、スクリプトが「PR の HEAD と違う」で投稿を拒否した。
 反復 1 と 2 では、`gh pr view --json headRefOid` から取得した SHA を渡していた。
+
+2026-11-03、Issue #871（PR #873）の pr-finalize-loop の反復 2 で、`local-review-record.sh post` が「PR の HEAD と違う」で投稿を拒否した。
+`--sha` に、レビューの結果に表示された短い SHA から組み立てた 40 桁を手で渡していた。
+PR の HEAD を `gh pr view --json headRefOid` で取得して形を確かめてから投稿するスクリプト（scratchpad の `post-record.sh`）に替えて通した。反復 3 も同じスクリプトで投稿した。
+反復 1 では記録を投稿しておらず、反復 2 が初めての投稿だった。そのため「2 回目に書く時点でスクリプトにする」という提案では防げず、1 回目の投稿でも起きた。
 
 ## 根本原因
 
@@ -32,7 +37,10 @@ KEDB 照合は `SHA`・`local-review-record`・`書き写` で行い、pending �
 
 ## 提案
 
-決まった形の呼び出しを 2 回目に書く時点で、変わる値（SHA・ID）をその場で取得して渡すスクリプトにまとめる。
+`local-review-record.sh post` の `--sha` は、初めての投稿から、PR の HEAD を `gh pr view --json headRefOid` で取得して同じ呼び出しの中で渡す。
+
+- 決まった形の呼び出しを繰り返すなら、変わる値（SHA・ID）をその場で取得して渡すスクリプトにまとめる
+- 再発の根拠: PR #873 では、初めての投稿で同じ形が起きた（「2 回目に書く時点」では遅い）
 
 - この run では、PR の HEAD を取得してから記録を投稿するスクリプト（scratchpad の `post832rec.sh`）に替えた
 - 機構は作らない。記録のスクリプトが SHA を PR の HEAD と突き合わせて止めるので、誤った記録は残らない
