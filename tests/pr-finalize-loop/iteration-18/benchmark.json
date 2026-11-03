@@ -1,0 +1,84 @@
+{
+  "metadata": {
+    "skill_name": "pr-finalize-loop",
+    "skill_path": "<repo>/skills/pr-finalize-loop",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-03T10:09:37Z",
+    "evals_run": [24],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 24,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 39.055,
+        "tokens": 95476,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スレッド A を判断待ちにして、直さず解決もせずに残すと述べている",
+          "passed": true,
+          "evidence": "A は直さず解決せず、目印付きの返信だけを残して判断待ちにする"
+        },
+        {
+          "text": "スレッド B は、変数名の指摘で影響が小さくても、スレッド A と関係するので判断待ちに含め、直さず解決もせずに残すと述べている",
+          "passed": true,
+          "evidence": "B は「B 自体の影響が小さくても、判断待ちに含めます」「直さず、解決もしません」。A の答えで変わりうることを根拠にした"
+        },
+        {
+          "text": "スレッド B の判断待ちの印の返信に、関係するスレッド A（の URL）を書くと述べている",
+          "passed": true,
+          "evidence": "B の返信例に「判断待ちの指摘 <スレッド A の URL> の範囲」と A の URL を書く"
+        },
+        {
+          "text": "スレッド C は、スレッド A の判断を待たずに直し、返信してから解決すると述べている",
+          "passed": true,
+          "evidence": "C は「A の答えを待たずに進めます」「返信してから解決します」"
+        },
+        {
+          "text": "返信の書き出しの例が、直した内容か直さない根拠（判断待ちの理由）で始まり、同意・お礼・謝罪だけの文（「ご指摘のとおりです」「ありがとうございます」など）を含まない",
+          "passed": true,
+          "evidence": "A・B は「判断待ちにした。」「判断待ちに含めた。」、C は「…に直した。」で始まり、お礼の文を入れない"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "冒頭で「コマンドの実行もファイルの変更もしていません」と述べた"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 39.055,
+        "stddev": 0,
+        "min": 39.055,
+        "max": 39.055
+      },
+      "tokens": {
+        "mean": 95476,
+        "stddev": 0,
+        "min": 95476,
+        "max": 95476
+      }
+    }
+  },
+  "notes": []
+}
