@@ -23,6 +23,7 @@ import { kaizenEnv, pathWithout, writeKaizenConfig } from "../kaizen-config-env.
 // | model       | 妥当 / 不正（空白入り） / 未設定                                  |
 // | effort      | codex に指定 / codex 以外に指定 / 不正 / 未設定                   |
 // | pending     | 0 件 / 1 件 / 複数件（priority 降順・日付昇順）                    |
+// | 学びの値     | パス・date・type にタブ・改行・`|`・`\` を含む / 暦の日付として読めない date |
 // | 機能を減らす | 共通ライブラリ欠落 × kaizen.jsonc あり / なし                       |
 // | 読めない設定 | 旧い .kaizen/config / パーミッション / node が無い × 設定ファイルあり・なし |
 //
@@ -476,12 +477,150 @@ describe("pending の数え方と並び", () => {
     });
   });
 
+  // 書き分けたパスがあるときに出す戻し方の文。読み手が元のパスに戻せるかは組の一覧で決まるので、出ることは文全体の一致で確かめる。
+  // Issue の文だけが、表で `|` を `\|` と書いた分の組を持つ。
+  const NOTE_HEAD =
+    "パスの中の `\\` は、次の 1 文字と組で読む（`\\\\` は `\\`、`\\n` は改行、`\\r` は CR、`\\v` は垂直タブ、`\\f` は改ページ";
+  const NOTE_TAIL = "）。左から順に読み、戻した文字をもう一度読まない。";
+  const ISSUE_NOTE = `${NOTE_HEAD}、\`\\|\` は \`|\`${NOTE_TAIL}`;
+  const PROMPT_NOTE = `${NOTE_HEAD}${NOTE_TAIL}`;
+  // 出ないことは、両方の文に共通する末尾で確かめる。文全体で比べると、文が 1 字変わっただけで、出ていても通ってしまう。
+  const NOTE_MARK = "左から順に読み、戻した文字をもう一度読まない";
+
+  // 索引はタブ区切りの 1 行 1 件なので、パスと frontmatter の値を索引に入れると、タブで列がずれ、改行で 1 件が 2 行に分かれる。
+  // Issue の表では `|` も列を分ける。各行を、エスケープしていない `|` で分けたセルの数で確かめる。
+  const tableRows = (body: string) =>
+    body.split("\n").filter((l) => l.startsWith("| ") && l.includes(".kaizen/"));
+  const cells = (row: string) =>
+    row
+      .slice(2, -2)
+      .split(/(?<!\\)\|/)
+      .map((c) => c.trim());
+
+  test("date と type にタブや | がある学びでも、Issue の表の列がずれない", () => {
+    const notes = {
+      tab: { priority: "high", date: "2026-09-01\tx", type: "rule\tdoc" },
+      pipe: { priority: "low", date: "2026-09-03", type: "rule|x" },
+    };
+    withProject({ notes }, (p) => {
+      const rows = tableRows(run(p, ["issue"]).stdout);
+      expect(rows.map(cells)).toStrictEqual([
+        ["high", "rule\tdoc", "2026-09-01\tx", "`.kaizen/tab.md`", "tab の提案行。"],
+        ["low", "rule\\|x", "2026-09-03", "`.kaizen/pipe.md`", "pipe の提案行。"],
+      ]);
+    });
+  });
+
+  test("ファイル名に改行・タブ・| ・\\ がある学びも、表と prompt では 1 件を 1 行に出し、件数を数え違えない", () => {
+    const notes = {
+      "new\nline": { priority: "high", date: "2026-09-01" },
+      "ta\tb": { priority: "medium", date: "2026-09-01" },
+      "pi|pe": { priority: "low", date: "2026-09-01" },
+      "back\\slash": { priority: "low", date: "2026-09-02" },
+    };
+    withProject({ notes }, (p) => {
+      expect(run(p, ["config"]).settings.pending_count).toBe("4");
+      const body = run(p, ["issue"]).stdout;
+      expect(body).toContain("**4 件**");
+      expect(body).not.toContain("残り");
+      // 書き分けたパスがあるときだけ、元のパスへの戻し方（読む順序を含む）を Issue と prompt に書く。
+      expect(body).toContain(ISSUE_NOTE);
+      expect(tableRows(body).map((r) => cells(r).slice(0, 4))).toStrictEqual([
+        ["high", "rule", "2026-09-01", "`.kaizen/new\\nline.md`"],
+        ["medium", "rule", "2026-09-01", "`.kaizen/ta\tb.md`"],
+        ["low", "rule", "2026-09-01", "`.kaizen/pi\\|pe.md`"],
+        ["low", "rule", "2026-09-02", "`.kaizen/back\\\\slash.md`"],
+      ]);
+      const prompt = run(p, ["prompt"]).stdout;
+      expect(prompt).toContain(PROMPT_NOTE);
+      const items = prompt.split("\n").filter((l) => l.startsWith("- `.kaizen/"));
+      expect(items).toStrictEqual([
+        "- `.kaizen/new\\nline.md`（priority: high / type: rule）",
+        "- `.kaizen/ta\tb.md`（priority: medium / type: rule）",
+        "- `.kaizen/pi|pe.md`（priority: low / type: rule）",
+        "- `.kaizen/back\\\\slash.md`（priority: low / type: rule）",
+      ]);
+    });
+  });
+
+  test("改行が CRLF のノートや行の途中に CR がある提案でも、要約に CR を入れず、提案の行を要約にする", () => {
+    withProject({ notes: { crlf: {}, mid: { proposal: "foo\rbar" } } }, (p) => {
+      const file = join(p.dir, ".kaizen", "crlf.md");
+      writeFileSync(file, readFileSync(file, "utf8").replaceAll("\n", "\r\n"));
+      const body = run(p, ["issue"]).stdout;
+      expect(body).not.toContain("\r");
+      expect(tableRows(body).map(cells)).toStrictEqual([
+        ["medium", "rule", "2026-09-01", "`.kaizen/crlf.md`", "crlf の提案行。"],
+        ["medium", "rule", "2026-09-01", "`.kaizen/mid.md`", "foo bar"],
+      ]);
+    });
+  });
+
+  // 共通ライブラリが古いバージョンで kaizen_days_from_date を持たないときは、日付で並べないことを stderr に出す。
+  test("共通ライブラリに kaizen_days_from_date が無ければ、日付で並べないと警告する", () => {
+    // パスの順と日付の順が逆になる 2 件（`a.md` が新しい日付、`b.md` が古い日付）で、日付で並べないことを確かめる。
+    const notes = { a: { date: "2026-12-01" }, b: { date: "2026-01-01" } };
+    const order = (stdout: string) => tableRows(stdout).map((r) => cells(r)[3]);
+    withProject({ notes }, (p) => {
+      const solo = join(p.dir, "old-lib");
+      mkdirSync(solo, { recursive: true });
+      const target = join(solo, "kaizen-schedule-report.sh");
+      copyFileSync(script, target);
+      const lib = readFileSync(join(scriptDir, "kaizen-hook-common.sh"), "utf8");
+      assert.include(lib, "kaizen_days_from_date() {", "共通ライブラリに関数の定義が無い");
+      writeFileSync(
+        join(solo, "kaizen-hook-common.sh"),
+        lib.replace("kaizen_days_from_date() {", "kaizen_days_from_date_removed() {"),
+      );
+      const res = run({ dir: p.dir, target }, ["issue"]);
+      expect(res.status).toBe(0);
+      expect(res.stderr).toContain("学びを日付で並べない");
+      expect(order(res.stdout)).toStrictEqual(["`.kaizen/a.md`", "`.kaizen/b.md`"]);
+    });
+    withProject({ notes }, (p) => {
+      const res = run(p, ["issue"]);
+      expect(res.stderr).not.toContain("学びを日付で並べない");
+      expect(order(res.stdout)).toStrictEqual(["`.kaizen/b.md`", "`.kaizen/a.md`"]);
+    });
+  });
+
+  // 並べ替えには、暦の日付として読める date だけを使う。読めない date は日付の無い学びと同じく、同じ priority の最後に置き、表示は元の値のままにする。
+  test("暦の日付として読めない date は、同じ priority の最後に並べ、元の値を表示する", () => {
+    const notes = {
+      bad: { date: "2026-02-31" },
+      late: { date: "2026-12-01" },
+      early: { date: "2026-01-01" },
+    };
+    withProject({ notes }, (p) => {
+      const rows = tableRows(run(p, ["issue"]).stdout).map(cells);
+      expect(rows.map((c) => [c[3], c[2]])).toStrictEqual([
+        ["`.kaizen/early.md`", "2026-01-01"],
+        ["`.kaizen/late.md`", "2026-12-01"],
+        ["`.kaizen/bad.md`", "2026-02-31"],
+      ]);
+    });
+  });
+
+  // Issue の表は `|` も `\|` と書くので、`|` だけを含むパスでも戻し方を出す。prompt は `|` を書き分けないので出さない。
+  // 書き分けたパスが無ければ、Issue にも prompt にも出さない。
+  test("戻し方は、書き分けたパスがあるときだけ、その出力に出す", () => {
+    withProject({ notes: { "pi|pe": {} } }, (p) => {
+      expect(run(p, ["issue"]).stdout).toContain(ISSUE_NOTE);
+      expect(run(p, ["prompt"]).stdout).not.toContain(NOTE_MARK);
+    });
+    withProject({ notes: { a: {} } }, (p) => {
+      expect(run(p, ["issue"]).stdout).not.toContain(NOTE_MARK);
+      expect(run(p, ["prompt"]).stdout).not.toContain(NOTE_MARK);
+    });
+  });
+
   test("prompt 出力は対象ノートのパスを列挙する", () => {
     withProject({ notes: { a: {}, b: {} } }, (p) => {
       const out = run(p, ["prompt"]).stdout;
       expect(out).toContain(".kaizen/a.md");
       expect(out).toContain(".kaizen/b.md");
       expect(out).toContain("リポジトリを変更しない");
+      expect(out).not.toContain(NOTE_MARK);
     });
   });
 });

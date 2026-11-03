@@ -107,29 +107,44 @@ parse_bool() {
 }
 
 # 指定見出し（例「## 提案」）直後の最初の非空行を返す。見出しは前方一致で判定する。
+# 行末の CR は先に落とす。改行が CRLF のノートでは、CR だけの行を空でない行として読み、要約に CR が入って Issue の表の行が分かれる。
 first_line_under() {
-	awk -v h="$1" 'index($0, h) == 1 {f = 1; next} f && NF {print; exit}' "$2" 2>/dev/null || true
+	awk -v h="$1" '{sub(/\r$/, "")} index($0, h) == 1 {f = 1; next} f && NF {print; exit}' "$2" 2>/dev/null || true
 }
 
-# pending なノートを priority 降順・日付昇順に並べた索引を一時ファイルへ作り、パスを返す。
-# 各行は `rank <TAB> sort key <TAB> date <TAB> priority <TAB> type <TAB> path`。
+# pending なノートを priority 降順・日付昇順に並べた索引を一時ファイルに作り、パスを pending_index に入れる。
+# 索引の各行は `rank <TAB> sort key <TAB> 添字` で、添字は pending_files などの配列の位置である。
+# パスと frontmatter の値（date・priority・type）はタブや改行を含みうるので、索引には入れずに配列に持つ。
+# 索引に入れると、読むときに列がずれたり、1 件が 2 行に分かれたりする。
+# 配列を呼び出し側に残すため、この関数はコマンド置換（サブシェル）で呼ばない。
 #
 # **ソート用のセンチネルと表示値を兼用しない。** 日付が無いノートを末尾へ回すための
 # `9999-99-99` をそのまま表示に使うと、Issue の「記録日」列にありもしない日付が出る
-# （priority / type は `unknown` になるのに、date だけ誤った値になる）。列を分ける。
+# （priority / type は `unknown` になるのに、date だけ誤った値になる）。並べ替えのキーと表示する日付を分ける。
+pending_index=""
 build_pending_index() {
-	local index f status priority date_value type_value rank sort_key
+	local f status priority date_value type_value rank sort_key
 	# frontmatter の欄は、共通ライブラリの kaizen_frontmatter_values で読む（同梱のスクリプトで読み方を 1 つにする）。
 	# 共通ライブラリを読めないときは、どの学びが pending かを判定できないので、0 件と区別できるように止める。
 	if ! declare -f kaizen_frontmatter_values >/dev/null 2>&1; then
 		echo "kaizen-schedule-report: kaizen-hook-common.sh を読めないため、学びの status を読めない" >&2
 		return 1
 	fi
-	index=$(mktemp)
-	[ -d .kaizen ] || {
-		printf '%s' "${index}"
-		return 0
-	}
+	pending_files=()
+	pending_dates=()
+	pending_priorities=()
+	pending_types=()
+	pending_index=$(mktemp)
+	# 途中で止まったときも一時ファイルを残さない（set -e で rm -f まで届かない場合がある）。
+	trap 'rm -f "${pending_index}"' EXIT
+	[ -d .kaizen ] || return 0
+	# 日付を確かめる関数は共通ライブラリにある。古いバージョンの共通ライブラリには無いので、そのときは日付で並べず、そのことを出力する
+	# （機能を減らして動いた実行と本番の構成の実行を、出力で区別できるようにする）。
+	local check_dates=1
+	if ! declare -f kaizen_days_from_date >/dev/null 2>&1; then
+		check_dates=0
+		warn "kaizen-hook-common.sh に kaizen_days_from_date が無いため、学びを日付で並べない（共通ライブラリが古いバージョン）"
+	fi
 	for f in .kaizen/*.md; do
 		[ -e "${f}" ] || continue
 		# status は frontmatter 限定で判定する。全文 grep だと本文やコードブロックの
@@ -147,14 +162,55 @@ build_pending_index() {
 		low) rank=2 ;;
 		*) rank=3 ;;
 		esac
-		sort_key=${date_value:-9999-99-99}
-		printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
-			"${rank}" "${sort_key}" "${date_value:-unknown}" \
-			"${priority:-unknown}" "${type_value:-unknown}" "${f}" \
-			>>"${index}"
+		# 並べ替えのキーには、共通ライブラリが暦の日付として読める date だけを使う（忘却と同じ読み方）。
+		# 読めない date は、日付の無いノートと同じく同じ priority の最後に置く。
+		sort_key=9999-99-99
+		if [ "${check_dates}" = 1 ] && kaizen_days_from_date "${date_value}" >/dev/null; then
+			sort_key=${date_value}
+		fi
+		printf '%s\t%s\t%s\n' "${rank}" "${sort_key}" "${#pending_files[@]}" >>"${pending_index}"
+		pending_files+=("${f}")
+		pending_dates+=("${date_value:-unknown}")
+		pending_priorities+=("${priority:-unknown}")
+		pending_types+=("${type_value:-unknown}")
 	done
-	sort -t $'\t' -k1,1n -k2,2 -k6,6 "${index}" -o "${index}"
-	printf '%s' "${index}"
+	# 同じ順位と日付の中は、添字（glob が並べたパスの順）で並べる。
+	sort -t $'\t' -k1,1n -k2,2 -k3,3n "${pending_index}" -o "${pending_index}"
+}
+
+# 1 行に収めて出す値の \・改行・CR・垂直タブ・改ページを、\\・\n・\r・\v・\f と書く（kaizen-context-inject.sh と同じ書き方）。
+# そのまま出すと、改行の後ろが Issue の表やプロンプトの別の行として読まれる。\ を先に書き分けるので、表示から元の値を一意に戻せる。
+# printf %q は使わない。ロケールが C だと日本語をバイトごとの 8 進で書き、どの学びか読めなくなるからである。
+one_line() {
+	local s=${1//\\/\\\\}
+	s=${s//$'\n'/\\n}
+	s=${s//$'\r'/\\r}
+	s=${s//$'\v'/\\v}
+	s=${s//$'\f'/\\f}
+	printf '%s' "${s}"
+}
+
+# 書き分けたパスを元に戻す方法を出す。Issue の表と prompt のそれぞれで、書き分けたパスがあるときだけ出す。
+# $1 は、組の一覧の末尾に足す組である（省略すると足さない）。空でなければ、前に区切りの「、」を付ける。
+# Issue の表では、table_cell の書き分けに合わせて、呼び出し元が TABLE_PIPE_PAIR を渡す。prompt は `|` を書き分けないので、何も渡さない。
+# 置き換える組を並べるだけでは、上から順に置き換えて誤ったパスにする読み手がいるので、読む順序も書く。
+escape_note() {
+	# shellcheck disable=SC2016
+	printf '%s%s%s\n' 'パスの中の `\` は、次の 1 文字と組で読む（`\\` は `\`、`\n` は改行、`\r` は CR、`\v` は垂直タブ、`\f` は改ページ' \
+		"${1:+、$1}" '）。左から順に読み、戻した文字をもう一度読まない。'
+}
+
+# Issue の表のセルに入れる値を返す。1 行に収めたうえで、列の区切りとして読まれる `|` を `\|` と書く。
+# GitHub の表は、コードスパンの中の `|` も列の区切りとして読み、`\|` なら `|` と表示する。タブは列を分けないので、そのまま出す。
+# 表示から元の値を一意に戻せるのは、コードスパンで囲むノートの列だけである。コードスパンの外の列（優先度・種別・記録日）では、
+# GitHub が `\\` を `\` と表示するので、戻せるとは限らない。この 3 列は frontmatter の 1 行の値で改行を含まないので、行と列がずれないことだけを守る。
+# table_cell が `|` を書き分けた形と、その戻し方の組。書き分け方を変えるときは、この 2 つを同時に変える。
+# shellcheck disable=SC2016
+readonly TABLE_PIPE_ESCAPED='\|' TABLE_PIPE_PAIR='`\|` は `|`'
+table_cell() {
+	local s
+	s=$(one_line "$1")
+	printf '%s' "${s//|/${TABLE_PIPE_ESCAPED}}"
 }
 
 summary_of() {
@@ -165,8 +221,9 @@ summary_of() {
 	# SC2016: sed の式はシェル展開させないリテラル正規表現なので単一引用符が正しい。
 	# shellcheck disable=SC2016
 	summary=$(printf '%s' "${summary}" | sed -E 's/^- +//; s/^`type:[^`]*`。?[[:space:]]*//' || true)
-	# 表のセルに入れるので `|` と改行を落とす。
+	# 表のセルに入れるので `|` を置き換え、行の途中の CR を空白にする（GitHub は単独の CR も行の終わりとして読み、表の行が分かれる）。
 	summary=${summary//|/｜}
+	summary=${summary//$'\r'/ }
 	# 予算どおりに切り詰める。`cut -c` は使わない。GNU coreutils ではバイト単位で切るので、
 	# 日本語が文字の途中で切れる（kaizen-context-inject.sh と同じ理由・同じ方式）。
 	# bash のパラメータ展開は UTF-8 ロケールでは文字単位なので、途中で切れない。UTF-8 でなければ
@@ -263,7 +320,7 @@ resolve_config() {
 # ---- 出力 --------------------------------------------------------------------
 
 cmd_config() {
-	local index count
+	local count
 	resolve_config
 	if [ -n "${config_unloadable}" ]; then
 		# 共通ライブラリを読めないときは、学びの status を読めないので pending を数えられない。
@@ -271,10 +328,9 @@ cmd_config() {
 		# workflow は pending_count を 10 進の件数として読むので、0 を書く。
 		count=0
 	else
-		index=$(build_pending_index)
-		count=$(wc -l <"${index}")
-		count=${count//[[:space:]]/}
-		rm -f "${index}"
+		build_pending_index
+		count=${#pending_files[@]}
+		rm -f "${pending_index}"
 	fi
 	# pending が 0 件なら、エージェントを起動しても読む材料が無い。起動する前に notify に切り替える。
 	if [ "${count}" -eq 0 ] && [ "${resolved_mode}" = agent ]; then
@@ -291,11 +347,10 @@ cmd_config() {
 }
 
 cmd_issue() {
-	local index count rank sort_key date_value priority type_value f shown
+	local count _rank _sort_key idx shown escaped=0 path_cell
 	resolve_config
-	index=$(build_pending_index)
-	count=$(wc -l <"${index}")
-	count=${count//[[:space:]]/}
+	build_pending_index
+	count=${#pending_files[@]}
 
 	echo "\`.kaizen/\` に未適用（\`status: pending\`）の学びが **${count} 件** あります。"
 	echo
@@ -305,23 +360,32 @@ cmd_issue() {
 	echo
 
 	if [ "${count}" -eq 0 ]; then
-		rm -f "${index}"
+		rm -f "${pending_index}"
 		return 0
 	fi
 
 	echo "| 優先度 | 種別 | 記録日 | ノート | 提案の要約 |"
 	echo "| --- | --- | --- | --- | --- |"
 	shown=0
-	while IFS=$'\t' read -r rank sort_key date_value priority type_value f; do
-		[ -n "${f}" ] || continue
+	while IFS=$'\t' read -r _rank _sort_key idx; do
 		[ "${shown}" -lt "${MAX_TABLE_ROWS}" ] || break
+		# ノートの列は、Markdown のまま本文を読む読み手もいるので、`|` を `\|` と書いた分も書き分けとして数える。
+		path_cell=$(table_cell "${pending_files[idx]}")
+		[ "${path_cell}" = "${pending_files[idx]}" ] || escaped=1
 		# SC2016: 表のセルを囲むバックティックはリテラル。展開させない意図で単一引用符が正しい。
 		# shellcheck disable=SC2016
 		printf '| %s | %s | %s | `%s` | %s |\n' \
-			"${priority}" "${type_value}" "${date_value}" "${f}" "$(summary_of "${f}")"
+			"$(table_cell "${pending_priorities[idx]}")" "$(table_cell "${pending_types[idx]}")" \
+			"$(table_cell "${pending_dates[idx]}")" "${path_cell}" \
+			"$(summary_of "${pending_files[idx]}")"
 		shown=$((shown + 1))
-	done <"${index}"
-	rm -f "${index}"
+	done <"${pending_index}"
+	rm -f "${pending_index}"
+	# 書き分けたパスがあれば、元のパスへの戻し方を書く。書かないと、表からコピーしたパスでノートを開けない。
+	if [ "${escaped}" = 1 ]; then
+		echo
+		escape_note "${TABLE_PIPE_PAIR}"
+	fi
 	if [ "${count}" -gt "${shown}" ]; then
 		echo
 		echo "> 優先度の高い ${shown} 件だけを載せています（Issue 本文の文字数上限を超えないため）。"
@@ -330,11 +394,10 @@ cmd_issue() {
 }
 
 cmd_prompt() {
-	local index count f
+	local count _rank _sort_key idx
 	resolve_config
-	index=$(build_pending_index)
-	count=$(wc -l <"${index}")
-	count=${count//[[:space:]]/}
+	build_pending_index
+	count=${#pending_files[@]}
 
 	cat <<'EOS'
 あなたはこのリポジトリの kaizen（失敗からの学びを成果物へ反映する仕組み）の定期レビュー担当です。
@@ -385,17 +448,26 @@ EOS
 	if [ "${count}" -eq 0 ]; then
 		echo
 		echo "（0 件。対象が無いのでその旨だけを報告してください。）"
-		rm -f "${index}"
+		rm -f "${pending_index}"
 		return 0
 	fi
 
-	echo
-	while IFS=$'\t' read -r _rank _sort_key _date priority type_value f; do
-		[ -n "${f}" ] || continue
+	local items=() shown_path escaped=0
+	while IFS=$'\t' read -r _rank _sort_key idx; do
+		shown_path=$(one_line "${pending_files[idx]}")
+		[ "${shown_path}" = "${pending_files[idx]}" ] || escaped=1
 		# shellcheck disable=SC2016
-		printf -- '- `%s`（priority: %s / type: %s）\n' "${f}" "${priority}" "${type_value}"
-	done <"${index}"
-	rm -f "${index}"
+		items+=("$(printf -- '- `%s`（priority: %s / type: %s）' "${shown_path}" \
+			"$(one_line "${pending_priorities[idx]}")" "$(one_line "${pending_types[idx]}")")")
+	done <"${pending_index}"
+	rm -f "${pending_index}"
+	echo
+	# 書き分けたパスがあれば、元のパスへの戻し方を書く。書かないと、エージェントは書き分けた文字列のままノートを開こうとして失敗する。
+	if [ "${escaped}" = 1 ]; then
+		escape_note
+		echo
+	fi
+	printf '%s\n' "${items[@]}"
 }
 
 case "${1-}" in
