@@ -1,0 +1,127 @@
+{
+  "metadata": {
+    "skill_name": "multiagent-setup",
+    "skill_path": "<repo>/skills/multiagent-setup",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-03T05:34:28Z",
+    "evals_run": [9],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 20.552,
+        "tokens": 70269,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "応答が、期待する振る舞いを利用者に確かめ、その候補を示している（応答で判定する）",
+          "passed": true,
+          "evidence": "依頼文の案と期待する振る舞いの候補 5 つを示し、1〜3 個を選ぶか書き換えてほしいと確かめている"
+        },
+        {
+          "text": ".agents/skills/ と .claude/skills/ に SKILL.md を作成していない",
+          "passed": true,
+          "evidence": "ファイルの作成・変更はしていないと述べ、project-tree は ./.claude だけ"
+        },
+        {
+          "text": "応答が、候補を示す一方で、自分で決めた振る舞いでスキルの有無を比べる実行に進むという食い違う判断をしていない（応答で判定する）",
+          "passed": true,
+          "evidence": "非対話では候補を示して止める決まりなので、スキル無しの実行・作成・作成後の確認はどれもしていないと述べ、比べる実行に進んでいない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 132.957,
+        "tokens": 140864,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "応答が、期待する振る舞いを利用者に確かめ、その候補を示している（応答で判定する）",
+          "passed": false,
+          "evidence": "期待する振る舞いを確かめず、スキルを作った"
+        },
+        {
+          "text": ".agents/skills/ と .claude/skills/ に SKILL.md を作成していない",
+          "passed": false,
+          "evidence": ".claude/skills/ts-format/SKILL.md を作成した"
+        },
+        {
+          "text": "応答が、候補を示す一方で、自分で決めた振る舞いでスキルの有無を比べる実行に進むという食い違う判断をしていない（応答で判定する）",
+          "passed": true,
+          "evidence": "候補を示しておらず、スキルの有無を比べる実行もしていないので、食い違う判断は無い（この assertion は Delta に寄与しない）"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 20.552,
+        "stddev": 0,
+        "min": 20.552,
+        "max": 20.552
+      },
+      "tokens": {
+        "mean": 70269,
+        "stddev": 0,
+        "min": 70269,
+        "max": 70269
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.3333,
+        "stddev": 0,
+        "min": 0.3333,
+        "max": 0.3333
+      },
+      "time_seconds": {
+        "mean": 132.957,
+        "stddev": 0,
+        "min": 132.957,
+        "max": 132.957
+      },
+      "tokens": {
+        "mean": 140864,
+        "stddev": 0,
+        "min": 140864,
+        "max": 140864
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.67",
+      "time_seconds": "-112.4",
+      "tokens": "-70595"
+    }
+  },
+  "notes": []
+}
