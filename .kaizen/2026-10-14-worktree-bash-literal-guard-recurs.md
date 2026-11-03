@@ -360,10 +360,11 @@ manifest を更新する JSON の heredoc と python の起動を並べた呼び
 ほかは既知の形（`for` ループ・heredoc・`;` でつないだ複合コマンド・`gh api graphql` の query・本文に `git` の語を含む python の quoted heredoc）だった。
 エージェントは、同じセッションでこの節を書いた後にも python の heredoc を書き、ハーネスがそれを拒否した。
 どれも、単独の呼び出しに分けるか、Write ツールでスクリプトにして絶対パスで実行して通した。
-ハーネスは、git を起動しない呼び出しでも、パスに `git` を含む引数（`git-worktree`）を次の 2 つの形で持つものを、git の起動として数えて拒否した。
+ハーネスは、パスに `git` を含む引数（`git-worktree`）を次の形で持つ呼び出しを、git の起動として数えて拒否した。
 
-- 別のコマンドを起動するツール（`pnpm exec` など）の引数に、そのパスを 1 つでも持つ（`runs pnpm with a git command among its operands`）
-- そのパスを 2 つ以上持つ（`git add -- <パスの一覧>` や、PR #865 のレビューのセッションで観測した `diff -r` での 2 つのディレクトリの比較。`names git more than once`）
+- git を起動しない呼び出しで、別のコマンドを起動するツール（`pnpm exec` など）の引数にそのパスを 1 つでも持つ（`runs pnpm with a git command among its operands`）
+- git を起動しない呼び出しで、そのパスを 2 つ以上持つ（PR #865 のレビューのセッションで観測した `diff -r` での 2 つのディレクトリの比較。`names git more than once`）
+- git を 1 回だけ起動する呼び出しで、そのパスを 1 つでも持つ（`git add -- <パスの一覧>`。パスが 2 回目の git として数えられ、`names git more than once`）
 
 一方、`git-worktree` のパスを 1 つだけ引数に持つ `sed -n` は通した。
 「## 提案」の Hook は、この拒否より先に直し方を示すためのものなので、ハーネスが拒否する形を拾えるように、条件をコマンド名だけでなく引数の語にも当てる。
