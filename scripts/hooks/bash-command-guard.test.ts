@@ -444,10 +444,12 @@ test.each([
 
 // 読み込みの途中で失敗しても、その後に定義された判定の関数を使い、Copilot の登録の入力を通す。
 // 判定の関数は、インストール済みのコピーと同じ中身の原本（skills/kaizen の共通ライブラリ）を後ろに付けて使う。
-// 判定の関数は JSON を jq（無ければ python3）で読む。どちらも無いと判定できずに検査を続けるので、jq があることを前提として確かめる。
+// 判定の関数は JSON を jq（無ければ python3）で読む。どちらも無いと判定できずに検査を続けるので、どちらかがあることを前提として確かめる。
 test("共通ライブラリの途中で失敗しても、判定の関数があれば Copilot の登録の入力を通す", () => {
-  const jq = spawnSync("bash", ["-c", "command -v jq"], { timeout: CHILD_TIMEOUT_MS });
-  expect(jq.status, "jq が必要（判定の関数が入力を読むのに使う）").toBe(0);
+  const reader = spawnSync("bash", ["-c", "command -v jq || command -v python3"], {
+    timeout: CHILD_TIMEOUT_MS,
+  });
+  expect(reader.status, "jq か python3 が必要（判定の関数が入力を読むのに使う）").toBe(0);
   const original = readFileSync(
     join(repoRoot, "skills/kaizen/scripts/kaizen-hook-common.sh"),
     "utf8",
@@ -456,4 +458,24 @@ test("共通ライブラリの途中で失敗しても、判定の関数があ�
   expect(r.stderr).toContain(LIB_MARKER);
   expect(r.status).toBe(0);
   expect(r.stderr).not.toMatch(/full command line/);
+});
+
+// 読み込みの後に、シェルのオプション（errexit・nounset・pipefail）がスクリプトの冒頭と同じに戻ることを確かめる。
+// ライブラリは最上位でオプションを外し、判定の関数の中で、呼ばれた時点の状態を stderr に出す（判定は 1 を返し、検査を続けさせる）。
+test("共通ライブラリがシェルのオプションを外しても、読み込みの後は errexit・nounset・pipefail に戻る", () => {
+  const library = [
+    `echo ${LIB_MARKER} >&2`,
+    "set +euo pipefail",
+    'kaizen_payload_is_copilot_claude_settings() { echo "options=$- pipefail=$(set -o | grep -c "^pipefail[[:space:]]*on")" >&2; return 1; }',
+    "",
+  ].join("\n");
+  const r = runWithLibrary(library);
+  expect(r.stderr).toContain(LIB_MARKER);
+  const m = /options=(\S*) pipefail=(\d)/.exec(r.stderr);
+  expect(m, r.stderr).not.toBeNull();
+  expect(m?.[1]).toContain("e");
+  expect(m?.[1]).toContain("u");
+  expect(m?.[2]).toBe("1");
+  // 判定は 1 を返したので、検査に進んで止める。
+  expect(r.status).toBe(2);
 });
