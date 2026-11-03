@@ -91,7 +91,7 @@ function printCollect(r) {
     console.log(`範囲より古いので読まなかった記録のファイル: ${r.skippedFiles}`);
   if (r.olderRowsSkipped > 0)
     console.log(`開始時刻が範囲より古いので書かなかった行: ${r.olderRowsSkipped}`);
-  for (const [branch, n] of Object.entries(r.otherWorktreeRows))
+  for (const [branch, n] of r.otherWorktreeRows)
     console.log(`別の作業ツリーの collect が記録するので書かなかった行: ${branch} ${n}`);
   if (r.retractedRows > 0)
     console.log(`打ち消した行（ログはあるが、今は作らなくなった行）: ${r.retractedRows}`);
@@ -227,13 +227,14 @@ function collectCommand(rest, context) {
   const { now } = context;
   const a = parseArgs(rest, ["--stage", "--no-github"], []);
   const repo = requireSetup(context.cwd);
+  const github = !a.flags.has("--no-github");
   const r = runCollect({
     repo,
     now,
     env: process.env,
-    github: !a.flags.has("--no-github"),
+    github,
     gh: null,
-    elsewhere: branchesRecordedElsewhere(repo, process.env),
+    elsewhere: branchesRecordedElsewhere(repo, { env: process.env, github }),
   });
   printCollect(r);
   if (a.flags.has("--stage")) {

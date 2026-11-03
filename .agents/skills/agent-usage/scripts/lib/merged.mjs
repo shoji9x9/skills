@@ -11,8 +11,10 @@
 //      PR は origin のリポジトリでだけ探すので、fork から上流へ出した PR は見つからない。
 //   origin が無い・GitHub でない・gh が無い・取得に失敗したときは、2 では merge 済みとしない（記録を止めない）。
 
+import { existsSync } from "node:fs";
 import { isRecord } from "./config.mjs";
-import { decisionFor } from "./decisions.mjs";
+import { loadDecisions } from "./decisions.mjs";
+import { usageDir } from "./records.mjs";
 import { defaultBranches, gitOrNull } from "./repo.mjs";
 import { ghLoginError, githubTarget } from "./run-collect.mjs";
 import { getAll, makeGh, withoutEnvTokens } from "./sources/github.mjs";
@@ -40,40 +42,56 @@ export function branchMerged(repo, env, gh = null) {
 }
 
 /**
- * 別の作業ツリーが checkout していて、その作業ツリーのコミットの前の確認が記録するブランチ。
- * collect は、このブランチの行を今のブランチの記録に書かず、その作業ツリーの collect に任せる（並行するブランチの行を混ぜないため）。
- * その作業ツリーが記録しないブランチは含めない。含めると、その行がどの記録にも書かれないからである。
- * 記録しないのは、デフォルトブランチ・判断が「記録する」でないブランチ（判断が無いブランチを含む）・merge 済みのブランチである。
- * 判断の記録を読めないときも、記録するかが分からないので含めない。
+ * ブランチの行を、別の作業ツリーの collect が記録するかを返す関数を作る。
+ * collect は、記録するブランチの行を今のブランチの記録に書かず、その作業ツリーの collect に任せる（並行するブランチの行を混ぜないため）。
+ * その作業ツリーが記録しないブランチでは false を返す。true を返すと、その行がどの記録にも書かれないからである。
+ * true を返すのは、次の 4 つをすべて満たすブランチだけである。別の作業ツリーが checkout している。その作業ツリーに `.agent-usage/` がある。
+ * 判断が「記録する」である。merge 済みでない。
+ * デフォルトブランチ・判断が無いブランチ・判断の記録を読めないときは false を返す。
+ * GitHub を取得しない collect（github が false）では、squash merge した後かを PR で確かめられないので、すべて false を返す。
+ * 判定は、行に現れたブランチだけを、初めて聞かれたときに行って覚える（コミットのたびに作業ツリーの数だけ gh を呼ばないため）。
  * @param {import("./repo.mjs").RepoInfo} repo
- * @param {NodeJS.ProcessEnv} env
- * @param {import("./sources/github.mjs").GhRunner | null} [gh] テストで差し替える（null なら gh を使う）
- * @returns {Set<string>}
+ * @param {{ env: NodeJS.ProcessEnv; github: boolean; gh?: import("./sources/github.mjs").GhRunner | null }} o
+ * @returns {(branch: string) => boolean}
  */
-export function branchesRecordedElsewhere(repo, env, gh = null) {
+export function branchesRecordedElsewhere(repo, o) {
   const skip = new Set([repo.branch, ...defaultBranches(repo)]);
-  /** @type {Set<string>} */
-  const out = new Set();
-  for (const w of repo.otherWorktrees) {
-    if (w.branch === "" || skip.has(w.branch) || out.has(w.branch)) continue;
-    if (!decidedToRecord(repo.commonDir, w.branch)) continue;
-    // merge 済みかは、その作業ツリーのコミットの前の確認と同じ方法で決める
-    if (branchMerged({ ...repo, root: w.path, branch: w.branch }, env, gh).merged) continue;
-    out.add(w.branch);
-  }
-  return out;
+  /** @type {Map<string, string>} ブランチ → それを checkout している作業ツリー */
+  const paths = new Map();
+  for (const w of repo.otherWorktrees) if (!paths.has(w.branch)) paths.set(w.branch, w.path);
+  /** @type {Map<string, boolean>} */
+  const known = new Map();
+  /** @type {Record<string, { decision: string }> | null} */
+  let decisions = null;
+  return (branch) => {
+    const cached = known.get(branch);
+    if (cached !== undefined) return cached;
+    const path = paths.get(branch);
+    let result = false;
+    if (o.github && path !== undefined && branch !== "" && !skip.has(branch)) {
+      decisions ??= decisionsOrEmpty(repo.commonDir);
+      result =
+        existsSync(usageDir(path)) &&
+        Object.hasOwn(decisions, branch) &&
+        decisions[branch].decision === "record" &&
+        // merge 済みかは、その作業ツリーでコミットするときの確認と同じ方法で決める
+        !branchMerged({ ...repo, root: path, branch }, o.env, o.gh ?? null).merged;
+    }
+    known.set(branch, result);
+    return result;
+  };
 }
 
 /**
+ * 判断の記録。読めなければ空にする（記録するかが分からないブランチの行は外さない）。
  * @param {string} commonDir
- * @param {string} branch
- * @returns {boolean}
+ * @returns {Record<string, { decision: string }>}
  */
-function decidedToRecord(commonDir, branch) {
+function decisionsOrEmpty(commonDir) {
   try {
-    return decisionFor(commonDir, branch) === "record";
+    return loadDecisions(commonDir);
   } catch {
-    return false;
+    return {};
   }
 }
 

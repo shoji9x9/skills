@@ -329,7 +329,7 @@ export function ghLoginError(host, env) {
  * @property {NodeJS.ProcessEnv} env
  * @property {boolean} github
  * @property {GhRunner | null} gh テストで差し替える（null なら gh を使う）
- * @property {ReadonlySet<string>} elsewhere 書かない行のブランチ（別の作業ツリーの collect が記録するブランチ。merged.mjs の branchesRecordedElsewhere で決める）
+ * @property {(branch: string) => boolean} elsewhere ブランチの行を書かないか（別の作業ツリーの collect が記録するか。merged.mjs の branchesRecordedElsewhere で作る）
  */
 
 /**
@@ -349,7 +349,7 @@ export function ghLoginError(host, env) {
  * @property {number} skippedFiles 範囲より古いので読まなかった記録のファイルの数
  * @property {number} olderRowsSkipped 開始時刻が範囲より古いので書かなかった行の数
  * @property {number} retractedRows 打ち消した行の数
- * @property {Record<string, number>} otherWorktreeRows 別の作業ツリーの collect が記録するので書かなかった行の数（ブランチごと）
+ * @property {Map<string, number>} otherWorktreeRows 別の作業ツリーの collect が記録するので書かなかった行の数（ブランチごと）
  */
 
 /**
@@ -411,16 +411,16 @@ export function runCollect(o) {
  * 外すブランチは、呼び出し元が merged.mjs の branchesRecordedElsewhere で決める。
  * 打ち消しの行は外さない。元の行は今の作業ツリーの記録にあり、その作業ツリーの collect は元の行を読まないので打ち消せない。
  * @param {readonly Row[]} rows
- * @param {ReadonlySet<string>} other 外すブランチ
- * @returns {{ rows: Row[]; elsewhere: Record<string, number> }} elsewhere は外したブランチごとの行数
+ * @param {(branch: string) => boolean} other ブランチの行を外すか
+ * @returns {{ rows: Row[]; elsewhere: Map<string, number> }} elsewhere は外したブランチごとの行数
  */
 export function withoutOtherWorktrees(rows, other) {
-  /** @type {Record<string, number>} */
-  const elsewhere = {};
+  /** @type {Map<string, number>} */
+  const elsewhere = new Map();
   const kept = rows.filter((r) => {
     const b = r.branch ?? "";
-    if (r.retracted === "1" || !other.has(b)) return true;
-    elsewhere[b] = (elsewhere[b] ?? 0) + 1;
+    if (r.retracted === "1" || !other(b)) return true;
+    elsewhere.set(b, (elsewhere.get(b) ?? 0) + 1);
     return false;
   });
   return { rows: kept, elsewhere };

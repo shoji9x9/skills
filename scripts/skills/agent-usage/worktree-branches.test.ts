@@ -69,26 +69,45 @@ describe("withoutOtherWorktrees", () => {
     branch,
   }));
 
-  test("渡したブランチの行だけを外し、ブランチごとの件数を返す", () => {
+  const only =
+    (...branches: string[]) =>
+    (b: string) =>
+      branches.includes(b);
+
+  test("外すと判定したブランチの行だけを外し、ブランチごとの件数を返す", () => {
     const r = withoutOtherWorktrees(
       [...rows, { key: "k2", branch: "feature/2-there" }],
-      new Set(["feature/2-there"]),
+      only("feature/2-there"),
     );
     expect(r.rows.map((x) => x.branch)).toEqual(["feature/1-here", "main", ""]);
-    expect(r.elsewhere).toEqual({ "feature/2-there": 2 });
+    expect([...r.elsewhere]).toEqual([["feature/2-there", 2]]);
   });
 
   test("外すブランチが無ければ、すべての行を残す", () => {
-    const r = withoutOtherWorktrees(rows, new Set());
+    const r = withoutOtherWorktrees(rows, only());
     expect(r.rows).toEqual(rows);
-    expect(r.elsewhere).toEqual({});
+    expect([...r.elsewhere]).toEqual([]);
   });
 
   test("打ち消しの行は、外すブランチの行でも残す", () => {
     const retraction = { key: "k:old", branch: "feature/2-there", retracted: "1" };
-    const r = withoutOtherWorktrees([retraction], new Set(["feature/2-there"]));
+    const r = withoutOtherWorktrees([retraction], only("feature/2-there"));
     expect(r.rows).toEqual([retraction]);
-    expect(r.elsewhere).toEqual({});
+    expect([...r.elsewhere]).toEqual([]);
+  });
+
+  test("Object のプロパティと同じ名前のブランチも、件数を数える", () => {
+    const r = withoutOtherWorktrees(
+      [
+        { key: "a", branch: "constructor" },
+        { key: "b", branch: "__proto__" },
+      ],
+      only("constructor", "__proto__"),
+    );
+    expect([...r.elsewhere]).toEqual([
+      ["constructor", 1],
+      ["__proto__", 1],
+    ]);
   });
 });
 
@@ -100,16 +119,21 @@ async function sharedOnFeature() {
   await s.git("commit", "-q", "-m", "setup");
   await s.git("switch", "-q", "-c", "feature/8-main");
   const commonDir = join(s.repo, ".git");
-  /** 別の作業ツリーを、新しいブランチ（main なら既存の main）で作る。 */
-  const addWorktree = async (name: string, branch: string) => {
+  /** 別の作業ツリーを、新しいブランチ（main なら既存の main）で作る。start を渡すと、その commit から作る。 */
+  const addWorktree = async (name: string, branch: string, start?: string) => {
     const wt = join(s.tmp, name);
     if (branch === "main") await s.git("worktree", "add", "-q", wt, "main");
-    else await s.git("worktree", "add", "-q", "-b", branch, wt);
+    else await s.git("worktree", "add", "-q", "-b", branch, wt, ...(start ? [start] : []));
     return wt;
   };
   const record = (branch: string, decision: "record" | "decline" = "record") =>
     saveDecision(commonDir, { branch, decision, now: NOW });
-  const elsewhere = () => [...branchesRecordedElsewhere(repoInfo(s.repo), {}, null)].sort();
+  /** 外すと判定したブランチ。判定の関数は 1 回ごとに作り直す（覚えた結果を次の確認に持ち越さない）。 */
+  const elsewhere = (github = true) => {
+    const isElsewhere = branchesRecordedElsewhere(repoInfo(s.repo), { env: {}, github, gh: null });
+    const candidates = ["feature/1-a", "feature/2-b", "feature/3-c", "feature/8-main", "main", ""];
+    return candidates.filter((b) => isElsewhere(b));
+  };
   return { ...s, commonDir, addWorktree, record, elsewhere };
 }
 
@@ -157,6 +181,23 @@ describe.concurrent("branchesRecordedElsewhere", () => {
     writeFileSync(join(s.commonDir, "agent-usage", "decisions.json"), "{");
     expect(s.elsewhere()).toEqual([]);
   });
+
+  test(".agent-usage/ の無い作業ツリーのブランチは、判断が「記録する」でも返さない", async () => {
+    const s = await sharedOnFeature();
+    // setup の commit より前（.agent-usage/ の無い commit）から作業ツリーを作る
+    const init = (await s.git("rev-list", "--max-parents=0", "HEAD")).trim();
+    await s.addWorktree("wt-a", "feature/1-a", init);
+    s.record("feature/1-a");
+    expect(s.elsewhere()).toEqual([]);
+  });
+
+  test("GitHub を取得しない collect では、どのブランチも返さない", async () => {
+    const s = await sharedOnFeature();
+    await s.addWorktree("wt-a", "feature/1-a");
+    s.record("feature/1-a");
+    expect(s.elsewhere(false)).toEqual([]);
+    expect(s.elsewhere(true)).toEqual(["feature/1-a"]);
+  });
 });
 
 describe.concurrent("別の作業ツリーの collect が記録するブランチの行を書かない collect", () => {
@@ -203,7 +244,8 @@ describe.concurrent("別の作業ツリーの collect が記録するブラン�
   test("別の作業ツリーが記録するブランチの行は書かず、その件数を出し、作業ツリーを消した後の collect で書く", async () => {
     const s = await withWorktree();
     s.record("feature/7-wt");
-    const r = await s.cli("collect", "--no-github");
+    // origin が無いので GitHub は取得しない（--no-github は付けない）
+    const r = await s.cli("collect");
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toMatch(
       /別の作業ツリーの collect が記録するので書かなかった行: feature\/7-wt \d+/,
@@ -213,7 +255,7 @@ describe.concurrent("別の作業ツリーの collect が記録するブラン�
     expect(before).not.toContain("feature/7-wt");
 
     await s.git("worktree", "remove", "--force", s.wt);
-    const again = await s.cli("collect", "--no-github");
+    const again = await s.cli("collect");
     expect(again.status, again.stderr).toBe(0);
     expect(again.stdout).not.toMatch(/別の作業ツリーの collect が記録する/);
     expect(writtenBranches(s)).toContain("feature/7-wt");
@@ -221,9 +263,30 @@ describe.concurrent("別の作業ツリーの collect が記録するブラン�
 
   test("別の作業ツリーのブランチに判断が無ければ、その行を書く", async () => {
     const s = await withWorktree();
+    const r = await s.cli("collect");
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).not.toMatch(/別の作業ツリーの collect が記録する/);
+    expect(writtenBranches(s)).toContain("feature/7-wt");
+  });
+
+  test("collect --no-github は、別の作業ツリーが記録するブランチの行も書く", async () => {
+    const s = await withWorktree();
+    s.record("feature/7-wt");
     const r = await s.cli("collect", "--no-github");
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).not.toMatch(/別の作業ツリーの collect が記録する/);
     expect(writtenBranches(s)).toContain("feature/7-wt");
+  });
+
+  test("Hook の collect も、別の作業ツリーが記録するブランチの行を書かず、その件数を出す", async () => {
+    const s = await withWorktree();
+    s.record("feature/7-wt");
+    s.record("feature/8-main");
+    const r = await s.gate("git commit -m x");
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout + r.stderr).toMatch(
+      /別の作業ツリーの collect が記録するので書かなかった行: feature\/7-wt \d+/,
+    );
+    expect(writtenBranches(s)).not.toContain("feature/7-wt");
   });
 });

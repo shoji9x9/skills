@@ -848,16 +848,21 @@ function recordCommit(repo, context, note) {
       env: process.env,
       github: true,
       gh: null,
-      elsewhere: branchesRecordedElsewhere(repo, process.env),
+      elsewhere: branchesRecordedElsewhere(repo, { env: process.env, github: true }),
     });
     // 今回書いたファイルに加えて、前回書いて stage されなかった（index.lock などで失敗した、手動の collect で書いた）記録も入れる
     git(["add", "--", ".agent-usage/records"], repo.root);
-    const notes =
+    const github =
       r.githubFailures.length > 0
         ? `（GitHub の取得に失敗した段: ${r.githubFailures.length}。その期間の停止は「判定不能」になる）`
         : r.githubSkipped
           ? `（GitHub は取得していない: ${r.githubSkipReason}）`
           : "";
+    const elsewhere = [...r.otherWorktreeRows].map(([b, n]) => `${b} ${n}`).join("、");
+    const notes =
+      elsewhere === ""
+        ? github
+        : `${github}（別の作業ツリーの collect が記録するので書かなかった行: ${elsewhere}）`;
     return {
       exit: 0,
       message: `agent-usage: 利用実績を記録した（新しい行 ${r.newRows}、stage したファイル ${r.written.length}）${notes}${note}`,
