@@ -1,0 +1,9 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:41611291323:1,ci,2026-11-03T09:44:01.407Z,p-cdee4961,github-actions,,,,2026-11-03T09:28:22.000Z,2026-11-03T09:28:23.000Z,Asia/Tokyo,feature/871-agent-usage-isolate-parallel-branches,871,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:41611291303:1,ci,2026-11-03T09:44:01.407Z,p-cdee4961,github-actions,,,,2026-11-03T09:28:22.000Z,2026-11-03T09:31:51.000Z,Asia/Tokyo,feature/871-agent-usage-isolate-parallel-branches,871,,,,,,,,,,CI;pull_request;failure,
+ci:41611058864:1,ci,2026-11-03T09:44:01.407Z,p-cdee4961,github-actions,,,,2026-11-03T09:26:37.000Z,2026-11-03T09:26:59.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:41611058881:1,ci,2026-11-03T09:44:01.407Z,p-cdee4961,github-actions,,,,2026-11-03T09:26:37.000Z,2026-11-03T09:31:10.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:41609692649:1,ci,2026-11-03T09:44:01.407Z,p-cdee4961,github-actions,,,,2026-11-03T09:16:30.000Z,2026-11-03T09:16:32.000Z,Asia/Tokyo,feature/870-schedule-report-index-columns,870,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:41609690242:1,ci,2026-11-03T09:44:01.407Z,p-cdee4961,github-actions,,,,2026-11-03T09:16:29.000Z,2026-11-03T09:21:04.000Z,Asia/Tokyo,feature/870-schedule-report-index-columns,870,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-11-02T09:15:47.212Z:2026-11-03T09:44:01.407Z,coverage,2026-11-03T09:44:01.407Z,p-cdee4961,,,,,2026-11-02T09:15:47.212Z,2026-11-03T09:44:01.407Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-02T09:44:01.407Z:2026-11-03T09:44:41.512Z,coverage,2026-11-03T09:44:41.512Z,p-cdee4961,,,,,2026-11-02T09:44:01.407Z,2026-11-03T09:44:41.512Z,Asia/Tokyo,,,,,,,,,,,,ok,

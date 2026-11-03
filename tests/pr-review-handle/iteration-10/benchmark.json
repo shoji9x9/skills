@@ -1,0 +1,157 @@
+{
+  "metadata": {
+    "skill_name": "pr-review-handle",
+    "skill_path": "<repo>/skills/pr-review-handle",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-03T09:43:11Z",
+    "evals_run": [12],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 12,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 44.093,
+        "tokens": 84392,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スレッド B は、スレッド A について利用者の答えが出るまで直さず、返信も解決もしないと述べている",
+          "passed": true,
+          "evidence": "「スレッド B …A と同じく、答えが出るまで直さず、返信も解決もしません」と、18 行が A の 10〜20 行に入る関係を根拠に述べている"
+        },
+        {
+          "text": "スレッド C は、スレッド A の答えを待たずに進めると述べている",
+          "passed": true,
+          "evidence": "「cache.ts とは別のファイルで、A の答えにも左右されないので、A を待たずに進めます」"
+        },
+        {
+          "text": "スレッド C を直す前に、exportCsv の呼び出し元をリポジトリ全体で探す（git grep など）と述べている",
+          "passed": true,
+          "evidence": "「直す前に、exportCsv の呼び出し元をリポジトリ全体から探します（git grep -n 'exportCsv' など）」"
+        },
+        {
+          "text": "exportCsv の呼び出し元が無ければ、exportCsv を削る案を選択肢に含めて返信すると述べている",
+          "passed": true,
+          "evidence": "呼び出し元が無い場合は「区切り文字の設定を作り込む案と、exportCsv を削る案を並べて判断」し、返信例に「exportCsv は削除した」がある"
+        },
+        {
+          "text": "返信の書き出しの例が、直した内容か直さない根拠で始まり、同意・お礼・謝罪だけの文（「ご指摘のとおりです」「ありがとうございます」など）を含まない",
+          "passed": true,
+          "evidence": "A・B・C の返信例はすべて「〜に変えた」「〜のままにする。〜ため」などの内容で始まり、同意・お礼の文が無い"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "冒頭で「コマンドは実行せず、ファイルも変更していません」と述べ、副作用は無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 31.464,
+        "tokens": 20001,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スレッド B は、スレッド A について利用者の答えが出るまで直さず、返信も解決もしないと述べている",
+          "passed": false,
+          "evidence": "B は A の方針が決まってから直すとしたが、「A を待つ場合」の返信例（「命名の件、承知しました。…」）を先に投稿する。返信もしないとは述べていない"
+        },
+        {
+          "text": "スレッド C は、スレッド A の答えを待たずに進めると述べている",
+          "passed": true,
+          "evidence": "C には範囲の確認の返信を A と並行して先に出し、A の答えを待たない"
+        },
+        {
+          "text": "スレッド C を直す前に、exportCsv の呼び出し元をリポジトリ全体で探す（git grep など）と述べている",
+          "passed": false,
+          "evidence": "C は範囲の確認を利用者に求めるだけで、exportCsv の呼び出し元を探す工程が無い"
+        },
+        {
+          "text": "exportCsv の呼び出し元が無ければ、exportCsv を削る案を選択肢に含めて返信すると述べている",
+          "passed": false,
+          "evidence": "C は delimiter 引数を足す最小の案を示すだけで、削る案は出てこない"
+        },
+        {
+          "text": "返信の書き出しの例が、直した内容か直さない根拠で始まり、同意・お礼・謝罪だけの文（「ご指摘のとおりです」「ありがとうございます」など）を含まない",
+          "passed": false,
+          "evidence": "B の返信例が「命名の件、承知しました。」という同意だけの文で始まる"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行もファイルの変更もしていません」と述べ、副作用は無い"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 44.093,
+        "stddev": 0,
+        "min": 44.093,
+        "max": 44.093
+      },
+      "tokens": {
+        "mean": 84392,
+        "stddev": 0,
+        "min": 84392,
+        "max": 84392
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.3333,
+        "stddev": 0,
+        "min": 0.3333,
+        "max": 0.3333
+      },
+      "time_seconds": {
+        "mean": 31.464,
+        "stddev": 0,
+        "min": 31.464,
+        "max": 31.464
+      },
+      "tokens": {
+        "mean": 20001,
+        "stddev": 0,
+        "min": 20001,
+        "max": 20001
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.67",
+      "time_seconds": "+12.6",
+      "tokens": "+64391"
+    }
+  },
+  "notes": []
+}
