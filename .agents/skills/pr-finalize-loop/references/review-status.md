@@ -3,8 +3,7 @@
 `pr-finalize-loop` の基本フローの手順 1（状態の取得）と手順 2（収束の判定）で読む。
 
 すべてのレビュアーを対象にするので、未解決のスレッドやレビューを取得するときに作成者で絞る必要は無い。
-`review_tool: copilot` を使うときは、Copilot の作成者の login が API によって書き方が違うので、依頼と検出ではこの違いに注意する。
-REST では `Copilot`、GraphQL では `copilot-pull-request-reviewer`、依頼に使うのは `copilot-pull-request-reviewer[bot]` である（詳しくは [`review-tool.md`](review-tool.md)）。
+`review_tool: copilot` では、Copilot の作成者の login が API によって違う。判定で使う書き方は、[`review-tool.md`](review-tool.md) の「copilot」で定める。
 
 ## HEAD のレビュー済み判定
 
