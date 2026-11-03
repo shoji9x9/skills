@@ -194,7 +194,7 @@ one_line() {
 # 置き換える組を並べるだけでは、上から順に置き換えて誤ったパスにする読み手がいるので、読む順序も書く。
 escape_note() {
 	# shellcheck disable=SC2016
-	printf '%s\n' 'パスの中の `\` は、次の 1 文字と組で読む（`\\` は `\`、`\n` は改行、`\r` は CR、`\v` は垂直タブ、`\f` は改ページ）。左から順に読み、戻した文字をもう一度読まない。'
+	printf '%s\n' 'パスの中の `\` は、次の 1 文字と組で読む（`\\` は `\`、`\n` は改行、`\r` は CR、`\v` は垂直タブ、`\f` は改ページ、`\|` は `|`）。左から順に読み、戻した文字をもう一度読まない。'
 }
 
 # Issue の表のセルに入れる値を返す。1 行に収めたうえで、列の区切りとして読まれる `|` を `\|` と書く。
@@ -341,7 +341,7 @@ cmd_config() {
 }
 
 cmd_issue() {
-	local count _rank _sort_key idx shown escaped=0
+	local count _rank _sort_key idx shown escaped=0 path_cell
 	resolve_config
 	build_pending_index
 	count=${#pending_files[@]}
@@ -363,12 +363,14 @@ cmd_issue() {
 	shown=0
 	while IFS=$'\t' read -r _rank _sort_key idx; do
 		[ "${shown}" -lt "${MAX_TABLE_ROWS}" ] || break
-		[ "$(one_line "${pending_files[idx]}")" = "${pending_files[idx]}" ] || escaped=1
+		# ノートの列は、Markdown のまま本文を読む読み手もいるので、`|` を `\|` と書いた分も書き分けとして数える。
+		path_cell=$(table_cell "${pending_files[idx]}")
+		[ "${path_cell}" = "${pending_files[idx]}" ] || escaped=1
 		# SC2016: 表のセルを囲むバックティックはリテラル。展開させない意図で単一引用符が正しい。
 		# shellcheck disable=SC2016
 		printf '| %s | %s | %s | `%s` | %s |\n' \
 			"$(table_cell "${pending_priorities[idx]}")" "$(table_cell "${pending_types[idx]}")" \
-			"$(table_cell "${pending_dates[idx]}")" "$(table_cell "${pending_files[idx]}")" \
+			"$(table_cell "${pending_dates[idx]}")" "${path_cell}" \
 			"$(summary_of "${pending_files[idx]}")"
 		shown=$((shown + 1))
 	done <"${pending_index}"

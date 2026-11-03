@@ -479,6 +479,9 @@ describe("pending の数え方と並び", () => {
 
   // 索引はタブ区切りの 1 行 1 件なので、パスと frontmatter の値を索引に入れると、タブで列がずれ、改行で 1 件が 2 行に分かれる。
   // Issue の表では `|` も列を分ける。各行を、エスケープしていない `|` で分けたセルの数で確かめる。
+  // 書き分けたパスの戻し方。組の一覧で読み手が元のパスに戻せるかが決まるので、文全体を確かめる。
+  const ESCAPE_NOTE =
+    "パスの中の `\\` は、次の 1 文字と組で読む（`\\\\` は `\\`、`\\n` は改行、`\\r` は CR、`\\v` は垂直タブ、`\\f` は改ページ、`\\|` は `|`）。左から順に読み、戻した文字をもう一度読まない。";
   const tableRows = (body: string) =>
     body.split("\n").filter((l) => l.startsWith("| ") && l.includes(".kaizen/"));
   const cells = (row: string) =>
@@ -514,7 +517,7 @@ describe("pending の数え方と並び", () => {
       expect(body).toContain("**4 件**");
       expect(body).not.toContain("残り");
       // 書き分けたパスがあるときだけ、元のパスへの戻し方（読む順序を含む）を Issue と prompt に書く。
-      expect(body).toContain("左から順に読み、戻した文字をもう一度読まない");
+      expect(body).toContain(ESCAPE_NOTE);
       expect(tableRows(body).map((r) => cells(r).slice(0, 4))).toStrictEqual([
         ["high", "rule", "2026-09-01", "`.kaizen/new\\nline.md`"],
         ["medium", "rule", "2026-09-01", "`.kaizen/ta\tb.md`"],
@@ -522,7 +525,7 @@ describe("pending の数え方と並び", () => {
         ["low", "rule", "2026-09-02", "`.kaizen/back\\\\slash.md`"],
       ]);
       const prompt = run(p, ["prompt"]).stdout;
-      expect(prompt).toContain("左から順に読み、戻した文字をもう一度読まない");
+      expect(prompt).toContain(ESCAPE_NOTE);
       const items = prompt.split("\n").filter((l) => l.startsWith("- `.kaizen/"));
       expect(items).toStrictEqual([
         "- `.kaizen/new\\nline.md`（priority: high / type: rule）",
@@ -591,13 +594,25 @@ describe("pending の数え方と並び", () => {
     });
   });
 
+  // Issue の表は `|` も `\|` と書くので、`|` だけを含むパスでも戻し方を出す。prompt は `|` を書き分けないので出さない。
+  // 書き分けたパスが無ければ、Issue にも prompt にも出さない。
+  test("戻し方は、書き分けたパスがあるときだけ、その出力に出す", () => {
+    withProject({ notes: { "pi|pe": {} } }, (p) => {
+      expect(run(p, ["issue"]).stdout).toContain(ESCAPE_NOTE);
+      expect(run(p, ["prompt"]).stdout).not.toContain(ESCAPE_NOTE);
+    });
+    withProject({ notes: { a: {} } }, (p) => {
+      expect(run(p, ["issue"]).stdout).not.toContain(ESCAPE_NOTE);
+    });
+  });
+
   test("prompt 出力は対象ノートのパスを列挙する", () => {
     withProject({ notes: { a: {}, b: {} } }, (p) => {
       const out = run(p, ["prompt"]).stdout;
       expect(out).toContain(".kaizen/a.md");
       expect(out).toContain(".kaizen/b.md");
       expect(out).toContain("リポジトリを変更しない");
-      expect(out).not.toContain("左から順に読み、戻した文字をもう一度読まない");
+      expect(out).not.toContain(ESCAPE_NOTE);
     });
   });
 });
