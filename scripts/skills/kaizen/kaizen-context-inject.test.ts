@@ -385,7 +385,7 @@ describe("注入する件数の上限", () => {
   });
 
   // 索引にはパスを入れず、配列の添字を入れる。パスがタブや改行を含んでも、索引の列はずれない。
-  test("ファイル名に改行を含む学びも、改行を \\n と書いて 1 行に出し、並びどおりに件数に数える", () => {
+  test("ファイル名に改行を含む学びも、shell の引用の形で 1 行に出し、並びどおりに件数に数える", () => {
     const dir = repoWith('{ "inject_max_entries": 2 }\n');
     // 改行の後ろに見出しを置き、別の行として出ないことを確かめる。
     const name = "n\n## 偽の見出し\nx[$(touch pwned)]\t9\tz";
@@ -394,16 +394,31 @@ describe("注入する件数の上限", () => {
       "---\ndate: 2026-08-01\ntype: rule\npriority: high\nstatus: pending\n---\n\n## 提案\n\nnl\n",
     );
     const { stdout } = run(dir);
-    // 日付がいちばん古い high なので先頭に出る。
-    const shownName = name.replaceAll("\n", "\\n");
-    expect(stdout).toContain(
-      `- \`.kaizen/${shownName}.md\` — date: 2026-08-01 type: rule priority: high`,
+    // 日付がいちばん古い high なので先頭に出る。表示は $'...' の形で、改行は \n と書かれる。
+    const first = stdout.split("\n").find((l) => l.startsWith("- `"));
+    expect(first).toMatch(
+      /^- `\$'\.kaizen\/n\\n## 偽の見出し\\nx.*\.md'` — date: 2026-08-01 type: rule priority: high/,
     );
     expect(stdout).not.toMatch(/^## 偽の見出し/m);
     expect(injected(stdout).at(-1)).toBe("b-high-old");
     expect(stdout).toContain("## kaizen: 未適用の学び（6 件のうち 2 件）");
     expect(stdout).toContain("ほか 4 件（high 1 件・medium 2 件・low 1 件）");
     expect(existsSync(join(dir, "pwned"))).toBe(false);
+  });
+
+  // 表示から元のパスを一意に戻せるように、\ も書き分ける。
+  test("改行を含むファイル名と、\\ と n をそのまま含むファイル名を、表示で区別する", () => {
+    const dir = repoWith('{ "inject_max_entries": 2 }\n');
+    const note =
+      "---\ndate: 2026-08-01\ntype: rule\npriority: high\nstatus: pending\n---\n\n## 提案\n\nx\n";
+    writeFileSync(join(dir, ".kaizen", "a\nb.md"), note);
+    writeFileSync(join(dir, ".kaizen", "a\\nb.md"), note);
+    const { stdout } = run(dir);
+    const lines = stdout.split("\n").filter((l) => l.startsWith("- `"));
+    expect(lines.map((l) => l.split("` — ")[0])).toEqual([
+      "- `$'.kaizen/a\\nb.md'",
+      "- `.kaizen/a\\\\nb.md",
+    ]);
   });
 
   test("date にタブを含む学びも、パスを切らずに出し、日付の無い学びと同じく同じ priority の最後に置く", () => {
@@ -422,7 +437,7 @@ describe("注入する件数の上限", () => {
   });
 
   test.each([
-    ["引用符で囲んだ日付", '"2026-07-01"'],
+    ["月の日数を超える日付", "2026-02-30"],
     // 形は YYYY-MM-DD なので、形だけを見る判定では最も古い日付として先頭に並ぶ。
     ["暦に無い日付", "2026-00-01"],
   ])("date が暦の日付として読めない（%s）学びは、同じ priority の最後に置く", (_name, date) => {
