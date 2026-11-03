@@ -109,7 +109,7 @@ GitHub は `linguist-generated` の付いたファイルを、PR の差分で最
 
 | 状況 | 振る舞い |
 | --- | --- |
-| GitHub Copilot CLI が、Claude Code 用の登録（`.claude/settings.json`）としてこの Hook を呼んだ | 確認も記録もせずに通す。Copilot は `.claude/settings.json` の Hook も実行するが、このスキルは Copilot のログを読まない。環境変数 `COPILOT_CLI` が空でなく、入力の最上位に `timestamp` と `hook_event_name` があるときに、Copilot が呼んだと判定する（[GitHub Copilot hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference)）。判定は、引数が `claude-code` の登録と、引数を省いた登録（`claude-code` として扱う）に当て、それ以外の引数（`codex` など）の登録には当てない。判定の順は次の段落にある |
+| GitHub Copilot CLI が、Claude Code 用の登録（`.claude/settings.json`）としてこの Hook を呼んだ | 確認も記録もせずに通す。Copilot は `.claude/settings.json` の Hook も実行するが、このスキルは Copilot のログを読まない。環境変数 `COPILOT_CLI` が空でなく、入力の最上位に `timestamp` と `hook_event_name` があるときに、Copilot が呼んだと判定する（[GitHub Copilot hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference)）。判定は、引数が `claude-code` の登録と、引数を省いた登録・空の引数の登録（どちらも `claude-code` として扱う）に当て、それ以外の引数（`codex` など）の登録には当てない。判定の順は次の段落にある |
 | `git commit` を実行しない | 通す。判定が扱う書き方と、`git commit` を実行しても検出しない形の主な例は、下の「コミットと判定しない形と、コミットと判定する形」にある |
 | `.agent-usage/` が無い・detached HEAD・デフォルトブランチ | 通す |
 | ブランチの判断が無く、人の設定にもリポジトリの設定にも `defaultDecision` が無い | 止める（exit 2）。stderr で、利用者に確かめて `collect --stage` か `decline` を実行するよう求める |

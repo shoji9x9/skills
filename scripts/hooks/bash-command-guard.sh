@@ -42,13 +42,16 @@ kaizen_lib="$(dirname "${BASH_SOURCE[0]}")/../../.agents/skills/kaizen/scripts/k
 if [ -r "${kaizen_lib}" ]; then
 	# 読み込みの間だけ set -e と set -u を外す。外さないと、ライブラリの途中で 0 以外を返すコマンドや未定義の変数の参照で、
 	# このスクリプトが exit 1 で終わる。Claude Code は exit 1 を拒否として扱わないので、危険なコマンドを検査せずに通す。
-	# Copilot（.github/hooks の登録）は exit 1 も拒否として扱うので、外すと、そこで拒否していた入力も下の検査に進む（検査の結果で止める）。
-	# ライブラリの中の `exit` はここでは止められない。関数が定義されたかは、次の declare -f で確かめる。
+	# Copilot（.github/hooks の登録）は exit 1 も拒否として扱う。set -e と set -u を外したので、ライブラリの途中の失敗で
+	# exit 1 になって拒否されていた入力は、Copilot でも下の検査に進む。止めるかは、検査の結果で決まる。
+	# 読み込みの後は、読み込む前のシェルのオプション（set -o の全体。pipefail を含む）に戻す。ライブラリがオプションを変えても残さない。
+	# ライブラリの中の `exit` と、ライブラリが変えた trap・IFS は、ここでは戻せない。関数が定義されたかは、次の declare -f で確かめる。
+	saved_options=$(set +o)
 	set +eu
 	# 共通ライブラリはインストール済みのコピーで、source 先を静的に追えない。
 	# shellcheck source=/dev/null
 	. "${kaizen_lib}"
-	set -eu
+	eval "${saved_options}"
 fi
 # ライブラリを読めないときと、読めても関数が無いとき（古いコピー）は、判定を省いたことを、0 件と区別できるよう残す。
 # 危険語を含む入力でだけここに来るので、毎回の呼び出しには出ない。

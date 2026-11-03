@@ -397,7 +397,9 @@ test.each([
 const LIB_MARKER = "probe-library-loaded";
 // library を <dir>/.agents/skills/kaizen/scripts/kaizen-hook-common.sh に置き（undefined なら置かない）、Copilot の登録の入力で起動する。
 function runWithLibrary(library: string | undefined) {
-  const dir = makeTempDir("bash-command-guard-no-lib-");
+  const dir = makeTempDir(
+    library === undefined ? "bash-command-guard-no-lib-" : "bash-command-guard-lib-",
+  );
   mkdirSync(join(dir, "scripts", "hooks"), { recursive: true });
   const copied = join(dir, "scripts", "hooks", "bash-command-guard.sh");
   writeFileSync(copied, readFileSync(script, "utf8"));
@@ -442,7 +444,10 @@ test.each([
 
 // 読み込みの途中で失敗しても、その後に定義された判定の関数を使い、Copilot の登録の入力を通す。
 // 判定の関数は、インストール済みのコピーと同じ中身の原本（skills/kaizen の共通ライブラリ）を後ろに付けて使う。
+// 判定の関数は JSON を jq（無ければ python3）で読む。どちらも無いと判定できずに検査を続けるので、jq があることを前提として確かめる。
 test("共通ライブラリの途中で失敗しても、判定の関数があれば Copilot の登録の入力を通す", () => {
+  const jq = spawnSync("bash", ["-c", "command -v jq"], { timeout: CHILD_TIMEOUT_MS });
+  expect(jq.status, "jq が必要（判定の関数が入力を読むのに使う）").toBe(0);
   const original = readFileSync(
     join(repoRoot, "skills/kaizen/scripts/kaizen-hook-common.sh"),
     "utf8",
