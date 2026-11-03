@@ -190,11 +190,16 @@ one_line() {
 	printf '%s' "${s}"
 }
 
-# one_line で書き分けたパスを元に戻す方法を出す。Issue の表と prompt の両方で、書き分けたパスがあるときだけ出す。
+# 書き分けたパスを元に戻す方法を出す。Issue の表と prompt のそれぞれで、書き分けたパスがあるときだけ出す。
+# $1 が issue なら、table_cell が `|` を `\|` と書いた分の組も足す。prompt は `|` を書き分けないので、その組を出さない。
 # 置き換える組を並べるだけでは、上から順に置き換えて誤ったパスにする読み手がいるので、読む順序も書く。
 escape_note() {
+	local pipe_pair=""
 	# shellcheck disable=SC2016
-	printf '%s\n' 'パスの中の `\` は、次の 1 文字と組で読む（`\\` は `\`、`\n` は改行、`\r` は CR、`\v` は垂直タブ、`\f` は改ページ、`\|` は `|`）。左から順に読み、戻した文字をもう一度読まない。'
+	[ "$1" != issue ] || pipe_pair='、`\|` は `|`'
+	# shellcheck disable=SC2016
+	printf '%s%s%s\n' 'パスの中の `\` は、次の 1 文字と組で読む（`\\` は `\`、`\n` は改行、`\r` は CR、`\v` は垂直タブ、`\f` は改ページ' \
+		"${pipe_pair}" '）。左から順に読み、戻した文字をもう一度読まない。'
 }
 
 # Issue の表のセルに入れる値を返す。1 行に収めたうえで、列の区切りとして読まれる `|` を `\|` と書く。
@@ -378,7 +383,7 @@ cmd_issue() {
 	# 書き分けたパスがあれば、元のパスへの戻し方を書く。書かないと、表からコピーしたパスでノートを開けない。
 	if [ "${escaped}" = 1 ]; then
 		echo
-		escape_note
+		escape_note issue
 	fi
 	if [ "${count}" -gt "${shown}" ]; then
 		echo
@@ -458,7 +463,7 @@ EOS
 	echo
 	# 書き分けたパスがあれば、元のパスへの戻し方を書く。書かないと、エージェントは書き分けた文字列のままノートを開こうとして失敗する。
 	if [ "${escaped}" = 1 ]; then
-		escape_note
+		escape_note prompt
 		echo
 	fi
 	printf '%s\n' "${items[@]}"

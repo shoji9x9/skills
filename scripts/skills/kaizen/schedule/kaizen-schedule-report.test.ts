@@ -477,11 +477,18 @@ describe("pending の数え方と並び", () => {
     });
   });
 
+  // 書き分けたパスがあるときに出す戻し方の文。読み手が元のパスに戻せるかは組の一覧で決まるので、出ることは文全体の一致で確かめる。
+  // Issue の文だけが、表で `|` を `\|` と書いた分の組を持つ。
+  const NOTE_HEAD =
+    "パスの中の `\\` は、次の 1 文字と組で読む（`\\\\` は `\\`、`\\n` は改行、`\\r` は CR、`\\v` は垂直タブ、`\\f` は改ページ";
+  const NOTE_TAIL = "）。左から順に読み、戻した文字をもう一度読まない。";
+  const ISSUE_NOTE = `${NOTE_HEAD}、\`\\|\` は \`|\`${NOTE_TAIL}`;
+  const PROMPT_NOTE = `${NOTE_HEAD}${NOTE_TAIL}`;
+  // 出ないことは、両方の文に共通する末尾で確かめる。文全体で比べると、文が 1 字変わっただけで、出ていても通ってしまう。
+  const NOTE_MARK = "左から順に読み、戻した文字をもう一度読まない";
+
   // 索引はタブ区切りの 1 行 1 件なので、パスと frontmatter の値を索引に入れると、タブで列がずれ、改行で 1 件が 2 行に分かれる。
   // Issue の表では `|` も列を分ける。各行を、エスケープしていない `|` で分けたセルの数で確かめる。
-  // 書き分けたパスの戻し方。組の一覧で読み手が元のパスに戻せるかが決まるので、文全体を確かめる。
-  const ESCAPE_NOTE =
-    "パスの中の `\\` は、次の 1 文字と組で読む（`\\\\` は `\\`、`\\n` は改行、`\\r` は CR、`\\v` は垂直タブ、`\\f` は改ページ、`\\|` は `|`）。左から順に読み、戻した文字をもう一度読まない。";
   const tableRows = (body: string) =>
     body.split("\n").filter((l) => l.startsWith("| ") && l.includes(".kaizen/"));
   const cells = (row: string) =>
@@ -517,7 +524,7 @@ describe("pending の数え方と並び", () => {
       expect(body).toContain("**4 件**");
       expect(body).not.toContain("残り");
       // 書き分けたパスがあるときだけ、元のパスへの戻し方（読む順序を含む）を Issue と prompt に書く。
-      expect(body).toContain(ESCAPE_NOTE);
+      expect(body).toContain(ISSUE_NOTE);
       expect(tableRows(body).map((r) => cells(r).slice(0, 4))).toStrictEqual([
         ["high", "rule", "2026-09-01", "`.kaizen/new\\nline.md`"],
         ["medium", "rule", "2026-09-01", "`.kaizen/ta\tb.md`"],
@@ -525,7 +532,7 @@ describe("pending の数え方と並び", () => {
         ["low", "rule", "2026-09-02", "`.kaizen/back\\\\slash.md`"],
       ]);
       const prompt = run(p, ["prompt"]).stdout;
-      expect(prompt).toContain(ESCAPE_NOTE);
+      expect(prompt).toContain(PROMPT_NOTE);
       const items = prompt.split("\n").filter((l) => l.startsWith("- `.kaizen/"));
       expect(items).toStrictEqual([
         "- `.kaizen/new\\nline.md`（priority: high / type: rule）",
@@ -598,11 +605,12 @@ describe("pending の数え方と並び", () => {
   // 書き分けたパスが無ければ、Issue にも prompt にも出さない。
   test("戻し方は、書き分けたパスがあるときだけ、その出力に出す", () => {
     withProject({ notes: { "pi|pe": {} } }, (p) => {
-      expect(run(p, ["issue"]).stdout).toContain(ESCAPE_NOTE);
-      expect(run(p, ["prompt"]).stdout).not.toContain(ESCAPE_NOTE);
+      expect(run(p, ["issue"]).stdout).toContain(ISSUE_NOTE);
+      expect(run(p, ["prompt"]).stdout).not.toContain(NOTE_MARK);
     });
     withProject({ notes: { a: {} } }, (p) => {
-      expect(run(p, ["issue"]).stdout).not.toContain(ESCAPE_NOTE);
+      expect(run(p, ["issue"]).stdout).not.toContain(NOTE_MARK);
+      expect(run(p, ["prompt"]).stdout).not.toContain(NOTE_MARK);
     });
   });
 
@@ -612,7 +620,7 @@ describe("pending の数え方と並び", () => {
       expect(out).toContain(".kaizen/a.md");
       expect(out).toContain(".kaizen/b.md");
       expect(out).toContain("リポジトリを変更しない");
-      expect(out).not.toContain(ESCAPE_NOTE);
+      expect(out).not.toContain(NOTE_MARK);
     });
   });
 });
