@@ -91,6 +91,10 @@ function printCollect(r) {
     console.log(`範囲より古いので読まなかった記録のファイル: ${r.skippedFiles}`);
   if (r.olderRowsSkipped > 0)
     console.log(`開始時刻が範囲より古いので書かなかった行: ${r.olderRowsSkipped}`);
+  for (const [branch, n] of Object.entries(r.otherWorktreeRows))
+    console.log(
+      `別の作業ツリーが checkout しているので書かなかった行（その作業ツリーの collect が書く）: ${branch} ${n}`,
+    );
   if (r.retractedRows > 0)
     console.log(`打ち消した行（ログはあるが、今は作らなくなった行）: ${r.retractedRows}`);
   if (r.duplicateMessages > 0)

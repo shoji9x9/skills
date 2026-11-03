@@ -1,0 +1,72 @@
+{
+  "$comment": [
+    "worktree-branches.test.ts のうち、別の作業ツリーのブランチの行を外す判定を検出できることを示す変異の一覧。",
+    "外しすぎると行がどこにも書かれず、外さないと別のブランチの記録に入る。どちらもエラーにならない。"
+  ],
+  "test_file": "scripts/skills/agent-usage/worktree-branches.test.ts",
+  "mutations": [
+    {
+      "id": "other-worktree-rows-written",
+      "why": "別の作業ツリーが checkout しているブランチの行を、今のブランチの記録に書く",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "    if (r.retracted === \"1\" || !other.has(b)) return true;",
+      "replace": "    if (true) return true;",
+      "occurrences": 1,
+      "expect_failing": [
+        "withoutOtherWorktrees 別の作業ツリーが checkout しているブランチの行だけを外し、ブランチごとの件数を返す",
+        "withoutOtherWorktrees origin/HEAD が無ければ、main と master をデフォルトブランチとして外さない",
+        "withoutOtherWorktrees origin/HEAD が main 以外なら、main は外す対象になる",
+        "withoutOtherWorktrees 打ち消しの行は、別の作業ツリーが checkout しているブランチでも外さない",
+        "withoutOtherWorktrees detached の作業ツリー（今のブランチが空）でも、branch 列が空の行は外さない",
+        "別の作業ツリーのブランチの行を書かない collect 別の作業ツリーのブランチの行は書かず、その件数を出し、作業ツリーを消した後の collect で書く"
+      ]
+    },
+    {
+      "id": "other-worktree-retraction-dropped",
+      "why": "今の作業ツリーの記録にある行の打ち消しを書かず、どの作業ツリーもその行を打ち消せなくなる",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "    if (r.retracted === \"1\" || !other.has(b)) return true;",
+      "replace": "    if (!other.has(b)) return true;",
+      "occurrences": 1,
+      "expect_failing": [
+        "withoutOtherWorktrees 打ち消しの行は、別の作業ツリーが checkout しているブランチでも外さない"
+      ]
+    },
+    {
+      "id": "default-branch-dropped",
+      "why": "別の作業ツリーが checkout しているデフォルトブランチの行を、どこにも書かない",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "  const keep = new Set([repo.branch, ...defaultBranches(repo), ...o.closedBranches]);",
+      "replace": "  const keep = new Set([repo.branch, ...o.closedBranches]);",
+      "occurrences": 1,
+      "expect_failing": [
+        "withoutOtherWorktrees デフォルトブランチは、別の作業ツリーが checkout していても外さない",
+        "withoutOtherWorktrees origin/HEAD が無ければ、main と master をデフォルトブランチとして外さない"
+      ]
+    },
+    {
+      "id": "closed-branch-dropped",
+      "why": "PR がすべて閉じたブランチの行を、作業ツリーが残っている間どこにも書かない",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "  const keep = new Set([repo.branch, ...defaultBranches(repo), ...o.closedBranches]);",
+      "replace": "  const keep = new Set([repo.branch, ...defaultBranches(repo)]);",
+      "occurrences": 1,
+      "expect_failing": [
+        "withoutOtherWorktrees 取得した PR がすべて閉じたブランチは、別の作業ツリーが checkout していても外さない",
+        "別の作業ツリーのブランチの行を書かない collect 取得した PR がすべて閉じたブランチの行は、別の作業ツリーが checkout していても書く"
+      ]
+    },
+    {
+      "id": "prunable-worktree-dropped",
+      "why": "ディレクトリが消えた作業ツリーのブランチの行を、どこにも書かない",
+      "file": "skills/agent-usage/scripts/lib/repo.mjs",
+      "find": "    else if (line === \"prunable\" || line.startsWith(\"prunable \")) cur.prunable = true;",
+      "replace": "    else if (false) cur.prunable = true;",
+      "occurrences": 1,
+      "expect_failing": [
+        "parseWorktreeList 作業ツリーごとに、パス・ブランチ・prunable かを読む",
+        "別の作業ツリーのブランチの行を書かない collect ディレクトリが消えて prunable になった作業ツリーのブランチの行は書く"
+      ]
+    }
+  ]
+}

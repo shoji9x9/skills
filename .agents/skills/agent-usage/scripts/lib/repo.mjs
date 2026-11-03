@@ -79,10 +79,34 @@ export function isDecisionBranch(repo) {
  * @property {string} root 今の作業ツリーのルート
  * @property {string} commonDir git の共通のディレクトリ（worktree で共有する）
  * @property {string[]} worktrees すべての作業ツリーのルート
+ * @property {string[]} otherBranches 今の作業ツリー以外の作業ツリーが checkout しているブランチ（ディレクトリが消えて prunable になったものを除く）
  * @property {string} remote origin を normalizeRemote した形（無ければ空）
  * @property {string} branch 今のブランチ（detached なら空）
  * @property {string | null} defaultBranch リモートのデフォルトブランチ（分からなければ null）
  */
+
+/**
+ * `git worktree list --porcelain` の出力を、作業ツリーごとに読む。
+ * 形式: https://git-scm.com/docs/git-worktree#_porcelain_format
+ * （空行で区切った項目ごとに `worktree <パス>`・`branch refs/heads/<名前>` か `detached`・`prunable [理由]` などの行を持つ）
+ * @param {string} text
+ * @returns {{ path: string; branch: string; prunable: boolean }[]}
+ */
+export function parseWorktreeList(text) {
+  /** @type {{ path: string; branch: string; prunable: boolean }[]} */
+  const list = [];
+  for (const line of text.split("\n")) {
+    if (line.startsWith("worktree ")) {
+      list.push({ path: line.slice("worktree ".length), branch: "", prunable: false });
+      continue;
+    }
+    const cur = list.at(-1);
+    if (cur === undefined) continue;
+    if (line.startsWith("branch refs/heads/")) cur.branch = line.slice("branch refs/heads/".length);
+    else if (line === "prunable" || line.startsWith("prunable ")) cur.prunable = true;
+  }
+  return list;
+}
 
 /**
  * @param {string} cwd
@@ -92,16 +116,17 @@ export function repoInfo(cwd) {
   const root = git(["rev-parse", "--show-toplevel"], cwd).trim();
   const commonRaw = git(["rev-parse", "--git-common-dir"], root).trim();
   const commonDir = isAbsolute(commonRaw) ? commonRaw : resolve(root, commonRaw);
-  const worktrees = git(["worktree", "list", "--porcelain"], root)
-    .split("\n")
-    .filter((l) => l.startsWith("worktree "))
-    .map((l) => l.slice("worktree ".length));
+  const list = parseWorktreeList(git(["worktree", "list", "--porcelain"], root));
+  const worktrees = list.map((w) => w.path);
   if (!worktrees.includes(root)) worktrees.push(root);
+  const otherBranches = list
+    .filter((w) => w.path !== root && !w.prunable && w.branch !== "")
+    .map((w) => w.branch);
   const remote = normalizeRemote(gitOrNull(["remote", "get-url", "origin"], root) ?? "");
   const branch = (gitOrNull(["symbolic-ref", "--quiet", "--short", "HEAD"], root) ?? "").trim();
   const head = gitOrNull(["symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"], root);
   const defaultBranch = head ? head.trim().replace(/^refs\/remotes\/origin\//, "") : null;
-  return { root, commonDir, worktrees, remote, branch, defaultBranch };
+  return { root, commonDir, worktrees, otherBranches, remote, branch, defaultBranch };
 }
 
 /**
