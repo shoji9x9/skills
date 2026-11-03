@@ -27,3 +27,7 @@ ci:41589590629:1,ci,2026-11-03T06:26:31.989Z,p-cdee4961,github-actions,,,,2026-1
 ci:41589248441:1,ci,2026-11-03T06:26:31.989Z,p-cdee4961,github-actions,,,,2026-11-03T06:20:23.000Z,2026-11-03T06:20:30.000Z,Asia/Tokyo,feature/867-kaizen-inject-max-entries,867,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:41589248281:1,ci,2026-11-03T06:26:31.989Z,p-cdee4961,github-actions,,,,2026-11-03T06:20:23.000Z,2026-11-03T06:24:33.000Z,Asia/Tokyo,feature/867-kaizen-inject-max-entries,867,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-11-02T06:19:21.887Z:2026-11-03T06:26:31.989Z,coverage,2026-11-03T06:26:31.989Z,p-cdee4961,,,,,2026-11-02T06:19:21.887Z,2026-11-03T06:26:31.989Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:41590007661:1,ci,2026-11-03T06:35:30.046Z,p-cdee4961,github-actions,,,,2026-11-03T06:27:35.000Z,2026-11-03T06:27:36.000Z,Asia/Tokyo,feature/867-kaizen-inject-max-entries,867,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:41590007749:1,ci,2026-11-03T06:35:30.046Z,p-cdee4961,github-actions,,,,2026-11-03T06:27:35.000Z,2026-11-03T06:32:21.000Z,Asia/Tokyo,feature/867-kaizen-inject-max-entries,867,,,,,,,,,,CI;pull_request;success,
+ci:41589590629:1,ci,2026-11-03T06:35:30.046Z,p-cdee4961,github-actions,,,,2026-11-03T06:23:37.000Z,2026-11-03T06:27:58.000Z,Asia/Tokyo,feature/861-skill-red-before-writing,861,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-11-02T06:26:31.989Z:2026-11-03T06:35:30.046Z,coverage,2026-11-03T06:35:30.046Z,p-cdee4961,,,,,2026-11-02T06:26:31.989Z,2026-11-03T06:35:30.046Z,Asia/Tokyo,,,,,,,,,,,,ok,

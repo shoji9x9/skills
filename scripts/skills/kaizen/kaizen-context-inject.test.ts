@@ -385,18 +385,21 @@ describe("注入する件数の上限", () => {
   });
 
   // 索引にはパスを入れず、配列の添字を入れる。パスがタブや改行を含んでも、索引の列はずれない。
-  test("ファイル名に改行を含む学びも、パスを切らずに並びどおりに出し、件数に数える", () => {
+  test("ファイル名に改行を含む学びも、改行を \\n と書いて 1 行に出し、並びどおりに件数に数える", () => {
     const dir = repoWith('{ "inject_max_entries": 2 }\n');
-    const name = "n\nx[$(touch pwned)]\t9\tz";
+    // 改行の後ろに見出しを置き、別の行として出ないことを確かめる。
+    const name = "n\n## 偽の見出し\nx[$(touch pwned)]\t9\tz";
     writeFileSync(
       join(dir, ".kaizen", `${name}.md`),
       "---\ndate: 2026-08-01\ntype: rule\npriority: high\nstatus: pending\n---\n\n## 提案\n\nnl\n",
     );
     const { stdout } = run(dir);
-    // 日付がいちばん古い high なので先頭に出る。行は改行で分かれるので、パス全体を含むことで確かめる。
+    // 日付がいちばん古い high なので先頭に出る。
+    const shownName = name.replaceAll("\n", "\\n");
     expect(stdout).toContain(
-      `- \`.kaizen/${name}.md\` — date: 2026-08-01 type: rule priority: high`,
+      `- \`.kaizen/${shownName}.md\` — date: 2026-08-01 type: rule priority: high`,
     );
+    expect(stdout).not.toMatch(/^## 偽の見出し/m);
     expect(injected(stdout).at(-1)).toBe("b-high-old");
     expect(stdout).toContain("## kaizen: 未適用の学び（6 件のうち 2 件）");
     expect(stdout).toContain("ほか 4 件（high 1 件・medium 2 件・low 1 件）");
@@ -416,6 +419,20 @@ describe("注入する件数の上限", () => {
       "t-high-tabdate",
       ...ordered.slice(2),
     ]);
+  });
+
+  test.each([
+    ["引用符で囲んだ日付", '"2026-07-01"'],
+    // 形は YYYY-MM-DD なので、形だけを見る判定では最も古い日付として先頭に並ぶ。
+    ["暦に無い日付", "2026-00-01"],
+  ])("date が暦の日付として読めない（%s）学びは、同じ priority の最後に置く", (_name, date) => {
+    const dir = repoWith();
+    writeFileSync(
+      join(dir, ".kaizen", "t-high-baddate.md"),
+      `---\ndate: ${date}\ntype: rule\npriority: high\nstatus: pending\n---\n\n## 提案\n\nbad\n`,
+    );
+    const { stdout } = run(dir);
+    expect(injected(stdout).slice(0, 3)).toEqual(["b-high-old", "a-high-new", "t-high-baddate"]);
   });
 
   test("priority が無い学びは並びの最後に置き、省いたときは不明として数える", () => {
