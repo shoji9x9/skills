@@ -167,13 +167,9 @@ for f in .kaizen/*.md; do
 	done
 	# 日付は、共通ライブラリが暦の日付として読めるときだけ並べ替えに使う（忘却と同じ読み方）。
 	# 読めなければ、日付の無い学びと同じく同じ priority の最後に置く。
-	# 共通ライブラリにこの関数が無いときは、形だけを確かめる（ほかのスクリプトと同じく、在るかを確かめてから呼ぶ）。
+	# 共通ライブラリにこの関数が無いときは、日付を確かめられないので並べ替えに使わない（ほかのスクリプトと同じく、在るかを確かめてから呼ぶ）。
 	sort_date=9999-99-99
-	if declare -f kaizen_days_from_date >/dev/null 2>&1; then
-		if kaizen_days_from_date "${date_value}" >/dev/null; then
-			sort_date=${date_value}
-		fi
-	elif [[ "${date_value}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+	if declare -f kaizen_days_from_date >/dev/null 2>&1 && kaizen_days_from_date "${date_value}" >/dev/null; then
 		sort_date=${date_value}
 	fi
 	printf '%s\t%s\t%s\n' "${rank}" "${sort_date}" "${#pending_files[@]}" >>"${pending_index}" || exit 0
@@ -285,14 +281,14 @@ while IFS=$'\t' read -r rank _date idx; do
 	if [ "${#summary}" -gt 120 ] && grep -qi 'utf-\{0,1\}8' <<<"$(locale charmap 2>/dev/null)"; then
 		summary="${summary:0:119}…"
 	fi
-	# パスにタブ以外の制御文字（改行・CR など）か \ を含むときは、shell の引用の形（$'...'）で書いて 1 行に収める。
-	# そのまま出すと、改行の後ろが別の行（見出しや学びの行）として読まれる。\ も書き分けるので、表示から元のパスを一意に戻せる。
-	# タブは行を分けないので、そのまま出す。
-	shown_path=${f}
-	path_without_tabs=${f//$'\t'/}
-	if [[ "${path_without_tabs}" == *[[:cntrl:]\\]* ]]; then
-		shown_path=$(printf '%q' "${f}")
-	fi
+	# パスの \・改行・CR・垂直タブ・改ページを、\\・\n・\r・\v・\f と書いて 1 行に収める。
+	# そのまま出すと、改行の後ろが別の行（見出しや学びの行）として読まれる。\ を先に書き分けるので、表示から元のパスを一意に戻せる。
+	# printf %q は使わない。ロケールが C だと日本語をバイトごとの 8 進で書き、どの学びか読めなくなるからである。タブは行を分けないので、そのまま出す。
+	shown_path=${f//\\/\\\\}
+	shown_path=${shown_path//$'\n'/\\n}
+	shown_path=${shown_path//$'\r'/\\r}
+	shown_path=${shown_path//$'\v'/\\v}
+	shown_path=${shown_path//$'\f'/\\f}
 	echo "- \`${shown_path}\` — ${meta}— ${summary}"
 done <"${pending_index}"
 
