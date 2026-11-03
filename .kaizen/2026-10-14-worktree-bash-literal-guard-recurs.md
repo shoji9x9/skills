@@ -376,3 +376,10 @@ manifest を更新する JSON の heredoc と python の起動を並べた呼び
 形は、issue-start の基本フロー step 8 の現状の確認で、`git fetch`・`git rev-list`・`git log` を `&&` でつなぎ、`pnpm exec markdownlint-cli2` の動作確認まで 1 回の呼び出しに書いたものである（#843 の 2 回目と同じ）。
 単独の呼び出し 3 回に分けて通した。新しい形は無い。
 issue-start の step 8 の例は 1 つのコードブロックに複数の git コマンドを並べているので、worktree に入った後はその形のまま書き写すと拒否される。
+
+### 再発の記録（#871）
+
+2026-11-03、#871 の作業（issue-start から git-worktree enter）で、worktree に入った後の Bash の呼び出しが 1 回拒否された（`this command is too complex to verify`）。
+形は、mutations.json を書き換える python の quoted heredoc に続けて、`oxfmt` と mutation のランナーを `;` でつないだものである（#662 の 2 回目と同じ）。
+Write ツールでスクリプトにして絶対パスで実行し、整形とランナーを単独の呼び出しに分けて通した。新しい形は無い。
+同じセッションでは、単独の python の quoted heredoc（本文に `git` の語を含まないもの）は 4 回通っていた。後ろに別のコマンドをつないだときだけ拒否された。
