@@ -1,6 +1,6 @@
-import { afterEach, assert, expect, test } from "vitest";
+import { afterEach, assert, describe, expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
@@ -161,4 +161,55 @@ test.each([
   ["x=$(cmd) || head=fallback"],
 ])("herestring 形・非パイプは検出しない（%s）", (line) => {
   expect(PIPED_TRUTH_READ.test(line)).toBe(false);
+});
+
+// Copilot CLI は `.claude/settings.json` の SessionStart と `.github/hooks/` の sessionStart の両方を実行する（Issue #858）。
+// `.claude/settings.json` の登録として呼ばれたら、マーカーを消さず、学びも出さずに終える。Copilot の処理は `.github/hooks/` の登録が行う。
+// 入力の形は Copilot CLI 1.0.105 で記録したものに合わせる。PascalCase の登録だけが hook_event_name を持ち、timestamp は文字列になる。
+describe("Copilot が呼んだとき", () => {
+  function injectWith(dir: string, payload: Record<string, unknown>, copilotCli: string) {
+    const result = spawnSync("bash", [script], {
+      timeout: CHILD_TIMEOUT_MS,
+      cwd: dir,
+      env: { ...process.env, CLAUDE_PROJECT_DIR: dir, COPILOT_CLI: copilotCli },
+      input: JSON.stringify({ cwd: dir, ...payload }),
+      encoding: "utf8",
+    });
+    expect(result.status, result.stderr).toBe(0);
+    return result.stdout;
+  }
+  // key を持たない共有マーカー。通常の起動はこれを必ず消すので、何もせずに終えたかを区別できる。
+  function withSharedMarker() {
+    const dir = createRepo("要約");
+    const marker = join(dir, ".kaizen", ".extract-done");
+    writeFileSync(marker, "");
+    return { dir, marker };
+  }
+  const pascal = {
+    hook_event_name: "SessionStart",
+    session_id: "cp-1",
+    timestamp: "2026-11-02T11:47:38.429Z",
+    source: "new",
+  };
+  const camel = { sessionId: "cp-1", timestamp: 1793620058429, source: "new" };
+
+  test(".claude/settings.json の登録（PascalCase）なら、マーカーを消さず、何も出さずに exit 0", () => {
+    const { dir, marker } = withSharedMarker();
+    expect(injectWith(dir, pascal, "1")).toBe("");
+    expect(existsSync(marker)).toBe(true);
+  });
+
+  test.each([
+    [".github/hooks の登録（camelCase。hook_event_name が無い）", camel, "1"],
+    ["COPILOT_CLI が空（Claude Code が呼んだ）", pascal, ""],
+    [
+      "timestamp が無い（Copilot のシェルから起動した Claude Code）",
+      { hook_event_name: "SessionStart", session_id: "cc-1", source: "startup" },
+      "1",
+    ],
+  ])("%s なら、マーカーを消して学びを出す", (_name, payload, copilotCli) => {
+    const { dir, marker } = withSharedMarker();
+    expect(injectWith(dir, payload, copilotCli)).toContain("## kaizen: 未適用の学び");
+    expect(existsSync(marker)).toBe(false);
+  });
 });

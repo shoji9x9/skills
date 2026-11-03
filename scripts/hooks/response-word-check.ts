@@ -23,8 +23,8 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { errorMessage } from "../lib/errors.ts";
-import { isRecord } from "../lib/guards.ts";
-import { alreadyBlocked, recordBlocked } from "./stop-marker.ts";
+import { recordBlocked } from "./stop-marker.ts";
+import { stopResponse } from "./stop-input.ts";
 import { dashRule, wordRules } from "../lib/text/textlint-word-rule.ts";
 import { prose } from "./response-language-check.ts";
 import { isCliEntry } from "../lib/cli/entry.ts";
@@ -62,22 +62,11 @@ export async function main(
   root: string = REPO_ROOT,
   markerDir: string = tmpdir(),
 ): Promise<number> {
-  let payload: unknown;
-  try {
-    payload = JSON.parse(input);
-  } catch (error) {
-    // Stop で 2 を返すと書き直しを求めることになる。読めない入力では求めず、エラーとして見えるようにする。
-    console.error(`response-word-check: 入力の JSON を読めない: ${errorMessage(error)}`);
-    return 1;
-  }
-  if (!isRecord(payload)) {
-    console.error("response-word-check: 入力がオブジェクトでない");
-    return 1;
-  }
+  // 入力を読めない・Copilot から呼ばれた・既に止めた・本文が無いときは、確かめずに終える（stop-input.ts）。
   // 自分が止めた後だけ通す。別の Hook が書き直させた後の応答は確かめる（理由は stop-marker.ts）。
-  if (alreadyBlocked(HOOK, payload, markerDir)) return 0;
-  const message = payload.last_assistant_message;
-  if (typeof message !== "string" || message.trim() === "") return 0;
+  const response = stopResponse(HOOK, input, markerDir);
+  if (typeof response === "number") return response;
+  const { payload, message } = response;
   let findings: string[];
   try {
     findings = await findWords(message, root);

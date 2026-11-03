@@ -296,6 +296,58 @@ describe.concurrent("agent-usage のコマンドと Hook", () => {
     expect((await gate("git commit -m x")).status).toBe(0);
   });
 
+  // Copilot CLI は `.claude/settings.json` の Hook も実行する（Issue #858）。このスキルは Copilot のログを読まないので、
+  // `.claude/settings.json` の登録として呼ばれたら、確認も記録もせずに通す。止める入力（判断の無い feature ブランチの commit）で確かめる。
+  // 入力の形は Copilot CLI 1.0.105 で記録したものに合わせる。PascalCase の登録だけが hook_event_name を持ち、timestamp は文字列になる。
+  test("Copilot が .claude/settings.json の登録として呼んだら、止めずに、記録もせずに通す", async () => {
+    const { git, cli, gatePayload } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    await git("switch", "-q", "-c", "feature/5-x");
+    const pascal = {
+      hook_event_name: "PreToolUse",
+      session_id: "cp-1",
+      timestamp: "2026-11-02T11:47:41.710Z",
+      tool_name: "Bash",
+      tool_input: { command: "git commit -m x" },
+    };
+    const passed = await gatePayload({ COPILOT_CLI: "1" }, pascal);
+    expect(passed.status).toBe(0);
+    expect(passed.stderr).toBe("");
+    // 記録すると、明細を stage する。stage したファイルが無ければ、記録していない。
+    expect(await git("diff", "--cached", "--name-only")).toBe("");
+
+    const { timestamp: _omit, ...withoutTimestamp } = pascal;
+    const cases: [string, NodeJS.ProcessEnv, Record<string, unknown>][] = [
+      ["COPILOT_CLI が空（Claude Code が呼んだ）", { COPILOT_CLI: "" }, pascal],
+      [
+        "timestamp が無い（Copilot のシェルから起動した Claude Code）",
+        { COPILOT_CLI: "1" },
+        withoutTimestamp,
+      ],
+      [
+        "hook_event_name が無い（camelCase の登録の形）",
+        { COPILOT_CLI: "1" },
+        { ...pascal, hook_event_name: undefined },
+      ],
+    ];
+    for (const [name, env, fields] of cases) {
+      expect((await gatePayload(env, fields)).status, name).toBe(2);
+    }
+    // Codex 用の登録（引数 codex）は .claude/settings.json に置かないので、同じ入力でも判定に当てずに止める。
+    expect((await gatePayload({ COPILOT_CLI: "1" }, pascal, "codex")).status, "codex").toBe(2);
+    // 引数を省いた登録と空の引数の登録は claude-code として扱うので、判定に当てて通す（記録もしない）。
+    // stderr が空であることで、確認の処理の失敗（stderr に出して exit 0 で通す）と区別する。
+    for (const [name, agent] of [
+      ["引数なし", null],
+      ["空の引数", ""],
+    ] as const) {
+      const r = await gatePayload({ COPILOT_CLI: "1" }, pascal, agent);
+      expect(r.status, name).toBe(0);
+      expect(r.stderr, name).toBe("");
+    }
+    expect(await git("diff", "--cached", "--name-only")).toBe("");
+  });
+
   test("判断の無いブランチでは、defaultDecision に従って止めずに通す。人の設定がリポジトリの設定より優先する", async () => {
     const { tmp, repo, git, cli, gate } = await setup();
     expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);

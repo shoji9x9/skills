@@ -23,26 +23,50 @@ import { rememberWorktrees } from "./sources/worktrees.mjs";
  * @typedef {object} HookInput
  * @property {string} command
  * @property {string} cwd
+ * @property {boolean} copilotClaudeSettings Copilot が Claude Code 用の登録として呼んだか（isCopilotClaudeSettings）
  */
 
 /**
+ * GitHub Copilot CLI が、Claude Code 用の登録（`.claude/settings.json`）としてこの Hook を呼んだかを返す。
+ * Copilot は `.claude/settings.json` の Hook も実行する。出典は https://docs.github.com/en/copilot/reference/hooks-configuration である。
+ * このスキルは Copilot のログを読まないので、Copilot から呼ばれたら確認をせずに通す。
+ * 続けると、Copilot の commit に Claude Code の利用実績を記録して stage するか、Claude Code の判断を求めて commit を止める。
+ *
+ * 次の 3 つがすべて成り立つときだけ true を返す。
+ * - 環境変数 COPILOT_CLI が空でない（Copilot CLI 1.0.105 が Hook に COPILOT_CLI=1 を渡すことを実測した）
+ * - 入力の最上位に `timestamp` がある（Copilot は入れ、Claude Code は入れない。https://code.claude.com/docs/en/hooks）
+ * - 入力の最上位に `hook_event_name` がある。Copilot は PascalCase のイベント名で書いた登録にだけ入れる
+ *   （https://docs.github.com/en/copilot/reference/hooks-reference。1.0.105 で確かめた）
+ * Copilot のシェルから起動した Claude Code は COPILOT_CLI を引き継ぎうるが、その入力には `timestamp` が無いので false になる。
+ * JSON として読めない入力は判定できないので、readHookInput が false にする（確認を続ける）。
+ * @param {Record<string, unknown>} raw Hook の JSON を読んだ値
+ * @param {NodeJS.ProcessEnv} env
+ * @returns {boolean}
+ */
+function isCopilotClaudeSettings(raw, env) {
+  return Boolean(env.COPILOT_CLI) && "timestamp" in raw && "hook_event_name" in raw;
+}
+
+/**
  * Hook の JSON から、実行しようとしているコマンドと cwd を取る（Claude Code と Codex は tool_input.command）。
+ * Copilot が Claude Code 用の登録として呼んだかも、同じ 1 回の読み取りで判定する。
  * @param {string} text
+ * @param {NodeJS.ProcessEnv} env
  * @returns {HookInput}
  */
-export function readHookInput(text) {
+export function readHookInput(text, env) {
   /** @type {unknown} */
   let raw;
   try {
     raw = JSON.parse(text);
   } catch {
-    return { command: "", cwd: "" };
+    return { command: "", cwd: "", copilotClaudeSettings: false };
   }
-  if (!isRecord(raw)) return { command: "", cwd: "" };
+  if (!isRecord(raw)) return { command: "", cwd: "", copilotClaudeSettings: false };
   const input = isRecord(raw.tool_input) ? raw.tool_input : {};
   const command = typeof input.command === "string" ? input.command : "";
   const cwd = typeof raw.cwd === "string" ? raw.cwd : "";
-  return { command, cwd };
+  return { command, cwd, copilotClaudeSettings: isCopilotClaudeSettings(raw, env) };
 }
 
 /** コマンドの前に来るシェルの予約語（`if x; then git commit; fi` の then など）。 */

@@ -35,6 +35,17 @@ else
 	printf '%s: 共通ライブラリを読めないため、機能を減らして動きます: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
 fi
 
+# Claude Code 用の登録（`.claude/settings.json`）を GitHub Copilot CLI が呼んだときは、何もせずに終える。
+# Copilot は同じセッションの開始で `.github/hooks/` の sessionStart の登録も実行するので、続けると
+# マーカーの無効化と学びの出力が 2 回行われる。Copilot 用の処理は、そちらの登録が行う。
+# 判定の条件は kaizen-hook-common.sh の kaizen_payload_is_copilot_claude_settings にある。
+# `.github/hooks/` の登録からの入力には `hook_event_name` が無いので、この判定に当たらず、そのまま続ける。
+# 共通ライブラリを読めなければ判定できないので、これまでどおり続ける。
+if declare -f kaizen_payload_is_copilot_claude_settings >/dev/null 2>&1 &&
+	kaizen_payload_is_copilot_claude_settings "${input}"; then
+	exit 0
+fi
+
 session_key=""
 payload_cwd=""
 if declare -f kaizen_hook_fields >/dev/null 2>&1; then

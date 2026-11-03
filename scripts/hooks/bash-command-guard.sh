@@ -32,6 +32,36 @@ case "${input}" in
 *) exit 0 ;;
 esac
 
+# Claude Code 用の登録（`.claude/settings.json`）を GitHub Copilot CLI が呼んだときは、何もせずに通す。
+# Copilot は `.github/hooks/kaizen-session.json` の登録も実行するので、Copilot の検査はそちらが行う。
+# 判定は、同じ登録の仕方をする kaizen の Hook と同じ関数（kaizen-hook-common.sh の kaizen_payload_is_copilot_claude_settings）で行う。
+# 条件と理由は multiagent-setup の references/hooks.md「Copilot は Claude Code の設定ファイルの Hook も実行する」にある。
+# `.github/hooks/` の camelCase の登録からの入力には `hook_event_name` が無いので、検査を続ける。
+# 共通ライブラリを読めないときと、関数が判定できないとき（jq も python3 も無い・JSON として読めない）は、検査を続ける。
+kaizen_lib="$(dirname "${BASH_SOURCE[0]}")/../../.agents/skills/kaizen/scripts/kaizen-hook-common.sh"
+if [ -r "${kaizen_lib}" ]; then
+	# 読み込みの間だけ set -e と set -u を外す。外さないと、ライブラリの途中で 0 以外を返すコマンドや未定義の変数の参照で、
+	# このスクリプトが exit 1 で終わる。Claude Code は exit 1 を拒否として扱わないので、危険なコマンドを検査せずに通す。
+	# Copilot（.github/hooks の登録）は exit 1 も拒否として扱う。set -e と set -u を外したので、ライブラリの途中の失敗で
+	# exit 1 になって拒否されていた入力は、Copilot でも下の検査に進む。止めるかは、検査の結果で決まる。
+	# 読み込みの後は、このスクリプトの冒頭と同じ set -euo pipefail を明示して戻す。ライブラリが set のオプションを変えても残さない。
+	# `$(set +o)` で保存して eval で戻す形は使わない。コマンド置換の子シェルは errexit を外すので、set -e が戻らない。
+	# ライブラリの中の `exit` と、ライブラリが変えた trap・IFS・shopt のオプション（nocasematch など）は、ここでは戻せない。
+	# 関数が定義されたかは、次の declare -f で確かめる。
+	set +eu
+	# 共通ライブラリはインストール済みのコピーで、source 先を静的に追えない。
+	# shellcheck source=/dev/null
+	. "${kaizen_lib}"
+	set -euo pipefail
+fi
+# ライブラリを読めないときと、読めても関数が無いとき（古いコピー）は、判定を省いたことを、0 件と区別できるよう残す。
+# 危険語を含む入力でだけここに来るので、毎回の呼び出しには出ない。
+if ! declare -f kaizen_payload_is_copilot_claude_settings >/dev/null 2>&1; then
+	echo "bash-command-guard: kaizen の共通ライブラリから判定の関数を読めないため、Copilot の呼び出しかを判定していない: ${kaizen_lib}" >&2
+elif kaizen_payload_is_copilot_claude_settings "${input}"; then
+	exit 0
+fi
+
 # Hook payload の形はエージェントごとに違う。Claude Code は `tool_input.command`、Codex は
 # `toolArgs`（オブジェクトのことも JSON 文字列のこともある）、Copilot は `input.command` /
 # 素の `command`。`.tool_input.command` だけを読むと、他の 2 つのエージェントでは command が空になり、

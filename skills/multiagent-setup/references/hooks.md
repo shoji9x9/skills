@@ -26,13 +26,22 @@ Copilot CLI は、`.github/hooks/*.json` に加えて、`.claude/settings.json` 
 - `.claude/settings.json` に登録するスクリプトは、Copilot の入力を見分けたら何もせずに exit 0 で終える。Copilot 用の処理は、`.github/hooks/` に登録した側が行う。
   何もせずに終えないと、同じ処理が 2 回行われるうえ、Claude Code 用の終了コードと振る舞いが Copilot に届く。
   Copilot の `preToolUse` は、exit 2 以外の 0 以外をすべて拒否として扱う。Stop は、Copilot では応答が終わるたびに実行される（`agentStop`）。
-- Copilot の入力は、次の 2 つがどちらも成り立つときに Copilot と判定する。片方だけでは判定しない。
+- `.claude/settings.json` の登録を Copilot が呼んだかは、次の 3 つがすべて成り立つときに判定する。1 つでも欠ければ、これまでどおり処理を続ける。
   Claude Code の呼び出しを Copilot と見誤ると、Claude Code のチェックが何もせずに通り、誤りが外から見えないためである。
   - 入力の最上位に `timestamp` がある。Copilot はイベント名の書き方（`preToolUse`・`PreToolUse`）に関わらず入れる。
     Claude Code の入力の共通の項目には無い（[Claude Code Hooks reference](https://code.claude.com/docs/en/hooks)）。
+  - 入力の最上位に `hook_event_name` がある。Copilot は入力の形を設定に書いたイベント名で選び、
+    PascalCase（`.claude/settings.json` の形）の登録にだけこの項目を入れる。camelCase（`.github/hooks/` の形）の登録には入れない
+    （[GitHub Copilot hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference)）。
+    この条件があるので、同じスクリプトを引数を変えずに `.github/hooks/` にも登録できる。そちらからの呼び出しは、判定に当たらずに処理を続ける。
+    `.github/hooks/` には camelCase のイベント名で登録する。PascalCase で登録すると、その登録も判定に当たり、何もせずに終わる。
   - 環境変数 `COPILOT_CLI` が空でない。Copilot CLI 1.0.105 が Hook のプロセスに `COPILOT_CLI=1` を渡すことを実測した（公式のリファレンスには記載が無い）。
     `CLAUDE_PROJECT_DIR` の有無では見分けられない。同じ実測で、Copilot も Hook に `CLAUDE_PROJECT_DIR` を渡していた。
-    Copilot のシェルから Claude Code を起動すると `COPILOT_CLI` を引き継ぎうるので、1 つ目の条件と組み合わせて判定する。
+    Copilot のシェルから Claude Code を起動すると `COPILOT_CLI` を引き継ぎうるので、入力の条件と組み合わせて判定する。
+- Copilot CLI 1.0.105 で、`.claude/settings.json`（PascalCase）と `.github/hooks/`（camelCase）に同じイベントを登録して入力を記録した。
+  どちらの登録も 1 回ずつ実行され、`hook_event_name` は PascalCase の側にだけあった。`timestamp` は、PascalCase では ISO 8601 の文字列、camelCase では数値だった。
+  Copilot の `Stop` の入力には、Claude Code の `last_assistant_message` が無い。
+  Copilot は、信頼済みのフォルダ（Copilot の設定の `trustedFolders`）の外のリポジトリでは、どちらの登録も実行しなかった。
 - Copilot だけを使うプロジェクトでも、Hook は `.github/hooks/` に置く。`.claude/settings.json` を読まない Copilot のバージョンでも動くようにするためである。
 
 ## フックスクリプトの配置

@@ -80,7 +80,8 @@ tool_name=""
 command_str=""
 worktree_name=""
 worktree_path=""
-payload_style="snake" # snake（Claude Code / Codex） | camel（Copilot）
+payload_style="snake"     # snake（Claude Code / Codex） | camel（Copilot）
+claude_settings_shape="0" # 1 = 最上位に timestamp と hook_event_name がある（下の Copilot の判定に使う）
 
 extract_with() { # $1: 実行するインタプリタ名
 	case "$1" in
@@ -94,7 +95,8 @@ extract_with() { # $1: 実行するインタプリタ名
 			  s(args.command // ""),
 			  s(args.name // ""),
 			  s(args.path // ""),
-			  (if (.toolName | type) == "string" and (.tool_name | type) != "string" then "camel" else "snake" end)
+			  (if (.toolName | type) == "string" and (.tool_name | type) != "string" then "camel" else "snake" end),
+			  (if has("timestamp") and has("hook_event_name") then "1" else "0" end)
 			] | map(gsub("[\r\n]"; " ")) | .[]
 		' 2>/dev/null
 		;;
@@ -124,7 +126,8 @@ for key in ("tool_input", "toolArgs", "input"):
         args = value
         break
 style = "camel" if isinstance(data.get("toolName"), str) and not isinstance(data.get("tool_name"), str) else "snake"
-for field in (s(data.get("tool_name") or data.get("toolName")), s(args.get("command")), s(args.get("name")), s(args.get("path")), style):
+shape = "1" if "timestamp" in data and "hook_event_name" in data else "0"
+for field in (s(data.get("tool_name") or data.get("toolName")), s(args.get("command")), s(args.get("name")), s(args.get("path")), style, shape):
     sys.stdout.write(field + "\n")' 2>/dev/null
 		;;
 	esac
@@ -141,10 +144,25 @@ for interp in jq python3; do
 		IFS= read -r worktree_name
 		IFS= read -r worktree_path
 		IFS= read -r payload_style
+		IFS= read -r claude_settings_shape
 	} <<<"${out}" || true
 	extracted=1
 	break
 done
+
+# Claude Code 用の登録（`.claude/settings.json`）を GitHub Copilot CLI が呼んだときは、何もせずに終える。
+# Copilot は `.claude/settings.json` の Hook も実行する。出典は https://docs.github.com/en/copilot/reference/hooks-configuration である。
+# Copilot 用の通知は `.github/hooks/` の登録が行うので、続けると同じ呼び出しを 2 回調べる。
+# 判定は 3 つの条件がすべて成り立つときだけ当たる。最上位のキーは、上の取り出しと同じ 1 回の起動で読む。
+#   - 環境変数 COPILOT_CLI が空でない（Copilot CLI 1.0.105 が Hook に COPILOT_CLI=1 を渡すことを実測した）
+#   - 入力の最上位に `timestamp` がある（Copilot は入れ、Claude Code は入れない）
+#   - 入力の最上位に `hook_event_name` がある。Copilot は PascalCase のイベント名で書いた登録（`.claude/settings.json` の形）にだけ入れ、
+#     camelCase で書いた `.github/hooks/` の登録には入れない（https://docs.github.com/en/copilot/reference/hooks-reference。1.0.105 で確かめた）
+# Copilot のシェルから起動した Claude Code は COPILOT_CLI を引き継ぎうるが、その入力には `timestamp` が無い。
+# jq も python3 も無いときと読めないときは、claude_settings_shape が 0 のままなので判定に当たらず、下で通知せずに終わる。
+if [ -n "${COPILOT_CLI:-}" ] && [ "${claude_settings_shape}" = "1" ]; then
+	exit 0
+fi
 
 # jq も python3 も無い環境では、構造として取り出せないので通知しない。
 # ここで文字列だけの照合に切り替えると、コマンド文字列の中の `worktree` に反応し、無関係な呼び出しに

@@ -15,10 +15,10 @@
 // 止める入力だけのテストでは、「全部落とす実装」と区別が付かない。
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { delimiter, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { makeSharedTempDir } from "../lib/testing/test-tmpdir.ts";
+import { makeSharedTempDir, makeTempDir } from "../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -327,4 +327,155 @@ test.each([
   expect(r.stderr).not.toMatch(/検査していない/);
   expect(r.status).toBe(2);
   expect(r.stderr).toMatch(/full command line/);
+});
+
+// --- Copilot が .claude/settings.json の登録として呼んだとき（Issue #858） ---
+//
+// Copilot CLI は `.claude/settings.json` の Hook も実行する。この Hook は `.github/hooks/kaizen-session.json` にも
+// 引数なしで登録してあるので、`.claude/settings.json` の登録として呼ばれたときだけ何もせずに通す。
+// 入力の形は Copilot CLI 1.0.105 で記録したものに合わせる。PascalCase の登録だけが hook_event_name を持ち、timestamp は文字列になる。
+// 止める入力（OFFENDING）を使うので、通したことが判定によるものか、コマンドが危険でないためかを区別できる。
+const copilotPascal = {
+  hook_event_name: "PreToolUse",
+  session_id: "cp-1",
+  timestamp: "2026-11-02T11:47:41.710Z",
+  cwd: repoRoot,
+  tool_name: "Bash",
+  tool_input: { command: OFFENDING },
+};
+const copilotCamel = {
+  sessionId: "cp-1",
+  timestamp: 1793620061710,
+  cwd: repoRoot,
+  toolName: "bash",
+  toolArgs: { command: OFFENDING },
+};
+
+// 判定は kaizen の共通ライブラリの関数で行う。jq と python3 の分岐は、その関数のテスト（kaizen-stop-mark.test.ts）が確かめる。
+const runCopilot = (payload: unknown, copilotCli: string) =>
+  spawnSync("bash", [script], {
+    timeout: CHILD_TIMEOUT_MS,
+    input: JSON.stringify(payload),
+    encoding: "utf8",
+    cwd: repoRoot,
+    env: { ...process.env, COPILOT_CLI: copilotCli },
+  });
+
+test("Copilot の .claude/settings.json の登録（PascalCase）は通す", () => {
+  const r = runCopilot(copilotPascal, "1");
+  expect(r.status).toBe(0);
+  expect(r.stderr).toBe("");
+});
+
+test.each([
+  {
+    name: "COPILOT_CLI が空（Claude Code が呼んだ）",
+    payload: copilotPascal,
+    copilotCli: "",
+  },
+  {
+    name: "timestamp が無い（Copilot のシェルから起動した Claude Code）",
+    payload: { ...copilotPascal, timestamp: undefined },
+    copilotCli: "1",
+  },
+  {
+    name: ".github/hooks の登録（camelCase。hook_event_name が無い）",
+    payload: copilotCamel,
+    copilotCli: "1",
+  },
+])("$name は止める", ({ payload, copilotCli }) => {
+  const r = runCopilot(payload, copilotCli);
+  expect(r.status).toBe(2);
+  expect(r.stderr).toMatch(/full command line/);
+});
+
+// 判定の関数を読めない配置では、判定できないので検査を続け、そのことを stderr に残す。
+// スクリプトは、新しく作った一時ディレクトリ <dir> の <dir>/scripts/hooks/ に置く。スクリプトが読むライブラリ（../../.agents/...）は <dir> の中を指すので、
+// TMPDIR の場所（リポジトリの中かどうか）に依らずに、ライブラリの有無を決められる。
+// ライブラリを置くケースは、ライブラリが stderr に目印を出す。目印が出たことで、置いたライブラリを実際に読んだと分かる
+// （スクリプトが読むパスとテストが置くパスがずれると、「ライブラリが無い」と同じ分岐を通って同じ stderr になるため）。
+const LIB_MARKER = "probe-library-loaded";
+// library を <dir>/.agents/skills/kaizen/scripts/kaizen-hook-common.sh に置き（undefined なら置かない）、Copilot の登録の入力で起動する。
+function runWithLibrary(library: string | undefined) {
+  const dir = makeTempDir(
+    library === undefined ? "bash-command-guard-no-lib-" : "bash-command-guard-lib-",
+  );
+  mkdirSync(join(dir, "scripts", "hooks"), { recursive: true });
+  const copied = join(dir, "scripts", "hooks", "bash-command-guard.sh");
+  writeFileSync(copied, readFileSync(script, "utf8"));
+  if (library !== undefined) {
+    const libDir = join(dir, ".agents", "skills", "kaizen", "scripts");
+    mkdirSync(libDir, { recursive: true });
+    writeFileSync(join(libDir, "kaizen-hook-common.sh"), library);
+  }
+  return spawnSync("bash", [copied], {
+    timeout: CHILD_TIMEOUT_MS,
+    input: JSON.stringify(copilotPascal),
+    encoding: "utf8",
+    cwd: repoRoot,
+    env: { ...process.env, COPILOT_CLI: "1" },
+  });
+}
+
+// 読み込みの途中で 0 以外を返すコマンドや未定義の変数の参照があっても、set -e・set -u で exit 1 にならない
+// （Claude Code は exit 2 だけを拒否とする）。
+const FAILING_PREFIX = `echo ${LIB_MARKER} >&2\nfalse\necho "$UNDEFINED_VARIABLE_FOR_858" >/dev/null\n`;
+
+test.each([
+  { name: "共通ライブラリが無い", library: undefined },
+  {
+    name: "共通ライブラリはあるが判定の関数が無い（古いコピー）",
+    library: `echo ${LIB_MARKER} >&2\nkaizen_other() { :; }\n`,
+  },
+  {
+    name: "共通ライブラリの途中で 0 以外を返すコマンドと未定義の変数の参照があり、判定の関数も無い",
+    library: `${FAILING_PREFIX}kaizen_other() { :; }\n`,
+  },
+])(
+  "$name なら、Copilot の登録の入力でも止め、判定していないことを stderr に残す",
+  ({ library }) => {
+    const r = runWithLibrary(library);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/判定の関数を読めないため、Copilot の呼び出しかを判定していない/);
+    expect(r.stderr).toMatch(/full command line/);
+    expect(r.stderr.includes(LIB_MARKER)).toBe(library !== undefined);
+  },
+);
+
+// 読み込みの途中で失敗しても、その後に定義された判定の関数を使い、Copilot の登録の入力を通す。
+// 判定の関数は、インストール済みのコピーと同じ中身の原本（skills/kaizen の共通ライブラリ）を後ろに付けて使う。
+// 判定の関数は JSON を jq（無ければ python3）で読む。どちらも無いと判定できずに検査を続けるので、どちらかがあることを前提として確かめる。
+test("共通ライブラリの途中で失敗しても、判定の関数があれば Copilot の登録の入力を通す", () => {
+  const reader = spawnSync("bash", ["-c", "command -v jq || command -v python3"], {
+    timeout: CHILD_TIMEOUT_MS,
+  });
+  expect(reader.status, "jq か python3 が必要（判定の関数が入力を読むのに使う）").toBe(0);
+  const original = readFileSync(
+    join(repoRoot, "skills/kaizen/scripts/kaizen-hook-common.sh"),
+    "utf8",
+  );
+  const r = runWithLibrary(`${FAILING_PREFIX}${original}`);
+  expect(r.stderr).toContain(LIB_MARKER);
+  expect(r.status).toBe(0);
+  expect(r.stderr).not.toMatch(/full command line/);
+});
+
+// 読み込みの後に、シェルのオプション（errexit・nounset・pipefail）がスクリプトの冒頭と同じに戻ることを確かめる。
+// ライブラリは最上位でオプションを外し、判定の関数の中で、呼ばれた時点の状態を stderr に出す（判定は 1 を返し、検査を続けさせる）。
+test("共通ライブラリがシェルのオプションを外しても、読み込みの後は errexit・nounset・pipefail に戻る", () => {
+  const library = [
+    `echo ${LIB_MARKER} >&2`,
+    "set +euo pipefail",
+    'kaizen_payload_is_copilot_claude_settings() { echo "options=$- pipefail=$(set -o | grep -c "^pipefail[[:space:]]*on")" >&2; return 1; }',
+    "",
+  ].join("\n");
+  const r = runWithLibrary(library);
+  expect(r.stderr).toContain(LIB_MARKER);
+  const m = /options=(\S*) pipefail=(\d)/.exec(r.stderr);
+  expect(m, r.stderr).not.toBeNull();
+  expect(m?.[1]).toContain("e");
+  expect(m?.[1]).toContain("u");
+  expect(m?.[2]).toBe("1");
+  // 判定は 1 を返したので、検査に進んで止める。
+  expect(r.status).toBe(2);
 });
