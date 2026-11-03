@@ -5,6 +5,8 @@
 //   merge 済みか: まだ／済み（HEAD がデフォルトブランチに含まれる）。
 //   ブランチの種類: デフォルトブランチ／それ以外。
 //   作業ツリー: ある／ディレクトリが消えた（prunable）／消した。
+//   作業ツリーの .agent-usage/: ある／無い（setup の前の commit から作った）。
+//   GitHub を取得するか: する（collect・Hook）／しない（collect --no-github）。
 // 外す処理（withoutOtherWorktrees）の入力の軸:
 //   行の branch 列: 外すブランチ／それ以外／空。打ち消しの行か。
 // 作業ツリーの一覧の形: branch／detached／prunable（理由あり・なし）／locked。

@@ -32,7 +32,7 @@ import { branchesRecordedElsewhere, branchMerged } from "./lib/merged.mjs";
 import { parseFlags } from "./lib/flags.mjs";
 import { git, isDecisionBranch, repoInfo } from "./lib/repo.mjs";
 import { usageDir } from "./lib/records.mjs";
-import { runCollect } from "./lib/run-collect.mjs";
+import { otherWorktreeRowsNote, runCollect } from "./lib/run-collect.mjs";
 import { runReport } from "./lib/report/report.mjs";
 import { isValidTimeZone, parseTime, systemTimeZone } from "./lib/time.mjs";
 
@@ -91,8 +91,8 @@ function printCollect(r) {
     console.log(`範囲より古いので読まなかった記録のファイル: ${r.skippedFiles}`);
   if (r.olderRowsSkipped > 0)
     console.log(`開始時刻が範囲より古いので書かなかった行: ${r.olderRowsSkipped}`);
-  for (const [branch, n] of r.otherWorktreeRows)
-    console.log(`別の作業ツリーの collect が記録するので書かなかった行: ${branch} ${n}`);
+  const elsewhere = otherWorktreeRowsNote(r.otherWorktreeRows);
+  if (elsewhere !== "") console.log(elsewhere);
   if (r.retractedRows > 0)
     console.log(`打ち消した行（ログはあるが、今は作らなくなった行）: ${r.retractedRows}`);
   if (r.duplicateMessages > 0)

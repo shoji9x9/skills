@@ -50,3 +50,8 @@ ci:41615961117:1,ci,2026-11-03T10:15:41.136Z,p-cdee4961,github-actions,,,,2026-1
 coverage:github:2026-11-02T10:02:33.177Z:2026-11-03T10:15:41.136Z,coverage,2026-11-03T10:15:41.136Z,p-cdee4961,,,,,2026-11-02T10:02:33.177Z,2026-11-03T10:15:41.136Z,Asia/Tokyo,,,,,,,,,,,,ok,
 ci:41617039952:1,ci,2026-11-03T10:16:55.448Z,p-cdee4961,github-actions,,,,2026-11-03T10:10:31.000Z,2026-11-03T10:15:56.000Z,Asia/Tokyo,feature/868-pr-skills-split-mechanics-review-reply,868,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-11-02T10:15:41.136Z:2026-11-03T10:16:55.448Z,coverage,2026-11-03T10:16:55.448Z,p-cdee4961,,,,,2026-11-02T10:15:41.136Z,2026-11-03T10:16:55.448Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:41618102678:1,ci,2026-11-03T10:22:22.161Z,p-cdee4961,github-actions,,,,2026-11-03T10:18:01.000Z,2026-11-03T10:18:08.000Z,Asia/Tokyo,feature/871-agent-usage-isolate-parallel-branches,871,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:41618102688:1,ci,2026-11-03T10:22:22.161Z,p-cdee4961,github-actions,,,,2026-11-03T10:18:01.000Z,2026-11-03T10:22:08.000Z,Asia/Tokyo,feature/871-agent-usage-isolate-parallel-branches,871,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-11-02T10:16:55.448Z:2026-11-03T10:22:22.161Z,coverage,2026-11-03T10:22:22.161Z,p-cdee4961,,,,,2026-11-02T10:16:55.448Z,2026-11-03T10:22:22.161Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-02T10:22:22.161Z:2026-11-03T10:25:55.056Z,coverage,2026-11-03T10:25:55.056Z,p-cdee4961,,,,,2026-11-02T10:22:22.161Z,2026-11-03T10:25:55.056Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-02T10:25:55.056Z:2026-11-03T10:58:58.709Z,coverage,2026-11-03T10:58:58.709Z,p-cdee4961,,,,,2026-11-02T10:25:55.056Z,2026-11-03T10:58:58.709Z,Asia/Tokyo,,,,,,,,,,,,ok,

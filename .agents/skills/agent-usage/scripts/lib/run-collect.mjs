@@ -427,6 +427,17 @@ export function withoutOtherWorktrees(rows, other) {
 }
 
 /**
+ * 外した行の件数を、手動の collect と Hook の collect の出力に出す 1 行にする（外した行が無ければ空）。
+ * @param {ReadonlyMap<string, number>} elsewhere
+ * @returns {string}
+ */
+export function otherWorktreeRowsNote(elsewhere) {
+  if (elsewhere.size === 0) return "";
+  const parts = [...elsewhere].map(([b, n]) => `${b} ${n}`).join("、");
+  return `別の作業ツリーの collect が記録するので書かなかった行: ${parts}`;
+}
+
+/**
  * 設定を読み、記録に書く人と、行を作る文脈を決める。
  * @param {RepoInfo} repo
  * @param {NodeJS.ProcessEnv} env
