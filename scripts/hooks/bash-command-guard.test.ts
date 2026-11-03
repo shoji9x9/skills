@@ -18,7 +18,7 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { delimiter, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { makeSharedTempDir } from "../lib/testing/test-tmpdir.ts";
+import { makeSharedTempDir, makeTempDir } from "../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -392,16 +392,24 @@ test.each([
 // 判定の関数を読めない配置では、判定できないので検査を続け、そのことを stderr に残す。
 // スクリプトは、新しく作った一時ディレクトリ <dir> の <dir>/scripts/hooks/ に置く。スクリプトが読むライブラリ（../../.agents/...）は <dir> の中を指すので、
 // TMPDIR の場所（リポジトリの中かどうか）に依らずに、ライブラリの有無を決められる。
+// ライブラリを置くケースは、ライブラリが stderr に目印を出す。目印が出たことで、置いたライブラリを実際に読んだと分かる
+// （スクリプトが読むパスとテストが置くパスがずれると、「ライブラリが無い」と同じ分岐を通って同じ stderr になるため）。
+const LIB_MARKER = "probe-library-loaded";
 test.each([
   { name: "共通ライブラリが無い", library: undefined },
   {
     name: "共通ライブラリはあるが判定の関数が無い（古いコピー）",
-    library: "kaizen_other() { :; }\n",
+    library: `echo ${LIB_MARKER} >&2\nkaizen_other() { :; }\n`,
+  },
+  // 読み込みの途中で 0 以外を返すコマンドがあっても、set -e で exit 1 にならない（Claude Code は exit 2 だけを拒否とする）。
+  {
+    name: "共通ライブラリの途中で 0 以外を返すコマンドがあり、判定の関数も無い",
+    library: `echo ${LIB_MARKER} >&2\nfalse\nkaizen_other() { :; }\n`,
   },
 ])(
   "$name なら、Copilot の登録の入力でも止め、判定していないことを stderr に残す",
   ({ library }) => {
-    const dir = makeSharedTempDir("bash-command-guard-no-lib-");
+    const dir = makeTempDir("bash-command-guard-no-lib-");
     mkdirSync(join(dir, "scripts", "hooks"), { recursive: true });
     const copied = join(dir, "scripts", "hooks", "bash-command-guard.sh");
     writeFileSync(copied, readFileSync(script, "utf8"));
@@ -420,5 +428,6 @@ test.each([
     expect(r.status).toBe(2);
     expect(r.stderr).toMatch(/判定の関数を読めないため、Copilot の呼び出しかを判定していない/);
     expect(r.stderr).toMatch(/full command line/);
+    expect(r.stderr.includes(LIB_MARKER)).toBe(library !== undefined);
   },
 );

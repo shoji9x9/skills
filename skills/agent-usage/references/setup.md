@@ -109,8 +109,8 @@ GitHub は `linguist-generated` の付いたファイルを、PR の差分で最
 
 | 状況 | 振る舞い |
 | --- | --- |
+| GitHub Copilot CLI が、Claude Code 用の登録（`.claude/settings.json`）としてこの Hook を呼んだ | 確認も記録もせずに通す。Copilot は `.claude/settings.json` の Hook も実行するが、このスキルは Copilot のログを読まない。環境変数 `COPILOT_CLI` が空でなく、入力の最上位に `timestamp` と `hook_event_name` があるときに、Copilot が呼んだと判定する（[GitHub Copilot hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference)）。判定は、引数が `claude-code` の登録と、引数を省いた登録（`claude-code` として扱う）に当て、`codex` の登録には当てない。判定の順は次の段落にある |
 | `git commit` を実行しない | 通す。判定が扱う書き方と、`git commit` を実行しても検出しない形の主な例は、下の「コミットと判定しない形と、コミットと判定する形」にある |
-| GitHub Copilot CLI が、Claude Code 用の登録（`.claude/settings.json`。引数 `claude-code`）としてこの Hook を呼んだ | 確認も記録もせずに通す。Copilot は `.claude/settings.json` の Hook も実行するが、このスキルは Copilot のログを読まない。環境変数 `COPILOT_CLI` が空でなく、入力の最上位に `timestamp` と `hook_event_name` があるときに、Copilot が呼んだと判定する（[GitHub Copilot hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference)）。判定するのは、`git commit` を検出して同梱の `agent-usage.mjs` を起動した後で、下の `.agent-usage/` の有無からの行より先である。判定は引数が `claude-code` の登録にだけ当て、ほかの引数（`codex` など）の登録には当てない |
 | `.agent-usage/` が無い・detached HEAD・デフォルトブランチ | 通す |
 | ブランチの判断が無く、人の設定にもリポジトリの設定にも `defaultDecision` が無い | 止める（exit 2）。stderr で、利用者に確かめて `collect --stage` か `decline` を実行するよう求める |
 | ブランチの判断が無く、どれかの層の設定に `defaultDecision` がある（どれかの層の設定を読めないときは、値があっても、下の「設定を読めない」の行に当たる） | 止めずに、その値（`.local.jsonc`・人ごと・リポジトリの順で最初の値）を判断として扱う。下の「記録しない」「記録する」と同じに振る舞い、従った設定のパスを stderr に出す。ただし人の設定が無ければ、下の「人の設定が無く」の行に当たる |
@@ -120,6 +120,12 @@ GitHub は `linguist-generated` の付いたファイルを、PR の差分で最
 | 判断が「記録する」で、ブランチが merge 済み | collect も stage もせずに通し、merge 済みと決めた方法を stderr に出す。決め方は下の表の後に書く |
 | 判断が「記録する」 | collect を実行し、`.agent-usage/records/` を stage して通す（前に書いて stage されなかった記録も入る）。collect が失敗したら止める。Hook の collect は常に GitHub も取得する（`--no-github` は手動の collect だけ）。コミットが実行されなかったときに stage が残る場合の扱いは、[SKILL.md「コミットの前の確認」](../SKILL.md)にある |
 | Node.js が無い・同梱のスクリプトを読めない・想定外の失敗 | 確認をせずに通し、その旨を stderr に出す（記録の仕組みの不具合で作業を止めない） |
+
+判定の順は次のとおりである。
+まず Hook のスクリプト（`precommit-gate.sh`）が、入力に `git` と `commit` の語が無ければ通す。
+次に、Node.js と同梱の `agent-usage.mjs` があるかを確かめ、無ければ「Node.js が無い」の行のとおりに通す。
+`agent-usage.mjs` は、最初に Copilot の行を判定し、その後で `git commit` を実行するか（「`git commit` を実行しない」の行）と、残りの行を判定する。
+そのため、`echo "git commit"` のように `git commit` を実行しない呼び出しでも、Copilot の行が先に当たる。どちらの行でも通すので、振る舞いは変わらない。
 
 判断と collect は、git commit を実行する作業ディレクトリ（`-C <dir>` と前の `cd <dir>` を当てた先）のリポジトリで行う。
 デフォルトブランチは、`origin/HEAD` から決める。分からなければ `main` と `master` をデフォルトブランチとして扱う。

@@ -41,8 +41,10 @@ esac
 kaizen_lib="$(dirname "${BASH_SOURCE[0]}")/../../.agents/skills/kaizen/scripts/kaizen-hook-common.sh"
 if [ -r "${kaizen_lib}" ]; then
 	# 共通ライブラリはインストール済みのコピーで、source 先を静的に追えない。
+	# set -e のままだと、ライブラリの途中のコマンドが 0 以外を返したときに exit 1 で終わり、Claude Code は検査せずに通す（exit 2 だけが拒否）。
+	# `||` の左に置いて、読み込みの途中の失敗でスクリプトを終わらせない。関数が定義されたかは、次の declare -f で確かめる。
 	# shellcheck source=/dev/null
-	. "${kaizen_lib}"
+	. "${kaizen_lib}" || true
 fi
 # ライブラリを読めないときと、読めても関数が無いとき（古いコピー）は、判定を省いたことを、0 件と区別できるよう残す。
 # 危険語を含む入力でだけここに来るので、毎回の呼び出しには出ない。
