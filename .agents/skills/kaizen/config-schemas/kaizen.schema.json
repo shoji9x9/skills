@@ -39,6 +39,13 @@
       "default": "medium",
       "x-layers": ["repo"]
     },
+    "inject_max_entries": {
+      "description": "セッション開始時に、未適用の学びを何件まで注入するか。priority の高い順、同じ priority は日付の古い順に並べ、先頭からこの件数まで注入する。省くと上限を設けない",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 999999,
+      "x-layers": ["repo", "local", "user"]
+    },
     "schedule_enabled": {
       "description": "定期実行（kaizen-schedule.yml）を有効にするか。opt-in",
       "type": "boolean",
