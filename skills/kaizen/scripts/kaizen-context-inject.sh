@@ -145,15 +145,11 @@ rank_labels=(high medium low 不明)
 unknown_rank=$((${#rank_labels[@]} - 1))
 pending_index=$(mktemp 2>/dev/null) || exit 0
 trap 'rm -f "${pending_index}"' EXIT
+# 索引はタブ区切りの 1 行 1 件で、列は順位・日付・pending_files の添字である。
+# パスと frontmatter の値はタブや改行を含みうるので、索引には入れない。パスは配列に持ち、日付は形を確かめてから入れる。
+pending_files=()
 for f in .kaizen/*.md; do
 	[ -e "${f}" ] || continue
-	# 索引は 1 行 1 件なので、改行を含むファイル名は行を 2 つに分け、別の列を順位として読ませる。注入せずに理由を出す。
-	case "${f}" in
-	*$'\n'*)
-		printf '%s: ファイル名に改行を含む学びは注入しない: %q\n' "$(basename "${BASH_SOURCE[0]}")" "${f}" >&2
-		continue
-		;;
-	esac
 	# status も frontmatter 限定で判定する。全文 grep だと本文やコードブロックの
 	# `status: pending` を拾い、frontmatter が applied / rejected / forgotten のノートまで注入してしまう。
 	{
@@ -169,9 +165,16 @@ for f in .kaizen/*.md; do
 			rank=${i}
 		fi
 	done
-	printf '%s\t%s\t%s\n' "${rank}" "${date_value:-9999-99-99}" "${f}" >>"${pending_index}" || exit 0
+	# 日付は YYYY-MM-DD の形のときだけ並べ替えに使う。形が違えば、日付の無い学びと同じく最後に置く。
+	sort_date=9999-99-99
+	if [[ "${date_value}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+		sort_date=${date_value}
+	fi
+	printf '%s\t%s\t%s\n' "${rank}" "${sort_date}" "${#pending_files[@]}" >>"${pending_index}" || exit 0
+	pending_files+=("${f}")
 done
-sort -t $'\t' -k1,1n -k2,2 -k3,3 "${pending_index}" -o "${pending_index}" 2>/dev/null || exit 0
+# 同じ順位と日付の中は、添字（glob が並べたパスの順）で並べる。
+sort -t $'\t' -k1,1n -k2,2 -k3,3n "${pending_index}" -o "${pending_index}" 2>/dev/null || exit 0
 
 if [ ! -s "${pending_index}" ]; then
 	exit 0
@@ -195,11 +198,8 @@ if declare -f kaizen_config_load >/dev/null 2>&1; then
 		max_entries=$(kaizen_config_value inject_max_entries || true)
 		# 上限を読んだ層（repo・local・user）。人ごとの層に置いた上限は別のリポジトリにも当たるので、出所を示す。
 		max_entries_source=$(kaizen_config_source inject_max_entries || true)
-		# スキーマが 1 以上の整数に限るので、ここで別の形が来るのは読み取りの不具合である。全件を出し、理由を示す。
-		if [ -n "${max_entries}" ] && ! [[ "${max_entries}" =~ ^[1-9][0-9]*$ ]]; then
-			config_note="kaizen の設定を読めないので、inject_max_entries を設定していても件数の上限を当てずに全件を出す。理由: inject_max_entries の値が 1 以上の整数でない（$(printf '%q' "${max_entries}")）"
-			max_entries=""
-		fi
+		# スキーマの検査で 1 以上の整数に限られている。算術式に渡す前に、形だけを確かめておく。
+		[[ "${max_entries}" =~ ^[1-9][0-9]*$ ]] || max_entries=""
 	else
 		printf '%s: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_config_error:-}" >&2
 		# 理由は複数行になりうるので、改行を空白に置き換えて 1 行に収める。
@@ -241,12 +241,8 @@ omitted=()
 for ((i = 0; i <= unknown_rank; i++)); do
 	omitted[i]=0
 done
-while IFS=$'\t' read -r rank _date f; do
-	[ -n "$f" ] || continue
-	# 順位は算術式の添字に使うので、索引が書いた形（0 から unknown_rank までの数字）だけを受け付ける。
-	if ! [[ "${rank}" =~ ^[0-9]+$ ]] || [ "${rank}" -gt "${unknown_rank}" ]; then
-		continue
-	fi
+while IFS=$'\t' read -r rank _date idx; do
+	f=${pending_files[idx]}
 	# 並びは priority の降順、同じ priority は日付の昇順なので、先頭から上限まで出すと、低い priority と新しい学びが省かれる。
 	# 上限を超えた行は出さずに、省いた件数を順位ごとに数える。
 	if [ "${emitted}" -ge "${shown}" ]; then
