@@ -2,6 +2,9 @@
 
 `pr-finalize-loop` の基本フローの手順 1（進行中のレビューの確認）、手順 2（HEAD がレビューされていないときの依頼）、手順 6（対応した後の依頼）で読む。
 
+`review_tool: copilot` では、Copilot の作成者の login が API によって違うので、依頼と検出で取り違えない。
+REST では `Copilot`、GraphQL では `copilot-pull-request-reviewer`、依頼に使うのは `copilot-pull-request-reviewer[bot]` である（詳しくは [`review-tool.md`](review-tool.md)）。
+
 ## レビュー進行中の検出
 
 レビューを依頼する直前（収束を判定するときと、手順 6 で対応の後に依頼するときの両方）と、各反復で状態を取得するときに、必ずこの検出をする。進行中なら依頼せず、結果を待つ。

@@ -7,3 +7,6 @@ ci:41609692649:1,ci,2026-11-03T09:44:01.407Z,p-cdee4961,github-actions,,,,2026-1
 ci:41609690242:1,ci,2026-11-03T09:44:01.407Z,p-cdee4961,github-actions,,,,2026-11-03T09:16:29.000Z,2026-11-03T09:21:04.000Z,Asia/Tokyo,feature/870-schedule-report-index-columns,870,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-11-02T09:15:47.212Z:2026-11-03T09:44:01.407Z,coverage,2026-11-03T09:44:01.407Z,p-cdee4961,,,,,2026-11-02T09:15:47.212Z,2026-11-03T09:44:01.407Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-11-02T09:44:01.407Z:2026-11-03T09:44:41.512Z,coverage,2026-11-03T09:44:41.512Z,p-cdee4961,,,,,2026-11-02T09:44:01.407Z,2026-11-03T09:44:41.512Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:41613793038:1,ci,2026-11-03T09:52:08.192Z,p-cdee4961,github-actions,,,,2026-11-03T09:46:49.000Z,2026-11-03T09:46:50.000Z,Asia/Tokyo,feature/868-pr-skills-split-mechanics-review-reply,868,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:41613793034:1,ci,2026-11-03T09:52:08.192Z,p-cdee4961,github-actions,,,,2026-11-03T09:46:49.000Z,2026-11-03T09:51:17.000Z,Asia/Tokyo,feature/868-pr-skills-split-mechanics-review-reply,868,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-11-02T09:44:41.512Z:2026-11-03T09:52:08.192Z,coverage,2026-11-03T09:52:08.192Z,p-cdee4961,,,,,2026-11-02T09:44:41.512Z,2026-11-03T09:52:08.192Z,Asia/Tokyo,,,,,,,,,,,,ok,
