@@ -48,3 +48,6 @@ ci:41584001307:1,ci,2026-11-03T05:34:41.628Z,p-cdee4961,github-actions,,,,2026-1
 ci:41584001409:1,ci,2026-11-03T05:34:41.628Z,p-cdee4961,github-actions,,,,2026-11-03T05:27:14.000Z,2026-11-03T05:31:38.000Z,Asia/Tokyo,feature/861-skill-red-before-writing,861,,,,,,,,,,CI;pull_request;success,
 ci:41583828669:1,ci,2026-11-03T05:34:41.628Z,p-cdee4961,github-actions,,,,2026-11-03T05:25:24.000Z,2026-11-03T05:28:51.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
 coverage:github:2026-11-02T05:26:12.163Z:2026-11-03T05:34:41.628Z,coverage,2026-11-03T05:34:41.628Z,p-cdee4961,,,,,2026-11-02T05:26:12.163Z,2026-11-03T05:34:41.628Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:41584790154:1,ci,2026-11-03T05:47:38.448Z,p-cdee4961,github-actions,,,,2026-11-03T05:35:24.000Z,2026-11-03T05:35:25.000Z,Asia/Tokyo,feature/861-skill-red-before-writing,861,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:41584790179:1,ci,2026-11-03T05:47:38.448Z,p-cdee4961,github-actions,,,,2026-11-03T05:35:24.000Z,2026-11-03T05:40:13.000Z,Asia/Tokyo,feature/861-skill-red-before-writing,861,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-11-02T05:34:41.628Z:2026-11-03T05:47:38.448Z,coverage,2026-11-03T05:47:38.448Z,p-cdee4961,,,,,2026-11-02T05:34:41.628Z,2026-11-03T05:47:38.448Z,Asia/Tokyo,,,,,,,,,,,,ok,
