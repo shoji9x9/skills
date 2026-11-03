@@ -4,13 +4,31 @@
     {
       "id": 1,
       "prompt": "TypeScript プロジェクトのコードを自動フォーマットするスキルを追加したい",
-      "expected_output": ".agents/skills/<name>/SKILL.md が作成され、.claude/skills/<name> シンボリックリンクが作成されること",
+      "expected_output": "期待する振る舞いが依頼に無いので利用者に確かめるか、スキルの有無で比べてから .agents/skills/<name>/SKILL.md と .claude/skills/<name> シンボリックリンクを作ること",
       "files": [],
       "assertions": [
-        ".agents/skills/ ディレクトリが作成されている",
-        "作成された SKILL.md に name: と description: frontmatter フィールドがある",
-        ".claude/skills/<name> シンボリックリンクが作成されている",
+        "応答が、期待する振る舞いを利用者に確かめているか、スキルが無い状態とスキルを入れた状態で同じ依頼を実行させて比べた結果を示している（応答で判定する）",
+        "SKILL.md を作成した場合は、.agents/skills/<name>/SKILL.md に置き、name: と description: frontmatter フィールドを持たせている（作成しなかった場合は満たしたものとする）",
+        "SKILL.md を作成した場合は、.claude/skills/<name> を .agents/skills/<name> へのシンボリックリンクにしている（作成しなかった場合は満たしたものとする）",
         "ユーザー設定（~/.claude/ 等）は変更されていない"
+      ],
+      "reachability": [
+        {
+          "assertion": "応答が、期待する振る舞いを利用者に確かめているか、スキルが無い状態とスキルを入れた状態で同じ依頼を実行させて比べた結果を示している（応答で判定する）",
+          "prompt_quote": "スキルを追加したい"
+        },
+        {
+          "assertion": "SKILL.md を作成した場合は、.agents/skills/<name>/SKILL.md に置き、name: と description: frontmatter フィールドを持たせている（作成しなかった場合は満たしたものとする）",
+          "prompt_quote": "スキルを追加したい"
+        },
+        {
+          "assertion": "SKILL.md を作成した場合は、.claude/skills/<name> を .agents/skills/<name> へのシンボリックリンクにしている（作成しなかった場合は満たしたものとする）",
+          "prompt_quote": "スキルを追加したい"
+        },
+        {
+          "assertion": "ユーザー設定（~/.claude/ 等）は変更されていない",
+          "prompt_quote": "TypeScript プロジェクトのコード"
+        }
       ]
     },
     {
@@ -90,6 +108,30 @@
         "既存方針の用語説明・不要な判断依頼の回避・推奨案と判断材料・必要な安全確認・過剰な禁止や長文化の回避という5つの意味を弱めていない",
         "CLAUDE.md と .github/copilot-instructions.md は基底ドキュメントを参照し、共通コミュニケーション方針を複製していない",
         "応答方針のための用語集・追加ガイド・文章検査 Hook を作成していない"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "日本語で依頼されたら日本語で答えるようにするスキルを追加したい。期待する振る舞いは「日本語の依頼に、日本語で答える」の 1 つだけ。",
+      "expected_output": "スキルを書く前にスキルが無い状態で同じ依頼を実行させ、期待する振る舞いが既に起きることを確かめて、スキルを書かずにその結果を示すこと",
+      "assertions": [
+        "応答が、スキルを書く前に、スキルが無い状態で日本語の依頼を実行させた結果を示している（応答で判定する）",
+        "応答が、スキルが無くても期待する振る舞いが起きたので、スキルは要らないと判断したことを述べている（応答で判定する）",
+        ".agents/skills/ と .claude/skills/ に SKILL.md を作成していない"
+      ],
+      "reachability": [
+        {
+          "assertion": "応答が、スキルを書く前に、スキルが無い状態で日本語の依頼を実行させた結果を示している（応答で判定する）",
+          "prompt_quote": "スキルを追加したい"
+        },
+        {
+          "assertion": "応答が、スキルが無くても期待する振る舞いが起きたので、スキルは要らないと判断したことを述べている（応答で判定する）",
+          "prompt_quote": "期待する振る舞いは「日本語の依頼に、日本語で答える」の 1 つだけ"
+        },
+        {
+          "assertion": ".agents/skills/ と .claude/skills/ に SKILL.md を作成していない",
+          "prompt_quote": "スキルを追加したい"
+        }
       ]
     }
   ]
