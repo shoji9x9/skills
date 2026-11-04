@@ -2,7 +2,7 @@
 date: 2026-10-05
 type: doc
 priority: low
-status: pending
+status: forgotten
 session: claude-code
 ---
 
