@@ -595,6 +595,8 @@ describe.concurrent("agent-usage のコマンドと Hook", () => {
     const { repo, cli } = await collectedOnBranch();
     const r = await cli("report");
     expect(r.status).toBe(0);
+    // 集計に使ったタイムゾーンは、HTML の冒頭だけでなく端末にも出す（Issue #890）
+    expect(r.stdout).toMatch(/^タイムゾーン: UTC（/m);
     const out = join(repo, ".agent-usage", "report", "20261001");
     for (const f of ["index.html", "usage.csv", "intervals.csv", "reviews.csv", "meta.json"])
       expect(existsSync(join(out, f))).toBe(true);
