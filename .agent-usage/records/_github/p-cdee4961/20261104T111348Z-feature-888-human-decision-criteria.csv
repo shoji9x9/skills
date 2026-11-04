@@ -1,0 +1,10 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+review:5767252708,review,2026-11-04T11:13:48.570Z,p-cdee4961,copilot,,,,2026-11-04T11:03:41.000Z,2026-11-04T11:03:41.000Z,Asia/Tokyo,feature/890-agent-usage-utc-timezone-guidance,890,,,,,,,0.520000,estimate-bundled,,pr=894;author=shoji9x9;state=commented,
+review-wait:894:copilot:2026-11-04T10:59:16.000Z,review-wait,2026-11-04T11:13:48.570Z,p-cdee4961,copilot,,,,2026-11-04T10:59:16.000Z,2026-11-04T11:03:41.000Z,Asia/Tokyo,feature/890-agent-usage-utc-timezone-guidance,890,,,,,,,,,,pr=894,
+ci:41818520718:1,ci,2026-11-04T11:13:48.570Z,p-cdee4961,github-actions,,,,2026-11-04T11:05:27.000Z,2026-11-04T11:05:58.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:41818520752:1,ci,2026-11-04T11:13:48.570Z,p-cdee4961,github-actions,,,,2026-11-04T11:05:27.000Z,2026-11-04T11:09:53.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:41817874578:1,ci,2026-11-04T11:13:48.570Z,p-cdee4961,github-actions,,,,2026-11-04T10:59:26.000Z,2026-11-04T11:03:37.000Z,Asia/Tokyo,feature/890-agent-usage-utc-timezone-guidance,890,,,,,,,,,,Running Copilot Code Review;dynamic;success,
+ci:41817860435:1,ci,2026-11-04T11:13:48.570Z,p-cdee4961,github-actions,,,,2026-11-04T10:59:18.000Z,2026-11-04T10:59:27.000Z,Asia/Tokyo,feature/890-agent-usage-utc-timezone-guidance,890,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:41817860065:1,ci,2026-11-04T11:13:48.570Z,p-cdee4961,github-actions,,,,2026-11-04T10:59:18.000Z,2026-11-04T11:03:40.000Z,Asia/Tokyo,feature/890-agent-usage-utc-timezone-guidance,890,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-11-03T10:57:58.962Z:2026-11-04T11:13:48.570Z,coverage,2026-11-04T11:13:48.570Z,p-cdee4961,,,,,2026-11-03T10:57:58.962Z,2026-11-04T11:13:48.570Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-03T11:13:48.570Z:2026-11-04T11:14:45.864Z,coverage,2026-11-04T11:14:45.864Z,p-cdee4961,,,,,2026-11-03T11:13:48.570Z,2026-11-04T11:14:45.864Z,Asia/Tokyo,,,,,,,,,,,,ok,

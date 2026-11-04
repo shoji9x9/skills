@@ -16,6 +16,12 @@
       "enum": ["copilot", "claude-code", "codex", "local", "none"],
       "default": "copilot",
       "x-layers": ["repo", "local", "user"]
+    },
+    "decision_policy_doc": {
+      "description": "レビューの指摘を人に回す場面を、プロジェクトが決めて書いたドキュメントの、リポジトリのルートからのパス。pr-review-handle と pr-finalize-loop が、指摘を人に回すかを決めるときに読む",
+      "type": "string",
+      "minLength": 1,
+      "x-layers": ["repo"]
     }
   },
   "x-legacy": {
