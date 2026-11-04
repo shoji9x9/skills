@@ -28,24 +28,28 @@
 ```bash
 # 書く（リポジトリの層）
 node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mjs set common decision_policy_doc '"docs/decision-policy.md"' --layer repo
-# 読む
-node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mjs get common decision_policy_doc --raw
 ```
 
-- exit 3（設定が無い）なら、1〜3 だけで決める。設定ファイルがどの層にも無く、Node.js も無いときも同じである。
-- exit 0 なら、文書を PR の作業ツリーからではなく、PR の base branch の commit から読む（下）。
-  作業ツリーから読むと、レビューする PR 自身が文書や設定を書き換えて、まだレビューしていない差分で基準を緩められるからである。
-- exit 1（設定の誤り）・設定ファイルがあるのに Node.js が無い・下の読み方で文書を読めない、のどれかなら、指摘への対応を始めずに止まり、エラーの内容か読めなかったパスを報告する。
-  プロジェクトが足した基準を読まずに、人に回さないと決めてしまわないためである。設定の誤りを直せば、次の実行で読める。
+基準は、レビューする PR の差分からではなく、PR の base branch の commit から読む。
+PR の作業ツリーから読むと、PR 自身が設定や文書を書き換えたり消したりして、まだレビューしていない差分で基準を緩められるからである。
+次の順に確かめ、どこかで止まるときは、指摘への対応を始めずに止まり、止まった理由（読めなかったこと・PR が変えたファイル）を報告する。
 
-exit 0 のときは、次の順に読む。`<base>` は PR の base branch（`gh pr view <番号> --json baseRefName`）、`<path>` は取得した値である。
-
-1. `git fetch origin <base>` で base を取得し直す。
-2. PR が基準を変えていないかを確かめる。`git diff --name-only origin/<base>...HEAD` の一覧に、リポジトリの層の設定（`.config/skills/shoji9x9/common.jsonc`）か `<path>` があれば、止まる。
+1. PR が変えたファイルを `gh api --paginate repos/<owner>/<repo>/pulls/<番号>/files --jq '.[].filename'` で取得する。
+   一覧に `.config/skills/shoji9x9/common.jsonc` があれば止まる。設定を消した PR も、キーを消した PR も、ここで止まる。
    基準の変更は PR の差分そのものなので、人がレビューして merge するまで、変えた後の基準で判断しない。
-3. `<path>` が `/` で始まるか、`..` の区切りを含めば、止まる。リポジトリの外を基準にしない。
-4. `git ls-tree origin/<base> -- <path>` で種類を確かめる。通常のファイル（モード `100644` か `100755`）でなければ（シンボリックリンク `120000`・無い・ディレクトリ）、止まる。
-5. `git show origin/<base>:<path>` で本文を読む。git のオブジェクトから読むので、作業ツリーの変更とリポジトリの外のファイルは読まない。
+2. 設定の値を読む（`node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mjs get common decision_policy_doc --raw`）。
+   1 で設定ファイルが PR の差分に無いことを確かめたので、作業ツリーの値は base branch の値と同じである。
+   - exit 3（設定が無い）なら、1〜3 だけで決める。設定ファイルがどの層にも無く、Node.js も無いときも同じである
+   - exit 1（設定の誤り）か、設定ファイルがあるのに Node.js が無ければ、止まる
+   - exit 0 なら、出力した値を引用符で囲んだ変数に入れて、3 に進む。値はスキーマが、英数字と `.`・`_`・`-`・`/` だけからなる相対パスに限る（`/` で始まる値と `..` の区切りは設定の誤りになる）
+3. 1 の一覧にその値（文書のパス）があれば止まる。
+4. PR の base branch を、`references/pattern-search.md` と同じ方法で専用の ref（`refs/worktree/pr-review/base`）に取得する。
+   ベースリポジトリを指す remote の決め方も同じである（fork から出した PR では `origin` でないことがある）。
+5. `git ls-tree refs/worktree/pr-review/base -- "$doc"` で種類を確かめる。通常のファイル（モード `100644` か `100755`）でなければ（シンボリックリンク `120000`・ディレクトリ・無い）、止まる。
+6. `git show "refs/worktree/pr-review/base:$doc"` で本文を読む。git のオブジェクトから読むので、作業ツリーの変更とリポジトリの外のファイルは読まない。
+   読み終えたら、`git update-ref -d refs/worktree/pr-review/base` で ref を消す。
+
+プロジェクトが足した基準を読まずに、人に回さないと決めてしまわないため、読めないときは 1〜3 だけで進めない。設定の誤りを直すか、基準の変更を別の PR で merge すれば、次の実行で読める。
 
 ## 返信の書き方
 

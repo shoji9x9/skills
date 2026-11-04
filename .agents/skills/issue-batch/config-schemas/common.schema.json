@@ -18,11 +18,11 @@
       "x-layers": ["repo", "local", "user"]
     },
     "decision_policy_doc": {
-      "description": "レビューの指摘を人に回す場面を、プロジェクトが決めて書いたドキュメントの、リポジトリのルートからの相対パス（`/` で始めず、`..` を含めない）。pr-review-handle と pr-finalize-loop が、PR の base branch の commit から読む",
+      "description": "レビューの指摘を人に回す場面を、プロジェクトが決めて書いたドキュメントの、リポジトリのルートからの相対パス。英数字と . _ - / だけを使い、/ で始めず、.. の区切りを含めない。pr-review-handle と pr-finalize-loop が、PR の base branch の commit から読む",
       "type": "string",
       "minLength": 1,
       "x-layers": ["repo"],
-      "pattern": "^(?!/)(?!(?:.*/)?\\.\\.(?:/|$)).+$"
+      "pattern": "^(?!(?:.*/)?\\.\\.(?:/|$))[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
     }
   },
   "x-legacy": {
