@@ -61,7 +61,8 @@
 - 自律実行（`--autonomous`）でも、承認は省かない。原因ごとに `diff-metadata.json` の `pending_decisions[]` に保留として記録する。
   分類は `許容候補（要確認）` のまま残し、他の候補のトリアージに進む。
   承認は、その実行の終わりにまとめて聞く（手順の原本は `replace-strategy` の `references/autonomy.md`）
-- 「許容」の確定には、ユーザーの承認が要る（例: Claude Code の AskUserQuestion のような確認 UI）。
+- 「許容」の確定には、ユーザーの承認が要る。承認の求め方（確認のツールを使えないときを含む）は [`user-confirmation.md`](user-confirmation.md) に従う。
+  このスキルの「承認 UI」は、承認を求める確認を指す（このファイル・`detect.md`・`assets/diff-template.md` で同じ意味である）。確認のツールを使えないときは、本文で聞く確認（`user-confirmation.md` の「本文で聞く」）を指す。
   承認 UI には、crop や特性の差分などの判断の材料を一緒に載せる（直前のテキストが見えていることを前提にしない）。
   承認を求める単位と、UI に載せるものは、下の「承認の単位は原因」にある
 - 承認されたら、記録先に追記する（既にある記録は消さない）。

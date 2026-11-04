@@ -60,8 +60,8 @@ issue-create <説明> [--repo <owner>/<repo>]
    - ラベルはテンプレートのもの（bug・enhancement など）を使う。
    - タイトルと本文は、利用者に見せる前に `writing-style` スキルの手順で読み直す（スキルが無ければ省く）。
 6. 利用者の承認を得てから起票する。
-   - 承認を求める確認の UI そのものに、判断の材料（下書きの全文）を入れる。
-     直前の通常のテキストが確認のダイアログと同時に見えるとは限らない（Claude Code の AskUserQuestion では、選択肢の preview フィールドに入れる）。
+   - 承認は [`references/user-confirmation.md`](references/user-confirmation.md) の手順で求め、判断の材料（下書きの全文）を確認そのものに入れる。
+     確認のツールを使えないエージェントでも、下書きの全文を本文に出して返事を待つ。返事を受け取る前に `gh issue create` を実行しない。
    - 複数行の本文は、シェルのエスケープで崩れないよう一時ファイルに書き出し、`--body-file` で渡す。
 
      ```bash

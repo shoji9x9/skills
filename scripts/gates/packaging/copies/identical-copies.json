@@ -22,6 +22,18 @@
     },
     {
       "files": [
+        "skills/dependabot-alert-issue/references/user-confirmation.md",
+        "skills/issue-create/references/user-confirmation.md",
+        "skills/issue-start/references/user-confirmation.md",
+        "skills/kaizen/references/user-confirmation.md",
+        "skills/multiagent-setup/references/user-confirmation.md",
+        "skills/parity-diff/references/user-confirmation.md",
+        "skills/replace-strategy/references/user-confirmation.md"
+      ],
+      "reason": "利用者に承認を求める段と選択肢から選んでもらう段で、確認のツールを使えないエージェントがどう聞くか（Issue #855）。スキルで食い違うと、同じエージェントでも、スキルによって承認を待たずに更新する操作へ進んだり止まったりする"
+    },
+    {
+      "files": [
         "skills/issue-create/assets/issue-templates/bug_report.md",
         ".github/ISSUE_TEMPLATE/bug_report.md"
       ],
