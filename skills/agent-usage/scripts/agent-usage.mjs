@@ -11,14 +11,7 @@
 //
 // 終了コード: 0 = 成功（gate は「通す」）、1 = 失敗、2 = 引数の誤り（stderr に usage を出す）か、gate が止める。
 
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  readSync,
-  realpathSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -41,7 +34,15 @@ import { git, isDecisionBranch, repoInfo } from "./lib/repo.mjs";
 import { usageDir } from "./lib/records.mjs";
 import { otherWorktreeRowsNote, runCollect } from "./lib/run-collect.mjs";
 import { runReport } from "./lib/report/report.mjs";
-import { isValidTimeZone, parseTime, systemTimeZone } from "./lib/time.mjs";
+import {
+  isUtcTimeZone,
+  isValidTimeZone,
+  parseTime,
+  systemTimeZone,
+  utcTimeZoneGuidance,
+} from "./lib/time.mjs";
+import { spawnSync } from "node:child_process";
+import { isatty } from "node:tty";
 
 const SCRIPT = fileURLToPath(import.meta.url);
 
@@ -180,58 +181,57 @@ function mergedNote(repo) {
   return m.merged ? `（merge 済み（${m.how}）なので、コミットの前の確認は記録しない）` : "";
 }
 
-/** UTC を表す IANA の名前（`Etc/` の付く別名を含む）。 */
-const UTC_NAME_RE = /^(?:Etc\/)?(?:UTC|UCT|Universal|Zulu|GMT|GMT[+-]?0|Greenwich)$/;
+/** 対話の入力を待つ上限。PTY の下で動くエージェントが、誰も答えない入力を待ち続けないようにする。 */
+const PROMPT_TIMEOUT_MS = 120_000;
 
-/**
- * @param {string} timeZone
- * @returns {boolean}
- */
-export function isUtcTimeZone(timeZone) {
-  return UTC_NAME_RE.test(timeZone);
-}
+/** 1 行を読んで stdout に返す子プロセスの本文。readline が文字コードを扱うので、多バイト文字も崩れない。 */
+const READ_LINE_SCRIPT =
+  'const rl = require("node:readline").createInterface({ input: process.stdin });' +
+  'rl.once("line", (l) => { process.stdout.write(l); rl.close(); });';
 
 /**
  * 対話できる実行なら、1 行を読む関数を返す。stdin と stdout のどちらかが端末でなければ null を返す。
- * @returns {(() => string) | null}
+ * 読むのは子プロセスで、上限を過ぎたか読めなかったら null を返す（呼び出し側はマシンの値を使う）。
+ * 自分のプロセスで fd 0 を同期で読むと、端末の設定によって EAGAIN で失敗し、上限も付けられない。
+ * @returns {(() => string | null) | null}
  */
 function interactiveInput() {
-  if (!process.stdin.isTTY || !process.stdout.isTTY) return null;
+  if (!isatty(0) || !isatty(1)) return null;
   return () => {
-    const buf = Buffer.alloc(1);
-    let line = "";
-    for (;;) {
-      const n = readSync(0, buf, 0, 1, null);
-      if (n === 0) return line;
-      const ch = buf.toString("utf8", 0, n);
-      if (ch === "\n") return line;
-      line += ch;
-    }
+    const r = spawnSync(process.execPath, ["-e", READ_LINE_SCRIPT], {
+      stdio: ["inherit", "pipe", "inherit"],
+      timeout: PROMPT_TIMEOUT_MS,
+      encoding: "utf8",
+    });
+    return r.error === undefined && r.status === 0 ? r.stdout : null;
   };
 }
 
 /**
  * --time-zone も人の設定の値も無いときに、マシンのタイムゾーンを確かめる。
- * 開発コンテナや CI の runner は TZ を設定していなければ UTC なので、UTC のときだけ付け方を示す。
- * 対話できる実行（readLine がある）なら、UTC のまま使うかを確かめ、入力された IANA の名前を使う。
+ * UTC のときだけ、対話できない実行では付け方を示し、対話できる実行では UTC のまま使うかを尋ねる。
  * @param {string} systemZone マシンのタイムゾーン
- * @param {(() => string) | null} readLine 1 行を読む関数。対話できない実行では null
+ * @param {(() => string | null) | null} readLine 1 行を読む関数（読めなければ null を返す）。対話できない実行では null
  * @returns {string}
  */
 export function confirmSystemTimeZone(systemZone, readLine) {
   if (!isUtcTimeZone(systemZone)) return systemZone;
-  console.log(
-    `マシンのタイムゾーンが ${systemZone} なので、${systemZone} で集計する。別の時間帯で集計するときは、--time-zone Asia/Tokyo のように IANA の名前を渡して setup を実行し直す`,
-  );
-  if (readLine === null) return systemZone;
+  if (readLine === null) {
+    console.log(utcTimeZoneGuidance(systemZone));
+    return systemZone;
+  }
   process.stdout.write(
-    `${systemZone} のまま使うなら Enter、別の時間帯なら IANA の名前を入力する: `,
+    `マシンのタイムゾーンが ${systemZone} である。${systemZone} のまま使うなら Enter、別の時間帯なら IANA の名前（例: Asia/Tokyo）を入力する: `,
   );
-  const answer = readLine().trim();
-  if (answer === "") return systemZone;
-  if (!isValidTimeZone(answer))
-    throw new UsageError(`IANA のタイムゾーンの名前ではない: ${answer}`);
-  return answer;
+  const answer = readLine();
+  if (answer === null) {
+    console.log(`\n入力が無かった。${utcTimeZoneGuidance(systemZone)}`);
+    return systemZone;
+  }
+  const zone = answer.trim();
+  if (zone === "") return systemZone;
+  if (!isValidTimeZone(zone)) throw new UsageError(`IANA のタイムゾーンの名前ではない: ${zone}`);
+  return zone;
 }
 
 /**
@@ -362,7 +362,7 @@ function reportCommand(rest, context) {
   console.log(`行: ${out.rows}（重複を除いた後） / 期間: ${out.period}`);
   // HTML の冒頭だけでは、作った人が読まずに渡すことがあるので、端末にも出す
   console.log(
-    `タイムゾーン: ${out.timeZone}（日別の日付と時刻ごとの集計はこのタイムゾーンで切る）`,
+    `タイムゾーン: ${out.timeZone}（人の設定の値。collect が記録済みの行は、記録したときのタイムゾーンで日付と時刻を切る）`,
   );
   return 0;
 }

@@ -36,6 +36,27 @@ export function isValidTimeZone(tz) {
   }
 }
 
+/** UTC を表す IANA の名前（`Etc/` の付く別名を含む）。 */
+const UTC_NAME_RE = /^(?:Etc\/)?(?:UTC|UCT|Universal|Zulu|GMT|GMT[+-]?0|Greenwich)$/;
+
+/**
+ * UTC を表す名前か。開発コンテナや CI の runner は、TZ を設定していなければ UTC になる。
+ * @param {string} tz
+ * @returns {boolean}
+ */
+export function isUtcTimeZone(tz) {
+  return UTC_NAME_RE.test(tz);
+}
+
+/**
+ * マシンのタイムゾーンが UTC のまま人の設定に入るときの案内。
+ * @param {string} tz
+ * @returns {string}
+ */
+export function utcTimeZoneGuidance(tz) {
+  return `マシンのタイムゾーンが ${tz} なので、${tz} で集計する。別の時間帯で集計するときは、--time-zone Asia/Tokyo のように IANA の名前を渡して setup を実行し直す（collect が記録済みの行は、記録したときのタイムゾーンのまま集計する）`;
+}
+
 /** 実行環境のタイムゾーン。 */
 export function systemTimeZone() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone;

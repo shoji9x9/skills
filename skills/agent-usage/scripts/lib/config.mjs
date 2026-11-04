@@ -6,7 +6,7 @@ import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { isArray } from "./is-array.mjs";
-import { isValidTimeZone, systemTimeZone } from "./time.mjs";
+import { isUtcTimeZone, isValidTimeZone, systemTimeZone, utcTimeZoneGuidance } from "./time.mjs";
 import {
   ConfigError,
   FILE_LAYERS,
@@ -405,7 +405,11 @@ export function loadOrCreateUserConfig(root, env = process.env, r = resolved(roo
   const existing = loadUserConfig(root, env, r);
   if (existing !== null) return { config: existing, created: false, path };
   // タイムゾーンも書いておく（後でマシンのタイムゾーンが変わっても、記録の日付の区切りを変えない）
-  saveUserConfig(root, env, { personId: newPersonId(), timeZone: systemTimeZone() });
+  const timeZone = systemTimeZone();
+  // setup を通らずに作るときも、UTC が警告なしに入らないよう案内する（setup の案内と同じ文）
+  if (isUtcTimeZone(timeZone))
+    process.stderr.write(`agent-usage: ${utcTimeZoneGuidance(timeZone)}\n`);
+  saveUserConfig(root, env, { personId: newPersonId(), timeZone });
   const config = loadUserConfig(root, env);
   if (config === null) throw new ConfigError(`${path}: 人の ID を書いたのに読めない`);
   return { config, created: true, path };

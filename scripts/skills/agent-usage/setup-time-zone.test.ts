@@ -1,9 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { readFileSync } from "node:fs";
-import {
-  confirmSystemTimeZone,
-  isUtcTimeZone,
-} from "../../../skills/agent-usage/scripts/agent-usage.mjs";
+import { confirmSystemTimeZone } from "../../../skills/agent-usage/scripts/agent-usage.mjs";
+import { isUtcTimeZone } from "../../../skills/agent-usage/scripts/lib/time.mjs";
 import { setup, userConfigOf } from "./cli-helpers.ts";
 
 // setup がタイムゾーンを決めるときの UTC の扱い（Issue #890）。
@@ -11,7 +9,8 @@ import { setup, userConfigOf } from "./cli-helpers.ts";
 //   値の出所       --time-zone／人の設定の値／マシンのタイムゾーン（このときだけ確かめる）。
 //   マシンの値     UTC の名前（別名を含む）／UTC 以外。
 //   対話           できる（1 行を読める）／できない（stdin か stdout が端末でない）。
-//   入力           空（Enter）／正しい IANA の名前／IANA の名前でない。
+//   入力           空（Enter）／正しい IANA の名前／IANA の名前でない／読めない（上限を過ぎた）。
+//   設定を作る側   setup／collect（setup を通らずに人の設定を作る）。
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -69,6 +68,21 @@ describe("confirmSystemTimeZone", () => {
     expect(read).toHaveBeenCalledTimes(1);
   });
 
+  test("対話できる実行で、付け方の案内を先に出さずに尋ねる（UTC で集計すると言い切ってから別の値を尋ねない）", () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const write = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    expect(confirmSystemTimeZone("UTC", () => "Asia/Tokyo")).toBe("Asia/Tokyo");
+    expect(log).not.toHaveBeenCalled();
+    expect(write.mock.calls.flat().join("")).toMatch(/Enter、別の時間帯なら IANA の名前/);
+  });
+
+  test("対話できる実行で入力が読めなければ（上限を過ぎたなど）、付け方を示して UTC のまま使う", () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    expect(confirmSystemTimeZone("UTC", () => null)).toBe("UTC");
+    expect(log.mock.calls.flat().join("\n")).toMatch(/--time-zone Asia\/Tokyo/);
+  });
+
   test("対話できる実行で IANA の名前でない値を入れたら、設定を作らずに止める", () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     vi.spyOn(process.stdout, "write").mockImplementation(() => true);
@@ -77,6 +91,20 @@ describe("confirmSystemTimeZone", () => {
 });
 
 describe("setup のタイムゾーンの決め方（CLI）", () => {
+  test("setup を通らずに collect が人の設定を作るときも、マシンが UTC なら付け方を示す", async () => {
+    const { tmp, cli, cliWith, git } = await setup();
+    expect((await cli("setup", "--time-zone", "Asia/Tokyo")).status).toBe(0);
+    await git("switch", "-q", "-c", "feature/5-x");
+    // 別の人（人の設定が無い）が、.agent-usage/ のある clone で collect する
+    const other = { TZ: "UTC", XDG_CONFIG_HOME: `${tmp}/xdg-other` };
+    const r = await cliWith(other, "collect");
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stderr).toMatch(/--time-zone Asia\/Tokyo のように/);
+    expect(readFileSync(`${tmp}/xdg-other/skills/shoji9x9/agent-usage.jsonc`, "utf8")).toMatch(
+      /"timeZone": "UTC"/,
+    );
+  });
+
   test("マシンが UTC で --time-zone が無ければ、UTC を使うことと付け方を示し、UTC で設定を作る", async () => {
     const { tmp, cliWith } = await setup();
     const r = await cliWith({ TZ: "UTC" }, "setup", "--person-id", "p-0123abcd");
