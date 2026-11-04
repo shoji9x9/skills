@@ -26,13 +26,14 @@ Issue #864 で、停止と再開・層の確認待ち・本番由来かの記録
 | eval | 入力の変更 | with_skill | without_skill | 前回の with_skill |
 | --- | --- | --- | --- | --- |
 | 5 | あり | 3/5 | 0/5 | 3/5（iteration-11） |
-| 7 | 新規 | 4/4 | 3/4 | - |
+| 7 | 新規 | 3/4 | 3/4 | - |
 
 eval 5 の assertion 1 は文を変えたので、前回とは比べない。assertion 2〜5 の with_skill は、前回と同じ判定（2・3 が pass、4・5 が fail）である。
 
 ## 変更の効果
 
-- eval 7: with_skill は `resume` が無いことを理由に止まり、`status` と `blocked_on` を示して、再開する工程の指定を求めた。
+- eval 7: with_skill は `resume` が無いことを理由に止まり、再開する工程の指定を求めた。回答は台帳に反映してから止まった。
+  `status` は示したが、`blocked_on` は値を示さなかったので、assertion 2 は fail にした。
   without_skill は、`replace-strategy` の `SKILL.md` の「入っていなければ導入手順を示して止まる」に従って止まり、再開する工程は確かめなかった。
 - eval 5: with_skill は `resume.from_step` を読んで工程 6 から再開し、Q-4 の回答で `schema.md` の層の確認待ちの 4 行を確定にした。止まるときも `from_step: 6` を書いた。
 - eval 5 の without_skill は、`replace-strategy` の `SKILL.md` の「入っていなければ導入手順を示して止まる」に従って止まり、台帳を書き換えなかった。
@@ -58,6 +59,7 @@ eval 5 の assertion 1 は文を変えたので、前回とは比べない。ass
 - eval 5 と eval 7: PR #884 の local レビューの指摘で、eval 5 の fixture（2 節の層の行）と eval 7 の prompt（`--target`）を直したので、両方を実行し直した。
 - eval 7: 実行し直した run で、with_skill が `replace-strategy` の `autonomy.md` を読めないことも止まる理由に挙げた。`requires_skills` を足して、もう一度実行した。
 - eval 5: 反復 2 の local レビューの指摘で、prompt に `--target` を、`requires_skills` に `replace-strategy` を足して、もう一度実行した。
+- eval 5 と eval 7 の with_skill: 反復 5 で再開の扱いを表にまとめた後の `SKILL.md` で、もう一度実行した。without_skill はスキルを読まないので、前の run を使った。
 - それより前の run は、入力が今と違うので集計から外した。
 
 ## 集計から外したもの
