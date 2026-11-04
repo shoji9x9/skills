@@ -16,7 +16,7 @@ node <このスキル>/scripts/agent-usage.mjs setup --time-zone Asia/Tokyo
   端末で実行していれば、UTC のまま使うか（Enter）、別の IANA の名前を入力するかを尋ねる。2 分たっても入力が無ければ、UTC のまま進む。
   エージェントから実行したときは尋ねないので、表示を読んで利用者の時間帯を `--time-zone` で渡し直す。setup を通らずに collect が人の設定を作るときも、同じ表示を stderr に出す
 - collect は、行ごとに記録したときのタイムゾーンを書く。setup でタイムゾーンを変えても、記録済みの行の日付と時刻の区切りは変わらない
-- report は、人の設定のタイムゾーンを端末にも 1 行表示する
+- report は、集計に使ったタイムゾーン（人の設定の値か、無ければマシンの値）を端末にも 1 行表示する
 - `--billing user` を付けると、collect が個人のプランの premium request の実額（GitHub の課金 API）も記録する（[`reviews.md`](reviews.md)）
 - setup が作った人の設定に `"defaultDecision": "record"`（または `"decline"`）を書き足すと、コミットの前の確認の Hook は、判断の無いブランチのコミットを止めずに、その値に従う。
   人の設定の値は、リポジトリの設定の同じキーより優先する。setup を実行し直しても、この値は残る（setup が書くのは `personId`・`timeZone`・`billing` だけである）
