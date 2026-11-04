@@ -24,10 +24,25 @@ fi
 offset=0
 checkpoint_agent=""
 checkpoint_lines=""
+# 処理位置が渡された transcript のものかを決める。
+# session key の付いた処理位置（`.extract-checkpoint.<key>`）は、名前でセッションが決まっている。
+# Claude Code では、worktree へ移った後に同じセッションの transcript が別のディレクトリへ移るので、
+# パスではなく transcript のファイル名（session id）で照合する。パスは次の記録で今の値に書き直される。
+# key を持たない古い名前の処理位置は、セッションを見分けられないので、パスの一致だけを認める。
+checkpoint_matches() { # $1: 処理位置の 1 行目
+	[ "$1" = "${transcript}" ] && return 0
+	# session key は `.` を含まない。`.extract-checkpoint.<key>.foreign-scan` のような別の制御ファイルは除く。
+	case "${checkpoint##*/}" in
+	.extract-checkpoint.*.*) return 1 ;;
+	.extract-checkpoint.?*) ;;
+	*) return 1 ;;
+	esac
+	[ "${1##*/}" = "${transcript##*/}" ]
+}
 if [ -r "${checkpoint}" ]; then
 	checkpoint_path=$(sed -n '1p' "${checkpoint}")
 	checkpoint_offset=$(sed -n '2p' "${checkpoint}")
-	if [ "${checkpoint_path}" = "${transcript}" ] && [[ "${checkpoint_offset}" =~ ^[0-9]+$ ]]; then
+	if checkpoint_matches "${checkpoint_path}" && [[ "${checkpoint_offset}" =~ ^[0-9]+$ ]]; then
 		size=$(wc -c <"${transcript}")
 		size=${size//[[:space:]]/}
 		if [ "${checkpoint_offset}" -le "${size}" ]; then

@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, test } from "vitest";
-import { appendFileSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import {
   claudeAssistant,
@@ -166,6 +173,91 @@ describe("checkpoint からの差分", () => {
     const res = withCheckpoint([""], (t, b) => `${t}\n${b}\nclaude-code\n2\n`);
     expect(res.status, res.stderr).toBe(1);
     expect(res.stdout).toMatch(/^kaizen-candidate-scan: agent=claude-code$/m);
+  });
+});
+
+// Claude Code では、worktree へ移った後に同じセッションの transcript が別のディレクトリへ移る。
+// session key の付いた処理位置は、パスではなく transcript のファイル名（session id）で照合する。
+// key を持たない古い名前の処理位置は、セッションを見分けられないので、パスの一致だけを認める。
+describe("処理位置の transcript の照合", () => {
+  // 処理済みの範囲に候補（利用者の訂正）を置く。読み直すと exit 0、読み直さなければ exit 1 になる。
+  const processed = [
+    claudeUser("違う、やり直してください"),
+    claudeAssistant([{ type: "text", text: "やり直しました" }]),
+  ];
+
+  function scanMoved(opts: {
+    checkpointName: string;
+    recordedName?: string;
+    recordedPath?: (moved: string) => string;
+    offsetDelta?: number;
+  }) {
+    const dir = workdir();
+    const before = join(dir, "a");
+    const after = join(dir, "b");
+    mkdirSync(before);
+    mkdirSync(after);
+    const name = "0123abcd-session.jsonl";
+    const moved = transcript(after, processed);
+    renameSync(moved, join(after, name));
+    const current = join(after, name);
+    const bytes = Buffer.byteLength(readFileSync(current)) + (opts.offsetDelta ?? 0);
+    const recorded = opts.recordedPath
+      ? opts.recordedPath(current)
+      : join(before, opts.recordedName ?? name);
+    const checkpoint = join(dir, opts.checkpointName);
+    writeFileSync(checkpoint, `${recorded}\n${bytes}\nclaude-code\n2\n`);
+    return scan([current, checkpoint]);
+  }
+
+  test.each([
+    [
+      "key 付きで、移る前のパスでもファイル名が同じ",
+      1,
+      { checkpointName: ".extract-checkpoint.k1" },
+    ],
+    [
+      "key 付きで、同じパス",
+      1,
+      { checkpointName: ".extract-checkpoint.k1", recordedPath: (c: string) => c },
+    ],
+    [
+      "key 付きで、ファイル名が違う（別のセッション）",
+      0,
+      { checkpointName: ".extract-checkpoint.k1", recordedName: "other-session.jsonl" },
+    ],
+    [
+      "key 付きで、ファイル名が前方で一致するだけ",
+      0,
+      { checkpointName: ".extract-checkpoint.k1", recordedName: "0123abcd-session.jsonl.bak" },
+    ],
+    [
+      "key 付きで、1 行目が空",
+      0,
+      { checkpointName: ".extract-checkpoint.k1", recordedPath: () => "" },
+    ],
+    [
+      "key 付きで、位置がファイルの大きさを超える",
+      0,
+      { checkpointName: ".extract-checkpoint.k1", offsetDelta: 1 },
+    ],
+    ["key の無い古い名前で、移る前のパス", 0, { checkpointName: ".extract-checkpoint" }],
+    [
+      "key の無い古い名前で、名前が key で終わらない",
+      0,
+      { checkpointName: ".extract-checkpoint." },
+    ],
+    ["処理位置の名前が別の形", 0, { checkpointName: "checkpoint" }],
+    [
+      "key の後に別の拡張子が続く制御ファイル",
+      0,
+      { checkpointName: ".extract-checkpoint.k1.foreign-scan" },
+    ],
+  ])("%s なら exit %i", (_name, expected, opts) => {
+    const res = scanMoved(opts);
+    expect(res.status, res.stderr + res.stdout).toBe(expected);
+    if (expected === 1) expect(res.stderr).toContain("no new records since checkpoint");
+    else expect(res.stdout).toMatch(/^user correction: transcript line 1$/m);
   });
 });
 
