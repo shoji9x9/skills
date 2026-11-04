@@ -437,7 +437,12 @@ commit message の 1 行目、PR のタイトルと本文、Issue へのコメ�
 
 見直すかどうかは、候補の一覧を添えて、判断待ちとして記録する。満たせない条件と同時に起きたら、「判断の扱い」のとおり 1 つの判断待ちにまとめる。
 exit 0 だけを見て push すると、確認がどこにも残らずに消える。
-通ったら push する。PR の本文には、`Closes #<Issue番号>`、変更の概要、静的な検査、受け入れ条件の突き合わせの表、browser-test の結果か対象外の根拠、Kaizen の結果を含める。
+通ったら push する。PR の本文には、`Closes #<Issue番号>`、変更の概要、静的な検査、受け入れ条件の突き合わせの表、browser-test の結果か対象外の根拠、Kaizen の結果、「仮に決めたこと」の節を含める。
+「仮に決めたこと」の節は、`issue-start` の `references/provisional-decisions.md` の 5 つの項目で書き、0 件でも節を置いて「無い」と書く。
+載せるのは、manifest の `self_decisions` の `excluded_forms` と `others` のうち、その Issue の番号を持ち、解釈・値・形を選んだ項目である。
+判断待ち（`pending_decisions`）は載せない。判断待ちの Issue は BLOCKED で merge しないので、最終報告の判断待ちの一覧で扱う。
+出どころと人への問いは、manifest の判断と根拠から書く。速度や反復の回数で直さなかった指摘と守っていない規約は、この節に入れず、最終報告にだけ載せる。
+run を見ていなかった人が PR だけを読んでも、エージェントが決めた箇所を見分けられるようにするためである。PR を作った後の判断は、`pr-finalize-loop` の返信と最終報告に残し、PR の本文には足さない。
 
 ## pr-finalize-loop への handoff
 

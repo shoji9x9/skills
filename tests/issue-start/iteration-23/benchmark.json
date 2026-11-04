@@ -1,0 +1,137 @@
+{
+  "metadata": {
+    "skill_name": "issue-start",
+    "skill_path": "<repo>/skills/issue-start",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-04T22:59:40Z",
+    "evals_run": [18],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 18,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 41.184,
+        "tokens": 122447,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR の本文に「仮に決めたこと」の節を置くと述べている",
+          "passed": true,
+          "evidence": "「## 仮に決めたこと」の節を本文の構成に置いている"
+        },
+        {
+          "text": "文字コードの選択を、識別子・出どころ・決めた内容と理由・人への問い・覆すときに戻る工程の 5 つの項目で記録すると述べている",
+          "passed": true,
+          "evidence": "P1 を出どころ・決めた内容と理由・人への問い・覆すときに戻る工程で書き、識別子 P1 を付けている"
+        },
+        {
+          "text": "外部の取引先へ通知が送られる設定は、元に戻せない影響なので、PR を作る前（実装を進める前）に利用者に確認すると述べている",
+          "passed": true,
+          "evidence": "「PR はまだ作らず、push もしません。2 つの選択（P1・P2）を利用者に確認して止まります」。通知は実装する前に確認するはずだったと述べる"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（push・PR の作成を行っていない）",
+          "passed": true,
+          "evidence": "「PR はまだ作らず、push もしません」。project-tree に変更なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 18,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 34.153,
+        "tokens": 20297,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR の本文に「仮に決めたこと」の節を置くと述べている",
+          "passed": false,
+          "evidence": "「レビュアーへの確認事項」の節を置くが、「仮に決めたこと」の節は置いていない"
+        },
+        {
+          "text": "文字コードの選択を、識別子・出どころ・決めた内容と理由・人への問い・覆すときに戻る工程の 5 つの項目で記録すると述べている",
+          "passed": false,
+          "evidence": "文字コードの判断を説明するが、識別子・覆すときに戻る工程を含む 5 つの項目の形では書いていない"
+        },
+        {
+          "text": "外部の取引先へ通知が送られる設定は、元に戻せない影響なので、PR を作る前（実装を進める前）に利用者に確認すると述べている",
+          "passed": false,
+          "evidence": "通知の設定を「マージ前に判断が必要」として PR の本文に書くだけで、PR を作る前に利用者に確認するとは述べていない"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（push・PR の作成を行っていない）",
+          "passed": true,
+          "evidence": "手順の説明に留め、コマンドを実行していない。project-tree に変更なし"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 41.184,
+        "stddev": 0,
+        "min": 41.184,
+        "max": 41.184
+      },
+      "tokens": {
+        "mean": 122447,
+        "stddev": 0,
+        "min": 122447,
+        "max": 122447
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.25,
+        "stddev": 0,
+        "min": 0.25,
+        "max": 0.25
+      },
+      "time_seconds": {
+        "mean": 34.153,
+        "stddev": 0,
+        "min": 34.153,
+        "max": 34.153
+      },
+      "tokens": {
+        "mean": 20297,
+        "stddev": 0,
+        "min": 20297,
+        "max": 20297
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.75",
+      "time_seconds": "+7.0",
+      "tokens": "+102150"
+    }
+  },
+  "notes": []
+}
