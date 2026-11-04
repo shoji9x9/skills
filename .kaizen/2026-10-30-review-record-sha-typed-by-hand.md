@@ -43,7 +43,7 @@ PR の HEAD を `gh pr view --json headRefOid` で取得し、形と手元の HE
 KEDB 照合は `SHA`・`local-review-record`・`書き写` で行い、pending の学びに一致は無かった。archive の applied の学びに同じ形がある。
 
 2026-11-04 の PR #885 でも、同じ原因（取得と投稿が別の呼び出しで、初めての投稿で手で組み立てた）で再発した。記録のスクリプトの拒否の出力で確かめた。
-注入の上限で省かれると学びが文脈に届かないので、同梱の手順（pr-finalize-loop の references/review-tool.md の「local」の手順 3 の例）を、headRefOid を同じ呼び出しで渡す形にするのが先である。
+注入の上限で省かれると、学びは文脈に届かない。そのため、同梱の手順の例を先に直す（「## 提案」の最後の箇条）。
 
 ## 提案
 
@@ -53,3 +53,4 @@ KEDB 照合は `SHA`・`local-review-record`・`書き写` で行い、pending �
 - 再発の根拠: PR #873 では、初めての投稿で同じ形が起きた（「2 回目に書く時点」では遅い）
 - #832 と #873 の run では、PR の HEAD を取得してから記録を投稿するスクリプト（scratchpad の `post832rec.sh`・`post-record.sh`）に替えた
 - 機構は作らない。記録のスクリプトが SHA を PR の HEAD と突き合わせて止めるので、誤った記録は残らない
+- 同梱の手順の例を直す。`pr-finalize-loop` の `references/review-tool.md` で、「local」の手順 3 の `post` の例は `--sha` に手順 1 で取得した値を手で渡す形である。これを、`headRefOid` を同じ呼び出しの中で取得して渡す形にする。学びが注入の上限で省かれても、手順を読めば同じ形になる（PR #885 の再発）
