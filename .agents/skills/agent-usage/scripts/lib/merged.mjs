@@ -11,7 +11,10 @@
 //      PR は origin のリポジトリでだけ探すので、fork から上流へ出した PR は見つからない。
 //   origin が無い・GitHub でない・gh が無い・取得に失敗したときは、2 では merge 済みとしない（記録を止めない）。
 
-import { isRecord } from "./config.mjs";
+import { existsSync } from "node:fs";
+import { defaultDecisionOf, hasPerson, isRecord } from "./config.mjs";
+import { loadDecisions } from "./decisions.mjs";
+import { usageDir } from "./records.mjs";
 import { defaultBranches, gitOrNull } from "./repo.mjs";
 import { ghLoginError, githubTarget } from "./run-collect.mjs";
 import { getAll, makeGh, withoutEnvTokens } from "./sources/github.mjs";
@@ -36,6 +39,93 @@ export function branchMerged(repo, env, gh = null) {
   const byPr = mergedByPullRequest(repo, head, { env, gh });
   if (byPr !== "") return { merged: true, how: byPr };
   return { merged: false, how: "" };
+}
+
+/**
+ * ブランチの行を、別の作業ツリーの collect が記録するかを返す関数を作る。
+ * collect は、記録するブランチの行を今のブランチの記録に書かず、その作業ツリーの collect に任せる（並行するブランチの行を混ぜないため）。
+ * その作業ツリーが記録しないブランチでは false を返す。true を返すと、その行がどの記録にも書かれないからである。
+ * true を返すのは、次の 4 つをすべて満たすブランチだけである。別の作業ツリーが checkout している。その作業ツリーに `.agent-usage/` がある。
+ * その作業ツリーでコミットするときの確認が記録すると決める（ブランチの判断か defaultDecision。decidedToRecord）。merge 済みでない。
+ * デフォルトブランチでは、その作業ツリーの確認が何もしない（isDecisionBranch が false）ので、false を返す。
+ * GitHub を取得しない collect（github が false）では、squash merge した後かを PR で確かめられないので、すべて false を返す。
+ * 判定は、行に現れたブランチだけを、初めて聞かれたときに行って覚える（コミットのたびに作業ツリーの数だけ gh を呼ばないため）。
+ * @param {import("./repo.mjs").RepoInfo} repo
+ * @param {{ env: NodeJS.ProcessEnv; github: boolean; gh?: import("./sources/github.mjs").GhRunner | null }} o
+ * @returns {(branch: string) => boolean}
+ */
+export function branchesRecordedElsewhere(repo, o) {
+  const skip = new Set([repo.branch, ...defaultBranches(repo)]);
+  /** @type {Map<string, string>} ブランチ → それを checkout している作業ツリー */
+  const paths = new Map();
+  for (const w of repo.otherWorktrees) if (!paths.has(w.branch)) paths.set(w.branch, w.path);
+  /** @type {Map<string, boolean>} */
+  const known = new Map();
+  /** @type {DecisionContext | null} ブランチに依らない材料（初めて要るときに 1 回だけ読む） */
+  let ctx = null;
+  return (branch) => {
+    const cached = known.get(branch);
+    if (cached !== undefined) return cached;
+    const path = paths.get(branch);
+    let result = false;
+    if (o.github && path !== undefined && branch !== "" && !skip.has(branch)) {
+      ctx ??= decisionContext(repo.commonDir, o.env);
+      result =
+        existsSync(usageDir(path)) &&
+        decidedToRecord(ctx, { path, branch, env: o.env }) &&
+        // merge 済みかは、その作業ツリーでコミットするときの確認と同じ方法で決める
+        !branchMerged({ ...repo, root: path, branch }, o.env, o.gh ?? null).merged;
+    }
+    known.set(branch, result);
+    return result;
+  };
+}
+
+/**
+ * @typedef {object} DecisionContext
+ * @property {Record<string, { decision: string }> | null} decisions 判断の記録（読めなければ null）
+ * @property {boolean} person 人の設定があるか（読めなければ false）
+ */
+
+/**
+ * @param {string} commonDir
+ * @param {NodeJS.ProcessEnv} env
+ * @returns {DecisionContext}
+ */
+function decisionContext(commonDir, env) {
+  /** @type {Record<string, { decision: string }> | null} */
+  let decisions;
+  try {
+    decisions = loadDecisions(commonDir);
+  } catch {
+    decisions = null;
+  }
+  let person;
+  try {
+    person = hasPerson(env);
+  } catch {
+    person = false;
+  }
+  return { decisions, person };
+}
+
+/**
+ * その作業ツリーでコミットするときの確認が、このブランチを記録すると決めるか。
+ * gate.mjs の resolveDecision・defaultDecision・personOf と同じ順で決める（変えるときは両方を変える）。
+ * 判断の記録を読めないとき・人の設定が無いとき・設定を読めないときは、その確認がコミットを止めて記録しないので、false を返す。
+ * ブランチの判断があればそれに従い、無ければ、その作業ツリーで読む設定の defaultDecision に従う。
+ * @param {DecisionContext} ctx
+ * @param {{ path: string; branch: string; env: NodeJS.ProcessEnv }} o
+ * @returns {boolean}
+ */
+function decidedToRecord(ctx, o) {
+  if (ctx.decisions === null || !ctx.person) return false;
+  if (Object.hasOwn(ctx.decisions, o.branch)) return ctx.decisions[o.branch].decision === "record";
+  try {
+    return defaultDecisionOf(o.path, o.env)?.decision === "record";
+  } catch {
+    return false;
+  }
 }
 
 /**

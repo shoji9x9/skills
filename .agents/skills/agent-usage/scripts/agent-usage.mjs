@@ -28,11 +28,11 @@ import {
 import { configPaths } from "./skill-config/skill-config.mjs";
 import { decisionFor, saveDecision } from "./lib/decisions.mjs";
 import { gateDecision, readHookInput } from "./lib/gate.mjs";
-import { branchMerged } from "./lib/merged.mjs";
+import { branchesRecordedElsewhere, branchMerged } from "./lib/merged.mjs";
 import { parseFlags } from "./lib/flags.mjs";
 import { git, isDecisionBranch, repoInfo } from "./lib/repo.mjs";
 import { usageDir } from "./lib/records.mjs";
-import { runCollect } from "./lib/run-collect.mjs";
+import { otherWorktreeRowsNote, runCollect } from "./lib/run-collect.mjs";
 import { runReport } from "./lib/report/report.mjs";
 import { isValidTimeZone, parseTime, systemTimeZone } from "./lib/time.mjs";
 
@@ -91,6 +91,8 @@ function printCollect(r) {
     console.log(`範囲より古いので読まなかった記録のファイル: ${r.skippedFiles}`);
   if (r.olderRowsSkipped > 0)
     console.log(`開始時刻が範囲より古いので書かなかった行: ${r.olderRowsSkipped}`);
+  const elsewhere = otherWorktreeRowsNote(r.otherWorktreeRows);
+  if (elsewhere !== "") console.log(elsewhere);
   if (r.retractedRows > 0)
     console.log(`打ち消した行（ログはあるが、今は作らなくなった行）: ${r.retractedRows}`);
   if (r.duplicateMessages > 0)
@@ -225,12 +227,14 @@ function collectCommand(rest, context) {
   const { now } = context;
   const a = parseArgs(rest, ["--stage", "--no-github"], []);
   const repo = requireSetup(context.cwd);
+  const github = !a.flags.has("--no-github");
   const r = runCollect({
     repo,
     now,
     env: process.env,
-    github: !a.flags.has("--no-github"),
+    github,
     gh: null,
+    elsewhere: branchesRecordedElsewhere(repo, { env: process.env, github }),
   });
   printCollect(r);
   if (a.flags.has("--stage")) {

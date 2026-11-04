@@ -61,6 +61,7 @@
     "scripts/skills/agent-usage/github.mutations.json": 0.7,
     "scripts/skills/agent-usage/cli.mutations.json": 14.2,
     "scripts/skills/agent-usage/dedupe.mutations.json": 0.5,
+    "scripts/skills/agent-usage/worktree-branches.mutations.json": 3.0,
     "scripts/hooks/stop-marker.mutations.json": 0.5,
     "scripts/coverage/check-coverage.mutations.json": 0.5,
     "scripts/skills/kaizen/schedule/kaizen-schedule-report.mutations.json": 4.2,

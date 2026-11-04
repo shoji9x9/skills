@@ -1,0 +1,132 @@
+{
+  "$comment": [
+    "worktree-branches.test.ts のうち、別の作業ツリーの collect が記録するブランチの行を外す判定を検出できることを示す変異の一覧。",
+    "外しすぎると行がどこにも書かれず、外さないと別のブランチの記録に入る。どちらもエラーにならない。"
+  ],
+  "test_file": "scripts/skills/agent-usage/worktree-branches.test.ts",
+  "mutations": [
+    {
+      "id": "other-worktree-rows-written",
+      "why": "別の作業ツリーの collect が記録するブランチの行を、今のブランチの記録に書く",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "    if (r.retracted === \"1\" || !other(b)) return true;",
+      "replace": "    if (true) return true;",
+      "occurrences": 1,
+      "expect_failing": [
+        "withoutOtherWorktrees 外すと判定したブランチの行だけを外し、ブランチごとの件数を返す",
+        "withoutOtherWorktrees Object のプロパティと同じ名前のブランチも、件数を数える",
+        "別の作業ツリーの collect が記録するブランチの行を書かない collect 別の作業ツリーが記録するブランチの行は書かず、その件数を出し、作業ツリーを消した後の collect で書く",
+        "別の作業ツリーの collect が記録するブランチの行を書かない collect Hook の collect も、別の作業ツリーが記録するブランチの行を書かず、その件数を出す"
+      ]
+    },
+    {
+      "id": "other-worktree-retraction-dropped",
+      "why": "打ち消しの行を外し、今の作業ツリーの記録にある元の行がどこからも打ち消されない",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "    if (r.retracted === \"1\" || !other(b)) return true;",
+      "replace": "    if (!other(b)) return true;",
+      "occurrences": 1,
+      "expect_failing": ["withoutOtherWorktrees 打ち消しの行は、外すブランチの行でも残す"]
+    },
+    {
+      "id": "default-branch-dropped",
+      "why": "別の作業ツリーが checkout しているデフォルトブランチの行を、どこにも書かない",
+      "file": "skills/agent-usage/scripts/lib/merged.mjs",
+      "find": "    if (o.github && path !== undefined && branch !== \"\" && !skip.has(branch)) {",
+      "replace": "    if (o.github && path !== undefined && branch !== \"\") {",
+      "occurrences": 1,
+      "expect_failing": [
+        "branchesRecordedElsewhere デフォルトブランチは、判断が「記録する」でも返さない"
+      ]
+    },
+    {
+      "id": "no-github-dropped",
+      "why": "GitHub を取得しない collect で、squash merge した後かを確かめずにブランチの行を外す",
+      "file": "skills/agent-usage/scripts/lib/merged.mjs",
+      "find": "    if (o.github && path !== undefined && branch !== \"\" && !skip.has(branch)) {",
+      "replace": "    if (path !== undefined && branch !== \"\" && !skip.has(branch)) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "branchesRecordedElsewhere GitHub を取得しない collect では、どのブランチも返さない",
+        "別の作業ツリーの collect が記録するブランチの行を書かない collect collect --no-github は、別の作業ツリーが記録するブランチの行も書く"
+      ]
+    },
+    {
+      "id": "no-usage-dir-dropped",
+      "why": ".agent-usage/ が無く Hook が記録しない作業ツリーのブランチの行を、どこにも書かない",
+      "file": "skills/agent-usage/scripts/lib/merged.mjs",
+      "find": "        existsSync(usageDir(path)) &&",
+      "replace": "        true &&",
+      "occurrences": 1,
+      "expect_failing": [
+        "branchesRecordedElsewhere .agent-usage/ の無い作業ツリーのブランチは、判断が「記録する」でも返さない"
+      ]
+    },
+    {
+      "id": "declined-branch-dropped",
+      "why": "記録しないと決めた作業ツリーのブランチの行を、どこにも書かない",
+      "file": "skills/agent-usage/scripts/lib/merged.mjs",
+      "find": "  if (Object.hasOwn(ctx.decisions, o.branch)) return ctx.decisions[o.branch].decision === \"record\";",
+      "replace": "  if (Object.hasOwn(ctx.decisions, o.branch)) return true;",
+      "occurrences": 1,
+      "expect_failing": [
+        "branchesRecordedElsewhere 判断が「記録する」で merge していないブランチだけを返す"
+      ]
+    },
+    {
+      "id": "default-decision-ignored",
+      "why": "判断が無く defaultDecision で記録するブランチの行を外さず、並行するブランチの行が今のブランチの記録に入る",
+      "file": "skills/agent-usage/scripts/lib/merged.mjs",
+      "find": "    return defaultDecisionOf(o.path, o.env)?.decision === \"record\";",
+      "replace": "    return false;",
+      "occurrences": 1,
+      "expect_failing": [
+        "branchesRecordedElsewhere 判断が無いブランチは、その作業ツリーの defaultDecision が record で人の設定がある なら、その結果に従う",
+        "branchesRecordedElsewhere 判断の記録を読めなければ、defaultDecision が record でも、どのブランチも返さない"
+      ]
+    },
+    {
+      "id": "no-person-dropped",
+      "why": "人の設定が無く、その作業ツリーの Hook が記録しないブランチの行を、どこにも書かない",
+      "file": "skills/agent-usage/scripts/lib/merged.mjs",
+      "find": "  if (ctx.decisions === null || !ctx.person) return false;",
+      "replace": "  if (ctx.decisions === null) return false;",
+      "occurrences": 1,
+      "expect_failing": [
+        "branchesRecordedElsewhere 判断が無いブランチは、その作業ツリーの defaultDecision が record でも人の設定が無い なら、その結果に従う",
+        "branchesRecordedElsewhere 判断が「記録する」でも、人の設定が無ければ返さない"
+      ]
+    },
+    {
+      "id": "unreadable-config-dropped",
+      "why": "設定を読めずに、その作業ツリーの Hook がコミットを止めるブランチの行を、どこにも書かない",
+      "file": "skills/agent-usage/scripts/lib/merged.mjs",
+      "find": "    return defaultDecisionOf(o.path, o.env)?.decision === \"record\";\n  } catch {\n    return false;",
+      "replace": "    return defaultDecisionOf(o.path, o.env)?.decision === \"record\";\n  } catch {\n    return true;",
+      "occurrences": 1,
+      "expect_failing": [
+        "branchesRecordedElsewhere その作業ツリーの設定を読めなければ、判断が無いブランチを返さない"
+      ]
+    },
+    {
+      "id": "merged-branch-dropped",
+      "why": "merge 済みで記録しない作業ツリーのブランチの行を、どこにも書かない",
+      "file": "skills/agent-usage/scripts/lib/merged.mjs",
+      "find": "        !branchMerged({ ...repo, root: path, branch }, o.env, o.gh ?? null).merged;",
+      "replace": "        true;",
+      "occurrences": 1,
+      "expect_failing": [
+        "branchesRecordedElsewhere merge 済みのブランチは、判断が「記録する」でも返さない"
+      ]
+    },
+    {
+      "id": "prunable-worktree-dropped",
+      "why": "ディレクトリが消えた作業ツリーのブランチの行を、どこにも書かない",
+      "file": "skills/agent-usage/scripts/lib/repo.mjs",
+      "find": "    else if (line === \"prunable\" || line.startsWith(\"prunable \")) cur.prunable = true;",
+      "replace": "    else if (false) cur.prunable = true;",
+      "occurrences": 1,
+      "expect_failing": ["parseWorktreeList 作業ツリーごとに、パス・ブランチ・prunable かを読む"]
+    }
+  ]
+}

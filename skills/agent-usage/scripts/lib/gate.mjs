@@ -13,10 +13,10 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { defaultDecisionOf, hasPerson, isRecord, userConfigPath } from "./config.mjs";
 import { decisionFor } from "./decisions.mjs";
-import { branchMerged } from "./merged.mjs";
+import { branchesRecordedElsewhere, branchMerged } from "./merged.mjs";
 import { git, isDecisionBranch, repoInfo } from "./repo.mjs";
 import { usageDir } from "./records.mjs";
-import { runCollect } from "./run-collect.mjs";
+import { otherWorktreeRowsNote, runCollect } from "./run-collect.mjs";
 import { rememberWorktrees } from "./sources/worktrees.mjs";
 
 /**
@@ -781,6 +781,7 @@ function rememberWorktreesQuietly(repo) {
 
 /**
  * ブランチの判断を読む。判断が無ければ defaultDecision に従う。コミットを止めるなら、その結果を返す。
+ * merged.mjs の decidedToRecord が、別の作業ツリーの行を外すかを同じ順で決める。判断の順を変えるときは、両方を変える。
  * @param {import("./repo.mjs").RepoInfo} repo
  * @param {GateContext} context
  * @returns {ResolvedDecision | GateResult}
@@ -842,15 +843,24 @@ function recordCommit(repo, context, note) {
       message: `agent-usage: このブランチは merge 済み（${merged.how}）なので、記録しない${note}`,
     };
   try {
-    const r = runCollect({ repo, now: context.now, env: process.env, github: true, gh: null });
+    const r = runCollect({
+      repo,
+      now: context.now,
+      env: process.env,
+      github: true,
+      gh: null,
+      elsewhere: branchesRecordedElsewhere(repo, { env: process.env, github: true }),
+    });
     // 今回書いたファイルに加えて、前回書いて stage されなかった（index.lock などで失敗した、手動の collect で書いた）記録も入れる
     git(["add", "--", ".agent-usage/records"], repo.root);
-    const notes =
+    const github =
       r.githubFailures.length > 0
         ? `（GitHub の取得に失敗した段: ${r.githubFailures.length}。その期間の停止は「判定不能」になる）`
         : r.githubSkipped
           ? `（GitHub は取得していない: ${r.githubSkipReason}）`
           : "";
+    const elsewhere = otherWorktreeRowsNote(r.otherWorktreeRows);
+    const notes = elsewhere === "" ? github : `${github}（${elsewhere}）`;
     return {
       exit: 0,
       message: `agent-usage: 利用実績を記録した（新しい行 ${r.newRows}、stage したファイル ${r.written.length}）${notes}${note}`,

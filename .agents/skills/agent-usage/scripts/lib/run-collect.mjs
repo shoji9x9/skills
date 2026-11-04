@@ -329,6 +329,7 @@ export function ghLoginError(host, env) {
  * @property {NodeJS.ProcessEnv} env
  * @property {boolean} github
  * @property {GhRunner | null} gh テストで差し替える（null なら gh を使う）
+ * @property {(branch: string) => boolean} elsewhere ブランチの行を書かないか（別の作業ツリーの collect が記録するか。merged.mjs の branchesRecordedElsewhere で作る）
  */
 
 /**
@@ -348,6 +349,7 @@ export function ghLoginError(host, env) {
  * @property {number} skippedFiles 範囲より古いので読まなかった記録のファイルの数
  * @property {number} olderRowsSkipped 開始時刻が範囲より古いので書かなかった行の数
  * @property {number} retractedRows 打ち消した行の数
+ * @property {Map<string, number>} otherWorktreeRows 別の作業ツリーの collect が記録するので書かなかった行の数（ブランチごと）
  */
 
 /**
@@ -377,7 +379,10 @@ export function runCollect(o) {
   const { unique, conflicts } = uniqueByKey(candidates);
   const { rows: retractions, withheld } = retractionsOf({ read, unique, local, settings });
   const { fresh, olderRowsSkipped } = freshRows({ unique, existing, withheld, lowerBound });
-  const rows = stampRows(fresh, retractions, now);
+  const { rows, elsewhere } = withoutOtherWorktrees(
+    stampRows(fresh, retractions, now),
+    o.elsewhere,
+  );
   const written = writeBranchRows(rows, targets);
   saveLastCollect(lastPath, person, now);
   return {
@@ -396,7 +401,40 @@ export function runCollect(o) {
     skippedFiles: read.skipped,
     olderRowsSkipped,
     retractedRows: retractions.length,
+    otherWorktreeRows: elsewhere,
   };
+}
+
+/**
+ * 別の作業ツリーの collect が記録するブランチの行を外す。その行は、その作業ツリーの collect が自分のブランチのファイルに書く。
+ * 外さないと、並行して開発するブランチの CI とセッションの行が、今のブランチの記録に入る。
+ * 外すブランチは、呼び出し元が merged.mjs の branchesRecordedElsewhere で決める。
+ * 打ち消しの行は外さない。元の行は今の作業ツリーの記録にあり、その作業ツリーの collect は元の行を読まないので打ち消せない。
+ * @param {readonly Row[]} rows
+ * @param {(branch: string) => boolean} other ブランチの行を外すか
+ * @returns {{ rows: Row[]; elsewhere: Map<string, number> }} elsewhere は外したブランチごとの行数
+ */
+export function withoutOtherWorktrees(rows, other) {
+  /** @type {Map<string, number>} */
+  const elsewhere = new Map();
+  const kept = rows.filter((r) => {
+    const b = r.branch ?? "";
+    if (r.retracted === "1" || !other(b)) return true;
+    elsewhere.set(b, (elsewhere.get(b) ?? 0) + 1);
+    return false;
+  });
+  return { rows: kept, elsewhere };
+}
+
+/**
+ * 外した行の件数を、手動の collect と Hook の collect の出力に出す 1 行にする（外した行が無ければ空）。
+ * @param {ReadonlyMap<string, number>} elsewhere
+ * @returns {string}
+ */
+export function otherWorktreeRowsNote(elsewhere) {
+  if (elsewhere.size === 0) return "";
+  const parts = [...elsewhere].map(([b, n]) => `${b} ${n}`).join("、");
+  return `別の作業ツリーの collect が記録するので書かなかった行: ${parts}`;
 }
 
 /**
