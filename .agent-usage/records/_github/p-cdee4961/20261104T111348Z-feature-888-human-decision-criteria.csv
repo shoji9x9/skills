@@ -16,3 +16,4 @@ ci:41820336034:1,ci,2026-11-04T11:31:00.287Z,p-cdee4961,github-actions,,,,2026-1
 ci:41820286450:1,ci,2026-11-04T11:31:00.287Z,p-cdee4961,github-actions,,,,2026-11-04T11:22:07.000Z,2026-11-04T11:26:49.000Z,Asia/Tokyo,feature/888-human-decision-criteria,888,,,,,,,,,,CI;pull_request;success,
 ci:41820285982:1,ci,2026-11-04T11:31:00.287Z,p-cdee4961,github-actions,,,,2026-11-04T11:22:06.000Z,2026-11-04T11:22:07.000Z,Asia/Tokyo,feature/888-human-decision-criteria,888,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 coverage:github:2026-11-03T11:20:21.441Z:2026-11-04T11:31:00.287Z,coverage,2026-11-04T11:31:00.287Z,p-cdee4961,,,,,2026-11-03T11:20:21.441Z,2026-11-04T11:31:00.287Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-03T11:31:00.287Z:2026-11-04T11:34:54.782Z,coverage,2026-11-04T11:34:54.782Z,p-cdee4961,,,,,2026-11-03T11:31:00.287Z,2026-11-04T11:34:54.782Z,Asia/Tokyo,,,,,,,,,,,,ok,
