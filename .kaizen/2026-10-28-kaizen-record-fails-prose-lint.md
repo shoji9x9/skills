@@ -33,3 +33,10 @@ KEDB 照合は「lint-prose」と「.kaizen」で行い、一致したのは Iss
 
 - kaizen の `references/extract.md` の手順 7 の「整形のコマンドを通す」に、自動で直らない lint（文章の lint など）も当てて直すことを足す。
 - 機構は作らない。pre-commit がその場で止めて理由を示すので、手順の追記で足りる。
+
+## 再発の記録（#891）
+
+2026-11-04、issue-batch の run の #891 で、既にある学びに再発の箇条を追記した後、実装の commit が markdownlint の MD013（行長 280 文字）で止まった。
+追記した学びは stage していなかったが、pre-commit の markdownlint は作業ツリーの `.kaizen/` も検査した。
+追記の後に、整形のコマンドも lint も当てていなかった。箇条に分けて通した。
+新しい学びを作るときだけでなく、既にある学びに追記するときも、同じ lint を当てる。
