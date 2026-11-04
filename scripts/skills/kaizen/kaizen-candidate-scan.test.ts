@@ -248,6 +248,11 @@ describe("処理位置の transcript の照合", () => {
       { checkpointName: ".extract-checkpoint." },
     ],
     ["処理位置の名前が別の形", 0, { checkpointName: "checkpoint" }],
+    [
+      "key の後に別の拡張子が続く制御ファイル",
+      0,
+      { checkpointName: ".extract-checkpoint.k1.foreign-scan" },
+    ],
   ])("%s なら exit %i", (_name, expected, opts) => {
     const res = scanMoved(opts);
     expect(res.status, res.stderr + res.stdout).toBe(expected);

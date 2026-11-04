@@ -31,7 +31,9 @@ checkpoint_lines=""
 # key を持たない古い名前の処理位置は、セッションを見分けられないので、パスの一致だけを認める。
 checkpoint_matches() { # $1: 処理位置の 1 行目
 	[ "$1" = "${transcript}" ] && return 0
+	# session key は `.` を含まない。`.extract-checkpoint.<key>.foreign-scan` のような別の制御ファイルは除く。
 	case "${checkpoint##*/}" in
+	.extract-checkpoint.*.*) return 1 ;;
 	.extract-checkpoint.?*) ;;
 	*) return 1 ;;
 	esac

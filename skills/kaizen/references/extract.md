@@ -161,7 +161,8 @@ bash <スキル>/scripts/kaizen-kedb-match.sh "<事象語>" "<ツール名また
    どちらの場合も、その transcript の処理位置 `.kaizen/.extract-checkpoint.<session key>`（1 行目が transcript のパス、2 行目がバイト位置、4 行目が行数）がその transcript を指しているなら、その位置より後だけを対象にする。
    - session key の付いた処理位置は、1 行目のパスではなく、transcript のファイル名（session id）が同じかで判断する。
      Claude Code では、worktree へ移った後に、同じセッションの transcript が別のディレクトリへ移ることがある。
-     走査ツールも同じ規則で照合し、処理位置を次に記録するときに 1 行目を今のパスに書き直す
+     走査ツールも同じ規則で照合する。1 行目を今のパスに書き直すのは、処理位置を記録する `kaizen-extract-done.sh` である。
+     そのため、`kaizen-extract-done.sh` には、処理位置の 1 行目ではなく、今の transcript のパスを渡す
    - 初めての抽出でも、checkpoint はありうる。同じセッションの前の commit がチェックを候補 0 件で自動で通っていれば、チェックが `kaizen-extract-done.sh --checkpoint-only` で checkpoint だけを進めている。
      「まだ 1 度も抽出していないので offset は無い」と決めつけず、ファイルがあるかを確かめる。
    - session 単位の名前になる前の古い checkpoint `.kaizen/.extract-checkpoint` しか無く、その 1 行目が同じ transcript を指す場合は、チェックと同じくそれを走査ツールに渡す。
