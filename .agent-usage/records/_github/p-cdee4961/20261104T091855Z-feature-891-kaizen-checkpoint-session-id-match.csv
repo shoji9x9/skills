@@ -1,0 +1,8 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:41805500913:1,ci,2026-11-04T09:18:55.416Z,p-cdee4961,github-actions,,,,2026-11-04T09:12:09.000Z,2026-11-04T09:12:34.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:41805501023:1,ci,2026-11-04T09:18:55.416Z,p-cdee4961,github-actions,,,,2026-11-04T09:12:09.000Z,2026-11-04T09:16:38.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:41804372663:1,ci,2026-11-04T09:18:55.416Z,p-cdee4961,github-actions,,,,2026-11-04T09:03:54.000Z,2026-11-04T09:03:56.000Z,Asia/Tokyo,feature/855-confirm-ui-fallback,855,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:41804372586:1,ci,2026-11-04T09:18:55.416Z,p-cdee4961,github-actions,,,,2026-11-04T09:03:54.000Z,2026-11-04T09:08:14.000Z,Asia/Tokyo,feature/855-confirm-ui-fallback,855,,,,,,,,,,CI;pull_request;success,
+ci:41803746422:1,ci,2026-11-04T09:18:55.416Z,p-cdee4961,github-actions,,,,2026-11-04T08:59:23.000Z,2026-11-04T09:03:49.000Z,Asia/Tokyo,feature/855-confirm-ui-fallback,855,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-11-03T09:03:08.834Z:2026-11-04T09:18:55.416Z,coverage,2026-11-04T09:18:55.416Z,p-cdee4961,,,,,2026-11-03T09:03:08.834Z,2026-11-04T09:18:55.416Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-03T09:18:55.416Z:2026-11-04T09:19:11.301Z,coverage,2026-11-04T09:19:11.301Z,p-cdee4961,,,,,2026-11-03T09:18:55.416Z,2026-11-04T09:19:11.301Z,Asia/Tokyo,,,,,,,,,,,,ok,
