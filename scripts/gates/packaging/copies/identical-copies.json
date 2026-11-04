@@ -57,6 +57,13 @@
     },
     {
       "files": [
+        "skills/pr-review-handle/references/review-response.md",
+        "skills/pr-finalize-loop/references/review-response.md"
+      ],
+      "reason": "指摘への返信の書き方・関係する指摘の保留・機能を足す指摘の確かめ方。姉妹スキルで食い違うと、同じ指摘への返信と保留の扱いがスキルごとに変わる"
+    },
+    {
+      "files": [
         "skills/pr-review-handle/scripts/resolve-review-tool.sh",
         "skills/pr-finalize-loop/scripts/resolve-review-tool.sh"
       ],
