@@ -48,7 +48,7 @@ eval 5 の assertion 1 は文を変えたので、前回とは比べない。ass
 ## 区別しない assertion
 
 - eval 5 の without_skill は、`current-environment-bootstrap` が入っていないことを理由に止まったので 0/5 になった。この差はスキルが無いことによるもので、スキルの効果ではない。
-  eval 5 の Delta（`benchmark.json` の `delta`）には数えない。
+  `benchmark.json` の `delta` は eval 5 と eval 7 をまとめた値で、どちらの without_skill も前提スキルが無いことを理由に止まっているので、スキルの効果として読まない。
 
 - eval 7 の assertion 2〜4 は、without_skill も満たした。`replace-strategy` を置いたので、without_skill はスキルが無いことを理由に止まるからである。
   区別するのは assertion 1（再開する工程を確かめるために止まる）だけである。2〜4 は、止まる代わりに推測で進む後退を検知するための assertion で、Delta には数えない。
