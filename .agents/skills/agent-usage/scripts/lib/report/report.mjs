@@ -179,7 +179,7 @@ function isDate(date) {
 
 /**
  * 期間の最初の日と最後の日。指定が無い側は、記録のうち最も古い日付・最も新しい日付（行のタイムゾーンで切る）にする。
- * GitHub を取得した期間の行（coverage）は作業の記録ではないので数えない。
+ * GitHub を取得した期間の行（coverage）と PR の行（pr）は作業の記録ではないので数えない（PR は作業より前に作られることがある）。
  * @param {readonly Row[]} rows 期間で絞った後の行
  * @param {{ since: string | null; until: string | null; tz: string }} o
  * @returns {{ from: string | null; to: string | null }}
@@ -188,7 +188,7 @@ export function periodBounds(rows, o) {
   /** @type {string[]} */
   const dates = [];
   for (const r of rows) {
-    if (r.kind === "coverage") continue;
+    if (r.kind === "coverage" || r.kind === "pr") continue;
     for (const v of [r.start, r.end]) {
       const t = parseTime(v);
       if (t !== null) dates.push(localParts(t, r.tz || o.tz).date);
@@ -255,6 +255,7 @@ export function dateRange(from, to) {
  * @property {Record<string, string>[]} usage usage.csv の行
  * @property {Record<string, string>[]} intervals intervals.csv の行
  * @property {Record<string, string>[]} reviews reviews.csv の行
+ * @property {Record<string, string>[]} prs prs.csv の行
  * @property {{ status: Status; byHour: number[] }[]} statusByHour 稼働中と停止の時間（時）を、時刻（0〜23 時）ごとに
  * @property {string[]} days 期間のすべての日付（記録の無い日を含む）。日別のチャートの横軸にする
  * @property {{ status: Status; byDay: number[] }[]} statusByDay 稼働中と停止の時間（時）を、days の日ごとに
@@ -294,6 +295,7 @@ export function buildReport(allRows, o) {
   const { usageOut, dailyCost, unknownCostBuckets } = aggregateUsage(ctx);
   const st = aggregateStatus(ctx);
   const reviews = buildReviews(rows, o);
+  const prs = buildPrs(ctx);
   const { first, last, days } = axisDays({ o, rows, dailyCost, byDate: st.byDate });
 
   return {
@@ -309,6 +311,7 @@ export function buildReport(allRows, o) {
     usage: usageOut,
     intervals: st.intervals,
     reviews,
+    prs,
     statusByHour: STATUSES.map((c) => ({ status: c, byHour: st.byHour.get(c) ?? [] })),
     days,
     statusByDay: STATUSES.map((c) => ({
@@ -954,6 +957,112 @@ function reviewCost(r, type, o) {
   return { cost, costSource };
 }
 
+/** PR のリードタイムの起点に数える、作業の記録の種類（エージェントの利用・指示・人の活動）。 */
+const WORK_KINDS = new Set(["usage", "run", "prompt", "activity", "human-wait"]);
+
+/**
+ * PR ごとの行（prs.csv）。merge か close した日が期間に入る PR と、open な PR を載せる。
+ * リードタイムは、同じブランチの最初の作業の記録から、merge（merge せずに閉じたら閉じた時刻）までの時間である。
+ * 作業の記録が無いブランチは、PR を作った時刻を起点にし、first_source に pr と書く。
+ * CI の失敗は、同じブランチの ci の行のうち conclusion が failure の行の数（再実行は別の行として数える）。
+ * レビューの数は、detail の pr がその PR の番号である review の行の数。
+ * 期間で絞る前の行（ctx.latest）から数える。期間の前に始めた作業や、期間の前に届いたレビューも、その PR の値に入れる。
+ * @param {ReportContext} ctx
+ * @returns {Record<string, string>[]}
+ */
+function buildPrs(ctx) {
+  const { o, latest } = ctx;
+  const idx = prIndex(latest);
+  return latest
+    .filter((r) => r.kind === "pr")
+    .map((r) => prOut(r, idx))
+    .filter((p) => p.state === "open" || inPeriod({ start: p.closed_at, tz: o.tz }, o))
+    .sort((a, b) => Number(a.pr) - Number(b.pr));
+}
+
+/**
+ * PR ごとの値を数えるための索引。ブランチの最初の作業の時刻・ブランチの CI の失敗の数・PR のレビューの数。
+ * @param {readonly Row[]} latest
+ * @returns {PrIndex}
+ */
+function prIndex(latest) {
+  /** @type {PrIndex} */
+  const idx = { firstByBranch: new Map(), failuresByBranch: new Map(), reviewsByPr: new Map() };
+  for (const r of latest) {
+    if (WORK_KINDS.has(r.kind ?? "")) addFirstWork(idx.firstByBranch, r);
+    else if (r.kind === "ci" && (r.detail ?? "").split(";").at(-1) === "failure")
+      increment(idx.failuresByBranch, r.branch ?? "");
+    else if (r.kind === "review") increment(idx.reviewsByPr, detailOf(r).pr ?? "");
+  }
+  return idx;
+}
+
+/** @typedef {{ firstByBranch: Map<string, number>; failuresByBranch: Map<string, number>; reviewsByPr: Map<string, number> }} PrIndex */
+
+/**
+ * ブランチの最初の作業の時刻を、行の開始の時刻で更新する。ブランチの無い行は数えない。
+ * @param {Map<string, number>} m
+ * @param {Row} r
+ * @returns {void}
+ */
+function addFirstWork(m, r) {
+  const t = parseTime(r.start);
+  if (!r.branch || t === null) return;
+  if (t < (m.get(r.branch) ?? Infinity)) m.set(r.branch, t);
+}
+
+/**
+ * キーの数を 1 増やす。キーが空なら数えない（ブランチや PR の番号の無い行を、空のキーにまとめない）。
+ * @param {Map<string, number>} m
+ * @param {string} key
+ * @returns {void}
+ */
+function increment(m, key) {
+  if (key === "") return;
+  m.set(key, (m.get(key) ?? 0) + 1);
+}
+
+/**
+ * @param {Row} r
+ * @returns {Record<string, string>}
+ */
+function detailOf(r) {
+  return Object.fromEntries((r.detail ?? "").split(";").map((kv) => kv.split("=")));
+}
+
+/**
+ * PR の行 1 件を prs.csv の行にする。
+ * @param {Row} r
+ * @param {PrIndex} idx
+ * @returns {Record<string, string> & { pr: string; state: string; closed_at: string }}
+ */
+function prOut(r, idx) {
+  const d = detailOf(r);
+  const branch = r.branch ?? "";
+  const created = parseTime(r.start);
+  const end = parseTime(r.end);
+  const work = idx.firstByBranch.get(branch);
+  const first = work ?? created;
+  const state = d.state ?? "";
+  return {
+    pr: d.pr ?? "",
+    state,
+    branch,
+    issue: r.issue ?? "",
+    author: d.author ?? "",
+    created_at: r.start ?? "",
+    first_record: first === null ? "" : toIso(first),
+    first_source: work !== undefined ? "record" : "pr",
+    closed_at: state === "open" ? "" : (r.end ?? ""),
+    lead_time_hours:
+      state === "open" || first === null || end === null
+        ? ""
+        : ((end - first) / 3600000).toFixed(2),
+    ci_failures: String(idx.failuresByBranch.get(branch) ?? 0),
+    reviews: String(idx.reviewsByPr.get(d.pr ?? "") ?? 0),
+  };
+}
+
 /**
  * 日別のチャートの横軸と、期間の表示に使う最初の日と最後の日。
  * @param {{ o: BuildOptions; rows: readonly Row[]; dailyCost: { date: string }[]; byDate: Map<Status, Map<string, number>> }} a
@@ -1012,6 +1121,20 @@ export const INTERVAL_COLUMNS = [
   "session",
   "branch",
   "issue",
+];
+export const PR_COLUMNS = [
+  "pr",
+  "state",
+  "branch",
+  "issue",
+  "author",
+  "created_at",
+  "first_record",
+  "first_source",
+  "closed_at",
+  "lead_time_hours",
+  "ci_failures",
+  "reviews",
 ];
 export const REVIEW_COLUMNS = [
   "type",
@@ -1078,6 +1201,7 @@ export function runReport(o) {
     [join(outDir, "usage.csv"), toCsv(USAGE_COLUMNS, data.usage, { formulaSafe: true })],
     [join(outDir, "intervals.csv"), toCsv(INTERVAL_COLUMNS, data.intervals, { formulaSafe: true })],
     [join(outDir, "reviews.csv"), toCsv(REVIEW_COLUMNS, data.reviews, { formulaSafe: true })],
+    [join(outDir, "prs.csv"), toCsv(PR_COLUMNS, data.prs, { formulaSafe: true })],
     [join(outDir, "index.html"), renderHtml(data)],
     [join(outDir, "meta.json"), `${JSON.stringify(reportMeta(data), null, 2)}\n`],
   ];

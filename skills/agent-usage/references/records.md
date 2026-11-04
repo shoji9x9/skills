@@ -9,7 +9,7 @@
   records/
     <person-id>/branches/<UTC の時刻>-<ブランチ>.csv   ローカルのログ・人の活動からの行（ブランチごとに 1 ファイル）
     _github/<person-id>/<UTC の時刻>-<ブランチ>.csv    GitHub から取った行（CI・レビュー・取得した期間。ブランチごとに 1 ファイル）
-  report/<yyyyMMdd>/                                  report の結果（index.html・usage.csv・intervals.csv・reviews.csv・meta.json）
+  report/<yyyyMMdd>/                                  report の結果（index.html・usage.csv・intervals.csv・reviews.csv・prs.csv・meta.json）
 ```
 
 - 時刻は、そのブランチで初めて collect した時刻である。`<ブランチ>` は、ブランチの名前の `/` などを `-` にした形（detached なら `detached`）
@@ -85,6 +85,7 @@ Codex のログはセッションの開始時のブランチ（`session_meta`）
 | `review` | PR のレビュー 1 件、または自分の Actions で実行したレビューの使用量 |
 | `billing` | 課金 API から取った日別の実額 |
 | `coverage` | GitHub の情報を取得した期間と、その成否（`ok` か `failed:<段>`） |
+| `pr` | PR 1 件。`start` は作った時刻、`end` は merge した時刻（merge せずに閉じたら閉じた時刻、open なら collect の時刻）。`detail` は `pr=<番号>;author=<login>;state=<merged・closed・open>` |
 
 ### 重複の扱い
 

@@ -33,7 +33,7 @@ export const GITHUB_DIR = "_github";
 export const BRANCH_DIR = "branches";
 
 /** GitHub から取る行の種類。人別のファイルではなく _github/ に書く。 */
-export const GITHUB_KINDS = ["ci", "review-wait", "review", "coverage"];
+export const GITHUB_KINDS = ["ci", "review-wait", "review", "coverage", "pr"];
 
 /**
  * @param {string} root
