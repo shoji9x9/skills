@@ -1,0 +1,157 @@
+{
+  "metadata": {
+    "skill_name": "pr-finalize-loop",
+    "skill_path": "<repo>/skills/pr-finalize-loop",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-03T09:43:11Z",
+    "evals_run": [24],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 24,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 40.857,
+        "tokens": 95504,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スレッド A を判断待ちにして、直さず解決もせずに残すと述べている",
+          "passed": true,
+          "evidence": "A は「直さず、resolve もしません。利用者にも質問しません」で、判断待ちにする"
+        },
+        {
+          "text": "スレッド B は、変数名の指摘で影響が小さくても、スレッド A と関係するので判断待ちに含め、直さず解決もせずに残すと述べている",
+          "passed": true,
+          "evidence": "B は「B だけなら影響は小さいですが、関係する指摘は影響の大きさに関係なく判断待ちに含めます」「直さず、resolve もしません」"
+        },
+        {
+          "text": "スレッド B の判断待ちの印の返信に、関係するスレッド A（の URL）を書くと述べている",
+          "passed": true,
+          "evidence": "B の返信例に「18 行は <スレッド A の URL> の指摘が変える 10〜20 行の範囲にある」と A の URL を書く"
+        },
+        {
+          "text": "スレッド C は、スレッド A の判断を待たずに直し、返信してから解決すると述べている",
+          "passed": true,
+          "evidence": "C は「A の答えを待たずに進めます」「返信してから resolve します。この順番は必ず守ります」"
+        },
+        {
+          "text": "返信の書き出しの例が、直した内容か直さない根拠（判断待ちの理由）で始まり、同意・お礼・謝罪だけの文（「ご指摘のとおりです」「ありがとうございます」など）を含まない",
+          "passed": true,
+          "evidence": "A・B は「判断待ちにした。…」、C は「…誤字…を…に直した」で始まり、お礼の文が無い"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドもファイル変更も使わず、スキルの定義だけから説明」と述べ、副作用は無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 24,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 4,
+        "failed": 2,
+        "total": 6,
+        "time_seconds": 21.174,
+        "tokens": 19127,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スレッド A を判断待ちにして、直さず解決もせずに残すと述べている",
+          "passed": true,
+          "evidence": "A は「保留して作成者に判断を返す」「resolve しない」"
+        },
+        {
+          "text": "スレッド B は、変数名の指摘で影響が小さくても、スレッド A と関係するので判断待ちに含め、直さず解決もせずに残すと述べている",
+          "passed": true,
+          "evidence": "B は「機械的に直せる」が「A に合わせて保留する」「resolve しない」"
+        },
+        {
+          "text": "スレッド B の判断待ちの印の返信に、関係するスレッド A（の URL）を書くと述べている",
+          "passed": false,
+          "evidence": "B の返信例は「スレッド A（10〜20 行の無効化の方式）」と書くが、A の URL も判断待ちの印も無い"
+        },
+        {
+          "text": "スレッド C は、スレッド A の判断を待たずに直し、返信してから解決すると述べている",
+          "passed": true,
+          "evidence": "C は「直してコミットし、push する」「resolve する」。返信は push の後に投稿してから resolve する"
+        },
+        {
+          "text": "返信の書き出しの例が、直した内容か直さない根拠（判断待ちの理由）で始まり、同意・お礼・謝罪だけの文（「ご指摘のとおりです」「ありがとうございます」など）を含まない",
+          "passed": false,
+          "evidence": "A・B・C の返信例がすべて「ご指摘ありがとうございます」「ありがとうございます」で始まる"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行やファイルの変更はしていません」と述べ、副作用は無い"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 40.857,
+        "stddev": 0,
+        "min": 40.857,
+        "max": 40.857
+      },
+      "tokens": {
+        "mean": 95504,
+        "stddev": 0,
+        "min": 95504,
+        "max": 95504
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.6667,
+        "stddev": 0,
+        "min": 0.6667,
+        "max": 0.6667
+      },
+      "time_seconds": {
+        "mean": 21.174,
+        "stddev": 0,
+        "min": 21.174,
+        "max": 21.174
+      },
+      "tokens": {
+        "mean": 19127,
+        "stddev": 0,
+        "min": 19127,
+        "max": 19127
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.33",
+      "time_seconds": "+19.7",
+      "tokens": "+76377"
+    }
+  },
+  "notes": []
+}
