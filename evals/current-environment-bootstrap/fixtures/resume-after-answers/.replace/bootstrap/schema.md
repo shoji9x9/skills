@@ -6,22 +6,28 @@
 
 ## 1. エンジンと実行時設定
 
-| 項目 | 値 | 根拠（資産・ファイル・位置） | 区分（確定／不足） |
+| 項目 | 値 | 根拠（資産・ファイル・位置） | 区分（確定／層の確認待ち／不足） |
 |---|---|---|---|
 | DB エンジン種別 | MySQL | `received/db/schema.sql` ヘッダ | 確定 |
 | バージョン（メジャー.マイナー） | 8.0.36 | 同上 | 確定 |
-| タイムゾーン | Asia/Tokyo | 同上 | 確定 |
-| 互換モード・SQL モード | STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION | 同上 | 確定 |
-| 拡張機能・プラグイン | なし | 同上に記載なし・DDL に依存なし | 確定 |
+| タイムゾーン（インスタンス） | Asia/Tokyo | `received/db/schema.sql` ヘッダ（層は Q-4） | 層の確認待ち |
+| タイムゾーン（セッション・接続） | 確認待ち（Q-4） | `received/db/schema.sql` ヘッダ | 層の確認待ち |
+| バージョン互換パラメータ（インスタンス） | 該当なし | MySQL 8.0 は互換パラメータを持たない。`received/db/schema.sql` ヘッダにも記載なし | 確定 |
+| バージョン互換パラメータ（セッション・接続） | 該当なし | 同上 | 確定 |
+| SQL の解釈を変えるモード設定（インスタンス） | STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION | `received/db/schema.sql` ヘッダ（層は Q-4） | 層の確認待ち |
+| SQL の解釈を変えるモード設定（セッション・接続） | 確認待ち（Q-4） | `received/db/schema.sql` ヘッダ | 層の確認待ち |
+| 追加オプション・拡張・コンポーネント | なし | 同上に記載なし・DDL に依存なし | 確定 |
 
 ## 2. 文字コードと照合順序（階層ごと）
 
 | 階層 | 文字コード | 照合順序 | 根拠 | 区分 |
 |---|---|---|---|---|
+| インスタンス | utf8mb4 | utf8mb4_ja_0900_as_cs | `received/db/schema.sql` ヘッダ（サーバーの既定の値） | 確定 |
 | DB | utf8mb4 | utf8mb4_ja_0900_as_cs | `CREATE DATABASE` 句 | 確定 |
 | スキーマ | 同上 | 同上 | 同上 | 確定 |
 | テーブル（既定と例外） | utf8mb4 | utf8mb4_ja_0900_as_cs | 各 `CREATE TABLE` の末尾句 | 確定 |
 | カラム（既定と異なるもの） | なし | なし | 各 DDL に個別指定なし | 確定 |
+| セッション／接続（アプリの接続方法） | utf8mb4（`characterEncoding=UTF-8`） | utf8mb4_ja_0900_as_cs | `received/docs/env.md` の接続文字列 | 確定 |
 
 ## 3. 構造・制約・プログラム
 

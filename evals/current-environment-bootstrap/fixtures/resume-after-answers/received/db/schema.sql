@@ -1,6 +1,6 @@
 -- 受領物: 現行システム DB スキーマ（2026-08-13 受領・非本番検証環境より出力）
 -- サーバーバージョン: 8.0.36
--- 文字コード: utf8mb4 / 照合順序: utf8mb4_ja_0900_as_cs
+-- サーバーの既定の文字コード: utf8mb4 / 照合順序: utf8mb4_ja_0900_as_cs
 -- タイムゾーン: Asia/Tokyo
 -- sql_mode: STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION
 
