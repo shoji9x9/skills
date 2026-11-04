@@ -190,7 +190,9 @@ issue-start https://github.com/<owner>/<repo>/issues/220 --pr
 - commit のときに、pre-commit の hook（lefthook など）や kaizen の commit 前のチェックが設定されていれば、それが実行される。
   チェックで止められた場合は、指示に従って `kaizen --current` を実行してから、もう一度 commit する
 - `--pr` のときは、基本フローの step 10 の受け入れ条件の突き合わせと、step 11 の PR のベースブランチの確認を通してから、ブランチを push する。
-  関連する Issue・変更の概要・確認した内容・突き合わせの表を含む PR を作る。
+  関連する Issue・変更の概要・確認した内容・突き合わせの表・「仮に決めたこと」の節を含む PR を作る。
+  「仮に決めたこと」には、実装の途中で Issue に書かれていないことを自分で選んだもの（あいまいな条件の解釈・デフォルトの値・対象から外した形など）を 1 件ずつ書き、0 件でも節を置いて「無い」と書く。
+  記録する項目と、人に回すかの判断は [`references/provisional-decisions.md`](references/provisional-decisions.md) で定義する。読めなければ、PR を作らずに止まる
   PR を作ったら、突き合わせの結果を Issue にコメントし、満たした項目にチェックを付ける（手順は [`references/acceptance.md`](references/acceptance.md) の手順 7）
 - commit の `--amend` と force push はしない
 

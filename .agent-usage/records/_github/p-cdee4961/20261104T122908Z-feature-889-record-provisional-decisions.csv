@@ -1,0 +1,10 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+review:5768126127,review,2026-11-04T12:29:08.853Z,p-cdee4961,copilot,,,,2026-11-04T12:20:41.000Z,2026-11-04T12:20:41.000Z,Asia/Tokyo,feature/888-human-decision-criteria,888,,,,,,,0.520000,estimate-bundled,,pr=895;author=shoji9x9;state=commented,
+review-wait:895:copilot:2026-11-04T12:14:58.000Z,review-wait,2026-11-04T12:29:08.853Z,p-cdee4961,copilot,,,,2026-11-04T12:14:58.000Z,2026-11-04T12:20:41.000Z,Asia/Tokyo,feature/888-human-decision-criteria,888,,,,,,,,,,pr=895,
+ci:41828651434:1,ci,2026-11-04T12:29:08.853Z,p-cdee4961,github-actions,,,,2026-11-04T12:22:05.000Z,2026-11-04T12:26:31.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:41828651500:1,ci,2026-11-04T12:29:08.853Z,p-cdee4961,github-actions,,,,2026-11-04T12:22:05.000Z,2026-11-04T12:22:29.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:41827650907:1,ci,2026-11-04T12:29:08.853Z,p-cdee4961,github-actions,,,,2026-11-04T12:15:08.000Z,2026-11-04T12:20:36.000Z,Asia/Tokyo,feature/888-human-decision-criteria,888,,,,,,,,,,Running Copilot Code Review;dynamic;success,
+ci:41827635984:1,ci,2026-11-04T12:29:08.853Z,p-cdee4961,github-actions,,,,2026-11-04T12:15:02.000Z,2026-11-04T12:15:03.000Z,Asia/Tokyo,feature/888-human-decision-criteria,888,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:41827635766:1,ci,2026-11-04T12:29:08.853Z,p-cdee4961,github-actions,,,,2026-11-04T12:15:02.000Z,2026-11-04T12:19:30.000Z,Asia/Tokyo,feature/888-human-decision-criteria,888,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-11-03T12:14:09.954Z:2026-11-04T12:29:08.853Z,coverage,2026-11-04T12:29:08.853Z,p-cdee4961,,,,,2026-11-03T12:14:09.954Z,2026-11-04T12:29:08.853Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-03T12:29:08.853Z:2026-11-04T12:29:50.237Z,coverage,2026-11-04T12:29:50.237Z,p-cdee4961,,,,,2026-11-03T12:29:08.853Z,2026-11-04T12:29:50.237Z,Asia/Tokyo,,,,,,,,,,,,ok,
