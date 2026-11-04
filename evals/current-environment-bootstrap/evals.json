@@ -230,7 +230,8 @@
     {
       "id": 7,
       "fixture": "fixtures/resume-record-without-resume-key",
-      "prompt": "current-environment-bootstrap --resume --autonomous",
+      "requires_skills": ["replace-strategy"],
+      "prompt": "current-environment-bootstrap --target current-rebuilt --resume --autonomous",
       "assertions": [
         "metadata.json に resume のキーが無いので、再開する工程を blocked_on の文や成果物の有無から決めず、どの工程から再開するかを利用者に確かめるために止まっている",
         "止まるときに、既存の metadata.json の status と blocked_on を利用者に示している",

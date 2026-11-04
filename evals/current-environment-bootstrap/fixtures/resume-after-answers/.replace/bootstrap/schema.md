@@ -22,10 +22,12 @@
 
 | 階層 | 文字コード | 照合順序 | 根拠 | 区分 |
 |---|---|---|---|---|
+| インスタンス | utf8mb4 | utf8mb4_ja_0900_as_cs | `received/db/schema.sql` ヘッダ（サーバーの既定の値） | 確定 |
 | DB | utf8mb4 | utf8mb4_ja_0900_as_cs | `CREATE DATABASE` 句 | 確定 |
 | スキーマ | 同上 | 同上 | 同上 | 確定 |
 | テーブル（既定と例外） | utf8mb4 | utf8mb4_ja_0900_as_cs | 各 `CREATE TABLE` の末尾句 | 確定 |
 | カラム（既定と異なるもの） | なし | なし | 各 DDL に個別指定なし | 確定 |
+| セッション／接続（アプリの接続方法） | utf8mb4（`characterEncoding=UTF-8`） | utf8mb4_ja_0900_as_cs | `received/docs/env.md` の接続文字列 | 確定 |
 
 ## 3. 構造・制約・プログラム
 

@@ -12,7 +12,7 @@
 | `received/db/schema.sql` | DB スキーマダンプ | 先方 開発担当 田口・2026-08-13・第 1 次受領 | 非本番と確認済み | `received/db/schema.sql` の 1 行目（非本番の検証環境から出力したと書かれている） | あり | ヘッダにエンジン版・文字コード・照合順序・TZ・sql_mode。データ行は含まない |
 | `received/app/src/OrderStatus.java` | アプリケーションコード | 同上 | 該当なし | データを含まない | あり | enum の名称は S0〜S9 |
 | `received/app/src/CustomerValidator.java` | アプリケーションコード | 同上 | 該当なし | データを含まない | あり | ランクの正規表現 |
-| `received/docs/env.md` | 実行環境メモ | 同上 | 該当なし | データを含まない | あり | 主要画面と権限 |
+| `received/docs/env.md` | 実行環境メモ | 同上 | 該当なし | データを含まない | あり | 主要画面と権限・DB 接続文字列 |
 
 - 本番の接続情報・認証情報を含む資産: なし
 

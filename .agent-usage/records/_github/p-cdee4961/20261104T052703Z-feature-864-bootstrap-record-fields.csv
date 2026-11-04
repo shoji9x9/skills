@@ -20,3 +20,6 @@ coverage:github:2026-11-03T02:09:13.196Z:2026-11-04T05:27:03.250Z,coverage,2026-
 coverage:github:2026-11-03T05:27:03.250Z:2026-11-04T05:28:11.860Z,coverage,2026-11-04T05:28:11.860Z,p-cdee4961,,,,,2026-11-03T05:27:03.250Z,2026-11-04T05:28:11.860Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-11-03T05:28:11.860Z:2026-11-04T05:28:47.043Z,coverage,2026-11-04T05:28:47.043Z,p-cdee4961,,,,,2026-11-03T05:28:11.860Z,2026-11-04T05:28:47.043Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-11-03T05:28:47.043Z:2026-11-04T05:29:14.767Z,coverage,2026-11-04T05:29:14.767Z,p-cdee4961,,,,,2026-11-03T05:28:47.043Z,2026-11-04T05:29:14.767Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:41779744756:1,ci,2026-11-04T05:43:55.908Z,p-cdee4961,github-actions,,,,2026-11-04T05:31:16.000Z,2026-11-04T05:31:17.000Z,Asia/Tokyo,feature/864-bootstrap-record-fields,864,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:41779744768:1,ci,2026-11-04T05:43:55.908Z,p-cdee4961,github-actions,,,,2026-11-04T05:31:16.000Z,2026-11-04T05:35:39.000Z,Asia/Tokyo,feature/864-bootstrap-record-fields,864,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-11-03T05:29:14.767Z:2026-11-04T05:43:55.908Z,coverage,2026-11-04T05:43:55.908Z,p-cdee4961,,,,,2026-11-03T05:29:14.767Z,2026-11-04T05:43:55.908Z,Asia/Tokyo,,,,,,,,,,,,ok,
