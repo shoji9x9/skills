@@ -36,7 +36,7 @@ Claude Code・Codex・GitHub Copilot の 3 つのエージェントが共有で�
 | ドキュメントを整備 / 整理 / 分割 / 集約 / 再配置 / 初期化 / 作成 | ドキュメント |
 | プロジェクトを初期化 / セットアップ | 全コンポーネント |
 
-意図が分からないときや、複数に当たるときは、AskUserQuestion で確かめる。
+意図が分からないときや、複数に当たるときは、利用者に確かめる。確かめ方は [`references/user-confirmation.md`](references/user-confirmation.md) に従う。
 
 追加したい知識・規約・処理を、skill・rule・hook・ドキュメントのどれにするか迷うときは、`references/component-selection.md` の基準に従う。
 
@@ -48,7 +48,7 @@ Claude Code・Codex・GitHub Copilot の 3 つのエージェントが共有で�
 ls -d .agents .claude .github .codex 2>/dev/null
 ```
 
-対象のエージェントが明示されていないときは、AskUserQuestion で確かめる。
+対象のエージェントが明示されていないときは、[`references/user-confirmation.md`](references/user-confirmation.md) の手順で利用者に確かめる。
 
 ### Step 3: コンポーネントの実行
 

@@ -32,7 +32,7 @@ ls -d .agents .claude .github .codex 2>/dev/null
 
 ### 2. 設定するエージェントをユーザーに確認
 
-対象のエージェントが明示されていない場合だけ、AskUserQuestion で確認する。
+対象のエージェントが明示されていない場合だけ、[`user-confirmation.md`](user-confirmation.md) の手順で確認する。
 
 ### 3. 基底ドキュメントにエージェントの自己設定編集の制約を追記する（既存なら除く）
 

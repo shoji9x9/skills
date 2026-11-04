@@ -107,8 +107,8 @@ Issue のタイトルの規約（conventional commits に似た接頭辞など�
    - 本文は後述「Issue 本文の規約」に従う
    - タイトルと本文は、ユーザーに見せる前に `writing-style` スキルの手順で読み直す（スキルが無ければ省く）
    - dismiss の候補があれば、何をなぜ dismiss するかも一覧で見せる
-   - 承認を求める確認の画面そのものに、判断に要るもの（下書きの全文と dismiss の候補の一覧）を入れる。
-     その直前の通常のテキストが確認のダイアログと同時に見えるとは限らないからである（Claude Code の AskUserQuestion では、選択肢の preview フィールドに入れる）
+   - 承認は [`references/user-confirmation.md`](references/user-confirmation.md) の手順で求め、判断に要るもの（下書きの全文と dismiss の候補の一覧）を確認そのものに入れる。
+     確認のツールを使えないエージェントでも、それらを本文に出して返事を待つ
 8. ユーザーの承認を得てから、Issue の起票（`gh issue create --body-file`）と dismiss（`gh api`）を実行する
 9. 作った Issue の URL、dismiss した alert とその理由、飛ばした alert とその理由をまとめて報告する
 
