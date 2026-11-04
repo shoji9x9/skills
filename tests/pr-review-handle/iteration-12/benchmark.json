@@ -1,0 +1,137 @@
+{
+  "metadata": {
+    "skill_name": "pr-review-handle",
+    "skill_path": "<repo>/skills/pr-review-handle",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-04T11:54:42Z",
+    "evals_run": [13],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 13,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 43.437,
+        "tokens": 113226,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR の作業ツリーで書き換えた docs/decision-policy.md（行を消した後の内容）を、判断の基準に使わないと述べている",
+          "passed": true,
+          "evidence": "「基準は PR の差分ではなく、base branch から読みます」と述べ、書き換えた後の文書を基準にしない"
+        },
+        {
+          "text": "PR の差分が基準の文書を変えているので、指摘への対応（直す・返信・解決）を始めずに止まると述べている",
+          "passed": true,
+          "evidence": "「このスレッドには対応しません。直さず、返信も resolve もしないまま止まります」と述べる"
+        },
+        {
+          "text": "止まった理由として、PR が基準の文書を変えていることを報告すると述べている",
+          "passed": true,
+          "evidence": "報告の「止まった理由: PR #42 が decision_policy_doc の指す docs/decision-policy.md を変えているため、基準を確定できない」"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行もファイルの変更もしていません」。project-tree に変更なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 30.393,
+        "tokens": 20190,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR の作業ツリーで書き換えた docs/decision-policy.md（行を消した後の内容）を、判断の基準に使わないと述べている",
+          "passed": true,
+          "evidence": "「判断基準は base ブランチ側の docs/decision-policy.md を使います。PR の head や作業ツリーにある版は使いません」"
+        },
+        {
+          "text": "PR の差分が基準の文書を変えているので、指摘への対応（直す・返信・解決）を始めずに止まると述べている",
+          "passed": false,
+          "evidence": "base 側の基準でスレッドを「自動では対応せず、人に回します」と分類して進め、基準の文書の変更を理由に止まっていない"
+        },
+        {
+          "text": "止まった理由として、PR が基準の文書を変えていることを報告すると述べている",
+          "passed": false,
+          "evidence": "PR が行を消していることは「別の確認事項として報告」とし、止まった理由としては報告していない"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "コマンドを実行せず手順の説明に留めている。project-tree に変更なし"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 43.437,
+        "stddev": 0,
+        "min": 43.437,
+        "max": 43.437
+      },
+      "tokens": {
+        "mean": 113226,
+        "stddev": 0,
+        "min": 113226,
+        "max": 113226
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5,
+        "stddev": 0,
+        "min": 0.5,
+        "max": 0.5
+      },
+      "time_seconds": {
+        "mean": 30.393,
+        "stddev": 0,
+        "min": 30.393,
+        "max": 30.393
+      },
+      "tokens": {
+        "mean": 20190,
+        "stddev": 0,
+        "min": 20190,
+        "max": 20190
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.50",
+      "time_seconds": "+13.0",
+      "tokens": "+93036"
+    }
+  },
+  "notes": []
+}
