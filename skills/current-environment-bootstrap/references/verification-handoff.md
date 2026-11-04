@@ -41,7 +41,7 @@
    - このスキルが設定に書くのはこの 1 か所だけで、値は利用者に確かめてから書く。
      `url` は既にある値（`none`）を変えるので、`skill-config.mjs set replace-strategy targets.<添字>.url '"<URL>"' --layer repo --replace` で書く。
      `default` は無いキーを足すので、`--replace` を付けずに `set ... targets.<添字>.default true --layer repo` で書く（書き込みの決まりの原本は [`config-files.md`](config-files.md)「書き込みの決まり」）。
-2. `metadata.json` を書く。`status` を `handed-off` にし、次の項目を記録する
+2. `metadata.json` を書く。`status` を `handed-off` にし、`resume` を `null` にして、次の項目を記録する
    - 復元の方法（受領 DDL／マイグレーションの適用／ORM による生成）と、埋まらなかった領域
    - `semantics` の確定済みと確認待ちの件数と、確認待ちが影響する機能
    - `handoff.boot_requirements`: `golden-dataset` のフェーズ A のデータ設計に含める必要がある起動要件（認証ユーザー・マスタ・コード表など）。
@@ -53,7 +53,7 @@
 
 | 値 | 意味 | 次にすること |
 |---|---|---|
-| `blocked` | 不足で止まっている（`blocked_on` に理由） | 質問票の回答・追加資産を待って `--resume` |
+| `blocked` | 不足で止まっている（`blocked_on` に理由、`resume` に再開する工程） | 質問票の回答・追加資産を待って `--resume` |
 | `handed-off` | 工程 7・8 を通して引き渡した | `replace-strategy setup` の測定へ |
 
 「工程の途中」を表す 3 つ目の値は持たない。このスキルの実行は、工程 9 まで進んで `handed-off` になるか、不足に当たって `blocked` で止まるかのどちらかで終わる。
@@ -61,4 +61,4 @@
 後で `--resume` の途中経過を記録する設計に変えるなら、値を足すのと同時に、誰がいつ書くかを実行の流れに決める。
 
 `handed-off` にしてよい条件は、工程 7 の起動・認証・主要な画面への到達をすべて実測し、工程 8 の再実行で再現できていることである。
-確認待ちの意味論が残っていることは、`handed-off` を妨げない。残っている一覧を `handoff.unconfirmed` に載せて渡す。
+確認待ちの意味論と、`schema.md` の区分「層の確認待ち」が残っていることは、`handed-off` を妨げない。残っている一覧を `handoff.unconfirmed` に載せて渡す。
