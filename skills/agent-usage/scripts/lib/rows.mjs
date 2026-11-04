@@ -11,7 +11,7 @@
 //   review       PR のレビュー 1 件（ツール・推定または実測の費用）。
 //   billing      課金 API から取った日別の実額。
 //   coverage     GitHub の情報を取得した期間と、その成否（取得していない期間の停止を「判定不能」にするため）。
-//   pr           PR 1 件（作った時刻から merge か close の時刻まで。open なら collect の時刻まで）。
+//   pr           PR 1 件（作った時刻から merge か close の時刻まで。open なら作った時刻で終える）。
 //
 // retracted が 1 の行は打ち消しの行で、同じ key の前の行を打ち消す（report は observed_at の最も新しい行が打ち消しなら、その key を数えない）。
 // key は行の同一性。並行するブランチや繰り返しの collect で同じ key の行が複数あれば、

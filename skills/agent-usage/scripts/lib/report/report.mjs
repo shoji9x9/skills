@@ -958,14 +958,16 @@ function reviewCost(r, type, o) {
 }
 
 /** PR のリードタイムの起点に数える、作業の記録の種類（エージェントの利用・指示・人の活動）。 */
-const WORK_KINDS = new Set(["usage", "run", "prompt", "activity", "human-wait"]);
+// usage は開始の時刻を 1 時間に丸めるので、activity は他の人の GitHub でのレビューを PR のブランチに付けるので、起点に数えない
+const WORK_KINDS = new Set(["run", "prompt", "human-wait"]);
 
 /**
- * PR ごとの行（prs.csv）。merge か close した日が期間に入る PR と、open な PR を載せる。
- * リードタイムは、同じブランチの最初の作業の記録から、merge（merge せずに閉じたら閉じた時刻）までの時間である。
- * 作業の記録が無いブランチは、PR を作った時刻を起点にし、first_source に pr と書く。
- * CI の失敗は、同じブランチの ci の行のうち conclusion が failure の行の数（再実行は別の行として数える）。
- * レビューの数は、detail の pr がその PR の番号である review の行の数。
+ * PR ごとの行（prs.csv）。merge か close した日が期間に入る PR と、--until までに作った open な PR を載せる。
+ * リードタイムは、同じブランチの最初の作業の記録（指示の区間・人の指示・人を待った区間）と PR を作った時刻の早い方から、merge（merge せずに閉じたら閉じた時刻）までの時間である。
+ * 起点が PR を作った時刻なら、first_source に pr と書く。
+ * CI の失敗は、同じブランチの GitHub Actions の ci の行のうち、失敗した実行の数（再実行は別の行として数える）。
+ * レビューの数は、detail の pr がその PR の番号である review の行の数（Actions の使用量の行は除く）。
+ * ブランチの名前で結び付けるので、同じ名前のブランチを別の PR で使い直すと、前の PR の作業と CI も数える。
  * 期間で絞る前の行（ctx.latest）から数える。期間の前に始めた作業や、期間の前に届いたレビューも、その PR の値に入れる。
  * @param {ReportContext} ctx
  * @returns {Record<string, string>[]}
@@ -974,10 +976,22 @@ function buildPrs(ctx) {
   const { o, latest } = ctx;
   const idx = prIndex(latest);
   return latest
-    .filter((r) => r.kind === "pr")
+    .filter((r) => r.kind === "pr" && prInPeriod(r, o))
     .map((r) => prOut(r, idx))
-    .filter((p) => p.state === "open" || inPeriod({ start: p.closed_at, tz: o.tz }, o))
     .sort((a, b) => Number(a.pr) - Number(b.pr));
+}
+
+/**
+ * PR を prs.csv に載せるか。閉じた PR は閉じた日が期間に入るもの、open な PR は作った日が --until 以前のもの。
+ * 日付は行のタイムゾーンで切る（ほかの行と同じ）。
+ * @param {Row} r
+ * @param {BuildOptions} o
+ * @returns {boolean}
+ */
+function prInPeriod(r, o) {
+  if (detailOf(r).state !== "open") return inPeriod({ start: r.end, tz: r.tz }, o);
+  const t = parseTime(r.start);
+  return t !== null && (!o.until || localParts(t, r.tz || o.tz).date <= o.until);
 }
 
 /**
@@ -990,14 +1004,29 @@ function prIndex(latest) {
   const idx = { firstByBranch: new Map(), failuresByBranch: new Map(), reviewsByPr: new Map() };
   for (const r of latest) {
     if (WORK_KINDS.has(r.kind ?? "")) addFirstWork(idx.firstByBranch, r);
-    else if (r.kind === "ci" && (r.detail ?? "").split(";").at(-1) === "failure")
-      increment(idx.failuresByBranch, r.branch ?? "");
-    else if (r.kind === "review") increment(idx.reviewsByPr, detailOf(r).pr ?? "");
+    else if (r.kind === "ci" && isCiFailure(r)) increment(idx.failuresByBranch, r.branch ?? "");
+    else if (r.kind === "review" && detailOf(r).source !== "artifact")
+      increment(idx.reviewsByPr, detailOf(r).pr ?? "");
   }
   return idx;
 }
 
 /** @typedef {{ firstByBranch: Map<string, number>; failuresByBranch: Map<string, number>; reviewsByPr: Map<string, number> }} PrIndex */
+
+/** CI の失敗に数える Actions の conclusion。 */
+const CI_FAILURES = new Set(["failure", "timed_out", "startup_failure"]);
+
+/**
+ * GitHub Actions の ci の行（detail は `<ワークフロー名>;<イベント>;<conclusion>`）が失敗か。
+ * イベントが dynamic の実行（Copilot のレビューなど、GitHub が起動するもの）は CI に数えない。
+ * 外部の CI の行は conclusion を持たないので、数えない。
+ * @param {Row} r
+ * @returns {boolean}
+ */
+function isCiFailure(r) {
+  const parts = (r.detail ?? "").split(";");
+  return parts.length === 3 && parts[1] !== "dynamic" && CI_FAILURES.has(parts[2]);
+}
 
 /**
  * ブランチの最初の作業の時刻を、行の開始の時刻で更新する。ブランチの無い行は数えない。
@@ -1039,11 +1068,8 @@ function detailOf(r) {
 function prOut(r, idx) {
   const d = detailOf(r);
   const branch = r.branch ?? "";
-  const created = parseTime(r.start);
-  const end = parseTime(r.end);
-  const work = idx.firstByBranch.get(branch);
-  const first = work ?? created;
   const state = d.state ?? "";
+  const { first, source } = leadStart(parseTime(r.start), idx.firstByBranch.get(branch));
   return {
     pr: d.pr ?? "",
     state,
@@ -1052,15 +1078,35 @@ function prOut(r, idx) {
     author: d.author ?? "",
     created_at: r.start ?? "",
     first_record: first === null ? "" : toIso(first),
-    first_source: work !== undefined ? "record" : "pr",
+    first_source: source,
     closed_at: state === "open" ? "" : (r.end ?? ""),
-    lead_time_hours:
-      state === "open" || first === null || end === null
-        ? ""
-        : ((end - first) / 3600000).toFixed(2),
+    lead_time_hours: state === "open" ? "" : hoursBetween(first, parseTime(r.end)),
     ci_failures: String(idx.failuresByBranch.get(branch) ?? 0),
     reviews: String(idx.reviewsByPr.get(d.pr ?? "") ?? 0),
   };
+}
+
+/**
+ * リードタイムの起点。作業の記録と PR を作った時刻の早い方にする。
+ * merge の後の作業しか無いブランチで、リードタイムを負にしないためである。
+ * @param {number | null} created
+ * @param {number | undefined} work
+ * @returns {{ first: number | null; source: "record" | "pr" }}
+ */
+function leadStart(created, work) {
+  if (work !== undefined && (created === null || work < created))
+    return { first: work, source: "record" };
+  return { first: created, source: "pr" };
+}
+
+/**
+ * 2 つの時刻の間の時間（時。小数 2 桁）。どちらかが無ければ空にする。
+ * @param {number | null} from
+ * @param {number | null} to
+ * @returns {string}
+ */
+function hoursBetween(from, to) {
+  return from === null || to === null ? "" : ((to - from) / 3600000).toFixed(2);
 }
 
 /**

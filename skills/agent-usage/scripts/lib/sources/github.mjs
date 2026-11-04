@@ -624,7 +624,7 @@ function collectPulls(c) {
 }
 
 /**
- * PR 1 件の行。作った時刻から、merge した時刻（merge せずに閉じたら閉じた時刻、open なら今の時刻）まで。
+ * PR 1 件の行。作った時刻から、merge した時刻（merge せずに閉じたら閉じた時刻、open なら作った時刻）まで。
  * PR ごとのリードタイムを report で数えるのに使う。作った時刻が無い PR は行にしない。
  * @param {PullRequest} pr
  * @param {GitHubOptions} o
@@ -633,7 +633,8 @@ function collectPulls(c) {
 export function prRow(pr, o) {
   if (pr.createdAt === null) return null;
   const state = pr.merged ? "merged" : pr.closedAt !== null ? "closed" : "open";
-  const end = (pr.merged ? pr.mergedAt : null) ?? pr.closedAt ?? o.now;
+  // open な PR は作った時刻で終える。collect のたびに end が変わると、同じ PR の行を毎回書き足すことになる
+  const end = (pr.merged ? pr.mergedAt : null) ?? pr.closedAt ?? pr.createdAt;
   return {
     key: `pr:${pr.number}`,
     kind: "pr",

@@ -46,7 +46,8 @@ describe("prRow", () => {
       state: "closed",
       end: iso(4),
     },
-    { name: "open な PR は collect の時刻で終える", extra: {}, state: "open", end: iso(9) },
+    // collect のたびに行が変わらないよう、open な PR は作った時刻で終える
+    { name: "open な PR は作った時刻で終える", extra: {}, state: "open", end: iso(1) },
   ])("$name", ({ extra, state, end }) => {
     const row = prRow(pr(extra), o);
     expect(row).toMatchObject({
@@ -149,6 +150,31 @@ describe("prs.csv と HTML の PR の表", () => {
       branch: "feature/1-a",
       detail: "pr=1;author=me;state=COMMENTED",
     }),
+    // 数えない行: Actions の使用量のレビューの行、dynamic の実行の失敗、他の人のレビューの活動
+    row({
+      key: "r3",
+      kind: "review",
+      start: iso(2),
+      end: iso(2),
+      branch: "feature/1-a",
+      detail: "pr=1;source=artifact;run=9",
+    }),
+    row({
+      key: "c5",
+      kind: "ci",
+      start: iso(2),
+      end: iso(2),
+      branch: "feature/1-a",
+      detail: "Running Copilot Code Review;dynamic;failure",
+    }),
+    row({
+      key: "c6",
+      kind: "ci",
+      start: iso(2),
+      end: iso(2),
+      branch: "feature/1-a",
+      detail: "CI;pull_request;timed_out",
+    }),
     // PR 2: 作業の記録が無い。別のブランチの CI の失敗と別の PR のレビューは数えない
     prRowOf({ n: 2, branch: "feature/2-b", start: iso(4), end: iso(5), state: "merged" }),
     row({
@@ -159,10 +185,21 @@ describe("prs.csv と HTML の PR の表", () => {
       branch: "feature/9-z",
       detail: "CI;push;failure",
     }),
-    // PR 3: merge せずに閉じた。PR 4: open。PR 5: 期間の外で merge した
+    // PR 2 のブランチの他の人のレビューの活動と、merge の後の作業は、起点に数えない
+    row({
+      key: "a1",
+      kind: "activity",
+      start: iso(3),
+      end: iso(3),
+      branch: "feature/2-b",
+      detail: "gh-review",
+    }),
+    row({ key: "w1", kind: "run", start: iso(7), end: iso(7, 1), branch: "feature/2-b" }),
+    // PR 3: merge せずに閉じた。PR 4: open。PR 5: 期間の外で merge した。PR 6: --until より後に作った open
     prRowOf({ n: 3, branch: "feature/3-c", start: iso(4), end: iso(6), state: "closed" }),
     prRowOf({ n: 4, branch: "feature/4-d", start: iso(5), end: iso(9), state: "open" }),
     prRowOf({ n: 5, branch: "feature/5-e", start: iso(1), end: iso(1, 5), state: "merged" }),
+    prRowOf({ n: 6, branch: "feature/6-f", start: iso(11), end: iso(11), state: "open" }),
   ];
   const report = () =>
     buildReport(rows, {
@@ -191,7 +228,8 @@ describe("prs.csv と HTML の PR の表", () => {
       first_source: "record",
       closed_at: iso(3, 1),
       lead_time_hours: "48.00",
-      ci_failures: "2",
+      // failure 2 件と timed_out 1 件。dynamic の実行の失敗は数えない
+      ci_failures: "3",
       reviews: "2",
     });
   });
@@ -214,7 +252,7 @@ describe("prs.csv と HTML の PR の表", () => {
     const html = renderHtml(report());
     // 1 行目は見出しの行。同じ「PR」で始まる「PR のレビュー」の節と取り違えないよう、h2 ごと指定する
     expect(sectionTableRows(html, "<h2>PR</h2>").slice(1)).toEqual([
-      ["2", "1", "1", "36.0", "1.0", "1.0"],
+      ["2", "1", "1", "36.0", "1.5", "1.0"],
     ]);
   });
 
