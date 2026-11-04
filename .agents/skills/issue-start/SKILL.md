@@ -191,7 +191,7 @@ issue-start https://github.com/<owner>/<repo>/issues/220 --pr
   チェックで止められた場合は、指示に従って `kaizen --current` を実行してから、もう一度 commit する
 - `--pr` のときは、基本フローの step 10 の受け入れ条件の突き合わせと、step 11 の PR のベースブランチの確認を通してから、ブランチを push する。
   関連する Issue・変更の概要・確認した内容・突き合わせの表・「仮に決めたこと」の節を含む PR を作る。
-  「仮に決めたこと」には、実装の途中で Issue に書かれていないことを自分で選んだもの（あいまいな条件の解釈・デフォルトの値・対象から外した形など）を 1 件ずつ書き、0 件でも節を置いて「無い」と書く。
+  「仮に決めたこと」には、Issue の本文・コメント・リポジトリの文書から導けず、実装の途中で自分で選んだもの（あいまいな条件の解釈・デフォルトの値・対象から外した形など）を 1 件ずつ書き、0 件でも節を置いて「無い」と書く。
   記録する項目と、人に回すかの判断は [`references/provisional-decisions.md`](references/provisional-decisions.md) で定義する。読めなければ、PR を作らずに止まる
   PR を作ったら、突き合わせの結果を Issue にコメントし、満たした項目にチェックを付ける（手順は [`references/acceptance.md`](references/acceptance.md) の手順 7）
 - commit の `--amend` と force push はしない
@@ -206,4 +206,5 @@ issue-start https://github.com/<owner>/<repo>/issues/220 --pr
 - 既存のブランチが複数あり、どれを使うべきか判断できない
 - `--plan` で詳しい計画を立てる前提が足りない（`--branch-only` では計画を立てないので、この条件は当たらない）
 - 本文とコメントが食い違い、どの決定に従うか判断できない（特に `--plan`）
+- 実装の途中で仮に決めたことのうち、人に回すと決めたものがある（PR を作る前に確認する。[`references/provisional-decisions.md`](references/provisional-decisions.md)）
 - Issue に書かれた影響範囲と今の状態がずれていて、作業の範囲が変わる（書かれた対象が無い、別の PR で解決済み、書かれた範囲の外に影響する）
