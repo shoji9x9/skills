@@ -1,0 +1,227 @@
+{
+  "metadata": {
+    "skill_name": "current-environment-bootstrap",
+    "skill_path": "<repo>/skills/current-environment-bootstrap",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-04T06:26:17Z",
+    "evals_run": [5, 7],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 179.921,
+        "tokens": 808807,
+        "tool_calls": 15,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "工程 1（棚卸し）からやり直さず、metadata.json の status: blocked と resume.from_step を読んで停止していた工程（暫定起動データの構築）から再開している",
+          "passed": true,
+          "evidence": "応答「記録は blocked で、再開の工程が 6 と読めたので、工程 6 から再開しました」"
+        },
+        {
+          "text": "Q-1 の回答を semantics.md の該当行へ反映し、確認状態を確定済みに更新して回答者・回答日を根拠として残している",
+          "passed": true,
+          "evidence": "semantics.md の確定済みに role_code を置き、根拠に Q-1 の回答者と回答日を残した"
+        },
+        {
+          "text": "「現物を確認できないため回答できない」と返った Q-2 を確定扱いにせず、「確認したが確定できなかった」ものとして未回答（Q-3）と区別して記録している",
+          "passed": true,
+          "evidence": "semantics.md 3 節に Q-2 の orders.status を置き、Q-3 の rank_code は確認待ちの表に残して区別"
+        },
+        {
+          "text": "回答が確定した範囲で最小の暫定起動データを作る一方、確認待ちが残る機能（受注一覧・得意先一覧）のデータを推測で埋めていない",
+          "passed": false,
+          "evidence": "bootstrap/ は schema.sh だけで、暫定起動データも投入ツールも作っていない。password_hash の形式が確認待ちとして工程 6 で止まった"
+        },
+        {
+          "text": "投入前に設定によるチェック（対象 target の db.seedable: true）と本番でないことを確かめるチェックの両方を通す方針を示している",
+          "passed": false,
+          "evidence": "応答と成果物に db.seedable: true の確認が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 69.575,
+        "tokens": 386837,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "metadata.json に resume のキーが無いので、再開する工程を blocked_on の文や成果物の有無から決めず、どの工程から再開するかを利用者に確かめるために止まっている",
+          "passed": true,
+          "evidence": "応答「resume が記録されていませんでした。再開表では『from_step を読めない → 利用者に工程を確かめる』に当たり、--autonomous でも止まる」「再開する工程は推測で決めていません」"
+        },
+        {
+          "text": "止まるときに、既存の metadata.json の status と blocked_on を利用者に示している",
+          "passed": false,
+          "evidence": "status: blocked は示したが、blocked_on は「書き換えずに残しています」と書いただけで、値を示していない（前回は Q-1 の回答待ちで止まっていた、という説明はある）"
+        },
+        {
+          "text": "--autonomous の指定があっても、再開する工程の選択を pending_decisions の保留にして後の工程へ進んでいない",
+          "passed": true,
+          "evidence": "pending_decisions は空配列。応答「--autonomous でも止まる決まりです」"
+        },
+        {
+          "text": "再開する工程が決まっていないので、暫定起動データとその投入ツール（bootstrap/ の seed）を作っていない",
+          "passed": true,
+          "evidence": "bootstrap/ は schema.sh だけで、seed のツールを作っていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 33.717,
+        "tokens": 133603,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "工程 1（棚卸し）からやり直さず、metadata.json の status: blocked と resume.from_step を読んで停止していた工程（暫定起動データの構築）から再開している",
+          "passed": false,
+          "evidence": "current-environment-bootstrap が入っていないことを理由に止まり、工程 6 から再開していない"
+        },
+        {
+          "text": "Q-1 の回答を semantics.md の該当行へ反映し、確認状態を確定済みに更新して回答者・回答日を根拠として残している",
+          "passed": false,
+          "evidence": "semantics.md を書き換えておらず、Q-1 の回答を反映していない"
+        },
+        {
+          "text": "「現物を確認できないため回答できない」と返った Q-2 を確定扱いにせず、「確認したが確定できなかった」ものとして未回答（Q-3）と区別して記録している",
+          "passed": false,
+          "evidence": "Q-2 を「確認したが確定できなかった」に記録していない（台帳を書き換えていない）"
+        },
+        {
+          "text": "回答が確定した範囲で最小の暫定起動データを作る一方、確認待ちが残る機能（受注一覧・得意先一覧）のデータを推測で埋めていない",
+          "passed": false,
+          "evidence": "暫定起動データを作っていない"
+        },
+        {
+          "text": "投入前に設定によるチェック（対象 target の db.seedable: true）と本番でないことを確かめるチェックの両方を通す方針を示している",
+          "passed": false,
+          "evidence": "db.seedable の確認に触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 31.286,
+        "tokens": 142845,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "metadata.json に resume のキーが無いので、再開する工程を blocked_on の文や成果物の有無から決めず、どの工程から再開するかを利用者に確かめるために止まっている",
+          "passed": false,
+          "evidence": "止まった理由は current-environment-bootstrap が入っていないこと（replace-strategy の SKILL.md の導入手順に従った）で、再開する工程を利用者に確かめていない"
+        },
+        {
+          "text": "止まるときに、既存の metadata.json の status と blocked_on を利用者に示している",
+          "passed": true,
+          "evidence": "応答の表で、metadata.json が status: blocked で、blocked_on に Q-1 が残っていることを示した"
+        },
+        {
+          "text": "--autonomous の指定があっても、再開する工程の選択を pending_decisions の保留にして後の工程へ進んでいない",
+          "passed": true,
+          "evidence": "pending_decisions を作らず、後の工程へ進んでいない"
+        },
+        {
+          "text": "再開する工程が決まっていないので、暫定起動データとその投入ツール（bootstrap/ の seed）を作っていない",
+          "passed": true,
+          "evidence": "bootstrap/ は schema.sh だけで、seed のツールを作っていない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.675,
+        "stddev": 0.1061,
+        "min": 0.6,
+        "max": 0.75
+      },
+      "time_seconds": {
+        "mean": 124.748,
+        "stddev": 78.0264,
+        "min": 69.575,
+        "max": 179.921
+      },
+      "tokens": {
+        "mean": 597822,
+        "stddev": 298377.8485,
+        "min": 386837,
+        "max": 808807
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.375,
+        "stddev": 0.5303,
+        "min": 0,
+        "max": 0.75
+      },
+      "time_seconds": {
+        "mean": 32.5015,
+        "stddev": 1.719,
+        "min": 31.286,
+        "max": 33.717
+      },
+      "tokens": {
+        "mean": 138224,
+        "stddev": 6535.0809,
+        "min": 133603,
+        "max": 142845
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.30",
+      "time_seconds": "+92.2",
+      "tokens": "+459598"
+    }
+  },
+  "notes": [
+    "変更確認（eval 5 と eval 7、各 config 1 run）。PR #884 の local レビューの指摘で、eval 5 と eval 7 に --target と requires_skills（replace-strategy）を足し、fixture を直した後に実行し直した",
+    "with_skill は、再開の扱いを表にまとめた SKILL.md（反復 5 の修正の後）で実行し直した。without_skill はスキルを読まないので、前の run を使った",
+    "eval 5 と eval 7 の without_skill は current-environment-bootstrap が無いことを理由に止まるので、Delta はスキルの効果を表さない（benchmark.md「区別しない assertion」）"
+  ]
+}

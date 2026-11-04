@@ -189,9 +189,10 @@
     {
       "id": 5,
       "fixture": "fixtures/resume-after-answers",
-      "prompt": "current-environment-bootstrap --resume",
+      "requires_skills": ["replace-strategy"],
+      "prompt": "current-environment-bootstrap --target current-rebuilt --resume",
       "assertions": [
-        "工程 1（棚卸し）からやり直さず、metadata.json の status: blocked と blocked_on を読んで停止していた工程（暫定起動データの構築）から再開している",
+        "工程 1（棚卸し）からやり直さず、metadata.json の status: blocked と resume.from_step を読んで停止していた工程（暫定起動データの構築）から再開している",
         "Q-1 の回答を semantics.md の該当行へ反映し、確認状態を確定済みに更新して回答者・回答日を根拠として残している",
         "「現物を確認できないため回答できない」と返った Q-2 を確定扱いにせず、「確認したが確定できなかった」ものとして未回答（Q-3）と区別して記録している",
         "回答が確定した範囲で最小の暫定起動データを作る一方、確認待ちが残る機能（受注一覧・得意先一覧）のデータを推測で埋めていない",
@@ -224,6 +225,36 @@
         {
           "assertion": "実 UI 由来の app-ui は現行が使っていない部品操作を列挙できないため代替資産とみなさず、app-ui に切り替えた場合に何が測れないかを不足資産一覧または質問票に明記している",
           "prompt_quote": "app-ui を代替資産として扱えるか、何が測れないかも明記してください"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "fixture": "fixtures/resume-record-without-resume-key",
+      "requires_skills": ["replace-strategy"],
+      "prompt": "current-environment-bootstrap --target current-rebuilt --resume --autonomous",
+      "assertions": [
+        "metadata.json に resume のキーが無いので、再開する工程を blocked_on の文や成果物の有無から決めず、どの工程から再開するかを利用者に確かめるために止まっている",
+        "止まるときに、既存の metadata.json の status と blocked_on を利用者に示している",
+        "--autonomous の指定があっても、再開する工程の選択を pending_decisions の保留にして後の工程へ進んでいない",
+        "再開する工程が決まっていないので、暫定起動データとその投入ツール（bootstrap/ の seed）を作っていない"
+      ],
+      "reachability": [
+        {
+          "assertion": "metadata.json に resume のキーが無いので、再開する工程を blocked_on の文や成果物の有無から決めず、どの工程から再開するかを利用者に確かめるために止まっている",
+          "prompt_quote": "--resume"
+        },
+        {
+          "assertion": "止まるときに、既存の metadata.json の status と blocked_on を利用者に示している",
+          "prompt_quote": "--resume"
+        },
+        {
+          "assertion": "--autonomous の指定があっても、再開する工程の選択を pending_decisions の保留にして後の工程へ進んでいない",
+          "prompt_quote": "--autonomous"
+        },
+        {
+          "assertion": "再開する工程が決まっていないので、暫定起動データとその投入ツール（bootstrap/ の seed）を作っていない",
+          "prompt_quote": "--resume"
         }
       ]
     }
