@@ -25,7 +25,9 @@ kaizen の記録を済ませてから `git commit` だけを実行し直すと�
 ## 根拠
 
 止められた後に message のファイルが無いことを `ls` で確かめ、失敗を再現したので high にした。
-KEDB 照合は「could not read log file」「git commit」で一致が無かった。
+KEDB 照合は「could not read log file」「git commit」で top-level に一致が無かったが、archive の索引を読み落としていた（手元のレビューが指摘した）。
+同じ事象と同じ根本原因の学びが `.kaizen/archive/2026-09-03-gate-blocks-whole-call-including-message-file.md`（`status: applied`、適用先は `AGENTS.md`）にある。
+`AGENTS.md` に注意点を書く適用では防げずに再発したので、今回はチェックの案内そのものに書く提案にする。確信度は、この一致ではなく、このセッションで再現したことから決めた。
 近い学びは `.kaizen/2026-10-30-commit-after-refused-stage.md`（拒否された stage の後に commit が実行された）で、今回は止められた呼び出しの中の準備が実行されなかった側である。
 
 ## 提案
