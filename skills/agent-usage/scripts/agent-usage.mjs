@@ -362,7 +362,7 @@ function reportCommand(rest, context) {
   console.log(`行: ${out.rows}（重複を除いた後） / 期間: ${out.period}`);
   // HTML の冒頭だけでは、作った人が読まずに渡すことがあるので、端末にも出す
   console.log(
-    `タイムゾーン: ${out.timeZone}（人の設定の値か、無ければマシンの値。collect が記録済みの行は、記録したときのタイムゾーンで日付と時刻を切る）`,
+    `タイムゾーン: ${out.timeZone}（設定（.local.jsonc か人ごとの設定）の値か、無ければマシンの値。collect が記録済みの行は、記録したときのタイムゾーンで日付と時刻を切る）`,
   );
   return 0;
 }
