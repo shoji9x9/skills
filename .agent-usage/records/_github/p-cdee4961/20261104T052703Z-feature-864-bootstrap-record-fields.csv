@@ -45,3 +45,4 @@ ci:41787420038:1,ci,2026-11-04T08:10:56.967Z,p-cdee4961,github-actions,,,,2026-1
 ci:41787420010:1,ci,2026-11-04T08:10:56.967Z,p-cdee4961,github-actions,,,,2026-11-04T06:43:23.000Z,2026-11-04T06:43:24.000Z,Asia/Tokyo,feature/864-bootstrap-record-fields,864,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 coverage:github:2026-11-03T06:42:19.235Z:2026-11-04T08:10:56.967Z,coverage,2026-11-04T08:10:56.967Z,p-cdee4961,,,,,2026-11-03T06:42:19.235Z,2026-11-04T08:10:56.967Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-11-03T08:10:56.967Z:2026-11-04T08:26:07.858Z,coverage,2026-11-04T08:26:07.858Z,p-cdee4961,,,,,2026-11-03T08:10:56.967Z,2026-11-04T08:26:07.858Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-03T08:26:07.858Z:2026-11-04T08:26:49.666Z,coverage,2026-11-04T08:26:49.666Z,p-cdee4961,,,,,2026-11-03T08:26:07.858Z,2026-11-04T08:26:49.666Z,Asia/Tokyo,,,,,,,,,,,,ok,
