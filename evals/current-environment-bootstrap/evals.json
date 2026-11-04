@@ -189,7 +189,8 @@
     {
       "id": 5,
       "fixture": "fixtures/resume-after-answers",
-      "prompt": "current-environment-bootstrap --resume",
+      "requires_skills": ["replace-strategy"],
+      "prompt": "current-environment-bootstrap --target current-rebuilt --resume",
       "assertions": [
         "工程 1（棚卸し）からやり直さず、metadata.json の status: blocked と resume.from_step を読んで停止していた工程（暫定起動データの構築）から再開している",
         "Q-1 の回答を semantics.md の該当行へ反映し、確認状態を確定済みに更新して回答者・回答日を根拠として残している",

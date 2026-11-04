@@ -71,12 +71,13 @@ scripts/eval/run-skill-eval.sh \
 - eval 5（`resume-after-answers`）: 質問票に回答が返った状態（Q-1 は確定回答、Q-2 は「現物が無く回答できない」、Q-3 は未回答）。
   区別の要点は、**工程 1 からやり直さないこと**と、**「聞いていない」「聞いたが確定できない」「確定した」の 3 つの状態をまとめてしまわないこと**である。
   `metadata.json` には、スキルが停止したときに書く `resume`（`from_step: 6`）を置いている。再開する工程を記録から読めるので、1 行目（工程 1 からやり直さない）は baseline も満たしうる。
-  1 行目は後退の検知のための assertion で、`resume` を読まずに工程 1 から始める変更や、`resume` があるのに利用者に確かめて止まる変更を検出する。
+  `replace-strategy` を置かなかった iteration-18 の途中の run では、baseline が `resume` を読んで再開した。1 行目は、`resume` を読まずに工程 1 から始める後退も検知する。
   `schema.md` のタイムゾーンと sql_mode は、層が書かれていないので「層の確認待ち」にし、層を確かめる Q-4 に回答が返った状態にしている。
   文字コードと照合順序は、受領物のヘッダ（サーバーの既定の値）と接続文字列で層ごとに確定している。Q-4 の反映を検査する assertion は置いていない。
 - eval 7（`resume-record-without-resume-key`）: eval 5 と同じ回答が返った状態で、`metadata.json` を `resume` のキーが入る前の形にした既存の記録。
   区別の要点は、**`resume` が無い記録では再開する工程を推測せず、`--autonomous` でも利用者に確かめて止まること**である。
-  `requires_skills` で `replace-strategy` を置くので、baseline はスキルが無いことを理由に止まり、再開する工程は確かめない。区別するのは 1 行目だけである。
+  `requires_skills` で `replace-strategy` を置く。iteration-18 の 1 run では、baseline は `current-environment-bootstrap` が入っていないことを理由に止まり、再開する工程は確かめなかった。
+  区別するのは 1 行目だけで、複数の run で差が残ることを確かめるまで Delta には数えない。
   2〜4 行目は、止まる代わりに推測で進む後退を検知するための assertion である。
 - eval 6（`commercial-ui-component-without-vendor-docs`）: 受領した依存台帳と UI ソースから、市販のデータグリッドを使っていることと、そのバージョンは確認できる。
   しかし、ベンダーの機能一覧・試験仕様書・公式サンプルは届いていない。

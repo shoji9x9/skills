@@ -4,7 +4,7 @@
     "skill_path": "<repo>/skills/current-environment-bootstrap",
     "executor_model": "opus",
     "analyzer_model": "claude-opus-5-5",
-    "timestamp": "2026-11-04T05:43:13Z",
+    "timestamp": "2026-11-04T05:53:15Z",
     "evals_run": [5, 7],
     "runs_per_configuration": 1
   },
@@ -18,21 +18,21 @@
         "passed": 3,
         "failed": 2,
         "total": 5,
-        "time_seconds": 165.889,
-        "tokens": 736985,
-        "tool_calls": 13,
+        "time_seconds": 114.438,
+        "tokens": 597658,
+        "tool_calls": 12,
         "errors": 0
       },
       "expectations": [
         {
           "text": "工程 1（棚卸し）からやり直さず、metadata.json の status: blocked と resume.from_step を読んで停止していた工程（暫定起動データの構築）から再開している",
           "passed": true,
-          "evidence": "応答「再開した工程は、metadata.json の resume.from_step: 6 です」。棚卸しはやり直していない"
+          "evidence": "応答「工程 6 を再開しましたが、同じ工程 6 で再び止まりました」。metadata.json は resume.from_step: 6 のまま更新し、棚卸しはやり直していない"
         },
         {
           "text": "Q-1 の回答を semantics.md の該当行へ反映し、確認状態を確定済みに更新して回答者・回答日を根拠として残している",
           "passed": true,
-          "evidence": "semantics.md の確定済みに role_code を置き、根拠「Q-1 回答: 先方 開発担当 田口」"
+          "evidence": "semantics.md の確定済みに role_code を置き、根拠に Q-1 の回答者と回答日を残した"
         },
         {
           "text": "「現物を確認できないため回答できない」と返った Q-2 を確定扱いにせず、「確認したが確定できなかった」ものとして未回答（Q-3）と区別して記録している",
@@ -42,12 +42,12 @@
         {
           "text": "回答が確定した範囲で最小の暫定起動データを作る一方、確認待ちが残る機能（受注一覧・得意先一覧）のデータを推測で埋めていない",
           "passed": false,
-          "evidence": "bootstrap/ は schema.sh だけで、暫定起動データも投入ツールも作っていない。deferred に「Q-5 の回答か現行アプリ本体を受領してから作る」と書いて止まった"
+          "evidence": "bootstrap/ は schema.sh だけで、暫定起動データも投入ツールも作っていない。password_hash の方式が確認待ちとして工程 6 で止まった"
         },
         {
           "text": "投入前に設定によるチェック（対象 target の db.seedable: true）と本番でないことを確かめるチェックの両方を通す方針を示している",
           "passed": false,
-          "evidence": "投入の前に接続先がテスト環境であることを確かめるとは書いたが、db.seedable: true の確認に触れていない"
+          "evidence": "応答と成果物に db.seedable: true の確認が無い"
         }
       ],
       "notes": []
@@ -95,40 +95,40 @@
       "configuration": "without_skill",
       "run_number": 1,
       "result": {
-        "pass_rate": 0.8,
-        "passed": 4,
-        "failed": 1,
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
         "total": 5,
-        "time_seconds": 105.783,
-        "tokens": 321484,
-        "tool_calls": 10,
+        "time_seconds": 33.717,
+        "tokens": 133603,
+        "tool_calls": 4,
         "errors": 0
       },
       "expectations": [
         {
           "text": "工程 1（棚卸し）からやり直さず、metadata.json の status: blocked と resume.from_step を読んで停止していた工程（暫定起動データの構築）から再開している",
-          "passed": true,
-          "evidence": "応答「resume.from_step: 6 から続けました」"
+          "passed": false,
+          "evidence": "current-environment-bootstrap が入っていないことを理由に止まり、工程 6 から再開していない"
         },
         {
           "text": "Q-1 の回答を semantics.md の該当行へ反映し、確認状態を確定済みに更新して回答者・回答日を根拠として残している",
-          "passed": true,
-          "evidence": "semantics.md の確定済みに role_code を置き、根拠「Q-1 回答（2026-08-22・先方 開発担当 田口）」"
+          "passed": false,
+          "evidence": "semantics.md を書き換えておらず、Q-1 の回答を反映していない"
         },
         {
           "text": "「現物を確認できないため回答できない」と返った Q-2 を確定扱いにせず、「確認したが確定できなかった」ものとして未回答（Q-3）と区別して記録している",
-          "passed": true,
-          "evidence": "semantics.md 3 節に Q-2 を置き、Q-3 の rank_code は確認待ちに残して区別"
+          "passed": false,
+          "evidence": "Q-2 を「確認したが確定できなかった」に記録していない（台帳を書き換えていない）"
         },
         {
           "text": "回答が確定した範囲で最小の暫定起動データを作る一方、確認待ちが残る機能（受注一覧・得意先一覧）のデータを推測で埋めていない",
-          "passed": true,
-          "evidence": "bootstrap/seed.sh は app_users の 1 件だけ。冒頭のコメント「業務データ（customers / orders）は入れない」"
+          "passed": false,
+          "evidence": "暫定起動データを作っていない"
         },
         {
           "text": "投入前に設定によるチェック（対象 target の db.seedable: true）と本番でないことを確かめるチェックの両方を通す方針を示している",
           "passed": false,
-          "evidence": "応答・seed.sh・成果物のどこにも db.seedable の確認が無い"
+          "evidence": "db.seedable の確認に触れていない"
         }
       ],
       "notes": []
@@ -181,42 +181,42 @@
         "max": 1
       },
       "time_seconds": {
-        "mean": 99.3005,
-        "stddev": 94.1704,
+        "mean": 73.575,
+        "stddev": 57.789,
         "min": 32.712,
-        "max": 165.889
+        "max": 114.438
       },
       "tokens": {
-        "mean": 428385,
-        "stddev": 436426.3053,
+        "mean": 358721.5,
+        "stddev": 337907.2388,
         "min": 119785,
-        "max": 736985
+        "max": 597658
       }
     },
     "without_skill": {
       "pass_rate": {
-        "mean": 0.775,
-        "stddev": 0.0354,
-        "min": 0.75,
-        "max": 0.8
+        "mean": 0.375,
+        "stddev": 0.5303,
+        "min": 0,
+        "max": 0.75
       },
       "time_seconds": {
-        "mean": 68.5345,
-        "stddev": 52.6773,
+        "mean": 32.5015,
+        "stddev": 1.719,
         "min": 31.286,
-        "max": 105.783
+        "max": 33.717
       },
       "tokens": {
-        "mean": 232164.5,
-        "stddev": 126316.8483,
-        "min": 142845,
-        "max": 321484
+        "mean": 138224,
+        "stddev": 6535.0809,
+        "min": 133603,
+        "max": 142845
       }
     },
     "delta": {
-      "pass_rate": "+0.03",
-      "time_seconds": "+30.8",
-      "tokens": "+196221"
+      "pass_rate": "+0.43",
+      "time_seconds": "+41.1",
+      "tokens": "+220498"
     }
   },
   "notes": [
