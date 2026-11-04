@@ -1,0 +1,225 @@
+{
+  "metadata": {
+    "skill_name": "current-environment-bootstrap",
+    "skill_path": "<repo>/skills/current-environment-bootstrap",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-04T05:22:37Z",
+    "evals_run": [5, 7],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 144.628,
+        "tokens": 760271,
+        "tool_calls": 13,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "工程 1（棚卸し）からやり直さず、metadata.json の status: blocked と resume.from_step を読んで停止していた工程（暫定起動データの構築）から再開している",
+          "passed": true,
+          "evidence": "応答「metadata.json の resume.from_step: 6 に従って再開し、工程 1 からはやり直していません」"
+        },
+        {
+          "text": "Q-1 の回答を semantics.md の該当行へ反映し、確認状態を確定済みに更新して回答者・回答日を根拠として残している",
+          "passed": true,
+          "evidence": "semantics.md の確定済みに role_code を置き、根拠「Q-1 回答: 先方 開発担当 田口・2026-08-22」"
+        },
+        {
+          "text": "「現物を確認できないため回答できない」と返った Q-2 を確定扱いにせず、「確認したが確定できなかった」ものとして未回答（Q-3）と区別して記録している",
+          "passed": true,
+          "evidence": "semantics.md 3 節に Q-2 の orders.status を置き、Q-3 の rank_code は確認待ちの表に残して区別"
+        },
+        {
+          "text": "回答が確定した範囲で最小の暫定起動データを作る一方、確認待ちが残る機能（受注一覧・得意先一覧）のデータを推測で埋めていない",
+          "passed": false,
+          "evidence": "bootstrap/ は schema.sh だけで、暫定起動データも投入ツールも作っていない。deferred に「Q-5 に回答があってから作る」と書いて止まった"
+        },
+        {
+          "text": "投入前に設定によるチェック（対象 target の db.seedable: true）と本番でないことを確かめるチェックの両方を通す方針を示している",
+          "passed": false,
+          "evidence": "投入前にテスト環境であることを利用者が確かめることは書いたが、db.seedable: true の確認に触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 35.626,
+        "tokens": 116966,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "metadata.json に resume のキーが無いので、再開する工程を blocked_on の文や成果物の有無から決めず、どの工程から再開するかを利用者に確かめるために止まっている",
+          "passed": true,
+          "evidence": "応答「resume が無い記録を --resume で再開するときは、再開する工程を成果物や blocked_on の文から推測しません」「再開する工程の番号を指定してください」"
+        },
+        {
+          "text": "止まるときに、既存の metadata.json の status と blocked_on を利用者に示している",
+          "passed": true,
+          "evidence": "応答の「今の記録」の表に status: blocked と blocked_on の文を示した"
+        },
+        {
+          "text": "--autonomous の指定があっても、再開する工程の選択を pending_decisions の保留にして後の工程へ進んでいない",
+          "passed": true,
+          "evidence": "metadata.json は変えておらず、pending_decisions も作っていない。応答「--autonomous でも保留にせず、ここで止まります」"
+        },
+        {
+          "text": "再開する工程が決まっていないので、暫定起動データとその投入ツール（bootstrap/ の seed）を作っていない",
+          "passed": true,
+          "evidence": "bootstrap/ は schema.sh だけで、seed のツールを作っていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 88.068,
+        "tokens": 224557,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "工程 1（棚卸し）からやり直さず、metadata.json の status: blocked と resume.from_step を読んで停止していた工程（暫定起動データの構築）から再開している",
+          "passed": true,
+          "evidence": "応答「工程 6 から再開して」。棚卸しはやり直していない"
+        },
+        {
+          "text": "Q-1 の回答を semantics.md の該当行へ反映し、確認状態を確定済みに更新して回答者・回答日を根拠として残している",
+          "passed": true,
+          "evidence": "semantics.md の確定済みに role_code を置き、根拠「Q-1 回答・2026-08-22・先方 田口」"
+        },
+        {
+          "text": "「現物を確認できないため回答できない」と返った Q-2 を確定扱いにせず、「確認したが確定できなかった」ものとして未回答（Q-3）と区別して記録している",
+          "passed": true,
+          "evidence": "semantics.md 3 節に Q-2 を置き、Q-3 の rank_code は確認待ちに残して区別"
+        },
+        {
+          "text": "回答が確定した範囲で最小の暫定起動データを作る一方、確認待ちが残る機能（受注一覧・得意先一覧）のデータを推測で埋めていない",
+          "passed": true,
+          "evidence": "bootstrap/seed.sh は ADMIN ユーザー 1 件だけ。customers と orders は意味論が未確定なので投入しない"
+        },
+        {
+          "text": "投入前に設定によるチェック（対象 target の db.seedable: true）と本番でないことを確かめるチェックの両方を通す方針を示している",
+          "passed": false,
+          "evidence": "応答・seed.sh・成果物のどこにも db.seedable の確認が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 112.457,
+        "tokens": 385152,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "metadata.json に resume のキーが無いので、再開する工程を blocked_on の文や成果物の有無から決めず、どの工程から再開するかを利用者に確かめるために止まっている",
+          "passed": false,
+          "evidence": "応答「前回止まった箇所（工程 6『暫定起動データ』の手前）を推定して再開しました」"
+        },
+        {
+          "text": "止まるときに、既存の metadata.json の status と blocked_on を利用者に示している",
+          "passed": false,
+          "evidence": "再開の前に status と blocked_on を示して止まっていない。応答は再開した後の結果の報告だけ"
+        },
+        {
+          "text": "--autonomous の指定があっても、再開する工程の選択を pending_decisions の保留にして後の工程へ進んでいない",
+          "passed": true,
+          "evidence": "pending_decisions を作っていない（保留にして進む形ではない）。ただし保留を作らずに後の工程へ進んでいる"
+        },
+        {
+          "text": "再開する工程が決まっていないので、暫定起動データとその投入ツール（bootstrap/ の seed）を作っていない",
+          "passed": false,
+          "evidence": "bootstrap/seed.sh を新しく作った"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.8,
+        "stddev": 0.2828,
+        "min": 0.6,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 90.127,
+        "stddev": 77.0761,
+        "min": 35.626,
+        "max": 144.628
+      },
+      "tokens": {
+        "mean": 438618.5,
+        "stddev": 454885.3279,
+        "min": 116966,
+        "max": 760271
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.525,
+        "stddev": 0.3889,
+        "min": 0.25,
+        "max": 0.8
+      },
+      "time_seconds": {
+        "mean": 100.2625,
+        "stddev": 17.2456,
+        "min": 88.068,
+        "max": 112.457
+      },
+      "tokens": {
+        "mean": 304854.5,
+        "stddev": 113557.8135,
+        "min": 224557,
+        "max": 385152
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.28",
+      "time_seconds": "-10.1",
+      "tokens": "+133764"
+    }
+  },
+  "notes": [
+    "変更確認（eval 5 と eval 7、各 config 1 run）。#864 で resume・層の確認待ち・本番由来かの記録を足した後の確認"
+  ]
+}

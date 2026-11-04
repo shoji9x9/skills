@@ -1,7 +1,11 @@
 {
   "status": "blocked",
-  "blocked_on": ["起動に必須の app_users.role_code の値集合が確認待ち"],
-  "questionnaire_refs": ["Q-1"],
+  "blocked_on": ["工程 6: 起動に必須の app_users.role_code の値集合が確認待ち"],
+  "resume": {
+    "from_step": 6,
+    "deferred": []
+  },
+  "questionnaire_refs": ["Q-1", "Q-4"],
   "origin": "received-assets",
   "generated_at": "2026-08-18T02:10:00Z",
   "updated_at": "2026-08-19T06:40:00Z",
@@ -27,7 +31,9 @@
   },
   "handoff": {
     "boot_requirements": [],
-    "unconfirmed": []
+    "unconfirmed": [
+      "Q-4: タイムゾーンと sql_mode の層（インスタンスの値か、接続で上書きしているか）"
+    ]
   },
   "tool": {
     "dir": "bootstrap/",
