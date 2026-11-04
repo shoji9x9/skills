@@ -861,7 +861,8 @@
           "assertion": "実行はせず手順の提示に留めている（push・PR の作成を行っていない）",
           "prompt_quote": "コマンドの実行やファイルの変更はせずに説明して"
         }
-      ]
+      ],
+      "requires_skills": ["issue-start"]
     }
   ]
 }

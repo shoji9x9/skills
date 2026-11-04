@@ -1,0 +1,137 @@
+{
+  "metadata": {
+    "skill_name": "issue-batch",
+    "skill_path": "<repo>/skills/issue-batch",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-04T23:07:38Z",
+    "evals_run": [33],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 33,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 31.118,
+        "tokens": 151013,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Windows の改行コードを扱わない形と、デフォルトの上限を 100 件にした決定の 2 つを、#140 の PR の「仮に決めたこと」の節に載せると述べている",
+          "passed": true,
+          "evidence": "「載せるもの（2 件）」として、excluded_forms の改行コードの形と others の上限 100 件を挙げる"
+        },
+        {
+          "text": "反復の上限で直さなかった命名の指摘は、この節に載せず、最終報告に載せると述べている",
+          "passed": true,
+          "evidence": "「速度や反復の回数を理由に直さなかった指摘は、この節に入れない決まりです」とし、最終報告の欄に載せる"
+        },
+        {
+          "text": "#141 の番号を持つ項目は、#140 の PR の節に載せないと述べている",
+          "passed": true,
+          "evidence": "「Issue の番号が違うので、#140 の PR には載せません」"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（push・PR の作成を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行とファイルの変更はしていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 33,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 27.048,
+        "tokens": 42278,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Windows の改行コードを扱わない形と、デフォルトの上限を 100 件にした決定の 2 つを、#140 の PR の「仮に決めたこと」の節に載せると述べている",
+          "passed": true,
+          "evidence": "#140 の番号を持つ 3 項目を載せ、その中に改行コードの形と上限 100 件を含む"
+        },
+        {
+          "text": "反復の上限で直さなかった命名の指摘は、この節に載せず、最終報告に載せると述べている",
+          "passed": false,
+          "evidence": "「3 つ目は…外さずに載せます」とし、反復の上限で直さなかった命名の指摘も節に載せる"
+        },
+        {
+          "text": "#141 の番号を持つ項目は、#140 の PR の節に載せないと述べている",
+          "passed": true,
+          "evidence": "「#141 の others の項目：別の Issue の判断なので #140 の PR には載せません」"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（push・PR の作成を行っていない）",
+          "passed": true,
+          "evidence": "手順の説明に留め、コマンドを実行していない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 31.118,
+        "stddev": 0,
+        "min": 31.118,
+        "max": 31.118
+      },
+      "tokens": {
+        "mean": 151013,
+        "stddev": 0,
+        "min": 151013,
+        "max": 151013
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.75,
+        "stddev": 0,
+        "min": 0.75,
+        "max": 0.75
+      },
+      "time_seconds": {
+        "mean": 27.048,
+        "stddev": 0,
+        "min": 27.048,
+        "max": 27.048
+      },
+      "tokens": {
+        "mean": 42278,
+        "stddev": 0,
+        "min": 42278,
+        "max": 42278
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.25",
+      "time_seconds": "+4.1",
+      "tokens": "+108735"
+    }
+  },
+  "notes": []
+}
