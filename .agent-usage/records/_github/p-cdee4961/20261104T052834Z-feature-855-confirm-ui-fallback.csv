@@ -50,3 +50,6 @@ ci:41800367260:1,ci,2026-11-04T08:57:15.215Z,p-cdee4961,github-actions,,,,2026-1
 ci:41800367237:1,ci,2026-11-04T08:57:15.215Z,p-cdee4961,github-actions,,,,2026-11-04T08:33:06.000Z,2026-11-04T08:37:34.000Z,Asia/Tokyo,feature/864-bootstrap-record-fields,864,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-11-03T08:51:29.582Z:2026-11-04T08:57:15.215Z,coverage,2026-11-04T08:57:15.215Z,p-cdee4961,,,,,2026-11-03T08:51:29.582Z,2026-11-04T08:57:15.215Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-11-03T08:57:15.215Z:2026-11-04T08:58:38.931Z,coverage,2026-11-04T08:58:38.931Z,p-cdee4961,,,,,2026-11-03T08:57:15.215Z,2026-11-04T08:58:38.931Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:41803746422:1,ci,2026-11-04T09:03:08.834Z,p-cdee4961,github-actions,,,,2026-11-04T08:59:23.000Z,2026-11-04T09:03:08.834Z,Asia/Tokyo,feature/855-confirm-ui-fallback,855,,,,,,,,,,CI;pull_request;open,
+ci:41803746533:1,ci,2026-11-04T09:03:08.834Z,p-cdee4961,github-actions,,,,2026-11-04T08:59:23.000Z,2026-11-04T08:59:24.000Z,Asia/Tokyo,feature/855-confirm-ui-fallback,855,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+coverage:github:2026-11-03T08:58:38.931Z:2026-11-04T09:03:08.834Z,coverage,2026-11-04T09:03:08.834Z,p-cdee4961,,,,,2026-11-03T08:58:38.931Z,2026-11-04T09:03:08.834Z,Asia/Tokyo,,,,,,,,,,,,ok,
