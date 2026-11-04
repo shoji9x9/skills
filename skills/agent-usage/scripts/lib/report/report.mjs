@@ -1043,7 +1043,7 @@ export function reportMeta(d) {
 
 /**
  * @param {{ root: string; now: number; env: NodeJS.ProcessEnv; since: string | null; until: string | null; out: string | null }} o
- * @returns {{ files: string[]; rows: number; period: string }}
+ * @returns {{ files: string[]; rows: number; period: string; timeZone: string }}
  */
 export function runReport(o) {
   for (const [name, v] of /** @type {const} */ ([
@@ -1082,5 +1082,5 @@ export function runReport(o) {
     [join(outDir, "meta.json"), `${JSON.stringify(reportMeta(data), null, 2)}\n`],
   ];
   for (const [p, text] of written) writeFileSync(p, text);
-  return { files: written.map(([p]) => p), rows: data.rows, period: data.period };
+  return { files: written.map(([p]) => p), rows: data.rows, period: data.period, timeZone: tz };
 }

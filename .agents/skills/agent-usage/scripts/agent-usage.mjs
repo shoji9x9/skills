@@ -11,7 +11,14 @@
 //
 // 終了コード: 0 = 成功（gate は「通す」）、1 = 失敗、2 = 引数の誤り（stderr に usage を出す）か、gate が止める。
 
-import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readSync,
+  realpathSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -173,6 +180,60 @@ function mergedNote(repo) {
   return m.merged ? `（merge 済み（${m.how}）なので、コミットの前の確認は記録しない）` : "";
 }
 
+/** UTC を表す IANA の名前（`Etc/` の付く別名を含む）。 */
+const UTC_NAME_RE = /^(?:Etc\/)?(?:UTC|UCT|Universal|Zulu|GMT|GMT[+-]?0|Greenwich)$/;
+
+/**
+ * @param {string} timeZone
+ * @returns {boolean}
+ */
+export function isUtcTimeZone(timeZone) {
+  return UTC_NAME_RE.test(timeZone);
+}
+
+/**
+ * 対話できる実行なら、1 行を読む関数を返す。stdin と stdout のどちらかが端末でなければ null を返す。
+ * @returns {(() => string) | null}
+ */
+function interactiveInput() {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) return null;
+  return () => {
+    const buf = Buffer.alloc(1);
+    let line = "";
+    for (;;) {
+      const n = readSync(0, buf, 0, 1, null);
+      if (n === 0) return line;
+      const ch = buf.toString("utf8", 0, n);
+      if (ch === "\n") return line;
+      line += ch;
+    }
+  };
+}
+
+/**
+ * --time-zone も人の設定の値も無いときに、マシンのタイムゾーンを確かめる。
+ * 開発コンテナや CI の runner は TZ を設定していなければ UTC なので、UTC のときだけ付け方を示す。
+ * 対話できる実行（readLine がある）なら、UTC のまま使うかを確かめ、入力された IANA の名前を使う。
+ * @param {string} systemZone マシンのタイムゾーン
+ * @param {(() => string) | null} readLine 1 行を読む関数。対話できない実行では null
+ * @returns {string}
+ */
+export function confirmSystemTimeZone(systemZone, readLine) {
+  if (!isUtcTimeZone(systemZone)) return systemZone;
+  console.log(
+    `マシンのタイムゾーンが ${systemZone} なので、${systemZone} で集計する。別の時間帯で集計するときは、--time-zone Asia/Tokyo のように IANA の名前を渡して setup を実行し直す`,
+  );
+  if (readLine === null) return systemZone;
+  process.stdout.write(
+    `${systemZone} のまま使うなら Enter、別の時間帯なら IANA の名前を入力する: `,
+  );
+  const answer = readLine().trim();
+  if (answer === "") return systemZone;
+  if (!isValidTimeZone(answer))
+    throw new UsageError(`IANA のタイムゾーンの名前ではない: ${answer}`);
+  return answer;
+}
+
 /**
  * コマンドに渡す、引数以外の値。
  * @typedef {object} CommandContext
@@ -195,7 +256,8 @@ function setupCommand(rest, context) {
   if (!PERSON_ID_RE.test(personId))
     throw new UsageError("--person-id は p- と 16 進数 8 桁の形にする");
   // config.timeZone は .local.jsonc の値のことがあるので使わない（人ごとの層へ書き写すと、他のリポジトリの記録の日付まで変わる）
-  const timeZone = a.options.get("--time-zone") ?? userLayerTimeZone() ?? systemTimeZone();
+  const given = a.options.get("--time-zone") ?? userLayerTimeZone();
+  const timeZone = given ?? confirmSystemTimeZone(systemTimeZone(), interactiveInput());
   if (!isValidTimeZone(timeZone))
     throw new UsageError("--time-zone は IANA のタイムゾーンの名前にする");
   const billing = a.options.get("--billing") ?? config?.billing ?? "none";
@@ -298,6 +360,10 @@ function reportCommand(rest, context) {
   });
   for (const f of out.files) console.log(`書いた: ${f}`);
   console.log(`行: ${out.rows}（重複を除いた後） / 期間: ${out.period}`);
+  // HTML の冒頭だけでは、作った人が読まずに渡すことがあるので、端末にも出す
+  console.log(
+    `タイムゾーン: ${out.timeZone}（日別の日付と時刻ごとの集計はこのタイムゾーンで切る）`,
+  );
   return 0;
 }
 
