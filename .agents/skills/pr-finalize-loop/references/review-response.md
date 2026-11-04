@@ -34,15 +34,17 @@ node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mj
 PR の作業ツリーから読むと、PR 自身が設定や文書を書き換えたり消したりして、まだレビューしていない差分で基準を緩められるからである。
 次の順に確かめ、どこかで止まるときは、指摘への対応を始めずに止まり、止まった理由（読めなかったこと・PR が変えたファイル）を報告する。
 
-1. PR が変えたファイルを `gh api --paginate repos/<owner>/<repo>/pulls/<番号>/files --jq '.[].filename'` で取得する。
-   一覧に `.config/skills/shoji9x9/common.jsonc` があれば止まる。設定を消した PR も、キーを消した PR も、ここで止まる。
+1. PR が変えたファイルを `gh api --paginate repos/<owner>/<repo>/pulls/<番号>/files --jq '.[] | .filename, (.previous_filename // empty)'` で取得する。
+   名前を変えたファイルは、変える前の名前（`previous_filename`）も一覧に入れる。
+   手元で commit していない変更も `git status --porcelain --untracked-files=all -- .config/skills/shoji9x9/` で挙げ、一覧に足す。PR の差分には出ないが、作業ツリーの値を変えるからである。
+   一覧に `.config/skills/shoji9x9/common.jsonc` があれば止まる。設定を消した・名前を変えた・キーを消した PR も、ここで止まる。
    基準の変更は PR の差分そのものなので、人がレビューして merge するまで、変えた後の基準で判断しない。
 2. 設定の値を読む（`node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mjs get common decision_policy_doc --raw`）。
    1 で設定ファイルが PR の差分に無いことを確かめたので、作業ツリーの値は base branch の値と同じである。
    - exit 3（設定が無い）なら、1〜3 だけで決める。設定ファイルがどの層にも無く、Node.js も無いときも同じである
    - exit 1（設定の誤り）か、設定ファイルがあるのに Node.js が無ければ、止まる
    - exit 0 なら、出力した値を引用符で囲んだ変数に入れて、3 に進む。値はスキーマが、英数字と `.`・`_`・`-`・`/` だけからなる相対パスに限る（`/` で始まる値と `..` の区切りは設定の誤りになる）
-3. 1 の一覧にその値（文書のパス）があれば止まる。
+3. 1 の一覧にその値（文書のパス）があるか、`git status --porcelain --untracked-files=all -- "$doc"` が何かを出せば止まる。
 4. PR の base branch を、`references/pattern-search.md` と同じ方法で専用の ref（`refs/worktree/pr-review/base`）に取得する。
    ベースリポジトリを指す remote の決め方も同じである（fork から出した PR では `origin` でないことがある）。
 5. `git ls-tree refs/worktree/pr-review/base -- "$doc"` で種類を確かめる。通常のファイル（モード `100644` か `100755`）でなければ（シンボリックリンク `120000`・ディレクトリ・無い）、止まる。
