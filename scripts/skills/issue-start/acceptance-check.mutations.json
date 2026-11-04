@@ -96,6 +96,54 @@
         "comments を持たない Issue はコメント無しとして読み、コメントからの行は引用が見つからない",
         "誤検知しないことの確認: 絶対パスの ファイル:行 と行の範囲の根拠は通る"
       ]
+    },
+    {
+      "id": "implementation-role-not-required",
+      "why": "役割を書いた行に、実装の根拠（role: implementation）が無くても通す",
+      "file": "skills/issue-start/scripts/acceptance-check.mjs",
+      "find": "  if (!withRole.some((e) => e.role === \"implementation\")) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["役割を書いた行に、実装の根拠が無ければ落とす"]
+    },
+    {
+      "id": "test-role-not-required",
+      "why": "役割を書いた行に、テストの根拠もテストを書けない理由も無くても通す",
+      "file": "skills/issue-start/scripts/acceptance-check.mjs",
+      "find": "  else if (!nonEmptyString(raw.test_exempt)) {",
+      "replace": "  else if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "役割を書いた行に、テストの根拠もテストを書けない理由も無ければ落とす",
+        "テストを書けない理由（test_exempt）があれば、テストの根拠が無くても通す"
+      ]
+    },
+    {
+      "id": "test-file-not-in-diff-accepted",
+      "why": "テストの根拠のファイルがブランチの差分に無くても通す（既にあるテストを挙げるだけで通る）",
+      "file": "skills/issue-start/scripts/acceptance-check.mjs",
+      "find": "    if (!inDiff(path)) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["テストの根拠のファイルがブランチの差分に無ければ落とす"]
+    },
+    {
+      "id": "test-command-only-accepted",
+      "why": "テストの根拠がコマンドだけでも通す（どのテストかを読めない）",
+      "file": "skills/issue-start/scripts/acceptance-check.mjs",
+      "find": "  if (paths.length === 0) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["テストの根拠がコマンドだけなら、どのテストかを読めないので落とす"]
+    },
+    {
+      "id": "role-vocabulary-unchecked",
+      "why": "語彙外の役割を根拠の誤りにしない",
+      "file": "skills/issue-start/scripts/acceptance-check.mjs",
+      "find": "    !(typeof evidence.role === \"string\" && ROLES.includes(evidence.role))",
+      "replace": "    false",
+      "occurrences": 1,
+      "expect_failing": ["語彙外の役割は根拠の誤りにする"]
     }
   ]
 }

@@ -1,0 +1,10 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+review:5777362025,review,2026-11-04T23:54:50.927Z,p-cdee4961,copilot,,,,2026-11-04T23:20:42.000Z,2026-11-04T23:20:42.000Z,Asia/Tokyo,feature/889-record-provisional-decisions,889,,,,,,,0.520000,estimate-bundled,,pr=896;author=shoji9x9;state=commented,
+review-wait:896:copilot:2026-11-04T23:16:42.000Z,review-wait,2026-11-04T23:54:50.927Z,p-cdee4961,copilot,,,,2026-11-04T23:16:42.000Z,2026-11-04T23:20:42.000Z,Asia/Tokyo,feature/889-record-provisional-decisions,889,,,,,,,,,,pr=896,
+ci:41933217502:1,ci,2026-11-04T23:54:50.927Z,p-cdee4961,github-actions,,,,2026-11-04T23:22:35.000Z,2026-11-04T23:27:12.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:41933217380:1,ci,2026-11-04T23:54:50.927Z,p-cdee4961,github-actions,,,,2026-11-04T23:22:35.000Z,2026-11-04T23:22:58.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:41932443258:1,ci,2026-11-04T23:54:50.927Z,p-cdee4961,github-actions,,,,2026-11-04T23:16:51.000Z,2026-11-04T23:20:40.000Z,Asia/Tokyo,feature/889-record-provisional-decisions,889,,,,,,,,,,Running Copilot Code Review;dynamic;success,
+ci:41932415154:1,ci,2026-11-04T23:54:50.927Z,p-cdee4961,github-actions,,,,2026-11-04T23:16:38.000Z,2026-11-04T23:16:46.000Z,Asia/Tokyo,feature/889-record-provisional-decisions,889,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:41932415008:1,ci,2026-11-04T23:54:50.927Z,p-cdee4961,github-actions,,,,2026-11-04T23:16:38.000Z,2026-11-04T23:21:07.000Z,Asia/Tokyo,feature/889-record-provisional-decisions,889,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-11-03T23:15:32.409Z:2026-11-04T23:54:50.927Z,coverage,2026-11-04T23:54:50.927Z,p-cdee4961,,,,,2026-11-03T23:15:32.409Z,2026-11-04T23:54:50.927Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-03T23:54:50.927Z:2026-11-04T23:55:05.671Z,coverage,2026-11-04T23:55:05.671Z,p-cdee4961,,,,,2026-11-03T23:54:50.927Z,2026-11-04T23:55:05.671Z,Asia/Tokyo,,,,,,,,,,,,ok,
