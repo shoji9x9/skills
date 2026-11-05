@@ -35,5 +35,6 @@ scripts/eval/run-skill-eval.sh \
   振り分けの結果を判断待ちと自分で判断した記録に分ける取り決めが消えた後退を検出するために置く。
 - eval 37 は、仮の決定が 0 件の Issue の PR を作る場面で、「仮に決めたこと」の節を置いて「無い」と書くかを確かめる。
   区別できるのは「反復の上限で直さなかった指摘を節に載せない」の 1 本である。
-  「節を置いて『無い』と書く」は、`requires_skills` で置いた `issue-start` の `references/provisional-decisions.md` に書かれているので、それを読んだ without_skill は pass する。後退の検出のために置く。
+  「節を置いて『無い』と書く」は、`requires_skills` で置いた `issue-start` の `references/provisional-decisions.md` に書かれている。
+  without_skill は、この文書を読まなければ fail し、読めば pass する。読むかどうかが run ごとに変わるので、区別できる assertion には数えず、後退の検出のために置く。
   人に回すかを決めるときに `issue-start` と `pr-finalize-loop` の基準を読むことは、`issue-batch` の文書が求めていないので検査していない。
