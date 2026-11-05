@@ -171,7 +171,9 @@ run を始めた後（全体 preflight を終え、manifest の作成などの�
   そのうえで、`continue_on_blocked` に従って次の Issue に進むか run を止める（「全体 preflight」の最後の段落）。
   記録するのは、一意な `id`・種別（`kind`）・論点・選択肢・それぞれの根拠と影響・推奨・決まった後に残る作業である（`id` は受け入れ条件の表の `decision_ref` が指す）。利用者が最終報告だけを読んで決められるようにする。
   `kind` は、判断待ちが生じた元で決める。値は次の 5 つで、どれにも当たらなければ `other` にする。
-  - `provisional`: Issue から導けずに選んだ解釈・値・形のうち、人の答えを待つもの（`issue-start` の `references/provisional-decisions.md` で人に回すと決めたもの）
+  - `provisional`: Issue から導けずに選んだ解釈・値・形のうち、人の答えを待つもの（`issue-start` の `references/provisional-decisions.md` で人に回すと決めたもの）。
+    PR を作った後にも、issue-batch が自分で変更を足す工程（`FINALIZING` に戻した後の記録の commit・base の merge・「deployment 修復」）で生じる。
+    `pr-finalize-loop` が返す判断待ちは、レビューの指摘から生じたものなので `review` にする
   - `acceptance`: 受け入れ条件を満たせない、外す承認が要る、似た Issue を見直すかを決める
   - `review`: `pr-finalize-loop` が判断待ちとして返したレビューの指摘
   - `dependency`: 依存先を確かめられない（「全体 preflight」の 6）
@@ -492,6 +494,7 @@ pr-finalize-loop が進み具合のメモを失って段階が分からなくな
 追記は、目印で囲んだ範囲にだけ書き、項目を足すだけにする（前に書いた行は書き換えない）。
 開始の目印は `<!-- issue-batch:provisional-after-pr sha256=<範囲の中身の SHA-256> -->`、閉じる目印は `<!-- /issue-batch:provisional-after-pr -->` である。
 範囲の中身は、2 つの目印の間の文字列で、改行を LF にそろえてから SHA-256 を計算する。GitHub の画面で本文を保存すると、改行が CRLF になることがあるからである。
+本文どうしを比べるときは、改行を LF にそろえ、末尾の改行も取り除いてから比べる。`gh pr view --json body --jq .body` は出力の末尾に改行を足すので、取得した本文をそのまま書き戻すと、末尾の改行が 1 つ増える（実測）。
 人が範囲の中を書き換えたかは、この値で判定する。値を本文に置くので、別の run が同じ PR を再開しても判定できる。
 
 1. 追記する項目を manifest から挙げる。
@@ -521,14 +524,17 @@ pr-finalize-loop が進み具合のメモを失って段階が分からなくな
      足す項目があるときは、manifest の `pr_id` にここではまだ書かない。5 でやり直すと、書かれていない項目が 1 の対象から外れるからである
 
    範囲の外の文字列は変えない。作成時に書いた項目と「PR を作るまでに仮に決めたことは無い」の文も、範囲の外なので残る。
-5. 書き込む直前に、時刻（UTC）を控えてから本文を取得し直し、2 で取得した本文と同じこと（改行をそろえて比べる）を確かめる。
+5. 書き込む直前に、編集の履歴の `id` の一覧を控えてから本文を取得し直し、2 で取得した本文と同じこと（改行をそろえて比べる）を確かめる。
+   編集の履歴は、GraphQL の `pullRequest.userContentEdits` で読む（[UserContentEdit](https://docs.github.com/en/graphql/reference/objects#usercontentedit)）。
+   ページに分かれるので、`pageInfo { hasNextPage endCursor }` を取って `gh api graphql --paginate` ですべてのページを読む。
    違えば、人が同じ時間に本文を編集したので、2 からやり直す。同じなら、書く前の本文を run root にファイルで残し、`gh pr edit <PR URL> --body-file <path>` で書く。
    GitHub の PR の本文の更新は、取得した後に本文が変わっていないことを条件にした書き込みができない。取得と書き込みの間に入った編集は、6 で編集の履歴から検出する。
-6. 書いた後に、本文と編集の履歴を取得する。編集の履歴は、GraphQL の `pullRequest.userContentEdits` の `editedAt` で読む（[UserContentEdit](https://docs.github.com/en/graphql/reference/objects#usercontentedit)）。
-   `userContentEdits` はページに分かれるので、`pageInfo { hasNextPage endCursor }` を取って `gh api graphql --paginate` ですべてのページを読み、5 で控えた時刻より後の編集を数える。
+6. 書いた後に、本文と編集の履歴を取得する。編集の履歴は 5 と同じ方法ですべてのページを読み、5 で控えた一覧に無い `id` を数える。
+   時刻は比べない。手元の時計と GitHub の `editedAt` がずれると、数え方が変わるからである。
    次の 2 つがどちらも成り立てば、追記した項目の識別子を manifest の `pr_id` に書く（照合のキーで足さなかった項目も含む）。
    - 改行をそろえた本文が、4 で作った本文と一致する
-   - 5 で控えた時刻より後の編集が、自分の書き込みの 1 件だけである。編集者の login は使わない。エージェントが利用者の資格情報で書くと、同じ login になるからである
+   - 5 で控えた一覧に無い `id` が、自分の書き込みの分だけある。5 の一覧が空なら 2 件、空でなければ 1 件である。
+     本文を初めて編集すると、GitHub は元の本文と編集後の本文の 2 件を履歴に足す（実測）。編集者の login は使わない。エージェントが利用者の資格情報で書くと、同じ login になるからである
 
    どちらかが成り立たなければ、5 の確認と書き込みの間に人が本文を編集し、その編集を上書きしたか、書き込みの後に編集した可能性がある。
    `pr_id` は書かず、その Issue を BLOCKED（判断待ち。`kind` は `other`）にして merge に進まない。5 で残したファイルのパスと、戻すかの判断を記録する。
