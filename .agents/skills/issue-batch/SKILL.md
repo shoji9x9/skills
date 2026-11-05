@@ -142,3 +142,9 @@ preflight で Issue ごと外した `EXCLUDED` は、表の「対象から外し
 `DONE` は、次のすべてを確かめた場合だけ使う。PR が `MERGED`、Issue が `CLOSED`、deployment が成功したか根拠があって対象外である、local と remote の branch を削除した。
 worktree に残った記録の引き継ぎ先が merge されずに run が終わると、その Issue は `BRANCH_CLEANUP` のまま残る（`references/orchestration.md`「worktree に残った記録の引き継ぎ」の 5）。
 その Issue は `DONE` にせず `BLOCKED` として載せ、worktree の絶対パスと残りの作業を書く。
+
+## 利用者への確認
+
+このスキルが利用者に確認する段・承認を得る段・選んでもらう段は、すべて [`references/user-confirmation.md`](references/user-confirmation.md) の手順で行う。
+確認のツールを使えないエージェントでは、判断の材料と選択肢を本文に出して返事を待ち、返事を受け取る前に、その返事で決まる操作へ進まない。
+`run` を始めた後は、この節より「安全制約」の「利用者に確認を送らない」が優先する。確認を送らずに判断待ちとして記録し、返事で決まる操作には進まない。

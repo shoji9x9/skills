@@ -156,3 +156,8 @@ worktree を作る手段（`git worktree add -b` や `EnterWorktree` の `name`�
 呼び出し側は branch を用意し、`git-worktree enter <branch>` と同じ取り決めで入り、
 作業の後は `git-worktree cleanup` と同じ取り決めで片付ける。
 上の前提を呼び出し側に書き写さない。
+
+## 利用者への確認
+
+このスキルが利用者に確認する段・承認を得る段・選んでもらう段は、すべて [`references/user-confirmation.md`](references/user-confirmation.md) の手順で行う。
+確認のツールを使えないエージェントでは、判断の材料と選択肢を本文に出して返事を待ち、返事を受け取る前に、その返事で決まる操作へ進まない。

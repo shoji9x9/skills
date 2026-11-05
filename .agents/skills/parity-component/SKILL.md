@@ -370,3 +370,8 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
   逆に、敵対的レビューとテーマ寄せの手順は `parity-replace` の references が原本で、このスキルがそこに任せる。
 - `parity-diff` との関係: このスキルの照合の対象は、カタログ上の部品単体である。画面に載せた後の差分は `parity-diff` が見る。
   部品が単体で合っていても、画面では合わないことがある（周りの余白・親の指定の継承）。このスキルの収束を、機能の収束の代わりにしない。
+
+## 利用者への確認
+
+このスキルが利用者に確認する段・承認を得る段・選んでもらう段は、すべて [`references/user-confirmation.md`](references/user-confirmation.md) の手順で行う。
+確認のツールを使えないエージェントでは、判断の材料と選択肢を本文に出して返事を待ち、返事を受け取る前に、その返事で決まる操作へ進まない。

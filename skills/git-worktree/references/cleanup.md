@@ -62,7 +62,7 @@ lock が理由で失敗しても、確かめずに `--force` を付けない。
 （[Clean up worktrees](https://code.claude.com/docs/en/worktrees#clean-up-worktrees)）。
 
 非対話の実行（`-p`）で作られた worktree は自動では片付かず、作ったときの lock も残る。
-自分が作ったのではない worktree は、この手順の対象にする前に、呼び出し側か利用者に確認する。
+自分が作ったのではない worktree は、この手順の対象にする前に、呼び出し側か利用者に確認する（聞き方は [`user-confirmation.md`](user-confirmation.md)）。返事を受け取る前に解除しない。
 
 ### 4. 解除されたことをもう一度確かめる
 
