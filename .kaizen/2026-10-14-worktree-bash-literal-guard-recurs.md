@@ -424,3 +424,9 @@ Write ツールでスクリプトにして絶対パスで実行し、整形と�
 2026-11-05、issue-batch の run の #903 で、worktree に入った後の Bash の呼び出しが 1 回拒否された。
 テストのファイルへの追記（`cat >> <<'EOF'`）と、`python3 - <<'PY'` での import の書き換えを同じ呼び出しに入れたものである。
 新しい形は無く、ファイル編集ツールに分けて通した。単独の `python3 - <<'PY'` は、同じ worktree で拒否されずに通った。
+
+### 再発の記録（#902）
+
+2026-11-05、issue-batch の run の #902 で、worktree に入った後の Bash の呼び出しが 2 回拒否された。
+1 つ目は `git commit` の出力をファイルに書き、`echo rc=$?` と `grep` を同じ呼び出しに続けたもの、2 つ目は lint と `reinstall-skill.sh` と `check-identical-copies.ts` を `;` でつないだものである。
+新しい形は無く、それぞれ単独の呼び出しに分けて通した。
