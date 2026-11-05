@@ -1,0 +1,142 @@
+{
+  "metadata": {
+    "skill_name": "issue-create",
+    "skill_path": "/home/shoji9x9/projects/skills/.claude/worktrees/860-split-deps/skills/issue-create",
+    "executor_model": "claude-opus-5-5",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-05T01:22:52Z",
+    "evals_run": [6],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 57.138,
+        "tokens": 106113,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "依頼を複数の Issue に分ける案を示し、層ごと（データベース・API・画面）ではなく、それぞれ単独で動作を確かめられる単位（機能ごと）で分けている",
+          "passed": true,
+          "evidence": "「3 件に分ける案にしました。分け方は層ごとではなく、それぞれ単独で動作を確かめられる単位です」とし、CSV・保存・共有の 3 件に分ける"
+        },
+        {
+          "text": "保存した絞り込みの条件を共有する Issue の本文に、先に済んでいる必要がある Issue（絞り込みの条件の保存）を書く節（依存）を置き、前提にされる側から起票する順にしている",
+          "passed": true,
+          "evidence": "下書き 3（共有）の本文の最後に「## 依存」を置き、「#<下書き 2 を起票した後に番号を入れる>（保存した絞り込み条件の表と、保存・適用の機能）」と書く。起票の順は「保存 → 共有」"
+        },
+        {
+          "text": "分けた全件の下書きをまとめて 1 回の確認で利用者に見せる形にし、承認の前に gh issue create を実行していない",
+          "passed": true,
+          "evidence": "3 件の下書きと問いをまとめて示し、「起票（gh issue create）は、承認を受け…てから行います」として止める"
+        },
+        {
+          "text": "起票の前に、依頼された内容が既に実装されていないかを確かめたか、確かめられなかったことを利用者に伝えている",
+          "passed": true,
+          "evidence": "「既に実装されていないかも確かめていません。手元に作業ツリーが無いため」と伝える"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 53.307,
+        "tokens": 128483,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "依頼を複数の Issue に分ける案を示し、層ごと（データベース・API・画面）ではなく、それぞれ単独で動作を確かめられる単位（機能ごと）で分けている",
+          "passed": true,
+          "evidence": "「Issue は 3 件に分ける」とし、CSV・保存・共有の機能ごとに分ける"
+        },
+        {
+          "text": "保存した絞り込みの条件を共有する Issue の本文に、先に済んでいる必要がある Issue（絞り込みの条件の保存）を書く節（依存）を置き、前提にされる側から起票する順にしている",
+          "passed": false,
+          "evidence": "Issue 3 の冒頭に「依存: Issue 2 が終わってから着手する」と書くが、番号で書く節は無く、前提にされる側から起票する順も示さない"
+        },
+        {
+          "text": "分けた全件の下書きをまとめて 1 回の確認で利用者に見せる形にし、承認の前に gh issue create を実行していない",
+          "passed": true,
+          "evidence": "3 件をまとめて「承認をお願いしたい起票案」として示し、「GitHub には何も書き込んでいません」"
+        },
+        {
+          "text": "起票の前に、依頼された内容が既に実装されていないかを確かめたか、確かめられなかったことを利用者に伝えている",
+          "passed": true,
+          "evidence": "「画面・DB の実装は確認できていません」と伝える"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 57.138,
+        "stddev": 0,
+        "min": 57.138,
+        "max": 57.138
+      },
+      "tokens": {
+        "mean": 106113,
+        "stddev": 0,
+        "min": 106113,
+        "max": 106113
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.75,
+        "stddev": 0,
+        "min": 0.75,
+        "max": 0.75
+      },
+      "time_seconds": {
+        "mean": 53.307,
+        "stddev": 0,
+        "min": 53.307,
+        "max": 53.307
+      },
+      "tokens": {
+        "mean": 128483,
+        "stddev": 0,
+        "min": 128483,
+        "max": 128483
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.25",
+      "time_seconds": "+3.8",
+      "tokens": "-22370"
+    }
+  },
+  "notes": [
+    "変更確認（Issue #860）。issue-create に足した eval 6（大きな依頼を分け、依存を書く）を with_skill と without_skill で 1 run ずつ実行した。",
+    "GitHub に書き込まないよう、GH_TOKEN に無効な値を渡して実行した。eval 1〜5 は入力を変えていないので実行していない。",
+    "最初の prompt は依存の生じない依頼で、エージェントは「3 件の間に依存は無い」と正しく判断した。assertion の前提が prompt に無かったので、保存した条件の共有（保存を前提にする）に直して実行し直した。",
+    "without_skill は依存を本文の冒頭の 1 行に書くが、番号の節と起票の順を示さない。"
+  ]
+}

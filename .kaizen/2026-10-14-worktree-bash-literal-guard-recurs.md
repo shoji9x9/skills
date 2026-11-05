@@ -403,3 +403,4 @@ Write ツールでスクリプトにして絶対パスで実行し、整形と�
 同じ run の #889 でも、`for` ループで `reinstall-skill.sh` を 2 回呼ぶ呼び出しが `runs bash inside a construct too complex to verify` で拒否された。単独の呼び出しに分けて通した。
 同じ run の #886 でも 4 回拒否された。`cd` と `git add`・`git status` を `&&` でつないだもの、`git commit` の出力を `>` と `; echo rc=$?` で受けたもの、`bash <script>` を `&&` の後に置いたもの、`cat >> <file> <<'EOF'` と検証を同じ呼び出しに入れたものである。
 新しい形は無く、単独の呼び出しか Write ツールのスクリプトに分けて通した。
+同じ run の #880 と #860 でも、`sed` の置換・`python3 - <<'PY'` の本文・`cd` を含む連結の呼び出しが拒否された。新しい形は無く、Write ツールのスクリプトに分けて通した。
