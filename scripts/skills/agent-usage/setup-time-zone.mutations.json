@@ -1,6 +1,7 @@
 {
   "$comment": [
-    "setup-time-zone.test.ts のうち、setup がタイムゾーンを尋ねるときの打ち間違いの扱い（Issue #903）の検出能力を示す変異の一覧。"
+    "setup-time-zone.test.ts のうち、setup がタイムゾーンを尋ねるときの打ち間違いの扱い（Issue #903）の検出能力を示す変異の一覧。",
+    "人の設定に timeZone が無いときの案内（setup で出さない・コミットの前の確認で結果の文に添える）も、このテストで示す。"
   ],
   "test_file": "scripts/skills/agent-usage/setup-time-zone.test.ts",
   "mutations": [
@@ -15,6 +16,28 @@
         "confirmSystemTimeZone 対話できる実行で IANA の名前でない値を入れたら、止めずにもう一度尋ね、次の入力を使う",
         "confirmSystemTimeZone 打ち間違えた後に Enter なら、マシンの値を使う",
         "confirmSystemTimeZone 打ち間違えた後に入力が読めなければ（上限を過ぎたなど）、付け方を示して UTC のまま使う"
+      ]
+    },
+    {
+      "id": "setup-warns-missing-time-zone",
+      "why": "setup が、これから書くタイムゾーンについて、timeZone が無いことの案内を出す",
+      "file": "skills/agent-usage/scripts/agent-usage.mjs",
+      "find": "  const config = loadUserConfig(repo.root, process.env, { warn: () => {} });\n",
+      "replace": "  const config = loadUserConfig(repo.root, process.env);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "人の設定に timeZone が無いとき（CLI） setup は、これから書くタイムゾーンについて案内を出さずに、設定に書く"
+      ]
+    },
+    {
+      "id": "gate-drops-time-zone-note",
+      "why": "コミットの前の確認が、timeZone が無いことの案内を記録の結果の文に添えない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "    const notes = `${github}${extra}${timeZoneNoteOf(repo)}`;\n",
+      "replace": "    const notes = `${github}${extra}`;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "人の設定に timeZone が無いとき（CLI） コミットの前の確認は、記録の結果の文に案内を添える（終了コード 0 では標準エラーが見えないため）"
       ]
     }
   ]

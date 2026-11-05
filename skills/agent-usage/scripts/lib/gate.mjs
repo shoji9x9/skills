@@ -11,7 +11,13 @@
 
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { defaultDecisionOf, hasPerson, isRecord, userConfigPath } from "./config.mjs";
+import {
+  defaultDecisionOf,
+  hasPerson,
+  isRecord,
+  missingTimeZoneNote,
+  userConfigPath,
+} from "./config.mjs";
 import { decisionFor } from "./decisions.mjs";
 import { errorMessage } from "./error-message.mjs";
 import { branchesRecordedElsewhere, branchMerged } from "./merged.mjs";
@@ -838,7 +844,7 @@ function recordCommit(repo, context, note) {
       .filter((s) => s !== "")
       .map((s) => `（${s}）`)
       .join("");
-    const notes = `${github}${extra}`;
+    const notes = `${github}${extra}${timeZoneNoteOf(repo)}`;
     return {
       exit: 0,
       message: `agent-usage: 利用実績を記録した（新しい行 ${r.newRows}、stage したファイル ${r.written.length}）${notes}${note}`,
@@ -851,6 +857,20 @@ function recordCommit(repo, context, note) {
         `原因を直して node "${context.script}" collect --stage を実行するか、このブランチで記録しないなら node "${context.script}" decline を実行してから、もう一度コミットしてください。`,
       ].join("\n"),
     };
+  }
+}
+
+/**
+ * 人の設定に timeZone が無いときに、記録の結果の文に添える案内。読めなければ添えない（読めないことは collect が報告する）。
+ * @param {import("./repo.mjs").RepoInfo} repo
+ * @returns {string}
+ */
+function timeZoneNoteOf(repo) {
+  try {
+    const note = missingTimeZoneNote(repo.root, process.env);
+    return note === "" ? "" : `（${note}）`;
+  } catch {
+    return "";
   }
 }
 

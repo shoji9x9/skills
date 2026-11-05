@@ -251,7 +251,8 @@ function setupCommand(rest, context) {
   const a = parseArgs(rest, [], ["--person-id", "--time-zone", "--billing"]);
   const repo = repoInfo(context.cwd);
   // 引数を確かめる前に人の設定を作らない。打ち間違いで止まったときに、乱数の ID の設定が残らないようにする
-  const config = loadUserConfig(repo.root);
+  // setup はこれからタイムゾーンを書くので、timeZone が無いことの案内（setup を実行するよう勧める文）は出さない
+  const config = loadUserConfig(repo.root, process.env, { warn: () => {} });
   const created = config === null;
   const personId = a.options.get("--person-id") ?? config?.personId ?? newPersonId();
   if (!PERSON_ID_RE.test(personId))

@@ -9,7 +9,7 @@
 //   人の設定         ある・無い・読めない（ブランチの判断が decline のときは読まない）。
 
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { stopResult } from "../../../skills/agent-usage/scripts/lib/gate.mjs";
@@ -144,12 +144,16 @@ describe("判断が無いときにコミットを止める案内（gate.mjs の 
   // 案内の段で初めて読めなくなる形（読み取りの間にファイルが変わったなど）は CLI では作れないので、ここで直接確かめる
   const context = { fallbackCwd: "/", now: 0, script: "/s/agent-usage.mjs", agent: "claude-code" };
 
+  const roots: string[] = [];
+
   afterEach(() => {
     vi.unstubAllEnvs();
+    for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
   });
 
   function userLayerWith(body: string | null): void {
     const root = mkdtempSync(join(tmpdir(), "agent-usage-stop-"));
+    roots.push(root);
     const dir = join(root, "skills", "shoji9x9");
     mkdirSync(dir, { recursive: true });
     if (body !== null) writeFileSync(join(dir, "agent-usage.jsonc"), body);

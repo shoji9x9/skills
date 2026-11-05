@@ -314,7 +314,7 @@ export function parseUserConfig(raw, where = CONFIG_NAME, warn = writeWarning) {
  * @param {string} used 代わりに使ったタイムゾーン
  * @returns {string}
  */
-export function missingTimeZoneGuidance(where, used) {
+function missingTimeZoneGuidance(where, used) {
   return `${where}: timeZone が無いので、マシンのタイムゾーン（${used}）を使った。記録の日付の区切りを固定するには、setup に --time-zone <IANA の名前>（例: Asia/Tokyo）を付けて実行するか、設定に "timeZone": "<IANA の名前>" を書く`;
 }
 
@@ -358,13 +358,35 @@ export function hasPerson(env = process.env) {
  * タイムゾーンは、このリポジトリだけの値（.local.jsonc）、人ごとの値、マシンのタイムゾーンの順に決める。
  * @param {string} root
  * @param {NodeJS.ProcessEnv} [env]
- * @param {ReturnType<typeof resolved>} [r] 読み込み済みの設定（省くと読む）
+ * @param {{ r?: ReturnType<typeof resolved>; warn?: (message: string) => void }} [options]
+ *   r は読み込み済みの設定（省くと読む）。warn は timeZone が無いときの案内の出し先（省くと標準エラー）
  * @returns {UserConfig | null}
  */
-export function loadUserConfig(root, env = process.env, r = resolved(root, env)) {
+export function loadUserConfig(
+  root,
+  env = process.env,
+  { r = resolved(root, env), warn = writeWarning } = {},
+) {
   if (typeof r.personId?.value !== "string") return null;
   const { raw, where } = pick(r, USER_KEYS);
-  return parseUserConfig(raw, where);
+  return parseUserConfig(raw, where, warn);
+}
+
+/**
+ * 人の設定に timeZone が無いときの案内。人の設定が無いか、timeZone があれば空文字を返す。標準エラーには書かない。
+ * コミットの前の確認は、終了コード 0 のときに標準エラーを利用者に見せないので、この文を自分の結果の文に入れる。
+ * @param {string} root
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {string}
+ */
+export function missingTimeZoneNote(root, env = process.env) {
+  let note = "";
+  loadUserConfig(root, env, {
+    warn: (m) => {
+      note = m;
+    },
+  });
+  return note;
 }
 
 /**
@@ -426,7 +448,7 @@ export function saveUserConfig(root, env, values) {
  */
 export function loadOrCreateUserConfig(root, env = process.env, r = resolved(root, env)) {
   const path = userConfigPath(env);
-  const existing = loadUserConfig(root, env, r);
+  const existing = loadUserConfig(root, env, { r });
   if (existing !== null) return { config: existing, created: false, path };
   // タイムゾーンも書いておく（後でマシンのタイムゾーンが変わっても、記録の日付の区切りを変えない）
   const timeZone = systemTimeZone();
