@@ -8,7 +8,11 @@
 //   defaultDecision  record・decline・無い・読めない（ブランチの判断が無いときだけ読む）。
 //   人の設定         ある・無い・読めない（ブランチの判断が decline のときは読まない）。
 
-import { expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { stopResult } from "../../../skills/agent-usage/scripts/lib/gate.mjs";
 import {
   decidesToRecord,
   recordDecision,
@@ -132,4 +136,49 @@ test.each<{
   expect(r).toMatchObject(expected);
   if (r.kind === "unreadable") expect(String(r.error)).toContain("読めない");
   expect(decidesToRecord(r)).toBe(records);
+});
+
+describe("判断が無いときにコミットを止める案内（gate.mjs の stopResult）", () => {
+  // 案内の文は人の設定があるかで変わるので、止める前に人の設定を読む。
+  // CLI の流れでは、その前の段（defaultDecision の読み取り）が同じファイルを読んで設定のエラーを返す。
+  // 案内の段で初めて読めなくなる形（読み取りの間にファイルが変わったなど）は CLI では作れないので、ここで直接確かめる
+  const context = { fallbackCwd: "/", now: 0, script: "/s/agent-usage.mjs", agent: "claude-code" };
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  function userLayerWith(body: string | null): void {
+    const root = mkdtempSync(join(tmpdir(), "agent-usage-stop-"));
+    const dir = join(root, "skills", "shoji9x9");
+    mkdirSync(dir, { recursive: true });
+    if (body !== null) writeFileSync(join(dir, "agent-usage.jsonc"), body);
+    vi.stubEnv("XDG_CONFIG_HOME", root);
+    // テストの実行の環境が人ごとの層を読まない設定にしていても、ここでは読ませる
+    vi.stubEnv("SHOJI9X9_SKILLS_IGNORE_USER_CONFIG", undefined);
+  }
+
+  test("人の設定を読めなければ、例外で止まらずに設定のエラーとして返す", () => {
+    userLayerWith("{ not json");
+    const r = stopResult({ kind: "undecided" }, context);
+    expect(r.exit).toBe(2);
+    expect(r.message).toMatch(/^agent-usage: 設定を読めない: .*JSONC として読めない/);
+    expect(r.message).toMatch(/decline を実行してからコミット/);
+  });
+
+  test("人の設定が無ければ、記録するかを尋ねる案内に setup の案内を足す", () => {
+    userLayerWith(null);
+    const r = stopResult({ kind: "undecided" }, context);
+    expect(r.exit).toBe(2);
+    expect(r.message).toMatch(/まだ決まっていません/);
+    expect(r.message).toMatch(/setup --person-id <その ID>/);
+  });
+
+  test("人の設定があれば、setup の案内を足さない", () => {
+    userLayerWith('{ "personId": "p-0123abcd", "timeZone": "UTC" }');
+    const r = stopResult({ kind: "undecided" }, context);
+    expect(r.exit).toBe(2);
+    expect(r.message).toMatch(/まだ決まっていません/);
+    expect(r.message).not.toMatch(/setup --person-id/);
+  });
 });

@@ -13,6 +13,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { defaultDecisionOf, hasPerson, isRecord, userConfigPath } from "./config.mjs";
 import { decisionFor } from "./decisions.mjs";
+import { errorMessage } from "./error-message.mjs";
 import { branchesRecordedElsewhere, branchMerged } from "./merged.mjs";
 import { recordDecision } from "./record-decision.mjs";
 import { git, isDecisionBranch, repoInfo } from "./repo.mjs";
@@ -781,14 +782,20 @@ function rememberWorktreesQuietly(repo) {
  * @param {GateContext} context
  * @returns {GateResult}
  */
-function stopResult(r, context) {
+export function stopResult(r, context) {
   const { script, agent } = context;
   if (r.kind === "unreadable") {
     if (r.stage === "config") return configErrorResult(r.error, script);
-    const message = r.error instanceof Error ? r.error.message : String(r.error);
-    return { exit: 2, message: `agent-usage: 判断の記録を読めない: ${message}` };
+    return { exit: 2, message: `agent-usage: 判断の記録を読めない: ${errorMessage(r.error)}` };
   }
-  if (r.kind === "undecided") return { exit: 2, message: askMessage(agent, script) };
+  if (r.kind === "undecided") {
+    // 案内の文は人の設定があるかで変わる。人の設定を読めないときは、例外のまま止めずに設定のエラーとして返す
+    try {
+      return { exit: 2, message: askMessage(agent, script) };
+    } catch (e) {
+      return configErrorResult(e, script);
+    }
+  }
   return { exit: 2, message: setupMessage(agent, script) };
 }
 
@@ -840,7 +847,7 @@ function recordCommit(repo, context, note) {
     return {
       exit: 2,
       message: [
-        `agent-usage: 利用実績の記録に失敗したので、コミットを止めました: ${e instanceof Error ? e.message : String(e)}`,
+        `agent-usage: 利用実績の記録に失敗したので、コミットを止めました: ${errorMessage(e)}`,
         `原因を直して node "${context.script}" collect --stage を実行するか、このブランチで記録しないなら node "${context.script}" decline を実行してから、もう一度コミットしてください。`,
       ].join("\n"),
     };
@@ -857,7 +864,7 @@ function configErrorResult(e, script) {
   return {
     exit: 2,
     message: [
-      `agent-usage: 設定を読めない: ${e instanceof Error ? e.message : String(e)}`,
+      `agent-usage: 設定を読めない: ${errorMessage(e)}`,
       `設定を直してからもう一度コミットするか、このブランチで記録しないなら node "${script}" decline を実行してからコミットしてください。`,
     ].join("\n"),
   };

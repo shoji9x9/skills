@@ -228,6 +228,28 @@
       "expect_failing": [
         "日別のチャート 1 人の記録が複数のタイムゾーンにまたがっても、稼働状況は最初の run のタイムゾーンの期間で数える"
       ]
+    },
+    {
+      "id": "missing-time-zone-silent",
+      "why": "人の設定に timeZone が無いときに、マシンのタイムゾーンを案内なしに使う",
+      "file": "skills/agent-usage/scripts/lib/config.mjs",
+      "find": "  if (raw.timeZone === undefined) warn(missingTimeZoneGuidance(where, timeZone));\n",
+      "replace": "  if (false) warn(missingTimeZoneGuidance(where, timeZone));\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "設定 timeZone が無ければ、使ったマシンのタイムゾーンと設定の書き方を案内する。あれば案内しない"
+      ]
+    },
+    {
+      "id": "error-message-drops-error-message",
+      "why": "例外を文字列にする関数が、Error の message ではなく String() の結果（\"Error: ...\"）を返す",
+      "file": "skills/agent-usage/scripts/lib/error-message.mjs",
+      "find": "  return e instanceof Error ? e.message : String(e);\n",
+      "replace": "  return String(e);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "設定 例外を文字列にする関数は、Error なら message を、それ以外は String() の結果を返す"
+      ]
     }
   ]
 }

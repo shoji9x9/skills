@@ -9,7 +9,7 @@ import { setup, userConfigOf } from "./cli-helpers.ts";
 //   値の出所       --time-zone／人の設定の値／マシンのタイムゾーン（このときだけ確かめる）。
 //   マシンの値     UTC の名前（別名を含む）／UTC 以外。
 //   対話           できる（1 行を読める）／できない（stdin か stdout が端末でない）。
-//   入力           空（Enter）／正しい IANA の名前／IANA の名前でない／読めない（上限を過ぎた）。
+//   入力           空（Enter）／正しい IANA の名前／IANA の名前でない（その後に正しい名前・空・読めない）／読めない（上限を過ぎた）。
 //   設定を作る側   setup／collect（setup を通らずに人の設定を作る）。
 
 afterEach(() => {
@@ -83,10 +83,31 @@ describe("confirmSystemTimeZone", () => {
     expect(log.mock.calls.flat().join("\n")).toMatch(/--time-zone Asia\/Tokyo/);
   });
 
-  test("対話できる実行で IANA の名前でない値を入れたら、設定を作らずに止める", () => {
+  test("対話できる実行で IANA の名前でない値を入れたら、止めずにもう一度尋ね、次の入力を使う", () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const write = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    const answers = ["Not/AZone", "Asia/Tokyo"];
+    const read = vi.fn(() => answers.shift() ?? null);
+    expect(confirmSystemTimeZone("UTC", read)).toBe("Asia/Tokyo");
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(write.mock.calls.flat().join("")).toMatch(
+      /IANA のタイムゾーンの名前ではない: Not\/AZone/,
+    );
+  });
+
+  test("打ち間違えた後に Enter なら、マシンの値を使う", () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     vi.spyOn(process.stdout, "write").mockImplementation(() => true);
-    expect(() => confirmSystemTimeZone("UTC", () => "Not/AZone")).toThrow(/IANA/);
+    const answers = ["Not/AZone", ""];
+    expect(confirmSystemTimeZone("UTC", () => answers.shift() ?? null)).toBe("UTC");
+  });
+
+  test("打ち間違えた後に入力が読めなければ（上限を過ぎたなど）、付け方を示して UTC のまま使う", () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    const answers = ["Not/AZone", "Also/Wrong"];
+    expect(confirmSystemTimeZone("UTC", () => answers.shift() ?? null)).toBe("UTC");
+    expect(log.mock.calls.flat().join("\n")).toMatch(/--time-zone Asia\/Tokyo/);
   });
 });
 

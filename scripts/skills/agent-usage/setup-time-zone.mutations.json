@@ -1,0 +1,21 @@
+{
+  "$comment": [
+    "setup-time-zone.test.ts のうち、setup がタイムゾーンを尋ねるときの打ち間違いの扱い（Issue #903）の検出能力を示す変異の一覧。"
+  ],
+  "test_file": "scripts/skills/agent-usage/setup-time-zone.test.ts",
+  "mutations": [
+    {
+      "id": "time-zone-typo-accepted",
+      "why": "IANA の名前でない入力を、尋ね直さずにそのまま使う",
+      "file": "skills/agent-usage/scripts/agent-usage.mjs",
+      "find": "    if (isValidTimeZone(zone)) return zone;\n",
+      "replace": "    return zone;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "confirmSystemTimeZone 対話できる実行で IANA の名前でない値を入れたら、止めずにもう一度尋ね、次の入力を使う",
+        "confirmSystemTimeZone 打ち間違えた後に Enter なら、マシンの値を使う",
+        "confirmSystemTimeZone 打ち間違えた後に入力が読めなければ（上限を過ぎたなど）、付け方を示して UTC のまま使う"
+      ]
+    }
+  ]
+}
