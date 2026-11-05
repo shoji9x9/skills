@@ -85,6 +85,7 @@ run の途中で判断待ちの `BLOCKED` にならないよう、run の前に�
    上限に達したら、手元でレビューしていない変更（直し・後に生じた変更）は PR の `pr-finalize-loop` のレビューに任せて push し、`pr-finalize-loop` に渡す直前にその範囲を manifest に残す。`review_tool` が `none` なら push の前に BLOCKED にする（`references/orchestration.md`「ローカルレビュー」）。
    最後のローカルレビューの後に生じた変更も、回数が上限より少なければ push の前にレビューする。Kaizen の学びと、Hook が commit のたびに足す記録は例外とし、PR のレビューに任せる。`review_tool` が `none` なら例外を当てず、読めなければ push の前に BLOCKED にする（`references/orchestration.md`「ローカルレビューの後に生じた変更」）。
 5. PR は `pr-finalize-loop` に渡して収束させる。AI のレビューの依頼は、`pr-finalize-loop` にまとめる。
+   返った後に、PR を作った後に生じた仮の決定を、manifest から PR の本文の「仮に決めたこと」の節に追記する。人が書いた部分は変えない（`references/orchestration.md`「PR の本文の「仮に決めたこと」への追記」）。
 6. head の SHA を固定し、決めた merge mode で merge する。`auto` は GitHub の auto-merge に任せ、`agent` は PR の状況を実際に確かめてから merge する。
    `pr-finalize-loop` が使った `review_tool` が `local` なら、どちらの mode でも、固定した SHA を手元でレビューした記録があることを確かめてから merge する（`references/orchestration.md`「merge、close、deployment」の 1）。
    実際に PR が `MERGED`、Issue が `CLOSED` で、対象の deployment がその SHA で成功し、名前が完全一致した branch を片付けたことを確かめてから、`DONE` にする。
