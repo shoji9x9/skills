@@ -268,15 +268,17 @@
       ]
     },
     {
-      "id": "GATE-JQ-TOOLARGS-STRING-ERRORS",
-      "why": "jq の式で .toolArgs.command の ? を外す（Copilot の文字列の toolArgs で式全体がエラーになり、python3 の無い環境では commit を通す。Issue #906）",
+      "id": "GATE-JQ-STRING-ARGS-NOT-PARSED",
+      "why": "jq の式で JSON の文字列の tool_input・toolArgs・input を読み直さない（Copilot の文字列の toolArgs から commit を取り出せず、python3 の無い環境では commit を通す。Issue #906）",
       "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
-      "find": ".toolArgs.command? //",
-      "replace": ".toolArgs.command //",
+      "find": "(if type == \"string\" then (try fromjson catch null) else . end)",
+      "replace": "(.)",
       "occurrences": 1,
       "expect_failing": [
         "jq だけがある環境でのコマンドの取り出し Copilot の形（-copilot） の git commit を止める",
-        "jq だけがある環境でのコマンドの取り出し Copilot の形（引数なし） の git commit を止める"
+        "jq だけがある環境でのコマンドの取り出し Copilot の形（引数なし） の git commit を止める",
+        "jq だけがある環境でのコマンドの取り出し input が JSON の文字列の形 の git commit を止める",
+        "jq だけがある環境でのコマンドの取り出し tool_input が JSON の文字列の形 の git commit を止める"
       ]
     }
   ]

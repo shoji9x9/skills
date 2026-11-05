@@ -1752,20 +1752,24 @@ describe.concurrent("生 JSON だけで判定するときの commit 検出", () 
 });
 
 // jq はあるが python3 が無い環境では、コマンドを取り出せるのは jq の式だけである（Issue #906）。
-// Copilot の `toolArgs` は JSON の文字列で、`.toolArgs.command` は文字列を添字で引いてエラーになる。
+// Copilot の `toolArgs` は JSON の文字列で、`.toolArgs.command` は文字列に添字を付けて読もうとしてエラーになる。
 // 式がエラーで終わると生の JSON の判定に進み、文字列の中の `\"command\"` に一致せず、commit を通してしまう。
+// jq の式は python3 の分岐と同じく、`tool_input`・`toolArgs`・`input` のどれが JSON の文字列でも読む。
 describe.concurrent("jq だけがある環境でのコマンドの取り出し", () => {
+  function jqOnlyPath(cwd: string) {
+    return pathWithout(cwd, ["python3", "python"], kaizenEnv(cwd).PATH ?? "");
+  }
+
   async function runJqOnly(payload: Record<string, unknown>, args: string[] = []) {
     const cwd = makeProject();
     writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
-    const env = kaizenEnv(cwd, { CLAUDE_PROJECT_DIR: cwd });
-    env.PATH = pathWithout(cwd, ["python3", "python"], env.PATH ?? "");
-    const result = await spawnAsync(
-      "bash",
-      [join(scriptsDir, "kaizen-precommit-gate.sh"), ...args],
-      { timeout: CHILD_TIMEOUT_MS, cwd, input: JSON.stringify({ ...payload, cwd }), env },
-    );
-    return { result, path: env.PATH };
+    const env = { ...kaizenEnv(cwd, { CLAUDE_PROJECT_DIR: cwd }), PATH: jqOnlyPath(cwd) };
+    return await spawnAsync("bash", [join(scriptsDir, "kaizen-precommit-gate.sh"), ...args], {
+      timeout: CHILD_TIMEOUT_MS,
+      cwd,
+      input: JSON.stringify({ ...payload, cwd }),
+      env,
+    });
   }
 
   const copilot = (command: string) => ({
@@ -1775,7 +1779,7 @@ describe.concurrent("jq だけがある環境でのコマンドの取り出し",
 
   // python3 が解決できると、python3 の分岐が取り出すので、jq の式を確かめたことにならない。
   test("PATH から python3 が解決できず、jq は解決できること", async () => {
-    const { path } = await runJqOnly(copilot("git status"));
+    const path = jqOnlyPath(makeProject());
     for (const [tool, found] of [
       ["python3", false],
       ["python", false],
@@ -1793,14 +1797,20 @@ describe.concurrent("jq だけがある環境でのコマンドの取り出し",
     ["Copilot の形（-copilot）", copilot("git commit -m x"), ["-copilot"]],
     ["Copilot の形（引数なし）", copilot("git commit -m x"), []],
     ["通常の形", { tool_name: "Bash", tool_input: { command: "git commit -m x" } }, []],
+    ["input が JSON の文字列の形", { input: JSON.stringify({ command: "git commit -m x" }) }, []],
+    [
+      "tool_input が JSON の文字列の形",
+      { tool_name: "Bash", tool_input: JSON.stringify({ command: "git commit -m x" }) },
+      [],
+    ],
   ])("%s の git commit を止める", async (_name, payload, args) => {
-    const { result } = await runJqOnly(payload, args);
+    const result = await runJqOnly(payload, args);
     expect(result.status).toBe(2);
     expect(result.stderr).toContain("kaizen --current");
   });
 
   test("Copilot の形の git status は通す", async () => {
-    const { result } = await runJqOnly(copilot("git status"), ["-copilot"]);
+    const result = await runJqOnly(copilot("git status"), ["-copilot"]);
     expect(result.status).toBe(0);
   });
 });
