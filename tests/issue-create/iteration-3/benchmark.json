@@ -1,0 +1,143 @@
+{
+  "metadata": {
+    "skill_name": "issue-create",
+    "skill_path": "<repo>/skills/issue-create",
+    "executor_model": "claude-opus-5-5",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-05T02:37:37Z",
+    "evals_run": [6],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 70.431,
+        "tokens": 101000,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "依頼を複数の Issue に分ける案を示し、層ごと（データベース・API・画面）ではなく、それぞれ単独で動作を確かめられる単位（機能ごと）で分けている",
+          "passed": true,
+          "evidence": "「機能ごとに縦に 3 件へ分けました。データベースの表は、層として別の Issue にせず、それを使う「保存」の Issue に含めています」"
+        },
+        {
+          "text": "保存した絞り込みの条件を共有する Issue の本文に、先に済んでいる必要がある Issue（絞り込みの条件の保存）を書く節（依存）を置き、前提にされる側から起票する順にしている",
+          "passed": true,
+          "evidence": "下書き 3 の本文に「## 依存」を置き「#<下書き 2 の番号>」と書く。「起票する順は 2 → 3 → 1 です」"
+        },
+        {
+          "text": "分けた全件の下書きをまとめて 1 回の確認で利用者に見せる形にし、承認の前に gh issue create を実行していない",
+          "passed": true,
+          "evidence": "3 件の下書きと問いをまとめて示し、「上の問いへの返事が届くまで、起票やファイルの書き込みはしません」として止める"
+        },
+        {
+          "text": "起票の前に、依頼された内容が既に実装されていないかを確かめたか、確かめられなかったことを利用者に伝えている",
+          "passed": true,
+          "evidence": "「既に実装されていないか（手順 3）」を確かめたことにはしていないと伝える"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 53.307,
+        "tokens": 128483,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "依頼を複数の Issue に分ける案を示し、層ごと（データベース・API・画面）ではなく、それぞれ単独で動作を確かめられる単位（機能ごと）で分けている",
+          "passed": true,
+          "evidence": "「Issue は 3 件に分ける」とし、CSV・保存・共有の機能ごとに分ける"
+        },
+        {
+          "text": "保存した絞り込みの条件を共有する Issue の本文に、先に済んでいる必要がある Issue（絞り込みの条件の保存）を書く節（依存）を置き、前提にされる側から起票する順にしている",
+          "passed": false,
+          "evidence": "Issue 3 の冒頭に「依存: Issue 2 が終わってから着手する」と書くが、番号で書く節は無く、前提にされる側から起票する順も示さない"
+        },
+        {
+          "text": "分けた全件の下書きをまとめて 1 回の確認で利用者に見せる形にし、承認の前に gh issue create を実行していない",
+          "passed": true,
+          "evidence": "3 件をまとめて「承認をお願いしたい起票案」として示し、「GitHub には何も書き込んでいません」"
+        },
+        {
+          "text": "起票の前に、依頼された内容が既に実装されていないかを確かめたか、確かめられなかったことを利用者に伝えている",
+          "passed": true,
+          "evidence": "「画面・DB の実装は確認できていません」と伝える"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 70.431,
+        "stddev": 0,
+        "min": 70.431,
+        "max": 70.431
+      },
+      "tokens": {
+        "mean": 101000,
+        "stddev": 0,
+        "min": 101000,
+        "max": 101000
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.75,
+        "stddev": 0,
+        "min": 0.75,
+        "max": 0.75
+      },
+      "time_seconds": {
+        "mean": 53.307,
+        "stddev": 0,
+        "min": 53.307,
+        "max": 53.307
+      },
+      "tokens": {
+        "mean": 128483,
+        "stddev": 0,
+        "min": 128483,
+        "max": 128483
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.25",
+      "time_seconds": "+17.1",
+      "tokens": "-27483"
+    }
+  },
+  "notes": [
+    "変更確認（Issue #860）。issue-create に足した eval 6（大きな依頼を分け、依存を書く）を with_skill と without_skill で 1 run ずつ実行した。",
+    "GitHub に書き込まないよう、GH_TOKEN に無効な値を渡して実行した。eval 1〜5 は入力を変えていないので実行していない。",
+    "最初の prompt は依存の生じない依頼で、エージェントは「3 件の間に依存は無い」と正しく判断した。assertion の前提が prompt に無かったので、保存した条件の共有（保存を前提にする）に直して実行し直した。",
+    "without_skill は依存を本文の冒頭の 1 行に書くが、番号の節と起票の順を示さない。",
+    "split.md の最後の修正（42417aded41d）の後に、with_skill を最終版で実行し直した。without_skill はスキルを読まないので実行し直していない。"
+  ]
+}
