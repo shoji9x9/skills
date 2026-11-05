@@ -169,7 +169,15 @@ run を始めた後（全体 preflight を終え、manifest の作成などの�
 
 - 途中で利用者の判断が要る状態になったら、確認を送る代わりに、その Issue を BLOCKED（判断待ち）にして manifest に記録する。
   そのうえで、`continue_on_blocked` に従って次の Issue に進むか run を止める（「全体 preflight」の最後の段落）。
-  記録するのは、一意な `id`・論点・選択肢・それぞれの根拠と影響・推奨・決まった後に残る作業である（`id` は受け入れ条件の表の `decision_ref` が指す）。利用者が最終報告だけを読んで決められるようにする。
+  記録するのは、一意な `id`・種別（`kind`）・論点・選択肢・それぞれの根拠と影響・推奨・決まった後に残る作業である（`id` は受け入れ条件の表の `decision_ref` が指す）。利用者が最終報告だけを読んで決められるようにする。
+  `kind` は、判断待ちが生じた元で決める。値は次の 5 つで、どれにも当たらなければ `other` にする。
+  - `provisional`: Issue から導けずに選んだ解釈・値・形のうち、人の答えを待つもの（`issue-start` の `references/provisional-decisions.md` で人に回すと決めたもの）
+  - `acceptance`: 受け入れ条件を満たせない、外す承認が要る、似た Issue を見直すかを決める
+  - `review`: `pr-finalize-loop` が判断待ちとして返したレビューの指摘
+  - `dependency`: 依存先を確かめられない（「全体 preflight」の 6）
+  - `other`: 上のどれにも当たらない
+
+  PR の本文の「仮に決めたこと」に載せるのは、`provisional` だけである（「PR の本文の「仮に決めたこと」への追記」）。
 - 1 つの変更から生じる判断は、1 つの判断待ちにまとめる。
   受け入れ条件を外す承認と似た Issue の見直しは、`issue-start` の `references/acceptance.md` の手順 3 のとおり、1 つの判断待ちに載せる。
 - 自分で判断して進めたものも、manifest に記録する。記録するのは、判断・根拠・覆すときに戻る工程である。
@@ -219,6 +227,7 @@ manifest に書いてよいのは、次のものだけである。
   `review_tool: local` の merge の前に確かめる記録（`local-review-record.sh`）とは別のもので、その代わりに使わない
 - `unreviewed_range`: ローカルレビューの上限に達したために、push の前に手元でレビューしなかった範囲の配列。`pr-finalize-loop` のレビューに任せた範囲である（「手元でレビューしていない範囲の記録」）。
   要素は `{range, has_merge}` で、`range` は `<from>..<to>` の完全な SHA、`has_merge` は範囲に merge commit があるか（`git rev-list --merges <range>` が空でないか）である
+- `pr_body_block`: 「PR の本文の「仮に決めたこと」への追記」で、最後に PR の本文に書いた追記の範囲の文字列と、載せた項目の識別子
 - BLOCKED / FAILED の停止の理由と残作業
 - `BRANCH_CLEANUP` のまま残した worktree の、引き継ぐファイルの一覧（「worktree に残った記録の引き継ぎ」）
 - SKIPPED の飛ばした理由
@@ -438,11 +447,13 @@ commit message の 1 行目、PR のタイトルと本文、Issue へのコメ�
 見直すかどうかは、候補の一覧を添えて、判断待ちとして記録する。満たせない条件と同時に起きたら、「判断の扱い」のとおり 1 つの判断待ちにまとめる。
 exit 0 だけを見て push すると、確認がどこにも残らずに消える。
 通ったら push する。PR の本文には、`Closes #<Issue番号>`、変更の概要、静的な検査、受け入れ条件の突き合わせの表、browser-test の結果か対象外の根拠、Kaizen の結果、「仮に決めたこと」の節を含める。
-「仮に決めたこと」の節は、`issue-start` の `references/provisional-decisions.md` の 5 つの項目で書き、0 件でも節を置いて「無い」と書く。
+「仮に決めたこと」の節は、`issue-start` の `references/provisional-decisions.md` の 5 つの項目で書き、0 件でも節を置いて「PR を作るまでに仮に決めたことは無い」と書く。
+後で「PR の本文の「仮に決めたこと」への追記」が同じ節に項目を足すので、0 件の文は PR を作るまでの範囲に限って書く。
 載せるのは、manifest の `self_decisions` の `excluded_forms` と `others` のうち、その Issue の番号を持ち、解釈・値・形を選んだ項目である。
-判断待ち（`pending_decisions`）は載せない。判断待ちの Issue は BLOCKED で merge しないので、最終報告の判断待ちの一覧で扱う。
+載せた項目には、PR の中で一意な識別子（`P1`・`P2` など）を manifest の項目に `pr_id` として書く。後の追記は、`pr_id` の無い項目だけを足す。
+判断待ち（`pending_decisions`）は、PR を作る時点では載せない。判断待ちのある Issue は BLOCKED で、PR を作る前に止まるからである。
 出どころと人への問いは、manifest の判断と根拠から書く。速度や反復の回数で直さなかった指摘と守っていない規約は、この節に入れず、最終報告にだけ載せる。
-run を見ていなかった人が PR だけを読んでも、エージェントが決めた箇所を見分けられるようにするためである。PR を作った後の判断は、`pr-finalize-loop` の返信と最終報告に残し、PR の本文には足さない。
+run を見ていなかった人が PR だけを読んでも、エージェントが決めた箇所を見分けられるようにするためである。PR を作った後の判断は、`pr-finalize-loop` の返信と最終報告に残し、そのうち節に載せるものは「PR の本文の「仮に決めたこと」への追記」で足す。
 
 ## pr-finalize-loop への handoff
 
@@ -454,7 +465,7 @@ CI、すべてのレビュアーの thread と review の本文、再レビュ�
 収束しなければ BLOCKED か FAILED にし、影響をその Issue の中に留められるなら、方針に従って次の Issue に進む。
 
 issue-batch の run では、常に `--defer-decisions` を付けて渡す。`pr-finalize-loop` が人の判断が要るとする指摘は、利用者に確認されず、解決されないまま判断待ちとして返る。
-返った判断待ち（指摘の URL・選択肢とそれぞれの根拠と影響・推奨）には、issue-batch の側で `id`・論点・決まった後に残る作業（判断を反映して PR を収束させ、merge する）を補う。
+返った判断待ち（指摘の URL・選択肢とそれぞれの根拠と影響・推奨）には、issue-batch の側で `id`・`kind`（`review`）・論点・決まった後に残る作業（判断を反映して PR を収束させ、merge する）を補う。
 そのうえで manifest に記録し、その Issue を BLOCKED（判断待ち）にして merge に進まない。
 関係する指摘として判断待ちに含められた指摘は、選択肢を持たず、関係する判断待ちの指摘の URL を持って返る。これには別の `id` を付けず、関係する判断待ちのすべての項目に、その指摘の URL を足す。足したすべての項目の判断が決まるまで、その指摘は残る作業に数える。
 利用者に同じ判断を 2 回求めないためである。
@@ -471,11 +482,40 @@ pr-finalize-loop が進み具合のメモを失って段階が分からなくな
 覆すときに戻る工程は、報告に段階を下げた時点の SHA があればその最初の SHA から、無ければ PR の base から、HEAD までの差分を最初の effort でレビューし直すことである。
 返信の根拠が速度や反復の回数であるものと、Issue にしていない見送りは、「判断の扱い」の該当する欄に記録する。
 
+## PR の本文の「仮に決めたこと」への追記
+
+`pr-finalize-loop` から返った後に、PR を作った後に生じた仮の決定を、PR の本文の「仮に決めたこと」の節に追記する。
+収束したときも、判断待ちや最大反復で止まったときも行い、merge の要求を送る前に済ませる。
+`pr-finalize-loop` と `pr-review-handle` は PR の本文を書き換えないので、manifest を持つ issue-batch がこの工程を持つ。
+本文の編集は head の SHA を変えないので、CI とレビューをやり直す必要は無い。
+
+1. 追記する項目を manifest から挙げる。
+   - `self_decisions` の `excluded_forms` と `others` のうち、その Issue の番号を持ち、解釈・値・形を選んだ項目で、`pr_id` の無いもの。
+     `pr-finalize-loop` が推奨の案で進めた指摘の記録がこれに当たる。effort を下げて反復を足した記録のように、解釈・値・形を選んでいない項目は載せない
+   - `pending_decisions` のうち、その Issue の番号を持ち、`kind` が `provisional` の項目。人への問いには論点を書き、判断待ちであることを添える。
+     ほかの `kind`（`review`・`acceptance` など）は載せない。仮の決定ではなく、最終報告の判断待ちの一覧で扱う
+
+   挙げた項目が 0 件で、前に書いた追記の範囲（manifest の `pr_body_block`）も無ければ、本文を変えずに終える。
+2. 本文を取得し直す（`gh pr view <PR URL> --json body`）。
+   追記の範囲は、目印 `<!-- issue-batch:provisional-after-pr -->` と `<!-- /issue-batch:provisional-after-pr -->` で囲む。
+   範囲の中には、`### PR を作った後に決めたこと` の見出しと、`issue-start` の `references/provisional-decisions.md` の 5 つの項目の表を置く。
+3. 人が書いた部分を消さないために、次のどれかに当たれば本文を変えない。追記しなかったことと理由を `others` に記録し（手戻りは小）、最終報告に載せる。
+   - `## 仮に決めたこと` の見出しが、本文に 1 つだけではない（コードフェンスの中は数えない）
+   - 目印の組が 2 つ以上ある、片方しか無い、閉じる目印が先にある
+   - 目印の範囲が在り、中身が `pr_body_block` に記録した前回の文字列と一致しない（人が範囲の中を書き換えた）。`pr_body_block` が無いのに範囲が在る場合も同じに扱う
+4. 新しい本文を作る。範囲が在れば、範囲の中だけを置き換える。無ければ、`## 仮に決めたこと` の節の末尾（次の 2 階層の見出しの直前か、本文の末尾）に範囲を足す。
+   範囲の外の文字列は変えない。作成時に書いた項目と「PR を作るまでに仮に決めたことは無い」の文も、範囲の外なので残る。
+   範囲には、前に追記した項目も含めて、PR を作った後の項目をすべて並べる。識別子は作成時の項目の続きの番号にし、manifest の項目の `pr_id` に書く。
+5. 書き込む直前に本文を取得し直し、2 で取得した本文と同じことを確かめてから、`gh pr edit <PR URL> --body-file <path>` で書く。
+   違えば、人が同じ時間に本文を編集したので、2 からやり直す。
+6. 書いた後に本文を取得し、範囲の外が 2 で取得した本文と一致することと、範囲の中身が 4 で作ったものと一致することを確かめる。
+   一致すれば、範囲の中身と載せた識別子を `pr_body_block` に記録する。一致しなければ、merge に進まずに BLOCKED にする。
+
 ## merge、close、deployment
 
 merge の実行方法だけが、`merge_mode` で分かれる。head の SHA の固定、`--admin` を使わないこと、`MERGED` の確認、その後の close と deployment は、どちらの mode でも同じである。
 
-1. 収束した後に PR の `headRefOid` を取得し直して、`READY_TO_MERGE` にする。この後のコマンドにはすべてこの SHA を `--match-head-commit` で渡し、収束した後に入った push と取り違えない。
+1. 収束した後に「PR の本文の「仮に決めたこと」への追記」を済ませ、PR の `headRefOid` を取得し直して、`READY_TO_MERGE` にする。この後のコマンドにはすべてこの SHA を `--match-head-commit` で渡し、収束した後に入った push と取り違えない。
    `pr-finalize-loop` が報告した `review_tool`（同梱の解決スクリプトの出力）が `local` なら、`READY_TO_MERGE` にする前に、`pr-finalize-loop` の `scripts/local-review-record.sh check --pr <PR URL>` を実行する。
    exit 0 で、出力の `head` が固定した `headRefOid` と一致するときだけ進める。exit 1（記録が無い、前の HEAD の記録しか無い、または今の HEAD の記録に未対応の指摘が残っている `status=open`）は、merge せずに BLOCKED にする。
    exit 2（判定できない）は、間隔を空けて数回取得し直し（`merge_ready_timeout_minutes` があれば、それを上限にする）、0 か 1 にならなければ BLOCKED にする。
