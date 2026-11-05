@@ -442,3 +442,4 @@ Write ツールでスクリプトにして絶対パスで実行し、整形と�
 2026-11-05、同じ run に #913 を追加するとき、PR #908 の変更と既存の branch を調べる呼び出しが 1 回拒否された。
 共有の checkout へ `cd` してから `git ls-remote` などを `&&` でつないだものである。
 worktree の隔離は、共有の checkout で git を実行することも止める。調べる処理をスクリプトに書き、worktree の中で実行し直した。
+同じ #883 の worktree で、run の記録（manifest）を書き換える python の quoted heredoc も 1 回拒否された。git を呼ばない処理でも heredoc は止まるので、スクリプトに書いて実行し直した。
