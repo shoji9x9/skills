@@ -591,3 +591,8 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
   このスキルは `.replace/features.md` を書かないので、確定を観測した時点でこのモードを呼ぶ
   （[`references/api-batch.md`](references/api-batch.md)「要求単位を確定したら features.md へ書き戻す」）
 - `replace-strategy status` は、`strength.md` / `gaps.md` / `metadata.json` を読んで、今の状況を導く
+
+## 利用者への確認
+
+このスキルが利用者に確認する段・承認を得る段・選んでもらう段は、すべて [`references/user-confirmation.md`](references/user-confirmation.md) の手順で行う。
+確認のツールを使えないエージェントでは、判断の材料と選択肢を本文に出して返事を待ち、返事を受け取る前に、その返事で決まる操作へ進まない。

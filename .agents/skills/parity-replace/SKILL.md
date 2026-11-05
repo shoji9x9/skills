@@ -490,3 +490,8 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
   - 実装はこのスキルが行うので、モードの指定なしと `--commit`・`--pr`（どれも実装を含む）は使わない
   - commit は、issue-start が解決した規約に従い、ページのフェーズの単位で行う（issue-start の実装のステップへ入り直さない）。
     commit message の 1 行目は、commit する前に `writing-style` スキルの手順で読み直す（スキルが無ければ省く）
+
+## 利用者への確認
+
+このスキルが利用者に確認する段・承認を得る段・選んでもらう段は、すべて [`references/user-confirmation.md`](references/user-confirmation.md) の手順で行う。
+確認のツールを使えないエージェントでは、判断の材料と選択肢を本文に出して返事を待ち、返事を受け取る前に、その返事で決まる操作へ進まない。

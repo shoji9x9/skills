@@ -94,3 +94,8 @@ PR のレビューの費用（自分の GitHub Actions で実行するレビュ�
 - Claude Code は、デフォルトで 30 日を過ぎたローカルのログを消す。間が空くと記録が欠けるので、長く作業しないときは手動で `collect` する
 - 2 つのブランチで同じ日に `report` を実行すると、merge で `report/<yyyyMMdd>/` が競合する。merge した後の `records/` で `report` を実行し直して解消する
 - 記録に残るのは人の ID（ランダムな値）だけである。表示名は、各自が任意でリポジトリの設定（`.config/skills/shoji9x9/agent-usage.jsonc`）の `people` に書く
+
+## 利用者への確認
+
+このスキルが利用者に確認する段・承認を得る段・選んでもらう段は、すべて [`references/user-confirmation.md`](references/user-confirmation.md) の手順で行う。
+確認のツールを使えないエージェントでは、判断の材料と選択肢を本文に出して返事を待ち、返事を受け取る前に、その返事で決まる操作へ進まない。

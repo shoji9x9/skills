@@ -259,3 +259,8 @@ gh pr checks <番号> --repo <owner>/<repo> --watch --fail-fast
   依頼先は設定した `review_tool` に従う（[`references/review-tool.md`](references/review-tool.md)。デフォルトは `copilot`）。`none` なら確認しない。
 
 人に回すと決まった指摘を確認している間は、その指摘と関係する指摘も直さず、返信も解決もしない（手順 6）。
+
+## 利用者への確認
+
+このスキルが利用者に確認する段・承認を得る段・選んでもらう段は、すべて [`references/user-confirmation.md`](references/user-confirmation.md) の手順で行う。
+確認のツールを使えないエージェントでは、判断の材料と選択肢を本文に出して返事を待ち、返事を受け取る前に、その返事で決まる操作へ進まない。

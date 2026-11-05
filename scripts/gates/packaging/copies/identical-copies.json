@@ -22,12 +22,25 @@
     },
     {
       "files": [
+        "skills/agent-usage/references/user-confirmation.md",
+        "skills/aws-architecture-diagram/references/user-confirmation.md",
+        "skills/browser-test/references/user-confirmation.md",
+        "skills/current-environment-bootstrap/references/user-confirmation.md",
         "skills/dependabot-alert-issue/references/user-confirmation.md",
+        "skills/dependabot-merge/references/user-confirmation.md",
+        "skills/git-worktree/references/user-confirmation.md",
+        "skills/golden-dataset/references/user-confirmation.md",
+        "skills/issue-batch/references/user-confirmation.md",
         "skills/issue-create/references/user-confirmation.md",
         "skills/issue-start/references/user-confirmation.md",
         "skills/kaizen/references/user-confirmation.md",
         "skills/multiagent-setup/references/user-confirmation.md",
+        "skills/parity-component/references/user-confirmation.md",
         "skills/parity-diff/references/user-confirmation.md",
+        "skills/parity-replace/references/user-confirmation.md",
+        "skills/parity-suite/references/user-confirmation.md",
+        "skills/pr-finalize-loop/references/user-confirmation.md",
+        "skills/pr-review-handle/references/user-confirmation.md",
         "skills/replace-strategy/references/user-confirmation.md"
       ],
       "reason": "利用者に承認を求める段と選択肢から選んでもらう段で、確認のツールを使えないエージェントがどう聞くか（Issue #855）。スキルで食い違うと、同じエージェントでも、スキルによって承認を待たずに更新する操作へ進んだり止まったりする"

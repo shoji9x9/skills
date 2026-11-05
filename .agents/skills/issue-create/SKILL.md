@@ -131,3 +131,8 @@ cp -n <skill>/assets/issue-templates/feature_request.md .github/ISSUE_TEMPLATE/
 - 対象のリポジトリが現在の repo と違う可能性がある。
 - 依頼された内容が、既に実装されているか、一部が実装されている。
 - 依頼を複数の Issue に分ける（分け方と依存を、全件の下書きと一緒に確かめる）。
+
+## 利用者への確認
+
+このスキルが利用者に確認する段・承認を得る段・選んでもらう段は、すべて [`references/user-confirmation.md`](references/user-confirmation.md) の手順で行う。
+確認のツールを使えないエージェントでは、判断の材料と選択肢を本文に出して返事を待ち、返事を受け取る前に、その返事で決まる操作へ進まない。

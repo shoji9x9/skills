@@ -233,3 +233,8 @@ UI に固有のページ送りの機能は UI で確定し、どこまで上げ�
 - `parity-replace`: フェーズ B の前提となる新側のスキーマを作る。自分が選んだ新側の target を渡して、`golden-dataset --phase b --feature <slug> --target <name>` として呼ぶ
 - `parity-diff` / `replace-strategy status`: `metadata.json` の version の順序と `changes[].affects` を、slug が実際に参照するテーブルと照らし合わせて、古くなったことを検出する。
   フェーズ B の投入の状況は、`phase_b.<slug>.<target>` を target の単位で同じ判定にかける
+
+## 利用者への確認
+
+このスキルが利用者に確認する段・承認を得る段・選んでもらう段は、すべて [`references/user-confirmation.md`](references/user-confirmation.md) の手順で行う。
+確認のツールを使えないエージェントでは、判断の材料と選択肢を本文に出して返事を待ち、返事を受け取る前に、その返事で決まる操作へ進まない。
