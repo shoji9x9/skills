@@ -5,7 +5,7 @@
 //
 // Issue と対応し根拠の揃った表が exit 0 になることも確かめる。これが無いと「常に落とす」実装と区別できない。
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { assert, test, expect } from "vitest";
 import {
@@ -147,6 +147,7 @@ function writeInputs(work: string, input: Parameters<typeof run>[0] = {}) {
     writeFileSync(join(work, "decisions.json"), JSON.stringify(input.decisions));
     argv.push("--decisions", "decisions.json");
   }
+  input.setup?.(work);
   if (input.changed !== undefined) {
     writeFileSync(join(work, "changed.txt"), input.changed.map((line) => `${line}\n`).join(""));
     argv.push("--changed", "changed.txt");
@@ -173,6 +174,7 @@ function run(
     extra?: string[];
     decisions?: unknown;
     changed?: string[];
+    setup?: (work: string) => void;
   } = {},
 ) {
   const work = makeTempDir("acceptance-check-");
@@ -700,4 +702,25 @@ test("役割を書いた根拠が形の誤りだけでも、役割の無い行�
   expect(r.code).toBe(1);
   expect(r.codes).toEqual(["evidence-invalid", "implementation-missing", "test-missing"]);
   expect(r.json?.warnings?.map((w) => w.row)).toEqual([1]);
+});
+
+test("差分に足したリンクから既にあるテストを指しても、差分に無いテストとして落とす", () => {
+  const link = { kind: "file", ref: "test/link.test.js:1", role: "test" };
+  const r = run({
+    tableData: tableWithRow([IMPL, link]),
+    changed: ["src/app.js", "test/link.test.js"],
+    setup: (work) => symlinkSync("app.test.js", join(work, "test/link.test.js")),
+  });
+  expect(r.code).toBe(1);
+  expect(r.codes).toEqual(["test-not-in-diff"]);
+});
+
+test("前後に空白を含むファイル名も、差分の一覧のとおりに照合する", () => {
+  const spaced = { kind: "file", ref: "test/ app.test.js:1", role: "test" };
+  const r = run({
+    tableData: tableWithRow([IMPL, spaced]),
+    changed: ["src/app.js", "test/ app.test.js"],
+    setup: (work) => writeFileSync(join(work, "test/ app.test.js"), "t1\n"),
+  });
+  expect(r.code).toBe(0);
 });

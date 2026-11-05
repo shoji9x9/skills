@@ -23,7 +23,7 @@
 // TypeScript 構文は使わない（型は JSDoc）。
 
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { isCliEntry } from "./lib/cli.mjs";
 import { makeIo } from "./lib/flag-args.mjs";
@@ -966,7 +966,8 @@ function allowLaterOf(value) {
 
 /**
  * --changed のファイル（`git diff --name-only <base>...HEAD` の出力）を、差分に含まれるかを答える関数にする。
- * 一覧のパスと根拠のパスは、どちらも --root を起点に解決して比べる。
+ * 一覧のパスと根拠のパスは、どちらも --root の実体を起点に解決して比べる。
+ * 根拠のパスはシンボリックリンクをたどった実体にする（差分に足したリンクから、既にあるテストを指して通さない）。
  * @param {string | undefined} value --changed の値
  * @param {{ cwd: string, root: string }} dirs
  * @returns {{ error: string } | { error: null, inDiff: ((path: string) => boolean) | null }}
@@ -976,14 +977,28 @@ function inDiffOf(value, { cwd, root }) {
   const path = resolve(cwd, value);
   const text = readText(path);
   if (text === null) return { error: `${path} を読めない` };
+  const realRoot = realPathOr(root);
+  // 前後の空白もファイル名の一部なので、空の行だけを除く。
   const changed = new Set(
     text
       .split(/\r?\n/)
-      .map((line) => line.trim())
       .filter((line) => line !== "")
-      .map((line) => resolve(root, line)),
+      .map((line) => resolve(realRoot, line)),
   );
-  return { error: null, inDiff: (ref) => changed.has(resolve(root, ref)) };
+  return { error: null, inDiff: (ref) => changed.has(realPathOr(resolve(root, ref))) };
+}
+
+/**
+ * シンボリックリンクをたどった実体のパス。たどれなければ（無いファイルなど）そのまま返す。
+ * @param {string} path
+ * @returns {string}
+ */
+function realPathOr(path) {
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
 }
 
 /**
