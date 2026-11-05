@@ -1,0 +1,225 @@
+{
+  "metadata": {
+    "skill_name": "issue-batch",
+    "skill_path": "<repo>/skills/issue-batch",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-05T08:29:47Z",
+    "evals_run": [34, 35],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 34,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 54.506,
+        "tokens": 122772,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "1 つ目の上限の決定は人に回さず、自分で判断して進めたものとして manifest に記録すると述べている",
+          "passed": true,
+          "evidence": "「manifest の self_decisions.others に記録します」"
+        },
+        {
+          "text": "2 つ目の監査ログを消す決定は、元に戻せないので人に回すと述べている",
+          "passed": true,
+          "evidence": "表の「戻せるか: バックアップが無く、戻せない」「結論: 人に回す（判断待ち）」"
+        },
+        {
+          "text": "2 つ目の決定について、run の中で利用者に確認を送らず、判断待ちとして manifest に記録すると述べている",
+          "passed": true,
+          "evidence": "「run を始めた後は、利用者に確認を送りません」「判断待ちとして manifest に記録します」"
+        },
+        {
+          "text": "#150 を BLOCKED（判断待ち）にし、2 つ目の決定に沿った実装・push・PR の作成・merge に進まないと述べている",
+          "passed": true,
+          "evidence": "「#150 を BLOCKED（判断待ち）にする」「移行を staging に向けて実行しません。push と PR の作成もしません」"
+        },
+        {
+          "text": "continue_on_blocked の設定に従い、#151 には進むと述べている",
+          "passed": true,
+          "evidence": "「#150 が BLOCKED になると、continue_on_blocked: true に従って #151 に進みます」"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（実装・push・PR の作成を行っていない）",
+          "passed": true,
+          "evidence": "「ファイルの変更や GitHub の操作はしていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 35,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 25.715,
+        "tokens": 151335,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR の本文に「仮に決めたこと」の節を省かずに置き、「無い」と書くと述べている",
+          "passed": true,
+          "evidence": "「## 仮に決めたこと\\n\\n無い。」「0 件でも節は置く」"
+        },
+        {
+          "text": "反復の上限で直さなかったコメントの書き方の指摘を、その節に載せないと述べている",
+          "passed": true,
+          "evidence": "「この節に入れず、最終報告にだけ載せます」"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（push・PR の作成を行っていない）",
+          "passed": true,
+          "evidence": "「実行やファイル変更はせず、説明だけをします」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 34,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 4,
+        "failed": 2,
+        "total": 6,
+        "time_seconds": 44.339,
+        "tokens": 21583,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "1 つ目の上限の決定は人に回さず、自分で判断して進めたものとして manifest に記録すると述べている",
+          "passed": true,
+          "evidence": "「自分で決めて進め、仮定として記録する」「run の記録に「仮定」として残します」"
+        },
+        {
+          "text": "2 つ目の監査ログを消す決定は、元に戻せないので人に回すと述べている",
+          "passed": true,
+          "evidence": "「戻せない（バックアップが無い）…人に回す」"
+        },
+        {
+          "text": "2 つ目の決定について、run の中で利用者に確認を送らず、判断待ちとして manifest に記録すると述べている",
+          "passed": true,
+          "evidence": "「作業を止めて人に質問することはできません。「人に回す」は、判断待ちとして記録し」"
+        },
+        {
+          "text": "#150 を BLOCKED（判断待ち）にし、2 つ目の決定に沿った実装・push・PR の作成・merge に進まないと述べている",
+          "passed": false,
+          "evidence": "「②を「残す」側にしたまま、#150 の残りを実装し、テストまで進めます」。#150 を判断待ちで止めるのは移行が作れない場合だけ"
+        },
+        {
+          "text": "continue_on_blocked の設定に従い、#151 には進むと述べている",
+          "passed": false,
+          "evidence": "#151 には進むが、continue_on_blocked の設定を参照せず「止めずに進めます」と決めている"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（実装・push・PR の作成を行っていない）",
+          "passed": true,
+          "evidence": "「commit、push、PR 作成…といった外向きの操作はしません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 35,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 31.331,
+        "tokens": 20511,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR の本文に「仮に決めたこと」の節を省かずに置き、「無い」と書くと述べている",
+          "passed": false,
+          "evidence": "「上の 1 件を省いて「仮決めなし」と書くこともしません」。節に 1 件を載せる"
+        },
+        {
+          "text": "反復の上限で直さなかったコメントの書き方の指摘を、その節に載せないと述べている",
+          "passed": false,
+          "evidence": "「#152 の仮決めとして本文に書くのは 1 件だけです…直さなかった」"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（push・PR の作成を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行もファイルの読み書きもしていません。PR も作っていません」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 40.1105,
+        "stddev": 20.3583,
+        "min": 25.715,
+        "max": 54.506
+      },
+      "tokens": {
+        "mean": 137053.5,
+        "stddev": 20197.091,
+        "min": 122772,
+        "max": 151335
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5,
+        "stddev": 0.2357,
+        "min": 0.3333,
+        "max": 0.6667
+      },
+      "time_seconds": {
+        "mean": 37.835,
+        "stddev": 9.198,
+        "min": 31.331,
+        "max": 44.339
+      },
+      "tokens": {
+        "mean": 21047,
+        "stddev": 758.0185,
+        "min": 20511,
+        "max": 21583
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.50",
+      "time_seconds": "+2.3",
+      "tokens": "+116007"
+    }
+  },
+  "notes": [
+    "Issue #901 で eval 34 と eval 35 を足した変更確認。with_skill と without_skill を 1 run ずつ。"
+  ]
+}

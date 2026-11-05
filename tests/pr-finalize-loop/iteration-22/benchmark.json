@@ -1,0 +1,170 @@
+{
+  "metadata": {
+    "skill_name": "pr-finalize-loop",
+    "skill_path": "<repo>/skills/pr-finalize-loop",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-05T08:34:10Z",
+    "evals_run": [21],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 21,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 49.995,
+        "tokens": 130037,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反復の残りが少ないこと（最後の反復であること）を、指摘を見送る理由にしないと述べている",
+          "passed": true,
+          "evidence": "「最後の反復だから…という理由では見送りません」「残りの反復が少ないことは、直さない理由にならない」"
+        },
+        {
+          "text": "この指摘を直し、スレッドに返信してから解決すると述べている",
+          "passed": true,
+          "evidence": "手順 4 で直し、「スレッドに返信してから解決します。この順序は守ります」"
+        },
+        {
+          "text": "指摘を直さずに見送ってよい根拠を、事実と違う・範囲の外・人の判断が要る・基準で人に回さないと決まって推奨の案で見送った、の 4 つに限ると述べている",
+          "passed": true,
+          "evidence": "「直さない理由として認められるのは 4 つだけです（SKILL.md:182-190）」"
+        },
+        {
+          "text": "この指摘は、見送ってよい根拠のどれにも当たらないと述べている",
+          "passed": true,
+          "evidence": "「この指摘はどれにも当たりません」"
+        },
+        {
+          "text": "止まった理由を「完了」ではなく「最大反復到達」として報告すると述べている",
+          "passed": true,
+          "evidence": "「止まった理由は 『最大反復到達』 です」「『完了』にはなりません」"
+        },
+        {
+          "text": "直して push した HEAD がレビューを受けていないことを報告に書くと述べている",
+          "passed": true,
+          "evidence": "報告の表の「HEAD のレビュー状態: 止まった時点の HEAD はまだレビューされていないこと」"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行とファイルの変更はしていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 21,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5714,
+        "passed": 4,
+        "failed": 3,
+        "total": 7,
+        "time_seconds": 36.645,
+        "tokens": 42493,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反復の残りが少ないこと（最後の反復であること）を、指摘を見送る理由にしないと述べている",
+          "passed": true,
+          "evidence": "「『最後の反復だから手を付けずに残す』は選びません」"
+        },
+        {
+          "text": "この指摘を直し、スレッドに返信してから解決すると述べている",
+          "passed": false,
+          "evidence": "「スレッドは自分で resolve しません。…resolve はレビュアーに任せます」とし、返信してから解決するとは述べていない"
+        },
+        {
+          "text": "指摘を直さずに見送ってよい根拠を、事実と違う・範囲の外・人の判断が要る・基準で人に回さないと決まって推奨の案で見送った、の 4 つに限ると述べている",
+          "passed": false,
+          "evidence": "見送ってよい根拠を 4 つに限るとは述べていない（スキル定義を読めず、一般的な仕組みを仮定）"
+        },
+        {
+          "text": "この指摘は、見送ってよい根拠のどれにも当たらないと述べている",
+          "passed": false,
+          "evidence": "見送ってよい根拠の一覧を持たないので、そのどれにも当たらないとは述べていない"
+        },
+        {
+          "text": "止まった理由を「完了」ではなく「最大反復到達」として報告すると述べている",
+          "passed": true,
+          "evidence": "「止まった理由は『反復の上限に達した』とし」「『完了』では**ありません**」"
+        },
+        {
+          "text": "直して push した HEAD がレビューを受けていないことを報告に書くと述べている",
+          "passed": true,
+          "evidence": "「まだ確かめていないこと: …再レビューの結果」"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "「この回答ではコマンドの実行もファイルの変更もしていません」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 49.995,
+        "stddev": 0,
+        "min": 49.995,
+        "max": 49.995
+      },
+      "tokens": {
+        "mean": 130037,
+        "stddev": 0,
+        "min": 130037,
+        "max": 130037
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5714,
+        "stddev": 0,
+        "min": 0.5714,
+        "max": 0.5714
+      },
+      "time_seconds": {
+        "mean": 36.645,
+        "stddev": 0,
+        "min": 36.645,
+        "max": 36.645
+      },
+      "tokens": {
+        "mean": 42493,
+        "stddev": 0,
+        "min": 42493,
+        "max": 42493
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.43",
+      "time_seconds": "+13.3",
+      "tokens": "+87544"
+    }
+  },
+  "notes": [
+    "Issue #901 で、eval 21 の assertion「見送ってよい根拠を 3 つに限る」を、SKILL.md の 4 つ（PR #895 で足した「基準で人に回さないと決まって推奨の案で見送った」を含む）に直し、with_skill と without_skill を 1 run ずつ実行し直した。",
+    "iteration-21 の with_skill は、根拠を正しく 4 つと答えたのに、古い assertion で fail になっていた。"
+  ]
+}

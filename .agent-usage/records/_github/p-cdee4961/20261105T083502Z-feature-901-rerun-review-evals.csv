@@ -1,0 +1,11 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+pr:911,pr,2026-11-05T08:35:02.640Z,p-cdee4961,github,,,,2026-11-05T08:00:21.000Z,2026-11-05T08:06:03.000Z,Asia/Tokyo,feature/902-kaizen-transcript-fingerprint,902,,,,,,,,,,pr=911;author=shoji9x9;state=merged,
+review:5781611218,review,2026-11-05T08:35:02.640Z,p-cdee4961,copilot,,,,2026-11-05T08:04:55.000Z,2026-11-05T08:04:55.000Z,Asia/Tokyo,feature/902-kaizen-transcript-fingerprint,902,,,,,,,0.520000,estimate-bundled,,pr=911;author=shoji9x9;state=commented,
+review-wait:911:copilot:2026-11-05T08:00:30.000Z,review-wait,2026-11-05T08:35:02.640Z,p-cdee4961,copilot,,,,2026-11-05T08:00:30.000Z,2026-11-05T08:04:55.000Z,Asia/Tokyo,feature/902-kaizen-transcript-fingerprint,902,,,,,,,,,,pr=911,
+ci:41991911890:1,ci,2026-11-05T08:35:02.640Z,p-cdee4961,github-actions,,,,2026-11-05T08:06:06.000Z,2026-11-05T08:06:29.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:41991911977:1,ci,2026-11-05T08:35:02.640Z,p-cdee4961,github-actions,,,,2026-11-05T08:06:06.000Z,2026-11-05T08:10:20.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:41991246058:1,ci,2026-11-05T08:35:02.640Z,p-cdee4961,github-actions,,,,2026-11-05T08:00:41.000Z,2026-11-05T08:04:53.000Z,Asia/Tokyo,feature/902-kaizen-transcript-fingerprint,902,,,,,,,,,,Running Copilot Code Review;dynamic;success,
+ci:41991209612:1,ci,2026-11-05T08:35:02.640Z,p-cdee4961,github-actions,,,,2026-11-05T08:00:25.000Z,2026-11-05T08:00:26.000Z,Asia/Tokyo,feature/902-kaizen-transcript-fingerprint,902,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:41991209637:1,ci,2026-11-05T08:35:02.640Z,p-cdee4961,github-actions,,,,2026-11-05T08:00:25.000Z,2026-11-05T08:04:08.000Z,Asia/Tokyo,feature/902-kaizen-transcript-fingerprint,902,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-11-04T07:58:36.438Z:2026-11-05T08:35:02.640Z,coverage,2026-11-05T08:35:02.640Z,p-cdee4961,,,,,2026-11-04T07:58:36.438Z,2026-11-05T08:35:02.640Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-04T08:35:02.640Z:2026-11-05T08:35:40.663Z,coverage,2026-11-05T08:35:40.663Z,p-cdee4961,,,,,2026-11-04T08:35:02.640Z,2026-11-05T08:35:40.663Z,Asia/Tokyo,,,,,,,,,,,,ok,
