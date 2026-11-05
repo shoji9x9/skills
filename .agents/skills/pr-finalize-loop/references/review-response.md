@@ -65,22 +65,25 @@ PR を作る前に基準を当てるとき（`issue-start` が仮の決定を判
    git fetch --no-tags <remote> "+refs/heads/<ベースブランチ>:refs/worktree/pr-review/base"
    ```
 
-3. 作業ツリーの設定が、ベースブランチの先端と同じかを確かめる。
+3. 作業ツリーの設定のディレクトリが、ベースブランチの先端と同じかを確かめる。
+   比べるのは `common.jsonc` だけでなくディレクトリ全体である。設定を読む処理は、旧形式の設定ファイルも読むからである。
+   利用者ごとの設定（`*.local.jsonc`）は、作業ツリーにだけあるのが正しいので除く。
 
    ```bash
-   git diff --name-only refs/worktree/pr-review/base -- .config/skills/shoji9x9/common.jsonc
-   git status --porcelain --untracked-files=all --ignored -- .config/skills/shoji9x9/common.jsonc
+   git ls-tree refs/worktree/pr-review/base -- .config .config/skills .config/skills/shoji9x9 .config/skills/shoji9x9/common.jsonc
+   git diff --name-only refs/worktree/pr-review/base -- .config/skills/shoji9x9/ ':(exclude,glob).config/skills/shoji9x9/**/*.local.jsonc'
+   git status --porcelain --untracked-files=all --ignored -- .config/skills/shoji9x9/ ':(exclude,glob).config/skills/shoji9x9/**/*.local.jsonc'
    ```
 
-   1 つ目は、作業ブランチの commit と、commit していない変更の両方を、ベースブランチの先端と比べる。
+   1 つ目の出力に、モードが `120000`（シンボリックリンク）の行があれば止まる。git はリンク先の中身を比べないので、2 つ目と 3 つ目でリンク先の変更を検出できない。
+   2 つ目は、作業ブランチの commit と、commit していない変更の両方を、ベースブランチの先端と比べる。
    作業ブランチが設定を変えた・名前を変えた・消した場合と、ブランチを作った後にベースブランチの側で変わった場合に、ファイル名を出す。
-   2 つ目は、1 つ目が比べない untracked のファイルを挙げる。`--ignored` を付けて、`.gitignore` に一致するファイル（`!!` で出る）も挙げる。
-   パスを設定ファイルに絞るので、利用者ごとの設定（`*.local.jsonc` など）は挙げない。
-   どちらかが何かを出すか、0 以外で終わったら止まる。エラーは標準エラーにだけ出て、何も出さない結果と区別できないので、終了コードも確かめる。
+   3 つ目は、2 つ目が比べない untracked のファイルを挙げる。`--ignored` を付けて、`.gitignore` に一致するファイル（`!!` で出る）も挙げる。
+   2 つ目か 3 つ目が何かを出すか、3 つのどれかが 0 以外で終わったら止まる。エラーは標準エラーにだけ出て、何も出さない結果と区別できないので、終了コードも確かめる。
 4. 上の 2 と同じ方法で設定の値を読む。3 で、作業ツリーの設定がベースブランチの先端と同じことを確かめてある。
    exit 3 なら 1〜3 だけで決め、6 に進む。exit 1 と、設定ファイルがあるのに Node.js が無いときは止まる。
    exit 0 なら、出力した値を引用符で囲んだ変数 `doc` に入れる。
-   文書についても 3 と同じ 2 つを実行し、同じ条件で止まる。
+   文書についても 3 の 2 つ目と 3 つ目を実行し、同じ条件で止まる。
    実行するのは `git diff --name-only refs/worktree/pr-review/base -- "$doc"` と `git status --porcelain --untracked-files=all --ignored -- "$doc"` である。
 5. 上の 5 と 6 を、2 で取得した ref に当てる（種類を確かめ、本文を読む）。
 6. 止まったときも、読み終えたときも、`git update-ref -d refs/worktree/pr-review/base` で ref を消す（ref が無ければ何もしない）。
