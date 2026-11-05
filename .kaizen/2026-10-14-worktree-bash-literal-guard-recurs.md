@@ -411,3 +411,9 @@ Write ツールでスクリプトにして絶対パスで実行し、整形と�
 1 つ目は、worktree に入った直後の準備で `git rev-parse` と `cp`・`mise trust`・`pnpm install` を `;` でつないだものである。
 2 つ目は、`pnpm exec vitest` の `-t` に日本語のテスト名を渡して `;` と `grep` でつないだもの、3 つ目は `python3 - <<'PY'` と `oxfmt` を同じ呼び出しに入れたものである。
 新しい形は無く、単独の呼び出しか Write ツールのスクリプトに分けて通した。前の run の #891 で記録した準備の形を、同じセッションでもう一度書いた。
+
+### 再発の記録（#905）
+
+2026-11-05、issue-batch の run の #905 で、`ls scripts/eval/` と、`scripts/eval/` を grep する呼び出しが拒否された（`runs a string through eval`）。
+コマンドに `eval` を実行する箇所は無く、パスの `scripts/eval/` の語で拒否された。これまでの記録に無い形である。
+Write ツールでスクリプトにして絶対パスで実行して通した。
