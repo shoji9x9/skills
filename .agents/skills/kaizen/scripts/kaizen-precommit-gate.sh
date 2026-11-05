@@ -1424,10 +1424,12 @@ foreign_scan_cached() { # $1: キャッシュ $2: 今回の入力 $3: 今回使�
 # 見つけたファイルが同じ transcript の続きかは、スキャナが処理位置の指紋で確かめる。
 moved_transcript_of() { # $1: 記録した transcript のパス
 	local recorded=$1 base parent found=() candidate
+	# transcript のパスは絶対パスで記録される。相対パスでは、並ぶディレクトリを決められない
+	case "${recorded}" in /?*/?*/?*) ;; *) return 1 ;; esac
 	base=${recorded##*/}
 	parent=${recorded%/*}
 	parent=${parent%/*}
-	[ -n "${base}" ] && [ "${base}" != "${recorded}" ] && [ -d "${parent}" ] || return 1
+	[ -n "${base}" ] && [ -d "${parent}" ] || return 1
 	for candidate in "${parent}"/*/"${base}"; do
 		[ -r "${candidate}" ] && [ -f "${candidate}" ] && found+=("${candidate}")
 	done
@@ -1460,10 +1462,11 @@ resolve_foreign_sentinels() {
 		sentinel_value_is_safe "${f_transcript}" || continue
 		# worktree を移ったセッションの transcript は、記録したパスから別のディレクトリへ移る。
 		# 見つからなければ、隣のディレクトリから同じファイル名（session id）のものを探す。
-		if [ ! -r "${f_transcript}" ]; then
+		if [ ! -e "${f_transcript}" ]; then
 			f_transcript=$(moved_transcript_of "${f_transcript}") || continue
 			sentinel_value_is_safe "${f_transcript}" || continue
 		fi
+		[ -r "${f_transcript}" ] || continue
 		sentinel_value_is_safe "${f_session}" || continue
 		# 記録された session id がファイル名の key と一致しないセンチネルは触らない。
 		# 一致を確かめずに --session-id を渡すと、別セッションの制御ファイルを操作してしまう。

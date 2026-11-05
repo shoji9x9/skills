@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 import { kaizenEnv } from "./kaizen-config-env.ts";
+import { fingerprintOf } from "./kaizen-candidate-scan-helpers.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const scriptsDir = join(repoRoot, "skills", "kaizen", "scripts");
@@ -267,16 +268,7 @@ function statusOf(dir: string, name: string) {
 // 処理位置の 5 行目に、transcript の先頭の指紋を書く（Issue #902）。スキャナはこの値で、
 // 移った先のファイルが同じ transcript の続きかを確かめる。
 describe("処理位置に transcript の先頭の指紋を書く", () => {
-  function fingerprintOf(path: string, limit: number): string {
-    const r = spawnSync("bash", ["-c", 'head -c "$2" "$1" | cksum', "_", path, String(limit)], {
-      encoding: "utf8",
-      timeout: CHILD_TIMEOUT_MS,
-    });
-    const [crc, len] = r.stdout.trim().split(/\s+/);
-    return `${len}:${crc}`;
-  }
-
-  test("抽出の完了では、ファイル全体（最大 4096 バイト）の指紋を書く", () => {
+  test("抽出の完了では、先頭の最大 4096 バイトの指紋を書く", () => {
     const { main } = makeRepoWithWorktree();
     writeSentinel(main);
     const transcript = join(main, "transcript.jsonl");
@@ -335,10 +327,12 @@ describe("処理位置に transcript の先頭の指紋を書く", () => {
       },
     );
     expect(scan.status, scan.stderr + scan.stdout).toBe(1);
-    // 同じ名前で中身の違うファイルは引き継がず、先頭から読み直す
+    // 同じ名前で中身の違うファイルは引き継がず、先頭から読み直す。
+    // 1 行目を同じバイト数の別の文に変え、後に 1 行足す。指紋を見なければ記録した位置から読み、2 行目だけを報告する
     writeFileSync(
       moved,
-      '{"type":"user","message":{"content":"別の内容のファイルです。ほぼ同じ長さにする"}}\n',
+      '{"type":"user","message":{"content":"違う、やり直してくださる"}}\n' +
+        '{"type":"user","message":{"content":"違う、もう一度やり直してください"}}\n',
     );
     const other = spawnSync(
       "bash",
@@ -348,7 +342,8 @@ describe("処理位置に transcript の先頭の指紋を書く", () => {
         encoding: "utf8",
       },
     );
-    expect(other.stderr).not.toContain("no new records since checkpoint");
+    expect(other.status, other.stderr + other.stdout).toBe(0);
+    expect(other.stdout).toMatch(/^user correction: transcript line 1$/m);
   });
 });
 

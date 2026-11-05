@@ -61,12 +61,11 @@
       "id": "fingerprint-not-checked",
       "why": "処理位置の指紋を照合せず、ファイル名だけで処理位置を引き継ぐ（Issue #902）",
       "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "\t\tcheckpoint_fingerprint_matches \"${checkpoint_fingerprint}\"; then\n",
+      "find": "\t\tcheckpoint_fingerprint_matches \"${checkpoint_path}\" \"${checkpoint_fingerprint}\"; then\n",
       "replace": "\t\ttrue; then\n",
       "occurrences": 1,
       "expect_failing": [
         "処理位置の transcript の指紋の照合 指紋の CRC が違う（別の内容のファイル）",
-        "処理位置の transcript の指紋の照合 指紋の CRC が違う（同じパス）",
         "処理位置の transcript の指紋の照合 指紋のバイト数がファイルより長い",
         "処理位置の transcript の指紋の照合 指紋の形の誤り",
         "処理位置の transcript の指紋の照合 指紋のバイト数が無い"
@@ -81,7 +80,6 @@
       "occurrences": 1,
       "expect_failing": [
         "処理位置の transcript の指紋の照合 指紋の CRC が違う（別の内容のファイル）",
-        "処理位置の transcript の指紋の照合 指紋の CRC が違う（同じパス）",
         "処理位置の transcript の指紋の照合 指紋のバイト数がファイルより長い"
       ]
     }

@@ -8,12 +8,11 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { spawnSync } from "node:child_process";
-import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 import {
   claudeAssistant,
   claudeEdit,
   claudeUser,
+  fingerprintOf,
   fixturesDir,
   pathWith,
   realCommand,
@@ -266,16 +265,7 @@ describe("処理位置の transcript の照合", () => {
 // 処理位置の 5 行目は、記録したときの transcript の先頭の指紋（`<バイト数>:<cksum の CRC>`）である（Issue #902）。
 // 入力の軸:
 //   5 行目     無い（古い処理位置）／一致する／内容が違う／記録したバイト数より短いファイル／形の誤り。
-//   ファイル   移った先（パスが違い、ファイル名が同じ）／同じパス。
-/** 書く側（kaizen-extract-done.sh）と同じ方法で、先頭の最大 limit バイトの指紋を作る。 */
-function fingerprintOf(path: string, limit: number): string {
-  const r = spawnSync("bash", ["-c", 'head -c "$2" "$1" | cksum', "_", path, String(limit)], {
-    encoding: "utf8",
-    timeout: CHILD_TIMEOUT_MS,
-  });
-  const [crc, len] = r.stdout.trim().split(/\s+/);
-  return `${len}:${crc}`;
-}
+//   ファイル   移った先（パスが違い、ファイル名が同じ）／同じパス（同じファイルなので指紋は比べない）。
 
 describe("処理位置の transcript の指紋の照合", () => {
   const processed = [
@@ -317,10 +307,10 @@ describe("処理位置の transcript の指紋の照合", () => {
       0,
     ],
     [
-      "指紋の CRC が違う（同じパス）",
+      "同じパスなら、指紋の CRC が違っても指紋を比べずに引き継ぐ",
       (c, b) => fingerprintOf(c, b).replace(/:\d+$/, ":1"),
       true,
-      0,
+      1,
     ],
     [
       "指紋のバイト数がファイルより長い",

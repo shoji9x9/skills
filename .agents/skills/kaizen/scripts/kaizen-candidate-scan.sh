@@ -63,11 +63,13 @@ checkpoint_matches() { # $1: 処理位置の 1 行目
 	[ "${1##*/}" = "${transcript##*/}" ]
 }
 # 処理位置の 5 行目（任意）は、記録したときの transcript の先頭の指紋である。
-# 指紋があれば、渡された transcript の同じ範囲の指紋と一致するときだけ処理位置を引き継ぐ。
+# 1 行目のパスが渡された transcript と違う（worktree へ移った）ときは、指紋があれば、
+# 渡された transcript の同じ範囲の指紋と一致するときだけ処理位置を引き継ぐ。
 # ファイル名が同じでも別の内容のファイルを、同じ transcript として途中から読まないためである。
-# 指紋の無い古い処理位置は、これまでどおりパスかファイル名の照合だけで決める。
-checkpoint_fingerprint_matches() { # $1: 処理位置の 5 行目
-	local recorded=$1 len now
+# パスが同じなら同じファイルなので、指紋は比べない。5 行目の無い処理位置は、パスかファイル名の照合だけで決める。
+checkpoint_fingerprint_matches() { # $1: 処理位置の 1 行目 $2: 処理位置の 5 行目
+	local recorded=$2 len now
+	[ "$1" = "${transcript}" ] && return 0
 	[ -z "${recorded}" ] && return 0
 	[[ "${recorded}" =~ ^([0-9]+):[0-9]+$ ]] || return 1
 	len=${BASH_REMATCH[1]}
@@ -79,7 +81,7 @@ if [ -r "${checkpoint}" ]; then
 	checkpoint_offset=$(sed -n '2p' "${checkpoint}")
 	checkpoint_fingerprint=$(sed -n '5p' "${checkpoint}")
 	if checkpoint_matches "${checkpoint_path}" && [[ "${checkpoint_offset}" =~ ^[0-9]+$ ]] &&
-		checkpoint_fingerprint_matches "${checkpoint_fingerprint}"; then
+		checkpoint_fingerprint_matches "${checkpoint_path}" "${checkpoint_fingerprint}"; then
 		size=$(wc -c <"${transcript}")
 		size=${size//[[:space:]]/}
 		if [ "${checkpoint_offset}" -le "${size}" ]; then
