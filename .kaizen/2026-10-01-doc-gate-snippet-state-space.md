@@ -3,7 +3,7 @@ date: 2026-10-01
 type: rule
 priority: medium
 confidence: high
-status: pending
+status: forgotten
 applied-to: []
 session: claude-code
 ---

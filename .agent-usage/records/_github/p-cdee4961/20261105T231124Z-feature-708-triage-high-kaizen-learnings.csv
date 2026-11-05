@@ -9,3 +9,8 @@ ci:42022856446:1,ci,2026-11-05T23:11:24.151Z,p-cdee4961,github-actions,,,,2026-1
 ci:42022856460:1,ci,2026-11-05T23:11:24.151Z,p-cdee4961,github-actions,,,,2026-11-05T11:55:25.000Z,2026-11-05T11:59:54.000Z,Asia/Tokyo,feature/905-provisional-decisions-after-pr,905,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-11-04T11:54:47.705Z:2026-11-05T23:11:24.151Z,coverage,2026-11-05T23:11:24.151Z,p-cdee4961,,,,,2026-11-04T11:54:47.705Z,2026-11-05T23:11:24.151Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-11-04T23:11:24.151Z:2026-11-05T23:12:18.695Z,coverage,2026-11-05T23:12:18.695Z,p-cdee4961,,,,,2026-11-04T23:11:24.151Z,2026-11-05T23:12:18.695Z,Asia/Tokyo,,,,,,,,,,,,ok,
+pr:919,pr,2026-11-05T23:22:19.977Z,p-cdee4961,github,,,,2026-11-05T23:14:49.000Z,2026-11-05T23:14:49.000Z,Asia/Tokyo,feature/708-triage-high-kaizen-learnings,708,,,,,,,,,,pr=919;author=shoji9x9;state=open,
+ci:42128140742:1,ci,2026-11-05T23:22:19.977Z,p-cdee4961,github-actions,,,,2026-11-05T23:14:53.000Z,2026-11-05T23:14:54.000Z,Asia/Tokyo,feature/708-triage-high-kaizen-learnings,708,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:42128140618:1,ci,2026-11-05T23:22:19.977Z,p-cdee4961,github-actions,,,,2026-11-05T23:14:53.000Z,2026-11-05T23:19:15.000Z,Asia/Tokyo,feature/708-triage-high-kaizen-learnings,708,,,,,,,,,,CI;pull_request;failure,
+coverage:github:2026-11-04T23:12:18.695Z:2026-11-05T23:22:19.977Z,coverage,2026-11-05T23:22:19.977Z,p-cdee4961,,,,,2026-11-04T23:12:18.695Z,2026-11-05T23:22:19.977Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-04T23:22:19.977Z:2026-11-05T23:24:16.437Z,coverage,2026-11-05T23:24:16.437Z,p-cdee4961,,,,,2026-11-04T23:22:19.977Z,2026-11-05T23:24:16.437Z,Asia/Tokyo,,,,,,,,,,,,ok,

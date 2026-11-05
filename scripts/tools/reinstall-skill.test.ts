@@ -14,6 +14,7 @@ import {
   symlinkSync,
 } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { CHILD_TIMEOUT_MS } from "../lib/testing/child-timeout.ts";
 import { dirname, join } from "node:path";
 import {
   type Ctx,
@@ -344,7 +345,7 @@ test("ロックの PID が終了していれば古いロックとして扱い、
   const ctx = setup();
   const root = createRepo(ctx.base, "repo");
   // 終了済みのプロセスの PID を使う。spawnSync が返った時点で子は回収されている。
-  const dead = spawnSync("true").pid;
+  const dead = spawnSync("true", { timeout: CHILD_TIMEOUT_MS }).pid;
   expect(dead).toBeGreaterThan(0);
   writeMutationLock(root, `${dead}\n`);
   const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", "demo"]);
@@ -362,6 +363,16 @@ test("ロックが無くても復元情報が残っていれば exit 1 で止ま
   expect(result.status).toBe(1);
   expect(result.stderr).toContain("復元情報");
   expectUntouched(ctx, root, before);
+});
+
+// kill -0 0 はプロセスグループに送るので成功する。ランナーは PID が 0 以下のロックを古いロックとして扱う。
+test("ロックの PID が 0 なら古いロックとして扱い、インストールする", () => {
+  const ctx = setup();
+  const root = createRepo(ctx.base, "repo");
+  writeMutationLock(root, "0\n");
+  const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", "demo"]);
+  expect(result.status, result.stderr).toBe(0);
+  expect(snapshot(root)).toEqual(EXPECTED_INSTALL);
 });
 
 test.each([

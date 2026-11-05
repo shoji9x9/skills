@@ -143,7 +143,7 @@ fi
 # file, with or without a lock. The mutation is then still in the sources, so it stops too.
 mutation_lock="${MUTATION_PROOF_LOCK:-${repo_root}/node_modules/.cache/mutation-proof/lock}"
 if [ -e "${mutation_lock}.recovery.json" ]; then
-	echo "ミューテーションテストの復元情報（${mutation_lock}.recovery.json）が残っているので止まる。前回の実行が中断され、原本に変異が残っている可能性がある。ランナーを再実行して戻すか、原本を確かめてから復元情報を消して再実行する（既存のインストールは触っていない）" >&2
+	echo "ミューテーションテストの復元情報（${mutation_lock}.recovery.json）が残っているので止まる。前回の実行が中断され、原本に変異が残っている可能性がある。ランナーを再実行して戻す。ランナーも止まるときは、原本を確かめて直してから復元情報を消して再実行する（既存のインストールは触っていない）" >&2
 	exit 1
 fi
 if [ -e "${mutation_lock}" ]; then
@@ -154,7 +154,8 @@ if [ -e "${mutation_lock}" ]; then
 		exit 1
 		;;
 	esac
-	if kill -0 "${lock_pid}" 2>/dev/null; then
+	# PID 0 は kill -0 がプロセスグループに送って成功するので、ランナーと同じく古いロックとして扱う。
+	if [ "${lock_pid}" -gt 0 ] && kill -0 "${lock_pid}" 2>/dev/null; then
 		echo "ミューテーションテストの実行中（PID ${lock_pid}、ロック: ${mutation_lock}）は原本に変異が入っているので止まる。終わるまで待ってから再実行する（既存のインストールは触っていない）" >&2
 		exit 1
 	fi

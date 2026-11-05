@@ -123,7 +123,8 @@ export function getAll(gh, path, pick) {
  */
 export function normalizeLogin(login) {
   const name = login.replace(/\[bot\]$/i, "").toLowerCase();
-  // Copilot のレビュアーは、GraphQL では copilot-pull-request-reviewer、REST では Copilot になる
+  // Copilot のレビュアーは、GraphQL では copilot-pull-request-reviewer、REST のレビューでは
+  // copilot-pull-request-reviewer[bot]、行のコメントとタイムラインでは Copilot になる
   return name === "copilot" ? "copilot-pull-request-reviewer" : name;
 }
 

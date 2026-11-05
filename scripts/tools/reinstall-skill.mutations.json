@@ -26,7 +26,7 @@
       "id": "no-mutation-lock-live-check",
       "why": "ロックの PID が生きていても止まらず、変異の入った原本をコピーする（変更前の挙動）",
       "file": "scripts/tools/reinstall-skill.sh",
-      "find": "\tif kill -0 \"${lock_pid}\" 2>/dev/null; then",
+      "find": "\tif [ \"${lock_pid}\" -gt 0 ] && kill -0 \"${lock_pid}\" 2>/dev/null; then",
       "replace": "\tif false; then",
       "occurrences": 1,
       "expect_failing": [
@@ -54,6 +54,15 @@
         "ロックの中身が空なら判定できないとして exit 1 で止まる",
         "ロックの中身が数字でないなら判定できないとして exit 1 で止まる"
       ]
+    },
+    {
+      "id": "mutation-lock-pid-zero-live",
+      "why": "PID 0 のロックで kill -0 0 がプロセスグループに送って成功し、実行中と判定して止まる",
+      "file": "scripts/tools/reinstall-skill.sh",
+      "find": "[ \"${lock_pid}\" -gt 0 ] && kill -0",
+      "replace": "kill -0",
+      "occurrences": 1,
+      "expect_failing": ["ロックの PID が 0 なら古いロックとして扱い、インストールする"]
     }
   ]
 }

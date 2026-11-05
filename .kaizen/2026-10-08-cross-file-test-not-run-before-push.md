@@ -1,7 +1,7 @@
 ---
 date: 2026-10-08
 type: hook
-priority: medium
+priority: high
 confidence: high
 status: pending
 applied-to: []
@@ -32,6 +32,10 @@ pre-commit は通り、CI を 1 周失った。
 直す途中で socket のテストに `mkdtempSync` を直に書き、この学びを読み直して `test-tmpdir.test.ts` を実行するまで気付かなかった。
 こちらは push の前に見つけて直した。
 
+再発（2026-11-06、Issue #708・PR #919）: `reinstall-skill.test.ts` に、終了済みの PID を作る `spawnSync("true")` を `timeout` なしで足した。
+手元では変えたテストファイルだけを実行して push し、CI の Unit tests が `child-timeout.test.ts` で落ちた。
+この学びは、同じ PR の仕分けで誤って medium に下げていた（`2026-10-05-adhoc-script-labels-unverified.md` の #708 の再発）。
+
 ## 根本原因
 
 - なぜ落ちたか → リポジトリの規約（`makeTempDir` を使う）を知らずに直呼びした
@@ -43,6 +47,7 @@ pre-commit は通り、CI を 1 周失った。
 
 - 2026-10-08・2026-10-15: 上の 2 件。
 - 2026-10-27: 同じ原因での 3 回目の再発（横断のテストが、変えたファイルの名前からは選ばれず、pre-commit にも入っていない）。
+- 2026-10-30・2026-11-06: 同じ原因での 4 回目と 5 回目の再発。どちらも `child-timeout.test.ts` で落ちた。
 
 ## 提案
 
