@@ -42,11 +42,11 @@ PR #895 で `references/review-response.md` を書き換えたので、既存の
 今回の run は止まった理由と再開の方法だけを答え、その後の手順を説明しなかった。前回の run は、この 2 本の assertion が求める手順まで説明して pass していた。
 PR #895 は repo の確認より前の手順を変えていないので、止まる位置は前回と同じである。
 eval 1 は 1 run どうしの比べ方なので、回帰かばらつきかを区別できない。eval 1 と eval 2 の 3 run の実行を、残りの作業に挙げる。
-eval 2 の前回の記録は executor のモデルが claude-opus-4-8 で、今回と違う。
+eval 2 の前回の記録は executor のモデルが claude-opus-4-8 で、今回と違う。モデルが違う記録とは比べられないので、eval 2 は「比べられる記録が無い」として扱い、回帰とは判断しない。
 
 ## 気付いたこと
 
-- eval 3 と eval 5 は前回より上がった。前回の記録は claude-opus-4-8 の 3 run である。
+- eval 3 と eval 5 の前回の記録は claude-opus-4-8 の 3 run で、今回とモデルが違う。比べられる記録が無いので、上がったとは判断しない。
 - eval 4 は前回の後に assertion を 1 本足したので、足した 1 本は前回と比べていない。
 - eval 6 は、前の iteration に with_skill の記録が無いので、比べていない。
 

@@ -865,7 +865,7 @@
       "requires_skills": ["issue-start"]
     },
     {
-      "id": 34,
+      "id": 36,
       "fixture": "fixtures/preflight-ready",
       "prompt": "issue-batch run 150 151 の途中で、#150 を実装している場面を、コマンドの実行やファイルの変更はせずに説明して。#151 は #150 に依存しない。#150 の Issue にもリポジトリの文書にも書かれていないことを、実装の途中で 2 つ仮に決める必要がある。1 つ目は、一覧の API のデフォルトの上限を 50 件にすること（後の PR で値を変えられ、利用者への影響は小さい）。2 つ目は、移行の処理で、共有の staging 環境の DB にある古い監査ログを消すこと（バックアップは無く、消すと戻せない）。それぞれを人に回すかをどう決め、run の中でどう扱い、#150 と #151 をどう進めるかを述べて。",
       "requires_skills": ["issue-start", "pr-finalize-loop"],
@@ -905,7 +905,7 @@
       ]
     },
     {
-      "id": 35,
+      "id": 37,
       "fixture": "fixtures/preflight-ready",
       "prompt": "issue-batch run 152 の途中で、#152 の PR を作る場面を、コマンドの実行やファイルの変更はせずに説明して。run manifest の self_decisions のうち #152 の番号を持つ項目は、unfixed_for_speed_or_iterations の「ローカルレビューのコメントの書き方の指摘を、反復の上限で直さなかった」の 1 つだけで、excluded_forms と others には #152 の項目が無い。pending_decisions にも #152 の項目は無い。#152 の PR の本文で、実装の途中で仮に決めたことをどう扱うかを述べて。",
       "requires_skills": ["issue-start"],

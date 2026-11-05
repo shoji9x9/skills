@@ -4,13 +4,13 @@
     "skill_path": "<repo>/skills/issue-batch",
     "executor_model": "opus",
     "analyzer_model": "claude-opus-5-5",
-    "timestamp": "2026-11-05T08:29:47Z",
-    "evals_run": [34, 35],
+    "timestamp": "2026-11-05T08:42:07Z",
+    "evals_run": [36, 37],
     "runs_per_configuration": 1
   },
   "runs": [
     {
-      "eval_id": 34,
+      "eval_id": 36,
       "configuration": "with_skill",
       "run_number": 1,
       "result": {
@@ -58,7 +58,7 @@
       "notes": []
     },
     {
-      "eval_id": 35,
+      "eval_id": 37,
       "configuration": "with_skill",
       "run_number": 1,
       "result": {
@@ -91,7 +91,7 @@
       "notes": []
     },
     {
-      "eval_id": 34,
+      "eval_id": 36,
       "configuration": "without_skill",
       "run_number": 1,
       "result": {
@@ -139,7 +139,7 @@
       "notes": []
     },
     {
-      "eval_id": 35,
+      "eval_id": 37,
       "configuration": "without_skill",
       "run_number": 1,
       "result": {
@@ -220,6 +220,6 @@
     }
   },
   "notes": [
-    "Issue #901 で eval 34 と eval 35 を足した変更確認。with_skill と without_skill を 1 run ずつ。"
+    "Issue #901 で eval 36 と eval 37 を足した変更確認。with_skill と without_skill を 1 run ずつ。"
   ]
 }

@@ -1,0 +1,169 @@
+{
+  "metadata": {
+    "skill_name": "pr-finalize-loop",
+    "skill_path": "<repo>/skills/pr-finalize-loop",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-05T08:44:29Z",
+    "evals_run": [3],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 55.381,
+        "tokens": 120307,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スレッド A を、直し方が複数ある・設計の判断が絡むことだけを理由に人に回さないと述べている",
+          "passed": true,
+          "evidence": "「直し方が 2 つあることは理由になりません」「『設計の判断が絡む』こと自体は、人に回す理由になりません」"
+        },
+        {
+          "text": "スレッド A は、docs/retry.md や Issue #40 のコメントを調べて方針が決まれば、人に回さずに対応すると述べている",
+          "passed": true,
+          "evidence": "「まず docs/retry.md と Issue #40 のコメントを読みます」「方針が書かれている場合: その方針で直します」"
+        },
+        {
+          "text": "スレッド B を、送ったメールを取り消せない（元に戻す手段が無い）ことを理由に人に回すと述べている",
+          "passed": true,
+          "evidence": "「『外部に送ったもの（通知・メール）』は元に戻せない影響の例…人に回します」"
+        },
+        {
+          "text": "スレッド B を勝手に直したり、直さずに解決したりしないと述べている",
+          "passed": true,
+          "evidence": "「直しません。返信も解決もしません。中身に対応せずに resolve して…見せることもしません」"
+        },
+        {
+          "text": "利用者に確認するのはスレッド B の 1 件だけであると述べている",
+          "passed": true,
+          "evidence": "「B の 1 件について利用者に判断を求めます」（A は関係する場合だけ止める）"
+        },
+        {
+          "text": "利用者の答えを反映した後も、ループを打ち切らずに収束まで続けると述べている",
+          "passed": true,
+          "evidence": "「この確認でループは止まりません」「答えを受けた後」に処理と再レビューを続ける"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行もファイルの変更もしていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8571,
+        "passed": 6,
+        "failed": 1,
+        "total": 7,
+        "time_seconds": 39.246,
+        "tokens": 20870,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スレッド A を、直し方が複数ある・設計の判断が絡むことだけを理由に人に回さないと述べている",
+          "passed": true,
+          "evidence": "「『設計の判断が絡む』だけでは、人に回す理由になりません」"
+        },
+        {
+          "text": "スレッド A は、docs/retry.md や Issue #40 のコメントを調べて方針が決まれば、人に回さずに対応すると述べている",
+          "passed": true,
+          "evidence": "「2 つの資料が一致していて…読み取れる場合は、ループの中で直します」"
+        },
+        {
+          "text": "スレッド B を、送ったメールを取り消せない（元に戻す手段が無い）ことを理由に人に回すと述べている",
+          "passed": true,
+          "evidence": "「取り消せないので、必ず人に回す」"
+        },
+        {
+          "text": "スレッド B を勝手に直したり、直さずに解決したりしないと述べている",
+          "passed": true,
+          "evidence": "「コードは触りません」「スレッドは未解決のままにします」"
+        },
+        {
+          "text": "利用者に確認するのはスレッド B の 1 件だけであると述べている",
+          "passed": true,
+          "evidence": "B を人に回し、A は資料で決まらない場合だけ人に回すとする"
+        },
+        {
+          "text": "利用者の答えを反映した後も、ループを打ち切らずに収束まで続けると述べている",
+          "passed": false,
+          "evidence": "「『人の判断待ち』としてループを止め…人から返事が来たら再開します」とし、答えの後も打ち切らずに収束まで続けるとは述べていない"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行、ファイルの変更…はしていません」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 55.381,
+        "stddev": 0,
+        "min": 55.381,
+        "max": 55.381
+      },
+      "tokens": {
+        "mean": 120307,
+        "stddev": 0,
+        "min": 120307,
+        "max": 120307
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.8571,
+        "stddev": 0,
+        "min": 0.8571,
+        "max": 0.8571
+      },
+      "time_seconds": {
+        "mean": 39.246,
+        "stddev": 0,
+        "min": 39.246,
+        "max": 39.246
+      },
+      "tokens": {
+        "mean": 20870,
+        "stddev": 0,
+        "min": 20870,
+        "max": 20870
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.14",
+      "time_seconds": "+16.1",
+      "tokens": "+99437"
+    }
+  },
+  "notes": [
+    "Issue #901 のローカルレビューで、eval 3 の prompt が挙げる docs/retry.md が fixture に無いことが分かった。docs/retry.md を置いた fixture（retry-policy-doc）に替え、両方の configuration を 1 run ずつ実行し直した。"
+  ]
+}
