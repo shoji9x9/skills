@@ -166,8 +166,12 @@ export function readRecords(recordsDir, opts = {}) {
     for (const r of parseCsv(readFileSync(f, "utf8"))) {
       n += 1;
       const row = recordRow(r, `${where}:${n}`);
-      if (row) rows.push(row);
-      else unknownKinds.set(r.kind ?? "", (unknownKinds.get(r.kind ?? "") ?? 0) + 1);
+      if (row) {
+        rows.push(row);
+        continue;
+      }
+      const kind = r.kind ?? "";
+      unknownKinds.set(kind, (unknownKinds.get(kind) ?? 0) + 1);
     }
   }
   return { rows, files: files.length, skipped: all.length - files.length, unknownKinds };
@@ -175,6 +179,7 @@ export function readRecords(recordsDir, opts = {}) {
 
 /**
  * 読み飛ばした知らない種類の行を、利用者に示す 1 行にする。無ければ空文字列。
+ * 新しいバージョンが足した種類と、手で直して打ち間違えた種類は、このバージョンからは見分けられないので、両方の対処を書く。
  * @param {ReadonlyMap<string, number>} unknownKinds
  * @returns {string}
  */
@@ -184,7 +189,7 @@ export function unknownKindsNote(unknownKinds) {
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([k, n]) => `${k} ${n} 件`)
     .join("・");
-  return `このバージョンが知らない種類の行を読み飛ばした（${list}）。新しいバージョンの agent-usage で記録した行なので、agent-usage を上げると集計に入る`;
+  return `読んだ記録のうち、このバージョンが知らない種類の行を読み飛ばした（${list}）。新しいバージョンの agent-usage が記録した行なら、agent-usage を上げると集計に入る。手で直して種類を打ち間違えた行なら、その行を直す`;
 }
 
 /**

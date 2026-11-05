@@ -88,7 +88,10 @@ Codex のログはセッションの開始時のブランチ（`session_meta`）
 | `pr` | PR 1 件。`start` は作った時刻、`end` は merge した時刻（merge せずに閉じたら閉じた時刻、open なら作った時刻）。`detail` は `pr=<番号>;author=<login>;state=<merged・closed・open>` |
 
 上の表に無い `kind` の行は、新しいバージョンの agent-usage が記録した行として扱う。
-collect と report はその行を読み飛ばし、種類ごとの件数を警告に出す。`kind`・`key`・`observed_at` が空か不正な行は、種類に関わらずエラーにする。
+collect（コミットの前の Hook の記録を含む）と report はその行を読み飛ばし、種類ごとの件数を警告に出す。
+手で直して `kind` を打ち間違えた行も、新しい種類と見分けられないので、同じように読み飛ばして警告に出す。
+collect が数えるのは、重複を除くために読んだファイルの行だけなので、件数は report と違うことがある。
+`kind`・`key` が空の行、`observed_at` が時刻でない行、`retracted` が空でも `1` でもない行は、エラーにする。
 この読み飛ばしを持たないバージョンは、`pr` の行を読むとエラーで止まる。
 スキルをリポジトリに commit せずに人ごとに入れている（`gh skill install --scope user` など）と、記録を共有する人の間でバージョンがそろわない。
 この場合は、`pr` の行を書くバージョンへ全員が上げてから collect する。
