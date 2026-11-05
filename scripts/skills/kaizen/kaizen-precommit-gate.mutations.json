@@ -280,6 +280,17 @@
         "jq だけがある環境でのコマンドの取り出し input が JSON の文字列の形 の git commit を止める",
         "jq だけがある環境でのコマンドの取り出し tool_input が JSON の文字列の形 の git commit を止める"
       ]
+    },
+    {
+      "id": "GATE-JQ-TRANSCRIPT-STRING-ERRORS",
+      "why": "transcript_path の jq の式で .tool_input.transcript_path の ? を外す（文字列の tool_input で式全体がエラーになり、後の候補の transcript を走査せずに止める）",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": ".tool_input.transcript_path? //",
+      "replace": ".tool_input.transcript_path //",
+      "occurrences": 1,
+      "expect_failing": [
+        "jq だけがある環境でのコマンドの取り出し tool_input が JSON の文字列でも、input.transcript_path の transcript を走査する"
+      ]
     }
   ]
 }

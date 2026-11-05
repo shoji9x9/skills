@@ -1798,6 +1798,12 @@ describe.concurrent("jq だけがある環境でのコマンドの取り出し",
     ["Copilot の形（引数なし）", copilot("git commit -m x"), []],
     ["通常の形", { tool_name: "Bash", tool_input: { command: "git commit -m x" } }, []],
     ["input が JSON の文字列の形", { input: JSON.stringify({ command: "git commit -m x" }) }, []],
+    ["input がオブジェクトの形", { input: { command: "git commit -m x" } }, []],
+    [
+      "toolArgs がオブジェクトの形",
+      { toolName: "bash", toolArgs: { command: "git commit -m x" } },
+      [],
+    ],
     [
       "tool_input が JSON の文字列の形",
       { tool_name: "Bash", tool_input: JSON.stringify({ command: "git commit -m x" }) },
@@ -1811,6 +1817,17 @@ describe.concurrent("jq だけがある環境でのコマンドの取り出し",
 
   test("Copilot の形の git status は通す", async () => {
     const result = await runJqOnly(copilot("git status"), ["-copilot"]);
+    expect(result.status).toBe(0);
+  });
+
+  // transcript_path の jq の式も、文字列の tool_input の項目でエラーにならず、後の候補まで読む。
+  // エラーになると transcript が空になり、走査せずに未抽出として止める（exit 2）。
+  test("tool_input が JSON の文字列でも、input.transcript_path の transcript を走査する", async () => {
+    const result = await runJqOnly({
+      tool_name: "Bash",
+      tool_input: JSON.stringify({ command: "git commit -m x" }),
+      input: { transcript_path: join(fixturesDir, "claude-atis-latch-no-candidate.jsonl") },
+    });
     expect(result.status).toBe(0);
   });
 });
