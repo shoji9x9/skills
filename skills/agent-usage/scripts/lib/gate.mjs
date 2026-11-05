@@ -14,6 +14,7 @@ import { resolve } from "node:path";
 import { defaultDecisionOf, hasPerson, isRecord, userConfigPath } from "./config.mjs";
 import { decisionFor } from "./decisions.mjs";
 import { branchesRecordedElsewhere, branchMerged } from "./merged.mjs";
+import { recordDecision } from "./record-decision.mjs";
 import { git, isDecisionBranch, repoInfo } from "./repo.mjs";
 import { usageDir } from "./records.mjs";
 import { otherWorktreeRowsNote, runCollect } from "./run-collect.mjs";
@@ -714,34 +715,29 @@ function setupMessage(agent, script) {
 /** @typedef {{ exit: number; message: string }} GateResult */
 
 /**
- * ブランチの判断。person は人の設定があるかを読んだ結果（読むのは 1 回だけにする。まだ読んでいなければ undefined）。
- * @typedef {object} ResolvedDecision
- * @property {import("./decisions.mjs").Decision} decision
- * @property {string} note 案内に添える、判断の出所
- * @property {boolean | GateResult | undefined} person
- */
-
-/**
  * @param {HookInput} input
  * @param {GateContext} context
  * @returns {GateResult}
  */
 export function gateDecision(input, context) {
-  const { script, agent } = context;
   if (!isGitCommit(input.command)) return { exit: 0, message: "" };
   const repo = commitRepo(input, context.fallbackCwd);
   if (repo === null || !existsSync(usageDir(repo.root))) return { exit: 0, message: "" };
   rememberWorktreesQuietly(repo);
   if (!isDecisionBranch(repo)) return { exit: 0, message: "" };
-  const resolved = resolveDecision(repo, context);
-  if (!("decision" in resolved)) return resolved;
-  const { decision, note } = resolved;
-  if (decision === "decline")
+  // Hook からは人の ID を作らない（collect は人の設定が無いと ID を作るので、人の設定が無ければその前に止める）
+  const r = recordDecision({
+    branch: () => decisionFor(repo.commonDir, repo.branch),
+    fallback: () => defaultDecisionOf(repo.root, process.env),
+    person: () => hasPerson(process.env),
+  });
+  if (r.kind !== "decided") return stopResult(r, context);
+  const note =
+    r.source === null
+      ? ""
+      : `（このブランチの判断は無いので、${r.source} の defaultDecision: ${r.decision} に従った）`;
+  if (r.decision === "decline")
     return { exit: 0, message: note === "" ? "" : `agent-usage: 記録しない${note}` };
-  // Hook からは人の ID を作らない（collect は人の設定が無いと ID を作るので、その前に止める）
-  const person = resolved.person ?? personOf(script);
-  if (person !== true)
-    return person === false ? { exit: 2, message: setupMessage(agent, script) } : person;
   return recordCommit(repo, context, note);
 }
 
@@ -780,50 +776,20 @@ function rememberWorktreesQuietly(repo) {
 }
 
 /**
- * ブランチの判断を読む。判断が無ければ defaultDecision に従う。コミットを止めるなら、その結果を返す。
- * merged.mjs の decidedToRecord が、別の作業ツリーの行を外すかを同じ順で決める。判断の順を変えるときは、両方を変える。
- * @param {import("./repo.mjs").RepoInfo} repo
+ * 記録するかを決められなかった（または人の設定が無い）ときに、コミットを止める結果。
+ * @param {Exclude<import("./record-decision.mjs").RecordDecision, { kind: "decided" }>} r
  * @param {GateContext} context
- * @returns {ResolvedDecision | GateResult}
+ * @returns {GateResult}
  */
-function resolveDecision(repo, context) {
-  /** @type {import("./decisions.mjs").Decision | null} */
-  let decision;
-  try {
-    decision = decisionFor(repo.commonDir, repo.branch);
-  } catch (e) {
-    return {
-      exit: 2,
-      message: `agent-usage: 判断の記録を読めない: ${e instanceof Error ? e.message : String(e)}`,
-    };
-  }
-  if (decision !== null) return { decision, note: "", person: undefined };
-  return defaultDecision(repo, context);
-}
-
-/**
- * ブランチの判断が無いときに、人かリポジトリの設定の defaultDecision を当てる。無ければ止めて、記録するかを確かめさせる。
- * @param {import("./repo.mjs").RepoInfo} repo
- * @param {GateContext} context
- * @returns {ResolvedDecision | GateResult}
- */
-function defaultDecision(repo, context) {
+function stopResult(r, context) {
   const { script, agent } = context;
-  /** @type {{ decision: import("./config.mjs").DefaultDecision; source: string } | null} */
-  let fallback;
-  try {
-    fallback = defaultDecisionOf(repo.root, process.env);
-  } catch (e) {
-    return configErrorResult(e, script);
+  if (r.kind === "unreadable") {
+    if (r.stage === "config") return configErrorResult(r.error, script);
+    const message = r.error instanceof Error ? r.error.message : String(r.error);
+    return { exit: 2, message: `agent-usage: 判断の記録を読めない: ${message}` };
   }
-  if (fallback === null) return { exit: 2, message: askMessage(agent, script) };
-  // リポジトリの defaultDecision は、人の設定（setup が作る人の ID）がある人にだけ当てる。
-  // 無い人に当てると、使い捨ての環境では実行のたびに別の ID で記録され、HOME に書けない環境では毎回止まる
-  const person = personOf(script);
-  if (person !== true)
-    return person === false ? { exit: 2, message: setupMessage(agent, script) } : person;
-  const note = `（このブランチの判断は無いので、${fallback.source} の defaultDecision: ${fallback.decision} に従った）`;
-  return { decision: fallback.decision, note, person };
+  if (r.kind === "undecided") return { exit: 2, message: askMessage(agent, script) };
+  return { exit: 2, message: setupMessage(agent, script) };
 }
 
 /**
@@ -873,20 +839,6 @@ function recordCommit(repo, context, note) {
         `原因を直して node "${context.script}" collect --stage を実行するか、このブランチで記録しないなら node "${context.script}" decline を実行してから、もう一度コミットしてください。`,
       ].join("\n"),
     };
-  }
-}
-
-/**
- * 人の設定があるか。人ごとの設定を読めない（知らないキー・型の誤り・SHOJI9X9_SKILLS_IGNORE_USER_CONFIG の誤り）ときは、
- * コミットを止める結果を返す。例外のまま返すと、呼び出し側の Hook がコミットを通してしまう。
- * @param {string} script
- * @returns {boolean | { exit: number; message: string }}
- */
-function personOf(script) {
-  try {
-    return hasPerson(process.env);
-  } catch (e) {
-    return configErrorResult(e, script);
   }
 }
 

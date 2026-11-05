@@ -44,7 +44,8 @@
         "根拠の形の不備は evidence-invalid として落とす: 行番号の無い参照",
         "根拠の形の不備は evidence-invalid として落とす: 行番号が 0",
         "根拠の形の不備は evidence-invalid として落とす: 範囲の終わりが始まりより前",
-        "根拠の形の不備は evidence-invalid として落とす: ディレクトリを指す参照"
+        "根拠の形の不備は evidence-invalid として落とす: ディレクトリを指す参照",
+        "役割を書いた根拠が形の誤りだけでも、役割の無い行として警告に回さない"
       ]
     },
     {
@@ -94,7 +95,97 @@
         "行が 0 件の表は合格にしない",
         "表の後で Issue の条件が変わったら古い表として落とす（チェックを付けただけでは古くしない）",
         "comments を持たない Issue はコメント無しとして読み、コメントからの行は引用が見つからない",
-        "誤検知しないことの確認: 絶対パスの ファイル:行 と行の範囲の根拠は通る"
+        "誤検知しないことの確認: 絶対パスの ファイル:行 と行の範囲の根拠は通る",
+        "--changed が無ければ、テストが差分にあるかを確かめていないと警告する",
+        "test_exempt の行は、テストの根拠がコマンドだけでも通す",
+        "テストの根拠がコマンドだけなら、どのテストかを読めないので落とす",
+        "テストの根拠のファイルがブランチの差分に無ければ落とす",
+        "テストを書けない理由（test_exempt）があれば、テストの根拠が無くても通す",
+        "役割の無い根拠の行は、今のとおり通し、警告を出す",
+        "役割を書いた根拠が形の誤りだけでも、役割の無い行として警告に回さない",
+        "役割を書いた行に、テストの根拠もテストを書けない理由も無ければ落とす",
+        "役割を書いた行に、実装の根拠が無ければ落とす",
+        "語彙外の役割は根拠の誤りにする",
+        "誤検知しないことの確認: 実装とテストの根拠がそろい、テストが差分にあれば通る",
+        "差分に足したリンクから既にあるテストを指しても、差分に無いテストとして落とす",
+        "前後に空白を含むファイル名も、差分の一覧のとおりに照合する"
+      ]
+    },
+    {
+      "id": "implementation-role-not-required",
+      "why": "役割を書いた行に、実装の根拠（role: implementation）が無くても通す",
+      "file": "skills/issue-start/scripts/acceptance-check.mjs",
+      "find": "  if (!withRole.some((e) => e.role === \"implementation\")) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "役割を書いた行に、実装の根拠が無ければ落とす",
+        "役割を書いた根拠が形の誤りだけでも、役割の無い行として警告に回さない",
+        "語彙外の役割は根拠の誤りにする"
+      ]
+    },
+    {
+      "id": "test-role-not-required",
+      "why": "役割を書いた行に、テストの根拠もテストを書けない理由も無くても通す",
+      "file": "skills/issue-start/scripts/acceptance-check.mjs",
+      "find": "  else if (!exempt) {",
+      "replace": "  else if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "役割を書いた行に、テストの根拠もテストを書けない理由も無ければ落とす",
+        "テストを書けない理由（test_exempt）があれば、テストの根拠が無くても通す",
+        "役割を書いた根拠が形の誤りだけでも、役割の無い行として警告に回さない",
+        "語彙外の役割は根拠の誤りにする"
+      ]
+    },
+    {
+      "id": "test-file-not-in-diff-accepted",
+      "why": "テストの根拠のファイルがブランチの差分に無くても通す（既にあるテストを挙げるだけで通る）",
+      "file": "skills/issue-start/scripts/acceptance-check.mjs",
+      "find": "    if (!inDiff(path)) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "テストの根拠のファイルがブランチの差分に無ければ落とす",
+        "差分に足したリンクから既にあるテストを指しても、差分に無いテストとして落とす"
+      ]
+    },
+    {
+      "id": "test-command-only-accepted",
+      "why": "テストの根拠がコマンドだけでも通す（どのテストかを読めない）",
+      "file": "skills/issue-start/scripts/acceptance-check.mjs",
+      "find": "  if (paths.length === 0) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["テストの根拠がコマンドだけなら、どのテストかを読めないので落とす"]
+    },
+    {
+      "id": "role-vocabulary-unchecked",
+      "why": "語彙外の役割を根拠の誤りにしない",
+      "file": "skills/issue-start/scripts/acceptance-check.mjs",
+      "find": "    !(typeof evidence.role === \"string\" && ROLES.includes(evidence.role))",
+      "replace": "    false",
+      "occurrences": 1,
+      "expect_failing": ["語彙外の役割は根拠の誤りにする"]
+    },
+    {
+      "id": "exempt-row-requires-test-file",
+      "why": "test_exempt の行にも、テストのファイルの根拠を求める",
+      "file": "skills/issue-start/scripts/acceptance-check.mjs",
+      "find": "    if (exempt) return;",
+      "replace": "    if (false) return;",
+      "occurrences": 1,
+      "expect_failing": ["test_exempt の行は、テストの根拠がコマンドだけでも通す"]
+    },
+    {
+      "id": "test-evidence-symlink-not-resolved",
+      "why": "テストの根拠のリンクを実体にたどらずに差分と照合する（差分に足したリンクから既にあるテストを指して通る）",
+      "file": "skills/issue-start/scripts/acceptance-check.mjs",
+      "find": "changed.has(realPathOr(resolve(root, ref)))",
+      "replace": "changed.has(resolve(realRoot, ref))",
+      "occurrences": 1,
+      "expect_failing": [
+        "差分に足したリンクから既にあるテストを指しても、差分に無いテストとして落とす"
       ]
     }
   ]

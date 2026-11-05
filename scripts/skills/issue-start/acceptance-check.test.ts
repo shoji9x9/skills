@@ -5,7 +5,7 @@
 //
 // Issue と対応し根拠の揃った表が exit 0 になることも確かめる。これが無いと「常に落とす」実装と区別できない。
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { assert, test, expect } from "vitest";
 import {
@@ -27,6 +27,7 @@ type CheckOutput = {
   checklist_items?: string[];
   structural?: boolean;
   findings?: { code: string }[];
+  warnings?: { code: string; row: number | null }[];
 };
 
 const HEAD = "a".repeat(40);
@@ -120,28 +121,12 @@ function table(
   };
 }
 
-/**
- * 作業ディレクトリに Issue・表・根拠のファイルを置いて CLI を呼ぶ。
- * @param {{
- *   issueData?: Record<string, unknown>,
- *   issueHtml?: unknown,
- *   tableData?: unknown,
- *   extra?: string[],
- *   decisions?: unknown,
- * }} [input]
- */
-function run(
-  input: {
-    issueData?: Record<string, unknown>;
-    issueHtml?: unknown;
-    tableData?: unknown;
-    extra?: string[];
-    decisions?: unknown;
-  } = {},
-) {
-  const work = makeTempDir("acceptance-check-");
+/** 作業ディレクトリに Issue・表・根拠のファイルを置き、CLI の引数を返す。 */
+function writeInputs(work: string, input: Parameters<typeof run>[0] = {}) {
   mkdirSync(join(work, "src"));
   writeFileSync(join(work, "src/app.js"), "line1\nline2\nline3\n");
+  mkdirSync(join(work, "test"));
+  writeFileSync(join(work, "test/app.test.js"), "t1\nt2\n");
   const issueData = input.issueData ?? issue();
   writeFileSync(join(work, "issue.json"), JSON.stringify(issueData));
   writeFileSync(
@@ -162,6 +147,38 @@ function run(
     writeFileSync(join(work, "decisions.json"), JSON.stringify(input.decisions));
     argv.push("--decisions", "decisions.json");
   }
+  input.setup?.(work);
+  if (input.changed !== undefined) {
+    writeFileSync(join(work, "changed.txt"), input.changed.map((line) => `${line}\n`).join(""));
+    argv.push("--changed", "changed.txt");
+  }
+  return argv;
+}
+
+/**
+ * 作業ディレクトリに Issue・表・根拠のファイルを置いて CLI を呼ぶ。
+ * @param {{
+ *   issueData?: Record<string, unknown>,
+ *   issueHtml?: unknown,
+ *   tableData?: unknown,
+ *   extra?: string[],
+ *   decisions?: unknown,
+ *   changed?: string[],
+ * }} [input]
+ */
+function run(
+  input: {
+    issueData?: Record<string, unknown>;
+    issueHtml?: unknown;
+    tableData?: unknown;
+    extra?: string[];
+    decisions?: unknown;
+    changed?: string[];
+    setup?: (work: string) => void;
+  } = {},
+) {
+  const work = makeTempDir("acceptance-check-");
+  const argv = writeInputs(work, input);
   let stdout = "";
   let stderr = "";
   const code = main(argv, {
@@ -580,4 +597,130 @@ test("JSON として読めない入力ファイルと、pending_decisions の無
   const noList = run({ decisions: { decisions: [] } });
   expect(noList.code).toBe(2);
   expect(noList.stderr).toContain("pending_decisions");
+});
+
+// 根拠の役割（Issue #886）。振る舞いの条件は、実装とテストの根拠がそろうか、テストを書けない理由があるときだけ満たす。
+
+const IMPL = { kind: "file", ref: "src/app.js:2", role: "implementation" };
+const TEST = { kind: "file", ref: "test/app.test.js:1-2", role: "test" };
+
+/** 2 行目（準備の失敗時にログを書く）の根拠と欄を差し替えた表。 */
+function tableWithRow(evidence: unknown[], extra: Record<string, unknown> = {}) {
+  const items = table().items.slice(0, 3);
+  items[1] = { ...items[1], evidence, ...extra };
+  return table({ items });
+}
+
+test("役割の無い根拠の行は、今のとおり通し、警告を出す", () => {
+  const r = run();
+  expect(r.code).toBe(0);
+  expect(r.json?.ok).toBe(true);
+  expect(r.json?.warnings?.map((w) => [w.code, w.row])).toEqual([
+    ["role-missing", 1],
+    ["role-missing", 2],
+  ]);
+});
+
+test("誤検知しないことの確認: 実装とテストの根拠がそろい、テストが差分にあれば通る", () => {
+  const r = run({
+    tableData: tableWithRow([IMPL, TEST]),
+    changed: ["src/app.js", "test/app.test.js"],
+  });
+  expect(r.code).toBe(0);
+  expect(r.json?.warnings?.map((w) => w.code)).toEqual(["role-missing"]);
+});
+
+test("役割を書いた行に、テストの根拠もテストを書けない理由も無ければ落とす", () => {
+  const r = run({ tableData: tableWithRow([IMPL]), changed: ["src/app.js"] });
+  expect(r.code).toBe(1);
+  expect(r.codes).toEqual(["test-missing"]);
+});
+
+test("テストを書けない理由（test_exempt）があれば、テストの根拠が無くても通す", () => {
+  const r = run({
+    tableData: tableWithRow([IMPL], { test_exempt: "文書の追加だけでテストを書けない" }),
+  });
+  expect(r.code).toBe(0);
+  const blank = run({ tableData: tableWithRow([IMPL], { test_exempt: " " }) });
+  expect(blank.codes).toEqual(["test-missing"]);
+});
+
+test("役割を書いた行に、実装の根拠が無ければ落とす", () => {
+  const r = run({ tableData: tableWithRow([TEST]), changed: ["test/app.test.js"] });
+  expect(r.code).toBe(1);
+  expect(r.codes).toEqual(["implementation-missing"]);
+});
+
+test("テストの根拠のファイルがブランチの差分に無ければ落とす", () => {
+  const r = run({ tableData: tableWithRow([IMPL, TEST]), changed: ["src/app.js"] });
+  expect(r.code).toBe(1);
+  expect(r.codes).toEqual(["test-not-in-diff"]);
+  // 差分が 0 件のときも、差分に無いものとして扱う。
+  const empty = run({ tableData: tableWithRow([IMPL, TEST]), changed: [] });
+  expect(empty.codes).toEqual(["test-not-in-diff"]);
+});
+
+test("--changed が無ければ、テストが差分にあるかを確かめていないと警告する", () => {
+  const r = run({ tableData: tableWithRow([IMPL, TEST]) });
+  expect(r.code).toBe(0);
+  expect(r.json?.warnings?.map((w) => [w.code, w.row])).toEqual([
+    ["role-missing", 1],
+    ["test-diff-unchecked", 2],
+  ]);
+});
+
+test("テストの根拠がコマンドだけなら、どのテストかを読めないので落とす", () => {
+  const command = { kind: "command", command: "pnpm test", result: "exit 0", role: "test" };
+  const r = run({ tableData: tableWithRow([IMPL, command]), changed: ["src/app.js"] });
+  expect(r.code).toBe(1);
+  expect(r.codes).toEqual(["test-file-missing"]);
+});
+
+test("語彙外の役割は根拠の誤りにする", () => {
+  const r = run({ tableData: tableWithRow([{ ...IMPL, role: "doc" }]) });
+  expect(r.code).toBe(1);
+  expect(r.codes).toEqual(["evidence-invalid", "implementation-missing", "test-missing"]);
+});
+
+test("--changed のファイルを読めなければ exit 2", () => {
+  const r = run({ extra: ["--changed", "missing.txt"] });
+  expect(r.code).toBe(2);
+  expect(r.stderr).toContain("missing.txt を読めない");
+});
+
+test("test_exempt の行は、テストの根拠がコマンドだけでも通す", () => {
+  const lint = { kind: "command", command: "markdownlint x.md", result: "exit 0", role: "test" };
+  const r = run({
+    tableData: tableWithRow([IMPL, lint], { test_exempt: "文書の追加だけでテストを書けない" }),
+  });
+  expect(r.code).toBe(0);
+});
+
+test("役割を書いた根拠が形の誤りだけでも、役割の無い行として警告に回さない", () => {
+  const broken = { ...TEST, ref: "test/app.test.js:9" };
+  const r = run({ tableData: tableWithRow([{ kind: "file", ref: "src/app.js:1" }, broken]) });
+  expect(r.code).toBe(1);
+  expect(r.codes).toEqual(["evidence-invalid", "implementation-missing", "test-missing"]);
+  expect(r.json?.warnings?.map((w) => w.row)).toEqual([1]);
+});
+
+test("差分に足したリンクから既にあるテストを指しても、差分に無いテストとして落とす", () => {
+  const link = { kind: "file", ref: "test/link.test.js:1", role: "test" };
+  const r = run({
+    tableData: tableWithRow([IMPL, link]),
+    changed: ["src/app.js", "test/link.test.js"],
+    setup: (work) => symlinkSync("app.test.js", join(work, "test/link.test.js")),
+  });
+  expect(r.code).toBe(1);
+  expect(r.codes).toEqual(["test-not-in-diff"]);
+});
+
+test("前後に空白を含むファイル名も、差分の一覧のとおりに照合する", () => {
+  const spaced = { kind: "file", ref: "test/ app.test.js:1", role: "test" };
+  const r = run({
+    tableData: tableWithRow([IMPL, spaced]),
+    changed: ["src/app.js", "test/ app.test.js"],
+    setup: (work) => writeFileSync(join(work, "test/ app.test.js"), "t1\n"),
+  });
+  expect(r.code).toBe(0);
 });

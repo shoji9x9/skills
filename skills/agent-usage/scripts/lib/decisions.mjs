@@ -45,7 +45,16 @@ export function loadDecisions(commonDir) {
  * @returns {Decision | null}
  */
 export function decisionFor(commonDir, branch) {
-  const all = loadDecisions(commonDir);
+  return decisionIn(loadDecisions(commonDir), branch);
+}
+
+/**
+ * 読み込み済みの判断の記録から、ブランチの判断を引く。無ければ null。
+ * @param {Record<string, { decision: Decision }>} all
+ * @param {string} branch
+ * @returns {Decision | null}
+ */
+export function decisionIn(all, branch) {
   return Object.hasOwn(all, branch) ? all[branch].decision : null;
 }
 

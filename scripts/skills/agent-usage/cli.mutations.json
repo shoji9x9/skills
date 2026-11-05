@@ -9,8 +9,8 @@
       "id": "undecided-branch-passes",
       "why": "判断の無いブランチのコミットを止めない",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "  if (fallback === null) return { exit: 2, message: askMessage(agent, script) };",
-      "replace": "  if (false) return { exit: 2, message: askMessage(agent, script) };",
+      "find": "  if (r.kind === \"undecided\") return { exit: 2, message: askMessage(agent, script) };",
+      "replace": "  if (r.kind === \"undecided\") return { exit: 0, message: \"\" };",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook 判断の無い feature ブランチのコミットを止め、記録しないと決めたら通す。デフォルトブランチでは止めない",
@@ -660,9 +660,9 @@
     {
       "id": "repo-default-applied-without-user",
       "why": "リポジトリの defaultDecision を、人の設定が無い人にも当てる",
-      "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "  const person = personOf(script);\n  if (person !== true)\n    return person === false ? { exit: 2, message: setupMessage(agent, script) } : person;\n  const note",
-      "replace": "  const person = undefined;\n  const note",
+      "file": "skills/agent-usage/scripts/lib/record-decision.mjs",
+      "find": "  return { kind: person ? \"decided\" : \"no-person\", decision, source };",
+      "replace": "  return { kind: person || fallback !== null ? \"decided\" : \"no-person\", decision, source };",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook リポジトリの defaultDecision は、人の設定が無い人には当てずに止めて setup を求め、人の ID を作らない。デフォルトブランチの status は対象外と出す"
@@ -671,9 +671,9 @@
     {
       "id": "gate-creates-person",
       "why": "記録するときに人の設定が無くても止めず、collect が人の ID を作る",
-      "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "  const person = resolved.person ?? personOf(script);\n  if (person !== true)\n    return person === false ? { exit: 2, message: setupMessage(agent, script) } : person;\n  return recordCommit",
-      "replace": "  return recordCommit",
+      "file": "skills/agent-usage/scripts/lib/record-decision.mjs",
+      "find": "  let person;\n  try {\n    person = read.person();",
+      "replace": "  let person = fallback === null;\n  if (!person) try {\n    person = read.person();",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook ブランチの判断が「記録する」でも、人の設定が無ければ止めて、Hook からは人の ID を作らない。status も止めると出す",

@@ -18,11 +18,12 @@
 // 終了コード: 0 ＝ 全行が met / waived / deferred / later で表が Issue と対応している、1 ＝ 未充足・不整合が残る、
 // 2 ＝ 使い方の誤り・型崩れ（JSON でない・別の Issue の表）。
 //
-// 決定論的: 乱数・現在時刻・ネットワークに依存しない。読むのは JSON と、根拠として挙げられたファイルの行数だけ。
+// 決定論的: 乱数・現在時刻・ネットワークに依存しない。読むのは JSON と、根拠として挙げられたファイルの行数と、
+// --changed で渡されたブランチの差分のファイルの一覧だけ（git を呼ばない）。
 // TypeScript 構文は使わない（型は JSDoc）。
 
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { isCliEntry } from "./lib/cli.mjs";
 import { makeIo } from "./lib/flag-args.mjs";
@@ -33,7 +34,7 @@ import { isArray } from "./lib/is-array.mjs";
  * ツールのバージョン（原本）。判定の規則や出力の形を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "1";
+export const VERSION = "2";
 
 /**
  * 行の状態の語彙（原本）。met / waived / deferred / later だけが完了の側である。
@@ -64,6 +65,12 @@ export const SOURCES = ["checklist", "title", "body", "comment"];
 
 /** 根拠の強さ。measured（実測）はコマンドの結果、read（読解）はファイル:行。 */
 export const STRENGTHS = ["measured", "read"];
+
+/**
+ * 根拠の役割。implementation は条件を満たす実装、test はその振る舞いを確かめるテストを指す。
+ * 役割を書いた met の行は、両方の根拠か、テストを書けない理由（test_exempt）が要る。
+ */
+export const ROLES = ["implementation", "test"];
 
 /**
  * 突き合わせ表の結果を Issue へ投稿したコメントに付ける目印。指紋の計算から外す
@@ -296,6 +303,12 @@ export function fingerprintOf(body, comments, title = "") {
  */
 function checkEvidence(evidence, checkFile) {
   if (!isObject(evidence)) return { kind: null, problem: "根拠がオブジェクトでない" };
+  if (
+    evidence.role !== undefined &&
+    !(typeof evidence.role === "string" && ROLES.includes(evidence.role))
+  ) {
+    return { kind: null, problem: `role が語彙外: ${JSON.stringify(evidence.role)}` };
+  }
   if (evidence.kind === "command") {
     // 結果の記録が無いコマンドは、「実行するつもり」と区別できない。
     if (!nonEmptyString(evidence.command)) return { kind: "command", problem: "command が空" };
@@ -309,6 +322,20 @@ function checkEvidence(evidence, checkFile) {
   return { kind: null, problem: `kind が語彙外: ${String(evidence.kind)}` };
 }
 
+/** ファイル:行 か ファイル:開始-終了 の参照の形。1 つ目のグループがパス。 */
+const FILE_REF = /^(.+?):(\d+)(?:-(\d+))?$/;
+
+/**
+ * ファイル:行 の参照からパスを取り出す。形が違えば null。
+ * @param {unknown} ref
+ * @returns {string | null}
+ */
+function refPathOf(ref) {
+  if (typeof ref !== "string") return null;
+  const m = ref.match(FILE_REF);
+  return m ? m[1] : null;
+}
+
 /**
  * ファイル:行 の参照を確かめる関数を作る。
  * @param {string} root 相対パスの起点
@@ -317,7 +344,7 @@ function checkEvidence(evidence, checkFile) {
  */
 export function fileChecker(root, readText) {
   return (ref) => {
-    const m = ref.match(/^(.+?):(\d+)(?:-(\d+))?$/);
+    const m = ref.match(FILE_REF);
     if (!m) return `ファイル:行 の形でない: ${ref}`;
     const start = Number(m[2]);
     const end = m[3] !== undefined ? Number(m[3]) : start;
@@ -350,6 +377,7 @@ export function fileChecker(root, readText) {
  * 行の検査が共有する値。
  * @typedef {{
  *   add: AddFinding,
+ *   warn: AddFinding,
  *   remaining: Map<string, number>,
  *   title: string,
  *   normalizedBody: string,
@@ -358,6 +386,7 @@ export function fileChecker(root, readText) {
  *   checkFile: (ref: string) => string | null,
  *   decisionIds: Set<string> | null,
  *   allowLater: Set<string>,
+ *   inDiff: ((path: string) => boolean) | null,
  * }} RowContext
  */
 
@@ -522,16 +551,91 @@ function checkMet(raw, row, ctx) {
   // 根拠の無い met は「満たしたつもり」と区別できない。
   if (evidence.length === 0) ctx.add("evidence-missing", row, "met なのに根拠（evidence）が無い");
   let hasCommand = false;
+  /** @type {Record<string, unknown>[]} */
+  const valid = [];
   for (const e of evidence) {
     const { kind, problem } = checkEvidence(e, ctx.checkFile);
     if (problem !== null) ctx.add("evidence-invalid", row, problem);
-    else if (kind === "command") hasCommand = true;
+    else if (isObject(e)) {
+      valid.push(e);
+      if (kind === "command") hasCommand = true;
+    }
   }
+  // 役割を書いたかは、形の誤った根拠も含めて判定する（誤った根拠だけが役割を持つ行を、役割の無い行と取り違えない）。
+  const roleWritten = evidence.some((e) => isObject(e) && e.role !== undefined);
+  if (evidence.length > 0) checkRoles({ raw, evidence: valid, roleWritten, row }, ctx);
   if (typeof raw.strength !== "string" || !STRENGTHS.includes(raw.strength)) {
     ctx.add("strength-invalid", row, `strength が語彙外: ${String(raw.strength)}`);
   } else if (raw.strength === "measured" && !hasCommand) {
     // 実測と名乗るなら結果の記録があるコマンドを 1 件は要る（ファイルを読んだだけでは実測にならない）。
     ctx.add("strength-unsupported", row, "strength: measured なのにコマンドの根拠が無い");
+  }
+}
+
+/**
+ * met の行の根拠の役割を確かめる。実装の根拠と、テストの根拠かテストを書けない理由（test_exempt）を求める。
+ * 役割を 1 件も書いていない行は、役割を足す前の表も読めるよう、警告にとどめる。
+ * @param {{ raw: Record<string, unknown>, evidence: Record<string, unknown>[], roleWritten: boolean, row: number }} input
+ *   evidence は形を確かめた後の根拠、roleWritten は形の誤った根拠も含めて役割を書いたか
+ * @param {RowContext} ctx
+ */
+function checkRoles({ raw, evidence, roleWritten, row }, ctx) {
+  const withRole = evidence.filter((e) => e.role !== undefined);
+  if (!roleWritten) {
+    ctx.warn(
+      "role-missing",
+      row,
+      "根拠に役割（role: implementation / test）が無いので、実装とテストがそろっているかを確かめていない",
+    );
+    return;
+  }
+  if (!withRole.some((e) => e.role === "implementation")) {
+    ctx.add("implementation-missing", row, "実装の根拠（role: implementation）が無い");
+  }
+  const tests = withRole.filter((e) => e.role === "test");
+  const exempt = nonEmptyString(raw.test_exempt);
+  if (tests.length > 0) checkTestFiles({ tests, exempt, row }, ctx);
+  else if (!exempt) {
+    // 文書の追加や設定の変更のようにテストを書けない条件は、理由を書かせて区別する。
+    ctx.add(
+      "test-missing",
+      row,
+      "テストの根拠（role: test）も、テストを書けない理由（test_exempt）も無い",
+    );
+  }
+}
+
+/**
+ * テストの根拠のファイルが、ブランチの差分に含まれるかを確かめる。既にあるテストを挙げるだけでは通さない。
+ * @param {{ tests: Record<string, unknown>[], exempt: boolean, row: number }} input
+ *   tests は role: test の根拠、exempt はテストを書けない理由（test_exempt）があるか
+ * @param {RowContext} ctx
+ */
+function checkTestFiles({ tests, exempt, row }, ctx) {
+  const paths = tests
+    .filter((e) => e.kind === "file")
+    .map((e) => refPathOf(e.ref))
+    .filter((path) => path !== null);
+  if (paths.length === 0) {
+    // test_exempt の行は、テストのファイルを要らない（文書の lint の結果を test の根拠に添えることがある）。
+    if (exempt) return;
+    // コマンドの結果だけでは、どのテストが条件を確かめたかを読めない。
+    ctx.add("test-file-missing", row, "テストの根拠に、テストのファイル（kind: file）が無い");
+    return;
+  }
+  const inDiff = ctx.inDiff;
+  if (inDiff === null) {
+    ctx.warn(
+      "test-diff-unchecked",
+      row,
+      "--changed が無いので、テストのファイルがブランチの差分に含まれるかを確かめていない",
+    );
+    return;
+  }
+  for (const path of paths) {
+    if (!inDiff(path)) {
+      ctx.add("test-not-in-diff", row, `テストの根拠のファイルがブランチの差分に無い: ${path}`);
+    }
   }
 }
 
@@ -668,6 +772,21 @@ function emptyCounts(itemCount) {
 }
 
 /**
+ * finding を溜める配列と、1 件足す関数を作る。
+ * @returns {{ list: Finding[], add: AddFinding }}
+ */
+function collector() {
+  /** @type {Finding[]} */
+  const list = [];
+  return {
+    list,
+    add: (code, row, message) => {
+      list.push({ code, row, message });
+    },
+  };
+}
+
+/**
  * 突き合わせ表を検査する。
  * @param {{
  *   issue: unknown,
@@ -676,11 +795,13 @@ function emptyCounts(itemCount) {
  *   head?: string | null,
  *   decisionIds?: Set<string> | null,
  *   allowLater?: Set<string>,
+ *   inDiff?: ((path: string) => boolean) | null,
  *   checkFile: (ref: string) => string | null,
  * }} input
  * @returns {{ structural: true, error: string } | {
  *   structural: false,
  *   findings: Array<{ code: string, row: number | null, message: string }>,
+ *   warnings: Array<{ code: string, row: number | null, message: string }>,
  *   closable: boolean,
  *   expected_fingerprint: string,
  *   checklist_items: string[],
@@ -688,7 +809,6 @@ function emptyCounts(itemCount) {
  * }}
  */
 export function checkAcceptance(input) {
-  const { head = null, decisionIds = null, allowLater = new Set(), checkFile } = input;
   const readIssueResult = readIssue(input.issue, input.issueHtml);
   if (readIssueResult.error !== null) return { structural: true, error: readIssueResult.error };
   const issue = readIssueResult.issue;
@@ -696,15 +816,11 @@ export function checkAcceptance(input) {
   if (readTableResult.error !== null) return { structural: true, error: readTableResult.error };
   const { table, items } = readTableResult;
 
-  /** @type {Finding[]} */
-  const findings = [];
-  /** @type {AddFinding} */
-  const add = (code, row, message) => {
-    findings.push({ code, row, message });
-  };
+  const { list: findings, add } = collector();
+  const { list: warnings, add: warn } = collector();
 
   const expected = fingerprintOf(issue.body, issue.comments, issue.title);
-  checkTableHeader({ table, expected, head }, add);
+  checkTableHeader({ table, expected, head: input.head ?? null }, add);
 
   const counts = emptyCounts(items.length);
   // 0 件を「条件が無い」として扱わない。表を書き忘れた状態と同じ出力になる。
@@ -715,20 +831,23 @@ export function checkAcceptance(input) {
   const remaining = checklistRemaining(issueChecklist, add);
   checkRows(items, {
     add,
+    warn,
     remaining,
     title: issue.title,
     normalizedBody: normalizeText(issue.body),
     normalizedComments: issue.comments.map(normalizeText),
     counts,
-    checkFile,
-    decisionIds,
-    allowLater,
+    checkFile: input.checkFile,
+    decisionIds: input.decisionIds ?? null,
+    allowLater: input.allowLater ?? new Set(),
+    inDiff: input.inDiff ?? null,
   });
   addMissingChecklistItems(remaining, add);
 
   return {
     structural: false,
     findings,
+    warnings,
     // deferred・later が残る Issue は、PR で閉じない（Closes を書かない）。
     closable: findings.length === 0 && counts.deferred === 0 && counts.later === 0,
     expected_fingerprint: expected,
@@ -741,7 +860,8 @@ const USAGE =
   "usage: node acceptance-check.mjs --issue <gh issue view --json number,url,title,body,comments の出力> " +
   "--issue-html <GraphQL の issue { body bodyHTML } の出力> " +
   "--table <突き合わせ表> [--head <現在の HEAD の完全 SHA>] [--root <ファイル:行 の起点>] " +
-  "[--decisions <pending_decisions を持つ JSON>] [--allow-later <後工程名,...>]";
+  "[--decisions <pending_decisions を持つ JSON>] [--allow-later <後工程名,...>] " +
+  "[--changed <git diff --name-only <base>...HEAD の出力を書いたファイル>]";
 
 const KNOWN_ARGS = [
   "--issue",
@@ -751,6 +871,7 @@ const KNOWN_ARGS = [
   "--root",
   "--decisions",
   "--allow-later",
+  "--changed",
 ];
 
 /**
@@ -844,6 +965,43 @@ function allowLaterOf(value) {
 }
 
 /**
+ * --changed のファイル（`git diff --name-only <base>...HEAD` の出力）を、差分に含まれるかを答える関数にする。
+ * 一覧のパスと根拠のパスは、どちらも --root の実体を起点に解決して比べる。
+ * 根拠のパスはシンボリックリンクをたどった実体にする（差分に足したリンクから、既にあるテストを指して通さない）。
+ * @param {string | undefined} value --changed の値
+ * @param {{ cwd: string, root: string }} dirs
+ * @returns {{ error: string } | { error: null, inDiff: ((path: string) => boolean) | null }}
+ */
+function inDiffOf(value, { cwd, root }) {
+  if (value === undefined) return { error: null, inDiff: null };
+  const path = resolve(cwd, value);
+  const text = readText(path);
+  if (text === null) return { error: `${path} を読めない` };
+  const realRoot = realPathOr(root);
+  // 前後の空白もファイル名の一部なので、空の行だけを除く。
+  const changed = new Set(
+    text
+      .split(/\r?\n/)
+      .filter((line) => line !== "")
+      .map((line) => resolve(realRoot, line)),
+  );
+  return { error: null, inDiff: (ref) => changed.has(realPathOr(resolve(root, ref))) };
+}
+
+/**
+ * シンボリックリンクをたどった実体のパス。たどれなければ（無いファイルなど）そのまま返す。
+ * @param {string} path
+ * @returns {string}
+ */
+function realPathOr(path) {
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
+}
+
+/**
  * 引数を読み、検査の入力を作る。
  * @param {string[]} argv
  * @param {string} cwd
@@ -860,6 +1018,8 @@ function inputFromArgs(argv, cwd) {
   const decisions = decisionIdsOf(json.parsed["--decisions"]);
   if (decisions.error !== null) return decisions;
   const root = resolve(cwd, args["--root"] ?? ".");
+  const diff = inDiffOf(args["--changed"], { cwd, root });
+  if (diff.error !== null) return diff;
   return {
     error: null,
     input: {
@@ -869,6 +1029,7 @@ function inputFromArgs(argv, cwd) {
       head: args["--head"] ?? null,
       decisionIds: decisions.ids,
       allowLater: allowLaterOf(args["--allow-later"]),
+      inDiff: diff.inDiff,
       checkFile: fileChecker(root, readText),
     },
   };
@@ -894,10 +1055,16 @@ export function main(argv, deps = {}) {
     ok: result.findings.length === 0,
     closable: result.closable,
     findings: result.findings,
+    // warnings は ok と終了コードに影響しない（役割を書く前の表を読めるようにするため）。
+    warnings: result.warnings,
     expected_fingerprint: result.expected_fingerprint,
     // source: checklist の行の criterion は、ここから転記する（描画した後の文言。Markdown の記号やタグは除かれている）。
     checklist_items: result.checklist_items,
-    counts: { ...result.counts, findings: result.findings.length },
+    counts: {
+      ...result.counts,
+      findings: result.findings.length,
+      warnings: result.warnings.length,
+    },
   });
   return result.findings.length === 0 ? 0 : 1;
 }

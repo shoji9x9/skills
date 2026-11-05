@@ -44,7 +44,7 @@ Issue にだけ書かれた条件（「状態を URL で持つ」「失敗した
 
    | `status` | 意味 | 要るもの |
    |---|---|---|
-   | `met` | 満たした | `evidence`（`command` なら `command` と `result`、`file` なら `ref` に `パス:行` か `パス:開始-終了`）と `strength`（`measured` は結果を記録したコマンドを 1 件以上持つ、`read` は読んだだけ） |
+   | `met` | 満たした | `evidence`（`command` なら `command` と `result`、`file` なら `ref` に `パス:行` か `パス:開始-終了`）と `strength`（`measured` は結果を記録したコマンドを 1 件以上持つ、`read` は読んだだけ）。根拠の役割（`role`）は下の箇条に従う |
    | `unmet` | 満たしていない | —（完了にしない） |
    | `pending-decision` | 利用者の判断待ち | `decision_ref`（判断待ちの記録の id）。完了にしない |
    | `waived` | 利用者が外すと決めた | `approval`（`by`・`at`・`ref`。`ref` は決定の記録） |
@@ -56,6 +56,12 @@ Issue にだけ書かれた条件（「状態を URL で持つ」「失敗した
    - 外す承認を求める前に、手順 6 の似た Issue の候補を探し、見直すかを同じ確認（または同じ保留）に載せて 1 つの判断にする。
      外す承認と似た Issue の見直しは同じ変更から生じるので、分けると利用者に 2 回確かめることになる
    - `file` の根拠は `--root`（デフォルトは作業ディレクトリ）を起点に解決し、ファイルが在ることと行の範囲を検査が確かめる
+   - `met` の行の根拠には、役割（`role`）を書く。`implementation` は条件を満たす実装を、`test` はその振る舞いを確かめるテストを指す。
+     役割を書いた行は、`implementation` の根拠と、`test` の根拠か `test_exempt` の両方が要る。
+     `test` の根拠には、テストのファイル（`kind: file`）を 1 件以上含める。コマンドの結果だけでは、どのテストが条件を確かめたかを読めない
+   - テストを書けない条件（文書の追加・設定の変更など）は、`test` の根拠の代わりに、行の `test_exempt` に理由を書く
+   - 役割を 1 件も書いていない行は、役割を足す前の表と同じに読み、出力の `warnings` に `role-missing` を出す。
+     `warnings` は `ok` と終了コードに影響しない
 4. 根拠を取ったバージョンを固定する。commit していない変更が残っていると、HEAD が根拠のバージョンを表さない。そのため、`git status --porcelain` が空のときだけ、`commit` に HEAD の完全な SHA を書く。
    判定はリポジトリ全体に対して行う。サブディレクトリから `.` で絞ると、その外の commit していない変更が見えない。
    表をリポジトリの中（`--out`）に置く場合は、表自身のパスを除いて判定する
@@ -68,8 +74,17 @@ Issue にだけ書かれた条件（「状態を URL で持つ」「失敗した
    ```bash
    node <issue-start>/scripts/acceptance-check.mjs --issue <issue.json> --issue-html <issue-html.json> --table <acceptance.json> \
      --head "$(git rev-parse HEAD)" [--root <ファイル:行 の起点>] [--decisions <pending_decisions を持つ JSON>] \
-     [--allow-later <後工程名,...>]
+     [--allow-later <後工程名,...>] --changed <差分のファイルの一覧>
    ```
+
+   - `--changed` には、`git -c core.quotepath=off diff --name-only <base>...HEAD` の出力を書いたファイルを渡す（`<base>` は PR の取り込み先のブランチ。PR が無ければリポジトリのデフォルトブランチ）。
+     `core.quotepath=off` が無いと、git は日本語などを含むパスを引用符と 8 進数で書き、一覧のパスと根拠のパスが一致しない。
+     一覧のパスは `--root` を起点に解決するので、`--root` にはリポジトリのルートを渡す（`--root "$(git rev-parse --show-toplevel)"`）。
+     `test` の根拠のファイルは、シンボリックリンクを通さず、実体のパスで書く。
+     `test` の根拠のファイルが一覧に無ければ、`test-not-in-diff` で失敗する。既にあるテストを挙げるだけでは通らない。
+     `--changed` を渡さなければ差分は確かめず、`warnings` に `test-diff-unchecked` を出す
+   - 出力の `warnings`（`role-missing`・`test-diff-unchecked`）は、終了コードが 0 でも結果の報告に載せる。
+     実装とテストがそろっているかや、テストが差分にあるかを確かめていないことを、読み手が知るためである
 
    - `source_fingerprint` は手で書かず、最初の出力の `expected_fingerprint` を転記する。
      **表を書いた後に Issue の本文かコメントが変わると、`stale-issue` で失敗する。** 条件を読み直して、表を直す。
