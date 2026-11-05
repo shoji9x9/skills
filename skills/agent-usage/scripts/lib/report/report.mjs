@@ -1212,7 +1212,7 @@ export function reportMeta(d) {
 
 /**
  * @param {{ root: string; now: number; env: NodeJS.ProcessEnv; since: string | null; until: string | null; out: string | null }} o
- * @returns {{ files: string[]; rows: number; period: string; timeZone: string }}
+ * @returns {{ files: string[]; rows: number; period: string; timeZone: string; unknownKinds: Map<string, number> }}
  */
 export function runReport(o) {
   for (const [name, v] of /** @type {const} */ ([
@@ -1228,7 +1228,7 @@ export function runReport(o) {
   const config = loadRepoConfig(o.root, o.env, resolvedConfig);
   // report は人の設定を読むだけで作らない（作ると、setup を通らずに乱数の ID ができる）
   const tz = loadUserConfig(o.root, o.env, resolvedConfig)?.timeZone ?? systemTimeZone();
-  const { rows, files } = readRecords(join(dir, "records"));
+  const { rows, files, unknownKinds } = readRecords(join(dir, "records"));
   if (files === 0) throw new Error(`${join(dir, "records")} に記録が無い。先に collect を実行する`);
   const data = buildReport(rows, {
     config,
@@ -1252,5 +1252,11 @@ export function runReport(o) {
     [join(outDir, "meta.json"), `${JSON.stringify(reportMeta(data), null, 2)}\n`],
   ];
   for (const [p, text] of written) writeFileSync(p, text);
-  return { files: written.map(([p]) => p), rows: data.rows, period: data.period, timeZone: tz };
+  return {
+    files: written.map(([p]) => p),
+    rows: data.rows,
+    period: data.period,
+    timeZone: tz,
+    unknownKinds,
+  };
 }

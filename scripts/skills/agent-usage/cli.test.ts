@@ -1873,6 +1873,8 @@ describe.concurrent("precommit-gate.sh の、確認を実行できないとき",
 // 「collect は範囲より古いファイルを読まず…」が確かめる。
 describe.concurrent("読む範囲の判定で、最後の行を判定できないブランチのファイル", () => {
   const OLD = "2026-07-01T00:00:00.000Z";
+  /** 範囲の中の時刻。最後の行がこの時刻なら、collect はファイルを読む。 */
+  const NEW = "2026-10-01T12:00:00.000Z";
   /** 記録済みのファイルを範囲より古い時刻のファイルにして末尾に tail を足し、別のブランチに移る。 */
   async function prepare(tail: string) {
     const { git, cli, branches } = await collectedOnBranch();
@@ -1943,6 +1945,49 @@ describe.concurrent("読む範囲の判定で、最後の行を判定できな�
     const r = await cli("collect");
     expect(r.status).not.toBe(0);
     expect(r.stderr).toMatch(/20260701T000000Z-feature-5-x\.csv:\d+: observed_at が時刻でない/);
+  });
+
+  test("知らない kind の行は、collect と report が読み飛ばし、種類ごとの件数を警告に出す", async () => {
+    // 新しいバージョンが足した種類の行。最後の行の observed_at が範囲の中なので、collect もこのファイルを読む
+    const { cli, written } = await prepare(
+      line({ key: "x:future-1", kind: "future", observed_at: NEW }) +
+        line({ key: "x:future-2", kind: "future", observed_at: NEW }) +
+        line({ key: "x:later", kind: "later", observed_at: NEW }),
+    );
+    const collect = await cli("collect");
+    expect(collect.status, collect.stderr).toBe(0);
+    expect(collect.stdout).toContain(
+      "警告: このバージョンが知らない種類の行を読み飛ばした（future 2 件・later 1 件）",
+    );
+    expect(written()).not.toContain("x:future-1");
+    const report = await cli("report");
+    expect(report.status, report.stderr).toBe(0);
+    expect(report.stdout).toContain(
+      "警告: このバージョンが知らない種類の行を読み飛ばした（future 2 件・later 1 件）",
+    );
+  });
+
+  test("知らない kind の行が無ければ、警告を出さない", async () => {
+    const { cli } = await prepare("");
+    for (const cmd of ["collect", "report"]) {
+      const r = await cli(cmd);
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.stdout).not.toContain("知らない種類");
+    }
+  });
+
+  test("kind が空の行は、知らない種類として読み飛ばさずにエラーにする", async () => {
+    const { cli } = await prepare(line({ key: "x:empty", kind: "", observed_at: NEW }));
+    const r = await cli("collect");
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/20260701T000000Z-feature-5-x\.csv:\d+: kind が空/);
+  });
+
+  test("知らない kind の行も、形が不正ならエラーにする", async () => {
+    const { cli } = await prepare(line({ key: "", kind: "future", observed_at: NEW }));
+    const r = await cli("collect");
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/20260701T000000Z-feature-5-x\.csv:\d+: key が空/);
   });
 
   // root は読み取りの権限が無くてもファイルを開けるので、開けないファイルを作れない

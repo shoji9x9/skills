@@ -347,6 +347,7 @@ export function ghLoginError(host, env) {
  * @property {string} githubSkipReason GitHub を取得しなかった理由（取得したなら空）
  * @property {number} keyConflicts 同じ key で内容の違う行の数（0 でなければ行の作り方の不具合）
  * @property {number} skippedFiles 範囲より古いので読まなかった記録のファイルの数
+ * @property {Map<string, number>} unknownKinds このバージョンが知らない種類なので読み飛ばした記録の行の数（種類ごと）
  * @property {number} olderRowsSkipped 開始時刻が範囲より古いので書かなかった行の数
  * @property {number} retractedRows 打ち消した行の数
  * @property {Map<string, number>} otherWorktreeRows 別の作業ツリーの collect が記録するので書かなかった行の数（ブランチごと）
@@ -399,6 +400,7 @@ export function runCollect(o) {
     githubSkipReason: target.reason,
     keyConflicts: conflicts,
     skippedFiles: read.skipped,
+    unknownKinds: read.unknownKinds,
     olderRowsSkipped,
     retractedRows: retractions.length,
     otherWorktreeRows: elsewhere,
@@ -549,7 +551,7 @@ function appendTarget(o) {
 /**
  * 記録済みの行を読み、書く行の範囲の下限を決める。
  * @param {{ recordsDir: string; keep: Set<string>; lastPath: string; person: string; now: number }} o
- * @returns {{ existing: Map<string, Row>; lowerBound: number; skipped: number }}
+ * @returns {{ existing: Map<string, Row>; lowerBound: number; skipped: number; unknownKinds: Map<string, number> }}
  */
 function readExisting(o) {
   const windowStart = o.now - RECORD_WINDOW_MS;
@@ -566,7 +568,7 @@ function readExisting(o) {
   // （重複は report が key でまとめる）。記録の行では決めない。別のマシン（clone）の行が範囲の中にあっても、
   // このマシンのログにある古い行はまだ書いていないことがあるため
   const lowerBound = collectedInWindow ? windowStart : Number.NEGATIVE_INFINITY;
-  return { existing, lowerBound, skipped: read.skipped };
+  return { existing, lowerBound, skipped: read.skipped, unknownKinds: read.unknownKinds };
 }
 
 /**

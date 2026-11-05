@@ -32,7 +32,7 @@ import { recordDecision } from "./lib/record-decision.mjs";
 import { branchesRecordedElsewhere, branchMerged } from "./lib/merged.mjs";
 import { parseFlags } from "./lib/flags.mjs";
 import { git, isDecisionBranch, repoInfo } from "./lib/repo.mjs";
-import { usageDir } from "./lib/records.mjs";
+import { unknownKindsNote, usageDir } from "./lib/records.mjs";
 import { otherWorktreeRowsNote, runCollect } from "./lib/run-collect.mjs";
 import { runReport } from "./lib/report/report.mjs";
 import {
@@ -98,6 +98,8 @@ function printCollect(r) {
   if (r.invalidLines > 0) console.log(`読めなかったログの行: ${r.invalidLines}`);
   if (r.skippedFiles > 0)
     console.log(`範囲より古いので読まなかった記録のファイル: ${r.skippedFiles}`);
+  const unknown = unknownKindsNote(r.unknownKinds);
+  if (unknown !== "") console.log(`警告: ${unknown}`);
   if (r.olderRowsSkipped > 0)
     console.log(`開始時刻が範囲より古いので書かなかった行: ${r.olderRowsSkipped}`);
   const elsewhere = otherWorktreeRowsNote(r.otherWorktreeRows);
@@ -353,6 +355,8 @@ function reportCommand(rest, context) {
   });
   for (const f of out.files) console.log(`書いた: ${f}`);
   console.log(`行: ${out.rows}（重複を除いた後） / 期間: ${out.period}`);
+  const unknown = unknownKindsNote(out.unknownKinds);
+  if (unknown !== "") console.log(`警告: ${unknown}`);
   // HTML の冒頭だけでは、作った人が読まずに渡すことがあるので、端末にも出す
   console.log(
     `タイムゾーン: ${out.timeZone}（設定（.local.jsonc か人ごとの設定）の値か、無ければマシンの値。collect が記録済みの行は、記録したときのタイムゾーンで日付と時刻を切る）`,

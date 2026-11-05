@@ -87,6 +87,12 @@ Codex のログはセッションの開始時のブランチ（`session_meta`）
 | `coverage` | GitHub の情報を取得した期間と、その成否（`ok` か `failed:<段>`） |
 | `pr` | PR 1 件。`start` は作った時刻、`end` は merge した時刻（merge せずに閉じたら閉じた時刻、open なら作った時刻）。`detail` は `pr=<番号>;author=<login>;state=<merged・closed・open>` |
 
+上の表に無い `kind` の行は、新しいバージョンの agent-usage が記録した行として扱う。
+collect と report はその行を読み飛ばし、種類ごとの件数を警告に出す。`kind`・`key`・`observed_at` が空か不正な行は、種類に関わらずエラーにする。
+この読み飛ばしを持たないバージョンは、`pr` の行を読むとエラーで止まる。
+スキルをリポジトリに commit せずに人ごとに入れている（`gh skill install --scope user` など）と、記録を共有する人の間でバージョンがそろわない。
+この場合は、`pr` の行を書くバージョンへ全員が上げてから collect する。
+
 ### 重複の扱い
 
 `key` が行の同一性である。同じ `key` の行が複数あれば、report は `observed_at` の最も新しい行を使う。
