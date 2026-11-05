@@ -34,3 +34,6 @@ Write は「読んだ後に変更された」として失敗し、スクリプ�
 2026-11-05、issue-batch の run の #901 で、eval の fixture を作る Bash の呼び出しと、その fixture を使う eval の起動を、同じまとまりで出した。
 fixture を作る呼び出しは worktree の確認に拒否されたが、eval はバックグラウンドで起動し、fixture の無いディレクトリを渡されて失敗した。
 失敗を確かめてから、fixture をファイル編集ツールで作り、eval を起動し直した。
+
+同じ #901 で、PR の本文を直す編集と lint、push、`gh pr create` を同じまとまりで出した。lint は文の長さの指摘を 1 件残していたが、`gh pr create` は直す前の本文で PR を作った。
+本文を直して `gh pr edit --body-file` で書き直した。外向きの操作の前提にする lint は、結果を確かめてから次の呼び出しを出す。
