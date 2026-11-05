@@ -68,7 +68,7 @@ export const STRENGTHS = ["measured", "read"];
 
 /**
  * 根拠の役割。implementation は条件を満たす実装、test はその振る舞いを確かめるテストを指す。
- * 役割を書いた met の行は、両方の根拠か、テストを書けない理由（test_exempt）を要る。
+ * 役割を書いた met の行は、両方の根拠か、テストを書けない理由（test_exempt）が要る。
  */
 export const ROLES = ["implementation", "test"];
 
@@ -561,7 +561,9 @@ function checkMet(raw, row, ctx) {
       if (kind === "command") hasCommand = true;
     }
   }
-  if (valid.length > 0) checkRoles({ raw, evidence: valid, row }, ctx);
+  // 役割を書いたかは、形の誤った根拠も含めて判定する（誤った根拠だけが役割を持つ行を、役割の無い行と取り違えない）。
+  const roleWritten = evidence.some((e) => isObject(e) && e.role !== undefined);
+  if (evidence.length > 0) checkRoles({ raw, evidence: valid, roleWritten, row }, ctx);
   if (typeof raw.strength !== "string" || !STRENGTHS.includes(raw.strength)) {
     ctx.add("strength-invalid", row, `strength が語彙外: ${String(raw.strength)}`);
   } else if (raw.strength === "measured" && !hasCommand) {
@@ -573,12 +575,13 @@ function checkMet(raw, row, ctx) {
 /**
  * met の行の根拠の役割を確かめる。実装の根拠と、テストの根拠かテストを書けない理由（test_exempt）を求める。
  * 役割を 1 件も書いていない行は、役割を足す前の表も読めるよう、警告にとどめる。
- * @param {{ raw: Record<string, unknown>, evidence: Record<string, unknown>[], row: number }} input evidence は形を確かめた後の根拠
+ * @param {{ raw: Record<string, unknown>, evidence: Record<string, unknown>[], roleWritten: boolean, row: number }} input
+ *   evidence は形を確かめた後の根拠、roleWritten は形の誤った根拠も含めて役割を書いたか
  * @param {RowContext} ctx
  */
-function checkRoles({ raw, evidence, row }, ctx) {
+function checkRoles({ raw, evidence, roleWritten, row }, ctx) {
   const withRole = evidence.filter((e) => e.role !== undefined);
-  if (withRole.length === 0) {
+  if (!roleWritten) {
     ctx.warn(
       "role-missing",
       row,
@@ -590,8 +593,9 @@ function checkRoles({ raw, evidence, row }, ctx) {
     ctx.add("implementation-missing", row, "実装の根拠（role: implementation）が無い");
   }
   const tests = withRole.filter((e) => e.role === "test");
-  if (tests.length > 0) checkTestFiles(tests, row, ctx);
-  else if (!nonEmptyString(raw.test_exempt)) {
+  const exempt = nonEmptyString(raw.test_exempt);
+  if (tests.length > 0) checkTestFiles({ tests, exempt, row }, ctx);
+  else if (!exempt) {
     // 文書の追加や設定の変更のようにテストを書けない条件は、理由を書かせて区別する。
     ctx.add(
       "test-missing",
@@ -603,16 +607,18 @@ function checkRoles({ raw, evidence, row }, ctx) {
 
 /**
  * テストの根拠のファイルが、ブランチの差分に含まれるかを確かめる。既にあるテストを挙げるだけでは通さない。
- * @param {Record<string, unknown>[]} tests role: test の根拠
- * @param {number} row
+ * @param {{ tests: Record<string, unknown>[], exempt: boolean, row: number }} input
+ *   tests は role: test の根拠、exempt はテストを書けない理由（test_exempt）があるか
  * @param {RowContext} ctx
  */
-function checkTestFiles(tests, row, ctx) {
+function checkTestFiles({ tests, exempt, row }, ctx) {
   const paths = tests
     .filter((e) => e.kind === "file")
     .map((e) => refPathOf(e.ref))
     .filter((path) => path !== null);
   if (paths.length === 0) {
+    // test_exempt の行は、テストのファイルを要らない（文書の lint の結果を test の根拠に添えることがある）。
+    if (exempt) return;
     // コマンドの結果だけでは、どのテストが条件を確かめたかを読めない。
     ctx.add("test-file-missing", row, "テストの根拠に、テストのファイル（kind: file）が無い");
     return;

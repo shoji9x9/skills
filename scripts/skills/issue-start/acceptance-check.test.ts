@@ -677,11 +677,27 @@ test("テストの根拠がコマンドだけなら、どのテストかを読�
 test("語彙外の役割は根拠の誤りにする", () => {
   const r = run({ tableData: tableWithRow([{ ...IMPL, role: "doc" }]) });
   expect(r.code).toBe(1);
-  expect(r.codes).toEqual(["evidence-invalid"]);
+  expect(r.codes).toEqual(["evidence-invalid", "implementation-missing", "test-missing"]);
 });
 
 test("--changed のファイルを読めなければ exit 2", () => {
   const r = run({ extra: ["--changed", "missing.txt"] });
   expect(r.code).toBe(2);
   expect(r.stderr).toContain("missing.txt を読めない");
+});
+
+test("test_exempt の行は、テストの根拠がコマンドだけでも通す", () => {
+  const lint = { kind: "command", command: "markdownlint x.md", result: "exit 0", role: "test" };
+  const r = run({
+    tableData: tableWithRow([IMPL, lint], { test_exempt: "文書の追加だけでテストを書けない" }),
+  });
+  expect(r.code).toBe(0);
+});
+
+test("役割を書いた根拠が形の誤りだけでも、役割の無い行として警告に回さない", () => {
+  const broken = { ...TEST, ref: "test/app.test.js:9" };
+  const r = run({ tableData: tableWithRow([{ kind: "file", ref: "src/app.js:1" }, broken]) });
+  expect(r.code).toBe(1);
+  expect(r.codes).toEqual(["evidence-invalid", "implementation-missing", "test-missing"]);
+  expect(r.json?.warnings?.map((w) => w.row)).toEqual([1]);
 });

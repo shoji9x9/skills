@@ -74,13 +74,17 @@ Issue にだけ書かれた条件（「状態を URL で持つ」「失敗した
    ```bash
    node <issue-start>/scripts/acceptance-check.mjs --issue <issue.json> --issue-html <issue-html.json> --table <acceptance.json> \
      --head "$(git rev-parse HEAD)" [--root <ファイル:行 の起点>] [--decisions <pending_decisions を持つ JSON>] \
-     [--allow-later <後工程名,...>] [--changed <差分のファイルの一覧>]
+     [--allow-later <後工程名,...>] --changed <差分のファイルの一覧>
    ```
 
-   - `--changed` には、`git diff --name-only <base>...HEAD` の出力を書いたファイルを渡す（`<base>` は PR の取り込み先のブランチ。PR が無ければリポジトリのデフォルトブランチ）。
-     一覧のパスは `--root` を起点に解決するので、`--root` はリポジトリのルートにする。
+   - `--changed` には、`git -c core.quotepath=off diff --name-only <base>...HEAD` の出力を書いたファイルを渡す（`<base>` は PR の取り込み先のブランチ。PR が無ければリポジトリのデフォルトブランチ）。
+     `core.quotepath=off` が無いと、git は日本語などを含むパスを引用符と 8 進数で書き、一覧のパスと根拠のパスが一致しない。
+     一覧のパスは `--root` を起点に解決するので、`--root` にはリポジトリのルートを渡す（`--root "$(git rev-parse --show-toplevel)"`）。
+     `test` の根拠のファイルは、シンボリックリンクを通さず、実体のパスで書く。
      `test` の根拠のファイルが一覧に無ければ、`test-not-in-diff` で失敗する。既にあるテストを挙げるだけでは通らない。
      `--changed` を渡さなければ差分は確かめず、`warnings` に `test-diff-unchecked` を出す
+   - 出力の `warnings`（`role-missing`・`test-diff-unchecked`）は、終了コードが 0 でも結果の報告に載せる。
+     実装とテストがそろっているかや、テストが差分にあるかを確かめていないことを、読み手が知るためである
 
    - `source_fingerprint` は手で書かず、最初の出力の `expected_fingerprint` を転記する。
      **表を書いた後に Issue の本文かコメントが変わると、`stale-issue` で失敗する。** 条件を読み直して、表を直す。

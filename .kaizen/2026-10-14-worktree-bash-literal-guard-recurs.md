@@ -401,3 +401,5 @@ Write ツールでスクリプトにして絶対パスで実行し、整形と�
 同じ run の preflight と prepare の間に、この学びはセッション開始時の注入で文脈にあった。それでも、worktree に入った最初の準備の処理で同じ形を書いた。
 同じ run の #888 でも、本文に `git status` の語を含む置換を python の quoted heredoc で渡した呼び出しが `feeds python text naming git in a plain command` で拒否された。Write ツールでスクリプトにして通した。
 同じ run の #889 でも、`for` ループで `reinstall-skill.sh` を 2 回呼ぶ呼び出しが `runs bash inside a construct too complex to verify` で拒否された。単独の呼び出しに分けて通した。
+同じ run の #886 でも 4 回拒否された。`cd` と `git add`・`git status` を `&&` でつないだもの、`git commit` の出力を `>` と `; echo rc=$?` で受けたもの、`bash <script>` を `&&` の後に置いたもの、`cat >> <file> <<'EOF'` と検証を同じ呼び出しに入れたものである。
+新しい形は無く、単独の呼び出しか Write ツールのスクリプトに分けて通した。

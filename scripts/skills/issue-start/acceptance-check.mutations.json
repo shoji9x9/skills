@@ -104,18 +104,24 @@
       "find": "  if (!withRole.some((e) => e.role === \"implementation\")) {",
       "replace": "  if (false) {",
       "occurrences": 1,
-      "expect_failing": ["役割を書いた行に、実装の根拠が無ければ落とす"]
+      "expect_failing": [
+        "役割を書いた行に、実装の根拠が無ければ落とす",
+        "役割を書いた根拠が形の誤りだけでも、役割の無い行として警告に回さない",
+        "語彙外の役割は根拠の誤りにする"
+      ]
     },
     {
       "id": "test-role-not-required",
       "why": "役割を書いた行に、テストの根拠もテストを書けない理由も無くても通す",
       "file": "skills/issue-start/scripts/acceptance-check.mjs",
-      "find": "  else if (!nonEmptyString(raw.test_exempt)) {",
+      "find": "  else if (!exempt) {",
       "replace": "  else if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "役割を書いた行に、テストの根拠もテストを書けない理由も無ければ落とす",
-        "テストを書けない理由（test_exempt）があれば、テストの根拠が無くても通す"
+        "テストを書けない理由（test_exempt）があれば、テストの根拠が無くても通す",
+        "役割を書いた根拠が形の誤りだけでも、役割の無い行として警告に回さない",
+        "語彙外の役割は根拠の誤りにする"
       ]
     },
     {
@@ -144,6 +150,15 @@
       "replace": "    false",
       "occurrences": 1,
       "expect_failing": ["語彙外の役割は根拠の誤りにする"]
+    },
+    {
+      "id": "exempt-row-requires-test-file",
+      "why": "test_exempt の行にも、テストのファイルの根拠を求める",
+      "file": "skills/issue-start/scripts/acceptance-check.mjs",
+      "find": "    if (exempt) return;",
+      "replace": "    if (false) return;",
+      "occurrences": 1,
+      "expect_failing": ["test_exempt の行は、テストの根拠がコマンドだけでも通す"]
     }
   ]
 }
