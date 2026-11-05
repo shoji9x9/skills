@@ -574,6 +574,58 @@ function reviewSection(d) {
 }
 
 /**
+ * 数の中央値。空なら null。
+ * @param {readonly number[]} xs
+ * @returns {number | null}
+ */
+export function median(xs) {
+  if (xs.length === 0) return null;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 === 1 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+/**
+ * PR の表。merge した PR の中央値（リードタイム・CI の失敗・レビューの数）と、状態ごとの件数を出す。
+ * merge せずに閉じた PR と open な PR は、中央値に入れない。
+ * @param {ReportData} d
+ * @returns {string}
+ */
+function prSection(d) {
+  const merged = d.prs.filter((p) => p.state === "merged");
+  /** @param {string} s */
+  const count = (s) => d.prs.filter((p) => p.state === s).length;
+  /**
+   * @param {string} key
+   * @param {number} digits
+   */
+  const med = (key, digits) => {
+    const v = median(merged.map((p) => Number(p[key])).filter((x) => Number.isFinite(x)));
+    return v === null ? "-" : num(v, digits);
+  };
+  return `<section><h2>PR</h2>${table(
+    [
+      "merge した PR",
+      "merge せずに閉じた PR",
+      "open な PR",
+      "リードタイムの中央値（時間）",
+      "CI の失敗の中央値",
+      "レビューの数の中央値",
+    ],
+    [
+      [
+        num(merged.length),
+        num(count("closed")),
+        num(count("open")),
+        med("lead_time_hours", 1),
+        med("ci_failures", 1),
+        med("reviews", 1),
+      ],
+    ],
+  )}<p class="muted">中央値は merge した PR だけで数えます。リードタイムは、同じブランチの最初の作業の記録（無ければ PR を作った時刻）から merge までです。</p></section>`;
+}
+
+/**
  * 人ごとの表。
  * @param {ReportData} d
  * @returns {string}
@@ -685,8 +737,9 @@ export function renderHtml(d) {
     issueSection(d),
     modelSection(d),
     reviewSection(d),
+    prSection(d),
     peopleSection(d),
-    `<footer class="muted">費用は API の料金に換算した推定で、サブスクリプションの請求額とは一致しません。明細は同じディレクトリの usage.csv・intervals.csv・reviews.csv にあります。</footer>`,
+    `<footer class="muted">費用は API の料金に換算した推定で、サブスクリプションの請求額とは一致しません。明細は同じディレクトリの usage.csv・intervals.csv・reviews.csv・prs.csv にあります。</footer>`,
   ].join("\n");
 
   return `<!doctype html>

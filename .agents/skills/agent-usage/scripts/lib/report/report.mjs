@@ -179,7 +179,7 @@ function isDate(date) {
 
 /**
  * 期間の最初の日と最後の日。指定が無い側は、記録のうち最も古い日付・最も新しい日付（行のタイムゾーンで切る）にする。
- * GitHub を取得した期間の行（coverage）は作業の記録ではないので数えない。
+ * GitHub を取得した期間の行（coverage）と PR の行（pr）は作業の記録ではないので数えない（PR は作業より前に作られることがある）。
  * @param {readonly Row[]} rows 期間で絞った後の行
  * @param {{ since: string | null; until: string | null; tz: string }} o
  * @returns {{ from: string | null; to: string | null }}
@@ -188,7 +188,7 @@ export function periodBounds(rows, o) {
   /** @type {string[]} */
   const dates = [];
   for (const r of rows) {
-    if (r.kind === "coverage") continue;
+    if (r.kind === "coverage" || r.kind === "pr") continue;
     for (const v of [r.start, r.end]) {
       const t = parseTime(v);
       if (t !== null) dates.push(localParts(t, r.tz || o.tz).date);
@@ -255,6 +255,7 @@ export function dateRange(from, to) {
  * @property {Record<string, string>[]} usage usage.csv の行
  * @property {Record<string, string>[]} intervals intervals.csv の行
  * @property {Record<string, string>[]} reviews reviews.csv の行
+ * @property {Record<string, string>[]} prs prs.csv の行
  * @property {{ status: Status; byHour: number[] }[]} statusByHour 稼働中と停止の時間（時）を、時刻（0〜23 時）ごとに
  * @property {string[]} days 期間のすべての日付（記録の無い日を含む）。日別のチャートの横軸にする
  * @property {{ status: Status; byDay: number[] }[]} statusByDay 稼働中と停止の時間（時）を、days の日ごとに
@@ -294,6 +295,7 @@ export function buildReport(allRows, o) {
   const { usageOut, dailyCost, unknownCostBuckets } = aggregateUsage(ctx);
   const st = aggregateStatus(ctx);
   const reviews = buildReviews(rows, o);
+  const prs = buildPrs(ctx);
   const { first, last, days } = axisDays({ o, rows, dailyCost, byDate: st.byDate });
 
   return {
@@ -309,6 +311,7 @@ export function buildReport(allRows, o) {
     usage: usageOut,
     intervals: st.intervals,
     reviews,
+    prs,
     statusByHour: STATUSES.map((c) => ({ status: c, byHour: st.byHour.get(c) ?? [] })),
     days,
     statusByDay: STATUSES.map((c) => ({
@@ -954,6 +957,160 @@ function reviewCost(r, type, o) {
   return { cost, costSource };
 }
 
+/** PR のリードタイムの起点に数える、作業の記録の種類（エージェントの利用・指示・人の活動）。 */
+// usage は開始の時刻を 1 時間に丸めるので、activity は他の人の GitHub でのレビューを PR のブランチに付けるので、起点に数えない
+const WORK_KINDS = new Set(["run", "prompt", "human-wait"]);
+
+/**
+ * PR ごとの行（prs.csv）。merge か close した日が期間に入る PR と、--until までに作った open な PR を載せる。
+ * リードタイムは、同じブランチの最初の作業の記録（指示の区間・人の指示・人を待った区間）と PR を作った時刻の早い方から、merge（merge せずに閉じたら閉じた時刻）までの時間である。
+ * 起点が PR を作った時刻なら、first_source に pr と書く。
+ * CI の失敗は、同じブランチの GitHub Actions の ci の行のうち、失敗した実行の数（再実行は別の行として数える）。
+ * レビューの数は、detail の pr がその PR の番号である review の行の数（Actions の使用量の行は除く）。
+ * ブランチの名前で結び付けるので、同じ名前のブランチを別の PR で使い直すと、前の PR の作業と CI も数える。
+ * 期間で絞る前の行（ctx.latest）から数える。期間の前に始めた作業や、期間の前に届いたレビューも、その PR の値に入れる。
+ * @param {ReportContext} ctx
+ * @returns {Record<string, string>[]}
+ */
+function buildPrs(ctx) {
+  const { o, latest } = ctx;
+  const idx = prIndex(latest);
+  return latest
+    .filter((r) => r.kind === "pr" && prInPeriod(r, o))
+    .map((r) => prOut(r, idx))
+    .sort((a, b) => Number(a.pr) - Number(b.pr));
+}
+
+/**
+ * PR を prs.csv に載せるか。閉じた PR は閉じた日が期間に入るもの、open な PR は作った日が --until 以前のもの。
+ * 日付は行のタイムゾーンで切る（ほかの行と同じ）。
+ * @param {Row} r
+ * @param {BuildOptions} o
+ * @returns {boolean}
+ */
+function prInPeriod(r, o) {
+  if (detailOf(r).state !== "open") return inPeriod({ start: r.end, tz: r.tz }, o);
+  const t = parseTime(r.start);
+  return t !== null && (!o.until || localParts(t, r.tz || o.tz).date <= o.until);
+}
+
+/**
+ * PR ごとの値を数えるための索引。ブランチの最初の作業の時刻・ブランチの CI の失敗の数・PR のレビューの数。
+ * @param {readonly Row[]} latest
+ * @returns {PrIndex}
+ */
+function prIndex(latest) {
+  /** @type {PrIndex} */
+  const idx = { firstByBranch: new Map(), failuresByBranch: new Map(), reviewsByPr: new Map() };
+  for (const r of latest) {
+    if (WORK_KINDS.has(r.kind ?? "")) addFirstWork(idx.firstByBranch, r);
+    else if (r.kind === "ci" && isCiFailure(r)) increment(idx.failuresByBranch, r.branch ?? "");
+    else if (r.kind === "review" && detailOf(r).source !== "artifact")
+      increment(idx.reviewsByPr, detailOf(r).pr ?? "");
+  }
+  return idx;
+}
+
+/** @typedef {{ firstByBranch: Map<string, number>; failuresByBranch: Map<string, number>; reviewsByPr: Map<string, number> }} PrIndex */
+
+/** CI の失敗に数える Actions の conclusion。 */
+const CI_FAILURES = new Set(["failure", "timed_out", "startup_failure"]);
+
+/**
+ * GitHub Actions の ci の行（detail は `<ワークフロー名>;<イベント>;<conclusion>`）が失敗か。
+ * ワークフロー名は `;` を含みうるので、イベントと conclusion は末尾から読む。
+ * イベントが dynamic の実行（Copilot のレビューなど、GitHub が起動するもの）は CI に数えない。
+ * 外部の CI の行（`<名前>;check-run`・`<名前>;status`）は末尾が conclusion でないので、数えない。
+ * @param {Row} r
+ * @returns {boolean}
+ */
+function isCiFailure(r) {
+  const parts = (r.detail ?? "").split(";");
+  if (parts.length < 3) return false;
+  return parts[parts.length - 2] !== "dynamic" && CI_FAILURES.has(parts[parts.length - 1] ?? "");
+}
+
+/**
+ * ブランチの最初の作業の時刻を、行の開始の時刻で更新する。ブランチの無い行は数えない。
+ * @param {Map<string, number>} m
+ * @param {Row} r
+ * @returns {void}
+ */
+function addFirstWork(m, r) {
+  const t = parseTime(r.start);
+  if (!r.branch || t === null) return;
+  if (t < (m.get(r.branch) ?? Infinity)) m.set(r.branch, t);
+}
+
+/**
+ * キーの数を 1 増やす。キーが空なら数えない（ブランチや PR の番号の無い行を、空のキーにまとめない）。
+ * @param {Map<string, number>} m
+ * @param {string} key
+ * @returns {void}
+ */
+function increment(m, key) {
+  if (key === "") return;
+  m.set(key, (m.get(key) ?? 0) + 1);
+}
+
+/**
+ * @param {Row} r
+ * @returns {Record<string, string>}
+ */
+function detailOf(r) {
+  return Object.fromEntries((r.detail ?? "").split(";").map((kv) => kv.split("=")));
+}
+
+/**
+ * PR の行 1 件を prs.csv の行にする。
+ * @param {Row} r
+ * @param {PrIndex} idx
+ * @returns {Record<string, string> & { pr: string; state: string; closed_at: string }}
+ */
+function prOut(r, idx) {
+  const d = detailOf(r);
+  const branch = r.branch ?? "";
+  const state = d.state ?? "";
+  const { first, source } = leadStart(parseTime(r.start), idx.firstByBranch.get(branch));
+  return {
+    pr: d.pr ?? "",
+    state,
+    branch,
+    issue: r.issue ?? "",
+    author: d.author ?? "",
+    created_at: r.start ?? "",
+    first_record: first === null ? "" : toIso(first),
+    first_source: source,
+    closed_at: state === "open" ? "" : (r.end ?? ""),
+    lead_time_hours: state === "open" ? "" : hoursBetween(first, parseTime(r.end)),
+    ci_failures: String(idx.failuresByBranch.get(branch) ?? 0),
+    reviews: String(idx.reviewsByPr.get(d.pr ?? "") ?? 0),
+  };
+}
+
+/**
+ * リードタイムの起点。作業の記録と PR を作った時刻の早い方にする。
+ * merge の後の作業しか無いブランチで、リードタイムを負にしないためである。
+ * @param {number | null} created
+ * @param {number | undefined} work
+ * @returns {{ first: number | null; source: "record" | "pr" }}
+ */
+function leadStart(created, work) {
+  if (work !== undefined && (created === null || work < created))
+    return { first: work, source: "record" };
+  return { first: created, source: "pr" };
+}
+
+/**
+ * 2 つの時刻の間の時間（時。小数 2 桁）。どちらかが無ければ空にする。
+ * @param {number | null} from
+ * @param {number | null} to
+ * @returns {string}
+ */
+function hoursBetween(from, to) {
+  return from === null || to === null ? "" : ((to - from) / 3600000).toFixed(2);
+}
+
 /**
  * 日別のチャートの横軸と、期間の表示に使う最初の日と最後の日。
  * @param {{ o: BuildOptions; rows: readonly Row[]; dailyCost: { date: string }[]; byDate: Map<Status, Map<string, number>> }} a
@@ -1013,6 +1170,20 @@ export const INTERVAL_COLUMNS = [
   "branch",
   "issue",
 ];
+export const PR_COLUMNS = [
+  "pr",
+  "state",
+  "branch",
+  "issue",
+  "author",
+  "created_at",
+  "first_record",
+  "first_source",
+  "closed_at",
+  "lead_time_hours",
+  "ci_failures",
+  "reviews",
+];
 export const REVIEW_COLUMNS = [
   "type",
   "date",
@@ -1043,7 +1214,7 @@ export function reportMeta(d) {
 
 /**
  * @param {{ root: string; now: number; env: NodeJS.ProcessEnv; since: string | null; until: string | null; out: string | null }} o
- * @returns {{ files: string[]; rows: number; period: string; timeZone: string }}
+ * @returns {{ files: string[]; rows: number; period: string; timeZone: string; unknownKinds: Map<string, number> }}
  */
 export function runReport(o) {
   for (const [name, v] of /** @type {const} */ ([
@@ -1059,7 +1230,7 @@ export function runReport(o) {
   const config = loadRepoConfig(o.root, o.env, resolvedConfig);
   // report は人の設定を読むだけで作らない（作ると、setup を通らずに乱数の ID ができる）
   const tz = loadUserConfig(o.root, o.env, resolvedConfig)?.timeZone ?? systemTimeZone();
-  const { rows, files } = readRecords(join(dir, "records"));
+  const { rows, files, unknownKinds } = readRecords(join(dir, "records"));
   if (files === 0) throw new Error(`${join(dir, "records")} に記録が無い。先に collect を実行する`);
   const data = buildReport(rows, {
     config,
@@ -1078,9 +1249,16 @@ export function runReport(o) {
     [join(outDir, "usage.csv"), toCsv(USAGE_COLUMNS, data.usage, { formulaSafe: true })],
     [join(outDir, "intervals.csv"), toCsv(INTERVAL_COLUMNS, data.intervals, { formulaSafe: true })],
     [join(outDir, "reviews.csv"), toCsv(REVIEW_COLUMNS, data.reviews, { formulaSafe: true })],
+    [join(outDir, "prs.csv"), toCsv(PR_COLUMNS, data.prs, { formulaSafe: true })],
     [join(outDir, "index.html"), renderHtml(data)],
     [join(outDir, "meta.json"), `${JSON.stringify(reportMeta(data), null, 2)}\n`],
   ];
   for (const [p, text] of written) writeFileSync(p, text);
-  return { files: written.map(([p]) => p), rows: data.rows, period: data.period, timeZone: tz };
+  return {
+    files: written.map(([p]) => p),
+    rows: data.rows,
+    period: data.period,
+    timeZone: tz,
+    unknownKinds,
+  };
 }

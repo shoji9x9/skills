@@ -32,6 +32,7 @@ import {
 } from "../../../skills/agent-usage/scripts/lib/run-collect.mjs";
 import { branchLabel } from "../../../skills/agent-usage/scripts/lib/records.mjs";
 import { localHourStart } from "../../../skills/agent-usage/scripts/lib/time.mjs";
+import { PR_COLUMNS } from "../../../skills/agent-usage/scripts/lib/report/report.mjs";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { spawnAsync } from "../../lib/spawn-async.ts";
 import { makeTempDirFactory } from "../../lib/testing/test-tmpdir.ts";
@@ -591,15 +592,24 @@ describe.concurrent("agent-usage のコマンドと Hook", () => {
     );
   });
 
-  test("report は report/<日付>/ に HTML と 3 つの CSV と meta.json を書き、費用と稼働を集計する", async () => {
+  test("report は report/<日付>/ に HTML と 4 つの CSV と meta.json を書き、費用と稼働を集計する", async () => {
     const { repo, cli } = await collectedOnBranch();
     const r = await cli("report");
     expect(r.status).toBe(0);
     // 集計に使ったタイムゾーンは、HTML の冒頭だけでなく端末にも出す（Issue #890）
     expect(r.stdout).toMatch(/^タイムゾーン: UTC（/m);
     const out = join(repo, ".agent-usage", "report", "20261001");
-    for (const f of ["index.html", "usage.csv", "intervals.csv", "reviews.csv", "meta.json"])
+    for (const f of [
+      "index.html",
+      "usage.csv",
+      "intervals.csv",
+      "reviews.csv",
+      "prs.csv",
+      "meta.json",
+    ])
       expect(existsSync(join(out, f))).toBe(true);
+    // PR の行が無い記録でも、prs.csv は見出しの行を持つ
+    expect(readFileSync(join(out, "prs.csv"), "utf8").split("\n")[0]).toBe(PR_COLUMNS.join(","));
     const usage = readFileSync(join(out, "usage.csv"), "utf8");
     expect(usage).toMatch(/2026-10-01,p-[0-9a-f]{8},p-[0-9a-f]{8},claude-code,claude-opus-5-5/);
     const intervals = readFileSync(join(out, "intervals.csv"), "utf8").trim().split("\n");
@@ -1956,6 +1966,69 @@ describe.concurrent("読む範囲の判定で、最後の行を判定できな�
       expect(r.stderr).toMatch(/EACCES/);
     },
   );
+});
+
+describe.concurrent("このバージョンが知らない kind の記録の行", () => {
+  const AT = "2026-10-01T12:00:00.000Z";
+  const WARN = "このバージョンが知らない種類の行を読み飛ばした（future 2 件・later 1 件）";
+  /** COLUMNS の順の 1 行（見出しを除き、改行で終える）。 */
+  const line = (row: Record<string, string>) =>
+    toCsv([...COLUMNS], [row]).slice(COLUMNS.join(",").length + 1);
+  /** 1 回 collect した後、今のブランチのファイルの末尾に tail を足す。今のブランチのファイルは、読む範囲に関わらず collect が読む。 */
+  async function prepare(tail: string) {
+    const s = await collectedOnBranch();
+    const [name] = readdirSync(s.branches);
+    const file = join(s.branches, name ?? "");
+    writeFileSync(file, `${readFileSync(file, "utf8")}${tail}`);
+    return s;
+  }
+  const unknownRows = () =>
+    line({ key: "x:future-1", kind: "future", observed_at: AT }) +
+    line({ key: "x:future-2", kind: "future", observed_at: AT }) +
+    line({ key: "x:later", kind: "later", observed_at: AT });
+
+  test("collect と report は読み飛ばし、種類ごとの件数を警告に出す", async () => {
+    const { cli } = await prepare(unknownRows());
+    for (const cmd of ["collect", "report"]) {
+      const r = await cli(cmd);
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.stdout).toContain(WARN);
+    }
+  });
+
+  test("コミットの前の Hook の記録も読み飛ばし、警告をメッセージに出す", async () => {
+    const { gate, tmp } = await prepare(unknownRows());
+    const userConfig = userConfigOf(tmp);
+    const user = parseJsonAs<Record<string, unknown>>(readFileSync(userConfig, "utf8"));
+    writeFileSync(userConfig, JSON.stringify({ ...user, defaultDecision: "record" }));
+    const r = await gate("git commit -m x");
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stderr + r.stdout).toContain("利用実績を記録した");
+    expect(r.stderr + r.stdout).toContain(WARN);
+  });
+
+  test("知らない kind の行が無ければ、警告を出さない", async () => {
+    const { cli } = await prepare("");
+    for (const cmd of ["collect", "report"]) {
+      const r = await cli(cmd);
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.stdout).not.toContain("知らない種類");
+    }
+  });
+
+  test("kind が空の行は、知らない種類として読み飛ばさずにエラーにする", async () => {
+    const { cli } = await prepare(line({ key: "x:empty", kind: "", observed_at: AT }));
+    const r = await cli("collect");
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/feature-5-x\.csv:\d+: kind が空/);
+  });
+
+  test("知らない kind の行も、形が不正ならエラーにする", async () => {
+    const { cli } = await prepare(line({ key: "", kind: "future", observed_at: AT }));
+    const r = await cli("collect");
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/feature-5-x\.csv:\d+: key が空/);
+  });
 });
 
 // retractableRows の rows は、collect が記録のファイルに書く打ち消しの行になる（withheld は書かない行の key）。

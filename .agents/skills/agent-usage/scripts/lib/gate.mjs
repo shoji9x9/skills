@@ -16,7 +16,7 @@ import { decisionFor } from "./decisions.mjs";
 import { branchesRecordedElsewhere, branchMerged } from "./merged.mjs";
 import { recordDecision } from "./record-decision.mjs";
 import { git, isDecisionBranch, repoInfo } from "./repo.mjs";
-import { usageDir } from "./records.mjs";
+import { unknownKindsNote, usageDir } from "./records.mjs";
 import { otherWorktreeRowsNote, runCollect } from "./run-collect.mjs";
 import { rememberWorktrees } from "./sources/worktrees.mjs";
 
@@ -826,7 +826,12 @@ function recordCommit(repo, context, note) {
           ? `（GitHub は取得していない: ${r.githubSkipReason}）`
           : "";
     const elsewhere = otherWorktreeRowsNote(r.otherWorktreeRows);
-    const notes = elsewhere === "" ? github : `${github}（${elsewhere}）`;
+    const unknown = unknownKindsNote(r.unknownKinds);
+    const extra = [elsewhere, unknown]
+      .filter((s) => s !== "")
+      .map((s) => `（${s}）`)
+      .join("");
+    const notes = `${github}${extra}`;
     return {
       exit: 0,
       message: `agent-usage: 利用実績を記録した（新しい行 ${r.newRows}、stage したファイル ${r.written.length}）${notes}${note}`,

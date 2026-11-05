@@ -916,6 +916,41 @@
         "isGitCommit 入れ子の省略形と -S: env --de x env -S 'sudo --ch /tmp git commit' → true",
         "isGitCommit 入れ子の省略形と -S: sudo --ch /tmp env -S 'env --de x git commit' → true"
       ]
+    },
+    {
+      "id": "unknown-kind-not-skipped",
+      "why": "知らない kind の行を読み飛ばさず、集計に入れる",
+      "file": "skills/agent-usage/scripts/lib/records.mjs",
+      "find": "  if (!isKind(r.kind)) return null;",
+      "replace": "  if (false) return null;",
+      "occurrences": 1,
+      "expect_failing": [
+        "このバージョンが知らない kind の記録の行 collect と report は読み飛ばし、種類ごとの件数を警告に出す",
+        "このバージョンが知らない kind の記録の行 コミットの前の Hook の記録も読み飛ばし、警告をメッセージに出す"
+      ]
+    },
+    {
+      "id": "empty-kind-skipped",
+      "why": "kind が空の行を、エラーにせず知らない種類として読み飛ばす",
+      "file": "skills/agent-usage/scripts/lib/records.mjs",
+      "find": "  if (!r.kind) throw new Error(`${at}: kind が空`);",
+      "replace": "  if (false) throw new Error(`${at}: kind が空`);",
+      "occurrences": 1,
+      "expect_failing": [
+        "このバージョンが知らない kind の記録の行 kind が空の行は、知らない種類として読み飛ばさずにエラーにする"
+      ]
+    },
+    {
+      "id": "unknown-kind-note-silent",
+      "why": "知らない kind の行を読み飛ばしても、警告を出さない",
+      "file": "skills/agent-usage/scripts/lib/records.mjs",
+      "find": "  if (unknownKinds.size === 0) return \"\";",
+      "replace": "  if (true) return \"\";",
+      "occurrences": 1,
+      "expect_failing": [
+        "このバージョンが知らない kind の記録の行 collect と report は読み飛ばし、種類ごとの件数を警告に出す",
+        "このバージョンが知らない kind の記録の行 コミットの前の Hook の記録も読み飛ばし、警告をメッセージに出す"
+      ]
     }
   ]
 }

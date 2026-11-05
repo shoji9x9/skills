@@ -33,7 +33,7 @@ export const GITHUB_DIR = "_github";
 export const BRANCH_DIR = "branches";
 
 /** GitHub から取る行の種類。人別のファイルではなく _github/ に書く。 */
-export const GITHUB_KINDS = ["ci", "review-wait", "review", "coverage"];
+export const GITHUB_KINDS = ["ci", "review-wait", "review", "coverage", "pr"];
 
 /**
  * @param {string} root
@@ -121,17 +121,20 @@ function readsSince(o) {
 
 /**
  * CSV から読んだ 1 行を確かめ、COLUMNS の列だけを持つ行にする。不正ならエラーにする。at はエラーに添える位置（ファイル:行）。
+ * このバージョンが知らない kind の行は null を返す（新しいバージョンが足した種類。呼び出し元が読み飛ばして数える）。
  * @param {Record<string, string>} r
  * @param {string} at
- * @returns {Row}
+ * @returns {Row | null}
  */
 function recordRow(r, at) {
   if (!r.key) throw new Error(`${at}: key が空`);
-  if (!r.kind || !isKind(r.kind)) throw new Error(`${at}: 知らない kind ${JSON.stringify(r.kind)}`);
+  if (!r.kind) throw new Error(`${at}: kind が空`);
   // 打ち消しの列は、空（前のバージョンの記録を含む）か 1 だけ。ほかの値を警告なしに通常の行として数えない
   if (r.retracted !== undefined && r.retracted !== "" && r.retracted !== "1")
     throw new Error(`${at}: retracted が空でも 1 でもない ${JSON.stringify(r.retracted)}`);
   if (parseTime(r.observed_at) === null) throw new Error(`${at}: observed_at が時刻でない`);
+  // 知らない kind は、行の形を確かめた後で読み飛ばす。形の不正（手で直して不正になった行）は、種類に関わらずエラーにする
+  if (!isKind(r.kind)) return null;
   /** @type {Row} */
   const row = {};
   for (const c of COLUMNS) if (r[c] !== undefined) row[c] = r[c];
@@ -140,9 +143,11 @@ function recordRow(r, at) {
 
 /**
  * records/ の行を読む。種類・key・observed_at の無い行はエラーにする（手で直して不正になった行を、警告なしに捨てない）。
+ * このバージョンが知らない種類の行は読まずに、種類ごとの件数を unknownKinds に返す。
+ * 新しいバージョンで collect した記録を、古いバージョンの report と collect が読めるようにするためである。
  * @param {string} recordsDir
  * @param {ReadOptions} [opts]
- * @returns {{ rows: Row[]; files: number; skipped: number }}
+ * @returns {{ rows: Row[]; files: number; skipped: number; unknownKinds: Map<string, number> }}
  */
 export function readRecords(recordsDir, opts = {}) {
   /** @type {Row[]} */
@@ -153,15 +158,38 @@ export function readRecords(recordsDir, opts = {}) {
     since === undefined
       ? all
       : all.filter((f) => readsSince({ f, recordsDir, since, keep: opts.keep }));
+  /** @type {Map<string, number>} */
+  const unknownKinds = new Map();
   for (const f of files) {
     const where = relative(recordsDir, f);
     let n = 1;
     for (const r of parseCsv(readFileSync(f, "utf8"))) {
       n += 1;
-      rows.push(recordRow(r, `${where}:${n}`));
+      const row = recordRow(r, `${where}:${n}`);
+      if (row) {
+        rows.push(row);
+        continue;
+      }
+      const kind = r.kind ?? "";
+      unknownKinds.set(kind, (unknownKinds.get(kind) ?? 0) + 1);
     }
   }
-  return { rows, files: files.length, skipped: all.length - files.length };
+  return { rows, files: files.length, skipped: all.length - files.length, unknownKinds };
+}
+
+/**
+ * 読み飛ばした知らない種類の行を、利用者に示す 1 行にする。無ければ空文字列。
+ * 新しいバージョンが足した種類と、手で直して打ち間違えた種類は、このバージョンからは見分けられないので、両方の対処を書く。
+ * @param {ReadonlyMap<string, number>} unknownKinds
+ * @returns {string}
+ */
+export function unknownKindsNote(unknownKinds) {
+  if (unknownKinds.size === 0) return "";
+  const list = [...unknownKinds]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([k, n]) => `${k} ${n} 件`)
+    .join("・");
+  return `読んだ記録のうち、このバージョンが知らない種類の行を読み飛ばした（${list}）。新しいバージョンの agent-usage が記録した行なら、agent-usage を上げると集計に入る。手で直して種類を打ち間違えた行なら、その行を直す`;
 }
 
 /**

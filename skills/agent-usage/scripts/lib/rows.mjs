@@ -11,6 +11,7 @@
 //   review       PR のレビュー 1 件（ツール・推定または実測の費用）。
 //   billing      課金 API から取った日別の実額。
 //   coverage     GitHub の情報を取得した期間と、その成否（取得していない期間の停止を「判定不能」にするため）。
+//   pr           PR 1 件（作った時刻から merge か close の時刻まで。open なら作った時刻で終える）。
 //
 // retracted が 1 の行は打ち消しの行で、同じ key の前の行を打ち消す（report は observed_at の最も新しい行が打ち消しなら、その key を数えない）。
 // key は行の同一性。並行するブランチや繰り返しの collect で同じ key の行が複数あれば、
@@ -58,6 +59,7 @@ export const KINDS = /** @type {const} */ ([
   "review",
   "billing",
   "coverage",
+  "pr",
 ]);
 
 /** @typedef {(typeof KINDS)[number]} Kind */
@@ -73,7 +75,7 @@ export function isKind(value) {
 }
 
 /** 誰が取得しても内容が同じ、リポジトリ全体の行の種類（person と tz は取得した人の値が入るだけ）。 */
-export const REPO_SCOPE_KINDS = ["ci", "review-wait", "review"];
+export const REPO_SCOPE_KINDS = ["ci", "review-wait", "review", "pr"];
 
 /**
  * 書き直すかを決めるための内容の署名。リポジトリ全体の行では、person と tz の違いを無視する

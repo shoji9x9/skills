@@ -183,7 +183,7 @@ export const PR_QUERY = `query($q: String!, $endCursor: String) {
     pageInfo { hasNextPage endCursor }
     nodes {
       ... on PullRequest {
-        number headRefName headRefOid closedAt author { login }
+        number headRefName headRefOid createdAt closedAt merged mergedAt author { login }
         timelineItems(first: 100, itemTypes: [PULL_REQUEST_REVIEW, REVIEW_REQUESTED_EVENT, ISSUE_COMMENT]) {
           pageInfo { hasNextPage }
           nodes {
@@ -545,7 +545,7 @@ export function runRows(runs, o) {
 
 /**
  * 取得した PR。
- * @typedef {{ number: number; branch: string; author: string; sha: string; closedAt: number | null }} PullRequest
+ * @typedef {{ number: number; branch: string; author: string; sha: string; createdAt: number | null; closedAt: number | null; merged: boolean; mergedAt: number | null }} PullRequest
  */
 
 /**
@@ -608,14 +608,45 @@ function collectPulls(c) {
             branch: str(node.headRefName),
             author: loginOf(node.author),
             sha: str(node.headRefOid),
+            createdAt: parseTime(node.createdAt),
             closedAt: parseTime(node.closedAt),
+            merged: node.merged === true,
+            mergedAt: parseTime(node.mergedAt),
           };
           prs.push(pr);
+          const prRowValue = prRow(pr, o);
+          if (prRowValue) c.rows.push(prRowValue);
           c.rows.push(...timelineRows(pr, pullTimeline(o, pr, node), { ...o, me: c.me }));
         }
       }
     });
   return prs;
+}
+
+/**
+ * PR 1 件の行。作った時刻から、merge した時刻（merge せずに閉じたら閉じた時刻、open なら作った時刻）まで。
+ * PR ごとのリードタイムを report で数えるのに使う。作った時刻が無い PR は行にしない。
+ * @param {PullRequest} pr
+ * @param {GitHubOptions} o
+ * @returns {Row | null}
+ */
+export function prRow(pr, o) {
+  if (pr.createdAt === null) return null;
+  const state = pr.merged ? "merged" : pr.closedAt !== null ? "closed" : "open";
+  // open な PR は作った時刻で終える。collect のたびに end が変わると、同じ PR の行を毎回書き足すことになる
+  const end = (pr.merged ? pr.mergedAt : null) ?? pr.closedAt ?? pr.createdAt;
+  return {
+    key: `pr:${pr.number}`,
+    kind: "pr",
+    person: o.person,
+    tz: o.tz,
+    agent: "github",
+    start: toIso(pr.createdAt),
+    end: toIso(end),
+    branch: pr.branch,
+    issue: issueOf(pr.branch),
+    detail: `pr=${pr.number};author=${pr.author};state=${state}`,
+  };
 }
 
 /**
