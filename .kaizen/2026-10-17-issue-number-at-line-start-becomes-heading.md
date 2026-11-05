@@ -1,7 +1,7 @@
 ---
 date: 2026-10-17
 type: doc
-priority: high
+priority: medium
 status: pending
 applied-to: []
 session: claude-code

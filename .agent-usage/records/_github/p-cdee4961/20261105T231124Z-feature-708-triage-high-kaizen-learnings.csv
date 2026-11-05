@@ -8,3 +8,4 @@ ci:42022913765:1,ci,2026-11-05T23:11:24.151Z,p-cdee4961,github-actions,,,,2026-1
 ci:42022856446:1,ci,2026-11-05T23:11:24.151Z,p-cdee4961,github-actions,,,,2026-11-05T11:55:25.000Z,2026-11-05T11:55:26.000Z,Asia/Tokyo,feature/905-provisional-decisions-after-pr,905,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:42022856460:1,ci,2026-11-05T23:11:24.151Z,p-cdee4961,github-actions,,,,2026-11-05T11:55:25.000Z,2026-11-05T11:59:54.000Z,Asia/Tokyo,feature/905-provisional-decisions-after-pr,905,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-11-04T11:54:47.705Z:2026-11-05T23:11:24.151Z,coverage,2026-11-05T23:11:24.151Z,p-cdee4961,,,,,2026-11-04T11:54:47.705Z,2026-11-05T23:11:24.151Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-04T23:11:24.151Z:2026-11-05T23:12:18.695Z,coverage,2026-11-05T23:12:18.695Z,p-cdee4961,,,,,2026-11-04T23:11:24.151Z,2026-11-05T23:12:18.695Z,Asia/Tokyo,,,,,,,,,,,,ok,

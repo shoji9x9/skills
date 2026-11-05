@@ -94,7 +94,10 @@ Issue にだけ書かれた条件（「状態を URL で持つ」「失敗した
      - 1: 満たしていない条件や、食い違いが残る（`findings` を直す）
      - 2: 入力の誤り（別の Issue の表、短縮した SHA、JSON でない、`issue.json` と `issue-html.json` の本文が違う）
    - `checklist-item-empty` は、文言の無いチェックボックス（画像も代替のテキストも無いものなど）で、行と対応づけられない。Issue の本文に文言を足すか、利用者に確かめる
-   - 出力の `closable` が `false`（`deferred` か `later` がある）なら、PR で Issue を閉じない（`Closes #<番号>` ではなく `Refs #<番号>` と書く）
+   - 出力の `closable` が `false`（`deferred` か `later` がある）なら、PR で Issue を閉じない（`Closes #<番号>` ではなく `Refs #<番号>` と書く）。
+     ただし、`gh issue develop` で紐付けた branch の PR は、本文が `Refs` でも既定の branch に merge されると Issue を閉じる。`stateReason` は `COMPLETED` になる。
+     そのため PR の本文に、merge で Issue が閉じることを書く。開いたまま残すなら、merge の後に開き直すことも書く。
+     merge まで進める呼び出し元は、merge の後に Issue の `state` と `stateReason` を取得し直す。決めた状態と違えば、理由をコメントしてから開き直す
 6. **受け入れ条件を変えたなら、似た Issue を見直すかを利用者に確かめる**（下の「受け入れ条件を変えたとき」）。
    次のどれかに当たれば行う。
    - 表に `waived` か `deferred` の行がある

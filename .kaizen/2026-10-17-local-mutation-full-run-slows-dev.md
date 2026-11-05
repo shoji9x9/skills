@@ -2,8 +2,8 @@
 date: 2026-10-17
 type: rule
 priority: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [docs/tooling.md, .agents/rules/state-space-and-mutation-proof.md]
 session: claude-code
 ---
 

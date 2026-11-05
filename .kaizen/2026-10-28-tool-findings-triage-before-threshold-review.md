@@ -1,7 +1,7 @@
 ---
 date: 2026-10-28
 type: rule
-priority: high
+priority: medium
 confidence: high
 status: pending
 applied-to: []

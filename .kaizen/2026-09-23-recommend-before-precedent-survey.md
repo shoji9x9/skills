@@ -3,8 +3,8 @@ date: 2026-09-23
 type: doc
 priority: high
 confidence: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [AGENTS.md, docs/agent-workflow.md]
 session: claude-code
 ---
 

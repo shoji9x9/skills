@@ -1,7 +1,7 @@
 ---
 date: 2026-09-24
 type: hook
-priority: high
+priority: medium
 status: pending
 applied-to: []
 session: claude-code

@@ -1,7 +1,7 @@
 ---
 date: 2026-10-08
 type: rule
-priority: high
+priority: medium
 status: pending
 applied-to: []
 session: claude-code
