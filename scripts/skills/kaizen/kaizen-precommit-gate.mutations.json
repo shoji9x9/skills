@@ -266,6 +266,18 @@
         "Claude Code 用の登録（引数なし）を Copilot が呼んだとき COPILOT_CLI が空（Claude Code が呼んだ） なら、これまでどおり他のセッションの警告を exit 1 で出す",
         "事前の絞り込みはツールの名前と入力だけを見る コマンドに語があれば次の段に進み、commit でなければ jq を 1 回だけ起動して通す"
       ]
+    },
+    {
+      "id": "GATE-JQ-TOOLARGS-STRING-ERRORS",
+      "why": "jq の式で .toolArgs.command の ? を外す（Copilot の文字列の toolArgs で式全体がエラーになり、python3 の無い環境では commit を通す。Issue #906）",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": ".toolArgs.command? //",
+      "replace": ".toolArgs.command //",
+      "occurrences": 1,
+      "expect_failing": [
+        "jq だけがある環境でのコマンドの取り出し Copilot の形（-copilot） の git commit を止める",
+        "jq だけがある環境でのコマンドの取り出し Copilot の形（引数なし） の git commit を止める"
+      ]
     }
   ]
 }

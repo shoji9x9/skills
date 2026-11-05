@@ -160,10 +160,13 @@ has_python3=0
 command -v jq >/dev/null 2>&1 && has_jq=1
 command -v python3 >/dev/null 2>&1 && has_python3=1
 if [ "${has_jq}" -eq 1 ]; then
+	# 各項目に `?` を付ける。Copilot の `toolArgs` は JSON の文字列なので、`.toolArgs.command` は
+	# 文字列を添字で引いてエラーになる（jq 1.7 で exit 5）。`//` は左辺のエラーを捕まえないので、
+	# `?` が無いと式全体がエラーになり、`fromjson` の項目まで進まない。
 	cmd=$(printf '%s' "${input}" | jq -r '
-		.tool_input.command // .toolArgs.command //
+		.tool_input.command? // .toolArgs.command? //
 		(try (.toolArgs | fromjson | .command) catch empty) //
-		.command // .input.command // empty
+		.command? // .input.command? // empty
 	' 2>/dev/null || true)
 	[ -n "${cmd}" ] && extracted=1
 fi
