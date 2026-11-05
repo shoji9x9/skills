@@ -32,6 +32,7 @@ import {
 } from "../../../skills/agent-usage/scripts/lib/run-collect.mjs";
 import { branchLabel } from "../../../skills/agent-usage/scripts/lib/records.mjs";
 import { localHourStart } from "../../../skills/agent-usage/scripts/lib/time.mjs";
+import { PR_COLUMNS } from "../../../skills/agent-usage/scripts/lib/report/report.mjs";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { spawnAsync } from "../../lib/spawn-async.ts";
 import { makeTempDirFactory } from "../../lib/testing/test-tmpdir.ts";
@@ -591,15 +592,24 @@ describe.concurrent("agent-usage のコマンドと Hook", () => {
     );
   });
 
-  test("report は report/<日付>/ に HTML と 3 つの CSV と meta.json を書き、費用と稼働を集計する", async () => {
+  test("report は report/<日付>/ に HTML と 4 つの CSV と meta.json を書き、費用と稼働を集計する", async () => {
     const { repo, cli } = await collectedOnBranch();
     const r = await cli("report");
     expect(r.status).toBe(0);
     // 集計に使ったタイムゾーンは、HTML の冒頭だけでなく端末にも出す（Issue #890）
     expect(r.stdout).toMatch(/^タイムゾーン: UTC（/m);
     const out = join(repo, ".agent-usage", "report", "20261001");
-    for (const f of ["index.html", "usage.csv", "intervals.csv", "reviews.csv", "meta.json"])
+    for (const f of [
+      "index.html",
+      "usage.csv",
+      "intervals.csv",
+      "reviews.csv",
+      "prs.csv",
+      "meta.json",
+    ])
       expect(existsSync(join(out, f))).toBe(true);
+    // PR の行が無い記録でも、prs.csv は見出しの行を持つ
+    expect(readFileSync(join(out, "prs.csv"), "utf8").split("\n")[0]).toBe(PR_COLUMNS.join(","));
     const usage = readFileSync(join(out, "usage.csv"), "utf8");
     expect(usage).toMatch(/2026-10-01,p-[0-9a-f]{8},p-[0-9a-f]{8},claude-code,claude-opus-5-5/);
     const intervals = readFileSync(join(out, "intervals.csv"), "utf8").trim().split("\n");
