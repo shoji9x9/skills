@@ -51,6 +51,14 @@ PR の作業ツリーから読むと、PR 自身が設定や文書を書き換�
 6. `git show "refs/worktree/pr-review/base:$doc"` で本文を読む。git のオブジェクトから読むので、作業ツリーの変更とリポジトリの外のファイルは読まない。
    読み終えたら、`git update-ref -d refs/worktree/pr-review/base` で ref を消す。
 
+PR がまだ無いとき（`issue-start` が、PR を作る前の仮の決定に基準を当てるときなど）は、1 と 4 を次のように読み替える。2・3・5・6 は同じである。
+
+- 4 を先に行う。PR のベースブランチの代わりに、作業ブランチを作ったときのベースブランチを、4 と同じ方法で `refs/worktree/pr-review/base` に取得する。
+  ベースブランチを決められないときと、取得に失敗したときは止まる。
+- 1 の一覧は、作業ブランチがベースから変えたファイル（`git diff --name-only --no-renames refs/worktree/pr-review/base...HEAD`）で作る。
+  `--no-renames` を付けると、名前を変えたファイルは変える前と後の両方の名前で出る。手元で commit していない変更は、1 と同じ `git status` で足す。
+  一覧に `.config/skills/shoji9x9/common.jsonc` があれば止まるのは、PR があるときと同じである。
+
 プロジェクトが足した基準を読まずに、人に回さないと決めてしまわないため、読めないときは 1〜3 だけで進めない。設定の誤りを直すか、基準の変更を別の PR で merge すれば、次の実行で読める。
 
 ## 返信の書き方
