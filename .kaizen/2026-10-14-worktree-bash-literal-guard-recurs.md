@@ -411,3 +411,10 @@ Write ツールでスクリプトにして絶対パスで実行し、整形と�
 1 つ目は、worktree に入った直後の準備で `git rev-parse` と `cp`・`mise trust`・`pnpm install` を `;` でつないだものである。
 2 つ目は、`pnpm exec vitest` の `-t` に日本語のテスト名を渡して `;` と `grep` でつないだもの、3 つ目は `python3 - <<'PY'` と `oxfmt` を同じ呼び出しに入れたものである。
 新しい形は無く、単独の呼び出しか Write ツールのスクリプトに分けて通した。前の run の #891 で記録した準備の形を、同じセッションでもう一度書いた。
+
+### 再発の記録（#904）
+
+2026-11-05、issue-batch の run の #904 で、worktree に入った後の Bash の呼び出しが 3 回拒否された。
+1 つ目は `python3 - <<'PY'` で evals.json を書き換えて `oxfmt` と `git diff` を同じ呼び出しに入れたもの、2 つ目は `for` の中で変数のパスを `python3 -c` に渡したものである。
+3 つ目は、`git status` の出力を `grep -v` で絞るパターンに `iteration-4/eval` を書き、`eval` の語で拒否された。
+新しい形は無く、Write ツールのスクリプトと単独の呼び出しに分けて通した。
