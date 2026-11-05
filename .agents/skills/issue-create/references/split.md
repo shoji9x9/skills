@@ -58,8 +58,8 @@
   - 2 件以上・一覧の取得の失敗・打ち切りのときは、どれが作られたかを決められない。
     打ち切りとは、取得した件数が `--limit` に達し、かつ控えた番号以下の Issue が一覧に 1 件も無いことである（起票を始めた後の Issue を取りこぼしている）
     作られたものとしても作られていないものとしても扱わず、その Issue と残りの下書きを利用者に報告して止める
+- 起票を終えたら（途中で止めたときも）、報告の前に、次の「GitHub の依存関係を設定する」で、起票できた Issue の間の組を設定する
 - 作った Issue の URL と残りの下書きを報告する。やり直すときは、作られた Issue を起票し直さず、その番号を後の Issue の依存の節に入れる
-- 起票を終えたら、次の「GitHub の依存関係を設定する」を行う。途中で止めたときも、報告の前に、起票できた Issue の間の組を設定する
 - 最後に、作った Issue の URL を処理する順に並べて返す
 
 ## GitHub の依存関係を設定する
@@ -72,26 +72,39 @@
 API は REST の Issue dependencies である（<https://docs.github.com/en/rest/issues/issue-dependencies>）。
 `issue_id` には Issue の番号ではなく、Issue の `id`（整数）を渡す。
 
-1. 前提にする側の Issue に、前提にされる Issue がすでに設定されていないかを確かめる。一覧はページに分かれるので `--paginate` で全件を読む。
-   すでに含まれていれば、その組は設定済みとして 2 と 3 を飛ばす。やり直しで同じ組を 2 回設定しようとすると、API はエラーを返すからである。
+組ごとに、次の 3 つを順に行う。
 
-   ```bash
-   gh api --paginate "repos/<owner>/<repo>/issues/<前提にする番号>/dependencies/blocked_by" --jq '.[].number'
-   ```
+1. 前提にする側の Issue の blocked by の一覧を取得する。前提にされる番号がすでに含まれていれば、設定済みとしてこの組を終える。やり直しで同じ組を 2 回設定しようとすると、API はエラーを返すからである。
+2. 前提にされる Issue の `id` を取得し、空でない整数であることを確かめてから設定する。`-F` は値を整数として送る。
+3. 一覧をもう一度取得し、前提にされる番号が含まれることを確かめる。
 
-2. 前提にされる Issue の `id` を取得し、空でない整数であることを確かめてから、前提にする側の Issue に設定する。`-F` は値を整数として送る。
+一覧はページに分かれるので `--paginate` で全件を読む。
+どの呼び出しが失敗しても、その組の応答（`gh` が出す HTTP の状態と `message`）を残して次の組へ進む。1 つの組の失敗で、残りの組を止めない。
+次の関数は、組を 1 つ受け取り、失敗したら応答を標準エラーに出して 0 以外を返す。`set -e` の下でも、`if` の条件の中で呼ぶので、失敗で止まらない。
 
-   ```bash
-   blocker_id=$(gh api "repos/<owner>/<repo>/issues/<前提にされる番号>" --jq .id)
-   if [[ $blocker_id =~ ^[0-9]+$ ]]; then
-     gh api -X POST "repos/<owner>/<repo>/issues/<前提にする番号>/dependencies/blocked_by" -F "issue_id=$blocker_id"
-   else
-     echo "前提にされる Issue の id を取得できない: '$blocker_id'" >&2
-   fi
-   ```
+```bash
+set_blocked_by() {  # $1: 前提にする番号、$2: 前提にされる番号
+  local repo='<owner>/<repo>' list blocker_id resp
+  if ! list=$(gh api --paginate "repos/$repo/issues/$1/dependencies/blocked_by" --jq '.[].number' 2>&1); then
+    echo "#$1 <- #$2: 一覧を取得できない: $list" >&2; return 1
+  fi
+  if grep -qx "$2" <<<"$list"; then return 0; fi
+  if ! blocker_id=$(gh api "repos/$repo/issues/$2" --jq .id 2>&1) || ! [[ $blocker_id =~ ^[0-9]+$ ]]; then
+    echo "#$1 <- #$2: id を取得できない: $blocker_id" >&2; return 1
+  fi
+  if ! resp=$(gh api -X POST "repos/$repo/issues/$1/dependencies/blocked_by" -F "issue_id=$blocker_id" 2>&1); then
+    echo "#$1 <- #$2: 設定に失敗: $resp" >&2; return 1
+  fi
+  if ! list=$(gh api --paginate "repos/$repo/issues/$1/dependencies/blocked_by" --jq '.[].number' 2>&1) || ! grep -qx "$2" <<<"$list"; then
+    echo "#$1 <- #$2: 設定した後の一覧に無い: $list" >&2; return 1
+  fi
+}
 
-3. 設定できたかを、1 と同じコマンドで一覧を取得して確かめる。前提にされる番号が含まれていれば、設定できている。
+failed=()
+if ! set_blocked_by <前提にする番号> <前提にされる番号>; then failed+=("#<前提にする番号> <- #<前提にされる番号>"); fi
+# 組の数だけ繰り返す
+```
 
-設定できなかった組（1 の一覧を取得できない・2 が失敗した・3 で番号が見つからない）があっても、起票した Issue は消さず、本文の依存の節もそのまま残す。
-残りの組の設定は続け、最後に、設定できなかった組（前提にする番号と前提にされる番号）と、失敗したときの応答（HTTP の状態と `message`）を利用者に伝える。
+設定できなかった組（`failed` に入った組）があっても、起票した Issue は消さず、本文の依存の節もそのまま残す。
+最後に、設定できなかった組（前提にする番号と前提にされる番号）と、関数が標準エラーに出した応答を利用者に伝える。
 依存関係の機能が使えないリポジトリや、書き込みの権限が無い場合に起きる。依存は本文の節で伝わるので、起票はやり直さない。

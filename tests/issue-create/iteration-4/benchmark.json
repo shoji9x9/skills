@@ -4,8 +4,8 @@
     "skill_path": "<repo>/skills/issue-create",
     "executor_model": "opus",
     "analyzer_model": "claude-opus-5-5",
-    "timestamp": "2026-11-05T06:12:31Z",
-    "evals_run": [7, 8],
+    "timestamp": "2026-11-05T06:27:41Z",
+    "evals_run": [7, 8, 9],
     "runs_per_configuration": 1
   },
   "runs": [
@@ -18,31 +18,31 @@
         "passed": 4,
         "failed": 0,
         "total": 4,
-        "time_seconds": 89.132,
-        "tokens": 137701,
-        "tool_calls": 4,
+        "time_seconds": 141.299,
+        "tokens": 115129,
+        "tool_calls": 3,
         "errors": 0
       },
       "expectations": [
         {
           "text": "起票した後に、GitHub の Issue の依存関係（blocked by）を REST の dependencies/blocked_by の API で設定するコマンドを示し、前提にする側（下書き 2 の Issue）に前提にされる側（下書き 1 の Issue）を設定している",
           "passed": true,
-          "evidence": "起票の後に `gh api -X POST \"repos/$repo/issues/$num2/dependencies/blocked_by\"` で、下書き 2 の Issue に下書き 1 の Issue を設定する"
+          "evidence": "起票の後に、下書き 2 の Issue の dependencies/blocked_by へ下書き 1 の Issue を POST する手順を示す"
         },
         {
           "text": "依存関係の API の issue_id に、Issue の番号ではなく、前提にされる Issue の id（gh api で Issue を取得した .id）を渡している",
           "passed": true,
-          "evidence": "`blocker_id=$(gh api \"repos/$repo/issues/$num1\" --jq .id)` を取得し、`-F \"issue_id=$blocker_id\"` で渡す"
+          "evidence": "`gh api repos/.../issues/<下書き 1 の番号> --jq .id` で id を取得し、issue_id に渡す"
         },
         {
           "text": "設定した後に、blocked_by の一覧を取得して、前提にされる Issue が含まれることを確かめる手順を示している",
           "passed": true,
-          "evidence": "設定の後に `gh api --paginate .../dependencies/blocked_by --jq '.[].number' | grep -qx \"$num1\"` で確かめる"
+          "evidence": "設定の後に `gh api --paginate .../dependencies/blocked_by --jq '.[].number'` で下書き 1 の番号が含まれることを確かめる"
         },
         {
           "text": "依存関係を設定できなかったときは、起票した Issue と本文の依存の節を残したまま、設定できなかった組と失敗の内容を利用者に伝えると書いている",
           "passed": true,
-          "evidence": "「起票した 2 件の Issue は消しません。本文の依存の節も残します」「設定できなかった組…と、失敗したときの応答…を伝えます」"
+          "evidence": "設定できなかったときも起票した Issue と本文の依存の節を残し、設定できなかった組と応答を利用者に伝えるとする"
         }
       ],
       "notes": []
@@ -76,6 +76,39 @@
           "text": "渡された下書きを変えるときや、呼び出し元が見せていない重複が見つかったときは、承認を引き継がず、利用者に承認を求め直す（不在なので起票せずに止まる）と書いている",
           "passed": true,
           "evidence": "見せていない重複が見つかった場合と、下書きを直す必要が出た場合は承認を引き継がず、承認を求め直す。返事ができない実行では報告して止まる"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 37.887,
+        "tokens": 114086,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "依存の節の `#<下書き 1 の番号>` を起票した番号 #12 に置き換えたことは、承認された下書きを変えたことに数えないと判断している",
+          "passed": true,
+          "evidence": "「この置き換えだけなら下書きを変えたことにはならず、承認は引き継げます」。caller-approval.md の印の置き換えの記述を引く"
+        },
+        {
+          "text": "承認の後にラベルを enhancement から bug に変えたことは、承認された下書きと一致しないので、承認を引き継げないと判断している",
+          "passed": true,
+          "evidence": "「ラベルの変更（enhancement → bug）：承認を引き継げない」。条件 2 と 4 を満たさないとする"
+        },
+        {
+          "text": "下書き 2 は、変えた後の下書きの承認を利用者に求める必要があり、利用者が不在なので起票せずに、求めるはずだった内容を報告して止まるとしている",
+          "passed": true,
+          "evidence": "下書き 2 は起票せず、利用者に尋ねるはずだった内容（判断の材料と 3 つの選択肢）を報告して止まる"
         }
       ],
       "notes": []
@@ -150,6 +183,39 @@
         }
       ],
       "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 36.651,
+        "tokens": 76757,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "依存の節の `#<下書き 1 の番号>` を起票した番号 #12 に置き換えたことは、承認された下書きを変えたことに数えないと判断している",
+          "passed": true,
+          "evidence": "「承認の時点で予定されていた穴埋めです。意味は何も変わっていません」として、承認を引き継げるとする"
+        },
+        {
+          "text": "承認の後にラベルを enhancement から bug に変えたことは、承認された下書きと一致しないので、承認を引き継げないと判断している",
+          "passed": true,
+          "evidence": "「ラベルの変更（enhancement → bug）：承認を引き継げない」"
+        },
+        {
+          "text": "下書き 2 は、変えた後の下書きの承認を利用者に求める必要があり、利用者が不在なので起票せずに、求めるはずだった内容を報告して止まるとしている",
+          "passed": true,
+          "evidence": "下書き 2 は起票せずに保留し、利用者が戻ったら全文をもう一度見せて明示の承認を得るとする"
+        }
+      ],
+      "notes": []
     }
   ],
   "run_summary": {
@@ -161,48 +227,50 @@
         "max": 1
       },
       "time_seconds": {
-        "mean": 59.4725,
-        "stddev": 41.9449,
+        "mean": 69.6663,
+        "stddev": 62.1669,
         "min": 29.813,
-        "max": 89.132
+        "max": 141.299
       },
       "tokens": {
-        "mean": 129477,
-        "stddev": 11630.4923,
-        "min": 121253,
-        "max": 137701
+        "mean": 116822.6667,
+        "stddev": 3872.0605,
+        "min": 114086,
+        "max": 121253
       }
     },
     "without_skill": {
       "pass_rate": {
-        "mean": 0.8334,
-        "stddev": 0.2357,
+        "mean": 0.8889,
+        "stddev": 0.1924,
         "min": 0.6667,
         "max": 1
       },
       "time_seconds": {
-        "mean": 49.337,
-        "stddev": 13.5411,
-        "min": 39.762,
+        "mean": 45.1083,
+        "stddev": 12.0551,
+        "min": 36.651,
         "max": 58.912
       },
       "tokens": {
-        "mean": 130418,
-        "stddev": 48551.3658,
-        "min": 96087,
+        "mean": 112531,
+        "stddev": 46243.3981,
+        "min": 76757,
         "max": 164749
       }
     },
     "delta": {
-      "pass_rate": "+0.17",
-      "time_seconds": "+10.1",
-      "tokens": "-941"
+      "pass_rate": "+0.11",
+      "time_seconds": "+24.6",
+      "tokens": "+4292"
     }
   },
   "notes": [
     "Issue #904 で足した eval 7 と 8 の変更確認（with_skill と without_skill を 1 run ずつ）。",
     "eval 7 は without_skill も 4/4 で、Issue の依存関係の API と id の扱いは一般の知識で答えられる。後退の検出のために置く。",
     "eval 8 は without_skill が 2/3。呼び出し元の承認を引き継ぐことは一般の判断でも答えられ、差は、引き継がないときに利用者へ承認を求め直すか（without_skill は呼び出し元へ返すだけ）にだけ出た。",
-    "eval 8 の最初の run は、prompt の「現在の repo」が使い捨ての作業ディレクトリで決まらず、with_skill が止まった。prompt に `example-org/shop` を書いて実行し直した。"
+    "eval 8 の最初の run は、prompt の「現在の repo」が使い捨ての作業ディレクトリで決まらず、with_skill が止まった。prompt に `example-org/shop` を書いて実行し直した。",
+    "PR #909 のレビューで eval 9（承認の後の変更の境界）を足した。with_skill と without_skill がどちらも 3/3 で、後退の検出のために置く。",
+    "同じレビューで依存関係を設定する手順を関数にしたので、eval 7 の with_skill を実行し直した（4/4）。"
   ]
 }
