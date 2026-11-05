@@ -1018,14 +1018,16 @@ const CI_FAILURES = new Set(["failure", "timed_out", "startup_failure"]);
 
 /**
  * GitHub Actions の ci の行（detail は `<ワークフロー名>;<イベント>;<conclusion>`）が失敗か。
+ * ワークフロー名は `;` を含みうるので、イベントと conclusion は末尾から読む。
  * イベントが dynamic の実行（Copilot のレビューなど、GitHub が起動するもの）は CI に数えない。
- * 外部の CI の行は conclusion を持たないので、数えない。
+ * 外部の CI の行（`<名前>;check-run`・`<名前>;status`）は末尾が conclusion でないので、数えない。
  * @param {Row} r
  * @returns {boolean}
  */
 function isCiFailure(r) {
   const parts = (r.detail ?? "").split(";");
-  return parts.length === 3 && parts[1] !== "dynamic" && CI_FAILURES.has(parts[2]);
+  if (parts.length < 3) return false;
+  return parts[parts.length - 2] !== "dynamic" && CI_FAILURES.has(parts[parts.length - 1] ?? "");
 }
 
 /**

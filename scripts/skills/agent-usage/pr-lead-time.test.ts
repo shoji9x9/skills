@@ -175,6 +175,31 @@ describe("prs.csv と HTML の PR の表", () => {
       branch: "feature/1-a",
       detail: "CI;pull_request;timed_out",
     }),
+    // ワークフロー名に ; を含む失敗は数える。外部の CI の行と、名前に ; を含む dynamic の実行は数えない
+    row({
+      key: "c7",
+      kind: "ci",
+      start: iso(2),
+      end: iso(2),
+      branch: "feature/1-a",
+      detail: "build;linux;pull_request;failure",
+    }),
+    row({
+      key: "c8",
+      kind: "ci",
+      start: iso(2),
+      end: iso(2),
+      branch: "feature/1-a",
+      detail: "lint;failure;check-run",
+    }),
+    row({
+      key: "c9",
+      kind: "ci",
+      start: iso(2),
+      end: iso(2),
+      branch: "feature/1-a",
+      detail: "review;a;dynamic;failure",
+    }),
     // PR 2: 作業の記録が無い。別のブランチの CI の失敗と別の PR のレビューは数えない
     prRowOf({ n: 2, branch: "feature/2-b", start: iso(4), end: iso(5), state: "merged" }),
     row({
@@ -228,8 +253,8 @@ describe("prs.csv と HTML の PR の表", () => {
       first_source: "record",
       closed_at: iso(3, 1),
       lead_time_hours: "48.00",
-      // failure 2 件と timed_out 1 件。dynamic の実行の失敗は数えない
-      ci_failures: "3",
+      // failure 2 件・timed_out 1 件・名前に ; を含む failure 1 件。dynamic の実行と外部の CI の行は数えない
+      ci_failures: "4",
       reviews: "2",
     });
   });
@@ -252,7 +277,8 @@ describe("prs.csv と HTML の PR の表", () => {
     const html = renderHtml(report());
     // 1 行目は見出しの行。同じ「PR」で始まる「PR のレビュー」の節と取り違えないよう、h2 ごと指定する
     expect(sectionTableRows(html, "<h2>PR</h2>").slice(1)).toEqual([
-      ["2", "1", "1", "36.0", "1.5", "1.0"],
+      // CI の失敗の中央値は、merge した PR 1（4 件）と PR 2（0 件）から 2.0
+      ["2", "1", "1", "36.0", "2.0", "1.0"],
     ]);
   });
 
