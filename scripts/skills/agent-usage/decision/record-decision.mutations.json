@@ -1,0 +1,33 @@
+{
+  "$comment": [
+    "record-decision.test.ts のうち、ブランチを記録するかの判定（Issue #880）の検出能力を示す変異の一覧。",
+    "ほかの判定（判断の無いブランチ・人の設定が無いとき・defaultDecision を読めないとき）は、cli.mutations.json と worktree-branches.mutations.json が呼び出し側のテストで示す。",
+    "判断が無いときにコミットを止める案内（Issue #903）は、gate.mjs の stopResult を直接呼ぶテストで示す。"
+  ],
+  "test_file": "scripts/skills/agent-usage/decision/record-decision.test.ts",
+  "mutations": [
+    {
+      "id": "unreadable-person-records",
+      "why": "人の設定を読めないときに、止めずに記録すると決める",
+      "file": "skills/agent-usage/scripts/lib/record-decision.mjs",
+      "find": "    person = read.person();\n  } catch (error) {\n    return { kind: \"unreadable\", stage: \"config\", error, branch };",
+      "replace": "    person = read.person();\n  } catch (error) {\n    return { kind: \"decided\", decision: \"record\", source: null };",
+      "occurrences": 1,
+      "expect_failing": [
+        "ブランチの判断が record で人の設定を読めない",
+        "判断が無く defaultDecision はあるが、人の設定を読めない"
+      ]
+    },
+    {
+      "id": "ask-message-config-error-thrown",
+      "why": "判断が無いときの案内で人の設定を読めないと、設定のエラーとして返さずに例外のまま止まる",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "    } catch (e) {\n      return configErrorResult(e, script);\n    }\n",
+      "replace": "    } catch (e) {\n      throw e;\n    }\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "判断が無いときにコミットを止める案内（gate.mjs の stopResult） 人の設定を読めなければ、例外で止まらずに設定のエラーとして返す"
+      ]
+    }
+  ]
+}

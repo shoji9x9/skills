@@ -9,8 +9,8 @@
       "id": "undecided-branch-passes",
       "why": "判断の無いブランチのコミットを止めない",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "  if (r.kind === \"undecided\") return { exit: 2, message: askMessage(agent, script) };",
-      "replace": "  if (r.kind === \"undecided\") return { exit: 0, message: \"\" };",
+      "find": "      return { exit: 2, message: askMessage(agent, script) };",
+      "replace": "      return { exit: 0, message: \"\" };",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook 判断の無い feature ブランチのコミットを止め、記録しないと決めたら通す。デフォルトブランチでは止めない",

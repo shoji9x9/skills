@@ -12,6 +12,7 @@ import {
   claudeAssistant,
   claudeEdit,
   claudeUser,
+  fingerprintOf,
   fixturesDir,
   pathWith,
   realCommand,
@@ -255,6 +256,72 @@ describe("処理位置の transcript の照合", () => {
     ],
   ])("%s なら exit %i", (_name, expected, opts) => {
     const res = scanMoved(opts);
+    expect(res.status, res.stderr + res.stdout).toBe(expected);
+    if (expected === 1) expect(res.stderr).toContain("no new records since checkpoint");
+    else expect(res.stdout).toMatch(/^user correction: transcript line 1$/m);
+  });
+});
+
+// 処理位置の 5 行目は、記録したときの transcript の先頭の指紋（`<バイト数>:<cksum の CRC>`）である（Issue #902）。
+// 入力の軸:
+//   5 行目     無い（古い処理位置）／一致する／内容が違う／記録したバイト数より短いファイル／形の誤り。
+//   ファイル   移った先（パスが違い、ファイル名が同じ）／同じパス（同じファイルなので指紋は比べない）。
+
+describe("処理位置の transcript の指紋の照合", () => {
+  const processed = [
+    claudeUser("違う、やり直してください"),
+    claudeAssistant([{ type: "text", text: "やり直しました" }]),
+  ];
+
+  /** 移った先の transcript と、移る前のパスを書いた処理位置を作って走査する。 */
+  function scanWith(fifth: (current: string, bytes: number) => string | null, samePath = false) {
+    const dir = workdir();
+    const before = join(dir, "a");
+    const after = join(dir, "b");
+    mkdirSync(before);
+    mkdirSync(after);
+    const name = "0123abcd-session.jsonl";
+    const moved = transcript(after, processed);
+    const current = join(after, name);
+    renameSync(moved, current);
+    const bytes = readFileSync(current).length;
+    const recorded = samePath ? current : join(before, name);
+    const line5 = fifth(current, bytes);
+    const checkpoint = join(dir, ".extract-checkpoint.k1");
+    writeFileSync(
+      checkpoint,
+      `${recorded}\n${bytes}\nclaude-code\n2\n${line5 === null ? "" : `${line5}\n`}`,
+    );
+    return scan([current, checkpoint]);
+  }
+
+  test.for<[string, (current: string, bytes: number) => string | null, boolean, number]>([
+    ["指紋が一致する（移った先）", (c, b) => fingerprintOf(c, b), false, 1],
+    ["指紋が一致する（同じパス）", (c, b) => fingerprintOf(c, b), true, 1],
+    ["5 行目が無い古い処理位置（移った先）", () => null, false, 1],
+    ["5 行目が空", () => "", false, 1],
+    [
+      "指紋の CRC が違う（別の内容のファイル）",
+      (c, b) => fingerprintOf(c, b).replace(/:\d+$/, ":1"),
+      false,
+      0,
+    ],
+    [
+      "同じパスなら、指紋の CRC が違っても指紋を比べずに引き継ぐ",
+      (c, b) => fingerprintOf(c, b).replace(/:\d+$/, ":1"),
+      true,
+      1,
+    ],
+    [
+      "指紋のバイト数がファイルより長い",
+      (c, b) => `${b + 1}:${fingerprintOf(c, b).split(":")[1]}`,
+      false,
+      0,
+    ],
+    ["指紋の形の誤り", () => "abc", false, 0],
+    ["指紋のバイト数が無い", (c, b) => `:${fingerprintOf(c, b).split(":")[1]}`, false, 0],
+  ])("%s", ([, fifth, samePath, expected]) => {
+    const res = scanWith(fifth, samePath);
     expect(res.status, res.stderr + res.stdout).toBe(expected);
     if (expected === 1) expect(res.stderr).toContain("no new records since checkpoint");
     else expect(res.stdout).toMatch(/^user correction: transcript line 1$/m);

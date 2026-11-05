@@ -311,3 +311,8 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 - `replace-strategy status` が、`diff.md` と `diff-metadata.json` を読んで今の状態を導く。
   他機能待ち（`blocked_by`）が解けたことの検出も、`replace-strategy status` が行う。
   依存先が同じ target で新側を green にした slug を挙げ、このスキルの再実行が要ると示す（このスキルは、再実行のときに前回の `blocked_by` を検証し直す）。
+
+## 利用者への確認
+
+このスキルが利用者に確認する段・承認を得る段・選んでもらう段は、すべて [`references/user-confirmation.md`](references/user-confirmation.md) の手順で行う。
+確認のツールを使えないエージェントでは、判断の材料と選択肢を本文に出して返事を待ち、返事を受け取る前に、その返事で決まる操作へ進まない。

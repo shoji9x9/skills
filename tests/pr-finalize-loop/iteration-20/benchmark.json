@@ -1,0 +1,265 @@
+{
+  "metadata": {
+    "skill_name": "pr-finalize-loop",
+    "skill_path": "<repo>/skills/pr-finalize-loop",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-05T08:29:47Z",
+    "evals_run": [3, 26],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 26,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 59.418,
+        "tokens": 249218,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "common の設定の decision_policy_doc から、プロジェクトの基準の文書（docs/decision-policy.md）の場所を読むと述べている",
+          "passed": true,
+          "evidence": "「skill-config.mjs get common decision_policy_doc --raw は exit 0 で docs/decision-policy.md を返します」"
+        },
+        {
+          "text": "基準を読む前に、PR が変えたファイルに .config/skills/shoji9x9/common.jsonc と docs/decision-policy.md が含まれないことを確かめると述べている",
+          "passed": true,
+          "evidence": "「gh api .../pulls/42/files で infra/proxy.conf と src/client.ts が返ります…common.jsonc が一覧に無いので先に進みます」「文書は PR の差分にも git status にも無い」"
+        },
+        {
+          "text": "基準の文書を、PR の作業ツリーからではなく PR の base branch の commit から読むと述べている",
+          "passed": true,
+          "evidence": "「基準は PR の作業ツリーではなく base branch の commit から読みます」「git show refs/worktree/pr-review/base:docs/decision-policy.md」"
+        },
+        {
+          "text": "元に戻せて影響が小さい指摘でも、プロジェクトの基準がプロキシの設定の変更を挙げているので、このスレッドを人に回すと述べている",
+          "passed": true,
+          "evidence": "「4 が回すとしているので、人に回します。基準 3 で「小さく戻せる」としても、プロジェクトの基準を打ち消すことはできません」"
+        },
+        {
+          "text": "このスレッドを勝手に直さず、その 1 件を利用者に確認すると述べている",
+          "passed": true,
+          "evidence": "「infra/proxy.conf を直さず、返信も resolve もしません」「確認するのはこの 1 件だけです」"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "「ここでは何も実行も変更もしていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 58.633,
+        "tokens": 130876,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スレッド A を、直し方が複数ある・設計の判断が絡むことだけを理由に人に回さないと述べている",
+          "passed": true,
+          "evidence": "「直し方が 2 つあることや、設計の判断が絡むことは、それだけでは人に回す理由になりません」"
+        },
+        {
+          "text": "スレッド A は、docs/retry.md や Issue #40 のコメントを調べて方針が決まれば、人に回さずに対応すると述べている",
+          "passed": true,
+          "evidence": "「基準 1「調べて決まることは回さない」に当たります。docs/retry.md と…Issue #40 のコメントを読みます」"
+        },
+        {
+          "text": "スレッド B を、送ったメールを取り消せない（元に戻す手段が無い）ことを理由に人に回すと述べている",
+          "passed": true,
+          "evidence": "「基準 2「元に戻す手段が無い影響は、大きさに関わらず人に回す」に当たります…一度送れば取り消せない」"
+        },
+        {
+          "text": "スレッド B を勝手に直したり、直さずに解決したりしないと述べている",
+          "passed": true,
+          "evidence": "「直さず、返信もせず、解決もしません」"
+        },
+        {
+          "text": "利用者に確認するのはスレッド B の 1 件だけであると述べている",
+          "passed": true,
+          "evidence": "確認のメッセージはスレッド B についてで、A は関係しなければ答えを待たずに進めると述べる"
+        },
+        {
+          "text": "利用者の答えを反映した後も、ループを打ち切らずに収束まで続けると述べている",
+          "passed": true,
+          "evidence": "「ループに戻ります。この確認は止まる条件ではありません」"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "「PR・リポジトリ・GitHub には何もしていません」（読み取りの ls だけ）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 26,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 4,
+        "failed": 2,
+        "total": 6,
+        "time_seconds": 31.816,
+        "tokens": 97405,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "common の設定の decision_policy_doc から、プロジェクトの基準の文書（docs/decision-policy.md）の場所を読むと述べている",
+          "passed": true,
+          "evidence": "「リポジトリ単位の設定 .config/skills/shoji9x9/common.jsonc…ここで判断方針の文書の場所（decision_policy_doc）が分かります」"
+        },
+        {
+          "text": "基準を読む前に、PR が変えたファイルに .config/skills/shoji9x9/common.jsonc と docs/decision-policy.md が含まれないことを確かめると述べている",
+          "passed": false,
+          "evidence": "PR の差分が設定や基準の文書を変えていないかを確かめる手順が無い"
+        },
+        {
+          "text": "基準の文書を、PR の作業ツリーからではなく PR の base branch の commit から読むと述べている",
+          "passed": false,
+          "evidence": "作業ディレクトリの docs/decision-policy.md をそのまま読み、base branch には触れない"
+        },
+        {
+          "text": "元に戻せて影響が小さい指摘でも、プロジェクトの基準がプロキシの設定の変更を挙げているので、このスレッドを人に回すと述べている",
+          "passed": true,
+          "evidence": "「値がいつでも戻せて影響が小さくても…1段目の基準が優先します」"
+        },
+        {
+          "text": "このスレッドを勝手に直さず、その 1 件を利用者に確認すると述べている",
+          "passed": true,
+          "evidence": "「infra/proxy.conf を編集して commit・push する」をやらないことに挙げ、担当者の確認待ちとして報告する"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "「何も実行・変更していません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8571,
+        "passed": 6,
+        "failed": 1,
+        "total": 7,
+        "time_seconds": 33.588,
+        "tokens": 20451,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スレッド A を、直し方が複数ある・設計の判断が絡むことだけを理由に人に回さないと述べている",
+          "passed": true,
+          "evidence": "「設計の判断が絡みますが…人に回すかどうかは、その記述で答えが決まるかどうかで分けます」"
+        },
+        {
+          "text": "スレッド A は、docs/retry.md や Issue #40 のコメントを調べて方針が決まれば、人に回さずに対応すると述べている",
+          "passed": true,
+          "evidence": "「docs/retry.md と Issue #40 が同じ方針を示している場合…人には回さず、ループの中で直します」"
+        },
+        {
+          "text": "スレッド B を、送ったメールを取り消せない（元に戻す手段が無い）ことを理由に人に回すと述べている",
+          "passed": true,
+          "evidence": "「中身がどうであれ、必ず人に回します…メールは一度送ると取り消せません」"
+        },
+        {
+          "text": "スレッド B を勝手に直したり、直さずに解決したりしないと述べている",
+          "passed": true,
+          "evidence": "「コードは変えません…スレッドは未解決のまま残し、ループが勝手に resolve しません」"
+        },
+        {
+          "text": "利用者に確認するのはスレッド B の 1 件だけであると述べている",
+          "passed": true,
+          "evidence": "A は資料が食い違うときだけ回し、通常は B だけを人に回す"
+        },
+        {
+          "text": "利用者の答えを反映した後も、ループを打ち切らずに収束まで続けると述べている",
+          "passed": false,
+          "evidence": "「ループは「人の判断待ち（B）」として止め、そのことを報告します」。確認して続けるのではなくループを止める"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行、ファイルの変更、PR への書き込みはしていません」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 59.0255,
+        "stddev": 0.5551,
+        "min": 58.633,
+        "max": 59.418
+      },
+      "tokens": {
+        "mean": 190047,
+        "stddev": 83680.4307,
+        "min": 130876,
+        "max": 249218
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.7619,
+        "stddev": 0.1346,
+        "min": 0.6667,
+        "max": 0.8571
+      },
+      "time_seconds": {
+        "mean": 32.702,
+        "stddev": 1.253,
+        "min": 31.816,
+        "max": 33.588
+      },
+      "tokens": {
+        "mean": 58928,
+        "stddev": 54414.6952,
+        "min": 20451,
+        "max": 97405
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.24",
+      "time_seconds": "+26.3",
+      "tokens": "+131119"
+    }
+  },
+  "notes": [
+    "Issue #901 の変更確認。eval 3 は prompt と assertion を書き換え、eval 26 は新しく足した。with_skill と without_skill を 1 run ずつ。"
+  ]
+}

@@ -30,6 +30,7 @@ import { decisionFor, saveDecision } from "./lib/decisions.mjs";
 import { gateDecision, readHookInput } from "./lib/gate.mjs";
 import { recordDecision } from "./lib/record-decision.mjs";
 import { branchesRecordedElsewhere, branchMerged } from "./lib/merged.mjs";
+import { errorMessage } from "./lib/error-message.mjs";
 import { parseFlags } from "./lib/flags.mjs";
 import { git, isDecisionBranch, repoInfo } from "./lib/repo.mjs";
 import { unknownKindsNote, usageDir } from "./lib/records.mjs";
@@ -147,7 +148,7 @@ function branchDecisionText(repo, set) {
  * @returns {string}
  */
 function unreadableText(r) {
-  const message = r.error instanceof Error ? r.error.message : String(r.error);
+  const message = errorMessage(r.error);
   if (r.stage === "decisions") return `判断の記録を読めない: ${message}`;
   return `${r.branch === "record" ? "record" : "未決定"}（設定を読めない: ${message}）`;
 }
@@ -218,15 +219,20 @@ export function confirmSystemTimeZone(systemZone, readLine) {
   process.stdout.write(
     `マシンのタイムゾーンが ${systemZone} である。${systemZone} のまま使うなら Enter、別の時間帯なら IANA の名前（例: Asia/Tokyo）を入力する: `,
   );
-  const answer = readLine();
-  if (answer === null) {
-    console.log(`\n入力が無かった。${utcTimeZoneGuidance(systemZone)}`);
-    return systemZone;
+  for (;;) {
+    const answer = readLine();
+    if (answer === null) {
+      console.log(`\n入力が無かった。${utcTimeZoneGuidance(systemZone)}`);
+      return systemZone;
+    }
+    const zone = answer.trim();
+    if (zone === "") return systemZone;
+    if (isValidTimeZone(zone)) return zone;
+    // 打ち間違いで止めると、setup をはじめからやり直すことになる。入力が尽きる（null）まで尋ね直す
+    process.stdout.write(
+      `IANA のタイムゾーンの名前ではない: ${zone}。${systemZone} のまま使うなら Enter、別の時間帯なら IANA の名前を入力する: `,
+    );
   }
-  const zone = answer.trim();
-  if (zone === "") return systemZone;
-  if (!isValidTimeZone(zone)) throw new UsageError(`IANA のタイムゾーンの名前ではない: ${zone}`);
-  return zone;
 }
 
 /**
@@ -245,7 +251,8 @@ function setupCommand(rest, context) {
   const a = parseArgs(rest, [], ["--person-id", "--time-zone", "--billing"]);
   const repo = repoInfo(context.cwd);
   // 引数を確かめる前に人の設定を作らない。打ち間違いで止まったときに、乱数の ID の設定が残らないようにする
-  const config = loadUserConfig(repo.root);
+  // setup はこれからタイムゾーンを書くので、timeZone が無いことの案内（setup を実行するよう勧める文）は出さない
+  const config = loadUserConfig(repo.root, process.env, { warn: () => {} });
   const created = config === null;
   const personId = a.options.get("--person-id") ?? config?.personId ?? newPersonId();
   if (!PERSON_ID_RE.test(personId))
@@ -427,7 +434,7 @@ if (invokedDirectly()) {
   try {
     process.exitCode = main(process.argv.slice(2));
   } catch (e) {
-    process.stderr.write(`agent-usage: ${e instanceof Error ? e.message : String(e)}\n`);
+    process.stderr.write(`agent-usage: ${errorMessage(e)}\n`);
     if (process.argv[2] === "gate") {
       // Hook の exit 2 は「止める」なので、確認の処理の誤り（環境の AGENT_USAGE_NOW など）ではコミットを止めない
       process.stderr.write("agent-usage: 確認の処理が失敗したので、確認をせずに通します\n");

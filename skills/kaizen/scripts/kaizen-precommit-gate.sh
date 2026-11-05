@@ -1417,6 +1417,26 @@ foreign_scan_cached() { # $1: キャッシュ $2: 今回の入力 $3: 今回使�
 	esac
 	printf '%s %s' "${cached_rc}" "$((10#${cached_slice}))"
 }
+# 記録したパスに無い transcript を、同じファイル名で隣のディレクトリから探す。
+# Claude Code は transcript を `<プロジェクトごとのディレクトリ>/<session id>.jsonl` に置き、worktree へ移ると
+# プロジェクトごとのディレクトリが変わる。ちょうど 1 件見つかったときだけ、そのパスを出す。
+# 0 件か 2 件以上なら決められないので、1 を返す（そのセンチネルは自動で解消せずに残す）。
+# 見つけたファイルが同じ transcript の続きかは、スキャナが処理位置の指紋で確かめる。
+moved_transcript_of() { # $1: 記録した transcript のパス
+	local recorded=$1 base parent found=() candidate
+	# transcript のパスは絶対パスで記録される。相対パスでは、並ぶディレクトリを決められない
+	case "${recorded}" in /?*/?*/?*) ;; *) return 1 ;; esac
+	base=${recorded##*/}
+	parent=${recorded%/*}
+	parent=${parent%/*}
+	[ -n "${base}" ] && [ -d "${parent}" ] || return 1
+	for candidate in "${parent}"/*/"${base}"; do
+		[ -r "${candidate}" ] && [ -f "${candidate}" ] && found+=("${candidate}")
+	done
+	[ "${#found[@]}" -eq 1 ] || return 1
+	printf '%s\n' "${found[0]}"
+}
+
 resolve_foreign_sentinels() {
 	local sentinel key suffix f_transcript f_agent f_session f_checkpoint out rc agent bytes lines line slice
 	local cache inputs cached tmp
@@ -1440,6 +1460,12 @@ resolve_foreign_sentinels() {
 		# スキャナが識別できるのは Claude Code / Codex だけである（Copilot は transcript を持たない）。
 		case "${f_agent}" in claude-code | codex) ;; *) continue ;; esac
 		sentinel_value_is_safe "${f_transcript}" || continue
+		# worktree を移ったセッションの transcript は、記録したパスから別のディレクトリへ移る。
+		# 見つからなければ、隣のディレクトリから同じファイル名（session id）のものを探す。
+		if [ ! -e "${f_transcript}" ]; then
+			f_transcript=$(moved_transcript_of "${f_transcript}") || continue
+			sentinel_value_is_safe "${f_transcript}" || continue
+		fi
 		[ -r "${f_transcript}" ] || continue
 		sentinel_value_is_safe "${f_session}" || continue
 		# 記録された session id がファイル名の key と一致しないセンチネルは触らない。

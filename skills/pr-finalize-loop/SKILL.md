@@ -370,3 +370,9 @@ CI の失敗もレビューの指摘も、機械的にすべて直すことも�
 - 現在のローカルブランチが、PR の head ブランチと違う（着手する前に止まる）。
 - 自分が PR の作成者でも担当者でもない（着手する前に 1 回確認し、続けるならループに入り、中止なら止まる。[`references/pr-ownership.md`](references/pr-ownership.md)）。
 - レビューの指摘が、[`references/review-response.md`](references/review-response.md)「人に回すかの基準」で人に回すと決まった（その 1 件を確認し、反映した後でループに戻る。`--defer-decisions` のときは確認せず、判断待ちとして残す）。
+
+## 利用者への確認
+
+このスキルが利用者に確認する段・承認を得る段・選んでもらう段は、すべて [`references/user-confirmation.md`](references/user-confirmation.md) の手順で行う。
+確認のツールを使えないエージェントでは、判断の材料と選択肢を本文に出して返事を待ち、返事を受け取る前に、その返事で決まる操作へ進まない。
+`--defer-decisions` を付けた実行では、この節より「自律性ポリシー」の判断待ちの扱いが優先する。確認を送らずに判断待ちとして記録し、返事で決まる操作には進まない。

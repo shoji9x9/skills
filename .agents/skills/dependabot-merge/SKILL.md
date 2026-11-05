@@ -64,11 +64,11 @@ dependabot-merge                   （対象の指定なし）--all と同じ。
 
 1. 入力から owner・repo・PR 番号を取り出す
 2. 現在の repo と、PR の owner・repo が一致するかを確かめる
-   - 一致しなければ、確認もマージもせずに中断し、ユーザーに確認する
+   - 一致しなければ、確認もマージもせずに中断し、ユーザーに確認する（聞き方は [`references/user-confirmation.md`](references/user-confirmation.md)）
 3. PR の作成者が Dependabot かを確かめる（`gh pr view <番号> --repo <owner>/<repo> --json author --jq '.author.login'`）
    - bot の login の表記は一定しない（`dependabot[bot]` など）ので、`dependabot` を含むかで判定する。
      `app/dependabot` は `gh pr list --author` で絞るときの app slug で、`author.login` の値とは別のものである
-   - Dependabot でなければ、このスキルの対象にするかを中断して確認する（対象の取り違えを防ぐ）
+   - Dependabot でなければ、このスキルの対象にするかを中断して確認する（対象の取り違えを防ぐ）（聞き方は [`references/user-confirmation.md`](references/user-confirmation.md)）
 4. CI の成功を確かめる（後述「gh メカニクス」）。必須チェックの結果で次のように分ける
    - 成功 → 次に進む
    - 実行中 → 完了を待つ（`--watch`）。待たないなら、そのことを伝えて止まる
@@ -264,3 +264,8 @@ gh pr merge --squash <番号> --repo <owner>/<repo>   # または --merge / --re
 - 0.x の依存に破壊的な変更があるかを、changelog から判断できない
 - major の更新の破壊的な変更が、使用箇所に当たるかを判断できない。または、当たる変更があり、コードの修正が要る
 - 影響が大きい、または判断の材料が足りない
+
+## 利用者への確認
+
+このスキルが利用者に確認する段・承認を得る段・選んでもらう段は、すべて [`references/user-confirmation.md`](references/user-confirmation.md) の手順で行う。
+確認のツールを使えないエージェントでは、判断の材料と選択肢を本文に出して返事を待ち、返事を受け取る前に、その返事で決まる操作へ進まない。

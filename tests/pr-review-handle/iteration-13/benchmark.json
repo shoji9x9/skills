@@ -1,0 +1,574 @@
+{
+  "metadata": {
+    "skill_name": "pr-review-handle",
+    "skill_path": "<repo>/skills/pr-review-handle",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-05T08:29:47Z",
+    "evals_run": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4286,
+        "passed": 3,
+        "failed": 4,
+        "total": 7,
+        "time_seconds": 14.479,
+        "tokens": 73745,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL から owner/repo/PR番号を抽出している",
+          "passed": true,
+          "evidence": "「PR のリポジトリは shoji9x9/skills です」"
+        },
+        {
+          "text": "現在の repo と PR の owner/repo の一致を確認している",
+          "passed": true,
+          "evidence": "「作業ディレクトリのリポジトリが PR のリポジトリと同じかを最初に確かめます。今回はここで合いませんでした」"
+        },
+        {
+          "text": "GraphQL reviewThreads で未解決スレッドを取得しようとしている",
+          "passed": false,
+          "evidence": "スレッドの取得方法に触れない"
+        },
+        {
+          "text": "isResolved == false のスレッドのみ対象にする方針を示している",
+          "passed": false,
+          "evidence": "触れない"
+        },
+        {
+          "text": "各指摘をコードに照らして妥当性を判断する方針を示している",
+          "passed": false,
+          "evidence": "repo の確認で止まり、指摘の判断の方針に触れない"
+        },
+        {
+          "text": "返信してから解決する順序で進めようとしている",
+          "passed": false,
+          "evidence": "順序に触れない"
+        },
+        {
+          "text": "モード未指定なので commit/push を行わず通知して停止する方針である",
+          "passed": true,
+          "evidence": "「--push が無ければ commit と push はせず」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 25.624,
+        "tokens": 136524,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "トップレベルの PR コメント（issues/<番号>/comments）を指摘の収集対象として読む方針である",
+          "passed": true,
+          "evidence": "「gh api --paginate repos/<owner>/<repo>/issues/6/comments」"
+        },
+        {
+          "text": "レビュアーが総評・軽微な指摘をトップレベルコメントに置く形を挙げている（スレッド 0 件・reviews[].body 空を根拠に「指摘なし」と結論していない）",
+          "passed": true,
+          "evidence": "「総評と指摘を PR のトップレベルのコメントに置き」"
+        },
+        {
+          "text": "トップレベルコメントは切り詰めずに全文読む（.body[:200] のような切り詰めた取得を指摘収集に使わない）と述べている",
+          "passed": true,
+          "evidence": "「本文は切り詰めません。body[:60] で取ると、後ろにある指摘を落とします」"
+        },
+        {
+          "text": "トップレベルコメントの指摘には返信先スレッドが無く resolve もできないため、自分のトップレベルコメントで判断と根拠を返す方針である",
+          "passed": true,
+          "evidence": "「PR のトップレベルにコメントを 1 件書き、対象の箇所・判断・根拠を残します」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 11,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 29.743,
+        "tokens": 83435,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR の作成者と担当者を gh pr view の --json author,assignees で読み、自分の login と突き合わせる工程を、修正・resolve・push より前に置いている",
+          "passed": true,
+          "evidence": "「gh pr view 42 --json author,assignees で作成者と担当者を取得して比べます」（手順 2）"
+        },
+        {
+          "text": "自分が作成者でも担当者でもないので、修正・resolve・commit / push の前に利用者へ確認すると述べ、確認の選択肢にレビュアーとして返信だけを行う扱いを含めている",
+          "passed": true,
+          "evidence": "「続行／返信だけ／中止」の 3 つから選ぶまで止まる"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行、ファイルの変更、GitHub への書き込みはしていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 53.841,
+        "tokens": 83697,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スレッド B は、スレッド A について利用者の答えが出るまで直さず、返信も解決もしないと述べている",
+          "passed": true,
+          "evidence": "「A の答えが出るまで直さず、返信も解決もしない」"
+        },
+        {
+          "text": "スレッド C は、スレッド A の答えを待たずに進めると述べている",
+          "passed": true,
+          "evidence": "「A とは関係しないので、答えを待たずに先に処理する」"
+        },
+        {
+          "text": "スレッド C を直す前に、exportCsv の呼び出し元をリポジトリ全体で探す（git grep など）と述べている",
+          "passed": true,
+          "evidence": "「git grep -n 'exportCsv'」"
+        },
+        {
+          "text": "exportCsv の呼び出し元が無ければ、exportCsv を削る案を選択肢に含めて返信すると述べている",
+          "passed": true,
+          "evidence": "「「作り込む案」と「exportCsv を削る案」を並べて判断します」と削った場合の返信例"
+        },
+        {
+          "text": "返信の書き出しの例が、直した内容か直さない根拠で始まり、同意・お礼・謝罪だけの文（「ご指摘のとおりです」「ありがとうございます」など）を含まない",
+          "passed": true,
+          "evidence": "返信例が直した内容か根拠から始まり、同意・お礼の文を含まない"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行とファイルの変更はしていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 29.227,
+        "tokens": 79687,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR の作業ツリーで書き換えた docs/decision-policy.md（行を消した後の内容）を、判断の基準に使わないと述べている",
+          "passed": true,
+          "evidence": "「PR 版の文書（行が消えた版）を基準に…判断するのは、最も避けるべき動きです」"
+        },
+        {
+          "text": "PR の差分が基準の文書を変えているので、指摘への対応（直す・返信・解決）を始めずに止まると述べている",
+          "passed": true,
+          "evidence": "「このスレッドには手を付けず、指摘への対応を始める前に止まって報告します」"
+        },
+        {
+          "text": "止まった理由として、PR が基準の文書を変えていることを報告すると述べている",
+          "passed": true,
+          "evidence": "「止まった理由：PR #42 が decision_policy_doc の指す docs/decision-policy.md を変えており」"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行・ファイルの変更・返信・resolve・commit・push はしていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2222,
+        "passed": 2,
+        "failed": 7,
+        "total": 9,
+        "time_seconds": 17.235,
+        "tokens": 81757,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR番号のみのため現在の repo を対象にしている",
+          "passed": true,
+          "evidence": "「番号だけの指定は「現在の repo」の PR を指しますが、その repo がありません」"
+        },
+        {
+          "text": "未解決スレッドへの返信・解決まで行う手順になっている",
+          "passed": false,
+          "evidence": "repo の確認で止まり、返信と解決の手順を示さない"
+        },
+        {
+          "text": "レビュー対応で触ったファイルだけを stage する方針を示している",
+          "passed": false,
+          "evidence": "触れない"
+        },
+        {
+          "text": "conventional commits 規約で commit しようとしている",
+          "passed": false,
+          "evidence": "触れない"
+        },
+        {
+          "text": "ブランチを push しようとしている",
+          "passed": false,
+          "evidence": "push に進まない"
+        },
+        {
+          "text": "commit --amend や force push を行っていない",
+          "passed": true,
+          "evidence": "commit も push も行っていない"
+        },
+        {
+          "text": "push 後に Copilot 再依頼のタイミングをユーザーに確認する（今すぐ / CI 完了後 / 依頼しない の3択）",
+          "passed": false,
+          "evidence": "触れない"
+        },
+        {
+          "text": "「CI 完了後」では gh pr checks --watch で成功を確認してから依頼する方針を示している",
+          "passed": false,
+          "evidence": "触れない"
+        },
+        {
+          "text": "「今すぐ」では CI を待たず requested_reviewers に Copilot を依頼する方針を示している",
+          "passed": false,
+          "evidence": "触れない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 23.973,
+        "tokens": 150017,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "妥当でないと判断した指摘はファイルを修正しない方針を示している",
+          "passed": true,
+          "evidence": "「妥当でない指摘はコードを変えません」"
+        },
+        {
+          "text": "修正しない根拠を返信しようとしている",
+          "passed": true,
+          "evidence": "「返信は根拠から書き始めます」"
+        },
+        {
+          "text": "返信した後にスレッドを解決する順序になっている",
+          "passed": true,
+          "evidence": "「返信してから resolve します」"
+        },
+        {
+          "text": "妥当な指摘と妥当でない指摘を区別して扱う方針である",
+          "passed": true,
+          "evidence": "「妥当でない指摘は…」「妥当な指摘は直します」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 13.208,
+        "tokens": 73427,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現在の repo と PR の owner/repo が一致しないことを検出している",
+          "passed": true,
+          "evidence": "「PR のリポジトリと手元のリポジトリが同じだと確かめられません。スキルの手順 2 では、一致しないときは…止めて確認する」"
+        },
+        {
+          "text": "返信や解決を行わず中断してユーザーに確認している",
+          "passed": true,
+          "evidence": "「PR #5 のレビュー対応は始めずに止めました」「続けるには、次のどちらかで再実行してください」"
+        },
+        {
+          "text": "不一致検出後は未解決スレッドの取得・返信・解決を一切実行せず中断する（誤リポジトリへ副作用を出さない）方針である",
+          "passed": true,
+          "evidence": "「スレッドの取得・返信・resolve・ファイルの修正・commit・push は、どれも行っていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 16.067,
+        "tokens": 80650,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "レビュー URL から review-id を抽出している",
+          "passed": true,
+          "evidence": "「対象レビューは 9999999999（shoji9x9/skills）と読み取りました」"
+        },
+        {
+          "text": "review-id 指定時にそのレビューのコメントへ絞り込む手順を示している",
+          "passed": true,
+          "evidence": "「そのレビューの未解決スレッドと、スレッドの外にある指摘（レビュー本文など）だけを対象にします」"
+        },
+        {
+          "text": "対象スレッドに返信してから解決する順序になっている",
+          "passed": true,
+          "evidence": "「必要なものだけ修正し、返信して resolve します」"
+        },
+        {
+          "text": "モード未指定なので commit/push を行っていない",
+          "passed": true,
+          "evidence": "「--push を付けない限り、commit と push はしません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 26.466,
+        "tokens": 112957,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "未解決スレッドに返信してから解決する手順になっている",
+          "passed": true,
+          "evidence": "「根拠を書いて返信し、返信したスレッドを resolve する」"
+        },
+        {
+          "text": "コード修正も push も発生しない方針である",
+          "passed": true,
+          "evidence": "「ファイルの修正・commit・push はしない見込みです」"
+        },
+        {
+          "text": "対応後に Copilot 再レビュー依頼の要否をユーザーに確認する方針を示している",
+          "passed": true,
+          "evidence": "「再レビューを依頼するか確認する」"
+        },
+        {
+          "text": "push がないため選択肢は「今すぐ / 依頼しない」の 2 択で、「CI 完了後」を含めない",
+          "passed": true,
+          "evidence": "「push しないので「今すぐ依頼」か「依頼しない」の 2 択」"
+        },
+        {
+          "text": "「今すぐ」では requested_reviewers に Copilot（[bot] 付き login）を依頼する方針を示している",
+          "passed": false,
+          "evidence": "依頼の方法（requested_reviewers と [bot] 付きの login）に触れない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 66.158,
+        "tokens": 243941,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "common の review_tool の設定（codex）を参照して依頼先ツールを決めている",
+          "passed": true,
+          "evidence": "「review_tool: codex。出所は repo」"
+        },
+        {
+          "text": "push 後に再レビュー依頼のタイミングをユーザーに確認する（今すぐ / CI 完了後 / 依頼しない）",
+          "passed": true,
+          "evidence": "「今すぐ依頼／CI 完了後に依頼／依頼しない」の表"
+        },
+        {
+          "text": "依頼は requested_reviewers ではなくトップレベル PR コメントへの @codex review 投稿で行う方針である",
+          "passed": true,
+          "evidence": "「gh api --method POST repos/shoji9x9/skills/issues/42/comments -f body=\"@codex review\"」"
+        },
+        {
+          "text": "Copilot 専用の login（copilot-pull-request-reviewer[bot]）は使わない方針である",
+          "passed": true,
+          "evidence": "依頼に copilot の login を使わない"
+        },
+        {
+          "text": "mention は非冪等のため、現在の HEAD の push 以降に投稿された（投稿者を問わない）@codex review コメントの有無を確認し、既にあれば再投稿せず重複レビュー起動を避ける方針である",
+          "passed": true,
+          "evidence": "push 後の「^@(claude|codex) review」のコメントを確かめ、「mention は投稿し直すたびにレビューが 1 つ増えるので、投稿は 1 回だけにします」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 57.595,
+        "tokens": 291125,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "common の review_tool の設定（none）を参照している",
+          "passed": true,
+          "evidence": "「value=none、source=repo」"
+        },
+        {
+          "text": "未解決スレッドへの返信・解決は通常どおり行う手順になっている",
+          "passed": true,
+          "evidence": "手順 6 で返信してから resolveReviewThread で解決する"
+        },
+        {
+          "text": "AI レビュアーへの再レビュー依頼をせず、その要否確認も省略して完了する方針である",
+          "passed": true,
+          "evidence": "「再レビューの依頼もその確認も行わず、ここで完了です」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 26.59,
+        "tokens": 105153,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "レビュー本文（reviews[].body）を取得して指摘を探す方針である",
+          "passed": true,
+          "evidence": "「head へのレビューの本文（<details> の中まで読む）」の取得コマンド"
+        },
+        {
+          "text": "未解決スレッド 0 件でもレビュー本文に指摘が残り得ると述べている",
+          "passed": true,
+          "evidence": "「「未解決スレッドが 0 件」でも、対応していない指摘が残っていることがあります」"
+        },
+        {
+          "text": "本文の指摘は resolve できないためトップレベルの PR コメントで返す方針である",
+          "passed": true,
+          "evidence": "「代わりに PR のトップレベルにコメントを 1 件投稿し」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.8808,
+        "stddev": 0.2561,
+        "min": 0.2222,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 30.7851,
+        "stddev": 17.2952,
+        "min": 13.208,
+        "max": 66.158
+      },
+      "tokens": {
+        "mean": 122778.0769,
+        "stddev": 69275.0983,
+        "min": 73427,
+        "max": 291125
+      }
+    }
+  },
+  "notes": [
+    "Issue #901 で、PR #895 で文書を書き換えた後の既存 eval を with_skill で 1 run ずつ実行し直した。",
+    "eval 1 の with_skill は、executor の OAuth の認証の失敗で 1 回目が評価にならず、同じ条件で実行し直した。",
+    "eval 2 の前回の記録（iteration-3）は executor のモデルが claude-opus-4-8 である。"
+  ]
+}

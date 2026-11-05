@@ -21,6 +21,29 @@ if ! command -v jq >/dev/null 2>&1; then
 	exit 2
 fi
 
+# transcript-fingerprint:begin
+# transcript の先頭の指紋。`<バイト数>:<cksum の CRC>` を 1 行で出す。
+# 先頭の最大 4096 バイトを対象にし、$2 を渡すとそれより短い範囲に絞る（処理位置より先を指紋に含めないため）。
+# transcript は追記だけで伸びるので、同じファイルなら先頭の指紋は変わらない。
+# worktree を移ってパスが変わった transcript が、記録したものと同じ内容で続いているかを、この値で確かめる。
+# 読めなければ何も出さずに 1 を返す。
+kaizen_transcript_fingerprint() { # $1: transcript $2: 対象にする最大のバイト数（省略時 4096）
+	local limit=${2:-4096} out crc len
+	[ -r "$1" ] || return 1
+	[[ "${limit}" =~ ^[0-9]+$ ]] || return 1
+	if [ "${limit}" -gt 4096 ]; then
+		limit=4096
+	fi
+	out=$(head -c "${limit}" "$1" 2>/dev/null | cksum 2>/dev/null) || return 1
+	crc=${out%% *}
+	len=${out#* }
+	len=${len%% *}
+	[[ "${crc}" =~ ^[0-9]+$ ]] || return 1
+	[[ "${len}" =~ ^[0-9]+$ ]] || return 1
+	printf '%s:%s\n' "${len}" "${crc}"
+}
+# transcript-fingerprint:end
+
 offset=0
 checkpoint_agent=""
 checkpoint_lines=""
@@ -39,10 +62,26 @@ checkpoint_matches() { # $1: 処理位置の 1 行目
 	esac
 	[ "${1##*/}" = "${transcript##*/}" ]
 }
+# 処理位置の 5 行目（任意）は、記録したときの transcript の先頭の指紋である。
+# 1 行目のパスが渡された transcript と違う（worktree へ移った）ときは、指紋があれば、
+# 渡された transcript の同じ範囲の指紋と一致するときだけ処理位置を引き継ぐ。
+# ファイル名が同じでも別の内容のファイルを、同じ transcript として途中から読まないためである。
+# パスが同じなら同じファイルなので、指紋は比べない。5 行目の無い処理位置は、パスかファイル名の照合だけで決める。
+checkpoint_fingerprint_matches() { # $1: 処理位置の 1 行目 $2: 処理位置の 5 行目
+	local recorded=$2 len now
+	[ "$1" = "${transcript}" ] && return 0
+	[ -z "${recorded}" ] && return 0
+	[[ "${recorded}" =~ ^([0-9]+):[0-9]+$ ]] || return 1
+	len=${BASH_REMATCH[1]}
+	now=$(kaizen_transcript_fingerprint "${transcript}" "${len}") || return 1
+	[ "${now}" = "${recorded}" ]
+}
 if [ -r "${checkpoint}" ]; then
 	checkpoint_path=$(sed -n '1p' "${checkpoint}")
 	checkpoint_offset=$(sed -n '2p' "${checkpoint}")
-	if checkpoint_matches "${checkpoint_path}" && [[ "${checkpoint_offset}" =~ ^[0-9]+$ ]]; then
+	checkpoint_fingerprint=$(sed -n '5p' "${checkpoint}")
+	if checkpoint_matches "${checkpoint_path}" && [[ "${checkpoint_offset}" =~ ^[0-9]+$ ]] &&
+		checkpoint_fingerprint_matches "${checkpoint_path}" "${checkpoint_fingerprint}"; then
 		size=$(wc -c <"${transcript}")
 		size=${size//[[:space:]]/}
 		if [ "${checkpoint_offset}" -le "${size}" ]; then

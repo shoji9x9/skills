@@ -62,3 +62,16 @@ export function transcript(dir: string, lines: string[]) {
   writeFileSync(path, `${lines.join("\n")}\n`);
   return path;
 }
+
+/**
+ * 書く側（kaizen-extract-done.sh）と同じ方法で、transcript の先頭の最大 limit バイトの指紋
+ * （`<バイト数>:<cksum の CRC>`）を作る。上限の 4096 バイトは呼び出し側が渡す。
+ */
+export function fingerprintOf(path: string, limit: number): string {
+  const r = spawnSync("bash", ["-c", 'head -c "$2" "$1" | cksum', "_", path, String(limit)], {
+    encoding: "utf8",
+    timeout: CHILD_TIMEOUT_MS,
+  });
+  const [crc, len] = r.stdout.trim().split(/\s+/);
+  return `${len}:${crc}`;
+}

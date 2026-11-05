@@ -372,7 +372,8 @@ Issue の種類は 6 つある。ゴールデンデータセット／横断 API�
   4 種に当てはまらない Issue は、「その他の Issue（4 種以外）」表に置く（原本は [`references/features-issues.md`](references/features-issues.md)）。
 - 起票は `issue-create` スキルに任せる。
   候補・依存関係・各 Issue の本文の下書きを示し、明示的な承認を得てから、1 件ずつ任せる。
-  `issue-create` は 1 件ずつ承認を得る設計なので、このモードで先にまとめて承認を得る。
+  このモードで先にまとめて承認を得て、承認された下書きを、承認済みであることと一緒に渡す。
+  `issue-create` が承認を求め直さずに起票する条件は、[`references/caller-approval.md`](references/caller-approval.md) で定める（`issue-create` も同じ文書に従う）。
 - 同じページに乗る機能は、ページ一覧からまとめて、続けて進める順を提案する。
   着手の前に、slug ごとの再実行の回数・まとめた合計・最後にマスクが外れる全面の比較を示す。実際の依存を逆にしない。数え方は [`references/features-issues.md`](references/features-issues.md) にある。
 - 明示的な承認が得られない場合（利用者がいない非対話の実行・応答なし・承認以外の応答）は、起票せずに止まる。`gh issue create` も、`issue-create` に任せることもしない。
@@ -509,3 +510,8 @@ Issue の種類は 6 つある。ゴールデンデータセット／横断 API�
 
 姉妹スキルがインストールされていなくても、このスキル（測定・戦略・起票）は動く。ただし、起票した Issue を進めるには必要になるので、`issues` モードの完了のときに案内する。
 例外は `current-environment-bootstrap` である。`current.origin: received-assets` のときは、測定の前提そのものが揃わないので、インストールされていなければ導入の手順を示して止まる（手順 2）。
+
+## 利用者への確認
+
+このスキルが利用者に確認する段・承認を得る段・選んでもらう段は、すべて [`references/user-confirmation.md`](references/user-confirmation.md) の手順で行う。
+確認のツールを使えないエージェントでは、判断の材料と選択肢を本文に出して返事を待ち、返事を受け取る前に、その返事で決まる操作へ進まない。

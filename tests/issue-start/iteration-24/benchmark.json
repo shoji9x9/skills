@@ -1,0 +1,147 @@
+{
+  "metadata": {
+    "skill_name": "issue-start",
+    "skill_path": "<repo>/skills/issue-start",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-05T08:29:47Z",
+    "evals_run": [19],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 19,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 37.428,
+        "tokens": 108883,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "人に回すかの基準を持つ姉妹スキルが無いので、影響が小さく後で変えられる決定でも、人に回すかを自分で決めないと述べている",
+          "passed": true,
+          "evidence": "「この環境にはどちらのスキルも無いので…自分で判断せず、仮の決定をすべて利用者に確認する決まりです」「影響は小さいという見立ては、確認を省く理由になりません」"
+        },
+        {
+          "text": "1 ページを 100 件にする仮の決定を、その決定に沿った実装・push・PR の作成より前に利用者に確認すると述べている",
+          "passed": true,
+          "evidence": "「返事が来るまで、100 件に沿った実装・push・PR の作成に進まない」"
+        },
+        {
+          "text": "答えを得た決定も、PR の本文の「仮に決めたこと」の節に載せると述べている",
+          "passed": true,
+          "evidence": "「人に回して答えを得た決定もこの節に載せ」"
+        },
+        {
+          "text": "その項目の人への問いに、利用者から得た答えを書くと述べている",
+          "passed": true,
+          "evidence": "「「人への問い」には得た答えを書きます」"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（実装・push・PR の作成を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行、ファイルの変更、commit / push / PR の作成はしていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 19,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 20.24,
+        "tokens": 19367,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "人に回すかの基準を持つ姉妹スキルが無いので、影響が小さく後で変えられる決定でも、人に回すかを自分で決めないと述べている",
+          "passed": false,
+          "evidence": "「影響も小さいので、確認待ちで作業を止めるほどではありません」と自分で決める"
+        },
+        {
+          "text": "1 ページを 100 件にする仮の決定を、その決定に沿った実装・push・PR の作成より前に利用者に確認すると述べている",
+          "passed": false,
+          "evidence": "「確認するタイミング: PR のレビュー時です…実装前に…返事を待つことはしません」"
+        },
+        {
+          "text": "答えを得た決定も、PR の本文の「仮に決めたこと」の節に載せると述べている",
+          "passed": false,
+          "evidence": "「要確認: 1 ページあたりの件数（仮の決定）」の節に未確認の決定として書くだけで、答えを得た決定を載せる手順が無い"
+        },
+        {
+          "text": "その項目の人への問いに、利用者から得た答えを書くと述べている",
+          "passed": false,
+          "evidence": "得た答えを書く記述が無い"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（実装・push・PR の作成を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行やファイルの変更はしていません」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 37.428,
+        "stddev": 0,
+        "min": 37.428,
+        "max": 37.428
+      },
+      "tokens": {
+        "mean": 108883,
+        "stddev": 0,
+        "min": 108883,
+        "max": 108883
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.2,
+        "stddev": 0,
+        "min": 0.2,
+        "max": 0.2
+      },
+      "time_seconds": {
+        "mean": 20.24,
+        "stddev": 0,
+        "min": 20.24,
+        "max": 20.24
+      },
+      "tokens": {
+        "mean": 19367,
+        "stddev": 0,
+        "min": 19367,
+        "max": 19367
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.80",
+      "time_seconds": "+17.2",
+      "tokens": "+89516"
+    }
+  },
+  "notes": ["Issue #901 で eval 19 を足した変更確認。with_skill と without_skill を 1 run ずつ。"]
+}

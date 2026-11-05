@@ -221,6 +221,29 @@ remove_control_file_everywhere() { # $1: 制御ファイル名
 
 mkdir -p "${control_dir}"
 
+# transcript-fingerprint:begin
+# transcript の先頭の指紋。`<バイト数>:<cksum の CRC>` を 1 行で出す。
+# 先頭の最大 4096 バイトを対象にし、$2 を渡すとそれより短い範囲に絞る（処理位置より先を指紋に含めないため）。
+# transcript は追記だけで伸びるので、同じファイルなら先頭の指紋は変わらない。
+# worktree を移ってパスが変わった transcript が、記録したものと同じ内容で続いているかを、この値で確かめる。
+# 読めなければ何も出さずに 1 を返す。
+kaizen_transcript_fingerprint() { # $1: transcript $2: 対象にする最大のバイト数（省略時 4096）
+	local limit=${2:-4096} out crc len
+	[ -r "$1" ] || return 1
+	[[ "${limit}" =~ ^[0-9]+$ ]] || return 1
+	if [ "${limit}" -gt 4096 ]; then
+		limit=4096
+	fi
+	out=$(head -c "${limit}" "$1" 2>/dev/null | cksum 2>/dev/null) || return 1
+	crc=${out%% *}
+	len=${out#* }
+	len=${len%% *}
+	[[ "${crc}" =~ ^[0-9]+$ ]] || return 1
+	[[ "${len}" =~ ^[0-9]+$ ]] || return 1
+	printf '%s:%s\n' "${len}" "${crc}"
+}
+# transcript-fingerprint:end
+
 # checkpoint を記録できたか。transcript を渡されない呼び出しでは下のブロックに入らないため、
 # `set -u` でエラーにならないように、ここで初期化する（0 のままなら「差分を走査する起点が無い」を意味する）。
 checkpoint_written=0
@@ -238,7 +261,10 @@ if [ -n "${transcript}" ] && [ -r "${transcript}" ]; then
 	checkpoint_tmp=$(mktemp 2>/dev/null) || checkpoint_tmp="${control_dir}/.extract-checkpoint.tmp.$$"
 	trap 'rm -f "${checkpoint_tmp}"' EXIT
 	# checkpoint の形式は次のとおりである。
-	#   1 行目 transcript パス / 2 行目 バイト位置 / 3 行目 エージェント（空でもよい）/ 4 行目 行数
+	#   1 行目 transcript パス / 2 行目 バイト位置 / 3 行目 エージェント（空でもよい）/ 4 行目 行数。
+	#   5 行目 transcript の先頭の指紋（`<バイト数>:<CRC>`）。バイト位置より先は含めず、取れなければ空にする。
+	# 5 行目は、worktree を移ってパスが変わった transcript が、記録したものと同じ内容で続いているかを
+	# スキャナが確かめるためにある。
 	# 3 行目は、新しいレコードが 1 件も無いときに、レコードから判定できないエージェントを
 	# 引き継ぐためにある。4 行目は、スキャナが根拠の絶対行番号を出すときの起点で、これが無いと
 	# 処理済みの部分を毎回読み直すことになる（走査は O(差分) に保つ）。
@@ -258,7 +284,8 @@ if [ -n "${transcript}" ] && [ -r "${transcript}" ]; then
 		checkpoint_lines=${checkpoint_lines//[[:space:]]/}
 	fi
 	if [ -n "${checkpoint_bytes}" ] && [ -n "${checkpoint_lines}" ]; then
-		if printf '%s\n%s\n%s\n%s\n' "${transcript}" "${checkpoint_bytes}" "${agent}" "${checkpoint_lines}" \
+		checkpoint_fingerprint=$(kaizen_transcript_fingerprint "${transcript}" "${checkpoint_bytes}" || true)
+		if printf '%s\n%s\n%s\n%s\n%s\n' "${transcript}" "${checkpoint_bytes}" "${agent}" "${checkpoint_lines}" "${checkpoint_fingerprint}" \
 			>"${checkpoint_tmp}" 2>/dev/null &&
 			mv "${checkpoint_tmp}" "${checkpoint_path}" 2>/dev/null; then
 			checkpoint_written=1
