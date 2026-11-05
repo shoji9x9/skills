@@ -34,3 +34,10 @@ Issue #632 の作業で、テストの assertion を変えるたびに、rule �
 
 - 適用先候補: `.agents/rules/state-space-and-mutation-proof.md` の「assertion を書き換えたら」の節と `docs/tooling.md` のミューテーションテストの節
 - 絞り方: 足した変異、`find` を変えた変異、変えた関数を対象にする変異を選ぶ。宣言の外で落ちる変異は CI が検出するので、push の後に CI の結果で直す
+
+## 絞った実行で見落とした記録（#886）
+
+2026-11-05、issue-batch の run の #886 で、足した 6 件の変異だけを `--only` で実行して push した。
+CI の `Mutation proof (PR)` が、既にある 2 件（`file-ref-not-resolved`・`checklist-from-markdown`）の宣言の外で、足したテストが落ちることを検出した。
+`expect_failing` を足して push し直し、CI を 1 往復した。同じ定義ファイルの全件は手元で 6 秒ほどだった。
+定義ファイルの全件が数秒で終わるなら、`--only` で絞らずにその定義ファイルだけを全件実行するほうが、CI の往復より速い。

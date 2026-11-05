@@ -68,6 +68,7 @@
     "scripts/skills/kaizen/schedule/kaizen-schedule-report.mutations.json": 4.2,
     "scripts/skills/kaizen/status-check/kaizen-status-check.mutations.json": 3.5,
     "scripts/skills/parity-component/css-rules-capture.mutations.json": 0.7,
-    "scripts/skills/kaizen/frontmatter/kaizen-frontmatter-values.mutations.json": 4.6
+    "scripts/skills/kaizen/frontmatter/kaizen-frontmatter-values.mutations.json": 4.6,
+    "scripts/skills/agent-usage/record-decision.mutations.json": 0.5
   }
 }
