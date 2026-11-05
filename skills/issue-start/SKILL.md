@@ -161,7 +161,7 @@ issue-start https://github.com/<owner>/<repo>/issues/220 --pr
    **`--branch-only` はここで終わる。** ブランチの名前、checkout したかどうか、step 8 の現状の確認の結果（ずれがあればその分類）を報告して返る。
    調査・実装・commit・push・PR のどれも行わない。
    **`--acceptance` は、step 1〜3（リポジトリの一致の確認と Issue の取得）の後、step 4〜8 を飛ばして step 10 だけを行う。**
-   検査の結果（終了コード・`closable`・`findings`）を報告して返る
+   検査の結果（終了コード・`closable`・`findings`・`warnings`）を報告して返る
 10. **Issue の受け入れ条件を、1 項目ずつ根拠と突き合わせる**（`--pr` の push の前と、`--acceptance`）。
     手順・表の様式・状態の語・検査の終了コードは、[`references/acceptance.md`](references/acceptance.md) で定義する。
     ここには書き写さない。読めなければ、突き合わせを合格として扱わずに止まる。
