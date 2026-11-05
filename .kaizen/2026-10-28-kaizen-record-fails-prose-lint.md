@@ -40,3 +40,8 @@ KEDB 照合は「lint-prose」と「.kaizen」で行い、一致したのは Iss
 追記した学びは stage していなかったが、pre-commit の markdownlint は作業ツリーの `.kaizen/` も検査した。
 追記の後に、整形のコマンドも lint も当てていなかった。箇条に分けて通した。
 新しい学びを作るときだけでなく、既にある学びに追記するときも、同じ lint を当てる。
+
+## 再発の記録（#906）
+
+2026-11-05、issue-batch の run の #906 で、既にある学びに追記した後、学びを入れる commit が textlint の一文の長さ（170 字）で止まった。
+追記の後に markdownlint の整形は当てたが、文章の lint（`lint-prose.ts`）は当てていなかった。文を 2 つに分けて通した。

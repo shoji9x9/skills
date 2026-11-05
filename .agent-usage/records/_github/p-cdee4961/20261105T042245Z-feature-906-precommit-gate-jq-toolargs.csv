@@ -35,3 +35,4 @@ ci:41969109598:1,ci,2026-11-05T04:50:21.531Z,p-cdee4961,github-actions,,,,2026-1
 ci:41969109646:1,ci,2026-11-05T04:50:21.531Z,p-cdee4961,github-actions,,,,2026-11-05T04:39:00.000Z,2026-11-05T04:39:00.000Z,Asia/Tokyo,feature/906-precommit-gate-jq-toolargs,906,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 coverage:github:2026-11-04T04:37:18.637Z:2026-11-05T04:50:21.531Z,coverage,2026-11-05T04:50:21.531Z,p-cdee4961,,,,,2026-11-04T04:37:18.637Z,2026-11-05T04:50:21.531Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-11-04T04:50:21.531Z:2026-11-05T04:51:07.791Z,coverage,2026-11-05T04:51:07.791Z,p-cdee4961,,,,,2026-11-04T04:50:21.531Z,2026-11-05T04:51:07.791Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-04T04:51:07.791Z:2026-11-05T04:51:45.683Z,coverage,2026-11-05T04:51:45.683Z,p-cdee4961,,,,,2026-11-04T04:51:07.791Z,2026-11-05T04:51:45.683Z,Asia/Tokyo,,,,,,,,,,,,ok,
