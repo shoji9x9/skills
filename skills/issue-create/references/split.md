@@ -59,4 +59,37 @@
     打ち切りとは、取得した件数が `--limit` に達し、かつ控えた番号以下の Issue が一覧に 1 件も無いことである（起票を始めた後の Issue を取りこぼしている）
     作られたものとしても作られていないものとしても扱わず、その Issue と残りの下書きを利用者に報告して止める
 - 作った Issue の URL と残りの下書きを報告する。やり直すときは、作られた Issue を起票し直さず、その番号を後の Issue の依存の節に入れる
+- すべて起票したら、次の「GitHub の依存関係を設定する」を行う
 - 最後に、作った Issue の URL を処理する順に並べて返す
+
+## GitHub の依存関係を設定する
+
+本文の依存の節は、GitHub の画面や検索からは辿れない。
+そこで、起票した後に、依存の節に書いた組ごとに GitHub の Issue の依存関係（blocked by）も設定する。
+本文の依存の節は消さない。依存を本文から読むツール（姉妹スキル `issue-batch` など）があるからである。
+起票を途中で止めたときは、起票できた Issue の間の組だけを設定する。
+
+API は REST の Issue dependencies である（<https://docs.github.com/en/rest/issues/issue-dependencies>）。
+`issue_id` には Issue の番号ではなく、Issue の `id`（整数）を渡す。
+
+1. 前提にされる Issue の `id` を取得し、空でない整数であることを確かめる。
+
+   ```bash
+   blocker_id=$(gh api "repos/<owner>/<repo>/issues/<前提にされる番号>" --jq .id)
+   ```
+
+2. 前提にする側の Issue に設定する。`-F` は値を整数として送る。
+
+   ```bash
+   gh api -X POST "repos/<owner>/<repo>/issues/<前提にする番号>/dependencies/blocked_by" -F "issue_id=$blocker_id"
+   ```
+
+3. 設定できたかを、一覧を取得して確かめる。一覧はページに分かれるので `--paginate` で全件を読み、前提にされる番号が含まれることを確かめる。
+
+   ```bash
+   gh api --paginate "repos/<owner>/<repo>/issues/<前提にする番号>/dependencies/blocked_by" --jq '.[].number'
+   ```
+
+設定できなかった組（2 が失敗した、3 で番号が見つからない）があっても、起票した Issue は消さず、本文の依存の節もそのまま残す。
+残りの組の設定は続け、最後に、設定できなかった組（前提にする番号と前提にされる番号）と、失敗したときの応答（HTTP の状態と `message`）を利用者に伝える。
+依存関係の機能が使えないリポジトリや、書き込みの権限が無い場合に起きる。依存は本文の節で伝わるので、起票はやり直さない。

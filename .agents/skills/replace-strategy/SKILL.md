@@ -371,7 +371,8 @@ Issue の種類は 6 つある。ゴールデンデータセット／横断 API�
   4 種に当てはまらない Issue は、「その他の Issue（4 種以外）」表に置く（原本は [`references/features-issues.md`](references/features-issues.md)）。
 - 起票は `issue-create` スキルに任せる。
   候補・依存関係・各 Issue の本文の下書きを示し、明示的な承認を得てから、1 件ずつ任せる。
-  `issue-create` は 1 件ずつ承認を得る設計なので、このモードで先にまとめて承認を得る。
+  このモードで先にまとめて承認を得て、承認された下書きを、承認済みであることと一緒に渡す。
+  `issue-create` が承認を求め直さずに起票する条件は、[`references/caller-approval.md`](references/caller-approval.md) で定める（`issue-create` も同じ文書に従う）。
 - 同じページに乗る機能は、ページ一覧からまとめて、続けて進める順を提案する。
   着手の前に、slug ごとの再実行の回数・まとめた合計・最後にマスクが外れる全面の比較を示す。実際の依存を逆にしない。数え方は [`references/features-issues.md`](references/features-issues.md) にある。
 - 明示的な承認が得られない場合（利用者がいない非対話の実行・応答なし・承認以外の応答）は、起票せずに止まる。`gh issue create` も、`issue-create` に任せることもしない。

@@ -34,6 +34,13 @@
     },
     {
       "files": [
+        "skills/issue-create/references/caller-approval.md",
+        "skills/replace-strategy/references/caller-approval.md"
+      ],
+      "reason": "呼び出し元が得た Issue の下書きの承認を、issue-create が引き継ぐ条件（Issue #904）。食い違うと、利用者が同じ内容を 2 回承認するか、承認していない内容で起票する"
+    },
+    {
+      "files": [
         "skills/issue-create/assets/issue-templates/bug_report.md",
         ".github/ISSUE_TEMPLATE/bug_report.md"
       ],
