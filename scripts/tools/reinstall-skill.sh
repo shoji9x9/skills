@@ -132,6 +132,33 @@ if [ -z "${repo_root}" ] ||
 	echo "Repository root not found from the script location: ${BASH_SOURCE[0]:-<stdin>}（scripts/gates/packaging/check-skill-frontmatter.ts と skills/ を持つツリーを特定できない。既存のインストールは触っていない）" >&2
 	exit 2
 fi
+
+# Stop while the mutation proof (scripts/mutation/check-mutation-proof.ts) runs in this tree.
+# It rewrites the sources in place, so a copy taken now ships an active mutation into the
+# installed skill (it happened 4 times despite the rule in docs/tooling.md). The lock path is
+# the runner's: node_modules/.cache/mutation-proof/lock, or MUTATION_PROOF_LOCK if set.
+# A lock whose PID is dead is stale and the runner removes it on its next start, so it does
+# not stop the reinstall. A lock without a readable PID can't be judged and stops it.
+# The recovery file (<lock>.recovery.json) stays when a run was killed or could not restore a
+# file, with or without a lock. The mutation is then still in the sources, so it stops too.
+mutation_lock="${MUTATION_PROOF_LOCK:-${repo_root}/node_modules/.cache/mutation-proof/lock}"
+if [ -e "${mutation_lock}.recovery.json" ]; then
+	echo "ミューテーションテストの復元情報（${mutation_lock}.recovery.json）が残っているので止まる。前回の実行が中断され、原本に変異が残っている可能性がある。ランナーを再実行して戻すか、原本を確かめてから復元情報を消して再実行する（既存のインストールは触っていない）" >&2
+	exit 1
+fi
+if [ -e "${mutation_lock}" ]; then
+	lock_pid="$(head -n 1 -- "${mutation_lock}" 2>/dev/null | tr -d '[:space:]')" || lock_pid=""
+	case "${lock_pid}" in
+	'' | *[!0-9]*)
+		echo "ミューテーションテストのロック（${mutation_lock}）から PID を読めないので止まる。実行中でないことを確かめてからロックを消して再実行する（既存のインストールは触っていない）" >&2
+		exit 1
+		;;
+	esac
+	if kill -0 "${lock_pid}" 2>/dev/null; then
+		echo "ミューテーションテストの実行中（PID ${lock_pid}、ロック: ${mutation_lock}）は原本に変異が入っているので止まる。終わるまで待ってから再実行する（既存のインストールは触っていない）" >&2
+		exit 1
+	fi
+fi
 cd "${repo_root}"
 
 if [ "$1" = "--all" ]; then

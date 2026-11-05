@@ -21,6 +21,39 @@
         "cwd が同名スキルを持つ別リポジトリでも、スクリプトのあるツリーを操作する",
         "スクリプトへの symlink から実行しても、リンク先のツリーを操作する"
       ]
+    },
+    {
+      "id": "no-mutation-lock-live-check",
+      "why": "ロックの PID が生きていても止まらず、変異の入った原本をコピーする（変更前の挙動）",
+      "file": "scripts/tools/reinstall-skill.sh",
+      "find": "\tif kill -0 \"${lock_pid}\" 2>/dev/null; then",
+      "replace": "\tif false; then",
+      "occurrences": 1,
+      "expect_failing": [
+        "ミューテーションテストのロックの PID が生きていれば exit 1 で止まり、インストール済みのコピーを消さない",
+        "MUTATION_PROOF_LOCK が指すロックの PID が生きていれば exit 1 で止まる"
+      ]
+    },
+    {
+      "id": "mutation-recovery-ignored",
+      "why": "中断された実行の復元情報が残っていても止まらず、変異が残った原本をコピーする",
+      "file": "scripts/tools/reinstall-skill.sh",
+      "find": "if [ -e \"${mutation_lock}.recovery.json\" ]; then",
+      "replace": "if false; then",
+      "occurrences": 1,
+      "expect_failing": ["ロックが無くても復元情報が残っていれば exit 1 で止まる"]
+    },
+    {
+      "id": "mutation-lock-unreadable-passes",
+      "why": "PID を読めないロックを、止まらずに通す",
+      "file": "scripts/tools/reinstall-skill.sh",
+      "find": "\t\texit 1\n\t\t;;\n\tesac",
+      "replace": "\t\t:\n\t\t;;\n\tesac",
+      "occurrences": 1,
+      "expect_failing": [
+        "ロックの中身が空なら判定できないとして exit 1 で止まる",
+        "ロックの中身が数字でないなら判定できないとして exit 1 で止まる"
+      ]
     }
   ]
 }

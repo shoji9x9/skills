@@ -87,7 +87,8 @@ export function runWith(
     cwd,
     encoding: "utf8",
     input: input ?? "",
-    env: { ...process.env, ...ctx.env, GH_LOG: ctx.ghLog, ...env },
+    // 外から渡された MUTATION_PROOF_LOCK を外す。残すと、fixture ではなく実在のロックを読む。
+    env: { ...process.env, MUTATION_PROOF_LOCK: undefined, ...ctx.env, GH_LOG: ctx.ghLog, ...env },
     timeout: CHILD_TIMEOUT_MS,
   });
 }
