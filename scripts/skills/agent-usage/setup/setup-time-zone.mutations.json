@@ -3,7 +3,7 @@
     "setup-time-zone.test.ts のうち、setup がタイムゾーンを尋ねるときの打ち間違いの扱い（Issue #903）の検出能力を示す変異の一覧。",
     "人の設定に timeZone が無いときの案内（setup で出さない・コミットの前の確認で結果の文に添える）も、このテストで示す。"
   ],
-  "test_file": "scripts/skills/agent-usage/setup-time-zone.test.ts",
+  "test_file": "scripts/skills/agent-usage/setup/setup-time-zone.test.ts",
   "mutations": [
     {
       "id": "time-zone-typo-accepted",
@@ -33,8 +33,19 @@
       "id": "gate-drops-time-zone-note",
       "why": "コミットの前の確認が、timeZone が無いことの案内を記録の結果の文に添えない",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "    const notes = `${github}${extra}${timeZoneNoteOf(repo)}`;\n",
+      "find": "    const notes = `${github}${extra}${timeZoneNote}`;\n",
       "replace": "    const notes = `${github}${extra}`;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "人の設定に timeZone が無いとき（CLI） コミットの前の確認は、記録の結果の文に案内を添える（終了コード 0 では標準エラーが見えないため）"
+      ]
+    },
+    {
+      "id": "time-zone-note-shown-twice",
+      "why": "コミットの前の確認で、結果の文に入れた案内を、collect も標準エラーに出す",
+      "file": "skills/agent-usage/scripts/lib/config.mjs",
+      "find": "  if (note !== \"\") warned.add(note);\n",
+      "replace": "",
       "occurrences": 1,
       "expect_failing": [
         "人の設定に timeZone が無いとき（CLI） コミットの前の確認は、記録の結果の文に案内を添える（終了コード 0 では標準エラーが見えないため）"

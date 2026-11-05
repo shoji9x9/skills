@@ -4,7 +4,7 @@
     "ほかの判定（判断の無いブランチ・人の設定が無いとき・defaultDecision を読めないとき）は、cli.mutations.json と worktree-branches.mutations.json が呼び出し側のテストで示す。",
     "判断が無いときにコミットを止める案内（Issue #903）は、gate.mjs の stopResult を直接呼ぶテストで示す。"
   ],
-  "test_file": "scripts/skills/agent-usage/record-decision.test.ts",
+  "test_file": "scripts/skills/agent-usage/decision/record-decision.test.ts",
   "mutations": [
     {
       "id": "unreadable-person-records",

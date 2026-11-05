@@ -373,7 +373,8 @@ export function loadUserConfig(
 }
 
 /**
- * 人の設定に timeZone が無いときの案内。人の設定が無いか、timeZone があれば空文字を返す。標準エラーには書かない。
+ * 人の設定に timeZone が無いときの案内。人の設定が無いか、timeZone があれば空文字を返す。
+ * 標準エラーには書かず、返した案内は同じ起動の後の読み取りでも標準エラーに出さない。
  * コミットの前の確認は、終了コード 0 のときに標準エラーを利用者に見せないので、この文を自分の結果の文に入れる。
  * @param {string} root
  * @param {NodeJS.ProcessEnv} [env]
@@ -386,6 +387,8 @@ export function missingTimeZoneNote(root, env = process.env) {
       note = m;
     },
   });
+  // 呼び出し側が自分の結果の文に入れるので、同じ起動の後の読み取りでは標準エラーに出さない（同じ案内を 2 回出さない）
+  if (note !== "") warned.add(note);
   return note;
 }
 

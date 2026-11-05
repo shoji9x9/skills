@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { readFileSync, writeFileSync } from "node:fs";
-import { confirmSystemTimeZone } from "../../../skills/agent-usage/scripts/agent-usage.mjs";
-import { isUtcTimeZone } from "../../../skills/agent-usage/scripts/lib/time.mjs";
-import { parseJsonAs } from "../../lib/parse-as.ts";
-import { setup, userConfigOf } from "./cli-helpers.ts";
+import { confirmSystemTimeZone } from "../../../../skills/agent-usage/scripts/agent-usage.mjs";
+import { isUtcTimeZone } from "../../../../skills/agent-usage/scripts/lib/time.mjs";
+import { parseJsonAs } from "../../../lib/parse-as.ts";
+import { setup, userConfigOf } from "../cli-helpers.ts";
 
 // setup がタイムゾーンを決めるときの UTC の扱い（Issue #890）。
 // 入力の軸:
@@ -194,5 +194,7 @@ describe("人の設定に timeZone が無いとき（CLI）", () => {
     const r = await gate("git commit -m x");
     expect(r.status, r.stderr).toBe(0);
     expect(r.stderr).toMatch(/利用実績を記録した[^\n]*timeZone が無いので/);
+    // 結果の文に入れた案内を、collect が標準エラーにもう一度出さない
+    expect(r.stderr.match(/timeZone が無いので/g)).toHaveLength(1);
   });
 });

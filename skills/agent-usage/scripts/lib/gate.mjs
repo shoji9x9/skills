@@ -821,6 +821,8 @@ function recordCommit(repo, context, note) {
       exit: 0,
       message: `agent-usage: このブランチは merge 済み（${merged.how}）なので、記録しない${note}`,
     };
+  // collect より先に読む。collect が同じ案内を標準エラーに出さないようにするため
+  const timeZoneNote = timeZoneNoteOf(repo);
   try {
     const r = runCollect({
       repo,
@@ -844,7 +846,7 @@ function recordCommit(repo, context, note) {
       .filter((s) => s !== "")
       .map((s) => `（${s}）`)
       .join("");
-    const notes = `${github}${extra}${timeZoneNoteOf(repo)}`;
+    const notes = `${github}${extra}${timeZoneNote}`;
     return {
       exit: 0,
       message: `agent-usage: 利用実績を記録した（新しい行 ${r.newRows}、stage したファイル ${r.written.length}）${notes}${note}`,
