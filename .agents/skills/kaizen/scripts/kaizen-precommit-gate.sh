@@ -160,10 +160,17 @@ has_python3=0
 command -v jq >/dev/null 2>&1 && has_jq=1
 command -v python3 >/dev/null 2>&1 && has_python3=1
 if [ "${has_jq}" -eq 1 ]; then
+	# 下の python3 の分岐と同じ順で読む。`tool_input`・`toolArgs`・`input` は、オブジェクトでも
+	# JSON の文字列（Copilot の `toolArgs`）でも読む。文字列のまま `.toolArgs.command` と書くと、
+	# 文字列に添字を付けて読もうとしてエラーになり（jq 1.7 で exit 5）、`//` はそのエラーを
+	# 捕まえないので、式全体が空になる。
 	cmd=$(printf '%s' "${input}" | jq -r '
-		.tool_input.command // .toolArgs.command //
-		(try (.toolArgs | fromjson | .command) catch empty) //
-		.command // .input.command // empty
+		def command_of:
+			(if type == "string" then (try fromjson catch null) else . end)
+			| if type == "object" then (.command | strings) else empty end;
+		if type == "object" then
+			first((.tool_input, .toolArgs, .input | command_of), (.command | strings)) // empty
+		else empty end
 	' 2>/dev/null || true)
 	[ -n "${cmd}" ] && extracted=1
 fi
@@ -671,7 +678,7 @@ fi
 # ここから先は commit と判定した呼び出しだけが通る。transcript_path を取り出す（jq が無い・取り出せないときは python3）。
 transcript=""
 if [ "${has_jq}" -eq 1 ]; then
-	transcript=$(printf '%s' "${input}" | jq -r '.transcript_path // .transcriptPath // .tool_input.transcript_path // .input.transcript_path // empty' 2>/dev/null || true)
+	transcript=$(printf '%s' "${input}" | jq -r '.transcript_path? // .transcriptPath? // .tool_input.transcript_path? // .input.transcript_path? // empty' 2>/dev/null || true)
 fi
 if [ "${extracted_by_jq}" -eq 0 ] && [ "${has_python3}" -eq 1 ]; then
 	transcript=$(printf '%s' "${input}" | python3 -c 'import json, sys

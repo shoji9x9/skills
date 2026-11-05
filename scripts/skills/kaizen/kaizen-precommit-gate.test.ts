@@ -1751,6 +1751,87 @@ describe.concurrent("生 JSON だけで判定するときの commit 検出", () 
   });
 });
 
+// jq はあるが python3 が無い環境では、コマンドを取り出せるのは jq の式だけである（Issue #906）。
+// Copilot の `toolArgs` は JSON の文字列で、`.toolArgs.command` は文字列に添字を付けて読もうとしてエラーになる。
+// 式がエラーで終わると生の JSON の判定に進み、文字列の中の `\"command\"` に一致せず、commit を通してしまう。
+// jq の式は python3 の分岐と同じく、`tool_input`・`toolArgs`・`input` のどれが JSON の文字列でも読む。
+describe.concurrent("jq だけがある環境でのコマンドの取り出し", () => {
+  function jqOnlyPath(cwd: string) {
+    return pathWithout(cwd, ["python3", "python"], kaizenEnv(cwd).PATH ?? "");
+  }
+
+  async function runJqOnly(payload: Record<string, unknown>, args: string[] = []) {
+    const cwd = makeProject();
+    writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
+    const env = { ...kaizenEnv(cwd, { CLAUDE_PROJECT_DIR: cwd }), PATH: jqOnlyPath(cwd) };
+    return await spawnAsync("bash", [join(scriptsDir, "kaizen-precommit-gate.sh"), ...args], {
+      timeout: CHILD_TIMEOUT_MS,
+      cwd,
+      input: JSON.stringify({ ...payload, cwd }),
+      env,
+    });
+  }
+
+  const copilot = (command: string) => ({
+    toolName: "bash",
+    toolArgs: JSON.stringify({ command }),
+  });
+
+  // python3 が解決できると、python3 の分岐が取り出すので、jq の式を確かめたことにならない。
+  test("PATH から python3 が解決できず、jq は解決できること", async () => {
+    const path = jqOnlyPath(makeProject());
+    for (const [tool, found] of [
+      ["python3", false],
+      ["python", false],
+      ["jq", true],
+    ] as const) {
+      const probe = await spawnAsync("bash", ["-c", `command -v ${tool}`], {
+        timeout: CHILD_TIMEOUT_MS,
+        env: { PATH: path },
+      });
+      expect(probe.status === 0).toBe(found);
+    }
+  });
+
+  test.each([
+    ["Copilot の形（-copilot）", copilot("git commit -m x"), ["-copilot"]],
+    ["Copilot の形（引数なし）", copilot("git commit -m x"), []],
+    ["通常の形", { tool_name: "Bash", tool_input: { command: "git commit -m x" } }, []],
+    ["input が JSON の文字列の形", { input: JSON.stringify({ command: "git commit -m x" }) }, []],
+    ["input がオブジェクトの形", { input: { command: "git commit -m x" } }, []],
+    [
+      "toolArgs がオブジェクトの形",
+      { toolName: "bash", toolArgs: { command: "git commit -m x" } },
+      [],
+    ],
+    [
+      "tool_input が JSON の文字列の形",
+      { tool_name: "Bash", tool_input: JSON.stringify({ command: "git commit -m x" }) },
+      [],
+    ],
+  ])("%s の git commit を止める", async (_name, payload, args) => {
+    const result = await runJqOnly(payload, args);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain("kaizen --current");
+  });
+
+  test("Copilot の形の git status は通す", async () => {
+    const result = await runJqOnly(copilot("git status"), ["-copilot"]);
+    expect(result.status).toBe(0);
+  });
+
+  // transcript_path の jq の式も、文字列の tool_input の項目でエラーにならず、後の候補まで読む。
+  // エラーになると transcript が空になり、走査せずに未抽出として止める（exit 2）。
+  test("tool_input が JSON の文字列でも、input.transcript_path の transcript を走査する", async () => {
+    const result = await runJqOnly({
+      tool_name: "Bash",
+      tool_input: JSON.stringify({ command: "git commit -m x" }),
+      input: { transcript_path: join(fixturesDir, "claude-atis-latch-no-candidate.jsonl") },
+    });
+    expect(result.status).toBe(0);
+  });
+});
+
 // 事前の絞り込みは、Hook の入力のうちツールの名前と入力（`tool_name`・`tool_input`・Copilot の `toolArgs`）だけを見る（Issue #678）。
 // 入力の全体を見ると、パスに `git` と `commit` を含む worktree の中のセッションでは、`cwd`・`transcript_path` の語で
 // すべての呼び出しが次の段（jq / python3 / git rev-parse）に進む。終了コードはどちらも 0 なので、
