@@ -65,11 +65,11 @@ dependabot-merge                   （対象の指定なし）--all と同じ。
 
 1. 入力から owner・repo・PR 番号を取り出す
 2. 現在の repo と、PR の owner・repo が一致するかを確かめる
-   - 一致しなければ、確認もマージもせずに中断し、ユーザーに確認する
+   - 一致しなければ、確認もマージもせずに中断し、ユーザーに確認する（聞き方は [`references/user-confirmation.md`](references/user-confirmation.md)）
 3. PR の作成者が Dependabot かを確かめる（`gh pr view <番号> --repo <owner>/<repo> --json author --jq '.author.login'`）
    - bot の login の表記は一定しない（`dependabot[bot]` など）ので、`dependabot` を含むかで判定する。
      `app/dependabot` は `gh pr list --author` で絞るときの app slug で、`author.login` の値とは別のものである
-   - Dependabot でなければ、このスキルの対象にするかを中断して確認する（対象の取り違えを防ぐ）
+   - Dependabot でなければ、このスキルの対象にするかを中断して確認する（対象の取り違えを防ぐ）（聞き方は [`references/user-confirmation.md`](references/user-confirmation.md)）
 4. CI の成功を確かめる（後述「gh メカニクス」）。必須チェックの結果で次のように分ける
    - 成功 → 次に進む
    - 実行中 → 完了を待つ（`--watch`）。待たないなら、そのことを伝えて止まる
