@@ -66,8 +66,8 @@
       "id": "declined-branch-dropped",
       "why": "記録しないと決めた作業ツリーのブランチの行を、どこにも書かない",
       "file": "skills/agent-usage/scripts/lib/merged.mjs",
-      "find": "  if (Object.hasOwn(ctx.decisions, o.branch)) return ctx.decisions[o.branch].decision === \"record\";",
-      "replace": "  if (Object.hasOwn(ctx.decisions, o.branch)) return true;",
+      "find": "decisions[o.branch].decision : null",
+      "replace": "\"record\" : null",
       "occurrences": 1,
       "expect_failing": [
         "branchesRecordedElsewhere 判断が「記録する」で merge していないブランチだけを返す"
@@ -77,8 +77,8 @@
       "id": "default-decision-ignored",
       "why": "判断が無く defaultDecision で記録するブランチの行を外さず、並行するブランチの行が今のブランチの記録に入る",
       "file": "skills/agent-usage/scripts/lib/merged.mjs",
-      "find": "    return defaultDecisionOf(o.path, o.env)?.decision === \"record\";",
-      "replace": "    return false;",
+      "find": "      fallback: () => defaultDecisionOf(o.path, o.env),",
+      "replace": "      fallback: () => null,",
       "occurrences": 1,
       "expect_failing": [
         "branchesRecordedElsewhere 判断が無いブランチは、その作業ツリーの defaultDecision が record で人の設定がある なら、その結果に従う",
@@ -89,8 +89,8 @@
       "id": "no-person-dropped",
       "why": "人の設定が無く、その作業ツリーの Hook が記録しないブランチの行を、どこにも書かない",
       "file": "skills/agent-usage/scripts/lib/merged.mjs",
-      "find": "  if (ctx.decisions === null || !ctx.person) return false;",
-      "replace": "  if (ctx.decisions === null) return false;",
+      "find": "      person: () => person,",
+      "replace": "      person: () => true,",
       "occurrences": 1,
       "expect_failing": [
         "branchesRecordedElsewhere 判断が無いブランチは、その作業ツリーの defaultDecision が record でも人の設定が無い なら、その結果に従う",
@@ -100,9 +100,9 @@
     {
       "id": "unreadable-config-dropped",
       "why": "設定を読めずに、その作業ツリーの Hook がコミットを止めるブランチの行を、どこにも書かない",
-      "file": "skills/agent-usage/scripts/lib/merged.mjs",
-      "find": "    return defaultDecisionOf(o.path, o.env)?.decision === \"record\";\n  } catch {\n    return false;",
-      "replace": "    return defaultDecisionOf(o.path, o.env)?.decision === \"record\";\n  } catch {\n    return true;",
+      "file": "skills/agent-usage/scripts/lib/record-decision.mjs",
+      "find": "      return { kind: \"unreadable\", stage: \"config\", error, branch };",
+      "replace": "      return { kind: \"decided\", decision: \"record\", source: \"\" };",
       "occurrences": 1,
       "expect_failing": [
         "branchesRecordedElsewhere その作業ツリーの設定を読めなければ、判断が無いブランチを返さない"

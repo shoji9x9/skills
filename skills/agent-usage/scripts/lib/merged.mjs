@@ -14,6 +14,7 @@
 import { existsSync } from "node:fs";
 import { defaultDecisionOf, hasPerson, isRecord } from "./config.mjs";
 import { loadDecisions } from "./decisions.mjs";
+import { decidesToRecord, recordDecision } from "./record-decision.mjs";
 import { usageDir } from "./records.mjs";
 import { defaultBranches, gitOrNull } from "./repo.mjs";
 import { ghLoginError, githubTarget } from "./run-collect.mjs";
@@ -83,7 +84,7 @@ export function branchesRecordedElsewhere(repo, o) {
 
 /**
  * @typedef {object} DecisionContext
- * @property {Record<string, { decision: string }> | null} decisions 判断の記録（読めなければ null）
+ * @property {Record<string, { decision: import("./decisions.mjs").Decision }> | null} decisions 判断の記録（読めなければ null）
  * @property {boolean} person 人の設定があるか（読めなければ false）
  */
 
@@ -93,7 +94,7 @@ export function branchesRecordedElsewhere(repo, o) {
  * @returns {DecisionContext}
  */
 function decisionContext(commonDir, env) {
-  /** @type {Record<string, { decision: string }> | null} */
+  /** @type {Record<string, { decision: import("./decisions.mjs").Decision }> | null} */
   let decisions;
   try {
     decisions = loadDecisions(commonDir);
@@ -111,7 +112,7 @@ function decisionContext(commonDir, env) {
 
 /**
  * その作業ツリーでコミットするときの確認が、このブランチを記録すると決めるか。
- * gate.mjs の resolveDecision・defaultDecision・personOf と同じ順で決める（変えるときは両方を変える）。
+ * 判定は record-decision.mjs の recordDecision で、コミットの前の確認（gate.mjs）と同じ関数を呼ぶ。
  * 判断の記録を読めないとき・人の設定が無いとき・設定を読めないときは、その確認がコミットを止めて記録しないので、false を返す。
  * ブランチの判断があればそれに従い、無ければ、その作業ツリーで読む設定の defaultDecision に従う。
  * @param {DecisionContext} ctx
@@ -119,13 +120,17 @@ function decisionContext(commonDir, env) {
  * @returns {boolean}
  */
 function decidedToRecord(ctx, o) {
-  if (ctx.decisions === null || !ctx.person) return false;
-  if (Object.hasOwn(ctx.decisions, o.branch)) return ctx.decisions[o.branch].decision === "record";
-  try {
-    return defaultDecisionOf(o.path, o.env)?.decision === "record";
-  } catch {
-    return false;
-  }
+  const { decisions, person } = ctx;
+  return decidesToRecord(
+    recordDecision({
+      branch: () => {
+        if (decisions === null) throw new Error("判断の記録を読めない");
+        return Object.hasOwn(decisions, o.branch) ? decisions[o.branch].decision : null;
+      },
+      fallback: () => defaultDecisionOf(o.path, o.env),
+      person: () => person,
+    }),
+  );
 }
 
 /**

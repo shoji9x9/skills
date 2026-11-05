@@ -28,6 +28,7 @@ import {
 import { configPaths } from "./skill-config/skill-config.mjs";
 import { decisionFor, saveDecision } from "./lib/decisions.mjs";
 import { gateDecision, readHookInput } from "./lib/gate.mjs";
+import { recordDecision } from "./lib/record-decision.mjs";
 import { branchesRecordedElsewhere, branchMerged } from "./lib/merged.mjs";
 import { parseFlags } from "./lib/flags.mjs";
 import { git, isDecisionBranch, repoInfo } from "./lib/repo.mjs";
@@ -115,7 +116,7 @@ function printCollect(r) {
 /**
  * status に出すブランチの判断。判断が無ければ、コミットの前の確認が従う defaultDecision と、その出所を添える。
  * 設定を読めなくても、status の他の行は出したいので、理由を文字列にして返す。
- * 見る順（.agent-usage/ の有無、対象のブランチか、ブランチの判断、defaultDecisionOf）は、gate.mjs の gateDecision と同じにする。
+ * 判断は、コミットの前の確認（gate.mjs の gateDecision）と同じ recordDecision で決める。
  * @param {import("./lib/repo.mjs").RepoInfo} repo
  * @param {boolean} set
  * @returns {string}
@@ -124,51 +125,43 @@ function branchDecisionText(repo, set) {
   if (!set) return "対象外（.agent-usage/ が無いので、コミットの前の確認は何もしない）";
   if (!isDecisionBranch(repo))
     return "対象外（デフォルトブランチなので、コミットの前の確認は何もしない）";
-  /** @type {import("./lib/decisions.mjs").Decision | null} */
-  let decided;
-  try {
-    decided = decisionFor(repo.commonDir, repo.branch);
-  } catch (e) {
-    return `判断の記録を読めない: ${e instanceof Error ? e.message : String(e)}`;
-  }
-  if (decided === "record") return recordDecisionText(repo);
-  if (decided !== null) return decided;
-  return undecidedText(repo);
+  const r = recordDecision({
+    branch: () => decisionFor(repo.commonDir, repo.branch),
+    fallback: () => defaultDecisionOf(repo.root),
+    person: () => hasPerson(),
+  });
+  if (r.kind === "unreadable") return unreadableText(r);
+  if (r.kind === "undecided") return "未決定";
+  if (r.source === null) return branchDecidedText(repo, r);
+  const head = `未決定（defaultDecision: ${r.decision}、${r.source}`;
+  if (r.kind === "no-person")
+    return `${head}。人の設定が無いので、コミットの前の確認は止めて setup を求める）`;
+  return `${head}）${r.decision === "record" ? mergedNote(repo) : ""}`;
 }
 
 /**
- * ブランチの判断が「記録する」ときに status に出す文字列。
- * @param {import("./lib/repo.mjs").RepoInfo} repo
+ * 判断の記録か設定を読めないときに status に出す文字列。
+ * @param {Extract<import("./lib/record-decision.mjs").RecordDecision, { kind: "unreadable" }>} r
  * @returns {string}
  */
-function recordDecisionText(repo) {
-  // gateDecision と同じく、判断が「記録する」でも人の設定が無ければ止め、人ごとの設定を読めなければその理由を出す
-  try {
-    if (!hasPerson())
-      return "record（人の設定が無いので、コミットの前の確認は止めて setup を求める）";
-  } catch (e) {
-    return `record（設定を読めない: ${e instanceof Error ? e.message : String(e)}）`;
-  }
+function unreadableText(r) {
+  const message = r.error instanceof Error ? r.error.message : String(r.error);
+  if (r.stage === "decisions") return `判断の記録を読めない: ${message}`;
+  return `${r.branch === "record" ? "record" : "未決定"}（設定を読めない: ${message}）`;
+}
+
+/**
+ * ブランチの判断に従ったときに status に出す文字列。
+ * @param {import("./lib/repo.mjs").RepoInfo} repo
+ * @param {Extract<import("./lib/record-decision.mjs").RecordDecision, { kind: "decided" | "no-person" }>} r
+ * @returns {string}
+ */
+function branchDecidedText(repo, r) {
+  if (r.decision === "decline") return "decline";
+  // gateDecision と同じく、判断が「記録する」でも人の設定が無ければ止める
+  if (r.kind === "no-person")
+    return "record（人の設定が無いので、コミットの前の確認は止めて setup を求める）";
   return `record${mergedNote(repo)}`;
-}
-
-/**
- * ブランチの判断が無いときに status に出す文字列。コミットの前の確認が従う defaultDecision と、その出所を添える。
- * @param {import("./lib/repo.mjs").RepoInfo} repo
- * @returns {string}
- */
-function undecidedText(repo) {
-  try {
-    const fallback = defaultDecisionOf(repo.root);
-    if (fallback === null) return "未決定";
-    // gateDecision と同じく、人の設定が無ければ defaultDecision を当てずに止める
-    if (!hasPerson())
-      return `未決定（defaultDecision: ${fallback.decision}、${fallback.source}。人の設定が無いので、コミットの前の確認は止めて setup を求める）`;
-    const merged = fallback.decision === "record" ? mergedNote(repo) : "";
-    return `未決定（defaultDecision: ${fallback.decision}、${fallback.source}）${merged}`;
-  } catch (e) {
-    return `未決定（設定を読めない: ${e instanceof Error ? e.message : String(e)}）`;
-  }
 }
 
 /**
