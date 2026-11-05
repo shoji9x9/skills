@@ -1,15 +1,16 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { readFileSync } from "node:fs";
-import { confirmSystemTimeZone } from "../../../skills/agent-usage/scripts/agent-usage.mjs";
-import { isUtcTimeZone } from "../../../skills/agent-usage/scripts/lib/time.mjs";
-import { setup, userConfigOf } from "./cli-helpers.ts";
+import { readFileSync, writeFileSync } from "node:fs";
+import { confirmSystemTimeZone } from "../../../../skills/agent-usage/scripts/agent-usage.mjs";
+import { isUtcTimeZone } from "../../../../skills/agent-usage/scripts/lib/time.mjs";
+import { parseJsonAs } from "../../../lib/parse-as.ts";
+import { setup, userConfigOf } from "../cli-helpers.ts";
 
 // setup がタイムゾーンを決めるときの UTC の扱い（Issue #890）。
 // 入力の軸:
 //   値の出所       --time-zone／人の設定の値／マシンのタイムゾーン（このときだけ確かめる）。
 //   マシンの値     UTC の名前（別名を含む）／UTC 以外。
 //   対話           できる（1 行を読める）／できない（stdin か stdout が端末でない）。
-//   入力           空（Enter）／正しい IANA の名前／IANA の名前でない／読めない（上限を過ぎた）。
+//   入力           空（Enter）／正しい IANA の名前／IANA の名前でない（その後に正しい名前・空・読めない）／読めない（上限を過ぎた）。
 //   設定を作る側   setup／collect（setup を通らずに人の設定を作る）。
 
 afterEach(() => {
@@ -83,10 +84,31 @@ describe("confirmSystemTimeZone", () => {
     expect(log.mock.calls.flat().join("\n")).toMatch(/--time-zone Asia\/Tokyo/);
   });
 
-  test("対話できる実行で IANA の名前でない値を入れたら、設定を作らずに止める", () => {
+  test("対話できる実行で IANA の名前でない値を入れたら、止めずにもう一度尋ね、次の入力を使う", () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const write = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    const answers = ["Not/AZone", "Asia/Tokyo"];
+    const read = vi.fn(() => answers.shift() ?? null);
+    expect(confirmSystemTimeZone("UTC", read)).toBe("Asia/Tokyo");
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(write.mock.calls.flat().join("")).toMatch(
+      /IANA のタイムゾーンの名前ではない: Not\/AZone/,
+    );
+  });
+
+  test("打ち間違えた後に Enter なら、マシンの値を使う", () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     vi.spyOn(process.stdout, "write").mockImplementation(() => true);
-    expect(() => confirmSystemTimeZone("UTC", () => "Not/AZone")).toThrow(/IANA/);
+    const answers = ["Not/AZone", ""];
+    expect(confirmSystemTimeZone("UTC", () => answers.shift() ?? null)).toBe("UTC");
+  });
+
+  test("打ち間違えた後に入力が読めなければ（上限を過ぎたなど）、付け方を示して UTC のまま使う", () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    const answers = ["Not/AZone", "Also/Wrong"];
+    expect(confirmSystemTimeZone("UTC", () => answers.shift() ?? null)).toBe("UTC");
+    expect(log.mock.calls.flat().join("\n")).toMatch(/--time-zone Asia\/Tokyo/);
   });
 });
 
@@ -130,5 +152,49 @@ describe("setup のタイムゾーンの決め方（CLI）", () => {
     const again = await cliWith({ TZ: "UTC" }, "setup");
     expect(again.status, again.stderr).toBe(0);
     expect(again.stdout).not.toMatch(/--time-zone Asia\/Tokyo のように/);
+  });
+});
+
+describe("人の設定に timeZone が無いとき（CLI）", () => {
+  /** setup で人の設定を作り、timeZone だけを消す。defaultDecision を足すと、コミットの前の確認が記録する */
+  async function withoutTimeZone(extra: Record<string, unknown> = {}) {
+    const s = await setup();
+    expect((await s.cli("setup", "--time-zone", "Asia/Tokyo")).status).toBe(0);
+    const path = userConfigOf(s.tmp);
+    const { timeZone: _dropped, ...rest } = parseJsonAs<Record<string, unknown>>(
+      readFileSync(path, "utf8"),
+    );
+    writeFileSync(path, JSON.stringify({ ...rest, ...extra }));
+    return { ...s, path };
+  }
+
+  test("collect は、使ったマシンのタイムゾーンと設定の書き方を stderr に出す", async () => {
+    const { cliWith, git } = await withoutTimeZone();
+    await git("switch", "-q", "-c", "feature/5-x");
+    const r = await cliWith({ TZ: "Asia/Tokyo" }, "collect");
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stderr).toMatch(/timeZone が無いので、マシンのタイムゾーン（Asia\/Tokyo）を使った/);
+    // 1 回の起動で人の設定を何度読んでも、同じ案内は 1 回だけ出す
+    expect(r.stderr.match(/timeZone が無いので/g)).toHaveLength(1);
+  });
+
+  test("setup は、これから書くタイムゾーンについて案内を出さずに、設定に書く", async () => {
+    const { cli, path } = await withoutTimeZone();
+    const r = await cli("setup", "--time-zone", "Europe/Paris");
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stderr).not.toMatch(/timeZone が無い/);
+    expect(parseJsonAs<Record<string, unknown>>(readFileSync(path, "utf8"))).toMatchObject({
+      timeZone: "Europe/Paris",
+    });
+  });
+
+  test("コミットの前の確認は、記録の結果の文に案内を添える（終了コード 0 では標準エラーが見えないため）", async () => {
+    const { gate, git } = await withoutTimeZone({ defaultDecision: "record" });
+    await git("switch", "-q", "-c", "feature/5-x");
+    const r = await gate("git commit -m x");
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stderr).toMatch(/利用実績を記録した[^\n]*timeZone が無いので/);
+    // 結果の文に入れた案内を、collect が標準エラーにもう一度出さない
+    expect(r.stderr.match(/timeZone が無いので/g)).toHaveLength(1);
   });
 });

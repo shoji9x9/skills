@@ -9,6 +9,7 @@
 //   課金 API（人の設定で有効なときだけ）         premium request の日別の実額（billing）。
 // 取得に失敗したら、その期間を coverage の行に failed として残す（report はその期間の停止を「判定不能」にする）。
 
+import { errorMessage } from "../error-message.mjs";
 import { spawnSync } from "node:child_process";
 import { isArray } from "../is-array.mjs";
 import { isRecord } from "../config.mjs";
@@ -566,7 +567,7 @@ export function collectGitHub(o) {
       try {
         fn();
       } catch (e) {
-        failures.push(`${step}: ${e instanceof Error ? e.message.split("\n")[0] : String(e)}`);
+        failures.push(`${step}: ${errorMessage(e).split("\n")[0]}`);
       }
     },
   };

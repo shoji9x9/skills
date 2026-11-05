@@ -1229,7 +1229,7 @@ export function runReport(o) {
   const resolvedConfig = resolved(o.root, o.env);
   const config = loadRepoConfig(o.root, o.env, resolvedConfig);
   // report は人の設定を読むだけで作らない（作ると、setup を通らずに乱数の ID ができる）
-  const tz = loadUserConfig(o.root, o.env, resolvedConfig)?.timeZone ?? systemTimeZone();
+  const tz = loadUserConfig(o.root, o.env, { r: resolvedConfig })?.timeZone ?? systemTimeZone();
   const { rows, files, unknownKinds } = readRecords(join(dir, "records"));
   if (files === 0) throw new Error(`${join(dir, "records")} に記録が無い。先に collect を実行する`);
   const data = buildReport(rows, {

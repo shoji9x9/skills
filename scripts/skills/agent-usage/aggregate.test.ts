@@ -10,6 +10,7 @@ import { describe, expect, test } from "vitest";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { formulaSafe, parseCsv, toCsv } from "../../../skills/agent-usage/scripts/lib/csv.mjs";
+import { errorMessage } from "../../../skills/agent-usage/scripts/lib/error-message.mjs";
 import { classifyingFailuresOf } from "../../../skills/agent-usage/scripts/lib/run-collect.mjs";
 import {
   defaultDecisionOf,
@@ -330,7 +331,30 @@ describe("設定", () => {
       ci: { external: false },
       defaultDecision: null,
     });
-    expect(parseUserConfig({ personId: "p-0123abcd" }, "u")).toMatchObject({ billing: "none" });
+    expect(parseUserConfig({ personId: "p-0123abcd" }, "u", () => {})).toMatchObject({
+      billing: "none",
+    });
+  });
+
+  test("timeZone が無ければ、使ったマシンのタイムゾーンと設定の書き方を案内する。あれば案内しない", () => {
+    const messages: string[] = [];
+    const warn = (m: string) => messages.push(m);
+    const c = parseUserConfig({ personId: "p-0123abcd" }, "u.jsonc", warn);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain(`マシンのタイムゾーン（${c.timeZone}）を使った`);
+    expect(messages[0]).toMatch(/^u\.jsonc: timeZone が無い/);
+    expect(messages[0]).toMatch(/--time-zone <IANA の名前>/);
+    expect(messages[0]).toMatch(/"timeZone": "<IANA の名前>"/);
+    parseUserConfig({ personId: "p-0123abcd", timeZone: "Asia/Tokyo" }, "u.jsonc", warn);
+    expect(messages).toHaveLength(1);
+  });
+
+  test("例外を文字列にする関数は、Error なら message を、それ以外は String() の結果を返す", () => {
+    expect(errorMessage(new Error("読めない"))).toBe("読めない");
+    expect(errorMessage(new TypeError("型が違う"))).toBe("型が違う");
+    expect(errorMessage("文字列")).toBe("文字列");
+    expect(errorMessage(42)).toBe("42");
+    expect(errorMessage(undefined)).toBe("undefined");
   });
 
   test("defaultDecision は record か decline だけを受け付ける", () => {

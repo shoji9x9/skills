@@ -293,16 +293,40 @@ export function loadRepoConfig(root, env = process.env, r = resolved(root, env))
  * 人ごとの設定の値を検証して返す。人の ID は必須で、タイムゾーンは省くとマシンのタイムゾーンにする。
  * @param {unknown} raw
  * @param {string} [where]
+ * @param {(message: string) => void} [warn] timeZone が無いときの案内の出し先（省くと標準エラー）
  * @returns {UserConfig}
  */
-export function parseUserConfig(raw, where = CONFIG_NAME) {
+export function parseUserConfig(raw, where = CONFIG_NAME, warn = writeWarning) {
   if (!isRecord(raw)) throw new ConfigError(`${where}: オブジェクトでない`);
   validateKeys(raw, where, { allowed: USER_KEYS });
   if (typeof raw.personId !== "string") throw new ConfigError(`${where}: personId が無い`);
   const timeZone = raw.timeZone === undefined ? systemTimeZone() : raw.timeZone;
   if (typeof timeZone !== "string" || !isValidTimeZone(timeZone))
     throw new ConfigError(`${where}: timeZone が IANA のタイムゾーンの名前でない`);
+  // マシンのタイムゾーンが変わると、記録の日付の区切りも変わる。警告なしに使わず、設定に書く方法を示す
+  if (raw.timeZone === undefined) warn(missingTimeZoneGuidance(where, timeZone));
   return { personId: raw.personId, timeZone, billing: raw.billing === "user" ? "user" : "none" };
+}
+
+/**
+ * 人の設定に timeZone が無いときの案内。
+ * @param {string} where
+ * @param {string} used 代わりに使ったタイムゾーン
+ * @returns {string}
+ */
+function missingTimeZoneGuidance(where, used) {
+  return `${where}: timeZone が無いので、マシンのタイムゾーン（${used}）を使った。記録の日付の区切りを固定するには、setup に --time-zone <IANA の名前>（例: Asia/Tokyo）を付けて実行するか、設定に "timeZone": "<IANA の名前>" を書く`;
+}
+
+/** 1 回の起動で同じ案内を出した印。1 回の起動で人の設定を何度も読むので、同じ案内を繰り返さない */
+/** @type {Set<string>} */
+const warned = new Set();
+
+/** @param {string} message */
+function writeWarning(message) {
+  if (warned.has(message)) return;
+  warned.add(message);
+  process.stderr.write(`agent-usage: ${message}\n`);
 }
 
 /**
@@ -334,13 +358,38 @@ export function hasPerson(env = process.env) {
  * タイムゾーンは、このリポジトリだけの値（.local.jsonc）、人ごとの値、マシンのタイムゾーンの順に決める。
  * @param {string} root
  * @param {NodeJS.ProcessEnv} [env]
- * @param {ReturnType<typeof resolved>} [r] 読み込み済みの設定（省くと読む）
+ * @param {{ r?: ReturnType<typeof resolved>; warn?: (message: string) => void }} [options]
+ *   r は読み込み済みの設定（省くと読む）。warn は timeZone が無いときの案内の出し先（省くと標準エラー）
  * @returns {UserConfig | null}
  */
-export function loadUserConfig(root, env = process.env, r = resolved(root, env)) {
+export function loadUserConfig(
+  root,
+  env = process.env,
+  { r = resolved(root, env), warn = writeWarning } = {},
+) {
   if (typeof r.personId?.value !== "string") return null;
   const { raw, where } = pick(r, USER_KEYS);
-  return parseUserConfig(raw, where);
+  return parseUserConfig(raw, where, warn);
+}
+
+/**
+ * 人の設定に timeZone が無いときの案内。人の設定が無いか、timeZone があれば空文字を返す。
+ * 標準エラーには書かず、返した案内は同じ起動の後の読み取りでも標準エラーに出さない。
+ * コミットの前の確認は、終了コード 0 のときに標準エラーを利用者に見せないので、この文を自分の結果の文に入れる。
+ * @param {string} root
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {string}
+ */
+export function missingTimeZoneNote(root, env = process.env) {
+  let note = "";
+  loadUserConfig(root, env, {
+    warn: (m) => {
+      note = m;
+    },
+  });
+  // 呼び出し側が自分の結果の文に入れるので、同じ起動の後の読み取りでは標準エラーに出さない（同じ案内を 2 回出さない）
+  if (note !== "") warned.add(note);
+  return note;
 }
 
 /**
@@ -402,7 +451,7 @@ export function saveUserConfig(root, env, values) {
  */
 export function loadOrCreateUserConfig(root, env = process.env, r = resolved(root, env)) {
   const path = userConfigPath(env);
-  const existing = loadUserConfig(root, env, r);
+  const existing = loadUserConfig(root, env, { r });
   if (existing !== null) return { config: existing, created: false, path };
   // タイムゾーンも書いておく（後でマシンのタイムゾーンが変わっても、記録の日付の区切りを変えない）
   const timeZone = systemTimeZone();
