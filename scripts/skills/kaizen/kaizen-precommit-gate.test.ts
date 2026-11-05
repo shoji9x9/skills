@@ -2322,6 +2322,49 @@ describe.concurrent("チェックはリポジトリの全作業ツリーの .kai
   });
 });
 
+// worktree へ移ったセッションの transcript は、センチネルに記録したパスから隣のディレクトリへ移る（Issue #902）。
+// 他のセッションのセンチネルを自動で解消するとき、記録したパスに無ければ同じファイル名で探す。
+// 入力の軸: 移った先の候補が 1 件・0 件・2 件以上／記録したパスにある。
+describe("他のセッションの transcript が移ったとき", () => {
+  const setup = setupForeignScan;
+
+  /** 記録したパスを projects/before/<名前> にし、実物を置くディレクトリを並べる。 */
+  function movedLayout(cwd: string, dirsWithFile: string[], recordedExists = false) {
+    const projects = join(cwd, "projects");
+    const name = `${FOREIGN_SCAN_FOREIGN}.jsonl`;
+    mkdirSync(join(projects, "before"), { recursive: true });
+    if (recordedExists) writeFileSync(join(projects, "before", name), "{}\n");
+    for (const d of dirsWithFile) {
+      mkdirSync(join(projects, d), { recursive: true });
+      writeFileSync(join(projects, d, name), "{}\n");
+    }
+    writeFileSync(
+      join(cwd, ".kaizen", `.pending-extract.${FOREIGN_SCAN_FOREIGN}`),
+      `2099-01-01T00:00:00Z\n${join(projects, "before", name)}\nclaude-code\n${FOREIGN_SCAN_FOREIGN}\n`,
+    );
+    return { projects, name };
+  }
+
+  test.for<[string, string[], boolean, string | null]>([
+    ["移った先が 1 件なら、そのファイルを走査する", ["after"], false, "after"],
+    ["移った先が 0 件なら、走査しない", [], false, null],
+    ["移った先が 2 件以上なら、どれか決められないので走査しない", ["after", "other"], false, null],
+    ["記録したパスにあれば、移った先があってもそちらを走査する", ["after"], true, "before"],
+  ])("%s", async ([, dirs, recordedExists, expectedDir]) => {
+    const { cwd, gate, scans } = setup('echo "$1" >>"$SCAN_ARGS"; exit 2');
+    const { projects, name } = movedLayout(cwd, dirs, recordedExists);
+    const args = join(cwd, "scan-args");
+    const result = await gate({ SCAN_ARGS: args });
+    expect(result.status, result.stderr).not.toBe(0);
+    if (expectedDir === null) {
+      expect(scans()).toBe(0);
+    } else {
+      expect(scans()).toBe(1);
+      expect(readFileSync(args, "utf8").trim()).toBe(join(projects, expectedDir, name));
+    }
+  });
+});
+
 // **経過時間や使える秒数で判定するテストは並べず、ファイルの最後に置く**（Issue #590）。
 // 並べると他のテストの子で CPU が混み、親が子の終了に気づくのも遅れるので、チェックが正しくても上限を超える。
 // 子の側で測ると、孫プロセスがパイプを開いたままにする回帰（エージェントが待たされる）を見逃す。

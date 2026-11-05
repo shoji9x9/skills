@@ -374,6 +374,14 @@
         "skills/replace-strategy/config-schemas/replace-strategy.schema.json"
       ],
       "reason": "replace-strategy の設定のスキーマ。姉妹スキルがすべて replace-strategy.jsonc を直接読むので、受け付けるキーと型を食い違わせない"
+    },
+    {
+      "files": [
+        "skills/kaizen/scripts/kaizen-candidate-scan.sh",
+        "skills/kaizen/scripts/kaizen-extract-done.sh"
+      ],
+      "region": "transcript-fingerprint",
+      "reason": "処理位置に記録する transcript の先頭の指紋（Issue #902）。書く側（extract-done）と照合する側（candidate-scan）で計算が食い違うと、同じ transcript でも処理位置を引き継がず、毎回全体を走査し直す。candidate-scan は共通ライブラリを読まずに動くので、同じ関数を持つ"
     }
   ]
 }

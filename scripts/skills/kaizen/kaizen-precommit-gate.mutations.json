@@ -291,6 +291,28 @@
       "expect_failing": [
         "jq だけがある環境でのコマンドの取り出し tool_input が JSON の文字列でも、input.transcript_path の transcript を走査する"
       ]
+    },
+    {
+      "id": "moved-transcript-not-searched",
+      "why": "記録したパスに transcript が無いとき、移った先を探さずにセンチネルを残す（Issue #902）",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": "\t\t\tf_transcript=$(moved_transcript_of \"${f_transcript}\") || continue\n",
+      "replace": "\t\t\tcontinue\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "他のセッションの transcript が移ったとき 移った先が 1 件なら、そのファイルを走査する"
+      ]
+    },
+    {
+      "id": "moved-transcript-ambiguous-taken",
+      "why": "移った先の候補が 2 件以上でも、どれかを選んで走査する（Issue #902）",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": "\t[ \"${#found[@]}\" -eq 1 ] || return 1\n",
+      "replace": "\t[ \"${#found[@]}\" -ge 1 ] || return 1\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "他のセッションの transcript が移ったとき 移った先が 2 件以上なら、どれか決められないので走査しない"
+      ]
     }
   ]
 }
