@@ -264,6 +264,94 @@ function statusOf(dir: string, name: string) {
   return /^status: (.*)$/m.exec(readFileSync(join(dir, ".kaizen", name), "utf8"))?.[1] ?? "";
 }
 
+// 処理位置の 5 行目に、transcript の先頭の指紋を書く（Issue #902）。スキャナはこの値で、
+// 移った先のファイルが同じ transcript の続きかを確かめる。
+describe("処理位置に transcript の先頭の指紋を書く", () => {
+  function fingerprintOf(path: string, limit: number): string {
+    const r = spawnSync("bash", ["-c", 'head -c "$2" "$1" | cksum', "_", path, String(limit)], {
+      encoding: "utf8",
+      timeout: CHILD_TIMEOUT_MS,
+    });
+    const [crc, len] = r.stdout.trim().split(/\s+/);
+    return `${len}:${crc}`;
+  }
+
+  test("抽出の完了では、ファイル全体（最大 4096 バイト）の指紋を書く", () => {
+    const { main } = makeRepoWithWorktree();
+    writeSentinel(main);
+    const transcript = join(main, "transcript.jsonl");
+    writeFileSync(transcript, `${'{"type":"user"}\n'.repeat(400)}`);
+    const result = runExtractDone(main, main, [transcript]);
+    expect(result.status, result.stderr).toBe(0);
+    const lines = readFileSync(
+      join(main, ".kaizen", `.extract-checkpoint.${SESSION}`),
+      "utf8",
+    ).split("\n");
+    expect(lines[4]).toBe(fingerprintOf(transcript, 4096));
+    expect(lines[4]).toMatch(/^4096:\d+$/);
+  });
+
+  test("checkpoint-only では、走査した位置より先を指紋に含めない", () => {
+    const { main } = makeRepoWithWorktree();
+    writeSentinel(main);
+    const transcript = join(main, "transcript.jsonl");
+    writeFileSync(transcript, '{"type":"user"}\n{"type":"user"}\n');
+    const result = runExtractDone(main, main, [
+      "--checkpoint-only",
+      "--scanned-bytes",
+      "16",
+      "--scanned-lines",
+      "1",
+      transcript,
+    ]);
+    expect(result.status, result.stderr).toBe(0);
+    const lines = readFileSync(
+      join(main, ".kaizen", `.extract-checkpoint.${SESSION}`),
+      "utf8",
+    ).split("\n");
+    expect(lines[4]).toBe(fingerprintOf(transcript, 16));
+    expect(lines[4]).toMatch(/^16:\d+$/);
+  });
+
+  test("書いた処理位置を、移った先の同じ transcript に対してスキャナが引き継ぐ", () => {
+    const { main } = makeRepoWithWorktree();
+    writeSentinel(main);
+    const before = join(main, "a");
+    const after = join(main, "b");
+    mkdirSync(before);
+    mkdirSync(after);
+    const transcript = join(before, "s.jsonl");
+    writeFileSync(transcript, '{"type":"user","message":{"content":"違う、やり直してください"}}\n');
+    expect(runExtractDone(main, main, [transcript]).status).toBe(0);
+    const moved = join(after, "s.jsonl");
+    copyFileSync(transcript, moved);
+    const checkpoint = join(main, ".kaizen", `.extract-checkpoint.${SESSION}`);
+    const scan = spawnSync(
+      "bash",
+      [join(scriptsDir, "kaizen-candidate-scan.sh"), moved, checkpoint],
+      {
+        timeout: CHILD_TIMEOUT_MS,
+        encoding: "utf8",
+      },
+    );
+    expect(scan.status, scan.stderr + scan.stdout).toBe(1);
+    // 同じ名前で中身の違うファイルは引き継がず、先頭から読み直す
+    writeFileSync(
+      moved,
+      '{"type":"user","message":{"content":"別の内容のファイルです。ほぼ同じ長さにする"}}\n',
+    );
+    const other = spawnSync(
+      "bash",
+      [join(scriptsDir, "kaizen-candidate-scan.sh"), moved, checkpoint],
+      {
+        timeout: CHILD_TIMEOUT_MS,
+        encoding: "utf8",
+      },
+    );
+    expect(other.stderr).not.toContain("no new records since checkpoint");
+  });
+});
+
 describe("忘却の自動掃引", () => {
   test("閾値を過ぎた pending だけを忘却し、何を忘れたかを出す", () => {
     const { main } = makeRepoWithWorktree();

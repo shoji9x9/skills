@@ -14,7 +14,10 @@
       "replace": "\tfalse\n",
       "occurrences": 1,
       "expect_failing": [
-        "処理位置の transcript の照合 key 付きで、移る前のパスでもファイル名が同じ なら exit 1"
+        "処理位置の transcript の照合 key 付きで、移る前のパスでもファイル名が同じ なら exit 1",
+        "処理位置の transcript の指紋の照合 5 行目が無い古い処理位置（移った先）",
+        "処理位置の transcript の指紋の照合 5 行目が空",
+        "処理位置の transcript の指紋の照合 指紋が一致する（移った先）"
       ]
     },
     {
@@ -52,6 +55,34 @@
       "occurrences": 1,
       "expect_failing": [
         "処理位置の transcript の照合 key の後に別の拡張子が続く制御ファイル なら exit 0"
+      ]
+    },
+    {
+      "id": "fingerprint-not-checked",
+      "why": "処理位置の指紋を照合せず、ファイル名だけで処理位置を引き継ぐ（Issue #902）",
+      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
+      "find": "\t\tcheckpoint_fingerprint_matches \"${checkpoint_fingerprint}\"; then\n",
+      "replace": "\t\ttrue; then\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "処理位置の transcript の指紋の照合 指紋の CRC が違う（別の内容のファイル）",
+        "処理位置の transcript の指紋の照合 指紋の CRC が違う（同じパス）",
+        "処理位置の transcript の指紋の照合 指紋のバイト数がファイルより長い",
+        "処理位置の transcript の指紋の照合 指紋の形の誤り",
+        "処理位置の transcript の指紋の照合 指紋のバイト数が無い"
+      ]
+    },
+    {
+      "id": "fingerprint-compare-always-true",
+      "why": "指紋の値を比べずに、形が正しければ一致として扱う（Issue #902）",
+      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
+      "find": "\t[ \"${now}\" = \"${recorded}\" ]\n",
+      "replace": "\ttrue\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "処理位置の transcript の指紋の照合 指紋の CRC が違う（別の内容のファイル）",
+        "処理位置の transcript の指紋の照合 指紋の CRC が違う（同じパス）",
+        "処理位置の transcript の指紋の照合 指紋のバイト数がファイルより長い"
       ]
     }
   ]
