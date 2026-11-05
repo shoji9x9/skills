@@ -66,8 +66,8 @@
       "id": "declined-branch-dropped",
       "why": "記録しないと決めた作業ツリーのブランチの行を、どこにも書かない",
       "file": "skills/agent-usage/scripts/lib/merged.mjs",
-      "find": "decisions[o.branch].decision : null",
-      "replace": "\"record\" : null",
+      "find": "      branch: () => decisionIn(replay(ctx.decisions), o.branch),",
+      "replace": "      branch: () => (decisionIn(replay(ctx.decisions), o.branch) === null ? null : \"record\"),",
       "occurrences": 1,
       "expect_failing": [
         "branchesRecordedElsewhere 判断が「記録する」で merge していないブランチだけを返す"
@@ -89,7 +89,7 @@
       "id": "no-person-dropped",
       "why": "人の設定が無く、その作業ツリーの Hook が記録しないブランチの行を、どこにも書かない",
       "file": "skills/agent-usage/scripts/lib/merged.mjs",
-      "find": "      person: () => person,",
+      "find": "      person: () => replay(ctx.person),",
       "replace": "      person: () => true,",
       "occurrences": 1,
       "expect_failing": [

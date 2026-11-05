@@ -18,7 +18,8 @@
  * - undecided: ブランチの判断も defaultDecision も無い
  * - no-person: 判断は決まったが、人の設定が無い（コミットの前の確認は止めて setup を求める）
  * - decided: 判断が決まった。source は defaultDecision を決めた設定のファイルで、ブランチの判断に従ったときは null
- * @typedef {{ kind: "unreadable", stage: "decisions" | "config", error: unknown, branch: import("./decisions.mjs").Decision | null | undefined }
+ * @typedef {{ kind: "unreadable", stage: "decisions", error: unknown, branch: undefined }
+ *   | { kind: "unreadable", stage: "config", error: unknown, branch: "record" | null }
  *   | { kind: "undecided" }
  *   | { kind: "no-person", decision: import("./decisions.mjs").Decision, source: string | null }
  *   | { kind: "decided", decision: import("./decisions.mjs").Decision, source: string | null }} RecordDecision

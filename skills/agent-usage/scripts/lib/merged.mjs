@@ -13,7 +13,7 @@
 
 import { existsSync } from "node:fs";
 import { defaultDecisionOf, hasPerson, isRecord } from "./config.mjs";
-import { loadDecisions } from "./decisions.mjs";
+import { decisionIn, loadDecisions } from "./decisions.mjs";
 import { decidesToRecord, recordDecision } from "./record-decision.mjs";
 import { usageDir } from "./records.mjs";
 import { defaultBranches, gitOrNull } from "./repo.mjs";
@@ -83,31 +83,52 @@ export function branchesRecordedElsewhere(repo, o) {
 }
 
 /**
- * @typedef {object} DecisionContext
- * @property {Record<string, { decision: import("./decisions.mjs").Decision }> | null} decisions 判断の記録（読めなければ null）
- * @property {boolean} person 人の設定があるか（読めなければ false）
+ * 読んだ値か、読めなかった理由。読めなかったときは、判定のときに同じ例外を投げ直す。
+ * @template T
+ * @typedef {{ value: T } | { error: unknown }} ReadResult
  */
 
 /**
+ * @typedef {object} DecisionContext
+ * @property {ReadResult<Record<string, { decision: import("./decisions.mjs").Decision }>>} decisions 判断の記録
+ * @property {ReadResult<boolean>} person 人の設定があるか
+ */
+
+/**
+ * ブランチに依らない材料を 1 回だけ読む。読めなかった理由も覚え、判定で読めない状態として扱えるようにする。
  * @param {string} commonDir
  * @param {NodeJS.ProcessEnv} env
  * @returns {DecisionContext}
  */
 function decisionContext(commonDir, env) {
-  /** @type {Record<string, { decision: import("./decisions.mjs").Decision }> | null} */
-  let decisions;
+  return {
+    decisions: readOnce(() => loadDecisions(commonDir)),
+    person: readOnce(() => hasPerson(env)),
+  };
+}
+
+/**
+ * @template T
+ * @param {() => T} read
+ * @returns {ReadResult<T>}
+ */
+function readOnce(read) {
   try {
-    decisions = loadDecisions(commonDir);
-  } catch {
-    decisions = null;
+    return { value: read() };
+  } catch (error) {
+    return { error };
   }
-  let person;
-  try {
-    person = hasPerson(env);
-  } catch {
-    person = false;
-  }
-  return { decisions, person };
+}
+
+/**
+ * 覚えた値を返す。読めなかったときは、その例外を投げ直す。
+ * @template T
+ * @param {ReadResult<T>} r
+ * @returns {T}
+ */
+function replay(r) {
+  if ("error" in r) throw r.error;
+  return r.value;
 }
 
 /**
@@ -120,15 +141,11 @@ function decisionContext(commonDir, env) {
  * @returns {boolean}
  */
 function decidedToRecord(ctx, o) {
-  const { decisions, person } = ctx;
   return decidesToRecord(
     recordDecision({
-      branch: () => {
-        if (decisions === null) throw new Error("判断の記録を読めない");
-        return Object.hasOwn(decisions, o.branch) ? decisions[o.branch].decision : null;
-      },
+      branch: () => decisionIn(replay(ctx.decisions), o.branch),
       fallback: () => defaultDecisionOf(o.path, o.env),
-      person: () => person,
+      person: () => replay(ctx.person),
     }),
   );
 }
