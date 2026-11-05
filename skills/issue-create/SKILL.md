@@ -58,7 +58,7 @@ issue-create <説明> [--repo <owner>/<repo>]
    判断の目安・分け方・分けた Issue の間の依存の書き方・起票の順・GitHub の依存関係の設定は、[`references/split.md`](references/split.md) で定義する。
    分けるときは、分けた Issue ごとに 2 の重複の確認をやり直し、この後の 5〜8 を分けた Issue ごとに行う。8 の承認は全件をまとめて 1 回で得る。
    呼び出し元のスキルが分け方と下書きを決め、利用者の承認を得たうえで 1 件ずつ任せたとき（`replace-strategy` の `issues` モードなど）は、3 と 4 を行わない。
-   その単位と内容は、呼び出し元で利用者が承認している。8 の承認を求め直すかは、[`references/caller-approval.md`](references/caller-approval.md) の条件で決める。
+   その単位と内容は、呼び出し元で利用者が承認している。5〜7 を行うかと、8 の承認を求め直すかは、[`references/caller-approval.md`](references/caller-approval.md) の条件で決める。
 5. 種別（バグ・機能要望・タスクなど）を見極める。
 6. テンプレートを探して読む（詳しくは「テンプレートの扱い」）。
    - まず、インストール先のリポジトリの `.github/ISSUE_TEMPLATE/` を見る。種別に合うテンプレート（例: `bug_report.md`・`feature_request.md`）があれば、それを優先して読む。
