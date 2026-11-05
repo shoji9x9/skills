@@ -51,13 +51,33 @@ PR の作業ツリーから読むと、PR 自身が設定や文書を書き換�
 6. `git show "refs/worktree/pr-review/base:$doc"` で本文を読む。git のオブジェクトから読むので、作業ツリーの変更とリポジトリの外のファイルは読まない。
    読み終えたら、`git update-ref -d refs/worktree/pr-review/base` で ref を消す。
 
-PR がまだ無いとき（`issue-start` が、PR を作る前の仮の決定に基準を当てるときなど）は、1 と 4 を次のように読み替える。2・3・5・6 は同じである。
+### PR がまだ無いとき
 
-- 4 を先に行う。PR のベースブランチの代わりに、作業ブランチを作ったときのベースブランチを、4 と同じ方法で `refs/worktree/pr-review/base` に取得する。
-  ベースブランチを決められないときと、取得に失敗したときは止まる。
-- 1 の一覧は、作業ブランチがベースから変えたファイル（`git diff --name-only --no-renames refs/worktree/pr-review/base...HEAD`）で作る。
-  `--no-renames` を付けると、名前を変えたファイルは変える前と後の両方の名前で出る。手元で commit していない変更は、1 と同じ `git status` で足す。
-  一覧に `.config/skills/shoji9x9/common.jsonc` があれば止まるのは、PR があるときと同じである。
+PR を作る前に基準を当てるとき（`issue-start` が仮の決定を判断するときなど）は、上の 1〜6 の代わりに次の順に確かめる。
+どこかで止まるときは、人に回すかを自分で決めずに止まり、止まった理由を報告する。
+
+1. 上の 2 と同じ方法で設定の値を読む。exit 3 なら 1〜3 だけで決め、ここで終える（ベースブランチを取得しない）。
+   exit 1 と、設定ファイルがあるのに Node.js が無いときは止まる。exit 0 なら、出力した値を引用符で囲んだ変数 `doc` に入れて次に進む。
+2. 作業ブランチのベースブランチを決める。呼び出し元のスキルが規約から決めたものを使う（`issue-start` では「ブランチ運用・commit 規約の参照」で決めたもの）。
+   決められなければ止まる。
+3. ベースブランチを専用の ref に取得する。`<remote>` は、ベースリポジトリを指す remote である（多くは `origin`）。取得に失敗したら止まる。
+
+   ```bash
+   git fetch --no-tags <remote> "+refs/heads/<ベースブランチ>:refs/worktree/pr-review/base"
+   ```
+
+4. 作業ツリーの設定と文書が、ベースブランチの先端と同じかを確かめる。次の 2 つのどちらかが何かを出せば止まる。
+
+   ```bash
+   git diff --name-only refs/worktree/pr-review/base -- .config/skills/shoji9x9/common.jsonc "$doc"
+   git status --porcelain --untracked-files=all -- .config/skills/shoji9x9/ "$doc"
+   ```
+
+   1 つ目は、作業ブランチの commit と、commit していない変更の両方を、ベースブランチの先端と比べる。
+   作業ブランチが設定や文書を変えた・名前を変えた・消した場合と、ブランチを作った後にベースブランチの側で変わった場合に止まる。
+   2 つ目は、1 つ目が比べない untracked のファイルを挙げる。
+5. 上の 5 と 6 を、3 で取得した ref に当てる（種類を確かめ、本文を読む）。
+6. 止まったときも、読み終えたときも、`git update-ref -d refs/worktree/pr-review/base` で ref を消す（ref が無ければ何もしない）。
 
 プロジェクトが足した基準を読まずに、人に回さないと決めてしまわないため、読めないときは 1〜3 だけで進めない。設定の誤りを直すか、基準の変更を別の PR で merge すれば、次の実行で読める。
 
