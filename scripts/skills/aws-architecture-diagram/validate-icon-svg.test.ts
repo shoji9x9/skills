@@ -1,49 +1,53 @@
-// aws-architecture-diagram のアイコンの SVG が、許可した要素・属性・構文に収まるかを確かめる部品のテスト（Issue #923）。
+// aws-architecture-diagram のアイコンの SVG が、許可した要素・属性・構文に収まるかを確かめて読み、書き出す部品のテスト（Issue #923）。
 //
 // 確かめる状態は次のとおりである。
 //   - 受け付ける形: XML 宣言の有無 / 先頭の BOM / 自己終端のルート / 引用符（" と '） / = の前後と属性の間の空白・改行
-//   - 受け付ける値: 属性の値の定義済みの実体 / <title> の文字の実体・文字参照・> / 同じ文書の中を指す url() と href
-//   - 書き換えずに返す形: 文字と属性の値に現れる on...= と http-equiv
-//   - 要素: script を実行させる要素・許可していない要素・大文字・名前空間の接頭辞
-//   - 属性: on*・style・許可していない属性 / 外を指す href・xlink:href・url() / 名前空間の値 /
-//     値の中の数値の文字参照・定義済みでない実体・\・< / 引用符の無い値・値の無い属性・重複・XML の空白でない区切り
+//   - 受け付ける値: 属性の値の定義済みの実体 / <title> の文字の実体・文字参照・> / 同じ文書の中を指す url() と href /
+//     許可した関数（rgb()・translate() など） / viewBox の区切り（空白・カンマ）
+//   - 書き出し: 二重引用符にそろえる / 値の中の " / 文字と属性の値に現れる on...= と http-equiv（変えない） /
+//     id と参照の接頭辞（' を含む id、値の中の id=、大文字の URL(） / xlink:href を href にする
+//   - 要素: script を実行させる要素・許可していない要素・大文字・名前空間の接頭辞 / title の中の要素 / 入れ子の深さ
+//   - 属性の名前と参照: on*・style・許可していない属性 / 外を指す href・xlink:href・url() / href と xlink:href の両方
+//   - 属性の値: 許可していない関数（src() など） / 名前空間の値 / 4 つの数値でない viewBox /
+//     値の中の数値の文字参照・定義済みでない実体・\・<・XML で使えない文字
+//   - 開始タグ: 引用符の無い値・値の無い属性・重複・XML の空白でない区切り
 //   - 構文: コメント・DOCTYPE・CDATA・処理命令・先頭でない XML 宣言 / 対にならない終了タグ・閉じない要素・2 つのルート /
-//     ルートでない <svg>・空の入力 / ルートの外と <title> 以外の中の文字 / <title> の中の定義済みでない実体・単独の &・]]>
+//     ルートでない <svg>・空の入力 / ルートの外と <title> 以外の中の文字 /
+//     <title> の中の定義済みでない実体・単独の &・]]>・XML で使えない文字と文字参照
 //   - 時間: PR #922 で 2 乗の時間になった形と、許可した範囲に収まる 1 MB の入力
-// 期待値は、部品の冒頭のコメントに書いた受け付ける範囲（許可リストと構文）から決める。
+// 期待値は、部品の冒頭のコメントに書いた受け付ける範囲（許可リストと構文）と書き出し方から決める。
 
 import { expect, test } from "vitest";
-import { validateIconSvg } from "../../../skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs";
+import {
+  serializeIconBody,
+  validateIconSvg,
+} from "../../../skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs";
 
 const NS = 'xmlns="http://www.w3.org/2000/svg"';
 const svg = (body: string, attrs = "") => `<svg ${NS}${attrs}>${body}</svg>`;
+const XLINK = ' xmlns:xlink="http://www.w3.org/1999/xlink"';
+const body = (input: string, prefix = "") =>
+  serializeIconBody(validateIconSvg(input).children, prefix);
 
 test.each([
   ["XML 宣言", `<?xml version="1.0" encoding="UTF-8"?>${svg("<rect/>")}`, "<rect/>"],
   ["先頭の BOM", `﻿<?xml version="1.0"?>${svg("<rect/>")}`, "<rect/>"],
   ["XML 宣言の無い BOM", `﻿${svg("<rect/>")}`, "<rect/>"],
   ["自己終端のルート", `<svg ${NS} viewBox="0 0 1 1"/>`, ""],
-  ["一重引用符", svg("<rect fill='red'/>"), "<rect fill='red'/>"],
-  [
-    "= の前後と属性の間の空白と改行",
-    svg('<rect\n\tx = "1"\r\n y="2" />'),
-    '<rect\n\tx = "1"\r\n y="2" />',
-  ],
+  ["一重引用符", svg("<rect fill='red'/>"), '<rect fill="red"/>'],
+  ['一重引用符の値の中の "', svg("<g class='a\"b'/>"), '<g class="a&quot;b"/>'],
+  ["= の前後と属性の間の空白と改行", svg('<rect\n\tx = "1"\r\n y="2" />'), '<rect x="1" y="2"/>'],
+  ["要素の間の空白", svg("\n  <g>\n    <rect/>\n  </g>\n"), "<g><rect/></g>"],
   ["属性の値の定義済みの実体", svg('<g id="A-&amp;-B"/>'), '<g id="A-&amp;-B"/>'],
   [
     "title の文字の実体と文字参照と >",
-    svg("<title>a &amp; b &lt; c &#38; &#x26; d > e</title>"),
-    "<title>a &amp; b &lt; c &#38; &#x26; d > e</title>",
+    svg("<title>a &amp; b &lt; c &#38; &#x26; &#x1F600; d > e</title>"),
+    "<title>a &amp; b &lt; c &#38; &#x26; &#x1F600; d > e</title>",
   ],
   [
-    "同じ文書の中を指す url() と href",
-    svg(
-      '<defs><linearGradient id="g"><stop offset="0" stop-color="#fff"/></linearGradient></defs>' +
-        '<rect fill="url(#g)" clip-path="url(\'#c\')"/><use href="#g"/><use xlink:href=\'#c\'/>',
-      ' xmlns:xlink="http://www.w3.org/1999/xlink"',
-    ),
-    '<defs><linearGradient id="g"><stop offset="0" stop-color="#fff"/></linearGradient></defs>' +
-      '<rect fill="url(#g)" clip-path="url(\'#c\')"/><use href="#g"/><use xlink:href=\'#c\'/>',
+    "許可した関数",
+    svg('<rect fill="rgb(0, 0, 0)" transform="translate(1 2) rotate(45) skewX(3)"/>'),
+    '<rect fill="rgb(0, 0, 0)" transform="translate(1 2) rotate(45) skewX(3)"/>',
   ],
   // 文脈を見ずに取り除く作り（strip-active-content.mjs）が書き換えていた形も、書き換えずに返す。
   [
@@ -51,8 +55,35 @@ test.each([
     svg('<title>on=demand http-equiv</title><g class="a onclick=b http-equiv"/>'),
     '<title>on=demand http-equiv</title><g class="a onclick=b http-equiv"/>',
   ],
-])("%s", (_label, input, body) => {
-  expect(validateIconSvg(input).body).toBe(body);
+])("%s", (_label, input, expected) => {
+  expect(body(input)).toBe(expected);
+});
+
+test.each([
+  ["空白の区切り", "0 0 32 16"],
+  ["カンマの区切り", "0,0,32,16"],
+  ["カンマと空白の区切り", " -1.5, 0 ,3e1\t16 "],
+])("viewBox の%sを受け付ける", (_label, viewBox) => {
+  expect(validateIconSvg(`<svg ${NS} viewBox="${viewBox}"/>`).attributes.get("viewBox")).toBe(
+    viewBox,
+  );
+});
+
+test("id とその参照に接頭辞を付け、xlink:href は href にする", () => {
+  const input = svg(
+    '<defs><linearGradient id="g"/><clipPath id=\'c\'/><g id="a\'b"/></defs>' +
+      '<rect fill="url(#g)" clip-path="url(\'#c\')" stroke="URL( #g )"/>' +
+      "<use href=\"#a'b\"/><use xlink:href='#c'/>" +
+      '<g class="a id=" fill="b"/>',
+    XLINK,
+  );
+  expect(body(input, "p-")).toBe(
+    '<defs><linearGradient id="p-g"/><clipPath id="p-c"/><g id="p-a\'b"/></defs>' +
+      '<rect fill="url(#p-g)" clip-path="url(#p-c)" stroke="url(#p-g)"/>' +
+      '<use href="#p-a\'b"/><use href="#p-c"/>' +
+      // 値の中の `id=` は属性の名前ではないので、書き換えない。
+      '<g class="a id=" fill="b"/>',
+  );
 });
 
 test("ルートの <svg> の属性を返す", () => {
@@ -107,9 +138,53 @@ test.each([
   [
     "引用符を含む viewBox",
     `<svg ${NS} viewBox='0 0 1 1" onload="a()'/>`,
-    /属性 viewBox の値が数値と区切りでない/,
+    /属性 viewBox の値が 4 つの数値でない/,
   ],
-  ["英字を含む viewBox", `<svg ${NS} viewBox="0 0 a 1"/>`, /属性 viewBox の値が数値と区切りでない/],
+  ["英字を含む viewBox", `<svg ${NS} viewBox="0 0 a 1"/>`, /属性 viewBox の値が 4 つの数値でない/],
+  ["カンマだけの viewBox", `<svg ${NS} viewBox=","/>`, /属性 viewBox の値が 4 つの数値でない/],
+  ["3 つの数値の viewBox", `<svg ${NS} viewBox="0 0 1"/>`, /属性 viewBox の値が 4 つの数値でない/],
+  [
+    "2 つ続くカンマの viewBox",
+    `<svg ${NS} viewBox="0,,0,1,1"/>`,
+    /属性 viewBox の値が 4 つの数値でない/,
+  ],
+  ["符号だけの viewBox", `<svg ${NS} viewBox="- 0 1 1"/>`, /属性 viewBox の値が 4 つの数値でない/],
+  [
+    "src() の関数",
+    svg("<rect fill=\"src('https://e.example/x')\"/>"),
+    /許可していない関数 src\(\)/,
+  ],
+  ["image() の関数", svg('<rect fill="image(x)"/>'), /許可していない関数 image\(\)/],
+  [
+    "href と xlink:href の両方",
+    svg('<use href="#a" xlink:href="#b"/>', XLINK),
+    /href と xlink:href の両方/,
+  ],
+  ["属性の値の制御文字", svg('<g id="a\u0001"/>'), /属性 id の値に、XML で使えない文字/],
+  [
+    "属性の値の対にならないサロゲート",
+    svg('<g id="a\uD800"/>'),
+    /属性 id の値に、XML で使えない文字/,
+  ],
+  ["title の中の制御文字", svg("<title>a\u0001b</title>"), /<title> の文字に、XML で使えない文字/],
+  ["title の中の &#0;", svg("<title>&#0;</title>"), /XML で使えない文字を指す文字参照/],
+  [
+    "title の中のサロゲートの文字参照",
+    svg("<title>&#xD800;</title>"),
+    /XML で使えない文字を指す文字参照/,
+  ],
+  [
+    "title の中の範囲外の文字参照",
+    svg("<title>&#x110000;</title>"),
+    /XML で使えない文字を指す文字参照/,
+  ],
+  [
+    "title の中の要素",
+    svg("<title><title>x</title><rect/></title>"),
+    /<title> の中に要素 <title> がある/,
+  ],
+  ["desc の中の要素", svg("<desc><g/></desc>"), /<desc> の中に要素 <g> がある/],
+  ["深すぎる入れ子", svg("<g>".repeat(64) + "</g>".repeat(64)), /要素の入れ子が 64 段を超える/],
   ["属性の値の数値の文字参照", svg('<rect fill="&#117;rl(x)"/>'), /属性 fill の値に/],
   ["属性の値の定義済みでない実体", svg('<rect id="a&nbsp;b"/>'), /属性 id の値に/],
   ["属性の値の単独の &", svg('<rect id="a & b"/>'), /属性 id の値に/],
@@ -165,6 +240,6 @@ test.each([
 test("許可した範囲に収まる 1 MB の入力は 1 秒以内に受け付ける", () => {
   const input = fill('<rect x="1" y="2"/>', `<svg ${NS}>`, "</svg>");
   const started = performance.now();
-  expect(validateIconSvg(input).body.length).toBeGreaterThan(MB - 100);
+  expect(body(input).length).toBeGreaterThan(MB - 100);
   expect(performance.now() - started).toBeLessThan(1000);
 });

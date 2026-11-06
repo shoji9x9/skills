@@ -52,7 +52,8 @@ test("iconDir の中のアイコンを、元の viewBox のまま埋め込む", 
   // XML 宣言は入れ子の中に残さない（文書の途中に置くと SVG として不正になる）。
   expect(icons[0]).not.toContain("<?xml");
   expect(icons[1]).toContain('viewBox="0 0 32 16"');
-  expect(icons[1]).toContain("<circle class='sq'/>");
+  // 属性は、読んだ値を二重引用符で囲んで書き出す。
+  expect(icons[1]).toContain('<circle class="sq"/>');
 });
 
 test("viewBox の無いアイコンは 0 0 80 80 で埋め込む", () => {
@@ -105,13 +106,17 @@ test("同じアイコンを 2 回埋め込むと、内部の id とその参照�
   expect(ids[0].filter((id) => ids[1].includes(id))).toEqual([]);
   // 参照は、同じ埋め込みの中の書き換えた id を指す。
   for (const [i, icon] of icons.entries()) {
-    const [g, c] = ids[i];
-    expect(icon).toContain(`fill="url(#${g})"`);
-    expect(icon).toContain(`clip-path="url('#${c}')"`);
-    // 部品が受け付ける大文字の URL( と括弧の中の空白も、書き換える。
-    expect(icon).toContain(`stroke="url(#${g})"`);
-    expect(icon).toContain(`href="#${g}"`);
-    expect(icon).toContain(`xlink:href='#${c}'`);
+    // 出力から参照先の id を取り出し、同じ埋め込みの id と比べる（期待する文字列を組み立てない）。
+    const ref = (re: RegExp) => icon.match(re)?.[1];
+    expect([
+      ref(/ fill="url\(#([^")]+)\)"/),
+      ref(/ clip-path="url\(#([^")]+)\)"/),
+      // 部品が受け付ける大文字の URL( と括弧の中の空白も、書き換える。
+      ref(/ stroke="url\(#([^")]+)\)"/),
+      ...[...icon.matchAll(/<use href="#([^"]+)"\/>/g)].map((m) => m[1]),
+    ]).toEqual([ids[i][0], ids[i][1], ids[i][0], ids[i][0], ids[i][1]]);
+    // xlink:href は href にする。図の <svg> は xlink の名前空間を宣言しないので、接頭辞を残すと XML として読めない。
+    expect(icon).not.toContain("xlink:");
   }
 });
 

@@ -45,13 +45,15 @@ setup のときに、プロジェクトの `icons/` へコピーされる。
 
 自作のアイコンを足すときは、`viewBox` を持つ 1 つの `<svg>` として、プロジェクトの `icons/` に置く。
 spec の `icon` には、拡張子の無いパス（例: `"internet"`）で指定する。
-描画エンジンは `<?xml>` と外側の `<svg>` を取り除き、元の `viewBox` を保ったまま埋め込む。
+描画エンジンは、外側の `<svg>` の中身を読んで書き出し直し、元の `viewBox` を保ったまま埋め込む。
+書き出すときに、属性の値を二重引用符で囲み、`id` とその参照に埋め込みごとの接頭辞を付け、`xlink:href` を `href` にする。
 描画エンジンは、アイコンが次の範囲に収まるかを確かめ、外れていれば埋め込まずに、アイコンの名前と理由を示すエラーにする。
 
 - 要素: `svg`・`g`・`defs`・`title`・`desc`・`path`・`rect`・`circle`・`ellipse`・`line`・`polyline`・`polygon`・`clipPath`・`linearGradient`・`radialGradient`・`stop`・`use`
-- 属性: 図形・塗り・線・変形・グラデーション・切り抜きの属性と、`id`・`class`・`viewBox`（数値と区切りだけ）。`style` と `on*` は受け付けない
+- 属性: 図形・塗り・線・変形・グラデーション・切り抜きの属性と、`id`・`class`・`viewBox`（4 つの数値）。`style` と `on*` は受け付けない
+- 値の関数: `rgb()`・`rgba()`・`hsl()`・`hsla()` と、変形の関数（`translate()`・`rotate()` など）だけを書ける
 - 参照: `href`・`xlink:href`・`url()` は、同じファイルの中（`#...`）だけを指せる
-- 構文: コメント・DOCTYPE・CDATA・処理命令は受け付けない。文字は `title` と `desc` の中にだけ書ける
+- 構文: コメント・DOCTYPE・CDATA・処理命令・XML で使えない文字は受け付けない。文字は `title` と `desc` の中にだけ書け、その中に要素は置けない。入れ子は 64 段まで
 
 ## アイコンの参照方法（spec 側）
 
