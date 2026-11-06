@@ -1,0 +1,7 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+pr:919,pr,2026-11-06T04:23:13.527Z,p-cdee4961,github,,,,2026-11-05T23:14:49.000Z,2026-11-06T02:48:02.000Z,Asia/Tokyo,feature/708-triage-high-kaizen-learnings,708,,,,,,,,,,pr=919;author=shoji9x9;state=merged,
+ci:42152607806:1,ci,2026-11-06T04:23:13.527Z,p-cdee4961,github-actions,,,,2026-11-06T02:48:05.000Z,2026-11-06T02:48:31.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:42152607891:1,ci,2026-11-06T04:23:13.527Z,p-cdee4961,github-actions,,,,2026-11-06T02:48:05.000Z,2026-11-06T02:52:43.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:42144630206:1,ci,2026-11-06T04:23:13.527Z,p-cdee4961,github-actions,,,,2026-11-06T01:33:31.000Z,2026-11-06T01:33:32.000Z,Asia/Tokyo,feature/708-triage-high-kaizen-learnings,708,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:42144630309:1,ci,2026-11-06T04:23:13.527Z,p-cdee4961,github-actions,,,,2026-11-06T01:33:31.000Z,2026-11-06T01:38:04.000Z,Asia/Tokyo,feature/708-triage-high-kaizen-learnings,708,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-11-05T01:32:34.162Z:2026-11-06T04:23:13.527Z,coverage,2026-11-06T04:23:13.527Z,p-cdee4961,,,,,2026-11-05T01:32:34.162Z,2026-11-06T04:23:13.527Z,Asia/Tokyo,,,,,,,,,,,,ok,
