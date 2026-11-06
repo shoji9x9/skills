@@ -1,5 +1,5 @@
 // SVG から、script を実行させたりページを移動させたりする内容を取り除くか、無効にする部品。
-// 取り除くのは、<script> 要素と、名前が on で始まる属性（イベントハンドラ）と、末尾の閉じないタグ（末尾の文字の中の `<` を含む）である。
+// 取り除くのは、<script> 要素（閉じない開始タグを含む）と、名前が on で始まる属性（イベントハンドラ）である。
 // `http-equiv`（<meta> による移動に要る属性名）は、名前を `data-x-equiv` に置き換えて無効にする。属性の値は残る。
 // 図に埋め込むアイコン（diagram-engine.mjs）と、Chrome で開くプレビュー（preview-diagram.mjs）で使う。
 // 自前で生成した SVG には、どれも含まれないので何も変えない。
@@ -10,15 +10,17 @@
 // そのため、要素の中の文字や属性の値に `on...=` の形が現れると、そこも取り除く（安全側に扱う）。
 
 // script の要素名。名前空間の接頭辞（`<a:script>`・`<é:script>`）を付けた形も、XML として開くと script として実行される。
-// 名前は空白・`/`・`>` で終わる所までなので、`<script-x>` のような別の要素には当てない。
-const SCRIPT_NAME = String.raw`(?:[^\s<>/:="']+:)?script(?=[\s/>])`;
+// 名前は空白・`/`・`>`・文字列の終わりで終わる所までなので、`<script-x>` のような別の要素には当てない。
+const SCRIPT_NAME = String.raw`(?:[^\s<>/:="']+:)?script(?=[\s/>]|$)`;
 // 終了タグは、ブラウザと同じく空白の後の属性の形（`</script foo>`）も終了タグとして扱う。
 const SCRIPT_ELEMENT = new RegExp(
   String.raw`<${SCRIPT_NAME}[^>]*>[\s\S]*?<\/${SCRIPT_NAME}[^>]*>`,
   "gi",
 );
 // 対になる終了タグが無い開始タグと、開始タグの無い終了タグ（残すと HTML の中で後ろが script として読まれる）。
-const SCRIPT_TAG = new RegExp(String.raw`<\/?${SCRIPT_NAME}[^>]*>`, "gi");
+// `>` で閉じない開始タグは、文字列の終わりまでを取り除く。残すと、呼び出し側が後ろに足す文字列（`</svg>` など）の
+// `>` で開始タグとして閉じる。属性の値の中の `>` で止まっても、`<script` の部分は取り除くので、開始タグは残らない。
+const SCRIPT_TAG = new RegExp(String.raw`<\/?${SCRIPT_NAME}[^>]*(?:>|$)`, "gi");
 // `http-equiv` の属性名。HTML に埋め込むと、`<meta http-equiv="refresh">` がページを別のページへ移動させる。
 // ページの CSP はこの移動を止めず、移動先には CSP が掛からない。
 // <meta> 要素の形（閉じないタグ・終了タグ・コメントの中）を読まずに済むよう、移動に必ず要る属性名だけを無効な名前に置き換える。
@@ -32,63 +34,6 @@ const HTTP_EQUIV = /http-equiv/gi;
 // 値に `<` を含むハンドラは名前と `=` だけを消し、値は属性として読まれない文字として残る。
 const HANDLER = /(?:[\s/]|(?<=["']))on[a-z]+\s*=\s*(?:"[^"<]*"|'[^'<]*'|(?:[^\s"'<>/]|\/(?!>))*)/gi;
 
-// 中で引用符を数えない構文。開始の文字列と終わりの文字列の組である。
-const SPECIAL = [
-  ["<!--", "-->"],
-  ["<![CDATA[", "]]>"],
-  ["<?", "?>"],
-];
-
-/**
- * `<` の位置から始まるコメント・CDATA・処理命令の終わりの位置。どれでもなければ undefined、閉じなければ -1 を返す。
- * @param {string} s
- * @param {number} k
- */
-function specialEnd(s, k) {
-  for (const [open, close] of SPECIAL) {
-    if (!s.startsWith(open, k)) continue;
-    const end = s.indexOf(close, k + open.length);
-    return end < 0 ? -1 : end + close.length;
-  }
-  return undefined;
-}
-
-/**
- * `<` の位置から始まるタグの終わりの位置。引用符（`"` と `'`）の中の `>` は数えない。閉じなければ -1 を返す。
- * @param {string} s
- * @param {number} k
- */
-function tagEnd(s, k) {
-  let quote = "";
-  for (let t = k + 1; t < s.length; t++) {
-    const c = s[t];
-    if (quote !== "") {
-      if (c === quote) quote = "";
-    } else if (c === '"' || c === "'") quote = c;
-    else if (c === ">") return t + 1;
-  }
-  return -1;
-}
-
-/**
- * 末尾の閉じないタグ（`<script src=...` で終わる形）を取り除く。
- * 残すと、呼び出し側が後ろに足す文字列（`</svg>` など）の `>` で、開始タグとして閉じる。
- * 文字列を前から 1 回読み、タグの中でだけ引用符を数える。コメント・CDATA・処理命令は、その終わりまで読み飛ばす。
- * 閉じないものが見つかれば、その `<` から後ろを取り除く。
- * 構文として正しく読むわけではないので、末尾の文字の中の `<`（`a<b`）や、引用符で囲まない値の中の引用符で始まる形も、
- * 閉じないものとして後ろごと取り除く（安全側に扱う）。
- * @param {string} s
- */
-function dropUnclosedTail(s) {
-  let k = s.indexOf("<");
-  while (k >= 0) {
-    const end = specialEnd(s, k) ?? tagEnd(s, k);
-    if (end < 0) return s.slice(0, k);
-    k = s.indexOf("<", end);
-  }
-  return s;
-}
-
 /**
  * 1 回の置換では、入れ子（`<scr<script>x</script>ipt>`・`o onclick="x"nclick=...`）のように、
  * 取り除いた後に新しく現れる形を取りこぼす。そのため、結果が変わらなくなるまで繰り返す。
@@ -100,7 +45,7 @@ export function stripActiveContent(svg) {
   let previous;
   do {
     previous = current;
-    current = dropUnclosedTail(current)
+    current = current
       .replace(SCRIPT_ELEMENT, "")
       .replace(SCRIPT_TAG, "")
       .replace(HTTP_EQUIV, "data-x-equiv")

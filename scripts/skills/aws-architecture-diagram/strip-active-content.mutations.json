@@ -30,6 +30,7 @@
         "on* の直後に続く属性",
         "一重引用符の直後の on*",
         "引用符で囲んだ値の中の >",
+        "引用符で囲まない値の中の引用符",
         "on* の入れ子",
         "ASCII 以外で始まるタグ名の on*",
         "コメントの中の閉じない引用符の後の on*",
@@ -56,6 +57,7 @@
         "on* の直後に続く属性",
         "一重引用符の直後の on*",
         "引用符で囲んだ値の中の >",
+        "引用符で囲まない値の中の引用符",
         "on* の入れ子",
         "ASCII 以外で始まるタグ名の on*",
         "コメントの中の閉じない引用符の後の on*",
@@ -121,8 +123,8 @@
       "id": "prefix-dropped",
       "why": "名前空間の接頭辞を付けた script を読まない",
       "file": "skills/aws-architecture-diagram/scripts/lib/strip-active-content.mjs",
-      "find": "(?:[^\\s<>/:=\"']+:)?script(?=[\\s/>])",
-      "replace": "script(?=[\\s/>])",
+      "find": "(?:[^\\s<>/:=\"']+:)?script(?=[\\s/>]|$)",
+      "replace": "script(?=[\\s/>]|$)",
       "occurrences": 1,
       "expect_failing": ["名前空間の接頭辞", "ASCII 以外の名前空間の接頭辞"]
     },
@@ -130,7 +132,7 @@
       "id": "name-boundary-dropped",
       "why": "script で始まる別の要素名まで script として扱う",
       "file": "skills/aws-architecture-diagram/scripts/lib/strip-active-content.mjs",
-      "find": "script(?=[\\s/>])`;",
+      "find": "script(?=[\\s/>]|$)`;",
       "replace": "script`;",
       "occurrences": 1,
       "expect_failing": ["名前が script で始まる別の要素", "スクリプトでない要素と属性"]
@@ -147,43 +149,30 @@
         "入れ子",
         "取り除いた後に現れる対",
         "対の無い開始タグ",
+        "末尾の閉じない script",
+        "属性の無い末尾の閉じない script",
+        "末尾の閉じない script の値の中の >",
+        "> が無い入力",
         "対の無い終了タグ"
       ]
     },
     {
-      "id": "unclosed-tail-kept",
-      "why": "末尾の閉じないタグを残す",
+      "id": "script-tag-needs-gt",
+      "why": "> で閉じない <script の開始タグを残す",
       "file": "skills/aws-architecture-diagram/scripts/lib/strip-active-content.mjs",
-      "find": "dropUnclosedTail(current)",
-      "replace": "current",
+      "find": "[^>]*(?:>|$)`, \"gi\");",
+      "replace": "[^>]*>`, \"gi\");",
       "occurrences": 1,
-      "expect_failing": [
-        "末尾の閉じないタグ",
-        "末尾の閉じないタグの値の中の >",
-        "末尾の閉じないタグの値の中の <",
-        "> が無い入力",
-        "末尾の文字の中の <",
-        "引用符で囲まない値の中の引用符",
-        "閉じないコメント"
-      ]
+      "expect_failing": ["末尾の閉じない script", "属性の無い末尾の閉じない script", "> が無い入力"]
     },
     {
-      "id": "tail-quotes-ignored",
-      "why": "タグの中の引用符を数えないと、値の中の > で閉じたと読む",
+      "id": "script-name-needs-delimiter",
+      "why": "名前の直後が文字列の終わりの <script を読まない",
       "file": "skills/aws-architecture-diagram/scripts/lib/strip-active-content.mjs",
-      "find": "    } else if (c === '\"' || c === \"'\") quote = c;\n",
-      "replace": "    }\n",
+      "find": "(?=[\\s/>]|$)",
+      "replace": "(?=[\\s/>])",
       "occurrences": 1,
-      "expect_failing": ["末尾の閉じないタグの値の中の >", "引用符で囲まない値の中の引用符"]
-    },
-    {
-      "id": "special-not-skipped",
-      "why": "コメントを読み飛ばさないと、コメントの中の引用符で後ろを取り除く",
-      "file": "skills/aws-architecture-diagram/scripts/lib/strip-active-content.mjs",
-      "find": "specialEnd(s, k) ?? tagEnd(s, k)",
-      "replace": "tagEnd(s, k)",
-      "occurrences": 1,
-      "expect_failing": ["コメントの中の閉じない引用符の後の on*"]
+      "expect_failing": ["属性の無い末尾の閉じない script"]
     }
   ]
 }
