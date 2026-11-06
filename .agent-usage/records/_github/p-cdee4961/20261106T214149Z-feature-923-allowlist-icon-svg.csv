@@ -1,0 +1,12 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+pr:922,pr,2026-11-06T21:41:49.666Z,p-cdee4961,github,,,,2026-11-06T12:31:59.000Z,2026-11-06T21:07:41.000Z,Asia/Tokyo,feature/921-fix-codeql-sanitizer-redos,921,,,,,,,,,,pr=922;author=shoji9x9;state=merged,
+ci:42294135678:1,ci,2026-11-06T21:41:49.666Z,p-cdee4961,github-actions,,,,2026-11-06T21:07:44.000Z,2026-11-06T21:08:18.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:42294135658:1,ci,2026-11-06T21:41:49.666Z,p-cdee4961,github-actions,,,,2026-11-06T21:07:44.000Z,2026-11-06T21:11:03.000Z,Asia/Tokyo,main,,,,,,,,,,,CodeQL;push;success,
+ci:42294135786:1,ci,2026-11-06T21:41:49.666Z,p-cdee4961,github-actions,,,,2026-11-06T21:07:44.000Z,2026-11-06T21:12:23.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:42236215841:1,ci,2026-11-06T21:41:49.666Z,p-cdee4961,github-actions,,,,2026-11-06T14:41:49.000Z,2026-11-06T14:45:13.000Z,Asia/Tokyo,feature/921-fix-codeql-sanitizer-redos,921,,,,,,,,,,CI;pull_request;success,
+ci:42236215835:1,ci,2026-11-06T21:41:49.666Z,p-cdee4961,github-actions,,,,2026-11-06T14:41:49.000Z,2026-11-06T14:41:50.000Z,Asia/Tokyo,feature/921-fix-codeql-sanitizer-redos,921,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:42236215864:1,ci,2026-11-06T21:41:49.666Z,p-cdee4961,github-actions,,,,2026-11-06T14:41:49.000Z,2026-11-06T14:43:19.000Z,Asia/Tokyo,feature/921-fix-codeql-sanitizer-redos,921,,,,,,,,,,CodeQL;pull_request;success,
+coverage:github:2026-11-05T14:40:57.001Z:2026-11-06T21:41:49.666Z,coverage,2026-11-06T21:41:49.666Z,p-cdee4961,,,,,2026-11-05T14:40:57.001Z,2026-11-06T21:41:49.666Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-05T21:41:49.666Z:2026-11-06T21:43:43.284Z,coverage,2026-11-06T21:43:43.284Z,p-cdee4961,,,,,2026-11-05T21:41:49.666Z,2026-11-06T21:43:43.284Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-05T21:43:43.284Z:2026-11-06T21:45:21.114Z,coverage,2026-11-06T21:45:21.114Z,p-cdee4961,,,,,2026-11-05T21:43:43.284Z,2026-11-06T21:45:21.114Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-05T21:45:21.114Z:2026-11-06T21:46:27.035Z,coverage,2026-11-06T21:46:27.035Z,p-cdee4961,,,,,2026-11-05T21:45:21.114Z,2026-11-06T21:46:27.035Z,Asia/Tokyo,,,,,,,,,,,,ok,

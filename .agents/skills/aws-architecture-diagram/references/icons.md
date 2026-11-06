@@ -46,6 +46,12 @@ setup のときに、プロジェクトの `icons/` へコピーされる。
 自作のアイコンを足すときは、`viewBox` を持つ 1 つの `<svg>` として、プロジェクトの `icons/` に置く。
 spec の `icon` には、拡張子の無いパス（例: `"internet"`）で指定する。
 描画エンジンは `<?xml>` と外側の `<svg>` を取り除き、元の `viewBox` を保ったまま埋め込む。
+描画エンジンは、アイコンが次の範囲に収まるかを確かめ、外れていれば埋め込まずに、アイコンの名前と理由を示すエラーにする。
+
+- 要素: `svg`・`g`・`defs`・`title`・`desc`・`path`・`rect`・`circle`・`ellipse`・`line`・`polyline`・`polygon`・`clipPath`・`linearGradient`・`radialGradient`・`stop`・`use`
+- 属性: 図形・塗り・線・変形・グラデーション・切り抜きの属性と、`id`・`class`・`viewBox`（数値と区切りだけ）。`style` と `on*` は受け付けない
+- 参照: `href`・`xlink:href`・`url()` は、同じファイルの中（`#...`）だけを指せる
+- 構文: コメント・DOCTYPE・CDATA・処理命令は受け付けない。文字は `title` と `desc` の中にだけ書ける
 
 ## アイコンの参照方法（spec 側）
 

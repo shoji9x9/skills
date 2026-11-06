@@ -18,7 +18,7 @@
 // 使い方: `renderDiagram(spec, { iconDir })` を呼ぶ。`iconDir` にはアイコンを置いたディレクトリのルートを渡す。
 import { readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, join, relative } from "node:path";
-import { stripActiveContent } from "./lib/strip-active-content.mjs";
+import { validateIconSvg } from "./lib/validate-icon-svg.mjs";
 
 const ICON = 64; // アイコン一辺 (px)
 const HOP = 5; // 交差の飛び越し（line jump）半径
@@ -98,25 +98,25 @@ function resolveIconFile(iconDir, getIconDirReal, name) {
 }
 
 // アイコン SVG の中身を取り出し、元の viewBox と一緒に返す。
+// 取得元（AWS パッケージ）や自作アイコンが、許可した要素・属性・構文の外にあれば、書き換えずにエラーにする。
+// script を実行させる内容（<script>・on* ハンドラ・javascript: の URL・<foreignObject> など）は、許可リストに無いので図に入らない
+// （lib/validate-icon-svg.mjs）。
 /**
  * @param {string} raw
  * @param {string} name
  * @returns {{ viewBox: string, body: string }}
  */
 function parseIconSvg(raw, name) {
-  const head = raw.match(/<svg[^>]*>/);
-  if (!head) throw new Error(`アイコン SVG が不正（<svg> がありません）: ${name}`);
-  // viewBox はシングル/ダブルクォート両対応（自作アイコンで ' を使っても崩れない）。
-  const viewBox = head[0].match(/viewBox=["']([^"']+)["']/)?.[1] ?? "0 0 80 80";
-  // 取得元（AWS パッケージ）や自作アイコンに万一 <script>・on* ハンドラ・<meta> の http-equiv が
-  // 含まれても、取り除くか無効にしてから出力 SVG へ入れる（多層防御。lib/strip-active-content.mjs）。
-  const body = stripActiveContent(
-    raw
-      .replace(/<\?xml[^>]*\?>/, "")
-      .replace(/<svg[^>]*>/, "")
-      .replace(/<\/svg>\s*$/, ""),
-  ).trim();
-  return { viewBox, body };
+  let icon;
+  try {
+    icon = validateIconSvg(raw);
+  } catch (error) {
+    throw new Error(
+      `アイコン SVG が不正（${error instanceof Error ? error.message : String(error)}）: ${name}`,
+    );
+  }
+  const viewBox = icon.attributes.get("viewBox") ?? "0 0 80 80";
+  return { viewBox, body: icon.body.trim() };
 }
 
 // 同じ図に複数のアイコンを埋めると内部 id（clipPath/gradient/mask 等）が衝突し、
@@ -128,10 +128,13 @@ function parseIconSvg(raw, name) {
  * @param {string} p
  */
 function prefixIconIds(body, p) {
-  return body
-    .replace(/\bid=(["'])([^"']+)\1/g, `id=$1${p}$2$1`)
-    .replace(/\b((?:xlink:)?href)=(["'])#([^"']+)\2/g, `$1=$2#${p}$3$2`)
-    .replace(/\burl\((["']?)#([^"')]+)\1\)/g, `url($1#${p}$2$1)`);
+  return (
+    body
+      .replace(/\bid=(["'])([^"']+)\1/g, `id=$1${p}$2$1`)
+      .replace(/\b((?:xlink:)?href)=(["'])#([^"']+)\2/g, `$1=$2#${p}$3$2`)
+      // lib/validate-icon-svg.mjs が受け付ける url()（大文字・括弧の中の空白を含む）と同じ形を書き換える。
+      .replace(/\burl\([ \t\r\n]*(["']?)#([^ \t\r\n"'()]+)\1[ \t\r\n]*\)/gi, `url($1#${p}$2$1)`)
+  );
 }
 
 // アイコン SVG を <svg> ネストとして取り込み、元の viewBox を引き継ぐ関数を返す。

@@ -80,7 +80,7 @@ const timeoutMs = config.timeoutMs;
 // work は preview.html 置き場。out（PNG）は tmpdir 直下なのでクリーンアップの影響を受けない。
 // 任意の SVG（ファイル名指定も可）を Chrome で開くので、ページの CSP で script・イベントハンドラ・iframe・外部の資源を止める。
 // `<img>` の画像として読み込むと、正しい XML（xmlns を含む）でない SVG が警告なしに白い PNG になるので、HTML に埋め込む。
-// CSP に加えて、<script>・on* を多層防御として除く（diagram-engine のアイコン埋め込みと同じ。自前で生成した SVG では何も変えない）。
+// CSP に加えて、<script>・on* を多層防御として除く（自前で生成した SVG では何も変えない）。任意の SVG を開くので、アイコンと違ってエラーにはしない。
 // CSP は `<meta http-equiv="refresh">` による移動を止めないので、`http-equiv` も無効な名前に置き換える。
 // ページは SVG で終え、`</body>` を置かない。SVG の末尾に閉じないタグがあっても、雛形の `>` で閉じずにブラウザが捨てる。
 // 埋め込んだ SVG は、width と height の単位（cm など）に関わらず、ウィンドウの大きさで描く。
