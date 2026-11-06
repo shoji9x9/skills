@@ -78,11 +78,11 @@ const noSandbox = config.noSandbox;
 // 数でない値と 0 以下は、diagram-config.mjs とスキーマがエラーにする（受け付けると打ち切りが無効になり、元のハングに戻る）。
 const timeoutMs = config.timeoutMs;
 // work は preview.html 置き場。out（PNG）は tmpdir 直下なのでクリーンアップの影響を受けない。
-// 任意の SVG（ファイル名指定も可）を Chrome で開くので、SVG は HTML に直接埋め込まず、<img> の画像として読み込む。
-// 画像として読み込んだ SVG では、script・イベントハンドラ・iframe（javascript: や srcdoc）が実行されず、外部の資源も読まれない。
-// そのうえで、<script> と on* も除く（diagram-engine のアイコン埋め込みと同じ多層防御。自前で生成した SVG では何も変えない）。
+// 任意の SVG（ファイル名指定も可）を Chrome で開くので、ページの CSP で script・イベントハンドラ・iframe・外部の資源を止める。
+// `<img>` の画像として読み込むと、正しい XML（xmlns を含む）でない SVG が警告なしに白い PNG になるので、HTML に埋め込む。
+// CSP に加えて、<script> と on* も除く（diagram-engine のアイコン埋め込みと同じ多層防御。自前で生成した SVG では何も変えない）。
 const safeSvg = stripActiveContent(svg);
-const svgUrl = `data:image/svg+xml;base64,${Buffer.from(safeSvg, "utf8").toString("base64")}`;
+const CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:";
 
 /** @type {unknown} */
 let failure = null;
@@ -100,7 +100,7 @@ try {
   const html = join(work, "preview.html");
   writeFileSync(
     html,
-    `<!doctype html><meta charset="utf-8"><body style="margin:0"><img src="${svgUrl}" width="${width}" height="${height}" style="display:block" alt=""></body>`,
+    `<!doctype html><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${CSP}"><body style="margin:0">${safeSvg}</body>`,
   );
   execFileSync(
     chrome,

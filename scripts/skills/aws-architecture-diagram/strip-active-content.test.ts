@@ -3,10 +3,11 @@
 // 確かめる状態は次のとおりである。
 //   - <script> の形: 対の開始と終了 / 自己終端 / 終了タグの空白の後の属性 / 入れ子 / 対の無い開始タグと終了タグ / 大文字 /
 //     名前空間の接頭辞（ASCII と ASCII 以外）
-//   - on* の属性: 引用符（" と ' と無し） / 区切りが空白か `/` か引用符の直後 / 入れ子 / 値の中の `>` と引用符
-//   - 取り除かないもの: スクリプトでない要素と属性（`<scripted>`・`<script-x>`・`data-on`・`d` の値）、
-//     要素の中の文字と属性の値に現れる `on...=`
-// 期待値は、HTML と XML がその出力を読んだときに script もハンドラも残らず、残る属性と文字が入力と同じであることから決める。
+//   - on* の属性: 引用符（" と ' と無し） / 区切りが空白か `/` か引用符の直後 / 入れ子 / 値の中の `>` と引用符 /
+//     XML にだけある文脈（ASCII 以外で始まるタグ名・コメント・実体の宣言）
+//   - 取り除かないもの: スクリプトでない要素と属性（`<scripted>`・`<script-x>`・`data-on`・`d` の値）
+//   - 安全側に取り除くもの: 要素の中の文字と属性の値に現れる `on...=`
+// 期待値は、HTML と XML がその出力を読んだときに script もハンドラも残らないことと、部品のコメントに書いた取り除き方から決める。
 
 import { expect, test } from "vitest";
 import { stripActiveContent } from "../../../skills/aws-architecture-diagram/scripts/lib/strip-active-content.mjs";
@@ -25,25 +26,40 @@ test.each([
   ["on* の二重引用符", '<rect onclick="a()" width="1"/>', '<rect width="1"/>'],
   ["on* の一重引用符", "<rect onload='b()' width=\"2\"/>", '<rect width="2"/>'],
   ["on* の引用符無し", '<rect onmouseover=c() width="3"/>', '<rect width="3"/>'],
-  // `/` を残して空白を置き、`/>`（自己終端）にしない。
-  ["on* の区切りが /", "<svg/onload=alert(1)>", "<svg/ >"],
+  ["on* の区切りが /", "<svg/onload=alert(1)>", "<svg>"],
   // HTML は、引用符の直後に空白なしで続く on* も属性として読む。引用符は前の値の終わりなので残す。
-  ["引用符の直後の on*", '<rect width="1"onclick="a()"/>', '<rect width="1" />'],
-  ["一重引用符の直後の on*", "<rect width='1'onload=b()>", "<rect width='1' >"],
+  ["引用符の直後の on*", '<rect width="1"onclick="a()"/>', '<rect width="1"/>'],
+  ["一重引用符の直後の on*", "<rect width='1'onload=b()>", "<rect width='1'>"],
   ["引用符で囲んだ値の中の >", '<rect title="a>b" onclick="x"/>', '<rect title="a>b"/>'],
-  // 引用符で囲まない値の中の引用符は、値の一部として読む（HTML の読み方と同じ）。
   ["引用符で囲まない値の中の引用符", "<svg x=b'c onload=alert(1)>", "<svg x=b'c>"],
   ["名前空間の接頭辞", '<g><a:script xmlns:a="x">alert(1)</a:script></g>', "<g></g>"],
   ["ASCII 以外の名前空間の接頭辞", '<g><é:script xmlns:é="x">alert(1)</é:script></g>', "<g></g>"],
-  // 属性を 1 つずつ読むので、取り除いた後に前後の属性の名前がつながらない。
-  ["on* の入れ子", '<rect o onclick="x"nclick="y" width="4"/>', '<rect o nclick="y" width="4"/>'],
+  // 内側を取り除いた後に現れる ` onclick="y"` も、引用符の値ごと取り除く。
+  ["on* の入れ子", '<rect o onclick="x"nclick="y" width="4"/>', '<rect width="4"/>'],
+  // 構文として読まないので、ASCII 以外で始まるタグ名・コメントの中の閉じない引用符・実体の宣言の中でも取り除く。
+  [
+    "ASCII 以外で始まるタグ名の on*",
+    '<é:rect xmlns:é="x" onclick="alert(1)"/>',
+    '<é:rect xmlns:é="x"/>',
+  ],
+  [
+    "コメントの中の閉じない引用符の後の on*",
+    '<!-- <a title=" --><rect onclick="alert(1)"/>',
+    '<!-- <a title=" --><rect/>',
+  ],
+  [
+    "実体の宣言の中の on*",
+    `<!DOCTYPE svg [<!ENTITY e "&#60;rect onclick='alert(1)'/>">]><svg>&e;</svg>`,
+    '<!DOCTYPE svg [<!ENTITY e "&#60;rect/>">]><svg>&e;</svg>',
+  ],
   [
     "名前が script で始まる別の要素",
     "<g><script-x>keep</script-x></g>",
     "<g><script-x>keep</script-x></g>",
   ],
-  ["要素の中の文字", '<text>see "online=1" here</text>', '<text>see "online=1" here</text>'],
-  ["属性の値の中の on...=", '<a href="/api/onload=1"/>', '<a href="/api/onload=1"/>'],
+  // 文脈を見ないので、要素の中の文字や属性の値に現れる `on...=` も取り除く（安全側に扱う）。
+  ["要素の中の文字", '<text>see "online=1" here</text>', '<text>see "" here</text>'],
+  ["属性の値の中の on...=", '<a href="/api/onload=1"/>', '<a href="/api"/>'],
   [
     "スクリプトでない要素と属性",
     '<scripted data-on="1" d="M0 0"/>',

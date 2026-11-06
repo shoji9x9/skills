@@ -12,14 +12,14 @@
       "find": "  } while (current !== previous);",
       "replace": "  } while (false);",
       "occurrences": 1,
-      "expect_failing": ["取り除いた後に現れる対"]
+      "expect_failing": ["取り除いた後に現れる対", "on* の入れ子"]
     },
     {
       "id": "handlers-kept",
       "why": "on で始まる属性を取り除かない",
       "file": "skills/aws-architecture-diagram/scripts/lib/strip-active-content.mjs",
-      "find": "    if (!/^on/i.test(name)) text += separator + s.slice(k, end);",
-      "replace": "    if (true) text += separator + s.slice(k, end);",
+      "find": ".replace(HANDLER, \"\")",
+      "replace": "",
       "occurrences": 1,
       "expect_failing": [
         "on* の二重引用符",
@@ -30,7 +30,39 @@
         "一重引用符の直後の on*",
         "引用符で囲んだ値の中の >",
         "引用符で囲まない値の中の引用符",
-        "on* の入れ子"
+        "on* の入れ子",
+        "ASCII 以外で始まるタグ名の on*",
+        "コメントの中の閉じない引用符の後の on*",
+        "実体の宣言の中の on*",
+        "要素の中の文字",
+        "属性の値の中の on...="
+      ]
+    },
+    {
+      "id": "quote-adjacent-dropped",
+      "why": "引用符の直後に続く on* を読まない",
+      "file": "skills/aws-architecture-diagram/scripts/lib/strip-active-content.mjs",
+      "find": "(?:[\\s/]|(?<=[\"']))on[a-z]+",
+      "replace": "(?:[\\s/])on[a-z]+",
+      "occurrences": 1,
+      "expect_failing": ["引用符の直後の on*", "一重引用符の直後の on*", "要素の中の文字"]
+    },
+    {
+      "id": "unquoted-first",
+      "why": "引用符なしの値を先に試すと、引用符の値を残す",
+      "file": "skills/aws-architecture-diagram/scripts/lib/strip-active-content.mjs",
+      "find": "(?:\"[^\"]*\"|'[^']*'|(?:[^\\s\"'>/]|\\/(?!>))*)",
+      "replace": "(?:(?:[^\\s\"'>/]|\\/(?!>))*|\"[^\"]*\"|'[^']*')",
+      "occurrences": 1,
+      "expect_failing": [
+        "on* の二重引用符",
+        "on* の一重引用符",
+        "引用符の直後の on*",
+        "引用符で囲んだ値の中の >",
+        "on* の入れ子",
+        "ASCII 以外で始まるタグ名の on*",
+        "コメントの中の閉じない引用符の後の on*",
+        "実体の宣言の中の on*"
       ]
     },
     {
