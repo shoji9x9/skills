@@ -8,15 +8,15 @@ PR ごとに、決定論的なスキャナと LLM の差分レビューで、セ
 | ツール | 対象 | 実行する場所 | 指摘があったとき |
 | --- | --- | --- | --- |
 | CodeQL（`javascript-typescript` と `actions`） | JavaScript・TypeScript のコードと `.github/workflows/` | `.github/workflows/codeql.yml`（PR と `push: main`） | 結果を code scanning に表示し、ルールセットの code scanning の規則がマージを止める |
-| zizmor | `.github/`（ワークフローと `dependabot.yml`）と、配布するワークフローのテンプレート（`skills/kaizen/assets/kaizen-schedule.yml`） | CI の `GitHub Actions lint` ジョブ | 1 件でもあればジョブが失敗する |
-| gitleaks | リポジトリ全体と全履歴 | pre-commit と CI の `Secret scan` ジョブ | ジョブが失敗する |
+| zizmor | `.github/`（ワークフローと `dependabot.yml`）と、配布するワークフローのテンプレート（`skills/*/assets/` の YAML のうち、`jobs:` を持つもの） | CI の `GitHub Actions lint` ジョブ | 1 件でもあればジョブが失敗する |
+| gitleaks | pre-commit はステージした差分、CI は全履歴 | pre-commit と CI の `Secret scan` ジョブ | commit とジョブが失敗する |
 | `/security-review`（Claude Code に組み込みのコマンド） | push する前の差分 | 手元（「push の前のレビュー」） | 妥当な指摘だけを直してから push する |
 
 CodeQL の解析のジョブは、指摘があっても失敗しない。
 マージを止めるのは、`main` のルールセットの code scanning の規則（ツールは CodeQL）である。
 code scanning の規則は、PR の commit に CodeQL の結果が上がるのを待ち、閾値以上の指摘があればマージを止める。
 
-zizmor は mise でインストールする（`mise.toml`）。手元では、CI と同じ引数で実行する。
+zizmor は mise でインストールする（`mise.toml`）。手元では、CI の `Security lint (zizmor)` のステップと同じ対象に実行する。テンプレートが 1 つなら、次のとおりである。
 
 ```bash
 GH_TOKEN="$(gh auth token)" zizmor .github skills/kaizen/assets/kaizen-schedule.yml
@@ -37,9 +37,9 @@ GH_TOKEN="$(gh auth token)" zizmor .github skills/kaizen/assets/kaizen-schedule.
 配布するテンプレートは `.github/workflows/` のワークフローと同じファイル名なので、1 行で両方を外せる。
 
 指摘の範囲の行に YAML のコメント `# zizmor: ignore[<検査の名前>]` を書いても、その指摘を外せる。
-コメントは `zizmor:` で始める必要があるので、pinact のバージョンのコメント（`# v7.0.1`）を持つ `uses:` の行には書けない。
+コメントは `zizmor:` で始める必要がある。pinact のバージョンのコメントを持つ `uses:` の行では、`#` を重ねて後ろに書く（`# v7.0.1 # zizmor: ignore[<検査の名前>]`）。この形は pinact の `--check` も受け付ける。
 `run: |` の本文の中に書いたコメントはシェルのコメントで、YAML のコメントではないので、zizmor は読まない。
-この 2 つに当たる指摘は、`.github/zizmor.yml` で外す。
+`run: |` の本文の中の指摘は、`.github/zizmor.yml` で外す。
 
 ### CodeQL
 
@@ -49,15 +49,8 @@ GH_TOKEN="$(gh auth token)" zizmor .github skills/kaizen/assets/kaizen-schedule.
 
 ## push の前のレビュー
 
-push する前に、手元で `/code-review` に続けて `/security-review` を実行する。
+Claude Code では、push する前に、手元で `/code-review` に続けて `/security-review` を実行する。
 `/security-review` は、現在のブランチの差分をセキュリティの観点（コマンドインジェクション・資格情報の扱い・入力の検証など）でレビューする。
 妥当な指摘は直し、直さない指摘は理由を PR の本文に書く。
+`/security-review` を持たないエージェント（Codex・GitHub Copilot）では、push の前のレビューに、同じ観点で差分を確かめるよう指示を添える。
 CI では `/security-review` を実行しない。手元の実行で同じ差分を push の前に確かめられ、CI で重ねると PR ごとに使用量が増えるからである。
-
-## 採らなかったもの
-
-- `anthropics/claude-code-security-review`: 認証が `ANTHROPIC_API_KEY`（従量課金）に限られ、サブスクリプションの OAuth トークンを使えない。README に、プロンプトインジェクションへの対策が無いと書かれている。
-- Semgrep: CodeQL と役割が重なる。
-- Trivy: 複数のドキュメントに分かれた `pnpm-lock.yaml`（[`vulnerability-handling.md`](vulnerability-handling.md)）を読めず、`trivy fs --scanners vuln .` を実行しても対象が 0 件で終わる。
-  依存の脆弱性は、`vulnerability-handling.md` の方法（`pnpm audit`）で確かめる。
-- Renovate: 依存を更新するツールで、セキュリティの検査には当たらない。Dependabot から移るかは、依存の更新の方法として別に判断する。

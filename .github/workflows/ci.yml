@@ -252,13 +252,29 @@ jobs:
       - name: Policy lint (ghalint)
         run: ghalint run
       # セキュリティの検査（テンプレートインジェクション・権限・キャッシュの汚染など）。指摘が 1 件でもあれば失敗する。
-      # .github はワークフローと dependabot.yml を含む。配布するワークフローのテンプレートも同じ基準で検査する。手順の断片（review-usage-steps.yml）はワークフローでないので渡さない。
+      # .github はワークフローと dependabot.yml を含む。配布するワークフローのテンプレートも同じ基準で検査する。
+      # テンプレートは skills/*/assets/ の YAML のうち、トップレベルに jobs: を持つものとする。手順の断片（jobs: を持たない）は zizmor が読めない。
       # 設定と指摘を除外する方法は .github/zizmor.yml と docs/security-scanning.md。
       # GH_TOKEN は、タグの付け替え・既知の脆弱性を持つ Action を調べる検査が GitHub API を読むのに使う。
       - name: Security lint (zizmor)
         env:
           GH_TOKEN: ${{ github.token }}
-        run: zizmor --format github .github skills/kaizen/assets/kaizen-schedule.yml
+        run: |
+          shopt -s nullglob
+          templates=()
+          for f in skills/*/assets/*.yml skills/*/assets/*.yaml; do
+            if grep -qE '^jobs:' "$f"; then
+              templates+=("$f")
+            fi
+          done
+          # 対象 0 件を成功として扱わない（glob か判定が空振りしただけの緑を根拠にしない）。
+          if [ "${#templates[@]}" -eq 0 ]; then
+            echo "配布するワークフローのテンプレートが 1 件も見つからない（glob と jobs: の判定を確認する）" >&2
+            exit 1
+          fi
+          printf 'テンプレート %s 件:\n' "${#templates[@]}"
+          printf '  %s\n' "${templates[@]}"
+          zizmor --format github .github "${templates[@]}"
 
   secret-scan:
     name: Secret scan
