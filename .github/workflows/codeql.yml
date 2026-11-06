@@ -10,9 +10,11 @@ on:
   schedule:
     - cron: "17 3 * * 2"
 
+# PR では、同じ PR の古い commit の解析を取り消す。
+# main（push と schedule）では group を commit ごとに分け、待っている実行が新しい実行に置き換えられないようにする。
+# group が同じだと、待っている実行は取り消され、その commit の結果が code scanning に残らない。
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  # PR では古い commit の解析を取り消す。main（push と schedule）では取り消さず、commit ごとの結果を code scanning に残す。
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:

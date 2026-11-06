@@ -265,6 +265,9 @@ jobs:
           for f in skills/*/assets/*.yml skills/*/assets/*.yaml; do
             if grep -qE '^jobs:' "$f"; then
               templates+=("$f")
+            else
+              # 外したファイルをログに残す（テンプレートが判定に当たらずに外れたときに気付けるようにする）。
+              echo "対象外（トップレベルに jobs: が無い）: $f"
             fi
           done
           # 対象 0 件を成功として扱わない（glob か判定が空振りしただけの緑を根拠にしない）。

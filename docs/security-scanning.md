@@ -7,7 +7,7 @@ PR ごとに、決定論的なスキャナと LLM の差分レビューで、セ
 
 | ツール | 対象 | 実行する場所 | 指摘があったとき |
 | --- | --- | --- | --- |
-| CodeQL（`javascript-typescript` と `actions`） | JavaScript・TypeScript のコードと `.github/workflows/` | `.github/workflows/codeql.yml`（PR と `push: main`） | 結果を code scanning に表示し、ルールセットの code scanning の規則がマージを止める |
+| CodeQL（`javascript-typescript` と `actions`） | JavaScript・TypeScript のコードと `.github/workflows/` | `.github/workflows/codeql.yml`（PR・`push: main`・週次の `schedule`） | 結果を code scanning に表示し、ルールセットの code scanning の規則がマージを止める |
 | zizmor | `.github/`（ワークフローと `dependabot.yml`）と、配布するワークフローのテンプレート（`skills/*/assets/` の YAML のうち、`jobs:` を持つもの） | CI の `GitHub Actions lint` ジョブ | 1 件でもあればジョブが失敗する |
 | gitleaks | pre-commit はステージした差分、CI は全履歴 | pre-commit と CI の `Secret scan` ジョブ | commit とジョブが失敗する |
 | `/security-review`（Claude Code に組み込みのコマンド） | push する前の差分 | 手元（「push の前のレビュー」） | 妥当な指摘だけを直してから push する |
