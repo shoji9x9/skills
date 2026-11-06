@@ -1,10 +1,10 @@
 ---
 date: 2026-10-14
-type: hook
+type: doc
 priority: high
 confidence: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [skills/issue-start/SKILL.md, skills/issue-batch/references/orchestration.md]
 session: claude-code
 ---
 
@@ -156,6 +156,8 @@ worktree の隔離セッションでは、heredoc・複合コマンド・`git` �
   #655 の拒否から、`;`・`&&` と組む形として、`-e` のスクリプトに変数の引数を並べた `node` と `bash` の起動も条件に含める。
   #655 の 4 回目の `bash <スクリプト> <引数>; echo rc=$?` は `git` の語を含まないので、起動の組で拾う。`echo` の引数の `$?` は実行時に決まる値なので、拒否の理由にこの展開が関わっている可能性もある。
 - KEDB 照合: `worktree`・`Bash`・`拒否` で `.kaizen/archive/2026-09-17-worktree-session-rejects-computed-bash.md`（applied）に一致。applied なので追記せず、この記録を新しく作った。
+- apply の判断（Issue #708）: PreToolUse の Hook は作らず、`type` を doc に直した。拒否される形は再発の記録のたびに増え（`for`・パイプ・`$(...)`・`eval` の語・`printf` の日本語など）、呼び出し側で形を列挙する検査は尽きない。
+  代わりに、worktree に入る手順を持つ `issue-start` と `issue-batch` に、`git-worktree` の `isolation.md` の形で最初から書く 1 行を置いた。再発が続くなら、ハーネスの側で閉じる方法を探す。
 
 ### apply のときに確かめること
 

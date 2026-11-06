@@ -248,7 +248,8 @@ node scripts/mutation/update-mutation-durations.ts run.log
 このツールは、定義ごとに `時間:` の X の合計 ÷ (N + 1) の合計を、1 回の実行の秒数として書き込む。ログに無い定義の見積もりは変えない。
 途中で止まった run のログ（`時間:` の行が無い定義がある）を渡すと、見積もりを書き換えずに exit 2 で終わる。
 CI の 1 回の実行の秒数は、run ごとに 2 割ほど変わる。複数の run のログを渡すと、それらの合計で平均するので、見積もりのばらつきが小さくなる。
-定義を足したら、見積もりも足す（`mutations-declaration.test.ts` が、どの定義にも見積もりがあることを確かめる）。最初は手元の実行のログを同じツールに渡す。
+定義を足したら、見積もりも足す（`mutations-declaration.test.ts` が、どの定義にも見積もりがあることを確かめる）。最初は手元の実行のログを `update-mutation-durations.ts` に渡す。
+`mutations-declaration.test.ts` は、lefthook の pre-commit（`cross-file-tests`）が毎回実行する。定義の `find` がコードと合わないことを、全件の実行の前に見つける。
 文書を含む変更は、push の前に手元でも `--changed-since origin/main` を実行する。文書を読むテストを持つ定義も選ばれるので、文書の書き換えで落ちる定義を CI の前に見つけられる。
 `--changed-since` は commit の差分（`origin/main...HEAD`）だけを見るので、commit した後に実行する。commit する前は「変更ファイル: 0 件」になり、何も測らない。
 ランナーのテストのうち本物の vitest を使うのは e2e の 2 本だけで、残りはスタブで実行する（`MUTATION_PROOF_TEST_COMMAND`）。
@@ -282,6 +283,8 @@ worktree は commit した内容から作るので、tracked のファイルに 
 依存の導入の失敗や中断で途中で止まっても、作った worktree は消す。対象が戻っていない worktree は消さずに残し、次の実行もそれを確かめるまで止まる。
 
 実行中は、その作業ツリーの変異の対象を編集しない。原本を読んでコピーする処理（`scripts/tools/reinstall-skill.sh`・成果物の生成）も実行しない。
+`reinstall-skill.sh` は、ランナーのロックの PID が生きていれば、コピーせずに exit 1 で止まる。生きているかは、ランナーと同じ規則（`process.kill(pid, 0)` で、EPERM も生きているとする）を node で判定する。PID を読めないロックでも止まり、PID が終了した古いロックでは止まらない。
+ロックの有無に関わらず、中断で残った復元情報（`<ロック>.recovery.json`）があれば止まる。原本に変異が残っている可能性があるからである。
 ランナーは変異 1 件ごとに元の内容を書き戻すので、実行中の編集は消え、コピーには実行中の変異が入る（どちらも実測）。
 ランナーは書き戻す直前に、対象の今の内容を分類する。自分の書いた変異のままなら書き戻す。
 元の内容に戻されていた場合は、測定が無効なので結果を出さずに exit 2 で止まる。
@@ -297,6 +300,12 @@ worktree は commit した内容から作るので、tracked のファイルに 
 子は `scripts/lib/spawn-async.ts` の `spawnAsync` で起動し（`spawnSync` はイベントループを止めるので並ばない）、一時ディレクトリは `makeTempDirFactory` で作る。
 並べたテストの中の `makeTempDir` は、消す予約が別のテストに付くので例外になる。
 バックグラウンドで実行したときの完了は、完了の通知ではなく、プロセスが無いこと（`/proc/<pid>`）と、ログの最終行（`mutation-proof: N proven / M failed`）で判断する。
+
+手元では、変えた判定に関わる定義だけを `--only` で実行する。
+選ぶのは、足した変異・`find` を変えた変異・変えた関数を対象にする変異である。全件は、PR の CI の `Mutation proof (PR)` と週次の実行に任せる。
+宣言の外で落ちる変異があれば CI が検出するので、push の後に CI の結果を見て直す。
+ただし、テストを足したときと assertion を書き換えたときは、その `test_file` を持つ定義ファイルは絞らずに実行する。
+理由は `.agents/rules/state-space-and-mutation-proof.md`「assertion を書き換えたら、それに対する過去のミューテーションテストの結果は使えない」にある。
 
 ランナー自身を変異させる定義があるときは、`--changed-since` を測るテストを `--only` で絞る。
 選ぶ判定を常に真にする変異が入ると、入れ子のランナーが指数的に増える。実測では 30 分以上かかって 21 以上のプロセスが起動し、止めた後の作業ツリーに変異が残った。

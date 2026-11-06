@@ -1,7 +1,7 @@
 ---
 date: 2026-10-31
 type: hook
-priority: high
+priority: medium
 confidence: medium
 status: pending
 applied-to: []

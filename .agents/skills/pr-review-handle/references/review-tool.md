@@ -86,7 +86,10 @@ gh api --method POST \
 
 - 依頼に使う login は `[bot]` の付いた `copilot-pull-request-reviewer[bot]` である。
   表示名の `Copilot` と、slug の `copilot-pull-request-reviewer` は渡さない。`Copilot` を渡すと 200 が返るのに警告なしに無視され、slug を渡すと 422 になる。
-- 作成者の login は API によって書き方が違う。REST では `Copilot`、GraphQL では `copilot-pull-request-reviewer`、依頼に使うのは `copilot-pull-request-reviewer[bot]` である。
+- 作成者の login は API によって書き方が違う。REST の中でも API ごとに違う（PR のレビューで実測）。
+  レビュー（`pulls/<番号>/reviews` の `user.login`）は `copilot-pull-request-reviewer[bot]` である。
+  行のコメント（`pulls/<番号>/comments`）とタイムラインは `Copilot`、GraphQL の `author.login` は `copilot-pull-request-reviewer` である。
+  レビューの API の応答を `Copilot` で絞ると、届いたレビューを 0 件と数える。依頼に使うのは `copilot-pull-request-reviewer[bot]` である。
 - `requested_reviewers` が空でも、依頼が成立しなかったとは判断しない。Copilot はレビューに着手するとすぐ依頼を消すので、正常なときも空になる（実測）。
   成立は、タイムラインにある Copilot 宛ての `review_requested` イベント（REST での表記は `Copilot`）で確かめる。
 

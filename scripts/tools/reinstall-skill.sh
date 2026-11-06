@@ -132,6 +132,78 @@ if [ -z "${repo_root}" ] ||
 	echo "Repository root not found from the script location: ${BASH_SOURCE[0]:-<stdin>}（scripts/gates/packaging/check-skill-frontmatter.ts と skills/ を持つツリーを特定できない。既存のインストールは触っていない）" >&2
 	exit 2
 fi
+
+# Stop while the mutation proof (scripts/mutation/check-mutation-proof.ts) runs in this tree.
+# It rewrites the sources in place, so a copy taken now ships an active mutation into the
+# installed skill (it happened 4 times despite the rule in docs/tooling.md). The lock path is
+# the runner's: node_modules/.cache/mutation-proof/lock, or MUTATION_PROOF_LOCK if set.
+# A lock whose PID is dead is stale and the runner removes it on its next start, so it does
+# not stop the reinstall. A lock without a readable PID can't be judged and stops it.
+# The recovery file (<lock>.recovery.json) stays when a run was killed or could not restore a
+# file, with or without a lock. The mutation is then still in the sources, so it stops too.
+mutation_lock="${MUTATION_PROOF_LOCK:-${repo_root}/node_modules/.cache/mutation-proof/lock}"
+# A relative MUTATION_PROOF_LOCK can't be matched to the runner's lock: the runner reads it from
+# its own cwd, which this script can't know. Stop instead of guessing.
+case "${mutation_lock}" in
+/*) ;;
+*)
+	echo "MUTATION_PROOF_LOCK が相対パス（${mutation_lock}）なので、ランナーのロックを特定できずに止まる。絶対パスにして再実行する（既存のインストールは触っていない）" >&2
+	exit 1
+	;;
+esac
+if [ -e "${mutation_lock}.recovery.json" ]; then
+	echo "ミューテーションテストの復元情報（${mutation_lock}.recovery.json）が残っているので止まる。前回の実行が中断され、原本に変異が残っている可能性がある。ランナーを再実行して戻す。ランナーも止まるときは、原本を確かめて直してから復元情報を消して再実行する（既存のインストールは触っていない）" >&2
+	exit 1
+fi
+# Whether the lock's owner is alive is judged by node with the runner's own rule (alive() in
+# check-mutation-proof.ts: process.kill(pid, 0), and EPERM counts as alive). Rewriting it in
+# shell (kill -0, ps -p) disagreed with the runner on PID 0, overflowing PIDs, EPERM, leading
+# zeros and a missing ps. The runner itself is not called: a run may be mutating its own file.
+# On a lock whose content is empty or not a number, this script is stricter than the runner,
+# which takes such a lock as stale: it stops, since it can't tell the run is over. A lock file
+# it can't read (a directory, no permission) stops this script, and stops the runner when it
+# takes the lock (readLockPid() dies). The runner's --list notice treats such a lock as ownerless.
+# node runs in the repository root so that a version manager's shim resolves it there, and
+# its own failures (exit 1, uncaught errors) fall into the "can't judge" branch, not "running".
+# Exit codes of the node snippet: 0 = stale lock (or removed meanwhile), 10 = owner alive
+# (prints the PID), 11 = the PID can't be read.
+if [ -e "${mutation_lock}" ] || [ -L "${mutation_lock}" ]; then
+	lock_state=0
+	lock_pid="$(cd "${repo_root}" && node -e '
+const fs = require("fs");
+let text;
+try {
+	text = fs.readFileSync(process.argv[1], "utf8").trim();
+} catch (err) {
+	process.exit(err.code === "ENOENT" ? 0 : 11);
+}
+const pid = Number(text);
+if (text === "" || !Number.isFinite(pid)) process.exit(11);
+if (!Number.isInteger(pid) || pid <= 0) process.exit(0);
+fs.writeSync(1, String(pid));
+try {
+	process.kill(pid, 0);
+	process.exit(10);
+} catch (err) {
+	process.exit(err.code === "EPERM" ? 10 : 0);
+}
+' -- "${mutation_lock}")" || lock_state=$?
+	case "${lock_state}" in
+	0) ;;
+	10)
+		echo "ミューテーションテストの実行中（PID ${lock_pid}、ロック: ${mutation_lock}）は原本に変異が入っているので止まる。終わるまで待ってから再実行する（既存のインストールは触っていない）" >&2
+		exit 1
+		;;
+	11)
+		echo "ミューテーションテストのロック（${mutation_lock}）から PID を読めないので止まる。実行中でないことを確かめてからロックを消して（ディレクトリなら rm -r で）再実行する（既存のインストールは触っていない）" >&2
+		exit 1
+		;;
+	*)
+		echo "ミューテーションテストのロック（${mutation_lock}）を判定できないので止まる（node の終了コード ${lock_state}。既存のインストールは触っていない）" >&2
+		exit 1
+		;;
+	esac
+fi
 cd "${repo_root}"
 
 if [ "$1" = "--all" ]; then

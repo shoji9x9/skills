@@ -3,8 +3,8 @@ date: 2026-10-30
 type: doc
 priority: high
 confidence: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [skills/pr-finalize-loop/references/review-tool.md, skills/pr-review-handle/references/review-tool.md, skills/pr-review-handle/SKILL.md]
 session: claude-code
 ---
 

@@ -13,7 +13,9 @@ import {
   rmSync,
   symlinkSync,
 } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
+import { CHILD_TIMEOUT_MS } from "../lib/testing/child-timeout.ts";
 import {
   type Ctx,
   createRepo,
@@ -28,6 +30,7 @@ import {
   snapshot,
   withReadOnly,
   writeFile,
+  writeStub,
 } from "./reinstall-skill-helpers.ts";
 
 const EXPECTED_INSTALL = {
@@ -304,4 +307,192 @@ printf 'local-path: %s\\n' "$PWD/$3" >>".agents/skills/$4/SKILL.md"
     "Failed to remove local-path metadata from .agents/skills/demo/SKILL.md",
   );
   expect(result.stdout).not.toContain("Reinstalled demo");
+});
+
+// ミューテーションテストの実行中は、原本に変異が入っている。コピーすると変異がインストール済みのスキルに入る。
+function writeMutationLock(root: string, content: string) {
+  writeFile(join(root, "node_modules/.cache/mutation-proof/lock"), content);
+}
+
+test("ミューテーションテストのロックの PID が生きていれば exit 1 で止まり、インストール済みのコピーを消さない", () => {
+  const ctx = setup();
+  const root = createRepo(ctx.base, "repo");
+  writeMutationLock(root, `${process.pid}\n`);
+  preinstall(root);
+  const before = snapshot(root);
+  const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", "demo"]);
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain(`ミューテーションテストの実行中（PID ${process.pid}`);
+  expectUntouched(ctx, root, before);
+});
+
+test("MUTATION_PROOF_LOCK が指すロックの PID が生きていれば exit 1 で止まる", () => {
+  const ctx = setup();
+  const root = createRepo(ctx.base, "repo");
+  const lock = join(ctx.base, "custom.lock");
+  writeFile(lock, `${process.pid}\n`);
+  preinstall(root);
+  const before = snapshot(root);
+  const result = runWith(ctx, root, {
+    args: ["scripts/tools/reinstall-skill.sh", "demo"],
+    env: { MUTATION_PROOF_LOCK: lock },
+  });
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain(`ロック: ${lock}`);
+  expectUntouched(ctx, root, before);
+});
+
+test("ロックの PID が終了していれば古いロックとして扱い、インストールする", () => {
+  const ctx = setup();
+  const root = createRepo(ctx.base, "repo");
+  // 終了済みのプロセスの PID を使う。spawnSync が返った時点で子は回収されている。
+  const dead = spawnSync("true", { timeout: CHILD_TIMEOUT_MS }).pid;
+  expect(dead).toBeGreaterThan(0);
+  writeMutationLock(root, `${dead}\n`);
+  const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", "demo"]);
+  expect(result.status, result.stderr).toBe(0);
+  expect(snapshot(root)).toEqual(EXPECTED_INSTALL);
+});
+
+test("ロックが無くても復元情報が残っていれば exit 1 で止まる", () => {
+  const ctx = setup();
+  const root = createRepo(ctx.base, "repo");
+  writeFile(join(root, "node_modules/.cache/mutation-proof/lock.recovery.json"), "{}\n");
+  preinstall(root);
+  const before = snapshot(root);
+  const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", "demo"]);
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain("復元情報");
+  expectUntouched(ctx, root, before);
+});
+
+// ランナーは PID が 0 以下のロックを古いロックとして扱う。
+test("ロックの PID が 0 なら古いロックとして扱い、インストールする", () => {
+  const ctx = setup();
+  const root = createRepo(ctx.base, "repo");
+  writeMutationLock(root, "0\n");
+  const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", "demo"]);
+  expect(result.status, result.stderr).toBe(0);
+  expect(snapshot(root)).toEqual(EXPECTED_INSTALL);
+});
+
+// 整数の範囲を超える PID は、ランナーと同じく存在しないプロセスとして扱う。
+test("ロックの PID が整数の範囲を超えるなら古いロックとして扱い、インストールする", () => {
+  const ctx = setup();
+  const root = createRepo(ctx.base, "repo");
+  writeMutationLock(root, "99999999999999999999\n");
+  const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", "demo"]);
+  expect(result.status, result.stderr).toBe(0);
+  expect(snapshot(root)).toEqual(EXPECTED_INSTALL);
+});
+
+// ランナーは Number() で読むので、先頭の 0 は 10 進数の PID として扱う。
+test("ロックの PID に先頭の 0 が付いていても、生きていれば exit 1 で止まる", () => {
+  const ctx = setup();
+  const root = createRepo(ctx.base, "repo");
+  writeMutationLock(root, `0${process.pid}\n`);
+  preinstall(root);
+  const before = snapshot(root);
+  const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", "demo"]);
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain(`ミューテーションテストの実行中（PID ${process.pid}`);
+  expectUntouched(ctx, root, before);
+});
+
+// 権限の無い別のユーザーのプロセスでは、process.kill(pid, 0) が EPERM を投げる。ランナーは生きているとして扱う。
+// PID 1 がその条件を満たすか（root で動く環境や PID の名前空間を分けた環境では満たさない）を先に確かめる。
+function pid1IsForeign(): boolean {
+  try {
+    process.kill(1, 0);
+    return false;
+  } catch (err) {
+    return err instanceof Error && "code" in err && err.code === "EPERM";
+  }
+}
+
+test.skipIf(!pid1IsForeign())("ロックの PID が別のユーザーのプロセスなら exit 1 で止まる", () => {
+  const ctx = setup();
+  const root = createRepo(ctx.base, "repo");
+  writeMutationLock(root, "1\n");
+  preinstall(root);
+  const before = snapshot(root);
+  const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", "demo"]);
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain("ミューテーションテストの実行中（PID 1");
+  expectUntouched(ctx, root, before);
+});
+
+test("ロックがファイルとして読めなければ判定できないとして exit 1 で止まる", () => {
+  const ctx = setup();
+  const root = createRepo(ctx.base, "repo");
+  // ディレクトリは readFileSync が EISDIR を投げる。権限で読めないファイルと同じ分岐に入る。
+  mkdirSync(join(root, "node_modules/.cache/mutation-proof/lock"), { recursive: true });
+  preinstall(root);
+  const before = snapshot(root);
+  const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", "demo"]);
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain("から PID を読めないので止まる");
+  expectUntouched(ctx, root, before);
+});
+
+// 判定の node が失敗したら（終了コードが 0・10・11 のどれでもない）、判定できないとして止まる。
+// 偽の node は、ロックの判定より後の frontmatter の検査でも失敗するので、止まった理由を stderr で区別する。
+function withFailingNode(ctx: Ctx) {
+  writeStub(ctx.base, "node", "#!/bin/sh\nexit 7\n");
+}
+
+test("ロックの判定の node が失敗したら、判定できないとして exit 1 で止まる", () => {
+  const ctx = setup();
+  const root = createRepo(ctx.base, "repo");
+  writeMutationLock(root, `${process.pid}\n`);
+  withFailingNode(ctx);
+  preinstall(root);
+  const before = snapshot(root);
+  const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", "demo"]);
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain("を判定できないので止まる（node の終了コード 7");
+  // 止まらずに進むと、同じ偽の node で frontmatter の検査が失敗する。その前で止まったことを確かめる。
+  expect(result.stderr).not.toContain("Preflight failed");
+  expectUntouched(ctx, root, before);
+});
+
+test("ロックが無ければ判定の node を起動しない", () => {
+  const ctx = setup();
+  const root = createRepo(ctx.base, "repo");
+  withFailingNode(ctx);
+  const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", "demo"]);
+  // ロックの判定を飛ばし、frontmatter の検査（同じ偽の node）で止まる。
+  expect(result.status).toBe(1);
+  expect(result.stderr).not.toContain("ミューテーションテスト");
+  expect(result.stderr).toContain("Preflight failed");
+});
+
+// ランナーは相対パスを自分の cwd を基準に読むので、どのファイルかをこのスクリプトから決められない。
+test("相対パスの MUTATION_PROOF_LOCK を受け取ったら exit 1 で止まる", () => {
+  const ctx = setup();
+  const root = createRepo(ctx.base, "repo");
+  preinstall(root);
+  const before = snapshot(root);
+  const result = runWith(ctx, root, {
+    args: ["scripts/tools/reinstall-skill.sh", "demo"],
+    env: { MUTATION_PROOF_LOCK: "mylock" },
+  });
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain("MUTATION_PROOF_LOCK が相対パス（mylock）");
+  expectUntouched(ctx, root, before);
+});
+
+test.each([
+  ["空", ""],
+  ["数字でない", "not-a-pid\n"],
+])("ロックの中身が%sなら判定できないとして exit 1 で止まる", (_label, content) => {
+  const ctx = setup();
+  const root = createRepo(ctx.base, "repo");
+  writeMutationLock(root, content);
+  preinstall(root);
+  const before = snapshot(root);
+  const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", "demo"]);
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain("から PID を読めないので止まる");
+  expectUntouched(ctx, root, before);
 });

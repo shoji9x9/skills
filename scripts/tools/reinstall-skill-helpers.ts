@@ -66,11 +66,16 @@ export function preinstall(root: string) {
   symlinkSync("../../.agents/skills/demo", join(root, ".claude", "skills", "demo"));
 }
 
+/** PATH の先頭に置く偽のコマンドを、base の bin/ に実行できる形で書く。 */
+export function writeStub(base: string, name: string, body: string) {
+  writeFile(join(base, "bin", name), body);
+  chmodSync(join(base, "bin", name), 0o755);
+}
+
 export function setup() {
   const base = makeTempDir("reinstall-skill-");
   const bin = join(base, "bin");
-  writeFile(join(bin, "gh"), FAKE_GH);
-  chmodSync(join(bin, "gh"), 0o755);
+  writeStub(base, "gh", FAKE_GH);
   return { base, ghLog: join(base, "gh.log"), env: { PATH: `${bin}:${process.env.PATH}` } };
 }
 
@@ -87,7 +92,8 @@ export function runWith(
     cwd,
     encoding: "utf8",
     input: input ?? "",
-    env: { ...process.env, ...ctx.env, GH_LOG: ctx.ghLog, ...env },
+    // 外から渡された MUTATION_PROOF_LOCK を外す。残すと、fixture ではなく実在のロックを読む。
+    env: { ...process.env, MUTATION_PROOF_LOCK: undefined, ...ctx.env, GH_LOG: ctx.ghLog, ...env },
     timeout: CHILD_TIMEOUT_MS,
   });
 }

@@ -3,8 +3,8 @@ date: 2026-10-21
 type: skill
 priority: high
 confidence: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [skills/issue-start/references/acceptance.md, skills/issue-batch/references/orchestration.md]
 session: claude-code
 ---
 

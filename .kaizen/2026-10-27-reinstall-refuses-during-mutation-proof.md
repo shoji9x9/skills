@@ -3,8 +3,8 @@ date: 2026-10-27
 type: hook
 priority: high
 confidence: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [scripts/tools/reinstall-skill.sh, docs/tooling.md]
 session: claude-code
 ---
 

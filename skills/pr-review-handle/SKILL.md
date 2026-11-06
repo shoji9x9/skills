@@ -111,7 +111,7 @@ pr-review-handle <PR URL | 番号 | レビュー URL> [--push]
 
 ## gh メカニクス
 
-作成者の login は API によって書き方が違う（REST では `Copilot`、GraphQL では `copilot-pull-request-reviewer`）。
+作成者の login は API によって書き方が違う（REST のレビューは `copilot-pull-request-reviewer[bot]`、行のコメントは `Copilot`、GraphQL は `copilot-pull-request-reviewer`）。
 すべてのレビュアーを対象にするので作成者で絞る必要は無いが、特定のレビュアーだけを扱うときはこの違いに注意する。
 
 ### 未解決スレッドの取得
