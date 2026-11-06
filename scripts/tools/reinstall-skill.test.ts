@@ -365,7 +365,7 @@ test("ロックが無くても復元情報が残っていれば exit 1 で止ま
   expectUntouched(ctx, root, before);
 });
 
-// kill -0 0 はプロセスグループに送るので成功する。ランナーは PID が 0 以下のロックを古いロックとして扱う。
+// ランナーは PID が 0 以下のロックを古いロックとして扱う。
 test("ロックの PID が 0 なら古いロックとして扱い、インストールする", () => {
   const ctx = setup();
   const root = createRepo(ctx.base, "repo");
@@ -380,10 +380,27 @@ test("ロックの PID が整数の範囲を超えるなら古いロックとし
   const ctx = setup();
   const root = createRepo(ctx.base, "repo");
   writeMutationLock(root, "99999999999999999999\n");
-  const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", "demo"]);
+  // bash のエラーの文言は locale で訳されるので、英語のメッセージに固定する。
+  const result = runWith(ctx, root, {
+    args: ["scripts/tools/reinstall-skill.sh", "demo"],
+    env: { LC_ALL: "C", LANG: "C" },
+  });
   expect(result.status, result.stderr).toBe(0);
   expect(result.stderr).not.toContain("integer expression expected");
   expect(snapshot(root)).toEqual(EXPECTED_INSTALL);
+});
+
+// PID 1 は別のユーザー（root）のプロセスなので、kill -0 は権限が無いと失敗する。ランナーは生きているとして扱う。
+test("ロックの PID が別のユーザーのプロセスなら exit 1 で止まる", () => {
+  const ctx = setup();
+  const root = createRepo(ctx.base, "repo");
+  writeMutationLock(root, "1\n");
+  preinstall(root);
+  const before = snapshot(root);
+  const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", "demo"]);
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain("ミューテーションテストの実行中（PID 1");
+  expectUntouched(ctx, root, before);
 });
 
 test.each([

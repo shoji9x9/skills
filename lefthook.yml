@@ -275,9 +275,8 @@ pre-commit:
             run: pnpm exec vitest run scripts/gates/tooling/formatter-scope.test.ts
           - name: cross-file-tests
             # 他のファイルを読む横断のテスト。子プロセスの timeout・一時ディレクトリの作り方・変異の定義の find を、
-            # リポジトリ全体で確かめる。変えたテストの名前からは選ばれず、CI でだけ落ちることが繰り返された
-            # （.kaizen/2026-10-08-cross-file-test-not-run-before-push.md）。読む範囲を glob に書き出すと範囲が
-            # ずれても警告が出ないので、glob を付けずに毎回実行する（3 本で数秒）。
+            # リポジトリ全体で確かめる。変えたテストの名前からは選ばれないので、CI でだけ落ちることが繰り返された。
+            # 読む範囲を glob に書き出すと範囲がずれても警告が出ないので、glob を付けずに毎回実行する。
             run: pnpm exec vitest run scripts/lib/testing/child-timeout.test.ts scripts/lib/testing/test-tmpdir.test.ts scripts/mutation/mutations-declaration.test.ts
           - name: control-chars
             # テキスト拡張子のステージ差分に NUL 等の制御バイトが混入していないか。

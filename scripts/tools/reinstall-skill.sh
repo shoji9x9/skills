@@ -154,9 +154,11 @@ if [ -e "${mutation_lock}" ]; then
 		exit 1
 		;;
 	esac
-	# PID 0 は kill -0 がプロセスグループに送って成功するので、ランナーと同じく古いロックとして扱う。
+	# PID 0 は kill ではプロセスグループを指し、macOS の ps -p 0 は kernel_task を返すので、ランナーと同じく古いロックとして扱う。
 	# 整数の範囲を超える値は [ が比べられずに偽になり、ランナーと同じく存在しないプロセスとして扱う。
-	if [ "${lock_pid}" -gt 0 ] 2>/dev/null && kill -0 "${lock_pid}" 2>/dev/null; then
+	# 生きているかは ps -p で見る。kill -0 は別のユーザーのプロセスで権限が無いと失敗するが、
+	# ランナーはその場合（EPERM）を生きているとして扱う。
+	if [ "${lock_pid}" -gt 0 ] 2>/dev/null && ps -p "${lock_pid}" >/dev/null 2>&1; then
 		echo "ミューテーションテストの実行中（PID ${lock_pid}、ロック: ${mutation_lock}）は原本に変異が入っているので止まる。終わるまで待ってから再実行する（既存のインストールは触っていない）" >&2
 		exit 1
 	fi

@@ -580,7 +580,7 @@ merge の実行方法だけが、`merge_mode` で分かれる。head の SHA の
 4. Issue の `state`・`stateReason` と linked PR を取得し直し、決めた状態と一致するかを確かめる。
    決めた状態は、ふつうは completed で閉じることである。completed 以外の理由（not planned など）で閉じることや、開いたまま残すことを決めた Issue もある。
    completed で閉じると決めた Issue が OPEN なら、手で close して隠さず、BLOCKED にする。
-   completed 以外の理由で閉じると決めた Issue が OPEN なら、決めた理由で閉じる。開いたまま残すと決めた Issue は、OPEN なら次の手順に進む。
+   completed 以外の理由で閉じると決めた Issue が OPEN なら、OPEN のままだった理由（linked PR が無い・base が default branch でないなど）を確かめてコメントに残し、決めた理由で閉じる。開いたまま残すと決めた Issue は、OPEN なら次の手順に進む。
    `gh issue develop` で紐付けた branch の PR は、本文が `Refs` でも merge で Issue を `COMPLETED` として閉じる。
    そのため、決めた状態と違えば、理由をコメントしてから開き直し、決めた理由で閉じ直す（開いたまま残すなら開き直すだけにする）。
 5. PR から merge commit の OID と mergedAt を取得する。workflow ごとに

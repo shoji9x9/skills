@@ -1,7 +1,7 @@
 ---
 date: 2026-11-03
 type: rule
-priority: medium
+priority: high
 confidence: high
 status: pending
 applied-to: []
@@ -20,6 +20,11 @@ local レビューが、取得の範囲より前に merge したブランチ・G
 このリポジトリは defaultDecision: record で動き、decisions.json にブランチの判断が無いので、修正が実際には機能していなかった。
 local レビューが、この PR の記録に #868 の行が入ったことで指摘した。
 
+再発（2026-11-06、Issue #708・PR #919）: `reinstall-skill.sh` に、ミューテーションテストのランナーのロックの持ち主が生きているかを確かめる判定を足した。
+ランナーの判定（`readLockPid`・`alive`・`lockOwnerAlive`）を呼べないので、シェルで書き直したが、ランナーの分岐を表にしなかった。
+手元のレビューが、復元情報（1 回目の前）・PID 0（1 回目）・桁あふれの PID（2 回目）・EPERM（3 回目）の食い違いを 1 つずつ指摘した。
+EPERM は最初「起きにくい」として見送ったが、3 回目に同じ指摘が出て、`ps -p` で判定する形に直した。
+
 ## 根本原因
 
 1. なぜ取りこぼしたか → 外す条件が、外した行を書く側（別の作業ツリーのコミットの前の確認）の条件と一致していなかった
@@ -34,6 +39,8 @@ local レビューが、この PR の記録に #868 の行が入ったことで�
 PR #873 の local レビューの 1 回目の 1・4・5 件目の指摘が、どれも書く側の判定（branchMerged・判断）との食い違いから出た。branchesRecordedElsewhere に置き換えて 3 件を同時に直した。
 4 回目の 1 件目の指摘も、書く側の判定（gate.mjs の resolveDecision の defaultDecision）を落としたことから出た。
 KEDB 照合は「既存の判定」「agent-usage」と「任せる先」「判定」で、どちらも一致なし。
+
+- 2026-11-06: 同じ原因（呼べない既存の判定を、分岐を表にせずに書き直した）での再発を #708 で確かめた。
 
 ## 提案
 
