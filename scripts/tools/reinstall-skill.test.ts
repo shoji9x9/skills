@@ -5,6 +5,7 @@
 // スタブの `gh` は起動された cwd を記録するので、「どのツリーを操作したか」が出力に残る。
 import { expect, test } from "vitest";
 import {
+  chmodSync,
   copyFileSync,
   existsSync,
   mkdirSync,
@@ -431,6 +432,55 @@ test("ロックがファイルとして読めなければ判定できないと�
   const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", "demo"]);
   expect(result.status).toBe(1);
   expect(result.stderr).toContain("から PID を読めないので止まる");
+  expectUntouched(ctx, root, before);
+});
+
+// 判定の node が失敗したら（終了コードが 0・10・11 のどれでもない）、判定できないとして止まる。
+// 偽の node は、ロックの判定より後の frontmatter の検査でも失敗するので、止まった理由を stderr で区別する。
+function withFailingNode(ctx: Ctx) {
+  writeFile(join(ctx.base, "bin", "node"), "#!/bin/sh\nexit 7\n");
+  chmodSync(join(ctx.base, "bin", "node"), 0o755);
+}
+
+test("ロックの判定の node が失敗したら、判定できないとして exit 1 で止まる", () => {
+  const ctx = setup();
+  const root = createRepo(ctx.base, "repo");
+  writeMutationLock(root, `${process.pid}\n`);
+  withFailingNode(ctx);
+  preinstall(root);
+  const before = snapshot(root);
+  const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", "demo"]);
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain("を判定できないので止まる（node の終了コード 7");
+  // 止まらずに進むと、同じ偽の node で frontmatter の検査が失敗する。その前で止まったことを確かめる。
+  expect(result.stderr).not.toContain("Preflight failed");
+  expectUntouched(ctx, root, before);
+});
+
+test("ロックが無ければ判定の node を起動しない", () => {
+  const ctx = setup();
+  const root = createRepo(ctx.base, "repo");
+  withFailingNode(ctx);
+  const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", "demo"]);
+  // ロックの判定を飛ばし、frontmatter の検査（同じ偽の node）で止まる。
+  expect(result.status).toBe(1);
+  expect(result.stderr).not.toContain("ミューテーションテスト");
+  expect(result.stderr).toContain("Preflight failed");
+});
+
+test("相対パスの MUTATION_PROOF_LOCK は呼び出し元の cwd を基準に読む", () => {
+  const ctx = setup();
+  const root = createRepo(ctx.base, "repo");
+  const cwd = join(root, "sub", "dir");
+  writeFile(join(cwd, "mylock"), `${process.pid}\n`);
+  preinstall(root);
+  const before = snapshot(root);
+  const result = runWith(ctx, cwd, {
+    args: ["../../scripts/tools/reinstall-skill.sh", "demo"],
+    env: { MUTATION_PROOF_LOCK: "mylock" },
+  });
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain(`ミューテーションテストの実行中（PID ${process.pid}`);
   expectUntouched(ctx, root, before);
 });
 

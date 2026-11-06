@@ -142,6 +142,12 @@ fi
 # The recovery file (<lock>.recovery.json) stays when a run was killed or could not restore a
 # file, with or without a lock. The mutation is then still in the sources, so it stops too.
 mutation_lock="${MUTATION_PROOF_LOCK:-${repo_root}/node_modules/.cache/mutation-proof/lock}"
+# A relative MUTATION_PROOF_LOCK is taken from the caller's cwd, as the runner does. Make it
+# absolute here, because node below runs in the repository root.
+case "${mutation_lock}" in
+/*) ;;
+*) mutation_lock="${PWD}/${mutation_lock}" ;;
+esac
 if [ -e "${mutation_lock}.recovery.json" ]; then
 	echo "ミューテーションテストの復元情報（${mutation_lock}.recovery.json）が残っているので止まる。前回の実行が中断され、原本に変異が残っている可能性がある。ランナーを再実行して戻す。ランナーも止まるときは、原本を確かめて直してから復元情報を消して再実行する（既存のインストールは触っていない）" >&2
 	exit 1
@@ -150,8 +156,9 @@ fi
 # check-mutation-proof.ts: process.kill(pid, 0), and EPERM counts as alive). Rewriting it in
 # shell (kill -0, ps -p) disagreed with the runner on PID 0, overflowing PIDs, EPERM, leading
 # zeros and a missing ps. The runner itself is not called: a run may be mutating its own file.
-# On a lock it can't read (empty, not a number, unreadable file) this script is stricter than
-# the runner, which takes such a lock as stale: it stops, since it can't tell the run is over.
+# On a lock whose content is empty or not a number, this script is stricter than the runner,
+# which takes such a lock as stale: it stops, since it can't tell the run is over. A lock file
+# it can't read (a directory, no permission) stops both, as the runner's readLockPid() dies.
 # node runs in the repository root so that a version manager's shim resolves it there, and
 # its own failures (exit 1, uncaught errors) fall into the "can't judge" branch, not "running".
 # Exit codes of the node snippet: 0 = stale lock (or removed meanwhile), 10 = owner alive
@@ -184,7 +191,7 @@ try {
 		exit 1
 		;;
 	11)
-		echo "ミューテーションテストのロック（${mutation_lock}）から PID を読めないので止まる。実行中でないことを確かめてからロックを消して再実行する（既存のインストールは触っていない）" >&2
+		echo "ミューテーションテストのロック（${mutation_lock}）から PID を読めないので止まる。実行中でないことを確かめてからロックを消して（ディレクトリなら rm -r で）再実行する（既存のインストールは触っていない）" >&2
 		exit 1
 		;;
 	*)

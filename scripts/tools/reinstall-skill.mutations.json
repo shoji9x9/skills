@@ -42,7 +42,8 @@
         "ミューテーションテストのロックの PID が生きていれば exit 1 で止まり、インストール済みのコピーを消さない",
         "MUTATION_PROOF_LOCK が指すロックの PID が生きていれば exit 1 で止まる",
         "ロックの PID に先頭の 0 が付いていても、生きていれば exit 1 で止まる",
-        "ロックの PID が別のユーザーのプロセスなら exit 1 で止まる"
+        "ロックの PID が別のユーザーのプロセスなら exit 1 で止まる",
+        "相対パスの MUTATION_PROOF_LOCK は呼び出し元の cwd を基準に読む"
       ]
     },
     {
@@ -84,6 +85,33 @@
       "replace": "process.exit(0);",
       "occurrences": 1,
       "expect_failing": ["ロックがファイルとして読めなければ判定できないとして exit 1 で止まる"]
+    },
+    {
+      "id": "mutation-lock-node-failure-passes",
+      "why": "判定の node が失敗しても止まらずに通す",
+      "file": "scripts/tools/reinstall-skill.sh",
+      "find": "（node の終了コード ${lock_state}。既存のインストールは触っていない）\" >&2\n\t\texit 1",
+      "replace": "（node の終了コード ${lock_state}。既存のインストールは触っていない）\" >&2\n\t\t:",
+      "occurrences": 1,
+      "expect_failing": ["ロックの判定の node が失敗したら、判定できないとして exit 1 で止まる"]
+    },
+    {
+      "id": "mutation-lock-node-always",
+      "why": "ロックが無くても判定の node を起動する",
+      "file": "scripts/tools/reinstall-skill.sh",
+      "find": "if [ -e \"${mutation_lock}\" ] || [ -L \"${mutation_lock}\" ]; then",
+      "replace": "if true; then",
+      "occurrences": 1,
+      "expect_failing": ["ロックが無ければ判定の node を起動しない"]
+    },
+    {
+      "id": "mutation-lock-relative-from-root",
+      "why": "相対パスのロックを、呼び出し元の cwd ではなくリポジトリのルートを基準に読む",
+      "file": "scripts/tools/reinstall-skill.sh",
+      "find": "*) mutation_lock=\"${PWD}/${mutation_lock}\" ;;",
+      "replace": "*) ;;",
+      "occurrences": 1,
+      "expect_failing": ["相対パスの MUTATION_PROOF_LOCK は呼び出し元の cwd を基準に読む"]
     }
   ]
 }
