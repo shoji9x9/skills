@@ -14,8 +14,8 @@ import {
   symlinkSync,
 } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { CHILD_TIMEOUT_MS } from "../lib/testing/child-timeout.ts";
 import { dirname, join } from "node:path";
+import { CHILD_TIMEOUT_MS } from "../lib/testing/child-timeout.ts";
 import {
   type Ctx,
   createRepo,
@@ -372,6 +372,17 @@ test("ロックの PID が 0 なら古いロックとして扱い、インスト
   writeMutationLock(root, "0\n");
   const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", "demo"]);
   expect(result.status, result.stderr).toBe(0);
+  expect(snapshot(root)).toEqual(EXPECTED_INSTALL);
+});
+
+// 整数の範囲を超える PID は、ランナーと同じく存在しないプロセスとして扱う。比べられない理由を stderr に出さない。
+test("ロックの PID が整数の範囲を超えるなら古いロックとして扱い、インストールする", () => {
+  const ctx = setup();
+  const root = createRepo(ctx.base, "repo");
+  writeMutationLock(root, "99999999999999999999\n");
+  const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", "demo"]);
+  expect(result.status, result.stderr).toBe(0);
+  expect(result.stderr).not.toContain("integer expression expected");
   expect(snapshot(root)).toEqual(EXPECTED_INSTALL);
 });
 
