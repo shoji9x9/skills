@@ -1,6 +1,7 @@
 // aws-architecture-diagram の SVG から <script> 要素と on* の属性を取り除く部品のテスト（Issue #921）。
 //
 // 確かめる状態は次のとおりである。
+//   - 末尾の閉じないタグ（`>` が後ろに無い `<`）と、文字の中の閉じない `<`
 //   - <script> の形: 対の開始と終了 / 自己終端 / 終了タグの空白の後の属性 / 入れ子 / 対の無い開始タグと終了タグ / 大文字 /
 //     名前空間の接頭辞（ASCII と ASCII 以外）
 //   - <meta> の http-equiv: 大文字 / 閉じないタグ / 取り除いた後に現れる形 / 変えないもの（<meta> の要素・<metadata>）
@@ -23,6 +24,13 @@ test.each([
   // 対の無い終了タグを取り除いて初めて対が現れる形は、2 回目の置換で取り除く。
   ["取り除いた後に現れる対", "<g><scr</script>ipt>a</scr</script>ipt></g>", "<g></g>"],
   ["対の無い開始タグ", "<g><script>alert(1)</g>", "<g>alert(1)</g>"],
+  // 呼び出し側が後ろに足す文字列の `>` で、開始タグとして閉じないようにする。
+  [
+    "末尾の閉じないタグ",
+    '<rect width="1"/><script src="data:text/javascript,alert(1)"',
+    '<rect width="1"/>',
+  ],
+  ["文字の中の閉じない < は残す", "<g>a<b</g>", "<g>a<b</g>"],
   ["対の無い終了タグ", "<g>a</script ></g>", "<g>a</g>"],
   ["大文字", "<g><SCRIPT>a</SCRIPT></g>", "<g></g>"],
   ["on* の二重引用符", '<rect onclick="a()" width="1"/>', '<rect  width="1"/>'],
@@ -78,14 +86,15 @@ test.each([
     '<g><meta data-x-equiv="refresh" content="0;url=x"/></g>',
   ],
   ["http-equiv の大文字", '<META HTTP-EQUIV="refresh">', '<META data-x-equiv="refresh">'],
-  // タグの形を読まないので、閉じないタグでも置き換える。
+  // タグの形を読まないので、`>` で閉じない meta の後に別のタグが続く形でも置き換える。
   [
     "閉じない meta",
-    '<meta http-equiv="refresh" content="0;url=x"',
-    '<meta data-x-equiv="refresh" content="0;url=x"',
+    '<meta http-equiv="refresh" content="0;url=x"<g/>',
+    '<meta data-x-equiv="refresh" content="0;url=x"<g/>',
   ],
+  // 同じ回の中で、<script> を取り除いた後に http-equiv を置き換えるので、1 回目の置換で拾う。
   [
-    "取り除いた後に現れる http-equiv",
+    "script を取り除いた後に現れる http-equiv",
     '<meta htt<script>x</script>p-equiv="refresh">',
     '<meta data-x-equiv="refresh">',
   ],

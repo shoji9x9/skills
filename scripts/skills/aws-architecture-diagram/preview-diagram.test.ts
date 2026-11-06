@@ -69,6 +69,15 @@ test.each([
   expect(windowSize(r.chromeArgs)).toBe(`--window-size=${size}`);
 });
 
+test("SVG の末尾の閉じないタグは、Chrome に渡す HTML に入れない", () => {
+  const r = run({
+    svg: '<svg width="10" height="10"><rect/></svg><script src="data:text/javascript,alert(1)"',
+  });
+  expect(r.status).toBe(0);
+  expect(r.page).not.toMatch(/<script/i);
+  expect(r.page.endsWith("<rect/></svg>")).toBe(true);
+});
+
 test("SVG の <script> と on* の属性は、Chrome に渡す HTML に入れない", () => {
   const r = run({
     svg: [

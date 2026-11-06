@@ -116,7 +116,7 @@
         "meta の http-equiv",
         "http-equiv の大文字",
         "閉じない meta",
-        "取り除いた後に現れる http-equiv"
+        "script を取り除いた後に現れる http-equiv"
       ]
     },
     {
@@ -151,6 +151,15 @@
         "対の無い開始タグ",
         "対の無い終了タグ"
       ]
+    },
+    {
+      "id": "unclosed-tail-kept",
+      "why": "末尾の閉じないタグを残す",
+      "file": "skills/aws-architecture-diagram/scripts/lib/strip-active-content.mjs",
+      "find": "dropUnclosedTail(current)",
+      "replace": "current",
+      "occurrences": 1,
+      "expect_failing": ["末尾の閉じないタグ"]
     }
   ]
 }

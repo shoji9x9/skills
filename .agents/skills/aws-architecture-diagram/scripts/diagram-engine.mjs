@@ -109,7 +109,7 @@ function parseIconSvg(raw, name) {
   // viewBox はシングル/ダブルクォート両対応（自作アイコンで ' を使っても崩れない）。
   const viewBox = head[0].match(/viewBox=["']([^"']+)["']/)?.[1] ?? "0 0 80 80";
   // 取得元（AWS パッケージ）や自作アイコンに万一 <script>・on* ハンドラ・<meta> の http-equiv が
-  // 含まれても出力 SVG へ混入させない（多層防御。lib/strip-active-content.mjs）。
+  // 含まれても、取り除くか無効にしてから出力 SVG へ入れる（多層防御。lib/strip-active-content.mjs）。
   const body = stripActiveContent(
     raw
       .replace(/<\?xml[^>]*\?>/, "")

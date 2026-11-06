@@ -1,5 +1,6 @@
-// SVG から、script を実行させたりページを移動させたりする内容を取り除く部品。
-// 取り除くのは、<script> 要素・on* のイベントハンドラの属性・`http-equiv` の属性名（<meta> による移動に要る）の 3 つである。
+// SVG から、script を実行させたりページを移動させたりする内容を取り除くか、無効にする部品。
+// 取り除くのは、<script> 要素と、名前が on で始まる属性（イベントハンドラ）と、末尾の閉じないタグである。
+// `http-equiv`（<meta> による移動に要る属性名）は、名前を `data-x-equiv` に置き換えて無効にする。属性の値は残る。
 // 図に埋め込むアイコン（diagram-engine.mjs）と、Chrome で開くプレビュー（preview-diagram.mjs）で使う。
 // 自前で生成した SVG には、どれも含まれないので何も変えない。
 //
@@ -32,6 +33,16 @@ const HTTP_EQUIV = /http-equiv/gi;
 const HANDLER = /(?:[\s/]|(?<=["']))on[a-z]+\s*=\s*(?:"[^"<]*"|'[^'<]*'|(?:[^\s"'<>/]|\/(?!>))*)/gi;
 
 /**
+ * 最後の `>` より後ろにある閉じないタグ（`<script src=...` で終わる形）を取り除く。
+ * 残すと、呼び出し側が後ろに足す文字列（`</svg>` など）の `>` で、開始タグとして閉じる。
+ * @param {string} s
+ */
+function dropUnclosedTail(s) {
+  const start = s.indexOf("<", s.lastIndexOf(">") + 1);
+  return start < 0 ? s : s.slice(0, start);
+}
+
+/**
  * 1 回の置換では、入れ子（`<scr<script>x</script>ipt>`・`o onclick="x"nclick=...`）のように、
  * 取り除いた後に新しく現れる形を取りこぼす。そのため、結果が変わらなくなるまで繰り返す。
  * @param {string} svg
@@ -42,7 +53,7 @@ export function stripActiveContent(svg) {
   let previous;
   do {
     previous = current;
-    current = current
+    current = dropUnclosedTail(current)
       .replace(SCRIPT_ELEMENT, "")
       .replace(SCRIPT_TAG, "")
       .replace(HTTP_EQUIV, "data-x-equiv")
