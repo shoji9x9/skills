@@ -429,7 +429,7 @@ describe("テストと describe の呼び出しの名前", () => {
     ["it.skip", true, false],
     ["test.each([1])", true, false],
     ["test.each<[number]>([[1]])", true, false],
-    ["test.skip.each([1])(x)", true, false],
+    ["test.concurrent.each([1])(x)", true, false],
     ["it.each`a`", false, false],
     ["test.", false, false],
     ["tests", false, false],
