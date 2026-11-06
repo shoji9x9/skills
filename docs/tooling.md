@@ -35,10 +35,10 @@ mise の shim は、cwd の設定の階層からツールのバージョンを�
 | JSONC（`*.jsonc`。スキルの設定ファイル） | `jsonlint -C -T`（コメントと末尾のカンマを受け付けて読む） | `oxfmt` | 重複したキーもチェックする。CI は整形されていないファイルも検出する（`JSONC format check`） |
 | YAML（`*.yml`、`*.yaml`） | `js-yaml`（`scripts/gates/code/lint-yaml.ts` が API で 1 つのプロセスにまとめて読む） | `oxfmt` | `scripts/gates/prose/lint-prose.ts` がコメントの文章を textlint でチェックする |
 | シェル（`*.sh`） | `shellcheck` | `shfmt` | `scripts/gates/prose/lint-prose.ts` がコメントの文章をチェックする |
-| GitHub Actions（`.github/workflows/*.{yml,yaml}`） | `actionlint` と `ghalint` | `oxfmt` | `pinact` が SHA の固定を確かめる |
+| GitHub Actions（`.github/workflows/*.{yml,yaml}`） | `actionlint` と `ghalint` | `oxfmt` | `pinact` が SHA の固定を確かめる。`zizmor` は、ワークフローに加えて `dependabot.yml` と配布するワークフローのテンプレートのセキュリティを確かめる（[`security-scanning.md`](security-scanning.md)） |
 | 重複したコード（JavaScript・TypeScript・シェル・Markdown） | `jscpd`（下の「重複したコード（jscpd）」） | | |
 
-表のうち `shellcheck`・`shfmt`・`actionlint`・`pinact`・`ghalint`・`gitleaks` は、mise でインストールし（`mise.toml`）、コマンド名だけで起動する。
+表のうち `shellcheck`・`shfmt`・`actionlint`・`pinact`・`ghalint`・`gitleaks`・`zizmor` は、mise でインストールし（`mise.toml`）、コマンド名だけで起動する。
 それ以外は pnpm の devDependencies に入れ、`pnpm exec` で起動する。
 
 `oxlint` と `oxfmt` の対象は、JS・TS の拡張子すべて（`js`・`mjs`・`cjs`・`jsx`・`ts`・`tsx`・`mts`・`cts`）である。
@@ -46,7 +46,7 @@ CI は引数なしで実行する（`pnpm run lint:js`）ので、この範囲�
 lefthook の glob と `format:js*` スクリプトの glob も、この範囲にそろえる。片方だけが狭いと、その拡張子は手元でチェックされず、CI でだけ失敗する。
 
 GitHub Actions は、`actionlint` で構文を、`ghalint` で `permissions`・`timeout-minutes`・`persist-credentials` などの方針をチェックする。
-`ghalint` はリポジトリ全体を読むので pre-commit に入れず、CI の `GitHub Actions lint` だけで実行する。
+`ghalint` はリポジトリ全体を読むので pre-commit に入れず、CI の `GitHub Actions lint` だけで実行する。`zizmor` も同じジョブだけで実行する。
 
 #### 関数の大きさ
 

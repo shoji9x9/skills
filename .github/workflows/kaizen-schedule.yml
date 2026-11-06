@@ -159,8 +159,9 @@ jobs:
           KAIZEN_SCHEDULE_AGENT: ${{ inputs.agent }}
           KAIZEN_SCHEDULE_MODEL: ${{ inputs.model }}
           KAIZEN_SCHEDULE_EFFORT: ${{ inputs.effort }}
+          KAIZEN_SCRIPT: ${{ steps.locate.outputs.script }}
         run: |
-          bash "${{ steps.locate.outputs.script }}" config | tee -a "$GITHUB_OUTPUT"
+          bash "$KAIZEN_SCRIPT" config | tee -a "$GITHUB_OUTPUT"
 
       # 理由は kaizen.jsonc / リポジトリ変数に由来する外部入力。`${{ }}` で run へ
       # 直挿しすると値がシェルとして解釈されるので、env 経由で渡して展開させない。
@@ -182,7 +183,9 @@ jobs:
       # 一時停止で settings 自体が skip されたときに出力が空になり、条件を満たしてしまう。
       - name: Build agent prompt
         if: steps.settings.outputs.skip == 'false' && steps.settings.outputs.mode == 'agent'
-        run: bash "${{ steps.locate.outputs.script }}" prompt >"$PROMPT_FILE"
+        env:
+          KAIZEN_SCRIPT: ${{ steps.locate.outputs.script }}
+        run: bash "$KAIZEN_SCRIPT" prompt >"$PROMPT_FILE"
 
       # 資格情報の有無を先に測る。無いまま起動すると失敗ログだけが残り、
       # 「エージェントが何も見つけなかった」と区別できない（notify に切り替えるかの判断材料にする）。

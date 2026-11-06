@@ -1,0 +1,50 @@
+name: CodeQL
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  # main に push が無い間も、CodeQL に新しく入ったクエリで既存のコードを解析する。
+  # 毎週火曜 03:17 UTC (12:17 JST)。月曜の週次（outdated.yml・kaizen-schedule.yml・mutation-proof.yml）と曜日をずらしている。
+  schedule:
+    - cron: "17 3 * * 2"
+
+# PR では、同じ PR の古い commit の解析を取り消す。
+# main（push と schedule）では group を commit ごとに分け、待っている実行が新しい実行に置き換えられないようにする。
+# group が同じだと、待っている実行は取り消され、その commit の結果が code scanning に残らない。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  # 決定論的な SAST。結果は code scanning（Security タブと PR の注釈）に表示する。
+  # 解析のジョブは指摘があっても失敗しない。マージを止めるのは、ルールセットの code scanning の規則である。
+  # 構成と指摘を除外する方法は docs/security-scanning.md。
+  analyze:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      # code scanning に結果を上げる。
+      security-events: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        # JavaScript・TypeScript はビルドせずに解析できる。actions は .github/workflows/ を解析する。
+        language: [javascript-typescript, actions]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+      - uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          category: /language:${{ matrix.language }}

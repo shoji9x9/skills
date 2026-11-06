@@ -225,7 +225,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+      - id: mise
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
       # pinact は pin の検証でタグを GitHub API から取得する。トークンを渡さないと未認証の上限
       # （ランナーの IP で共有される）に当たり、403 で落ちる（実測: PR #536）。
       - run: pinact run --check
@@ -251,6 +252,37 @@ jobs:
       - run: actionlint
       - name: Policy lint (ghalint)
         run: ghalint run
+      # セキュリティの検査（テンプレートインジェクション・権限・キャッシュの汚染など）。指摘が 1 件でもあれば失敗する。
+      # .github はワークフローと dependabot.yml を含む。配布するワークフローのテンプレートも同じ基準で検査する。
+      # テンプレートは skills/*/assets/ の YAML のうち、トップレベルに jobs: を持つものとする。手順の断片（jobs: を持たない）は zizmor が読めない。
+      # 設定と指摘を除外する方法は .github/zizmor.yml と docs/security-scanning.md。
+      # GH_TOKEN は、タグの付け替え・既知の脆弱性を持つ Action を調べる検査が GitHub API を読むのに使う。
+      - name: Security lint (zizmor)
+        # ツールを入れた後の検査のステップ（pinact・actionlint・ghalint）のどれかが失敗しても、zizmor は実行してセキュリティの指摘を同じ実行で出す。
+        # 検査のステップのうち pinact・actionlint・ghalint は条件を持たないので、前のステップが失敗すると実行されない。
+        # checkout か mise が失敗したときと、ジョブが取り消されたときは実行しない（zizmor が無いか、対象が無いので、別のエラーを足すだけになる）。
+        if: ${{ !cancelled() && steps.mise.outcome == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          templates=()
+          for f in skills/*/assets/*.yml skills/*/assets/*.yaml; do
+            if grep -qE '^jobs:' "$f"; then
+              templates+=("$f")
+            else
+              # 外したファイルをログに残す（テンプレートが判定に当たらずに外れたときに気付けるようにする）。
+              echo "対象外（トップレベルに jobs: が無い）: $f"
+            fi
+          done
+          # 対象 0 件を成功として扱わない（glob か判定が空振りしただけの緑を根拠にしない）。
+          if [ "${#templates[@]}" -eq 0 ]; then
+            echo "配布するワークフローのテンプレートが 1 件も見つからない（glob と jobs: の判定を確認する）" >&2
+            exit 1
+          fi
+          printf 'テンプレート %s 件:\n' "${#templates[@]}"
+          printf '  %s\n' "${templates[@]}"
+          zizmor --format github .github "${templates[@]}"
 
   secret-scan:
     name: Secret scan

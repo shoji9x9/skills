@@ -27,7 +27,7 @@ Claude Code・Codex・GitHub Copilot に対応した、マルチエージェン�
 | YAML | `js-yaml`（`scripts/gates/code/lint-yaml.ts`） | `oxfmt` |
 | シェル | `shellcheck` | `shfmt` |
 | 重複したコード（JavaScript・TypeScript・シェル・Markdown） | `jscpd`（`scripts/gates/code/check-duplicates.ts`） | |
-| GitHub Actions | `actionlint` と `ghalint`、SHA の固定は `pinact` | `oxfmt` |
+| GitHub Actions | `actionlint` と `ghalint`、セキュリティは `zizmor`、SHA の固定は `pinact` | `oxfmt` |
 
 `fallow` と `jscpd` は pre-commit と CI で実行する。すぐに直せない既存の指摘は、`.config/fallow/` と `.config/jscpd/` のベースラインに載せて外す。
 ただし、`fallow` の循環的複雑度と認知的複雑度の指摘はベースラインに載せず、関数を分けて直す。
@@ -174,6 +174,7 @@ Claude Code はセッション開始時に両方を読み込み、Copilot のレ
 - `main` はルールセットで保護し、force push とブランチの削除を禁じている。
 - `main` への取り込みには、PR と CI の必須チェックの成功が必要である。
   必須チェックは `Supply chain`・`Lint`・`Unit tests`・`Mutation proof (PR)`・`GitHub Actions lint`・`Secret scan` である。
+  加えて、ルールセットの code scanning の規則が、CodeQL の指摘のある PR のマージを止める。
 - CI は `pull_request` と、マージ後の `push: main` で実行する。
 
 ### commit message
@@ -191,6 +192,7 @@ Claude Code はセッション開始時に両方を読み込み、Copilot のレ
 ## 脆弱性対応
 
 Dependabot が pnpm の複数ドキュメントの lockfile に対応するまでの脆弱性の確認と起票、major 更新の手動確認の方針は [`docs/vulnerability-handling.md`](docs/vulnerability-handling.md) にある。
+PR ごとのセキュリティの検査（CodeQL・zizmor・push の前の `/security-review`）と、指摘を除外する方法は [`docs/security-scanning.md`](docs/security-scanning.md) にある。
 
 ## エージェントの自己設定編集
 
