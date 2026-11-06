@@ -33,6 +33,12 @@ test("環境名から out/architecture-<env>.svg を開き、PNG の絶対パス
   expect(r.page).toContain(
     '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480"><rect/></svg>',
   );
+  // ページの CSP で、script・イベントハンドラ・iframe・外部の資源を止める。
+  expect(r.page).toContain(
+    `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:">`,
+  );
+  // width と height の単位（cm など）に関わらず、埋め込んだ SVG をウィンドウの大きさで描く。
+  expect(r.page).toContain("<style>body>svg{display:block;width:640px;height:480px}</style>");
   expect(r.leftovers).toEqual([]);
 });
 
@@ -63,6 +69,15 @@ test.each([
   expect(windowSize(r.chromeArgs)).toBe(`--window-size=${size}`);
 });
 
+test("SVG の末尾の閉じないタグは、Chrome に渡す HTML に入れない", () => {
+  const r = run({
+    svg: '<svg width="10" height="10"><rect/></svg><script src="data:text/javascript,alert(1)"',
+  });
+  expect(r.status).toBe(0);
+  expect(r.page).not.toMatch(/<script/i);
+  expect(r.page.endsWith("<rect/></svg>")).toBe(true);
+});
+
 test("SVG の <script> と on* の属性は、Chrome に渡す HTML に入れない", () => {
   const r = run({
     svg: [
@@ -72,15 +87,20 @@ test("SVG の <script> と on* の属性は、Chrome に渡す HTML に入れな
       '<rect onclick="a()" width="1"/>',
       "<rect onload='b()' width=\"2\"/>",
       '<rect onmouseover=c() width="3"/>',
+      // CSP は meta の refresh による移動を止めないので、http-equiv を無効な名前に置き換える。
+      '<foreignObject><meta http-equiv="refresh" content="0;url=https://example.com/"/></foreignObject>',
       "</svg>",
     ].join(""),
   });
   expect(r.status).toBe(0);
   expect(r.page).not.toMatch(/<script/i);
+  expect(r.page).not.toMatch(/http-equiv="refresh"/i);
+  // ページは SVG で終え、`</body>` を置かない（SVG の末尾の閉じないタグを雛形の `>` で閉じさせない）。
+  expect(r.page.endsWith("</svg>")).toBe(true);
   expect(r.page).not.toMatch(/\son[a-z]+\s*=/i);
-  expect(r.page).toContain('<rect width="1"/>');
-  expect(r.page).toContain('<rect width="2"/>');
-  expect(r.page).toContain('<rect width="3"/>');
+  expect(r.page).toContain('<rect  width="1"/>');
+  expect(r.page).toContain('<rect  width="2"/>');
+  expect(r.page).toContain('<rect  width="3"/>');
 });
 
 test("--no-sandbox を付けたときだけ、Chrome に --no-sandbox を付ける", () => {

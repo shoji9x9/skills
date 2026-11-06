@@ -16,6 +16,7 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { diagramConfig } from "./diagram-config.mjs";
+import { stripActiveContent } from "./lib/strip-active-content.mjs";
 
 const USAGE = "usage: node preview-diagram.mjs <env名 | SVGファイル名>";
 const config = diagramConfig(process.argv.slice(2), { positionals: 1, usage: USAGE });
@@ -77,15 +78,14 @@ const noSandbox = config.noSandbox;
 // 数でない値と 0 以下は、diagram-config.mjs とスキーマがエラーにする（受け付けると打ち切りが無効になり、元のハングに戻る）。
 const timeoutMs = config.timeoutMs;
 // work は preview.html 置き場。out（PNG）は tmpdir 直下なのでクリーンアップの影響を受けない。
-// 任意の SVG（ファイル名指定も可）を Chrome で開くため、埋め込み前に <script>/on* を
-// 除去する（diagram-engine のアイコン埋め込みと同型の多層防御。自前生成の SVG では no-op）。
-const safeSvg = svg
-  .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, "")
-  .replace(/<script\b[^>]*\/>/gi, "")
-  .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, "")
-  .replace(/\son[a-z]+\s*=\s*'[^']*'/gi, "")
-  // クォート無しの on* も除去（値内の `/` は許すが、自己終端 `/>` の `/` は食わない）。
-  .replace(/\son[a-z]+\s*=\s*(?:[^\s"'>/]|\/(?!>))*/gi, "");
+// 任意の SVG（ファイル名指定も可）を Chrome で開くので、ページの CSP で script・イベントハンドラ・iframe・外部の資源を止める。
+// `<img>` の画像として読み込むと、正しい XML（xmlns を含む）でない SVG が警告なしに白い PNG になるので、HTML に埋め込む。
+// CSP に加えて、<script>・on* を多層防御として除く（diagram-engine のアイコン埋め込みと同じ。自前で生成した SVG では何も変えない）。
+// CSP は `<meta http-equiv="refresh">` による移動を止めないので、`http-equiv` も無効な名前に置き換える。
+// ページは SVG で終え、`</body>` を置かない。SVG の末尾に閉じないタグがあっても、雛形の `>` で閉じずにブラウザが捨てる。
+// 埋め込んだ SVG は、width と height の単位（cm など）に関わらず、ウィンドウの大きさで描く。
+const safeSvg = stripActiveContent(svg);
+const CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:";
 
 /** @type {unknown} */
 let failure = null;
@@ -103,7 +103,7 @@ try {
   const html = join(work, "preview.html");
   writeFileSync(
     html,
-    `<!doctype html><meta charset="utf-8"><body style="margin:0">${safeSvg}</body>`,
+    `<!doctype html><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${CSP}"><style>body>svg{display:block;width:${width}px;height:${height}px}</style><body style="margin:0">${safeSvg}`,
   );
   execFileSync(
     chrome,

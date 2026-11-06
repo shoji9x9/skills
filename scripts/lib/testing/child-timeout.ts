@@ -288,8 +288,40 @@ function msOf(outer: ts.Expression): number | null {
   return null;
 }
 
-/** vitest のテストを登録する呼び出しの名前（`test`・`it` と、`.skip`・`.each(...)`・型引数などを付けた形）。 */
-const TEST_CALLEE = /^(test|it)(\.\w+|<[^]*>|\([^]*\))*$/u;
+/**
+ * callee の名前の後ろが、`.名前`・`<...>`・`(...)` を 0 個以上並べた形か。`<` と `(` の中には何を書いてもよい。
+ * 正規表現の `(\.\w+|<[^]*>|\([^]*\))*$` と同じ文字列を受け付ける。
+ * 正規表現は、一致しない入力で指数時間の後戻りをするので、末尾から 1 回たどって線形の時間で判定する。
+ */
+function isCalleeSuffix(rest: string): boolean {
+  const n = rest.length;
+  // ok[k]: rest の k 文字目から後ろが、並べた形になっているか。
+  const ok: boolean[] = Array.from({ length: n + 1 }, () => false);
+  ok[n] = true;
+  // k より後ろに、そこで閉じると残りが並べた形になる `>`・`)` があるか。
+  let closesAngle = false;
+  let closesParen = false;
+  // k より後ろで、最初に英数字と `_` でない文字の位置。
+  let wordEnd = n;
+  for (let k = n - 1; k >= 0; k--) {
+    const next = rest[k + 1];
+    if (next === ">" && ok[k + 2]) closesAngle = true;
+    if (next === ")" && ok[k + 2]) closesParen = true;
+    const c = rest[k] ?? "";
+    // `.名前` の名前は、英数字と `_` が続く所まで読む。後ろの要素は英数字で始まらないので、途中で切る読み方は無い。
+    if (c === ".") ok[k] = wordEnd > k + 1 && ok[wordEnd] === true;
+    else if (c === "<") ok[k] = closesAngle;
+    else if (c === "(") ok[k] = closesParen;
+    if (!/\w/u.test(c)) wordEnd = k;
+  }
+  return ok[0] === true;
+}
+
+/** vitest のテストを登録する呼び出しの名前（`test`・`it` と、`.skip`・`.each(...)`・型引数などを付けた形）か。 */
+export function isTestCallee(callee: string): boolean {
+  const name = /^(?:test|it)/u.exec(callee);
+  return name !== null && isCalleeSuffix(callee.slice(name[0].length));
+}
 
 /** vitest の Hook を登録する呼び出しの名前。Hook は testTimeout ではなく hookTimeout で打ち切られる。 */
 // `test.beforeEach`・`ctx.onTestFinished` のように、オブジェクトのメンバーとして呼ぶ形も含める。
@@ -315,7 +347,7 @@ function enclosingTestTimeout(node: ts.Node, source: ts.SourceFile): number | nu
     const callee = current.expression.getText(source);
     const hook = HOOK_CALLEE.test(callee);
     // `test.suite` は describe なので、テストとして読まない（describe の timeout は describeTimeout が読む）。
-    if (!hook && (DESCRIBE_CALLEE.test(callee) || !TEST_CALLEE.test(callee))) continue;
+    if (!hook && (isDescribeCallee(callee) || !isTestCallee(callee))) continue;
     // テストの名前や each の表の中ではなく、本体の関数の中にあるときだけ、そのテストで打ち切られる。
     const body = current.arguments.find((arg) => ts.isFunctionLike(arg));
     if (body === undefined || node.pos < body.pos || node.end > body.end) continue;
@@ -344,13 +376,16 @@ function writtenTimeout(call: ts.CallExpression, body: ts.Expression): number | 
   return undefined;
 }
 
-/** vitest の describe を登録する呼び出しの名前（`describe`・別名の `suite` と、`.concurrent`・`.each(...)`・型引数などを付けた形）。 */
-const DESCRIBE_CALLEE = /^((test|it)\.)?(describe|suite)(\.\w+|<[^]*>|\([^]*\))*$/u;
+/** vitest の describe を登録する呼び出しの名前（`describe`・別名の `suite` と、`.concurrent`・`.each(...)`・型引数などを付けた形）か。 */
+export function isDescribeCallee(callee: string): boolean {
+  const name = /^(?:(?:test|it)\.)?(?:describe|suite)/u.exec(callee);
+  return name !== null && isCalleeSuffix(callee.slice(name[0].length));
+}
 
 /** テストを囲む describe のうち、いちばん内側で timeout を書いたものの timeout（書いたものが無ければ undefined）。 */
 function describeTimeout(test: ts.Node, source: ts.SourceFile): number | null | undefined {
   for (let current = test.parent; current !== undefined; current = current.parent) {
-    if (!ts.isCallExpression(current) || !DESCRIBE_CALLEE.test(current.expression.getText(source)))
+    if (!ts.isCallExpression(current) || !isDescribeCallee(current.expression.getText(source)))
       continue;
     const body = current.arguments.find((arg) => ts.isFunctionLike(arg));
     if (body === undefined || test.pos < body.pos || test.end > body.end) continue;
