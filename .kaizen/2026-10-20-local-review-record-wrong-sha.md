@@ -1,7 +1,8 @@
 ---
 date: 2026-10-20
 type: skill
-priority: medium
+priority: high
+confidence: high
 status: pending
 applied-to: []
 session: claude-code
@@ -18,6 +19,11 @@ session: claude-code
 その結果、レビューしていない HEAD に「未対応 0 件」の記録が付き、`check` が reviewed を返す状態になった。
 気付いた後、記録のコメントの判定に使う 1 行目を外して取り消しの文に書き換え、`check` が not-reviewed を返すことを確かめた。
 
+2026-11-06、PR #920 の pr-finalize-loop（`review_tool: local`）で再発した。
+反復の 1 回目と 2 回目に、`/code-review` の指摘を直して push したが、レビューした HEAD の記録を投稿していなかった。
+次の反復で `check` の `previous` が空になり、PR の全体をレビューし直した。前の反復で解決した指摘が 5〜6 件ずつ戻ってきた。
+反復の 3 回目で初めて、push の前に記録を投稿した。
+
 ## 根本原因
 
 記録を、レビューした結果の報告ではなく、反復を締める手続きとして扱った。
@@ -25,6 +31,11 @@ session: claude-code
 1 回目の拒否を「SHA を合わせれば通る」と読み、レビューした SHA と記録する SHA を取り違えた。
 exit 1 の対処（今の HEAD をレビューし直してから記録する）は、`pr-finalize-loop` の `references/review-tool.md` の「local」に書いてあったが、読まずに SHA を合わせた。
 既にある手順が守られなかったので、同じ文を足しても再発を防げるとは限らない。
+
+## 根拠
+
+2026-11-06 の再発を読み比べ、同じ原因（記録をレビューの結果の報告ではなく、反復を締める手続きとして扱い、`review-tool.md` の「local」の手順 3 を読まずに進めた）と確かめたので high にした。
+2026-11-06 は、反復の 1 回目と 2 回目の後の `check` が `records=0` を返したことで確かめた。
 
 ## 提案
 
