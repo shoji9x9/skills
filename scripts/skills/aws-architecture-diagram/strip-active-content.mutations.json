@@ -1,0 +1,70 @@
+{
+  "$comment": [
+    "strip-active-content.test.ts の検出能力を示す変異の一覧（Issue #921）。",
+    "scripts/mutation/check-mutation-proof.ts が再実行する。テスト名を変えたら expect_failing も直す。"
+  ],
+  "test_file": "scripts/skills/aws-architecture-diagram/strip-active-content.test.ts",
+  "mutations": [
+    {
+      "id": "no-repeat",
+      "why": "置換を 1 回だけにすると、取り除いた後に現れる形が残る",
+      "file": "skills/aws-architecture-diagram/scripts/lib/strip-active-content.mjs",
+      "find": "  } while (current !== previous);",
+      "replace": "  } while (false);",
+      "occurrences": 1,
+      "expect_failing": ["取り除いた後に現れる対"]
+    },
+    {
+      "id": "handlers-kept",
+      "why": "on で始まる属性を取り除かない",
+      "file": "skills/aws-architecture-diagram/scripts/lib/strip-active-content.mjs",
+      "find": "    if (!/^on/i.test(name)) text += separator + s.slice(k, end);",
+      "replace": "    if (true) text += separator + s.slice(k, end);",
+      "occurrences": 1,
+      "expect_failing": [
+        "on* の二重引用符",
+        "on* の一重引用符",
+        "on* の引用符無し",
+        "on* の区切りが /",
+        "引用符の直後の on*",
+        "一重引用符の直後の on*",
+        "引用符で囲んだ値の中の >",
+        "引用符で囲まない値の中の引用符",
+        "on* の入れ子"
+      ]
+    },
+    {
+      "id": "prefix-dropped",
+      "why": "名前空間の接頭辞を付けた script を読まない",
+      "file": "skills/aws-architecture-diagram/scripts/lib/strip-active-content.mjs",
+      "find": "(?:[^\\s<>/:=\"']+:)?script(?=[\\s/>])",
+      "replace": "script(?=[\\s/>])",
+      "occurrences": 1,
+      "expect_failing": ["名前空間の接頭辞", "ASCII 以外の名前空間の接頭辞"]
+    },
+    {
+      "id": "name-boundary-dropped",
+      "why": "script で始まる別の要素名まで script として扱う",
+      "file": "skills/aws-architecture-diagram/scripts/lib/strip-active-content.mjs",
+      "find": "script(?=[\\s/>])`;",
+      "replace": "script`;",
+      "occurrences": 1,
+      "expect_failing": ["名前が script で始まる別の要素", "スクリプトでない要素と属性"]
+    },
+    {
+      "id": "orphan-tags-kept",
+      "why": "対の無い開始タグと終了タグを取り除かない",
+      "file": "skills/aws-architecture-diagram/scripts/lib/strip-active-content.mjs",
+      "find": ".replace(SCRIPT_TAG, \"\")",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "自己終端",
+        "入れ子",
+        "取り除いた後に現れる対",
+        "対の無い開始タグ",
+        "対の無い終了タグ"
+      ]
+    }
+  ]
+}

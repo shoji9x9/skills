@@ -30,9 +30,12 @@ test("環境名から out/architecture-<env>.svg を開き、PNG の絶対パス
   // サンドボックスはデフォルトで外さない。
   expect(r.chromeArgs).not.toContain("--no-sandbox");
   expect(windowSize(r.chromeArgs)).toBe("--window-size=640,480");
-  expect(r.page).toContain(
+  expect(r.svg).toBe(
     '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480"><rect/></svg>',
   );
+  // SVG は HTML に直接埋め込まず、画像として読み込む（script や iframe を実行させない）。
+  expect(r.page).not.toContain("<svg");
+  expect(r.page).toContain('width="640" height="480"');
   expect(r.leftovers).toEqual([]);
 });
 
@@ -63,7 +66,7 @@ test.each([
   expect(windowSize(r.chromeArgs)).toBe(`--window-size=${size}`);
 });
 
-test("SVG の <script> と on* の属性は、Chrome に渡す HTML に入れない", () => {
+test("SVG の <script> と on* の属性は、Chrome に渡す SVG に入れない", () => {
   const r = run({
     svg: [
       '<svg width="10" height="10">',
@@ -76,11 +79,11 @@ test("SVG の <script> と on* の属性は、Chrome に渡す HTML に入れな
     ].join(""),
   });
   expect(r.status).toBe(0);
-  expect(r.page).not.toMatch(/<script/i);
-  expect(r.page).not.toMatch(/\son[a-z]+\s*=/i);
-  expect(r.page).toContain('<rect width="1"/>');
-  expect(r.page).toContain('<rect width="2"/>');
-  expect(r.page).toContain('<rect width="3"/>');
+  expect(r.svg).not.toMatch(/<script/i);
+  expect(r.svg).not.toMatch(/\son[a-z]+\s*=/i);
+  expect(r.svg).toContain('<rect width="1"/>');
+  expect(r.svg).toContain('<rect width="2"/>');
+  expect(r.svg).toContain('<rect width="3"/>');
 });
 
 test("--no-sandbox を付けたときだけ、Chrome に --no-sandbox を付ける", () => {

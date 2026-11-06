@@ -14,6 +14,7 @@
     "scripts/lib/testing/vitest-child-env-setup.mutations.json": 0.7,
     "scripts/mutation/check-mutation-proof.mutations.json": 12.3,
     "scripts/skills/_cross/skill-script-cli-entry.mutations.json": 5.7,
+    "scripts/skills/aws-architecture-diagram/strip-active-content.mutations.json": 0.7,
     "scripts/skills/box/box-folder.mutations.json": 1.7,
     "scripts/skills/box/box-token.mutations.json": 1.9,
     "scripts/skills/git-worktree/git-worktree-branch-guard.mutations.json": 1.5,

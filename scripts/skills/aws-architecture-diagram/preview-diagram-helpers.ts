@@ -91,12 +91,16 @@ export function run(opts: Run) {
   const argsFile = join(log, "args.txt");
   const chromeArgs = existsSync(argsFile) ? readFileSync(argsFile, "utf8").trim().split("\n") : [];
   const pageFile = join(log, "page.html");
+  const page = existsSync(pageFile) ? readFileSync(pageFile, "utf8") : "";
+  // プレビューは SVG を <img> の data URL で読み込むので、その中身を取り出して返す。
+  const url = /<img src="data:image\/svg\+xml;base64,([A-Za-z0-9+/=]*)"/u.exec(page)?.[1];
   return {
     ...result,
     tmp,
     chrome,
     chromeArgs,
-    page: existsSync(pageFile) ? readFileSync(pageFile, "utf8") : "",
+    page,
+    svg: url === undefined ? "" : Buffer.from(url, "base64").toString("utf8"),
     // 一時ディレクトリ（diagram-preview-*）が残っていないかを見るための、TMPDIR の中身。
     leftovers: readdirSync(tmp).filter((f) => f.startsWith("diagram-preview-")),
   };
