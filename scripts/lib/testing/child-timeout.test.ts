@@ -11,6 +11,8 @@ import {
   HOOK_TIMEOUT_MS,
   TEST_TIMEOUT_MS,
   findUntimedChildCalls,
+  isDescribeCallee,
+  isTestCallee,
 } from "./child-timeout.ts";
 
 // 走査の起点は `scripts/` 全体（このファイルは `scripts/lib/testing/` にあるので 2 段上がる）。
@@ -418,4 +420,43 @@ test("テストの子プロセスの起動にタイムアウトが付いてい�
     found,
     "起動のオプションに timeout: CHILD_TIMEOUT_MS（scripts/lib/testing/child-timeout.ts）を付ける。付けない理由がある呼び出しは // child-timeout-ok: <理由> を書く",
   ).toEqual([]);
+});
+
+// 受け付ける形は、置き換える前の正規表現 `^(test|it)(\.\w+|<[^]*>|\([^]*\))*$` と同じにする（Issue #921）。
+describe("テストと describe の呼び出しの名前", () => {
+  test.each([
+    ["test", true, false],
+    ["it.skip", true, false],
+    ["test.each([1])", true, false],
+    ["test.each<[number]>([[1]])", true, false],
+    ["test.skip.each([1])(x)", true, false],
+    ["it.each`a`", false, false],
+    ["test.", false, false],
+    ["tests", false, false],
+    ["test(", false, false],
+    ["test<a", false, false],
+    ["test(a)b", false, false],
+    ["test(a)>", false, false],
+    ["test(a>)", true, false],
+    ["test(a)<b>", true, false],
+    ["describe", false, true],
+    ["suite.concurrent", false, true],
+    ["test.describe.each([1])", true, true],
+    ["it.suite", true, true],
+    ["describe.each<[number]>([[1]])", false, true],
+    ["describes", false, false],
+    ["x.describe", false, false],
+  ])("%s", (callee, isTest, isDescribe) => {
+    expect(isTestCallee(callee)).toBe(isTest);
+    expect(isDescribeCallee(callee)).toBe(isDescribe);
+  });
+
+  test("一致しない長い入力でも、入力の長さに対して線形の時間で終わる", () => {
+    // 置き換える前の正規表現は、k = 22 で 400 ms を超え、k を 4 増やすごとに約 16 倍かかった。
+    const k = 20_000;
+    const started = performance.now();
+    expect(isTestCallee(`it(${")(".repeat(k)}x`)).toBe(false);
+    expect(isDescribeCallee(`describe(${")(".repeat(k)}x`)).toBe(false);
+    expect(performance.now() - started).toBeLessThan(1_000);
+  });
 });
