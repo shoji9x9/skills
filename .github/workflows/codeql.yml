@@ -5,10 +5,15 @@ on:
     branches: [main]
   push:
     branches: [main]
+  # main に push が無い間も、CodeQL に新しく入ったクエリで既存のコードを解析する。
+  # 毎週火曜 03:17 UTC (12:17 JST)。月曜の週次（outdated.yml・kaizen-schedule.yml・mutation-proof.yml）と曜日をずらしている。
+  schedule:
+    - cron: "17 3 * * 2"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # PR では古い commit の解析を取り消す。main（push と schedule）では取り消さず、commit ごとの結果を code scanning に残す。
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read

@@ -35,7 +35,7 @@ mise の shim は、cwd の設定の階層からツールのバージョンを�
 | JSONC（`*.jsonc`。スキルの設定ファイル） | `jsonlint -C -T`（コメントと末尾のカンマを受け付けて読む） | `oxfmt` | 重複したキーもチェックする。CI は整形されていないファイルも検出する（`JSONC format check`） |
 | YAML（`*.yml`、`*.yaml`） | `js-yaml`（`scripts/gates/code/lint-yaml.ts` が API で 1 つのプロセスにまとめて読む） | `oxfmt` | `scripts/gates/prose/lint-prose.ts` がコメントの文章を textlint でチェックする |
 | シェル（`*.sh`） | `shellcheck` | `shfmt` | `scripts/gates/prose/lint-prose.ts` がコメントの文章をチェックする |
-| GitHub Actions（`.github/workflows/*.{yml,yaml}`） | `actionlint` と `ghalint` | `oxfmt` | `pinact` が SHA の固定を、`zizmor` がセキュリティ（[`security-scanning.md`](security-scanning.md)）を確かめる |
+| GitHub Actions（`.github/workflows/*.{yml,yaml}`） | `actionlint` と `ghalint` | `oxfmt` | `pinact` が SHA の固定を確かめる。`zizmor` は、ワークフローに加えて `dependabot.yml` と配布するワークフローのテンプレートのセキュリティを確かめる（[`security-scanning.md`](security-scanning.md)） |
 | 重複したコード（JavaScript・TypeScript・シェル・Markdown） | `jscpd`（下の「重複したコード（jscpd）」） | | |
 
 表のうち `shellcheck`・`shfmt`・`actionlint`・`pinact`・`ghalint`・`gitleaks`・`zizmor` は、mise でインストールし（`mise.toml`）、コマンド名だけで起動する。
