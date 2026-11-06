@@ -16,6 +16,8 @@
 //     <title> の中の定義済みでない実体・単独の &・]]>・XML で使えない文字と文字参照
 //   - 時間: PR #922 で 2 乗の時間になった形と、許可した範囲に収まる 1 MB の入力 / 一致しない長い数を含む viewBox
 //   - 入れ子の境界: ルートを含めて 64 段は受け付け、65 段はエラーにする
+//   - 関数の名前: 前の文字（英数字・ASCII 以外の文字） / ASCII 以外の文字で始まる名前 / ケルビン記号 / 関数の形でない括弧 /
+//     url() の前の文字の書き出し / 名前の文字が続く長い値の時間
 // 期待値は、部品の冒頭のコメントに書いた受け付ける範囲（許可リストと構文）と書き出し方から決める。
 
 import { expect, test } from "vitest";
@@ -75,7 +77,8 @@ test("id とその参照に接頭辞を付け、xlink:href は href にする", 
     '<defs><linearGradient id="g"/><clipPath id=\'c\'/><g id="a\'b"/></defs>' +
       '<rect fill="url(#g)" clip-path="url(\'#c\')" stroke="URL( #g )"/>' +
       "<use href=\"#a'b\"/><use xlink:href='#c'/>" +
-      '<g class="a id=" fill="b"/>',
+      '<g class="a id=" fill="b"/>' +
+      '<rect fill="rgb(1,2,3) url(#g)"/>',
     XLINK,
   );
   expect(body(input, "p-")).toBe(
@@ -83,7 +86,9 @@ test("id とその参照に接頭辞を付け、xlink:href は href にする", 
       '<rect fill="url(#p-g)" clip-path="url(#p-c)" stroke="url(#p-g)"/>' +
       '<use href="#p-a\'b"/><use href="#p-c"/>' +
       // 値の中の `id=` は属性の名前ではないので、書き換えない。
-      '<g class="a id=" fill="b"/>',
+      '<g class="a id=" fill="b"/>' +
+      // url() の前にある文字も、そのまま書き出す。
+      '<rect fill="rgb(1,2,3) url(#p-g)"/>',
   );
 });
 
@@ -202,6 +207,8 @@ test.each([
   ["ASCII 以外の文字で始まる関数", svg('<rect fill="éurl(#a)"/>'), /許可していない関数 éurl\(\)/],
   ["名前の前に数字がある url(", svg('<rect fill="1url(#a)"/>'), /関数の形でない括弧/],
   ["関数の形でない括弧", svg('<rect fill="(x)"/>'), /関数の形でない括弧/],
+  // toLowerCase() はケルビン記号（U+212A）を k に変えるので、s\u212Aewx() が skewx() として通らないことを確かめる。
+  ["ケルビン記号を含む関数の名前", svg('<g transform="s\u212Aewx(1)"/>'), /許可していない関数/],
   ["属性の値の定義済みでない実体", svg('<rect id="a&nbsp;b"/>'), /属性 id の値に/],
   ["属性の値の単独の &", svg('<rect id="a & b"/>'), /属性 id の値に/],
   ["属性の値の \\", svg('<rect fill="u\\72l(x)"/>'), /属性 fill の値に <・/],
@@ -268,8 +275,15 @@ test("ルートの <svg> を含めて 64 段の入れ子は受け付ける", () 
 
 test("一致しない長い数を含む viewBox は 1 秒以内にエラーにする", () => {
   const started = performance.now();
-  expect(() => validateIconSvg(`<svg ${NS} viewBox="0 0 1 ${"1".repeat(50_000)}x"/>`)).toThrow(
+  expect(() => validateIconSvg(`<svg ${NS} viewBox="0 0 1 ${"1".repeat(100_000)}x"/>`)).toThrow(
     /属性 viewBox の値が 4 つの数値でない/,
   );
+  expect(performance.now() - started).toBeLessThan(1000);
+});
+
+test("名前の文字が続く長い値は 1 秒以内に受け付ける", () => {
+  const input = svg(`<g class="${"a".repeat(50_000)}"/>`);
+  const started = performance.now();
+  expect(validateIconSvg(input).children).toHaveLength(1);
   expect(performance.now() - started).toBeLessThan(1000);
 });

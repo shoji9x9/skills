@@ -195,10 +195,12 @@ function isViewBox(value) {
 function readFunctions(name, value) {
   /** @type {{ start: number, end: number, id: string }[]} */
   const urls = [];
-  const opens = new Set();
+  let calls = 0;
   for (const call of value.matchAll(FUNCTION_CALL)) {
-    opens.add(call.index + call[0].length - 1);
-    const lower = call[1].toLowerCase();
+    calls++;
+    // ASCII の英字だけを小文字にする。toLowerCase() は ASCII 以外の文字（ケルビン記号 U+212A など）も k などに変えるので、
+    // 許可リストに無い名前が許可した名前として通る。
+    const lower = call[1].replace(/[A-Z]/g, (c) => c.toLowerCase());
     if (lower === "url") {
       const local = matchAt(LOCAL_URL_AT, value, call.index);
       if (!local) fail(`属性 ${name} の url() が同じ文書の中（#...）を指していない`);
@@ -207,8 +209,8 @@ function readFunctions(name, value) {
       fail(`属性 ${name} の値に、許可していない関数 ${call[1]}() がある`);
     }
   }
-  for (let i = value.indexOf("("); i >= 0; i = value.indexOf("(", i + 1))
-    if (!opens.has(i)) fail(`属性 ${name} の値に、関数の形でない括弧がある`);
+  // 関数の呼び出しの一致は、それぞれ別の ( で終わる。( の数が一致の数より多ければ、関数の形でない括弧がある。
+  if (value.split("(").length - 1 !== calls) fail(`属性 ${name} の値に、関数の形でない括弧がある`);
   return urls;
 }
 

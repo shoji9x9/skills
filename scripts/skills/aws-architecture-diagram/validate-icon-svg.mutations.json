@@ -131,7 +131,8 @@
         "名前が url で終わる別の関数 はエラーにする",
         "ASCII 以外の文字で始まる関数 はエラーにする",
         "名前の前に数字がある url( はエラーにする",
-        "関数の形でない括弧 はエラーにする"
+        "関数の形でない括弧 はエラーにする",
+        "ケルビン記号を含む関数の名前 はエラーにする"
       ]
     },
     {
@@ -146,7 +147,8 @@
         "image() の関数 はエラーにする",
         "名前が url で終わる関数 はエラーにする",
         "名前が url で終わる別の関数 はエラーにする",
-        "ASCII 以外の文字で始まる関数 はエラーにする"
+        "ASCII 以外の文字で始まる関数 はエラーにする",
+        "ケルビン記号を含む関数の名前 はエラーにする"
       ]
     },
     {
@@ -156,7 +158,10 @@
       "find": "(?<![\\w-]|\\P{ASCII})(",
       "replace": "(",
       "occurrences": 1,
-      "expect_failing": ["名前の前に数字がある url( はエラーにする"]
+      "expect_failing": [
+        "名前の前に数字がある url( はエラーにする",
+        "名前の文字が続く長い値は 1 秒以内に受け付ける"
+      ]
     },
     {
       "id": "function-name-non-ascii",
@@ -165,14 +170,17 @@
       "find": "(?:[A-Za-z_-]|\\P{ASCII})(?:[\\w-]|\\P{ASCII})*",
       "replace": "[A-Za-z_-][\\w-]*",
       "occurrences": 1,
-      "expect_failing": ["ASCII 以外の文字で始まる関数 はエラーにする"]
+      "expect_failing": [
+        "ASCII 以外の文字で始まる関数 はエラーにする",
+        "ケルビン記号を含む関数の名前 はエラーにする"
+      ]
     },
     {
       "id": "bare-paren",
       "why": "関数の形でない括弧を受け付ける",
       "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
-      "find": "    if (!opens.has(i)) fail(",
-      "replace": "    if (false) fail(",
+      "find": "  if (value.split(\"(\").length - 1 !== calls) fail(",
+      "replace": "  if (false) fail(",
       "occurrences": 1,
       "expect_failing": [
         "名前の前に数字がある url( はエラーにする",
@@ -187,6 +195,24 @@
       "replace": "(?:\\d+\\.?\\d*|\\.\\d+)",
       "occurrences": 1,
       "expect_failing": ["一致しない長い数を含む viewBox は 1 秒以内にエラーにする"]
+    },
+    {
+      "id": "ascii-lower",
+      "why": "関数の名前を toLowerCase() で小文字にする（ケルビン記号が k になる）",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "call[1].replace(/[A-Z]/g, (c) => c.toLowerCase())",
+      "replace": "call[1].toLowerCase()",
+      "occurrences": 1,
+      "expect_failing": ["ケルビン記号を含む関数の名前 はエラーにする"]
+    },
+    {
+      "id": "url-prefix-text",
+      "why": "url() の前にある文字を書き出さない",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "${value.slice(last, url.start)}url(",
+      "replace": "url(",
+      "occurrences": 1,
+      "expect_failing": ["id とその参照に接頭辞を付け、xlink:href は href にする"]
     },
     {
       "id": "depth-boundary",
