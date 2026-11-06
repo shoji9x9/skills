@@ -18,6 +18,7 @@
 // 使い方: `renderDiagram(spec, { iconDir })` を呼ぶ。`iconDir` にはアイコンを置いたディレクトリのルートを渡す。
 import { readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, join, relative } from "node:path";
+import { stripActiveContent } from "./lib/strip-active-content.mjs";
 
 const ICON = 64; // アイコン一辺 (px)
 const HOP = 5; // 交差の飛び越し（line jump）半径
@@ -107,19 +108,14 @@ function parseIconSvg(raw, name) {
   if (!head) throw new Error(`アイコン SVG が不正（<svg> がありません）: ${name}`);
   // viewBox はシングル/ダブルクォート両対応（自作アイコンで ' を使っても崩れない）。
   const viewBox = head[0].match(/viewBox=["']([^"']+)["']/)?.[1] ?? "0 0 80 80";
-  const body = raw
-    .replace(/<\?xml[^>]*\?>/, "")
-    .replace(/<svg[^>]*>/, "")
-    .replace(/<\/svg>\s*$/, "")
-    // 取得元（AWS パッケージ）や自作アイコンに万一 <script> や on* ハンドラが
-    // 含まれても出力 SVG へ混入させない（多層防御）。
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, "")
-    .replace(/<script\b[^>]*\/>/gi, "")
-    .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, "")
-    .replace(/\son[a-z]+\s*=\s*'[^']*'/gi, "")
-    // クォート無しの on* も除去（値内の `/` は許すが、自己終端 `/>` の `/` は食わない）。
-    .replace(/\son[a-z]+\s*=\s*(?:[^\s"'>/]|\/(?!>))*/gi, "")
-    .trim();
+  // 取得元（AWS パッケージ）や自作アイコンに万一 <script> や on* ハンドラが
+  // 含まれても出力 SVG へ混入させない（多層防御）。
+  const body = stripActiveContent(
+    raw
+      .replace(/<\?xml[^>]*\?>/, "")
+      .replace(/<svg[^>]*>/, "")
+      .replace(/<\/svg>\s*$/, ""),
+  ).trim();
   return { viewBox, body };
 }
 

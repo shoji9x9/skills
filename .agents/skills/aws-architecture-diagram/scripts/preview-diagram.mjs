@@ -16,6 +16,7 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { diagramConfig } from "./diagram-config.mjs";
+import { stripActiveContent } from "./lib/strip-active-content.mjs";
 
 const USAGE = "usage: node preview-diagram.mjs <env名 | SVGファイル名>";
 const config = diagramConfig(process.argv.slice(2), { positionals: 1, usage: USAGE });
@@ -79,13 +80,7 @@ const timeoutMs = config.timeoutMs;
 // work は preview.html 置き場。out（PNG）は tmpdir 直下なのでクリーンアップの影響を受けない。
 // 任意の SVG（ファイル名指定も可）を Chrome で開くため、埋め込み前に <script>/on* を
 // 除去する（diagram-engine のアイコン埋め込みと同型の多層防御。自前生成の SVG では no-op）。
-const safeSvg = svg
-  .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, "")
-  .replace(/<script\b[^>]*\/>/gi, "")
-  .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, "")
-  .replace(/\son[a-z]+\s*=\s*'[^']*'/gi, "")
-  // クォート無しの on* も除去（値内の `/` は許すが、自己終端 `/>` の `/` は食わない）。
-  .replace(/\son[a-z]+\s*=\s*(?:[^\s"'>/]|\/(?!>))*/gi, "");
+const safeSvg = stripActiveContent(svg);
 
 /** @type {unknown} */
 let failure = null;

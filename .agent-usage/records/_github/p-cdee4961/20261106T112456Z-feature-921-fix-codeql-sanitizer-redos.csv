@@ -1,0 +1,12 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+pr:920,pr,2026-11-06T11:24:56.271Z,p-cdee4961,github,,,,2026-11-06T06:18:38.000Z,2026-11-06T09:57:44.000Z,Asia/Tokyo,feature/743-security-scanning-codeql-zizmor,743,,,,,,,,,,pr=920;author=shoji9x9;state=merged,
+ci:42198996336:1,ci,2026-11-06T11:24:56.271Z,p-cdee4961,github-actions,,,,2026-11-06T09:58:02.000Z,2026-11-06T09:59:06.000Z,Asia/Tokyo,main,,,,,,,,,,,npm_and_yarn in /. for minimatch - Update #1685039139;dynamic;failure,
+ci:42198966778:1,ci,2026-11-06T11:24:56.271Z,p-cdee4961,github-actions,,,,2026-11-06T09:57:48.000Z,2026-11-06T10:02:35.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:42198966519:1,ci,2026-11-06T11:24:56.271Z,p-cdee4961,github-actions,,,,2026-11-06T09:57:47.000Z,2026-11-06T10:01:11.000Z,Asia/Tokyo,main,,,,,,,,,,,CodeQL;push;success,
+ci:42198966523:1,ci,2026-11-06T11:24:56.271Z,p-cdee4961,github-actions,,,,2026-11-06T09:57:47.000Z,2026-11-06T09:58:18.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:42195450582:1,ci,2026-11-06T11:24:56.271Z,p-cdee4961,github-actions,,,,2026-11-06T09:29:36.000Z,2026-11-06T09:34:50.000Z,Asia/Tokyo,feature/743-security-scanning-codeql-zizmor,743,,,,,,,,,,CI;pull_request;success,
+ci:42195450615:1,ci,2026-11-06T11:24:56.271Z,p-cdee4961,github-actions,,,,2026-11-06T09:29:36.000Z,2026-11-06T09:29:45.000Z,Asia/Tokyo,feature/743-security-scanning-codeql-zizmor,743,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:42195450785:1,ci,2026-11-06T11:24:56.271Z,p-cdee4961,github-actions,,,,2026-11-06T09:29:36.000Z,2026-11-06T09:31:08.000Z,Asia/Tokyo,feature/743-security-scanning-codeql-zizmor,743,,,,,,,,,,CodeQL;pull_request;success,
+ci:42194969931:1,ci,2026-11-06T11:24:56.271Z,p-cdee4961,github-actions,,,,2026-11-06T09:25:42.000Z,2026-11-06T09:30:08.000Z,Asia/Tokyo,feature/743-security-scanning-codeql-zizmor,743,,,,,,,,,,CI;pull_request;cancelled,
+coverage:github:2026-11-05T09:29:03.962Z:2026-11-06T11:24:56.271Z,coverage,2026-11-06T11:24:56.271Z,p-cdee4961,,,,,2026-11-05T09:29:03.962Z,2026-11-06T11:24:56.271Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-05T11:24:56.271Z:2026-11-06T12:15:29.481Z,coverage,2026-11-06T12:15:29.481Z,p-cdee4961,,,,,2026-11-05T11:24:56.271Z,2026-11-06T12:15:29.481Z,Asia/Tokyo,,,,,,,,,,,,ok,
