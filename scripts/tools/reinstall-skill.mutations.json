@@ -35,7 +35,7 @@
       "id": "no-mutation-lock-live-check",
       "why": "ロックの持ち主が生きていても止まらず、変異の入った原本をコピーする（変更前の挙動）",
       "file": "scripts/tools/reinstall-skill.sh",
-      "find": "\tprocess.kill(pid, 0);\n\tprocess.exit(1);",
+      "find": "\tprocess.kill(pid, 0);\n\tprocess.exit(10);",
       "replace": "\tprocess.exit(0);",
       "occurrences": 1,
       "expect_failing": [
@@ -49,7 +49,7 @@
       "id": "mutation-lock-eperm-dead",
       "why": "権限の無い別のユーザーのプロセス（EPERM）を、止まったものとして扱う（kill -0 で判定していたときの挙動）",
       "file": "scripts/tools/reinstall-skill.sh",
-      "find": "process.exit(err.code === \"EPERM\" ? 1 : 0);",
+      "find": "process.exit(err.code === \"EPERM\" ? 10 : 0);",
       "replace": "process.exit(0);",
       "occurrences": 1,
       "expect_failing": ["ロックの PID が別のユーザーのプロセスなら exit 1 で止まる"]
@@ -58,12 +58,13 @@
       "id": "mutation-lock-unreadable-passes",
       "why": "PID を読めないロックを、止まらずに通す",
       "file": "scripts/tools/reinstall-skill.sh",
-      "find": "（既存のインストールは触っていない）\" >&2\n\texit 1\n\t;;\n*)",
-      "replace": "（既存のインストールは触っていない）\" >&2\n\t:\n\t;;\n*)",
+      "find": "（既存のインストールは触っていない）\" >&2\n\t\texit 1\n\t\t;;\n\t*)",
+      "replace": "（既存のインストールは触っていない）\" >&2\n\t\t:\n\t\t;;\n\t*)",
       "occurrences": 1,
       "expect_failing": [
         "ロックの中身が空なら判定できないとして exit 1 で止まる",
-        "ロックの中身が数字でないなら判定できないとして exit 1 で止まる"
+        "ロックの中身が数字でないなら判定できないとして exit 1 で止まる",
+        "ロックがファイルとして読めなければ判定できないとして exit 1 で止まる"
       ]
     },
     {
@@ -74,6 +75,15 @@
       "replace": "!Number.isInteger(pid)",
       "occurrences": 1,
       "expect_failing": ["ロックの PID が 0 なら古いロックとして扱い、インストールする"]
+    },
+    {
+      "id": "mutation-lock-read-error-passes",
+      "why": "読めないロック（ディレクトリ・権限が無いファイル）を、古いロックとして通す",
+      "file": "scripts/tools/reinstall-skill.sh",
+      "find": "process.exit(err.code === \"ENOENT\" ? 0 : 11);",
+      "replace": "process.exit(0);",
+      "occurrences": 1,
+      "expect_failing": ["ロックがファイルとして読めなければ判定できないとして exit 1 で止まる"]
     }
   ]
 }

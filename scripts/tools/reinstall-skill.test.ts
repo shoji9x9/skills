@@ -421,6 +421,19 @@ test.skipIf(!pid1IsForeign())("ロックの PID が別のユーザーのプロ�
   expectUntouched(ctx, root, before);
 });
 
+test("ロックがファイルとして読めなければ判定できないとして exit 1 で止まる", () => {
+  const ctx = setup();
+  const root = createRepo(ctx.base, "repo");
+  // ディレクトリは readFileSync が EISDIR を投げる。権限で読めないファイルと同じ分岐に入る。
+  mkdirSync(join(root, "node_modules/.cache/mutation-proof/lock"), { recursive: true });
+  preinstall(root);
+  const before = snapshot(root);
+  const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", "demo"]);
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain("から PID を読めないので止まる");
+  expectUntouched(ctx, root, before);
+});
+
 test.each([
   ["空", ""],
   ["数字でない", "not-a-pid\n"],

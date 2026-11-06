@@ -150,43 +150,49 @@ fi
 # check-mutation-proof.ts: process.kill(pid, 0), and EPERM counts as alive). Rewriting it in
 # shell (kill -0, ps -p) disagreed with the runner on PID 0, overflowing PIDs, EPERM, leading
 # zeros and a missing ps. The runner itself is not called: a run may be mutating its own file.
-# Exit codes of the node snippet: 0 = no lock or stale lock, 1 = owner alive (prints the PID),
-# 3 = the PID can't be read. Anything else can't be judged and stops too.
-lock_state=0
-lock_pid="$(node -e '
+# On a lock it can't read (empty, not a number, unreadable file) this script is stricter than
+# the runner, which takes such a lock as stale: it stops, since it can't tell the run is over.
+# node runs in the repository root so that a version manager's shim resolves it there, and
+# its own failures (exit 1, uncaught errors) fall into the "can't judge" branch, not "running".
+# Exit codes of the node snippet: 0 = stale lock (or removed meanwhile), 10 = owner alive
+# (prints the PID), 11 = the PID can't be read.
+if [ -e "${mutation_lock}" ] || [ -L "${mutation_lock}" ]; then
+	lock_state=0
+	lock_pid="$(cd "${repo_root}" && node -e '
 const fs = require("fs");
 let text;
 try {
 	text = fs.readFileSync(process.argv[1], "utf8").trim();
 } catch (err) {
-	process.exit(err.code === "ENOENT" ? 0 : 3);
+	process.exit(err.code === "ENOENT" ? 0 : 11);
 }
 const pid = Number(text);
-if (text === "" || !Number.isFinite(pid)) process.exit(3);
+if (text === "" || !Number.isFinite(pid)) process.exit(11);
 if (!Number.isInteger(pid) || pid <= 0) process.exit(0);
-process.stdout.write(String(pid));
+fs.writeSync(1, String(pid));
 try {
 	process.kill(pid, 0);
-	process.exit(1);
+	process.exit(10);
 } catch (err) {
-	process.exit(err.code === "EPERM" ? 1 : 0);
+	process.exit(err.code === "EPERM" ? 10 : 0);
 }
-' "${mutation_lock}")" || lock_state=$?
-case "${lock_state}" in
-0) ;;
-1)
-	echo "ミューテーションテストの実行中（PID ${lock_pid}、ロック: ${mutation_lock}）は原本に変異が入っているので止まる。終わるまで待ってから再実行する（既存のインストールは触っていない）" >&2
-	exit 1
-	;;
-3)
-	echo "ミューテーションテストのロック（${mutation_lock}）から PID を読めないので止まる。実行中でないことを確かめてからロックを消して再実行する（既存のインストールは触っていない）" >&2
-	exit 1
-	;;
-*)
-	echo "ミューテーションテストのロック（${mutation_lock}）を判定できないので止まる（node の終了コード ${lock_state}。既存のインストールは触っていない）" >&2
-	exit 1
-	;;
-esac
+' -- "${mutation_lock}")" || lock_state=$?
+	case "${lock_state}" in
+	0) ;;
+	10)
+		echo "ミューテーションテストの実行中（PID ${lock_pid}、ロック: ${mutation_lock}）は原本に変異が入っているので止まる。終わるまで待ってから再実行する（既存のインストールは触っていない）" >&2
+		exit 1
+		;;
+	11)
+		echo "ミューテーションテストのロック（${mutation_lock}）から PID を読めないので止まる。実行中でないことを確かめてからロックを消して再実行する（既存のインストールは触っていない）" >&2
+		exit 1
+		;;
+	*)
+		echo "ミューテーションテストのロック（${mutation_lock}）を判定できないので止まる（node の終了コード ${lock_state}。既存のインストールは触っていない）" >&2
+		exit 1
+		;;
+	esac
+fi
 cd "${repo_root}"
 
 if [ "$1" = "--all" ]; then
