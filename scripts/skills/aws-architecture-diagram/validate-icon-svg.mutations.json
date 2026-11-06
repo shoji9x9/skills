@@ -131,6 +131,7 @@
         "名前が url で終わる別の関数 はエラーにする",
         "ASCII 以外の文字で始まる関数 はエラーにする",
         "名前の前に数字がある url( はエラーにする",
+        "名前の前に ASCII 以外の文字がある url( はエラーにする",
         "関数の形でない括弧 はエラーにする",
         "ケルビン記号を含む関数の名前 はエラーにする"
       ]
@@ -160,8 +161,18 @@
       "occurrences": 1,
       "expect_failing": [
         "名前の前に数字がある url( はエラーにする",
+        "名前の前に ASCII 以外の文字がある url( はエラーにする",
         "名前の文字が続く長い値は 1 秒以内に受け付ける"
       ]
+    },
+    {
+      "id": "function-name-boundary-non-ascii",
+      "why": "名前の前の ASCII 以外の文字を境界に数えない",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "(?<![\\w-]|\\P{ASCII})",
+      "replace": "(?<![\\w-])",
+      "occurrences": 1,
+      "expect_failing": ["名前の前に ASCII 以外の文字がある url( はエラーにする"]
     },
     {
       "id": "function-name-non-ascii",
@@ -179,11 +190,12 @@
       "id": "bare-paren",
       "why": "関数の形でない括弧を受け付ける",
       "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
-      "find": "  if (value.split(\"(\").length - 1 !== calls) fail(",
+      "find": "  if (parens !== calls) fail(",
       "replace": "  if (false) fail(",
       "occurrences": 1,
       "expect_failing": [
         "名前の前に数字がある url( はエラーにする",
+        "名前の前に ASCII 以外の文字がある url( はエラーにする",
         "関数の形でない括弧 はエラーにする"
       ]
     },

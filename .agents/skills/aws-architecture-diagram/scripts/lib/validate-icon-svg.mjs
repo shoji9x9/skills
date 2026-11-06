@@ -209,8 +209,10 @@ function readFunctions(name, value) {
       fail(`属性 ${name} の値に、許可していない関数 ${call[1]}() がある`);
     }
   }
-  // 関数の呼び出しの一致は、それぞれ別の ( で終わる。( の数が一致の数より多ければ、関数の形でない括弧がある。
-  if (value.split("(").length - 1 !== calls) fail(`属性 ${name} の値に、関数の形でない括弧がある`);
+  // FUNCTION_CALL に一致した箇所は、それぞれ別の ( で終わる。( の数が一致した数と違えば、関数の形でない括弧がある。
+  let parens = 0;
+  for (let i = value.indexOf("("); i >= 0; i = value.indexOf("(", i + 1)) parens++;
+  if (parens !== calls) fail(`属性 ${name} の値に、関数の形でない括弧がある`);
   return urls;
 }
 
