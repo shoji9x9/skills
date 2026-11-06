@@ -30,7 +30,6 @@
         "on* の直後に続く属性",
         "一重引用符の直後の on*",
         "引用符で囲んだ値の中の >",
-        "引用符で囲まない値の中の引用符",
         "on* の入れ子",
         "ASCII 以外で始まるタグ名の on*",
         "コメントの中の閉じない引用符の後の on*",
@@ -57,7 +56,6 @@
         "on* の直後に続く属性",
         "一重引用符の直後の on*",
         "引用符で囲んだ値の中の >",
-        "引用符で囲まない値の中の引用符",
         "on* の入れ子",
         "ASCII 以外で始まるタグ名の on*",
         "コメントの中の閉じない引用符の後の on*",
@@ -159,7 +157,33 @@
       "find": "dropUnclosedTail(current)",
       "replace": "current",
       "occurrences": 1,
-      "expect_failing": ["末尾の閉じないタグ"]
+      "expect_failing": [
+        "末尾の閉じないタグ",
+        "末尾の閉じないタグの値の中の >",
+        "末尾の閉じないタグの値の中の <",
+        "> が無い入力",
+        "末尾の文字の中の <",
+        "引用符で囲まない値の中の引用符",
+        "閉じないコメント"
+      ]
+    },
+    {
+      "id": "tail-quotes-ignored",
+      "why": "タグの中の引用符を数えないと、値の中の > で閉じたと読む",
+      "file": "skills/aws-architecture-diagram/scripts/lib/strip-active-content.mjs",
+      "find": "    } else if (c === '\"' || c === \"'\") quote = c;\n",
+      "replace": "    }\n",
+      "occurrences": 1,
+      "expect_failing": ["末尾の閉じないタグの値の中の >", "引用符で囲まない値の中の引用符"]
+    },
+    {
+      "id": "special-not-skipped",
+      "why": "コメントを読み飛ばさないと、コメントの中の引用符で後ろを取り除く",
+      "file": "skills/aws-architecture-diagram/scripts/lib/strip-active-content.mjs",
+      "find": "specialEnd(s, k) ?? tagEnd(s, k)",
+      "replace": "tagEnd(s, k)",
+      "occurrences": 1,
+      "expect_failing": ["コメントの中の閉じない引用符の後の on*"]
     }
   ]
 }
