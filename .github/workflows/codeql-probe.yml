@@ -1,8 +1,7 @@
 # CodeQL の検出を確かめるための probe（PR #920 で取り消す）。
 name: CodeQL probe
 on:
-  issues:
-    types: [opened]
+  pull_request_target:
 permissions:
   contents: read
 jobs:
@@ -10,4 +9,4 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - run: echo "${{ github.event.issue.title }}"
+      - run: echo "${{ github.event.pull_request.title }}"
