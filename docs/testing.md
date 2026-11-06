@@ -124,7 +124,8 @@ fixture も、原本（テンプレート・スキーマの文書・同梱の雛
 - ネットワークに接続しない。時刻に依存する処理は、時刻を引数や環境変数で渡せるようにして、固定した値でテストする
 - 子プロセスにはタイムアウトを付ける。付けないと、止まった子プロセスを待つテストは `vitest.config.ts` の `testTimeout` まで待ってから失敗し、原因が出力に残らない。
   値は `scripts/lib/testing/child-timeout.ts` の `CHILD_TIMEOUT_MS` を使い、起動のオプションのオブジェクトに `timeout` のキーで書く。
-  付け忘れは `scripts/lib/testing/child-timeout.test.ts` が検出する。付けない理由がある呼び出しは、同じ行の末尾か、直前のコメントだけの行に `// child-timeout-ok: <理由>` を書く。
+  付け忘れは `scripts/lib/testing/child-timeout.test.ts` が検出する。このテストと `test-tmpdir.test.ts` は、`scripts/**/*.test.ts` を変えた commit で lefthook の pre-commit（`cross-file-tests`）が実行する。
+  付けない理由がある呼び出しは、同じ行の末尾か、直前のコメントだけの行に `// child-timeout-ok: <理由>` を書く。
   `child_process` は静的な `import` で読み込む。動的な `import()` と `require()` は、取り出した関数を追えないので検出の対象になる。
   `scripts/lib/spawn-async.ts` の `spawnAsync` は `timeout` を必須にしていて、同じテストが検出の対象にする。
   子プロセスの `timeout` は、テストの打ち切りより短くする。同じテストが、数値と `CHILD_TIMEOUT_MS` で書いた値を、呼び出しを囲むテストか Hook（`beforeAll`・`aroundEach`・`onTestFinished` など）の `timeout` と比べる。

@@ -273,6 +273,16 @@ pre-commit:
             # （含めることは scripts/gates/tooling/lint-scope.test.ts が確かめる）。
             glob: "{.markdownlint-cli2.yaml,.markdownlint.yaml,oxfmt.config.ts,scripts/lib/source-scope.ts,package.json,pnpm-lock.yaml,pnpm-workspace.yaml,scripts/gates/tooling/formatter-scope.test.ts}"
             run: pnpm exec vitest run scripts/gates/tooling/formatter-scope.test.ts
+          - name: cross-file-tests
+            # 全テストファイルを読んで規約（子プロセスの timeout・一時ディレクトリの作り方）を確かめる横断のテスト。
+            # 変えたテストの名前からは選ばれないので、テストを変えた commit で実行する（CI でだけ落ちたことが 5 回ある）。
+            glob: "{scripts/**/*.test.ts,scripts/lib/testing/**}"
+            run: pnpm exec vitest run scripts/lib/testing/child-timeout.test.ts scripts/lib/testing/test-tmpdir.test.ts
+          - name: mutations-declaration
+            # 変異の定義の find が対象のファイルに宣言どおりの回数だけ現れるか。定義と、定義が指すコードのどちらを
+            # 変えても食い違うので、両方の commit で実行する。
+            glob: "{**/*.mutations.json,scripts/**,skills/**/scripts/**}"
+            run: pnpm exec vitest run scripts/mutation/mutations-declaration.test.ts
           - name: control-chars
             # テキスト拡張子のステージ差分に NUL 等の制御バイトが混入していないか。
             # 整形用の除外（*agent-copies）は流用しない。CI は全走査するので、

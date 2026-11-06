@@ -3,8 +3,8 @@ date: 2026-10-08
 type: hook
 priority: high
 confidence: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [lefthook.yml, docs/testing.md, docs/tooling.md]
 session: claude-code
 ---
 
