@@ -52,6 +52,7 @@ GH_TOKEN="$(gh auth token)" zizmor .github skills/kaizen/assets/kaizen-schedule.
 push する前に、手元で `/code-review` に続けて `/security-review` を実行する。
 `/security-review` は、現在のブランチの差分をセキュリティの観点（コマンドインジェクション・資格情報の扱い・入力の検証など）でレビューする。
 妥当な指摘は直し、直さない指摘は理由を PR の本文に書く。
+CI では `/security-review` を実行しない。手元の実行で同じ差分を push の前に確かめられ、CI で重ねると PR ごとに使用量が増えるからである。
 
 ## 採らなかったもの
 
