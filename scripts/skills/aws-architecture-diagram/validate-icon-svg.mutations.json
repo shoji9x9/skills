@@ -118,7 +118,7 @@
       "id": "functions-checked",
       "why": "値の中の関数（外を指す url()・src() など）を確かめない",
       "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
-      "find": "  checkFunctions(name, value);",
+      "find": "  readFunctions(name, value);",
       "replace": "  ;",
       "occurrences": 1,
       "expect_failing": [
@@ -127,30 +127,75 @@
         "同じ文書の中の url() の後の外を指す url() はエラーにする",
         "src() の関数 はエラーにする",
         "image() の関数 はエラーにする",
-        "名前が url で終わる関数 はエラーにする"
+        "名前が url で終わる関数 はエラーにする",
+        "名前が url で終わる別の関数 はエラーにする",
+        "ASCII 以外の文字で始まる関数 はエラーにする",
+        "名前の前に数字がある url( はエラーにする",
+        "関数の形でない括弧 はエラーにする"
       ]
     },
     {
       "id": "functions-allowed",
       "why": "許可していない関数を受け付ける",
       "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
-      "find": "    if (!FUNCTIONS.has(lower)) fail(",
-      "replace": "    if (false) fail(",
+      "find": "    } else if (!FUNCTIONS.has(lower)) {",
+      "replace": "    } else if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "src() の関数 はエラーにする",
         "image() の関数 はエラーにする",
-        "名前が url で終わる関数 はエラーにする"
+        "名前が url で終わる関数 はエラーにする",
+        "名前が url で終わる別の関数 はエラーにする",
+        "ASCII 以外の文字で始まる関数 はエラーにする"
       ]
     },
     {
-      "id": "local-url-boundary",
-      "why": "名前の途中の url( を同じ文書の中の url() として取り除く",
+      "id": "function-name-boundary",
+      "why": "名前の途中から関数として読む（1url( の url( を同じ文書の中の url() として受け付ける）",
       "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
-      "find": "const LOCAL_URL = /(?<![\\w-])url\\(",
-      "replace": "const LOCAL_URL = /url\\(",
+      "find": "(?<![\\w-]|\\P{ASCII})(",
+      "replace": "(",
       "occurrences": 1,
-      "expect_failing": ["名前が url で終わる関数 はエラーにする"]
+      "expect_failing": ["名前の前に数字がある url( はエラーにする"]
+    },
+    {
+      "id": "function-name-non-ascii",
+      "why": "ASCII 以外の文字を関数の名前に数えない",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "(?:[A-Za-z_-]|\\P{ASCII})(?:[\\w-]|\\P{ASCII})*",
+      "replace": "[A-Za-z_-][\\w-]*",
+      "occurrences": 1,
+      "expect_failing": ["ASCII 以外の文字で始まる関数 はエラーにする"]
+    },
+    {
+      "id": "bare-paren",
+      "why": "関数の形でない括弧を受け付ける",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "    if (!opens.has(i)) fail(",
+      "replace": "    if (false) fail(",
+      "occurrences": 1,
+      "expect_failing": [
+        "名前の前に数字がある url( はエラーにする",
+        "関数の形でない括弧 はエラーにする"
+      ]
+    },
+    {
+      "id": "number-ambiguous",
+      "why": "数の正規表現を、数字の列を 2 通りに割り振れる形に戻す（2 乗の時間）",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "(?:\\d+(?:\\.\\d*)?|\\.\\d+)",
+      "replace": "(?:\\d+\\.?\\d*|\\.\\d+)",
+      "occurrences": 1,
+      "expect_failing": ["一致しない長い数を含む viewBox は 1 秒以内にエラーにする"]
+    },
+    {
+      "id": "depth-boundary",
+      "why": "入れ子の上限を 1 段ずらす",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "    if (state.stack.length >= MAX_DEPTH) fail(",
+      "replace": "    if (state.stack.length >= MAX_DEPTH - 1) fail(",
+      "occurrences": 1,
+      "expect_failing": ["ルートの <svg> を含めて 64 段の入れ子は受け付ける"]
     },
     {
       "id": "href-both",

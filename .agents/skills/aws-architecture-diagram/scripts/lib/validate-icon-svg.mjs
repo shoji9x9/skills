@@ -100,10 +100,10 @@ const BAD_ENTITY_IN_VALUE = new RegExp(`&(?!(?:${PREDEFINED});)`);
 // 文字で、定義済みの実体と数値の文字参照でない `&`。
 const BAD_ENTITY_IN_TEXT = new RegExp(`&(?!(?:${PREDEFINED}|#\\d+|#x[\\dA-Fa-f]+);)`);
 const CHAR_REF = /&#(?:(\d+)|x([\dA-Fa-f]+));/g;
-// 同じ文書の中を指す url()。2 つ目の組が参照する id である。
-// FUNCTION_CALL と同じく名前の始まりだけで一致させる。`xurl(#a)` の `url(#a)` を取り除くと、関数 `xurl()` の名前が消えて許可リストを通る。
-const LOCAL_URL = /(?<![\w-])url\([ \t\r\n]*(["']?)#([^ \t\r\n"'()]+)\1[ \t\r\n]*\)/gi;
-// 値に書ける CSS と変形の関数（名前は小文字で比べる）。url() は LOCAL_URL の形だけを受け付けるので、ここには入れない。
+// 同じ文書の中を指す url()。FUNCTION_CALL が名前 url を見つけた位置から当てる（y フラグ）。2 つ目の組が参照する id である。
+// 名前の境界は FUNCTION_CALL だけが決める。url() を別の正規表現で探すと、`xurl(#a)` のように境界の読み方がずれる。
+const LOCAL_URL_AT = /url\([ \t\r\n]*(["']?)#([^ \t\r\n"'()]+)\1[ \t\r\n]*\)/iy;
+// 値に書ける CSS と変形の関数（名前は小文字で比べる）。url() は LOCAL_URL_AT の形だけを受け付けるので、ここには入れない。
 // 外の資源を読む関数（url()・src()・image() など）を名前で挙げて拒むと、新しい関数が増えるたびに抜けるので、許可した名前だけを通す。
 const FUNCTIONS = new Set([
   "rgb",
@@ -118,7 +118,9 @@ const FUNCTIONS = new Set([
   "skewy",
 ]);
 // 関数の呼び出しの形。名前の途中から一致させないよう、名前の始まりだけで始める（入力の長さに比例する時間で終わる）。
-const FUNCTION_CALL = /(?<![\w-])([A-Za-z_-][\w-]*)[ \t\r\n]*\(/g;
+// CSS の名前は ASCII 以外の文字も含むので、名前の文字と境界に ASCII 以外の文字も数える。
+const FUNCTION_CALL =
+  /(?<![\w-]|\P{ASCII})((?:[A-Za-z_-]|\P{ASCII})(?:[\w-]|\P{ASCII})*)[ \t\r\n]*\(/gu;
 // 数字の列を 2 通りに割り振れる形（`\d+\.?\d*`）にすると、一致しない入力で 2 乗の時間になるので、小数点の後ろだけを省ける形にする。
 const NUMBER = /^[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?$/;
 // 入れ子の上限。書き出しは再帰で行うので、深すぎる入れ子は呼び出しの深さの上限で止まる。AWS 公式のアイコンは数段である。
@@ -184,16 +186,30 @@ function isViewBox(value) {
 }
 
 /**
- * 値の中の関数が、同じ文書の中を指す url() か、許可した関数だけかを確かめる。
+ * 値の中の関数を先頭から読み、同じ文書の中を指す url() の範囲を返す。検査と書き出しの両方がこの結果を使う。
+ * 許可していない関数・同じ文書の外を指す url()・関数の形でない括弧（`1url(` など）は、エラーにする。
  * @param {string} name
  * @param {string} value
+ * @returns {{ start: number, end: number, id: string }[]}
  */
-function checkFunctions(name, value) {
-  for (const [, fn] of value.replace(LOCAL_URL, "").matchAll(FUNCTION_CALL)) {
-    const lower = fn.toLowerCase();
-    if (lower === "url") fail(`属性 ${name} の url() が同じ文書の中（#...）を指していない`);
-    if (!FUNCTIONS.has(lower)) fail(`属性 ${name} の値に、許可していない関数 ${fn}() がある`);
+function readFunctions(name, value) {
+  /** @type {{ start: number, end: number, id: string }[]} */
+  const urls = [];
+  const opens = new Set();
+  for (const call of value.matchAll(FUNCTION_CALL)) {
+    opens.add(call.index + call[0].length - 1);
+    const lower = call[1].toLowerCase();
+    if (lower === "url") {
+      const local = matchAt(LOCAL_URL_AT, value, call.index);
+      if (!local) fail(`属性 ${name} の url() が同じ文書の中（#...）を指していない`);
+      urls.push({ start: call.index, end: LOCAL_URL_AT.lastIndex, id: local[2] });
+    } else if (!FUNCTIONS.has(lower)) {
+      fail(`属性 ${name} の値に、許可していない関数 ${call[1]}() がある`);
+    }
   }
+  for (let i = value.indexOf("("); i >= 0; i = value.indexOf("(", i + 1))
+    if (!opens.has(i)) fail(`属性 ${name} の値に、関数の形でない括弧がある`);
+  return urls;
 }
 
 /**
@@ -214,7 +230,7 @@ function checkAttribute(name, value) {
   if (name === "viewBox" && !isViewBox(value)) fail(`属性 viewBox の値が 4 つの数値でない`);
   if ((name === "href" || name === "xlink:href") && !/^#[^ \t\r\n]+$/.test(value))
     fail(`属性 ${name} が同じ文書の中（#...）を指していない`);
-  checkFunctions(name, value);
+  readFunctions(name, value);
 }
 
 /**
@@ -359,7 +375,13 @@ export function validateIconSvg(svg) {
  * @param {string} prefix
  */
 function serializeAttribute(name, value, prefix) {
-  let out = value.replace(LOCAL_URL, (_match, _quote, id) => `url(#${prefix}${id})`);
+  let out = "";
+  let last = 0;
+  for (const url of readFunctions(name, value)) {
+    out += `${value.slice(last, url.start)}url(#${prefix}${url.id})`;
+    last = url.end;
+  }
+  out += value.slice(last);
   let outName = name;
   if (name === "id") out = prefix + out;
   if (name === "href" || name === "xlink:href") {

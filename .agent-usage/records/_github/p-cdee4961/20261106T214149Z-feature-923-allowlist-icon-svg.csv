@@ -20,3 +20,7 @@ ci:42307526481:1,ci,2026-11-06T22:57:19.157Z,p-cdee4961,github-actions,,,,2026-1
 ci:42307526658:1,ci,2026-11-06T22:57:19.157Z,p-cdee4961,github-actions,,,,2026-11-06T22:49:12.000Z,2026-11-06T22:50:30.000Z,Asia/Tokyo,feature/923-allowlist-icon-svg,923,,,,,,,,,,CodeQL;pull_request;success,
 ci:42307526391:1,ci,2026-11-06T22:57:19.157Z,p-cdee4961,github-actions,,,,2026-11-06T22:49:12.000Z,2026-11-06T22:52:51.000Z,Asia/Tokyo,feature/923-allowlist-icon-svg,923,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-11-05T22:48:06.307Z:2026-11-06T22:57:19.157Z,coverage,2026-11-06T22:57:19.157Z,p-cdee4961,,,,,2026-11-05T22:48:06.307Z,2026-11-06T22:57:19.157Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:42308589865:1,ci,2026-11-06T23:06:10.378Z,p-cdee4961,github-actions,,,,2026-11-06T22:58:17.000Z,2026-11-06T22:58:18.000Z,Asia/Tokyo,feature/923-allowlist-icon-svg,923,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:42308589850:1,ci,2026-11-06T23:06:10.378Z,p-cdee4961,github-actions,,,,2026-11-06T22:58:17.000Z,2026-11-06T22:59:26.000Z,Asia/Tokyo,feature/923-allowlist-icon-svg,923,,,,,,,,,,CodeQL;pull_request;success,
+ci:42308589901:1,ci,2026-11-06T23:06:10.378Z,p-cdee4961,github-actions,,,,2026-11-06T22:58:17.000Z,2026-11-06T23:02:32.000Z,Asia/Tokyo,feature/923-allowlist-icon-svg,923,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-11-05T22:57:19.157Z:2026-11-06T23:06:10.378Z,coverage,2026-11-06T23:06:10.378Z,p-cdee4961,,,,,2026-11-05T22:57:19.157Z,2026-11-06T23:06:10.378Z,Asia/Tokyo,,,,,,,,,,,,ok,
