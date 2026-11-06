@@ -2,13 +2,13 @@
 date: 2026-10-20
 type: skill
 priority: high
-confidence: high
+confidence: medium
 status: pending
 applied-to: []
 session: claude-code
 ---
 
-# 手元のレビューの記録を、指摘を直して push した後の HEAD に付け、レビューしていない HEAD をレビュー済みにした
+# 手元のレビューの記録を、レビューした HEAD のうちに投稿しない（push の後の HEAD に付ける・投稿を忘れる）
 
 ## 事象
 
@@ -32,9 +32,14 @@ session: claude-code
 exit 1 の対処（今の HEAD をレビューし直してから記録する）は、`pr-finalize-loop` の `references/review-tool.md` の「local」に書いてあったが、読まずに SHA を合わせた。
 既にある手順が守られなかったので、同じ文を足しても再発を防げるとは限らない。
 
+2026-11-06 の再発は、記録を投稿しなかった点で機序が違う。
+`pr-finalize-loop` の SKILL.md の手順 6 は、`local` の記録を「push した反復でだけ、新しい HEAD を手元でレビューして記録する」と、push の後の段に書いている。
+そのため、レビューの直後で直す前に記録する必要があることに気付かなかった。
+2 つの事象に共通するのは、記録を、レビューしたその HEAD のうちに投稿する手順として扱わなかったことである。
+
 ## 根拠
 
-2026-11-06 の再発を読み比べ、同じ原因（記録をレビューの結果の報告ではなく、反復を締める手続きとして扱い、`review-tool.md` の「local」の手順 3 を読まずに進めた）と確かめたので high にした。
+2026-11-06 の再発は、症状は近いが機序が違う（SHA の取り違えではなく、投稿しなかった）。原因が違う再発なので priority だけを上げ、confidence は今回の観測から medium にした。
 2026-11-06 は、反復の 1 回目と 2 回目の後の `check` が `records=0` を返したことで確かめた。
 
 ## 提案
@@ -43,4 +48,5 @@ exit 1 の対処（今の HEAD をレビューし直してから記録する）�
 
 - `--sha` には、`review-tool.md` の「local」の手順 1 でレビューの前に取得した SHA を渡す。push の後に取得し直した SHA を渡さない。
 - 手順 1 は、手元の HEAD が PR の HEAD と一致し、commit していない変更が無いことを、レビューの前に確かめる。この条件を満たさないままレビューした結果は、記録しない。
+- `pr-finalize-loop` の SKILL.md の手順 6 の `local` の段に、記録はその HEAD の指摘を直して push する前に投稿する、と書く（2026-11-06 の再発から）。
 - 適用先の候補は仕組みの側にする。`local-review-record.sh` に、レビューの前に取得した SHA をファイルに残す段を足し、`post` がそのファイルの SHA と `--sha` を突き合わせる形を検討する。

@@ -57,3 +57,4 @@ ci:42193687001:1,ci,2026-11-06T09:20:11.359Z,p-cdee4961,github-actions,,,,2026-1
 ci:42193686996:1,ci,2026-11-06T09:20:11.359Z,p-cdee4961,github-actions,,,,2026-11-06T09:15:38.000Z,2026-11-06T09:15:39.000Z,Asia/Tokyo,feature/743-security-scanning-codeql-zizmor,743,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:42193687023:1,ci,2026-11-06T09:20:11.359Z,p-cdee4961,github-actions,,,,2026-11-06T09:15:38.000Z,2026-11-06T09:18:52.000Z,Asia/Tokyo,feature/743-security-scanning-codeql-zizmor,743,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-11-05T09:15:08.134Z:2026-11-06T09:20:11.359Z,coverage,2026-11-06T09:20:11.359Z,p-cdee4961,,,,,2026-11-05T09:15:08.134Z,2026-11-06T09:20:11.359Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-05T09:20:11.359Z:2026-11-06T09:20:39.218Z,coverage,2026-11-06T09:20:39.218Z,p-cdee4961,,,,,2026-11-05T09:20:11.359Z,2026-11-06T09:20:39.218Z,Asia/Tokyo,,,,,,,,,,,,ok,
