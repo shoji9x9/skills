@@ -58,6 +58,8 @@
       "replace": "  if (false)",
       "occurrences": 1,
       "expect_failing": [
+        "属性の値の数値の文字参照 はエラーにする",
+        "属性の値の数値の文字参照で作った url( はエラーにする",
         "属性の値の定義済みでない実体 はエラーにする",
         "属性の値の単独の & はエラーにする",
         "属性の値の \\ はエラーにする",
@@ -86,7 +88,8 @@
         "カンマだけの viewBox はエラーにする",
         "3 つの数値の viewBox はエラーにする",
         "2 つ続くカンマの viewBox はエラーにする",
-        "符号だけの viewBox はエラーにする"
+        "符号だけの viewBox はエラーにする",
+        "一致しない長い数を含む viewBox は 1 秒以内にエラーにする"
       ]
     },
     {
@@ -123,7 +126,8 @@
         "大文字の URL() はエラーにする",
         "同じ文書の中の url() の後の外を指す url() はエラーにする",
         "src() の関数 はエラーにする",
-        "image() の関数 はエラーにする"
+        "image() の関数 はエラーにする",
+        "名前が url で終わる関数 はエラーにする"
       ]
     },
     {
@@ -133,7 +137,20 @@
       "find": "    if (!FUNCTIONS.has(lower)) fail(",
       "replace": "    if (false) fail(",
       "occurrences": 1,
-      "expect_failing": ["src() の関数 はエラーにする", "image() の関数 はエラーにする"]
+      "expect_failing": [
+        "src() の関数 はエラーにする",
+        "image() の関数 はエラーにする",
+        "名前が url で終わる関数 はエラーにする"
+      ]
+    },
+    {
+      "id": "local-url-boundary",
+      "why": "名前の途中の url( を同じ文書の中の url() として取り除く",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "const LOCAL_URL = /(?<![\\w-])url\\(",
+      "replace": "const LOCAL_URL = /url\\(",
+      "occurrences": 1,
+      "expect_failing": ["名前が url で終わる関数 はエラーにする"]
     },
     {
       "id": "href-both",

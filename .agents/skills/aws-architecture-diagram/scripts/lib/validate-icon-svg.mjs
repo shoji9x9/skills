@@ -101,7 +101,8 @@ const BAD_ENTITY_IN_VALUE = new RegExp(`&(?!(?:${PREDEFINED});)`);
 const BAD_ENTITY_IN_TEXT = new RegExp(`&(?!(?:${PREDEFINED}|#\\d+|#x[\\dA-Fa-f]+);)`);
 const CHAR_REF = /&#(?:(\d+)|x([\dA-Fa-f]+));/g;
 // 同じ文書の中を指す url()。2 つ目の組が参照する id である。
-const LOCAL_URL = /url\([ \t\r\n]*(["']?)#([^ \t\r\n"'()]+)\1[ \t\r\n]*\)/gi;
+// FUNCTION_CALL と同じく名前の始まりだけで一致させる。`xurl(#a)` の `url(#a)` を取り除くと、関数 `xurl()` の名前が消えて許可リストを通る。
+const LOCAL_URL = /(?<![\w-])url\([ \t\r\n]*(["']?)#([^ \t\r\n"'()]+)\1[ \t\r\n]*\)/gi;
 // 値に書ける CSS と変形の関数（名前は小文字で比べる）。url() は LOCAL_URL の形だけを受け付けるので、ここには入れない。
 // 外の資源を読む関数（url()・src()・image() など）を名前で挙げて拒むと、新しい関数が増えるたびに抜けるので、許可した名前だけを通す。
 const FUNCTIONS = new Set([
@@ -118,7 +119,8 @@ const FUNCTIONS = new Set([
 ]);
 // 関数の呼び出しの形。名前の途中から一致させないよう、名前の始まりだけで始める（入力の長さに比例する時間で終わる）。
 const FUNCTION_CALL = /(?<![\w-])([A-Za-z_-][\w-]*)[ \t\r\n]*\(/g;
-const NUMBER = /^[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$/;
+// 数字の列を 2 通りに割り振れる形（`\d+\.?\d*`）にすると、一致しない入力で 2 乗の時間になるので、小数点の後ろだけを省ける形にする。
+const NUMBER = /^[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?$/;
 // 入れ子の上限。書き出しは再帰で行うので、深すぎる入れ子は呼び出しの深さの上限で止まる。AWS 公式のアイコンは数段である。
 const MAX_DEPTH = 64;
 
@@ -327,7 +329,7 @@ function openElement(svg, pos, state) {
  */
 export function validateIconSvg(svg) {
   // 先頭の BOM と XML 宣言は読み飛ばす。XML 宣言は先頭にしか置けないので、ほかの位置にある処理命令の形（`<?`）はエラーになる。
-  let pos = svg.startsWith("﻿") ? 1 : 0;
+  let pos = svg.startsWith("\uFEFF") ? 1 : 0;
   if (matchAt(XML_DECL, svg, pos)) pos = XML_DECL.lastIndex;
   /** @type {WalkState} */
   const state = { stack: [] };

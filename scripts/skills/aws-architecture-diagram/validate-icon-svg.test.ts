@@ -31,8 +31,8 @@ const body = (input: string, prefix = "") =>
 
 test.each([
   ["XML 宣言", `<?xml version="1.0" encoding="UTF-8"?>${svg("<rect/>")}`, "<rect/>"],
-  ["先頭の BOM", `﻿<?xml version="1.0"?>${svg("<rect/>")}`, "<rect/>"],
-  ["XML 宣言の無い BOM", `﻿${svg("<rect/>")}`, "<rect/>"],
+  ["先頭の BOM", `\uFEFF<?xml version="1.0"?>${svg("<rect/>")}`, "<rect/>"],
+  ["XML 宣言の無い BOM", `\uFEFF${svg("<rect/>")}`, "<rect/>"],
   ["自己終端のルート", `<svg ${NS} viewBox="0 0 1 1"/>`, ""],
   ["一重引用符", svg("<rect fill='red'/>"), '<rect fill="red"/>'],
   ['一重引用符の値の中の "', svg("<g class='a\"b'/>"), '<g class="a&quot;b"/>'],
@@ -185,7 +185,18 @@ test.each([
   ],
   ["desc の中の要素", svg("<desc><g/></desc>"), /<desc> の中に要素 <g> がある/],
   ["深すぎる入れ子", svg("<g>".repeat(64) + "</g>".repeat(64)), /要素の入れ子が 64 段を超える/],
-  ["属性の値の数値の文字参照", svg('<rect fill="&#117;rl(x)"/>'), /属性 fill の値に/],
+  ["属性の値の数値の文字参照", svg('<rect id="&#97;"/>'), /属性 id の値に/],
+  // 数値の文字参照で url( を作ると、関数の判定は url( を見つけないので、値の判定だけが止める。
+  [
+    "属性の値の数値の文字参照で作った url(",
+    svg('<rect fill="&#117;&#114;&#108;(x)"/>'),
+    /属性 fill の値に/,
+  ],
+  [
+    "名前が url で終わる関数",
+    svg('<rect fill="xurl(#a)" clip-path="srcurl(#b)"/>'),
+    /許可していない関数 xurl\(\)/,
+  ],
   ["属性の値の定義済みでない実体", svg('<rect id="a&nbsp;b"/>'), /属性 id の値に/],
   ["属性の値の単独の &", svg('<rect id="a & b"/>'), /属性 id の値に/],
   ["属性の値の \\", svg('<rect fill="u\\72l(x)"/>'), /属性 fill の値に/],
@@ -193,7 +204,7 @@ test.each([
   ["引用符の無い値", svg("<rect x=1/>"), /<rect> の開始タグを読めない/],
   ["値の無い属性", svg("<rect hidden/>"), /<rect> の開始タグを読めない/],
   ["閉じない開始タグ", `<svg ${NS}><rect x="1"`, /<rect> の開始タグを読めない/],
-  ["XML の空白でない属性の区切り", svg('<rect x="1"/>'), /<rect> の開始タグを読めない/],
+  ["XML の空白でない属性の区切り", svg('<rect\u00a0x="1"/>'), /<rect> の開始タグを読めない/],
   ["重複した属性", svg('<rect x="1" x="2"/>'), /<rect> に属性 x が 2 つある/],
   ["コメント", svg("<!-- c --><rect/>"), /読めない構文/],
   ["DOCTYPE", `<!DOCTYPE svg [<!ENTITY e "x">]>${svg("<rect/>")}`, /読めない構文/],
@@ -241,5 +252,19 @@ test("許可した範囲に収まる 1 MB の入力は 1 秒以内に受け付�
   const input = fill('<rect x="1" y="2"/>', `<svg ${NS}>`, "</svg>");
   const started = performance.now();
   expect(body(input).length).toBeGreaterThan(MB - 100);
+  expect(performance.now() - started).toBeLessThan(1000);
+});
+
+test("ルートの <svg> を含めて 64 段の入れ子は受け付ける", () => {
+  expect(body(svg("<g>".repeat(63) + "</g>".repeat(63)))).toBe(
+    "<g>".repeat(63).replace(/<g>$/, "<g/>") + "</g>".repeat(62),
+  );
+});
+
+test("一致しない長い数を含む viewBox は 1 秒以内にエラーにする", () => {
+  const started = performance.now();
+  expect(() => validateIconSvg(`<svg ${NS} viewBox="0 0 1 ${"1".repeat(200_000)}x"/>`)).toThrow(
+    /属性 viewBox の値が 4 つの数値でない/,
+  );
   expect(performance.now() - started).toBeLessThan(1000);
 });
