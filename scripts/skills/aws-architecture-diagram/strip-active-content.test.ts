@@ -3,12 +3,12 @@
 // 確かめる状態は次のとおりである。
 //   - <script> の形: 対の開始と終了 / 自己終端 / 終了タグの空白の後の属性 / 入れ子 / 対の無い開始タグと終了タグ / 大文字 /
 //     名前空間の接頭辞（ASCII と ASCII 以外）
-//   - <meta> の要素（入れ子を含む）
+//   - <meta> の http-equiv: 大文字 / 閉じないタグ / 取り除いた後に現れる形 / 変えないもの（<meta> の要素・<metadata>）
 //   - on* の属性: 引用符（" と ' と無し） / 区切りが空白か `/` か引用符の直後 / 入れ子 / 値の中の `>` と引用符 /
 //     XML にだけある文脈（ASCII 以外で始まるタグ名・コメント・実体の宣言）
 //   - 取り除かないもの: スクリプトでない要素と属性（`<scripted>`・`<script-x>`・`data-on`・`d` の値）
 //   - 安全側に取り除くもの: 要素の中の文字と属性の値に現れる `on...=`
-// 期待値は、HTML と XML がその出力を読んだときに script・meta・ハンドラが残らないことと、部品のコメントに書いた取り除き方
+// 期待値は、HTML と XML がその出力を読んだときに script・ハンドラ・http-equiv が残らないことと、部品のコメントに書いた取り除き方
 // （on* を取り除いた所に空白を 1 つ置く）から決める。
 
 import { expect, test } from "vitest";
@@ -71,8 +71,30 @@ test.each([
     '<text>a onx="</text><rect width="1"/>',
     '<text>a "</text><rect width="1"/>',
   ],
-  // <meta http-equiv="refresh"> は、HTML に埋め込むとページを移動させる。入れ子も繰り返しで取り除く。
-  ["meta の入れ子", '<g><me<meta>ta http-equiv="refresh" content="0;url=x"/></g>', "<g></g>"],
+  // <meta http-equiv="refresh"> は、HTML に埋め込むとページを移動させる。移動に要る属性名を無効な名前にする。
+  [
+    "meta の http-equiv",
+    '<g><meta http-equiv="refresh" content="0;url=x"/></g>',
+    '<g><meta data-x-equiv="refresh" content="0;url=x"/></g>',
+  ],
+  ["http-equiv の大文字", '<META HTTP-EQUIV="refresh">', '<META data-x-equiv="refresh">'],
+  // タグの形を読まないので、閉じないタグでも置き換える。
+  [
+    "閉じない meta",
+    '<meta http-equiv="refresh" content="0;url=x"',
+    '<meta data-x-equiv="refresh" content="0;url=x"',
+  ],
+  [
+    "取り除いた後に現れる http-equiv",
+    '<meta htt<script>x</script>p-equiv="refresh">',
+    '<meta data-x-equiv="refresh">',
+  ],
+  // <meta> の要素そのものと、名前が meta で始まる別の要素は変えない。
+  [
+    "meta の要素と metadata",
+    '<metadata><meta name="a"></meta></metadata>',
+    '<metadata><meta name="a"></meta></metadata>',
+  ],
   [
     "スクリプトでない要素と属性",
     '<scripted data-on="1" d="M0 0"/>',

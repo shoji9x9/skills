@@ -12,7 +12,7 @@
       "find": "  } while (current !== previous);",
       "replace": "  } while (false);",
       "occurrences": 1,
-      "expect_failing": ["取り除いた後に現れる対", "meta の入れ子"]
+      "expect_failing": ["取り除いた後に現れる対"]
     },
     {
       "id": "handlers-kept",
@@ -106,13 +106,18 @@
       "expect_failing": ["要素の中の文字の後の要素", "閉じない引用符の後の要素"]
     },
     {
-      "id": "meta-kept",
-      "why": "<meta> を取り除かない",
+      "id": "equiv-kept",
+      "why": "http-equiv を置き換えない",
       "file": "skills/aws-architecture-diagram/scripts/lib/strip-active-content.mjs",
-      "find": "      .replace(META_TAG, \"\")\n",
+      "find": "      .replace(HTTP_EQUIV, \"data-x-equiv\")\n",
       "replace": "",
       "occurrences": 1,
-      "expect_failing": ["meta の入れ子"]
+      "expect_failing": [
+        "meta の http-equiv",
+        "http-equiv の大文字",
+        "閉じない meta",
+        "取り除いた後に現れる http-equiv"
+      ]
     },
     {
       "id": "prefix-dropped",

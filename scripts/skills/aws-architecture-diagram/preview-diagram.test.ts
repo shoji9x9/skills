@@ -78,14 +78,16 @@ test("SVG の <script> と on* の属性は、Chrome に渡す HTML に入れな
       '<rect onclick="a()" width="1"/>',
       "<rect onload='b()' width=\"2\"/>",
       '<rect onmouseover=c() width="3"/>',
-      // CSP は meta の refresh による移動を止めないので、SVG の <meta> も除く。
+      // CSP は meta の refresh による移動を止めないので、http-equiv を無効な名前に置き換える。
       '<foreignObject><meta http-equiv="refresh" content="0;url=https://example.com/"/></foreignObject>',
       "</svg>",
     ].join(""),
   });
   expect(r.status).toBe(0);
   expect(r.page).not.toMatch(/<script/i);
-  expect(r.page).not.toContain("refresh");
+  expect(r.page).not.toMatch(/http-equiv="refresh"/i);
+  // ページは SVG で終え、`</body>` を置かない（SVG の末尾の閉じないタグを雛形の `>` で閉じさせない）。
+  expect(r.page.endsWith("</svg>")).toBe(true);
   expect(r.page).not.toMatch(/\son[a-z]+\s*=/i);
   expect(r.page).toContain('<rect  width="1"/>');
   expect(r.page).toContain('<rect  width="2"/>');
