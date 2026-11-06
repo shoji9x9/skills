@@ -77,9 +77,9 @@ test("アイコンに含まれる <script> と on* の属性は図に入れな�
   expect(svg).not.toMatch(/<script/i);
   expect(svg).not.toMatch(/\son[a-z]+\s*=/i);
   // 取り除くのはハンドラだけで、同じ要素の他の属性は残す。
-  expect(svg).toContain('<rect width="1"/>');
-  expect(svg).toContain('<rect width="2"/>');
-  expect(svg).toContain('<rect width="3"/>');
+  expect(svg).toContain('<rect  width="1"/>');
+  expect(svg).toContain('<rect  width="2"/>');
+  expect(svg).toContain('<rect  width="3"/>');
 });
 
 test("同じアイコンを 2 回埋め込むと、内部の id とその参照を埋め込みごとに別の名前にする", () => {

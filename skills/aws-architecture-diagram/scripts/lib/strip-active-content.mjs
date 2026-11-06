@@ -1,4 +1,4 @@
-// SVG から <script> 要素と on* のイベントハンドラの属性を取り除く部品。
+// SVG から <script> 要素・<meta> 要素・on* のイベントハンドラの属性を取り除く部品。
 // 図に埋め込むアイコン（diagram-engine.mjs）と、Chrome で開くプレビュー（preview-diagram.mjs）で使う。
 // 自前で生成した SVG には、どちらも含まれないので何も変えない。
 //
@@ -17,11 +17,16 @@ const SCRIPT_ELEMENT = new RegExp(
 );
 // 対になる終了タグが無い開始タグと、開始タグの無い終了タグ（残すと HTML の中で後ろが script として読まれる）。
 const SCRIPT_TAG = new RegExp(String.raw`<\/?${SCRIPT_NAME}[^>]*>`, "gi");
+// <meta> 要素。HTML に埋め込むと、`<meta http-equiv="refresh">` がページを別のページへ移動させる。
+// ページの CSP はこの移動を止めず、移動先には CSP が掛からない。SVG の描画には使わないので、すべて取り除く。
+const META_TAG = /<(?:[^\s<>/:="']+:)?meta(?=[\s/>])[^>]*>/gi;
 // on* の属性。前は空白か `/`（`<svg/onload=...>`）か、引用符で閉じた値の直後（`width="1"onclick=...`）である。
 // 引用符は前の属性の値の終わりなので、消さずに残す。
 // 値は、二重引用符・一重引用符・引用符なしの順に試す。引用符なしを先に試すと、` onclick=` だけを消して `"..."` を残す。
 // 引用符なしの値の中の `/` は許すが、自己終端 `/>` の `/` は消さない。
-const HANDLER = /(?:[\s/]|(?<=["']))on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|(?:[^\s"'>/]|\/(?!>))*)/gi;
+// 値は `<` をまたがない。要素の中の文字に `on...=` があるときに、後ろの終了タグや別の要素まで消さないためである。
+// 値に `<` を含むハンドラは名前と `=` だけを消し、値は属性として読まれない文字として残る。
+const HANDLER = /(?:[\s/]|(?<=["']))on[a-z]+\s*=\s*(?:"[^"<]*"|'[^'<]*'|(?:[^\s"'<>/]|\/(?!>))*)/gi;
 
 /**
  * 1 回の置換では、入れ子（`<scr<script>x</script>ipt>`・`o onclick="x"nclick=...`）のように、
@@ -34,7 +39,12 @@ export function stripActiveContent(svg) {
   let previous;
   do {
     previous = current;
-    current = current.replace(SCRIPT_ELEMENT, "").replace(SCRIPT_TAG, "").replace(HANDLER, "");
+    current = current
+      .replace(SCRIPT_ELEMENT, "")
+      .replace(SCRIPT_TAG, "")
+      .replace(META_TAG, "")
+      // 取り除いた所に空白を置き、前後の名前（タグ名と次の属性の名前）がつながらないようにする。
+      .replace(HANDLER, " ");
   } while (current !== previous);
   return current;
 }

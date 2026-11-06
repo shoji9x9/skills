@@ -80,7 +80,9 @@ const timeoutMs = config.timeoutMs;
 // work は preview.html 置き場。out（PNG）は tmpdir 直下なのでクリーンアップの影響を受けない。
 // 任意の SVG（ファイル名指定も可）を Chrome で開くので、ページの CSP で script・イベントハンドラ・iframe・外部の資源を止める。
 // `<img>` の画像として読み込むと、正しい XML（xmlns を含む）でない SVG が警告なしに白い PNG になるので、HTML に埋め込む。
-// CSP に加えて、<script> と on* も除く（diagram-engine のアイコン埋め込みと同じ多層防御。自前で生成した SVG では何も変えない）。
+// CSP は `<meta http-equiv="refresh">` による移動を止めないので、<script>・<meta>・on* も除く
+// （diagram-engine のアイコン埋め込みと同じ多層防御。自前で生成した SVG では何も変えない）。
+// 埋め込んだ SVG は、width と height の単位（cm など）に関わらず、ウィンドウの大きさで描く。
 const safeSvg = stripActiveContent(svg);
 const CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:";
 
@@ -100,7 +102,7 @@ try {
   const html = join(work, "preview.html");
   writeFileSync(
     html,
-    `<!doctype html><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${CSP}"><body style="margin:0">${safeSvg}</body>`,
+    `<!doctype html><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${CSP}"><style>body>svg{display:block;width:${width}px;height:${height}px}</style><body style="margin:0">${safeSvg}</body>`,
   );
   execFileSync(
     chrome,

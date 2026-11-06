@@ -23,3 +23,8 @@ ci:42222505055:1,ci,2026-11-06T13:13:35.294Z,p-cdee4961,github-actions,,,,2026-1
 ci:42222504783:1,ci,2026-11-06T13:13:35.294Z,p-cdee4961,github-actions,,,,2026-11-06T13:04:08.000Z,2026-11-06T13:08:39.000Z,Asia/Tokyo,feature/921-fix-codeql-sanitizer-redos,921,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-11-05T13:03:10.901Z:2026-11-06T13:13:35.294Z,coverage,2026-11-06T13:13:35.294Z,p-cdee4961,,,,,2026-11-05T13:03:10.901Z,2026-11-06T13:13:35.294Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-11-05T13:13:35.294Z:2026-11-06T13:29:49.618Z,coverage,2026-11-06T13:29:49.618Z,p-cdee4961,,,,,2026-11-05T13:13:35.294Z,2026-11-06T13:29:49.618Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:42226078274:1,ci,2026-11-06T13:42:46.749Z,p-cdee4961,github-actions,,,,2026-11-06T13:30:47.000Z,2026-11-06T13:30:54.000Z,Asia/Tokyo,feature/921-fix-codeql-sanitizer-redos,921,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:42226078336:1,ci,2026-11-06T13:42:46.749Z,p-cdee4961,github-actions,,,,2026-11-06T13:30:47.000Z,2026-11-06T13:32:15.000Z,Asia/Tokyo,feature/921-fix-codeql-sanitizer-redos,921,,,,,,,,,,CodeQL;pull_request;success,
+ci:42226078275:1,ci,2026-11-06T13:42:46.749Z,p-cdee4961,github-actions,,,,2026-11-06T13:30:47.000Z,2026-11-06T13:35:23.000Z,Asia/Tokyo,feature/921-fix-codeql-sanitizer-redos,921,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-11-05T13:29:49.618Z:2026-11-06T13:42:46.749Z,coverage,2026-11-06T13:42:46.749Z,p-cdee4961,,,,,2026-11-05T13:29:49.618Z,2026-11-06T13:42:46.749Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-05T13:42:46.749Z:2026-11-06T14:05:55.996Z,coverage,2026-11-06T14:05:55.996Z,p-cdee4961,,,,,2026-11-05T13:42:46.749Z,2026-11-06T14:05:55.996Z,Asia/Tokyo,,,,,,,,,,,,ok,

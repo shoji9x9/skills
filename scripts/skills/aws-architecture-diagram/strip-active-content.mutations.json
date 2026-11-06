@@ -12,14 +12,14 @@
       "find": "  } while (current !== previous);",
       "replace": "  } while (false);",
       "occurrences": 1,
-      "expect_failing": ["取り除いた後に現れる対", "on* の入れ子"]
+      "expect_failing": ["取り除いた後に現れる対", "meta の入れ子"]
     },
     {
       "id": "handlers-kept",
       "why": "on で始まる属性を取り除かない",
       "file": "skills/aws-architecture-diagram/scripts/lib/strip-active-content.mjs",
-      "find": ".replace(HANDLER, \"\")",
-      "replace": "",
+      "find": "      .replace(HANDLER, \" \");",
+      "replace": "      ;",
       "occurrences": 1,
       "expect_failing": [
         "on* の二重引用符",
@@ -27,6 +27,7 @@
         "on* の引用符無し",
         "on* の区切りが /",
         "引用符の直後の on*",
+        "on* の直後に続く属性",
         "一重引用符の直後の on*",
         "引用符で囲んだ値の中の >",
         "引用符で囲まない値の中の引用符",
@@ -35,7 +36,36 @@
         "コメントの中の閉じない引用符の後の on*",
         "実体の宣言の中の on*",
         "要素の中の文字",
-        "属性の値の中の on...="
+        "属性の値の中の on...=",
+        "要素の中の文字の後の要素",
+        "閉じない引用符の後の要素"
+      ]
+    },
+    {
+      "id": "no-space-left",
+      "why": "取り除いた所に空白を置かないと、前後の名前がつながる",
+      "file": "skills/aws-architecture-diagram/scripts/lib/strip-active-content.mjs",
+      "find": ".replace(HANDLER, \" \")",
+      "replace": ".replace(HANDLER, \"\")",
+      "occurrences": 1,
+      "expect_failing": [
+        "on* の二重引用符",
+        "on* の一重引用符",
+        "on* の引用符無し",
+        "on* の区切りが /",
+        "引用符の直後の on*",
+        "on* の直後に続く属性",
+        "一重引用符の直後の on*",
+        "引用符で囲んだ値の中の >",
+        "引用符で囲まない値の中の引用符",
+        "on* の入れ子",
+        "ASCII 以外で始まるタグ名の on*",
+        "コメントの中の閉じない引用符の後の on*",
+        "実体の宣言の中の on*",
+        "要素の中の文字",
+        "属性の値の中の on...=",
+        "要素の中の文字の後の要素",
+        "閉じない引用符の後の要素"
       ]
     },
     {
@@ -51,19 +81,38 @@
       "id": "unquoted-first",
       "why": "引用符なしの値を先に試すと、引用符の値を残す",
       "file": "skills/aws-architecture-diagram/scripts/lib/strip-active-content.mjs",
-      "find": "(?:\"[^\"]*\"|'[^']*'|(?:[^\\s\"'>/]|\\/(?!>))*)",
-      "replace": "(?:(?:[^\\s\"'>/]|\\/(?!>))*|\"[^\"]*\"|'[^']*')",
+      "find": "(?:\"[^\"<]*\"|'[^'<]*'|(?:[^\\s\"'<>/]|\\/(?!>))*)",
+      "replace": "(?:(?:[^\\s\"'<>/]|\\/(?!>))*|\"[^\"<]*\"|'[^'<]*')",
       "occurrences": 1,
       "expect_failing": [
         "on* の二重引用符",
         "on* の一重引用符",
         "引用符の直後の on*",
+        "on* の直後に続く属性",
         "引用符で囲んだ値の中の >",
         "on* の入れ子",
         "ASCII 以外で始まるタグ名の on*",
         "コメントの中の閉じない引用符の後の on*",
         "実体の宣言の中の on*"
       ]
+    },
+    {
+      "id": "value-crosses-lt",
+      "why": "値が < をまたぐと、後ろの終了タグや要素まで消す",
+      "file": "skills/aws-architecture-diagram/scripts/lib/strip-active-content.mjs",
+      "find": "(?:\"[^\"<]*\"|'[^'<]*'|(?:[^\\s\"'<>/]|\\/(?!>))*)",
+      "replace": "(?:\"[^\"]*\"|'[^']*'|(?:[^\\s\"'>/]|\\/(?!>))*)",
+      "occurrences": 1,
+      "expect_failing": ["要素の中の文字の後の要素", "閉じない引用符の後の要素"]
+    },
+    {
+      "id": "meta-kept",
+      "why": "<meta> を取り除かない",
+      "file": "skills/aws-architecture-diagram/scripts/lib/strip-active-content.mjs",
+      "find": "      .replace(META_TAG, \"\")\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["meta の入れ子"]
     },
     {
       "id": "prefix-dropped",
@@ -87,7 +136,7 @@
       "id": "orphan-tags-kept",
       "why": "対の無い開始タグと終了タグを取り除かない",
       "file": "skills/aws-architecture-diagram/scripts/lib/strip-active-content.mjs",
-      "find": ".replace(SCRIPT_TAG, \"\")",
+      "find": "      .replace(SCRIPT_TAG, \"\")\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
