@@ -257,6 +257,9 @@ jobs:
       # 設定と指摘を除外する方法は .github/zizmor.yml と docs/security-scanning.md。
       # GH_TOKEN は、タグの付け替え・既知の脆弱性を持つ Action を調べる検査が GitHub API を読むのに使う。
       - name: Security lint (zizmor)
+        # 前のステップ（actionlint・ghalint）が失敗しても実行し、構文の誤りとセキュリティの指摘を同じ実行で出す。
+        # ジョブが取り消されたときは実行しない。
+        if: success() || failure()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
