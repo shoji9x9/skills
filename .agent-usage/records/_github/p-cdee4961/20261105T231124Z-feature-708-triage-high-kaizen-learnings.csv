@@ -24,3 +24,6 @@ ci:42139358423:1,ci,2026-11-06T00:55:22.857Z,p-cdee4961,github-actions,,,,2026-1
 ci:42139358437:1,ci,2026-11-06T00:55:22.857Z,p-cdee4961,github-actions,,,,2026-11-06T00:47:26.000Z,2026-11-06T00:50:50.000Z,Asia/Tokyo,feature/708-triage-high-kaizen-learnings,708,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-11-05T00:46:20.344Z:2026-11-06T00:55:22.857Z,coverage,2026-11-06T00:55:22.857Z,p-cdee4961,,,,,2026-11-05T00:46:20.344Z,2026-11-06T00:55:22.857Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-11-05T00:55:22.857Z:2026-11-06T00:57:03.418Z,coverage,2026-11-06T00:57:03.418Z,p-cdee4961,,,,,2026-11-05T00:55:22.857Z,2026-11-06T00:57:03.418Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:42140581441:1,ci,2026-11-06T01:07:08.948Z,p-cdee4961,github-actions,,,,2026-11-06T00:58:04.000Z,2026-11-06T00:58:06.000Z,Asia/Tokyo,feature/708-triage-high-kaizen-learnings,708,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:42140581388:1,ci,2026-11-06T01:07:08.948Z,p-cdee4961,github-actions,,,,2026-11-06T00:58:04.000Z,2026-11-06T01:02:33.000Z,Asia/Tokyo,feature/708-triage-high-kaizen-learnings,708,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-11-05T00:57:03.418Z:2026-11-06T01:07:08.948Z,coverage,2026-11-06T01:07:08.948Z,p-cdee4961,,,,,2026-11-05T00:57:03.418Z,2026-11-06T01:07:08.948Z,Asia/Tokyo,,,,,,,,,,,,ok,

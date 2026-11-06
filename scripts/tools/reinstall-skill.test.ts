@@ -375,23 +375,41 @@ test("ロックの PID が 0 なら古いロックとして扱い、インスト
   expect(snapshot(root)).toEqual(EXPECTED_INSTALL);
 });
 
-// 整数の範囲を超える PID は、ランナーと同じく存在しないプロセスとして扱う。比べられない理由を stderr に出さない。
+// 整数の範囲を超える PID は、ランナーと同じく存在しないプロセスとして扱う。
 test("ロックの PID が整数の範囲を超えるなら古いロックとして扱い、インストールする", () => {
   const ctx = setup();
   const root = createRepo(ctx.base, "repo");
   writeMutationLock(root, "99999999999999999999\n");
-  // bash のエラーの文言は locale で訳されるので、英語のメッセージに固定する。
-  const result = runWith(ctx, root, {
-    args: ["scripts/tools/reinstall-skill.sh", "demo"],
-    env: { LC_ALL: "C", LANG: "C" },
-  });
+  const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", "demo"]);
   expect(result.status, result.stderr).toBe(0);
-  expect(result.stderr).not.toContain("integer expression expected");
   expect(snapshot(root)).toEqual(EXPECTED_INSTALL);
 });
 
-// PID 1 は別のユーザー（root）のプロセスなので、kill -0 は権限が無いと失敗する。ランナーは生きているとして扱う。
-test("ロックの PID が別のユーザーのプロセスなら exit 1 で止まる", () => {
+// ランナーは Number() で読むので、先頭の 0 は 10 進数の PID として扱う。
+test("ロックの PID に先頭の 0 が付いていても、生きていれば exit 1 で止まる", () => {
+  const ctx = setup();
+  const root = createRepo(ctx.base, "repo");
+  writeMutationLock(root, `0${process.pid}\n`);
+  preinstall(root);
+  const before = snapshot(root);
+  const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", "demo"]);
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain(`ミューテーションテストの実行中（PID ${process.pid}`);
+  expectUntouched(ctx, root, before);
+});
+
+// 権限の無い別のユーザーのプロセスでは、process.kill(pid, 0) が EPERM を投げる。ランナーは生きているとして扱う。
+// PID 1 がその条件を満たすか（root で動く環境や PID の名前空間を分けた環境では満たさない）を先に確かめる。
+function pid1IsForeign(): boolean {
+  try {
+    process.kill(1, 0);
+    return false;
+  } catch (err) {
+    return err instanceof Error && "code" in err && err.code === "EPERM";
+  }
+}
+
+test.skipIf(!pid1IsForeign())("ロックの PID が別のユーザーのプロセスなら exit 1 で止まる", () => {
   const ctx = setup();
   const root = createRepo(ctx.base, "repo");
   writeMutationLock(root, "1\n");

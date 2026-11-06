@@ -146,23 +146,47 @@ if [ -e "${mutation_lock}.recovery.json" ]; then
 	echo "ミューテーションテストの復元情報（${mutation_lock}.recovery.json）が残っているので止まる。前回の実行が中断され、原本に変異が残っている可能性がある。ランナーを再実行して戻す。ランナーも止まるときは、原本を確かめて直してから復元情報を消して再実行する（既存のインストールは触っていない）" >&2
 	exit 1
 fi
-if [ -e "${mutation_lock}" ]; then
-	lock_pid="$(head -n 1 -- "${mutation_lock}" 2>/dev/null | tr -d '[:space:]')" || lock_pid=""
-	case "${lock_pid}" in
-	'' | *[!0-9]*)
-		echo "ミューテーションテストのロック（${mutation_lock}）から PID を読めないので止まる。実行中でないことを確かめてからロックを消して再実行する（既存のインストールは触っていない）" >&2
-		exit 1
-		;;
-	esac
-	# PID 0 は kill ではプロセスグループを指し、macOS の ps -p 0 は kernel_task を返すので、ランナーと同じく古いロックとして扱う。
-	# 整数の範囲を超える値は [ が比べられずに偽になり、ランナーと同じく存在しないプロセスとして扱う。
-	# 生きているかは ps -p で見る。kill -0 は別のユーザーのプロセスで権限が無いと失敗するが、
-	# ランナーはその場合（EPERM）を生きているとして扱う。
-	if [ "${lock_pid}" -gt 0 ] 2>/dev/null && ps -p "${lock_pid}" >/dev/null 2>&1; then
-		echo "ミューテーションテストの実行中（PID ${lock_pid}、ロック: ${mutation_lock}）は原本に変異が入っているので止まる。終わるまで待ってから再実行する（既存のインストールは触っていない）" >&2
-		exit 1
-	fi
-fi
+# Whether the lock's owner is alive is judged by node with the runner's own rule (alive() in
+# check-mutation-proof.ts: process.kill(pid, 0), and EPERM counts as alive). Rewriting it in
+# shell (kill -0, ps -p) disagreed with the runner on PID 0, overflowing PIDs, EPERM, leading
+# zeros and a missing ps. The runner itself is not called: a run may be mutating its own file.
+# Exit codes of the node snippet: 0 = no lock or stale lock, 1 = owner alive (prints the PID),
+# 3 = the PID can't be read. Anything else can't be judged and stops too.
+lock_state=0
+lock_pid="$(node -e '
+const fs = require("fs");
+let text;
+try {
+	text = fs.readFileSync(process.argv[1], "utf8").trim();
+} catch (err) {
+	process.exit(err.code === "ENOENT" ? 0 : 3);
+}
+const pid = Number(text);
+if (text === "" || !Number.isFinite(pid)) process.exit(3);
+if (!Number.isInteger(pid) || pid <= 0) process.exit(0);
+process.stdout.write(String(pid));
+try {
+	process.kill(pid, 0);
+	process.exit(1);
+} catch (err) {
+	process.exit(err.code === "EPERM" ? 1 : 0);
+}
+' "${mutation_lock}")" || lock_state=$?
+case "${lock_state}" in
+0) ;;
+1)
+	echo "ミューテーションテストの実行中（PID ${lock_pid}、ロック: ${mutation_lock}）は原本に変異が入っているので止まる。終わるまで待ってから再実行する（既存のインストールは触っていない）" >&2
+	exit 1
+	;;
+3)
+	echo "ミューテーションテストのロック（${mutation_lock}）から PID を読めないので止まる。実行中でないことを確かめてからロックを消して再実行する（既存のインストールは触っていない）" >&2
+	exit 1
+	;;
+*)
+	echo "ミューテーションテストのロック（${mutation_lock}）を判定できないので止まる（node の終了コード ${lock_state}。既存のインストールは触っていない）" >&2
+	exit 1
+	;;
+esac
 cd "${repo_root}"
 
 if [ "$1" = "--all" ]; then

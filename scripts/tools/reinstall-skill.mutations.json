@@ -23,19 +23,6 @@
       ]
     },
     {
-      "id": "no-mutation-lock-live-check",
-      "why": "ロックの PID が生きていても止まらず、変異の入った原本をコピーする（変更前の挙動）",
-      "file": "scripts/tools/reinstall-skill.sh",
-      "find": "\tif [ \"${lock_pid}\" -gt 0 ] 2>/dev/null && ps -p \"${lock_pid}\" >/dev/null 2>&1; then",
-      "replace": "\tif false; then",
-      "occurrences": 1,
-      "expect_failing": [
-        "ミューテーションテストのロックの PID が生きていれば exit 1 で止まり、インストール済みのコピーを消さない",
-        "MUTATION_PROOF_LOCK が指すロックの PID が生きていれば exit 1 で止まる",
-        "ロックの PID が別のユーザーのプロセスなら exit 1 で止まる"
-      ]
-    },
-    {
       "id": "mutation-recovery-ignored",
       "why": "中断された実行の復元情報が残っていても止まらず、変異が残った原本をコピーする",
       "file": "scripts/tools/reinstall-skill.sh",
@@ -45,11 +32,34 @@
       "expect_failing": ["ロックが無くても復元情報が残っていれば exit 1 で止まる"]
     },
     {
+      "id": "no-mutation-lock-live-check",
+      "why": "ロックの持ち主が生きていても止まらず、変異の入った原本をコピーする（変更前の挙動）",
+      "file": "scripts/tools/reinstall-skill.sh",
+      "find": "\tprocess.kill(pid, 0);\n\tprocess.exit(1);",
+      "replace": "\tprocess.exit(0);",
+      "occurrences": 1,
+      "expect_failing": [
+        "ミューテーションテストのロックの PID が生きていれば exit 1 で止まり、インストール済みのコピーを消さない",
+        "MUTATION_PROOF_LOCK が指すロックの PID が生きていれば exit 1 で止まる",
+        "ロックの PID に先頭の 0 が付いていても、生きていれば exit 1 で止まる",
+        "ロックの PID が別のユーザーのプロセスなら exit 1 で止まる"
+      ]
+    },
+    {
+      "id": "mutation-lock-eperm-dead",
+      "why": "権限の無い別のユーザーのプロセス（EPERM）を、止まったものとして扱う（kill -0 で判定していたときの挙動）",
+      "file": "scripts/tools/reinstall-skill.sh",
+      "find": "process.exit(err.code === \"EPERM\" ? 1 : 0);",
+      "replace": "process.exit(0);",
+      "occurrences": 1,
+      "expect_failing": ["ロックの PID が別のユーザーのプロセスなら exit 1 で止まる"]
+    },
+    {
       "id": "mutation-lock-unreadable-passes",
       "why": "PID を読めないロックを、止まらずに通す",
       "file": "scripts/tools/reinstall-skill.sh",
-      "find": "\t\texit 1\n\t\t;;\n\tesac",
-      "replace": "\t\t:\n\t\t;;\n\tesac",
+      "find": "（既存のインストールは触っていない）\" >&2\n\texit 1\n\t;;\n*)",
+      "replace": "（既存のインストールは触っていない）\" >&2\n\t:\n\t;;\n*)",
       "occurrences": 1,
       "expect_failing": [
         "ロックの中身が空なら判定できないとして exit 1 で止まる",
@@ -57,15 +67,13 @@
       ]
     },
     {
-      "id": "mutation-lock-pid-compare-stderr",
-      "why": "比べられない PID で [ のエラーを stderr に出す",
+      "id": "mutation-lock-pid-zero-live",
+      "why": "PID 0 のロックで process.kill(0, 0) がプロセスグループに送って成功し、実行中と判定して止まる",
       "file": "scripts/tools/reinstall-skill.sh",
-      "find": "[ \"${lock_pid}\" -gt 0 ] 2>/dev/null &&",
-      "replace": "[ \"${lock_pid}\" -gt 0 ] &&",
+      "find": "!Number.isInteger(pid) || pid <= 0",
+      "replace": "!Number.isInteger(pid)",
       "occurrences": 1,
-      "expect_failing": [
-        "ロックの PID が整数の範囲を超えるなら古いロックとして扱い、インストールする"
-      ]
+      "expect_failing": ["ロックの PID が 0 なら古いロックとして扱い、インストールする"]
     }
   ]
 }
