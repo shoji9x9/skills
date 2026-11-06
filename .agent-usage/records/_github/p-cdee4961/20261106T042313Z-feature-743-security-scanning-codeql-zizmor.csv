@@ -11,3 +11,8 @@ coverage:github:2026-11-05T04:27:09.338Z:2026-11-06T04:28:51.576Z,coverage,2026-
 coverage:github:2026-11-05T04:28:51.576Z:2026-11-06T04:29:23.656Z,coverage,2026-11-06T04:29:23.656Z,p-cdee4961,,,,,2026-11-05T04:28:51.576Z,2026-11-06T04:29:23.656Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-11-05T04:29:23.656Z:2026-11-06T04:35:42.518Z,coverage,2026-11-06T04:35:42.518Z,p-cdee4961,,,,,2026-11-05T04:29:23.656Z,2026-11-06T04:35:42.518Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-11-05T04:35:42.518Z:2026-11-06T05:34:21.115Z,coverage,2026-11-06T05:34:21.115Z,p-cdee4961,,,,,2026-11-05T04:35:42.518Z,2026-11-06T05:34:21.115Z,Asia/Tokyo,,,,,,,,,,,,ok,
+pr:920,pr,2026-11-06T06:20:58.129Z,p-cdee4961,github,,,,2026-11-06T06:18:38.000Z,2026-11-06T06:18:38.000Z,Asia/Tokyo,feature/743-security-scanning-codeql-zizmor,743,,,,,,,,,,pr=920;author=shoji9x9;state=open,
+ci:42173618776:1,ci,2026-11-06T06:20:58.129Z,p-cdee4961,github-actions,,,,2026-11-06T06:18:41.000Z,2026-11-06T06:18:42.000Z,Asia/Tokyo,feature/743-security-scanning-codeql-zizmor,743,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:42173618742:1,ci,2026-11-06T06:20:58.129Z,p-cdee4961,github-actions,,,,2026-11-06T06:18:41.000Z,2026-11-06T06:20:58.129Z,Asia/Tokyo,feature/743-security-scanning-codeql-zizmor,743,,,,,,,,,,CI;pull_request;open,
+ci:42173618810:1,ci,2026-11-06T06:20:58.129Z,p-cdee4961,github-actions,,,,2026-11-06T06:18:41.000Z,2026-11-06T06:20:28.000Z,Asia/Tokyo,feature/743-security-scanning-codeql-zizmor,743,,,,,,,,,,CodeQL;pull_request;success,
+coverage:github:2026-11-05T05:34:21.115Z:2026-11-06T06:20:58.129Z,coverage,2026-11-06T06:20:58.129Z,p-cdee4961,,,,,2026-11-05T05:34:21.115Z,2026-11-06T06:20:58.129Z,Asia/Tokyo,,,,,,,,,,,,ok,

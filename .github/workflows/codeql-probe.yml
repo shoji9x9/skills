@@ -1,0 +1,13 @@
+# CodeQL の検出を確かめるための probe（PR #920 で取り消す）。
+name: CodeQL probe
+on:
+  issues:
+    types: [opened]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: echo "${{ github.event.issue.title }}"
