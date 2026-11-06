@@ -251,6 +251,14 @@ jobs:
       - run: actionlint
       - name: Policy lint (ghalint)
         run: ghalint run
+      # セキュリティの検査（テンプレートインジェクション・権限・キャッシュの汚染など）。指摘が 1 件でもあれば失敗する。
+      # .github はワークフローと dependabot.yml を含む。配布するワークフローのテンプレートも同じ基準で検査する。手順の断片（review-usage-steps.yml）はワークフローでないので渡さない。
+      # 設定と指摘を除外する方法は .github/zizmor.yml と docs/security-scanning.md。
+      # GH_TOKEN は、タグの付け替え・既知の脆弱性を持つ Action を調べる検査が GitHub API を読むのに使う。
+      - name: Security lint (zizmor)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: zizmor --format github .github skills/kaizen/assets/kaizen-schedule.yml
 
   secret-scan:
     name: Secret scan

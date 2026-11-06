@@ -5,3 +5,4 @@ ci:42152607891:1,ci,2026-11-06T04:23:13.527Z,p-cdee4961,github-actions,,,,2026-1
 ci:42144630206:1,ci,2026-11-06T04:23:13.527Z,p-cdee4961,github-actions,,,,2026-11-06T01:33:31.000Z,2026-11-06T01:33:32.000Z,Asia/Tokyo,feature/708-triage-high-kaizen-learnings,708,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:42144630309:1,ci,2026-11-06T04:23:13.527Z,p-cdee4961,github-actions,,,,2026-11-06T01:33:31.000Z,2026-11-06T01:38:04.000Z,Asia/Tokyo,feature/708-triage-high-kaizen-learnings,708,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-11-05T01:32:34.162Z:2026-11-06T04:23:13.527Z,coverage,2026-11-06T04:23:13.527Z,p-cdee4961,,,,,2026-11-05T01:32:34.162Z,2026-11-06T04:23:13.527Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-05T04:23:13.527Z:2026-11-06T04:23:43.913Z,coverage,2026-11-06T04:23:43.913Z,p-cdee4961,,,,,2026-11-05T04:23:13.527Z,2026-11-06T04:23:43.913Z,Asia/Tokyo,,,,,,,,,,,,ok,

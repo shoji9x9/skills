@@ -1,0 +1,7 @@
+# zizmor の設定。構成と指摘を除外する方法は docs/security-scanning.md にある。
+rules:
+  adhoc-packages:
+    ignore:
+      # Copilot CLI はメジャーの範囲で入れる。理由は、そのステップのコメントにある。
+      # 配布するテンプレート（skills/kaizen/assets/）も同じファイル名なので、この 1 行で両方を外す。
+      - kaizen-schedule.yml
