@@ -42,8 +42,7 @@
         "ミューテーションテストのロックの PID が生きていれば exit 1 で止まり、インストール済みのコピーを消さない",
         "MUTATION_PROOF_LOCK が指すロックの PID が生きていれば exit 1 で止まる",
         "ロックの PID に先頭の 0 が付いていても、生きていれば exit 1 で止まる",
-        "ロックの PID が別のユーザーのプロセスなら exit 1 で止まる",
-        "相対パスの MUTATION_PROOF_LOCK は呼び出し元の cwd を基準に読む"
+        "ロックの PID が別のユーザーのプロセスなら exit 1 で止まる"
       ]
     },
     {
@@ -105,13 +104,13 @@
       "expect_failing": ["ロックが無ければ判定の node を起動しない"]
     },
     {
-      "id": "mutation-lock-relative-from-root",
-      "why": "相対パスのロックを、呼び出し元の cwd ではなくリポジトリのルートを基準に読む",
+      "id": "mutation-lock-relative-guessed",
+      "why": "相対パスの MUTATION_PROOF_LOCK を止めずに、そのまま読む",
       "file": "scripts/tools/reinstall-skill.sh",
-      "find": "*) mutation_lock=\"${PWD}/${mutation_lock}\" ;;",
-      "replace": "*) ;;",
+      "find": "（既存のインストールは触っていない）\" >&2\n\texit 1\n\t;;\nesac",
+      "replace": "（既存のインストールは触っていない）\" >&2\n\t;;\nesac",
       "occurrences": 1,
-      "expect_failing": ["相対パスの MUTATION_PROOF_LOCK は呼び出し元の cwd を基準に読む"]
+      "expect_failing": ["相対パスの MUTATION_PROOF_LOCK を受け取ったら exit 1 で止まる"]
     }
   ]
 }

@@ -56,7 +56,7 @@
     "scripts/skills/replace-strategy/pending-decisions-check.mutations.json": 0.6,
     "scripts/skills/replace-strategy/procedure-staleness-check.mutations.json": 0.6,
     "scripts/tools/mutation-proof-shards.mutations.json": 2.3,
-    "scripts/tools/reinstall-skill.mutations.json": 2.4,
+    "scripts/tools/reinstall-skill.mutations.json": 3.7,
     "scripts/skills/agent-usage/logs.mutations.json": 0.7,
     "scripts/skills/agent-usage/aggregate.mutations.json": 0.7,
     "scripts/skills/agent-usage/github.mutations.json": 0.7,

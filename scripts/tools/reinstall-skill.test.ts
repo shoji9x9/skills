@@ -5,7 +5,6 @@
 // スタブの `gh` は起動された cwd を記録するので、「どのツリーを操作したか」が出力に残る。
 import { expect, test } from "vitest";
 import {
-  chmodSync,
   copyFileSync,
   existsSync,
   mkdirSync,
@@ -31,6 +30,7 @@ import {
   snapshot,
   withReadOnly,
   writeFile,
+  writeStub,
 } from "./reinstall-skill-helpers.ts";
 
 const EXPECTED_INSTALL = {
@@ -438,8 +438,7 @@ test("ロックがファイルとして読めなければ判定できないと�
 // 判定の node が失敗したら（終了コードが 0・10・11 のどれでもない）、判定できないとして止まる。
 // 偽の node は、ロックの判定より後の frontmatter の検査でも失敗するので、止まった理由を stderr で区別する。
 function withFailingNode(ctx: Ctx) {
-  writeFile(join(ctx.base, "bin", "node"), "#!/bin/sh\nexit 7\n");
-  chmodSync(join(ctx.base, "bin", "node"), 0o755);
+  writeStub(ctx.base, "node", "#!/bin/sh\nexit 7\n");
 }
 
 test("ロックの判定の node が失敗したら、判定できないとして exit 1 で止まる", () => {
@@ -468,19 +467,18 @@ test("ロックが無ければ判定の node を起動しない", () => {
   expect(result.stderr).toContain("Preflight failed");
 });
 
-test("相対パスの MUTATION_PROOF_LOCK は呼び出し元の cwd を基準に読む", () => {
+// ランナーは相対パスを自分の cwd を基準に読むので、どのファイルかをこのスクリプトから決められない。
+test("相対パスの MUTATION_PROOF_LOCK を受け取ったら exit 1 で止まる", () => {
   const ctx = setup();
   const root = createRepo(ctx.base, "repo");
-  const cwd = join(root, "sub", "dir");
-  writeFile(join(cwd, "mylock"), `${process.pid}\n`);
   preinstall(root);
   const before = snapshot(root);
-  const result = runWith(ctx, cwd, {
-    args: ["../../scripts/tools/reinstall-skill.sh", "demo"],
+  const result = runWith(ctx, root, {
+    args: ["scripts/tools/reinstall-skill.sh", "demo"],
     env: { MUTATION_PROOF_LOCK: "mylock" },
   });
   expect(result.status).toBe(1);
-  expect(result.stderr).toContain(`ミューテーションテストの実行中（PID ${process.pid}`);
+  expect(result.stderr).toContain("MUTATION_PROOF_LOCK が相対パス（mylock）");
   expectUntouched(ctx, root, before);
 });
 

@@ -66,11 +66,16 @@ export function preinstall(root: string) {
   symlinkSync("../../.agents/skills/demo", join(root, ".claude", "skills", "demo"));
 }
 
+/** PATH の先頭に置く偽のコマンドを、base の bin/ に実行できる形で書く。 */
+export function writeStub(base: string, name: string, body: string) {
+  writeFile(join(base, "bin", name), body);
+  chmodSync(join(base, "bin", name), 0o755);
+}
+
 export function setup() {
   const base = makeTempDir("reinstall-skill-");
   const bin = join(base, "bin");
-  writeFile(join(bin, "gh"), FAKE_GH);
-  chmodSync(join(bin, "gh"), 0o755);
+  writeStub(base, "gh", FAKE_GH);
   return { base, ghLog: join(base, "gh.log"), env: { PATH: `${bin}:${process.env.PATH}` } };
 }
 
