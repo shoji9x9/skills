@@ -262,10 +262,13 @@ function unclosedCommentMessage(line) {
  *   headers と rows は元の Markdown の文字列で、visibleHeaders と visibleRows は表示される文字列（visibleText）である。
  */
 
+/** 改行のタグ（`<br>`・`<br/>`・`<br />`）。 */
+const BR = /^<br\s*\/?>$/iu;
+
 /**
  * 節の表示される文字列。パーサが戻したエスケープ（`\_` は `_`）と文字参照（`&amp;` は `&`）の後の値を、文書の順につなぐ。
  * コードスパンは中身だけを使い、HTML（コメントとタグ）は表示されないので使わない。強調の記号はパーサが節にするので残らない。
- * 改行は空白にし、空白を畳む。
+ * 改行と `<br>` は、画面で語を分けるので空白にする（つなぐと、2 つの語が 1 つの別の名前になる）。空白は畳む。
  * @param {MdNode} node
  * @returns {string}
  */
@@ -274,7 +277,8 @@ function visibleText(node) {
   const parts = [];
   visit(node, (child) => {
     if (child.type === "text" || child.type === "inlineCode") parts.push(child.value ?? "");
-    else if (child.type === "break") parts.push(" ");
+    else if (child.type === "break" || (child.type === "html" && BR.test(child.value ?? "")))
+      parts.push(" ");
   });
   return collapse(parts.join(""));
 }

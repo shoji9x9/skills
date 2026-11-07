@@ -52,7 +52,8 @@ const VALUE_CASES: [string, string][] = [
   ["セルの中の `\\*` と `\\-`", lines(...TABLE, "| \\*orders\\* | \\- |")],
   ["セルの中の文字参照", lines(...TABLE, "| a &amp; b | &#45; |")],
   ["セルの中のコードスパンの `\\_`", lines(...TABLE, "| `order\\_items` | x |")],
-  ["セルの中の `<br>`", lines(...TABLE, "| a<br>b | x |")],
+  ["セルの中の `<br>`", lines(...TABLE, "| a<br>b | c<br/>d<BR />e |")],
+  ["セルの中の `<br>` 以外のタグ", lines(...TABLE, "| a<b>c</b> | x |")],
 ];
 
 test.each<[string, string]>([...GFM_TABLE_CASES, ...VALUE_CASES])(

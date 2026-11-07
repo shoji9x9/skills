@@ -18,7 +18,10 @@ function visibleText(html: string): string {
   let stripped = html;
   for (let previous = ""; previous !== stripped;) {
     previous = stripped;
-    stripped = stripped.replace(/<!--[\s\S]*?-->|<!-->|<!--->/gu, " ").replace(/<[^>]*>/gu, "");
+    stripped = stripped
+      .replace(/<!--[\s\S]*?-->|<!-->|<!--->/gu, " ")
+      .replace(/<br\s*\/?>/giu, " ")
+      .replace(/<[^>]*>/gu, "");
   }
   return stripped
     .replaceAll("&lt;", "<")
