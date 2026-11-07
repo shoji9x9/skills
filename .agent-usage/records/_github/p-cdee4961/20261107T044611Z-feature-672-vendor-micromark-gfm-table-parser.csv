@@ -1,0 +1,10 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+pr:924,pr,2026-11-07T04:46:11.484Z,p-cdee4961,github,,,,2026-11-06T21:54:51.000Z,2026-11-07T00:15:01.000Z,Asia/Tokyo,feature/923-allowlist-icon-svg,923,,,,,,,,,,pr=924;author=shoji9x9;state=merged,
+ci:42317063197:1,ci,2026-11-07T04:46:11.484Z,p-cdee4961,github-actions,,,,2026-11-07T00:15:04.000Z,2026-11-07T00:15:31.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:42317063294:1,ci,2026-11-07T04:46:11.484Z,p-cdee4961,github-actions,,,,2026-11-07T00:15:04.000Z,2026-11-07T00:17:58.000Z,Asia/Tokyo,main,,,,,,,,,,,CodeQL;push;success,
+ci:42317063163:1,ci,2026-11-07T04:46:11.484Z,p-cdee4961,github-actions,,,,2026-11-07T00:15:04.000Z,2026-11-07T00:19:05.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:42311710768:1,ci,2026-11-07T04:46:11.484Z,p-cdee4961,github-actions,,,,2026-11-06T23:24:38.000Z,2026-11-06T23:24:39.000Z,Asia/Tokyo,feature/923-allowlist-icon-svg,923,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:42311710748:1,ci,2026-11-07T04:46:11.484Z,p-cdee4961,github-actions,,,,2026-11-06T23:24:38.000Z,2026-11-06T23:25:59.000Z,Asia/Tokyo,feature/923-allowlist-icon-svg,923,,,,,,,,,,CodeQL;pull_request;success,
+ci:42311710578:1,ci,2026-11-07T04:46:11.484Z,p-cdee4961,github-actions,,,,2026-11-06T23:24:38.000Z,2026-11-06T23:29:47.000Z,Asia/Tokyo,feature/923-allowlist-icon-svg,923,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-11-05T23:23:36.581Z:2026-11-07T04:46:11.484Z,coverage,2026-11-07T04:46:11.484Z,p-cdee4961,,,,,2026-11-05T23:23:36.581Z,2026-11-07T04:46:11.484Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-06T04:46:11.484Z:2026-11-07T04:49:24.048Z,coverage,2026-11-07T04:49:24.048Z,p-cdee4961,,,,,2026-11-06T04:46:11.484Z,2026-11-07T04:49:24.048Z,Asia/Tokyo,,,,,,,,,,,,ok,

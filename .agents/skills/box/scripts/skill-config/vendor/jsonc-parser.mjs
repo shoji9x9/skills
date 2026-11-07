@@ -1,5 +1,5 @@
 // jsonc-parser 3.3.1（MIT。ライセンスは同じディレクトリの LICENSE.md）を 1 ファイルにまとめた生成物。手で直さない。
-// 配布元（shoji9x9/skills）の check-skill-config-vendor.ts --fix で作る。
+// 配布元（shoji9x9/skills）の check-vendor.ts --fix で作る。
 // node_modules/.pnpm/jsonc-parser@3.3.1/node_modules/jsonc-parser/lib/esm/impl/scanner.js
 function createScanner(text, ignoreTrivia = false) {
   const len = text.length;

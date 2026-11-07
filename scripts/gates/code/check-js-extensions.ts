@@ -58,10 +58,14 @@ function notLowerExt({ path, lower }: PathParts, allowed: readonly string[]): st
 /** 配布スキル（skills/）のパスの違反。 */
 function distributedViolation(p: PathParts): string | null {
   const { path, lower, parts } = p;
-  // 同梱した jsonc-parser の型（vendor/jsonc-parser.d.mts）だけは .mts を許す。
+  // 同梱したパッケージの型（vendor/jsonc-parser.d.mts と vendor/mdast-gfm.d.mts）だけは .mts を許す。
   // TypeScript は `./vendor/jsonc-parser.mjs` の import の型を隣の .d.mts から読む（.d.ts は .mjs の型として読まない）。
-  // 生成物なので、check-skill-config-vendor.ts が原本との一致を確かめる。
-  if (/^skills\/[^/]+\/scripts\/skill-config\/vendor\/jsonc-parser\.d\.mts$/.test(path))
+  // 生成物なので、check-vendor.ts が原本との一致を確かめる。
+  if (
+    /^skills\/[^/]+\/scripts\/(?:skill-config\/vendor\/jsonc-parser|vendor\/mdast-gfm)\.d\.mts$/.test(
+      path,
+    )
+  )
     return null;
   const bad = bannedExt(p, DISTRIBUTED_BANNED);
   if (bad) return `skills/ では ${bad} を使わない（配布物 → .mjs にする）`;

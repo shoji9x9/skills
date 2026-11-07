@@ -8,6 +8,8 @@
 #   決定論的自動マージの対象外とし、常にレビューラベルへ回す。
 # - major の更新は、エコシステムに関わらず自動マージせず、レビューラベルへ回す
 #   （方針は docs/vulnerability-handling.md）。
+# - 配布スキルに同梱するパッケージ（VENDORED_PACKAGES）を含む PR は、同梱物を作り直すまで CI が失敗する。
+#   自動マージを予約すると、ラベルも付かずに open のまま残るので、レビューラベルへ回す（手順は dependabot-merge スキル）。
 # 前提: リポジトリ設定で「Allow auto-merge」が有効であること（gh repo edit --enable-auto-merge）。
 name: Dependabot auto-merge
 
@@ -52,6 +54,8 @@ jobs:
           UPDATE_TYPE: ${{ steps.meta.outputs.update-type }}
           DEPS_JSON: ${{ steps.meta.outputs.updated-dependencies-json }}
           ECOSYSTEM: ${{ steps.meta.outputs.package-ecosystem }}
+          # scripts/gates/packaging/check-vendor.ts の VENDORED_PACKAGES と同じにする（check-vendor.test.ts が突き合わせる）
+          VENDORED_PACKAGES: '["esbuild","jsonc-parser","mdast-util-from-markdown","mdast-util-gfm","micromark","micromark-extension-gfm"]'
         run: |
           set -euo pipefail
           # github-actions はタグが semver を厳密に守らず、必須 CI も構文・ピン留めしか
@@ -63,6 +67,16 @@ jobs:
               exit 0
               ;;
           esac
+          # 同梱物の元のパッケージを含む PR は、同梱物を作り直す commit が要るので、手動レビューへ回す。
+          # DEPS_JSON を読めないときと、名前が文字列でない依存を含むときも、取りこぼさないよう手動レビューへ回す。
+          vendored="$(printf '%s' "$DEPS_JSON" | jq -r --argjson names "$VENDORED_PACKAGES" '
+            any(.[]; (.dependencyName | type) != "string" or (.dependencyName as $n | $names | index($n) != null))
+          ' 2>/dev/null || echo unknown)"
+          if [ "$vendored" != "false" ]; then
+            echo "同梱するパッケージを含む（または判定できない）ため手動レビューへ回す: $vendored"
+            echo "decision=review" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
           # 自動マージの対象は minor/patch のみ。major は破壊的な変更を前提にするので手動レビューへ回す。
           # update-type が不明/空のときは取りこぼさないよう手動レビューへ回す（判定できないものは手動で見る）。
           case "$UPDATE_TYPE" in

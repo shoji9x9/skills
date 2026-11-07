@@ -36,7 +36,7 @@ function directiveOf(comment: string): { name: string; offset: number } | null {
   return m ? { name: m[1], offset: lastLineStart } : null;
 }
 /** 検査の対象のパス（リポジトリのルートからの `/` 区切り）か。 */
-// 外部のパッケージから作った生成物（同梱した jsonc-parser）は、tsconfig.skills.json の対象から外しているので見ない。
+// 外部のパッケージから作った生成物（同梱した jsonc-parser と mdast-gfm）は、tsconfig.skills.json の対象から外しているので見ない。
 export const isTarget = (path: string): boolean => TARGET_RE.test(path) && !isVendored(path);
 
 /** JSDoc の型のうち、`any` として扱われるものなら、その書き方を返す。 */

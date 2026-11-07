@@ -1,15 +1,15 @@
 {
   "$comment": [
-    "check-skill-config-vendor.test.ts の検出能力を示す変異の一覧。",
+    "check-vendor.test.ts の検出能力を示す変異の一覧。",
     "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。"
   ],
-  "test_file": "scripts/gates/packaging/check-skill-config-vendor.test.ts",
+  "test_file": "scripts/gates/packaging/check-vendor.test.ts",
   "mutations": [
     {
       "id": "fix-follows-symlink",
       "why": "--fix が書き込み先のシンボリックリンクをたどって、リンク先を書き換える",
-      "file": "scripts/gates/packaging/check-skill-config-vendor.ts",
-      "find": "const link = fix ? symlinkOnPath(root, rel) : null;",
+      "file": "scripts/gates/packaging/check-vendor.ts",
+      "find": "const link = fix ? symlinkOnPath(root, path) : null;",
       "replace": "const link = fix ? null : null;",
       "occurrences": 1,
       "expect_failing": [

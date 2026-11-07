@@ -14,7 +14,6 @@ import {
   pathState,
   readProcedureLedger,
   readRevisions,
-  strayCommentMarkers,
 } from "../../../skills/replace-strategy/scripts/procedure-staleness-check.mjs";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
@@ -471,25 +470,17 @@ test("HTML コメントの中の表は台帳として読まない（生きた表
 
 const LIVE = ledger(["| PC-001 | 2026-09-20 | 軸 | 由来 | feature | #1 |"], []);
 
-test.each([
-  [
-    "散文の後ろで開いたコメントの中の表",
-    `退役した表 <!--\n${CHANGE_HEADER}| PC-900 | 2026-01-01 | 軸 | 由来 | * | #9 |\n-->\n\n`,
-  ],
-  ["行の途中で閉じたコメント", "<!-- 説明 --> 後ろの散文\n\n"],
-  ["1 行に 2 つのコメント", "<!-- a --> <!-- b -->\n\n"],
-  ["終了行の後ろの散文", "<!--\n説明\n--> 続き\n\n"],
-  ["コメントの中で開き直したコメント", "<!--\n説明 <!-- 入れ子\n-->\n\n"],
-])("HTML コメントの記号が扱えない位置にある台帳は落とす: %s", (_name, prefix) => {
+test("散文の後ろの `<!--` は行の中のコメントで、表は段落を中断するので、中の表を生きた表として読む（GFM と同じ）", () => {
+  const prefix = `退役した表 <!--\n${CHANGE_HEADER}| PC-900 | 2026-01-01 | 軸 | 由来 | * | #9 |\n-->\n\n`;
   const r = readProcedureLedger(prefix + LIVE, new Set());
   expect(r.ok).toBe(false);
-  expect(failedOf(r).errors.join("\n")).toContain("HTML コメントの記号が");
+  expect(failedOf(r).errors.join("\n")).toContain("「観点の追加」表が 2 つ以上ある");
 });
 
-test("閉じない HTML コメントは、以降の表を読まずに合格させない", () => {
-  const r = readProcedureLedger(`${LIVE}\n<!--\n説明\n`, new Set());
+test("閉じない HTML コメントは末尾まで続くので、後ろの表が無いとして落とす", () => {
+  const r = readProcedureLedger(`<!--\n説明\n\n${LIVE}`, new Set());
   expect(r.ok).toBe(false);
-  expect(failedOf(r).errors.join("\n")).toContain("HTML コメントが閉じていない");
+  expect(failedOf(r).errors.join("\n")).toContain("「観点の追加」表が無い");
 });
 
 test.each([
@@ -498,7 +489,11 @@ test.each([
   ["字下げした終了行", "<!--\n  説明\n  -->\n\n"],
   ["コードフェンスの中の記号", "```text\n退役 <!-- 例 --> 続き\n```\n\n"],
   ["コメントの中のフェンス記号", "<!--\n```\n-->\n\n"],
-])("誤検知しないことの確認: 扱える位置の HTML コメントは通す: %s", (_name, prefix) => {
+  ["行の途中で閉じたコメント", "<!-- 説明 --> 後ろの散文\n\n"],
+  ["1 行に 2 つのコメント", "<!-- a --> <!-- b -->\n\n"],
+  ["終了行の後ろの散文", "<!--\n説明\n--> 続き\n\n"],
+  ["コメントの中で開き直したコメント", "<!--\n説明 <!-- 入れ子\n-->\n\n"],
+])("誤検知しないことの確認: GFM でコメントになる HTML コメントは通す: %s", (_name, prefix) => {
   const r = readProcedureLedger(prefix + LIVE, new Set());
   expect(r.ok).toBe(true);
   expect(ledgerOf(r).changes.map((c) => c.id)).toEqual(["PC-001"]);
@@ -531,27 +526,21 @@ test("同梱の改訂一覧と台帳テンプレートは検査がそのまま�
   expect(Object.hasOwn(metadata.run, "procedure_revision")).toBe(true);
 });
 
-test("4 文字以上字下げして同じ行で閉じたコメントは、parseTables と同じく表の外の行に数えない", () => {
+test("4 文字以上字下げした行はコードなので、`|` を含んでも表の外の行に数えない", () => {
   expect(countRowLikeLines("    <!-- | 4 | 5 | 6 | -->\n")).toBe(0);
 });
 
-test("4 文字以上字下げした `<!--` は、扱える位置の HTML コメントの記号にしない", () => {
-  expect(strayCommentMarkers("    <!-- 退役\n| 4 | 5 | 6 |\n-->\n").lines).toEqual([1, 3]);
+test("誤検知しないことの確認: 表の後ろの閉じない HTML コメントは、表を隠さないので通す", () => {
+  const r = readProcedureLedger(`${LIVE}\n<!--\n説明\n`, new Set());
+  expect(r.ok).toBe(true);
 });
 
-test("エスケープした `\\<!--` は、扱えない位置の HTML コメントの記号として落とす", () => {
-  expect(strayCommentMarkers("<!--\nメモ \\<!-- -->\n| 1 | 2 | 3 |\n-->\n").lines).toEqual([2, 4]);
+test("4 文字以上字下げした `<!--` はコードなので、後ろの表の行の形の行を表の外の行に数える", () => {
+  expect(countRowLikeLines("    <!-- 退役\n\n| 4 | 5 | 6 |\n-->\n")).toBe(1);
 });
 
 test("情報文字列の付いた行でフェンスを閉じず、フェンスの中の表の行を数えない", () => {
   expect(countRowLikeLines("```\n```bash\n| 1 | 2 | 3 |\n```\n")).toBe(0);
-});
-
-test("情報文字列の付いた行でフェンスを閉じず、フェンスの中の HTML コメントの記号を落とさない", () => {
-  expect(strayCommentMarkers("```\n```bash\n散文 <!-- 例\n```\n")).toEqual({
-    lines: [],
-    unclosed: false,
-  });
 });
 
 test("pathState: ファイル・リンク先のあるリンクを present、リンク先の無いリンクを dangling-link、無いパスを missing にする", () => {

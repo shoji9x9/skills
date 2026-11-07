@@ -38,7 +38,7 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
 
 ## 前提
 
-- ツール: `gh`（GitHub CLI）、`git`、Node.js（同梱のスクリプト `scripts/*.mjs` と、設定ファイルを読む `scripts/skill-config/skill-config.mjs` の実行に使う。依存パッケージは要らない）
+- ツール: `gh`（GitHub CLI）、`git`、Node.js（同梱のスクリプト `scripts/*.mjs` と、設定ファイルを読む `scripts/skill-config/skill-config.mjs` の実行に使う。依存パッケージは要らない）。台帳の Markdown を読むパーサは、`scripts/vendor/` に同梱している
 - 前提スキル:
   - `issue-create`（`issues` モードで起票を任せる先）
   - `browser-test`（現行アプリのブラウザ操作の作法）
