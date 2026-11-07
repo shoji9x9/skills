@@ -1,15 +1,13 @@
 // golden-dataset の predicate-coverage-check が、GFM の描画（micromark の HTML）と同じ表と見出しを読むことを確かめる（Issue #926）。
 //
 // 入力の一覧と描画から表を取り出す処理は、scripts/lib/testing/gfm-table-cases.ts にある（replace-strategy と同じ入力）。
-// predicate-coverage-check は、セルと見出しの表示される文字列を normalizeCell で畳む（コード引用の ` と強調の * を落とす）。
-// そのため、描画の側にも normalizeCell を当ててから比べる。読んだ側は描画し直さずに、そのまま比べる。
+// predicate-coverage-check は、セルと見出しの表示される文字列の全角空白と前後の空白を畳む。
+// 描画の側には、同じ畳み方をこのテストで書いて当てる。normalizeCell を両辺に当てると、normalizeCell が文字を落としたときの差も両辺から消え、検出できない。
+// 読んだ側は描画し直さずに、そのまま比べる。
 // 各表の見出しは、描画で表より前にある最後の h1〜h6 と比べる。
 
 import { expect, test } from "vitest";
-import {
-  normalizeCell,
-  parseTables,
-} from "../../../skills/golden-dataset/scripts/predicate-coverage-check.mjs";
+import { parseTables } from "../../../skills/golden-dataset/scripts/predicate-coverage-check.mjs";
 import {
   GFM_TABLE_CASES,
   TABLE,
@@ -18,12 +16,15 @@ import {
 } from "../../lib/testing/gfm-table-cases.ts";
 import { lines } from "../../lib/testing/text-lines.ts";
 
+/** 全角空白を半角にし、前後の空白を落とす（normalizeCell に期待する畳み方。normalizeCell は呼ばない）。 */
+const fold = (cell: string) => cell.replaceAll("\u3000", " ").trim();
+
 /** 描画した表を、見出しと、正規化したセルの行にする。 */
 function rendered(text: string) {
   const headings = renderedHeadings(text);
   return renderedTables(text).map((rows, i) => ({
-    heading: normalizeCell(headings[i] ?? ""),
-    rows: rows.map((row) => row.map((cell) => normalizeCell(cell))),
+    heading: fold(headings[i] ?? ""),
+    rows: rows.map((row) => row.map(fold)),
   }));
 }
 
@@ -53,6 +54,8 @@ const VALUE_CASES: [string, string][] = [
   ["セルの中の文字参照", lines(...TABLE, "| a &amp; b | &#45; |")],
   ["セルの中のコードスパンの `\\_`", lines(...TABLE, "| `order\\_items` | x |")],
   ["セルの中の `<br>`", lines(...TABLE, "| a<br>b | c<br/>d<BR />e |")],
+  ["セルの中の属性付きの `<br>`", lines(...TABLE, '| x<br class="c">y | z |')],
+  ["セルの中のコードスパンの `*`", lines(...TABLE, "| `count(*)` | \\*x |")],
   ["セルの中の `<br>` 以外のタグ", lines(...TABLE, "| a<b>c</b> | x |")],
 ];
 

@@ -214,17 +214,19 @@ describe("check", () => {
     put("skills/golden-dataset/SKILL.md");
     put("skills/other/SKILL.md");
     put("skills/other/scripts/vendor/mdast-gfm.mjs");
-    expect(await check(root, false, [MDAST_GFM])).toEqual(
-      expect.arrayContaining([
-        ...["golden-dataset", "replace-strategy"].flatMap((skill) =>
-          MDAST_GFM.files.map((f) => ({
-            path: `skills/${skill}/scripts/vendor/${f}`,
-            message: "無い",
-          })),
-        ),
-        expect.objectContaining({ path: expect.stringContaining("skills/other/scripts/vendor") }),
-      ]),
-    );
+    // 余分な指摘や、対象のスキルの取り違えも検出できるよう、指摘の一覧を toEqual でそのまま比べる
+    expect(await check(root, false, [MDAST_GFM])).toEqual([
+      ...["golden-dataset", "replace-strategy"].flatMap((skill) =>
+        MDAST_GFM.files.map((f) => ({
+          path: `skills/${skill}/scripts/vendor/${f}`,
+          message: "無い",
+        })),
+      ),
+      {
+        path: "skills/other/scripts/vendor",
+        message: "mdast-gfm を同梱する宣言の対象でないのに置いている（使わないなら消す）",
+      },
+    ]);
     rmSync(join(root, "skills/other/scripts"), { recursive: true });
     await check(root, true, [MDAST_GFM]);
     expect(await check(root, false, [MDAST_GFM])).toEqual([]);

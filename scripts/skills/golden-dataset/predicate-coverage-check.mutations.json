@@ -130,8 +130,8 @@
       "id": "design-unclosed-not-structural",
       "why": "design.md の閉じないフェンスとコメントを構造の不備にしない",
       "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
-      "find": "  let structural = unclosed.length > 0;",
-      "replace": "  let structural = false;",
+      "find": "  findings.push(...unclosed);\n  let structural = unclosed.length > 0;",
+      "replace": "  findings.push(...unclosed);\n  let structural = false;",
       "occurrences": 1,
       "expect_failing": [
         "design.md の閉じないコードフェンスは、構造の不備として合格にしない",
@@ -142,8 +142,8 @@
       "id": "features-unclosed-not-structural",
       "why": "features.md の閉じないフェンスとコメントを構造の不備にしない",
       "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
-      "find": "  let structural = findings.length > 0;",
-      "replace": "  let structural = false;",
+      "find": "  const consumers = new Map();\n  let structural = unclosed.length > 0;",
+      "replace": "  const consumers = new Map();\n  let structural = false;",
       "occurrences": 1,
       "expect_failing": [
         "features.md の閉じないコードフェンスは、構造の不備として合格にしない",

@@ -77,10 +77,10 @@ export const ID_DISPOSITIONS = ["行を足す", "gaps に記録"];
 const NONE_SENTINEL = "-";
 
 /**
- * セルの表記ゆれを畳む。コード引用（`）・強調（*）・全角空白・前後の空白を落とす。
+ * セルの表記ゆれを畳む。全角空白を半角にし、前後の空白を落とす。
  *
- * **`_` は落とさない**。`_` は識別子（`order_items`）の一部であり、落とすと別のテーブル名
- * （`orders_2024` と `orders2024`）が同じ鍵に潰れる。`_` による強調は表のセルでは使わない。
+ * セルと見出しは、パーサが表示される文字列にした後の値（readMarkdown）を受け取る。コード引用の ` と強調の * はパーサが取り除くので、ここでは記号を落とさない。
+ * 落とすと、画面に表示される記号（`count(*)` の * など）まで消える。
  *
  * @param {string} cell
  * @returns {string}
@@ -88,7 +88,6 @@ const NONE_SENTINEL = "-";
 export function normalizeCell(cell) {
   return String(cell ?? "")
     .replace(/　/g, " ")
-    .replace(/[`*]/g, "")
     .trim();
 }
 
@@ -102,6 +101,7 @@ export function normalizeCell(cell) {
  * コードの中と HTML コメントの中の行は、描画で表にも見出しにもならないので読まない。
  * replace-strategy も同じ lib/markdown.mjs で `.replace/features.md` を読むので、2 つのスキルが読む表は食い違わない。
  * 見出し・列名・セルは、表示される文字列（エスケープと文字参照を戻し、コードスパンは中身だけにした値）を normalizeCell で畳む。
+ * replace-strategy はセルを元の Markdown の文字列（rows）で読むので、2 つのスキルで同じなのは表の範囲と行の読み方までである。
  * 元の Markdown の文字列で比べると、`order\_items` と `order_items` のように画面で同じ名前が別の名前になる。
  *
  * 末尾まで閉じないフェンスとコメントのブロックは、後ろの表をすべて読めなくするので、開いた行の番号を返す（無ければ null）。
@@ -110,11 +110,11 @@ export function normalizeCell(cell) {
  * @returns {{ tables: Table[], unclosedFence: number | null, unclosedComment: number | null }}
  */
 export function readMarkdown(markdown) {
-  const parsed = parseMarkdownTables(String(markdown ?? ""));
+  const parsed = parseMarkdownTables(String(markdown ?? ""), { normalizeHeader: normalizeCell });
   return {
     tables: parsed.tables.map((table) => ({
       heading: normalizeCell(table.heading),
-      headers: table.visibleHeaders.map((cell) => normalizeCell(cell)),
+      headers: table.visibleHeaders,
       rows: table.visibleRows.map((row) => row.map((cell) => normalizeCell(cell))),
       line: table.line,
     })),
@@ -386,11 +386,12 @@ const FEATURE_SOURCES = [
 export function collectConsumers(featuresMarkdown) {
   const parsed = readMarkdown(featuresMarkdown);
   const { tables } = parsed;
+  const unclosed = unclosedFindings("features", parsed);
   /** @type {{code:string, message:string}[]} */
-  const findings = unclosedFindings("features", parsed);
+  const findings = [...unclosed];
   /** @type {Map<string, Set<string>>} */
   const consumers = new Map();
-  let structural = findings.length > 0;
+  let structural = unclosed.length > 0;
   for (const source of FEATURE_SOURCES) {
     const table = findTable(tables, source.heading, ["slug", source.column]);
     if (!table) {

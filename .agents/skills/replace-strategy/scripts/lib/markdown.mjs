@@ -1,7 +1,8 @@
 // Markdown の表を読む helper。スキルの中で Markdown の表を読むスクリプトが共通に使う。
 // GitHub が描画に使う規則とスクリプトが読む表を一致させるため、同梱した GFM（GitHub Flavored Markdown）のパーサ
 // （../vendor/mdast-gfm.mjs。micromark と GFM の拡張）で読み、表・見出し・HTML・コードの範囲を木から取る。
-// replace-strategy と golden-dataset が同じ .replace/features.md を同じ読み方で読むよう、2 つのスキルが同じ内容のコピーを持つ。
+// replace-strategy と golden-dataset が同じ .replace/features.md の表を同じ範囲で読むよう、2 つのスキルが同じ内容のコピーを持つ。
+// セルの値は、replace-strategy が元の Markdown の文字列（rows）を、golden-dataset が表示される文字列（visibleRows）を使う。
 
 import { parseGfm } from "../vendor/mdast-gfm.mjs";
 
@@ -262,13 +263,14 @@ function unclosedCommentMessage(line) {
  *   headers と rows は元の Markdown の文字列で、visibleHeaders と visibleRows は表示される文字列（visibleText）である。
  */
 
-/** 改行のタグ（`<br>`・`<br/>`・`<br />`）。 */
-const BR = /^<br\s*\/?>$/iu;
+/** 改行のタグ（`<br>`・`<br/>`・`<br />`・属性付きの `<br class="c">`）。 */
+const BR = /^<br(?:\s[^>]*)?\/?>$/iu;
 
 /**
  * 節の表示される文字列。パーサが戻したエスケープ（`\_` は `_`）と文字参照（`&amp;` は `&`）の後の値を、文書の順につなぐ。
  * コードスパンは中身だけを使い、HTML（コメントとタグ）は表示されないので使わない。強調の記号はパーサが節にするので残らない。
  * 改行と `<br>` は、画面で語を分けるので空白にする（つなぐと、2 つの語が 1 つの別の名前になる）。空白は畳む。
+ * 脚注の参照（`[^1]`）は、値に付けた注の印なので使わない（描画は番号を上付きで表示する）。
  * @param {MdNode} node
  * @returns {string}
  */
@@ -302,7 +304,7 @@ function readTable(text, node, normalizeHeader) {
   return {
     headers: header === undefined ? [] : cellsOf(header).map(normalizeHeader),
     rows: body.map(cellsOf),
-    visibleHeaders: header === undefined ? [] : visibleOf(header),
+    visibleHeaders: header === undefined ? [] : visibleOf(header).map(normalizeHeader),
     visibleRows: body.map(visibleOf),
     rowLines: body.map((row) => rangeOf(row).startLine),
   };
