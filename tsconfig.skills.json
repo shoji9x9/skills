@@ -11,5 +11,5 @@
     }
   },
   "include": ["skills/*/**/*.mjs", "types/strict-json.ts", "types/skill-runtime/*.ts"],
-  "exclude": ["skills/*/scripts/skill-config/vendor/**"]
+  "exclude": ["skills/*/scripts/skill-config/vendor/**", "skills/*/scripts/vendor/**"]
 }

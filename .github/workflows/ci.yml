@@ -92,8 +92,8 @@ jobs:
         run: node scripts/gates/code/lint-yaml.ts
       - name: Skills sync (skills/ vs .agents/skills/)
         run: node scripts/gates/packaging/copies/check-skills-sync.ts
-      - name: Skill config vendor (jsonc-parser bundled in skills/)
-        run: node scripts/gates/packaging/check-skill-config-vendor.ts
+      - name: Vendored packages (jsonc-parser and mdast-gfm bundled in skills/)
+        run: node scripts/gates/packaging/check-vendor.ts
       - name: Skill configs (.config/skills/shoji9x9/*.jsonc vs schemas)
         run: node scripts/gates/packaging/check-skill-configs.ts
       - name: JS extensions (skills/ => .mjs, scripts/ => .ts)

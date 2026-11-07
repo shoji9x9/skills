@@ -32,7 +32,7 @@
    既にある層と利用場面が重なる層は足さない。新しい環境変数は、目的の外（テストの隔離のためではない日常の利用など）で設定されたときの振る舞いも 1 行で書く。
    複数のスキルが同じ値を読むなら、`common.schema.json` に置くか、そのキーを持つスキルのスキーマを、読む側のスキルにもコピーする。
 2. 設定を初めて読むスキルには、`scripts/skill-config/`（読み取りと同梱のパーサ）と `references/config-files.md` を、既にあるスキルからコピーする。
-   `node scripts/gates/packaging/check-skill-config-vendor.ts` で、同梱物がそろったことを確かめる。
+   `node scripts/gates/packaging/check-vendor.ts` で、同梱物がそろったことを確かめる。
    コピーとスキーマを `scripts/gates/packaging/copies/identical-copies.json` の組に足す。
 3. スキルの文書には、キーの意味と、`skill-config.mjs` の `get`・`set`・`append` での読み書きを書く。層の選び方と書き込みの決まりは `config-files.md` を参照させ、書き写さない。
 4. このリポジトリの設定（`.config/skills/shoji9x9/<設定の名前>.jsonc`）を変えたら、`node scripts/gates/packaging/check-skill-configs.ts` で確かめる。

@@ -1,6 +1,27 @@
-// Markdown の表とコードフェンスを読む helper。このスキルの台帳の表を読むスクリプトが共通に使う。
+// Markdown の表を読む helper。このスキルの台帳の表を読むスクリプトが共通に使う。
+// GitHub が描画に使う規則とスクリプトが読む表を一致させるため、同梱した GFM（GitHub Flavored Markdown）のパーサ
+// （../vendor/mdast-gfm.mjs。micromark と GFM の拡張）で読み、表・HTML・コードの範囲を木から取る。
 
-import { stepFence, unclosedFenceMessage } from "./fence.mjs";
+import { parseGfm } from "../vendor/mdast-gfm.mjs";
+
+/** @typedef {import("../vendor/mdast-gfm.mjs").Node} MdNode */
+
+/**
+ * フェンスの開く行と閉じる行を、code の節の data.fences に数える handler。
+ * パーサが閉じる行と認めた行だけを数えるので、閉じたかを閉じる行の規則（字下げ・記号の数・情報文字列）を書き直さずに判定できる。
+ * 閉じる行に入ったときは、作りかけの節の一番上が中身の断片になるので、最も近い code の節を数える。
+ * @type {import("../vendor/mdast-gfm.mjs").Extension}
+ */
+const COUNT_FENCES = {
+  enter: {
+    codeFencedFence() {
+      const code = this.stack.findLast((node) => node.type === "code");
+      if (code === undefined) return;
+      const fences = Number(code.data?.fences ?? 0);
+      code.data = { ...code.data, fences: fences + 1 };
+    },
+  },
+};
 
 /**
  * 空白を 1 つに畳み、前後を除く（Markdown の表はフォーマッタが桁を詰め直すため素の比較では揺れる）。
@@ -12,9 +33,8 @@ function collapse(value) {
 }
 
 /**
- * `| a | b |` を配列にする（表の行でなければ null）。
- * GFM はセル内の縦棒を `\|` で書くので、`\|` は列の区切りにせず、セルの値では `|` に戻す。
- * GFM は行頭・行末の `|` を必須にしないので、無くても表の行として読む。
+ * `| a | b |` を `|` で分ける（`|` を含まなければ null）。表に属さない行のセル数を数えるのに使う。
+ * `\|` は列の区切りにしない。行頭・行末の `|` は無くてもよい（GFM）。
  * @param {string | undefined} line
  * @returns {string[] | null}
  */
@@ -28,20 +48,35 @@ function splitRow(line) {
 }
 
 /**
- * コードスパンを閉じるバッククォートの直後の位置を返す（同じ行に無ければ -1）。
- * 閉じる側は、開く側と同じ数のバッククォートの並びに限る（CommonMark）。
- * @param {string} rest
- * @param {number} index 開くバッククォートの位置
- * @param {number} ticks 開くバッククォートの数
- * @returns {number}
+ * 木を深さ優先でたどり、各節で fn を呼ぶ。
+ * @param {MdNode} node
+ * @param {(node: MdNode) => void} fn
  */
-function codeSpanEnd(rest, index, ticks) {
-  const run = /`+/gu;
-  run.lastIndex = index + ticks;
-  for (let m = run.exec(rest); m !== null; m = run.exec(rest)) {
-    if (m[0].length === ticks) return m.index + ticks;
+function visit(node, fn) {
+  fn(node);
+  for (const child of node.children ?? []) visit(child, fn);
+}
+
+/**
+ * 節の範囲（文書の先頭からの offset）。パーサは常に位置を付けるので、無ければ判定できないとして止める。
+ * @param {MdNode} node
+ * @returns {{ start: number, end: number, startLine: number, endLine: number }}
+ */
+function rangeOf(node) {
+  const position = node.position;
+  const start = position?.start.offset;
+  const end = position?.end.offset;
+  if (position === undefined || start === undefined || end === undefined) {
+    throw new Error(
+      `Markdown の ${node.type} の位置が取れない（同梱したパーサの出力が想定と違う）`,
+    );
   }
-  return -1;
+  return {
+    start,
+    end,
+    startLine: position.start.line,
+    endLine: position.end.line,
+  };
 }
 
 /**
@@ -57,213 +92,269 @@ function escapedAt(text, index) {
 }
 
 /**
- * コードスパンを開くバッククォートの並びを返す（無ければ null）。
- * エスケープされたバッククォートは文字として読み、並びの残りから開く（CommonMark）。
- * @param {string} rest
- * @returns {{ index: number, ticks: number } | null}
+ * chars の [start, end) の改行以外の文字を空白にする（行と offset の対応は変えない）。
+ * @param {string[]} chars
+ * @param {number} start
+ * @param {number} end
  */
-function codeSpanStart(rest) {
-  const run = /`+/gu;
-  for (let m = run.exec(rest); m !== null; m = run.exec(rest)) {
-    if (!escapedAt(rest, m.index)) return { index: m.index, ticks: m[0].length };
-    if (m[0].length > 1) return { index: m.index + 1, ticks: m[0].length - 1 };
-  }
-  return null;
+function blankRange(chars, start, end) {
+  for (let k = start; k < end; k += 1) if (chars[k] !== "\n" && chars[k] !== "\r") chars[k] = " ";
 }
 
 /**
- * 1 行の中で閉じたコメントの終わりの位置（`-->` の直後）を返す（同じ行で閉じなければ -1）。
- * CommonMark 0.31 では、`<!-->` と `<!--->` もそれだけで閉じたコメントである。
- * @param {string} rest
- * @param {number} start `<!--` の位置
- * @returns {number}
- */
-function commentEnd(rest, start) {
-  const body = rest.slice(start + 4);
-  if (body.startsWith(">")) return start + 5;
-  if (body.startsWith("->")) return start + 6;
-  const close = body.indexOf("-->");
-  return close < 0 ? -1 : start + 4 + close + 3;
-}
-
-/**
- * 行の途中のコメント（インラインのコメント）のうち、同じ行で閉じたものを空白に置き換える。
- * 同じ行で閉じない `<!--` は文字として読む。表や見出しは段落を中断するので、インラインのコメントは後ろの行の表を隠さない（GFM）。
- * コードスパンの中の `<!--` はコメントにしない。CommonMark と同じく、先に始まった方を採る。
- * バックスラッシュを付けた `\<!--` と `` \` `` は、コメントとコードスパンの始まりにしない。
- * @param {string} line
+ * セルの値。セルの範囲の元の文字列から、HTML（コメントを含む）を空白にし、区切りの `|` を除き、`\|` を `|` に戻す。
+ * 元の文字列を使うのは、コードスパンのバッククォートやエスケープを、台帳に書いたとおりに読むためである。
+ * @param {string} text
+ * @param {MdNode} cell
+ * @param {boolean} last 行の最後のセルか（行末の `|` を除く）
  * @returns {string}
  */
-function blankInlineComments(line) {
-  let out = "";
-  let rest = line;
-  for (;;) {
-    const start = rest.indexOf("<!--");
-    if (start < 0) return out + rest;
-    const code = codeSpanStart(rest);
-    if (code !== null && code.index < start) {
-      // 閉じるバッククォートが同じ行に無ければ、バッククォートを文字として読み、その後ろから探し続ける。
-      const end = codeSpanEnd(rest, code.index, code.ticks);
-      const stop = end < 0 ? code.index + code.ticks : end;
-      out += rest.slice(0, stop);
-      rest = rest.slice(stop);
-      continue;
-    }
-    if (escapedAt(rest, start)) {
-      // `\<!--` は文字として読む（CommonMark のバックスラッシュのエスケープ）。
-      out += rest.slice(0, start + 4);
-      rest = rest.slice(start + 4);
-      continue;
-    }
-    const end = commentEnd(rest, start);
-    if (end < 0) return out + rest;
-    out += rest.slice(0, start) + " ".repeat(end - start);
-    rest = rest.slice(end);
-  }
+function cellText(text, cell, last) {
+  const { start, end } = rangeOf(cell);
+  // 位置は UTF-16 の offset なので、サロゲートペアを 1 要素にする [...] ではなく split("") で分ける
+  const units = text.slice(start, end).split("");
+  visit(cell, (node) => {
+    if (node.type !== "html") return;
+    const r = rangeOf(node);
+    blankRange(units, r.start - start, r.end - start);
+  });
+  return trimDelimiters(units.join(""), last);
 }
 
 /**
- * 行が HTML コメントのブロックを開くか（行頭の `<!--`。字下げは 3 文字まで。4 文字以上は字下げのコードブロック）を返す。
- * @param {string} line
+ * セルの文字列から区切りの `|` を除き、`\|` を `|` に戻す。
+ * @param {string} raw
+ * @param {boolean} last
+ * @returns {string}
+ */
+function trimDelimiters(raw, last) {
+  let value = raw.startsWith("|") ? raw.slice(1) : raw;
+  // 行末の `|` の後ろに空白やタブが残っていても、GFM は `|` を区切りとして読む
+  const end = last ? value.trimEnd() : value;
+  if (last && end.endsWith("|") && !escapedAt(end, end.length - 1)) value = end.slice(0, -1);
+  return value.replaceAll("\\|", "|");
+}
+
+/**
+ * 節が文書の末尾まで続くか。閉じないフェンスとコメントのブロックの判定に使う。
+ * コンテナ（リスト・引用）の中で閉じないものはコンテナの終わりで終わり、パーサの読み方では後ろの表を隠さないので、文書の末尾まで続くかだけを見る。
+ * コンテナの中の節は、コンテナの最後の項目にあって文書の末尾まで続くときだけ当たる。
+ * @param {string} text
+ * @param {MdNode} node
  * @returns {boolean}
  */
-function opensHtmlBlock(line) {
-  return /^ {0,3}<!--/u.test(line);
+function reachesEnd(text, node) {
+  return rangeOf(node).end >= text.trimEnd().length;
 }
 
 /**
- * HTML コメントを、改行を保ったまま空白に置き換える（行の対応は変えない）。
- * 行頭（字下げ 3 文字まで）の `<!--` は HTML ブロックを開く（CommonMark）。
- * ブロックは `-->` を含む行で終わり、その行の残りもブロックに入るので、行ごと空白にする。閉じなければ末尾まで続く。
- * 行の途中の `<!--` は、同じ行で閉じるときだけコメントにする（blankInlineComments）。
- * コードフェンスの中は例示なので置き換えない（フェンスの中の `<!--` で、以降の表を消さないため）。
- * コメントの中のフェンス行はフェンスとして扱わない。
- * fenced を渡すと、各行がフェンスの記号の行かフェンスの中か（true）を入れる。
- * フェンスは置き換える前の行で判定するので、呼び出し側は置き換えた後の行でフェンスを判定し直さず、fenced を使う。
- * 置き換えた後の行で判定し直すと、` ```<!-- ` --> ` のようにコメントを空白にして初めてフェンスに見える行で開いてしまう。
- * state を渡すと、末尾まで閉じないフェンスを開いた行の番号（1 始まり。閉じていれば null）を unclosedFence に入れる。
- * @param {string[]} lines
- * @param {boolean[]} [fenced]
- * @param {{ unclosedFence: number | null }} [state]
- * @returns {string[]}
+ * 末尾まで閉じないフェンスか。フェンスの code の節は、開く行を 1 つ数える。閉じる行も数えた節は閉じている（COUNT_FENCES）。
+ * 字下げした code（フェンスを持たない）は数が 0 なので当たらない。
+ * @param {string} text
+ * @param {MdNode} node code の節
+ * @returns {boolean}
  */
-function blankComments(lines, fenced, state) {
-  /** @type {string | null} */
-  let fence = null;
-  /** @type {number | null} */
-  let openedAt = null;
-  let block = false;
-  const blanked = lines.map((line, index) => {
-    if (fenced !== undefined) fenced[index] = false;
-    if (block) {
-      if (line.includes("-->")) block = false;
-      return " ".repeat(line.length);
-    }
-    const step = stepFence(fence, line);
-    if (fence === null && step.fence !== null) openedAt = index + 1;
-    fence = step.fence;
-    if (step.marker || fence !== null) {
-      if (fenced !== undefined) fenced[index] = true;
-      return line;
-    }
-    if (opensHtmlBlock(line)) {
-      block = !line.includes("-->");
-      return " ".repeat(line.length);
-    }
-    return blankInlineComments(line);
-  });
-  if (state !== undefined) state.unclosedFence = fence === null ? null : openedAt;
-  return blanked;
+function isUnclosedFence(text, node) {
+  return node.data?.fences === 1 && reachesEnd(text, node);
 }
 
 /**
- * 表に属さないのに `|` を含む行（見出しに見えるが、次の行が区切り行でない行）。
+ * タグ（`<` の直後が英字か `/`。属性値は引用符ごと読む）か、コメント（閉じたものは group 1 に閉じる部分を持つ）。
+ */
+const TAG_OR_COMMENT =
+  /<[A-Za-z/](?:"[^"]*"|'[^']*'|[^"'<>])*>|<!--(?:(>|->|[\s\S]*?--!?>)|[\s\S]*$)/gu;
+
+/**
+ * HTML の節に含まれるコメントが占める範囲（文書の先頭からの offset）。表の外の行を数えるときに、この範囲を除く。
+ * 閉じたコメント（`<!-->`・`<!--->` を含む）は `-->` か `--!>`（HTML ではどちらも閉じる）まで、閉じないものは節の終わりまでを範囲にする。
+ * 節の値ではなく元の文字列から探すので、`<details>` などの HTML ブロックの中のコメントも当たる。
+ * タグ（`<img alt="<!--">` など。属性値の引用符の中の `>` も含めて読む）は先に読み飛ばすので、タグの中の `<!--` はコメントを開かない。
+ * タグに見えない `<`（`1 < 2` や、`>` で閉じないまま次の `<` が来る `a<b` など）は、読み飛ばさない。
+ * @param {string} source html の節の元の文字列
+ * @param {number} offset 節の先頭の offset
+ * @returns {{ start: number, end: number, closed: boolean }[]}
+ */
+function commentRanges(source, offset) {
+  /** @type {{ start: number, end: number, closed: boolean }[]} */
+  const ranges = [];
+  for (const m of source.matchAll(TAG_OR_COMMENT)) {
+    if (!m[0].startsWith("<!--")) continue;
+    ranges.push({
+      start: offset + m.index,
+      end: offset + m.index + m[0].length,
+      closed: m[1] !== undefined,
+    });
+  }
+  return ranges;
+}
+
+/**
+ * offset の文字がある行の番号（1 始まり）。パーサと同じく、CR だけの改行も行の区切りにする。
+ * @param {string} text
+ * @param {number} offset
+ * @returns {number}
+ */
+function lineAt(text, offset) {
+  return text.slice(0, offset).split(/\r\n|\r|\n/u).length;
+}
+
+/**
+ * HTML の節を読み、表の外の行を数えない範囲と、末尾まで閉じないコメントを開いた行の番号（無ければ null）を返す。
+ * 閉じないコメントとして扱うのは、閉じないまま節が文書の末尾まで続くものだけである。
+ * コメントのブロック（行頭か、3 文字までの字下げの後の `<!--`）は `-->` でだけ終わる。
+ * ほかの HTML ブロックの中で開いた `<!--` は、そのブロック（`<pre>` など閉じるタグで終わるものを含む）が末尾まで続くときに当たる。
+ * 引用・リストの中で文書の末尾まで続かないものは、パーサの読み方では後ろの表を隠さないので扱わない。
+ * @param {string} text
+ * @param {MdNode} node html の節
+ * @returns {{ hidden: { start: number, end: number }[], unclosedLine: number | null }}
+ */
+function readHtml(text, node) {
+  const r = rangeOf(node);
+  const source = text.slice(r.start, r.end);
+  // 表示されないのはコメントの中だけなので、コメントのブロックでも、閉じる行の `-->` の後ろは数える
+  const hidden = commentRanges(source, r.start);
+  const open = firstUnclosed(source, hidden);
+  const unclosedLine =
+    open !== undefined && reachesEnd(text, node) ? lineAt(text, open.start) : null;
+  return { hidden, unclosedLine };
+}
+
+/**
+ * 節の中で最初の閉じないコメント（無ければ undefined）。
+ * コメントのブロック（行頭か、3 文字までの字下げの後の `<!--`）は、パーサが `-->` でだけ終えるので、`-->` が無ければ最初のコメントが閉じていない。
+ * `<!-->` と `<!--->` も `-->` を含む。
+ * @param {string} source html の節の元の文字列
+ * @param {{ start: number, end: number, closed: boolean }[]} comments
+ * @returns {{ start: number, end: number, closed: boolean } | undefined}
+ */
+function firstUnclosed(source, comments) {
+  if (!/^\s*<!--/u.test(source)) return comments.find((comment) => !comment.closed);
+  return source.includes("-->") ? undefined : comments[0];
+}
+
+/**
+ * 末尾まで閉じないフェンスを、利用者に返す文にする。閉じる行の条件は CommonMark の規則（パーサが判定する）をそのまま書く。
+ * @param {number} line フェンスを開いた行の番号（1 始まり）
+ * @returns {string}
+ */
+function unclosedFenceMessage(line) {
+  return `${line} 行目で開いたコードフェンスが末尾まで閉じていない。フェンスの後ろの表を読めない。閉じる行は、字下げを半角の空白 3 個までにし、開いた記号と同じ文字を開いた数か、それより多く並べ、後ろには半角の空白とタブのほかに何も書かない。リストと引用の中では、字下げを中身の始まりの位置から数える`;
+}
+
+/**
+ * 末尾まで閉じない HTML コメントを、利用者に返す文にする。
+ * @param {number} line コメントを開いた行の番号（1 始まり）
+ * @returns {string}
+ */
+function unclosedCommentMessage(line) {
+  return `${line} 行目で開いた HTML コメント（<!--）が末尾まで閉じていない。その後ろの行はすべてコメントになり、表として読めない。--> で閉じる`;
+}
+
+/**
+ * 表に属さないのに `|` を含む行（GFM で表にならない行）。
  * @typedef {{ line: number, cells: number, leadingPipe: boolean }} StrayRow
  */
 
 /**
- * 見出しの次の行が、見出しと同じセル数の区切り行かを見る。
- * @param {string[] | null} delimiter 見出しの次の行を splitRow で分けたもの
- * @param {string[]} header
- * @returns {boolean}
+ * @typedef {{ headers: string[], rows: string[][], rowLines: number[] }} Table
  */
-function isDelimiterRow(delimiter, header) {
-  return (
-    delimiter !== null &&
-    delimiter.every((cell) => /^:?-+:?$/u.test(cell.trim())) &&
-    delimiter.length === header.length
-  );
+
+/**
+ * 表の節を、見出しと行に分けて読む。
+ * @param {string} text
+ * @param {MdNode} node table の節
+ * @param {(cell: string) => string} normalizeHeader
+ * @returns {Table}
+ */
+function readTable(text, node, normalizeHeader) {
+  const [header, ...body] = node.children ?? [];
+  /** @param {MdNode} row */
+  const cellsOf = (row) => {
+    const cells = row.children ?? [];
+    return cells.map((cell, index) => cellText(text, cell, index === cells.length - 1));
+  };
+  return {
+    headers: header === undefined ? [] : cellsOf(header).map(normalizeHeader),
+    rows: body.map(cellsOf),
+    rowLines: body.map((row) => rangeOf(row).startLine),
+  };
 }
 
 /**
- * 区切り行の次から、表の行を読めるところまで読む。フェンスの中の行か表の行でない行で止める。
- * @param {string[]} lines
- * @param {boolean[]} fenced
- * @param {number} start 最初の行の添字
- * @returns {{ rows: string[][], rowLines: number[], end: number }} end は読まなかった最初の行の添字
+ * 表の外の、`|` を含む行を挙げる。HTML コメントとコード（フェンス・字下げ・インライン）の中は、表示されないか例示なので数えない。
+ * コメント以外の HTML（`<details>` など）の中の行は、描画で表の行にならないが、エディタでは表の行に見えるので数える。
+ * @param {string} text
+ * @param {{ hidden: { start: number, end: number }[], tableLines: Set<number> }} parsed 数えない範囲と、表の行の番号
+ * @returns {StrayRow[]}
  */
-function readTableRows(lines, fenced, start) {
-  /** @type {string[][]} */
-  const rows = [];
-  /** @type {number[]} */
-  const rowLines = [];
-  let j = start;
-  for (; j < lines.length; j += 1) {
-    if (fenced[j]) break;
-    const row = splitRow(lines[j]);
-    if (row === null) break;
-    rows.push(row);
-    rowLines.push(j + 1);
-  }
-  return { rows, rowLines, end: j };
+function strayRowsOf(text, { hidden, tableLines }) {
+  const chars = text.split("");
+  for (const r of hidden) blankRange(chars, r.start, r.end);
+  /** @type {StrayRow[]} */
+  const strayRows = [];
+  chars
+    .join("")
+    // パーサと同じく、CR だけの改行も行の区切りにする（tableLines はパーサの行番号）
+    .split(/\r\n|\r|\n/u)
+    .forEach((line, index) => {
+      if (tableLines.has(index + 1)) return;
+      const cells = splitRow(line);
+      if (cells === null) return;
+      strayRows.push({
+        line: index + 1,
+        cells: cells.length,
+        leadingPipe: line.trim().startsWith("|"),
+      });
+    });
+  return strayRows;
 }
 
 /**
- * Markdown の表を全て取り出す。コードフェンスの中は例示なので読まない。
- * 区切り行のハイフンは GFM では 1 個以上（3 個以上を要求すると `|-|-|` の表を読み落とす）。
- *
- * HTML コメントの中の表は読まない（コメントアウトして残した行を、台帳の行として数えない）。
- * 表の行の途中のフェンス行（`|` を含むものも）で、表を終える（GFM と同じ）。
+ * Markdown の表を全て取り出す。読み方は GFM の描画と同じで、同梱した GFM のパーサが決める。
+ * コードの中・HTML コメントの中の表は表にならないので読まない（コメントアウトして残した行を、台帳の行として数えない）。
+ * 引用やリストの中の表も、GFM と同じく表として読む。
+ * 行のセル数は書いたとおりに返す（GFM の描画は余るセルを捨て、足りないセルを空にするが、呼び出し側が列の数の誤りとして扱えるようにする）。
  *
  * 表に属さないのに `|` を含む行は、警告なしに捨てず、行番号・セル数・行頭の `|` の有無を strayRows に返す
  * （GFM は行頭・行末の `|` を省けるので、行頭の `|` だけでは表の行を見分けられない）。
  * 末尾まで閉じないフェンス（閉じる行に情報文字列を付けた ` ```sh `、4 文字以上字下げした閉じる行など）は、開いた行の番号を unclosedFence に返す。
- * フェンスの後ろの表はすべて読まれないので、呼び出し側は台帳を読まずに止める。
+ * 末尾まで閉じない HTML コメントのブロック（行頭か、3 文字までの字下げの後の `<!--`）は、開いた行の番号を unclosedComment に返す（readHtml）。
+ * どちらも後ろの表を読めなくするので、呼び出し側は台帳を読まずに止める。
  * @param {string} text
- * @param {{ normalizeHeader?: (cell: string) => string, consumed?: Set<number> }} [options]
- *   normalizeHeader は見出しのセルの正規化（デフォルトは collapse）。consumed を渡すと、表として読んだ行（見出し・区切り・行）の行番号（0 始まり）を入れる
- * @returns {{ tables: { headers: string[], rows: string[][], rowLines: number[] }[], strayRows: StrayRow[], unclosedFence: number | null }}
+ * @param {{ normalizeHeader?: (cell: string) => string }} [options] normalizeHeader は見出しのセルの正規化（デフォルトは collapse）
+ * @returns {{ tables: Table[], strayRows: StrayRow[], unclosedFence: number | null, unclosedComment: number | null }}
  *   rowLines は各行のファイル上の行番号（1 始まり。エラー文で行を指せるように）
  */
 function parseTables(text, options = {}) {
-  const { normalizeHeader = collapse, consumed } = options;
-  /** @type {boolean[]} */
-  const fenced = [];
-  /** @type {{ unclosedFence: number | null }} */
-  const state = { unclosedFence: null };
-  const lines = blankComments(text.split(/\r?\n/u), fenced, state);
-  /** @type {{ headers: string[], rows: string[][], rowLines: number[] }[]} */
+  const { normalizeHeader = collapse } = options;
+  /** @type {Table[]} */
   const tables = [];
-  /** @type {StrayRow[]} */
-  const strayRows = [];
-  for (let i = 0; i < lines.length; i += 1) {
-    if (fenced[i]) continue;
-    const header = splitRow(lines[i]);
-    if (header === null) continue;
-    if (!isDelimiterRow(splitRow(lines[i + 1]), header)) {
-      strayRows.push({
-        line: i + 1,
-        cells: header.length,
-        leadingPipe: lines[i].trim().startsWith("|"),
-      });
-      continue;
+  /** @type {{ start: number, end: number }[]} */
+  const hidden = [];
+  /** @type {Set<number>} */
+  const tableLines = new Set();
+  /** @type {number | null} */
+  let unclosedFence = null;
+  /** @type {number | null} */
+  let unclosedComment = null;
+  visit(parseGfm(text, [COUNT_FENCES]), (node) => {
+    if (node.type === "table") {
+      tables.push(readTable(text, node, normalizeHeader));
+      const r = rangeOf(node);
+      for (let line = r.startLine; line <= r.endLine; line += 1) tableLines.add(line);
+    } else if (node.type === "code" || node.type === "inlineCode") {
+      hidden.push(rangeOf(node));
+      if (node.type === "code" && unclosedFence === null && isUnclosedFence(text, node)) {
+        unclosedFence = rangeOf(node).startLine;
+      }
+    } else if (node.type === "html") {
+      const html = readHtml(text, node);
+      hidden.push(...html.hidden);
+      if (unclosedComment === null) unclosedComment = html.unclosedLine;
     }
-    const { rows, rowLines, end: j } = readTableRows(lines, fenced, i + 2);
-    tables.push({ headers: header.map(normalizeHeader), rows, rowLines });
-    if (consumed !== undefined) for (let k = i; k < j; k += 1) consumed.add(k);
-    i = j - 1;
-  }
-  return { tables, strayRows, unclosedFence: state.unclosedFence };
+  });
+  const strayRows = strayRowsOf(text, { hidden, tableLines });
+  return { tables, strayRows, unclosedFence, unclosedComment };
 }
 
-export { blankComments, opensHtmlBlock, collapse, parseTables, splitRow, unclosedFenceMessage };
+export { collapse, parseTables, unclosedCommentMessage, unclosedFenceMessage };

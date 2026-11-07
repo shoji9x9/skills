@@ -7,7 +7,6 @@
 import { expect, test } from "vitest";
 import { readAssetLedger } from "../../../../skills/replace-strategy/scripts/asset-delivery-check.mjs";
 import { readRow } from "../../../../skills/replace-strategy/scripts/evidence-gap-check.mjs";
-import { stepFence } from "../../../../skills/replace-strategy/scripts/lib/fence.mjs";
 import { parseTables } from "../../../../skills/replace-strategy/scripts/lib/markdown.mjs";
 import { readProcedureLedger } from "../../../../skills/replace-strategy/scripts/procedure-staleness-check.mjs";
 import { lines } from "../../../lib/testing/text-lines.ts";
@@ -213,10 +212,11 @@ test("4 文字以上字下げした `<!--` は、HTML ブロックを開かな�
 });
 
 test("行頭のコメントが同じ行で閉じたら、その行の後ろの `<!--` で後ろの行を消さない", () => {
+  // 表は空行か別のブロックまで続くので、表の直後の散文の行（`c -->`）も 1 セルの行になる（GFM）
   const { tables } = parseTables(
     lines("<!-- a --> <!-- b", "| a | b |", "|---|---|", "| 1 | 2 |", "c -->"),
   );
-  expect(tables.map((t) => t.rows)).toEqual([[[" 1 ", " 2 "]]]);
+  expect(tables.map((t) => t.rows)).toEqual([[[" 1 ", " 2 "], ["c -->"]]]);
 });
 
 test("表のセルの中で閉じない `<!--` は、後ろの行の `-->` までの表の行を消さない", () => {
@@ -238,131 +238,13 @@ test("バックスラッシュを付けた `\\<!--` と `` \\` `` は、コメ�
   ]);
 });
 
-test("HTML ブロックを閉じる行は、`-->` の後ろもブロックに入るので表の行として読まない", () => {
+test("HTML ブロックを閉じる行は、`-->` の後ろもブロックに入るので表の行として読まず、表示される `|` を表の外の行として数える", () => {
   const { tables, strayRows } = parseTables(
     lines("| a | b |", "|---|---|", "| 1 | 2 |", "", "<!-- 退役", "| 3 | 4 |", "--> | 5 | 6 |"),
   );
   expect(tables.map((t) => t.rows)).toEqual([[[" 1 ", " 2 "]]]);
-  expect(strayRows).toEqual([]);
-});
-
-// フェンスの開閉（Issue #679）。閉じる行は、開いた記号と同じ文字で同じ長さ以上の記号の後ろが空白だけの行（CommonMark）。
-test.each<{
-  name: string;
-  fence: string | null;
-  line: string | undefined;
-  expected: { fence: string | null; marker: boolean };
-}>([
-  {
-    name: "開いていない・``` で開く",
-    fence: null,
-    line: "```",
-    expected: { fence: "```", marker: true },
-  },
-  {
-    name: "開いていない・情報文字列付きで開く",
-    fence: null,
-    line: "```bash",
-    expected: { fence: "```", marker: true },
-  },
-  {
-    name: "開いていない・情報文字列に行区切りの文字があっても開く",
-    fence: null,
-    line: "```a\u2028b",
-    expected: { fence: "```", marker: true },
-  },
-  {
-    name: "開いていない・~~~ で開く",
-    fence: null,
-    line: "~~~",
-    expected: { fence: "~~~", marker: true },
-  },
-  {
-    name: "開いていない・情報文字列にバッククォートを含む ``` は開かない",
-    fence: null,
-    line: "```x``` はインラインのコード",
-    expected: { fence: null, marker: false },
-  },
-  {
-    name: "開いていない・情報文字列にバッククォートを含む ~~~ は開く",
-    fence: null,
-    line: "~~~ `x`",
-    expected: { fence: "~~~", marker: true },
-  },
-  {
-    name: "開いていない・字下げ 4 文字は開かない",
-    fence: null,
-    line: "    ```",
-    expected: { fence: null, marker: false },
-  },
-  {
-    name: "開いていない・行が無い",
-    fence: null,
-    line: undefined,
-    expected: { fence: null, marker: false },
-  },
-  {
-    name: "開いている・同じ記号で閉じる",
-    fence: "```",
-    line: "```",
-    expected: { fence: null, marker: true },
-  },
-  {
-    name: "開いている・情報文字列付きの行では閉じない",
-    fence: "```",
-    line: "```bash",
-    expected: { fence: "```", marker: false },
-  },
-  {
-    name: "開いている・~~~ の情報文字列付きの行では閉じない",
-    fence: "~~~",
-    line: "~~~ text",
-    expected: { fence: "~~~", marker: false },
-  },
-  {
-    name: "開いている・後ろの空白とタブは閉じる",
-    fence: "```",
-    line: "```  \t",
-    expected: { fence: null, marker: true },
-  },
-  {
-    name: "開いている・長い記号で閉じる",
-    fence: "```",
-    line: "`````",
-    expected: { fence: null, marker: true },
-  },
-  {
-    name: "開いている・短い記号では閉じない",
-    fence: "````",
-    line: "```",
-    expected: { fence: "````", marker: false },
-  },
-  {
-    name: "開いている・別の文字では閉じない",
-    fence: "```",
-    line: "~~~",
-    expected: { fence: "```", marker: false },
-  },
-  {
-    name: "開いている・字下げ 3 文字は閉じる",
-    fence: "```",
-    line: "   ```",
-    expected: { fence: null, marker: true },
-  },
-  {
-    name: "開いている・字下げ 4 文字は閉じない",
-    fence: "```",
-    line: "    ```",
-    expected: { fence: "```", marker: false },
-  },
-  {
-    name: "開いている・行が無い",
-    fence: "```",
-    line: undefined,
-    expected: { fence: "```", marker: false },
-  },
-])("stepFence: $name", ({ fence, line, expected }) => {
-  expect(stepFence(fence, line)).toEqual(expected);
+  // 画面では `-->` の後ろの ` | 5 | 6 |` が文字として表示される（表にはならない）
+  expect(strayRows).toEqual([{ line: 7, cells: 2, leadingPipe: true }]);
 });
 
 test("情報文字列の付いた行でフェンスを閉じず、フェンスの中の表と HTML コメントを読まない", () => {
@@ -495,6 +377,29 @@ test.each([
     1,
   ],
   ["閉じた後に開き直したフェンス", lines("```", "x", "```", "", "```", "y"), 5],
+  ["開いた記号より短い記号で閉じたつもりのフェンス", lines("````", "x", "```"), 1],
+  // 末尾に改行が無いと、閉じないフェンスの最後の行は閉じたつもりの記号の行になる（改行があると、その後ろの空の行になる）
+  ["末尾に改行が無く、情報文字列の付いた行で閉じたつもりのフェンス", "```bash\ncmd\n```sh", 1],
+  ["末尾に改行が無く、短い記号で閉じたつもりのフェンス", "````\nx\n```", 1],
+  ["末尾に改行が無く、閉じたフェンス", "```\nx\n```", null],
+  [
+    "引用の中で閉じないフェンス（引用の終わりで終わる）",
+    lines("> ```", "> x", "", "| a | b |", "|---|---|"),
+    null,
+  ],
+  ["引用の中で末尾まで閉じないフェンス", lines("> ```", "> x"), 1],
+  ["引用の中で閉じたフェンス", lines("> ```", "> x", "> ```"), null],
+  ["リストの中で閉じたフェンス", lines("- ```", "  x", "  ```"), null],
+  // リストの中身の字下げ（2 文字）より 3 文字深い閉じる行は、閉じる行として読まれる（CommonMark）
+  [
+    "リストの中で、中身より 3 文字深く字下げして閉じたフェンス",
+    lines("- ```", "  x", "     ```"),
+    null,
+  ],
+  ["リストの中で、中身より 4 文字深く字下げした閉じる行", lines("- ```", "  x", "      ```"), 1],
+  // 閉じる行の字下げは、開く行の字下げと関係なく 3 文字まで許される（CommonMark）
+  ["字下げして開き、字下げせずに閉じたフェンス", lines("  ```", "x", "```"), null],
+  ["字下げして開き、末尾まで閉じないフェンス", lines("  ```", "x"), 1],
   ["4 文字字下げした閉じる行", lines("```", "x", "    ```"), 1],
   ["タブで字下げした閉じる行", lines("```", "x", "\t```"), 1],
   ["字下げした `~~~` のフェンス", lines("説明", "   ~~~", "x"), 2],
@@ -564,4 +469,163 @@ test.each([
   ],
 ])("誤検知しないことの確認: %s は、閉じたコードフェンスでは止めない", (_name, read, expected) => {
   expect(read()).toEqual(expected);
+});
+
+test.each<[string, string, number | null]>([
+  [
+    "末尾まで閉じないコメント",
+    lines("| a | b |", "|---|---|", "| 1 | 2 |", "<!-- 記入例", "| 3 | 4 |"),
+    4,
+  ],
+  ["表の前で開いて閉じないコメント", lines("<!--", "", "| a | b |", "|---|---|"), 1],
+  ["閉じたコメント", lines("<!--", "| 3 | 4 |", "-->", "", "| a | b |", "|---|---|"), null],
+  ["`<!-->` だけで閉じたコメント", lines("<!-->", "", "| a | b |", "|---|---|"), null],
+  ["`<!--->` だけで閉じたコメント", lines("<!--->", "", "| a | b |", "|---|---|"), null],
+  // 文書の末尾にある閉じたコメントは、末尾まで続いても閉じている
+  ["末尾の閉じたコメント", lines("| a | b |", "|---|---|", "", "<!--", "メモ", "-->"), null],
+  ["末尾の `<!-->`", lines("| a | b |", "|---|---|", "", "<!-->"), null],
+  ["字下げして開いた、閉じないコメント", lines("  <!-- x", "", "| a | b |", "|---|---|"), 1],
+  ["CR だけの改行の文書の、閉じないコメント", "x\r\r<!-- a\r\r| a | b |\r", 3],
+  // コンテナの最後の項目が文書の末尾まで続くときは、その中の閉じないコメントも末尾まで続く
+  [
+    "末尾まで続く引用の中の、閉じないコメント",
+    lines("| a | b |", "|---|---|", "", "> <!-- x", "> y"),
+    4,
+  ],
+  [
+    "末尾まで続くリストの中の、閉じないコメント",
+    lines("| a | b |", "|---|---|", "", "- <!-- x"),
+    4,
+  ],
+  [
+    "後ろに項目が続くリストの中の、閉じないコメント",
+    lines("| a | b |", "|---|---|", "", "- <!-- x", "- y"),
+    null,
+  ],
+  // 閉じるタグで終わる HTML ブロック（`<pre>` など）は、閉じるタグが無ければ文書の末尾まで続く
+  [
+    "末尾まで続く `<pre>` の中の、閉じないコメント",
+    lines("| a | b |", "|---|---|", "", "<pre><!-- x", "", "| 3 | 4 |"),
+    4,
+  ],
+  [
+    "末尾まで続く `<div>` の中の、閉じないコメント",
+    lines("| a | b |", "|---|---|", "", "<div>", "<!-- x"),
+    5,
+  ],
+  ["末尾の属性値の中の `<!--`", lines("| a | b |", "|---|---|", "", '<img alt="<!--">'), null],
+  [
+    "末尾の、引用符の中に `>` がある属性値の中の `<!--`",
+    lines("| a | b |", "|---|---|", "", '<img alt="a>b" title="<!--">'),
+    null,
+  ],
+  [
+    "タグに見えない `<` の後ろの、閉じないコメント",
+    lines("| a | b |", "|---|---|", "", "<div>", "1 < 2 <!-- x"),
+    5,
+  ],
+  [
+    "字下げして `--!>` だけで閉じたつもりのコメント",
+    lines("  <!-- x --!>", "", "| a | b |", "|---|---|"),
+    1,
+  ],
+  // コメントのブロックは `-->` でだけ終わる（CommonMark）ので、`--!>` だけでは閉じない
+  ["`--!>` だけで閉じたつもりのコメント", lines("<!-- x --!>", "", "| a | b |", "|---|---|"), 1],
+  // パーサがコメントのブロックとして読み、文書の末尾まで続くものだけを扱う（パーサの読み方では、ほかは後ろの表を隠さない）
+  [
+    "引用の中で閉じない（引用の終わりで終わる）コメント",
+    lines("> <!-- x", "", "| a | b |", "|---|---|"),
+    null,
+  ],
+  [
+    "HTML ブロックの中で開いた `<!--`",
+    lines("<div>", "<!-- x", "", "| a | b |", "|---|---|"),
+    null,
+  ],
+  ["同じ行で閉じた後に開いた `<!--`", lines("<!-- a --> <!-- b", "", "| a | b |"), null],
+  ["属性値の中の `<!--`", lines('<span title="<!--">s</span>', "", "| a | b |", "|---|---|"), null],
+  [
+    "`<textarea>` の中の `<!--`",
+    lines("<textarea>", "<!--", "</textarea>", "", "| a | b |", "|---|---|"),
+    null,
+  ],
+  [
+    "段落の中の閉じない `<!--`（コメントにならない）",
+    lines("説明の <!-- 例", "", "| a | b |", "|---|---|"),
+    null,
+  ],
+  [
+    "4 文字字下げした閉じない `<!--`（コードになる）",
+    lines("    <!-- x", "", "| a | b |", "|---|---|"),
+    null,
+  ],
+  ["コメントが無い", lines("| a | b |", "|---|---|", "| 1 | 2 |"), null],
+])(
+  "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: %s",
+  (_name, text, expected) => {
+    expect(parseTables(text).unclosedComment).toBe(expected);
+  },
+);
+
+test.each([
+  [
+    "asset-delivery-check",
+    () => readAssetLedger(lines(ASSET, "|---|---|---|", COPY("新"), "", "<!-- 記入例", COPY("旧"))),
+    "台帳の 5 行目",
+  ],
+  [
+    "evidence-gap-check",
+    () => readRow(lines(FEATURE, D6, PLAN("GET /a"), "", "<!-- 記入例", PLAN("GET /b")), "plan"),
+    "インベントリの 5 行目",
+  ],
+])("%s: 閉じない HTML コメントは、開いた行の番号を付けて止める", (_name, read, where) => {
+  expect(read).toThrow(`${where}で開いた HTML コメント（<!--）が末尾まで閉じていない`);
+});
+
+test("CR だけの改行の文書でも、表の行を表の外の行として数えない", () => {
+  const { tables, strayRows } = parseTables(
+    "# 台帳\r\r| a | b | c |\r|---|---|---|\r| 1 | 2 | 3 |\r",
+  );
+  expect(tables[0]?.rowLines).toEqual([5]);
+  expect(strayRows).toEqual([]);
+});
+
+test.each<[string, string, number[]]>([
+  ["散文のインラインのコードの中の `|`", lines("説明は `a | b | c` と書く。"), []],
+  ["コメントの中の `|`", lines("<!-- | a | b | c | -->"), []],
+  ["`<details>` の中の表の行に見える行", lines("<details>", "| p | q | r |", "</details>"), [2]],
+  [
+    "タグに見えない `<` の後ろのコメントの中の `|`",
+    lines("<div>", "a < b <!-- ", "| x | y |", "-->"),
+    [],
+  ],
+  [
+    "`>` で閉じない `<b` の後ろのコメントの中の `|`",
+    lines("<div>", "x<b <!-- | a | b | c | -->"),
+    [],
+  ],
+  ["字下げしたコメントの中の `|`", lines("  <!-- 例: | a | b | c | -->"), []],
+  // 閉じる行の `-->` の後ろは、ブロックに入るが画面に表示されるので数える
+  ["字下げしたコメントのブロックの `-->` の後ろ", lines("  <!-- a --> | b | c |"), [1]],
+  [
+    "`<details>` の中のコメントの中の `|`",
+    lines("<details>", "<!-- 例: | a | b | c | -->", "</details>"),
+    [],
+  ],
+  [
+    "`<details>` の中の `--!>` で閉じたコメントの後ろの行",
+    lines("<details>", "<!-- 例 --!>", "| p | q | r |", "</details>"),
+    [3],
+  ],
+  ["散文の `|`", lines("a | b | c"), [1]],
+])("parseTables の strayRows は、表示されない範囲だけを除く: %s", (_name, text, expected) => {
+  expect(parseTables(text).strayRows.map((row) => row.line)).toEqual(expected);
+});
+
+test("行末の `|` の後ろに空白やタブがあっても、最後のセルに `|` を残さない", () => {
+  const { tables } = parseTables(lines("| a | b |", "|---|---|", "| x | y |  ", "| p | q |\t"));
+  expect(tables[0]?.rows.map((row) => row.map((cell) => cell.trim()))).toEqual([
+    ["x", "y"],
+    ["p", "q"],
+  ]);
 });

@@ -98,10 +98,6 @@
       "exports": ["*"]
     },
     {
-      "file": "skills/golden-dataset/scripts/lib/fence.mjs",
-      "exports": ["*"]
-    },
-    {
       "file": "skills/golden-dataset/scripts/lib/flags.mjs",
       "exports": ["*"]
     },
@@ -231,10 +227,17 @@
     "docs/slides/**",
     "tests/**",
     "skills/*/scripts/skill-config/vendor/**",
+    "skills/*/scripts/vendor/**",
     "!scripts/coverage/**",
     "!.agents/skills/*/scripts/**/*.ts"
   ],
-  "ignoreDependencies": ["c8", "conventional-changelog-conventionalcommits", "jsonc-parser"],
+  "ignoreDependencies": [
+    "c8",
+    "conventional-changelog-conventionalcommits",
+    "jsonc-parser",
+    "mdast-util-from-markdown",
+    "mdast-util-gfm"
+  ],
   "duplicates": {
     "enabled": false
   },

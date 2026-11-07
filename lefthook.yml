@@ -92,6 +92,7 @@ pre-commit:
               - ".agents/skills/replace-strategy/**"
               - ".agents/skills/writing-style/**"
               - "skills/*/scripts/skill-config/vendor/**"
+              - "skills/*/scripts/vendor/**"
             run: pnpm exec oxfmt {staged_files}
             stage_fixed: true
           - name: oxfmt-json
@@ -215,10 +216,11 @@ pre-commit:
             # Repo-wide drift check (skills/ vs .agents/skills/). Fast and deterministic,
             # so it runs on every commit rather than relying on path-glob matching.
             run: node scripts/gates/packaging/copies/check-skills-sync.ts
-          - name: skill-config-vendor
-            # 配布スキルに同梱する jsonc-parser が devDependency のバージョンから作った内容と一致するか。バージョンを上げた commit でも確かめる。
-            glob: "{skills/*/config-schemas/*,skills/*/scripts/skill-config/**,skills/*/references/config-files.md,package.json,pnpm-lock.yaml}"
-            run: node scripts/gates/packaging/check-skill-config-vendor.ts
+          - name: vendor
+            # 配布スキルに同梱する外部のパッケージ（jsonc-parser・mdast-gfm）が devDependency のバージョンから作った内容と一致するか。バージョンを上げた commit でも確かめる。
+            # 作る内容を決める check-vendor.ts と、抑止のコメントを取り除く check-skill-lint-directives.ts を変えた commit でも確かめる。
+            glob: "{skills/*/config-schemas/*,skills/*/scripts/skill-config/**,skills/*/scripts/vendor/**,skills/*/references/config-files.md,package.json,pnpm-lock.yaml,scripts/gates/packaging/check-vendor.ts,scripts/gates/code/check-skill-lint-directives.ts}"
+            run: node scripts/gates/packaging/check-vendor.ts
           - name: skill-configs
             # このリポジトリのスキルの設定（.config/skills/shoji9x9/*.jsonc）が、各スキルのスキーマに合うか。
             glob: "{.config/skills/**,skills/*/config-schemas/*}"

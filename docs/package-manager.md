@@ -3,6 +3,15 @@
 pnpm のバージョンは 4 か所に書く。`mise.toml` の `pnpm`、`package.json` の `packageManager` と `devEngines.packageManager`、`pnpm-lock.yaml` である。
 npm は使わず、`package-lock.json` を作らない。誤ってほかのパッケージマネージャを使うと、`devEngines` が警告する。
 
+## 依存のバージョンの指定
+
+`package.json` の依存は、キャレット（`^1.2.3`）で指定する。実際に入るバージョンは `pnpm-lock.yaml` で決まり、CI は lockfile のとおりに install するからである。
+キャレットにしない依存は、理由をこの節に書く。理由を書けないなら、キャレットにする。
+依存を足すときは `pnpm add -D <名前>` を使う。`--save-exact` は付けない。
+
+配布スキルに同梱するパッケージ（`docs/tooling.md`「同梱するパッケージの更新」）も、キャレットで指定する。
+同梱物の先頭のコメントと `NOTICE.md` に書くバージョンは、`node_modules` に入ったバージョンから作るので、`package.json` の範囲とは関係しない。
+
 ## pnpm を bump する
 
 バージョンを書いた 4 か所をすべて同じバージョンにそろえる。手順は次のとおりである。

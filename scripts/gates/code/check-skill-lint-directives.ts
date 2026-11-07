@@ -67,23 +67,41 @@ function lineOf(source: string, pos: number): number {
   return line;
 }
 
+/** コメントの各行のうち、指示で始まる行の添字（コメントの中の 0 始まり）と指示の名前。 */
+function directiveLines(raw: string, kind: ts.CommentKind): { index: number; name: string }[] {
+  const body =
+    kind === ts.SyntaxKind.SingleLineCommentTrivia
+      ? raw.replace(/^\/\//, "")
+      : raw.replace(/^\/\*+/, "").replace(/\*+\/$/, "");
+  const hits: { index: number; name: string }[] = [];
+  body.split("\n").forEach((part, index) => {
+    const head = part.replace(/^\s*(?:\*+(?!\/))?\s*/, "");
+    const name = directiveAt(head);
+    if (name) hits.push({ index, name });
+  });
+  return hits;
+}
+
 /** 1 ファイルの抑止コメントの違反（`行番号: 指示`）。 */
 export function findDirectives(source: string, path = "a.ts"): string[] {
   const out: string[] = [];
   for (const r of jsCommentRanges(source, path)) {
-    const raw = source.slice(r.pos, r.end);
-    const body =
-      r.kind === ts.SyntaxKind.SingleLineCommentTrivia
-        ? raw.replace(/^\/\//, "")
-        : raw.replace(/^\/\*+/, "").replace(/\*+\/$/, "");
     const first = lineOf(source, r.pos);
-    body.split("\n").forEach((part, i) => {
-      const head = part.replace(/^\s*(?:\*+(?!\/))?\s*/, "");
-      const hit = directiveAt(head);
-      if (hit) out.push(`${first + i}: ${hit}`);
-    });
+    for (const hit of directiveLines(source.slice(r.pos, r.end), r.kind)) {
+      out.push(`${first + hit.index}: ${hit.name}`);
+    }
   }
   return out;
+}
+
+/** 指示を含むコメントの範囲（コメントごと。source の先頭からの位置）。同梱物から取り除くのに使う（check-vendor.ts）。 */
+export function directiveCommentRanges(
+  source: string,
+  path: string,
+): { pos: number; end: number }[] {
+  return jsCommentRanges(source, path)
+    .filter((r) => directiveLines(source.slice(r.pos, r.end), r.kind).length > 0)
+    .map((r) => ({ pos: r.pos, end: r.end }));
 }
 
 /** ファイルの中身。index にあれば staged の blob、無ければ作業ツリーから読む。どちらにも無ければ null。 */

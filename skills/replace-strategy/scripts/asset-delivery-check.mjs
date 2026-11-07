@@ -42,10 +42,10 @@ import { parseFlags } from "./lib/flags.mjs";
 import { errorMessage } from "./lib/errors.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 import { parseJsonOrThrow } from "./lib/json.mjs";
-import { parseTables, unclosedFenceMessage } from "./lib/markdown.mjs";
+import { parseTables, unclosedCommentMessage, unclosedFenceMessage } from "./lib/markdown.mjs";
 
 /** ツールのバージョン（このファイルで定義する）。判定の規則や出力の形を変えたら上げる。 */
-export const VERSION = "3";
+export const VERSION = "4";
 
 /** replace-metadata.json に書くキー。 */
 export const WRITE_KEY = "asset_delivery_check";
@@ -97,10 +97,12 @@ export function normalizeCell(value) {
  * @returns {ReturnType<typeof parseTables>["tables"][number]}
  */
 function findPolicyTable(text) {
-  const { tables, strayRows, unclosedFence } = parseTables(text, {
+  const { tables, strayRows, unclosedFence, unclosedComment } = parseTables(text, {
     normalizeHeader: normalizeCell,
   });
   if (unclosedFence !== null) throw new UsageError(`台帳の ${unclosedFenceMessage(unclosedFence)}`);
+  if (unclosedComment !== null)
+    throw new UsageError(`台帳の ${unclosedCommentMessage(unclosedComment)}`);
   const candidates = tables.filter(
     (t) => t.headers.includes("種類") && t.headers.includes("方針") && t.headers.includes("状態"),
   );
@@ -147,7 +149,7 @@ function findPolicyTable(text) {
 function readLedgerRow(row, { columns, line }) {
   if (row.length !== columns.width) {
     throw new UsageError(
-      `台帳の ${line} 行目の列数が見出しと違う（${row.length} ≠ ${columns.width}。セル内の | は \\| と書く）`,
+      `台帳の ${line} 行目の列数が見出しと違う（${row.length} ≠ ${columns.width}。セル内の | は \\| と書く。表の直後の行は、空行を挟まないと表の行になる）`,
     );
   }
   const kind = normalizeCell(row[columns.kind]);

@@ -192,7 +192,7 @@ jscpd は 3 か所以上の重複を 2 つずつの組で報告するので、1 
 | `types/check-jsdoc-types.ts` | 配布スキルの `.mjs` で、型の検査を外す JSDoc の書き方（「型の検査」の節） |
 | `packaging/check-skill-frontmatter.ts` | `SKILL.md` の frontmatter |
 | `packaging/copies/check-identical-copies.ts` | 同じ内容であるべきコピー。組は `scripts/gates/packaging/copies/identical-copies.json` に書く。`region` を持つ組は、印 `// <region>:begin` と `// <region>:end`（シェルのファイルでは `# <region>:begin` と `# <region>:end`）の間だけを比べる |
-| `packaging/check-skill-config-vendor.ts` | 配布スキルに同梱する設定の読み取り（`scripts/skill-config/`）。同梱した jsonc-parser（`vendor/`）が devDependency のバージョンから作った内容と一致するか。バージョンを上げたら `--fix` で作り直す |
+| `packaging/check-vendor.ts` | 配布スキルに同梱する外部のパッケージ（jsonc-parser・mdast-gfm）が、devDependency のバージョンから作った内容と一致するか。設定を読むスキルが読み取り（`scripts/skill-config/`）を持つか。バージョンを上げたら `--fix` で作り直す（「同梱するパッケージの更新」） |
 | `packaging/check-skill-configs.ts` | このリポジトリのスキルの設定（`.config/skills/shoji9x9/*.jsonc`）が、各スキルのスキーマ（`skills/<name>/config-schemas/`）に合うか |
 | `prose/check-time-sensitive-prose.ts` | 日付・「現状は」「当面」を Tier 1〜3 の文書とコメントに書いていないか。変異の件数や全件の実測値は `mutation-proof.yml` だけに書く |
 | `prose/check-version-mentions.ts` | Tier 1〜3 の文書とコメントに書いた「<ツール> X.Y.Z」が、リポジトリで宣言したバージョンと食い違っていないか。依存を上げたら、食い違う記述を直す |
@@ -521,9 +521,30 @@ fixture の検査も strict のままにする。型が足りない fixture は�
 
 ### チェックの対象から外すもの
 
-配布スキルに同梱した jsonc-parser（`skills/*/scripts/skill-config/vendor/**`）は、外部のパッケージから作った生成物なので、lint・整形・型の検査・カバレッジ・文章の規約の対象から外す。
-範囲は `scripts/lib/source-scope.ts` の `VENDORED_GLOBS` で定義する。原本との一致は `check-skill-config-vendor.ts` が確かめる。
+配布スキルに同梱したパッケージは、外部のパッケージから作った生成物なので、lint・整形・型の検査・カバレッジ・文章の規約の対象から外す。
+対象は、`skills/*/scripts/skill-config/vendor/**` の jsonc-parser と、`skills/*/scripts/vendor/**` の mdast-gfm である。
+範囲は `scripts/lib/source-scope.ts` の `VENDORED_GLOBS` で定義する。原本との一致は `check-vendor.ts` が確かめる。
 
 `tests/**` は、リントと整形の対象に含める。`.agents/skills/**` と `.claude/**` は、インストール済みのコピーとエージェント用のシンボリックリンクなので、対象から外す。
 型の検査は、エディタで開く雛形のコピーとリンクを対象にする（上の「型の検査」）。
 ただし、`.agents/rules/`（rule の実体）と private skill（`.private-skill` を持つ `.agents/skills/<name>/`）は対象にする。rule へのリンクを置く `.github/instructions/` は対象から外す。
+
+### 同梱するパッケージの更新
+
+配布スキルは利用者のプロジェクトに依存を install できないので、外部のパッケージを esbuild で 1 ファイルにまとめて同梱する。
+同梱するものと、その作り方（置き場所・ファイル・ライセンスの文書）は、`scripts/gates/packaging/check-vendor.ts` の `BUNDLES` で宣言する。
+同梱物を作るのは、`pnpm-lock.yaml` で決まって `node_modules` に入ったバージョンである。esbuild のバージョンも lockfile で決まり、設定は `check-vendor.ts` に書くので、作り直すとバイト単位で同じ内容になる。
+
+同梱物を作るのに使うパッケージ（`check-vendor.ts` の `VENDORED_PACKAGES`）のバージョンを上げたら、同じ commit で `node scripts/gates/packaging/check-vendor.ts --fix` を実行して同梱物を作り直す。
+作り直さないと、pre-commit と CI の `check-vendor.ts` が失敗する。
+
+Dependabot がこれらのパッケージを上げた PR は、`.github/dependabot.yml` の `vendored` グループにまとまる。esbuild は 0.x なので、`vendored-esbuild` グループの PR になる。
+`dependabot-automerge.yml` は、この PR の自動マージを予約せず、`dependabot/needs-review` ラベルを付けて手動レビューへ回す。
+自動マージを予約すると、同梱物の一致のチェックが失敗したまま、ラベルの無い PR が open で残るからである。
+回ってきた PR は `dependabot-merge` スキルで扱い、Dependabot の branch を checkout して `--fix` を実行し、作り直した同梱物だけを commit して push する。
+push した後は `@dependabot rebase` と `@dependabot recreate` を使わない。どちらも手で足した commit を消す。base が進んだら、base を merge して `--fix` からやり直す。
+パッケージを足すときは、`VENDORED_PACKAGES`・`vendored` グループ・`npm-misc` の `exclude-patterns`・ワークフローの `VENDORED_PACKAGES` を同時に変える（`check-vendor.test.ts` が突き合わせる）。
+0.x のパッケージは、`vendored` に入れず、`vendored-esbuild` と同じ形の専用のグループにして、`check-vendor.test.ts` の突き合わせにも足す。
+
+同梱物は、`VENDORED_PACKAGES` に無い推移的な依存（micromark の内部のパッケージなど）でも変わる。そうした依存は、別のパッケージ（markdownlint-cli2 など）の更新や、脆弱性の修正の PR でも上がる。
+それらの PR は自動マージを予約するが、`check-vendor.ts` が失敗するので merge されずに残る。`check-vendor.ts` で失敗した Dependabot の PR は、どのグループのものでも、上と同じ手順で作り直す。

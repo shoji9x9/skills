@@ -35,13 +35,10 @@ import { errorMessage } from "./lib/errors.mjs";
 import { makeIo } from "./lib/flag-args.mjs";
 import { parseFlags } from "./lib/flags.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
-import { stepFence } from "./lib/fence.mjs";
 import {
-  blankComments,
   collapse,
-  opensHtmlBlock,
   parseTables,
-  splitRow,
+  unclosedCommentMessage,
   unclosedFenceMessage,
 } from "./lib/markdown.mjs";
 
@@ -49,7 +46,7 @@ import {
  * ツールのバージョン（このファイルで定義する）。判定の規則や出力の形を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "3";
+export const VERSION = "4";
 
 /** 成果物の mode の語彙（parity-suite の metadata.json の mode）。 */
 export const MODES = ["feature", "api-resource", "batch"];
@@ -243,75 +240,24 @@ function findTable(tables, headers) {
 }
 
 /**
- * 表の行に見えるか。外側の `|` を省いた行（`PC-002 | … | #1`）も表の行として書ける（GFM）ので、
+ * 表の外の、表の行に見える行（3 セル以上）の数。外側の `|` を省いた行（`PC-002 | … | #1`）も表の行として書ける（GFM）ので、
  * `|` で始まるかでは見ない。列が欠けた行（5 セル）も表の外として扱われれば同じく判定から消えるので、
- * 台帳の列数ではなく 3 セル（区切り 2 つ）以上を表の行とみなす。HTML コメントの中は呼び出し側で除く。
- * @param {string} line
- * @returns {boolean}
- */
-function looksLikeTableRow(line) {
-  const cells = splitRow(line.trim());
-  return cells !== null && cells.length >= 3;
-}
-
-/**
- * コードフェンスの外で表の行に見える行を数える（parseTables が読んだ行と突き合わせるため）。
- * 読んだ行は件数の差し引きではなく行番号で除く。外側の `|` を省いた表の行は `|` で始まらないので、
- * 件数で差し引くと表の外の行を打ち消して、警告なしに通してしまう。
- * @param {string} text
- * @param {Set<number>} [consumed] parseTables が表として読んだ行番号（数えない）
+ * 台帳の列数ではなく 3 セル（区切り 2 つ）以上を表の行とみなす。
+ * HTML コメント（字下げしたものと、`<details>` などの HTML ブロックの中のものを含む）とコードの中の行は、parseTables が表の外の行に入れないので数えない。
+ * @param {ReturnType<typeof parseTables>["strayRows"]} strayRows
  * @returns {number}
  */
-export function countRowLikeLines(text, consumed = new Set()) {
-  /** @type {boolean[]} */
-  const fenced = [];
-  let count = 0;
-  // HTML コメント（テンプレートの記入例・説明）は表ではない。parseTables と同じ blankComments で空白にしてから数える。
-  // フェンスも parseTables と同じく、blankComments が置き換える前の行で判定した fenced を使う。
-  blankComments(text.split(/\r?\n/u), fenced).forEach((line, index) => {
-    if (fenced[index]) return;
-    if (!consumed.has(index) && looksLikeTableRow(line)) count += 1;
-  });
-  return count;
+function rowLikeCount(strayRows) {
+  return strayRows.filter((row) => row.cells >= 3).length;
 }
 
 /**
- * HTML コメントの記号が、台帳で扱える位置にだけあるかを確かめる。
- * 扱える形は「行頭の `<!--` で始まり行末の `-->` で終わる 1 行」「行頭の `<!--` だけの開始行 … 行末の `-->` で終わる終了行」の 2 つ。
- * 行頭は、blankComments と同じく字下げ 3 文字までとする。
- * それ以外（散文の後ろの `<!--`、行の途中の `-->`、1 行に複数の記号、エスケープした `\<!--`、閉じないコメント）は落とす。
- * parseTables の読み方（blankComments）は GFM の描画と食い違う形が残っているので、その形の台帳を読まずに止める。
+ * 表の外で表の行に見える行を数える。
  * @param {string} text
- * @returns {{ lines: number[], unclosed: boolean }} 扱えない位置の記号を含む行番号（1 始まり）と、閉じないコメントの有無
+ * @returns {number}
  */
-export function strayCommentMarkers(text) {
-  /** @type {number[]} */
-  const lines = [];
-  /** @type {string | null} */
-  let fence = null;
-  let comment = false;
-  text.split(/\r?\n/u).forEach((line, index) => {
-    const trimmed = line.trim();
-    const opens = trimmed.split("<!--").length - 1;
-    const closes = trimmed.split("-->").length - 1;
-    if (comment) {
-      if (closes === 0 && opens === 0) return;
-      if (opens > 0 || closes > 1 || !trimmed.endsWith("-->")) lines.push(index + 1);
-      comment = false;
-      return;
-    }
-    const step = stepFence(fence, line);
-    fence = step.fence;
-    if (step.marker || fence !== null) return;
-    if (opens === 0 && closes === 0) return;
-    if (!opensHtmlBlock(line) || opens > 1 || closes > 1) {
-      lines.push(index + 1);
-      return;
-    }
-    if (closes === 0) comment = true;
-    else if (!trimmed.endsWith("-->")) lines.push(index + 1);
-  });
-  return { lines, unclosed: comment };
+export function countRowLikeLines(text) {
+  return rowLikeCount(parseTables(text).strayRows);
 }
 
 /**
@@ -336,18 +282,18 @@ export function parseModes(cell) {
  */
 
 /**
- * 台帳の 2 つの表を探し、表の形の不備（表が無い・重複・表の外の行・扱えない位置のコメント）を errors に積む。
+ * 台帳の 2 つの表を探し、表の形の不備（閉じないフェンスとコメント・表が無い・重複・表の外の行）を errors に積む。
+ * HTML コメントの中の表と行は、GFM の描画と同じく表として読まない。閉じないコメントは、表が無いなどのエラーより先に、原因として出す。
  * @param {string} text
  * @returns {{ errors: string[], changeTable: LedgerTable | null, recordTable: LedgerTable | null }}
  */
 function findLedgerTables(text) {
   /** @type {string[]} */
   const errors = [];
-  /** @type {Set<number>} */
-  const consumed = new Set();
-  const { tables, unclosedFence } = parseTables(text, { consumed });
-  // 閉じないフェンスは後ろの表をすべて読めなくするので、表が無いなどのエラーより先に、原因として出す。
+  const { tables, strayRows, unclosedFence, unclosedComment } = parseTables(text);
+  // 閉じないフェンスとコメントは後ろの表をすべて読めなくするので、表が無いなどのエラーより先に、原因として出す。
   if (unclosedFence !== null) errors.push(`台帳の ${unclosedFenceMessage(unclosedFence)}`);
+  if (unclosedComment !== null) errors.push(`台帳の ${unclosedCommentMessage(unclosedComment)}`);
   const changeTable = findTable(tables, CHANGE_HEADERS);
   const recordTable = findTable(tables, RECORD_HEADERS);
   // 表の不在を「変更なし」「記録なし」と読まない。列名を書き換えた台帳も同じ（警告なしに 0 件になる）。
@@ -359,20 +305,13 @@ function findLedgerTables(text) {
   if (changeTable.duplicated) errors.push("「観点の追加」表が 2 つ以上ある");
   // 表は空行で終わる。区切り行と行の間に空行を挟むと、以降の行は表の外として警告なしに捨てられ、
   // 「観点の追加」の行なら、その変更の対象が判定から丸ごと消える（偽の合格）。表の外の表の行を数えて落とす。
-  const orphans = countRowLikeLines(text, consumed);
+  const orphans = rowLikeCount(strayRows);
   if (orphans > 0) {
     errors.push(
       `表の外に表の行のような行が ${orphans} 行ある（表の途中に空行か HTML コメントの行を挟むと、それ以降の行は読まれない）`,
     );
   }
   if (recordTable.duplicated) errors.push("「既に閉じた機能への当て直し」表が 2 つ以上ある");
-  const markers = strayCommentMarkers(text);
-  if (markers.lines.length > 0) {
-    errors.push(
-      `HTML コメントの記号が行頭の <!-- と行末の --> 以外の位置にある（${markers.lines.join(", ")} 行目）`,
-    );
-  }
-  if (markers.unclosed) errors.push("HTML コメントが閉じていない（以降の表が読まれない）");
   return { errors, changeTable: changeTable.table, recordTable: recordTable.table };
 }
 

@@ -57,6 +57,7 @@
     "tests/**",
     // 外部のパッケージから作った生成物（scripts/lib/source-scope.ts の VENDORED_GLOBS）。
     "skills/*/scripts/skill-config/vendor/**",
+    "skills/*/scripts/vendor/**",
     // 組み込みの除外 **/coverage/** に当たるが、カバレッジを測るスクリプトの実体なので含め直す。
     "!scripts/coverage/**",
     // ドットで始まるディレクトリは、entry に挙げても走査されない。private skill の実体（.ts）だけを含め直す。
@@ -65,7 +66,14 @@
   ],
   // 名前で読む依存。c8 は run-coverage.ts が起動する CLI、conventional-changelog-conventionalcommits は
   // release.config.ts が preset の名前で読み、jsonc-parser は配布スキルに同梱するパーサの原本である。
-  "ignoreDependencies": ["c8", "conventional-changelog-conventionalcommits", "jsonc-parser"],
+  // mdast-util-from-markdown と mdast-util-gfm は、check-vendor.ts が esbuild の入力の文字列で import するだけで、import 文から辿れない。
+  "ignoreDependencies": [
+    "c8",
+    "conventional-changelog-conventionalcommits",
+    "jsonc-parser",
+    "mdast-util-from-markdown",
+    "mdast-util-gfm"
+  ],
   "duplicates": {
     // 重複は jscpd で JS/TS・シェル・Markdown をまとめて検査する。
     "enabled": false

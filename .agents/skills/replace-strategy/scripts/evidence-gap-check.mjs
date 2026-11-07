@@ -36,7 +36,12 @@ import { isPlainObject } from "./lib/guards.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { parseFlags } from "./lib/flags.mjs";
 import { parseJsonOrThrow } from "./lib/json.mjs";
-import { collapse, parseTables, unclosedFenceMessage } from "./lib/markdown.mjs";
+import {
+  collapse,
+  parseTables,
+  unclosedCommentMessage,
+  unclosedFenceMessage,
+} from "./lib/markdown.mjs";
 
 /**
  * JSON の値の型を、利用者に表示する名前で返す（object や配列でない値を報告するときに使う）。
@@ -50,7 +55,7 @@ function valueKind(value) {
 }
 
 /** ツールのバージョン（このファイルで定義する）。判定のロジックや出力の形を変えたら上げる。 */
-export const VERSION = "5";
+export const VERSION = "6";
 
 /** 使い方の誤り・入力の不備（exit 2）。 */
 export class UsageError extends Error {}
@@ -355,9 +360,11 @@ function assertEndpointCell(row, slug) {
  * @returns {{ endpointCell: string, endpoints: string[], entries: { endpoints: string[], verdict: string, raw: string }[] }}
  */
 export function readRow(text, slug) {
-  const { tables, strayRows, unclosedFence } = parseTables(text);
+  const { tables, strayRows, unclosedFence, unclosedComment } = parseTables(text);
   if (unclosedFence !== null)
     throw new UsageError(`インベントリの ${unclosedFenceMessage(unclosedFence)}`);
+  if (unclosedComment !== null)
+    throw new UsageError(`インベントリの ${unclosedCommentMessage(unclosedComment)}`);
   const tally = tallyRows(tables, slug);
   const total =
     tally.matched.length + tally.legacyRows + tally.nonEndpointRows + tally.malformed.length;
