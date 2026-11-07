@@ -86,7 +86,8 @@
         "asset-delivery-check: 閉じない HTML コメントは、開いた行の番号を付けて止める",
         "evidence-gap-check: 閉じない HTML コメントは、開いた行の番号を付けて止める",
         "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 末尾まで続くリストの中の、閉じないコメント",
-        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 末尾まで続く引用の中の、閉じないコメント"
+        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 末尾まで続く引用の中の、閉じないコメント",
+        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: `--!>` だけで閉じたつもりのコメント"
       ]
     },
     {
@@ -101,6 +102,28 @@
         "evidence-gap-check: HTML コメントの中の表の行を台帳として読まない",
         "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 末尾の閉じたコメント",
         "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 末尾の `<!-->`"
+      ]
+    },
+    {
+      "id": "comment-block-closed-by-bang",
+      "why": "コメントのブロックを `--!>` でも閉じたとみなし、パーサが末尾まで続けるコメントを報告しない",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "  const closed = source.includes(\"-->\");",
+      "replace": "  const closed = source.includes(\"-->\") || source.includes(\"--!>\");",
+      "occurrences": 1,
+      "expect_failing": [
+        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: `--!>` だけで閉じたつもりのコメント"
+      ]
+    },
+    {
+      "id": "comment-range-ignores-bang",
+      "why": "`--!>` で閉じたコメントの範囲を節の終わりまで広げ、後ろの表の行に見える行を数えない",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "[\\s\\S]*?--!?>",
+      "replace": "[\\s\\S]*?-->",
+      "occurrences": 1,
+      "expect_failing": [
+        "parseTables の strayRows は、表示されない範囲だけを除く: `<details>` の中の `--!>` で閉じたコメントの後ろの行"
       ]
     },
     {

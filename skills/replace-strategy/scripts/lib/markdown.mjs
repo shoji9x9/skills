@@ -139,7 +139,7 @@ function trimDelimiters(raw, last) {
 /**
  * 節が文書の末尾まで続くか。閉じないフェンスとコメントのブロックの判定に使う。
  * コンテナ（リスト・引用）の中で閉じないものはコンテナの終わりで終わり、パーサの読み方では後ろの表を隠さないので、文書の末尾まで続くかだけを見る。
- * コンテナが文書の末尾まで続くときは、その中で閉じないものも末尾まで続くものとして扱う。
+ * コンテナの中の節は、コンテナの最後の項目にあって文書の末尾まで続くときだけ当たる。
  * @param {string} text
  * @param {MdNode} node
  * @returns {boolean}
@@ -187,9 +187,8 @@ function readHtml(text, node) {
   const source = text.slice(r.start, r.end);
   if (!/^\s*<!--/u.test(source)) return { hidden: commentRanges(source, r.start), unclosed: false };
   // コメントのブロックは、閉じる行の `-->` の後ろもブロックに入るので、節の全体を数えない
-  // パーサは `-->` を含む行でブロックを終える。閉じたかも `-->` で決める（`<!-->` と `<!--->` は、それだけで閉じる）
-  const rest = source.slice(source.indexOf("<!--") + 4);
-  const closed = rest.startsWith(">") || rest.startsWith("->") || rest.includes("-->");
+  // パーサは `-->` を含む行でブロックを終える。閉じたかも `-->` で決める（`<!-->` と `<!--->` も `-->` を含む）
+  const closed = source.includes("-->");
   return { hidden: [{ start: r.start, end: r.end }], unclosed: !closed && reachesEnd(text, node) };
 }
 
