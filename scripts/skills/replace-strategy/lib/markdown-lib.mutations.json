@@ -128,12 +128,23 @@
       "id": "comment-inside-tag-opened",
       "why": "タグを先に読み飛ばさず、属性値の中の `<!--` をコメントの始まりとして読む",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "<[A-Za-z/](?:\"[^\"]*\"|'[^']*'|[^\"'>])*>|<!--",
+      "find": "<[A-Za-z/](?:\"[^\"]*\"|'[^']*'|[^\"'<>])*>|<!--",
       "replace": "<!--",
       "occurrences": 1,
       "expect_failing": [
         "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 末尾の属性値の中の `<!--`",
         "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 末尾の、引用符の中に `>` がある属性値の中の `<!--`"
+      ]
+    },
+    {
+      "id": "unclosed-tag-swallows-comment",
+      "why": "`>` で閉じないタグの読み飛ばしが、後ろのコメントの `-->` の `>` までを 1 つのタグとして読む",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "[^\"'<>])*>|",
+      "replace": "[^\"'>])*>|",
+      "occurrences": 1,
+      "expect_failing": [
+        "parseTables の strayRows は、表示されない範囲だけを除く: `>` で閉じない `<b` の後ろのコメントの中の `|`"
       ]
     },
     {
