@@ -20,8 +20,8 @@ function visibleText(html: string): string {
     previous = stripped;
     stripped = stripped
       .replace(/<!--[\s\S]*?-->|<!-->|<!--->/gu, " ")
-      .replace(/<br(?:\s[^>]*)?\/?>/giu, " ")
-      .replace(/<[^>]*>/gu, "");
+      .replace(/<br(?:\s(?:"[^"]*"|'[^']*'|[^"'<>])*)?\/?>/giu, " ")
+      .replace(/<[A-Za-z/](?:"[^"]*"|'[^']*'|[^"'<>])*>/gu, "");
   }
   return stripped
     .replaceAll("&lt;", "<")

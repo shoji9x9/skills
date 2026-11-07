@@ -1,9 +1,9 @@
 // golden-dataset の predicate-coverage-check が、GFM の描画（micromark の HTML）と同じ表と見出しを読むことを確かめる（Issue #926）。
 //
 // 入力の一覧と描画から表を取り出す処理は、scripts/lib/testing/gfm-table-cases.ts にある（replace-strategy と同じ入力）。
-// predicate-coverage-check は、セルと見出しの表示される文字列の全角空白と前後の空白を畳む。
-// 描画の側には、同じ畳み方をこのテストで書いて当てる。normalizeCell を両辺に当てると、normalizeCell が文字を落としたときの差も両辺から消え、検出できない。
-// 読んだ側は描画し直さずに、そのまま比べる。
+// 両辺とも、表示される文字列の空白を畳んだ値（全角空白も畳む）をそのまま比べる。
+// predicate-coverage-check の正規化（normalizeCell など）を描画の側に当てない。当てると、正規化が文字を落としたときの差も両辺から消え、検出できない。
+// 読んだ側は描画し直さない。
 // 各表の見出しは、描画で表より前にある最後の h1〜h6 と比べる。
 
 import { expect, test } from "vitest";
@@ -16,16 +16,10 @@ import {
 } from "../../lib/testing/gfm-table-cases.ts";
 import { lines } from "../../lib/testing/text-lines.ts";
 
-/** 全角空白を半角にし、前後の空白を落とす（normalizeCell に期待する畳み方。normalizeCell は呼ばない）。 */
-const fold = (cell: string) => cell.replaceAll("\u3000", " ").trim();
-
-/** 描画した表を、見出しと、正規化したセルの行にする。 */
+/** 描画した表を、見出しとセルの行にする。 */
 function rendered(text: string) {
   const headings = renderedHeadings(text);
-  return renderedTables(text).map((rows, i) => ({
-    heading: fold(headings[i] ?? ""),
-    rows: rows.map((row) => row.map(fold)),
-  }));
+  return renderedTables(text).map((rows, i) => ({ heading: headings[i] ?? "", rows }));
 }
 
 /** predicate-coverage-check が読んだ表を、描画と同じ形（列名の数にそろえた行）にする。 */
@@ -56,7 +50,8 @@ const VALUE_CASES: [string, string][] = [
   ["セルの中の `<br>`", lines(...TABLE, "| a<br>b | c<br/>d<BR />e |")],
   ["セルの中の属性付きの `<br>`", lines(...TABLE, '| x<br class="c">y | z |')],
   ["セルの中のコードスパンの `*`", lines(...TABLE, "| `count(*)` | \\*x |")],
-  ["セルの中の `<br>` 以外のタグ", lines(...TABLE, "| a<b>c</b> | x |")],
+  ["セルの中の、属性値に `>` を含む `<br>`", lines(...TABLE, '| a<br title="x>y">b | c |')],
+  ["セルの中の全角空白", lines(...TABLE, "|\u3000orders\u3000items\u3000| x |")],
 ];
 
 test.each<[string, string]>([...GFM_TABLE_CASES, ...VALUE_CASES])(
@@ -70,4 +65,16 @@ test.each<[string, string]>([...GFM_TABLE_CASES, ...VALUE_CASES])(
 test("比べ方の確認: 描画から見出しを表ごとに取り出す", () => {
   expect(renderedHeadings(lines(...TABLE, "", "## `B` 節", "", ...TABLE))).toEqual(["", "B 節"]);
   expect(renderedHeadings("## 見出しだけ\n")).toEqual([]);
+});
+
+// コメントでない HTML は、タグの名前に依らず語を分ける空白として読む（lib/markdown.mjs の visibleText）。
+// 画面で語を分けないタグ（`<b>`）では描画と食い違うが、2 つの名前として報告されるので、警告なしに別の 1 つの名前にはならない。
+test.each<[string, string, string[]]>([
+  ["`<p>`", "| a<p>b | x |", ["a b", "x"]],
+  ["`<div>` と閉じるタグ", "| c<div>d</div>e | x |", ["c d e", "x"]],
+  ["`</br>`", "| a</br>b | x |", ["a b", "x"]],
+  ["語を分けない `<b>`", "| a<b>c</b> | x |", ["a c", "x"]],
+  ["HTML のコメントは語を分けない", "| a<!-- c -->b | x |", ["ab", "x"]],
+])("コメントでない HTML を語を分ける空白として読む: %s", (_name, row, expected) => {
+  expect(parseTables(lines(...TABLE, row))[0].rows[1]).toEqual(expected);
 });

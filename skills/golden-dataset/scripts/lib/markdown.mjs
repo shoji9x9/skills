@@ -263,13 +263,13 @@ function unclosedCommentMessage(line) {
  *   headers と rows は元の Markdown の文字列で、visibleHeaders と visibleRows は表示される文字列（visibleText）である。
  */
 
-/** 改行のタグ（`<br>`・`<br/>`・`<br />`・属性付きの `<br class="c">`）。 */
-const BR = /^<br(?:\s[^>]*)?\/?>$/iu;
-
 /**
  * 節の表示される文字列。パーサが戻したエスケープ（`\_` は `_`）と文字参照（`&amp;` は `&`）の後の値を、文書の順につなぐ。
- * コードスパンは中身だけを使い、HTML（コメントとタグ）は表示されないので使わない。強調の記号はパーサが節にするので残らない。
- * 改行と `<br>` は、画面で語を分けるので空白にする（つなぐと、2 つの語が 1 つの別の名前になる）。空白は畳む。
+ * コードスパンは中身だけを使う。強調の記号はパーサが節にするので残らない。
+ * HTML のコメントは表示されないので使わない。コメントでない HTML（`<br>`・`<p>`・`<b>` などのタグ）は、語を分ける空白にする。
+ * タグの名前や綴りで、語を分けるかを決めない。決めると、つないだ 2 つの語が 1 つの別の名前になる綴りが、タグの数だけ残る。
+ * 語を分けないタグ（`a<b>c</b>`）は、画面では 1 語に見えても 2 語として読む。表の値を 2 つの名前として報告するので、警告なしに別の名前にはならない。
+ * 改行も空白にし、空白は畳む。
  * 脚注の参照（`[^1]`）は、値に付けた注の印なので使わない（描画は番号を上付きで表示する）。
  * @param {MdNode} node
  * @returns {string}
@@ -279,8 +279,8 @@ function visibleText(node) {
   const parts = [];
   visit(node, (child) => {
     if (child.type === "text" || child.type === "inlineCode") parts.push(child.value ?? "");
-    else if (child.type === "break" || (child.type === "html" && BR.test(child.value ?? "")))
-      parts.push(" ");
+    else if (child.type === "break") parts.push(" ");
+    else if (child.type === "html" && !(child.value ?? "").startsWith("<!--")) parts.push(" ");
   });
   return collapse(parts.join(""));
 }

@@ -154,11 +154,13 @@
       "id": "cell-read-from-source",
       "why": "セルを表示される文字列ではなく元の Markdown の文字列で読む（`order\\_items` と `order_items` が別の名前になる）",
       "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
-      "find": "      rows: table.visibleRows.map((row) => row.map((cell) => normalizeCell(cell))),",
-      "replace": "      rows: table.rows.map((row) => row.map((cell) => normalizeCell(cell))),",
+      "find": "      rows: table.visibleRows,",
+      "replace": "      rows: table.rows,",
       "occurrences": 1,
       "expect_failing": [
-        "エスケープして書いた名前も、画面に表示される名前で突き合わせる（片方だけ `\\_` で書いても転記の抜けにしない）"
+        "コードフェンスの中の表と見出しを読まない",
+        "エスケープして書いた名前も、画面に表示される名前で突き合わせる（片方だけ `\\_` で書いても転記の抜けにしない）",
+        "同じ見出しの下にコメントアウトした古い表があっても、コメントの外の表を使う"
       ]
     }
   ]

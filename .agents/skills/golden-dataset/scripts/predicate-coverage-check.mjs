@@ -100,7 +100,7 @@ export function normalizeCell(cell) {
  * Markdown の表を見出しごとに集める。読み方は GitHub の描画と同じで、同梱した GFM のパーサ（lib/markdown.mjs）が決める。
  * コードの中と HTML コメントの中の行は、描画で表にも見出しにもならないので読まない。
  * replace-strategy も同じ lib/markdown.mjs で `.replace/features.md` を読むので、2 つのスキルが読む表は食い違わない。
- * 見出し・列名・セルは、表示される文字列（エスケープと文字参照を戻し、コードスパンは中身だけにした値）を normalizeCell で畳む。
+ * 見出し・列名・セルは、表示される文字列（エスケープと文字参照を戻し、コードスパンは中身だけにし、空白を畳んだ値）で読む。
  * replace-strategy はセルを元の Markdown の文字列（rows）で読むので、2 つのスキルで同じなのは表の範囲と行の読み方までである。
  * 元の Markdown の文字列で比べると、`order\_items` と `order_items` のように画面で同じ名前が別の名前になる。
  *
@@ -110,12 +110,12 @@ export function normalizeCell(cell) {
  * @returns {{ tables: Table[], unclosedFence: number | null, unclosedComment: number | null }}
  */
 export function readMarkdown(markdown) {
-  const parsed = parseMarkdownTables(String(markdown ?? ""), { normalizeHeader: normalizeCell });
+  const parsed = parseMarkdownTables(String(markdown ?? ""));
   return {
     tables: parsed.tables.map((table) => ({
-      heading: normalizeCell(table.heading),
+      heading: table.heading,
       headers: table.visibleHeaders,
-      rows: table.visibleRows.map((row) => row.map((cell) => normalizeCell(cell))),
+      rows: table.visibleRows,
       line: table.line,
     })),
     unclosedFence: parsed.unclosedFence,
