@@ -84,7 +84,9 @@
         "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 字下げして開いた、閉じないコメント",
         "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: CR だけの改行の文書の、閉じないコメント",
         "asset-delivery-check: 閉じない HTML コメントは、開いた行の番号を付けて止める",
-        "evidence-gap-check: 閉じない HTML コメントは、開いた行の番号を付けて止める"
+        "evidence-gap-check: 閉じない HTML コメントは、開いた行の番号を付けて止める",
+        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 末尾まで続くリストの中の、閉じないコメント",
+        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 末尾まで続く引用の中の、閉じないコメント"
       ]
     },
     {
@@ -109,7 +111,8 @@
       "replace": "unclosed: false, hidden: [{ start: r.start, end: r.end }] };",
       "occurrences": 1,
       "expect_failing": [
-        "parseTables の strayRows は、表示されない範囲だけを除く: `<details>` の中の表の行に見える行"
+        "parseTables の strayRows は、表示されない範囲だけを除く: `<details>` の中の表の行に見える行",
+        "parseTables の strayRows は、表示されない範囲だけを除く: `<details>` の中の `--!>` で閉じたコメントの後ろの行"
       ]
     },
     {

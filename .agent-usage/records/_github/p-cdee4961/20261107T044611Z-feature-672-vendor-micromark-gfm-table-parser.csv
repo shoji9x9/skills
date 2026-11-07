@@ -26,3 +26,7 @@ ci:42344028436:1,ci,2026-11-07T05:51:30.501Z,p-cdee4961,github-actions,,,,2026-1
 ci:42344028435:1,ci,2026-11-07T05:51:30.501Z,p-cdee4961,github-actions,,,,2026-11-07T05:44:56.000Z,2026-11-07T05:46:43.000Z,Asia/Tokyo,feature/672-vendor-micromark-gfm-table-parser,672,,,,,,,,,,CodeQL;pull_request;success,
 coverage:github:2026-11-06T05:43:55.262Z:2026-11-07T05:51:30.501Z,coverage,2026-11-07T05:51:30.501Z,p-cdee4961,,,,,2026-11-06T05:43:55.262Z,2026-11-07T05:51:30.501Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-11-06T05:51:30.501Z:2026-11-07T05:52:47.800Z,coverage,2026-11-07T05:52:47.800Z,p-cdee4961,,,,,2026-11-06T05:51:30.501Z,2026-11-07T05:52:47.800Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:42344639774:1,ci,2026-11-07T06:04:36.629Z,p-cdee4961,github-actions,,,,2026-11-07T05:53:56.000Z,2026-11-07T05:55:34.000Z,Asia/Tokyo,feature/672-vendor-micromark-gfm-table-parser,672,,,,,,,,,,CodeQL;pull_request;success,
+ci:42344639775:1,ci,2026-11-07T06:04:36.629Z,p-cdee4961,github-actions,,,,2026-11-07T05:53:56.000Z,2026-11-07T05:53:57.000Z,Asia/Tokyo,feature/672-vendor-micromark-gfm-table-parser,672,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:42344639794:1,ci,2026-11-07T06:04:36.629Z,p-cdee4961,github-actions,,,,2026-11-07T05:53:56.000Z,2026-11-07T05:58:01.000Z,Asia/Tokyo,feature/672-vendor-micromark-gfm-table-parser,672,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-11-06T05:52:47.800Z:2026-11-07T06:04:36.629Z,coverage,2026-11-07T06:04:36.629Z,p-cdee4961,,,,,2026-11-06T05:52:47.800Z,2026-11-07T06:04:36.629Z,Asia/Tokyo,,,,,,,,,,,,ok,

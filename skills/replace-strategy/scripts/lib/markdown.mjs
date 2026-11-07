@@ -138,7 +138,8 @@ function trimDelimiters(raw, last) {
 
 /**
  * 節が文書の末尾まで続くか。閉じないフェンスとコメントのブロックの判定に使う。
- * コンテナ（リスト・引用）の中で閉じないものはコンテナの終わりで終わり、パーサの読み方では後ろの表を隠さない。
+ * コンテナ（リスト・引用）の中で閉じないものはコンテナの終わりで終わり、パーサの読み方では後ろの表を隠さないので、文書の末尾まで続くかだけを見る。
+ * コンテナが文書の末尾まで続くときは、その中で閉じないものも末尾まで続くものとして扱う。
  * @param {string} text
  * @param {MdNode} node
  * @returns {boolean}
@@ -158,19 +159,16 @@ function isUnclosedFence(text, node) {
   return node.data?.fences === 1 && reachesEnd(text, node);
 }
 
-/** `<!--` の後ろで、コメントを閉じる部分（`<!-->`・`<!--->` と、`-->` までの最短の文字列）。 */
-const COMMENT_CLOSE = "(?:>|->|[\\s\\S]*?-->)";
-
 /**
  * HTML の節に含まれるコメントが占める範囲（文書の先頭からの offset）。表の外の行を数えるときに、この範囲を除く。
- * 閉じたコメント（`<!-->`・`<!--->` を含む）は `-->` まで、閉じないものは節の終わりまでを範囲にする。
+ * 閉じたコメント（`<!-->`・`<!--->` を含む）は `-->` か `--!>`（HTML ではどちらも閉じる）まで、閉じないものは節の終わりまでを範囲にする。
  * 節の値ではなく元の文字列から探すので、`<details>` などの HTML ブロックの中のコメントも当たる。
  * @param {string} source html の節の元の文字列
  * @param {number} offset 節の先頭の offset
  * @returns {{ start: number, end: number }[]}
  */
 function commentRanges(source, offset) {
-  return [...source.matchAll(new RegExp(`<!--(?:${COMMENT_CLOSE}|[\\s\\S]*$)`, "gu"))].map((m) => ({
+  return [...source.matchAll(/<!--(?:>|->|[\s\S]*?--!?>|[\s\S]*$)/gu)].map((m) => ({
     start: offset + m.index,
     end: offset + m.index + m[0].length,
   }));
@@ -179,7 +177,7 @@ function commentRanges(source, offset) {
 /**
  * HTML の節を読み、表の外の行を数えない範囲と、末尾まで閉じないコメントのブロックかを返す。
  * 閉じないコメントとして扱うのは、パーサがコメントのブロック（行頭か、3 文字までの字下げの後の `<!--`）として読み、`-->` が無いまま文書の末尾まで続くものだけである。
- * 引用・リストの中のものや、ほかの HTML ブロックの中で開いた `<!--` は、パーサの読み方では後ろの表を隠さないので扱わない。
+ * 引用・リストの中で文書の末尾まで続かないものと、ほかの HTML ブロックの中で開いた `<!--` は、パーサの読み方では後ろの表を隠さないので扱わない。
  * @param {string} text
  * @param {MdNode} node html の節
  * @returns {{ hidden: { start: number, end: number }[], unclosed: boolean }}
@@ -189,7 +187,9 @@ function readHtml(text, node) {
   const source = text.slice(r.start, r.end);
   if (!/^\s*<!--/u.test(source)) return { hidden: commentRanges(source, r.start), unclosed: false };
   // コメントのブロックは、閉じる行の `-->` の後ろもブロックに入るので、節の全体を数えない
-  const closed = new RegExp(`^\\s*<!--${COMMENT_CLOSE}`, "u").test(source);
+  // パーサは `-->` を含む行でブロックを終える。閉じたかも `-->` で決める（`<!-->` と `<!--->` は、それだけで閉じる）
+  const rest = source.slice(source.indexOf("<!--") + 4);
+  const closed = rest.startsWith(">") || rest.startsWith("->") || rest.includes("-->");
   return { hidden: [{ start: r.start, end: r.end }], unclosed: !closed && reachesEnd(text, node) };
 }
 
