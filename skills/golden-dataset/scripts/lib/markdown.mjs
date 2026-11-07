@@ -257,27 +257,26 @@ function unclosedCommentMessage(line) {
  */
 
 /**
- * @typedef {{ heading: string, line: number, headers: string[], rows: string[][], rowLines: number[] }} Table
- *   heading は表より前で最後の見出しの文字列（collapse した元の文字列。無ければ空）、line は表の 1 行目（列名の行）の番号（1 始まり）
+ * @typedef {{ heading: string, line: number, headers: string[], rows: string[][], visibleHeaders: string[], visibleRows: string[][], rowLines: number[] }} Table
+ *   heading は表より前で最後の見出しの表示される文字列（無ければ空）、line は表の 1 行目（列名の行）の番号（1 始まり）。
+ *   headers と rows は元の Markdown の文字列で、visibleHeaders と visibleRows は表示される文字列（visibleText）である。
  */
 
 /**
- * 見出しの節の中身の元の文字列（`#` の印と、行末の閉じる `#` を除いた範囲）。HTML（コメントを含む）は空白にする。
- * @param {string} text
- * @param {MdNode} node heading の節
+ * 節の表示される文字列。パーサが戻したエスケープ（`\_` は `_`）と文字参照（`&amp;` は `&`）の後の値を、文書の順につなぐ。
+ * コードスパンは中身だけを使い、HTML（コメントとタグ）は表示されないので使わない。強調の記号はパーサが節にするので残らない。
+ * 改行は空白にし、空白を畳む。
+ * @param {MdNode} node
  * @returns {string}
  */
-function headingText(text, node) {
-  const children = node.children ?? [];
-  if (children.length === 0) return "";
-  const start = rangeOf(children[0]).start;
-  const units = text.slice(start, rangeOf(children[children.length - 1]).end).split("");
+function visibleText(node) {
+  /** @type {string[]} */
+  const parts = [];
   visit(node, (child) => {
-    if (child.type !== "html") return;
-    const r = rangeOf(child);
-    blankRange(units, r.start - start, r.end - start);
+    if (child.type === "text" || child.type === "inlineCode") parts.push(child.value ?? "");
+    else if (child.type === "break") parts.push(" ");
   });
-  return collapse(units.join(""));
+  return collapse(parts.join(""));
 }
 
 /**
@@ -294,9 +293,13 @@ function readTable(text, node, normalizeHeader) {
     const cells = row.children ?? [];
     return cells.map((cell, index) => cellText(text, cell, index === cells.length - 1));
   };
+  /** @param {MdNode} row */
+  const visibleOf = (row) => (row.children ?? []).map((cell) => visibleText(cell));
   return {
     headers: header === undefined ? [] : cellsOf(header).map(normalizeHeader),
     rows: body.map(cellsOf),
+    visibleHeaders: header === undefined ? [] : visibleOf(header),
+    visibleRows: body.map(visibleOf),
     rowLines: body.map((row) => rangeOf(row).startLine),
   };
 }
@@ -362,7 +365,7 @@ function parseTables(text, options = {}) {
   let heading = "";
   visit(parseGfm(text, [COUNT_FENCES]), (node) => {
     if (node.type === "heading") {
-      heading = headingText(text, node);
+      heading = visibleText(node);
     } else if (node.type === "table") {
       tables.push({
         heading,

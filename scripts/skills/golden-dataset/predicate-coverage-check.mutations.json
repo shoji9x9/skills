@@ -149,6 +149,17 @@
         "features.md の閉じないコードフェンスは、構造の不備として合格にしない",
         "features.md の閉じない HTML コメントは、構造の不備として合格にしない"
       ]
+    },
+    {
+      "id": "cell-read-from-source",
+      "why": "セルを表示される文字列ではなく元の Markdown の文字列で読む（`order\\_items` と `order_items` が別の名前になる）",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "      rows: table.visibleRows.map((row) => row.map((cell) => normalizeCell(cell))),",
+      "replace": "      rows: table.rows.map((row) => row.map((cell) => normalizeCell(cell))),",
+      "occurrences": 1,
+      "expect_failing": [
+        "エスケープして書いた名前も、画面に表示される名前で突き合わせる（片方だけ `\\_` で書いても転記の抜けにしない）"
+      ]
     }
   ]
 }

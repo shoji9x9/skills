@@ -1358,6 +1358,15 @@ test("誤検知しないことの確認: 閉じた HTML コメントは、構造
   expect(codes).not.toContain("verification-comment-unclosed");
 });
 
+// セルの値は、表示される文字列で読む（Issue #926）。元の Markdown の文字列で読むと、画面で同じ名前が別の名前になる。
+test("エスケープして書いた名前も、画面に表示される名前で突き合わせる（片方だけ `\\_` で書いても転記の抜けにしない）", () => {
+  const codes = codesOf({
+    features: FEATURES.replace("orders, order_items", "orders, order\\_items"),
+  });
+  expect(FEATURES).toContain("orders, order_items");
+  expect(codes).toEqual([]);
+});
+
 test("同じ見出しの下にコメントアウトした古い表があっても、コメントの外の表を使う", () => {
   const tables = parseTables(
     md(
