@@ -69,7 +69,8 @@
         "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: `--!>` だけで閉じたつもりのコメント",
         "asset-delivery-check: 閉じない HTML コメントは、開いた行の番号を付けて止める",
         "evidence-gap-check: 閉じない HTML コメントは、開いた行の番号を付けて止める",
-        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 字下げして `--!>` だけで閉じたつもりのコメント"
+        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 字下げして `--!>` だけで閉じたつもりのコメント",
+        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: タグに見えない `<` の後ろの、閉じないコメント"
       ]
     },
     {
@@ -125,13 +126,14 @@
     },
     {
       "id": "comment-inside-tag-opened",
-      "why": "タグの中（属性値）の `<!--` を、コメントの始まりとして読む",
+      "why": "タグを先に読み飛ばさず、属性値の中の `<!--` をコメントの始まりとして読む",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "    if (insideTag(source, m.index)) {",
-      "replace": "    if (false) {",
+      "find": "<[A-Za-z/](?:\"[^\"]*\"|'[^']*'|[^\"'>])*>|<!--",
+      "replace": "<!--",
       "occurrences": 1,
       "expect_failing": [
-        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 末尾の属性値の中の `<!--`"
+        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 末尾の属性値の中の `<!--`",
+        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 末尾の、引用符の中に `>` がある属性値の中の `<!--`"
       ]
     },
     {
