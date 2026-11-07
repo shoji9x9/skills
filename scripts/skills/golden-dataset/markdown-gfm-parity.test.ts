@@ -78,11 +78,44 @@ test("比べ方の確認: 描画から見出しを表ごとに取り出す", () 
 
 // 語を分けるタグの一覧（lib/markdown.mjs の SEPARATING_TAGS）の名前を 1 つずつ、比べる側の一覧から独立に確かめる。
 // 開くタグと閉じるタグの両方を置く。一覧から名前が抜けるか綴りを誤ると、その名前の入力が落ちる。
-// 表を作るタグ（table・tr・td・th）は除く。セルの中に置くと、ブラウザは表の構造を組み替えるので、セルの表示される文字列が決まらない。
+// table・tr・td・th は、セルではなく見出しに置いて確かめる（下の test.each）。
+// 比べる側（renderedTables）は表・行・セルを閉じるタグまでの正規表現で取り出すので、セルの中に閉じるタグがあると、そこで取り出しが終わる。
 const TABLE_TAGS = new Set(["table", "td", "th", "tr"]);
 
 test.each(SEPARATING_TAG_NAMES.filter((name) => !TABLE_TAGS.has(name)))(
   "語を分けるタグ <%s> を、描画と同じく空白として読む",
+  (name) => {
+    const text = lines(...TABLE, `| a<${name}>b | c</${name}>d |`);
+    expect(parsed(text)).toEqual(rendered(text));
+  },
+);
+
+test.each([...TABLE_TAGS])(
+  "語を分けるタグ <%s> を、見出しの中でも描画と同じく空白として読む",
+  (name) => {
+    // 見出しの中の <table> を、比べる側の renderedTables が表として取り出すので、見出しの文字列だけを比べる
+    const text = lines(`## a<${name}>b</${name}>c`, "", ...TABLE);
+    expect(parseTables(text).map((table) => table.heading)).toEqual(renderedHeadings(text));
+    expect(renderedHeadings(text)).toEqual(["a b c"]);
+  },
+);
+
+// GFM の tagfilter が無効にするタグ（lib/markdown.mjs の FILTERED_TAG）の名前を 1 つずつ確かめる。
+// 一覧は https://github.github.com/gfm/#disallowed-raw-html-extension- から、lib の一覧を読まずにここで書く。
+const FILTERED_TAG_NAMES = [
+  "iframe",
+  "noembed",
+  "noframes",
+  "plaintext",
+  "script",
+  "style",
+  "textarea",
+  "title",
+  "xmp",
+];
+
+test.each(FILTERED_TAG_NAMES)(
+  "GFM の tagfilter が無効にするタグ <%s> を、描画と同じく文字のまま読む",
   (name) => {
     const text = lines(...TABLE, `| a<${name}>b | c</${name}>d |`);
     expect(parsed(text)).toEqual(rendered(text));

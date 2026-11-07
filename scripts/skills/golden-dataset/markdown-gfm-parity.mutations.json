@@ -65,7 +65,11 @@
         "語を分けるタグ <tbody> を、描画と同じく空白として読む",
         "語を分けるタグ <tfoot> を、描画と同じく空白として読む",
         "語を分けるタグ <thead> を、描画と同じく空白として読む",
-        "語を分けるタグ <ul> を、描画と同じく空白として読む"
+        "語を分けるタグ <ul> を、描画と同じく空白として読む",
+        "語を分けるタグ <table> を、見出しの中でも描画と同じく空白として読む",
+        "語を分けるタグ <td> を、見出しの中でも描画と同じく空白として読む",
+        "語を分けるタグ <th> を、見出しの中でも描画と同じく空白として読む",
+        "語を分けるタグ <tr> を、見出しの中でも描画と同じく空白として読む"
       ]
     },
     {
@@ -88,7 +92,16 @@
       "replace": "    else if (false)\n      parts.push(child.value ?? \"\");",
       "occurrences": 1,
       "expect_failing": [
-        "predicate-coverage-check は GFM の描画と同じ表と見出しを読む: セルの中の、GFM の tagfilter が無効にするタグ"
+        "predicate-coverage-check は GFM の描画と同じ表と見出しを読む: セルの中の、GFM の tagfilter が無効にするタグ",
+        "GFM の tagfilter が無効にするタグ <iframe> を、描画と同じく文字のまま読む",
+        "GFM の tagfilter が無効にするタグ <noembed> を、描画と同じく文字のまま読む",
+        "GFM の tagfilter が無効にするタグ <noframes> を、描画と同じく文字のまま読む",
+        "GFM の tagfilter が無効にするタグ <plaintext> を、描画と同じく文字のまま読む",
+        "GFM の tagfilter が無効にするタグ <script> を、描画と同じく文字のまま読む",
+        "GFM の tagfilter が無効にするタグ <style> を、描画と同じく文字のまま読む",
+        "GFM の tagfilter が無効にするタグ <textarea> を、描画と同じく文字のまま読む",
+        "GFM の tagfilter が無効にするタグ <title> を、描画と同じく文字のまま読む",
+        "GFM の tagfilter が無効にするタグ <xmp> を、描画と同じく文字のまま読む"
       ]
     }
   ]
