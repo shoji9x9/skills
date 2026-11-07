@@ -96,12 +96,25 @@ test("語を分けるタグ <table> を、見出しの中で空白として読�
   expect(renderedHeadings(text)).toEqual(["a c"]);
 });
 
-// 表の部品の要素は、表の外ではブラウザがタグを無視するので、見出しの中では語を分けない
-test.each(TABLE_PART_TAG_NAMES)("表の部品のタグ <%s> は、見出しの中で語を分けない", (name) => {
-  const text = lines(`## a<${name}>b</${name}>c`, "", ...TABLE);
-  expect(parseTables(text).map((table) => table.heading)).toEqual(["abc"]);
-  expect(renderedHeadings(text)).toEqual(["abc"]);
-});
+// 表の行やセルを作るタグは、表の外ではブラウザがタグを無視するので、見出しの中では語を分けない。
+// ブラウザの扱いは、HTML の構文解析の仕様（in body の挿入モード）を出典にする。比べる側の描画は、この扱いを確かめられない。
+test.each(TABLE_PART_TAG_NAMES)(
+  "表の行やセルを作るタグ <%s> は、見出しの中で語を分けない",
+  (name) => {
+    const text = lines(`## a<${name}>b</${name}>c`, "", ...TABLE);
+    expect(parseTables(text).map((table) => table.heading)).toEqual(["abc"]);
+  },
+);
+
+// 表のセルの中では、ブラウザは新しいセルや行を開くので、画面のセルの区切りが表の読み方と食い違う。
+// lib/markdown.mjs はこの形を読めない形として、語を分けずに読む。その挙動をここで固定する。
+test.each(TABLE_PART_TAG_NAMES)(
+  "表の行やセルを作るタグ <%s> は、セルの中でも語を分けない",
+  (name) => {
+    const text = lines(...TABLE, `| a<${name}>b | c</${name}>d |`);
+    expect(parseTables(text)[0].rows[1]).toEqual(["ab", "cd"]);
+  },
+);
 
 // GFM の tagfilter が無効にするタグ（lib/markdown.mjs の FILTERED_TAG）の名前を 1 つずつ確かめる。
 // 名前は大文字と小文字を区別せず、後ろに属性が続いても無効にする。

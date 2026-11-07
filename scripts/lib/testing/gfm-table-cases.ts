@@ -12,11 +12,6 @@ import { lines } from "./text-lines.ts";
 
 const OPTIONS = { allowDangerousHtml: true, extensions: [gfm()], htmlExtensions: [gfmHtml()] };
 
-/**
- * 画面で前後の語を分けるタグ（開くタグと閉じるタグ）。HTML の仕様の既定の表示で、改行（br）か、block・list-item・table の表示になる要素。
- * https://html.spec.whatwg.org/multipage/rendering.html
- * 比べる相手を独立に作るため、lib/markdown.mjs の一覧を読まずにここで書く。
- */
 /** GFM の tagfilter が無効にするタグの名前。https://github.github.com/gfm/#disallowed-raw-html-extension- から書く。 */
 export const FILTERED_TAG_NAMES = [
   "iframe",
@@ -30,7 +25,11 @@ export const FILTERED_TAG_NAMES = [
   "xmp",
 ];
 
-/** 表の部品の要素。ブラウザは表の外ではタグを無視し、セルの中では表を組み替えるので、語を分けない。 */
+/**
+ * 表の行やセルを作るタグの名前。lib/markdown.mjs は、これらを語を分けるタグとして扱わない。
+ * 表の外では、ブラウザはこれらのタグを無視する（HTML の構文解析の in body の挿入モード）。
+ * https://html.spec.whatwg.org/multipage/parsing.html#parsing-main-inbody
+ */
 export const TABLE_PART_TAG_NAMES = [
   "caption",
   "col",
@@ -43,6 +42,11 @@ export const TABLE_PART_TAG_NAMES = [
   "tr",
 ];
 
+/**
+ * 画面で前後の語を分けるタグ（開くタグと閉じるタグ）。HTML の仕様の既定の表示で、改行（br）か、block・list-item・table の表示になる要素。
+ * https://html.spec.whatwg.org/multipage/rendering.html
+ * 比べる相手を独立に作るため、lib/markdown.mjs の一覧を読まずにここで書く。
+ */
 export const SEPARATING_TAG_NAMES = [
   "address",
   "article",

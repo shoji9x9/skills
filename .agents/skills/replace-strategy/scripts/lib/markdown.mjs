@@ -269,8 +269,9 @@ function unclosedCommentMessage(line) {
  * https://html.spec.whatwg.org/multipage/rendering.html
  * 一覧に無い名前（span・b や未知の要素）は、ブラウザと同じく inline の表示として扱い、語を分けない。
  * plaintext と xmp は block の要素だが、GFM の tagfilter が文字のまま表示させるので、一覧に入れない（FILTERED_TAG）。
- * 表の部品の要素（caption・col・colgroup・thead・tbody・tfoot・tr・td・th）も一覧に入れない。
- * ブラウザは表の外ではこれらのタグを無視し、セルの中では表を組み替えるので、どちらでも語を分ける空白にはならない。
+ * 表の行やセルを作るタグ（caption・col・colgroup・thead・tbody・tfoot・tr・td・th）も一覧に入れない。
+ * 表の外では、ブラウザはこれらのタグを無視するので、語を分けない（HTML の構文解析の in body の挿入モード）。
+ * 表のセルの中では、ブラウザは新しいセルや行を開くので、画面のセルの区切りが表の読み方と食い違う。この形は読めない形として、語を分けずに読む。
  */
 const SEPARATING_TAGS = new Set([
   "address",
