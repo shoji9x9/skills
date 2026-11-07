@@ -3,7 +3,7 @@
 // エンジンは spec の icon が指す `<iconDir>/<name>.svg` を読み、<svg> の入れ子として図に埋め込む。
 // 確かめる状態は次のとおりである。
 //   - 読む場所: iconDir の中のファイル / `..` で外を指す名前 / iconDir の中から外へ向く symlink / 無いファイル
-//   - 中身: <svg> の無いファイル / viewBox の引用符（" と '）と viewBox の無いもの / <script> と on* の属性
+//   - 中身: <svg> の無いファイル / viewBox の引用符（" と '）と viewBox の無いもの / 許可した範囲の外（<script>・on* の属性・javascript: の URL）
 //   - 埋め込みの回数: 同じアイコンを 2 回使う（内部の id が衝突しないように書き換えるか）
 
 import { expect, test } from "vitest";
@@ -52,7 +52,8 @@ test("iconDir の中のアイコンを、元の viewBox のまま埋め込む", 
   // XML 宣言は入れ子の中に残さない（文書の途中に置くと SVG として不正になる）。
   expect(icons[0]).not.toContain("<?xml");
   expect(icons[1]).toContain('viewBox="0 0 32 16"');
-  expect(icons[1]).toContain("<circle class='sq'/>");
+  // 属性は、読んだ値を二重引用符で囲んで書き出す。
+  expect(icons[1]).toContain('<circle class="sq"/>');
 });
 
 test("viewBox の無いアイコンは 0 0 80 80 で埋め込む", () => {
@@ -61,25 +62,29 @@ test("viewBox の無いアイコンは 0 0 80 80 で埋め込む", () => {
   expect(icon).toContain('viewBox="0 0 80 80"');
 });
 
-test("アイコンに含まれる <script> と on* の属性は図に入れない", () => {
+// 許可した範囲の判定の詳細は validate-icon-svg.test.ts で確かめる。ここでは、外れたアイコンを図に入れずに、
+// アイコンの名前と理由を示すエラーにすることを確かめる。
+test.each([
+  [
+    "<script> の要素",
+    "<script>alert(1)</script>",
+    /アイコン SVG が不正（許可していない要素 <script> がある）: evil/,
+  ],
+  [
+    "on* の属性",
+    '<rect onclick="a()" width="1"/>',
+    /アイコン SVG が不正（許可していない属性 onclick がある）: evil/,
+  ],
+  [
+    "javascript: の URL",
+    '<use href="javascript:alert(1)"/>',
+    /アイコン SVG が不正（属性 href が同じ文書の中（#...）を指していない）: evil/,
+  ],
+])("アイコンに含まれる %s は図に入れずにエラーにする", (_label, body, reason) => {
   const dir = iconDir({
-    evil: [
-      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">',
-      "<script>alert(1)</script>",
-      '<script src="x.js"/>',
-      '<rect onclick="a()" width="1"/>',
-      "<rect onload='b()' width=\"2\"/>",
-      '<rect onmouseover=c() width="3"/>',
-      "</svg>",
-    ].join(""),
+    evil: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">${body}</svg>`,
   });
-  const svg = renderDiagram(spec(["evil", "evil"]), { iconDir: dir });
-  expect(svg).not.toMatch(/<script/i);
-  expect(svg).not.toMatch(/\son[a-z]+\s*=/i);
-  // 取り除くのはハンドラだけで、同じ要素の他の属性は残す。
-  expect(svg).toContain('<rect  width="1"/>');
-  expect(svg).toContain('<rect  width="2"/>');
-  expect(svg).toContain('<rect  width="3"/>');
+  expect(() => renderDiagram(spec(["evil", "evil"]), { iconDir: dir })).toThrow(reason);
 });
 
 test("同じアイコンを 2 回埋め込むと、内部の id とその参照を埋め込みごとに別の名前にする", () => {
@@ -87,7 +92,7 @@ test("同じアイコンを 2 回埋め込むと、内部の id とその参照�
     grad: [
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">',
       "<linearGradient id=\"g\"/><clipPath id='c'/>",
-      '<rect fill="url(#g)" clip-path="url(\'#c\')"/>',
+      '<rect fill="url(#g)" clip-path="url(\'#c\')" stroke="URL( #g )"/>',
       "<use href=\"#g\"/><use xlink:href='#c'/>",
       "</svg>",
     ].join(""),
@@ -101,11 +106,17 @@ test("同じアイコンを 2 回埋め込むと、内部の id とその参照�
   expect(ids[0].filter((id) => ids[1].includes(id))).toEqual([]);
   // 参照は、同じ埋め込みの中の書き換えた id を指す。
   for (const [i, icon] of icons.entries()) {
-    const [g, c] = ids[i];
-    expect(icon).toContain(`fill="url(#${g})"`);
-    expect(icon).toContain(`clip-path="url('#${c}')"`);
-    expect(icon).toContain(`href="#${g}"`);
-    expect(icon).toContain(`xlink:href='#${c}'`);
+    // 出力から参照先の id を取り出し、同じ埋め込みの id と比べる（期待する文字列を組み立てない）。
+    const ref = (re: RegExp) => icon.match(re)?.[1];
+    expect([
+      ref(/ fill="url\(#([^")]+)\)"/),
+      ref(/ clip-path="url\(#([^")]+)\)"/),
+      // 部品が受け付ける大文字の URL( と括弧の中の空白も、書き換える。
+      ref(/ stroke="url\(#([^")]+)\)"/),
+      ...[...icon.matchAll(/<use href="#([^"]+)"\/>/g)].map((m) => m[1]),
+    ]).toEqual([ids[i][0], ids[i][1], ids[i][0], ids[i][0], ids[i][1]]);
+    // xlink:href は href にする。図の <svg> は xlink の名前空間を宣言しないので、接頭辞を残すと XML として読めない。
+    expect(icon).not.toContain("xlink:");
   }
 });
 
@@ -143,6 +154,6 @@ test("無いアイコンは名前を示すエラーにする", () => {
 test("<svg> の無いファイルは不正なアイコンとしてエラーにする", () => {
   const dir = iconDir({ broken: "<html>not an svg</html>" });
   expect(() => renderDiagram(spec(["broken", "broken"]), { iconDir: dir })).toThrow(
-    /アイコン SVG が不正（<svg> がありません）: broken/,
+    /アイコン SVG が不正（許可していない要素 <html> がある）: broken/,
   );
 });

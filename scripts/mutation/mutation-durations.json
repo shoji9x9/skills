@@ -22,7 +22,7 @@
     "scripts/skills/issue-start/acceptance-check.mutations.json": 0.5,
     "scripts/skills/kaizen/kaizen-precommit-gate.mutations.json": 16.6,
     "scripts/skills/kaizen/kaizen-config.mutations.json": 0.9,
-    "scripts/skills/kaizen/kaizen-context-inject.mutations.json": 2.0,
+    "scripts/skills/kaizen/kaizen-context-inject.mutations.json": 2,
     "scripts/skills/kaizen/kaizen-candidate-scan.mutations.json": 2.5,
     "scripts/skills/kaizen/schedule/tracking-issue-title.mutations.json": 1.9,
     "scripts/skills/parity-component/behavior-compare.mutations.json": 0.9,
@@ -63,7 +63,7 @@
     "scripts/skills/agent-usage/github.mutations.json": 0.7,
     "scripts/skills/agent-usage/cli.mutations.json": 14.2,
     "scripts/skills/agent-usage/dedupe.mutations.json": 0.5,
-    "scripts/skills/agent-usage/worktree-branches.mutations.json": 3.0,
+    "scripts/skills/agent-usage/worktree-branches.mutations.json": 3,
     "scripts/hooks/stop-marker.mutations.json": 0.5,
     "scripts/coverage/check-coverage.mutations.json": 0.5,
     "scripts/skills/kaizen/schedule/kaizen-schedule-report.mutations.json": 4.2,
@@ -71,6 +71,7 @@
     "scripts/skills/parity-component/css-rules-capture.mutations.json": 0.7,
     "scripts/skills/kaizen/frontmatter/kaizen-frontmatter-values.mutations.json": 4.6,
     "scripts/skills/agent-usage/decision/record-decision.mutations.json": 0.5,
-    "scripts/skills/agent-usage/setup/setup-time-zone.mutations.json": 2.7
+    "scripts/skills/agent-usage/setup/setup-time-zone.mutations.json": 2.7,
+    "scripts/skills/aws-architecture-diagram/validate-icon-svg.mutations.json": 1.3
   }
 }

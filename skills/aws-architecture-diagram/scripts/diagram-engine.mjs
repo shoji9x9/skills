@@ -18,7 +18,7 @@
 // 使い方: `renderDiagram(spec, { iconDir })` を呼ぶ。`iconDir` にはアイコンを置いたディレクトリのルートを渡す。
 import { readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, join, relative } from "node:path";
-import { stripActiveContent } from "./lib/strip-active-content.mjs";
+import { serializeIconBody, validateIconSvg } from "./lib/validate-icon-svg.mjs";
 
 const ICON = 64; // アイコン一辺 (px)
 const HOP = 5; // 交差の飛び越し（line jump）半径
@@ -32,6 +32,7 @@ const FONT =
  * @typedef {{ x: number, y: number, w: number, title: string, lines: string[] }} DiagramNote
  * @typedef {{ W: number, H: number, title: string, nodes?: DiagramNode[], edges?: DiagramEdge[], groups?: DiagramGroup[], notes?: DiagramNote[] }} DiagramSpec
  * @typedef {{ x: number, y: number }} Point
+ * @typedef {import("./lib/validate-icon-svg.mjs").IconNode} IconNode
  * @typedef {{ ei: number, x: number, lo: number, hi: number }} Vertical
  */
 
@@ -98,46 +99,31 @@ function resolveIconFile(iconDir, getIconDirReal, name) {
 }
 
 // アイコン SVG の中身を取り出し、元の viewBox と一緒に返す。
+// 取得元（AWS パッケージ）や自作アイコンが、許可した要素・属性・構文の外にあれば、書き換えずにエラーにする。
+// script を実行させる内容（<script>・on* ハンドラ・javascript: の URL・<foreignObject> など）は、許可リストに無いので図に入らない
+// （lib/validate-icon-svg.mjs）。
 /**
  * @param {string} raw
  * @param {string} name
- * @returns {{ viewBox: string, body: string }}
+ * @returns {{ viewBox: string, children: IconNode[] }}
  */
 function parseIconSvg(raw, name) {
-  const head = raw.match(/<svg[^>]*>/);
-  if (!head) throw new Error(`アイコン SVG が不正（<svg> がありません）: ${name}`);
-  // viewBox はシングル/ダブルクォート両対応（自作アイコンで ' を使っても崩れない）。
-  const viewBox = head[0].match(/viewBox=["']([^"']+)["']/)?.[1] ?? "0 0 80 80";
-  // 取得元（AWS パッケージ）や自作アイコンに万一 <script>・on* ハンドラ・<meta> の http-equiv が
-  // 含まれても、取り除くか無効にしてから出力 SVG へ入れる（多層防御。lib/strip-active-content.mjs）。
-  const body = stripActiveContent(
-    raw
-      .replace(/<\?xml[^>]*\?>/, "")
-      .replace(/<svg[^>]*>/, "")
-      .replace(/<\/svg>\s*$/, ""),
-  ).trim();
-  return { viewBox, body };
-}
-
-// 同じ図に複数のアイコンを埋めると内部 id（clipPath/gradient/mask 等）が衝突し、
-// url(#id)/href="#id" が別アイコンの要素を参照してしまう。埋め込みごとに一意の
-// 接頭辞で id とその参照を書き換えて分離する。クォート種別（" / '）や xlink:href、
-// url() 内のクォート有無を問わず置換する（取得元 SVG・自作アイコンの表記ゆれ対策）。
-/**
- * @param {string} body
- * @param {string} p
- */
-function prefixIconIds(body, p) {
-  return body
-    .replace(/\bid=(["'])([^"']+)\1/g, `id=$1${p}$2$1`)
-    .replace(/\b((?:xlink:)?href)=(["'])#([^"']+)\2/g, `$1=$2#${p}$3$2`)
-    .replace(/\burl\((["']?)#([^"')]+)\1\)/g, `url($1#${p}$2$1)`);
+  let icon;
+  try {
+    icon = validateIconSvg(raw);
+  } catch (error) {
+    throw new Error(
+      `アイコン SVG が不正（${error instanceof Error ? error.message : String(error)}）: ${name}`,
+    );
+  }
+  const viewBox = icon.attributes.get("viewBox") ?? "0 0 80 80";
+  return { viewBox, children: icon.children };
 }
 
 // アイコン SVG を <svg> ネストとして取り込み、元の viewBox を引き継ぐ関数を返す。
 /** @param {string} iconDir */
 function createIconEmbedder(iconDir) {
-  /** @type {Map<string, { viewBox: string, body: string }>} */
+  /** @type {Map<string, { viewBox: string, children: IconNode[] }>} */
   const iconCache = new Map();
   /** @type {string | undefined} */
   let iconDirReal; // iconDir の実体パス（symlink 解決後）。初回に一度だけ解決する。
@@ -155,7 +141,9 @@ function createIconEmbedder(iconDir) {
       inner = parseIconSvg(readFileSync(fileReal, "utf8"), name);
       iconCache.set(name, inner);
     }
-    const body = prefixIconIds(inner.body, `ic${iconSeq++}-`);
+    // 同じ図に同じアイコンを複数埋めると内部の id（clipPath・gradient など）が重なり、参照が別のアイコンの要素を指す。
+    // 埋め込みごとに一意の接頭辞を、id とその参照に付ける（lib/validate-icon-svg.mjs の serializeIconBody）。
+    const body = serializeIconBody(inner.children, `ic${iconSeq++}-`);
     return `<svg x="${x}" y="${y}" width="${ICON}" height="${ICON}" viewBox="${inner.viewBox}" overflow="visible">${body}</svg>`;
   };
 }

@@ -1,0 +1,397 @@
+{
+  "$comment": [
+    "validate-icon-svg.test.ts の検出能力を示す変異の一覧（Issue #923）。",
+    "scripts/mutation/check-mutation-proof.ts が再実行する。テスト名を変えたら expect_failing も直す。"
+  ],
+  "test_file": "scripts/skills/aws-architecture-diagram/validate-icon-svg.test.ts",
+  "mutations": [
+    {
+      "id": "elements-allowed",
+      "why": "許可していない要素を受け付ける",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "  if (!ELEMENTS.has(name)) fail(",
+      "replace": "  if (false) fail(",
+      "occurrences": 1,
+      "expect_failing": [
+        "script の要素 はエラーにする",
+        "foreignObject の要素 はエラーにする",
+        "iframe の要素 はエラーにする",
+        "object の要素 はエラーにする",
+        "meta の要素 はエラーにする",
+        "a の要素 はエラーにする",
+        "大文字の要素名 はエラーにする",
+        "名前空間の接頭辞の付いた要素名 はエラーにする",
+        "ルートが svg でない はエラーにする"
+      ]
+    },
+    {
+      "id": "attributes-allowed",
+      "why": "許可していない属性（on*・style）を受け付ける",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "  if (!ATTRIBUTES.has(name)) fail(",
+      "replace": "  if (false) fail(",
+      "occurrences": 1,
+      "expect_failing": [
+        "on* の属性 はエラーにする",
+        "ルートの on* の属性 はエラーにする",
+        "style の属性 はエラーにする",
+        "xml:space の属性 はエラーにする"
+      ]
+    },
+    {
+      "id": "value-bad-char",
+      "why": "属性の値の XML で使えない文字を受け付ける",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "  if (hasBadChar(value)) fail(",
+      "replace": "  if (false) fail(",
+      "occurrences": 1,
+      "expect_failing": [
+        "属性の値の制御文字 はエラーにする",
+        "属性の値の対にならないサロゲート はエラーにする"
+      ]
+    },
+    {
+      "id": "value-chars",
+      "why": "属性の値の定義済みでない実体・\\・< を受け付ける",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "  if (/[<\\\\]/.test(value) || BAD_ENTITY_IN_VALUE.test(value))",
+      "replace": "  if (false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "属性の値の数値の文字参照 はエラーにする",
+        "属性の値の数値の文字参照で作った url( はエラーにする",
+        "属性の値の定義済みでない実体 はエラーにする",
+        "属性の値の単独の & はエラーにする",
+        "属性の値の \\ はエラーにする",
+        "属性の値の < はエラーにする"
+      ]
+    },
+    {
+      "id": "namespace",
+      "why": "SVG と XLink でない名前空間を受け付ける",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "  if (ns !== undefined && value !== ns) fail(",
+      "replace": "  if (false) fail(",
+      "occurrences": 1,
+      "expect_failing": ["SVG でない名前空間 はエラーにする", "XLink でない名前空間 はエラーにする"]
+    },
+    {
+      "id": "viewbox-number",
+      "why": "4 つの数値でない viewBox を受け付ける",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "  if (name === \"viewBox\" && !isViewBox(value)) fail(",
+      "replace": "  if (false) fail(",
+      "occurrences": 1,
+      "expect_failing": [
+        "引用符を含む viewBox はエラーにする",
+        "英字を含む viewBox はエラーにする",
+        "カンマだけの viewBox はエラーにする",
+        "3 つの数値の viewBox はエラーにする",
+        "2 つ続くカンマの viewBox はエラーにする",
+        "符号だけの viewBox はエラーにする",
+        "一致しない長い数を含む viewBox は 1 秒以内にエラーにする"
+      ]
+    },
+    {
+      "id": "viewbox-commas",
+      "why": "viewBox の続くカンマを受け付ける",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "  if (/^,|,$|,[ \\t\\r\\n]*,/.test(trimmed)) return false;",
+      "replace": "  if (false) return false;",
+      "occurrences": 1,
+      "expect_failing": ["2 つ続くカンマの viewBox はエラーにする"]
+    },
+    {
+      "id": "href-local",
+      "why": "外を指す href・xlink:href を受け付ける",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "  if ((name === \"href\" || name === \"xlink:href\") && !/^#[^ \\t\\r\\n]+$/.test(value))",
+      "replace": "  if (false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "javascript: の href はエラーにする",
+        "外を指す xlink:href はエラーにする",
+        "空の href はエラーにする"
+      ]
+    },
+    {
+      "id": "functions-checked",
+      "why": "値の中の関数（外を指す url()・src() など）を確かめない",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "  readFunctions(name, value);",
+      "replace": "  ;",
+      "occurrences": 1,
+      "expect_failing": [
+        "外を指す url() はエラーにする",
+        "大文字の URL() はエラーにする",
+        "同じ文書の中の url() の後の外を指す url() はエラーにする",
+        "src() の関数 はエラーにする",
+        "image() の関数 はエラーにする",
+        "名前が url で終わる関数 はエラーにする",
+        "名前が url で終わる別の関数 はエラーにする",
+        "ASCII 以外の文字で始まる関数 はエラーにする",
+        "名前の前に数字がある url( はエラーにする",
+        "名前の前に ASCII 以外の文字がある url( はエラーにする",
+        "関数の形でない括弧 はエラーにする",
+        "ケルビン記号を含む関数の名前 はエラーにする"
+      ]
+    },
+    {
+      "id": "functions-allowed",
+      "why": "許可していない関数を受け付ける",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "    } else if (!FUNCTIONS.has(lower)) {",
+      "replace": "    } else if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "src() の関数 はエラーにする",
+        "image() の関数 はエラーにする",
+        "名前が url で終わる関数 はエラーにする",
+        "名前が url で終わる別の関数 はエラーにする",
+        "ASCII 以外の文字で始まる関数 はエラーにする",
+        "ケルビン記号を含む関数の名前 はエラーにする"
+      ]
+    },
+    {
+      "id": "function-name-boundary",
+      "why": "名前の途中から関数として読む（1url( の url( を同じ文書の中の url() として受け付ける）",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "(?<![\\w-]|\\P{ASCII})(",
+      "replace": "(",
+      "occurrences": 1,
+      "expect_failing": [
+        "名前の前に数字がある url( はエラーにする",
+        "名前の前に ASCII 以外の文字がある url( はエラーにする",
+        "名前の文字が続く長い値は 1 秒以内に受け付ける"
+      ]
+    },
+    {
+      "id": "function-name-boundary-non-ascii",
+      "why": "名前の前の ASCII 以外の文字を境界に数えない",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "(?<![\\w-]|\\P{ASCII})",
+      "replace": "(?<![\\w-])",
+      "occurrences": 1,
+      "expect_failing": ["名前の前に ASCII 以外の文字がある url( はエラーにする"]
+    },
+    {
+      "id": "function-name-non-ascii",
+      "why": "ASCII 以外の文字を関数の名前に数えない",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "(?:[A-Za-z_-]|\\P{ASCII})(?:[\\w-]|\\P{ASCII})*",
+      "replace": "[A-Za-z_-][\\w-]*",
+      "occurrences": 1,
+      "expect_failing": [
+        "ASCII 以外の文字で始まる関数 はエラーにする",
+        "ケルビン記号を含む関数の名前 はエラーにする"
+      ]
+    },
+    {
+      "id": "bare-paren",
+      "why": "関数の形でない括弧を受け付ける",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "  if (parens !== calls) fail(",
+      "replace": "  if (false) fail(",
+      "occurrences": 1,
+      "expect_failing": [
+        "名前の前に数字がある url( はエラーにする",
+        "名前の前に ASCII 以外の文字がある url( はエラーにする",
+        "関数の形でない括弧 はエラーにする"
+      ]
+    },
+    {
+      "id": "number-ambiguous",
+      "why": "数の正規表現を、数字の列を 2 通りに割り振れる形に戻す（2 乗の時間）",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "(?:\\d+(?:\\.\\d*)?|\\.\\d+)",
+      "replace": "(?:\\d+\\.?\\d*|\\.\\d+)",
+      "occurrences": 1,
+      "expect_failing": ["一致しない長い数を含む viewBox は 1 秒以内にエラーにする"]
+    },
+    {
+      "id": "ascii-lower",
+      "why": "関数の名前を toLowerCase() で小文字にする（ケルビン記号が k になる）",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "call[1].replace(/[A-Z]/g, (c) => c.toLowerCase())",
+      "replace": "call[1].toLowerCase()",
+      "occurrences": 1,
+      "expect_failing": ["ケルビン記号を含む関数の名前 はエラーにする"]
+    },
+    {
+      "id": "url-prefix-text",
+      "why": "url() の前にある文字を書き出さない",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "${value.slice(last, url.start)}url(",
+      "replace": "url(",
+      "occurrences": 1,
+      "expect_failing": ["id とその参照に接頭辞を付け、xlink:href は href にする"]
+    },
+    {
+      "id": "depth-boundary",
+      "why": "入れ子の上限を 1 段ずらす",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "    if (state.stack.length >= MAX_DEPTH) fail(",
+      "replace": "    if (state.stack.length >= MAX_DEPTH - 1) fail(",
+      "occurrences": 1,
+      "expect_failing": ["ルートの <svg> を含めて 64 段の入れ子は受け付ける"]
+    },
+    {
+      "id": "href-both",
+      "why": "href と xlink:href の両方を受け付ける",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "  if (attributes.has(\"href\") && attributes.has(\"xlink:href\"))",
+      "replace": "  if (false)",
+      "occurrences": 1,
+      "expect_failing": ["href と xlink:href の両方 はエラーにする"]
+    },
+    {
+      "id": "text-outside",
+      "why": "title 以外の中とルートの外の文字を受け付ける",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "    if (/[^ \\t\\r\\n]/.test(text)) fail(",
+      "replace": "    if (false) fail(",
+      "occurrences": 1,
+      "expect_failing": [
+        "ルートの外の文字 はエラーにする",
+        "ルートの後の文字 はエラーにする",
+        "title 以外の中の文字 はエラーにする"
+      ]
+    },
+    {
+      "id": "text-bad-char",
+      "why": "title の中の XML で使えない文字を受け付ける",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "  if (hasBadChar(text)) fail(",
+      "replace": "  if (false) fail(",
+      "occurrences": 1,
+      "expect_failing": ["title の中の制御文字 はエラーにする"]
+    },
+    {
+      "id": "text-entity",
+      "why": "title の中の定義済みでない実体と単独の & を受け付ける",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "  if (BAD_ENTITY_IN_TEXT.test(text))",
+      "replace": "  if (false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "title の中の定義済みでない実体 はエラーにする",
+        "title の中の単独の & はエラーにする"
+      ]
+    },
+    {
+      "id": "text-char-ref",
+      "why": "XML で使えない文字を指す文字参照を受け付ける",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "    if (!ok) fail(",
+      "replace": "    if (false) fail(",
+      "occurrences": 1,
+      "expect_failing": [
+        "title の中の &#0; はエラーにする",
+        "title の中のサロゲートの文字参照 はエラーにする",
+        "title の中の範囲外の文字参照 はエラーにする"
+      ]
+    },
+    {
+      "id": "text-cdata-end",
+      "why": "title の中の ]]> を受け付ける",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "  if (text.includes(\"]]>\")) fail(",
+      "replace": "  if (false) fail(",
+      "occurrences": 1,
+      "expect_failing": ["title の中の ]]> はエラーにする"]
+    },
+    {
+      "id": "end-pair",
+      "why": "対にならない終了タグを受け付ける",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "  if (state.stack.pop()?.name !== end[1])",
+      "replace": "  if ((state.stack.pop(), false))",
+      "occurrences": 1,
+      "expect_failing": [
+        "対にならない終了タグ はエラーにする",
+        "開始タグの無い終了タグ はエラーにする"
+      ]
+    },
+    {
+      "id": "text-element-child",
+      "why": "title と desc の中の要素を受け付ける",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "    if (TEXT_ELEMENTS.has(parent.name)) fail(",
+      "replace": "    if (false) fail(",
+      "occurrences": 1,
+      "expect_failing": ["title の中の要素 はエラーにする", "desc の中の要素 はエラーにする"]
+    },
+    {
+      "id": "max-depth",
+      "why": "深すぎる入れ子を受け付ける",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "    if (state.stack.length >= MAX_DEPTH) fail(",
+      "replace": "    if (false) fail(",
+      "occurrences": 1,
+      "expect_failing": ["深すぎる入れ子 はエラーにする"]
+    },
+    {
+      "id": "two-roots",
+      "why": "2 つ目のルートを受け付ける",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "    if (state.root) fail(",
+      "replace": "    if (false) fail(",
+      "occurrences": 1,
+      "expect_failing": ["2 つのルート はエラーにする"]
+    },
+    {
+      "id": "root-svg",
+      "why": "svg でないルートを受け付ける",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "    if (tag.name !== \"svg\") fail(",
+      "replace": "    if (false) fail(",
+      "occurrences": 1,
+      "expect_failing": ["許可した要素のルートが svg でない はエラーにする"]
+    },
+    {
+      "id": "unclosed",
+      "why": "閉じていない要素を受け付ける",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "  if (stack.length) fail(",
+      "replace": "  if (false) fail(",
+      "occurrences": 1,
+      "expect_failing": ["閉じない要素 はエラーにする"]
+    },
+    {
+      "id": "duplicate-attr",
+      "why": "重複した属性を受け付ける",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "    if (attributes.has(attr[1])) fail(",
+      "replace": "    if (false) fail(",
+      "occurrences": 1,
+      "expect_failing": ["重複した属性 はエラーにする"]
+    },
+    {
+      "id": "id-prefix",
+      "why": "id に接頭辞を付けない（埋め込みの間で id が重なる）",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "  if (name === \"id\") out = prefix + out;",
+      "replace": "  if (false) out = prefix + out;",
+      "occurrences": 1,
+      "expect_failing": ["id とその参照に接頭辞を付け、xlink:href は href にする"]
+    },
+    {
+      "id": "xlink-to-href",
+      "why": "xlink:href を書き出しで残す（図の SVG が XML として読めない）",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "    outName = \"href\";",
+      "replace": "    outName = name;",
+      "occurrences": 1,
+      "expect_failing": ["id とその参照に接頭辞を付け、xlink:href は href にする"]
+    },
+    {
+      "id": "quote-escape",
+      "why": "値の中の \" をエスケープしない（属性を足せる）",
+      "file": "skills/aws-architecture-diagram/scripts/lib/validate-icon-svg.mjs",
+      "find": "replaceAll('\"', \"&quot;\")",
+      "replace": "replaceAll('\"', '\"')",
+      "occurrences": 1,
+      "expect_failing": ["一重引用符の値の中の \""]
+    }
+  ]
+}
