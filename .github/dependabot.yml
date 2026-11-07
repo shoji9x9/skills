@@ -41,7 +41,7 @@ updates:
       markdownlint-cli2:
         patterns: ["markdownlint-cli2"]
         update-types: ["minor", "patch"]
-      # --- 配布スキルに同梱するパッケージ: 自動マージせず手動レビューへ回す（0.x の esbuild は専用のグループ、ほかは 1 つのグループ） ---
+      # --- 配布スキルに同梱するパッケージ: 自動マージせず手動レビューへ回す ---
       # 上げると同梱物（skills/*/scripts/**/vendor/）を作り直すまで CI の check-vendor.ts が失敗する。
       # 名前の一覧（vendored と vendored-esbuild の合計）は check-vendor.ts の VENDORED_PACKAGES と同じにする（check-vendor.test.ts が突き合わせる）。
       # esbuild は 0.x なので、上の 0.x の方針に合わせて専用のグループにする。

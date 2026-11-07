@@ -3,7 +3,7 @@
 // （../vendor/mdast-gfm.mjs。micromark と GFM の拡張）で読み、表・HTML・コードの範囲を木から取る。
 
 import { parseGfm } from "../vendor/mdast-gfm.mjs";
-import { unclosedFenceMessage as fenceMessage } from "./fence.mjs";
+import { unclosedFenceMessage } from "./fence.mjs";
 
 /** @typedef {import("../vendor/mdast-gfm.mjs").Node} MdNode */
 
@@ -158,61 +158,46 @@ function isUnclosedFence(text, node) {
 }
 
 /**
- * HTML の節の中の、コメントの範囲（文書の先頭からの offset）。
- * 閉じたコメント（`<!-->`・`<!--->` を含む）は `-->` まで、閉じないコメントは節の終わりまでを範囲にする。
- * 節の値ではなく元の文字列から探すので、字下げした `<!--` や、`<details>` などの HTML ブロックの中のコメントも当たる。
- * @param {string} text
- * @param {MdNode} node html の節
- * @returns {{ start: number, end: number, closed: boolean }[]}
+ * HTML の節に含まれるコメントが占める範囲（文書の先頭からの offset）。表の外の行を数えるときに、この範囲を除く。
+ * 閉じたコメント（`<!-->`・`<!--->` を含む）は `-->` まで、閉じないものは節の終わりまでを範囲にする。
+ * 節の値ではなく元の文字列から探すので、`<details>` などの HTML ブロックの中のコメントも当たる。
+ * @param {string} source html の節の元の文字列
+ * @param {number} offset 節の先頭の offset
+ * @returns {{ start: number, end: number }[]}
  */
-function commentRanges(text, node) {
-  const r = rangeOf(node);
-  const source = text.slice(r.start, r.end);
-  return [...source.matchAll(/<!--(?:(>|->|[\s\S]*?-->)|[\s\S]*$)/gu)].map((m) => ({
-    start: r.start + m.index,
-    end: r.start + m.index + m[0].length,
-    closed: m[1] !== undefined,
+function commentRanges(source, offset) {
+  return [...source.matchAll(/<!--(?:>|->|[\s\S]*?-->|[\s\S]*$)/gu)].map((m) => ({
+    start: offset + m.index,
+    end: offset + m.index + m[0].length,
   }));
 }
 
 /**
- * HTML の節のうち、表の外の行を数えない範囲と、最初の閉じないコメントを開いた行の番号（無ければ null）。
+ * HTML の節を読み、表の外の行を数えない範囲と、末尾まで閉じないコメントのブロックかを返す。
+ * 閉じないコメントとして扱うのは、パーサがコメントのブロック（行頭の `<!--`）として読み、`-->` が無いまま文書の末尾まで続くものだけである。
+ * 引用・リストの中のものや、ほかの HTML ブロックの中で開いた `<!--` は、パーサの読み方では後ろの表を隠さないので扱わない。
  * @param {string} text
  * @param {MdNode} node html の節
- * @returns {{ hidden: { start: number, end: number }[], unclosedLine: number | null }}
+ * @returns {{ hidden: { start: number, end: number }[], unclosed: boolean }}
  */
 function readHtml(text, node) {
-  /** @type {{ start: number, end: number }[]} */
-  const hidden = [];
-  /** @type {number | null} */
-  let unclosedLine = null;
-  // コメントで始まる HTML ブロックは、閉じる行の `-->` の後ろもブロックに入るので、節の全体を数えない
-  if (/^\s*<!--/u.test(text.slice(rangeOf(node).start))) hidden.push(rangeOf(node));
-  for (const comment of commentRanges(text, node)) {
-    hidden.push(comment);
-    if (unclosedLine === null && !comment.closed) {
-      unclosedLine = text.slice(0, comment.start).split("\n").length;
-    }
-  }
-  return { hidden, unclosedLine };
+  const r = rangeOf(node);
+  const source = text.slice(r.start, r.end);
+  const hidden = commentRanges(source, r.start);
+  if (!/^\s*<!--/u.test(source)) return { hidden, unclosed: false };
+  // コメントのブロックは、閉じる行の `-->` の後ろもブロックに入るので、節の全体を数えない
+  hidden.push({ start: r.start, end: r.end });
+  const closed = /^\s*<!--(?:>|->|[\s\S]*?-->)/u.test(source);
+  return { hidden, unclosed: !closed && reachesEnd(text, node) };
 }
 
 /**
- * 末尾まで閉じないフェンスを、利用者に返す文にする。閉じる行の規則は fence.mjs の文に書き、コンテナの中での数え方を足す。
- * @param {number} line フェンスを開いた行の番号（1 始まり）
- * @returns {string}
- */
-function unclosedFenceMessage(line) {
-  return `${fenceMessage(line)}。リストと引用の中では、字下げを中身の始まりの位置から数える`;
-}
-
-/**
- * 閉じない HTML コメントを、利用者に返す文にする。
+ * 末尾まで閉じない HTML コメントを、利用者に返す文にする。
  * @param {number} line コメントを開いた行の番号（1 始まり）
  * @returns {string}
  */
 function unclosedCommentMessage(line) {
-  return `${line} 行目で開いた HTML コメント（<!--）が閉じていない。描画では、その後ろの行がすべてコメントになり、表として読めない。--> で閉じる`;
+  return `${line} 行目で開いた HTML コメント（<!--）が末尾まで閉じていない。その後ろの行はすべてコメントになり、表として読めない。--> で閉じる`;
 }
 
 /**
@@ -282,8 +267,7 @@ function strayRowsOf(text, { hidden, tableLines }) {
  * 表に属さないのに `|` を含む行は、警告なしに捨てず、行番号・セル数・行頭の `|` の有無を strayRows に返す
  * （GFM は行頭・行末の `|` を省けるので、行頭の `|` だけでは表の行を見分けられない）。
  * 末尾まで閉じないフェンス（閉じる行に情報文字列を付けた ` ```sh `、4 文字以上字下げした閉じる行など）は、開いた行の番号を unclosedFence に返す。
- * 閉じない HTML コメントは、開いた行の番号を unclosedComment に返す。描画した HTML では、コメントの後ろが文書の末尾まですべてコメントになる。
- * パーサは引用・リスト・HTML ブロックの終わりでコメントの節を終えるが、描画と合わせるため、どこで開いたものも返す。
+ * 末尾まで閉じない HTML コメントのブロック（行頭の `<!--`）は、開いた行の番号を unclosedComment に返す（readHtml）。
  * どちらも後ろの表を読めなくするので、呼び出し側は台帳を読まずに止める。
  * @param {string} text
  * @param {{ normalizeHeader?: (cell: string) => string }} [options] normalizeHeader は見出しのセルの正規化（デフォルトは collapse）
@@ -315,7 +299,7 @@ function parseTables(text, options = {}) {
     } else if (node.type === "html") {
       const html = readHtml(text, node);
       hidden.push(...html.hidden);
-      if (unclosedComment === null) unclosedComment = html.unclosedLine;
+      if (unclosedComment === null && html.unclosed) unclosedComment = rangeOf(node).startLine;
     }
   });
   const strayRows = strayRowsOf(text, { hidden, tableLines });
