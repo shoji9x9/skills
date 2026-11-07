@@ -243,7 +243,7 @@ function findTable(tables, headers) {
  * 表の外の、表の行に見える行（3 セル以上）の数。外側の `|` を省いた行（`PC-002 | … | #1`）も表の行として書ける（GFM）ので、
  * `|` で始まるかでは見ない。列が欠けた行（5 セル）も表の外として扱われれば同じく判定から消えるので、
  * 台帳の列数ではなく 3 セル（区切り 2 つ）以上を表の行とみなす。
- * HTML コメント（テンプレートの記入例・説明）とコードの中の行は、parseTables が表の外の行に入れないので数えない。
+ * HTML コメント（字下げしたものと、`<details>` などの HTML ブロックの中のものを含む）とコードの中の行は、parseTables が表の外の行に入れないので数えない。
  * @param {ReturnType<typeof parseTables>["strayRows"]} strayRows
  * @returns {number}
  */
@@ -282,8 +282,8 @@ export function parseModes(cell) {
  */
 
 /**
- * 台帳の 2 つの表を探し、表の形の不備（閉じないフェンス・表が無い・重複・表の外の行）を errors に積む。
- * HTML コメントの中の表と行は、GFM の描画と同じく表として読まない。閉じないコメントが表を隠したときは、表が無いエラーになる。
+ * 台帳の 2 つの表を探し、表の形の不備（閉じないフェンスとコメント・表が無い・重複・表の外の行）を errors に積む。
+ * HTML コメントの中の表と行は、GFM の描画と同じく表として読まない。閉じないコメントは、表が無いなどのエラーより先に、原因として出す。
  * @param {string} text
  * @returns {{ errors: string[], changeTable: LedgerTable | null, recordTable: LedgerTable | null }}
  */

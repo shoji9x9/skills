@@ -18,7 +18,7 @@ const OPTIONS = { allowDangerousHtml: true, extensions: [gfm()], htmlExtensions:
 
 /** 描画した HTML の断片から、表示される文字列を取り出す（コメントとタグを除き、文字参照を戻し、空白を畳む）。 */
 function visibleText(html: string): string {
-  // タグを除いた後に残った文字が新しいタグを作らないよう、変わらなくなるまで除く
+  // CodeQL の js/incomplete-multi-character-sanitization に合わせ、変わらなくなるまで除く（比べる側の文字列だけで使い、外に出さない）
   let stripped = html;
   for (let previous = ""; previous !== stripped;) {
     previous = stripped;

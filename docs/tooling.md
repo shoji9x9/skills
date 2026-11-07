@@ -544,6 +544,7 @@ Dependabot がこれらのパッケージを上げた PR は、`.github/dependab
 回ってきた PR は `dependabot-merge` スキルで扱い、Dependabot の branch を checkout して `--fix` を実行し、作り直した同梱物だけを commit して push する。
 push した後は `@dependabot rebase` と `@dependabot recreate` を使わない。どちらも手で足した commit を消す。base が進んだら、base を merge して `--fix` からやり直す。
 パッケージを足すときは、`VENDORED_PACKAGES`・`vendored` グループ・`npm-misc` の `exclude-patterns`・ワークフローの `VENDORED_PACKAGES` を同時に変える（`check-vendor.test.ts` が突き合わせる）。
+0.x のパッケージは、`vendored` に入れず、`vendored-esbuild` と同じ形の専用のグループにして、`check-vendor.test.ts` の突き合わせにも足す。
 
 同梱物は、`VENDORED_PACKAGES` に無い推移的な依存（micromark の内部のパッケージなど）でも変わる。そうした依存は、別のパッケージ（markdownlint-cli2 など）の更新や、脆弱性の修正の PR でも上がる。
 それらの PR は自動マージを予約するが、`check-vendor.ts` が失敗するので merge されずに残る。`check-vendor.ts` で失敗した Dependabot の PR は、どのグループのものでも、上と同じ手順で作り直す。
