@@ -29,15 +29,19 @@ import { resolve } from "node:path";
 import { cliIo, usageFailer, writeCheckResult } from "./lib/check-cli.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { parseFlags } from "./lib/flags.mjs";
-import { stepFence, unclosedFenceMessage } from "./lib/fence.mjs";
 import { isArray } from "./lib/is-array.mjs";
+import {
+  parseTables as parseMarkdownTables,
+  unclosedCommentMessage,
+  unclosedFenceMessage,
+} from "./lib/markdown.mjs";
 
 /**
  * ツールのバージョン（原本）。判定の規則や出力の形を変えたら上げる。
  *
  * @type {string}
  */
-export const VERSION = "5";
+export const VERSION = "6";
 
 /**
  * 役割の語彙（原本）。
@@ -89,158 +93,68 @@ export function normalizeCell(cell) {
 }
 
 /**
- * 各行がフェンスの記号の行かフェンスの中か（true）と、末尾まで閉じないフェンスを開いた行の番号（1 始まり。閉じていれば null）を返す。
- * 行頭（字下げ 3 文字まで）の `<!--` で開いて閉じない HTML コメントの中では、フェンス行でフェンスを開かない。
- * 開くと、コメントの中の記入例の ``` で、コメントの後ろの表がすべて消える。
- * コメントの中の表と見出しは読む（replace-strategy の台帳と違い、コメントの中を除かない）。
- *
- * @param {string[]} lines
- * @returns {{ fenced: boolean[], unclosed: number | null }}
- */
-function fenceLines(lines) {
-  /** @type {boolean[]} */
-  const fenced = [];
-  /** @type {string | null} */
-  let fence = null;
-  /** @type {number | null} */
-  let openedAt = null;
-  let comment = false;
-  lines.forEach((line, index) => {
-    if (comment) {
-      if (line.includes("-->")) comment = false;
-      fenced.push(false);
-      return;
-    }
-    const step = stepFence(fence, line);
-    if (fence === null && step.fence !== null) openedAt = index + 1;
-    fence = step.fence;
-    const inFence = step.marker || fence !== null;
-    if (!inFence && /^ {0,3}<!--/u.test(line)) {
-      // `<!-->` と `<!--->` も、それだけで閉じたコメントになる（CommonMark）。
-      comment = !line.includes("-->");
-    }
-    fenced.push(inFence);
-  });
-  return { fenced, unclosed: fence === null ? null : openedAt };
-}
-
-/**
- * 末尾まで閉じないコードフェンスを開いた行の番号を返す（閉じていれば null）。
- * 閉じる行の形が合わないと（情報文字列を付けた ` ```sh `、4 文字以上の字下げ、短い記号など）フェンスは閉じず、後ろの表がすべて読まれない。
- *
- * @param {string} markdown
- * @returns {number | null}
- */
-export function unclosedFenceLine(markdown) {
-  return fenceLines(String(markdown ?? "").split(/\r?\n/)).unclosed;
-}
-
-/**
  * @typedef {{ heading: string, headers: string[], rows: string[][], line: number }} Table
  * @typedef {{ code: string, message: string }} Finding
  */
 
 /**
- * 表の 1 行をセルに分ける。
+ * Markdown の表を見出しごとに集める。読み方は GitHub の描画と同じで、同梱した GFM のパーサ（lib/markdown.mjs）が決める。
+ * コードの中と HTML コメントの中の行は、描画で表にも見出しにもならないので読まない。
+ * replace-strategy も同じ lib/markdown.mjs で `.replace/features.md` を読むので、2 つのスキルが読む表は食い違わない。
+ * 見出し・列名・セルは normalizeCell で畳む。
  *
- * **エスケープされたパイプ（`\|`）はセルの区切りではない**。境界として割ると列がずれ、
- * 正当な設計が「件数が読めない」等の無関係な finding で落ちる。
+ * 末尾まで閉じないフェンスとコメントのブロックは、後ろの表をすべて読めなくするので、開いた行の番号を返す（無ければ null）。
  *
- * @param {string} line
- * @returns {string[]}
+ * @param {string} markdown
+ * @returns {{ tables: Table[], unclosedFence: number | null, unclosedComment: number | null }}
  */
-function splitTableRow(line) {
-  const trimmed = line
-    .trim()
-    .replace(/^\|/, "")
-    .replace(/(?<!\\)\|$/, "");
-  /** @type {string[]} */
-  const cells = [];
-  let current = "";
-  for (let i = 0; i < trimmed.length; i += 1) {
-    const char = trimmed[i];
-    if (char === "\\" && trimmed[i + 1] === "|") {
-      current += "|";
-      i += 1;
-      continue;
-    }
-    if (char === "|") {
-      cells.push(current);
-      current = "";
-      continue;
-    }
-    current += char;
-  }
-  cells.push(current);
-  return cells.map((c) => normalizeCell(c));
+export function readMarkdown(markdown) {
+  const parsed = parseMarkdownTables(String(markdown ?? ""), { normalizeHeader: normalizeCell });
+  return {
+    tables: parsed.tables.map((table) => ({
+      heading: normalizeCell(table.heading),
+      headers: table.headers,
+      rows: table.rows.map((row) => row.map((cell) => normalizeCell(cell))),
+      line: table.line,
+    })),
+    unclosedFence: parsed.unclosedFence,
+    unclosedComment: parsed.unclosedComment,
+  };
 }
 
 /**
- * 表の区切り行（`---`）か。
- *
- * @param {string} line
- * @returns {boolean}
- */
-function isSeparatorRow(line) {
-  return /^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(line) && line.includes("-");
-}
-
-/**
- * `start` の行から、行頭が `|` でなくなるまでを表の本体の行として集める。
- *
- * @param {string[]} lines
- * @param {number} start
- * @returns {{ rows: string[][], end: number }} end は表の次の行の index
- */
-function readTableRows(lines, start) {
-  /** @type {string[][]} */
-  const rows = [];
-  let j = start;
-  while (j < lines.length && lines[j].trim().startsWith("|")) {
-    rows.push(splitTableRow(lines[j]));
-    j += 1;
-  }
-  return { rows, end: j };
-}
-
-/**
- * Markdown のパイプ表を見出しごとに集める。
- *
- * 行頭が `|` の連続した塊のうち、2 行目が区切り行（`---`）であるものだけを表として扱う。
- * コードフェンスの中は例示なので、表も見出しも読まない（フェンスの判定は lib/fence.mjs）。
+ * readMarkdown の表だけを返す。
  *
  * @param {string} markdown
  * @returns {Table[]}
  */
 export function parseTables(markdown) {
-  const lines = String(markdown ?? "").split(/\r?\n/);
-  /** @type {Table[]} */
-  const tables = [];
-  let heading = "";
-  let i = 0;
-  const { fenced } = fenceLines(lines);
-  while (i < lines.length) {
-    const line = lines[i];
-    if (fenced[i]) {
-      i += 1;
-      continue;
-    }
-    const headingMatch = /^#{1,6}\s+(.+?)\s*$/.exec(line);
-    if (headingMatch) {
-      heading = normalizeCell(headingMatch[1]);
-      i += 1;
-      continue;
-    }
-    if (line.trim().startsWith("|") && i + 1 < lines.length && isSeparatorRow(lines[i + 1])) {
-      const headers = splitTableRow(line);
-      const { rows, end } = readTableRows(lines, i + 2);
-      tables.push({ heading, headers, rows, line: i + 1 });
-      i = end;
-      continue;
-    }
-    i += 1;
+  return readMarkdown(markdown).tables;
+}
+
+/**
+ * 末尾まで閉じないフェンスとコメントを finding にする。code は `<prefix>-fence-unclosed` と `<prefix>-comment-unclosed`。
+ *
+ * @param {string} prefix 文書の種類（features・design・verification）
+ * @param {{ unclosedFence: number | null, unclosedComment: number | null }} parsed
+ * @returns {Finding[]}
+ */
+function unclosedFindings(prefix, parsed) {
+  /** @type {Finding[]} */
+  const findings = [];
+  if (parsed.unclosedFence !== null) {
+    findings.push({
+      code: `${prefix}-fence-unclosed`,
+      message: `${prefix}.md の ${unclosedFenceMessage(parsed.unclosedFence)}`,
+    });
   }
-  return tables;
+  if (parsed.unclosedComment !== null) {
+    findings.push({
+      code: `${prefix}-comment-unclosed`,
+      message: `${prefix}.md の ${unclosedCommentMessage(parsed.unclosedComment)}`,
+    });
+  }
+  return findings;
 }
 
 /**
@@ -469,20 +383,13 @@ const FEATURE_SOURCES = [
  * @returns {{ consumers: Map<string, Set<string>>, findings: {code:string, message:string}[], structural: boolean }}
  */
 export function collectConsumers(featuresMarkdown) {
-  const tables = parseTables(featuresMarkdown);
+  const parsed = readMarkdown(featuresMarkdown);
+  const { tables } = parsed;
   /** @type {{code:string, message:string}[]} */
-  const findings = [];
+  const findings = unclosedFindings("features", parsed);
   /** @type {Map<string, Set<string>>} */
   const consumers = new Map();
-  let structural = false;
-  const unclosed = unclosedFenceLine(featuresMarkdown);
-  if (unclosed !== null) {
-    structural = true;
-    findings.push({
-      code: "features-fence-unclosed",
-      message: `features.md の ${unclosedFenceMessage(unclosed)}`,
-    });
-  }
+  let structural = findings.length > 0;
   for (const source of FEATURE_SOURCES) {
     const table = findTable(tables, source.heading, ["slug", source.column]);
     if (!table) {
@@ -650,16 +557,11 @@ export function checkPredicateCoverage(input) {
  * @returns {{ designTables: Table[], targetTable: Table | null, predicateTable: Table | null, paramTable: Table | null, structural: boolean }}
  */
 function readDesignTables(designMarkdown, findings) {
-  const designTables = parseTables(designMarkdown);
-  let structural = false;
-  const designUnclosed = unclosedFenceLine(designMarkdown);
-  if (designUnclosed !== null) {
-    structural = true;
-    findings.push({
-      code: "design-fence-unclosed",
-      message: `design.md の ${unclosedFenceMessage(designUnclosed)}`,
-    });
-  }
+  const parsed = readMarkdown(designMarkdown);
+  const designTables = parsed.tables;
+  const unclosed = unclosedFindings("design", parsed);
+  findings.push(...unclosed);
+  let structural = unclosed.length > 0;
   const targetTable = findTable(designTables, "対象テーブル", TARGET_TABLE_HEADERS);
   const predicateTable = findTable(designTables, PREDICATE_TABLE_HEADINGS, PREDICATE_TABLE_COLUMNS);
   const paramTable = findTable(designTables, "消費側パラメータ", PARAM_TABLE_HEADERS);
@@ -1541,15 +1443,10 @@ function checkUnconvertedPredicates(ctx, state) {
  */
 function checkVerification(ctx, verificationMarkdown) {
   const { findings } = ctx;
-  const verificationTables = parseTables(verificationMarkdown);
-  const verificationUnclosed = unclosedFenceLine(verificationMarkdown);
-  if (verificationUnclosed !== null) {
-    // verification.md の表が無いとき（verification-table-missing）と同じく、構造の不備にはしない。
-    findings.push({
-      code: "verification-fence-unclosed",
-      message: `verification.md の ${unclosedFenceMessage(verificationUnclosed)}`,
-    });
-  }
+  const parsed = readMarkdown(verificationMarkdown);
+  const verificationTables = parsed.tables;
+  // verification.md の表が無いとき（verification-table-missing）と同じく、構造の不備にはしない。
+  findings.push(...unclosedFindings("verification", parsed));
   const measured = findTable(verificationTables, "述語ごとの該当行数", MEASURED_TABLE_HEADERS);
   if (!measured) {
     findings.push({

@@ -1,6 +1,7 @@
-// Markdown の表を読む helper。このスキルの台帳の表を読むスクリプトが共通に使う。
+// Markdown の表を読む helper。スキルの中で Markdown の表を読むスクリプトが共通に使う。
 // GitHub が描画に使う規則とスクリプトが読む表を一致させるため、同梱した GFM（GitHub Flavored Markdown）のパーサ
-// （../vendor/mdast-gfm.mjs。micromark と GFM の拡張）で読み、表・HTML・コードの範囲を木から取る。
+// （../vendor/mdast-gfm.mjs。micromark と GFM の拡張）で読み、表・見出し・HTML・コードの範囲を木から取る。
+// replace-strategy と golden-dataset が同じ .replace/features.md を同じ読み方で読むよう、2 つのスキルが同じ内容のコピーを持つ。
 
 import { parseGfm } from "../vendor/mdast-gfm.mjs";
 
@@ -256,15 +257,35 @@ function unclosedCommentMessage(line) {
  */
 
 /**
- * @typedef {{ headers: string[], rows: string[][], rowLines: number[] }} Table
+ * @typedef {{ heading: string, line: number, headers: string[], rows: string[][], rowLines: number[] }} Table
+ *   heading は表より前で最後の見出しの文字列（collapse した元の文字列。無ければ空）、line は表の 1 行目（列名の行）の番号（1 始まり）
  */
+
+/**
+ * 見出しの節の中身の元の文字列（`#` の印と、行末の閉じる `#` を除いた範囲）。HTML（コメントを含む）は空白にする。
+ * @param {string} text
+ * @param {MdNode} node heading の節
+ * @returns {string}
+ */
+function headingText(text, node) {
+  const children = node.children ?? [];
+  if (children.length === 0) return "";
+  const start = rangeOf(children[0]).start;
+  const units = text.slice(start, rangeOf(children[children.length - 1]).end).split("");
+  visit(node, (child) => {
+    if (child.type !== "html") return;
+    const r = rangeOf(child);
+    blankRange(units, r.start - start, r.end - start);
+  });
+  return collapse(units.join(""));
+}
 
 /**
  * 表の節を、見出しと行に分けて読む。
  * @param {string} text
  * @param {MdNode} node table の節
  * @param {(cell: string) => string} normalizeHeader
- * @returns {Table}
+ * @returns {Omit<Table, "heading" | "line">}
  */
 function readTable(text, node, normalizeHeader) {
   const [header, ...body] = node.children ?? [];
@@ -313,6 +334,7 @@ function strayRowsOf(text, { hidden, tableLines }) {
  * Markdown の表を全て取り出す。読み方は GFM の描画と同じで、同梱した GFM のパーサが決める。
  * コードの中・HTML コメントの中の表は表にならないので読まない（コメントアウトして残した行を、台帳の行として数えない）。
  * 引用やリストの中の表も、GFM と同じく表として読む。
+ * 各表の heading は、文書の順で表より前にある最後の見出し（引用やリストの中の見出しを含む。コードと HTML コメントの中の行は見出しにならない）である。
  * 行のセル数は書いたとおりに返す（GFM の描画は余るセルを捨て、足りないセルを空にするが、呼び出し側が列の数の誤りとして扱えるようにする）。
  *
  * 表に属さないのに `|` を含む行は、警告なしに捨てず、行番号・セル数・行頭の `|` の有無を strayRows に返す
@@ -337,9 +359,16 @@ function parseTables(text, options = {}) {
   let unclosedFence = null;
   /** @type {number | null} */
   let unclosedComment = null;
+  let heading = "";
   visit(parseGfm(text, [COUNT_FENCES]), (node) => {
-    if (node.type === "table") {
-      tables.push(readTable(text, node, normalizeHeader));
+    if (node.type === "heading") {
+      heading = headingText(text, node);
+    } else if (node.type === "table") {
+      tables.push({
+        heading,
+        line: rangeOf(node).startLine,
+        ...readTable(text, node, normalizeHeader),
+      });
       const r = rangeOf(node);
       for (let line = r.startLine; line <= r.endLine; line += 1) tableLines.add(line);
     } else if (node.type === "code" || node.type === "inlineCode") {

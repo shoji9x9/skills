@@ -40,7 +40,8 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>] [--autono
 
 ## 前提
 
-- ツール: `git`、`node`（同梱のスクリプト [`scripts/predicate-coverage-check.mjs`](scripts/predicate-coverage-check.mjs) と、設定ファイルを読む `scripts/skill-config/skill-config.mjs` の実行に使う。依存パッケージは要らない）。投入ツールを実行する手段（DB クライアント・言語ランタイム）は、プロジェクト側で用意する
+- ツール: `git`、`node`（同梱のスクリプト [`scripts/predicate-coverage-check.mjs`](scripts/predicate-coverage-check.mjs) と、設定ファイルを読む `scripts/skill-config/skill-config.mjs` の実行に使う。依存パッケージは要らない）。
+  Markdown の表を GitHub の描画と同じに読むパーサは、`scripts/vendor/` に同梱している。投入ツールを実行する手段（DB クライアント・言語ランタイム）は、プロジェクト側で用意する
 - 前提スキル: `replace-strategy`（`setup` が完了していること）。`current.origin: received-assets` のプロジェクトでは、さらに `current-environment-bootstrap` の引き渡しが完了していること（`.replace/bootstrap/metadata.json` の `status: handed-off`）
 - 前提スキルがインストールされていない場合: `gh skill install shoji9x9/skills replace-strategy` で導入してから実行する。
   このスキルは、設定のスキーマと成果物の様式を `replace-strategy` の `references/` と `assets/` で定義しているので、単体では動かない（同時に導入されている前提）

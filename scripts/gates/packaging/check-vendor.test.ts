@@ -14,7 +14,7 @@
 // | --fix の書き込み先 | 通常のファイル / ファイルがシンボリックリンク / 途中のディレクトリがシンボリックリンク |
 // | まとめたパッケージ | node_modules の中 / 外 / ライセンスが MIT でない |
 // | 引数 | 無し / --fix / 知らない引数 |
-import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, test, vi } from "vitest";
@@ -208,15 +208,24 @@ describe("check", () => {
     ]);
   });
 
-  test("mdast-gfm は replace-strategy にだけ同梱し、--fix で作った後は指摘が無い", async () => {
+  test("mdast-gfm は replace-strategy と golden-dataset にだけ同梱し、--fix で作った後は指摘が無い", async () => {
     const { root, put } = makeConfigRepo();
     put("skills/replace-strategy/SKILL.md");
+    put("skills/golden-dataset/SKILL.md");
+    put("skills/other/SKILL.md");
+    put("skills/other/scripts/vendor/mdast-gfm.mjs");
     expect(await check(root, false, [MDAST_GFM])).toEqual(
-      MDAST_GFM.files.map((f) => ({
-        path: `skills/replace-strategy/scripts/vendor/${f}`,
-        message: "無い",
-      })),
+      expect.arrayContaining([
+        ...["golden-dataset", "replace-strategy"].flatMap((skill) =>
+          MDAST_GFM.files.map((f) => ({
+            path: `skills/${skill}/scripts/vendor/${f}`,
+            message: "無い",
+          })),
+        ),
+        expect.objectContaining({ path: expect.stringContaining("skills/other/scripts/vendor") }),
+      ]),
     );
+    rmSync(join(root, "skills/other/scripts"), { recursive: true });
     await check(root, true, [MDAST_GFM]);
     expect(await check(root, false, [MDAST_GFM])).toEqual([]);
   });

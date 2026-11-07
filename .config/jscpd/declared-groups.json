@@ -243,6 +243,10 @@
       "skills/parity-replace/config-schemas/replace-strategy.schema.json",
       "skills/parity-suite/config-schemas/replace-strategy.schema.json",
       "skills/replace-strategy/config-schemas/replace-strategy.schema.json"
+    ],
+    [
+      "skills/golden-dataset/scripts/lib/markdown.mjs",
+      "skills/replace-strategy/scripts/lib/markdown.mjs"
     ]
   ]
 }

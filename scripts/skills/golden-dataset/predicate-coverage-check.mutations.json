@@ -30,77 +30,6 @@
       ]
     },
     {
-      "id": "fence-closed-by-info-string",
-      "why": "閉じるフェンスの後ろに情報文字列を許し、` ```bash ` の行で開いているフェンスを閉じる（Issue #679）",
-      "file": "skills/golden-dataset/scripts/lib/fence.mjs",
-      "find": "/^ {0,3}(`{3,}|~{3,})[ \\t]*$/u",
-      "replace": "/^ {0,3}(`{3,}|~{3,})/u",
-      "occurrences": 1,
-      "expect_failing": [
-        "情報文字列の付いた行でフェンスを閉じず、フェンスの中の表を読まない",
-        "unclosedFenceLine は、末尾まで閉じないフェンスを開いた行の番号を返す: 情報文字列の付いた行で閉じたつもりのフェンス",
-        "features.md の閉じないコードフェンスは、構造の不備として合格にしない",
-        "design.md の閉じないコードフェンスは、構造の不備として合格にしない",
-        "verification.md の閉じないコードフェンスは、表が無いときと同じく、開いた行の番号を付けて報告する",
-        "verification.md の閉じないフェンスの後ろにある実測表は読めないので、表が無いことも報告する（replace-strategy の台帳と同じ）"
-      ]
-    },
-    {
-      "id": "fence-content-read",
-      "why": "コードフェンスの中の表と見出しを、設計の表として読む",
-      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
-      "find": "    if (fenced[i]) {",
-      "replace": "    if (false) {",
-      "occurrences": 1,
-      "expect_failing": [
-        "コードフェンスの中の表と見出しを読まない",
-        "情報文字列の付いた行でフェンスを閉じず、フェンスの中の表を読まない",
-        "誤検知しないことの確認: フェンスの中の `<!--` はコメントを開かず、フェンスの後ろのフェンスの中の表を読まない",
-        "`<!-->` と `<!--->` はそれだけでコメントを閉じ、後ろのフェンスの中の表を読まない",
-        "verification.md の閉じないフェンスの後ろにある実測表は読めないので、表が無いことも報告する（replace-strategy の台帳と同じ）"
-      ]
-    },
-    {
-      "id": "comment-opened-inside-fence",
-      "why": "フェンスの中の `<!--` で HTML コメントを開き、後ろのフェンスを読まない",
-      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
-      "find": "    if (!inFence && /^ {0,3}<!--/u.test(line)) {",
-      "replace": "    if (/^ {0,3}<!--/u.test(line)) {",
-      "occurrences": 1,
-      "expect_failing": [
-        "誤検知しないことの確認: フェンスの中の `<!--` はコメントを開かず、フェンスの後ろのフェンスの中の表を読まない"
-      ]
-    },
-    {
-      "id": "short-comment-left-open",
-      "why": "`<!-->` と `<!--->` を閉じたコメントとして扱わず、次の `-->` までフェンスを認識しない（PR #696 のレビュー）",
-      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
-      "find": "      comment = !line.includes(\"-->\");",
-      "replace": "      comment = !line.slice(line.indexOf(\"<!--\") + 4).includes(\"-->\");",
-      "occurrences": 1,
-      "expect_failing": [
-        "`<!-->` と `<!--->` はそれだけでコメントを閉じ、後ろのフェンスの中の表を読まない"
-      ]
-    },
-    {
-      "id": "features-unclosed-fence-unchecked",
-      "why": "features.md の閉じないフェンスを構造の不備にしない",
-      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
-      "find": "  if (unclosed !== null) {",
-      "replace": "  if (false) {",
-      "occurrences": 1,
-      "expect_failing": ["features.md の閉じないコードフェンスは、構造の不備として合格にしない"]
-    },
-    {
-      "id": "design-unclosed-fence-unchecked",
-      "why": "design.md の閉じないフェンスを構造の不備にしない",
-      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
-      "find": "  if (designUnclosed !== null) {",
-      "replace": "  if (false) {",
-      "occurrences": 1,
-      "expect_failing": ["design.md の閉じないコードフェンスは、構造の不備として合格にしない"]
-    },
-    {
       "id": "static-path-split-by-slash",
       "why": "features.md のテーブルの列も / と ／ で区切り、static の単位名のパス（content/works）を 2 つの表に割る（Issue #856）",
       "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
@@ -168,6 +97,57 @@
       "expect_failing": [
         "対象テーブル表の機能／リソースの列と述語の消費側 slug の列も、/ で並べれば複数の slug として読む",
         "対象テーブル表の機能／リソースの列と述語の消費側 slug の列も、／ で並べれば複数の slug として読む"
+      ]
+    },
+    {
+      "id": "unclosed-fence-unreported",
+      "why": "末尾まで閉じないフェンスを finding にしない（後ろの表が読めないまま、表が無いことだけを報告する）",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "  if (parsed.unclosedFence !== null) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "features.md の閉じないコードフェンスは、構造の不備として合格にしない",
+        "design.md の閉じないコードフェンスは、構造の不備として合格にしない",
+        "verification.md の閉じないコードフェンスは、表が無いときと同じく、開いた行の番号を付けて報告する",
+        "verification.md の閉じないフェンスの後ろにある実測表は読めないので、表が無いことも報告する（replace-strategy の台帳と同じ）"
+      ]
+    },
+    {
+      "id": "unclosed-comment-unreported",
+      "why": "末尾まで閉じない HTML コメントを finding にしない（後ろの表が読めないまま、表が無いことだけを報告する）",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "  if (parsed.unclosedComment !== null) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "features.md の閉じない HTML コメントは、構造の不備として合格にしない",
+        "design.md の閉じない HTML コメントは、構造の不備として合格にしない",
+        "verification.md の閉じない HTML コメントは、構造の不備にせず、開いた行の番号を付けて報告する"
+      ]
+    },
+    {
+      "id": "design-unclosed-not-structural",
+      "why": "design.md の閉じないフェンスとコメントを構造の不備にしない",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "  let structural = unclosed.length > 0;",
+      "replace": "  let structural = false;",
+      "occurrences": 1,
+      "expect_failing": [
+        "design.md の閉じないコードフェンスは、構造の不備として合格にしない",
+        "design.md の閉じない HTML コメントは、構造の不備として合格にしない"
+      ]
+    },
+    {
+      "id": "features-unclosed-not-structural",
+      "why": "features.md の閉じないフェンスとコメントを構造の不備にしない",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "  let structural = findings.length > 0;",
+      "replace": "  let structural = false;",
+      "occurrences": 1,
+      "expect_failing": [
+        "features.md の閉じないコードフェンスは、構造の不備として合格にしない",
+        "features.md の閉じない HTML コメントは、構造の不備として合格にしない"
       ]
     }
   ]

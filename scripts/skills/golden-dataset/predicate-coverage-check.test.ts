@@ -10,8 +10,9 @@ import { assert, test, expect } from "vitest";
 import {
   checkPredicateCoverage,
   filterColumn,
+  findTable,
   parseTables,
-  unclosedFenceLine,
+  readMarkdown,
 } from "../../../skills/golden-dataset/scripts/predicate-coverage-check.mjs";
 import {
   designOf,
@@ -1185,7 +1186,8 @@ test("情報文字列の付いた行でフェンスを閉じず、フェンス�
   expect(tables.map((t) => t.headers)).toEqual([["b"]]);
 });
 
-test("HTML コメントの中のフェンス行でフェンスを開かず、コメントの後ろの表を読む", () => {
+// HTML コメントの中の行は、描画で表にも見出しにもならないので読まない（Issue #926。replace-strategy の台帳と同じ読み方）。
+test("HTML コメントの中の表・見出し・フェンス行を読まず、コメントの後ろの表を読む", () => {
   const tables = parseTables(
     md(
       "<!-- 記入例:",
@@ -1202,7 +1204,6 @@ test("HTML コメントの中のフェンス行でフェンスを開かず、コ
     ),
   );
   expect(tables.map((t) => ({ heading: t.heading, headers: t.headers }))).toEqual([
-    { heading: "", headers: ["x"] },
     { heading: "機能一覧", headers: ["b"] },
   ]);
 });
@@ -1249,9 +1250,9 @@ test.each([
   ["閉じない HTML コメントの中のフェンス行", md("<!--", "```", "x"), null],
   ["フェンスが無い", md("| b |", "|---|", "| 2 |"), null],
 ])(
-  "unclosedFenceLine は、末尾まで閉じないフェンスを開いた行の番号を返す: %s",
+  "readMarkdown は、末尾まで閉じないフェンスを開いた行の番号を返す: %s",
   (_name, text, expected) => {
-    expect(unclosedFenceLine(text)).toBe(expected);
+    expect(readMarkdown(text).unclosedFence).toBe(expected);
   },
 );
 
@@ -1307,4 +1308,71 @@ test("誤検知しないことの確認: 閉じたコードフェンスは、構
   expect(codes).not.toContain("features-fence-unclosed");
   expect(codes).not.toContain("design-fence-unclosed");
   expect(codes).not.toContain("verification-fence-unclosed");
+});
+
+// 閉じない HTML コメント（Issue #926。replace-strategy の台帳と同じ扱い）。
+// 末尾まで閉じないコメントのブロックは、その後ろの行をすべてコメントにし、後ろの表を読めなくするので、開いた行の番号を返す。
+test.each([
+  [
+    "features.md",
+    "features-comment-unclosed",
+    { features: `${FEATURES}\n<!-- 退役\n`, design: designOf() },
+  ],
+  [
+    "design.md",
+    "design-comment-unclosed",
+    { features: FEATURES, design: `${designOf()}\n<!-- 退役\n` },
+  ],
+])("%s の閉じない HTML コメントは、構造の不備として合格にしない", (_name, code, input) => {
+  const result = checkPredicateCoverage({
+    featuresMarkdown: input.features,
+    designMarkdown: input.design,
+    verificationMarkdown: null,
+  });
+  expect(result.findings.map((f) => f.code)).toContain(code);
+  expect(result.structural).toBe(true);
+});
+
+test("verification.md の閉じない HTML コメントは、構造の不備にせず、開いた行の番号を付けて報告する", () => {
+  const result = checkPredicateCoverage({
+    featuresMarkdown: FEATURES,
+    designMarkdown: designOf(),
+    verificationMarkdown: "# 検証\n\n<!-- 退役\n",
+  });
+  const finding = result.findings.find((f) => f.code === "verification-comment-unclosed");
+  expect(finding?.message).toContain(
+    "verification.md の 3 行目で開いた HTML コメント（<!--）が末尾まで閉じていない。",
+  );
+  expect(result.structural).toBe(false);
+});
+
+test("誤検知しないことの確認: 閉じた HTML コメントは、構造の不備にしない", () => {
+  const closed = "\n<!-- 退役\n| x | y |\n-->\n";
+  const codes = codesOf({
+    features: `${FEATURES}${closed}`,
+    design: `${designOf()}${closed}`,
+    verification: `# 検証\n${closed}`,
+  });
+  expect(codes).not.toContain("features-comment-unclosed");
+  expect(codes).not.toContain("design-comment-unclosed");
+  expect(codes).not.toContain("verification-comment-unclosed");
+});
+
+test("同じ見出しの下にコメントアウトした古い表があっても、コメントの外の表を使う", () => {
+  const tables = parseTables(
+    md(
+      "## 対象テーブル",
+      "",
+      "<!--",
+      "| a |",
+      "|---|",
+      "| old |",
+      "-->",
+      "",
+      "| a |",
+      "|---|",
+      "| new |",
+    ),
+  );
+  expect(findTable(tables, "対象テーブル", ["a"])?.rows).toEqual([["new"]]);
 });
