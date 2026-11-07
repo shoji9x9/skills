@@ -162,16 +162,38 @@ function isUnclosedFence(text, node) {
  * HTML の節に含まれるコメントが占める範囲（文書の先頭からの offset）。表の外の行を数えるときに、この範囲を除く。
  * 閉じたコメント（`<!-->`・`<!--->` を含む）は `-->` か `--!>`（HTML ではどちらも閉じる）まで、閉じないものは節の終わりまでを範囲にする。
  * 節の値ではなく元の文字列から探すので、`<details>` などの HTML ブロックの中のコメントも当たる。
+ * タグの中（`<img alt="<!--">` の属性値など）の `<!--` は、コメントを開かないので飛ばす。
  * @param {string} source html の節の元の文字列
  * @param {number} offset 節の先頭の offset
  * @returns {{ start: number, end: number, closed: boolean }[]}
  */
 function commentRanges(source, offset) {
-  return [...source.matchAll(/<!--(?:(>|->|[\s\S]*?--!?>)|[\s\S]*$)/gu)].map((m) => ({
-    start: offset + m.index,
-    end: offset + m.index + m[0].length,
-    closed: m[1] !== undefined,
-  }));
+  /** @type {{ start: number, end: number, closed: boolean }[]} */
+  const ranges = [];
+  const pattern = /<!--(?:(>|->|[\s\S]*?--!?>)|[\s\S]*$)/gu;
+  for (let m = pattern.exec(source); m !== null; m = pattern.exec(source)) {
+    if (insideTag(source, m.index)) {
+      pattern.lastIndex = m.index + 4;
+      continue;
+    }
+    ranges.push({
+      start: offset + m.index,
+      end: offset + m.index + m[0].length,
+      closed: m[1] !== undefined,
+    });
+  }
+  return ranges;
+}
+
+/**
+ * index の位置がタグの中（最後の `<` より後ろに `>` が無い）か。
+ * @param {string} source
+ * @param {number} index
+ * @returns {boolean}
+ */
+function insideTag(source, index) {
+  const before = source.slice(0, index);
+  return before.lastIndexOf("<") > before.lastIndexOf(">");
 }
 
 /**

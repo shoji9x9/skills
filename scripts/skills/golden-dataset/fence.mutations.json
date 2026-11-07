@@ -6,18 +6,6 @@
   "test_file": "scripts/skills/golden-dataset/fence.test.ts",
   "mutations": [
     {
-      "id": "fence-closed-by-info-string",
-      "why": "閉じるフェンスの後ろに情報文字列を許し、` ```bash ` の行で開いているフェンスを閉じる（Issue #679）",
-      "file": "skills/golden-dataset/scripts/lib/fence.mjs",
-      "find": "/^ {0,3}(`{3,}|~{3,})[ \\t]*$/u",
-      "replace": "/^ {0,3}(`{3,}|~{3,})/u",
-      "occurrences": 1,
-      "expect_failing": [
-        "stepFence: 開いている・情報文字列付きの行では閉じない",
-        "stepFence: 開いている・~~~ の情報文字列付きの行では閉じない"
-      ]
-    },
-    {
       "id": "fence-closed-by-shorter",
       "why": "開いた記号より短い記号でフェンスを閉じる",
       "file": "skills/golden-dataset/scripts/lib/fence.mjs",

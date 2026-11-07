@@ -68,7 +68,8 @@
         "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 末尾まで続く `<div>` の中の、閉じないコメント",
         "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: `--!>` だけで閉じたつもりのコメント",
         "asset-delivery-check: 閉じない HTML コメントは、開いた行の番号を付けて止める",
-        "evidence-gap-check: 閉じない HTML コメントは、開いた行の番号を付けて止める"
+        "evidence-gap-check: 閉じない HTML コメントは、開いた行の番号を付けて止める",
+        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 字下げして `--!>` だけで閉じたつもりのコメント"
       ]
     },
     {
@@ -93,7 +94,44 @@
       "replace": "source.includes(\"-->\") || source.includes(\"--!>\") ? undefined",
       "occurrences": 1,
       "expect_failing": [
-        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: `--!>` だけで閉じたつもりのコメント"
+        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: `--!>` だけで閉じたつもりのコメント",
+        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 字下げして `--!>` だけで閉じたつもりのコメント"
+      ]
+    },
+    {
+      "id": "indented-comment-block-unreported",
+      "why": "字下げして開いたコメントのブロックを、`-->` でだけ終わるブロックとして扱わない",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "if (!/^\\s*<!--/u.test(source))",
+      "replace": "if (!/^<!--/u.test(source))",
+      "occurrences": 1,
+      "expect_failing": [
+        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 字下げして `--!>` だけで閉じたつもりのコメント"
+      ]
+    },
+    {
+      "id": "unclosed-comment-not-at-end-reported",
+      "why": "文書の末尾まで続かない（引用・リスト・ほかの HTML ブロックの終わりで終わる）閉じないコメントも報告する",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "open !== undefined && reachesEnd(text, node)",
+      "replace": "open !== undefined",
+      "occurrences": 1,
+      "expect_failing": [
+        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 後ろに項目が続くリストの中の、閉じないコメント",
+        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 引用の中で閉じない（引用の終わりで終わる）コメント",
+        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: HTML ブロックの中で開いた `<!--`",
+        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: `<textarea>` の中の `<!--`"
+      ]
+    },
+    {
+      "id": "comment-inside-tag-opened",
+      "why": "タグの中（属性値）の `<!--` を、コメントの始まりとして読む",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "    if (insideTag(source, m.index)) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 末尾の属性値の中の `<!--`"
       ]
     },
     {
