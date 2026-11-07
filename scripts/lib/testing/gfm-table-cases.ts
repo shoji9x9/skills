@@ -17,76 +17,84 @@ const OPTIONS = { allowDangerousHtml: true, extensions: [gfm()], htmlExtensions:
  * https://html.spec.whatwg.org/multipage/rendering.html
  * 比べる相手を独立に作るため、lib/markdown.mjs の一覧を読まずにここで書く。
  */
+export const SEPARATING_TAG_NAMES = [
+  "address",
+  "article",
+  "aside",
+  "blockquote",
+  "body",
+  "br",
+  "caption",
+  "center",
+  "col",
+  "colgroup",
+  "dd",
+  "details",
+  "dialog",
+  "dir",
+  "div",
+  "dl",
+  "dt",
+  "fieldset",
+  "figcaption",
+  "figure",
+  "footer",
+  "form",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "header",
+  "hgroup",
+  "hr",
+  "html",
+  "legend",
+  "li",
+  "listing",
+  "main",
+  "menu",
+  "nav",
+  "ol",
+  "optgroup",
+  "option",
+  "p",
+  "pre",
+  "search",
+  "section",
+  "summary",
+  "table",
+  "tbody",
+  "td",
+  "tfoot",
+  "th",
+  "thead",
+  "tr",
+  "ul",
+];
+
 const SEPARATING = new RegExp(
-  `<\\/?(?:${[
-    "address",
-    "article",
-    "aside",
-    "blockquote",
-    "body",
-    "br",
-    "caption",
-    "center",
-    "col",
-    "colgroup",
-    "dd",
-    "details",
-    "dialog",
-    "dir",
-    "div",
-    "dl",
-    "dt",
-    "fieldset",
-    "figcaption",
-    "figure",
-    "footer",
-    "form",
-    "h[1-6]",
-    "header",
-    "hgroup",
-    "hr",
-    "html",
-    "legend",
-    "li",
-    "listing",
-    "main",
-    "menu",
-    "nav",
-    "ol",
-    "optgroup",
-    "option",
-    "p",
-    "plaintext",
-    "pre",
-    "search",
-    "section",
-    "summary",
-    "table",
-    "tbody",
-    "td",
-    "tfoot",
-    "th",
-    "thead",
-    "tr",
-    "ul",
-    "xmp",
-  ].join("|")})(?![A-Za-z0-9-])(?:"[^"]*"|'[^']*'|[^"'<>])*>`,
+  `<\\/?(?:${SEPARATING_TAG_NAMES.join("|")})(?![A-Za-z0-9-])(?:"[^"]*"|'[^']*'|[^"'<>])*>`,
   "giu",
 );
 
 /** 描画した HTML の断片から、表示される文字列を取り出す（コメントとタグを除き、文字参照を戻し、空白を畳む）。 */
 function visibleText(html: string): string {
   // CodeQL の js/incomplete-multi-character-sanitization に合わせ、変わらなくなるまで除く（比べる側の文字列だけで使い、外に出さない）
+  // コメントは画面に何も出さない。ただし空文字に置き換えると、前後がつながって新しい `<!--` ができる。
+  // そのため、ループの中では NUL に置き換え、ループを抜けた後で取り除く
   let stripped = html;
   for (let previous = ""; previous !== stripped;) {
     previous = stripped;
     stripped = stripped
-      .replace(/<!--[\s\S]*?-->|<!-->|<!--->/gu, "")
+      .replace(/<!--[\s\S]*?-->|<!-->|<!--->/gu, "\u0000")
       .replace(/<\?[\s\S]*?\?>|<![A-Za-z][^>]*>|<!\[CDATA\[[\s\S]*?\]\]>/gu, "")
       .replace(SEPARATING, " ")
       .replace(/<\/?[A-Za-z](?:"[^"]*"|'[^']*'|[^"'<>])*>/gu, "");
   }
   return stripped
+    .replaceAll("\u0000", "")
     .replaceAll("&lt;", "<")
     .replaceAll("&gt;", ">")
     .replaceAll("&quot;", '"')

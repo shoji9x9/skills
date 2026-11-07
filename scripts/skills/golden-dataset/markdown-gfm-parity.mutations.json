@@ -1,0 +1,95 @@
+{
+  "$comment": [
+    "markdown-gfm-parity.test.ts のうち、golden-dataset の lib/markdown.mjs の、表示される文字列の作り方の判定を示す変異の一覧。"
+  ],
+  "test_file": "scripts/skills/golden-dataset/markdown-gfm-parity.test.ts",
+  "mutations": [
+    {
+      "id": "separating-tag-ignored",
+      "why": "改行とブロックを作るタグで語を分けず、2 つの語を 1 つの別の名前につなぐ",
+      "file": "skills/golden-dataset/scripts/lib/markdown.mjs",
+      "find": "  return name !== undefined && SEPARATING_TAGS.has(name.toLowerCase());",
+      "replace": "  return false;",
+      "occurrences": 1,
+      "expect_failing": [
+        "predicate-coverage-check は GFM の描画と同じ表と見出しを読む: セルの中の `<br>`",
+        "predicate-coverage-check は GFM の描画と同じ表と見出しを読む: セルの中の属性付きの `<br>`",
+        "predicate-coverage-check は GFM の描画と同じ表と見出しを読む: セルの中の、属性値に `>` を含む `<br>`",
+        "predicate-coverage-check は GFM の描画と同じ表と見出しを読む: セルの中の `<p>`・`<div>`・`</br>`",
+        "語を分けるタグ <address> を、描画と同じく空白として読む",
+        "語を分けるタグ <article> を、描画と同じく空白として読む",
+        "語を分けるタグ <aside> を、描画と同じく空白として読む",
+        "語を分けるタグ <blockquote> を、描画と同じく空白として読む",
+        "語を分けるタグ <body> を、描画と同じく空白として読む",
+        "語を分けるタグ <br> を、描画と同じく空白として読む",
+        "語を分けるタグ <caption> を、描画と同じく空白として読む",
+        "語を分けるタグ <center> を、描画と同じく空白として読む",
+        "語を分けるタグ <col> を、描画と同じく空白として読む",
+        "語を分けるタグ <colgroup> を、描画と同じく空白として読む",
+        "語を分けるタグ <dd> を、描画と同じく空白として読む",
+        "語を分けるタグ <details> を、描画と同じく空白として読む",
+        "語を分けるタグ <dialog> を、描画と同じく空白として読む",
+        "語を分けるタグ <dir> を、描画と同じく空白として読む",
+        "語を分けるタグ <div> を、描画と同じく空白として読む",
+        "語を分けるタグ <dl> を、描画と同じく空白として読む",
+        "語を分けるタグ <dt> を、描画と同じく空白として読む",
+        "語を分けるタグ <fieldset> を、描画と同じく空白として読む",
+        "語を分けるタグ <figcaption> を、描画と同じく空白として読む",
+        "語を分けるタグ <figure> を、描画と同じく空白として読む",
+        "語を分けるタグ <footer> を、描画と同じく空白として読む",
+        "語を分けるタグ <form> を、描画と同じく空白として読む",
+        "語を分けるタグ <h1> を、描画と同じく空白として読む",
+        "語を分けるタグ <h2> を、描画と同じく空白として読む",
+        "語を分けるタグ <h3> を、描画と同じく空白として読む",
+        "語を分けるタグ <h4> を、描画と同じく空白として読む",
+        "語を分けるタグ <h5> を、描画と同じく空白として読む",
+        "語を分けるタグ <h6> を、描画と同じく空白として読む",
+        "語を分けるタグ <header> を、描画と同じく空白として読む",
+        "語を分けるタグ <hgroup> を、描画と同じく空白として読む",
+        "語を分けるタグ <hr> を、描画と同じく空白として読む",
+        "語を分けるタグ <html> を、描画と同じく空白として読む",
+        "語を分けるタグ <legend> を、描画と同じく空白として読む",
+        "語を分けるタグ <li> を、描画と同じく空白として読む",
+        "語を分けるタグ <listing> を、描画と同じく空白として読む",
+        "語を分けるタグ <main> を、描画と同じく空白として読む",
+        "語を分けるタグ <menu> を、描画と同じく空白として読む",
+        "語を分けるタグ <nav> を、描画と同じく空白として読む",
+        "語を分けるタグ <ol> を、描画と同じく空白として読む",
+        "語を分けるタグ <optgroup> を、描画と同じく空白として読む",
+        "語を分けるタグ <option> を、描画と同じく空白として読む",
+        "語を分けるタグ <p> を、描画と同じく空白として読む",
+        "語を分けるタグ <pre> を、描画と同じく空白として読む",
+        "語を分けるタグ <search> を、描画と同じく空白として読む",
+        "語を分けるタグ <section> を、描画と同じく空白として読む",
+        "語を分けるタグ <summary> を、描画と同じく空白として読む",
+        "語を分けるタグ <tbody> を、描画と同じく空白として読む",
+        "語を分けるタグ <tfoot> を、描画と同じく空白として読む",
+        "語を分けるタグ <thead> を、描画と同じく空白として読む",
+        "語を分けるタグ <ul> を、描画と同じく空白として読む"
+      ]
+    },
+    {
+      "id": "every-tag-separates",
+      "why": "語を分けないタグ（span・b）でも空白を入れ、日本語の語の途中で値を割る",
+      "file": "skills/golden-dataset/scripts/lib/markdown.mjs",
+      "find": "  return name !== undefined && SEPARATING_TAGS.has(name.toLowerCase());",
+      "replace": "  return name !== undefined;",
+      "occurrences": 1,
+      "expect_failing": [
+        "predicate-coverage-check は GFM の描画と同じ表と見出しを読む: セルの中の語を分けないタグ",
+        "predicate-coverage-check は GFM の描画と同じ表と見出しを読む: 見出しの中の語を分けないタグ"
+      ]
+    },
+    {
+      "id": "filtered-tag-hidden",
+      "why": "GFM の tagfilter が文字のまま表示するタグを、表示されないタグとして読む",
+      "file": "skills/golden-dataset/scripts/lib/markdown.mjs",
+      "find": "    else if (child.type === \"html\" && FILTERED_TAG.test(child.value ?? \"\"))\n      parts.push(child.value ?? \"\");",
+      "replace": "    else if (false)\n      parts.push(child.value ?? \"\");",
+      "occurrences": 1,
+      "expect_failing": [
+        "predicate-coverage-check は GFM の描画と同じ表と見出しを読む: セルの中の、GFM の tagfilter が無効にするタグ"
+      ]
+    }
+  ]
+}

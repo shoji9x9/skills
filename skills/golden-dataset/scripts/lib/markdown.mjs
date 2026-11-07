@@ -268,6 +268,7 @@ function unclosedCommentMessage(line) {
  * 改行（br）か、block・list-item・table の表示になる要素である。
  * https://html.spec.whatwg.org/multipage/rendering.html
  * 一覧に無い名前（span・b や未知の要素）は、ブラウザと同じく inline の表示として扱い、語を分けない。
+ * plaintext と xmp は block の要素だが、GFM の tagfilter が文字のまま表示させるので、一覧に入れない（FILTERED_TAG）。
  */
 const SEPARATING_TAGS = new Set([
   "address",
@@ -312,7 +313,6 @@ const SEPARATING_TAGS = new Set([
   "optgroup",
   "option",
   "p",
-  "plaintext",
   "pre",
   "search",
   "section",
@@ -325,8 +325,15 @@ const SEPARATING_TAGS = new Set([
   "thead",
   "tr",
   "ul",
-  "xmp",
 ]);
+
+/**
+ * GFM の tagfilter が無効にするタグ。GitHub は `<` を文字参照にして、タグを文字のまま表示する。
+ * 同梱したパーサの依存 micromark-extension-gfm-tagfilter と同じ規則（名前の後ろが空白・`/`・`>`）である。
+ * https://github.github.com/gfm/#disallowed-raw-html-extension-
+ */
+const FILTERED_TAG =
+  /^<\/?(?:iframe|noembed|noframes|plaintext|script|style|title|textarea|xmp)(?=[\t\n\f\r />])/iu;
 
 /**
  * html の節が、画面で前後の語を分けるタグか。開くタグと閉じるタグ（`</br>` を含む）の名前を、属性に依らず節の先頭から取る。
@@ -344,6 +351,8 @@ function separatesWords(value) {
  * コードスパンは中身だけを使う。強調の記号はパーサが節にするので残らない。
  * HTML は表示されないので使わない。改行とブロックを作るタグ（`<br>`・`<p>`・`<div>` など。separatesWords）だけは、画面で前後の語を分けるので空白にする。
  * それ以外のタグ（`<span>`・`<b>`）は、日本語の語の途中に置いても画面で 1 語に見えるので、何も入れない。
+ * GFM の tagfilter が無効にするタグ（`<script>`・`<xmp>` など。FILTERED_TAG）は、GitHub が文字のまま表示するので、タグの文字列をそのまま使う。
+ * 画面に表示されない要素（`<template>` など）の中身は除かない。タグだけを見るので、中身は前後の語とつながる。
  * 改行も空白にし、空白は畳む。
  * 脚注の参照（`[^1]`）は、値に付けた注の印なので使わない（描画は番号を上付きで表示する）。
  * @param {MdNode} node
@@ -354,6 +363,8 @@ function visibleText(node) {
   const parts = [];
   visit(node, (child) => {
     if (child.type === "text" || child.type === "inlineCode") parts.push(child.value ?? "");
+    else if (child.type === "html" && FILTERED_TAG.test(child.value ?? ""))
+      parts.push(child.value ?? "");
     else if (child.type === "break" || (child.type === "html" && separatesWords(child.value ?? "")))
       parts.push(" ");
   });

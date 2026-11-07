@@ -10,6 +10,7 @@ import { expect, test } from "vitest";
 import { parseTables } from "../../../skills/golden-dataset/scripts/predicate-coverage-check.mjs";
 import {
   GFM_TABLE_CASES,
+  SEPARATING_TAG_NAMES,
   TABLE,
   renderedHeadings,
   renderedTables,
@@ -55,6 +56,10 @@ const VALUE_CASES: [string, string][] = [
   ["セルの中の語を分けないタグ", lines(...TABLE, "| 分岐<span>網羅</span> | a<b>c</b> |")],
   ["見出しの中の語を分けないタグ", lines("## 述語ごとの<span>分岐網羅</span>", "", ...TABLE)],
   ["セルの中のコメントと処理命令", lines(...TABLE, "| e<!-- c -->f | x<?php y ?>z |")],
+  [
+    "セルの中の、GFM の tagfilter が無効にするタグ",
+    lines(...TABLE, "| a<script>x</script>b | c<xmp>d |"),
+  ],
   ["セルの中の全角空白", lines(...TABLE, "|\u3000orders\u3000items\u3000| x |")],
 ];
 
@@ -70,3 +75,16 @@ test("比べ方の確認: 描画から見出しを表ごとに取り出す", () 
   expect(renderedHeadings(lines(...TABLE, "", "## `B` 節", "", ...TABLE))).toEqual(["", "B 節"]);
   expect(renderedHeadings("## 見出しだけ\n")).toEqual([]);
 });
+
+// 語を分けるタグの一覧（lib/markdown.mjs の SEPARATING_TAGS）の名前を 1 つずつ、比べる側の一覧から独立に確かめる。
+// 開くタグと閉じるタグの両方を置く。一覧から名前が抜けるか綴りを誤ると、その名前の入力が落ちる。
+// 表を作るタグ（table・tr・td・th）は除く。セルの中に置くと、ブラウザは表の構造を組み替えるので、セルの表示される文字列が決まらない。
+const TABLE_TAGS = new Set(["table", "td", "th", "tr"]);
+
+test.each(SEPARATING_TAG_NAMES.filter((name) => !TABLE_TAGS.has(name)))(
+  "語を分けるタグ <%s> を、描画と同じく空白として読む",
+  (name) => {
+    const text = lines(...TABLE, `| a<${name}>b | c</${name}>d |`);
+    expect(parsed(text)).toEqual(rendered(text));
+  },
+);

@@ -37,3 +37,7 @@ ci:42362956725:1,ci,2026-11-07T10:23:48.983Z,p-cdee4961,github-actions,,,,2026-1
 ci:42362956762:1,ci,2026-11-07T10:23:48.983Z,p-cdee4961,github-actions,,,,2026-11-07T10:12:20.000Z,2026-11-07T10:15:53.000Z,Asia/Tokyo,feature/926-golden-dataset-gfm-parser,926,,,,,,,,,,CI;pull_request;success,
 ci:42362956724:1,ci,2026-11-07T10:23:48.983Z,p-cdee4961,github-actions,,,,2026-11-07T10:12:20.000Z,2026-11-07T10:12:21.000Z,Asia/Tokyo,feature/926-golden-dataset-gfm-parser,926,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 coverage:github:2026-11-06T10:11:18.318Z:2026-11-07T10:23:48.983Z,coverage,2026-11-07T10:23:48.983Z,p-cdee4961,,,,,2026-11-06T10:11:18.318Z,2026-11-07T10:23:48.983Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:42363852411:1,ci,2026-11-07T10:37:24.266Z,p-cdee4961,github-actions,,,,2026-11-07T10:24:55.000Z,2026-11-07T10:29:20.000Z,Asia/Tokyo,feature/926-golden-dataset-gfm-parser,926,,,,,,,,,,CI;pull_request;success,
+ci:42363852424:1,ci,2026-11-07T10:37:24.266Z,p-cdee4961,github-actions,,,,2026-11-07T10:24:55.000Z,2026-11-07T10:25:01.000Z,Asia/Tokyo,feature/926-golden-dataset-gfm-parser,926,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:42363852421:1,ci,2026-11-07T10:37:24.266Z,p-cdee4961,github-actions,,,,2026-11-07T10:24:55.000Z,2026-11-07T10:26:24.000Z,Asia/Tokyo,feature/926-golden-dataset-gfm-parser,926,,,,,,,,,,CodeQL;pull_request;success,
+coverage:github:2026-11-06T10:23:48.983Z:2026-11-07T10:37:24.266Z,coverage,2026-11-07T10:37:24.266Z,p-cdee4961,,,,,2026-11-06T10:23:48.983Z,2026-11-07T10:37:24.266Z,Asia/Tokyo,,,,,,,,,,,,ok,
