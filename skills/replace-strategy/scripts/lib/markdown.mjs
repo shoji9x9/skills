@@ -165,31 +165,51 @@ function isUnclosedFence(text, node) {
  * 節の値ではなく元の文字列から探すので、`<details>` などの HTML ブロックの中のコメントも当たる。
  * @param {string} source html の節の元の文字列
  * @param {number} offset 節の先頭の offset
- * @returns {{ start: number, end: number }[]}
+ * @returns {{ start: number, end: number, closed: boolean }[]}
  */
 function commentRanges(source, offset) {
-  return [...source.matchAll(/<!--(?:>|->|[\s\S]*?--!?>|[\s\S]*$)/gu)].map((m) => ({
+  return [...source.matchAll(/<!--(?:(>|->|[\s\S]*?--!?>)|[\s\S]*$)/gu)].map((m) => ({
     start: offset + m.index,
     end: offset + m.index + m[0].length,
+    closed: m[1] !== undefined,
   }));
 }
 
 /**
- * HTML の節を読み、表の外の行を数えない範囲と、末尾まで閉じないコメントのブロックかを返す。
- * 閉じないコメントとして扱うのは、パーサがコメントのブロック（行頭か、3 文字までの字下げの後の `<!--`）として読み、`-->` が無いまま文書の末尾まで続くものだけである。
- * 引用・リストの中で文書の末尾まで続かないものと、ほかの HTML ブロックの中で開いた `<!--` は、パーサの読み方では後ろの表を隠さないので扱わない。
+ * offset の文字がある行の番号（1 始まり）。パーサと同じく、CR だけの改行も行の区切りにする。
+ * @param {string} text
+ * @param {number} offset
+ * @returns {number}
+ */
+function lineAt(text, offset) {
+  return text.slice(0, offset).split(/\r\n|\r|\n/u).length;
+}
+
+/**
+ * HTML の節を読み、表の外の行を数えない範囲と、末尾まで閉じないコメントを開いた行の番号（無ければ null）を返す。
+ * 閉じないコメントとして扱うのは、閉じないまま節が文書の末尾まで続くものだけである。
+ * コメントのブロック（行頭か、3 文字までの字下げの後の `<!--`）は `-->` でだけ終わる。
+ * ほかの HTML ブロックの中で開いた `<!--` は、そのブロック（`<pre>` など閉じるタグで終わるものを含む）が末尾まで続くときに当たる。
+ * 引用・リストの中で文書の末尾まで続かないものは、パーサの読み方では後ろの表を隠さないので扱わない。
  * @param {string} text
  * @param {MdNode} node html の節
- * @returns {{ hidden: { start: number, end: number }[], unclosed: boolean }}
+ * @returns {{ hidden: { start: number, end: number }[], unclosedLine: number | null }}
  */
 function readHtml(text, node) {
   const r = rangeOf(node);
   const source = text.slice(r.start, r.end);
-  if (!/^\s*<!--/u.test(source)) return { hidden: commentRanges(source, r.start), unclosed: false };
+  if (!/^\s*<!--/u.test(source)) {
+    const hidden = commentRanges(source, r.start);
+    const open = hidden.find((comment) => !comment.closed);
+    const unclosedLine =
+      open !== undefined && reachesEnd(text, node) ? lineAt(text, open.start) : null;
+    return { hidden, unclosedLine };
+  }
   // コメントのブロックは、閉じる行の `-->` の後ろもブロックに入るので、節の全体を数えない
   // パーサは `-->` を含む行でブロックを終える。閉じたかも `-->` で決める（`<!-->` と `<!--->` も `-->` を含む）
   const closed = source.includes("-->");
-  return { hidden: [{ start: r.start, end: r.end }], unclosed: !closed && reachesEnd(text, node) };
+  const unclosedLine = !closed && reachesEnd(text, node) ? r.startLine : null;
+  return { hidden: [{ start: r.start, end: r.end }], unclosedLine };
 }
 
 /**
@@ -301,7 +321,7 @@ function parseTables(text, options = {}) {
     } else if (node.type === "html") {
       const html = readHtml(text, node);
       hidden.push(...html.hidden);
-      if (unclosedComment === null && html.unclosed) unclosedComment = rangeOf(node).startLine;
+      if (unclosedComment === null) unclosedComment = html.unclosedLine;
     }
   });
   const strayRows = strayRowsOf(text, { hidden, tableLines });

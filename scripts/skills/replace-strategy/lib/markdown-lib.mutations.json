@@ -75,27 +75,29 @@
       "id": "unclosed-comment-not-reported",
       "why": "末尾まで閉じない HTML コメントのブロックを報告せず、後ろの表と行を読まないまま判定する",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "if (unclosedComment === null && html.unclosed)",
-      "replace": "if (false)",
+      "find": "if (unclosedComment === null) unclosedComment = html.unclosedLine;",
+      "replace": "if (false) unclosedComment = html.unclosedLine;",
       "occurrences": 1,
       "expect_failing": [
         "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 末尾まで閉じないコメント",
         "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 表の前で開いて閉じないコメント",
         "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 字下げして開いた、閉じないコメント",
         "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: CR だけの改行の文書の、閉じないコメント",
-        "asset-delivery-check: 閉じない HTML コメントは、開いた行の番号を付けて止める",
-        "evidence-gap-check: 閉じない HTML コメントは、開いた行の番号を付けて止める",
-        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 末尾まで続くリストの中の、閉じないコメント",
         "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 末尾まで続く引用の中の、閉じないコメント",
-        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: `--!>` だけで閉じたつもりのコメント"
+        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 末尾まで続くリストの中の、閉じないコメント",
+        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 末尾まで続く `<pre>` の中の、閉じないコメント",
+        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 末尾まで続く `<div>` の中の、閉じないコメント",
+        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: `--!>` だけで閉じたつもりのコメント",
+        "asset-delivery-check: 閉じない HTML コメントは、開いた行の番号を付けて止める",
+        "evidence-gap-check: 閉じない HTML コメントは、開いた行の番号を付けて止める"
       ]
     },
     {
       "id": "closed-comment-reported",
       "why": "`-->` で閉じたコメントのブロックも、末尾にあれば閉じないコメントとして報告する",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "unclosed: !closed && reachesEnd(text, node)",
-      "replace": "unclosed: reachesEnd(text, node)",
+      "find": "!closed && reachesEnd(text, node) ? r.startLine",
+      "replace": "reachesEnd(text, node) ? r.startLine",
       "occurrences": 1,
       "expect_failing": [
         "asset-delivery-check: HTML コメントの中の表の行を台帳として読まない",
@@ -130,8 +132,8 @@
       "id": "all-html-hidden",
       "why": "コメント以外の HTML ブロック（`<details>` など）の中の、表の行に見える行を表の外の行に数えない",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "unclosed: false };",
-      "replace": "unclosed: false, hidden: [{ start: r.start, end: r.end }] };",
+      "find": "    return { hidden, unclosedLine };",
+      "replace": "    return { hidden: [{ start: r.start, end: r.end }], unclosedLine };",
       "occurrences": 1,
       "expect_failing": [
         "parseTables の strayRows は、表示されない範囲だけを除く: `<details>` の中の表の行に見える行",
@@ -139,14 +141,26 @@
       ]
     },
     {
+      "id": "block-unclosed-comment-unreported",
+      "why": "コメントで始まらない HTML ブロックが文書の末尾まで続くとき、その中の閉じないコメントを報告しない",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "open !== undefined && reachesEnd(text, node)",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": [
+        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 末尾まで続く `<pre>` の中の、閉じないコメント",
+        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 末尾まで続く `<div>` の中の、閉じないコメント"
+      ]
+    },
+    {
       "id": "indented-comment-block-unreported",
-      "why": "字下げして開いたコメントのブロックを、コメントのブロックとして扱わない",
+      "why": "字下げして開いたコメントのブロックを、コメントのブロックとして扱わず、閉じる行の `-->` の後ろを表の外の行に数える",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
       "find": "if (!/^\\s*<!--/u.test(source))",
       "replace": "if (!/^<!--/u.test(source))",
       "occurrences": 1,
       "expect_failing": [
-        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 字下げして開いた、閉じないコメント"
+        "parseTables の strayRows は、表示されない範囲だけを除く: 字下げしたコメントのブロックの `-->` の後ろ"
       ]
     },
     {
