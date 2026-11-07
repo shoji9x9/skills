@@ -17,6 +17,32 @@ const OPTIONS = { allowDangerousHtml: true, extensions: [gfm()], htmlExtensions:
  * https://html.spec.whatwg.org/multipage/rendering.html
  * 比べる相手を独立に作るため、lib/markdown.mjs の一覧を読まずにここで書く。
  */
+/** GFM の tagfilter が無効にするタグの名前。https://github.github.com/gfm/#disallowed-raw-html-extension- から書く。 */
+export const FILTERED_TAG_NAMES = [
+  "iframe",
+  "noembed",
+  "noframes",
+  "plaintext",
+  "script",
+  "style",
+  "textarea",
+  "title",
+  "xmp",
+];
+
+/** 表の部品の要素。ブラウザは表の外ではタグを無視し、セルの中では表を組み替えるので、語を分けない。 */
+export const TABLE_PART_TAG_NAMES = [
+  "caption",
+  "col",
+  "colgroup",
+  "tbody",
+  "td",
+  "tfoot",
+  "th",
+  "thead",
+  "tr",
+];
+
 export const SEPARATING_TAG_NAMES = [
   "address",
   "article",
@@ -24,10 +50,7 @@ export const SEPARATING_TAG_NAMES = [
   "blockquote",
   "body",
   "br",
-  "caption",
   "center",
-  "col",
-  "colgroup",
   "dd",
   "details",
   "dialog",
@@ -65,12 +88,6 @@ export const SEPARATING_TAG_NAMES = [
   "section",
   "summary",
   "table",
-  "tbody",
-  "td",
-  "tfoot",
-  "th",
-  "thead",
-  "tr",
   "ul",
 ];
 

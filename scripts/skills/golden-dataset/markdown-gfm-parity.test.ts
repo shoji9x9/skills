@@ -9,8 +9,10 @@
 import { expect, test } from "vitest";
 import { parseTables } from "../../../skills/golden-dataset/scripts/predicate-coverage-check.mjs";
 import {
+  FILTERED_TAG_NAMES,
   GFM_TABLE_CASES,
   SEPARATING_TAG_NAMES,
+  TABLE_PART_TAG_NAMES,
   TABLE,
   renderedHeadings,
   renderedTables,
@@ -78,11 +80,8 @@ test("比べ方の確認: 描画から見出しを表ごとに取り出す", () 
 
 // 語を分けるタグの一覧（lib/markdown.mjs の SEPARATING_TAGS）の名前を 1 つずつ、比べる側の一覧から独立に確かめる。
 // 開くタグと閉じるタグの両方を置く。一覧から名前が抜けるか綴りを誤ると、その名前の入力が落ちる。
-// table・tr・td・th は、セルではなく見出しに置いて確かめる（下の test.each）。
-// 比べる側（renderedTables）は表・行・セルを閉じるタグまでの正規表現で取り出すので、セルの中に閉じるタグがあると、そこで取り出しが終わる。
-const TABLE_TAGS = new Set(["table", "td", "th", "tr"]);
-
-test.each(SEPARATING_TAG_NAMES.filter((name) => !TABLE_TAGS.has(name)))(
+// table は見出しで確かめる（下の test）。比べる側の renderedTables は表を閉じるタグまでの正規表現で取り出すので、セルの中に </table> があると、そこで取り出しが終わる。
+test.each(SEPARATING_TAG_NAMES.filter((name) => name !== "table"))(
   "語を分けるタグ <%s> を、描画と同じく空白として読む",
   (name) => {
     const text = lines(...TABLE, `| a<${name}>b | c</${name}>d |`);
@@ -90,34 +89,31 @@ test.each(SEPARATING_TAG_NAMES.filter((name) => !TABLE_TAGS.has(name)))(
   },
 );
 
-test.each([...TABLE_TAGS])(
-  "語を分けるタグ <%s> を、見出しの中でも描画と同じく空白として読む",
-  (name) => {
-    // 見出しの中の <table> を、比べる側の renderedTables が表として取り出すので、見出しの文字列だけを比べる
-    const text = lines(`## a<${name}>b</${name}>c`, "", ...TABLE);
-    expect(parseTables(text).map((table) => table.heading)).toEqual(renderedHeadings(text));
-    expect(renderedHeadings(text)).toEqual(["a b c"]);
-  },
-);
+test("語を分けるタグ <table> を、見出しの中で空白として読む", () => {
+  // 中身を入れると、ブラウザは中身を表の前へ移すので、空の表で確かめる
+  const text = lines("## a<table></table>c", "", ...TABLE);
+  expect(parseTables(text).map((table) => table.heading)).toEqual(["a c"]);
+  expect(renderedHeadings(text)).toEqual(["a c"]);
+});
+
+// 表の部品の要素は、表の外ではブラウザがタグを無視するので、見出しの中では語を分けない
+test.each(TABLE_PART_TAG_NAMES)("表の部品のタグ <%s> は、見出しの中で語を分けない", (name) => {
+  const text = lines(`## a<${name}>b</${name}>c`, "", ...TABLE);
+  expect(parseTables(text).map((table) => table.heading)).toEqual(["abc"]);
+  expect(renderedHeadings(text)).toEqual(["abc"]);
+});
 
 // GFM の tagfilter が無効にするタグ（lib/markdown.mjs の FILTERED_TAG）の名前を 1 つずつ確かめる。
-// 一覧は https://github.github.com/gfm/#disallowed-raw-html-extension- から、lib の一覧を読まずにここで書く。
-const FILTERED_TAG_NAMES = [
-  "iframe",
-  "noembed",
-  "noframes",
-  "plaintext",
-  "script",
-  "style",
-  "textarea",
-  "title",
-  "xmp",
-];
-
+// 名前は大文字と小文字を区別せず、後ろに属性が続いても無効にする。
 test.each(FILTERED_TAG_NAMES)(
   "GFM の tagfilter が無効にするタグ <%s> を、描画と同じく文字のまま読む",
   (name) => {
-    const text = lines(...TABLE, `| a<${name}>b | c</${name}>d |`);
+    const upper = name.toUpperCase();
+    const text = lines(
+      ...TABLE,
+      `| a<${name}>b | c</${name}>d |`,
+      `| e<${upper}>f | g<${name} x="y">h |`,
+    );
     expect(parsed(text)).toEqual(rendered(text));
   },
 );

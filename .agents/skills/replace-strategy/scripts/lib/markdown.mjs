@@ -269,6 +269,8 @@ function unclosedCommentMessage(line) {
  * https://html.spec.whatwg.org/multipage/rendering.html
  * 一覧に無い名前（span・b や未知の要素）は、ブラウザと同じく inline の表示として扱い、語を分けない。
  * plaintext と xmp は block の要素だが、GFM の tagfilter が文字のまま表示させるので、一覧に入れない（FILTERED_TAG）。
+ * 表の部品の要素（caption・col・colgroup・thead・tbody・tfoot・tr・td・th）も一覧に入れない。
+ * ブラウザは表の外ではこれらのタグを無視し、セルの中では表を組み替えるので、どちらでも語を分ける空白にはならない。
  */
 const SEPARATING_TAGS = new Set([
   "address",
@@ -277,10 +279,7 @@ const SEPARATING_TAGS = new Set([
   "blockquote",
   "body",
   "br",
-  "caption",
   "center",
-  "col",
-  "colgroup",
   "dd",
   "details",
   "dialog",
@@ -318,12 +317,6 @@ const SEPARATING_TAGS = new Set([
   "section",
   "summary",
   "table",
-  "tbody",
-  "td",
-  "tfoot",
-  "th",
-  "thead",
-  "tr",
   "ul",
 ]);
 
