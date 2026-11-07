@@ -6,27 +6,6 @@
   "test_file": "scripts/skills/replace-strategy/lib/markdown-lib.test.ts",
   "mutations": [
     {
-      "id": "fence-closed-by-info-string",
-      "why": "閉じるフェンスの後ろに情報文字列を許し、` ```bash ` の行で開いているフェンスを閉じる（Issue #679。fence.mjs は他のスキルと同じ内容のコピー）",
-      "file": "skills/replace-strategy/scripts/lib/fence.mjs",
-      "find": "/^ {0,3}(`{3,}|~{3,})[ \\t]*$/u",
-      "replace": "/^ {0,3}(`{3,}|~{3,})/u",
-      "occurrences": 1,
-      "expect_failing": [
-        "stepFence: 開いている・情報文字列付きの行では閉じない",
-        "stepFence: 開いている・~~~ の情報文字列付きの行では閉じない"
-      ]
-    },
-    {
-      "id": "fence-closed-by-shorter",
-      "why": "開いた記号より短い記号でフェンスを閉じる",
-      "file": "skills/replace-strategy/scripts/lib/fence.mjs",
-      "find": "match[1].length >= fence.length",
-      "replace": "true",
-      "occurrences": 1,
-      "expect_failing": ["stepFence: 開いている・短い記号では閉じない"]
-    },
-    {
       "id": "unclosed-fence-not-reported",
       "why": "末尾まで閉じないフェンスを報告せず、フェンスの後ろの表を読まないまま判定する（#679 の決定 A）",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
@@ -96,8 +75,8 @@
       "id": "closed-comment-reported",
       "why": "`-->` で閉じたコメントのブロックも、末尾にあれば閉じないコメントとして報告する",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "!closed && reachesEnd(text, node) ? r.startLine",
-      "replace": "reachesEnd(text, node) ? r.startLine",
+      "find": "return source.includes(\"-->\") ? undefined : comments[0];",
+      "replace": "return comments[0];",
       "occurrences": 1,
       "expect_failing": [
         "asset-delivery-check: HTML コメントの中の表の行を台帳として読まない",
@@ -110,8 +89,8 @@
       "id": "comment-block-closed-by-bang",
       "why": "コメントのブロックを `--!>` でも閉じたとみなし、パーサが末尾まで続けるコメントを報告しない",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "  const closed = source.includes(\"-->\");",
-      "replace": "  const closed = source.includes(\"-->\") || source.includes(\"--!>\");",
+      "find": "source.includes(\"-->\") ? undefined",
+      "replace": "source.includes(\"-->\") || source.includes(\"--!>\") ? undefined",
       "occurrences": 1,
       "expect_failing": [
         "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: `--!>` だけで閉じたつもりのコメント"
@@ -132,34 +111,25 @@
       "id": "all-html-hidden",
       "why": "コメント以外の HTML ブロック（`<details>` など）の中の、表の行に見える行を表の外の行に数えない",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "    return { hidden, unclosedLine };",
-      "replace": "    return { hidden: [{ start: r.start, end: r.end }], unclosedLine };",
+      "find": "  const hidden = commentRanges(source, r.start);",
+      "replace": "  const hidden = [{ start: r.start, end: r.end, closed: true }, ...commentRanges(source, r.start)];",
       "occurrences": 1,
       "expect_failing": [
+        "HTML ブロックを閉じる行は、`-->` の後ろもブロックに入るので表の行として読まず、表示される `|` を表の外の行として数える",
         "parseTables の strayRows は、表示されない範囲だけを除く: `<details>` の中の表の行に見える行",
+        "parseTables の strayRows は、表示されない範囲だけを除く: 字下げしたコメントのブロックの `-->` の後ろ",
         "parseTables の strayRows は、表示されない範囲だけを除く: `<details>` の中の `--!>` で閉じたコメントの後ろの行"
       ]
     },
     {
-      "id": "block-unclosed-comment-unreported",
-      "why": "コメントで始まらない HTML ブロックが文書の末尾まで続くとき、その中の閉じないコメントを報告しない",
+      "id": "comment-block-hidden-whole",
+      "why": "コメントのブロックの全体を数えない範囲にし、閉じる行の `-->` の後ろに表示される `|` を表の外の行に数えない",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "open !== undefined && reachesEnd(text, node)",
-      "replace": "false",
+      "find": "  const hidden = commentRanges(source, r.start);",
+      "replace": "  const hidden = /^\\s*<!--/u.test(source) ? [{ start: r.start, end: r.end, closed: true }] : commentRanges(source, r.start);",
       "occurrences": 1,
       "expect_failing": [
-        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 末尾まで続く `<pre>` の中の、閉じないコメント",
-        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 末尾まで続く `<div>` の中の、閉じないコメント"
-      ]
-    },
-    {
-      "id": "indented-comment-block-unreported",
-      "why": "字下げして開いたコメントのブロックを、コメントのブロックとして扱わず、閉じる行の `-->` の後ろを表の外の行に数える",
-      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "if (!/^\\s*<!--/u.test(source))",
-      "replace": "if (!/^<!--/u.test(source))",
-      "occurrences": 1,
-      "expect_failing": [
+        "HTML ブロックを閉じる行は、`-->` の後ろもブロックに入るので表の行として読まず、表示される `|` を表の外の行として数える",
         "parseTables の strayRows は、表示されない範囲だけを除く: 字下げしたコメントのブロックの `-->` の後ろ"
       ]
     },

@@ -54,10 +54,6 @@
       "skills/replace-strategy/scripts/lib/is-array.mjs"
     ],
     [
-      "skills/golden-dataset/scripts/lib/fence.mjs",
-      "skills/replace-strategy/scripts/lib/fence.mjs"
-    ],
-    [
       "skills/agent-usage/scripts/lib/is-array.mjs",
       "skills/agent-usage/scripts/skill-config/skill-config.mjs",
       "skills/aws-architecture-diagram/scripts/skill-config/skill-config.mjs",

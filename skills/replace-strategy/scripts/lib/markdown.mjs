@@ -3,7 +3,6 @@
 // （../vendor/mdast-gfm.mjs。micromark と GFM の拡張）で読み、表・HTML・コードの範囲を木から取る。
 
 import { parseGfm } from "../vendor/mdast-gfm.mjs";
-import { unclosedFenceMessage } from "./fence.mjs";
 
 /** @typedef {import("../vendor/mdast-gfm.mjs").Node} MdNode */
 
@@ -198,18 +197,34 @@ function lineAt(text, offset) {
 function readHtml(text, node) {
   const r = rangeOf(node);
   const source = text.slice(r.start, r.end);
-  if (!/^\s*<!--/u.test(source)) {
-    const hidden = commentRanges(source, r.start);
-    const open = hidden.find((comment) => !comment.closed);
-    const unclosedLine =
-      open !== undefined && reachesEnd(text, node) ? lineAt(text, open.start) : null;
-    return { hidden, unclosedLine };
-  }
-  // コメントのブロックは、閉じる行の `-->` の後ろもブロックに入るので、節の全体を数えない
-  // パーサは `-->` を含む行でブロックを終える。閉じたかも `-->` で決める（`<!-->` と `<!--->` も `-->` を含む）
-  const closed = source.includes("-->");
-  const unclosedLine = !closed && reachesEnd(text, node) ? r.startLine : null;
-  return { hidden: [{ start: r.start, end: r.end }], unclosedLine };
+  // 表示されないのはコメントの中だけなので、コメントのブロックでも、閉じる行の `-->` の後ろは数える
+  const hidden = commentRanges(source, r.start);
+  const open = firstUnclosed(source, hidden);
+  const unclosedLine =
+    open !== undefined && reachesEnd(text, node) ? lineAt(text, open.start) : null;
+  return { hidden, unclosedLine };
+}
+
+/**
+ * 節の中で最初の閉じないコメント（無ければ undefined）。
+ * コメントのブロック（行頭か、3 文字までの字下げの後の `<!--`）は、パーサが `-->` でだけ終えるので、`-->` が無ければ最初のコメントが閉じていない。
+ * `<!-->` と `<!--->` も `-->` を含む。
+ * @param {string} source html の節の元の文字列
+ * @param {{ start: number, end: number, closed: boolean }[]} comments
+ * @returns {{ start: number, end: number, closed: boolean } | undefined}
+ */
+function firstUnclosed(source, comments) {
+  if (!/^\s*<!--/u.test(source)) return comments.find((comment) => !comment.closed);
+  return source.includes("-->") ? undefined : comments[0];
+}
+
+/**
+ * 末尾まで閉じないフェンスを、利用者に返す文にする。閉じる行の条件は CommonMark の規則（パーサが判定する）をそのまま書く。
+ * @param {number} line フェンスを開いた行の番号（1 始まり）
+ * @returns {string}
+ */
+function unclosedFenceMessage(line) {
+  return `${line} 行目で開いたコードフェンスが末尾まで閉じていない。フェンスの後ろの表を読めない。閉じる行は、字下げを半角の空白 3 個までにし、開いた記号と同じ文字を開いた数か、それより多く並べ、後ろには半角の空白とタブのほかに何も書かない。リストと引用の中では、字下げを中身の始まりの位置から数える`;
 }
 
 /**
