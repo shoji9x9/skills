@@ -264,11 +264,86 @@ function unclosedCommentMessage(line) {
  */
 
 /**
+ * 画面で前後の語を分けるタグの名前。HTML の仕様の既定の表示（Rendering の節の UA スタイルシート）で、
+ * 改行（br）か、block・list-item・table の表示になる要素である。
+ * https://html.spec.whatwg.org/multipage/rendering.html
+ * 一覧に無い名前（span・b や未知の要素）は、ブラウザと同じく inline の表示として扱い、語を分けない。
+ */
+const SEPARATING_TAGS = new Set([
+  "address",
+  "article",
+  "aside",
+  "blockquote",
+  "body",
+  "br",
+  "caption",
+  "center",
+  "col",
+  "colgroup",
+  "dd",
+  "details",
+  "dialog",
+  "dir",
+  "div",
+  "dl",
+  "dt",
+  "fieldset",
+  "figcaption",
+  "figure",
+  "footer",
+  "form",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "header",
+  "hgroup",
+  "hr",
+  "html",
+  "legend",
+  "li",
+  "listing",
+  "main",
+  "menu",
+  "nav",
+  "ol",
+  "optgroup",
+  "option",
+  "p",
+  "plaintext",
+  "pre",
+  "search",
+  "section",
+  "summary",
+  "table",
+  "tbody",
+  "td",
+  "tfoot",
+  "th",
+  "thead",
+  "tr",
+  "ul",
+  "xmp",
+]);
+
+/**
+ * html の節が、画面で前後の語を分けるタグか。開くタグと閉じるタグ（`</br>` を含む）の名前を、属性に依らず節の先頭から取る。
+ * コメント・処理命令（`<?...?>`）・宣言（`<!DOCTYPE>`）・CDATA は表示されないので、語を分けない。
+ * @param {string} value html の節の値
+ * @returns {boolean}
+ */
+function separatesWords(value) {
+  const name = /^<\/?([A-Za-z][A-Za-z0-9-]*)/u.exec(value)?.[1];
+  return name !== undefined && SEPARATING_TAGS.has(name.toLowerCase());
+}
+
+/**
  * 節の表示される文字列。パーサが戻したエスケープ（`\_` は `_`）と文字参照（`&amp;` は `&`）の後の値を、文書の順につなぐ。
  * コードスパンは中身だけを使う。強調の記号はパーサが節にするので残らない。
- * HTML のコメントは表示されないので使わない。コメントでない HTML（`<br>`・`<p>`・`<b>` などのタグ）は、語を分ける空白にする。
- * タグの名前や綴りで、語を分けるかを決めない。決めると、つないだ 2 つの語が 1 つの別の名前になる綴りが、タグの数だけ残る。
- * 語を分けないタグ（`a<b>c</b>`）は、画面では 1 語に見えても 2 語として読む。表の値を 2 つの名前として報告するので、警告なしに別の名前にはならない。
+ * HTML は表示されないので使わない。改行とブロックを作るタグ（`<br>`・`<p>`・`<div>` など。separatesWords）だけは、画面で前後の語を分けるので空白にする。
+ * それ以外のタグ（`<span>`・`<b>`）は、日本語の語の途中に置いても画面で 1 語に見えるので、何も入れない。
  * 改行も空白にし、空白は畳む。
  * 脚注の参照（`[^1]`）は、値に付けた注の印なので使わない（描画は番号を上付きで表示する）。
  * @param {MdNode} node
@@ -279,8 +354,8 @@ function visibleText(node) {
   const parts = [];
   visit(node, (child) => {
     if (child.type === "text" || child.type === "inlineCode") parts.push(child.value ?? "");
-    else if (child.type === "break") parts.push(" ");
-    else if (child.type === "html" && !(child.value ?? "").startsWith("<!--")) parts.push(" ");
+    else if (child.type === "break" || (child.type === "html" && separatesWords(child.value ?? "")))
+      parts.push(" ");
   });
   return collapse(parts.join(""));
 }

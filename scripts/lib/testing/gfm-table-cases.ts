@@ -12,6 +12,68 @@ import { lines } from "./text-lines.ts";
 
 const OPTIONS = { allowDangerousHtml: true, extensions: [gfm()], htmlExtensions: [gfmHtml()] };
 
+/**
+ * 画面で前後の語を分けるタグ（開くタグと閉じるタグ）。HTML の仕様の既定の表示で、改行（br）か、block・list-item・table の表示になる要素。
+ * https://html.spec.whatwg.org/multipage/rendering.html
+ * 比べる相手を独立に作るため、lib/markdown.mjs の一覧を読まずにここで書く。
+ */
+const SEPARATING = new RegExp(
+  `<\\/?(?:${[
+    "address",
+    "article",
+    "aside",
+    "blockquote",
+    "body",
+    "br",
+    "caption",
+    "center",
+    "col",
+    "colgroup",
+    "dd",
+    "details",
+    "dialog",
+    "dir",
+    "div",
+    "dl",
+    "dt",
+    "fieldset",
+    "figcaption",
+    "figure",
+    "footer",
+    "form",
+    "h[1-6]",
+    "header",
+    "hgroup",
+    "hr",
+    "html",
+    "legend",
+    "li",
+    "listing",
+    "main",
+    "menu",
+    "nav",
+    "ol",
+    "optgroup",
+    "option",
+    "p",
+    "plaintext",
+    "pre",
+    "search",
+    "section",
+    "summary",
+    "table",
+    "tbody",
+    "td",
+    "tfoot",
+    "th",
+    "thead",
+    "tr",
+    "ul",
+    "xmp",
+  ].join("|")})(?![A-Za-z0-9-])(?:"[^"]*"|'[^']*'|[^"'<>])*>`,
+  "giu",
+);
+
 /** 描画した HTML の断片から、表示される文字列を取り出す（コメントとタグを除き、文字参照を戻し、空白を畳む）。 */
 function visibleText(html: string): string {
   // CodeQL の js/incomplete-multi-character-sanitization に合わせ、変わらなくなるまで除く（比べる側の文字列だけで使い、外に出さない）
@@ -19,9 +81,10 @@ function visibleText(html: string): string {
   for (let previous = ""; previous !== stripped;) {
     previous = stripped;
     stripped = stripped
-      .replace(/<!--[\s\S]*?-->|<!-->|<!--->/gu, " ")
-      .replace(/<br(?:\s(?:"[^"]*"|'[^']*'|[^"'<>])*)?\/?>/giu, " ")
-      .replace(/<[A-Za-z/](?:"[^"]*"|'[^']*'|[^"'<>])*>/gu, "");
+      .replace(/<!--[\s\S]*?-->|<!-->|<!--->/gu, "")
+      .replace(/<\?[\s\S]*?\?>|<![A-Za-z][^>]*>|<!\[CDATA\[[\s\S]*?\]\]>/gu, "")
+      .replace(SEPARATING, " ")
+      .replace(/<\/?[A-Za-z](?:"[^"]*"|'[^']*'|[^"'<>])*>/gu, "");
   }
   return stripped
     .replaceAll("&lt;", "<")

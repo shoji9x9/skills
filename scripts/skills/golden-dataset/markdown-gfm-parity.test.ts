@@ -51,6 +51,10 @@ const VALUE_CASES: [string, string][] = [
   ["セルの中の属性付きの `<br>`", lines(...TABLE, '| x<br class="c">y | z |')],
   ["セルの中のコードスパンの `*`", lines(...TABLE, "| `count(*)` | \\*x |")],
   ["セルの中の、属性値に `>` を含む `<br>`", lines(...TABLE, '| a<br title="x>y">b | c |')],
+  ["セルの中の `<p>`・`<div>`・`</br>`", lines(...TABLE, "| a<p>b | c<div>d</div>e | f</br>g |")],
+  ["セルの中の語を分けないタグ", lines(...TABLE, "| 分岐<span>網羅</span> | a<b>c</b> |")],
+  ["見出しの中の語を分けないタグ", lines("## 述語ごとの<span>分岐網羅</span>", "", ...TABLE)],
+  ["セルの中のコメントと処理命令", lines(...TABLE, "| e<!-- c -->f | x<?php y ?>z |")],
   ["セルの中の全角空白", lines(...TABLE, "|\u3000orders\u3000items\u3000| x |")],
 ];
 
@@ -65,16 +69,4 @@ test.each<[string, string]>([...GFM_TABLE_CASES, ...VALUE_CASES])(
 test("比べ方の確認: 描画から見出しを表ごとに取り出す", () => {
   expect(renderedHeadings(lines(...TABLE, "", "## `B` 節", "", ...TABLE))).toEqual(["", "B 節"]);
   expect(renderedHeadings("## 見出しだけ\n")).toEqual([]);
-});
-
-// コメントでない HTML は、タグの名前に依らず語を分ける空白として読む（lib/markdown.mjs の visibleText）。
-// 画面で語を分けないタグ（`<b>`）では描画と食い違うが、2 つの名前として報告されるので、警告なしに別の 1 つの名前にはならない。
-test.each<[string, string, string[]]>([
-  ["`<p>`", "| a<p>b | x |", ["a b", "x"]],
-  ["`<div>` と閉じるタグ", "| c<div>d</div>e | x |", ["c d e", "x"]],
-  ["`</br>`", "| a</br>b | x |", ["a b", "x"]],
-  ["語を分けない `<b>`", "| a<b>c</b> | x |", ["a c", "x"]],
-  ["HTML のコメントは語を分けない", "| a<!-- c -->b | x |", ["ab", "x"]],
-])("コメントでない HTML を語を分ける空白として読む: %s", (_name, row, expected) => {
-  expect(parseTables(lines(...TABLE, row))[0].rows[1]).toEqual(expected);
 });
