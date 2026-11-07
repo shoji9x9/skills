@@ -125,6 +125,11 @@ node <skill>/scripts/predicate-coverage-check.mjs \
   [--verification .replace/dataset/verification.md]
 ```
 
+表と見出しは、GitHub の描画と同じ規則で読む（同梱した GFM のパーサで読む。replace-strategy も同じ読み方で features.md を読む）。
+セルと見出しの値は、画面に表示される文字列で読む。エスケープした `order\_items` と、エスケープしない `order_items` は同じ名前として突き合わせる。
+コードフェンスと HTML コメントの中の表と見出しは、描画で表にも見出しにもならないので読まない。古い表をコメントアウトして残しても、その表は突き合わせに使わない。
+末尾まで閉じないフェンスとコメントは、後ろの表をすべて読めなくするので、開いた行の番号を付けて報告する。features.md と design.md では表を読めない（終了コード 2）として、verification.md では不備（終了コード 1）として扱う。
+
 終了コードは 3 つある。0 は条件を満たす、1 は不備が残る（設計に戻す）、2 は使い方の誤りか表を読めない、である。次の 4 つを失敗にする。
 
 - 転記の抜けと、転記しすぎ。features.md の 3 つの表と、design.md の「対象テーブル」表の (テーブル, slug) の集合の差である。

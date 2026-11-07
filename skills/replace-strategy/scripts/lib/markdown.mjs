@@ -1,6 +1,8 @@
-// Markdown の表を読む helper。このスキルの台帳の表を読むスクリプトが共通に使う。
+// Markdown の表を読む helper。スキルの中で Markdown の表を読むスクリプトが共通に使う。
 // GitHub が描画に使う規則とスクリプトが読む表を一致させるため、同梱した GFM（GitHub Flavored Markdown）のパーサ
-// （../vendor/mdast-gfm.mjs。micromark と GFM の拡張）で読み、表・HTML・コードの範囲を木から取る。
+// （../vendor/mdast-gfm.mjs。micromark と GFM の拡張）で読み、表・見出し・HTML・コードの範囲を木から取る。
+// replace-strategy と golden-dataset が同じ .replace/features.md の表を同じ範囲で読むよう、2 つのスキルが同じ内容のコピーを持つ。
+// セルの値は、replace-strategy が元の Markdown の文字列（rows）を、golden-dataset が表示される文字列（visibleRows）を使う。
 
 import { parseGfm } from "../vendor/mdast-gfm.mjs";
 
@@ -256,15 +258,120 @@ function unclosedCommentMessage(line) {
  */
 
 /**
- * @typedef {{ headers: string[], rows: string[][], rowLines: number[] }} Table
+ * @typedef {{ heading: string, line: number, headers: string[], rows: string[][], visibleHeaders: string[], visibleRows: string[][], rowLines: number[] }} Table
+ *   heading は表より前で最後の見出しの表示される文字列（無ければ空）、line は表の 1 行目（列名の行）の番号（1 始まり）。
+ *   headers と rows は元の Markdown の文字列で、visibleHeaders と visibleRows は表示される文字列（visibleText）である。
  */
+
+/**
+ * 画面で前後の語を分けるタグの名前。HTML の仕様の既定の表示（Rendering の節の UA スタイルシート）で、
+ * 改行（br）か、block・list-item・table の表示になる要素である。
+ * https://html.spec.whatwg.org/multipage/rendering.html
+ * 一覧に無い名前（span・b や未知の要素）は、ブラウザと同じく inline の表示として扱い、語を分けない。
+ * plaintext と xmp は block の要素だが、GFM の tagfilter が文字のまま表示させるので、一覧に入れない（FILTERED_TAG）。
+ * 表の行やセルを作るタグ（caption・col・colgroup・thead・tbody・tfoot・tr・td・th）も一覧に入れない。
+ * 表の外では、ブラウザはこれらのタグを無視するので、語を分けない（HTML の構文解析の in body の挿入モード）。
+ * 表のセルの中では、ブラウザは新しいセルや行を開くので、画面のセルの区切りが表の読み方と食い違う。この形は読めない形として、語を分けずに読む。
+ */
+const SEPARATING_TAGS = new Set([
+  "address",
+  "article",
+  "aside",
+  "blockquote",
+  "body",
+  "br",
+  "center",
+  "dd",
+  "details",
+  "dialog",
+  "dir",
+  "div",
+  "dl",
+  "dt",
+  "fieldset",
+  "figcaption",
+  "figure",
+  "footer",
+  "form",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "header",
+  "hgroup",
+  "hr",
+  "html",
+  "legend",
+  "li",
+  "listing",
+  "main",
+  "menu",
+  "nav",
+  "ol",
+  "optgroup",
+  "option",
+  "p",
+  "pre",
+  "search",
+  "section",
+  "summary",
+  "table",
+  "ul",
+]);
+
+/**
+ * GFM の tagfilter が無効にするタグ。GitHub は `<` を文字参照にして、タグを文字のまま表示する。
+ * 同梱したパーサの依存 micromark-extension-gfm-tagfilter と同じ規則（名前の後ろが空白・`/`・`>`）である。
+ * https://github.github.com/gfm/#disallowed-raw-html-extension-
+ */
+const FILTERED_TAG =
+  /^<\/?(?:iframe|noembed|noframes|plaintext|script|style|title|textarea|xmp)(?=[\t\n\f\r />])/iu;
+
+/**
+ * html の節が、画面で前後の語を分けるタグか。開くタグと閉じるタグ（`</br>` を含む）の名前を、属性に依らず節の先頭から取る。
+ * コメント・処理命令（`<?...?>`）・宣言（`<!DOCTYPE>`）・CDATA は表示されないので、語を分けない。
+ * @param {string} value html の節の値
+ * @returns {boolean}
+ */
+function separatesWords(value) {
+  const name = /^<\/?([A-Za-z][A-Za-z0-9-]*)/u.exec(value)?.[1];
+  return name !== undefined && SEPARATING_TAGS.has(name.toLowerCase());
+}
+
+/**
+ * 節の表示される文字列。パーサが戻したエスケープ（`\_` は `_`）と文字参照（`&amp;` は `&`）の後の値を、文書の順につなぐ。
+ * コードスパンは中身だけを使う。強調の記号はパーサが節にするので残らない。
+ * HTML は表示されないので使わない。改行とブロックを作るタグ（`<br>`・`<p>`・`<div>` など。separatesWords）だけは、画面で前後の語を分けるので空白にする。
+ * それ以外のタグ（`<span>`・`<b>`）は、日本語の語の途中に置いても画面で 1 語に見えるので、何も入れない。
+ * GFM の tagfilter が無効にするタグ（`<script>`・`<xmp>` など。FILTERED_TAG）は、GitHub が文字のまま表示するので、タグの文字列をそのまま使う。
+ * そのタグの中の文字参照（`<title x="&amp;">` の `&amp;`）は戻さない。戻すには名前付きの文字参照の一覧が要るので、この形は描画と食い違う。
+ * 画面に表示されない要素（`<template>` など）の中身は除かない。タグだけを見るので、中身は前後の語とつながる。
+ * 改行も空白にし、空白は畳む。
+ * 脚注の参照（`[^1]`）は、値に付けた注の印なので使わない（描画は番号を上付きで表示する）。
+ * @param {MdNode} node
+ * @returns {string}
+ */
+function visibleText(node) {
+  /** @type {string[]} */
+  const parts = [];
+  visit(node, (child) => {
+    if (child.type === "text" || child.type === "inlineCode") parts.push(child.value ?? "");
+    else if (child.type === "html" && FILTERED_TAG.test(child.value ?? ""))
+      parts.push(child.value ?? "");
+    else if (child.type === "break" || (child.type === "html" && separatesWords(child.value ?? "")))
+      parts.push(" ");
+  });
+  return collapse(parts.join(""));
+}
 
 /**
  * 表の節を、見出しと行に分けて読む。
  * @param {string} text
  * @param {MdNode} node table の節
  * @param {(cell: string) => string} normalizeHeader
- * @returns {Table}
+ * @returns {Omit<Table, "heading" | "line">}
  */
 function readTable(text, node, normalizeHeader) {
   const [header, ...body] = node.children ?? [];
@@ -273,9 +380,13 @@ function readTable(text, node, normalizeHeader) {
     const cells = row.children ?? [];
     return cells.map((cell, index) => cellText(text, cell, index === cells.length - 1));
   };
+  /** @param {MdNode} row */
+  const visibleOf = (row) => (row.children ?? []).map((cell) => visibleText(cell));
   return {
     headers: header === undefined ? [] : cellsOf(header).map(normalizeHeader),
     rows: body.map(cellsOf),
+    visibleHeaders: header === undefined ? [] : visibleOf(header).map(normalizeHeader),
+    visibleRows: body.map(visibleOf),
     rowLines: body.map((row) => rangeOf(row).startLine),
   };
 }
@@ -313,6 +424,7 @@ function strayRowsOf(text, { hidden, tableLines }) {
  * Markdown の表を全て取り出す。読み方は GFM の描画と同じで、同梱した GFM のパーサが決める。
  * コードの中・HTML コメントの中の表は表にならないので読まない（コメントアウトして残した行を、台帳の行として数えない）。
  * 引用やリストの中の表も、GFM と同じく表として読む。
+ * 各表の heading は、文書の順で表より前にある最後の見出し（引用やリストの中の見出しを含む。コードと HTML コメントの中の行は見出しにならない）である。
  * 行のセル数は書いたとおりに返す（GFM の描画は余るセルを捨て、足りないセルを空にするが、呼び出し側が列の数の誤りとして扱えるようにする）。
  *
  * 表に属さないのに `|` を含む行は、警告なしに捨てず、行番号・セル数・行頭の `|` の有無を strayRows に返す
@@ -337,9 +449,16 @@ function parseTables(text, options = {}) {
   let unclosedFence = null;
   /** @type {number | null} */
   let unclosedComment = null;
+  let heading = "";
   visit(parseGfm(text, [COUNT_FENCES]), (node) => {
-    if (node.type === "table") {
-      tables.push(readTable(text, node, normalizeHeader));
+    if (node.type === "heading") {
+      heading = visibleText(node);
+    } else if (node.type === "table") {
+      tables.push({
+        heading,
+        line: rangeOf(node).startLine,
+        ...readTable(text, node, normalizeHeader),
+      });
       const r = rangeOf(node);
       for (let line = r.startLine; line <= r.endLine; line += 1) tableLines.add(line);
     } else if (node.type === "code" || node.type === "inlineCode") {

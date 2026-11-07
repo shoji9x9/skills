@@ -18,7 +18,7 @@
     "scripts/skills/box/box-folder.mutations.json": 1.7,
     "scripts/skills/box/box-token.mutations.json": 1.9,
     "scripts/skills/git-worktree/git-worktree-branch-guard.mutations.json": 1.5,
-    "scripts/skills/golden-dataset/fence.mutations.json": 0.7,
+    "scripts/skills/golden-dataset/markdown-gfm-parity.mutations.json": 1.1,
     "scripts/skills/golden-dataset/predicate-coverage-check.mutations.json": 0.6,
     "scripts/skills/issue-start/acceptance-check.mutations.json": 0.5,
     "scripts/skills/kaizen/kaizen-precommit-gate.mutations.json": 16.6,

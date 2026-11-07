@@ -6,7 +6,7 @@
 //
 // 同梱するものは BUNDLES で宣言する。宣言ごとに、同梱するスキル・置き場所・ファイル・作り方を持つ。
 // - jsonc-parser: 設定のスキーマ（skills/<name>/config-schemas/）を持つスキルの scripts/skill-config/vendor/ に置く。
-// - mdast-gfm: replace-strategy の scripts/vendor/ に置く。台帳の Markdown の表を GFM と同じに読むためのパーサである。
+// - mdast-gfm: replace-strategy と golden-dataset の scripts/vendor/ に置く。.replace/ の Markdown の表を GFM と同じに読むためのパーサである。
 //
 // 判定規則:
 // - 宣言した各ファイルは、devDependency から作った内容とバイト単位で一致する。
@@ -172,7 +172,7 @@ const MDAST_GFM_ENTRY = [
   "",
 ].join("\n");
 
-// 同梱物を読む側（replace-strategy の lib/markdown.mjs）が使う形だけを宣言する。mdast の型の全体は同梱しない。
+// 同梱物を読む側（replace-strategy と golden-dataset の lib/markdown.mjs）が使う形だけを宣言する。mdast の型の全体は同梱しない。
 const MDAST_GFM_TYPES = [
   `// mdast-gfm.mjs の型。配布元（shoji9x9/skills）の ${TOOL} --fix で作る。手で直さない。`,
   "export interface Point {",
@@ -264,7 +264,7 @@ export const MDAST_GFM: VendorBundle = {
   name: "mdast-gfm",
   dir: "scripts/vendor",
   files: ["mdast-gfm.mjs", "mdast-gfm.d.mts", "NOTICE.md"],
-  targets: () => ["replace-strategy"],
+  targets: () => ["golden-dataset", "replace-strategy"],
   versions: (root) =>
     MDAST_GFM_PACKAGES.map((name) => `${name} ${packageInfo(root, name).version}`).join("・"),
   async render(root) {
