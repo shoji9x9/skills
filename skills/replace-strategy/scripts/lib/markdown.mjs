@@ -1,5 +1,5 @@
 // Markdown の表を読む helper。このスキルの台帳の表を読むスクリプトが共通に使う。
-// 人が GitHub やエディタで見る表とスクリプトが読む表を一致させるため、同梱した GFM（GitHub Flavored Markdown）のパーサ
+// GitHub が描画に使う規則とスクリプトが読む表を一致させるため、同梱した GFM（GitHub Flavored Markdown）のパーサ
 // （../vendor/mdast-gfm.mjs。micromark と GFM の拡張）で読み、表・HTML・コードの範囲を木から取る。
 
 import { parseGfm } from "../vendor/mdast-gfm.mjs";
@@ -137,7 +137,8 @@ function trimDelimiters(raw, last) {
 }
 
 /**
- * 節が文書の末尾まで続くか。コンテナ（リスト・引用）の中で閉じないフェンスはコンテナの終わりで終わり、後ろの表を隠さない。
+ * 節が文書の末尾まで続くか。閉じないフェンスとコメントのブロックの判定に使う。
+ * コンテナ（リスト・引用）の中で閉じないものはコンテナの終わりで終わり、パーサの読み方では後ろの表を隠さない。
  * @param {string} text
  * @param {MdNode} node
  * @returns {boolean}
@@ -157,6 +158,9 @@ function isUnclosedFence(text, node) {
   return node.data?.fences === 1 && reachesEnd(text, node);
 }
 
+/** `<!--` の後ろで、コメントを閉じる部分（`<!-->`・`<!--->` と、`-->` までの最短の文字列）。 */
+const COMMENT_CLOSE = "(?:>|->|[\\s\\S]*?-->)";
+
 /**
  * HTML の節に含まれるコメントが占める範囲（文書の先頭からの offset）。表の外の行を数えるときに、この範囲を除く。
  * 閉じたコメント（`<!-->`・`<!--->` を含む）は `-->` まで、閉じないものは節の終わりまでを範囲にする。
@@ -166,7 +170,7 @@ function isUnclosedFence(text, node) {
  * @returns {{ start: number, end: number }[]}
  */
 function commentRanges(source, offset) {
-  return [...source.matchAll(/<!--(?:>|->|[\s\S]*?-->|[\s\S]*$)/gu)].map((m) => ({
+  return [...source.matchAll(new RegExp(`<!--(?:${COMMENT_CLOSE}|[\\s\\S]*$)`, "gu"))].map((m) => ({
     start: offset + m.index,
     end: offset + m.index + m[0].length,
   }));
@@ -174,7 +178,7 @@ function commentRanges(source, offset) {
 
 /**
  * HTML の節を読み、表の外の行を数えない範囲と、末尾まで閉じないコメントのブロックかを返す。
- * 閉じないコメントとして扱うのは、パーサがコメントのブロック（行頭の `<!--`）として読み、`-->` が無いまま文書の末尾まで続くものだけである。
+ * 閉じないコメントとして扱うのは、パーサがコメントのブロック（行頭か、3 文字までの字下げの後の `<!--`）として読み、`-->` が無いまま文書の末尾まで続くものだけである。
  * 引用・リストの中のものや、ほかの HTML ブロックの中で開いた `<!--` は、パーサの読み方では後ろの表を隠さないので扱わない。
  * @param {string} text
  * @param {MdNode} node html の節
@@ -183,12 +187,10 @@ function commentRanges(source, offset) {
 function readHtml(text, node) {
   const r = rangeOf(node);
   const source = text.slice(r.start, r.end);
-  const hidden = commentRanges(source, r.start);
-  if (!/^\s*<!--/u.test(source)) return { hidden, unclosed: false };
+  if (!/^\s*<!--/u.test(source)) return { hidden: commentRanges(source, r.start), unclosed: false };
   // コメントのブロックは、閉じる行の `-->` の後ろもブロックに入るので、節の全体を数えない
-  hidden.push({ start: r.start, end: r.end });
-  const closed = /^\s*<!--(?:>|->|[\s\S]*?-->)/u.test(source);
-  return { hidden, unclosed: !closed && reachesEnd(text, node) };
+  const closed = new RegExp(`^\\s*<!--${COMMENT_CLOSE}`, "u").test(source);
+  return { hidden: [{ start: r.start, end: r.end }], unclosed: !closed && reachesEnd(text, node) };
 }
 
 /**
@@ -244,7 +246,8 @@ function strayRowsOf(text, { hidden, tableLines }) {
   const strayRows = [];
   chars
     .join("")
-    .split(/\r?\n/u)
+    // パーサと同じく、CR だけの改行も行の区切りにする（tableLines はパーサの行番号）
+    .split(/\r\n|\r|\n/u)
     .forEach((line, index) => {
       if (tableLines.has(index + 1)) return;
       const cells = splitRow(line);
@@ -267,7 +270,7 @@ function strayRowsOf(text, { hidden, tableLines }) {
  * 表に属さないのに `|` を含む行は、警告なしに捨てず、行番号・セル数・行頭の `|` の有無を strayRows に返す
  * （GFM は行頭・行末の `|` を省けるので、行頭の `|` だけでは表の行を見分けられない）。
  * 末尾まで閉じないフェンス（閉じる行に情報文字列を付けた ` ```sh `、4 文字以上字下げした閉じる行など）は、開いた行の番号を unclosedFence に返す。
- * 末尾まで閉じない HTML コメントのブロック（行頭の `<!--`）は、開いた行の番号を unclosedComment に返す（readHtml）。
+ * 末尾まで閉じない HTML コメントのブロック（行頭か、3 文字までの字下げの後の `<!--`）は、開いた行の番号を unclosedComment に返す（readHtml）。
  * どちらも後ろの表を読めなくするので、呼び出し側は台帳を読まずに止める。
  * @param {string} text
  * @param {{ normalizeHeader?: (cell: string) => string }} [options] normalizeHeader は見出しのセルの正規化（デフォルトは collapse）

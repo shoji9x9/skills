@@ -105,8 +105,8 @@
       "id": "all-html-hidden",
       "why": "コメント以外の HTML ブロック（`<details>` など）の中の、表の行に見える行を表の外の行に数えない",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "  if (!/^\\s*<!--/u.test(source)) return { hidden, unclosed: false };",
-      "replace": "  if (!/^\\s*<!--/u.test(source)) return { hidden: [{ start: r.start, end: r.end }], unclosed: false };",
+      "find": "unclosed: false };",
+      "replace": "unclosed: false, hidden: [{ start: r.start, end: r.end }] };",
       "occurrences": 1,
       "expect_failing": [
         "parseTables の strayRows は、表示されない範囲だけを除く: `<details>` の中の表の行に見える行"

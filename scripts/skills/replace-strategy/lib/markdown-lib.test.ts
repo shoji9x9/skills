@@ -656,6 +656,14 @@ test.each([
   expect(read).toThrow(`${where}で開いた HTML コメント（<!--）が末尾まで閉じていない`);
 });
 
+test("CR だけの改行の文書でも、表の行を表の外の行として数えない", () => {
+  const { tables, strayRows } = parseTables(
+    "# 台帳\r\r| a | b | c |\r|---|---|---|\r| 1 | 2 | 3 |\r",
+  );
+  expect(tables[0]?.rowLines).toEqual([5]);
+  expect(strayRows).toEqual([]);
+});
+
 test.each<[string, string, number[]]>([
   ["散文のインラインのコードの中の `|`", lines("説明は `a | b | c` と書く。"), []],
   ["コメントの中の `|`", lines("<!-- | a | b | c | -->"), []],
