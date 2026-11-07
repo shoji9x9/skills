@@ -530,9 +530,16 @@ test("4 文字以上字下げした行はコードなので、`|` を含んで�
   expect(countRowLikeLines("    <!-- | 4 | 5 | 6 | -->\n")).toBe(0);
 });
 
-test("誤検知しないことの確認: 表の後ろの閉じない HTML コメントは、表を隠さないので通す", () => {
+test("閉じない HTML コメントは、以降の表を読まずに合格させない", () => {
   const r = readProcedureLedger(`${LIVE}\n<!--\n説明\n`, new Set());
-  expect(r.ok).toBe(true);
+  expect(r.ok).toBe(false);
+  expect(failedOf(r).errors.join("\n")).toContain("HTML コメント（<!--）が末尾まで閉じていない");
+});
+
+test("表の途中で開いて閉じない HTML コメントは、後ろの行を判定から外さずに失敗にする", () => {
+  const r = readProcedureLedger(`${LIVE}<!-- 記入例\n| x | y | z | w |\n`, new Set());
+  expect(r.ok).toBe(false);
+  expect(failedOf(r).errors.join("\n")).toContain("HTML コメント（<!--）が末尾まで閉じていない");
 });
 
 test("4 文字以上字下げした `<!--` はコードなので、後ろの表の行の形の行を表の外の行に数える", () => {

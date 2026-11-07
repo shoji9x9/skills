@@ -9146,8 +9146,11 @@ function gfm(options) {
 }
 
 // <stdin>
-function parseGfm(text4) {
-  return fromMarkdown(text4, { extensions: [gfm()], mdastExtensions: [gfmFromMarkdown()] });
+function parseGfm(text4, mdastExtensions = []) {
+  return fromMarkdown(text4, {
+    extensions: [gfm()],
+    mdastExtensions: [gfmFromMarkdown(), ...mdastExtensions]
+  });
 }
 export {
   parseGfm

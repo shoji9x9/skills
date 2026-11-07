@@ -538,9 +538,12 @@ fixture の検査も strict のままにする。型が足りない fixture は�
 同梱物を作るのに使うパッケージ（`check-vendor.ts` の `VENDORED_PACKAGES`）のバージョンを上げたら、同じ commit で `node scripts/gates/packaging/check-vendor.ts --fix` を実行して同梱物を作り直す。
 作り直さないと、pre-commit と CI の `check-vendor.ts` が失敗する。
 
-Dependabot がこれらのパッケージを上げた PR は、`.github/dependabot.yml` の `vendored` グループにまとまる。
+Dependabot がこれらのパッケージを上げた PR は、`.github/dependabot.yml` の `vendored` グループにまとまる。esbuild は 0.x なので、`vendored-esbuild` グループの PR になる。
 `dependabot-automerge.yml` は、この PR の自動マージを予約せず、`dependabot/needs-review` ラベルを付けて手動レビューへ回す。
 自動マージを予約すると、同梱物の一致のチェックが失敗したまま、ラベルの無い PR が open で残るからである。
 回ってきた PR は `dependabot-merge` スキルで扱い、Dependabot の branch を checkout して `--fix` を実行し、作り直した同梱物だけを commit して push する。
 push した後は `@dependabot rebase` と `@dependabot recreate` を使わない。どちらも手で足した commit を消す。base が進んだら、base を merge して `--fix` からやり直す。
 パッケージを足すときは、`VENDORED_PACKAGES`・`vendored` グループ・`npm-misc` の `exclude-patterns`・ワークフローの `VENDORED_PACKAGES` を同時に変える（`check-vendor.test.ts` が突き合わせる）。
+
+同梱物は、`VENDORED_PACKAGES` に無い推移的な依存（micromark の内部のパッケージなど）でも変わる。そうした依存は、別のパッケージ（markdownlint-cli2 など）の更新や、脆弱性の修正の PR でも上がる。
+それらの PR は自動マージを予約するが、`check-vendor.ts` が失敗するので merge されずに残る。`check-vendor.ts` で失敗した Dependabot の PR は、どのグループのものでも、上と同じ手順で作り直す。

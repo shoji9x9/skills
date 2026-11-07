@@ -8,6 +8,23 @@ import { unclosedFenceMessage } from "./fence.mjs";
 /** @typedef {import("../vendor/mdast-gfm.mjs").Node} MdNode */
 
 /**
+ * フェンスの開く行と閉じる行を、code の節の data.fences に数える handler。
+ * パーサが閉じる行と認めた行だけを数えるので、閉じたかを閉じる行の規則（字下げ・記号の数・情報文字列）を書き直さずに判定できる。
+ * 閉じる行に入ったときは、作りかけの節の一番上が中身の断片になるので、最も近い code の節を数える。
+ * @type {import("../vendor/mdast-gfm.mjs").Extension}
+ */
+const COUNT_FENCES = {
+  enter: {
+    codeFencedFence() {
+      const code = this.stack.findLast((node) => node.type === "code");
+      if (code === undefined) return;
+      const fences = Number(code.data?.fences ?? 0);
+      code.data = { ...code.data, fences: fences + 1 };
+    },
+  },
+};
+
+/**
  * 空白を 1 つに畳み、前後を除く（Markdown の表はフォーマッタが桁を詰め直すため素の比較では揺れる）。
  * @param {string} value
  * @returns {string}
@@ -44,7 +61,7 @@ function visit(node, fn) {
 /**
  * 節の範囲（文書の先頭からの offset）。パーサは常に位置を付けるので、無ければ判定できないとして止める。
  * @param {MdNode} node
- * @returns {{ start: number, end: number, startLine: number, endLine: number, startColumn: number }}
+ * @returns {{ start: number, end: number, startLine: number, endLine: number }}
  */
 function rangeOf(node) {
   const position = node.position;
@@ -60,7 +77,6 @@ function rangeOf(node) {
     end,
     startLine: position.start.line,
     endLine: position.end.line,
-    startColumn: position.start.column,
   };
 }
 
@@ -121,37 +137,53 @@ function trimDelimiters(raw, last) {
 }
 
 /**
- * 末尾まで閉じないフェンスか。閉じる行は、開いた記号と同じ文字を同じ数以上並べ、後ろに空白とタブだけを置く行である（CommonMark）。
- * コンテナ（リスト・引用）の中で閉じないフェンスはコンテナの終わりで終わり、後ろの表を隠さないので、文書の末尾まで続くものだけを挙げる。
+ * 節が文書の末尾まで続くか。コンテナ（リスト・引用）の中で閉じないフェンスとコメントはコンテナの終わりで終わり、後ろの表を隠さない。
  * @param {string} text
- * @param {MdNode} node code の節
- * @param {number[]} starts 各行の先頭の offset
+ * @param {MdNode} node
  * @returns {boolean}
  */
-function isUnclosedFence(text, node, starts) {
-  const r = rangeOf(node);
-  const open = /^(`{3,}|~{3,})/u.exec(text.slice(r.start, r.end));
-  if (open === null) return false;
-  if (r.end < text.trimEnd().length) return false;
-  if (r.endLine === r.startLine) return true;
-  // 最後の行から、コンテナの印（引用の `>`・リストの字下げ）の幅を除いて、閉じる行かを見る。
-  // 開く行の字下げ（3 文字まで）は除く幅に入れない。閉じる行の字下げは開く行と関係なく 3 文字まで許される（CommonMark）
-  const prefix = text.slice(starts[r.startLine - 1], r.start);
-  const indent = / {0,3}$/u.exec(prefix)?.[0].length ?? 0;
-  const lastLine = text.slice(starts[r.endLine - 1], r.end).slice(prefix.length - indent);
-  const close = /^ {0,3}(`{3,}|~{3,})[ \t]*$/u.exec(lastLine);
-  return !(close !== null && close[1][0] === open[1][0] && close[1].length >= open[1].length);
+function reachesEnd(text, node) {
+  return rangeOf(node).end >= text.trimEnd().length;
 }
 
 /**
- * 各行の先頭の offset（0 始まりの行番号で引く）。
+ * 末尾まで閉じないフェンスか。フェンスの code の節は、開く行を 1 つ数える。閉じる行も数えた節は閉じている（COUNT_FENCES）。
+ * 字下げした code（フェンスを持たない）は数が 0 なので当たらない。
  * @param {string} text
- * @returns {number[]}
+ * @param {MdNode} node code の節
+ * @returns {boolean}
  */
-function lineStarts(text) {
-  const starts = [0];
-  for (const m of text.matchAll(/\r?\n/gu)) starts.push(m.index + m[0].length);
-  return starts;
+function isUnclosedFence(text, node) {
+  return node.data?.fences === 1 && reachesEnd(text, node);
+}
+
+/**
+ * HTML コメントの節か。コメントの中の表と表の行は、描画で表示されないので読まない。
+ * @param {MdNode} node
+ * @returns {boolean}
+ */
+function isComment(node) {
+  return node.type === "html" && String(node.value ?? "").startsWith("<!--");
+}
+
+/**
+ * 末尾まで閉じない HTML コメントか。行頭で開いた `<!--` は、`-->` が来るまで後ろの行をすべてコメントにする（CommonMark の HTML ブロック）。
+ * `<!-->` と `<!--->` は、それだけで閉じたコメントである。
+ * @param {string} text
+ * @param {MdNode} node
+ * @returns {boolean}
+ */
+function isUnclosedComment(text, node) {
+  return isComment(node) && !String(node.value).includes("-->", 2) && reachesEnd(text, node);
+}
+
+/**
+ * 末尾まで閉じない HTML コメントを、利用者に返す文にする。
+ * @param {number} line コメントを開いた行の番号（1 始まり）
+ * @returns {string}
+ */
+function unclosedCommentMessage(line) {
+  return `${line} 行目で開いた HTML コメント（<!--）が末尾まで閉じていない。コメントの後ろの表と行を読めない。--> で閉じる`;
 }
 
 /**
@@ -185,7 +217,8 @@ function readTable(text, node, normalizeHeader) {
 }
 
 /**
- * 表の外の、`|` を含む行を挙げる。HTML（コメントを含む）とコードの中は、文字として表示されないか例示なので数えない。
+ * 表の外の、`|` を含む行を挙げる。HTML コメントとコード（フェンス・字下げ・インライン）の中は、表示されないか例示なので数えない。
+ * コメント以外の HTML（`<details>` など）の中の行は、描画で表の行にならないが、エディタでは表の行に見えるので数える。
  * @param {string} text
  * @param {{ hidden: MdNode[], tableLines: Set<number> }} parsed
  * @returns {StrayRow[]}
@@ -223,15 +256,15 @@ function strayRowsOf(text, { hidden, tableLines }) {
  * 表に属さないのに `|` を含む行は、警告なしに捨てず、行番号・セル数・行頭の `|` の有無を strayRows に返す
  * （GFM は行頭・行末の `|` を省けるので、行頭の `|` だけでは表の行を見分けられない）。
  * 末尾まで閉じないフェンス（閉じる行に情報文字列を付けた ` ```sh `、4 文字以上字下げした閉じる行など）は、開いた行の番号を unclosedFence に返す。
- * フェンスの後ろの表はすべて読まれないので、呼び出し側は台帳を読まずに止める。
+ * 末尾まで閉じない HTML コメントは、開いた行の番号を unclosedComment に返す。
+ * どちらも後ろの表をすべて読めなくするので、呼び出し側は台帳を読まずに止める。
  * @param {string} text
  * @param {{ normalizeHeader?: (cell: string) => string }} [options] normalizeHeader は見出しのセルの正規化（デフォルトは collapse）
- * @returns {{ tables: Table[], strayRows: StrayRow[], unclosedFence: number | null }}
+ * @returns {{ tables: Table[], strayRows: StrayRow[], unclosedFence: number | null, unclosedComment: number | null }}
  *   rowLines は各行のファイル上の行番号（1 始まり。エラー文で行を指せるように）
  */
 function parseTables(text, options = {}) {
   const { normalizeHeader = collapse } = options;
-  const starts = lineStarts(text);
   /** @type {Table[]} */
   const tables = [];
   /** @type {MdNode[]} */
@@ -240,19 +273,25 @@ function parseTables(text, options = {}) {
   const tableLines = new Set();
   /** @type {number | null} */
   let unclosedFence = null;
-  visit(parseGfm(text), (node) => {
+  /** @type {number | null} */
+  let unclosedComment = null;
+  visit(parseGfm(text, [COUNT_FENCES]), (node) => {
     if (node.type === "table") {
       tables.push(readTable(text, node, normalizeHeader));
       const r = rangeOf(node);
       for (let line = r.startLine; line <= r.endLine; line += 1) tableLines.add(line);
-    } else if (node.type === "html" || node.type === "code") {
+    } else if (node.type === "code" || node.type === "inlineCode" || isComment(node)) {
       hidden.push(node);
-      if (node.type === "code" && unclosedFence === null && isUnclosedFence(text, node, starts)) {
+      if (node.type === "code" && unclosedFence === null && isUnclosedFence(text, node)) {
         unclosedFence = rangeOf(node).startLine;
+      }
+      if (unclosedComment === null && isUnclosedComment(text, node)) {
+        unclosedComment = rangeOf(node).startLine;
       }
     }
   });
-  return { tables, strayRows: strayRowsOf(text, { hidden, tableLines }), unclosedFence };
+  const strayRows = strayRowsOf(text, { hidden, tableLines });
+  return { tables, strayRows, unclosedFence, unclosedComment };
 }
 
-export { collapse, parseTables, unclosedFenceMessage };
+export { collapse, parseTables, unclosedCommentMessage, unclosedFenceMessage };

@@ -252,7 +252,9 @@ describe("render", () => {
     for (const name of bundled)
       expect(v["NOTICE.md"]).toMatch(new RegExp(`(?:## |・)${name} `, "u"));
     expect(v["NOTICE.md"]).toContain("Permission is hereby granted");
-    expect(v["mdast-gfm.d.mts"]).toContain("export function parseGfm(text: string): Node;");
+    expect(v["mdast-gfm.d.mts"]).toContain(
+      "export function parseGfm(text: string, mdastExtensions?: Extension[]): Node;",
+    );
   });
 
   test("mdast-gfm: 作り直すとバイト単位で同じ内容になる", async () => {
@@ -315,13 +317,17 @@ describe("VENDORED_PACKAGES", () => {
     }
   });
 
-  test("実リポジトリ: dependabot.yml の vendored グループと、自動マージのワークフローの一覧が同じ名前を持つ", () => {
+  test("実リポジトリ: dependabot.yml の vendored・vendored-esbuild グループと、自動マージのワークフローの一覧が同じ名前を持つ", () => {
     const expected = [...VENDORED_PACKAGES].sort();
     const config = loadYamlAs<DependabotConfig>(
       readFileSync(join(repoRoot, ".github/dependabot.yml"), "utf8"),
     );
     const npm = config.updates.find((u) => u["package-ecosystem"] === "npm");
-    expect([...(npm?.groups.vendored?.patterns ?? [])].sort()).toEqual(expected);
+    const grouped = [
+      ...(npm?.groups.vendored?.patterns ?? []),
+      ...(npm?.groups["vendored-esbuild"]?.patterns ?? []),
+    ];
+    expect(grouped.sort()).toEqual(expected);
     // catch-all のグループにも入ると、自動マージするグループの PR に含まれるので、catch-all から外す
     for (const name of expected)
       expect(npm?.groups["npm-misc"]?.["exclude-patterns"]).toContain(name);

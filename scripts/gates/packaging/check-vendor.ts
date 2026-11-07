@@ -147,7 +147,7 @@ export const JSONC_PARSER: VendorBundle = {
   },
 };
 
-/** mdast-gfm.mjs が直接使うパッケージ。バージョンは devDependency で固定する。 */
+/** mdast-gfm.mjs が直接使うパッケージ。バージョンは pnpm-lock.yaml で決まる。 */
 export const MDAST_GFM_PACKAGES = [
   "mdast-util-from-markdown",
   "mdast-util-gfm",
@@ -159,9 +159,15 @@ const MDAST_GFM_ENTRY = [
   'import { gfmFromMarkdown } from "mdast-util-gfm";',
   'import { gfm } from "micromark-extension-gfm";',
   "",
-  "/** Markdown を GFM（GitHub Flavored Markdown）の規則で読み、mdast の木を返す。 */",
-  "export function parseGfm(text) {",
-  "  return fromMarkdown(text, { extensions: [gfm()], mdastExtensions: [gfmFromMarkdown()] });",
+  "/**",
+  " * Markdown を GFM（GitHub Flavored Markdown）の規則で読み、mdast の木を返す。",
+  " * mdastExtensions は、木を作る処理に足す handler（mdast-util-from-markdown の Extension）である。",
+  " */",
+  "export function parseGfm(text, mdastExtensions = []) {",
+  "  return fromMarkdown(text, {",
+  "    extensions: [gfm()],",
+  "    mdastExtensions: [gfmFromMarkdown(), ...mdastExtensions],",
+  "  });",
   "}",
   "",
 ].join("\n");
@@ -183,9 +189,19 @@ const MDAST_GFM_TYPES = [
   "  position?: Position;",
   "  value?: string;",
   "  children?: Node[];",
+  "  data?: Record<string, unknown>;",
+  "}",
+  "/** 木を作る処理が handler に渡す文脈。stack は作りかけの節（一番上が最後）である。 */",
+  "export interface CompileContext {",
+  "  stack: Node[];",
+  "}",
+  "/** 木を作る処理に足す handler。キーは micromark のトークンの種類（codeFencedFence など）である。 */",
+  "export interface Extension {",
+  "  enter?: Record<string, (this: CompileContext, token: unknown) => void>;",
+  "  exit?: Record<string, (this: CompileContext, token: unknown) => void>;",
   "}",
   "/** Markdown を GFM（GitHub Flavored Markdown）の規則で読み、mdast の木を返す。 */",
-  "export function parseGfm(text: string): Node;",
+  "export function parseGfm(text: string, mdastExtensions?: Extension[]): Node;",
   "",
 ].join("\n");
 

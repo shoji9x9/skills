@@ -35,7 +35,12 @@ import { errorMessage } from "./lib/errors.mjs";
 import { makeIo } from "./lib/flag-args.mjs";
 import { parseFlags } from "./lib/flags.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
-import { collapse, parseTables, unclosedFenceMessage } from "./lib/markdown.mjs";
+import {
+  collapse,
+  parseTables,
+  unclosedCommentMessage,
+  unclosedFenceMessage,
+} from "./lib/markdown.mjs";
 
 /**
  * ツールのバージョン（このファイルで定義する）。判定の規則や出力の形を変えたら上げる。
@@ -285,9 +290,10 @@ export function parseModes(cell) {
 function findLedgerTables(text) {
   /** @type {string[]} */
   const errors = [];
-  const { tables, strayRows, unclosedFence } = parseTables(text);
-  // 閉じないフェンスは後ろの表をすべて読めなくするので、表が無いなどのエラーより先に、原因として出す。
+  const { tables, strayRows, unclosedFence, unclosedComment } = parseTables(text);
+  // 閉じないフェンスとコメントは後ろの表をすべて読めなくするので、表が無いなどのエラーより先に、原因として出す。
   if (unclosedFence !== null) errors.push(`台帳の ${unclosedFenceMessage(unclosedFence)}`);
+  if (unclosedComment !== null) errors.push(`台帳の ${unclosedCommentMessage(unclosedComment)}`);
   const changeTable = findTable(tables, CHANGE_HEADERS);
   const recordTable = findTable(tables, RECORD_HEADERS);
   // 表の不在を「変更なし」「記録なし」と読まない。列名を書き換えた台帳も同じ（警告なしに 0 件になる）。

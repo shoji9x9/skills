@@ -286,6 +286,18 @@
         "pathState: 権限が無くて調べられないパスを、無い（missing）ではなく unreadable にする",
         "pathState: 循環したシンボリックリンクを、権限の問題（unreadable）ではなく dangling-link にする"
       ]
+    },
+    {
+      "id": "unclosed-comment-unchecked",
+      "why": "procedure-staleness-check が閉じないコメントで止めず、後ろの行を判定から外したまま合格にする",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "  if (unclosedComment !== null) errors.push(",
+      "replace": "  if (false) errors.push(",
+      "occurrences": 1,
+      "expect_failing": [
+        "閉じない HTML コメントは、以降の表を読まずに合格させない",
+        "表の途中で開いて閉じない HTML コメントは、後ろの行を判定から外さずに失敗にする"
+      ]
     }
   ]
 }

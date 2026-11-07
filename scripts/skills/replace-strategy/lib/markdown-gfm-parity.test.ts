@@ -18,9 +18,13 @@ const OPTIONS = { allowDangerousHtml: true, extensions: [gfm()], htmlExtensions:
 
 /** 描画した HTML の断片から、表示される文字列を取り出す（コメントとタグを除き、文字参照を戻し、空白を畳む）。 */
 function visibleText(html: string): string {
-  return html
-    .replace(/<!--[\s\S]*?-->|<!-->|<!--->/gu, " ")
-    .replace(/<[^>]*>/gu, "")
+  // タグを除いた後に残った文字が新しいタグを作らないよう、変わらなくなるまで除く
+  let stripped = html;
+  for (let previous = ""; previous !== stripped;) {
+    previous = stripped;
+    stripped = stripped.replace(/<!--[\s\S]*?-->|<!-->|<!--->/gu, " ").replace(/<[^>]*>/gu, "");
+  }
+  return stripped
     .replaceAll("&lt;", "<")
     .replaceAll("&gt;", ">")
     .replaceAll("&quot;", '"')
@@ -48,9 +52,9 @@ function cellVisible(cell: string): string {
 function parsedTables(text: string): string[][][] {
   return parseTables(text, { normalizeHeader: (cell) => cell }).tables.map((table) => {
     const width = table.headers.length;
-    const fit = (row: string[]) =>
+    const padRow = (row: string[]) =>
       Array.from({ length: width }, (_, i) => cellVisible(row[i] ?? ""));
-    return [fit(table.headers), ...table.rows.map(fit)];
+    return [padRow(table.headers), ...table.rows.map(padRow)];
   });
 }
 

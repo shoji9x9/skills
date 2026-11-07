@@ -30,7 +30,7 @@
       "id": "unclosed-fence-not-reported",
       "why": "末尾まで閉じないフェンスを報告せず、フェンスの後ろの表を読まないまま判定する（#679 の決定 A）",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "      if (node.type === \"code\" && unclosedFence === null && isUnclosedFence(text, node, starts)) {\n",
+      "find": "      if (node.type === \"code\" && unclosedFence === null && isUnclosedFence(text, node)) {\n",
       "replace": "      if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
@@ -47,29 +47,78 @@
         "procedure-staleness-check: 閉じないコードフェンスは、開いた行の番号を付けて止める",
         "procedure-staleness-check: 閉じないフェンスが表を読めなくしたときは、表が無いエラーより先にフェンスを報告する",
         "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: 末尾に改行が無く、情報文字列の付いた行で閉じたつもりのフェンス",
-        "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: 末尾に改行が無く、短い記号で閉じたつもりのフェンス"
+        "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: 末尾に改行が無く、短い記号で閉じたつもりのフェンス",
+        "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: リストの中で、中身より 4 文字深く字下げした閉じる行"
       ]
     },
     {
-      "id": "unclosed-fence-closed-by-info-string",
-      "why": "最後の行の情報文字列付きの ` ```sh ` を閉じる行とみなし、末尾まで閉じないフェンスを報告しない",
+      "id": "unclosed-fence-closing-not-counted",
+      "why": "パーサが認めた閉じる行を数えず、末尾で閉じたフェンスを閉じないフェンスとして報告する",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "/^ {0,3}(`{3,}|~{3,})[ \\t]*$/u.exec(lastLine)",
-      "replace": "/^ {0,3}(`{3,}|~{3,})/u.exec(lastLine)",
+      "find": "      code.data = { ...code.data, fences: fences + 1 };",
+      "replace": "      code.data = { ...code.data, fences: 1 };",
       "occurrences": 1,
       "expect_failing": [
-        "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: 末尾に改行が無く、情報文字列の付いた行で閉じたつもりのフェンス"
+        "asset-delivery-check: 表の直後の `|` を含むフェンス行で表を終える",
+        "evidence-gap-check: 表の直後の `|` を含むフェンス行で表を終える",
+        "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: 末尾に改行が無く、閉じたフェンス",
+        "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: 引用の中で閉じたフェンス",
+        "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: リストの中で閉じたフェンス",
+        "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: リストの中で、中身より 3 文字深く字下げして閉じたフェンス",
+        "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: 字下げして開き、字下げせずに閉じたフェンス",
+        "誤検知しないことの確認: asset-delivery-check は、閉じたコードフェンスでは止めない",
+        "誤検知しないことの確認: evidence-gap-check は、閉じたコードフェンスでは止めない",
+        "誤検知しないことの確認: procedure-staleness-check は、閉じたコードフェンスでは止めない"
       ]
     },
     {
-      "id": "unclosed-fence-closed-by-shorter",
-      "why": "開いた記号より短い記号の最後の行を閉じる行とみなし、末尾まで閉じないフェンスを報告しない",
+      "id": "unclosed-comment-not-reported",
+      "why": "末尾まで閉じない HTML コメントを報告せず、後ろの表と行を読まないまま判定する",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "close[1].length >= open[1].length",
+      "find": "      if (unclosedComment === null && isUnclosedComment(text, node)) {",
+      "replace": "      if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 末尾まで閉じないコメント",
+        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 表の前で開いて閉じないコメント",
+        "asset-delivery-check: 閉じない HTML コメントは、開いた行の番号を付けて止める",
+        "evidence-gap-check: 閉じない HTML コメントは、開いた行の番号を付けて止める"
+      ]
+    },
+    {
+      "id": "closed-comment-reported",
+      "why": "`-->` で閉じたコメントも、末尾にあれば閉じないコメントとして報告する",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "!String(node.value).includes(\"-->\", 2)",
       "replace": "true",
       "occurrences": 1,
       "expect_failing": [
-        "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: 末尾に改行が無く、短い記号で閉じたつもりのフェンス"
+        "asset-delivery-check: HTML コメントの中の表の行を台帳として読まない",
+        "evidence-gap-check: HTML コメントの中の表の行を台帳として読まない",
+        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 末尾の閉じたコメント",
+        "parseTables は、末尾まで閉じない HTML コメントを開いた行の番号を返す: 末尾の `<!-->`"
+      ]
+    },
+    {
+      "id": "all-html-hidden",
+      "why": "コメント以外の HTML ブロック（`<details>` など）の中の、表の行に見える行を表の外の行に数えない",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "node.type === \"inlineCode\" || isComment(node)",
+      "replace": "node.type === \"inlineCode\" || node.type === \"html\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "parseTables の strayRows は、表示されない範囲だけを除く: `<details>` の中の表の行に見える行"
+      ]
+    },
+    {
+      "id": "inline-code-counted",
+      "why": "インラインのコードの中の `|` を、表の外の行として数える",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "node.type === \"code\" || node.type === \"inlineCode\" || isComment(node)",
+      "replace": "node.type === \"code\" || isComment(node)",
+      "occurrences": 1,
+      "expect_failing": [
+        "parseTables の strayRows は、表示されない範囲だけを除く: 散文のインラインのコードの中の `|`"
       ]
     },
     {
@@ -118,6 +167,28 @@
       "expect_failing": [
         "procedure-staleness-check: 閉じないコードフェンスは、開いた行の番号を付けて止める",
         "procedure-staleness-check: 閉じないフェンスが表を読めなくしたときは、表が無いエラーより先にフェンスを報告する"
+      ]
+    },
+    {
+      "id": "asset-delivery-unclosed-comment-unchecked",
+      "why": "asset-delivery-check が閉じないコメントで止めず、後ろの表を読まないまま判定する",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "  if (unclosedComment !== null)\n    throw new UsageError(`台帳の",
+      "replace": "  if (false)\n    throw new UsageError(`台帳の",
+      "occurrences": 1,
+      "expect_failing": [
+        "asset-delivery-check: 閉じない HTML コメントは、開いた行の番号を付けて止める"
+      ]
+    },
+    {
+      "id": "evidence-gap-unclosed-comment-unchecked",
+      "why": "evidence-gap-check が閉じないコメントで止めず、後ろの表を読まないまま判定する",
+      "file": "skills/replace-strategy/scripts/evidence-gap-check.mjs",
+      "find": "  if (unclosedComment !== null)\n    throw new UsageError(`インベントリの",
+      "replace": "  if (false)\n    throw new UsageError(`インベントリの",
+      "occurrences": 1,
+      "expect_failing": [
+        "evidence-gap-check: 閉じない HTML コメントは、開いた行の番号を付けて止める"
       ]
     }
   ]
