@@ -492,7 +492,7 @@ export const { previousKeys, diff: diffFindings } = tracking;
 
 /** 空の一覧の候補があるときに、候補の表の下に 1 回だけ出す注記（Issue #948）。 */
 const READERS_NOTE =
-  "空の免除・保留の一覧の「内容」は、check-cost-metrics.json の readers に書いた、一覧を読む処理の案内である。スクリプトは確かめていない。";
+  "空の免除・保留の一覧の「内容」は、check-cost-metrics.json の readers に書いた、一覧を読む処理の案内である。スクリプトは、そのファイルが今も一覧を読んでいるかを確かめていない。";
 
 function findingTable(findings: readonly Finding[], kept: ReadonlySet<string>): string[] {
   if (findings.length === 0) return [];
