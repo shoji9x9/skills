@@ -34,3 +34,7 @@ ci:42445255975:1,ci,2026-11-08T04:08:41.066Z,p-cdee4961,github-actions,,,,2026-1
 ci:42445256059:1,ci,2026-11-08T04:08:41.066Z,p-cdee4961,github-actions,,,,2026-11-08T04:03:51.000Z,2026-11-08T04:03:52.000Z,Asia/Tokyo,feature/939-weekly-check-cost-metrics,939,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:42445255920:1,ci,2026-11-08T04:08:41.066Z,p-cdee4961,github-actions,,,,2026-11-08T04:03:51.000Z,2026-11-08T04:05:22.000Z,Asia/Tokyo,feature/939-weekly-check-cost-metrics,939,,,,,,,,,,CodeQL;pull_request;success,
 coverage:github:2026-11-07T04:02:55.871Z:2026-11-08T04:08:41.066Z,coverage,2026-11-08T04:08:41.066Z,p-cdee4961,,,,,2026-11-07T04:02:55.871Z,2026-11-08T04:08:41.066Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:42445658409:1,ci,2026-11-08T04:12:14.725Z,p-cdee4961,github-actions,,,,2026-11-08T04:09:36.000Z,2026-11-08T04:09:37.000Z,Asia/Tokyo,feature/939-weekly-check-cost-metrics,939,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:42445658484:1,ci,2026-11-08T04:12:14.725Z,p-cdee4961,github-actions,,,,2026-11-08T04:09:36.000Z,2026-11-08T04:10:55.000Z,Asia/Tokyo,feature/939-weekly-check-cost-metrics,939,,,,,,,,,,CodeQL;pull_request;success,
+ci:42445658435:1,ci,2026-11-08T04:12:14.725Z,p-cdee4961,github-actions,,,,2026-11-08T04:09:36.000Z,2026-11-08T04:12:14.725Z,Asia/Tokyo,feature/939-weekly-check-cost-metrics,939,,,,,,,,,,CI;pull_request;open,
+coverage:github:2026-11-07T04:08:41.066Z:2026-11-08T04:12:14.725Z,coverage,2026-11-08T04:12:14.725Z,p-cdee4961,,,,,2026-11-07T04:08:41.066Z,2026-11-08T04:12:14.725Z,Asia/Tokyo,,,,,,,,,,,,ok,

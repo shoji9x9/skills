@@ -239,11 +239,10 @@ const READER_KINDS: readonly {
 }[] = [
   {
     extensions: [".ts", ".mts", ".cts", ".js", ".mjs", ".cjs"],
-    // 値を読む import・export の指定子も、一覧を読む参照として数える（oxlint.config.ts は oxlint-pending.ts を import で読む）。
-    // 型だけの import は一覧のデータを読まないので数えない。
+    // import・export の指定子も、一覧を読む参照として数える（oxlint.config.ts は oxlint-pending.ts を import で読む）。
     strings: (path, source) => {
       const sf = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, scriptKind(path));
-      return jsStrings(sf, { valueModuleSpecifiers: true }).map((node) => node.text);
+      return jsStrings(sf, { moduleSpecifiers: true }).map((node) => node.text);
     },
   },
   { extensions: [".json"], strings: (_path, source) => stringsOf(JSON.parse(source)) },
@@ -253,7 +252,9 @@ const READER_KINDS: readonly {
 /**
  * 読む処理の中の文字列の値（エスケープを解いた形）を、行に並べて返す。ファイル名は、読む処理のコードでは文字列として現れる。
  * コメントは値に入らないので、コメントにだけ残った名前は参照として数えない。`\n` の直後のファイル名も、別の名前の一部として読まない。
- * ファイルを読む引数とメッセージの文字列は区別しないので、メッセージにだけ名前が残った読む処理は、参照しているとして扱う（見逃す向きの誤り）。
+ * この判定は近似で、誤りは見逃す向き（参照していない読む処理を、参照しているとして扱う）にだけ出る。
+ * ファイルを読む引数とメッセージの文字列を区別せず、import が型だけを読むかも区別しない。
+ * 区別するには読み方の書き方の数だけ分岐が要るので、readers の確認は「設定が古い」ことに気付く補助にとどめる。
  */
 export function referenceText(path: string, source: string): string {
   const reader = READER_KINDS.find((k) => k.extensions.some((ext) => path.endsWith(ext)));

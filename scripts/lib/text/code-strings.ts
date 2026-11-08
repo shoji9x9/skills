@@ -225,43 +225,22 @@ function partOrigins(raw: string, start: ts.LineAndCharacter): Origin[] {
   return origins;
 }
 
-/** 型だけを読み書きする import・export（`import type`・`export type ... from`・すべてが `type` の名前の import）か。 */
-function isTypeOnly(decl: ts.ImportDeclaration | ts.ExportDeclaration): boolean {
-  if (ts.isExportDeclaration(decl)) return decl.isTypeOnly;
-  const clause = decl.importClause;
-  if (clause === undefined) return false;
-  if (clause.phaseModifier === ts.SyntaxKind.TypeKeyword) return true;
-  const named = clause.namedBindings;
-  return (
-    clause.name === undefined &&
-    named !== undefined &&
-    ts.isNamedImports(named) &&
-    named.elements.length > 0 &&
-    named.elements.every((e) => e.isTypeOnly)
-  );
-}
-
 /**
- * JavaScript・TypeScript の文字列リテラルとテンプレートの各部分。import と export の指定子はデフォルトでは除く。
- * `valueModuleSpecifiers` を true にすると、値を読む import・export の指定子も含める（型だけのものは除く）。
+ * JavaScript・TypeScript の文字列リテラルとテンプレートの各部分。import と export の指定子はデフォルトでは除き、
+ * `moduleSpecifiers` を true にすると含める。型だけの import かどうかは区別しない。
  * 親のノードを読むので、sf は setParentNodes を true にして作る。
  */
 export function jsStrings(
   sf: ts.SourceFile,
-  options: { valueModuleSpecifiers?: boolean } = {},
+  options: { moduleSpecifiers?: boolean } = {},
 ): ts.LiteralLikeNode[] {
   const out: ts.LiteralLikeNode[] = [];
-  const keepSpecifier = (decl: ts.ImportDeclaration | ts.ExportDeclaration): boolean =>
-    options.valueModuleSpecifiers === true && !isTypeOnly(decl);
   // 文字列リテラルとテンプレートの部分は、どれも text を持つ LiteralLikeNode である。
   const visit = (node: ts.Node) => {
     if (ts.isStringLiteral(node)) {
       const { parent } = node;
-      if (
-        !(ts.isImportDeclaration(parent) || ts.isExportDeclaration(parent)) ||
-        keepSpecifier(parent)
-      )
-        out.push(node);
+      const specifier = ts.isImportDeclaration(parent) || ts.isExportDeclaration(parent);
+      if (!specifier || options.moduleSpecifiers === true) out.push(node);
     } else if (
       ts.isNoSubstitutionTemplateLiteral(node) ||
       ts.isTemplateHead(node) ||

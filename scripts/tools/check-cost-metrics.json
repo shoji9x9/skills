@@ -2,7 +2,7 @@
   "$comment": [
     "check-cost-metrics.ts（Issue #939）が読む、費用の指標の対象と閾値。",
     "lists は、空になっても仕組みを残している免除・保留の一覧と、それを読む処理（readers）である。ファイル名の形から推測せず、ここに挙げたものだけを数える。",
-    "免除・保留の一覧を足したときは、ここにも足す。readers は一覧のファイル名を文字列の値（TypeScript・JavaScript の文字列と、値を読む import・export の指定子、JSON・YAML の値）に含むファイルで、含まなくなるとワークフローが失敗する。コメントにだけある名前は数えない。",
+    "免除・保留の一覧を足したときは、ここにも足す。readers は一覧のファイル名を文字列の値（TypeScript・JavaScript の文字列と import・export の指定子、JSON・YAML の値）に含むファイルで、含まなくなるとワークフローが失敗する。コメントにだけある名前は数えない。",
     "意図して空のままにする一覧は、keep_empty に理由を書くと候補に挙げない。",
     "fix_prs は、直近 days 日の first-parent の履歴で、paths のファイルを変えた fix の PR が min 件以上のチェックを挙げる。",
     "durations は、workflows の成功した run のジョブを、直近 days 日とその前の days 日で比べる。両方の期間に min_runs 回以上あり、中央値が min_ratio の割合と min_seconds 秒の両方で増えたジョブを挙げる。",
