@@ -1,6 +1,6 @@
 ---
 date: 2026-10-17
-type: doc
+type: hook
 priority: high
 confidence: high
 status: pending
