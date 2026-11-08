@@ -289,7 +289,17 @@ describe("空の一覧", () => {
     },
     { name: "TypeScript の export * from", reader: "r.ts", text: 'export * from "./a.json";' },
     { name: "TypeScript の副作用だけの import", reader: "r.ts", text: 'import "./a.json";' },
-    // 型だけの import も数える（近似。見逃す向きの誤りとして referenceText のコメントに書いた）。
+    // 型だけの import・export も数える（referenceText のコメントにある近似の見逃し）。
+    {
+      name: "TypeScript の型だけの名前の import",
+      reader: "r.ts",
+      text: 'import { type X } from "./a.json";',
+    },
+    {
+      name: "TypeScript の export type ... from",
+      reader: "r.ts",
+      text: 'export type { X } from "./a.json";',
+    },
     {
       name: "TypeScript の import type",
       reader: "r.ts",

@@ -57,17 +57,16 @@ describe("対象の拡張子", () => {
   test("対象外の拡張子を渡すと例外にする", () => {
     expect(() => commentMarkdown("a.json", "{}")).toThrow("拡張子");
   });
-});
-
-test.each([
-  [".ts", "TS"],
-  [".mts", "TS"],
-  [".cts", "TS"],
-  [".js", "JS"],
-  [".mjs", "JS"],
-  [".cjs", "JS"],
-] as const)("%s は %s として読む", (ext, kind) => {
-  expect(scriptKind(`a${ext}`)).toBe(ts.ScriptKind[kind]);
+  test.each([
+    [".ts", "TS"],
+    [".mts", "TS"],
+    [".cts", "TS"],
+    [".js", "JS"],
+    [".mjs", "JS"],
+    [".cjs", "JS"],
+  ] as const)("%s は %s として読む", (ext, kind) => {
+    expect(scriptKind(`a${ext}`)).toBe(ts.ScriptKind[kind]);
+  });
 });
 
 describe("JavaScript・TypeScript", () => {
