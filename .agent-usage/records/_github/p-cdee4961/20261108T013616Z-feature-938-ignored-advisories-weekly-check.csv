@@ -1,0 +1,11 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+pr:943,pr,2026-11-08T01:36:16.300Z,p-cdee4961,github,,,,2026-11-08T00:39:01.000Z,2026-11-08T01:21:01.000Z,Asia/Tokyo,feature/937-remove-withdrawn-braces-advisory,937,,,,,,,,,,pr=943;author=shoji9x9;state=merged,
+ci:42433872561:1,ci,2026-11-08T01:36:16.300Z,p-cdee4961,github-actions,,,,2026-11-08T01:21:04.000Z,2026-11-08T01:21:30.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:42433872539:1,ci,2026-11-08T01:36:16.300Z,p-cdee4961,github-actions,,,,2026-11-08T01:21:04.000Z,2026-11-08T01:24:02.000Z,Asia/Tokyo,main,,,,,,,,,,,CodeQL;push;success,
+ci:42433872542:1,ci,2026-11-08T01:36:16.300Z,p-cdee4961,github-actions,,,,2026-11-08T01:21:04.000Z,2026-11-08T01:24:57.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:42433200009:1,ci,2026-11-08T01:36:16.300Z,p-cdee4961,github-actions,,,,2026-11-08T01:11:59.000Z,2026-11-08T01:12:00.000Z,Asia/Tokyo,feature/937-remove-withdrawn-braces-advisory,937,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:42433200001:1,ci,2026-11-08T01:36:16.300Z,p-cdee4961,github-actions,,,,2026-11-08T01:11:59.000Z,2026-11-08T01:13:16.000Z,Asia/Tokyo,feature/937-remove-withdrawn-braces-advisory,937,,,,,,,,,,CodeQL;pull_request;success,
+ci:42433200032:1,ci,2026-11-08T01:36:16.300Z,p-cdee4961,github-actions,,,,2026-11-08T01:11:59.000Z,2026-11-08T01:17:04.000Z,Asia/Tokyo,feature/937-remove-withdrawn-braces-advisory,937,,,,,,,,,,CI;pull_request;success,
+ci:42432935646:1,ci,2026-11-08T01:36:16.300Z,p-cdee4961,github-actions,,,,2026-11-08T01:08:30.000Z,2026-11-08T01:12:15.000Z,Asia/Tokyo,feature/937-remove-withdrawn-braces-advisory,937,,,,,,,,,,CI;pull_request;cancelled,
+coverage:github:2026-11-07T01:11:20.037Z:2026-11-08T01:36:16.300Z,coverage,2026-11-08T01:36:16.300Z,p-cdee4961,,,,,2026-11-07T01:11:20.037Z,2026-11-08T01:36:16.300Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-07T01:36:16.300Z:2026-11-08T01:37:35.304Z,coverage,2026-11-08T01:37:35.304Z,p-cdee4961,,,,,2026-11-07T01:36:16.300Z,2026-11-08T01:37:35.304Z,Asia/Tokyo,,,,,,,,,,,,ok,

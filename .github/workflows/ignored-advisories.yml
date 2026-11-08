@@ -1,0 +1,100 @@
+name: Ignored advisories
+
+# pnpm audit で無視した advisory（pnpm-workspace.yaml の auditConfig.ignoreGhsas）を毎週見直し、
+# 外す時期に当たるもの（修正版の公開・取り下げ・依存元の変化）を追跡 Issue に載せる。
+# 判定は scripts/tools/ignored-advisories.ts にあり、検出したときの扱いは docs/vulnerability-handling.md「無視する advisory」にある。
+on:
+  schedule:
+    # 毎週月曜 03:00 UTC (12:00 JST)。
+    # どれかの cron を変えるときは、ほかの週次（outdated.yml・kaizen-schedule.yml・mutation-proof.yml・codeql.yml）と重ならないかを確かめる。
+    - cron: "0 3 * * 1"
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  check:
+    name: Check ignored advisories
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    env:
+      # 追跡 Issue のタイトルは「接頭辞 + 確認した日」。実行のたびにリネームし、open な 1 本は最後に確認した日を示す。
+      ISSUE_TITLE_PREFIX: "Ignored audit advisories to review"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+      # pnpm why が依存元を読むので、依存を入れる。
+      - run: pnpm install --frozen-lockfile
+      # 確かめられなかったとき（一覧の食い違い・API の失敗）は、スクリプトが 1 で終わり、ジョブを失敗させる。
+      # 追跡 Issue を触らずに止めるので、「見直すものは無い」として閉じることは無い。
+      - name: Detect advisories to review
+        id: detect
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -o pipefail
+          node scripts/tools/ignored-advisories.ts --out "$RUNNER_TEMP/issue-body.md" | tee "$RUNNER_TEMP/detect.log"
+          due="$(sed -n 's/^due=//p' "$RUNNER_TEMP/detect.log" | tail -n 1)"
+          case "$due" in
+          '' | *[!0-9]*)
+            echo "due の件数を読めない: \"$due\"" >&2
+            exit 1
+            ;;
+          esac
+          echo "due=$due" >>"$GITHUB_OUTPUT"
+          cat "$RUNNER_TEMP/issue-body.md"
+      # 作成・更新・クローズを 1 ステップに置く。照会は outdated.yml と同じ同梱スクリプトを使う。
+      - name: Update tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DUE: ${{ steps.detect.outputs.due }}
+          TRACKING_LIB: skills/kaizen/scripts/tracking-issue-lib.sh
+        run: |
+          case "$DUE" in
+          '' | *[!0-9]*)
+            echo "due=\"$DUE\" が件数でない。追跡 Issue を触らずに落とす" >&2
+            exit 1
+            ;;
+          esac
+          title="$ISSUE_TITLE_PREFIX ($(date -u +%F))"
+          # shellcheck source=/dev/null
+          . "$TRACKING_LIB"
+          resolve_tracking_issues
+          number="${numbers[0]-}"
+          if [ "${#numbers[@]}" -gt 1 ]; then
+            echo "追跡 Issue が ${#numbers[@]} 件ある（番号: ${numbers[*]}）" >&2
+          fi
+
+          if [ "$DUE" -eq 0 ]; then
+            if [ "${#numbers[@]}" -gt 0 ]; then
+              # 一致した全部を閉じる。タイトルは最後に確認した日のまま残す。
+              warn_if_truncated "窓の外に閉じ残した追跡 Issue がある可能性がある"
+              for n in "${numbers[@]}"; do
+                gh issue close "$n" --comment "見直す時期に当たる無視した advisory はありません。自動でクローズします。"
+              done
+            else
+              echo "見直すものは無く、追跡 Issue も無いので何もしない"
+            fi
+          elif [ -n "$number" ]; then
+            warn_if_truncated "本物の追跡 Issue が窓の外にあり、別の Issue を更新している可能性がある"
+            gh issue edit "$number" --title "$title" --body-file "$RUNNER_TEMP/issue-body.md"
+            # 本文の更新だけでは通知が届かないので、コメントを 1 件足す（#508 の追跡 Issue の更新規則）。
+            gh issue comment "$number" --body "$(date -u +%F) に見直した。見直すもの: ${DUE} 件。内容は本文の表にある。"
+          else
+            warn_if_truncated "既存の追跡 Issue を取りこぼして重複を作った可能性がある"
+            gh issue create --title "$title" --body-file "$RUNNER_TEMP/issue-body.md" --label dependencies
+          fi
