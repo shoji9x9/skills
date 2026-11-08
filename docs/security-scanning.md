@@ -112,12 +112,15 @@ run の artifact を取得し、鍵で復号する。出力のディレクトリ
 
 ```bash
 # 引き継ぐ記録（self の監査で記録の形を確かめられた run）。失敗した run と dvna の run は security-audit-run-* を指定する
+# --pattern で取得すると、artifact ごとのディレクトリ（audit/state/<artifact の名前>/）に展開される
 gh run download <run の ID> --repo shoji9x9/skills --pattern 'security-audit-state-*' --dir audit/state
 gpg --batch --pinentry-mode loopback --passphrase-file security-audit-key.txt \
-  --decrypt audit/state/state.tar.gpg | tar -xf - -C audit/state
+  --decrypt audit/state/security-audit-state-*/state.tar.gpg | tar -xf - -C audit/state
 ```
 
 鍵を替えると、引き継ぐ記録の artifact の名前（鍵の識別子）も変わるので、次の実行は古い鍵の記録を選ばずに初回として監査する。古い記録は、保持の期間が過ぎると消える。
 識別子も鍵から作るので、鍵を替えた次の実行は、追跡 Issue の記録をすべて「新規」、前回の記録をすべて「解消」と書く。直ったという意味ではないので、その回の差分は読み飛ばす。
 
 同じ鍵で復号できない記録が残ると、監査は止まる。そのときは、`restart` を `true` にして実行すると、記録を引き継がずに初回として監査する。
+`restart` の回が成功すると、その回の記録が以後の引き継ぎの起点になり、それより前の網羅の台帳と記録は引き継がれない。復号できる記録が残っているときには使わない。
+`restart` の回で記録を残せなかったときは、次の実行も復号できない記録を選んで止まるので、もう一度 `restart` で実行する。

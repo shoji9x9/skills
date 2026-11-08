@@ -56,3 +56,8 @@ ci:42478106966:1,ci,2026-11-08T12:02:08.091Z,p-cdee4961,github-actions,,,,2026-1
 ci:42478106921:1,ci,2026-11-08T12:02:08.091Z,p-cdee4961,github-actions,,,,2026-11-08T11:59:04.000Z,2026-11-08T11:59:05.000Z,Asia/Tokyo,feature/941-weekly-security-audit,941,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:42478107028:1,ci,2026-11-08T12:02:08.091Z,p-cdee4961,github-actions,,,,2026-11-08T11:59:04.000Z,2026-11-08T12:00:29.000Z,Asia/Tokyo,feature/941-weekly-security-audit,941,,,,,,,,,,CodeQL;pull_request;success,
 coverage:github:2026-11-07T11:57:56.033Z:2026-11-08T12:02:08.091Z,coverage,2026-11-08T12:02:08.091Z,p-cdee4961,,,,,2026-11-07T11:57:56.033Z,2026-11-08T12:02:08.091Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:42478406516:1,ci,2026-11-08T12:05:06.653Z,p-cdee4961,github-actions,,,,2026-11-08T12:02:53.000Z,2026-11-08T12:02:54.000Z,Asia/Tokyo,feature/941-weekly-security-audit,941,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:42478406457:1,ci,2026-11-08T12:05:06.653Z,p-cdee4961,github-actions,,,,2026-11-08T12:02:53.000Z,2026-11-08T12:05:06.653Z,Asia/Tokyo,feature/941-weekly-security-audit,941,,,,,,,,,,CI;pull_request;open,
+ci:42478406504:1,ci,2026-11-08T12:05:06.653Z,p-cdee4961,github-actions,,,,2026-11-08T12:02:53.000Z,2026-11-08T12:03:59.000Z,Asia/Tokyo,feature/941-weekly-security-audit,941,,,,,,,,,,CodeQL;pull_request;success,
+ci:42478106966:1,ci,2026-11-08T12:05:06.653Z,p-cdee4961,github-actions,,,,2026-11-08T11:59:04.000Z,2026-11-08T12:03:11.000Z,Asia/Tokyo,feature/941-weekly-security-audit,941,,,,,,,,,,CI;pull_request;cancelled,
+coverage:github:2026-11-07T12:02:08.091Z:2026-11-08T12:05:06.653Z,coverage,2026-11-08T12:05:06.653Z,p-cdee4961,,,,,2026-11-07T12:02:08.091Z,2026-11-08T12:05:06.653Z,Asia/Tokyo,,,,,,,,,,,,ok,

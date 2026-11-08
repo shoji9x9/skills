@@ -22,7 +22,7 @@ on:
         type: string
         default: "40"
       restart:
-        description: 前回の記録を引き継がずに、初回として監査する（同じ鍵で復号できない記録が残ったときに使う）
+        description: 前回の記録を引き継がずに、初回として監査する（同じ鍵で復号できない記録が残ったときだけ使う。成功すると、この回の記録が以後の引き継ぎの起点になる）
         type: boolean
         default: false
 
@@ -103,7 +103,7 @@ jobs:
             fi
           done
           echo "present=$present" >>"$GITHUB_OUTPUT"
-          # 引き継ぐ記録の artifact の名前に、鍵から作った識別子（HMAC の先頭 12 桁。鍵は戻せない）を付ける。
+          # 引き継ぐ記録の artifact の名前に、鍵から作った識別子（HMAC の先頭 12 桁）を付ける。鍵が乱数なら、識別子から鍵は割り出せない。
           # 鍵を替えると名前が変わるので、次の実行は古い鍵の記録を選ばず、初回として監査する（記録を手で消さなくてよい）。
           if [ "$present" = true ]; then
             # 鍵はコマンドの引数に置かず、環境変数で渡す。
@@ -443,7 +443,7 @@ jobs:
             outcomes="暗号化: ${ENCRYPT_OUTCOME:-skipped}・引き継ぐ記録の upload: ${STATE_OUTCOME:-skipped}・今回の記録の upload: ${RUN_UPLOAD_OUTCOME:-skipped}"
             if [ "$TARGET" = self ] && { [ "$ENCRYPT_OUTCOME" = failure ] || [ "$STATE_OUTCOME" = failure ]; }; then
               # 引き継ぐ記録を上げられないと、次の実行は前回までの記録と比べるので、新規と解消が 2 回分の差になる。
-              state_note="次の実行に引き継ぐ記録を残せなかったので、次の実行は今回より前の記録（無ければ初回として）と比べる（$outcomes）"
+              state_note="次の実行に引き継ぐ記録を残せなかったので、次の実行は今回より前に残した記録を引き継ぐ（$outcomes）"
             elif [ "$ENCRYPT_OUTCOME" = failure ] || [ "$RUN_UPLOAD_OUTCOME" = failure ]; then
               state_note="今回の記録を暗号化して残せなかった（$outcomes）"
             fi
