@@ -10,6 +10,7 @@
 
 ワークフロー `.github/workflows/self-review.yml` が、毎週火曜に実行する。手動では `workflow_dispatch` で実行できる。
 費用の指標の追跡 Issue（`check-cost-metrics.yml` が同じ日に書く）を入力に使うので、その 1 時間後に置いている。時刻は [`weekly-schedule.md`](weekly-schedule.md) にある。
+追跡 Issue のタイトルの日付が今日（UTC）でなければ、前の週の本文とみなして使わず、入力なしで点検する。手動で実行するときに費用の指標を入力に使うなら、同じ日に `check-cost-metrics.yml` を先に実行する。
 同じタイトルの Issue は誰でも開けるので、`github-actions[bot]` が作った Issue のときだけ入力に使う。本文に仕込まれた指示に、エージェントが従うのを防ぐためである。
 
 ジョブは 2 つに分ける。

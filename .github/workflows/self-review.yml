@@ -109,6 +109,7 @@ jobs:
       # 費用の指標の追跡 Issue の本文を、エージェントの入力に置く。無ければ置かない（手順が入力なしで点検する）。
       # 同じタイトルの Issue は誰でも開けるので、check-cost-metrics.yml（github-actions[bot]）が作った Issue のときだけ使う。
       # 人が作った本文に指示を仕込まれると、エージェントがそれに従い、資格情報を結果に書くおそれがある。
+      # タイトルの日付が今日（UTC）のときだけ使う。check-cost-metrics.yml の起動が遅れたか失敗したときに、前の週の本文を今週の入力にしないためである。
       - name: Fetch cost metrics
         if: steps.model.outputs.valid == 'true'
         env:
@@ -122,12 +123,16 @@ jobs:
           mkdir -p "$INPUT_DIR"
           if [ "${#numbers[@]}" -gt 0 ]; then
             # check-cost-metrics.yml と同じく、番号の最も小さい 1 件を正とする（ほかは更新されない）。
-            gh issue view "${numbers[0]}" --json author,body >"$RUNNER_TEMP/cost-metrics.json"
+            gh issue view "${numbers[0]}" --json author,body,title >"$RUNNER_TEMP/cost-metrics.json"
             author="$(jq -r .author.login "$RUNNER_TEMP/cost-metrics.json")"
-            if [ "$author" = "app/github-actions" ]; then
-              jq -r .body "$RUNNER_TEMP/cost-metrics.json" >"$INPUT_DIR/cost-metrics.md"
-            else
+            title="$(jq -r .title "$RUNNER_TEMP/cost-metrics.json")"
+            today_title="$ISSUE_TITLE_PREFIX ($(date -u +%F))"
+            if [ "$author" != "app/github-actions" ]; then
               echo "#${numbers[0]} は github-actions[bot] が作った Issue でない（作成者: $author）。入力なしで点検する"
+            elif [ "$title" != "$today_title" ]; then
+              echo "#${numbers[0]} のタイトル（$title）が今日の日付でない。check-cost-metrics.yml が今日まだ終わっていないので、入力なしで点検する"
+            else
+              jq -r .body "$RUNNER_TEMP/cost-metrics.json" >"$INPUT_DIR/cost-metrics.md"
             fi
           else
             echo "費用の指標の追跡 Issue が無い。入力なしで点検する"

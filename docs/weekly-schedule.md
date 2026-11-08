@@ -22,6 +22,7 @@ GitHub Actions の `schedule` と Dependabot で毎週動く処理の、曜日�
 `self-review.yml` は、`check-cost-metrics.yml` が書いた追跡 Issue（`Check cost metrics to review`）の本文を入力に使う。
 そのため、`check-cost-metrics.yml` の 1 時間後に置く。終わるのを待つ仕組み（`workflow_run`）は使わず、時刻で順序を決める。
 `check-cost-metrics.yml` は 2〜3 分で終わり、最も遅い場合も、起動の遅れ（:00 の起動で実測した最大 28 分）と timeout（30 分）の合計で 1 時間以内に終わる。
+それでも遅れたときや失敗したときに前の週の本文を読まないよう、`self-review.yml` は追跡 Issue のタイトルの日付が今日（UTC）のときだけ本文を使い、そうでなければ入力なしで点検する。
 
 ほかの処理は、結果をやり取りしない。
 
