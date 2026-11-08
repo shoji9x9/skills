@@ -15,7 +15,9 @@
 ジョブは 2 つに分ける。
 
 - `review`: Claude Code（`anthropics/claude-code-action`）が手順を読み、結果を JSON に書く。
-  エージェントに許すツールは、リポジトリの中を読むこと（`Read`・`Grep`・`Glob`）と、結果のファイルを書くことだけである。
+  エージェントに許すのは、リポジトリの中を読むこと（`Read`・`Grep`・`Glob`）と、結果のファイルを書くこと（`Edit`・`Write`。書き先は結果のファイルだけに限る）である。
+  使えるツールそのものを `--tools` でこの 5 つに限り、サブエージェント（`Agent`）なども使えなくする。
+  サブエージェントをバックグラウンドで起動したまま、エージェントが結果を待たずに終わることがあるためである。
   リポジトリの外（資格情報のある場所）は読めず、結果のファイルのほかは書けない。git も許さないので、履歴の件名とファイルの一覧は点検の前の段が入力に書き出す。
   ジョブの権限は `contents: read` と `issues: read` である
 - `tracking-issue`: `review` の結果を artifact で受け取り、`scripts/weekly/self-review-issue.ts` で本文を作って、追跡 Issue を作成・更新・クローズする。
@@ -66,6 +68,17 @@ gh variable delete SELF_REVIEW_SKIP
   - 結果を受け取れない、結果の JSON の形が違う、または本文が GitHub の上限に近い（60,000 字を超える）
   - 結果に資格情報（secret の値か、`sk-ant-` で始まる文字列）がある。この週の結果は Issue に載せない
   - 既知の食い違いへの指摘が無い
+
+点検できなかった原因は、エージェントの実行記録（全メッセージとツールの結果）で確かめる。
+エージェントが動いて終わった実行では、`review` が実行記録を artifact `self-review-execution-<試行の番号>` に 14 日間残す。
+時間切れで止めた実行には、実行記録が無い。claude-code-action は実行の終わりに実行記録を書くので、途中で止めると書かれない。
+公開リポジトリの artifact はログインした人が読めるので、資格情報を `[REDACTED]` に伏せてから残す。
+伏せるのは、Claude の OAuth token と GitHub の token の値と、資格情報の形の文字列（`sk-ant-`・`ghp_` などの GitHub の token・`github_pat_` で始まるもの）である。
+伏せた後にも残っていれば、実行記録は残さず、run に警告の注釈を出す。
+
+```bash
+gh run download <run の ID> --name self-review-execution-<試行の番号> --dir <保存先>
+```
 
 ## 追跡 Issue の読み方
 
