@@ -6,9 +6,12 @@
 
 ## 起票の前に確かめる
 
-- 手順 1 で、親の Issue を対象のリポジトリから取得する（`gh issue view <番号> --repo <owner>/<repo> --json number,title,state`）。
-  取得できなければ（番号の誤り・別のリポジトリの Issue など）、下書きを作る前に止めて利用者に確かめる。
-  以降の手順には、指定された文字列（`#120` や URL のこともある）ではなく、取得した `number` を親の番号として渡す。
+- `--parent` の値から、親の番号を決める。数字（先頭の `#` は除く）ならそれを使う。
+  Issue の URL なら、URL の持ち主とリポジトリが対象のリポジトリと同じ（大文字と小文字は区別しない）ときだけ、末尾の番号を使う。
+  ほかの形（別のリポジトリの URL・PR の URL など）は、下書きを作る前に止めて利用者に確かめる。
+  `gh issue view` は別のリポジトリの URL を渡すと `--repo` を無視してそのリポジトリから取得するので、値をそのまま渡さない（実測）。
+- 決めた番号で、親を対象のリポジトリから取得する（`gh api repos/<owner>/<repo>/issues/<番号> --jq '{number, title, state, pr: (.pull_request != null)}'`）。
+  取得できないときと、`pr` が `true`（番号が PR を指す）のときは、下書きを作る前に止めて利用者に確かめる。この API は PR も Issue として返す。
 - 下書きを確かめるときに、「#<親の番号>（<親のタイトル>）の sub-issue にする」ことも見せる。
   親が closed なら、そのことも添えて、紐付けてよいかを同じ確認で確かめる。
 
@@ -33,8 +36,10 @@ API は REST の sub-issues である（<https://docs.github.com/en/rest/issues/
 ```bash
 add_sub_issue() {  # $1: 親の番号、$2: 子の番号
   local repo='<owner>/<repo>' current child_id resp err
-  local parent_jq='(.repository_url | sub(".*/repos/"; "") | ascii_downcase) + "#" + (.number | tostring)'
-  local want="${repo,,}#$1"  # GitHub のリポジトリ名は大文字と小文字を区別しないので、両辺を小文字で比べる
+  # repository_url の末尾の 2 つ（持ち主とリポジトリ）を取る。GitHub の名前は大文字と小文字を区別しないので、両辺を小文字で比べる
+  local parent_jq='(.repository_url | split("/") | .[-2:] | join("/") | ascii_downcase) + "#" + (.number | tostring)'
+  local want
+  want="$(printf '%s' "$repo" | tr '[:upper:]' '[:lower:]')#$1"  # bash 3.2 でも動くように ${repo,,} を使わない
   err=$(mktemp)
   # 標準出力だけを比べる。gh が成功したときに標準エラーへ出す通知を、親の値に含めない
   if current=$(gh api "repos/$repo/issues/$2/parent" --jq "$parent_jq" 2>"$err"); then

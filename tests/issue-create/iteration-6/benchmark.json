@@ -1,0 +1,150 @@
+{
+  "metadata": {
+    "skill_name": "issue-create",
+    "skill_path": "<repo>/skills/issue-create",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-08T00:43:55Z",
+    "evals_run": [10],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 10,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 42.804,
+        "tokens": 109286,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "起票した後に、REST の sub-issues の API（issues/120/sub_issues への POST）で、作った Issue（#131）を #120 の sub-issue にするコマンドを示している",
+          "passed": true,
+          "evidence": "手順 2 の add_sub_issue 120 131 が gh api -X POST \"repos/$repo/issues/$1/sub_issues\" を実行する"
+        },
+        {
+          "text": "sub-issues の API の sub_issue_id に、Issue の番号ではなく、作った Issue の id（gh api で Issue を取得した .id）を渡している",
+          "passed": true,
+          "evidence": "child_id=$(gh api \"repos/$repo/issues/$2\" --jq .id) を整数か確かめて -F \"sub_issue_id=$child_id\" で渡す"
+        },
+        {
+          "text": "紐付ける前に #131 の親を取得し、すでに #120 が親なら足さずに終え、別の親が付いていれば replace_parent で置き換えずに、付いていた親を利用者に伝えると書いている",
+          "passed": true,
+          "evidence": "紐付ける前に親を取得し、同じリポジトリの #120 なら送らず、別の親は replace_parent を使わずに今の親を報告すると表に書いている"
+        },
+        {
+          "text": "紐付けた後に、#131 の親か #120 の sub-issue の一覧を取得し直して、#131 が #120 の sub-issue になったことを確かめる手順を示している",
+          "passed": true,
+          "evidence": "「(3) 紐付けた後の親を確かめる」で issues/$2/parent を取得し直し、#120 でなければ失敗にする"
+        },
+        {
+          "text": "紐付けに失敗したときは、起票した Issue を消さずに残し、紐付けられなかった Issue と失敗の内容を利用者に伝えると書いている",
+          "passed": true,
+          "evidence": "「紐付けに失敗しても、#131 は消しません」「起票は済んでいて紐付けだけが失敗した、という形で利用者に報告します」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 35.486,
+        "tokens": 110485,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "起票した後に、REST の sub-issues の API（issues/120/sub_issues への POST）で、作った Issue（#131）を #120 の sub-issue にするコマンドを示している",
+          "passed": true,
+          "evidence": "手順 4 で gh api -X POST repos/OWNER/REPO/issues/120/sub_issues -F sub_issue_id=\"$SUB_ID\" を示す"
+        },
+        {
+          "text": "sub-issues の API の sub_issue_id に、Issue の番号ではなく、作った Issue の id（gh api で Issue を取得した .id）を渡している",
+          "passed": true,
+          "evidence": "手順 3 で SUB_ID=$(gh api repos/OWNER/REPO/issues/131 --jq .id) を取得して渡す"
+        },
+        {
+          "text": "紐付ける前に #131 の親を取得し、すでに #120 が親なら足さずに終え、別の親が付いていれば replace_parent で置き換えずに、付いていた親を利用者に伝えると書いている",
+          "passed": true,
+          "evidence": "手順 2 で GraphQL の parent を取得し、#120 なら POST せず、#120 以外なら replace_parent=true で付け替えずに今の親を伝えると書いている"
+        },
+        {
+          "text": "紐付けた後に、#131 の親か #120 の sub-issue の一覧を取得し直して、#131 が #120 の sub-issue になったことを確かめる手順を示している",
+          "passed": true,
+          "evidence": "手順 5 で #120 の sub_issues の一覧から #131 を取得し直して確かめる"
+        },
+        {
+          "text": "紐付けに失敗したときは、起票した Issue を消さずに残し、紐付けられなかった Issue と失敗の内容を利用者に伝えると書いている",
+          "passed": true,
+          "evidence": "手順 4 が失敗したときは「#131 は消したり閉じたりせず」、エラー内容と一緒に報告すると書いている"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 42.804,
+        "stddev": 0,
+        "min": 42.804,
+        "max": 42.804
+      },
+      "tokens": {
+        "mean": 109286,
+        "stddev": 0,
+        "min": 109286,
+        "max": 109286
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 35.486,
+        "stddev": 0,
+        "min": 35.486,
+        "max": 35.486
+      },
+      "tokens": {
+        "mean": 110485,
+        "stddev": 0,
+        "min": 110485,
+        "max": 110485
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.00",
+      "time_seconds": "+7.3",
+      "tokens": "-1199"
+    }
+  },
+  "notes": [
+    "PR #943 のレビューの指摘で references/parent.md を直し、assertion の 4 つ目を直した後の変更確認。",
+    "eval 10 は without_skill も 5/5 で、後退の検出のための eval である。"
+  ]
+}

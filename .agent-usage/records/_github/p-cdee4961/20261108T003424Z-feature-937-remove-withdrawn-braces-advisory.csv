@@ -9,3 +9,8 @@ coverage:github:2026-11-06T11:52:29.169Z:2026-11-08T00:34:24.597Z,coverage,2026-
 coverage:github:2026-11-07T00:34:24.597Z:2026-11-08T00:35:56.445Z,coverage,2026-11-08T00:35:56.445Z,p-cdee4961,,,,,2026-11-07T00:34:24.597Z,2026-11-08T00:35:56.445Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-11-07T00:35:56.445Z:2026-11-08T00:36:29.237Z,coverage,2026-11-08T00:36:29.237Z,p-cdee4961,,,,,2026-11-07T00:35:56.445Z,2026-11-08T00:36:29.237Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-11-07T00:36:29.237Z:2026-11-08T00:37:00.608Z,coverage,2026-11-08T00:37:00.608Z,p-cdee4961,,,,,2026-11-07T00:36:29.237Z,2026-11-08T00:37:00.608Z,Asia/Tokyo,,,,,,,,,,,,ok,
+pr:943,pr,2026-11-08T00:44:26.227Z,p-cdee4961,github,,,,2026-11-08T00:39:01.000Z,2026-11-08T00:39:01.000Z,Asia/Tokyo,feature/937-remove-withdrawn-braces-advisory,937,,,,,,,,,,pr=943;author=shoji9x9;state=open,
+ci:42430716756:1,ci,2026-11-08T00:44:26.227Z,p-cdee4961,github-actions,,,,2026-11-08T00:39:05.000Z,2026-11-08T00:39:06.000Z,Asia/Tokyo,feature/937-remove-withdrawn-braces-advisory,937,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:42430716659:1,ci,2026-11-08T00:44:26.227Z,p-cdee4961,github-actions,,,,2026-11-08T00:39:05.000Z,2026-11-08T00:40:07.000Z,Asia/Tokyo,feature/937-remove-withdrawn-braces-advisory,937,,,,,,,,,,CodeQL;pull_request;success,
+ci:42430716604:1,ci,2026-11-08T00:44:26.227Z,p-cdee4961,github-actions,,,,2026-11-08T00:39:05.000Z,2026-11-08T00:43:55.000Z,Asia/Tokyo,feature/937-remove-withdrawn-braces-advisory,937,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-11-07T00:37:00.608Z:2026-11-08T00:44:26.227Z,coverage,2026-11-08T00:44:26.227Z,p-cdee4961,,,,,2026-11-07T00:37:00.608Z,2026-11-08T00:44:26.227Z,Asia/Tokyo,,,,,,,,,,,,ok,
