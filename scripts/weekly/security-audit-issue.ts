@@ -8,7 +8,8 @@
 //   識別子は、指摘の fingerprint（エージェントが書く、原因を表す文字列）を、鍵付きハッシュ（HMAC-SHA256）にして先頭 12 桁にする。
 //   鍵が無いと、ファイル名などから fingerprint を推測して、ハッシュが一致するかで指摘の中身を確かめられるためである。
 //   鍵は環境変数 SECURITY_AUDIT_STATE_KEY（記録を暗号化する鍵と同じ）から読む。
-// issue: 追跡 Issue のジョブで、要約と前回の本文から、本文とコメントを作る。標準出力の最後の行に `due=<件数>` を出す。
+// issue: 追跡 Issue のジョブで、要約と前回の本文から、本文とコメントを作る。
+//   標準出力の最後の 2 行に `run_status=<complete か incomplete>` と `due=<件数>` を出す。
 //   件数は、confirmed（確かめた脆弱性）と needs_validation（確かめきれなかった候補）の合計である。
 //
 // 使い方は次のとおりである。
@@ -135,10 +136,14 @@ export function parseSummary(value: unknown): Summary {
   if (metadata.run_status === "incomplete" && reason !== metadata.incomplete_reason) {
     throw new Error("要約の incomplete_reason の形が違う");
   }
+  const seen = new Set<string>();
   const items = value["items"].map((item, i): Item => {
     if (!isRecord(item)) throw new Error(`items[${i}] がオブジェクトでない`);
     const { id, verdict, severity } = item;
     if (typeof id !== "string" || !ID_FORM.test(id)) throw new Error(`items[${i}].id の形が違う`);
+    // summarize は fingerprint の重複を拒否するので、識別子も重複しない。重複は差分の件数を誤らせる。
+    if (seen.has(id)) throw new Error(`items[${i}].id が重複している`);
+    seen.add(id);
     if (!oneOf(VERDICTS, verdict)) throw new Error(`items[${i}].verdict が知らない値`);
     // 重大度は confirmed だけが持つ。ほかの判定に値があるか、confirmed に無ければ、summarize が書く形でない。
     let level: Severity | null = null;
@@ -261,6 +266,8 @@ function runIssue(args: readonly string[]): number {
   const summary = parseSummary(readJson(cli.extra["summary"] ?? "", "要約"));
   writeFileSync(cli.out, formatBody(summary, previous));
   writeFileSync(cli.commentOut, formatComment(summary, previous));
+  // ワークフローは、未完了の監査で対応が要る記録が 0 件でも、追跡 Issue を閉じない。そのために状態も出す。
+  console.log(`run_status=${summary.run_status}`);
   console.log(`due=${summary.items.filter(isDue).length}`);
   return 0;
 }

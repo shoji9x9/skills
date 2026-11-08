@@ -95,11 +95,13 @@ GitHub-hosted runner には、上流のスキルが対象のコードを実行�
 
 公開リポジトリの artifact はログインした誰でも取得できるので、監査の出力とエージェントの実行記録は、`SECURITY_AUDIT_STATE_KEY` で暗号化してから artifact に置く。
 `self` の監査で記録の形を確かめられたら、`security-audit-state`（90 日保持）に置き、次の実行がそれを復号して前回の記録として引き継ぐ。
+引き継ぐのは、今回を含む直近の 3 回分の出力である。今回が未完了でも、その前の完了した実行の記録が残る。
 失敗した実行と `dvna` の監査の記録は、`security-audit-run-<対象>-<試行>`（14 日保持）に置き、引き継がない。
 
 追跡 Issue（`Security audit findings (<日付>)`）には、判定ごとの件数と、記録ごとの識別子（`sa-` と 12 桁の 16 進数）だけを載せる。
 識別子は、記録の fingerprint を鍵付きハッシュにしたもので、鍵が無いと fingerprint を推測して確かめることもできない。
-対応が要る記録（`confirmed` と `needs_validation`）が 0 件になったら、追跡 Issue を閉じる。
+監査が完了し（`run_status` が `complete`）、対応が要る記録（`confirmed` と `needs_validation`）が 0 件になったら、追跡 Issue を閉じる。
+未完了の監査は、確かめきれなかった候補を `findings.json` に載せないので、0 件でも追跡 Issue を閉じない。
 
 ### 記録の読み方
 

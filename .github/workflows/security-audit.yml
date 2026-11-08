@@ -199,9 +199,11 @@ jobs:
             mkdir -p "$RUNS_DIR/run-1"
             exit 0
           fi
+          # fork の PR の実行も同じパスと同じブランチ名を持てるので、このリポジトリの ref で動いた実行の artifact だけを使う。
           gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$STATE_ARTIFACT&per_page=100" \
             --jq '.artifacts[]' | jq -s --arg branch "$BRANCH" \
-            '[.[] | select((.expired | not) and .workflow_run.head_branch == $branch)] | sort_by(.created_at) | reverse' \
+            '[.[] | select((.expired | not) and .workflow_run.head_branch == $branch
+              and .workflow_run.head_repository_id == .workflow_run.repository_id)] | sort_by(.created_at) | reverse' \
             >"$RUNNER_TEMP/artifacts.json"
           id=""
           for candidate in $(jq -r '.[] | "\(.id):\(.workflow_run.id)"' "$RUNNER_TEMP/artifacts.json"); do
@@ -227,6 +229,8 @@ jobs:
             exit 1
           fi
           tar -xf "$RUNNER_TEMP/state.tar" -C "$RUNS_DIR"
+          # 前回のエージェントの実行記録は、監査の引き継ぎに使わない。エージェントに読ませないよう、展開した後に消す。
+          rm -f "$RUNS_DIR"/run-*/execution.json
           last="$(find "$RUNS_DIR" -mindepth 1 -maxdepth 1 -type d -name 'run-*' | sed 's/.*run-//' | sort -n | tail -n 1)"
           echo "前回の記録: artifact $id（run-$last）"
           echo "result=restored" >>"$GITHUB_OUTPUT"
@@ -283,9 +287,15 @@ jobs:
           SKILL_DIR: ${{ steps.settings.outputs.skill_dir }}
           RUN_DIR: ${{ steps.settings.outputs.runs_dir }}/run-${{ steps.restore.outputs.next }}
           TARGET: ${{ steps.settings.outputs.target }}
+        # 検証スクリプトのエラーは、記録の値（パス・文の抜粋）を含む。公開のログに出さず、暗号化する記録の中に残す。
         run: |
-          node "$SKILL_DIR/validate-findings.cjs" "$RUN_DIR/findings.json"
-          node "$SKILL_DIR/validate-coverage-ledger.cjs" "$RUN_DIR/coverage-ledger.json"
+          for name in findings coverage-ledger; do
+            validator="validate-$name.cjs"
+            if ! node "$SKILL_DIR/$validator" "$RUN_DIR/$name.json" >"$RUN_DIR/$validator.log" 2>&1; then
+              echo "$name.json が上流のスキルの検証を通らない（詳細は暗号化した記録の $validator.log）" >&2
+              exit 1
+            fi
+          done
           node scripts/weekly/security-audit-issue.ts summarize --run-dir "$RUN_DIR" --out "$RUNNER_TEMP/summary.json"
           if [ "$TARGET" != self ]; then
             {
@@ -317,7 +327,10 @@ jobs:
             cp "$EXECUTION_FILE" "$RUNS_DIR/$RUN_NAME/execution.json"
           fi
           mkdir -p "$RUNNER_TEMP/out"
-          tar -cf "$RUNNER_TEMP/state.tar" -C "$RUNS_DIR" --exclude="$RUN_NAME/agents/*/scratch" "$RUN_NAME"
+          # 今回を含む直近の 3 回分を残す。今回が未完了でも、その前の完了した実行の記録を次の実行が読めるようにするためである。
+          # 全部を残すと、記録が実行のたびに増え続ける。
+          mapfile -t runs < <(find "$RUNS_DIR" -mindepth 1 -maxdepth 1 -type d -name 'run-*' -printf '%f\n' | sort -t- -k2 -n | tail -n 3)
+          tar -cf "$RUNNER_TEMP/state.tar" -C "$RUNS_DIR" --exclude='run-*/agents/*/scratch' "${runs[@]}"
           gpg --batch --quiet --yes --pinentry-mode loopback --passphrase-fd 3 --symmetric --cipher-algo AES256 \
             --output "$RUNNER_TEMP/out/state.tar.gpg" "$RUNNER_TEMP/state.tar" 3<<<"$SECURITY_AUDIT_STATE_KEY"
           rm -f "$RUNNER_TEMP/state.tar"
@@ -331,6 +344,8 @@ jobs:
           path: ${{ runner.temp }}/out/state.tar.gpg
           if-no-files-found: error
           retention-days: 90
+          # 名前は次の実行が探す固定の名前なので、試行の番号を付けない。再実行で同じ名前を上げても失敗しないよう、上書きする。
+          overwrite: true
 
       # 失敗した実行や dvna の監査も、原因を追えるよう暗号化した記録を残す（次の実行は引き継がない）。
       - name: Upload records of this run
@@ -355,7 +370,8 @@ jobs:
     name: Update security audit tracking issue
     needs: audit
     # dvna の監査は検出できるかの確認なので、追跡 Issue を触らない。
-    if: ${{ !cancelled() && needs.audit.outputs.skip != 'true' && needs.audit.outputs.target != 'dvna' }}
+    # 入力から判定する。audit の target は設定の段が実行されたときだけ出るので、資格情報が無い実行では空になる。
+    if: ${{ !cancelled() && needs.audit.outputs.skip != 'true' && (inputs.target || 'self') != 'dvna' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -463,10 +479,20 @@ jobs:
             exit 1
             ;;
           esac
+          run_status="$(sed -n 's/^run_status=//p' "$RUNNER_TEMP/issue.log" | tail -n 1)"
+          case "$run_status" in
+          complete | incomplete) ;;
+          *)
+            echo "run_status を読めない: \"$run_status\"。追跡 Issue を触らずに失敗させる" >&2
+            exit 1
+            ;;
+          esac
           cat "$body" "$comment"
           printf '\n[run](%s)\n' "$RUN_URL" >>"$comment"
 
-          if [ "$due" -eq 0 ]; then
+          # 未完了の監査は、確かめきれなかった候補を findings.json に載せない（上流のスキルの決まり）。
+          # 対応が要る記録が 0 件でも、未完了なら閉じずに本文を更新する。
+          if [ "$due" -eq 0 ] && [ "$run_status" = complete ]; then
             if [ "${#numbers[@]}" -gt 0 ]; then
               warn_if_truncated "窓の外に閉じ残した追跡 Issue がある可能性がある"
               closing="対応が要る記録はありません。自動でクローズします。"

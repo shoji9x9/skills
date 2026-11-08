@@ -208,6 +208,16 @@ describe("要約を読む", () => {
       "severity",
     ],
     [
+      "識別子が重複している",
+      summary({
+        items: [
+          { id: "sa-000000000001", verdict: "rejected", severity: null },
+          { id: "sa-000000000001", verdict: "needs_validation", severity: null },
+        ],
+      }),
+      "重複",
+    ],
+    [
       "rejected に重大度がある",
       summary({ items: [{ id: "sa-000000000001", verdict: "rejected", severity: "low" }] }),
       "severity",
@@ -283,7 +293,7 @@ describe("CLI", () => {
     } finally {
       console.log = original;
     }
-    expect(log.at(-1)).toBe("due=1");
+    expect(log.slice(-2)).toEqual(["run_status=complete", "due=1"]);
     expect(readFileSync(join(root, "b.md"), "utf8")).toContain(itemId(KEY, "a"));
     expect(readFileSync(join(root, "c.md"), "utf8")).toContain("解消: sa-00000000000f");
   });
