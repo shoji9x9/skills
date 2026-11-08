@@ -1,0 +1,21 @@
+{
+  "$comment": [
+    "self-review-issue.test.ts の検出能力を示す変異の一覧（Issue #940）。誤ると、点検が動いていないのに「指摘 0 件」として追跡 Issue を閉じる判定だけを置く。"
+  ],
+  "test_file": "scripts/weekly/self-review-issue.test.ts",
+  "mutations": [
+    {
+      "id": "canary-miss-allowed",
+      "why": "既知の食い違いへの指摘が無くても通し、点検が機能していない週を「指摘 0 件」として扱う",
+      "file": "scripts/weekly/self-review-issue.ts",
+      "find": "if (rest.length === findings.length) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "canary 指摘が 0 件 なら、点検が機能していないとして例外にする",
+        "canary canary 以外だけ なら、点検が機能していないとして例外にする",
+        "CLI canary への指摘が無い ときは 1"
+      ]
+    }
+  ]
+}

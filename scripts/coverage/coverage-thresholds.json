@@ -25,6 +25,12 @@
       "functions": 80
     },
     {
+      "path": "scripts/weekly/",
+      "lines": 80,
+      "branches": 70,
+      "functions": 80
+    },
+    {
       "path": "skills/",
       "lines": 90,
       "branches": 80,

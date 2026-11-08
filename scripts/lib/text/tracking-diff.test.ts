@@ -100,6 +100,18 @@ test("点検ごとの目印・形・識別子の作り方で、書いて読み�
   });
 });
 
+test("本文の最後に、解消したもの（あれば）と識別子の目印を足す", () => {
+  const tracking = trackingKeys({
+    marker: "weekly-check",
+    keyForm: FORM,
+    keyOf: (n: number) => `k ${n}`,
+  });
+  expect(tracking.finish(["本文", ""], [2], ["k 1"])).toBe(
+    `本文\n\n前回から解消したもの: k 1\n\n${tracking.markerLine([2])}\n`,
+  );
+  expect(tracking.finish(["本文", ""], [], [])).toBe(`本文\n\n${tracking.markerLine([])}\n`);
+});
+
 describe("本文の整形", () => {
   test("空白と改行を 1 つにまとめ、表のセルでは | をエスケープする", () => {
     expect(oneLine("  a\n\tb  c ")).toBe("a b c");

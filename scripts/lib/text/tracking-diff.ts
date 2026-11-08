@@ -102,11 +102,17 @@ export function trackingKeys<T>(spec: {
   previousKeys: (body: string) => string[];
   diff: (findings: readonly T[], previous: readonly string[]) => KeyDiff;
   markerLine: (findings: readonly T[]) => string;
+  finish: (lines: readonly string[], findings: readonly T[], resolved: readonly string[]) => string;
 } {
   return {
     previousKeys: (body) => readKeys(body, spec.marker, spec.keyForm),
     diff: (findings, previous) => diffKeys(findings.map(spec.keyOf), previous),
     markerLine: (findings) => markerLine(spec.marker, findings.map(spec.keyOf)),
+    // 本文の最後に、前回から解消したもの（あれば）と識別子の目印の行を足して、1 つの文字列にする。
+    finish: (lines, findings, resolved) => {
+      const tail = resolved.length > 0 ? [`前回から解消したもの: ${resolved.join("、")}`, ""] : [];
+      return `${[...lines, ...tail, markerLine(spec.marker, findings.map(spec.keyOf))].join("\n")}\n`;
+    },
   };
 }
 

@@ -2,7 +2,7 @@ name: Ignored advisories
 
 # pnpm audit で無視した advisory（pnpm-workspace.yaml の auditConfig.ignoreGhsas）を毎週見直し、
 # 外す時期に当たるもの（修正版の公開・取り下げ・依存元の変化）を追跡 Issue に載せる。
-# 判定は scripts/tools/ignored-advisories.ts にあり、検出したときの扱いは docs/vulnerability-handling.md「無視する advisory」にある。
+# 判定は scripts/weekly/ignored-advisories.ts にあり、検出したときの扱いは docs/vulnerability-handling.md「無視する advisory」にある。
 on:
   schedule:
     # 毎週月曜 03:00 UTC (12:00 JST)。
@@ -65,7 +65,7 @@ jobs:
             gh issue view "$number" --json body --jq .body >"$RUNNER_TEMP/previous-body.md"
             previous_args=(--previous "$RUNNER_TEMP/previous-body.md")
           fi
-          node scripts/tools/ignored-advisories.ts --out "$body" --comment-out "$comment" "${previous_args[@]}" |
+          node scripts/weekly/ignored-advisories.ts --out "$body" --comment-out "$comment" "${previous_args[@]}" |
             tee "$RUNNER_TEMP/detect.log"
           due="$(sed -n 's/^due=//p' "$RUNNER_TEMP/detect.log" | tail -n 1)"
           case "$due" in
