@@ -136,7 +136,7 @@ describe("canary", () => {
     expect(dropCanary(report([byScript, finding()]), CANARY)).toEqual(report([finding()]));
   });
 
-  test("ほかの指摘の文の中の canary の名前を伏せ、canary に触れたメモを除く", () => {
+  test("ほかの指摘とメモの文の中の canary の名前を伏せる", () => {
     const both = finding({
       path: "docs/",
       summary: `${CANARY} と docs/old.md が参照されていない`,
@@ -154,7 +154,7 @@ describe("canary", () => {
             suggestion: "（点検のために置いた文書） を消す",
           }),
         ],
-        ["残すメモ"],
+        ["（点検のために置いた文書） は迷った", "残すメモ"],
       ),
     );
   });
@@ -186,17 +186,24 @@ describe("追跡 Issue の本文", () => {
   test("結果を読む段で、@name をメンションにしない形にし、< を実体参照にする", () => {
     const parsed = parseReport(
       JSON.stringify({
-        findings: [{ ...finding(), path: "evals/<name>/@x.md", summary: "@AGENTS.md の取り込み" }],
+        findings: [
+          {
+            ...finding(),
+            path: "evals/<name>/@x.md-->",
+            summary: "@AGENTS.md の取り込みと &#64;user と a & b",
+          },
+        ],
         notes: ["@user への </details> の言及"],
       }),
     );
     const body = formatBody(parsed);
-    expect(body).toContain("evals/&lt;name>/@\u200bx.md");
-    expect(body).toContain("@\u200bAGENTS.md の取り込み");
-    expect(body).toContain("- @\u200buser への &lt;/details> の言及");
-    expect(body).not.toMatch(/@[\w-]|<name>|<\/details> の/u);
+    expect(body).toContain("evals/&lt;name&gt;/@\u200bx.md--&gt;");
+    expect(body).toContain("@\u200bAGENTS.md の取り込みと &amp;#64;user と a &amp; b");
+    expect(body).toContain("- @\u200buser への &lt;/details&gt; の言及");
+    expect(body).not.toMatch(/@[\w-]|<name>|<\/details> の|&#64;/u);
+    expect(previousKeys(body)).toEqual(["inconsistency evals/&lt;name&gt;/@\u200bx.md--&gt;"]);
     expect(formatComment(parsed.findings, [])).toContain(
-      "inconsistency evals/&lt;name>/@\u200bx.md",
+      "inconsistency evals/&lt;name&gt;/@\u200bx.md--&gt;",
     );
   });
 
@@ -264,6 +271,7 @@ describe("CLI", () => {
     expect(body).toContain("指摘: 1 件");
     expect(body).not.toContain(CANARY);
     expect(body).toContain("- 残すメモ");
+    expect(body).toContain("- （点検のために置いた文書） は参照されていない");
     expect(readFileSync(join(root, "c.md"), "utf8")).toContain("解消: unused gone.md");
   });
 

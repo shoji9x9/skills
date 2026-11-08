@@ -10,9 +10,10 @@ on:
     - cron: "0 3 * * 4"
   workflow_dispatch: {}
 
+# 前の実行を止めない。tracking-issue が Issue の更新（edit・comment・close）の途中で止まると、食い違った状態が残る。
 concurrency:
   group: ${{ github.workflow }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -36,7 +37,7 @@ jobs:
     timeout-minutes: 60
     permissions:
       contents: read
-      # 入力にする費用の指標の追跡 Issue を読む。エージェントの段より前の段だけが使う。
+      # 入力にする費用の指標の追跡 Issue を読む。claude-code-action には同じ token を渡すので、エージェントの段も Issue を読めるが、書き込みはできない。
       issues: read
     # tracking-issue が読む値。outcome 以外は、エージェントを動かす前に終わった段の出力から取る。
     # outcome は runner が記録するステップの結果で、エージェントは書き換えられない。
@@ -62,7 +63,7 @@ jobs:
             echo "リポジトリ変数 SELF_REVIEW_SKIP で一時停止している" >>"$GITHUB_STEP_SUMMARY"
           fi
 
-      # 手順が commit message を根拠に使うので、履歴をすべて取得する。
+      # 手順が commit message を根拠に使うので、履歴をすべて取得する（件名の一覧は、点検の前の段が入力に書き出す）。
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: steps.pause.outputs.skip != 'true'
         with:
@@ -124,6 +125,24 @@ jobs:
           } >"$path"
           echo "path=$path" >>"$GITHUB_OUTPUT"
 
+      # エージェントには git を許さない。Write で .git/config や .gitattributes を書き換えたうえで git を実行すると、
+      # textconv などで任意のコマンドを実行できるためである。手順が使う履歴の件名とファイルの一覧は、ここで入力に書き出す。
+      # ファイルの一覧は、外した点検の仕組みのファイルを除き、canary を足す。canary だけが一覧に無いと、それで見分けられる。
+      # 件名の一覧からは、点検の仕組みに触れた commit を除く。
+      - name: Write git inputs
+        if: steps.cred.outputs.present == 'true'
+        env:
+          CANARY: ${{ steps.canary.outputs.path }}
+        run: |
+          set -o pipefail
+          mkdir -p "$INPUT_DIR"
+          { git ls-files; echo "$CANARY"; } |
+            grep -v -E '^(docs/self-review\.md|\.github/workflows/self-review\.yml|scripts/weekly/self-review-issue\.)' |
+            sort >"$INPUT_DIR/files.txt"
+          git log --first-parent --date=short --format='%h %ad %s' -n 2000 |
+            { grep -v -i -E 'canary|self-review|セルフ点検' || true; } >"$INPUT_DIR/commits.txt"
+          wc -l "$INPUT_DIR"/*.txt
+
       - name: Run Claude Code
         id: run-claude
         if: steps.cred.outputs.present == 'true'
@@ -136,8 +155,7 @@ jobs:
           github_token: ${{ github.token }}
           prompt: |
             docs/self-review-procedure.md を読み、その手順に従って点検し、結果をリポジトリのルートの ${{ env.REPORT_FILE }} に書いてください。
-          # git は、手順が根拠に使う履歴とファイルの一覧を読む 2 つのサブコマンドだけを許す。
-          claude_args: --allowed-tools "Read,Grep,Glob,Write,Bash(git log:*),Bash(git ls-files:*)"
+          claude_args: --allowed-tools Read,Grep,Glob,Write
 
       - name: Upload report
         if: steps.cred.outputs.present == 'true' && steps.run-claude.outcome == 'success'
@@ -165,9 +183,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # 本文を作るスクリプトを動かすのは、結果を受け取れた週だけなので、node と依存もその週だけ入れる。
       - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        if: needs.review.outputs.outcome == 'success'
       # スクリプトが外部のパッケージを import したときにワークフローだけが失敗しないよう、依存を入れておく。
       - run: pnpm install --frozen-lockfile
+        if: needs.review.outputs.outcome == 'success'
 
       - name: Download report
         id: download

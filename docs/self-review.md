@@ -14,7 +14,9 @@
 ジョブは 2 つに分ける。
 
 - `review`: Claude Code（`anthropics/claude-code-action`）が手順を読み、結果を JSON に書く。
-  エージェントに許すツールは、読み取りと結果の書き出し（`Read`・`Grep`・`Glob`・`Write`）と、`git log`・`git ls-files` だけである。ジョブの権限は `contents: read` と `issues: read` である
+  エージェントに許すツールは、読み取りと結果の書き出し（`Read`・`Grep`・`Glob`・`Write`）だけである。
+  git を許すと、`Write` で書き換えた git の設定から任意のコマンドを実行できるので、履歴の件名とファイルの一覧は点検の前の段が入力に書き出す。
+  ジョブの権限は `contents: read` と `issues: read` である
 - `tracking-issue`: `review` の結果を artifact で受け取り、`scripts/weekly/self-review-issue.ts` で本文を作って、追跡 Issue を作成・更新・クローズする。
   エージェントが書き換えた作業ツリーを使わないよう、checkout し直したスクリプトだけを実行する
 

@@ -7,7 +7,7 @@
 ## 守ること
 
 - ファイルを読むだけにする。点検の結果のファイル（下の「結果の書き方」）のほかは、作成も変更もしない。
-- 使えるのは、ファイルを読む・探すツールと、結果を書くツールと、`git log`・`git ls-files` だけである。
+- 使えるのは、ファイルを読む・探すツールと、結果を書くツールだけである。git の履歴とファイルの一覧は、下の「入力」のファイルを読む。
   Issue と PR の状態は確かめられないので、それを根拠にする指摘（「Issue #N が閉じている」など）は書かず、`notes` に回す。
 - 点検の仕組みのファイル（`docs/self-review.md`・`.github/workflows/self-review.yml`・`scripts/weekly/self-review-issue.*`）は、点検の前に作業ツリーから外してある。
   これらが無いことや、これらへの参照が切れていることは指摘しない。
@@ -21,6 +21,8 @@
 作業ディレクトリの次のファイルがあれば読む。無ければ、その入力を使う項目は入力なしで点検し、`notes` にそう書く。
 
 - `self-review-input/cost-metrics.md`: 費用の指標の追跡 Issue（`check-cost-metrics.yml` が書く）の本文。空の一覧・修正の PR が多いチェック・遅くなったジョブの表がある
+- `self-review-input/files.txt`: 点検の対象のファイルの一覧（`git ls-files` と同じ形）
+- `self-review-input/commits.txt`: main の first-parent の履歴の件名（新しい順。1 行に短い SHA・日付・件名）
 
 ## 点検の項目
 
@@ -42,12 +44,12 @@
 ### 3. やりすぎな記述（`overdoc`）
 
 - 何もしない指示。書かなくてもモデルが既にそうする指示
-- 環境から分かることの書き写し（`package.json` のスクリプト・設定ファイル・`--help` の出力）
+- 環境から分かることを、そのまま繰り返した記述（`package.json` のスクリプト・設定ファイル・`--help` の出力）
 - そこまで書かなくても守れる記述
 
 ### 4. やりすぎなチェック（`overcheck`）
 
-- チェックを足した後に、そのチェックが誤りを捕まえた記録が無い（commit message・`.kaizen/` の学び・文書から探す）
+- チェックを足した後に、そのチェックが誤りを捕まえた記録が無い（`commits.txt` の件名・`.kaizen/` の学び・文書から探す）
 - チェックが無くてもエージェントが守れる
 - 入力の費用の指標（修正の PR が多いチェック・空の一覧）を根拠に使う。廃止するかは人が決めるので、指摘には根拠だけを書く
 
@@ -75,7 +77,7 @@
       "category": "inconsistency",
       "path": "docs/tooling.md",
       "summary": "存在しないスクリプト scripts/tools/x.ts を起動するよう書いている",
-      "evidence": "docs/tooling.md:120 に scripts/tools/x.ts とある。git ls-files に無い",
+      "evidence": "docs/tooling.md:120 に scripts/tools/x.ts とある。self-review-input/files.txt に無い",
       "suggestion": "今の名前 scripts/tools/y.ts に直す"
     }
   ],

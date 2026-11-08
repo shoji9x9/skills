@@ -50,13 +50,16 @@ const isCategory = (value: unknown): value is Category =>
 
 /**
  * エージェントが書いた文を、Issue に載せられる 1 行にする。`@name` は GitHub がメンションとして通知するので、
- * `@` の直後にゼロ幅スペースを入れる。`<` は HTML のタグ（`<details>` など）として読まれないよう実体参照にする。
+ * `@` の直後にゼロ幅スペースを入れる。`<` と `>` は、HTML のタグ（`<details>` など）や、識別子を埋める HTML コメントの終わり（`-->`）として
+ * 読まれないよう実体参照にする。`&` も実体参照にし、`&#64;` のような実体参照で `@` を書き戻せないようにする。
  * 識別子・表・メモ・差分のコメントのどれにもこの形で載るよう、結果を読む段で当てる。
  */
 const safe = (value: string): string =>
   oneLine(value)
-    .replace(/@(?=[\w-])/gu, "@\u200b")
-    .replaceAll("<", "&lt;");
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replace(/@(?=[\w-])/gu, "@\u200b");
 
 function text(value: unknown, where: string): string {
   if (!isNonBlankString(value)) throw new Error(`${where} が空でない文字列でない`);
@@ -141,7 +144,7 @@ const hideCanary = (value: string, stem: string): string =>
  * canary への指摘を取り除く。canary か、canary が書いた存在しないスクリプトを対象にした指摘を、canary への指摘とする。
  * それが 1 件も無ければ、点検が機能していないとして例外にする。内容で触れただけでは見つけたことにしない
  * （ファイルの一覧を貼っただけの指摘で、食い違いを見つけていなくても合格になるため）。
- * ほかの指摘とメモは残し、文の中の canary の名前を伏せる。canary に触れたメモは、点検の仕組みの話なので除く。
+ * ほかの指摘とメモは残し、文の中の canary の名前を伏せる。
  */
 export function dropCanary(report: Report, canary: string): Report {
   const stem = canaryStem(canary);
@@ -157,7 +160,7 @@ export function dropCanary(report: Report, canary: string): Report {
     evidence: hideCanary(f.evidence, stem),
     suggestion: hideCanary(f.suggestion, stem),
   }));
-  return { findings, notes: report.notes.filter((n) => !n.includes(stem)) };
+  return { findings, notes: report.notes.map((n) => hideCanary(n, stem)) };
 }
 
 const KEY_FORM = new RegExp(`^(${Object.keys(CATEGORY_LABEL).join("|")}) \\S(.*\\S)?$`, "u");
