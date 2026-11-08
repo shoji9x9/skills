@@ -5,7 +5,7 @@
 // | 軸               | 値                                                                                      |
 // | ---------------- | --------------------------------------------------------------------------------------- |
 // | ファイル         | .js / .mjs / .cjs / .ts / evals/<name>/evals.json / 他の JSON / 他の拡張子                |
-// | 文字列の形       | 文字列リテラル / 式の無いテンプレート / テンプレートの先頭・途中・末尾 / import・export の指定子 |
+// | 文字列の形       | 文字列リテラル / 式の無いテンプレート / テンプレートの先頭・途中・末尾 / import・export の指定子 / require・import() の引数 |
 // | evals.json のキー | prompt / expected_output / assertions / 他のキー（fixture など）/ evals の外 / 形の違う値   |
 // | 文字の種類       | 日本語を含む / 英語だけ                                                                  |
 // | 改行             | ソースの改行（テンプレート）/ エスケープ（`\n`）/ 改行なし                                  |
@@ -90,6 +90,12 @@ describe("JavaScript・TypeScript", () => {
     const src =
       'import x from "./日本語.js";\nexport { y } from "./別の日本語.js";\nconst a = "本文";\n';
     expect(paragraphs("a.mjs", src)).toEqual(["本文"]);
+  });
+
+  test("require・import()・import = require の引数は、指定子として除かずに見る", () => {
+    const src =
+      'const a = require("./一.js");\nconst b = await import("./二.js");\nimport c = require("./三.js");\n';
+    expect(paragraphs("a.ts", src)).toEqual(["./一.js", "./二.js", "./三.js"]);
   });
 
   test("日本語を含まない文字列は入れない", () => {

@@ -3,22 +3,20 @@
 // 候補を挙げるだけで、チェックを廃止するか、ジョブを直すかは人が決める。
 //
 // 集める指標は次の 3 つである。対象と閾値は、隣の check-cost-metrics.json で決める。
-// - 空の免除・保留の一覧: 一覧が空なのに、それを読む処理（チェック）が残っている
+// - 空の免除・保留の一覧: check-cost-metrics.json の lists に挙げた一覧のファイルが空になっている（readers は確かめず、案内として添える）
 // - 修正の PR が多いチェック: 直近の期間に、チェックのファイルを変えた fix の PR の数
 // - GitHub Actions のジョブの所要時間: 直近の期間と前の期間の中央値を比べ、遅くなったジョブを挙げる（最大値は所要時間の表にだけ載せる）
 //
 // 確かめられなかったものを「該当なし」として扱わない。次のときは exit 1 で止まる。
-// - 設定・一覧・読む処理のファイルを読めない
-// - 読む処理が一覧を参照していない（設定が古い）
+// - 設定・一覧のファイルを読めない
 // - git の履歴が浅い
 // - git や API が失敗する、または API の一覧が上限（1000 件）を超えて取りこぼす
 //
 // 使い方: node scripts/tools/check-cost-metrics.ts --out <本文のパス> --comment-out <コメントのパス> [--previous <前回の本文のパス>]
 // 標準出力の最後の行に `due=<件数>` を出す。件数が 0 のときも本文とコメントのファイルは書く。
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import ts from "typescript";
 import { isCliEntry } from "../lib/cli/entry.ts";
 import { errorMessage } from "../lib/errors.ts";
 import { isNonBlankString, isPlainObject, isRecord } from "../lib/guards.ts";
@@ -32,9 +30,6 @@ import {
   tableCell,
   trackingKeys,
 } from "../lib/text/tracking-diff.ts";
-import { scriptKind } from "../lib/text/code-comments.ts";
-import { jsStrings } from "../lib/text/code-strings.ts";
-import { loadYaml } from "../lib/text/yaml-as.ts";
 
 const CONFIG = join(dirname(fileURLToPath(import.meta.url)), "check-cost-metrics.json");
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -211,96 +206,6 @@ export type Finding = {
   detail: string;
 };
 
-/**
- * text が、ファイル名 name を 1 つのファイル名として含むか。前後がファイル名に使う文字なら、別のファイル名の一部として扱う。
- * 例えば `baseline.json` は、`crap-baseline.json` の中にあっても参照として数えない。
- */
-function mentions(text: string, name: string): boolean {
-  for (let at = text.indexOf(name); at !== -1; at = text.indexOf(name, at + 1)) {
-    const before = text[at - 1] ?? "";
-    const after = text[at + name.length] ?? "";
-    if (!/[\w.-]/u.test(before) && !/[\w-]/u.test(after)) return true;
-  }
-  return false;
-}
-
-/** 値の中の文字列（キーと値）を集める。 */
-function stringsOf(value: unknown): string[] {
-  if (typeof value === "string") return [value];
-  if (isArray(value)) return value.flatMap(stringsOf);
-  if (isRecord(value)) return Object.entries(value).flatMap(([k, v]) => [k, ...stringsOf(v)]);
-  return [];
-}
-
-/** 読む処理として扱う種類。拡張子の判定と、扱えないときのメッセージは、この一覧から作る。 */
-const READER_KINDS: readonly {
-  extensions: readonly string[];
-  strings: (path: string, source: string) => string[];
-}[] = [
-  {
-    extensions: [".ts", ".mts", ".cts", ".js", ".mjs", ".cjs"],
-    // import・export の指定子も、一覧を読む参照として数える（oxlint.config.ts は oxlint-pending.ts を import で読む）。
-    strings: (path, source) => {
-      const sf = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, scriptKind(path));
-      return jsStrings(sf, { moduleSpecifiers: true }).map((node) => node.text);
-    },
-  },
-  { extensions: [".json"], strings: (_path, source) => stringsOf(JSON.parse(source)) },
-  { extensions: [".yml", ".yaml"], strings: (_path, source) => stringsOf(loadYaml(source)) },
-];
-
-/**
- * 読む処理の中の文字列の値（エスケープを解いた形）を、行に並べて返す。ファイル名は、読む処理のコードでは文字列として現れる。
- * コメントは値に入らないので、コメントにだけ残った名前は参照として数えない。`\n` の直後のファイル名も、別の名前の一部として読まない。
- * この判定は近似で、誤りは 2 つの向きに出る。
- * 1 つは見逃しである。ファイルを読む引数とメッセージの文字列を区別せず、import が型だけを読むかも区別しない。
- * そのため、名前が残っているだけの読む処理を、参照しているとして扱う。
- * もう 1 つは誤検知で、名前を組み立てる・別のモジュールの定数から読む・glob で読む処理は、参照していないとして扱い、
- * ワークフローを失敗させる。そのときは readers に、名前をそのまま書いたファイル（定数を定義するファイルなど）を挙げる。
- * 区別するには、読み取りの呼び出し（readFileSync・import・glob など）の書き方ごとに分岐が要るので、文字列の値までで止める。
- */
-export function referenceText(path: string, source: string): string {
-  const reader = READER_KINDS.find((k) => k.extensions.some((ext) => path.endsWith(ext)));
-  if (reader === undefined) {
-    const all = READER_KINDS.flatMap((k) => k.extensions).join("・");
-    throw new Error(`扱えない種類のファイル。扱えるのは ${all}`);
-  }
-  return reader.strings(path, source).join("\n");
-}
-
-/** 読む処理を読んで文字列の値を取る。読めないときは、どの読む処理かと直す場所を添えて例外にする。 */
-function readReference(reader: string, read: (path: string) => string): string {
-  try {
-    return referenceText(reader, read(reader));
-  } catch (error) {
-    throw new Error(
-      `読む処理 ${reader} を読めない。check-cost-metrics.json の readers を直す。原因は次の行にある。\n${errorMessage(error)}`,
-      { cause: error },
-    );
-  }
-}
-
-/**
- * 読む処理（readers）が、一覧のファイル名を参照しているかを確かめる。参照していなければ、設定が古い。
- * 同じ読む処理を複数の一覧が挙げるので、読んだ値を cache に置いて 1 回だけ読む。
- */
-export function checkReaders(
-  target: ListTarget,
-  read: (path: string) => string,
-  cache = new Map<string, string>(),
-): void {
-  const name = basename(target.file);
-  for (const reader of target.readers) {
-    const text = cache.get(reader) ?? readReference(reader, read);
-    cache.set(reader, text);
-    if (!mentions(text, name)) {
-      throw new Error(
-        `${reader} が ${name} を参照していない（check-cost-metrics.json の readers を直す）`,
-      );
-    }
-  }
-}
-
 async function loadList(target: ListTarget, root: string): Promise<unknown> {
   const path = join(root, target.file);
   if (target.count.kind === "ts-export") {
@@ -310,16 +215,13 @@ async function loadList(target: ListTarget, root: string): Promise<unknown> {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
-/** 空の一覧を挙げる。一覧か読む処理を読めないときは例外にする。 */
-export async function emptyLists(
-  lists: readonly ListTarget[],
-  root: string,
-  read: (path: string) => string = (path) => readFileSync(join(root, path), "utf8"),
-): Promise<Finding[]> {
+/**
+ * 空の一覧を挙げる。一覧を読めないときは例外にする。
+ * readers は表に出す案内で、読む処理が今も一覧を読むかは確かめない（Issue #948）。
+ */
+export async function emptyLists(lists: readonly ListTarget[], root: string): Promise<Finding[]> {
   const findings: Finding[] = [];
-  const readers = new Map<string, string>();
   for (const target of lists) {
-    checkReaders(target, read, readers);
     const count = countEntries(target.count, await loadList(target, root), target.file);
     if (count === 0 && target.keepEmpty === undefined) {
       findings.push({ kind: "empty-list", target: target.file, detail: target.readers.join("、") });
@@ -588,6 +490,10 @@ const tracking = trackingKeys({
 });
 export const { previousKeys, diff: diffFindings } = tracking;
 
+/** 空の一覧の候補があるときに、候補の表の下に 1 回だけ出す注記（Issue #948）。 */
+const READERS_NOTE =
+  "空の一覧の行で「内容」に出すファイルは、check-cost-metrics.json の readers に書いた案内で、一覧を読む処理を示す。スクリプトは、そのファイルが今も一覧を読んでいるかを確かめていない。";
+
 function findingTable(findings: readonly Finding[], kept: ReadonlySet<string>): string[] {
   if (findings.length === 0) return [];
   const lines = ["| 指標 | 対象 | 内容 | 前回から |", "| --- | --- | --- | --- |"];
@@ -596,6 +502,9 @@ function findingTable(findings: readonly Finding[], kept: ReadonlySet<string>): 
     lines.push(
       `| ${KIND_LABEL[f.kind]} | ${tableCell(f.target)} | ${tableCell(f.detail)} | ${state} |`,
     );
+  }
+  if (findings.some((f) => f.kind === "empty-list")) {
+    lines.push("", READERS_NOTE);
   }
   return [...lines, ""];
 }
@@ -662,7 +571,7 @@ export async function collect(
   input: { config: Config; root: string; now: Date },
 ): Promise<Result> {
   const { config, root, now } = input;
-  // 手元で済む指標を先に集め、設定が古いときや履歴が浅いときは、時間のかかるジョブの API を呼ぶ前に止める。
+  // 手元で済む指標を先に集め、一覧を読めないときや履歴が浅いときは、時間のかかるジョブの API を呼ぶ前に止める。
   const lists = await emptyLists(config.lists, root);
   const fixes = await fixHeavyChecks(run, config.fixPrs, { root, now });
   const rows = await jobRows(run, config.durations, now);

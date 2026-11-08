@@ -12,7 +12,8 @@
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "空の一覧 空の一覧だけを挙げる（JSON と TypeScript の export）",
+        "空の一覧 空の一覧だけを挙げ、readers を案内として添える（JSON と TypeScript の export）",
+        "空の一覧 readers のファイルが無い・一覧の名前を含まないときも、失敗せずに数える",
         "まとめて集める 3 つの指標を集める",
         "CLI 本文とコメントを書き、due を出す"
       ]

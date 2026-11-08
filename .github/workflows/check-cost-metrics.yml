@@ -42,7 +42,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
-      # スクリプトが typescript（読む処理の文字列を取り出す）と js-yaml（YAML の読む処理）を import するので、依存を入れる。
+      # スクリプトが外部のパッケージを import したときにワークフローだけが失敗しないよう、依存を入れておく（Issue #948）。
       - run: pnpm install --frozen-lockfile
       # 作成・更新・クローズを 1 ステップに置く。照会は outdated.yml と同じ同梱スクリプトを使う。
       # 前回の本文から差分（新規・継続・解消）を出すので、集計の前に追跡 Issue を照会する。
