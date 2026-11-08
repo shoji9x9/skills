@@ -62,9 +62,11 @@ jobs:
             echo "リポジトリ変数 SELF_REVIEW_SKIP で一時停止している" >>"$GITHUB_STEP_SUMMARY"
           fi
 
+      # 手順が commit message を根拠に使うので、履歴をすべて取得する。
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: steps.pause.outputs.skip != 'true'
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Check agent credential
@@ -93,7 +95,8 @@ jobs:
           resolve_tracking_issues
           mkdir -p "$INPUT_DIR"
           if [ "${#numbers[@]}" -gt 0 ]; then
-            gh issue view "${numbers[-1]}" --json body --jq .body >"$INPUT_DIR/cost-metrics.md"
+            # check-cost-metrics.yml と同じく、番号の最も小さい 1 件を正とする（ほかは更新されない）。
+            gh issue view "${numbers[0]}" --json body --jq .body >"$INPUT_DIR/cost-metrics.md"
           else
             echo "費用の指標の追跡 Issue が無い。入力なしで点検する"
           fi
@@ -102,6 +105,12 @@ jobs:
       # どこからも参照されず、存在しないスクリプトの名前を書いた文書である。名前は実行ごとに変え、手順にも書かない。
       # スクリプトの名前には文書の名前（拡張子を除く）を含める。self-review-issue.ts は、この名前を対象にした指摘を canary への指摘として除く。
       # 結果にこのファイルへの指摘が無ければ、tracking-issue が点検の失敗として扱う。
+      # 点検の仕組み（運用の文書・このワークフロー・本文を作るスクリプト）は、canary の作り方と扱いを書いている。
+      # エージェントが読むと canary を見分けられるので、点検の前に作業ツリーから外す。手順は、これらが無いことを指摘しないと書いている。
+      - name: Hide self review internals
+        if: steps.cred.outputs.present == 'true'
+        run: rm -f docs/self-review.md .github/workflows/self-review.yml scripts/weekly/self-review-issue.*
+
       - name: Plant canary
         id: canary
         if: steps.cred.outputs.present == 'true'
@@ -119,13 +128,16 @@ jobs:
         id: run-claude
         if: steps.cred.outputs.present == 'true'
         continue-on-error: true
+        # ジョブの上限（60 分）より先に止め、時間切れを outcome の failure として tracking-issue に渡す。
+        timeout-minutes: 50
         uses: anthropics/claude-code-action@d70510b174a1244958df0b03166a54912811f3e6 # v1.0.264
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
           prompt: |
             docs/self-review-procedure.md を読み、その手順に従って点検し、結果をリポジトリのルートの ${{ env.REPORT_FILE }} に書いてください。
-          claude_args: --allowed-tools Read,Grep,Glob,Write
+          # git は、手順が根拠に使う履歴とファイルの一覧を読む 2 つのサブコマンドだけを許す。
+          claude_args: --allowed-tools "Read,Grep,Glob,Write,Bash(git log:*),Bash(git ls-files:*)"
 
       - name: Upload report
         if: steps.cred.outputs.present == 'true' && steps.run-claude.outcome == 'success'
@@ -193,6 +205,7 @@ jobs:
           body="$RUNNER_TEMP/issue-body.md"
           comment="$RUNNER_TEMP/issue-comment.md"
           failure=""
+          detail=""
           if [ -z "$CRED_PRESENT" ]; then
             failure="エージェントを起動する前に review ジョブが失敗した"
           elif [ "$CRED_PRESENT" != true ]; then
@@ -212,14 +225,21 @@ jobs:
             if ! node scripts/weekly/self-review-issue.ts --report "$REPORT" --canary "$CANARY" \
               --out "$body" --comment-out "$comment" "${previous_args[@]}" \
               >"$RUNNER_TEMP/issue.log" 2>&1; then
-              failure="結果を Issue にできなかった: $(tail -n 3 "$RUNNER_TEMP/issue.log")"
+              failure="結果を Issue にできなかった"
+              detail="$RUNNER_TEMP/issue.log"
             fi
             cat "$RUNNER_TEMP/issue.log"
           fi
 
           if [ -n "$failure" ]; then
             echo "$failure" >&2
-            printf '点検できませんでした。指摘 0 件ではありません。\n\n理由: %s\n\n[run](%s)\n' "$failure" "$RUN_URL" >"$comment"
+            printf '点検できませんでした。指摘 0 件ではありません。\n\n理由: %s\n' "$failure" >"$comment"
+            if [ -n "$detail" ]; then
+              # ログはエージェントが書いた値を含むので、メンションやタグとして読まれないようコードブロックに入れる。
+              fence="$(printf '\140\140\140')"
+              printf '\n%stext\n%s\n%s\n' "$fence" "$(tail -n 3 "$detail" | tr -d '\140')" "$fence" >>"$comment"
+            fi
+            printf '\n[run](%s)\n' "$RUN_URL" >>"$comment"
             if [ -n "$number" ]; then
               gh issue comment "$number" --body-file "$comment"
             else

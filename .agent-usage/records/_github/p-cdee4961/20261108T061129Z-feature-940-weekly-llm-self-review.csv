@@ -16,3 +16,8 @@ coverage:github:2026-11-07T06:11:29.131Z:2026-11-08T06:12:55.892Z,coverage,2026-
 coverage:github:2026-11-07T06:12:55.892Z:2026-11-08T06:14:13.674Z,coverage,2026-11-08T06:14:13.674Z,p-cdee4961,,,,,2026-11-07T06:12:55.892Z,2026-11-08T06:14:13.674Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-11-07T06:14:13.674Z:2026-11-08T06:19:23.989Z,coverage,2026-11-08T06:19:23.989Z,p-cdee4961,,,,,2026-11-07T06:14:13.674Z,2026-11-08T06:19:23.989Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-11-07T06:19:23.989Z:2026-11-08T06:20:17.071Z,coverage,2026-11-08T06:20:17.071Z,p-cdee4961,,,,,2026-11-07T06:19:23.989Z,2026-11-08T06:20:17.071Z,Asia/Tokyo,,,,,,,,,,,,ok,
+pr:951,pr,2026-11-08T06:30:26.484Z,p-cdee4961,github,,,,2026-11-08T06:22:48.000Z,2026-11-08T06:22:48.000Z,Asia/Tokyo,feature/940-weekly-llm-self-review,940,,,,,,,,,,pr=951;author=shoji9x9;state=open,
+ci:42454505515:1,ci,2026-11-08T06:30:26.484Z,p-cdee4961,github-actions,,,,2026-11-08T06:22:51.000Z,2026-11-08T06:22:58.000Z,Asia/Tokyo,feature/940-weekly-llm-self-review,940,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:42454505523:1,ci,2026-11-08T06:30:26.484Z,p-cdee4961,github-actions,,,,2026-11-08T06:22:51.000Z,2026-11-08T06:24:18.000Z,Asia/Tokyo,feature/940-weekly-llm-self-review,940,,,,,,,,,,CodeQL;pull_request;success,
+ci:42454505531:1,ci,2026-11-08T06:30:26.484Z,p-cdee4961,github-actions,,,,2026-11-08T06:22:51.000Z,2026-11-08T06:26:23.000Z,Asia/Tokyo,feature/940-weekly-llm-self-review,940,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-11-07T06:20:17.071Z:2026-11-08T06:30:26.484Z,coverage,2026-11-08T06:30:26.484Z,p-cdee4961,,,,,2026-11-07T06:20:17.071Z,2026-11-08T06:30:26.484Z,Asia/Tokyo,,,,,,,,,,,,ok,

@@ -45,12 +45,16 @@ describe("結果の JSON", () => {
         findings: [
           { ...finding(), summary: "1 行目\n2 行目" },
           { ...finding(), suggestion: undefined },
+          { ...finding(), suggestion: null },
+          { ...finding(), suggestion: "" },
         ],
         notes: ["メモ"],
       }),
     );
     expect(report.findings).toEqual([
       finding({ summary: "1 行目 2 行目" }),
+      finding({ suggestion: "" }),
+      finding({ suggestion: "" }),
       finding({ suggestion: "" }),
     ]);
     expect(report.notes).toEqual(["メモ"]);
@@ -96,8 +100,8 @@ describe("結果の JSON", () => {
       message: "findings[0].evidence",
     },
     {
-      name: "suggestion が空",
-      source: JSON.stringify({ findings: [{ ...finding(), suggestion: "" }] }),
+      name: "suggestion が空白だけ",
+      source: JSON.stringify({ findings: [{ ...finding(), suggestion: " " }] }),
       message: "findings[0].suggestion",
     },
     { name: "指摘がオブジェクトでない", source: '{"findings": ["x"]}', message: "findings[0] が" },
@@ -121,32 +125,50 @@ describe("同じ組の指摘", () => {
 });
 
 describe("canary", () => {
+  const report = (findings: Finding[], notes: string[] = []) => ({ findings, notes });
+
   test("path が canary の指摘を除く", () => {
-    expect(dropCanary([finding(), canaryFinding], CANARY)).toEqual([finding()]);
+    expect(dropCanary(report([finding(), canaryFinding]), CANARY)).toEqual(report([finding()]));
   });
 
   test("canary が書いた存在しないスクリプトを対象にした指摘も除く", () => {
-    const byScript = finding({
-      path: "scripts/tools/verify-notes-1a2b.ts",
-      evidence: `${CANARY}:3`,
-    });
-    expect(dropCanary([byScript, finding()], CANARY)).toEqual([finding()]);
+    const byScript = finding({ path: "scripts/tools/verify-notes-1a2b.ts" });
+    expect(dropCanary(report([byScript, finding()]), CANARY)).toEqual(report([finding()]));
   });
 
-  test("内容で canary に触れても、対象が別のファイルなら残し、canary を見つけたことにする", () => {
-    const both = finding({ path: "docs/", summary: `${CANARY} と docs/old.md が参照されていない` });
-    expect(dropCanary([both], CANARY)).toEqual([both]);
+  test("ほかの指摘の文の中の canary の名前を伏せ、canary に触れたメモを除く", () => {
+    const both = finding({
+      path: "docs/",
+      summary: `${CANARY} と docs/old.md が参照されていない`,
+      evidence: "Glob で notes-1a2b.md を見た",
+      suggestion: "verify-notes-1a2b.ts を消す",
+    });
+    const notes = ["notes-1a2b.md は迷った", "残すメモ"];
+    expect(dropCanary(report([canaryFinding, both], notes), CANARY)).toEqual(
+      report(
+        [
+          finding({
+            path: "docs/",
+            summary: "（点検のために置いた文書） と docs/old.md が参照されていない",
+            evidence: "Glob で （点検のために置いた文書） を見た",
+            suggestion: "（点検のために置いた文書） を消す",
+          }),
+        ],
+        ["残すメモ"],
+      ),
+    );
   });
 
   test("指摘が canary だけなら 0 件にする", () => {
-    expect(dropCanary([canaryFinding], CANARY)).toEqual([]);
+    expect(dropCanary(report([canaryFinding]), CANARY)).toEqual(report([]));
   });
 
   test.each([
     { name: "指摘が 0 件", findings: [] },
     { name: "canary 以外だけ", findings: [finding()] },
+    { name: "内容で触れただけ", findings: [finding({ evidence: `Glob の結果: ${CANARY}` })] },
   ])("$name なら、点検が機能していないとして例外にする", ({ findings }) => {
-    expect(() => dropCanary(findings, CANARY)).toThrow(`${CANARY} への指摘が無い`);
+    expect(() => dropCanary(report(findings), CANARY)).toThrow(`${CANARY} への指摘が無い`);
   });
 });
 
@@ -161,14 +183,21 @@ describe("追跡 Issue の本文", () => {
     expect(previousKeys(body)).toEqual(["inconsistency docs/a.md", "unused x.sh"]);
   });
 
-  test("表とメモの @name をメンションにしない形にし、メモの < を実体参照にする", () => {
-    const body = formatBody({
-      findings: [finding({ summary: "@AGENTS.md と @skills/x の取り込み" })],
-      notes: ["@user への </details> の言及"],
-    });
-    expect(body).toContain("@​AGENTS.md と @​skills/x");
-    expect(body).toContain("- @​user への &lt;/details> の言及");
-    expect(body).not.toMatch(/@[\w-]/u);
+  test("結果を読む段で、@name をメンションにしない形にし、< を実体参照にする", () => {
+    const parsed = parseReport(
+      JSON.stringify({
+        findings: [{ ...finding(), path: "evals/<name>/@x.md", summary: "@AGENTS.md の取り込み" }],
+        notes: ["@user への </details> の言及"],
+      }),
+    );
+    const body = formatBody(parsed);
+    expect(body).toContain("evals/&lt;name>/@\u200bx.md");
+    expect(body).toContain("@\u200bAGENTS.md の取り込み");
+    expect(body).toContain("- @\u200buser への &lt;/details> の言及");
+    expect(body).not.toMatch(/@[\w-]|<name>|<\/details> の/u);
+    expect(formatComment(parsed.findings, [])).toContain(
+      "inconsistency evals/&lt;name>/@\u200bx.md",
+    );
   });
 
   test("0 件は表とメモを書かない", () => {
@@ -241,6 +270,17 @@ describe("CLI", () => {
   test.each([
     ["結果が JSON でない", "# report"],
     ["canary への指摘が無い", { findings: [finding()] }],
+    [
+      "本文が上限を超える",
+      {
+        findings: [
+          canaryFinding,
+          ...Array.from({ length: 70 }, (_, i) =>
+            finding({ path: `docs/${i}.md`, summary: "長".repeat(900) }),
+          ),
+        ],
+      },
+    ],
   ])("%s ときは 1", (_name, report) => {
     const { args } = setup(report);
     expect(main(args)).toBe(1);

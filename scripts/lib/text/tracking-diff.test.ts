@@ -15,6 +15,7 @@ import {
   oneLine,
   tableCell,
   parseTrackingCli,
+  parseTrackingCliWith,
   readKeys,
   trackingKeys,
 } from "./tracking-diff.ts";
@@ -141,6 +142,19 @@ describe("引数", () => {
       commentOut: "b",
       previous: "c",
     });
+  });
+
+  test("点検ごとに足した必須の引数を extra に入れ、無いか空なら null にする", () => {
+    const base = ["--out", "a", "--comment-out", "b"];
+    expect(parseTrackingCliWith([...base, "--report", "r"], ["report"])).toEqual({
+      out: "a",
+      commentOut: "b",
+      previous: undefined,
+      extra: { report: "r" },
+    });
+    expect(parseTrackingCliWith(base, ["report"])).toBeNull();
+    expect(parseTrackingCliWith([...base, "--report", " "], ["report"])).toBeNull();
+    expect(parseTrackingCli([...base, "--report", "r"])).toBeNull();
   });
 
   test.each([

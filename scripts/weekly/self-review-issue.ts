@@ -12,7 +12,6 @@
 // 標準出力の最後の行に `due=<件数>` を出す。
 import { readFileSync, writeFileSync } from "node:fs";
 import { isCliEntry } from "../lib/cli/entry.ts";
-import { parseArgs } from "../lib/cli/args.ts";
 import { errorMessage } from "../lib/errors.ts";
 import { isNonBlankString, isRecord } from "../lib/guards.ts";
 import { isArray } from "../lib/is-array.ts";
@@ -20,6 +19,7 @@ import {
   formatDiffComment,
   naturalOrder,
   oneLine,
+  parseTrackingCliWith,
   tableCell,
   trackingKeys,
 } from "../lib/text/tracking-diff.ts";
@@ -48,9 +48,25 @@ export type Report = { findings: Finding[]; notes: string[] };
 const isCategory = (value: unknown): value is Category =>
   typeof value === "string" && Object.hasOwn(CATEGORY_LABEL, value);
 
+/**
+ * エージェントが書いた文を、Issue に載せられる 1 行にする。`@name` は GitHub がメンションとして通知するので、
+ * `@` の直後にゼロ幅スペースを入れる。`<` は HTML のタグ（`<details>` など）として読まれないよう実体参照にする。
+ * 識別子・表・メモ・差分のコメントのどれにもこの形で載るよう、結果を読む段で当てる。
+ */
+const safe = (value: string): string =>
+  oneLine(value)
+    .replace(/@(?=[\w-])/gu, "@\u200b")
+    .replaceAll("<", "&lt;");
+
 function text(value: unknown, where: string): string {
   if (!isNonBlankString(value)) throw new Error(`${where} が空でない文字列でない`);
-  return oneLine(value);
+  return safe(value);
+}
+
+/** 直し方の案は、無い指摘もある。省略・null・空の文字列は、どれも案が無いものとして読む。 */
+function optionalText(value: unknown, where: string): string {
+  if (value === undefined || value === null || value === "") return "";
+  return text(value, where);
 }
 
 function parseFinding(value: unknown, where: string): Finding {
@@ -61,13 +77,12 @@ function parseFinding(value: unknown, where: string): Finding {
       `${where}.category が項目の値でない: ${JSON.stringify(category)}（使える値: ${Object.keys(CATEGORY_LABEL).join("・")}）`,
     );
   }
-  const suggestion = value["suggestion"];
   return {
     category,
     path: text(value["path"], `${where}.path`),
     summary: text(value["summary"], `${where}.summary`),
     evidence: text(value["evidence"], `${where}.evidence`),
-    suggestion: suggestion === undefined ? "" : text(suggestion, `${where}.suggestion`),
+    suggestion: optionalText(value["suggestion"], `${where}.suggestion`),
   };
 }
 
@@ -115,33 +130,35 @@ export function mergeFindings(findings: readonly Finding[]): Finding[] {
 const canaryStem = (canary: string): string =>
   canary.replace(/^.*\//u, "").replace(/\.[^.]*$/u, "");
 
-/**
- * canary への指摘を取り除く。canary か、canary が書いた存在しないスクリプトを対象にした指摘だけを除く。
- * 内容で canary に触れていても、対象が別のファイルなら本物の指摘として残す（1 件の指摘が複数のファイルを挙げることがある）。
- * 対象にも内容にも canary が 1 件も現れなければ、点検が機能していないとして例外にする。
- */
-export function dropCanary(findings: readonly Finding[], canary: string): Finding[] {
-  const stem = canaryStem(canary);
-  const seen = findings.some((f) =>
-    [f.path, f.summary, f.evidence].some((field) => field.includes(stem)),
+/** canary の名前を含む語（パスやファイル名）を伏せる。canary の名前は追跡 Issue に載せない。 */
+const hideCanary = (value: string, stem: string): string =>
+  value.replace(
+    new RegExp(`\\S*${stem.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}\\S*`, "gu"),
+    "（点検のために置いた文書）",
   );
-  if (!seen) {
+
+/**
+ * canary への指摘を取り除く。canary か、canary が書いた存在しないスクリプトを対象にした指摘を、canary への指摘とする。
+ * それが 1 件も無ければ、点検が機能していないとして例外にする。内容で触れただけでは見つけたことにしない
+ * （ファイルの一覧を貼っただけの指摘で、食い違いを見つけていなくても合格になるため）。
+ * ほかの指摘とメモは残し、文の中の canary の名前を伏せる。canary に触れたメモは、点検の仕組みの話なので除く。
+ */
+export function dropCanary(report: Report, canary: string): Report {
+  const stem = canaryStem(canary);
+  const rest = report.findings.filter((f) => !f.path.includes(stem));
+  if (rest.length === report.findings.length) {
     throw new Error(
       `既知の食い違いを置いた ${canary} への指摘が無い。点検が機能していないので、指摘 0 件として扱わない`,
     );
   }
-  return findings.filter((f) => !f.path.includes(stem));
+  const findings = rest.map((f) => ({
+    ...f,
+    summary: hideCanary(f.summary, stem),
+    evidence: hideCanary(f.evidence, stem),
+    suggestion: hideCanary(f.suggestion, stem),
+  }));
+  return { findings, notes: report.notes.filter((n) => !n.includes(stem)) };
 }
-
-/** canary に触れたメモを除く。canary は追跡 Issue に載せない。 */
-const dropCanaryNotes = (notes: readonly string[], canary: string): string[] =>
-  notes.filter((n) => !n.includes(canary));
-
-/**
- * エージェントが書いた文を Issue に載せる形にする。`@name` は GitHub がメンションとして通知するので、
- * `@` の直後にゼロ幅スペースを入れる。`<` は、HTML のタグ（`<details>` など）として読まれないよう実体参照にする。
- */
-const noMention = (value: string): string => value.replace(/@(?=[\w-])/gu, "@​");
 
 const KEY_FORM = new RegExp(`^(${Object.keys(CATEGORY_LABEL).join("|")}) \\S(.*\\S)?$`, "u");
 const tracking = trackingKeys({ marker: "self-review", keyForm: KEY_FORM, keyOf });
@@ -156,9 +173,7 @@ function findingTable(findings: readonly Finding[], kept: ReadonlySet<string>): 
   for (const f of findings) {
     const state = kept.has(keyOf(f)) ? "継続" : "新規";
     const cells = [CATEGORY_LABEL[f.category], f.path, f.summary, f.evidence, f.suggestion];
-    lines.push(
-      `| ${cells.map((c) => noMention(tableCell(c)).replaceAll("<", "&lt;")).join(" | ")} | ${state} |`,
-    );
+    lines.push(`| ${cells.map(tableCell).join(" | ")} | ${state} |`);
   }
   return [...lines, ""];
 }
@@ -177,12 +192,7 @@ export function formatBody(report: Report, previous: readonly string[] = []): st
   ];
   if (notes.length > 0) {
     lines.push("<details><summary>点検のメモ（指摘にしなかったもの）</summary>", "");
-    lines.push(
-      ...notes.map((n) => `- ${noMention(n).replaceAll("<", "&lt;")}`),
-      "",
-      "</details>",
-      "",
-    );
+    lines.push(...notes.map((n) => `- ${n}`), "", "</details>", "");
   }
   return tracking.finish(lines, findings, resolved);
 }
@@ -191,29 +201,14 @@ export function formatComment(findings: readonly Finding[], previous: readonly s
   return formatDiffComment("指摘", findings.length, diffFindings(findings, previous));
 }
 
-const NAMES = new Set(["report", "canary", "out", "comment-out", "previous"]);
 const USAGE =
   "使い方: node scripts/weekly/self-review-issue.ts --report <結果の JSON> --canary <canary のパス> --out <本文のパス> --comment-out <コメントのパス> [--previous <前回の本文のパス>]";
 
-type Cli = { report: string; canary: string; out: string; commentOut: string; previous?: string };
-
-function parseCli(args: readonly string[]): Cli | null {
-  let values: Record<string, string>;
-  try {
-    values = parseArgs([...args]);
-  } catch {
-    return null;
-  }
-  if (Object.keys(values).some((name) => !NAMES.has(name))) return null;
-  const { report, canary, out, "comment-out": commentOut, previous } = values;
-  const required = [report, canary, out, commentOut];
-  if (!required.every(isNonBlankString)) return null;
-  if (previous !== undefined && !isNonBlankString(previous)) return null;
-  return { report, canary, out, commentOut, ...(previous === undefined ? {} : { previous }) };
-}
+/** 本文の上限。GitHub の Issue の本文は 65,536 字までなので、超える前に失敗として扱う。 */
+const MAX_BODY_CHARS = 60_000;
 
 export function main(args: readonly string[]): number {
-  const cli = parseCli(args);
+  const cli = parseTrackingCliWith(args, ["report", "canary"]);
   if (cli === null) {
     console.error(USAGE);
     return 2;
@@ -221,10 +216,16 @@ export function main(args: readonly string[]): number {
   try {
     const previous =
       cli.previous === undefined ? [] : previousKeys(readFileSync(cli.previous, "utf8"));
-    const report = parseReport(readFileSync(cli.report, "utf8"));
-    const findings = mergeFindings(dropCanary(report.findings, cli.canary));
-    const result = { findings, notes: dropCanaryNotes(report.notes, cli.canary) };
-    writeFileSync(cli.out, formatBody(result, previous));
+    const { report: reportPath = "", canary = "" } = cli.extra;
+    const report = dropCanary(parseReport(readFileSync(reportPath, "utf8")), canary);
+    const findings = mergeFindings(report.findings);
+    const body = formatBody({ findings, notes: report.notes }, previous);
+    if (body.length > MAX_BODY_CHARS) {
+      throw new Error(
+        `本文が ${body.length} 字で、上限の ${MAX_BODY_CHARS} 字を超える。手順の件数と字数の目安を守っているかを確かめる`,
+      );
+    }
+    writeFileSync(cli.out, body);
     writeFileSync(cli.commentOut, formatComment(findings, previous));
     console.log(`due=${findings.length}`);
     return 0;
