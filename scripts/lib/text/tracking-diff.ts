@@ -102,31 +102,54 @@ export function trackingKeys<T>(spec: {
   previousKeys: (body: string) => string[];
   diff: (findings: readonly T[], previous: readonly string[]) => KeyDiff;
   markerLine: (findings: readonly T[]) => string;
+  finish: (lines: readonly string[], findings: readonly T[], resolved: readonly string[]) => string;
 } {
   return {
     previousKeys: (body) => readKeys(body, spec.marker, spec.keyForm),
     diff: (findings, previous) => diffKeys(findings.map(spec.keyOf), previous),
     markerLine: (findings) => markerLine(spec.marker, findings.map(spec.keyOf)),
+    // 本文の最後に、前回から解消したもの（あれば）と識別子の目印の行を足して、1 つの文字列にする。
+    finish: (lines, findings, resolved) => {
+      const tail = resolved.length > 0 ? [`前回から解消したもの: ${resolved.join("、")}`, ""] : [];
+      return `${[...lines, ...tail, markerLine(spec.marker, findings.map(spec.keyOf))].join("\n")}\n`;
+    },
   };
 }
 
 export type TrackingCli = { out: string; commentOut: string; previous: string | undefined };
-const CLI_NAMES = new Set(["out", "comment-out", "previous"]);
+const CLI_NAMES = ["out", "comment-out", "previous"];
 
 /**
- * 点検のスクリプトに共通の引数（`--out <本文> --comment-out <コメント> [--previous <前回の本文>]`）を読む。
+ * 点検のスクリプトに共通の引数（`--out <本文> --comment-out <コメント> [--previous <前回の本文>]`）と、
+ * 点検ごとに足す必須の引数（`required` に挙げた名前）を読む。足した引数の値は `extra` に入れる。
  * 足りない・未知・同じオプションが 2 回・値が無い・空のときは null（重複と値の無いものは共通の parseArgs が例外にする）。
  */
-export function parseTrackingCli(args: readonly string[]): TrackingCli | null {
+export function parseTrackingCliWith(
+  args: readonly string[],
+  required: readonly string[],
+): (TrackingCli & { extra: Record<string, string> }) | null {
   let values: Record<string, string>;
   try {
     values = parseArgs([...args]);
   } catch {
     return null;
   }
-  if (Object.keys(values).some((name) => !CLI_NAMES.has(name))) return null;
+  const names = new Set([...CLI_NAMES, ...required]);
+  if (Object.keys(values).some((name) => !names.has(name))) return null;
   const { out, "comment-out": commentOut, previous } = values;
   if (!isNonBlankString(out) || !isNonBlankString(commentOut)) return null;
   if (previous !== undefined && !isNonBlankString(previous)) return null;
-  return { out, commentOut, previous };
+  const extra: Record<string, string> = {};
+  for (const name of required) {
+    const value = values[name];
+    if (!isNonBlankString(value)) return null;
+    extra[name] = value;
+  }
+  return { out, commentOut, previous, extra };
+}
+
+/** 点検のスクリプトに共通の引数だけを読む。扱いは parseTrackingCliWith と同じである。 */
+export function parseTrackingCli(args: readonly string[]): TrackingCli | null {
+  const cli = parseTrackingCliWith(args, []);
+  return cli === null ? null : { out: cli.out, commentOut: cli.commentOut, previous: cli.previous };
 }

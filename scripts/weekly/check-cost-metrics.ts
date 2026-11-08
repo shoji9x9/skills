@@ -12,7 +12,7 @@
 // - git の履歴が浅い
 // - git や API が失敗する、または API の一覧が上限（1000 件）を超えて取りこぼす
 //
-// 使い方: node scripts/tools/check-cost-metrics.ts --out <本文のパス> --comment-out <コメントのパス> [--previous <前回の本文のパス>]
+// 使い方: node scripts/weekly/check-cost-metrics.ts --out <本文のパス> --comment-out <コメントのパス> [--previous <前回の本文のパス>]
 // 標準出力の最後の行に `due=<件数>` を出す。件数が 0 のときも本文とコメントのファイルは書く。
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -532,16 +532,14 @@ export function formatBody(result: Result, previous: readonly string[] = []): st
   const { kept, resolved } = diffFindings(findings, previous);
   const lines = [
     "チェックと CI の費用の指標から挙げた、直す候補の一覧です。廃止するか直すかは人が決めます。",
-    "この Issue は `Check cost metrics` ワークフローが作成・更新・クローズします。対象と閾値は `scripts/tools/check-cost-metrics.json` にあります。",
+    "この Issue は `Check cost metrics` ワークフローが作成・更新・クローズします。対象と閾値は `scripts/weekly/check-cost-metrics.json` にあります。",
     "",
     `直す候補: ${findings.length} 件`,
     "",
     ...findingTable(findings, new Set(kept)),
     ...durationTable(rows, config.durations.days),
   ];
-  if (resolved.length > 0) lines.push(`前回から解消したもの: ${resolved.join("、")}`, "");
-  lines.push(tracking.markerLine(findings));
-  return `${lines.join("\n")}\n`;
+  return tracking.finish(lines, findings, resolved);
 }
 
 export function formatComment(findings: readonly Finding[], previous: readonly string[]): string {
@@ -588,7 +586,7 @@ export async function main(
   const cli = parseTrackingCli(args);
   if (cli === null) {
     console.error(
-      "使い方: node scripts/tools/check-cost-metrics.ts --out <本文のパス> --comment-out <コメントのパス> [--previous <前回の本文のパス>]",
+      "使い方: node scripts/weekly/check-cost-metrics.ts --out <本文のパス> --comment-out <コメントのパス> [--previous <前回の本文のパス>]",
     );
     return 2;
   }

@@ -12,7 +12,7 @@
 // pnpm が読んだ無視の一覧と、pnpm-workspace.yaml に書いた一覧が食い違う（設定のキーや形が変わり、一覧が空として読まれた場合など）。
 // 許可する依存元の一覧（ignored-advisories-dependents.json）と無視の一覧が食い違う。外部コマンドや API が失敗するか、想定外の形を返す。
 //
-// 使い方: node scripts/tools/ignored-advisories.ts --out <本文のパス> --comment-out <コメントのパス> [--previous <前回の本文のパス>]
+// 使い方: node scripts/weekly/ignored-advisories.ts --out <本文のパス> --comment-out <コメントのパス> [--previous <前回の本文のパス>]
 // 標準出力の最後の行に `due=<件数>` を出す。件数が 0 のときも本文とコメントのファイルは書く。
 // 前回の本文を渡すと、前回との差分（新規・継続・解消）を本文とコメントに書く（#508 の追跡 Issue の更新規則）。
 import { execFileSync } from "node:child_process";
@@ -384,7 +384,7 @@ export function main(
   const options = parseTrackingCli(args);
   if (options === null) {
     console.error(
-      "使い方: node scripts/tools/ignored-advisories.ts --out <本文のパス> --comment-out <コメントのパス> [--previous <前回の本文のパス>]",
+      "使い方: node scripts/weekly/ignored-advisories.ts --out <本文のパス> --comment-out <コメントのパス> [--previous <前回の本文のパス>]",
     );
     return 2;
   }

@@ -1,0 +1,342 @@
+name: Self review
+
+# 決定論的なチェックでは判定できないもの（不要物・文書の食い違い・やりすぎな記述とチェックなど）を、LLM で毎週点検し、
+# 指摘を追跡 Issue に載せる（Issue #940。親は #508）。直すか、決定論的なチェックに移すかは人が決める。
+# 点検の手順は docs/self-review-procedure.md に、運用（資格情報・一時停止・Issue の読み方）は docs/self-review.md にある。
+on:
+  schedule:
+    # 毎週木曜 03:00 UTC (12:00 JST)。費用の指標（check-cost-metrics.yml、水曜）の追跡 Issue を入力に使うので、その後に置く。
+    # どれかの cron を変えるときは、ほかの週次（outdated.yml・kaizen-schedule.yml・mutation-proof.yml・codeql.yml・ignored-advisories.yml・check-cost-metrics.yml）と重ならないかを確かめる。
+    - cron: "0 3 * * 4"
+  workflow_dispatch: {}
+
+# 前の実行を止めない。tracking-issue が Issue の更新（edit・comment・close）の途中で止まると、食い違った状態が残る。
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  REPORT_FILE: self-review-report.json
+  INPUT_DIR: self-review-input
+
+# ジョブは kaizen-schedule.yml と同じく 2 つに分ける。エージェント（claude の Write）は作業ツリーのファイルを書き換えられるので、
+# 同じジョブの後の段は、エージェントが書いたスクリプトを Issue の書き込みの権限で実行してしまう。
+# エージェントを動かす review には読む権限だけを与え、追跡 Issue を書く tracking-issue は、checkout し直した作業ツリーのスクリプトと、
+# artifact で受け取った結果（データとして読むだけ）だけを使う。
+jobs:
+  review:
+    name: Review repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      # 入力にする費用の指標の追跡 Issue を読む。claude-code-action には同じ token を渡すので、エージェントの段も Issue を読めるが、書き込みはできない。
+      issues: read
+    # tracking-issue が読む値。outcome 以外は、エージェントを動かす前に終わった段の出力から取る。
+    # outcome は runner が記録するステップの結果で、エージェントは書き換えられない。
+    outputs:
+      skip: ${{ steps.pause.outputs.skip }}
+      cred_present: ${{ steps.cred.outputs.present }}
+      canary: ${{ steps.canary.outputs.path }}
+      outcome: ${{ steps.run-claude.outcome }}
+      # 再実行したときに、前の試行が上げた結果を今回の分として download しないよう、試行の番号を名前に含める。
+      report_artifact: self-review-report-${{ github.run_attempt }}
+    steps:
+      - name: Check pause switch
+        id: pause
+        env:
+          SELF_REVIEW_SKIP: ${{ vars.SELF_REVIEW_SKIP }}
+        run: |
+          skip=false
+          case "$(printf '%s' "${SELF_REVIEW_SKIP:-}" | tr '[:upper:]' '[:lower:]')" in
+            on | true | yes | 1) skip=true ;;
+          esac
+          echo "skip=$skip" >>"$GITHUB_OUTPUT"
+          if [ "$skip" = true ]; then
+            echo "リポジトリ変数 SELF_REVIEW_SKIP で一時停止している" >>"$GITHUB_STEP_SUMMARY"
+          fi
+
+      # 手順が commit message を根拠に使うので、履歴をすべて取得する（件名の一覧は、点検の前の段が入力に書き出す）。
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.pause.outputs.skip != 'true'
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check agent credential
+        id: cred
+        if: steps.pause.outputs.skip != 'true'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
+            echo "present=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "present=false" >>"$GITHUB_OUTPUT"
+            echo "secret CLAUDE_CODE_OAUTH_TOKEN が未設定" >&2
+          fi
+
+      # 費用の指標の追跡 Issue の本文を、エージェントの入力に置く。無ければ置かない（手順が入力なしで点検する）。
+      # 同じタイトルの Issue は誰でも開けるので、check-cost-metrics.yml（github-actions[bot]）が作った Issue のときだけ使う。
+      # 人が作った本文に指示を仕込まれると、エージェントがそれに従い、資格情報を結果に書くおそれがある。
+      - name: Fetch cost metrics
+        if: steps.cred.outputs.present == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_TITLE_PREFIX: "Check cost metrics to review"
+          TRACKING_LIB: skills/kaizen/scripts/tracking-issue-lib.sh
+        run: |
+          # shellcheck source=/dev/null
+          . "$TRACKING_LIB"
+          resolve_tracking_issues
+          mkdir -p "$INPUT_DIR"
+          if [ "${#numbers[@]}" -gt 0 ]; then
+            # check-cost-metrics.yml と同じく、番号の最も小さい 1 件を正とする（ほかは更新されない）。
+            gh issue view "${numbers[0]}" --json author,body >"$RUNNER_TEMP/cost-metrics.json"
+            author="$(jq -r .author.login "$RUNNER_TEMP/cost-metrics.json")"
+            if [ "$author" = "app/github-actions" ]; then
+              jq -r .body "$RUNNER_TEMP/cost-metrics.json" >"$INPUT_DIR/cost-metrics.md"
+            else
+              echo "#${numbers[0]} は github-actions[bot] が作った Issue でない（作成者: $author）。入力なしで点検する"
+            fi
+          else
+            echo "費用の指標の追跡 Issue が無い。入力なしで点検する"
+          fi
+
+      # 点検が動いていない状態を「指摘 0 件」と区別するため、既知の食い違いを持つファイルを置く。
+      # どこからも参照されず、存在しないスクリプトの名前を書いた文書である。名前は実行ごとに変える。
+      # 起動に失敗した・何も読まずに終えた実行を捕まえるためのもので、エージェントから隠さない（docs/self-review.md）。
+      # スクリプトの名前には文書の名前（拡張子を除く）を含める。self-review-issue.ts は、この名前を対象にした指摘を canary への指摘として除く。
+      # 結果にこのファイルへの指摘が無ければ、tracking-issue が点検の失敗として扱う。
+      - name: Plant canary
+        id: canary
+        if: steps.cred.outputs.present == 'true'
+        run: |
+          id="$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')"
+          path="docs/release-notes-$id.md"
+          {
+            echo "# リリースノートの確かめ方"
+            echo
+            echo "リリースの前に \`node scripts/tools/verify-release-notes-$id.ts\` を実行し、リリースノートの書式を確かめる。"
+          } >"$path"
+          echo "path=$path" >>"$GITHUB_OUTPUT"
+
+      # エージェントには git を許さない。手順が使う履歴の件名とファイルの一覧は、ここで入力に書き出す。
+      - name: Write git inputs
+        if: steps.cred.outputs.present == 'true'
+        env:
+          CANARY: ${{ steps.canary.outputs.path }}
+        run: |
+          mkdir -p "$INPUT_DIR"
+          # canary も点検の対象なので、一覧に足す（手順は一覧を対象の原本として読む）。
+          { git ls-files; echo "$CANARY"; } | sort >"$INPUT_DIR/files.txt"
+          # main は PR をマージの commit で取り込むので、first-parent の件名は「Merge pull request」が多い。マージを除いた commit の件名を書く。
+          git log --no-merges --date=short --format='%h %ad %s' -n 3000 >"$INPUT_DIR/commits.txt"
+          wc -l "$INPUT_DIR"/*.txt
+
+      - name: Run Claude Code
+        id: run-claude
+        if: steps.cred.outputs.present == 'true'
+        continue-on-error: true
+        # ジョブの上限（60 分）より先に止め、時間切れを outcome の failure として tracking-issue に渡す。
+        timeout-minutes: 50
+        uses: anthropics/claude-code-action@d70510b174a1244958df0b03166a54912811f3e6 # v1.0.264
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          prompt: |
+            docs/self-review-procedure.md を読み、その手順に従って点検し、結果をリポジトリのルートの ${{ env.REPORT_FILE }} に書いてください。
+          # ツールは、リポジトリの中を読むことと、結果のファイルを書くことだけに限る。リポジトリの外（/proc や ~/.claude）を読めると、
+          # 仕込まれた指示に従って資格情報を結果に書くおそれがある。ほかのファイルに書けると、git の設定を書き換えて、
+          # checkout の post 段の git にコマンドを実行させるおそれがある。Edit の規則は Write にも当たる（手元の claude -p で確かめた）。
+          # --allowed-tools は許可の一覧なので、使わせないツールは --disallowed-tools で明示して拒否する。
+          claude_args: >-
+            --allowed-tools "Read(./**),Grep(./**),Glob(./**),Edit(./${{ env.REPORT_FILE }})"
+            --disallowed-tools "Bash,WebFetch,WebSearch,NotebookEdit"
+
+      - name: Upload report
+        if: steps.cred.outputs.present == 'true' && steps.run-claude.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: self-review-report-${{ github.run_attempt }}
+          path: ${{ env.REPORT_FILE }}
+          if-no-files-found: error
+          retention-days: 7
+
+  tracking-issue:
+    name: Update self review tracking issue
+    needs: review
+    if: ${{ !cancelled() && needs.review.outputs.skip != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    env:
+      # 追跡 Issue のタイトルは「接頭辞 + 確認した日」。実行のたびにリネームし、open な 1 本は最後に確認した日を示す。
+      ISSUE_TITLE_PREFIX: "Self review findings"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # 本文を作るスクリプトを動かすのは、結果を受け取れた週だけなので、node と依存もその週だけ入れる。
+      # 準備が失敗しても、次の段で理由を Issue に書けるよう、ここではジョブを止めない。
+      - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        id: mise
+        if: needs.review.outputs.outcome == 'success'
+        continue-on-error: true
+      # スクリプトが外部のパッケージを import したときにワークフローだけが失敗しないよう、依存を入れておく。
+      - name: Install dependencies
+        id: deps
+        if: needs.review.outputs.outcome == 'success' && steps.mise.outcome == 'success'
+        continue-on-error: true
+        run: pnpm install --frozen-lockfile
+
+      - name: Download report
+        id: download
+        if: needs.review.outputs.outcome == 'success'
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ needs.review.outputs.report_artifact }}
+          path: ${{ runner.temp }}/self-review
+
+      # 結果に資格情報の値があれば、Issue に載せない。資格情報は、この段だけに渡す。
+      - name: Check report for credentials
+        id: leak
+        if: steps.download.outcome == 'success'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          REPORT: ${{ runner.temp }}/self-review/${{ env.REPORT_FILE }}
+        run: |
+          # grep の終了コードは、0 が見つかった、1 が無い、それ以外が読めない。読めないときは、見つかったときと同じく載せない。
+          leak=true
+          if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
+            rc=0
+            grep -q -F -e "$CLAUDE_CODE_OAUTH_TOKEN" "$REPORT" || rc=$?
+            if [ "$rc" -eq 1 ]; then
+              leak=false
+            fi
+          fi
+          echo "leak=$leak" >>"$GITHUB_OUTPUT"
+
+      # 作成・更新・クローズを 1 ステップに置く。照会は outdated.yml と同じ同梱スクリプトを使う。
+      # 点検できなかったとき（資格情報が未設定・エージェントの失敗・結果を読めない・canary への指摘が無い）は、
+      # 「指摘 0 件」として閉じず、理由を追跡 Issue に書いてからジョブを失敗させる。
+      - name: Update tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRACKING_LIB: skills/kaizen/scripts/tracking-issue-lib.sh
+          CRED_PRESENT: ${{ needs.review.outputs.cred_present }}
+          OUTCOME: ${{ needs.review.outputs.outcome }}
+          DOWNLOAD_OUTCOME: ${{ steps.download.outcome }}
+          DEPS_OUTCOME: ${{ steps.deps.outcome }}
+          LEAK: ${{ steps.leak.outputs.leak }}
+          CANARY: ${{ needs.review.outputs.canary }}
+          REPORT: ${{ runner.temp }}/self-review/${{ env.REPORT_FILE }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -o pipefail
+          title="$ISSUE_TITLE_PREFIX ($(date -u +%F))"
+          # shellcheck source=/dev/null
+          . "$TRACKING_LIB"
+          resolve_tracking_issues
+          number="${numbers[0]-}"
+          if [ "${#numbers[@]}" -gt 1 ]; then
+            echo "追跡 Issue が ${#numbers[@]} 件ある（番号: ${numbers[*]}）" >&2
+          fi
+
+          body="$RUNNER_TEMP/issue-body.md"
+          comment="$RUNNER_TEMP/issue-comment.md"
+          failure=""
+          detail=""
+          if [ -z "$CRED_PRESENT" ]; then
+            failure="エージェントを起動する前に review ジョブが失敗した"
+          elif [ "$CRED_PRESENT" != true ]; then
+            failure="secret CLAUDE_CODE_OAUTH_TOKEN が未設定のため、点検していない"
+          elif [ -z "$OUTCOME" ] || [ "$OUTCOME" = skipped ]; then
+            failure="エージェントを起動する前の段が失敗した（どの段かは run のログで確かめる）"
+          elif [ "$OUTCOME" != success ]; then
+            failure="エージェントの実行が失敗した（outcome: ${OUTCOME:-unknown}）"
+          elif [ "$DOWNLOAD_OUTCOME" != success ]; then
+            failure="エージェントの結果を受け取れなかった（download の outcome: ${DOWNLOAD_OUTCOME:-unknown}）"
+          elif [ "$LEAK" != false ]; then
+            failure="結果に資格情報の値があったので、Issue に載せない（結果を確かめられなかったときも同じ扱いにする）"
+          elif [ "$DEPS_OUTCOME" != success ]; then
+            failure="本文を作るスクリプトの準備（mise・pnpm install）が失敗した"
+          else
+            previous_args=()
+            if [ -n "$number" ]; then
+              if gh issue view "$number" --json body --jq .body >"$RUNNER_TEMP/previous-body.md"; then
+                previous_args=(--previous "$RUNNER_TEMP/previous-body.md")
+              else
+                failure="前回の本文を取得できなかった（#$number）"
+              fi
+            fi
+            if [ -z "$failure" ]; then
+              if ! node scripts/weekly/self-review-issue.ts --report "$REPORT" --canary "$CANARY" \
+                --out "$body" --comment-out "$comment" "${previous_args[@]}" \
+                >"$RUNNER_TEMP/issue.log" 2>&1; then
+                failure="結果を Issue にできなかった"
+                detail="$RUNNER_TEMP/issue.log"
+              fi
+              cat "$RUNNER_TEMP/issue.log"
+            fi
+          fi
+
+          if [ -n "$failure" ]; then
+            echo "$failure" >&2
+            printf '点検できませんでした。指摘 0 件ではありません。\n\n理由: %s\n' "$failure" >"$comment"
+            if [ -n "$detail" ]; then
+              # ログはエージェントが書いた値を含むので、メンションやタグとして読まれないようコードブロックに入れる。
+              fence="$(printf '\140\140\140')"
+              printf '\n%stext\n%s\n%s\n' "$fence" "$(tail -n 3 "$detail" | tr -d '\140' | cut -c 1-500)" "$fence" >>"$comment"
+            fi
+            printf '\n[run](%s)\n' "$RUN_URL" >>"$comment"
+            if [ -n "$number" ]; then
+              gh issue comment "$number" --body-file "$comment"
+            else
+              gh issue create --title "$title" --body-file "$comment"
+            fi
+            exit 1
+          fi
+
+          due="$(sed -n 's/^due=//p' "$RUNNER_TEMP/issue.log" | tail -n 1)"
+          case "$due" in
+          '' | *[!0-9]*)
+            echo "due の件数を読めない: \"$due\"。追跡 Issue を触らずに失敗させる" >&2
+            exit 1
+            ;;
+          esac
+          cat "$body" "$comment"
+          printf '\n[run](%s)\n' "$RUN_URL" >>"$comment"
+
+          if [ "$due" -eq 0 ]; then
+            if [ "${#numbers[@]}" -gt 0 ]; then
+              warn_if_truncated "窓の外に閉じ残した追跡 Issue がある可能性がある"
+              closing="指摘はありません。自動でクローズします。"
+              printf '\n%s\n' "$closing" >>"$comment"
+              gh issue comment "$number" --body-file "$comment"
+              gh issue close "$number"
+              for n in "${numbers[@]:1}"; do
+                gh issue close "$n" --comment "$closing"
+              done
+            else
+              echo "指摘は無く、追跡 Issue も無いので何もしない"
+            fi
+          elif [ -n "$number" ]; then
+            warn_if_truncated "本物の追跡 Issue が窓の外にあり、別の Issue を更新している可能性がある"
+            gh issue edit "$number" --title "$title" --body-file "$body"
+            gh issue comment "$number" --body-file "$comment"
+          else
+            warn_if_truncated "既存の追跡 Issue を取りこぼして重複を作った可能性がある"
+            gh issue create --title "$title" --body-file "$body"
+          fi

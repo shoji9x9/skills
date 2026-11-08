@@ -2,11 +2,11 @@ name: Check cost metrics
 
 # チェックと CI の費用の指標（空の免除・保留の一覧、修正の PR が多いチェック、ジョブの所要時間）を毎週集め、
 # 直す候補を追跡 Issue に載せる。廃止するか直すかは人が決める。
-# 集計は scripts/tools/check-cost-metrics.ts にあり、対象と閾値は scripts/tools/check-cost-metrics.json にある。
+# 集計は scripts/weekly/check-cost-metrics.ts にあり、対象と閾値は scripts/weekly/check-cost-metrics.json にある。
 on:
   schedule:
     # 毎週水曜 03:00 UTC (12:00 JST)。
-    # どれかの cron を変えるときは、ほかの週次（outdated.yml・kaizen-schedule.yml・mutation-proof.yml・codeql.yml・ignored-advisories.yml）と重ならないかを確かめる。
+    # どれかの cron を変えるときは、ほかの週次（outdated.yml・kaizen-schedule.yml・mutation-proof.yml・codeql.yml・ignored-advisories.yml・self-review.yml）と重ならないかを確かめる。
     - cron: "0 3 * * 3"
   workflow_dispatch: {}
 
@@ -69,7 +69,7 @@ jobs:
             gh issue view "$number" --json body --jq .body >"$RUNNER_TEMP/previous-body.md"
             previous_args=(--previous "$RUNNER_TEMP/previous-body.md")
           fi
-          node scripts/tools/check-cost-metrics.ts --out "$body" --comment-out "$comment" "${previous_args[@]}" |
+          node scripts/weekly/check-cost-metrics.ts --out "$body" --comment-out "$comment" "${previous_args[@]}" |
             tee "$RUNNER_TEMP/collect.log"
           due="$(sed -n 's/^due=//p' "$RUNNER_TEMP/collect.log" | tail -n 1)"
           case "$due" in
