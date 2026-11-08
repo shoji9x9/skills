@@ -1,0 +1,72 @@
+{
+  "$comment": [
+    "security-audit-issue.test.ts の検出能力を示す変異の一覧（Issue #941）。誤ると、公開の追跡 Issue に脆弱性の詳細を載せるか、終わっていない監査を結果として扱う判定だけを置く。"
+  ],
+  "test_file": "scripts/weekly/security-audit-issue.test.ts",
+  "mutations": [
+    {
+      "id": "unfinished-run-accepted",
+      "why": "run_status が in_progress（途中で止まった監査）を結果として扱い、記録の無い範囲を「指摘 0 件」として追跡 Issue を閉じる",
+      "file": "scripts/weekly/security-audit-issue.ts",
+      "find": "if (!oneOf(RUN_STATUSES, status)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "run-metadata.json in_progress は例外にする",
+        "run-metadata.json run_status が無い は例外にする"
+      ]
+    },
+    {
+      "id": "reason-text-published",
+      "why": "エージェントが未完了の理由に書いた文（脆弱性の場所を含みうる）を、そのまま公開の追跡 Issue に載せる",
+      "file": "scripts/weekly/security-audit-issue.ts",
+      "find": "typeof reason === \"string\" && REASON_FORM.test(reason) ? reason : \"unrecognized\"",
+      "replace": "typeof reason === \"string\" ? reason : \"unrecognized\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "run-metadata.json incomplete で文の理由 なら unrecognized にする",
+        "要約を読む 理由が形と合わない は例外にする"
+      ]
+    },
+    {
+      "id": "duplicate-fingerprint-allowed",
+      "why": "同じ fingerprint の記録を 2 件とも通し、同じ識別子が本文に 2 回載って前回との差分が誤る",
+      "file": "scripts/weekly/security-audit-issue.ts",
+      "find": "if (seen.has(fingerprint)) throw",
+      "replace": "if (false) throw",
+      "occurrences": 1,
+      "expect_failing": ["findings.json fingerprint が重複 は例外にする"]
+    },
+    {
+      "id": "empty-key-allowed",
+      "why": "鍵が空のまま識別子を作り、fingerprint を推測した人がハッシュの一致で指摘の中身を確かめられる",
+      "file": "scripts/weekly/security-audit-issue.ts",
+      "find": "if (key === \"\") throw",
+      "replace": "if (false) throw",
+      "occurrences": 1,
+      "expect_failing": ["summarize 鍵が空 は例外にする", "CLI 鍵が無ければ summarize は 1"]
+    },
+    {
+      "id": "summary-id-form-unchecked",
+      "why": "別のジョブから受け取った要約の識別子を形を確かめずに載せ、メンションや任意の文を公開の追跡 Issue に書く",
+      "file": "scripts/weekly/security-audit-issue.ts",
+      "find": "if (typeof id !== \"string\" || !ID_FORM.test(id)) throw",
+      "replace": "if (typeof id !== \"string\") throw",
+      "occurrences": 1,
+      "expect_failing": ["要約を読む 識別子の形が違う は例外にする"]
+    },
+    {
+      "id": "rejected-counted-as-due",
+      "why": "否定できた候補（rejected）も対応が要る記録に数え、追跡 Issue が閉じなくなる",
+      "file": "scripts/weekly/security-audit-issue.ts",
+      "find": "const isDue = (item: Item): boolean => item.verdict !== \"rejected\";",
+      "replace": "const isDue = (item: Item): boolean => true;",
+      "occurrences": 1,
+      "expect_failing": [
+        "本文とコメント 件数を判定ごとに出し、rejected は識別子の表と目印に載せない",
+        "本文とコメント 前回からの継続と解消を書く",
+        "CLI summarize で要約を書き、issue で本文とコメントを書いて due を出す"
+      ]
+    }
+  ]
+}
