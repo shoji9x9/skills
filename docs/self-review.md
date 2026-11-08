@@ -67,6 +67,14 @@ gh variable delete SELF_REVIEW_SKIP
   - 結果に資格情報（secret の値か、`sk-ant-` で始まる文字列）がある。この週の結果は Issue に載せない
   - 既知の食い違いへの指摘が無い
 
+点検できなかった原因は、エージェントの実行記録（全メッセージとツールの結果）で確かめる。
+エージェントが動いた実行では、`review` が実行記録を artifact `self-review-execution-<試行の番号>` に 7 日間残す。
+公開リポジトリの artifact はログインした人が読めるので、資格情報の値と `sk-ant-` で始まる文字列を `[REDACTED]` に伏せてから残す。伏せた後にも残っていれば、実行記録は残さない。
+
+```bash
+gh run download <run の ID> --name self-review-execution-1 --dir <保存先>
+```
+
 ## 追跡 Issue の読み方
 
 本文の表は、項目・対象のファイル・内容・根拠・直し方の案・前回からの状態（新規・継続）を並べる。

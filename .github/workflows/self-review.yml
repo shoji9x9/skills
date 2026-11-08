@@ -195,6 +195,51 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      # 結果を書かずに終わった実行などの原因を追えるよう、エージェントの実行記録（全メッセージとツールの結果）を残す。
+      # 公開リポジトリの artifact はログインした人が読めるので、資格情報の値と sk-ant- で始まる文字列を伏せてから残し、
+      # 伏せた後にも残っていれば（伏せる処理が失敗したときを含む）残さない。show_full_output はログに全文を出すので使わない。
+      - name: Redact execution log
+        id: execlog
+        if: steps.run-claude.outcome == 'success' || steps.run-claude.outcome == 'failure'
+        continue-on-error: true
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          EXECUTION_FILE: ${{ steps.run-claude.outputs.execution_file }}
+        run: |
+          if [ -z "$EXECUTION_FILE" ] || [ ! -f "$EXECUTION_FILE" ]; then
+            echo "実行記録が無い（execution_file: ${EXECUTION_FILE:-なし}）" >&2
+            exit 1
+          fi
+          out="$RUNNER_TEMP/self-review-execution.json"
+          perl -pe 's/\Q$ENV{CLAUDE_CODE_OAUTH_TOKEN}\E/[REDACTED]/g if length $ENV{CLAUDE_CODE_OAUTH_TOKEN}; s/sk-ant-[A-Za-z0-9_-]{8,}/[REDACTED]/g' \
+            "$EXECUTION_FILE" >"$out"
+          # grep の終了コードは、0 が見つかった、1 が無い、それ以外が読めない。1 のときだけ残す。
+          rc=0
+          grep -q -E 'sk-ant-[A-Za-z0-9_-]{8,}' "$out" || rc=$?
+          if [ "$rc" -ne 1 ]; then
+            echo "伏せた後の実行記録に資格情報の形が残る（grep の終了コード: $rc）。残さない" >&2
+            exit 1
+          fi
+          if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
+            rc=0
+            grep -q -F -e "$CLAUDE_CODE_OAUTH_TOKEN" "$out" || rc=$?
+            if [ "$rc" -ne 1 ]; then
+              echo "伏せた後の実行記録に資格情報の値が残る（grep の終了コード: $rc）。残さない" >&2
+              exit 1
+            fi
+          fi
+          echo "path=$out" >>"$GITHUB_OUTPUT"
+
+      - name: Upload execution log
+        if: steps.execlog.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: self-review-execution-${{ github.run_attempt }}
+          path: ${{ steps.execlog.outputs.path }}
+          if-no-files-found: error
+          retention-days: 7
+
   tracking-issue:
     name: Update self review tracking issue
     needs: review
