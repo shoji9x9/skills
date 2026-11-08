@@ -6,12 +6,32 @@
 
 ## 起票の前に確かめる
 
-- `--parent` の値から、親の番号を決める。数字（先頭の `#` は除く）ならそれを使う。
-  Issue の URL なら、URL の持ち主とリポジトリが対象のリポジトリと同じ（大文字と小文字は区別しない）ときだけ、末尾の番号を使う。
-  ほかの形（別のリポジトリの URL・PR の URL など）は、下書きを作る前に止めて利用者に確かめる。
-  `gh issue view` は別のリポジトリの URL を渡すと `--repo` を無視してそのリポジトリから取得するので、値をそのまま渡さない（実測）。
-- 決めた番号で、親を対象のリポジトリから取得する（`gh api repos/<owner>/<repo>/issues/<番号> --jq '{number, title, state, pr: (.pull_request != null)}'`）。
-  取得できないときと、`pr` が `true`（番号が PR を指す）のときは、下書きを作る前に止めて利用者に確かめる。この API は PR も Issue として返す。
+- `--parent` には、対象のリポジトリの Issue の番号を渡す（先頭の `#` は付けてよい）。URL は受け付けない。
+  `gh issue view` は別のリポジトリの URL を渡すと `--repo` を無視してそのリポジトリから取得するので、URL を受け付けると別の Issue を親にしうる（実測）。
+- 次の `resolve_parent` で、親を対象のリポジトリから取得する。
+  番号でない値、取得できない番号、別のリポジトリの Issue（移管された Issue はリダイレクトの先を返す）、PR の番号は、下書きを作る前に止めて利用者に確かめる。
+  API は PR も Issue として返し、`0120` のように先頭に 0 の付いた番号も受け付ける（実測）。
+  そのため、以降の手順には、指定された文字列ではなく、関数が出力した番号（API が返した `number`）を渡す。
+
+  ```bash
+  resolve_parent() {  # $1: --parent の値。成功したら「番号<TAB>状態<TAB>タイトル」を出力する
+    local repo='<owner>/<repo>' n got err want_repo grepo gnum gpr gstate gtitle
+    n=${1#\#}
+    case $n in '' | *[!0-9]*) echo "--parent は Issue の番号で渡す: $1" >&2; return 1 ;; esac
+    want_repo=$(printf '%s' "$repo" | tr '[:upper:]' '[:lower:]')
+    err=$(mktemp)
+    if ! got=$(gh api "repos/$repo/issues/$n" \
+      --jq '[(.repository_url | split("/") | .[-2:] | join("/") | ascii_downcase), (.number | tostring), (.pull_request != null | tostring), .state, .title] | @tsv' 2>"$err"); then
+      echo "#$n: 親を取得できない: $(cat "$err")" >&2; rm -f "$err"; return 1
+    fi
+    rm -f "$err"
+    IFS=$'\t' read -r grepo gnum gpr gstate gtitle <<<"$got"
+    if [ "$grepo" != "$want_repo" ]; then echo "#$n: 別のリポジトリの Issue $grepo#$gnum を返した" >&2; return 1; fi
+    if [ "$gpr" != false ]; then echo "#$gnum は PR なので親にしない" >&2; return 1; fi
+    printf '%s\t%s\t%s\n' "$gnum" "$gstate" "$gtitle"
+  }
+  ```
+
 - 下書きを確かめるときに、「#<親の番号>（<親のタイトル>）の sub-issue にする」ことも見せる。
   親が closed なら、そのことも添えて、紐付けてよいかを同じ確認で確かめる。
 

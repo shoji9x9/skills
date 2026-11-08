@@ -19,7 +19,7 @@ issue-create <説明> [--repo <owner>/<repo>] [--parent <番号>]
 
 - `<説明>`: Issue にしたい短い説明（バグ報告・機能要望・タスクなど）。
 - `--repo <owner>/<repo>`: 対象のリポジトリ。省略したら現在の repo を対象にする。
-- `--parent <番号>`: 作った Issue を、対象のリポジトリの既存の Issue の sub-issue にする。分けたときは全件を同じ親に紐付ける。手順は [`references/parent.md`](references/parent.md) で定義する。
+- `--parent <番号>`: 作った Issue を、対象のリポジトリの既存の Issue の sub-issue にする。値は Issue の番号で、URL は受け付けない。分けたときは全件を同じ親に紐付ける。手順は [`references/parent.md`](references/parent.md) で定義する。
 
 例: `issue-create ログイン画面が SSO で落ちる` / `issue-create ダークモードを追加したい` / `issue-create README のインストール手順が古い --repo <owner>/<repo>`
 
