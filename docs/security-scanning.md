@@ -94,7 +94,8 @@ GitHub-hosted runner には、上流のスキルが対象のコードを実行�
 ### 記録の引き継ぎと公開する範囲
 
 公開リポジトリの artifact はログインした誰でも取得できるので、監査の出力とエージェントの実行記録は、`SECURITY_AUDIT_STATE_KEY` で暗号化してから artifact に置く。
-`self` の監査で記録の形を確かめられたら、`security-audit-state`（90 日保持）に置き、次の実行がそれを復号して前回の記録として引き継ぐ。
+`self` の監査で記録の形を確かめられたら、`security-audit-state-<鍵の識別子>`（90 日保持）に置き、次の実行がそれを復号して前回の記録として引き継ぐ。
+鍵の識別子は、鍵から作った HMAC の先頭 12 桁で、鍵には戻せない。
 引き継ぐのは、今回を含む直近の 3 回分の出力である。今回が未完了でも、その前の完了した実行の記録が残る。
 失敗した実行と `dvna` の監査の記録は、`security-audit-run-<対象>-<試行>`（14 日保持）に置き、引き継がない。
 
@@ -109,29 +110,10 @@ run の artifact を取得し、鍵で復号する。出力のディレクトリ
 追跡 Issue の識別子と記録を対応づけるときは、`findings.json` の各 fingerprint から `scripts/weekly/security-audit-issue.ts` の `itemId` で識別子を作って照らし合わせる。
 
 ```bash
-gh run download <run の ID> --repo shoji9x9/skills --name security-audit-state --dir audit
-gpg --batch --pinentry-mode loopback --passphrase-file security-audit-key.txt --decrypt audit/state.tar.gpg | tar -xf - -C audit
+gh run download <run の ID> --repo shoji9x9/skills --pattern 'security-audit-*' --dir audit
+# artifact ごとのディレクトリ（audit/<artifact の名前>/state.tar.gpg）ができる
+gpg --batch --pinentry-mode loopback --passphrase-file security-audit-key.txt --decrypt audit/<artifact の名前>/state.tar.gpg | tar -xf - -C audit
 ```
 
-鍵を替えたときは、前回の記録を復号できずに監査が止まる。鍵はブランチによらず 1 つなので、すべてのブランチの `security-audit-state` の artifact を消してから実行すると、初回として監査する。
-最新の 1 件だけを消すと、1 つ前の古い鍵の記録を選んで、また止まる。
+鍵を替えると、引き継ぐ記録の artifact の名前（鍵の識別子）も変わるので、次の実行は古い鍵の記録を選ばずに初回として監査する。古い記録は、保持の期間が過ぎると消える。
 識別子も鍵から作るので、鍵を替えた次の実行は、追跡 Issue の記録をすべて「新規」、前回の記録をすべて「解消」と書く。直ったという意味ではないので、その回の差分は読み飛ばす。
-
-消す前に、期限の切れていない対象の ID・ブランチ・作成日時・上げたワークフローを一覧にして、件数と中身を確かめる。
-一覧を先にファイルに書くのは、消しながらページを取得すると、後のページの項目が前に詰まって消し残しが出るためである。
-
-```bash
-gh api --paginate "repos/shoji9x9/skills/actions/artifacts?name=security-audit-state&per_page=100" \
-  --jq '.artifacts[] | select(.expired | not) | [.id, .workflow_run.head_branch, .created_at, .workflow_run.id] | @tsv' |
-  while IFS=$'\t' read -r id branch created run; do
-    printf '%s\t%s\t%s\t%s\n' "$id" "$branch" "$created" "$(gh run view "$run" --repo shoji9x9/skills --json workflowName --jq .workflowName)"
-  done >security-audit-state-artifacts.tsv
-cat security-audit-state-artifacts.tsv; wc -l <security-audit-state-artifacts.tsv
-```
-
-一覧と件数を確かめた後で、別に次を実行して消す。消すのは、4 列目のワークフローが `Security audit` の行だけである。
-
-```bash
-awk -F'\t' '$4 == "Security audit" { print $1 }' security-audit-state-artifacts.tsv |
-  xargs -I{} gh api -X DELETE "repos/shoji9x9/skills/actions/artifacts/{}"
-```

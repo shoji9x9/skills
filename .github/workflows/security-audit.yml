@@ -41,7 +41,8 @@ env:
   # 検出できるかの確認に使う、既知の脆弱性を持つ Node.js のアプリ（Damn Vulnerable NodeJS Application。MIT）。
   DVNA_REPOSITORY: appsecco/dvna
   DVNA_SHA: 9ba473add536f66ac9007966acb2a775dd31277a
-  STATE_ARTIFACT: security-audit-state
+  # 次の実行が引き継ぐ記録の artifact の名前の接頭辞。後ろに、鍵から作った識別子（Check credentials の key_id）を付ける。
+  STATE_ARTIFACT_PREFIX: security-audit-state
   STATE_WORKFLOW_PATH: .github/workflows/security-audit.yml
 
 # ジョブは self-review.yml と同じく 2 つに分ける。エージェントを動かす audit には Issue を書く権限を与えず、
@@ -98,6 +99,16 @@ jobs:
             fi
           done
           echo "present=$present" >>"$GITHUB_OUTPUT"
+          # 引き継ぐ記録の artifact の名前に、鍵から作った識別子（HMAC の先頭 12 桁。鍵は戻せない）を付ける。
+          # 鍵を替えると名前が変わるので、次の実行は古い鍵の記録を選ばず、初回として監査する（記録を手で消さなくてよい）。
+          if [ "$present" = true ]; then
+            key_id="$(printf '%s' security-audit-state | openssl dgst -sha256 -hmac "$SECURITY_AUDIT_STATE_KEY" | awk '{print $NF}' | cut -c 1-12)"
+            if ! [[ "$key_id" =~ ^[0-9a-f]{12}$ ]]; then
+              echo "鍵の識別子を作れない" >&2
+              exit 1
+            fi
+            echo "key_id=$key_id" >>"$GITHUB_OUTPUT"
+          fi
 
       # 値は claude_args と prompt に入るので、決まった形だけを受け付ける。引用符や空白を受け付けると、別の引数を足せてしまう。
       - name: Resolve settings
@@ -178,7 +189,8 @@ jobs:
 
       # 前回の記録を、同じブランチで成功した実行の artifact から取得して復号する。無ければ初回として監査する。
       # artifact はこのワークフローが鍵で暗号化して上げたものだけを使う（名前が同じでも、別のワークフローの artifact は使わない）。
-      # 復号できないときは、初回として扱わずに止める。鍵を替えたときは、すべてのブランチの security-audit-state を消してから実行する（最新だけを消すと、1 つ前の古い鍵の記録を選ぶ）。
+      # 名前に今の鍵の識別子を含む artifact だけを探すので、鍵を替えた後は古い記録を選ばずに初回として監査する。
+      # 同じ鍵で暗号化した記録を復号できないときは、記録が不正なので、初回として扱わずに止める。
       - name: Restore previous records
         id: restore
         if: steps.settings.outputs.valid == 'true'
@@ -188,6 +200,7 @@ jobs:
           TARGET: ${{ steps.settings.outputs.target }}
           RUNS_DIR: ${{ steps.settings.outputs.runs_dir }}
           BRANCH: ${{ github.ref_name }}
+          STATE_ARTIFACT: ${{ env.STATE_ARTIFACT_PREFIX }}-${{ steps.cred.outputs.key_id }}
         run: |
           set -o pipefail
           mkdir -p "$RUNS_DIR"
@@ -345,7 +358,7 @@ jobs:
         if: steps.encrypt.outcome == 'success' && steps.summarize.outcome == 'success' && steps.settings.outputs.target == 'self'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ${{ env.STATE_ARTIFACT }}
+          name: ${{ env.STATE_ARTIFACT_PREFIX }}-${{ steps.cred.outputs.key_id }}
           path: ${{ runner.temp }}/out/state.tar.gpg
           if-no-files-found: error
           retention-days: 90
@@ -380,14 +393,17 @@ jobs:
 
       # 監査できたかを、ここで 1 回だけ決める。failure は、要約を使えない理由（監査していない・終えられなかった）である。
       # state_note は、要約は使えるが今回の記録を残せなかったことを表す。tracking-issue は要約で本文を更新し、この文を足して失敗させる。
-      # 理由は、明示された値（present・valid の false、result の failed）と、段の outcome の failure だけから決める。
-      # 飛ばされた段の出力は空になるので、空から理由を推測しない。continue-on-error の無い段（checkout・mise・スキルの取得・記録の取得）が
-      # 失敗したことは、job.status で分ける。
+      # 飛ばされた段の出力は空になるので、空の値から「未設定」「不正」を推測しない。資格情報・設定・復号は、段が書いた値
+      # （present と valid の false、result の failed）でだけ判定する。
+      # エージェントと要約は、success でなければ（飛ばされたときを含めて）要約を使えないものとして扱う。upload は、実行して失敗した（failure）かだけを見る。
+      # job.status が success でなければ、continue-on-error の無い段が失敗している。その段はすべてエージェントより前にあるので、
+      # 「起動する前の段が失敗した」と書く。エージェントより後に段を足すときは、continue-on-error を付けてこの前提を保つ。
       - name: Decide result
         id: result
         if: ${{ !cancelled() && steps.pause.outputs.skip != 'true' }}
         env:
           JOB_STATUS: ${{ job.status }}
+          TARGET: ${{ steps.settings.outputs.target }}
           CRED_PRESENT: ${{ steps.cred.outputs.present }}
           SETTINGS_VALID: ${{ steps.settings.outputs.valid }}
           RESTORE_RESULT: ${{ steps.restore.outputs.result }}
@@ -401,7 +417,7 @@ jobs:
           failure=""
           state_note=""
           if [ "$RESTORE_RESULT" = failed ]; then
-            failure="前回の記録を復号できないため、監査していない（鍵を替えたときは docs/security-scanning.md の手順で security-audit-state をすべて消す）"
+            failure="前回の記録を同じ鍵で復号できないため、監査していない（記録が不正。docs/security-scanning.md の「記録の読み方」で中身を確かめる）"
           elif [ "$JOB_STATUS" != success ]; then
             failure="エージェントを起動する前の段が失敗した（どの段かは run のログで確かめる）"
           elif [ "$CRED_PRESENT" = false ]; then
@@ -417,8 +433,12 @@ jobs:
           fi
           if [ -z "$failure" ]; then
             # どの upload を実行するかは各段の if が決める。ここでは実行して失敗したかだけを見る。
-            if [ "$ENCRYPT_OUTCOME" = failure ] || [ "$STATE_OUTCOME" = failure ] || [ "$RUN_UPLOAD_OUTCOME" = failure ]; then
-              state_note="今回の記録を暗号化して残せなかった（暗号化: ${ENCRYPT_OUTCOME:-skipped}・引き継ぐ記録: ${STATE_OUTCOME:-skipped}・今回の記録: ${RUN_UPLOAD_OUTCOME:-skipped}）"
+            outcomes="暗号化: ${ENCRYPT_OUTCOME:-skipped}・引き継ぐ記録の upload: ${STATE_OUTCOME:-skipped}・今回の記録の upload: ${RUN_UPLOAD_OUTCOME:-skipped}"
+            if [ "$TARGET" = self ] && { [ "$ENCRYPT_OUTCOME" = failure ] || [ "$STATE_OUTCOME" = failure ]; }; then
+              # 引き継ぐ記録を上げられないと、次の実行は前回までの記録と比べるので、新規と解消が 2 回分の差になる。
+              state_note="次の実行に引き継ぐ記録を残せなかったので、次の実行は前回までの記録と比べる（$outcomes）"
+            elif [ "$ENCRYPT_OUTCOME" = failure ] || [ "$RUN_UPLOAD_OUTCOME" = failure ]; then
+              state_note="今回の記録を暗号化して残せなかった（$outcomes）"
             fi
             # 未完了の監査は失敗にしない（追跡 Issue に未完了として出す）。ほかのブランチと dvna の run でも分かるよう、注釈を出す。
             if [ "$(jq -r .run_status "$RUNNER_TEMP/summary.json")" = incomplete ]; then
@@ -472,8 +492,9 @@ jobs:
           name: ${{ needs.audit.outputs.summary_artifact }}
           path: ${{ runner.temp }}/security-audit
 
-      # 監査できなかったとき（資格情報か鍵が未設定・設定が不正・前回の記録を復号できない・エージェントの失敗・記録の形の誤り）は、
-      # 「指摘 0 件」として閉じず、理由を追跡 Issue に書いてからジョブを失敗させる。
+      # 監査できなかったときは、「指摘 0 件」として閉じず、理由を追跡 Issue に書いてからジョブを失敗させる。
+      # 理由は、audit ジョブの Decide result が決めたもの（資格情報か鍵が未設定・設定が不正・前回の記録を復号できない・
+      # エージェントを起動する前の段の失敗・エージェントの失敗・記録の形の誤り・要約の upload の失敗）と、このジョブで要約を読めなかったことである。
       - name: Update tracking issue
         env:
           GH_TOKEN: ${{ github.token }}
