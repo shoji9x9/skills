@@ -500,7 +500,8 @@ function assertCanvas({ W, H }) {
 }
 
 // 描画と検査が使う線。routed を渡されなければ routeEdges で計算する。
-// 渡されたら、キャンバスの大きさと、routed が spec のエッジと本数・並び（同じオブジェクト）で対応するかを確かめる。
+// 渡されたら、routeEdges と同じ形の検査（キャンバスの大きさ・重複したエッジ・斜めの線）を当て、
+// routed が spec のエッジと本数・並び（同じオブジェクト）で対応するかを確かめる。
 // routed を計算した後に spec をその場で書き換えた（ノードを動かした・waypoints を変えた）ことは、ここでは検出できない。
 // そのため、routed は spec を確定した直後に計算し、その後に spec を書き換えない呼び出し元だけが渡す。
 /**
@@ -512,11 +513,13 @@ export function routedFor(spec, routed) {
   if (!routed) return routeEdges(spec);
   assertCanvas(spec);
   const { edges = [] } = spec;
+  assertUniqueEdges(edges);
   if (routed.length !== edges.length || routed.some((r, i) => r.e !== edges[i])) {
     throw new Error(
       "routed が spec のエッジと対応しない（同じ spec を routeEdges に渡した結果を渡す）",
     );
   }
+  assertOrthogonal(routed);
   return routed;
 }
 

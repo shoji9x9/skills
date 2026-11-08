@@ -39,19 +39,23 @@
         "(c) 別のエッジの平行な区間が 10px で並ぶと、(c) を出す",
         "(c) 同じ依存元から出る線でも、間隔が 0 より大きく 20px 未満なら、(c) を出す",
         "(c)(j) 同じ依存元から出る線どうしでも、同じ座標を逆向きに重なって進むなら、(c) と、接する点の (j) を出す",
-        "(c)(j) 端点を共有しないエッジが同じ座標で重なると、(c) と、接する点の (j) を出す"
+        "(c)(j) 端点を共有しないエッジが同じ座標で重なると、(c) と、接する点の (j) を出す",
+        "(c)(j) 幹線を進んだ線が折り返して逆向きに重なるなら、逆向きの区間の (c) と、下りる点の (j) を出す",
+        "(d) 幹線を進んだ線が折り返して、逆向きの区間でラベルを貫くなら、(d) を出す"
       ]
     },
     {
       "id": "c-trunk-exemption-wide",
       "why": "(c) 幹線の除外を、幹線の上に収まらない重なり（端点を共有しない・逆向き）にも広げる",
       "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
-      "find": "      if (gap === 0 && onTrunkRange(trunk(s.ei, t.ei), s, { lo, hi })) continue;",
+      "find": "      if (trunkOf(s, t) !== null) continue;",
       "replace": "      if (gap === 0) continue;",
       "occurrences": 1,
       "expect_failing": [
         "(c)(j) 端点を共有しないエッジが同じ座標で重なると、(c) と、接する点の (j) を出す",
-        "(c)(j) 同じ依存元から出る線どうしでも、同じ座標を逆向きに重なって進むなら、(c) と、接する点の (j) を出す"
+        "(c)(j) 同じ依存元から出る線どうしでも、同じ座標を逆向きに重なって進むなら、(c) と、接する点の (j) を出す",
+        "(c)(j) 幹線を進んだ線が折り返して逆向きに重なるなら、逆向きの区間の (c) と、下りる点の (j) を出す",
+        "(d) 幹線を進んだ線が折り返して、逆向きの区間でラベルを貫くなら、(d) を出す"
       ]
     },
     {
@@ -65,19 +69,21 @@
         "(d) 線がノードのラベルの矩形を貫くと、(d) を出す",
         "(d) 線が他のエッジのラベルを貫くと、(d) を出す（自分のラベルは対象にしない）",
         "(d) 端点を共有するエッジでも、ラベルを垂直に貫くなら、(d) を出す",
-        "(d) 幹線を共有するエッジでも、ラベルの中心が幹線の外にあれば、(d) を出す"
+        "(d) 幹線を共有するエッジでも、ラベルの中心が幹線の外にあれば、(d) を出す",
+        "(d) 幹線を進んだ線が折り返して、逆向きの区間でラベルを貫くなら、(d) を出す"
       ]
     },
     {
       "id": "d-trunk-exemption-wide",
       "why": "(d) 幹線のラベルの除外を、幹線を共有するエッジのラベルのすべてに広げる",
       "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
-      "find": "onTrunk(trunk(s.ei, l.ei), l.center, s)",
-      "replace": "trunk(s.ei, l.ei).length > 0",
+      "find": "trunkWith(ctx, { s, ei: l.ei, test: inside, p: l.center })",
+      "replace": "(ctx.byEdge.get(l.ei) ?? []).some((u) => sharesEnd(s.e, u.e))",
       "occurrences": 1,
       "expect_failing": [
         "(d) 端点を共有するエッジでも、ラベルを垂直に貫くなら、(d) を出す",
-        "(d) 幹線を共有するエッジでも、ラベルの中心が幹線の外にあれば、(d) を出す"
+        "(d) 幹線を共有するエッジでも、ラベルの中心が幹線の外にあれば、(d) を出す",
+        "(d) 幹線を進んだ線が折り返して、逆向きの区間でラベルを貫くなら、(d) を出す"
       ]
     },
     {
@@ -174,7 +180,9 @@
         "(j) 屈曲点が他のエッジの線の上に乗り、飛び越しが付かないと、(j) を出す",
         "(j) 幹線から分かれた線が、幹線の途中に戻って飛び越しなしに接するなら、(j) を出す",
         "(j) 幹線を共有する線でも、幹線の外で飛び越しなしに接するなら、(j) を出す",
-        "(j) 自動の L 字が線を分けた点（a->b の中点 x=300）で交わると、飛び越しが付かないので (j) を出す"
+        "(j) 自動の L 字が線を分けた点（a->b の中点 x=300）で交わると、飛び越しが付かないので (j) を出す",
+        "(c)(j) 幹線を進んだ線が折り返して逆向きに重なるなら、逆向きの区間の (c) と、下りる点の (j) を出す",
+        "(d) 幹線を進んだ線が折り返して、逆向きの区間でラベルを貫くなら、(d) を出す"
       ]
     },
     {
@@ -191,18 +199,22 @@
         "(j) 屈曲点が他のエッジの線の上に乗り、飛び越しが付かないと、(j) を出す",
         "(j) 幹線から分かれた線が、幹線の途中に戻って飛び越しなしに接するなら、(j) を出す",
         "(j) 幹線を共有する線でも、幹線の外で飛び越しなしに接するなら、(j) を出す",
-        "(j) 自動の L 字が線を分けた点（a->b の中点 x=300）で交わると、飛び越しが付かないので (j) を出す"
+        "(j) 自動の L 字が線を分けた点（a->b の中点 x=300）で交わると、飛び越しが付かないので (j) を出す",
+        "(c)(j) 幹線を進んだ線が折り返して逆向きに重なるなら、逆向きの区間の (c) と、下りる点の (j) を出す",
+        "(d) 幹線を進んだ線が折り返して、逆向きの区間でラベルを貫くなら、(d) を出す"
       ]
     },
     {
       "id": "j-trunk-exemption-wide",
       "why": "(j) 幹線の除外を、幹線の端だけでなく幹線の途中の点にも広げる",
       "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
-      "find": "    return c !== null && (c === t.lo || c === t.hi);",
-      "replace": "    return c !== null && t.lo <= c && c <= t.hi;",
+      "find": "const atEnd = (t, c) => c === t.lo || c === t.hi;",
+      "replace": "const atEnd = (t, c) => t.lo <= c && c <= t.hi;",
       "occurrences": 1,
       "expect_failing": [
-        "(j) 幹線から分かれた線が、幹線の途中に戻って飛び越しなしに接するなら、(j) を出す"
+        "(j) 幹線から分かれた線が、幹線の途中に戻って飛び越しなしに接するなら、(j) を出す",
+        "(c)(j) 幹線を進んだ線が折り返して逆向きに重なるなら、逆向きの区間の (c) と、下りる点の (j) を出す",
+        "(d) 幹線を進んだ線が折り返して、逆向きの区間でラベルを貫くなら、(d) を出す"
       ]
     },
     {
@@ -231,11 +243,58 @@
       "id": "trunk-direction",
       "why": "幹線を、逆向きに重なる 2 本にも広げる",
       "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
-      "find": " && direction(s) === direction(t) && lo < hi",
-      "replace": " && lo < hi",
+      "find": "sharesEnd(s.e, t.e) && direction(s) === direction(t);",
+      "replace": "sharesEnd(s.e, t.e);",
       "occurrences": 1,
       "expect_failing": [
-        "(c)(j) 同じ依存元から出る線どうしでも、同じ座標を逆向きに重なって進むなら、(c) と、接する点の (j) を出す"
+        "(c)(j) 同じ依存元から出る線どうしでも、同じ座標を逆向きに重なって進むなら、(c) と、接する点の (j) を出す",
+        "(c)(j) 幹線を進んだ線が折り返して逆向きに重なるなら、逆向きの区間の (c) と、下りる点の (j) を出す",
+        "(d) 幹線を進んだ線が折り返して、逆向きの区間でラベルを貫くなら、(d) を出す"
+      ]
+    },
+    {
+      "id": "c-trunk-other-segment",
+      "why": "(c) 幹線の除外を、同じエッジの別の区間（折り返す前の前進の区間）が作った幹線でも判定する",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": "      if (trunkOf(s, t) !== null) continue;",
+      "replace": "      if (segs.some((u) => { const w = u.ei === s.ei ? trunkOf(u, t) : u.ei === t.ei ? trunkOf(s, u) : null; return w !== null && w.lo <= lo && hi <= w.hi; })) continue;",
+      "occurrences": 1,
+      "expect_failing": [
+        "(c)(j) 幹線を進んだ線が折り返して逆向きに重なるなら、逆向きの区間の (c) と、下りる点の (j) を出す",
+        "(d) 幹線を進んだ線が折り返して、逆向きの区間でラベルを貫くなら、(d) を出す"
+      ]
+    },
+    {
+      "id": "d-trunk-other-segment",
+      "why": "(d) 幹線のラベルの除外を、同じエッジの別の区間（折り返す前の前進の区間）が作った幹線でも判定する",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": "trunkWith(ctx, { s, ei: l.ei, test: inside, p: l.center })",
+      "replace": "segs.some((w) => w.ei === s.ei && trunkWith(ctx, { s: w, ei: l.ei, test: inside, p: l.center }))",
+      "occurrences": 1,
+      "expect_failing": [
+        "(d) 幹線を進んだ線が折り返して、逆向きの区間でラベルを貫くなら、(d) を出す"
+      ]
+    },
+    {
+      "id": "routed-orthogonal-guard",
+      "why": "渡された routed の斜めの線を、検査も描画も確かめずに使う",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-engine.mjs",
+      "find": "  }\n  assertOrthogonal(routed);\n  return routed;",
+      "replace": "  }\n  return routed;",
+      "occurrences": 1,
+      "expect_failing": [
+        "routed を渡しても、斜めの線か重複したエッジがあれば、検査も描画もエラーにする"
+      ]
+    },
+    {
+      "id": "routed-unique-guard",
+      "why": "routed を渡したとき、spec の重複したエッジを確かめない",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-engine.mjs",
+      "find": "  assertUniqueEdges(edges);\n  if (routed.length",
+      "replace": "  if (routed.length",
+      "occurrences": 1,
+      "expect_failing": [
+        "routed を渡しても、斜めの線か重複したエッジがあれば、検査も描画もエラーにする"
       ]
     }
   ]

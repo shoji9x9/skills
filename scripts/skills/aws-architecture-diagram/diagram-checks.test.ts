@@ -199,6 +199,30 @@ test("(c)(j) 同じ依存元から出る線どうしでも、同じ座標を逆�
   expect(v.map((x) => x.rule)).toEqual(["c", "j", "j"]);
 });
 
+// a->e は a->b と y=200 の上を x=340 まで同じ向きに進み（幹線）、折り返して x=260 まで逆向きに重なってから e へ下りる。
+const fold: DiagramEdge = {
+  from: "a",
+  to: "e",
+  waypoints: [
+    [340, 200],
+    [260, 200],
+    [260, 300],
+  ],
+};
+
+test("(c)(j) 幹線を進んだ線が折り返して逆向きに重なるなら、逆向きの区間の (c) と、下りる点の (j) を出す", () => {
+  const v = checkDiagram(spec([a, b, e300], [ab, fold]));
+  expect(v.map((x) => x.rule)).toEqual(["c", "j"]);
+  expect(v[0].message).toContain("a->e の区間 (340,200)-(260,200)");
+});
+
+test("(d) 幹線を進んだ線が折り返して、逆向きの区間でラベルを貫くなら、(d) を出す", () => {
+  // a->b のラベルの中心 (300,200) は、幹線（x=232〜340）の上にも、逆向きの区間（x=260〜340）の上にもある。
+  const v = checkDiagram(spec([a, b, e300], [{ ...ab, label: "L", labelAt: [300, 200] }, fold]));
+  expect(v.map((x) => x.rule)).toEqual(["c", "d", "j"]);
+  expect(v[1].message).toContain("a->e の区間 (340,200)-(260,200) がエッジ a->b のラベル");
+});
+
 test("(c)(j) 同じ先へ入る線が幹線で合流し、分かれて別の点で入る形は、出さない", () => {
   // p->c と q->c が y=200 の上で x=250〜330 を重なって進み、x=330 で分かれて c に y=185 と y=215 で入る。
   const merge = (from: string, y0: number, y1: number): DiagramEdge => ({
@@ -472,6 +496,26 @@ test("routed を渡しても、キャンバスの大きさが数でない spec �
   expect(() => renderDiagram(broken, { iconDir: "/nonexistent", routed })).toThrow(
     "spec の W と H は数で書く",
   );
+});
+
+test("routed を渡しても、斜めの線か重複したエッジがあれば、検査も描画もエラーにする", () => {
+  const s = spec([a, b], [ab], [group()]);
+  const opts = { iconDir: "/nonexistent" };
+  const diagonal = [
+    {
+      e: ab,
+      pts: [
+        { x: 232, y: 200 },
+        { x: 368, y: 210 },
+      ],
+    },
+  ];
+  expect(() => checkDiagram(s, diagonal)).toThrow("斜めのエッジ: a->b");
+  expect(() => renderDiagram(s, { ...opts, routed: diagonal })).toThrow("斜めのエッジ: a->b");
+  const edges = [ab, { ...ab }];
+  const routedTwice = edges.map((e) => ({ e, pts: routeEdges(s)[0].pts }));
+  const twice = spec([a, b], edges, [group()]);
+  expect(() => checkDiagram(twice, routedTwice)).toThrow("重複エッジ: a->b");
 });
 
 test("(j) 交差に飛び越しが付くなら、出さない", () => {
