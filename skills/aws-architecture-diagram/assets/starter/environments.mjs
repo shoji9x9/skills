@@ -31,13 +31,14 @@ const localRelabel = {
 function localFlowEdges() {
   return [
     // SPA(:5173) → ローカル backend(:3001) を直接呼ぶ（API Gateway は介さない）。
+    // api の下の辺からは api->queue が出るので、入る x を 20px ずらす。
     {
       from: "browser",
       to: "api",
       label: "API :3001",
       waypoints: [
         [90, 470],
-        [690, 470],
+        [670, 470],
       ],
     },
     // Worker は backend と同一プロセス（SQS を介さず直接呼出）。

@@ -12,12 +12,14 @@
 // - `out/`: SVG の出力先。
 //
 // 対象の環境は、--env を省略すると環境レジストリの全環境、`--env a,b` なら指定した環境だけになる。
+// 書き出した後、作図ルールを検査し（diagram-checks.mjs）、違反があれば 1 で終える。
 // 場所の決め方（--dir・--icon-dir・--out-dir と設定のキー）は diagram-config.mjs にある。
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { checkDiagram } from "./diagram-checks.mjs";
 import { diagramConfig } from "./diagram-config.mjs";
-import { renderDiagram } from "./diagram-engine.mjs";
+import { renderDiagram, routeEdges } from "./diagram-engine.mjs";
 
 const config = diagramConfig(process.argv.slice(2), {
   values: ["--env"],
@@ -90,11 +92,31 @@ function resolveEnvs() {
 // 例外で止めるため、レンダリングと書き出しを交互に行うと「先頭の環境だけ新しく、残りは
 // 古いまま」の out/ が残り、目視確認で stale な PNG を新しい図と取り違える。
 mkdirSync(OUT_DIR, { recursive: true });
-const rendered = resolveEnvs().map((name) => ({
-  out: join(OUT_DIR, `architecture-${name}.svg`),
-  svg: renderDiagram(specFor(name), { iconDir: ICON_DIR }),
-}));
+const rendered = resolveEnvs().map((name) => {
+  const spec = specFor(name);
+  // 線の座標は 1 回だけ計算し、描画と検査に同じものを渡す。
+  const routed = routeEdges(spec);
+  return {
+    name,
+    out: join(OUT_DIR, `architecture-${name}.svg`),
+    svg: renderDiagram(spec, { iconDir: ICON_DIR, routed }),
+    violations: checkDiagram(spec, routed),
+  };
+});
 for (const { out, svg } of rendered) {
   writeFileSync(out, svg);
   console.log(`wrote ${out} (${svg.length} bytes)`);
+}
+
+// 作図ルールの検査（diagram-checks.mjs）。違反があっても SVG は書き出し、違反の場所を PNG で見られるようにする。
+// 違反を観点の記号と場所で示し、1 で終える。
+const violations = rendered.flatMap(({ name, violations: vs }) =>
+  vs.map((v) => `${name}: (${v.rule}) ${v.message}`),
+);
+if (violations.length) {
+  console.error(
+    `作図ルールの違反が ${violations.length} 件ある。観点は references/conventions.md にある。違反の一覧は次のとおりである。`,
+  );
+  for (const line of violations) console.error(`  ${line}`);
+  process.exitCode = 1;
 }

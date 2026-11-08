@@ -1,7 +1,7 @@
 ---
 date: 2026-10-30
 type: doc
-priority: medium
+priority: high
 confidence: high
 status: pending
 applied-to: []
@@ -27,6 +27,11 @@ PR の HEAD を `gh pr view --json headRefOid` で取得して形を確かめて
 PR の HEAD を `gh pr view --json headRefOid` で取得し、形と手元の HEAD との一致を確かめてから投稿するスクリプト（scratchpad の `post-record.sh`）に替えて通した。
 反復 1 では記録を投稿しておらず、#873 と同じく初めての投稿で起きた。#832・#873 に続く 3 回目である。
 
+2026-11-08、Issue #931（PR #955）の pr-finalize-loop の反復 2 で、`local-review-record.sh post` が「PR の HEAD と違う」で投稿を拒否した。
+`--sha` に、push の出力に表示された短い SHA（`506dad2f4`）の後ろを記憶から補った 40 桁を渡していた。
+反復 1 では、`gh pr view --json headRefOid` の出力から SHA を転記して渡し、通っていた。
+PR の HEAD を取得し、形と手元の HEAD との一致を確かめてから投稿するスクリプト（scratchpad の `post-record.sh`）に替えて通した。4 回目である。
+
 ## 根本原因
 
 - なぜ違う SHA を渡したか → #832 では、同じ形の呼び出しを 3 回目に書くとき、前の回のコマンドをコピーし、SHA だけを手で書き換えた。
@@ -45,6 +50,15 @@ PR #832 の記録を書いたときの KEDB 照合は `SHA`・`local-review-reco
 
 2026-11-04 の PR #885 でも、同じ原因（レビューした SHA を残さず、初めての投稿で表示から手で組み立てた）で再発した。記録のスクリプトが拒否した出力で確かめた。
 注入の上限で省かれると、学びは文脈に届かない。そのため、同梱の手順の例を先に直す（「## 提案」の、`review-tool.md` の `post` の例を直す箇条）。
+
+2026-11-08 の PR #955 でも、同じ原因（レビューした SHA を残さず、投稿のときに表示から手で組み立てた）で再発した。記録のスクリプトが拒否した出力で確かめた。
+この学びはセッション開始時の注入の上限（30 件）の外で、KEDB 照合（`SHA`・`書き写`、`SHA`・`local-review-record`）で見つけた。
+
+## 既存の規約
+
+- 扱い: 明確
+- 場所: `AGENTS.md`「シェルの書き方」の「ID・完全な SHA・長い prompt・スクリプト名は、表示された結果から手で書き写さない」と、`docs/agent-workflow.md` の同じ節。記録のスクリプトも、SHA を PR の HEAD と比べて止める
+- 照合した範囲: `AGENTS.md`・`docs/agent-workflow.md`・`pr-finalize-loop` の `references/review-tool.md` を `手で書き写さない`・`短い SHA の残りを推測` で検索した。`review-tool.md` の `post` の例は、今も `--sha` に値を手で渡す形である
 
 ## 提案
 

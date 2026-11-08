@@ -1,0 +1,177 @@
+{
+  "$comment": [
+    "diagram-checks.test.ts の検出能力を示す変異の一覧（Issue #931）。",
+    "検査が誤って違反を見逃すと、利用者の図が崩れたまま合格として扱われるので、観点ごとの判定の行を無効にする。",
+    "scripts/mutation/check-mutation-proof.ts が再実行する。テスト名を変えたら expect_failing も直す。"
+  ],
+  "test_file": "scripts/skills/aws-architecture-diagram/diagram-checks.test.ts",
+  "mutations": [
+    {
+      "id": "a-node-in-group",
+      "why": "(a) ノードが枠にかかっていても、余白が足りなくても見逃す",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": "      if (!outside && !inside) {",
+      "replace": "      if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "(a) ノードの枠の内側の余白が 8pxとき、(a) を出す",
+        "(a) ノードのアイコンが枠線をまたぐとき、(a) を出す",
+        "違反は観点の記号の順に並べる"
+      ]
+    },
+    {
+      "id": "b-through-icon",
+      "why": "(b) 線が端点でないアイコンを貫いても見逃す",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": ".filter((n) => n.id !== s.e.from && n.id !== s.e.to && crossesRect(s, box(n)))",
+      "replace": ".filter((n) => false && crossesRect(s, box(n)))",
+      "occurrences": 1,
+      "expect_failing": ["(b) 線が端点でないノードのアイコンを貫くと、(b) を出す"]
+    },
+    {
+      "id": "d-through-label",
+      "why": "(d) 線がラベルを貫いても見逃す",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": ".filter((l) => l.ei !== s.ei && crossesRect(s, l.r))",
+      "replace": ".filter((l) => false && crossesRect(s, l.r))",
+      "occurrences": 1,
+      "expect_failing": [
+        "(d) 線がノードのラベルの矩形を貫くと、(d) を出す",
+        "(d) 線が他のエッジのラベルを貫くと、(d) を出す（自分のラベルは対象にしない）",
+        "(d) 同じ依存元から出る線が同じ座標で重なっても、他方のラベルを通るなら、(d) を出す",
+        "(d) 幹線に重なるエッジのラベルを labelAt なしで置き、自動の位置が幹線の上になると、(d) を出す"
+      ]
+    },
+    {
+      "id": "f-entry-gap",
+      "why": "(f) 同じノードに入る線の端が重なっても見逃す",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": "Math.hypot(u.p.x - v.p.x, u.p.y - v.p.y) < ARROW_GAP,",
+      "replace": "false,",
+      "occurrences": 1,
+      "expect_failing": [
+        "(f) 同じノードに 2 本の線が同じ点で入ると、(f) を出す",
+        "(f) ノードに入る線の端と、同じノードから出る線の端が同じ点なら、(f) を出す"
+      ]
+    },
+    {
+      "id": "f-outgoing-exemption-wide",
+      "why": "(f) 出る線どうしの除外を、入る線と出る線の組にも広げる",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": "(u.incoming || v.incoming) &&",
+      "replace": "(u.incoming && v.incoming) &&",
+      "occurrences": 1,
+      "expect_failing": [
+        "(f) ノードに入る線の端と、同じノードから出る線の端が同じ点なら、(f) を出す"
+      ]
+    },
+    {
+      "id": "g-through-group",
+      "why": "(g) 線が端点を含まないグループを貫いても見逃す",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": "        return !related && crossesRect(s, r);",
+      "replace": "        return false && crossesRect(s, r);",
+      "occurrences": 1,
+      "expect_failing": ["(g) 線が端点を含まないグループの内側を通ると、(g) を出す"]
+    },
+    {
+      "id": "h-along-frame",
+      "why": "(h) 線が枠線に沿っても見逃す",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": "Math.abs(s.at - at) < PARALLEL_GAP",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": ["(h) 線がグループの枠線に 15px で沿うと、(h) を出す"]
+    },
+    {
+      "id": "i-margin-left",
+      "why": "(i) 左の余白が足りなくても見逃す",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": "        r.left < CANVAS_MARGIN ||",
+      "replace": "        false ||",
+      "occurrences": 1,
+      "expect_failing": [
+        "(i) グループの左とキャンバスの端の間が 50px 未満なら、(i) を出す",
+        "違反は観点の記号の順に並べる"
+      ]
+    },
+    {
+      "id": "i-margin-top",
+      "why": "(i) 上の余白が足りなくても見逃す",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": "        r.top < CANVAS_MARGIN ||",
+      "replace": "        false ||",
+      "occurrences": 1,
+      "expect_failing": ["(i) グループの上とキャンバスの端の間が 50px 未満なら、(i) を出す"]
+    },
+    {
+      "id": "i-margin-right",
+      "why": "(i) 右の余白が足りなくても見逃す",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": "        r.right > W - CANVAS_MARGIN ||",
+      "replace": "        false ||",
+      "occurrences": 1,
+      "expect_failing": ["(i) グループの右とキャンバスの端の間が 50px 未満なら、(i) を出す"]
+    },
+    {
+      "id": "i-margin-bottom",
+      "why": "(i) 下の余白が足りなくても見逃す",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": "        r.bottom > H - CANVAS_MARGIN",
+      "replace": "        false",
+      "occurrences": 1,
+      "expect_failing": ["(i) グループの下とキャンバスの端の間が 50px 未満なら、(i) を出す"]
+    },
+    {
+      "id": "canvas-size-guard",
+      "why": "W・H が数でない spec を、(i) を判定できないまま合格として扱う",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-engine.mjs",
+      "find": "  if (!Number.isFinite(W) || !Number.isFinite(H)) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "キャンバスの大きさのW が NaN（書き忘れた W を計算に使ったときの値） spec は、検査も描画もエラーにする",
+        "キャンバスの大きさのH が無限大 spec は、検査も描画もエラーにする",
+        "routed を渡しても、キャンバスの大きさが数でない spec は、検査も描画もエラーにする"
+      ]
+    },
+    {
+      "id": "routed-mismatch-guard",
+      "why": "別の spec から計算した線（古い線）で検査する",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-engine.mjs",
+      "find": "  if (routed.length !== edges.length || routed.some((r, i) => r.e !== edges[i])) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["routed が同じ spec から計算したものでなければ、検査も描画もエラーにする"]
+    },
+    {
+      "id": "routed-orthogonal-guard",
+      "why": "渡された routed の斜めの線を、検査も描画も確かめずに使う",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-engine.mjs",
+      "find": "  }\n  assertOrthogonal(routed);\n  return routed;",
+      "replace": "  }\n  return routed;",
+      "occurrences": 1,
+      "expect_failing": ["routed を渡しても、斜めの線があれば、検査も描画もエラーにする"]
+    },
+    {
+      "id": "routed-unique-guard",
+      "why": "routed を渡したとき、spec の重複したエッジを確かめない",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-engine.mjs",
+      "find": "  assertUniqueEdges(edges);\n  return nodeLookup(nodes);",
+      "replace": "  return nodeLookup(nodes);",
+      "occurrences": 1,
+      "expect_failing": ["routed を渡しても、重複したエッジがあれば、検査も描画もエラーにする"]
+    },
+    {
+      "id": "routed-known-node-guard",
+      "why": "routed を渡したとき、spec に無いノードを端点に持つエッジを確かめない",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-engine.mjs",
+      "find": "    node(e.from);\n    node(e.to);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "routed を計算した後に spec からノードが消えていれば、検査も描画もエラーにする"
+      ]
+    }
+  ]
+}

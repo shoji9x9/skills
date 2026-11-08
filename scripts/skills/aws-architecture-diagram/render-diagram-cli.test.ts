@@ -5,6 +5,7 @@
 //   - 環境の spec: transform が無い（base に環境の title）/ transform が title を付ける / 付け忘れる（環境の title、
 //     それも無ければ base の title）/ transform が base を書き換える（他の環境に影響しない）
 //   - 書き出し: 後の環境が規約違反で止まったら、先の環境の SVG も書き出さない
+//   - 作図ルールの検査: 違反があれば、SVG を書き出したうえで、環境・観点・場所を示して 1 で終える
 //   - 同梱の見本（samples/the-simple-webservice）: spec から生成した図が、commit してある SVG と一致する
 // レジストリの探し方（.mjs と .js）は render-diagram-registry.test.ts が確かめる。
 
@@ -189,6 +190,22 @@ test("後の環境が規約違反で止まったら、先の環境の SVG も書
   expect(status).not.toBe(0);
   expect(stderr).toContain("重複エッジ: a->b");
   expect(outFiles(dir)).toEqual([]);
+});
+
+test("作図ルールの違反があれば、全環境の SVG を書き出した後、環境・観点・場所を示して 1 で終える", () => {
+  // bad はキャンバスの端から 10px のグループを足す（観点 (i) の違反）。good は違反が無い。
+  const dir = diagramDir(`{
+    good: {},
+    bad: { transform: (s) => ({ ...s, groups: [{ label: "G", x: 10, y: 10, w: 380, h: 180, color: "#000" }] }) },
+  }`);
+  const { status, stderr } = render(dir, []);
+  expect(status).toBe(1);
+  expect(stderr).toContain("作図ルールの違反が 1 件ある");
+  expect(stderr).toContain(
+    "bad: (i) グループ「G」とキャンバス（400x200）の端の間の余白が 50px 未満",
+  );
+  expect(stderr).not.toContain("good:");
+  expect(outFiles(dir)).toEqual(["architecture-bad.svg", "architecture-good.svg"]);
 });
 
 test("同梱の見本は、spec から生成した図が commit してある SVG と一致する（アイコンの中身を除く）", () => {

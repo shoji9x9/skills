@@ -121,13 +121,14 @@ const edges = [
       [1055, 605],
     ],
   },
+  // queue->worker と同じ点に入らないよう、入る y を 20px ずらす。
   {
     from: "events",
     to: "worker",
     waypoints: [
       [470, 600],
       [800, 600],
-      [800, 540],
+      [800, 560],
     ],
   },
   { from: "queue", to: "worker" },

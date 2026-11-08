@@ -29,7 +29,7 @@
   <path d="M 690 412 L 690 460 L 690 460 L 690 508" fill="none" stroke="#5A6B86" stroke-width="1.8" marker-end="url(#arrow)"/>
   <path d="M 722 380 L 1005 380 A 5 5 0 0 1 1015 380 L 1055 380 L 1055 435 L 1158 435" fill="none" stroke="#5A6B86" stroke-width="1.8" marker-end="url(#arrow)"/>
   <path d="M 722 380 L 1005 380 A 5 5 0 0 1 1015 380 L 1055 380 L 1055 605 L 1075 605 A 5 5 0 0 1 1085 605 L 1158 605" fill="none" stroke="#5A6B86" stroke-width="1.8" marker-end="url(#arrow)"/>
-  <path d="M 470 572 L 470 600 L 800 600 L 800 540 L 888 540" fill="none" stroke="#5A6B86" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <path d="M 470 572 L 470 600 L 800 600 L 800 560 L 888 560" fill="none" stroke="#5A6B86" stroke-width="1.8" marker-end="url(#arrow)"/>
   <path d="M 722 540 L 805 540 L 805 540 L 888 540" fill="none" stroke="#5A6B86" stroke-width="1.8" marker-end="url(#arrow)"/>
   <path d="M 952 540 L 1010 540 L 1010 320 L 1200 320 L 1200 267" fill="none" stroke="#5A6B86" stroke-width="1.8" marker-end="url(#arrow)"/>
   <path d="M 952 540 L 1050 540 A 5 5 0 0 1 1060 540 L 1080 540 L 1080 465 L 1158 465" fill="none" stroke="#5A6B86" stroke-width="1.8" marker-end="url(#arrow)"/>
