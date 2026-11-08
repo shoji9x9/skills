@@ -32,6 +32,7 @@ import {
   tableCell,
   trackingKeys,
 } from "../lib/text/tracking-diff.ts";
+import { jsStrings } from "../lib/text/code-strings.ts";
 import { loadYaml } from "../lib/text/yaml-as.ts";
 
 const CONFIG = join(dirname(fileURLToPath(import.meta.url)), "check-cost-metrics.json");
@@ -230,30 +231,36 @@ function stringsOf(value: unknown): string[] {
   return [];
 }
 
-/** TypeScript・JavaScript の文字列リテラルとテンプレートの、エスケープを解いた値を集める。 */
-function literalsOf(path: string, source: string): string[] {
-  const kind = path.endsWith("ts") ? ts.ScriptKind.TS : ts.ScriptKind.JS;
-  const sf = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, kind);
-  const found: string[] = [];
-  const visit = (node: ts.Node): void => {
-    if (ts.isStringLiteralLike(node) || ts.isTemplateLiteralToken(node)) found.push(node.text);
-    ts.forEachChild(node, visit);
-  };
-  visit(sf);
-  return found;
-}
+/** 読む処理として扱う種類。拡張子の判定と、扱えないときのメッセージは、この一覧から作る。 */
+const READER_KINDS: readonly {
+  extensions: readonly string[];
+  strings: (path: string, source: string) => string[];
+}[] = [
+  {
+    extensions: [".ts", ".mts", ".cts", ".js", ".mjs", ".cjs"],
+    // import の指定子も、一覧を読む参照として数える（oxlint.config.ts は oxlint-pending.ts を import で読む）。
+    strings: (path, source) => {
+      const kind = path.endsWith("ts") ? ts.ScriptKind.TS : ts.ScriptKind.JS;
+      const sf = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, kind);
+      return jsStrings(sf, true).map((node) => node.text);
+    },
+  },
+  { extensions: [".json"], strings: (_path, source) => stringsOf(JSON.parse(source)) },
+  { extensions: [".yml", ".yaml"], strings: (_path, source) => stringsOf(loadYaml(source)) },
+];
 
 /**
- * 読む処理の中の文字列の値を、行に並べて返す。ファイル名は、読む処理のコードでは文字列として現れる。
- * コメントは値に入らないので、コメントにだけ残った名前は参照として数えない。
- * 値はエスケープを解いた形で並べるので、`\n` の直後のファイル名を、別の名前の一部として読まない。
- * 扱う種類は TypeScript・JavaScript・JSON・YAML である。
+ * 読む処理の中の文字列の値（エスケープを解いた形）を、行に並べて返す。ファイル名は、読む処理のコードでは文字列として現れる。
+ * コメントは値に入らないので、コメントにだけ残った名前は参照として数えない。`\n` の直後のファイル名も、別の名前の一部として読まない。
+ * ファイルを読む引数とメッセージの文字列は区別しないので、メッセージにだけ名前が残った読む処理は、参照しているとして扱う（見逃す向きの誤り）。
  */
 export function referenceText(path: string, source: string): string {
-  if (/\.(?:[cm]?[jt]s)$/u.test(path)) return literalsOf(path, source).join("\n");
-  if (path.endsWith(".json")) return stringsOf(JSON.parse(source)).join("\n");
-  if (/\.ya?ml$/u.test(path)) return stringsOf(loadYaml(source)).join("\n");
-  throw new Error("扱えない種類のファイル。扱えるのは .ts・.js・.json・.yml");
+  const kind = READER_KINDS.find((k) => k.extensions.some((ext) => path.endsWith(ext)));
+  if (kind === undefined) {
+    const all = READER_KINDS.flatMap((k) => k.extensions).join("・");
+    throw new Error(`扱えない種類のファイル。扱えるのは ${all}`);
+  }
+  return kind.strings(path, source).join("\n");
 }
 
 /** 読む処理を読んで文字列の値を取る。読めないときは、どの読む処理かと直す場所を添えて例外にする。 */
@@ -262,7 +269,7 @@ function readReference(reader: string, read: (path: string) => string): string {
     return referenceText(reader, read(reader));
   } catch (error) {
     throw new Error(
-      `読む処理 ${reader} を読めない。check-cost-metrics.json の readers を直す: ${errorMessage(error)}`,
+      `読む処理 ${reader} を読めない。check-cost-metrics.json の readers を直す。原因は「${errorMessage(error)}」`,
       { cause: error },
     );
   }

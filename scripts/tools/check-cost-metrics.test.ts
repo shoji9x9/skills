@@ -277,6 +277,13 @@ describe("空の一覧", () => {
 
   test.each([
     { name: "TypeScript の文字列", reader: "r.ts", text: 'const p = "a.json"; // 説明' },
+    {
+      name: "TypeScript の import の指定子",
+      reader: "r.ts",
+      text: 'import { X } from "./a.json";',
+    },
+    { name: "JavaScript（.mjs）の文字列", reader: "r.mjs", text: 'read("a.json");' },
+    { name: "YAML（.yaml）の値", reader: "w.yaml", text: "run: cat a.json\n" },
     { name: "TypeScript の文字列の改行の後", reader: "r.ts", text: 'const s = "x\\na.json";' },
     {
       name: "TypeScript のテンプレートのタブの後",
@@ -292,8 +299,10 @@ describe("空の一覧", () => {
     expect(() => checkReaders(target("a.json", [reader]), () => text)).not.toThrow();
   });
 
-  test("扱えない種類のファイルは例外にする", () => {
-    expect(() => referenceText("lefthook.toml", "a.json")).toThrow("扱えない種類");
+  test("扱えない種類のファイルは、扱える拡張子をすべて挙げて例外にする", () => {
+    expect(() => referenceText("lefthook.toml", "a.json")).toThrow(
+      "扱えない種類のファイル。扱えるのは .ts・.mts・.cts・.js・.mjs・.cjs・.json・.yml・.yaml",
+    );
   });
 
   test.each([
@@ -362,7 +371,6 @@ describe("空の一覧", () => {
     const root = makeTempDir("check-cost-metrics-");
     writeFiles(root, { "r.ts": 'load("a.json");' });
     await expect(emptyLists([target("a.json")], root)).rejects.toThrow("a.json");
-    await expect(emptyLists([target("a.json", ["none.ts"])], root)).rejects.toThrow("none.ts");
   });
 });
 

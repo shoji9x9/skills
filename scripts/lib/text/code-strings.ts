@@ -231,13 +231,17 @@ function partOrigins(raw: string, start: ts.LineAndCharacter): Origin[] {
   return origins;
 }
 
-/** JavaScript・TypeScript の文字列リテラルとテンプレートの各部分。import と export の指定子は除く。 */
-function jsStrings(sf: ts.SourceFile): ts.LiteralLikeNode[] {
+/**
+ * JavaScript・TypeScript の文字列リテラルとテンプレートの各部分。import と export の指定子は、
+ * modules が true のときだけ含める（人が読む文章を取り出すときは除き、参照を探すときは含める）。
+ * 親のノードを読むので、sf は setParentNodes を true にして作る。
+ */
+export function jsStrings(sf: ts.SourceFile, modules = false): ts.LiteralLikeNode[] {
   const out: ts.LiteralLikeNode[] = [];
   // 文字列リテラルとテンプレートの部分は、どれも text を持つ LiteralLikeNode である。
   const visit = (node: ts.Node) => {
     if (ts.isStringLiteral(node)) {
-      if (!ts.isImportDeclaration(node.parent) && !ts.isExportDeclaration(node.parent))
+      if (modules || (!ts.isImportDeclaration(node.parent) && !ts.isExportDeclaration(node.parent)))
         out.push(node);
     } else if (
       ts.isNoSubstitutionTemplateLiteral(node) ||
