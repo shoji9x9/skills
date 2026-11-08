@@ -1,0 +1,69 @@
+{
+  "$comment": [
+    "check-cost-metrics.ts（Issue #939）が読む、費用の指標の対象と閾値。",
+    "lists は、空になっても仕組みを残している免除・保留の一覧と、それを読む処理（readers）である。ファイル名の形から推測せず、ここに挙げたものだけを数える。",
+    "免除・保留の一覧を足したときは、ここにも足す。readers は一覧のファイル名を本文に含むファイルで、含まなくなるとワークフローが失敗する。",
+    "fix_prs は、直近 days 日の first-parent の履歴で、paths のファイルを変えた fix の PR が min 件以上のチェックを挙げる。",
+    "durations は、workflows の成功した run のジョブを、直近 days 日とその前の days 日で比べる。両方の期間に min_runs 回以上あり、中央値が min_ratio の割合と min_seconds 秒の両方で増えたジョブを挙げる。",
+    "閾値は、Issue #939 の作業で実測した値から決めた（PR の本文にある）。"
+  ],
+  "lists": [
+    {
+      "file": ".config/fallow/dead-code-baseline.json",
+      "count": { "kind": "json-arrays", "exclude": ["scope_reasons", "capabilities"] },
+      "readers": ["package.json", ".github/workflows/ci.yml"]
+    },
+    {
+      "file": ".config/fallow/crap-baseline.json",
+      "count": { "kind": "json-object", "key": "finding_counts" },
+      "readers": ["package.json", ".github/workflows/ci.yml"]
+    },
+    {
+      "file": ".config/jscpd/baseline.json",
+      "count": { "kind": "json-object", "key": "fingerprints" },
+      "readers": ["scripts/gates/code/check-duplicates.ts"]
+    },
+    {
+      "file": ".config/jscpd/baseline-tests.json",
+      "count": { "kind": "json-object", "key": "fingerprints" },
+      "readers": ["scripts/gates/code/check-duplicates.ts"]
+    },
+    {
+      "file": ".config/jscpd/declared-groups.json",
+      "count": { "kind": "json-array", "key": "groups" },
+      "readers": ["scripts/gates/code/check-duplicates.ts"]
+    },
+    {
+      "file": "scripts/gates/packaging/eval-reachability-backlog.json",
+      "count": { "kind": "json-array", "key": "exempt" },
+      "readers": ["scripts/gates/packaging/check-eval-reachability.ts"]
+    },
+    {
+      "file": "scripts/gates/code/oxlint-pending.ts",
+      "count": { "kind": "ts-export", "export": "PENDING_FIXES" },
+      "readers": ["oxlint.config.ts"]
+    }
+  ],
+  "fix_prs": {
+    "days": 28,
+    "min": 3,
+    "paths": ["scripts/gates", "lefthook.yml", ".github/workflows"]
+  },
+  "durations": {
+    "days": 7,
+    "workflows": [
+      "ci.yml",
+      "codeql.yml",
+      "mutation-proof.yml",
+      "release.yml",
+      "kaizen-schedule.yml",
+      "outdated.yml",
+      "pages.yml",
+      "ignored-advisories.yml",
+      "check-cost-metrics.yml"
+    ],
+    "min_runs": 3,
+    "min_ratio": 0.2,
+    "min_seconds": 30
+  }
+}

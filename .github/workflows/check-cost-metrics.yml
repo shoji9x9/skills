@@ -1,0 +1,103 @@
+name: Check cost metrics
+
+# チェックと CI の費用の指標（空の免除・保留の一覧、修正の PR が多いチェック、ジョブの所要時間）を毎週集め、
+# 直す候補を追跡 Issue に載せる。廃止するか直すかは人が決める。
+# 集計は scripts/tools/check-cost-metrics.ts にあり、対象と閾値は scripts/tools/check-cost-metrics.json にある。
+on:
+  schedule:
+    # 毎週水曜 03:00 UTC (12:00 JST)。
+    # どれかの cron を変えるときは、ほかの週次（outdated.yml・kaizen-schedule.yml・mutation-proof.yml・codeql.yml・ignored-advisories.yml）と重ならないかを確かめる。
+    - cron: "0 3 * * 3"
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  check:
+    name: Check cost metrics
+    runs-on: ubuntu-latest
+    # ジョブの API を run ごとに呼ぶので、手元の実測で 10 分を超えた。余裕を見て 30 分にする。
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    env:
+      # 追跡 Issue のタイトルは「接頭辞 + 確認した日」。実行のたびにリネームし、open な 1 本は最後に確認した日を示す。
+      ISSUE_TITLE_PREFIX: "Check cost metrics to review"
+    steps:
+      # 修正の PR を first-parent の履歴で数えるので、履歴をすべて取得する。浅いとスクリプトが失敗する。
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+      # 作成・更新・クローズを 1 ステップに置く。照会は outdated.yml と同じ同梱スクリプトを使う。
+      # 前回の本文から差分（新規・継続・解消）を出すので、集計の前に追跡 Issue を照会する。
+      # 確かめられなかったとき（一覧や設定を読めない・git や API の失敗）は、スクリプトが 1 で終わり、追跡 Issue を触る前にジョブを失敗させる。
+      - name: Collect metrics and update tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRACKING_LIB: skills/kaizen/scripts/tracking-issue-lib.sh
+        run: |
+          set -o pipefail
+          title="$ISSUE_TITLE_PREFIX ($(date -u +%F))"
+          # shellcheck source=/dev/null
+          . "$TRACKING_LIB"
+          resolve_tracking_issues
+          number="${numbers[0]-}"
+          if [ "${#numbers[@]}" -gt 1 ]; then
+            echo "追跡 Issue が ${#numbers[@]} 件ある（番号: ${numbers[*]}）" >&2
+          fi
+
+          body="$RUNNER_TEMP/issue-body.md"
+          comment="$RUNNER_TEMP/issue-comment.md"
+          previous_args=()
+          if [ -n "$number" ]; then
+            gh issue view "$number" --json body --jq .body >"$RUNNER_TEMP/previous-body.md"
+            previous_args=(--previous "$RUNNER_TEMP/previous-body.md")
+          fi
+          node scripts/tools/check-cost-metrics.ts --out "$body" --comment-out "$comment" "${previous_args[@]}" |
+            tee "$RUNNER_TEMP/collect.log"
+          due="$(sed -n 's/^due=//p' "$RUNNER_TEMP/collect.log" | tail -n 1)"
+          case "$due" in
+          '' | *[!0-9]*)
+            echo "due の件数を読めない: \"$due\"。追跡 Issue を触らずに失敗させる" >&2
+            exit 1
+            ;;
+          esac
+          cat "$body" "$comment"
+
+          if [ "$due" -eq 0 ]; then
+            if [ "${#numbers[@]}" -gt 0 ]; then
+              # 一致した全部を閉じる。タイトルは最後に確認した日のまま残す。
+              # 差分は number の本文と比べたものなので、number にだけ書く。通知を 1 件にするため、クローズの文も同じコメントに入れる。
+              warn_if_truncated "窓の外に閉じ残した追跡 Issue がある可能性がある"
+              closing="直す候補はありません。自動でクローズします。"
+              printf '\n%s\n' "$closing" >>"$comment"
+              gh issue comment "$number" --body-file "$comment"
+              gh issue close "$number"
+              for n in "${numbers[@]:1}"; do
+                gh issue close "$n" --comment "$closing"
+              done
+            else
+              echo "直す候補は無く、追跡 Issue も無いので何もしない"
+            fi
+          elif [ -n "$number" ]; then
+            warn_if_truncated "本物の追跡 Issue が窓の外にあり、別の Issue を更新している可能性がある"
+            gh issue edit "$number" --title "$title" --body-file "$body"
+            # 本文の更新だけでは通知が届かないので、差分を書いたコメントを 1 件足す（#508 の追跡 Issue の更新規則）。
+            gh issue comment "$number" --body-file "$comment"
+          else
+            warn_if_truncated "既存の追跡 Issue を取りこぼして重複を作った可能性がある"
+            gh issue create --title "$title" --body-file "$body"
+          fi
