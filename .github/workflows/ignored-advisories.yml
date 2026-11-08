@@ -39,37 +39,16 @@ jobs:
       - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
       # pnpm why が依存元を読むので、依存を入れる。
       - run: pnpm install --frozen-lockfile
-      # 確かめられなかったとき（一覧の食い違い・API の失敗）は、スクリプトが 1 で終わり、ジョブを失敗させる。
-      # 追跡 Issue を触らずに止めるので、「見直すものは無い」として閉じることは無い。
-      - name: Detect advisories to review
-        id: detect
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -o pipefail
-          node scripts/tools/ignored-advisories.ts --out "$RUNNER_TEMP/issue-body.md" | tee "$RUNNER_TEMP/detect.log"
-          due="$(sed -n 's/^due=//p' "$RUNNER_TEMP/detect.log" | tail -n 1)"
-          case "$due" in
-          '' | *[!0-9]*)
-            echo "due の件数を読めない: \"$due\"" >&2
-            exit 1
-            ;;
-          esac
-          echo "due=$due" >>"$GITHUB_OUTPUT"
-          cat "$RUNNER_TEMP/issue-body.md"
       # 作成・更新・クローズを 1 ステップに置く。照会は outdated.yml と同じ同梱スクリプトを使う。
-      - name: Update tracking issue
+      # 前回の本文から差分（新規・継続・解消）を出すので、検出の前に追跡 Issue を照会する。
+      # 確かめられなかったとき（一覧の食い違い・API の失敗）は、スクリプトが 1 で終わり、追跡 Issue を触る前にジョブを失敗させる。
+      # そのため、「見直すものは無い」として閉じることは無い。
+      - name: Detect advisories and update tracking issue
         env:
           GH_TOKEN: ${{ github.token }}
-          DUE: ${{ steps.detect.outputs.due }}
           TRACKING_LIB: skills/kaizen/scripts/tracking-issue-lib.sh
         run: |
-          case "$DUE" in
-          '' | *[!0-9]*)
-            echo "due=\"$DUE\" が件数でない。追跡 Issue を触らずに落とす" >&2
-            exit 1
-            ;;
-          esac
+          set -o pipefail
           title="$ISSUE_TITLE_PREFIX ($(date -u +%F))"
           # shellcheck source=/dev/null
           . "$TRACKING_LIB"
@@ -79,11 +58,30 @@ jobs:
             echo "追跡 Issue が ${#numbers[@]} 件ある（番号: ${numbers[*]}）" >&2
           fi
 
-          if [ "$DUE" -eq 0 ]; then
+          body="$RUNNER_TEMP/issue-body.md"
+          comment="$RUNNER_TEMP/issue-comment.md"
+          previous_args=()
+          if [ -n "$number" ]; then
+            gh issue view "$number" --json body --jq .body >"$RUNNER_TEMP/previous-body.md"
+            previous_args=(--previous "$RUNNER_TEMP/previous-body.md")
+          fi
+          node scripts/tools/ignored-advisories.ts --out "$body" --comment-out "$comment" "${previous_args[@]}" |
+            tee "$RUNNER_TEMP/detect.log"
+          due="$(sed -n 's/^due=//p' "$RUNNER_TEMP/detect.log" | tail -n 1)"
+          case "$due" in
+          '' | *[!0-9]*)
+            echo "due の件数を読めない: \"$due\"。追跡 Issue を触らずに失敗させる" >&2
+            exit 1
+            ;;
+          esac
+          cat "$body" "$comment"
+
+          if [ "$due" -eq 0 ]; then
             if [ "${#numbers[@]}" -gt 0 ]; then
               # 一致した全部を閉じる。タイトルは最後に確認した日のまま残す。
               warn_if_truncated "窓の外に閉じ残した追跡 Issue がある可能性がある"
               for n in "${numbers[@]}"; do
+                gh issue comment "$n" --body-file "$comment"
                 gh issue close "$n" --comment "見直す時期に当たる無視した advisory はありません。自動でクローズします。"
               done
             else
@@ -91,10 +89,10 @@ jobs:
             fi
           elif [ -n "$number" ]; then
             warn_if_truncated "本物の追跡 Issue が窓の外にあり、別の Issue を更新している可能性がある"
-            gh issue edit "$number" --title "$title" --body-file "$RUNNER_TEMP/issue-body.md"
-            # 本文の更新だけでは通知が届かないので、コメントを 1 件足す（#508 の追跡 Issue の更新規則）。
-            gh issue comment "$number" --body "$(date -u +%F) に見直した。見直すもの: ${DUE} 件。内容は本文の表にある。"
+            gh issue edit "$number" --title "$title" --body-file "$body"
+            # 本文の更新だけでは通知が届かないので、差分を書いたコメントを 1 件足す（#508 の追跡 Issue の更新規則）。
+            gh issue comment "$number" --body-file "$comment"
           else
             warn_if_truncated "既存の追跡 Issue を取りこぼして重複を作った可能性がある"
-            gh issue create --title "$title" --body-file "$RUNNER_TEMP/issue-body.md" --label dependencies
+            gh issue create --title "$title" --body-file "$body" --label dependencies
           fi

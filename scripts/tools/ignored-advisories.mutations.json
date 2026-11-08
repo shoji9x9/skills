@@ -17,7 +17,7 @@
       "id": "outside-always-allowed",
       "why": "許可した依存元の外を判定せず、新しく使い始めた依存元を見逃す",
       "file": "scripts/tools/ignored-advisories.ts",
-      "find": "const outside = dependents.filter((d) => !allowed.has(`${d.depField}\\u0000${d.name}`));",
+      "find": "const outside = dependents.filter((d) => !allowed.has(dependentKey(d)));",
       "replace": "const outside = dependents.filter(() => false);",
       "occurrences": 1,
       "expect_failing": [

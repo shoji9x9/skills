@@ -6,9 +6,12 @@
 // | pnpm が読んだ一覧 | 空の出力 / null / ignore が null / ignore が 1 件 / オブジェクトでない / GHSA の形でない |
 // | 許可する依存元の一覧 | 正しい / advisories が無い / キーが GHSA でない / package が無い / dependents が空 / 要素に depField が無い |
 // | 一覧の突き合わせ | 一致 / 書いたが読まれていない / 読まれたが書いていない / 許可の一覧に無い / 許可の一覧にだけある |
-// | advisory | 修正版あり・なし / 取り下げあり・なし / vulnerabilities が無い / 型が違う |
+// | advisory | 修正版あり・なし・範囲つき / 取り下げあり・なし / vulnerabilities が無い / 要素がオブジェクトでない / package・name が null / 型が違う |
 // | 依存元 | 許可の内 / 許可の外（名前・depField が違う）/ 無い（使わなくなった）/ deduped の節 |
 // | 外部コマンド | 成功 / 失敗 |
+// | 前回の本文 | 目印なし / 識別子あり / 配列でない / 文字列でない要素 / JSON でない |
+// | 前回との差分 | 新規 / 継続 / 解消 / 前回なし |
+// | CLI の引数 | 正しい / --previous つき / 足りない / 未知 / 同じオプションが 2 回 / 位置引数 |
 import { describe, expect, test } from "vitest";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -16,14 +19,18 @@ import {
   advisoryStatus,
   collect,
   declaredGhsas,
+  diffFindings,
   directDependents,
   evaluate,
   formatBody,
+  formatComment,
   listMismatches,
   loadedGhsas,
   main,
   parseAllowlist,
+  previousKeys,
   type AllowEntry,
+  type Finding,
   type Runner,
 } from "./ignored-advisories.ts";
 import { makeTempDir } from "../lib/testing/test-tmpdir.ts";
@@ -175,17 +182,37 @@ describe("advisory の状態", () => {
     });
   });
 
-  test("別のパッケージや別のエコシステムの修正版は取らない", () => {
+  test("別のパッケージ・別のエコシステム・package が null の修正版は取らない", () => {
     const value = {
-      vulnerabilities: [vuln("1.0.0", "other"), vuln("3.0.4", "braces", "pip"), vuln(null)],
+      vulnerabilities: [
+        vuln("1.0.0", "other"),
+        vuln("3.0.4", "braces", "pip"),
+        { package: null, first_patched_version: "3.0.4" },
+        { package: { ecosystem: "npm", name: null }, first_patched_version: "3.0.4" },
+        {},
+        vuln(null),
+      ],
       withdrawn_at: null,
     };
     expect(advisoryStatus(value, A, "braces")).toEqual({ patched: [], withdrawn: null });
   });
 
+  test("修正版に、それがある脆弱な範囲を添える", () => {
+    const value = {
+      vulnerabilities: [
+        { ...vuln("2.3.1"), vulnerable_version_range: ">= 2.0.0, < 2.3.1" },
+        { ...vuln(null), vulnerable_version_range: ">= 3.0.0" },
+      ],
+      withdrawn_at: null,
+    };
+    expect(advisoryStatus(value, A, "braces").patched).toEqual([
+      "braces@2.3.1（>= 2.0.0, < 2.3.1 の修正版）",
+    ]);
+  });
+
   test.each([
     ["vulnerabilities が無い", {}, "vulnerabilities が無い"],
-    ["package が無い", { vulnerabilities: [{}] }, "package が無い"],
+    ["要素がオブジェクトでない", { vulnerabilities: [null] }, "オブジェクトでない"],
     [
       "first_patched_version が文字列でない",
       { vulnerabilities: [vuln(1)] },
@@ -274,10 +301,11 @@ describe("見直す時期の判定", () => {
 });
 
 describe("Issue の本文", () => {
-  test("0 件は件数だけを書く", () => {
+  test("0 件は件数と空の識別子の一覧だけを書く", () => {
     const body = formatBody([], 0);
     expect(body).toContain("確かめた advisory: 0 件、見直すもの: 0 件");
     expect(body).not.toContain("| advisory |");
+    expect(previousKeys(body)).toEqual([]);
   });
 
   test("検出したものを表にする", () => {
@@ -289,9 +317,69 @@ describe("Issue の本文", () => {
       1,
     );
     expect(body).toContain(
-      `| [${A}](https://github.com/advisories/${A}) | どの依存元も使わなくなった | braces |`,
+      `| [${A}](https://github.com/advisories/${A}) | どの依存元も使わなくなった | braces | 新規 |`,
     );
-    expect(body).toContain("| 許可した依存元の外が使い始めた | x（dependencies） |");
+    expect(body).toContain("| 許可した依存元の外が使い始めた | x（dependencies） | 新規 |");
+  });
+
+  test("前回と比べて継続と解消を書き、次の実行が読む識別子を埋める", () => {
+    const findings: Finding[] = [
+      { id: A, kind: "unused", detail: "braces" },
+      { id: B, kind: "withdrawn", detail: "2026-10-23T12:53:02Z" },
+    ];
+    const body = formatBody(findings, 2, [`${A} unused`, `${A} patched`]);
+    expect(body).toContain("| どの依存元も使わなくなった | braces | 継続 |");
+    expect(body).toContain("| 2026-10-23T12:53:02Z | 新規 |");
+    expect(body).toContain(`前回から解消したもの: ${A} patched`);
+    expect(previousKeys(body)).toEqual([`${A} unused`, `${B} withdrawn`]);
+  });
+});
+
+describe("前回との差分", () => {
+  const findings: Finding[] = [
+    { id: A, kind: "unused", detail: "braces" },
+    { id: B, kind: "withdrawn", detail: "x" },
+  ];
+
+  test("新規・継続・解消に分ける", () => {
+    expect(diffFindings(findings, [`${A} unused`, `${A} patched`])).toEqual({
+      added: [`${B} withdrawn`],
+      kept: [`${A} unused`],
+      resolved: [`${A} patched`],
+    });
+  });
+
+  test("前回が無ければすべて新規", () => {
+    expect(diffFindings(findings, [])).toEqual({
+      added: [`${A} unused`, `${B} withdrawn`],
+      kept: [],
+      resolved: [],
+    });
+  });
+
+  test("コメントに件数と、新規・解消の識別子を書く", () => {
+    const comment = formatComment(findings, [`${A} unused`, `${A} patched`]);
+    expect(comment).toContain("見直すもの: 2 件（新規 1 件・継続 1 件・前回から解消 1 件）");
+    expect(comment).toContain(`新規: ${B} withdrawn`);
+    expect(comment).toContain(`解消: ${A} patched`);
+  });
+
+  test("0 件で解消も無ければ件数だけ", () => {
+    expect(formatComment([], [])).toBe(
+      "見直すもの: 0 件（新規 0 件・継続 0 件・前回から解消 0 件）\n",
+    );
+  });
+
+  test("目印の無い本文は前回の識別子なし", () => {
+    expect(previousKeys("人が書き換えた本文")).toEqual([]);
+  });
+
+  test.each([
+    ["配列でない", "<!-- ignored-advisories:keys {} -->", "配列でない"],
+    ["文字列でない要素", "<!-- ignored-advisories:keys [1] -->", "文字列でない"],
+    ["JSON でない", "<!-- ignored-advisories:keys [ -->", "JSON"],
+  ])("目印が%sときは例外にする", (_name, body, message) => {
+    expect(() => previousKeys(`本文\n${body}\n`)).toThrow(message);
   });
 });
 
@@ -342,32 +430,62 @@ describe("まとめて確かめる", () => {
 describe("CLI", () => {
   const nullRun: Runner = () => "null";
 
-  test("引数が違えば 2", () => {
-    expect(main([], nullRun)).toBe(2);
-    expect(main(["--out"], nullRun)).toBe(2);
+  test.each([
+    ["引数なし", []],
+    ["--comment-out が無い", ["--out", "a"]],
+    ["値が無い", ["--out", "a", "--comment-out"]],
+    ["未知のオプション", ["--out", "a", "--comment-out", "b", "--x", "c"]],
+    ["同じオプションが 2 回", ["--out", "a", "--out", "b", "--comment-out", "c"]],
+    ["位置引数", ["--out", "a", "--comment-out", "b", "c"]],
+  ])("%s は 2", (_name, args) => {
+    expect(main(args, nullRun)).toBe(2);
   });
 
-  test("無視が無ければ due=0 と本文を書く", () => {
+  const setup = () => {
     const dir = makeTempDir("ignored-advisories-");
     writeFileSync(join(dir, "pnpm-workspace.yaml"), "auditConfig:\n  ignoreGhsas: []\n");
     const allowlist = join(dir, "dependents.json");
     writeFileSync(allowlist, allowJson({}));
+    return { dir, paths: { workspaceYaml: join(dir, "pnpm-workspace.yaml"), allowlist } };
+  };
+
+  test("無視が無ければ due=0 と本文とコメントを書く", () => {
+    const { dir, paths } = setup();
     const out = join(dir, "body.md");
-    expect(
-      main(["--out", out], nullRun, {
-        workspaceYaml: join(dir, "pnpm-workspace.yaml"),
-        allowlist,
-      }),
-    ).toBe(0);
+    const comment = join(dir, "comment.md");
+    expect(main(["--out", out, "--comment-out", comment], nullRun, paths)).toBe(0);
     expect(readFileSync(out, "utf8")).toContain("見直すもの: 0 件");
+    expect(readFileSync(comment, "utf8")).toContain("前回から解消 0 件");
+  });
+
+  test("前回の本文を読み、解消したものをコメントに書く", () => {
+    const { dir, paths } = setup();
+    const previous = join(dir, "previous.md");
+    writeFileSync(previous, `本文\n<!-- ignored-advisories:keys ["${A} patched"] -->\n`);
+    const comment = join(dir, "comment.md");
+    const args = ["--out", join(dir, "body.md"), "--comment-out", comment, "--previous", previous];
+    expect(main(args, nullRun, paths)).toBe(0);
+    expect(readFileSync(comment, "utf8")).toContain(`解消: ${A} patched`);
   });
 
   test("確かめられなければ 1", () => {
     const dir = makeTempDir("ignored-advisories-");
-    expect(
-      main(["--out", join(dir, "body.md")], nullRun, {
-        workspaceYaml: join(dir, "pnpm-workspace.yaml"),
-      }),
-    ).toBe(1);
+    const args = ["--out", join(dir, "body.md"), "--comment-out", join(dir, "c.md")];
+    expect(main(args, nullRun, { workspaceYaml: join(dir, "pnpm-workspace.yaml") })).toBe(1);
+  });
+
+  test("前回の本文を読めなければ 1", () => {
+    const { dir, paths } = setup();
+    const previous = join(dir, "previous.md");
+    writeFileSync(previous, "<!-- ignored-advisories:keys {} -->\n");
+    const args = [
+      "--out",
+      join(dir, "b.md"),
+      "--comment-out",
+      join(dir, "c.md"),
+      "--previous",
+      previous,
+    ];
+    expect(main(args, nullRun, paths)).toBe(1);
   });
 });

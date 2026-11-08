@@ -12,11 +12,13 @@
 // pnpm が読んだ無視の一覧と、pnpm-workspace.yaml に書いた一覧が食い違う（設定のキーや形が変わり、一覧が空として読まれた場合など）。
 // 許可する依存元の一覧（ignored-advisories-dependents.json）と無視の一覧が食い違う。外部コマンドや API が失敗するか、想定外の形を返す。
 //
-// 使い方: node scripts/tools/ignored-advisories.ts --out <Issue の本文を書くパス>
-// 標準出力の最後の行に `due=<件数>` を出す。件数が 0 のときも本文のファイルは書く。
+// 使い方: node scripts/tools/ignored-advisories.ts --out <本文のパス> --comment-out <コメントのパス> [--previous <前回の本文のパス>]
+// 標準出力の最後の行に `due=<件数>` を出す。件数が 0 のときも本文とコメントのファイルは書く。
+// 前回の本文を渡すと、前回との差分（新規・継続・解消）を本文とコメントに書く（#508 の追跡 Issue の更新規則）。
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
 import { isCliEntry } from "../lib/cli/entry.ts";
 import { errorMessage } from "../lib/errors.ts";
@@ -37,6 +39,9 @@ export type Finding =
   | { id: string; kind: "withdrawn"; detail: string }
   | { id: string; kind: "new-dependent"; detail: Dependent[] }
   | { id: string; kind: "unused"; detail: string };
+
+/** 依存元を照合するキー。許可の一覧と pnpm why の結果を同じ形で比べる。 */
+const dependentKey = (d: Dependent): string => `${d.depField}\u0000${d.name}`;
 
 function assertGhsaList(value: unknown, where: string): string[] {
   if (!isArray(value)) throw new Error(`${where} が配列でない`);
@@ -131,16 +136,20 @@ export function listMismatches(
   return errors;
 }
 
-/** vulnerabilities の 1 要素から、無視したパッケージ（npm の `pkg`）の修正版を取る。当たらなければ空の配列を返す。 */
+/**
+ * vulnerabilities の 1 要素から、無視したパッケージ（npm の `pkg`）の修正版を取る。当たらなければ空の配列を返す。
+ * package と package.name は null になりうる（GitHub の global advisories API）。その要素は `pkg` に当たらないので読み飛ばす。
+ * 修正版には、それがある脆弱な範囲を添える。使っているバージョンがその範囲にあるかは、人が確かめる。
+ */
 function patchedVersion(v: unknown, id: string, pkg: string): string[] {
-  if (!isRecord(v) || !isRecord(v["package"]) || !isNonBlankString(v["package"]["name"])) {
-    throw new Error(`${id} の vulnerabilities の要素に package が無い`);
-  }
-  if (v["package"]["ecosystem"] !== "npm" || v["package"]["name"] !== pkg) return [];
+  if (!isRecord(v)) throw new Error(`${id} の vulnerabilities の要素がオブジェクトでない`);
+  const target = v["package"];
+  if (!isRecord(target) || target["ecosystem"] !== "npm" || target["name"] !== pkg) return [];
   const fixed = v["first_patched_version"];
   if (fixed === null || fixed === undefined) return [];
   if (typeof fixed !== "string") throw new Error(`${id} の first_patched_version が文字列でない`);
-  return [`${pkg}@${fixed}`];
+  const range = v["vulnerable_version_range"];
+  return [typeof range === "string" ? `${pkg}@${fixed}（${range} の修正版）` : `${pkg}@${fixed}`];
 }
 
 /**
@@ -181,7 +190,7 @@ export function directDependents(value: unknown): Dependent[] {
         typeof node["name"] === "string"
       ) {
         const d = { name: node["name"], depField: parent["depField"] };
-        found.set(`${d.depField}\u0000${d.name}`, d);
+        found.set(dependentKey(d), d);
       }
       walk(parent);
     }
@@ -207,8 +216,8 @@ export function evaluate(input: {
   if (dependents.length === 0) {
     findings.push({ id, kind: "unused", detail: allow.package });
   } else {
-    const allowed = new Set(allow.dependents.map((d) => `${d.depField}\u0000${d.name}`));
-    const outside = dependents.filter((d) => !allowed.has(`${d.depField}\u0000${d.name}`));
+    const allowed = new Set(allow.dependents.map(dependentKey));
+    const outside = dependents.filter((d) => !allowed.has(dependentKey(d)));
     if (outside.length > 0) findings.push({ id, kind: "new-dependent", detail: outside });
   }
   return findings;
@@ -234,8 +243,51 @@ function describe(f: Finding): string {
   }
 }
 
-/** 追跡 Issue の本文。 */
-export function formatBody(findings: readonly Finding[], checked: number): string {
+/** 前回との差分に使う、検出したことの識別子（advisory と種別）。 */
+const findingKey = (f: Finding): string => `${f.id} ${f.kind}`;
+
+const KEYS_MARKER = /^<!-- ignored-advisories:keys (.*) -->$/mu;
+
+/**
+ * 前回の本文に埋めた識別子の一覧を読む。目印が無ければ（初めての作成や、人が本文を書き換えた後）空の一覧にする。
+ * 目印があって読めないときは、差分を誤らないように例外にする。
+ */
+export function previousKeys(body: string): string[] {
+  const match = KEYS_MARKER.exec(body);
+  if (match === null) return [];
+  const value: unknown = JSON.parse(match[1] ?? "");
+  if (!isArray(value)) throw new Error("前回の本文の識別子の一覧が配列でない");
+  const keys: string[] = [];
+  for (const key of value) {
+    if (typeof key !== "string") throw new Error("前回の本文の識別子に文字列でないものがある");
+    keys.push(key);
+  }
+  return keys;
+}
+
+/** 今回の検出を、前回の識別子と比べて新規・継続に分け、前回にだけあったもの（解消）を挙げる。 */
+export function diffFindings(
+  findings: readonly Finding[],
+  previous: readonly string[],
+): { added: string[]; kept: string[]; resolved: string[] } {
+  const before = new Set(previous);
+  const now = findings.map(findingKey);
+  const nowSet = new Set(now);
+  return {
+    added: now.filter((k) => !before.has(k)),
+    kept: now.filter((k) => before.has(k)),
+    resolved: [...before].filter((k) => !nowSet.has(k)),
+  };
+}
+
+/** 追跡 Issue の本文。最後の行に、次の実行が差分に使う識別子の一覧を埋める。 */
+export function formatBody(
+  findings: readonly Finding[],
+  checked: number,
+  previous: readonly string[] = [],
+): string {
+  const { resolved } = diffFindings(findings, previous);
+  const before = new Set(previous);
   const lines = [
     "`pnpm-workspace.yaml` の `auditConfig.ignoreGhsas` で無視している advisory のうち、見直す時期に当たるものの一覧です。",
     "この Issue は `Ignored advisories` ワークフローが作成・更新・クローズします。",
@@ -244,10 +296,11 @@ export function formatBody(findings: readonly Finding[], checked: number): strin
     "",
   ];
   if (findings.length > 0) {
-    lines.push("| advisory | 検出したこと | 内容 |", "| --- | --- | --- |");
+    lines.push("| advisory | 検出したこと | 内容 | 前回から |", "| --- | --- | --- | --- |");
     for (const f of findings) {
+      const state = before.has(findingKey(f)) ? "継続" : "新規";
       lines.push(
-        `| [${f.id}](https://github.com/advisories/${f.id}) | ${KIND_LABEL[f.kind]} | ${describe(f)} |`,
+        `| [${f.id}](https://github.com/advisories/${f.id}) | ${KIND_LABEL[f.kind]} | ${describe(f)} | ${state} |`,
       );
     }
     lines.push(
@@ -255,6 +308,19 @@ export function formatBody(findings: readonly Finding[], checked: number): strin
       "それぞれの扱いは `docs/vulnerability-handling.md` の「無視する advisory」にあります。",
     );
   }
+  if (resolved.length > 0) lines.push("", `前回から解消したもの: ${resolved.join("、")}`);
+  lines.push("", `<!-- ignored-advisories:keys ${JSON.stringify(findings.map(findingKey))} -->`);
+  return `${lines.join("\n")}\n`;
+}
+
+/** 追跡 Issue に足すコメント。本文の更新だけでは通知が届かないので、差分をコメントにも書く。 */
+export function formatComment(findings: readonly Finding[], previous: readonly string[]): string {
+  const { added, kept, resolved } = diffFindings(findings, previous);
+  const lines = [
+    `見直すもの: ${findings.length} 件（新規 ${added.length} 件・継続 ${kept.length} 件・前回から解消 ${resolved.length} 件）`,
+  ];
+  if (added.length > 0) lines.push("", `新規: ${added.join("、")}`);
+  if (resolved.length > 0) lines.push("", `解消: ${resolved.join("、")}`);
   return `${lines.join("\n")}\n`;
 }
 
@@ -289,25 +355,55 @@ export function collect(
   return { checked: declared.length, findings };
 }
 
+type CliOptions = { out: string; commentOut: string; previous: string | undefined };
+
+/** 引数を読む。足りない・未知・同じオプションが 2 回あるときは null。 */
+function parseCli(args: readonly string[]): CliOptions | null {
+  try {
+    const { values, tokens } = parseArgs({
+      args: [...args],
+      options: {
+        out: { type: "string" },
+        "comment-out": { type: "string" },
+        previous: { type: "string" },
+      },
+      strict: true,
+      allowPositionals: false,
+      tokens: true,
+    });
+    const names = tokens.flatMap((t) => (t.kind === "option" ? [t.name] : []));
+    if (new Set(names).size !== names.length) return null;
+    const { out, "comment-out": commentOut, previous } = values;
+    if (!isNonBlankString(out) || !isNonBlankString(commentOut)) return null;
+    return { out, commentOut, previous };
+  } catch {
+    return null;
+  }
+}
+
 /** `paths` はテストが一時ディレクトリを渡すためにある。ワークフローはデフォルト（リポジトリの直下と同梱の一覧）で呼ぶ。 */
 export function main(
   args: readonly string[],
   run: Runner = defaultRunner,
   paths: { workspaceYaml?: string; allowlist?: string } = {},
 ): number {
-  if (args.length !== 2 || args[0] !== "--out" || !isNonBlankString(args[1])) {
+  const options = parseCli(args);
+  if (options === null) {
     console.error(
-      "使い方: node scripts/tools/ignored-advisories.ts --out <Issue の本文を書くパス>",
+      "使い方: node scripts/tools/ignored-advisories.ts --out <本文のパス> --comment-out <コメントのパス> [--previous <前回の本文のパス>]",
     );
     return 2;
   }
   try {
+    const previous =
+      options.previous === undefined ? [] : previousKeys(readFileSync(options.previous, "utf8"));
     const result = collect(
       run,
       readFileSync(paths.workspaceYaml ?? "pnpm-workspace.yaml", "utf8"),
       readFileSync(paths.allowlist ?? ALLOWLIST, "utf8"),
     );
-    writeFileSync(args[1], formatBody(result.findings, result.checked));
+    writeFileSync(options.out, formatBody(result.findings, result.checked, previous));
+    writeFileSync(options.commentOut, formatComment(result.findings, previous));
     console.log(`due=${result.findings.length}`);
     return 0;
   } catch (error) {
