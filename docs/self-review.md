@@ -75,7 +75,7 @@ gh variable delete SELF_REVIEW_SKIP
 公開リポジトリの artifact はログインした人が読めるので、資格情報の値と `sk-ant-` で始まる文字列を `[REDACTED]` に伏せてから残す。伏せた後にも残っていれば、実行記録は残さない。
 
 ```bash
-gh run download <run の ID> --name self-review-execution-1 --dir <保存先>
+gh run download <run の ID> --name self-review-execution-<試行の番号> --dir <保存先>
 ```
 
 ## 追跡 Issue の読み方
