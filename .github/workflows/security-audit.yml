@@ -1,0 +1,615 @@
+name: Security audit
+
+# リポジトリ全体のセキュリティを、LLM で監査する（Issue #941。親は #508）。PR ごとの検査（CodeQL・zizmor・/security-review）は差分か決まった規則を見るので、
+# それでは見つからないものを、cloudflare/security-audit-skill（MIT）をエージェントが実行して探す。
+# 監査の記録（脆弱性の詳細・前回の網羅の台帳）は公開できないので、鍵で暗号化して artifact に置き、次の実行がそれを復号して引き継ぐ。
+# 追跡 Issue には、件数と識別子だけを載せる。運用（鍵・一時停止・記録の読み方）は docs/security-scanning.md にある。
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 監査の対象。self はこのリポジトリ、dvna は既知の脆弱性を持つ公開のアプリ（検出できるかの確認用。追跡 Issue と記録の引き継ぎを触らない）
+        type: choice
+        options: [self, dvna]
+        default: self
+      profile:
+        description: 上流のスキルのプロファイル（quick は調査を 1 波だけ行う）
+        type: choice
+        options: [quick, standard]
+        default: quick
+      budget:
+        description: エージェントを起動する回数の上限（偵察・調査・検証のすべてを数える）
+        type: string
+        default: "40"
+      restart:
+        description: 前回の記録を引き継がずに、初回として監査する（同じ鍵で復号できない記録が残ったときだけ使う。成功すると、この回の記録が以後の引き継ぎの起点になる）
+        type: boolean
+        default: false
+
+# 前の実行を止めない。記録の引き継ぎと追跡 Issue の更新が途中で止まると、食い違った状態が残る。
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  # 上流のスキルは commit で固定する。上げるときは、差分を読んでから SHA を変える。
+  SKILL_REPOSITORY: cloudflare/security-audit-skill
+  SKILL_SHA: c1c8a8c1471069fb0e188eeaff69b8e8db6564a8
+  # 検出できるかの確認に使う、既知の脆弱性を持つ Node.js のアプリ（Damn Vulnerable NodeJS Application。MIT）。
+  DVNA_REPOSITORY: appsecco/dvna
+  DVNA_SHA: 9ba473add536f66ac9007966acb2a775dd31277a
+  # 次の実行が引き継ぐ記録の artifact の名前の接頭辞。後ろに、鍵から作った識別子（Check credentials の key_id）を付ける。
+  STATE_ARTIFACT_PREFIX: security-audit-state
+  STATE_WORKFLOW_PATH: .github/workflows/security-audit.yml
+
+# ジョブは self-review.yml と同じく 2 つに分ける。エージェントを動かす audit には Issue を書く権限を与えず、
+# 追跡 Issue を書く tracking-issue は、checkout し直した作業ツリーのスクリプトと、artifact で受け取った要約（データとして読むだけ）だけを使う。
+jobs:
+  audit:
+    name: Audit repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      # 前回の暗号化した記録（artifact）を取得する。
+      actions: read
+    outputs:
+      skip: ${{ steps.pause.outputs.skip }}
+      # 監査できたか、できなかった理由は、Decide result の段だけが決める（tracking-issue はそれを読む）。
+      result_outcome: ${{ steps.result.outcome }}
+      failure: ${{ steps.result.outputs.failure }}
+      state_note: ${{ steps.result.outputs.state_note }}
+      summary_artifact: security-audit-summary-${{ github.run_attempt }}
+    steps:
+      - name: Check pause switch
+        id: pause
+        env:
+          SECURITY_AUDIT_SKIP: ${{ vars.SECURITY_AUDIT_SKIP }}
+        run: |
+          skip=false
+          case "$(printf '%s' "${SECURITY_AUDIT_SKIP:-}" | tr '[:upper:]' '[:lower:]')" in
+            on | true | yes | 1) skip=true ;;
+          esac
+          echo "skip=$skip" >>"$GITHUB_OUTPUT"
+          if [ "$skip" = true ]; then
+            echo "リポジトリ変数 SECURITY_AUDIT_SKIP で一時停止している" >>"$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.pause.outputs.skip != 'true'
+        with:
+          persist-credentials: false
+
+      # エージェントの資格情報と、記録を暗号化する鍵の両方が要る。鍵が無いと、記録を公開の artifact に置けない。
+      - name: Check credentials
+        id: cred
+        if: steps.pause.outputs.skip != 'true'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          SECURITY_AUDIT_STATE_KEY: ${{ secrets.SECURITY_AUDIT_STATE_KEY }}
+        run: |
+          present=true
+          for name in CLAUDE_CODE_OAUTH_TOKEN SECURITY_AUDIT_STATE_KEY; do
+            if [ -z "${!name}" ]; then
+              present=false
+              echo "secret $name が未設定" >&2
+            fi
+          done
+          echo "present=$present" >>"$GITHUB_OUTPUT"
+          # 引き継ぐ記録の artifact の名前に、鍵から作った識別子（HMAC の先頭 12 桁）を付ける。鍵が乱数なら、識別子から鍵は割り出せない。
+          # 鍵を替えると名前が変わるので、次の実行は古い鍵の記録を選ばず、初回として監査する（記録を手で消さなくてよい）。
+          if [ "$present" = true ]; then
+            # 鍵はコマンドの引数に置かず、環境変数で渡す。
+            key_id="$(python3 -I -c 'import hashlib, hmac, os; e = os.environ; print(hmac.new(e["SECURITY_AUDIT_STATE_KEY"].encode(), e["STATE_ARTIFACT_PREFIX"].encode(), hashlib.sha256).hexdigest()[:12])')"
+            if ! [[ "$key_id" =~ ^[0-9a-f]{12}$ ]]; then
+              echo "鍵の識別子を作れない" >&2
+              exit 1
+            fi
+            echo "key_id=$key_id" >>"$GITHUB_OUTPUT"
+          fi
+
+      # 値は claude_args と prompt に入るので、決まった形だけを受け付ける。引用符や空白を受け付けると、別の引数を足せてしまう。
+      - name: Resolve settings
+        id: settings
+        if: steps.cred.outputs.present == 'true'
+        env:
+          SECURITY_AUDIT_MODEL: ${{ vars.SECURITY_AUDIT_MODEL }}
+          INPUT_TARGET: ${{ inputs.target || 'self' }}
+          INPUT_PROFILE: ${{ inputs.profile || 'quick' }}
+          INPUT_BUDGET: ${{ inputs.budget || '40' }}
+        run: |
+          valid=true
+          model_args=""
+          if [ -n "$SECURITY_AUDIT_MODEL" ]; then
+            if [[ "$SECURITY_AUDIT_MODEL" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]*$ ]]; then
+              model_args="--model $SECURITY_AUDIT_MODEL"
+            else
+              valid=false
+              echo "リポジトリ変数 SECURITY_AUDIT_MODEL に、モデル名に使わない文字がある" >&2
+            fi
+          fi
+          case "$INPUT_TARGET" in self | dvna) ;; *) valid=false ;; esac
+          case "$INPUT_PROFILE" in quick | standard) ;; *) valid=false ;; esac
+          if ! [[ "$INPUT_BUDGET" =~ ^[1-9][0-9]{0,2}$ ]]; then
+            valid=false
+            echo "budget が 1〜999 の整数でない" >&2
+          fi
+          root="$RUNNER_TEMP/security-audit"
+          if [ "$INPUT_TARGET" = self ]; then
+            target_dir="$GITHUB_WORKSPACE"
+            read_glob="./**"
+            repo_name="skills"
+          else
+            target_dir="$GITHUB_WORKSPACE/audit-target"
+            read_glob="./audit-target/**"
+            repo_name="dvna"
+          fi
+          {
+            echo "valid=$valid"
+            echo "model_args=$model_args"
+            echo "target=$INPUT_TARGET"
+            echo "profile=$INPUT_PROFILE"
+            echo "budget=$INPUT_BUDGET"
+            echo "root=$root"
+            echo "skill_dir=$root/skill/skills/security-audit"
+            echo "runs_dir=$root/runs/$repo_name"
+            echo "target_dir=$target_dir"
+            echo "read_glob=$read_glob"
+            echo "repo_name=$repo_name"
+          } >>"$GITHUB_OUTPUT"
+
+      # 要約のスクリプトと、上流のスキルの検証スクリプトを動かす node を入れる。
+      - uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
+        if: steps.settings.outputs.valid == 'true'
+
+      - name: Fetch skill
+        if: steps.settings.outputs.valid == 'true'
+        env:
+          SKILL_PARENT: ${{ steps.settings.outputs.root }}/skill
+        run: |
+          mkdir -p "$SKILL_PARENT"
+          git -C "$SKILL_PARENT" init -q
+          git -C "$SKILL_PARENT" fetch -q --depth 1 "https://github.com/$SKILL_REPOSITORY.git" "$SKILL_SHA"
+          git -C "$SKILL_PARENT" checkout -q FETCH_HEAD
+          actual="$(git -C "$SKILL_PARENT" rev-parse HEAD)"
+          if [ "$actual" != "$SKILL_SHA" ]; then
+            echo "取得したスキルの commit が固定した SHA と違う: $actual" >&2
+            exit 1
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.settings.outputs.valid == 'true' && steps.settings.outputs.target == 'dvna'
+        with:
+          repository: ${{ env.DVNA_REPOSITORY }}
+          ref: ${{ env.DVNA_SHA }}
+          path: audit-target
+          persist-credentials: false
+
+      # 前回の記録を、同じブランチで成功した実行の artifact から取得して復号する。無ければ初回として監査する。
+      # artifact はこのワークフローが鍵で暗号化して上げたものだけを使う（名前が同じでも、別のワークフローの artifact は使わない）。
+      # 名前に今の鍵の識別子を含む artifact だけを探すので、鍵を替えた後は古い記録を選ばずに初回として監査する。
+      # 同じ鍵で暗号化した記録を復号できないときは、記録が不正なので、初回として扱わずに止める。
+      - name: Restore previous records
+        id: restore
+        if: steps.settings.outputs.valid == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SECURITY_AUDIT_STATE_KEY: ${{ secrets.SECURITY_AUDIT_STATE_KEY }}
+          TARGET: ${{ steps.settings.outputs.target }}
+          RUNS_DIR: ${{ steps.settings.outputs.runs_dir }}
+          BRANCH: ${{ github.ref_name }}
+          STATE_ARTIFACT: ${{ env.STATE_ARTIFACT_PREFIX }}-${{ steps.cred.outputs.key_id }}
+          RESTART: ${{ inputs.restart || false }}
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNS_DIR"
+          # restart は、同じ鍵で復号できない記録が残ったときに、記録を引き継がずに初回として監査するための入力である。
+          if [ "$TARGET" != self ] || [ "$RESTART" = true ]; then
+            echo "result=none" >>"$GITHUB_OUTPUT"
+            echo "next=1" >>"$GITHUB_OUTPUT"
+            mkdir -p "$RUNS_DIR/run-1"
+            exit 0
+          fi
+          # fork の PR の実行も同じパスと同じブランチ名を持てるので、このリポジトリの ref で動いた実行の artifact だけを使う。
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$STATE_ARTIFACT&per_page=100" \
+            --jq '.artifacts[]' | jq -s --arg branch "$BRANCH" \
+            '[.[] | select((.expired | not) and .workflow_run.head_branch == $branch
+              and .workflow_run.head_repository_id == .workflow_run.repository_id)] | sort_by(.created_at) | reverse' \
+            >"$RUNNER_TEMP/artifacts.json"
+          id=""
+          for candidate in $(jq -r '.[] | "\(.id):\(.workflow_run.id)"' "$RUNNER_TEMP/artifacts.json"); do
+            path="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/${candidate#*:}" --jq .path)"
+            if [ "$path" = "$STATE_WORKFLOW_PATH" ]; then
+              id="${candidate%%:*}"
+              break
+            fi
+          done
+          if [ -z "$id" ]; then
+            echo "前回の記録が無い。初回として監査する"
+            echo "result=none" >>"$GITHUB_OUTPUT"
+            echo "next=1" >>"$GITHUB_OUTPUT"
+            mkdir -p "$RUNS_DIR/run-1"
+            exit 0
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" >"$RUNNER_TEMP/state.zip"
+          unzip -q -o "$RUNNER_TEMP/state.zip" -d "$RUNNER_TEMP/state"
+          if ! gpg --batch --quiet --pinentry-mode loopback --passphrase-fd 3 \
+            --decrypt "$RUNNER_TEMP/state/state.tar.gpg" 3<<<"$SECURITY_AUDIT_STATE_KEY" >"$RUNNER_TEMP/state.tar"; then
+            echo "result=failed" >>"$GITHUB_OUTPUT"
+            echo "前回の記録（artifact $id）を復号できない" >&2
+            exit 1
+          fi
+          tar -xf "$RUNNER_TEMP/state.tar" -C "$RUNS_DIR"
+          # 前回のエージェントの実行記録は、監査の引き継ぎに使わない。エージェントに読ませないよう、展開した後に消す。
+          rm -f "$RUNS_DIR"/run-*/execution.json
+          last="$(find "$RUNS_DIR" -mindepth 1 -maxdepth 1 -type d -name 'run-*' | sed 's/.*run-//' | sort -n | tail -n 1)"
+          echo "前回の記録: artifact $id（run-$last）"
+          echo "result=restored" >>"$GITHUB_OUTPUT"
+          echo "next=$((last + 1))" >>"$GITHUB_OUTPUT"
+          mkdir -p "$RUNS_DIR/run-$((last + 1))"
+
+      - name: Run Claude Code
+        id: run-claude
+        if: steps.restore.outcome == 'success'
+        continue-on-error: true
+        # ジョブの上限（180 分）より先に止め、時間切れを outcome の failure として扱う。
+        timeout-minutes: 160
+        env:
+          # サブエージェントをバックグラウンドで起動させない。起動したままメインのエージェントがターンを終えると、
+          # 非対話の実行はそこで終わり、記録を書かずに成功として終わる（Issue #956 の実行記録で確かめた）。
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        uses: anthropics/claude-code-action@d535f5172dec02b204866b393d6b20b9b2aaf98d # v1.0.266
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          prompt: |
+            ${{ steps.settings.outputs.skill_dir }}/SKILL.md を読み、そのスキルの full audit mode でセキュリティ監査を最後まで実行してください。
+            これは人のいない定期実行なので、質問せずに次の値で進めます。
+            - Skill directory: ${{ steps.settings.outputs.skill_dir }}
+            - Target: ${{ steps.settings.outputs.target_dir }}
+            - Repo name: ${{ steps.settings.outputs.repo_name }}
+            - Output directory: ${{ steps.settings.outputs.runs_dir }}/run-${{ steps.restore.outputs.next }}（作成済み。対象の外にある）
+            - 前回までの記録: ${{ steps.settings.outputs.runs_dir }} の下の、出力のディレクトリ以外の run-* ディレクトリ（無ければ初回）
+            - Profile: ${{ steps.settings.outputs.profile }}
+            - Budget: エージェントの起動 ${{ steps.settings.outputs.budget }} 回
+            OS が強制する sandbox はありません。対象のコードのビルド・テスト・実行はせず、実行で確かめる候補は needs_validation として残します。
+            ネットワークは使えません。書き込むのは出力のディレクトリの下だけです。
+            サブエージェントは、結果が返るまで待ってから次に進めます。
+            終える前に、出力のディレクトリの run-metadata.json の run_status を complete か incomplete（理由つき）にしてください。
+          # ツールは、対象とスキルと記録を読むこと、記録を書くこと、サブエージェントを使うこと、上流の検証スクリプトを実行することに限る。
+          # 書き込みを出力の下に限るのは、git の設定などを書き換えて、後の段の git にコマンドを実行させないためである。
+          # Edit の規則は Write にも当たる。Bash は検証スクリプトの起動の形だけを許す（Claude Code は複合コマンドを 1 つずつ照合する）。
+          # 拒否の一覧はツールが足されるたびに抜けが出るので、--tools で使えるツールそのものを限る（使えないツールは拒否の一覧に書かない）。
+          # 設定はユーザーの層（runner には無い）だけを読む。リポジトリの .claude/settings.json の Hook（応答の言語の確認・kaizen の記録）を
+          # 監査の中で実行させないためである。Hook は出力のディレクトリの外に書き、英語で書く上流のスキルの応答を書き直させる。
+          # MCP のサーバーも、--mcp-config で渡したもの（action が渡すもの）だけにし、リポジトリの .mcp.json のサーバーを起動させない。
+          claude_args: >-
+            --tools "Read,Grep,Glob,Edit,Write,Agent,Bash"
+            --setting-sources user
+            --strict-mcp-config
+            --add-dir "${{ steps.settings.outputs.root }}"
+            --allowed-tools "Read(${{ steps.settings.outputs.read_glob }}),Grep(${{ steps.settings.outputs.read_glob }}),Glob(${{ steps.settings.outputs.read_glob }}),Read(/${{ steps.settings.outputs.root }}/**),Grep(/${{ steps.settings.outputs.root }}/**),Glob(/${{ steps.settings.outputs.root }}/**),Edit(/${{ steps.settings.outputs.runs_dir }}/run-${{ steps.restore.outputs.next }}/**),Agent,Bash(node ${{ steps.settings.outputs.skill_dir }}/validate-findings.cjs *),Bash(node ${{ steps.settings.outputs.skill_dir }}/validate-coverage-ledger.cjs *)"
+            ${{ steps.settings.outputs.model_args }}
+
+      # 上流の検証スクリプトで記録の形を確かめ、公開してよい要約（件数・状態・識別子）を作る。
+      # エージェントは出力の下にしか書けないので、ここで動かすスクリプトはエージェントが書き換えていない。
+      - name: Validate and summarize
+        id: summarize
+        if: steps.run-claude.outcome == 'success'
+        continue-on-error: true
+        env:
+          SECURITY_AUDIT_STATE_KEY: ${{ secrets.SECURITY_AUDIT_STATE_KEY }}
+          SKILL_DIR: ${{ steps.settings.outputs.skill_dir }}
+          RUN_DIR: ${{ steps.settings.outputs.runs_dir }}/run-${{ steps.restore.outputs.next }}
+          TARGET: ${{ steps.settings.outputs.target }}
+        # 検証スクリプトのエラーは、記録の値（パス・文の抜粋）を含む。公開のログに出さず、暗号化する記録の中に残す。
+        run: |
+          for name in findings coverage-ledger; do
+            validator="validate-$name.cjs"
+            if ! node "$SKILL_DIR/$validator" "$RUN_DIR/$name.json" >"$RUN_DIR/$validator.log" 2>&1; then
+              echo "$name.json が上流のスキルの検証を通らない（詳細は暗号化した記録の $validator.log）" >&2
+              exit 1
+            fi
+          done
+          node scripts/weekly/security-audit-issue.ts summarize --run-dir "$RUN_DIR" --out "$RUNNER_TEMP/summary.json"
+          if [ "$TARGET" != self ]; then
+            {
+              echo "## 監査の要約（$TARGET）"
+              echo
+              jq -r '"run_status: \(.run_status)\(if .incomplete_reason then "（\(.incomplete_reason)）" else "" end)"' "$RUNNER_TEMP/summary.json"
+              echo
+              jq -r '.items | group_by(.verdict)[] | "- \(.[0].verdict): \(length) 件"' "$RUNNER_TEMP/summary.json"
+            } >>"$GITHUB_STEP_SUMMARY"
+          fi
+
+      # 監査の出力（記録・報告）とエージェントの実行記録を、鍵で暗号化して残す。どちらも脆弱性の詳細を含むので、平文では残さない。
+      # サブエージェントの作業用のディレクトリ（agents/*/scratch）は、引き継ぎに使わないので含めない。
+      - name: Encrypt records
+        id: encrypt
+        if: steps.run-claude.outcome == 'success' || steps.run-claude.outcome == 'failure'
+        continue-on-error: true
+        env:
+          SECURITY_AUDIT_STATE_KEY: ${{ secrets.SECURITY_AUDIT_STATE_KEY }}
+          RUNS_DIR: ${{ steps.settings.outputs.runs_dir }}
+          RUN_NAME: run-${{ steps.restore.outputs.next }}
+          EXECUTION_FILE: ${{ steps.run-claude.outputs.execution_file }}
+        run: |
+          if [ ! -d "$RUNS_DIR/$RUN_NAME" ]; then
+            echo "::warning title=Security audit::出力のディレクトリが無いので、記録を残さない"
+            exit 1
+          fi
+          if [ -n "$EXECUTION_FILE" ] && [ -f "$EXECUTION_FILE" ]; then
+            cp "$EXECUTION_FILE" "$RUNS_DIR/$RUN_NAME/execution.json"
+          fi
+          mkdir -p "$RUNNER_TEMP/out"
+          # 今回を含む直近の 3 回分を残す。今回が未完了でも、その前の完了した実行の記録を次の実行が読めるようにするためである。
+          # 全部を残すと、記録が実行のたびに増え続ける。
+          mapfile -t runs < <(find "$RUNS_DIR" -mindepth 1 -maxdepth 1 -type d -name 'run-*' -printf '%f\n' | sort -t- -k2 -n | tail -n 3)
+          tar -cf "$RUNNER_TEMP/state.tar" -C "$RUNS_DIR" --exclude='run-*/agents/*/scratch' "${runs[@]}"
+          gpg --batch --quiet --yes --pinentry-mode loopback --passphrase-fd 3 --symmetric --cipher-algo AES256 \
+            --output "$RUNNER_TEMP/out/state.tar.gpg" "$RUNNER_TEMP/state.tar" 3<<<"$SECURITY_AUDIT_STATE_KEY"
+          rm -f "$RUNNER_TEMP/state.tar"
+
+      # 次の実行が引き継ぐ記録。記録の形を確かめられた、このリポジトリの監査のときだけ上げる。
+      # 失敗しても要約を上げ、tracking-issue が「記録を残せなかった」と書けるよう、ジョブを止めない。
+      - name: Upload records for next run
+        id: upload-state
+        continue-on-error: true
+        if: steps.encrypt.outcome == 'success' && steps.summarize.outcome == 'success' && steps.settings.outputs.target == 'self'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ env.STATE_ARTIFACT_PREFIX }}-${{ steps.cred.outputs.key_id }}
+          path: ${{ runner.temp }}/out/state.tar.gpg
+          if-no-files-found: error
+          retention-days: 90
+          # 名前は次の実行が探す固定の名前なので、試行の番号を付けない。再実行で同じ名前を上げても失敗しないよう、上書きする。
+          overwrite: true
+
+      # 失敗した実行や dvna の監査も、原因を追えるよう暗号化した記録を残す（次の実行は引き継がない）。
+      - name: Upload records of this run
+        id: upload-run
+        continue-on-error: true
+        if: >-
+          steps.encrypt.outcome == 'success' && (steps.summarize.outcome != 'success' || steps.settings.outputs.target != 'self' ||
+          steps.upload-state.outcome == 'failure')
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: security-audit-run-${{ steps.settings.outputs.target }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/out/state.tar.gpg
+          if-no-files-found: error
+          retention-days: 14
+
+      # 要約を読むのは、デフォルトブランチでだけ動く tracking-issue である。
+      - name: Upload summary
+        id: upload-summary
+        continue-on-error: true
+        if: steps.summarize.outcome == 'success' && steps.settings.outputs.target == 'self' && github.ref_name == github.event.repository.default_branch
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: security-audit-summary-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/summary.json
+          if-no-files-found: error
+          retention-days: 7
+
+      # 監査できたかを、ここで 1 回だけ決める。failure は、要約を使えない理由（監査していない・終えられなかった）である。
+      # state_note は、要約は使えるが今回の記録を残せなかったことを表す。tracking-issue は要約で本文を更新し、この文を足して失敗させる。
+      # 飛ばされた段の出力は空になるので、空の値から「未設定」「不正」を推測しない。資格情報・設定・復号は、段が書いた値
+      # （present と valid の false、result の failed）でだけ判定する。
+      # エージェントと要約は、success でなければ（飛ばされたときを含めて）要約を使えないものとして扱う。upload は、実行して失敗した（failure）かだけを見る。
+      # job.status が success でなければ、continue-on-error の無い段が失敗している。その段はすべてエージェントより前にあるので、
+      # 「起動する前の段が失敗した」と書く。エージェントより後に段を足すときは、continue-on-error を付けてこの前提を保つ。
+      - name: Decide result
+        id: result
+        if: ${{ !cancelled() && steps.pause.outputs.skip != 'true' }}
+        env:
+          JOB_STATUS: ${{ job.status }}
+          TARGET: ${{ steps.settings.outputs.target }}
+          CRED_PRESENT: ${{ steps.cred.outputs.present }}
+          SETTINGS_VALID: ${{ steps.settings.outputs.valid }}
+          RESTORE_RESULT: ${{ steps.restore.outputs.result }}
+          OUTCOME: ${{ steps.run-claude.outcome }}
+          SUMMARY_OUTCOME: ${{ steps.summarize.outcome }}
+          ENCRYPT_OUTCOME: ${{ steps.encrypt.outcome }}
+          STATE_OUTCOME: ${{ steps.upload-state.outcome }}
+          RUN_UPLOAD_OUTCOME: ${{ steps.upload-run.outcome }}
+          SUMMARY_UPLOAD_OUTCOME: ${{ steps.upload-summary.outcome }}
+        run: |
+          failure=""
+          state_note=""
+          if [ "$RESTORE_RESULT" = failed ]; then
+            failure="前回の記録を同じ鍵で復号できないため、監査していない（記録が不正。restart を true にして実行すると、初回として監査する）"
+          elif [ "$JOB_STATUS" != success ]; then
+            failure="エージェントを起動する前の段が失敗した（どの段かは run のログで確かめる）"
+          elif [ "$CRED_PRESENT" = false ]; then
+            failure="secret CLAUDE_CODE_OAUTH_TOKEN か SECURITY_AUDIT_STATE_KEY が未設定のため、監査していない"
+          elif [ "$SETTINGS_VALID" = false ]; then
+            failure="監査の設定（SECURITY_AUDIT_MODEL・入力）に受け付けない値があるため、監査していない"
+          elif [ "$OUTCOME" != success ]; then
+            failure="エージェントの実行が失敗した（outcome: ${OUTCOME:-skipped}）"
+          elif [ "$SUMMARY_OUTCOME" != success ]; then
+            failure="監査の記録が終わっていないか、記録の形が上流のスキルの検証を通らなかった"
+          elif [ "$SUMMARY_UPLOAD_OUTCOME" = failure ]; then
+            failure="監査の要約を artifact に上げられなかった"
+          fi
+          if [ -z "$failure" ]; then
+            # どの upload を実行するかは各段の if が決める。ここでは実行して失敗したかだけを見る。
+            outcomes="暗号化: ${ENCRYPT_OUTCOME:-skipped}・引き継ぐ記録の upload: ${STATE_OUTCOME:-skipped}・今回の記録の upload: ${RUN_UPLOAD_OUTCOME:-skipped}"
+            if [ "$TARGET" = self ] && { [ "$ENCRYPT_OUTCOME" = failure ] || [ "$STATE_OUTCOME" = failure ]; }; then
+              # 引き継ぐ記録を上げられないと、次の実行は前回までの記録と比べるので、新規と解消が 2 回分の差になる。
+              state_note="次の実行に引き継ぐ記録を残せなかったので、次の実行は今回より前に残した記録を引き継ぐ（$outcomes）"
+            elif [ "$ENCRYPT_OUTCOME" = failure ] || [ "$RUN_UPLOAD_OUTCOME" = failure ]; then
+              state_note="今回の記録を暗号化して残せなかった（$outcomes）"
+            fi
+            # 未完了の監査は失敗にしない（追跡 Issue に未完了として出す）。ほかのブランチと dvna の run でも分かるよう、注釈を出す。
+            if [ "$(jq -r .run_status "$RUNNER_TEMP/summary.json")" = incomplete ]; then
+              echo "::warning title=Security audit::監査は未完了（$(jq -r .incomplete_reason "$RUNNER_TEMP/summary.json")）。網羅していない範囲がある"
+            fi
+          fi
+          echo "failure=$failure" >>"$GITHUB_OUTPUT"
+          echo "state_note=$state_note" >>"$GITHUB_OUTPUT"
+
+      # 監査を終えられなかったときと、記録を残せなかったときに、run を失敗にする。
+      # tracking-issue はデフォルトブランチの self でしか動かないので、ほかのブランチと dvna の run では、この段だけが失敗を示す。
+      - name: Fail if audit or records failed
+        if: ${{ !cancelled() && (steps.result.outputs.failure != '' || steps.result.outputs.state_note != '') }}
+        env:
+          FAILURE: ${{ steps.result.outputs.failure }}
+          STATE_NOTE: ${{ steps.result.outputs.state_note }}
+        run: |
+          echo "::error title=Security audit::${FAILURE:-$STATE_NOTE}"
+          exit 1
+
+  tracking-issue:
+    name: Update security audit tracking issue
+    needs: audit
+    # dvna の監査は検出できるかの確認なので、追跡 Issue を触らない。
+    # 入力から判定する。audit の target は設定の段が実行されたときだけ出るので、資格情報が無い実行では空になる。
+    # 追跡 Issue は 1 本なので、デフォルトブランチの監査だけが書く。ほかのブランチの実行は記録を別に引き継ぐので、結果が食い違う。
+    if: ${{ !cancelled() && needs.audit.outputs.skip != 'true' && (inputs.target || 'self') != 'dvna' && github.ref_name == github.event.repository.default_branch }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    env:
+      # 追跡 Issue のタイトルは「接頭辞 + 確認した日」。実行のたびにリネームし、open な 1 本は最後に確認した日を示す。
+      ISSUE_TITLE_PREFIX: "Security audit findings"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
+        id: mise
+        if: needs.audit.outputs.result_outcome == 'success' && needs.audit.outputs.failure == ''
+        continue-on-error: true
+
+      - name: Download summary
+        id: download
+        if: needs.audit.outputs.result_outcome == 'success' && needs.audit.outputs.failure == ''
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ needs.audit.outputs.summary_artifact }}
+          path: ${{ runner.temp }}/security-audit
+
+      # 監査できなかったときは、「指摘 0 件」として閉じず、理由を追跡 Issue に書いてからジョブを失敗させる。
+      # 理由は、audit ジョブの Decide result が決めたもの（資格情報か鍵が未設定・設定が不正・前回の記録を復号できない・
+      # エージェントを起動する前の段の失敗・エージェントの失敗・記録の形の誤り・要約の upload の失敗）と、このジョブで要約を読めなかったことである。
+      - name: Update tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRACKING_LIB: skills/kaizen/scripts/tracking-issue-lib.sh
+          RESULT_OUTCOME: ${{ needs.audit.outputs.result_outcome }}
+          AUDIT_FAILURE: ${{ needs.audit.outputs.failure }}
+          STATE_NOTE: ${{ needs.audit.outputs.state_note }}
+          MISE_OUTCOME: ${{ steps.mise.outcome }}
+          DOWNLOAD_OUTCOME: ${{ steps.download.outcome }}
+          SUMMARY: ${{ runner.temp }}/security-audit/summary.json
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -o pipefail
+          title="$ISSUE_TITLE_PREFIX ($(date -u +%F))"
+          # shellcheck source=/dev/null
+          . "$TRACKING_LIB"
+          resolve_tracking_issues
+          number="${numbers[0]-}"
+          if [ "${#numbers[@]}" -gt 1 ]; then
+            echo "追跡 Issue が ${#numbers[@]} 件ある（番号: ${numbers[*]}）" >&2
+          fi
+
+          body="$RUNNER_TEMP/issue-body.md"
+          comment="$RUNNER_TEMP/issue-comment.md"
+          failure=""
+          if [ "$RESULT_OUTCOME" != success ]; then
+            failure="audit ジョブが、監査の結果を決める前に失敗した（どの段かは run のログで確かめる）"
+          elif [ -n "$AUDIT_FAILURE" ]; then
+            failure="$AUDIT_FAILURE"
+          elif [ "$DOWNLOAD_OUTCOME" != success ]; then
+            failure="監査の要約を受け取れなかった（download の outcome: ${DOWNLOAD_OUTCOME:-unknown}）"
+          elif [ "$MISE_OUTCOME" != success ]; then
+            failure="本文を作るスクリプトの準備（mise）が失敗した"
+          else
+            previous_args=()
+            if [ -n "$number" ]; then
+              if gh issue view "$number" --json body --jq .body >"$RUNNER_TEMP/previous-body.md"; then
+                previous_args=(--previous "$RUNNER_TEMP/previous-body.md")
+              else
+                failure="前回の本文を取得できなかった（#$number）"
+              fi
+            fi
+            if [ -z "$failure" ] && ! node scripts/weekly/security-audit-issue.ts issue --summary "$SUMMARY" \
+              --out "$body" --comment-out "$comment" "${previous_args[@]}" >"$RUNNER_TEMP/issue.log" 2>&1; then
+              failure="要約を Issue にできなかった"
+            fi
+            cat "$RUNNER_TEMP/issue.log" 2>/dev/null || true
+          fi
+
+          if [ -n "$failure" ]; then
+            echo "$failure" >&2
+            printf '監査できませんでした。指摘 0 件ではありません。\n\n理由: %s\n\n[run](%s)\n' "$failure" "$RUN_URL" >"$comment"
+            if [ -n "$number" ]; then
+              gh issue comment "$number" --body-file "$comment"
+            else
+              gh issue create --title "$title" --body-file "$comment"
+            fi
+            exit 1
+          fi
+
+          due="$(sed -n 's/^due=//p' "$RUNNER_TEMP/issue.log" | tail -n 1)"
+          case "$due" in
+          '' | *[!0-9]*)
+            echo "due の件数を読めない: \"$due\"。追跡 Issue を触らずに失敗させる" >&2
+            exit 1
+            ;;
+          esac
+          run_status="$(sed -n 's/^run_status=//p' "$RUNNER_TEMP/issue.log" | tail -n 1)"
+          case "$run_status" in
+          complete | incomplete) ;;
+          *)
+            echo "run_status を読めない: \"$run_status\"。追跡 Issue を触らずに失敗させる" >&2
+            exit 1
+            ;;
+          esac
+          # 記録を残せなかった週も、検証を通った今回の要約は本文に反映し、その後でジョブを失敗させる。
+          # 追跡 Issue を新しく作る週にも残るよう、本文とコメントの両方に書く。完了で 0 件かつ追跡 Issue が無い週は Issue を作らないので、
+          # run の失敗だけに残る。
+          if [ -n "$STATE_NOTE" ]; then
+            printf '\n%s。\n' "$STATE_NOTE" | tee -a "$body" >>"$comment"
+          fi
+          cat "$body" "$comment"
+          printf '\n[run](%s)\n' "$RUN_URL" >>"$comment"
+
+          # 未完了の監査は、確かめきれなかった候補を findings.json に載せない（上流のスキルの決まり）。
+          # 対応が要る記録が 0 件でも、未完了なら閉じずに本文を更新する。
+          if [ "$due" -eq 0 ] && [ "$run_status" = complete ]; then
+            if [ "${#numbers[@]}" -gt 0 ]; then
+              warn_if_truncated "窓の外に閉じ残した追跡 Issue がある可能性がある"
+              closing="対応が要る記録はありません。自動でクローズします。"
+              printf '\n%s\n' "$closing" >>"$comment"
+              gh issue comment "$number" --body-file "$comment"
+              gh issue close "$number"
+              for n in "${numbers[@]:1}"; do
+                gh issue close "$n" --comment "$closing"
+              done
+            else
+              echo "対応が要る記録は無く、追跡 Issue も無いので何もしない"
+            fi
+          elif [ -n "$number" ]; then
+            warn_if_truncated "本物の追跡 Issue が窓の外にあり、別の Issue を更新している可能性がある"
+            gh issue edit "$number" --title "$title" --body-file "$body"
+            gh issue comment "$number" --body-file "$comment"
+          else
+            warn_if_truncated "既存の追跡 Issue を取りこぼして重複を作った可能性がある"
+            gh issue create --title "$title" --body-file "$body"
+          fi
+          if [ -n "$STATE_NOTE" ]; then
+            echo "$STATE_NOTE" >&2
+            exit 1
+          fi
