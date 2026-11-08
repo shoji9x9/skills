@@ -490,7 +490,7 @@ const tracking = trackingKeys({
 });
 export const { previousKeys, diff: diffFindings } = tracking;
 
-/** 空の一覧の「内容」に出す readers は、設定に書いた案内で、スクリプトは確かめていない（Issue #948）。 */
+/** 空の一覧の候補があるときに、候補の表の下に 1 回だけ出す注記（Issue #948）。 */
 const READERS_NOTE =
   "空の免除・保留の一覧の「内容」は、check-cost-metrics.json の readers に書いた、一覧を読む処理の案内である。スクリプトは確かめていない。";
 
@@ -571,7 +571,7 @@ export async function collect(
   input: { config: Config; root: string; now: Date },
 ): Promise<Result> {
   const { config, root, now } = input;
-  // 手元で済む指標を先に集め、設定が古いときや履歴が浅いときは、時間のかかるジョブの API を呼ぶ前に止める。
+  // 手元で済む指標を先に集め、一覧を読めないときや履歴が浅いときは、時間のかかるジョブの API を呼ぶ前に止める。
   const lists = await emptyLists(config.lists, root);
   const fixes = await fixHeavyChecks(run, config.fixPrs, { root, now });
   const rows = await jobRows(run, config.durations, now);
