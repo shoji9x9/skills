@@ -155,7 +155,10 @@ jobs:
           # ツールは、リポジトリの中を読むことと、結果のファイルを書くことだけに限る。リポジトリの外（/proc や ~/.claude）を読めると、
           # 仕込まれた指示に従って資格情報を結果に書くおそれがある。ほかのファイルに書けると、git の設定を書き換えて、
           # checkout の post 段の git にコマンドを実行させるおそれがある。Edit の規則は Write にも当たる（手元の claude -p で確かめた）。
-          claude_args: --allowed-tools "Read(./**),Grep(./**),Glob(./**),Edit(./${{ env.REPORT_FILE }})"
+          # --allowed-tools は許可の一覧なので、使わせないツールは --disallowed-tools で明示して拒否する。
+          claude_args: >-
+            --allowed-tools "Read(./**),Grep(./**),Glob(./**),Edit(./${{ env.REPORT_FILE }})"
+            --disallowed-tools "Bash,WebFetch,WebSearch,NotebookEdit"
 
       - name: Upload report
         if: steps.cred.outputs.present == 'true' && steps.run-claude.outcome == 'success'
@@ -213,9 +216,14 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           REPORT: ${{ runner.temp }}/self-review/${{ env.REPORT_FILE }}
         run: |
-          leak=false
-          if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ] && grep -q -F -e "$CLAUDE_CODE_OAUTH_TOKEN" "$REPORT"; then
-            leak=true
+          # grep の終了コードは、0 が見つかった、1 が無い、それ以外が読めない。読めないときは、見つかったときと同じく載せない。
+          leak=true
+          if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
+            rc=0
+            grep -q -F -e "$CLAUDE_CODE_OAUTH_TOKEN" "$REPORT" || rc=$?
+            if [ "$rc" -eq 1 ]; then
+              leak=false
+            fi
           fi
           echo "leak=$leak" >>"$GITHUB_OUTPUT"
 

@@ -187,14 +187,27 @@ describe("追跡 Issue の本文", () => {
     expect(formatBody(parsed)).toContain(`\` ${summary} \``);
   });
 
-  test("対象のパスは識別子として載るので、メンション・参照・タグ・目印の終わりにならない形にする", () => {
-    const path = "evals/<name>/@x.md--> #508 GH-7 github.com &#64;";
-    const parsed = parseReport(JSON.stringify({ findings: [{ ...finding(), path }] }));
-    const safe =
-      "evals/&lt;name&gt;/@\u200bx.md--&gt; #\u200b508 GH-\u200b7 github\u200b.com &amp;#\u200b64;";
-    expect(parsed.findings[0]?.path).toBe(safe);
-    expect(previousKeys(formatBody(parsed))).toEqual([`inconsistency ${safe}`]);
-    expect(formatComment({ findings: parsed.findings, notes: [] }, [])).toContain(safe);
+  test.each(["docs/", ".github/workflows/ci.yml", "skills/a_b/c-d.md", "x.sh"])(
+    "リポジトリのパスの形（%s）は受け付ける",
+    (path) => {
+      expect(
+        parseReport(JSON.stringify({ findings: [{ ...finding(), path }] })).findings[0]?.path,
+      ).toBe(path);
+    },
+  );
+
+  test.each([
+    "evals/<name>/x.md",
+    "@user",
+    "docs/#508",
+    "[a](https://example.com)",
+    "![x](https://example.com/p)",
+    "docs/a b.md",
+    "docs/a.md-->",
+  ])("対象のパスは識別子として載るので、パスに使わない文字（%s）は受け付けない", (path) => {
+    expect(() => parseReport(JSON.stringify({ findings: [{ ...finding(), path }] }))).toThrow(
+      "findings[0].path がリポジトリのパスの形でない",
+    );
   });
 
   test("指摘が 0 件の週は、点検のメモをコメントに載せる（Issue を閉じて本文を書き換えないため）", () => {
@@ -205,14 +218,14 @@ describe("追跡 Issue の本文", () => {
     expect(formatComment({ findings: [finding()], notes: ["x"] }, [])).not.toContain("点検のメモ");
   });
 
-  test("1 欄を 500 字に、メモを 20 件に切り詰める", () => {
+  test("1 欄を 300 字に、メモを 20 件に切り詰める", () => {
     const parsed = parseReport(
       JSON.stringify({
-        findings: [{ ...finding(), summary: "長".repeat(600) }],
+        findings: [{ ...finding(), summary: "長".repeat(400) }],
         notes: Array.from({ length: 25 }, (_, i) => `メモ ${i}`),
       }),
     );
-    expect(parsed.findings[0]?.summary).toBe(`${"長".repeat(500)}…`);
+    expect(parsed.findings[0]?.summary).toBe(`${"長".repeat(300)}…`);
     expect(parsed.notes).toHaveLength(20);
   });
 
@@ -283,20 +296,18 @@ describe("CLI", () => {
     expect(readFileSync(join(root, "c.md"), "utf8")).toContain("解消: unused gone.md");
   });
 
+  test("指摘が 40 件を超えたら、超えた分を省いて件数をメモに書く", () => {
+    const many = Array.from({ length: 45 }, (_, i) => finding({ path: `docs/${i}.md` }));
+    const { root, args } = setup({ findings: [canaryFinding, ...many] });
+    expect(main(args)).toBe(0);
+    const body = readFileSync(join(root, "b.md"), "utf8");
+    expect(body).toContain("指摘: 40 件");
+    expect(body).toContain("指摘が 45 件あり、40 件を超えた分を省いた");
+  });
+
   test.each([
     ["結果が JSON でない", "# report"],
     ["canary への指摘が無い", { findings: [finding()] }],
-    [
-      "本文が上限を超える",
-      {
-        findings: [
-          canaryFinding,
-          ...Array.from({ length: 150 }, (_, i) =>
-            finding({ path: `docs/${i}.md`, summary: "長".repeat(900) }),
-          ),
-        ],
-      },
-    ],
   ])("%s ときは 1", (_name, report) => {
     const { args } = setup(report);
     expect(main(args)).toBe(1);

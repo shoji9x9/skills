@@ -28,14 +28,20 @@
       "expect_failing": ["結果の JSON 資格情報の形の文字列 は例外にする"]
     },
     {
-      "id": "path-mention-allowed",
-      "why": "対象のパスの @name を無効にせず、差分のコメントで利用者に通知を送る",
+      "id": "path-form-allowed",
+      "why": "パスに使わない文字（@・#・< や Markdown のリンク）を通し、識別子として差分のコメントに載せて、通知やリンクにする",
       "file": "scripts/weekly/self-review-issue.ts",
-      "find": ".replace(/@(?=[\\w-])/gu, \"@\\u200b\")",
-      "replace": ".replace(/@(?=x)(?=y)/gu, \"@\")",
+      "find": "if (!PATH_FORM.test(path)) {",
+      "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "追跡 Issue の本文 対象のパスは識別子として載るので、メンション・参照・タグ・目印の終わりにならない形にする"
+        "追跡 Issue の本文 対象のパスは識別子として載るので、パスに使わない文字（evals/<name>/x.md）は受け付けない",
+        "追跡 Issue の本文 対象のパスは識別子として載るので、パスに使わない文字（@user）は受け付けない",
+        "追跡 Issue の本文 対象のパスは識別子として載るので、パスに使わない文字（docs/#508）は受け付けない",
+        "追跡 Issue の本文 対象のパスは識別子として載るので、パスに使わない文字（[a](https://example.com)）は受け付けない",
+        "追跡 Issue の本文 対象のパスは識別子として載るので、パスに使わない文字（![x](https://example.com/p)）は受け付けない",
+        "追跡 Issue の本文 対象のパスは識別子として載るので、パスに使わない文字（docs/a b.md）は受け付けない",
+        "追跡 Issue の本文 対象のパスは識別子として載るので、パスに使わない文字（docs/a.md-->）は受け付けない"
       ]
     },
     {

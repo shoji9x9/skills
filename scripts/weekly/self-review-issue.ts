@@ -48,7 +48,10 @@ export type Report = { findings: Finding[]; notes: string[] };
 const isCategory = (value: unknown): value is Category =>
   typeof value === "string" && Object.hasOwn(CATEGORY_LABEL, value);
 
-const MAX_TEXT_CHARS = 500;
+/** 1 欄の上限。手順（docs/self-review-procedure.md）の目安と同じにする。 */
+const MAX_TEXT_CHARS = 300;
+/** 指摘の上限。手順の目安と同じにし、超えた分は省いて件数をメモに書く。本文が GitHub の上限を超えないようにするため。 */
+const MAX_FINDINGS = 40;
 const MAX_NOTES = 20;
 /** Anthropic の API キーと OAuth トークンの形。結果にあれば、Issue に載せずに失敗させる。 */
 const CREDENTIAL = /sk-ant-[\w-]{8,}/u;
@@ -60,19 +63,10 @@ const shorten = (value: string): string => {
 };
 
 /**
- * 対象のパスを、識別子として Issue に載せられる形にする。パスは、本文の HTML コメントの目印と差分のコメントに、コードスパンに入れずに載る。
- * `@name` と Issue への参照（`#123`・`GH-123`・`github.com`）は、通知や相互参照にならないよう直後にゼロ幅スペースを入れる。
- * `&`・`<`・`>` は、HTML のタグや目印の終わり（`-->`）として読まれないよう実体参照にする。
+ * 対象のパスに使える文字。パスは、本文の HTML コメントの目印と差分のコメントに、コードスパンに入れずに載る。
+ * リポジトリのパスに使う文字だけに限ると、メンション・Issue への参照・リンク・画像・HTML のどれにもならない。
  */
-const safePath = (value: string): string =>
-  shorten(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replace(/@(?=[\w-])/gu, "@\u200b")
-    .replace(/#(?=\d)/gu, "#\u200b")
-    .replace(/\bGH-(?=\d)/gu, "GH-\u200b")
-    .replace(/github(?=\.com)/giu, "github\u200b");
+const PATH_FORM = /^[A-Za-z0-9._/-]+$/u;
 
 /**
  * 文をコードスパンに入れ、メンション・リンク・画像・HTML として読まれないリテラルにする。
@@ -92,6 +86,14 @@ function text(value: unknown, where: string): string {
   return shorten(value);
 }
 
+function pathText(value: unknown, where: string): string {
+  const path = text(value, where);
+  if (!PATH_FORM.test(path)) {
+    throw new Error(`${where} がリポジトリのパスの形でない（英数字・.・_・-・/ だけを使う）`);
+  }
+  return path;
+}
+
 /** 直し方の案は、無い指摘もある。省略・null・空白だけの文字列は、どれも案が無いものとして読む。 */
 function optionalText(value: unknown, where: string): string {
   if (value === undefined || value === null) return "";
@@ -109,7 +111,7 @@ function parseFinding(value: unknown, where: string): Finding {
   }
   return {
     category,
-    path: safePath(text(value["path"], `${where}.path`)),
+    path: pathText(value["path"], `${where}.path`),
     summary: text(value["summary"], `${where}.summary`),
     evidence: text(value["evidence"], `${where}.evidence`),
     suggestion: optionalText(value["suggestion"], `${where}.suggestion`),
@@ -122,7 +124,8 @@ export function parseReport(source: string): Report {
   try {
     value = JSON.parse(source);
   } catch (error) {
-    throw new Error(`結果が JSON として読めない: ${errorMessage(error)}`, { cause: error });
+    // Node のメッセージは入力の抜粋を含むので、Issue に載るエラーには出さない。
+    throw new Error("結果が JSON として読めない", { cause: error });
   }
   if (!isRecord(value)) throw new Error("結果がオブジェクトでない");
   const { findings, notes } = value;
@@ -148,7 +151,7 @@ export function mergeFindings(findings: readonly Finding[]): Finding[] {
     }
     for (const field of ["summary", "evidence", "suggestion"] as const) {
       if (f[field] !== "")
-        seen[field] = seen[field] === "" ? f[field] : `${seen[field]} / ${f[field]}`;
+        seen[field] = seen[field] === "" ? f[field] : shorten(`${seen[field]} / ${f[field]}`);
     }
   }
   return [...merged.values()].sort((a, b) => naturalOrder(keyOf(a), keyOf(b)));
@@ -247,14 +250,19 @@ export function main(args: readonly string[]): number {
       cli.previous === undefined ? [] : previousKeys(readFileSync(cli.previous, "utf8"));
     const { report: reportPath = "", canary = "" } = cli.extra;
     const report = dropCanary(parseReport(readFileSync(reportPath, "utf8")), canary);
-    const findings = mergeFindings(report.findings);
-    const body = formatBody({ findings, notes: report.notes }, previous);
+    const merged = mergeFindings(report.findings);
+    const findings = merged.slice(0, MAX_FINDINGS);
+    const notes =
+      merged.length > MAX_FINDINGS
+        ? [...report.notes, `指摘が ${merged.length} 件あり、${MAX_FINDINGS} 件を超えた分を省いた`]
+        : report.notes;
+    const body = formatBody({ findings, notes }, previous);
     if (body.length > MAX_BODY_CHARS) {
       throw new Error(
         `本文が ${body.length} 字で、上限の ${MAX_BODY_CHARS} 字を超える。手順の件数と字数の目安を守っているかを確かめる`,
       );
     }
-    const comment = formatComment({ findings, notes: report.notes }, previous);
+    const comment = formatComment({ findings, notes }, previous);
     if (comment.length > MAX_BODY_CHARS) {
       throw new Error(`コメントが ${comment.length} 字で、上限の ${MAX_BODY_CHARS} 字を超える`);
     }
