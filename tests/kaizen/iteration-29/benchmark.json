@@ -1,0 +1,287 @@
+{
+  "metadata": {
+    "skill_name": "kaizen",
+    "skill_path": "<repo>/skills/kaizen",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-08T04:57:18Z",
+    "evals_run": [27, 28],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 27,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 154.756,
+        "tokens": 652788,
+        "tool_calls": 15,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "1 つ目の学びのファイルに ## 既存の規約 の節があり、扱いを 明確 に、場所を AGENTS.md（「シェルの書き方」）にしている",
+          "passed": true,
+          "evidence": "2026-11-08-pipe-exit-status-misread.md の ## 既存の規約 に「扱い: 明確」「場所: AGENTS.md「シェルの書き方」の 1 項目目」"
+        },
+        {
+          "text": "1 つ目の学びの提案が、パイプの終了コードを pipefail か PIPESTATUS で取るという規約を新しく足すものになっていない（既存の規約に従う、または守られなかった理由への対策にしている）",
+          "passed": true,
+          "evidence": "提案は「既存の規約に従う」「同じ内容の文を足さない」で、pipefail の規約を新しく足していない"
+        },
+        {
+          "text": "2 つ目の学びのファイルの ## 既存の規約 で、扱いを 埋もれている に、場所を docs/notes/gh-tips.md にしている",
+          "passed": true,
+          "evidence": "2026-11-08-gh-api-body-file-flag.md の ## 既存の規約 に「扱い: 埋もれている」「場所: docs/notes/gh-tips.md の 3 項目目」"
+        },
+        {
+          "text": "2 つ目の学びの提案が、docs/notes/gh-tips.md にある既存の記述の書き方か置き場所を直すもの（言い切る形に書き直す、読み込まれる場所へ移すか案内する）で、既存の記述に触れずに同じ内容を新しく足すだけの提案になっていない",
+          "passed": true,
+          "evidence": "提案は gh-tips.md の 3 項目目を 2 行の分岐に書き直し、AGENTS.md から案内する 1 行を足す。「同じ内容の文は足さず」と明記"
+        },
+        {
+          "text": "3 つ目の学びのファイルの ## 既存の規約 で、扱いを なし にし、照合した範囲（検索した対象と語）を書いている",
+          "passed": true,
+          "evidence": "2026-11-08-bsd-date-relative-time.md の ## 既存の規約 に「扱い: なし」と、照合した範囲（AGENTS.md・docs/・SKILL.md を date -d・macOS・BSD で検索）"
+        },
+        {
+          "text": "バンドルされた kaizen-status-check.sh を実行し、exit 0 を示している",
+          "passed": true,
+          "evidence": "応答に「kaizen-status-check exit=0」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 28,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 89.882,
+        "tokens": 409375,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "2026-10-01-skipped-test-before-commit.md に ## 失敗の種類 の節があり、種類を 規則を破る にしている",
+          "passed": true,
+          "evidence": "2026-10-01-skipped-test-before-commit.md の ## 失敗の種類 に「種類: 規則を破る」"
+        },
+        {
+          "text": "2026-10-02-pr-body-section-order.md に ## 失敗の種類 の節があり、種類を 形がずれる にしている",
+          "passed": true,
+          "evidence": "2026-10-02-pr-body-section-order.md の ## 失敗の種類 に「種類: 形がずれる」"
+        },
+        {
+          "text": "2026-10-03-sed-inplace-macos.md に ## 失敗の種類 の節があり、種類を 条件で振る舞いを変えたい にしている",
+          "passed": true,
+          "evidence": "2026-10-03-sed-inplace-macos.md の ## 失敗の種類 に「種類: 条件で振る舞いを変えたい」"
+        },
+        {
+          "text": "AGENTS.md の commit の前のテストの規約に、規約を破るときに使われる言い訳（修正が小さい、など）とそれでも従う理由を足し、同じ内容の規約を別の行に新しく足していない",
+          "passed": true,
+          "evidence": "AGENTS.md の「commit の前のテスト」を言い切る文に直し、言い訳 3 件（1 行の修正・CI がテストする・急いでいる）と従う理由を足した。元の 1 行は置き換えられ、重複していない"
+        },
+        {
+          "text": "AGENTS.md に足した PR の本文の規約が、本文を構成する節とその並び順を書いた形で、避ける書き方（〜しない）を並べた形になっていない",
+          "passed": true,
+          "evidence": "「PR の本文」は 3 つの節をこの順に並べる番号付きの一覧と完成した例で、「〜しない」の列挙になっていない"
+        },
+        {
+          "text": "AGENTS.md に足した sed -i の規約が、OS（uname の出力など観測できる値）ごとの分岐で書かれ、無条件の規則に但し書きや除外の文（ただし〜、〜を除き）を付けた形になっていない",
+          "passed": true,
+          "evidence": "「Hook のスクリプトの sed -i」は uname -s が Darwin かそれ以外かの 2 行の分岐で、但し書きや除外の文が無い"
+        },
+        {
+          "text": "バンドルされた kaizen-status-check.sh を実行し、exit 0 を示している",
+          "passed": true,
+          "evidence": "応答に「最後の lifecycle 検査は 終了コード 0」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 27,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 106.826,
+        "tokens": 293498,
+        "tool_calls": 12,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "1 つ目の学びのファイルに ## 既存の規約 の節があり、扱いを 明確 に、場所を AGENTS.md（「シェルの書き方」）にしている",
+          "passed": false,
+          "evidence": "2026-11-08-piped-test-exit-code.md に ## 既存の規約 の節が無い。根本原因に AGENTS.md の規則があると書くだけ"
+        },
+        {
+          "text": "1 つ目の学びの提案が、パイプの終了コードを pipefail か PIPESTATUS で取るという規約を新しく足すものになっていない（既存の規約に従う、または守られなかった理由への対策にしている）",
+          "passed": true,
+          "evidence": "提案は「文書への追記はしない。AGENTS.md:12 に同じ規則があるため」"
+        },
+        {
+          "text": "2 つ目の学びのファイルの ## 既存の規約 で、扱いを 埋もれている に、場所を docs/notes/gh-tips.md にしている",
+          "passed": false,
+          "evidence": "2026-11-08-gh-api-body-file.md に ## 既存の規約 の節が無い"
+        },
+        {
+          "text": "2 つ目の学びの提案が、docs/notes/gh-tips.md にある既存の記述の書き方か置き場所を直すもの（言い切る形に書き直す、読み込まれる場所へ移すか案内する）で、既存の記述に触れずに同じ内容を新しく足すだけの提案になっていない",
+          "passed": true,
+          "evidence": "提案は gh-tips.md に同じ内容を足さず、AGENTS.md に gh-tips.md への参照を足す（置き場所を直す）"
+        },
+        {
+          "text": "3 つ目の学びのファイルの ## 既存の規約 で、扱いを なし にし、照合した範囲（検索した対象と語）を書いている",
+          "passed": false,
+          "evidence": "2026-11-08-bsd-date-relative.md に ## 既存の規約 の節が無い。照合した範囲は ## 根拠 に 1 文あるだけ"
+        },
+        {
+          "text": "バンドルされた kaizen-status-check.sh を実行し、exit 0 を示している",
+          "passed": false,
+          "evidence": "応答に「検査が無いので、終了コードは示せません」。自作の確認だけを実行した"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 28,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2857,
+        "passed": 2,
+        "failed": 5,
+        "total": 7,
+        "time_seconds": 75.827,
+        "tokens": 291533,
+        "tool_calls": 11,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "2026-10-01-skipped-test-before-commit.md に ## 失敗の種類 の節があり、種類を 規則を破る にしている",
+          "passed": false,
+          "evidence": "2026-10-01-skipped-test-before-commit.md に ## 失敗の種類 の節が無い"
+        },
+        {
+          "text": "2026-10-02-pr-body-section-order.md に ## 失敗の種類 の節があり、種類を 形がずれる にしている",
+          "passed": false,
+          "evidence": "2026-10-02-pr-body-section-order.md に ## 失敗の種類 の節が無い"
+        },
+        {
+          "text": "2026-10-03-sed-inplace-macos.md に ## 失敗の種類 の節があり、種類を 条件で振る舞いを変えたい にしている",
+          "passed": false,
+          "evidence": "2026-10-03-sed-inplace-macos.md に ## 失敗の種類 の節が無い"
+        },
+        {
+          "text": "AGENTS.md の commit の前のテストの規約に、規約を破るときに使われる言い訳（修正が小さい、など）とそれでも従う理由を足し、同じ内容の規約を別の行に新しく足していない",
+          "passed": false,
+          "evidence": "AGENTS.md の規約に「1 行だけの修正でも省略しない。修正が小さいことは、テストを省く理由にならない」を足しただけで、言い訳に対してそれでも従う理由を書いていない"
+        },
+        {
+          "text": "AGENTS.md に足した PR の本文の規約が、本文を構成する節とその並び順を書いた形で、避ける書き方（〜しない）を並べた形になっていない",
+          "passed": true,
+          "evidence": "PR の本文の規約は 3 つの節の順序と見出しを示す形（「混ぜず」の 1 句はあるが、構成と順序が主）"
+        },
+        {
+          "text": "AGENTS.md に足した sed -i の規約が、OS（uname の出力など観測できる値）ごとの分岐で書かれ、無条件の規則に但し書きや除外の文（ただし〜、〜を除き）を付けた形になっていない",
+          "passed": true,
+          "evidence": "sed -i の規約は uname が Darwin かで分岐するコード例で、但し書きや除外の文が無い"
+        },
+        {
+          "text": "バンドルされた kaizen-status-check.sh を実行し、exit 0 を示している",
+          "passed": false,
+          "evidence": "応答に「実行していません。終了コードはありません」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 122.319,
+        "stddev": 45.8728,
+        "min": 89.882,
+        "max": 154.756
+      },
+      "tokens": {
+        "mean": 531081.5,
+        "stddev": 172118.9829,
+        "min": 409375,
+        "max": 652788
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.3095,
+        "stddev": 0.0337,
+        "min": 0.2857,
+        "max": 0.3333
+      },
+      "time_seconds": {
+        "mean": 91.3265,
+        "stddev": 21.9196,
+        "min": 75.827,
+        "max": 106.826
+      },
+      "tokens": {
+        "mean": 292515.5,
+        "stddev": 1389.4648,
+        "min": 291533,
+        "max": 293498
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.69",
+      "time_seconds": "+31.0",
+      "tokens": "+238566"
+    }
+  },
+  "notes": [
+    "# Skill Benchmark: kaizen",
+    "**Model**: claude-code / opus（reasoning effort high）",
+    "**Date**: 2026-11-08",
+    "**Evals**: 2（`with_skill` と `without_skill` を 1 run ずつ）",
+    "## 目的",
+    "Issue #933・#934 の変更確認である。新しく足した eval 27（既存の規約との照合）と eval 28（規約の書き方を失敗の種類で選ぶ）を 1 run ずつ実行した。",
+    "どちらも新しい eval なので、比べる前回の記録は無い。",
+    "## 入力の変更",
+    "- eval 27: 新規。fixture `fixtures/existing-rules`（`AGENTS.md` に言い切った規約、`docs/notes/gh-tips.md` に案内されない弱い書き方の記述）",
+    "- eval 28: 新規。fixture `fixtures/apply-failure-types`（失敗の種類の違う pending の学び 3 件）",
+    "## Summary",
+    "| eval | 入力の変更 | with_skill | without_skill | 前回の with_skill |",
+    "| --- | --- | --- | --- | --- |",
+    "| 27 | 新規 | 6/6 | 2/6 | 無し |",
+    "| 28 | 新規 | 7/7 | 2/7 | 無し |",
+    "## 差の出た所と出なかった所",
+    "- eval 27 の `without_skill` も、既存の規約を読んで「同じ内容を足さない」判断をした（提案の形の 2 本は pass）。差が出たのは、扱いと場所を `## 既存の規約` に記録すること（3 本）と、同梱の lifecycle 検査（1 本）である。",
+    "- eval 28 の `without_skill` も、PR の本文を構成と順序で書き、sed を OS の分岐で書いた（2 本は pass）。差が出たのは、`## 失敗の種類` の記録（3 本）、言い訳とそれでも従う理由（1 本）、lifecycle 検査（1 本）である。",
+    "- 差の出なかった 4 本は、Delta ではなく後退の検出を目的として残す。",
+    "## 前回より下がったものと、その原因",
+    "- 無し（新しい eval のため比べていない）",
+    "## 実行し直した run",
+    "- 無し"
+  ]
+}
