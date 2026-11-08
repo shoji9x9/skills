@@ -5,7 +5,7 @@
 // | 設定 | 正しい / lists が空 / file が無い / kind が知らない値 / readers が空 / 閾値が 0・負・数でない / 節が無い |
 // | 一覧の数え方 | json-array / json-object / json-arrays（除くキー・配列が無い）/ ts-export（配列・オブジェクト）/ 型が違う |
 // | 一覧の件数 | 0 件（候補）/ 1 件以上 |
-// | 読む処理 | 一覧を参照する / 参照しない / ファイルが無い |
+// | 読む処理（readers） | 一覧の名前を含まない・ファイルが無い（確かめずに案内として出す） |
 // | PR のタイトル | squash（件名）/ マージの commit（本文の 1 行目）/ 本文が空 / `fix`・`fix(scope)`・`fix!`・fix 以外 |
 // | 変えたファイル | 追加・変更・削除・名前の変更（後の PR で今の名前に寄せる）/ テスト・変異の定義（本体に寄せる）/ 同じ PR で 2 回 |
 // | 修正の PR の件数 | 閾値の未満・以上 / 今は無いファイル |
@@ -21,9 +21,7 @@ import { dirname, join } from "node:path";
 import {
   mapLimit,
   defaultRunner,
-  referenceText,
   checkFileOf,
-  checkReaders,
   collect,
   compareJobs,
   countEntries,
@@ -259,124 +257,21 @@ describe("空の一覧", () => {
     readers,
   });
 
-  test("読む処理が一覧を参照していなければ例外にする", () => {
-    expect(() => checkReaders(target("dir/a.json"), () => 'import "b.json"')).toThrow(
-      "r.ts が a.json を参照していない",
-    );
-    expect(() => checkReaders(target("dir/a.json"), () => 'read("a.json")')).not.toThrow();
-    expect(() => checkReaders(target("dir/a.json"), () => 'read("see dir/a.json.")')).not.toThrow();
-  });
-
-  test.each([
-    { name: "TypeScript の行コメント", reader: "r.ts", text: "// a.json\nconst x = 1;" },
-    { name: "TypeScript のブロックコメント", reader: "r.ts", text: "/* a.json */ const x = 1;" },
-    { name: "YAML のコメント", reader: "w.yml", text: "# a.json\nrun: echo\n" },
-  ])("$name にだけある名前は、参照として数えない", ({ reader, text }) => {
-    expect(() => checkReaders(target("a.json", [reader]), () => text)).toThrow("参照していない");
-  });
-
-  test.each([
-    { name: "TypeScript の文字列", reader: "r.ts", text: 'const p = "a.json"; // 説明' },
-    {
-      name: "TypeScript の import の指定子",
-      reader: "r.ts",
-      text: 'import { X } from "./a.json";',
-    },
-    {
-      name: "TypeScript の値と型を混ぜた import",
-      reader: "r.ts",
-      text: 'import { type X, Y } from "./a.json";',
-    },
-    { name: "TypeScript の export * from", reader: "r.ts", text: 'export * from "./a.json";' },
-    { name: "TypeScript の副作用だけの import", reader: "r.ts", text: 'import "./a.json";' },
-    // 型だけの import・export も数える（referenceText のコメントにある近似の見逃し）。
-    {
-      name: "TypeScript の型だけの名前の import",
-      reader: "r.ts",
-      text: 'import { type X } from "./a.json";',
-    },
-    {
-      name: "TypeScript の export type ... from",
-      reader: "r.ts",
-      text: 'export type { X } from "./a.json";',
-    },
-    {
-      name: "TypeScript の import type",
-      reader: "r.ts",
-      text: 'import type { X } from "./a.json";',
-    },
-    { name: "JavaScript（.mjs）の文字列", reader: "r.mjs", text: 'read("a.json");' },
-    { name: "YAML（.yaml）の値", reader: "w.yaml", text: "run: cat a.json\n" },
-    { name: "TypeScript の文字列の改行の後", reader: "r.ts", text: 'const s = "x\\na.json";' },
-    {
-      name: "TypeScript のテンプレートのタブの後",
-      reader: "r.ts",
-      text: "const s = `x\\ta.json`;",
-    },
-    { name: "YAML の値", reader: "w.yml", text: "run: cat a.json # 説明\n" },
-    { name: "JSON の値", reader: "package.json", text: '{"scripts": {"x": "tool a.json"}}' },
-    { name: "YAML のブロックの改行の後", reader: "w.yml", text: "run: |\n  echo x\n  a.json\n" },
-    { name: "YAML の値のタブの後", reader: "w.yml", text: 'run: "echo\\ta.json"\n' },
-    { name: "JSON の値の改行の後", reader: "package.json", text: '{"x": "echo\\na.json"}' },
-  ])("$name にある名前は参照として数える", ({ reader, text }) => {
-    expect(() => checkReaders(target("a.json", [reader]), () => text)).not.toThrow();
-  });
-
-  test("扱えない種類のファイルは、扱える拡張子をすべて挙げて例外にする", () => {
-    expect(() => referenceText("lefthook.toml", "a.json")).toThrow(
-      "扱えない種類のファイル。扱えるのは .ts・.mts・.cts・.js・.mjs・.cjs・.json・.yml・.yaml",
-    );
-  });
-
-  test.each([
-    { name: "コメントを含む JSON", reader: "r.json", text: "{ // a.json\n}" },
-    { name: "構文の誤った YAML", reader: "w.yml", text: "a: [" },
-    { name: "扱えない種類", reader: "lefthook.toml", text: "a.json" },
-  ])("$name の読む処理は、名前と直す場所を添えて例外にする", ({ reader, text }) => {
-    expect(() => checkReaders(target("a.json", [reader]), () => text)).toThrow(
-      `読む処理 ${reader} を読めない。check-cost-metrics.json の readers を直す`,
-    );
-  });
-
-  test("読む処理のファイルが無ければ、名前と直す場所を添えて例外にする", async () => {
-    const root = makeTempDir("check-cost-metrics-");
-    writeFiles(root, { "a.json": '{"exempt": []}' });
-    await expect(emptyLists([target("a.json", ["none.ts"])], root)).rejects.toThrow(
-      "読む処理 none.ts を読めない。check-cost-metrics.json の readers を直す",
-    );
-  });
-
-  test("同じ読む処理は、一覧が複数あっても 1 回だけ読む", async () => {
-    const root = makeTempDir("check-cost-metrics-");
-    writeFiles(root, { "a.json": '{"exempt": ["x"]}', "b.json": '{"exempt": ["y"]}' });
-    const read: string[] = [];
-    const reader = (path: string) => (read.push(path), 'load("a.json", "b.json")');
-    expect(await emptyLists([target("a.json"), target("b.json")], root, reader)).toEqual([]);
-    expect(read).toEqual(["r.ts"]);
-  });
-
   test("keep_empty に理由を書いた一覧は、空でも挙げない", async () => {
     const root = makeTempDir("check-cost-metrics-");
-    writeFiles(root, { "empty.json": '{"exempt": []}', "r.ts": 'read("empty.json")' });
+    writeFiles(root, { "empty.json": '{"exempt": []}' });
     expect(await emptyLists([{ ...target("empty.json"), keepEmpty: "理由" }], root)).toEqual([]);
   });
 
-  test("別のファイル名の一部にある名前は、参照として数えない", () => {
-    for (const text of ['"crap-a.json"', '"xa.json"', '"a.json-old"', '"a.jsonc"']) {
-      expect(() => checkReaders(target("dir/a.json"), () => text)).toThrow("参照していない");
-    }
-  });
-
-  test("空の一覧だけを挙げる（JSON と TypeScript の export）", async () => {
+  test("空の一覧だけを挙げ、readers を案内として添える（JSON と TypeScript の export）", async () => {
     const root = makeTempDir("check-cost-metrics-");
     writeFiles(root, {
       "empty.json": '{"exempt": []}',
       "full.json": '{"exempt": ["x"]}',
       "pending.ts": "export const PENDING = {};\n",
-      "r.ts": 'load("empty.json", "full.json", "pending.ts");',
     });
     const lists = [
-      target("empty.json"),
+      target("empty.json", ["r.ts", "w.yml"]),
       target("full.json"),
       {
         file: "pending.ts",
@@ -385,14 +280,21 @@ describe("空の一覧", () => {
       },
     ];
     expect(await emptyLists(lists, root)).toEqual([
-      { kind: "empty-list", target: "empty.json", detail: "r.ts" },
+      { kind: "empty-list", target: "empty.json", detail: "r.ts、w.yml" },
       { kind: "empty-list", target: "pending.ts", detail: "r.ts" },
     ]);
   });
 
-  test("一覧か読む処理のファイルが無ければ例外にする", async () => {
+  test("readers のファイルが無い・一覧の名前を含まないときも、失敗せずに数える", async () => {
     const root = makeTempDir("check-cost-metrics-");
-    writeFiles(root, { "r.ts": 'load("a.json");' });
+    writeFiles(root, { "a.json": '{"exempt": []}', "r.ts": 'load("other.json");' });
+    expect(await emptyLists([target("a.json", ["r.ts", "none.ts"])], root)).toEqual([
+      { kind: "empty-list", target: "a.json", detail: "r.ts、none.ts" },
+    ]);
+  });
+
+  test("一覧のファイルが無ければ例外にする", async () => {
+    const root = makeTempDir("check-cost-metrics-");
     await expect(emptyLists([target("a.json")], root)).rejects.toThrow("a.json");
   });
 });
