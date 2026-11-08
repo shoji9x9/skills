@@ -57,6 +57,15 @@
       "replace": "if (fixed === null || fixed === undefined) return [];",
       "occurrences": 1,
       "expect_failing": ["advisory の状態 first_patched_version のキーが無い は例外にする"]
+    },
+    {
+      "id": "missing-withdrawn-key-as-none",
+      "why": "withdrawn_at のキーが無い応答（キーの名前の変化）を取り下げていないとして扱い、取り下げを見逃したまま追跡 Issue を閉じる",
+      "file": "scripts/tools/ignored-advisories.ts",
+      "find": "if (withdrawn !== null && !isNonBlankString(withdrawn)) {",
+      "replace": "if (withdrawn !== null && withdrawn !== undefined && !isNonBlankString(withdrawn)) {",
+      "occurrences": 1,
+      "expect_failing": ["advisory の状態 withdrawn_at のキーが無い は例外にする"]
     }
   ]
 }

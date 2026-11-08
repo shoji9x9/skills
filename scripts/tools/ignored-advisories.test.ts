@@ -413,6 +413,18 @@ describe("Issue の本文", () => {
   });
 });
 
+describe("書いた識別子を次の実行が読めること", () => {
+  test.each([
+    ["修正版の後ろに空白", { id: A, kind: "patched", detail: ["braces@3.0.3 "] }],
+    ["取り下げの日時の後ろに改行", { id: A, kind: "withdrawn", detail: "2026-10-23T12:53:02Z\n" }],
+    ["内容の途中に改行と連続した空白", { id: A, kind: "unused", detail: "a\n  b" }],
+  ] satisfies [string, Finding][])("%s", (_name, finding) => {
+    const keys = previousKeys(formatBody([finding], 1));
+    expect(keys).toHaveLength(1);
+    expect(diffFindings([finding], keys)).toEqual({ added: [], kept: keys, resolved: [] });
+  });
+});
+
 describe("前回との差分", () => {
   const findings: Finding[] = [
     { id: A, kind: "unused", detail: "braces" },
