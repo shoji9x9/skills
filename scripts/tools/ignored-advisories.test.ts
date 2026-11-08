@@ -182,13 +182,17 @@ describe("advisory の状態", () => {
     });
   });
 
-  test("別のパッケージ・別のエコシステム・package が null の修正版は取らない", () => {
+  test("無視したパッケージの npm の要素の外にある修正版は取らない", () => {
     const value = {
       vulnerabilities: [
         vuln("1.0.0", "other"),
         vuln("3.0.4", "braces", "pip"),
+        vuln("3.0.4", "braces", "NPM"),
         { package: null, first_patched_version: "3.0.4" },
         { package: { ecosystem: "npm", name: null }, first_patched_version: "3.0.4" },
+        { package: { name: "braces" }, first_patched_version: "3.0.4" },
+        {},
+        null,
         vuln(null),
       ],
       withdrawn_at: null,
@@ -209,28 +213,39 @@ describe("advisory の状態", () => {
     ]);
   });
 
+  test("修正版は API の並び順に関わらず同じ順に並べる", () => {
+    const forward = { vulnerabilities: [vuln("2.3.1"), vuln("3.0.4")], withdrawn_at: null };
+    const backward = { vulnerabilities: [vuln("3.0.4"), vuln("2.3.1")], withdrawn_at: null };
+    expect(advisoryStatus(backward, A, "braces").patched).toEqual(["braces@2.3.1", "braces@3.0.4"]);
+    expect(advisoryStatus(forward, A, "braces")).toEqual(advisoryStatus(backward, A, "braces"));
+  });
+
   test.each([
     ["vulnerabilities が無い", {}, "vulnerabilities が無い"],
-    ["要素がオブジェクトでない", { vulnerabilities: [null] }, "オブジェクトでない"],
-    ["package のキーが無い", { vulnerabilities: [{}] }, "package.name が無い"],
+    ["要素が空", { vulnerabilities: [] }, "npm の braces が無い"],
     [
-      "package.name のキーが無い",
-      { vulnerabilities: [{ package: { ecosystem: "npm" } }] },
-      "package.name が無い",
-    ],
-    [
-      "package.name が文字列でない",
+      "どの要素も無視したパッケージに当たらない（形が変わった）",
       {
-        vulnerabilities: [{ package: { ecosystem: "npm", name: 1 }, first_patched_version: null }],
+        vulnerabilities: [
+          null,
+          {},
+          { package: { name: "braces" } },
+          vuln("3.0.4", "braces", "NPM"),
+        ],
       },
-      "文字列でない",
+      "npm の braces が無い",
     ],
     [
       "first_patched_version が文字列でない",
       { vulnerabilities: [vuln(1)] },
       "first_patched_version",
     ],
-    ["withdrawn_at が文字列でない", { vulnerabilities: [], withdrawn_at: 1 }, "withdrawn_at"],
+    [
+      "withdrawn_at が文字列でない",
+      { vulnerabilities: [vuln(null)], withdrawn_at: 1 },
+      "withdrawn_at",
+    ],
+    ["withdrawn_at が空文字", { vulnerabilities: [vuln(null)], withdrawn_at: "" }, "withdrawn_at"],
   ])("%s は例外にする", (_name, value, message) => {
     expect(() => advisoryStatus(value, A, "braces")).toThrow(message);
   });
@@ -414,6 +429,7 @@ describe("前回との差分", () => {
     ["種別が知らない値", `["${A} other: x"]`, "識別子の形でない"],
     ["GHSA の形でない", `["GHSA-x unused: braces"]`, "識別子の形でない"],
     ["内容が空", `["${A} unused: "]`, "識別子の形でない"],
+    ["種別の後に区切りが無い", `["${A} unused braces"]`, "識別子の形でない"],
     ["重複", `["${A} unused: braces","${A} unused: braces"]`, "重複"],
   ])("目印の一覧が%sときは、直し方を添えて例外にする", (_name, json, message) => {
     const body = `本文\n<!-- ignored-advisories:keys ${json} -->\n`;
@@ -433,7 +449,9 @@ describe("まとめて確かめる", () => {
         {
           "pnpm config get audit --json": `{"ignore":["${A}"]}`,
           [`gh api /advisories/${A}`]: JSON.stringify({
-            vulnerabilities: [],
+            vulnerabilities: [
+              { package: { ecosystem: "npm", name: "braces" }, first_patched_version: null },
+            ],
             withdrawn_at: "2026-10-23T12:53:02Z",
           }),
           "pnpm why braces --json": "[]",
@@ -476,6 +494,7 @@ describe("CLI", () => {
     ["未知のオプション", ["--out", "a", "--comment-out", "b", "--x", "c"]],
     ["同じオプションが 2 回", ["--out", "a", "--out", "b", "--comment-out", "c"]],
     ["位置引数", ["--out", "a", "--comment-out", "b", "c"]],
+    ["--previous が空", ["--out", "a", "--comment-out", "b", "--previous", ""]],
   ])("%s は 2", (_name, args) => {
     expect(main(args, nullRun)).toBe(2);
   });

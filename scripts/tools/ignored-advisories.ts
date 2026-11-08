@@ -137,28 +137,21 @@ export function listMismatches(
 }
 
 /**
- * vulnerabilities の要素の package が、無視したパッケージ（npm の `pkg`）かを返す。
- * package と package.name は null になりうる（GitHub の global advisories API）。null の要素は `pkg` に当たらない。
- * キーが無い・型が違う要素は、API の形が変わった可能性があるので例外にする。読み飛ばすと、修正版を見逃したまま追跡 Issue を閉じる。
+ * vulnerabilities の要素が、無視したパッケージ（npm の `pkg`）の要素かを返す。
+ * 形が違う要素（package が null・キーが無い・ecosystem が別の表記）は、当たらない要素として扱う。
+ * 当たる要素が 1 件も無い応答は advisoryStatus が例外にするので、形が変わっても修正版を見逃したまま追跡 Issue を閉じない。
  */
-function isIgnoredPackage(v: Record<string, unknown>, id: string, pkg: string): boolean {
+function isIgnoredPackage(v: unknown, pkg: string): v is Record<string, unknown> {
+  if (!isRecord(v)) return false;
   const target = v["package"];
-  if (target === null) return false;
-  if (!isRecord(target) || !("name" in target)) {
-    throw new Error(`${id} の vulnerabilities の要素に package.name が無い`);
-  }
-  if (target["name"] === null) return false;
-  if (typeof target["name"] !== "string") throw new Error(`${id} の package.name が文字列でない`);
-  return target["ecosystem"] === "npm" && target["name"] === pkg;
+  return isRecord(target) && target["ecosystem"] === "npm" && target["name"] === pkg;
 }
 
 /**
- * vulnerabilities の 1 要素から、無視したパッケージ（npm の `pkg`）の修正版を取る。当たらなければ空の配列を返す。
+ * 無視したパッケージの要素から修正版を取る。修正版が無ければ空の配列を返す。
  * 修正版には、それがある脆弱な範囲を添える。使っているバージョンがその範囲にあるかは、人が確かめる。
  */
-function patchedVersion(v: unknown, id: string, pkg: string): string[] {
-  if (!isRecord(v)) throw new Error(`${id} の vulnerabilities の要素がオブジェクトでない`);
-  if (!isIgnoredPackage(v, id, pkg)) return [];
+function patchedVersion(v: Record<string, unknown>, id: string, pkg: string): string[] {
   const fixed = v["first_patched_version"];
   if (fixed === null || fixed === undefined) return [];
   if (typeof fixed !== "string") throw new Error(`${id} の first_patched_version が文字列でない`);
@@ -179,10 +172,17 @@ export function advisoryStatus(
   if (!isRecord(value) || !isArray(value["vulnerabilities"])) {
     throw new Error(`${id} の advisory に vulnerabilities が無い`);
   }
-  const patched = value["vulnerabilities"].flatMap((v) => patchedVersion(v, id, pkg));
+  const targets = value["vulnerabilities"].filter((v) => isIgnoredPackage(v, pkg));
+  if (targets.length === 0) {
+    throw new Error(
+      `${id} の vulnerabilities に npm の ${pkg} が無い（API の形が変わったか、advisory の対象が書き換えられた）`,
+    );
+  }
+  // 識別子に使うので、API の並び順に左右されないように並べる。
+  const patched = targets.flatMap((v) => patchedVersion(v, id, pkg)).sort();
   const withdrawn = value["withdrawn_at"];
-  if (withdrawn !== null && withdrawn !== undefined && typeof withdrawn !== "string") {
-    throw new Error(`${id} の withdrawn_at が文字列でない`);
+  if (withdrawn !== null && withdrawn !== undefined && !isNonBlankString(withdrawn)) {
+    throw new Error(`${id} の withdrawn_at が空でない文字列でない`);
   }
   return { patched, withdrawn: withdrawn ?? null };
 }
@@ -264,21 +264,24 @@ function describe(f: Finding): string {
 const findingKey = (f: Finding): string => `${f.id} ${f.kind}: ${describe(f)}`;
 
 const KEYS_MARKER = /^<!-- ignored-advisories:keys (.*) -->$/mu;
-const KEY_FORM =
-  /^GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4} (patched|withdrawn|new-dependent|unused): \S/u;
+// 書き手（findingKey）と同じ定義（GHSA の形・KIND_LABEL の種別）から組み立て、種別を足したときに食い違わないようにする。
+const KEY_FORM = new RegExp(
+  `^${GHSA.source.slice(1, -1)} (${Object.keys(KIND_LABEL).join("|")}): .`,
+  "u",
+);
 
 function parseKeys(json: string): string[] {
   const value: unknown = JSON.parse(json);
   if (!isArray(value)) throw new Error("識別子の一覧が配列でない");
-  const keys: string[] = [];
+  const keys = new Set<string>();
   for (const key of value) {
     if (typeof key !== "string" || !KEY_FORM.test(key)) {
       throw new Error(`識別子の形でないものがある: ${JSON.stringify(key)}`);
     }
-    if (keys.includes(key)) throw new Error(`識別子が重複している: ${key}`);
-    keys.push(key);
+    if (keys.has(key)) throw new Error(`識別子が重複している: ${key}`);
+    keys.add(key);
   }
-  return keys;
+  return [...keys];
 }
 
 /**
@@ -402,6 +405,7 @@ function parseCli(args: readonly string[]): CliOptions | null {
   if (Object.keys(values).some((name) => !CLI_NAMES.has(name))) return null;
   const { out, "comment-out": commentOut, previous } = values;
   if (!isNonBlankString(out) || !isNonBlankString(commentOut)) return null;
+  if (previous !== undefined && !isNonBlankString(previous)) return null;
   return { out, commentOut, previous };
 }
 
