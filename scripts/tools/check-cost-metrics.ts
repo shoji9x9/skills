@@ -3,7 +3,7 @@
 // 候補を挙げるだけで、チェックを廃止するか、ジョブを直すかは人が決める。
 //
 // 集める指標は次の 3 つである。対象と閾値は、隣の check-cost-metrics.json で決める。
-// - 空の免除・保留の一覧: 一覧が空のまま、設定に残っている（読む処理は確かめず、readers を案内として添える）
+// - 空の免除・保留の一覧: check-cost-metrics.json の lists に挙げた一覧のファイルが空になっている（readers は確かめず、案内として添える）
 // - 修正の PR が多いチェック: 直近の期間に、チェックのファイルを変えた fix の PR の数
 // - GitHub Actions のジョブの所要時間: 直近の期間と前の期間の中央値を比べ、遅くなったジョブを挙げる（最大値は所要時間の表にだけ載せる）
 //
@@ -492,7 +492,7 @@ export const { previousKeys, diff: diffFindings } = tracking;
 
 /** 空の一覧の候補があるときに、候補の表の下に 1 回だけ出す注記（Issue #948）。 */
 const READERS_NOTE =
-  "空の免除・保留の一覧の「内容」は、check-cost-metrics.json の readers に書いた、一覧を読む処理の案内である。スクリプトは、そのファイルが今も一覧を読んでいるかを確かめていない。";
+  "空の一覧の行で「内容」に出すファイルは、check-cost-metrics.json の readers に書いた案内で、一覧を読む処理を示す。スクリプトは、そのファイルが今も一覧を読んでいるかを確かめていない。";
 
 function findingTable(findings: readonly Finding[], kept: ReadonlySet<string>): string[] {
   if (findings.length === 0) return [];

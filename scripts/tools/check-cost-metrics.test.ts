@@ -604,7 +604,7 @@ describe("追跡 Issue の本文", () => {
   test("候補の表・所要時間の表・識別子を書き、表の | をエスケープする", () => {
     const body = formatBody({ findings, rows, config });
     expect(body).toContain("直す候補: 2 件");
-    expect(body).toContain("readers に書いた、一覧を読む処理の案内である。");
+    expect(body).toContain("readers に書いた案内で、一覧を読む処理を示す。");
     expect(body).toContain("| 空の免除・保留の一覧 | a.json | r.ts、w.yml | 新規 |");
     expect(body).toContain("| 遅くなったジョブ | CI / Lint \\| x（pull_request） |");
     expect(body).toContain("| CI / Lint（pull_request） | 3 | 12 秒 | 20 秒 | 2 | 10 秒 | 11 秒 |");
