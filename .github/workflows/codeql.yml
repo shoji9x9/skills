@@ -6,7 +6,7 @@ on:
   push:
     branches: [main]
   # main に push が無い間も、CodeQL に新しく入ったクエリで既存のコードを解析する。
-  # 毎週火曜 03:17 UTC (12:17 JST)。月曜の週次（outdated.yml・kaizen-schedule.yml・mutation-proof.yml・ignored-advisories.yml）と曜日をずらしている。
+  # 毎週火曜 03:17 UTC (12:17 JST)。月曜の週次（outdated.yml・kaizen-schedule.yml・mutation-proof.yml・ignored-advisories.yml）と水曜の check-cost-metrics.yml と曜日をずらしている。
   schedule:
     - cron: "17 3 * * 2"
 

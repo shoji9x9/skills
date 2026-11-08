@@ -28,7 +28,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
-import { type CommentMarkdown, commentDirectives } from "./code-comments.ts";
+import { type CommentMarkdown, commentDirectives, scriptKind } from "./code-comments.ts";
 import { isRecord } from "../guards.ts";
 import { isArray } from "../is-array.ts";
 
@@ -149,13 +149,7 @@ function parseSource(path: string, source: string): { sf: ParsedSourceFile; isEv
   const sf = (
     isEvals
       ? ts.parseJsonText(path, source)
-      : ts.createSourceFile(
-          path,
-          source,
-          ts.ScriptTarget.Latest,
-          true,
-          path.endsWith(".ts") ? ts.ScriptKind.TS : ts.ScriptKind.JS,
-        )
+      : ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, scriptKind(path))
   ) as ParsedSourceFile;
   if (isEvals && sf.parseDiagnostics.length > 0) {
     throw new Error(`${path}: JSON として読めない（${sf.parseDiagnostics.length} 件の構文エラー）`);
@@ -231,14 +225,22 @@ function partOrigins(raw: string, start: ts.LineAndCharacter): Origin[] {
   return origins;
 }
 
-/** JavaScript・TypeScript の文字列リテラルとテンプレートの各部分。import と export の指定子は除く。 */
-function jsStrings(sf: ts.SourceFile): ts.LiteralLikeNode[] {
+/**
+ * JavaScript・TypeScript の文字列リテラルとテンプレートの各部分。import と export の指定子はデフォルトでは除き、
+ * `moduleSpecifiers` を true にすると含める。型だけの import かどうかは区別しない。
+ * 親のノードを読むので、sf は setParentNodes を true にして作る。
+ */
+export function jsStrings(
+  sf: ts.SourceFile,
+  options: { moduleSpecifiers?: boolean } = {},
+): ts.LiteralLikeNode[] {
   const out: ts.LiteralLikeNode[] = [];
   // 文字列リテラルとテンプレートの部分は、どれも text を持つ LiteralLikeNode である。
   const visit = (node: ts.Node) => {
     if (ts.isStringLiteral(node)) {
-      if (!ts.isImportDeclaration(node.parent) && !ts.isExportDeclaration(node.parent))
-        out.push(node);
+      const { parent } = node;
+      const specifier = ts.isImportDeclaration(parent) || ts.isExportDeclaration(parent);
+      if (!specifier || options.moduleSpecifiers === true) out.push(node);
     } else if (
       ts.isNoSubstitutionTemplateLiteral(node) ||
       ts.isTemplateHead(node) ||

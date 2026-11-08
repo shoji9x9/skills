@@ -19,12 +19,19 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseArgs } from "../lib/cli/args.ts";
 import { isCliEntry } from "../lib/cli/entry.ts";
 import { errorMessage } from "../lib/errors.ts";
 import { isNonBlankString, isRecord } from "../lib/guards.ts";
 import { isArray } from "../lib/is-array.ts";
 import { loadYaml } from "../lib/text/yaml-as.ts";
+import {
+  formatDiffComment,
+  naturalOrder,
+  oneLine,
+  parseTrackingCli,
+  tableCell,
+  trackingKeys,
+} from "../lib/text/tracking-diff.ts";
 
 const GHSA = /^GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}$/;
 const ALLOWLIST = join(
@@ -165,9 +172,6 @@ function patchedVersion(v: Record<string, unknown>, id: string, pkg: string): st
   return [typeof range === "string" ? `${pkg}@${fixed}（${range} の修正版）` : `${pkg}@${fixed}`];
 }
 
-/** localeCompare が等しいと判定した違う文字列（`1.02.0` と `1.2.0` など）の順を決める。 */
-const codeUnitOrder = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
-
 /**
  * `gh api /advisories/<GHSA>` の応答から、修正版と取り下げを取る。
  * 修正版は、無視したパッケージ（npm の `pkg`）の範囲だけから取る。
@@ -196,9 +200,7 @@ export function advisoryStatus(
     );
   }
   // 識別子に使うので、API の並び順に左右されないように並べる。数字は数として比べる（9.0.0 を 10.0.0 より前にする）。
-  const patched = targets
-    .flatMap((v) => patchedVersion(v, id, pkg))
-    .sort((a, b) => a.localeCompare(b, "en", { numeric: true }) || codeUnitOrder(a, b));
+  const patched = targets.flatMap((v) => patchedVersion(v, id, pkg)).sort(naturalOrder);
   return { patched, withdrawn };
 }
 
@@ -264,7 +266,7 @@ const KIND_LABEL: Record<Finding["kind"], string> = {
  * API の値の空白（改行を含む）は 1 つにまとめて前後を除く。改行がそのまま入ると表の行が切れ、読み手（KEY_FORM）が拒否する識別子を書く。
  */
 function describe(f: Finding): string {
-  return describeRaw(f).replace(/\s+/gu, " ").trim();
+  return oneLine(describeRaw(f));
 }
 
 function describeRaw(f: Finding): string {
@@ -286,58 +288,23 @@ function describeRaw(f: Finding): string {
  */
 const findingKey = (f: Finding): string => `${f.id} ${f.kind}: ${describe(f)}`;
 
-const KEYS_MARKER = /^<!-- ignored-advisories:keys (.*) -->$/mu;
 // 書き手（findingKey）と同じ定義（GHSA の形・KIND_LABEL の種別）から組み立て、種別を足したときに食い違わないようにする。
 const KEY_FORM = new RegExp(
   `^${GHSA.source.slice(1, -1)} (${Object.keys(KIND_LABEL).join("|")}): .*\\S$`,
   "u",
 );
 
-function parseKeys(json: string): string[] {
-  const value: unknown = JSON.parse(json);
-  if (!isArray(value)) throw new Error("識別子の一覧が配列でない");
-  const keys = new Set<string>();
-  for (const key of value) {
-    if (typeof key !== "string" || !KEY_FORM.test(key)) {
-      throw new Error(`識別子の形でないものがある: ${JSON.stringify(key)}`);
-    }
-    if (keys.has(key)) throw new Error(`識別子が重複している: ${key}`);
-    keys.add(key);
-  }
-  return [...keys];
-}
+const tracking = trackingKeys({
+  marker: "ignored-advisories",
+  keyForm: KEY_FORM,
+  keyOf: findingKey,
+});
 
-/**
- * 前回の本文に埋めた識別子の一覧を読む。目印が無ければ（初めての作成や、人が本文を書き換えた後）空の一覧にする。
- * 目印があって読めないときは、差分を誤らないように例外にする。メッセージには直し方を書く。
- */
-export function previousKeys(body: string): string[] {
-  const match = KEYS_MARKER.exec(body);
-  if (match === null) return [];
-  try {
-    return parseKeys(match[1] ?? "");
-  } catch (error) {
-    throw new Error(
-      `前回の本文の識別子を読めない（${errorMessage(error)}）。追跡 Issue の本文から \`<!-- ignored-advisories:keys\` で始まる行を消すと、すべて新規として読み直す`,
-      { cause: error },
-    );
-  }
-}
+/** 前回の本文に埋めた識別子の一覧を読む（目印が無ければ空、読めなければ例外）。 */
+export const previousKeys = tracking.previousKeys;
 
 /** 今回の検出を、前回の識別子と比べて新規・継続に分け、前回にだけあったもの（解消）を挙げる。 */
-export function diffFindings(
-  findings: readonly Finding[],
-  previous: readonly string[],
-): { added: string[]; kept: string[]; resolved: string[] } {
-  const before = new Set(previous);
-  const now = findings.map(findingKey);
-  const nowSet = new Set(now);
-  return {
-    added: now.filter((k) => !before.has(k)),
-    kept: now.filter((k) => before.has(k)),
-    resolved: [...before].filter((k) => !nowSet.has(k)),
-  };
-}
+export const diffFindings = tracking.diff;
 
 /** 追跡 Issue の本文。最後の行に、次の実行が差分に使う識別子の一覧を埋める。 */
 export function formatBody(
@@ -359,7 +326,7 @@ export function formatBody(
     for (const f of findings) {
       const state = keptSet.has(findingKey(f)) ? "継続" : "新規";
       lines.push(
-        `| [${f.id}](https://github.com/advisories/${f.id}) | ${KIND_LABEL[f.kind]} | ${describe(f).replaceAll("|", "\\|")} | ${state} |`,
+        `| [${f.id}](https://github.com/advisories/${f.id}) | ${KIND_LABEL[f.kind]} | ${tableCell(describe(f))} | ${state} |`,
       );
     }
     lines.push(
@@ -368,19 +335,13 @@ export function formatBody(
     );
   }
   if (resolved.length > 0) lines.push("", `前回から解消したもの: ${resolved.join("、")}`);
-  lines.push("", `<!-- ignored-advisories:keys ${JSON.stringify(findings.map(findingKey))} -->`);
+  lines.push("", tracking.markerLine(findings));
   return `${lines.join("\n")}\n`;
 }
 
 /** 追跡 Issue に足すコメント。本文の更新だけでは通知が届かないので、差分をコメントにも書く。 */
 export function formatComment(findings: readonly Finding[], previous: readonly string[]): string {
-  const { added, kept, resolved } = diffFindings(findings, previous);
-  const lines = [
-    `見直すもの: ${findings.length} 件（新規 ${added.length} 件・継続 ${kept.length} 件・前回から解消 ${resolved.length} 件）`,
-  ];
-  if (added.length > 0) lines.push("", `新規: ${added.join("、")}`);
-  if (resolved.length > 0) lines.push("", `解消: ${resolved.join("、")}`);
-  return `${lines.join("\n")}\n`;
+  return formatDiffComment("見直すもの", findings.length, diffFindings(findings, previous));
 }
 
 export type Runner = (command: string, args: readonly string[]) => string;
@@ -414,31 +375,13 @@ export function collect(
   return { checked: declared.length, findings };
 }
 
-type CliOptions = { out: string; commentOut: string; previous: string | undefined };
-const CLI_NAMES = new Set(["out", "comment-out", "previous"]);
-
-/** 引数を読む。足りない・未知・同じオプションが 2 回・値が無いときは null（重複と値の無いものは共通の parseArgs が例外にする）。 */
-function parseCli(args: readonly string[]): CliOptions | null {
-  let values: Record<string, string>;
-  try {
-    values = parseArgs([...args]);
-  } catch {
-    return null;
-  }
-  if (Object.keys(values).some((name) => !CLI_NAMES.has(name))) return null;
-  const { out, "comment-out": commentOut, previous } = values;
-  if (!isNonBlankString(out) || !isNonBlankString(commentOut)) return null;
-  if (previous !== undefined && !isNonBlankString(previous)) return null;
-  return { out, commentOut, previous };
-}
-
 /** `paths` はテストが一時ディレクトリを渡すためにある。ワークフローはデフォルト（リポジトリの直下と同梱の一覧）で呼ぶ。 */
 export function main(
   args: readonly string[],
   run: Runner = defaultRunner,
   paths: { workspaceYaml?: string; allowlist?: string } = {},
 ): number {
-  const options = parseCli(args);
+  const options = parseTrackingCli(args);
   if (options === null) {
     console.error(
       "使い方: node scripts/tools/ignored-advisories.ts --out <本文のパス> --comment-out <コメントのパス> [--previous <前回の本文のパス>]",
