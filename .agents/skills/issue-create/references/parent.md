@@ -9,30 +9,33 @@
 - `--parent` には、対象のリポジトリの Issue の番号を渡す（先頭の `#` は付けてよい）。URL は受け付けない。
   `gh issue view` は別のリポジトリの URL を渡すと `--repo` を無視してそのリポジトリから取得するので、URL を受け付けると別の Issue を親にしうる（実測）。
 - 次の `parent_issue` で、親を対象のリポジトリから取得する。
-  GraphQL の `issue(number:)` は、対象のリポジトリの Issue だけを返し、PR の番号と無い番号にはエラーを返す（実測）。
-  先頭に 0 の付いた番号と、`<owner>/<repo>` の大文字と小文字の違いも受け付ける（実測）。
+  GraphQL の `issue(number:)` は、PR の番号と無い番号にはエラーを返す（実測）。
+  `gh` の `-F` は先頭に 0 の付いた番号を整数として送り、GraphQL は `<owner>/<repo>` の大文字と小文字の違いを受け付ける（実測）。
+  返った Issue のリポジトリの `url` を、同じ応答の対象のリポジトリの `url` と比べ、違えば止める。移管された Issue が移管先で返っても、別のリポジトリの番号で紐付けないためである。
   番号でない値（全角の数字を含む）と、取得できない番号（PR の番号を含む）は、下書きを作る前に止めて利用者に確かめる。
 
   ```bash
   parent_issue() {  # $1: --parent の値。成功したら「親の id<TAB>親の番号<TAB>状態<TAB>URL」を出力する
-    local repo='<owner>/<repo>' n got err pid pnum
+    local repo='<owner>/<repo>' n got err pid pnum rurl iurl
     local LC_ALL=C  # [0-9] を ASCII の数字だけにする。UTF-8 のロケールでは全角の数字にも一致する
     n=${1#\#}
     case $n in '' | *[!0-9]*) echo "--parent は Issue の番号で渡す: $1" >&2; return 1 ;; esac
     err=$(mktemp) || { echo "一時ファイルを作れない" >&2; return 1; }
-    if ! got=$(gh api graphql -F owner="${repo%%/*}" -F name="${repo#*/}" -F number="$((10#$n))" \
-      -f query='query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { issue(number: $number) { databaseId number state url } } }' \
-      --jq '.data.repository.issue | [(.databaseId | tostring), (.number | tostring), .state, .url] | @tsv' 2>"$err"); then
+    # 番号は $((10#$n)) で数値にしない。64 ビットを超える値が、桁あふれして別の番号になる
+    if ! got=$(gh api graphql -F owner="${repo%%/*}" -F name="${repo#*/}" -F number="$n" \
+      -f query='query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { url issue(number: $number) { databaseId number state url repository { url } } } }' \
+      --jq '.data.repository as $r | $r.issue | [(.databaseId | tostring), (.number | tostring), .state, .url, $r.url, .repository.url] | @tsv' 2>"$err"); then
       echo "#$n: 親を取得できない: $(cat "$err")" >&2; rm -f "$err"; return 1
     fi
     rm -f "$err"
-    IFS=$'\t' read -r pid pnum _ <<<"$got"
+    IFS=$'\t' read -r pid pnum _ _ rurl iurl <<<"$got"
     if ! [[ $pid =~ ^[0-9]+$ && $pnum =~ ^[0-9]+$ ]]; then echo "#$n: 親の id か番号を読めない: $got" >&2; return 1; fi
-    printf '%s\n' "$got"
+    if [ -z "$rurl" ] || [ "$rurl" != "$iurl" ]; then echo "#$n: 別のリポジトリの Issue を返した: $iurl" >&2; return 1; fi
+    printf '%s\n' "${got%$'\t'*$'\t'*}"
   }
   ```
 
-  下書きの確認で見せるタイトルは、出力した番号で別に取得する（`gh issue view <親の番号> --repo <owner>/<repo> --json title`）。
+  親の状態（`OPEN`・`CLOSED`）は、出力の 3 番目の欄を使う。下書きの確認で見せるタイトルは、出力した番号で別に取得する（`gh issue view <親の番号> --repo <owner>/<repo> --json title`）。
   タブ区切りの出力にタイトルを入れると、タイトルの `\` やタブがエスケープされた形で見える。
 
 - 下書きを確かめるときに、「#<親の番号>（<親のタイトル>）の sub-issue にする」ことも見せる。
@@ -60,7 +63,7 @@ API は REST の sub-issues である（<https://docs.github.com/en/rest/issues/
 ```bash
 add_sub_issue() {  # $1: --parent の値、$2: 子の番号。parent_issue を先に定義しておく
   local repo='<owner>/<repo>' parent pid pnum current child_id resp err
-  parent=$(parent_issue "$1") || return 1
+  parent=$(parent_issue "$1") || { echo "#$2: 親を確かめられないので紐付けない" >&2; return 1; }
   IFS=$'\t' read -r pid pnum _ <<<"$parent"
   err=$(mktemp) || { echo "#$2: 一時ファイルを作れない" >&2; return 1; }
   # 標準出力だけを比べる。gh が成功したときに標準エラーへ出す通知を、親の値に含めない
