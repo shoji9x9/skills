@@ -103,15 +103,10 @@ jobs:
           fi
 
       # 点検が動いていない状態を「指摘 0 件」と区別するため、既知の食い違いを持つファイルを置く。
-      # どこからも参照されず、存在しないスクリプトの名前を書いた文書である。名前は実行ごとに変え、手順にも書かない。
+      # どこからも参照されず、存在しないスクリプトの名前を書いた文書である。名前は実行ごとに変える。
+      # 起動に失敗した・何も読まずに終えた実行を捕まえるためのもので、エージェントから隠さない（docs/self-review.md）。
       # スクリプトの名前には文書の名前（拡張子を除く）を含める。self-review-issue.ts は、この名前を対象にした指摘を canary への指摘として除く。
       # 結果にこのファイルへの指摘が無ければ、tracking-issue が点検の失敗として扱う。
-      # 点検の仕組み（運用の文書・このワークフロー・本文を作るスクリプト）は、canary の作り方と扱いを書いている。
-      # エージェントが読むと canary を見分けられるので、点検の前に作業ツリーから外す。手順は、これらが無いことを指摘しないと書いている。
-      - name: Hide self review internals
-        if: steps.cred.outputs.present == 'true'
-        run: rm -f docs/self-review.md .github/workflows/self-review.yml scripts/weekly/self-review-issue.*
-
       - name: Plant canary
         id: canary
         if: steps.cred.outputs.present == 'true'
@@ -127,21 +122,13 @@ jobs:
 
       # エージェントには git を許さない。Write で .git/config や .gitattributes を書き換えたうえで git を実行すると、
       # textconv などで任意のコマンドを実行できるためである。手順が使う履歴の件名とファイルの一覧は、ここで入力に書き出す。
-      # ファイルの一覧は、外した点検の仕組みのファイルを除き、canary を足す。canary だけが一覧に無いと、それで見分けられる。
-      # 件名の一覧からは、点検の仕組みに触れた commit を除く。
       - name: Write git inputs
         if: steps.cred.outputs.present == 'true'
-        env:
-          CANARY: ${{ steps.canary.outputs.path }}
         run: |
-          set -o pipefail
           mkdir -p "$INPUT_DIR"
-          { git ls-files; echo "$CANARY"; } |
-            grep -v -E '^(docs/self-review\.md|\.github/workflows/self-review\.yml|scripts/weekly/self-review-issue\.)' |
-            sort >"$INPUT_DIR/files.txt"
+          git ls-files >"$INPUT_DIR/files.txt"
           # main は PR をマージの commit で取り込むので、first-parent の件名は「Merge pull request」が多い。マージを除いた commit の件名を書く。
-          git log --no-merges --date=short --format='%h %ad %s' -n 3000 |
-            { grep -v -i -E 'canary|self-review|セルフ点検' || true; } >"$INPUT_DIR/commits.txt"
+          git log --no-merges --date=short --format='%h %ad %s' -n 3000 >"$INPUT_DIR/commits.txt"
           wc -l "$INPUT_DIR"/*.txt
 
       - name: Run Claude Code

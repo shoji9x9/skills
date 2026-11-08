@@ -5,7 +5,7 @@
 // | 結果の JSON | 正しい / JSON でない / オブジェクトでない / findings が配列でない / notes が配列でない |
 // | 指摘 | 正しい / category が知らない値・無い / path・summary・evidence が空 / suggestion が無い・空 / 改行を含む |
 // | 同じ組 | 1 件 / 同じ category と path が 2 件（まとめる）/ category だけ違う（分ける） |
-// | canary | path で当たる / 存在しないスクリプトの path で当たる / 内容だけで当たる（残す）/ 当たらない（例外）/ 指摘が canary だけ（0 件として出す）/ メモで触れる（除く） |
+// | canary | path で当たる / 存在しないスクリプトの path で当たる / 内容だけで当たる（残すが、見つけたことにしない）/ 当たらない（例外）/ 指摘が canary だけ（0 件として出す）/ メモで触れる（残す） |
 // | 載せる文 | @name を含む / メモに < を含む |
 // | 前回の本文 | 目印なし / 継続と解消 / 識別子の形が違う |
 // | CLI の引数 | 正しい / 足りない / 未知 / --previous が空 / 結果を読めない（1） |
@@ -136,27 +136,10 @@ describe("canary", () => {
     expect(dropCanary(report([byScript, finding()]), CANARY)).toEqual(report([finding()]));
   });
 
-  test("ほかの指摘とメモの文の中の canary の名前を伏せる", () => {
-    const both = finding({
-      path: "docs/",
-      summary: `${CANARY} と docs/old.md が参照されていない`,
-      evidence: "Glob で notes-1a2b.md を見た",
-      suggestion: "verify-notes-1a2b.ts を消す",
-    });
-    const notes = ["notes-1a2b.mdは参照元が無いが迷った", "残すメモ"];
-    expect(dropCanary(report([canaryFinding, both], notes), CANARY)).toEqual(
-      report(
-        [
-          finding({
-            path: "docs/",
-            summary: "（点検のために置いた文書） と docs/old.md が参照されていない",
-            evidence: "Glob で （点検のために置いた文書） を見た",
-            suggestion: "（点検のために置いた文書） を消す",
-          }),
-        ],
-        ["（点検のために置いた文書）は参照元が無いが迷った", "残すメモ"],
-      ),
-    );
+  test("内容で canary に触れた、別のファイルへの指摘とメモは、そのまま残す", () => {
+    const both = finding({ path: "docs/", summary: `${CANARY} と docs/old.md が参照されていない` });
+    const notes = [`${CANARY} は迷った`];
+    expect(dropCanary(report([canaryFinding, both], notes), CANARY)).toEqual(report([both], notes));
   });
 
   test("指摘が canary だけなら 0 件にする", () => {
@@ -277,7 +260,7 @@ describe("CLI", () => {
   test("本文とコメントを書き、canary を除いた件数を due に出す", () => {
     const { root, args } = setup({
       findings: [finding(), canaryFinding],
-      notes: [`${CANARY} は参照されていない`, "残すメモ"],
+      notes: ["残すメモ"],
     });
     const previous = join(root, "previous.md");
     writeFileSync(previous, `<!-- self-review:keys ["unused gone.md"] -->\n`);
@@ -286,7 +269,6 @@ describe("CLI", () => {
     expect(body).toContain("指摘: 1 件");
     expect(body).not.toContain(CANARY);
     expect(body).toContain("- 残すメモ");
-    expect(body).toContain("- （点検のために置いた文書） は参照されていない");
     expect(readFileSync(join(root, "c.md"), "utf8")).toContain("解消: unused gone.md");
   });
 

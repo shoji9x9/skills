@@ -135,18 +135,10 @@ export function mergeFindings(findings: readonly Finding[]): Finding[] {
 const canaryStem = (canary: string): string =>
   canary.replace(/^.*\//u, "").replace(/\.[^.]*$/u, "");
 
-/** canary の名前を含む語（パスやファイル名）を伏せる。canary の名前は追跡 Issue に載せない。 */
-const hideCanary = (value: string, stem: string): string =>
-  value.replace(
-    new RegExp(`[\\w./-]*${stem.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}[\\w./-]*`, "gu"),
-    "（点検のために置いた文書）",
-  );
-
 /**
  * canary への指摘を取り除く。canary か、canary が書いた存在しないスクリプトを対象にした指摘を、canary への指摘とする。
  * それが 1 件も無ければ、点検が機能していないとして例外にする。内容で触れただけでは見つけたことにしない
  * （ファイルの一覧を貼っただけの指摘で、食い違いを見つけていなくても合格になるため）。
- * ほかの指摘とメモは残し、文の中の canary の名前を伏せる。
  */
 export function dropCanary(report: Report, canary: string): Report {
   const stem = canaryStem(canary);
@@ -156,13 +148,7 @@ export function dropCanary(report: Report, canary: string): Report {
       `既知の食い違いを置いた ${canary} への指摘が無い。点検が機能していないので、指摘 0 件として扱わない`,
     );
   }
-  const findings = rest.map((f) => ({
-    ...f,
-    summary: hideCanary(f.summary, stem),
-    evidence: hideCanary(f.evidence, stem),
-    suggestion: hideCanary(f.suggestion, stem),
-  }));
-  return { findings, notes: report.notes.map((n) => hideCanary(n, stem)) };
+  return { findings: rest, notes: report.notes };
 }
 
 const KEY_FORM = new RegExp(`^(${Object.keys(CATEGORY_LABEL).join("|")}) \\S(.*\\S)?$`, "u");
