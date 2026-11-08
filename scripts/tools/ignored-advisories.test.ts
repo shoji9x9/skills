@@ -189,7 +189,6 @@ describe("advisory の状態", () => {
         vuln("3.0.4", "braces", "pip"),
         { package: null, first_patched_version: "3.0.4" },
         { package: { ecosystem: "npm", name: null }, first_patched_version: "3.0.4" },
-        {},
         vuln(null),
       ],
       withdrawn_at: null,
@@ -213,6 +212,19 @@ describe("advisory の状態", () => {
   test.each([
     ["vulnerabilities が無い", {}, "vulnerabilities が無い"],
     ["要素がオブジェクトでない", { vulnerabilities: [null] }, "オブジェクトでない"],
+    ["package のキーが無い", { vulnerabilities: [{}] }, "package.name が無い"],
+    [
+      "package.name のキーが無い",
+      { vulnerabilities: [{ package: { ecosystem: "npm" } }] },
+      "package.name が無い",
+    ],
+    [
+      "package.name が文字列でない",
+      {
+        vulnerabilities: [{ package: { ecosystem: "npm", name: 1 }, first_patched_version: null }],
+      },
+      "文字列でない",
+    ],
     [
       "first_patched_version が文字列でない",
       { vulnerabilities: [vuln(1)] },
@@ -327,41 +339,62 @@ describe("Issue の本文", () => {
       { id: A, kind: "unused", detail: "braces" },
       { id: B, kind: "withdrawn", detail: "2026-10-23T12:53:02Z" },
     ];
-    const body = formatBody(findings, 2, [`${A} unused`, `${A} patched`]);
+    const body = formatBody(findings, 2, [`${A} unused: braces`, `${A} patched: braces@3.0.4`]);
     expect(body).toContain("| どの依存元も使わなくなった | braces | 継続 |");
     expect(body).toContain("| 2026-10-23T12:53:02Z | 新規 |");
-    expect(body).toContain(`前回から解消したもの: ${A} patched`);
-    expect(previousKeys(body)).toEqual([`${A} unused`, `${B} withdrawn`]);
+    expect(body).toContain(`前回から解消したもの: ${A} patched: braces@3.0.4`);
+    expect(previousKeys(body)).toEqual([
+      `${A} unused: braces`,
+      `${B} withdrawn: 2026-10-23T12:53:02Z`,
+    ]);
+  });
+
+  test("内容が変われば、前回の識別子は解消・今回の識別子は新規になる", () => {
+    const now: Finding[] = [
+      {
+        id: A,
+        kind: "new-dependent",
+        detail: [
+          { name: "x", depField: "dependencies" },
+          { name: "y", depField: "dependencies" },
+        ],
+      },
+    ];
+    expect(diffFindings(now, [`${A} new-dependent: x（dependencies）`])).toEqual({
+      added: [`${A} new-dependent: x（dependencies）, y（dependencies）`],
+      kept: [],
+      resolved: [`${A} new-dependent: x（dependencies）`],
+    });
   });
 });
 
 describe("前回との差分", () => {
   const findings: Finding[] = [
     { id: A, kind: "unused", detail: "braces" },
-    { id: B, kind: "withdrawn", detail: "x" },
+    { id: B, kind: "withdrawn", detail: "2026-10-23T12:53:02Z" },
   ];
 
   test("新規・継続・解消に分ける", () => {
-    expect(diffFindings(findings, [`${A} unused`, `${A} patched`])).toEqual({
-      added: [`${B} withdrawn`],
-      kept: [`${A} unused`],
-      resolved: [`${A} patched`],
+    expect(diffFindings(findings, [`${A} unused: braces`, `${A} patched: braces@3.0.4`])).toEqual({
+      added: [`${B} withdrawn: 2026-10-23T12:53:02Z`],
+      kept: [`${A} unused: braces`],
+      resolved: [`${A} patched: braces@3.0.4`],
     });
   });
 
   test("前回が無ければすべて新規", () => {
     expect(diffFindings(findings, [])).toEqual({
-      added: [`${A} unused`, `${B} withdrawn`],
+      added: [`${A} unused: braces`, `${B} withdrawn: 2026-10-23T12:53:02Z`],
       kept: [],
       resolved: [],
     });
   });
 
   test("コメントに件数と、新規・解消の識別子を書く", () => {
-    const comment = formatComment(findings, [`${A} unused`, `${A} patched`]);
+    const comment = formatComment(findings, [`${A} unused: braces`, `${A} patched: braces@3.0.4`]);
     expect(comment).toContain("見直すもの: 2 件（新規 1 件・継続 1 件・前回から解消 1 件）");
-    expect(comment).toContain(`新規: ${B} withdrawn`);
-    expect(comment).toContain(`解消: ${A} patched`);
+    expect(comment).toContain(`新規: ${B} withdrawn: 2026-10-23T12:53:02Z`);
+    expect(comment).toContain(`解消: ${A} patched: braces@3.0.4`);
   });
 
   test("0 件で解消も無ければ件数だけ", () => {
@@ -375,11 +408,17 @@ describe("前回との差分", () => {
   });
 
   test.each([
-    ["配列でない", "<!-- ignored-advisories:keys {} -->", "配列でない"],
-    ["文字列でない要素", "<!-- ignored-advisories:keys [1] -->", "文字列でない"],
-    ["JSON でない", "<!-- ignored-advisories:keys [ -->", "JSON"],
-  ])("目印が%sときは例外にする", (_name, body, message) => {
-    expect(() => previousKeys(`本文\n${body}\n`)).toThrow(message);
+    ["配列でない", "{}", "配列でない"],
+    ["文字列でない要素", "[1]", "識別子の形でない"],
+    ["JSON でない", "[", "JSON"],
+    ["種別が知らない値", `["${A} other: x"]`, "識別子の形でない"],
+    ["GHSA の形でない", `["GHSA-x unused: braces"]`, "識別子の形でない"],
+    ["内容が空", `["${A} unused: "]`, "識別子の形でない"],
+    ["重複", `["${A} unused: braces","${A} unused: braces"]`, "重複"],
+  ])("目印の一覧が%sときは、直し方を添えて例外にする", (_name, json, message) => {
+    const body = `本文\n<!-- ignored-advisories:keys ${json} -->\n`;
+    expect(() => previousKeys(body)).toThrow(message);
+    expect(() => previousKeys(body)).toThrow("で始まる行を消すと、すべて新規として読み直す");
   });
 });
 
@@ -461,11 +500,14 @@ describe("CLI", () => {
   test("前回の本文を読み、解消したものをコメントに書く", () => {
     const { dir, paths } = setup();
     const previous = join(dir, "previous.md");
-    writeFileSync(previous, `本文\n<!-- ignored-advisories:keys ["${A} patched"] -->\n`);
+    writeFileSync(
+      previous,
+      `本文\n<!-- ignored-advisories:keys ["${A} patched: braces@3.0.4"] -->\n`,
+    );
     const comment = join(dir, "comment.md");
     const args = ["--out", join(dir, "body.md"), "--comment-out", comment, "--previous", previous];
     expect(main(args, nullRun, paths)).toBe(0);
-    expect(readFileSync(comment, "utf8")).toContain(`解消: ${A} patched`);
+    expect(readFileSync(comment, "utf8")).toContain(`解消: ${A} patched: braces@3.0.4`);
   });
 
   test("確かめられなければ 1", () => {

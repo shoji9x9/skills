@@ -79,10 +79,14 @@ jobs:
           if [ "$due" -eq 0 ]; then
             if [ "${#numbers[@]}" -gt 0 ]; then
               # 一致した全部を閉じる。タイトルは最後に確認した日のまま残す。
+              # 差分は number の本文と比べたものなので、number にだけ書く。通知を 1 件にするため、クローズの文も同じコメントに入れる。
               warn_if_truncated "窓の外に閉じ残した追跡 Issue がある可能性がある"
-              for n in "${numbers[@]}"; do
-                gh issue comment "$n" --body-file "$comment"
-                gh issue close "$n" --comment "見直す時期に当たる無視した advisory はありません。自動でクローズします。"
+              closing="見直す時期に当たる無視した advisory はありません。自動でクローズします。"
+              printf '\n%s\n' "$closing" >>"$comment"
+              gh issue comment "$number" --body-file "$comment"
+              gh issue close "$number"
+              for n in "${numbers[@]:1}"; do
+                gh issue close "$n" --comment "$closing"
               done
             else
               echo "見直すものは無く、追跡 Issue も無いので何もしない"

@@ -18,8 +18,8 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
+import { parseArgs } from "../lib/cli/args.ts";
 import { isCliEntry } from "../lib/cli/entry.ts";
 import { errorMessage } from "../lib/errors.ts";
 import { isNonBlankString, isRecord } from "../lib/guards.ts";
@@ -137,14 +137,28 @@ export function listMismatches(
 }
 
 /**
+ * vulnerabilities の要素の package が、無視したパッケージ（npm の `pkg`）かを返す。
+ * package と package.name は null になりうる（GitHub の global advisories API）。null の要素は `pkg` に当たらない。
+ * キーが無い・型が違う要素は、API の形が変わった可能性があるので例外にする。読み飛ばすと、修正版を見逃したまま追跡 Issue を閉じる。
+ */
+function isIgnoredPackage(v: Record<string, unknown>, id: string, pkg: string): boolean {
+  const target = v["package"];
+  if (target === null) return false;
+  if (!isRecord(target) || !("name" in target)) {
+    throw new Error(`${id} の vulnerabilities の要素に package.name が無い`);
+  }
+  if (target["name"] === null) return false;
+  if (typeof target["name"] !== "string") throw new Error(`${id} の package.name が文字列でない`);
+  return target["ecosystem"] === "npm" && target["name"] === pkg;
+}
+
+/**
  * vulnerabilities の 1 要素から、無視したパッケージ（npm の `pkg`）の修正版を取る。当たらなければ空の配列を返す。
- * package と package.name は null になりうる（GitHub の global advisories API）。その要素は `pkg` に当たらないので読み飛ばす。
  * 修正版には、それがある脆弱な範囲を添える。使っているバージョンがその範囲にあるかは、人が確かめる。
  */
 function patchedVersion(v: unknown, id: string, pkg: string): string[] {
   if (!isRecord(v)) throw new Error(`${id} の vulnerabilities の要素がオブジェクトでない`);
-  const target = v["package"];
-  if (!isRecord(target) || target["ecosystem"] !== "npm" || target["name"] !== pkg) return [];
+  if (!isIgnoredPackage(v, id, pkg)) return [];
   const fixed = v["first_patched_version"];
   if (fixed === null || fixed === undefined) return [];
   if (typeof fixed !== "string") throw new Error(`${id} の first_patched_version が文字列でない`);
@@ -243,26 +257,45 @@ function describe(f: Finding): string {
   }
 }
 
-/** 前回との差分に使う、検出したことの識別子（advisory と種別）。 */
-const findingKey = (f: Finding): string => `${f.id} ${f.kind}`;
+/**
+ * 前回との差分に使う、検出したことの識別子（advisory・種別・内容）。
+ * 内容を含めるので、許可の外の依存元が増えたときや、別の修正版が出たときは、前回の識別子が「解消」、今回の識別子が「新規」になる。
+ */
+const findingKey = (f: Finding): string => `${f.id} ${f.kind}: ${describe(f)}`;
 
 const KEYS_MARKER = /^<!-- ignored-advisories:keys (.*) -->$/mu;
+const KEY_FORM =
+  /^GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4} (patched|withdrawn|new-dependent|unused): \S/u;
+
+function parseKeys(json: string): string[] {
+  const value: unknown = JSON.parse(json);
+  if (!isArray(value)) throw new Error("識別子の一覧が配列でない");
+  const keys: string[] = [];
+  for (const key of value) {
+    if (typeof key !== "string" || !KEY_FORM.test(key)) {
+      throw new Error(`識別子の形でないものがある: ${JSON.stringify(key)}`);
+    }
+    if (keys.includes(key)) throw new Error(`識別子が重複している: ${key}`);
+    keys.push(key);
+  }
+  return keys;
+}
 
 /**
  * 前回の本文に埋めた識別子の一覧を読む。目印が無ければ（初めての作成や、人が本文を書き換えた後）空の一覧にする。
- * 目印があって読めないときは、差分を誤らないように例外にする。
+ * 目印があって読めないときは、差分を誤らないように例外にする。メッセージには直し方を書く。
  */
 export function previousKeys(body: string): string[] {
   const match = KEYS_MARKER.exec(body);
   if (match === null) return [];
-  const value: unknown = JSON.parse(match[1] ?? "");
-  if (!isArray(value)) throw new Error("前回の本文の識別子の一覧が配列でない");
-  const keys: string[] = [];
-  for (const key of value) {
-    if (typeof key !== "string") throw new Error("前回の本文の識別子に文字列でないものがある");
-    keys.push(key);
+  try {
+    return parseKeys(match[1] ?? "");
+  } catch (error) {
+    throw new Error(
+      `前回の本文の識別子を読めない（${errorMessage(error)}）。追跡 Issue の本文から \`<!-- ignored-advisories:keys\` で始まる行を消すと、すべて新規として読み直す`,
+      { cause: error },
+    );
   }
-  return keys;
 }
 
 /** 今回の検出を、前回の識別子と比べて新規・継続に分け、前回にだけあったもの（解消）を挙げる。 */
@@ -286,8 +319,8 @@ export function formatBody(
   checked: number,
   previous: readonly string[] = [],
 ): string {
-  const { resolved } = diffFindings(findings, previous);
-  const before = new Set(previous);
+  const { kept, resolved } = diffFindings(findings, previous);
+  const keptSet = new Set(kept);
   const lines = [
     "`pnpm-workspace.yaml` の `auditConfig.ignoreGhsas` で無視している advisory のうち、見直す時期に当たるものの一覧です。",
     "この Issue は `Ignored advisories` ワークフローが作成・更新・クローズします。",
@@ -298,7 +331,7 @@ export function formatBody(
   if (findings.length > 0) {
     lines.push("| advisory | 検出したこと | 内容 | 前回から |", "| --- | --- | --- | --- |");
     for (const f of findings) {
-      const state = before.has(findingKey(f)) ? "継続" : "新規";
+      const state = keptSet.has(findingKey(f)) ? "継続" : "新規";
       lines.push(
         `| [${f.id}](https://github.com/advisories/${f.id}) | ${KIND_LABEL[f.kind]} | ${describe(f)} | ${state} |`,
       );
@@ -356,29 +389,20 @@ export function collect(
 }
 
 type CliOptions = { out: string; commentOut: string; previous: string | undefined };
+const CLI_NAMES = new Set(["out", "comment-out", "previous"]);
 
-/** 引数を読む。足りない・未知・同じオプションが 2 回あるときは null。 */
+/** 引数を読む。足りない・未知・同じオプションが 2 回・値が無いときは null（重複と値の無いものは共通の parseArgs が例外にする）。 */
 function parseCli(args: readonly string[]): CliOptions | null {
+  let values: Record<string, string>;
   try {
-    const { values, tokens } = parseArgs({
-      args: [...args],
-      options: {
-        out: { type: "string" },
-        "comment-out": { type: "string" },
-        previous: { type: "string" },
-      },
-      strict: true,
-      allowPositionals: false,
-      tokens: true,
-    });
-    const names = tokens.flatMap((t) => (t.kind === "option" ? [t.name] : []));
-    if (new Set(names).size !== names.length) return null;
-    const { out, "comment-out": commentOut, previous } = values;
-    if (!isNonBlankString(out) || !isNonBlankString(commentOut)) return null;
-    return { out, commentOut, previous };
+    values = parseArgs([...args]);
   } catch {
     return null;
   }
+  if (Object.keys(values).some((name) => !CLI_NAMES.has(name))) return null;
+  const { out, "comment-out": commentOut, previous } = values;
+  if (!isNonBlankString(out) || !isNonBlankString(commentOut)) return null;
+  return { out, commentOut, previous };
 }
 
 /** `paths` はテストが一時ディレクトリを渡すためにある。ワークフローはデフォルト（リポジトリの直下と同梱の一覧）で呼ぶ。 */
