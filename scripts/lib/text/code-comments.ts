@@ -181,6 +181,11 @@ function lineStarts(source: string): number[] {
   return starts;
 }
 
+/** パスの拡張子から、TypeScript のパーサに渡す種類を決める（.ts・.mts・.cts は TypeScript、それ以外は JavaScript）。 */
+export function scriptKind(path: string): ts.ScriptKind {
+  return /\.[cm]?ts$/u.test(path) ? ts.ScriptKind.TS : ts.ScriptKind.JS;
+}
+
 /**
  * JavaScript・TypeScript のコメントの範囲を、位置の順に返す。TypeScript のパーサで読むので、文字列・正規表現・
  * テンプレートの中の `//` や `/*` をコメントとして扱わない。
@@ -188,8 +193,7 @@ function lineStarts(source: string): number[] {
  * 前の範囲の中に入る。同じ文章を別のコメントとして二重に返さないよう、外側の範囲だけを返す。
  */
 export function jsCommentRanges(source: string, path: string): ts.CommentRange[] {
-  const kind = path.endsWith(".ts") ? ts.ScriptKind.TS : ts.ScriptKind.JS;
-  const sf = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, kind);
+  const sf = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, scriptKind(path));
   const ranges = new Map<number, ts.CommentRange>();
   const add = (list: ts.CommentRange[] | undefined) => {
     for (const r of list ?? []) ranges.set(r.pos, r);

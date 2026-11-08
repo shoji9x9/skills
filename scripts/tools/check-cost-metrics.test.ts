@@ -271,6 +271,21 @@ describe("空の一覧", () => {
     { name: "TypeScript の行コメント", reader: "r.ts", text: "// a.json\nconst x = 1;" },
     { name: "TypeScript のブロックコメント", reader: "r.ts", text: "/* a.json */ const x = 1;" },
     { name: "YAML のコメント", reader: "w.yml", text: "# a.json\nrun: echo\n" },
+    {
+      name: "TypeScript の import type",
+      reader: "r.ts",
+      text: 'import type { X } from "./a.json";',
+    },
+    {
+      name: "TypeScript の型だけの名前の import",
+      reader: "r.ts",
+      text: 'import { type X } from "./a.json";',
+    },
+    {
+      name: "TypeScript の export type ... from",
+      reader: "r.ts",
+      text: 'export type { X } from "./a.json";',
+    },
   ])("$name にだけある名前は、参照として数えない", ({ reader, text }) => {
     expect(() => checkReaders(target("a.json", [reader]), () => text)).toThrow("参照していない");
   });
@@ -282,6 +297,13 @@ describe("空の一覧", () => {
       reader: "r.ts",
       text: 'import { X } from "./a.json";',
     },
+    {
+      name: "TypeScript の値と型を混ぜた import",
+      reader: "r.ts",
+      text: 'import { type X, Y } from "./a.json";',
+    },
+    { name: "TypeScript の export * from", reader: "r.ts", text: 'export * from "./a.json";' },
+    { name: "TypeScript の副作用だけの import", reader: "r.ts", text: 'import "./a.json";' },
     { name: "JavaScript（.mjs）の文字列", reader: "r.mjs", text: 'read("a.json");' },
     { name: "YAML（.yaml）の値", reader: "w.yaml", text: "run: cat a.json\n" },
     { name: "TypeScript の文字列の改行の後", reader: "r.ts", text: 'const s = "x\\na.json";' },

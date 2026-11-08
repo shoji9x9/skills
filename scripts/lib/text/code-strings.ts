@@ -28,7 +28,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
-import { type CommentMarkdown, commentDirectives } from "./code-comments.ts";
+import { type CommentMarkdown, commentDirectives, scriptKind } from "./code-comments.ts";
 import { isRecord } from "../guards.ts";
 import { isArray } from "../is-array.ts";
 
@@ -149,13 +149,7 @@ function parseSource(path: string, source: string): { sf: ParsedSourceFile; isEv
   const sf = (
     isEvals
       ? ts.parseJsonText(path, source)
-      : ts.createSourceFile(
-          path,
-          source,
-          ts.ScriptTarget.Latest,
-          true,
-          path.endsWith(".ts") ? ts.ScriptKind.TS : ts.ScriptKind.JS,
-        )
+      : ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, scriptKind(path))
   ) as ParsedSourceFile;
   if (isEvals && sf.parseDiagnostics.length > 0) {
     throw new Error(`${path}: JSON として読めない（${sf.parseDiagnostics.length} 件の構文エラー）`);
@@ -231,17 +225,42 @@ function partOrigins(raw: string, start: ts.LineAndCharacter): Origin[] {
   return origins;
 }
 
+/** 型だけを読み書きする import・export（`import type`・`export type ... from`・すべてが `type` の名前の import）か。 */
+function isTypeOnly(decl: ts.ImportDeclaration | ts.ExportDeclaration): boolean {
+  if (ts.isExportDeclaration(decl)) return decl.isTypeOnly;
+  const clause = decl.importClause;
+  if (clause === undefined) return false;
+  if (clause.phaseModifier === ts.SyntaxKind.TypeKeyword) return true;
+  const named = clause.namedBindings;
+  return (
+    clause.name === undefined &&
+    named !== undefined &&
+    ts.isNamedImports(named) &&
+    named.elements.length > 0 &&
+    named.elements.every((e) => e.isTypeOnly)
+  );
+}
+
 /**
- * JavaScript・TypeScript の文字列リテラルとテンプレートの各部分。import と export の指定子は、
- * modules が true のときだけ含める（人が読む文章を取り出すときは除き、参照を探すときは含める）。
+ * JavaScript・TypeScript の文字列リテラルとテンプレートの各部分。import と export の指定子はデフォルトでは除く。
+ * `valueModuleSpecifiers` を true にすると、値を読む import・export の指定子も含める（型だけのものは除く）。
  * 親のノードを読むので、sf は setParentNodes を true にして作る。
  */
-export function jsStrings(sf: ts.SourceFile, modules = false): ts.LiteralLikeNode[] {
+export function jsStrings(
+  sf: ts.SourceFile,
+  options: { valueModuleSpecifiers?: boolean } = {},
+): ts.LiteralLikeNode[] {
   const out: ts.LiteralLikeNode[] = [];
+  const keepSpecifier = (decl: ts.ImportDeclaration | ts.ExportDeclaration): boolean =>
+    options.valueModuleSpecifiers === true && !isTypeOnly(decl);
   // 文字列リテラルとテンプレートの部分は、どれも text を持つ LiteralLikeNode である。
   const visit = (node: ts.Node) => {
     if (ts.isStringLiteral(node)) {
-      if (modules || (!ts.isImportDeclaration(node.parent) && !ts.isExportDeclaration(node.parent)))
+      const { parent } = node;
+      if (
+        !(ts.isImportDeclaration(parent) || ts.isExportDeclaration(parent)) ||
+        keepSpecifier(parent)
+      )
         out.push(node);
     } else if (
       ts.isNoSubstitutionTemplateLiteral(node) ||

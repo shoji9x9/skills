@@ -32,6 +32,7 @@ import {
   tableCell,
   trackingKeys,
 } from "../lib/text/tracking-diff.ts";
+import { scriptKind } from "../lib/text/code-comments.ts";
 import { jsStrings } from "../lib/text/code-strings.ts";
 import { loadYaml } from "../lib/text/yaml-as.ts";
 
@@ -238,11 +239,11 @@ const READER_KINDS: readonly {
 }[] = [
   {
     extensions: [".ts", ".mts", ".cts", ".js", ".mjs", ".cjs"],
-    // import の指定子も、一覧を読む参照として数える（oxlint.config.ts は oxlint-pending.ts を import で読む）。
+    // 値を読む import・export の指定子も、一覧を読む参照として数える（oxlint.config.ts は oxlint-pending.ts を import で読む）。
+    // 型だけの import は一覧のデータを読まないので数えない。
     strings: (path, source) => {
-      const kind = path.endsWith("ts") ? ts.ScriptKind.TS : ts.ScriptKind.JS;
-      const sf = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, kind);
-      return jsStrings(sf, true).map((node) => node.text);
+      const sf = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, scriptKind(path));
+      return jsStrings(sf, { valueModuleSpecifiers: true }).map((node) => node.text);
     },
   },
   { extensions: [".json"], strings: (_path, source) => stringsOf(JSON.parse(source)) },
@@ -255,12 +256,12 @@ const READER_KINDS: readonly {
  * ファイルを読む引数とメッセージの文字列は区別しないので、メッセージにだけ名前が残った読む処理は、参照しているとして扱う（見逃す向きの誤り）。
  */
 export function referenceText(path: string, source: string): string {
-  const kind = READER_KINDS.find((k) => k.extensions.some((ext) => path.endsWith(ext)));
-  if (kind === undefined) {
+  const reader = READER_KINDS.find((k) => k.extensions.some((ext) => path.endsWith(ext)));
+  if (reader === undefined) {
     const all = READER_KINDS.flatMap((k) => k.extensions).join("・");
     throw new Error(`扱えない種類のファイル。扱えるのは ${all}`);
   }
-  return kind.strings(path, source).join("\n");
+  return reader.strings(path, source).join("\n");
 }
 
 /** 読む処理を読んで文字列の値を取る。読めないときは、どの読む処理かと直す場所を添えて例外にする。 */
@@ -269,7 +270,7 @@ function readReference(reader: string, read: (path: string) => string): string {
     return referenceText(reader, read(reader));
   } catch (error) {
     throw new Error(
-      `読む処理 ${reader} を読めない。check-cost-metrics.json の readers を直す。原因は「${errorMessage(error)}」`,
+      `読む処理 ${reader} を読めない。check-cost-metrics.json の readers を直す。原因は次の行にある。\n${errorMessage(error)}`,
       { cause: error },
     );
   }
