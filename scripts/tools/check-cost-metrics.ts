@@ -215,6 +215,11 @@ async function loadList(target: ListTarget, root: string): Promise<unknown> {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
+/** 表に出す readers の案内。スクリプトは確かめていないので、表を読む人が確かめた値と取り違えないよう、そのことを書く。 */
+function readersHint(readers: readonly string[]): string {
+  return `読む処理（確かめていない案内）: ${readers.join("、")}`;
+}
+
 /**
  * 空の一覧を挙げる。一覧を読めないときは例外にする。
  * readers は表に出す案内で、読む処理が今も一覧を読むかは確かめない（Issue #948）。
@@ -224,7 +229,11 @@ export async function emptyLists(lists: readonly ListTarget[], root: string): Pr
   for (const target of lists) {
     const count = countEntries(target.count, await loadList(target, root), target.file);
     if (count === 0 && target.keepEmpty === undefined) {
-      findings.push({ kind: "empty-list", target: target.file, detail: target.readers.join("、") });
+      findings.push({
+        kind: "empty-list",
+        target: target.file,
+        detail: readersHint(target.readers),
+      });
     }
   }
   return findings;

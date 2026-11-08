@@ -226,7 +226,8 @@ function partOrigins(raw: string, start: ts.LineAndCharacter): Origin[] {
 }
 
 /**
- * JavaScript・TypeScript の文字列リテラルとテンプレートの各部分。import と export の指定子は除く。
+ * JavaScript・TypeScript の文字列リテラルとテンプレートの各部分。import 宣言と export 宣言の指定子は除く。
+ * `require("a")`・`import("a")`・`import x = require("a")` の引数は除かない。
  * 親のノードを読むので、sf は setParentNodes を true にして作る。
  */
 function jsStrings(sf: ts.SourceFile): ts.LiteralLikeNode[] {

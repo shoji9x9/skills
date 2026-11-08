@@ -280,8 +280,12 @@ describe("空の一覧", () => {
       },
     ];
     expect(await emptyLists(lists, root)).toEqual([
-      { kind: "empty-list", target: "empty.json", detail: "r.ts、w.yml" },
-      { kind: "empty-list", target: "pending.ts", detail: "r.ts" },
+      {
+        kind: "empty-list",
+        target: "empty.json",
+        detail: "読む処理（確かめていない案内）: r.ts、w.yml",
+      },
+      { kind: "empty-list", target: "pending.ts", detail: "読む処理（確かめていない案内）: r.ts" },
     ]);
   });
 
@@ -289,7 +293,11 @@ describe("空の一覧", () => {
     const root = makeTempDir("check-cost-metrics-");
     writeFiles(root, { "a.json": '{"exempt": []}', "r.ts": 'load("other.json");' });
     expect(await emptyLists([target("a.json", ["r.ts", "none.ts"])], root)).toEqual([
-      { kind: "empty-list", target: "a.json", detail: "r.ts、none.ts" },
+      {
+        kind: "empty-list",
+        target: "a.json",
+        detail: "読む処理（確かめていない案内）: r.ts、none.ts",
+      },
     ]);
   });
 
@@ -642,7 +650,9 @@ describe("まとめて集める", () => {
       return JSON.stringify([{ total_count: 0, workflow_runs: [] }]);
     };
     const result = await collect(run, { config: parseConfig(configJson()), root, now: NOW });
-    expect(result.findings).toEqual([{ kind: "empty-list", target: "a.json", detail: "r.ts" }]);
+    expect(result.findings).toEqual([
+      { kind: "empty-list", target: "a.json", detail: "読む処理（確かめていない案内）: r.ts" },
+    ]);
     expect(result.rows).toEqual([]);
   });
 });
