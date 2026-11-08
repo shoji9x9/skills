@@ -30,3 +30,8 @@ ci:42448918993:1,ci,2026-11-08T05:00:41.410Z,p-cdee4961,github-actions,,,,2026-1
 ci:42448918991:1,ci,2026-11-08T05:00:41.410Z,p-cdee4961,github-actions,,,,2026-11-08T04:58:43.000Z,2026-11-08T05:00:41.410Z,Asia/Tokyo,feature/948-drop-readers-check,948,,,,,,,,,,CI;pull_request;open,
 ci:42448918990:1,ci,2026-11-08T05:00:41.410Z,p-cdee4961,github-actions,,,,2026-11-08T04:58:43.000Z,2026-11-08T04:59:44.000Z,Asia/Tokyo,feature/948-drop-readers-check,948,,,,,,,,,,CodeQL;pull_request;success,
 coverage:github:2026-11-07T04:57:43.308Z:2026-11-08T05:00:41.410Z,coverage,2026-11-08T05:00:41.410Z,p-cdee4961,,,,,2026-11-07T04:57:43.308Z,2026-11-08T05:00:41.410Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:42449119313:1,ci,2026-11-08T05:04:03.748Z,p-cdee4961,github-actions,,,,2026-11-08T05:01:38.000Z,2026-11-08T05:01:39.000Z,Asia/Tokyo,feature/948-drop-readers-check,948,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:42449119339:1,ci,2026-11-08T05:04:03.748Z,p-cdee4961,github-actions,,,,2026-11-08T05:01:38.000Z,2026-11-08T05:03:02.000Z,Asia/Tokyo,feature/948-drop-readers-check,948,,,,,,,,,,CodeQL;pull_request;success,
+ci:42449119347:1,ci,2026-11-08T05:04:03.748Z,p-cdee4961,github-actions,,,,2026-11-08T05:01:38.000Z,2026-11-08T05:04:03.748Z,Asia/Tokyo,feature/948-drop-readers-check,948,,,,,,,,,,CI;pull_request;open,
+ci:42448918991:1,ci,2026-11-08T05:04:03.748Z,p-cdee4961,github-actions,,,,2026-11-08T04:58:43.000Z,2026-11-08T05:01:56.000Z,Asia/Tokyo,feature/948-drop-readers-check,948,,,,,,,,,,CI;pull_request;cancelled,
+coverage:github:2026-11-07T05:00:41.410Z:2026-11-08T05:04:03.748Z,coverage,2026-11-08T05:04:03.748Z,p-cdee4961,,,,,2026-11-07T05:00:41.410Z,2026-11-08T05:04:03.748Z,Asia/Tokyo,,,,,,,,,,,,ok,

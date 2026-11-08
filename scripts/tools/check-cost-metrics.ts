@@ -215,11 +215,6 @@ async function loadList(target: ListTarget, root: string): Promise<unknown> {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
-/** 表に出す readers の案内。スクリプトは確かめていないので、表を読む人が確かめた値と取り違えないよう、そのことを書く。 */
-function readersHint(readers: readonly string[]): string {
-  return `読む処理（確かめていない案内）: ${readers.join("、")}`;
-}
-
 /**
  * 空の一覧を挙げる。一覧を読めないときは例外にする。
  * readers は表に出す案内で、読む処理が今も一覧を読むかは確かめない（Issue #948）。
@@ -229,11 +224,7 @@ export async function emptyLists(lists: readonly ListTarget[], root: string): Pr
   for (const target of lists) {
     const count = countEntries(target.count, await loadList(target, root), target.file);
     if (count === 0 && target.keepEmpty === undefined) {
-      findings.push({
-        kind: "empty-list",
-        target: target.file,
-        detail: readersHint(target.readers),
-      });
+      findings.push({ kind: "empty-list", target: target.file, detail: target.readers.join("、") });
     }
   }
   return findings;
@@ -499,6 +490,10 @@ const tracking = trackingKeys({
 });
 export const { previousKeys, diff: diffFindings } = tracking;
 
+/** 空の一覧の「内容」に出す readers は、設定に書いた案内で、スクリプトは確かめていない（Issue #948）。 */
+const READERS_NOTE =
+  "空の免除・保留の一覧の「内容」は、check-cost-metrics.json の readers に書いた、一覧を読む処理の案内である。スクリプトは確かめていない。";
+
 function findingTable(findings: readonly Finding[], kept: ReadonlySet<string>): string[] {
   if (findings.length === 0) return [];
   const lines = ["| 指標 | 対象 | 内容 | 前回から |", "| --- | --- | --- | --- |"];
@@ -507,6 +502,9 @@ function findingTable(findings: readonly Finding[], kept: ReadonlySet<string>): 
     lines.push(
       `| ${KIND_LABEL[f.kind]} | ${tableCell(f.target)} | ${tableCell(f.detail)} | ${state} |`,
     );
+  }
+  if (findings.some((f) => f.kind === "empty-list")) {
+    lines.push("", READERS_NOTE);
   }
   return [...lines, ""];
 }
