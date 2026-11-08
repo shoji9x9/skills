@@ -10,7 +10,7 @@ import {
   hopsOver,
   nodeLabelRect,
   nodeLookup,
-  routeEdges,
+  routedFor,
 } from "./diagram-engine.mjs";
 
 /**
@@ -138,7 +138,11 @@ const containsPoint = (r, p) => r.left <= p.x && p.x <= r.right && r.top <= p.y 
 function trunkFinder(segs) {
   /** @type {Map<number, Segment[]>} */
   const byEdge = new Map();
-  for (const s of segs) byEdge.set(s.ei, [...(byEdge.get(s.ei) ?? []), s]);
+  for (const s of segs) {
+    const list = byEdge.get(s.ei);
+    if (list) list.push(s);
+    else byEdge.set(s.ei, [s]);
+  }
   /** @type {Map<string, Line[]>} */
   const memo = new Map();
   return (i, j) => {
@@ -487,19 +491,15 @@ function checkJunctions({ segs, raw, trunk }) {
  */
 
 // routed には、同じ spec を routeEdges で計算した結果を渡せる（描画と同じ線で検査し、計算を 1 回で済ませる）。
-// 別の spec の結果（古い線）で検査しないよう、エッジの本数と並びが spec と同じかを確かめる。
+// 渡せる条件と、渡したときに確かめることは、エンジンの routedFor にある。
 /**
  * @param {DiagramSpec} spec
- * @param {{ e: DiagramEdge, pts: Point[] }[]} [routed]
+ * @param {{ e: DiagramEdge, pts: Point[] }[]} [given]
  * @returns {Violation[]}
  */
-export function checkDiagram(spec, routed = routeEdges(spec)) {
-  const { nodes = [], edges = [], groups = [] } = spec;
-  if (routed.length !== edges.length || routed.some((r, i) => r.e !== edges[i])) {
-    throw new Error(
-      "checkDiagram: routed が spec のエッジと対応しない（同じ spec を routeEdges に渡した結果を渡す）",
-    );
-  }
+export function checkDiagram(spec, given) {
+  const { nodes = [], groups = [] } = spec;
+  const routed = routedFor(spec, given);
   const raw = rawSegmentsOf(routed);
   const segs = mergeCollinear(raw);
   /** @type {Context} */

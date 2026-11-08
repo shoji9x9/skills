@@ -210,17 +210,18 @@
       "occurrences": 1,
       "expect_failing": [
         "キャンバスの大きさのW が NaN（書き忘れた W を計算に使ったときの値） spec は、検査も描画もエラーにする",
-        "キャンバスの大きさのH が無限大 spec は、検査も描画もエラーにする"
+        "キャンバスの大きさのH が無限大 spec は、検査も描画もエラーにする",
+        "routed を渡しても、キャンバスの大きさが数でない spec は、検査も描画もエラーにする"
       ]
     },
     {
       "id": "routed-mismatch-guard",
       "why": "別の spec から計算した線（古い線）で検査する",
-      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-engine.mjs",
       "find": "  if (routed.length !== edges.length || routed.some((r, i) => r.e !== edges[i])) {",
       "replace": "  if (false) {",
       "occurrences": 1,
-      "expect_failing": ["routed が同じ spec から計算したものでなければ、エラーにする"]
+      "expect_failing": ["routed が同じ spec から計算したものでなければ、検査も描画もエラーにする"]
     }
   ]
 }

@@ -433,12 +433,26 @@ test.each([
   expect(() => renderDiagram(s, { iconDir: "/nonexistent" })).toThrow("spec の W と H は数で書く");
 });
 
-test("routed が同じ spec から計算したものでなければ、エラーにする", () => {
+test("routed が同じ spec から計算したものでなければ、検査も描画もエラーにする", () => {
   const s = spec([a, b], [ab], [group()]);
   const other = spec([a, b], [{ ...ab }], [group()]);
+  const opts = { iconDir: "/nonexistent" };
   expect(checkDiagram(s, routeEdges(s))).toEqual([]);
   expect(() => checkDiagram(s, routeEdges(other))).toThrow("routed が spec のエッジと対応しない");
   expect(() => checkDiagram(s, [])).toThrow("routed が spec のエッジと対応しない");
+  expect(() => renderDiagram(s, { ...opts, routed: routeEdges(other) })).toThrow(
+    "routed が spec のエッジと対応しない",
+  );
+});
+
+test("routed を渡しても、キャンバスの大きさが数でない spec は、検査も描画もエラーにする", () => {
+  const s = spec([a, b], [ab], [group()]);
+  const routed = routeEdges(s);
+  const broken = { ...s, W: Number.NaN };
+  expect(() => checkDiagram(broken, routed)).toThrow("spec の W と H は数で書く");
+  expect(() => renderDiagram(broken, { iconDir: "/nonexistent", routed })).toThrow(
+    "spec の W と H は数で書く",
+  );
 });
 
 test("(j) 交差に飛び越しが付くなら、出さない", () => {

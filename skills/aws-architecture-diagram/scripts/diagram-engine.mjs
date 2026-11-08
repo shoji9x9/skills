@@ -483,10 +483,8 @@ function svgDocument(W, H, out) {
  * @returns {{ e: DiagramEdge, pts: Point[] }[]}
  */
 export function routeEdges(spec) {
-  const { W, H, nodes = [], edges = [] } = spec;
-  if (!Number.isFinite(W) || !Number.isFinite(H)) {
-    throw new Error(`spec の W と H は数で書く（W=${W}, H=${H}）`);
-  }
+  const { nodes = [], edges = [] } = spec;
+  assertCanvas(spec);
   assertUniqueEdges(edges);
   const node = nodeLookup(nodes);
   const routed = edges.map((e) => ({ e, pts: route(node(e.from), node(e.to), e) }));
@@ -494,7 +492,36 @@ export function routeEdges(spec) {
   return routed;
 }
 
+/** @param {DiagramSpec} spec */
+function assertCanvas({ W, H }) {
+  if (!Number.isFinite(W) || !Number.isFinite(H)) {
+    throw new Error(`spec の W と H は数で書く（W=${W}, H=${H}）`);
+  }
+}
+
+// 描画と検査が使う線。routed を渡されなければ routeEdges で計算する。
+// 渡されたら、キャンバスの大きさと、routed が spec のエッジと本数・並び（同じオブジェクト）で対応するかを確かめる。
+// routed を計算した後に spec をその場で書き換えた（ノードを動かした・waypoints を変えた）ことは、ここでは検出できない。
+// そのため、routed は spec を確定した直後に計算し、その後に spec を書き換えない呼び出し元だけが渡す。
+/**
+ * @param {DiagramSpec} spec
+ * @param {{ e: DiagramEdge, pts: Point[] }[] | undefined} routed
+ * @returns {{ e: DiagramEdge, pts: Point[] }[]}
+ */
+export function routedFor(spec, routed) {
+  if (!routed) return routeEdges(spec);
+  assertCanvas(spec);
+  const { edges = [] } = spec;
+  if (routed.length !== edges.length || routed.some((r, i) => r.e !== edges[i])) {
+    throw new Error(
+      "routed が spec のエッジと対応しない（同じ spec を routeEdges に渡した結果を渡す）",
+    );
+  }
+  return routed;
+}
+
 // options.routed には、同じ spec を routeEdges で計算した結果を渡せる（検査と同じ線で描き、計算を 1 回で済ませる）。
+// 渡せる条件は routedFor にある。
 /**
  * @param {DiagramSpec} spec
  * @param {{ iconDir?: string, routed?: { e: DiagramEdge, pts: Point[] }[] }} [options]
@@ -508,7 +535,7 @@ export function renderDiagram(spec, options = {}) {
   const embedIcon = createIconEmbedder(iconDir);
 
   // 全エッジの線を先に確定し、垂直の区間の一覧を作る（交差を飛び越すかの判定に使う）。
-  const routed = options.routed ?? routeEdges(spec);
+  const routed = routedFor(spec, options.routed);
   const verticals = collectVerticals(routed);
 
   const out = [
