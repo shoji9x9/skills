@@ -1,0 +1,66 @@
+{
+  "$comment": [
+    "self-review-issue.test.ts の検出能力を示す変異の一覧（Issue #940）。誤ると、点検が動いていないのに「指摘 0 件」として追跡 Issue を閉じる判定だけを置く。"
+  ],
+  "test_file": "scripts/weekly/self-review-issue.test.ts",
+  "mutations": [
+    {
+      "id": "canary-miss-allowed",
+      "why": "既知の食い違いへの指摘が無くても通し、点検が機能していない週を「指摘 0 件」として扱う",
+      "file": "scripts/weekly/self-review-issue.ts",
+      "find": "if (rest.length === report.findings.length) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "canary 指摘が 0 件 なら、点検が機能していないとして例外にする",
+        "canary canary 以外だけ なら、点検が機能していないとして例外にする",
+        "canary 内容で触れただけ なら、点検が機能していないとして例外にする",
+        "CLI canary への指摘が無い ときは 1"
+      ]
+    },
+    {
+      "id": "credential-allowed",
+      "why": "資格情報の形の文字列を通し、公開の追跡 Issue に載せる",
+      "file": "scripts/weekly/self-review-issue.ts",
+      "find": "if (CREDENTIAL.test(value)) throw",
+      "replace": "if (false) throw",
+      "occurrences": 1,
+      "expect_failing": ["結果の JSON 資格情報の形の文字列 は例外にする"]
+    },
+    {
+      "id": "path-form-allowed",
+      "why": "パスに使わない文字（@・#・< や Markdown のリンク）を通し、識別子として差分のコメントに載せて、通知やリンクにする",
+      "file": "scripts/weekly/self-review-issue.ts",
+      "find": "if (!PATH_FORM.test(path)) return null;",
+      "replace": "if (false) return null;",
+      "occurrences": 1,
+      "expect_failing": [
+        "追跡 Issue の本文 対象のパスは識別子として載るので、パスに使わない文字（evals/<name>/x.md）の指摘は省き、件数をメモに書く",
+        "追跡 Issue の本文 対象のパスは識別子として載るので、パスに使わない文字（@user）の指摘は省き、件数をメモに書く",
+        "追跡 Issue の本文 対象のパスは識別子として載るので、パスに使わない文字（docs/#508）の指摘は省き、件数をメモに書く",
+        "追跡 Issue の本文 対象のパスは識別子として載るので、パスに使わない文字（[a](https://example.com)）の指摘は省き、件数をメモに書く",
+        "追跡 Issue の本文 対象のパスは識別子として載るので、パスに使わない文字（![x](https://example.com/p)）の指摘は省き、件数をメモに書く",
+        "追跡 Issue の本文 対象のパスは識別子として載るので、パスに使わない文字（docs/a b.md）の指摘は省き、件数をメモに書く",
+        "追跡 Issue の本文 対象のパスは識別子として載るので、パスに使わない文字（docs/a.md-->）の指摘は省き、件数をメモに書く"
+      ]
+    },
+    {
+      "id": "code-span-skipped",
+      "why": "エージェントの文をリテラルにせず、メンション・リンク・画像・HTML として Issue に表示する",
+      "file": "scripts/weekly/self-review-issue.ts",
+      "find": "return `${fence} ${value} ${fence}`;",
+      "replace": "return value;",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI 本文とコメントを書き、canary を除いた件数を due に出す",
+        "追跡 Issue の本文 コードスパンは、文の中のバッククォートより長い並びで囲む（バッククォートが 1 つ）",
+        "追跡 Issue の本文 コードスパンは、文の中のバッククォートより長い並びで囲む（バッククォートが 3 つ並ぶ）",
+        "追跡 Issue の本文 コードスパンは、文の中のバッククォートより長い並びで囲む（バッククォートが無い）",
+        "追跡 Issue の本文 前回と比べ、継続と解消を書く",
+        "追跡 Issue の本文 指摘が 0 件の週は、点検のメモをコメントに載せる（Issue を閉じて本文を書き換えないため）",
+        "追跡 Issue の本文 表・メモ・識別子を書き、エージェントの文はコードスパンに入れ、表の | をエスケープする",
+        "追跡 Issue の本文 エージェントの文は、リテラルのまま表示するのでエスケープしない"
+      ]
+    }
+  ]
+}

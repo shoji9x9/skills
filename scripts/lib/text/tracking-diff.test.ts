@@ -15,6 +15,7 @@ import {
   oneLine,
   tableCell,
   parseTrackingCli,
+  parseTrackingCliWith,
   readKeys,
   trackingKeys,
 } from "./tracking-diff.ts";
@@ -100,6 +101,18 @@ test("点検ごとの目印・形・識別子の作り方で、書いて読み�
   });
 });
 
+test("本文の最後に、解消したもの（あれば）と識別子の目印を足す", () => {
+  const tracking = trackingKeys({
+    marker: "weekly-check",
+    keyForm: FORM,
+    keyOf: (n: number) => `k ${n}`,
+  });
+  expect(tracking.finish(["本文", ""], [2], ["k 1"])).toBe(
+    `本文\n\n前回から解消したもの: k 1\n\n${tracking.markerLine([2])}\n`,
+  );
+  expect(tracking.finish(["本文", ""], [], [])).toBe(`本文\n\n${tracking.markerLine([])}\n`);
+});
+
 describe("本文の整形", () => {
   test("空白と改行を 1 つにまとめ、表のセルでは | をエスケープする", () => {
     expect(oneLine("  a\n\tb  c ")).toBe("a b c");
@@ -129,6 +142,19 @@ describe("引数", () => {
       commentOut: "b",
       previous: "c",
     });
+  });
+
+  test("点検ごとに足した必須の引数を extra に入れ、無いか空なら null にする", () => {
+    const base = ["--out", "a", "--comment-out", "b"];
+    expect(parseTrackingCliWith([...base, "--report", "r"], ["report"])).toEqual({
+      out: "a",
+      commentOut: "b",
+      previous: undefined,
+      extra: { report: "r" },
+    });
+    expect(parseTrackingCliWith(base, ["report"])).toBeNull();
+    expect(parseTrackingCliWith([...base, "--report", " "], ["report"])).toBeNull();
+    expect(parseTrackingCli([...base, "--report", "r"])).toBeNull();
   });
 
   test.each([

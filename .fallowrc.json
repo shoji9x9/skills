@@ -11,6 +11,7 @@
     "scripts/hooks/**/*.ts",
     "scripts/mutation/**/*.ts",
     "scripts/tools/**/*.ts",
+    "scripts/weekly/**/*.ts",
     ".agents/skills/*/scripts/**/*.ts",
     "types/**/*.ts"
   ],
@@ -284,6 +285,10 @@
         "patterns": ["scripts/tools/**"]
       },
       {
+        "name": "scripts/weekly",
+        "patterns": ["scripts/weekly/**"]
+      },
+      {
         "name": "skills",
         "patterns": ["skills/**"],
         "autoDiscover": ["skills"]
@@ -316,6 +321,10 @@
       },
       {
         "from": "scripts/tools",
+        "allow": ["lib", "skills"]
+      },
+      {
+        "from": "scripts/weekly",
         "allow": ["lib", "skills"]
       },
       {

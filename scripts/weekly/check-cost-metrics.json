@@ -62,7 +62,8 @@
       "outdated.yml",
       "pages.yml",
       "ignored-advisories.yml",
-      "check-cost-metrics.yml"
+      "check-cost-metrics.yml",
+      "self-review.yml"
     ],
     "min_runs": 3,
     "min_ratio": 0.2,
