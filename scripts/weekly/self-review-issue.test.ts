@@ -47,12 +47,14 @@ describe("結果の JSON", () => {
           { ...finding(), suggestion: undefined },
           { ...finding(), suggestion: null },
           { ...finding(), suggestion: "" },
+          { ...finding(), suggestion: " \n" },
         ],
         notes: ["メモ"],
       }),
     );
     expect(report.findings).toEqual([
       finding({ summary: "1 行目 2 行目" }),
+      finding({ suggestion: "" }),
       finding({ suggestion: "" }),
       finding({ suggestion: "" }),
       finding({ suggestion: "" }),
@@ -100,9 +102,9 @@ describe("結果の JSON", () => {
       message: "findings[0].evidence",
     },
     {
-      name: "suggestion が空白だけ",
-      source: JSON.stringify({ findings: [{ ...finding(), suggestion: " " }] }),
-      message: "findings[0].suggestion",
+      name: "資格情報の形の文字列",
+      source: JSON.stringify({ findings: [{ ...finding(), evidence: "sk-ant-oat01-abcdefghij" }] }),
+      message: "findings[0].evidence に資格情報の形の文字列がある",
     },
     { name: "指摘がオブジェクトでない", source: '{"findings": ["x"]}', message: "findings[0] が" },
   ])("$name は例外にする", ({ source, message }) => {
@@ -198,11 +200,23 @@ describe("追跡 Issue の本文", () => {
     expect(formatComment({ findings: [finding()], notes: ["x"] }, [])).not.toContain("点検のメモ");
   });
 
-  test("Issue と PR の番号を、相互参照にならない形にする", () => {
-    const parsed = parseReport(
-      JSON.stringify({ findings: [{ ...finding(), summary: "#508 と owner/repo#12 の方針" }] }),
+  test("Issue と PR への参照を、相互参照にならない形にする", () => {
+    const summary = "#508 と owner/repo#12 と GH-7 と https://github.com/o/r/issues/9 の方針";
+    const parsed = parseReport(JSON.stringify({ findings: [{ ...finding(), summary }] }));
+    expect(parsed.findings[0]?.summary).toBe(
+      "#\u200b508 と owner/repo#\u200b12 と GH-\u200b7 と https://github\u200b.com/o/r/issues/9 の方針",
     );
-    expect(parsed.findings[0]?.summary).toBe("#\u200b508 と owner/repo#\u200b12 の方針");
+  });
+
+  test("1 欄を 500 字に、メモを 20 件に切り詰める", () => {
+    const parsed = parseReport(
+      JSON.stringify({
+        findings: [{ ...finding(), summary: "長".repeat(600) }],
+        notes: Array.from({ length: 25 }, (_, i) => `メモ ${i}`),
+      }),
+    );
+    expect(parsed.findings[0]?.summary).toBe(`${"長".repeat(500)}…`);
+    expect(parsed.notes).toHaveLength(20);
   });
 
   test("0 件は表とメモを書かない", () => {
@@ -280,7 +294,7 @@ describe("CLI", () => {
       {
         findings: [
           canaryFinding,
-          ...Array.from({ length: 70 }, (_, i) =>
+          ...Array.from({ length: 150 }, (_, i) =>
             finding({ path: `docs/${i}.md`, summary: "長".repeat(900) }),
           ),
         ],

@@ -87,5 +87,5 @@
 - `path` は、直す対象のファイルのリポジトリのルートからのパスにする。ディレクトリ全体が対象なら、末尾に `/` を付ける。
   前回との差分は `category` と `path` の組で数えるので、同じ対象には毎週同じパスを書く
 - 同じ `category` と `path` の指摘が複数あれば、1 件にまとめて `summary` に並べる
-- `summary`・`evidence`・`suggestion` は日本語で、1 件 300 字以内にする
+- `summary`・`evidence`・`suggestion` は日本語で、1 件 300 字以内にする。`notes` は 20 件までにする
 - 指摘が無ければ `"findings": []` にする

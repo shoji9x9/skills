@@ -10,6 +10,7 @@
 
 ワークフロー `.github/workflows/self-review.yml` が、毎週木曜に実行する。手動では `workflow_dispatch` で実行できる。
 費用の指標の追跡 Issue（`check-cost-metrics.yml` が水曜に書く）を入力に使うので、その後に置いている。
+同じタイトルの Issue は誰でも開けるので、`github-actions[bot]` が作った Issue のときだけ入力に使う。本文に仕込まれた指示に、エージェントが従うのを防ぐためである。
 
 ジョブは 2 つに分ける。
 
@@ -46,6 +47,7 @@ gh variable delete SELF_REVIEW_SKIP
   - secret が未設定
   - エージェントの実行が失敗した
   - 結果を受け取れない、結果の JSON の形が違う、または本文が GitHub の上限に近い（60,000 字を超える）
+  - 結果に資格情報（secret の値か、`sk-ant-` で始まる文字列）がある。この週の結果は Issue に載せない
   - 既知の食い違いへの指摘が無い
 
 ## 追跡 Issue の読み方

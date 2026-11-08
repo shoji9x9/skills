@@ -48,29 +48,42 @@ export type Report = { findings: Finding[]; notes: string[] };
 const isCategory = (value: unknown): value is Category =>
   typeof value === "string" && Object.hasOwn(CATEGORY_LABEL, value);
 
+const MAX_TEXT_CHARS = 500;
+const MAX_NOTES = 20;
+/** Anthropic の API キーと OAuth トークンの形。結果にあれば、Issue に載せずに失敗させる。 */
+const CREDENTIAL = /sk-ant-[\w-]{8,}/u;
+
 /**
  * エージェントが書いた文を、Issue に載せられる 1 行にする。`@name` は GitHub がメンションとして通知するので、
  * `@` の直後にゼロ幅スペースを入れる。`<` と `>` は、HTML のタグ（`<details>` など）や、識別子を埋める HTML コメントの終わり（`-->`）として
  * 読まれないよう実体参照にする。`&` も実体参照にし、`&#64;` のような実体参照で `@` を書き戻せないようにする。
- * `#123` は、毎週の更新のたびに参照先の Issue に相互参照が付くので、`#` の直後にもゼロ幅スペースを入れる。
+ * Issue と PR への参照（`#123`・`GH-123`・`github.com` の URL）は、毎週の更新のたびに参照先に相互参照が付くので、
+ * `#`・`GH-`・`github` の直後にもゼロ幅スペースを入れる。長さは 1 欄 `MAX_TEXT_CHARS` 字までにする（本文とコメントの上限を守るため）。
  * 識別子・表・メモ・差分のコメントのどれにもこの形で載るよう、結果を読む段で当てる。
  */
-const safe = (value: string): string =>
-  oneLine(value)
+const safe = (value: string): string => {
+  const line = oneLine(value);
+  const short = line.length > MAX_TEXT_CHARS ? `${line.slice(0, MAX_TEXT_CHARS)}…` : line;
+  return short
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replace(/@(?=[\w-])/gu, "@\u200b")
-    .replace(/#(?=\d)/gu, "#\u200b");
+    .replace(/#(?=\d)/gu, "#\u200b")
+    .replace(/\bGH-(?=\d)/gu, "GH-\u200b")
+    .replace(/github(?=\.com)/giu, "github\u200b");
+};
 
 function text(value: unknown, where: string): string {
   if (!isNonBlankString(value)) throw new Error(`${where} が空でない文字列でない`);
+  if (CREDENTIAL.test(value)) throw new Error(`${where} に資格情報の形の文字列がある`);
   return safe(value);
 }
 
-/** 直し方の案は、無い指摘もある。省略・null・空の文字列は、どれも案が無いものとして読む。 */
+/** 直し方の案は、無い指摘もある。省略・null・空白だけの文字列は、どれも案が無いものとして読む。 */
 function optionalText(value: unknown, where: string): string {
-  if (value === undefined || value === null || value === "") return "";
+  if (value === undefined || value === null) return "";
+  if (typeof value === "string" && value.trim() === "") return "";
   return text(value, where);
 }
 
@@ -79,7 +92,7 @@ function parseFinding(value: unknown, where: string): Finding {
   const { category } = value;
   if (!isCategory(category)) {
     throw new Error(
-      `${where}.category が項目の値でない: ${JSON.stringify(category)}（使える値: ${Object.keys(CATEGORY_LABEL).join("・")}）`,
+      `${where}.category が項目の値でない（使える値: ${Object.keys(CATEGORY_LABEL).join("・")}）`,
     );
   }
   return {
@@ -105,7 +118,8 @@ export function parseReport(source: string): Report {
   if (notes !== undefined && !isArray(notes)) throw new Error("notes が配列でない");
   return {
     findings: findings.map((f, i) => parseFinding(f, `findings[${i}]`)),
-    notes: (notes ?? []).map((n, i) => text(n, `notes[${i}]`)),
+    // メモは、指摘 0 件の週にコメントへ載せるので、件数にも上限を置く。
+    notes: (notes ?? []).slice(0, MAX_NOTES).map((n, i) => text(n, `notes[${i}]`)),
   };
 }
 

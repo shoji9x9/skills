@@ -83,7 +83,9 @@ jobs:
             echo "secret CLAUDE_CODE_OAUTH_TOKEN が未設定" >&2
           fi
 
-      # 費用の指標の追跡 Issue（open な最新の 1 件）の本文を、エージェントの入力に置く。無ければ置かない（手順が入力なしで点検する）。
+      # 費用の指標の追跡 Issue の本文を、エージェントの入力に置く。無ければ置かない（手順が入力なしで点検する）。
+      # 同じタイトルの Issue は誰でも開けるので、check-cost-metrics.yml（github-actions[bot]）が作った Issue のときだけ使う。
+      # 人が作った本文に指示を仕込まれると、エージェントがそれに従い、資格情報を結果に書くおそれがある。
       - name: Fetch cost metrics
         if: steps.cred.outputs.present == 'true'
         env:
@@ -97,7 +99,12 @@ jobs:
           mkdir -p "$INPUT_DIR"
           if [ "${#numbers[@]}" -gt 0 ]; then
             # check-cost-metrics.yml と同じく、番号の最も小さい 1 件を正とする（ほかは更新されない）。
-            gh issue view "${numbers[0]}" --json body --jq .body >"$INPUT_DIR/cost-metrics.md"
+            author="$(gh issue view "${numbers[0]}" --json author --jq .author.login)"
+            if [ "$author" = "app/github-actions" ]; then
+              gh issue view "${numbers[0]}" --json body --jq .body >"$INPUT_DIR/cost-metrics.md"
+            else
+              echo "#${numbers[0]} は github-actions[bot] が作った Issue でない（作成者: $author）。入力なしで点検する"
+            fi
           else
             echo "費用の指標の追跡 Issue が無い。入力なしで点検する"
           fi
@@ -124,9 +131,12 @@ jobs:
       # textconv などで任意のコマンドを実行できるためである。手順が使う履歴の件名とファイルの一覧は、ここで入力に書き出す。
       - name: Write git inputs
         if: steps.cred.outputs.present == 'true'
+        env:
+          CANARY: ${{ steps.canary.outputs.path }}
         run: |
           mkdir -p "$INPUT_DIR"
-          git ls-files >"$INPUT_DIR/files.txt"
+          # canary も点検の対象なので、一覧に足す（手順は一覧を対象の原本として読む）。
+          { git ls-files; echo "$CANARY"; } | sort >"$INPUT_DIR/files.txt"
           # main は PR をマージの commit で取り込むので、first-parent の件名は「Merge pull request」が多い。マージを除いた commit の件名を書く。
           git log --no-merges --date=short --format='%h %ad %s' -n 3000 >"$INPUT_DIR/commits.txt"
           wc -l "$INPUT_DIR"/*.txt
@@ -193,6 +203,20 @@ jobs:
           name: ${{ needs.review.outputs.report_artifact }}
           path: ${{ runner.temp }}/self-review
 
+      # 結果に資格情報の値があれば、Issue に載せない。資格情報は、この段だけに渡す。
+      - name: Check report for credentials
+        id: leak
+        if: steps.download.outcome == 'success'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          REPORT: ${{ runner.temp }}/self-review/${{ env.REPORT_FILE }}
+        run: |
+          leak=false
+          if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ] && grep -q -F -e "$CLAUDE_CODE_OAUTH_TOKEN" "$REPORT"; then
+            leak=true
+          fi
+          echo "leak=$leak" >>"$GITHUB_OUTPUT"
+
       # 作成・更新・クローズを 1 ステップに置く。照会は outdated.yml と同じ同梱スクリプトを使う。
       # 点検できなかったとき（資格情報が未設定・エージェントの失敗・結果を読めない・canary への指摘が無い）は、
       # 「指摘 0 件」として閉じず、理由を追跡 Issue に書いてからジョブを失敗させる。
@@ -204,6 +228,7 @@ jobs:
           OUTCOME: ${{ needs.review.outputs.outcome }}
           DOWNLOAD_OUTCOME: ${{ steps.download.outcome }}
           DEPS_OUTCOME: ${{ steps.deps.outcome }}
+          LEAK: ${{ steps.leak.outputs.leak }}
           CANARY: ${{ needs.review.outputs.canary }}
           REPORT: ${{ runner.temp }}/self-review/${{ env.REPORT_FILE }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -232,6 +257,8 @@ jobs:
             failure="エージェントの実行が失敗した（outcome: ${OUTCOME:-unknown}）"
           elif [ "$DOWNLOAD_OUTCOME" != success ]; then
             failure="エージェントの結果を受け取れなかった（download の outcome: ${DOWNLOAD_OUTCOME:-unknown}）"
+          elif [ "$LEAK" != false ]; then
+            failure="結果に資格情報の値があったので、Issue に載せない（結果を確かめられなかったときも同じ扱いにする）"
           elif [ "$DEPS_OUTCOME" != success ]; then
             failure="本文を作るスクリプトの準備（mise・pnpm install）が失敗した"
           else
@@ -255,7 +282,7 @@ jobs:
             if [ -n "$detail" ]; then
               # ログはエージェントが書いた値を含むので、メンションやタグとして読まれないようコードブロックに入れる。
               fence="$(printf '\140\140\140')"
-              printf '\n%stext\n%s\n%s\n' "$fence" "$(tail -n 3 "$detail" | tr -d '\140')" "$fence" >>"$comment"
+              printf '\n%stext\n%s\n%s\n' "$fence" "$(tail -n 3 "$detail" | tr -d '\140' | cut -c 1-500)" "$fence" >>"$comment"
             fi
             printf '\n[run](%s)\n' "$RUN_URL" >>"$comment"
             if [ -n "$number" ]; then
