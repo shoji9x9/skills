@@ -329,13 +329,12 @@ const labelPoint = (pts, e) => {
 };
 
 // 水平の区間（y の上を x の lo〜hi）が、垂直の区間（x の上を y の lo〜hi）を内側で横切り、飛び越しを付けるか。
-// 端から 1px 以内で接するだけの形（T 字・L 字）には付けない。検査（diagram-checks.mjs）も同じ条件で判定する。
+// 端から 1px 以内で接するだけの形（T 字・L 字）には付けない。
 /**
  * @param {{ y: number, lo: number, hi: number }} h
  * @param {{ x: number, lo: number, hi: number }} v
  */
-export const hopsOver = (h, v) =>
-  v.x > h.lo + 1 && v.x < h.hi - 1 && v.lo < h.y - 1 && v.hi > h.y + 1;
+const hopsOver = (h, v) => v.x > h.lo + 1 && v.x < h.hi - 1 && v.lo < h.y - 1 && v.hi > h.y + 1;
 
 // 水平の区間 a→b と交わる、他のエッジの垂直の区間の x 座標（進む向きの順）。
 /**
@@ -500,7 +499,7 @@ function assertCanvas({ W, H }) {
 }
 
 // 描画と検査が使う線。routed を渡されなければ routeEdges で計算する。
-// 渡されたら、routeEdges と同じ形の検査（キャンバスの大きさ・重複したエッジ・斜めの線）を当て、
+// 渡されたら、routeEdges と同じ形の検査（キャンバスの大きさ・重複したエッジ・未知のノード・斜めの線）を当て、
 // routed が spec のエッジと本数・並び（同じオブジェクト）で対応するかを確かめる。
 // routed を計算した後に spec をその場で書き換えた（ノードを動かした・waypoints を変えた）ことは、ここでは検出できない。
 // そのため、routed は spec を確定した直後に計算し、その後に spec を書き換えない呼び出し元だけが渡す。
@@ -512,8 +511,10 @@ function assertCanvas({ W, H }) {
 export function routedFor(spec, routed) {
   if (!routed) return routeEdges(spec);
   assertCanvas(spec);
-  const { edges = [] } = spec;
+  const { nodes = [], edges = [] } = spec;
   assertUniqueEdges(edges);
+  const node = nodeLookup(nodes);
+  for (const e of edges) [e.from, e.to].forEach(node);
   if (routed.length !== edges.length || routed.some((r, i) => r.e !== edges[i])) {
     throw new Error(
       "routed が spec のエッジと対応しない（同じ spec を routeEdges に渡した結果を渡す）",

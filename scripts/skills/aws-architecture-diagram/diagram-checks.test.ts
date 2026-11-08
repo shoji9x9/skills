@@ -1,8 +1,9 @@
 // aws-architecture-diagram の作図ルールの検査（diagram-checks.mjs）のテスト（Issue #931）。
 //
 // 検査する観点ごとに、違反を 1 つだけ置いた spec でその観点だけが出ること、
-// 違反の無い spec（境界の値を含む）で何も出ないことを確かめる。検査する観点は、(e) を除く 9 つである。
+// 違反の無い spec（境界の値を含む）で何も出ないことを確かめる。検査する観点は、(a)・(b)・(d)・(f)・(g)・(h)・(i) の 7 つである。
 // 観点 (e)（矢印の向き）はエンジンが作り方で保証する（marker-end を常に to の側に付ける）ので、検査しない。
+// 観点 (c)（平行な線の間隔）と (j)（飛び越し）は、幹線を除く条件を決めきれないので、目で見て確かめる。
 // 同梱の見本（starter の全環境・the-simple-webservice）は違反が 0 件であることも確かめる。
 
 import { expect, test } from "vitest";
@@ -90,32 +91,6 @@ test("(b) 線がアイコンの辺に触れるだけなら、出さない", () =
   expect(rules(spec([a, b, node("c", 300, 232)], [ab], [group()]))).toEqual([]);
 });
 
-// c(200,260) から d(400,260) へ、a->b の線の近くを通って戻る。
-const detour = (y: number): DiagramEdge => ({
-  from: "c",
-  to: "d",
-  waypoints: [
-    [260, 260],
-    [260, y],
-    [340, y],
-    [340, 260],
-  ],
-});
-const a160 = node("a", 200, 160);
-const b160 = node("b", 400, 160);
-const c260 = node("c", 200, 260);
-const d260 = node("d", 400, 260);
-
-test("(c) 別のエッジの平行な区間が 10px で並ぶと、(c) を出す", () => {
-  const v = checkDiagram(spec([a160, b160, c260, d260], [ab, detour(170)]));
-  expect(v.map((x) => x.rule)).toEqual(["c"]);
-  expect(v[0].message).toContain("間隔が 10px");
-});
-
-test("(c) 平行な区間の間隔がちょうど 20px なら、出さない", () => {
-  expect(rules(spec([a160, b160, c260, d260], [ab, detour(180)]))).toEqual([]);
-});
-
 const e300 = node("e", 400, 300);
 const trunk = (y: number): DiagramEdge => ({
   from: "a",
@@ -126,14 +101,13 @@ const trunk = (y: number): DiagramEdge => ({
   ],
 });
 
-test("(c)(j) 同じ依存元から出る線が同じ座標で重なり、そこから分かれる幹線は、出さない", () => {
-  expect(rules(spec([a, b, e300], [ab, trunk(200)]))).toEqual([]);
-});
-
-test("(d) 幹線の上に置いた一方のラベルを、同じ座標で重なる他方の線が通っても、出さない", () => {
-  expect(
-    rules(spec([a, b, e300], [{ ...ab, label: "L", labelAt: [260, 200] }, trunk(200)])),
-  ).toEqual([]);
+test("(d) 同じ依存元から出る線が同じ座標で重なっても、他方のラベルを通るなら、(d) を出す", () => {
+  // a->e は a->b と y=200 の上を x=232〜300 まで重なって進み、a->b のラベル（中心 x=260）を通る。
+  const v = checkDiagram(
+    spec([a, b, e300], [{ ...ab, label: "L", labelAt: [260, 200] }, trunk(200)]),
+  );
+  expect(v.map((x) => x.rule)).toEqual(["d"]);
+  expect(v[0].message).toContain("a->e の区間 (232,200)-(300,200) がエッジ a->b のラベル");
 });
 
 test("(d) 端点を共有するエッジでも、ラベルを垂直に貫くなら、(d) を出す", () => {
@@ -151,118 +125,6 @@ test("(d) 幹線を共有するエッジでも、ラベルの中心が幹線の�
   );
   expect(v.map((x) => x.rule)).toEqual(["d"]);
   expect(v[0].message).toContain("a->b の区間");
-});
-
-test("(c)(j) 同じ依存元から出る線が、別の点から出て幹線に寄り、そこから分かれる形は、出さない", () => {
-  // a->b は a の上から、a->c は a の下から出て、y=140 の上で x=200〜300 を重なって進む（幹線にいったん寄せてから分岐させる形）。
-  // 寄る点 (200,140) と分かれる点 (300,140) は幹線の端なので、(j) にしない。
-  const a2 = { ...node("a", 100, 200), lp: "left" };
-  const toB: DiagramEdge = {
-    from: "a",
-    to: "b",
-    waypoints: [
-      [100, 140],
-      [300, 140],
-      [300, 100],
-    ],
-  };
-  const toC: DiagramEdge = {
-    from: "a",
-    to: "c",
-    waypoints: [
-      [100, 260],
-      [200, 260],
-      [200, 140],
-      [400, 140],
-      [400, 300],
-    ],
-  };
-  expect(rules(spec([a2, node("b", 500, 100), node("c", 500, 300)], [toB, toC]))).toEqual([]);
-});
-
-test("(c)(j) 同じ依存元から出る線どうしでも、同じ座標を逆向きに重なって進むなら、(c) と、接する点の (j) を出す", () => {
-  // a->b は y=250 を右へ進む。a->c は a の上から出て x=400 で y=250 に下り、左へ x=250 まで逆向きに重なって進む。
-  const toC: DiagramEdge = {
-    from: "a",
-    to: "c",
-    waypoints: [
-      [100, 150],
-      [400, 150],
-      [400, 250],
-      [250, 250],
-      [250, 320],
-    ],
-  };
-  const v = checkDiagram(
-    spec([node("a", 100, 250), node("b", 500, 250), node("c", 250, 370)], [ab, toC]),
-  );
-  expect(v.map((x) => x.rule)).toEqual(["c", "j", "j"]);
-});
-
-// a->e は a->b と y=200 の上を x=340 まで同じ向きに進み（幹線）、折り返して x=260 まで逆向きに重なってから e へ下りる。
-const fold: DiagramEdge = {
-  from: "a",
-  to: "e",
-  waypoints: [
-    [340, 200],
-    [260, 200],
-    [260, 300],
-  ],
-};
-
-test("(c)(j) 幹線を進んだ線が折り返して逆向きに重なるなら、逆向きの区間の (c) と、下りる点の (j) を出す", () => {
-  const v = checkDiagram(spec([a, b, e300], [ab, fold]));
-  expect(v.map((x) => x.rule)).toEqual(["c", "j"]);
-  expect(v[0].message).toContain("a->e の区間 (340,200)-(260,200)");
-});
-
-test("(d) 幹線を進んだ線が折り返して、逆向きの区間でラベルを貫くなら、(d) を出す", () => {
-  // a->b のラベルの中心 (300,200) は、幹線（x=232〜340）の上にも、逆向きの区間（x=260〜340）の上にもある。
-  const v = checkDiagram(spec([a, b, e300], [{ ...ab, label: "L", labelAt: [300, 200] }, fold]));
-  expect(v.map((x) => x.rule)).toEqual(["c", "d", "j"]);
-  expect(v[1].message).toContain("a->e の区間 (340,200)-(260,200) がエッジ a->b のラベル");
-});
-
-test("(c)(j) 同じ先へ入る線が幹線で合流し、分かれて別の点で入る形は、出さない", () => {
-  // p->c と q->c が y=200 の上で x=250〜330 を重なって進み、x=330 で分かれて c に y=185 と y=215 で入る。
-  const merge = (from: string, y0: number, y1: number): DiagramEdge => ({
-    from,
-    to: "c",
-    waypoints: [
-      [250, y0],
-      [250, 200],
-      [330, 200],
-      [330, y1],
-    ],
-  });
-  expect(
-    rules(
-      spec(
-        [node("p", 100, 100), node("q", 100, 300), node("c", 500, 200)],
-        [merge("p", 100, 185), merge("q", 300, 215)],
-      ),
-    ),
-  ).toEqual([]);
-});
-
-test("(c) 同じ依存元から出る線でも、間隔が 0 より大きく 20px 未満なら、(c) を出す", () => {
-  expect(rules(spec([a, b, e300], [ab, trunk(210)]))).toEqual(["c"]);
-});
-
-test("(c)(j) 端点を共有しないエッジが同じ座標で重なると、(c) と、接する点の (j) を出す", () => {
-  const c = node("c", 200, 300);
-  const d = node("d", 400, 300);
-  const overlap: DiagramEdge = {
-    from: "c",
-    to: "d",
-    waypoints: [
-      [260, 300],
-      [260, 200],
-      [340, 200],
-      [340, 300],
-    ],
-  };
-  expect(rules(spec([a, b, c, d], [ab, overlap]))).toEqual(["c", "j", "j"]);
 });
 
 // c と d を結ぶ水平の線が、a のラベル（a の下、y=236〜252）の高さを通る。
@@ -398,75 +260,6 @@ test.each([
   expect(rules(spec([a, b], [ab], [group(extra)]))).toEqual([]);
 });
 
-// c から d へ縦に進み、a->b の水平の線と y=200 で交わる。
-const vertical = (x: number) => [node("c", x, 320), { ...node("d", x, 60), lp: "top" }];
-
-test("(j) 屈曲点が他のエッジの線の上に乗り、飛び越しが付かないと、(j) を出す", () => {
-  const v = checkDiagram(
-    spec([a, b, ...vertical(320)], [ab, { from: "c", to: "d", waypoints: [[320, 200]] }]),
-  );
-  expect(v.map((x) => x.rule)).toEqual(["j"]);
-  expect(v[0].message).toContain("(320,200) で飛び越しなしに接し");
-});
-
-test("(j) 自動の L 字が線を分けた点（a->b の中点 x=300）で交わると、飛び越しが付かないので (j) を出す", () => {
-  const v = checkDiagram(spec([a, b, ...vertical(300)], [ab, { from: "c", to: "d" }]));
-  expect(v.map((x) => x.rule)).toEqual(["j"]);
-  expect(v[0].message).toContain("(300,200)");
-});
-
-test("(j) 同じ依存元から出る線どうしでも、別の点から出て飛び越しなしに交わるなら、(j) を出す", () => {
-  // a->b は a の下から縦に進み、自動の L 字が y=200 で線を分ける。a->c は a の左から出て、その点を横切る。
-  const a2 = { ...node("a", 200, 60), lp: "top" };
-  const toC: DiagramEdge = {
-    from: "a",
-    to: "c",
-    waypoints: [
-      [100, 60],
-      [100, 200],
-    ],
-  };
-  const v = checkDiagram(spec([a2, node("b", 200, 340), node("c", 400, 200)], [ab, toC]));
-  expect(v.map((x) => x.rule)).toEqual(["j"]);
-  expect(v[0].message).toContain("(200,200)");
-});
-
-test("(j) 幹線を共有する線でも、幹線の外で飛び越しなしに接するなら、(j) を出す", () => {
-  // a->e は幹線（a->b と y=200 の上を x=232〜300）から下へ分かれた後、x=340 で a->b の線まで戻って接する。
-  const back: DiagramEdge = {
-    from: "a",
-    to: "e",
-    waypoints: [
-      [300, 200],
-      [300, 300],
-      [340, 300],
-      [340, 200],
-      [340, 150],
-    ],
-  };
-  const v = checkDiagram(spec([a, b, node("e", 440, 150)], [ab, back]));
-  expect(v.map((x) => x.rule)).toEqual(["j"]);
-  expect(v[0].message).toContain("(340,200)");
-});
-
-test("(j) 幹線から分かれた線が、幹線の途中に戻って飛び越しなしに接するなら、(j) を出す", () => {
-  // a->e は幹線（y=200 の上を x=232〜300）の端 (300,200) で分かれ、x=260 で幹線の途中 (260,200) に戻って接する。
-  const back: DiagramEdge = {
-    from: "a",
-    to: "e",
-    waypoints: [
-      [300, 200],
-      [300, 300],
-      [260, 300],
-      [260, 200],
-      [260, 150],
-    ],
-  };
-  const v = checkDiagram(spec([a, b, node("e", 440, 150)], [ab, back]));
-  expect(v.map((x) => x.rule)).toEqual(["j"]);
-  expect(v[0].message).toContain("(260,200)");
-});
-
 test.each([
   ["W が NaN（書き忘れた W を計算に使ったときの値）", { W: Number.NaN }],
   ["H が無限大", { H: Number.POSITIVE_INFINITY }],
@@ -498,7 +291,7 @@ test("routed を渡しても、キャンバスの大きさが数でない spec �
   );
 });
 
-test("routed を渡しても、斜めの線か重複したエッジがあれば、検査も描画もエラーにする", () => {
+test("routed を渡しても、斜めの線があれば、検査も描画もエラーにする", () => {
   const s = spec([a, b], [ab], [group()]);
   const opts = { iconDir: "/nonexistent" };
   const diagonal = [
@@ -512,14 +305,27 @@ test("routed を渡しても、斜めの線か重複したエッジがあれば�
   ];
   expect(() => checkDiagram(s, diagonal)).toThrow("斜めのエッジ: a->b");
   expect(() => renderDiagram(s, { ...opts, routed: diagonal })).toThrow("斜めのエッジ: a->b");
-  const edges = [ab, { ...ab }];
-  const routedTwice = edges.map((e) => ({ e, pts: routeEdges(s)[0].pts }));
-  const twice = spec([a, b], edges, [group()]);
-  expect(() => checkDiagram(twice, routedTwice)).toThrow("重複エッジ: a->b");
 });
 
-test("(j) 交差に飛び越しが付くなら、出さない", () => {
-  expect(rules(spec([a, b, ...vertical(320)], [ab, { from: "c", to: "d" }]))).toEqual([]);
+test("routed を渡しても、重複したエッジがあれば、検査も描画もエラーにする", () => {
+  const pts = routeEdges(spec([a, b], [ab], [group()]))[0].pts;
+  const edges = [ab, { ...ab }];
+  const twice = spec([a, b], edges, [group()]);
+  const routed = edges.map((e) => ({ e, pts }));
+  expect(() => checkDiagram(twice, routed)).toThrow("重複エッジ: a->b");
+  expect(() => renderDiagram(twice, { iconDir: "/nonexistent", routed })).toThrow(
+    "重複エッジ: a->b",
+  );
+});
+
+test("routed を計算した後に spec からノードが消えていれば、検査も描画もエラーにする", () => {
+  const s = spec([a, b], [ab], [group()]);
+  const routed = routeEdges(s);
+  const missing = { ...s, nodes: [a] };
+  expect(() => checkDiagram(missing, routed)).toThrow("未知のノード: b");
+  expect(() => renderDiagram(missing, { iconDir: "/nonexistent", routed })).toThrow(
+    "未知のノード: b",
+  );
 });
 
 test("違反は観点の記号の順に並べる", () => {

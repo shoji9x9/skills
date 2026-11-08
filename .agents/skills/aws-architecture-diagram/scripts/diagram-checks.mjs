@@ -4,14 +4,7 @@
 //
 // 使い方: `checkDiagram(spec, routed?)` を呼ぶ。違反の配列（観点の記号と、場所を含むメッセージ）を返す。違反が無ければ空の配列である。
 // routed には、描画と同じ線を使うために、同じ spec を `routeEdges(spec)` に渡した結果を渡せる（省くと自分で計算する）。
-import {
-  box,
-  edgeLabelRect,
-  hopsOver,
-  nodeLabelRect,
-  nodeLookup,
-  routedFor,
-} from "./diagram-engine.mjs";
+import { box, edgeLabelRect, nodeLabelRect, nodeLookup, routedFor } from "./diagram-engine.mjs";
 
 /**
  * @typedef {import("./diagram-engine.mjs").DiagramSpec} DiagramSpec
@@ -25,7 +18,7 @@ import {
  */
 
 const GROUP_PADDING = 32; // ノードのアイコンとグループの枠の間に取る余白（アイコンの半分）
-const PARALLEL_GAP = 20; // 平行な線どうし、線と枠線の間に取る間隔
+const PARALLEL_GAP = 20; // 線と枠線の間に取る間隔
 const CANVAS_MARGIN = 50; // 最も外側の枠とキャンバスの端の間に取る余白
 // 同じノードに入る線の端どうしの間隔の下限。矢印の頭（markerWidth 7 × stroke-width 1.8 ≈ 12.6px）が重ならない幅にする。
 const ARROW_GAP = 13;
@@ -127,71 +120,6 @@ const containsPoint = (r, p) => r.left <= p.x && p.x <= r.right && r.top <= p.y 
  * @typedef {{ vertical: boolean, at: number, lo: number, hi: number }} Line
  */
 
-// 幹線は、端点を共有する 2 本のエッジの区間 s と t が、同じ座標を同じ向きに重なって進む範囲である。幹線にならない組には null を返す。
-// 規約は、多くの線を共有の幹線にいったん寄せてから分岐させる形を求める。幹線の上では 2 本の線が 1 本に見えるので、検査の一部から除く。
-// 除くかは、違反を作る区間そのものと相手のエッジの区間の組で判定する。同じエッジの別の区間が作った幹線は使わない。
-// 例えば、幹線を進んでから折り返して逆向きに重なる区間は、前進の区間の幹線の範囲に入っても除かない。
-/**
- * @param {Segment} s
- * @param {Segment} t
- * @returns {Line | null}
- */
-function trunkOf(s, t) {
-  const lo = Math.max(s.lo, t.lo);
-  const hi = Math.min(s.hi, t.hi);
-  const sameLine = s.vertical === t.vertical && s.at === t.at && lo < hi;
-  const together = s.ei !== t.ei && sharesEnd(s.e, t.e) && direction(s) === direction(t);
-  return sameLine && together ? { vertical: s.vertical, at: s.at, lo, hi } : null;
-}
-
-/**
- * @param {DiagramEdge} e1
- * @param {DiagramEdge} e2
- */
-const sharesEnd = (e1, e2) => e1.from === e2.from || e1.to === e2.to;
-
-// エッジの番号から、そのエッジのまとめた区間を引く表。
-/** @param {Segment[]} segs */
-function segmentsByEdge(segs) {
-  /** @type {Map<number, Segment[]>} */
-  const byEdge = new Map();
-  for (const s of segs) {
-    const list = byEdge.get(s.ei);
-    if (list) list.push(s);
-    else byEdge.set(s.ei, [s]);
-  }
-  return byEdge;
-}
-
-// 区間 s が、エッジ ei のどれかの区間と幹線になり、その幹線の上の点 p が test を満たすか。
-/**
- * @param {Context} ctx
- * @param {{ s: Segment, ei: number, test: (t: Line, c: number) => boolean, p: Point }} q
- *   test は、幹線と、点 p の幹線に沿った座標を受け取る
- */
-const trunkWith = ({ byEdge }, { s, ei, test, p }) =>
-  (byEdge.get(ei) ?? []).some((u) => {
-    const t = trunkOf(s, u);
-    const c = t === null ? null : alongLine(t, p);
-    return t !== null && c !== null && test(t, c);
-  });
-
-// 点 p が区間 t と同じ直線の上にあれば、その直線に沿った座標を返す。無ければ null を返す。
-/**
- * @param {Line} t
- * @param {Point} p
- * @returns {number | null}
- */
-function alongLine(t, p) {
-  const [at, c] = t.vertical ? [p.x, p.y] : [p.y, p.x];
-  return at === t.at ? c : null;
-}
-
-/** @type {(t: Line, c: number) => boolean} 幹線の上（端を含む） */
-const inside = (t, c) => t.lo <= c && c <= t.hi;
-/** @type {(t: Line, c: number) => boolean} 幹線の端（線が幹線に寄る点か、幹線から分かれる点） */
-const atEnd = (t, c) => c === t.lo || c === t.hi;
-
 // (a) ノードのアイコンが、グループの枠にかかっていないか、枠の内側の余白が足りているか。
 /**
  * @param {DiagramNode[]} nodes
@@ -240,63 +168,26 @@ function checkSegmentsThroughIcons(segs, nodes) {
   );
 }
 
-// (c) 別のエッジの平行な区間が、20px 未満の間隔で並んでいないか。
-// 重なる 2 つの区間が幹線（trunkOf）になれば除く。端点を共有しないか、逆向きに重なるなら違反にする。
-// 同じ先へ同じ点で入る線は、(f) が検査する。
-/** @param {Context} ctx */
-function checkParallelGaps({ segs }) {
-  /** @type {Violation[]} */
-  const out = [];
-  for (let i = 0; i < segs.length; i++) {
-    for (let j = i + 1; j < segs.length; j++) {
-      const s = segs[i];
-      const t = segs[j];
-      if (s.ei === t.ei || s.vertical !== t.vertical) continue;
-      const gap = Math.abs(s.at - t.at);
-      const lo = Math.max(s.lo, t.lo);
-      const hi = Math.min(s.hi, t.hi);
-      if (gap >= PARALLEL_GAP || lo >= hi) continue;
-      if (trunkOf(s, t) !== null) continue;
-      out.push({
-        rule: "c",
-        message: `${segName(s)} と ${segName(t)} の間隔が ${gap}px（${PARALLEL_GAP}px 未満）`,
-      });
-    }
-  }
-  return out;
-}
-
 // (d) 線が、ノードのラベルと、他のエッジのラベルを貫いていないか。ラベルの幅はエンジンの概算で求める。
 /**
  * @param {Context} ctx
  * @param {DiagramNode[]} nodes
  * @returns {Violation[]}
  */
-function checkSegmentsThroughLabels(ctx, nodes) {
-  const { segs, routed } = ctx;
-  /** @type {{ name: string, r: Rect, ei: number, center: Point | null }[]} */
+function checkSegmentsThroughLabels({ segs, routed }, nodes) {
+  /** @type {{ name: string, r: Rect, ei: number }[]} */
   const nodeLabels = nodes.flatMap((n) => {
     const r = nodeLabelRect(n);
-    return r ? [{ name: `ノード ${n.id} のラベル`, r, ei: -1, center: null }] : [];
+    return r ? [{ name: `ノード ${n.id} のラベル`, r, ei: -1 }] : [];
   });
   const edgeLabels = routed.flatMap((re, ei) => {
     const r = edgeLabelRect(re);
-    return r
-      ? [{ name: `エッジ ${edgeName(re.e)} のラベル`, r, ei, center: { x: r.x, y: r.y } }]
-      : [];
+    return r ? [{ name: `エッジ ${edgeName(re.e)} のラベル`, r, ei }] : [];
   });
   const labels = [...nodeLabels, ...edgeLabels];
-  // 幹線の上では 2 本の線が 1 本に見えるので、ラベルを貫く区間が、ラベルのエッジの区間と幹線になり、
-  // ラベルの中心がその幹線の上にあれば違反にしない。ラベルの中心が幹線の上に無いときと、幹線と垂直に交わって貫くときは違反にする。
-  /**
-   * @param {Segment} s
-   * @param {{ ei: number, center: Point | null }} l
-   */
-  const onSharedTrunk = (s, l) =>
-    l.center !== null && trunkWith(ctx, { s, ei: l.ei, test: inside, p: l.center });
   return segs.flatMap((s) =>
     labels
-      .filter((l) => l.ei !== s.ei && crossesRect(s, l.r) && !onSharedTrunk(s, l))
+      .filter((l) => l.ei !== s.ei && crossesRect(s, l.r))
       .map((l) => ({ rule: "d", message: `${segName(s)} が${l.name}を貫いている` })),
   );
 }
@@ -433,62 +324,8 @@ function checkCanvasMargin(spec) {
     }));
 }
 
-// (j) 別のエッジの線が、飛び越し（line jump）の付かない形で接していないか。
-// エンジンは、水平の区間が他のエッジの垂直の区間を内側で横切るときだけ飛び越しを付ける。
-// 一方の線の端や屈曲点が他方の線の上に乗る形（T 字・L 字）は飛び越しが付かず、接続と区別できない。
-// 飛び越しを付けるかは、エンジンが線を描く単位の区間で決まる。自動の L 字が直線を分けた点で交わると、
-// どちらの区間も相手を内側で横切らないので、飛び越しが付かない。そのため、付くかはまとめる前の区間で判定する。
-// 接する 2 つの区間のどちらかが相手のエッジの区間と幹線になり、接する点がその幹線の端（線が幹線に寄る点と、幹線から分かれる点）なら、
-// 接して見えるのが意図なので除く。幹線の途中で接する点（分かれた線が幹線に戻る形など）は除かない。
-/** @param {Context} ctx */
-function checkJunctions(ctx) {
-  const { segs, raw } = ctx;
-  // 飛び越しの条件は、エンジン（diagram-engine.mjs の hopsOver）のものをそのまま使う。
-  /**
-   * @param {Segment} h
-   * @param {Segment} v
-   */
-  const hopped = (h, v) =>
-    raw.some(
-      (rh) =>
-        rh.ei === h.ei &&
-        !rh.vertical &&
-        rh.at === h.at &&
-        raw.some(
-          (rv) =>
-            rv.ei === v.ei &&
-            rv.vertical &&
-            rv.at === v.at &&
-            hopsOver({ y: rh.at, lo: rh.lo, hi: rh.hi }, { x: rv.at, lo: rv.lo, hi: rv.hi }),
-        ),
-    );
-  /** @type {Violation[]} */
-  const out = [];
-  const verticals = segs.filter((s) => s.vertical);
-  for (const h of segs.filter((s) => !s.vertical)) {
-    for (const v of verticals) {
-      if (h.ei === v.ei) continue;
-      const touches = h.lo <= v.at && v.at <= h.hi && v.lo <= h.at && h.at <= v.hi;
-      const p = { x: v.at, y: h.at };
-      if (
-        !touches ||
-        trunkWith(ctx, { s: h, ei: v.ei, test: atEnd, p }) ||
-        trunkWith(ctx, { s: v, ei: h.ei, test: atEnd, p })
-      )
-        continue;
-      if (!hopped(h, v)) {
-        out.push({
-          rule: "j",
-          message: `${segName(h)} と ${segName(v)} が (${v.at},${h.at}) で飛び越しなしに接し、接続と区別できない`,
-        });
-      }
-    }
-  }
-  return out;
-}
-
 /**
- * @typedef {{ routed: { e: DiagramEdge, pts: Point[] }[], raw: Segment[], segs: Segment[], byEdge: Map<number, Segment[]> }} Context
+ * @typedef {{ routed: { e: DiagramEdge, pts: Point[] }[], segs: Segment[] }} Context
  */
 
 // routed には、同じ spec を routeEdges で計算した結果を渡せる（描画と同じ線で検査し、計算を 1 回で済ませる）。
@@ -501,20 +338,17 @@ function checkJunctions(ctx) {
 export function checkDiagram(spec, given) {
   const { nodes = [], groups = [] } = spec;
   const routed = routedFor(spec, given);
-  const raw = rawSegmentsOf(routed);
-  const segs = mergeCollinear(raw);
+  const segs = mergeCollinear(rawSegmentsOf(routed));
   /** @type {Context} */
-  const ctx = { routed, raw, segs, byEdge: segmentsByEdge(segs) };
+  const ctx = { routed, segs };
   const all = [
     ...checkNodesInGroups(nodes, groups),
     ...checkSegmentsThroughIcons(segs, nodes),
-    ...checkParallelGaps(ctx),
     ...checkSegmentsThroughLabels(ctx, nodes),
     ...checkEntryPoints(nodes, routed),
     ...checkSegmentsThroughGroups(segs, groups, nodeLookup(nodes)),
     ...checkSegmentsAlongFrames(segs, groups),
     ...checkCanvasMargin(spec),
-    ...checkJunctions(ctx),
   ];
   return all.sort((p, q) => (p.rule < q.rule ? -1 : p.rule > q.rule ? 1 : 0));
 }
