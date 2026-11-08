@@ -1,0 +1,71 @@
+{
+  "$comment": [
+    "ignored-advisories.test.ts の検出能力を示す変異の一覧（Issue #938）。誤ると「見直すものは無い」として追跡 Issue を閉じる判定だけを置く。"
+  ],
+  "test_file": "scripts/tools/ignored-advisories.test.ts",
+  "mutations": [
+    {
+      "id": "direct-dependents-no-recurse",
+      "why": "pnpm why の木を 1 段しかたどらず、直接の依存を 0 件として、依存元の変化と「使わなくなった」の判定を誤る",
+      "file": "scripts/tools/ignored-advisories.ts",
+      "find": "      walk(parent);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["直接の依存 importer に直接つながる節を、重複なく名前の順に返す"]
+    },
+    {
+      "id": "outside-always-allowed",
+      "why": "許可した依存元の外を判定せず、新しく使い始めた依存元を見逃す",
+      "file": "scripts/tools/ignored-advisories.ts",
+      "find": "const outside = dependents.filter((d) => !allowed.has(dependentKey(d)));",
+      "replace": "const outside = dependents.filter(() => false);",
+      "occurrences": 1,
+      "expect_failing": [
+        "見直す時期の判定 修正版・取り下げ・許可の外を挙げる",
+        "見直す時期の判定 同じ名前でも depField が違えば許可の外"
+      ]
+    },
+    {
+      "id": "loaded-mismatch-ignored",
+      "why": "pnpm が読んだ一覧が空になっても、書いた一覧との食い違いを見ず、確かめないまま「見直すものは無い」とする",
+      "file": "scripts/tools/ignored-advisories.ts",
+      "find": "for (const id of diff(decl, loadedSet))",
+      "replace": "for (const id of diff(decl, decl))",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧の突き合わせ 書いたが pnpm が読んでいない",
+        "まとめて確かめる 一覧が食い違えば例外にする"
+      ]
+    },
+    {
+      "id": "no-target-element-allowed",
+      "why": "無視したパッケージに当たる要素が無い応答（API の形の変化）を修正版なしとして扱い、修正版を見逃したまま追跡 Issue を閉じる",
+      "file": "scripts/tools/ignored-advisories.ts",
+      "find": "if (targets.length === 0 && withdrawn === null) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "advisory の状態 要素が空 は例外にする",
+        "advisory の状態 どの要素も無視したパッケージに当たらない（形が変わった） は例外にする"
+      ]
+    },
+    {
+      "id": "missing-patched-key-as-none",
+      "why": "first_patched_version のキーが無い応答（キーの名前の変化）を修正版なしとして扱い、修正版を見逃したまま追跡 Issue を閉じる",
+      "file": "scripts/tools/ignored-advisories.ts",
+      "find": "if (fixed === null) return [];",
+      "replace": "if (fixed === null || fixed === undefined) return [];",
+      "occurrences": 1,
+      "expect_failing": ["advisory の状態 first_patched_version のキーが無い は例外にする"]
+    },
+    {
+      "id": "missing-withdrawn-key-as-none",
+      "why": "withdrawn_at のキーが無い応答（キーの名前の変化）を取り下げていないとして扱い、取り下げを見逃したまま追跡 Issue を閉じる",
+      "file": "scripts/tools/ignored-advisories.ts",
+      "find": "if (withdrawn !== null && !isNonBlankString(withdrawn)) {",
+      "replace": "if (withdrawn !== null && withdrawn !== undefined && !isNonBlankString(withdrawn)) {",
+      "occurrences": 1,
+      "expect_failing": ["advisory の状態 withdrawn_at のキーが無い は例外にする"]
+    }
+  ]
+}

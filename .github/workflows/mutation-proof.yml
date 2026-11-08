@@ -9,7 +9,7 @@ name: Mutation proof
 on:
   schedule:
     # 毎週月曜 02:00 UTC (11:00 JST)。kaizen-schedule.yml と outdated.yml の週次と時刻をずらしている。
-    # どれかの cron を変えるときは、ほかの週次（kaizen-schedule.yml・outdated.yml・codeql.yml）と重ならないかを確かめる。
+    # どれかの cron を変えるときは、ほかの週次（kaizen-schedule.yml・outdated.yml・codeql.yml・ignored-advisories.yml）と重ならないかを確かめる。
     - cron: "0 2 * * 1"
   workflow_dispatch: {}
 
