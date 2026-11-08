@@ -5,9 +5,9 @@ name: Self review
 # 点検の手順は docs/self-review-procedure.md に、運用（資格情報・一時停止・Issue の読み方）は docs/self-review.md にある。
 on:
   schedule:
-    # 毎週木曜 03:00 UTC (12:00 JST)。費用の指標（check-cost-metrics.yml、水曜）の追跡 Issue を入力に使うので、その後に置く。
-    # どれかの cron を変えるときは、ほかの週次（outdated.yml・kaizen-schedule.yml・mutation-proof.yml・codeql.yml・ignored-advisories.yml・check-cost-metrics.yml）と重ならないかを確かめる。
-    - cron: "0 3 * * 4"
+    # 毎週火曜 10:30 JST（01:30 UTC）。費用の指標（check-cost-metrics.yml、同じ日の 09:30 JST）の追跡 Issue を入力に使うので、1 時間後に置く。
+    # 週次の処理の一覧と、cron を変えるときの確かめ方は docs/weekly-schedule.md にある。
+    - cron: "30 1 * * 2"
   workflow_dispatch: {}
 
 # 前の実行を止めない。tracking-issue が Issue の更新（edit・comment・close）の途中で止まると、食い違った状態が残る。

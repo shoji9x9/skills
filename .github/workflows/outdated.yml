@@ -2,9 +2,8 @@ name: Outdated tools
 
 on:
   schedule:
-    # 毎週月曜 00:00 UTC (09:00 JST)。kaizen-schedule.yml と mutation-proof.yml の週次と時刻をずらしている。
-    # どれかの cron を変えるときは、ほかの週次（kaizen-schedule.yml・mutation-proof.yml・codeql.yml・ignored-advisories.yml・check-cost-metrics.yml・self-review.yml）と重ならないかを確かめる。
-    - cron: "0 0 * * 1"
+    # 毎週月曜 09:30 JST（00:30 UTC）。週次の処理の一覧と、cron を変えるときの確かめ方は docs/weekly-schedule.md にある。
+    - cron: "30 0 * * 1"
   workflow_dispatch: {}
 
 concurrency:
@@ -103,7 +102,7 @@ jobs:
             ;;
           esac
 
-          # 日付は UTC で採る。cron は 00:00 UTC なので、手動実行でもランナーの
+          # 日付は UTC で採る。cron は 00:30 UTC なので、手動実行でもランナーの
           # タイムゾーンに依存しない値になる。
           title="$ISSUE_TITLE_PREFIX ($(date -u +%F))"
 

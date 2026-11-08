@@ -3,8 +3,12 @@ updates:
   # npm (pnpm-lock.yaml を自動検出)
   - package-ecosystem: "npm"
     directory: "/"
+    # 毎週月曜 09:30 JST。週次の処理の一覧は docs/weekly-schedule.md にある。
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "09:30"
+      timezone: "Asia/Tokyo"
     # 上限はグループの PR と major の PR の合計で数える。修正待ちの major の PR は open の
     # まま残るので、それが積み上がっても minor・patch のグループ PR が止まらないよう、
     # 直接の依存の数とグループの数を足した数より大きくする。
@@ -96,8 +100,12 @@ updates:
   # GitHub Actions (pinact で SHA ピン留めしたアクションを追跡)
   - package-ecosystem: "github-actions"
     directory: "/"
+    # 毎週月曜 09:30 JST。週次の処理の一覧は docs/weekly-schedule.md にある。
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "09:30"
+      timezone: "Asia/Tokyo"
     # 上限はグループの PR（1 つ）と major の PR（1 アクション 1 PR）の合計で数える。
     open-pull-requests-limit: 10
     # minimumReleaseAge (3 日) より大きい 7 日に設定。

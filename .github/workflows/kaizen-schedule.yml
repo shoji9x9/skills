@@ -9,8 +9,9 @@ name: Kaizen schedule
 
 on:
   schedule:
-    # 毎週月曜 01:00 UTC (10:00 JST)。実行の時間帯が重なる週次のワークフローがあれば、cron をずらす。
-    - cron: "0 1 * * 1"
+    # 毎週月曜 01:30 UTC (10:30 JST)。schedule は毎時 0 分に混みあって遅れるので、分を :30 にしている。
+    # 実行の時間帯が重なる週次のワークフローがあれば、cron をずらす。
+    - cron: "30 1 * * 1"
   workflow_dispatch:
     inputs:
       mode:
@@ -441,7 +442,7 @@ jobs:
             ;;
           esac
 
-          # 日付は UTC で採る。cron は 01:00 UTC なので JST でも同じ日付になり、
+          # 日付は UTC で採る。cron は 01:30 UTC なので JST でも同じ日付になり、
           # 手動実行でもランナーのタイムゾーンに依存しない値になる。
           title="$ISSUE_TITLE_PREFIX ($(date -u +%F))"
 

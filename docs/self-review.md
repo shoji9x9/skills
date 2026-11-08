@@ -8,8 +8,8 @@
 
 ## 構成
 
-ワークフロー `.github/workflows/self-review.yml` が、毎週木曜に実行する。手動では `workflow_dispatch` で実行できる。
-費用の指標の追跡 Issue（`check-cost-metrics.yml` が水曜に書く）を入力に使うので、その後に置いている。
+ワークフロー `.github/workflows/self-review.yml` が、毎週火曜に実行する。手動では `workflow_dispatch` で実行できる。
+費用の指標の追跡 Issue（`check-cost-metrics.yml` が同じ日に書く）を入力に使うので、その 1 時間後に置いている。時刻は [`weekly-schedule.md`](weekly-schedule.md) にある。
 同じタイトルの Issue は誰でも開けるので、`github-actions[bot]` が作った Issue のときだけ入力に使う。本文に仕込まれた指示に、エージェントが従うのを防ぐためである。
 
 ジョブは 2 つに分ける。
