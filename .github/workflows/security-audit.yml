@@ -380,15 +380,16 @@ jobs:
 
       # 監査できたかを、ここで 1 回だけ決める。failure は、要約を使えない理由（監査していない・終えられなかった）である。
       # state_note は、要約は使えるが今回の記録を残せなかったことを表す。tracking-issue は要約で本文を更新し、この文を足して失敗させる。
-      # 上の段はどれも continue-on-error なので、この段とその次の段が run の結果に失敗を残す。
+      # 理由は、明示された値（present・valid の false、result の failed）と、段の outcome の failure だけから決める。
+      # 飛ばされた段の出力は空になるので、空から理由を推測しない。continue-on-error の無い段（checkout・mise・スキルの取得・記録の取得）が
+      # 失敗したことは、job.status で分ける。
       - name: Decide result
         id: result
         if: ${{ !cancelled() && steps.pause.outputs.skip != 'true' }}
         env:
+          JOB_STATUS: ${{ job.status }}
           CRED_PRESENT: ${{ steps.cred.outputs.present }}
           SETTINGS_VALID: ${{ steps.settings.outputs.valid }}
-          TARGET: ${{ steps.settings.outputs.target }}
-          RESTORE_OUTCOME: ${{ steps.restore.outcome }}
           RESTORE_RESULT: ${{ steps.restore.outputs.result }}
           OUTCOME: ${{ steps.run-claude.outcome }}
           SUMMARY_OUTCOME: ${{ steps.summarize.outcome }}
@@ -396,30 +397,28 @@ jobs:
           STATE_OUTCOME: ${{ steps.upload-state.outcome }}
           RUN_UPLOAD_OUTCOME: ${{ steps.upload-run.outcome }}
           SUMMARY_UPLOAD_OUTCOME: ${{ steps.upload-summary.outcome }}
-          IS_DEFAULT_BRANCH: ${{ github.ref_name == github.event.repository.default_branch }}
         run: |
           failure=""
           state_note=""
-          if [ "$CRED_PRESENT" != true ]; then
-            failure="secret CLAUDE_CODE_OAUTH_TOKEN か SECURITY_AUDIT_STATE_KEY が未設定のため、監査していない"
-          elif [ "$SETTINGS_VALID" != true ]; then
-            failure="監査の設定（SECURITY_AUDIT_MODEL・入力）に受け付けない値があるため、監査していない"
-          elif [ "$RESTORE_RESULT" = failed ]; then
+          if [ "$RESTORE_RESULT" = failed ]; then
             failure="前回の記録を復号できないため、監査していない（鍵を替えたときは docs/security-scanning.md の手順で security-audit-state をすべて消す）"
-          elif [ "$RESTORE_OUTCOME" != success ]; then
-            failure="スキルか前回の記録を取得できなかったため、監査していない（restore の outcome: ${RESTORE_OUTCOME:-skipped}）"
+          elif [ "$JOB_STATUS" != success ]; then
+            failure="エージェントを起動する前の段が失敗した（どの段かは run のログで確かめる）"
+          elif [ "$CRED_PRESENT" = false ]; then
+            failure="secret CLAUDE_CODE_OAUTH_TOKEN か SECURITY_AUDIT_STATE_KEY が未設定のため、監査していない"
+          elif [ "$SETTINGS_VALID" = false ]; then
+            failure="監査の設定（SECURITY_AUDIT_MODEL・入力）に受け付けない値があるため、監査していない"
           elif [ "$OUTCOME" != success ]; then
             failure="エージェントの実行が失敗した（outcome: ${OUTCOME:-skipped}）"
           elif [ "$SUMMARY_OUTCOME" != success ]; then
             failure="監査の記録が終わっていないか、記録の形が上流のスキルの検証を通らなかった"
-          elif [ "$TARGET" = self ] && [ "$IS_DEFAULT_BRANCH" = true ] && [ "$SUMMARY_UPLOAD_OUTCOME" != success ]; then
-            failure="監査の要約を artifact に上げられなかった（upload の outcome: ${SUMMARY_UPLOAD_OUTCOME:-skipped}）"
+          elif [ "$SUMMARY_UPLOAD_OUTCOME" = failure ]; then
+            failure="監査の要約を artifact に上げられなかった"
           fi
           if [ -z "$failure" ]; then
-            if [ "$TARGET" = self ] && [ "$STATE_OUTCOME" != success ]; then
-              state_note="今回の記録を暗号化して残せなかったので、次の実行は前回までの記録を引き継ぐ（暗号化: ${ENCRYPT_OUTCOME:-skipped}・upload: ${STATE_OUTCOME:-skipped}）"
-            elif [ "$TARGET" != self ] && [ "$RUN_UPLOAD_OUTCOME" != success ]; then
-              state_note="今回の記録を暗号化して残せなかった（暗号化: ${ENCRYPT_OUTCOME:-skipped}・upload: ${RUN_UPLOAD_OUTCOME:-skipped}）"
+            # どの upload を実行するかは各段の if が決める。ここでは実行して失敗したかだけを見る。
+            if [ "$ENCRYPT_OUTCOME" = failure ] || [ "$STATE_OUTCOME" = failure ] || [ "$RUN_UPLOAD_OUTCOME" = failure ]; then
+              state_note="今回の記録を暗号化して残せなかった（暗号化: ${ENCRYPT_OUTCOME:-skipped}・引き継ぐ記録: ${STATE_OUTCOME:-skipped}・今回の記録: ${RUN_UPLOAD_OUTCOME:-skipped}）"
             fi
             # 未完了の監査は失敗にしない（追跡 Issue に未完了として出す）。ほかのブランチと dvna の run でも分かるよう、注釈を出す。
             if [ "$(jq -r .run_status "$RUNNER_TEMP/summary.json")" = incomplete ]; then
@@ -429,7 +428,9 @@ jobs:
           echo "failure=$failure" >>"$GITHUB_OUTPUT"
           echo "state_note=$state_note" >>"$GITHUB_OUTPUT"
 
-      - name: Fail if audit did not finish
+      # 監査を終えられなかったときと、記録を残せなかったときに、run を失敗にする。
+      # tracking-issue はデフォルトブランチの self でしか動かないので、ほかのブランチと dvna の run では、この段だけが失敗を示す。
+      - name: Fail if audit or records failed
         if: ${{ !cancelled() && (steps.result.outputs.failure != '' || steps.result.outputs.state_note != '') }}
         env:
           FAILURE: ${{ steps.result.outputs.failure }}
@@ -549,7 +550,8 @@ jobs:
             ;;
           esac
           # 記録を残せなかった週も、検証を通った今回の要約は本文に反映し、その後でジョブを失敗させる。
-          # 追跡 Issue が無い週にも残るよう、本文とコメントの両方に書く。
+          # 追跡 Issue を新しく作る週にも残るよう、本文とコメントの両方に書く。完了で 0 件かつ追跡 Issue が無い週は Issue を作らないので、
+          # run の失敗だけに残る。
           if [ -n "$STATE_NOTE" ]; then
             printf '\n%s。\n' "$STATE_NOTE" | tee -a "$body" >>"$comment"
           fi
