@@ -44,6 +44,7 @@ jobs:
     outputs:
       skip: ${{ steps.pause.outputs.skip }}
       cred_present: ${{ steps.cred.outputs.present }}
+      model_valid: ${{ steps.model.outputs.valid }}
       canary: ${{ steps.canary.outputs.path }}
       outcome: ${{ steps.run-claude.outcome }}
       # 再実行したときに、前の試行が上げた結果を今回の分として download しないよう、試行の番号を名前に含める。
@@ -83,11 +84,33 @@ jobs:
             echo "secret CLAUDE_CODE_OAUTH_TOKEN が未設定" >&2
           fi
 
+      # エージェントのモデルは、リポジトリ変数 SELF_REVIEW_MODEL で選ぶ（docs/self-review.md）。無ければ --model を渡さず、
+      # claude-code-action のデフォルトのモデルを使う。値は claude_args に入るので、モデル名に使う文字だけを受け付ける。
+      # 引用符や空白を受け付けると、別の引数（--allowed-tools など）を足せてしまう。
+      - name: Resolve model
+        id: model
+        if: steps.cred.outputs.present == 'true'
+        env:
+          SELF_REVIEW_MODEL: ${{ vars.SELF_REVIEW_MODEL }}
+        run: |
+          if [ -z "$SELF_REVIEW_MODEL" ]; then
+            echo "valid=true" >>"$GITHUB_OUTPUT"
+            echo "args=" >>"$GITHUB_OUTPUT"
+          # grep -x は行ごとに判定し、改行を含む値を通すので、値全体を bash の正規表現で判定する。
+          elif [[ "$SELF_REVIEW_MODEL" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]*$ ]]; then
+            echo "valid=true" >>"$GITHUB_OUTPUT"
+            echo "args=--model $SELF_REVIEW_MODEL" >>"$GITHUB_OUTPUT"
+            echo "モデル: $SELF_REVIEW_MODEL"
+          else
+            echo "valid=false" >>"$GITHUB_OUTPUT"
+            echo "リポジトリ変数 SELF_REVIEW_MODEL に、モデル名に使わない文字がある" >&2
+          fi
+
       # 費用の指標の追跡 Issue の本文を、エージェントの入力に置く。無ければ置かない（手順が入力なしで点検する）。
       # 同じタイトルの Issue は誰でも開けるので、check-cost-metrics.yml（github-actions[bot]）が作った Issue のときだけ使う。
       # 人が作った本文に指示を仕込まれると、エージェントがそれに従い、資格情報を結果に書くおそれがある。
       - name: Fetch cost metrics
-        if: steps.cred.outputs.present == 'true'
+        if: steps.model.outputs.valid == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_TITLE_PREFIX: "Check cost metrics to review"
@@ -117,7 +140,7 @@ jobs:
       # 結果にこのファイルへの指摘が無ければ、tracking-issue が点検の失敗として扱う。
       - name: Plant canary
         id: canary
-        if: steps.cred.outputs.present == 'true'
+        if: steps.model.outputs.valid == 'true'
         run: |
           id="$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')"
           path="docs/release-notes-$id.md"
@@ -130,7 +153,7 @@ jobs:
 
       # エージェントには git を許さない。手順が使う履歴の件名とファイルの一覧は、ここで入力に書き出す。
       - name: Write git inputs
-        if: steps.cred.outputs.present == 'true'
+        if: steps.model.outputs.valid == 'true'
         env:
           CANARY: ${{ steps.canary.outputs.path }}
         run: |
@@ -143,7 +166,7 @@ jobs:
 
       - name: Run Claude Code
         id: run-claude
-        if: steps.cred.outputs.present == 'true'
+        if: steps.model.outputs.valid == 'true'
         continue-on-error: true
         # ジョブの上限（60 分）より先に止め、時間切れを outcome の failure として tracking-issue に渡す。
         timeout-minutes: 50
@@ -160,9 +183,10 @@ jobs:
           claude_args: >-
             --allowed-tools "Read(./**),Grep(./**),Glob(./**),Edit(./${{ env.REPORT_FILE }})"
             --disallowed-tools "Bash,WebFetch,WebSearch,NotebookEdit"
+            ${{ steps.model.outputs.args }}
 
       - name: Upload report
-        if: steps.cred.outputs.present == 'true' && steps.run-claude.outcome == 'success'
+        if: steps.run-claude.outcome == 'success'
         continue-on-error: true
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -229,13 +253,14 @@ jobs:
           echo "leak=$leak" >>"$GITHUB_OUTPUT"
 
       # 作成・更新・クローズを 1 ステップに置く。照会は outdated.yml と同じ同梱スクリプトを使う。
-      # 点検できなかったとき（資格情報が未設定・エージェントの失敗・結果を読めない・canary への指摘が無い）は、
+      # 点検できなかったとき（資格情報が未設定・SELF_REVIEW_MODEL が不正・エージェントの失敗・結果を読めない・canary への指摘が無い）は、
       # 「指摘 0 件」として閉じず、理由を追跡 Issue に書いてからジョブを失敗させる。
       - name: Update tracking issue
         env:
           GH_TOKEN: ${{ github.token }}
           TRACKING_LIB: skills/kaizen/scripts/tracking-issue-lib.sh
           CRED_PRESENT: ${{ needs.review.outputs.cred_present }}
+          MODEL_VALID: ${{ needs.review.outputs.model_valid }}
           OUTCOME: ${{ needs.review.outputs.outcome }}
           DOWNLOAD_OUTCOME: ${{ steps.download.outcome }}
           DEPS_OUTCOME: ${{ steps.deps.outcome }}
@@ -262,6 +287,8 @@ jobs:
             failure="エージェントを起動する前に review ジョブが失敗した"
           elif [ "$CRED_PRESENT" != true ]; then
             failure="secret CLAUDE_CODE_OAUTH_TOKEN が未設定のため、点検していない"
+          elif [ "$MODEL_VALID" = false ]; then
+            failure="リポジトリ変数 SELF_REVIEW_MODEL に、モデル名に使わない文字があるため、点検していない"
           elif [ -z "$OUTCOME" ] || [ "$OUTCOME" = skipped ]; then
             failure="エージェントを起動する前の段が失敗した（どの段かは run のログで確かめる）"
           elif [ "$OUTCOME" != success ]; then
