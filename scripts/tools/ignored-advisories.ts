@@ -138,7 +138,8 @@ export function listMismatches(
 
 /**
  * vulnerabilities の要素が、無視したパッケージ（npm の `pkg`）の要素かを返す。
- * 形が違う要素（package が null・キーが無い・ecosystem が別の表記）は、当たらない要素として扱う。
+ * package と package.name が null の要素は、API が返す正規の値で、`pkg` に当たらない。
+ * 形が違う要素（キーが無い・ecosystem が別の表記）も当たらない要素として扱う。
  * 当たる要素が 1 件も無い応答は advisoryStatus が例外にするので、形が変わっても修正版を見逃したまま追跡 Issue を閉じない。
  */
 function isIgnoredPackage(v: unknown, pkg: string): v is Record<string, unknown> {
@@ -148,12 +149,15 @@ function isIgnoredPackage(v: unknown, pkg: string): v is Record<string, unknown>
 }
 
 /**
- * 無視したパッケージの要素から修正版を取る。修正版が無ければ空の配列を返す。
+ * 無視したパッケージの要素から修正版を取る。修正版が無ければ（null）空の配列を返す。
+ * API は修正版が無いときもキーを省かずに null を返す。キーが無いときは名前が変わった可能性があるので例外にする。
  * 修正版には、それがある脆弱な範囲を添える。使っているバージョンがその範囲にあるかは、人が確かめる。
  */
 function patchedVersion(v: Record<string, unknown>, id: string, pkg: string): string[] {
+  if (!("first_patched_version" in v))
+    throw new Error(`${id} の要素に first_patched_version が無い`);
   const fixed = v["first_patched_version"];
-  if (fixed === null || fixed === undefined) return [];
+  if (fixed === null) return [];
   if (typeof fixed !== "string") throw new Error(`${id} の first_patched_version が文字列でない`);
   const range = v["vulnerable_version_range"];
   return [typeof range === "string" ? `${pkg}@${fixed}（${range} の修正版）` : `${pkg}@${fixed}`];
@@ -172,19 +176,24 @@ export function advisoryStatus(
   if (!isRecord(value) || !isArray(value["vulnerabilities"])) {
     throw new Error(`${id} の advisory に vulnerabilities が無い`);
   }
+  // API は取り下げていないときもキーを省かずに null を返す。キーが無いときは名前が変わった可能性があるので例外にする。
+  if (!("withdrawn_at" in value)) throw new Error(`${id} の advisory に withdrawn_at が無い`);
+  const withdrawn = value["withdrawn_at"];
+  if (withdrawn !== null && !isNonBlankString(withdrawn)) {
+    throw new Error(`${id} の withdrawn_at が文字列でないか、空文字である`);
+  }
   const targets = value["vulnerabilities"].filter((v) => isIgnoredPackage(v, pkg));
-  if (targets.length === 0) {
+  // 取り下げた advisory は、対象が書き換えられていても取り下げを報告する（無視を外す理由になる）。
+  if (targets.length === 0 && withdrawn === null) {
     throw new Error(
       `${id} の vulnerabilities に npm の ${pkg} が無い（API の形が変わったか、advisory の対象が書き換えられた）`,
     );
   }
-  // 識別子に使うので、API の並び順に左右されないように並べる。
-  const patched = targets.flatMap((v) => patchedVersion(v, id, pkg)).sort();
-  const withdrawn = value["withdrawn_at"];
-  if (withdrawn !== null && withdrawn !== undefined && !isNonBlankString(withdrawn)) {
-    throw new Error(`${id} の withdrawn_at が空でない文字列でない`);
-  }
-  return { patched, withdrawn: withdrawn ?? null };
+  // 識別子に使うので、API の並び順に左右されないように並べる。数字は数として比べる（9.0.0 を 10.0.0 より前にする）。
+  const patched = targets
+    .flatMap((v) => patchedVersion(v, id, pkg))
+    .sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
+  return { patched, withdrawn };
 }
 
 /**
@@ -266,7 +275,7 @@ const findingKey = (f: Finding): string => `${f.id} ${f.kind}: ${describe(f)}`;
 const KEYS_MARKER = /^<!-- ignored-advisories:keys (.*) -->$/mu;
 // 書き手（findingKey）と同じ定義（GHSA の形・KIND_LABEL の種別）から組み立て、種別を足したときに食い違わないようにする。
 const KEY_FORM = new RegExp(
-  `^${GHSA.source.slice(1, -1)} (${Object.keys(KIND_LABEL).join("|")}): .`,
+  `^${GHSA.source.slice(1, -1)} (${Object.keys(KIND_LABEL).join("|")}): .*\\S`,
   "u",
 );
 

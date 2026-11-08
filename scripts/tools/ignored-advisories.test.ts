@@ -6,12 +6,13 @@
 // | pnpm が読んだ一覧 | 空の出力 / null / ignore が null / ignore が 1 件 / オブジェクトでない / GHSA の形でない |
 // | 許可する依存元の一覧 | 正しい / advisories が無い / キーが GHSA でない / package が無い / dependents が空 / 要素に depField が無い |
 // | 一覧の突き合わせ | 一致 / 書いたが読まれていない / 読まれたが書いていない / 許可の一覧に無い / 許可の一覧にだけある |
-// | advisory | 修正版あり・なし・範囲つき / 取り下げあり・なし / vulnerabilities が無い / 要素がオブジェクトでない / package・name が null / 型が違う |
+// | advisory | 修正版あり・なし（null）・範囲つき・並び順・数字の桁 / 取り下げあり・なし（null） / vulnerabilities が無い・空 / キーが無い（first_patched_version・withdrawn_at） / 型が違う・空文字 |
+// | advisory の要素 | 当たる（npm の pkg）/ 別のパッケージ・別のエコシステム・NPM / package・name が null / キーが無い / オブジェクトでない / 当たる要素が無い（取り下げあり・なし） |
 // | 依存元 | 許可の内 / 許可の外（名前・depField が違う）/ 無い（使わなくなった）/ deduped の節 |
 // | 外部コマンド | 成功 / 失敗 |
-// | 前回の本文 | 目印なし / 識別子あり / 配列でない / 文字列でない要素 / JSON でない |
-// | 前回との差分 | 新規 / 継続 / 解消 / 前回なし |
-// | CLI の引数 | 正しい / --previous つき / 足りない / 未知 / 同じオプションが 2 回 / 位置引数 |
+// | 前回の本文 | 目印なし / 識別子あり / 配列でない / 文字列でない要素 / JSON でない / 種別が知らない値 / GHSA の形でない / 区切りが無い / 内容が空・空白だけ / 重複 |
+// | 前回との差分 | 新規 / 継続 / 解消 / 前回なし / 内容が変わった |
+// | CLI の引数 | 正しい / --previous つき / 足りない / 未知 / 同じオプションが 2 回 / 位置引数 / 値が無い / --previous が空 |
 import { describe, expect, test } from "vitest";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -213,16 +214,33 @@ describe("advisory の状態", () => {
     ]);
   });
 
-  test("修正版は API の並び順に関わらず同じ順に並べる", () => {
-    const forward = { vulnerabilities: [vuln("2.3.1"), vuln("3.0.4")], withdrawn_at: null };
-    const backward = { vulnerabilities: [vuln("3.0.4"), vuln("2.3.1")], withdrawn_at: null };
-    expect(advisoryStatus(backward, A, "braces").patched).toEqual(["braces@2.3.1", "braces@3.0.4"]);
+  test("修正版は API の並び順に関わらず、数字を数として比べた順に並べる", () => {
+    const forward = { vulnerabilities: [vuln("9.0.0"), vuln("10.0.0")], withdrawn_at: null };
+    const backward = { vulnerabilities: [vuln("10.0.0"), vuln("9.0.0")], withdrawn_at: null };
+    expect(advisoryStatus(backward, A, "braces").patched).toEqual([
+      "braces@9.0.0",
+      "braces@10.0.0",
+    ]);
     expect(advisoryStatus(forward, A, "braces")).toEqual(advisoryStatus(backward, A, "braces"));
+  });
+
+  test("取り下げていれば、無視したパッケージの要素が無くても取り下げを返す", () => {
+    const value = { vulnerabilities: [vuln(null, "other")], withdrawn_at: "2026-10-23T12:53:02Z" };
+    expect(advisoryStatus(value, A, "braces")).toEqual({
+      patched: [],
+      withdrawn: "2026-10-23T12:53:02Z",
+    });
   });
 
   test.each([
     ["vulnerabilities が無い", {}, "vulnerabilities が無い"],
-    ["要素が空", { vulnerabilities: [] }, "npm の braces が無い"],
+    ["要素が空", { vulnerabilities: [], withdrawn_at: null }, "npm の braces が無い"],
+    ["withdrawn_at のキーが無い", { vulnerabilities: [vuln(null)] }, "withdrawn_at が無い"],
+    [
+      "first_patched_version のキーが無い",
+      { vulnerabilities: [{ package: { ecosystem: "npm", name: "braces" } }], withdrawn_at: null },
+      "first_patched_version が無い",
+    ],
     [
       "どの要素も無視したパッケージに当たらない（形が変わった）",
       {
@@ -232,12 +250,13 @@ describe("advisory の状態", () => {
           { package: { name: "braces" } },
           vuln("3.0.4", "braces", "NPM"),
         ],
+        withdrawn_at: null,
       },
       "npm の braces が無い",
     ],
     [
       "first_patched_version が文字列でない",
-      { vulnerabilities: [vuln(1)] },
+      { vulnerabilities: [vuln(1)], withdrawn_at: null },
       "first_patched_version",
     ],
     [
@@ -429,6 +448,7 @@ describe("前回との差分", () => {
     ["種別が知らない値", `["${A} other: x"]`, "識別子の形でない"],
     ["GHSA の形でない", `["GHSA-x unused: braces"]`, "識別子の形でない"],
     ["内容が空", `["${A} unused: "]`, "識別子の形でない"],
+    ["内容が空白だけ", `["${A} unused:   "]`, "識別子の形でない"],
     ["種別の後に区切りが無い", `["${A} unused braces"]`, "識別子の形でない"],
     ["重複", `["${A} unused: braces","${A} unused: braces"]`, "重複"],
   ])("目印の一覧が%sときは、直し方を添えて例外にする", (_name, json, message) => {
