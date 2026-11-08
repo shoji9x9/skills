@@ -11,10 +11,9 @@
 - 次の `parent_issue` で、親を対象のリポジトリから取得する。
   GraphQL の `issue(number:)` は、PR の番号と無い番号にはエラーを返す（実測）。
   `gh` の `-F` は先頭に 0 の付いた番号を整数として送り、GraphQL は `<owner>/<repo>` の大文字と小文字の違いを受け付ける（実測）。
-  返った Issue が属するリポジトリと対象のリポジトリを、同じ GraphQL の応答にある 2 つの `url` で比べ、違えば止める。
-  移管された Issue を GraphQL がどう返すかは確かめていない。別のリポジトリの Issue が返っても、その番号で対象のリポジトリの Issue に紐付けないために比べる。
-  番号でない値（全角の数字を含む）、取得できない番号（PR の番号を含む）、別のリポジトリの Issue が返ったときは、下書きを作る前に止める。
-  止まったら、番号を渡し直すか、親を付けずに起票するかを利用者に確かめる。
+  返った Issue が属するリポジトリと対象のリポジトリを、同じ GraphQL の応答にある 2 つの `id` で比べ、違えば止める。
+  移管された Issue などで別のリポジトリの Issue が返っても、その番号で対象のリポジトリの Issue に紐付けないためである。
+  関数が 1 を返したら、下書きを作る前に止め、標準エラーに出た理由を利用者に示して、番号を渡し直すか、親を付けずに起票するかを確かめる。
 
   ```bash
   parent_issue() {  # $1: --parent の値。成功したら「親の id<TAB>親の番号<TAB>状態<TAB>URL」を出力する
@@ -25,9 +24,9 @@
     err=$(mktemp) || { echo "一時ファイルを作れない" >&2; return 1; }
     # 番号は $((10#$n)) で数値にしない。64 ビットを超える値が、桁あふれして別の番号になる
     if ! got=$(gh api graphql -F owner="${repo%%/*}" -F name="${repo#*/}" -F number="$n" \
-      -f query='query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { url issue(number: $number) { databaseId number state url repository { url } } } }' \
-      --jq '.data.repository as $r | $r.issue | if .repository.url != $r.url then error("別のリポジトリの Issue を返した: \(.url)（対象: \($r.url)）") else [(.databaseId | tostring), (.number | tostring), .state, .url] | @tsv end' 2>"$err"); then
-      echo "#$n: 親を取得できない: $(cat "$err")" >&2; rm -f "$err"; return 1
+      -f query='query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { id url issue(number: $number) { databaseId number state url repository { id } } } }' \
+      --jq '.data.repository as $r | $r.issue | if .repository.id != $r.id then error("別のリポジトリの Issue を返した: \(.url)（対象: \($r.url)）") else [(.databaseId | tostring), (.number | tostring), .state, .url] | @tsv end' 2>"$err"); then
+      echo "#$n: 親を確かめられない: $(cat "$err")" >&2; rm -f "$err"; return 1
     fi
     rm -f "$err"
     IFS=$'\t' read -r pid pnum _ <<<"$got"
