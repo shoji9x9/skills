@@ -201,41 +201,51 @@ jobs:
           retention-days: 7
 
       # 結果を書かずに終わった実行などの原因を追えるよう、エージェントの実行記録（全メッセージとツールの結果）を残す。
-      # 公開リポジトリの artifact はログインした人が読めるので、資格情報の値と sk-ant- で始まる文字列を伏せてから残し、
+      # 公開リポジトリの artifact はログインした人が読めるので、資格情報の値（Claude の OAuth token と GitHub の token）と、
+      # 資格情報の形（sk-ant-・ghp_ などの GitHub の token・github_pat_）の文字列を伏せてから残す。
       # 伏せた後にも残っていれば（伏せる処理が失敗したときを含む）残さない。show_full_output はログに全文を出すので使わない。
+      # 残せなかったときは、ジョブを止めずに警告の注釈を出す（点検の成否は tracking-issue が決める）。
       - name: Redact execution log
         id: execlog
         if: steps.run-claude.outcome == 'success' || steps.run-claude.outcome == 'failure'
         continue-on-error: true
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GITHUB_TOKEN_VALUE: ${{ github.token }}
           EXECUTION_FILE: ${{ steps.run-claude.outputs.execution_file }}
+          SECRET_FORMS: "sk-ant-[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}"
         run: |
-          if [ -z "$EXECUTION_FILE" ] || [ ! -f "$EXECUTION_FILE" ]; then
-            echo "実行記録が無い（execution_file: ${EXECUTION_FILE:-なし}）" >&2
+          skip() {
+            echo "::warning title=Self review::実行記録を残さない: $1"
             exit 1
+          }
+          if [ -z "$EXECUTION_FILE" ] || [ ! -f "$EXECUTION_FILE" ]; then
+            skip "実行記録が無い（時間切れで止めた実行には無い。execution_file: ${EXECUTION_FILE:-なし}）"
           fi
           out="$RUNNER_TEMP/self-review-execution.json"
-          perl -pe 's/\Q$ENV{CLAUDE_CODE_OAUTH_TOKEN}\E/[REDACTED]/g if length $ENV{CLAUDE_CODE_OAUTH_TOKEN}; s/sk-ant-[A-Za-z0-9_-]{8,}/[REDACTED]/g' \
-            "$EXECUTION_FILE" >"$out"
-          # grep の終了コードは、0 が見つかった、1 が無い、それ以外が読めない。1 のときだけ残す。
+          perl -pe '
+            for my $v (@ENV{qw(CLAUDE_CODE_OAUTH_TOKEN GITHUB_TOKEN_VALUE)}) { s/\Q$v\E/[REDACTED]/g if length $v }
+            s/$ENV{SECRET_FORMS}/[REDACTED]/g
+          ' "$EXECUTION_FILE" >"$out" || skip "伏せる処理が失敗した"
+          # grep の終了コードは、0 が見つかった、1 が無い、それ以外が読めない。すべて 1 のときだけ残す。
           rc=0
-          grep -q -E 'sk-ant-[A-Za-z0-9_-]{8,}' "$out" || rc=$?
+          grep -q -E -e "$SECRET_FORMS" "$out" || rc=$?
           if [ "$rc" -ne 1 ]; then
-            echo "伏せた後の実行記録に資格情報の形が残る（grep の終了コード: $rc）。残さない" >&2
-            exit 1
+            skip "伏せた後に資格情報の形が残る（grep の終了コード: $rc）"
           fi
-          if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
-            rc=0
-            grep -q -F -e "$CLAUDE_CODE_OAUTH_TOKEN" "$out" || rc=$?
-            if [ "$rc" -ne 1 ]; then
-              echo "伏せた後の実行記録に資格情報の値が残る（grep の終了コード: $rc）。残さない" >&2
-              exit 1
+          for value in "$CLAUDE_CODE_OAUTH_TOKEN" "$GITHUB_TOKEN_VALUE"; do
+            if [ -n "$value" ]; then
+              rc=0
+              grep -q -F -e "$value" "$out" || rc=$?
+              if [ "$rc" -ne 1 ]; then
+                skip "伏せた後に資格情報の値が残る（grep の終了コード: $rc）"
+              fi
             fi
-          fi
+          done
           echo "path=$out" >>"$GITHUB_OUTPUT"
 
       - name: Upload execution log
+        id: upload-execlog
         if: steps.execlog.outcome == 'success'
         continue-on-error: true
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -245,6 +255,10 @@ jobs:
           if-no-files-found: error
           # 点検は毎週なので、失敗に気付くのが翌週の実行の後になっても読めるよう、周期より長く残す。
           retention-days: 14
+
+      - name: Warn upload failure
+        if: steps.upload-execlog.outcome == 'failure'
+        run: echo "::warning title=Self review::実行記録を artifact に上げられなかった"
 
   tracking-issue:
     name: Update self review tracking issue
