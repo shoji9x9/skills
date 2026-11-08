@@ -98,7 +98,7 @@ GitHub-hosted runner には、上流のスキルが対象のコードを実行�
 引き継ぐのは、今回を含む直近の 3 回分の出力である。今回が未完了でも、その前の完了した実行の記録が残る。
 失敗した実行と `dvna` の監査の記録は、`security-audit-run-<対象>-<試行>`（14 日保持）に置き、引き継がない。
 
-追跡 Issue（`Security audit findings (<日付>)`）には、判定ごとの件数と、記録ごとの識別子（`sa-` と 12 桁の 16 進数）だけを載せる。
+追跡 Issue（`Security audit findings (<日付>)`）は、デフォルトブランチの監査だけが書く。追跡 Issue には、判定ごとの件数と、記録ごとの識別子（`sa-` と 12 桁の 16 進数）だけを載せる。
 識別子は、記録の fingerprint を鍵付きハッシュにしたもので、鍵が無いと fingerprint を推測して確かめることもできない。
 監査が完了し（`run_status` が `complete`）、対応が要る記録（`confirmed` と `needs_validation`）が 0 件になったら、追跡 Issue を閉じる。
 未完了の監査は、確かめきれなかった候補を `findings.json` に載せないので、0 件でも追跡 Issue を閉じない。
@@ -113,4 +113,11 @@ gh run download <run の ID> --repo shoji9x9/skills --name security-audit-state 
 gpg --batch --pinentry-mode loopback --passphrase-file security-audit-key.txt --decrypt audit/state.tar.gpg | tar -xf - -C audit
 ```
 
-鍵を替えたときは、前回の記録を復号できずに監査が止まる。`security-audit-state` の artifact を消してから実行すると、初回として監査する。
+鍵を替えたときは、前回の記録を復号できずに監査が止まる。そのブランチの `security-audit-state` の artifact をすべて消してから実行すると、初回として監査する。
+最新の 1 件だけを消すと、1 つ前の古い鍵の記録を選んで、また止まる。
+識別子も鍵から作るので、鍵を替えた次の実行は、追跡 Issue の記録をすべて「新規」、前回の記録をすべて「解消」と書く。直ったという意味ではないので、その回の差分は読み飛ばす。
+
+```bash
+gh api --paginate "repos/shoji9x9/skills/actions/artifacts?name=security-audit-state&per_page=100" --jq '.artifacts[].id' |
+  xargs -I{} gh api -X DELETE "repos/shoji9x9/skills/actions/artifacts/{}"
+```

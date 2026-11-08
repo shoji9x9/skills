@@ -63,6 +63,7 @@ jobs:
       restore: ${{ steps.restore.outputs.result }}
       outcome: ${{ steps.run-claude.outcome }}
       summary_outcome: ${{ steps.summarize.outcome }}
+      state_saved: ${{ steps.upload-state.outcome }}
       summary_artifact: security-audit-summary-${{ github.run_attempt }}
     steps:
       - name: Check pause switch
@@ -180,7 +181,7 @@ jobs:
 
       # 前回の記録を、同じブランチで成功した実行の artifact から取得して復号する。無ければ初回として監査する。
       # artifact はこのワークフローが鍵で暗号化して上げたものだけを使う（名前が同じでも、別のワークフローの artifact は使わない）。
-      # 復号できないときは、初回として扱わずに止める。鍵を替えたときは、artifact が期限で消えるか、手で消してから実行する。
+      # 復号できないときは、初回として扱わずに止める。鍵を替えたときは、そのブランチの security-audit-state をすべて消してから実行する（最新だけを消すと、1 つ前の古い鍵の記録を選ぶ）。
       - name: Restore previous records
         id: restore
         if: steps.settings.outputs.valid == 'true'
@@ -268,12 +269,14 @@ jobs:
           # ツールは、対象とスキルと記録を読むこと、記録を書くこと、サブエージェントを使うこと、上流の検証スクリプトを実行することに限る。
           # 書き込みを出力の下に限るのは、git の設定などを書き換えて、後の段の git にコマンドを実行させないためである。
           # Edit の規則は Write にも当たる。Bash は検証スクリプトの起動の形だけを許す（Claude Code は複合コマンドを 1 つずつ照合する）。
-          # 拒否の一覧はツールが足されるたびに抜けが出るので、--tools で使えるツールそのものを限る。
+          # 拒否の一覧はツールが足されるたびに抜けが出るので、--tools で使えるツールそのものを限る（使えないツールは拒否の一覧に書かない）。
+          # 設定はユーザーの層（runner には無い）だけを読む。リポジトリの .claude/settings.json の Hook（応答の言語の確認・kaizen の記録）を
+          # 監査の中で実行させないためである。Hook は出力のディレクトリの外に書き、英語で書く上流のスキルの応答を書き直させる。
           claude_args: >-
             --tools "Read,Grep,Glob,Edit,Write,Agent,Bash"
+            --setting-sources user
             --add-dir "${{ steps.settings.outputs.root }}"
             --allowed-tools "Read(${{ steps.settings.outputs.read_glob }}),Grep(${{ steps.settings.outputs.read_glob }}),Glob(${{ steps.settings.outputs.read_glob }}),Read(/${{ steps.settings.outputs.root }}/**),Grep(/${{ steps.settings.outputs.root }}/**),Glob(/${{ steps.settings.outputs.root }}/**),Edit(/${{ steps.settings.outputs.runs_dir }}/run-${{ steps.restore.outputs.next }}/**),Agent,Bash(node ${{ steps.settings.outputs.skill_dir }}/validate-findings.cjs *),Bash(node ${{ steps.settings.outputs.skill_dir }}/validate-coverage-ledger.cjs *)"
-            --disallowed-tools "WebFetch,WebSearch,NotebookEdit"
             ${{ steps.settings.outputs.model_args }}
 
       # 上流の検証スクリプトで記録の形を確かめ、公開してよい要約（件数・状態・識別子）を作る。
@@ -336,7 +339,10 @@ jobs:
           rm -f "$RUNNER_TEMP/state.tar"
 
       # 次の実行が引き継ぐ記録。記録の形を確かめられた、このリポジトリの監査のときだけ上げる。
+      # 失敗しても要約を上げ、tracking-issue が「記録を残せなかった」と書けるよう、ジョブを止めない。
       - name: Upload records for next run
+        id: upload-state
+        continue-on-error: true
         if: steps.encrypt.outcome == 'success' && steps.summarize.outcome == 'success' && steps.settings.outputs.target == 'self'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -371,7 +377,8 @@ jobs:
     needs: audit
     # dvna の監査は検出できるかの確認なので、追跡 Issue を触らない。
     # 入力から判定する。audit の target は設定の段が実行されたときだけ出るので、資格情報が無い実行では空になる。
-    if: ${{ !cancelled() && needs.audit.outputs.skip != 'true' && (inputs.target || 'self') != 'dvna' }}
+    # 追跡 Issue は 1 本なので、デフォルトブランチの監査だけが書く。ほかのブランチの実行は記録を別に引き継ぐので、結果が食い違う。
+    if: ${{ !cancelled() && needs.audit.outputs.skip != 'true' && (inputs.target || 'self') != 'dvna' && github.ref_name == github.event.repository.default_branch }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -409,6 +416,7 @@ jobs:
           RESTORE: ${{ needs.audit.outputs.restore }}
           OUTCOME: ${{ needs.audit.outputs.outcome }}
           SUMMARY_OUTCOME: ${{ needs.audit.outputs.summary_outcome }}
+          STATE_SAVED: ${{ needs.audit.outputs.state_saved }}
           MISE_OUTCOME: ${{ steps.mise.outcome }}
           DOWNLOAD_OUTCOME: ${{ steps.download.outcome }}
           SUMMARY: ${{ runner.temp }}/security-audit/summary.json
@@ -434,13 +442,15 @@ jobs:
           elif [ "$SETTINGS_VALID" = false ]; then
             failure="監査の設定（SECURITY_AUDIT_MODEL・入力）に受け付けない値があるため、監査していない"
           elif [ "$RESTORE" = failed ]; then
-            failure="前回の記録を復号できないため、監査していない（鍵を替えたときは docs/security-scanning.md の手順で記録を消す）"
+            failure="前回の記録を復号できないため、監査していない（鍵を替えたときは docs/security-scanning.md の手順で security-audit-state をすべて消す）"
           elif [ -z "$OUTCOME" ] || [ "$OUTCOME" = skipped ]; then
             failure="エージェントを起動する前の段が失敗した（どの段かは run のログで確かめる）"
           elif [ "$OUTCOME" != success ]; then
             failure="エージェントの実行が失敗した（outcome: ${OUTCOME:-unknown}）"
           elif [ "$SUMMARY_OUTCOME" != success ]; then
             failure="監査の記録が終わっていないか、記録の形が上流のスキルの検証を通らなかった"
+          elif [ "$STATE_SAVED" != success ]; then
+            failure="今回の記録を暗号化して残せなかったので、次の実行が引き継げない（upload の outcome: ${STATE_SAVED:-unknown}）"
           elif [ "$DOWNLOAD_OUTCOME" != success ]; then
             failure="監査の要約を受け取れなかった（download の outcome: ${DOWNLOAD_OUTCOME:-unknown}）"
           elif [ "$MISE_OUTCOME" != success ]; then
