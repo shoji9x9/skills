@@ -1,7 +1,7 @@
 ---
 name: issue-create
 description: GitHub Issue の作成を `gh` で標準化するスキル。バグ・機能要望・タスクなどの短い説明を受け取り、対象リポジトリ確認・重複チェック・`.github/ISSUE_TEMPLATE/` のテンプレ検出・本文ドラフトのユーザー承認・`gh issue create` での起票までを進める。「Issue を作って」「課題として登録して」「バグを起票して」「issue-create」や、新しい機能要望・不具合・タスクを GitHub Issue にしたい依頼で必ず発動する。作業着手は姉妹スキル issue-start が担う。
-argument-hint: "<説明> [--repo <owner>/<repo>]"
+argument-hint: "<説明> [--repo <owner>/<repo>] [--parent <番号>]"
 license: MIT
 ---
 
@@ -14,11 +14,12 @@ GitHub Issue の作成を `gh` で標準化する。起票した Issue に着手
 ## 使い方
 
 ```text
-issue-create <説明> [--repo <owner>/<repo>]
+issue-create <説明> [--repo <owner>/<repo>] [--parent <番号>]
 ```
 
 - `<説明>`: Issue にしたい短い説明（バグ報告・機能要望・タスクなど）。
 - `--repo <owner>/<repo>`: 対象のリポジトリ。省略したら現在の repo を対象にする。
+- `--parent <番号>`: 作った Issue を、対象のリポジトリの既存の Issue の sub-issue にする。分けたときは全件を同じ親に紐付ける。手順は [`references/parent.md`](references/parent.md) で定義する。
 
 例: `issue-create ログイン画面が SSO で落ちる` / `issue-create ダークモードを追加したい` / `issue-create README のインストール手順が古い --repo <owner>/<repo>`
 
@@ -37,6 +38,7 @@ issue-create <説明> [--repo <owner>/<repo>]
 1. 対象のリポジトリを確かめる。
    - 指定が無ければ、現在の repo（`gh repo view --json nameWithOwner -q .nameWithOwner`）を対象にする。
    - 指定があれば、それに従う。
+   - `--parent` があれば、親の Issue を取得できることを確かめる（[`references/parent.md`](references/parent.md)「起票の前に確かめる」）。
 2. 重複する Issue と関連する Issue を確かめる。
    - 説明のキーワードで絞って一覧を取得し、同じ趣旨の Issue や重複する Issue が無いかを見る。
 
@@ -91,6 +93,7 @@ issue-create <説明> [--repo <owner>/<repo>]
      ```
 
    - 別のリポジトリを対象にするときは、`--repo <owner>/<repo>` を付ける。
+   - `--parent` があれば、起票した後に、作った Issue を親の sub-issue にする（[`references/parent.md`](references/parent.md)「起票した後に紐付ける」）。
 9. 作った Issue の URL を返す。続けて着手するなら、`issue-start <番号>` を案内する。分けたときは、処理する順に並べて返す。
 
 ## テンプレートの扱い
