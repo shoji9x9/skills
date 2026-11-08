@@ -111,10 +111,19 @@ test("(d) 同じ依存元から出る線が同じ座標で重なっても、他�
 });
 
 test("(d) 幹線に重なるエッジのラベルを labelAt なしで置き、自動の位置が幹線の上になると、(d) を出す", () => {
-  // a->b のラベルの自動の位置は、直線の中点 (300,200) である。a->e は y=200 の上を x=300 まで重なって進む。
-  const v = checkDiagram(spec([a, b, e300], [{ ...ab, label: "L" }, trunk(200)]));
-  expect(v.map((x) => x.rule)).toEqual(["d", "d"]);
-  expect(v[0].message).toContain("a->e の区間 (232,200)-(300,200) がエッジ a->b のラベル");
+  // a->b のラベルの自動の位置は、直線の中点 (300,200) である。a->e は y=200 の上を x=340 まで重なって進み、
+  // ラベルの先で下へ曲がる。ラベルを通るのは、a->b に重なる区間だけである。
+  const along: DiagramEdge = {
+    from: "a",
+    to: "e",
+    waypoints: [
+      [340, 200],
+      [340, 300],
+    ],
+  };
+  const v = checkDiagram(spec([a, b, e300], [{ ...ab, label: "L" }, along]));
+  expect(v.map((x) => x.rule)).toEqual(["d"]);
+  expect(v[0].message).toContain("a->e の区間 (232,200)-(340,200) がエッジ a->b のラベル");
 });
 
 // c と d を結ぶ水平の線が、a のラベル（a の下、y=236〜252）の高さを通る。

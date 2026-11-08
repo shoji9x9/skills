@@ -157,8 +157,8 @@
       "id": "routed-unique-guard",
       "why": "routed を渡したとき、spec の重複したエッジを確かめない",
       "file": "skills/aws-architecture-diagram/scripts/diagram-engine.mjs",
-      "find": "  assertUniqueEdges(edges);\n  const node = nodeLookup(nodes);\n  for (const e",
-      "replace": "  const node = nodeLookup(nodes);\n  for (const e",
+      "find": "  assertUniqueEdges(edges);\n  return nodeLookup(nodes);",
+      "replace": "  return nodeLookup(nodes);",
       "occurrences": 1,
       "expect_failing": ["routed を渡しても、重複したエッジがあれば、検査も描画もエラーにする"]
     },

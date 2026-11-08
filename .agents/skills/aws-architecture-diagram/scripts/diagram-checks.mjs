@@ -42,10 +42,10 @@ function segment({ ei, e }, a, b) {
   return { ei, e, a, b, ...lineOf(a, b) };
 }
 
-// 点 a と b を結ぶ直交する区間の向き（vertical）・通る座標（at）・範囲（lo〜hi）。
 /**
  * @typedef {{ vertical: boolean, at: number, lo: number, hi: number }} Line
  */
+// 点 a と b を結ぶ直交する区間の向き（vertical）・通る座標（at）・範囲（lo〜hi）。
 /**
  * @param {Point} a
  * @param {Point} b
