@@ -182,7 +182,10 @@ jobs:
           # --allowed-tools は許可の一覧なので、使わせないツールは --disallowed-tools で明示して拒否する。
           # Agent も拒否する。サブエージェントをバックグラウンドで起動したまま、メインのエージェントがターンを終えると、
           # 非対話の実行はそこで終わり、結果のファイルを書かずに成功として終わる（Issue #956 の実行記録で確かめた）。
+          # 拒否の一覧は、Claude Code がツールを足すたびに抜けが出る（手元の 2.1.319 では Workflow・Skill・CronCreate なども使えた）。
+          # そこで --tools で、使えるツールそのものを Read・Grep・Glob・Edit・Write に限る。Write の書き先は Edit の規則で絞る。
           claude_args: >-
+            --tools "Read,Grep,Glob,Edit,Write"
             --allowed-tools "Read(./**),Grep(./**),Glob(./**),Edit(./${{ env.REPORT_FILE }})"
             --disallowed-tools "Bash,WebFetch,WebSearch,NotebookEdit,Agent"
             ${{ steps.model.outputs.args }}
@@ -240,7 +243,8 @@ jobs:
           name: self-review-execution-${{ github.run_attempt }}
           path: ${{ steps.execlog.outputs.path }}
           if-no-files-found: error
-          retention-days: 7
+          # 点検は毎週なので、失敗に気付くのが翌週の実行の後になっても読めるよう、周期より長く残す。
+          retention-days: 14
 
   tracking-issue:
     name: Update self review tracking issue

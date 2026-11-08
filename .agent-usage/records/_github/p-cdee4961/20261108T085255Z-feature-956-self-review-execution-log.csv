@@ -26,3 +26,8 @@ ci:42464863048:1,ci,2026-11-08T08:58:53.449Z,p-cdee4961,github-actions,,,,2026-1
 coverage:github:2026-11-07T08:53:21.253Z:2026-11-08T08:58:53.449Z,coverage,2026-11-08T08:58:53.449Z,p-cdee4961,,,,,2026-11-07T08:53:21.253Z,2026-11-08T08:58:53.449Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-11-07T08:58:53.449Z:2026-11-08T08:59:29.330Z,coverage,2026-11-08T08:59:29.330Z,p-cdee4961,,,,,2026-11-07T08:58:53.449Z,2026-11-08T08:59:29.330Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-11-07T08:59:29.330Z:2026-11-08T08:59:56.662Z,coverage,2026-11-08T08:59:56.662Z,p-cdee4961,,,,,2026-11-07T08:59:29.330Z,2026-11-08T08:59:56.662Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:42466071129:1,ci,2026-11-08T09:20:43.051Z,p-cdee4961,github-actions,,,,2026-11-08T09:10:50.000Z,2026-11-08T09:15:29.000Z,Asia/Tokyo,feature/956-self-review-execution-log,956,,,,,,,,,,Self review;workflow_dispatch;success,
+ci:42465827114:1,ci,2026-11-08T09:20:43.051Z,p-cdee4961,github-actions,,,,2026-11-08T09:07:29.000Z,2026-11-08T09:08:25.000Z,Asia/Tokyo,feature/956-self-review-execution-log,956,,,,,,,,,,Self review;workflow_dispatch;failure,
+ci:42465578636:1,ci,2026-11-08T09:20:43.051Z,p-cdee4961,github-actions,,,,2026-11-08T09:04:07.000Z,2026-11-08T09:05:09.000Z,Asia/Tokyo,feature/956-self-review-execution-log,956,,,,,,,,,,Self review;workflow_dispatch;failure,
+ci:42465314010:1,ci,2026-11-08T09:20:43.051Z,p-cdee4961,github-actions,,,,2026-11-08T09:00:36.000Z,2026-11-08T09:01:28.000Z,Asia/Tokyo,feature/956-self-review-execution-log,956,,,,,,,,,,Self review;workflow_dispatch;failure,
+coverage:github:2026-11-07T08:59:56.662Z:2026-11-08T09:20:43.051Z,coverage,2026-11-08T09:20:43.051Z,p-cdee4961,,,,,2026-11-07T08:59:56.662Z,2026-11-08T09:20:43.051Z,Asia/Tokyo,,,,,,,,,,,,ok,

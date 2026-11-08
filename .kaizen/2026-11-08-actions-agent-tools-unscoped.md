@@ -45,6 +45,6 @@ PR #954 のマージ後、`self-review.yml` のエージェントが、サブエ
 
 提案に次を足す。
 
-- 拒否するツールは、危険を指摘されたものだけで決めない。Claude Code のツールの一覧（公式のドキュメント）から、許すもの以外を挙げる。
-  実行の最初に出る `system` の `init` の `tools` は一覧の原本にならない。手元の 2.1.319 では、`Agent` を含まないのに `Agent` を使えた
+- 拒否の一覧（`--disallowed-tools`）に 1 件ずつ足す作り方をやめ、`--tools` で使えるツールそのものを限る（`self-review.yml` は `Read,Grep,Glob,Edit,Write`）。
+  拒否の一覧は、Claude Code がツールを足すたびに抜けが出る（手元の 2.1.319 では `Workflow`・`Skill`・`CronCreate` なども使えた）
 - 拒否が機能するかは、そのツールを使うよう指示した `claude -p` で、拒否しない場合と拒否する場合の両方を実行して確かめる
