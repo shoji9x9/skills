@@ -50,7 +50,7 @@ const isCategory = (value: unknown): value is Category =>
 
 /** 1 欄の上限。手順（docs/self-review-procedure.md）の目安と同じにする。 */
 const MAX_TEXT_CHARS = 300;
-/** 指摘の上限。手順の目安と同じにし、超えた分は省いて件数をメモに書く。本文が GitHub の上限を超えないようにするため。 */
+/** 表に載せる指摘の上限。手順の目安と同じにし、本文が GitHub の上限を超えないようにする。前回との比較は全件で行う。 */
 const MAX_FINDINGS = 40;
 const MAX_NOTES = 20;
 /** Anthropic の API キーと OAuth トークンの形。結果にあれば、Issue に載せずに失敗させる。 */
@@ -58,8 +58,11 @@ const CREDENTIAL = /sk-ant-[\w-]{8,}/u;
 
 /** エージェントが書いた文を 1 行にし、1 欄 `MAX_TEXT_CHARS` 字までに切り詰める（本文とコメントの上限を守るため）。 */
 const shorten = (value: string): string => {
-  const line = oneLine(value);
-  return line.length > MAX_TEXT_CHARS ? `${line.slice(0, MAX_TEXT_CHARS)}…` : line;
+  // サロゲートペア（絵文字など）を途中で切らないよう、コードポイントの単位で数える。
+  const chars = Array.from(oneLine(value));
+  return chars.length > MAX_TEXT_CHARS
+    ? `${chars.slice(0, MAX_TEXT_CHARS).join("")}…`
+    : chars.join("");
 };
 
 /**
@@ -86,14 +89,6 @@ function text(value: unknown, where: string): string {
   return shorten(value);
 }
 
-function pathText(value: unknown, where: string): string {
-  const path = text(value, where);
-  if (!PATH_FORM.test(path)) {
-    throw new Error(`${where} がリポジトリのパスの形でない（英数字・.・_・-・/ だけを使う）`);
-  }
-  return path;
-}
-
 /** 直し方の案は、無い指摘もある。省略・null・空白だけの文字列は、どれも案が無いものとして読む。 */
 function optionalText(value: unknown, where: string): string {
   if (value === undefined || value === null) return "";
@@ -101,7 +96,11 @@ function optionalText(value: unknown, where: string): string {
   return text(value, where);
 }
 
-function parseFinding(value: unknown, where: string): Finding {
+/**
+ * 指摘を 1 件読む。対象のパスがリポジトリのパスの形（PATH_FORM）でなければ、その指摘だけを省いて null を返す。
+ * 1 件の書き方の誤りで、その週のほかの指摘まで捨てないためである。ほかの形の誤りは、結果の形の誤りとして例外にする。
+ */
+function parseFinding(value: unknown, where: string): Finding | null {
   if (!isRecord(value)) throw new Error(`${where} がオブジェクトでない`);
   const { category } = value;
   if (!isCategory(category)) {
@@ -109,9 +108,11 @@ function parseFinding(value: unknown, where: string): Finding {
       `${where}.category が項目の値でない（使える値: ${Object.keys(CATEGORY_LABEL).join("・")}）`,
     );
   }
+  const path = text(value["path"], `${where}.path`);
+  if (!PATH_FORM.test(path)) return null;
   return {
     category,
-    path: pathText(value["path"], `${where}.path`),
+    path,
     summary: text(value["summary"], `${where}.summary`),
     evidence: text(value["evidence"], `${where}.evidence`),
     suggestion: optionalText(value["suggestion"], `${where}.suggestion`),
@@ -131,11 +132,16 @@ export function parseReport(source: string): Report {
   const { findings, notes } = value;
   if (!isArray(findings)) throw new Error("findings が配列でない");
   if (notes !== undefined && !isArray(notes)) throw new Error("notes が配列でない");
-  return {
-    findings: findings.map((f, i) => parseFinding(f, `findings[${i}]`)),
-    // メモは、指摘 0 件の週にコメントへ載せるので、件数にも上限を置く。
-    notes: (notes ?? []).slice(0, MAX_NOTES).map((n, i) => text(n, `notes[${i}]`)),
-  };
+  const parsed = findings.map((f, i) => parseFinding(f, `findings[${i}]`));
+  const valid = parsed.filter((f): f is Finding => f !== null);
+  // メモは、指摘 0 件の週にコメントへ載せるので、件数にも上限を置く。
+  const read = (notes ?? []).slice(0, MAX_NOTES).map((n, i) => text(n, `notes[${i}]`));
+  const skipped = parsed.length - valid.length;
+  const extra =
+    skipped > 0
+      ? [`対象のパスがリポジトリのパスの形（英数字・.・_・-・/）でない指摘を ${skipped} 件省いた`]
+      : [];
+  return { findings: valid, notes: [...read, ...extra] };
 }
 
 const keyOf = (f: Finding): string => `${f.category} ${f.path}`;
@@ -184,7 +190,8 @@ export function dropCanary(report: Report, canary: string): Report {
   return { findings: rest, notes: report.notes };
 }
 
-const KEY_FORM = new RegExp(`^(${Object.keys(CATEGORY_LABEL).join("|")}) \\S(.*\\S)?$`, "u");
+// 識別子の対象の部分は、PATH_FORM と同じ文字に限る。前回の本文を人が編集しても、メンションやリンクを「解消」に出さないため。
+const KEY_FORM = new RegExp(`^(${Object.keys(CATEGORY_LABEL).join("|")}) [A-Za-z0-9._/-]+$`, "u");
 const tracking = trackingKeys({ marker: "self-review", keyForm: KEY_FORM, keyOf });
 export const { previousKeys, diff: diffFindings } = tracking;
 
@@ -213,8 +220,12 @@ export function formatBody(report: Report, previous: readonly string[] = []): st
     "",
     `指摘: ${findings.length} 件`,
     "",
-    ...findingTable(findings, new Set(kept)),
+    // 前回との比較と識別子の目印は全件で行い、表だけを切り詰める。比較の前に切ると、残っている指摘を「解消」と書いてしまう。
+    ...findingTable(findings.slice(0, MAX_FINDINGS), new Set(kept)),
   ];
+  if (findings.length > MAX_FINDINGS) {
+    lines.push(`表には、先頭の ${MAX_FINDINGS} 件だけを載せた。`, "");
+  }
   if (notes.length > 0) {
     lines.push("<details><summary>点検のメモ（指摘にしなかったもの）</summary>", "");
     lines.push(...notes.map((n) => `- ${codeSpan(n)}`), "", "</details>", "");
@@ -250,12 +261,8 @@ export function main(args: readonly string[]): number {
       cli.previous === undefined ? [] : previousKeys(readFileSync(cli.previous, "utf8"));
     const { report: reportPath = "", canary = "" } = cli.extra;
     const report = dropCanary(parseReport(readFileSync(reportPath, "utf8")), canary);
-    const merged = mergeFindings(report.findings);
-    const findings = merged.slice(0, MAX_FINDINGS);
-    const notes =
-      merged.length > MAX_FINDINGS
-        ? [...report.notes, `指摘が ${merged.length} 件あり、${MAX_FINDINGS} 件を超えた分を省いた`]
-        : report.notes;
+    const findings = mergeFindings(report.findings);
+    const { notes } = report;
     const body = formatBody({ findings, notes }, previous);
     if (body.length > MAX_BODY_CHARS) {
       throw new Error(

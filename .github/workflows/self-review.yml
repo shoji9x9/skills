@@ -99,9 +99,10 @@ jobs:
           mkdir -p "$INPUT_DIR"
           if [ "${#numbers[@]}" -gt 0 ]; then
             # check-cost-metrics.yml と同じく、番号の最も小さい 1 件を正とする（ほかは更新されない）。
-            author="$(gh issue view "${numbers[0]}" --json author --jq .author.login)"
+            gh issue view "${numbers[0]}" --json author,body >"$RUNNER_TEMP/cost-metrics.json"
+            author="$(jq -r .author.login "$RUNNER_TEMP/cost-metrics.json")"
             if [ "$author" = "app/github-actions" ]; then
-              gh issue view "${numbers[0]}" --json body --jq .body >"$INPUT_DIR/cost-metrics.md"
+              jq -r .body "$RUNNER_TEMP/cost-metrics.json" >"$INPUT_DIR/cost-metrics.md"
             else
               echo "#${numbers[0]} は github-actions[bot] が作った Issue でない（作成者: $author）。入力なしで点検する"
             fi

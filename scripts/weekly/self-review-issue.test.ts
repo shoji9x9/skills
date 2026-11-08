@@ -204,11 +204,19 @@ describe("追跡 Issue の本文", () => {
     "![x](https://example.com/p)",
     "docs/a b.md",
     "docs/a.md-->",
-  ])("対象のパスは識別子として載るので、パスに使わない文字（%s）は受け付けない", (path) => {
-    expect(() => parseReport(JSON.stringify({ findings: [{ ...finding(), path }] }))).toThrow(
-      "findings[0].path がリポジトリのパスの形でない",
-    );
-  });
+  ])(
+    "対象のパスは識別子として載るので、パスに使わない文字（%s）の指摘は省き、件数をメモに書く",
+    (path) => {
+      const parsed = parseReport(
+        JSON.stringify({ findings: [{ ...finding(), path }, finding()], notes: ["メモ"] }),
+      );
+      expect(parsed.findings).toEqual([finding()]);
+      expect(parsed.notes).toEqual([
+        "メモ",
+        "対象のパスがリポジトリのパスの形（英数字・.・_・-・/）でない指摘を 1 件省いた",
+      ]);
+    },
+  );
 
   test("指摘が 0 件の週は、点検のメモをコメントに載せる（Issue を閉じて本文を書き換えないため）", () => {
     expect(formatComment({ findings: [], notes: ["入力を読めなかった"] }, [])).toBe(
@@ -216,6 +224,12 @@ describe("追跡 Issue の本文", () => {
     );
     expect(formatComment({ findings: [], notes: [] }, [])).not.toContain("点検のメモ");
     expect(formatComment({ findings: [finding()], notes: ["x"] }, [])).not.toContain("点検のメモ");
+  });
+
+  test("絵文字を途中で切らずに切り詰める", () => {
+    const summary = `${"a".repeat(299)}😀😀`;
+    const parsed = parseReport(JSON.stringify({ findings: [{ ...finding(), summary }] }));
+    expect(parsed.findings[0]?.summary).toBe(`${"a".repeat(299)}😀…`);
   });
 
   test("1 欄を 300 字に、メモを 20 件に切り詰める", () => {
@@ -252,6 +266,7 @@ describe("追跡 Issue の本文", () => {
   test.each([
     ["項目が知らない値", `["other a"]`],
     ["対象が空", `["unused "]`],
+    ["対象がパスの形でない", `["unused @org/team"]`],
   ])("前回の識別子の %s ときは例外にする", (_name, json) => {
     expect(() => previousKeys(`<!-- self-review:keys ${json} -->\n`)).toThrow("識別子の形でない");
   });
@@ -296,13 +311,19 @@ describe("CLI", () => {
     expect(readFileSync(join(root, "c.md"), "utf8")).toContain("解消: unused gone.md");
   });
 
-  test("指摘が 40 件を超えたら、超えた分を省いて件数をメモに書く", () => {
+  test("指摘が 40 件を超えたら、表だけを切り詰め、前回との比較と識別子は全件で行う", () => {
     const many = Array.from({ length: 45 }, (_, i) => finding({ path: `docs/${i}.md` }));
     const { root, args } = setup({ findings: [canaryFinding, ...many] });
-    expect(main(args)).toBe(0);
+    const previous = join(root, "previous.md");
+    writeFileSync(previous, `<!-- self-review:keys ["inconsistency docs/44.md"] -->\n`);
+    expect(main([...args, "--previous", previous])).toBe(0);
     const body = readFileSync(join(root, "b.md"), "utf8");
-    expect(body).toContain("指摘: 40 件");
-    expect(body).toContain("指摘が 45 件あり、40 件を超えた分を省いた");
+    expect(body).toContain("指摘: 45 件");
+    expect(body).toContain("表には、先頭の 40 件だけを載せた。");
+    expect(body.split("\n").filter((l) => l.startsWith("| 文書の食い違い"))).toHaveLength(40);
+    expect(previousKeys(body)).toHaveLength(45);
+    expect(body).not.toContain("前回から解消したもの");
+    expect(readFileSync(join(root, "c.md"), "utf8")).toContain("継続 1 件");
   });
 
   test.each([
