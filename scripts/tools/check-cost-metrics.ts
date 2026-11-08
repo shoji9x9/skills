@@ -224,9 +224,26 @@ function mentions(text: string, name: string): boolean {
 
 /**
  * 読む処理のうち、コメントを除いた部分。コメントにだけファイル名が残っていても、読んでいることにはならない。
- * TypeScript・JavaScript はパーサでコメントを除き、JSON と YAML は読んだ値を JSON にする。それ以外の種類は扱わない。
+ * TypeScript・JavaScript はパーサでコメントを除き、JSON と YAML は読んだ値の文字列（キーと値）を行に並べる。
+ * それ以外の種類は扱わない。読めないときは、どの読む処理かを添えて例外にする。
  */
 export function referenceText(path: string, source: string): string {
+  try {
+    return referenceTextOf(path, source);
+  } catch (error) {
+    throw new Error(`読む処理 ${path} を読めない（${errorMessage(error)}）`, { cause: error });
+  }
+}
+
+/** 値の中の文字列（キーと値）を集める。JSON にすると改行が \n になり、直後のファイル名を名前の一部として読んでしまう。 */
+function stringsOf(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (isArray(value)) return value.flatMap(stringsOf);
+  if (isRecord(value)) return Object.entries(value).flatMap(([k, v]) => [k, ...stringsOf(v)]);
+  return [];
+}
+
+function referenceTextOf(path: string, source: string): string {
   if (/\.(?:[cm]?[jt]s)$/u.test(path)) {
     let text = source;
     for (const { pos, end } of jsCommentRanges(source, path).toReversed()) {
@@ -234,16 +251,25 @@ export function referenceText(path: string, source: string): string {
     }
     return text;
   }
-  if (path.endsWith(".json")) return JSON.stringify(JSON.parse(source));
-  if (/\.ya?ml$/u.test(path)) return JSON.stringify(loadYaml(source));
+  if (path.endsWith(".json")) return stringsOf(JSON.parse(source)).join("\n");
+  if (/\.ya?ml$/u.test(path)) return stringsOf(loadYaml(source)).join("\n");
   throw new Error(`${path} は読む処理として扱えない種類のファイル（.ts・.js・.json・.yml）`);
 }
 
-/** 読む処理（readers）が、一覧のファイル名を参照しているかを確かめる。参照していなければ、設定が古い。 */
-export function checkReaders(target: ListTarget, read: (path: string) => string): void {
+/**
+ * 読む処理（readers）が、一覧のファイル名を参照しているかを確かめる。参照していなければ、設定が古い。
+ * 同じ読む処理を複数の一覧が挙げるので、コメントを除いた本文を cache に置いて 1 回だけ読む。
+ */
+export function checkReaders(
+  target: ListTarget,
+  read: (path: string) => string,
+  cache = new Map<string, string>(),
+): void {
   const name = basename(target.file);
   for (const reader of target.readers) {
-    if (!mentions(referenceText(reader, read(reader)), name)) {
+    const text = cache.get(reader) ?? referenceText(reader, read(reader));
+    cache.set(reader, text);
+    if (!mentions(text, name)) {
       throw new Error(
         `${reader} が ${name} を参照していない（check-cost-metrics.json の readers を直す）`,
       );
@@ -263,8 +289,9 @@ async function loadList(target: ListTarget, root: string): Promise<unknown> {
 /** 空の一覧を挙げる。一覧か読む処理を読めないときは例外にする。 */
 export async function emptyLists(lists: readonly ListTarget[], root: string): Promise<Finding[]> {
   const findings: Finding[] = [];
+  const readers = new Map<string, string>();
   for (const target of lists) {
-    checkReaders(target, (path) => readFileSync(join(root, path), "utf8"));
+    checkReaders(target, (path) => readFileSync(join(root, path), "utf8"), readers);
     const count = countEntries(target.count, await loadList(target, root), target.file);
     if (count === 0 && target.keepEmpty === undefined) {
       findings.push({ kind: "empty-list", target: target.file, detail: target.readers.join("、") });

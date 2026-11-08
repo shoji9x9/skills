@@ -84,6 +84,17 @@ function writeFiles(root: string, files: Record<string, string>): void {
 }
 
 describe("設定", () => {
+  test("keep_empty を理由として読む", () => {
+    const list = {
+      file: "a.json",
+      count: { kind: "json-array", key: "exempt" },
+      readers: ["r.ts"],
+    };
+    expect(parseConfig(configJson({ lists: [{ ...list, keep_empty: "理由" }] })).lists).toEqual([
+      { ...list, keepEmpty: "理由" },
+    ]);
+  });
+
   test("正しい設定を読む", () => {
     expect(parseConfig(configJson())).toEqual({
       lists: [{ file: "a.json", count: { kind: "json-array", key: "exempt" }, readers: ["r.ts"] }],
@@ -268,12 +279,26 @@ describe("空の一覧", () => {
     { reader: "r.ts", text: 'const p = "a.json"; // 説明' },
     { reader: "w.yml", text: "run: cat a.json # 説明\n" },
     { reader: "package.json", text: '{"scripts": {"x": "tool a.json"}}' },
+    { reader: "w.yml", text: "run: |\n  echo x\n  a.json\n" },
+    { reader: "w.yml", text: 'run: "echo\\ta.json"\n' },
+    { reader: "package.json", text: '{"x": "echo\\na.json"}' },
   ])("$reader のコードにある名前は参照として数える", ({ reader, text }) => {
     expect(() => checkReaders(target("a.json", [reader]), () => text)).not.toThrow();
   });
 
-  test("読む処理として扱えない種類のファイルは例外にする", () => {
+  test("読む処理として扱えない種類のファイルと、読めない JSON・YAML は、読む処理の名前を添えて例外にする", () => {
     expect(() => referenceText("lefthook.toml", "a.json")).toThrow("扱えない種類");
+    expect(() => referenceText("r.json", "{ // a.json\n}")).toThrow("読む処理 r.json を読めない");
+    expect(() => referenceText("w.yml", "a: [")).toThrow("読む処理 w.yml を読めない");
+  });
+
+  test("同じ読む処理は、一覧が複数あっても 1 回だけ読む", () => {
+    const read: string[] = [];
+    const cache = new Map<string, string>();
+    for (const file of ["a.json", "b.json"]) {
+      checkReaders(target(file), (path) => (read.push(path), "a.json b.json"), cache);
+    }
+    expect(read).toEqual(["r.ts"]);
   });
 
   test("keep_empty に理由を書いた一覧は、空でも挙げない", async () => {
@@ -398,6 +423,19 @@ describe("修正の PR", () => {
         { root: "/repo", now: NOW },
       ),
     ).toEqual([{ kind: "fix-heavy", target: "new.ts", detail: "直近 28 日の fix の PR: 3 件" }]);
+  });
+
+  test("本体の無いテストは、今あるファイルの一覧で判定し、テストをチェックとして挙げる", async () => {
+    const log = [
+      rec("fix: a (#1)", "", "M\tscope.test.ts"),
+      rec("fix: b (#2)", "", "M\tscope.test.ts"),
+    ].join("");
+    const run = gitRun(log, "false", "scope.test.ts\n");
+    expect(
+      await fixHeavyChecks(run, { days: 28, min: 2, paths: ["x"] }, { root: "/repo", now: NOW }),
+    ).toEqual([
+      { kind: "fix-heavy", target: "scope.test.ts", detail: "直近 28 日の fix の PR: 2 件" },
+    ]);
   });
 
   test("履歴が浅ければ例外にする", async () => {
@@ -564,7 +602,7 @@ test("本番の呼び出しは stdout を返し、0 以外の終了と起動の�
     defaultRunner(process.execPath, ["-e", "process.stderr.write('理由'); process.exit(3)"]),
   ).rejects.toThrow(/終了コード 3.*理由/su);
   await expect(defaultRunner("check-cost-metrics-no-such-command", [])).rejects.toThrow(
-    "check-cost-metrics-no-such-command  が失敗した",
+    /check-cost-metrics-no-such-command.*が失敗した/su,
   );
 });
 
