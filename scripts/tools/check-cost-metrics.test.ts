@@ -589,7 +589,7 @@ test("並べて処理しても、入力の順で返し、失敗を reject する
 
 describe("追跡 Issue の本文", () => {
   const findings: Finding[] = [
-    { kind: "empty-list", target: "a.json", detail: "r.ts" },
+    { kind: "empty-list", target: "a.json", detail: "読む処理（確かめていない案内）: r.ts、w.yml" },
     { kind: "slow-job", target: "CI / Lint | x（pull_request）", detail: "中央値 1 秒 → 2 秒" },
   ];
   const config = parseConfig(configJson());
@@ -604,7 +604,9 @@ describe("追跡 Issue の本文", () => {
   test("候補の表・所要時間の表・識別子を書き、表の | をエスケープする", () => {
     const body = formatBody({ findings, rows, config });
     expect(body).toContain("直す候補: 2 件");
-    expect(body).toContain("| 空の免除・保留の一覧 | a.json | r.ts | 新規 |");
+    expect(body).toContain(
+      "| 空の免除・保留の一覧 | a.json | 読む処理（確かめていない案内）: r.ts、w.yml | 新規 |",
+    );
     expect(body).toContain("| 遅くなったジョブ | CI / Lint \\| x（pull_request） |");
     expect(body).toContain("| CI / Lint（pull_request） | 3 | 12 秒 | 20 秒 | 2 | 10 秒 | 11 秒 |");
     expect(previousKeys(body)).toEqual([
@@ -623,7 +625,7 @@ describe("追跡 Issue の本文", () => {
   test("前回と比べ、継続と解消を書く（件数が変わっても同じ識別子）", () => {
     const previous = ["empty-list a.json", "fix-heavy lefthook.yml"];
     const body = formatBody({ findings, rows, config }, previous);
-    expect(body).toContain("| a.json | r.ts | 継続 |");
+    expect(body).toContain("| a.json | 読む処理（確かめていない案内）: r.ts、w.yml | 継続 |");
     expect(body).toContain("前回から解消したもの: fix-heavy lefthook.yml");
     expect(diffFindings(findings, previous).kept).toEqual(["empty-list a.json"]);
     expect(formatComment(findings, previous)).toContain(
@@ -644,7 +646,7 @@ describe("追跡 Issue の本文", () => {
 describe("まとめて集める", () => {
   test("3 つの指標を集める", async () => {
     const root = makeTempDir("check-cost-metrics-");
-    writeFiles(root, { "a.json": '{"exempt": []}', "r.ts": 'load("a.json");' });
+    writeFiles(root, { "a.json": '{"exempt": []}' });
     const run: Runner = async (command, args) => {
       if (command === "git") return args[2] === "rev-parse" ? "false\n" : "";
       return JSON.stringify([{ total_count: 0, workflow_runs: [] }]);
@@ -676,7 +678,6 @@ describe("CLI", () => {
     const root = makeTempDir("check-cost-metrics-");
     writeFiles(root, {
       "a.json": '{"exempt": []}',
-      "r.ts": 'load("a.json");',
       "config.json": configJson(),
     });
     return { root, config: join(root, "config.json") };
