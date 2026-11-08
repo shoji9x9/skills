@@ -180,9 +180,11 @@ jobs:
           # 仕込まれた指示に従って資格情報を結果に書くおそれがある。ほかのファイルに書けると、git の設定を書き換えて、
           # checkout の post 段の git にコマンドを実行させるおそれがある。Edit の規則は Write にも当たる（手元の claude -p で確かめた）。
           # --allowed-tools は許可の一覧なので、使わせないツールは --disallowed-tools で明示して拒否する。
+          # Agent も拒否する。サブエージェントをバックグラウンドで起動したまま、メインのエージェントがターンを終えると、
+          # 非対話の実行はそこで終わり、結果のファイルを書かずに成功として終わる（Issue #956 の実行記録で確かめた）。
           claude_args: >-
             --allowed-tools "Read(./**),Grep(./**),Glob(./**),Edit(./${{ env.REPORT_FILE }})"
-            --disallowed-tools "Bash,WebFetch,WebSearch,NotebookEdit"
+            --disallowed-tools "Bash,WebFetch,WebSearch,NotebookEdit,Agent"
             ${{ steps.model.outputs.args }}
 
       - name: Upload report

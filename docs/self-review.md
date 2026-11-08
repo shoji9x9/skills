@@ -16,6 +16,7 @@
 
 - `review`: Claude Code（`anthropics/claude-code-action`）が手順を読み、結果を JSON に書く。
   エージェントに許すツールは、リポジトリの中を読むこと（`Read`・`Grep`・`Glob`）と、結果のファイルを書くことだけである。
+  サブエージェント（`Agent`）も許さない。バックグラウンドで起動したまま、エージェントが結果を待たずに終わることがあるためである。
   リポジトリの外（資格情報のある場所）は読めず、結果のファイルのほかは書けない。git も許さないので、履歴の件名とファイルの一覧は点検の前の段が入力に書き出す。
   ジョブの権限は `contents: read` と `issues: read` である
 - `tracking-issue`: `review` の結果を artifact で受け取り、`scripts/weekly/self-review-issue.ts` で本文を作って、追跡 Issue を作成・更新・クローズする。

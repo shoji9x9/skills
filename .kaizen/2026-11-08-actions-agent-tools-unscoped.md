@@ -36,3 +36,15 @@ GitHub Actions でエージェントを動かし、その出力を Issue や PR 
 - `kaizen-schedule.yml`（と配布する `skills/kaizen/assets/kaizen-schedule.yml`）の `--allowed-tools Read,Grep,Glob,Write` を、同じ形に絞る Issue を作る
 - `.agents/rules/github-actions-authoring.md` に「エージェントのツールの範囲」を足し、ジョブの権限とは別に、ツールが読める・書ける場所を確かめると書く
 - 規則の形（`Edit(./path)` は Write に当たり、`Write(path)` は当たらない）は、確かめた Claude Code のバージョン（2.1.319）と一緒に書く
+
+## 追記: 拒否するツールを、ツールの一覧と突き合わせていなかった
+
+PR #954 のマージ後、`self-review.yml` のエージェントが、サブエージェント（`Agent`）をバックグラウンドで起動したままターンを終え、結果のファイルを書かずに成功として終わった（Issue #956）。
+`--allowed-tools` に無い `Agent` は、確認なしで使えた（手元の Claude Code 2.1.319 で、拒否しなければ使われ、`--disallowed-tools` に足すと使えないことを確かめた）。
+`--disallowed-tools` は、レビューで危険を指摘されたツール（Bash・WebFetch など）だけから作り、Claude Code が持つツールの一覧と突き合わせていなかった。
+
+提案に次を足す。
+
+- 拒否するツールは、危険を指摘されたものだけで決めない。Claude Code のツールの一覧（公式のドキュメント）から、許すもの以外を挙げる。
+  実行の最初に出る `system` の `init` の `tools` は一覧の原本にならない。手元の 2.1.319 では、`Agent` を含まないのに `Agent` を使えた
+- 拒否が機能するかは、そのツールを使うよう指示した `claude -p` で、拒否しない場合と拒否する場合の両方を実行して確かめる
