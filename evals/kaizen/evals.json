@@ -594,35 +594,6 @@
           "prompt_quote": "バンドルされた lifecycle 検査を実行して終了コードを示して。"
         }
       ]
-    },
-    {
-      "id": 29,
-      "fixture": "fixtures/apply-legacy-note",
-      "prompt": "fixture の .kaizen にある pending の学びを、kaizen の apply で適用して。グループの分け方・適用するか・成果物・status の変更のどれも承認済みなので、確認せずに書き込んでよい。学びのファイルと AGENTS.md のそれぞれに何を書いたか（何も書かなかったならそのこと）と、その理由を説明して。最後に、バンドルされた lifecycle 検査を実行して終了コードを示して。",
-      "assertions": [
-        "応答で、学びの提案と同じ内容の規約が AGENTS.md の「作業の規約」に既にあることを、その場所を挙げて示している",
-        "2026-09-05-lint-skipped-before-commit.md を status: rejected にし、applied-to に既存の規約が扱うことを理由として書いている",
-        "AGENTS.md に、commit の前に pnpm lint を実行するという既存の規約と同じ内容の行を新しく足していない",
-        "バンドルされた kaizen-status-check.sh を実行し、exit 0 を示している"
-      ],
-      "reachability": [
-        {
-          "assertion": "応答で、学びの提案と同じ内容の規約が AGENTS.md の「作業の規約」に既にあることを、その場所を挙げて示している",
-          "prompt_quote": "学びのファイルと AGENTS.md のそれぞれに何を書いたか（何も書かなかったならそのこと）と、その理由を説明して。"
-        },
-        {
-          "assertion": "2026-09-05-lint-skipped-before-commit.md を status: rejected にし、applied-to に既存の規約が扱うことを理由として書いている",
-          "prompt_quote": "pending の学びを、kaizen の apply で適用して。"
-        },
-        {
-          "assertion": "AGENTS.md に、commit の前に pnpm lint を実行するという既存の規約と同じ内容の行を新しく足していない",
-          "prompt_quote": "学びのファイルと AGENTS.md のそれぞれに何を書いたか（何も書かなかったならそのこと）と、その理由を説明して。"
-        },
-        {
-          "assertion": "バンドルされた kaizen-status-check.sh を実行し、exit 0 を示している",
-          "prompt_quote": "バンドルされた lifecycle 検査を実行して終了コードを示して。"
-        }
-      ]
     }
   ]
 }
