@@ -1,0 +1,9 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+pr:935,pr,2026-11-08T00:34:24.597Z,p-cdee4961,github,,,,2026-11-07T11:53:29.000Z,2026-11-08T00:02:15.000Z,Asia/Tokyo,feature/854-bump-pinact,854,,,,,,,,,,pr=935;author=shoji9x9;state=merged,
+ci:42427915464:1,ci,2026-11-08T00:34:24.597Z,p-cdee4961,github-actions,,,,2026-11-08T00:02:18.000Z,2026-11-08T00:06:23.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:42427915462:1,ci,2026-11-08T00:34:24.597Z,p-cdee4961,github-actions,,,,2026-11-08T00:02:17.000Z,2026-11-08T00:05:44.000Z,Asia/Tokyo,main,,,,,,,,,,,CodeQL;push;success,
+ci:42370079359:1,ci,2026-11-08T00:34:24.597Z,p-cdee4961,github-actions,,,,2026-11-07T11:53:32.000Z,2026-11-07T11:53:33.000Z,Asia/Tokyo,feature/854-bump-pinact,854,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:42370079358:1,ci,2026-11-08T00:34:24.597Z,p-cdee4961,github-actions,,,,2026-11-07T11:53:32.000Z,2026-11-07T11:54:53.000Z,Asia/Tokyo,feature/854-bump-pinact,854,,,,,,,,,,CodeQL;pull_request;success,
+ci:42370079383:1,ci,2026-11-08T00:34:24.597Z,p-cdee4961,github-actions,,,,2026-11-07T11:53:32.000Z,2026-11-07T11:58:20.000Z,Asia/Tokyo,feature/854-bump-pinact,854,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-11-06T11:52:29.169Z:2026-11-08T00:34:24.597Z,coverage,2026-11-08T00:34:24.597Z,p-cdee4961,,,,,2026-11-06T11:52:29.169Z,2026-11-08T00:34:24.597Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-07T00:34:24.597Z:2026-11-08T00:35:56.445Z,coverage,2026-11-08T00:35:56.445Z,p-cdee4961,,,,,2026-11-07T00:34:24.597Z,2026-11-08T00:35:56.445Z,Asia/Tokyo,,,,,,,,,,,,ok,
