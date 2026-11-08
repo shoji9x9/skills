@@ -482,13 +482,26 @@ function svgDocument(W, H, out) {
  * @returns {{ e: DiagramEdge, pts: Point[] }[]}
  */
 export function routeEdges(spec) {
+  const { edges = [] } = spec;
+  const node = assertSpecShape(spec);
+  const routed = edges.map((e) => ({ e, pts: route(node(e.from), node(e.to), e) }));
+  assertOrthogonal(routed);
+  return routed;
+}
+
+// spec の形の誤りのうち、線を計算する前に確かめるもの（キャンバスの大きさ・重複したエッジ・未知のノード）でエラーにする。
+// routeEdges と、routed を渡された routedFor の両方が使う。ノードを id で返す関数を返す。
+/** @param {DiagramSpec} spec */
+function assertSpecShape(spec) {
   const { nodes = [], edges = [] } = spec;
   assertCanvas(spec);
   assertUniqueEdges(edges);
   const node = nodeLookup(nodes);
-  const routed = edges.map((e) => ({ e, pts: route(node(e.from), node(e.to), e) }));
-  assertOrthogonal(routed);
-  return routed;
+  for (const e of edges) {
+    node(e.from);
+    node(e.to);
+  }
+  return node;
 }
 
 /** @param {DiagramSpec} spec */
@@ -510,11 +523,8 @@ function assertCanvas({ W, H }) {
  */
 export function routedFor(spec, routed) {
   if (!routed) return routeEdges(spec);
-  assertCanvas(spec);
-  const { nodes = [], edges = [] } = spec;
-  assertUniqueEdges(edges);
-  const node = nodeLookup(nodes);
-  for (const e of edges) [e.from, e.to].forEach(node);
+  assertSpecShape(spec);
+  const { edges = [] } = spec;
   if (routed.length !== edges.length || routed.some((r, i) => r.e !== edges[i])) {
     throw new Error(
       "routed が spec のエッジと対応しない（同じ spec を routeEdges に渡した結果を渡す）",

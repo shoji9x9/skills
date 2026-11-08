@@ -44,6 +44,9 @@ function segment({ ei, e }, a, b) {
 
 // 点 a と b を結ぶ直交する区間の向き（vertical）・通る座標（at）・範囲（lo〜hi）。
 /**
+ * @typedef {{ vertical: boolean, at: number, lo: number, hi: number }} Line
+ */
+/**
  * @param {Point} a
  * @param {Point} b
  * @returns {Line}
@@ -75,6 +78,7 @@ const direction = (s) => Math.sign(s.vertical ? s.b.y - s.a.y : s.b.x - s.a.x);
 
 // 同じエッジで続けて同じ向きに進む区間を 1 本にまとめる。自動の L 字は直線を 2 つの区間に分けるので、
 // まとめないと 1 つの違反を 2 回報告する。折り返す区間（同じ直線の上で向きが逆になる）はまとめない。
+// まとめると、始点から折り返した先の終点までの範囲になり、折り返す前に進んだ範囲が区間から消えて、(b)・(d)・(g)・(h) がその範囲を見なくなる。
 /** @param {Segment[]} raw */
 function mergeCollinear(raw) {
   /** @type {Segment[]} */
@@ -115,10 +119,6 @@ function crossesRect(s, r) {
  * @param {Point} p
  */
 const containsPoint = (r, p) => r.left <= p.x && p.x <= r.right && r.top <= p.y && p.y <= r.bottom;
-
-/**
- * @typedef {{ vertical: boolean, at: number, lo: number, hi: number }} Line
- */
 
 // (a) ノードのアイコンが、グループの枠にかかっていないか、枠の内側の余白が足りているか。
 /**

@@ -110,21 +110,11 @@ test("(d) 同じ依存元から出る線が同じ座標で重なっても、他�
   expect(v[0].message).toContain("a->e の区間 (232,200)-(300,200) がエッジ a->b のラベル");
 });
 
-test("(d) 端点を共有するエッジでも、ラベルを垂直に貫くなら、(d) を出す", () => {
-  const v = checkDiagram(
-    spec([a, b, e300], [{ ...ab, label: "L", labelAt: [300, 210] }, trunk(200)]),
-  );
-  expect(v.map((x) => x.rule)).toEqual(["d"]);
-  expect(v[0].message).toContain("a->e の区間 (300,200)-(300,300) がエッジ a->b のラベル");
-});
-
-test("(d) 幹線を共有するエッジでも、ラベルの中心が幹線の外にあれば、(d) を出す", () => {
-  // a->e のラベルを、幹線（x=232〜300）の先の x=340 に置く。そこを通るのは a->b だけである。
-  const v = checkDiagram(
-    spec([a, b, e300], [ab, { ...trunk(200), label: "L", labelAt: [340, 200] }]),
-  );
-  expect(v.map((x) => x.rule)).toEqual(["d"]);
-  expect(v[0].message).toContain("a->b の区間");
+test("(d) 幹線に重なるエッジのラベルを labelAt なしで置き、自動の位置が幹線の上になると、(d) を出す", () => {
+  // a->b のラベルの自動の位置は、直線の中点 (300,200) である。a->e は y=200 の上を x=300 まで重なって進む。
+  const v = checkDiagram(spec([a, b, e300], [{ ...ab, label: "L" }, trunk(200)]));
+  expect(v.map((x) => x.rule)).toEqual(["d", "d"]);
+  expect(v[0].message).toContain("a->e の区間 (232,200)-(300,200) がエッジ a->b のラベル");
 });
 
 // c と d を結ぶ水平の線が、a のラベル（a の下、y=236〜252）の高さを通る。

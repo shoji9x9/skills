@@ -38,9 +38,8 @@
       "expect_failing": [
         "(d) 線がノードのラベルの矩形を貫くと、(d) を出す",
         "(d) 線が他のエッジのラベルを貫くと、(d) を出す（自分のラベルは対象にしない）",
-        "(d) 端点を共有するエッジでも、ラベルを垂直に貫くなら、(d) を出す",
-        "(d) 幹線を共有するエッジでも、ラベルの中心が幹線の外にあれば、(d) を出す",
-        "(d) 同じ依存元から出る線が同じ座標で重なっても、他方のラベルを通るなら、(d) を出す"
+        "(d) 同じ依存元から出る線が同じ座標で重なっても、他方のラベルを通るなら、(d) を出す",
+        "(d) 幹線に重なるエッジのラベルを labelAt なしで置き、自動の位置が幹線の上になると、(d) を出す"
       ]
     },
     {
@@ -167,7 +166,7 @@
       "id": "routed-known-node-guard",
       "why": "routed を渡したとき、spec に無いノードを端点に持つエッジを確かめない",
       "file": "skills/aws-architecture-diagram/scripts/diagram-engine.mjs",
-      "find": "  for (const e of edges) [e.from, e.to].forEach(node);\n",
+      "find": "    node(e.from);\n    node(e.to);\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
