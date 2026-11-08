@@ -475,14 +475,18 @@ function svgDocument(W, H, out) {
 `;
 }
 
-// 全エッジの線の座標の列を確定する。重複したエッジ・未知のノード・斜めの線は、ここでエラーにする。
-// 描画（renderDiagram）と検査（diagram-checks.mjs）が同じ線を使う。
+// 全エッジの線の座標の列を確定する。描画（renderDiagram）と検査（diagram-checks.mjs）が同じ線を使う。
+// spec の形の誤り（キャンバスの大きさが数でない・重複したエッジ・未知のノード・斜めの線）は、ここでエラーにする。
+// キャンバスの大きさが数でないと、SVG の width が NaN になり、検査の (i) の比較もすべて偽になって合格として扱われる。
 /**
  * @param {DiagramSpec} spec
  * @returns {{ e: DiagramEdge, pts: Point[] }[]}
  */
 export function routeEdges(spec) {
-  const { nodes = [], edges = [] } = spec;
+  const { W, H, nodes = [], edges = [] } = spec;
+  if (!Number.isFinite(W) || !Number.isFinite(H)) {
+    throw new Error(`spec の W と H は数で書く（W=${W}, H=${H}）`);
+  }
   assertUniqueEdges(edges);
   const node = nodeLookup(nodes);
   const routed = edges.map((e) => ({ e, pts: route(node(e.from), node(e.to), e) }));

@@ -29,7 +29,7 @@ aws-architecture-diagram の作図ルールの検査（Issue #931、PR #955）�
 このセッションで (c)・(j) の除外を書き、1 回目の `/code-review --fix` の後に (d) にも同じ条件の除外を足した。
 PR を作った後の 1 回目のレビュー（high）が、3 つの除外のすべてで、端点を共有するが幹線でない形の見逃しを指摘した。
 KEDB 照合（`緩和`・`必要条件`、`除外`・`関係`、`緩和`・`閉じた集合`、`除外`・`位置`）では、同じ原因の学びは見つからなかった。
-当たった `.kaizen/2026-10-19-skip-record-overlap-check-misses-other-containers.md` は、読み飛ばす根拠が比べる相手を漏らした件で、原因が違う。
+当たった `.kaizen/2026-10-19-skip-record-overlap-check-misses-other-containers.md` は、読み飛ばす根拠で比べる相手が抜けていた件で、原因が違う。
 
 ## 既存の規約
 
