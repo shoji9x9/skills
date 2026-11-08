@@ -1,0 +1,161 @@
+{
+  "metadata": {
+    "skill_name": "kaizen",
+    "skill_path": "<repo>/skills/kaizen",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-08T06:10:37Z",
+    "evals_run": [29],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 29,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 37.546,
+        "tokens": 209507,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "応答で、学びの提案と同じ内容の規約が AGENTS.md の「作業の規約」に既にあることを、その場所を挙げて示している",
+          "passed": true,
+          "evidence": "応答に「提案と同じ規約がすでに基底ドキュメントの ## 作業の規約 に言い切る形で書かれていて」"
+        },
+        {
+          "text": "2026-09-05-lint-skipped-before-commit.md を status: rejected にし、applied-to に既存の規約が扱うことを理由として書いている",
+          "passed": true,
+          "evidence": "学びは status: rejected、applied-to: [\"rejected: 既存の規約 AGENTS.md「作業の規約」が扱う\"]"
+        },
+        {
+          "text": "AGENTS.md に、commit の前に pnpm lint を実行するという既存の規約と同じ内容の行を新しく足していない",
+          "passed": true,
+          "evidence": "AGENTS.md は変えていない"
+        },
+        {
+          "text": "バンドルされた kaizen-status-check.sh を実行し、exit 0 を示している",
+          "passed": true,
+          "evidence": "応答に「lifecycle 検査の終了コードは 0」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 29,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 62.352,
+        "tokens": 255821,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "応答で、学びの提案と同じ内容の規約が AGENTS.md の「作業の規約」に既にあることを、その場所を挙げて示している",
+          "passed": true,
+          "evidence": "応答に「これは AGENTS.md の「作業の規約」に、すでに … として書かれています」"
+        },
+        {
+          "text": "2026-09-05-lint-skipped-before-commit.md を status: rejected にし、applied-to に既存の規約が扱うことを理由として書いている",
+          "passed": false,
+          "evidence": "学びは status: pending、applied-to: [] のまま"
+        },
+        {
+          "text": "AGENTS.md に、commit の前に pnpm lint を実行するという既存の規約と同じ内容の行を新しく足していない",
+          "passed": true,
+          "evidence": "AGENTS.md は変えていない"
+        },
+        {
+          "text": "バンドルされた kaizen-status-check.sh を実行し、exit 0 を示している",
+          "passed": false,
+          "evidence": "応答に、検査スクリプトが無いので実行できなかったとある"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 37.546,
+        "stddev": 0,
+        "min": 37.546,
+        "max": 37.546
+      },
+      "tokens": {
+        "mean": 209507,
+        "stddev": 0,
+        "min": 209507,
+        "max": 209507
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5,
+        "stddev": 0,
+        "min": 0.5,
+        "max": 0.5
+      },
+      "time_seconds": {
+        "mean": 62.352,
+        "stddev": 0,
+        "min": 62.352,
+        "max": 62.352
+      },
+      "tokens": {
+        "mean": 255821,
+        "stddev": 0,
+        "min": 255821,
+        "max": 255821
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.50",
+      "time_seconds": "-24.8",
+      "tokens": "-46314"
+    }
+  },
+  "notes": [
+    "# Skill Benchmark: kaizen",
+    "**Model**: claude-code / opus（reasoning effort high）",
+    "**Date**: 2026-11-08",
+    "**Evals**: 1（`with_skill` と `without_skill` を 1 run ずつ）",
+    "## 目的",
+    "PR #950 の 3 回目のローカルのレビューの指摘に対応した後の変更確認である。",
+    "apply は、`## 既存の規約` の節が無い学びのファイルに書き込まず、Step 2 で照合の結果を示して承認か却下かを決める作りに変えた。",
+    "eval 29 の assertion を、この作りに合わせて書き直した。",
+    "## 入力の変更",
+    "- eval 29: assertion を書き直した（節を足すことの 2 本を、既存の規約の場所を示すことと、rejected にして理由を書くことに替えた）。prompt と fixture は変えていない。",
+    "- 文が変わった assertion は前回（iteration-31）と比べない。文が同じ 2 本（AGENTS.md に足さない・lifecycle 検査）は、どちらの config でも前回と同じ結果だった。",
+    "## Summary",
+    "| eval | 入力の変更 | with_skill | without_skill | 前回の with_skill |",
+    "| --- | --- | --- | --- | --- |",
+    "| 29 | あり | 4/4 | 2/4 | 4/4（iteration-31。文が違う） |",
+    "## 差の出た所と出なかった所",
+    "- with_skill は学びを `status: rejected` にし、`applied-to` に既存の規約が扱う理由を書いた。without_skill は既存の規約に気付いたが、学びを pending のまま残した。",
+    "- without_skill のもう 1 件の失敗は lifecycle 検査で、検査のスクリプトが環境に無いので実行しなかった。",
+    "- 既存の規約の場所を示すことと、AGENTS.md に足さないことは、without_skill も満たした。後退の検出を目的として残す。",
+    "## 前回より下がったものと、その原因",
+    "- 無し",
+    "## 実行し直した run",
+    "- 無し"
+  ]
+}
