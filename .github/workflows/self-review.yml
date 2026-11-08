@@ -100,6 +100,7 @@ jobs:
 
       # 点検が動いていない状態を「指摘 0 件」と区別するため、既知の食い違いを持つファイルを置く。
       # どこからも参照されず、存在しないスクリプトの名前を書いた文書である。名前は実行ごとに変え、手順にも書かない。
+      # スクリプトの名前には文書の名前（拡張子を除く）を含める。self-review-issue.ts は、この名前を対象にした指摘を canary への指摘として除く。
       # 結果にこのファイルへの指摘が無ければ、tracking-issue が点検の失敗として扱う。
       - name: Plant canary
         id: canary
@@ -196,6 +197,8 @@ jobs:
             failure="エージェントを起動する前に review ジョブが失敗した"
           elif [ "$CRED_PRESENT" != true ]; then
             failure="secret CLAUDE_CODE_OAUTH_TOKEN が未設定のため、点検していない"
+          elif [ -z "$OUTCOME" ] || [ "$OUTCOME" = skipped ]; then
+            failure="エージェントを起動する前の段（費用の指標の取得・canary の配置）が失敗した"
           elif [ "$OUTCOME" != success ]; then
             failure="エージェントの実行が失敗した（outcome: ${OUTCOME:-unknown}）"
           elif [ "$DOWNLOAD_OUTCOME" != success ]; then

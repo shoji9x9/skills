@@ -6,7 +6,7 @@ name: Check cost metrics
 on:
   schedule:
     # 毎週水曜 03:00 UTC (12:00 JST)。
-    # どれかの cron を変えるときは、ほかの週次（outdated.yml・kaizen-schedule.yml・mutation-proof.yml・codeql.yml・ignored-advisories.yml）と重ならないかを確かめる。
+    # どれかの cron を変えるときは、ほかの週次（outdated.yml・kaizen-schedule.yml・mutation-proof.yml・codeql.yml・ignored-advisories.yml・self-review.yml）と重ならないかを確かめる。
     - cron: "0 3 * * 3"
   workflow_dispatch: {}
 

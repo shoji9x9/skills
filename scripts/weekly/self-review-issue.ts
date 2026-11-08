@@ -108,20 +108,40 @@ export function mergeFindings(findings: readonly Finding[]): Finding[] {
   return [...merged.values()].sort((a, b) => naturalOrder(keyOf(a), keyOf(b)));
 }
 
-/** canary への指摘か。対象のパスか、内容にある canary のパスで見分ける（項目の選び方はエージェントに任せる）。 */
-const mentionsCanary = (f: Finding, canary: string): boolean =>
-  [f.path, f.summary, f.evidence].some((field) => field.includes(canary));
+/**
+ * canary の名前（拡張子を除いたファイル名）。ワークフローは、canary が起動するよう書いた存在しないスクリプトの名前にも、これを含める。
+ * 例えば docs/release-notes-1a2b.md の名前は release-notes-1a2b で、スクリプトは scripts/tools/verify-release-notes-1a2b.ts である。
+ */
+const canaryStem = (canary: string): string =>
+  canary.replace(/^.*\//u, "").replace(/\.[^.]*$/u, "");
 
-/** canary への指摘を取り除く。1 件も無ければ、点検が機能していないとして例外にする。 */
+/**
+ * canary への指摘を取り除く。canary か、canary が書いた存在しないスクリプトを対象にした指摘だけを除く。
+ * 内容で canary に触れていても、対象が別のファイルなら本物の指摘として残す（1 件の指摘が複数のファイルを挙げることがある）。
+ * 対象にも内容にも canary が 1 件も現れなければ、点検が機能していないとして例外にする。
+ */
 export function dropCanary(findings: readonly Finding[], canary: string): Finding[] {
-  const rest = findings.filter((f) => !mentionsCanary(f, canary));
-  if (rest.length === findings.length) {
+  const stem = canaryStem(canary);
+  const seen = findings.some((f) =>
+    [f.path, f.summary, f.evidence].some((field) => field.includes(stem)),
+  );
+  if (!seen) {
     throw new Error(
       `既知の食い違いを置いた ${canary} への指摘が無い。点検が機能していないので、指摘 0 件として扱わない`,
     );
   }
-  return rest;
+  return findings.filter((f) => !f.path.includes(stem));
 }
+
+/** canary に触れたメモを除く。canary は追跡 Issue に載せない。 */
+const dropCanaryNotes = (notes: readonly string[], canary: string): string[] =>
+  notes.filter((n) => !n.includes(canary));
+
+/**
+ * エージェントが書いた文を Issue に載せる形にする。`@name` は GitHub がメンションとして通知するので、
+ * `@` の直後にゼロ幅スペースを入れる。`<` は、HTML のタグ（`<details>` など）として読まれないよう実体参照にする。
+ */
+const noMention = (value: string): string => value.replace(/@(?=[\w-])/gu, "@​");
 
 const KEY_FORM = new RegExp(`^(${Object.keys(CATEGORY_LABEL).join("|")}) \\S(.*\\S)?$`, "u");
 const tracking = trackingKeys({ marker: "self-review", keyForm: KEY_FORM, keyOf });
@@ -136,7 +156,9 @@ function findingTable(findings: readonly Finding[], kept: ReadonlySet<string>): 
   for (const f of findings) {
     const state = kept.has(keyOf(f)) ? "継続" : "新規";
     const cells = [CATEGORY_LABEL[f.category], f.path, f.summary, f.evidence, f.suggestion];
-    lines.push(`| ${cells.map(tableCell).join(" | ")} | ${state} |`);
+    lines.push(
+      `| ${cells.map((c) => noMention(tableCell(c)).replaceAll("<", "&lt;")).join(" | ")} | ${state} |`,
+    );
   }
   return [...lines, ""];
 }
@@ -155,7 +177,12 @@ export function formatBody(report: Report, previous: readonly string[] = []): st
   ];
   if (notes.length > 0) {
     lines.push("<details><summary>点検のメモ（指摘にしなかったもの）</summary>", "");
-    lines.push(...notes.map((n) => `- ${n}`), "", "</details>", "");
+    lines.push(
+      ...notes.map((n) => `- ${noMention(n).replaceAll("<", "&lt;")}`),
+      "",
+      "</details>",
+      "",
+    );
   }
   return tracking.finish(lines, findings, resolved);
 }
@@ -196,7 +223,7 @@ export function main(args: readonly string[]): number {
       cli.previous === undefined ? [] : previousKeys(readFileSync(cli.previous, "utf8"));
     const report = parseReport(readFileSync(cli.report, "utf8"));
     const findings = mergeFindings(dropCanary(report.findings, cli.canary));
-    const result = { findings, notes: report.notes };
+    const result = { findings, notes: dropCanaryNotes(report.notes, cli.canary) };
     writeFileSync(cli.out, formatBody(result, previous));
     writeFileSync(cli.commentOut, formatComment(findings, previous));
     console.log(`due=${findings.length}`);

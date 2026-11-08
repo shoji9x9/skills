@@ -8,7 +8,7 @@
       "id": "canary-miss-allowed",
       "why": "既知の食い違いへの指摘が無くても通し、点検が機能していない週を「指摘 0 件」として扱う",
       "file": "scripts/weekly/self-review-issue.ts",
-      "find": "if (rest.length === findings.length) {",
+      "find": "if (!seen) {",
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": [
