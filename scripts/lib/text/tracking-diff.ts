@@ -16,6 +16,24 @@ function markerPrefix(name: string): string {
   return `<!-- ${name}:keys `;
 }
 
+/** 空白（改行を含む）をまとめて 1 行にする。識別子と表のセルに使う。 */
+export function oneLine(text: string): string {
+  return text.replace(/\s+/gu, " ").trim();
+}
+
+/** Markdown の表のセル。改行と `|` で表の行が崩れないよう、1 行にして `|` をエスケープする。 */
+export function tableCell(text: string): string {
+  return oneLine(text).replaceAll("|", "\\|");
+}
+
+/**
+ * 数を数として比べる並び順（shard 2 を shard 10 より前に）。localeCompare が等しいとした違う文字列は、
+ * コード単位で比べて順を決める。
+ */
+export function naturalOrder(a: string, b: string): number {
+  return a.localeCompare(b, "en", { numeric: true }) || (a < b ? -1 : a > b ? 1 : 0);
+}
+
 /** 本文の最後に置く、識別子の一覧の目印の行。 */
 export function markerLine(name: string, keys: readonly string[]): string {
   return `${markerPrefix(name)}${JSON.stringify(keys)} -->`;

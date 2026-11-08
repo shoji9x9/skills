@@ -8,7 +8,7 @@
       "id": "empty-list-never-reported",
       "why": "空の一覧を候補にせず、仕組みだけが残った一覧を見逃す",
       "file": "scripts/tools/check-cost-metrics.ts",
-      "find": "if (count === 0) {",
+      "find": "if (count === 0 && target.keepEmpty === undefined) {",
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": [
@@ -30,7 +30,7 @@
       "id": "shallow-history-allowed",
       "why": "浅い履歴でも数え、修正の PR を 0 件として「直す候補は無い」とする",
       "file": "scripts/tools/check-cost-metrics.ts",
-      "find": "if ((await run(\"git\", [\"rev-parse\", \"--is-shallow-repository\"])).trim() !== \"false\") {",
+      "find": "if ((await git([\"rev-parse\", \"--is-shallow-repository\"])).trim() !== \"false\") {",
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": ["修正の PR 履歴が浅ければ例外にする"]

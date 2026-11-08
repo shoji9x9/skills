@@ -24,7 +24,14 @@ import { errorMessage } from "../lib/errors.ts";
 import { isNonBlankString, isRecord } from "../lib/guards.ts";
 import { isArray } from "../lib/is-array.ts";
 import { loadYaml } from "../lib/text/yaml-as.ts";
-import { formatDiffComment, parseTrackingCli, trackingKeys } from "../lib/text/tracking-diff.ts";
+import {
+  formatDiffComment,
+  naturalOrder,
+  oneLine,
+  parseTrackingCli,
+  tableCell,
+  trackingKeys,
+} from "../lib/text/tracking-diff.ts";
 
 const GHSA = /^GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}$/;
 const ALLOWLIST = join(
@@ -165,9 +172,6 @@ function patchedVersion(v: Record<string, unknown>, id: string, pkg: string): st
   return [typeof range === "string" ? `${pkg}@${fixed}（${range} の修正版）` : `${pkg}@${fixed}`];
 }
 
-/** localeCompare が等しいと判定した違う文字列（`1.02.0` と `1.2.0` など）の順を決める。 */
-const codeUnitOrder = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
-
 /**
  * `gh api /advisories/<GHSA>` の応答から、修正版と取り下げを取る。
  * 修正版は、無視したパッケージ（npm の `pkg`）の範囲だけから取る。
@@ -196,9 +200,7 @@ export function advisoryStatus(
     );
   }
   // 識別子に使うので、API の並び順に左右されないように並べる。数字は数として比べる（9.0.0 を 10.0.0 より前にする）。
-  const patched = targets
-    .flatMap((v) => patchedVersion(v, id, pkg))
-    .sort((a, b) => a.localeCompare(b, "en", { numeric: true }) || codeUnitOrder(a, b));
+  const patched = targets.flatMap((v) => patchedVersion(v, id, pkg)).sort(naturalOrder);
   return { patched, withdrawn };
 }
 
@@ -264,7 +266,7 @@ const KIND_LABEL: Record<Finding["kind"], string> = {
  * API の値の空白（改行を含む）は 1 つにまとめて前後を除く。改行がそのまま入ると表の行が切れ、読み手（KEY_FORM）が拒否する識別子を書く。
  */
 function describe(f: Finding): string {
-  return describeRaw(f).replace(/\s+/gu, " ").trim();
+  return oneLine(describeRaw(f));
 }
 
 function describeRaw(f: Finding): string {
@@ -324,7 +326,7 @@ export function formatBody(
     for (const f of findings) {
       const state = keptSet.has(findingKey(f)) ? "継続" : "新規";
       lines.push(
-        `| [${f.id}](https://github.com/advisories/${f.id}) | ${KIND_LABEL[f.kind]} | ${describe(f).replaceAll("|", "\\|")} | ${state} |`,
+        `| [${f.id}](https://github.com/advisories/${f.id}) | ${KIND_LABEL[f.kind]} | ${tableCell(describe(f))} | ${state} |`,
       );
     }
     lines.push(

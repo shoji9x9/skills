@@ -5,7 +5,7 @@
 // 集める指標は次の 3 つである。対象と閾値は、隣の check-cost-metrics.json で決める。
 // - 空の免除・保留の一覧: 一覧が空なのに、それを読む処理（チェック）が残っている
 // - 修正の PR が多いチェック: 直近の期間に、チェックのファイルを変えた fix の PR の数
-// - GitHub Actions のジョブの所要時間: 直近の期間と前の期間の中央値・最大値を比べ、遅くなったジョブを挙げる
+// - GitHub Actions のジョブの所要時間: 直近の期間と前の期間の中央値を比べ、遅くなったジョブを挙げる（最大値は所要時間の表にだけ載せる）
 //
 // 確かめられなかったものを「該当なし」として扱わない。次のときは exit 1 で止まる。
 // - 設定・一覧・読む処理のファイルを読めない
@@ -23,14 +23,23 @@ import { errorMessage } from "../lib/errors.ts";
 import { isNonBlankString, isPlainObject, isRecord } from "../lib/guards.ts";
 import { isArray } from "../lib/is-array.ts";
 import { spawnAsync } from "../lib/spawn-async.ts";
-import { formatDiffComment, parseTrackingCli, trackingKeys } from "../lib/text/tracking-diff.ts";
+import { jsCommentRanges } from "../lib/text/code-comments.ts";
+import {
+  formatDiffComment,
+  naturalOrder,
+  oneLine,
+  parseTrackingCli,
+  tableCell,
+  trackingKeys,
+} from "../lib/text/tracking-diff.ts";
+import { loadYaml } from "../lib/text/yaml-as.ts";
 
 const CONFIG = join(dirname(fileURLToPath(import.meta.url)), "check-cost-metrics.json");
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export type Runner = (command: string, args: readonly string[]) => Promise<string>;
 
-/** ジョブの API を並べて呼ぶ数。1 回の gh api に数秒かかり、run は 1 週に数百件あるので、1 件ずつでは 1 時間近くかかる。 */
+/** ジョブの API を並べて呼ぶ数。API は run ごとに 1 回呼び、1 回に数秒かかるので、1 件ずつでは run の数に比例して長くなる。 */
 const CONCURRENCY = 8;
 
 /** items を limit 件ずつ並べて処理し、入力の順で結果を返す。1 件でも失敗したら reject する。 */
@@ -56,7 +65,8 @@ export type CountRule =
   | { kind: "json-object"; key: string }
   | { kind: "json-arrays"; exclude: string[] }
   | { kind: "ts-export"; export: string };
-export type ListTarget = { file: string; count: CountRule; readers: string[] };
+/** keepEmpty は、意図して空にしている一覧の理由。書いた一覧は空でも候補に挙げない。 */
+export type ListTarget = { file: string; count: CountRule; readers: string[]; keepEmpty?: string };
 export type Config = {
   lists: ListTarget[];
   fixPrs: { days: number; min: number; paths: string[] };
@@ -109,10 +119,15 @@ function parseList(value: unknown, index: number): ListTarget {
   if (!isRecord(value) || !isNonBlankString(value["file"])) {
     throw new Error(`${where}.file が無い`);
   }
+  const keep = value["keep_empty"];
+  if (keep !== undefined && !isNonBlankString(keep)) {
+    throw new Error(`${where}.keep_empty が空でない文字列（空のままにする理由）でない`);
+  }
   return {
     file: value["file"],
     count: parseCountRule(value["count"], `${where}.count`),
     readers: stringList(value["readers"], `${where}.readers`),
+    ...(keep === undefined ? {} : { keepEmpty: keep }),
   };
 }
 
@@ -130,8 +145,13 @@ export function parseConfig(text: string): Config {
   }
   const fix = section(value, "fix_prs");
   const dur = section(value, "durations");
+  const lists = value["lists"].map(parseList);
+  // 同じ一覧を 2 回書くと、識別子が重複し、次の実行が前回の本文を読めなくなる。
+  const files = lists.map((l) => l.file);
+  const duplicated = files.find((f, i) => files.indexOf(f) !== i);
+  if (duplicated !== undefined) throw new Error(`lists の file が重複している: ${duplicated}`);
   return {
-    lists: value["lists"].map(parseList),
+    lists,
     fixPrs: {
       days: positive(fix["days"], "fix_prs.days"),
       min: positive(fix["min"], "fix_prs.min"),
@@ -202,11 +222,28 @@ function mentions(text: string, name: string): boolean {
   return false;
 }
 
+/**
+ * 読む処理のうち、コメントを除いた部分。コメントにだけファイル名が残っていても、読んでいることにはならない。
+ * TypeScript・JavaScript はパーサでコメントを除き、JSON と YAML は読んだ値を JSON にする。それ以外の種類は扱わない。
+ */
+export function referenceText(path: string, source: string): string {
+  if (/\.(?:[cm]?[jt]s)$/u.test(path)) {
+    let text = source;
+    for (const { pos, end } of jsCommentRanges(source, path).toReversed()) {
+      text = text.slice(0, pos) + " ".repeat(end - pos) + text.slice(end);
+    }
+    return text;
+  }
+  if (path.endsWith(".json")) return JSON.stringify(JSON.parse(source));
+  if (/\.ya?ml$/u.test(path)) return JSON.stringify(loadYaml(source));
+  throw new Error(`${path} は読む処理として扱えない種類のファイル（.ts・.js・.json・.yml）`);
+}
+
 /** 読む処理（readers）が、一覧のファイル名を参照しているかを確かめる。参照していなければ、設定が古い。 */
 export function checkReaders(target: ListTarget, read: (path: string) => string): void {
   const name = basename(target.file);
   for (const reader of target.readers) {
-    if (!mentions(read(reader), name)) {
+    if (!mentions(referenceText(reader, read(reader)), name)) {
       throw new Error(
         `${reader} が ${name} を参照していない（check-cost-metrics.json の readers を直す）`,
       );
@@ -229,7 +266,7 @@ export async function emptyLists(lists: readonly ListTarget[], root: string): Pr
   for (const target of lists) {
     checkReaders(target, (path) => readFileSync(join(root, path), "utf8"));
     const count = countEntries(target.count, await loadList(target, root), target.file);
-    if (count === 0) {
+    if (count === 0 && target.keepEmpty === undefined) {
       findings.push({ kind: "empty-list", target: target.file, detail: target.readers.join("、") });
     }
   }
@@ -249,9 +286,14 @@ export function prTitle(subject: string, body: string): string {
   return body.split("\n").find((line) => line.trim() !== "") ?? "";
 }
 
-/** テストとミューテーションテストの定義は、チェックの本体の修正として数える。 */
-export function checkFileOf(path: string): string {
-  return path.replace(/\.test\.ts$/u, ".ts").replace(/\.mutations\.json$/u, ".ts");
+/**
+ * テストとミューテーションテストの定義は、チェックの本体の修正として数える。
+ * 同じ名前の本体が無いテスト（設定を確かめるテストなど）は、テストそのものをチェックとして数える。
+ */
+export function checkFileOf(path: string, exists: (path: string) => boolean = () => true): string {
+  const body = path.replace(/\.test\.ts$/u, ".ts").replace(/\.mutations\.json$/u, ".ts");
+  if (body === path || exists(body)) return body;
+  return path.replace(/\.mutations\.json$/u, ".test.ts");
 }
 
 type LogEntry = { title: string; changes: string[][] };
@@ -270,7 +312,11 @@ function parseLogRecord(record: string): LogEntry | null {
 /**
  * fix の PR が変えたファイルごとに、PR の数を数える。ログは新しい順で、名前を変えたファイルは今の名前に寄せる。
  */
-export function countFixPrs(log: string): Map<string, number> {
+export function countFixPrs(
+  log: string,
+  exists: (path: string) => boolean = () => true,
+): Map<string, number> {
+  const check = (path: string): string => checkFileOf(path, exists);
   const renamed = new Map<string, string>();
   const current = (path: string): string => renamed.get(path) ?? path;
   const counts = new Map<string, number>();
@@ -280,9 +326,9 @@ export function countFixPrs(log: string): Map<string, number> {
     const touched = new Set<string>();
     for (const [state = "", from = "", to] of entry.changes) {
       if (state.startsWith("R") && to !== undefined) {
-        renamed.set(checkFileOf(from), current(checkFileOf(to)));
+        renamed.set(check(from), current(check(to)));
       }
-      touched.add(current(checkFileOf(to ?? from)));
+      touched.add(current(check(to ?? from)));
     }
     if (!FIX_TITLE.test(entry.title)) continue;
     for (const file of touched) counts.set(file, (counts.get(file) ?? 0) + 1);
@@ -294,13 +340,15 @@ export function countFixPrs(log: string): Map<string, number> {
 export async function fixHeavyChecks(
   run: Runner,
   fix: Config["fixPrs"],
-  now: Date,
+  input: { root: string; now: Date },
 ): Promise<Finding[]> {
-  if ((await run("git", ["rev-parse", "--is-shallow-repository"])).trim() !== "false") {
+  const { root, now } = input;
+  const git = (args: string[]): Promise<string> => run("git", ["-C", root, ...args]);
+  if ((await git(["rev-parse", "--is-shallow-repository"])).trim() !== "false") {
     throw new Error("git の履歴が浅い（checkout の fetch-depth を 0 にする）");
   }
   const since = new Date(now.getTime() - fix.days * DAY_MS).toISOString();
-  const log = await run("git", [
+  const log = await git([
     "log",
     "--first-parent",
     "-m",
@@ -312,8 +360,9 @@ export async function fixHeavyChecks(
     "--",
     ...fix.paths,
   ]);
-  const tracked = new Set((await run("git", ["ls-files"])).split("\n"));
-  return [...countFixPrs(log)]
+  // 今あるファイルの一覧は、テストの本体があるかの判定と、消えたチェックを外すのに使う。
+  const tracked = new Set((await git(["ls-files"])).split("\n"));
+  return [...countFixPrs(log, (path) => tracked.has(path))]
     .filter(([file, count]) => count >= fix.min && tracked.has(file))
     .sort(([a, x], [b, y]) => y - x || (a < b ? -1 : 1))
     .map(([file, count]) => ({
@@ -416,10 +465,8 @@ export function compareJobs(samples: readonly JobSample[], split: number): JobRo
   return (
     [...groups]
       .map(([key, g]) => ({ key, current: stats(g.current), previous: stats(g.previous) }))
-      // shard 2 を shard 10 より前に並べる。localeCompare が等しいとした違う文字列は、コード単位で比べる。
-      .sort(
-        (a, b) => a.key.localeCompare(b.key, "ja", { numeric: true }) || (a.key < b.key ? -1 : 1),
-      )
+      // shard 2 を shard 10 より前に並べる。
+      .sort((a, b) => naturalOrder(a.key, b.key))
   );
 }
 
@@ -476,9 +523,6 @@ const KIND_LABEL: Record<Finding["kind"], string> = {
 };
 const KEY_FORM = new RegExp(`^(${Object.keys(KIND_LABEL).join("|")}) \\S(.*\\S)?$`, "u");
 
-const oneLine = (text: string): string => text.replace(/\s+/gu, " ").trim();
-const cell = (text: string): string => oneLine(text).replaceAll("|", "\\|");
-
 /** 前回との差分に使う識別子。件数や秒数は週ごとに変わるので含めず、種別と対象だけにする。 */
 const findingKey = (f: Finding): string => `${f.kind} ${oneLine(f.target)}`;
 
@@ -494,7 +538,9 @@ function findingTable(findings: readonly Finding[], kept: ReadonlySet<string>): 
   const lines = ["| 指標 | 対象 | 内容 | 前回から |", "| --- | --- | --- | --- |"];
   for (const f of findings) {
     const state = kept.has(findingKey(f)) ? "継続" : "新規";
-    lines.push(`| ${KIND_LABEL[f.kind]} | ${cell(f.target)} | ${cell(f.detail)} | ${state} |`);
+    lines.push(
+      `| ${KIND_LABEL[f.kind]} | ${tableCell(f.target)} | ${tableCell(f.detail)} | ${state} |`,
+    );
   }
   return [...lines, ""];
 }
@@ -508,7 +554,7 @@ function durationTable(rows: readonly JobRow[], days: number): string[] {
   ];
   for (const { key, current: c, previous: p } of rows) {
     lines.push(
-      `| ${cell(key)} | ${c.runs} | ${seconds(c.median)} | ${seconds(c.max)} | ${p.runs} | ${seconds(p.median)} | ${seconds(p.max)} |`,
+      `| ${tableCell(key)} | ${c.runs} | ${seconds(c.median)} | ${seconds(c.max)} | ${p.runs} | ${seconds(p.median)} | ${seconds(p.max)} |`,
     );
   }
   return [...lines, "", "</details>", ""];
@@ -543,7 +589,8 @@ export function formatComment(findings: readonly Finding[], previous: readonly s
 /** 1 回の呼び出しの上限。gh api は 1 回で数秒なので、止まったときに気付けるよう 2 分で打ち切る。 */
 const CALL_TIMEOUT_MS = 120_000;
 
-const defaultRunner: Runner = async (command, args) => {
+/** 本番の呼び出し。失敗（起動できない・0 以外で終わる・時間切れ）は、stderr を添えて例外にする。 */
+export const defaultRunner: Runner = async (command, args) => {
   const result = await spawnAsync(command, args, { timeout: CALL_TIMEOUT_MS });
   if (result.error !== undefined || result.status !== 0) {
     const reason = result.error?.message ?? `終了コード ${String(result.status)}`;
@@ -562,7 +609,7 @@ export async function collect(
   const { config, root, now } = input;
   // 手元で済む指標を先に集め、設定が古いときや履歴が浅いときは、時間のかかるジョブの API を呼ぶ前に止める。
   const lists = await emptyLists(config.lists, root);
-  const fixes = await fixHeavyChecks(run, config.fixPrs, now);
+  const fixes = await fixHeavyChecks(run, config.fixPrs, { root, now });
   const rows = await jobRows(run, config.durations, now);
   const findings = [...lists, ...fixes, ...slowJobs(rows, config.durations)];
   return { findings, rows, config };

@@ -25,7 +25,7 @@ jobs:
   check:
     name: Check cost metrics
     runs-on: ubuntu-latest
-    # ジョブの API を run ごとに呼ぶので、手元の実測で 10 分を超えた。余裕を見て 30 分にする。
+    # ジョブの API を run ごとに呼ぶので、所要時間は run の数に比例する。API が止まったときに 6 時間待たないよう、上限を置く。
     timeout-minutes: 30
     permissions:
       actions: read

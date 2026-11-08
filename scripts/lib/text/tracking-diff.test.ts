@@ -11,6 +11,9 @@ import {
   diffKeys,
   formatDiffComment,
   markerLine,
+  naturalOrder,
+  oneLine,
+  tableCell,
   parseTrackingCli,
   readKeys,
   trackingKeys,
@@ -94,6 +97,23 @@ test("点検ごとの目印・形・識別子の作り方で、書いて読み�
     added: ["k 3"],
     kept: ["k 2"],
     resolved: ["k 1"],
+  });
+});
+
+describe("本文の整形", () => {
+  test("空白と改行を 1 つにまとめ、表のセルでは | をエスケープする", () => {
+    expect(oneLine("  a\n\tb  c ")).toBe("a b c");
+    expect(tableCell("a |\nb")).toBe("a \\| b");
+  });
+
+  test("数を数として並べ、localeCompare が等しい違う文字列もコード単位で順を決める", () => {
+    expect(["shard 10", "shard 2", "shard 1"].sort(naturalOrder)).toEqual([
+      "shard 1",
+      "shard 2",
+      "shard 10",
+    ]);
+    expect(["1.2.0", "1.02.0"].sort(naturalOrder)).toEqual(["1.02.0", "1.2.0"]);
+    expect(naturalOrder("a", "a")).toBe(0);
   });
 });
 

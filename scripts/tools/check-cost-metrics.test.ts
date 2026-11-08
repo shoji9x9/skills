@@ -20,6 +20,8 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
   mapLimit,
+  defaultRunner,
+  referenceText,
   checkFileOf,
   checkReaders,
   collect,
@@ -128,6 +130,25 @@ describe("設定", () => {
       { lists: [{ file: "a", count: { kind: "json-array", key: "x" }, readers: [] }] },
       "readers",
     ],
+    [
+      "keep_empty が空",
+      {
+        lists: [
+          { file: "a", count: { kind: "json-array", key: "x" }, readers: ["r"], keep_empty: " " },
+        ],
+      },
+      "keep_empty",
+    ],
+    [
+      "lists の file が重複",
+      {
+        lists: [
+          { file: "a", count: { kind: "json-array", key: "x" }, readers: ["r"] },
+          { file: "a", count: { kind: "json-array", key: "y" }, readers: ["r"] },
+        ],
+      },
+      "重複",
+    ],
     ["fix_prs が無い", { fix_prs: null }, "fix_prs"],
     ["min が 0", { fix_prs: { days: 28, min: 0, paths: ["x"] } }, "fix_prs.min"],
     [
@@ -235,6 +256,32 @@ describe("空の一覧", () => {
     expect(() => checkReaders(target("dir/a.json"), () => "read dir/a.json.")).not.toThrow();
   });
 
+  test.each([
+    { name: "TypeScript の行コメント", reader: "r.ts", text: "// a.json\nconst x = 1;" },
+    { name: "TypeScript のブロックコメント", reader: "r.ts", text: "/* a.json */ const x = 1;" },
+    { name: "YAML のコメント", reader: "w.yml", text: "# a.json\nrun: echo\n" },
+  ])("$name にだけある名前は、参照として数えない", ({ reader, text }) => {
+    expect(() => checkReaders(target("a.json", [reader]), () => text)).toThrow("参照していない");
+  });
+
+  test.each([
+    { reader: "r.ts", text: 'const p = "a.json"; // 説明' },
+    { reader: "w.yml", text: "run: cat a.json # 説明\n" },
+    { reader: "package.json", text: '{"scripts": {"x": "tool a.json"}}' },
+  ])("$reader のコードにある名前は参照として数える", ({ reader, text }) => {
+    expect(() => checkReaders(target("a.json", [reader]), () => text)).not.toThrow();
+  });
+
+  test("読む処理として扱えない種類のファイルは例外にする", () => {
+    expect(() => referenceText("lefthook.toml", "a.json")).toThrow("扱えない種類");
+  });
+
+  test("keep_empty に理由を書いた一覧は、空でも挙げない", async () => {
+    const root = makeTempDir("check-cost-metrics-");
+    writeFiles(root, { "empty.json": '{"exempt": []}', "r.ts": 'read("empty.json")' });
+    expect(await emptyLists([{ ...target("empty.json"), keepEmpty: "理由" }], root)).toEqual([]);
+  });
+
   test("別のファイル名の一部にある名前は、参照として数えない", () => {
     for (const text of ["read crap-a.json", "read xa.json", "read a.json-old", "read a.jsonc"]) {
       expect(() => checkReaders(target("dir/a.json"), () => text)).toThrow("参照していない");
@@ -297,6 +344,18 @@ describe("修正の PR", () => {
     expect(checkFileOf("lefthook.yml")).toBe("lefthook.yml");
   });
 
+  test("同じ名前の本体が無いテストと変異の定義は、テストをチェックとして数える", () => {
+    const exists = (path: string) => path === "a/b.ts";
+    expect(checkFileOf("a/b.test.ts", exists)).toBe("a/b.ts");
+    expect(checkFileOf("a/scope.test.ts", exists)).toBe("a/scope.test.ts");
+    expect(checkFileOf("a/scope.mutations.json", exists)).toBe("a/scope.test.ts");
+    const log = [
+      rec("fix: a (#2)", "", "M\tscope.test.ts"),
+      rec("fix: b (#1)", "", "M\tscope.mutations.json"),
+    ].join("");
+    expect(Object.fromEntries(countFixPrs(log, () => false))).toEqual({ "scope.test.ts": 2 });
+  });
+
   test("fix の PR だけを、PR ごとに 1 回、今の名前で数える", () => {
     // ログは新しい順。古い PR は前の名前（old.ts）を変えている。
     const log = [
@@ -317,9 +376,12 @@ describe("修正の PR", () => {
     (log: string, shallow = "false", files = "new.ts\nother.ts\n"): Runner =>
     async (command, args) => {
       if (command !== "git") throw new Error(`想定していない呼び出し: ${command}`);
-      if (args[0] === "rev-parse") return `${shallow}\n`;
-      if (args[0] === "ls-files") return files;
-      if (args[0] === "log") return log;
+      // git は root で実行する（-C <root>）。
+      if (args[0] !== "-C" || args[1] !== "/repo")
+        throw new Error(`root で実行していない: ${args.join(" ")}`);
+      if (args[2] === "rev-parse") return `${shallow}\n`;
+      if (args[2] === "ls-files") return files;
+      if (args[2] === "log") return log;
       throw new Error(`想定していない git: ${args.join(" ")}`);
     };
 
@@ -329,14 +391,22 @@ describe("修正の PR", () => {
       rec("fix: b (#2)", "", "M\tnew.ts\nM\tgone.ts"),
       rec("fix: c (#3)", "", "M\tnew.ts\nM\tgone.ts"),
     ].join("");
-    expect(await fixHeavyChecks(gitRun(log), { days: 28, min: 2, paths: ["x"] }, NOW)).toEqual([
-      { kind: "fix-heavy", target: "new.ts", detail: "直近 28 日の fix の PR: 3 件" },
-    ]);
+    expect(
+      await fixHeavyChecks(
+        gitRun(log),
+        { days: 28, min: 2, paths: ["x"] },
+        { root: "/repo", now: NOW },
+      ),
+    ).toEqual([{ kind: "fix-heavy", target: "new.ts", detail: "直近 28 日の fix の PR: 3 件" }]);
   });
 
   test("履歴が浅ければ例外にする", async () => {
     await expect(
-      fixHeavyChecks(gitRun("", "true"), { days: 28, min: 2, paths: ["x"] }, NOW),
+      fixHeavyChecks(
+        gitRun("", "true"),
+        { days: 28, min: 2, paths: ["x"] },
+        { root: "/repo", now: NOW },
+      ),
     ).rejects.toThrow("履歴が浅い");
   });
 });
@@ -488,6 +558,16 @@ describe("ジョブの所要時間", () => {
   });
 });
 
+test("本番の呼び出しは stdout を返し、0 以外の終了と起動の失敗を stderr を添えて例外にする", async () => {
+  expect(await defaultRunner(process.execPath, ["-e", "process.stdout.write('ok')"])).toBe("ok");
+  await expect(
+    defaultRunner(process.execPath, ["-e", "process.stderr.write('理由'); process.exit(3)"]),
+  ).rejects.toThrow(/終了コード 3.*理由/su);
+  await expect(defaultRunner("check-cost-metrics-no-such-command", [])).rejects.toThrow(
+    "check-cost-metrics-no-such-command  が失敗した",
+  );
+});
+
 test("並べて処理しても、入力の順で返し、失敗を reject する", async () => {
   const order: number[] = [];
   const result = await mapLimit([60, 10, 20], 2, async (ms) => {
@@ -565,7 +645,7 @@ describe("まとめて集める", () => {
     const root = makeTempDir("check-cost-metrics-");
     writeFiles(root, { "a.json": '{"exempt": []}', "r.ts": "a.json" });
     const run: Runner = async (command, args) => {
-      if (command === "git") return args[0] === "rev-parse" ? "false\n" : "";
+      if (command === "git") return args[2] === "rev-parse" ? "false\n" : "";
       return JSON.stringify([{ total_count: 0, workflow_runs: [] }]);
     };
     const result = await collect(run, { config: parseConfig(configJson()), root, now: NOW });
@@ -576,7 +656,7 @@ describe("まとめて集める", () => {
 
 describe("CLI", () => {
   const okRun: Runner = async (command, args) => {
-    if (command === "git") return args[0] === "rev-parse" ? "false\n" : "";
+    if (command === "git") return args[2] === "rev-parse" ? "false\n" : "";
     return JSON.stringify([{ total_count: 0, workflow_runs: [] }]);
   };
 
