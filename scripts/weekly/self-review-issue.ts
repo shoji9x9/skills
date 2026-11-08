@@ -52,6 +52,7 @@ const isCategory = (value: unknown): value is Category =>
  * エージェントが書いた文を、Issue に載せられる 1 行にする。`@name` は GitHub がメンションとして通知するので、
  * `@` の直後にゼロ幅スペースを入れる。`<` と `>` は、HTML のタグ（`<details>` など）や、識別子を埋める HTML コメントの終わり（`-->`）として
  * 読まれないよう実体参照にする。`&` も実体参照にし、`&#64;` のような実体参照で `@` を書き戻せないようにする。
+ * `#123` は、毎週の更新のたびに参照先の Issue に相互参照が付くので、`#` の直後にもゼロ幅スペースを入れる。
  * 識別子・表・メモ・差分のコメントのどれにもこの形で載るよう、結果を読む段で当てる。
  */
 const safe = (value: string): string =>
@@ -59,7 +60,8 @@ const safe = (value: string): string =>
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
-    .replace(/@(?=[\w-])/gu, "@\u200b");
+    .replace(/@(?=[\w-])/gu, "@\u200b")
+    .replace(/#(?=\d)/gu, "#\u200b");
 
 function text(value: unknown, where: string): string {
   if (!isNonBlankString(value)) throw new Error(`${where} が空でない文字列でない`);
@@ -136,7 +138,7 @@ const canaryStem = (canary: string): string =>
 /** canary の名前を含む語（パスやファイル名）を伏せる。canary の名前は追跡 Issue に載せない。 */
 const hideCanary = (value: string, stem: string): string =>
   value.replace(
-    new RegExp(`\\S*${stem.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}\\S*`, "gu"),
+    new RegExp(`[\\w./-]*${stem.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}[\\w./-]*`, "gu"),
     "（点検のために置いた文書）",
   );
 
@@ -200,8 +202,15 @@ export function formatBody(report: Report, previous: readonly string[] = []): st
   return tracking.finish(lines, findings, resolved);
 }
 
-export function formatComment(findings: readonly Finding[], previous: readonly string[]): string {
-  return formatDiffComment("指摘", findings.length, diffFindings(findings, previous));
+/**
+ * 追跡 Issue に足すコメント。指摘が 0 件の週は Issue を閉じて本文を書き換えないので、点検のメモをコメントに載せる。
+ * メモには、読めなかった入力や確かめられなかった項目が書かれる。
+ */
+export function formatComment(report: Report, previous: readonly string[]): string {
+  const { findings, notes } = report;
+  const diff = formatDiffComment("指摘", findings.length, diffFindings(findings, previous));
+  if (findings.length > 0 || notes.length === 0) return diff;
+  return `${diff}\n点検のメモ:\n\n${notes.map((n) => `- ${n}`).join("\n")}\n`;
 }
 
 const USAGE =
@@ -229,7 +238,7 @@ export function main(args: readonly string[]): number {
       );
     }
     writeFileSync(cli.out, body);
-    writeFileSync(cli.commentOut, formatComment(findings, previous));
+    writeFileSync(cli.commentOut, formatComment({ findings, notes: report.notes }, previous));
     console.log(`due=${findings.length}`);
     return 0;
   } catch (error) {

@@ -25,3 +25,7 @@ ci:42455107165:1,ci,2026-11-08T06:37:07.211Z,p-cdee4961,github-actions,,,,2026-1
 ci:42455107135:1,ci,2026-11-08T06:37:07.211Z,p-cdee4961,github-actions,,,,2026-11-08T06:31:32.000Z,2026-11-08T06:33:02.000Z,Asia/Tokyo,feature/940-weekly-llm-self-review,940,,,,,,,,,,CodeQL;pull_request;success,
 ci:42455107136:1,ci,2026-11-08T06:37:07.211Z,p-cdee4961,github-actions,,,,2026-11-08T06:31:32.000Z,2026-11-08T06:36:08.000Z,Asia/Tokyo,feature/940-weekly-llm-self-review,940,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-11-07T06:30:26.484Z:2026-11-08T06:37:07.211Z,coverage,2026-11-08T06:37:07.211Z,p-cdee4961,,,,,2026-11-07T06:30:26.484Z,2026-11-08T06:37:07.211Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:42455562190:1,ci,2026-11-08T06:43:17.843Z,p-cdee4961,github-actions,,,,2026-11-08T06:38:14.000Z,2026-11-08T06:38:15.000Z,Asia/Tokyo,feature/940-weekly-llm-self-review,940,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:42455562194:1,ci,2026-11-08T06:43:17.843Z,p-cdee4961,github-actions,,,,2026-11-08T06:38:14.000Z,2026-11-08T06:39:42.000Z,Asia/Tokyo,feature/940-weekly-llm-self-review,940,,,,,,,,,,CodeQL;pull_request;success,
+ci:42455562224:1,ci,2026-11-08T06:43:17.843Z,p-cdee4961,github-actions,,,,2026-11-08T06:38:14.000Z,2026-11-08T06:43:08.000Z,Asia/Tokyo,feature/940-weekly-llm-self-review,940,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-11-07T06:37:07.211Z:2026-11-08T06:43:17.843Z,coverage,2026-11-08T06:43:17.843Z,p-cdee4961,,,,,2026-11-07T06:37:07.211Z,2026-11-08T06:43:17.843Z,Asia/Tokyo,,,,,,,,,,,,ok,

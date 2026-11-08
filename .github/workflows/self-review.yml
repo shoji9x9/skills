@@ -139,7 +139,8 @@ jobs:
           { git ls-files; echo "$CANARY"; } |
             grep -v -E '^(docs/self-review\.md|\.github/workflows/self-review\.yml|scripts/weekly/self-review-issue\.)' |
             sort >"$INPUT_DIR/files.txt"
-          git log --first-parent --date=short --format='%h %ad %s' -n 2000 |
+          # main は PR をマージの commit で取り込むので、first-parent の件名は「Merge pull request」が多い。マージを除いた commit の件名を書く。
+          git log --no-merges --date=short --format='%h %ad %s' -n 3000 |
             { grep -v -i -E 'canary|self-review|セルフ点検' || true; } >"$INPUT_DIR/commits.txt"
           wc -l "$INPUT_DIR"/*.txt
 
@@ -184,11 +185,17 @@ jobs:
         with:
           persist-credentials: false
       # 本文を作るスクリプトを動かすのは、結果を受け取れた週だけなので、node と依存もその週だけ入れる。
+      # 準備が失敗しても、次の段で理由を Issue に書けるよう、ここではジョブを止めない。
       - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        id: mise
         if: needs.review.outputs.outcome == 'success'
+        continue-on-error: true
       # スクリプトが外部のパッケージを import したときにワークフローだけが失敗しないよう、依存を入れておく。
-      - run: pnpm install --frozen-lockfile
-        if: needs.review.outputs.outcome == 'success'
+      - name: Install dependencies
+        id: deps
+        if: needs.review.outputs.outcome == 'success' && steps.mise.outcome == 'success'
+        continue-on-error: true
+        run: pnpm install --frozen-lockfile
 
       - name: Download report
         id: download
@@ -209,6 +216,7 @@ jobs:
           CRED_PRESENT: ${{ needs.review.outputs.cred_present }}
           OUTCOME: ${{ needs.review.outputs.outcome }}
           DOWNLOAD_OUTCOME: ${{ steps.download.outcome }}
+          DEPS_OUTCOME: ${{ steps.deps.outcome }}
           CANARY: ${{ needs.review.outputs.canary }}
           REPORT: ${{ runner.temp }}/self-review/${{ env.REPORT_FILE }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -232,11 +240,13 @@ jobs:
           elif [ "$CRED_PRESENT" != true ]; then
             failure="secret CLAUDE_CODE_OAUTH_TOKEN が未設定のため、点検していない"
           elif [ -z "$OUTCOME" ] || [ "$OUTCOME" = skipped ]; then
-            failure="エージェントを起動する前の段（費用の指標の取得・canary の配置）が失敗した"
+            failure="エージェントを起動する前の段が失敗した（どの段かは run のログで確かめる）"
           elif [ "$OUTCOME" != success ]; then
             failure="エージェントの実行が失敗した（outcome: ${OUTCOME:-unknown}）"
           elif [ "$DOWNLOAD_OUTCOME" != success ]; then
             failure="エージェントの結果を受け取れなかった（download の outcome: ${DOWNLOAD_OUTCOME:-unknown}）"
+          elif [ "$DEPS_OUTCOME" != success ]; then
+            failure="本文を作るスクリプトの準備（mise・pnpm install）が失敗した"
           else
             previous_args=()
             if [ -n "$number" ]; then

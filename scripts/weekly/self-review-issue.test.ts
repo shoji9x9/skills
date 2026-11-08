@@ -143,7 +143,7 @@ describe("canary", () => {
       evidence: "Glob で notes-1a2b.md を見た",
       suggestion: "verify-notes-1a2b.ts を消す",
     });
-    const notes = ["notes-1a2b.md は迷った", "残すメモ"];
+    const notes = ["notes-1a2b.mdは参照元が無いが迷った", "残すメモ"];
     expect(dropCanary(report([canaryFinding, both], notes), CANARY)).toEqual(
       report(
         [
@@ -154,7 +154,7 @@ describe("canary", () => {
             suggestion: "（点検のために置いた文書） を消す",
           }),
         ],
-        ["（点検のために置いた文書） は迷った", "残すメモ"],
+        ["（点検のために置いた文書）は参照元が無いが迷った", "残すメモ"],
       ),
     );
   });
@@ -198,13 +198,28 @@ describe("追跡 Issue の本文", () => {
     );
     const body = formatBody(parsed);
     expect(body).toContain("evals/&lt;name&gt;/@\u200bx.md--&gt;");
-    expect(body).toContain("@\u200bAGENTS.md の取り込みと &amp;#64;user と a &amp; b");
+    expect(body).toContain("@\u200bAGENTS.md の取り込みと &amp;#\u200b64;user と a &amp; b");
     expect(body).toContain("- @\u200buser への &lt;/details&gt; の言及");
     expect(body).not.toMatch(/@[\w-]|<name>|<\/details> の|&#64;/u);
     expect(previousKeys(body)).toEqual(["inconsistency evals/&lt;name&gt;/@\u200bx.md--&gt;"]);
-    expect(formatComment(parsed.findings, [])).toContain(
+    expect(formatComment({ findings: parsed.findings, notes: [] }, [])).toContain(
       "inconsistency evals/&lt;name&gt;/@\u200bx.md--&gt;",
     );
+  });
+
+  test("指摘が 0 件の週は、点検のメモをコメントに載せる（Issue を閉じて本文を書き換えないため）", () => {
+    expect(formatComment({ findings: [], notes: ["入力を読めなかった"] }, [])).toBe(
+      "指摘: 0 件（新規 0 件・継続 0 件・前回から解消 0 件）\n\n点検のメモ:\n\n- 入力を読めなかった\n",
+    );
+    expect(formatComment({ findings: [], notes: [] }, [])).not.toContain("点検のメモ");
+    expect(formatComment({ findings: [finding()], notes: ["x"] }, [])).not.toContain("点検のメモ");
+  });
+
+  test("Issue と PR の番号を、相互参照にならない形にする", () => {
+    const parsed = parseReport(
+      JSON.stringify({ findings: [{ ...finding(), summary: "#508 と owner/repo#12 の方針" }] }),
+    );
+    expect(parsed.findings[0]?.summary).toBe("#\u200b508 と owner/repo#\u200b12 の方針");
   });
 
   test("0 件は表とメモを書かない", () => {
@@ -222,7 +237,7 @@ describe("追跡 Issue の本文", () => {
     expect(body).toContain("| 不要物 | x.sh |");
     expect(body).toContain("前回から解消したもの: overdoc AGENTS.md");
     expect(diffFindings(findings, previous).added).toEqual(["unused x.sh"]);
-    expect(formatComment(findings, previous)).toContain(
+    expect(formatComment({ findings, notes: ["メモ"] }, previous)).toContain(
       "指摘: 2 件（新規 1 件・継続 1 件・前回から解消 1 件）",
     );
   });

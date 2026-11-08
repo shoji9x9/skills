@@ -22,7 +22,7 @@
 
 - `self-review-input/cost-metrics.md`: 費用の指標の追跡 Issue（`check-cost-metrics.yml` が書く）の本文。空の一覧・修正の PR が多いチェック・遅くなったジョブの表がある
 - `self-review-input/files.txt`: 点検の対象のファイルの一覧（`git ls-files` と同じ形）
-- `self-review-input/commits.txt`: main の first-parent の履歴の件名（新しい順。1 行に短い SHA・日付・件名）
+- `self-review-input/commits.txt`: マージを除いた commit の件名（新しい順。1 行に短い SHA・日付・件名）
 
 ## 点検の項目
 
