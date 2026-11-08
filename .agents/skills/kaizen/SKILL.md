@@ -101,3 +101,5 @@ name: kaizen
 ## 出典
 
 根本原因分析の要素（繰り返しの深掘り・KEDB 照合・横断スコープの確認）は、[karaage0703/ai-assistant-workspace の xangi-kaizen スキル](https://github.com/karaage0703/ai-assistant-workspace/tree/main/skills/xangi-kaizen) を参考に取り入れた。
+既存の規約との照合（`references/extract.md`）は、[michael-denyer/pstack-claude](https://github.com/michael-denyer/pstack-claude) の `reflect` と `correct` スキルを参考にした。
+規約の書き方を失敗の種類で選ぶ基準（`references/rule-writing.md`）は、[obra/superpowers](https://github.com/obra/superpowers) の `writing-skills` スキルを参考にした。
