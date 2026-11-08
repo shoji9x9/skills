@@ -53,7 +53,7 @@ KEDB 照合（見出し・`#`）で、このノートが一致した。
 
 ## 提案
 
-Markdown の行頭の `#` と数字（`#625`）を、`--fix` の前に検出して止める lint（textlint の規則か lefthook の検査）を足す。
+Markdown の行頭の `#` と数字（`#625`）を、整形の `--fix` より前に実行する検査で検出して止める。
 
 - 書き方は「Issue #632 の作業で…」のように語を前に置く
 - 適用先候補: lefthook の format 段で、`markdownlint-cli2 --fix` より前に実行するジョブ。`scripts/gates/prose/lint-prose.ts` は lint 段で `--fix` の後に実行されるので、行が見出しに書き換わった後では検出できない
