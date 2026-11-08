@@ -4,7 +4,7 @@
     "skill_path": "<repo>/skills/kaizen",
     "executor_model": "opus",
     "analyzer_model": "claude-opus-5-5",
-    "timestamp": "2026-11-08T05:32:32Z",
+    "timestamp": "2026-11-08T05:56:15Z",
     "evals_run": [27, 28],
     "runs_per_configuration": 1
   },
@@ -72,9 +72,9 @@
       "configuration": "with_skill",
       "run_number": 1,
       "result": {
-        "pass_rate": 1,
-        "passed": 10,
-        "failed": 0,
+        "pass_rate": 0.9,
+        "passed": 9,
+        "failed": 1,
         "total": 10,
         "time_seconds": 93.883,
         "tokens": 476943,
@@ -119,8 +119,8 @@
         },
         {
           "text": "AGENTS.md に足した sed -i の規約が、OS（uname の出力など観測できる値）ごとの分岐で書かれている",
-          "passed": true,
-          "evidence": "sed -i の規約は sed --version の終了コード（GNU sed・BSD sed。Linux と macOS の標準と明記）で分岐する。uname ではないが、観測できる値による分岐である"
+          "passed": false,
+          "evidence": "sed -i の規約は sed --version の終了コードで分岐し、OS（uname）では分岐していない。assertion の文どおりに fail とした（後の iteration で assertion を「観測できる値」に直した）"
         },
         {
           "text": "AGENTS.md に足した sed -i の規約が、無条件の規則に但し書きや除外の文（ただし〜、〜を除き）を付けた形になっていない",
@@ -265,9 +265,9 @@
   "run_summary": {
     "with_skill": {
       "pass_rate": {
-        "mean": 1,
-        "stddev": 0,
-        "min": 1,
+        "mean": 0.95,
+        "stddev": 0.0707,
+        "min": 0.9,
         "max": 1
       },
       "time_seconds": {
@@ -304,7 +304,7 @@
       }
     },
     "delta": {
-      "pass_rate": "+0.57",
+      "pass_rate": "+0.52",
       "time_seconds": "+41.6",
       "tokens": "+266304"
     }
@@ -325,11 +325,12 @@
     "| eval | 入力の変更 | with_skill | without_skill | 前回の with_skill |",
     "| --- | --- | --- | --- | --- |",
     "| 27 | あり | 8/8 | 2/8 | 6/6（iteration-29。文が違う） |",
-    "| 28 | あり | 10/10 | 6/10 | 7/7（iteration-29。文が違う） |",
+    "| 28 | あり | 9/10 | 6/10 | 7/7（iteration-29。文が違う） |",
     "## 差の出た所と出なかった所",
     "- eval 27 の差は、`## 既存の規約` の扱いと場所の記録（5 本）と lifecycle 検査（1 本）で出た。提案の形の 2 本は、without_skill も満たした。",
     "- eval 28 の差は、`## 失敗の種類` の値（3 本）と lifecycle 検査（1 本）で出た。文面の形の 6 本は、without_skill も満たした。fixture の提案が言い訳への対策を書く形になったので、言い訳の一覧の assertion は without_skill も満たすようになった。",
-    "- eval 28 の with_skill は、sed の分岐の条件に `uname` ではなく `sed --version` の終了コードを使った。観測できる値による分岐なので pass にした。",
+    "- eval 28 の with_skill は、sed の分岐の条件に `uname` ではなく `sed --version` の終了コードを使った。assertion の文は OS ごとの分岐を求めるので、文どおりに fail にした。",
+    "`rule-writing.md` は観測できる条件での分岐を求めていて、OS に限らない。そのため、次の iteration で assertion の文を「観測できる値」に直した。",
     "- 差の出なかった assertion は、Delta ではなく後退の検出を目的として残す。",
     "## 前回より下がったものと、その原因",
     "- 無し",

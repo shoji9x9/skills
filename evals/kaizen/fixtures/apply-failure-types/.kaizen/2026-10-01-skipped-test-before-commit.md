@@ -26,7 +26,7 @@ session: claude-code
 
 - 扱い: 明確
 - 場所: `AGENTS.md`「作業の規約」
-- 照合した範囲: `AGENTS.md`・`docs/` を pnpm test・commit で検索した
+- 照合した範囲: `AGENTS.md`・`docs/` を `pnpm test` で検索した
 
 ## 提案
 

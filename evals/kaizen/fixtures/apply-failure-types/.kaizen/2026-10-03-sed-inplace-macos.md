@@ -26,7 +26,7 @@ macOS と Linux の両方で同じスクリプトを実行し、macOS でだけ�
 
 - 扱い: なし
 - 場所: なし
-- 照合した範囲: `AGENTS.md`・`docs/` を sed・macOS で検索した
+- 照合した範囲: `AGENTS.md`・`docs/` を `sed -i`・`BSD` で検索した
 
 ## 提案
 
