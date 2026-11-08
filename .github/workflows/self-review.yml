@@ -170,7 +170,7 @@ jobs:
         continue-on-error: true
         # ジョブの上限（60 分）より先に止め、時間切れを outcome の failure として tracking-issue に渡す。
         timeout-minutes: 50
-        uses: anthropics/claude-code-action@d70510b174a1244958df0b03166a54912811f3e6 # v1.0.264
+        uses: anthropics/claude-code-action@d535f5172dec02b204866b393d6b20b9b2aaf98d # v1.0.266
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
@@ -213,7 +213,7 @@ jobs:
           persist-credentials: false
       # 本文を作るスクリプトを動かすのは、結果を受け取れた週だけなので、node と依存もその週だけ入れる。
       # 準備が失敗しても、次の段で理由を Issue に書けるよう、ここではジョブを止めない。
-      - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+      - uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
         id: mise
         if: needs.review.outputs.outcome == 'success'
         continue-on-error: true
