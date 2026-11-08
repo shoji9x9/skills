@@ -127,7 +127,8 @@ const containsPoint = (r, p) => r.left <= p.x && p.x <= r.right && r.top <= p.y 
  * @typedef {{ vertical: boolean, at: number, lo: number, hi: number }} Line
  */
 
-// 端点を共有する 2 本のエッジの幹線（同じ座標で重なって進む区間）。端点を共有しなければ空である。
+// 端点を共有する 2 本のエッジの幹線（同じ座標を同じ向きに重なって進む区間）。端点を共有しなければ空である。
+// 逆向きに重なる 2 本は、1 本の幹線ではなく、行って戻る線が重なっているので、幹線にしない。
 // 規約は、多くの線を共有の幹線にいったん寄せてから分岐させる形を求める。幹線の上では 2 本の線が 1 本に見える。
 // そのため、(c) は幹線の上の重なりを違反から除く。(j) は幹線の端の点（線が幹線に寄る点と、幹線から分かれる点）を除く。
 // (d) は幹線の上に中心があるラベルを除く。幹線の途中で接する点と、幹線の外のラベルは除かない。
@@ -153,7 +154,7 @@ function trunkFinder(segs) {
   };
 }
 
-// 2 本のエッジ（それぞれのまとめた区間 p と q）が、同じ座標で重なって進む区間。端点を共有しなければ空である。
+// 2 本のエッジ（それぞれのまとめた区間 p と q）が、同じ座標を同じ向きに重なって進む区間。端点を共有しなければ空である。
 /**
  * @param {Segment[]} p
  * @param {Segment[]} q
@@ -165,7 +166,7 @@ function overlaps(p, q) {
     q.flatMap((t) => {
       const lo = Math.max(s.lo, t.lo);
       const hi = Math.min(s.hi, t.hi);
-      return s.vertical === t.vertical && s.at === t.at && lo < hi
+      return s.vertical === t.vertical && s.at === t.at && direction(s) === direction(t) && lo < hi
         ? [{ vertical: s.vertical, at: s.at, lo, hi }]
         : [];
     }),
@@ -187,9 +188,29 @@ const sharesEnd = (e1, e2) => e1.from === e2.from || e1.to === e2.to;
 const onTrunk = (trunk, p, along) =>
   trunk.some((t) => {
     if (along && (t.vertical !== along.vertical || t.at !== along.at)) return false;
-    const [at, c] = t.vertical ? [p.x, p.y] : [p.y, p.x];
-    return at === t.at && t.lo <= c && c <= t.hi;
+    const c = alongLine(t, p);
+    return c !== null && t.lo <= c && c <= t.hi;
   });
+
+// 点 p が区間 t と同じ直線の上にあれば、その直線に沿った座標を返す。無ければ null を返す。
+/**
+ * @param {Line} t
+ * @param {Point} p
+ * @returns {number | null}
+ */
+function alongLine(t, p) {
+  const [at, c] = t.vertical ? [p.x, p.y] : [p.y, p.x];
+  return at === t.at ? c : null;
+}
+
+// 区間 s と同じ直線の上の範囲 lo〜hi が、ひとつの幹線の区間に収まるか。
+/**
+ * @param {Line[]} trunk
+ * @param {{ vertical: boolean, at: number }} s
+ * @param {{ lo: number, hi: number }} range
+ */
+const onTrunkRange = (trunk, s, { lo, hi }) =>
+  trunk.some((t) => t.vertical === s.vertical && t.at === s.at && t.lo <= lo && hi <= t.hi);
 
 // 点 p が、幹線の区間の端（線が幹線に寄る点か、幹線から分かれる点）にあるか。
 /**
@@ -198,8 +219,8 @@ const onTrunk = (trunk, p, along) =>
  */
 const atTrunkEnd = (trunk, p) =>
   trunk.some((t) => {
-    const [at, c] = t.vertical ? [p.x, p.y] : [p.y, p.x];
-    return at === t.at && (c === t.lo || c === t.hi);
+    const c = alongLine(t, p);
+    return c !== null && (c === t.lo || c === t.hi);
   });
 
 // (a) ノードのアイコンが、グループの枠にかかっていないか、枠の内側の余白が足りているか。
@@ -251,10 +272,10 @@ function checkSegmentsThroughIcons(segs, nodes) {
 }
 
 // (c) 別のエッジの平行な区間が、20px 未満の間隔で並んでいないか。
-// 間隔 0 で重なる区間は、端点を共有するエッジどうしなら幹線（trunkFinder）なので除く。端点を共有しなければ違反にする。
+// 間隔 0 で重なる範囲が幹線（trunkFinder）の上に収まれば除く。端点を共有しないか、逆向きに重なるなら違反にする。
 // 同じ先へ同じ点で入る線は、(f) が検査する。
-/** @param {Segment[]} segs */
-function checkParallelGaps(segs) {
+/** @param {Context} ctx */
+function checkParallelGaps({ segs, trunk }) {
   /** @type {Violation[]} */
   const out = [];
   for (let i = 0; i < segs.length; i++) {
@@ -263,8 +284,10 @@ function checkParallelGaps(segs) {
       const t = segs[j];
       if (s.ei === t.ei || s.vertical !== t.vertical) continue;
       const gap = Math.abs(s.at - t.at);
-      if (gap >= PARALLEL_GAP || Math.max(s.lo, t.lo) >= Math.min(s.hi, t.hi)) continue;
-      if (gap === 0 && sharesEnd(s.e, t.e)) continue;
+      const lo = Math.max(s.lo, t.lo);
+      const hi = Math.min(s.hi, t.hi);
+      if (gap >= PARALLEL_GAP || lo >= hi) continue;
+      if (gap === 0 && onTrunkRange(trunk(s.ei, t.ei), s, { lo, hi })) continue;
       out.push({
         rule: "c",
         message: `${segName(s)} と ${segName(t)} の間隔が ${gap}px（${PARALLEL_GAP}px 未満）`,
@@ -507,7 +530,7 @@ export function checkDiagram(spec, given) {
   const all = [
     ...checkNodesInGroups(nodes, groups),
     ...checkSegmentsThroughIcons(segs, nodes),
-    ...checkParallelGaps(segs),
+    ...checkParallelGaps(ctx),
     ...checkSegmentsThroughLabels(ctx, nodes),
     ...checkEntryPoints(nodes, routed),
     ...checkSegmentsThroughGroups(segs, groups, nodeLookup(nodes)),

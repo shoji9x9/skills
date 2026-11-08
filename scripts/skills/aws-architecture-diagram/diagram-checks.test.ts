@@ -180,6 +180,25 @@ test("(c)(j) 同じ依存元から出る線が、別の点から出て幹線に�
   expect(rules(spec([a2, node("b", 500, 100), node("c", 500, 300)], [toB, toC]))).toEqual([]);
 });
 
+test("(c)(j) 同じ依存元から出る線どうしでも、同じ座標を逆向きに重なって進むなら、(c) と、接する点の (j) を出す", () => {
+  // a->b は y=250 を右へ進む。a->c は a の上から出て x=400 で y=250 に下り、左へ x=250 まで逆向きに重なって進む。
+  const toC: DiagramEdge = {
+    from: "a",
+    to: "c",
+    waypoints: [
+      [100, 150],
+      [400, 150],
+      [400, 250],
+      [250, 250],
+      [250, 320],
+    ],
+  };
+  const v = checkDiagram(
+    spec([node("a", 100, 250), node("b", 500, 250), node("c", 250, 370)], [ab, toC]),
+  );
+  expect(v.map((x) => x.rule)).toEqual(["c", "j", "j"]);
+});
+
 test("(c)(j) 同じ先へ入る線が幹線で合流し、分かれて別の点で入る形は、出さない", () => {
   // p->c と q->c が y=200 の上で x=250〜330 を重なって進み、x=330 で分かれて c に y=185 と y=215 で入る。
   const merge = (from: string, y0: number, y1: number): DiagramEdge => ({
