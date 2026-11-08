@@ -17,6 +17,44 @@
         "canary 内容で触れただけ なら、点検が機能していないとして例外にする",
         "CLI canary への指摘が無い ときは 1"
       ]
+    },
+    {
+      "id": "credential-allowed",
+      "why": "資格情報の形の文字列を通し、公開の追跡 Issue に載せる",
+      "file": "scripts/weekly/self-review-issue.ts",
+      "find": "if (CREDENTIAL.test(value)) throw",
+      "replace": "if (false) throw",
+      "occurrences": 1,
+      "expect_failing": ["結果の JSON 資格情報の形の文字列 は例外にする"]
+    },
+    {
+      "id": "path-mention-allowed",
+      "why": "対象のパスの @name を無効にせず、差分のコメントで利用者に通知を送る",
+      "file": "scripts/weekly/self-review-issue.ts",
+      "find": ".replace(/@(?=[\\w-])/gu, \"@\\u200b\")",
+      "replace": ".replace(/@(?=x)(?=y)/gu, \"@\")",
+      "occurrences": 1,
+      "expect_failing": [
+        "追跡 Issue の本文 対象のパスは識別子として載るので、メンション・参照・タグ・目印の終わりにならない形にする"
+      ]
+    },
+    {
+      "id": "code-span-skipped",
+      "why": "エージェントの文をリテラルにせず、メンション・リンク・画像・HTML として Issue に表示する",
+      "file": "scripts/weekly/self-review-issue.ts",
+      "find": "return `${fence} ${value} ${fence}`;",
+      "replace": "return value;",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI 本文とコメントを書き、canary を除いた件数を due に出す",
+        "追跡 Issue の本文 コードスパンは、文の中のバッククォートより長い並びで囲む（バッククォートが 1 つ）",
+        "追跡 Issue の本文 コードスパンは、文の中のバッククォートより長い並びで囲む（バッククォートが 3 つ並ぶ）",
+        "追跡 Issue の本文 コードスパンは、文の中のバッククォートより長い並びで囲む（バッククォートが無い）",
+        "追跡 Issue の本文 前回と比べ、継続と解消を書く",
+        "追跡 Issue の本文 指摘が 0 件の週は、点検のメモをコメントに載せる（Issue を閉じて本文を書き換えないため）",
+        "追跡 Issue の本文 表・メモ・識別子を書き、エージェントの文はコードスパンに入れ、表の | をエスケープする",
+        "追跡 Issue の本文 エージェントの文は、リテラルのまま表示するのでエスケープしない"
+      ]
     }
   ]
 }

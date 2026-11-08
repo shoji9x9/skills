@@ -19,6 +19,7 @@ import {
   formatBody,
   formatComment,
   main,
+  codeSpan,
   mergeFindings,
   parseReport,
   previousKeys,
@@ -160,52 +161,48 @@ describe("canary", () => {
 describe("追跡 Issue の本文", () => {
   const findings = [finding({ summary: "a | b" }), finding({ category: "unused", path: "x.sh" })];
 
-  test("表・メモ・識別子を書き、表の | をエスケープする", () => {
+  test("表・メモ・識別子を書き、エージェントの文はコードスパンに入れ、表の | をエスケープする", () => {
     const body = formatBody({ findings, notes: ["迷ったもの"] });
     expect(body).toContain("指摘: 2 件");
-    expect(body).toContain("| 文書の食い違い・重複 | docs/a.md | a \\| b | 根拠 | 案 | 新規 |");
-    expect(body).toContain("- 迷ったもの");
+    expect(body).toContain(
+      "| 文書の食い違い・重複 | docs/a.md | ` a \\| b ` | ` 根拠 ` | ` 案 ` | 新規 |",
+    );
+    expect(body).toContain("- ` 迷ったもの `");
     expect(previousKeys(body)).toEqual(["inconsistency docs/a.md", "unused x.sh"]);
   });
 
-  test("結果を読む段で、@name をメンションにしない形にし、< を実体参照にする", () => {
-    const parsed = parseReport(
-      JSON.stringify({
-        findings: [
-          {
-            ...finding(),
-            path: "evals/<name>/@x.md-->",
-            summary: "@AGENTS.md の取り込みと &#64;user と a & b",
-          },
-        ],
-        notes: ["@user への </details> の言及"],
-      }),
-    );
-    const body = formatBody(parsed);
-    expect(body).toContain("evals/&lt;name&gt;/@\u200bx.md--&gt;");
-    expect(body).toContain("@\u200bAGENTS.md の取り込みと &amp;#\u200b64;user と a &amp; b");
-    expect(body).toContain("- @\u200buser への &lt;/details&gt; の言及");
-    expect(body).not.toMatch(/@[\w-]|<name>|<\/details> の|&#64;/u);
-    expect(previousKeys(body)).toEqual(["inconsistency evals/&lt;name&gt;/@\u200bx.md--&gt;"]);
-    expect(formatComment({ findings: parsed.findings, notes: [] }, [])).toContain(
-      "inconsistency evals/&lt;name&gt;/@\u200bx.md--&gt;",
-    );
+  test.each([
+    { name: "空", value: "", span: "" },
+    { name: "バッククォートが無い", value: "a @b", span: "` a @b `" },
+    { name: "バッククォートが 1 つ", value: "`cmd` を実行", span: "`` `cmd` を実行 ``" },
+    { name: "バッククォートが 3 つ並ぶ", value: "```x", span: "```` ```x ````" },
+  ])("コードスパンは、文の中のバッククォートより長い並びで囲む（$name）", ({ value, span }) => {
+    expect(codeSpan(value)).toBe(span);
+  });
+
+  test("エージェントの文は、リテラルのまま表示するのでエスケープしない", () => {
+    const summary = "@AGENTS.md と #508 と <details> と 2>&1 と https://github.com/o/r/issues/9";
+    const parsed = parseReport(JSON.stringify({ findings: [{ ...finding(), summary }] }));
+    expect(parsed.findings[0]?.summary).toBe(summary);
+    expect(formatBody(parsed)).toContain(`\` ${summary} \``);
+  });
+
+  test("対象のパスは識別子として載るので、メンション・参照・タグ・目印の終わりにならない形にする", () => {
+    const path = "evals/<name>/@x.md--> #508 GH-7 github.com &#64;";
+    const parsed = parseReport(JSON.stringify({ findings: [{ ...finding(), path }] }));
+    const safe =
+      "evals/&lt;name&gt;/@\u200bx.md--&gt; #\u200b508 GH-\u200b7 github\u200b.com &amp;#\u200b64;";
+    expect(parsed.findings[0]?.path).toBe(safe);
+    expect(previousKeys(formatBody(parsed))).toEqual([`inconsistency ${safe}`]);
+    expect(formatComment({ findings: parsed.findings, notes: [] }, [])).toContain(safe);
   });
 
   test("指摘が 0 件の週は、点検のメモをコメントに載せる（Issue を閉じて本文を書き換えないため）", () => {
     expect(formatComment({ findings: [], notes: ["入力を読めなかった"] }, [])).toBe(
-      "指摘: 0 件（新規 0 件・継続 0 件・前回から解消 0 件）\n\n点検のメモ:\n\n- 入力を読めなかった\n",
+      "指摘: 0 件（新規 0 件・継続 0 件・前回から解消 0 件）\n\n点検のメモ:\n\n- ` 入力を読めなかった `\n",
     );
     expect(formatComment({ findings: [], notes: [] }, [])).not.toContain("点検のメモ");
     expect(formatComment({ findings: [finding()], notes: ["x"] }, [])).not.toContain("点検のメモ");
-  });
-
-  test("Issue と PR への参照を、相互参照にならない形にする", () => {
-    const summary = "#508 と owner/repo#12 と GH-7 と https://github.com/o/r/issues/9 の方針";
-    const parsed = parseReport(JSON.stringify({ findings: [{ ...finding(), summary }] }));
-    expect(parsed.findings[0]?.summary).toBe(
-      "#\u200b508 と owner/repo#\u200b12 と GH-\u200b7 と https://github\u200b.com/o/r/issues/9 の方針",
-    );
   });
 
   test("1 欄を 500 字に、メモを 20 件に切り詰める", () => {
@@ -230,7 +227,7 @@ describe("追跡 Issue の本文", () => {
   test("前回と比べ、継続と解消を書く", () => {
     const previous = ["inconsistency docs/a.md", "overdoc AGENTS.md"];
     const body = formatBody({ findings, notes: [] }, previous);
-    expect(body).toContain("| 案 | 継続 |");
+    expect(body).toContain("| ` 案 ` | 継続 |");
     expect(body).toContain("| 不要物 | x.sh |");
     expect(body).toContain("前回から解消したもの: overdoc AGENTS.md");
     expect(diffFindings(findings, previous).added).toEqual(["unused x.sh"]);
@@ -282,7 +279,7 @@ describe("CLI", () => {
     const body = readFileSync(join(root, "b.md"), "utf8");
     expect(body).toContain("指摘: 1 件");
     expect(body).not.toContain(CANARY);
-    expect(body).toContain("- 残すメモ");
+    expect(body).toContain("- ` 残すメモ `");
     expect(readFileSync(join(root, "c.md"), "utf8")).toContain("解消: unused gone.md");
   });
 

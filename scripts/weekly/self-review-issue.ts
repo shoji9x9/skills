@@ -53,18 +53,19 @@ const MAX_NOTES = 20;
 /** Anthropic の API キーと OAuth トークンの形。結果にあれば、Issue に載せずに失敗させる。 */
 const CREDENTIAL = /sk-ant-[\w-]{8,}/u;
 
-/**
- * エージェントが書いた文を、Issue に載せられる 1 行にする。`@name` は GitHub がメンションとして通知するので、
- * `@` の直後にゼロ幅スペースを入れる。`<` と `>` は、HTML のタグ（`<details>` など）や、識別子を埋める HTML コメントの終わり（`-->`）として
- * 読まれないよう実体参照にする。`&` も実体参照にし、`&#64;` のような実体参照で `@` を書き戻せないようにする。
- * Issue と PR への参照（`#123`・`GH-123`・`github.com` の URL）は、毎週の更新のたびに参照先に相互参照が付くので、
- * `#`・`GH-`・`github` の直後にもゼロ幅スペースを入れる。長さは 1 欄 `MAX_TEXT_CHARS` 字までにする（本文とコメントの上限を守るため）。
- * 識別子・表・メモ・差分のコメントのどれにもこの形で載るよう、結果を読む段で当てる。
- */
-const safe = (value: string): string => {
+/** エージェントが書いた文を 1 行にし、1 欄 `MAX_TEXT_CHARS` 字までに切り詰める（本文とコメントの上限を守るため）。 */
+const shorten = (value: string): string => {
   const line = oneLine(value);
-  const short = line.length > MAX_TEXT_CHARS ? `${line.slice(0, MAX_TEXT_CHARS)}…` : line;
-  return short
+  return line.length > MAX_TEXT_CHARS ? `${line.slice(0, MAX_TEXT_CHARS)}…` : line;
+};
+
+/**
+ * 対象のパスを、識別子として Issue に載せられる形にする。パスは、本文の HTML コメントの目印と差分のコメントに、コードスパンに入れずに載る。
+ * `@name` と Issue への参照（`#123`・`GH-123`・`github.com`）は、通知や相互参照にならないよう直後にゼロ幅スペースを入れる。
+ * `&`・`<`・`>` は、HTML のタグや目印の終わり（`-->`）として読まれないよう実体参照にする。
+ */
+const safePath = (value: string): string =>
+  shorten(value)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
@@ -72,12 +73,23 @@ const safe = (value: string): string => {
     .replace(/#(?=\d)/gu, "#\u200b")
     .replace(/\bGH-(?=\d)/gu, "GH-\u200b")
     .replace(/github(?=\.com)/giu, "github\u200b");
-};
+
+/**
+ * 文をコードスパンに入れ、メンション・リンク・画像・HTML として読まれないリテラルにする。
+ * 文の中のバッククォートより長い並びで囲むので、文がバッククォートを含んでも閉じない。
+ * 形ごとに無害にする置換を足すと、GitHub がリンクにする形が増えるたびに抜けが出るので、まとめてリテラルにする。
+ */
+export function codeSpan(value: string): string {
+  if (value === "") return "";
+  const longest = Math.max(0, ...(value.match(/`+/gu) ?? []).map((run) => run.length));
+  const fence = "`".repeat(longest + 1);
+  return `${fence} ${value} ${fence}`;
+}
 
 function text(value: unknown, where: string): string {
   if (!isNonBlankString(value)) throw new Error(`${where} が空でない文字列でない`);
   if (CREDENTIAL.test(value)) throw new Error(`${where} に資格情報の形の文字列がある`);
-  return safe(value);
+  return shorten(value);
 }
 
 /** 直し方の案は、無い指摘もある。省略・null・空白だけの文字列は、どれも案が無いものとして読む。 */
@@ -97,7 +109,7 @@ function parseFinding(value: unknown, where: string): Finding {
   }
   return {
     category,
-    path: text(value["path"], `${where}.path`),
+    path: safePath(text(value["path"], `${where}.path`)),
     summary: text(value["summary"], `${where}.summary`),
     evidence: text(value["evidence"], `${where}.evidence`),
     suggestion: optionalText(value["suggestion"], `${where}.suggestion`),
@@ -146,8 +158,12 @@ export function mergeFindings(findings: readonly Finding[]): Finding[] {
  * canary の名前（拡張子を除いたファイル名）。ワークフローは、canary が起動するよう書いた存在しないスクリプトの名前にも、これを含める。
  * 例えば docs/release-notes-1a2b.md の名前は release-notes-1a2b で、スクリプトは scripts/tools/verify-release-notes-1a2b.ts である。
  */
-const canaryStem = (canary: string): string =>
-  canary.replace(/^.*\//u, "").replace(/\.[^.]*$/u, "");
+function canaryStem(canary: string): string {
+  const stem = canary.replace(/^.*\//u, "").replace(/\.[^.]*$/u, "");
+  // 空だと、すべての指摘の path に一致し、すべてを canary として除いて合格にしてしまう。
+  if (stem === "") throw new Error(`canary のパスから名前を取り出せない: ${canary}`);
+  return stem;
+}
 
 /**
  * canary への指摘を取り除く。canary か、canary が書いた存在しないスクリプトを対象にした指摘を、canary への指摘とする。
@@ -177,7 +193,8 @@ function findingTable(findings: readonly Finding[], kept: ReadonlySet<string>): 
   ];
   for (const f of findings) {
     const state = kept.has(keyOf(f)) ? "継続" : "新規";
-    const cells = [CATEGORY_LABEL[f.category], f.path, f.summary, f.evidence, f.suggestion];
+    const texts = [f.summary, f.evidence, f.suggestion].map(codeSpan);
+    const cells = [CATEGORY_LABEL[f.category], f.path, ...texts];
     lines.push(`| ${cells.map(tableCell).join(" | ")} | ${state} |`);
   }
   return [...lines, ""];
@@ -197,7 +214,7 @@ export function formatBody(report: Report, previous: readonly string[] = []): st
   ];
   if (notes.length > 0) {
     lines.push("<details><summary>点検のメモ（指摘にしなかったもの）</summary>", "");
-    lines.push(...notes.map((n) => `- ${n}`), "", "</details>", "");
+    lines.push(...notes.map((n) => `- ${codeSpan(n)}`), "", "</details>", "");
   }
   return tracking.finish(lines, findings, resolved);
 }
@@ -210,7 +227,7 @@ export function formatComment(report: Report, previous: readonly string[]): stri
   const { findings, notes } = report;
   const diff = formatDiffComment("指摘", findings.length, diffFindings(findings, previous));
   if (findings.length > 0 || notes.length === 0) return diff;
-  return `${diff}\n点検のメモ:\n\n${notes.map((n) => `- ${n}`).join("\n")}\n`;
+  return `${diff}\n点検のメモ:\n\n${notes.map((n) => `- ${codeSpan(n)}`).join("\n")}\n`;
 }
 
 const USAGE =
@@ -237,8 +254,12 @@ export function main(args: readonly string[]): number {
         `本文が ${body.length} 字で、上限の ${MAX_BODY_CHARS} 字を超える。手順の件数と字数の目安を守っているかを確かめる`,
       );
     }
+    const comment = formatComment({ findings, notes: report.notes }, previous);
+    if (comment.length > MAX_BODY_CHARS) {
+      throw new Error(`コメントが ${comment.length} 字で、上限の ${MAX_BODY_CHARS} 字を超える`);
+    }
     writeFileSync(cli.out, body);
-    writeFileSync(cli.commentOut, formatComment({ findings, notes: report.notes }, previous));
+    writeFileSync(cli.commentOut, comment);
     console.log(`due=${findings.length}`);
     return 0;
   } catch (error) {

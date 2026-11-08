@@ -127,8 +127,7 @@ jobs:
           } >"$path"
           echo "path=$path" >>"$GITHUB_OUTPUT"
 
-      # エージェントには git を許さない。Write で .git/config や .gitattributes を書き換えたうえで git を実行すると、
-      # textconv などで任意のコマンドを実行できるためである。手順が使う履歴の件名とファイルの一覧は、ここで入力に書き出す。
+      # エージェントには git を許さない。手順が使う履歴の件名とファイルの一覧は、ここで入力に書き出す。
       - name: Write git inputs
         if: steps.cred.outputs.present == 'true'
         env:
@@ -153,7 +152,10 @@ jobs:
           github_token: ${{ github.token }}
           prompt: |
             docs/self-review-procedure.md を読み、その手順に従って点検し、結果をリポジトリのルートの ${{ env.REPORT_FILE }} に書いてください。
-          claude_args: --allowed-tools Read,Grep,Glob,Write
+          # ツールは、リポジトリの中を読むことと、結果のファイルを書くことだけに限る。リポジトリの外（/proc や ~/.claude）を読めると、
+          # 仕込まれた指示に従って資格情報を結果に書くおそれがある。ほかのファイルに書けると、git の設定を書き換えて、
+          # checkout の post 段の git にコマンドを実行させるおそれがある。Edit の規則は Write にも当たる（手元の claude -p で確かめた）。
+          claude_args: --allowed-tools "Read(./**),Grep(./**),Glob(./**),Edit(./${{ env.REPORT_FILE }})"
 
       - name: Upload report
         if: steps.cred.outputs.present == 'true' && steps.run-claude.outcome == 'success'
@@ -264,16 +266,21 @@ jobs:
           else
             previous_args=()
             if [ -n "$number" ]; then
-              gh issue view "$number" --json body --jq .body >"$RUNNER_TEMP/previous-body.md"
-              previous_args=(--previous "$RUNNER_TEMP/previous-body.md")
+              if gh issue view "$number" --json body --jq .body >"$RUNNER_TEMP/previous-body.md"; then
+                previous_args=(--previous "$RUNNER_TEMP/previous-body.md")
+              else
+                failure="前回の本文を取得できなかった（#$number）"
+              fi
             fi
-            if ! node scripts/weekly/self-review-issue.ts --report "$REPORT" --canary "$CANARY" \
-              --out "$body" --comment-out "$comment" "${previous_args[@]}" \
-              >"$RUNNER_TEMP/issue.log" 2>&1; then
-              failure="結果を Issue にできなかった"
-              detail="$RUNNER_TEMP/issue.log"
+            if [ -z "$failure" ]; then
+              if ! node scripts/weekly/self-review-issue.ts --report "$REPORT" --canary "$CANARY" \
+                --out "$body" --comment-out "$comment" "${previous_args[@]}" \
+                >"$RUNNER_TEMP/issue.log" 2>&1; then
+                failure="結果を Issue にできなかった"
+                detail="$RUNNER_TEMP/issue.log"
+              fi
+              cat "$RUNNER_TEMP/issue.log"
             fi
-            cat "$RUNNER_TEMP/issue.log"
           fi
 
           if [ -n "$failure" ]; then
