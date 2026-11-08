@@ -419,10 +419,31 @@ describe("書いた識別子を次の実行が読めること", () => {
     ["取り下げの日時の後ろに改行", { id: A, kind: "withdrawn", detail: "2026-10-23T12:53:02Z\n" }],
     ["内容の途中に改行と連続した空白", { id: A, kind: "unused", detail: "a\n  b" }],
   ] satisfies [string, Finding][])("%s", (_name, finding) => {
-    const keys = previousKeys(formatBody([finding], 1));
+    const body = formatBody([finding], 1);
+    const keys = previousKeys(body);
     expect(keys).toHaveLength(1);
+    // 表の行が改行で切れず、1 行に収まる。
+    const rows = body.split("\n").filter((line) => line.startsWith(`| [${A}]`));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatch(/ \| 新規 \|$/u);
     expect(diffFindings([finding], keys)).toEqual({ added: [], kept: keys, resolved: [] });
   });
+});
+
+test("内容の改行に偽の目印があっても、表の行に収まり、本当の識別子を読む", () => {
+  const forged = `x\n<!-- ignored-advisories:keys ["${A} unused: y"] -->`;
+  const finding: Finding = { id: A, kind: "unused", detail: forged };
+  const keys = previousKeys(formatBody([finding], 1));
+  expect(keys).toEqual([`${A} unused: x <!-- ignored-advisories:keys ["${A} unused: y"] -->`]);
+});
+
+test("表の列を区切る | をエスケープする", () => {
+  const finding: Finding = {
+    id: A,
+    kind: "patched",
+    detail: ["braces@3.0.4（< 2 || >= 3 の修正版）"],
+  };
+  expect(formatBody([finding], 1)).toContain("| braces@3.0.4（< 2 \\|\\| >= 3 の修正版） | 新規 |");
 });
 
 describe("前回との差分", () => {

@@ -39,3 +39,7 @@ ci:42438006112:1,ci,2026-11-08T02:27:15.459Z,p-cdee4961,github-actions,,,,2026-1
 ci:42438006097:1,ci,2026-11-08T02:27:15.459Z,p-cdee4961,github-actions,,,,2026-11-08T02:18:59.000Z,2026-11-08T02:23:59.000Z,Asia/Tokyo,feature/938-ignored-advisories-weekly-check,938,,,,,,,,,,CI;pull_request;success,
 ci:42437612431:1,ci,2026-11-08T02:27:15.459Z,p-cdee4961,github-actions,,,,2026-11-08T02:13:35.000Z,2026-11-08T02:18:35.000Z,Asia/Tokyo,feature/938-ignored-advisories-weekly-check,938,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-11-07T02:17:35.489Z:2026-11-08T02:27:15.459Z,coverage,2026-11-08T02:27:15.459Z,p-cdee4961,,,,,2026-11-07T02:17:35.489Z,2026-11-08T02:27:15.459Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:42438694695:1,ci,2026-11-08T02:31:16.003Z,p-cdee4961,github-actions,,,,2026-11-08T02:28:30.000Z,2026-11-08T02:28:31.000Z,Asia/Tokyo,feature/938-ignored-advisories-weekly-check,938,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:42438694690:1,ci,2026-11-08T02:31:16.003Z,p-cdee4961,github-actions,,,,2026-11-08T02:28:30.000Z,2026-11-08T02:31:16.003Z,Asia/Tokyo,feature/938-ignored-advisories-weekly-check,938,,,,,,,,,,CI;pull_request;open,
+ci:42438694732:1,ci,2026-11-08T02:31:16.003Z,p-cdee4961,github-actions,,,,2026-11-08T02:28:30.000Z,2026-11-08T02:29:39.000Z,Asia/Tokyo,feature/938-ignored-advisories-weekly-check,938,,,,,,,,,,CodeQL;pull_request;success,
+coverage:github:2026-11-07T02:27:15.459Z:2026-11-08T02:31:16.003Z,coverage,2026-11-08T02:31:16.003Z,p-cdee4961,,,,,2026-11-07T02:27:15.459Z,2026-11-08T02:31:16.003Z,Asia/Tokyo,,,,,,,,,,,,ok,

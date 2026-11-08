@@ -259,7 +259,15 @@ const KIND_LABEL: Record<Finding["kind"], string> = {
   unused: "どの依存元も使わなくなった",
 };
 
+/**
+ * 検出したことの内容。識別子・本文の表・コメントは、すべてこの値を使う。
+ * API の値の空白（改行を含む）は 1 つにまとめて前後を除く。改行がそのまま入ると表の行が切れ、読み手（KEY_FORM）が拒否する識別子を書く。
+ */
 function describe(f: Finding): string {
+  return describeRaw(f).replace(/\s+/gu, " ").trim();
+}
+
+function describeRaw(f: Finding): string {
   switch (f.kind) {
     case "patched":
       return f.detail.join(", ");
@@ -275,10 +283,8 @@ function describe(f: Finding): string {
 /**
  * 前回との差分に使う、検出したことの識別子（advisory・種別・内容）。
  * 内容を含めるので、許可の外の依存元が増えたときや、別の修正版が出たときは、前回の識別子が「解消」、今回の識別子が「新規」になる。
- * 内容は空白（改行を含む）を 1 つにまとめて前後を除く。API の値の空白をそのまま使うと、読み手（KEY_FORM）が拒否する識別子を書く。
  */
-const findingKey = (f: Finding): string =>
-  `${f.id} ${f.kind}: ${describe(f).replace(/\s+/gu, " ").trim()}`;
+const findingKey = (f: Finding): string => `${f.id} ${f.kind}: ${describe(f)}`;
 
 const KEYS_MARKER = /^<!-- ignored-advisories:keys (.*) -->$/mu;
 // 書き手（findingKey）と同じ定義（GHSA の形・KIND_LABEL の種別）から組み立て、種別を足したときに食い違わないようにする。
@@ -353,7 +359,7 @@ export function formatBody(
     for (const f of findings) {
       const state = keptSet.has(findingKey(f)) ? "継続" : "新規";
       lines.push(
-        `| [${f.id}](https://github.com/advisories/${f.id}) | ${KIND_LABEL[f.kind]} | ${describe(f)} | ${state} |`,
+        `| [${f.id}](https://github.com/advisories/${f.id}) | ${KIND_LABEL[f.kind]} | ${describe(f).replaceAll("|", "\\|")} | ${state} |`,
       );
     }
     lines.push(
