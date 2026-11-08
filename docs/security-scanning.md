@@ -117,12 +117,22 @@ gpg --batch --pinentry-mode loopback --passphrase-file security-audit-key.txt --
 最新の 1 件だけを消すと、1 つ前の古い鍵の記録を選んで、また止まる。
 識別子も鍵から作るので、鍵を替えた次の実行は、追跡 Issue の記録をすべて「新規」、前回の記録をすべて「解消」と書く。直ったという意味ではないので、その回の差分は読み飛ばす。
 
-消す前に、対象の ID・ブランチ・作成日時と件数を一覧にして確かめる。一覧を先にファイルに書くのは、消しながらページを取得すると、後のページの項目が前に詰まって消し残しが出るためである。
+消す前に、期限の切れていない対象の ID・ブランチ・作成日時・ワークフローと件数を一覧にして確かめる。
+一覧を先にファイルに書くのは、消しながらページを取得すると、後のページの項目が前に詰まって消し残しが出るためである。
+ワークフローの列が `Security audit` でない行があれば、このワークフローが上げたものではないので、一覧から除いてから消す。
 
 ```bash
 gh api --paginate "repos/shoji9x9/skills/actions/artifacts?name=security-audit-state&per_page=100" \
-  --jq '.artifacts[] | [.id, .workflow_run.head_branch, .created_at] | @tsv' >security-audit-state-artifacts.tsv
-cat security-audit-state-artifacts.tsv; wc -l <security-audit-state-artifacts.tsv
-# 一覧を確かめた後で消す
+  --jq '.artifacts[] | select(.expired | not) | [.id, .workflow_run.head_branch, .created_at, .workflow_run.id] | @tsv' \
+  >security-audit-state-artifacts.tsv
+while IFS=$'\t' read -r id branch created run; do
+  printf '%s\t%s\t%s\t%s\n' "$id" "$branch" "$created" "$(gh run view "$run" --repo shoji9x9/skills --json workflowName --jq .workflowName)"
+done <security-audit-state-artifacts.tsv
+wc -l <security-audit-state-artifacts.tsv
+```
+
+一覧と件数を確かめた後で、別に次を実行して消す。
+
+```bash
 cut -f1 security-audit-state-artifacts.tsv | xargs -I{} gh api -X DELETE "repos/shoji9x9/skills/actions/artifacts/{}"
 ```

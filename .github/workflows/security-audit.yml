@@ -57,13 +57,10 @@ jobs:
       actions: read
     outputs:
       skip: ${{ steps.pause.outputs.skip }}
-      cred_present: ${{ steps.cred.outputs.present }}
-      settings_valid: ${{ steps.settings.outputs.valid }}
-      target: ${{ steps.settings.outputs.target }}
-      restore: ${{ steps.restore.outputs.result }}
-      outcome: ${{ steps.run-claude.outcome }}
-      summary_outcome: ${{ steps.summarize.outcome }}
-      state_saved: ${{ steps.upload-state.outcome }}
+      # 監査できたか、できなかった理由は、Decide result の段だけが決める（tracking-issue はそれを読む）。
+      result_outcome: ${{ steps.result.outcome }}
+      failure: ${{ steps.result.outputs.failure }}
+      state_note: ${{ steps.result.outputs.state_note }}
       summary_artifact: security-audit-summary-${{ github.run_attempt }}
     steps:
       - name: Check pause switch
@@ -357,6 +354,8 @@ jobs:
 
       # 失敗した実行や dvna の監査も、原因を追えるよう暗号化した記録を残す（次の実行は引き継がない）。
       - name: Upload records of this run
+        id: upload-run
+        continue-on-error: true
         if: >-
           steps.encrypt.outcome == 'success' && (steps.summarize.outcome != 'success' || steps.settings.outputs.target != 'self' ||
           steps.upload-state.outcome == 'failure')
@@ -369,6 +368,8 @@ jobs:
 
       # 要約を読むのは、デフォルトブランチでだけ動く tracking-issue である。
       - name: Upload summary
+        id: upload-summary
+        continue-on-error: true
         if: steps.summarize.outcome == 'success' && steps.settings.outputs.target == 'self' && github.ref_name == github.event.repository.default_branch
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -377,28 +378,65 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      # 上の段はどれも continue-on-error なので、監査できなかったことを run の結果に残す。
-      # tracking-issue はデフォルトブランチでしか動かないので、ほかのブランチと dvna の実行では、この段だけが失敗を示す。
-      - name: Fail if audit did not finish
-        if: ${{ !cancelled() && steps.settings.outputs.valid == 'true' }}
+      # 監査できたかを、ここで 1 回だけ決める。failure は、要約を使えない理由（監査していない・終えられなかった）である。
+      # state_note は、要約は使えるが今回の記録を残せなかったことを表す。tracking-issue は要約で本文を更新し、この文を足して失敗させる。
+      # 上の段はどれも continue-on-error なので、この段とその次の段が run の結果に失敗を残す。
+      - name: Decide result
+        id: result
+        if: ${{ !cancelled() && steps.pause.outputs.skip != 'true' }}
         env:
+          CRED_PRESENT: ${{ steps.cred.outputs.present }}
+          SETTINGS_VALID: ${{ steps.settings.outputs.valid }}
+          TARGET: ${{ steps.settings.outputs.target }}
+          RESTORE_OUTCOME: ${{ steps.restore.outcome }}
+          RESTORE_RESULT: ${{ steps.restore.outputs.result }}
           OUTCOME: ${{ steps.run-claude.outcome }}
           SUMMARY_OUTCOME: ${{ steps.summarize.outcome }}
           ENCRYPT_OUTCOME: ${{ steps.encrypt.outcome }}
           STATE_OUTCOME: ${{ steps.upload-state.outcome }}
-          TARGET: ${{ steps.settings.outputs.target }}
+          RUN_UPLOAD_OUTCOME: ${{ steps.upload-run.outcome }}
+          SUMMARY_UPLOAD_OUTCOME: ${{ steps.upload-summary.outcome }}
+          IS_DEFAULT_BRANCH: ${{ github.ref_name == github.event.repository.default_branch }}
         run: |
-          failed=""
-          [ "$OUTCOME" = success ] || failed="$failed エージェント（$OUTCOME）"
-          [ "$SUMMARY_OUTCOME" = success ] || failed="$failed 記録の検証と要約（$SUMMARY_OUTCOME）"
-          [ "$ENCRYPT_OUTCOME" = success ] || failed="$failed 記録の暗号化（$ENCRYPT_OUTCOME）"
-          if [ "$TARGET" = self ] && [ "$STATE_OUTCOME" != success ]; then
-            failed="$failed 引き継ぐ記録の upload（$STATE_OUTCOME）"
+          failure=""
+          state_note=""
+          if [ "$CRED_PRESENT" != true ]; then
+            failure="secret CLAUDE_CODE_OAUTH_TOKEN か SECURITY_AUDIT_STATE_KEY が未設定のため、監査していない"
+          elif [ "$SETTINGS_VALID" != true ]; then
+            failure="監査の設定（SECURITY_AUDIT_MODEL・入力）に受け付けない値があるため、監査していない"
+          elif [ "$RESTORE_RESULT" = failed ]; then
+            failure="前回の記録を復号できないため、監査していない（鍵を替えたときは docs/security-scanning.md の手順で security-audit-state をすべて消す）"
+          elif [ "$RESTORE_OUTCOME" != success ]; then
+            failure="スキルか前回の記録を取得できなかったため、監査していない（restore の outcome: ${RESTORE_OUTCOME:-skipped}）"
+          elif [ "$OUTCOME" != success ]; then
+            failure="エージェントの実行が失敗した（outcome: ${OUTCOME:-skipped}）"
+          elif [ "$SUMMARY_OUTCOME" != success ]; then
+            failure="監査の記録が終わっていないか、記録の形が上流のスキルの検証を通らなかった"
+          elif [ "$TARGET" = self ] && [ "$IS_DEFAULT_BRANCH" = true ] && [ "$SUMMARY_UPLOAD_OUTCOME" != success ]; then
+            failure="監査の要約を artifact に上げられなかった（upload の outcome: ${SUMMARY_UPLOAD_OUTCOME:-skipped}）"
           fi
-          if [ -n "$failed" ]; then
-            echo "::error title=Security audit::監査を終えられなかった:$failed"
-            exit 1
+          if [ -z "$failure" ]; then
+            if [ "$TARGET" = self ] && [ "$STATE_OUTCOME" != success ]; then
+              state_note="今回の記録を暗号化して残せなかったので、次の実行は前回までの記録を引き継ぐ（暗号化: ${ENCRYPT_OUTCOME:-skipped}・upload: ${STATE_OUTCOME:-skipped}）"
+            elif [ "$TARGET" != self ] && [ "$RUN_UPLOAD_OUTCOME" != success ]; then
+              state_note="今回の記録を暗号化して残せなかった（暗号化: ${ENCRYPT_OUTCOME:-skipped}・upload: ${RUN_UPLOAD_OUTCOME:-skipped}）"
+            fi
+            # 未完了の監査は失敗にしない（追跡 Issue に未完了として出す）。ほかのブランチと dvna の run でも分かるよう、注釈を出す。
+            if [ "$(jq -r .run_status "$RUNNER_TEMP/summary.json")" = incomplete ]; then
+              echo "::warning title=Security audit::監査は未完了（$(jq -r .incomplete_reason "$RUNNER_TEMP/summary.json")）。網羅していない範囲がある"
+            fi
           fi
+          echo "failure=$failure" >>"$GITHUB_OUTPUT"
+          echo "state_note=$state_note" >>"$GITHUB_OUTPUT"
+
+      - name: Fail if audit did not finish
+        if: ${{ !cancelled() && (steps.result.outputs.failure != '' || steps.result.outputs.state_note != '') }}
+        env:
+          FAILURE: ${{ steps.result.outputs.failure }}
+          STATE_NOTE: ${{ steps.result.outputs.state_note }}
+        run: |
+          echo "::error title=Security audit::${FAILURE:-$STATE_NOTE}"
+          exit 1
 
   tracking-issue:
     name: Update security audit tracking issue
@@ -421,12 +459,12 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
         id: mise
-        if: needs.audit.outputs.summary_outcome == 'success'
+        if: needs.audit.outputs.result_outcome == 'success' && needs.audit.outputs.failure == ''
         continue-on-error: true
 
       - name: Download summary
         id: download
-        if: needs.audit.outputs.summary_outcome == 'success'
+        if: needs.audit.outputs.result_outcome == 'success' && needs.audit.outputs.failure == ''
         continue-on-error: true
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -439,12 +477,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TRACKING_LIB: skills/kaizen/scripts/tracking-issue-lib.sh
-          CRED_PRESENT: ${{ needs.audit.outputs.cred_present }}
-          SETTINGS_VALID: ${{ needs.audit.outputs.settings_valid }}
-          RESTORE: ${{ needs.audit.outputs.restore }}
-          OUTCOME: ${{ needs.audit.outputs.outcome }}
-          SUMMARY_OUTCOME: ${{ needs.audit.outputs.summary_outcome }}
-          STATE_SAVED: ${{ needs.audit.outputs.state_saved }}
+          RESULT_OUTCOME: ${{ needs.audit.outputs.result_outcome }}
+          AUDIT_FAILURE: ${{ needs.audit.outputs.failure }}
+          STATE_NOTE: ${{ needs.audit.outputs.state_note }}
           MISE_OUTCOME: ${{ steps.mise.outcome }}
           DOWNLOAD_OUTCOME: ${{ steps.download.outcome }}
           SUMMARY: ${{ runner.temp }}/security-audit/summary.json
@@ -463,20 +498,10 @@ jobs:
           body="$RUNNER_TEMP/issue-body.md"
           comment="$RUNNER_TEMP/issue-comment.md"
           failure=""
-          if [ -z "$CRED_PRESENT" ]; then
-            failure="エージェントを起動する前に audit ジョブが失敗した"
-          elif [ "$CRED_PRESENT" != true ]; then
-            failure="secret CLAUDE_CODE_OAUTH_TOKEN か SECURITY_AUDIT_STATE_KEY が未設定のため、監査していない"
-          elif [ "$SETTINGS_VALID" = false ]; then
-            failure="監査の設定（SECURITY_AUDIT_MODEL・入力）に受け付けない値があるため、監査していない"
-          elif [ "$RESTORE" = failed ]; then
-            failure="前回の記録を復号できないため、監査していない（鍵を替えたときは docs/security-scanning.md の手順で security-audit-state をすべて消す）"
-          elif [ -z "$OUTCOME" ] || [ "$OUTCOME" = skipped ]; then
-            failure="エージェントを起動する前の段が失敗した（どの段かは run のログで確かめる）"
-          elif [ "$OUTCOME" != success ]; then
-            failure="エージェントの実行が失敗した（outcome: ${OUTCOME:-unknown}）"
-          elif [ "$SUMMARY_OUTCOME" != success ]; then
-            failure="監査の記録が終わっていないか、記録の形が上流のスキルの検証を通らなかった"
+          if [ "$RESULT_OUTCOME" != success ]; then
+            failure="audit ジョブが、監査の結果を決める前に失敗した（どの段かは run のログで確かめる）"
+          elif [ -n "$AUDIT_FAILURE" ]; then
+            failure="$AUDIT_FAILURE"
           elif [ "$DOWNLOAD_OUTCOME" != success ]; then
             failure="監査の要約を受け取れなかった（download の outcome: ${DOWNLOAD_OUTCOME:-unknown}）"
           elif [ "$MISE_OUTCOME" != success ]; then
@@ -524,8 +549,9 @@ jobs:
             ;;
           esac
           # 記録を残せなかった週も、検証を通った今回の要約は本文に反映し、その後でジョブを失敗させる。
-          if [ "$STATE_SAVED" != success ]; then
-            printf '\n今回の記録を暗号化して残せなかったので、次の実行は前回までの記録を引き継ぐ（upload の outcome: %s）。\n' "${STATE_SAVED:-unknown}" >>"$comment"
+          # 追跡 Issue が無い週にも残るよう、本文とコメントの両方に書く。
+          if [ -n "$STATE_NOTE" ]; then
+            printf '\n%s。\n' "$STATE_NOTE" | tee -a "$body" >>"$comment"
           fi
           cat "$body" "$comment"
           printf '\n[run](%s)\n' "$RUN_URL" >>"$comment"
@@ -553,7 +579,7 @@ jobs:
             warn_if_truncated "既存の追跡 Issue を取りこぼして重複を作った可能性がある"
             gh issue create --title "$title" --body-file "$body"
           fi
-          if [ "$STATE_SAVED" != success ]; then
-            echo "今回の記録を暗号化して残せなかった（upload の outcome: ${STATE_SAVED:-unknown}）" >&2
+          if [ -n "$STATE_NOTE" ]; then
+            echo "$STATE_NOTE" >&2
             exit 1
           fi
