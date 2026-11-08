@@ -76,6 +76,7 @@
     "scripts/skills/kaizen/frontmatter/kaizen-frontmatter-values.mutations.json": 4.6,
     "scripts/skills/agent-usage/decision/record-decision.mutations.json": 0.5,
     "scripts/skills/agent-usage/setup/setup-time-zone.mutations.json": 2.7,
-    "scripts/skills/aws-architecture-diagram/validate-icon-svg.mutations.json": 1.3
+    "scripts/skills/aws-architecture-diagram/validate-icon-svg.mutations.json": 1.3,
+    "scripts/skills/aws-architecture-diagram/diagram-checks.mutations.json": 0.8
   }
 }

@@ -9,7 +9,8 @@ license: MIT
 
 AWS 構成図を、spec（ノード・エッジ・グループの配列）から SVG として生成する。
 GUI で手描きせず、テキストの差分でレビュー・管理できる図を作る。
-図は環境（対象システムに応じて prod / staging / local など）ごとに出し分ける。PNG にラスタライズして作図ルールで目視確認しながら、図を直していく。
+図は環境（対象システムに応じて prod / staging / local など）ごとに出し分ける。
+作図ルールのうち図の形から計算できるものは生成の後に検査し、残りは PNG にラスタライズして目で見て確かめながら、図を直していく。
 
 このスキルで最も重要なのは作図ルール（`references/conventions.md`）である。
 交差の最小化・線の直交・軸の整列・ラベルの読みやすさを保つための規約で、spec を書くときと図を直すときは常にこの観点で確かめる。
@@ -71,10 +72,11 @@ IaC が大きいときは主要なリソースと依存を優先し、粒度を�
 スキルから実行するものは、次の `scripts/` のファイルである。コピーせず、`gh skill update` で自動で更新される。
 
 - `diagram-engine.mjs`: spec から SVG を生成する純関数（描画エンジン）
-- `render-diagram.mjs`: 対象の環境の SVG を生成する（デフォルトはすべての環境）
+- `render-diagram.mjs`: 対象の環境の SVG を生成し、作図ルールを検査する（デフォルトはすべての環境）
+- `diagram-checks.mjs`: 図の形から計算できる確認の観点を検査する（`render-diagram.mjs` が読む）
 - `preview-diagram.mjs`: SVG を PNG にラスタライズする（目視確認用）
 - `fetch-aws-icons.mjs`: AWS 公式アイコンを取得する
-- `diagram-config.mjs`: 設定ファイルから図の置き場所などを決める（上の 3 つの実行用スクリプトが読む）
+- `diagram-config.mjs`: 設定ファイルから図の置き場所などを決める（`render-diagram.mjs`・`preview-diagram.mjs`・`fetch-aws-icons.mjs` が読む）
 - `skill-config/`: 設定ファイルの読み取り（`diagram-config.mjs` が読む）
 
 エンジンは、プロジェクトの図のディレクトリ（デフォルトは実行時の cwd）の `architecture-spec.mjs`・`environments.mjs`・`icon-manifest.json`・`icons/` を読む。
@@ -141,16 +143,19 @@ node "$SKILL/scripts/render-diagram.mjs"           # 既定=全環境。--env pr
 1. spec への反映
    - 情報源（IaC か説明）と今の spec を突き合わせ、追加・削除・変更されたリソースと依存を `architecture-spec.mjs` に反映する。
      必要なら `environments.mjs` の transform も直す。作図ルールは保つ。
-2. 生成
+2. 生成と検査
    - 図のディレクトリで `node "$SKILL/scripts/render-diagram.mjs" [--env a,b]` を実行し、SVG を生成する（省くとすべての環境）。
-3. 目視確認と反復
+   - 生成の後、conventions.md の確認の観点（a〜j）のうち検査で確かめる観点を検査する。違反があれば、環境・観点・場所を出して 1 で終える。
+   - 違反が 0 件になるまで、座標と `waypoints` を直して生成し直す。違反が残ったまま次へ進まない。
+3. 目で見る確認と反復
    - `node "$SKILL/scripts/preview-diagram.mjs" <env>` で PNG にし、出力された PNG を画像として読む。
-   - conventions.md の確認観点（a〜j）で確かめ、崩れていれば座標と `waypoints` を直して生成し直す。
+   - 検査で測れない見た目（conventions.md の「生成と品質確認」）を確かめ、崩れていれば直して手順 2 からやり直す。
    - 画像を読むツールは SVG を直接描画できないので、必ず PNG への変換を挟む。
+   - 報告では、検査に通ったこと（違反 0 件）と、目で見て確かめたことを分けて書く。
 
 ## 作図ルール（要点）
 
-詳細と確認観点（a〜j）は [`references/conventions.md`](references/conventions.md) にある。要点は次のとおりである。
+詳細と確認の観点（a〜j）、各観点を検査と目で見る確認のどちらで確かめるかは、[`references/conventions.md`](references/conventions.md) にある。要点は次のとおりである。
 
 - エッジの交差を最小にすることを最優先にする。次に、屈曲を減らす、直交させる、重ならないようにする。
 - 同じ層のノードは x か y を揃えて格子に乗せる。

@@ -148,8 +148,9 @@ function createIconEmbedder(iconDir) {
   };
 }
 
+// ノードのアイコンの矩形。検査（diagram-checks.mjs）も同じ矩形を使う。
 /** @param {DiagramNode} n */
-const box = (n) => {
+export const box = (n) => {
   const h = ICON / 2;
   return { left: n.x - h, right: n.x + h, top: n.y - h, bottom: n.y + h };
 };
@@ -214,11 +215,44 @@ function labelOrigin(n, lineCount, lh) {
   return { x: n.x, align: "middle", y: b.bottom + 16 };
 }
 
+const NODE_LABEL_LH = 14; // ノードのラベルの行の間隔
+const NODE_LABEL_FONT = 12;
+
+// 文字列の幅の概算（px）。全角（CJK 等の非 Latin-1）は ASCII より広いので、文字ごとに出し分ける。
+// フォントで実際の幅は変わるので、検査とラベルの背景はこの概算で揃える。
+/**
+ * @param {string} s
+ * @param {number} latin Latin-1 の 1 文字の幅
+ * @param {number} wide それ以外の 1 文字の幅
+ */
+const textWidth = (s, latin, wide) =>
+  Array.from(s).reduce((a, ch) => a + (/[\x20-\xff]/.test(ch) ? latin : wide), 0);
+
+// ノードのラベルが占める矩形（幅は textWidth の概算）。検査（diagram-checks.mjs）が使う。
+/**
+ * @param {DiagramNode} n
+ * @returns {{ left: number, right: number, top: number, bottom: number } | null}
+ */
+export function nodeLabelRect(n) {
+  const lines = n.label ?? [];
+  if (!lines.length) return null;
+  const { x, y, align } = labelOrigin(n, lines.length, NODE_LABEL_LH);
+  // font-size 12 での概算（Latin-1 ≈ 7px / 全角 ≈ 12px）
+  const w = Math.max(...lines.map((line) => textWidth(line, 7, NODE_LABEL_FONT)));
+  const left = align === "middle" ? x - w / 2 : align === "end" ? x - w : x;
+  return {
+    left,
+    right: left + w,
+    top: y - NODE_LABEL_FONT,
+    bottom: y + (lines.length - 1) * NODE_LABEL_LH + 4,
+  };
+}
+
 // ラベルを線の出ていない辺へ配置。
 /** @param {DiagramNode} n */
 const label = (n) => {
   const lines = n.label ?? [];
-  const lh = 14;
+  const lh = NODE_LABEL_LH;
   const { x, y, align } = labelOrigin(n, lines.length, lh);
   return lines
     .map(
@@ -364,18 +398,34 @@ function renderEdge({ e, pts }, ei, verticals) {
   const out = [
     `<path d="${pathD(pts, ei, verticals)}" fill="none" stroke="${stroke}" stroke-width="1.8" marker-end="url(#${marker})"${e.dashed ? ' stroke-dasharray="6,4"' : ""}/>`,
   ];
-  if (e.label) {
-    const mid = labelPoint(pts, e);
-    // 全角（CJK 等の非 Latin-1）は ASCII より広いので、文字幅を出し分けて背景がラベルより
-    // 狭くならないようにする（font-size 11 での概算: Latin-1 ≈ 6.5px / 全角 ≈ 11px）。
-    const textW = Array.from(e.label).reduce((a, ch) => a + (/[\x20-\xff]/.test(ch) ? 6.5 : 11), 0);
-    const w = Math.ceil(textW) + 12;
+  const rect = edgeLabelRect({ e, pts });
+  if (rect && e.label) {
     out.push(
-      `<rect x="${mid.x - w / 2}" y="${mid.y - 10}" width="${w}" height="18" rx="3" fill="#FFFFFF" fill-opacity="0.92"/>`,
-      `<text x="${mid.x}" y="${mid.y + 3}" text-anchor="middle" font-family='${FONT}' font-size="11" fill="#5A6B86">${esc(e.label)}</text>`,
+      `<rect x="${rect.left}" y="${rect.top}" width="${rect.right - rect.left}" height="${rect.bottom - rect.top}" rx="3" fill="#FFFFFF" fill-opacity="0.92"/>`,
+      `<text x="${rect.x}" y="${rect.y + 3}" text-anchor="middle" font-family='${FONT}' font-size="11" fill="#5A6B86">${esc(e.label)}</text>`,
     );
   }
   return out;
+}
+
+// エッジのラベルの背景の矩形と中心。ラベルが無ければ null。検査（diagram-checks.mjs）も同じ矩形を使う。
+/**
+ * @param {{ e: DiagramEdge, pts: Point[] }} routedEdge
+ * @returns {{ x: number, y: number, left: number, right: number, top: number, bottom: number } | null}
+ */
+export function edgeLabelRect({ e, pts }) {
+  if (!e.label) return null;
+  const mid = labelPoint(pts, e);
+  // 背景がラベルより狭くならないよう、文字の幅を出し分ける（font-size 11 での概算: Latin-1 ≈ 6.5px / 全角 ≈ 11px）。
+  const w = Math.ceil(textWidth(e.label, 6.5, 11)) + 12;
+  return {
+    x: mid.x,
+    y: mid.y,
+    left: mid.x - w / 2,
+    right: mid.x + w / 2,
+    top: mid.y - 10,
+    bottom: mid.y + 8,
+  };
 }
 
 // ノード（アイコン + ラベル）。
@@ -426,23 +476,35 @@ function svgDocument(W, H, out) {
 `;
 }
 
+// 全エッジの線の座標の列を確定する。重複したエッジ・未知のノード・斜めの線は、ここでエラーにする。
+// 描画（renderDiagram）と検査（diagram-checks.mjs）が同じ線を使う。
+/**
+ * @param {DiagramSpec} spec
+ * @returns {{ e: DiagramEdge, pts: Point[] }[]}
+ */
+export function routeEdges(spec) {
+  const { nodes = [], edges = [] } = spec;
+  assertUniqueEdges(edges);
+  const node = nodeLookup(nodes);
+  const routed = edges.map((e) => ({ e, pts: route(node(e.from), node(e.to), e) }));
+  assertOrthogonal(routed);
+  return routed;
+}
+
 /**
  * @param {DiagramSpec} spec
  * @param {{ iconDir?: string }} [options]
  * @returns {string}
  */
 export function renderDiagram(spec, options = {}) {
-  const { W, H, title, nodes = [], edges = [], groups = [], notes = [] } = spec;
+  const { W, H, title, nodes = [], groups = [], notes = [] } = spec;
   const { iconDir } = options;
   if (!iconDir) throw new Error("renderDiagram: options.iconDir が必要です");
 
-  assertUniqueEdges(edges);
-  const node = nodeLookup(nodes);
   const embedIcon = createIconEmbedder(iconDir);
 
   // 全エッジの線を先に確定し、垂直の区間の一覧を作る（交差を飛び越すかの判定に使う）。
-  const routed = edges.map((e) => ({ e, pts: route(node(e.from), node(e.to), e) }));
-  assertOrthogonal(routed);
+  const routed = routeEdges(spec);
   const verticals = collectVerticals(routed);
 
   const out = [

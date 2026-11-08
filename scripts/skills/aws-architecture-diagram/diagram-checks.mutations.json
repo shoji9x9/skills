@@ -1,0 +1,184 @@
+{
+  "$comment": [
+    "diagram-checks.test.ts の検出能力を示す変異の一覧（Issue #931）。",
+    "検査が誤って違反を見逃すと、利用者の図が崩れたまま合格として扱われるので、観点ごとの判定の行を無効にする。",
+    "scripts/mutation/check-mutation-proof.ts が再実行する。テスト名を変えたら expect_failing も直す。"
+  ],
+  "test_file": "scripts/skills/aws-architecture-diagram/diagram-checks.test.ts",
+  "mutations": [
+    {
+      "id": "a-node-in-group",
+      "why": "(a) ノードが枠にかかっていても、余白が足りなくても見逃す",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": "      if (!outside && !inside) {",
+      "replace": "      if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "(a) ノードの枠の内側の余白が 8pxとき、(a) を出す",
+        "(a) ノードのアイコンが枠線をまたぐとき、(a) を出す",
+        "違反は観点の記号の順に並べる"
+      ]
+    },
+    {
+      "id": "b-through-icon",
+      "why": "(b) 線が端点でないアイコンを貫いても見逃す",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": ".filter((n) => n.id !== s.e.from && n.id !== s.e.to && crossesRect(s, box(n)))",
+      "replace": ".filter((n) => false && crossesRect(s, box(n)))",
+      "occurrences": 1,
+      "expect_failing": ["(b) 線が端点でないノードのアイコンを貫くと、(b) を出す"]
+    },
+    {
+      "id": "c-parallel-gap",
+      "why": "(c) 平行な区間が 20px 未満で並んでも見逃す",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": "      if (gap >= PARALLEL_GAP || ",
+      "replace": "      if (true || ",
+      "occurrences": 1,
+      "expect_failing": [
+        "(c) 別のエッジの平行な区間が 10px で並ぶと、(c) を出す",
+        "(c) 同じ依存元から出る線でも、間隔が 0 より大きく 20px 未満なら、(c) を出す",
+        "(c)(j) 端点を共有しないエッジが同じ座標で重なると、(c) と、接する点の (j) を出す"
+      ]
+    },
+    {
+      "id": "c-trunk-exemption-wide",
+      "why": "(c) 幹線の除外を、端点を共有しないエッジの重なりにも広げる",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": "      if (gap === 0 && sharesEnd(s.e, t.e)) continue;",
+      "replace": "      if (gap === 0) continue;",
+      "occurrences": 1,
+      "expect_failing": [
+        "(c)(j) 端点を共有しないエッジが同じ座標で重なると、(c) と、接する点の (j) を出す"
+      ]
+    },
+    {
+      "id": "d-through-label",
+      "why": "(d) 線がラベルを貫いても見逃す",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": ".filter((l) => l.ei !== s.ei && crossesRect(s, l.r) && !onSharedTrunk(s, l))",
+      "replace": ".filter((l) => false && crossesRect(s, l.r))",
+      "occurrences": 1,
+      "expect_failing": [
+        "(d) 線がノードのラベルの矩形を貫くと、(d) を出す",
+        "(d) 線が他のエッジのラベルを貫くと、(d) を出す（自分のラベルは対象にしない）",
+        "(d) 端点を共有するエッジでも、ラベルを垂直に貫くなら、(d) を出す"
+      ]
+    },
+    {
+      "id": "d-trunk-exemption-wide",
+      "why": "(d) 幹線のラベルの除外を、同じ座標で重ならない（垂直に貫く）線にも広げる",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": "        t.ei === l.ei &&",
+      "replace": "        true ||",
+      "occurrences": 1,
+      "expect_failing": ["(d) 端点を共有するエッジでも、ラベルを垂直に貫くなら、(d) を出す"]
+    },
+    {
+      "id": "f-entry-gap",
+      "why": "(f) 同じノードに入る線の端が重なっても見逃す",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": "Math.hypot(u.p.x - v.p.x, u.p.y - v.p.y) < ARROW_GAP,",
+      "replace": "false,",
+      "occurrences": 1,
+      "expect_failing": [
+        "(f) 同じノードに 2 本の線が同じ点で入ると、(f) を出す",
+        "(f) ノードに入る線の端と、同じノードから出る線の端が同じ点なら、(f) を出す"
+      ]
+    },
+    {
+      "id": "f-outgoing-exemption-wide",
+      "why": "(f) 出る線どうしの除外を、入る線と出る線の組にも広げる",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": "(u.incoming || v.incoming) &&",
+      "replace": "(u.incoming && v.incoming) &&",
+      "occurrences": 1,
+      "expect_failing": [
+        "(f) ノードに入る線の端と、同じノードから出る線の端が同じ点なら、(f) を出す"
+      ]
+    },
+    {
+      "id": "g-through-group",
+      "why": "(g) 線が端点を含まないグループを貫いても見逃す",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": "        return !related && crossesRect(s, r);",
+      "replace": "        return false && crossesRect(s, r);",
+      "occurrences": 1,
+      "expect_failing": ["(g) 線が端点を含まないグループの内側を通ると、(g) を出す"]
+    },
+    {
+      "id": "h-along-frame",
+      "why": "(h) 線が枠線に沿っても見逃す",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": "Math.abs(s.at - at) < PARALLEL_GAP",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": ["(h) 線がグループの枠線に 15px で沿うと、(h) を出す"]
+    },
+    {
+      "id": "i-margin-left",
+      "why": "(i) 左の余白が足りなくても見逃す",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": "        r.left < CANVAS_MARGIN ||",
+      "replace": "        false ||",
+      "occurrences": 1,
+      "expect_failing": [
+        "(i) グループの左とキャンバスの端の間が 50px 未満なら、(i) を出す",
+        "違反は観点の記号の順に並べる"
+      ]
+    },
+    {
+      "id": "i-margin-top",
+      "why": "(i) 上の余白が足りなくても見逃す",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": "        r.top < CANVAS_MARGIN ||",
+      "replace": "        false ||",
+      "occurrences": 1,
+      "expect_failing": ["(i) グループの上とキャンバスの端の間が 50px 未満なら、(i) を出す"]
+    },
+    {
+      "id": "i-margin-right",
+      "why": "(i) 右の余白が足りなくても見逃す",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": "        r.right > W - CANVAS_MARGIN ||",
+      "replace": "        false ||",
+      "occurrences": 1,
+      "expect_failing": ["(i) グループの右とキャンバスの端の間が 50px 未満なら、(i) を出す"]
+    },
+    {
+      "id": "i-margin-bottom",
+      "why": "(i) 下の余白が足りなくても見逃す",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": "        r.bottom > H - CANVAS_MARGIN",
+      "replace": "        false",
+      "occurrences": 1,
+      "expect_failing": ["(i) グループの下とキャンバスの端の間が 50px 未満なら、(i) を出す"]
+    },
+    {
+      "id": "j-junction",
+      "why": "(j) 飛び越しの付かない接し方を見逃す",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": "      if (touches && !hopped(h, v)) {",
+      "replace": "      if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "(j) 屈曲点が他のエッジの線の上に乗り、飛び越しが付かないと、(j) を出す",
+        "(j) 自動の L 字が線を分けた点（a->b の中点 x=300）で交わると、飛び越しが付かないので (j) を出す",
+        "(c)(j) 端点を共有しないエッジが同じ座標で重なると、(c) と、接する点の (j) を出す"
+      ]
+    },
+    {
+      "id": "j-hop-any-segment",
+      "why": "(j) 飛び越しが付くかを、エンジンが描く単位の区間で確かめずに付くとみなす",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": "rv.at === v.at && hops(rh, rv)),",
+      "replace": "rv.at === v.at && true),",
+      "occurrences": 1,
+      "expect_failing": [
+        "(j) 屈曲点が他のエッジの線の上に乗り、飛び越しが付かないと、(j) を出す",
+        "(j) 自動の L 字が線を分けた点（a->b の中点 x=300）で交わると、飛び越しが付かないので (j) を出す",
+        "(c)(j) 端点を共有しないエッジが同じ座標で重なると、(c) と、接する点の (j) を出す"
+      ]
+    }
+  ]
+}

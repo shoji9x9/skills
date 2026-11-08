@@ -1,6 +1,7 @@
 // 構成図の SVG を headless Chrome で PNG にラスタライズし、目視で確認するために出力する。
 // 画像を読むツールは SVG を直接描画できないので、PNG への変換を挟む。エージェントは
-// 出力した PNG を画像として読み、references/conventions.md の確認観点で品質をチェックする。
+// render-diagram.mjs の検査を通した後に、出力した PNG を画像として読み、検査で測れない見た目を確かめる
+// （references/conventions.md の「生成と品質確認」）。
 //
 // 使い方は次のとおりである。出力した PNG の絶対パスを表示する。
 //
