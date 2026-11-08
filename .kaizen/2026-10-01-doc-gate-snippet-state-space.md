@@ -64,9 +64,10 @@ Issue #933 でも同じ原因で再発した（「再発の記録（#933）」�
 
 ## 既存の規約
 
-- 扱い: 強制なし
-- 場所: `AGENTS.md`「確かめ方」（新しく作った分岐や、新しく受け付ける入力は、その状態を実際に作って確かめる）と `.agents/rules/state-space-and-mutation-proof.md`
-- 照合した範囲: `AGENTS.md`・`docs/agent-workflow.md`・`.agents/rules/` を「状態を実際に作って」「状態を列挙」で検索した。規約は常に読み込まれる場所に言い切る形であり、同じ原因で再発を繰り返し、手順書のシェル断片の状態を確かめる機構は無い
+- 扱い: 埋もれている
+- 場所: `.agents/rules/state-space-and-mutation-proof.md`（入力の状態を列挙する手順の原本。`paths` が `skills/*/references/**` に当たらず、手順書の断片を書くときに読み込まれない）
+- 照合した範囲: `AGENTS.md`・`docs/agent-workflow.md`・`.agents/rules/` を「状態を実際に作って」「状態を列挙」で検索した。
+  `AGENTS.md`「確かめ方」にも分岐の状態を作って確かめる 1 行があるが、どの状態を列挙するかの手順は上の rule にしか無い。`## 根本原因` の 2 つ目のとおり、原因はこの rule が読み込まれないことである
 
 ## 提案
 

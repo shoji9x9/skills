@@ -69,3 +69,8 @@ ci:42453006393:1,ci,2026-11-08T06:10:50.467Z,p-cdee4961,github-actions,,,,2026-1
 coverage:github:2026-11-07T06:00:25.912Z:2026-11-08T06:10:50.467Z,coverage,2026-11-08T06:10:50.467Z,p-cdee4961,,,,,2026-11-07T06:00:25.912Z,2026-11-08T06:10:50.467Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-11-07T06:10:50.467Z:2026-11-08T06:11:21.956Z,coverage,2026-11-08T06:11:21.956Z,p-cdee4961,,,,,2026-11-07T06:10:50.467Z,2026-11-08T06:11:21.956Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-11-07T06:11:21.956Z:2026-11-08T06:17:10.535Z,coverage,2026-11-08T06:17:10.535Z,p-cdee4961,,,,,2026-11-07T06:11:21.956Z,2026-11-08T06:17:10.535Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:42454160278:1,ci,2026-11-08T06:25:40.877Z,p-cdee4961,github-actions,,,,2026-11-08T06:17:56.000Z,2026-11-08T06:22:09.000Z,Asia/Tokyo,feature/933-kaizen-covered-rules-and-failure-types,933,,,,,,,,,,CI;pull_request;success,
+ci:42454160315:1,ci,2026-11-08T06:25:40.877Z,p-cdee4961,github-actions,,,,2026-11-08T06:17:56.000Z,2026-11-08T06:17:57.000Z,Asia/Tokyo,feature/933-kaizen-covered-rules-and-failure-types,933,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:42454160283:1,ci,2026-11-08T06:25:40.877Z,p-cdee4961,github-actions,,,,2026-11-08T06:17:56.000Z,2026-11-08T06:19:01.000Z,Asia/Tokyo,feature/933-kaizen-covered-rules-and-failure-types,933,,,,,,,,,,CodeQL;pull_request;success,
+coverage:github:2026-11-07T06:17:10.535Z:2026-11-08T06:25:40.877Z,coverage,2026-11-08T06:25:40.877Z,p-cdee4961,,,,,2026-11-07T06:17:10.535Z,2026-11-08T06:25:40.877Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-07T06:25:40.877Z:2026-11-08T06:26:11.586Z,coverage,2026-11-08T06:26:11.586Z,p-cdee4961,,,,,2026-11-07T06:25:40.877Z,2026-11-08T06:26:11.586Z,Asia/Tokyo,,,,,,,,,,,,ok,
