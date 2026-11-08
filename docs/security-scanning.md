@@ -95,7 +95,8 @@ GitHub-hosted runner には、上流のスキルが対象のコードを実行�
 
 公開リポジトリの artifact はログインした誰でも取得できるので、監査の出力とエージェントの実行記録は、`SECURITY_AUDIT_STATE_KEY` で暗号化してから artifact に置く。
 `self` の監査で記録の形を確かめられたら、`security-audit-state-<鍵の識別子>`（90 日保持）に置き、次の実行がそれを復号して前回の記録として引き継ぐ。
-鍵の識別子は、鍵から作った HMAC の先頭 12 桁で、鍵には戻せない。
+鍵の識別子は、鍵から作った HMAC の先頭 12 桁である。鍵が乱数（`openssl rand`）なら、識別子から鍵を割り出すことはできない。
+鍵を人が決めた文字列にすると、識別子と追跡 Issue の識別子から鍵を推測して確かめられるので、乱数にする。
 引き継ぐのは、今回を含む直近の 3 回分の出力である。今回が未完了でも、その前の完了した実行の記録が残る。
 失敗した実行と `dvna` の監査の記録は、`security-audit-run-<対象>-<試行>`（14 日保持）に置き、引き継がない。
 
@@ -110,10 +111,13 @@ run の artifact を取得し、鍵で復号する。出力のディレクトリ
 追跡 Issue の識別子と記録を対応づけるときは、`findings.json` の各 fingerprint から `scripts/weekly/security-audit-issue.ts` の `itemId` で識別子を作って照らし合わせる。
 
 ```bash
-gh run download <run の ID> --repo shoji9x9/skills --pattern 'security-audit-*' --dir audit
-# artifact ごとのディレクトリ（audit/<artifact の名前>/state.tar.gpg）ができる
-gpg --batch --pinentry-mode loopback --passphrase-file security-audit-key.txt --decrypt audit/<artifact の名前>/state.tar.gpg | tar -xf - -C audit
+# 引き継ぐ記録（self の監査で記録の形を確かめられた run）。失敗した run と dvna の run は security-audit-run-* を指定する
+gh run download <run の ID> --repo shoji9x9/skills --pattern 'security-audit-state-*' --dir audit/state
+gpg --batch --pinentry-mode loopback --passphrase-file security-audit-key.txt \
+  --decrypt audit/state/state.tar.gpg | tar -xf - -C audit/state
 ```
 
 鍵を替えると、引き継ぐ記録の artifact の名前（鍵の識別子）も変わるので、次の実行は古い鍵の記録を選ばずに初回として監査する。古い記録は、保持の期間が過ぎると消える。
 識別子も鍵から作るので、鍵を替えた次の実行は、追跡 Issue の記録をすべて「新規」、前回の記録をすべて「解消」と書く。直ったという意味ではないので、その回の差分は読み飛ばす。
+
+同じ鍵で復号できない記録が残ると、監査は止まる。そのときは、`restart` を `true` にして実行すると、記録を引き継がずに初回として監査する。

@@ -21,6 +21,10 @@ on:
         description: エージェントを起動する回数の上限（偵察・調査・検証のすべてを数える）
         type: string
         default: "40"
+      restart:
+        description: 前回の記録を引き継がずに、初回として監査する（同じ鍵で復号できない記録が残ったときに使う）
+        type: boolean
+        default: false
 
 # 前の実行を止めない。記録の引き継ぎと追跡 Issue の更新が途中で止まると、食い違った状態が残る。
 concurrency:
@@ -102,7 +106,8 @@ jobs:
           # 引き継ぐ記録の artifact の名前に、鍵から作った識別子（HMAC の先頭 12 桁。鍵は戻せない）を付ける。
           # 鍵を替えると名前が変わるので、次の実行は古い鍵の記録を選ばず、初回として監査する（記録を手で消さなくてよい）。
           if [ "$present" = true ]; then
-            key_id="$(printf '%s' security-audit-state | openssl dgst -sha256 -hmac "$SECURITY_AUDIT_STATE_KEY" | awk '{print $NF}' | cut -c 1-12)"
+            # 鍵はコマンドの引数に置かず、環境変数で渡す。
+            key_id="$(python3 -I -c 'import hashlib, hmac, os; e = os.environ; print(hmac.new(e["SECURITY_AUDIT_STATE_KEY"].encode(), e["STATE_ARTIFACT_PREFIX"].encode(), hashlib.sha256).hexdigest()[:12])')"
             if ! [[ "$key_id" =~ ^[0-9a-f]{12}$ ]]; then
               echo "鍵の識別子を作れない" >&2
               exit 1
@@ -201,10 +206,12 @@ jobs:
           RUNS_DIR: ${{ steps.settings.outputs.runs_dir }}
           BRANCH: ${{ github.ref_name }}
           STATE_ARTIFACT: ${{ env.STATE_ARTIFACT_PREFIX }}-${{ steps.cred.outputs.key_id }}
+          RESTART: ${{ inputs.restart || false }}
         run: |
           set -o pipefail
           mkdir -p "$RUNS_DIR"
-          if [ "$TARGET" != self ]; then
+          # restart は、同じ鍵で復号できない記録が残ったときに、記録を引き継がずに初回として監査するための入力である。
+          if [ "$TARGET" != self ] || [ "$RESTART" = true ]; then
             echo "result=none" >>"$GITHUB_OUTPUT"
             echo "next=1" >>"$GITHUB_OUTPUT"
             mkdir -p "$RUNS_DIR/run-1"
@@ -417,7 +424,7 @@ jobs:
           failure=""
           state_note=""
           if [ "$RESTORE_RESULT" = failed ]; then
-            failure="前回の記録を同じ鍵で復号できないため、監査していない（記録が不正。docs/security-scanning.md の「記録の読み方」で中身を確かめる）"
+            failure="前回の記録を同じ鍵で復号できないため、監査していない（記録が不正。restart を true にして実行すると、初回として監査する）"
           elif [ "$JOB_STATUS" != success ]; then
             failure="エージェントを起動する前の段が失敗した（どの段かは run のログで確かめる）"
           elif [ "$CRED_PRESENT" = false ]; then
@@ -436,7 +443,7 @@ jobs:
             outcomes="暗号化: ${ENCRYPT_OUTCOME:-skipped}・引き継ぐ記録の upload: ${STATE_OUTCOME:-skipped}・今回の記録の upload: ${RUN_UPLOAD_OUTCOME:-skipped}"
             if [ "$TARGET" = self ] && { [ "$ENCRYPT_OUTCOME" = failure ] || [ "$STATE_OUTCOME" = failure ]; }; then
               # 引き継ぐ記録を上げられないと、次の実行は前回までの記録と比べるので、新規と解消が 2 回分の差になる。
-              state_note="次の実行に引き継ぐ記録を残せなかったので、次の実行は前回までの記録と比べる（$outcomes）"
+              state_note="次の実行に引き継ぐ記録を残せなかったので、次の実行は今回より前の記録（無ければ初回として）と比べる（$outcomes）"
             elif [ "$ENCRYPT_OUTCOME" = failure ] || [ "$RUN_UPLOAD_OUTCOME" = failure ]; then
               state_note="今回の記録を暗号化して残せなかった（$outcomes）"
             fi
