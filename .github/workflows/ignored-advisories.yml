@@ -5,9 +5,8 @@ name: Ignored advisories
 # 判定は scripts/weekly/ignored-advisories.ts にあり、検出したときの扱いは docs/vulnerability-handling.md「無視する advisory」にある。
 on:
   schedule:
-    # 毎週月曜 03:00 UTC (12:00 JST)。
-    # どれかの cron を変えるときは、ほかの週次（outdated.yml・kaizen-schedule.yml・mutation-proof.yml・codeql.yml・check-cost-metrics.yml・self-review.yml）と重ならないかを確かめる。
-    - cron: "0 3 * * 1"
+    # 毎週月曜 09:30 JST（00:30 UTC）。週次の処理の一覧と、cron を変えるときの確かめ方は docs/weekly-schedule.md にある。
+    - cron: "30 0 * * 1"
   workflow_dispatch: {}
 
 concurrency:
