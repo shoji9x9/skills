@@ -1,0 +1,150 @@
+{
+  "metadata": {
+    "skill_name": "issue-create",
+    "skill_path": "<repo>/skills/issue-create",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-08T00:30:22Z",
+    "evals_run": [10],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 10,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 38.805,
+        "tokens": 97958,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "起票した後に、REST の sub-issues の API（issues/120/sub_issues への POST）で、作った Issue（#131）を #120 の sub-issue にするコマンドを示している",
+          "passed": true,
+          "evidence": "手順 2 で add_sub_issue 120 131 を呼び、関数内で gh api -X POST \"repos/$repo/issues/$1/sub_issues\" を実行している"
+        },
+        {
+          "text": "sub-issues の API の sub_issue_id に、Issue の番号ではなく、作った Issue の id（gh api で Issue を取得した .id）を渡している",
+          "passed": true,
+          "evidence": "child_id=$(gh api \"repos/$repo/issues/$2\" --jq .id) を取得し、整数を確かめて -F \"sub_issue_id=$child_id\" で渡している"
+        },
+        {
+          "text": "紐付ける前に #131 の親を取得し、すでに #120 が親なら足さずに終え、別の親が付いていれば replace_parent で置き換えずに、付いていた親を利用者に伝えると書いている",
+          "passed": true,
+          "evidence": "紐付ける前に issues/$2/parent を取得し、#120 なら return 0、別の親なら「replace_parent は使わず、付け替えもしません」と報告すると書いている"
+        },
+        {
+          "text": "紐付けた後に #131 の親を取得して、#120 であることを確かめる手順を示している",
+          "passed": true,
+          "evidence": "「3) 紐付けた後の親を確かめる」で issues/$2/parent を再取得し、#120 でなければ失敗にしている"
+        },
+        {
+          "text": "紐付けに失敗したときは、起票した Issue を消さずに残し、紐付けられなかった Issue と失敗の内容を利用者に伝えると書いている",
+          "passed": true,
+          "evidence": "「紐付けに失敗したことを理由に #131 を消したり閉じたりはしません」「failed に入った Issue（#131）、関数が標準エラーに出した応答」を報告すると書いている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 36.391,
+        "tokens": 76139,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "起票した後に、REST の sub-issues の API（issues/120/sub_issues への POST）で、作った Issue（#131）を #120 の sub-issue にするコマンドを示している",
+          "passed": true,
+          "evidence": "手順 4 で gh api -X POST repos/{owner}/{repo}/issues/120/sub_issues -F sub_issue_id=\"$CHILD_ID\" を示している"
+        },
+        {
+          "text": "sub-issues の API の sub_issue_id に、Issue の番号ではなく、作った Issue の id（gh api で Issue を取得した .id）を渡している",
+          "passed": true,
+          "evidence": "手順 2 で CHILD_ID=$(gh api repos/{owner}/{repo}/issues/131 --jq .id) を取得し、sub_issue_id に渡している"
+        },
+        {
+          "text": "紐付ける前に #131 の親を取得し、すでに #120 が親なら足さずに終え、別の親が付いていれば replace_parent で置き換えずに、付いていた親を利用者に伝えると書いている",
+          "passed": true,
+          "evidence": "手順 3 で GraphQL の issue(number:131){ parent } を取得し、#120 なら手順 4 を飛ばし、#120 以外なら止めて「付け替えずに止めます」、replace_parent は付けないと書いている"
+        },
+        {
+          "text": "紐付けた後に #131 の親を取得して、#120 であることを確かめる手順を示している",
+          "passed": false,
+          "evidence": "紐付けた後の確認は「gh api repos/{owner}/{repo}/issues/120/sub_issues --jq '.[].number' | grep -x 131」で、親の一覧から確かめている。#131 の親を取得してはいない（同じ関係を確かめる別の正しい方法）"
+        },
+        {
+          "text": "紐付けに失敗したときは、起票した Issue を消さずに残し、紐付けられなかった Issue と失敗の内容を利用者に伝えると書いている",
+          "passed": true,
+          "evidence": "「#131 は作成済みのまま残ります。削除も作り直しもしません」「#120 への紐付けは失敗しました（エラー：…）」と返すと書いている"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 38.805,
+        "stddev": 0,
+        "min": 38.805,
+        "max": 38.805
+      },
+      "tokens": {
+        "mean": 97958,
+        "stddev": 0,
+        "min": 97958,
+        "max": 97958
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.8,
+        "stddev": 0,
+        "min": 0.8,
+        "max": 0.8
+      },
+      "time_seconds": {
+        "mean": 36.391,
+        "stddev": 0,
+        "min": 36.391,
+        "max": 36.391
+      },
+      "tokens": {
+        "mean": 76139,
+        "stddev": 0,
+        "min": 76139,
+        "max": 76139
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.20",
+      "time_seconds": "+2.4",
+      "tokens": "+21819"
+    }
+  },
+  "notes": [
+    "eval 10 は新しく足した eval なので、比べる前の記録は無い。",
+    "without_skill の 4 つ目の不合格は、紐付けた後の確認を親の sub-issue の一覧で行ったため。同じ関係を確かめる別の正しい方法なので、assertion を両方を許す文に直す（次の実行から、この文とは比べない）。"
+  ]
+}
