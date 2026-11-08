@@ -18,12 +18,12 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import ts from "typescript";
 import { isCliEntry } from "../lib/cli/entry.ts";
 import { errorMessage } from "../lib/errors.ts";
 import { isNonBlankString, isPlainObject, isRecord } from "../lib/guards.ts";
 import { isArray } from "../lib/is-array.ts";
 import { spawnAsync } from "../lib/spawn-async.ts";
-import { jsCommentRanges } from "../lib/text/code-comments.ts";
 import {
   formatDiffComment,
   naturalOrder,
@@ -222,20 +222,7 @@ function mentions(text: string, name: string): boolean {
   return false;
 }
 
-/**
- * 読む処理のうち、コメントを除いた部分。コメントにだけファイル名が残っていても、読んでいることにはならない。
- * TypeScript・JavaScript はパーサでコメントを除き、JSON と YAML は読んだ値の文字列（キーと値）を行に並べる。
- * それ以外の種類は扱わない。読めないときは、どの読む処理かを添えて例外にする。
- */
-export function referenceText(path: string, source: string): string {
-  try {
-    return referenceTextOf(path, source);
-  } catch (error) {
-    throw new Error(`読む処理 ${path} を読めない（${errorMessage(error)}）`, { cause: error });
-  }
-}
-
-/** 値の中の文字列（キーと値）を集める。JSON にすると改行が \n になり、直後のファイル名を名前の一部として読んでしまう。 */
+/** 値の中の文字列（キーと値）を集める。 */
 function stringsOf(value: unknown): string[] {
   if (typeof value === "string") return [value];
   if (isArray(value)) return value.flatMap(stringsOf);
@@ -243,22 +230,47 @@ function stringsOf(value: unknown): string[] {
   return [];
 }
 
-function referenceTextOf(path: string, source: string): string {
-  if (/\.(?:[cm]?[jt]s)$/u.test(path)) {
-    let text = source;
-    for (const { pos, end } of jsCommentRanges(source, path).toReversed()) {
-      text = text.slice(0, pos) + " ".repeat(end - pos) + text.slice(end);
-    }
-    return text;
-  }
+/** TypeScript・JavaScript の文字列リテラルとテンプレートの、エスケープを解いた値を集める。 */
+function literalsOf(path: string, source: string): string[] {
+  const kind = path.endsWith("ts") ? ts.ScriptKind.TS : ts.ScriptKind.JS;
+  const sf = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, kind);
+  const found: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isStringLiteralLike(node) || ts.isTemplateLiteralToken(node)) found.push(node.text);
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return found;
+}
+
+/**
+ * 読む処理の中の文字列の値を、行に並べて返す。ファイル名は、読む処理のコードでは文字列として現れる。
+ * コメントは値に入らないので、コメントにだけ残った名前は参照として数えない。
+ * 値はエスケープを解いた形で並べるので、`\n` の直後のファイル名を、別の名前の一部として読まない。
+ * 扱う種類は TypeScript・JavaScript・JSON・YAML である。
+ */
+export function referenceText(path: string, source: string): string {
+  if (/\.(?:[cm]?[jt]s)$/u.test(path)) return literalsOf(path, source).join("\n");
   if (path.endsWith(".json")) return stringsOf(JSON.parse(source)).join("\n");
   if (/\.ya?ml$/u.test(path)) return stringsOf(loadYaml(source)).join("\n");
-  throw new Error(`${path} は読む処理として扱えない種類のファイル（.ts・.js・.json・.yml）`);
+  throw new Error("扱えない種類のファイル。扱えるのは .ts・.js・.json・.yml");
+}
+
+/** 読む処理を読んで文字列の値を取る。読めないときは、どの読む処理かと直す場所を添えて例外にする。 */
+function readReference(reader: string, read: (path: string) => string): string {
+  try {
+    return referenceText(reader, read(reader));
+  } catch (error) {
+    throw new Error(
+      `読む処理 ${reader} を読めない。check-cost-metrics.json の readers を直す: ${errorMessage(error)}`,
+      { cause: error },
+    );
+  }
 }
 
 /**
  * 読む処理（readers）が、一覧のファイル名を参照しているかを確かめる。参照していなければ、設定が古い。
- * 同じ読む処理を複数の一覧が挙げるので、コメントを除いた本文を cache に置いて 1 回だけ読む。
+ * 同じ読む処理を複数の一覧が挙げるので、読んだ値を cache に置いて 1 回だけ読む。
  */
 export function checkReaders(
   target: ListTarget,
@@ -267,7 +279,7 @@ export function checkReaders(
 ): void {
   const name = basename(target.file);
   for (const reader of target.readers) {
-    const text = cache.get(reader) ?? referenceText(reader, read(reader));
+    const text = cache.get(reader) ?? readReference(reader, read);
     cache.set(reader, text);
     if (!mentions(text, name)) {
       throw new Error(
@@ -287,11 +299,15 @@ async function loadList(target: ListTarget, root: string): Promise<unknown> {
 }
 
 /** 空の一覧を挙げる。一覧か読む処理を読めないときは例外にする。 */
-export async function emptyLists(lists: readonly ListTarget[], root: string): Promise<Finding[]> {
+export async function emptyLists(
+  lists: readonly ListTarget[],
+  root: string,
+  read: (path: string) => string = (path) => readFileSync(join(root, path), "utf8"),
+): Promise<Finding[]> {
   const findings: Finding[] = [];
   const readers = new Map<string, string>();
   for (const target of lists) {
-    checkReaders(target, (path) => readFileSync(join(root, path), "utf8"), readers);
+    checkReaders(target, read, readers);
     const count = countEntries(target.count, await loadList(target, root), target.file);
     if (count === 0 && target.keepEmpty === undefined) {
       findings.push({ kind: "empty-list", target: target.file, detail: target.readers.join("、") });

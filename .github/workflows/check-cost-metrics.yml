@@ -25,7 +25,7 @@ jobs:
   check:
     name: Check cost metrics
     runs-on: ubuntu-latest
-    # ジョブの API を run ごとに呼ぶので、所要時間は run の数に比例する。1 回の呼び出しは 2 分で打ち切るが、
+    # ジョブの API を run ごとに呼ぶので、所要時間は run の数に比例する。1 回の呼び出しは check-cost-metrics.ts の CALL_TIMEOUT_MS で打ち切るが、
     # 遅い応答が続いたときに全体が長引かないよう、ジョブにも上限を置く。
     timeout-minutes: 30
     permissions:

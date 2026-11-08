@@ -260,11 +260,11 @@ describe("空の一覧", () => {
   });
 
   test("読む処理が一覧を参照していなければ例外にする", () => {
-    expect(() => checkReaders(target("dir/a.json"), () => "import b.json")).toThrow(
+    expect(() => checkReaders(target("dir/a.json"), () => 'import "b.json"')).toThrow(
       "r.ts が a.json を参照していない",
     );
-    expect(() => checkReaders(target("dir/a.json"), () => "read a.json")).not.toThrow();
-    expect(() => checkReaders(target("dir/a.json"), () => "read dir/a.json.")).not.toThrow();
+    expect(() => checkReaders(target("dir/a.json"), () => 'read("a.json")')).not.toThrow();
+    expect(() => checkReaders(target("dir/a.json"), () => 'read("see dir/a.json.")')).not.toThrow();
   });
 
   test.each([
@@ -276,28 +276,50 @@ describe("空の一覧", () => {
   });
 
   test.each([
-    { reader: "r.ts", text: 'const p = "a.json"; // 説明' },
-    { reader: "w.yml", text: "run: cat a.json # 説明\n" },
-    { reader: "package.json", text: '{"scripts": {"x": "tool a.json"}}' },
-    { reader: "w.yml", text: "run: |\n  echo x\n  a.json\n" },
-    { reader: "w.yml", text: 'run: "echo\\ta.json"\n' },
-    { reader: "package.json", text: '{"x": "echo\\na.json"}' },
-  ])("$reader のコードにある名前は参照として数える", ({ reader, text }) => {
+    { name: "TypeScript の文字列", reader: "r.ts", text: 'const p = "a.json"; // 説明' },
+    { name: "TypeScript の文字列の改行の後", reader: "r.ts", text: 'const s = "x\\na.json";' },
+    {
+      name: "TypeScript のテンプレートのタブの後",
+      reader: "r.ts",
+      text: "const s = `x\\ta.json`;",
+    },
+    { name: "YAML の値", reader: "w.yml", text: "run: cat a.json # 説明\n" },
+    { name: "JSON の値", reader: "package.json", text: '{"scripts": {"x": "tool a.json"}}' },
+    { name: "YAML のブロックの改行の後", reader: "w.yml", text: "run: |\n  echo x\n  a.json\n" },
+    { name: "YAML の値のタブの後", reader: "w.yml", text: 'run: "echo\\ta.json"\n' },
+    { name: "JSON の値の改行の後", reader: "package.json", text: '{"x": "echo\\na.json"}' },
+  ])("$name にある名前は参照として数える", ({ reader, text }) => {
     expect(() => checkReaders(target("a.json", [reader]), () => text)).not.toThrow();
   });
 
-  test("読む処理として扱えない種類のファイルと、読めない JSON・YAML は、読む処理の名前を添えて例外にする", () => {
+  test("扱えない種類のファイルは例外にする", () => {
     expect(() => referenceText("lefthook.toml", "a.json")).toThrow("扱えない種類");
-    expect(() => referenceText("r.json", "{ // a.json\n}")).toThrow("読む処理 r.json を読めない");
-    expect(() => referenceText("w.yml", "a: [")).toThrow("読む処理 w.yml を読めない");
   });
 
-  test("同じ読む処理は、一覧が複数あっても 1 回だけ読む", () => {
+  test.each([
+    { name: "コメントを含む JSON", reader: "r.json", text: "{ // a.json\n}" },
+    { name: "構文の誤った YAML", reader: "w.yml", text: "a: [" },
+    { name: "扱えない種類", reader: "lefthook.toml", text: "a.json" },
+  ])("$name の読む処理は、名前と直す場所を添えて例外にする", ({ reader, text }) => {
+    expect(() => checkReaders(target("a.json", [reader]), () => text)).toThrow(
+      `読む処理 ${reader} を読めない。check-cost-metrics.json の readers を直す`,
+    );
+  });
+
+  test("読む処理のファイルが無ければ、名前と直す場所を添えて例外にする", async () => {
+    const root = makeTempDir("check-cost-metrics-");
+    writeFiles(root, { "a.json": '{"exempt": []}' });
+    await expect(emptyLists([target("a.json", ["none.ts"])], root)).rejects.toThrow(
+      "読む処理 none.ts を読めない。check-cost-metrics.json の readers を直す",
+    );
+  });
+
+  test("同じ読む処理は、一覧が複数あっても 1 回だけ読む", async () => {
+    const root = makeTempDir("check-cost-metrics-");
+    writeFiles(root, { "a.json": '{"exempt": ["x"]}', "b.json": '{"exempt": ["y"]}' });
     const read: string[] = [];
-    const cache = new Map<string, string>();
-    for (const file of ["a.json", "b.json"]) {
-      checkReaders(target(file), (path) => (read.push(path), "a.json b.json"), cache);
-    }
+    const reader = (path: string) => (read.push(path), 'load("a.json", "b.json")');
+    expect(await emptyLists([target("a.json"), target("b.json")], root, reader)).toEqual([]);
     expect(read).toEqual(["r.ts"]);
   });
 
@@ -308,7 +330,7 @@ describe("空の一覧", () => {
   });
 
   test("別のファイル名の一部にある名前は、参照として数えない", () => {
-    for (const text of ["read crap-a.json", "read xa.json", "read a.json-old", "read a.jsonc"]) {
+    for (const text of ['"crap-a.json"', '"xa.json"', '"a.json-old"', '"a.jsonc"']) {
       expect(() => checkReaders(target("dir/a.json"), () => text)).toThrow("参照していない");
     }
   });
@@ -319,7 +341,7 @@ describe("空の一覧", () => {
       "empty.json": '{"exempt": []}',
       "full.json": '{"exempt": ["x"]}',
       "pending.ts": "export const PENDING = {};\n",
-      "r.ts": "empty.json full.json pending.ts",
+      "r.ts": 'load("empty.json", "full.json", "pending.ts");',
     });
     const lists = [
       target("empty.json"),
@@ -338,7 +360,7 @@ describe("空の一覧", () => {
 
   test("一覧か読む処理のファイルが無ければ例外にする", async () => {
     const root = makeTempDir("check-cost-metrics-");
-    writeFiles(root, { "r.ts": "a.json" });
+    writeFiles(root, { "r.ts": 'load("a.json");' });
     await expect(emptyLists([target("a.json")], root)).rejects.toThrow("a.json");
     await expect(emptyLists([target("a.json", ["none.ts"])], root)).rejects.toThrow("none.ts");
   });
@@ -602,7 +624,7 @@ test("本番の呼び出しは stdout を返し、0 以外の終了と起動の�
     defaultRunner(process.execPath, ["-e", "process.stderr.write('理由'); process.exit(3)"]),
   ).rejects.toThrow(/終了コード 3.*理由/su);
   await expect(defaultRunner("check-cost-metrics-no-such-command", [])).rejects.toThrow(
-    /check-cost-metrics-no-such-command.*が失敗した/su,
+    /^check-cost-metrics-no-such-command {2}が失敗した（.*ENOENT.*）/u,
   );
 });
 
@@ -681,7 +703,7 @@ describe("追跡 Issue の本文", () => {
 describe("まとめて集める", () => {
   test("3 つの指標を集める", async () => {
     const root = makeTempDir("check-cost-metrics-");
-    writeFiles(root, { "a.json": '{"exempt": []}', "r.ts": "a.json" });
+    writeFiles(root, { "a.json": '{"exempt": []}', "r.ts": 'load("a.json");' });
     const run: Runner = async (command, args) => {
       if (command === "git") return args[2] === "rev-parse" ? "false\n" : "";
       return JSON.stringify([{ total_count: 0, workflow_runs: [] }]);
@@ -711,7 +733,7 @@ describe("CLI", () => {
     const root = makeTempDir("check-cost-metrics-");
     writeFiles(root, {
       "a.json": '{"exempt": []}',
-      "r.ts": "a.json",
+      "r.ts": 'load("a.json");',
       "config.json": configJson(),
     });
     return { root, config: join(root, "config.json") };
