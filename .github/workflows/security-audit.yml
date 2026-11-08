@@ -181,7 +181,7 @@ jobs:
 
       # 前回の記録を、同じブランチで成功した実行の artifact から取得して復号する。無ければ初回として監査する。
       # artifact はこのワークフローが鍵で暗号化して上げたものだけを使う（名前が同じでも、別のワークフローの artifact は使わない）。
-      # 復号できないときは、初回として扱わずに止める。鍵を替えたときは、そのブランチの security-audit-state をすべて消してから実行する（最新だけを消すと、1 つ前の古い鍵の記録を選ぶ）。
+      # 復号できないときは、初回として扱わずに止める。鍵を替えたときは、すべてのブランチの security-audit-state を消してから実行する（最新だけを消すと、1 つ前の古い鍵の記録を選ぶ）。
       - name: Restore previous records
         id: restore
         if: steps.settings.outputs.valid == 'true'
@@ -272,9 +272,11 @@ jobs:
           # 拒否の一覧はツールが足されるたびに抜けが出るので、--tools で使えるツールそのものを限る（使えないツールは拒否の一覧に書かない）。
           # 設定はユーザーの層（runner には無い）だけを読む。リポジトリの .claude/settings.json の Hook（応答の言語の確認・kaizen の記録）を
           # 監査の中で実行させないためである。Hook は出力のディレクトリの外に書き、英語で書く上流のスキルの応答を書き直させる。
+          # MCP のサーバーも、--mcp-config で渡したもの（action が渡すもの）だけにし、リポジトリの .mcp.json のサーバーを起動させない。
           claude_args: >-
             --tools "Read,Grep,Glob,Edit,Write,Agent,Bash"
             --setting-sources user
+            --strict-mcp-config
             --add-dir "${{ steps.settings.outputs.root }}"
             --allowed-tools "Read(${{ steps.settings.outputs.read_glob }}),Grep(${{ steps.settings.outputs.read_glob }}),Glob(${{ steps.settings.outputs.read_glob }}),Read(/${{ steps.settings.outputs.root }}/**),Grep(/${{ steps.settings.outputs.root }}/**),Glob(/${{ steps.settings.outputs.root }}/**),Edit(/${{ steps.settings.outputs.runs_dir }}/run-${{ steps.restore.outputs.next }}/**),Agent,Bash(node ${{ steps.settings.outputs.skill_dir }}/validate-findings.cjs *),Bash(node ${{ steps.settings.outputs.skill_dir }}/validate-coverage-ledger.cjs *)"
             ${{ steps.settings.outputs.model_args }}
@@ -355,7 +357,9 @@ jobs:
 
       # 失敗した実行や dvna の監査も、原因を追えるよう暗号化した記録を残す（次の実行は引き継がない）。
       - name: Upload records of this run
-        if: steps.encrypt.outcome == 'success' && (steps.summarize.outcome != 'success' || steps.settings.outputs.target != 'self')
+        if: >-
+          steps.encrypt.outcome == 'success' && (steps.summarize.outcome != 'success' || steps.settings.outputs.target != 'self' ||
+          steps.upload-state.outcome == 'failure')
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: security-audit-run-${{ steps.settings.outputs.target }}-${{ github.run_attempt }}
@@ -363,14 +367,38 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      # 要約を読むのは、デフォルトブランチでだけ動く tracking-issue である。
       - name: Upload summary
-        if: steps.summarize.outcome == 'success' && steps.settings.outputs.target == 'self'
+        if: steps.summarize.outcome == 'success' && steps.settings.outputs.target == 'self' && github.ref_name == github.event.repository.default_branch
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: security-audit-summary-${{ github.run_attempt }}
           path: ${{ runner.temp }}/summary.json
           if-no-files-found: error
           retention-days: 7
+
+      # 上の段はどれも continue-on-error なので、監査できなかったことを run の結果に残す。
+      # tracking-issue はデフォルトブランチでしか動かないので、ほかのブランチと dvna の実行では、この段だけが失敗を示す。
+      - name: Fail if audit did not finish
+        if: ${{ !cancelled() && steps.settings.outputs.valid == 'true' }}
+        env:
+          OUTCOME: ${{ steps.run-claude.outcome }}
+          SUMMARY_OUTCOME: ${{ steps.summarize.outcome }}
+          ENCRYPT_OUTCOME: ${{ steps.encrypt.outcome }}
+          STATE_OUTCOME: ${{ steps.upload-state.outcome }}
+          TARGET: ${{ steps.settings.outputs.target }}
+        run: |
+          failed=""
+          [ "$OUTCOME" = success ] || failed="$failed エージェント（$OUTCOME）"
+          [ "$SUMMARY_OUTCOME" = success ] || failed="$failed 記録の検証と要約（$SUMMARY_OUTCOME）"
+          [ "$ENCRYPT_OUTCOME" = success ] || failed="$failed 記録の暗号化（$ENCRYPT_OUTCOME）"
+          if [ "$TARGET" = self ] && [ "$STATE_OUTCOME" != success ]; then
+            failed="$failed 引き継ぐ記録の upload（$STATE_OUTCOME）"
+          fi
+          if [ -n "$failed" ]; then
+            echo "::error title=Security audit::監査を終えられなかった:$failed"
+            exit 1
+          fi
 
   tracking-issue:
     name: Update security audit tracking issue
@@ -449,8 +477,6 @@ jobs:
             failure="エージェントの実行が失敗した（outcome: ${OUTCOME:-unknown}）"
           elif [ "$SUMMARY_OUTCOME" != success ]; then
             failure="監査の記録が終わっていないか、記録の形が上流のスキルの検証を通らなかった"
-          elif [ "$STATE_SAVED" != success ]; then
-            failure="今回の記録を暗号化して残せなかったので、次の実行が引き継げない（upload の outcome: ${STATE_SAVED:-unknown}）"
           elif [ "$DOWNLOAD_OUTCOME" != success ]; then
             failure="監査の要約を受け取れなかった（download の outcome: ${DOWNLOAD_OUTCOME:-unknown}）"
           elif [ "$MISE_OUTCOME" != success ]; then
@@ -497,6 +523,10 @@ jobs:
             exit 1
             ;;
           esac
+          # 記録を残せなかった週も、検証を通った今回の要約は本文に反映し、その後でジョブを失敗させる。
+          if [ "$STATE_SAVED" != success ]; then
+            printf '\n今回の記録を暗号化して残せなかったので、次の実行は前回までの記録を引き継ぐ（upload の outcome: %s）。\n' "${STATE_SAVED:-unknown}" >>"$comment"
+          fi
           cat "$body" "$comment"
           printf '\n[run](%s)\n' "$RUN_URL" >>"$comment"
 
@@ -522,4 +552,8 @@ jobs:
           else
             warn_if_truncated "既存の追跡 Issue を取りこぼして重複を作った可能性がある"
             gh issue create --title "$title" --body-file "$body"
+          fi
+          if [ "$STATE_SAVED" != success ]; then
+            echo "今回の記録を暗号化して残せなかった（upload の outcome: ${STATE_SAVED:-unknown}）" >&2
+            exit 1
           fi

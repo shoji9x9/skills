@@ -113,11 +113,16 @@ gh run download <run の ID> --repo shoji9x9/skills --name security-audit-state 
 gpg --batch --pinentry-mode loopback --passphrase-file security-audit-key.txt --decrypt audit/state.tar.gpg | tar -xf - -C audit
 ```
 
-鍵を替えたときは、前回の記録を復号できずに監査が止まる。そのブランチの `security-audit-state` の artifact をすべて消してから実行すると、初回として監査する。
+鍵を替えたときは、前回の記録を復号できずに監査が止まる。鍵はブランチによらず 1 つなので、すべてのブランチの `security-audit-state` の artifact を消してから実行すると、初回として監査する。
 最新の 1 件だけを消すと、1 つ前の古い鍵の記録を選んで、また止まる。
 識別子も鍵から作るので、鍵を替えた次の実行は、追跡 Issue の記録をすべて「新規」、前回の記録をすべて「解消」と書く。直ったという意味ではないので、その回の差分は読み飛ばす。
 
+消す前に、対象の ID・ブランチ・作成日時と件数を一覧にして確かめる。一覧を先にファイルに書くのは、消しながらページを取得すると、後のページの項目が前に詰まって消し残しが出るためである。
+
 ```bash
-gh api --paginate "repos/shoji9x9/skills/actions/artifacts?name=security-audit-state&per_page=100" --jq '.artifacts[].id' |
-  xargs -I{} gh api -X DELETE "repos/shoji9x9/skills/actions/artifacts/{}"
+gh api --paginate "repos/shoji9x9/skills/actions/artifacts?name=security-audit-state&per_page=100" \
+  --jq '.artifacts[] | [.id, .workflow_run.head_branch, .created_at] | @tsv' >security-audit-state-artifacts.tsv
+cat security-audit-state-artifacts.tsv; wc -l <security-audit-state-artifacts.tsv
+# 一覧を確かめた後で消す
+cut -f1 security-audit-state-artifacts.tsv | xargs -I{} gh api -X DELETE "repos/shoji9x9/skills/actions/artifacts/{}"
 ```
