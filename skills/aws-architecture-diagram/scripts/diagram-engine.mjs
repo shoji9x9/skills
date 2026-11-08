@@ -62,7 +62,7 @@ function assertUniqueEdges(edges) {
  * id からノードを引く関数を返す。未知の id はエラーにする。
  * @param {DiagramNode[]} nodes
  */
-function nodeLookup(nodes) {
+export function nodeLookup(nodes) {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   /** @param {string} id */
   return (id) => {
@@ -328,6 +328,15 @@ const labelPoint = (pts, e) => {
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 };
 
+// 水平の区間（y の上を x の lo〜hi）が、垂直の区間（x の上を y の lo〜hi）を内側で横切り、飛び越しを付けるか。
+// 端から 1px 以内で接するだけの形（T 字・L 字）には付けない。検査（diagram-checks.mjs）も同じ条件で判定する。
+/**
+ * @param {{ y: number, lo: number, hi: number }} h
+ * @param {{ x: number, lo: number, hi: number }} v
+ */
+export const hopsOver = (h, v) =>
+  v.x > h.lo + 1 && v.x < h.hi - 1 && v.lo < h.y - 1 && v.hi > h.y + 1;
+
 // 水平の区間 a→b と交わる、他のエッジの垂直の区間の x 座標（進む向きの順）。
 /**
  * @param {{ a: Point, b: Point, ei: number }} seg
@@ -335,21 +344,10 @@ const labelPoint = (pts, e) => {
  * @param {number} dir
  */
 function hopXs({ a, b, ei }, verticals, dir) {
-  const y = a.y;
-  return [
-    ...new Set(
-      verticals
-        .filter(
-          (v) =>
-            v.ei !== ei &&
-            v.x > Math.min(a.x, b.x) + 1 &&
-            v.x < Math.max(a.x, b.x) - 1 &&
-            v.lo < y - 1 &&
-            v.hi > y + 1,
-        )
-        .map((v) => v.x),
-    ),
-  ].sort((p, q) => (dir > 0 ? p - q : q - p));
+  const h = { y: a.y, lo: Math.min(a.x, b.x), hi: Math.max(a.x, b.x) };
+  return [...new Set(verticals.filter((v) => v.ei !== ei && hopsOver(h, v)).map((v) => v.x))].sort(
+    (p, q) => (dir > 0 ? p - q : q - p),
+  );
 }
 
 // 水平セグメントが他エッジの垂直セグメントと交わる点で半円アーチ（∩）を描く。
@@ -399,19 +397,19 @@ function renderEdge({ e, pts }, ei, verticals) {
     `<path d="${pathD(pts, ei, verticals)}" fill="none" stroke="${stroke}" stroke-width="1.8" marker-end="url(#${marker})"${e.dashed ? ' stroke-dasharray="6,4"' : ""}/>`,
   ];
   const rect = edgeLabelRect({ e, pts });
-  if (rect && e.label) {
+  if (rect) {
     out.push(
       `<rect x="${rect.left}" y="${rect.top}" width="${rect.right - rect.left}" height="${rect.bottom - rect.top}" rx="3" fill="#FFFFFF" fill-opacity="0.92"/>`,
-      `<text x="${rect.x}" y="${rect.y + 3}" text-anchor="middle" font-family='${FONT}' font-size="11" fill="#5A6B86">${esc(e.label)}</text>`,
+      `<text x="${rect.x}" y="${rect.y + 3}" text-anchor="middle" font-family='${FONT}' font-size="11" fill="#5A6B86">${esc(rect.text)}</text>`,
     );
   }
   return out;
 }
 
-// エッジのラベルの背景の矩形と中心。ラベルが無ければ null。検査（diagram-checks.mjs）も同じ矩形を使う。
+// エッジのラベルの文字列・中心・背景の矩形。ラベルが無ければ null。検査（diagram-checks.mjs）も同じ矩形を使う。
 /**
  * @param {{ e: DiagramEdge, pts: Point[] }} routedEdge
- * @returns {{ x: number, y: number, left: number, right: number, top: number, bottom: number } | null}
+ * @returns {{ text: string, x: number, y: number, left: number, right: number, top: number, bottom: number } | null}
  */
 export function edgeLabelRect({ e, pts }) {
   if (!e.label) return null;
@@ -419,6 +417,7 @@ export function edgeLabelRect({ e, pts }) {
   // 背景がラベルより狭くならないよう、文字の幅を出し分ける（font-size 11 での概算: Latin-1 ≈ 6.5px / 全角 ≈ 11px）。
   const w = Math.ceil(textWidth(e.label, 6.5, 11)) + 12;
   return {
+    text: e.label,
     x: mid.x,
     y: mid.y,
     left: mid.x - w / 2,
@@ -491,9 +490,10 @@ export function routeEdges(spec) {
   return routed;
 }
 
+// options.routed には、同じ spec を routeEdges で計算した結果を渡せる（検査と同じ線で描き、計算を 1 回で済ませる）。
 /**
  * @param {DiagramSpec} spec
- * @param {{ iconDir?: string }} [options]
+ * @param {{ iconDir?: string, routed?: { e: DiagramEdge, pts: Point[] }[] }} [options]
  * @returns {string}
  */
 export function renderDiagram(spec, options = {}) {
@@ -504,7 +504,7 @@ export function renderDiagram(spec, options = {}) {
   const embedIcon = createIconEmbedder(iconDir);
 
   // 全エッジの線を先に確定し、垂直の区間の一覧を作る（交差を飛び越すかの判定に使う）。
-  const routed = routeEdges(spec);
+  const routed = options.routed ?? routeEdges(spec);
   const verticals = collectVerticals(routed);
 
   const out = [

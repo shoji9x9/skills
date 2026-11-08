@@ -19,7 +19,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { checkDiagram } from "./diagram-checks.mjs";
 import { diagramConfig } from "./diagram-config.mjs";
-import { renderDiagram } from "./diagram-engine.mjs";
+import { renderDiagram, routeEdges } from "./diagram-engine.mjs";
 
 const config = diagramConfig(process.argv.slice(2), {
   values: ["--env"],
@@ -94,11 +94,13 @@ function resolveEnvs() {
 mkdirSync(OUT_DIR, { recursive: true });
 const rendered = resolveEnvs().map((name) => {
   const spec = specFor(name);
+  // 線の座標は 1 回だけ計算し、描画と検査に同じものを渡す。
+  const routed = routeEdges(spec);
   return {
     name,
     out: join(OUT_DIR, `architecture-${name}.svg`),
-    svg: renderDiagram(spec, { iconDir: ICON_DIR }),
-    violations: checkDiagram(spec),
+    svg: renderDiagram(spec, { iconDir: ICON_DIR, routed }),
+    violations: checkDiagram(spec, routed),
   };
 });
 for (const { out, svg } of rendered) {
@@ -113,7 +115,7 @@ const violations = rendered.flatMap(({ name, violations: vs }) =>
 );
 if (violations.length) {
   console.error(
-    `作図ルールの違反が ${violations.length} 件ある（観点は references/conventions.md）:`,
+    `作図ルールの違反が ${violations.length} 件ある。観点は references/conventions.md にある。違反の一覧は次のとおりである。`,
   );
   for (const line of violations) console.error(`  ${line}`);
   process.exitCode = 1;

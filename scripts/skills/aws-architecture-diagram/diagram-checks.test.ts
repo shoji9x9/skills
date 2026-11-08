@@ -140,6 +140,45 @@ test("(d) 端点を共有するエッジでも、ラベルを垂直に貫くな�
   expect(v[0].message).toContain("a->e の区間 (300,200)-(300,300) がエッジ a->b のラベル");
 });
 
+test("(d) 幹線を共有するエッジでも、ラベルの中心が幹線の外にあれば、(d) を出す", () => {
+  // a->e のラベルを、幹線（x=232〜300）の先の x=340 に置く。そこを通るのは a->b だけである。
+  const v = checkDiagram(
+    spec([a, b, e300], [ab, { ...trunk(200), label: "L", labelAt: [340, 200] }]),
+  );
+  expect(v.map((x) => x.rule)).toEqual(["d"]);
+  expect(v[0].message).toContain("a->b の区間");
+});
+
+test("(c)(j) 同じ依存元から出る線でも、別の点から出て離れた所で重なるなら、(c) と、接する点の (j) を出す", () => {
+  // a->b は a の上から、a->c は a の下から出て、y=140 の上で x=200〜300 を重なって進む。
+  const a2 = { ...node("a", 100, 200), lp: "left" };
+  const toB: DiagramEdge = {
+    from: "a",
+    to: "b",
+    waypoints: [
+      [100, 140],
+      [300, 140],
+      [300, 100],
+    ],
+  };
+  const toC: DiagramEdge = {
+    from: "a",
+    to: "c",
+    waypoints: [
+      [100, 260],
+      [200, 260],
+      [200, 140],
+      [400, 140],
+      [400, 300],
+    ],
+  };
+  expect(rules(spec([a2, node("b", 500, 100), node("c", 500, 300)], [toB, toC]))).toEqual([
+    "c",
+    "j",
+    "j",
+  ]);
+});
+
 test("(c) 同じ依存元から出る線でも、間隔が 0 より大きく 20px 未満なら、(c) を出す", () => {
   expect(rules(spec([a, b, e300], [ab, trunk(210)]))).toEqual(["c"]);
 });
@@ -308,6 +347,49 @@ test("(j) 自動の L 字が線を分けた点（a->b の中点 x=300）で交�
   const v = checkDiagram(spec([a, b, ...vertical(300)], [ab, { from: "c", to: "d" }]));
   expect(v.map((x) => x.rule)).toEqual(["j"]);
   expect(v[0].message).toContain("(300,200)");
+});
+
+test("(j) 同じ依存元から出る線どうしでも、別の点から出て飛び越しなしに交わるなら、(j) を出す", () => {
+  // a->b は a の下から縦に進み、自動の L 字が y=200 で線を分ける。a->c は a の左から出て、その点を横切る。
+  const a2 = { ...node("a", 200, 60), lp: "top" };
+  const toC: DiagramEdge = {
+    from: "a",
+    to: "c",
+    waypoints: [
+      [100, 60],
+      [100, 200],
+    ],
+  };
+  const v = checkDiagram(spec([a2, node("b", 200, 340), node("c", 400, 200)], [ab, toC]));
+  expect(v.map((x) => x.rule)).toEqual(["j"]);
+  expect(v[0].message).toContain("(200,200)");
+});
+
+test("(j) 幹線を共有する線でも、幹線の外で飛び越しなしに接するなら、(j) を出す", () => {
+  // a->e は幹線（a->b と y=200 の上を x=232〜300）から下へ分かれた後、x=340 で a->b の線まで戻って接する。
+  const back: DiagramEdge = {
+    from: "a",
+    to: "e",
+    waypoints: [
+      [300, 200],
+      [300, 300],
+      [340, 300],
+      [340, 200],
+      [340, 150],
+    ],
+  };
+  const v = checkDiagram(spec([a, b, node("e", 440, 150)], [ab, back]));
+  expect(v.map((x) => x.rule)).toEqual(["j"]);
+  expect(v[0].message).toContain("(340,200)");
+});
+
+test.each([
+  ["W が NaN（書き忘れた W を計算に使ったときの値）", { W: Number.NaN }],
+  ["H が無限大", { H: Number.POSITIVE_INFINITY }],
+])("キャンバスの大きさの%s spec は、判定できないのでエラーにする", (_label, broken) => {
+  expect(() => checkDiagram({ ...spec([a, b], [ab], [group()]), ...broken })).toThrow(
+    "spec の W と H は数で書く",
+  );
 });
 
 test("(j) 交差に飛び越しが付くなら、出さない", () => {

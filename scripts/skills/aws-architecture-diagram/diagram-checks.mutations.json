@@ -32,24 +32,26 @@
       "id": "c-parallel-gap",
       "why": "(c) 平行な区間が 20px 未満で並んでも見逃す",
       "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
-      "find": "      if (gap >= PARALLEL_GAP || ",
-      "replace": "      if (true || ",
+      "find": "    if (gap >= PARALLEL_GAP || lo >= hi) continue;",
+      "replace": "    if (true) continue;",
       "occurrences": 1,
       "expect_failing": [
         "(c) 別のエッジの平行な区間が 10px で並ぶと、(c) を出す",
         "(c) 同じ依存元から出る線でも、間隔が 0 より大きく 20px 未満なら、(c) を出す",
-        "(c)(j) 端点を共有しないエッジが同じ座標で重なると、(c) と、接する点の (j) を出す"
+        "(c)(j) 端点を共有しないエッジが同じ座標で重なると、(c) と、接する点の (j) を出す",
+        "(c)(j) 同じ依存元から出る線でも、別の点から出て離れた所で重なるなら、(c) と、接する点の (j) を出す"
       ]
     },
     {
       "id": "c-trunk-exemption-wide",
-      "why": "(c) 幹線の除外を、端点を共有しないエッジの重なりにも広げる",
+      "why": "(c) 幹線の除外を、幹線の外で同じ座標に重なる区間にも広げる",
       "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
-      "find": "      if (gap === 0 && sharesEnd(s.e, t.e)) continue;",
-      "replace": "      if (gap === 0) continue;",
+      "find": "    if (gap === 0 && covered) continue;",
+      "replace": "    if (gap === 0) continue;",
       "occurrences": 1,
       "expect_failing": [
-        "(c)(j) 端点を共有しないエッジが同じ座標で重なると、(c) と、接する点の (j) を出す"
+        "(c)(j) 端点を共有しないエッジが同じ座標で重なると、(c) と、接する点の (j) を出す",
+        "(c)(j) 同じ依存元から出る線でも、別の点から出て離れた所で重なるなら、(c) と、接する点の (j) を出す"
       ]
     },
     {
@@ -62,17 +64,21 @@
       "expect_failing": [
         "(d) 線がノードのラベルの矩形を貫くと、(d) を出す",
         "(d) 線が他のエッジのラベルを貫くと、(d) を出す（自分のラベルは対象にしない）",
-        "(d) 端点を共有するエッジでも、ラベルを垂直に貫くなら、(d) を出す"
+        "(d) 端点を共有するエッジでも、ラベルを垂直に貫くなら、(d) を出す",
+        "(d) 幹線を共有するエッジでも、ラベルの中心が幹線の外にあれば、(d) を出す"
       ]
     },
     {
       "id": "d-trunk-exemption-wide",
-      "why": "(d) 幹線のラベルの除外を、同じ座標で重ならない（垂直に貫く）線にも広げる",
+      "why": "(d) 幹線のラベルの除外を、幹線を共有するエッジのラベルのすべてに広げる",
       "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
-      "find": "        t.ei === l.ei &&",
-      "replace": "        true ||",
+      "find": "onTrunk(trunk(s.ei, l.ei), l.center, s)",
+      "replace": "trunk(s.ei, l.ei).length > 0",
       "occurrences": 1,
-      "expect_failing": ["(d) 端点を共有するエッジでも、ラベルを垂直に貫くなら、(d) を出す"]
+      "expect_failing": [
+        "(d) 端点を共有するエッジでも、ラベルを垂直に貫くなら、(d) を出す",
+        "(d) 幹線を共有するエッジでも、ラベルの中心が幹線の外にあれば、(d) を出す"
+      ]
     },
     {
       "id": "f-entry-gap",
@@ -158,27 +164,42 @@
       "id": "j-junction",
       "why": "(j) 飛び越しの付かない接し方を見逃す",
       "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
-      "find": "      if (touches && !hopped(h, v)) {",
+      "find": "      if (!hopped(h, v)) {",
       "replace": "      if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "(j) 屈曲点が他のエッジの線の上に乗り、飛び越しが付かないと、(j) を出す",
         "(j) 自動の L 字が線を分けた点（a->b の中点 x=300）で交わると、飛び越しが付かないので (j) を出す",
-        "(c)(j) 端点を共有しないエッジが同じ座標で重なると、(c) と、接する点の (j) を出す"
+        "(c)(j) 端点を共有しないエッジが同じ座標で重なると、(c) と、接する点の (j) を出す",
+        "(c)(j) 同じ依存元から出る線でも、別の点から出て離れた所で重なるなら、(c) と、接する点の (j) を出す",
+        "(j) 同じ依存元から出る線どうしでも、別の点から出て飛び越しなしに交わるなら、(j) を出す",
+        "(j) 幹線を共有する線でも、幹線の外で飛び越しなしに接するなら、(j) を出す"
       ]
     },
     {
       "id": "j-hop-any-segment",
       "why": "(j) 飛び越しが付くかを、エンジンが描く単位の区間で確かめずに付くとみなす",
       "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
-      "find": "rv.at === v.at && hops(rh, rv)),",
-      "replace": "rv.at === v.at && true),",
+      "find": "            hopsOver({ y: rh.at, lo: rh.lo, hi: rh.hi }, { x: rv.at, lo: rv.lo, hi: rv.hi }),",
+      "replace": "            true,",
       "occurrences": 1,
       "expect_failing": [
         "(j) 屈曲点が他のエッジの線の上に乗り、飛び越しが付かないと、(j) を出す",
         "(j) 自動の L 字が線を分けた点（a->b の中点 x=300）で交わると、飛び越しが付かないので (j) を出す",
-        "(c)(j) 端点を共有しないエッジが同じ座標で重なると、(c) と、接する点の (j) を出す"
+        "(c)(j) 端点を共有しないエッジが同じ座標で重なると、(c) と、接する点の (j) を出す",
+        "(c)(j) 同じ依存元から出る線でも、別の点から出て離れた所で重なるなら、(c) と、接する点の (j) を出す",
+        "(j) 同じ依存元から出る線どうしでも、別の点から出て飛び越しなしに交わるなら、(j) を出す",
+        "(j) 幹線を共有する線でも、幹線の外で飛び越しなしに接するなら、(j) を出す"
       ]
+    },
+    {
+      "id": "j-trunk-exemption-wide",
+      "why": "(j) 幹線の除外を、幹線を共有するエッジの組が接するすべての点に広げる",
+      "file": "skills/aws-architecture-diagram/scripts/diagram-checks.mjs",
+      "find": "      if (!touches || onTrunk(trunk(h.ei, v.ei), { x: v.at, y: h.at })) continue;",
+      "replace": "      if (!touches || trunk(h.ei, v.ei).length > 0) continue;",
+      "occurrences": 1,
+      "expect_failing": ["(j) 幹線を共有する線でも、幹線の外で飛び越しなしに接するなら、(j) を出す"]
     }
   ]
 }
