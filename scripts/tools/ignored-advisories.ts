@@ -150,18 +150,23 @@ function isIgnoredPackage(v: unknown, pkg: string): v is Record<string, unknown>
 
 /**
  * 無視したパッケージの要素から修正版を取る。修正版が無ければ（null）空の配列を返す。
- * API は修正版が無いときもキーを省かずに null を返す。キーが無いときは名前が変わった可能性があるので例外にする。
+ * API は修正版が無いときもキーを省かずに null を返す。キーが無い（undefined）ときは名前が変わった可能性があるので、型の誤りと同じく例外にする。
  * 修正版には、それがある脆弱な範囲を添える。使っているバージョンがその範囲にあるかは、人が確かめる。
  */
 function patchedVersion(v: Record<string, unknown>, id: string, pkg: string): string[] {
-  if (!("first_patched_version" in v))
-    throw new Error(`${id} の要素に first_patched_version が無い`);
   const fixed = v["first_patched_version"];
   if (fixed === null) return [];
-  if (typeof fixed !== "string") throw new Error(`${id} の first_patched_version が文字列でない`);
+  if (typeof fixed !== "string") {
+    throw new Error(
+      `${id} の first_patched_version が null でも文字列でもない（キーが無いときを含む）`,
+    );
+  }
   const range = v["vulnerable_version_range"];
   return [typeof range === "string" ? `${pkg}@${fixed}（${range} の修正版）` : `${pkg}@${fixed}`];
 }
+
+/** localeCompare が等しいと判定した違う文字列（`1.02.0` と `1.2.0` など）の順を決める。 */
+const codeUnitOrder = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
 /**
  * `gh api /advisories/<GHSA>` の応答から、修正版と取り下げを取る。
@@ -176,11 +181,12 @@ export function advisoryStatus(
   if (!isRecord(value) || !isArray(value["vulnerabilities"])) {
     throw new Error(`${id} の advisory に vulnerabilities が無い`);
   }
-  // API は取り下げていないときもキーを省かずに null を返す。キーが無いときは名前が変わった可能性があるので例外にする。
-  if (!("withdrawn_at" in value)) throw new Error(`${id} の advisory に withdrawn_at が無い`);
+  // API は取り下げていないときもキーを省かずに null を返す。キーが無い（undefined）ときは名前が変わった可能性があるので例外にする。
   const withdrawn = value["withdrawn_at"];
   if (withdrawn !== null && !isNonBlankString(withdrawn)) {
-    throw new Error(`${id} の withdrawn_at が文字列でないか、空文字である`);
+    throw new Error(
+      `${id} の withdrawn_at が null でも、空白でない文字列でもない（キーが無いときを含む）`,
+    );
   }
   const targets = value["vulnerabilities"].filter((v) => isIgnoredPackage(v, pkg));
   // 取り下げた advisory は、対象が書き換えられていても取り下げを報告する（無視を外す理由になる）。
@@ -192,7 +198,7 @@ export function advisoryStatus(
   // 識別子に使うので、API の並び順に左右されないように並べる。数字は数として比べる（9.0.0 を 10.0.0 より前にする）。
   const patched = targets
     .flatMap((v) => patchedVersion(v, id, pkg))
-    .sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
+    .sort((a, b) => a.localeCompare(b, "en", { numeric: true }) || codeUnitOrder(a, b));
   return { patched, withdrawn };
 }
 
@@ -275,7 +281,7 @@ const findingKey = (f: Finding): string => `${f.id} ${f.kind}: ${describe(f)}`;
 const KEYS_MARKER = /^<!-- ignored-advisories:keys (.*) -->$/mu;
 // 書き手（findingKey）と同じ定義（GHSA の形・KIND_LABEL の種別）から組み立て、種別を足したときに食い違わないようにする。
 const KEY_FORM = new RegExp(
-  `^${GHSA.source.slice(1, -1)} (${Object.keys(KIND_LABEL).join("|")}): .*\\S`,
+  `^${GHSA.source.slice(1, -1)} (${Object.keys(KIND_LABEL).join("|")}): .*\\S$`,
   "u",
 );
 

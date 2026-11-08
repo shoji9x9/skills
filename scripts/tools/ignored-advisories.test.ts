@@ -224,6 +224,12 @@ describe("advisory の状態", () => {
     expect(advisoryStatus(forward, A, "braces")).toEqual(advisoryStatus(backward, A, "braces"));
   });
 
+  test("数として等しい違う文字列も、API の並び順に関わらず同じ順に並べる", () => {
+    const forward = { vulnerabilities: [vuln("1.02.0"), vuln("1.2.0")], withdrawn_at: null };
+    const backward = { vulnerabilities: [vuln("1.2.0"), vuln("1.02.0")], withdrawn_at: null };
+    expect(advisoryStatus(forward, A, "braces")).toEqual(advisoryStatus(backward, A, "braces"));
+  });
+
   test("取り下げていれば、無視したパッケージの要素が無くても取り下げを返す", () => {
     const value = { vulnerabilities: [vuln(null, "other")], withdrawn_at: "2026-10-23T12:53:02Z" };
     expect(advisoryStatus(value, A, "braces")).toEqual({
@@ -235,11 +241,11 @@ describe("advisory の状態", () => {
   test.each([
     ["vulnerabilities が無い", {}, "vulnerabilities が無い"],
     ["要素が空", { vulnerabilities: [], withdrawn_at: null }, "npm の braces が無い"],
-    ["withdrawn_at のキーが無い", { vulnerabilities: [vuln(null)] }, "withdrawn_at が無い"],
+    ["withdrawn_at のキーが無い", { vulnerabilities: [vuln(null)] }, "withdrawn_at が null でも"],
     [
       "first_patched_version のキーが無い",
       { vulnerabilities: [{ package: { ecosystem: "npm", name: "braces" } }], withdrawn_at: null },
-      "first_patched_version が無い",
+      "first_patched_version が null でも文字列でもない",
     ],
     [
       "どの要素も無視したパッケージに当たらない（形が変わった）",
@@ -265,6 +271,11 @@ describe("advisory の状態", () => {
       "withdrawn_at",
     ],
     ["withdrawn_at が空文字", { vulnerabilities: [vuln(null)], withdrawn_at: "" }, "withdrawn_at"],
+    [
+      "withdrawn_at が空白だけ",
+      { vulnerabilities: [vuln(null)], withdrawn_at: "  " },
+      "withdrawn_at",
+    ],
   ])("%s は例外にする", (_name, value, message) => {
     expect(() => advisoryStatus(value, A, "braces")).toThrow(message);
   });
@@ -449,6 +460,7 @@ describe("前回との差分", () => {
     ["GHSA の形でない", `["GHSA-x unused: braces"]`, "識別子の形でない"],
     ["内容が空", `["${A} unused: "]`, "識別子の形でない"],
     ["内容が空白だけ", `["${A} unused:   "]`, "識別子の形でない"],
+    ["内容の後ろに空白", `["${A} unused: braces  "]`, "識別子の形でない"],
     ["種別の後に区切りが無い", `["${A} unused braces"]`, "識別子の形でない"],
     ["重複", `["${A} unused: braces","${A} unused: braces"]`, "重複"],
   ])("目印の一覧が%sときは、直し方を添えて例外にする", (_name, json, message) => {

@@ -48,6 +48,15 @@
         "advisory の状態 要素が空 は例外にする",
         "advisory の状態 どの要素も無視したパッケージに当たらない（形が変わった） は例外にする"
       ]
+    },
+    {
+      "id": "missing-patched-key-as-none",
+      "why": "first_patched_version のキーが無い応答（キーの名前の変化）を修正版なしとして扱い、修正版を見逃したまま追跡 Issue を閉じる",
+      "file": "scripts/tools/ignored-advisories.ts",
+      "find": "if (fixed === null) return [];",
+      "replace": "if (fixed === null || fixed === undefined) return [];",
+      "occurrences": 1,
+      "expect_failing": ["advisory の状態 first_patched_version のキーが無い は例外にする"]
     }
   ]
 }
