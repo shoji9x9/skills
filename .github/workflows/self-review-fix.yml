@@ -232,7 +232,7 @@ jobs:
         run: |
           # open の自動の PR は 1 本にする。App が作った、接頭辞の branch の PR を探す。
           # 作者で絞ってから取るので、ほかの open の PR が多くても上限で取りこぼさない。
-          gh pr list --repo "$GITHUB_REPOSITORY" --state open --author "app/$APP_SLUG" --limit 100 --json number,headRefName \
+          gh pr list --repo "$GITHUB_REPOSITORY" --state open --app "$APP_SLUG" --limit 100 --json number,headRefName \
             --jq "[.[] | select(.headRefName | startswith(\"$BRANCH_PREFIX\"))]" \
             >"$RUNNER_TEMP/prs.json"
           count="$(jq length "$RUNNER_TEMP/prs.json")"
