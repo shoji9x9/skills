@@ -654,6 +654,8 @@ kaizen_has_pending_decision() { # $1: ノート
 	0) return 0 ;;
 	1) return 1 ;;
 	*)
+		# 行ごとに読む側がノートのパスを取れるように、awk の複数行の stderr を 1 行にする。
+		err=${err//$'\n'/ / }
 		echo "kaizen: 食い違いの判断を読めないため、判断待ちとして扱う（awk の終了コード ${rc}: ${err}）: $1" >&2
 		return 0
 		;;

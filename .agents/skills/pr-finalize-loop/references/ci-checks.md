@@ -73,8 +73,10 @@ base=$(gh pr view <番号> --repo <owner>/<repo> --json baseRefName --jq .baseRe
 git fetch origin "+refs/heads/$base:refs/remotes/origin/$base"
 log=$(mktemp)
 # 失敗したジョブのログ。run の他のジョブが動いていても取れる。取得に失敗したら確かめられないものとして扱う
-gh api "repos/<owner>/<repo>/actions/jobs/<job-id>/logs" >"$log"
-merge=$(grep -m1 -oE 'Merge [0-9a-f]{40} into [0-9a-f]{40}' "$log" || true)  # 該当なしは空にする
+merge=""
+if gh api "repos/<owner>/<repo>/actions/jobs/<job-id>/logs" >"$log"; then
+  merge=$(grep -m1 -oE 'Merge [0-9a-f]{40} into [0-9a-f]{40}' "$log" || true)  # 該当なしは空にする
+fi
 rm -f "$log"
 merged_head=${merge#Merge }; merged_head=${merged_head%% *}
 head_sha=$(gh run view <run-id> --repo <owner>/<repo> --json headSha --jq .headSha)

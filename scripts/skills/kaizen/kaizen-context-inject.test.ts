@@ -561,9 +561,10 @@ describe("食い違いの判断待ち", () => {
       },
     );
     expect(res.status, res.stderr).toBe(0);
-    expect(res.stderr).toContain(
+    // kaizen の行だけを全体で比べる。関係の無い stderr（locale の警告など）は無視し、2 つ目のメッセージは検出する。
+    expect(res.stderr.split("\n").filter((l) => l.startsWith("kaizen:"))).toStrictEqual([
       `kaizen: 食い違いの判断を読めないため、判断待ちとして扱う（通常のファイルとして読めない）: ${missing}`,
-    );
+    ]);
   });
 
   test("awk が 0・1 以外で終わったときは、判断待ちとして扱い、awk の stderr を添える", () => {
@@ -572,15 +573,21 @@ describe("食い違いの判断待ち", () => {
     const note = join(dir, ".kaizen", "2026-09-01-note.md");
     // 読める通常のファイルを渡し、PATH の先頭に終了コード 2 で終わる偽の awk を置く。
     const fakeBin = makeTempDir("kaizen-fake-awk-");
-    writeFileSync(join(fakeBin, "awk"), "#!/bin/sh\necho 'fake awk failed' >&2\nexit 2\n", {
-      mode: 0o755,
-    });
+    writeFileSync(
+      join(fakeBin, "awk"),
+      "#!/bin/sh\necho 'fake awk failed' >&2\necho 'second line' >&2\nexit 2\n",
+      {
+        mode: 0o755,
+      },
+    );
     const res = spawnSync(
       "bash",
       ["-c", '. "$1"; PATH="$3:$PATH" kaizen_has_pending_decision "$2"', "_", lib, note, fakeBin],
       { encoding: "utf8", timeout: CHILD_TIMEOUT_MS },
     );
     expect(res.status, res.stderr).toBe(0);
-    expect(res.stderr).toContain("（awk の終了コード 2: fake awk failed）");
+    expect(res.stderr.split("\n").filter((l) => l.startsWith("kaizen:"))).toStrictEqual([
+      `kaizen: 食い違いの判断を読めないため、判断待ちとして扱う（awk の終了コード 2: fake awk failed / second line）: ${note}`,
+    ]);
   });
 });
