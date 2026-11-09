@@ -1,8 +1,10 @@
 import { describe, test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import {
+  appendFileSync,
   chmodSync,
   copyFileSync,
+  cpSync,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -180,6 +182,64 @@ test("--auto は候補だけを forgotten にし、他は触らない", () => {
     expect(statusOf(dir, "old-applied")).toBe("applied");
     expect(statusOf(dir, "old-rejected")).toBe("rejected");
     expect(statusOf(dir, "old-forgotten")).toBe("forgotten");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// 食い違いの判断待ちの学び（## 食い違い の 判断 が 判断待ち）は、利用者がどちらを残すかを決めるまで残す（Issue #930）。
+// 自動で忘れると、apply にも定期レポートにも出なくなり、食い違いを誰も決めないまま残る。
+// 判断の読み方は注入（kaizen-context-inject.sh）と同じ共通ライブラリの関数なので、境界の形は注入のテストで確かめる。
+// ここでは、判断待ちだけを外し、決めた学びとフェンスの中の例は、これまでどおり候補にすることを確かめる。
+test("--auto は食い違いの判断待ちの学びを忘れず、判断を決めた学びとフェンスの中の例だけの学びは忘れる", () => {
+  const conflict = (judgement: string) =>
+    `## 食い違い\n\n- 相手: AGENTS.md「依存の管理」\n- 判断: ${judgement}\n\n`;
+  const dir = makeProject({
+    "old-pending-decision": `${note({})}\n${conflict("判断待ち")}`,
+    "old-decided": `${note({})}\n${conflict("新しい学び")}`,
+    "old-fenced-example": `${note({})}\n\`\`\`markdown\n${conflict("判断待ち")}\`\`\`\n`,
+  });
+  try {
+    const before = run(dir, ["--list"]);
+    expect(before.status).toBe(0);
+    expect(
+      before.stdout
+        .trim()
+        .split("\n")
+        .map((line) => line.split("\t")[0])
+        .sort(),
+    ).toEqual([".kaizen/old-decided.md", ".kaizen/old-fenced-example.md"]);
+    const { status, stderr } = run(dir, ["--auto"]);
+    expect(status).toBe(0);
+    expect(stderr).toContain("forgot 2 note(s)");
+    expect(statusOf(dir, "old-pending-decision")).toBe("pending");
+    expect(statusOf(dir, "old-decided")).toBe("forgotten");
+    expect(statusOf(dir, "old-fenced-example")).toBe("forgotten");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("--auto は、判断待ちを判定する関数を持たない共通ライブラリでは、食い違いの節がある学びを忘れない", () => {
+  // 古いバージョンの共通ライブラリを部分的にコピーした状態を、スクリプト一式のコピーの末尾で関数を消して作る。
+  const conflict = "## 食い違い\n\n- 相手: AGENTS.md「依存の管理」\n- 判断: 判断待ち\n\n";
+  const dir = makeProject({ "old-pending-decision": `${note({})}\n${conflict}` });
+  const copied = join(makeTempDir("kaizen-forget-oldlib-"), "scripts");
+  try {
+    cpSync(join(repoRoot, "skills/kaizen/scripts"), copied, { recursive: true });
+    appendFileSync(
+      join(copied, "kaizen-hook-common.sh"),
+      "\nunset -f kaizen_has_pending_decision\n",
+    );
+    const result = spawnSync("bash", [join(copied, "kaizen-forget.sh"), "--auto"], {
+      timeout: CHILD_TIMEOUT_MS,
+      cwd: dir,
+      env: kaizenEnv(dir, { CLAUDE_PROJECT_DIR: dir }),
+      encoding: "utf8",
+    });
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stderr).toContain("forgot 0 note(s)");
+    expect(statusOf(dir, "old-pending-decision")).toBe("pending");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

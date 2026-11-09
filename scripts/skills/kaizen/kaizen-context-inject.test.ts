@@ -473,3 +473,148 @@ describe("注入する件数の上限", () => {
     expect(stdout).toContain("ほか 2 件（low 1 件・不明 1 件）");
   });
 });
+
+// 既存の規約や指示と食い違い、利用者がどちらを残すかを決めていない学び（## 食い違い の 判断 が 判断待ち）は、
+// 要約をそのまま出すと従う対象に見えるので、印を付けて出す（Issue #930。references/extract.md「食い違いの確認」）。
+describe("食い違いの判断待ち", () => {
+  const MARK = "判断待ち（既存の規約や指示と食い違う。利用者が決めるまで、この提案に従わない）: ";
+  const conflict = (judgement: string) =>
+    `## 食い違い\n\n- 相手: AGENTS.md「依存の管理」\n- 内容: 範囲で足すか、固定するか\n- 判断: ${judgement}\n\n`;
+
+  function summaryWithBody(body: string) {
+    const dir = createRepo("依存は範囲で足す。");
+    const note = join(dir, ".kaizen", "2026-09-01-note.md");
+    writeFileSync(note, readFileSync(note, "utf8").replace("## 提案", `${body}## 提案`));
+    return summaryOf(inject(dir));
+  }
+
+  test.each([
+    ["判断待ち", conflict("判断待ち")],
+    ["引用符で囲んだ判断待ち", conflict("`判断待ち`")],
+    ["行末に空白と CR がある", conflict("判断待ち  \r")],
+    [
+      "相手が複数あり、2 つ目の組だけが判断待ち",
+      "## 食い違い\n\n- 相手: なし\n- 判断: なし\n- 相手: .kaizen/other.md\n- 判断: 判断待ち\n\n",
+    ],
+    [
+      "4 つのバッククォートのフェンスが、中に ``` の行を持って閉じた後にある",
+      `\`\`\`\`markdown\n\`\`\`\n\`\`\`\`\n\n${conflict("判断待ち")}`,
+    ],
+    ["字下げした閉じる行でフェンスが閉じた後にある", `~~~\nx\n   ~~~\n\n${conflict("判断待ち")}`],
+    [
+      "開いた行より長い閉じる行でフェンスが閉じた後にある",
+      `\`\`\`\nx\n\`\`\`\`\n\n${conflict("判断待ち")}`,
+    ],
+    [
+      "判断の行と見出しの行末にタブがある",
+      conflict("判断待ち\t").replace("## 食い違い", "## 食い違い\t"),
+    ],
+    [
+      "3 文字まで字下げした見出しと判断の行",
+      `   ${conflict("判断待ち").replaceAll("\n- ", "\n   - ")}`,
+    ],
+    [
+      "行頭のコードスパン（後ろにもバッククォートがある行）の後にある",
+      `\`\`\`ts\`\`\` のように書く。\n\n${conflict("判断待ち")}`,
+    ],
+  ])("印を付ける: %s", (_name, body) => {
+    expect(summaryWithBody(body)).toBe(`${MARK}依存は範囲で足す。`);
+  });
+
+  test.each([
+    ["節が無い", ""],
+    ["判断が なし", conflict("なし")],
+    ["判断を利用者が決めた（新しい学び）", conflict("新しい学び")],
+    ["判断待ちの行が別の節にある", "## 根拠\n\n- 判断: 判断待ち\n\n"],
+    ["見出しが前方一致するだけの別の節", "## 食い違いの経緯\n\n- 判断: 判断待ち\n\n"],
+    ["判断待ちを前方に含む別の値", conflict("判断待ちだったが、新しい学びに決めた")],
+    ["コードフェンスの中にある", `\`\`\`markdown\n${conflict("判断待ち")}\`\`\`\n\n`],
+    [
+      "4 つのバッククォートのフェンスの中で、``` の行の後にある",
+      `\`\`\`\`markdown\n\`\`\`\n${conflict("判断待ち")}\`\`\`\n\`\`\`\`\n\n`,
+    ],
+    [
+      "``` のフェンスの中で、~~~ の行の後にある",
+      `\`\`\`\n~~~\n${conflict("判断待ち")}~~~\n\`\`\`\n\n`,
+    ],
+    [
+      "``` のフェンスの中で、情報文字列付きの ``` の行の後にある",
+      `\`\`\`\n\`\`\`js\n${conflict("判断待ち")}\`\`\`\n\n`,
+    ],
+    [
+      "字下げした別の見出しで食い違いの節が閉じた後にある",
+      `${conflict("なし")}  ## 根拠\n\n- 判断: 判断待ち\n\n`,
+    ],
+    ["3 文字まで字下げしたフェンスの中にある", `   \`\`\`\n${conflict("判断待ち")}   \`\`\`\n\n`],
+  ])("印を付けない: %s", (_name, body) => {
+    expect(summaryWithBody(body)).toBe("依存は範囲で足す。");
+  });
+
+  test("長い要約を切り詰めても、印は欠けない", () => {
+    const dir = createRepo("あ".repeat(200));
+    const note = join(dir, ".kaizen", "2026-09-01-note.md");
+    writeFileSync(
+      note,
+      readFileSync(note, "utf8").replace("## 提案", `${conflict("判断待ち")}## 提案`),
+    );
+    expect(summaryOf(inject(dir))).toBe(`${MARK}${"あ".repeat(119)}…`);
+  });
+
+  test("ノートを読めないときは、判断待ちとして扱い、理由を stderr に出す", () => {
+    const lib = join(repoRoot, "skills/kaizen/scripts/kaizen-hook-common.sh");
+    // ディレクトリを渡す。gawk はディレクトリを警告だけで読み飛ばすので、awk の終了コードでは読めないことを判定できない。
+    const missing = makeTempDir("kaizen-pending-");
+    const res = spawnSync(
+      "bash",
+      ["-c", '. "$1"; kaizen_has_pending_decision "$2"', "_", lib, missing],
+      {
+        encoding: "utf8",
+        timeout: CHILD_TIMEOUT_MS,
+      },
+    );
+    expect(res.status, res.stderr).toBe(0);
+    // kaizen の行だけを全体で比べる。関係の無い stderr（locale の警告など）は無視し、2 つ目のメッセージは検出する。
+    expect(res.stderr.split("\n").filter((l) => l.startsWith("kaizen:"))).toStrictEqual([
+      `kaizen: 食い違いの判断を読めないため、判断待ちとして扱う（通常のファイルとして読めない）: ${missing}`,
+    ]);
+  });
+
+  test("改行を含むパスのノートを読めないときも、メッセージは 1 行で、パスの改行を \\n と書く", () => {
+    const lib = join(repoRoot, "skills/kaizen/scripts/kaizen-hook-common.sh");
+    const dir = join(makeTempDir("kaizen-pending-"), "a\nb");
+    mkdirSync(dir);
+    const res = spawnSync(
+      "bash",
+      ["-c", '. "$1"; kaizen_has_pending_decision "$2"', "_", lib, dir],
+      { encoding: "utf8", timeout: CHILD_TIMEOUT_MS },
+    );
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.stderr.split("\n").filter((l) => l.startsWith("kaizen:"))).toStrictEqual([
+      `kaizen: 食い違いの判断を読めないため、判断待ちとして扱う（通常のファイルとして読めない）: ${dir.replaceAll("\n", "\\n")}`,
+    ]);
+  });
+
+  test("awk が 0・1 以外で終わったときは、判断待ちとして扱い、awk の stderr を添える", () => {
+    const lib = join(repoRoot, "skills/kaizen/scripts/kaizen-hook-common.sh");
+    const dir = createRepo("依存は範囲で足す。");
+    const note = join(dir, ".kaizen", "2026-09-01-note.md");
+    // 読める通常のファイルを渡し、PATH の先頭に終了コード 2 で終わる偽の awk を置く。
+    const fakeBin = makeTempDir("kaizen-fake-awk-");
+    writeFileSync(
+      join(fakeBin, "awk"),
+      "#!/bin/sh\necho 'fake awk failed' >&2\necho 'second line' >&2\nexit 2\n",
+      {
+        mode: 0o755,
+      },
+    );
+    const res = spawnSync(
+      "bash",
+      ["-c", '. "$1"; PATH="$3:$PATH" kaizen_has_pending_decision "$2"', "_", lib, note, fakeBin],
+      { encoding: "utf8", timeout: CHILD_TIMEOUT_MS },
+    );
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.stderr.split("\n").filter((l) => l.startsWith("kaizen:"))).toStrictEqual([
+      `kaizen: 食い違いの判断を読めないため、判断待ちとして扱う（awk の終了コード 2: fake awk failed / second line）: ${note}`,
+    ]);
+  });
+});

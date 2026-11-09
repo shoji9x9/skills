@@ -45,6 +45,75 @@ gh run view <run-id> --repo <owner>/<repo> --log-failed   # 失敗ジョブの�
   `fail` には `FAILURE` と `ERROR` だけでなく、`TIMED_OUT`・`ACTION_REQUIRED`・`STARTUP_FAILURE` も入るので、`state` を直接並べるより失敗を取りこぼさない。
   キャンセルも拾うなら、`or .bucket=="cancel"` を足す。
 - `link` から run-id を取り、`--log-failed` で失敗したステップのログに絞る。原因はコードの事実と照らして判断し、推測で広い範囲を書き換えない。
+- 直す前に、下の「PR と関係が無く、ベースブランチで直っている失敗」に当たるかを確かめる。
+
+## PR と関係が無く、ベースブランチで直っている失敗
+
+CI の失敗が PR の変更と関係が無く、最新のベースブランチでは直っているなら、PR の中で同じ修正をしない。
+PR に関係の無い変更が入り、ベースブランチの修正と競合することもあるからである。代わりに、最新のベースブランチを取り込み、CI をもう一度確かめる。
+
+取り込むのは、次の 2 つをどちらも確かめた事実で示せたときだけである。推測（失敗したファイルが PR の差分に無い、など）では判定しない。
+どちらかを確かめられなければ、取り込まずに、`SKILL.md` の手順 3 のとおりログから原因を特定して直す。
+
+| 判定 | 根拠にする事実 |
+| --- | --- |
+| PR の変更と関係が無い | 失敗した run が検証したベースブランチの commit で、同じチェックが同じ失敗（同じステップ・同じテストやエラー）で終わる |
+| 最新のベースブランチで直っている | ベースブランチの先端で、同じチェックが成功する |
+
+失敗した run が検証したベースは、推定せずに、失敗したジョブのログから取得する。
+`pull_request` の run は、PR の head とベースを合わせた merge commit を検証する（<https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request> の `GITHUB_SHA`）。
+`actions/checkout` はその commit を取り出し、ログに commit の message（`Merge <head の SHA> into <ベースの SHA>`）を出す。この message の形は、GitHub が作る merge commit を実測して確かめたもので、公式のドキュメントには無い。
+PR の分岐点や時刻から推定すると、分岐点の後にベースへ入った commit で失敗した場合や、commit の時刻と取り込んだ時刻がずれる場合に、別の commit と比べることになる。
+
+それぞれの commit で同じチェックがどう終わるかは、まず CI の記録で確かめる。
+
+```bash
+base=$(gh pr view <番号> --repo <owner>/<repo> --json baseRefName --jq .baseRefName)
+# refspec を明示する。single-branch clone などで remote.origin.fetch に $base が無いと、origin/$base が更新されない
+git fetch origin "+refs/heads/$base:refs/remotes/origin/$base"
+log=$(mktemp)
+# 失敗したジョブのログ。run の他のジョブが動いていても取れる。取得に失敗したら確かめられないものとして扱う
+merge=""
+if gh api "repos/<owner>/<repo>/actions/jobs/<job-id>/logs" >"$log"; then
+  merge=$(grep -m1 -oE 'Merge [0-9a-f]{40} into [0-9a-f]{40}' "$log" || true)  # 該当なしは空にする
+fi
+rm -f "$log"
+merged_head=${merge#Merge }; merged_head=${merged_head%% *}
+head_sha=$(gh run view <run-id> --repo <owner>/<repo> --json headSha --jq .headSha)
+ran=${merge##* into }                                  # 失敗した run が検証したベース
+tip=$(git rev-parse "origin/$base")                    # ベースブランチの先端
+gh api --paginate -X GET "repos/<owner>/<repo>/commits/<SHA>/check-runs" \
+  -f check_name='<チェックの名前>' -f per_page=100 \
+  --jq '.check_runs[] | {status, conclusion, html_url}'
+```
+
+- `<run-id>` と `<job-id>` は、「CI 失敗ログの取得」で取得した `link`（`.../actions/runs/<run-id>/job/<job-id>`）から取る。
+- `$merge` が空のとき（`push` で起動した run、GitHub Actions でないチェック、ログの保存期間が過ぎた run、checkout のログの形が変わったとき）は、確かめられないものとして扱う。
+  `$merged_head` が `$head_sha` と違うときも同じである。`gh api` が失敗すると `$merge` は空のままで、`gh run view` が失敗すると `$head_sha` が空で `$merged_head` と一致しないので、どちらも確かめられないものとして扱われる。
+- `<SHA>` には `$ran` と `$tip` を 1 つずつ渡す。チェックの名前は、「CI 失敗ログの取得」で取得した `name` をそのまま使う。
+- チェックの名前は `-f` で渡す。URL のクエリに直接書くと、空白を含む名前（`Unit tests` など）がエンコードされず、`gh api` が応答を返さない（実測）。
+- `$tip` と `$ran` が同じなら、失敗した run はベースブランチの先端と合わせて検証しているので、取り込んでもその失敗は直らない。この節に当たらない。
+- 0 件は、その commit で CI が実行されていないことを示すだけで、成功も失敗も示さない（push で CI を実行しないリポジトリでは、ベースブランチの先端に記録が無い）。
+- `$ran` の記録が失敗でも、ログの失敗した箇所が PR の失敗と違うなら、同じ失敗として扱わない。`gh run view <run-id> --log-failed` で読み比べる。
+- 形は <https://docs.github.com/en/rest/checks/runs#list-check-runs-for-a-git-reference> で確かめた。
+
+CI の記録が無ければ、手元で再現して確かめてよい。その commit を別の作業ツリー（`git worktree add --detach <一時ディレクトリ> <SHA>`）に取り出し、ログの失敗したステップのコマンドを実行する。
+手元で実行できない（ランタイムや資格情報が無い、CI の環境でしか起きない）ときは、確かめられないものとして扱う。確かめた後は、作った作業ツリーを `git worktree remove` で片付ける。
+
+取り込みの方法は、`issue-start` の基本フロー step 11 と同じく、リポジトリの規約に従って決める。
+このスキルは force push をしないので、使える方法は merge だけである（`git merge --no-edit "origin/$base"`）。
+規約が merge を許さない（rebase だけを許すなど）とき、または merge が競合したとき（`git merge --abort` で戻す）は、自分で解消せず「行き詰まり」として止まり、取り込みが要ることとその理由を報告する。
+
+取り込んだら、push する前に、判定の根拠を PR のトップレベルのコメントに書く。
+書くのは、失敗したチェックの名前と失敗の要点、2 つの判定の根拠（commit の SHA と run の URL、または再現したコマンドと結果）、取り込んだ範囲（取り込む前の `git merge-base HEAD "origin/$base"` から `$tip` まで）である。
+本文の先頭に目印 `<!-- pr-finalize-loop:base-merge -->` を入れ、コンテキストを圧縮した後もこのコマンドで読み直せるようにする。
+
+```bash
+gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
+  --jq '.[] | select(.body | startswith("<!-- pr-finalize-loop:base-merge -->")) | {id, created_at, body}'
+```
+
+push した後の CI で同じ失敗が残ったら、判定が誤っていたので、その失敗のためにもう一度取り込まない。手順 3 のとおりログから原因を特定して直す。
 
 ## CI の完了を待つ
 

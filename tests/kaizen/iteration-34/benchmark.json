@@ -1,0 +1,253 @@
+{
+  "metadata": {
+    "skill_name": "kaizen",
+    "skill_path": "<repo>/skills/kaizen",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-09T10:25:56Z",
+    "evals_run": [30, 31],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 30,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 162.32,
+        "tokens": 607939,
+        "tool_calls": 13,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "1 つ目の学びのファイルに ## 食い違い の節があり、相手を AGENTS.md の依存の管理（`--save-exact` でバージョンを固定する規約）にしている",
+          "passed": true,
+          "evidence": ".kaizen/2026-11-09-pinned-deps-block-pnpm-update.md の ## 食い違い の相手が「AGENTS.md「依存の管理」の 1 項目目（pnpm add --save-exact で固定して足し…）」"
+        },
+        {
+          "text": "1 つ目の学びのファイルの ## 食い違い で、判断を 判断待ち にしている（新しい学び・既存のもの・条件で分ける のどれかを自分で選んでいない）",
+          "passed": true,
+          "evidence": "同じ節の「- 判断: 判断待ち」。提案にも「判断 が決まるまで、この提案に従わない」と書き、選択肢を自分で選んでいない"
+        },
+        {
+          "text": "1 つ目の学びのファイルの status が pending である",
+          "passed": true,
+          "evidence": "frontmatter が status: pending"
+        },
+        {
+          "text": "AGENTS.md の、`--save-exact` でバージョンを固定して足す規約が書き換えられておらず、`^` の範囲で足す規約も足されていない",
+          "passed": true,
+          "evidence": "AGENTS.md が fixture と diff で一致（--save-exact の規約が残り、^ の規約も足していない）"
+        },
+        {
+          "text": "2 つ目の学びのファイルに ## 食い違い の節があり、相手を なし、判断を なし にしている",
+          "passed": true,
+          "evidence": ".kaizen/2026-11-09-bsd-date-relative-time.md の ## 食い違い が「相手: なし」「判断: なし」"
+        },
+        {
+          "text": "バンドルされた kaizen-status-check.sh を実行し、exit 0 を示している",
+          "passed": true,
+          "evidence": "最終メッセージに bash .claude/skills/kaizen/scripts/kaizen-status-check.sh の exit=0"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 31,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 66.876,
+        "tokens": 410195,
+        "tool_calls": 14,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "AGENTS.md の、`--save-exact` でバージョンを固定して足す規約が書き換えられておらず、`^` の範囲で足す規約も足されていない",
+          "passed": true,
+          "evidence": "AGENTS.md の依存の管理は fixture と同じで、^ の範囲の規約は足していない（足したのは ## スクリプトの一時ファイル の節だけ）"
+        },
+        {
+          "text": "2026-10-05-exact-pin-blocks-patch.md の status が pending のままで、applied にも rejected にもなっていない",
+          "passed": true,
+          "evidence": "2026-10-05-exact-pin-blocks-patch.md が status: pending、applied-to: []"
+        },
+        {
+          "text": "2026-10-05-exact-pin-blocks-patch.md に ## 食い違い の節があり、相手を AGENTS.md の依存の管理にし、判断を 判断待ち にしている",
+          "passed": true,
+          "evidence": "同じファイルに ## 食い違い（相手: AGENTS.md「依存の管理」、判断: 判断待ち）を書き足した"
+        },
+        {
+          "text": "AGENTS.md に、一時ファイルを mktemp で作り trap で消す規約を足している",
+          "passed": true,
+          "evidence": "AGENTS.md に ## スクリプトの一時ファイル を足し、mktemp で作り trap 'rm -f \"$tmp\"' EXIT で消す規約を書いた"
+        },
+        {
+          "text": "2026-10-06-tmpfile-left-behind.md の status が applied で、applied-to に AGENTS.md を書いている",
+          "passed": true,
+          "evidence": "2026-10-06-tmpfile-left-behind.md が status: applied、applied-to: [AGENTS.md]"
+        },
+        {
+          "text": "バンドルされた kaizen-status-check.sh を実行し、exit 0 を示している",
+          "passed": true,
+          "evidence": "最終メッセージで kaizen-status-check.sh を実行し「終了コードは 0」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 30,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 71.888,
+        "tokens": 287974,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "1 つ目の学びのファイルに ## 食い違い の節があり、相手を AGENTS.md の依存の管理（`--save-exact` でバージョンを固定する規約）にしている",
+          "passed": false,
+          "evidence": ".kaizen/2026-11-09-pinned-dep-security-patch.md に ## 食い違い の節が無い（独自の「## 規約との衝突」の節で、相手・判断の項目を持たない）"
+        },
+        {
+          "text": "1 つ目の学びのファイルの ## 食い違い で、判断を 判断待ち にしている（新しい学び・既存のもの・条件で分ける のどれかを自分で選んでいない）",
+          "passed": false,
+          "evidence": "判断 の項目が無い。「人が判断する未決の論点として残す」と本文に書いただけで、判断待ちの記録は無い"
+        },
+        {
+          "text": "1 つ目の学びのファイルの status が pending である",
+          "passed": true,
+          "evidence": "frontmatter が status: pending"
+        },
+        {
+          "text": "AGENTS.md の、`--save-exact` でバージョンを固定して足す規約が書き換えられておらず、`^` の範囲で足す規約も足されていない",
+          "passed": true,
+          "evidence": "AGENTS.md が fixture と diff で一致"
+        },
+        {
+          "text": "2 つ目の学びのファイルに ## 食い違い の節があり、相手を なし、判断を なし にしている",
+          "passed": false,
+          "evidence": ".kaizen/2026-11-09-hook-gnu-date-on-macos.md に ## 食い違い の節が無い（「食い違い」の語が 0 件）"
+        },
+        {
+          "text": "バンドルされた kaizen-status-check.sh を実行し、exit 0 を示している",
+          "passed": false,
+          "evidence": "最終メッセージで「実行できていないので、終了コードはありません」（スクリプトが環境に無い）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 31,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 4,
+        "failed": 2,
+        "total": 6,
+        "time_seconds": 47.631,
+        "tokens": 152816,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "AGENTS.md の、`--save-exact` でバージョンを固定して足す規約が書き換えられておらず、`^` の範囲で足す規約も足されていない",
+          "passed": true,
+          "evidence": "AGENTS.md の依存の管理は fixture と同じで、^ の規約は足していない"
+        },
+        {
+          "text": "2026-10-05-exact-pin-blocks-patch.md の status が pending のままで、applied にも rejected にもなっていない",
+          "passed": true,
+          "evidence": "2026-10-05-exact-pin-blocks-patch.md が status: pending、applied-to: []（利用者が不在なので方針を覆さないと判断して保留）"
+        },
+        {
+          "text": "2026-10-05-exact-pin-blocks-patch.md に ## 食い違い の節があり、相手を AGENTS.md の依存の管理にし、判断を 判断待ち にしている",
+          "passed": false,
+          "evidence": "2026-10-05-exact-pin-blocks-patch.md に ## 食い違い の節が無く、判断待ちの記録はファイルに残っていない（最終メッセージで保留を説明しただけ）"
+        },
+        {
+          "text": "AGENTS.md に、一時ファイルを mktemp で作り trap で消す規約を足している",
+          "passed": true,
+          "evidence": "AGENTS.md に ## スクリプト を足し、mktemp と trap 'rm -f \"$tmp\"' EXIT の規約を書いた"
+        },
+        {
+          "text": "2026-10-06-tmpfile-left-behind.md の status が applied で、applied-to に AGENTS.md を書いている",
+          "passed": true,
+          "evidence": "2026-10-06-tmpfile-left-behind.md が status: applied、applied-to: [AGENTS.md]"
+        },
+        {
+          "text": "バンドルされた kaizen-status-check.sh を実行し、exit 0 を示している",
+          "passed": false,
+          "evidence": "最終メッセージで「実行できなかったので、終了コードはありません」（スクリプトが環境に無い）"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 114.598,
+        "stddev": 67.4891,
+        "min": 66.876,
+        "max": 162.32
+      },
+      "tokens": {
+        "mean": 509067,
+        "stddev": 139826.1233,
+        "min": 410195,
+        "max": 607939
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5,
+        "stddev": 0.2357,
+        "min": 0.3333,
+        "max": 0.6667
+      },
+      "time_seconds": {
+        "mean": 59.7595,
+        "stddev": 17.1523,
+        "min": 47.631,
+        "max": 71.888
+      },
+      "tokens": {
+        "mean": 220395,
+        "stddev": 95571.1383,
+        "min": 152816,
+        "max": 287974
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.50",
+      "time_seconds": "+54.8",
+      "tokens": "+288672"
+    }
+  },
+  "notes": []
+}
