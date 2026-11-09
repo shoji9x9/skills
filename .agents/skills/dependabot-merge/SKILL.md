@@ -65,11 +65,12 @@ dependabot-merge                   （対象の指定なし）--all と同じ。
 1. 入力から owner・repo・PR 番号を取り出す
 2. 現在の repo と、PR の owner・repo が一致するかを確かめる
    - 一致しなければ、確認もマージもせずに中断し、ユーザーに確認する（聞き方は [`references/user-confirmation.md`](references/user-confirmation.md)）
-3. PR の作成者が Dependabot かを確かめる（`gh pr view <番号> --repo <owner>/<repo> --json author --jq '.author.login'`）
-   - bot の login の表記は一定しない（`dependabot[bot]` など）ので、`dependabot` を含むかで判定する。
-     `app/dependabot` は `gh pr list --author` で絞るときの app slug で、`author.login` の値とは別のものである
+3. PR の作成者が Dependabot で、head が同じリポジトリの branch かを確かめる（後述「作成者の確認（単一 PR）」）
+   - `author.login` が `app/dependabot` か `dependabot[bot]` のどちらかと一字一句同じで、`author.is_bot` が `true` のときだけ Dependabot とみなす。
+     `dependabot` を含むかで判定しない。部分一致では、名前に `dependabot` を含む別のアカウントの PR も Dependabot の PR として扱ってしまう
+   - `isCrossRepository` が `true`（fork からの PR）なら、Dependabot とみなさない。Dependabot は対象のリポジトリの中に branch を作る
    - Dependabot でなければ、このスキルの対象にするかを中断して確認する（対象の取り違えを防ぐ）（聞き方は [`references/user-confirmation.md`](references/user-confirmation.md)）
-4. CI の成功を確かめる（後述「gh メカニクス」）。必須チェックの結果で次のように分ける
+4. 確かめる対象の head の SHA（`gh pr view <番号> --repo <owner>/<repo> --json headRefOid --jq .headRefOid`）を保存し、その head で CI の成功を確かめる（後述「gh メカニクス」）。必須チェックの結果で次のように分ける
    - 成功 → 次に進む
    - 実行中 → 完了を待つ（`--watch`）。待たないなら、そのことを伝えて止まる
    - 失敗 → マージしない。失敗の内容と、どうすれば直せそうかを PR コメントに書き、ユーザーに報告する
@@ -82,7 +83,8 @@ dependabot-merge                   （対象の指定なし）--all と同じ。
 6. 判断の根拠を PR コメントに書く（`gh pr comment`）。マージする場合も、しない場合も残す
    - マージできないと判断した場合は、何が課題か（例: 破壊的な変更で X の対応が要る、CI が失敗した原因、behind なので rebase が要る）と、どうすればマージできるかを必ず書く。次に見た人が、その内容を見て動けるようにするためである
 7. マージするか決める
-   - 安全なら、設定の `merge_method` でマージする（`gh pr merge --<method> <番号> --repo <owner>/<repo>`）
+   - 安全なら、設定の `merge_method` で、4 で保存した SHA に固定してマージする（`gh pr merge --<method> --match-head-commit <SHA> <番号> --repo <owner>/<repo>`）。
+     確かめた後に head が変わっていれば、GitHub がマージを断る。そのときは、新しい head で 3 からやり直す
    - リスクがある、または影響を判断できないなら、マージしない。6 のコメントを残したうえで、ユーザーに報告する
 8. 結果（マージしたか、その理由）を報告する
 
@@ -125,11 +127,12 @@ gh pr list --repo <owner>/<repo> --state open --author "app/dependabot" \
 ### 作成者の確認（単一 PR）
 
 ```bash
-gh pr view <番号> --repo <owner>/<repo> --json author --jq '.author.login'
+gh pr view <番号> --repo <owner>/<repo> --json author,isCrossRepository \
+  --jq '((.author.login == "app/dependabot" or .author.login == "dependabot[bot]") and .author.is_bot == true and .isCrossRepository == false)'
 ```
 
-- `author.login` の bot の表記は環境によって変わる（`dependabot[bot]` など）ので、`dependabot` を含むかで緩く判定する。
-  `app/dependabot` は `gh pr list --author` で使う app slug で、`author.login` の値ではない（混同しない）。
+- `true` のときだけ Dependabot の PR として扱う。`gh pr view` は `author.login` を `app/dependabot` で返し、REST API と Actions のイベントは `dependabot[bot]` で返す。
+  この 2 つのどちらかと一字一句同じかで判定し、`dependabot` を含むかで判定しない。
 
 ### CI 成功の確認
 
@@ -231,7 +234,8 @@ node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mj
 exit 1（設定の誤りか、旧い場所の設定が残っている）なら、マージせずにエラーの内容を利用者に示して止まる。
 
 ```bash
-gh pr merge --squash <番号> --repo <owner>/<repo>   # または --merge / --rebase
+# <SHA> は、基本フローの手順 4 で保存した headRefOid
+gh pr merge --squash --match-head-commit <SHA> <番号> --repo <owner>/<repo>   # または --merge / --rebase
 ```
 
 - `BEHIND` でマージを断られた場合は、「behind（base に遅れている）PR の更新」に従う。`@dependabot rebase`（断られたら `@dependabot recreate`）で更新し、CI の成功を確かめてからもう一度試す。
