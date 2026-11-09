@@ -1,6 +1,6 @@
 # 週次の処理
 
-GitHub Actions の `schedule` と Dependabot で毎週動く処理の、曜日・時刻・処理どうしの依存を一覧にする。
+GitHub Actions の `schedule` と Dependabot で毎週動く処理の、曜日・時刻・処理どうしの依存と、ワークフローが使う資格情報と止め方を一覧にする。
 各ワークフローの cron の横のコメントは、この文書を参照する。
 `kaizen-schedule.yml` だけは、配布するテンプレートと同じ内容に保つので、この文書を参照しない（「時刻を決めるときの決まり」）。
 
@@ -41,10 +41,10 @@ GitHub Actions の `schedule` と Dependabot で毎週動く処理の、曜日�
 
 | ワークフロー | 資格情報 | 止めるリポジトリ変数 | 詳細 |
 | --- | --- | --- | --- |
-| `kaizen-schedule.yml` | 設定で選んだエージェントの secret（`ANTHROPIC_API_KEY` か `CLAUDE_CODE_OAUTH_TOKEN`・`OPENAI_API_KEY`・`COPILOT_GITHUB_TOKEN`） | `KAIZEN_SCHEDULE_SKIP` | `kaizen` スキルの [`references/setup.md`](../skills/kaizen/references/setup.md)「エージェントの選択」「止め方（凍結したプロジェクト・レートリミットに近いとき）」 |
+| `kaizen-schedule.yml` | 設定で選んだエージェントの secret。claude は `ANTHROPIC_API_KEY` か `CLAUDE_CODE_OAUTH_TOKEN`、codex は `OPENAI_API_KEY`、copilot は `COPILOT_GITHUB_TOKEN` | `KAIZEN_SCHEDULE_SKIP` | `kaizen` スキルの [`references/setup.md`](../skills/kaizen/references/setup.md)「エージェントの選択」「止め方（凍結したプロジェクト・レートリミットに近いとき）」 |
 | `self-review.yml` | `CLAUDE_CODE_OAUTH_TOKEN` | `SELF_REVIEW_SKIP` | [`self-review.md`](self-review.md)「資格情報」「一時停止」 |
 | `security-audit.yml` | `CLAUDE_CODE_OAUTH_TOKEN`・`SECURITY_AUDIT_STATE_KEY` | `SECURITY_AUDIT_SKIP` | [`security-scanning.md`](security-scanning.md)「資格情報と設定」 |
-| `self-review-fix.yml` | `CLAUDE_CODE_OAUTH_TOKEN`・GitHub App（`AUTOFIX_APP_CLIENT_ID`・`AUTOFIX_APP_PRIVATE_KEY`） | `SELF_REVIEW_FIX_SKIP`（定期実行は `SELF_REVIEW_SKIP` でも止まる） | [`self-review.md`](self-review.md)「ジョブと資格情報」 |
+| `self-review-fix.yml` | `CLAUDE_CODE_OAUTH_TOKEN`・GitHub App（Client ID をリポジトリ変数 `AUTOFIX_APP_CLIENT_ID` に、秘密鍵を secret `AUTOFIX_APP_PRIVATE_KEY` に置く） | `SELF_REVIEW_FIX_SKIP`（定期実行は `SELF_REVIEW_SKIP` でも止まる） | [`self-review.md`](self-review.md)「ジョブと資格情報」 |
 
 ## 時刻を決めるときの決まり
 
