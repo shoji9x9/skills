@@ -252,7 +252,7 @@ CI の 1 回の実行の秒数は、run ごとに 2 割ほど変わる。複数�
 `mutations-declaration.test.ts` は、lefthook の pre-commit（`cross-file-tests`）が毎回実行する。定義の `find` がコードと合わないことを、全件の実行の前に見つける。
 文書を含む変更は、push の前に手元でも `--changed-since origin/main` を実行する。文書を読むテストを持つ定義も選ばれるので、文書の書き換えで落ちる定義を CI の前に見つけられる。
 `--changed-since` は commit の差分（`origin/main...HEAD`）だけを見るので、commit した後に実行する。commit する前は「変更ファイル: 0 件」になり、何も測らない。
-ランナーのテストのうち本物の vitest を使うのは e2e の 2 本だけで、残りはスタブで実行する（`MUTATION_PROOF_TEST_COMMAND`）。
+ランナーのテストのうち e2e のテストだけが本物の vitest を使い、残りはスタブで実行する（`MUTATION_PROOF_TEST_COMMAND`）。
 ランナーのテストは `describe.concurrent` で並べて実行するので、テストの間でロック・復元情報・fixture を共有しない。
 
 すべての定義は、週に 1 回の定期実行（`.github/workflows/mutation-proof.yml`）で測る。
@@ -453,7 +453,7 @@ lefthook の pre-commit は、TypeScript か JavaScript（`ts`・`tsx`・`mts`�
 | --- | --- | --- |
 | `tsconfig.repo.json` | Node が直接実行する `.ts`（設定ファイル・`scripts/`・private skill の `scripts/`） | `nodenext` |
 | `tsconfig.skills.json` | 配布スキルの `.mjs`（`skills/*/**`）を `checkJs` で検査する。lib に `dom` を含める（ブラウザの中で評価する関数を持つため） | `nodenext` |
-| `tsconfig.templates.json` | 配布スキルの `.ts`・`.mts`・`.cts`（`skills/*/**` と、インストール済みのコピーの `.agents/skills/*/**`）。今あるのは `assets/` の雛形だけで、`assets/` の外に足した `.ts` も対象になる。Node が直接実行する `.ts` を配布スキルに足すなら、`nodenext` のプロジェクトへ分ける | `bundler` |
+| `tsconfig.templates.json` | 配布スキルの `.ts`・`.mts`・`.cts`（`skills/*/**` と、インストール済みのコピーの `.agents/skills/*/**`）。対象は `assets/` の雛形と、`assets/` の外に足した `.ts` である。Node が直接実行する `.ts` を配布スキルに足すなら、`nodenext` のプロジェクトへ分ける | `bundler` |
 | `tsconfig.templates-links.json` | Claude Code 用のリンクから見た同じファイル（`.claude/skills/*/**`） | `bundler`（`tsconfig.templates.json` を継承する） |
 | `tsconfig.fixtures.json` | eval の fixture（`evals/*/fixtures/**/*.{ts,tsx}`） | `bundler`、`jsx: react-jsx` |
 
@@ -487,7 +487,7 @@ import できない雛形（`skills/*/assets/*.template.ts`）とミューテー
 `isArray` 以外の helper（型ガード・CLI の起動の判定など）も、配布スキルの中で複数のファイルが使うものは、そのスキルの `scripts/lib/` に 1 つだけ置いて import する。
 各ファイルに同じ helper を書くと、同じ名前で中身が食い違っても気付けない。中身が違うものは、意味ごとに名前を分ける（配列も通すものは `isObjectLike`）。
 スキルをまたいでは共通化しない。同じ内容であるべきコピーは、`isArray` と同じく `check-identical-copies.ts` の組に登録する。
-スキルの中の重複を検出するチェックは無いので、これは規約である（一致を確かめるのは、登録したコピーの組だけである）。
+jscpd の閾値（5 行・50 トークン）より短い helper の重複は検出しないので、これは規約である（一致を確かめるのは、登録したコピーの組だけである）。
 
 型ガードは、絞る型の値すべてに true を返す判定にする。一部の値にだけ true を返すなら、ブランド型に絞る。オブジェクトの形の型ガードも同じである。
 一部の値にだけ true を返す型ガード（空文字や空白を除く文字列・有限の数など）は、絞る型をブランド型にする。
