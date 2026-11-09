@@ -60,3 +60,4 @@ ci:42611179866:1,ci,2026-11-09T11:55:21.809Z,p-cdee4961,github-actions,,,,2026-1
 ci:42611179863:1,ci,2026-11-09T11:55:21.809Z,p-cdee4961,github-actions,,,,2026-11-09T11:42:42.000Z,2026-11-09T11:44:05.000Z,Asia/Tokyo,feature/930-main-fixed-ci-and-conflicting-learnings,930,,,,,,,,,,CodeQL;pull_request;success,
 ci:42611179871:1,ci,2026-11-09T11:55:21.809Z,p-cdee4961,github-actions,,,,2026-11-09T11:42:42.000Z,2026-11-09T11:47:00.000Z,Asia/Tokyo,feature/930-main-fixed-ci-and-conflicting-learnings,930,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-11-08T11:41:02.253Z:2026-11-09T11:55:21.809Z,coverage,2026-11-09T11:55:21.809Z,p-cdee4961,,,,,2026-11-08T11:41:02.253Z,2026-11-09T11:55:21.809Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-08T11:55:21.809Z:2026-11-09T11:55:53.713Z,coverage,2026-11-09T11:55:53.713Z,p-cdee4961,,,,,2026-11-08T11:55:21.809Z,2026-11-09T11:55:53.713Z,Asia/Tokyo,,,,,,,,,,,,ok,

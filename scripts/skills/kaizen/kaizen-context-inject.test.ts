@@ -550,7 +550,8 @@ describe("食い違いの判断待ち", () => {
 
   test("ノートを読めないときは、判断待ちとして扱い、理由を stderr に出す", () => {
     const lib = join(repoRoot, "skills/kaizen/scripts/kaizen-hook-common.sh");
-    const missing = join(makeTempDir("kaizen-pending-"), "missing.md");
+    // ディレクトリを渡す。gawk はディレクトリを警告だけで読み飛ばすので、awk の終了コードでは読めないことを判定できない。
+    const missing = makeTempDir("kaizen-pending-");
     const res = spawnSync(
       "bash",
       ["-c", '. "$1"; kaizen_has_pending_decision "$2"', "_", lib, missing],
@@ -560,6 +561,8 @@ describe("食い違いの判断待ち", () => {
       },
     );
     expect(res.status, res.stderr).toBe(0);
-    expect(res.stderr).toContain("食い違いの判断を読めないため、判断待ちとして扱う");
+    expect(res.stderr).toBe(
+      `kaizen: 食い違いの判断を読めないため、判断待ちとして扱う（通常のファイルとして読めない）: ${missing}\n`,
+    );
   });
 });

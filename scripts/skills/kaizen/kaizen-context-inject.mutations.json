@@ -88,10 +88,10 @@
     },
     {
       "id": "INJECT-PENDING-DECISION-READ-ERROR-NOT-PENDING",
-      "why": "ノートを読めないときに判断待ちでないと返す（忘却が利用者の決める前に学びを忘れ、注入が印の無いまま従う対象として出す）",
+      "why": "ノートを通常のファイルとして読めるかを先に確かめない（gawk はディレクトリを読み飛ばして判断待ちでないと返すので、忘却が利用者の決める前に学びを忘れ、注入が印の無いまま従う対象として出す）",
       "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
-      "find": "（awk の終了コード ${rc}）: $1\" >&2\n\t\treturn 0",
-      "replace": "（awk の終了コード ${rc}）: $1\" >&2\n\t\treturn 1",
+      "find": "\tif [ ! -f \"$1\" ] || [ ! -r \"$1\" ]; then",
+      "replace": "\tif false; then",
       "occurrences": 1,
       "expect_failing": [
         "食い違いの判断待ち ノートを読めないときは、判断待ちとして扱い、理由を stderr に出す"

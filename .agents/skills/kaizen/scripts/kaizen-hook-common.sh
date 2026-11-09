@@ -625,6 +625,11 @@ kaizen_frontmatter_values() { # $1: ノート $2...: キー
 # 判断待ちとして扱えば、注入は従わない印を付け、忘却は忘れない。どちらも、読めない学びを利用者が決める前に消さない側である。
 kaizen_has_pending_decision() { # $1: ノート
 	local rc=0
+	# 読めるかは awk に任せずに先に確かめる。gawk はディレクトリを警告だけで読み飛ばし、END が 1（判断待ちでない）を返す。
+	if [ ! -f "$1" ] || [ ! -r "$1" ]; then
+		echo "kaizen: 食い違いの判断を読めないため、判断待ちとして扱う（通常のファイルとして読めない）: $1" >&2
+		return 0
+	fi
 	awk '
 		{ sub(/\r$/, "") }
 		{
@@ -642,7 +647,7 @@ kaizen_has_pending_decision() { # $1: ノート
 		/^## / { in_sec = ($0 ~ /^## 食い違い *$/); next }
 		in_sec && $0 ~ /^- 判断: *`?判断待ち`? *$/ { found = 1; exit }
 		END { exit found ? 0 : 1 }
-	' "$1" || rc=$?
+	' "$1" 2>/dev/null || rc=$?
 	case "${rc}" in
 	0) return 0 ;;
 	1) return 1 ;;
