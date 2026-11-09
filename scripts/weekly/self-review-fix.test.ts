@@ -11,7 +11,7 @@
 // | PR の状態 | 無い / コンフリクト / 人のレビュー / 人のコメント / ほかの bot のコメント / 目印のコメントが上限未満・上限 / ほかの bot の目印 |
 // | 本文 | 日付の形でない / 指摘の文に @name / 直さなかった指摘がある・無い |
 // | CLI | 知らないコマンド / select / check の不一致（1）|
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -49,7 +49,9 @@ const candidate = (over: Partial<Candidate> = {}): Candidate => ({
   ...over,
 });
 
-const BOT = "app/skills-autofix";
+const BOT = "skills-autofix[bot]";
+const user = (login: string): { login: string; bot: boolean } => ({ login, bot: false });
+const bot = (login: string): { login: string; bot: boolean } => ({ login, bot: true });
 
 describe("直してよいパス", () => {
   test.each(["docs/a.md", "docs/sub/b.md", "README.md", "evals/box/README.md"])(
@@ -147,6 +149,7 @@ describe("エージェントの結果", () => {
       source: JSON.stringify({ applied: [a], skipped: [{ ...a, reason: "r" }] }),
     },
     { name: "理由が空", source: JSON.stringify({ applied: [], skipped: [{ ...b, reason: " " }] }) },
+    { name: "挙げていない候補がある", source: JSON.stringify({ applied: [a], skipped: [] }) },
   ])("$name は例外にする", ({ source }) => {
     expect(() => parseResult(source, candidates)).toThrow();
   });
@@ -200,8 +203,8 @@ describe("PR の扱い", () => {
     comments: [],
     ...over,
   });
-  const marker = (login = BOT): { author: { login: string }; body: string } => ({
-    author: { login },
+  const marker = (login = BOT): { author: { login: string; bot: boolean }; body: string } => ({
+    author: bot(login),
     body: `${UPDATE_MARKER}\n本文`,
   });
 
@@ -212,18 +215,18 @@ describe("PR の扱い", () => {
     expect(decide(pr({ mergeable: "CONFLICTING" }), BOT).action).toBe("hold");
   });
   test("人のレビューがあれば commit を足さない", () => {
-    expect(decide(pr({ reviews: [{ author: { login: "someone" } }] }), BOT).action).toBe("hold");
+    expect(decide(pr({ reviews: [{ author: user("someone") }] }), BOT).action).toBe("hold");
   });
   test("人のコメントがあれば commit を足さない", () => {
-    expect(
-      decide(pr({ comments: [{ author: { login: "someone" }, body: "x" }] }), BOT).action,
-    ).toBe("hold");
+    expect(decide(pr({ comments: [{ author: user("someone"), body: "x" }] }), BOT).action).toBe(
+      "hold",
+    );
   });
   test("ほかの bot のコメントとレビューは人として数えない", () => {
     const got = decide(
       pr({
-        reviews: [{ author: { login: "copilot-pull-request-reviewer[bot]" } }],
-        comments: [{ author: { login: "app/chatgpt-codex-connector" }, body: "x" }],
+        reviews: [{ author: bot("copilot-pull-request-reviewer[bot]") }],
+        comments: [{ author: bot("chatgpt-codex-connector[bot]"), body: "x" }],
       }),
       BOT,
     );
@@ -233,12 +236,16 @@ describe("PR の扱い", () => {
     const comments = Array.from({ length: WEEKS_LIMIT - 1 }, () => marker());
     expect(decide(pr({ comments }), BOT).action).toBe("update");
   });
+  test("人が bot と同じ形の login で書いた目印は、人のコメントとして扱う", () => {
+    const comments = [{ author: user(BOT), body: `${UPDATE_MARKER}\n本文` }];
+    expect(decide(pr({ comments }), BOT).action).toBe("hold");
+  });
   test(`目印のコメントが ${WEEKS_LIMIT} 件なら追加をやめる`, () => {
     const comments = Array.from({ length: WEEKS_LIMIT }, () => marker());
     expect(decide(pr({ comments }), BOT).action).toBe("stop");
   });
   test("ほかの bot が書いた目印は数えない", () => {
-    const comments = Array.from({ length: WEEKS_LIMIT }, () => marker("app/other"));
+    const comments = Array.from({ length: WEEKS_LIMIT }, () => marker("other[bot]"));
     expect(decide(pr({ comments }), BOT).action).toBe("update");
   });
 });
@@ -267,6 +274,40 @@ describe("PR の本文とコメント", () => {
 describe("CLI", () => {
   test("知らないコマンドは 2", () => {
     expect(main(["other"])).toBe(2);
+  });
+
+  test("decide は REST の user.type で bot を見分け、自分の目印だけを数える", () => {
+    const dir = makeTempDir("self-review-fix-");
+    const path = join(dir, "pr.json");
+    const comment = (login: string, type: string): object => ({
+      author: { login, type },
+      body: `${UPDATE_MARKER}\n本文`,
+    });
+    const write = (comments: object[]): void => {
+      writeFileSync(
+        path,
+        JSON.stringify({ number: 7, mergeable: "MERGEABLE", reviews: [], comments }),
+      );
+    };
+    const logs: string[] = [];
+    const spy = vi.spyOn(console, "log").mockImplementation((line: string) => {
+      logs.push(line);
+    });
+    try {
+      write(Array.from({ length: WEEKS_LIMIT }, () => comment(BOT, "Bot")));
+      expect(main(["decide", "--pr", path, "--bot", BOT])).toBe(0);
+      write([comment("chatgpt-codex-connector[bot]", "Bot")]);
+      expect(main(["decide", "--pr", path, "--bot", BOT])).toBe(0);
+      write([comment("someone", "User")]);
+      expect(main(["decide", "--pr", path, "--bot", BOT])).toBe(0);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(logs.filter((l) => l.startsWith("action="))).toEqual([
+      "action=stop",
+      "action=update",
+      "action=hold",
+    ]);
   });
 
   test("select で候補を書き、check で変えたファイルの不一致を 1 にする", () => {

@@ -12,7 +12,8 @@
 //   --status <git status の出力>
 //   エージェントが変えたファイルが、直したと書いた候補のファイルと一致するかを確かめる。
 //   標準出力の最後の行に `applied=<件数>` を出す。
-// node scripts/weekly/self-review-fix.ts decide --pr <PR の状態の JSON> --bot <PR を作る App の login>
+// node scripts/weekly/self-review-fix.ts decide --pr <PR の状態の JSON> --bot <PR を作る App の login（`<slug>[bot]`）>
+//   PR の状態の JSON は、gh pr view の number・mergeable に、REST のコメントとレビューの作者（login・type）を足したものである。
 //   今週、PR を作るか・commit を足すか・足さないかを決める。標準出力に `action=<値>` と `reason=<理由>` を出す。
 // node scripts/weekly/self-review-fix.ts body --candidates <候補の JSON> --result <エージェントの結果の JSON> --date <YYYY-MM-DD> \
 //   --out <PR の本文> --comment-out <週ごとのコメント> [--tracking <追跡 Issue の番号>]
@@ -28,8 +29,10 @@ import {
   type Category,
   type Finding,
   codeSpan,
+  keyOf,
   mergeFindings,
   parseReport,
+  shorten,
 } from "./self-review-issue.ts";
 
 /**
@@ -52,8 +55,6 @@ const ALLOWED_PATHS = [
 
 /** 1 回の PR に入れる候補の上限。人がまとめてレビューできる量にする。 */
 const MAX_CANDIDATES = 10;
-/** 理由の欄の上限。PR の本文とコメントの上限を守るため。 */
-const MAX_REASON_CHARS = 300;
 /** commit を足さずに続けて PR を残せる週の数。超えたら PR への追加をやめる。 */
 export const WEEKS_LIMIT = 3;
 /** 週ごとのコメントの目印。続けて残った週の数を、この目印のコメントで数える。 */
@@ -61,8 +62,6 @@ export const UPDATE_MARKER = "<!-- self-review-fix:update -->";
 
 export type Candidate = Pick<Finding, "category" | "path" | "summary" | "suggestion">;
 export type Result = { applied: string[]; skipped: { key: string; reason: string }[] };
-
-const keyOf = (c: Pick<Finding, "category" | "path">): string => `${c.category} ${c.path}`;
 
 /** パスが直してよいファイルの形か。`.` と `..` の区切りを持つパスは、形が合っても外す（docs/../AGENTS.md など）。 */
 export function isAllowedPath(path: string): boolean {
@@ -104,12 +103,10 @@ export function parseCandidates(source: string): Candidate[] {
   });
 }
 
+/** 理由は、点検の指摘の 1 欄と同じ上限（300 字）で切り詰め、PR の本文とコメントの上限を守る。 */
 function reasonText(value: unknown, where: string): string {
   if (!isNonBlankString(value)) throw new Error(`${where} が空でない文字列でない`);
-  const chars = Array.from(oneLine(value));
-  return chars.length > MAX_REASON_CHARS
-    ? `${chars.slice(0, MAX_REASON_CHARS).join("")}…`
-    : chars.join("");
+  return shorten(value);
 }
 
 function resultKey(value: unknown, where: string, known: ReadonlySet<string>): string {
@@ -121,7 +118,7 @@ function resultKey(value: unknown, where: string, known: ReadonlySet<string>): s
 
 /**
  * エージェントの結果を読む。直した候補（applied）と、直さなかった候補（skipped）と理由を書く。
- * 候補に無い指摘を挙げた結果や、同じ候補を 2 回挙げた結果は、形の誤りとして例外にする。
+ * 候補に無い指摘を挙げた結果や、同じ候補を 2 回挙げた結果や、挙げていない候補がある結果は、形の誤りとして例外にする。
  */
 export function parseResult(source: string, candidates: readonly Candidate[]): Result {
   let value: unknown;
@@ -142,6 +139,9 @@ export function parseResult(source: string, candidates: readonly Candidate[]): R
   const all = [...appliedKeys, ...skippedRows.map((s) => s.key)];
   const duplicate = all.find((k, i) => all.indexOf(k) !== i);
   if (duplicate !== undefined) throw new Error(`同じ候補を 2 回挙げている: ${duplicate}`);
+  const missing = [...known].find((k) => !all.includes(k));
+  if (missing !== undefined)
+    throw new Error(`候補を applied にも skipped にも挙げていない: ${missing}`);
   return { applied: appliedKeys, skipped: skippedRows };
 }
 
@@ -182,7 +182,11 @@ export function checkChanges(
   }
 }
 
-type Author = { login: string };
+/**
+ * REST の `user`（`login` と `type`）から作る。
+ * gh pr view のコメントとレビューの JSON は、bot の login を `[bot]` も `app/` も付けずに書き、人と区別できないので使わない。
+ */
+type Author = { login: string; bot: boolean };
 export type PrState = {
   number: number;
   mergeable: string;
@@ -192,9 +196,8 @@ export type PrState = {
 
 export type Decision = { action: "create" | "update" | "hold" | "stop"; reason: string };
 
-/** bot の投稿か。gh の JSON は、GitHub App の login を `app/<slug>` の形で返す。 */
-const isBot = (author: Author | null): boolean =>
-  author === null || author.login.startsWith("app/") || author.login.endsWith("[bot]");
+/** bot の投稿か。REST の `user.type` が `Bot` のものを bot とする。作者を読めない投稿（null）も bot に数える。 */
+const isBot = (author: Author | null): boolean => author === null || author.bot;
 
 /**
  * 今週の PR の扱いを決める。
@@ -230,7 +233,7 @@ function parsePrState(source: string): PrState {
   if (!isArray(reviews) || !isArray(comments)) throw new Error("reviews か comments が配列でない");
   const author = (v: unknown): Author | null =>
     isRecord(v) && isRecord(v["author"]) && typeof v["author"]["login"] === "string"
-      ? { login: v["author"]["login"] }
+      ? { login: v["author"]["login"], bot: v["author"]["type"] === "Bot" }
       : null;
   return {
     number,

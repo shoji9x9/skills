@@ -127,7 +127,7 @@ gh secret set AUTOFIX_APP_PRIVATE_KEY <~/autofix-app.private-key.pem
 
 ### PR の扱い
 
-open の自動の PR は、常に 1 本にする。branch は `self-review/fixes-<日付>` で、Issue から作る branch ではないので、`feature/<番号>-...` の規約から外す。
+open の自動の PR は、常に 1 本にする。branch は `self-review/fixes-<点検の日付>-<run の ID>` で、Issue から作る branch ではないので、`feature/<番号>-...` の規約から外す。
 PR を作るか、同じ PR に commit を足すかは、`scripts/weekly/self-review-fix.ts` が次の順で決める。
 
 | PR の状態 | 扱い |
@@ -136,10 +136,12 @@ PR を作るか、同じ PR に commit を足すかは、`scripts/weekly/self-re
 | `main` とコンフリクトしている | commit を足さない |
 | 人がレビューかコメントをした | commit を足さない。人が扱っている PR に、エージェントの変更を重ねないためである |
 | 3 週続けて処理されていない | commit を足さず、セルフ点検の追跡 Issue にコメントする |
-| それ以外 | `main` を merge で取り込み、その週の修正を commit して、タイトルの日付を更新する |
+| それ以外 | その週の修正を commit して、タイトルの日付を更新する。修正が branch の内容に当たらなければ、commit を足さない |
 
 続けた週の数は、ワークフローが週ごとに PR に書くコメント（先頭に `<!-- self-review-fix:update -->` の目印がある）で数える。
 force push と `--amend` は使わない。PR をマージするかは、人が決める。
+ワークフローは PR の branch に `main` を取り込まない。取り込むと、その間に `main` に入った `.github/workflows/` の変更が merge commit に含まれ、workflows の権限を持たない App の push が拒否される。
+ルールセットはマージの前に PR の branch が `main` の最新を含むことを求めるので、マージする人が PR の「Update branch」で `main` を取り込む。
 
 ## prompt-audit
 

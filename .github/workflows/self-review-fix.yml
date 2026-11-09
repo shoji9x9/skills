@@ -231,8 +231,9 @@ jobs:
           APP_SLUG: ${{ steps.app.outputs.app-slug }}
         run: |
           # open の自動の PR は 1 本にする。App が作った、接頭辞の branch の PR を探す。
-          gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,headRefName,author \
-            --jq "[.[] | select(.headRefName | startswith(\"$BRANCH_PREFIX\")) | select(.author.login == \"app/$APP_SLUG\")]" \
+          # 作者で絞ってから取るので、ほかの open の PR が多くても上限で取りこぼさない。
+          gh pr list --repo "$GITHUB_REPOSITORY" --state open --author "app/$APP_SLUG" --limit 100 --json number,headRefName \
+            --jq "[.[] | select(.headRefName | startswith(\"$BRANCH_PREFIX\"))]" \
             >"$RUNNER_TEMP/prs.json"
           count="$(jq length "$RUNNER_TEMP/prs.json")"
           if [ "$count" -gt 1 ]; then
@@ -240,12 +241,19 @@ jobs:
             exit 1
           elif [ "$count" -eq 1 ]; then
             number="$(jq -r '.[0].number' "$RUNNER_TEMP/prs.json")"
-            gh pr view "$number" --repo "$GITHUB_REPOSITORY" --json number,mergeable,reviews,comments,headRefName >"$RUNNER_TEMP/pr.json"
-            echo "branch=$(jq -r .headRefName "$RUNNER_TEMP/pr.json")" >>"$GITHUB_OUTPUT"
+            gh pr view "$number" --repo "$GITHUB_REPOSITORY" --json number,mergeable,headRefName >"$RUNNER_TEMP/pr-view.json"
+            echo "branch=$(jq -r .headRefName "$RUNNER_TEMP/pr-view.json")" >>"$GITHUB_OUTPUT"
+            # コメントとレビューの作者は REST から取る。gh pr view の JSON は bot の login を `<slug>` と書き、人と区別できない。
+            gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$number/comments" \
+              --jq '.[] | {author: {login: .user.login, type: .user.type}, body}' | jq -s . >"$RUNNER_TEMP/comments.json"
+            gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$number/reviews" \
+              --jq '.[] | {author: {login: .user.login, type: .user.type}}' | jq -s . >"$RUNNER_TEMP/reviews.json"
+            jq -s '.[0] + {comments: .[1], reviews: .[2]}' "$RUNNER_TEMP/pr-view.json" \
+              "$RUNNER_TEMP/comments.json" "$RUNNER_TEMP/reviews.json" >"$RUNNER_TEMP/pr.json"
           else
             echo null >"$RUNNER_TEMP/pr.json"
           fi
-          node scripts/weekly/self-review-fix.ts decide --pr "$RUNNER_TEMP/pr.json" --bot "app/$APP_SLUG" | tee "$RUNNER_TEMP/decide.log"
+          node scripts/weekly/self-review-fix.ts decide --pr "$RUNNER_TEMP/pr.json" --bot "${APP_SLUG}[bot]" | tee "$RUNNER_TEMP/decide.log"
           action="$(sed -n 's/^action=//p' "$RUNNER_TEMP/decide.log")"
           reason="$(sed -n 's/^reason=//p' "$RUNNER_TEMP/decide.log")"
           {
@@ -294,20 +302,21 @@ jobs:
           push() { git -c "http.https://github.com/.extraheader=$auth" push "$@"; }
 
           if [ "$ACTION" = create ]; then
-            branch="$BRANCH_PREFIX$FIX_DATE"
+            # run の ID を名前に含め、同じ点検の run から作り直したときに、残った branch と名前が重ならないようにする。
+            branch="$BRANCH_PREFIX$FIX_DATE-$GITHUB_RUN_ID"
             git switch -c "$branch" origin/main
           else
             branch="$EXISTING_BRANCH"
             git switch -c "$branch" "origin/$branch"
-            # main は merge で取り込む（force push しない）。コンフリクトしたら、commit を足さずに止める。
-            if ! git merge --no-edit origin/main; then
-              git merge --abort
-              echo "#$NUMBER の branch に main を取り込めない。commit を足さない" >&2
-              exit 1
-            fi
+            # main は取り込まない。取り込むと .github/workflows/ の変更が merge commit に入り、workflows の権限の無い App の push が拒否される。
+            # main の取り込みは、人がマージの前に PR の「Update branch」で行う（docs/self-review.md）。
           fi
-          # 点検した時点の main に対する差分なので、その後に main が進んでいても当たるよう 3 方向で当てる。
-          git apply --3way --index "$RUNNER_TEMP/fix/fix.patch"
+          # fix のジョブが checkout した main に対する差分なので、branch の内容と違っていても当たるよう 3 方向で当てる。
+          # 当たらなければ、commit を足さずに止める。
+          if ! git apply --3way --index "$RUNNER_TEMP/fix/fix.patch"; then
+            echo "::warning title=Self review fix::今週の修正を #${NUMBER:-（新しい PR）} の branch に当てられないので、commit を足さない"
+            exit 0
+          fi
           git commit -m "docs: 週次のセルフ点検の指摘を直す（$FIX_DATE）"
           push origin "HEAD:refs/heads/$branch"
 
@@ -329,8 +338,9 @@ jobs:
           NUMBER: ${{ steps.decide.outputs.number }}
           TRACKING: ${{ steps.tracking.outputs.number }}
         run: |
-          message="自動の修正の PR #$NUMBER が続けて処理されていないので、今週の修正を足していません。マージするか閉じてください。"
+          message="$RUNNER_TEMP/stopped.md"
+          echo "自動の修正の PR #$NUMBER が続けて処理されていないので、今週の修正を足していません。マージするか閉じてください。" >"$message"
           if [ -n "$TRACKING" ]; then
-            gh issue comment "$TRACKING" --repo "$GITHUB_REPOSITORY" --body "$message"
+            gh issue comment "$TRACKING" --repo "$GITHUB_REPOSITORY" --body-file "$message"
           fi
-          echo "$message" >>"$GITHUB_STEP_SUMMARY"
+          cat "$message" >>"$GITHUB_STEP_SUMMARY"

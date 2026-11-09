@@ -60,7 +60,9 @@
       "occurrences": 1,
       "expect_failing": [
         "PR の扱い 人のレビューがあれば commit を足さない",
-        "PR の扱い 人のコメントがあれば commit を足さない"
+        "PR の扱い 人のコメントがあれば commit を足さない",
+        "PR の扱い 人が bot と同じ形の login で書いた目印は、人のコメントとして扱う",
+        "CLI decide は REST の user.type で bot を見分け、自分の目印だけを数える"
       ]
     }
   ]
