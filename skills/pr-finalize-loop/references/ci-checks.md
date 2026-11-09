@@ -45,6 +45,55 @@ gh run view <run-id> --repo <owner>/<repo> --log-failed   # 失敗ジョブの�
   `fail` には `FAILURE` と `ERROR` だけでなく、`TIMED_OUT`・`ACTION_REQUIRED`・`STARTUP_FAILURE` も入るので、`state` を直接並べるより失敗を取りこぼさない。
   キャンセルも拾うなら、`or .bucket=="cancel"` を足す。
 - `link` から run-id を取り、`--log-failed` で失敗したステップのログに絞る。原因はコードの事実と照らして判断し、推測で広い範囲を書き換えない。
+- 直す前に、下の「PR と関係が無く、ベースブランチで直っている失敗」に当たるかを確かめる。
+
+## PR と関係が無く、ベースブランチで直っている失敗
+
+CI の失敗が PR の変更と関係が無く、最新のベースブランチでは直っているなら、PR の中で同じ修正をしない。
+PR に関係の無い変更が入り、ベースブランチの修正と競合することもあるからである。代わりに、最新のベースブランチを取り込み、CI をもう一度確かめる。
+
+取り込むのは、次の 2 つをどちらも確かめた事実で示せたときだけである。推測（失敗したファイルが PR の差分に無い、など）では判定しない。
+どちらかを確かめられなければ、取り込まずに、`SKILL.md` の手順 3 のとおりログから原因を特定して直す。
+
+| 判定 | 根拠にする事実 |
+| --- | --- |
+| PR の変更と関係が無い | PR の head とベースブランチの分岐点で、同じチェックが同じ失敗（同じステップ・同じテストやエラー）で終わる |
+| 最新のベースブランチで直っている | ベースブランチの先端で、同じチェックが成功する |
+
+それぞれの commit で同じチェックがどう終わるかは、まず CI の記録で確かめる。
+
+```bash
+base=$(gh pr view <番号> --repo <owner>/<repo> --json baseRefName --jq .baseRefName)
+git fetch origin "$base"
+mb=$(git merge-base HEAD "origin/$base")   # 分岐点
+tip=$(git rev-parse "origin/$base")        # ベースブランチの先端
+gh api --paginate "repos/<owner>/<repo>/commits/<SHA>/check-runs?check_name=<チェックの名前>&per_page=100" \
+  --jq '.check_runs[] | {status, conclusion, html_url}'
+```
+
+- `<SHA>` には `$mb` と `$tip` を 1 つずつ渡す。チェックの名前は、「CI 失敗ログの取得」で取得した `name` をそのまま使う。
+- `$tip` と `$mb` が同じなら、ベースブランチは進んでおらず取り込むものが無いので、この節に当たらない。
+- 0 件は、その commit で CI が実行されていないことを示すだけで、成功も失敗も示さない（push で CI を実行しないリポジトリでは、ベースブランチの先端に記録が無い）。
+- `$mb` の記録が失敗でも、ログの失敗した箇所が PR の失敗と違うなら、同じ失敗として扱わない。`gh run view <run-id> --log-failed` で読み比べる。
+- 形は <https://docs.github.com/en/rest/checks/runs#list-check-runs-for-a-git-reference> で確かめた。
+
+CI の記録が無ければ、手元で再現して確かめてよい。その commit を別の作業ツリー（`git worktree add --detach <一時ディレクトリ> <SHA>`）に取り出し、ログの失敗したステップのコマンドを実行する。
+手元で実行できない（ランタイムや資格情報が無い、CI の環境でしか起きない）ときは、確かめられないものとして扱う。確かめた後は、作った作業ツリーを `git worktree remove` で片付ける。
+
+取り込みの方法は、`issue-start` の基本フロー step 11 と同じく、リポジトリの規約に従って決める。
+このスキルは force push をしないので、使える方法は merge だけである（`git merge --no-edit "origin/$base"`）。
+規約が merge を許さない（rebase だけを許すなど）とき、または merge が競合したとき（`git merge --abort` で戻す）は、自分で解消せず「行き詰まり」として止まり、取り込みが要ることとその理由を報告する。
+
+取り込んだら、push する前に、判定の根拠を PR のトップレベルのコメントに書く。
+書くのは、失敗したチェックの名前と失敗の要点、2 つの判定の根拠（commit の SHA と run の URL、または再現したコマンドと結果）、取り込んだ範囲（`$mb..$tip`）である。
+本文の先頭に目印 `<!-- pr-finalize-loop:base-merge -->` を入れ、コンテキストを圧縮した後もこのコマンドで読み直せるようにする。
+
+```bash
+gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
+  --jq '.[] | select(.body | startswith("<!-- pr-finalize-loop:base-merge -->")) | {id, created_at, body}'
+```
+
+push した後の CI で同じ失敗が残ったら、判定が誤っていたので、その失敗のためにもう一度取り込まない。手順 3 のとおりログから原因を特定して直す。
 
 ## CI の完了を待つ
 
