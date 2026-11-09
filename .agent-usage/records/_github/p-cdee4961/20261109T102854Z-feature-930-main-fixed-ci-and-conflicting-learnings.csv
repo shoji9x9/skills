@@ -65,3 +65,5 @@ ci:42613019615:1,ci,2026-11-09T12:08:56.467Z,p-cdee4961,github-actions,,,,2026-1
 ci:42613019533:1,ci,2026-11-09T12:08:56.467Z,p-cdee4961,github-actions,,,,2026-11-09T11:57:03.000Z,2026-11-09T11:57:04.000Z,Asia/Tokyo,feature/930-main-fixed-ci-and-conflicting-learnings,930,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:42613019754:1,ci,2026-11-09T12:08:56.467Z,p-cdee4961,github-actions,,,,2026-11-09T11:57:03.000Z,2026-11-09T12:02:06.000Z,Asia/Tokyo,feature/930-main-fixed-ci-and-conflicting-learnings,930,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-11-08T11:55:53.713Z:2026-11-09T12:08:56.467Z,coverage,2026-11-09T12:08:56.467Z,p-cdee4961,,,,,2026-11-08T11:55:53.713Z,2026-11-09T12:08:56.467Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-08T12:08:56.467Z:2026-11-09T12:09:24.068Z,coverage,2026-11-09T12:09:24.068Z,p-cdee4961,,,,,2026-11-08T12:08:56.467Z,2026-11-09T12:09:24.068Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-08T12:09:24.068Z:2026-11-09T12:10:19.798Z,coverage,2026-11-09T12:10:19.798Z,p-cdee4961,,,,,2026-11-08T12:09:24.068Z,2026-11-09T12:10:19.798Z,Asia/Tokyo,,,,,,,,,,,,ok,

@@ -96,6 +96,17 @@
       "expect_failing": [
         "食い違いの判断待ち ノートを読めないときは、判断待ちとして扱い、理由を stderr に出す"
       ]
+    },
+    {
+      "id": "INJECT-PENDING-DECISION-AWK-FAILURE-NOT-PENDING",
+      "why": "awk が 0・1 以外で終わったときに判断待ちでないと返す（awk を読めない実装やファイルが消えた場合に、忘却が利用者の決める前に学びを忘れ、注入が印の無いまま従う対象として出す）",
+      "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
+      "find": "（awk の終了コード ${rc}: ${err}）: $1\" >&2\n\t\treturn 0",
+      "replace": "（awk の終了コード ${rc}: ${err}）: $1\" >&2\n\t\treturn 1",
+      "occurrences": 1,
+      "expect_failing": [
+        "食い違いの判断待ち awk が 0・1 以外で終わったときは、判断待ちとして扱い、awk の stderr を添える"
+      ]
     }
   ]
 }
