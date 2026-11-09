@@ -94,18 +94,41 @@
       "replace": "\tif false; then",
       "occurrences": 1,
       "expect_failing": [
-        "食い違いの判断待ち ノートを読めないときは、判断待ちとして扱い、理由を stderr に出す"
+        "食い違いの判断待ち ノートを読めないときは、判断待ちとして扱い、理由を stderr に出す",
+        "食い違いの判断待ち 改行を含むパスのノートを読めないときも、メッセージは 1 行で、パスの改行を \\n と書く"
       ]
     },
     {
       "id": "INJECT-PENDING-DECISION-AWK-FAILURE-NOT-PENDING",
       "why": "awk が 0・1 以外で終わったときに判断待ちでないと返す（awk を読めない実装やファイルが消えた場合に、忘却が利用者の決める前に学びを忘れ、注入が印の無いまま従う対象として出す）",
       "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
-      "find": "（awk の終了コード ${rc}: ${err}）: $1\" >&2\n\t\treturn 0",
-      "replace": "（awk の終了コード ${rc}: ${err}）: $1\" >&2\n\t\treturn 1",
+      "find": "（awk の終了コード ${rc}: ${err}）: ${shown}\" >&2\n\t\treturn 0",
+      "replace": "（awk の終了コード ${rc}: ${err}）: ${shown}\" >&2\n\t\treturn 1",
       "occurrences": 1,
       "expect_failing": [
         "食い違いの判断待ち awk が 0・1 以外で終わったときは、判断待ちとして扱い、awk の stderr を添える"
+      ]
+    },
+    {
+      "id": "INJECT-PENDING-DECISION-AWK-STDERR-MULTILINE",
+      "why": "awk の複数行の stderr をそのまま埋め込む（メッセージの見出しとノートのパスが別の行に分かれ、行ごとに読む側がどのノートで失敗したかを取れない）",
+      "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
+      "find": "\t\terr=${err//$'\\n'/ / }",
+      "replace": "\t\t:",
+      "occurrences": 1,
+      "expect_failing": [
+        "食い違いの判断待ち awk が 0・1 以外で終わったときは、判断待ちとして扱い、awk の stderr を添える"
+      ]
+    },
+    {
+      "id": "INJECT-PENDING-DECISION-PATH-NEWLINE",
+      "why": "ノートのパスの改行を書き分けない（改行を含むパスでメッセージが 2 行になり、行ごとに読む側がパスを取れない）",
+      "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
+      "find": "\tshown=${1//$'\\n'/\\\\n}",
+      "replace": "\tshown=$1",
+      "occurrences": 1,
+      "expect_failing": [
+        "食い違いの判断待ち 改行を含むパスのノートを読めないときも、メッセージは 1 行で、パスの改行を \\n と書く"
       ]
     }
   ]

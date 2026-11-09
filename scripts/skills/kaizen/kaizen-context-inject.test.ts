@@ -567,6 +567,21 @@ describe("食い違いの判断待ち", () => {
     ]);
   });
 
+  test("改行を含むパスのノートを読めないときも、メッセージは 1 行で、パスの改行を \\n と書く", () => {
+    const lib = join(repoRoot, "skills/kaizen/scripts/kaizen-hook-common.sh");
+    const dir = join(makeTempDir("kaizen-pending-"), "a\nb");
+    mkdirSync(dir);
+    const res = spawnSync(
+      "bash",
+      ["-c", '. "$1"; kaizen_has_pending_decision "$2"', "_", lib, dir],
+      { encoding: "utf8", timeout: CHILD_TIMEOUT_MS },
+    );
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.stderr.split("\n").filter((l) => l.startsWith("kaizen:"))).toStrictEqual([
+      `kaizen: 食い違いの判断を読めないため、判断待ちとして扱う（通常のファイルとして読めない）: ${dir.replace("\n", "\\n")}`,
+    ]);
+  });
+
   test("awk が 0・1 以外で終わったときは、判断待ちとして扱い、awk の stderr を添える", () => {
     const lib = join(repoRoot, "skills/kaizen/scripts/kaizen-hook-common.sh");
     const dir = createRepo("依存は範囲で足す。");

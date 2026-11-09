@@ -89,7 +89,7 @@ gh api --paginate -X GET "repos/<owner>/<repo>/commits/<SHA>/check-runs" \
 
 - `<run-id>` と `<job-id>` は、「CI 失敗ログの取得」で取得した `link`（`.../actions/runs/<run-id>/job/<job-id>`）から取る。
 - `$merge` が空のとき（`push` で起動した run、GitHub Actions でないチェック、ログの保存期間が過ぎた run、checkout のログの形が変わったとき）は、確かめられないものとして扱う。
-  `$merged_head` が `$head_sha` と違うときも同じである。`gh api` か `gh run view` が失敗したときも、空の値で進まずに確かめられないものとして扱う。
+  `$merged_head` が `$head_sha` と違うときも同じである。`gh api` が失敗すると `$merge` は空のままで、`gh run view` が失敗すると `$head_sha` が空で `$merged_head` と一致しないので、どちらも確かめられないものとして扱われる。
 - `<SHA>` には `$ran` と `$tip` を 1 つずつ渡す。チェックの名前は、「CI 失敗ログの取得」で取得した `name` をそのまま使う。
 - チェックの名前は `-f` で渡す。URL のクエリに直接書くと、空白を含む名前（`Unit tests` など）がエンコードされず、`gh api` が応答を返さない（実測）。
 - `$tip` と `$ran` が同じなら、失敗した run はベースブランチの先端と合わせて検証しているので、取り込んでもその失敗は直らない。この節に当たらない。

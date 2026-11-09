@@ -626,9 +626,11 @@ kaizen_frontmatter_values() { # $1: ノート $2...: キー
 # 2 つ目は awk の終了コードが 0・1 以外のときで、awk の失敗の理由（stderr）も添える。
 # 判断待ちとして扱えば、注入は従わない印を付け、忘却は忘れない。どちらも、読めない学びを利用者が決める前に消さない側である。
 kaizen_has_pending_decision() { # $1: ノート
-	local rc=0 err
+	local rc=0 err shown
+	# メッセージを行ごとに読む側がノートのパスを取れるように、パスの改行を \n と書き分ける（kaizen-context-inject.sh と同じ）。
+	shown=${1//$'\n'/\\n}
 	if [ ! -f "$1" ] || [ ! -r "$1" ]; then
-		echo "kaizen: 食い違いの判断を読めないため、判断待ちとして扱う（通常のファイルとして読めない）: $1" >&2
+		echo "kaizen: 食い違いの判断を読めないため、判断待ちとして扱う（通常のファイルとして読めない）: ${shown}" >&2
 		return 0
 	fi
 	# awk は標準出力に何も書かないので、2>&1 で取るのは awk の stderr だけである。
@@ -654,9 +656,9 @@ kaizen_has_pending_decision() { # $1: ノート
 	0) return 0 ;;
 	1) return 1 ;;
 	*)
-		# 行ごとに読む側がノートのパスを取れるように、awk の複数行の stderr を 1 行にする。
+		# メッセージを 1 行に保つため、awk の複数行の stderr の改行を「 / 」に置き換える。
 		err=${err//$'\n'/ / }
-		echo "kaizen: 食い違いの判断を読めないため、判断待ちとして扱う（awk の終了コード ${rc}: ${err}）: $1" >&2
+		echo "kaizen: 食い違いの判断を読めないため、判断待ちとして扱う（awk の終了コード ${rc}: ${err}）: ${shown}" >&2
 		return 0
 		;;
 	esac
