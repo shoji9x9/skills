@@ -139,7 +139,8 @@ PR を作るか、同じ PR に commit を足すかは、`scripts/weekly/self-re
 | 3 週続けて処理されていない | commit を足さず、セルフ点検の追跡 Issue にコメントする |
 | それ以外 | その週の修正を commit して、タイトルの日付を更新する。修正が branch の内容に当たらなければ、commit を足さない |
 
-続けた週の数は、ワークフローが週ごとに PR に書くコメント（先頭に `<!-- self-review-fix:update -->` の目印がある）で数える。
+続けた週の数は、ワークフローが週ごとに PR に書くコメント（先頭に `<!-- self-review-fix:update <点検の日付> -->` の目印がある）で数える。
+点検の日付が同じ週（月曜から日曜）のコメントは、手動で何度実行しても 1 週と数える。
 force push と `--amend` は使わない。PR をマージするかは、人が決める。
 ワークフローは PR の branch に `main` を取り込まない。取り込むと、その間に `main` に入った `.github/workflows/` の変更が merge commit に含まれ、workflows の権限を持たない App の push が拒否される。
 ルールセットはマージの前に PR の branch が `main` の最新を含むことを求めるので、マージする人が PR の「Update branch」で `main` を取り込む。

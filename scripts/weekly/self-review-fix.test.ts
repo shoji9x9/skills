@@ -18,6 +18,7 @@ import {
   type Candidate,
   type PrState,
   UPDATE_MARKER,
+  updateMarker,
   WEEKS_LIMIT,
   changedFiles,
   checkChanges,
@@ -203,10 +204,16 @@ describe("PR の扱い", () => {
     comments: [],
     ...over,
   });
-  const marker = (login = BOT): { author: { login: string; bot: boolean }; body: string } => ({
+  const marker = (
+    login = BOT,
+    date = "2026-11-10",
+  ): { author: { login: string; bot: boolean }; body: string } => ({
     author: bot(login),
-    body: `${UPDATE_MARKER}\n本文`,
+    body: `${updateMarker(date)}\n本文`,
   });
+  /** 週の違う点検の日付（火曜）を n 件返す。 */
+  const weeks = (n: number): string[] =>
+    ["2026-11-03", "2026-11-10", "2026-11-17", "2026-11-24"].slice(0, n);
 
   test("open の PR が無ければ作る", () => {
     expect(decide(null, BOT).action).toBe("create");
@@ -233,7 +240,7 @@ describe("PR の扱い", () => {
     expect(got.action).toBe("update");
   });
   test(`目印のコメントが ${WEEKS_LIMIT - 1} 件なら commit を足す`, () => {
-    const comments = Array.from({ length: WEEKS_LIMIT - 1 }, () => marker());
+    const comments = weeks(WEEKS_LIMIT - 1).map((d) => marker(BOT, d));
     expect(decide(pr({ comments }), BOT).action).toBe("update");
   });
   test("人が bot と同じ形の login で書いた目印は、人のコメントとして扱う", () => {
@@ -241,11 +248,27 @@ describe("PR の扱い", () => {
     expect(decide(pr({ comments }), BOT).action).toBe("hold");
   });
   test(`目印のコメントが ${WEEKS_LIMIT} 件なら追加をやめる`, () => {
-    const comments = Array.from({ length: WEEKS_LIMIT }, () => marker());
+    const comments = weeks(WEEKS_LIMIT).map((d) => marker(BOT, d));
+    expect(decide(pr({ comments }), BOT).action).toBe("stop");
+  });
+  test("同じ週の点検の日付の目印は、何件あっても 1 週と数える", () => {
+    // 月曜・木曜・日曜で、同じ週になる。
+    const comments = ["2026-11-09", "2026-11-12", "2026-11-15"].map((d) => marker(BOT, d));
+    expect(decide(pr({ comments }), BOT).action).toBe("update");
+  });
+  test("日曜と翌日の月曜は別の週と数える", () => {
+    const comments = ["2026-11-15", "2026-11-16", "2026-11-23"].map((d) => marker(BOT, d));
+    expect(decide(pr({ comments }), BOT).action).toBe("stop");
+  });
+  test("日付を読めない目印は、1 件ずつ別の週と数える", () => {
+    const comments = Array.from({ length: WEEKS_LIMIT }, () => ({
+      author: bot(BOT),
+      body: `${UPDATE_MARKER} -->\n本文`,
+    }));
     expect(decide(pr({ comments }), BOT).action).toBe("stop");
   });
   test("ほかの bot が書いた目印は数えない", () => {
-    const comments = Array.from({ length: WEEKS_LIMIT }, () => marker("other[bot]"));
+    const comments = weeks(WEEKS_LIMIT).map((d) => marker("other[bot]", d));
     expect(decide(pr({ comments }), BOT).action).toBe("update");
   });
 });
@@ -260,7 +283,7 @@ describe("PR の本文とコメント", () => {
   test("直した指摘と直さなかった指摘を書き、指摘の文をコードスパンに入れる", () => {
     const { body, comment } = formatPr({ candidates, result, date: "2026-11-10", tracking: 952 });
     expect(body).toContain("#952");
-    expect(comment.startsWith(UPDATE_MARKER)).toBe(true);
+    expect(comment.startsWith(`${updateMarker("2026-11-10")}\n`)).toBe(true);
     expect(comment).toContain("- inconsistency docs/a.md: ` @someone を呼ぶ `");
     expect(comment).toContain("- inconsistency docs/b.md: ` 判断が要る `");
   });
@@ -279,9 +302,9 @@ describe("CLI", () => {
   test("decide は REST の user.type で bot を見分け、自分の目印だけを数える", () => {
     const dir = makeTempDir("self-review-fix-");
     const path = join(dir, "pr.json");
-    const comment = (login: string, type: string): object => ({
+    const comment = (login: string, type: string, date = "2026-11-10"): object => ({
       author: { login, type },
-      body: `${UPDATE_MARKER}\n本文`,
+      body: `${updateMarker(date)}\n本文`,
     });
     const write = (comments: object[]): void => {
       writeFileSync(
@@ -294,7 +317,9 @@ describe("CLI", () => {
       logs.push(line);
     });
     try {
-      write(Array.from({ length: WEEKS_LIMIT }, () => comment(BOT, "Bot")));
+      write(
+        Array.from({ length: WEEKS_LIMIT }, (_, i) => comment(BOT, "Bot", `2026-11-${10 + 7 * i}`)),
+      );
       expect(main(["decide", "--pr", path, "--bot", BOT])).toBe(0);
       write([comment("chatgpt-codex-connector[bot]", "Bot")]);
       expect(main(["decide", "--pr", path, "--bot", BOT])).toBe(0);

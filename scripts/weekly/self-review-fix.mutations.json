@@ -64,6 +64,15 @@
         "PR の扱い 人が bot と同じ形の login で書いた目印は、人のコメントとして扱う",
         "CLI decide は REST の user.type で bot を見分け、自分の目印だけを数える"
       ]
+    },
+    {
+      "id": "same-week-counted-twice",
+      "why": "同じ週に手動で何度も更新すると、それぞれを 1 週と数え、3 回で PR への追加をやめてしまう",
+      "file": "scripts/weekly/self-review-fix.ts",
+      "find": ": weekOf(date)",
+      "replace": ": `${i}`",
+      "occurrences": 1,
+      "expect_failing": ["PR の扱い 同じ週の点検の日付の目印は、何件あっても 1 週と数える"]
     }
   ]
 }

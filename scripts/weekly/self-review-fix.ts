@@ -57,8 +57,11 @@ const ALLOWED_PATHS = [
 const MAX_CANDIDATES = 10;
 /** commit を足さずに続けて PR を残せる週の数。超えたら PR への追加をやめる。 */
 export const WEEKS_LIMIT = 3;
-/** 週ごとのコメントの目印。続けて残った週の数を、この目印のコメントで数える。 */
-export const UPDATE_MARKER = "<!-- self-review-fix:update -->";
+/** 週ごとのコメントの目印の先頭。続けて残った週の数を、この目印のコメントで数える。 */
+export const UPDATE_MARKER = "<!-- self-review-fix:update";
+/** 週ごとのコメントの目印。点検の日付を入れ、同じ週に何度更新しても 1 週と数える。 */
+export const updateMarker = (date: string): string => `${UPDATE_MARKER} ${date} -->`;
+const MARKER_DATE = /^<!-- self-review-fix:update (\d{4}-\d{2}-\d{2}) -->/u;
 
 export type Candidate = Pick<Finding, "category" | "path" | "summary" | "suggestion">;
 export type Result = { applied: string[]; skipped: { key: string; reason: string }[] };
@@ -196,6 +199,27 @@ export type PrState = {
 
 export type Decision = { action: "create" | "update" | "hold" | "stop"; reason: string };
 
+/** 日付を含む週の月曜（UTC）を返す。 */
+function weekOf(date: string): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * 目印のコメントから、更新した週の数を数える。点検の日付が同じ週のコメントは 1 週と数える。
+ * 日付を読めない目印は、少なく数えて追加を続けないよう、1 件ずつ別の週と数える。
+ */
+function countWeeks(bodies: readonly string[]): number {
+  const weeks = new Set(
+    bodies.map((body, i) => {
+      const date = MARKER_DATE.exec(body)?.[1];
+      return date === undefined || Number.isNaN(Date.parse(date)) ? `unknown-${i}` : weekOf(date);
+    }),
+  );
+  return weeks.size;
+}
+
 /** bot の投稿か。REST の `user.type` が `Bot` のものを bot とする。作者を読めない投稿（null）も bot に数える。 */
 const isBot = (author: Author | null): boolean => author === null || author.bot;
 
@@ -213,9 +237,11 @@ export function decide(pr: PrState, bot: string): Decision {
   }
   const human = [...pr.reviews, ...pr.comments].some((p) => !isBot(p.author));
   if (human) return { action: "hold", reason: `#${pr.number} に人のレビューかコメントがある` };
-  const weeks = pr.comments.filter(
-    (c) => c.author?.login === bot && c.body.startsWith(UPDATE_MARKER),
-  ).length;
+  const weeks = countWeeks(
+    pr.comments
+      .filter((c) => c.author?.login === bot && c.body.startsWith(UPDATE_MARKER))
+      .map((c) => c.body),
+  );
   if (weeks >= WEEKS_LIMIT) {
     return { action: "stop", reason: `#${pr.number} が ${weeks} 週続けて処理されていない` };
   }
@@ -278,7 +304,7 @@ export function formatPr(input: PrInput): { body: string; comment: string } {
   ].join("\n");
   const skipped = result.skipped.map((s) => `- ${s.key}: ${codeSpan(s.reason)}`);
   const comment = [
-    UPDATE_MARKER,
+    updateMarker(date),
     `${date} の点検の指摘を ${result.applied.length} 件直した。`,
     "",
     ...rows(candidates, result.applied),
