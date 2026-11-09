@@ -101,7 +101,8 @@ jobs:
             exit 1
           fi
           # 入力で渡した run も、main で実行して成功した Self review の run に限る。PR の run が作った artifact の指摘を読まないためである。
-          origin="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" --jq '[.path, .head_branch, .conclusion] | join(" ")')"
+          # path に ref（`@main` など）が付く run もあるので、`@` から後を外して比べる。
+          origin="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" --jq '[(.path | sub("@.*$"; "")), .head_branch, .conclusion] | join(" ")')"
           if [ "$origin" != ".github/workflows/self-review.yml main success" ]; then
             echo "run $run_id は、main で成功した Self review の run ではない（$origin）" >&2
             exit 1
