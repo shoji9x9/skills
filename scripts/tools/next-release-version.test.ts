@@ -44,10 +44,10 @@ test("main: version は戻り値から取り、commit の message が書いた�
   expect(err.mock.calls.map((c) => String(c[0])).join("")).toContain("9.9.9");
 });
 
-test("main: リリースが無ければ exit 1 で、何も出さない", async () => {
+test("main: リリースが無ければ exit 0 で、何も出さない", async () => {
   const out = vi.spyOn(process.stdout, "write").mockReturnValue(true);
   vi.spyOn(process.stderr, "write").mockReturnValue(true);
-  expect(await main(fakeRelease(false))).toBe(1);
+  expect(await main(fakeRelease(false))).toBe(0);
   expect(out).not.toHaveBeenCalled();
 });
 

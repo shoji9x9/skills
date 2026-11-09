@@ -456,6 +456,9 @@ function repoName(
  * self-review.yml がエージェントの入力として読むので、同じリポジトリの branch の run だけを数える。
  */
 function isForkRun(runRecord: Record<string, unknown>): boolean {
+  // fork が削除された PR の run は、head_repository が null になる。同じリポジトリの branch の run とは確かめられないので、fork として外す。
+  // null 以外の欠け（キーが無い・full_name が空）は応答の形の誤りなので、例外にする。
+  if (runRecord["head_repository"] === null) return true;
   return repoName(runRecord, "head_repository") !== repoName(runRecord, "repository");
 }
 

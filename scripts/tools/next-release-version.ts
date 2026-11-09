@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 // 次のリリースの version を、semantic-release の dry-run の結果（nextRelease.version）から取り、stdout に 1 行で出す。
-// release.yml が `gh skill publish --tag v<version>` に渡す。
+// release.yml が `gh skill publish --tag v<version>` に渡す。手で実行すると、次の version を確かめられる（main 以外の branch では何も出さない）。
 //
 // semantic-release のログには、commit-analyzer が各 commit の message をそのまま書く（`Analyzing commit: <message>`）。
 // ログから `next release version is X.Y.Z` を grep で探すと、その文言を書いた commit の message が version を決められる。
 // そのため、ログは stderr に流して読むだけにし、version は API の戻り値から取る。
 //
-// 終了コード: 0 は version を出した、1 はリリースする変更が無い（何も出さない）、2 は判定できない（semantic-release の失敗・不正な version）。
+// 終了コード: 0 は判定できた（version を 1 行出すか、リリースする変更が無ければ何も出さない）、2 は判定できない（semantic-release の失敗・不正な version）。
+// リリースが無いことを 0 以外の終了コードで表さない。Node は import の失敗などの捕まえていない例外で 1 を返すので、
+// 1 をリリースが無いことに使うと、起動の失敗がリリースしない成功として扱われる。
 import semanticRelease from "semantic-release";
 import { errorMessage } from "../lib/errors.ts";
 import { isCliEntry } from "../lib/cli/entry.ts";
@@ -44,8 +46,7 @@ export async function main(run: Release = semanticRelease): Promise<number> {
     console.error(`next-release-version: 判定できない: ${errorMessage(error)}`);
     return 2;
   }
-  if (version === null) return 1;
-  process.stdout.write(`${version}\n`);
+  if (version !== null) process.stdout.write(`${version}\n`);
   return 0;
 }
 

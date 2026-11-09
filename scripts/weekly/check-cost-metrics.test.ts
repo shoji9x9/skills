@@ -542,7 +542,13 @@ describe("ジョブの所要時間", () => {
 
   test("fork の PR の run は、ジョブを取得せずに数えない", async () => {
     // fork の run（id 9）のジョブは apiRun に用意していないので、取得すると例外になる。
-    const runs = [run(1, 1), run(9, 1, "someone/r"), run(4, 8)];
+    // fork が削除された PR の run（id 8）は head_repository が null になる。これも数えない
+    const runs = [
+      run(1, 1),
+      run(9, 1, "someone/r"),
+      { ...run(8, 1), head_repository: null },
+      run(4, 8),
+    ];
     const rows = await jobRows(
       apiRun(
         { total_count: runs.length, workflow_runs: runs },
@@ -561,7 +567,6 @@ describe("ジョブの所要時間", () => {
   test.each([
     ["head_repository が無い", { head_repository: undefined }, "head_repository.full_name"],
     ["repository の full_name が空", { repository: { full_name: "" } }, "repository.full_name"],
-    ["head_repository が null", { head_repository: null }, "head_repository.full_name"],
   ])("run の %s ときは、fork かを決められないので例外にする", async (_name, patch, message) => {
     const runs = [{ ...run(1, 1), ...patch }];
     await expect(

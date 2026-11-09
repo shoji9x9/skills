@@ -195,12 +195,13 @@ Dependabot が依頼を断る場合や、グループ更新の組み直しで PR
   その場合はその PR を追わず、open な Dependabot PR の一覧を再取得して後継の PR を特定する。既に確かめた更新の内容（changelog・影響の評価）は、後継の PR でも使う。
 
 `state` と直近の Dependabot のコメントは、次のコマンドで確かめる。
-bot の表記の揺れに対応するため、`dependabot` を含む作成者で緩く絞る。コメントは古い順に並ぶので、最後が最新である。
+REST API はコメントの作成者を `dependabot[bot]` で返すので、`user.login` がこれと一字一句同じで、`user.type` が `Bot` のコメントだけを読む。
+`dependabot` を含むかで絞ると、名前に `dependabot` を含む別のアカウントが書いた `Superseded by #<N>` で、追う PR を変えられてしまう。コメントは古い順に並ぶので、最後が最新である。
 
 ```bash
 gh pr view <番号> --repo <owner>/<repo> --json state,headRefOid,mergeStateStatus
 gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
-  --jq '.[] | select(.user.login | ascii_downcase | contains("dependabot")) | {created_at, body: (.body // "")[:300]}'
+  --jq '.[] | select(.user.login == "dependabot[bot]" and .user.type == "Bot") | {created_at, body: (.body // "")[:300]}'
 ```
 
 ### 判断の記録（PR コメント）

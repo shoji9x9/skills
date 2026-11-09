@@ -140,9 +140,8 @@ try {
   rmSync(work, { recursive: true, force: true });
 }
 
-if (failure) rmSync(outDir, { recursive: true, force: true });
-
 if (failure) {
+  rmSync(outDir, { recursive: true, force: true });
   // Chrome の実行以外の失敗（HTML の書き出し等）は握り潰さずそのまま投げる。
   if (field(failure, "status") === undefined && field(failure, "signal") === undefined)
     throw failure;
