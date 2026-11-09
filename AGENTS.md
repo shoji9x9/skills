@@ -176,7 +176,9 @@ Claude Code はセッション開始時に両方を読み込み、Copilot のレ
 - `main` への取り込みには、PR と CI の必須チェックの成功が必要である。
   必須チェックは `Supply chain`・`Lint`・`Unit tests`・`Mutation proof (PR)`・`GitHub Actions lint`・`Secret scan` である。
   加えて、ルールセットの code scanning の規則が、CodeQL の指摘のある PR のマージを止める。
-- CI は `pull_request` と、マージ後の `push: main` で実行する。
+- CI は `pull_request` でだけ実行し、マージ後の `main` への push では実行しない。
+  ルールセットが PR のブランチに `main` の最新を取り込むことを求め、迂回できる人もいないので、マージ後の `main` は PR の CI が検証した中身と同じになる。
+  どちらかの条件を変えるときは、`main` への push でも CI を実行する設定に戻す。
 
 ### commit message
 

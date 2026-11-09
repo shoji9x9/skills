@@ -7,8 +7,7 @@
   "continue_on_blocked": true,
   "deployment": {
     "workflows": [
-      ".github/workflows/release.yml", // push main（paths: skills/**）
-      ".github/workflows/ci.yml" // merge 後の main の検証（push main）
+      ".github/workflows/release.yml" // push main（paths: skills/**）。ci.yml は main への push で起動しない（Issue #936）
     ],
     "registration_timeout_minutes": 5,
     "completion_timeout_minutes": 10,
