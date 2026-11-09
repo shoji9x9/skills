@@ -168,6 +168,7 @@ Claude Code はセッション開始時に両方を読み込み、Copilot のレ
 
 - `main` から feature ブランチを作る。`develop` は持たない。
 - ブランチ名は `feature/<issue番号>-<英語の短い説明>`（kebab-case）にする。Issue が日本語なら、説明は短い英語に要約する。
+  週次のセルフ点検の指摘を直す自動の PR は、この規約から外し、`self-review/fixes-<日付>` の branch を使う（`docs/self-review.md`）。
 - ブランチは `gh issue develop <issue番号> --name "feature/<issue番号>-<英語の短い説明>" --base main --checkout` で作る。
   作る前に、同じ番号のブランチが local と remote に無いかを確かめる。
 - feature ブランチは PR で `main` に取り込む。PR には関連 Issue、変更の概要、確認した内容を書く。

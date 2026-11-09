@@ -1,0 +1,67 @@
+{
+  "$comment": [
+    "self-review-fix.test.ts の検出能力を示す変異の一覧（Issue #942）。誤ると、エージェントが直してよい範囲の外のファイルを書き換えた差分や、人が扱っている PR への commit を、警告なしに push する判定だけを置く。"
+  ],
+  "test_file": "scripts/weekly/self-review-fix.test.ts",
+  "mutations": [
+    {
+      "id": "dot-segment-allowed",
+      "why": "docs/../AGENTS.md のような区切りを持つパスを、形が合うので直してよいファイルとして扱い、範囲の外のファイルを書き換えさせる",
+      "file": "scripts/weekly/self-review-fix.ts",
+      "find": "if (path.split(\"/\").some((part) => part === \".\" || part === \"..\" || part === \"\")) return false;",
+      "replace": "if (false) return false;",
+      "occurrences": 1,
+      "expect_failing": [
+        "直してよいパス docs/../AGENTS.md は直してよくない",
+        "直してよいパス docs/./a.md は直してよくない",
+        "直してよいパス docs//a.md は直してよくない"
+      ]
+    },
+    {
+      "id": "unfixable-category-selected",
+      "why": "やりすぎなチェックや GitHub Actions の指摘も直す候補にし、人が決めるはずのチェックの扱いをエージェントに変えさせる",
+      "file": "scripts/weekly/self-review-fix.ts",
+      "find": ".filter((f) => isFixable(f.category) && isAllowedPath(f.path) && isFile(f.path))",
+      "replace": ".filter((f) => isAllowedPath(f.path) && isFile(f.path))",
+      "occurrences": 1,
+      "expect_failing": ["候補の選択 直せる項目で、直してよい、在るファイルの指摘だけを残す"]
+    },
+    {
+      "id": "non-modification-allowed",
+      "why": "ファイルの追加・削除・名前の変更・追跡していないファイルを、内容の変更として通し、PR に入れる",
+      "file": "scripts/weekly/self-review-fix.ts",
+      "find": "if (![\" M\", \"M \", \"MM\"].includes(state)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "git status 追跡していない は例外にする",
+        "git status 追加 は例外にする",
+        "git status 削除 は例外にする",
+        "git status 名前の変更 は例外にする"
+      ]
+    },
+    {
+      "id": "unlisted-change-allowed",
+      "why": "直したと書いていないファイルの変更を通し、指摘に仕込まれた指示でエージェントが書き換えた別の文書を PR に入れる",
+      "file": "scripts/weekly/self-review-fix.ts",
+      "find": "if (!appliedPaths.has(path)) throw",
+      "replace": "if (false) throw",
+      "occurrences": 1,
+      "expect_failing": [
+        "変えたファイルと結果の突き合わせ 直したと書いていないファイルを変えたら例外にする"
+      ]
+    },
+    {
+      "id": "human-activity-ignored",
+      "why": "人がレビューかコメントをした PR にも commit を足し、人の作業と食い違う変更を重ねる",
+      "file": "scripts/weekly/self-review-fix.ts",
+      "find": "if (human) return",
+      "replace": "if (false) return",
+      "occurrences": 1,
+      "expect_failing": [
+        "PR の扱い 人のレビューがあれば commit を足さない",
+        "PR の扱い 人のコメントがあれば commit を足さない"
+      ]
+    }
+  ]
+}

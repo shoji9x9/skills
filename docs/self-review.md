@@ -90,6 +90,57 @@ gh run download <run の ID> --name self-review-execution-<試行の番号> --di
 繰り返し出る指摘のうち機械的に判定できるものは、決定論的なチェック（`scripts/gates/<分類>/`）に移し、手順の項目から外す。
 チェックを作る前に、`.agents/rules/check-cost-benefit.md` の基準で効果と費用を書く。
 
+## 指摘を直す PR
+
+ワークフロー `.github/workflows/self-review-fix.yml` が、点検の指摘のうち文の書き換えで直せるものを、エージェントに直させて PR にする。
+手動では `workflow_dispatch` で実行し、入力の `run_id` に指摘を読む点検の run を渡す。空なら、`main` で最後に成功した点検の run を読む。
+エージェントの手順は [`self-review-fix-procedure.md`](self-review-fix-procedure.md) にある。
+
+### 直す範囲
+
+直す候補は、`scripts/weekly/self-review-fix.ts` がエージェントの前に選ぶ。
+候補にするのは、項目が不要物・文書の食い違いと重複・やりすぎな記述・分かりにくい語と旧称で、対象が `docs/` の Markdown・`README.md`・`evals/<name>/README.md` の指摘である。
+やりすぎなチェック・回帰 eval・GitHub Actions の指摘と、`AGENTS.md`・`.agents/rules/`・`skills/` の指摘は、エージェントやチェックの振る舞いを変えるので、人が直す。
+1 回の PR に入れる候補は 10 件までにする。
+
+エージェントの後で、同じスクリプトが、変わったファイルとエージェントが「直した」と書いた指摘のファイルを突き合わせる。
+食い違うとき（ほかのファイルの変更、ファイルの追加・削除・名前の変更、直したと書いたのに変わっていないファイル）は、差分を捨ててジョブを失敗させる。
+エージェントに書き込みを許すのも、ツールの規則で同じ範囲に限る。
+
+### ジョブと資格情報
+
+- `fix`: 点検の run の結果を artifact から読み、候補を選んでエージェントに直させる。ジョブの権限は `contents: read` と `actions: read` で、差分を artifact で渡す
+- `publish`: checkout し直した作業ツリーに差分を当て、GitHub App のトークンで branch に push して PR を作るか更新する。
+  既定の `GITHUB_TOKEN` で push して作った PR では、PR のワークフローが起動せず、必須チェックが実行されないためである
+
+GitHub App は、このリポジトリだけにインストールし、Repository permissions の Contents と Pull requests に「Read and write」を与える。
+ワークフローは、トークンを作るときに権限をこの 2 つに絞る。
+App の Client ID をリポジトリ変数 `AUTOFIX_APP_CLIENT_ID` に、秘密鍵（App の設定の「Private keys」で作る `.pem`）を secret `AUTOFIX_APP_PRIVATE_KEY` に登録する。
+秘密鍵は手元で作るので、エージェントとの会話の中では登録しない。
+
+```bash
+gh variable set AUTOFIX_APP_CLIENT_ID --body <Client ID>
+gh secret set AUTOFIX_APP_PRIVATE_KEY <~/autofix-app.private-key.pem
+```
+
+エージェントのモデルは、点検と同じ `SELF_REVIEW_MODEL` を使う。リポジトリ変数 `SELF_REVIEW_FIX_SKIP` を `true` にすると、PR を作らずに止まる。
+
+### PR の扱い
+
+open の自動の PR は、常に 1 本にする。branch は `self-review/fixes-<日付>` で、Issue から作る branch ではないので、`feature/<番号>-...` の規約から外す。
+PR を作るか、同じ PR に commit を足すかは、`scripts/weekly/self-review-fix.ts` が次の順で決める。
+
+| PR の状態 | 扱い |
+| --- | --- |
+| open の自動の PR が無い | その週の日付の branch で PR を作る |
+| `main` とコンフリクトしている | commit を足さない |
+| 人がレビューかコメントをした | commit を足さない。人が扱っている PR に、エージェントの変更を重ねないためである |
+| 3 週続けて処理されていない | commit を足さず、セルフ点検の追跡 Issue にコメントする |
+| それ以外 | `main` を merge で取り込み、その週の修正を commit して、タイトルの日付を更新する |
+
+続けた週の数は、ワークフローが週ごとに PR に書くコメント（先頭に `<!-- self-review-fix:update -->` の目印がある）で数える。
+force push と `--amend` は使わない。PR をマージするかは、人が決める。
+
 ## prompt-audit
 
 `/doctor prompt-audit`（`CLAUDE.md`・skills・agents 向け）と `/claude-api prompt-audit`（プロンプト・ツールの説明向け）は、どちらも `claude -p` で非対話で実行できる。

@@ -1,0 +1,336 @@
+name: Self review fix
+
+# 週次のセルフ点検（self-review.yml）の指摘のうち、文の書き換えで直せるものを、エージェントに直させて PR にする（Issue #942。親は #508）。
+# 直してよい範囲・エージェントが変えたファイルの検査・PR の扱いは、scripts/weekly/self-review-fix.ts で決める。
+# エージェントの手順は docs/self-review-fix-procedure.md に、運用（資格情報・一時停止・PR の扱い）は docs/self-review.md にある。
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 指摘を読む Self review の run の ID（空なら、main で最後に成功した run）
+        type: string
+        default: ""
+
+# 前の実行を止めない。PR への push とコメントが途中で止まると、食い違った状態が残る。
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  INPUT_DIR: self-review-fix-input
+  RESULT_FILE: self-review-fix-result.json
+  BRANCH_PREFIX: self-review/fixes-
+
+# ジョブは self-review.yml と同じ考え方で 2 つに分ける。エージェントを動かす fix には読む権限だけを与え、差分を artifact で渡す。
+# push と PR の作成は、checkout し直した作業ツリーで、GitHub App のトークンを使って publish が行う。
+# 既定の GITHUB_TOKEN で push して作った PR では、PR のワークフローが起動せず、必須チェックが実行されないからである。
+jobs:
+  fix:
+    name: Fix findings
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      # 点検の run の artifact を読む。
+      actions: read
+    outputs:
+      skip: ${{ steps.pause.outputs.skip }}
+      applied: ${{ steps.check.outputs.applied }}
+      date: ${{ steps.source.outputs.date }}
+      artifact: self-review-fix-${{ github.run_attempt }}
+    steps:
+      - name: Check pause switch
+        id: pause
+        env:
+          SELF_REVIEW_FIX_SKIP: ${{ vars.SELF_REVIEW_FIX_SKIP }}
+        run: |
+          skip=false
+          case "$(printf '%s' "${SELF_REVIEW_FIX_SKIP:-}" | tr '[:upper:]' '[:lower:]')" in
+            on | true | yes | 1) skip=true ;;
+          esac
+          echo "skip=$skip" >>"$GITHUB_OUTPUT"
+          if [ "$skip" = true ]; then
+            echo "リポジトリ変数 SELF_REVIEW_FIX_SKIP で一時停止している" >>"$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.pause.outputs.skip != 'true'
+        with:
+          persist-credentials: false
+
+      - name: Check credentials
+        id: cred
+        if: steps.pause.outputs.skip != 'true'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          SELF_REVIEW_MODEL: ${{ vars.SELF_REVIEW_MODEL }}
+        run: |
+          if [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
+            echo "secret CLAUDE_CODE_OAUTH_TOKEN が未設定" >&2
+            exit 1
+          fi
+          # 値は claude_args に入るので、モデル名に使う文字だけを受け付ける（self-review.yml と同じ）。
+          if [ -n "$SELF_REVIEW_MODEL" ] && ! [[ "$SELF_REVIEW_MODEL" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]*$ ]]; then
+            echo "リポジトリ変数 SELF_REVIEW_MODEL に、モデル名に使わない文字がある" >&2
+            exit 1
+          fi
+          echo "model_args=${SELF_REVIEW_MODEL:+--model $SELF_REVIEW_MODEL}" >>"$GITHUB_OUTPUT"
+
+      # 指摘を読む点検の run と、その結果の artifact を決める。run の ID は、入力か、main で最後に成功した Self review の run から取る。
+      - name: Resolve source run
+        id: source
+        if: steps.pause.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_RUN_ID: ${{ inputs.run_id }}
+        run: |
+          run_id="$INPUT_RUN_ID"
+          if [ -z "$run_id" ]; then
+            run_id="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow self-review.yml --branch main --status success \
+              --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+          fi
+          if ! [[ "$run_id" =~ ^[0-9]+$ ]]; then
+            echo "点検の run を決められない（run_id: \"$run_id\"）" >&2
+            exit 1
+          fi
+          # 再実行した run には試行ごとの artifact があるので、番号の最も大きい試行の結果を読む。
+          name="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/artifacts" --paginate \
+            --jq '.artifacts[] | select(.expired | not) | .name | select(test("^self-review-report-[0-9]+$"))' |
+            sort -t- -k4 -n | tail -n 1)"
+          if [ -z "$name" ]; then
+            echo "run $run_id に、期限の切れていない点検の結果の artifact が無い" >&2
+            exit 1
+          fi
+          date="$(gh run view "$run_id" --repo "$GITHUB_REPOSITORY" --json createdAt --jq '.createdAt[:10]')"
+          {
+            echo "run_id=$run_id"
+            echo "artifact=$name"
+            echo "date=$date"
+          } >>"$GITHUB_OUTPUT"
+          echo "点検の run: $run_id（$name、$date）" >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Download report
+        if: steps.pause.outputs.skip != 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ steps.source.outputs.artifact }}
+          run-id: ${{ steps.source.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/report
+
+      - uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
+        if: steps.pause.outputs.skip != 'true'
+
+      # 候補は、エージェントが読めるよう作業ツリーに置く。候補と結果のファイルは git の除外に入れ、エージェントが変えたファイルの検査に含めない。
+      - name: Select candidates
+        id: select
+        if: steps.pause.outputs.skip != 'true'
+        run: |
+          mkdir -p "$INPUT_DIR"
+          printf '/%s/\n/%s\n' "$INPUT_DIR" "$RESULT_FILE" >>.git/info/exclude
+          node scripts/weekly/self-review-fix.ts select --report "$RUNNER_TEMP/report/self-review-report.json" \
+            --root . --out "$INPUT_DIR/candidates.json" | tee "$RUNNER_TEMP/select.log"
+          count="$(sed -n 's/^count=//p' "$RUNNER_TEMP/select.log")"
+          echo "count=$count" >>"$GITHUB_OUTPUT"
+          echo "直す候補: $count 件" >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Run Claude Code
+        id: run-claude
+        if: steps.select.outputs.count != '' && steps.select.outputs.count != '0'
+        # ジョブの上限（60 分）より先に止める。
+        timeout-minutes: 50
+        env:
+          # サブエージェントをバックグラウンドで起動させない（self-review.yml と同じ。Issue #956）。
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        uses: anthropics/claude-code-action@d535f5172dec02b204866b393d6b20b9b2aaf98d # v1.0.266
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          prompt: |
+            docs/self-review-fix-procedure.md を読み、その手順に従って ${{ env.INPUT_DIR }}/candidates.json の指摘を直し、結果をリポジトリのルートの ${{ env.RESULT_FILE }} に書いてください。
+          # ツールは、リポジトリの中を読むことと、直してよいファイルと結果のファイルを書くことに限る。
+          # 直してよいファイルの範囲は scripts/weekly/self-review-fix.ts の ALLOWED_PATHS と同じにし、ほかのファイルへの書き込みはツールの側で拒否する。
+          # エージェントが変えたファイルは、次の段でもスクリプトが確かめる。
+          # 設定はユーザーの層（runner には無い）だけを読み、リポジトリの Hook と .mcp.json のサーバーを起動させない（security-audit.yml と同じ）。
+          claude_args: >-
+            --tools "Read,Grep,Glob,Edit,Write"
+            --setting-sources user
+            --strict-mcp-config
+            --allowed-tools "Read(./**),Grep(./**),Glob(./**),Edit(./docs/**),Edit(./README.md),Edit(./evals/*/README.md),Edit(./${{ env.RESULT_FILE }})"
+            ${{ steps.cred.outputs.model_args }}
+
+      # エージェントが変えたファイルが、直したと書いた候補のファイルと一致するかを確かめ、差分を artifact にする。
+      - name: Check changes
+        id: check
+        if: steps.run-claude.outcome == 'success'
+        run: |
+          git status --porcelain=v1 -z --untracked-files=all >"$RUNNER_TEMP/status"
+          node scripts/weekly/self-review-fix.ts check --candidates "$INPUT_DIR/candidates.json" \
+            --result "$RESULT_FILE" --status "$RUNNER_TEMP/status" | tee "$RUNNER_TEMP/check.log"
+          applied="$(sed -n 's/^applied=//p' "$RUNNER_TEMP/check.log")"
+          mkdir -p "$RUNNER_TEMP/out"
+          git diff >"$RUNNER_TEMP/out/fix.patch"
+          cp "$INPUT_DIR/candidates.json" "$RESULT_FILE" "$RUNNER_TEMP/out/"
+          echo "applied=$applied" >>"$GITHUB_OUTPUT"
+          echo "直した指摘: $applied 件" >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Upload fix
+        if: steps.check.outputs.applied != '' && steps.check.outputs.applied != '0'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: self-review-fix-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/out
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish pull request
+    needs: fix
+    if: needs.fix.outputs.applied != '' && needs.fix.outputs.applied != '0' && github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      # 追加をやめたことを、セルフ点検の追跡 Issue に書く。
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
+
+      - name: Download fix
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ needs.fix.outputs.artifact }}
+          path: ${{ runner.temp }}/fix
+
+      # push と PR の操作に使うトークン。権限は、App に与えた権限のうち、ここで使うものだけに絞る。
+      - name: Create App token
+        id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.AUTOFIX_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AUTOFIX_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Decide action
+        id: decide
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          APP_SLUG: ${{ steps.app.outputs.app-slug }}
+        run: |
+          # open の自動の PR は 1 本にする。App が作った、接頭辞の branch の PR を探す。
+          gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,headRefName,author \
+            --jq "[.[] | select(.headRefName | startswith(\"$BRANCH_PREFIX\")) | select(.author.login == \"app/$APP_SLUG\")]" \
+            >"$RUNNER_TEMP/prs.json"
+          count="$(jq length "$RUNNER_TEMP/prs.json")"
+          if [ "$count" -gt 1 ]; then
+            echo "自動の PR が $count 本ある。1 本に絞ってから実行する" >&2
+            exit 1
+          elif [ "$count" -eq 1 ]; then
+            number="$(jq -r '.[0].number' "$RUNNER_TEMP/prs.json")"
+            gh pr view "$number" --repo "$GITHUB_REPOSITORY" --json number,mergeable,reviews,comments,headRefName >"$RUNNER_TEMP/pr.json"
+            echo "branch=$(jq -r .headRefName "$RUNNER_TEMP/pr.json")" >>"$GITHUB_OUTPUT"
+          else
+            echo null >"$RUNNER_TEMP/pr.json"
+          fi
+          node scripts/weekly/self-review-fix.ts decide --pr "$RUNNER_TEMP/pr.json" --bot "app/$APP_SLUG" | tee "$RUNNER_TEMP/decide.log"
+          action="$(sed -n 's/^action=//p' "$RUNNER_TEMP/decide.log")"
+          reason="$(sed -n 's/^reason=//p' "$RUNNER_TEMP/decide.log")"
+          {
+            echo "action=$action"
+            echo "number=${number:-}"
+          } >>"$GITHUB_OUTPUT"
+          echo "PR の扱い: $action（$reason）" >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Find tracking issue
+        id: tracking
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_TITLE_PREFIX: "Self review findings"
+          TRACKING_LIB: skills/kaizen/scripts/tracking-issue-lib.sh
+        run: |
+          # shellcheck source=/dev/null
+          . "$TRACKING_LIB"
+          resolve_tracking_issues
+          echo "number=${numbers[0]-}" >>"$GITHUB_OUTPUT"
+
+      - name: Push and open pull request
+        if: steps.decide.outputs.action == 'create' || steps.decide.outputs.action == 'update'
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          APP_SLUG: ${{ steps.app.outputs.app-slug }}
+          ACTION: ${{ steps.decide.outputs.action }}
+          NUMBER: ${{ steps.decide.outputs.number }}
+          EXISTING_BRANCH: ${{ steps.decide.outputs.branch }}
+          FIX_DATE: ${{ needs.fix.outputs.date }}
+          TRACKING: ${{ steps.tracking.outputs.number }}
+        run: |
+          tracking_args=()
+          if [ -n "$TRACKING" ]; then
+            tracking_args=(--tracking "$TRACKING")
+          fi
+          node scripts/weekly/self-review-fix.ts body --candidates "$RUNNER_TEMP/fix/candidates.json" \
+            --result "$RUNNER_TEMP/fix/self-review-fix-result.json" --date "$FIX_DATE" \
+            --out "$RUNNER_TEMP/pr-body.md" --comment-out "$RUNNER_TEMP/pr-comment.md" "${tracking_args[@]}"
+
+          # commit の作者は App の bot にする。push は、トークンを git の設定に残さないよう、この呼び出しのヘッダーで渡す。
+          bot_id="$(gh api "users/$APP_SLUG%5Bbot%5D" --jq .id)"
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "${bot_id}+${APP_SLUG}[bot]@users.noreply.github.com"
+          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$auth"
+          push() { git -c "http.https://github.com/.extraheader=$auth" push "$@"; }
+
+          if [ "$ACTION" = create ]; then
+            branch="$BRANCH_PREFIX$FIX_DATE"
+            git switch -c "$branch" origin/main
+          else
+            branch="$EXISTING_BRANCH"
+            git switch -c "$branch" "origin/$branch"
+            # main は merge で取り込む（force push しない）。コンフリクトしたら、commit を足さずに止める。
+            if ! git merge --no-edit origin/main; then
+              git merge --abort
+              echo "#$NUMBER の branch に main を取り込めない。commit を足さない" >&2
+              exit 1
+            fi
+          fi
+          # 点検した時点の main に対する差分なので、その後に main が進んでいても当たるよう 3 方向で当てる。
+          git apply --3way --index "$RUNNER_TEMP/fix/fix.patch"
+          git commit -m "docs: 週次のセルフ点検の指摘を直す（$FIX_DATE）"
+          push origin "HEAD:refs/heads/$branch"
+
+          title="Self review fixes ($FIX_DATE)"
+          if [ "$ACTION" = create ]; then
+            url="$(gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --title "$title" --body-file "$RUNNER_TEMP/pr-body.md")"
+            NUMBER="${url##*/}"
+          else
+            gh pr edit "$NUMBER" --repo "$GITHUB_REPOSITORY" --title "$title"
+          fi
+          gh pr comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/pr-comment.md"
+          echo "PR: #$NUMBER" >>"$GITHUB_STEP_SUMMARY"
+
+      # 続けて処理されなかった PR には commit を足さず、セルフ点検の追跡 Issue で知らせる。
+      - name: Notify stopped pull request
+        if: steps.decide.outputs.action == 'stop'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ steps.decide.outputs.number }}
+          TRACKING: ${{ steps.tracking.outputs.number }}
+        run: |
+          message="自動の修正の PR #$NUMBER が続けて処理されていないので、今週の修正を足していません。マージするか閉じてください。"
+          if [ -n "$TRACKING" ]; then
+            gh issue comment "$TRACKING" --repo "$GITHUB_REPOSITORY" --body "$message"
+          fi
+          echo "$message" >>"$GITHUB_STEP_SUMMARY"
