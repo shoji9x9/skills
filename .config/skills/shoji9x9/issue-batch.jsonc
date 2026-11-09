@@ -1,6 +1,6 @@
 {
   "merge_mode": "auto", // auto | agent。auto はリポジトリの allow_auto_merge: true が前提
-  "merge_method": "squash", // squash | merge | rebase
+  "merge_method": "merge", // squash | merge | rebase。機能の PR は通常のマージで取り込む（AGENTS.md「ブランチ運用」）
   "max_local_review_iterations": 1,
   "max_pr_iterations": 5,
   "wait_ci_before_review": false,

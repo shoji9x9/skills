@@ -20,6 +20,12 @@
 作業ディレクトリの次のファイルがあれば読む。無ければ、その入力を使う項目は入力なしで点検し、`notes` にそう書く。
 ファイルは最後まで読む。1 回の読み取りで終わらない長さなら、読む位置をずらして続きを読む。
 
+点検の項目の基準になる規約は、点検を始める前に読む。エージェントはリポジトリの `CLAUDE.md` を読み込まない設定で起動するので、規約は文脈に無い。
+
+- `AGENTS.md`
+- `skills/writing-style/references/rules.md` と `docs/writing-style.md`（文章の規則）
+- `.textlint/word-list.md`（使わない語の一覧）
+
 - `self-review-input/cost-metrics.md`: 費用の指標の追跡 Issue（`check-cost-metrics.yml` が書く）の本文。空の一覧・修正の PR が多いチェック・遅くなったジョブの表がある
 - `self-review-input/files.txt`: 点検の対象のファイルの一覧（`git ls-files` と同じ形）
 - `self-review-input/commits.txt`: マージを除いた commit の件名（新しい順。1 行に短い SHA・日付・件名）

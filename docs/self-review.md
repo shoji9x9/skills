@@ -20,6 +20,8 @@
   使えるツールそのものを `--tools` でこの 5 つに限り、サブエージェント（`Agent`）なども使えなくする。
   サブエージェントをバックグラウンドで起動したまま、エージェントが結果を待たずに終わることがあるためである。
   リポジトリの外（資格情報のある場所）は読めず、結果のファイルのほかは書けない。git も許さないので、履歴の件名とファイルの一覧は点検の前の段が入力に書き出す。
+  リポジトリの `.claude/settings.json` の Hook と `.mcp.json` の MCP サーバーは `--tools` の制限の外で動くので、`--setting-sources user` と `--strict-mcp-config` で読まない。
+  そのため `CLAUDE.md` も読み込まれないことがあり、点検の手順が規約の文書を最初に読ませる。
   ジョブの権限は `contents: read` と `issues: read` である
 - `tracking-issue`: `review` の結果を artifact で受け取り、`scripts/weekly/self-review-issue.ts` で本文を作って、追跡 Issue を作成・更新・クローズする。
   エージェントが書き換えた作業ツリーを使わないよう、checkout し直したスクリプトだけを実行する
