@@ -4,12 +4,13 @@
 // message を持たない例外）で、合格として扱う値を返さないことを確かめる。
 
 import { afterEach, expect, test } from "vitest";
-import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import { isCliEntry } from "../../../../skills/parity-suite/scripts/lib/cli.mjs";
 import { errorMessage } from "../../../../skills/parity-suite/scripts/lib/errors.mjs";
+import { fileIo, writeFileAtomic } from "../../../../skills/parity-suite/scripts/lib/file-io.mjs";
 import { realPathOf } from "../../../../skills/parity-suite/scripts/lib/paths.mjs";
 
 const originalArgv = [...process.argv];
@@ -93,4 +94,26 @@ test("realPathOf: ENOENT 以外で解決できないパスは null を返す（�
   symlinkSync(join(dir, "b"), join(dir, "a"));
   symlinkSync(join(dir, "a"), join(dir, "b"));
   expect(realPathOf(join(dir, "a", "child"))).toBeNull();
+});
+
+test("writeFileAtomic: 中身を書き、一時ファイルを残さない。既にあるファイルは置き換える", () => {
+  const dir = makeTempDir("parity-suite-file-io-");
+  const file = join(dir, "out.json");
+  writeFileSync(file, "old");
+  writeFileAtomic(file, "new\n");
+  expect(readFileSync(file, "utf8")).toBe("new\n");
+  expect(readdirSync(dir)).toEqual(["out.json"]);
+});
+
+test("fileIo: 差し込まない関数は node:fs で補い、差し込んだ関数はそのまま使う", () => {
+  const dir = makeTempDir("parity-suite-file-io-");
+  const file = join(dir, "a.txt");
+  const io = fileIo({ cwd: dir });
+  io.writeFile(file, "x");
+  expect(io.readFile(file)).toBe("x");
+  expect(io.cwd).toBe(dir);
+  const written: string[] = [];
+  const injected = fileIo({ writeFile: (p, text) => written.push(`${p}=${text}`) });
+  injected.writeFile("p", "y");
+  expect(written).toEqual(["p=y"]);
 });
