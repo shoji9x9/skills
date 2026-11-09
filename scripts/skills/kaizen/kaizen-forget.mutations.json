@@ -1,0 +1,32 @@
+{
+  "$comment": [
+    "kaizen-forget.test.ts のうち、食い違いの判断待ちの学びを自動の忘却から外すこと（Issue #930）を守るテストの検出能力を示す変異の一覧。",
+    "各変異は、置換が当たったことと、expect_failing のテストだけが落ちたことの両方で判定する（scripts/mutation/check-mutation-proof.ts）。"
+  ],
+  "test_file": "scripts/skills/kaizen/kaizen-forget.test.ts",
+  "mutations": [
+    {
+      "id": "FORGET-PENDING-DECISION-NOT-EXCLUDED",
+      "why": "自動の忘却が食い違いの判断待ちの学びを候補から外さない（利用者が決める前に forgotten になり、apply にも定期レポートにも出なくなる。忘却は exit 0 のままなので気付けない）",
+      "file": "skills/kaizen/scripts/kaizen-forget.sh",
+      "find": "\tif ! declare -f kaizen_has_pending_decision >/dev/null 2>&1 || kaizen_has_pending_decision \"${note}\"; then",
+      "replace": "\tif false; then",
+      "occurrences": 1,
+      "expect_failing": [
+        "--auto は食い違いの判断待ちの学びを忘れず、判断を決めた学びとフェンスの中の例だけの学びは忘れる",
+        "--auto は、判断待ちを判定する関数を持たない共通ライブラリでは、食い違いの節がある学びを忘れない"
+      ]
+    },
+    {
+      "id": "FORGET-PENDING-DECISION-MISSING-FUNCTION-FORGETS",
+      "why": "判断待ちを判定する関数が無い共通ライブラリで、関数の有無を確かめずに呼ぶ（command not found で偽になり、判断待ちの学びを忘れる）",
+      "file": "skills/kaizen/scripts/kaizen-forget.sh",
+      "find": "\tif ! declare -f kaizen_has_pending_decision >/dev/null 2>&1 || kaizen_has_pending_decision \"${note}\"; then",
+      "replace": "\tif kaizen_has_pending_decision \"${note}\"; then",
+      "occurrences": 1,
+      "expect_failing": [
+        "--auto は、判断待ちを判定する関数を持たない共通ライブラリでは、食い違いの節がある学びを忘れない"
+      ]
+    }
+  ]
+}

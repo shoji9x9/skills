@@ -75,6 +75,17 @@
         "skip（どちらかが立てば止まる） 先に立った停止の理由が env skip で消えない",
         "機能を減らして動く場合（共通ライブラリを読めない） 設定ファイルが在っても読めないので停止として扱う"
       ]
+    },
+    {
+      "id": "SR-PENDING-DECISION-NOT-MARKED",
+      "why": "食い違いの判断待ちの学びに印を付けない（Issue の表では `/kaizen apply` の案内の下に従う対象として並び、prompt でも LLM がノートを読み落とすとグループに入れて提案する）",
+      "file": "skills/kaizen/scripts/kaizen-schedule-report.sh",
+      "find": "\t\tif kaizen_has_pending_decision \"${pending_files[idx]}\"; then",
+      "replace": "\t\tif false && kaizen_has_pending_decision \"${pending_files[idx]}\"; then",
+      "occurrences": 2,
+      "expect_failing": [
+        "pending の数え方と並び 食い違いの判断待ちの学びにだけ、Issue の表と prompt の一覧で印を付ける"
+      ]
     }
   ]
 }

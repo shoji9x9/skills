@@ -57,11 +57,13 @@ fi
 #
 # **予算はコメントで宣言するだけでなく実装で強制する。** 要約を切らずに「1 行およそ
 # 400 文字」と書いていたバージョンは、実データで既に 439 文字の行を出していた（実測）。
-# 1 行 = 要約 120 + パス・優先度・種別・記録日・区切り およそ 150 で 270 文字、
-# 60 行で 16,200 文字。切った分は、件数と参照先を明示する
+# 1 行 = 要約 120 + 判断待ちの印 22 + パス・優先度・種別・記録日・区切り およそ 150 で、多くて 292 文字、
+# 60 行で 17,520 文字。切った分は、件数と参照先を明示する
 # （警告なしに省くと「表に無い＝存在しない」と読まれる）。
 readonly MAX_TABLE_ROWS=60
 readonly MAX_SUMMARY_CHARS=120
+# 食い違いの判断待ちの学び（references/extract.md「食い違いの確認」）に、Issue の表と prompt の一覧で付ける印。
+readonly PENDING_DECISION_MARK="判断待ち（利用者が決めるまで適用しない）"
 
 warn() { echo "kaizen-schedule-report: $*" >&2; }
 
@@ -347,7 +349,7 @@ cmd_config() {
 }
 
 cmd_issue() {
-	local count _rank _sort_key idx shown escaped=0 path_cell
+	local count _rank _sort_key idx shown escaped=0 path_cell summary_cell
 	resolve_config
 	build_pending_index
 	count=${#pending_files[@]}
@@ -372,12 +374,17 @@ cmd_issue() {
 		# ノートの列は、Markdown のまま本文を読む読み手もいるので、`|` を `\|` と書いた分も書き分けとして数える。
 		path_cell=$(table_cell "${pending_files[idx]}")
 		[ "${path_cell}" = "${pending_files[idx]}" ] || escaped=1
+		summary_cell=$(summary_of "${pending_files[idx]}")
+		# 食い違いの判断待ちの学びは、`/kaizen apply` の案内の下に並んでも従う対象と読まれないように印を付ける。
+		# 読み方は注入・忘却と同じ共通ライブラリの関数にする。
+		if kaizen_has_pending_decision "${pending_files[idx]}"; then
+			summary_cell="${PENDING_DECISION_MARK}: ${summary_cell}"
+		fi
 		# SC2016: 表のセルを囲むバックティックはリテラル。展開させない意図で単一引用符が正しい。
 		# shellcheck disable=SC2016
 		printf '| %s | %s | %s | `%s` | %s |\n' \
 			"$(table_cell "${pending_priorities[idx]}")" "$(table_cell "${pending_types[idx]}")" \
-			"$(table_cell "${pending_dates[idx]}")" "${path_cell}" \
-			"$(summary_of "${pending_files[idx]}")"
+			"$(table_cell "${pending_dates[idx]}")" "${path_cell}" "${summary_cell}"
 		shown=$((shown + 1))
 	done <"${pending_index}"
 	rm -f "${pending_index}"
@@ -416,6 +423,9 @@ cmd_prompt() {
    機構へ寄せるべき対策を区別し、機構へ寄せるべきものはそう書く。
    機構へ寄せる前に、同じガイドの「機構を作る前に効果と費用を書く」を当てる。同じ種類の誤りが繰り返されていなければ文章で閉じ、機構を提案するときは効果と費用を添える。
 4. 優先して着手すべきグループを上位 3 つまで挙げ、理由を添える。
+5. `## 食い違い` の `判断` が `判断待ち` のノートは、既存の学び・規約・利用者の指示と食い違い、どちらを残すかを利用者が決めていない。
+   末尾の一覧では、このノートに「判断待ち」の印を付けてある。
+   手順 2〜4 のグループには入れず、「利用者の判断待ち」として別に挙げ、相手と内容をノートから転記する。どちらを残すかを提案で決めない。
 
 ## 制約
 
@@ -440,6 +450,10 @@ cmd_prompt() {
 ## 優先順位
 
 1. グループ N — 理由
+
+## 利用者の判断待ち
+
+- <ノートのパス> — 相手: ... / 内容: ...（無ければ「なし」と書く）
 ```
 
 ## 未適用の学び
@@ -452,13 +466,17 @@ EOS
 		return 0
 	fi
 
-	local items=() shown_path escaped=0
+	local items=() shown_path escaped=0 decision_label
 	while IFS=$'\t' read -r _rank _sort_key idx; do
 		shown_path=$(one_line "${pending_files[idx]}")
 		[ "${shown_path}" = "${pending_files[idx]}" ] || escaped=1
+		decision_label=""
+		if kaizen_has_pending_decision "${pending_files[idx]}"; then
+			decision_label=" / ${PENDING_DECISION_MARK}"
+		fi
 		# shellcheck disable=SC2016
-		items+=("$(printf -- '- `%s`（priority: %s / type: %s）' "${shown_path}" \
-			"$(one_line "${pending_priorities[idx]}")" "$(one_line "${pending_types[idx]}")")")
+		items+=("$(printf -- '- `%s`（priority: %s / type: %s%s）' "${shown_path}" \
+			"$(one_line "${pending_priorities[idx]}")" "$(one_line "${pending_types[idx]}")" "${decision_label}")")
 	done <"${pending_index}"
 	rm -f "${pending_index}"
 	echo
