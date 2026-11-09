@@ -1,10 +1,12 @@
 name: CI
 
+# マージ後の main への push では実行しない（Issue #936）。
+# ルールセット `main protection` が、PR のブランチに main の最新を取り込むことを求め（strict_required_status_checks_policy）、
+# 迂回できる人（bypass actors）もいない。そのため、マージ後の main の中身は PR の CI が検証した中身と同じになる。
+# この 2 つのどちらかが成り立たなくなったら（最新の取り込みを外す・迂回できる人を足す）、
+# `push: branches: [main]` を起動の条件に戻し、admin のマージと PR 同士の論理的な競合をマージ後の main で検証する。
 on:
   pull_request:
-    branches: [main]
-  # マージ後の main そのものも検証する（admin マージや論理コンフリクトの取りこぼし対策）。
-  push:
     branches: [main]
 
 concurrency:
@@ -68,6 +70,7 @@ jobs:
         run: pnpm run lint:fallow
       # PR が増やした、テストを弱める変更（.skip・.only の追加、テストのケースや assertion の減少、カバレッジの閾値の引き下げ）。
       # audit は変更したファイルだけを見るので、構造の検査は上の全体の実行で行う。
+      # push では base_ref が空になるので、起動の条件に push を戻したときのために、PR に限る条件を残す。
       - name: Test weakening (fallow audit)
         if: github.event_name == 'pull_request'
         env:
@@ -162,8 +165,9 @@ jobs:
   # ジョブ（ランナー）ごとに隔離されるので、並列実行のためのロックは要らない。
   # 分割数は matrix の要素数だけで決まる（`strategy.job-total` を渡す。数を 2 箇所に書かない）。
   #
-  # push（マージ後の main）では測らない: その差分は PR 側で測り終えており、基点となる
+  # 起動の条件に push を戻したときも、push では測らない。その差分は PR 側で測り終えており、基点となる
   # 前の SHA は force-push や初回 push で欠けることがある（欠けたら判定できないので失敗にする）。
+  # そのため、下の `github.event_name == 'pull_request'` の条件は、push を外した後も残す。
   mutation-proof-shard:
     name: Mutation proof (PR) shard ${{ matrix.shard }}
     if: github.event_name == 'pull_request'
