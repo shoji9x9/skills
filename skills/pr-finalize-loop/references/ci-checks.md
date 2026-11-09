@@ -68,7 +68,8 @@ PR に関係の無い変更が入り、ベースブランチの修正と競合�
 
 ```bash
 base=$(gh pr view <番号> --repo <owner>/<repo> --json baseRefName --jq .baseRefName)
-git fetch origin "$base"
+# refspec を明示する。single-branch clone などで remote.origin.fetch に $base が無いと、origin/$base が更新されない
+git fetch origin "+refs/heads/$base:refs/remotes/origin/$base"
 created=$(gh run view <run-id> --repo <owner>/<repo> --json createdAt --jq .createdAt)
 ran=$(git rev-list -1 --first-parent --before="$created" "origin/$base")   # 失敗した run が検証したベース
 tip=$(git rev-parse "origin/$base")                                         # ベースブランチの先端
