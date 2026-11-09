@@ -71,15 +71,18 @@ CI では `/security-review` を実行しない。手元の実行で同じ差分
 | `SECURITY_AUDIT_SKIP` | リポジトリ変数 | `on`・`true`・`yes`・`1` のどれかなら、監査を一時停止する |
 
 鍵は、手元で作って secret に登録し、同じ値を手元のパスワードマネージャなどにも保管する。記録を読むときに要る。
+鍵のファイルは、誤って commit しないようにリポジトリの外に置く（`.gitignore` にも `security-audit-key.txt` を入れてある）。
 
 ```bash
-openssl rand -base64 48 | tr -d '\n' >security-audit-key.txt
-gh secret set SECURITY_AUDIT_STATE_KEY --repo shoji9x9/skills <security-audit-key.txt
+openssl rand -base64 48 | tr -d '\n' >~/security-audit-key.txt
+gh secret set SECURITY_AUDIT_STATE_KEY --repo shoji9x9/skills <~/security-audit-key.txt
 ```
 
 ### 実行
 
-`workflow_dispatch` で実行し、入力で対象・プロファイル・エージェントの起動回数の上限を選ぶ。
+週に 1 回、`schedule` で `self` を `quick`・上限 40 で監査する（曜日と時刻は [`weekly-schedule.md`](weekly-schedule.md)）。
+1 回の監査はエージェントを数十分動かし、その使用量を、手元のセッションと同じ Claude のプランの上限から使う。
+手で実行するときは `workflow_dispatch` を使い、入力で対象・プロファイル・エージェントの起動回数の上限を選ぶ。
 
 | 入力 | 値 |
 | --- | --- |
@@ -90,6 +93,7 @@ gh secret set SECURITY_AUDIT_STATE_KEY --repo shoji9x9/skills <security-audit-ke
 エージェントのツールは、対象とスキルと記録を読むこと、出力のディレクトリに書くこと、サブエージェントを使うこと、上流の検証スクリプト（`validate-findings.cjs`・`validate-coverage-ledger.cjs`）を実行することに限る。
 GitHub-hosted runner には、上流のスキルが対象のコードを実行する前に求める、OS が強制する sandbox が無い。
 そのため、対象のコードを実行して確かめる候補は、上流のスキルの決まりどおり `needs_validation`（確かめきれなかった候補）として残る。
+コードを読めば明らかな脆弱性（`dvna` の SQL インジェクションなど）も、`confirmed` ではなく `needs_validation` になる。`needs_validation` の候補は、人が記録を読んで対応するかを決める。
 
 ### 記録の引き継ぎと公開する範囲
 
@@ -114,7 +118,7 @@ run の artifact を取得し、鍵で復号する。出力のディレクトリ
 # 引き継ぐ記録（self の監査で記録の形を確かめられた run）。失敗した run と dvna の run は security-audit-run-* を指定する
 # --pattern で取得すると、artifact ごとのディレクトリ（audit/state/<artifact の名前>/）に展開される
 gh run download <run の ID> --repo shoji9x9/skills --pattern 'security-audit-state-*' --dir audit/state
-gpg --batch --pinentry-mode loopback --passphrase-file security-audit-key.txt \
+gpg --batch --pinentry-mode loopback --passphrase-file ~/security-audit-key.txt \
   --decrypt audit/state/security-audit-state-*/state.tar.gpg | tar -xf - -C audit/state
 ```
 
