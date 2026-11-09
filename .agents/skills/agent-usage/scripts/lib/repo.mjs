@@ -109,13 +109,23 @@ export function parseWorktreeList(text) {
 }
 
 /**
+ * リポジトリのルートと共通のディレクトリだけを返す。`git rev-parse` だけを使い、index を読まない
+ * （index を読むコマンドは、そのリポジトリの設定の core.fsmonitor を実行しうる）。
+ * @param {string} cwd
+ * @returns {{ root: string; commonDir: string }}
+ */
+export function repoIdentity(cwd) {
+  const root = git(["rev-parse", "--show-toplevel"], cwd).trim();
+  const commonRaw = git(["rev-parse", "--git-common-dir"], root).trim();
+  return { root, commonDir: isAbsolute(commonRaw) ? commonRaw : resolve(root, commonRaw) };
+}
+
+/**
  * @param {string} cwd
  * @returns {RepoInfo}
  */
 export function repoInfo(cwd) {
-  const root = git(["rev-parse", "--show-toplevel"], cwd).trim();
-  const commonRaw = git(["rev-parse", "--git-common-dir"], root).trim();
-  const commonDir = isAbsolute(commonRaw) ? commonRaw : resolve(root, commonRaw);
+  const { root, commonDir } = repoIdentity(cwd);
   const list = parseWorktreeList(git(["worktree", "list", "--porcelain"], root));
   const worktrees = list.map((w) => w.path);
   if (!worktrees.includes(root)) worktrees.push(root);

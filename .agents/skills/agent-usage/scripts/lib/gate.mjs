@@ -22,7 +22,7 @@ import { decisionFor } from "./decisions.mjs";
 import { errorMessage } from "./error-message.mjs";
 import { branchesRecordedElsewhere, branchMerged } from "./merged.mjs";
 import { recordDecision } from "./record-decision.mjs";
-import { git, isDecisionBranch, repoInfo } from "./repo.mjs";
+import { git, isDecisionBranch, repoIdentity, repoInfo } from "./repo.mjs";
 import { unknownKindsNote, usageDir } from "./records.mjs";
 import { otherWorktreeRowsNote, runCollect } from "./run-collect.mjs";
 import { rememberWorktrees } from "./sources/worktrees.mjs";
@@ -755,19 +755,29 @@ export function gateDecision(input, context) {
  * @returns {import("./repo.mjs").RepoInfo | null}
  */
 function commitRepo(input, fallbackCwd) {
-  // `git -C <dir> commit` は <dir> のリポジトリにコミットするので、Hook の cwd ではなくそこで判断・記録する
+  // `git -C <dir> commit` は <dir> のリポジトリにコミットするので、Hook の cwd ではなくそこで判断・記録する。
+  // ただし、<dir> はエージェントが書いたコマンドから決まり、利用者がコマンドを承認する前に Hook が実行されうる。
+  // そのリポジトリの設定（core.fsmonitor など）で記録の git add を実行しないよう、Hook の cwd と
+  // 共通のディレクトリが同じリポジトリ（本体か、その worktree）のときだけ、そこで判断・記録する。
+  // 別のリポジトリなら、このプロジェクトのコミットではないので何もしない。確かめるのは index を読まない git rev-parse だけである。
   const base = input.cwd !== "" ? input.cwd : fallbackCwd;
-  const cwd = commitCwd(input.command, base);
+  let baseRepo;
   try {
-    return repoInfo(cwd);
+    baseRepo = repoInfo(base);
+  } catch {
+    return null;
+  }
+  const cwd = commitCwd(input.command, base);
+  if (cwd === base) return baseRepo;
+  let target;
+  try {
+    target = repoIdentity(cwd);
   } catch {
     // コマンドから求めたディレクトリが無い（展開を含む -C など）ときは、Hook の cwd のリポジトリで判断する
-    try {
-      return repoInfo(base);
-    } catch {
-      return null;
-    }
+    return baseRepo;
   }
+  if (target.commonDir !== baseRepo.commonDir) return null;
+  return target.root === baseRepo.root ? baseRepo : repoInfo(cwd);
 }
 
 /**
