@@ -648,8 +648,9 @@ kaizen_has_pending_decision() { # $1: ノート
 			}
 		}
 		fence { next }
-		/^## / { in_sec = ($0 ~ /^## 食い違い *$/); next }
-		in_sec && $0 ~ /^- 判断: *`?判断待ち`? *$/ { found = 1; exit }
+		# 見出しと判断の行も、フェンスと同じく 3 文字までの字下げを外した s で読み、行末の空白はタブも受ける。
+		s ~ /^## / { in_sec = (s ~ /^## 食い違い[ \t]*$/); next }
+		in_sec && s ~ /^- 判断:[ \t]*`?判断待ち`?[ \t]*$/ { found = 1; exit }
 		END { exit found ? 0 : 1 }
 	' "$1" 2>&1) || rc=$?
 	case "${rc}" in

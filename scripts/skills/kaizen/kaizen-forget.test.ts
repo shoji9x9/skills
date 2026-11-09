@@ -1,8 +1,10 @@
 import { describe, test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import {
+  appendFileSync,
   chmodSync,
   copyFileSync,
+  cpSync,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -213,6 +215,31 @@ test("--auto は食い違いの判断待ちの学びを忘れず、判断を決�
     expect(statusOf(dir, "old-pending-decision")).toBe("pending");
     expect(statusOf(dir, "old-decided")).toBe("forgotten");
     expect(statusOf(dir, "old-fenced-example")).toBe("forgotten");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("--auto は、判断待ちを判定する関数を持たない共通ライブラリでは、食い違いの節がある学びを忘れない", () => {
+  // 古いバージョンの共通ライブラリを部分的にコピーした状態を、スクリプト一式のコピーの末尾で関数を消して作る。
+  const conflict = "## 食い違い\n\n- 相手: AGENTS.md「依存の管理」\n- 判断: 判断待ち\n\n";
+  const dir = makeProject({ "old-pending-decision": `${note({})}\n${conflict}` });
+  const copied = join(makeTempDir("kaizen-forget-oldlib-"), "scripts");
+  try {
+    cpSync(join(repoRoot, "skills/kaizen/scripts"), copied, { recursive: true });
+    appendFileSync(
+      join(copied, "kaizen-hook-common.sh"),
+      "\nunset -f kaizen_has_pending_decision\n",
+    );
+    const result = spawnSync("bash", [join(copied, "kaizen-forget.sh"), "--auto"], {
+      timeout: CHILD_TIMEOUT_MS,
+      cwd: dir,
+      env: kaizenEnv(dir, { CLAUDE_PROJECT_DIR: dir }),
+      encoding: "utf8",
+    });
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stderr).toContain("forgot 0 note(s)");
+    expect(statusOf(dir, "old-pending-decision")).toBe("pending");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

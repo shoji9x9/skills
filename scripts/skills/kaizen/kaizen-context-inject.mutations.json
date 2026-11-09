@@ -20,8 +20,8 @@
       "id": "INJECT-PENDING-DECISION-NEVER-MARKED",
       "why": "食い違いの判断待ちを見つけない（既存の規約と反対の提案が、印の無いまま従う対象として注入される。注入は exit 0 のままなので、出力を読むまで気付けない）",
       "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
-      "find": "\t\tin_sec && $0 ~ /^- 判断: *`?判断待ち`? *$/ { found = 1; exit }",
-      "replace": "\t\t0 && in_sec && $0 ~ /^- 判断: *`?判断待ち`? *$/ { found = 1; exit }",
+      "find": "\t\tin_sec && s ~ /^- 判断:[ \\t]*`?判断待ち`?[ \\t]*$/ { found = 1; exit }",
+      "replace": "\t\t0 && in_sec && s ~ /^- 判断:[ \\t]*`?判断待ち`?[ \\t]*$/ { found = 1; exit }",
       "occurrences": 1,
       "expect_failing": [
         "食い違いの判断待ち 印を付ける: 判断待ち",
@@ -32,8 +32,31 @@
         "食い違いの判断待ち 印を付ける: 字下げした閉じる行でフェンスが閉じた後にある",
         "食い違いの判断待ち 印を付ける: 開いた行より長い閉じる行でフェンスが閉じた後にある",
         "食い違いの判断待ち 印を付ける: 行頭のコードスパン（後ろにもバッククォートがある行）の後にある",
+        "食い違いの判断待ち 印を付ける: 判断の行と見出しの行末にタブがある",
+        "食い違いの判断待ち 印を付ける: 3 文字まで字下げした見出しと判断の行",
         "食い違いの判断待ち 長い要約を切り詰めても、印は欠けない"
       ]
+    },
+    {
+      "id": "INJECT-PENDING-DECISION-HEADING-IGNORES-INDENT",
+      "why": "見出しを字下げを外さない行で読む（CommonMark が見出しとして読む字下げした「## 食い違い」を節として扱わず、字下げした別の見出しで節を閉じない）",
+      "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
+      "find": "\t\ts ~ /^## / { in_sec = (s ~ /^## 食い違い[ \\t]*$/); next }",
+      "replace": "\t\t$0 ~ /^## / { in_sec = ($0 ~ /^## 食い違い[ \\t]*$/); next }",
+      "occurrences": 1,
+      "expect_failing": [
+        "食い違いの判断待ち 印を付ける: 3 文字まで字下げした見出しと判断の行",
+        "食い違いの判断待ち 印を付けない: 字下げした別の見出しで食い違いの節が閉じた後にある"
+      ]
+    },
+    {
+      "id": "INJECT-PENDING-DECISION-TRAILING-TAB",
+      "why": "判断の行の行末のタブを受けない（「- 判断: 判断待ち」の後にタブがある学びを見落とし、印が付かず、忘却の候補にも入る）",
+      "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
+      "find": "`?判断待ち`?[ \\t]*$/ { found = 1; exit }",
+      "replace": "`?判断待ち`? *$/ { found = 1; exit }",
+      "occurrences": 1,
+      "expect_failing": ["食い違いの判断待ち 印を付ける: 判断の行と見出しの行末にタブがある"]
     },
     {
       "id": "INJECT-PENDING-DECISION-READS-FENCE",

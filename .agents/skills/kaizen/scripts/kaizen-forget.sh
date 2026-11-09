@@ -121,7 +121,8 @@ is_candidate() { # $1: ノート
 	age=$((today_days - note_days))
 	[ "${age}" -ge "${forget_after_days}" ] || return 1
 	# 食い違いの判断待ちは、利用者がどちらを残すかを決めるまで残す。忘れると apply にも定期レポートにも出なくなる。
-	if kaizen_has_pending_decision "${note}"; then
+	# 判定の関数を持たない共通ライブラリ（古いバージョンの部分的なコピー）では判断待ちかを決められないので、忘れない側として扱う。
+	if ! declare -f kaizen_has_pending_decision >/dev/null 2>&1 || kaizen_has_pending_decision "${note}"; then
 		return 1
 	fi
 	return 0
