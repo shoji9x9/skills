@@ -18,7 +18,7 @@ query($endCursor: String) {
       author { login }
       reviews(first: 100, after: $endCursor) {
         pageInfo { hasNextPage endCursor }
-        nodes { author { login } state commit { oid } }
+        nodes { author { __typename login } state commit { oid } }
       }
     }
   }
@@ -31,7 +31,13 @@ query($endCursor: String) {
 - PR の作成者（`pullRequest.author.login`）によるレビューは、必ず判定から除く。
   レビュースレッドへの返信は、REST と GraphQL では作成者の `state: COMMENTED` のレビューとして記録され、その `commit.oid` が返信した後の新しい HEAD を指すことがある（実測）。
   除かないと、このスキルの標準の流れ（直す・返信する・push する）を回すたびに、誰もレビューしていない新しい HEAD を「レビュー済み」と誤って判定し、再依頼を忘れる。
-- 作成者以外のレビューのどれかの `commit.oid` が `headRefOid` と一致すれば、現在の HEAD はレビュー済みである。
+- 作成者以外のレビューのうち、次のどちらかに当たる人のレビューの `commit.oid` が `headRefOid` と一致すれば、現在の HEAD はレビュー済みである。
+  1. bot（`author.__typename` が `Bot`）。レビューのツールの GitHub App は、リポジトリに導入されていないとレビューを投稿できない。
+  2. リポジトリへの書き込み権限を持つ人。`gh api repos/<owner>/<repo>/collaborators/<login>/permission --jq .permission` が `admin` か `write` の人である。
+
+  PR にコメントできる人なら誰でもレビューを投稿できるので、権限の無い人のレビューを数えると、その人が HEAD をレビュー済みにして収束させられる。
+  権限の無い人のレビューの指摘は、これまでどおり集めてコードの事実で評価する。数えないのは、レビュー済みの判定だけである。
+  権限を取得できないときは、その人のレビューを数えず、レビューされていないとして扱う。
 - `review_tool` が `claude-code` か `codex` のときは、指摘が 0 件だと、レビューの結果がトップレベルのコメントか check-run だけに載り、`reviews[]` にレコードそのものが作られないことがある。次のどちらかも、レビューが届いた根拠として認める。
   1. `headRefOid` を ref にして取得した check-run のうち、名前・GitHub App・出力の内容から Claude のレビュー用だと確かめられ、正常に完了したもの。
      `status: completed` だけでは足りない。`conclusion` と、`output.title`・`output.summary` も読み、失敗・timeout・skip・spend cap などでレビューが行われなかったものを除く。

@@ -48,6 +48,17 @@
         "HEAD の記録に未対応の指摘（open が 1 以上）が残っていれば、open で exit 1",
         "post は、未対応の件数を記録に残し、check はその記録を open と読む"
       ]
+    },
+    {
+      "id": "record-writer-not-operator",
+      "why": "記録を書いた人が手元でレビューする本人かを確かめない（PR の作成者が、自分の HEAD をレビュー済みとする記録を書ける）",
+      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
+      "find": "\tif [ \"${login}\" != \"${me}\" ]; then\n",
+      "replace": "\tif false; then\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "手元でレビューする gh のユーザーの記録だけを数え、PR の作成者が書いた記録は読み飛ばす"
+      ]
     }
   ]
 }

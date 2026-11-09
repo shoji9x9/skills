@@ -144,6 +144,13 @@ fi
 case "${author}" in app/*) author="${author#app/}[bot]" ;; esac
 # 記録を書けるのは、PR の作成者と担当者だけにする（pr-finalize-loop が push できる人と同じ範囲）
 allowed=",${author},${assignees:-},"
+# 記録を投稿する人と読む人は、どちらも手元でレビューする本人（gh のユーザー）である。
+# check は本人の記録だけを数える。作成者や担当者の誰の記録でも数えると、他の人が書いた PR を手元でレビューするとき、
+# その PR の作成者が、自分の HEAD をレビュー済みとする記録を書ける。
+if ! me=$(gh api ${host_args[@]+"${host_args[@]}"} user --jq '.login' </dev/null) || [ -z "${me}" ]; then
+	echo "error: gh のユーザーを取得できない（ユーザーでないトークンでは記録を残せず、読めないので、local を使わずに止まる）" >&2
+	exit 4
+fi
 
 if [ "${mode}" = "post" ]; then
 	if [ "${sha}" != "${head}" ]; then
@@ -151,10 +158,6 @@ if [ "${mode}" = "post" ]; then
 		exit 1
 	fi
 	# check が読み飛ばす人の名前で投稿すると、記録が残っても HEAD はレビュー済みにならない
-	if ! me=$(gh api ${host_args[@]+"${host_args[@]}"} user --jq '.login' </dev/null) || [ -z "${me}" ]; then
-		echo "error: gh のユーザーを取得できない（ユーザーでないトークンでは記録を残せないので、local を使わずに止まる）" >&2
-		exit 4
-	fi
 	case "${allowed}" in
 	*",${me},"*) ;;
 	*)
@@ -209,6 +212,11 @@ while IFS=$'\x1f' read -r id login shape line; do
 		continue
 		;;
 	esac
+	if [ "${login}" != "${me}" ]; then
+		echo "note: 記録 ${id} を読み飛ばした（${login} は、手元でレビューする gh のユーザー（${me}）でない）" >&2
+		ignored=$((ignored + 1))
+		continue
+	fi
 	if [ "${shape}" = "indented" ]; then
 		echo "note: 記録 ${id} を読み飛ばした（目印が本文の先頭に無い。前に空白か改行がある）" >&2
 		ignored=$((ignored + 1))

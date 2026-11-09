@@ -35,6 +35,7 @@ branch や設定を変更する前に、すべての Issue について次を済
    再開するときは、次のことを実際の状態から確かめられれば、CLOSED の Issue も受け付ける。
    一意に決まる linked PR が MERGED で、Issue がその merge で CLOSED になり、残りの作業が deployment と cleanup だけである。
    それ以外の CLOSED の Issue は、SKIPPED か BLOCKED にする。本文とすべてのコメントを取得し、最新の決定を優先する。
+   決定として採るのは、利用者か、リポジトリへの書き込み権限を持つ人のコメントだけである（`issue-start` の `SKILL.md` の基本フローの step 3）。
 3. 規約の文書、base branch、`issue-batch` の設定（`merge_mode` と `merge_method` を含む）、エージェントごとのローカルレビューの機能、Kaizen が読む現在の transcript を決める。
    リモートの AI レビュアーはここでは固定せず、pr-finalize-loop の決め方に任せる。
    `--record-pending` が transcript を特定できないエージェントでは、候補が 0 件であることを確かめられないので、何かを変更する前に BLOCKED にする。
@@ -554,6 +555,7 @@ merge の実行方法だけが、`merge_mode` で分かれる。head の SHA の
    `pr-finalize-loop` が報告した `review_tool`（同梱の解決スクリプトの出力）が `local` なら、`READY_TO_MERGE` にする前に、`pr-finalize-loop` の `scripts/local-review-record.sh check --pr <PR URL>` を実行する。
    exit 0 で、出力の `head` が固定した `headRefOid` と一致するときだけ進める。exit 1（記録が無い、前の HEAD の記録しか無い、または今の HEAD の記録に未対応の指摘が残っている `status=open`）は、merge せずに BLOCKED にする。
    exit 2（判定できない）は、間隔を空けて数回取得し直し（`merge_ready_timeout_minutes` があれば、それを上限にする）、0 か 1 にならなければ BLOCKED にする。
+   exit 4（gh のユーザーを取得できず、本人の記録を見分けられない）は、取得し直しても変わらないので、merge せずに BLOCKED にする。
    出力の `findings` は、見送った指摘も数えるので、merge の条件に使わない。指摘への対応は、`pr-finalize-loop` の収束（解決していないスレッドが無いこと）で確かめる。
    `merge_mode: auto` でも省かない。GitHub の auto-merge はこの記録を見ないので、ここで確かめないと、直した commit を手元でレビューしないまま merge される。
    `READY_TO_MERGE` にする前に、その Issue の worktree の `git status --porcelain=v1 --untracked-files=all` が空であることも確かめる。
