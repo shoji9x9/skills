@@ -19,6 +19,8 @@ import {
   runLib,
   runLocate,
   TODAY,
+  toIssueJson,
+  TRACKING_AUTHOR,
   trackingStep,
   WORKFLOWS,
 } from "./tracking-issue-title-helpers.ts";
@@ -211,6 +213,27 @@ describe("照会の原本（tracking-issue-lib.sh）", () => {
     expect(below.stdout).not.toContain("::warning::");
   });
 
+  // 照合に渡す作成者は、未設定と空なら GITHUB_TOKEN の主体にし、設定すればその値にする。
+  // jq の照合そのものは下の「jq 式が世代違いだけを拾う」が測るので、ここでは gh に渡る値だけを見る。
+  test.each([
+    { given: undefined, want: TRACKING_AUTHOR },
+    { given: "", want: TRACKING_AUTHOR },
+    { given: "app/my-bot", want: "app/my-bot" },
+  ])("照会に渡す作成者: TRACKING_ISSUE_AUTHOR=$given なら $want", ({ given, want }) => {
+    const ghEnv = `#!/usr/bin/env bash
+printf 'AUTHOR=%s\\n' "\${TRACKING_ISSUE_AUTHOR-<unset>}" >>"$GH_LOG"
+echo "scanned=0"
+`;
+    const env: NodeJS.ProcessEnv = { ISSUE_TITLE_PREFIX: "p" };
+    if (given !== undefined) env["TRACKING_ISSUE_AUTHOR"] = given;
+    const res = runLib("resolve_tracking_issues", ghEnv, env);
+    expect(res.status, res.stderr).toBe(0);
+    const authors = res.calls.split("\n").filter((l) => l.startsWith("AUTHOR="));
+    // 照会のたびに同じ値が渡る（照会の回数はフォールバックのテストが見る）。
+    expect(authors.length, res.calls).toBeGreaterThan(0);
+    expect(new Set(authors)).toStrictEqual(new Set([`AUTHOR=${want}`]));
+  });
+
   // 完全一致の検索へ戻すと、下の「jq 式が世代違いだけを拾う」の日付つきの検体を拾わなくなる。
   // 実式をそのまま jq へ通し、拾うべき検体と拾ってはいけない検体で、区別できるかを測る。
   // 接頭辞は 2 つのワークフローの宣言値と、正規表現のメタ文字を含む値の 3 通りで測る
@@ -236,16 +259,15 @@ describe("照会の原本（tracking-issue-lib.sh）", () => {
       const dir = makeTempDir("tracking-issue-");
       try {
         const fixture = join(dir, "issues.json");
-        writeFileSync(
-          fixture,
-          JSON.stringify(
-            cases.map(({ number, title, state }) => ({ number, title, state: state ?? "OPEN" })),
-          ),
-        );
+        writeFileSync(fixture, JSON.stringify(cases.map(toIssueJson)));
         const res = spawnSync("jq", ["-r", jqFilter(libSource()), fixture], {
           timeout: CHILD_TIMEOUT_MS,
           encoding: "utf8",
-          env: { ...process.env, ISSUE_TITLE_PREFIX: prefix },
+          env: {
+            ...process.env,
+            ISSUE_TITLE_PREFIX: prefix,
+            TRACKING_ISSUE_AUTHOR: TRACKING_AUTHOR,
+          },
         });
         expect(res.stderr).toBe("");
         expect(res.status).toBe(0);

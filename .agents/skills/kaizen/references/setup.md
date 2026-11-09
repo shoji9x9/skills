@@ -763,6 +763,9 @@ GHES では `notify` モードで動かす。`notify` モードは artifact を�
 - open な 1 つは常に「最後に棚卸しした日」を示し、閉じたものは当時の日付のまま残るので、Issue の一覧で世代を区別できる（決まったタイトルだと、手で閉じるたびに同じ名前の Issue が open と closed に並ぶ）。
 - 既存の Issue は、接頭辞 `kaizen: 未適用の学び` に、末尾が空か、半角空白付きの `(YYYY-MM-DD)` が続くものだけを取得する。単純な前方一致だと、「kaizen: 未適用の学びについて相談」のような関係の無い Issue を毎週上書きしてしまう。
 - 末尾が空のものも受け付けるのは、日付を入れる前に作った追跡 Issue を引き継いで、名前を変えるためである。
+- 既存の Issue は、追跡 Issue を作る主体（`GITHUB_TOKEN` なら `app/github-actions`）が作ったものだけを取得する。公開リポジトリでは誰でも同じタイトルの Issue を立てられるので、タイトルだけで選ぶと、他人の Issue の本文を書き換えたり閉じたりしてしまう。
+  追跡 Issue を GitHub App などの別のトークンで作るなら、その主体の login を、追跡 Issue を書く step の env の `TRACKING_ISSUE_AUTHOR` に渡す。
+  login は `gh issue list --json author` の `login` の形で書く（App なら `app/<slug>`）。
 
 適用（`/kaizen apply`）は、人が開いたセッションで行う。`references/apply.md` はグループごとにユーザーの承認を求める設計で、承認を無人にすると「適用したことにする」方法ができるからである。
 

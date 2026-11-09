@@ -179,6 +179,31 @@
       "expect_failing": [
         "照会の原本（tracking-issue-lib.sh） 走査件数が 10 進でなければ落ちる（打ち切りを判定できないまま通さない）"
       ]
+    },
+    {
+      "id": "AUTHOR",
+      "why": "作成者の照合を外し、他人が同じタイトルで立てた Issue を追跡 Issue として書き換える",
+      "file": "skills/kaizen/scripts/tracking-issue-lib.sh",
+      "find": "                | select(.author.login == env.TRACKING_ISSUE_AUTHOR)\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "照会の原本（tracking-issue-lib.sh） jq 式が世代違いだけを拾う: 接頭辞 kaizen: 未適用の学び",
+        "照会の原本（tracking-issue-lib.sh） jq 式が世代違いだけを拾う: 接頭辞 mise outdated tool versions",
+        "照会の原本（tracking-issue-lib.sh） jq 式が世代違いだけを拾う: 接頭辞 tool (a.b) [x]*"
+      ]
+    },
+    {
+      "id": "AUTHOR_DEFAULT",
+      "why": "作成者が未設定のときのデフォルトを外し、どの Issue も選ばなくなる",
+      "file": "skills/kaizen/scripts/tracking-issue-lib.sh",
+      "find": "TRACKING_ISSUE_AUTHOR=\"${TRACKING_ISSUE_AUTHOR:-app/github-actions}\" \\\n\t\t",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "照会の原本（tracking-issue-lib.sh） 照会に渡す作成者: TRACKING_ISSUE_AUTHOR=undefined なら app/github-actions",
+        "照会の原本（tracking-issue-lib.sh） 照会に渡す作成者: TRACKING_ISSUE_AUTHOR= なら app/github-actions"
+      ]
     }
   ]
 }
