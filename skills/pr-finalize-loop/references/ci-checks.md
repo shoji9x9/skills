@@ -60,8 +60,9 @@ PR に関係の無い変更が入り、ベースブランチの修正と競合�
 | PR の変更と関係が無い | 失敗した run が検証したベースブランチの commit で、同じチェックが同じ失敗（同じステップ・同じテストやエラー）で終わる |
 | 最新のベースブランチで直っている | ベースブランチの先端で、同じチェックが成功する |
 
-失敗した run が検証したベースは、推定せずに、その run のログから取得する。
-`pull_request` の run では、`actions/checkout` が PR の head とベースを合わせた merge commit を取り出し、ログにその commit の message（`Merge <head の SHA> into <ベースの SHA>`）を出す。
+失敗した run が検証したベースは、推定せずに、失敗したジョブのログから取得する。
+`pull_request` の run は、PR の head とベースを合わせた merge commit を検証する（<https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request> の `GITHUB_SHA`）。
+`actions/checkout` はその commit を取り出し、ログに commit の message（`Merge <head の SHA> into <ベースの SHA>`）を出す。この message の形は、GitHub が作る merge commit を実測して確かめたもので、公式のドキュメントには無い。
 PR の分岐点や時刻から推定すると、分岐点の後にベースへ入った commit で失敗した場合や、commit の時刻と取り込んだ時刻がずれる場合に、別の commit と比べることになる。
 
 それぞれの commit で同じチェックがどう終わるかは、まず CI の記録で確かめる。
@@ -70,7 +71,10 @@ PR の分岐点や時刻から推定すると、分岐点の後にベースへ�
 base=$(gh pr view <番号> --repo <owner>/<repo> --json baseRefName --jq .baseRefName)
 # refspec を明示する。single-branch clone などで remote.origin.fetch に $base が無いと、origin/$base が更新されない
 git fetch origin "+refs/heads/$base:refs/remotes/origin/$base"
-merge=$(gh run view <run-id> --repo <owner>/<repo> --log | grep -m1 -oE 'Merge [0-9a-f]{40} into [0-9a-f]{40}')
+log=$(gh api "repos/<owner>/<repo>/actions/jobs/<job-id>/logs")  # 失敗したジョブのログ。run の他のジョブが動いていても取れる
+merge=$(grep -m1 -oE 'Merge [0-9a-f]{40} into [0-9a-f]{40}' <<<"$log" || true)  # 該当なしは空にする
+merged_head=${merge#Merge }; merged_head=${merged_head%% *}
+head_sha=$(gh run view <run-id> --repo <owner>/<repo> --json headSha --jq .headSha)
 ran=${merge##* into }                                  # 失敗した run が検証したベース
 tip=$(git rev-parse "origin/$base")                    # ベースブランチの先端
 gh api --paginate -X GET "repos/<owner>/<repo>/commits/<SHA>/check-runs" \
@@ -78,9 +82,9 @@ gh api --paginate -X GET "repos/<owner>/<repo>/commits/<SHA>/check-runs" \
   --jq '.check_runs[] | {status, conclusion, html_url}'
 ```
 
-- `<run-id>` は、「CI 失敗ログの取得」で取得した失敗した run の ID である。
-- `$merge` が空のとき（`push` で起動した run、GitHub Actions でないチェック、ログの保存期間が過ぎた run）は、確かめられないものとして扱う。
-  `$merge` の head の SHA が、その run の `headSha`（`gh run view <run-id> --json headSha`）と違うときも同じである。
+- `<run-id>` と `<job-id>` は、「CI 失敗ログの取得」で取得した `link`（`.../actions/runs/<run-id>/job/<job-id>`）から取る。
+- `$merge` が空のとき（`push` で起動した run、GitHub Actions でないチェック、ログの保存期間が過ぎた run、checkout のログの形が変わったとき）は、確かめられないものとして扱う。
+  `$merged_head` が `$head_sha` と違うときも同じである。`gh api` か `gh run view` が失敗したときも、空の値で進まずに確かめられないものとして扱う。
 - `<SHA>` には `$ran` と `$tip` を 1 つずつ渡す。チェックの名前は、「CI 失敗ログの取得」で取得した `name` をそのまま使う。
 - チェックの名前は `-f` で渡す。URL のクエリに直接書くと、空白を含む名前（`Unit tests` など）がエンコードされず、`gh api` が応答を返さない（実測）。
 - `$tip` と `$ran` が同じなら、失敗した run はベースブランチの先端と合わせて検証しているので、取り込んでもその失敗は直らない。この節に当たらない。
