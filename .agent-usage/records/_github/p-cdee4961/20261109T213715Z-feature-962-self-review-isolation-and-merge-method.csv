@@ -8,3 +8,5 @@ ci:42702857069:1,ci,2026-11-09T21:37:15.418Z,p-cdee4961,github-actions,,,,2026-1
 ci:42702856925:1,ci,2026-11-09T21:37:15.418Z,p-cdee4961,github-actions,,,,2026-11-09T21:28:40.000Z,2026-11-09T21:33:21.000Z,Asia/Tokyo,feature/508-weekly-docs-credentials-index,508,,,,,,,,,,CI;pull_request;success,
 ci:42702857395:1,ci,2026-11-09T21:37:15.418Z,p-cdee4961,github-actions,,,,2026-11-09T21:28:40.000Z,2026-11-09T21:29:55.000Z,Asia/Tokyo,feature/508-weekly-docs-credentials-index,508,,,,,,,,,,CodeQL;pull_request;success,
 coverage:github:2026-11-08T21:27:33.600Z:2026-11-09T21:37:15.418Z,coverage,2026-11-09T21:37:15.418Z,p-cdee4961,,,,,2026-11-08T21:27:33.600Z,2026-11-09T21:37:15.418Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:42703998666:1,ci,2026-11-09T21:41:58.467Z,p-cdee4961,github-actions,,,,2026-11-09T21:35:51.000Z,2026-11-09T21:38:58.000Z,Asia/Tokyo,main,,,,,,,,,,,CodeQL;push;success,
+coverage:github:2026-11-08T21:37:15.418Z:2026-11-09T21:41:58.467Z,coverage,2026-11-09T21:41:58.467Z,p-cdee4961,,,,,2026-11-08T21:37:15.418Z,2026-11-09T21:41:58.467Z,Asia/Tokyo,,,,,,,,,,,,ok,
