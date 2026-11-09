@@ -5,6 +5,9 @@ name: Security audit
 # 監査の記録（脆弱性の詳細・前回の網羅の台帳）は公開できないので、鍵で暗号化して artifact に置き、次の実行がそれを復号して引き継ぐ。
 # 追跡 Issue には、件数と識別子だけを載せる。運用（鍵・一時停止・記録の読み方）は docs/security-scanning.md にある。
 on:
+  schedule:
+    # 曜日と時刻の決め方は docs/weekly-schedule.md にある。schedule では inputs が空なので、各値はデフォルト（self・quick・40）になる。
+    - cron: "30 2 * * 2"
   workflow_dispatch:
     inputs:
       target:
@@ -281,6 +284,11 @@ jobs:
             - Budget: エージェントの起動 ${{ steps.settings.outputs.budget }} 回
             OS が強制する sandbox はありません。対象のコードのビルド・テスト・実行はせず、実行で確かめる候補は needs_validation として残します。
             ネットワークは使えません。書き込むのは出力のディレクトリの下だけです。
+            Bash で実行できるのは、スキルの validate-findings.cjs と validate-coverage-ledger.cjs を node で起動する形だけです。
+            それ以外の Bash（cd・ls・find・git・python3・mkdir・自分で書いたスクリプト）はすべて拒否されるので、試さないでください。
+            ファイルの一覧は Glob、中身は Read、検索は Grep で取得します。ディレクトリは Write でファイルを書くと作られます。
+            対象の commit は、対象の .git/HEAD と、そこから参照する ref のファイルを Read で読んで決めます。
+            サブエージェントも同じ制限で動くので、サブエージェントに渡す指示にも、上の Bash の制限と、ファイルの読み方を書いてください。
             サブエージェントは、結果が返るまで待ってから次に進めます。
             終える前に、出力のディレクトリの run-metadata.json の run_status を complete か incomplete（理由つき）にしてください。
           # ツールは、対象とスキルと記録を読むこと、記録を書くこと、サブエージェントを使うこと、上流の検証スクリプトを実行することに限る。

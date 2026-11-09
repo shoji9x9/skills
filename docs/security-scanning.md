@@ -79,7 +79,9 @@ gh secret set SECURITY_AUDIT_STATE_KEY --repo shoji9x9/skills <security-audit-ke
 
 ### 実行
 
-`workflow_dispatch` で実行し、入力で対象・プロファイル・エージェントの起動回数の上限を選ぶ。
+週に 1 回、`schedule` で `self` を `quick`・上限 40 で監査する（曜日と時刻は [`weekly-schedule.md`](weekly-schedule.md)）。
+1 回の監査は 40 分ほどかかり、エージェントの使用量を Claude のプランの週の上限から使う。
+手で実行するときは `workflow_dispatch` を使い、入力で対象・プロファイル・エージェントの起動回数の上限を選ぶ。
 
 | 入力 | 値 |
 | --- | --- |
@@ -90,6 +92,7 @@ gh secret set SECURITY_AUDIT_STATE_KEY --repo shoji9x9/skills <security-audit-ke
 エージェントのツールは、対象とスキルと記録を読むこと、出力のディレクトリに書くこと、サブエージェントを使うこと、上流の検証スクリプト（`validate-findings.cjs`・`validate-coverage-ledger.cjs`）を実行することに限る。
 GitHub-hosted runner には、上流のスキルが対象のコードを実行する前に求める、OS が強制する sandbox が無い。
 そのため、対象のコードを実行して確かめる候補は、上流のスキルの決まりどおり `needs_validation`（確かめきれなかった候補）として残る。
+コードを読めば明らかな脆弱性（`dvna` の SQL インジェクションなど）も、`confirmed` ではなく `needs_validation` になる。`needs_validation` の候補は、人が記録を読んで対応するかを決める。
 
 ### 記録の引き継ぎと公開する範囲
 
