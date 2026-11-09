@@ -211,15 +211,42 @@ export function runNumberOf(dir) {
 }
 
 /**
+ * @typedef {{ tests: Map<string, { statuses: string[] }>, signatures: Map<string, { sig: ReturnType<typeof signatureOf>, test: string, runs: Set<number>, sample: string }> }} Collected
+ */
+
+/**
+ * 1 テストの記録を、集めた結果に足す。
+ * @param {Collected} acc
+ * @param {ReturnType<typeof readRecord>} r
+ * @param {number} run
+ */
+function addRecord(acc, r, run) {
+  const t = acc.tests.get(r.test) ?? { statuses: [] };
+  t.statuses.push(r.status);
+  acc.tests.set(r.test, t);
+  // スキップした試行は操作を終えていないので、その前に出たイベントも署名に数えない（未検証として一覧に残す）
+  if (r.status === "skipped") return;
+  for (const sig of r.signatures) {
+    const key = `${r.test}\u0000${sig.id}`;
+    const entry = acc.signatures.get(key) ?? {
+      sig,
+      test: r.test,
+      runs: new Set(),
+      sample: r.samples.get(sig.id) ?? "",
+    };
+    entry.runs.add(run);
+    acc.signatures.set(key, entry);
+  }
+}
+
+/**
  * N 回分の記録を、テスト × 署名に集める。
  * @param {{ dir: string, run: number, records: ReturnType<typeof readRecord>[] }[]} runs
- * @returns {{ tests: Map<string, { statuses: string[] }>, signatures: Map<string, { sig: ReturnType<typeof signatureOf>, test: string, runs: Set<number>, sample: string }> }}
+ * @returns {Collected}
  */
 export function collect(runs) {
-  /** @type {Map<string, { statuses: string[] }>} */
-  const tests = new Map();
-  /** @type {Map<string, { sig: ReturnType<typeof signatureOf>, test: string, runs: Set<number>, sample: string }>} */
-  const signatures = new Map();
+  /** @type {Collected} */
+  const acc = { tests: new Map(), signatures: new Map() };
   const seenRuns = new Set();
   for (const { dir, run, records } of runs) {
     if (seenRuns.has(run))
@@ -231,23 +258,10 @@ export function collect(runs) {
       if (testsInRun.has(r.test))
         throw new UsageError(`同じテストの記録が 1 つの実行に 2 つある: ${r.test}（${dir}）`);
       testsInRun.add(r.test);
-      const t = tests.get(r.test) ?? { statuses: [] };
-      t.statuses.push(r.status);
-      tests.set(r.test, t);
-      for (const sig of r.signatures) {
-        const key = `${r.test}\u0000${sig.id}`;
-        const entry = signatures.get(key) ?? {
-          sig,
-          test: r.test,
-          runs: new Set(),
-          sample: r.samples.get(sig.id) ?? "",
-        };
-        entry.runs.add(run);
-        signatures.set(key, entry);
-      }
+      addRecord(acc, r, run);
     }
   }
-  return { tests, signatures };
+  return acc;
 }
 
 /** @param {string} a @param {string} b */

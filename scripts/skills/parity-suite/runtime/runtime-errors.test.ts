@@ -625,6 +625,19 @@ describe("compare", () => {
     expect(errorsOf(fs).new_signatures).toEqual([]);
   });
 
+  test("新側でスキップした試行のイベントは比べない。同じテストの通った回のイベントは比べる", () => {
+    const fs = withBaseline();
+    recordNew(fs, (n) => [
+      { test: LIST, events: NEW_ONLY, status: n === 1 ? "skipped" : "passed" },
+      { test: EDIT, events: NEW_ONLY, status: "skipped" },
+    ]);
+    expect(compare(fs).code).toBe(1);
+    const errors = errorsOf(fs);
+    expect(errors.skipped_tests).toEqual([EDIT, LIST].sort());
+    expect(new Set(errors.new_signatures.map((s) => s.test))).toEqual(new Set([LIST]));
+    expect(errors.new_signatures.every((s) => s.seen_runs === 1)).toBe(true);
+  });
+
   test("--write が無ければ diff-metadata.json を書かない", () => {
     const fs = withBaseline();
     fs.writes = [];

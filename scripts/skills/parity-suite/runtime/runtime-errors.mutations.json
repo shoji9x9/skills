@@ -17,6 +17,7 @@
         "compare --write が無ければ diff-metadata.json を書かない",
         "compare 分類は同じテスト × 署名へ持ち越し、説明になる分類だけで収束する",
         "compare 新側だけに出たエラーと失敗したリクエストを、4 種類とも差分として検出し exit 1",
+        "compare 新側でスキップした試行のイベントは比べない。同じテストの通った回のイベントは比べる",
         "compare 新側の 1 回にだけ出たエラーも差分にする（出た回数を残す）",
         "compare 現側では別のテストに出ていたエラーは、そのテストでは差分にする"
       ]
@@ -30,7 +31,6 @@
       "occurrences": 1,
       "expect_failing": [
         "compare 新側だけに出たエラーと失敗したリクエストを、4 種類とも差分として検出し exit 1",
-        "compare 新側でスキップしたテストは一覧に残して止めない。現側でスキップしたテストのエラーは比べない",
         "compare 新側の 1 回にだけ出たエラーも差分にする（出た回数を残す）",
         "compare 現側では別のテストに出ていたエラーは、そのテストでは差分にする",
         "compare 現側の 1 回にだけ出たエラーは、新側で出ても差分にしない",
@@ -58,7 +58,6 @@
       "occurrences": 1,
       "expect_failing": [
         "compare 新側だけに出たエラーと失敗したリクエストを、4 種類とも差分として検出し exit 1",
-        "compare 新側でスキップしたテストは一覧に残して止めない。現側でスキップしたテストのエラーは比べない",
         "compare 新側の 1 回にだけ出たエラーも差分にする（出た回数を残す）",
         "compare 現側では別のテストに出ていたエラーは、そのテストでは差分にする",
         "compare 現側の 1 回にだけ出たエラーは、新側で出ても差分にしない",
@@ -112,6 +111,17 @@
       "occurrences": 1,
       "expect_failing": [
         "summarize 現側で通らなかったテスト・一部の実行にしか無いテスト・回でスキップが変わるテストは exit 1"
+      ]
+    },
+    {
+      "id": "re-new-skipped-compared",
+      "why": "新側でスキップした試行のイベントを、現行に無かった署名として比べる",
+      "file": "skills/parity-suite/scripts/runtime-errors.mjs",
+      "find": "  if (r.status === \"skipped\") return;\n",
+      "replace": "  if (false && r.status === \"skipped\") return;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 新側でスキップした試行のイベントは比べない。同じテストの通った回のイベントは比べる"
       ]
     }
   ]
