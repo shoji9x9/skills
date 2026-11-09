@@ -229,6 +229,50 @@ describe("copilot は transcript が無くても従来どおりセンチネル�
   });
 });
 
+describe("symlink の先には書かない", () => {
+  // セッションの id が無い Copilot の呼び出しは、決まった名前（.pending-extract-copilot）に書く。
+  // commit された symlink がその名前やディレクトリにあっても、リポジトリの外のファイルを書き換えない。
+  test("センチネルの名前が symlink なら、先のファイルを書き換えず exit 0 で終える", () => {
+    const cwd = makeProject();
+    const outside = makeTempDir("kaizen-stop-mark-outside-");
+    try {
+      const victim = join(outside, "victim.txt");
+      writeFileSync(victim, "ORIGINAL");
+      symlinkSync(victim, join(cwd, ".kaizen", ".pending-extract-copilot"));
+      const result = runStopMark(cwd, {
+        suffix: "-copilot",
+        includeTranscriptField: false,
+        sessionId: "",
+      });
+      expect(result.status).toBe(0);
+      expect(result.stderr).toContain("symlink");
+      expect(readFileSync(victim, "utf8")).toBe("ORIGINAL");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  test(".kaizen が symlink なら、先のディレクトリにセンチネルを作らない", () => {
+    const cwd = makeTempDir("kaizen-stop-mark-");
+    const outside = makeTempDir("kaizen-stop-mark-outside-");
+    try {
+      symlinkSync(outside, join(cwd, ".kaizen"));
+      const result = runStopMark(cwd, {
+        suffix: "-copilot",
+        includeTranscriptField: false,
+        sessionId: "",
+      });
+      expect(result.status).toBe(0);
+      expect(result.stderr).toContain("symlink");
+      expect(readdirSync(outside)).toEqual([]);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+});
+
 // Copilot CLI は `.claude/settings.json` の Hook も実行する（Issue #853）。Stop は応答が終わるたびに
 // 実行されるので（agentStop）、引数なしの登録がそのままセンチネルを作ると、Copilot のセッションに
 // claude-code の名前のセンチネルが立つ。入力の最上位に `timestamp` と `hook_event_name`（PascalCase の登録の形）があり、

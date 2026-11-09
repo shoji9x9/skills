@@ -71,14 +71,18 @@ const width = Math.round(Number(dimAttr("width") ?? vb?.[1] ?? 1540));
 const height = Math.round(Number(dimAttr("height") ?? vb?.[2] ?? 900));
 
 const work = mkdtempSync(join(tmpdir(), "diagram-preview-"));
-const out = join(tmpdir(), `${basename(svgPath, ".svg")}-preview.png`);
+// PNG は、自分だけが書ける新しいディレクトリ（mkdtemp は 0700 で作る）に置く。
+// 共有の tmpdir の直下の決まった名前に書くと、他の利用者が先に置いたファイルや symlink を、PNG として報告してしまう。
+// 後で読むので、work と違って消さない。
+const outDir = mkdtempSync(join(tmpdir(), "diagram-png-"));
+const out = join(outDir, `${basename(svgPath, ".svg")}-preview.png`);
 // Chrome のサンドボックスはデフォルトで有効にする（ローカルの安全性を下げない）。root やコンテナなど、
 // サンドボックスを使えない環境でだけ、--no-sandbox か設定の chrome_no_sandbox: true で無効にする。
 const noSandbox = config.noSandbox;
 // 応答が返らない（ハングする）ケースを検出可能な失敗に変える。--timeout-ms か設定の chrome_timeout_ms で調整する。
 // 数でない値と 0 以下は、diagram-config.mjs とスキーマがエラーにする（受け付けると打ち切りが無効になり、元のハングに戻る）。
 const timeoutMs = config.timeoutMs;
-// work は preview.html 置き場。out（PNG）は tmpdir 直下なのでクリーンアップの影響を受けない。
+// work は preview.html 置き場。out（PNG）は outDir に置くので、work のクリーンアップの影響を受けない。
 // 任意の SVG（ファイル名指定も可）を Chrome で開くので、ページの CSP で script・イベントハンドラ・iframe・外部の資源を止める。
 // `<img>` の画像として読み込むと、正しい XML（xmlns を含む）でない SVG が警告なしに白い PNG になるので、HTML に埋め込む。
 // CSP に加えて、<script>・on* を多層防御として除く（自前で生成した SVG では何も変えない）。任意の SVG を開くので、アイコンと違ってエラーにはしない。
@@ -136,6 +140,8 @@ try {
   rmSync(work, { recursive: true, force: true });
 }
 
+if (failure) rmSync(outDir, { recursive: true, force: true });
+
 if (failure) {
   // Chrome の実行以外の失敗（HTML の書き出し等）は握り潰さずそのまま投げる。
   if (field(failure, "status") === undefined && field(failure, "signal") === undefined)
@@ -170,6 +176,13 @@ if (failure) {
         : "サンドボックスが使えない環境では --no-sandbox を付けるか、人ごとの設定の chrome_no_sandbox を true にする。") +
       "応答待ちで中断した場合は --timeout-ms か設定の chrome_timeout_ms で延長する。",
   );
+  process.exit(1);
+}
+
+// Chrome が 0 で終わっても PNG を書いていなければ、失敗として扱う（空のディレクトリを残さない）。
+if (!existsSync(out)) {
+  rmSync(outDir, { recursive: true, force: true });
+  console.error(`Chrome は終了したが、PNG を書いていません: ${chrome}`);
   process.exit(1);
 }
 
