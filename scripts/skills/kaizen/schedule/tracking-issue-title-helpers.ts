@@ -265,12 +265,16 @@ export function jqFilter(source: string) {
   return m[1];
 }
 
-/** jq 式の照合を測る検体。hit は、照合が拾うべき Issue かどうか。 */
+/** 追跡 Issue を作る主体として、jq の照合に渡す login。lib のデフォルトと同じ値にする。 */
+export const TRACKING_AUTHOR = "app/github-actions";
+
+/** jq 式の照合を測る検体。hit は、照合が拾うべき Issue かどうか。author を省いたら TRACKING_AUTHOR とする。 */
 export function jqProbeCases(prefix: string): {
   title: string;
   number: number;
   hit: boolean;
   state?: string;
+  author?: string;
   why: string;
 }[] {
   return [
@@ -295,6 +299,34 @@ export function jqProbeCases(prefix: string): {
       number: 8,
       hit: false,
       why: "日付の後ろに続きがある",
+    },
+    ...authorProbeCases(prefix),
+  ];
+}
+
+/** 作成者の照合を測る検体。公開リポジトリでは誰でも同じタイトルの Issue を立てられるので、追跡 Issue を作る主体のものだけを拾う。 */
+function authorProbeCases(prefix: string): ReturnType<typeof jqProbeCases> {
+  return [
+    {
+      title: `${prefix} (2026-09-21)`,
+      number: 10,
+      hit: false,
+      author: "someone",
+      why: "人が同じタイトルで立てた",
+    },
+    {
+      title: prefix,
+      number: 11,
+      hit: false,
+      author: "app/dependabot",
+      why: "別の App が同じタイトルで立てた",
+    },
+    {
+      title: `${prefix} (2026-09-21)`,
+      number: 12,
+      hit: false,
+      author: "github-actions",
+      why: "App の印（app/）の無い、似た login の人",
     },
   ];
 }

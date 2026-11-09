@@ -11,6 +11,8 @@
 #
 # 呼び出し方は次のとおりである。
 #   ISSUE_TITLE_PREFIX      照合する接頭辞（env）。空や未設定ならエラーで止める。
+#   TRACKING_ISSUE_AUTHOR   追跡 Issue を作る主体の login（env）。`gh issue list --json author` の `login` の形で書く。
+#                           空や未設定なら、GITHUB_TOKEN の主体 `app/github-actions` を使う。
 #   resolve_tracking_issues 照会して `numbers`（昇順の Issue 番号）/ `scanned` / `truncated` を設定する。
 #   warn_if_truncated "<この分岐で出る害>"
 #                           打ち切っていたときだけ `::warning::` を出す（触った分岐だけで呼ぶ）。
@@ -33,6 +35,12 @@ list_limit=100
 # 「見つからなかった」と誤って判定される。タイトルは jq の `env` で渡し、引用符や
 # 正規表現のメタ文字を含む値でも正しく照合できるようにする（接頭辞の側は文字列で比べる）。
 #
+# **作成者も確かめる。** 公開リポジトリでは誰でも同じタイトルの Issue を立てられる。
+# 追跡 Issue が開いていない週に立てられると、それを追跡 Issue として本文を読み、書き換え、閉じてしまう。
+# 追跡 Issue を作る主体（`TRACKING_ISSUE_AUTHOR`）が作った Issue だけを選ぶ。
+# `gh issue list --author app/github-actions` は検索の構文なので、App の作者に当たらない（0 件になる。実測）。
+# そのため、`--json author` で取り、jq で比べる。
+#
 # 走査件数は同じ呼び出しの中で `scanned=N` として先頭行に出す。件数を別の API で
 # 引き直すと、2 回の呼び出しの間に open 数が動いて判定と根拠がずれる。
 #
@@ -43,11 +51,13 @@ list_limit=100
 # 偽陽性も起こす）。確かめずに通すと、closed の Issue をリネームしてコメントを付け、
 # その週のレポートが閉じた Issue にたまる（`gh` はどちらも成功する）。
 find_tracking_issues() {
-	gh issue list --state open --limit "$list_limit" "$@" \
-		--json number,title,state \
+	TRACKING_ISSUE_AUTHOR="${TRACKING_ISSUE_AUTHOR:-app/github-actions}" \
+		gh issue list --state open --limit "$list_limit" "$@" \
+		--json number,title,state,author \
 		--jq '(["scanned=" + (length | tostring)]
            + ([ .[]
                 | select(.state == "OPEN")
+                | select(.author.login == env.TRACKING_ISSUE_AUTHOR)
                 | select(.title | startswith(env.ISSUE_TITLE_PREFIX))
                 | select(.title | ltrimstr(env.ISSUE_TITLE_PREFIX)
                          | test("^( \\([0-9]{4}-[0-9]{2}-[0-9]{2}\\))?$"))
