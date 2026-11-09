@@ -33,6 +33,19 @@ GitHub Actions の `schedule` と Dependabot で毎週動く処理の、曜日�
 
 ほかの処理は、結果をやり取りしない。
 
+## 資格情報と一時停止
+
+どのワークフローも、`gh workflow disable <ファイル名>` で止め、`gh workflow enable <ファイル名>` で再開できる。
+エージェントを動かすワークフローは、ほかに、commit を伴わずに止めるリポジトリ変数を持つ。
+次の表に挙げていないワークフローは、デフォルトの `GITHUB_TOKEN` だけを使い、止めるリポジトリ変数を持たない。
+
+| ワークフロー | 資格情報 | 止めるリポジトリ変数 | 詳細 |
+| --- | --- | --- | --- |
+| `kaizen-schedule.yml` | 設定で選んだエージェントの secret（`ANTHROPIC_API_KEY` か `CLAUDE_CODE_OAUTH_TOKEN`・`OPENAI_API_KEY`・`COPILOT_GITHUB_TOKEN`） | `KAIZEN_SCHEDULE_SKIP` | `kaizen` スキルの [`references/setup.md`](../skills/kaizen/references/setup.md)「エージェントの選択」「止め方（凍結したプロジェクト・レートリミットに近いとき）」 |
+| `self-review.yml` | `CLAUDE_CODE_OAUTH_TOKEN` | `SELF_REVIEW_SKIP` | [`self-review.md`](self-review.md)「資格情報」「一時停止」 |
+| `security-audit.yml` | `CLAUDE_CODE_OAUTH_TOKEN`・`SECURITY_AUDIT_STATE_KEY` | `SECURITY_AUDIT_SKIP` | [`security-scanning.md`](security-scanning.md)「資格情報と設定」 |
+| `self-review-fix.yml` | `CLAUDE_CODE_OAUTH_TOKEN`・GitHub App（`AUTOFIX_APP_CLIENT_ID`・`AUTOFIX_APP_PRIVATE_KEY`） | `SELF_REVIEW_FIX_SKIP`（定期実行は `SELF_REVIEW_SKIP` でも止まる） | [`self-review.md`](self-review.md)「ジョブと資格情報」 |
+
 ## 時刻を決めるときの決まり
 
 週次の処理を足すときや時刻を変えるときは、次に従い、上の一覧も同じ変更で直す。
