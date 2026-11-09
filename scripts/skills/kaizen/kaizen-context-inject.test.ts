@@ -590,7 +590,7 @@ describe("食い違いの判断待ち", () => {
     );
     expect(res.status, res.stderr).toBe(0);
     expect(res.stderr.split("\n").filter((l) => l.startsWith("kaizen:"))).toStrictEqual([
-      `kaizen: 食い違いの判断を読めないため、判断待ちとして扱う（通常のファイルとして読めない）: ${dir.replace("\n", "\\n")}`,
+      `kaizen: 食い違いの判断を読めないため、判断待ちとして扱う（通常のファイルとして読めない）: ${dir.replaceAll("\n", "\\n")}`,
     ]);
   });
 
