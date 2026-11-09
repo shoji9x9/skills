@@ -1,7 +1,7 @@
 {
   "_note": "parity-suite の手順の改訂一覧（原本）。確かめる軸（網羅表の候補・撮影条件・反応の数え方など、閉じた機能の成果物に足りない測定が出る変更）を手順に足したら、revision を 1 上げて changes へ 1 要素を追記する（既存の要素は書き換えない）。parity-suite は .replace/parity/<slug>/metadata.json の run.procedure_revision に採取時のこの revision を書き、replace-strategy の scripts/procedure-staleness-check.mjs が、成果物の改訂番号より新しい改訂の affects に当たる機能を「旧手順で特性化した機能」として列挙する。revision 1 は本機構の導入点で、それより前の成果物（run.procedure_revision が無い）は、どの軸で閉じたかを記録していないため全件が対象になる。軸を足さない変更（文言・検査の修正・誤りの訂正で、閉じた機能に測り直しが要らないもの）では上げない。",
   "skill": "parity-suite",
-  "revision": 7,
+  "revision": 8,
   "changes": [
     {
       "revision": 1,
@@ -51,6 +51,13 @@
       "axis": "性能（LCP・CLS・TBT 相当・TTFB）のベースラインとノイズ基準値",
       "affects": ["feature"],
       "summary": "feature モードで、capture_conditions.pages × viewports の初期表示の読み込みを同じ条件で繰り返し測り（assets/perf-capture.spec.template.ts から起こした perf/ のスペック）、scripts/perf-stats.mjs summarize で metadata.json の performance に分布とノイズの許容幅を書く（references/baseline.md「性能のベースラインとノイズ基準値」）。parity-diff は同じスクリプトの compare で新側を比べ、performance を持たない成果物は判定せず未検証に残す。改訂 6 以前に閉じた feature 機能は performance を持たないので、採るか当てないかを機能ごとに .replace/procedure-changes.md へ記録する（採るだけなら特性化のやり直しではないので、run.finished_at と run.procedure_revision は書き換えない）"
+    },
+    {
+      "revision": 8,
+      "added_at": "2026-11-08",
+      "axis": "操作中のコンソールのエラーと失敗したリクエストの基準",
+      "affects": ["feature"],
+      "summary": "feature モードで、スイートのテストの基を assets/runtime-errors.fixture.template.ts から起こした fixture で拡張し、現側でスイートを 2 回以上実行して pageerror・console の error・requestfailed・4xx と 5xx の応答をテストごとに記録し、scripts/runtime-errors.mjs summarize で metadata.json の runtime_errors に基準を書く（references/baseline.md「操作中のエラーのベースライン」）。parity-diff は同じスクリプトの compare で新側を比べ、基準に無かったエラーを差分にする。runtime_errors を持たない成果物は判定せず未検証に残す。改訂 7 以前に閉じた feature 機能は runtime_errors を持たないので、採るか当てないかを機能ごとに .replace/procedure-changes.md へ記録する（採るだけなら特性化のやり直しではないので、run.finished_at と run.procedure_revision は書き換えない）"
     }
   ]
 }

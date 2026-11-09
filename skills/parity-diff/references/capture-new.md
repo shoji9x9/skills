@@ -189,6 +189,25 @@ PARITY_PERF_CAPTURE=1 PARITY_SLUG=<slug> PARITY_NEW_TARGET=<target> PARITY_NEW_U
 - 自己ノイズの再利用（下の「測定値の再利用」）は、性能には当てない。性能は毎回採る。新側のばらつきは、`perf-stats.mjs compare` が採った分布から毎回判定する。
 - `metadata.json` に `performance` が無いか `declared: false` なら、採らない（[`detect.md`](detect.md)「性能の比較」）。
 
+## 操作中のエラーの採取
+
+操作中に出たコンソールのエラーと失敗したリクエストは、`parity-suite` がスイートの基に組み込んだ記録の fixture（`metadata.json` の `suite.runtime_errors`）が書く。
+スイートを `new` で 2 回以上実行する。fixture を新しく作らない。現側と同じ fixture で記録しないと、比べる記録の読み方が揃わない。
+
+```bash
+rm -rf .replace/parity/<slug>/new/<target>/runtime-errors
+PARITY_RUNTIME_CAPTURE=1 PARITY_RUNTIME_RUN=1 PARITY_SLUG=<slug> PARITY_NEW_TARGET=<target> PARITY_NEW_UI_URL=<url> \
+  npx playwright test <parity_suite_dir>/parity/ --project new
+PARITY_RUNTIME_CAPTURE=1 PARITY_RUNTIME_RUN=2 PARITY_SLUG=<slug> PARITY_NEW_TARGET=<target> PARITY_NEW_UI_URL=<url> \
+  npx playwright test <parity_suite_dir>/parity/ --project new
+```
+
+- 出力は `.replace/parity/<slug>/new/<target>/runtime-errors/run-<回>/` で、テキストの成果物として Git に入れる。採り直すときは、前の `runtime-errors/` を消してから実行する。
+- 回数は現側と同じでなくてよいが、2 回以上にする。1 回だけでは、新側で回によって出るエラーを見逃しやすい。
+- 自己ノイズの再利用（下の「測定値の再利用」）は、操作中のエラーには当てない。新側の実装が変われば出るエラーも変わるので、毎回採る。
+- 書き込み系のスペックを含むなら、`parity-replace` の green の確認と同じ後始末の規律に従う。
+- `metadata.json` に `runtime_errors` が無いか `declared: false` なら、採らない（[`detect.md`](detect.md)「操作中のエラーの比較」）。
+
 ## 新側の自己ノイズ測定（差分検出へ進む前のチェック）
 
 ノイズの基準値（`metadata.json.noise_baseline`）は、現側の 1 つの環境で測った値である。新側の target にそのまま使えるとは限らない（CDN やフォントの読み込みなどで、環境のノイズは変わる）。

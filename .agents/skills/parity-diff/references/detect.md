@@ -151,6 +151,44 @@ node <parity-suite の skill>/scripts/perf-stats.mjs compare \
   `diff-metadata.json` の `performance` に `{"judged": false, "reason": "<理由>"}` を書き、`diff.md` の未検証の領域に残す。
   `performance` が無いのは性能を測る手順より前に閉じた成果物で、判定に入れない（後方互換）が、測らなかった事実は残す。
 
+## 操作中のエラーの比較
+
+3 つの比較方法は画面に出た結果しか比べないので、新側だけで起きた JavaScript の例外やリクエストの失敗を拾わない。そこで、操作中のエラーを別に比べる。
+現側の基準（`metadata.json` の `runtime_errors`）は `parity-suite` が採り、署名の正規化と比べる規則の原本は `parity-suite` の `scripts/runtime-errors.mjs` である。
+新側の採取の手順は [`capture-new.md`](capture-new.md)「操作中のエラーの採取」にある。
+
+```bash
+node <parity-suite の skill>/scripts/runtime-errors.mjs compare \
+  --metadata .replace/parity/<slug>/metadata.json \
+  --target <target> \
+  --run .replace/parity/<slug>/new/<target>/runtime-errors/run-1 \
+  --run .replace/parity/<slug>/new/<target>/runtime-errors/run-2 \
+  --write .replace/parity/<slug>/new/<target>/diff-metadata.json
+```
+
+リポジトリのルートで実行する。`--write` は今回の実行の `diff-metadata.json` の `runtime_errors` だけを書き換える。手順 3 でこの実行の `diff-metadata.json` を書いた後に通す。
+結果は手で転記しない。`--target` は比べる新側の target で、記録の `target` と違えば exit 2 になる。
+
+- 比べる単位はテスト × 署名である。新側のどれかの回に出た署名のうち、同じテストの現側の基準に無いものを、差分（`new_signatures`）にする。
+  現側の N 回のうち 1 回でも出た署名は、新側で出ても差分にしない。逆に、新側の 1 回だけに出た署名も差分にし、出た回数を `seen_runs` に残す。
+  現側では別のテストに出ていた署名も、そのテストでは差分にする。
+- 差分は、[`triage.md`](triage.md)「操作中のエラーの分類」で 1 件ずつ分類する。分類は `diff-metadata.json` の `runtime_errors.new_signatures[]` に書き、このスクリプトを通し直す。
+  通し直すと、前の分類を同じテスト × 署名へ持ち越し、説明になっているかを判定し直す（`state` が `explained` / `actionable` / `unexplained`）。
+- 次のものは、記録が比べられる形になっていないので、合格にせず未収束にする。差し戻さずに、原因を取り除いて採り直す。
+  - `missing_tests`: 現側で実行したテストの記録が、新側のどれかの回に無い（fixture を使っていないスペック・宣言の時点でのスキップ・実行の範囲の違い）
+  - `extra_tests`: 現側の基準に無いテストがある（スイートを変えた後に基準を採り直していない。`parity-suite` の採取と `summarize --write` をやり直す）
+- `failed_tests`（新側で通らなかったテスト）も、合格にせず未収束にする。green の証跡と食い違うので、要対応と同じく `parity-replace` へ差し戻す。
+- 次のものは止めずに一覧に残し、`diff.md` の未検証の領域に転記する。
+  - `skipped_tests`: 新側でスキップしたテスト（同じページに載る未実装の機能の在席のチェックなど）。操作を終えていないので、スキップした回に出たイベントは比べず、そのテストのエラーは確かめていない
+  - `current_skipped_tests`: 現側でスキップしたテスト。基準が無いので、新側で出たエラーを比べない
+- 終了コードは、0 が合格、1 が説明の付いていない差分・要対応・記録の欠けが残る、2 が使い方の誤りか基準・記録の形の誤りである。
+  基準を作ったスクリプトのバージョン（`runtime_errors.tool_version`）が今のスクリプトと違うときも exit 2 になる。`parity-suite` で `summarize --write` を通し直して基準を作り直す。
+  1 は結果であって停止の合図ではない。`diff-metadata.json` の `runtime_errors` を読み、残りの手順（正規化・トリアージ・収束の判定）へ進む。
+- 操作中のエラーの差分は、画面の 3 つの比較方法の候補と別に数え、`diff-metadata.json` の `results` に足さない。収束の判定は `runtime_errors.ok` を別の条件として見る（二重に数えない）。
+  `metadata.json` に `runtime_errors` が無い成果物と、`declared: false` の成果物では、このスクリプトを呼ばない（exit 2 になる）。
+  `diff-metadata.json` の `runtime_errors` に `{"judged": false, "reason": "<理由>"}` を書き、`diff.md` の未検証の領域に残す。
+  `runtime_errors` が無いのは操作中のエラーを記録する手順より前に閉じた成果物で、判定に入れない（後方互換）が、確かめなかった事実は残す。
+
 ## 検出結果の受け渡し
 
 3 つの比較方法の出力（crop 対・特性の差分の JSON・aria の構造の差）を、[`normalize.md`](normalize.md) の正規化に渡す。この時点では、どれも「検出された候補」であって、分類はまだしていない。

@@ -1088,6 +1088,66 @@ if (capturing) {
   commit 済みの `floors`・`relative_floors` を消すときは、`floor_history` を残したまま、その項目を持たない要素（`{}` など）を 1 件追記する。
   追記しないと、`replace-strategy` の `append-only-check.mjs` が exit 1 にする。
 
+## 操作中のエラーのベースライン
+
+3 つの比較方法は、画面に出た結果しか比べない。
+新側で画面が同じに見えても、裏で JavaScript の例外やリクエストの失敗が起きていれば、どれにも表れず、差分 0 件で収束する。
+現行にも同じエラーが出ていることはあるので、0 件を基準にはできない。基準にするのは「現行から増えていないか」である。
+エラーは回によって出たり出なかったりするので、画素のノイズ基準値と同じく、スイートを繰り返し実行して基準を作る。
+
+- 採るもの: スイートのテストが操作している間に出た、次の 4 種類である。読み方は雛形の冒頭のコメントで定義する。
+  - `pageerror`（ページの中で捕まえていない例外）
+  - `console-error`（console の error）
+  - `requestfailed`（通信の失敗）
+  - `http-error`（4xx と 5xx の応答）
+
+  記録の単位はテストで、テストはそのテストが操作でたどった状態を表す。イベントごとに、起きたときのページの URL も残す。
+  リトライした試行で出たイベントも、同じテストの記録に足す。失敗した試行だけで出たエラーも基準と比べるためである。
+- 記録の fixture: 同梱の雛形 [`../assets/runtime-errors.fixture.template.ts`](../assets/runtime-errors.fixture.template.ts) を `<parity_suite_dir>/parity/lib/runtime-errors.ts` にコピーする。
+  コピー先のパスは `metadata.json` の `suite.runtime_errors` に書く。
+  スイートのテストの基（`test`）を `base.extend(runtimeErrorFixtures)` で拡張する。fixture は自動で起動するので、テストの本体は変えない。
+  スイートの全部のスペックが、拡張した基を使うようにする。基を使わないスペックの記録は作られず、`parity-diff` の比較で「記録が欠けたテスト」として止まる。
+- テストを side で飛ばすとき（同じページに載る未実装の機能の在席のチェックなど）は、テストの本体の中の `test.skip()` で飛ばす。
+  宣言の時点で飛ばす書き方（`test.skip(条件, ...)` を `describe` に書く、`test.fixme`）では fixture が動かず、記録が作られない。
+- 書き出すのは `PARITY_RUNTIME_CAPTURE=1` を渡した実行だけで、それ以外の実行（green の確認・強度チェック）は何もしない。
+  何回目かを `PARITY_RUNTIME_RUN` で渡し、2 回以上実行する。出力先は project 名で分ける。
+
+  | project | 出力先 |
+  |---|---|
+  | `current` | `.replace/parity/<slug>/runtime-errors/run-<回>/` |
+  | `new` | `.replace/parity/<slug>/new/<PARITY_NEW_TARGET>/runtime-errors/run-<回>/` |
+
+  ```bash
+  rm -rf .replace/parity/<slug>/runtime-errors
+  PARITY_RUNTIME_CAPTURE=1 PARITY_RUNTIME_RUN=1 PARITY_SLUG=<slug> npx playwright test <parity_suite_dir>/parity/ --project current
+  PARITY_RUNTIME_CAPTURE=1 PARITY_RUNTIME_RUN=2 PARITY_SLUG=<slug> npx playwright test <parity_suite_dir>/parity/ --project current
+  ```
+
+  採り直すときは、前の `runtime-errors/` を消してから実行する。消したテストの記録が残ると、`parity-diff` の比較が「基準に無いテスト」として止まる。
+  書き込み系のスペックを含むなら、スイートの 2 回続けての実行（「状態を変えるスイートは 2 回続けて緑にする」）と同じ後始末の規律に従う。
+- 採ったら、集計を通して `metadata.json` の `runtime_errors` に書かせる。手で転記しない。スクリプトはコピーせず、スキルの中から実行する。
+
+  ```bash
+  node <skill>/scripts/runtime-errors.mjs summarize \
+    --metadata .replace/parity/<slug>/metadata.json \
+    --run .replace/parity/<slug>/runtime-errors/run-1 \
+    --run .replace/parity/<slug>/runtime-errors/run-2 --write
+  ```
+
+  リポジトリのルートで実行し、`--run` はルートからの相対パスで渡す（絶対パスと `..` は exit 2）。
+  exit 1 は、現側で通らなかったテスト・一部の実行にしか記録が無いテスト・回によってスキップが変わるテストがあることを示す（スイートを直して採り直す）。
+  exit 2 は、実行が 1 回だけ・記録が 0 件の実行・記録の形の誤り（`side`・`slug`・`run`・種類の語彙・状態コードの範囲）などである。
+- 基準は、テストごとの署名の集合である。N 回のうち 1 回でも出た署名は基準に入り、出た回数を `seen_runs` に残す。
+  署名は、種類・ページの path・リクエストのメソッドと path・状態コード・本文を正規化して作る。
+  正規化では、オリジン・クエリ・フラグメントを捨て、数字の連なりを `<n>` にする。現側と新側でホストが違い、採番した id や行番号が実装ごとに違っても、同じエラーを同じ署名にするためである。
+  代わりに、path だけが同じで別のホストへのリクエストの失敗は、同じ署名として扱われる（見逃しうる）。規則の原本は [`../scripts/runtime-errors.mjs`](../scripts/runtime-errors.mjs) で、`parity-diff` が `compare` で使う。
+- テストが要求の横取り（`page.route` の abort や 500 の応答）でわざと起こした失敗も記録される。現側でも同じテストが同じ失敗を起こすので基準に入り、差分にはならない。
+- `runtime-errors/` の記録は、テキストの成果物として Git に入れる。`compare` は `metadata.json` の `runtime_errors` だけを基準に使い、保存された署名の id を欄から作り直して突き合わせる。
+  そのため、手で書き換えた署名は exit 2 になる。採り直したら `summarize` も通し直す。
+  `runtime-errors.mjs` のバージョン（`runtime_errors.tool_version`）が変わったときも、`compare` は基準を読まずに exit 2 になるので、`summarize --write` を通し直す。
+- feature モードでは、`runtime_errors` をキーごと省かない。記録できない事情（スイートを Playwright の fixture で拡張できないなど）があるときだけ `declared: false` と `reason` を書き、`gaps.md` にも同じ文言を残す。
+  閉じた機能に後から採るだけなら、特性化のやり直しではないので、`run.finished_at` と `run.procedure_revision` は書き換えない。
+
 ## 採取物の健全性
 
 採取物は工程の出力で、次の工程の入力でもある。

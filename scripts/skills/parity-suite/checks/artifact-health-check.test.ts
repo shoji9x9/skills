@@ -1795,3 +1795,24 @@ test("#473: current_excluded の下にあっても、共有ファイルの宣言
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
+
+test("suite.runtime_errors の記録の fixture もスイートの指紋に入る。null の宣言は指紋を変えない", () => {
+  const root = makeTempDir("parity-suite-fp-runtime-");
+  mkdirSync(join(root, "e2e/parity/order-list"), { recursive: true });
+  mkdirSync(join(root, "e2e/parity/lib"), { recursive: true });
+  writeFileSync(join(root, "e2e/parity/order-list/orders.spec.ts"), "test('orders', () => {});\n");
+  const fixture = join(root, "e2e/parity/lib/runtime-errors.ts");
+  writeFileSync(fixture, "export const runtimeErrorFixtures = { capture: true };\n");
+  const specsOnly = { specs: "e2e/parity/order-list" };
+  const withFixture = { ...specsOnly, runtime_errors: "e2e/parity/lib/runtime-errors.ts" };
+  const before = suiteFingerprint(withFixture, root).fingerprint;
+  expect(before).not.toBeNull();
+  // fixture の外（suite.specs の外）にあっても、中身を変えれば指紋が変わる
+  writeFileSync(fixture, "export const runtimeErrorFixtures = { capture: false };\n");
+  expect(suiteFingerprint(withFixture, root).fingerprint).not.toBe(before);
+  // declared: false の成果物（runtime_errors: null）は、キーが無いのと同じ指紋になる
+  expect(suiteFingerprint({ ...specsOnly, runtime_errors: null }, root).fingerprint).toBe(
+    suiteFingerprint(specsOnly, root).fingerprint,
+  );
+  rmSync(root, { recursive: true, force: true });
+});

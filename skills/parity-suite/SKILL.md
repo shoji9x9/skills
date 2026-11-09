@@ -90,6 +90,9 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
 - 3 つの比較方法が緑であることを、性能が保たれている根拠にしない。新側だけが遅い・読み込み中に揺れる回帰は、どの比較方法にも表れない。
   feature モードでは、性能（LCP・CLS・TBT 相当・TTFB）を同じ条件で繰り返し測った分布を `metadata.json` の `performance` に残し、キーごと省かない。
   単発の値は実行ごとにぶれるので、基準にしない（[`references/baseline.md`](references/baseline.md)「性能のベースラインとノイズ基準値」）
+- 3 つの比較方法が緑であることを、裏でエラーが起きていない根拠にしない。新側だけで JavaScript の例外やリクエストの失敗が起きても、画面が同じならどの比較方法にも表れない。
+  feature モードでは、スイートを操作中のエラーを記録する fixture で拡張し、現側で 2 回以上実行した記録から `metadata.json` の `runtime_errors` を書き、キーごと省かない。
+  0 件を基準にしない。現行にも出ていたエラーは基準に入れ、新側で増えたものだけを `parity-diff` が差分にする（[`references/baseline.md`](references/baseline.md)「操作中のエラーのベースライン」）
 - 強度の検証（故障注入）を省いて、「テストがあるから大丈夫」としない。テストがあること自体は、品質の証拠にならない
 - 強度を、手書きの assertion だけで判定しない。手書きの assertion・ベースライン・差分ツールの一式で判定する
 - 故障注入で緑になったことを、「スイートは強い」と宣言しない。
@@ -350,6 +353,9 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
   違反が 0 件なだけでは、検査が届いた証拠にならない。
   この検査は、commit したスイートが常に満たす条件である。工程の外で入った変更にも当たるように、プロジェクトの pre-commit と CI にも組み込む
   （起動の方法と、組み込める時期は [`checks.json`](checks.json)）
+- feature モードでは、スイートのテストの基（`test`）を、同梱の雛形 [`assets/runtime-errors.fixture.template.ts`](assets/runtime-errors.fixture.template.ts) から起こした fixture で拡張する。
+  コピー先は `<parity_suite_dir>/parity/lib/runtime-errors.ts` で、パスを `metadata.json` の `suite.runtime_errors` に書く。
+  side でテストを飛ばすときは、テストの本体の中の `test.skip()` で飛ばす（宣言の時点で飛ばすと記録が作られない。[`references/baseline.md`](references/baseline.md)「操作中のエラーのベースライン」）
 - 状態を変える工程（書き込み系のスペック・ファイルのアップロード・バッチの実行）は、すべてのモードで [`references/data-discipline.md`](references/data-discipline.md) の規律に従う。
   復元 → 一意のプレフィックスと後始末 → 後始末できないなら承認を得て「hermetic でない」と明示する、の順である
 - api-resource / batch モードは、画面の工程（ロケータマッピング・手書きの aria・状態遷移）を行わない（[`references/api-batch.md`](references/api-batch.md) の該当するモードに従う）
@@ -375,6 +381,15 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
   コマンドは `node <skill>/scripts/perf-stats.mjs summarize --metadata <metadata.json> --samples .replace/parity/<slug>/perf-samples.json --write` である。
   `metadata.json` の `capture_conditions.pages` と `viewports` を書いた後に通す
   （[`references/baseline.md`](references/baseline.md)「性能のベースラインとノイズ基準値」）
+- あわせて、操作中のエラーの基準を採る。スイートを `PARITY_RUNTIME_CAPTURE=1` と `PARITY_RUNTIME_RUN=<回>` を付けて `current` で 2 回以上実行し、テストごとの記録を書かせる。
+  続けて、集計を exit 0 まで通し、`runtime_errors` を書かせる（手で転記しない）。
+  手順は [`references/baseline.md`](references/baseline.md)「操作中のエラーのベースライン」で定義する。
+
+  ```bash
+  node <skill>/scripts/runtime-errors.mjs summarize --metadata <metadata.json> \
+    --run .replace/parity/<slug>/runtime-errors/run-1 --run .replace/parity/<slug>/runtime-errors/run-2 --write
+  ```
+
 - 撮影状態は、次のものから決める。導いた集合も棚卸しも、ふだんの状態の一覧を置き換えない。
   - 手順 5 で網羅表から導いた集合（`visual_state_coverage.rows` の `captured`）を基にする
   - 操作で開くコンテナを再帰的に数えた `capture_conditions.popup_inventory` のうち、撮るコンテナを足す
@@ -505,11 +520,12 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
 | 部品網羅表（feature モードだけ。操作と状態の有無だけを数え、見た目は見ていない） | `.replace/parity/<slug>/component-coverage.json` | `assets/component-coverage-template.json` |
 | 性能の採取値（feature モードだけ。ページ × ビューポート × 回の LCP・CLS・TBT 相当・TTFB） | `.replace/parity/<slug>/perf-samples.json` | 採取のスペックは [`assets/perf-capture.spec.template.ts`](assets/perf-capture.spec.template.ts) から起こす。集計は [`scripts/perf-stats.mjs`](scripts/perf-stats.mjs) |
 | 寸法の採取値（feature モードだけ。窓 × 論理名の矩形） | `.replace/parity/<slug>/dimension-samples.json` | 形式は [`scripts/dimension-fit.mjs`](scripts/dimension-fit.mjs) で定義する（手順は [`references/baseline.md`](references/baseline.md)） |
+| 操作中のエラーの記録（feature モードだけ。実行 × テストの pageerror・console の error・requestfailed・4xx と 5xx の応答） | `.replace/parity/<slug>/runtime-errors/run-<回>/` | 記録の fixture は [`assets/runtime-errors.fixture.template.ts`](assets/runtime-errors.fixture.template.ts) から起こす。集計は [`scripts/runtime-errors.mjs`](scripts/runtime-errors.mjs) |
 | 反応の網羅表（feature モードだけ。操作 → 反応・送る前の判定・送っている間の押し直し、表への書き込み、画面ごとの状態の表示） | `.replace/parity/<slug>/reactions.json` | `assets/reactions-template.json` |
 | 現行の弱点の追記（台帳に無い弱点に気づいたときだけ） | `.replace/weaknesses.md` へ、仕分けを空欄にした行を追記する（既存の内容を変えない。無ければテンプレートから作る） | 様式は `replace-strategy` の `assets/weaknesses-template.md` で定義する |
 | 依存の決定の記録（スイートに依存を足したときだけ） | `.replace/dependencies.md` へ追記する（既存の内容を変えない。無ければテンプレートから作る） | 様式は `replace-strategy` の `assets/dependencies-template.md` で定義する |
 
-- テキストの成果物（特性の JSON・aria・`metadata.json`・`strength.md`・`gaps.md`・`component-coverage.json`・`reactions.json`・`dimension-samples.json`・`perf-samples.json`）は Git に入れる。
+- テキストの成果物（特性の JSON・aria・`metadata.json`・`strength.md`・`gaps.md`・`component-coverage.json`・`reactions.json`・`dimension-samples.json`・`perf-samples.json`）は Git に入れる。操作中のエラーの記録（`runtime-errors/`）も Git に入れる。
   スクリーンショットなどの大きなバイナリは `artifacts` の設定に従い、デフォルトは `local`（commit しない）である
 - `metadata.json` の `run.procedure_revision` には、採取した時点の [`assets/procedure-revisions.json`](assets/procedure-revisions.json) の `revision` を整数で書く（コピーせず、スキルの中から読む）。
   確かめる軸を足した改訂より前の成果物を、`replace-strategy status` が「旧手順で閉じた機能」として挙げる材料になる。
@@ -541,6 +557,9 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
   `component_coverage.declared: true` なら部品網羅表も読み、撮る状態の使い回しを表をまたいで数えるので、`coverage-expand.mjs --write` の後に通す
 - [`scripts/perf-stats.mjs`](scripts/perf-stats.mjs) もコピーしない。このスキルは `summarize` で性能の基準を `metadata.json` に書く。
   `parity-diff` は、インストールしたこのスキルから同じスクリプトを `compare` で呼んで、新側を比べる
+- [`scripts/runtime-errors.mjs`](scripts/runtime-errors.mjs) もコピーしない。このスキルは `summarize` で操作中のエラーの基準を `metadata.json` に書く。
+  `parity-diff` は、インストールしたこのスキルから同じスクリプトを `compare` で呼んで、新側で増えたエラーを差分にする。
+  記録の fixture（[`assets/runtime-errors.fixture.template.ts`](assets/runtime-errors.fixture.template.ts)）は、スイートが import するので、プロジェクトへコピーして使う
 - [`scripts/dimension-fit.mjs`](scripts/dimension-fit.mjs) もコピーしない。このスキルは `fit` で式を `metadata.json` に書く。
   `parity-replace` は、インストールしたこのスキルから同じスクリプトを `check` で呼んで、新側を照合する
 - [`scripts/capture-scope-check.mjs`](scripts/capture-scope-check.mjs) もコピーしない。このスキルは手順 8 で撮る範囲の抜けを数える。
@@ -580,6 +599,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
   - 強度チェックで健全なことを確かめた差分ツール（ツール・しきい値）
   - ノイズの基準値
   - 性能の基準（`performance`）と、`current` / `new` の両方に含めた `perf/` の採取のスペック（`suite.perf`）。`parity-diff` が新側を同じスペックで採り、このスキルの `perf-stats.mjs compare` で比べる
+  - 操作中のエラーの基準（`runtime_errors`）と、スイートの基を拡張した記録の fixture（`suite.runtime_errors`）。`parity-diff` が新側で同じスイートを実行して記録し、このスキルの `runtime-errors.mjs compare` で比べる
   - 撮影条件。撮る範囲の実測 `capture_scope` を含み、このスキルの `capture-scope-check.mjs` で数え直す。
     スクロールバーの扱い `scrollbars`・表示の軸の値 `display_axes`・撮影に使ったブラウザ `browser` は、新側の採取でも同じにする
   - 部品網羅表。`metadata.json.component_coverage` が `declared: true` のときだけ、収束の判定に入る。

@@ -395,6 +395,14 @@
         "skills/golden-dataset/scripts/lib/markdown.mjs"
       ],
       "reason": "同梱した GFM のパーサで Markdown の表と見出しを読む helper（Issue #926）。2 つのスキルは同じ .replace/features.md を読むので、食い違うと片方のスキルだけが表を読んだり読まなかったりする"
+    },
+    {
+      "files": [
+        "skills/parity-suite/assets/perf-capture.spec.template.ts",
+        "skills/parity-suite/assets/runtime-errors.fixture.template.ts"
+      ],
+      "region": "output-file",
+      "reason": "記録の出力先の名前（slug・target）を 1 つのディレクトリ名に限る検査と、JSON を途中の状態で残さない書き込み。どちらの雛形も利用者のプロジェクトへ 1 ファイルだけコピーされ import できないので、同じ関数を持つ。片方だけを直すと、片方の雛形だけが .. を含む名前でリポジトリの外へ書く"
     }
   ]
 }

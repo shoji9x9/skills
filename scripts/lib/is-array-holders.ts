@@ -39,4 +39,5 @@ export const IS_ARRAY_HOLDERS = [
   "skills/parity-suite/scripts/trait-compare.mjs",
   "skills/parity-diff/assets/capture-new.spec.template.ts",
   "skills/parity-suite/assets/perf-capture.spec.template.ts",
+  "skills/parity-suite/assets/runtime-errors.fixture.template.ts",
 ];

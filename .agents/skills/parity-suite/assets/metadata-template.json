@@ -29,6 +29,7 @@
     "interactions": "<操作アダプタのパス>",
     "dimension": "<寸法の決まり方の測定スペックのパス（既定 <parity_suite_dir>/parity/<slug>/dimension/）。current / new の両プロジェクトに含め、PARITY_DIMENSION_CAPTURE=1 の実行でだけ書く（強度チェック等で上書きさせない）。current は .replace/parity/<slug>/dimension-samples.json、new は .replace/parity/<slug>/new/<PARITY_NEW_TARGET>/dimension-samples.json へ書く>",
     "perf": "<性能の採取スペックのパス（既定 <parity_suite_dir>/parity/<slug>/perf/perf.spec.ts。parity-suite の assets/perf-capture.spec.template.ts から起こす）。current / new の両プロジェクトに含め、PARITY_PERF_CAPTURE=1 の実行でだけ書く。current は .replace/parity/<slug>/perf-samples.json、new は .replace/parity/<slug>/new/<PARITY_NEW_TARGET>/perf-samples.json へ書く。performance.declared: false なら null>",
+    "runtime_errors": "<操作中のエラーを記録する fixture のパス（既定 <parity_suite_dir>/parity/lib/runtime-errors.ts。parity-suite の assets/runtime-errors.fixture.template.ts から起こす）。スイートのテストの基をこの fixture で拡張し、PARITY_RUNTIME_CAPTURE=1 の実行でだけ書く。current は .replace/parity/<slug>/runtime-errors/run-<回>/、new は .replace/parity/<slug>/new/<PARITY_NEW_TARGET>/runtime-errors/run-<回>/ へテストごとに書く。runtime_errors.declared: false なら null>",
     "tools": "<決定論的ツール（trait-capture / trait-compare / 応答ヘッダーを録画するなら header-normalize のコピー）のパス（パスを 1 つだけ書く。trait-capture・element-shot は隣の page/ の本体のコピーを import するので、コピー専用サブディレクトリをディレクトリで書く。ファイルのパスで書くと、page/ のコピーがスイートの指紋に入らないので、artifact-health-check はスイートの指紋を計算するときに判定できないとして失敗にする。バージョンは traits.tool・differ.* の側に書く）。コピー専用サブディレクトリ（既定 <parity_suite_dir>/parity/lib/tools/vendor/）に置き、プロジェクト自作ツールと同居させない>",
     "auth_roles": [
       "<特性化に使ったロール名（設定 targets[].auth.roles のキー。認証不要なら空配列）>"
@@ -62,11 +63,11 @@
         {
           "started_at": "<ISO 8601 の開始日時。連続する 2 回は別の日時にする（同じ値は 1 回の記録のコピーと区別が付かない）>",
           "result": "<green | red。連続する 2 回とも green であることを求める>",
-          "shared_fingerprint": "<specs を書いたときに書く。スペックが共通に読む土台（locator_map / expectations / interactions / tools と suite.specs の下のスペック以外）の指紋。artifact-health-check.mjs --fingerprint の出力から転記する>",
+          "shared_fingerprint": "<specs を書いたときに書く。スペックが共通に読む土台（locator_map / expectations / interactions / tools / runtime_errors と suite.specs の下のスペック以外）の指紋。artifact-health-check.mjs --fingerprint の出力から転記する>",
           "spec_fingerprints": {
             "<その回に回したスペックのパス>": "<そのスペックの指紋（sha256-nc:<16 進>）。specs を書いたときに書き、その回に回したスペックの分だけを --fingerprint の出力から転記する>"
           },
-          "suite_fingerprint": "<specs を書かないときに書く。その回に回したスイートの指紋（sha256-nc:<16 進>）。artifact-health-check.mjs が suite.specs / locator_map / expectations / interactions / tools の宣言パスから再計算して照合する（ディレクトリは再帰、パスはソート、各ファイルの sha256 を連結して sha256）。TypeScript（.ts .mts .cts）はコメントを除いた内容で数えるので、注記だけの書き換えでは取り直しにならない（文字列・テンプレート・正規表現の中身と、ツールへの指示コメント〈@ts-expect-error・///・/*! */・eslint- 等〉は除かない）。.js 系・.jsx / .tsx（JSX のテキストの // をコメントと区別できない）を含むそれ以外の拡張子は生バイト。旧方式の sha256: で記録済みの runs は旧方式（コメントも含めた生バイト）で照合する。手で計算せず artifact-health-check.mjs --fingerprint の出力から転記する。連続する 2 回で同じ値になり、かつ現在のスイートと一致することを求める。記録をスイートのバージョンに結びつけないと、2 回緑を記録した後にスペックや後始末を変えても古い記録で緑のまま通る。キーごと持たない旧成果物はこの軸を判定しない>"
+          "suite_fingerprint": "<specs を書かないときに書く。その回に回したスイートの指紋（sha256-nc:<16 進>）。artifact-health-check.mjs が suite.specs / locator_map / expectations / interactions / tools / runtime_errors の宣言パスから再計算して照合する（ディレクトリは再帰、パスはソート、各ファイルの sha256 を連結して sha256）。TypeScript（.ts .mts .cts）はコメントを除いた内容で数えるので、注記だけの書き換えでは取り直しにならない（文字列・テンプレート・正規表現の中身と、ツールへの指示コメント〈@ts-expect-error・///・/*! */・eslint- 等〉は除かない）。.js 系・.jsx / .tsx（JSX のテキストの // をコメントと区別できない）を含むそれ以外の拡張子は生バイト。旧方式の sha256: で記録済みの runs は旧方式（コメントも含めた生バイト）で照合する。手で計算せず artifact-health-check.mjs --fingerprint の出力から転記する。連続する 2 回で同じ値になり、かつ現在のスイートと一致することを求める。記録をスイートのバージョンに結びつけないと、2 回緑を記録した後にスペックや後始末を変えても古い記録で緑のまま通る。キーごと持たない旧成果物はこの軸を判定しない>"
         }
       ],
       "reason": "<state_mutating: false のときだけ、状態を変えないと判断した根拠。true では null>"
@@ -381,6 +382,36 @@
       "trait_diffs": 0
     }
   ],
+  "runtime_errors": {
+    "_note": "操作中に出たコンソールのエラーと失敗したリクエストの基準（feature モードではキーごと省かない）。declared: true の値は parity-suite の scripts/runtime-errors.mjs summarize --write が、現側でスイートを 2 回以上実行した記録から書く（手で転記しない）。基準はテストごとの署名の集合で、N 回のうち 1 回でも出た署名を含む（seen_runs は出た回数）。署名は種類・ページの path・リクエストのメソッドと path・状態コード・本文を正規化した文字列から作り、id は欄から作り直せる（parity-diff の compare は作り直して突き合わせ、違えば exit 2）。parity-diff は同じスクリプトの compare で新側を比べ、基準に無い署名を差分にする。キーごと無い成果物は parity-diff が判定せず未検証に残す（後方互換）。原本は parity-suite の references/baseline.md「操作中のエラーのベースライン」。",
+    "declared": "<true | false。false は記録できない事情があるときだけ（reason と gaps.md の同じ文言が要る）>",
+    "tool_version": "<runtime-errors.mjs の VERSION>",
+    "runs": "<現側の実行の回数（2 以上）>",
+    "run_dirs": [
+      "<集計した実行のディレクトリ（リポジトリのルートからの相対。.replace/parity/<slug>/runtime-errors/run-<回>）>"
+    ],
+    "tests": [
+      {
+        "test": "<テストの識別子（テストのディレクトリからのファイルのパス › describe › テスト名）>",
+        "skipped": "<現側でスキップしたテストなら true。true のテストは新側と比べない>"
+      }
+    ],
+    "signatures": [
+      {
+        "test": "<署名が出たテストの識別子>",
+        "id": "<署名の id（欄から作った sha256 の先頭 16 桁）>",
+        "kind": "<pageerror | console-error | requestfailed | http-error>",
+        "page": "<起きたときのページの path（正規化した値）>",
+        "method": "<リクエストのメソッド。リクエストでない種類は null>",
+        "url": "<リクエストの path（正規化した値）。リクエストでない種類は null>",
+        "status": "<http-error の状態コード。それ以外は null>",
+        "text": "<正規化した本文>",
+        "seen_runs": "<N 回のうち出た回数>",
+        "sample": "<最初に出たときの本文（正規化の前）>"
+      }
+    ],
+    "reason": "<declared: false のときの理由。declared: true では書かない>"
+  },
   "performance": {
     "_note": "性能のベースラインとノイズ基準値（feature モードではキーごと省かない）。declared: true の値は parity-suite の scripts/perf-stats.mjs summarize --write が書く（手で転記しない）。parity-diff は同じスクリプトの compare で新側を比べ、許容幅（四分位範囲・floors・現側の中央値 × relative_floors のいちばん大きいもの）を超えた悪化を要対応にする。floor_history は floors・relative_floors の変更の履歴で、summarize --write が、履歴が空か、最後の要素か書き換える前の floors・relative_floors と下限が違うときに 1 件追記する（floors・relative_floors・samples_sha256・measured_at）。--floor・--relative-floor を渡さなかった指標は、floor_history の最後の要素の値を declared に関わらず引き継ぐ（履歴が無ければ、declared: true のときだけ前の floors・relative_floors から引き継ぎ、それ以外はデフォルト）。履歴を追記せずに下限を変えた変更と、既存の要素の削除・書き換えは、replace-strategy の append-only-check.mjs が落とす。雛形の floor_history の 1 件は、雛形の floors・relative_floors（デフォルト）の記録である。雛形のまま performance を足しても append-only-check.mjs を通るように、表と記録を組みで置く（表を書き換えるなら、同じ値の要素を足すか summarize を通す）。キーごと無い成果物は parity-diff が判定せず未検証に残す（後方互換）。原本は parity-suite の references/baseline.md「性能のベースラインとノイズ基準値」。",
     "declared": "<true | false。false は性能を比べられない事情があるときだけ（reason と gaps.md の同じ文言が要る）>",

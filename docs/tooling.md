@@ -154,7 +154,7 @@ CI だけで実行する検査が 2 つある。
   保存したファイルは `pnpm exec oxfmt` で整形する。
   `pnpm run lint:fallow` が通る状態で作り直す。循環的複雑度と認知的複雑度の指摘が残っていると、その件数もベースラインに入る。
   `--complexity` を外すと、判定に使わないリファクタリングの候補（`target_keys`）もベースラインに入る。
-  ブラウザでだけ実行する関数（Playwright の spec の雛形 `skills/*/assets/*.spec.template.ts` と、eval の fixture をブラウザで作るジェネレータ）は、ユニットテストで実行できないので、ベースラインに載せたままにする
+  ブラウザでだけ実行する関数（Playwright の spec と fixture の雛形 `skills/*/assets/*.spec.template.ts`・`skills/*/assets/*.fixture.template.ts` と、eval の fixture をブラウザで作るジェネレータ）は、ユニットテストで実行できないので、ベースラインに載せたままにする
 - `Lint` ジョブの `Test weakening`（`fallow audit`）: PR が増やした、テストを弱める変更（`.skip`・`.only` の追加、テストのケースや assertion の減少、カバレッジの閾値の引き下げ）。PR のベースとの差分を見るので、PR でだけ実行する。
   意図して弱めるときは、理由を付けた `fallow-ignore-next-line weakened-tests` を書く
 

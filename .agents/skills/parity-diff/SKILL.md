@@ -10,6 +10,7 @@ name: parity-diff
 
 - 検出は決定論的なツールが行い、モデルは分類だけを行う。モデルに「差分があるか」を聞かない（探させない）。ツールが検出した差分について、「この差分は重要か」だけを聞く。
 - 見た目の 3 つの比較方法とは別に、初期表示の性能（LCP・CLS・TBT 相当・TTFB）を、`parity-suite` が採った分布とノイズの許容幅で比べる。許容幅を超えた悪化だけを要対応にする。
+- 同じく、スイートを操作している間に出たコンソールのエラーと失敗したリクエストを、`parity-suite` が採った現側の基準と比べる。現行に無かったものだけを差分にし、ほかの候補と同じく 3 値で分類する。
 - `parity-replace` は、スイートが見ている範囲（新側に対して green か）を扱う。
   このスキルは、スイートでは捉えられない差分（余白・色・フォント・角丸・行間・罫線などの見た目）を扱う。
 - 1 回の実行で扱うのは 1 機能で、ページ単位で処理する（部品の改修の一括再検証は除く）。
@@ -41,7 +42,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 
 | モード | 内容 |
 |---|---|
-| 機能（feature） | 画素・特性照合・aria の 3 つの比較方法で検出し、正規化 → トリアージ → 収束判定の順に進める。性能は別に比べる（[`references/detect.md`](references/detect.md)「性能の比較」） |
+| 機能（feature） | 画素・特性照合・aria の 3 つの比較方法で検出し、正規化 → トリアージ → 収束判定の順に進める。性能と操作中のエラーは別に比べる（[`references/detect.md`](references/detect.md)「性能の比較」「操作中のエラーの比較」） |
 | 横断 API（api-resource） | 画面の 3 つの比較方法は使わない。現行の応答（record/replay）を正として、新側の応答を構造で比べる（[`references/api-batch.md`](references/api-batch.md)） |
 | バッチ（batch） | 視覚の比較方法は使わない。現行のベースライン（DB の状態・生成ファイル）と新側の出力を、決定論的に構造とバイトで比べる（[`references/api-batch.md`](references/api-batch.md)） |
 
@@ -145,6 +146,8 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
   `blocked_by` は、マスクの外に残った差分だけに使う。
 - 性能の差を、単発の値やモデルの判断で決めない。新側を現側と同じ機械・同じブラウザ・同じ測り方で繰り返し測り、`parity-suite` の `scripts/perf-stats.mjs compare` で判定する。
   許容幅を超えた悪化は要対応にし、ばらつき・値の欠け・環境の違いで判定できない組は、合格にせず採り直す（[`references/detect.md`](references/detect.md)「性能の比較」）。
+- 操作中のエラーの差を、0 件かどうかやモデルの判断で決めない。新側でスイートを 2 回以上実行して記録し、`parity-suite` の `scripts/runtime-errors.mjs compare` で、現行に無かったエラーだけを差分にする。
+  差分は 1 件ずつ 3 値で分類し、分類を書いた後に通し直した `compare` が exit 0 になるまで収束させない（[`references/detect.md`](references/detect.md)「操作中のエラーの比較」）。
 - 生の差分ゼロを収束の条件にしない。収束は、未説明の差分がゼロで、かつ未修正の回帰がゼロのことである。
 - 名前の付かない要素の見た目の差を、「computed style で保証済み」として扱わない（特性照合は名前付きの要素しか見ない。名前の無い要素は画素の検出が担う）。
 - セル・行・フィールドに論理名を付けて、テーブルやフォームを比べない（内容が同じかは aria の検出が担う）。
@@ -218,17 +221,20 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
    行き来のループでは、前回の実行の測定値を組ごとに再利用してよい（失効の条件は同じ reference にある）。
    古い成果物をユーザーの承認による例外として続けた場合は対比せず、自己ノイズが 0 でない組を未検証にする。
    現側の `metadata.json` が `performance.declared: true` なら、`perf/` のスペックを `new` で実行して新側の性能も採る（同じ reference の「性能の採取」）。
+   現側の `metadata.json` が `runtime_errors.declared: true` なら、スイートを `new` で 2 回以上実行して、操作中のエラーも記録する（同じ reference の「操作中のエラーの採取」）。
    既存の新側のベースラインから再開する場合も、差分を検出する前に、同じ reference の「共同居住機能の実行時マスク」を必ず通す。
    ページの一覧と、同じ target の green 証跡から有効な集合を導き直し、現側に由来する `bbox` を両方の画像に当てる。新側に root が無いことを、停止の理由や `blocked_by` の根拠にしない。
    当てた詳細は `diff-metadata.json.capture_conditions_verified.cofeature_masks[]` に記録して報告する。恒久的なマスクの検証の結果である既存の `.masks` には混ぜない。
 4. 決定論的に差分を検出する（[`references/detect.md`](references/detect.md)）。画素・特性照合・aria の 3 つの比較方法で検出し、LLM は使わない。
    性能は、インストール済みの `parity-suite` の `scripts/perf-stats.mjs compare --target <target> --write <diff-metadata.json>` で比べる。許容幅を超えた悪化（`regressed`）は、トリアージを通さず要対応にする。
+   操作中のエラーは、インストール済みの `parity-suite` の `scripts/runtime-errors.mjs compare --target <target> --run <新側の実行> --write <diff-metadata.json>` で比べる。現行に無かった署名（`new_signatures`）は、手順 6 のトリアージに回す。
 5. 正規化とノイズフィルタ（[`references/normalize.md`](references/normalize.md)）。
    `intentional_diffs` → `component_diffs`（T）→ インスタンス例外 → ノイズ基準値（残りへまとめて当てる）の順に当てる。宣言できない構造の差（`gaps.md`）は、未検証として転記する。
 6. LLM でトリアージする（[`references/triage.md`](references/triage.md)）。正規化の後に残った候補だけを、1 件ずつ crop の対で見せる。
    モデルに聞くのは、要対応／許容／環境ノイズの 3 値である。どれとも判断できない候補は、未説明のまま残す（`diff.md` の分類の欄には未説明も並ぶ）。
    「許容」はユーザーの承認で確定し、承認は原因の単位で行う（同じ原因の N インスタンスを 1 回で確定する。代表のインスタンスの判断の材料と件数 N を UI に載せる）。
    テキストの幅や字形の差は、分類の前にフォントの差を切り分ける（バージョンの差かヒンティングの差か。[`references/font-diff.md`](references/font-diff.md)）。
+   操作中のエラーの差分は、crop 対の代わりに署名と最初に出た本文を見せて分類し、分類を `diff-metadata.json` の `runtime_errors.new_signatures[]` に書いて `compare` を通し直す（[`references/triage.md`](references/triage.md)「操作中のエラーの分類」）。
 7. 収束を判定し、差し戻す（[`references/convergence.md`](references/convergence.md)）。判定するのは差分ツールである。状態は 4 つある（収束／他機能待ち／判断待ち／未収束）。
    収束の条件に入れるものと、数え直しに使うスクリプトは次のとおりである。
    - 部品網羅表の未測定。現側の `metadata.json.component_coverage` が `declared: true` のとき、[`scripts/coverage-check.mjs`](scripts/coverage-check.mjs) で数え直す（目視で数えない。判定しなかった場合は、理由を記録して未検証に残す）。
@@ -242,6 +248,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
      インストール済みの `parity-suite` の `scripts/artifact-health-check.mjs --target <target> --stage diff` で数え直す。
      このチェックは、`diff-metadata.json` に結果を書いた後に通す。工程の節は、自分が書く成果物があるかを見るからである。`--stage suite` を渡すと、未測定の `blocking` を通してしまう。
    - 性能の比較（現側の `metadata.json.performance.declared` が `true` のとき）。`perf-stats.mjs compare` が exit 0 であること。回帰は差し戻し、判定できない組は採り直す。
+   - 操作中のエラーの比較（現側の `metadata.json.runtime_errors.declared` が `true` のとき）。分類を書いた後に通し直した `runtime-errors.mjs compare` が exit 0 であること。要対応と新側で通らなかったテストは差し戻し、記録の欠けは採り直す。
    - 追記専用の成果物が縮んでいないこと。インストール済みの `replace-strategy` の `scripts/append-only-check.mjs` で数え直す（結果は `diff-metadata.json` の `artifact_health` / `append_only` に残す）。
 
    `converged: true` にしたら、`parity-replace` が `later`（`owner` がこのスキル）で残した受け入れ条件の行を再取得するよう、報告に書く。
@@ -263,6 +270,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 | メタデータ | `.replace/parity/<slug>/new/<target>/diff-metadata.json` | [`assets/diff-metadata-template.json`](assets/diff-metadata-template.json) |
 | 新側のベースライン | `.replace/parity/<slug>/new/<target>/baseline-new/`（現側の `baseline/` と対称のレイアウト） | — |
 | 新側の性能の採取値（現側が `performance.declared: true` のときだけ） | `.replace/parity/<slug>/new/<target>/perf-samples.json`（Git に入れる。比べた結果は `diff-metadata.json` の `performance`） | 採取のスペックは `parity-suite` が置いた `perf/`（`metadata.json` の `suite.perf`） |
+| 新側の操作中のエラーの記録（現側が `runtime_errors.declared: true` のときだけ） | `.replace/parity/<slug>/new/<target>/runtime-errors/run-<回>/`（Git に入れる。比べた結果と分類は `diff-metadata.json` の `runtime_errors`） | 記録の fixture は `parity-suite` がスイートの基に組み込んだもの（`metadata.json` の `suite.runtime_errors`） |
 | 新側の採取スペック | `metadata.json.suite.new_only` の場所（デフォルトは `<parity_suite_dir>/parity/<slug>/new-only/`。既にあれば上書きしない） | [`assets/capture-new.spec.template.ts`](assets/capture-new.spec.template.ts) |
 | インスタンス例外のレジストリ | `.replace/parity/<slug>/component-diff-exceptions.json` に、既存の内容を消さずに追記する（無ければテンプレートから作る）。ユーザーが承認したものだけを書き、設定ファイルには置かない | [`assets/component-diff-exceptions-template.json`](assets/component-diff-exceptions-template.json)（スキーマ: [`references/normalize.md`](references/normalize.md)） |
 | 承認済みの例外の根拠 | `.replace/parity/<slug>/component-diff-exceptions.md` に、既存の内容を消さずに追記する（無ければテンプレートから作る）。`component_diff_exception_causes[].evidence` が指す先で、`gaps.md` には書かない | [`assets/component-diff-exceptions-template.md`](assets/component-diff-exceptions-template.md) |
@@ -280,6 +288,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
   対象は [`scripts/pixel-crops.mjs`](scripts/pixel-crops.mjs)・[`scripts/diff-normalize.mjs`](scripts/diff-normalize.mjs)・[`scripts/json-normalize-diff.mjs`](scripts/json-normalize-diff.mjs)・
   [`scripts/coverage-check.mjs`](scripts/coverage-check.mjs)・[`scripts/pending-triage-check.mjs`](scripts/pending-triage-check.mjs)・[`scripts/amend-verify.mjs`](scripts/amend-verify.mjs) である。
   性能の比較は、インストール済みの `parity-suite` の `scripts/perf-stats.mjs` を `compare` で呼ぶ（コピーしない）。
+  操作中のエラーの比較は、インストール済みの `parity-suite` の `scripts/runtime-errors.mjs` を `compare` で呼ぶ（コピーしない）。
   特性照合と応答ヘッダーの正規化は、`parity-suite` で確定した取り決めに従い、プロジェクトの側のコピー（`trait-capture.mjs`・`trait-compare.mjs`・`header-normalize.mjs`）を使う。
   `trait-capture.mjs` は、隣の `page/trait-capture.page.mjs` のコピーと一緒に使う（コピーの手順の原本は `parity-suite` の `references/baseline.md`）。
 
@@ -289,6 +298,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
   このスキルの直前は、同じ target で新側を green にした `parity-replace` である（このスキルと行き来する）。
 - `parity-suite` から受け取るものは次のとおりで、すべて `.replace/parity/<slug>/metadata.json` を通して受け取る。
   - 強度のチェックで健全なことを確かめた差分ツール（画素・特性照合・aria の 3 つの比較方法のツールとしきい値）、ノイズ基準値、撮影条件（ページの一覧とマスクの論理名を含む）
+  - 操作中のエラーの基準（`runtime_errors`）と、スイートの基に組み込んだ記録の fixture（`suite.runtime_errors`）
   - 部品網羅表。`component_coverage.declared: true` のとき `.replace/parity/<slug>/component-coverage.json` を読む。
     未測定が残れば、収束させずに `parity-suite` へ戻す（様式と網羅プロファイルは `parity-suite` で定義する）
   - 反応の網羅表。`reaction_coverage.declared: true` のとき `parity-suite` の `reaction-check.mjs --tests <テスト一覧> --recorded` で判定する。
