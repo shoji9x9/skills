@@ -42,20 +42,21 @@ jobs:
         id: version
         env:
           GITHUB_TOKEN: ${{ github.token }}
+        # version は semantic-release の戻り値（nextRelease.version）から取る。ログには commit の message が
+        # そのまま出るので、ログを grep すると commit の message が tag を決められる（scripts/tools/next-release-version.ts）。
+        # exit 1 はリリースする変更が無いことを表し、next を空にする。それ以外の 0 でない終了は失敗にする。
         run: |
           set -euo pipefail
-          out="$(pnpm exec semantic-release --dry-run 2>&1)" || {
-            echo "$out"
-            echo "semantic-release failed" >&2
+          rc=0
+          next="$(node scripts/tools/next-release-version.ts)" || rc=$?
+          case "$rc" in
+          0) ;;
+          1) next="" ;;
+          *)
+            echo "next-release-version failed (exit $rc)" >&2
             exit 1
-          }
-          echo "$out"
-          # 初回リリースは "...the next release version is X.Y.Z"（小文字 the）と
-          # 出力されるため case-insensitive (-i) で照合する。大文字固定にしないこと。
-          # 同じ文言が複数回出ても output が複数行にならないよう head -n1 で1行に絞る。
-          next="$(printf '%s\n' "$out" \
-            | grep -oiP 'next release version is \K[0-9]+\.[0-9]+\.[0-9]+' \
-            | head -n1 || true)"
+            ;;
+          esac
           echo "next=$next" >>"$GITHUB_OUTPUT"
       - name: Publish skills
         # workflow_dispatch は任意ブランチから起動できるため、publish は main 限定にする。

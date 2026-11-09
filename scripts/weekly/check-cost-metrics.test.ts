@@ -413,11 +413,13 @@ describe("修正の PR", () => {
 });
 
 describe("ジョブの所要時間", () => {
-  const run = (id: number, daysAgo: number) => ({
+  const run = (id: number, daysAgo: number, head = "o/r") => ({
     id,
     name: "CI",
     event: "pull_request",
     created_at: iso(daysAgo),
+    head_repository: { full_name: head },
+    repository: { full_name: "o/r" },
   });
   const job = (name: string, secondsTaken: number, conclusion = "success") => ({
     name,
@@ -536,6 +538,35 @@ describe("ジョブの所要時間", () => {
         previous: { runs: 3, median: 100, max: 100 },
       },
     ]);
+  });
+
+  test("fork の PR の run は、ジョブを取得せずに数えない", async () => {
+    // fork の run（id 9）のジョブは apiRun に用意していないので、取得すると例外になる。
+    const runs = [run(1, 1), run(9, 1, "someone/r"), run(4, 8)];
+    const rows = await jobRows(
+      apiRun(
+        { total_count: runs.length, workflow_runs: runs },
+        {
+          "1": [job("Lint", 200)],
+          "4": [job("Lint", 100)],
+        },
+      ),
+      durations,
+      NOW,
+    );
+    expect(rows.map((r) => r.key)).toEqual(["CI / Lint（pull_request）"]);
+    expect(rows[0]?.current.runs).toBe(1);
+  });
+
+  test.each([
+    ["head_repository が無い", { head_repository: undefined }, "head_repository.full_name"],
+    ["repository の full_name が空", { repository: { full_name: "" } }, "repository.full_name"],
+    ["head_repository が null", { head_repository: null }, "head_repository.full_name"],
+  ])("run の %s ときは、fork かを決められないので例外にする", async (_name, patch, message) => {
+    const runs = [{ ...run(1, 1), ...patch }];
+    await expect(
+      jobRows(apiRun({ total_count: 1, workflow_runs: runs }, { "1": [] }), durations, NOW),
+    ).rejects.toThrow(message);
   });
 
   test.each([
