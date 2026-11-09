@@ -24,6 +24,7 @@
     "scripts/skills/kaizen/kaizen-precommit-gate.mutations.json": 16.6,
     "scripts/skills/kaizen/kaizen-config.mutations.json": 0.9,
     "scripts/skills/kaizen/kaizen-context-inject.mutations.json": 2,
+    "scripts/skills/kaizen/kaizen-forget.mutations.json": 3.9,
     "scripts/skills/kaizen/kaizen-candidate-scan.mutations.json": 2.5,
     "scripts/skills/kaizen/schedule/tracking-issue-title.mutations.json": 1.9,
     "scripts/skills/parity-component/behavior-compare.mutations.json": 0.9,

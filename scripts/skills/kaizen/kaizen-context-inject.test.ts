@@ -473,3 +473,52 @@ describe("注入する件数の上限", () => {
     expect(stdout).toContain("ほか 2 件（low 1 件・不明 1 件）");
   });
 });
+
+// 既存の規約や指示と食い違い、利用者がどちらを残すかを決めていない学び（## 食い違い の 判断 が 判断待ち）は、
+// 要約をそのまま出すと従う対象に見えるので、印を付けて出す（Issue #930。references/extract.md「食い違いの確認」）。
+describe("食い違いの判断待ち", () => {
+  const MARK = "判断待ち（既存の規約や指示と食い違う。利用者が決めるまで、この提案に従わない）: ";
+  const conflict = (judgement: string) =>
+    `## 食い違い\n\n- 相手: AGENTS.md「依存の管理」\n- 内容: 範囲で足すか、固定するか\n- 判断: ${judgement}\n\n`;
+
+  function summaryWithBody(body: string) {
+    const dir = createRepo("依存は範囲で足す。");
+    const note = join(dir, ".kaizen", "2026-09-01-note.md");
+    writeFileSync(note, readFileSync(note, "utf8").replace("## 提案", `${body}## 提案`));
+    return summaryOf(inject(dir));
+  }
+
+  test.each([
+    ["判断待ち", conflict("判断待ち")],
+    ["引用符で囲んだ判断待ち", conflict("`判断待ち`")],
+    ["行末に空白と CR がある", conflict("判断待ち  \r")],
+    [
+      "相手が複数あり、2 つ目の組だけが判断待ち",
+      "## 食い違い\n\n- 相手: なし\n- 判断: なし\n- 相手: .kaizen/other.md\n- 判断: 判断待ち\n\n",
+    ],
+  ])("印を付ける: %s", (_name, body) => {
+    expect(summaryWithBody(body)).toBe(`${MARK}依存は範囲で足す。`);
+  });
+
+  test.each([
+    ["節が無い", ""],
+    ["判断が なし", conflict("なし")],
+    ["判断を利用者が決めた（新しい学び）", conflict("新しい学び")],
+    ["判断待ちの行が別の節にある", "## 根拠\n\n- 判断: 判断待ち\n\n"],
+    ["見出しが前方一致するだけの別の節", "## 食い違いの経緯\n\n- 判断: 判断待ち\n\n"],
+    ["判断待ちを前方に含む別の値", conflict("判断待ちだったが、新しい学びに決めた")],
+    ["コードフェンスの中にある", `\`\`\`markdown\n${conflict("判断待ち")}\`\`\`\n\n`],
+  ])("印を付けない: %s", (_name, body) => {
+    expect(summaryWithBody(body)).toBe("依存は範囲で足す。");
+  });
+
+  test("長い要約を切り詰めても、印は欠けない", () => {
+    const dir = createRepo("あ".repeat(200));
+    const note = join(dir, ".kaizen", "2026-09-01-note.md");
+    writeFileSync(
+      note,
+      readFileSync(note, "utf8").replace("## 提案", `${conflict("判断待ち")}## 提案`),
+    );
+    expect(summaryOf(inject(dir))).toBe(`${MARK}${"あ".repeat(119)}…`);
+  });
+});

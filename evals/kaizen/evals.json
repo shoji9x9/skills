@@ -594,6 +594,84 @@
           "prompt_quote": "バンドルされた lifecycle 検査を実行して終了コードを示して。"
         }
       ]
+    },
+    {
+      "id": 30,
+      "fixture": "fixtures/conflicting-learnings",
+      "prompt": "このセッションで起きた 2 つの失敗を、kaizen の学びとして fixture の .kaizen に記録して。学びを記録すること自体は承認済みで、確認せずに書き込んでよい。利用者はこの後は不在で、質問には答えられない。1 つ目: `pnpm audit` が `undici` の脆弱性を報告した。修正は patch のバージョンで出ていたが、`package.json` がバージョンを固定していたので `pnpm update` で上がらず、手で書き換えた。固定していなければ `pnpm update` だけで済んだので、依存は `^` の範囲で足すべきだと考えている。2 つ目: Hook のスクリプトで `date -d '1 day ago'` を使い、macOS の CI ジョブで失敗した。BSD の date は `-d` を相対の日時として読まない。どちらも初めて起きた失敗である。学びごとに、提案と、既存の規約や学びとの関係をどう扱ったかを説明して。最後に、バンドルされた lifecycle 検査を実行して終了コードを示して。",
+      "assertions": [
+        "1 つ目の学びのファイルに ## 食い違い の節があり、相手を AGENTS.md の依存の管理（`--save-exact` でバージョンを固定する規約）にしている",
+        "1 つ目の学びのファイルの ## 食い違い で、判断を 判断待ち にしている（新しい学び・既存のもの・条件で分ける のどれかを自分で選んでいない）",
+        "1 つ目の学びのファイルの status が pending である",
+        "AGENTS.md の、`--save-exact` でバージョンを固定して足す規約が書き換えられておらず、`^` の範囲で足す規約も足されていない",
+        "2 つ目の学びのファイルに ## 食い違い の節があり、相手を なし、判断を なし にしている",
+        "バンドルされた kaizen-status-check.sh を実行し、exit 0 を示している"
+      ],
+      "reachability": [
+        {
+          "assertion": "1 つ目の学びのファイルに ## 食い違い の節があり、相手を AGENTS.md の依存の管理（`--save-exact` でバージョンを固定する規約）にしている",
+          "prompt_quote": "学びごとに、提案と、既存の規約や学びとの関係をどう扱ったかを説明して。"
+        },
+        {
+          "assertion": "1 つ目の学びのファイルの ## 食い違い で、判断を 判断待ち にしている（新しい学び・既存のもの・条件で分ける のどれかを自分で選んでいない）",
+          "prompt_quote": "利用者はこの後は不在で、質問には答えられない。"
+        },
+        {
+          "assertion": "1 つ目の学びのファイルの status が pending である",
+          "prompt_quote": "kaizen の学びとして fixture の .kaizen に記録して。"
+        },
+        {
+          "assertion": "AGENTS.md の、`--save-exact` でバージョンを固定して足す規約が書き換えられておらず、`^` の範囲で足す規約も足されていない",
+          "prompt_quote": "学びごとに、提案と、既存の規約や学びとの関係をどう扱ったかを説明して。"
+        },
+        {
+          "assertion": "2 つ目の学びのファイルに ## 食い違い の節があり、相手を なし、判断を なし にしている",
+          "prompt_quote": "学びごとに、提案と、既存の規約や学びとの関係をどう扱ったかを説明して。"
+        },
+        {
+          "assertion": "バンドルされた kaizen-status-check.sh を実行し、exit 0 を示している",
+          "prompt_quote": "バンドルされた lifecycle 検査を実行して終了コードを示して。"
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "fixture": "fixtures/apply-conflicting-learnings",
+      "prompt": "fixture の .kaizen にある pending の学びを、kaizen の apply で適用して。グループは 1 ファイルに 1 つで、どのグループも適用することと、適用先をこのプロジェクトの AGENTS.md にすることは承認済みなので、確認せずに書き込んでよい。利用者はこの後は不在で、質問には答えられない。学びごとに、適用したかと、その理由を説明して。最後に、バンドルされた lifecycle 検査を実行して終了コードを示して。",
+      "assertions": [
+        "AGENTS.md の、`--save-exact` でバージョンを固定して足す規約が書き換えられておらず、`^` の範囲で足す規約も足されていない",
+        "2026-10-05-exact-pin-blocks-patch.md の status が pending のままで、applied にも rejected にもなっていない",
+        "2026-10-05-exact-pin-blocks-patch.md に ## 食い違い の節があり、相手を AGENTS.md の依存の管理にし、判断を 判断待ち にしている",
+        "AGENTS.md に、一時ファイルを mktemp で作り trap で消す規約を足している",
+        "2026-10-06-tmpfile-left-behind.md の status が applied で、applied-to に AGENTS.md を書いている",
+        "バンドルされた kaizen-status-check.sh を実行し、exit 0 を示している"
+      ],
+      "reachability": [
+        {
+          "assertion": "AGENTS.md の、`--save-exact` でバージョンを固定して足す規約が書き換えられておらず、`^` の範囲で足す規約も足されていない",
+          "prompt_quote": "pending の学びを、kaizen の apply で適用して。"
+        },
+        {
+          "assertion": "2026-10-05-exact-pin-blocks-patch.md の status が pending のままで、applied にも rejected にもなっていない",
+          "prompt_quote": "学びごとに、適用したかと、その理由を説明して。"
+        },
+        {
+          "assertion": "2026-10-05-exact-pin-blocks-patch.md に ## 食い違い の節があり、相手を AGENTS.md の依存の管理にし、判断を 判断待ち にしている",
+          "prompt_quote": "利用者はこの後は不在で、質問には答えられない。"
+        },
+        {
+          "assertion": "AGENTS.md に、一時ファイルを mktemp で作り trap で消す規約を足している",
+          "prompt_quote": "pending の学びを、kaizen の apply で適用して。"
+        },
+        {
+          "assertion": "2026-10-06-tmpfile-left-behind.md の status が applied で、applied-to に AGENTS.md を書いている",
+          "prompt_quote": "学びごとに、適用したかと、その理由を説明して。"
+        },
+        {
+          "assertion": "バンドルされた kaizen-status-check.sh を実行し、exit 0 を示している",
+          "prompt_quote": "バンドルされた lifecycle 検査を実行して終了コードを示して。"
+        }
+      ]
     }
   ]
 }

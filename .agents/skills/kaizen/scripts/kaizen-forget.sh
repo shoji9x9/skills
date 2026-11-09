@@ -20,6 +20,7 @@
 #   - `priority` が閾値以下（デフォルトは medium まで）。KEDB 照合で再発が見つかったノートは、
 #     `references/extract.md` の取り決めで優先度が上がる。low のままなら「再発していない」根拠になる。
 #   - `date` から閾値の日数以上が過ぎている（日付を読めないノートは対象外で、忘れない）
+#   - `## 食い違い` の `判断` が `判断待ち` でない（利用者が決めるまで忘れない）
 #
 # 設定は kaizen の設定ファイル（`.config/skills/shoji9x9/kaizen.jsonc`。references/config-files.md）に書く。
 #   forget_auto: true|false              --auto の有効・無効（デフォルトは true）。
@@ -119,6 +120,10 @@ is_candidate() { # $1: ノート
 	note_days=$(kaizen_days_from_date "${date_value}") || return 1
 	age=$((today_days - note_days))
 	[ "${age}" -ge "${forget_after_days}" ] || return 1
+	# 食い違いの判断待ちは、利用者がどちらを残すかを決めるまで残す。忘れると apply にも定期レポートにも出なくなる。
+	if kaizen_has_pending_decision "${note}"; then
+		return 1
+	fi
 	return 0
 }
 

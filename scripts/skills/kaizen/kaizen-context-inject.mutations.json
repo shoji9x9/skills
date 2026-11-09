@@ -1,6 +1,6 @@
 {
   "$comment": [
-    "kaizen-context-inject.test.ts のうち、Copilot が .claude/settings.json の登録として呼んだときだけ何もせずに終えること（Issue #858）を守るテストの検出能力を示す変異の一覧。",
+    "kaizen-context-inject.test.ts のうち、Copilot が .claude/settings.json の登録として呼んだときだけ何もせずに終えること（Issue #858）と、食い違いの判断待ちの学びに印を付けること（Issue #930）を守るテストの検出能力を示す変異の一覧。",
     "各変異は、置換が当たったことと、expect_failing のテストだけが落ちたことの両方で判定する（scripts/mutation/check-mutation-proof.ts）。"
   ],
   "test_file": "scripts/skills/kaizen/kaizen-context-inject.test.ts",
@@ -15,6 +15,30 @@
       "expect_failing": [
         "Copilot が呼んだとき .github/hooks の登録（camelCase。hook_event_name が無い） なら、マーカーを消して学びを出す"
       ]
+    },
+    {
+      "id": "INJECT-PENDING-DECISION-NEVER-MARKED",
+      "why": "食い違いの判断待ちを見つけない（既存の規約と反対の提案が、印の無いまま従う対象として注入される。注入は exit 0 のままなので、出力を読むまで気付けない）",
+      "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
+      "find": "\t\tin_sec && $0 ~ /^- 判断: *`?判断待ち`? *$/ { found = 1; exit }",
+      "replace": "\t\t0 && in_sec && $0 ~ /^- 判断: *`?判断待ち`? *$/ { found = 1; exit }",
+      "occurrences": 1,
+      "expect_failing": [
+        "食い違いの判断待ち 印を付ける: 判断待ち",
+        "食い違いの判断待ち 印を付ける: 引用符で囲んだ判断待ち",
+        "食い違いの判断待ち 印を付ける: 行末に空白と CR がある",
+        "食い違いの判断待ち 印を付ける: 相手が複数あり、2 つ目の組だけが判断待ち",
+        "食い違いの判断待ち 長い要約を切り詰めても、印は欠けない"
+      ]
+    },
+    {
+      "id": "INJECT-PENDING-DECISION-READS-FENCE",
+      "why": "コードフェンスの中の行を読む（提案に学びのフォーマットの例を載せた学びが、判断待ちの印付きで注入され、従う対象から外れる）",
+      "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
+      "find": "\t\tfence { next }",
+      "replace": "\t\t0 && fence { next }",
+      "occurrences": 1,
+      "expect_failing": ["食い違いの判断待ち 印を付けない: コードフェンスの中にある"]
     }
   ]
 }
