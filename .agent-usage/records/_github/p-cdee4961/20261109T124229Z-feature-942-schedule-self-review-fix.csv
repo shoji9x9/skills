@@ -13,3 +13,4 @@ ci:42612148137:1,ci,2026-11-09T12:42:29.369Z,p-cdee4961,github-actions,,,,2026-1
 ci:42612148163:1,ci,2026-11-09T12:42:29.369Z,p-cdee4961,github-actions,,,,2026-11-09T11:50:13.000Z,2026-11-09T11:55:05.000Z,Asia/Tokyo,feature/942-auto-fix-pr-from-weekly-review,942,,,,,,,,,,CI;pull_request;success,
 ci:42612148081:1,ci,2026-11-09T12:42:29.369Z,p-cdee4961,github-actions,,,,2026-11-09T11:50:13.000Z,2026-11-09T11:51:40.000Z,Asia/Tokyo,feature/942-auto-fix-pr-from-weekly-review,942,,,,,,,,,,CodeQL;pull_request;success,
 coverage:github:2026-11-08T11:49:35.367Z:2026-11-09T12:42:29.369Z,coverage,2026-11-09T12:42:29.369Z,p-cdee4961,,,,,2026-11-08T11:49:35.367Z,2026-11-09T12:42:29.369Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-08T12:42:29.369Z:2026-11-09T12:45:57.961Z,coverage,2026-11-09T12:45:57.961Z,p-cdee4961,,,,,2026-11-08T12:42:29.369Z,2026-11-09T12:45:57.961Z,Asia/Tokyo,,,,,,,,,,,,ok,

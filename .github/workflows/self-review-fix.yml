@@ -54,15 +54,24 @@ jobs:
         id: pause
         env:
           SELF_REVIEW_FIX_SKIP: ${{ vars.SELF_REVIEW_FIX_SKIP }}
+          SELF_REVIEW_SKIP: ${{ vars.SELF_REVIEW_SKIP }}
         run: |
+          is_on() {
+            case "$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')" in
+              on | true | yes | 1) return 0 ;;
+            esac
+            return 1
+          }
           skip=false
-          case "$(printf '%s' "${SELF_REVIEW_FIX_SKIP:-}" | tr '[:upper:]' '[:lower:]')" in
-            on | true | yes | 1) skip=true ;;
-          esac
-          echo "skip=$skip" >>"$GITHUB_OUTPUT"
-          if [ "$skip" = true ]; then
+          if is_on "${SELF_REVIEW_FIX_SKIP:-}"; then
+            skip=true
             echo "リポジトリ変数 SELF_REVIEW_FIX_SKIP で一時停止している" >>"$GITHUB_STEP_SUMMARY"
+          # 点検を止めている間は、点検の run が結果の artifact を残さずに成功する。定期実行がその run を読んで毎週失敗しないよう、一緒に止める。
+          elif [ "$GITHUB_EVENT_NAME" = schedule ] && is_on "${SELF_REVIEW_SKIP:-}"; then
+            skip=true
+            echo "リポジトリ変数 SELF_REVIEW_SKIP で点検を一時停止しているので、定期実行も止める" >>"$GITHUB_STEP_SUMMARY"
           fi
+          echo "skip=$skip" >>"$GITHUB_OUTPUT"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: steps.pause.outputs.skip != 'true'
@@ -96,12 +105,17 @@ jobs:
           INPUT_RUN_ID: ${{ inputs.run_id }}
         run: |
           run_id="$INPUT_RUN_ID"
+          created_args=()
+          if [ -z "$run_id" ] && [ "$GITHUB_EVENT_NAME" = schedule ]; then
+            # 定期実行では、前の日（UTC）に作られた点検の run だけから選ぶ。前の日の点検が失敗したときに、前の週の指摘を直し直さないためである。
+            created_args=(--created "$(date -u -d yesterday +%F)")
+          fi
           if [ -z "$run_id" ]; then
             run_id="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow self-review.yml --branch main --status success \
-              --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+              "${created_args[@]}" --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
           fi
           if ! [[ "$run_id" =~ ^[0-9]+$ ]]; then
-            echo "点検の run を決められない（run_id: \"$run_id\"）" >&2
+            echo "点検の run を決められない（run_id: \"$run_id\"、絞り込み: ${created_args[*]:-なし}）" >&2
             exit 1
           fi
           # 入力で渡した run も、main で実行して成功した Self review の run に限る。PR の run が作った artifact の指摘を読まないためである。
@@ -120,11 +134,6 @@ jobs:
             exit 1
           fi
           date="$(gh run view "$run_id" --repo "$GITHUB_REPOSITORY" --json createdAt --jq '.createdAt[:10]')"
-          # 定期実行では、前の日（UTC）の点検の run だけを読む。前の日の点検が失敗したときに、前の週の指摘を直し直さないためである。
-          if [ "$GITHUB_EVENT_NAME" = schedule ] && [ "$date" != "$(date -u -d yesterday +%F)" ]; then
-            echo "前の日の点検の run が成功していない（最後に成功した run は $run_id、$date）" >&2
-            exit 1
-          fi
           {
             echo "run_id=$run_id"
             echo "artifact=$name"

@@ -94,7 +94,7 @@ gh run download <run の ID> --name self-review-execution-<試行の番号> --di
 
 ワークフロー `.github/workflows/self-review-fix.yml` が、点検の指摘のうち文の書き換えで直せるものを、エージェントに直させて PR にする。
 点検の翌日の水曜に実行する。時刻は [`weekly-schedule.md`](weekly-schedule.md) にある。
-定期実行では、前の日（UTC）に `main` で成功した点検の run の指摘を読む。前の日の点検が成功していなければ、前の週の指摘を直し直さないよう、PR を作らずに失敗させる。
+定期実行では、前の日（UTC）に作られ、`main` で成功した点検の run の指摘を読む。前の日の点検が成功していなければ、前の週の指摘を直し直さないよう、PR を作らずに失敗させる。
 手動では `workflow_dispatch` で実行し、入力の `run_id` に指摘を読む点検の run を渡す。空なら、`main` で最後に成功した点検の run を読む。
 渡した run が `main` で成功した `self-review.yml` の run でなければ、PR の run が作った artifact を読まないよう、失敗させる。
 エージェントの手順は [`self-review-fix-procedure.md`](self-review-fix-procedure.md) にある。
@@ -128,6 +128,7 @@ gh secret set AUTOFIX_APP_PRIVATE_KEY <~/autofix-app.private-key.pem
 ```
 
 エージェントのモデルは、点検と同じ `SELF_REVIEW_MODEL` を使う。リポジトリ変数 `SELF_REVIEW_FIX_SKIP` を `true` にすると、PR を作らずに止まる。
+定期実行は、点検を止める `SELF_REVIEW_SKIP` が `true` のときも止まる。点検を止めている間の点検の run は、結果の artifact を残さずに成功するからである。
 
 ### PR の扱い
 
