@@ -45,6 +45,7 @@
     "scripts/skills/parity-suite/visual/header-normalize.mutations.json": 0.9,
     "scripts/skills/parity-suite/visual/perf-stats.mutations.json": 0.7,
     "scripts/skills/parity-suite/checks/reaction-check.mutations.json": 2.1,
+    "scripts/skills/parity-suite/runtime/runtime-errors.mutations.json": 0.8,
     "scripts/skills/parity-suite/evidence/table-upsert.mutations.json": 2.4,
     "scripts/skills/parity-suite/visual/trait-capture.mutations.json": 0.7,
     "scripts/skills/parity-suite/visual/trait-compare.mutations.json": 1.6,

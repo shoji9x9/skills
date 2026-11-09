@@ -372,6 +372,7 @@ feature モードのときだけ作る。
 
   一覧に読み込みのエラーがあるか、テストが 0 件なら、exit 2 になる。読めなかったスペックのテストは、警告なしに一覧から消えるからである。
   `test.skip` や `test.fixme` で静的に飛ばすテストは、飛ばす側では実行されないものとして数える（一覧の `expectedStatus: skipped`）。
+  ただし、静的に飛ばしたテストでは操作中のエラーを記録する fixture が動かないので、`parity-diff` の比較が記録の欠けとして止まる（[`baseline.md`](baseline.md)「操作中のエラーのベースライン」）。
   一覧で `expectedStatus` が `passed` でない側（失敗を期待する `failed` など）も、実行されないものとして数える。
   本文の中で条件付きで飛ばす `test.skip(条件)` と、失敗を期待する `test.fail(...)` は、一覧に現れない（Playwright 1.64.1 の `--list` では `passed` のまま）。
   そのため、`covered_by` のテストでは使わない。使うと、片側で assertion が実行されないか、失敗しても成功のまま解決される。

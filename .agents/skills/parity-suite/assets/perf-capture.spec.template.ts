@@ -470,6 +470,7 @@ function targetPlacement(paths: string[], baseURL: string | undefined): "loopbac
   return paths.every((path) => loopback(new URL(path, baseURL).hostname)) ? "loopback" : "remote";
 }
 
+// output-file:begin
 function requireName(name: string): string {
   const v = process.env[name];
   if (!v) throw new Error(`${name} が未設定`);
@@ -486,6 +487,7 @@ function writeJsonAtomic(path: string, value: unknown): void {
   writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`, "utf8");
   renameSync(temporary, path);
 }
+// output-file:end
 
 // このファイルは利用者のプロジェクトへ 1 ファイルだけコピーして使うので、ユーティリティを import せずに同じ関数を持つ。
 // is-array:begin

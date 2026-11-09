@@ -134,6 +134,44 @@
     "unmeasured_operations": 0,
     "state_displays_unmeasured": "<judged: true のときスクリプト出力の state_displays.unmeasured（画面ごとの状態表示の未測定）。1 以上なら ok は true にならない。judged: false では null>"
   },
+  "runtime_errors": {
+    "_note": "操作中に出たコンソールのエラーと失敗したリクエストの比較の結果。現側 metadata.json の runtime_errors.declared が true のときだけ、インストール済み parity-suite の scripts/runtime-errors.mjs compare --write <このファイル> が書く（手で転記しない）。runtime_errors をキーごと持たない旧成果物と declared: false はスクリプトを呼ばず、judged: false と reason だけを書いて diff.md の未検証領域にも残す。new_signatures は新側のどれかの回に出て、同じテストの現側の基準に無い署名で、トリアージの分類（classification・reason・approved_at・evidence）をここへ書いてから compare を通し直す（前の分類は同じテスト × 署名へ持ち越される）。ok が true でなければ converged を true にしない（actionable は要対応、unexplained はトリアージ待ち、missing_tests / failed_tests / extra_tests は採り直し）。results の件数には足さない。原本は parity-diff の references/detect.md「操作中のエラーの比較」。api-resource / batch モードでは省略する。",
+    "judged": "<true | false>",
+    "reason": "<judged: false のときの理由（現側に runtime_errors が無い〈改訂 8 より前の成果物〉、declared: false ならその reason）。judged: true では書かない>",
+    "ok": "<スクリプトの ok>",
+    "runs": "<新側の実行の回数（2 以上）>",
+    "run_dirs": [
+      "<比べた新側の実行のディレクトリ（.replace/parity/<slug>/new/<target>/runtime-errors/run-<回>）>"
+    ],
+    "counts": { "new_signatures": 0, "actionable": 0, "explained": 0, "unexplained": 0 },
+    "missing_tests": ["<現側で実行したのに、新側のどれかの回に記録が無いテスト>"],
+    "failed_tests": ["<新側で通らなかったテスト>"],
+    "extra_tests": ["<現側の基準に無いテスト>"],
+    "skipped_tests": ["<新側でスキップしたテスト（diff.md の未検証領域へ転記する）>"],
+    "current_skipped_tests": [
+      "<現側でスキップしたテスト。比べない（diff.md の未検証領域へ転記する）>"
+    ],
+    "new_signatures": [
+      {
+        "test": "<テストの識別子>",
+        "id": "<署名の id>",
+        "kind": "<pageerror | console-error | requestfailed | http-error>",
+        "page": "<ページの path（正規化した値）>",
+        "method": "<リクエストのメソッド。リクエストでない種類は null>",
+        "url": "<リクエストの path（正規化した値）。リクエストでない種類は null>",
+        "status": "<http-error の状態コード。それ以外は null>",
+        "text": "<正規化した本文>",
+        "seen_runs": "<新側の N 回のうち出た回数>",
+        "runs": "<新側の実行の回数>",
+        "sample": "<最初に出たときの本文（正規化の前）>",
+        "classification": "<要対応 | 許容 | 環境ノイズ。トリアージの前は null>",
+        "reason": "<分類の根拠。許容では必須>",
+        "approved_at": "<許容を利用者が承認した日時。承認の前は null（承認の前の許容は unexplained として数える）>",
+        "evidence": "<環境ノイズの根拠（出る条件と出ない条件）。環境ノイズでは必須>",
+        "state": "<compare が判定した状態: explained | actionable | unexplained>"
+      }
+    ]
+  },
   "performance": {
     "_note": "性能の比較の結果。現側 metadata.json の performance.declared が true のときだけ、インストール済み parity-suite の scripts/perf-stats.mjs compare --write <このファイル> が書く（手で転記しない）。performance をキーごと持たない旧成果物と declared: false はスクリプトを呼ばず、judged: false と reason だけを書いて diff.md の未検証領域にも残す。ok が true でなければ converged を true にしない（regressed は要対応、noisy / missing / env_mismatch / stale_baseline は採り直し）。原本は parity-diff の references/detect.md「性能の比較」。api-resource / batch モードでは省略する。",
     "judged": "<true | false>",

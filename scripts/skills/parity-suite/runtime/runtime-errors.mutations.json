@@ -1,0 +1,118 @@
+{
+  "$comment": [
+    "runtime-errors.test.ts の検出能力を示す変異の一覧（Issue #929）。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/parity-suite/runtime/runtime-errors.test.ts",
+  "mutations": [
+    {
+      "id": "re-new-signature-off",
+      "why": "現行に無かった署名を差分にしない",
+      "file": "skills/parity-suite/scripts/runtime-errors.mjs",
+      "find": "      .filter(([key, s]) => !baseline.keys.has(key) && baseline.tests.get(s.test) === false)\n",
+      "replace": "      .filter(([key, s]) => false && !baseline.keys.has(key) && baseline.tests.get(s.test) === false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare --write が無ければ diff-metadata.json を書かない",
+        "compare 分類は同じテスト × 署名へ持ち越し、説明になる分類だけで収束する",
+        "compare 新側だけに出たエラーと失敗したリクエストを、4 種類とも差分として検出し exit 1",
+        "compare 新側の 1 回にだけ出たエラーも差分にする（出た回数を残す）",
+        "compare 現側では別のテストに出ていたエラーは、そのテストでは差分にする"
+      ]
+    },
+    {
+      "id": "re-baseline-match-off",
+      "why": "現行にも出ていた署名を差分から外さない",
+      "file": "skills/parity-suite/scripts/runtime-errors.mjs",
+      "find": "      .filter(([key, s]) => !baseline.keys.has(key) && baseline.tests.get(s.test) === false)\n",
+      "replace": "      .filter(([key, s]) => baseline.tests.get(s.test) === false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 新側だけに出たエラーと失敗したリクエストを、4 種類とも差分として検出し exit 1",
+        "compare 新側でスキップしたテストは一覧に残して止めない。現側でスキップしたテストのエラーは比べない",
+        "compare 新側の 1 回にだけ出たエラーも差分にする（出た回数を残す）",
+        "compare 現側では別のテストに出ていたエラーは、そのテストでは差分にする",
+        "compare 現側の 1 回にだけ出たエラーは、新側で出ても差分にしない",
+        "compare 現行にも出ていたエラーは、ホスト・クエリ・数字が違っても差分にしない",
+        "compare 正規化を 2 回当てると値が変わる署名（blob: の URL・上限で切った本文）も、基準と突き合わせられる"
+      ]
+    },
+    {
+      "id": "re-current-skipped-compared",
+      "why": "現側でスキップしたテストのエラーを、現行に無かったものとして比べる",
+      "file": "skills/parity-suite/scripts/runtime-errors.mjs",
+      "find": "      .filter(([key, s]) => !baseline.keys.has(key) && baseline.tests.get(s.test) === false)\n",
+      "replace": "      .filter(([key, s]) => !baseline.keys.has(key) && baseline.tests.has(s.test))\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 新側でスキップしたテストは一覧に残して止めない。現側でスキップしたテストのエラーは比べない"
+      ]
+    },
+    {
+      "id": "re-origin-kept",
+      "why": "URL のオリジンとクエリを捨てない（ホストの違う新側で、現行と同じエラーが差分になる）",
+      "file": "skills/parity-suite/scripts/runtime-errors.mjs",
+      "find": "    path = new URL(url).pathname;\n",
+      "replace": "    path = new URL(url).href;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 新側だけに出たエラーと失敗したリクエストを、4 種類とも差分として検出し exit 1",
+        "compare 新側でスキップしたテストは一覧に残して止めない。現側でスキップしたテストのエラーは比べない",
+        "compare 新側の 1 回にだけ出たエラーも差分にする（出た回数を残す）",
+        "compare 現側では別のテストに出ていたエラーは、そのテストでは差分にする",
+        "compare 現側の 1 回にだけ出たエラーは、新側で出ても差分にしない",
+        "compare 現行にも出ていたエラーは、ホスト・クエリ・数字が違っても差分にしない",
+        "正規化 オリジン・クエリ・フラグメントを捨て、数字の連なりを <n> にする",
+        "compare 正規化を 2 回当てると値が変わる署名（blob: の URL・上限で切った本文）も、基準と突き合わせられる"
+      ]
+    },
+    {
+      "id": "re-accept-without-approval",
+      "why": "承認の日時の無い許容（許容候補）を説明として数える",
+      "file": "skills/parity-suite/scripts/runtime-errors.mjs",
+      "find": "  if (classification === \"許容\" && reason !== null && approvedAt !== null)\n",
+      "replace": "  if (classification === \"許容\")\n",
+      "occurrences": 1,
+      "expect_failing": ["compare 分類は同じテスト × 署名へ持ち越し、説明になる分類だけで収束する"]
+    },
+    {
+      "id": "re-noise-without-evidence",
+      "why": "根拠の無い環境ノイズを説明として数える",
+      "file": "skills/parity-suite/scripts/runtime-errors.mjs",
+      "find": "  if (classification === \"環境ノイズ\" && evidence !== null)\n",
+      "replace": "  if (classification === \"環境ノイズ\")\n",
+      "occurrences": 1,
+      "expect_failing": ["compare 分類は同じテスト × 署名へ持ち越し、説明になる分類だけで収束する"]
+    },
+    {
+      "id": "re-missing-tests-off",
+      "why": "新側で記録が欠けたテストを挙げない（記録しなかったテストのエラーを差分 0 件として通す）",
+      "file": "skills/parity-suite/scripts/runtime-errors.mjs",
+      "find": "    else if (!t || t.statuses.length !== runCount) lists.missing.push(test);\n",
+      "replace": "    else if (false) lists.missing.push(test);\n",
+      "occurrences": 1,
+      "expect_failing": ["compare 新側で記録が欠けた・通らなかった・基準に無いテストは exit 1"]
+    },
+    {
+      "id": "re-baseline-id-trusted",
+      "why": "基準の署名の id を欄から作り直さずに信じる",
+      "file": "skills/parity-suite/scripts/runtime-errors.mjs",
+      "find": "    if (signatureId(s) !== s.id)\n",
+      "replace": "    if (false)\n",
+      "occurrences": 1,
+      "expect_failing": ["compare id の書き換え（基準・引数・新側の記録の誤り）は exit 2"]
+    },
+    {
+      "id": "re-current-failed-accepted",
+      "why": "現側で通らなかったテストの記録から基準を作る",
+      "file": "skills/parity-suite/scripts/runtime-errors.mjs",
+      "find": "    const bad = t.statuses.filter((s) => s !== \"passed\" && s !== \"skipped\");\n",
+      "replace": "    const bad = t.statuses.filter((s) => false);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "summarize 現側で通らなかったテスト・一部の実行にしか無いテスト・回でスキップが変わるテストは exit 1"
+      ]
+    }
+  ]
+}
