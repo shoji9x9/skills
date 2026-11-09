@@ -57,7 +57,7 @@ const MAX_NOTES = 20;
 const CREDENTIAL = /sk-ant-[\w-]{8,}/u;
 
 /** エージェントが書いた文を 1 行にし、1 欄 `MAX_TEXT_CHARS` 字までに切り詰める（本文とコメントの上限を守るため）。 */
-const shorten = (value: string): string => {
+export const shorten = (value: string): string => {
   // サロゲートペア（絵文字など）を途中で切らないよう、コードポイントの単位で数える。
   const chars = Array.from(oneLine(value));
   return chars.length > MAX_TEXT_CHARS
@@ -144,7 +144,7 @@ export function parseReport(source: string): Report {
   return { findings: valid, notes: [...read, ...extra] };
 }
 
-const keyOf = (f: Finding): string => `${f.category} ${f.path}`;
+export const keyOf = (f: Pick<Finding, "category" | "path">): string => `${f.category} ${f.path}`;
 
 /** 同じ項目と対象の指摘を 1 件にまとめる。前回との差分はこの組で数えるので、組を一意にする。 */
 export function mergeFindings(findings: readonly Finding[]): Finding[] {
