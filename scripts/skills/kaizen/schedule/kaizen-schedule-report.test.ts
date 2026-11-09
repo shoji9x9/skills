@@ -623,6 +623,32 @@ describe("pending の数え方と並び", () => {
       expect(out).not.toContain(NOTE_MARK);
     });
   });
+
+  test("食い違いの判断待ちの学びにだけ、Issue の表と prompt の一覧で印を付ける", () => {
+    const conflict = (judgement: string) =>
+      `\n## 食い違い\n\n- 相手: AGENTS.md「依存の管理」\n- 内容: 範囲で足すか、固定するか\n- 判断: ${judgement}\n`;
+    const notes = {
+      waiting: { priority: "high", body: conflict("判断待ち") },
+      decided: { priority: "medium", body: conflict("新しい学び") },
+      fenced: { priority: "low", body: `\n\`\`\`markdown${conflict("判断待ち")}\`\`\`\n` },
+    };
+    withProject({ notes }, (p) => {
+      const mark = "判断待ち（利用者が決めるまで適用しない）";
+      expect(tableRows(run(p, ["issue"]).stdout).map((r) => cells(r)[4])).toStrictEqual([
+        `${mark}: waiting の提案行。`,
+        "decided の提案行。",
+        "fenced の提案行。",
+      ]);
+      const items = run(p, ["prompt"])
+        .stdout.split("\n")
+        .filter((l) => l.startsWith("- `.kaizen/"));
+      expect(items).toStrictEqual([
+        `- \`.kaizen/waiting.md\`（priority: high / type: rule / ${mark}）`,
+        "- `.kaizen/decided.md`（priority: medium / type: rule）",
+        "- `.kaizen/fenced.md`（priority: low / type: rule）",
+      ]);
+    });
+  });
 });
 
 test("未知のサブコマンドは exit 2 で usage を出す", () => {
