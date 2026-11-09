@@ -61,7 +61,7 @@
     "scripts/skills/replace-strategy/procedure-staleness-check.mutations.json": 0.6,
     "scripts/weekly/check-cost-metrics.mutations.json": 0.8,
     "scripts/weekly/ignored-advisories.mutations.json": 0.8,
-    "scripts/weekly/self-review-issue.mutations.json": 1.6,
+    "scripts/weekly/self-review-issue.mutations.json": 0.8,
     "scripts/tools/mutation-proof-shards.mutations.json": 2.3,
     "scripts/tools/reinstall-skill.mutations.json": 3.7,
     "scripts/skills/agent-usage/logs.mutations.json": 0.7,
@@ -80,6 +80,7 @@
     "scripts/skills/agent-usage/setup/setup-time-zone.mutations.json": 2.7,
     "scripts/skills/aws-architecture-diagram/validate-icon-svg.mutations.json": 1.3,
     "scripts/skills/aws-architecture-diagram/diagram-checks.mutations.json": 0.9,
-    "scripts/weekly/security-audit-issue.mutations.json": 0.8
+    "scripts/weekly/security-audit-issue.mutations.json": 0.8,
+    "scripts/weekly/self-review-fix.mutations.json": 0.8
   }
 }
