@@ -30,6 +30,8 @@
         "食い違いの判断待ち 印を付ける: 相手が複数あり、2 つ目の組だけが判断待ち",
         "食い違いの判断待ち 印を付ける: 4 つのバッククォートのフェンスが、中に ``` の行を持って閉じた後にある",
         "食い違いの判断待ち 印を付ける: 字下げした閉じる行でフェンスが閉じた後にある",
+        "食い違いの判断待ち 印を付ける: 開いた行より長い閉じる行でフェンスが閉じた後にある",
+        "食い違いの判断待ち 印を付ける: 行頭のコードスパン（後ろにもバッククォートがある行）の後にある",
         "食い違いの判断待ち 長い要約を切り詰めても、印は欠けない"
       ]
     },
@@ -52,14 +54,47 @@
       "id": "INJECT-PENDING-DECISION-FENCE-CLOSES-ON-ANY",
       "why": "フェンスを開いた文字と長さを見ずに閉じる（4 つのバッククォートのフェンスの中の ``` の行や、``` の中の ~~~ の行で閉じたと読み、中に置いた例を判断待ちとして数える）",
       "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
-      "find": "\t\t\t\tif (c == fch && n >= flen && rest ~ /^[ \\t]*$/) { fence = 0; next }",
-      "replace": "\t\t\t\tif (1) { fence = 0; next }",
+      "find": "\t\t\t\tif (fence && c == fch && n >= flen && rest ~ /^[ \\t]*$/) { fence = 0; next }",
+      "replace": "\t\t\t\tif (fence) { fence = 0; next }",
       "occurrences": 1,
       "expect_failing": [
         "食い違いの判断待ち 印を付ける: 4 つのバッククォートのフェンスが、中に ``` の行を持って閉じた後にある",
         "食い違いの判断待ち 印を付けない: 4 つのバッククォートのフェンスの中で、``` の行の後にある",
         "食い違いの判断待ち 印を付けない: ``` のフェンスの中で、~~~ の行の後にある",
         "食い違いの判断待ち 印を付けない: ``` のフェンスの中で、情報文字列付きの ``` の行の後にある"
+      ]
+    },
+    {
+      "id": "INJECT-PENDING-DECISION-FENCE-CLOSE-EXACT-LENGTH",
+      "why": "開いた行より長い閉じる行でフェンスを閉じない（CommonMark では閉じるので、その後の本物の判断待ちを読まず、印が付かずに忘却の候補にも残る）",
+      "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
+      "find": "if (fence && c == fch && n >= flen && rest",
+      "replace": "if (fence && c == fch && n == flen && rest",
+      "occurrences": 1,
+      "expect_failing": [
+        "食い違いの判断待ち 印を付ける: 開いた行より長い閉じる行でフェンスが閉じた後にある"
+      ]
+    },
+    {
+      "id": "INJECT-PENDING-DECISION-CODE-SPAN-OPENS-FENCE",
+      "why": "行頭のコードスパン（後ろにもバッククォートがある行）でフェンスを開く（閉じないフェンスとして読み、その後の本物の判断待ちを読まない）",
+      "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
+      "find": "if (!fence && !(c == \"`\" && index(rest, \"`\") > 0)) {",
+      "replace": "if (!fence) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "食い違いの判断待ち 印を付ける: 行頭のコードスパン（後ろにもバッククォートがある行）の後にある"
+      ]
+    },
+    {
+      "id": "INJECT-PENDING-DECISION-READ-ERROR-NOT-PENDING",
+      "why": "ノートを読めないときに判断待ちでないと返す（忘却が利用者の決める前に学びを忘れ、注入が印の無いまま従う対象として出す）",
+      "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
+      "find": "（awk の終了コード ${rc}）: $1\" >&2\n\t\treturn 0",
+      "replace": "（awk の終了コード ${rc}）: $1\" >&2\n\t\treturn 1",
+      "occurrences": 1,
+      "expect_failing": [
+        "食い違いの判断待ち ノートを読めないときは、判断待ちとして扱い、理由を stderr に出す"
       ]
     }
   ]

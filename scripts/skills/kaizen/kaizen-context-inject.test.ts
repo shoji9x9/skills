@@ -501,6 +501,14 @@ describe("食い違いの判断待ち", () => {
       `\`\`\`\`markdown\n\`\`\`\n\`\`\`\`\n\n${conflict("判断待ち")}`,
     ],
     ["字下げした閉じる行でフェンスが閉じた後にある", `~~~\nx\n   ~~~\n\n${conflict("判断待ち")}`],
+    [
+      "開いた行より長い閉じる行でフェンスが閉じた後にある",
+      `\`\`\`\nx\n\`\`\`\`\n\n${conflict("判断待ち")}`,
+    ],
+    [
+      "行頭のコードスパン（後ろにもバッククォートがある行）の後にある",
+      `\`\`\`ts\`\`\` のように書く。\n\n${conflict("判断待ち")}`,
+    ],
   ])("印を付ける: %s", (_name, body) => {
     expect(summaryWithBody(body)).toBe(`${MARK}依存は範囲で足す。`);
   });
@@ -538,5 +546,20 @@ describe("食い違いの判断待ち", () => {
       readFileSync(note, "utf8").replace("## 提案", `${conflict("判断待ち")}## 提案`),
     );
     expect(summaryOf(inject(dir))).toBe(`${MARK}${"あ".repeat(119)}…`);
+  });
+
+  test("ノートを読めないときは、判断待ちとして扱い、理由を stderr に出す", () => {
+    const lib = join(repoRoot, "skills/kaizen/scripts/kaizen-hook-common.sh");
+    const missing = join(makeTempDir("kaizen-pending-"), "missing.md");
+    const res = spawnSync(
+      "bash",
+      ["-c", '. "$1"; kaizen_has_pending_decision "$2"', "_", lib, missing],
+      {
+        encoding: "utf8",
+        timeout: CHILD_TIMEOUT_MS,
+      },
+    );
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.stderr).toContain("食い違いの判断を読めないため、判断待ちとして扱う");
   });
 });

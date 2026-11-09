@@ -620,7 +620,11 @@ kaizen_frontmatter_values() { # $1: ノート $2...: キー
 # フェンスは CommonMark に合わせ、開いた行の文字（バッククォートかチルダ）と長さを覚え、同じ文字で同じ長さ以上の行（後ろは空白だけ）でだけ閉じる。
 # 4 つのバッククォートで開いたフェンスの中の ``` の行や、``` の中の ~~~ の行で閉じたと読むと、中と外が逆になる。
 # 字下げは 3 文字まで受ける。mawk は {n,m} の繰り返しを読めないことがあるので、正規表現の回数指定を使わない。
+# バッククォートで始まり、後ろにもバッククォートを含む行（行頭のコードスパン）は、CommonMark ではフェンスを開かない。
+# 読めなかったとき（awk の失敗）は、判断待ちではないと読まずに、理由を stderr に出して 0 を返す。
+# 判断待ちとして扱えば、注入は従わない印を付け、忘却は忘れない。どちらも、読めない学びを利用者が決める前に消さない側である。
 kaizen_has_pending_decision() { # $1: ノート
+	local rc=0
 	awk '
 		{ sub(/\r$/, "") }
 		{
@@ -628,15 +632,23 @@ kaizen_has_pending_decision() { # $1: ノート
 			while (ind < 3 && substr(s, 1, 1) == " ") { s = substr(s, 2); ind++ }
 			c = substr(s, 1, 1); n = 0
 			if (c == "`" || c == "~") { while (substr(s, n + 1, 1) == c) n++ }
+			rest = substr(s, n + 1)
 			if (n >= 3) {
-				if (!fence) { fence = 1; fch = c; flen = n; next }
-				rest = substr(s, n + 1)
-				if (c == fch && n >= flen && rest ~ /^[ \t]*$/) { fence = 0; next }
+				if (!fence && !(c == "`" && index(rest, "`") > 0)) { fence = 1; fch = c; flen = n; next }
+				if (fence && c == fch && n >= flen && rest ~ /^[ \t]*$/) { fence = 0; next }
 			}
 		}
 		fence { next }
 		/^## / { in_sec = ($0 ~ /^## 食い違い *$/); next }
 		in_sec && $0 ~ /^- 判断: *`?判断待ち`? *$/ { found = 1; exit }
 		END { exit found ? 0 : 1 }
-	' "$1" 2>/dev/null
+	' "$1" || rc=$?
+	case "${rc}" in
+	0) return 0 ;;
+	1) return 1 ;;
+	*)
+		echo "kaizen: 食い違いの判断を読めないため、判断待ちとして扱う（awk の終了コード ${rc}）: $1" >&2
+		return 0
+		;;
+	esac
 }
