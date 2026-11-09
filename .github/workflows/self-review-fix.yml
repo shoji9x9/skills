@@ -4,6 +4,10 @@ name: Self review fix
 # 直してよい範囲・エージェントが変えたファイルの検査・PR の扱いは、scripts/weekly/self-review-fix.ts で決める。
 # エージェントの手順は docs/self-review-fix-procedure.md に、運用（資格情報・一時停止・PR の扱い）は docs/self-review.md にある。
 on:
+  schedule:
+    # 毎週水曜 09:30 JST（00:30 UTC）。前の日の点検（self-review.yml）の結果を読むので、その翌日に置く。
+    # 週次の処理の一覧と、cron を変えるときの確かめ方は docs/weekly-schedule.md にある。
+    - cron: "30 0 * * 3"
   workflow_dispatch:
     inputs:
       run_id:
@@ -116,6 +120,11 @@ jobs:
             exit 1
           fi
           date="$(gh run view "$run_id" --repo "$GITHUB_REPOSITORY" --json createdAt --jq '.createdAt[:10]')"
+          # 定期実行では、前の日（UTC）の点検の run だけを読む。前の日の点検が失敗したときに、前の週の指摘を直し直さないためである。
+          if [ "$GITHUB_EVENT_NAME" = schedule ] && [ "$date" != "$(date -u -d yesterday +%F)" ]; then
+            echo "前の日の点検の run が成功していない（最後に成功した run は $run_id、$date）" >&2
+            exit 1
+          fi
           {
             echo "run_id=$run_id"
             echo "artifact=$name"
