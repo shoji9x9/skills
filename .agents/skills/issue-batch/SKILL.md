@@ -122,6 +122,7 @@ BLOCKED や FAILED の影響が Issue の隔離した worktree の中だけで�
   commit を記録する Hook が書いた記録だけで dirty なら、次の Issue の branch に引き継いで clean にしてから片付ける（`references/orchestration.md`「worktree に残った記録の引き継ぎ」）。
 - run を始めた後は、利用者に確認を送らない。前提スキル（`issue-start`・`pr-finalize-loop`）が「利用者に確認する」と定める箇所も同じである。
   `pr-finalize-loop` には `--defer-decisions` を渡し、人の判断が要る指摘を判断待ちとして受け取る（`references/orchestration.md`「pr-finalize-loop への handoff」）。
+  仮の決定とレビューの指摘を判断待ちにするかは、`pr-finalize-loop` の `references/review-response.md` の「人に回すかの基準」を読んで決める。読めないときと、プロジェクトの基準の手順が止まったときは、すべて判断待ちにする（`references/orchestration.md`「判断の扱い」）。
   判断が要るものを「無人実行」を理由に飛ばさず、結果を作り上げず、BLOCKED（判断待ち）として記録し、`continue_on_blocked` に従って次の Issue に進むか run を止める（依存先を理由に BLOCKED にした Issue では止めない）。記録の形は `references/orchestration.md`「判断の扱い」に、続けるかは同じ文書の「全体 preflight」の最後の段落にある。
 - `kaizen extract --current --record-pending` が現在の transcript を特定できないエージェントでは、候補が 0 件であることを確かめられない。
   transcript を提供しないエージェント（例: Copilot）はこれに当たるので、run が何かを変更する前に BLOCKED にする。検出できるふりをして続けない。
