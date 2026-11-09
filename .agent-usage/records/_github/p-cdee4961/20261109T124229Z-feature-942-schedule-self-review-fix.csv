@@ -31,3 +31,4 @@ ci:42620142044:1,ci,2026-11-09T14:21:50.911Z,p-cdee4961,github-actions,,,,2026-1
 ci:42620142022:1,ci,2026-11-09T14:21:50.911Z,p-cdee4961,github-actions,,,,2026-11-09T12:49:00.000Z,2026-11-09T12:50:59.000Z,Asia/Tokyo,feature/930-main-fixed-ci-and-conflicting-learnings,930,,,,,,,,,,CI;pull_request;cancelled,
 coverage:github:2026-11-08T12:49:32.018Z:2026-11-09T14:21:50.911Z,coverage,2026-11-09T14:21:50.911Z,p-cdee4961,,,,,2026-11-08T12:49:32.018Z,2026-11-09T14:21:50.911Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-11-08T14:21:50.911Z:2026-11-09T21:03:55.271Z,coverage,2026-11-09T21:03:55.271Z,p-cdee4961,,,,,2026-11-08T14:21:50.911Z,2026-11-09T21:03:55.271Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-08T21:03:55.271Z:2026-11-09T21:04:31.312Z,coverage,2026-11-09T21:04:31.312Z,p-cdee4961,,,,,2026-11-08T21:03:55.271Z,2026-11-09T21:04:31.312Z,Asia/Tokyo,,,,,,,,,,,,ok,
