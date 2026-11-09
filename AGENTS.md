@@ -172,6 +172,7 @@ Claude Code はセッション開始時に両方を読み込み、Copilot のレ
 - ブランチは `gh issue develop <issue番号> --name "feature/<issue番号>-<英語の短い説明>" --base main --checkout` で作る。
   作る前に、同じ番号のブランチが local と remote に無いかを確かめる。
 - feature ブランチは PR で `main` に取り込む。PR には関連 Issue、変更の概要、確認した内容を書く。
+- 機能の PR は、通常のマージ（`gh pr merge <番号> --merge`）で取り込む。squash は、Dependabot の PR（`dependabot-merge` の設定）だけに使う。
 - `main` への直接の push、commit の `--amend`、force push はしない。無関係な変更を同じ commit に入れない。
 - `main` はルールセットで保護し、force push とブランチの削除を禁じている。
 - `main` への取り込みには、PR と CI の必須チェックの成功が必要である。

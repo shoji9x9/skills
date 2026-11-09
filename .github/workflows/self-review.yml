@@ -189,8 +189,12 @@ jobs:
           # 非対話の実行はそこで終わり、結果のファイルを書かずに成功として終わる（Issue #956 の実行記録で確かめた）。
           # 拒否の一覧は、Claude Code がツールを足すたびに抜けが出る（手元の 2.1.319 では Workflow・Skill・CronCreate なども使えた）。
           # そこで --tools で、使えるツールそのものを Read・Grep・Glob・Edit・Write に限る。Write の書き先は Edit の規則で絞る。
+          # 設定はユーザーの層（runner には無い）だけを読み、MCP のサーバーは action が渡すものだけにする（security-audit.yml と同じ）。
+          # リポジトリの .claude/settings.json の Hook と .mcp.json のサーバーは、--tools の制限の外で動くので、資格情報のある環境で起動させない。
           claude_args: >-
             --tools "Read,Grep,Glob,Edit,Write"
+            --setting-sources user
+            --strict-mcp-config
             --allowed-tools "Read(./**),Grep(./**),Glob(./**),Edit(./${{ env.REPORT_FILE }})"
             --disallowed-tools "Bash,WebFetch,WebSearch,NotebookEdit,Agent"
             ${{ steps.model.outputs.args }}

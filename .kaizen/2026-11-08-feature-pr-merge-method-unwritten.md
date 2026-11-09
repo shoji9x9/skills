@@ -3,8 +3,8 @@ date: 2026-11-08
 type: doc
 priority: medium
 confidence: high
-status: pending
-applied-to: []
+status: applied
+applied-to: ["AGENTS.md", ".config/skills/shoji9x9/issue-batch.jsonc", "#962"]
 session: claude-code
 ---
 
