@@ -30,6 +30,14 @@
       "crap_moderate": {
         "count": 4
       }
+    },
+    "skills/parity-suite/assets/runtime-errors.fixture.template.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
     }
   },
   "runtime_coverage_findings": [],
