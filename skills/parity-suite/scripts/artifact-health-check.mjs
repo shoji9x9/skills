@@ -759,7 +759,15 @@ function derivedSourceFindings({ p, srcRel, sha256, baselineDir }) {
 }
 
 /** 反復実行の記録が指す「スイートそのもの」を構成する metadata.suite のキー。 */
-const SUITE_SOURCE_KEYS = ["specs", "locator_map", "expectations", "interactions", "tools"];
+// runtime_errors は、スイートのすべてのテストを包む記録の fixture（既定の置き場所は suite.specs の外の parity/lib/）
+const SUITE_SOURCE_KEYS = [
+  "specs",
+  "locator_map",
+  "expectations",
+  "interactions",
+  "tools",
+  "runtime_errors",
+];
 /** スイートの宣言パスが 1 つも無いときの文。キーの一覧は SUITE_SOURCE_KEYS から作る。 */
 const NO_SUITE_SOURCE = `suite.${SUITE_SOURCE_KEYS.join(" / ")} がどれも宣言されていない`;
 
@@ -770,7 +778,7 @@ const NO_SUITE_SOURCE = `suite.${SUITE_SOURCE_KEYS.join(" / ")} がどれも宣�
  * 記録が「どのバージョンのスイートを 2 回回したか」を持たないためで、指紋を記録・照合して初めて
  * 「いまのスイートが 2 回続けて回った」と言える。
  *
- * 列挙は宣言されたパス（suite.specs / locator_map / expectations / interactions / tools）から行い、
+ * 列挙は宣言されたパス（suite.specs / locator_map / expectations / interactions / tools / runtime_errors）から行い、
  * ディレクトリは再帰、並びはソートで固定する。1 つでも実体が無ければ判定不能として null を返す。
  * suite.tools がファイルを指すときも null を返す（隣の page/ を指紋に含められないため。理由は missing に入る）。
  *
@@ -909,7 +917,7 @@ function underRel(f, r) {
  * 記録はスペックごとの指紋と、スペックが共通に読む部分（shared）の指紋に結びつける。
  *
  * - スペック: suite.specs の下で SPEC_FILE_PATTERN に当たるファイルと、分類表に書いたファイル。1 ファイルずつ指紋を取る。
- * - 共通部分（shared）: それ以外の宣言パスの全ファイル。locator_map / expectations / interactions / tools と、
+ * - 共通部分（shared）: それ以外の宣言パスの全ファイル。locator_map / expectations / interactions / tools / runtime_errors と、
  *   suite.specs の下のスペック以外（スペックが読む共通の関数・fixture）である。変われば全スペックの記録が失効する。
  * - 外すもの: excluded（current プロジェクトが testIgnore で実行しないディレクトリ。新側専用スペックなど）の下。
  *   現行に対して実行しないものは現行の状態を変えられず、記録を失効させる理由にならない。
@@ -1409,7 +1417,7 @@ function mutatingSpecFindings(mutating, list, current) {
     } else if (shared.some((fp) => fp !== current.shared)) {
       findings.push(
         `スペック ${spec} の 2 回の記録は現在の共通部分のものでない（shared_fingerprint ${shared.join(" / ")} ≠ 実測 ${current.shared}）。` +
-          "共通部分（locator_map / expectations / interactions / tools・suite.specs の下のスペック以外）を変えたら、状態を変えるスペックをすべて 2 回続けて回し直す",
+          "共通部分（locator_map / expectations / interactions / tools / runtime_errors・suite.specs の下のスペック以外）を変えたら、状態を変えるスペックをすべて 2 回続けて回し直す",
       );
     }
   }
