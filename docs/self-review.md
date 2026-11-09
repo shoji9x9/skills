@@ -93,6 +93,8 @@ gh run download <run の ID> --name self-review-execution-<試行の番号> --di
 ## 指摘を直す PR
 
 ワークフロー `.github/workflows/self-review-fix.yml` が、点検の指摘のうち文の書き換えで直せるものを、エージェントに直させて PR にする。
+点検の翌日の水曜に実行する。時刻は [`weekly-schedule.md`](weekly-schedule.md) にある。
+定期実行では、前の日（UTC）に作られ、`main` で成功した点検の run の指摘を読む。前の日の点検が成功していなければ、前の週の指摘を直し直さないよう、PR を作らずに失敗させる。
 手動では `workflow_dispatch` で実行し、入力の `run_id` に指摘を読む点検の run を渡す。空なら、`main` で最後に成功した点検の run を読む。
 渡した run が `main` で成功した `self-review.yml` の run でなければ、PR の run が作った artifact を読まないよう、失敗させる。
 エージェントの手順は [`self-review-fix-procedure.md`](self-review-fix-procedure.md) にある。
@@ -112,7 +114,9 @@ gh run download <run の ID> --name self-review-execution-<試行の番号> --di
 
 - `fix`: 点検の run の結果を artifact から読み、候補を選んでエージェントに直させる。ジョブの権限は `contents: read` と `actions: read` で、差分を artifact で渡す
 - `publish`: checkout し直した作業ツリーに差分を当て、GitHub App のトークンで branch に push して PR を作るか更新する。
-  既定の `GITHUB_TOKEN` で push して作った PR では、PR のワークフローが起動せず、必須チェックが実行されないためである
+  デフォルトの `GITHUB_TOKEN` で push して作った PR では、PR のワークフローが起動せず、必須チェックが実行されないためである。
+  App のトークンで作った PR では、必須チェックが起動する。ルールセットが承認を求めない間は、必須チェックが通れば人がマージできる。
+  承認を求める設定（承認の数や、帰属の無い変更への追加の承認）を足したら、マージの前に人が PR を承認する
 
 GitHub App は、このリポジトリだけにインストールし、Repository permissions の Contents と Pull requests に「Read and write」を与える。
 ワークフローは、トークンを作るときに権限をこの 2 つに絞る。
@@ -125,6 +129,7 @@ gh secret set AUTOFIX_APP_PRIVATE_KEY <~/autofix-app.private-key.pem
 ```
 
 エージェントのモデルは、点検と同じ `SELF_REVIEW_MODEL` を使う。リポジトリ変数 `SELF_REVIEW_FIX_SKIP` を `true` にすると、PR を作らずに止まる。
+定期実行は、点検を止める `SELF_REVIEW_SKIP` が `true` のときも止まる。点検を止めている間の点検の run は、結果の artifact を残さずに成功するからである。
 
 ### PR の扱い
 
@@ -142,6 +147,7 @@ PR を作るか、同じ PR に commit を足すかは、`scripts/weekly/self-re
 続けた週の数は、ワークフローが週ごとに PR に書くコメント（先頭に `<!-- self-review-fix:update <点検の日付> -->` の目印がある）で数える。
 点検の日付が同じ週（月曜から日曜）のコメントは、手動で何度実行しても 1 週と数える。
 force push と `--amend` は使わない。PR をマージするかは、人が決める。
+リポジトリの設定でマージした branch を自動で消していなければ、マージした人が PR の画面で branch を消す。
 ワークフローは PR の branch に `main` を取り込まない。取り込むと、その間に `main` に入った `.github/workflows/` の変更が merge commit に含まれ、workflows の権限を持たない App の push が拒否される。
 ルールセットはマージの前に PR の branch が `main` の最新を含むことを求めるので、マージする人が PR の「Update branch」で `main` を取り込む。
 
