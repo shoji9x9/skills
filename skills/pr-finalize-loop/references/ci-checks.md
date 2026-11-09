@@ -57,24 +57,32 @@ PR に関係の無い変更が入り、ベースブランチの修正と競合�
 
 | 判定 | 根拠にする事実 |
 | --- | --- |
-| PR の変更と関係が無い | PR の head とベースブランチの分岐点で、同じチェックが同じ失敗（同じステップ・同じテストやエラー）で終わる |
+| PR の変更と関係が無い | 失敗した run が検証したベースブランチの commit で、同じチェックが同じ失敗（同じステップ・同じテストやエラー）で終わる |
 | 最新のベースブランチで直っている | ベースブランチの先端で、同じチェックが成功する |
+
+`pull_request` の CI は、PR の head と、run を作った時点のベースブランチの先端を合わせた merge commit を検証する。
+そのため、比べる相手は PR の分岐点ではなく、run を作った時点のベースブランチの先端にする。
+分岐点の後にベースブランチへ入った commit で失敗した場合、分岐点では成功するので、分岐点と比べると関係が無いことを示せない。
 
 それぞれの commit で同じチェックがどう終わるかは、まず CI の記録で確かめる。
 
 ```bash
 base=$(gh pr view <番号> --repo <owner>/<repo> --json baseRefName --jq .baseRefName)
 git fetch origin "$base"
-mb=$(git merge-base HEAD "origin/$base")   # 分岐点
-tip=$(git rev-parse "origin/$base")        # ベースブランチの先端
-gh api --paginate "repos/<owner>/<repo>/commits/<SHA>/check-runs?check_name=<チェックの名前>&per_page=100" \
+created=$(gh run view <run-id> --repo <owner>/<repo> --json createdAt --jq .createdAt)
+ran=$(git rev-list -1 --first-parent --before="$created" "origin/$base")   # 失敗した run が検証したベース
+tip=$(git rev-parse "origin/$base")                                         # ベースブランチの先端
+gh api --paginate -X GET "repos/<owner>/<repo>/commits/<SHA>/check-runs" \
+  -f check_name='<チェックの名前>' -f per_page=100 \
   --jq '.check_runs[] | {status, conclusion, html_url}'
 ```
 
-- `<SHA>` には `$mb` と `$tip` を 1 つずつ渡す。チェックの名前は、「CI 失敗ログの取得」で取得した `name` をそのまま使う。
-- `$tip` と `$mb` が同じなら、ベースブランチは進んでおらず取り込むものが無いので、この節に当たらない。
+- `<run-id>` は、「CI 失敗ログの取得」で取得した失敗した run の ID である。`$ran` が空なら（履歴が浅いなど）、確かめられないものとして扱う。
+- `<SHA>` には `$ran` と `$tip` を 1 つずつ渡す。チェックの名前は、「CI 失敗ログの取得」で取得した `name` をそのまま使う。
+- チェックの名前は `-f` で渡す。URL のクエリに直接書くと、空白を含む名前（`Unit tests` など）がエンコードされず、`gh api` が応答を返さない（実測）。
+- `$tip` と `$ran` が同じなら、ベースブランチは進んでおらず取り込むものが無いので、この節に当たらない。
 - 0 件は、その commit で CI が実行されていないことを示すだけで、成功も失敗も示さない（push で CI を実行しないリポジトリでは、ベースブランチの先端に記録が無い）。
-- `$mb` の記録が失敗でも、ログの失敗した箇所が PR の失敗と違うなら、同じ失敗として扱わない。`gh run view <run-id> --log-failed` で読み比べる。
+- `$ran` の記録が失敗でも、ログの失敗した箇所が PR の失敗と違うなら、同じ失敗として扱わない。`gh run view <run-id> --log-failed` で読み比べる。
 - 形は <https://docs.github.com/en/rest/checks/runs#list-check-runs-for-a-git-reference> で確かめた。
 
 CI の記録が無ければ、手元で再現して確かめてよい。その commit を別の作業ツリー（`git worktree add --detach <一時ディレクトリ> <SHA>`）に取り出し、ログの失敗したステップのコマンドを実行する。
@@ -85,7 +93,7 @@ CI の記録が無ければ、手元で再現して確かめてよい。その c
 規約が merge を許さない（rebase だけを許すなど）とき、または merge が競合したとき（`git merge --abort` で戻す）は、自分で解消せず「行き詰まり」として止まり、取り込みが要ることとその理由を報告する。
 
 取り込んだら、push する前に、判定の根拠を PR のトップレベルのコメントに書く。
-書くのは、失敗したチェックの名前と失敗の要点、2 つの判定の根拠（commit の SHA と run の URL、または再現したコマンドと結果）、取り込んだ範囲（`$mb..$tip`）である。
+書くのは、失敗したチェックの名前と失敗の要点、2 つの判定の根拠（commit の SHA と run の URL、または再現したコマンドと結果）、取り込んだ範囲（取り込む前の `git merge-base HEAD "origin/$base"` から `$tip` まで）である。
 本文の先頭に目印 `<!-- pr-finalize-loop:base-merge -->` を入れ、コンテキストを圧縮した後もこのコマンドで読み直せるようにする。
 
 ```bash
