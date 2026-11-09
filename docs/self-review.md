@@ -94,6 +94,7 @@ gh run download <run の ID> --name self-review-execution-<試行の番号> --di
 
 ワークフロー `.github/workflows/self-review-fix.yml` が、点検の指摘のうち文の書き換えで直せるものを、エージェントに直させて PR にする。
 手動では `workflow_dispatch` で実行し、入力の `run_id` に指摘を読む点検の run を渡す。空なら、`main` で最後に成功した点検の run を読む。
+渡した run が `main` で成功した `self-review.yml` の run でなければ、PR の run が作った artifact を読まないよう、失敗させる。
 エージェントの手順は [`self-review-fix-procedure.md`](self-review-fix-procedure.md) にある。
 
 ### 直す範囲
