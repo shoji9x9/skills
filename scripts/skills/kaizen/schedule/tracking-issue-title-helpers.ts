@@ -330,3 +330,19 @@ function authorProbeCases(prefix: string): ReturnType<typeof jqProbeCases> {
     },
   ];
 }
+
+/** 検体を `gh issue list --json number,title,state,author` の要素の形にする。App の login（`app/`）だけを bot にする。 */
+export function toIssueJson({
+  number,
+  title,
+  state,
+  author,
+}: ReturnType<typeof jqProbeCases>[number]) {
+  const login = author ?? TRACKING_AUTHOR;
+  return {
+    number,
+    title,
+    state: state ?? "OPEN",
+    author: { login, is_bot: login.startsWith("app/") },
+  };
+}

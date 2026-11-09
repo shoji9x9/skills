@@ -19,6 +19,7 @@ import {
   runLib,
   runLocate,
   TODAY,
+  toIssueJson,
   TRACKING_AUTHOR,
   trackingStep,
   WORKFLOWS,
@@ -258,17 +259,7 @@ echo "scanned=0"
       const dir = makeTempDir("tracking-issue-");
       try {
         const fixture = join(dir, "issues.json");
-        writeFileSync(
-          fixture,
-          JSON.stringify(
-            cases.map(({ number, title, state, author }) => ({
-              number,
-              title,
-              state: state ?? "OPEN",
-              author: { login: author ?? TRACKING_AUTHOR, is_bot: true },
-            })),
-          ),
-        );
+        writeFileSync(fixture, JSON.stringify(cases.map(toIssueJson)));
         const res = spawnSync("jq", ["-r", jqFilter(libSource()), fixture], {
           timeout: CHILD_TIMEOUT_MS,
           encoding: "utf8",
