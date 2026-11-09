@@ -17,6 +17,7 @@ GitHub Actions の `schedule` と Dependabot で毎週動く処理の、曜日�
 
 月曜には、人の対応が要る依存の処理を集める。
 `mutation-proof.yml` の全件の実行は、依存のバージョンを上げて検査が変わった宣言を確かめるためのものなので、月曜に依存の PR をマージした後の火曜に置く。
+`security-audit.yml` は、`self-review.yml` と同じ Claude のプランの使用量で、エージェントを数十分動かす。2 つのエージェントが同時に動きにくいよう、`self-review.yml` の 1 時間後に置く。重なっても、どちらの結果も変わらない。
 
 ## 処理どうしの依存
 

@@ -28,3 +28,6 @@ tests/*/iteration-*/review.html
 # 末尾スラッシュを付けない。git はシンボリックリンクをディレクトリとして見ないため、
 # `/.claude/worktrees/` だとリンクを運び込んだ場合に一致せず未追跡として現れる。
 /.claude/worktrees
+
+# 週次のセキュリティの監査の記録を暗号化する鍵（docs/security-scanning.md）。リポジトリの直下に作ってしまったときに commit しない。
+security-audit-key.txt
