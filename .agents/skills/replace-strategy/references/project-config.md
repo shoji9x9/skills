@@ -242,7 +242,7 @@ node "$CFG" append replace-strategy component_diffs '<要素の JSON>' --layer r
 
 | 区分 | キー | 書き込み |
 |---|---|---|
-| 人が確定させる方針 | `current`（`origin`・`received_assets`・`feedback_calls` を含む）・`new`・`targets`・`secrets`・`parity_suite_dir`・`dataset_tool_dir`・`bootstrap_tool_dir`・`dataset_mode`・`dataset_static_paths`・`uses_storage`・`verification_commands`・`artifacts`・`references`（パス型のキー）・`intentional_diffs.{keep,may_change}`・`component_diffs` | `setup` の対話で書くか、人が直接編集する。スキルが代わりに書く場合も、人が決めた値を 1 回記録するだけである。該当するのは次のものである。`references.dependency_policy`・`new.stack`・`references.architecture`・`current.feedback_calls` の確認の結果。`current-environment-bootstrap` が引き渡しのときに埋める現行 target の `url` と `default: true`（ユーザーが確認した実測値を 1 回記録する）。`component_diffs` のユーザーが承認した宣言（`parity-replace`・`parity-diff` が非破壊で追記する）。静的資産で `同等物を作る` を選んだときの、`intentional_diffs.may_change` へのユーザーが承認した宣言（`replace-strategy` の `setup`・`parity-replace`・`parity-component` が非破壊で追記する。原本は [`static-assets.md`](static-assets.md)）。どれも `setup` の再実行を待たずに追記する |
+| 人が確定させる方針 | `current`（`origin`・`received_assets`・`feedback_calls` を含む）・`new`・`targets`・`secrets`・`parity_suite_dir`・`dataset_tool_dir`・`bootstrap_tool_dir`・`dataset_mode`・`dataset_static_paths`・`uses_storage`・`verification_commands`・`artifacts`・`references`（パス型のキー）・`intentional_diffs.{keep,may_change}`・`component_diffs` | `setup` の対話で書くか、人が直接編集する。スキルが代わりに書く場合も、人が決めた値を 1 回記録するだけである。該当するのは次のものである。`references.dependency_policy`・`new.stack`・`references.architecture`・`current.feedback_calls` の確認の結果。`current-environment-bootstrap` が引き渡しのときに埋める現行 target の `url` と `default: true`（ユーザーが確認した実測値を 1 回記録する。引き渡しを取り消すときは、ユーザーに確かめて `url: none` と `default: false` に戻す）。`component_diffs` のユーザーが承認した宣言（`parity-replace`・`parity-diff` が非破壊で追記する）。静的資産で `同等物を作る` を選んだときの、`intentional_diffs.may_change` へのユーザーが承認した宣言（`replace-strategy` の `setup`・`parity-replace`・`parity-component` が非破壊で追記する。原本は [`static-assets.md`](static-assets.md)）。どれも `setup` の再実行を待たずに追記する |
 | スキルが作業中に追記する記録 | `intentional_diffs.pending` | 宣言に無い差を見つけたスキルが、追記元が分かる形で非破壊で追記する（要素の形は下記「意図的差異レジストリ」の「`pending` 要素の形」）。追記するのは `replace-strategy`（`setup` の手順 8 で「保留（測定結果で決める）」にした項目）と、`golden-dataset`・`parity-suite`・`parity-replace`・`parity-component` である。ユーザーの確認を経て、人が `keep` / `may_change` へ移す。設定ファイルに残る唯一の作業中の記録である。移す時期は下記「`pending` の棚卸し」で決まっていて、機能を閉じる工程（`parity-diff` の収束の判定）が棚卸しを求める |
 
 - `component_diffs` を設定の側に残す根拠: 要素は `component` × `property` の単位で、slug をまたいで当たる。
@@ -579,7 +579,7 @@ local-dev・local-production・preview・develop など、同じスイートを�
   - `catalog_url` / `catalog_url_command` を持てるのは、`side: new` の target だけである（現行側に部品カタログは無い。`side: current` に付いていれば止まる。現行から採るべき基準を、カタログから採る誤りになるからである）。
   - `catalog_url` と `catalog_url_command` は、どちらか一方だけにする（両方あれば止まる。`url` / `url_command` と同じく、同時には書けない）。
   - `side: current` の target が `url: none` を持てるのは、`current.origin: received-assets` で、再構築が終わっていない間だけである。
-    `current-environment-bootstrap` が、引き渡しのときに実際の URL と `default: true` を埋める。
+    `current-environment-bootstrap` が、引き渡しのときに実際の URL と `default: true` を埋め、引き渡しを取り消すときに `none` と `default: false` に戻す。
     `origin: managed` で `url: none` の current の target があれば止まる。測定の対象が無いまま、`setup` が測定に進むことになるからである。
 - `api_url` は API の baseURL である。UI と API が別の origin のときだけ書き、省略すると `url` を使う
   （api-resource モードは現行の応答を正として同じリクエストを新側に送るので、UI とは別に選べる必要がある）。

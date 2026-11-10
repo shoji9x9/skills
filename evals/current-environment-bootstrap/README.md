@@ -80,6 +80,13 @@ scripts/eval/run-skill-eval.sh \
   `requires_skills` で `replace-strategy` を置くので、baseline は `current-environment-bootstrap` が入っていないことを理由に止まりうる。
   区別するのは 1 行目（再開する工程を確かめるために止まる）だけで、複数の run で差が残ることを確かめるまで Delta には数えない。
   2〜4 行目は、止まる代わりに推測で進む後退を検知するための assertion である。
+- eval 8・9（`handed-off-layer-confirmed`・`handed-off-layer-session`）: eval 5 の受領物を引き渡した後の記録に、層を確かめる Q-4 の回答が届いた状態。
+  記録は `status: handed-off` と `resume: null` を持ち、設定の target は `url` と `default: true` を持つ。
+  `.jsonc` は採点の入力（`project-files/`）に入らないので、設定を書き換えたかは採点せず、確かめたかを最後のメッセージで見る。
+  - eval 8 の回答は「どちらもインスタンスの設定で、接続では上書きしていない」で、作り直しのツールも暫定の起動データも直す必要が無い。
+    区別の要点は、**`blocked` に戻さず、工程も聞かずに、台帳と `handoff.unconfirmed` だけを直すこと**である。
+  - eval 9 の回答は「ヘッダの値はセッションの値で、インスタンスの値は分からない」で、インスタンスの 2 行が「不足」になる。
+    区別の要点は、**`blocked` に戻して `blocked_on` と `resume`（`from_step: 3`）を書くことと、設定の `url` と `default` の取り消しを利用者に確かめること**である。
 - eval 6（`commercial-ui-component-without-vendor-docs`）: 受領した依存台帳と UI ソースから、市販のデータグリッドを使っていることと、そのバージョンは確認できる。
   しかし、ベンダーの機能一覧・試験仕様書・公式サンプルは届いていない。
   区別の要点は、**資料の不足を資産カテゴリで検出すること**、**CoE／ベンダー窓口を依頼先として残すこと**、

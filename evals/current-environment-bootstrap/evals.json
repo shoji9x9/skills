@@ -257,6 +257,71 @@
           "prompt_quote": "--resume"
         }
       ]
+    },
+    {
+      "id": 8,
+      "fixture": "fixtures/handed-off-layer-confirmed",
+      "requires_skills": ["replace-strategy"],
+      "prompt": "current-environment-bootstrap --target current-rebuilt --resume",
+      "assertions": [
+        "metadata.json の status を handed-off のまま残し、blocked に戻していない（resume も null のまま）",
+        "再開する工程を利用者に確かめるために止まっていない",
+        "Q-4 の回答を schema.md に反映し、タイムゾーンと sql_mode のインスタンスとセッション・接続の 4 行を確定にし、セッション・接続の 2 行の値を上書きなしにしている",
+        "metadata.json の handoff.unconfirmed から Q-4 の項目を外し、Q-3 と Q-2 の項目は残している"
+      ],
+      "reachability": [
+        {
+          "assertion": "metadata.json の status を handed-off のまま残し、blocked に戻していない（resume も null のまま）",
+          "prompt_quote": "--resume"
+        },
+        {
+          "assertion": "再開する工程を利用者に確かめるために止まっていない",
+          "prompt_quote": "--resume"
+        },
+        {
+          "assertion": "Q-4 の回答を schema.md に反映し、タイムゾーンと sql_mode のインスタンスとセッション・接続の 4 行を確定にし、セッション・接続の 2 行の値を上書きなしにしている",
+          "prompt_quote": "--resume"
+        },
+        {
+          "assertion": "metadata.json の handoff.unconfirmed から Q-4 の項目を外し、Q-3 と Q-2 の項目は残している",
+          "prompt_quote": "--resume"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "fixture": "fixtures/handed-off-layer-session",
+      "requires_skills": ["replace-strategy"],
+      "prompt": "current-environment-bootstrap --target current-rebuilt --resume",
+      "assertions": [
+        "metadata.json の status を blocked に戻し、blocked_on に工程 3 の理由（タイムゾーンと sql_mode のインスタンスの値が分からない）を書いている",
+        "metadata.json の resume.from_step を 3 にしている",
+        "schema.md のタイムゾーンと sql_mode のインスタンスの行を不足にし、セッション・接続の行に回答の値を確定として書いている",
+        "最後のメッセージで、設定の current-rebuilt の url を none に戻し default を false にしてよいかを利用者に確かめている",
+        "metadata.json の handoff の boot_requirements と unconfirmed を消さずに残している"
+      ],
+      "reachability": [
+        {
+          "assertion": "metadata.json の status を blocked に戻し、blocked_on に工程 3 の理由（タイムゾーンと sql_mode のインスタンスの値が分からない）を書いている",
+          "prompt_quote": "--resume"
+        },
+        {
+          "assertion": "metadata.json の resume.from_step を 3 にしている",
+          "prompt_quote": "--resume"
+        },
+        {
+          "assertion": "schema.md のタイムゾーンと sql_mode のインスタンスの行を不足にし、セッション・接続の行に回答の値を確定として書いている",
+          "prompt_quote": "--resume"
+        },
+        {
+          "assertion": "最後のメッセージで、設定の current-rebuilt の url を none に戻し default を false にしてよいかを利用者に確かめている",
+          "prompt_quote": "--resume"
+        },
+        {
+          "assertion": "metadata.json の handoff の boot_requirements と unconfirmed を消さずに残している",
+          "prompt_quote": "--resume"
+        }
+      ]
     }
   ]
 }

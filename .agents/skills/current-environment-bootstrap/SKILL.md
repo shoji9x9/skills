@@ -23,8 +23,8 @@ current-environment-bootstrap [--target <name>] [--resume] [--autonomous]
 | 起動 | 起点 | 内容 |
 |---|---|---|
 | 初回 | `.replace/bootstrap/metadata.json` が無い | 工程 1（棚卸し）から順に進める |
-| 再開（`--resume`） | 先方・SME から質問票の回答や追加の資産が届いた | `status: blocked` の記録なら、回答を台帳に反映し、「停止と再開」の再開の表のとおりに再開する。`handed-off` の記録の扱いは同じ節にある |
-| 指定なしで既存の記録がある | `.replace/bootstrap/metadata.json` がある | 今の状態（`status` / `blocked_on` / `resume`）を報告し、続きから進めてよいかを確かめる。進めるなら、「停止と再開」の再開の表のとおりに扱う |
+| 再開（`--resume`） | 先方・SME から質問票の回答や追加の資産が届いた | `status: blocked` の記録なら、回答を台帳に反映し、「停止と再開」の再開の表のとおりに再開する。`handed-off` の記録は、同じ節の「引き渡した後に届いたとき」のとおりに扱う |
+| 指定なしで既存の記録がある | `.replace/bootstrap/metadata.json` がある | 今の状態（`status` / `blocked_on` / `resume`）を報告し、続きから進めてよいかを確かめる。進めるなら、`blocked` の記録は「停止と再開」の再開の表のとおりに、`handed-off` の記録は同じ節の「引き渡した後に届いたとき」のとおりに扱う |
 
 - `--target <name>` は、作り直す先の環境である。設定の `targets` のうち、`side: current` のものだけを候補にする（このスキルが対象にする側は、ここで定義する）。
   省略したときのデフォルト、候補の提示、存在しない名前や側の違いで停止することなど、選び方は `replace-strategy` の `references/project-config.md`「実行対象環境」の「選択規則」に従う（ここへ転記しない）。
@@ -100,8 +100,10 @@ current-environment-bootstrap [--target <name>] [--resume] [--autonomous]
 
 - 原本の「移行」の節に並んだ古いキーは、代わりの値として読まない。見つけたら、その節を示して停止する。
   一律に停止するのは、キー名が変わった古いキーだけである。`verification_commands` がリストのような、キー名の変わらない移行は、上の表のとおりに扱う。
-- このスキルが設定に書くのは、引き渡しの 1 か所だけである。
-  作り直しが済んだ current の target の `url`（`none` から実際の URL へ）と `default: true` を、利用者に確かめたうえで書く。他のキーは消さない（[`references/verification-handoff.md`](references/verification-handoff.md)）。
+- このスキルが設定に書くのは、引き渡しと、その取り消しの 2 か所だけである。どちらも、current の target の `url` と `default` だけを、利用者に確かめたうえで書く。他のキーは消さない。
+  引き渡しでは、作り直しが済んだ target の `url` を `none` から実際の URL にし、`default: true` を付ける。
+  取り消しでは、`url` を `none` に戻し、`default` を `false` にする（「停止と再開」の「引き渡した後に届いたとき」）。
+  書き方の原本は [`references/verification-handoff.md`](references/verification-handoff.md) である。
 
 ## 自律実行（`--autonomous`）
 
@@ -114,13 +116,14 @@ current-environment-bootstrap [--target <name>] [--resume] [--autonomous]
   - 暫定の起動データを投入する前の「テスト環境であることの確認」（自己申告のチェック）
   - 出所か利用の許可が分からないデータを投入してよいか
   - 引き渡しのときの `url` と `default: true` の書き込み
+  - 引き渡しを取り消すときの `url` と `default` の書き戻し
 - 自律実行でも停止するのは、下記の「停止と再開」の停止の表の条件である。
   これらは先方や SME の回答・資産、または人が直す設定で埋まる前提の欠落で、実行中の利用者の判断では埋まらない。
 - 上の 2 つ（対象の選択・続きから進めてよいか）と、「停止と再開」で利用者に工程を確かめるときも、保留にせず止まる。
   これらは利用者の判断で埋まるが、決めないと進める工程が決まらず、推測で決めると工程を飛ばすおそれがあるからである。
 - 記録先は、`metadata.json` の `pending_decisions[]` と `run.autonomous` である。
   解決していない保留が残る間は、`status: handed-off` にしない。`status: blocked` のまま、`blocked_on` に `判断待ち: <id>` を載せる。
-- このスキルが設定に書く 1 か所（引き渡し）も、越えない線に当たる（人が確定させる方針のキー）。値は保留に記録し、答えが得られてから書く。
+- このスキルが設定に書く 2 か所（引き渡しと、その取り消し）も、越えない線に当たる（人が確定させる方針のキー）。値は保留に記録し、答えが得られてから書く。
 
 ## 実行フロー
 
@@ -167,10 +170,14 @@ current-environment-bootstrap [--target <name>] [--resume] [--autonomous]
 | 読めない（`resume` が無い、`null`、1〜9 の整数でない） | 回答を台帳に反映し、`status`・`blocked_on` の値・`resume` を示して止まり、再開する工程を利用者に確かめる |
 
 再開するときは、回答や資産で変わった値を、`from_step` より前の工程の成果物とツールにも反映する（工程 3 の `schema.md` と作り直しのツールなど）。
+反映で、作り直しのツール（工程 3）か、暫定の起動データとその投入ツール（工程 6）を直したときに `from_step` が 8 か 9 なら、`from_step` を 7 に書き直してから再開する。
+`handed-off` の条件は、今のツールとデータで工程 7・8 を実測していることだからである。台帳（`semantics.md`・`questionnaire.md`・`assets-inventory.md`）だけを直したなら、`from_step` を変えない。
 工程を確かめるときは、`--autonomous` でも保留にせず止まる。答えを得たら、答えの番号を `resume.from_step` に書き、`deferred` が無ければ空配列を書いてから再開する。
 
-`status: handed-off` の記録に回答や追加の資産が届いたときの扱いは、このスキルでは決めていない。
-台帳も `metadata.json` も書き換えずに、`status`・`handoff.unconfirmed` と届いたものを示して止まり、どう扱うかを利用者に確かめる。`--autonomous` でも保留にせず止まる。
+`blocked_on` は、最後に止まったときの理由である。再開するときには、次の段落で解けた理由を消すときを除いて書き換えず、次に止まったときに、そのときの理由で全体を書き直す。`handed-off` にするときは空配列にする。
+利用者が答えた工程が、`blocked_on` に書いた工程の番号のうち最も小さいものより後なら、答えた工程より前の番号の理由が解けたかを利用者に確かめる。
+解けた理由は `blocked_on` から消してから再開する。解けていない理由が残るなら、答えた工程からは再開せず、工程を確かめ直す。
+`判断待ち: <id>` の要素は工程の番号を持たないので、比べる対象にしない。
 
 工程 3 の不足（スキーマを欠けなく作り直せない、DB の設定を判断できない）で止まるときは、不足の項目に依存しない工程 4・5・6 を続けてから、工程 7 の前で止まる。
 意味論の台帳・質問票・暫定の起動データは受領資産から作れるので、先に作っておけば、先方への問い合わせが 1 回で済む。
@@ -193,6 +200,27 @@ current-environment-bootstrap [--target <name>] [--resume] [--autonomous]
 | 出所か利用の許可が分からないデータしか無い | 出所と利用の許可の確認、または本番でないデータの追加の受け取り |
 | 起動に欠かせない項目の意味論を確かめられない | 質問票への回答（SME・先方） |
 | 投入先の target が `db.seedable: true` でない | 設定の修正（人が行う） |
+
+#### 引き渡した後に届いたとき
+
+`status: handed-off` の記録に回答や追加の資産が届いて続きから進めるとき（`--resume`、または指定なしで続きから進めると答えたとき）は、まず届いたものを台帳に反映する。
+そのうえで、作り直しのツールか、暫定の起動データとその投入ツールを直す必要があるか、`schema.md` に「不足」になる行があるかで分ける。
+
+| 届いたものの影響 | 扱い |
+|---|---|
+| どちらも無い（確認待ちを確定させるだけ） | 台帳と、それに対応する `metadata.json` の値（`semantics` の件数・`questionnaire_refs`・`handoff.unconfirmed`）だけを直し、`handed-off` のまま終える。確定させた項目を `handoff.unconfirmed` から外し、空になったら `["なし"]` と書く |
+| どちらかがある、または迷う | 下の手順で `blocked` に戻してから、再開の表の 1 行目のとおりに再開する |
+
+`blocked` に戻す手順は次のとおりである。
+`golden-dataset` と `replace-strategy` の測定は `status` を読んで止まるので、先に `metadata.json` を書き換える。
+
+1. `metadata.json` の `status` を `blocked` にする。`blocked_on` には、`工程 <番号>: <届いたもので生じた理由>` を書く。
+   `resume` には、`from_step` と空の `deferred` を書く。`from_step` は、作り直しのツールを直すか「不足」の行があれば 3、暫定の起動データか投入ツールだけを直すなら 6 にする。
+   `from_step` を決められず迷ったときは、`resume` を `null` にし、再開の表の 2 行目のとおりに工程を利用者に確かめる。`handoff` の値は消さずに残し、次の引き渡しで書き直す。
+2. 設定の current の target の引き渡しを取り消す（`default` を `false` にしてから、`url` を `none` に戻す）。
+   `parity-suite` などの姉妹スキルは `status` を読まず、設定の値で current の target を選ぶので、取り消さないと作り直しの途中の環境を選ぶ。
+   値は利用者に確かめてから書く。書き方は [`references/verification-handoff.md`](references/verification-handoff.md)「引き渡しを取り消すとき」にある。
+   `--autonomous` では判断待ちの保留にし、`blocked_on` に `判断待ち: <id>` も載せる（「自律実行」）。
 
 ## 成果物
 
