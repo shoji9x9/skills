@@ -9,7 +9,7 @@
   "mutations": [
     {
       "id": "bar-takes-no-space",
-      "why": "横にはみ出した窓で横スクロールバーの厚みが 0 でも通す（陽性コントロールを外す）",
+      "why": "横にはみ出した窓で横スクロールバーの厚みが 0 でも通す（検出されることの確認を外す）",
       "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
       "find": "  if (w.horizontal && w.horizontal_bar_px === 0) {\n",
       "replace": "  if (false) {\n",
