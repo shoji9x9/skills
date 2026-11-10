@@ -9,6 +9,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -701,5 +702,77 @@ describe("書き戻しの一時ファイル", () => {
     const leftovers = readdirSync(join(dir, ".kaizen")).filter((n) => n.includes("kaizen-forget-"));
     expect(leftovers).toEqual([]);
     rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+// ノートの名前はリポジトリの中身で決まるので、commit された symlink でありうる。
+// 内容を戻す `>` は symlink の先をたどるので、symlink のノートは書き換えずに飛ばし、候補にも挙げない。
+describe("symlink のノートは書き換えない", () => {
+  test("--auto は、symlink のノートの先を書き換えず、ほかの候補は忘却する", () => {
+    const dir = makeProject({ "old-low": note({}) });
+    const outside = makeTempDir("kaizen-forget-outside-");
+    const victim = join(outside, "victim.md");
+    const original = note({ priority: "medium" });
+    writeFileSync(victim, original);
+    symlinkSync(victim, join(dir, ".kaizen", "linked.md"));
+
+    const result = run(dir, ["--auto"]);
+    expect(result.status, result.stderr).toBe(0);
+    expect(readFileSync(victim, "utf8")).toBe(original);
+    expect(statusOf(dir, "old-low")).toBe("forgotten");
+  });
+
+  test("--list は、symlink のノートを候補に挙げない", () => {
+    const dir = makeProject({ "old-low": note({}) });
+    const outside = makeTempDir("kaizen-forget-outside-");
+    const victim = join(outside, "victim.md");
+    writeFileSync(victim, note({}));
+    symlinkSync(victim, join(dir, ".kaizen", "linked.md"));
+
+    const result = run(dir, ["--list"]);
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toContain("old-low.md");
+    expect(result.stdout).not.toContain("linked.md");
+  });
+
+  test("ファイルを指定した忘却も、symlink のノートの先を書き換えず、理由を出す", () => {
+    const dir = makeProject({});
+    const outside = makeTempDir("kaizen-forget-outside-");
+    const victim = join(outside, "victim.md");
+    const original = note({});
+    writeFileSync(victim, original);
+    symlinkSync(victim, join(dir, ".kaizen", "linked.md"));
+
+    const result = run(dir, [".kaizen/linked.md"]);
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stderr).toContain("symlink");
+    expect(readFileSync(victim, "utf8")).toBe(original);
+  });
+
+  test("ファイルを指定した忘却は、ノートを置いたディレクトリが symlink なら書き換えない", () => {
+    // cwd の .kaizen ではなく、別の場所（別の作業ツリーなど）の symlink の .kaizen にあるノートを指定する。
+    const dir = makeProject({});
+    const other = makeTempDir("kaizen-forget-other-");
+    const outside = makeTempDir("kaizen-forget-outside-");
+    const original = note({});
+    writeFileSync(join(outside, "x.md"), original);
+    symlinkSync(outside, join(other, ".kaizen"));
+
+    const result = run(dir, [join(other, ".kaizen", "x.md")]);
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stderr).toContain("symlink");
+    expect(readFileSync(join(outside, "x.md"), "utf8")).toBe(original);
+  });
+
+  test(".kaizen が symlink なら、その中のノートを候補に挙げず、書き換えない", () => {
+    const dir = makeTempDir("kaizen-forget-");
+    const outside = makeTempDir("kaizen-forget-outside-");
+    const original = note({});
+    writeFileSync(join(outside, "old-low.md"), original);
+    symlinkSync(outside, join(dir, ".kaizen"));
+
+    const result = run(dir, ["--auto"]);
+    expect(result.status, result.stderr).toBe(0);
+    expect(readFileSync(join(outside, "old-low.md"), "utf8")).toBe(original);
   });
 });

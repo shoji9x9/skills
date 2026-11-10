@@ -131,8 +131,11 @@ is_candidate() { # $1: ノート
 # 候補の一覧を stdout へ（1 行 1 ファイル、タブ区切りで判断材料も出す）。
 list_candidates() {
 	local note age note_days date_value priority
+	# symlink のノートと `.kaizen` は書き換えないので、候補にも挙げない（rewrite_status と同じ扱い）。
+	[ ! -L .kaizen ] || return 0
 	for note in .kaizen/*.md; do
 		[ -e "${note}" ] || continue
+		[ ! -L "${note}" ] || continue
 		[ "$(basename "${note}")" = "INDEX.md" ] && continue
 		is_candidate "${note}" || continue
 		{
@@ -146,10 +149,14 @@ list_candidates() {
 }
 
 # frontmatter の `status:` 行だけを書き換える。本文の `status:` には触らない。
-# 一時ファイルへ書いてから内容を戻すことで、元ファイルの mode とシンボリックリンクを保つ
-# （kaizen-archive.sh のリンク補正と同じ手順）。
+# 一時ファイルへ書いてから内容を戻すことで、元ファイルの mode を保つ。
+# ノートか `.kaizen` が symlink なら書き換えない。名前はリポジトリの中身で決まるので commit された symlink でありえ、
+# 内容を戻す `>` は symlink の先をたどって、リポジトリの外のファイルを書き換える。
 rewrite_status() { # $1: ノート
 	local note="$1" tmp
+	if [ -L "${note}" ] || [ -L "$(dirname -- "${note}")" ] || [ -L .kaizen ]; then
+		return 3
+	fi
 	# **固定の名前にしない。** 掃引は抽出の完了時に実行されるので、同じリポジトリで 2 つのセッションが
 	# 同時に commit すると両方が同じ tmp に書き込み、`cat tmp >note` が途中の内容を
 	# 書き戻してノートの中身が不正になる（rc 0 なので「忘却した」と報告される）。
@@ -187,7 +194,9 @@ rewrite_status() { # $1: ノート
 
 # 忘却できなかった理由を出す。$1 = rewrite_status の戻り値、$2 = 表示するノート。
 report_rewrite_failure() { # $1: 戻り値 $2: ノート
-	if [ "$1" -eq 2 ]; then
+	if [ "$1" -eq 3 ]; then
+		echo "kaizen-forget: skip (the note or .kaizen is a symlink): $2" >&2
+	elif [ "$1" -eq 2 ]; then
 		echo "kaizen-forget: skip (could not write the note): $2" >&2
 	else
 		echo "kaizen-forget: skip (no status line in frontmatter): $2" >&2
