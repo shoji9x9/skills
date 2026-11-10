@@ -1,0 +1,51 @@
+{
+  "status": "handed-off",
+  "blocked_on": [],
+  "resume": null,
+  "questionnaire_refs": ["Q-3", "Q-4"],
+  "origin": "received-assets",
+  "generated_at": "2026-08-18T02:10:00Z",
+  "updated_at": "2026-08-26T03:30:00Z",
+  "current": {
+    "target": "current-rebuilt",
+    "schema_restored_from": "received-ddl",
+    "schema_unfilled": [],
+    "provisional_seeded_at": "2026-08-26T02:50:00Z",
+    "verified_at": "2026-08-26T03:10:00Z",
+    "rebuild_reproduced": true,
+    "rebuild_verified_at": "2026-08-26T03:25:00Z"
+  },
+  "assets": {
+    "received": 4,
+    "derivable": 2,
+    "missing": 3
+  },
+  "semantics": {
+    "confirmed": 3,
+    "pending": 1,
+    "unresolvable": 1,
+    "pending_features": ["受注一覧", "得意先一覧"]
+  },
+  "handoff": {
+    "boot_requirements": ["admin ロールのユーザー（app_users.role_code = ADMIN）"],
+    "unconfirmed": [
+      "Q-4: タイムゾーンと sql_mode の層（インスタンスの値か、接続で上書きしているか）",
+      "Q-3: customers.rank_code の値集合",
+      "Q-2: orders.status の意味と遷移（確認したが確定できなかった）"
+    ]
+  },
+  "tool": {
+    "dir": "bootstrap/",
+    "schema_entry": "bootstrap/schema.sh",
+    "seed_entry": "bootstrap/seed.sh",
+    "language": "shell"
+  },
+  "run": {
+    "agent": "claude-code",
+    "model": "opus",
+    "effort": "high",
+    "skill_version": "0.1.0",
+    "autonomous": false
+  },
+  "pending_decisions": []
+}

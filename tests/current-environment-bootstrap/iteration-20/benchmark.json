@@ -1,0 +1,157 @@
+{
+  "metadata": {
+    "skill_name": "current-environment-bootstrap",
+    "skill_path": "<repo>/skills/current-environment-bootstrap",
+    "executor_model": "claude-opus-5-5",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-10T07:21:27Z",
+    "evals_run": [9],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 125.767,
+        "tokens": 505856,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "metadata.json の status を blocked に戻し、blocked_on に工程 3 の理由（タイムゾーンと sql_mode のインスタンスの値が分からない）を書いている",
+          "passed": true,
+          "evidence": "status: blocked。blocked_on に「工程 3: DB インスタンスのタイムゾーンと sql_mode が不足…」"
+        },
+        {
+          "text": "metadata.json の resume.from_step を 3 にしている",
+          "passed": true,
+          "evidence": "resume.from_step: 3、deferred は空"
+        },
+        {
+          "text": "schema.md のタイムゾーンと sql_mode のインスタンスの行を不足にし、セッション・接続の行に回答の値を確定として書いている",
+          "passed": true,
+          "evidence": "schema.md 13・17 行のインスタンスの行が不足（Q-5）、14・18 行のセッション・接続の行に回答の値を確定として記載"
+        },
+        {
+          "text": "最後のメッセージで、設定の current-rebuilt の url を none に戻し default を false にしてよいかを利用者に確かめている",
+          "passed": true,
+          "evidence": "最後のメッセージの「問い 1」で default を false にしてから url を none に戻すか、選択肢 1-a〜1-c で確かめた"
+        },
+        {
+          "text": "metadata.json の handoff の boot_requirements と unconfirmed を消さずに残している",
+          "passed": true,
+          "evidence": "handoff.boot_requirements は元のまま、unconfirmed は Q-3 と Q-2 を残している"
+        },
+        {
+          "text": "metadata.json の stale_downstream に、path が .replace/dataset/metadata.json の要素を載せている",
+          "passed": true,
+          "evidence": "stale_downstream に path: .replace/dataset/metadata.json、skill: golden-dataset のフェーズ A の 1 件"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.1667,
+        "passed": 1,
+        "failed": 5,
+        "total": 6,
+        "time_seconds": 38.473,
+        "tokens": 123198,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "metadata.json の status を blocked に戻し、blocked_on に工程 3 の理由（タイムゾーンと sql_mode のインスタンスの値が分からない）を書いている",
+          "passed": false,
+          "evidence": "status: handed-off のまま"
+        },
+        {
+          "text": "metadata.json の resume.from_step を 3 にしている",
+          "passed": false,
+          "evidence": "resume は null のまま"
+        },
+        {
+          "text": "schema.md のタイムゾーンと sql_mode のインスタンスの行を不足にし、セッション・接続の行に回答の値を確定として書いている",
+          "passed": false,
+          "evidence": "schema.md の 4 行は「層の確認待ち」のまま"
+        },
+        {
+          "text": "最後のメッセージで、設定の current-rebuilt の url を none に戻し default を false にしてよいかを利用者に確かめている",
+          "passed": false,
+          "evidence": "取り消すかを決めるよう書いたが、値と順序を示して確かめていない（スキルの導入を促して止まった）"
+        },
+        {
+          "text": "metadata.json の handoff の boot_requirements と unconfirmed を消さずに残している",
+          "passed": true,
+          "evidence": "ファイルを変えていないので handoff はそのまま"
+        },
+        {
+          "text": "metadata.json の stale_downstream に、path が .replace/dataset/metadata.json の要素を載せている",
+          "passed": false,
+          "evidence": "metadata.json に stale_downstream が無い（データセットのやり直しの可能性は最後のメッセージで触れた）"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 125.767,
+        "stddev": 0,
+        "min": 125.767,
+        "max": 125.767
+      },
+      "tokens": {
+        "mean": 505856,
+        "stddev": 0,
+        "min": 505856,
+        "max": 505856
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.1667,
+        "stddev": 0,
+        "min": 0.1667,
+        "max": 0.1667
+      },
+      "time_seconds": {
+        "mean": 38.473,
+        "stddev": 0,
+        "min": 38.473,
+        "max": 38.473
+      },
+      "tokens": {
+        "mean": 123198,
+        "stddev": 0,
+        "min": 123198,
+        "max": 123198
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.83",
+      "time_seconds": "+87.3",
+      "tokens": "+382658"
+    }
+  },
+  "notes": []
+}
