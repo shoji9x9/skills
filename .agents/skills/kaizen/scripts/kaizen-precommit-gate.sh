@@ -1546,6 +1546,14 @@ resolve_foreign_sentinels() {
 	done
 }
 
+# 今の作業ツリーの `.kaizen` が symlink なら、止める。Stop フックはそこにセンチネルを書かず、全作業ツリーの列挙も
+# そのツリーを返さないので、続けるとセンチネルが 0 件に見えて、抽出していない活動があっても commit を通す。
+# 判定できないときは失敗として扱う。他の作業ツリーの分は元から警告だけなので、列挙から外すだけにする。
+if [ -L "${project_root}/.kaizen" ]; then
+	echo "kaizen-precommit-gate: ${project_root}/.kaizen が symlink なので、未抽出の活動を確かめられない。commit を止めます。.kaizen を通常のディレクトリにしてから commit し直してください。" >&2
+	exit 2
+fi
+
 unresolved=()
 collect_unresolved
 if [ "${#unresolved[@]}" -eq 0 ]; then
