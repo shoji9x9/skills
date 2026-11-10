@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       run_id:
-        description: 指摘を読む Self review の run の ID（空なら、main で最後に成功した run）
+        description: 指摘を読む Self review の run の ID（空なら、このリポジトリの main で定期実行か手動で実行して最後に成功した run）
         type: string
         default: ""
 
@@ -96,7 +96,7 @@ jobs:
           fi
           echo "model_args=${SELF_REVIEW_MODEL:+--model $SELF_REVIEW_MODEL}" >>"$GITHUB_OUTPUT"
 
-      # 指摘を読む点検の run と、その結果の artifact を決める。run の ID は、入力か、main で最後に成功した Self review の run から取る。
+      # 指摘を読む点検の run と、その結果の artifact を決める。run の ID は、入力か、このリポジトリの main で定期実行か手動で実行して最後に成功した Self review の run から取る。
       - name: Resolve source run
         id: source
         if: steps.pause.outputs.skip != 'true'
@@ -113,8 +113,7 @@ jobs:
           # 点検の結果を読んでよい run は、このリポジトリの main で、定期実行か手動で実行して成功した Self review の run だけである。
           # head_branch は PR の head の branch 名で、fork の PR でも `main` にできるので、event と head のリポジトリも確かめる。
           # path に ref（`@main` など）が付く run もあるので、`@` から後を外して比べる。
-          # 比べるリポジトリの名前は、jq の文字列に埋め込まず、環境変数から読む。
-          trusted='(.path | sub("@.*$"; "")) == ".github/workflows/self-review.yml" and .head_branch == "main" and .conclusion == "success" and (.event == "schedule" or .event == "workflow_dispatch") and .head_repository.full_name == env.GITHUB_REPOSITORY'
+          trusted='(.path | sub("@.*$"; "")) == ".github/workflows/self-review.yml" and .head_branch == "main" and .conclusion == "success" and (.event == "schedule" or .event == "workflow_dispatch") and .head_repository.id == .repository.id'
           if [ -z "$run_id" ]; then
             # 一覧は新しい順なので、条件を満たす最初の run を選ぶ。一覧に PR の run が含まれていても、それを飛ばして信頼できる run を選ぶ。
             ids="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows/self-review.yml/runs?branch=main&status=success&per_page=100${created:+&created=$created}" \
@@ -127,7 +126,7 @@ jobs:
           fi
           # 入力で渡した run も、同じ条件で確かめる。PR の run が作った artifact の指摘を読まないためである。
           origin="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" \
-            --jq "if $trusted then \"trusted\" else ([(.path | sub(\"@.*$\"; \"\")), .head_branch, .conclusion, .event, .head_repository.full_name] | map(tostring) | join(\" \")) end")"
+            --jq "if $trusted then \"trusted\" else ([(.path | sub(\"@.*$\"; \"\")), .head_branch, .conclusion, .event, .head_repository.full_name, .repository.full_name] | map(tostring) | join(\" \")) end")"
           if [ "$origin" != trusted ]; then
             echo "run $run_id は、このリポジトリの main で定期実行か手動で実行して成功した Self review の run ではない（$origin）" >&2
             exit 1

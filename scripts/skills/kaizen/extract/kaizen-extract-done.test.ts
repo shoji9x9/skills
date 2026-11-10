@@ -527,7 +527,22 @@ describe("symlink の先には書かない", () => {
     expect(readdirSync(outside)).toEqual([]);
   });
 
-  test("どちらも symlink でなければ、これまでどおりマーカーを書いて 0 で終える", () => {
+  // `mv` は、移動先がディレクトリへの symlink なら、その中へファイルを移す。
+  test("処理位置の checkpoint が symlink なら、先のディレクトリに何も作らず、センチネルも残して 0 以外で終える", () => {
+    const { main } = makeRepoWithWorktree();
+    const outside = makeTempDir("kaizen-extract-done-outside-");
+    symlinkSync(outside, join(main, ".kaizen", `.extract-checkpoint.${SESSION}`));
+    writeSentinel(main);
+    const transcript = join(main, "transcript.jsonl");
+    writeFileSync(transcript, '{"type":"user"}\n');
+    const run = runExtractDone(main, main, [transcript]);
+    expect(run.status).not.toBe(0);
+    expect(run.stderr).toContain("symlink");
+    expect(readdirSync(outside)).toEqual([]);
+    expect(existsSync(sentinelPath(main))).toBe(true);
+  });
+
+  test("どれも symlink でなければ、これまでどおりマーカーを書いて 0 で終える", () => {
     const { main } = makeRepoWithWorktree();
     writeSentinel(main);
     const run = runExtractDone(main, main);

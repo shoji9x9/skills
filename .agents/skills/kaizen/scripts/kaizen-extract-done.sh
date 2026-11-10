@@ -205,11 +205,12 @@ sentinel_path="${control_dir}/${sentinel_path#.kaizen/}"
 checkpoint_path="${control_dir}/${checkpoint_path#.kaizen/}"
 done_path="${control_dir}/${done_path#.kaizen/}"
 
-# 制御ファイルのディレクトリと抽出完了のマーカーの名前は、リポジトリの中身で決まるので、commit された symlink でありうる。
-# `mkdir -p` と書き込みの `>` は symlink の先をたどるので、どちらかが symlink なら何も書かずに止める（リポジトリの外のファイルを書き換えない）。
+# 制御ファイルのディレクトリ、処理位置の checkpoint、抽出完了のマーカーの名前は、リポジトリの中身で決まるので、commit された symlink でありうる。
+# `mkdir -p` と書き込みの `>` は symlink の先をたどる。`mv` も、移動先がディレクトリへの symlink なら、その中へファイルを移す。
+# そこで、どれかが symlink なら何も書かずに止める（リポジトリの外のファイルを書き換えない）。
 # このスクリプトはチェックを解除する役なので、書けないときは 0 以外で終え、チェックが commit を止めたままにする。
-if [ -L "${control_dir}" ] || [ -L "${done_path}" ]; then
-	echo "kaizen-extract-done: 制御ファイルのディレクトリか抽出完了のマーカーが symlink なので、何も書かずに止める: ${done_path}" >&2
+if [ -L "${control_dir}" ] || [ -L "${checkpoint_path}" ] || [ -L "${done_path}" ]; then
+	echo "kaizen-extract-done: 制御ファイルのディレクトリか、処理位置か、抽出完了のマーカーが symlink なので、何も書かずに止める: ${control_dir}" >&2
 	exit 1
 fi
 
