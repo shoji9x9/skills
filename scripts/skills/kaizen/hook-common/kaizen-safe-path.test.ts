@@ -47,6 +47,17 @@ function outsideDir() {
 }
 
 describe("kaizen_path_is_safe", () => {
+  test(".. を含むパスは、symlink を通らなくても安全としない", () => {
+    // `.kaizen/../.kaizen/x.md` は、文字の上では最後の `.kaizen` で判定を終えるが、実際には先頭の `.kaizen` を通る。
+    const dir = makeTempDir("kaizen-safe-path-");
+    mkdirSync(join(dir, ".kaizen"), { recursive: true });
+    expect(isSafe(dir, ".kaizen/../.kaizen/x.md")).toBe(1);
+    expect(isSafe(dir, "../x.md")).toBe(1);
+    expect(isSafe(dir, ".kaizen/..")).toBe(1);
+    // `..` を名前の一部に含むだけのパスは対象にしない。
+    expect(isSafe(dir, ".kaizen/a..b.md")).toBe(0);
+  });
+
   test("symlink を通らない .kaizen の下のパスは安全とする", () => {
     const dir = makeTempDir("kaizen-safe-path-");
     mkdirSync(join(dir, ".kaizen", "archive"), { recursive: true });

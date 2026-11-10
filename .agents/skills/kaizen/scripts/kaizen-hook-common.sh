@@ -217,9 +217,14 @@ kaizen_resolve_project_root() {
 # パスをたどっても symlink を通らないか。パス自身か、親から一番近い `.kaizen` までのディレクトリの
 # どれかが symlink なら 1 を返す。`.kaizen` を含まないパスは、パス自身と親だけを見る。
 # `.kaizen` より上はリポジトリの中身で決まらない（`/tmp` が symlink の環境もある）ので見ない。
+# `..` を含むパスも 1 を返す。`.kaizen/../.kaizen/x` のように、文字の上の最後の `.kaizen` で判定を終えると、
+# 実際の解決で先頭の symlink の `.kaizen` を通るためである。
 kaizen_path_is_safe() { # $1: パス
 	local p="${1:-}" dir
 	[ -n "${p}" ] || return 1
+	case "/${p}/" in
+	*/../*) return 1 ;;
+	esac
 	while [ "${p}" != "/" ] && [ "${p%/}" != "${p}" ]; do
 		p=${p%/}
 	done
@@ -249,7 +254,7 @@ kaizen_path_is_safe() { # $1: パス
 
 # 書かない・消さない理由を stderr に 1 行出す。$1 = パス、$2 = しないこと（「書かない」など）。
 kaizen_report_unsafe_path() {
-	echo "kaizen: $1 か、その上の .kaizen までのディレクトリが symlink なので、$2" >&2
+	echo "kaizen: $1 か、その上の .kaizen までのディレクトリが symlink か、パスが .. を含むので、$2" >&2
 }
 
 # ファイルを消す。リンクそのものを消すのは安全なので、パス自身が symlink でも消し、親から `.kaizen` までだけを確かめる。

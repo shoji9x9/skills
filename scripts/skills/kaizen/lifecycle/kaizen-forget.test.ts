@@ -792,6 +792,22 @@ describe("symlink のノートは書き換えない", () => {
     expect(result.stderr).toContain(".kaizen が symlink");
   });
 
+  test("ファイルを指定した忘却は、.kaizen/../.kaizen/ を通るパスでも symlink の .kaizen の先を書き換えない", () => {
+    // .kaizen -> <outside>/target なので、.kaizen/.. は <outside> を指し、.kaizen/../.kaizen は <outside>/.kaizen（実在の
+    // ディレクトリ）になる。文字の上の最後の .kaizen は symlink ではないので、そこで判定を終えると安全に見える。
+    const dir = makeTempDir("kaizen-forget-");
+    const outside = makeTempDir("kaizen-forget-outside-");
+    mkdirSync(join(outside, "target"));
+    mkdirSync(join(outside, ".kaizen"));
+    const original = note({});
+    writeFileSync(join(outside, ".kaizen", "victim.md"), original);
+    symlinkSync(join(outside, "target"), join(dir, ".kaizen"));
+
+    const result = run(dir, [".kaizen/../.kaizen/victim.md"]);
+    expect(result.status, result.stderr).toBe(0);
+    expect(readFileSync(join(outside, ".kaizen", "victim.md"), "utf8")).toBe(original);
+  });
+
   test(".kaizen が symlink なら、その中のノートを候補に挙げず、書き換えない", () => {
     const dir = makeTempDir("kaizen-forget-");
     const outside = makeTempDir("kaizen-forget-outside-");
