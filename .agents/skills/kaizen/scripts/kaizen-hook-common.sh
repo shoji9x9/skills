@@ -212,15 +212,18 @@ kaizen_resolve_project_root() {
 # `>`・`mkdir -p`・`mv` の移動先は symlink の先をたどり、親のディレクトリが symlink なら `rm -f` もその先に届く。
 # そのため、リポジトリの外のファイルを書き換えたり消したりする。
 # `.kaizen` の下に書く・消す・作る・移すときは、次の関数を通す。symlink かの判定は kaizen_path_is_safe の 1 か所で行う。
-# 共通ライブラリを読めないスクリプトは、同じ名前の簡略な代わり（パス・親・`.kaizen` だけを見る）を自分で定義する。
+# 共通ライブラリを読めないスクリプトは、同じ名前の簡略な代わり（`.kaizen` そのものと直下だけを安全とする）を自分で定義する。
 
-# パスをたどっても symlink を通らないか。パス自身か、親から一番近い `.kaizen` までのディレクトリの
-# どれかが symlink なら 1 を返す。`.kaizen` を含まないパスは、パス自身と親だけを見る。
+# パスをたどっても symlink を通らないか。通るなら 1 を返す。
+# パスの文字を上へたどって symlink を探すと、`..` や入れ子の `.kaizen`（`.kaizen/linked/.kaizen/x`）のような書き方の数だけ
+# 抜けができる。そこで、ディレクトリの実体のパス（`pwd -P`）を比べる。判定は次のとおりである。
+#   - パス自身が symlink なら 1。`..` を含むパスも 1（書き方を絞り、判定を読みやすく保つ）。
+#   - パスに `.kaizen` が無ければ、親が symlink かだけを見る。
+#   - パスの一番外側の `.kaizen` が symlink なら 1。
+#   - 親（無ければ、在る一番近い祖先）の実体が、一番外側の `.kaizen` の実体の下に無ければ 1。
 # `.kaizen` より上はリポジトリの中身で決まらない（`/tmp` が symlink の環境もある）ので見ない。
-# `..` を含むパスも 1 を返す。`.kaizen/../.kaizen/x` のように、文字の上の最後の `.kaizen` で判定を終えると、
-# 実際の解決で先頭の symlink の `.kaizen` を通るためである。
 kaizen_path_is_safe() { # $1: パス
-	local p="${1:-}" dir
+	local p="${1:-}" root rest anc phys_root phys_anc
 	[ -n "${p}" ] || return 1
 	case "/${p}/" in
 	*/../*) return 1 ;;
@@ -229,27 +232,39 @@ kaizen_path_is_safe() { # $1: パス
 		p=${p%/}
 	done
 	[ ! -L "${p}" ] || return 1
-	dir=$(dirname -- "${p}")
 	case "/${p}/" in
 	*/.kaizen/*) ;;
 	*)
-		[ ! -L "${dir}" ]
+		[ ! -L "$(dirname -- "${p}")" ]
 		return
 		;;
 	esac
-	case "${p##*/}" in
-	.kaizen) return 0 ;;
+	# 一番外側の `.kaizen` のパス。`.kaizen` で始まる相対パスなら `.kaizen`、それ以外は最初の `/.kaizen` までにする。
+	case "${p}" in
+	.kaizen | .kaizen/*) root=.kaizen ;;
+	*)
+		# 名前の一部に `.kaizen` を含むだけの要素（`.kaizenfoo`）で切らないよう、`/.kaizen/` の区切りで探す。
+		rest="${p}/"
+		rest=${rest#*/.kaizen/}
+		root="${p}/"
+		root=${root%"${rest}"}
+		root=${root%/}
+		;;
 	esac
-	while :; do
-		[ ! -L "${dir}" ] || return 1
-		case "${dir##*/}" in
-		.kaizen) return 0 ;;
-		esac
-		case "${dir}" in
-		/ | . | "") return 0 ;;
-		esac
-		dir=$(dirname -- "${dir}")
+	[ ! -L "${root}" ] || return 1
+	[ "${p}" != "${root}" ] || return 0
+	# `.kaizen` がまだ無ければ、その下にたどる symlink も無い（作るのは呼び出し側で、作る前に root を確かめている）。
+	[ -d "${root}" ] || return 0
+	phys_root=$(cd -- "${root}" 2>/dev/null && pwd -P) || return 1
+	anc=$(dirname -- "${p}")
+	while [ ! -d "${anc}" ]; do
+		anc=$(dirname -- "${anc}")
 	done
+	phys_anc=$(cd -- "${anc}" 2>/dev/null && pwd -P) || return 1
+	case "${phys_anc}/" in
+	"${phys_root}/"*) return 0 ;;
+	esac
+	return 1
 }
 
 # 書かない・消さない理由を stderr に 1 行出す。$1 = パス、$2 = しないこと（「書かない」など）。

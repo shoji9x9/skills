@@ -529,3 +529,37 @@ test("共通ライブラリを読めないときも、途中のディレクト�
   expect(readFileSync(join(outside, "deep", "note.md"), "utf8")).toBe(original);
   expect(existsSync(join(dir, ".kaizen", "archive", "note.md"))).toBe(false);
 });
+
+test("共通ライブラリを読めないときも、入れ子の .kaizen を通るノートを移さない", () => {
+  const dir = createRepo();
+  const outside = makeTempDir("kaizen-archive-outside-");
+  mkdirSync(join(outside, ".kaizen"));
+  const original = "---\nstatus: applied\n---\n\nbody\n";
+  writeFileSync(join(outside, ".kaizen", "note.md"), original);
+  symlinkSync(outside, join(dir, ".kaizen", "linked"));
+  const alone = makeTempDir("kaizen-archive-alone-");
+  const source = join(
+    dirname(fileURLToPath(import.meta.url)),
+    "..",
+    "..",
+    "..",
+    "..",
+    "skills/kaizen/scripts/kaizen-archive.sh",
+  );
+  copyFileSync(source, join(alone, "kaizen-archive.sh"));
+
+  const result = spawnSync(
+    "bash",
+    [join(alone, "kaizen-archive.sh"), ".kaizen/linked/.kaizen/note.md"],
+    {
+      timeout: CHILD_TIMEOUT_MS,
+      cwd: dir,
+      env: { ...process.env, CLAUDE_PROJECT_DIR: "", LANG: "C.UTF-8", LC_ALL: "C.UTF-8" },
+      encoding: "utf8",
+    },
+  );
+
+  expect(result.stderr).toContain("共通ライブラリを読めない");
+  expect(readFileSync(join(outside, ".kaizen", "note.md"), "utf8")).toBe(original);
+  expect(existsSync(join(dir, ".kaizen", "archive", "note.md"))).toBe(false);
+});

@@ -9,7 +9,8 @@
 // | ------------------------ | -------------------------------------------------------------------- |
 // | symlink の位置           | 無い / パス自身 / 親 / `.kaizen` / `.kaizen` の中の途中 / `.kaizen` より上 |
 // | パスが `.kaizen` を含むか | 含む / 含まない                                                      |
-// | 書き方                   | 末尾のスラッシュの有無 / 空                                          |
+// | 書き方                   | 末尾のスラッシュの有無 / 空 / `..` を含む                            |
+// | `.kaizen` の入れ子       | 無い / 外側の `.kaizen` の下に内側の `.kaizen` がある                |
 import { describe, expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
@@ -47,6 +48,20 @@ function outsideDir() {
 }
 
 describe("kaizen_path_is_safe", () => {
+  test("入れ子の .kaizen は、一番外側の .kaizen までの symlink を見る", () => {
+    // `.kaizen/linked/.kaizen/x.md` で linked が symlink のとき、内側の `.kaizen` で判定を終えると見逃す。
+    const dir = makeTempDir("kaizen-safe-path-");
+    const outside = makeTempDir("kaizen-safe-path-outside-");
+    mkdirSync(join(dir, ".kaizen"), { recursive: true });
+    mkdirSync(join(outside, ".kaizen"), { recursive: true });
+    symlinkSync(outside, join(dir, ".kaizen", "linked"));
+    expect(isSafe(dir, ".kaizen/linked/.kaizen/x.md")).toBe(1);
+    expect(isSafe(dir, ".kaizen/linked/.kaizen")).toBe(1);
+    // symlink が無ければ、入れ子でも安全とする。
+    mkdirSync(join(dir, ".kaizen", "real", ".kaizen"), { recursive: true });
+    expect(isSafe(dir, ".kaizen/real/.kaizen/x.md")).toBe(0);
+  });
+
   test(".. を含むパスは、symlink を通らなくても安全としない", () => {
     // `.kaizen/../.kaizen/x.md` は、文字の上では最後の `.kaizen` で判定を終えるが、実際には先頭の `.kaizen` を通る。
     const dir = makeTempDir("kaizen-safe-path-");

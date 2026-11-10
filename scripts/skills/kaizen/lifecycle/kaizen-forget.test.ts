@@ -808,6 +808,19 @@ describe("symlink のノートは書き換えない", () => {
     expect(readFileSync(join(outside, ".kaizen", "victim.md"), "utf8")).toBe(original);
   });
 
+  test("ファイルを指定した忘却は、入れ子の .kaizen を通るパスでも、外側の .kaizen の下の symlink の先を書き換えない", () => {
+    const dir = makeProject({});
+    const outside = makeTempDir("kaizen-forget-outside-");
+    mkdirSync(join(outside, ".kaizen"));
+    const original = note({});
+    writeFileSync(join(outside, ".kaizen", "victim.md"), original);
+    symlinkSync(outside, join(dir, ".kaizen", "linked"));
+
+    const result = run(dir, [".kaizen/linked/.kaizen/victim.md"]);
+    expect(result.status, result.stderr).toBe(0);
+    expect(readFileSync(join(outside, ".kaizen", "victim.md"), "utf8")).toBe(original);
+  });
+
   test(".kaizen が symlink なら、その中のノートを候補に挙げず、書き換えない", () => {
     const dir = makeTempDir("kaizen-forget-");
     const outside = makeTempDir("kaizen-forget-outside-");
