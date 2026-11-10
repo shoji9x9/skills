@@ -129,6 +129,13 @@ else
 	sentinel=".kaizen/.pending-extract${suffix}"
 fi
 
+# .kaizen とセンチネルの名前はリポジトリの中身で決まるので、commit された symlink でありうる。
+# 書き込みの `>` は symlink の先をたどるので、どちらかが symlink なら書かずに終える（リポジトリの外のファイルを書き換えない）。
+# 記録役なのでセッションは止めず、stderr に理由だけを残す。
+if [ -L .kaizen ] || [ -L "${sentinel}" ]; then
+	echo "kaizen-stop-mark: .kaizen かセンチネルが symlink なので、センチネルを書かない: ${sentinel}" >&2
+	exit 0
+fi
 mkdir -p .kaizen
 printf '%s\n%s\n%s\n%s\n' \
 	"$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "${transcript}" "${agent}" "${session_id}" >"${sentinel}"

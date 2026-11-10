@@ -7,6 +7,7 @@
 // | ------------ | ------------------------------------------------------------------------------------ |
 // | 記録の SHA   | 無い / HEAD と一致 / 前の HEAD だけ（直した commit を再レビューしていない）/ 両方       |
 // | 記録の書き手 | 作成者 / 担当者 / どちらでもない / 作成者の login を前方に含む別の login                 |
+// |              | / 手元でレビューする gh のユーザーでない作成者 / gh のユーザーを取得できない            |
 // | 1 行目の形   | 正しい / 短縮した SHA / 件数が整数でない / 件数の先頭が 0 / 件数が 20 桁 / open が無い  |
 // |              | / 件数が 10 桁 / open が findings より大きい / 末尾に余計な文字 / CRLF                 |
 // |              | / 1 行目に U+001F（途中・末尾の 1 文字）                                               |
@@ -203,6 +204,7 @@ test("前の HEAD と今の HEAD の記録があれば、今の HEAD の記録�
 
 test("担当者の記録は数え、作成者でも担当者でもない人の記録は理由を出して読み飛ばす", () => {
   const byAssignee = setup({
+    me: "bob",
     assignees: ["bob"],
     comments: [{ id: 21, login: "bob", body: marker(HEAD, 0) }],
   });
@@ -221,6 +223,31 @@ test("担当者の記録は数え、作成者でも担当者でもない人の�
   expect(r.status).toBe(1);
   expect(r.out).toMatchObject({ status: "not-reviewed", records: "0", ignored: "3" });
   expect(r.stderr).toMatch(/記録 22 を読み飛ばした（mallory は PR の作成者でも担当者でもない）/);
+});
+
+test("手元でレビューする gh のユーザーの記録だけを数え、PR の作成者が書いた記録は読み飛ばす", () => {
+  // 他の人が書いた PR を、担当者（bob）が手元でレビューする。作成者（alice）は自分の HEAD の記録を書ける
+  const forged = setup({
+    me: "bob",
+    assignees: ["bob"],
+    comments: [{ id: 25, login: "alice", body: marker(HEAD, 0) }],
+  });
+  const r = run(forged, ["check", "--pr", "7"]);
+  expect(r.status).toBe(1);
+  expect(r.out).toMatchObject({ status: "not-reviewed", records: "0", ignored: "1" });
+  expect(r.stderr).toMatch(
+    /記録 25 を読み飛ばした（alice は、手元でレビューする gh のユーザー（bob）でない）/,
+  );
+});
+
+test("check は、gh のユーザーを取得できなければ、記録を読まずに exit 4", () => {
+  const dir = setup({
+    fail: ["user"],
+    comments: [{ id: 26, login: "alice", body: marker(HEAD, 0) }],
+  });
+  const r = run(dir, ["check", "--pr", "7"]);
+  expect(r.status).toBe(4);
+  expect(r.stderr).toMatch(/local を使わずに止まる/);
 });
 
 test.each([
@@ -416,6 +443,7 @@ test("post は、gh のユーザーを取得できなければ（ユーザーで
 test("GitHub App が作った PR では、作成者の app/<name> を <name>[bot] として記録の書き手と照合する", () => {
   const dir = setup({
     author: "app/renovate",
+    me: "renovate[bot]",
     comments: [{ id: 61, login: "renovate[bot]", body: marker(HEAD, 0) }],
   });
   expect(run(dir, ["check", "--pr", "7"]).status).toBe(0);

@@ -20,11 +20,19 @@ Box のファイルとフォルダを、Box REST API で直接操作する。MCP
 
 ## 認証
 
-すべての呼び出しに `Authorization: Bearer <token>` を付ける。トークンは同梱のスクリプトで取得する（設定した環境変数によって方式が変わる）。
+すべての呼び出しに `Authorization: Bearer <token>` のヘッダーを付ける。トークンは同梱のスクリプトで取得する（設定した環境変数によって方式が変わる）。
+ヘッダーは、自分だけが読めるファイルに書いて `-H @<ファイル>` で curl に渡す。
+`-H "Authorization: Bearer $TOKEN"` と書くと、トークンが curl の argv に載り、curl が動いている間、同じホストの他のユーザーが `ps` や `/proc/<pid>/cmdline` から読める。
+`printf` は bash の組み込みのコマンドなので、ファイルに書くときは argv に載らない。
 
 ```bash
 TOKEN="$(bash <skill>/scripts/box-token.sh)"
+BOX_AUTH="$(mktemp)"   # mktemp は、自分だけが読み書きできるファイル（0600）を作る
+trap 'rm -f "$BOX_AUTH"' EXIT
+printf 'Authorization: Bearer %s\n' "$TOKEN" >"$BOX_AUTH"
 ```
+
+この後の例は、すべてこの `BOX_AUTH` を使う。
 
 | 方式          | 必要な環境変数                                        | 特徴                                                                                                     |
 | ------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
@@ -52,7 +60,7 @@ OAuth refresh を使う場合は、最初の 1 回だけ、Client ID と Client 
 
 ```bash
 curl -sSf "https://api.box.com/2.0/users/me" \
-  -H "Authorization: Bearer $TOKEN" | jq '{id, name, login}'
+  -H @"$BOX_AUTH" | jq '{id, name, login}'
 ```
 
 ## 対象フォルダ
@@ -86,7 +94,7 @@ FOLDER="$(bash <skill>/scripts/box-folder.sh)" || exit 1
 marker=""
 while :; do
   args=(-G "https://api.box.com/2.0/folders/$FOLDER/items"
-    -H "Authorization: Bearer $TOKEN"
+    -H @"$BOX_AUTH"
     --data-urlencode "usemarker=true"
     --data-urlencode "limit=1000"
     --data-urlencode "fields=id,name,type,size,modified_at")
@@ -104,21 +112,21 @@ done
 
 ```bash
 curl -sSf "https://api.box.com/2.0/files/<file-id>?fields=id,name,size,extension,modified_at,sha1" \
-  -H "Authorization: Bearer $TOKEN" | jq
+  -H @"$BOX_AUTH" | jq
 ```
 
 ### ファイルのダウンロード
 
 ```bash
 curl -fL "https://api.box.com/2.0/files/<file-id>/content" \
-  -H "Authorization: Bearer $TOKEN" -o /tmp/box-download.bin
+  -H @"$BOX_AUTH" -o /tmp/box-download.bin
 ```
 
 ### 検索（対象のフォルダの下に限る）
 
 ```bash
 curl -sSf -G "https://api.box.com/2.0/search" \
-  -H "Authorization: Bearer $TOKEN" \
+  -H @"$BOX_AUTH" \
   --data-urlencode "query=<検索語>" \
   --data-urlencode "ancestor_folder_ids=$FOLDER" \
   --data-urlencode "fields=id,name,type,modified_at" | jq '.entries[] | {id, type, name}'
@@ -131,7 +139,7 @@ curl -sSf -G "https://api.box.com/2.0/search" \
 
 ```bash
 curl -sSf -X POST "https://upload.box.com/api/2.0/files/content" \
-  -H "Authorization: Bearer $TOKEN" \
+  -H @"$BOX_AUTH" \
   -F "attributes={\"name\":\"report.txt\",\"parent\":{\"id\":\"$FOLDER\"}}" \
   -F file=@/tmp/report.txt | jq '.entries[0] | {id, name, size}'
 ```
@@ -140,7 +148,7 @@ curl -sSf -X POST "https://upload.box.com/api/2.0/files/content" \
 
 ```bash
 curl -sSf -X POST "https://upload.box.com/api/2.0/files/<file-id>/content" \
-  -H "Authorization: Bearer $TOKEN" \
+  -H @"$BOX_AUTH" \
   -F file=@/tmp/report.txt | jq '.entries[0] | {id, name, modified_at}'
 ```
 

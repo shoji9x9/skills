@@ -690,6 +690,39 @@ describe.concurrent("agent-usage のコマンドと Hook", () => {
     expect(text).toMatch(/usage:claude-code:s-wt:/);
   });
 
+  // コミットするディレクトリは、エージェントが書いたコマンド（cd・git -C）で決まる。別のリポジトリなら、
+  // そこで判断も記録もしない（そのリポジトリの設定の core.fsmonitor などを、記録の git add で実行しない）。
+  // 同じリポジトリの worktree は、これまでどおりそこで判断する。
+  test("コマンドが別のリポジトリでコミットするなら何もせずに通し、同じリポジトリの worktree なら判断する", async () => {
+    const { tmp, git, cli, gate } = await setup();
+    expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
+    await git("add", ".agent-usage");
+    await git("commit", "-q", "-m", "setup");
+    const other = join(tmp, "other");
+    mkdirSync(join(other, ".agent-usage"), { recursive: true });
+    const marker = join(tmp, "fsmonitor-ran");
+    const otherGit = (...args: string[]) => {
+      const r = spawnSync("git", args, { cwd: other, encoding: "utf8", timeout: CHILD_TIMEOUT_MS });
+      if (r.status !== 0) throw new Error(r.stderr);
+    };
+    otherGit("init", "-q", "-b", "feature/9-other");
+    writeFileSync(join(other, "fsmonitor.sh"), `#!/bin/sh\ntouch '${marker}'\n`);
+    chmodSync(join(other, "fsmonitor.sh"), 0o755);
+    otherGit("config", "core.fsmonitor", join(other, "fsmonitor.sh"));
+    for (const command of [`git -C ${other} commit -m x`, `cd ${other} && git commit -m x`]) {
+      const r = await gate(command);
+      expect(r.status).toBe(0);
+      expect(r.stderr).toBe("");
+    }
+    expect(existsSync(marker)).toBe(false);
+
+    const wt = join(tmp, "wt");
+    await git("worktree", "add", "-q", "-b", "feature/7-wt", wt);
+    const blocked = await gate(`git -C ${wt} commit -m x`);
+    expect(blocked.status).toBe(2);
+    expect(blocked.stderr).toMatch(/decline/);
+  });
+
   test("Hook は、前に書いて stage されなかった記録も stage する", async () => {
     const { repo, git, cli, gate } = await setup();
     expect((await cli("setup", "--time-zone", "UTC")).status).toBe(0);
