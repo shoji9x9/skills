@@ -49,6 +49,9 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
   - `replace-strategy setup` の完了は、設定 `.config/skills/shoji9x9/replace-strategy.jsonc` と `.replace/features.md` が在ることで判定する。
   - 部品インベントリは、`.replace/components.md` が在り、対象の slug の行にインスタンスが 2 つ以上挙がっていることで判定する（[`references/instances.md`](references/instances.md)）。
   - `golden-dataset` のフェーズ A の完了は、`.replace/dataset/metadata.json` が在ることで判定する。
+  - `capture` では、設定の `current.origin` が `received-assets` なら、`.replace/bootstrap/metadata.json` の `status` が `handed-off` であることも確かめる。
+    `handed-off` でなければ、現行の環境は作り直しの途中か、まだ建っていない。設定の current の target が前の環境を指したままでも、採らずに停止し、`current-environment-bootstrap` の完了を促す。
+    `managed` とキーが無いプロジェクトでは、この確認をしない。
   - setup とフェーズ A は、まだ解決していない保留があれば、証拠があっても完了していないものとして扱う。どの保留を見るかは、`replace-strategy` の `references/autonomy.md`「下流の前提判定」で定義する。
   - `build` の前提は、対象の slug の `capture` が完了していること（`.replace/components/<slug>/metadata.json` の `capture.complete`）と、`axes.ok` が真であることの両方である。
     `capture.complete` だけでは足りない。全インスタンス × 全状態を採っていても、id の重複・採っていない状態・片側でしか採れていない軸が残っていれば、`axis-diff.mjs` は `ok: false` を返す。
@@ -126,6 +129,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 | `targets` | 実行対象環境。`capture` は `side: current`、`build` は `side: new` の中から `--target` で選ぶ。`pre_commands`・`start`・`check_urls` があれば、起動と稼働の確認に使う |
 | `targets[].catalog_url` / `targets[].catalog_url_command` | 新側の target の部品カタログの baseURL。`build` ではどちらか 1 つが必須である。固定の文字列なら `catalog_url`、実行ごとに変わる環境なら `catalog_url_command` を使う（`url` / `url_command` と同じく、両方は書けず、解決の規則も同じ）。両方あるときも、どちらも無いときも、推測せずに停止してユーザーに確認する（取り決めは [`references/catalog.md`](references/catalog.md)） |
 | `targets[].auth.roles` / `targets[].forbidden_actions` | 選択した target の、ロールごとの認証情報（環境変数の名前）と、実施しない操作。`capture`（現行の target）と `build`（新側の target のカタログ）の両方で読む。保護されたカタログは、認証しないと見本に到達できないからである。`storageState` の作り方とロール名の扱いの原本は、`parity-suite` の `references/auth.md` である。`capture` も `forbidden_actions` を読む。`checked`・`selected`・`error` の状態はクリックや送信でしか作れず、採取自体は読み取りでも、状態を作る操作は書き込みになることがある。禁止された操作で作る状態には遷移せず、`gaps.md` に残す |
+| `current.origin` | 現行環境の由来（`managed` / `received-assets`。キーが無ければ `managed`）。`received-assets` のときだけ、`capture` の前に `current-environment-bootstrap` の引き渡しが終わっているかを確かめる（「前提」）。意味はスキーマの文書の「現行環境の由来」で定義する |
 | `references.component_catalog` | カタログの取り決めを書いた文書のパス。実体（Storybook など）・見本の書き方・データの入れ方・URL の決まり方を書く。整備されていなければ `build` に入らずに停止し、整備を促す。カタログの実体を、スキルが勝手に決めない |
 | `references.ui_library` | 新しい UI ライブラリの設定と、旧→新の design token の対応表。整備されていなければ、`build` の手順 5（テーマ寄せ）に入らずに停止する。源流で系統差を縮められず、宣言と未検証が増えるからである。止める位置は手順 5 の直前で、手順 1 ではない。手順 1〜4（前提の検証・引数の設計・部品の採否・実装）はこのファイルを読まないので、そこで止めると要らない停止になる。手順の原本は `parity-replace` の `references/theming.md` である |
 | `references.architecture` | 新側のアプリの骨格の決定記録。部品は骨格の上に載るので、整備されていなければ `build` に入らずに停止する |

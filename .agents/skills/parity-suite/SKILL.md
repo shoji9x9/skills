@@ -202,7 +202,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
 | `targets[].forbidden_actions` | 選択した target で行わない UI / API の操作（空のリストと未定義の意味は、スキーマ文書に従う） |
 | `uses_storage` / `targets[].storage` | ファイルストレージを使うかと、選択した current の target の接続（`env_vars`）・書き込める範囲（`write_scope`）・アップロードの方法（`upload_route`）。ファイル出力の捕捉とアップロードの特性化で読む。ゴールデンデータの投入はしないが、テストがストレージへ直接書く・消す場合（後始末など）は、`storage.seedable: true` で、`write_scope` の下であることが前提になる（[`references/data-discipline.md`](references/data-discipline.md) で定義する）。アプリを通したアップロードの可否は、`forbidden_actions` で決まる。`upload_route` が宣言されていなければ、推測せずユーザーに確認する。`uses_storage: true` なのに宣言した target が無ければ、ストレージへの依存を `gaps.md` に書く |
 | `intentional_diffs` | 意図的差異レジストリ。故障カタログを導くとき（[`references/strength-gate.md`](references/strength-gate.md)）と、side ごとの期待値の根拠（[`references/locator-mapping.md`](references/locator-mapping.md)「期待値解決層」）に読む。書くのは、`pending` への追記（既存の内容を変えない）だけで、宣言に無い差を見つけたときに書く。`keep` / `may_change` は人間が確定するので書かない（書き手の区分は、スキーマ文書の「キーの書き手とライフサイクル」で定義する）。追記した側が分かる形で書く。差異の文言は `item`（照合のキー）に、`slug` には対象の slug を、`added_by` には `parity-suite` を、`added_at` には追記した日を書く。`item` を別のキー名で書くと、追記のときは通り、数工程後の `parity-diff` の棚卸しで「`item` が空」として現れる（要素の形は、スキーマ文書の「`pending` 要素の形」で定義する）。確定させる時期は、`parity-diff` の収束の判定が求める棚卸しである（スキーマ文書の「`pending` の棚卸し」） |
-| `current.origin` | 現行環境の由来（`managed` / `received-assets`。キーが無ければ `managed`）。`received-assets` のときだけ、対象の slug の意味論が確定しているかを、実行フローの手順 1 で確かめる（意味は、スキーマ文書の「現行環境の由来」で定義する） |
+| `current.origin` | 現行環境の由来（`managed` / `received-assets`。キーが無ければ `managed`）。`received-assets` のときだけ、現行の環境が引き渡されているか（`.replace/bootstrap/metadata.json` の `status`）と、対象の slug の意味論が確定しているかを、実行フローの手順 2 で確かめる（意味は、スキーマ文書の「現行環境の由来」で定義する） |
 | `current.feedback_calls` | 移行元で、利用者に見える副作用を出す呼び出しの一覧（パターンの id・正規表現・種類）。反応の網羅表で移行元のソースと突き合わせるために読む。キーが無い（未確認の）ときだけ、移行元のソースから候補を挙げてユーザーに確認し、確定した値をこのキーへ 1 回記録する（意味は、スキーマ文書の「フィードバック呼び出し」で定義する） |
 | `references.db_semantics` | DB の意味論の差（並び順の特性化で読む）。整っていない（キーが無い・値が空・パスを解決できない）ときは停止しない。判断の材料が無いまま推測せず、実測で特性化し、整えるようユーザーに促す |
 | `verification_commands` | 書いたスイート・マッピング層・操作アダプタに通す検証コマンド。通すのは `full`（全体を走査する列）で、`diff`（変更したファイルだけの列）は使わない。`full` が無くても、値がリスト（古い形式で、実行する範囲が宣言されていない）でも停止せず、その旨を `gaps.md` に記録して進む。`parity-replace` の完了の判定と違い、ここでは生成物の品質を保つためのもので、スイートの合否の判定ではない。スイートの合否は、現側の green と強度チェックが見る（意味は、スキーマ文書の「検証コマンド」で定義する） |
@@ -252,6 +252,8 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
 - setup とフェーズ A は、未解決の保留があれば、証拠があっても未完了として同じく停止する。
   見る保留の範囲は、`replace-strategy` の `references/autonomy.md`「下流の前提判定」で定義する。フェーズ B の別の slug・別の target の保留では止めない
 - Playwright が使えない（Node が無い・導入できない）なら、設計が成り立たないことを明示して停止する
+- `current.origin: received-assets` なら、`--target` を確定する前に、手順 2 の `received-assets` の確認（引き渡しと意味論）を済ませる。
+  `status` が `handed-off` でない記録で、前の環境を起動したり到達を確かめたりしないためである
 - `--target` から現行の環境を確定する。
   `url_command` の target は、ここで 1 回だけコマンドを実行して URL を解決する。失敗したときと出力が空のときは停止し、以降は解決した値を使い回す
 - target が `browser.cdp_url` を持てば、`PARITY_CURRENT_CDP_URL` に解決し、その接続先へ届くことも確かめる
@@ -266,14 +268,15 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
 
 `slug` を features.md と突き合わせる（無い slug なら停止する。自分で採番しない）。種別からモードを決める。
 
-`current.origin: received-assets` の場合は、ここでシナリオを確定できるかを確かめる。次のどちらかに当たれば、スイートの構築へ進まずに停止する。
+`current.origin: received-assets` の場合は、ここで現行の環境が引き渡されているかと、シナリオを確定できるかを確かめる。次のどれかに当たれば、スイートの構築へ進まずに停止する。
 
+- `.replace/bootstrap/metadata.json` の `status` が `handed-off` でない。現行の環境は作り直しの途中か、まだ建っていない。設定の current の target が前の環境を指したままでも、その環境を使わない
 - `.replace/dataset/verification.md` の「意味論が未確定の機能」に、対象の slug がある
 - `.replace/bootstrap/semantics.md` の状態「確認待ち」か「確認したが確定できなかったもの」に、その slug に必須の意味論が残っている
 
-停止したら、足りない意味論・質問票の該当する項目・回答が返るまで始められないことを報告する。
+停止したら、`handed-off` でないときは `current-environment-bootstrap` の完了を促す。意味論で止まったときは、足りない意味論・質問票の該当する項目・回答が返るまで始められないことを報告する。
 `managed` のプロジェクトと、キーが無いプロジェクトでは、この確認をしない。
-この確認は設定ファイルと成果物だけで済むので、手順 1 の起動（`pre_commands` / `start`）より先に行う。始められない機能のために、現行アプリを起動しない。
+この確認は設定ファイルと成果物だけで済むので、手順 1 の target の確定と起動（`pre_commands` / `start`）より先に行う。始められない機能のためにも、引き渡されていない環境のためにも、現行アプリを起動しない。
 
 ### 3. 保存先検証
 

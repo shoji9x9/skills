@@ -45,6 +45,10 @@ scripts/eval/run/run-skill-eval.sh \
 - eval 19 は、eval 18 と**同じ fixture** に対して、意味論が**確定済み**の `customer-list` を対象にする。誤検知しないことの確認である。
   「`received-assets` なら一律で止まる」「確認待ちが 1 件でもあれば全機能を止める」実装を弾く（eval 18 だけでは、全部止める実装と区別できない）。
   この環境では Playwright・現行アプリに到達できないので、**停止するとしても、その理由が意味論の確認待ちでないこと**を見る
+- eval 45 の fixture（`bootstrap-reverted`）は、eval 18 の fixture の `.replace/bootstrap/metadata.json` を、引き渡しの後に `blocked` へ戻した記録にしたものである。
+  設定の `current-test` は `url` と `default: true` を持ったままで、作り直しの取り消しがまだ書かれていない状態を表す。
+  意味論が確定済みの `customer-list` を対象にするので、止まる理由は `status` だけである。**設定の値ではなく `status` を読んで止まること**を見る。
+  baseline も記録の `blocked` を読んで止まるので、Delta には寄与しない。`status` を読まずに設定の target で進む後退を検知するための eval である
 - eval 20・21 は部品網羅表（Issue #274）の回帰で、前提の有無に関わらず会話で判定できる取り決めを対象にする。
   20 は、ベンダー資料を列挙の生成源に留めること・部品 × ページのインスタンスごとに測ること・3 値と `covered_by` の記録を見る。
   21 は、未測定を行の削除で消せないこと（判定できないときは失敗として扱う）と、`metadata.json` の `component_coverage` をキーごと省略しないことを見る。
