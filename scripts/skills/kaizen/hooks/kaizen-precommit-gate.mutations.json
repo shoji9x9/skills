@@ -234,6 +234,18 @@
       ]
     },
     {
+      "id": "GATE-PREFILTER-PASSES-UNICODE",
+      "why": "最初の絞り込みで、\\u を含む入力を次の段に渡さない（git \\u0063ommit は生の JSON に commit の語が無いので、jq に渡る前に通す）",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": "*'\\u'*) ;;\n*) exit 0 ;;",
+      "replace": "*) exit 0 ;;",
+      "occurrences": 1,
+      "expect_failing": [
+        "事前の絞り込みはツールの名前と入力だけを見る \\u で書いた commit の語も、絞り込みで通さずに jq で判定する",
+        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: tool_input の値の \\u0063ommit（commit の語なし）"
+      ]
+    },
+    {
       "id": "GATE-PREFILTER-UNICODE-ESCAPE",
       "why": "\\u を含む入力も絞り込みに使う（\\u で書いたキーの command を見つけられず、commit を通す）",
       "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
@@ -241,7 +253,10 @@
       "replace": "\t*'\\u'*) ;;",
       "occurrences": 1,
       "expect_failing": [
-        "事前の絞り込みはツールの名前と入力だけを見る \\u を含む入力は、入力の全体で判定する"
+        "事前の絞り込みはツールの名前と入力だけを見る \\u を含む入力は、入力の全体で判定する",
+        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: 外側のキーを tool\\u0041rgs と書いた形",
+        "事前の絞り込みはツールの名前と入力だけを見る \\u で書いた commit の語も、絞り込みで通さずに jq で判定する",
+        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: tool_input の値の \\u0063ommit（commit の語なし）"
       ]
     },
     {
@@ -253,6 +268,75 @@
       "occurrences": 1,
       "expect_failing": [
         "事前の絞り込みはツールの名前と入力だけを見る 対象のキーが無い入力は、入力の全体で判定する"
+      ]
+    },
+    {
+      "id": "GATE-RAW-NESTED-NOT-DECODED",
+      "why": "生の JSON で判定するとき、JSON の文字列として入った toolArgs などを復号せずに捨てる（Copilot の commit を通す。Issue #916）",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": "\t\t\traw_nested_out+=(\"${json_unescape_out}\")",
+      "replace": "\t\t\t:",
+      "occurrences": 1,
+      "expect_failing": [
+        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: Copilot の toolArgs（-copilot）",
+        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: Copilot の toolArgs（引数なし）",
+        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: toolArgs の区切りの後ろ",
+        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: toolArgs の改行の後ろ",
+        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: toolArgs の行継続",
+        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: toolArgs の -C 付き",
+        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: tool_input が JSON の文字列",
+        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: input が JSON の文字列",
+        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: toolArgs の ASCII でない文字の \\u の後ろ"
+      ]
+    },
+    {
+      "id": "GATE-RAW-NESTED-UNDECIDABLE-PASSES",
+      "why": "生の JSON で判定するとき、復号した値から得た判定できないこと（内側の JSON の \\u00XX）を、判定に使わずに通す",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": "\traw_undecidable=${raw_nested_undecidable}",
+      "replace": "\traw_undecidable=0",
+      "occurrences": 1,
+      "expect_failing": [
+        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: toolArgs の内側の JSON の \\u0063ommit"
+      ]
+    },
+    {
+      "id": "GATE-RAW-NESTED-INNER-ESCAPE-PASSES",
+      "why": "生の JSON で判定するとき、ASCII の \\u00XX（入力の全体と、復号した内側の JSON）を、判定できないとして扱わずに通す",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": "\t*'\\u00'[0-7][0-9A-Fa-f]*) return 0 ;;",
+      "replace": "\t*'\\u00'[0-7][0-9A-Fa-f]*) return 1 ;;",
+      "occurrences": 1,
+      "expect_failing": [
+        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: toolArgs の内側の JSON の \\u0063ommit",
+        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: tool_input の値の \\u0063ommit",
+        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: 外側のキーを tool\\u0041rgs と書いた形",
+        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: tool_input の値の \\u0063ommit（commit の語なし）"
+      ]
+    },
+    {
+      "id": "GATE-RAW-NESTED-ESCAPED-BACKSLASH-AS-ESCAPE",
+      "why": "JSON の \\\\ を取り除かずに \\u00XX を探す（コマンドに書いた \\ と u0063 の 6 文字をエスケープと読み、commit でない呼び出しを止める）",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": "\ts=${s//\"${bs}${bs}\"/}",
+      "replace": "\t:",
+      "occurrences": 1,
+      "expect_failing": [
+        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: toolArgs のコマンドに書いた \\u0063 の文字",
+        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: tool_input のコマンドに書いた \\u0063 の文字"
+      ]
+    },
+    {
+      "id": "GATE-RAW-TOP-ESCAPE-PASSES",
+      "why": "生の JSON で判定するとき、入力の全体の ASCII の \\u00XX（tool\\u0041rgs のキー・\\u0063ommit の値）を、判定できないとして扱わずに通す",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": "\tif json_has_ascii_escape \"${cmd}\"; then",
+      "replace": "\tif false; then",
+      "occurrences": 1,
+      "expect_failing": [
+        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: 外側のキーを tool\\u0041rgs と書いた形",
+        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: tool_input の値の \\u0063ommit",
+        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: tool_input の値の \\u0063ommit（commit の語なし）"
       ]
     },
     {
@@ -275,10 +359,10 @@
       "replace": "(.)",
       "occurrences": 1,
       "expect_failing": [
-        "jq だけがある環境でのコマンドの取り出し Copilot の形（-copilot） の git commit を止める",
-        "jq だけがある環境でのコマンドの取り出し Copilot の形（引数なし） の git commit を止める",
-        "jq だけがある環境でのコマンドの取り出し input が JSON の文字列の形 の git commit を止める",
-        "jq だけがある環境でのコマンドの取り出し tool_input が JSON の文字列の形 の git commit を止める"
+        "jq だけがある環境でのコマンドの取り出し Copilot の形（-copilot） のプロジェクトの外への commit は、コマンドを取り出して通す",
+        "jq だけがある環境でのコマンドの取り出し Copilot の形（引数なし） のプロジェクトの外への commit は、コマンドを取り出して通す",
+        "jq だけがある環境でのコマンドの取り出し input が JSON の文字列の形 のプロジェクトの外への commit は、コマンドを取り出して通す",
+        "jq だけがある環境でのコマンドの取り出し tool_input が JSON の文字列の形 のプロジェクトの外への commit は、コマンドを取り出して通す"
       ]
     },
     {
