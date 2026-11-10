@@ -1505,8 +1505,12 @@ resolve_foreign_sentinels() {
 		case "${rc}" in
 		0 | 124)
 			# キャッシュは最適化なので、書けなくても走査の結論は変えない。
+			# キャッシュの名前もセンチネルの key（リポジトリの中身）で決まるので、commit された symlink でありうる。
+			# `>` は symlink の先をたどり、`mv -f` は移動先がディレクトリへの symlink ならその中へ移すので、どちらかが symlink なら書かない。
 			tmp="${cache}.tmp.$$"
-			if printf '%s\n%s\n%s\n%s\n' "${foreign_scan_cache_header}" "${inputs}" "${rc}" "${slice}" >"${tmp}" 2>/dev/null; then
+			if [ -L "${cache}" ] || [ -L "${tmp}" ]; then
+				echo "kaizen-precommit-gate: 走査の結果のキャッシュが symlink なので書かない: ${cache}" >&2
+			elif printf '%s\n%s\n%s\n%s\n' "${foreign_scan_cache_header}" "${inputs}" "${rc}" "${slice}" >"${tmp}" 2>/dev/null; then
 				mv -f "${tmp}" "${cache}" 2>/dev/null || rm -f "${tmp}"
 			else
 				rm -f "${tmp}"

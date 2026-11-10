@@ -159,6 +159,11 @@ trap 'rm -f "${pending_index}"' EXIT
 pending_files=()
 for f in .kaizen/*.md; do
 	[ -e "${f}" ] || continue
+	# symlink のノートも、`.kaizen` と同じ理由で注入しない（リポジトリの外のファイルがエージェントの文脈に入る）。
+	if [ -L "${f}" ]; then
+		echo "kaizen-context-inject: ${f} は symlink なので、学びとして注入しない" >&2
+		continue
+	fi
 	# status も frontmatter 限定で判定する。全文 grep だと本文やコードブロックの
 	# `status: pending` を拾い、frontmatter が applied / rejected / forgotten のノートまで注入してしまう。
 	{

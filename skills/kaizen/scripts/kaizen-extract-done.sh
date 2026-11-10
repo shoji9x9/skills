@@ -294,8 +294,10 @@ if [ -n "${transcript}" ] && [ -r "${transcript}" ]; then
 	fi
 	if [ -n "${checkpoint_bytes}" ] && [ -n "${checkpoint_lines}" ]; then
 		checkpoint_fingerprint=$(kaizen_transcript_fingerprint "${transcript}" "${checkpoint_bytes}" || true)
-		if printf '%s\n%s\n%s\n%s\n%s\n' "${transcript}" "${checkpoint_bytes}" "${agent}" "${checkpoint_lines}" "${checkpoint_fingerprint}" \
-			>"${checkpoint_tmp}" 2>/dev/null &&
+		# mktemp が使えないときの一時ファイルは制御ファイルのディレクトリに置くので、その名前も symlink でありうる。
+		if [ ! -L "${checkpoint_tmp}" ] &&
+			printf '%s\n%s\n%s\n%s\n%s\n' "${transcript}" "${checkpoint_bytes}" "${agent}" "${checkpoint_lines}" "${checkpoint_fingerprint}" \
+				>"${checkpoint_tmp}" 2>/dev/null &&
 			mv "${checkpoint_tmp}" "${checkpoint_path}" 2>/dev/null; then
 			checkpoint_written=1
 		fi

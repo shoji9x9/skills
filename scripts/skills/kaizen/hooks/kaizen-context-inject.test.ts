@@ -656,6 +656,20 @@ describe("symlink の .kaizen の先は消さない", () => {
     expect(inject(dir).toString("utf8")).not.toContain("外の要約");
   });
 
+  test("symlink のノートは学びとして注入せず、ほかのノートは注入する", () => {
+    const dir = createRepo("中の要約");
+    const outside = makeTempDir("kaizen-context-inject-outside-");
+    const linked = join(outside, "linked.md");
+    writeFileSync(
+      linked,
+      "---\ndate: 2026-09-01\ntype: rule\npriority: high\nstatus: pending\n---\n\n# note\n\n## 提案\n\n外の要約\n",
+    );
+    symlinkSync(linked, join(dir, ".kaizen", "2026-09-02-linked.md"));
+    const stdout = inject(dir).toString("utf8");
+    expect(stdout).not.toContain("外の要約");
+    expect(stdout).toContain("中の要約");
+  });
+
   test(".kaizen が symlink でなければ、これまでどおり .extract-done を消す", () => {
     const dir = createRepo("要約");
     writeFileSync(join(dir, ".kaizen", ".extract-done"), "2026-01-01T00:00:00Z\n");

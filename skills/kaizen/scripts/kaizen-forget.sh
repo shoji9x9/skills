@@ -132,7 +132,11 @@ is_candidate() { # $1: ノート
 list_candidates() {
 	local note age note_days date_value priority
 	# symlink のノートと `.kaizen` は書き換えないので、候補にも挙げない（rewrite_status と同じ扱い）。
-	[ ! -L .kaizen ] || return 0
+	# 候補が 0 件のときと区別できるよう、理由を stderr に出す。
+	if [ -L .kaizen ]; then
+		echo "kaizen-forget: .kaizen が symlink なので、候補を挙げない" >&2
+		return 0
+	fi
 	for note in .kaizen/*.md; do
 		[ -e "${note}" ] || continue
 		[ ! -L "${note}" ] || continue
@@ -150,11 +154,36 @@ list_candidates() {
 
 # frontmatter の `status:` 行だけを書き換える。本文の `status:` には触らない。
 # 一時ファイルへ書いてから内容を戻すことで、元ファイルの mode を保つ。
-# ノートか `.kaizen` が symlink なら書き換えない。名前はリポジトリの中身で決まるので commit された symlink でありえ、
-# 内容を戻す `>` は symlink の先をたどって、リポジトリの外のファイルを書き換える。
+# ノートか、ノートから上の `.kaizen` までのディレクトリが symlink なら書き換えない。名前はリポジトリの中身で決まるので
+# commit された symlink でありえ、内容を戻す `>` は symlink の先をたどって、リポジトリの外のファイルを書き換える。
+# 直上のディレクトリだけを見ると、`<ツリー>/.kaizen/archive/x.md` のように `.kaizen` が 2 段上にあるノートで、symlink の `.kaizen` を見逃す。
+# `.kaizen` より上はリポジトリの中身で決まらない（`/tmp` が symlink の環境もある）ので見ない。
+note_path_has_symlink() { # $1: ノート
+	local dir
+	[ ! -L "$1" ] || return 0
+	dir=$(dirname -- "$1")
+	case "/${dir}/" in
+	*/.kaizen/*) ;;
+	*)
+		# `.kaizen` を含まないパスは、直上のディレクトリだけを見る。
+		[ -L "${dir}" ] && return 0
+		return 1
+		;;
+	esac
+	while :; do
+		[ ! -L "${dir}" ] || return 0
+		case "${dir##*/}" in
+		.kaizen) return 1 ;;
+		esac
+		case "${dir}" in
+		/ | . | "") return 1 ;;
+		esac
+		dir=$(dirname -- "${dir}")
+	done
+}
 rewrite_status() { # $1: ノート
 	local note="$1" tmp
-	if [ -L "${note}" ] || [ -L "$(dirname -- "${note}")" ] || [ -L .kaizen ]; then
+	if note_path_has_symlink "${note}"; then
 		return 3
 	fi
 	# **固定の名前にしない。** 掃引は抽出の完了時に実行されるので、同じリポジトリで 2 つのセッションが
@@ -195,7 +224,7 @@ rewrite_status() { # $1: ノート
 # 忘却できなかった理由を出す。$1 = rewrite_status の戻り値、$2 = 表示するノート。
 report_rewrite_failure() { # $1: 戻り値 $2: ノート
 	if [ "$1" -eq 3 ]; then
-		echo "kaizen-forget: skip (the note or .kaizen is a symlink): $2" >&2
+		echo "kaizen-forget: skip (the note or a directory up to .kaizen is a symlink): $2" >&2
 	elif [ "$1" -eq 2 ]; then
 		echo "kaizen-forget: skip (could not write the note): $2" >&2
 	else

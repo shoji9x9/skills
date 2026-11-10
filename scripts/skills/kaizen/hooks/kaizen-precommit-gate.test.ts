@@ -126,6 +126,18 @@ describe.concurrent("他セッション分の走査結果の再利用", () => {
     expect(scans()).toBe(2);
   });
 
+  // キャッシュの名前はセンチネルの key（リポジトリの中身）で決まるので、commit された symlink でありうる。
+  // `mv -f` は移動先がディレクトリへの symlink なら、その中へファイルを移す。
+  test("キャッシュがディレクトリへの symlink なら、先のディレクトリに何も作らない", async () => {
+    const { gate, cache } = setup("exit 0");
+    const outside = tempDir("kaizen-gate-cache-outside-");
+    symlinkSync(outside, cache);
+    const result = await gate();
+    expect(result.status, result.stderr).toBe(1);
+    expect(result.stderr).toContain("symlink");
+    expect(readdirSync(outside)).toEqual([]);
+  });
+
   test("保持期間で回収したセンチネルのキャッシュも消す", async () => {
     const { cwd, cache, gate, transcript } = setup("exit 0");
     writeFileSync(
