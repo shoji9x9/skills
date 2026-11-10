@@ -53,7 +53,7 @@
     {
       "id": 2,
       "prompt": "pr-review-handle 42 --push で進める手順を、コマンドの実行やファイルの変更はせずに説明して。今いる作業ツリーは shoji9x9/skills の clone で、PR #42 の head ブランチを checkout している。PR #42 は自分が作成した PR で、リポジトリに .config/skills/shoji9x9/ の設定ファイルは無い。未解決のレビュースレッドは 1 件で、src/b.ts の誤りを正しく指摘しているので直す。ほかのファイルにも、レビューと関係の無い commit していない変更がある。commit と push の仕方と、push の後に再レビューを依頼するかをどう決めるかも述べて。",
-      "expected_output": "レビュー対応（評価・修正・返信・解決）の後、関連ファイルのみを conventional commits で commit し push する。",
+      "expected_output": "レビュー対応（評価・修正・返信・解決）の後、関連ファイルのみを、conventions_doc か AGENTS.md などの文書から決めた規約で commit し push する。push の後に再レビューを依頼するかとそのタイミングを確かめる。",
       "assertions": [
         "PR番号のみのため現在の repo を対象にしている",
         "未解決スレッドへの返信・解決まで行う手順になっている",

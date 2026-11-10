@@ -11,3 +11,7 @@ ci:42721723864:1,ci,2026-11-10T00:13:42.073Z,p-cdee4961,github-actions,,,,2026-1
 coverage:github:2026-11-08T23:33:20.457Z:2026-11-10T00:13:42.073Z,coverage,2026-11-10T00:13:42.073Z,p-cdee4961,,,,,2026-11-08T23:33:20.457Z,2026-11-10T00:13:42.073Z,Asia/Tokyo,,,,,,,,,,,,ok,
 ci:42730414297:1,ci,2026-11-10T00:43:09.923Z,p-cdee4961,github-actions,,,,2026-11-10T00:43:03.000Z,2026-11-10T00:43:09.923Z,Asia/Tokyo,main,,,,,,,,,,,Check cost metrics;schedule;open,
 coverage:github:2026-11-09T00:13:42.073Z:2026-11-10T00:43:09.923Z,coverage,2026-11-10T00:43:09.923Z,p-cdee4961,,,,,2026-11-09T00:13:42.073Z,2026-11-10T00:43:09.923Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:42730804662:1,ci,2026-11-10T00:48:13.448Z,p-cdee4961,github-actions,,,,2026-11-10T00:46:05.000Z,2026-11-10T00:48:13.448Z,Asia/Tokyo,main,,,,,,,,,,,Mutation proof;schedule;open,
+ci:42730739858:1,ci,2026-11-10T00:48:13.448Z,p-cdee4961,github-actions,,,,2026-11-10T00:45:34.000Z,2026-11-10T00:48:13.448Z,Asia/Tokyo,main,,,,,,,,,,,CodeQL;schedule;open,
+ci:42730414297:1,ci,2026-11-10T00:48:13.448Z,p-cdee4961,github-actions,,,,2026-11-10T00:43:03.000Z,2026-11-10T00:46:06.000Z,Asia/Tokyo,main,,,,,,,,,,,Check cost metrics;schedule;success,
+coverage:github:2026-11-09T00:43:09.923Z:2026-11-10T00:48:13.448Z,coverage,2026-11-10T00:48:13.448Z,p-cdee4961,,,,,2026-11-09T00:43:09.923Z,2026-11-10T00:48:13.448Z,Asia/Tokyo,,,,,,,,,,,,ok,
