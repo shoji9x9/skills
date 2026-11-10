@@ -21,7 +21,7 @@ Issue #952 で、eval 2・3 の assertion が成果物の有無を検査して�
 | 3 | assertion | 7/7 | 0/7 | iteration-2（3 run） |
 
 eval 2 は、これより前の iteration に結果が無いので、比べる記録は無い。
-eval 3 の文が同じ assertion は、iteration-2 の with_skill（3 run）も今回もすべて満たした。下がったものは無い。
+eval 3 で iteration-2 と文が同じ assertion は 1 本だけで、iteration-2 の with_skill（3 run）も今回も満たした。下がったものは無い。ほかの 6 本は、iteration-2 の後に文が変わっているので比べない。
 
 ## without_skill が満たした assertion
 
