@@ -16,7 +16,7 @@ npm は使わず、`package-lock.json` を作らない。誤ってほかのパ�
 
 バージョンを書いた 4 か所をすべて同じバージョンにそろえる。手順は次のとおりである。
 
-1. `mise upgrade pnpm --bump` を実行する。
+1. `mise self-update` で手元の mise を最新にしてから（「lock を作る mise を CI とそろえる」）、`mise upgrade pnpm --bump` を実行する。
 2. `mise lock` を実行し、すべてのプラットフォームの URL を lockfile に書き足す。
 3. `package.json` の `packageManager` と `devEngines.packageManager.version` を新しいバージョンにする。
 4. `pnpm install --lockfile-only` で `pnpm-lock.yaml` を作り直す。
@@ -32,6 +32,27 @@ mise だけを更新して `package.json` と lockfile を更新し忘れると�
 checksum・integrity・URL のようにツール名を含まない行が必ず変わるので、`grep -v '<ツール名>'` のような行単位の照合は、正しい差分でも違反を出す。
 出力が空になるまで除外する語を足していくのは禁止する。足した語（`integrity: sha512` など）は無関係なパッケージの変更行そのものなので、目的の異常を検出できなくなるからである。
 差分全体を読み、hunk のヘッダと直前の節の見出し（`[[tools.X]]` やパッケージの entry）から、変更が対象のブロックの中に収まっていることを確かめる。
+
+## lock を作る mise を CI とそろえる
+
+`jdx/mise-action` に mise のバージョンを指定しないワークフローは、最新の mise を使う。
+mise は、ツールを検証する方法（lockfile の `provenance`）を、本体に組み込んだ aqua registry から決める。
+手元の mise が古いと、上流が検証の方法を変えたツールで、検証用のファイルが公開されていない方法を lockfile に書く。
+ghalint は v1.5.7 から SLSA の検証用のファイルを公開していないが、mise 2026.5.16 は、それより後のバージョンの entry にも `provenance = "slsa"` を書いた（1.6.0 で確かめた）。
+その lockfile では、空の環境からの `mise install --locked` が検証用のファイルを取得できずに失敗した。
+
+そのため、`mise upgrade` や `mise lock` を実行する前に、`mise self-update` で手元の mise を最新にする。
+パッケージマネージャ（Homebrew など）で入れた mise は `mise self-update` で更新できないので、そのパッケージマネージャで更新する。
+既にある entry の `provenance` は、`mise lock <tool>` を実行しても作り直されない。古い mise で作った entry は、そのツールのブロックを `mise.lock` から消してから `mise lock <tool>` を実行する。
+lock を作ったら、空のデータディレクトリで入れ直し、lockfile のとおりに入ることを確かめる。
+
+```bash
+d=$(mktemp -d)
+MISE_DATA_DIR="$d/data" MISE_CACHE_DIR="$d/cache" mise install --locked <tool>... </dev/null
+rc=$?
+rm -rf "$d"
+(exit "$rc")  # 後片付けの終了コードで、入れ直しの失敗を隠さない
+```
 
 ## broken バージョンを避ける
 
