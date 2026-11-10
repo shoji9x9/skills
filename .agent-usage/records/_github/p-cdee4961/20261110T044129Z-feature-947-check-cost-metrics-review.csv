@@ -10,3 +10,4 @@ ci:42752508905:1,ci,2026-11-10T04:41:29.169Z,p-cdee4961,github-actions,,,,2026-1
 ci:42752508891:1,ci,2026-11-10T04:41:29.169Z,p-cdee4961,github-actions,,,,2026-11-10T03:55:10.000Z,2026-11-10T03:55:19.000Z,Asia/Tokyo,feature/952-self-review-findings,952,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 coverage:github:2026-11-09T03:54:13.050Z:2026-11-10T04:41:29.169Z,coverage,2026-11-10T04:41:29.169Z,p-cdee4961,,,,,2026-11-09T03:54:13.050Z,2026-11-10T04:41:29.169Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-11-09T04:41:29.169Z:2026-11-10T04:42:00.907Z,coverage,2026-11-10T04:42:00.907Z,p-cdee4961,,,,,2026-11-09T04:41:29.169Z,2026-11-10T04:42:00.907Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-09T04:42:00.907Z:2026-11-10T04:46:58.546Z,coverage,2026-11-10T04:46:58.546Z,p-cdee4961,,,,,2026-11-09T04:42:00.907Z,2026-11-10T04:46:58.546Z,Asia/Tokyo,,,,,,,,,,,,ok,

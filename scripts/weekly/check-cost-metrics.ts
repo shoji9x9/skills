@@ -4,12 +4,13 @@
 //
 // 集める指標は次の 3 つである。対象と閾値は、隣の check-cost-metrics.json で決める。
 // - 空の免除・保留の一覧: check-cost-metrics.json の lists に挙げた一覧のファイルが空になっている（readers は確かめず、案内として添える）
-// - 修正の PR が多いチェック: 直近の期間に、チェックのファイルを変えた fix の PR の数
+// - 修正の PR が多いチェック: 直近の期間に、チェックのファイルを変えた fix の PR の数（lists の一覧と fix_prs.exclude のファイルは数えない）
 // - GitHub Actions のジョブの所要時間: 直近の期間と前の期間の中央値を比べ、遅くなったジョブを挙げる（最大値は所要時間の表にだけ載せる）
 //
 // 確かめられなかったものを「該当なし」として扱わない。次のときは exit 1 で止まる。
 // - 設定・一覧のファイルを読めない
 // - git の履歴が浅い
+// - fix_prs.exclude のファイルが今無い、または数えるときにテストの本体の名前に寄せられて何も外さない
 // - git や API が失敗する、または API の一覧が上限（1000 件）を超えて取りこぼす
 //
 // 使い方: node scripts/weekly/check-cost-metrics.ts --out <本文のパス> --comment-out <コメントのパス> [--previous <前回の本文のパス>]
@@ -130,6 +131,11 @@ function parseList(value: unknown, index: number): ListTarget {
   };
 }
 
+/** 最初に重複した値。重複が無ければ undefined。 */
+function firstDuplicate(values: readonly string[]): string | undefined {
+  return values.find((v, i) => values.indexOf(v) !== i);
+}
+
 /** fix_prs.exclude を読む。理由の無い項目と、同じファイルの重複は例外にする。 */
 function parseFixExclude(value: unknown): FixExclude[] | undefined {
   if (value === undefined) return undefined;
@@ -143,8 +149,7 @@ function parseFixExclude(value: unknown): FixExclude[] | undefined {
     }
     return { file: entry["file"], reason: entry["reason"] };
   });
-  const files = entries.map((e) => e.file);
-  const duplicated = files.find((f, i) => files.indexOf(f) !== i);
+  const duplicated = firstDuplicate(entries.map((e) => e.file));
   if (duplicated !== undefined)
     throw new Error(`fix_prs.exclude の file が重複している: ${duplicated}`);
   return entries;
@@ -166,8 +171,7 @@ export function parseConfig(text: string): Config {
   const dur = section(value, "durations");
   const lists = value["lists"].map(parseList);
   // 同じ一覧を 2 回書くと、識別子が重複し、次の実行が前回の本文を読めなくなる。
-  const files = lists.map((l) => l.file);
-  const duplicated = files.find((f, i) => files.indexOf(f) !== i);
+  const duplicated = firstDuplicate(lists.map((l) => l.file));
   if (duplicated !== undefined) throw new Error(`lists の file が重複している: ${duplicated}`);
   const exclude = parseFixExclude(fix["exclude"]);
   return {
@@ -318,6 +322,26 @@ export function countFixPrs(
 }
 
 /**
+ * 数えないファイルの集合。exclude のファイルが今無いときや、数えるときに別の名前（テストの本体）に寄せるときは、
+ * 除外が何も外さないので例外にする。
+ */
+function excludedFiles(
+  fix: Config["fixPrs"],
+  lists: readonly string[],
+  tracked: ReadonlySet<string>,
+): Set<string> {
+  const has = (path: string): boolean => tracked.has(path);
+  const files = (fix.exclude ?? []).map((e) => e.file);
+  const unmatched = files.filter((f) => !has(f) || checkFileOf(f, has) !== f);
+  if (unmatched.length > 0) {
+    throw new Error(
+      `fix_prs.exclude のファイルが無いか、数えるときに別の名前に寄せる: ${unmatched.join(", ")}`,
+    );
+  }
+  return new Set([...files, ...lists]);
+}
+
+/**
  * 修正の PR が多いチェックを挙げる。git の履歴が浅いときは数えられないので例外にする。
  * lists は免除・保留の一覧のファイルで、チェックの本体ではないので数えない（項目を足したり消したりするのは、ほかの修正に伴う）。
  */
@@ -346,7 +370,7 @@ export async function fixHeavyChecks(
   ]);
   // 今あるファイルの一覧は、テストの本体があるかの判定と、消えたチェックを外すのに使う。
   const tracked = new Set((await git(["ls-files"])).split("\n"));
-  const excluded = new Set([...(fix.exclude ?? []).map((e) => e.file), ...lists]);
+  const excluded = excludedFiles(fix, lists, tracked);
   return [...countFixPrs(log, (path) => tracked.has(path))]
     .filter(([file, count]) => count >= fix.min && tracked.has(file) && !excluded.has(file))
     .sort(([a, x], [b, y]) => y - x || (a < b ? -1 : 1))

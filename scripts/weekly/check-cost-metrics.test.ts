@@ -474,6 +474,19 @@ describe("修正の PR", () => {
     ]);
   });
 
+  test.each([
+    { name: "今無いファイル", file: "gone.ts", files: "new.ts\n" },
+    { name: "本体に寄せて数えるテスト", file: "new.test.ts", files: "new.ts\nnew.test.ts\n" },
+  ])("exclude に載せた $name は、何も外さないので例外にする", async ({ file, files }) => {
+    await expect(
+      fixHeavyChecks(
+        gitRun("", "false", files),
+        { days: 28, min: 2, paths: ["x"], exclude: [{ file, reason: "r" }] },
+        { root: "/repo", now: NOW, lists: [] },
+      ),
+    ).rejects.toThrow(`fix_prs.exclude のファイルが無いか、数えるときに別の名前に寄せる: ${file}`);
+  });
+
   test("履歴が浅ければ例外にする", async () => {
     await expect(
       fixHeavyChecks(

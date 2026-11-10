@@ -19,12 +19,14 @@
     {
       "file": ".config/fallow/crap-baseline.json",
       "count": { "kind": "json-object", "key": "finding_counts" },
-      "readers": ["package.json"]
+      "readers": ["package.json"],
+      "keep_empty": "AGENTS.md「技術スタック」が、すぐに直せない既存の指摘を .config/fallow/ と .config/jscpd/ のベースラインに載せて外すと決めている（チェックや閾値を変えたときに出た既存の指摘を、直すまで外すのに使う）"
     },
     {
       "file": ".config/jscpd/baseline.json",
       "count": { "kind": "json-object", "key": "fingerprints" },
-      "readers": ["scripts/gates/code/check-duplicates.ts"]
+      "readers": ["scripts/gates/code/check-duplicates.ts"],
+      "keep_empty": "AGENTS.md「技術スタック」が、すぐに直せない既存の指摘を .config/fallow/ と .config/jscpd/ のベースラインに載せて外すと決めている（チェックや閾値を変えたときに出た既存の指摘を、直すまで外すのに使う）"
     },
     {
       "file": ".config/jscpd/baseline-tests.json",
