@@ -1,6 +1,14 @@
 import { afterEach, assert, expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
@@ -456,5 +464,30 @@ test("--reindex も、.kaizen/archive が symlink なら索引を書かない", 
 
   expect(result.status).not.toBe(0);
   expect(result.stderr).toContain("symlink");
+  expect(readdirSync(outside)).toEqual([]);
+});
+
+// リンクを補正する一時ファイルの名前を固定にすると、その名前で commit された symlink があるときに書き込みを拒んで途中で止まる。
+// そのときは、移したノートのリンクを補正せず、索引も作り直さないまま終わる。
+test("一時ファイルの名前に symlink があっても、リンクを補正して索引を作り直し、先に書かない", () => {
+  const dir = createRepo();
+  const outside = makeTempDir("kaizen-archive-outside-");
+  mkdirSync(join(dir, ".kaizen", "archive"));
+  symlinkSync(
+    join(outside, "victim.md"),
+    join(dir, ".kaizen", "archive", "2026-09-01-tmp.md.kaizen-archive-tmp"),
+  );
+  const note = writeNote(dir, "2026-09-01-tmp.md", {
+    summary: "tmp",
+    body: "\n[x](../docs/x.md)\n",
+  });
+
+  const result = archive(dir, note);
+
+  expect(result.status, result.stderr).toBe(0);
+  expect(readFileSync(join(dir, ".kaizen/archive/2026-09-01-tmp.md"), "utf8")).toContain(
+    "[x](../../docs/x.md)",
+  );
+  expect(existsSync(join(dir, ".kaizen/archive/INDEX.md"))).toBe(true);
   expect(readdirSync(outside)).toEqual([]);
 });

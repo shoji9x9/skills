@@ -277,7 +277,9 @@ for arg in "$@"; do
 	# 基準にする ../ リンクも 1 階層分補正する。リンク先の残りや title は触らない。
 	# 一時ファイルから元ファイルへ書き戻し、mv 済みファイルの mode は維持する。
 	dest="${archive_dir}/$(basename "${f}")"
-	rewritten="${dest}.kaizen-archive-tmp"
+	# 一時ファイルは mktemp で新しく作る。固定の名前にすると、その名前で commit された symlink があるときに
+	# 書き込みを拒んで set -e で止まり、移したノートのリンクを補正せず、INDEX も作り直さないまま終わる。
+	rewritten=$(mktemp "${dest}.kaizen-archive-XXXXXX")
 	sed 's#](\.\./#](../../#g' "${dest}" | kaizen_safe_write "${rewritten}"
 	kaizen_safe_write "${dest}" <"${rewritten}"
 	kaizen_safe_rm "${rewritten}"

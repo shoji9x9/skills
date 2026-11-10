@@ -136,8 +136,12 @@ fi
 # .kaizen とセンチネルの名前はリポジトリの中身で決まるので、commit された symlink でありうる。
 # 書き込みは kaizen_safe_mkdir と kaizen_safe_write を通し、symlink なら書かない（リポジトリの外のファイルを書き換えない）。
 # 記録役なのでセッションは止めず、stderr に理由だけを残して exit 0 で終える。
-if ! kaizen_path_is_safe "${sentinel}" || ! kaizen_safe_mkdir .kaizen; then
+if ! kaizen_path_is_safe "${sentinel}"; then
 	echo "kaizen-stop-mark: .kaizen かセンチネルが symlink なので、センチネルを書かない: ${sentinel}" >&2
+	exit 0
+fi
+if ! kaizen_safe_mkdir .kaizen; then
+	echo "kaizen-stop-mark: .kaizen を作れないので、センチネルを書かない: ${sentinel}" >&2
 	exit 0
 fi
 printf '%s\n%s\n%s\n%s\n' \
