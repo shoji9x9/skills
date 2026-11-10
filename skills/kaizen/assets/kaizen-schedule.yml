@@ -231,8 +231,19 @@ jobs:
             以下の指示ファイルを読み、その指示に従ってレポートを作成し、
             リポジトリルートの ${{ env.REPORT_FILE }} に Markdown で書き出してください。
             指示ファイル: ${{ env.PROMPT_FILE }}
+          # ツールは、リポジトリの中を読むことと、結果のファイルを書くことだけに限る。結果は Issue に載るので、
+          # リポジトリの外（/proc や ~/.claude）を読めると、仕込まれた指示に従って資格情報を結果に書くおそれがある。
+          # ほかのファイルに書けると、git の設定を書き換えて、後の段の git にコマンドを実行させるおそれがある。
+          # 拒否の一覧はツールが足されるたびに抜けが出るので、--tools で使えるツールそのものを限り、Write の書き先は Edit の規則で絞る。
+          # Edit(<path>) の規則は Write にも当たり、Write(<path>) の形の規則は当たらない（Claude Code 2.1.319 の claude -p で確かめた）。
+          # 設定はユーザーの層（runner には無い）だけを読み、MCP のサーバーは action が渡すものだけにする。
+          # リポジトリの .claude/settings.json の Hook と .mcp.json のサーバーは --tools の制限の外で動き、
+          # 同じ設定の permissions は読める範囲を広げうるので、資格情報のある環境で読ませない。
           claude_args: >-
-            --allowed-tools Read,Grep,Glob,Write
+            --tools "Read,Grep,Glob,Edit,Write"
+            --setting-sources user
+            --strict-mcp-config
+            --allowed-tools "Read(./**),Grep(./**),Glob(./**),Edit(./${{ env.REPORT_FILE }})"
             ${{ steps.settings.outputs.model && format('--model {0}', steps.settings.outputs.model) || '' }}
 
       - name: Run Codex
