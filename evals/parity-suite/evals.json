@@ -648,6 +648,40 @@
           "prompt_quote": "移行元は html・body・コンテナが height: 100% で"
         }
       ]
+    },
+    {
+      "id": 45,
+      "fixture": "fixtures/bootstrap-reverted",
+      "prompt": "parity-suite --feature customer-list --target current-test",
+      "assertions": [
+        ".replace/bootstrap/metadata.json の status が handed-off でない（blocked）ことを理由に、スイートの構築へ進まずに停止している",
+        "設定の current-test が url と default: true を持っていても、その環境を使ってよい根拠にしていない",
+        "current-environment-bootstrap の再開（--resume）か完了を待つよう促している",
+        "e2e/ 配下にスペック・ロケータマッピング層・aria スナップショットを生成していない",
+        "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない"
+      ],
+      "reachability": [
+        {
+          "assertion": ".replace/bootstrap/metadata.json の status が handed-off でない（blocked）ことを理由に、スイートの構築へ進まずに停止している",
+          "prompt_quote": "parity-suite --feature customer-list --target current-test"
+        },
+        {
+          "assertion": "設定の current-test が url と default: true を持っていても、その環境を使ってよい根拠にしていない",
+          "prompt_quote": "parity-suite --feature customer-list --target current-test"
+        },
+        {
+          "assertion": "current-environment-bootstrap の再開（--resume）か完了を待つよう促している",
+          "prompt_quote": "parity-suite --feature customer-list --target current-test"
+        },
+        {
+          "assertion": "e2e/ 配下にスペック・ロケータマッピング層・aria スナップショットを生成していない",
+          "prompt_quote": "parity-suite --feature customer-list --target current-test"
+        },
+        {
+          "assertion": "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
+          "prompt_quote": "parity-suite --feature customer-list --target current-test"
+        }
+      ]
     }
   ]
 }

@@ -87,6 +87,8 @@ scripts/eval/run-skill-eval.sh \
     区別の要点は、**`blocked` に戻さず、工程も聞かずに、台帳と `handoff.unconfirmed` だけを直すこと**である。
   - eval 9 の回答は「ヘッダの値はセッションの値で、インスタンスの値は分からない」で、インスタンスの 2 行が「不足」になる。
     区別の要点は、**`blocked` に戻して `blocked_on` と `resume`（`from_step: 3`）を書くことと、設定の `url` と `default` の取り消しを利用者に確かめること**である。
+    fixture には、引き渡しの後に済んだ `golden-dataset` のフェーズ A の記録（`.replace/dataset/metadata.json`）も置く。
+    日時は引き渡しより後にしてある。戻すときに、それを `stale_downstream` に挙げるかも見る。
 - eval 6（`commercial-ui-component-without-vendor-docs`）: 受領した依存台帳と UI ソースから、市販のデータグリッドを使っていることと、そのバージョンは確認できる。
   しかし、ベンダーの機能一覧・試験仕様書・公式サンプルは届いていない。
   区別の要点は、**資料の不足を資産カテゴリで検出すること**、**CoE／ベンダー窓口を依頼先として残すこと**、

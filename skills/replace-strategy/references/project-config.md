@@ -579,7 +579,7 @@ local-dev・local-production・preview・develop など、同じスイートを�
   - `catalog_url` / `catalog_url_command` を持てるのは、`side: new` の target だけである（現行側に部品カタログは無い。`side: current` に付いていれば止まる。現行から採るべき基準を、カタログから採る誤りになるからである）。
   - `catalog_url` と `catalog_url_command` は、どちらか一方だけにする（両方あれば止まる。`url` / `url_command` と同じく、同時には書けない）。
   - `side: current` の target が `url: none` を持てるのは、`current.origin: received-assets` で、再構築が終わっていない間だけである。
-    `current-environment-bootstrap` が、引き渡しのときに実際の URL と `default: true` を埋め、引き渡しを取り消すときに `none` と `default: false` に戻す。
+    `current-environment-bootstrap` が、引き渡しのときに実際の URL と `default: true` を埋め、引き渡しを取り消すときに `none` と `default: false` に戻す（利用者が取り消しを断ったら戻さない。その間も、姉妹スキルは `.replace/bootstrap/metadata.json` の `status` を読んで止まる）。
     `origin: managed` で `url: none` の current の target があれば止まる。測定の対象が無いまま、`setup` が測定に進むことになるからである。
 - `api_url` は API の baseURL である。UI と API が別の origin のときだけ書き、省略すると `url` を使う
   （api-resource モードは現行の応答を正として同じリクエストを新側に送るので、UI とは別に選べる必要がある）。

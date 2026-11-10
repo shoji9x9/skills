@@ -1,0 +1,147 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<repo>/skills/parity-suite",
+    "executor_model": "claude-opus-5-5",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-10T04:50:40Z",
+    "evals_run": [45],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 45,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 36.387,
+        "tokens": 238420,
+        "tool_calls": null,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/bootstrap/metadata.json の status が handed-off でない（blocked）ことを理由に、スイートの構築へ進まずに停止している",
+          "passed": true,
+          "evidence": "最後のメッセージ「現行環境の引き渡しが終わっていないため…止めています」。status: blocked を停止条件として挙げた"
+        },
+        {
+          "text": "設定の current-test が url と default: true を持っていても、その環境を使ってよい根拠にしていない",
+          "passed": true,
+          "evidence": "「current-test が前の環境を指したままでも、その環境ではベースラインを採れません」。稼働確認も起動もしていない"
+        },
+        {
+          "text": "current-environment-bootstrap の再開（--resume）か完了を待つよう促している",
+          "passed": true,
+          "evidence": "再開の手順 1 に「current-environment-bootstrap を工程 3 から再開して完了させる」"
+        },
+        {
+          "text": "e2e/ 配下にスペック・ロケータマッピング層・aria スナップショットを生成していない",
+          "passed": true,
+          "evidence": "project-files に e2e/ が無い"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
+          "passed": true,
+          "evidence": "project-files の .replace/ は fixture と一致（.jsonc は採取の対象外）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 45,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 45.492,
+        "tokens": 84173,
+        "tool_calls": null,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/bootstrap/metadata.json の status が handed-off でない（blocked）ことを理由に、スイートの構築へ進まずに停止している",
+          "passed": true,
+          "evidence": "問題の 1 番目に「bootstrap が止まっている（status: blocked）」を挙げて、テストを作らずに止まった"
+        },
+        {
+          "text": "設定の current-test が url と default: true を持っていても、その環境を使ってよい根拠にしていない",
+          "passed": true,
+          "evidence": "設定の値を根拠に進めていない（ただし localhost:8080 への接続を試みて HTTP 000 を得ている）"
+        },
+        {
+          "text": "current-environment-bootstrap の再開（--resume）か完了を待つよう促している",
+          "passed": true,
+          "evidence": "再開の手順 1 に「bootstrap を工程 3 から再開し」"
+        },
+        {
+          "text": "e2e/ 配下にスペック・ロケータマッピング層・aria スナップショットを生成していない",
+          "passed": true,
+          "evidence": "project-files に e2e/ が無い"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
+          "passed": true,
+          "evidence": "project-files の .replace/ は fixture と一致（.jsonc は採取の対象外）"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 36.387,
+        "stddev": 0,
+        "min": 36.387,
+        "max": 36.387
+      },
+      "tokens": {
+        "mean": 238420,
+        "stddev": 0,
+        "min": 238420,
+        "max": 238420
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 45.492,
+        "stddev": 0,
+        "min": 45.492,
+        "max": 45.492
+      },
+      "tokens": {
+        "mean": 84173,
+        "stddev": 0,
+        "min": 84173,
+        "max": 84173
+      }
+    },
+    "delta": {
+      "pass_rate": "+0",
+      "time_seconds": "-9.1",
+      "tokens": "+154247"
+    }
+  },
+  "notes": []
+}

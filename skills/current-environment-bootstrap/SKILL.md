@@ -103,7 +103,7 @@ current-environment-bootstrap [--target <name>] [--resume] [--autonomous]
   一律に停止するのは、キー名が変わった古いキーだけである。`verification_commands` がリストのような、キー名の変わらない移行は、上の表のとおりに扱う。
 - このスキルが設定に書くのは、引き渡しと、その取り消しの 2 か所だけである。どちらも、current の target の `url` と `default` だけを、利用者に確かめたうえで書く。他のキーは消さない。
   引き渡しでは、作り直しが済んだ target の `url` を `none` から実際の URL にし、`default: true` を付ける。
-  取り消しでは、`url` を `none` に戻し、`default` を `false` にする（「停止と再開」の「引き渡した後に届いたとき」）。
+  取り消しでは、`url` を `none` に戻し、`default` を `false` にする（「停止と再開」の「引き渡した後に届いたとき」）。利用者が取り消しを断ったら書かない。
   書き方の原本は [`references/verification-handoff.md`](references/verification-handoff.md) である。
 
 ## 自律実行（`--autonomous`）
@@ -213,16 +213,25 @@ current-environment-bootstrap [--target <name>] [--resume] [--autonomous]
 | どちらかがある、または迷う | 下の手順で `blocked` に戻してから、再開の表の 1 行目のとおりに再開する |
 
 `blocked` に戻す手順は次のとおりである。
-`golden-dataset` と `replace-strategy` の測定は `status` を読んで止まるので、先に `metadata.json` を書き換える。
+`replace-strategy` の測定・`golden-dataset`・`parity-suite`・`parity-component` の `capture` は `status` を読んで止まるので、先に `metadata.json` を書き換える。
 
 1. `metadata.json` の `status` を `blocked` にする。`blocked_on` には、`工程 <番号>: <届いたもので生じた理由>` を書く。
    `resume` には、`from_step` と空の `deferred` を書く。`from_step` は、作り直しのツールを直すか「不足」の行があれば 3、暫定の起動データか投入ツールだけを直すなら 6 にする。
    台帳の変更に合わせて、`metadata.json` の対応する値（`current.schema_unfilled`・`assets` と `semantics` の件数・`questionnaire_refs`）も直す。
    `from_step` を決められず迷ったときは、`resume` を `null` にし、再開の表の 2 行目のとおりに工程を利用者に確かめる。`handoff` の値は消さずに残し、次の引き渡しで書き直す。
-2. 設定の current の target の引き渡しを取り消す（`default` を `false` にしてから、`url` を `none` に戻す）。
-   `parity-suite` などの姉妹スキルは `status` を読まず、設定の値で current の target を選ぶので、取り消さないと作り直しの途中の環境を選ぶ。
+2. 引き渡しの後に済んだ下流の作業を挙げ、`metadata.json` の `stale_downstream` に書く。
+   次の成果物が在れば、作り直す前の環境で作ったものなので、成果物のパスとやり直すスキルを 1 件ずつ書く。無ければ空配列にする。
+   - `.replace/survey.md`（`replace-strategy setup` の測定）
+   - `.replace/dataset/metadata.json`（`golden-dataset` のフェーズ A。作り直しは空の環境から建てるので、投入したデータは消える）
+   - `.replace/parity/<slug>/metadata.json`（`parity-suite` の採取）
+   - `.replace/components/<slug>/metadata.json`（`parity-component` の `capture`）
+
+   挙げた一覧は、`blocked` で止まるときの報告にも載せる。次の引き渡しで報告してから空にする（[`references/verification-handoff.md`](references/verification-handoff.md)「工程 9: current target を引き渡す」）。
+3. 設定の current の target の引き渡しを取り消す（`default` を `false` にしてから、`url` を `none` に戻す）。
+   姉妹スキルは `status` を読んで止まるが、`--target` を省いたときは設定の値だけで current の target を選ぶ。取り消さないと、設定が作り直しの途中の環境を指したまま残る。
    値は利用者に確かめてから書く。書き方は [`references/verification-handoff.md`](references/verification-handoff.md)「引き渡しを取り消すとき」にある。
-   `--autonomous` では判断待ちの保留にし、`blocked_on` に `判断待ち: <id>` も載せる（「自律実行」）。
+   利用者が取り消しを断ったら、設定を書かずに `blocked` のまま進める。次の引き渡しでは、残った値を `--replace` で書き直す。
+   `--autonomous` では判断待ちの保留にし、`blocked_on` に `判断待ち: <id>` も載せる（「自律実行」）。答えを待つ間も、姉妹スキルは `status` を読んで止まる。
 
 ## 成果物
 
@@ -247,6 +256,7 @@ current-environment-bootstrap [--target <name>] [--resume] [--autonomous]
 - `golden-dataset`: `semantics.md` の確定済みの意味論と根拠を引き継いで、ゴールデンデータセットを設計する。
   確認待ちや、確かめたが確定できなかった意味論を、確定したものとして扱わない。暫定の起動データを流用しない。
   フェーズ A の投入は暫定の起動データを置き換えるので、起動に要る前提（認証のユーザー・マスタなど）は、確定の根拠に基づいてフェーズ A のデータ設計に含める。
+- `parity-suite` と `parity-component` の `capture`: `metadata.json` の `status` が `handed-off` でなければ、現行の環境を使わずに停止する。設定の current の target が前の環境を指したままでも同じである。
 - `parity-suite`: 対象の slug に欠かせない意味論が、`semantics.md` の状態「確認待ち」か「確認したが確定できなかったもの」に残っている間は、その機能のスイートの構築を始めない（足りない情報を報告して停止する）。
 
 ## 利用者への確認

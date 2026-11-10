@@ -298,7 +298,8 @@
         "metadata.json の resume.from_step を 3 にしている",
         "schema.md のタイムゾーンと sql_mode のインスタンスの行を不足にし、セッション・接続の行に回答の値を確定として書いている",
         "最後のメッセージで、設定の current-rebuilt の url を none に戻し default を false にしてよいかを利用者に確かめている",
-        "metadata.json の handoff の boot_requirements と unconfirmed を消さずに残している"
+        "metadata.json の handoff の boot_requirements と unconfirmed を消さずに残している",
+        "metadata.json の stale_downstream に、path が .replace/dataset/metadata.json の要素を載せている"
       ],
       "reachability": [
         {
@@ -319,6 +320,10 @@
         },
         {
           "assertion": "metadata.json の handoff の boot_requirements と unconfirmed を消さずに残している",
+          "prompt_quote": "--resume"
+        },
+        {
+          "assertion": "metadata.json の stale_downstream に、path が .replace/dataset/metadata.json の要素を載せている",
           "prompt_quote": "--resume"
         }
       ]
