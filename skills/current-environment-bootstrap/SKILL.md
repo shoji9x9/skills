@@ -209,7 +209,7 @@ current-environment-bootstrap [--target <name>] [--resume] [--autonomous]
 
 | 届いたものの影響 | 扱い |
 |---|---|
-| どちらも無い（確認待ちを確定させるだけ） | 台帳と、それに対応する `metadata.json` の値（`semantics` の件数・`questionnaire_refs`・`handoff.unconfirmed`）だけを直し、`handed-off` のまま終える。確定させた項目を `handoff.unconfirmed` から外し、空になったら `["なし"]` と書く |
+| どちらも無い（確認待ちを確定させるだけ） | 台帳と、それに対応する `metadata.json` の値（`semantics` の件数と `pending_features`・`questionnaire_refs`・`handoff.unconfirmed`）だけを直し、`handed-off` のまま終える。確定させた項目を `handoff.unconfirmed` から外し、空になったら `["なし"]` と書く |
 | どちらかがある、または迷う | 下の手順で `blocked` に戻してから、再開の表の 1 行目のとおりに再開する |
 
 `blocked` に戻す手順は次のとおりである。
@@ -217,7 +217,7 @@ current-environment-bootstrap [--target <name>] [--resume] [--autonomous]
 
 1. `metadata.json` の `status` を `blocked` にする。`blocked_on` には、`工程 <番号>: <届いたもので生じた理由>` を書く。
    `resume` には、`from_step` と空の `deferred` を書く。`from_step` は、作り直しのツールを直すか「不足」の行があれば 3、暫定の起動データか投入ツールだけを直すなら 6 にする。
-   台帳の変更に合わせて、`metadata.json` の対応する値（`current.schema_unfilled`・`assets` と `semantics` の件数・`questionnaire_refs`）も直す。
+   台帳の変更に合わせて、`metadata.json` の対応する値（`current.schema_unfilled`・`assets` と `semantics` の件数・`semantics.pending_features`・`questionnaire_refs`）も直す。
    `from_step` を決められず迷ったときは、`resume` を `null` にし、再開の表の 2 行目のとおりに工程を利用者に確かめる。`handoff` の値は消さずに残し、次の引き渡しで書き直す。
 2. 引き渡しの後に済んだ下流の作業を挙げ、`metadata.json` の `stale_downstream` に書く。
    次の成果物が在れば、作り直す前の環境で作ったものなので、成果物のパスとやり直すスキルを 1 件ずつ書く。無ければ空配列にする。
