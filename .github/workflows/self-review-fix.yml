@@ -105,24 +105,31 @@ jobs:
           INPUT_RUN_ID: ${{ inputs.run_id }}
         run: |
           run_id="$INPUT_RUN_ID"
-          created_args=()
+          created=""
           if [ -z "$run_id" ] && [ "$GITHUB_EVENT_NAME" = schedule ]; then
             # 定期実行では、前の日（UTC）に作られた点検の run だけから選ぶ。前の日の点検が失敗したときに、前の週の指摘を直し直さないためである。
-            created_args=(--created "$(date -u -d yesterday +%F)")
+            created="$(date -u -d yesterday +%F)"
           fi
+          # 点検の結果を読んでよい run は、このリポジトリの main で、定期実行か手動で実行して成功した Self review の run だけである。
+          # head_branch は PR の head の branch 名で、fork の PR でも `main` にできるので、event と head のリポジトリも確かめる。
+          # path に ref（`@main` など）が付く run もあるので、`@` から後を外して比べる。
+          # 比べるリポジトリの名前は、jq の文字列に埋め込まず、環境変数から読む。
+          trusted='(.path | sub("@.*$"; "")) == ".github/workflows/self-review.yml" and .head_branch == "main" and .conclusion == "success" and (.event == "schedule" or .event == "workflow_dispatch") and .head_repository.full_name == env.GITHUB_REPOSITORY'
           if [ -z "$run_id" ]; then
-            run_id="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow self-review.yml --branch main --status success \
-              "${created_args[@]}" --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+            # 一覧は新しい順なので、条件を満たす最初の run を選ぶ。一覧に PR の run が含まれていても、それを飛ばして信頼できる run を選ぶ。
+            ids="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows/self-review.yml/runs?branch=main&status=success&per_page=100${created:+&created=$created}" \
+              --jq ".workflow_runs[] | select($trusted) | .id")"
+            run_id="${ids%%$'\n'*}"
           fi
           if ! [[ "$run_id" =~ ^[0-9]+$ ]]; then
-            echo "点検の run を決められない（run_id: \"$run_id\"、絞り込み: ${created_args[*]:-なし}）" >&2
+            echo "点検の run を決められない（run_id: \"$run_id\"、作成日の絞り込み: ${created:-なし}）" >&2
             exit 1
           fi
-          # 入力で渡した run も、main で実行して成功した Self review の run に限る。PR の run が作った artifact の指摘を読まないためである。
-          # path に ref（`@main` など）が付く run もあるので、`@` から後を外して比べる。
-          origin="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" --jq '[(.path | sub("@.*$"; "")), .head_branch, .conclusion] | join(" ")')"
-          if [ "$origin" != ".github/workflows/self-review.yml main success" ]; then
-            echo "run $run_id は、main で成功した Self review の run ではない（$origin）" >&2
+          # 入力で渡した run も、同じ条件で確かめる。PR の run が作った artifact の指摘を読まないためである。
+          origin="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" \
+            --jq "if $trusted then \"trusted\" else ([(.path | sub(\"@.*$\"; \"\")), .head_branch, .conclusion, .event, .head_repository.full_name] | map(tostring) | join(\" \")) end")"
+          if [ "$origin" != trusted ]; then
+            echo "run $run_id は、このリポジトリの main で定期実行か手動で実行して成功した Self review の run ではない（$origin）" >&2
             exit 1
           fi
           # 再実行した run には試行ごとの artifact があるので、番号の最も大きい試行の結果を読む。
