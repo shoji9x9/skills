@@ -18,7 +18,8 @@
         "agent-usage のコマンドの入力と状態 origin/HEAD のデフォルトブランチでは、main 以外の名前でもコミットを止めない",
         "agent-usage のコマンドと Hook defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる",
         "agent-usage のコマンドと Hook 人の設定が無いとき、引数を誤った setup と report は人の設定を作らず、判断を確かめる案内は setup --person-id を示す",
-        "agent-usage のコマンドと Hook Copilot が .claude/settings.json の登録として呼んだら、止めずに、記録もせずに通す"
+        "agent-usage のコマンドと Hook Copilot が .claude/settings.json の登録として呼んだら、止めずに、記録もせずに通す",
+        "agent-usage のコマンドと Hook コマンドが別のリポジトリでコミットするなら何もせずに通し、同じリポジトリの worktree なら判断する"
       ]
     },
     {
@@ -42,7 +43,8 @@
         "commitCwd cd /r; git -C sub commit → /r/sub",
         "commitCwd env --chdir=sub git -C x commit → /w/sub/x",
         "commitCwd sudo --chdir /o git -C x commit → /o/x",
-        "commitCwd sudo --chd /o git -C x commit → /o/x"
+        "commitCwd sudo --chd /o git -C x commit → /o/x",
+        "agent-usage のコマンドと Hook コマンドが別のリポジトリでコミットするなら何もせずに通し、同じリポジトリの worktree なら判断する"
       ]
     },
     {
