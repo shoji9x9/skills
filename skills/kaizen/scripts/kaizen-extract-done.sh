@@ -205,6 +205,14 @@ sentinel_path="${control_dir}/${sentinel_path#.kaizen/}"
 checkpoint_path="${control_dir}/${checkpoint_path#.kaizen/}"
 done_path="${control_dir}/${done_path#.kaizen/}"
 
+# 制御ファイルのディレクトリと抽出完了のマーカーの名前は、リポジトリの中身で決まるので、commit された symlink でありうる。
+# `mkdir -p` と書き込みの `>` は symlink の先をたどるので、どちらかが symlink なら何も書かずに止める（リポジトリの外のファイルを書き換えない）。
+# このスクリプトはチェックを解除する役なので、書けないときは 0 以外で終え、チェックが commit を止めたままにする。
+if [ -L "${control_dir}" ] || [ -L "${done_path}" ]; then
+	echo "kaizen-extract-done: 制御ファイルのディレクトリか抽出完了のマーカーが symlink なので、何も書かずに止める: ${done_path}" >&2
+	exit 1
+fi
+
 # 制御ファイルを**全作業ツリー**から消す。名前は `.kaizen/` を含まないファイル名で渡す。
 # 1 つのツリーだけ消すと、他のツリーに分かれた複製が残り、チェックが誤って判定する。
 remove_control_file_everywhere() { # $1: 制御ファイル名
