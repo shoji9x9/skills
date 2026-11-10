@@ -59,7 +59,18 @@ if [ -r "${kaizen_lib}" ]; then
 else
 	printf '%s: 共通ライブラリを読めないため、機能を減らして動きます: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
 	# 共通ライブラリの書き込みの関数の簡略な代わり。パス・親・.kaizen のどれかが symlink なら書かない。
-	kaizen_path_is_safe() { [ -n "${1:-}" ] && [ ! -L "$1" ] && [ ! -L "$(dirname -- "$1")" ] && [ ! -L .kaizen ]; }
+	# パスを上へたどる判定は共通ライブラリにしか無いので、たどらずに確かめられる形だけを安全とする。
+	# 安全とするのは、`..` を含まない `.kaizen` そのものと、その直下のパスだけで、それより深いパスは書かずに断る。
+	kaizen_path_is_safe() {
+		case "/${1:-}/" in
+		*/../*) return 1 ;;
+		esac
+		case "/${1:-}" in
+		*/.kaizen) [ ! -L "$1" ] ;;
+		*/.kaizen/*) [ "$(basename -- "$(dirname -- "$1")")" = .kaizen ] && [ ! -L "$1" ] && [ ! -L "$(dirname -- "$1")" ] ;;
+		*) return 1 ;;
+		esac
+	}
 	kaizen_safe_mkdir() { kaizen_path_is_safe "$1" && mkdir -p -- "$1"; }
 	kaizen_safe_write() { if kaizen_path_is_safe "$1"; then cat >"$1"; else cat >/dev/null && false; fi; }
 fi

@@ -1,6 +1,7 @@
 import { afterEach, assert, expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
 import {
+  copyFileSync,
   existsSync,
   mkdirSync,
   readdirSync,
@@ -9,7 +10,8 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import {
@@ -490,4 +492,40 @@ test("一時ファイルの名前に symlink があっても、リンクを補�
   );
   expect(existsSync(join(dir, ".kaizen/archive/INDEX.md"))).toBe(true);
   expect(readdirSync(outside)).toEqual([]);
+});
+
+// 共通ライブラリを読めないときの代わりの判定は、パスを上へたどれないので、`.kaizen` の直下より深いパスを安全としない。
+// `.kaizen/linked/deep/note.md` の `linked` が symlink だと、直上と `.kaizen` だけを見る判定では見逃す。
+test("共通ライブラリを読めないときも、途中のディレクトリが symlink のノートを移さない", () => {
+  const dir = createRepo();
+  const outside = makeTempDir("kaizen-archive-outside-");
+  mkdirSync(join(outside, "deep"));
+  const original = "---\nstatus: applied\n---\n\nbody\n";
+  writeFileSync(join(outside, "deep", "note.md"), original);
+  symlinkSync(outside, join(dir, ".kaizen", "linked"));
+  const alone = makeTempDir("kaizen-archive-alone-");
+  const source = join(
+    dirname(fileURLToPath(import.meta.url)),
+    "..",
+    "..",
+    "..",
+    "..",
+    "skills/kaizen/scripts/kaizen-archive.sh",
+  );
+  copyFileSync(source, join(alone, "kaizen-archive.sh"));
+
+  const result = spawnSync(
+    "bash",
+    [join(alone, "kaizen-archive.sh"), ".kaizen/linked/deep/note.md"],
+    {
+      timeout: CHILD_TIMEOUT_MS,
+      cwd: dir,
+      env: { ...process.env, CLAUDE_PROJECT_DIR: "", LANG: "C.UTF-8", LC_ALL: "C.UTF-8" },
+      encoding: "utf8",
+    },
+  );
+
+  expect(result.stderr).toContain("共通ライブラリを読めない");
+  expect(readFileSync(join(outside, "deep", "note.md"), "utf8")).toBe(original);
+  expect(existsSync(join(dir, ".kaizen", "archive", "note.md"))).toBe(false);
 });
