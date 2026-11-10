@@ -33,6 +33,9 @@ if [ -r "${kaizen_lib}" ]; then
 	. "${kaizen_lib}"
 else
 	printf '%s: 共通ライブラリを読めないため、機能を減らして動きます: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
+	# 共通ライブラリの削除の関数の簡略な代わり。パス・親・.kaizen のどれかが symlink なら消さない。
+	kaizen_path_is_safe() { [ -n "${1:-}" ] && [ ! -L "$1" ] && [ ! -L "$(dirname -- "$1")" ] && [ ! -L .kaizen ]; }
+	kaizen_safe_rm() { for kaizen_rm_path in "$@"; do kaizen_path_is_safe "$(dirname -- "${kaizen_rm_path}")" && rm -f -- "${kaizen_rm_path}"; done; }
 fi
 
 # Claude Code 用の登録（`.claude/settings.json`）を GitHub Copilot CLI が呼んだときは、何もせずに終える。
@@ -104,17 +107,17 @@ if [ "${is_compact}" -eq 0 ]; then
 			expire_dirs+=("${expire_dir}")
 		done < <(kaizen_worktree_kaizen_dirs "")
 	fi
-	# 一覧が空でも、`.kaizen` が symlink なら代わりに使わない（その先のファイルを消さない）。
-	if [ "${#expire_dirs[@]}" -eq 0 ] && [ ! -L .kaizen ]; then
+	# 一覧が空でも、`.kaizen` をたどると symlink を通るなら代わりに使わない（その先のファイルを消さない）。
+	if [ "${#expire_dirs[@]}" -eq 0 ] && kaizen_path_is_safe .kaizen; then
 		expire_dirs=(".kaizen")
 	fi
-	for expire_dir in "${expire_dirs[@]}"; do
+	for expire_dir in ${expire_dirs[@]+"${expire_dirs[@]}"}; do
 		if [ -n "${done_name}" ]; then
-			rm -f "${expire_dir}/${done_name}"
+			kaizen_safe_rm "${expire_dir}/${done_name}" || true
 		fi
 		# session 単位化より前に書かれた（key を持たない）マーカーは、同じく key を持たない
 		# センチネルだけを覆う共有マーカー。持ち主を特定できないので従来どおりここで失効させる。
-		rm -f "${expire_dir}/.extract-done"
+		kaizen_safe_rm "${expire_dir}/.extract-done" || true
 	done
 fi
 
@@ -124,7 +127,7 @@ if [ ! -d .kaizen ]; then
 fi
 # `.kaizen` が symlink なら、その先のファイルを学びとして注入しない。名前はリポジトリの中身で決まるので
 # commit された symlink でありえ、リポジトリの外のファイルがエージェントの文脈に入る。
-if [ -L .kaizen ]; then
+if ! kaizen_path_is_safe .kaizen; then
 	echo "kaizen-context-inject: .kaizen が symlink なので、学びを注入しない" >&2
 	exit 0
 fi
@@ -160,7 +163,7 @@ pending_files=()
 for f in .kaizen/*.md; do
 	[ -e "${f}" ] || continue
 	# symlink のノートも、`.kaizen` と同じ理由で注入しない（リポジトリの外のファイルがエージェントの文脈に入る）。
-	if [ -L "${f}" ]; then
+	if ! kaizen_path_is_safe "${f}"; then
 		echo "kaizen-context-inject: ${f} は symlink なので、学びとして注入しない" >&2
 		continue
 	fi

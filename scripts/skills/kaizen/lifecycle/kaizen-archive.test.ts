@@ -1,8 +1,9 @@
 import { afterEach, assert, expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
+import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import {
   archive,
   archiveIn,
@@ -411,4 +412,49 @@ test("フォールバックは frontmatter 後の水平線を要約にしない"
   expect(result.status, result.stderr).toBe(0);
   const index = readFileSync(join(dir, ".kaizen/archive/INDEX.md"), "utf8");
   expect(index).toContain("— 本文はここから始まる。\n");
+});
+
+// ノートとアーカイブの置き場所の名前はリポジトリの中身で決まるので、commit された symlink でありうる。
+// リンクを補正する書き戻しと索引の書き込みは symlink の先をたどるので、symlink を通るなら書かない。
+test("symlink のノートは移さず、先のファイルを書き換えない", () => {
+  const dir = createRepo();
+  const outside = makeTempDir("kaizen-archive-outside-");
+  const victim = join(outside, "victim.md");
+  const original = "---\nstatus: applied\n---\n\n[x](../docs/x.md)\n";
+  writeFileSync(victim, original);
+  const linked = join(dir, ".kaizen", "2026-09-01-linked.md");
+  symlinkSync(victim, linked);
+
+  const result = archive(dir, linked);
+
+  expect(result.status, result.stderr).toBe(0);
+  expect(result.stderr).toContain("symlink");
+  expect(readFileSync(victim, "utf8")).toBe(original);
+  expect(existsSync(join(dir, ".kaizen", "archive", "2026-09-01-linked.md"))).toBe(false);
+});
+
+test(".kaizen/archive が symlink なら、先のディレクトリに何も書かずに 0 以外で終える", () => {
+  const dir = createRepo();
+  const outside = makeTempDir("kaizen-archive-outside-");
+  symlinkSync(outside, join(dir, ".kaizen", "archive"));
+  const note = writeNote(dir, "2026-09-01-plain.md", { summary: "plain" });
+
+  const result = archive(dir, note);
+
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toContain("symlink");
+  expect(readdirSync(outside)).toEqual([]);
+  expect(existsSync(note)).toBe(true);
+});
+
+test("--reindex も、.kaizen/archive が symlink なら索引を書かない", () => {
+  const dir = createRepo();
+  const outside = makeTempDir("kaizen-archive-outside-");
+  symlinkSync(outside, join(dir, ".kaizen", "archive"));
+
+  const result = archive(dir, "--reindex");
+
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toContain("symlink");
+  expect(readdirSync(outside)).toEqual([]);
 });

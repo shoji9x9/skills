@@ -64,6 +64,11 @@ if [ -r "${kaizen_lib}" ]; then
 	. "${kaizen_lib}"
 else
 	printf '%s: 共通ライブラリを読めないため、機能を減らして動きます: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
+	# 共通ライブラリの書き込みの関数の簡略な代わり。パス・親・.kaizen のどれかが symlink なら書かない・消さない。
+	kaizen_path_is_safe() { [ -n "${1:-}" ] && [ ! -L "$1" ] && [ ! -L "$(dirname -- "$1")" ] && [ ! -L .kaizen ]; }
+	kaizen_safe_rm() { for kaizen_rm_path in "$@"; do kaizen_path_is_safe "$(dirname -- "${kaizen_rm_path}")" && rm -f -- "${kaizen_rm_path}"; done; }
+	kaizen_safe_mkdir() { kaizen_path_is_safe "$1" && mkdir -p -- "$1"; }
+	kaizen_safe_write() { if kaizen_path_is_safe "$1"; then cat >"$1"; else cat >/dev/null && false; fi; }
 fi
 # `.kaizen/` は**いま作業している作業ツリー**基準で解決する（他の kaizen スクリプトと統一）。
 # $CLAUDE_PROJECT_DIR を最優先にすると、git worktree で作業しているときにコミット対象と
@@ -143,8 +148,10 @@ char_len() {
 	printf '%s' "${#stripped}"
 }
 
+# 索引とアーカイブのディレクトリの名前はリポジトリの中身で決まるので、commit された symlink でありうる。
+# 作成と書き込みは kaizen_safe_mkdir と kaizen_safe_write を通し、symlink なら書かずに 0 以外で終える。
 regenerate_index() {
-	mkdir -p "${archive_dir}"
+	kaizen_safe_mkdir "${archive_dir}" || return 1
 	{
 		echo "# アーカイブ済みの学び（サマリー索引）"
 		echo ""
@@ -213,7 +220,7 @@ regenerate_index() {
 				echo "${line%"${line##*[![:space:]]}"}"
 			fi
 		done
-	} >"${archive_dir}/INDEX.md"
+	} | kaizen_safe_write "${archive_dir}/INDEX.md"
 }
 
 if [ "$#" -eq 0 ]; then
@@ -230,7 +237,7 @@ if [ "$1" = "--reindex" ]; then
 	exit 0
 fi
 
-mkdir -p "${archive_dir}"
+kaizen_safe_mkdir "${archive_dir}"
 archive_abs=$(cd "${archive_dir}" && pwd)
 moved=0
 rewritten=""
@@ -239,6 +246,11 @@ for arg in "$@"; do
 	f=$(resolve_path "${arg}")
 	if [ ! -f "${f}" ]; then
 		echo "skip (not a file): ${arg}" >&2
+		continue
+	fi
+	# symlink のノートを移すと、リンクを補正する書き戻しが、その先のリポジトリの外のファイルを書き換える。
+	if ! kaizen_path_is_safe "${f}"; then
+		echo "skip (the note or a directory up to .kaizen is a symlink): ${arg}" >&2
 		continue
 	fi
 	# 既に archive 配下のファイルはスキップする。同一ディレクトリへの mv は失敗し、
@@ -250,7 +262,7 @@ for arg in "$@"; do
 	# 移動先に同じ名前があればスキップする。mv / git mv は後から来た方で上書きするので、
 	# 消さないはずのアーカイブで、警告なしにファイルを失う（同じ basename を同時にアーカイブする場合や、既にある場合）。
 	dest="${archive_dir}/$(basename "${f}")"
-	if [ -e "${dest}" ]; then
+	if [ -e "${dest}" ] || [ -L "${dest}" ]; then
 		echo "skip (name collision in archive): ${arg} -> ${dest}" >&2
 		continue
 	fi
@@ -266,9 +278,9 @@ for arg in "$@"; do
 	# 一時ファイルから元ファイルへ書き戻し、mv 済みファイルの mode は維持する。
 	dest="${archive_dir}/$(basename "${f}")"
 	rewritten="${dest}.kaizen-archive-tmp"
-	sed 's#](\.\./#](../../#g' "${dest}" >"${rewritten}"
-	cat "${rewritten}" >"${dest}"
-	rm -f "${rewritten}"
+	sed 's#](\.\./#](../../#g' "${dest}" | kaizen_safe_write "${rewritten}"
+	kaizen_safe_write "${dest}" <"${rewritten}"
+	kaizen_safe_rm "${rewritten}"
 	rewritten=""
 	# git mv で stage した rename の後に本文を書き換えたため、tracked ノートは
 	# 移動先を再度 stage して index にもリンク補正を反映する。

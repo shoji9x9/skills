@@ -39,6 +39,9 @@ if [ -r "${kaizen_lib}" ]; then
 	. "${kaizen_lib}"
 else
 	printf '%s: 共通ライブラリを読めないため、機能を減らして動きます: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
+	# 共通ライブラリの書き込みの関数の簡略な代わり。パス・親・.kaizen のどれかが symlink なら書かない。
+	kaizen_path_is_safe() { [ -n "${1:-}" ] && [ ! -L "$1" ] && [ ! -L "$(dirname -- "$1")" ] && [ ! -L .kaizen ]; }
+	kaizen_safe_write() { if kaizen_path_is_safe "$1"; then cat >"$1"; else cat >/dev/null && false; fi; }
 fi
 # `.kaizen/` は**いま作業している作業ツリー**基準で解決する（他の kaizen スクリプトと統一）。
 if declare -f kaizen_resolve_project_root >/dev/null 2>&1; then
@@ -131,15 +134,15 @@ is_candidate() { # $1: ノート
 # 候補の一覧を stdout へ（1 行 1 ファイル、タブ区切りで判断材料も出す）。
 list_candidates() {
 	local note age note_days date_value priority
-	# symlink のノートと `.kaizen` は書き換えないので、候補にも挙げない（rewrite_status と同じ扱い）。
-	# 候補が 0 件のときと区別できるよう、理由を stderr に出す。
-	if [ -L .kaizen ]; then
+	# 書き換えないノート（kaizen_path_is_safe が通さないもの）は、候補にも挙げない（rewrite_status と同じ扱い）。
+	# 候補が 0 件のときと区別できるよう、`.kaizen` を見ない理由を stderr に出す。
+	if ! kaizen_path_is_safe .kaizen; then
 		echo "kaizen-forget: .kaizen が symlink なので、候補を挙げない" >&2
 		return 0
 	fi
 	for note in .kaizen/*.md; do
 		[ -e "${note}" ] || continue
-		[ ! -L "${note}" ] || continue
+		kaizen_path_is_safe "${note}" || continue
 		[ "$(basename "${note}")" = "INDEX.md" ] && continue
 		is_candidate "${note}" || continue
 		{
@@ -154,36 +157,11 @@ list_candidates() {
 
 # frontmatter の `status:` 行だけを書き換える。本文の `status:` には触らない。
 # 一時ファイルへ書いてから内容を戻すことで、元ファイルの mode を保つ。
-# ノートか、ノートから上の `.kaizen` までのディレクトリが symlink なら書き換えない。名前はリポジトリの中身で決まるので
+# ノートをたどると symlink を通るなら書き換えない（kaizen_path_is_safe）。名前はリポジトリの中身で決まるので
 # commit された symlink でありえ、内容を戻す `>` は symlink の先をたどって、リポジトリの外のファイルを書き換える。
-# 直上のディレクトリだけを見ると、`<ツリー>/.kaizen/archive/x.md` のように `.kaizen` が 2 段上にあるノートで、symlink の `.kaizen` を見逃す。
-# `.kaizen` より上はリポジトリの中身で決まらない（`/tmp` が symlink の環境もある）ので見ない。
-note_path_has_symlink() { # $1: ノート
-	local dir
-	[ ! -L "$1" ] || return 0
-	dir=$(dirname -- "$1")
-	case "/${dir}/" in
-	*/.kaizen/*) ;;
-	*)
-		# `.kaizen` を含まないパスは、直上のディレクトリだけを見る。
-		[ -L "${dir}" ] && return 0
-		return 1
-		;;
-	esac
-	while :; do
-		[ ! -L "${dir}" ] || return 0
-		case "${dir##*/}" in
-		.kaizen) return 1 ;;
-		esac
-		case "${dir}" in
-		/ | . | "") return 1 ;;
-		esac
-		dir=$(dirname -- "${dir}")
-	done
-}
 rewrite_status() { # $1: ノート
 	local note="$1" tmp
-	if note_path_has_symlink "${note}"; then
+	if ! kaizen_path_is_safe "${note}"; then
 		return 3
 	fi
 	# **固定の名前にしない。** 掃引は抽出の完了時に実行されるので、同じリポジトリで 2 つのセッションが
@@ -212,7 +190,7 @@ rewrite_status() { # $1: ノート
 	# 報告する**（その分が注入から消えたと誤解される）。
 	# 返す値で理由を分ける（1 = status 行が無い / 2 = 書き戻せなかった）。同じ 1 にすると
 	# 書き込み権限の問題が「新形式ではない」と案内され、直しようがなくなる。
-	if ! cat "${tmp}" >"${note}"; then
+	if ! kaizen_safe_write "${note}" <"${tmp}"; then
 		rm -f "${tmp}"
 		trap - EXIT INT TERM
 		return 2

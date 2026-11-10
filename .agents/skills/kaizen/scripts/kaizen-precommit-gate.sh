@@ -108,6 +108,11 @@ if [ -n "${script_dir}" ] && [ -r "${kaizen_lib}" ]; then
 	. "${kaizen_lib}"
 else
 	printf '%s: 共通ライブラリを読めないため、機能を減らして動きます: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
+	# 共通ライブラリの書き込みの関数の簡略な代わり。パス・親・.kaizen のどれかが symlink なら書かない・消さない。
+	kaizen_path_is_safe() { [ -n "${1:-}" ] && [ ! -L "$1" ] && [ ! -L "$(dirname -- "$1")" ] && [ ! -L .kaizen ]; }
+	kaizen_safe_rm() { for kaizen_rm_path in "$@"; do kaizen_path_is_safe "$(dirname -- "${kaizen_rm_path}")" && rm -f -- "${kaizen_rm_path}"; done; }
+	kaizen_safe_write() { if kaizen_path_is_safe "$1"; then cat >"$1"; else cat >/dev/null && false; fi; }
+	kaizen_safe_mv() { kaizen_path_is_safe "$2" && mv -f -- "$1" "$2"; }
 fi
 # 共通ライブラリを読めない（配布物の欠落・一部だけの展開）ときは、session 単位にする前の agent 単位の
 # 名前だけを扱うバージョンを定義して、機能を減らして動く。チェックの判定を止めないための代わりの実装で、複数のセッションの
@@ -126,9 +131,9 @@ if ! declare -f kaizen_sentinel_key_of >/dev/null 2>&1; then
 	}
 	# 機能を減らしたバージョンは自分のツリーだけを見る（すべての作業ツリーを探すようにする前の振る舞い）。worktree をまたいだセンチネルは
 	# 見つからないが、止める条件は緩めない。
-	kaizen_worktree_kaizen_dirs() { [ -L .kaizen ] || printf '%s\0' "$(pwd)/.kaizen"; }
+	kaizen_worktree_kaizen_dirs() { ! kaizen_path_is_safe .kaizen || printf '%s\0' "$(pwd)/.kaizen"; }
 	kaizen_find_control_file() {
-		[ -n "${2:-}" ] && [ ! -L .kaizen ] && [ -e ".kaizen/$2" ] || return 1
+		[ -n "${2:-}" ] && kaizen_path_is_safe .kaizen && [ -e ".kaizen/$2" ] || return 1
 		printf '%s' ".kaizen/$2"
 	}
 	# 設定を読む関数も共通ライブラリの側にある。読めないときは「定義なし」を返し、呼び出し側の
@@ -1285,11 +1290,11 @@ sweep_expired_foreign_sentinels() {
 		# 経過日数は切り捨てなので `-ge` で比べる。`-gt` にすると保持期間 ＋ 1 日まで残り、
 		# 「7 日を過ぎたら回収する」という案内と食い違う（7.5 日のセンチネルが残る）。
 		[ "${age}" -ge "${foreign_retention_days}" ] || continue
-		rm -f "${sentinel}"
+		kaizen_safe_rm "${sentinel}" || continue
 		# 対応する制御ファイルも道連れにしない。checkpoint は持ち主が戻ってきたときの差分走査の
 		# 起点で、消すと全走査＝恒久ブロックへ戻る。残しても、センチネルが無い限り遮断はしない。
 		# 走査結果のキャッシュは別で、センチネルが無ければ読む者がいないので一緒に消す。
-		rm -f "$(foreign_scan_cache_path "${sentinel}" "${key}")"
+		kaizen_safe_rm "$(foreign_scan_cache_path "${sentinel}" "${key}")" || true
 		printf 'kaizen-precommit-gate: 保持期間（%s 日）を過ぎた他セッションのセンチネルを回収しました: %q（%s 日前。transcript は残っています）\n' \
 			"${foreign_retention_days}" "${sentinel}" "${age}" >&2
 	done
@@ -1506,17 +1511,15 @@ resolve_foreign_sentinels() {
 		0 | 124)
 			# キャッシュは最適化なので、書けなくても走査の結論は変えない。
 			# キャッシュの名前もセンチネルの key（リポジトリの中身）で決まるので、commit された symlink でありうる。
-			# `>` は symlink の先をたどり、`mv -f` は移動先がディレクトリへの symlink ならその中へ移すので、どちらかが symlink なら書かない。
+			# 一時ファイルへの書き込みとキャッシュへの移動は kaizen_safe_* を通し、symlink なら書かない（stderr に理由を出す）。
 			tmp="${cache}.tmp.$$"
-			if [ -L "${cache}" ] || [ -L "${tmp}" ]; then
-				echo "kaizen-precommit-gate: 走査の結果のキャッシュが symlink なので書かない: ${cache}" >&2
-			elif printf '%s\n%s\n%s\n%s\n' "${foreign_scan_cache_header}" "${inputs}" "${rc}" "${slice}" >"${tmp}" 2>/dev/null; then
-				mv -f "${tmp}" "${cache}" 2>/dev/null || rm -f "${tmp}"
+			if printf '%s\n%s\n%s\n%s\n' "${foreign_scan_cache_header}" "${inputs}" "${rc}" "${slice}" | kaizen_safe_write "${tmp}"; then
+				kaizen_safe_mv "${tmp}" "${cache}" || kaizen_safe_rm "${tmp}"
 			else
-				rm -f "${tmp}"
+				kaizen_safe_rm "${tmp}"
 			fi
 			;;
-		*) rm -f "${cache}" ;;
+		*) kaizen_safe_rm "${cache}" ;;
 		esac
 		set -e
 		# 終了コードの取り決めは、自分のセッションの分と同じ。1（検証済みゼロ）以外は触らず、ブロックのまま残す。
@@ -1665,7 +1668,7 @@ if [ "${own_pending}" -eq 1 ] && [ -n "${transcript}" ] && [ -r "${script_dir}/k
 		legacy_sentinel_name=${legacy_sentinel_name#.kaizen/}
 		while IFS= read -r -d '' legacy_dir; do
 			[ -n "${legacy_dir}" ] || continue
-			rm -f "${legacy_dir}/${legacy_sentinel_name}"
+			kaizen_safe_rm "${legacy_dir}/${legacy_sentinel_name}" || true
 		done < <(kaizen_worktree_kaizen_dirs "${project_root}")
 		collect_unresolved
 		if [ "${#unresolved[@]}" -eq 0 ]; then
