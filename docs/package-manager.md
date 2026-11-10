@@ -35,19 +35,21 @@ checksum・integrity・URL のようにツール名を含まない行が必ず�
 
 ## lock を作る mise を CI とそろえる
 
-CI のワークフローは `jdx/mise-action` に mise のバージョンを指定しないので、最新の mise を使う。
+`jdx/mise-action` に mise のバージョンを指定しないワークフローは、最新の mise を使う。
 mise は、ツールを検証する方法（lockfile の `provenance`）を、本体に組み込んだ aqua registry から決める。
 手元の mise が古いと、上流が検証の方法を変えたツールで、検証用のファイルが公開されていない方法を lockfile に書く。
-ghalint は v1.5.7 から SLSA の検証用のファイルを公開していないが、mise 2026.5.16 は ghalint 1.6.0 の entry に `provenance = "slsa"` を書いた。
+ghalint は v1.5.7 から SLSA の検証用のファイルを公開していないが、mise 2026.5.16 は、それより後のバージョンの entry にも `provenance = "slsa"` を書いた（1.6.0 で確かめた）。
 その lockfile では、空の環境からの `mise install --locked` が検証用のファイルを取得できずに失敗した。
 
 そのため、`mise upgrade` や `mise lock` を実行する前に、`mise self-update` で手元の mise を最新にする。
-既にある entry は、`mise lock <tool>` を実行しても作り直されない。古い mise で作った entry は、そのツールのブロックを `mise.lock` から消してから `mise lock <tool>` を実行する。
+パッケージマネージャ（Homebrew など）で入れた mise は `mise self-update` で更新できないので、そのパッケージマネージャで更新する。
+既にある entry の `provenance` は、`mise lock <tool>` を実行しても作り直されない。古い mise で作った entry は、そのツールのブロックを `mise.lock` から消してから `mise lock <tool>` を実行する。
 lock を作ったら、空のデータディレクトリで入れ直し、lockfile のとおりに入ることを確かめる。
 
 ```bash
 d=$(mktemp -d)
 MISE_DATA_DIR="$d/data" MISE_CACHE_DIR="$d/cache" mise install --locked <tool>... </dev/null
+rm -rf "$d"
 ```
 
 ## broken バージョンを避ける
