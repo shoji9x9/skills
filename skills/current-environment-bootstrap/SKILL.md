@@ -209,15 +209,19 @@ current-environment-bootstrap [--target <name>] [--resume] [--autonomous]
 
 | 届いたものの影響 | 扱い |
 |---|---|
-| どちらも無い（確認待ちを確定させるだけ） | 台帳と、それに対応する `metadata.json` の値（`semantics` の件数と `pending_features`・`questionnaire_refs`・`handoff.unconfirmed`）だけを直し、`handed-off` のまま終える。確定させた項目を `handoff.unconfirmed` から外し、空になったら `["なし"]` と書く |
+| どちらも無い（確認待ちを確定させるだけ） | 台帳と、台帳から導く `metadata.json` の値だけを直し、`handed-off` のまま終える。導く値は、表の下の段落のとおりにすべて導き直す。確定させた項目を `handoff.unconfirmed` から外し、空になったら `["なし"]` と書く |
 | どちらかがある、または迷う | 下の手順で `blocked` に戻してから、再開の表の 1 行目のとおりに再開する |
+
+台帳から導く値は、`metadata.json` のうち、台帳（`assets-inventory.md`・`schema.md`・`semantics.md`・`questionnaire.md`）の中身から決まる値である。
+主な例は `current.schema_unfilled`・`assets` と `semantics` の件数・`semantics.pending_features`・`questionnaire_refs`・`handoff.boot_requirements`・`handoff.unconfirmed` である。この一覧は網羅ではない。
+一部だけ直すと、下流（`golden-dataset` のフェーズ A・`replace-strategy status`）が古い値を読むので、届いたものに関わる値を、テンプレートの定義に照らして 1 つずつ導き直す。
 
 `blocked` に戻す手順は次のとおりである。
 `replace-strategy` の測定・`golden-dataset`・`parity-suite`・`parity-component` の `capture` は `status` を読んで止まるので、先に `metadata.json` を書き換える。
 
 1. `metadata.json` の `status` を `blocked` にする。`blocked_on` には、`工程 <番号>: <届いたもので生じた理由>` を書く。
    `resume` には、`from_step` と空の `deferred` を書く。`from_step` は、作り直しのツールを直すか「不足」の行があれば 3、暫定の起動データか投入ツールだけを直すなら 6 にする。
-   台帳の変更に合わせて、`metadata.json` の対応する値（`current.schema_unfilled`・`assets` と `semantics` の件数・`semantics.pending_features`・`questionnaire_refs`）も直す。
+   台帳の変更に合わせて、台帳から導く `metadata.json` の値も、この手順の前の段落のとおりにすべて導き直す。
    `from_step` を決められず迷ったときは、`resume` を `null` にし、再開の表の 2 行目のとおりに工程を利用者に確かめる。`handoff` の値は消さずに残し、次の引き渡しで書き直す。
 2. 引き渡しの後に済んだ下流の作業を挙げ、`metadata.json` の `stale_downstream` に書く。
    次の成果物が在れば、作り直す前の環境で作ったものなので、成果物のパスとやり直すスキルを 1 件ずつ書く。無ければ空配列にする。
