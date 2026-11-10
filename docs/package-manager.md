@@ -49,7 +49,9 @@ lock を作ったら、空のデータディレクトリで入れ直し、lockfi
 ```bash
 d=$(mktemp -d)
 MISE_DATA_DIR="$d/data" MISE_CACHE_DIR="$d/cache" mise install --locked <tool>... </dev/null
+rc=$?
 rm -rf "$d"
+(exit "$rc")  # 後片付けの終了コードで、入れ直しの失敗を隠さない
 ```
 
 ## broken バージョンを避ける
