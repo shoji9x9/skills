@@ -216,6 +216,7 @@ current-environment-bootstrap [--target <name>] [--resume] [--autonomous]
 
 1. `metadata.json` の `status` を `blocked` にする。`blocked_on` には、`工程 <番号>: <届いたもので生じた理由>` を書く。
    `resume` には、`from_step` と空の `deferred` を書く。`from_step` は、作り直しのツールを直すか「不足」の行があれば 3、暫定の起動データか投入ツールだけを直すなら 6 にする。
+   台帳の変更に合わせて、`metadata.json` の対応する値（`current.schema_unfilled`・`assets` と `semantics` の件数・`questionnaire_refs`）も直す。
    `from_step` を決められず迷ったときは、`resume` を `null` にし、再開の表の 2 行目のとおりに工程を利用者に確かめる。`handoff` の値は消さずに残し、次の引き渡しで書き直す。
 2. 設定の current の target の引き渡しを取り消す（`default` を `false` にしてから、`url` を `none` に戻す）。
    `parity-suite` などの姉妹スキルは `status` を読まず、設定の値で current の target を選ぶので、取り消さないと作り直しの途中の環境を選ぶ。
