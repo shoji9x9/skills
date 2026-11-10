@@ -22,10 +22,17 @@ pre-commit:
             run: node scripts/gates/packaging/copies/generate-fallow-config.ts --index && git add .fallowrc.json
           - name: markdown-atx-number
             # 段落の行頭の `#` と数字（`#625 で…`）を、次の markdownlint の --fix（MD018）が警告なしに見出し（`# 625 で…`）に書き換える。
-            # 書き換える前に、MD018 だけを --fix なしで当てて止める。直すときは「Issue #625 で…」のように語を前に置く。
-            # 見る範囲は次の markdownlint と同じく .markdownlint-cli2.yaml の globs が決める（--no-globs を付けると、globs の除外が引数に当たらない）。
+            # 書き換える前に、--fix なしで検査し、MD018 の指摘があるときだけ止める。直すときは「Issue #625 で…」のように語を前に置く。
+            # ほかの規則の指摘は、次の markdownlint に任せる（--config で MD018 だけの設定を渡しても、直下の設定が合わさり、ほかの規則も検査される）。
+            # 終了コードの 1 は指摘あり、2 以上は実行の失敗なので、2 以上はそのまま止める。
+            # 見る範囲は次の markdownlint と同じく .markdownlint-cli2.yaml の globs が決める。
             glob: "*.md"
-            run: pnpm exec markdownlint-cli2 --config .config/markdownlint/md018-only.markdownlint-cli2.yaml {staged_files}
+            run: >-
+              out=$(pnpm exec markdownlint-cli2 {staged_files} 2>&1); rc=$?;
+              if [ "$rc" -gt 1 ]; then printf '%s\n' "$out" >&2; exit "$rc"; fi;
+              if printf '%s\n' "$out" | grep -F 'MD018/'; then
+              echo 'markdown-atx-number: 段落の行頭の「#」と数字は、markdownlint の --fix が見出しに書き換える。「Issue #625 で…」のように語を前に置く' >&2;
+              exit 1; fi
           - name: markdownlint
             # 見る範囲は .markdownlint-cli2.yaml の globs が決める（引数で渡したファイルにも除外が反映される）。
             # ここで .agents/** を除くと、.agents/rules/ と private skill だけを直した commit で実行されない。

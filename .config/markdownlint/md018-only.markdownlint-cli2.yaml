@@ -1,6 +1,0 @@
-# lefthook の markdown-atx-number が使う設定。MD018 だけを --fix なしで当てる。
-# 段落の行頭の `#` と数字を、markdownlint の --fix が見出しに書き換える前に止めるためである。
-# globs と ignores は、リポジトリの直下の .markdownlint-cli2.yaml のものが当たる（--no-globs を付けない場合）。
-config:
-  default: false
-  MD018: true
