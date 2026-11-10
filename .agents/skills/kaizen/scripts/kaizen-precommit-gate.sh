@@ -657,6 +657,18 @@ json_unescape_once() { # $1: JSON の文字列の本体
 	return 0
 }
 
+# JSON の文字に、ASCII の範囲の `\u00XX`（エスケープされた `\` の後ろの `u00XX` は除く）があれば 0 を返す。
+# `\\` を先に取り除くので、`\\u0063`（`\` と `u0063` の 6 文字）は当たらず、`\\c` は当たる。
+json_has_ascii_escape() { # $1: JSON の文字列
+	local LC_ALL=C
+	local s="${1:-}" bs="\\"
+	s=${s//"${bs}${bs}"/}
+	case "${s}" in
+	*'\u00'[0-7][0-9A-Fa-f]*) return 0 ;;
+	esac
+	return 1
+}
+
 # 生の JSON で判定するときに、ツールの入力が JSON の文字列として入った値（Copilot CLI の `toolArgs` など）を、
 # 1 段だけ復号して raw_nested_out に入れる。対象のキーは、jq と python3 の分岐が文字列でも読む `tool_input`・`toolArgs`・`input` である。
 # 文字列のままでは `"command"` のキーが `\"command\"` として現れ、下の commit_re に一致しない。
@@ -680,6 +692,11 @@ raw_nested_json() { # $1: Hook の JSON
 			:
 		elif json_unescape_once "${value}"; then
 			raw_nested_out+=("${json_unescape_out}")
+			# 復号した値も JSON なので、その中の文字列は `commit` のように ASCII を `\u00XX` で書ける。
+			# jq と python3 はそれを `commit` として読むが、下の commit_re は読めない。判定できないとして扱う。
+			if json_has_ascii_escape "${json_unescape_out}"; then
+				raw_nested_undecidable=1
+			fi
 		else
 			raw_nested_undecidable=1
 		fi

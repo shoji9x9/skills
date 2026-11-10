@@ -1837,6 +1837,23 @@ describe.concurrent("生 JSON だけで判定するときの commit 検出", () 
       args: C,
       expected: 0,
     },
+    // 復号した内側の JSON に残る ASCII の `\u00XX` は、jq と python3 が読み替えるので、判定できないとして止める。
+    {
+      name: "toolArgs の内側の JSON の \\u0063ommit",
+      input: JSON.stringify({
+        toolName: "bash",
+        toolArgs: '{"command":"git \\u0063ommit -m commit"}',
+      }),
+      args: C,
+      expected: 2,
+    },
+    // コマンドに書いた `\` と `u0063` の 6 文字は、内側の JSON では `\\u0063` になるので、エスケープとして扱わない。
+    {
+      name: "toolArgs のコマンドに書いた \\u0063 の文字",
+      input: nested("toolArgs", "git log --grep commit -- '\\u0063'"),
+      args: C,
+      expected: 0,
+    },
     // 復号しても、commit でないものは通す（止めすぎにしない）。
     {
       name: "toolArgs の git status",
