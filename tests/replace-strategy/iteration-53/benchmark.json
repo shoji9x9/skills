@@ -1,0 +1,189 @@
+{
+  "metadata": {
+    "skill_name": "replace-strategy",
+    "skill_path": "<repo>/skills/replace-strategy",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-10T00:05:12Z",
+    "evals_run": [39],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 39,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 9,
+        "failed": 0,
+        "total": 9,
+        "time_seconds": 78.202,
+        "tokens": 252237,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "承認された下書き（リポジトリ・タイトル・本文・ラベル）と、同じ実行の中で全文を見せて承認を得たことを、issue-create に渡すと述べている",
+          "passed": true,
+          "evidence": "「承認された下書き：リポジトリ・直したタイトル・本文の全文・ラベル」と「申告：同じ実行の中で、直した後の下書きの全文を見せて明示の承認を得たこと」を渡す"
+        },
+        {
+          "text": "誤字を直した user の下書きは、直した下書きをもう一度利用者に見せて承認を得てから issue-create に任せると述べている",
+          "passed": true,
+          "evidence": "「直した user の下書きを全文で見せ直します」「『承認する』という明示の返事を得てから、1 件ずつ issue-create に渡します」"
+        },
+        {
+          "text": "下書きを変えていない order は、issue-create が同じ内容の承認を求め直さずに起票すると述べている",
+          "passed": true,
+          "evidence": "「渡した内容と起票する内容が一致していれば、求め直しません」「印の置き換えは『一致する』の条件を崩さないので、order の承認は引き継がれます」"
+        },
+        {
+          "text": "user を先に起票し、order を後に起票すると述べている",
+          "passed": true,
+          "evidence": "「起票は依存の順に、user → order とします」"
+        },
+        {
+          "text": "order の本文で、まだ起票していない user の番号を `#<下書き N の番号>` の形の印で書き、user を起票した後に番号へ置き換えると述べている",
+          "passed": true,
+          "evidence": "「user の番号を `#<下書き 1 の番号>` の印のまま承認を得ます」「order の本文の印だけを `#<番号>` に置き換えてから渡します」"
+        },
+        {
+          "text": "すべて任せ終えた後に、order が user に blocked by となる GitHub の Issue の依存関係を設定すると述べている",
+          "passed": true,
+          "evidence": "「すべて渡し終えたら（途中で止めたときも）、『order は user に blocked by』の組を GitHub の Issue dependencies API で設定します」"
+        },
+        {
+          "text": "起票した番号を .replace/features.md の機能一覧の order の行と横断 API の user の行の Issue 列に書き戻し、ほかの記述を変えないと述べている",
+          "passed": true,
+          "evidence": "「『横断 API』表の user 行と、『機能一覧』表の order 行の Issue 列に入れます。書き換えは非破壊で、変える列だけです。report 行とゴールデンデータセット Issue は『未起票』のまま変えません」"
+        },
+        {
+          "text": "起票の後、今回起票していない report を含むインベントリのすべての行を母集合にして、受け入れ条件と突き合わせると述べている",
+          "passed": true,
+          "evidence": "「対象は今回の 2 件だけでなく、インベントリのすべての行（user・order・report）です」と受け入れ条件との突き合わせを述べている"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（gh issue create・issue-create への委譲・ファイルの変更を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行、ファイルの変更、起票はしていません」。project-tree は fixture の 2 ファイルだけで変更なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 39,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.7778,
+        "passed": 7,
+        "failed": 2,
+        "total": 9,
+        "time_seconds": 79.972,
+        "tokens": 183843,
+        "tool_calls": 14,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "承認された下書き（リポジトリ・タイトル・本文・ラベル）と、同じ実行の中で全文を見せて承認を得たことを、issue-create に渡すと述べている",
+          "passed": true,
+          "evidence": "「リポジトリ・タイトル・本文・ラベル」と「全件を見せて、下書きを確定した後に、この実行の中で明示の承認を得た」という申告を 1 件ずつ渡す"
+        },
+        {
+          "text": "誤字を直した user の下書きは、直した下書きをもう一度利用者に見せて承認を得てから issue-create に任せると述べている",
+          "passed": true,
+          "evidence": "「直した下書きで承認を取り直してから渡す：これを取ります」。直した箇所を添えて見せ直し、承認を得てから渡す"
+        },
+        {
+          "text": "下書きを変えていない order は、issue-create が同じ内容の承認を求め直さずに起票すると述べている",
+          "passed": true,
+          "evidence": "order が印だけで user を指せば「order は変わりません」、印の置き換えは「一致する」を崩さず、その手順で渡したとき issue-create は「求め直しません」"
+        },
+        {
+          "text": "user を先に起票し、order を後に起票すると述べている",
+          "passed": true,
+          "evidence": "「前提にされる user を先に、order を後に起票します」"
+        },
+        {
+          "text": "order の本文で、まだ起票していない user の番号を `#<下書き N の番号>` の形の印で書き、user を起票した後に番号へ置き換えると述べている",
+          "passed": true,
+          "evidence": "「`- #<下書き 1 の番号>（…）` の形の印を書いておきます」「user を起票したら…order の本文の印だけをその番号に置き換えます」"
+        },
+        {
+          "text": "すべて任せ終えた後に、order が user に blocked by となる GitHub の Issue の依存関係を設定すると述べている",
+          "passed": true,
+          "evidence": "「2 件を起票したら、GitHub の依存関係として『order は user に blocked by』を設定します」"
+        },
+        {
+          "text": "起票した番号を .replace/features.md の機能一覧の order の行と横断 API の user の行の Issue 列に書き戻し、ほかの記述を変えないと述べている",
+          "passed": false,
+          "evidence": "起票の後の手順に .replace/features.md への番号の書き戻しが無い（features.md に触れていない）"
+        },
+        {
+          "text": "起票の後、今回起票していない report を含むインベントリのすべての行を母集合にして、受け入れ条件と突き合わせると述べている",
+          "passed": false,
+          "evidence": "起票の後に、インベントリのすべての行（report を含む）を母集合にして受け入れ条件と突き合わせる手順が無い"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（gh issue create・issue-create への委譲・ファイルの変更を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行もファイルの変更もしていません」。project-tree は fixture の 2 ファイルだけで変更なし"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 78.202,
+        "stddev": 0,
+        "min": 78.202,
+        "max": 78.202
+      },
+      "tokens": {
+        "mean": 252237,
+        "stddev": 0,
+        "min": 252237,
+        "max": 252237
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.7778,
+        "stddev": 0,
+        "min": 0.7778,
+        "max": 0.7778
+      },
+      "time_seconds": {
+        "mean": 79.972,
+        "stddev": 0,
+        "min": 79.972,
+        "max": 79.972
+      },
+      "tokens": {
+        "mean": 183843,
+        "stddev": 0,
+        "min": 183843,
+        "max": 183843
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.22",
+      "time_seconds": "-1.8",
+      "tokens": "+68394"
+    }
+  },
+  "notes": [
+    "Issue #918 の 3 で eval 39 を足した変更確認。with_skill と without_skill を 1 run ずつ。"
+  ]
+}

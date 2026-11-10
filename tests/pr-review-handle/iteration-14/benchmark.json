@@ -1,0 +1,820 @@
+{
+  "metadata": {
+    "skill_name": "pr-review-handle",
+    "skill_path": "<repo>/skills/pr-review-handle",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-10T00:12:39Z",
+    "evals_run": [1, 2],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 53.802,
+        "tokens": 109127,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL から owner/repo/PR番号を取り出す工程を示している",
+          "passed": true,
+          "evidence": "「URL から owner = `shoji9x9`、repo = `skills`、PR 番号 = `42` を取り出します」"
+        },
+        {
+          "text": "現在の repo と PR の owner/repo の一致を確かめる工程を示している",
+          "passed": true,
+          "evidence": "「今いる repo が `shoji9x9/skills` かを確かめます。違えば止まります」"
+        },
+        {
+          "text": "GraphQL の reviewThreads で未解決スレッドを取得する工程を示している",
+          "passed": true,
+          "evidence": "「`references/review-threads.md` の GraphQL クエリを `--paginate` 付きで実行し、`reviewThreads` を全ページ取ります」"
+        },
+        {
+          "text": "isResolved == false のスレッドのみ対象にし、解決済みの 1 件を飛ばすと述べている",
+          "passed": true,
+          "evidence": "「`isResolved == false` の 2 件（`src/a.ts` と `src/b.ts`）だけを処理します。解決済みの 1 件は飛ばします」"
+        },
+        {
+          "text": "各指摘をコードに照らして妥当性を判断し、src/b.ts の指摘は直さずに根拠を返信すると述べている",
+          "passed": true,
+          "evidence": "a.ts は「指摘が今のコードと合っていることを確かめます」、b.ts は「直しません」「返信では、根拠から書き始めます」"
+        },
+        {
+          "text": "返信してから解決する順序で進めると述べている",
+          "passed": true,
+          "evidence": "「返信の後で、`resolveReviewThread` の mutation…でスレッドを解決します」「どちらのスレッドも、必ず返信してから解決します」"
+        },
+        {
+          "text": "モード未指定なので commit/push を行わず、変えたファイルと --push で実行し直せることを知らせて止まると述べている",
+          "passed": true,
+          "evidence": "手順 7 で「変更したファイルの一覧（`src/a.ts`）」「まだ commit と push をしていないこと」「`pr-review-handle 42 --push` で実行し直せば…」を報告して止まる"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行、ファイルの変更、GitHub への書き込みはしていません」。ツール呼び出しは Skill と references の Read だけで、project-tree にも変更が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 46.369,
+        "tokens": 101056,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL から owner/repo/PR番号を取り出す工程を示している",
+          "passed": true,
+          "evidence": "「URL から `owner=shoji9x9`、`repo=skills`、`番号=42` を取り出します」"
+        },
+        {
+          "text": "現在の repo と PR の owner/repo の一致を確かめる工程を示している",
+          "passed": true,
+          "evidence": "「今の repo が `shoji9x9/skills` と一致するかを確かめます。違っていたら、何も取得せずに止まります」"
+        },
+        {
+          "text": "GraphQL の reviewThreads で未解決スレッドを取得する工程を示している",
+          "passed": true,
+          "evidence": "「`references/review-threads.md` の GraphQL を `--paginate` で実行し、全ページを取得します」"
+        },
+        {
+          "text": "isResolved == false のスレッドのみ対象にし、解決済みの 1 件を飛ばすと述べている",
+          "passed": true,
+          "evidence": "「処理するのは `isResolved == false` の 2 件（a.ts と b.ts）です。解決済みの 1 件は飛ばします」"
+        },
+        {
+          "text": "各指摘をコードに照らして妥当性を判断し、src/b.ts の指摘は直さずに根拠を返信すると述べている",
+          "passed": true,
+          "evidence": "a.ts は「指摘がコードの事実と合うことを確かめます」、b.ts は「ファイルは直しません」「返信の書き出しは、直さない根拠にします」"
+        },
+        {
+          "text": "返信してから解決する順序で進めると述べている",
+          "passed": true,
+          "evidence": "「返信を投稿した後で、`resolveReviewThread` の mutation でスレッドを解決します」「返信してから解決するという順は変わりません」"
+        },
+        {
+          "text": "モード未指定なので commit/push を行わず、変えたファイルと --push で実行し直せることを知らせて止まると述べている",
+          "passed": true,
+          "evidence": "手順 7 で「ここで止まり」、変えたファイルの一覧・commit が必要なこと・「`pr-review-handle 42 --push` で実行し直せる」を報告する"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "「今回はコマンドの実行もファイルの変更もしていません」。ツール呼び出しは Skill と references の Read だけで、project-tree にも変更が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 65.714,
+        "tokens": 163180,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL から owner/repo/PR番号を取り出す工程を示している",
+          "passed": true,
+          "evidence": "「URL から `owner=shoji9x9`、`repo=skills`、`番号=42` を取り出します」"
+        },
+        {
+          "text": "現在の repo と PR の owner/repo の一致を確かめる工程を示している",
+          "passed": true,
+          "evidence": "「今の repo が `shoji9x9/skills` と一致するか確かめます。…一致しなければ止まって確認します」"
+        },
+        {
+          "text": "GraphQL の reviewThreads で未解決スレッドを取得する工程を示している",
+          "passed": true,
+          "evidence": "「`references/review-threads.md` の GraphQL を `--paginate` 付きで実行し、全ページを取得します」"
+        },
+        {
+          "text": "isResolved == false のスレッドのみ対象にし、解決済みの 1 件を飛ばすと述べている",
+          "passed": true,
+          "evidence": "「3 件のうち、`isResolved == true` の 1 件は処理しません」。未解決の a.ts と b.ts だけを処理する"
+        },
+        {
+          "text": "各指摘をコードに照らして妥当性を判断し、src/b.ts の指摘は直さずに根拠を返信すると述べている",
+          "passed": true,
+          "evidence": "a.ts は「指摘がコードの事実と合うことを確かめます」、b.ts は「指摘のどこが事実と違うかを特定します」「ファイルは変えません」「返信は根拠から書き始めます」"
+        },
+        {
+          "text": "返信してから解決する順序で進めると述べている",
+          "passed": true,
+          "evidence": "「返信が投稿できたのを確かめてから、`resolveReviewThread`（GraphQL）でスレッドを解決します」「返信していないスレッドは解決しません」"
+        },
+        {
+          "text": "モード未指定なので commit/push を行わず、変えたファイルと --push で実行し直せることを知らせて止まると述べている",
+          "passed": true,
+          "evidence": "手順 6 で「変えたファイルの一覧（`src/a.ts`…）と、commit が要ること、`--push` を付けて実行し直せることを伝えて止まります」"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行、ファイルの変更、GitHub への書き込みはしていません」。ツール呼び出しは Skill と references の Read だけで、project-tree にも変更が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 10,
+        "failed": 0,
+        "total": 10,
+        "time_seconds": 62.678,
+        "tokens": 170023,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR番号のみのため現在の repo を対象にしている",
+          "passed": true,
+          "evidence": "「引数 42 から、対象は現在の repo（shoji9x9/skills）の PR #42 になります」"
+        },
+        {
+          "text": "未解決スレッドへの返信・解決まで行う手順になっている",
+          "passed": true,
+          "evidence": "「返信した後で resolveReviewThread を実行します。返信していないスレッドは解決しません」"
+        },
+        {
+          "text": "レビュー対応で触ったファイルだけを stage し、関係の無い変更を含めないと述べている",
+          "passed": true,
+          "evidence": "「stage は src/b.ts だけ」「git add -A や git add . は使いません」「関係の無い変更は、commit せずに作業ツリーに残します」"
+        },
+        {
+          "text": "commit message の規約を、設定の conventions_doc か AGENTS.md などの文書から決め、見つからなければ利用者に確かめると述べている",
+          "passed": true,
+          "evidence": "「conventions_doc は…設定は無い扱いです」「AGENTS.md、CLAUDE.md、.github/copilot-instructions.md、CONTRIBUTING.md を探し」「どれにも無ければ、どの規約に従うかを利用者に確かめます」"
+        },
+        {
+          "text": "ブランチを push すると述べている",
+          "passed": true,
+          "evidence": "「git push で head ブランチへ通常の push をします」"
+        },
+        {
+          "text": "commit --amend や force push を行わないと述べている",
+          "passed": true,
+          "evidence": "「--amend と force push はしません」"
+        },
+        {
+          "text": "push 後に Copilot 再依頼のタイミングをユーザーに確認する（今すぐ / CI 完了後 / 依頼しない の3択）",
+          "passed": true,
+          "evidence": "自動レビューが始まっていなければ「今すぐ依頼／CI 完了後に依頼／依頼しない」の 3 つから利用者に選んでもらうと述べている"
+        },
+        {
+          "text": "「CI 完了後」では gh pr checks --watch で成功を確認してから依頼する方針を示している",
+          "passed": true,
+          "evidence": "「CI 完了後に依頼: gh pr checks 42 --repo shoji9x9/skills --watch --fail-fast で待ちます」「失敗したら依頼せず」"
+        },
+        {
+          "text": "「今すぐ」では CI を待たず requested_reviewers に Copilot を依頼する方針を示している",
+          "passed": true,
+          "evidence": "「今すぐ依頼: CI の完了を待たずに依頼し」と「copilot: requested_reviewers に copilot-pull-request-reviewer[bot] を POST します」"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "冒頭で実行もファイルの変更もしていないと明記し、project-tree.txt も . と ./.claude だけで変更が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 10,
+        "failed": 0,
+        "total": 10,
+        "time_seconds": 67.495,
+        "tokens": 185341,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR番号のみのため現在の repo を対象にしている",
+          "passed": true,
+          "evidence": "「repo は現在のリポジトリで」「現在の repo が shoji9x9/skills と一致するかを確かめます」"
+        },
+        {
+          "text": "未解決スレッドへの返信・解決まで行う手順になっている",
+          "passed": true,
+          "evidence": "「返信した後で、resolveReviewThread（GraphQL）でスレッドを解決します」"
+        },
+        {
+          "text": "レビュー対応で触ったファイルだけを stage し、関係の無い変更を含めないと述べている",
+          "passed": true,
+          "evidence": "「git add src/b.ts # git add -A / git add . / git commit -a は使わない」「ほかのファイルの無関係な変更は、stage も stash も破棄もせず」"
+        },
+        {
+          "text": "commit message の規約を、設定の conventions_doc か AGENTS.md などの文書から決め、見つからなければ利用者に確かめると述べている",
+          "passed": true,
+          "evidence": "「conventions_doc の設定が無いので、AGENTS.md、CLAUDE.md、.github/copilot-instructions.md、CONTRIBUTING.md の順に探し」「どの文書でも決まらなければ利用者に確かめます」"
+        },
+        {
+          "text": "ブランチを push すると述べている",
+          "passed": true,
+          "evidence": "「通常の git push で、PR の head ブランチに送ります」"
+        },
+        {
+          "text": "commit --amend や force push を行わないと述べている",
+          "passed": true,
+          "evidence": "「--amend は使いません」「拒否されても force push はしません」"
+        },
+        {
+          "text": "push 後に Copilot 再依頼のタイミングをユーザーに確認する（今すぐ / CI 完了後 / 依頼しない の3択）",
+          "passed": true,
+          "evidence": "「始まっていなければ、利用者に選んでもらう」として今すぐ依頼／CI 完了後に依頼／依頼しないの 3 つを挙げている"
+        },
+        {
+          "text": "「CI 完了後」では gh pr checks --watch で成功を確認してから依頼する方針を示している",
+          "passed": true,
+          "evidence": "「gh pr checks 42 --repo shoji9x9/skills --watch --fail-fast で待ち、失敗したら依頼せずに知らせて止まります」"
+        },
+        {
+          "text": "「今すぐ」では CI を待たず requested_reviewers に Copilot を依頼する方針を示している",
+          "passed": true,
+          "evidence": "「今すぐ依頼（CI と並行してレビューが進む）」と requested_reviewers に reviewers[]=copilot-pull-request-reviewer[bot] を渡すと述べている"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "冒頭で実行もファイルの変更もしていないと明記し、project-tree.txt も . と ./.claude だけで変更が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1,
+        "passed": 10,
+        "failed": 0,
+        "total": 10,
+        "time_seconds": 69.984,
+        "tokens": 148590,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR番号のみのため現在の repo を対象にしている",
+          "passed": true,
+          "evidence": "「今の repo と PR の owner/repo が同じ shoji9x9/skills であることを確かめます。違えば止まります」"
+        },
+        {
+          "text": "未解決スレッドへの返信・解決まで行う手順になっている",
+          "passed": true,
+          "evidence": "「必ず『返信してから解決』の順」「resolveReviewThread(threadId) の mutation で解決します」"
+        },
+        {
+          "text": "レビュー対応で触ったファイルだけを stage し、関係の無い変更を含めないと述べている",
+          "passed": true,
+          "evidence": "「git add -- src/b.ts だけを実行します。git add -A や git add . は使いません」「他ファイルの関係の無い変更は stage せず」"
+        },
+        {
+          "text": "commit message の規約を、設定の conventions_doc か AGENTS.md などの文書から決め、見つからなければ利用者に確かめると述べている",
+          "passed": true,
+          "evidence": "「conventions_doc を読む段は飛ばします」「AGENTS.md・CLAUDE.md・.github/copilot-instructions.md・CONTRIBUTING.md を探し」「どれにも無ければ、どの規約に従うかを利用者に確かめます」"
+        },
+        {
+          "text": "ブランチを push すると述べている",
+          "passed": true,
+          "evidence": "「通常の git push で head ブランチへ送ります」"
+        },
+        {
+          "text": "commit --amend や force push を行わないと述べている",
+          "passed": true,
+          "evidence": "「--amend と force push はしません」"
+        },
+        {
+          "text": "push 後に Copilot 再依頼のタイミングをユーザーに確認する（今すぐ / CI 完了後 / 依頼しない の3択）",
+          "passed": true,
+          "evidence": "「始まっていなければ、利用者に 3 択で選んでもらう」として今すぐ依頼／CI 完了後に依頼／依頼しないを挙げている"
+        },
+        {
+          "text": "「CI 完了後」では gh pr checks --watch で成功を確認してから依頼する方針を示している",
+          "passed": true,
+          "evidence": "「gh pr checks 42 --repo shoji9x9/skills --watch --fail-fast で全チェックの成功を確かめてから依頼する」"
+        },
+        {
+          "text": "「今すぐ」では CI を待たず requested_reviewers に Copilot を依頼する方針を示している",
+          "passed": true,
+          "evidence": "「今すぐ依頼: CI と並行してレビューが進む」と requested_reviewers に reviewers[]=copilot-pull-request-reviewer[bot] を付けて POST すると述べている"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "冒頭で実行もファイルの変更もしていないと明記し、project-tree.txt も . と ./.claude だけで変更が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.625,
+        "passed": 5,
+        "failed": 3,
+        "total": 8,
+        "time_seconds": 34.716,
+        "tokens": 20972,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL から owner/repo/PR番号を取り出す工程を示している",
+          "passed": false,
+          "evidence": "URL から owner/repo/番号を取り出す工程が無い。`--repo shoji9x9/skills` と 42 を直接書いている"
+        },
+        {
+          "text": "現在の repo と PR の owner/repo の一致を確かめる工程を示している",
+          "passed": false,
+          "evidence": "`gh pr view` で open・作成者・head ブランチの一致は確かめるが、今いる repo と PR の owner/repo の一致は確かめていない"
+        },
+        {
+          "text": "GraphQL の reviewThreads で未解決スレッドを取得する工程を示している",
+          "passed": true,
+          "evidence": "「GraphQL の `reviewThreads` を使います」とクエリを示す"
+        },
+        {
+          "text": "isResolved == false のスレッドのみ対象にし、解決済みの 1 件を飛ばすと述べている",
+          "passed": true,
+          "evidence": "「`isResolved: true` の 1 件は対象外です。残りの 2 件（`src/a.ts` と `src/b.ts`）を対応します」"
+        },
+        {
+          "text": "各指摘をコードに照らして妥当性を判断し、src/b.ts の指摘は直さずに根拠を返信すると述べている",
+          "passed": true,
+          "evidence": "「指摘を鵜呑みにせず、コードと照らして検証する」、b.ts は「コードは変更しません」「根拠…を添えて、現状のままで正しい理由を…説明します」"
+        },
+        {
+          "text": "返信してから解決する順序で進めると述べている",
+          "passed": true,
+          "evidence": "a.ts は「返信後は `resolveReviewThread` で resolve してよい」。b.ts は resolve しない方針だが、解決するスレッドは返信の後に解決する順序を述べている"
+        },
+        {
+          "text": "モード未指定なので commit/push を行わず、変えたファイルと --push で実行し直せることを知らせて止まると述べている",
+          "passed": false,
+          "evidence": "手順 4 で「承認を得てから push します」と commit・push を手順に含める。--push で実行し直せることを知らせて止まる記述が無い"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "「この回答ではコマンドを一切実行せず、ファイルも変更していません」。ツール呼び出しは 0 件で、project-tree にも変更が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.625,
+        "passed": 5,
+        "failed": 3,
+        "total": 8,
+        "time_seconds": 34.99,
+        "tokens": 20529,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL から owner/repo/PR番号を取り出す工程を示している",
+          "passed": false,
+          "evidence": "URL から owner/repo/番号を取り出す工程が無い。クエリに owner・番号を直接書いている"
+        },
+        {
+          "text": "現在の repo と PR の owner/repo の一致を確かめる工程を示している",
+          "passed": false,
+          "evidence": "手順 1 は open・作成者・head ブランチの一致と未コミットの変更を確かめるだけで、今いる repo と PR の owner/repo の一致は確かめていない"
+        },
+        {
+          "text": "GraphQL の reviewThreads で未解決スレッドを取得する工程を示している",
+          "passed": true,
+          "evidence": "「GraphQL を使います」と `reviewThreads` のクエリを示す"
+        },
+        {
+          "text": "isResolved == false のスレッドのみ対象にし、解決済みの 1 件を飛ばすと述べている",
+          "passed": true,
+          "evidence": "表で「解決済みの 1 件 | resolved | 何もしない」とし、未解決の a.ts・b.ts を対応する"
+        },
+        {
+          "text": "各指摘をコードに照らして妥当性を判断し、src/b.ts の指摘は直さずに根拠を返信すると述べている",
+          "passed": true,
+          "evidence": "「指摘された path と line の実際のコードを読み…確かめます」、b.ts は「コードは変えず、根拠を添えて返信する」"
+        },
+        {
+          "text": "返信してから解決する順序で進めると述べている",
+          "passed": true,
+          "evidence": "a.ts は「返信後、`resolveReviewThread(...)` でスレッドを解決します」。b.ts は resolve しない方針だが、解決するスレッドは返信の後に解決する順序を述べている"
+        },
+        {
+          "text": "モード未指定なので commit/push を行わず、変えたファイルと --push で実行し直せることを知らせて止まると述べている",
+          "passed": false,
+          "evidence": "手順 6「commit と push（確認してから）」で commit・push を手順に含める。--push で実行し直せることを知らせて止まる記述が無い"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "「説明だけを行い、コマンドの実行やファイルの変更はしていません」。ツール呼び出しは 0 件で、project-tree にも変更が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.625,
+        "passed": 5,
+        "failed": 3,
+        "total": 8,
+        "time_seconds": 34.283,
+        "tokens": 20380,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL から owner/repo/PR番号を取り出す工程を示している",
+          "passed": false,
+          "evidence": "URL から owner/repo/番号を取り出す工程が無い。`--repo shoji9x9/skills` と 42 を直接書いている"
+        },
+        {
+          "text": "現在の repo と PR の owner/repo の一致を確かめる工程を示している",
+          "passed": false,
+          "evidence": "手順 1 は PR の状態と、今のブランチが head ブランチと一致するかを見るだけで、今いる repo と PR の owner/repo の一致は確かめていない"
+        },
+        {
+          "text": "GraphQL の reviewThreads で未解決スレッドを取得する工程を示している",
+          "passed": true,
+          "evidence": "「GraphQL の `reviewThreads` を使います」とクエリを示す"
+        },
+        {
+          "text": "isResolved == false のスレッドのみ対象にし、解決済みの 1 件を飛ばすと述べている",
+          "passed": true,
+          "evidence": "「解決済みの 1 件：対応しません。再オープンも返信もしません」とし、未解決の a.ts・b.ts を対応する"
+        },
+        {
+          "text": "各指摘をコードに照らして妥当性を判断し、src/b.ts の指摘は直さずに根拠を返信すると述べている",
+          "passed": true,
+          "evidence": "「指摘を自分で確かめる」、b.ts は「コードは変えない」「根拠を添えて丁寧に返信する」"
+        },
+        {
+          "text": "返信してから解決する順序で進めると述べている",
+          "passed": true,
+          "evidence": "a.ts は手順 5「スレッドに返信する」の後に手順 6「resolve する」。b.ts は resolve しない方針だが、解決するスレッドは返信の後に解決する順序を述べている"
+        },
+        {
+          "text": "モード未指定なので commit/push を行わず、変えたファイルと --push で実行し直せることを知らせて止まると述べている",
+          "passed": false,
+          "evidence": "手順 3 の 4「commit と push（承認を得てから）」で commit・push を手順に含める。--push で実行し直せることを知らせて止まる記述が無い"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "「今回は手順の説明だけです。コマンドの実行やファイルの変更はしていません」。ツール呼び出しは 0 件で、project-tree にも変更が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 5,
+        "failed": 5,
+        "total": 10,
+        "time_seconds": 52.616,
+        "tokens": 59859,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR番号のみのため現在の repo を対象にしている",
+          "passed": true,
+          "evidence": "--repo を付けない gh pr view 42 で現在の repo の PR を取り、head ブランチが checkout 中のブランチと一致するかを確かめ、reviews も repos/shoji9x9/skills/pulls/42 を見ている"
+        },
+        {
+          "text": "未解決スレッドへの返信・解決まで行う手順になっている",
+          "passed": false,
+          "evidence": "「規定が無ければ、resolve はレビュアーに任せて返信だけにするのが安全です」と、解決しない方針を述べている"
+        },
+        {
+          "text": "レビュー対応で触ったファイルだけを stage し、関係の無い変更を含めないと述べている",
+          "passed": true,
+          "evidence": "「stage はパス指定で src/b.ts だけにします」「git add -A、git add .、git commit -a は使いません」"
+        },
+        {
+          "text": "commit message の規約を、設定の conventions_doc か AGENTS.md などの文書から決め、見つからなければ利用者に確かめると述べている",
+          "passed": false,
+          "evidence": "commit message の例（fix(b): ... など）を示すだけで、規約を conventions_doc や AGENTS.md などの文書から決めることも、見つからなければ利用者に確かめることも述べていない"
+        },
+        {
+          "text": "ブランチを push すると述べている",
+          "passed": true,
+          "evidence": "「git push origin HEAD:<headRefName> を実行します」"
+        },
+        {
+          "text": "commit --amend や force push を行わないと述べている",
+          "passed": true,
+          "evidence": "「amend や rebase はしません（force push が必要になるため）」「--force や --force-with-lease は使いません」"
+        },
+        {
+          "text": "push 後に Copilot 再依頼のタイミングをユーザーに確認する（今すぐ / CI 完了後 / 依頼しない の3択）",
+          "passed": false,
+          "evidence": "再レビューはレビュアーの種別とレビューの状態から自分で判断する表を示すだけで、今すぐ／CI 完了後／依頼しないの 3 択を利用者に確認していない"
+        },
+        {
+          "text": "「CI 完了後」では gh pr checks --watch で成功を確認してから依頼する方針を示している",
+          "passed": false,
+          "evidence": "CI の完了を待ってから依頼する選択肢も gh pr checks --watch も出てこない"
+        },
+        {
+          "text": "「今すぐ」では CI を待たず requested_reviewers に Copilot を依頼する方針を示している",
+          "passed": false,
+          "evidence": "「今すぐ」の選択肢が無く、依頼の方法も gh pr edit --add-reviewer <login> で、CI を待たずに Copilot を requested_reviewers に依頼する方針ではない"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "冒頭でコマンドの実行もファイルの変更もしていないと明記し、project-tree.txt も . だけで変更が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 4,
+        "failed": 6,
+        "total": 10,
+        "time_seconds": 55.051,
+        "tokens": 60481,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR番号のみのため現在の repo を対象にしている",
+          "passed": true,
+          "evidence": "--repo を付けない gh pr view 42 で現在の repo の PR を取り、git branch --show-current が headRefName と一致するかを確かめている"
+        },
+        {
+          "text": "未解決スレッドへの返信・解決まで行う手順になっている",
+          "passed": false,
+          "evidence": "「安全側として『返信のみ行い、resolve はレビュアーに任せる』を選びます」と、解決しない方針を述べている"
+        },
+        {
+          "text": "レビュー対応で触ったファイルだけを stage し、関係の無い変更を含めないと述べている",
+          "passed": true,
+          "evidence": "「パスを明示して stage します: git add src/b.ts」「git add -A、git add .、git commit -a は使いません」"
+        },
+        {
+          "text": "commit message の規約を、設定の conventions_doc か AGENTS.md などの文書から決め、見つからなければ利用者に確かめると述べている",
+          "passed": false,
+          "evidence": "message に対応の内容を書くと述べるだけで、規約を conventions_doc や AGENTS.md などの文書から決めることも、見つからなければ利用者に確かめることも述べていない"
+        },
+        {
+          "text": "ブランチを push すると述べている",
+          "passed": true,
+          "evidence": "「git push origin HEAD:<headRefName> で通常の push をします」"
+        },
+        {
+          "text": "commit --amend や force push を行わないと述べている",
+          "passed": false,
+          "evidence": "force push はしないと述べているが、commit --amend をしないとは述べていない"
+        },
+        {
+          "text": "push 後に Copilot 再依頼のタイミングをユーザーに確認する（今すぐ / CI 完了後 / 依頼しない の3択）",
+          "passed": false,
+          "evidence": "再レビューはレビュアーの種別とレビューの状態から自分で判断する表を示すだけで、今すぐ／CI 完了後／依頼しないの 3 択を利用者に確認していない"
+        },
+        {
+          "text": "「CI 完了後」では gh pr checks --watch で成功を確認してから依頼する方針を示している",
+          "passed": false,
+          "evidence": "CI の完了を待ってから依頼する選択肢も gh pr checks --watch も出てこない"
+        },
+        {
+          "text": "「今すぐ」では CI を待たず requested_reviewers に Copilot を依頼する方針を示している",
+          "passed": false,
+          "evidence": "「今すぐ」の選択肢が無い。requested_reviewers への POST も、スレッドを書いたレビュアーに再依頼する方法として挙げるだけで、CI を待たずに Copilot へ依頼する方針ではない"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "冒頭でコマンドの実行もファイルの変更もしていないと明記し、project-tree.txt も . だけで変更が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 4,
+        "failed": 6,
+        "total": 10,
+        "time_seconds": 50.501,
+        "tokens": 69137,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR番号のみのため現在の repo を対象にしている",
+          "passed": true,
+          "evidence": "--repo を付けない gh pr view 42 で現在の repo の PR を取り、ブランチ名が headRefName と同じかを確かめている"
+        },
+        {
+          "text": "未解決スレッドへの返信・解決まで行う手順になっている",
+          "passed": false,
+          "evidence": "「返信だけにして resolve はしないのが安全です」と、解決しない方針を述べている"
+        },
+        {
+          "text": "レビュー対応で触ったファイルだけを stage し、関係の無い変更を含めないと述べている",
+          "passed": true,
+          "evidence": "「ファイルを名指しでステージします: git add src/b.ts」「git add -A、git add .、git commit -a は使いません」"
+        },
+        {
+          "text": "commit message の規約を、設定の conventions_doc か AGENTS.md などの文書から決め、見つからなければ利用者に確かめると述べている",
+          "passed": false,
+          "evidence": "commit message の例（fix(b): ... など）を示すだけで、規約を conventions_doc や AGENTS.md などの文書から決めることも、見つからなければ利用者に確かめることも述べていない"
+        },
+        {
+          "text": "ブランチを push すると述べている",
+          "passed": true,
+          "evidence": "「git push origin HEAD:<headRefName> で、fast-forward の通常 push をします」"
+        },
+        {
+          "text": "commit --amend や force push を行わないと述べている",
+          "passed": false,
+          "evidence": "force push はしないと述べているが、commit --amend をしないとは述べていない"
+        },
+        {
+          "text": "push 後に Copilot 再依頼のタイミングをユーザーに確認する（今すぐ / CI 完了後 / 依頼しない の3択）",
+          "passed": false,
+          "evidence": "再レビューはレビュアーの種別とレビューの状態から自分で判断する表を示すだけで、今すぐ／CI 完了後／依頼しないの 3 択を利用者に確認していない"
+        },
+        {
+          "text": "「CI 完了後」では gh pr checks --watch で成功を確認してから依頼する方針を示している",
+          "passed": false,
+          "evidence": "CI の完了を待ってから依頼する選択肢も gh pr checks --watch も出てこない"
+        },
+        {
+          "text": "「今すぐ」では CI を待たず requested_reviewers に Copilot を依頼する方針を示している",
+          "passed": false,
+          "evidence": "「今すぐ」の選択肢が無く、再レビューの依頼は「デフォルトでは自動で送らず」報告にとどめるとし、CI を待たずに Copilot を requested_reviewers に依頼する方針ではない"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "冒頭でコマンドの実行もファイルの変更もしていないと明記し、project-tree.txt も . だけで変更が無い"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 61.007,
+        "stddev": 9.0974,
+        "min": 46.369,
+        "max": 69.984
+      },
+      "tokens": {
+        "mean": 146219.5,
+        "stddev": 34076.3011,
+        "min": 101056,
+        "max": 185341
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5292,
+        "stddev": 0.1111,
+        "min": 0.4,
+        "max": 0.625
+      },
+      "time_seconds": {
+        "mean": 43.6928,
+        "stddev": 9.9985,
+        "min": 34.283,
+        "max": 55.051
+      },
+      "tokens": {
+        "mean": 41893,
+        "stddev": 23526.3441,
+        "min": 20380,
+        "max": 69137
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.47",
+      "time_seconds": "+17.3",
+      "tokens": "+104327"
+    }
+  },
+  "notes": [
+    "Issue #918 の 4 で、実在の PR を前提にした eval 1・2 の prompt を、場面を書いて説明させる形に書き直した。結果が揺れないかを見るため、with_skill と without_skill を 3 run ずつ実行した。",
+    "eval 2 の commit の assertion は、スキルが規約を文書から決める取り決めに合わせて書き直し、eval 2 だけを実行し直した。直す前の 6 run は集計に入れていない。"
+  ]
+}

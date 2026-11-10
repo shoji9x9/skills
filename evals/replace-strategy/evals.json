@@ -709,6 +709,61 @@
           "prompt_quote": "ファイルの変更はしないで"
         }
       ]
+    },
+    {
+      "id": 39,
+      "fixture": "fixtures/issues-approval-gate",
+      "requires_skills": ["issue-create"],
+      "prompt": "replace-strategy issues で起票を進める場面を、コマンドの実行やファイルの変更はせずに説明して（リポジトリのファイルを読むのはよい）。この実行の中で、起票の対象を横断 API の user と機能の order の 2 件に決め、order は user に依存するという依存関係と、2 件それぞれのリポジトリ・タイトル・本文の全文・ラベルを利用者に見せて、明示の承認を得た。order の本文は、user の Issue を前提として番号で挙げている。承認の後、起票の直前に、user の下書きのタイトルに誤字があることに気付いた。issue-create にどう渡すか、issue-create が承認を求め直すか、まだ起票していない Issue の番号を本文にどう書くか、依存をどう設定するか、起票の後に何をするかを述べて。",
+      "assertions": [
+        "承認された下書き（リポジトリ・タイトル・本文・ラベル）と、同じ実行の中で全文を見せて承認を得たことを、issue-create に渡すと述べている",
+        "誤字を直した user の下書きは、直した下書きをもう一度利用者に見せて承認を得てから issue-create に任せると述べている",
+        "下書きを変えていない order は、issue-create が同じ内容の承認を求め直さずに起票すると述べている",
+        "user を先に起票し、order を後に起票すると述べている",
+        "order の本文で、まだ起票していない user の番号を `#<下書き N の番号>` の形の印で書き、user を起票した後に番号へ置き換えると述べている",
+        "すべて任せ終えた後に、order が user に blocked by となる GitHub の Issue の依存関係を設定すると述べている",
+        "起票した番号を .replace/features.md の機能一覧の order の行と横断 API の user の行の Issue 列に書き戻し、ほかの記述を変えないと述べている",
+        "起票の後、今回起票していない report を含むインベントリのすべての行を母集合にして、受け入れ条件と突き合わせると述べている",
+        "実行はせず手順の提示に留めている（gh issue create・issue-create への委譲・ファイルの変更を行っていない）"
+      ],
+      "reachability": [
+        {
+          "assertion": "承認された下書き（リポジトリ・タイトル・本文・ラベル）と、同じ実行の中で全文を見せて承認を得たことを、issue-create に渡すと述べている",
+          "prompt_quote": "issue-create にどう渡すか"
+        },
+        {
+          "assertion": "誤字を直した user の下書きは、直した下書きをもう一度利用者に見せて承認を得てから issue-create に任せると述べている",
+          "prompt_quote": "user の下書きのタイトルに誤字があることに気付いた"
+        },
+        {
+          "assertion": "下書きを変えていない order は、issue-create が同じ内容の承認を求め直さずに起票すると述べている",
+          "prompt_quote": "issue-create が承認を求め直すか"
+        },
+        {
+          "assertion": "user を先に起票し、order を後に起票すると述べている",
+          "prompt_quote": "order は user に依存する"
+        },
+        {
+          "assertion": "order の本文で、まだ起票していない user の番号を `#<下書き N の番号>` の形の印で書き、user を起票した後に番号へ置き換えると述べている",
+          "prompt_quote": "まだ起票していない Issue の番号を本文にどう書くか"
+        },
+        {
+          "assertion": "すべて任せ終えた後に、order が user に blocked by となる GitHub の Issue の依存関係を設定すると述べている",
+          "prompt_quote": "依存をどう設定するか"
+        },
+        {
+          "assertion": "起票した番号を .replace/features.md の機能一覧の order の行と横断 API の user の行の Issue 列に書き戻し、ほかの記述を変えないと述べている",
+          "prompt_quote": "起票の後に何をするか"
+        },
+        {
+          "assertion": "起票の後、今回起票していない report を含むインベントリのすべての行を母集合にして、受け入れ条件と突き合わせると述べている",
+          "prompt_quote": "起票の後に何をするか"
+        },
+        {
+          "assertion": "実行はせず手順の提示に留めている（gh issue create・issue-create への委譲・ファイルの変更を行っていない）",
+          "prompt_quote": "コマンドの実行やファイルの変更はせずに説明して"
+        }
+      ]
     }
   ]
 }
