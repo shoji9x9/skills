@@ -5,12 +5,43 @@
       "id": 1,
       "prompt": "このセッションで「パスを間違えていました、修正してください」という指示があった。このセッションの学びを 1 件抽出して .kaizen/ に保存したい",
       "assertions": [
-        ".kaizen/ ディレクトリが作成されている",
-        ".kaizen/*.md ファイルが 1 件作成されている",
         "作成されたファイルの frontmatter に date, type, status, priority, applied-to フィールドがある",
         "作成されたファイルに「事象」「根本原因」「提案」セクションがある",
         "status が pending、applied-to が空配列になっている",
-        "個別の失敗ではなく根本原因が記述されている"
+        "個別の失敗ではなく根本原因が記述されている",
+        "作成されたファイルの frontmatter の confidence が high・medium・low のどれかになっている",
+        "作成されたファイルの「既存の規約」節の扱いが、なし・埋もれている・強制なし・明確のどれかになっている",
+        "作成されたファイルの「既存の規約」節に、照合した範囲を書いている"
+      ],
+      "reachability": [
+        {
+          "assertion": "作成されたファイルの frontmatter に date, type, status, priority, applied-to フィールドがある",
+          "prompt_quote": "このセッションの学びを 1 件抽出して .kaizen/ に保存したい"
+        },
+        {
+          "assertion": "作成されたファイルに「事象」「根本原因」「提案」セクションがある",
+          "prompt_quote": "このセッションの学びを 1 件抽出して .kaizen/ に保存したい"
+        },
+        {
+          "assertion": "status が pending、applied-to が空配列になっている",
+          "prompt_quote": "このセッションの学びを 1 件抽出して .kaizen/ に保存したい"
+        },
+        {
+          "assertion": "個別の失敗ではなく根本原因が記述されている",
+          "prompt_quote": "このセッションの学びを 1 件抽出して .kaizen/ に保存したい"
+        },
+        {
+          "assertion": "作成されたファイルの frontmatter の confidence が high・medium・low のどれかになっている",
+          "prompt_quote": "このセッションの学びを 1 件抽出して .kaizen/ に保存したい"
+        },
+        {
+          "assertion": "作成されたファイルの「既存の規約」節の扱いが、なし・埋もれている・強制なし・明確のどれかになっている",
+          "prompt_quote": "このセッションの学びを 1 件抽出して .kaizen/ に保存したい"
+        },
+        {
+          "assertion": "作成されたファイルの「既存の規約」節に、照合した範囲を書いている",
+          "prompt_quote": "このセッションの学びを 1 件抽出して .kaizen/ に保存したい"
+        }
       ]
     },
     {
