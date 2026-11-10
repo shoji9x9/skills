@@ -12,14 +12,14 @@
 ## 実行例
 
 ```bash
-scripts/eval/run-skill-eval.sh \
+scripts/eval/run/run-skill-eval.sh \
   --skill replace-strategy --config with_skill \
   --prompt "replace-strategy setup" \
   --out tests/replace-strategy/iteration-1/eval-1/with_skill/run-1 \
   --model opus
 
 # fixture 付き eval（evals.json に `fixture` を持つもの）は --fixture で事前状態を使い捨てプロジェクトへコピーして実行する
-scripts/eval/run-skill-eval.sh \
+scripts/eval/run/run-skill-eval.sh \
   --skill replace-strategy --config with_skill \
   --fixture evals/replace-strategy/fixtures/status-multi-target \
   --prompt "replace-strategy status" \

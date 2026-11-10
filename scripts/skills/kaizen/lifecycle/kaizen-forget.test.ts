@@ -1,0 +1,705 @@
+import { describe, test, expect } from "vitest";
+import { spawnSync } from "node:child_process";
+import {
+  appendFileSync,
+  chmodSync,
+  copyFileSync,
+  cpSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
+import { kaizenEnv, pathWithout, writeKaizenConfig } from "../kaizen-config-env.ts";
+import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
+
+// kaizen-forget.sh は **SessionStart フックから無人で実行され、追跡ファイルを書き換える**
+// （Issue #339）。判定が緩むと、まだ適用したい学びが警告なしに注入から消える。消えたことは
+// 出力にも終了コードにも現れないので、閾値の各軸を決定論的に固定する。
+// 逆に厳しすぎると 1 件も忘れず、注入が大きくなり続ける。そのため、候補になる側も検出されることを確かめる。
+//
+// 状態空間は次のとおり（候補判定の軸。各セルに 1 検体）。
+//
+// | 軸        | 候補になる     | 候補にならない                                   |
+// |-----------|----------------|--------------------------------------------------|
+// | status    | pending        | applied / rejected / forgotten                   |
+// | priority  | 閾値以下（既定 medium。low / medium） | high / 未知の値 / 未設定    |
+// | date      | 閾値以上（既定 30 日） | 閾値未満 / 不正な形式 / 未設定             |
+//
+// **読めない材料は候補にしない**（忘れない側として扱う）。忘却は「消える側」の操作なので、
+// priority や date を書き忘れただけの学びが自動で忘れられてはならない。
+//
+// 設定（`.config/skills/shoji9x9/kaizen.jsonc`）の軸は、forget_auto・forget_after_days・forget_max_priority の値である。
+// 読めない設定の軸も持つ。各キーの不正値と旧い `.kaizen/config` は、忘却せずに exit 1 で止める。
+// 設定ファイルがあるのに node が無いときも止め、設定ファイルが無ければ node なしでデフォルトの値を使う。
+//
+// モードの軸: `--list`（変更しない） / `--auto`（閾値で掃引） / 明示（閾値に関わらず忘却）。
+//
+// ミューテーションテストで検出できることを、次のように確かめた（このファイルを書いた時点で 4 通り実施し、いずれも赤くなることを実測した）。
+//   1. `[ "${rank}" -ge "${forget_max_rank}" ] || return 1` を削る → 3 件 fail（high が候補に入る）
+//   2. `[ "${age}" -ge "${forget_after_days}" ] || return 1` を削る → 3 件 fail（新しいノートが候補に入る）
+//   3. `[ "${status}" = "pending" ] || return 1` を削る → 4 件 fail
+//      （applied / rejected が候補に入り、status-check との整合検査も落ちる＝下流への影響まで測れている）
+//   4. `priority_rank` の `*) return 1 ;;` を `*) printf '2' ;;` に → 3 件 fail（priority 未設定・未知が候補に入る）
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
+const script = join(repoRoot, "skills/kaizen/scripts/kaizen-forget.sh");
+
+// 日付はテストの実行日から作る。固定日を書くと、時間が経つだけで「閾値未満」の検体が
+// 閾値以上へ育ち、境界の検査が静かに無意味になる。
+function daysAgo(n: number) {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+
+type NoteFields = {
+  date?: string | null;
+  priority?: string | null;
+  status?: string;
+  appliedTo?: string;
+};
+
+function note({
+  date = daysAgo(200),
+  priority = "low",
+  status = "pending",
+  appliedTo = "[]",
+}: NoteFields) {
+  const lines = ["---"];
+  if (date !== null) lines.push(`date: ${date}`);
+  lines.push("type: doc");
+  if (priority !== null) lines.push(`priority: ${priority}`);
+  lines.push(
+    `status: ${status}`,
+    `applied-to: ${appliedTo}`,
+    "---",
+    "",
+    "## 事象",
+    "",
+    "本文。",
+    "",
+  );
+  return lines.join("\n");
+}
+
+function makeProject(notes: Record<string, string>, config?: string) {
+  const dir = makeTempDir("kaizen-forget-");
+  mkdirSync(join(dir, ".kaizen"), { recursive: true });
+  for (const [name, content] of Object.entries(notes)) {
+    writeFileSync(join(dir, ".kaizen", `${name}.md`), content);
+  }
+  if (config !== undefined) writeKaizenConfig(dir, config);
+  return dir;
+}
+
+function run(dir: string, args: string[], extra: Record<string, string | undefined> = {}) {
+  const result = spawnSync("bash", [script, ...args], {
+    timeout: CHILD_TIMEOUT_MS,
+    cwd: dir,
+    env: kaizenEnv(dir, { CLAUDE_PROJECT_DIR: dir, ...extra }),
+    encoding: "utf8",
+  });
+  return { status: result.status, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
+}
+
+// `.kaizen/*.md` の全文を名前 → 内容で返す（書き換えの有無を全文で突き合わせるため）。
+function snapshot(dir: string) {
+  const out: Record<string, string> = {};
+  for (const name of readdirSync(join(dir, ".kaizen"))) {
+    if (!name.endsWith(".md")) continue;
+    out[name] = readFileSync(join(dir, ".kaizen", name), "utf8");
+  }
+  return out;
+}
+
+function statusOf(dir: string, name: string) {
+  const body = readFileSync(join(dir, ".kaizen", `${name}.md`), "utf8");
+  return /^status: (.*)$/m.exec(body)?.[1] ?? "";
+}
+
+// 候補になる検体（検出されることの確認）と、ならない検体（誤検知しないことの確認）。
+// 片側だけだと「常に忘れる」「1 件も忘れない」のどちらへ退化しても気づけない。
+const CANDIDATES = {
+  "old-low": note({}),
+  "old-medium": note({ priority: "medium" }),
+};
+const NON_CANDIDATES = {
+  "old-high": note({ priority: "high" }),
+  "old-unknown-priority": note({ priority: "urgent" }),
+  "old-no-priority": note({ priority: null }),
+  "recent-low": note({ date: daysAgo(3) }),
+  "bad-date": note({ date: "2026/06/10" }),
+  "no-date": note({ date: null }),
+  "old-applied": note({ status: "applied", appliedTo: '["a.md"]' }),
+  "old-rejected": note({ status: "rejected", appliedTo: '["rejected: 見送る"]' }),
+  "old-forgotten": note({ status: "forgotten" }),
+};
+
+test("--list は候補だけを挙げ、何も書き換えない", () => {
+  const dir = makeProject({ ...CANDIDATES, ...NON_CANDIDATES });
+  try {
+    const before = snapshot(dir);
+    const { status, stdout } = run(dir, ["--list"]);
+    expect(status).toBe(0);
+    const listed = stdout
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => line.split("\t")[0]);
+    expect(listed.sort()).toEqual([".kaizen/old-low.md", ".kaizen/old-medium.md"]);
+    // 一覧は判断材料（日付・優先度・経過日数）を添える。ファイル名だけだと承認できない。
+    expect(stdout).toMatch(/\t\d{4}-\d{2}-\d{2}\t(low|medium)\t\d+$/m);
+    // 何も書き換えていないことは、実行前後の全文を突き合わせて確かめる
+    // （status だけを見ると、本文を壊す変更を見逃す）。
+    expect(snapshot(dir)).toEqual(before);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("--auto は候補だけを forgotten にし、他は触らない", () => {
+  const dir = makeProject({ ...CANDIDATES, ...NON_CANDIDATES });
+  try {
+    const { status, stdout, stderr } = run(dir, ["--auto"]);
+    expect(status).toBe(0);
+    expect(stdout.trim().split("\n").sort()).toEqual([
+      ".kaizen/old-low.md",
+      ".kaizen/old-medium.md",
+    ]);
+    expect(stderr).toContain("forgot 2 note(s)");
+    expect(statusOf(dir, "old-low")).toBe("forgotten");
+    expect(statusOf(dir, "old-medium")).toBe("forgotten");
+    expect(statusOf(dir, "old-high")).toBe("pending");
+    expect(statusOf(dir, "old-unknown-priority")).toBe("pending");
+    expect(statusOf(dir, "old-no-priority")).toBe("pending");
+    expect(statusOf(dir, "recent-low")).toBe("pending");
+    expect(statusOf(dir, "bad-date")).toBe("pending");
+    expect(statusOf(dir, "no-date")).toBe("pending");
+    expect(statusOf(dir, "old-applied")).toBe("applied");
+    expect(statusOf(dir, "old-rejected")).toBe("rejected");
+    expect(statusOf(dir, "old-forgotten")).toBe("forgotten");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// 食い違いの判断待ちの学び（## 食い違い の 判断 が 判断待ち）は、利用者がどちらを残すかを決めるまで残す（Issue #930）。
+// 自動で忘れると、apply にも定期レポートにも出なくなり、食い違いを誰も決めないまま残る。
+// 判断の読み方は注入（kaizen-context-inject.sh）と同じ共通ライブラリの関数なので、境界の形は注入のテストで確かめる。
+// ここでは、判断待ちだけを外し、決めた学びとフェンスの中の例は、これまでどおり候補にすることを確かめる。
+test("--auto は食い違いの判断待ちの学びを忘れず、判断を決めた学びとフェンスの中の例だけの学びは忘れる", () => {
+  const conflict = (judgement: string) =>
+    `## 食い違い\n\n- 相手: AGENTS.md「依存の管理」\n- 判断: ${judgement}\n\n`;
+  const dir = makeProject({
+    "old-pending-decision": `${note({})}\n${conflict("判断待ち")}`,
+    "old-decided": `${note({})}\n${conflict("新しい学び")}`,
+    "old-fenced-example": `${note({})}\n\`\`\`markdown\n${conflict("判断待ち")}\`\`\`\n`,
+  });
+  try {
+    const before = run(dir, ["--list"]);
+    expect(before.status).toBe(0);
+    expect(
+      before.stdout
+        .trim()
+        .split("\n")
+        .map((line) => line.split("\t")[0])
+        .sort(),
+    ).toEqual([".kaizen/old-decided.md", ".kaizen/old-fenced-example.md"]);
+    const { status, stderr } = run(dir, ["--auto"]);
+    expect(status).toBe(0);
+    expect(stderr).toContain("forgot 2 note(s)");
+    expect(statusOf(dir, "old-pending-decision")).toBe("pending");
+    expect(statusOf(dir, "old-decided")).toBe("forgotten");
+    expect(statusOf(dir, "old-fenced-example")).toBe("forgotten");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("--auto は、判断待ちを判定する関数を持たない共通ライブラリでは、食い違いの節がある学びを忘れない", () => {
+  // 古いバージョンの共通ライブラリを部分的にコピーした状態を、スクリプト一式のコピーの末尾で関数を消して作る。
+  const conflict = "## 食い違い\n\n- 相手: AGENTS.md「依存の管理」\n- 判断: 判断待ち\n\n";
+  const dir = makeProject({ "old-pending-decision": `${note({})}\n${conflict}` });
+  const copied = join(makeTempDir("kaizen-forget-oldlib-"), "scripts");
+  try {
+    cpSync(join(repoRoot, "skills/kaizen/scripts"), copied, { recursive: true });
+    appendFileSync(
+      join(copied, "kaizen-hook-common.sh"),
+      "\nunset -f kaizen_has_pending_decision\n",
+    );
+    const result = spawnSync("bash", [join(copied, "kaizen-forget.sh"), "--auto"], {
+      timeout: CHILD_TIMEOUT_MS,
+      cwd: dir,
+      env: kaizenEnv(dir, { CLAUDE_PROJECT_DIR: dir }),
+      encoding: "utf8",
+    });
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stderr).toContain("forgot 0 note(s)");
+    expect(statusOf(dir, "old-pending-decision")).toBe("pending");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("--auto は冪等（2 回目は 0 件）", () => {
+  // SessionStart のたびに実行されるので、同じノートを何度も「忘れた」と報告してはならない。
+  const dir = makeProject(CANDIDATES);
+  try {
+    expect(run(dir, ["--auto"]).stderr).toContain("forgot 2 note(s)");
+    const second = run(dir, ["--auto"]);
+    expect(second.stdout.trim()).toBe("");
+    expect(second.stderr).toContain("forgot 0 note(s)");
+    expect(second.status).toBe(0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("本文の status: 行を書き換えない（frontmatter 限定）", () => {
+  const body = `---
+date: ${daysAgo(200)}
+type: doc
+priority: low
+status: pending
+applied-to: []
+---
+
+## 事象
+
+ノートの中で status: pending という文字列に言及している。
+
+    status: pending
+`;
+  const dir = makeProject({ "with-body-mention": body });
+  try {
+    run(dir, ["--auto"]);
+    const after = readFileSync(join(dir, ".kaizen", "with-body-mention.md"), "utf8");
+    // frontmatter の 1 行だけが変わる。本文の 2 箇所はそのまま。
+    expect(after).toContain("status: forgotten\n");
+    expect(after.match(/status: pending/g)).toHaveLength(2);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("frontmatter に status 行が無いノートは触らずスキップする", () => {
+  // 書き換えると「忘却した」と「status を持たない旧形式」が区別できなくなる。
+  const body = `---
+date: ${daysAgo(200)}
+priority: low
+---
+
+## 事象
+
+本文。
+`;
+  const dir = makeProject({ legacy: body });
+  try {
+    const { stderr } = run(dir, ["--auto"]);
+    expect(stderr).toContain("forgot 0 note(s)");
+    expect(readFileSync(join(dir, ".kaizen", "legacy.md"), "utf8")).toBe(body);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// --- 設定（kaizen.jsonc） ---------------------------------------------------
+test("forget_auto: false で自動忘却を止める", () => {
+  const dir = makeProject(CANDIDATES, '{ "forget_auto": false }\n');
+  try {
+    const { status, stderr } = run(dir, ["--auto"]);
+    expect(status).toBe(0);
+    expect(stderr).toContain("forget_auto: false");
+    expect(statusOf(dir, "old-low")).toBe("pending");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("forget_after_days で閾値を変えられる", () => {
+  const dir = makeProject({ "mid-low": note({ date: daysAgo(20) }) });
+  try {
+    // デフォルトの 30 日では候補にならない（誤検知しないことの確認。設定で動いたと言えるようにする）。
+    expect(run(dir, ["--list"]).stdout.trim()).toBe("");
+    writeKaizenConfig(dir, '{\n  // コメントを書ける\n  "forget_after_days": 10,\n}\n');
+    expect(run(dir, ["--list"]).stdout).toContain(".kaizen/mid-low.md");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("forget_max_priority で対象の優先度を広げられる", () => {
+  const dir = makeProject({ "old-high": note({ priority: "high" }) });
+  try {
+    // デフォルトの medium では、high は候補にならない（誤検知しないことの確認）。
+    expect(run(dir, ["--list"]).stdout.trim()).toBe("");
+    // high まで広げると high も対象に入る（境界の向きを固定する）。
+    writeKaizenConfig(dir, '{ "forget_max_priority": "high" }\n');
+    expect(run(dir, ["--list"]).stdout).toContain(".kaizen/old-high.md");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+const BAD_CONFIGS = [
+  { name: "forget_auto の型", config: '{ "forget_auto": "yes" }\n', message: "forget_auto: 型が" },
+  {
+    name: "forget_after_days の型",
+    config: '{ "forget_after_days": "soon" }\n',
+    message: "forget_after_days: 型が",
+  },
+  {
+    name: "forget_max_priority の選択肢",
+    config: '{ "forget_max_priority": "urgent" }\n',
+    message: '"urgent" は "low"・"medium"・"high" のどれでもない',
+  },
+  {
+    name: "知らないキー",
+    config: '{ "forget_auto_x": true }\n',
+    message: '知らないキー "forget_auto_x"',
+  },
+];
+
+test.each(BAD_CONFIGS)(
+  "不正な設定は、デフォルトの値で忘却せずに exit 1 で止める: $name",
+  ({ config, message }) => {
+    // デフォルトの値で忘れると、設定したつもりの閾値と違う値で学びが消える（消える側の操作）。
+    const dir = makeProject(CANDIDATES, config);
+    try {
+      const { status, stderr } = run(dir, ["--auto"]);
+      expect(stderr).toContain(message);
+      expect(stderr).toContain("kaizen の設定を読めないので、忘却しません");
+      expect(status).toBe(1);
+      expect(statusOf(dir, "old-low")).toBe("pending");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);
+
+test("旧い .kaizen/config が残っていれば、移行の手順を示して忘却せずに止める", () => {
+  const dir = makeProject(CANDIDATES);
+  try {
+    writeFileSync(join(dir, ".kaizen", "config"), "forget_auto=off\n");
+    const { status, stderr } = run(dir, ["--auto"]);
+    expect(status).toBe(1);
+    expect(stderr).toContain(
+      ".kaizen/config が残っている。KEY=VALUE の各行を .config/skills/shoji9x9/kaizen.jsonc",
+    );
+    expect(statusOf(dir, "old-low")).toBe("pending");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("設定ファイルがあるのに node が無ければ、忘却せずに止める。無ければ node なしでデフォルトの値を使う", () => {
+  const dir = makeProject(CANDIDATES);
+  try {
+    // node だけを除いた PATH。設定ファイルが無ければ、デフォルトの閾値で忘却する。
+    const noNode = { PATH: pathWithout(dir, ["node"], kaizenEnv(dir).PATH ?? "") };
+    const none = run(dir, ["--list"], noNode);
+    expect(none.status).toBe(0);
+    expect(none.stdout).toContain(".kaizen/old-low.md");
+    writeKaizenConfig(dir, '{ "forget_after_days": 10 }\n');
+    const { status, stderr } = run(dir, ["--auto"], noNode);
+    expect(status).toBe(1);
+    expect(stderr).toContain("kaizen の設定を読むには node が要るが、見つからない");
+    expect(statusOf(dir, "old-low")).toBe("pending");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("人ごとの設定（XDG_CONFIG_HOME）の forget_* は置けない層なので止める", () => {
+  const dir = makeProject(CANDIDATES);
+  try {
+    const user = join(dir, ".test-xdg", "skills", "shoji9x9");
+    mkdirSync(user, { recursive: true });
+    writeFileSync(join(user, "kaizen.jsonc"), '{ "forget_auto": false }\n');
+    const { status, stderr } = run(dir, ["--auto"]);
+    expect(status).toBe(1);
+    expect(stderr).toContain("forget_auto は 人ごと の層に置けない");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("SHOJI9X9_SKILLS_IGNORE_USER_CONFIG は読み取りと同じく 1 だけを受け付け、1 なら人ごとの設定を数えずに node なしで動く", () => {
+  const dir = makeProject(CANDIDATES);
+  try {
+    const noNode = { PATH: pathWithout(dir, ["node"], kaizenEnv(dir).PATH ?? "") };
+    // 設定ファイルが無くても、1 以外の値なら止める
+    const bad = run(dir, ["--auto"], { ...noNode, SHOJI9X9_SKILLS_IGNORE_USER_CONFIG: "0" });
+    expect(bad.status).toBe(1);
+    expect(bad.stderr).toContain("SHOJI9X9_SKILLS_IGNORE_USER_CONFIG は 1 だけを受け付ける");
+    expect(statusOf(dir, "old-low")).toBe("pending");
+    // 人ごとの設定だけがあっても、1 なら読まないので node は要らない
+    const user = join(dir, ".test-xdg", "skills", "shoji9x9");
+    mkdirSync(user, { recursive: true });
+    writeFileSync(join(user, "kaizen.jsonc"), '{ "precommit_deadline_seconds": 9 }\n');
+    expect(run(dir, ["--list"], noNode).status).toBe(1);
+    const ok = run(dir, ["--list"], { ...noNode, SHOJI9X9_SKILLS_IGNORE_USER_CONFIG: "1" });
+    expect(ok.status, ok.stderr).toBe(0);
+    expect(ok.stdout).toContain(".kaizen/old-low.md");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("HOME が相対パスなら、その下（cwd からの相対パス）の kaizen.jsonc を人ごとの層として数えない", () => {
+  const dir = makeProject(CANDIDATES);
+  try {
+    const noNode = { PATH: pathWithout(dir, ["node"], kaizenEnv(dir).PATH ?? "") };
+    const user = join(dir, "rel", ".config", "skills", "shoji9x9");
+    mkdirSync(user, { recursive: true });
+    writeFileSync(join(user, "kaizen.jsonc"), '{ "precommit_deadline_seconds": 9 }\n');
+    const r = run(dir, ["--list"], { ...noNode, HOME: "rel", XDG_CONFIG_HOME: "" });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain(".kaizen/old-low.md");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("HOME が空でも相対パスでも、設定ファイルが無ければ node なしでデフォルトの値で動く", () => {
+  const dir = makeProject(CANDIDATES);
+  try {
+    const noNode = { PATH: pathWithout(dir, ["node"], kaizenEnv(dir).PATH ?? "") };
+    for (const HOME of ["", "rel"]) {
+      const r = run(dir, ["--list"], { ...noNode, HOME, XDG_CONFIG_HOME: "" });
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.stdout).toContain(".kaizen/old-low.md");
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// --- 明示指示 ---------------------------------------------------------------
+test("明示指示は閾値に関わらず pending を忘却する", () => {
+  const dir = makeProject({ "recent-high": note({ date: daysAgo(1), priority: "high" }) });
+  try {
+    const { status, stdout } = run(dir, [".kaizen/recent-high.md"]);
+    expect(status).toBe(0);
+    expect(stdout).toContain("recent-high.md");
+    expect(statusOf(dir, "recent-high")).toBe("forgotten");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+const NON_PENDING = [
+  {
+    name: "applied",
+    note: note({ status: "applied", appliedTo: '["a.md"]' }),
+    expected: "applied",
+  },
+  {
+    name: "rejected",
+    note: note({ status: "rejected", appliedTo: '["rejected: 見送る"]' }),
+    expected: "rejected",
+  },
+];
+
+test.each(NON_PENDING)(
+  "明示指示でも pending 以外は忘却しない: $name",
+  ({ note: body, expected }) => {
+    // forgotten は適用先を持たない状態なので、applied-to を持つノートを書き換えると
+    // kaizen-status-check.sh が exit 2 で失敗する（コミット前のチェックが commit を止める）。
+    const dir = makeProject({ target: body });
+    try {
+      const { status, stderr } = run(dir, [".kaizen/target.md"]);
+      expect(stderr).toContain("use kaizen archive instead");
+      expect(status).toBe(0);
+      expect(statusOf(dir, "target")).toBe(expected);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);
+
+test("引数なしは usage を出して exit 2（引数なしで何かを忘れない）", () => {
+  const dir = makeProject(CANDIDATES);
+  try {
+    const { status, stderr } = run(dir, []);
+    expect(stderr).toContain("usage:");
+    expect(status).toBe(2);
+    expect(statusOf(dir, "old-low")).toBe("pending");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("--list / --auto にファイル引数を混ぜたら受け付けない", () => {
+  // 受理すると「一覧するつもりが掃引していた」「指定したつもりが全件だった」が起きる。
+  const dir = makeProject(CANDIDATES);
+  try {
+    for (const mode of ["--list", "--auto"]) {
+      const { status, stderr } = run(dir, [mode, ".kaizen/old-low.md"]);
+      expect(stderr).toContain("takes no file arguments");
+      expect(status).toBe(2);
+    }
+    expect(statusOf(dir, "old-low")).toBe("pending");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("忘却したノートは kaizen-status-check.sh を通る", () => {
+  // 自動で実行される以上、掃引の結果がコミット前のチェックを止めてはならない。
+  // 日付の形が不正なノート（bad-date）と未知の priority のノート（old-unknown-priority）は、
+  // 忘却とは関係なく kaizen-status-check.sh が止めるので、ここでは置かない。
+  const statusCheck = join(repoRoot, "skills/kaizen/scripts/kaizen-status-check.sh");
+  const {
+    "bad-date": _badDate,
+    "old-unknown-priority": _unknownPriority,
+    ...valid
+  } = NON_CANDIDATES;
+  const dir = makeProject({ ...CANDIDATES, ...valid });
+  try {
+    run(dir, ["--auto"]);
+    const result = spawnSync("bash", [statusCheck], {
+      timeout: CHILD_TIMEOUT_MS,
+      cwd: dir,
+      env: kaizenEnv(dir, { CLAUDE_PROJECT_DIR: dir }),
+      encoding: "utf8",
+    });
+    expect(result.stderr ?? "").not.toContain("unknown status");
+    expect(result.status).toBe(0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// --- レビューで新設した分岐（未知フラグ / 書き戻し失敗 / ライブラリ欠落） ---
+//
+// いずれも「何もしていないのに成功に見える」形なので、終了コードと診断の両方を固定する。
+// 終了コードだけだと理由が分からず、診断だけだと呼び出し側（SessionStart フック・人）が
+// 失敗を拾えない。
+//
+// ミューテーションテストで検出できることを、次のように確かめた（3 通り実施し、いずれも赤くなることを実測した）。
+//   1. `-*)` の分岐を削る → 「未知のフラグ」が fail（ファイル名として飲み込まれ exit 0 になる）
+//   2. `rewrite_status` の `return 2` を `return 0` に → 「書き戻せないノート」が fail
+//   3. `require_today_days` の `return 1` を `return 0` に → 「ライブラリ欠落」が fail
+test("未知のフラグはファイル名として飲み込まず exit 2 で拒否する", () => {
+  // 飲み込むと `--dry-run` のような打ち間違いが「skip (not a file)」＋ exit 0 になり、
+  // 1 件も忘却していないのに成功として返る。
+  const dir = makeProject(CANDIDATES);
+  try {
+    const { status, stderr } = run(dir, ["--dry-run"]);
+    expect(stderr).toContain("unknown option: --dry-run");
+    expect(stderr).toContain("usage:");
+    expect(status).toBe(2);
+    expect(statusOf(dir, "old-low")).toBe("pending");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// フラグは第 1 引数とは限らない。位置ごとに 1 件ずつ入力を置く。
+// 位置: 先頭（上のケース） / 2 番目 / 3 番目以降
+test.each([
+  ["2 番目", ["old-low", "--dry-run"]],
+  ["3 番目", ["old-low", "old-medium", "--auto"]],
+])("2 番目以降の未知フラグも、何も書き換える前に拒否する: %s", (_label, args) => {
+  // 第 1 引数しか見ないと、先行するノートを忘却したうえで「skip (not a file)」を出し
+  // exit 0 で返る。一部は書き換わっているのに成功として報告される。
+  const dir = makeProject(CANDIDATES);
+  try {
+    const files = args.map((a) => (a.startsWith("-") ? a : join(dir, ".kaizen", `${a}.md`)));
+    const { status, stderr } = run(dir, files);
+    expect(stderr).toContain("unknown option: ");
+    expect(status).toBe(2);
+    // 先行する引数が書き換わっていないこと（「一部だけ適用」を検出する）。
+    expect(statusOf(dir, "old-low")).toBe("pending");
+    expect(statusOf(dir, "old-medium")).toBe("pending");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("書き戻せないノートは忘却済みとして報告しない", () => {
+  // `rewrite_status` は `if` から呼ばれるため関数本文で set -e が機能しない。書き込み失敗を
+  // 握り潰すと、status が pending のままなのに stdout へ忘却済みとして出る。
+  const dir = makeProject(CANDIDATES);
+  try {
+    chmodSync(join(dir, ".kaizen", "old-low.md"), 0o444);
+    const { status, stdout, stderr } = run(dir, ["--auto"]);
+    expect(stderr).toContain("could not write the note");
+    // 理由を「status 行が無い」と混同しない（書き込み権限の問題が旧形式と案内されると直せない）。
+    expect(stderr).not.toContain("no status line");
+    expect(stdout).not.toContain("old-low.md");
+    expect(statusOf(dir, "old-low")).toBe("pending");
+    // 書けない 1 件で SessionStart フックを落とさない（他の候補は処理される）。
+    expect(statusOf(dir, "old-medium")).toBe("forgotten");
+    expect(status).toBe(0);
+  } finally {
+    chmodSync(join(dir, ".kaizen", "old-low.md"), 0o644);
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test.each(["--list", "--auto"])(
+  "共通ライブラリを読めないときは 0 件と区別して止まる: %s",
+  (mode) => {
+    // 日付を日数へ変換できないと全件が「材料を読めない」で外れ、閾値で 0 件だったときと
+    // 同じ出力になる。機能を減らして動いたことを、終了コードと診断で区別できるようにする。
+    const dir = makeProject(CANDIDATES);
+    const lonely = makeTempDir("kaizen-forget-nolib-");
+    try {
+      copyFileSync(script, join(lonely, "kaizen-forget.sh"));
+      const result = spawnSync("bash", [join(lonely, "kaizen-forget.sh"), mode], {
+        timeout: CHILD_TIMEOUT_MS,
+        cwd: dir,
+        env: kaizenEnv(dir, { CLAUDE_PROJECT_DIR: dir }),
+        encoding: "utf8",
+      });
+      expect(result.stderr ?? "").toContain("共通ライブラリ kaizen-hook-common.sh");
+      // 「忘却候補はありません」として扱わない（検査できなかったことが消える）。
+      expect(result.stderr ?? "").not.toContain("忘却候補はありません");
+      expect(result.status).toBe(1);
+      expect(statusOf(dir, "old-low")).toBe("pending");
+    } finally {
+      rmSync(lonely, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);
+
+// 書き戻しの一時ファイルは固定名にしない。掃引は抽出完了時に実行されるので、同じリポジトリで
+// 2 セッションが同時に commit を通せば同じ tmp を書き合い、`cat tmp >note` が途中の内容を
+// 書き戻してノートを不正な内容にする（rc 0 なので「忘却した」と報告される）。
+// 状態空間: tmp の残骸 × 名前
+//   残骸なし            → 忘却できる（既存ケースが押さえている）
+//   残骸あり（固定名）  → 固定名だと衝突する。ユニーク名なら影響を受けない  ← ここ
+//   中断                → 残骸を残さない                                    ← ここ
+describe("書き戻しの一時ファイル", () => {
+  test("固定名の残骸があっても忘却は失敗しない", () => {
+    const dir = makeProject(CANDIDATES);
+    // 旧実装が使っていた固定名を先に占有しておく。ユニーク名ならこれを読み書きしない。
+    const squatter = join(dir, ".kaizen", "old-low.md.kaizen-forget-tmp");
+    writeFileSync(squatter, "他セッションが書きかけの内容\n");
+
+    const result = run(dir, ["--auto"]);
+    expect(result.status).toBe(0);
+    expect(statusOf(dir, "old-low")).toBe("forgotten");
+    // ノートの本文が居座りの内容で上書きされていない。
+    expect(readFileSync(join(dir, ".kaizen", "old-low.md"), "utf8")).toContain("## 事象");
+    expect(readFileSync(join(dir, ".kaizen", "old-low.md"), "utf8")).not.toContain("書きかけ");
+    // 他人のファイルには触らない。
+    expect(readFileSync(squatter, "utf8")).toBe("他セッションが書きかけの内容\n");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("忘却後に一時ファイルの残骸を残さない", () => {
+    const dir = makeProject(CANDIDATES);
+    expect(run(dir, ["--auto"]).status).toBe(0);
+    const leftovers = readdirSync(join(dir, ".kaizen")).filter((n) => n.includes("kaizen-forget-"));
+    expect(leftovers).toEqual([]);
+    rmSync(dir, { recursive: true, force: true });
+  });
+});

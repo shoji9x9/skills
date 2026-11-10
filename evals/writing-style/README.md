@@ -15,7 +15,7 @@ prompt は手で書き写さず、同じ呼び出しの中で `evals.json` か�
   prompt=$(printf '%s\n' "$spec" | tail -n +2)
   fx=()
   [ -z "$fixture" ] || fx=(--fixture "evals/writing-style/$fixture")
-  scripts/eval/run-skill-eval.sh \
+  scripts/eval/run/run-skill-eval.sh \
     --skill writing-style --executor claude-code \
     --prompt "$prompt" "${fx[@]}" \
     --config "$config" --eval-id "$id" \
