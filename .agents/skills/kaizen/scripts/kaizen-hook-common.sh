@@ -207,6 +207,115 @@ kaizen_resolve_project_root() {
 	pwd
 }
 
+# --- `.kaizen` の下への書き込みと削除 ----------------------------------------------
+# `.kaizen` とその下のファイルの名前はリポジトリの中身で決まるので、commit された symlink でありうる。
+# `>`・`mkdir -p`・`mv` の移動先は symlink の先をたどり、親のディレクトリが symlink なら `rm -f` もその先に届く。
+# そのため、リポジトリの外のファイルを書き換えたり消したりする。
+# `.kaizen` の下に書く・消す・作る・移すときは、次の関数を通す。symlink かの判定は kaizen_path_is_safe の 1 か所で行う。
+# 共通ライブラリを読めないスクリプトは、同じ名前の簡略な代わり（`.kaizen` そのものと直下だけを安全とする）を自分で定義する。
+
+# パスをたどっても symlink を通らないか。通るなら 1 を返す。
+# パスの文字を上へたどって symlink を探すと、`..` や入れ子の `.kaizen`（`.kaizen/linked/.kaizen/x`）のような書き方の数だけ
+# 抜けができる。そこで、ディレクトリの実体のパス（`pwd -P`）を比べる。判定は次のとおりである。
+#   - パス自身が symlink なら 1。`..` を含むパスも 1（書き方を絞り、判定を読みやすく保つ）。
+#   - パスに `.kaizen` が無ければ、親が symlink かだけを見る。
+#   - パスの一番外側の `.kaizen` が symlink なら 1。
+#   - 親（無ければ、在る一番近い祖先）の実体が、一番外側の `.kaizen` の実体の下に無ければ 1。
+# `.kaizen` より上はリポジトリの中身で決まらない（`/tmp` が symlink の環境もある）ので見ない。
+kaizen_path_is_safe() { # $1: パス
+	local p="${1:-}" root rest anc phys_root phys_anc
+	[ -n "${p}" ] || return 1
+	case "/${p}/" in
+	*/../*) return 1 ;;
+	esac
+	while [ "${p}" != "/" ] && [ "${p%/}" != "${p}" ]; do
+		p=${p%/}
+	done
+	[ ! -L "${p}" ] || return 1
+	case "/${p}/" in
+	*/.kaizen/*) ;;
+	*)
+		[ ! -L "$(dirname -- "${p}")" ]
+		return
+		;;
+	esac
+	# 一番外側の `.kaizen` のパス。`.kaizen` で始まる相対パスなら `.kaizen`、それ以外は最初の `/.kaizen` までにする。
+	case "${p}" in
+	.kaizen | .kaizen/*) root=.kaizen ;;
+	*)
+		# 名前の一部に `.kaizen` を含むだけの要素（`.kaizenfoo`）で切らないよう、`/.kaizen/` の区切りで探す。
+		rest="${p}/"
+		rest=${rest#*/.kaizen/}
+		root="${p}/"
+		root=${root%"${rest}"}
+		root=${root%/}
+		;;
+	esac
+	[ ! -L "${root}" ] || return 1
+	[ "${p}" != "${root}" ] || return 0
+	# `.kaizen` がまだ無ければ、その下にたどる symlink も無い（作るのは呼び出し側で、作る前に root を確かめている）。
+	[ -d "${root}" ] || return 0
+	phys_root=$(cd -- "${root}" 2>/dev/null && pwd -P) || return 1
+	anc=$(dirname -- "${p}")
+	while [ ! -d "${anc}" ]; do
+		anc=$(dirname -- "${anc}")
+	done
+	phys_anc=$(cd -- "${anc}" 2>/dev/null && pwd -P) || return 1
+	case "${phys_anc}/" in
+	"${phys_root}/"*) return 0 ;;
+	esac
+	return 1
+}
+
+# 書かない・消さない理由を stderr に 1 行出す。$1 = パス、$2 = しないこと（「書かない」など）。
+kaizen_report_unsafe_path() {
+	echo "kaizen: $1 か、その上の .kaizen までのディレクトリが symlink か、パスが .. を含むので、$2" >&2
+}
+
+# ファイルを消す。リンクそのものを消すのは安全なので、パス自身が symlink でも消し、親から `.kaizen` までだけを確かめる。
+# 消さなかったものがあれば 1 を返す。
+kaizen_safe_rm() { # $@: 消すパス
+	local p rc=0
+	for p in "$@"; do
+		if ! kaizen_path_is_safe "$(dirname -- "${p}")"; then
+			kaizen_report_unsafe_path "${p}" "消さない"
+			rc=1
+			continue
+		fi
+		rm -f -- "${p}" || rc=1
+	done
+	return "${rc}"
+}
+
+# stdin の内容をパスに書く（上書き）。書かないときは stdin を読み捨てて 1 を返す（書き手を SIGPIPE で止めない）。
+kaizen_safe_write() { # $1: パス
+	if ! kaizen_path_is_safe "$1"; then
+		kaizen_report_unsafe_path "$1" "書かない"
+		cat >/dev/null
+		return 1
+	fi
+	cat >"$1"
+}
+
+# ディレクトリを作る（`mkdir -p`）。作らないときは 1 を返す。
+kaizen_safe_mkdir() { # $1: ディレクトリ
+	if ! kaizen_path_is_safe "$1"; then
+		kaizen_report_unsafe_path "$1" "作らない"
+		return 1
+	fi
+	mkdir -p -- "$1"
+}
+
+# ファイルを移す。移動先のパスがディレクトリへの symlink だと、`mv` はその中へ移すので、移動先も確かめる。
+# 移さないときは 1 を返す。$1 = 移すファイル、$2 = 移動先のファイルのパス（ディレクトリではなく）。
+kaizen_safe_mv() {
+	if ! kaizen_path_is_safe "$2"; then
+		kaizen_report_unsafe_path "$2" "移さない"
+		return 1
+	fi
+	mv -f -- "$1" "$2"
+}
+
 # このリポジトリの**全作業ツリー**（本体＋git worktree）の `.kaizen` ディレクトリを、
 # $1 のツリーを先頭にして絶対パスで 1 行ずつ返す。
 #
@@ -244,7 +353,13 @@ kaizen_worktree_kaizen_dirs() { # $1: 基準のツリー（省略時は cwd）
 	# センチネルが二重に数えられ、案内も他セッションの走査予算も二重に消費される。物理パスでも
 	# 突き合わせて弾く。
 	base_phys=$(cd "${base}" 2>/dev/null && pwd -P) || base_phys=${base}
-	printf '%s\0' "${base}/.kaizen"
+	# `.kaizen` が symlink のツリーは返さない（kaizen_path_is_safe）。返すと、呼び出し側の `rm -f` や書き込みが、
+	# その先にあるリポジトリの外のファイルに届く。返さないツリーは、チェックが数えないことに気付けるよう、stderr に 1 行出す。
+	if kaizen_path_is_safe "${base}/.kaizen"; then
+		printf '%s\0' "${base}/.kaizen"
+	else
+		kaizen_report_unsafe_path "${base}/.kaizen" "このツリーの制御ファイルを扱わない"
+	fi
 	command -v git >/dev/null 2>&1 || return 0
 	emit_worktree_dir() { # $1: `worktree <path>` 形式のレコード
 		case "$1" in
@@ -257,6 +372,10 @@ kaizen_worktree_kaizen_dirs() { # $1: 基準のツリー（省略時は cwd）
 			return 0
 		fi
 		[ -d "${path}" ] || return 0
+		if ! kaizen_path_is_safe "${path}/.kaizen"; then
+			kaizen_report_unsafe_path "${path}/.kaizen" "このツリーの制御ファイルを扱わない"
+			return 0
+		fi
 		printf '%s\0' "${path}/.kaizen"
 	}
 	# **NUL 区切りの出力を変数へ溜めない。** `$( )` は NUL を落とすので、溜めた時点で

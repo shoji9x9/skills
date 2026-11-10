@@ -33,6 +33,20 @@ if [ -r "${kaizen_lib}" ]; then
 	. "${kaizen_lib}"
 else
 	printf '%s: 共通ライブラリを読めないため、機能を減らして動きます: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
+	# 共通ライブラリの削除の関数の簡略な代わり。パス・親・.kaizen のどれかが symlink なら消さない。
+	# パスを上へたどる判定は共通ライブラリにしか無いので、たどらずに確かめられる形だけを安全とする。
+	# 安全とするのは、`..` も入れ子の `.kaizen` も含まない `.kaizen` そのものと、その直下のパスだけで、それより深いパスは書かずに断る。
+	kaizen_path_is_safe() {
+		case "/${1:-}/" in
+		*/../* | */.kaizen/*/.kaizen/*) return 1 ;;
+		esac
+		case "/${1:-}" in
+		*/.kaizen) [ ! -L "$1" ] ;;
+		*/.kaizen/*) [ "$(basename -- "$(dirname -- "$1")")" = .kaizen ] && [ ! -L "$1" ] && [ ! -L "$(dirname -- "$1")" ] ;;
+		*) return 1 ;;
+		esac
+	}
+	kaizen_safe_rm() { for kaizen_rm_path in "$@"; do kaizen_path_is_safe "$(dirname -- "${kaizen_rm_path}")" && rm -f -- "${kaizen_rm_path}"; done; }
 fi
 
 # Claude Code 用の登録（`.claude/settings.json`）を GitHub Copilot CLI が呼んだときは、何もせずに終える。
@@ -104,19 +118,28 @@ if [ "${is_compact}" -eq 0 ]; then
 			expire_dirs+=("${expire_dir}")
 		done < <(kaizen_worktree_kaizen_dirs "")
 	fi
-	[ "${#expire_dirs[@]}" -gt 0 ] || expire_dirs=(".kaizen")
-	for expire_dir in "${expire_dirs[@]}"; do
+	# 一覧が空でも、`.kaizen` をたどると symlink を通るなら代わりに使わない（その先のファイルを消さない）。
+	if [ "${#expire_dirs[@]}" -eq 0 ] && kaizen_path_is_safe .kaizen; then
+		expire_dirs=(".kaizen")
+	fi
+	for expire_dir in ${expire_dirs[@]+"${expire_dirs[@]}"}; do
 		if [ -n "${done_name}" ]; then
-			rm -f "${expire_dir}/${done_name}"
+			kaizen_safe_rm "${expire_dir}/${done_name}" || true
 		fi
 		# session 単位化より前に書かれた（key を持たない）マーカーは、同じく key を持たない
 		# センチネルだけを覆う共有マーカー。持ち主を特定できないので従来どおりここで失効させる。
-		rm -f "${expire_dir}/.extract-done"
+		kaizen_safe_rm "${expire_dir}/.extract-done" || true
 	done
 fi
 
 # .kaizen/ が無ければ何も出さずに正常終了（初期化前のプロジェクト）。
 if [ ! -d .kaizen ]; then
+	exit 0
+fi
+# `.kaizen` が symlink なら、その先のファイルを学びとして注入しない。名前はリポジトリの中身で決まるので
+# commit された symlink でありえ、リポジトリの外のファイルがエージェントの文脈に入る。
+if ! kaizen_path_is_safe .kaizen; then
+	echo "kaizen-context-inject: .kaizen が symlink なので、学びを注入しない" >&2
 	exit 0
 fi
 
@@ -150,6 +173,11 @@ trap 'rm -f "${pending_index}"' EXIT
 pending_files=()
 for f in .kaizen/*.md; do
 	[ -e "${f}" ] || continue
+	# symlink のノートも、`.kaizen` と同じ理由で注入しない（リポジトリの外のファイルがエージェントの文脈に入る）。
+	if ! kaizen_path_is_safe "${f}"; then
+		echo "kaizen-context-inject: ${f} は symlink なので、学びとして注入しない" >&2
+		continue
+	fi
 	# status も frontmatter 限定で判定する。全文 grep だと本文やコードブロックの
 	# `status: pending` を拾い、frontmatter が applied / rejected / forgotten のノートまで注入してしまう。
 	{

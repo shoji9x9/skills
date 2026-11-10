@@ -1,8 +1,19 @@
 import { afterEach, assert, expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
+import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import {
   archive,
   archiveIn,
@@ -411,4 +422,144 @@ test("フォールバックは frontmatter 後の水平線を要約にしない"
   expect(result.status, result.stderr).toBe(0);
   const index = readFileSync(join(dir, ".kaizen/archive/INDEX.md"), "utf8");
   expect(index).toContain("— 本文はここから始まる。\n");
+});
+
+// ノートとアーカイブの置き場所の名前はリポジトリの中身で決まるので、commit された symlink でありうる。
+// リンクを補正する書き戻しと索引の書き込みは symlink の先をたどるので、symlink を通るなら書かない。
+test("symlink のノートは移さず、先のファイルを書き換えない", () => {
+  const dir = createRepo();
+  const outside = makeTempDir("kaizen-archive-outside-");
+  const victim = join(outside, "victim.md");
+  const original = "---\nstatus: applied\n---\n\n[x](../docs/x.md)\n";
+  writeFileSync(victim, original);
+  const linked = join(dir, ".kaizen", "2026-09-01-linked.md");
+  symlinkSync(victim, linked);
+
+  const result = archive(dir, linked);
+
+  expect(result.status, result.stderr).toBe(0);
+  expect(result.stderr).toContain("symlink");
+  expect(readFileSync(victim, "utf8")).toBe(original);
+  expect(existsSync(join(dir, ".kaizen", "archive", "2026-09-01-linked.md"))).toBe(false);
+});
+
+test(".kaizen/archive が symlink なら、先のディレクトリに何も書かずに 0 以外で終える", () => {
+  const dir = createRepo();
+  const outside = makeTempDir("kaizen-archive-outside-");
+  symlinkSync(outside, join(dir, ".kaizen", "archive"));
+  const note = writeNote(dir, "2026-09-01-plain.md", { summary: "plain" });
+
+  const result = archive(dir, note);
+
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toContain("symlink");
+  expect(readdirSync(outside)).toEqual([]);
+  expect(existsSync(note)).toBe(true);
+});
+
+test("--reindex も、.kaizen/archive が symlink なら索引を書かない", () => {
+  const dir = createRepo();
+  const outside = makeTempDir("kaizen-archive-outside-");
+  symlinkSync(outside, join(dir, ".kaizen", "archive"));
+
+  const result = archive(dir, "--reindex");
+
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toContain("symlink");
+  expect(readdirSync(outside)).toEqual([]);
+});
+
+// リンクを補正する一時ファイルの名前を固定にすると、その名前で commit された symlink があるときに書き込みを拒んで途中で止まる。
+// そのときは、移したノートのリンクを補正せず、索引も作り直さないまま終わる。
+test("一時ファイルの名前に symlink があっても、リンクを補正して索引を作り直し、先に書かない", () => {
+  const dir = createRepo();
+  const outside = makeTempDir("kaizen-archive-outside-");
+  mkdirSync(join(dir, ".kaizen", "archive"));
+  symlinkSync(
+    join(outside, "victim.md"),
+    join(dir, ".kaizen", "archive", "2026-09-01-tmp.md.kaizen-archive-tmp"),
+  );
+  const note = writeNote(dir, "2026-09-01-tmp.md", {
+    summary: "tmp",
+    body: "\n[x](../docs/x.md)\n",
+  });
+
+  const result = archive(dir, note);
+
+  expect(result.status, result.stderr).toBe(0);
+  expect(readFileSync(join(dir, ".kaizen/archive/2026-09-01-tmp.md"), "utf8")).toContain(
+    "[x](../../docs/x.md)",
+  );
+  expect(existsSync(join(dir, ".kaizen/archive/INDEX.md"))).toBe(true);
+  expect(readdirSync(outside)).toEqual([]);
+});
+
+// 共通ライブラリを読めないときの代わりの判定は、パスを上へたどれないので、`.kaizen` の直下より深いパスを安全としない。
+// `.kaizen/linked/deep/note.md` の `linked` が symlink だと、直上と `.kaizen` だけを見る判定では見逃す。
+test("共通ライブラリを読めないときも、途中のディレクトリが symlink のノートを移さない", () => {
+  const dir = createRepo();
+  const outside = makeTempDir("kaizen-archive-outside-");
+  mkdirSync(join(outside, "deep"));
+  const original = "---\nstatus: applied\n---\n\nbody\n";
+  writeFileSync(join(outside, "deep", "note.md"), original);
+  symlinkSync(outside, join(dir, ".kaizen", "linked"));
+  const alone = makeTempDir("kaizen-archive-alone-");
+  const source = join(
+    dirname(fileURLToPath(import.meta.url)),
+    "..",
+    "..",
+    "..",
+    "..",
+    "skills/kaizen/scripts/kaizen-archive.sh",
+  );
+  copyFileSync(source, join(alone, "kaizen-archive.sh"));
+
+  const result = spawnSync(
+    "bash",
+    [join(alone, "kaizen-archive.sh"), ".kaizen/linked/deep/note.md"],
+    {
+      timeout: CHILD_TIMEOUT_MS,
+      cwd: dir,
+      env: { ...process.env, CLAUDE_PROJECT_DIR: "", LANG: "C.UTF-8", LC_ALL: "C.UTF-8" },
+      encoding: "utf8",
+    },
+  );
+
+  expect(result.stderr).toContain("共通ライブラリを読めない");
+  expect(readFileSync(join(outside, "deep", "note.md"), "utf8")).toBe(original);
+  expect(existsSync(join(dir, ".kaizen", "archive", "note.md"))).toBe(false);
+});
+
+test("共通ライブラリを読めないときも、入れ子の .kaizen を通るノートを移さない", () => {
+  const dir = createRepo();
+  const outside = makeTempDir("kaizen-archive-outside-");
+  mkdirSync(join(outside, ".kaizen"));
+  const original = "---\nstatus: applied\n---\n\nbody\n";
+  writeFileSync(join(outside, ".kaizen", "note.md"), original);
+  symlinkSync(outside, join(dir, ".kaizen", "linked"));
+  const alone = makeTempDir("kaizen-archive-alone-");
+  const source = join(
+    dirname(fileURLToPath(import.meta.url)),
+    "..",
+    "..",
+    "..",
+    "..",
+    "skills/kaizen/scripts/kaizen-archive.sh",
+  );
+  copyFileSync(source, join(alone, "kaizen-archive.sh"));
+
+  const result = spawnSync(
+    "bash",
+    [join(alone, "kaizen-archive.sh"), ".kaizen/linked/.kaizen/note.md"],
+    {
+      timeout: CHILD_TIMEOUT_MS,
+      cwd: dir,
+      env: { ...process.env, CLAUDE_PROJECT_DIR: "", LANG: "C.UTF-8", LC_ALL: "C.UTF-8" },
+      encoding: "utf8",
+    },
+  );
+
+  expect(result.stderr).toContain("共通ライブラリを読めない");
+  expect(readFileSync(join(outside, ".kaizen", "note.md"), "utf8")).toBe(original);
+  expect(existsSync(join(dir, ".kaizen", "archive", "note.md"))).toBe(false);
 });

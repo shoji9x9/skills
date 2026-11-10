@@ -47,6 +47,23 @@ if [ -r "${kaizen_lib}" ]; then
 	. "${kaizen_lib}"
 else
 	printf '%s: 共通ライブラリを読めないため、機能を減らして動きます: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
+	# 共通ライブラリの書き込みの関数の簡略な代わり。パス・親・.kaizen のどれかが symlink なら書かない。
+	# パスを上へたどる判定は共通ライブラリにしか無いので、たどらずに確かめられる形だけを安全とする。
+	# 安全とするのは、`..` も入れ子の `.kaizen` も含まない `.kaizen` そのものと、その直下のパスだけで、それより深いパスは書かずに断る。
+	kaizen_path_is_safe() {
+		case "/${1:-}/" in
+		*/../* | */.kaizen/*/.kaizen/*) return 1 ;;
+		esac
+		case "/${1:-}" in
+		*/.kaizen) [ ! -L "$1" ] ;;
+		*/.kaizen/*) [ "$(basename -- "$(dirname -- "$1")")" = .kaizen ] && [ ! -L "$1" ] && [ ! -L "$(dirname -- "$1")" ] ;;
+		*) return 1 ;;
+		esac
+	}
+	kaizen_safe_rm() { for kaizen_rm_path in "$@"; do kaizen_path_is_safe "$(dirname -- "${kaizen_rm_path}")" && rm -f -- "${kaizen_rm_path}"; done; }
+	kaizen_safe_mkdir() { kaizen_path_is_safe "$1" && mkdir -p -- "$1"; }
+	kaizen_safe_write() { if kaizen_path_is_safe "$1"; then cat >"$1"; else cat >/dev/null && false; fi; }
+	kaizen_safe_mv() { kaizen_path_is_safe "$2" && mv -f -- "$1" "$2"; }
 fi
 
 if declare -f kaizen_resolve_project_root >/dev/null 2>&1; then
@@ -205,6 +222,15 @@ sentinel_path="${control_dir}/${sentinel_path#.kaizen/}"
 checkpoint_path="${control_dir}/${checkpoint_path#.kaizen/}"
 done_path="${control_dir}/${done_path#.kaizen/}"
 
+# 制御ファイルのディレクトリ、処理位置の checkpoint、抽出完了のマーカーの名前は、リポジトリの中身で決まるので、commit された symlink でありうる。
+# この後の書き込み・移動・削除は kaizen_safe_* を通すが、途中で止まると checkpoint とマーカーが食い違うので、先にまとめて確かめる。
+# どれかをたどると symlink を通るなら、何も書かずに止める（リポジトリの外のファイルを書き換えない）。
+# このスクリプトはチェックを解除する役なので、書けないときは 0 以外で終え、チェックが commit を止めたままにする。
+if ! kaizen_path_is_safe "${control_dir}" || ! kaizen_path_is_safe "${checkpoint_path}" || ! kaizen_path_is_safe "${done_path}"; then
+	echo "kaizen-extract-done: 制御ファイルのディレクトリか、処理位置か、抽出完了のマーカーが symlink なので、何も書かずに止める: ${control_dir}" >&2
+	exit 1
+fi
+
 # 制御ファイルを**全作業ツリー**から消す。名前は `.kaizen/` を含まないファイル名で渡す。
 # 1 つのツリーだけ消すと、他のツリーに分かれた複製が残り、チェックが誤って判定する。
 remove_control_file_everywhere() { # $1: 制御ファイル名
@@ -212,14 +238,14 @@ remove_control_file_everywhere() { # $1: 制御ファイル名
 	[ -n "${name}" ] || return 0
 	if declare -f kaizen_worktree_kaizen_dirs >/dev/null 2>&1; then
 		while IFS= read -r -d '' dir; do
-			rm -f "${dir}/${name}" || true
+			kaizen_safe_rm "${dir}/${name}" || true
 		done < <(kaizen_worktree_kaizen_dirs "")
 	else
-		rm -f ".kaizen/${name}" || true
+		kaizen_safe_rm ".kaizen/${name}" || true
 	fi
 }
 
-mkdir -p "${control_dir}"
+kaizen_safe_mkdir "${control_dir}"
 
 # transcript-fingerprint:begin
 # transcript の先頭の指紋。`<バイト数>:<cksum の CRC>` を 1 行で出す。
@@ -258,8 +284,9 @@ if [ -n "${transcript}" ] && [ -r "${transcript}" ]; then
 	# mktemp が無い・失敗する環境でも、この後のセンチネルの削除と .extract-done の記録まで
 	# 必ず進める。ここで set -e に中断されるとチェックを解除する手段が無くなり、
 	# commit がずっと止まる（チェックの解除は、このスクリプトだけが行う）。
-	checkpoint_tmp=$(mktemp 2>/dev/null) || checkpoint_tmp="${control_dir}/.extract-checkpoint.tmp.$$"
-	trap 'rm -f "${checkpoint_tmp}"' EXIT
+	checkpoint_tmp=$(mktemp 2>/dev/null) || checkpoint_tmp=""
+	checkpoint_mktemp=${checkpoint_tmp}
+	trap 'rm -f "${checkpoint_mktemp}" "${checkpoint_tmp}"' EXIT
 	# checkpoint の形式は次のとおりである。
 	#   1 行目 transcript パス / 2 行目 バイト位置 / 3 行目 エージェント（空でもよい）/ 4 行目 行数。
 	#   5 行目 transcript の先頭の指紋（`<バイト数>:<CRC>`）。バイト位置より先は含めず、取れなければ空にする。
@@ -285,9 +312,20 @@ if [ -n "${transcript}" ] && [ -r "${transcript}" ]; then
 	fi
 	if [ -n "${checkpoint_bytes}" ] && [ -n "${checkpoint_lines}" ]; then
 		checkpoint_fingerprint=$(kaizen_transcript_fingerprint "${transcript}" "${checkpoint_bytes}" || true)
-		if printf '%s\n%s\n%s\n%s\n%s\n' "${transcript}" "${checkpoint_bytes}" "${agent}" "${checkpoint_lines}" "${checkpoint_fingerprint}" \
-			>"${checkpoint_tmp}" 2>/dev/null &&
-			mv "${checkpoint_tmp}" "${checkpoint_path}" 2>/dev/null; then
+		# mktemp が使えないときの一時ファイルは制御ファイルのディレクトリに置く。その名前は symlink でありうるので、
+		# kaizen_safe_write で書く。mktemp が作った一時ファイルは `.kaizen` の外にあり、名前もリポジトリの中身で決まらない。
+		# checkpoint への移動は、移動先が symlink でないかを kaizen_safe_mv で確かめる。
+		print_checkpoint() {
+			printf '%s\n%s\n%s\n%s\n%s\n' "${transcript}" "${checkpoint_bytes}" "${agent}" "${checkpoint_lines}" "${checkpoint_fingerprint}"
+		}
+		if [ -n "${checkpoint_tmp}" ]; then
+			print_checkpoint >"${checkpoint_tmp}" 2>/dev/null || checkpoint_tmp=""
+		fi
+		if [ -z "${checkpoint_tmp}" ]; then
+			checkpoint_tmp="${control_dir}/.extract-checkpoint.tmp.$$"
+			print_checkpoint | kaizen_safe_write "${checkpoint_tmp}" 2>/dev/null || checkpoint_tmp=""
+		fi
+		if [ -n "${checkpoint_tmp}" ] && kaizen_safe_mv "${checkpoint_tmp}" "${checkpoint_path}" 2>/dev/null; then
 			checkpoint_written=1
 		fi
 	fi
@@ -314,7 +352,7 @@ if [ "${mode}" = "complete" ]; then
 		# 残すとチェックが commit をそのまま通し、いま記録した checkpoint より後の活動を取りこぼす。
 		remove_control_file_everywhere "${done_path##*/}"
 	else
-		date -u '+%Y-%m-%dT%H:%M:%SZ' >"${done_path}"
+		date -u '+%Y-%m-%dT%H:%M:%SZ' | kaizen_safe_write "${done_path}"
 		# 古い checkpoint を残すと、チェックがマーカーより checkpoint を優先し（「checkpoint がある間はマーカーで上書きしない」）、
 		# いま抽出したばかりの範囲を古い起点から走査し直して、同じ候補で再びブロックする。
 		# 抽出をやり直しても、checkpoint を記録できない限り同じ状態に戻るので、安全策が
@@ -335,11 +373,14 @@ if declare -f kaizen_worktree_kaizen_dirs >/dev/null 2>&1; then
 		kaizen_dirs+=("${kaizen_dir}")
 	done < <(kaizen_worktree_kaizen_dirs "")
 fi
-[ "${#kaizen_dirs[@]}" -gt 0 ] || kaizen_dirs=(".kaizen")
+# 一覧が空でも、`.kaizen` をたどると symlink を通るなら代わりに使わない（その先のファイルを消さない）。
+if [ "${#kaizen_dirs[@]}" -eq 0 ] && kaizen_path_is_safe .kaizen; then
+	kaizen_dirs=(".kaizen")
+fi
 
 removed=0
 sentinel_name=${sentinel_path##*/}
-for kaizen_dir in "${kaizen_dirs[@]}"; do
+for kaizen_dir in ${kaizen_dirs[@]+"${kaizen_dirs[@]}"}; do
 	if [ "${sentinel_suffix_set}" -eq 1 ]; then
 		targets=("${kaizen_dir}/${sentinel_name}")
 	else
@@ -350,7 +391,7 @@ for kaizen_dir in "${kaizen_dirs[@]}"; do
 	fi
 	for target in "${targets[@]}"; do
 		[ -e "${target}" ] || continue
-		rm -f "${target}" || continue
+		kaizen_safe_rm "${target}" || continue
 		removed=$((removed + 1))
 	done
 done

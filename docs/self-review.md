@@ -98,7 +98,9 @@ gh run download <run の ID> --name self-review-execution-<試行の番号> --di
 点検の翌日の水曜に実行する。時刻は [`weekly-schedule.md`](weekly-schedule.md) にある。
 定期実行では、前の日（UTC）に作られ、`main` で成功した点検の run の指摘を読む。前の日の点検が成功していなければ、前の週の指摘を直し直さないよう、PR を作らずに失敗させる。
 手動では `workflow_dispatch` で実行し、入力の `run_id` に指摘を読む点検の run を渡す。空なら、`main` で最後に成功した点検の run を読む。
-渡した run が `main` で成功した `self-review.yml` の run でなければ、PR の run が作った artifact を読まないよう、失敗させる。
+読む run は、このリポジトリの `main` で、定期実行か手動で実行して成功した `self-review.yml` の run に限る。
+run の `head_branch` は PR の head の branch 名で、fork の PR でも `main` にできるので、イベントの種類と head のリポジトリも確かめる。
+渡した run がこの条件に当たらなければ、PR の run が作った artifact を読まないよう、失敗させる。
 エージェントの手順は [`self-review-fix-procedure.md`](self-review-fix-procedure.md) にある。
 
 ### 直す範囲

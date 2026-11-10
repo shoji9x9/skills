@@ -58,6 +58,21 @@ if [ -r "${kaizen_lib}" ]; then
 	. "${kaizen_lib}"
 else
 	printf '%s: 共通ライブラリを読めないため、機能を減らして動きます: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
+	# 共通ライブラリの書き込みの関数の簡略な代わり。パス・親・.kaizen のどれかが symlink なら書かない。
+	# パスを上へたどる判定は共通ライブラリにしか無いので、たどらずに確かめられる形だけを安全とする。
+	# 安全とするのは、`..` も入れ子の `.kaizen` も含まない `.kaizen` そのものと、その直下のパスだけで、それより深いパスは書かずに断る。
+	kaizen_path_is_safe() {
+		case "/${1:-}/" in
+		*/../* | */.kaizen/*/.kaizen/*) return 1 ;;
+		esac
+		case "/${1:-}" in
+		*/.kaizen) [ ! -L "$1" ] ;;
+		*/.kaizen/*) [ "$(basename -- "$(dirname -- "$1")")" = .kaizen ] && [ ! -L "$1" ] && [ ! -L "$(dirname -- "$1")" ] ;;
+		*) return 1 ;;
+		esac
+	}
+	kaizen_safe_mkdir() { kaizen_path_is_safe "$1" && mkdir -p -- "$1"; }
+	kaizen_safe_write() { if kaizen_path_is_safe "$1"; then cat >"$1"; else cat >/dev/null && false; fi; }
 fi
 
 # Claude Code 用の登録（引数なし）を GitHub Copilot CLI が呼んだときは、センチネルを作らずに終える。
@@ -130,13 +145,16 @@ else
 fi
 
 # .kaizen とセンチネルの名前はリポジトリの中身で決まるので、commit された symlink でありうる。
-# 書き込みの `>` は symlink の先をたどるので、どちらかが symlink なら書かずに終える（リポジトリの外のファイルを書き換えない）。
-# 記録役なのでセッションは止めず、stderr に理由だけを残す。
-if [ -L .kaizen ] || [ -L "${sentinel}" ]; then
+# 書き込みは kaizen_safe_mkdir と kaizen_safe_write を通し、symlink なら書かない（リポジトリの外のファイルを書き換えない）。
+# 記録役なのでセッションは止めず、stderr に理由だけを残して exit 0 で終える。
+if ! kaizen_path_is_safe "${sentinel}"; then
 	echo "kaizen-stop-mark: .kaizen かセンチネルが symlink なので、センチネルを書かない: ${sentinel}" >&2
 	exit 0
 fi
-mkdir -p .kaizen
+if ! kaizen_safe_mkdir .kaizen; then
+	echo "kaizen-stop-mark: .kaizen を作れないので、センチネルを書かない: ${sentinel}" >&2
+	exit 0
+fi
 printf '%s\n%s\n%s\n%s\n' \
-	"$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "${transcript}" "${agent}" "${session_id}" >"${sentinel}"
+	"$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "${transcript}" "${agent}" "${session_id}" | kaizen_safe_write "${sentinel}"
 exit 0

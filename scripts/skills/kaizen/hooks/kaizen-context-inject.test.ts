@@ -1,6 +1,14 @@
 import { afterEach, assert, describe, expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
@@ -616,5 +624,56 @@ describe("食い違いの判断待ち", () => {
     expect(res.stderr.split("\n").filter((l) => l.startsWith("kaizen:"))).toStrictEqual([
       `kaizen: 食い違いの判断を読めないため、判断待ちとして扱う（awk の終了コード 2: fake awk failed / second line）: ${note}`,
     ]);
+  });
+});
+
+// `.kaizen` はリポジトリの中身で決まるので、commit された symlink でありうる。
+// マーカーを失効させる `rm -f` が、その先にあるリポジトリの外のファイルを消さないことを確かめる。
+describe("symlink の .kaizen の先は消さない", () => {
+  test(".kaizen が symlink なら、その先の .extract-done を消さない", () => {
+    const dir = makeTempDir("kaizen-context-inject-");
+    const outside = makeTempDir("kaizen-context-inject-outside-");
+    expect(
+      spawnSync("git", ["init", "-q", "."], { timeout: CHILD_TIMEOUT_MS, cwd: dir }).status,
+    ).toBe(0);
+    writeFileSync(join(outside, ".extract-done"), "2026-01-01T00:00:00Z\n");
+    symlinkSync(outside, join(dir, ".kaizen"));
+    inject(dir);
+    expect(existsSync(join(outside, ".extract-done"))).toBe(true);
+  });
+
+  test(".kaizen が symlink なら、その先のノートを学びとして注入しない", () => {
+    const dir = makeTempDir("kaizen-context-inject-");
+    const outside = makeTempDir("kaizen-context-inject-outside-");
+    expect(
+      spawnSync("git", ["init", "-q", "."], { timeout: CHILD_TIMEOUT_MS, cwd: dir }).status,
+    ).toBe(0);
+    writeFileSync(
+      join(outside, "2026-09-01-note.md"),
+      "---\ndate: 2026-09-01\ntype: rule\npriority: high\nstatus: pending\n---\n\n# note\n\n## 提案\n\n外の要約\n",
+    );
+    symlinkSync(outside, join(dir, ".kaizen"));
+    expect(inject(dir).toString("utf8")).not.toContain("外の要約");
+  });
+
+  test("symlink のノートは学びとして注入せず、ほかのノートは注入する", () => {
+    const dir = createRepo("中の要約");
+    const outside = makeTempDir("kaizen-context-inject-outside-");
+    const linked = join(outside, "linked.md");
+    writeFileSync(
+      linked,
+      "---\ndate: 2026-09-01\ntype: rule\npriority: high\nstatus: pending\n---\n\n# note\n\n## 提案\n\n外の要約\n",
+    );
+    symlinkSync(linked, join(dir, ".kaizen", "2026-09-02-linked.md"));
+    const stdout = inject(dir).toString("utf8");
+    expect(stdout).not.toContain("外の要約");
+    expect(stdout).toContain("中の要約");
+  });
+
+  test(".kaizen が symlink でなければ、これまでどおり .extract-done を消す", () => {
+    const dir = createRepo("要約");
+    writeFileSync(join(dir, ".kaizen", ".extract-done"), "2026-01-01T00:00:00Z\n");
+    inject(dir);
+    expect(existsSync(join(dir, ".kaizen", ".extract-done"))).toBe(false);
   });
 });

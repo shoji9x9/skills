@@ -39,6 +39,20 @@ if [ -r "${kaizen_lib}" ]; then
 	. "${kaizen_lib}"
 else
 	printf '%s: 共通ライブラリを読めないため、機能を減らして動きます: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
+	# 共通ライブラリの書き込みの関数の簡略な代わり。パス・親・.kaizen のどれかが symlink なら書かない。
+	# パスを上へたどる判定は共通ライブラリにしか無いので、たどらずに確かめられる形だけを安全とする。
+	# 安全とするのは、`..` も入れ子の `.kaizen` も含まない `.kaizen` そのものと、その直下のパスだけで、それより深いパスは書かずに断る。
+	kaizen_path_is_safe() {
+		case "/${1:-}/" in
+		*/../* | */.kaizen/*/.kaizen/*) return 1 ;;
+		esac
+		case "/${1:-}" in
+		*/.kaizen) [ ! -L "$1" ] ;;
+		*/.kaizen/*) [ "$(basename -- "$(dirname -- "$1")")" = .kaizen ] && [ ! -L "$1" ] && [ ! -L "$(dirname -- "$1")" ] ;;
+		*) return 1 ;;
+		esac
+	}
+	kaizen_safe_write() { if kaizen_path_is_safe "$1"; then cat >"$1"; else cat >/dev/null && false; fi; }
 fi
 # `.kaizen/` は**いま作業している作業ツリー**基準で解決する（他の kaizen スクリプトと統一）。
 if declare -f kaizen_resolve_project_root >/dev/null 2>&1; then
@@ -131,8 +145,15 @@ is_candidate() { # $1: ノート
 # 候補の一覧を stdout へ（1 行 1 ファイル、タブ区切りで判断材料も出す）。
 list_candidates() {
 	local note age note_days date_value priority
+	# 書き換えないノート（kaizen_path_is_safe が通さないもの）は、候補にも挙げない（rewrite_status と同じ扱い）。
+	# 候補が 0 件のときと区別できるよう、`.kaizen` を見ない理由を stderr に出す。
+	if ! kaizen_path_is_safe .kaizen; then
+		echo "kaizen-forget: .kaizen が symlink なので、候補を挙げない" >&2
+		return 0
+	fi
 	for note in .kaizen/*.md; do
 		[ -e "${note}" ] || continue
+		kaizen_path_is_safe "${note}" || continue
 		[ "$(basename "${note}")" = "INDEX.md" ] && continue
 		is_candidate "${note}" || continue
 		{
@@ -146,10 +167,14 @@ list_candidates() {
 }
 
 # frontmatter の `status:` 行だけを書き換える。本文の `status:` には触らない。
-# 一時ファイルへ書いてから内容を戻すことで、元ファイルの mode とシンボリックリンクを保つ
-# （kaizen-archive.sh のリンク補正と同じ手順）。
+# 一時ファイルへ書いてから内容を戻すことで、元ファイルの mode を保つ。
+# ノートをたどると symlink を通るなら書き換えない（kaizen_path_is_safe）。名前はリポジトリの中身で決まるので
+# commit された symlink でありえ、内容を戻す `>` は symlink の先をたどって、リポジトリの外のファイルを書き換える。
 rewrite_status() { # $1: ノート
 	local note="$1" tmp
+	if ! kaizen_path_is_safe "${note}"; then
+		return 3
+	fi
 	# **固定の名前にしない。** 掃引は抽出の完了時に実行されるので、同じリポジトリで 2 つのセッションが
 	# 同時に commit すると両方が同じ tmp に書き込み、`cat tmp >note` が途中の内容を
 	# 書き戻してノートの中身が不正になる（rc 0 なので「忘却した」と報告される）。
@@ -176,7 +201,7 @@ rewrite_status() { # $1: ノート
 	# 報告する**（その分が注入から消えたと誤解される）。
 	# 返す値で理由を分ける（1 = status 行が無い / 2 = 書き戻せなかった）。同じ 1 にすると
 	# 書き込み権限の問題が「新形式ではない」と案内され、直しようがなくなる。
-	if ! cat "${tmp}" >"${note}"; then
+	if ! kaizen_safe_write "${note}" <"${tmp}"; then
 		rm -f "${tmp}"
 		trap - EXIT INT TERM
 		return 2
@@ -187,7 +212,9 @@ rewrite_status() { # $1: ノート
 
 # 忘却できなかった理由を出す。$1 = rewrite_status の戻り値、$2 = 表示するノート。
 report_rewrite_failure() { # $1: 戻り値 $2: ノート
-	if [ "$1" -eq 2 ]; then
+	if [ "$1" -eq 3 ]; then
+		echo "kaizen-forget: skip (the note or a directory up to .kaizen is a symlink): $2" >&2
+	elif [ "$1" -eq 2 ]; then
 		echo "kaizen-forget: skip (could not write the note): $2" >&2
 	else
 		echo "kaizen-forget: skip (no status line in frontmatter): $2" >&2

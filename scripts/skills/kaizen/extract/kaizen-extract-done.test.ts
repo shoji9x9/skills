@@ -6,7 +6,16 @@
 
 import { describe, expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
@@ -486,5 +495,74 @@ describe("忘却の自動掃引", () => {
     expect(result.stderr).not.toMatch(noopWarning);
     // スタブが機能していることの確認（忘却は起きていない）。
     expect(statusOf(main, "stale.md")).toBe("pending");
+  });
+});
+
+// 制御ファイルの名前（`.kaizen/.extract-done[.<key>]`）はリポジトリの中身で決まるので、commit された symlink でありうる。
+// symlink の先に書くと、リポジトリの外のファイルを書き換える。チェックを解除する役なので、書かずに 0 以外で終える。
+describe("symlink の先には書かない", () => {
+  test("抽出完了のマーカーが symlink なら、先のファイルを書き換えず、センチネルも残して 0 以外で終える", () => {
+    const { main } = makeRepoWithWorktree();
+    const outside = makeTempDir("kaizen-extract-done-outside-");
+    const victim = join(outside, "victim.txt");
+    writeFileSync(victim, "ORIGINAL");
+    symlinkSync(victim, join(main, ".kaizen", `.extract-done.${SESSION}`));
+    writeSentinel(main);
+    // transcript を渡さない＝マーカーを書く呼び出し方。
+    const run = runExtractDone(main, main);
+    expect(run.status).not.toBe(0);
+    expect(run.stderr).toContain("symlink");
+    expect(readFileSync(victim, "utf8")).toBe("ORIGINAL");
+    expect(existsSync(sentinelPath(main))).toBe(true);
+  });
+
+  test(".kaizen が symlink なら、先のディレクトリに何も作らず 0 以外で終える", () => {
+    const { main } = makeRepoWithWorktree();
+    const outside = makeTempDir("kaizen-extract-done-outside-");
+    rmSync(join(main, ".kaizen"), { recursive: true, force: true });
+    symlinkSync(outside, join(main, ".kaizen"));
+    const run = runExtractDone(main, main);
+    expect(run.status).not.toBe(0);
+    expect(run.stderr).toContain("symlink");
+    expect(readdirSync(outside)).toEqual([]);
+  });
+
+  // `mv` は、移動先がディレクトリへの symlink なら、その中へファイルを移す。
+  test("処理位置の checkpoint が symlink なら、先のディレクトリに何も作らず、センチネルも残して 0 以外で終える", () => {
+    const { main } = makeRepoWithWorktree();
+    const outside = makeTempDir("kaizen-extract-done-outside-");
+    symlinkSync(outside, join(main, ".kaizen", `.extract-checkpoint.${SESSION}`));
+    writeSentinel(main);
+    const transcript = join(main, "transcript.jsonl");
+    writeFileSync(transcript, '{"type":"user"}\n');
+    const run = runExtractDone(main, main, [transcript]);
+    expect(run.status).not.toBe(0);
+    expect(run.stderr).toContain("symlink");
+    expect(readdirSync(outside)).toEqual([]);
+    expect(existsSync(sentinelPath(main))).toBe(true);
+  });
+
+  test("どれも symlink でなければ、これまでどおりマーカーを書いて 0 で終える", () => {
+    const { main } = makeRepoWithWorktree();
+    writeSentinel(main);
+    const run = runExtractDone(main, main);
+    expect(run.status, run.stderr).toBe(0);
+    expect(existsSync(join(main, ".kaizen", `.extract-done.${SESSION}`))).toBe(true);
+    expect(existsSync(sentinelPath(main))).toBe(false);
+  });
+});
+
+describe("別の作業ツリーの symlink の .kaizen の先は消さない", () => {
+  test("worktree の .kaizen が symlink なら、その先にあるセンチネルと同じ名前のファイルを消さない", () => {
+    const { main, worktree } = makeRepoWithWorktree();
+    const outside = makeTempDir("kaizen-extract-done-outside-");
+    const planted = join(outside, `.pending-extract.${SESSION}`);
+    writeFileSync(planted, "ORIGINAL");
+    symlinkSync(outside, join(worktree, ".kaizen"));
+    writeSentinel(main);
+    const run = runExtractDone(main, main);
+    expect(run.status, run.stderr).toBe(0);
+    expect(readFileSync(planted, "utf8")).toBe("ORIGINAL");
+    expect(existsSync(sentinelPath(main))).toBe(false);
   });
 });

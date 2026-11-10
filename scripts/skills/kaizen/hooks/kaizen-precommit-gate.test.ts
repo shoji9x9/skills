@@ -14,6 +14,7 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  rmSync,
   statSync,
   symlinkSync,
   writeFileSync,
@@ -124,6 +125,18 @@ describe.concurrent("他セッション分の走査結果の再利用", () => {
     writeFileSync(cache, mutated);
     await gate();
     expect(scans()).toBe(2);
+  });
+
+  // キャッシュの名前はセンチネルの key（リポジトリの中身）で決まるので、commit された symlink でありうる。
+  // `mv -f` は移動先がディレクトリへの symlink なら、その中へファイルを移す。
+  test("キャッシュがディレクトリへの symlink なら、先のディレクトリに何も作らない", async () => {
+    const { gate, cache } = setup("exit 0");
+    const outside = tempDir("kaizen-gate-cache-outside-");
+    symlinkSync(outside, cache);
+    const result = await gate();
+    expect(result.status, result.stderr).toBe(1);
+    expect(result.stderr).toContain("symlink");
+    expect(readdirSync(outside)).toEqual([]);
   });
 
   test("保持期間で回収したセンチネルのキャッシュも消す", async () => {
@@ -2865,4 +2878,31 @@ describe("他セッション分の走査結果の再利用（使える秒数を�
     await gate({ SCAN_NO_WAIT: "1" }, 12_000, 7);
     expect(scans()).toBe(2);
   }, 30000);
+});
+
+// 今の作業ツリーの `.kaizen` が symlink だと、Stop フックはセンチネルを書かず、全作業ツリーの列挙もそのツリーを返さない。
+// センチネルが 0 件に見えて commit を通さないよう、判定できないものとして止める。
+describe("今の作業ツリーの .kaizen が symlink なら止める", () => {
+  test(".kaizen が symlink なら、センチネルが見えなくても exit 2 で止める", async () => {
+    const cwd = makeProject();
+    const outside = tempDir("kaizen-gate-kaizen-outside-");
+    writeFileSync(join(outside, ".pending-extract"), "");
+    rmSync(join(cwd, ".kaizen"), { recursive: true, force: true });
+    symlinkSync(outside, join(cwd, ".kaizen"));
+    const transcript = join(fixturesDir, "claude-no-candidate.jsonl");
+
+    const gate = await runGate("git commit -m x", { cwd, transcriptPath: transcript });
+
+    expect(gate.status).toBe(2);
+    expect(gate.stderr).toContain("symlink");
+  });
+
+  test(".kaizen が通常のディレクトリで、センチネルが無ければ通す", async () => {
+    const cwd = makeProject();
+    const transcript = join(fixturesDir, "claude-no-candidate.jsonl");
+
+    const gate = await runGate("git commit -m x", { cwd, transcriptPath: transcript });
+
+    expect(gate.status, gate.stderr).toBe(0);
+  });
 });
