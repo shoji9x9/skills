@@ -34,7 +34,7 @@
     {
       "id": 2,
       "prompt": "新しい Python プロジェクトを Claude Code と Codex 両方で使えるようにセットアップしたい",
-      "expected_output": "AGENTS.md が作成され、.agents/ 構造が整備され、対象エージェントと対象コンポーネントについて確認が行われること",
+      "expected_output": "CLAUDE.md が AGENTS.md を参照して共通の内容を複製せず、AGENTS.md に参照ガイドの節があり、対象エージェントと対象コンポーネントについて確認が行われること",
       "files": [],
       "assertions": [
         "CLAUDE.md が AGENTS.md を参照している",
@@ -67,6 +67,7 @@
       "expected_output": ".agents/rules/<name>.md が frontmatter（paths + applyTo）付きで作成され、paths がリポジトリ構造を踏まえて対象ディレクトリまで最小スコープで絞られ、Claude Code と Copilot 向けシンボリックリンクが作成されること",
       "files": [],
       "assertions": [
+        "ルールの本体を .agents/rules/<name>.md に置いている",
         "frontmatter に paths: と applyTo: の両方が含まれている",
         "paths がリポジトリ構造を踏まえて対象ディレクトリまで絞られている（例 src/components/** や src/**/*.tsx）",
         "paths が ** や **/*.tsx のような全ファイル/ファイル種別だけの広域指定になっていない",
@@ -75,6 +76,10 @@
         ".github/instructions/<name>.instructions.md シンボリックリンクが作成されている"
       ],
       "reachability": [
+        {
+          "assertion": "ルールの本体を .agents/rules/<name>.md に置いている",
+          "prompt_quote": "React コンポーネントのコーディングルールを追加したい"
+        },
         {
           "assertion": "frontmatter に paths: と applyTo: の両方が含まれている",
           "prompt_quote": "React コンポーネントのコーディングルールを追加したい"

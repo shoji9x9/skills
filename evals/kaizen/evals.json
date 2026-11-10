@@ -5,6 +5,7 @@
       "id": 1,
       "prompt": "このセッションで「パスを間違えていました、修正してください」という指示があった。このセッションの学びを 1 件抽出して .kaizen/ に保存したい",
       "assertions": [
+        "学びを 1 件だけ記録している（.kaizen/ の下に新しく作った .md が 1 件）",
         "作成されたファイルの frontmatter に date, type, status, priority, applied-to フィールドがある",
         "作成されたファイルに「事象」「根本原因」「提案」セクションがある",
         "status が pending、applied-to が空配列になっている",
@@ -14,6 +15,10 @@
         "作成されたファイルの「既存の規約」節に、照合した範囲を書いている"
       ],
       "reachability": [
+        {
+          "assertion": "学びを 1 件だけ記録している（.kaizen/ の下に新しく作った .md が 1 件）",
+          "prompt_quote": "このセッションの学びを 1 件抽出して"
+        },
         {
           "assertion": "作成されたファイルの frontmatter に date, type, status, priority, applied-to フィールドがある",
           "prompt_quote": "このセッションの学びを 1 件抽出して .kaizen/ に保存したい"
