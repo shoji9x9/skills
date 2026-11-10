@@ -401,6 +401,42 @@ test("post は、渡した SHA が HEAD と違えば投稿せずに exit 1", () 
   expect(existsSync(join(dir, "posted.md"))).toBe(false);
 });
 
+test("post の --sha-file は、レビューの前に保存した SHA（末尾の改行を含む）を読んで記録する", () => {
+  const dir = setup();
+  writeFileSync(join(dir, "reviewed-sha"), `${HEAD}\n`);
+  const r = run(dir, [
+    "post",
+    "--pr",
+    "7",
+    "--sha-file",
+    "reviewed-sha",
+    "--findings",
+    "0",
+    "--open",
+    "0",
+  ]);
+  expect(r.status).toBe(0);
+  expect(readFileSync(join(dir, "posted.md"), "utf8").split("\n")[0]).toBe(marker(HEAD, 0));
+});
+
+test("post の --sha-file は、保存した SHA が HEAD と違えば（レビューの後に push した）投稿せずに exit 1", () => {
+  const dir = setup();
+  writeFileSync(join(dir, "reviewed-sha"), `${OLD}\n`);
+  const r = run(dir, [
+    "post",
+    "--pr",
+    "7",
+    "--sha-file",
+    "reviewed-sha",
+    "--findings",
+    "0",
+    "--open",
+    "0",
+  ]);
+  expect(r.status).toBe(1);
+  expect(calls(dir)).not.toMatch(/--method POST/);
+});
+
 test("post は、gh のユーザーが作成者でも担当者でもなければ、check が読み飛ばす記録を投稿せずに exit 3", () => {
   const dir = setup({ me: "mallory" });
   const r = run(dir, ["post", "--pr", "7", "--sha", HEAD, "--findings", "0", "--open", "0"]);
@@ -503,8 +539,37 @@ test.each([
     ],
   ],
   ["不明な引数", ["check", "--pr", "7", "--x"]],
+  ["check に --sha-file", ["check", "--pr", "7", "--sha-file", "sha-ok"]],
+  [
+    "--sha と --sha-file を一緒に渡す",
+    ["post", "--pr", "7", "--sha", HEAD, "--sha-file", "sha-ok", "--findings", "0", "--open", "0"],
+  ],
+  [
+    "--sha-file のファイルが無い",
+    ["post", "--pr", "7", "--sha-file", "missing", "--findings", "0", "--open", "0"],
+  ],
+  [
+    "--sha-file がディレクトリ",
+    ["post", "--pr", "7", "--sha-file", "bin", "--findings", "0", "--open", "0"],
+  ],
+  [
+    "--sha-file のファイルが空",
+    ["post", "--pr", "7", "--sha-file", "sha-empty", "--findings", "0", "--open", "0"],
+  ],
+  [
+    "--sha-file のファイルに 2 行ある",
+    ["post", "--pr", "7", "--sha-file", "sha-two", "--findings", "0", "--open", "0"],
+  ],
+  [
+    "--sha-file の SHA が短縮されている",
+    ["post", "--pr", "7", "--sha-file", "sha-short", "--findings", "0", "--open", "0"],
+  ],
 ])("引数が不正（%s）なら、gh を呼ばずに exit 64", (_name, args) => {
   const dir = setup();
+  writeFileSync(join(dir, "sha-ok"), `${HEAD}\n`);
+  writeFileSync(join(dir, "sha-empty"), "\n");
+  writeFileSync(join(dir, "sha-two"), `${HEAD}\n${OLD}\n`);
+  writeFileSync(join(dir, "sha-short"), `${HEAD.slice(0, 7)}\n`);
   const r = run(dir, args);
   expect(r.status).toBe(64);
   expect(existsSync(join(dir, "calls.log"))).toBe(false);

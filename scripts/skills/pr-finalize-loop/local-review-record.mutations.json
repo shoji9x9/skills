@@ -35,7 +35,10 @@
       "find": "\tif [ \"${sha}\" != \"${head}\" ]; then\n",
       "replace": "\tif false; then\n",
       "occurrences": 1,
-      "expect_failing": ["post は、渡した SHA が HEAD と違えば投稿せずに exit 1"]
+      "expect_failing": [
+        "post は、渡した SHA が HEAD と違えば投稿せずに exit 1",
+        "post の --sha-file は、保存した SHA が HEAD と違えば（レビューの後に push した）投稿せずに exit 1"
+      ]
     },
     {
       "id": "open-not-checked",
@@ -58,6 +61,17 @@
       "occurrences": 1,
       "expect_failing": [
         "手元でレビューする gh のユーザーの記録だけを数え、PR の作成者が書いた記録は読み飛ばす"
+      ]
+    },
+    {
+      "id": "sha-file-and-sha-both-accepted",
+      "why": "--sha と --sha-file を一緒に渡しても拒否しない（どちらの SHA を記録するかが呼び出しの書き方で決まり、保存した SHA を使う意味が無くなる）",
+      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
+      "find": "\t\t[ -z \"${sha}\" ] || die_usage \"--sha と --sha-file は一緒に渡さない\"\n",
+      "replace": "\t\ttrue\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "引数が不正（--sha と --sha-file を一緒に渡す）なら、gh を呼ばずに exit 64"
       ]
     }
   ]
