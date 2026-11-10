@@ -5,6 +5,7 @@
     "免除・保留の一覧を足したときは、ここにも足す。readers は、どこで一覧を読んでいるかを追跡 Issue の表に出す案内である。スクリプトは readers の内容を確かめないので、一覧を足したり読む処理を移したりしたら、readers も手で直す。",
     "意図して空のままにする一覧は、keep_empty に理由を書くと候補に挙げない。",
     "fix_prs は、直近 days 日の first-parent の履歴で、paths のファイルを変えた fix の PR が min 件以上のチェックを挙げる。",
+    "lists に挙げた一覧は、fix_prs でも数えない。項目を足したり消したりするのは、ほかの修正に伴うからである。ほかにチェックの本体ではないファイル（起動の設定・宣言の一覧）は、fix_prs.exclude に理由を書くと候補に挙げない。",
     "durations は、workflows の成功した run のうち fork の PR でない run のジョブを、直近 days 日とその前の days 日で比べる。両方の期間に min_runs 回以上あり、中央値が min_ratio の割合と min_seconds 秒の両方で増えたジョブを挙げる。",
     "閾値は、Issue #939 の作業で実測した値から決めた（PR の本文にある）。"
   ],
@@ -12,22 +13,26 @@
     {
       "file": ".config/fallow/dead-code-baseline.json",
       "count": { "kind": "json-arrays", "exclude": ["scope_reasons", "capabilities"] },
-      "readers": ["package.json", ".github/workflows/ci.yml"]
+      "readers": ["package.json", ".github/workflows/ci.yml"],
+      "keep_empty": "AGENTS.md「技術スタック」が、すぐに直せない既存の指摘を .config/fallow/ と .config/jscpd/ のベースラインに載せて外すと決めている（チェックや閾値を変えたときに出た既存の指摘を、直すまで外すのに使う）"
     },
     {
       "file": ".config/fallow/crap-baseline.json",
       "count": { "kind": "json-object", "key": "finding_counts" },
-      "readers": ["package.json"]
+      "readers": ["package.json"],
+      "keep_empty": "AGENTS.md「技術スタック」が、すぐに直せない既存の指摘を .config/fallow/ と .config/jscpd/ のベースラインに載せて外すと決めている（チェックや閾値を変えたときに出た既存の指摘を、直すまで外すのに使う）"
     },
     {
       "file": ".config/jscpd/baseline.json",
       "count": { "kind": "json-object", "key": "fingerprints" },
-      "readers": ["scripts/gates/code/check-duplicates.ts"]
+      "readers": ["scripts/gates/code/check-duplicates.ts"],
+      "keep_empty": "AGENTS.md「技術スタック」が、すぐに直せない既存の指摘を .config/fallow/ と .config/jscpd/ のベースラインに載せて外すと決めている（チェックや閾値を変えたときに出た既存の指摘を、直すまで外すのに使う）"
     },
     {
       "file": ".config/jscpd/baseline-tests.json",
       "count": { "kind": "json-object", "key": "fingerprints" },
-      "readers": ["scripts/gates/code/check-duplicates.ts"]
+      "readers": ["scripts/gates/code/check-duplicates.ts"],
+      "keep_empty": "AGENTS.md「技術スタック」が、すぐに直せない既存の指摘を .config/fallow/ と .config/jscpd/ のベースラインに載せて外すと決めている（チェックや閾値を変えたときに出た既存の指摘を、直すまで外すのに使う）"
     },
     {
       "file": ".config/jscpd/declared-groups.json",
@@ -49,7 +54,21 @@
   "fix_prs": {
     "days": 28,
     "min": 3,
-    "paths": ["scripts/gates", "lefthook.yml", ".github/workflows"]
+    "paths": ["scripts/gates", "lefthook.yml", ".github/workflows"],
+    "exclude": [
+      {
+        "file": ".github/workflows/ci.yml",
+        "reason": "CI のジョブの起動の設定。チェックを足したり直したりする PR が一緒に変えるので、修正の数はチェックごとの数の合計になる"
+      },
+      {
+        "file": "lefthook.yml",
+        "reason": "pre-commit の起動の設定。チェックを足したり直したりする PR が一緒に変えるので、修正の数はチェックごとの数の合計になる"
+      },
+      {
+        "file": "scripts/gates/packaging/copies/identical-copies.json",
+        "reason": "同じ内容であるべきコピーの宣言の一覧。別の修正で共通のファイルを複数のスキルに置くと、宣言を足す"
+      }
+    ]
   },
   "durations": {
     "days": 7,

@@ -93,6 +93,13 @@ describe("設定", () => {
     ]);
   });
 
+  test("fix_prs.exclude を、数えないファイルと理由として読む", () => {
+    const exclude = [{ file: "ci.yml", reason: "起動の設定" }];
+    expect(
+      parseConfig(configJson({ fix_prs: { days: 28, min: 3, paths: ["x"], exclude } })).fixPrs,
+    ).toEqual({ days: 28, min: 3, paths: ["x"], exclude });
+  });
+
   test("正しい設定を読む", () => {
     expect(parseConfig(configJson())).toEqual({
       lists: [{ file: "a.json", count: { kind: "json-array", key: "exempt" }, readers: ["r.ts"] }],
@@ -159,6 +166,41 @@ describe("設定", () => {
       "重複",
     ],
     ["fix_prs が無い", { fix_prs: null }, "fix_prs"],
+    [
+      "fix_prs.exclude が配列でない",
+      { fix_prs: { days: 28, min: 3, paths: ["x"], exclude: { file: "a", reason: "r" } } },
+      "fix_prs.exclude が配列でない",
+    ],
+    [
+      "fix_prs.exclude の file が無い",
+      { fix_prs: { days: 28, min: 3, paths: ["x"], exclude: [{ reason: "r" }] } },
+      "fix_prs.exclude[0].file",
+    ],
+    [
+      "fix_prs.exclude の reason が空白だけ",
+      { fix_prs: { days: 28, min: 3, paths: ["x"], exclude: [{ file: "a", reason: " " }] } },
+      "fix_prs.exclude[0].reason",
+    ],
+    [
+      "fix_prs.exclude の reason が無い",
+      { fix_prs: { days: 28, min: 3, paths: ["x"], exclude: [{ file: "a" }] } },
+      "fix_prs.exclude[0].reason",
+    ],
+    [
+      "fix_prs.exclude の file が重複",
+      {
+        fix_prs: {
+          days: 28,
+          min: 3,
+          paths: ["x"],
+          exclude: [
+            { file: "a", reason: "r" },
+            { file: "a", reason: "s" },
+          ],
+        },
+      },
+      "fix_prs.exclude の file が重複",
+    ],
     ["min が 0", { fix_prs: { days: 28, min: 0, paths: ["x"] } }, "fix_prs.min"],
     [
       "min_ratio が負",
@@ -307,12 +349,11 @@ describe("空の一覧", () => {
   });
 });
 
-describe("修正の PR", () => {
-  const R = "\u001e";
-  const F = "\u001f";
-  const rec = (subject: string, body: string, status: string) =>
-    `${R}sha${F}${subject}${F}${body}${F}\n\n${status}\n`;
+/** `git log` の 1 件（fixHeavyChecks が読む形）。 */
+const rec = (subject: string, body: string, status: string) =>
+  `\u001esha\u001f${subject}\u001f${body}\u001f\n\n${status}\n`;
 
+describe("修正の PR", () => {
   test.each([
     { name: "squash した PR は件名", subject: "fix: a (#1)", body: "", title: "fix: a (#1)" },
     {
@@ -383,9 +424,37 @@ describe("修正の PR", () => {
       await fixHeavyChecks(
         gitRun(log),
         { days: 28, min: 2, paths: ["x"] },
-        { root: "/repo", now: NOW },
+        { root: "/repo", now: NOW, lists: [] },
       ),
     ).toEqual([{ kind: "fix-heavy", target: "new.ts", detail: "直近 28 日の fix の PR: 3 件" }]);
+  });
+
+  test("exclude に載せたファイルは閾値以上でも挙げず、載せていないファイルは今までどおり挙げる", async () => {
+    const log = [
+      rec("fix: a (#1)", "", "M\tnew.ts\nM\tother.ts"),
+      rec("fix: b (#2)", "", "M\tnew.ts\nM\tother.ts"),
+    ].join("");
+    expect(
+      await fixHeavyChecks(
+        gitRun(log),
+        { days: 28, min: 2, paths: ["x"], exclude: [{ file: "new.ts", reason: "起動の設定" }] },
+        { root: "/repo", now: NOW, lists: [] },
+      ),
+    ).toEqual([{ kind: "fix-heavy", target: "other.ts", detail: "直近 28 日の fix の PR: 2 件" }]);
+  });
+
+  test("lists に載せた免除・保留の一覧は、閾値以上でも挙げない", async () => {
+    const log = [
+      rec("fix: a (#1)", "", "M\tnew.ts\nM\tother.ts"),
+      rec("fix: b (#2)", "", "M\tnew.ts\nM\tother.ts"),
+    ].join("");
+    expect(
+      await fixHeavyChecks(
+        gitRun(log),
+        { days: 28, min: 2, paths: ["x"] },
+        { root: "/repo", now: NOW, lists: ["new.ts"] },
+      ),
+    ).toEqual([{ kind: "fix-heavy", target: "other.ts", detail: "直近 28 日の fix の PR: 2 件" }]);
   });
 
   test("本体の無いテストは、今あるファイルの一覧で判定し、テストをチェックとして挙げる", async () => {
@@ -395,10 +464,27 @@ describe("修正の PR", () => {
     ].join("");
     const run = gitRun(log, "false", "scope.test.ts\n");
     expect(
-      await fixHeavyChecks(run, { days: 28, min: 2, paths: ["x"] }, { root: "/repo", now: NOW }),
+      await fixHeavyChecks(
+        run,
+        { days: 28, min: 2, paths: ["x"] },
+        { root: "/repo", now: NOW, lists: [] },
+      ),
     ).toEqual([
       { kind: "fix-heavy", target: "scope.test.ts", detail: "直近 28 日の fix の PR: 2 件" },
     ]);
+  });
+
+  test.each([
+    { name: "今無いファイル", file: "gone.ts", files: "new.ts\n" },
+    { name: "本体に寄せて数えるテスト", file: "new.test.ts", files: "new.ts\nnew.test.ts\n" },
+  ])("exclude に載せた $name は、何も外さないので例外にする", async ({ file, files }) => {
+    await expect(
+      fixHeavyChecks(
+        gitRun("", "false", files),
+        { days: 28, min: 2, paths: ["x"], exclude: [{ file, reason: "r" }] },
+        { root: "/repo", now: NOW, lists: [] },
+      ),
+    ).rejects.toThrow(`fix_prs.exclude のファイルが無いか、数えるときに別の名前に寄せる: ${file}`);
   });
 
   test("履歴が浅ければ例外にする", async () => {
@@ -406,7 +492,7 @@ describe("修正の PR", () => {
       fixHeavyChecks(
         gitRun("", "true"),
         { days: 28, min: 2, paths: ["x"] },
-        { root: "/repo", now: NOW },
+        { root: "/repo", now: NOW, lists: [] },
       ),
     ).rejects.toThrow("履歴が浅い");
   });
@@ -696,6 +782,24 @@ describe("まとめて集める", () => {
     const result = await collect(run, { config: parseConfig(configJson()), root, now: NOW });
     expect(result.findings).toEqual([{ kind: "empty-list", target: "a.json", detail: "r.ts" }]);
     expect(result.rows).toEqual([]);
+  });
+
+  test("修正の PR の数え方から、lists に載せた一覧を外す", async () => {
+    const root = makeTempDir("check-cost-metrics-");
+    writeFiles(root, { "a.json": '{"exempt": [1]}' });
+    const log = ["#1", "#2", "#3"]
+      .map((n) => rec(`fix: x (${n})`, "", "M\ta.json\nM\tb.ts"))
+      .join("");
+    const run: Runner = async (command, args) => {
+      if (command !== "git") return JSON.stringify([{ total_count: 0, workflow_runs: [] }]);
+      if (args[2] === "rev-parse") return "false\n";
+      if (args[2] === "ls-files") return "a.json\nb.ts\n";
+      return log;
+    };
+    const result = await collect(run, { config: parseConfig(configJson()), root, now: NOW });
+    expect(result.findings).toEqual([
+      { kind: "fix-heavy", target: "b.ts", detail: "直近 28 日の fix の PR: 3 件" },
+    ]);
   });
 });
 
