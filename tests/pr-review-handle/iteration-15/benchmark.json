@@ -1,0 +1,179 @@
+{
+  "metadata": {
+    "skill_name": "pr-review-handle",
+    "skill_path": "<repo>/skills/pr-review-handle",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-10T00:05:13Z",
+    "evals_run": [14],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 14,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 65.701,
+        "tokens": 88130,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スレッド A を利用者に回さず、推奨の案で直すと述べている",
+          "passed": true,
+          "evidence": "A は「自分で決める」とし「基準 3 により推奨の案で直し」と述べている"
+        },
+        {
+          "text": "スレッド A について、直し方が複数あることだけを利用者に回す理由にしないと述べている",
+          "passed": true,
+          "evidence": "「直し方が複数あることだけでは、人に回す理由になりません」"
+        },
+        {
+          "text": "スレッド A の返信に、選んだ案と根拠を書くと述べている",
+          "passed": true,
+          "evidence": "「選んだ案と根拠を返信に書きます」と、定数を選んだ理由を含む返信の例を示している"
+        },
+        {
+          "text": "スレッド B は、元に戻す手段が無い影響なので利用者に回すと述べている",
+          "passed": true,
+          "evidence": "B は「確認する」「共有の環境のデータを消す操作でバックアップが無く、元に戻す手段がありません」"
+        },
+        {
+          "text": "スレッド C は、元に戻せても利用者の CI を新しく失敗させる影響が大きいので利用者に回すと述べている",
+          "passed": true,
+          "evidence": "C は「確認する」「配布するチェックが利用者の CI を新しく失敗させるのは…『影響が大きい』例そのもの」（基準 2 にも「当たりえます」と添えるが、主な理由は影響の大きさ）"
+        },
+        {
+          "text": "スレッド D は、docs/logging.md を調べて決め、利用者に回さないと述べている",
+          "passed": true,
+          "evidence": "D は「自分で決める」「docs/logging.md に決まりがあり、調べれば決まります」"
+        },
+        {
+          "text": "スレッド B と C の確認は、関係しないスレッド（A と D）の処理を終えてから行うと述べている",
+          "passed": true,
+          "evidence": "「いつ: A・D と、スレッドの外の関係しない指摘の処理（返信と resolve）を全部終えた後です」"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "冒頭で commit・push・返信の投稿・resolve を実行していないと明記し、project-tree.txt も . と ./.claude だけで変更が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 14,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 6,
+        "failed": 2,
+        "total": 8,
+        "time_seconds": 43.778,
+        "tokens": 20825,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スレッド A を利用者に回さず、推奨の案で直すと述べている",
+          "passed": true,
+          "evidence": "A は「自分で決める」とし、定数を 3 から 5 に書き換えると述べている"
+        },
+        {
+          "text": "スレッド A について、直し方が複数あることだけを利用者に回す理由にしないと述べている",
+          "passed": false,
+          "evidence": "A を回さない理由は「後の PR で変えられ、影響も小さい」だけで、直し方が複数あることを回す理由にしないとは述べていない"
+        },
+        {
+          "text": "スレッド A の返信に、選んだ案と根拠を書くと述べている",
+          "passed": true,
+          "evidence": "返信に「設定化ではなく定数の書き換えを選んだ理由（求められた変更そのもので、差分が最小）」を書くと述べている"
+        },
+        {
+          "text": "スレッド B は、元に戻す手段が無い影響なので利用者に回すと述べている",
+          "passed": true,
+          "evidence": "B は「利用者に確かめる」「取り返しのつかない操作です」「バックアップが無く、間違えても戻せません」"
+        },
+        {
+          "text": "スレッド C は、元に戻せても利用者の CI を新しく失敗させる影響が大きいので利用者に回すと述べている",
+          "passed": true,
+          "evidence": "C は「利用者に確かめる」「このリポジトリの外にいる利用者の CI が新しく失敗します」と影響を理由にしている"
+        },
+        {
+          "text": "スレッド D は、docs/logging.md を調べて決め、利用者に回さないと述べている",
+          "passed": true,
+          "evidence": "D は「自分で決める」「docs/logging.md にログ形式の決まりがあるので、答えは既にリポジトリの中にあります」"
+        },
+        {
+          "text": "スレッド B と C の確認は、関係しないスレッド（A と D）の処理を終えてから行うと述べている",
+          "passed": false,
+          "evidence": "B と C は「仕分けの直後、実装の前」にまとめて聞き、回答を待つ間に A と D を進めると述べていて、A と D を終えてから確かめる順序と食い違う"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "冒頭で実行とファイルの変更をしていないと明記し、project-tree.txt も . だけで変更が無い"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 65.701,
+        "stddev": 0,
+        "min": 65.701,
+        "max": 65.701
+      },
+      "tokens": {
+        "mean": 88130,
+        "stddev": 0,
+        "min": 88130,
+        "max": 88130
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.75,
+        "stddev": 0,
+        "min": 0.75,
+        "max": 0.75
+      },
+      "time_seconds": {
+        "mean": 43.778,
+        "stddev": 0,
+        "min": 43.778,
+        "max": 43.778
+      },
+      "tokens": {
+        "mean": 20825,
+        "stddev": 0,
+        "min": 20825,
+        "max": 20825
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.25",
+      "time_seconds": "+21.9",
+      "tokens": "+67305"
+    }
+  },
+  "notes": [
+    "Issue #918 の 2 で eval 14 を足した変更確認。with_skill と without_skill を 1 run ずつ。"
+  ]
+}

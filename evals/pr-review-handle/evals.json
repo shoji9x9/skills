@@ -3,32 +3,110 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "https://github.com/shoji9x9/skills/pull/42 のレビューに対応して",
+      "prompt": "https://github.com/shoji9x9/skills/pull/42 のレビューに対応して、と頼まれたときに進める手順を、コマンドの実行やファイルの変更はせずに説明して。今いる作業ツリーは shoji9x9/skills の clone で、PR #42 の head ブランチを checkout している。PR #42 は自分が作成した PR である。レビュースレッドは 3 件で、2 件が未解決、1 件が解決済みである。未解決の 1 件は src/a.ts の誤りを正しく指摘していて、もう 1 件は src/b.ts についての事実と違う指摘である。",
       "expected_output": "未解決スレッドを取得し、各指摘を評価して必要時のみ修正、各スレッドに返信して解決する。commit/push はせず停止して通知する。",
       "assertions": [
-        "PR URL から owner/repo/PR番号を抽出している",
-        "現在の repo と PR の owner/repo の一致を確認している",
-        "GraphQL reviewThreads で未解決スレッドを取得しようとしている",
-        "isResolved == false のスレッドのみ対象にする方針を示している",
-        "各指摘をコードに照らして妥当性を判断する方針を示している",
-        "返信してから解決する順序で進めようとしている",
-        "モード未指定なので commit/push を行わず通知して停止する方針である"
+        "PR URL から owner/repo/PR番号を取り出す工程を示している",
+        "現在の repo と PR の owner/repo の一致を確かめる工程を示している",
+        "GraphQL の reviewThreads で未解決スレッドを取得する工程を示している",
+        "isResolved == false のスレッドのみ対象にし、解決済みの 1 件を飛ばすと述べている",
+        "各指摘をコードに照らして妥当性を判断し、src/b.ts の指摘は直さずに根拠を返信すると述べている",
+        "返信してから解決する順序で進めると述べている",
+        "モード未指定なので commit/push を行わず、変えたファイルと --push で実行し直せることを知らせて止まると述べている",
+        "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）"
+      ],
+      "reachability": [
+        {
+          "assertion": "PR URL から owner/repo/PR番号を取り出す工程を示している",
+          "prompt_quote": "https://github.com/shoji9x9/skills/pull/42"
+        },
+        {
+          "assertion": "現在の repo と PR の owner/repo の一致を確かめる工程を示している",
+          "prompt_quote": "今いる作業ツリーは shoji9x9/skills の clone"
+        },
+        {
+          "assertion": "GraphQL の reviewThreads で未解決スレッドを取得する工程を示している",
+          "prompt_quote": "2 件が未解決、1 件が解決済み"
+        },
+        {
+          "assertion": "isResolved == false のスレッドのみ対象にし、解決済みの 1 件を飛ばすと述べている",
+          "prompt_quote": "2 件が未解決、1 件が解決済み"
+        },
+        {
+          "assertion": "各指摘をコードに照らして妥当性を判断し、src/b.ts の指摘は直さずに根拠を返信すると述べている",
+          "prompt_quote": "src/b.ts についての事実と違う指摘"
+        },
+        {
+          "assertion": "返信してから解決する順序で進めると述べている",
+          "prompt_quote": "レビューに対応して"
+        },
+        {
+          "assertion": "モード未指定なので commit/push を行わず、変えたファイルと --push で実行し直せることを知らせて止まると述べている",
+          "prompt_quote": "レビューに対応して"
+        },
+        {
+          "assertion": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "prompt_quote": "コマンドの実行やファイルの変更はせずに説明して"
+        }
       ]
     },
     {
       "id": 2,
-      "prompt": "pr-review-handle 42 --push",
-      "expected_output": "レビュー対応（評価・修正・返信・解決）の後、関連ファイルのみを conventional commits で commit し push する。",
+      "prompt": "pr-review-handle 42 --push で進める手順を、コマンドの実行やファイルの変更はせずに説明して。今いる作業ツリーは shoji9x9/skills の clone で、PR #42 の head ブランチを checkout している。PR #42 は自分が作成した PR で、リポジトリに .config/skills/shoji9x9/ の設定ファイルは無い。未解決のレビュースレッドは 1 件で、src/b.ts の誤りを正しく指摘しているので直す。ほかのファイルにも、レビューと関係の無い commit していない変更がある。commit と push の仕方と、push の後に再レビューを依頼するかをどう決めるかも述べて。",
+      "expected_output": "レビュー対応（評価・修正・返信・解決）の後、関連ファイルのみを、conventions_doc か AGENTS.md などの文書から決めた規約で commit し push する。push の後に再レビューを依頼するかとそのタイミングを確かめる。",
       "assertions": [
         "PR番号のみのため現在の repo を対象にしている",
         "未解決スレッドへの返信・解決まで行う手順になっている",
-        "レビュー対応で触ったファイルだけを stage する方針を示している",
-        "conventional commits 規約で commit しようとしている",
-        "ブランチを push しようとしている",
-        "commit --amend や force push を行っていない",
+        "レビュー対応で触ったファイルだけを stage し、関係の無い変更を含めないと述べている",
+        "commit message の規約を、設定の conventions_doc か AGENTS.md などの文書から決め、見つからなければ利用者に確かめると述べている",
+        "ブランチを push すると述べている",
+        "commit --amend や force push を行わないと述べている",
         "push 後に Copilot 再依頼のタイミングをユーザーに確認する（今すぐ / CI 完了後 / 依頼しない の3択）",
         "「CI 完了後」では gh pr checks --watch で成功を確認してから依頼する方針を示している",
-        "「今すぐ」では CI を待たず requested_reviewers に Copilot を依頼する方針を示している"
+        "「今すぐ」では CI を待たず requested_reviewers に Copilot を依頼する方針を示している",
+        "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）"
+      ],
+      "reachability": [
+        {
+          "assertion": "PR番号のみのため現在の repo を対象にしている",
+          "prompt_quote": "pr-review-handle 42 --push"
+        },
+        {
+          "assertion": "未解決スレッドへの返信・解決まで行う手順になっている",
+          "prompt_quote": "未解決のレビュースレッドは 1 件"
+        },
+        {
+          "assertion": "レビュー対応で触ったファイルだけを stage し、関係の無い変更を含めないと述べている",
+          "prompt_quote": "レビューと関係の無い commit していない変更がある"
+        },
+        {
+          "assertion": "commit message の規約を、設定の conventions_doc か AGENTS.md などの文書から決め、見つからなければ利用者に確かめると述べている",
+          "prompt_quote": "commit と push の仕方"
+        },
+        {
+          "assertion": "ブランチを push すると述べている",
+          "prompt_quote": "commit と push の仕方"
+        },
+        {
+          "assertion": "commit --amend や force push を行わないと述べている",
+          "prompt_quote": "commit と push の仕方"
+        },
+        {
+          "assertion": "push 後に Copilot 再依頼のタイミングをユーザーに確認する（今すぐ / CI 完了後 / 依頼しない の3択）",
+          "prompt_quote": "push の後に再レビューを依頼するかをどう決めるか"
+        },
+        {
+          "assertion": "「CI 完了後」では gh pr checks --watch で成功を確認してから依頼する方針を示している",
+          "prompt_quote": "push の後に再レビューを依頼するかをどう決めるか"
+        },
+        {
+          "assertion": "「今すぐ」では CI を待たず requested_reviewers に Copilot を依頼する方針を示している",
+          "prompt_quote": "リポジトリに .config/skills/shoji9x9/ の設定ファイルは無い"
+        },
+        {
+          "assertion": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "prompt_quote": "コマンドの実行やファイルの変更はせずに説明して"
+        }
       ]
     },
     {
@@ -257,6 +335,54 @@
         {
           "assertion": "止まった理由として、PR が基準の文書を変えていることを報告すると述べている",
           "prompt_quote": "この PR の差分は docs/decision-policy.md も書き換えていて"
+        },
+        {
+          "assertion": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "prompt_quote": "コマンドの実行やファイルの変更はせずに説明して"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "prompt": "pr-review-handle 42 で進める手順を、コマンドの実行やファイルの変更はせずに説明して。PR #42 は自分が作成した PR で、リポジトリに .config/skills/shoji9x9/ の設定ファイルは無い。未解決のレビュースレッドが 4 件ある。スレッド A は src/client.ts の再試行の回数を 3 から 5 に増やすよう求めていて、定数を書き換える方法と設定で変えられるようにする方法の 2 通りの直し方がある（どちらも後の PR で変えられ、影響は小さい）。スレッド B は db/cleanup.ts で、共有の staging 環境の DB から古いセッションの行を消す処理を足すよう求めている（バックアップは無い）。スレッド C は、このリポジトリが配布する lint のチェックに新しい規則を足すよう求めていて、足すと利用者のリポジトリの既存のコードで CI が新しく失敗する。スレッド D は src/logger.ts のログの形式をテキストにするか JSON にするかを問う指摘で、docs/logging.md にログの形式の決まりがある。各スレッドを利用者に確かめるか、自分で決めて進めるかとその理由、確かめるならいつ確かめるか、自分で決めたスレッドの返信に何を書くかを述べて。",
+      "assertions": [
+        "スレッド A を利用者に回さず、推奨の案で直すと述べている",
+        "スレッド A について、直し方が複数あることだけを利用者に回す理由にしないと述べている",
+        "スレッド A の返信に、選んだ案と根拠を書くと述べている",
+        "スレッド B は、元に戻す手段が無い影響なので利用者に回すと述べている",
+        "スレッド C は、元に戻せても利用者の CI を新しく失敗させる影響が大きいので利用者に回すと述べている",
+        "スレッド D は、docs/logging.md を調べて決め、利用者に回さないと述べている",
+        "スレッド B と C の確認は、関係しないスレッド（A と D）の処理を終えてから行うと述べている",
+        "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）"
+      ],
+      "reachability": [
+        {
+          "assertion": "スレッド A を利用者に回さず、推奨の案で直すと述べている",
+          "prompt_quote": "定数を書き換える方法と設定で変えられるようにする方法の 2 通りの直し方がある"
+        },
+        {
+          "assertion": "スレッド A について、直し方が複数あることだけを利用者に回す理由にしないと述べている",
+          "prompt_quote": "定数を書き換える方法と設定で変えられるようにする方法の 2 通りの直し方がある"
+        },
+        {
+          "assertion": "スレッド A の返信に、選んだ案と根拠を書くと述べている",
+          "prompt_quote": "自分で決めたスレッドの返信に何を書くか"
+        },
+        {
+          "assertion": "スレッド B は、元に戻す手段が無い影響なので利用者に回すと述べている",
+          "prompt_quote": "バックアップは無い"
+        },
+        {
+          "assertion": "スレッド C は、元に戻せても利用者の CI を新しく失敗させる影響が大きいので利用者に回すと述べている",
+          "prompt_quote": "足すと利用者のリポジトリの既存のコードで CI が新しく失敗する"
+        },
+        {
+          "assertion": "スレッド D は、docs/logging.md を調べて決め、利用者に回さないと述べている",
+          "prompt_quote": "docs/logging.md にログの形式の決まりがある"
+        },
+        {
+          "assertion": "スレッド B と C の確認は、関係しないスレッド（A と D）の処理を終えてから行うと述べている",
+          "prompt_quote": "確かめるならいつ確かめるか"
         },
         {
           "assertion": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
