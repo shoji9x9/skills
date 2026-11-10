@@ -725,6 +725,12 @@ else
 	json_continuation='\\\n'
 	raw_nested_json "${cmd}"
 	raw_undecidable=${raw_nested_undecidable}
+	# 下の commit_re は、JSON の `\u00XX` をどの層でも読めない。入力の全体にあれば（`toolArgs` のキー、
+	# `"command":"git commit"` の値など）、jq と python3 とは違う読み方になるので、判定できないとして扱う。
+	# 復号した内側の層は raw_nested_json が同じ検査をしている。
+	if json_has_ascii_escape "${cmd}"; then
+		raw_undecidable=1
+	fi
 	for raw_text in "${cmd}" "${raw_nested_out[@]}"; do
 		[ "${raw_text}" = "${cmd}" ] || raw_candidates+=("${raw_text}")
 		raw_stripped=${raw_text//"${json_continuation}"/}

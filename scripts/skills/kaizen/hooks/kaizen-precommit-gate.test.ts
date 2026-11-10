@@ -1847,6 +1847,28 @@ describe.concurrent("生 JSON だけで判定するときの commit 検出", () 
       args: C,
       expected: 2,
     },
+    // 入力の全体の ASCII の `\u00XX`（キーでも値でも）も、jq と python3 とは読み方が違うので止める。
+    {
+      name: "外側のキーを tool\\u0041rgs と書いた形",
+      input: `{"toolName":"bash","tool\\u0041rgs":${JSON.stringify(JSON.stringify({ command: "git commit -m x" }))}}`,
+      args: C,
+      expected: 2,
+    },
+    {
+      name: "tool_input の値の \\u0063ommit",
+      input: `{"tool_name":"Bash","tool_input":{"command":"git \\u0063ommit -m commit"}}`,
+      args: [],
+      expected: 2,
+    },
+    {
+      name: "tool_input のコマンドに書いた \\u0063 の文字",
+      input: JSON.stringify({
+        tool_name: "Bash",
+        tool_input: { command: "git log --grep commit -- '\\u0063'" },
+      }),
+      args: [],
+      expected: 0,
+    },
     // コマンドに書いた `\` と `u0063` の 6 文字は、内側の JSON では `\\u0063` になるので、エスケープとして扱わない。
     {
       name: "toolArgs のコマンドに書いた \\u0063 の文字",
