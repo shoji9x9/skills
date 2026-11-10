@@ -26,6 +26,7 @@ done
 cp "$page" "$FAKE_CHROME_LOG/page.html"
 case "\${FAKE_CHROME_MODE:-ok}" in
   ok) printf 'PNG' > "$shot" ;;
+  nowrite) exit 0 ;;
   fail)
     for i in 1 2 3 4 5 6; do echo "line $i" >&2; done
     echo "Failed to connect to the bus: no dbus" >&2
@@ -42,6 +43,8 @@ export type Run = {
   env?: Record<string, string>;
   /** 人ごとの設定（${XDG_CONFIG_HOME}/skills/shoji9x9/aws-architecture-diagram.jsonc）の中身 */
   userConfig?: string;
+  /** 実行の前に TMPDIR の直下に置くファイルの名前（中身は PLANTED） */
+  planted?: string;
 };
 
 /** 人ごとの設定と、入力の SVG を書く。 */
@@ -65,6 +68,7 @@ export function run(opts: Run) {
   const tmp = join(dir, "tmp");
   const log = join(dir, "log");
   for (const d of [out, tmp, log]) mkdirSync(d);
+  if (opts.planted !== undefined) writeFileSync(join(tmp, opts.planted), "PLANTED");
   writeInputs(dir, out, opts);
   const chrome = join(dir, "fake-chrome");
   writeFileSync(chrome, FAKE_CHROME);
@@ -99,6 +103,8 @@ export function run(opts: Run) {
     page: existsSync(pageFile) ? readFileSync(pageFile, "utf8") : "",
     // 一時ディレクトリ（diagram-preview-*）が残っていないかを見るための、TMPDIR の中身。
     leftovers: readdirSync(tmp).filter((f) => f.startsWith("diagram-preview-")),
+    // PNG を置くディレクトリ（diagram-png-*）。成功したときだけ 1 つ残る。
+    pngDirs: readdirSync(tmp).filter((f) => f.startsWith("diagram-png-")),
   };
 }
 

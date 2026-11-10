@@ -5,7 +5,7 @@
     "免除・保留の一覧を足したときは、ここにも足す。readers は、どこで一覧を読んでいるかを追跡 Issue の表に出す案内である。スクリプトは readers の内容を確かめないので、一覧を足したり読む処理を移したりしたら、readers も手で直す。",
     "意図して空のままにする一覧は、keep_empty に理由を書くと候補に挙げない。",
     "fix_prs は、直近 days 日の first-parent の履歴で、paths のファイルを変えた fix の PR が min 件以上のチェックを挙げる。",
-    "durations は、workflows の成功した run のジョブを、直近 days 日とその前の days 日で比べる。両方の期間に min_runs 回以上あり、中央値が min_ratio の割合と min_seconds 秒の両方で増えたジョブを挙げる。",
+    "durations は、workflows の成功した run のうち fork の PR でない run のジョブを、直近 days 日とその前の days 日で比べる。両方の期間に min_runs 回以上あり、中央値が min_ratio の割合と min_seconds 秒の両方で増えたジョブを挙げる。",
     "閾値は、Issue #939 の作業で実測した値から決めた（PR の本文にある）。"
   ],
   "lists": [

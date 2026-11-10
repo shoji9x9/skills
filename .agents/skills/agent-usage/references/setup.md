@@ -135,6 +135,9 @@ GitHub は `linguist-generated` の付いたファイルを、PR の差分で最
 そのため、Copilot が `.claude/settings.json` の登録として呼んだときは、`echo "git commit"` のように `git commit` を実行しない呼び出しでも、Copilot の行が先に当たる。どちらの行でも通すので、振る舞いは変わらない。
 
 判断と collect は、git commit を実行する作業ディレクトリ（`-C <dir>` と前の `cd <dir>` を当てた先）のリポジトリで行う。
+ただし、そのリポジトリが Hook の cwd のリポジトリ（本体か、その worktree）と git の共通のディレクトリで一致しないときは、何もせずに通す。
+行き先はエージェントが書いたコマンドで決まり、Hook は利用者がコマンドを承認する前に実行されうる。別のリポジトリで記録の `git add` を実行すると、そのリポジトリの設定（`core.fsmonitor` など）のコマンドが実行されるからである。
+一致を確かめるときは、index を読まない `git rev-parse` だけを実行する。
 デフォルトブランチは、`origin/HEAD` から決める。分からなければ `main` と `master` をデフォルトブランチとして扱う。
 判断はリポジトリに入れず、git の共通のディレクトリ（`git rev-parse --git-common-dir` の下の `agent-usage/decisions.json`）に置く。worktree でも共有する。
 
@@ -174,7 +177,7 @@ Hook のスクリプトは、エージェントが普段書く形の `git commit
 | 関数置換の中に書く | `echo ${ git commit; }`・`echo "${ git commit; }"` | 引用の有無に関わらず、`${ …; }` の中を読まない |
 | `coproc` の後ろに書く | `coproc git commit` | `coproc` を予約語としてもラッパーとしても読まない |
 | `git` や `commit` の語を引用符で分ける | `g"it" commit`・`git "comm"it` | 検出されるかは決まらない。Node.js を起動する前の絞り込みは、Hook の入力の JSON 全体に `git` と `commit` の語がこの順であるかを見る。他の欄（`cwd`・`transcript_path` など）に語が無ければ、ここで通す。あれば Node.js の判定に渡り、引用を外して commit と判定する |
-| 環境変数でリポジトリを差し替える | `GIT_DIR=<このリポジトリ>/.git git -C <別のリポジトリ> commit` | 判断と collect を `-C` の先のリポジトリで行い、`GIT_DIR` を読まない。`-C` の先に `.agent-usage/` が無ければ通す |
+| 環境変数でリポジトリを差し替える | `GIT_DIR=<このリポジトリ>/.git git -C <別のリポジトリ> commit` | 判断と collect を `-C` の先のリポジトリで行い、`GIT_DIR` を読まない。`-C` の先が Hook の cwd と別のリポジトリか、`-C` の先に `.agent-usage/` が無ければ通す |
 
 次の表は、commit しない呼び出しでも、スクリプトが commit と判定する形の主な例である。
 

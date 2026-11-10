@@ -439,6 +439,29 @@ export function isSlower(row: JobRow, dur: Config["durations"]): boolean {
   return diff >= dur.minSeconds && current.median >= previous.median * (1 + dur.minRatio);
 }
 
+/** run の対象の repository の full_name を読む。欠けていれば、fork かを決められないので例外にする。 */
+function repoName(
+  runRecord: Record<string, unknown>,
+  key: "head_repository" | "repository",
+): string {
+  const repo = runRecord[key];
+  const name =
+    typeof repo === "object" && repo !== null ? Reflect.get(repo, "full_name") : undefined;
+  return text(name, `run の ${key}.full_name`);
+}
+
+/**
+ * fork の PR の run かを返す。fork の PR の run は fork 側のワークフローの定義で実行されるので、
+ * ワークフロー名とジョブ名を PR の作者が決められる。その名前は追跡 Issue の本文に載り、
+ * self-review.yml がエージェントの入力として読むので、同じリポジトリの branch の run だけを数える。
+ */
+function isForkRun(runRecord: Record<string, unknown>): boolean {
+  // fork が削除された PR の run は、head_repository が null になる。同じリポジトリの branch の run とは確かめられないので、fork として外す。
+  // null 以外の欠け（キーが無い・full_name が空）は応答の形の誤りなので、例外にする。
+  if (runRecord["head_repository"] === null) return true;
+  return repoName(runRecord, "head_repository") !== repoName(runRecord, "repository");
+}
+
 /** 対象のワークフローの run とジョブを取得し、ジョブごとの統計を出す。 */
 export async function jobRows(run: Runner, dur: Config["durations"], now: Date): Promise<JobRow[]> {
   const split = now.getTime() - dur.days * DAY_MS;
@@ -448,7 +471,8 @@ export async function jobRows(run: Runner, dur: Config["durations"], now: Date):
   );
   const runs = perWorkflow
     .flat()
-    .filter((r) => time(r["created_at"], "run の created_at") >= from.getTime());
+    .filter((r) => time(r["created_at"], "run の created_at") >= from.getTime())
+    .filter((r) => !isForkRun(r));
   const samples = await mapLimit(runs, CONCURRENCY, async (r) => {
     const path = `repos/{owner}/{repo}/actions/runs/${String(r["id"])}/jobs?filter=latest&per_page=100`;
     const jobs = (await pages(run, path)).flatMap((page) => items(page, "jobs", path));

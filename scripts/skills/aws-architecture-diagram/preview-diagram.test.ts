@@ -11,6 +11,8 @@
 //   - サンドボックス: デフォルト（有効）/ --no-sandbox / 設定の chrome_no_sandbox: true
 //   - Chrome の失敗: 0 以外の終了 / signal での終了 / 時間切れ
 //   - 後片付け: HTML を置いた一時ディレクトリは、成功しても失敗しても消す
+//   - PNG の置き場所: 新しく作ったディレクトリの中に書く。tmpdir の直下に先に置かれたファイルは報告しない。
+//     Chrome が 0 で終わっても PNG が無ければ失敗にする
 
 import { expect, test } from "vitest";
 import { readFileSync } from "node:fs";
@@ -21,7 +23,8 @@ test("環境名から out/architecture-<env>.svg を開き、PNG の絶対パス
   const r = run({ args: ["prod"] });
   expect(r.stderr).toBe("");
   expect(r.status).toBe(0);
-  const png = join(r.tmp, "architecture-prod-preview.png");
+  expect(r.pngDirs).toHaveLength(1);
+  const png = join(r.tmp, r.pngDirs[0] ?? "", "architecture-prod-preview.png");
   expect(r.stdout.trim()).toBe(png);
   expect(readFileSync(png, "utf8")).toBe("PNG");
   expect(r.chromeArgs).toContain(`--screenshot=${png}`);
@@ -48,7 +51,23 @@ test("SVG のファイル名は、ディレクトリを外した名前で out/ �
     svgName: "architecture-local.svg",
   });
   expect(r.status).toBe(0);
-  expect(r.stdout.trim()).toBe(join(r.tmp, "architecture-local-preview.png"));
+  expect(r.stdout.trim()).toBe(join(r.tmp, r.pngDirs[0] ?? "", "architecture-local-preview.png"));
+});
+
+test("tmpdir の直下に同じ名前のファイルが先に置かれていても、それを PNG として報告せず、書き換えない", () => {
+  const r = run({ planted: "architecture-prod-preview.png" });
+  expect(r.status).toBe(0);
+  expect(r.stdout.trim()).not.toBe(join(r.tmp, "architecture-prod-preview.png"));
+  expect(readFileSync(join(r.tmp, "architecture-prod-preview.png"), "utf8")).toBe("PLANTED");
+});
+
+test("Chrome が 0 で終わっても PNG を書いていなければ、失敗にしてディレクトリを残さない", () => {
+  const r = run({ env: { FAKE_CHROME_MODE: "nowrite" } });
+  expect(r.status).toBe(1);
+  expect(r.stdout).toBe("");
+  expect(r.stderr).toContain("PNG を書いていません");
+  expect(r.pngDirs).toEqual([]);
+  expect(r.leftovers).toEqual([]);
 });
 
 test.each([
@@ -144,6 +163,7 @@ test("Chrome が 0 以外で終わったら、終了コードと stderr の末�
     "--no-sandbox を付けるか、人ごとの設定の chrome_no_sandbox を true にする",
   );
   expect(r.leftovers).toEqual([]);
+  expect(r.pngDirs).toEqual([]);
 });
 
 test("サンドボックスを無効にしているときは、無効にする案内を出さない", () => {
@@ -158,6 +178,7 @@ test("Chrome が signal で終わったら、signal の名前を示す", () => {
   expect(r.status).toBe(1);
   expect(r.stderr).toContain("（signal SIGTERM）");
   expect(r.leftovers).toEqual([]);
+  expect(r.pngDirs).toEqual([]);
 });
 
 test("Chrome が --timeout-ms の間に応答しなければ止めて、時間切れとして示す", () => {
@@ -165,6 +186,7 @@ test("Chrome が --timeout-ms の間に応答しなければ止めて、時間�
   expect(r.status).toBe(1);
   expect(r.stderr).toContain("（300ms 応答なしで中断）");
   expect(r.leftovers).toEqual([]);
+  expect(r.pngDirs).toEqual([]);
 });
 
 test("人ごとの設定の chrome_no_sandbox と chrome_timeout_ms を使う", () => {
