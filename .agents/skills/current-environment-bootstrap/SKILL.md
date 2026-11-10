@@ -208,7 +208,7 @@ current-environment-bootstrap [--target <name>] [--resume] [--autonomous]
 
 | 届いたものの影響 | 扱い |
 |---|---|
-| どちらも無い（確認待ちを確定させるだけ） | 台帳と、台帳から導く `metadata.json` の値だけを直し、`handed-off` のまま終える。導く値は、表の下の段落のとおりにすべて導き直す。確定させた項目を `handoff.unconfirmed` から外し、空になったら `["なし"]` と書く |
+| どちらも無い（確認待ちを確定させるだけ） | 台帳と、台帳から導く `metadata.json` の値だけを直し、`handed-off` のまま終える。導く値は、表の下の段落のとおりにすべて導き直す。確定させた項目を `handoff.unconfirmed` から外し、空になったら `["なし"]` と書く。下流の成果物は書き換えない。確定させた意味論の機能が `.replace/dataset/verification.md` の「意味論が未確定の機能」に残っていれば、`golden-dataset` のフェーズ A をやり直すよう報告する（その機能の `parity-suite` は、やり直すまで始められない） |
 | どちらかがある、または迷う | 下の手順で `blocked` に戻してから、再開の表の 1 行目のとおりに再開する |
 
 台帳から導く値は、`metadata.json` のうち、台帳（`assets-inventory.md`・`schema.md`・`semantics.md`・`questionnaire.md`）の中身から決まる値である。
