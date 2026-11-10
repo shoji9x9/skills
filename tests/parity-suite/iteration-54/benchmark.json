@@ -4,7 +4,7 @@
     "skill_path": "<repo>/skills/parity-suite",
     "executor_model": "claude-opus-5-5",
     "analyzer_model": "claude-opus-5-5",
-    "timestamp": "2026-11-10T04:50:40Z",
+    "timestamp": "2026-11-10T07:21:27Z",
     "evals_run": [45],
     "runs_per_configuration": 1
   },
@@ -20,7 +20,7 @@
         "total": 5,
         "time_seconds": 36.387,
         "tokens": 238420,
-        "tool_calls": null,
+        "tool_calls": 4,
         "errors": 0
       },
       "expectations": [
@@ -63,7 +63,7 @@
         "total": 5,
         "time_seconds": 45.492,
         "tokens": 84173,
-        "tool_calls": null,
+        "tool_calls": 3,
         "errors": 0
       },
       "expectations": [
@@ -138,7 +138,7 @@
       }
     },
     "delta": {
-      "pass_rate": "+0",
+      "pass_rate": "+0.00",
       "time_seconds": "-9.1",
       "tokens": "+154247"
     }

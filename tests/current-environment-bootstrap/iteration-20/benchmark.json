@@ -4,7 +4,7 @@
     "skill_path": "<repo>/skills/current-environment-bootstrap",
     "executor_model": "claude-opus-5-5",
     "analyzer_model": "claude-opus-5-5",
-    "timestamp": "2026-11-10T04:50:40Z",
+    "timestamp": "2026-11-10T07:21:27Z",
     "evals_run": [9],
     "runs_per_configuration": 1
   },
@@ -20,7 +20,7 @@
         "total": 6,
         "time_seconds": 125.767,
         "tokens": 505856,
-        "tool_calls": null,
+        "tool_calls": 9,
         "errors": 0
       },
       "expectations": [
@@ -68,7 +68,7 @@
         "total": 6,
         "time_seconds": 38.473,
         "tokens": 123198,
-        "tool_calls": null,
+        "tool_calls": 4,
         "errors": 0
       },
       "expectations": [
