@@ -12,7 +12,7 @@
 ## 実行例
 
 ```bash
-scripts/eval/run-skill-eval.sh \
+scripts/eval/run/run-skill-eval.sh \
   --skill current-environment-bootstrap --config with_skill \
   --fixture evals/current-environment-bootstrap/fixtures/assets-complete \
   --prompt "current-environment-bootstrap" \

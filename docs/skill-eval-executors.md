@@ -1,6 +1,6 @@
 # スキル評価の executor の仕様
 
-`scripts/eval/run-skill-eval.sh` は同じ `evals/<name>/evals.json` を Claude Code と Codex で実行し、executor 固有の出力を共通 artifact へ正規化する。
+`scripts/eval/run/run-skill-eval.sh` は同じ `evals/<name>/evals.json` を Claude Code と Codex で実行し、executor 固有の出力を共通 artifact へ正規化する。
 Anthropic バージョン `skill-creator` と既存の集計・viewer は変更しない。
 
 ## Executor の選択
@@ -15,7 +15,7 @@ Codex のセッションなら `--executor codex`、Claude Code のセッショ�
 各 run の `result.json` と `timing.json` に executor、model、reasoning effort、CLI version、harness version を記録する。
 
 ```bash
-scripts/eval/run-skill-eval.sh \
+scripts/eval/run/run-skill-eval.sh \
   --skill <name> \
   --executor codex \
   --model <model> \
@@ -78,7 +78,7 @@ tests/<skill>/iteration-N/
 prompt、対象の assertion、fixture、`requires_skills`（名前と、置いた内容のハッシュ）、executor、model、reasoning effort、CLI と harness のバージョン。
 `without_skill` の `--reuse-baseline` は、fingerprint が一致し成果物がそろっていることを確かめてから、前の run を再利用する。run の中にシンボリックリンクか、通常のファイルとディレクトリ以外（FIFO・socket など）があれば、再利用しない。再利用した run には `baseline-reuse.json` を足す。
 この確認は、確かめてからコピーし終えるまでの間に、前の run と再利用の先を別の処理が書き換えないことを前提にする。eval の run は同じ利用者が手元で順に実行するので、並行して書き換える処理は無い。
-`scripts/eval/normalize-skill-eval-result.ts` とそのテストが、どちらの executor でも必須のフィールドがあることと、token の数え方がそろっていることを確かめる。
+`scripts/eval/run/normalize-skill-eval-result.ts` とそのテストが、どちらの executor でも必須のフィールドがあることと、token の数え方がそろっていることを確かめる。
 `outputs/metrics.json` の `tool_calls` と `total_tool_calls` は、raw trace から数えられる run にだけ置く。
 ツールの記録を持たない trace（古い `--output-format json` の、`result` イベントが 1 つだけのもの）では、`0` で埋めずに省く。
 `files_created` は、run の前の fixture のファイル一覧と、run の後に `project-files/` に保存できた成果物の差分から作る。もとからある fixture のファイルと、サイズの上限などで保存しなかったファイルは含めない。
@@ -88,7 +88,7 @@ raw trace は、調査と決定論的な採点に使う。集計と viewer は�
 Codex の `item.type=error` か `turn.failed`、Claude Code の `is_error`、raw を解析できない、最後の応答が無い、のどれかに当たる場合である。
 
 `grading.json` は、executor に依存しない既存のスキーマを使う。必須のフィールドは `summary.{pass_rate,passed,failed,total}` と `expectations[].{text,passed,evidence}` である。
-採点の後は、このリポジトリの `scripts/eval/build-skill-eval-benchmark.ts` が集計する。判定は assertion の文で突き合わせる。viewer は skill-creator の `eval-viewer/generate_review.py` をそのまま使う。
+採点の後は、このリポジトリの `scripts/eval/benchmark/build-skill-eval-benchmark.ts` が集計する。判定は assertion の文で突き合わせる。viewer は skill-creator の `eval-viewer/generate_review.py` をそのまま使う。
 
 ## Native skill と隔離
 

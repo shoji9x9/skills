@@ -541,7 +541,7 @@ test("main: テストのコードが無く 2 回目の走査が 0 件なら、�
 
 test.each([
   ["scripts/gates/code/check-duplicates.test.ts", true],
-  ["scripts/skills/kaizen/kaizen-archive-helpers.ts", true],
+  ["scripts/skills/kaizen/lifecycle/kaizen-archive-helpers.ts", true],
   ["scripts/skills/parity-diff/fixtures/a/b.md", true],
   ["scripts/lib/testing/test-tmpdir.ts", true],
   ["scripts/skills/x/fixtures/.agents/a.md", true],

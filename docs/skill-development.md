@@ -230,12 +230,12 @@ eval の実行には 2 つの目的があり、必要な run の数が大きく�
 
 次のものがすべて同じなら、成功した既存の `without_skill` の run を再利用できる。
 prompt、対象の eval の assertion と `requires_skills`、fixture の相対パス・内容・実行権限、executor、model、reasoning effort、CLI のバージョン、ハーネスのバージョンである。
-同じかどうかは `scripts/eval/run-skill-eval.sh` が作る `eval-fingerprint.json` で判断し、目で見たりファイル名だけで判断したりしない。
+同じかどうかは `scripts/eval/run/run-skill-eval.sh` が作る `eval-fingerprint.json` で判断し、目で見たりファイル名だけで判断したりしない。
 再利用するときは、assertion が欠けないように `--eval-id` を、実行時のデフォルト値が変わらないように `--model` と `--reasoning-effort` を指定する。
 executor の CLI のバージョンを取得できなければ止める。
 
 ```bash
-scripts/eval/run-skill-eval.sh \
+scripts/eval/run/run-skill-eval.sh \
   --skill <name> --config without_skill \
   --executor <executor> --model <model> --reasoning-effort <effort> \
   --eval-id <id> --prompt '<prompt>' --fixture <fixture-dir> \
@@ -265,19 +265,19 @@ eval の prompt は、スキル・ルール・Hook・`AGENTS.md` などのファ
 エージェントの Bash ツールの cwd は呼び出しをまたいで残ることがあるが、ターンの区切りやプロジェクトの外に出たときにリセットされることもあるので、前提にできない。
 スキルの手順は `mkdir -p .agents/skills/<name>` や `ln -s ../../...` のような相対パスなので、後の呼び出しでこのリポジトリを汚す。
 
-`scripts/eval/run-skill-eval.sh` を使う。
+`scripts/eval/run/run-skill-eval.sh` を使う。
 このランチャーは cwd を固定したヘッドレスの executor を、`/tmp` の下の使い捨ての空のプロジェクトで実行する。相対パスの操作も cwd のリセットも、そのディレクトリの中で起きる。
 `with_skill` は executor がスキルを読む場所にスキルを置き、`without_skill` は置かない。
 スキルを置かないだけでは、公平なベースラインにならない。CLI はマシンの任意のパスを読めるので、読み取りの遮断と汚染の判定まで揃って、初めて Delta が意味を持つ（後述）。
 被験体にコピーするのは `SKILL.md`・`references/`・`assets/`・`scripts/`・`config-schemas/`・`checks.json` など実行に要る成果物だけにし、`evals/` の assertion・採点の基準・トピックの表は含めない。
 配布先の `gh skill install` はスキルのディレクトリをすべて配るので、スキルの直下に足した要素がこの一覧から外れると、eval の中でだけ同梱物が欠ける。
-`scripts/eval/skill-eval-fingerprint.test.ts` が、配布スキルの直下の要素とこの一覧の一致を確かめる。
+`scripts/eval/baseline/skill-eval-fingerprint.test.ts` が、配布スキルの直下の要素とこの一覧の一致を確かめる。
 
 Claude Code と Codex の選び方、共通の成果物のスキーマ、executor がスキルを見つける仕組み、NVIDIA SkillEvaluator を試すかの判断は、[`skill-eval-executors.md`](skill-eval-executors.md) で定義する。
 
 ```bash
 # 1 run を隔離して実行する（生成物は --out の下に保存され、リポジトリは汚れない）
-scripts/eval/run-skill-eval.sh \
+scripts/eval/run/run-skill-eval.sh \
   --skill <name> --executor <claude-code|codex> --config with_skill \
   --prompt "<evals.json の prompt>" \
   --out tests/<name>/iteration-N/eval-<id>/with_skill/run-1 \
@@ -307,10 +307,10 @@ setup が 0 以外で終わったら、executor を起動せずに eval を失�
 
 読み取りの遮断と汚染の判定は、ハーネスがデフォルトで行う。オペレータがラッパーを組む必要は無い。
 
-- `run-skill-eval.sh` は両方の configuration を `scripts/eval/eval-sandbox.sh` を通して起動する。
+- `run-skill-eval.sh` は両方の configuration を `scripts/eval/sandbox/eval-sandbox.sh` を通して起動する。
   このスクリプトは bwrap で、作業ツリー・兄弟の run の `/tmp`・OS のミラー・エージェントの記録の 4 つを読めなくする。
   利用者の設定（`~/.claude.json`・`~/.claude/settings.json`）は、そのまま読ませない。
-  `~/.claude.json` は空の `{}` に、`settings.json` は API に接続するのに要るキーだけを残したコピー（`scripts/eval/sanitize-claude-settings.ts`）に差し替える。
+  `~/.claude.json` は空の `{}` に、`settings.json` は API に接続するのに要るキーだけを残したコピー（`scripts/eval/sandbox/sanitize-claude-settings.ts`）に差し替える。
   hooks や権限の設定には、リポジトリの場所や学びのノートの名前が書かれていて、without_skill の run がそれを読んで答えに使ったことがある。
   各 run には、遮断できたかを書いた `isolation.txt` を必ず残す。`without_skill` には、判定を書いた `contamination.txt` も残す。
   `SKILL_EVAL_RUNNER` を指定したときはそれを優先し、遮断は確かめていないものとして記録する。
@@ -322,7 +322,7 @@ setup が 0 以外で終わったら、executor を起動せずに eval を失�
   `SKIPPED` は判定が実行されなかったことを表し、`clean` ではない。
 - bwrap か `eval-sandbox.sh` が無い環境では `UNISOLATED` を記録し、`flock` で `with_skill` の実行と排他にして、1 つずつ実行する。
   並列に実行できるのは、`/tmp` の隔離が有効なときだけである。
-- 遮断そのものを確かめるときは `scripts/eval/eval-sandbox.sh --verify <marker>...` を使う。確かめるのは次の 3 つである。
+- 遮断そのものを確かめるときは `scripts/eval/sandbox/eval-sandbox.sh --verify <marker>...` を使う。確かめるのは次の 3 つである。
   リポジトリがサンドボックスの中から見えないこと。目印が 1 件も見つからないこと（探す場所ごとに既知の目印を置いて、見つけられることを先に確かめる）。
   `$HOME` への書き込みが拒否され、書き込める場所に書いたものがホストに出てこないこと。
 - 対象のリポジトリが public なら、`gh` や WebFetch でスキルの本文を取得する方法は、ローカルの遮断では防げない。
@@ -359,7 +359,7 @@ fixture に書いてよいのは、下流のプロジェクトに実際にあり
 `grading.json` は、集計スクリプトやビューアが実際に読むスキーマで作る。スキーマが違うと、後の集計が 0.0% や「No runs found」になる。
 必須のフィールドは `summary.{pass_rate,passed,failed,total}` と、各 expectation の `text`・`passed`・`evidence` である。
 判定は assertion のテキストで対応を付けるので、`text` は `eval_metadata.json` の宣言と一字一句同じにする。
-位置で並べた配列や `text` の無い要素は、集計スクリプト（`scripts/eval/build-skill-eval-benchmark.ts`）が受け付けない。
+位置で並べた配列や `text` の無い要素は、集計スクリプト（`scripts/eval/benchmark/build-skill-eval-benchmark.ts`）が受け付けない。
 ビューアを使うときは、run の下の構成（`outputs/` と `eval_metadata.json`）も揃える。
 スキーマは skill-creator の `references/schemas.md`（インストール先の skill-creator の下）で定義している。無ければ skill-creator のドキュメントを見る。
 
@@ -505,7 +505,7 @@ eval はスキルの欠陥を見つけるためのものである。
 集計はリポジトリのスクリプトで行う。使い捨てのスクリプトで組み立てると、判定を配列の位置で対応させて、件数を誤る。
 
 ```bash
-node scripts/eval/build-skill-eval-benchmark.ts tests/<name>/iteration-N \
+node scripts/eval/benchmark/build-skill-eval-benchmark.ts tests/<name>/iteration-N \
   --skill-name <name> \
   --skill-path '<repo>/skills/<name>' \
   --executor-model <model-id> \

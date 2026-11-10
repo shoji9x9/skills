@@ -16,7 +16,7 @@ PR #984 で見送っていた 3 点を同じ PR で直した後の変更確認�
     対象は `.replace/survey.md`・`.replace/dataset/metadata.json`・`.replace/parity/<slug>/metadata.json`・`.replace/components/<slug>/metadata.json` である。
   - 手順 3: 利用者が設定の取り消しを断ったら、設定を書かずに `blocked` のまま進め、次の引き渡しで残った値を `--replace` で書き直す。
 - `references/verification-handoff.md` の工程 9 で、`stale_downstream` を報告してから空にする。`assets/metadata-template.json` にキーを足した。
-- `parity-suite` と `parity-component` の `capture` が、`received-assets` のとき `status` が `handed-off` でなければ止まる（`parity-suite` は `iteration-53`）。
+- `parity-suite` と `parity-component` の `capture` が、`received-assets` のとき `status` が `handed-off` でなければ止まる（`parity-suite` は `iteration-54`）。
 - eval 9: fixture に、引き渡しより後の日時の `.replace/dataset/metadata.json`（フェーズ A の記録）を置き、assertion 6 を足した。
 
 ## Summary

@@ -44,6 +44,62 @@
       "replace": "if (false)",
       "occurrences": 1,
       "expect_failing": ["ジョブの所要時間 一覧の 1000 件を超える ときは例外にする"]
+    },
+    {
+      "id": "fix-exclude-ignored",
+      "why": "exclude に載せたファイルも候補に挙げ、起動の設定と宣言の一覧が毎週の候補に出続ける",
+      "file": "scripts/weekly/check-cost-metrics.ts",
+      "find": "new Set([...files, ...lists]);",
+      "replace": "new Set([...lists]);",
+      "occurrences": 1,
+      "expect_failing": [
+        "修正の PR exclude に載せたファイルは閾値以上でも挙げず、載せていないファイルは今までどおり挙げる"
+      ]
+    },
+    {
+      "id": "fix-exclude-reason-optional",
+      "why": "理由の無い除外を受け付け、なぜ数えないかを書かずにチェックを外せる",
+      "file": "scripts/weekly/check-cost-metrics.ts",
+      "find": "if (!isNonBlankString(entry[\"reason\"])) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "設定 fix_prs.exclude の reason が空白だけ は例外にする",
+        "設定 fix_prs.exclude の reason が無い は例外にする"
+      ]
+    },
+    {
+      "id": "fix-lists-not-excluded",
+      "why": "免除・保留の一覧を修正の PR の数え方から外さず、項目を足したり消したりするたびに候補に挙げる",
+      "file": "scripts/weekly/check-cost-metrics.ts",
+      "find": "lists: config.lists.map((l) => l.file),",
+      "replace": "lists: [],",
+      "occurrences": 1,
+      "expect_failing": ["まとめて集める 修正の PR の数え方から、lists に載せた一覧を外す"]
+    },
+    {
+      "id": "fix-lists-ignored-in-filter",
+      "why": "渡された一覧のファイルを除外の集合に入れず、免除・保留の一覧を候補に挙げる",
+      "file": "scripts/weekly/check-cost-metrics.ts",
+      "find": ", ...lists]);",
+      "replace": "]);",
+      "occurrences": 1,
+      "expect_failing": [
+        "修正の PR lists に載せた免除・保留の一覧は、閾値以上でも挙げない",
+        "まとめて集める 修正の PR の数え方から、lists に載せた一覧を外す"
+      ]
+    },
+    {
+      "id": "fix-exclude-unmatched-allowed",
+      "why": "今無いファイルや、本体に寄せて数えるテストを exclude に残しても通り、何も外さない除外が設定に残り続ける",
+      "file": "scripts/weekly/check-cost-metrics.ts",
+      "find": "if (unmatched.length > 0) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "修正の PR exclude に載せた 今無いファイル は、何も外さないので例外にする",
+        "修正の PR exclude に載せた 本体に寄せて数えるテスト は、何も外さないので例外にする"
+      ]
     }
   ]
 }

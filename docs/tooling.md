@@ -10,7 +10,7 @@
   npm は使わず、`package-lock.json` を作らない。誤って別のパッケージマネージャを使うと、`devEngines` が警告する。
   4 か所をそろえてバージョンを上げる手順と、不具合のあるバージョンを避ける方法は [`docs/package-manager.md`](package-manager.md) にある。
 - フォーマッタとリンタは「リントと整形」の表のとおりである。prettier は使わない。
-- テストは skill-creator で行う。eval viewer には Python 3.8 以上が要る。結果の集計は `scripts/eval/build-skill-eval-benchmark.ts`（Node）で行う。
+- テストは skill-creator で行う。eval viewer には Python 3.8 以上が要る。結果の集計は `scripts/eval/benchmark/build-skill-eval-benchmark.ts`（Node）で行う。
 - 実行環境は mise で管理する。
 
 ### ツールの起動

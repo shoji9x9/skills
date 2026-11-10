@@ -1,0 +1,247 @@
+{
+  "metadata": {
+    "skill_name": "multiagent-setup",
+    "skill_path": "<repo>/skills/multiagent-setup",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-10T03:49:27Z",
+    "evals_run": [2, 3],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 42.508,
+        "tokens": 154243,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "CLAUDE.md が AGENTS.md を参照している",
+          "passed": true,
+          "evidence": "project-files/CLAUDE.md に See AGENTS.md と @AGENTS.md"
+        },
+        {
+          "text": "AGENTS.md に書いた共通の内容（プロジェクトの概要・規約）を CLAUDE.md に複製していない",
+          "passed": true,
+          "evidence": "CLAUDE.md は参照の 3 行だけで、AGENTS.md の内容を複製していない"
+        },
+        {
+          "text": "AGENTS.md に 参照スキルガイド または 参照ルールガイド セクションがある",
+          "passed": true,
+          "evidence": "project-files/AGENTS.md に ## 参照スキルガイド"
+        },
+        {
+          "text": "ユーザー設定（~/.claude/ 等）は変更されていない",
+          "passed": true,
+          "evidence": "project-tree に ~/.claude の変更は無い（作成は AGENTS.md・CLAUDE.md・README.md だけ）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 40.96,
+        "tokens": 139970,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ルールの本体を .agents/rules/<name>.md に置いている",
+          "passed": true,
+          "evidence": "project-files/.agents/rules/react-components.md"
+        },
+        {
+          "text": "frontmatter に paths: と applyTo: の両方が含まれている",
+          "passed": true,
+          "evidence": "frontmatter に paths と applyTo"
+        },
+        {
+          "text": "paths がリポジトリ構造を踏まえて対象ディレクトリまで絞られている（例 src/components/** や src/**/*.tsx）",
+          "passed": true,
+          "evidence": "paths: src/**/*.tsx・src/**/*.jsx"
+        },
+        {
+          "text": "paths が ** や **/*.tsx のような全ファイル/ファイル種別だけの広域指定になっていない",
+          "passed": true,
+          "evidence": "** や **/*.tsx だけの指定になっていない"
+        },
+        {
+          "text": "applyTo が paths と同じスコープに揃っている",
+          "passed": true,
+          "evidence": "applyTo: \"src/**/*.tsx,src/**/*.jsx\" が paths と同じ"
+        },
+        {
+          "text": ".claude/rules/<name>.md シンボリックリンクが作成されている",
+          "passed": true,
+          "evidence": ".claude/rules/react-components.md が project-tree にあり、project-files に通常ファイルとして無い（skipped 0 行）ので symlink"
+        },
+        {
+          "text": ".github/instructions/<name>.instructions.md シンボリックリンクが作成されている",
+          "passed": true,
+          "evidence": ".github/instructions/react-components.instructions.md も同じく project-tree にだけあり symlink"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 69.645,
+        "tokens": 104551,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "CLAUDE.md が AGENTS.md を参照している",
+          "passed": true,
+          "evidence": "project-files/CLAUDE.md に @AGENTS.md"
+        },
+        {
+          "text": "AGENTS.md に書いた共通の内容（プロジェクトの概要・規約）を CLAUDE.md に複製していない",
+          "passed": true,
+          "evidence": "CLAUDE.md は Claude Code 固有の欄だけで、共通の内容を複製していない"
+        },
+        {
+          "text": "AGENTS.md に 参照スキルガイド または 参照ルールガイド セクションがある",
+          "passed": false,
+          "evidence": "AGENTS.md の見出しはプロジェクト概要・セットアップ・開発コマンド・コーディング規約・作業ルールで、参照ガイドの節が無い"
+        },
+        {
+          "text": "ユーザー設定（~/.claude/ 等）は変更されていない",
+          "passed": true,
+          "evidence": "変更はプロジェクトの中（.claude/settings.json・.codex/config.toml）だけで、~/.claude を変えていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 7,
+        "total": 7,
+        "time_seconds": 29.913,
+        "tokens": 76629,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ルールの本体を .agents/rules/<name>.md に置いている",
+          "passed": false,
+          "evidence": "ルールは .claude/rules/react-components.md に置き、.agents/rules/ が無い"
+        },
+        {
+          "text": "frontmatter に paths: と applyTo: の両方が含まれている",
+          "passed": false,
+          "evidence": "frontmatter に applyTo が無い"
+        },
+        {
+          "text": "paths がリポジトリ構造を踏まえて対象ディレクトリまで絞られている（例 src/components/** や src/**/*.tsx）",
+          "passed": false,
+          "evidence": "paths が **/*.tsx・**/*.jsx"
+        },
+        {
+          "text": "paths が ** や **/*.tsx のような全ファイル/ファイル種別だけの広域指定になっていない",
+          "passed": false,
+          "evidence": "**/*.tsx のファイル種別だけの指定"
+        },
+        {
+          "text": "applyTo が paths と同じスコープに揃っている",
+          "passed": false,
+          "evidence": "applyTo が無い"
+        },
+        {
+          "text": ".claude/rules/<name>.md シンボリックリンクが作成されている",
+          "passed": false,
+          "evidence": ".claude/rules/react-components.md は project-files にある通常ファイルで、symlink ではない"
+        },
+        {
+          "text": ".github/instructions/<name>.instructions.md シンボリックリンクが作成されている",
+          "passed": false,
+          "evidence": ".github/instructions/ が無い"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 41.734,
+        "stddev": 1.0946,
+        "min": 40.96,
+        "max": 42.508
+      },
+      "tokens": {
+        "mean": 147106.5,
+        "stddev": 10092.5351,
+        "min": 139970,
+        "max": 154243
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.375,
+        "stddev": 0.5303,
+        "min": 0,
+        "max": 0.75
+      },
+      "time_seconds": {
+        "mean": 49.779,
+        "stddev": 28.0948,
+        "min": 29.913,
+        "max": 69.645
+      },
+      "tokens": {
+        "mean": 90590,
+        "stddev": 19743.8355,
+        "min": 76629,
+        "max": 104551
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.63",
+      "time_seconds": "-8.0",
+      "tokens": "+56517"
+    }
+  },
+  "notes": [
+    "変更確認（#952）。assertion を変えた eval 2・3 だけを、with_skill と without_skill で 1 run ずつ実行した。",
+    "eval 3 は、最初の run の後に assertion（ルールの本体の置き場所）を足したので、その run を捨てて実行し直した。",
+    "eval 2 の CLAUDE.md の 2 本は without_skill も満たした。1 run なので、区別できないとは決めない。"
+  ]
+}

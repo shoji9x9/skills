@@ -4,12 +4,13 @@
 //
 // 集める指標は次の 3 つである。対象と閾値は、隣の check-cost-metrics.json で決める。
 // - 空の免除・保留の一覧: check-cost-metrics.json の lists に挙げた一覧のファイルが空になっている（readers は確かめず、案内として添える）
-// - 修正の PR が多いチェック: 直近の期間に、チェックのファイルを変えた fix の PR の数
+// - 修正の PR が多いチェック: 直近の期間に、チェックのファイルを変えた fix の PR の数（lists の一覧と fix_prs.exclude のファイルは数えない）
 // - GitHub Actions のジョブの所要時間: 直近の期間と前の期間の中央値を比べ、遅くなったジョブを挙げる（最大値は所要時間の表にだけ載せる）
 //
 // 確かめられなかったものを「該当なし」として扱わない。次のときは exit 1 で止まる。
 // - 設定・一覧のファイルを読めない
 // - git の履歴が浅い
+// - fix_prs.exclude のファイルが今無い、または数えるときにテストの本体の名前に寄せられて何も外さない
 // - git や API が失敗する、または API の一覧が上限（1000 件）を超えて取りこぼす
 //
 // 使い方: node scripts/weekly/check-cost-metrics.ts --out <本文のパス> --comment-out <コメントのパス> [--previous <前回の本文のパス>]
@@ -62,11 +63,13 @@ export type CountRule =
   | { kind: "json-object"; key: string }
   | { kind: "json-arrays"; exclude: string[] }
   | { kind: "ts-export"; export: string };
+export type FixExclude = { file: string; reason: string };
 /** keepEmpty は、意図して空にしている一覧の理由。書いた一覧は空でも候補に挙げない。 */
 export type ListTarget = { file: string; count: CountRule; readers: string[]; keepEmpty?: string };
 export type Config = {
   lists: ListTarget[];
-  fixPrs: { days: number; min: number; paths: string[] };
+  /** exclude は、チェックの本体ではないので数えないファイル（起動の設定・宣言の一覧）と、その理由。 */
+  fixPrs: { days: number; min: number; paths: string[]; exclude?: FixExclude[] };
   durations: {
     days: number;
     workflows: string[];
@@ -128,6 +131,30 @@ function parseList(value: unknown, index: number): ListTarget {
   };
 }
 
+/** 最初に重複した値。重複が無ければ undefined。 */
+function firstDuplicate(values: readonly string[]): string | undefined {
+  return values.find((v, i) => values.indexOf(v) !== i);
+}
+
+/** fix_prs.exclude を読む。理由の無い項目と、同じファイルの重複は例外にする。 */
+function parseFixExclude(value: unknown): FixExclude[] | undefined {
+  if (value === undefined) return undefined;
+  if (!isArray(value)) throw new Error("fix_prs.exclude が配列でない");
+  const entries = value.map((entry, index): FixExclude => {
+    const where = `fix_prs.exclude[${index}]`;
+    if (!isRecord(entry) || !isNonBlankString(entry["file"]))
+      throw new Error(`${where}.file が無い`);
+    if (!isNonBlankString(entry["reason"])) {
+      throw new Error(`${where}.reason が空でない文字列（数えない理由）でない`);
+    }
+    return { file: entry["file"], reason: entry["reason"] };
+  });
+  const duplicated = firstDuplicate(entries.map((e) => e.file));
+  if (duplicated !== undefined)
+    throw new Error(`fix_prs.exclude の file が重複している: ${duplicated}`);
+  return entries;
+}
+
 function section(value: Record<string, unknown>, key: string): Record<string, unknown> {
   const found = value[key];
   if (!isRecord(found)) throw new Error(`${key} がオブジェクトでない`);
@@ -144,15 +171,16 @@ export function parseConfig(text: string): Config {
   const dur = section(value, "durations");
   const lists = value["lists"].map(parseList);
   // 同じ一覧を 2 回書くと、識別子が重複し、次の実行が前回の本文を読めなくなる。
-  const files = lists.map((l) => l.file);
-  const duplicated = files.find((f, i) => files.indexOf(f) !== i);
+  const duplicated = firstDuplicate(lists.map((l) => l.file));
   if (duplicated !== undefined) throw new Error(`lists の file が重複している: ${duplicated}`);
+  const exclude = parseFixExclude(fix["exclude"]);
   return {
     lists,
     fixPrs: {
       days: positive(fix["days"], "fix_prs.days"),
       min: positive(fix["min"], "fix_prs.min"),
       paths: stringList(fix["paths"], "fix_prs.paths"),
+      ...(exclude === undefined ? {} : { exclude }),
     },
     durations: {
       days: positive(dur["days"], "durations.days"),
@@ -293,13 +321,36 @@ export function countFixPrs(
   return counts;
 }
 
-/** 修正の PR が多いチェックを挙げる。git の履歴が浅いときは数えられないので例外にする。 */
+/**
+ * 数えないファイルの集合。exclude のファイルが今無いときや、数えるときに別の名前（テストの本体）に寄せるときは、
+ * 除外が何も外さないので例外にする。
+ */
+function excludedFiles(
+  fix: Config["fixPrs"],
+  lists: readonly string[],
+  tracked: ReadonlySet<string>,
+): Set<string> {
+  const has = (path: string): boolean => tracked.has(path);
+  const files = (fix.exclude ?? []).map((e) => e.file);
+  const unmatched = files.filter((f) => !has(f) || checkFileOf(f, has) !== f);
+  if (unmatched.length > 0) {
+    throw new Error(
+      `fix_prs.exclude のファイルが無いか、数えるときに別の名前に寄せる: ${unmatched.join(", ")}`,
+    );
+  }
+  return new Set([...files, ...lists]);
+}
+
+/**
+ * 修正の PR が多いチェックを挙げる。git の履歴が浅いときは数えられないので例外にする。
+ * lists は免除・保留の一覧のファイルで、チェックの本体ではないので数えない（項目を足したり消したりするのは、ほかの修正に伴う）。
+ */
 export async function fixHeavyChecks(
   run: Runner,
   fix: Config["fixPrs"],
-  input: { root: string; now: Date },
+  input: { root: string; now: Date; lists: readonly string[] },
 ): Promise<Finding[]> {
-  const { root, now } = input;
+  const { root, now, lists } = input;
   const git = (args: string[]): Promise<string> => run("git", ["-C", root, ...args]);
   if ((await git(["rev-parse", "--is-shallow-repository"])).trim() !== "false") {
     throw new Error("git の履歴が浅い（checkout の fetch-depth を 0 にする）");
@@ -319,8 +370,9 @@ export async function fixHeavyChecks(
   ]);
   // 今あるファイルの一覧は、テストの本体があるかの判定と、消えたチェックを外すのに使う。
   const tracked = new Set((await git(["ls-files"])).split("\n"));
+  const excluded = excludedFiles(fix, lists, tracked);
   return [...countFixPrs(log, (path) => tracked.has(path))]
-    .filter(([file, count]) => count >= fix.min && tracked.has(file))
+    .filter(([file, count]) => count >= fix.min && tracked.has(file) && !excluded.has(file))
     .sort(([a, x], [b, y]) => y - x || (a < b ? -1 : 1))
     .map(([file, count]) => ({
       kind: "fix-heavy",
@@ -595,7 +647,11 @@ export async function collect(
   const { config, root, now } = input;
   // 手元で済む指標を先に集め、一覧を読めないときや履歴が浅いときは、時間のかかるジョブの API を呼ぶ前に止める。
   const lists = await emptyLists(config.lists, root);
-  const fixes = await fixHeavyChecks(run, config.fixPrs, { root, now });
+  const fixes = await fixHeavyChecks(run, config.fixPrs, {
+    root,
+    now,
+    lists: config.lists.map((l) => l.file),
+  });
   const rows = await jobRows(run, config.durations, now);
   const findings = [...lists, ...fixes, ...slowJobs(rows, config.durations)];
   return { findings, rows, config };

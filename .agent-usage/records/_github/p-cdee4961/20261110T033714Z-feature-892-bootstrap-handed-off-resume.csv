@@ -68,3 +68,5 @@ coverage:github:2026-11-09T04:51:26.398Z:2026-11-10T06:59:22.184Z,coverage,2026-
 pr:986,pr,2026-11-10T07:00:21.040Z,p-cdee4961,github,,,,2026-11-10T04:48:45.000Z,2026-11-10T06:59:29.000Z,Asia/Tokyo,feature/947-check-cost-metrics-review,947,,,,,,,,,,pr=986;author=shoji9x9;state=merged,
 ci:42772171819:1,ci,2026-11-10T07:00:21.040Z,p-cdee4961,github-actions,,,,2026-11-10T06:59:32.000Z,2026-11-10T07:00:21.040Z,Asia/Tokyo,main,,,,,,,,,,,CodeQL;push;open,
 coverage:github:2026-11-09T06:59:22.184Z:2026-11-10T07:00:21.040Z,coverage,2026-11-10T07:00:21.040Z,p-cdee4961,,,,,2026-11-09T06:59:22.184Z,2026-11-10T07:00:21.040Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:42772171819:1,ci,2026-11-10T07:01:36.998Z,p-cdee4961,github-actions,,,,2026-11-10T06:59:32.000Z,2026-11-10T07:01:36.998Z,Asia/Tokyo,main,,,,,,,,,,,CodeQL;push;open,
+coverage:github:2026-11-09T07:00:21.040Z:2026-11-10T07:01:36.998Z,coverage,2026-11-10T07:01:36.998Z,p-cdee4961,,,,,2026-11-09T07:00:21.040Z,2026-11-10T07:01:36.998Z,Asia/Tokyo,,,,,,,,,,,,ok,
