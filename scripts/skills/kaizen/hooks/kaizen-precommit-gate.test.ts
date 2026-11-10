@@ -1749,6 +1749,129 @@ describe.concurrent("生 JSON だけで判定するときの commit 検出", () 
       expect(result.stderr).toContain("kaizen --current");
     }
   });
+
+  // Copilot CLI はコマンドを `toolArgs` の JSON の文字列に入れて渡す（Issue #916）。
+  // 文字列のままでは `"command"` のキーが `\"command\"` として現れるので、値を 1 段だけ復号してから判定する。
+  // jq がある環境と同じ結論になることを、上と同じ PATH で確かめる。
+  async function runRaw(input: string, args: string[] = []) {
+    const cwd = makeProject();
+    writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
+    return await spawnAsync("bash", [join(scriptsDir, "kaizen-precommit-gate.sh"), ...args], {
+      timeout: CHILD_TIMEOUT_MS,
+      cwd,
+      input,
+      env: kaizenEnv(cwd, { CLAUDE_PROJECT_DIR: cwd, PATH: jqlessPath }),
+    });
+  }
+
+  const nested = (key: string, command: string, extra: Record<string, unknown> = {}) =>
+    JSON.stringify({ ...extra, [key]: JSON.stringify({ command }) });
+
+  const C = ["-copilot"];
+  const nestedCases: { name: string; input: string; args: string[]; expected: number }[] = [
+    {
+      name: "Copilot の toolArgs（-copilot）",
+      input: nested("toolArgs", "git commit -m x", { toolName: "bash" }),
+      args: C,
+      expected: 2,
+    },
+    {
+      name: "Copilot の toolArgs（引数なし）",
+      input: nested("toolArgs", "git commit -m x", { toolName: "bash" }),
+      args: [],
+      expected: 2,
+    },
+    {
+      name: "toolArgs の区切りの後ろ",
+      input: nested("toolArgs", "cd /tmp && git commit -m x"),
+      args: C,
+      expected: 2,
+    },
+    {
+      name: "toolArgs の改行の後ろ",
+      input: nested("toolArgs", "cd /tmp\ngit commit -m x"),
+      args: C,
+      expected: 2,
+    },
+    {
+      name: "toolArgs の行継続",
+      input: nested("toolArgs", "gi\\\nt commit -m x"),
+      args: C,
+      expected: 2,
+    },
+    {
+      name: "toolArgs の -C 付き",
+      input: nested("toolArgs", 'git -C "/tmp/a b" commit -m x'),
+      args: C,
+      expected: 2,
+    },
+    {
+      name: "tool_input が JSON の文字列",
+      input: nested("tool_input", "git commit -m x", { tool_name: "Bash" }),
+      args: [],
+      expected: 2,
+    },
+    {
+      name: "input が JSON の文字列",
+      input: nested("input", "git commit -m x"),
+      args: [],
+      expected: 2,
+    },
+    // 外せないエスケープ（`\u`）を含む値は、判定できないので commit として扱う。
+    {
+      name: "toolArgs のキーを \\u で書いた形",
+      input: `{"toolName":"bash","toolArgs":"{\\u0022command\\u0022:\\u0022git commit -m x\\u0022}"}`,
+      args: C,
+      expected: 2,
+    },
+    // ASCII でない文字の `\u` は、キーや区切りにならないので復号して判定する。
+    {
+      name: "toolArgs の ASCII でない文字の \\u の後ろ",
+      input: `{"toolName":"bash","toolArgs":"{\\"command\\":\\"echo ${"\\"}u65e5; git commit -m x\\"}"}`,
+      args: C,
+      expected: 2,
+    },
+    {
+      name: "create の file_text の ASCII でない文字の \\u と git commit の語",
+      input: `{"toolName":"create","toolArgs":"{\\"path\\":\\"a.md\\",\\"file_text\\":\\"${"\\"}u65e5 run git commit later\\"}"}`,
+      args: C,
+      expected: 0,
+    },
+    // 復号しても、commit でないものは通す（止めすぎにしない）。
+    {
+      name: "toolArgs の git status",
+      input: nested("toolArgs", "git status"),
+      args: C,
+      expected: 0,
+    },
+    {
+      name: "toolArgs の引用の中の git commit",
+      input: nested("toolArgs", 'echo "run git commit later"'),
+      args: C,
+      expected: 0,
+    },
+    {
+      name: "toolArgs の git log --grep commit",
+      input: nested("toolArgs", "git log --grep commit"),
+      args: C,
+      expected: 0,
+    },
+    {
+      name: "toolArgs の echo の引数",
+      input: nested("toolArgs", "echo hi; echo git commit"),
+      args: C,
+      expected: 0,
+    },
+  ];
+
+  test.each(nestedCases)("生 JSON の文字列の値: $name", async ({ input, args, expected }) => {
+    const result = await runRaw(input, args);
+    expect(result.status).toBe(expected);
+    if (expected === 2) {
+      expect(result.stderr).not.toMatch(/unavailable|command not found/);
+      expect(result.stderr).toContain("kaizen --current");
+    }
+  });
 });
 
 // jq はあるが python3 が無い環境では、コマンドを取り出せるのは jq の式だけである（Issue #906）。
@@ -1814,6 +1937,34 @@ describe.concurrent("jq だけがある環境でのコマンドの取り出し",
     expect(result.status).toBe(2);
     expect(result.stderr).toContain("kaizen --current");
   });
+
+  // jq の式で取り出せなくても、生の JSON の判定が文字列の値を復号して commit を止める（Issue #916）。
+  // そのため、止めることだけを確かめるテストでは、jq の式で取り出せたかを区別できない。
+  // コミット先がプロジェクトの外だと判定して通すのは、コマンドを取り出せたときだけなので、それで確かめる。
+  const external = join(makeSharedTempDir("kaizen-jqonly-ext-"), "repo");
+  test.each([
+    ["Copilot の形（-copilot）", copilot(`git -C ${external} commit -m x`), ["-copilot"]],
+    ["Copilot の形（引数なし）", copilot(`git -C ${external} commit -m x`), []],
+    [
+      "input が JSON の文字列の形",
+      { input: JSON.stringify({ command: `git -C ${external} commit -m x` }) },
+      [],
+    ],
+    [
+      "tool_input が JSON の文字列の形",
+      {
+        tool_name: "Bash",
+        tool_input: JSON.stringify({ command: `git -C ${external} commit -m x` }),
+      },
+      [],
+    ],
+  ])(
+    "%s のプロジェクトの外への commit は、コマンドを取り出して通す",
+    async (_name, payload, args) => {
+      const result = await runJqOnly(payload, args);
+      expect(result.status).toBe(0);
+    },
+  );
 
   test("Copilot の形の git status は通す", async () => {
     const result = await runJqOnly(copilot("git status"), ["-copilot"]);

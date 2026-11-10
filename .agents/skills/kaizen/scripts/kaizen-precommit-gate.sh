@@ -623,8 +623,76 @@ gitopts="((${gitoptval_opt}[[:space:]]+${gitoptval}|-[^[:space:]=]+=${gitoptval}
 # どちらも実際にコミットを実行するのに、`;&|(` だけの区切りでは見つけられず、チェックなしに通っていた
 # （実測）。`case` は mask_quoted の側で止める側として扱うが、その後に元の文字列を判定するのは
 # この正規表現なので、区切りを広げないと、やはりチェックなしに通る（片方だけでは防げない）。
-# 生の JSON で判定するときは、行継続を取り除いた**コピー**も同じ式で判定する（`extracted` が 1 のときは空のまま）。
-cmd_continuation_stripped=""
+# JSON の文字列の本体（両端の `"` を除いたもの）のエスケープを 1 段だけ外し、json_unescape_out に入れる。
+# ASCII の範囲の `\u00XX`（`\u0022` など。キーや区切りを書ける）と不正なエスケープは外せないので 1 を返す。
+# ASCII でない文字の `\uXXXX` は、`git`・`commit`・キー・区切り・空白のどれにもならないので、`_` 1 文字に置き換える。
+# 1 文字ずつ進むループにすると、エスケープの数 × 長さに比例して遅くなる（数百 KB の toolArgs で数十秒）。
+# そこで、置換だけで外す。`\\` は先に、JSON の文字列に現れない制御文字に置き換えて、他の置換から外す。
+# 置換は UTF-8 のロケールだと 30 倍ほど遅い（460 KB で 1 回 10 秒。bash 5.2 で実測）ので、関数の中だけ C にする。
+# 置き換える並びはすべて ASCII で、UTF-8 の多バイト文字のバイトは ASCII と一致しないので、結果は変わらない。
+# 外部のコマンドもサブシェルも起動しない。
+json_unescape_once() { # $1: JSON の文字列の本体
+	local LC_ALL=C
+	local s="${1:-}" ph=$'\x01' bs="\\"
+	json_unescape_out=""
+	case "${s}" in
+	*"${ph}"*) return 1 ;;
+	esac
+	s=${s//"${bs}${bs}"/"${ph}"}
+	case "${s}" in
+	*'\u00'[0-7][0-9A-Fa-f]*) return 1 ;;
+	esac
+	s=${s//'\u'[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]/'_'}
+	s=${s//'\"'/'"'}
+	s=${s//'\/'/'/'}
+	s=${s//'\n'/$'\n'}
+	s=${s//'\r'/$'\r'}
+	s=${s//'\t'/$'\t'}
+	s=${s//'\b'/$'\b'}
+	s=${s//'\f'/$'\f'}
+	case "${s}" in
+	*"${bs}"*) return 1 ;;
+	esac
+	json_unescape_out=${s//"${ph}"/"${bs}"}
+	return 0
+}
+
+# 生の JSON で判定するときに、ツールの入力が JSON の文字列として入った値（Copilot CLI の `toolArgs` など）を、
+# 1 段だけ復号して raw_nested_out に入れる。対象のキーは、jq と python3 の分岐が文字列でも読む `tool_input`・`toolArgs`・`input` である。
+# 文字列のままでは `"command"` のキーが `\"command\"` として現れ、下の commit_re に一致しない。
+# 復号した値は `{"command":"..."}` の形の JSON になるので、入力の全体と同じ式で判定できる。
+# 外せない値（ASCII の範囲の `\u00XX` を含むなど）があれば raw_nested_undecidable を 1 にする。呼び出し側は、判定できないとして commit と扱う。
+raw_nested_json() { # $1: Hook の JSON
+	local rest="${1:-}" head whole value
+	local re='"(tool_input|toolArgs|input)"[[:space:]]*:[[:space:]]*"(([^"\\]|\\.)*)"'
+	raw_nested_out=()
+	raw_nested_undecidable=0
+	while [[ ${rest} =~ ${re} ]]; do
+		whole=${BASH_REMATCH[0]}
+		value=${BASH_REMATCH[2]}
+		# 復号した値が commit_re に一致するには `"command"` のキーが要る。キーの文字は `\u00XX` でしか
+		# エスケープできないので、どちらも含まない値（Copilot の create の大きな file_text など）は復号せずに飛ばす。
+		case "${value}" in
+		*'\"command\"'* | *'\u00'*) ;;
+		*) value="" ;;
+		esac
+		if [ -z "${value}" ]; then
+			:
+		elif json_unescape_once "${value}"; then
+			raw_nested_out+=("${json_unescape_out}")
+		else
+			raw_nested_undecidable=1
+		fi
+		head=${rest%%"${whole}"*}
+		rest=${rest:$((${#head} + ${#whole}))}
+	done
+	return 0
+}
+
+# 生の JSON で判定するときは、入力の全体に加えて、行継続を取り除いた**コピー**と、文字列の値を復号したものも
+# 同じ式で判定する（raw_candidates。`extracted` が 1 のときは空のまま）。
+raw_candidates=()
+raw_undecidable=0
 if [ "${extracted}" -eq 1 ]; then
 	commit_re=$'(^|[;&|(){`\n])[[:space:]]*'"${prefix}${gitbin}"'[[:space:]]+'"${gitopts}"'commit([[:space:]]|$)'
 else
@@ -638,8 +706,15 @@ else
 	# そこで区切られる次のコマンドが前のコマンドとつながり、区切りの判定から外れて、チェックなしに通るからである。
 	# 両方を見れば、詰めて一致する形も、詰めずに一致する形も、どちらも見逃さない。
 	json_continuation='\\\n'
-	cmd_continuation_stripped=${cmd//"${json_continuation}"/}
-	[ "${cmd_continuation_stripped}" = "${cmd}" ] && cmd_continuation_stripped=""
+	raw_nested_json "${cmd}"
+	raw_undecidable=${raw_nested_undecidable}
+	for raw_text in "${cmd}" "${raw_nested_out[@]}"; do
+		[ "${raw_text}" = "${cmd}" ] || raw_candidates+=("${raw_text}")
+		raw_stripped=${raw_text//"${json_continuation}"/}
+		if [ "${raw_stripped}" != "${raw_text}" ]; then
+			raw_candidates+=("${raw_stripped}")
+		fi
+	done
 	# 生の JSON で判定するときも、区切りの後ろの `git commit` を検出する。command の値の先頭だけにアンカーを置くと、
 	# `cd /tmp && git commit -m x` のような複合コマンドを取りこぼし、チェックなしに通る（実測）。
 	# 区切りまでの前置きは `dqbody`（`([^"\\]|\\.)*`）で表す。これはエスケープされていない `"` を
@@ -668,11 +743,19 @@ if [ "${extracted}" -eq 1 ]; then
 		cmd_masked=${masked_raw%x}
 	fi
 fi
-if [[ ! "${cmd_masked}" =~ ${commit_re} ]]; then
-	# コピーが空なら、継続を含まない（または構造として取り出せた）。そのときだけ通す。
-	if [ -z "${cmd_continuation_stripped}" ] || [[ ! "${cmd_continuation_stripped}" =~ ${commit_re} ]]; then
-		exit 0
+commit_found=0
+if [[ "${cmd_masked}" =~ ${commit_re} ]] || [ "${raw_undecidable}" -eq 1 ]; then
+	commit_found=1
+fi
+# raw_candidates は、構造として取り出せたときは空である。どれかが一致すれば commit として扱う。
+for raw_text in "${raw_candidates[@]}"; do
+	if [[ "${raw_text}" =~ ${commit_re} ]]; then
+		commit_found=1
+		break
 	fi
+done
+if [ "${commit_found}" -eq 0 ]; then
+	exit 0
 fi
 
 # ここから先は commit と判定した呼び出しだけが通る。transcript_path を取り出す（jq が無い・取り出せないときは python3）。
