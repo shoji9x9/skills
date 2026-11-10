@@ -35,4 +35,4 @@ eval の新しい iteration の番号は、`tests/<name>/` の `iteration-N` の
 `ls | tail` のような文字列順の末尾から決めない。
 `benchmark.json` が無いことだけでは足りない。集計の前の iteration や、別の worktree で実行中の iteration は `eval-*` だけを持つ（`eval-*` は git の対象外なので、別の worktree のものは見えない）。
 `docs/skill-development.md` の実走の手順に、番号の決め方と、出力先のディレクトリが無いことの確かめを書く。
-`scripts/eval/run-skill-eval.sh` が、出力先の run のディレクトリが既にあるときに止まるかを確かめ、止まらなければ止めるようにするかも検討する。
+`scripts/eval/run/run-skill-eval.sh` が、出力先の run のディレクトリが既にあるときに止まるかを確かめ、止まらなければ止めるようにするかも検討する。

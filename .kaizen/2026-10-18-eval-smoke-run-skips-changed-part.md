@@ -29,4 +29,4 @@ Issue #625 で、配布スキルに `config-schemas/`（設定のスキーマ）
 eval を多数起動する前の試しの run は、変えた部品を実行する eval から選び、raw（`raw/claude-code.jsonl`）でその部品の呼び出しが成功したことを確かめてから全件を起動する。
 
 - 適用先の候補: `docs/skill-development.md`「実走の既定スコープ」に、試しの run の選び方と確かめる内容を 1 項目足す
-- ランナーがコピーする一覧と配布スキルの直下の要素の一致は、`scripts/eval/skill-eval-fingerprint.test.ts` で確かめるようにした（同じ commit）
+- ランナーがコピーする一覧と配布スキルの直下の要素の一致は、`scripts/eval/baseline/skill-eval-fingerprint.test.ts` で確かめるようにした（同じ commit）

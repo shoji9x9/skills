@@ -38,19 +38,76 @@
       "id": 2,
       "prompt": "Box のファイル id 123456 をダウンロードして中身を見たい",
       "assertions": [
+        "box-token.sh でアクセストークンを取得しようとしている",
+        "Authorization ヘッダーを自分だけが読めるファイル（mktemp など）に書き、curl に -H @<ファイル> で渡している",
+        "-H \"Authorization: Bearer $TOKEN\" の形で、トークンを curl の引数に載せていない",
         "https://api.box.com/2.0/files/123456/content を叩いている",
-        "curl -fL でリダイレクトを追い、-o でファイルに保存している",
-        "Authorization: Bearer ヘッダを付けている"
+        "curl -fL でリダイレクトを追い、-o でファイルに保存している"
+      ],
+      "reachability": [
+        {
+          "assertion": "box-token.sh でアクセストークンを取得しようとしている",
+          "prompt_quote": "Box のファイル id 123456 をダウンロードして"
+        },
+        {
+          "assertion": "Authorization ヘッダーを自分だけが読めるファイル（mktemp など）に書き、curl に -H @<ファイル> で渡している",
+          "prompt_quote": "Box のファイル id 123456 をダウンロードして"
+        },
+        {
+          "assertion": "-H \"Authorization: Bearer $TOKEN\" の形で、トークンを curl の引数に載せていない",
+          "prompt_quote": "Box のファイル id 123456 をダウンロードして"
+        },
+        {
+          "assertion": "https://api.box.com/2.0/files/123456/content を叩いている",
+          "prompt_quote": "ファイル id 123456 をダウンロードして"
+        },
+        {
+          "assertion": "curl -fL でリダイレクトを追い、-o でファイルに保存している",
+          "prompt_quote": "ダウンロードして中身を見たい"
+        }
       ]
     },
     {
       "id": 3,
       "prompt": "Box に report.txt を新規アップロードして",
       "assertions": [
+        "box-token.sh でアクセストークンを取得しようとしている",
+        "Authorization ヘッダーを自分だけが読めるファイル（mktemp など）に書き、curl に -H @<ファイル> で渡している",
+        "-H \"Authorization: Bearer $TOKEN\" の形で、トークンを curl の引数に載せていない",
         "https://upload.box.com/api/2.0/files/content に POST している",
         "attributes に name と parent.id を指定している",
         "-F file=@ でファイル本体を送っている",
         "アップロード後に id/名前など結果を確認している"
+      ],
+      "reachability": [
+        {
+          "assertion": "box-token.sh でアクセストークンを取得しようとしている",
+          "prompt_quote": "Box に report.txt を新規アップロードして"
+        },
+        {
+          "assertion": "Authorization ヘッダーを自分だけが読めるファイル（mktemp など）に書き、curl に -H @<ファイル> で渡している",
+          "prompt_quote": "Box に report.txt を新規アップロードして"
+        },
+        {
+          "assertion": "-H \"Authorization: Bearer $TOKEN\" の形で、トークンを curl の引数に載せていない",
+          "prompt_quote": "Box に report.txt を新規アップロードして"
+        },
+        {
+          "assertion": "https://upload.box.com/api/2.0/files/content に POST している",
+          "prompt_quote": "Box に report.txt を新規アップロードして"
+        },
+        {
+          "assertion": "attributes に name と parent.id を指定している",
+          "prompt_quote": "Box に report.txt を新規アップロードして"
+        },
+        {
+          "assertion": "-F file=@ でファイル本体を送っている",
+          "prompt_quote": "Box に report.txt を新規アップロードして"
+        },
+        {
+          "assertion": "アップロード後に id/名前など結果を確認している",
+          "prompt_quote": "Box に report.txt を新規アップロードして"
+        }
       ]
     },
     {

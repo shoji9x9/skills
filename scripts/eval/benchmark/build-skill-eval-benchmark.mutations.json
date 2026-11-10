@@ -1,0 +1,84 @@
+{
+  "$comment": [
+    "build-skill-eval-benchmark.test.ts の検出能力を示す変異の一覧（Issue #421）。",
+    "判定行を無効化する変異で狙ったテストが落ちることを scripts/mutation/check-mutation-proof.ts が再実行する。"
+  ],
+  "test_file": "scripts/eval/benchmark/build-skill-eval-benchmark.test.ts",
+  "mutations": [
+    {
+      "id": "TEXT-KEY",
+      "why": "判定をテキストではなく位置（index）で対応づける",
+      "file": "scripts/eval/benchmark/build-skill-eval-benchmark.ts",
+      "find": "  return assertions.map((text) => ({ text, ...verdicts.get(text) }));",
+      "replace": "  const ordered = [...verdicts.values()];\n  return assertions.map((text, i) => ({ text, ...ordered[i] }));",
+      "occurrences": 1,
+      "expect_failing": ["集計（揃った iteration） 判定が並べ替わっていてもテキストで対応づける"]
+    },
+    {
+      "id": "KEYSET",
+      "why": "キー集合の突き合わせを外す（件数だけ見る）",
+      "file": "scripts/eval/benchmark/build-skill-eval-benchmark.ts",
+      "find": "  const missing = assertions.filter((t) => !verdicts.has(t));\n  const extra = [...verdicts.keys()].filter((t) => !assertions.includes(t));\n  if (missing.length || extra.length) {\n    const parts = [];\n    if (missing.length)\n      parts.push(`判定の無い assertion ${missing.length} 件: ${missing.join(\" / \")}`);\n    if (extra.length) parts.push(`宣言に無い判定 ${extra.length} 件: ${extra.join(\" / \")}`);\n    die(`${gradingPath}: ${metaPath} とキー集合が一致しない。${parts.join(\"、\")}`);\n  }\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "受理しない入力（exit 2） キー集合が eval_metadata と違えば落とす（判定の無い assertion）",
+        "受理しない入力（exit 2） キー集合が eval_metadata と違えば落とす（宣言に無い判定）"
+      ]
+    },
+    {
+      "id": "RATE",
+      "why": "pass_rate の突き合わせを外す（内訳と食い違う採点を通す）",
+      "file": "scripts/eval/benchmark/build-skill-eval-benchmark.ts",
+      "find": "  if (round(computedRate, digits) !== round(summary.pass_rate, digits)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "受理しない入力（exit 2） summary の pass_rate が採点内訳と食い違えば落とす",
+        "受理しない入力（exit 2） 桁を丸めても説明できない pass_rate は落とす"
+      ]
+    },
+    {
+      "id": "ROUND",
+      "why": "Python 互換の丸めを素朴な Math.round へ変える",
+      "file": "scripts/eval/benchmark/build-skill-eval-benchmark.ts",
+      "find": "  return Number(result.toFixed(digits));",
+      "replace": "  return Math.round(value * 10 ** digits) / 10 ** digits;",
+      "occurrences": 1,
+      "expect_failing": ["集計（揃った iteration） run の並び・evals_run・統計・Delta を固定する"]
+    },
+    {
+      "id": "EMPTY-PAIR",
+      "why": "採点済み 0 件の eval × configuration を突き合わせから外す（--ungraded skip の穴）",
+      "file": "scripts/eval/benchmark/build-skill-eval-benchmark.ts",
+      "find": "  const emptyPairs = [...perPair].filter(([, n]) => n === 0).map(([k]) => k);",
+      "replace": "  const emptyPairs = [];",
+      "occurrences": 1,
+      "expect_failing": [
+        "受理しない入力（exit 2） 採点済み 0 件の eval × configuration は --ungraded skip でも落とす"
+      ]
+    },
+    {
+      "id": "DUP-RUNS",
+      "why": "同じ run が 2 つのディレクトリから来ても落とさない（片方の eval が 2 倍の重みになる）",
+      "file": "scripts/eval/benchmark/build-skill-eval-benchmark.ts",
+      "find": "    if (seenRuns.has(key)) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "受理しない入力（exit 2） 同じ run が 2 つのディレクトリから来ていれば落とす"
+      ]
+    },
+    {
+      "id": "SYMLINK-DIRS",
+      "why": "listDirs をリンクを辿らない判定へ戻す（リンクの eval が黙って落ちる）",
+      "file": "scripts/eval/benchmark/build-skill-eval-benchmark.ts",
+      "find": "        return statSync(join(parent, name)).isDirectory();",
+      "replace": "        return readdirSync(parent, { withFileTypes: true }).some((e) => e.name === name && e.isDirectory());",
+      "occurrences": 1,
+      "expect_failing": [
+        "受理しない入力（exit 2） シンボリックリンクの eval ディレクトリも集計に入る"
+      ]
+    }
+  ]
+}

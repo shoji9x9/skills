@@ -1,0 +1,180 @@
+{
+  "metadata": {
+    "skill_name": "kaizen",
+    "skill_path": "<repo>/skills/kaizen",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-10T03:49:27Z",
+    "evals_run": [1],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 55.523,
+        "tokens": 281862,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "学びを 1 件だけ記録している（.kaizen/ の下に新しく作った .md が 1 件）",
+          "passed": true,
+          "evidence": "project-tree に .kaizen/2026-11-10-verify-path-before-use.md の 1 件だけ"
+        },
+        {
+          "text": "作成されたファイルの frontmatter に date, type, status, priority, applied-to フィールドがある",
+          "passed": true,
+          "evidence": "frontmatter に date・type・status・priority・applied-to がある"
+        },
+        {
+          "text": "作成されたファイルに「事象」「根本原因」「提案」セクションがある",
+          "passed": true,
+          "evidence": "## 事象・## 根本原因・## 提案 がある"
+        },
+        {
+          "text": "status が pending、applied-to が空配列になっている",
+          "passed": true,
+          "evidence": "status: pending、applied-to: []"
+        },
+        {
+          "text": "個別の失敗ではなく根本原因が記述されている",
+          "passed": true,
+          "evidence": "根本原因の節が「パスを使う前に確かめる手順が作業の流れに無い」まで掘り下げている"
+        },
+        {
+          "text": "作成されたファイルの frontmatter の confidence が high・medium・low のどれかになっている",
+          "passed": true,
+          "evidence": "confidence: low"
+        },
+        {
+          "text": "作成されたファイルの「既存の規約」節の扱いが、なし・埋もれている・強制なし・明確のどれかになっている",
+          "passed": true,
+          "evidence": "## 既存の規約 に「扱い: なし」"
+        },
+        {
+          "text": "作成されたファイルの「既存の規約」節に、照合した範囲を書いている",
+          "passed": true,
+          "evidence": "「照合した範囲: リポジトリ直下の AGENTS.md / CLAUDE.md / .github/ と .kaizen/」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 2,
+        "failed": 6,
+        "total": 8,
+        "time_seconds": 23.019,
+        "tokens": 56354,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "学びを 1 件だけ記録している（.kaizen/ の下に新しく作った .md が 1 件）",
+          "passed": true,
+          "evidence": ".kaizen/2026-11-10-verify-paths-before-use.md の 1 件だけ"
+        },
+        {
+          "text": "作成されたファイルの frontmatter に date, type, status, priority, applied-to フィールドがある",
+          "passed": false,
+          "evidence": "frontmatter は title・date・category・trigger で、type・status・priority・applied-to が無い"
+        },
+        {
+          "text": "作成されたファイルに「事象」「根本原因」「提案」セクションがある",
+          "passed": false,
+          "evidence": "節は 何が起きたか・根本原因（推定）・今後の対策・確認方法 で、事象と提案が無い"
+        },
+        {
+          "text": "status が pending、applied-to が空配列になっている",
+          "passed": false,
+          "evidence": "status と applied-to が無い"
+        },
+        {
+          "text": "個別の失敗ではなく根本原因が記述されている",
+          "passed": true,
+          "evidence": "根本原因（推定）に「場所を確認せずに推測や記憶で書いた」と原因を書いている"
+        },
+        {
+          "text": "作成されたファイルの frontmatter の confidence が high・medium・low のどれかになっている",
+          "passed": false,
+          "evidence": "confidence が無い"
+        },
+        {
+          "text": "作成されたファイルの「既存の規約」節の扱いが、なし・埋もれている・強制なし・明確のどれかになっている",
+          "passed": false,
+          "evidence": "既存の規約の節が無い"
+        },
+        {
+          "text": "作成されたファイルの「既存の規約」節に、照合した範囲を書いている",
+          "passed": false,
+          "evidence": "既存の規約の節が無く、照合した範囲を書いていない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 55.523,
+        "stddev": 0,
+        "min": 55.523,
+        "max": 55.523
+      },
+      "tokens": {
+        "mean": 281862,
+        "stddev": 0,
+        "min": 281862,
+        "max": 281862
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.25,
+        "stddev": 0,
+        "min": 0.25,
+        "max": 0.25
+      },
+      "time_seconds": {
+        "mean": 23.019,
+        "stddev": 0,
+        "min": 23.019,
+        "max": 23.019
+      },
+      "tokens": {
+        "mean": 56354,
+        "stddev": 0,
+        "min": 56354,
+        "max": 56354
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.75",
+      "time_seconds": "+32.5",
+      "tokens": "+225508"
+    }
+  },
+  "notes": [
+    "変更確認（#952）。assertion を変えた eval 1 だけを、with_skill と without_skill で 1 run ずつ実行した。",
+    "最初の run の後に assertion（1 件だけ記録しているか）を足したので、その run を捨てて実行し直した。"
+  ]
+}

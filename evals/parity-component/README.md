@@ -14,14 +14,14 @@
 ## 実行例
 
 ```bash
-scripts/eval/run-skill-eval.sh \
+scripts/eval/run/run-skill-eval.sh \
   --skill parity-component --config with_skill \
   --prompt "parity-component capture" \
   --out tests/parity-component/iteration-1/eval-1/with_skill/run-1 \
   --executor claude-code --model opus
 
 # fixture 付き eval（前提が揃った状態から始める。evals.json の "fixture" の値の前に evals/parity-component/ を付けて渡す）
-scripts/eval/run-skill-eval.sh \
+scripts/eval/run/run-skill-eval.sh \
   --skill parity-component --config with_skill \
   --prompt "parity-component build --component button" \
   --fixture evals/parity-component/fixtures/catalog-unset \
@@ -178,4 +178,4 @@ eval 5 の `without_skill` は停止せず実装まで進んだので、fixture 
 - `element.png` が実際のボタンの画像ではなくプレースホルダなので、画素比較の入力にならない
 
 **入力（prompt・fixture・assertion）を変えたら、その eval の過去の結果は使えない。**
-`scripts/eval/skill-eval-fingerprint.ts` が assertions を含めて指紋を取るので、baseline の再利用も拒否される。
+`scripts/eval/baseline/skill-eval-fingerprint.ts` が assertions を含めて指紋を取るので、baseline の再利用も拒否される。

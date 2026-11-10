@@ -1,0 +1,140 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<repo>/skills/parity-suite",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-10T03:49:27Z",
+    "evals_run": [12],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 12,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 33.014,
+        "tokens": 115477,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "無注入で全部の比較方法が緑になることを、同じ実行系（同じ Playwright config・同じ actionTimeout・同じ差分ツールとしきい値・同じベースライン）で先に確認する、と条件まで含めて説明している",
+          "passed": true,
+          "evidence": "「同じ config・actionTimeout・差分ツール・ベースラインで、注入用の設定だけを外して 1 回実行」と条件まで述べている"
+        },
+        {
+          "text": "注入スクリプトの副作用・環境差など注入以外の理由でも赤くなりうる（常に赤い状態を捕捉と読み違える）ことに触れている",
+          "passed": true,
+          "evidence": "「注入とは別の共通原因で全体が落ちている可能性」と、注入以外で全部赤になる例を挙げている"
+        },
+        {
+          "text": "確認する比較方法として手書き assertion／特性照合／画素／aria 比較の 4 つを挙げ、1 つでも赤ければ原因を潰してから注入に進むとしている",
+          "passed": true,
+          "evidence": "手書き assertion・特性照合・画素・aria を挙げ、注入なしで赤なら注入の結果は判定に使えないとしている"
+        },
+        {
+          "text": "確認前に「捕捉」と記録して完了にしていない",
+          "passed": true,
+          "evidence": "「まだ「捕捉」と記録して完了にはできません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 22.697,
+        "tokens": 55243,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "無注入で全部の比較方法が緑になることを、同じ実行系（同じ Playwright config・同じ actionTimeout・同じ差分ツールとしきい値・同じベースライン）で先に確認する、と条件まで含めて説明している",
+          "passed": false,
+          "evidence": "「同じ手順で全部緑になることを確認する」だけで、config・actionTimeout・差分ツール・ベースラインの条件が無い"
+        },
+        {
+          "text": "注入スクリプトの副作用・環境差など注入以外の理由でも赤くなりうる（常に赤い状態を捕捉と読み違える）ことに触れている",
+          "passed": true,
+          "evidence": "「故障と関係ない理由で落ちていないか…何を入れても赤になる」"
+        },
+        {
+          "text": "確認する比較方法として手書き assertion／特性照合／画素／aria 比較の 4 つを挙げ、1 つでも赤ければ原因を潰してから注入に進むとしている",
+          "passed": false,
+          "evidence": "比較方法を「方法A・方法B」とだけ書き、4 つを挙げていない"
+        },
+        {
+          "text": "確認前に「捕捉」と記録して完了にしていない",
+          "passed": true,
+          "evidence": "「まだ「捕捉」と書いて完了にするのは早いです」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 33.014,
+        "stddev": 0,
+        "min": 33.014,
+        "max": 33.014
+      },
+      "tokens": {
+        "mean": 115477,
+        "stddev": 0,
+        "min": 115477,
+        "max": 115477
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5,
+        "stddev": 0,
+        "min": 0.5,
+        "max": 0.5
+      },
+      "time_seconds": {
+        "mean": 22.697,
+        "stddev": 0,
+        "min": 22.697,
+        "max": 22.697
+      },
+      "tokens": {
+        "mean": 55243,
+        "stddev": 0,
+        "min": 55243,
+        "max": 55243
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.50",
+      "time_seconds": "+10.3",
+      "tokens": "+60234"
+    }
+  },
+  "notes": [
+    "変更確認（#952）。assertion の語（括弧の中の別名）を変えた eval 12 だけを、with_skill と without_skill で 1 run ずつ実行した。",
+    "SKILL.md・references・assets の語の変更は括弧の中の別名を消しただけなので、ほかの eval は実行していない（利用者の判断）。"
+  ]
+}
