@@ -1,7 +1,7 @@
 ---
 date: 2026-10-16
 type: hook
-priority: high
+priority: medium
 confidence: medium
 status: pending
 applied-to: []
@@ -27,6 +27,13 @@ PR #943 ではスレッドへの返信に、一覧で「バージョン」と言
 - なぜ英語になったか → 直前の入力が英語の出力スタイルの指示とツール出力で、2026-10-10-response-language-drift-to-english.md と同じ機序で英語に引きずられた
 - なぜ止められなかったか → Stop の Hook は最後の応答の本文だけを読み、ツールの入力として渡す AskUserQuestion の question・label・description・preview を読まない
 - なぜその範囲になったか → 前の学びの対策を「人への応答＝最後の応答の本文」として作り、利用者に表示されるもう一方の出口（確認の UI）を挙げなかった
+
+## 優先度の見直し（Issue #966）
+
+2026-11-11、Issue #966 で high から medium に下げた。
+確認の UI が英語になったのは 1 回で、再発していない。外向きの本文に使わない語が入った 2 回は、投稿の後に自分で気付いて直せた。
+提案の PreToolUse の Hook は、コマンドの形（`--body-file`・`-F body=@`・`--details`）を読む検査で、形を挙げても尽きない（`references/apply.md`「機構の置き場所は原因を持つ側から選ぶ」）。
+再発したら、外向きの本文を書くスクリプトや手順の側で `lint-prose.ts` を当てる形を先に検討する。
 
 ## 提案
 

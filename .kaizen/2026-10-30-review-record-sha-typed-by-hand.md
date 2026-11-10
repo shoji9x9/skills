@@ -3,8 +3,8 @@ date: 2026-10-30
 type: doc
 priority: high
 confidence: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [skills/pr-finalize-loop/scripts/local-review-record.sh, skills/pr-review-handle/scripts/local-review-record.sh, skills/pr-finalize-loop/references/review-tool.md, skills/pr-review-handle/references/review-tool.md]
 session: claude-code
 ---
 
@@ -59,6 +59,11 @@ PR #832 の記録を書いたときの KEDB 照合は `SHA`・`local-review-reco
 - 扱い: 明確
 - 場所: `AGENTS.md`「シェルの書き方」の「ID・完全な SHA・長い prompt・スクリプト名は、表示された結果から手で書き写さない」と、`docs/agent-workflow.md` の同じ節。記録のスクリプトも、SHA を PR の HEAD と比べて止める
 - 照合した範囲: `AGENTS.md`・`docs/agent-workflow.md`・`pr-finalize-loop` の `references/review-tool.md` を `手で書き写さない`・`短い SHA の残りを推測` で検索した。`review-tool.md` の `post` の例は、今も `--sha` に値を手で渡す形である
+
+## 失敗の種類
+
+- 種類: 規則を破る
+- 理由: SHA を手で書き写さない規則を知っていたのに、初めての投稿は例外に見えて表示から組み立てた
 
 ## 提案
 

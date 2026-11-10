@@ -3,8 +3,8 @@ date: 2026-11-06
 type: rule
 priority: high
 confidence: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [.agents/rules/state-space-and-mutation-proof.md]
 session: claude-code
 ---
 
@@ -35,6 +35,11 @@ push の前の `/code-review --fix` が、引用符の直後に空白なしで�
 
 `/code-review` の指摘を手元で実行し、直す前のコードで 3 件とも残ることを確かめた。
 反復 2 の指摘 3 件は、属性を読む形に替える前のコード（e6b02368）と替えた後のコード（a7219439）に同じ入力を渡して確かめた（替える前は除き、替えた後は残す）。同じ原因の再発なので、priority と confidence を high にした。
+
+## 失敗の種類
+
+- 種類: 要素が抜ける
+- 理由: 埋め込み先の文法から挙げる形のうち、HTML と XML の形が毎回抜けた
 
 ## 提案
 

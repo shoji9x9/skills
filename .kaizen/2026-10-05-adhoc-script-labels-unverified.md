@@ -3,7 +3,8 @@ date: 2026-10-05
 type: doc
 priority: high
 confidence: high
-status: pending
+status: applied
+applied-to: [AGENTS.md, docs/agent-workflow.md]
 session: claude-code
 ---
 
@@ -47,6 +48,11 @@ PR の CI が同じノートの原因（`child-timeout.test.ts`）で落ち、KE
 ## 根拠
 
 同じ原因（使い捨てのスクリプトの分類を、既知の入力で確かめずに読んだ）での再発を、#708 で確かめたので high にした。
+
+## 失敗の種類
+
+- 種類: 規則を破る
+- 理由: 検出の確認の規則を知っていたのに、使い捨ての分類は例外に見えて当てなかった
 
 ## 提案
 

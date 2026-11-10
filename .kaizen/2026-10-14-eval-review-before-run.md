@@ -3,8 +3,8 @@ date: 2026-10-14
 type: rule
 priority: high
 confidence: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [.agents/rules/eval-assertion-discrimination.md]
 session: claude-code
 ---
 
@@ -34,6 +34,11 @@ with_skill が 7/8 になり、prompt に問いを足して eval 30 を実行し
 
 同じ原因での再発を確かめた（部分文字列のチェックだけを通し、引き出す文があるかのレビューを run の前に通さなかった）。
 2026-10-14 の事象（#623）と 2026-10-15 の事象（#614）に、2026-10-21 の事象（#741）が続く。
+
+## 失敗の種類
+
+- 種類: 形がずれる
+- 理由: 4 点のレビューと run の順序が期待と違った（並行に起動した）
 
 ## 提案
 

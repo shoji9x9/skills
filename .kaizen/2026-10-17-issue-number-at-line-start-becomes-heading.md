@@ -3,8 +3,8 @@ date: 2026-10-17
 type: hook
 priority: high
 confidence: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [lefthook.yml, .config/markdownlint/md018-only.markdownlint-cli2.yaml]
 session: claude-code
 ---
 
