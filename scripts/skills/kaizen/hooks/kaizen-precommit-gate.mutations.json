@@ -234,6 +234,18 @@
       ]
     },
     {
+      "id": "GATE-PREFILTER-PASSES-UNICODE",
+      "why": "最初の絞り込みで、\\u を含む入力を次の段に渡さない（git \\u0063ommit は生の JSON に commit の語が無いので、jq に渡る前に通す）",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": "*'\\u'*) ;;\n*) exit 0 ;;",
+      "replace": "*) exit 0 ;;",
+      "occurrences": 1,
+      "expect_failing": [
+        "事前の絞り込みはツールの名前と入力だけを見る \\u で書いた commit の語も、絞り込みで通さずに jq で判定する",
+        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: tool_input の値の \\u0063ommit（commit の語なし）"
+      ]
+    },
+    {
       "id": "GATE-PREFILTER-UNICODE-ESCAPE",
       "why": "\\u を含む入力も絞り込みに使う（\\u で書いたキーの command を見つけられず、commit を通す）",
       "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
@@ -242,7 +254,9 @@
       "occurrences": 1,
       "expect_failing": [
         "事前の絞り込みはツールの名前と入力だけを見る \\u を含む入力は、入力の全体で判定する",
-        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: 外側のキーを tool\\u0041rgs と書いた形"
+        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: 外側のキーを tool\\u0041rgs と書いた形",
+        "事前の絞り込みはツールの名前と入力だけを見る \\u で書いた commit の語も、絞り込みで通さずに jq で判定する",
+        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: tool_input の値の \\u0063ommit（commit の語なし）"
       ]
     },
     {
@@ -296,7 +310,8 @@
       "expect_failing": [
         "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: toolArgs の内側の JSON の \\u0063ommit",
         "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: tool_input の値の \\u0063ommit",
-        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: 外側のキーを tool\\u0041rgs と書いた形"
+        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: 外側のキーを tool\\u0041rgs と書いた形",
+        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: tool_input の値の \\u0063ommit（commit の語なし）"
       ]
     },
     {
@@ -320,7 +335,8 @@
       "occurrences": 1,
       "expect_failing": [
         "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: 外側のキーを tool\\u0041rgs と書いた形",
-        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: tool_input の値の \\u0063ommit"
+        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: tool_input の値の \\u0063ommit",
+        "生 JSON だけで判定するときの commit 検出 生 JSON の文字列の値: tool_input の値の \\u0063ommit（commit の語なし）"
       ]
     },
     {

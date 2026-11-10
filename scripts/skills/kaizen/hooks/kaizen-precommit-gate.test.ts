@@ -1860,6 +1860,13 @@ describe.concurrent("生 JSON だけで判定するときの commit 検出", () 
       args: [],
       expected: 2,
     },
+    // `commit` の語が生の JSON に 1 つも無い形。絞り込みが `\u` を見て次の段に渡す。
+    {
+      name: "tool_input の値の \\u0063ommit（commit の語なし）",
+      input: `{"tool_name":"Bash","tool_input":{"command":"git \\u0063ommit -m x"}}`,
+      args: [],
+      expected: 2,
+    },
     {
       name: "tool_input のコマンドに書いた \\u0063 の文字",
       input: JSON.stringify({
@@ -2146,6 +2153,16 @@ describe.concurrent("事前の絞り込みはツールの名前と入力だけ�
   test("\\u を含む入力は、入力の全体で判定する", async () => {
     const { status, lines } = await runWithTrace(
       `{"cwd":"{P}","tool_name":"Bash","tool_input":{"comm\\u0061nd":"git commit -m x"}}`,
+    );
+    expect(status).toBe(2);
+    expect(lines).toContain("jq -r");
+  });
+
+  // `commit` を `commit` と書くと、生の JSON に `commit` の語が現れない。jq はそれを `git commit` と読むので、
+  // 絞り込みで通さず、jq に渡して止める。
+  test("\\u で書いた commit の語も、絞り込みで通さずに jq で判定する", async () => {
+    const { status, lines } = await runWithTrace(
+      `{"cwd":"{P}","tool_name":"Bash","tool_input":{"command":"git \\u0063ommit -m x"}}`,
     );
     expect(status).toBe(2);
     expect(lines).toContain("jq -r");
