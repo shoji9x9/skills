@@ -244,7 +244,14 @@ kaizen_worktree_kaizen_dirs() { # $1: 基準のツリー（省略時は cwd）
 	# センチネルが二重に数えられ、案内も他セッションの走査予算も二重に消費される。物理パスでも
 	# 突き合わせて弾く。
 	base_phys=$(cd "${base}" 2>/dev/null && pwd -P) || base_phys=${base}
-	printf '%s\0' "${base}/.kaizen"
+	# `.kaizen` が symlink のツリーは返さない。`.kaizen` はリポジトリの中身で決まるので、commit された symlink でありうる。
+	# 返すと、呼び出し側の `rm -f` や書き込みが、その先にあるリポジトリの外のファイルに届く。そのツリーの制御ファイルは数えない。
+	# 返さないツリーは、チェックが数えないことに気付けるよう、stderr に 1 行出す。
+	if [ ! -L "${base}/.kaizen" ]; then
+		printf '%s\0' "${base}/.kaizen"
+	else
+		echo "kaizen: ${base}/.kaizen は symlink なので、このツリーの制御ファイルを扱わない" >&2
+	fi
 	command -v git >/dev/null 2>&1 || return 0
 	emit_worktree_dir() { # $1: `worktree <path>` 形式のレコード
 		case "$1" in
@@ -257,6 +264,10 @@ kaizen_worktree_kaizen_dirs() { # $1: 基準のツリー（省略時は cwd）
 			return 0
 		fi
 		[ -d "${path}" ] || return 0
+		if [ -L "${path}/.kaizen" ]; then
+			echo "kaizen: ${path}/.kaizen は symlink なので、このツリーの制御ファイルを扱わない" >&2
+			return 0
+		fi
 		printf '%s\0' "${path}/.kaizen"
 	}
 	# **NUL 区切りの出力を変数へ溜めない。** `$( )` は NUL を落とすので、溜めた時点で

@@ -551,3 +551,18 @@ describe("symlink の先には書かない", () => {
     expect(existsSync(sentinelPath(main))).toBe(false);
   });
 });
+
+describe("別の作業ツリーの symlink の .kaizen の先は消さない", () => {
+  test("worktree の .kaizen が symlink なら、その先にあるセンチネルと同じ名前のファイルを消さない", () => {
+    const { main, worktree } = makeRepoWithWorktree();
+    const outside = makeTempDir("kaizen-extract-done-outside-");
+    const planted = join(outside, `.pending-extract.${SESSION}`);
+    writeFileSync(planted, "ORIGINAL");
+    symlinkSync(outside, join(worktree, ".kaizen"));
+    writeSentinel(main);
+    const run = runExtractDone(main, main);
+    expect(run.status, run.stderr).toBe(0);
+    expect(readFileSync(planted, "utf8")).toBe("ORIGINAL");
+    expect(existsSync(sentinelPath(main))).toBe(false);
+  });
+});

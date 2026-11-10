@@ -344,7 +344,10 @@ if declare -f kaizen_worktree_kaizen_dirs >/dev/null 2>&1; then
 		kaizen_dirs+=("${kaizen_dir}")
 	done < <(kaizen_worktree_kaizen_dirs "")
 fi
-[ "${#kaizen_dirs[@]}" -gt 0 ] || kaizen_dirs=(".kaizen")
+# 一覧が空でも、`.kaizen` が symlink なら代わりに使わない（その先のファイルを消さない）。
+if [ "${#kaizen_dirs[@]}" -eq 0 ] && [ ! -L .kaizen ]; then
+	kaizen_dirs=(".kaizen")
+fi
 
 removed=0
 sentinel_name=${sentinel_path##*/}

@@ -126,9 +126,9 @@ if ! declare -f kaizen_sentinel_key_of >/dev/null 2>&1; then
 	}
 	# 機能を減らしたバージョンは自分のツリーだけを見る（すべての作業ツリーを探すようにする前の振る舞い）。worktree をまたいだセンチネルは
 	# 見つからないが、止める条件は緩めない。
-	kaizen_worktree_kaizen_dirs() { printf '%s\0' "$(pwd)/.kaizen"; }
+	kaizen_worktree_kaizen_dirs() { [ -L .kaizen ] || printf '%s\0' "$(pwd)/.kaizen"; }
 	kaizen_find_control_file() {
-		[ -n "${2:-}" ] && [ -e ".kaizen/$2" ] || return 1
+		[ -n "${2:-}" ] && [ ! -L .kaizen ] && [ -e ".kaizen/$2" ] || return 1
 		printf '%s' ".kaizen/$2"
 	}
 	# 設定を読む関数も共通ライブラリの側にある。読めないときは「定義なし」を返し、呼び出し側の

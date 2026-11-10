@@ -104,7 +104,10 @@ if [ "${is_compact}" -eq 0 ]; then
 			expire_dirs+=("${expire_dir}")
 		done < <(kaizen_worktree_kaizen_dirs "")
 	fi
-	[ "${#expire_dirs[@]}" -gt 0 ] || expire_dirs=(".kaizen")
+	# 一覧が空でも、`.kaizen` が symlink なら代わりに使わない（その先のファイルを消さない）。
+	if [ "${#expire_dirs[@]}" -eq 0 ] && [ ! -L .kaizen ]; then
+		expire_dirs=(".kaizen")
+	fi
 	for expire_dir in "${expire_dirs[@]}"; do
 		if [ -n "${done_name}" ]; then
 			rm -f "${expire_dir}/${done_name}"
@@ -117,6 +120,12 @@ fi
 
 # .kaizen/ が無ければ何も出さずに正常終了（初期化前のプロジェクト）。
 if [ ! -d .kaizen ]; then
+	exit 0
+fi
+# `.kaizen` が symlink なら、その先のファイルを学びとして注入しない。名前はリポジトリの中身で決まるので
+# commit された symlink でありえ、リポジトリの外のファイルがエージェントの文脈に入る。
+if [ -L .kaizen ]; then
+	echo "kaizen-context-inject: .kaizen が symlink なので、学びを注入しない" >&2
 	exit 0
 fi
 
