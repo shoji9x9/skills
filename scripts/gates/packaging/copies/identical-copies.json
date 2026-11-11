@@ -436,6 +436,13 @@
         "skills/spec-parity/scripts/runtime-errors.mjs"
       ],
       "reason": "操作中のエラーの記録を集計して現行と新側を比べる runtime-errors.mjs（Issue #929・#565）。spec-parity は e2e で採った記録を同じスクリプトで集計する。食い違うと、ランナーによって同じ記録から違う差分を出す"
+    },
+    {
+      "files": [
+        "evals/spec-parity/fixtures/verify-unapproved/setup.sh",
+        "evals/spec-parity/fixtures/verify-overflow/setup.sh"
+      ],
+      "reason": "spec-parity の eval 8・9 の fixture で、新側のリポジトリを作り、記録の commit をその HEAD にそろえる手順。片方だけを直すと、2 つの eval が違う前提の新側で実行される"
     }
   ]
 }
