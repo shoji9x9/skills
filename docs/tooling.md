@@ -157,7 +157,8 @@ CI だけで実行する検査が 2 つある。
   対象は、Playwright の spec と fixture の雛形（`skills/*/assets/*.spec.template.ts`・`skills/*/assets/*.fixture.template.ts`）と、e2e の雛形（`skills/*/assets/*.e2e.template.ts`）である。
   e2e のレポーターとブラウザの init script の雛形（`skills/spec-parity/assets/runtime-errors-reporter.template.ts`・`runtime-errors-init.template.mjs`）と、eval の fixture をブラウザで作るジェネレータも含む
 - `Lint` ジョブの `Test weakening`（`fallow audit`）: PR が増やした、テストを弱める変更（`.skip`・`.only` の追加、テストのケースや assertion の減少、カバレッジの閾値の引き下げ）。PR のベースとの差分を見るので、PR でだけ実行する。
-  意図して弱めるときは、理由を付けた `fallow-ignore-next-line weakened-tests` を書く
+  意図して弱めるときは、理由を付けた `fallow-ignore-next-line weakened-tests` を書く。
+  配布スキルの雛形は利用者のプロジェクトへコピーされるので、コメントを置かずに、`base.jsonc` の `overrides` でそのファイルとインストール済みのコピーだけを外す
 
 #### 重複したコード（jscpd）
 
