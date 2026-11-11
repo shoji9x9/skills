@@ -28,11 +28,12 @@ node <spec-parity>/scripts/convergence-check.mjs --slug-dir .replace/parity/<slu
 
 - スイート・横のはみ出し・デザインの点検・人による確認の記録は、`verify-metadata.json` の `new.commit` と同じバージョンのものでなければ、古い記録として数える。
   `verify-metadata.json` の `new.commit` が `none` なら、どの記録のバージョンも特定できないので、判定できないとして exit 2 にする。
-  `verify-metadata.json` の `new.dirty` が `false` でないとき（欠落・型の誤り・雛形の値のままを含む）も、記録が `new.commit` のバージョンのものと言えないので、判定できないとして exit 2 にする。
-  `replace-metadata.json` の `new.dirty` と同じ扱いである。新側を commit してから verify をやり直す。
   `parity-replace` が新側を green にした記録（`replace-metadata.json`）は、前提として確かめる。
   記録の鍵（`slug`・`new.target`・`new.commit`）のどれかが、`metadata.json` の `slug`・`--target`・`verify-metadata.json` の `new.commit` と違うとき（欠落と型の誤りを含む）は、判定できないとして exit 2 にする。
-  `new.dirty` が `false` でないときも同じである。どちらも、verify の手順をやり直しても直らない。
+  `replace-metadata.json` の `new.dirty` が `false` でないときも同じである。どちらも、verify の手順をやり直しても直らない。
+  その後で、`verify-metadata.json` の `new.dirty` が `false` でないとき（欠落・型の誤り・雛形の値のままを含む）も、記録が `new.commit` のバージョンのものと言えないので、判定できないとして exit 2 にする。
+  `replace-metadata.json` の確認より後にするのは、commit しても直らない鍵の違いを先に示すためである。
+  変更を退避して green にしたバージョンに戻せば、verify をやり直して直る。変更を commit したなら、`new.commit` が green の記録と違うので、green を記録し直してから verify する。
   新側を直したら、これらをやり直す。操作中のエラーの記録は新側のバージョンを持たないので、verify のたびに記録のディレクトリを消してから採り直す。
 - `unmeasured` の扱いは、`parity-diff` の収束の判定（`artifact-health-check.mjs --stage diff`）と同じである。
   キーごと無い成果物と `declared: false`（理由が要る）は判定せず、`verify-metadata.json` の `convergence.checks.unmeasured` に `judged: false` と理由を残す。

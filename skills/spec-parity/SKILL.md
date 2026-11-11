@@ -63,8 +63,10 @@ spec-parity verify [--feature <slug>] [--target <name>] [--autonomous]
   commit していない変更で green にした記録は、バージョンを特定できないので止まる。
   確かめる新側のバージョン（`verify-metadata.json` の `new.commit`）が `none`（新側が git で管理されていない）でも止まる。どの記録のバージョンも特定できないからである。
   `spec-parity` は git で管理されていない新側を確かめないので、新側を git で管理して commit するよう利用者に示す。
-  確かめる新側の作業ツリーに commit していない変更があるとき（`verify-metadata.json` の `new.dirty` が `false` でないとき）も止まる。採った記録が `new.commit` のバージョンのものと言えないからである。新側を commit してから verify をやり直すよう利用者に示す。
-  ファイルが無いか `true` でないとき、または上の鍵が違うか `dirty` で止まったときは、「その環境ではまだ green の証跡が無い」として止まる。
+  確かめる新側の作業ツリーに commit していない変更があるとき（`verify-metadata.json` の `new.dirty` が `false` でないとき）も止まる。採った記録が `new.commit` のバージョンのものと言えないからである。
+  利用者には、変更を退避して（`git stash` など）green にしたバージョンに戻してから verify をやり直す手を示す。
+  変更を残すなら、commit してから green を記録し直す（下の `parity-replace` を案内する条件に従う）。commit してから verify をやり直すだけでは、`new.commit` が green の記録と違うので止まる。
+  ファイルが無いか `true` でないとき、または上の鍵が違うか `replace-metadata.json` の `new.dirty` で止まったときは、「その環境ではまだ green の証跡が無い」として止まる。
   止まったら、次の手を示す前に、`parity-replace` の `SKILL.md` の前提が `style_policy: free` の画面のある機能で止まると定めているかを確かめる（下記「姉妹スキルとの連携」）。
   定めているときと、`parity-replace` の `SKILL.md` を読めないときは、`parity-replace` も前提の確認で止まり、このファイルを作らない。そのときは `parity-replace` を案内せず、新側を実装して green を記録する手順が無いことを利用者に報告して止まる。
   定めていないと確かめたときだけ、同じ `--target` での `parity-replace` を案内する（新側を commit してから green を記録し直す）。
@@ -161,13 +163,16 @@ node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mj
    `suite` の完了は、`metadata.json` の `style_policy: free`・`suite.current_green`・`strength.validated` で確かめる。
    強度は `strength.validated` を信じず、`strength-check.mjs` を `--write` なしで `strength-plan.json` と `strength-report.json` に当て、exit 0 であることも確かめる（手順 7 の判定も同じに判定し直す）。
    `verify-metadata.json` を雛形から作り（あれば前の保留を読んでから更新する）、`new.commit` に確かめる新側のバージョン（完全な SHA。`git rev-parse HEAD` の出力）を書く。
-   `new.dirty` には、新側のリポジトリで `git status --porcelain` が空なら `false`、空でなければ `true` を書く。`true` なら、ここで止まる（上の「前提」）。
+   `new.dirty` には、`git -C <新側のリポジトリ> status --porcelain -- ':(top,exclude).replace'` の出力が空なら `false`、空でなければ `true` を書く。`true` なら、ここで止まる（上の「前提」）。
+   `.replace/` を外すのは、新側のリポジトリの中に `.replace/` を置く構成で、verify が書く成果物を新側の変更として数えないためである。
 2. スイートを新側で実行する。`--target=new` で実行し、結果の JSON を `new/<target>/suite-report.json` に保存し、`suite.commit` を書く。
 3. 横のはみ出しを測る。記録した幅で新側を測り、`overflow-check.mjs --write` で `overflow` に書く（[`references/overflow.md`](references/overflow.md)）。
 4. 操作中のエラーを比べる。新側で 2 回以上記録し、`runtime-errors.mjs compare --write <verify-metadata.json>` で比べる。現行に無かった署名は 3 値に分類する（[`references/runtime-errors.md`](references/runtime-errors.md)）。
 5. デザインを点検する。`web-design-guidelines` があれば使い、無ければ同梱の観点で点検する。指摘は「直す」か「受け入れる」に分け、受け入れるものは利用者が承認する（[`references/design-review.md`](references/design-review.md)）。
 6. 人に確かめてもらう。新側の画面を記録した幅で見てもらい、承認を記録する（[`references/design-review.md`](references/design-review.md)「人による確認」）。
-7. 収束を判定し、差し戻す。`convergence-check.mjs --write` の終了コードで決める。`send-back` の理由が残れば `verify.md` を差し戻しの入力にして `parity-replace` へ渡し、`remeasure` は該当する手順をやり直し、`approval` は利用者に確かめる（[`references/convergence.md`](references/convergence.md)）。
+7. 収束を判定し、差し戻す。判定の直前に、新側の HEAD（`git rev-parse HEAD`）と作業ツリーの状態を、手順 1 と同じコマンドで取得し直す。
+   HEAD が `new.commit` と違えば、手順 2〜6 の記録がどのバージョンのものか分からないので、止まって手順 1 からやり直す。作業ツリーの状態は `new.dirty` に書き直す（`true` なら、判定は前提の欠落で止まる）。
+   `convergence-check.mjs --write` の終了コードで決める。`send-back` の理由が残れば `verify.md` を差し戻しの入力にして `parity-replace` へ渡し、`remeasure` は該当する手順をやり直し、`approval` は利用者に確かめる（[`references/convergence.md`](references/convergence.md)）。
    exit 0 でも、`replace-strategy` の `append-only-check.mjs` で追記専用の成果物が縮んでいないことを確かめてから収束と報告する。
    対象は、`replace-strategy` の `assets/append-only-manifest.json` に項目があるもの（`gaps.md`・`metadata.json` の `unmeasured` など）である。
    `verify-metadata.json` の承認の記録は、このチェックの対象に入らない（同じ reference）。

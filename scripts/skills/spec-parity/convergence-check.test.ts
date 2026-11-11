@@ -743,6 +743,23 @@ describe("前提の欠落（exit 2）", () => {
     expect(r.stderr).toContain("verify-metadata.json の new.dirty が false でない");
   });
 
+  test("verify-metadata.json の new.dirty が true でも、green の記録の鍵の違いを先に示す", () => {
+    // 鍵の違いは commit しても直らないので、commit を促す dirty の理由より先に示す
+    const fs = withVerify({ new: { commit: COMMIT, dirty: true } });
+    fs.put(`${NEW_DIR}/replace-metadata.json`, { ...green(), slug: "invoices" });
+    const r = run(fs);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("replace-metadata.json の slug（");
+    expect(r.stderr).not.toContain("verify-metadata.json の new.dirty");
+  });
+
+  test("verify-metadata.json の new.dirty の理由は、commit してやり直すだけでは止まることを示す", () => {
+    const r = run(withVerify({ new: { commit: COMMIT, dirty: true } }));
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("git stash");
+    expect(r.stderr).toContain("parity-replace で green を記録し直して");
+  });
+
   test("verify-metadata.json の new.dirty が false なら、dirty では止まらず収束する", () => {
     const r = run(withVerify({ new: { commit: COMMIT, dirty: false } }));
     expect(r.code).toBe(0);
