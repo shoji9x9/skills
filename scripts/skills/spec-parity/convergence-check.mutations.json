@@ -334,6 +334,17 @@
       ]
     },
     {
+      "id": "cv-verify-clean-before-green",
+      "why": "verify-metadata.json の new.dirty を green の記録の確認より先に判定し、commit しても直らない鍵の違いより先に commit を促す",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  checkNewGreen(input.replaceMetadata, { slug, target: input.target, commit });\n  checkVerifyClean(head);\n",
+      "replace": "  checkVerifyClean(head);\n  checkNewGreen(input.replaceMetadata, { slug, target: input.target, commit });\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "前提の欠落（exit 2） verify-metadata.json の new.dirty が true でも、green の記録の鍵の違いを先に示す"
+      ]
+    },
+    {
       "id": "cv-verify-commit-none-off",
       "why": "verify-metadata.json の new.commit が none でも、none どうしの比較で green の記録とスイートなどの記録を通す",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",

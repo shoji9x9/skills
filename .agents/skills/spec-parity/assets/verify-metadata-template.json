@@ -1,11 +1,11 @@
 {
-  "_note": "spec-parity verify が .replace/parity/<slug>/new/<target>/verify-metadata.json として書く。形式の原本は spec-parity である。converged と convergence は convergence-check.mjs --write だけが書き、手で true にしない。overflow は overflow-check.mjs --write が、runtime_errors は runtime-errors.mjs compare --write が書く。new.dirty は、新側のリポジトリで .replace/ を除いた git status --porcelain が空でなかったか（true = commit していない変更あり）を真偽値で記録する。verify の手順 1 で書き、収束を判定する直前に取得し直して書き直す。false でなければ（雛形の値のままを含む）収束の判定が止まる。suite・overflow・design_review・human_review の記録は new.commit と同じバージョンの新側のもので、違うバージョンの記録は収束の判定で古いものとして数える。runtime_errors はバージョンを持たず、収束の判定もバージョンを比べないので、verify のたびに操作中のエラーの記録のディレクトリを消してから採り直す。",
+  "_note": "spec-parity verify が .replace/parity/<slug>/new/<target>/verify-metadata.json として書く。形式の原本は spec-parity である。converged と convergence は convergence-check.mjs --write だけが書き、手で true にしない。overflow は overflow-check.mjs --write が、runtime_errors は runtime-errors.mjs compare --write が書く。new.dirty は、新側のリポジトリで、verify が書く場所を除いた git status --porcelain が空でなかったか（true = commit していない変更あり）を真偽値で記録する。verify の手順 1 で書き、収束を判定する直前に取得し直して書き直す。false でなければ（雛形の値のままを含む）収束の判定が止まる。suite・overflow・design_review・human_review の記録は new.commit と同じバージョンの新側のもので、違うバージョンの記録は収束の判定で古いものとして数える。runtime_errors はバージョンを持たず、収束の判定もバージョンを比べないので、verify のたびに操作中のエラーの記録のディレクトリを消してから採り直す。",
   "slug": "<slug>",
   "target": "<新側の target の名前（replace-strategy の targets の side: new）>",
   "style_policy": "free",
   "new": {
-    "commit": "<確かめた新側のバージョン（コミットの完全な SHA。git rev-parse HEAD の出力）。replace-metadata.json の new.commit と同じ値。none（新側が git で管理されていない）では収束の判定が止まる>",
-    "dirty": "<git -C <新側のリポジトリ> status --porcelain -- ':(top,exclude).replace' の出力が空なら false、空でなければ true（真偽値で書く。true では収束の判定が止まる）>",
+    "commit": "<確かめた新側のバージョン（コミットの完全な SHA。git -C <新側のリポジトリ> rev-parse HEAD の出力）。replace-metadata.json の new.commit と同じ値。none（新側が git で管理されていない）では収束の判定が止まる>",
+    "dirty": "<git -C <新側のリポジトリ> status --porcelain の出力が空なら false、空でなければ true（真偽値で書く。verify が書く .replace/ と e2e の結果の出力先が新側のリポジトリの中にあれば外す。true では収束の判定が止まる）>",
     "ui_url": "<解決した UI の baseURL。url_command の target では \"runtime\">"
   },
   "run": {

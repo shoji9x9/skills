@@ -33,7 +33,7 @@ node <spec-parity>/scripts/convergence-check.mjs --slug-dir .replace/parity/<slu
   `replace-metadata.json` の `new.dirty` が `false` でないときも同じである。どちらも、verify の手順をやり直しても直らない。
   その後で、`verify-metadata.json` の `new.dirty` が `false` でないとき（欠落・型の誤り・雛形の値のままを含む）も、記録が `new.commit` のバージョンのものと言えないので、判定できないとして exit 2 にする。
   `replace-metadata.json` の確認より後にするのは、commit しても直らない鍵の違いを先に示すためである。
-  変更を退避して green にしたバージョンに戻せば、verify をやり直して直る。変更を commit したなら、`new.commit` が green の記録と違うので、green を記録し直してから verify する。
+  変更を退避して（追跡していないファイルも含める）green にしたバージョンに戻せば、verify をやり直して直る。変更を commit したなら、`new.commit` が green の記録と違うので、green を記録し直してから verify する。
   新側を直したら、これらをやり直す。操作中のエラーの記録は新側のバージョンを持たないので、verify のたびに記録のディレクトリを消してから採り直す。
 - `unmeasured` の扱いは、`parity-diff` の収束の判定（`artifact-health-check.mjs --stage diff`）と同じである。
   キーごと無い成果物と `declared: false`（理由が要る）は判定せず、`verify-metadata.json` の `convergence.checks.unmeasured` に `judged: false` と理由を残す。

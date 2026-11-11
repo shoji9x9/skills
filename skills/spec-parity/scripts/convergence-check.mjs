@@ -576,12 +576,13 @@ function checkStrength({ plan, report }, slug) {
  * verify-metadata.json が対象の slug と target のもので、確かめる新側のバージョン（new.commit）を持つことを確かめる。
  * @param {unknown} v
  * @param {{ slug: string, target: string }} key
- * @returns {{ v: Record<string, unknown>, commit: string }}
+ * @returns {{ v: Record<string, unknown>, head: Record<string, unknown>, commit: string }}
  */
 function readVerifyHead(v, { slug, target }) {
   if (!isPlainObject(v) || v.slug !== slug || v.target !== target)
     throw new UsageError(`verify-metadata.json の slug と target が ${slug} / ${target} でない`);
-  const commit = isPlainObject(v.new) ? v.new.commit : undefined;
+  const head = isPlainObject(v.new) ? v.new : {};
+  const commit = head.commit;
   if (!filled(commit))
     throw new UsageError("verify-metadata.json の new.commit が無い（雛形の値のままを含む）");
   // none は新側が git で管理されていないことを表し、どの記録のバージョンも特定できない（none どうしの比較は常に一致する）
@@ -589,21 +590,20 @@ function readVerifyHead(v, { slug, target }) {
     throw new UsageError(
       "verify-metadata.json の new.commit が none（新側を git で管理し、commit したバージョンで verify する）",
     );
-  return { v, commit };
+  return { v, head, commit };
 }
 
 /**
  * verify-metadata.json の new.dirty が false であることを確かめる（replace-metadata.json の new.dirty と同じ扱い）。
  * commit していない変更を含む新側で採った記録は、new.commit のバージョンの記録と言えない。
  * green の記録の確認（checkNewGreen）の後に呼ぶ。鍵の違いは commit しても直らないので、そちらを先に示す。
- * @param {Record<string, unknown>} v - readVerifyHead が確かめた verify-metadata.json
+ * @param {Record<string, unknown>} head - readVerifyHead が読んだ verify-metadata.json の new
  */
-function checkVerifyClean(v) {
-  const head = isPlainObject(v.new) ? v.new : {};
+function checkVerifyClean(head) {
   if (head.dirty !== false)
     throw new UsageError(
       "verify-metadata.json の new.dirty が false でない（commit していない変更を含む新側で確かめた記録は、バージョンを特定できない。" +
-        "変更を退避して（git stash など）green にしたバージョンに戻してから verify をやり直すか、変更を commit して parity-replace で green を記録し直してから verify する。" +
+        "変更を退避して（git stash --include-untracked など）green にしたバージョンに戻してから verify をやり直すか、変更を commit して parity-replace で green を記録し直してから verify する。" +
         "commit してから verify をやり直すだけでは、new.commit が green の記録と違うので止まる）",
     );
 }
@@ -616,9 +616,9 @@ export function judgeConvergence(input) {
   const metadata = checkSuiteMetadata(input.metadata, input.slugDir);
   const slug = String(metadata.slug);
   checkStrength({ plan: input.strengthPlan, report: input.strengthReport }, slug);
-  const { v, commit } = readVerifyHead(input.verify, { slug, target: input.target });
+  const { v, head, commit } = readVerifyHead(input.verify, { slug, target: input.target });
   checkNewGreen(input.replaceMetadata, { slug, target: input.target, commit });
-  checkVerifyClean(v);
+  checkVerifyClean(head);
   const reasons = makeReasons();
   const suiteRecord = isPlainObject(v.suite) ? v.suite : {};
   sameCommit(reasons, "suite", { actual: suiteRecord.commit, expected: commit });
