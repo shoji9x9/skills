@@ -756,7 +756,7 @@ describe("前提の欠落（exit 2）", () => {
   test("verify-metadata.json の new.dirty の理由は、commit してやり直すだけでは止まることを示す", () => {
     const r = run(withVerify({ new: { commit: COMMIT, dirty: true } }));
     expect(r.code).toBe(2);
-    expect(r.stderr).toContain("git stash");
+    expect(r.stderr).toContain("git stash --include-untracked");
     expect(r.stderr).toContain("parity-replace で green を記録し直して");
   });
 
