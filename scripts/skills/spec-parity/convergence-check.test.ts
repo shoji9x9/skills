@@ -198,15 +198,6 @@ describe("スイート", () => {
     expect(kinds(run(fs))).toEqual([["remeasure", "suite"]]);
   });
 
-  test("parity-replace が green にしたバージョンが new.commit と違えば、古い記録としてやり直す", () => {
-    const fs = convergedFs();
-    fs.put(`${NEW_DIR}/replace-metadata.json`, {
-      suite: { new_green: true },
-      new: { target: "stg", commit: "old" },
-    });
-    expect(kinds(run(fs))).toEqual([["remeasure", "new_green"]]);
-  });
-
   test("スイートを実行したバージョンが new.commit と違えば、古い記録としてやり直す", () => {
     const fs = withVerify({ suite: { commit: "old" } });
     expect(kinds(run(fs))).toEqual([["remeasure", "suite"]]);
@@ -616,6 +607,25 @@ describe("前提の欠落（exit 2）", () => {
     fs.put(`${SLUG_DIR}/strength-plan.json`, { ...strengthPlan(), slug: "other" });
     expect(run(fs).code).toBe(2);
   });
+
+  test.each([
+    ["バージョンが new.commit と違う", { commit: "old", dirty: false }, "同じ SHA でない"],
+    ["両方が none", { commit: "none", dirty: false }, "同じ SHA でない"],
+    ["dirty: true", { commit: COMMIT, dirty: true }, "new.dirty が false でない"],
+    ["dirty が無い", { commit: COMMIT }, "new.dirty が false でない"],
+  ])(
+    "parity-replace が green にした記録の %s なら、前提の欠落として exit 2",
+    (name, n, message) => {
+      const fs = name === "両方が none" ? withVerify({ new: { commit: "none" } }) : convergedFs();
+      fs.put(`${NEW_DIR}/replace-metadata.json`, {
+        suite: { new_green: true },
+        new: { target: "stg", ...n },
+      });
+      const r = run(fs);
+      expect(r.code).toBe(2);
+      expect(r.stderr).toContain(message);
+    },
+  );
 
   test("parity-replace の新側の green が無ければ exit 2", () => {
     const fs = convergedFs();

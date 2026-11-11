@@ -10,8 +10,9 @@
 //   6. 判断待ち: 未解決の保留（pending_decisions）が無い
 //   7. 未測定: metadata.json の unmeasured に blocking（承認の無い accepted を含む）が残っていない（parity-diff の収束の判定と同じ扱い）
 // あわせて、未検証の一覧（unverified）に、spec-parity が確かめない性能（performance）が理由付きで載っていることを確かめる。
-// 1・2・4・5 の記録と、parity-replace が新側を green にした記録（replace-metadata.json の new.commit）は、
-// verify-metadata.json の new.commit と同じバージョンのものでなければ、古い記録として数える。
+// 1・2・4・5 の記録は、verify-metadata.json の new.commit と同じバージョンのものでなければ、古い記録として数える。
+// 前提として、parity-replace が新側を green にした記録（replace-metadata.json）が、同じバージョンで dirty: false であることを確かめる。
+// 新側が git で管理されていない（new.commit: none）か、commit していない変更で green にした記録は、バージョンを特定できないので判定しない。
 // 前提の強度の確認も、metadata.json の strength.validated を信じず、strength-plan.json と strength-report.json から判定し直す。
 //
 // 保存された ok や件数は信じず、元の記録から判定し直す（手で書き換えた記録で収束させない）。
@@ -523,16 +524,25 @@ export function judgeUnmeasured(metadata, reasons) {
 }
 
 /**
- * parity-replace が新側を green にした記録（replace-metadata.json の suite.new_green）があることを確かめる。
+ * parity-replace が、verify するバージョンの新側を green にした記録（replace-metadata.json）があることを確かめる。
+ * バージョンが違えば、verify の手順をやり直しても replace-metadata.json は変わらないので、やり直しの理由にせず前提の欠落にする。
  * @param {unknown} rm
- * @returns {Record<string, unknown>}
+ * @param {string} commit - verify-metadata.json の new.commit
  */
-function checkNewGreen(rm) {
+function checkNewGreen(rm, commit) {
   if (!isPlainObject(rm) || !isPlainObject(rm.suite) || rm.suite.new_green !== true)
     throw new UsageError(
       "replace-metadata.json の suite.new_green が true でない（parity-replace で新側を green にしてから verify する）",
     );
-  return rm;
+  const n = isPlainObject(rm.new) ? rm.new : {};
+  if (n.dirty !== false)
+    throw new UsageError(
+      "replace-metadata.json の new.dirty が false でない（commit していない変更で green にした記録は、バージョンを特定できない）",
+    );
+  if (n.commit === "none" || n.commit !== commit)
+    throw new UsageError(
+      `replace-metadata.json の new.commit（${String(n.commit)}）が verify-metadata.json の new.commit（${commit}）と同じ SHA でない（none を含む。parity-replace で、verify するバージョンの新側を green にしてから verify する）`,
+    );
 }
 
 /**
@@ -559,7 +569,6 @@ export function judgeConvergence(input) {
   const metadata = checkSuiteMetadata(input.metadata, input.slugDir);
   const slug = String(metadata.slug);
   checkStrength({ plan: input.strengthPlan, report: input.strengthReport }, slug);
-  const replaceMetadata = checkNewGreen(input.replaceMetadata);
   const v = input.verify;
   if (!isPlainObject(v) || v.slug !== slug || v.target !== input.target)
     throw new UsageError(
@@ -568,9 +577,8 @@ export function judgeConvergence(input) {
   const commit = isPlainObject(v.new) ? v.new.commit : undefined;
   if (!filled(commit))
     throw new UsageError("verify-metadata.json の new.commit が無い（雛形の値のままを含む）");
+  checkNewGreen(input.replaceMetadata, commit);
   const reasons = makeReasons();
-  const greenAt = isPlainObject(replaceMetadata.new) ? replaceMetadata.new.commit : undefined;
-  sameCommit(reasons, "new_green", { actual: greenAt, expected: commit });
   const suiteRecord = isPlainObject(v.suite) ? v.suite : {};
   sameCommit(reasons, "suite", { actual: suiteRecord.commit, expected: commit });
   const suite = judgeSuite(

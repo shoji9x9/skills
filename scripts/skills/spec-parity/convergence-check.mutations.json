@@ -64,8 +64,7 @@
         "スイート スイートを実行したバージョンが new.commit と違えば、古い記録としてやり直す",
         "横のはみ出し 測ったバージョンが new.commit と違えば、古い記録としてやり直す",
         "デザインの点検と人による確認 点検したバージョンが new.commit と違えば、古い記録としてやり直す",
-        "デザインの点検と人による確認 承認した画面のバージョンが new.commit と違えば、古い記録としてやり直す",
-        "スイート parity-replace が green にしたバージョンが new.commit と違えば、古い記録としてやり直す"
+        "デザインの点検と人による確認 承認した画面のバージョンが new.commit と違えば、古い記録としてやり直す"
       ]
     },
     {
@@ -295,17 +294,6 @@
       ]
     },
     {
-      "id": "cv-new-green-commit-off",
-      "why": "parity-replace が green にしたバージョンと verify するバージョンが違っても、古い記録として数えない",
-      "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "  sameCommit(reasons, \"new_green\", { actual: greenAt, expected: commit });\n",
-      "replace": "  void greenAt;\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "スイート parity-replace が green にしたバージョンが new.commit と違えば、古い記録としてやり直す"
-      ]
-    },
-    {
       "id": "cv-strength-rejudge-off",
       "why": "強度の結果で故障が緑のままでも、metadata.json の strength.validated を信じて verify の前提を通す",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
@@ -314,6 +302,30 @@
       "occurrences": 1,
       "expect_failing": [
         "前提の欠落（exit 2） strength.validated が true でも、強度の結果で故障が緑のままなら、判定し直して exit 2"
+      ]
+    },
+    {
+      "id": "cv-new-green-dirty-off",
+      "why": "commit していない変更で green にした記録を、バージョンを特定できる記録として通す",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  if (n.dirty !== false)\n",
+      "replace": "  if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "前提の欠落（exit 2） parity-replace が green にした記録の dirty: true なら、前提の欠落として exit 2",
+        "前提の欠落（exit 2） parity-replace が green にした記録の dirty が無い なら、前提の欠落として exit 2"
+      ]
+    },
+    {
+      "id": "cv-new-green-commit-off",
+      "why": "parity-replace が green にしたバージョンと verify するバージョンが違っても、none どうしでも通す",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  if (n.commit === \"none\" || n.commit !== commit)\n",
+      "replace": "  if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "前提の欠落（exit 2） parity-replace が green にした記録の バージョンが new.commit と違う なら、前提の欠落として exit 2",
+        "前提の欠落（exit 2） parity-replace が green にした記録の 両方が none なら、前提の欠落として exit 2"
       ]
     }
   ]

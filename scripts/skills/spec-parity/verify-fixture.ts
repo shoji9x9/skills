@@ -265,7 +265,7 @@ export function convergedFs(): Fs {
   fs.put(`${SLUG_DIR}/suite-report.json`, passing("current"));
   fs.put(`${NEW_DIR}/replace-metadata.json`, {
     suite: { new_green: true },
-    new: { target: "stg", commit: COMMIT },
+    new: { target: "stg", commit: COMMIT, dirty: false },
   });
   fs.put(`${NEW_DIR}/suite-report.json`, passing("new"));
   fs.put(`${NEW_DIR}/overflow.json`, overflowRecords());

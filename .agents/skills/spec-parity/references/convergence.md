@@ -27,7 +27,7 @@ node <spec-parity>/scripts/convergence-check.mjs --slug-dir .replace/parity/<slu
 | 未解決の保留が無い | `pending_decisions` | `open`・`decided`（数え方の原本は `replace-strategy` の `references/autonomy.md`「保留の状態」） |
 
 - スイート・横のはみ出し・デザインの点検・人による確認の記録は、`verify-metadata.json` の `new.commit` と同じバージョンのものでなければ、古い記録として数える。
-  `parity-replace` が新側を green にした記録（`replace-metadata.json` の `new.commit`）も同じに扱う。
+  `parity-replace` が新側を green にした記録（`replace-metadata.json`）は、前提として確かめる。`new.commit` が同じ SHA でない（`none` を含む）か、`new.dirty` が `false` でなければ、verify の手順をやり直しても直らないので、判定できないとして exit 2 にする。
   新側を直したら、これらをやり直す。操作中のエラーの記録は新側のバージョンを持たないので、verify のたびに記録のディレクトリを消してから採り直す。
 - `unmeasured` の扱いは、`parity-diff` の収束の判定（`artifact-health-check.mjs --stage diff`）と同じである。
   キーごと無い成果物と `declared: false`（理由が要る）は判定せず、`verify-metadata.json` の `convergence.checks.unmeasured` に `judged: false` と理由を残す。
