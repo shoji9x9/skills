@@ -396,6 +396,17 @@
       }
     },
     {
+      "files": [
+        "skills/spec-parity/assets/overflow.e2e.template.ts",
+        "skills/spec-parity/assets/strength.e2e.template.ts",
+        ".agents/skills/spec-parity/assets/overflow.e2e.template.ts",
+        ".agents/skills/spec-parity/assets/strength.e2e.template.ts"
+      ],
+      "rules": {
+        "weakened-tests": "off"
+      }
+    },
+    {
       "files": ["types/skill-runtime/**"],
       "rules": {
         "unused-class-members": "off"

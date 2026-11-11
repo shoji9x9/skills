@@ -152,6 +152,18 @@
       "rules": { "unresolved-imports": "off" }
     },
     {
+      // spec-parity の雛形は、決まった環境変数を渡した実行でだけ動かすテストを test.skip で書く（skills/spec-parity/references/suite-authoring.md）。
+      // 抑止のコメントを書くと、利用者のプロジェクトへコピーした雛形にこのリポジトリのツールのコメントが入るので、雛形 2 つとインストール済みのコピーだけを外す。
+      // 外したファイルに後から入る本当の .skip・.only も検出しなくなるので、対象を足すときは同じ理由があるかを確かめる。
+      "files": [
+        "skills/spec-parity/assets/overflow.e2e.template.ts",
+        "skills/spec-parity/assets/strength.e2e.template.ts",
+        ".agents/skills/spec-parity/assets/overflow.e2e.template.ts",
+        ".agents/skills/spec-parity/assets/strength.e2e.template.ts"
+      ],
+      "rules": { "weakened-tests": "off" }
+    },
+    {
       // 外部のパッケージ（pngjs など）の型の宣言。メンバーはパッケージの側が使う。
       "files": ["types/skill-runtime/**"],
       "rules": { "unused-class-members": "off" }
