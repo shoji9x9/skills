@@ -256,7 +256,8 @@ jobs:
       # ツールキャッシュ（RUNNER_TOOL_CACHE）にも read を与える。ここには setup-node などが入れたツールだけが置かれる。
       # シェルに渡す環境変数は core（HOME・PATH など）だけにする。デフォルトでは、名前に KEY・TOKEN を含む変数も渡る。
       # codex-home はチェックアウトの外に置く。codex-action は codex-home を信頼できる設定として読む。
-      # この段が失敗しても、Codex は permission-profile の名前が見つからずにエラーで止まり、制限の無い設定では動かない。
+      # 設定は一時ファイルに書いてから置き換える。途中で失敗したときに、一部だけの設定が残らないようにする。
+      # この段が成功したときだけ Codex を起動する。失敗したときは、レポートの後続の段だけを実行する。
       # 形と振る舞いは、codex-cli 0.153.4 の codex sandbox -P で確かめた（https://developers.openai.com/codex/permissions）。
       - name: Write Codex permission profile
         id: codex-profile
@@ -270,7 +271,8 @@ jobs:
           tool_cache=${RUNNER_TOOL_CACHE:-}
           [ -n "$tool_cache" ] || { echo "RUNNER_TOOL_CACHE が空" >&2; exit 1; }
           mkdir -p "$tool_cache" "$CODEX_HOME_DIR"
-          cat >"$CODEX_HOME_DIR/config.toml" <<EOF
+          tmp=$(mktemp "$CODEX_HOME_DIR/config.toml.XXXXXX")
+          cat >"$tmp" <<EOF
           [permissions.repo-read]
           extends = ":read-only"
 
@@ -282,15 +284,18 @@ jobs:
 
           [permissions.repo-read.filesystem.":workspace_roots"]
           "." = "read"
+          "**/.env" = "deny"
+          "**/.env.*" = "deny"
           "**/*.env" = "deny"
 
           [shell_environment_policy]
           inherit = "core"
           EOF
+          mv "$tmp" "$CODEX_HOME_DIR/config.toml"
 
       - name: Run Codex
         id: run-codex
-        if: steps.cred.outputs.present == 'true' && steps.settings.outputs.agent == 'codex'
+        if: steps.cred.outputs.present == 'true' && steps.settings.outputs.agent == 'codex' && steps.codex-profile.outcome == 'success'
         continue-on-error: true
         uses: openai/codex-action@bdf19a4a223ec2549a3e2274a0cf61556bc07675 # v1.13
         with:
@@ -450,6 +455,10 @@ jobs:
               echo "> エージェントを起動する前に \`review\` ジョブが失敗しました。上記 run のログを確認してください。"
             elif [ "$CRED_PRESENT" != true ]; then
               echo "> 資格情報（\`$AGENT\` 用の secret）が未設定のため、通知のみに切り替えました。"
+            elif [ "$outcome" = skipped ]; then
+              # 資格情報があるのに skipped になるのは、起動の前の準備の段（codex の permission profile）が失敗したときである。
+              # 「実行が失敗しました」と書くと、エージェントが起動して失敗したと取り違える。
+              echo "> エージェントを起動する前の準備の段が失敗したため、エージェントを起動しませんでした。上記 run のログを確認してください。"
             elif [ "$outcome" != success ]; then
               # 非空だけで成否を測らない。copilot は CLI の stdout がそのまま
               # レポートになるため、レート制限等で途中終了した run の**部分出力**が

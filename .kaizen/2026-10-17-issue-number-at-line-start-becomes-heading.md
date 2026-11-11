@@ -4,7 +4,7 @@ type: hook
 priority: high
 confidence: high
 status: applied
-applied-to: [lefthook.yml, .config/markdownlint/md018-only.markdownlint-cli2.yaml]
+applied-to: [lefthook.yml]
 session: claude-code
 ---
 
