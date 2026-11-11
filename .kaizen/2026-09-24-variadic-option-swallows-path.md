@@ -1,9 +1,9 @@
 ---
 date: 2026-09-24
-type: hook
+type: doc
 priority: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [AGENTS.md, docs/agent-workflow.md]
 session: claude-code
 ---
 
@@ -32,6 +32,11 @@ Markdown の手順書ではなく、エージェントが直接打つコマン�
 - なぜ落ちるか → 可変長オプションの直後に位置引数を置いた
 - なぜ書かれたか → 手順書のコマンドは実行されず、テスト・lint も Markdown 内のコマンドを検証しない
 - なぜコピーしたか → 既存の前例を「検証済み」と扱った。実走の規約（external-tool-format-verification）は新規の記述にしか意識されず、強制点も無い
+
+## 失敗の種類
+
+- 種類: 形がずれる
+- 理由: 規則は知らず、コマンドの引数の並び（可変長のオプションの直後の位置引数）が期待と違った
 
 ## 提案
 

@@ -7,9 +7,12 @@
 # 決まった形のトップレベルのコメントとして残し、判定はそのコメントの SHA と HEAD の一致で行う。
 #
 # 使い方:
-#   local-review-record.sh post --pr <PR URL|番号> --sha <レビューした HEAD の完全な SHA> --findings <件数> \
-#     --open <未対応の件数> [--reviewer <レビューに使った機能>] [--details <追記する本文のファイル>]
+#   local-review-record.sh post --pr <PR URL|番号> (--sha <レビューした HEAD の完全な SHA> | --sha-file <その SHA を保存したファイル>) \
+#     --findings <件数> --open <未対応の件数> [--reviewer <レビューに使った機能>] [--details <追記する本文のファイル>]
 #   local-review-record.sh check --pr <PR URL|番号>
+#
+# --sha-file は、レビューを始める前に headRefOid を保存したファイルを読む。表示された短い SHA から組み立てた値や、
+# 指摘を直して push した後に取得し直した値を渡すと、レビューしていない HEAD を記録しうるので、保存した値を使う形を用意する。
 #
 # 記録の 1 行目（判定はこの行だけを読む）:
 #   <!-- pr-finalize-loop:local-review sha=<40 桁の SHA> findings=<件数> open=<未対応の件数> -->
@@ -45,7 +48,7 @@ MARKER_PREFIX="<!-- pr-finalize-loop:local-review "
 
 usage() {
 	cat >&2 <<'EOF'
-usage: local-review-record.sh post --pr <PR URL|番号> --sha <SHA> --findings <件数> --open <件数> [--reviewer <text>] [--details <file>]
+usage: local-review-record.sh post --pr <PR URL|番号> (--sha <SHA> | --sha-file <file>) --findings <件数> --open <件数> [--reviewer <text>] [--details <file>]
        local-review-record.sh check --pr <PR URL|番号>
 EOF
 }
@@ -70,6 +73,7 @@ esac
 
 pr=""
 sha=""
+sha_file=""
 findings=""
 open=""
 reviewer="local"
@@ -78,7 +82,7 @@ details=""
 seen=" "
 while [ "$#" -gt 0 ]; do
 	case "$1" in
-	--pr | --sha | --findings | --open | --reviewer | --details)
+	--pr | --sha | --sha-file | --findings | --open | --reviewer | --details)
 		[ "$#" -ge 2 ] || die_usage "$1 に値がない"
 		[ -n "$2" ] || die_usage "$1 の値が空"
 		case "${seen}" in *" $1 "*) die_usage "$1 が 2 回渡された" ;; esac
@@ -86,6 +90,7 @@ while [ "$#" -gt 0 ]; do
 		case "$1" in
 		--pr) pr="$2" ;;
 		--sha) sha="$2" ;;
+		--sha-file) sha_file="$2" ;;
 		--findings) findings="$2" ;;
 		--open) open="$2" ;;
 		--reviewer) reviewer="$2" ;;
@@ -101,11 +106,19 @@ done
 if [ "${mode}" = "check" ]; then
 	[ "${seen}" = " --pr " ] || die_usage "check は --pr だけを受け取る"
 else
-	[ -n "${sha}" ] || die_usage "--sha が無い"
+	if [ -n "${sha_file}" ]; then
+		[ -z "${sha}" ] || die_usage "--sha と --sha-file は一緒に渡さない"
+		[ -f "${sha_file}" ] && [ -r "${sha_file}" ] || die_usage "--sha-file のファイルを読めない: ${sha_file}"
+		# 末尾の改行は、コマンド置換がすべて除く（gh の --jq の出力は改行で終わる）。後に空行が続いても、SHA の値は変わらない。
+		# 行末の CR・空白や 2 行目の値は除かないので、下の形の検査で拒否する。保存した値が HEAD と同じかは、PR を取得した後に比べる
+		sha=$(<"${sha_file}")
+		[ -n "${sha}" ] || die_usage "--sha-file のファイルが空: ${sha_file}"
+	fi
+	[ -n "${sha}" ] || die_usage "--sha か --sha-file が無い"
 	[ -n "${findings}" ] || die_usage "--findings が無い"
 	# 省いたときに 0 として扱うと、直していない指摘を残した記録がレビュー済みになる。必ず渡させる
 	[ -n "${open}" ] || die_usage "--open が無い（記録の本文の指摘のうち、まだ直していない件数。無ければ 0）"
-	[[ "${sha}" =~ ^[0-9a-f]{40}$ ]] || die_usage "--sha は 40 桁の小文字の 16 進数にする（短縮した SHA は受け取らない）: ${sha}"
+	[[ "${sha}" =~ ^[0-9a-f]{40}$ ]] || die_usage "--sha（--sha-file のファイルの中身）は 40 桁の小文字の 16 進数にする（短縮した SHA は受け取らない）: ${sha}"
 	[[ "${findings}" =~ ^(0|[1-9][0-9]{0,8})$ ]] || die_usage "--findings は 0 以上の 9 桁までの整数にする: ${findings}"
 	[[ "${open}" =~ ^(0|[1-9][0-9]{0,8})$ ]] || die_usage "--open は 0 以上の 9 桁までの整数にする: ${open}"
 	[ "${open}" -le "${findings}" ] || die_usage "--open（${open}）が --findings（${findings}）より大きい"

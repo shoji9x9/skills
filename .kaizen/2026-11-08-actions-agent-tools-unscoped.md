@@ -3,8 +3,8 @@ date: 2026-11-08
 type: skill
 priority: high
 confidence: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [.github/workflows/kaizen-schedule.yml, skills/kaizen/assets/kaizen-schedule.yml, .agents/rules/github-actions-authoring.md]
 session: claude-code
 ---
 
@@ -28,6 +28,11 @@ Issue #940 の PR #951 で、週次のセルフ点検のワークフロー `self
 - なぜ広いツールを許したか → 同じリポジトリの `kaizen-schedule.yml` の設定を、そのままコピーした。そのワークフローも、エージェントの結果を Issue に載せる
 - なぜ問題に気付かなかったか → ジョブの権限（`contents: read`）を最小にしたことで、安全だと考えた。エージェントのツールが読める範囲と、結果が公開されることの組み合わせを確かめていなかった
 - なぜ出力の検査で塞ごうとしたか → 出力の側の検査は形ごとに抜けが出る。入力の範囲（読める場所）を絞るほうが、共通の原因を無くす
+
+## 失敗の種類
+
+- 種類: 条件で振る舞いを変えたい
+- 理由: エージェントの出力を公開する状態で、ジョブの権限だけを見る確かめ方が当たらなかった
 
 ## 提案
 

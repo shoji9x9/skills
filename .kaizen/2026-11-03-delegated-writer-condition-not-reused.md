@@ -3,8 +3,8 @@ date: 2026-11-03
 type: rule
 priority: high
 confidence: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [.agents/rules/state-space-and-mutation-proof.md]
 session: claude-code
 ---
 
@@ -41,6 +41,11 @@ PR #873 の local レビューの 1 回目の 1・4・5 件目の指摘が、ど
 KEDB 照合は「既存の判定」「agent-usage」と「任せる先」「判定」で、どちらも一致なし。
 
 - 2026-11-06: 同じ原因（既存の判定と同じ規則を実行できたのに、分岐を表にせずに別の手段で書き直した）での再発を #708 で確かめた。
+
+## 失敗の種類
+
+- 種類: 規則を破る
+- 理由: 任せる先を判定に含める規則があったのに、設計の段は例外に見えて当てなかった
 
 ## 提案
 

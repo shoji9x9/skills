@@ -3,8 +3,8 @@ date: 2026-10-20
 type: skill
 priority: high
 confidence: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [skills/pr-finalize-loop/scripts/local-review-record.sh, skills/pr-review-handle/scripts/local-review-record.sh, skills/pr-finalize-loop/references/review-tool.md, skills/pr-review-handle/references/review-tool.md, skills/pr-finalize-loop/SKILL.md]
 session: claude-code
 ---
 
@@ -48,6 +48,11 @@ exit 1 の対処（今の HEAD をレビューし直してから記録する）�
 2026-11-06 は、反復の 1 回目と 2 回目の後の `check` が `records=0` を返したことで確かめた。
 
 2026-11-07 の再発で、確信度を high にした。今回の原因（指摘の対応を始める前に記録を投稿する段が手順の流れに無く、push の後に回した）は、2026-11-06 の再発と同じだと読み比べて確かめた。
+
+## 失敗の種類
+
+- 種類: 形がずれる
+- 理由: 記録の投稿と push の順序が期待と違った（push の後に投稿した）
 
 ## 提案
 

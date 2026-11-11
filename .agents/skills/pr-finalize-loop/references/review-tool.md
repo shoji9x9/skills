@@ -166,7 +166,9 @@ gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
 依頼の代わりに、今使っているエージェント自身が PR の HEAD をレビューし、その結果を PR に記録する。
 手元のレビューは、指摘が 0 件だと PR に何も投稿しないことがある。記録が無いと、HEAD をレビューしたのかを GitHub の上で確かめられないので、件数に関わらず記録を残す。
 
-1. レビューする HEAD の完全な SHA を、`gh pr view <番号> --repo <owner>/<repo> --json headRefOid --jq .headRefOid` で取得する。手元の HEAD がこれと一致することも確かめる。
+1. レビューする HEAD の完全な SHA を、`gh pr view <番号> --repo <owner>/<repo> --json headRefOid --jq .headRefOid > <SHA を保存するファイル>` で取得してファイルに保存する。手元の HEAD がこれと一致することも確かめる。
+   3 の記録には、このファイルを `--sha-file` で渡す。表示された短い SHA から組み立てた値や、指摘を直して push した後に取得し直した値を渡すと、レビューしていない HEAD を記録しうるからである。
+   ファイルは作業ツリーの外（`mktemp` で作るファイルなど）に置く。作業ツリーに置くと、次の `git status --porcelain` が空にならず、レビューできない。
    作業ツリーに commit していない変更が無いこと（`git status --porcelain` が空）も確かめる。手元のレビューの機能は、commit していない変更もレビューの対象に入れることがあり、記録の SHA が表す内容とずれる。
    どちらかを満たさなければレビューしない。HEAD が一致しなければ、push が反映されるのを待って間隔を空けて取得し直す。
    commit していない変更があれば、先に commit と push を済ませる。commit と push をしてよいかは各スキルの取り決めに従う（pr-finalize-loop は手順 5 で行う。pr-review-handle は `--push` が無ければ利用者に確かめる）。
@@ -199,13 +201,15 @@ gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
    `--defer-decisions` を付けない実行では、ほかの指摘と同じように、その 1 件を利用者に確かめる。
 
    ```bash
-   bash <スキルのディレクトリ>/scripts/local-review-record.sh post --pr <PR URL> --sha <1 で取得した SHA> \
+   bash <スキルのディレクトリ>/scripts/local-review-record.sh post --pr <PR URL> --sha-file <1 で SHA を保存したファイル> \
      --findings <指摘の件数> --open <直すと決めた件数と判断待ちの件数の合計> \
      --reviewer '<2 で使った機能>' [--details <指摘と対応を書いたファイル>]
    ```
 
+   記録は、そのレビューの指摘を直して push するより前に投稿する。push した後は HEAD が進むので、レビューした HEAD の記録を残せない。
+
    `post` が投稿しないときの終了コードと対処は、次のとおりである。
-   - exit 1: 渡した SHA が PR の今の HEAD と違う。今の HEAD をレビューし直してから記録する。
+   - exit 1: 渡した SHA が PR の今の HEAD と違う。今の HEAD をレビューし直してから記録する。SHA を今の HEAD に合わせて投稿し直さない。
    - exit 2: PR の取得か投稿に失敗した。間隔を空けて実行し直す。
    - exit 3: gh のユーザーが PR の作成者でも担当者でもない。`check` はその人の記録を読み飛ばすので、投稿しても HEAD はレビュー済みにならない。
      利用者に確かめる。自分を PR の担当者に加えない。持ち主を変える操作は利用者が決める（`references/pr-ownership.md`）。

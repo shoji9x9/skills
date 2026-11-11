@@ -3,8 +3,8 @@ date: 2026-11-08
 type: rule
 priority: high
 confidence: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [.agents/rules/state-space-and-mutation-proof.md]
 session: claude-code
 ---
 
@@ -56,6 +56,11 @@ KEDB 照合（`緩和`・`必要条件`、`除外`・`関係`、`緩和`・`閉�
 - 場所: `.agents/rules/state-space-and-mutation-proof.md`「緩和（後方互換、免除、スキップ）は、通す入力を閉じた集合として挙げ、それ以外を落とす」。`scripts/**` と `skills/**` を編集するときに読み込まれ、このセッションでも読み込まれていた
 - 照合した範囲: `AGENTS.md`・`docs/`・`.agents/rules/` を `通す入力を閉じた集合`・`通してよい理由` で検索した
 - 4 巡目の原因は、同じ文書の「免除の単位は、免除される要求の単位と揃える」にも当たる（`緩和の根拠に使う構文は、根拠そのものの文法から挙げる` の節）
+
+## 失敗の種類
+
+- 種類: 規則を破る
+- 理由: 緩和を閉じた集合で挙げる規則が読み込まれていたのに、除外したい形が必ず満たす関係で書けば足りると考えて従わなかった
 
 ## 提案
 
