@@ -76,6 +76,9 @@
     "full": ["npm run lint"]
   },
   "style_policy": "free",
+  "references": {
+    "architecture": "docs/new-architecture.md"
+  },
   "parity_suite_dir": "e2e/",
   "dataset_tool_dir": "seed/",
   "intentional_diffs": {

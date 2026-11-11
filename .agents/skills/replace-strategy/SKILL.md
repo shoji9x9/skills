@@ -261,8 +261,7 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
        - `free` は、見た目の一致を確かめない。人が新側の画面を見て、違和感が無いことを確かめる（`spec-parity verify`）。性能の比較も行わない
        - `free` では、画面のある機能の E2E のランナーが Playwright から e2e に変わる（`spec-parity`）。横断 API とバッチは Playwright のままである
        - `free` では、共通部品を画面より先に作る方針（`parity-component`）は使えない
-       - `free` では、画面のある機能の新側を `parity-replace` が実装できるかを、`parity-replace` の `SKILL.md` の前提の判定で確かめて示す。
-         `free` の画面のある機能で止まると書いてあれば、その機能は新側の実装へ進めず、`spec-parity verify` の前提（新側の green）も満たせない
+       - `free` では、画面のある機能の新側を `parity-replace` が e2e のスイートに対して実装し、見た目は利用者が選んだ UI ライブラリとデザインの規則に従う（旧 design token を寄せない）
        - 機能の着手の後に値を変えると、着手済みの機能の成果物を作り直すことになる（[`references/project-config.md`](references/project-config.md)「スタイルの方針」）
 
        選んだ値は、承認と同じ時点で設定（`skill-config.mjs set replace-strategy style_policy '"<値>"' --layer repo`）と、`.replace/strategy.md` の「スタイルの方針」の節に記録する。
@@ -523,8 +522,7 @@ Issue の種類は 6 つある。ゴールデンデータセット／横断 API�
 5. `style_policy: reproduce` で、画面より先に部品を作る方針なら、部品ごとに `parity-component`（`capture` → `build`）。`free` では使わない
 6. 機能ごとに、次の順で進める。`parity-replace` は、新側のスキーマが確定した後、完了のチェックの前に、`golden-dataset` のフェーズ B を呼ぶ。
    - `style_policy: reproduce`: `parity-suite` → `parity-replace` → `parity-diff`（`parity-diff` は `parity-replace` と往復する）
-   - `style_policy: free`: `spec-parity suite` → `parity-replace` → `spec-parity verify`（`spec-parity verify` は `parity-replace` と往復する）
-     `parity-replace` が `free` の画面のある機能の手順を持たないときは、`parity-replace` は前提の確認で止まる（読むスキルと動作は [`references/project-config.md`](references/project-config.md)「スタイルの方針」）
+   - `style_policy: free`: `spec-parity suite` → `parity-replace` → `spec-parity verify`（`spec-parity verify` は `parity-replace` と往復する。読むスキルと動作は [`references/project-config.md`](references/project-config.md)「スタイルの方針」）
    - 横断 API とバッチは、どちらの値でも `parity-suite` → `parity-replace` → `parity-diff` である
 
 共通部品の Issue は、機能の Issue より先にする。横断 API の Issue も、機能の Issue より先にする。

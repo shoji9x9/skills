@@ -95,8 +95,14 @@ scripts/eval/run/run-skill-eval.sh \
   バイト一致を確かめる対象に挙げず、突き合わせないときの承認の形を示さなかった。assertion 1・2 は Delta ではなく、後退の検知の項目として残す。
   baseline は contamination: clean / isolation: sandboxed。
   **iteration-29 で再取得した**（`used: false` の廃止に合わせて assertion 1 を改訂。各 config 1 run・claude-code / opus）: `with_skill` 5/5・`without_skill` 2/5 で、差が出たのは同じ assertion 3・4・5 だった
-- eval 26 の fixture（`style-free`）は、設定の `style_policy: free`・機能 `order-list` と横断 API `user` を持つ features.md・フェーズ A の記録を持つ（Issue #565）。
-  加えて、`spec-parity suite` が書く形の `order-list` の `metadata.json` を持つ。
-  `metadata.json` は `suite.current_green` と `strength.validated` が `true` で、`differ.validated_by_strength_gate` を持たない。
-  **画面のある機能の slug で、実装に進まずに止まり、`free` の手順を持たないことを報告するか**を見る。fixture と prompt には止まる理由を書かない。
-  assertion 3 は、`parity-suite` の完了の条件で読んで `parity-suite` を案内する誤り（`parity-suite` は `free` の機能で止まるので、案内が往復する）を区別するために見る
+- eval 26・27・28 は、設定の `style_policy: free` の画面のある機能を対象にする（Issue #993）。
+  fixture の `style-free` は、`style_policy: free`・機能 `order-list` と横断 API `user` を持つ features.md・フェーズ A の記録を持つ。
+  加えて、`spec-parity suite` が書く形の `order-list` の `metadata.json` と、現行のスイートの結果 `suite-report.json` を持つ。
+  `metadata.json` は、`suite.current_green` と `strength.validated` が `true` で、`differ.validated_by_strength_gate` を持たない。
+  `style-free` は、e2e を devDependencies に持つ `package.json` と、骨格の決定記録（`references.architecture`）も持つ。手順 3 と e2e の確認で止まらずに、eval 28 が見る手順 6 まで進めるためである。
+  `style-free-no-suite` は、`style-free` から `.replace/parity/`・`package.json`・`docs/`・設定の `references.architecture` を除いたものである。
+  eval 26 は前提の確認の最初の段で止まるかを見るので、後の段で使う材料を置かない。fixture と prompt には、止まる理由・判定の条件・案内先を書かない。
+  - eval 26 は `style-free-no-suite` で、`spec-parity suite` の成果物が無いときに止まり、`parity-suite` ではなく `spec-parity suite` を案内するかを見る
+  - eval 27・28 は、`style-free.md` が `spec-parity` の `references/` を読むので、`requires_skills` に `spec-parity` を置く。baseline も `spec-parity` を読めるので、`spec-parity` の側に書いた内容（次の工程の名前など）は差が出にくい
+  - eval 27 は `style-free` で、完了の判定と次の工程を説明させる。green を e2e のスイートで判定すること、`replace-metadata.json` に `spec-parity verify` が読む値を書くこと、`later` の担当と次の工程が `spec-parity` であることを見る
+  - eval 28 は `style-free` で、トークンを寄せて `component_diffs` を宣言し、UI ライブラリを選ぶよう頼む。どれも行わず、`references.ui_library` の整備を促し、見た目の受け入れを `spec-parity verify` に任せるかを見る

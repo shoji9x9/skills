@@ -1,0 +1,223 @@
+{
+  "metadata": {
+    "skill_name": "spec-parity",
+    "skill_path": "<repo>/skills/spec-parity",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-11T14:05:07Z",
+    "evals_run": [6, 9],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 65.031,
+        "tokens": 201193,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "new/local-dev/replace-metadata.json の suite.new_green が true でないことを理由に、新側の確認へ進まずに停止している",
+          "passed": true,
+          "evidence": "suite.new_green が false であることを挙げて止まっている"
+        },
+        {
+          "text": "次の手として、同じ --target（local-dev）の parity-replace で新側を green にして記録するよう案内している",
+          "passed": true,
+          "evidence": "「同じ target で parity-replace --feature order-list --target local-dev を実行し、suite.new_green: true にします」と案内している"
+        },
+        {
+          "text": "verify-metadata.json を作っておらず、replace-metadata.json の suite.new_green を書き換えていない",
+          "passed": true,
+          "evidence": "成果物を作っておらず、ファイルは読んだだけと書いている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 79.623,
+        "tokens": 461441,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同梱の convergence-check.mjs の結果で、収束していないと判定している（応答で判定）",
+          "passed": true,
+          "evidence": "convergence-check.mjs の exit 1 で収束していないと判定している"
+        },
+        {
+          "text": "/orders の幅 375 で横にはみ出していること（scrollWidth 587）を理由に挙げている",
+          "passed": true,
+          "evidence": "/orders を 375x800 で 587px になり 212px はみ出すことを理由に挙げている"
+        },
+        {
+          "text": "はみ出しを要対応（差し戻す内容）とし、同じ --target（local-dev）の parity-replace へ差し戻すとしている",
+          "passed": true,
+          "evidence": "send-back とし、同じ --target local-dev の parity-replace へ差し戻すとしている"
+        },
+        {
+          "text": "差し戻しの入力を verify.md の差し戻す内容に、ページ・幅・測定値を添えて書くとしている",
+          "passed": true,
+          "evidence": "verify.md の差し戻す内容に /orders・375x800・scroll_width 587 を書いている"
+        },
+        {
+          "text": "現行の画面と比べたり、現行もはみ出すかを測り直したりして、はみ出しを許容していない",
+          "passed": true,
+          "evidence": "現行は記録を読んだだけで測り直さず、はみ出しを許容していない"
+        },
+        {
+          "text": "verify-metadata.json の converged を true にしていない",
+          "passed": true,
+          "evidence": "verify-metadata.json の converged は false"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 32.324,
+        "tokens": 85928,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "new/local-dev/replace-metadata.json の suite.new_green が true でないことを理由に、新側の確認へ進まずに停止している",
+          "passed": false,
+          "evidence": "止まった理由はスキル・新側のリポジトリ・スイートが無いことで、suite.new_green が true でないことを止まる理由にしていない"
+        },
+        {
+          "text": "次の手として、同じ --target（local-dev）の parity-replace で新側を green にして記録するよう案内している",
+          "passed": false,
+          "evidence": "parity-replace を案内していない"
+        },
+        {
+          "text": "verify-metadata.json を作っておらず、replace-metadata.json の suite.new_green を書き換えていない",
+          "passed": true,
+          "evidence": "ファイルを作っておらず、書き換えてもいない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 4,
+        "failed": 2,
+        "total": 6,
+        "time_seconds": 63.021,
+        "tokens": 247634,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同梱の convergence-check.mjs の結果で、収束していないと判定している（応答で判定）",
+          "passed": false,
+          "evidence": "convergence-check.mjs を実行しておらず、手で突き合わせて判定している"
+        },
+        {
+          "text": "/orders の幅 375 で横にはみ出していること（scrollWidth 587）を理由に挙げている",
+          "passed": true,
+          "evidence": "375×800 で scroll_width 587 > client_width 375 を理由に挙げている"
+        },
+        {
+          "text": "はみ出しを要対応（差し戻す内容）とし、同じ --target（local-dev）の parity-replace へ差し戻すとしている",
+          "passed": true,
+          "evidence": "はみ出しを回帰とし、parity-replace --feature order-list --target local-dev へ差し戻すとしている"
+        },
+        {
+          "text": "差し戻しの入力を verify.md の差し戻す内容に、ページ・幅・測定値を添えて書くとしている",
+          "passed": false,
+          "evidence": "verify.md を書いておらず、差し戻しの入力をそこに書くとも述べていない"
+        },
+        {
+          "text": "現行の画面と比べたり、現行もはみ出すかを測り直したりして、はみ出しを許容していない",
+          "passed": true,
+          "evidence": "現行は記録だけを見て、はみ出しを許容していない"
+        },
+        {
+          "text": "verify-metadata.json の converged を true にしていない",
+          "passed": true,
+          "evidence": "converged は false のまま"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 72.327,
+        "stddev": 10.3181,
+        "min": 65.031,
+        "max": 79.623
+      },
+      "tokens": {
+        "mean": 331317,
+        "stddev": 184023.1256,
+        "min": 201193,
+        "max": 461441
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5,
+        "stddev": 0.2357,
+        "min": 0.3333,
+        "max": 0.6667
+      },
+      "time_seconds": {
+        "mean": 47.6725,
+        "stddev": 21.7061,
+        "min": 32.324,
+        "max": 63.021
+      },
+      "tokens": {
+        "mean": 166781,
+        "stddev": 114343.4092,
+        "min": 85928,
+        "max": 247634
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.50",
+      "time_seconds": "+24.7",
+      "tokens": "+164536"
+    }
+  },
+  "notes": []
+}

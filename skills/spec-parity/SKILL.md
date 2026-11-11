@@ -65,11 +65,10 @@ spec-parity verify [--feature <slug>] [--target <name>] [--autonomous]
   `spec-parity` は git で管理されていない新側を確かめないので、新側を git で管理して commit するよう利用者に示す。
   確かめる新側の作業ツリーに commit していない変更があるとき（`verify-metadata.json` の `new.dirty` が `false` でないとき）も止まる。採った記録が `new.commit` のバージョンのものと言えないからである。
   利用者には、変更を退避して（追跡していないファイルも含める `git stash --include-untracked` など）green にしたバージョンに戻してから verify をやり直す手を示す。
-  変更を残すなら、commit してから green を記録し直す（下の `parity-replace` を案内する条件に従う）。commit してから verify をやり直すだけでは、`new.commit` が green の記録と違うので止まる。
+  変更を残すなら、commit してから、同じ `--target` の `parity-replace` で green を記録し直す。commit してから verify をやり直すだけでは、`new.commit` が green の記録と違うので止まる。
   ファイルが無いか `true` でないとき、または上の鍵が違うか `replace-metadata.json` の `new.dirty` で止まったときは、「その環境ではまだ green の証跡が無い」として止まる。
-  止まったら、次の手を示す前に、`parity-replace` の `SKILL.md` の前提が `style_policy: free` の画面のある機能で止まると定めているかを確かめる（下記「姉妹スキルとの連携」）。
-  定めているときと、`parity-replace` の `SKILL.md` を読めないときは、`parity-replace` も前提の確認で止まり、このファイルを作らない。そのときは `parity-replace` を案内せず、新側を実装して green を記録する手順が無いことを利用者に報告して止まる。
-  定めていないと確かめたときだけ、同じ `--target` での `parity-replace` を案内する（新側を commit してから green を記録し直す）。
+  止まったら、同じ `--target` での `parity-replace` を案内する（新側を commit してから green を記録し直す）。
+  インストール済みの `parity-replace` が `references/style-free.md` を持たない古いバージョンなら、`free` の画面のある機能で止まるので、先に `gh skill update` で `parity-replace` を更新するよう案内する。差し戻しのときも同じである。
   `new.commit` だけが違い、記録が `dirty: false` なら、確かめるバージョンを green にしたバージョンに戻す手も、利用者に示す。
 - 前提スキルの未解決の保留が無い。見る記録先と範囲の原本は `replace-strategy` の `references/autonomy.md`「下流の前提判定」で、`suite` の保留（`.replace/parity/<slug>/pending-decisions.json`）を含む。
   数えるのは `replace-strategy` の `scripts/pending-decisions-check.mjs` で、exit 0 でなければ、保留を抱えたスキルを案内して止まる。`replace-strategy` の文書を読めないときも止まる。
@@ -162,10 +161,9 @@ node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mj
    確かめる新側のバージョンが `none`（新側が git で管理されていない）なら、ここで止まる（上の「前提」）。
    `suite` の完了は、`metadata.json` の `style_policy: free`・`suite.current_green`・`strength.validated` で確かめる。
    強度は `strength.validated` を信じず、`strength-check.mjs` を `--write` なしで `strength-plan.json` と `strength-report.json` に当て、exit 0 であることも確かめる（手順 7 の判定も同じに判定し直す）。
-   `verify-metadata.json` を雛形から作り（あれば前の保留を読んでから更新する）、`new.commit` に確かめる新側のバージョン（完全な SHA。`git -C <新側のリポジトリ> rev-parse HEAD` の出力）を書く。
-   `new.dirty` には、`git -C <新側のリポジトリ> status --porcelain` の出力が空なら `false`、空でなければ `true` を書く。`true` なら、ここで止まる（上の「前提」）。
-   出力からは何も外さない。`parity-replace` の `new.dirty` と `parity-diff` の preflight も、新側のリポジトリの `git status --porcelain` の出力をそのまま使う。
-   verify が書く成果物（`.replace/`・e2e の結果・人による確認で撮った画面）が上の出力に出る場所にあると、`new.dirty` が `true` になり、verify は止まる。
+   `verify-metadata.json` を雛形から作り（あれば前の保留を読んでから更新する）、`new.commit` に確かめる新側のバージョン（完全な SHA）を、`new.dirty` に作業ツリーの状態を書く。`new.dirty` が `true` なら、ここで止まる（上の「前提」）。
+   取り方の原本は `replace-strategy` の `references/project-config.md`「新側のバージョンの記録」で、`parity-replace` の `replace-metadata.json` と `parity-diff` の前提の確認も同じ取り方を使う（ここへ転記しない）。
+   verify が書く成果物（`.replace/`・e2e の結果・人による確認で撮った画面）が新側と同じ git のリポジトリの中にあると、`new.dirty` が `true` になり、verify は止まる（同じ節）。
 2. スイートを新側で実行する。`--target=new` で実行し、結果の JSON を `new/<target>/suite-report.json` に保存し、`suite.commit` を書く。
 3. 横のはみ出しを測る。記録した幅で新側を測り、`overflow-check.mjs --write` で `overflow` に書く（[`references/overflow.md`](references/overflow.md)）。
 4. 操作中のエラーを比べる。新側で 2 回以上記録し、`runtime-errors.mjs compare --write <verify-metadata.json>` で比べる。現行に無かった署名は 3 値に分類する（[`references/runtime-errors.md`](references/runtime-errors.md)）。
@@ -207,9 +205,7 @@ node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mj
 - 依存の順: 全体の依存の順は、`replace-strategy` の `SKILL.md`「姉妹スキルと依存順」で定義する（ここへ転記しない）。
   `style_policy: free` では、`spec-parity suite` → `parity-replace` → `spec-parity verify` の順で、`verify` は `parity-replace` と行き来する。
 - `parity-replace` に渡すもの: スイート（`metadata.json` の `suite`）と、差し戻しの入力の `verify.md`。新側の green（`replace-metadata.json` の `suite.new_green`）と反復の回数（`loop.*`）は、`parity-replace` が記録する。
-  スイートの起動のコマンドなど、`parity-replace` の側の分岐は `parity-replace` が定める。`replace-metadata.json` が無い間は、`verify` は止まって案内する。
-  `parity-replace` の `SKILL.md` の前提が、`style_policy: free` の画面のある機能で止まると定めているときは、差し戻しの先も止まる。
-  そのときは、`verify.md` の差し戻す内容の表を残したまま、`parity-replace` へ渡さずに利用者に報告する。`parity-replace` の `SKILL.md` を読めないときも、渡さずに報告する。
+  スイートの起動のコマンドなど、`parity-replace` の側の分岐は `parity-replace` が定める（`parity-replace` の `references/style-free.md`）。`replace-metadata.json` が無い間は、`verify` は止まって案内する。
 - `parity-suite`（`suite` の代わり）と `parity-diff`（`verify` の代わり）は、`style_policy: free` の画面のある機能では止まり、このスキルを案内する。横断 API とバッチは、`parity-suite` と `parity-diff` が扱う。
   `parity-component` は、`free` ではモードに関わらず止まる。部品は、機能ごとに `parity-replace` が作る。
 - `golden-dataset`: スイートが前提にするデータを投入する。データの扱いは `parity-suite` の `references/data-discipline.md` に従う。

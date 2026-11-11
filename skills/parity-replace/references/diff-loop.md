@@ -1,6 +1,7 @@
 # parity-diff との往復ループ（終了の条件・反復の上限・再開の手順）
 
 新側が green になった後に `parity-diff` が検出する差分について、往復ループの止め方と、差し戻されたときの再開のしかたを定める。
+設定の `style_policy` が `free` の画面のある機能では、往復の相手が `spec-parity verify` になる。置き換える箇所（入力の `verify.md`・`loop.changed_scope` を書かないこと）は [`style-free.md`](style-free.md)「手順 9（往復ループ）」にあり、それ以外はこの文書のまま行う。
 
 ## このスキル単体の完了と、ループ全体の終了は別
 

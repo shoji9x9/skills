@@ -44,7 +44,7 @@
 
 ## 寸法の決まり方
 
-<!-- feature モードのみ。api-resource / batch は「該当なし（画面系工程なし）」と書く。 -->
+<!-- feature モードのみ。api-resource / batch は「該当なし（画面系工程なし）」と書く。style_policy: free の機能は「該当なし（style_policy: free）」と書く。 -->
 <!-- 位置・寸法は parity-suite の metadata.json の capture_conditions.dimension_model.fits の式で新側に反映する（撮影したビューポートの px を並べない）。 -->
 <!-- 照合は完了判定で dimension-fit.mjs check を通し、結果は replace-metadata.json の dimension_check に書かれる。 -->
 <!-- judged: false（not_measured・not_required・照合できる式が 0 件）と unfit_to_note の軸は、反映していない旨と理由をここに書いてから完了を名乗る。 -->
@@ -56,7 +56,7 @@
 
 ## 移行元の宣言を反映しないと決めた箇所
 
-<!-- feature モードのみ。api-resource / batch は「該当なし（画面系工程なし）」と書く。 -->
+<!-- feature モードのみ。api-resource / batch は「該当なし（画面系工程なし）」と書く。style_policy: free の機能は「該当なし（style_policy: free）」と書く。 -->
 <!-- 「箱の作り方」を変える宣言（display / position / box-sizing 等）は寸法・中身の配置・匿名ボックスの生成を同時に変える。 -->
 <!-- 1 つの次元の一致は他の次元の一致の根拠にならないので、変える次元を全部並べ、両側の実測値を書いてから判断する。 -->
 <!-- 該当なしも「該当なし」と書く。空欄にすると「反映しなくてよい」と「誰も測っていない」が区別できない。 -->
@@ -67,8 +67,9 @@
 
 ## 表への書き込み（読解のみの行）
 
-<!-- feature モードのみ。parity-suite の reactions.json の side_effect_writes.sites のうち verification: source-only の行（例外時など移行元で起こせない書き込み）を 1 行ずつ転記する。 -->
+<!-- feature モードのみ。style_policy: reproduce では、parity-suite の reactions.json の side_effect_writes.sites のうち verification: source-only の行（例外時など移行元で起こせない書き込み）を 1 行ずつ転記する。 -->
 <!-- assertion の行はスイートの新側 green が根拠になるのでここには書かない。source-only の行が無ければ「該当なし」と書く（空欄にすると「無い」と「誰も見ていない」が区別できない）。 -->
+<!-- style_policy: free では reactions.json が無い。現行のコードから挙げた書き込みと新側で書く箇所を書き、該当が無ければ「該当なし（現行のコードを読んだ範囲: <範囲>）」と書く。 -->
 
 | 移行元の書き込み（file:line・表） | 時機・値・回数（sites の occasion / values / count） | 新側の書き込み箇所（ファイル・シンボル） | 敵対的レビューでの突き合わせ結果 |
 |---|---|---|---|
@@ -81,6 +82,17 @@
 | 箇所（ファイル・関数） | 未解決の内容 | 対応（レビューで確認／要ユーザー確認） |
 |---|---|---|
 | （例: 送信処理の再試行） | 現行の再試行回数・間隔が読み取れない | current を読み直してから実装。レビューで確認 |
+
+## デザインの規則（style_policy: free の機能だけ）
+
+<!-- style_policy: reproduce の機能と、api-resource / batch は「該当なし」と書く。 -->
+<!-- 見た目を現行に寄せず、利用者が選んだ UI ライブラリとデザインの規則に従って作る。従った規則の出所を書き、推測で自分の流儀を持ち込まない。 -->
+<!-- web-design-guidelines スキルが入っていれば、実装の後・敵対的レビューの前に点検し、結果を書く。入っていなければ「入っていない（点検していない）」と書く。 -->
+<!-- 指摘を受け入れるかは spec-parity verify のデザインの点検で利用者が決める。ここに受け入れの判断を書かない。 -->
+
+| 規則の出所（UI ライブラリ・デザインの規則の文書・既存の画面） | web-design-guidelines の点検（実施した日時／入っていない） | 指摘（ファイル:行）と対応 |
+|---|---|---|
+| （例: references.ui_library の文書・新側の docs/design.md） | （例: 2026-01-01T00:00:00Z） | （例: src/orders/List.tsx:42 ボタンにアクセシブルネームが無い → 直した） |
 
 ## 依存の決定（この機能で決めたもの）
 
@@ -117,6 +129,7 @@
 
 ## 差し戻し履歴（parity-diff との往復）
 
+<!-- style_policy: free の機能では、往復の相手は spec-parity verify で、入力は verify.md の差し戻す内容である。 -->
 <!-- diff.md を入力に該当ページのフェーズから再開した記録。頭から作り直さない。 -->
 <!-- 反復番号は target ごとに数えるため、どの target からの差し戻しかを必ず書く。 -->
 

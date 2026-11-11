@@ -1,0 +1,339 @@
+{
+  "metadata": {
+    "skill_name": "parity-replace",
+    "skill_path": "<repo>/skills/parity-replace",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-11T14:05:18Z",
+    "evals_run": [26, 27, 28],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 26,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 44.482,
+        "tokens": 296361,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "対象 slug の spec-parity suite の成果物（.replace/parity/order-list/metadata.json）が無いことを理由に、画面のある機能の order-list の実装（フェーズ分割・新側マッピング・実装）へ進まずに停止している",
+          "passed": true,
+          "evidence": "spec-parity suite の完了（.replace/parity/order-list/metadata.json）が無いことを「これで停止」と書いて止まっている"
+        },
+        {
+          "text": "次に実行するものとして、同じ slug（order-list）の spec-parity suite を案内している",
+          "passed": true,
+          "evidence": "「spec-parity suite --feature order-list を実行し」と案内している"
+        },
+        {
+          "text": "parity-suite の実行を案内していない（style_policy: free の画面のある機能のスイートは spec-parity suite が作るものとして区別している）",
+          "passed": true,
+          "evidence": "「free の画面付きの機能なので、parity-suite ではなく spec-parity suite を使います」と区別している"
+        },
+        {
+          "text": "issue-start でブランチを作っておらず、.replace/parity/order-list/ 配下に metadata.json・replace-metadata.json などの成果物を作っていない",
+          "passed": true,
+          "evidence": "project-tree.txt に .replace/parity/ も new/ も無く、ブランチも作っていないと応答に書いている"
+        },
+        {
+          "text": "設定の style_policy を reproduce に書き換えて進めるなど、fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
+          "passed": true,
+          "evidence": "project-tree.txt は fixture と同じファイルだけで、応答も「ファイルの作成・変更・commit などは何もしていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 27,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 80.898,
+        "tokens": 337503,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "新側の green を、spec-parity suite が作った e2e のスイートを --target=new で実行した結果で判定し、現行の結果（suite-report.json）で passed のテストが新側ですべて passed であることを条件にしている",
+          "passed": true,
+          "evidence": "「現行のスイート tests/order-list/ を e2e で --target=new として実行」し、条件を convergence.md の 1 行目（現行で通ったテストが新側ですべて passed）としている"
+        },
+        {
+          "text": "e2e を実行するときに、テレメトリと更新の確認を止める環境変数（E2E_TELEMETRY_DISABLED=1 など）を付けると述べている",
+          "passed": true,
+          "evidence": "コマンドに E2E_TELEMETRY_DISABLED=1 DO_NOT_TRACK=1 E2E_UPDATE_CHECK_DISABLED=1 を付けている"
+        },
+        {
+          "text": "replace-metadata.json に slug・new.target・new.commit・new.dirty（false）・suite.new_green を書き、spec-parity verify がそれを前提として読むと述べている",
+          "passed": true,
+          "evidence": "表に slug・new.target・new.commit / new.dirty（false）・suite.new_green を挙げ、「spec-parity verify が読むのは次の値」と書いている"
+        },
+        {
+          "text": "受け入れ条件の突き合わせで後の工程に回す条件（later）の担当を spec-parity にしている（--allow-later spec-parity。parity-diff にしていない）",
+          "passed": true,
+          "evidence": "--allow-later spec-parity と owner を spec-parity にし、「free なので parity-diff ではありません」"
+        },
+        {
+          "text": "次の工程として、同じ target（local-dev）の spec-parity verify を案内し、parity-diff を案内していない",
+          "passed": true,
+          "evidence": "次の工程を spec-parity verify --feature order-list --target local-dev とし、parity-diff は案内していない"
+        },
+        {
+          "text": "完了の報告に、見た目は spec-parity verify のデザインの点検と人による確認まで確かめていないと書くとし、現行との一致を主張していない",
+          "passed": true,
+          "evidence": "「見た目は、spec-parity verify のデザインの点検と人による確認が収束するまで確かめていない」を必ず入れるとし、一致とは書かないとしている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 28,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 71.067,
+        "tokens": 343448,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定の style_policy が free であることを理由に、旧 design token を新側のテーマへ寄せないとしている",
+          "passed": true,
+          "evidence": "「free で画面のある機能では、スキルの手順 6 がトークンを寄せる作業も…しない決まり」としている"
+        },
+        {
+          "text": "component_diffs を宣言しないとしている",
+          "passed": true,
+          "evidence": "component_diffs の宣言も対象外としている"
+        },
+        {
+          "text": "UI ライブラリを自分で選ばず、references.ui_library が整備されていないので整備を促す（実装の見た目の工程に進まずに止まる）としている",
+          "passed": true,
+          "evidence": "「references.ui_library が設定にありません…手順 6 の手前で止まり、整備を促す」とし、ライブラリを選んでいない"
+        },
+        {
+          "text": "見た目は利用者が選んだ UI ライブラリとデザインの規則に従って作り、web-design-guidelines スキルが入っていれば実装の点検に使う（任意）と述べている",
+          "passed": true,
+          "evidence": "手順 6 で「references.ui_library の規則に従って作ります。web-design-guidelines スキルが入っていれば点検に使います」"
+        },
+        {
+          "text": "見た目を受け入れるかは、spec-parity verify のデザインの点検と人による確認で利用者が決めるとしている",
+          "passed": true,
+          "evidence": "「利用者（承認者）だけが決めます」「spec-parity verify の 2 つの段で決めます」"
+        },
+        {
+          "text": "設定（replace-strategy.jsonc）の component_diffs・references.ui_library を書き換えていない",
+          "passed": true,
+          "evidence": "読み取りの find と cat だけで、ファイルを変更していないと書いている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 26,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 30.26,
+        "tokens": 95444,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "対象 slug の spec-parity suite の成果物（.replace/parity/order-list/metadata.json）が無いことを理由に、画面のある機能の order-list の実装（フェーズ分割・新側マッピング・実装）へ進まずに停止している",
+          "passed": false,
+          "evidence": "止まった理由はスキルが環境に無いことで、spec-parity suite の成果物が無いことを理由にしていない"
+        },
+        {
+          "text": "次に実行するものとして、同じ slug（order-list）の spec-parity suite を案内している",
+          "passed": false,
+          "evidence": "spec-parity suite を案内していない（スキルの設置・new-app・環境変数を挙げただけ）"
+        },
+        {
+          "text": "parity-suite の実行を案内していない（style_policy: free の画面のある機能のスイートは spec-parity suite が作るものとして区別している）",
+          "passed": true,
+          "evidence": "parity-suite の実行も案内していない"
+        },
+        {
+          "text": "issue-start でブランチを作っておらず、.replace/parity/order-list/ 配下に metadata.json・replace-metadata.json などの成果物を作っていない",
+          "passed": true,
+          "evidence": "project-tree.txt に .replace/parity/ が無く、ブランチも作っていない"
+        },
+        {
+          "text": "設定の style_policy を reproduce に書き換えて進めるなど、fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
+          "passed": true,
+          "evidence": "「どのファイルも作成・変更していません」で、project-tree.txt も fixture と同じ"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 27,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 6,
+        "total": 6,
+        "time_seconds": 48.55,
+        "tokens": 58966,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "新側の green を、spec-parity suite が作った e2e のスイートを --target=new で実行した結果で判定し、現行の結果（suite-report.json）で passed のテストが新側ですべて passed であることを条件にしている",
+          "passed": false,
+          "evidence": "--target local-dev でスイートを流し全件 pass を条件にしており、--target=new や現行の suite-report.json で passed のテストとの対応を条件にしていない"
+        },
+        {
+          "text": "e2e を実行するときに、テレメトリと更新の確認を止める環境変数（E2E_TELEMETRY_DISABLED=1 など）を付けると述べている",
+          "passed": false,
+          "evidence": "テレメトリを止める環境変数に触れていない"
+        },
+        {
+          "text": "replace-metadata.json に slug・new.target・new.commit・new.dirty（false）・suite.new_green を書き、spec-parity verify がそれを前提として読むと述べている",
+          "passed": false,
+          "evidence": "feature・target・status・green などの独自のキーを挙げ、new.commit・new.dirty・suite.new_green を書いていない"
+        },
+        {
+          "text": "受け入れ条件の突き合わせで後の工程に回す条件（later）の担当を spec-parity にしている（--allow-later spec-parity。parity-diff にしていない）",
+          "passed": false,
+          "evidence": "担当を「free のとき spec-parity verify / free でないとき parity-diff」と条件で並べただけで、設定を読んで spec-parity に決めていない"
+        },
+        {
+          "text": "次の工程として、同じ target（local-dev）の spec-parity verify を案内し、parity-diff を案内していない",
+          "passed": false,
+          "evidence": "「まず style_policy を確かめ」としたうえで free でなければ parity-diff を案内しており、次の工程を決めていない"
+        },
+        {
+          "text": "完了の報告に、見た目は spec-parity verify のデザインの点検と人による確認まで確かめていないと書くとし、現行との一致を主張していない",
+          "passed": false,
+          "evidence": "現行との同等性を確かめていないとは書くが、見た目を spec-parity verify のデザインの点検と人による確認まで確かめていないとは書いていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 28,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 4,
+        "failed": 2,
+        "total": 6,
+        "time_seconds": 70.315,
+        "tokens": 213719,
+        "tool_calls": 11,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定の style_policy が free であることを理由に、旧 design token を新側のテーマへ寄せないとしている",
+          "passed": true,
+          "evidence": "spec-parity を読み、free ではトークンを移す作業をしないとしている"
+        },
+        {
+          "text": "component_diffs を宣言しないとしている",
+          "passed": true,
+          "evidence": "component_diffs への宣言も要らないとしている"
+        },
+        {
+          "text": "UI ライブラリを自分で選ばず、references.ui_library が整備されていないので整備を促す（実装の見た目の工程に進まずに止まる）としている",
+          "passed": false,
+          "evidence": "Mantine を推奨し、references.ui_library の整備には触れていない"
+        },
+        {
+          "text": "見た目は利用者が選んだ UI ライブラリとデザインの規則に従って作り、web-design-guidelines スキルが入っていれば実装の点検に使う（任意）と述べている",
+          "passed": false,
+          "evidence": "web-design-guidelines は spec-parity verify の点検でだけ挙げ、実装の点検に使うとは述べていない。デザインの規則に従って作るとも述べていない"
+        },
+        {
+          "text": "見た目を受け入れるかは、spec-parity verify のデザインの点検と人による確認で利用者が決めるとしている",
+          "passed": true,
+          "evidence": "利用者が spec-parity verify のデザインの点検と人による確認で決めるとしている"
+        },
+        {
+          "text": "設定（replace-strategy.jsonc）の component_diffs・references.ui_library を書き換えていない",
+          "passed": true,
+          "evidence": "ファイルを変更していないと書いている"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 65.4823,
+        "stddev": 18.8394,
+        "min": 44.482,
+        "max": 80.898
+      },
+      "tokens": {
+        "mean": 325770.6667,
+        "stddev": 25642.3892,
+        "min": 296361,
+        "max": 343448
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.4222,
+        "stddev": 0.3672,
+        "min": 0,
+        "max": 0.6667
+      },
+      "time_seconds": {
+        "mean": 49.7083,
+        "stddev": 20.0526,
+        "min": 30.26,
+        "max": 70.315
+      },
+      "tokens": {
+        "mean": 122709.6667,
+        "stddev": 80899.2286,
+        "min": 58966,
+        "max": 213719
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.58",
+      "time_seconds": "+15.8",
+      "tokens": "+203061"
+    }
+  },
+  "notes": []
+}

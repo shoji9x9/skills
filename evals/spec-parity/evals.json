@@ -141,7 +141,7 @@
       "prompt": "spec-parity verify --feature order-list --target local-dev",
       "assertions": [
         "new/local-dev/replace-metadata.json の suite.new_green が true でないことを理由に、新側の確認へ進まずに停止している",
-        "parity-replace をそのまま実行するよう案内せず、parity-replace が style_policy: free の画面のある機能の手順を持たない（か、その SKILL.md を確かめられない）ので新側の green を記録する手順が無いことを報告している",
+        "次の手として、同じ --target（local-dev）の parity-replace で新側を green にして記録するよう案内している",
         "verify-metadata.json を作っておらず、replace-metadata.json の suite.new_green を書き換えていない"
       ],
       "reachability": [
@@ -150,7 +150,7 @@
           "prompt_quote": "spec-parity verify --feature order-list --target local-dev"
         },
         {
-          "assertion": "parity-replace をそのまま実行するよう案内せず、parity-replace が style_policy: free の画面のある機能の手順を持たない（か、その SKILL.md を確かめられない）ので新側の green を記録する手順が無いことを報告している",
+          "assertion": "次の手として、同じ --target（local-dev）の parity-replace で新側を green にして記録するよう案内している",
           "prompt_quote": "spec-parity verify --feature order-list --target local-dev"
         },
         {
@@ -236,7 +236,7 @@
       "assertions": [
         "同梱の convergence-check.mjs の結果で、収束していないと判定している（応答で判定）",
         "/orders の幅 375 で横にはみ出していること（scrollWidth 587）を理由に挙げている",
-        "はみ出しを要対応（差し戻す内容）とし、parity-replace が style_policy: free の画面のある機能の手順を持たない（か、その SKILL.md を確かめられない）ので parity-replace へは渡さず、利用者に報告するとしている",
+        "はみ出しを要対応（差し戻す内容）とし、同じ --target（local-dev）の parity-replace へ差し戻すとしている",
         "差し戻しの入力を verify.md の差し戻す内容に、ページ・幅・測定値を添えて書くとしている",
         "現行の画面と比べたり、現行もはみ出すかを測り直したりして、はみ出しを許容していない",
         "verify-metadata.json の converged を true にしていない"
@@ -251,7 +251,7 @@
           "prompt_quote": "収束を判定して"
         },
         {
-          "assertion": "はみ出しを要対応（差し戻す内容）とし、parity-replace が style_policy: free の画面のある機能の手順を持たない（か、その SKILL.md を確かめられない）ので parity-replace へは渡さず、利用者に報告するとしている",
+          "assertion": "はみ出しを要対応（差し戻す内容）とし、同じ --target（local-dev）の parity-replace へ差し戻すとしている",
           "prompt_quote": "収束しなければ次に何をするかを決めて"
         },
         {

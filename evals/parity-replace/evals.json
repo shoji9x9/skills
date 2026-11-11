@@ -361,35 +361,115 @@
     },
     {
       "id": 26,
-      "fixture": "fixtures/style-free",
+      "fixture": "fixtures/style-free-no-suite",
       "prompt": "parity-replace --feature order-list --target local-dev",
       "assertions": [
-        "設定の style_policy が free であることを理由に、画面のある機能の order-list の実装（フェーズ分割・新側マッピング・実装）へ進まずに停止している",
-        "このスキルが style_policy: free の画面のある機能の手順を持たないことを、停止の理由として利用者に報告している",
-        "metadata.json に differ.validated_by_strength_gate が無いことを理由に parity-suite の実行を案内していない（free の機能のスイートは spec-parity が作ったものと区別している）",
-        "issue-start でブランチを作っておらず、.replace/parity/order-list/new/ 配下に replace-metadata.json などの成果物を作っていない",
+        "対象 slug の spec-parity suite の成果物（.replace/parity/order-list/metadata.json）が無いことを理由に、画面のある機能の order-list の実装（フェーズ分割・新側マッピング・実装）へ進まずに停止している",
+        "次に実行するものとして、同じ slug（order-list）の spec-parity suite を案内している",
+        "parity-suite の実行を案内していない（style_policy: free の画面のある機能のスイートは spec-parity suite が作るものとして区別している）",
+        "issue-start でブランチを作っておらず、.replace/parity/order-list/ 配下に metadata.json・replace-metadata.json などの成果物を作っていない",
         "設定の style_policy を reproduce に書き換えて進めるなど、fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない"
       ],
       "reachability": [
         {
-          "assertion": "設定の style_policy が free であることを理由に、画面のある機能の order-list の実装（フェーズ分割・新側マッピング・実装）へ進まずに停止している",
+          "assertion": "対象 slug の spec-parity suite の成果物（.replace/parity/order-list/metadata.json）が無いことを理由に、画面のある機能の order-list の実装（フェーズ分割・新側マッピング・実装）へ進まずに停止している",
           "prompt_quote": "parity-replace --feature order-list --target local-dev"
         },
         {
-          "assertion": "このスキルが style_policy: free の画面のある機能の手順を持たないことを、停止の理由として利用者に報告している",
+          "assertion": "次に実行するものとして、同じ slug（order-list）の spec-parity suite を案内している",
           "prompt_quote": "parity-replace --feature order-list --target local-dev"
         },
         {
-          "assertion": "metadata.json に differ.validated_by_strength_gate が無いことを理由に parity-suite の実行を案内していない（free の機能のスイートは spec-parity が作ったものと区別している）",
+          "assertion": "parity-suite の実行を案内していない（style_policy: free の画面のある機能のスイートは spec-parity suite が作るものとして区別している）",
           "prompt_quote": "parity-replace --feature order-list --target local-dev"
         },
         {
-          "assertion": "issue-start でブランチを作っておらず、.replace/parity/order-list/new/ 配下に replace-metadata.json などの成果物を作っていない",
+          "assertion": "issue-start でブランチを作っておらず、.replace/parity/order-list/ 配下に metadata.json・replace-metadata.json などの成果物を作っていない",
           "prompt_quote": "parity-replace --feature order-list --target local-dev"
         },
         {
           "assertion": "設定の style_policy を reproduce に書き換えて進めるなど、fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
           "prompt_quote": "parity-replace --feature order-list --target local-dev"
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "fixture": "fixtures/style-free",
+      "requires_skills": ["spec-parity"],
+      "prompt": "parity-replace --feature order-list --target local-dev で、order-list の新側の実装が一通り終わり、敵対的レビューも済んだ。ここから完了の判定をして、次の工程へ渡したい。新側で green かどうかを何で判定するか、replace-metadata.json に何を書くか、受け入れ条件の突き合わせで後の工程に回す条件の担当を誰にするか、完了の報告に何を書いて次に何を案内するかを説明して。コマンドの実行やファイルの変更はせず、1 つの報告にまとめて。",
+      "assertions": [
+        "新側の green を、spec-parity suite が作った e2e のスイートを --target=new で実行した結果で判定し、現行の結果（suite-report.json）で passed のテストが新側ですべて passed であることを条件にしている",
+        "e2e を実行するときに、テレメトリと更新の確認を止める環境変数（E2E_TELEMETRY_DISABLED=1 など）を付けると述べている",
+        "replace-metadata.json に slug・new.target・new.commit・new.dirty（false）・suite.new_green を書き、spec-parity verify がそれを前提として読むと述べている",
+        "受け入れ条件の突き合わせで後の工程に回す条件（later）の担当を spec-parity にしている（--allow-later spec-parity。parity-diff にしていない）",
+        "次の工程として、同じ target（local-dev）の spec-parity verify を案内し、parity-diff を案内していない",
+        "完了の報告に、見た目は spec-parity verify のデザインの点検と人による確認まで確かめていないと書くとし、現行との一致を主張していない"
+      ],
+      "reachability": [
+        {
+          "assertion": "新側の green を、spec-parity suite が作った e2e のスイートを --target=new で実行した結果で判定し、現行の結果（suite-report.json）で passed のテストが新側ですべて passed であることを条件にしている",
+          "prompt_quote": "新側で green かどうかを何で判定するか"
+        },
+        {
+          "assertion": "e2e を実行するときに、テレメトリと更新の確認を止める環境変数（E2E_TELEMETRY_DISABLED=1 など）を付けると述べている",
+          "prompt_quote": "新側で green かどうかを何で判定するか"
+        },
+        {
+          "assertion": "replace-metadata.json に slug・new.target・new.commit・new.dirty（false）・suite.new_green を書き、spec-parity verify がそれを前提として読むと述べている",
+          "prompt_quote": "replace-metadata.json に何を書くか"
+        },
+        {
+          "assertion": "受け入れ条件の突き合わせで後の工程に回す条件（later）の担当を spec-parity にしている（--allow-later spec-parity。parity-diff にしていない）",
+          "prompt_quote": "受け入れ条件の突き合わせで後の工程に回す条件の担当を誰にするか"
+        },
+        {
+          "assertion": "次の工程として、同じ target（local-dev）の spec-parity verify を案内し、parity-diff を案内していない",
+          "prompt_quote": "次に何を案内するか"
+        },
+        {
+          "assertion": "完了の報告に、見た目は spec-parity verify のデザインの点検と人による確認まで確かめていないと書くとし、現行との一致を主張していない",
+          "prompt_quote": "完了の報告に何を書いて"
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "fixture": "fixtures/style-free",
+      "requires_skills": ["spec-parity"],
+      "prompt": "parity-replace --feature order-list --target local-dev で、一覧ページの実装に入る。見た目を整えたいので、現行の色・余白・角丸の design token を新側のテーマへ寄せて、テーマで消せない差は component_diffs に宣言しておいて。新側の UI ライブラリはまだ決めていないので、良さそうなものを選んで。実装した見た目を点検する方法と、見た目を受け入れるかを誰がいつ決めるかも教えて。コマンドの実行やファイルの変更はせず、進め方を 1 つの報告にまとめて。",
+      "assertions": [
+        "設定の style_policy が free であることを理由に、旧 design token を新側のテーマへ寄せないとしている",
+        "component_diffs を宣言しないとしている",
+        "UI ライブラリを自分で選ばず、references.ui_library が整備されていないので整備を促す（実装の見た目の工程に進まずに止まる）としている",
+        "見た目は利用者が選んだ UI ライブラリとデザインの規則に従って作り、web-design-guidelines スキルが入っていれば実装の点検に使う（任意）と述べている",
+        "見た目を受け入れるかは、spec-parity verify のデザインの点検と人による確認で利用者が決めるとしている",
+        "設定（replace-strategy.jsonc）の component_diffs・references.ui_library を書き換えていない"
+      ],
+      "reachability": [
+        {
+          "assertion": "設定の style_policy が free であることを理由に、旧 design token を新側のテーマへ寄せないとしている",
+          "prompt_quote": "現行の色・余白・角丸の design token を新側のテーマへ寄せて"
+        },
+        {
+          "assertion": "component_diffs を宣言しないとしている",
+          "prompt_quote": "テーマで消せない差は component_diffs に宣言しておいて"
+        },
+        {
+          "assertion": "UI ライブラリを自分で選ばず、references.ui_library が整備されていないので整備を促す（実装の見た目の工程に進まずに止まる）としている",
+          "prompt_quote": "新側の UI ライブラリはまだ決めていないので、良さそうなものを選んで"
+        },
+        {
+          "assertion": "見た目は利用者が選んだ UI ライブラリとデザインの規則に従って作り、web-design-guidelines スキルが入っていれば実装の点検に使う（任意）と述べている",
+          "prompt_quote": "実装した見た目を点検する方法"
+        },
+        {
+          "assertion": "見た目を受け入れるかは、spec-parity verify のデザインの点検と人による確認で利用者が決めるとしている",
+          "prompt_quote": "見た目を受け入れるかを誰がいつ決めるか"
+        },
+        {
+          "assertion": "設定（replace-strategy.jsonc）の component_diffs・references.ui_library を書き換えていない",
+          "prompt_quote": "コマンドの実行やファイルの変更はせず"
         }
       ]
     }
