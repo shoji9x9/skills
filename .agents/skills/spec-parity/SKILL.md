@@ -163,13 +163,14 @@ node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mj
    強度は `strength.validated` を信じず、`strength-check.mjs` を `--write` なしで `strength-plan.json` と `strength-report.json` に当て、exit 0 であることも確かめる（手順 7 の判定も同じに判定し直す）。
    `verify-metadata.json` を雛形から作り（あれば前の保留を読んでから更新する）、`new.commit` に確かめる新側のバージョン（完全な SHA。`git -C <新側のリポジトリ> rev-parse HEAD` の出力）を書く。
    `new.dirty` には、`git -C <新側のリポジトリ> status --porcelain` の出力が空なら `false`、空でなければ `true` を書く。`true` なら、ここで止まる（上の「前提」）。
-   verify が書く場所（`.replace/` と、e2e の結果の出力先。デフォルトは `.e2e/`）が新側のリポジトリの中にあれば、その場所を `-- . ':(exclude)<新側のリポジトリからの相対パス>'` で外す。verify が書く成果物を、新側の変更として数えないためである。
+   出力からは何も外さない。`parity-replace` の `new.dirty` と `parity-diff` の preflight も、新側のリポジトリの `git status --porcelain` の出力をそのまま使う。
+   verify が書く成果物（`.replace/`・e2e の結果・人による確認で撮った画面）を新側の作業ツリーの中に置くと、`new.dirty` が `true` になり、verify は止まる。
 2. スイートを新側で実行する。`--target=new` で実行し、結果の JSON を `new/<target>/suite-report.json` に保存し、`suite.commit` を書く。
 3. 横のはみ出しを測る。記録した幅で新側を測り、`overflow-check.mjs --write` で `overflow` に書く（[`references/overflow.md`](references/overflow.md)）。
 4. 操作中のエラーを比べる。新側で 2 回以上記録し、`runtime-errors.mjs compare --write <verify-metadata.json>` で比べる。現行に無かった署名は 3 値に分類する（[`references/runtime-errors.md`](references/runtime-errors.md)）。
 5. デザインを点検する。`web-design-guidelines` があれば使い、無ければ同梱の観点で点検する。指摘は「直す」か「受け入れる」に分け、受け入れるものは利用者が承認する（[`references/design-review.md`](references/design-review.md)）。
 6. 人に確かめてもらう。新側の画面を記録した幅で見てもらい、承認を記録する（[`references/design-review.md`](references/design-review.md)「人による確認」）。
-7. 収束を判定し、差し戻す。判定の直前に、新側の HEAD と作業ツリーの状態を、手順 1 と同じコマンド（外す場所も同じ）で取得し直す。
+7. 収束を判定し、差し戻す。判定の直前に、新側の HEAD と作業ツリーの状態を、手順 1 と同じコマンドで取得し直す。
    HEAD が `new.commit` と違えば、手順 2〜6 の記録がどのバージョンのものか分からないので、止まって手順 1 からやり直す。作業ツリーの状態は `new.dirty` に書き直す（`true` なら、判定は前提の欠落で止まる）。
    `convergence-check.mjs --write` の終了コードで決める。`send-back` の理由が残れば `verify.md` を差し戻しの入力にして `parity-replace` へ渡し、`remeasure` は該当する手順をやり直し、`approval` は利用者に確かめる（[`references/convergence.md`](references/convergence.md)）。
    exit 0 でも、`replace-strategy` の `append-only-check.mjs` で追記専用の成果物が縮んでいないことを確かめてから収束と報告する。
