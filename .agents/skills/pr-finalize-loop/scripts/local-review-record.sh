@@ -109,7 +109,8 @@ else
 	if [ -n "${sha_file}" ]; then
 		[ -z "${sha}" ] || die_usage "--sha と --sha-file は一緒に渡さない"
 		[ -f "${sha_file}" ] && [ -r "${sha_file}" ] || die_usage "--sha-file のファイルを読めない: ${sha_file}"
-		# 末尾の改行だけを除く（gh の --jq の出力は改行で終わる）。ほかの空白や 2 行目は、下の形の検査で拒否する
+		# 末尾の改行は、コマンド置換がすべて除く（gh の --jq の出力は改行で終わる）。後に空行が続いても、SHA の値は変わらない。
+		# 行末の CR・空白や 2 行目の値は除かないので、下の形の検査で拒否する。保存した値が HEAD と同じかは、PR を取得した後に比べる
 		sha=$(<"${sha_file}")
 		[ -n "${sha}" ] || die_usage "--sha-file のファイルが空: ${sha_file}"
 	fi

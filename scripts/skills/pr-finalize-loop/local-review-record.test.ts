@@ -419,6 +419,24 @@ test("post の --sha-file は、レビューの前に保存した SHA（末尾�
   expect(readFileSync(join(dir, "posted.md"), "utf8").split("\n")[0]).toBe(marker(HEAD, 0));
 });
 
+test("post の --sha-file は、SHA の後に空行が続いても、改行を除いた SHA で記録する", () => {
+  const dir = setup();
+  writeFileSync(join(dir, "reviewed-sha"), `${HEAD}\n\n\n`);
+  const r = run(dir, [
+    "post",
+    "--pr",
+    "7",
+    "--sha-file",
+    "reviewed-sha",
+    "--findings",
+    "0",
+    "--open",
+    "0",
+  ]);
+  expect(r.status).toBe(0);
+  expect(readFileSync(join(dir, "posted.md"), "utf8").split("\n")[0]).toBe(marker(HEAD, 0));
+});
+
 test("post の --sha-file は、保存した SHA が HEAD と違えば（レビューの後に push した）投稿せずに exit 1", () => {
   const dir = setup();
   writeFileSync(join(dir, "reviewed-sha"), `${OLD}\n`);
@@ -564,12 +582,22 @@ test.each([
     "--sha-file の SHA が短縮されている",
     ["post", "--pr", "7", "--sha-file", "sha-short", "--findings", "0", "--open", "0"],
   ],
+  [
+    "--sha-file の SHA の行末が CRLF",
+    ["post", "--pr", "7", "--sha-file", "sha-crlf", "--findings", "0", "--open", "0"],
+  ],
+  [
+    "--sha-file の SHA の後に空白がある",
+    ["post", "--pr", "7", "--sha-file", "sha-space", "--findings", "0", "--open", "0"],
+  ],
 ])("引数が不正（%s）なら、gh を呼ばずに exit 64", (_name, args) => {
   const dir = setup();
   writeFileSync(join(dir, "sha-ok"), `${HEAD}\n`);
   writeFileSync(join(dir, "sha-empty"), "\n");
   writeFileSync(join(dir, "sha-two"), `${HEAD}\n${OLD}\n`);
   writeFileSync(join(dir, "sha-short"), `${HEAD.slice(0, 7)}\n`);
+  writeFileSync(join(dir, "sha-crlf"), `${HEAD}\r\n`);
+  writeFileSync(join(dir, "sha-space"), `${HEAD} \n`);
   const r = run(dir, args);
   expect(r.status).toBe(64);
   expect(existsSync(join(dir, "calls.log"))).toBe(false);
