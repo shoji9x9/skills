@@ -425,8 +425,9 @@ node "$CFG" append replace-strategy component_diffs '<要素の JSON>' --layer r
 | 項目 | 取り方 |
 |---|---|
 | `new.commit` | `git -C <new.repo> rev-parse --verify HEAD` の出力（完全な SHA）。新側が git で管理されていなければ `none` |
-| `new.dirty` | `git -C <new.repo> status --porcelain` の出力が空なら `false`、空でなければ `true`。出力から何も外さない |
+| `new.dirty` | `git -C <new.repo> status --porcelain --untracked-files=all --ignore-submodules=none` の出力が空なら `false`、空でなければ `true`。出力から何も外さない |
 
+- `status` のオプションは、利用者の git の設定で出力が変わらないようにするために付ける。`status.showUntrackedFiles=no` では追跡していないファイルが出力に出ず、`submodule.<name>.ignore` などのサブモジュールの設定では変更が出力から外れる。
 - `new.repo` が git のリポジトリのサブディレクトリでも、2 つのコマンドはリポジトリ全体の状態を返す。HEAD はリポジトリの HEAD で、`status` はリポジトリ全体の変更を出す。
 - スキルが書く成果物（`.replace/`・e2e の結果の出力先・人による確認で撮った画面など）が `new.repo` と同じ git のリポジトリの中にあると、成果物を書くたびに `status` の出力に出て、`new.dirty` が `true` になる。
   成果物の記録を commit すると HEAD が進み、記録した `new.commit` と一致しなくなる。どちらでも、3 つのスキルは前提の確認で止まる。
