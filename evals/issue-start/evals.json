@@ -508,6 +508,30 @@
           "prompt_quote": "ファイルの変更・commit・push・GitHub への接続はしないで"
         }
       ]
+    },
+    {
+      "id": 23,
+      "fixture": "fixtures/missing-breaking-change-doc",
+      "prompt": "issue-start 43 --pr で、実装を終えて最初の commit をする前の場面を説明して。ファイルの変更・commit・push・GitHub への接続はしないで（リポジトリのファイルを読むことと、スキルに同梱の読み取りのスクリプトを実行することはよい）。Issue #43 は CSV の出力を直す依頼で、出力する CSV の「金額」と「日付」の列の順番を入れ替えた。commit message と、作る PR の本文の構成を述べて。",
+      "assertions": [
+        "規約の文書が案内する docs/release.md を読めないことを挙げ、破壊的変更の定義が無いとして扱わずに利用者に確認すると述べている",
+        "利用者への確認を、最初の commit より前に行うと述べている",
+        "ファイルの変更・commit・push・PR の作成をせず、説明に留めている"
+      ],
+      "reachability": [
+        {
+          "assertion": "規約の文書が案内する docs/release.md を読めないことを挙げ、破壊的変更の定義が無いとして扱わずに利用者に確認すると述べている",
+          "prompt_quote": "作る PR の本文の構成"
+        },
+        {
+          "assertion": "利用者への確認を、最初の commit より前に行うと述べている",
+          "prompt_quote": "最初の commit をする前の場面"
+        },
+        {
+          "assertion": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",
+          "prompt_quote": "ファイルの変更・commit・push・GitHub への接続はしないで"
+        }
+      ]
     }
   ]
 }
