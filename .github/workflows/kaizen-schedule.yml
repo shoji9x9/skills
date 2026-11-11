@@ -246,6 +246,48 @@ jobs:
             --allowed-tools "Read(./**),Grep(./**),Glob(./**),Edit(./${{ env.REPORT_FILE }})"
             ${{ steps.settings.outputs.model && format('--model {0}', steps.settings.outputs.model) || '' }}
 
+      # Codex のシェルのコマンドが読める場所を、リポジトリの中に限る permission profile を書く。
+      # 組み込みの :read-only は、ファイルシステム全体を読める（:root が read）。エージェントの結果は Issue に載るので、
+      # リポジトリの外（ホームの設定・codex-home・runner のファイル）を読めると、仕込まれた指示に従って資格情報を結果に書くおそれがある。
+      # :minimal は、よく使うツールが動くのに要るシステムのパスである。codex 本体は codex-action が npm install -g で入れるので、
+      # npm のグローバルのディレクトリにも read を与える（与えないと、sandbox の中で codex を起動できない）。
+      # codex-action は、codex を入れる前に actions/setup-node で Node 24 を用意する。そのため、この段の npm root -g が返す
+      # ランナーの元の Node の場所と、codex が入るツールキャッシュの Node の場所は一致しない。
+      # ツールキャッシュ（RUNNER_TOOL_CACHE）にも read を与える。ここには setup-node などが入れたツールだけが置かれる。
+      # シェルに渡す環境変数は core（HOME・PATH など）だけにする。デフォルトでは、名前に KEY・TOKEN を含む変数も渡る。
+      # codex-home はチェックアウトの外に置く。codex-action は codex-home を信頼できる設定として読む。
+      # この段が失敗しても、Codex は permission-profile の名前が見つからずにエラーで止まり、制限の無い設定では動かない。
+      # 形と振る舞いは、codex-cli 0.153.4 の codex sandbox -P で確かめた（https://developers.openai.com/codex/permissions）。
+      - name: Write Codex permission profile
+        id: codex-profile
+        if: steps.cred.outputs.present == 'true' && steps.settings.outputs.agent == 'codex'
+        continue-on-error: true
+        env:
+          CODEX_HOME_DIR: ${{ runner.temp }}/codex-home
+        run: |
+          npm_root=$(npm root -g)
+          [ -n "$npm_root" ] || { echo "npm root -g が空" >&2; exit 1; }
+          tool_cache=${RUNNER_TOOL_CACHE:-}
+          [ -n "$tool_cache" ] || { echo "RUNNER_TOOL_CACHE が空" >&2; exit 1; }
+          mkdir -p "$tool_cache" "$CODEX_HOME_DIR"
+          cat >"$CODEX_HOME_DIR/config.toml" <<EOF
+          [permissions.repo-read]
+          extends = ":read-only"
+
+          [permissions.repo-read.filesystem]
+          ":root" = "deny"
+          ":minimal" = "read"
+          "${npm_root}" = "read"
+          "${tool_cache}" = "read"
+
+          [permissions.repo-read.filesystem.":workspace_roots"]
+          "." = "read"
+          "**/*.env" = "deny"
+
+          [shell_environment_policy]
+          inherit = "core"
+          EOF
+
       - name: Run Codex
         id: run-codex
         if: steps.cred.outputs.present == 'true' && steps.settings.outputs.agent == 'codex'
@@ -255,7 +297,8 @@ jobs:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           prompt-file: ${{ env.PROMPT_FILE }}
           output-file: ${{ env.REPORT_FILE }}
-          permission-profile: ":read-only"
+          codex-home: ${{ runner.temp }}/codex-home
+          permission-profile: repo-read
           model: ${{ steps.settings.outputs.model }}
           effort: ${{ steps.settings.outputs.effort }}
 
@@ -295,9 +338,20 @@ jobs:
           fi
           # stdin を明示的に閉じる。引数でプロンプトを渡していても stdin も読む CLI は
           # 珍しくなく、非対話の runner ではすぐに EOF にならず、待ち続けてしまう。
+          # 使えるツールを、ファイルを読む view・grep・glob だけに限る（--available-tools はほかのツールをモデルから隠す）。
+          # シェル・書き込み・web_fetch・サブエージェントを使えると、リポジトリの外を読んだり、資格情報を外へ送ったりできる。
+          # ファイルを読める場所は、デフォルトで現在のディレクトリの下と一時ディレクトリである。一時ディレクトリも外す。
+          # --allow-all-paths・--allow-all・--add-dir は付けない。組み込みの GitHub MCP サーバーは token で GitHub にアクセスするので止める。
+          # レポートは標準出力をファイルに書いて作るので、書き込みのツールは要らない。
+          # 出典: copilot help permissions と https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference
+          # Copilot CLI 1.0.105 の copilot -p で、ホームの下のファイルを読むよう指示すると、このフラグでも、--allow-tool=read だけでも拒否された。
+          # パスの検査は CLI の中で行う推測で（公式の文書は heuristic と書く）、OS の sandbox ではないので、使えるツールも絞る。
           copilot -p "$(cat "$PROMPT_FILE")" \
             "${model_args[@]}" \
+            --available-tools=view,grep,glob \
             --allow-tool=read \
+            --disallow-temp-dir \
+            --disable-builtin-mcps \
             --no-ask-user \
             -s >"$REPORT_FILE" </dev/null
 
