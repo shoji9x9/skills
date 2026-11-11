@@ -190,6 +190,8 @@ Claude Code はセッション開始時に両方を読み込み、Copilot のレ
 - 種別は `commit-types.ts` で定義し、commitlint・semantic-release・`.github/dependabot.yml` が同じ種別を使う。
   `build` と `style` は使わず、依存の更新は `chore` にする。dependabot.yml との一致は `scripts/gates/code/commit-types-consistency.test.ts` が CI で確かめる。
 - 本文は 1 行 100 文字以内にする。長い本文は `git commit -F <file>` で渡す。
+- 配布スキルの破壊的変更（更新した利用者が、手を入れないと従来の使い方を続けられない変更）は、`!` か `BREAKING CHANGE:` のフッターを書き、major を上げる。
+  PR の本文には、当たるかと理由を書く。当たるものと当たらないものの定義は [`docs/skill-development.md`](docs/skill-development.md)「配布スキルの破壊的変更」にある。
 - `git commit` を含む呼び出しに、`git add` や message ファイルの作成を入れない。
   PreToolUse のチェック（kaizen など）は呼び出し全体を止めるので、準備も実行されず、後で `could not read log file` で失敗する。
 - PreToolUse のチェックは文字列で判定するので、`git commit` を実行しない呼び出しでも、その文字列を含むだけで止まる。
