@@ -19,3 +19,4 @@ ci:42995911059:1,ci,2026-11-11T09:47:09.113Z,p-cdee4961,github-actions,,,,2026-1
 ci:42995911150:1,ci,2026-11-11T09:47:09.113Z,p-cdee4961,github-actions,,,,2026-11-11T09:31:37.000Z,2026-11-11T09:31:38.000Z,Asia/Tokyo,feature/565-style-free-replace-skill,565,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:42995911046:1,ci,2026-11-11T09:47:09.113Z,p-cdee4961,github-actions,,,,2026-11-11T09:31:37.000Z,2026-11-11T09:33:18.000Z,Asia/Tokyo,feature/565-style-free-replace-skill,565,,,,,,,,,,CodeQL;pull_request;success,
 coverage:github:2026-11-10T09:30:49.623Z:2026-11-11T09:47:09.113Z,coverage,2026-11-11T09:47:09.113Z,p-cdee4961,,,,,2026-11-10T09:30:49.623Z,2026-11-11T09:47:09.113Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-10T09:47:09.113Z:2026-11-11T09:48:13.348Z,coverage,2026-11-11T09:48:13.348Z,p-cdee4961,,,,,2026-11-10T09:47:09.113Z,2026-11-11T09:48:13.348Z,Asia/Tokyo,,,,,,,,,,,,ok,

@@ -108,9 +108,10 @@ node <replace-strategy>/scripts/procedure-staleness-check.mjs \
   - 2: 入力の誤り。使い方の誤り、改訂の一覧・台帳・成果物の置き場を読めない、台帳の表や列の欠落、表の外の行、閉じないコードフェンス、語彙の外の値、重複した ID、実在しない変更 ID、空の根拠、不正な改訂の一覧、`parity-suite` 以外の改訂の一覧がこれに当たる。
   - 3: 未判断は無いが、成果物を読めず、対象かどうかを決められない機能がある（`undeterminable`）。合格として扱わない。
   - 4: 対象外（特性化済みの成果物が 1 つも無い）。「旧手順の機能が無い」と「何も見ていない」を、同じ exit 0 にしないためである。
-- `metadata.json` が `style_policy: free` を持つ成果物（`spec-parity` が作る）は、数えずに `skipped` に出す。
+- `metadata.json` が `style_policy: free` と `mode: feature` を持つ成果物（`spec-parity` が作る）は、数えずに `skipped` に出す。
   `parity-suite` の手順で作ったものではなく、`run.procedure_revision` も持たないので、改訂番号 0 として読むとすべての改訂の未判断になるからである。台帳の観点も当てない。
-  置き場の slug と一致しない成果物と、`style_policy` が `reproduce` / `free` のどちらでもない成果物は外さず、判定不能に積む。
+  置き場の slug と一致しない成果物、`style_policy` が `reproduce` / `free` のどちらでもない成果物、`free` で `mode` が `feature` でない成果物は外さず、判定不能に積む。
+  `free` でも、横断 API とバッチは `parity-suite` の手順で作るからである。
   `skipped` の成果物しか無いときは、数えた成果物が無いので exit 4 になる。
 - `stray` は、対象でない組み合わせへの記録である（slug の綴りの違い、作り直して対象から外れた機能）。
   失敗にはしないが、綴りの違いなら、対象の組み合わせが未判断のまま残っている。

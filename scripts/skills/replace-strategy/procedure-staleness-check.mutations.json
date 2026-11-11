@@ -326,6 +326,15 @@
       "expect_failing": [
         "語彙の外の style_policy と、置き場の slug と一致しない free の成果物は、外さずに判定不能に積む"
       ]
+    },
+    {
+      "id": "free-style-skipped-without-feature-mode",
+      "why": "mode が feature でない free の成果物も spec-parity の成果物として外し、parity-suite の手順で作った横断 API とバッチを改訂の判定から消す",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    if (meta.mode === \"feature\")\n",
+      "replace": "    if (true)\n",
+      "occurrences": 1,
+      "expect_failing": ["mode が feature でない free の成果物は、外さずに判定不能に積む"]
     }
   ]
 }

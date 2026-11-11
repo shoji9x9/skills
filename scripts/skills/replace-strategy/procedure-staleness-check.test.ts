@@ -110,6 +110,18 @@ test("語彙の外の style_policy と、置き場の slug と一致しない fr
   expect(moved.json.undeterminable.map((u) => u.slug)).toContain("search");
 });
 
+test("mode が feature でない free の成果物は、外さずに判定不能に積む", () => {
+  const r = run(workspace({ artifacts: { users: { ...SPEC_PARITY_META, mode: "api-resource" } } }));
+  assert.exists(r.json);
+  expect(r.json.skipped).toEqual([]);
+  expect(
+    r.json.undeterminable
+      .filter((u) => u.slug === "users")
+      .map((u) => u.reason)
+      .join("\n"),
+  ).toContain("feature でない");
+});
+
 test("成果物の改訂より新しい改訂だけが対象になり、affects に無い mode は対象にしない", () => {
   const work = workspace({
     artifacts: {

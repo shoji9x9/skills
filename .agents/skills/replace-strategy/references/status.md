@@ -114,7 +114,7 @@ open とも closed とも仮定せず、features.md の記述で代わりにし�
    - スコープ外にした副作用（メール・外部連携）・hermetic でないテスト・データの不足も含め、対象外にした事実を隠さない。切り替えを判断する材料として示す
    - `style_policy: free` の機能（上の 1）では、部品網羅表・反応の網羅表・性能の比較・`component-diff-exceptions.json` の行を「対象外（`spec-parity` の成果物）」として示す。
      `metadata.json` にそれらのキーが無いことを、旧版の成果物と読まない。性能の比較は `free` で行わないので、未検証の領域に「性能は比べていない」と 1 行で入れる（原本は [`scope.md`](scope.md)）。
-     操作中のエラーは `verify-metadata.json` の `runtime_errors` から、未測定は同じファイルの `unverified` から示す
+     操作中のエラーは `verify-metadata.json` の `runtime_errors` から、未検証は同じファイルの `unverified` から示す。
      未測定の口の宣言は、`spec-parity suite` も `metadata.json` の `unmeasured` に書く。下の「未測定の機械可読な宣言」と項目 11 は、`free` の機能にも同じに当てる。
      `unmeasured` をキーごと持たない成果物は、宣言を導入する前の `spec-parity` の成果物である。`推定` の口が残れば、項目 11 の「書き戻しの抜けの疑い」として名前を挙げる
    - 部品網羅表の状態を slug ごとに示す。`metadata.json.component_coverage` が `declared: true` なら、未測定のセルの数を `diff-metadata.json.component_coverage.unmeasured` から取る（`parity-diff` を実行した target のもの）。

@@ -555,12 +555,17 @@ function artifactFromMetadata(doc, name, latestRevision) {
   }
   // spec-parity の成果物は run.procedure_revision を持たないので、改訂番号 0 として全改訂の対象にすると誤って古いと判定する。
   // 置き場の slug と一致したものだけを外す（一致しなければ、別の機能の成果物を外すことになる）。
+  // spec-parity が作るのは mode: feature の成果物だけである。free でも横断 API とバッチは parity-suite の手順で作るので、外さずに判定不能に積む。
   if (isFreeStyle(meta, problems) && problems.length === 0) {
-    return {
-      slug: name,
-      reason:
-        "style_policy: free（spec-parity の成果物）。parity-suite の改訂も台帳の観点も当てない",
-    };
+    if (meta.mode === "feature")
+      return {
+        slug: name,
+        reason:
+          "style_policy: free（spec-parity の成果物）。parity-suite の改訂も台帳の観点も当てない",
+      };
+    problems.push(
+      `style_policy: free の成果物の mode (${JSON.stringify(meta.mode)}) が feature でない（spec-parity が作るのは feature の成果物だけ）`,
+    );
   }
   // MODES は文字列だけなので、typeof は型を絞るためだけにある（判定は変わらない）。
   const mode = typeof meta.mode === "string" && MODES.includes(meta.mode) ? meta.mode : null;
