@@ -4,8 +4,9 @@
 # verify-unapproved/setup.sh と verify-overflow/setup.sh は同じ中身である（scripts/gates/packaging/copies/identical-copies.json）。
 set -euo pipefail
 
-# 前の実行が途中で止まっていても、リポジトリを作り直さずに置き換えまで進める
-if [ ! -d new-app/.git ]; then
+# 前の実行が途中で止まっていても、置き換えまで進める。HEAD を読めなければ（commit の前で止まった場合を含む）、作り直す
+if ! git -C new-app rev-parse --verify -q HEAD >/dev/null 2>&1; then
+	rm -rf new-app
 	mkdir -p new-app
 	git -C new-app init -q -b main
 	git -C new-app config user.name "Eval User"
@@ -22,7 +23,13 @@ esac
 
 # 記録に書いた仮のバージョンを、作ったリポジトリの HEAD に置き換える
 placeholder=abc1234def5678
-files=$(grep -rl --include='*.json' --include='*.md' "$placeholder" .replace || true)
+# grep の終了コードは、1 が該当なし、2 が読めない。2 は該当なしとして扱わずに止まる
+rc=0
+files=$(grep -rl --include='*.json' --include='*.md' "$placeholder" .replace) || rc=$?
+if [ "$rc" -gt 1 ]; then
+	echo "setup: .replace を読めない（grep の終了コード $rc）" >&2
+	exit 1
+fi
 if [ -n "$files" ]; then
 	printf '%s\n' "$files" | while IFS= read -r f; do
 		sed -i "s/$placeholder/$sha/g" "$f"
