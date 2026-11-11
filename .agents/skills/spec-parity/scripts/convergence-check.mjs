@@ -10,7 +10,9 @@
 //   6. 判断待ち: 未解決の保留（pending_decisions）が無い
 //   7. 未測定: metadata.json の unmeasured に blocking（承認の無い accepted を含む）が残っていない（parity-diff の収束の判定と同じ扱い）
 // あわせて、未検証の一覧（unverified）に、spec-parity が確かめない性能（performance）が理由付きで載っていることを確かめる。
-// 1・2・4・5 の記録は、verify-metadata.json の new.commit と同じバージョンのものでなければ、古い記録として数える。
+// 1・2・4・5 の記録と、parity-replace が新側を green にした記録（replace-metadata.json の new.commit）は、
+// verify-metadata.json の new.commit と同じバージョンのものでなければ、古い記録として数える。
+// 前提の強度の確認も、metadata.json の strength.validated を信じず、strength-plan.json と strength-report.json から判定し直す。
 //
 // 保存された ok や件数は信じず、元の記録から判定し直す（手で書き換えた記録で収束させない）。
 // 判定できない入力（前提の成果物が無い・形の誤り・結果が 0 件）は合格にせず exit 2 にする。
@@ -34,6 +36,7 @@ import {
   writeJsonFile,
 } from "./lib/read-json.mjs";
 import { judgeOverflow, readDeclaration, readMeasurements } from "./overflow-check.mjs";
+import { judgeStrength, readPlan, readStrengthReport } from "./strength-check.mjs";
 import { VERSION as RUNTIME_ERRORS_VERSION, judgeClassification } from "./runtime-errors.mjs";
 
 /** ツールのバージョン。判定規則と出力の形を変えたら上げる。 */
@@ -522,22 +525,41 @@ export function judgeUnmeasured(metadata, reasons) {
 /**
  * parity-replace が新側を green にした記録（replace-metadata.json の suite.new_green）があることを確かめる。
  * @param {unknown} rm
+ * @returns {Record<string, unknown>}
  */
 function checkNewGreen(rm) {
   if (!isPlainObject(rm) || !isPlainObject(rm.suite) || rm.suite.new_green !== true)
     throw new UsageError(
       "replace-metadata.json の suite.new_green が true でない（parity-replace で新側を green にしてから verify する）",
     );
+  return rm;
+}
+
+/**
+ * 強度の計画と結果から、強度の確認を判定し直す。metadata.json の strength.validated を手で true にしても通さない。
+ * @param {{ plan: unknown, report: unknown }} strength
+ * @param {string} slug
+ */
+function checkStrength({ plan, report }, slug) {
+  const p = readPlan(plan);
+  if (p.slug !== slug)
+    throw new UsageError(`strength-plan.json の slug（${p.slug}）が ${slug} でない`);
+  const judged = judgeStrength(p, readStrengthReport(report));
+  if (!judged.validated)
+    throw new UsageError(
+      `strength-plan.json と strength-report.json から判定し直すと、強度の確認が通らない（対照 ${judged.counts.controls_green}/${judged.counts.controls}・赤 ${judged.counts.red}/${judged.counts.faults}。strength-check.mjs で直してから verify する）`,
+    );
 }
 
 /**
  * 収束を判定する。
- * @param {{ slugDir: string, target: string, metadata: unknown, replaceMetadata: unknown, verify: unknown, currentReport: unknown, newReport: unknown, measurements: unknown }} input
+ * @param {{ slugDir: string, target: string, metadata: unknown, strengthPlan: unknown, strengthReport: unknown, replaceMetadata: unknown, verify: unknown, currentReport: unknown, newReport: unknown, measurements: unknown }} input
  */
 export function judgeConvergence(input) {
   const metadata = checkSuiteMetadata(input.metadata, input.slugDir);
   const slug = String(metadata.slug);
-  checkNewGreen(input.replaceMetadata);
+  checkStrength({ plan: input.strengthPlan, report: input.strengthReport }, slug);
+  const replaceMetadata = checkNewGreen(input.replaceMetadata);
   const v = input.verify;
   if (!isPlainObject(v) || v.slug !== slug || v.target !== input.target)
     throw new UsageError(
@@ -547,6 +569,8 @@ export function judgeConvergence(input) {
   if (!filled(commit))
     throw new UsageError("verify-metadata.json の new.commit が無い（雛形の値のままを含む）");
   const reasons = makeReasons();
+  const greenAt = isPlainObject(replaceMetadata.new) ? replaceMetadata.new.commit : undefined;
+  sameCommit(reasons, "new_green", { actual: greenAt, expected: commit });
   const suiteRecord = isPlainObject(v.suite) ? v.suite : {};
   sameCommit(reasons, "suite", { actual: suiteRecord.commit, expected: commit });
   const suite = judgeSuite(
@@ -664,6 +688,16 @@ function loadInput({ dir, target }, io, onVerify) {
     target,
     verify,
     metadata: requireJson(join(dir, "metadata.json"), "spec-parity suite を先に終える", io),
+    strengthPlan: requireJson(
+      join(dir, "strength-plan.json"),
+      "spec-parity suite で強度の計画を書く",
+      io,
+    ),
+    strengthReport: requireJson(
+      join(dir, "strength-report.json"),
+      "spec-parity suite で強度の実行の結果を保存する",
+      io,
+    ),
     replaceMetadata: requireJson(
       join(newDir, "replace-metadata.json"),
       "parity-replace で新側を green にする",
@@ -733,5 +767,6 @@ export function main(argv, deps = {}) {
 }
 
 if (isCliEntry(import.meta.url)) {
-  process.exit(main(process.argv.slice(2)));
+  // process.exit は書き込み中の stdout を捨てるため、終了コードだけ設定して自然終了させる。
+  process.exitCode = main(process.argv.slice(2));
 }

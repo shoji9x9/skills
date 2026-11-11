@@ -22,6 +22,8 @@ import {
   convergedFs,
   overflowRecords,
   report,
+  strengthPlan,
+  strengthReport,
   suiteMetadata,
   verifyMetadata,
 } from "./verify-fixture.ts";
@@ -194,6 +196,15 @@ describe("スイート", () => {
       ]),
     );
     expect(kinds(run(fs))).toEqual([["remeasure", "suite"]]);
+  });
+
+  test("parity-replace が green にしたバージョンが new.commit と違えば、古い記録としてやり直す", () => {
+    const fs = convergedFs();
+    fs.put(`${NEW_DIR}/replace-metadata.json`, {
+      suite: { new_green: true },
+      new: { target: "stg", commit: "old" },
+    });
+    expect(kinds(run(fs))).toEqual([["remeasure", "new_green"]]);
   });
 
   test("スイートを実行したバージョンが new.commit と違えば、古い記録としてやり直す", () => {
@@ -580,6 +591,8 @@ describe("前提の欠落（exit 2）", () => {
 
   test.each([
     ["metadata.json", `${SLUG_DIR}/metadata.json`],
+    ["strength-plan.json", `${SLUG_DIR}/strength-plan.json`],
+    ["strength-report.json", `${SLUG_DIR}/strength-report.json`],
     ["replace-metadata.json", `${NEW_DIR}/replace-metadata.json`],
     ["verify-metadata.json", VERIFY],
     ["現行の結果", `${SLUG_DIR}/suite-report.json`],
@@ -587,6 +600,20 @@ describe("前提の欠落（exit 2）", () => {
   ])("%s が無い", (_name, path) => {
     const fs = convergedFs();
     fs.remove(path);
+    expect(run(fs).code).toBe(2);
+  });
+
+  test("strength.validated が true でも、強度の結果で故障が緑のままなら、判定し直して exit 2", () => {
+    const fs = convergedFs();
+    fs.put(`${SLUG_DIR}/strength-report.json`, strengthReport("passed"));
+    const r = run(fs);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("強度の確認が通らない");
+  });
+
+  test("強度の計画の slug が機能と違えば exit 2", () => {
+    const fs = convergedFs();
+    fs.put(`${SLUG_DIR}/strength-plan.json`, { ...strengthPlan(), slug: "other" });
     expect(run(fs).code).toBe(2);
   });
 

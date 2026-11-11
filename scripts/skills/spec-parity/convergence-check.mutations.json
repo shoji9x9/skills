@@ -64,7 +64,8 @@
         "スイート スイートを実行したバージョンが new.commit と違えば、古い記録としてやり直す",
         "横のはみ出し 測ったバージョンが new.commit と違えば、古い記録としてやり直す",
         "デザインの点検と人による確認 点検したバージョンが new.commit と違えば、古い記録としてやり直す",
-        "デザインの点検と人による確認 承認した画面のバージョンが new.commit と違えば、古い記録としてやり直す"
+        "デザインの点検と人による確認 承認した画面のバージョンが new.commit と違えば、古い記録としてやり直す",
+        "スイート parity-replace が green にしたバージョンが new.commit と違えば、古い記録としてやり直す"
       ]
     },
     {
@@ -291,6 +292,28 @@
         "未測定の宣言（metadata.json の unmeasured） entries が配列でない なら判定できず exit 2",
         "未測定の宣言（metadata.json の unmeasured） entries の要素がオブジェクトでない なら判定できず exit 2",
         "未測定の宣言（metadata.json の unmeasured） entries の要素が null なら判定できず exit 2"
+      ]
+    },
+    {
+      "id": "cv-new-green-commit-off",
+      "why": "parity-replace が green にしたバージョンと verify するバージョンが違っても、古い記録として数えない",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  sameCommit(reasons, \"new_green\", { actual: greenAt, expected: commit });\n",
+      "replace": "  void greenAt;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "スイート parity-replace が green にしたバージョンが new.commit と違えば、古い記録としてやり直す"
+      ]
+    },
+    {
+      "id": "cv-strength-rejudge-off",
+      "why": "強度の結果で故障が緑のままでも、metadata.json の strength.validated を信じて verify の前提を通す",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  if (!judged.validated)\n",
+      "replace": "  if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "前提の欠落（exit 2） strength.validated が true でも、強度の結果で故障が緑のままなら、判定し直して exit 2"
       ]
     }
   ]

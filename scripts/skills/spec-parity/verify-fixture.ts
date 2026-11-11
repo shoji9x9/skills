@@ -207,14 +207,65 @@ export const verifyMetadata = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+const STRENGTH_FILE = "tests/orders/strength/faults.e2e.ts";
+
+/** 強度の計画（assets/strength-plan-template.json の形）。 */
+export const strengthPlan = () => ({
+  version: "1",
+  slug: "orders",
+  controls: [`${STRENGTH_FILE} › 対照: 注入しないと通る`],
+  faults: [
+    {
+      id: "f-value",
+      class: "値・件数・並び",
+      test: `${STRENGTH_FILE} › 故障: 応答の件数を変える`,
+      observed: "行が 2 → 1 になった",
+    },
+  ],
+});
+
+/** 強度の実行の結果（e2e の結果の JSON）。faultStatus で故障のテストの状態を変える。 */
+export const strengthReport = (faultStatus = "failed") => {
+  const attempt =
+    faultStatus === "failed"
+      ? { status: "failed", error: { code: "ASSERTION_FAILED", message: "expect failed" } }
+      : { status: faultStatus };
+  return {
+    schemaVersion: "report-1",
+    run: {
+      status: "failed",
+      results: [
+        {
+          file: STRENGTH_FILE,
+          titlePath: ["対照: 注入しないと通る"],
+          targetId: "current",
+          selected: true,
+          status: "passed",
+          attempts: [{ status: "passed" }],
+        },
+        {
+          file: STRENGTH_FILE,
+          titlePath: ["故障: 応答の件数を変える"],
+          targetId: "current",
+          selected: true,
+          status: faultStatus,
+          attempts: [attempt],
+        },
+      ],
+    },
+  };
+};
+
 /** 収束する状態の成果物一式を置く。 */
 export function convergedFs(): Fs {
   const fs = new Fs();
   fs.put(`${SLUG_DIR}/metadata.json`, suiteMetadata());
+  fs.put(`${SLUG_DIR}/strength-plan.json`, strengthPlan());
+  fs.put(`${SLUG_DIR}/strength-report.json`, strengthReport());
   fs.put(`${SLUG_DIR}/suite-report.json`, passing("current"));
   fs.put(`${NEW_DIR}/replace-metadata.json`, {
     suite: { new_green: true },
-    new: { target: "stg" },
+    new: { target: "stg", commit: COMMIT },
   });
   fs.put(`${NEW_DIR}/suite-report.json`, passing("new"));
   fs.put(`${NEW_DIR}/overflow.json`, overflowRecords());

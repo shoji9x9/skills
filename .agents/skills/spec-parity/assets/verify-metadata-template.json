@@ -1,5 +1,5 @@
 {
-  "_note": "spec-parity verify が .replace/parity/<slug>/new/<target>/verify-metadata.json として書く。形式の原本は spec-parity である。converged と convergence は convergence-check.mjs --write だけが書き、手で true にしない。overflow は overflow-check.mjs --write が、runtime_errors は runtime-errors.mjs compare --write が書く。記録はすべて new.commit と同じバージョンの新側のもので、違うバージョンの記録は収束の判定で古いものとして数える。",
+  "_note": "spec-parity verify が .replace/parity/<slug>/new/<target>/verify-metadata.json として書く。形式の原本は spec-parity である。converged と convergence は convergence-check.mjs --write だけが書き、手で true にしない。overflow は overflow-check.mjs --write が、runtime_errors は runtime-errors.mjs compare --write が書く。suite・overflow・design_review・human_review の記録は new.commit と同じバージョンの新側のもので、違うバージョンの記録は収束の判定で古いものとして数える。runtime_errors はバージョンを持たず、収束の判定もバージョンを比べないので、verify のたびに操作中のエラーの記録のディレクトリを消してから採り直す。",
   "slug": "<slug>",
   "target": "<新側の target の名前（replace-strategy の targets の side: new）>",
   "style_policy": "free",

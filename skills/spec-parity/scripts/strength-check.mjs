@@ -316,5 +316,6 @@ export function main(argv, deps = {}) {
 }
 
 if (isCliEntry(import.meta.url)) {
-  process.exit(main(process.argv.slice(2)));
+  // process.exit は書き込み中の stdout を捨てるため、終了コードだけ設定して自然終了させる。
+  process.exitCode = main(process.argv.slice(2));
 }

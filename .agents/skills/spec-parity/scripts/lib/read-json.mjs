@@ -1,9 +1,10 @@
 // spec-parity の判定のスクリプトが共有する、JSON のファイルを読む部品と、使い方の誤りを表す例外。
 // 判定のスクリプトは、読めない入力を合格にせず、UsageError で exit 2 にする。
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { errorMessage } from "./errors.mjs";
+import { writeFileAtomic } from "./file-io.mjs";
 
 /** 使い方の誤り・読めない入力・形の誤り。CLI は exit 2 にする。 */
 class UsageError extends Error {}
@@ -59,7 +60,8 @@ function judgeIo(deps) {
     cwd: process.cwd(),
     exists: (p) => existsSync(p),
     readFile: (p) => readFileSync(p, "utf8"),
-    writeFile: (p, s) => writeFileSync(p, s),
+    // 承認の記録を持つファイルを書くので、途中で止まっても書きかけの JSON を残さない
+    writeFile: (p, s) => writeFileAtomic(p, s),
     stdout: (s) => void process.stdout.write(s),
     stderr: (s) => void process.stderr.write(s),
   };

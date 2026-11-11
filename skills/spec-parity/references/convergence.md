@@ -27,10 +27,12 @@ node <spec-parity>/scripts/convergence-check.mjs --slug-dir .replace/parity/<slu
 | 未解決の保留が無い | `pending_decisions` | `open`・`decided`（数え方の原本は `replace-strategy` の `references/autonomy.md`「保留の状態」） |
 
 - スイート・横のはみ出し・デザインの点検・人による確認の記録は、`verify-metadata.json` の `new.commit` と同じバージョンのものでなければ、古い記録として数える。
+  `parity-replace` が新側を green にした記録（`replace-metadata.json` の `new.commit`）も同じに扱う。
   新側を直したら、これらをやり直す。操作中のエラーの記録は新側のバージョンを持たないので、verify のたびに記録のディレクトリを消してから採り直す。
 - `unmeasured` の扱いは、`parity-diff` の収束の判定（`artifact-health-check.mjs --stage diff`）と同じである。
   キーごと無い成果物と `declared: false`（理由が要る）は判定せず、`verify-metadata.json` の `convergence.checks.unmeasured` に `judged: false` と理由を残す。
 - 保存された `ok` や件数は信じない。横のはみ出しは測定の記録から、操作中のエラーは署名ごとの分類から判定し直す。
+  前提の強度の確認も、`metadata.json` の `strength.validated` を信じず、`strength-plan.json` と `strength-report.json` から判定し直す。通らなければ判定できないとして exit 2 にする。
 - 雛形の値（`<...>`）のままの承認・日時は、書いていないものとして扱う。
 - flaky（リトライで通った）は、新側で安定して通ったとは言えないので、通ったものとして扱わない。
 - 現行でスキップしたテストは比べない。横のはみ出しと故障注入のテストは、決まった環境変数を渡した実行でだけ動くので、ここに当たる。

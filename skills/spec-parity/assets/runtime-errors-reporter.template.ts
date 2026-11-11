@@ -142,7 +142,8 @@ function writeRecord(byPair: Map<string, Captured>, event: FinishedEvent): void 
   const test = [r.test.file, ...r.test.titlePath].join(" › ");
   const status = STATUS[r.status] ?? String(r.status);
   const c = byPair.get(keyOf(side, { testId: r.test.id, agent: r.agent, repeat: r.repeat }));
-  if (status !== "skipped" && (!c || !c.marked)) {
+  // リトライのどれかの試行が LOST なら、MARK のある試行があっても書かない（LOST の試行のエラーが記録から消える）
+  if (status !== "skipped" && (!c || !c.marked || c.lost)) {
     process.stderr.write(
       `runtime-errors: 記録を取り出せなかったので書かない: ${test}（${c?.lost ? "LOST" : "行が無い"}）\n`,
     );
