@@ -8,13 +8,7 @@ e2e の仕様の出典は、公式のドキュメント（<https://e2e.com/docs/
 
 - 確かめたバージョンは、e2e 0.23.0・`@e2e-dev/web` 0.15.5・Node.js v26.13.0 である。雛形（`assets/`）と判定のスクリプトは、この組で実際に動かして確かめた。
 - Node.js は 24.8 以上（Node.js 22 なら 22.22.3 以上）が要る（出典: <https://e2e.com/docs/quickstart>）。
-- 入っているかは、プロジェクトの `package.json` の devDependencies に `e2e` と `@e2e-dev/web` があり、次のコマンドが終了コード 0 でバージョンを出すことで確かめる。
-  `--no-install` は、入っていない e2e を `npx` がレジストリから取得して実行するのを止める（npm 11.20.0 で、入っていなければ `npx canceled due to missing packages` で終了コード 1 になることを確かめた）。
-
-  ```bash
-  E2E_TELEMETRY_DISABLED=1 DO_NOT_TRACK=1 E2E_UPDATE_CHECK_DISABLED=1 npx --no-install e2e --version </dev/null
-  ```
-
+- 入っているかは、プロジェクトの `package.json` の devDependencies に `e2e` と `@e2e-dev/web` があり、`npx e2e --version` が終了コード 0 でバージョンを出すことで確かめる。
   どちらかが欠けていれば、成果物を作らずに止まり、導入を案内する。導入は依存の追加なので、利用者の承認を得てから行う（`replace-strategy` の `references/dependency-selection.md`）。
 - 導入は、プロジェクトのパッケージマネージャで `e2e` と `@e2e-dev/web` を devDependencies に足す。`npx e2e init` は設定と例のテストを書くので、既存の設定があるプロジェクトでは使わない。
   Chromium は、最初の実行が自動で取得する。取得の状態は `npx e2e doctor` で確かめる（出典: <https://e2e.com/docs/reference/cli>）。

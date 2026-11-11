@@ -48,8 +48,8 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 - 任意: `web-design-guidelines` スキル（`style_policy: free` の画面のある機能で、実装の点検に使う。無ければ点検しない。[`references/style-free.md`](references/style-free.md)「手順 6（見た目）」）
 - 前提スキルがインストールされていない場合: `gh skill install shoji9x9/skills <name>` で導入してから実行する。
   このスキルは設定スキーマ・成果物の様式の原本を `replace-strategy` と `parity-suite` の `references/`・`assets/` に置いているので、単体では動かない（同時に導入されている前提である）。
-  `style_policy: free` の画面のある機能では、`spec-parity` の `references/` も読むので、`spec-parity` も同時に導入されている前提である。
-  `spec-parity` が無いか、`references/e2e-runner.md` と `references/convergence.md` を読めない古いバージョンなら、`gh skill install`（入っていれば `gh skill update`）を案内して止まる
+  `style_policy: free` の画面のある機能では、`spec-parity` の `SKILL.md` と `references/` も読むので、`spec-parity` も同時に導入されている前提である。
+  [`references/style-free.md`](references/style-free.md) が挙げる `spec-parity` の文書のどれかを読めなければ、それを読む工程に進まずに止まり、`spec-parity` の導入か更新（`gh skill install` か `gh skill update`）を案内する
 - MCP: 不要
 - 新側アーキテクチャは事前に決まっている前提に立つ。骨格（フレームワーク・レイヤとディレクトリの構成・API の設計方針・ホスティングの構成）の選定はスキル群の対象外である。
   新側リポジトリには骨格がスキャフォールドされている前提で、このスキルは決定記録（`references.architecture`）を読んで従うだけで、決めない

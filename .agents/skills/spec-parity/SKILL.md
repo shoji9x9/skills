@@ -37,7 +37,7 @@ spec-parity verify [--feature <slug>] [--target <name>] [--autonomous]
 前提が欠けていたら、成果物を作らずに止まり、足りないものを依存の順に案内する（スイート・記録・判定の結果を作り出さない）。前提があるかは、決まったパスを読んで判定する。
 
 - 設定の `style_policy` が `free` である（読み方は下記「プロジェクト設定の解決」）。`free` でないとき（キーが無いときの `reproduce` を含む）は止まり、`parity-suite` と `parity-diff` を案内する。
-- e2e: プロジェクトの devDependencies に `e2e` と `@e2e-dev/web` があり、`npx --no-install e2e --version` が通る。確かめたバージョンは e2e 0.23.0・`@e2e-dev/web` 0.15.5 で、Node.js 24.8 以上（22 なら 22.22.3 以上）が要る。
+- e2e: プロジェクトの devDependencies に `e2e` と `@e2e-dev/web` があり、`npx e2e --version` が通る。確かめたバージョンは e2e 0.23.0・`@e2e-dev/web` 0.15.5 で、Node.js 24.8 以上（22 なら 22.22.3 以上）が要る。
   無ければ止まり、導入を案内する（導入は利用者の承認を得てから行う）。詳しくは [`references/e2e-runner.md`](references/e2e-runner.md) にある。
 - 外部へ送るデータ: e2e はテレメトリをデフォルトで送り、`agent.act` などの agent のステップでは指示・アクセシビリティツリー・URL（求められたときはスクリーンショット）をモデルの提供元へ送る。
   このスキルが起動する e2e には、必ず `E2E_TELEMETRY_DISABLED=1 DO_NOT_TRACK=1 E2E_UPDATE_CHECK_DISABLED=1` を付ける。
