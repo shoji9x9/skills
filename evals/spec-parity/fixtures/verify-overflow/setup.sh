@@ -4,11 +4,13 @@
 # verify-unapproved/setup.sh と verify-overflow/setup.sh は同じ中身である（scripts/gates/packaging/copies/identical-copies.json）。
 set -euo pipefail
 
-# 前の実行が途中で止まっていても、置き換えまで進める。new-app 自身がリポジトリの最上位でないか、HEAD を読めなければ
-# （mkdir や commit の前で止まった場合を含む）、作り直す。git -C は new-app に .git が無いと親のリポジトリを読むので、最上位を比べる
+# 前の実行が途中で止まっていても、置き換えまで進める。次のどれかに当たれば作り直す。
+# new-app 自身がリポジトリの最上位でない・HEAD を読めない・commit していない変更がある（mkdir や commit の前で止まった場合と、手で試した後を含む）。
+# git -C は new-app に .git が無いと親のリポジトリを読むので、最上位を比べる。CDPATH が設定されていると cd がパスを出すので外す
 top=$(git -C new-app rev-parse --show-toplevel 2>/dev/null || true)
-here=$(cd new-app 2>/dev/null && pwd -P || true)
-if [ -z "$here" ] || [ "$top" != "$here" ] || ! git -C new-app rev-parse --verify -q HEAD >/dev/null 2>&1; then
+here=$(CDPATH='' cd -- new-app 2>/dev/null && pwd -P || true)
+if [ -z "$here" ] || [ "$top" != "$here" ] || ! git -C new-app rev-parse --verify -q HEAD >/dev/null 2>&1 ||
+	[ -n "$(git -C new-app status --porcelain 2>/dev/null || echo unreadable)" ]; then
 	rm -rf new-app
 	mkdir -p new-app
 	git -C new-app init -q -b main
@@ -52,8 +54,17 @@ case "$rc" in
 	exit 1
 	;;
 esac
-# 置き換えた後の記録が、作ったリポジトリの HEAD を指していることを確かめる
-if ! grep -rq "$sha" .replace; then
+# 置き換えた後の記録が、作ったリポジトリの HEAD を指していることを確かめる。1 は無い、2 は読めない
+rc=0
+grep -rq "$sha" .replace || rc=$?
+case "$rc" in
+0) ;;
+1)
 	echo "setup: 記録に新側の HEAD（$sha）が無い" >&2
 	exit 1
-fi
+	;;
+*)
+	echo "setup: HEAD を確かめるときに .replace を読めない（grep の終了コード $rc）" >&2
+	exit 1
+	;;
+esac

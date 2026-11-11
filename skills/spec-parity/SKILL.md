@@ -165,7 +165,7 @@ node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mj
    `verify-metadata.json` を雛形から作り（あれば前の保留を読んでから更新する）、`new.commit` に確かめる新側のバージョン（完全な SHA。`git -C <新側のリポジトリ> rev-parse HEAD` の出力）を書く。
    `new.dirty` には、`git -C <新側のリポジトリ> status --porcelain` の出力が空なら `false`、空でなければ `true` を書く。`true` なら、ここで止まる（上の「前提」）。
    出力からは何も外さない。`parity-replace` の `new.dirty` と `parity-diff` の preflight も、新側のリポジトリの `git status --porcelain` の出力をそのまま使う。
-   verify が書く成果物（`.replace/`・e2e の結果・人による確認で撮った画面）を、新側の作業ツリーの中の `.gitignore` で無視されないパスに置くと、`new.dirty` が `true` になり、verify は止まる。
+   verify が書く成果物（`.replace/`・e2e の結果・人による確認で撮った画面）が上の出力に出る場所にあると、`new.dirty` が `true` になり、verify は止まる。
 2. スイートを新側で実行する。`--target=new` で実行し、結果の JSON を `new/<target>/suite-report.json` に保存し、`suite.commit` を書く。
 3. 横のはみ出しを測る。記録した幅で新側を測り、`overflow-check.mjs --write` で `overflow` に書く（[`references/overflow.md`](references/overflow.md)）。
 4. 操作中のエラーを比べる。新側で 2 回以上記録し、`runtime-errors.mjs compare --write <verify-metadata.json>` で比べる。現行に無かった署名は 3 値に分類する（[`references/runtime-errors.md`](references/runtime-errors.md)）。
