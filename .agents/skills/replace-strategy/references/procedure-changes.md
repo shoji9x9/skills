@@ -111,7 +111,7 @@ node <replace-strategy>/scripts/procedure-staleness-check.mjs \
 - `metadata.json` が `style_policy: free` と `mode: feature` を持つ成果物（`spec-parity` が作る）は、数えずに `skipped` に出す。
   `parity-suite` の手順で作ったものではなく、`run.procedure_revision` も持たないので、改訂番号 0 として読むとすべての改訂の未判断になるからである。台帳の観点も当てない。
   置き場の slug と一致しない成果物、`style_policy` が `reproduce` / `free` のどちらでもない成果物、`free` で `mode` が `feature` でない成果物は外さず、判定不能に積む。
-  `free` でも、横断 API とバッチは `parity-suite` の手順で作るからである。
+  `parity-suite` は `style_policy` を成果物に書かず、`spec-parity` は `mode: feature` の成果物だけを作るので、`free` で `mode` が `feature` でない成果物を作る書き手は無い。手で直した成果物を、どちらの手順の成果物か決めずに判定しないためである。
   `skipped` の成果物しか無いときは、数えた成果物が無いので exit 4 になる。
 - `stray` は、対象でない組み合わせへの記録である（slug の綴りの違い、作り直して対象から外れた機能）。
   失敗にはしないが、綴りの違いなら、対象の組み合わせが未判断のまま残っている。

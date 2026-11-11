@@ -555,7 +555,8 @@ function artifactFromMetadata(doc, name, latestRevision) {
   }
   // spec-parity の成果物は run.procedure_revision を持たないので、改訂番号 0 として全改訂の対象にすると誤って古いと判定する。
   // 置き場の slug と一致したものだけを外す（一致しなければ、別の機能の成果物を外すことになる）。
-  // spec-parity が作るのは mode: feature の成果物だけである。free でも横断 API とバッチは parity-suite の手順で作るので、外さずに判定不能に積む。
+  // spec-parity が作るのは mode: feature の成果物だけで、parity-suite は style_policy を書かない。
+  // free で mode が feature でない成果物はどちらの書き手も作らないので、外さずに判定不能に積む。
   if (isFreeStyle(meta, problems) && problems.length === 0) {
     if (meta.mode === "feature")
       return {
