@@ -13,15 +13,16 @@
 
 ### ツールの起動
 
-ツールを `pnpm exec <tool>` か mise の shim で起動する規約（`AGENTS.md`「技術スタック」）は、スクリプト・lefthook・CI にも当てる。
+`AGENTS.md`「技術スタック」は、ツールを `pnpm exec <tool>` か mise の shim で起動し、`./node_modules/.bin/<tool>` のパスを直接書かないと決めている。
 
-1 回の実行で同じツールを多数回（数十以上）起動するスクリプトは例外とする。`pnpm exec` の起動にかかる時間（実測で 1 回約 0.6 秒）が、実行時間の大半を占めるためである。
+1 回の実行で同じツールを多数回（数十以上）起動するスクリプトは、この規約の例外とする。`pnpm exec` の起動にかかる時間（実測で 1 回約 0.6 秒）が、実行時間の大半を占めるためである。
 この場合は、Node のモジュール解決（`createRequire(...).resolve("<pkg>/package.json")` の `bin`）でエントリを求め、`node` で起動してよい。
 `scripts/mutation/check-mutation-proof.ts` は、子プロセスの vitest をこの方法で起動する。この場合も `.bin` のパスは直接書かない。
 
 mise の shim は、cwd の設定の階層からツールのバージョンを決める。
 リポジトリの外の cwd（`/tmp` など）からコマンド名だけで起動すると、`No version is set for shim` で失敗する。グローバルのデフォルトが無いためで、untrusted とは別の失敗である。
-リポジトリの外で動かす検証では、`mise which <tool>` で取得した実体のパスを渡すか（`AGENTS.md`「技術スタック」）、cwd をリポジトリの中に保つ。
+リポジトリの外で動かす検証では、cwd をリポジトリの中に保つか、`AGENTS.md`「技術スタック」の手順に従う。
+その手順では、使うツールを `mise which <tool>` で実体のパスに解決し、`node` の実体のディレクトリを PATH の先頭に足す。
 
 ### リントと整形
 
