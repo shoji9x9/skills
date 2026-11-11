@@ -230,6 +230,7 @@ push の後などに再レビューを依頼する AI レビュアーは、CLI �
      基準の時刻には push が終わった時刻が無いので、HEAD の commit の `committedDate` ではなく、この反復で最後に投稿した返信やコメントの `createdAt` を下限に使う。それより前のレビューは対応を見ていない。
 
    `review_tool: local` では、push した反復でだけ、新しい HEAD を手元でレビューして記録する（[`references/review-tool.md`](references/review-tool.md) の「local」）。
+   記録は、そのレビューの指摘を直して手順 5 で push するより前に、レビューの前に保存した SHA で投稿する。push の後に回すと、レビューした HEAD の記録を残せず、次の反復が PR の全体をレビューし直す。
    push しなかった反復では、HEAD の記録があれば（`check` が exit 0）、SHA が変わらず前の記録が有効なので、何もしない。
    記録が無ければ（ループを始めた最初の反復で、人のレビューのスレッドに返信しただけのときなど）、今の HEAD を手元でレビューして記録する。
    `check` が `status=open` を返したら（今の HEAD の記録に未対応の指摘が残っている）、レビューし直さない。扱いは `references/review-status.md`「HEAD のレビュー済み判定」の `local` の項にある。

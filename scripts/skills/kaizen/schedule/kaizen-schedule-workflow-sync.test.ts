@@ -183,16 +183,29 @@ type Job = {
   "runs-on"?: unknown;
   permissions?: Record<string, unknown>;
   outputs?: Record<string, unknown>;
-  steps?: { name?: string; uses?: string; run?: string; with?: Record<string, unknown> }[];
+  steps?: {
+    id?: string;
+    name?: string;
+    if?: string;
+    uses?: string;
+    run?: string;
+    env?: Record<string, unknown>;
+    with?: Record<string, unknown>;
+  }[];
 };
+
+/** 原本の jobs を読む。 */
+const canonJobs = () =>
+  loadYamlAs<{ jobs: Record<string, Job> }>(readFileSync(join(repoRoot, CANON), "utf8")).jobs;
+
+/** エージェント（Claude Code・Codex・Copilot CLI）を起動する段か。 */
+const isAgentStep = (s: NonNullable<Job["steps"]>[number]) =>
+  /claude-code-action|codex-action/.test(s.uses ?? "") || /^\s*copilot /m.test(s.run ?? "");
 
 // エージェントは作業ツリーのファイルを書き換えられる（claude の `Write`）。同じジョブの後の段が
 // そのファイルを読み込むと、エージェントが書いた内容が Issue の書き込みの権限で実行される（Issue #779）。
 describe("エージェントを Issue の書き込みの権限から分ける", () => {
-  const jobs = () =>
-    loadYamlAs<{ jobs: Record<string, Job> }>(readFileSync(join(repoRoot, CANON), "utf8")).jobs;
-  const isAgentStep = (s: NonNullable<Job["steps"]>[number]) =>
-    /claude-code-action|codex-action/.test(s.uses ?? "") || /^\s*copilot /m.test(s.run ?? "");
+  const jobs = canonJobs;
 
   test("エージェントを動かすジョブは、読み取りの権限だけを持つ", () => {
     const agentJobs = Object.entries(jobs()).filter(([, j]) => (j.steps ?? []).some(isAgentStep));
@@ -250,11 +263,76 @@ describe("エージェントを Issue の書き込みの権限から分ける", 
   });
 });
 
+// エージェントの結果は公開の追跡 Issue に載る。ツールがリポジトリの外を読めると、仕込まれた指示に従って
+// 資格情報を結果に書きうる。読める範囲を限る引数が消えても、ほかの検査は通るので、ここで固定する（Issue #966）。
+describe("エージェントが読める範囲を、リポジトリの中に限る", () => {
+  const steps = () => Object.values(canonJobs()).flatMap((j) => j.steps ?? []);
+  const one = (pred: (s: NonNullable<Job["steps"]>[number]) => boolean, label: string) => {
+    const found = steps().filter(pred);
+    expect(found, label).toHaveLength(1);
+    const step = found[0];
+    assert.exists(step, label);
+    return step;
+  };
+
+  test("Claude Code は、使えるツールとパスを限り、リポジトリの設定を読まない", () => {
+    const args = String(
+      one((s) => /claude-code-action/.test(s.uses ?? ""), "Claude Code の段").with?.claude_args,
+    );
+    expect(args).toContain('--tools "Read,Grep,Glob,Edit,Write"');
+    expect(args).toContain(
+      '--allowed-tools "Read(./**),Grep(./**),Glob(./**),Edit(./${{ env.REPORT_FILE }})"',
+    );
+    expect(args).toContain("--setting-sources user");
+    expect(args).toContain("--strict-mcp-config");
+    // 権限の確認を外すフラグと、読める場所を足すフラグは、--allowed-tools のパスの規則を迂回する。
+    for (const flag of ["dangerously-skip-permissions", "--permission-mode", "--add-dir"]) {
+      expect(args).not.toContain(flag);
+    }
+  });
+
+  test("Codex は、書いた permission profile で動き、profile を書けなかったときは起動しない", () => {
+    const profile = one((s) => s.id === "codex-profile", "permission profile を書く段");
+    const run = String(profile.run);
+    expect(run).toContain("[permissions.repo-read]");
+    expect(run).toContain('extends = ":read-only"');
+    expect(run).toContain('":root" = "deny"');
+    expect(run).toContain('[permissions.repo-read.filesystem.":workspace_roots"]');
+    expect(run).toContain('"." = "read"');
+    for (const pattern of ["**/.env", "**/.env.*", "**/*.env"]) {
+      expect(run).toContain(`"${pattern}" = "deny"`);
+    }
+    expect(run).toContain('inherit = "core"');
+    expect(run).toContain('cat >"$tmp"');
+    expect(run).toContain('mv "$tmp" "$CODEX_HOME_DIR/config.toml"');
+    const codex = one((s) => /codex-action/.test(s.uses ?? ""), "Codex の段");
+    expect(codex.with?.["permission-profile"]).toBe("repo-read");
+    const codexHome = "${{ runner.temp }}/codex-home";
+    expect(String(codex.with?.["codex-home"])).toBe(codexHome);
+    // profile を書く場所と、Codex が読む codex-home が違うと、Codex は profile を読まない。
+    expect(String(profile.env?.CODEX_HOME_DIR)).toBe(codexHome);
+    expect(codex.if).toContain("steps.codex-profile.outcome == 'success'");
+  });
+
+  test("Copilot CLI は、読み取りのツールだけを使い、一時ディレクトリと組み込みの MCP を使わない", () => {
+    const run = String(one((s) => /^\s*copilot /m.test(s.run ?? ""), "Copilot CLI の段").run);
+    // コメントはフラグの名前を挙げるので、コメントの行を除いたコマンドで確かめる。
+    const command = run
+      .split("\n")
+      .filter((l) => !/^\s*#/.test(l))
+      .join("\n");
+    expect(command).toContain("copilot -p");
+    // 後ろにツールを足した形（view,grep,glob,shell）を通さないよう、値の終わりまで照合する。
+    expect(command).toMatch(/--available-tools=view,grep,glob(?=\s)/);
+    expect(command).toContain("--disallow-temp-dir");
+    expect(command).toContain("--disable-builtin-mcps");
+    for (const flag of ["--allow-all", "--add-dir", "--yolo"]) expect(command).not.toContain(flag);
+  });
+});
+
 // IP allow list を有効にした organization では、標準の runner から接続できない（Issue #780）。
 test("すべてのジョブの runner を、リポジトリ変数で選べる（無ければ ubuntu-latest）", () => {
-  const all = Object.entries(
-    loadYamlAs<{ jobs: Record<string, Job> }>(readFileSync(join(repoRoot, CANON), "utf8")).jobs,
-  );
+  const all = Object.entries(canonJobs());
   expect(all.length).toBeGreaterThan(0);
   for (const [id, job] of all) {
     expect(job["runs-on"], id).toBe("${{ vars.KAIZEN_SCHEDULE_RUNNER || 'ubuntu-latest' }}");

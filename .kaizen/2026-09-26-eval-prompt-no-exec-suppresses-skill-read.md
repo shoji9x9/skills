@@ -3,8 +3,8 @@ date: 2026-09-26
 type: rule
 priority: high
 confidence: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [.agents/rules/eval-assertion-discrimination.md]
 session: claude-code
 ---
 
@@ -29,6 +29,11 @@ with_skill の 4 run（pr-finalize-loop#9・#10、pr-review-handle#7・#8）が�
 
 2026-11-02 の再発は同じ原因である。禁止の対象を、副作用ではなくツールの名前（gh・git）で書いた。
 raw/ で、直す前は `resolve-review-tool.sh` を呼んでおらず、直した後は呼んで fixture の値を得たことを確かめた。
+
+## 失敗の種類
+
+- 種類: 形がずれる
+- 理由: dry-run の prompt の禁じ方の文（行為やツールの名前で禁じる）が期待と違った
 
 ## 提案
 

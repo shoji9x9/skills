@@ -3,8 +3,8 @@ date: 2026-10-17
 type: rule
 priority: high
 confidence: medium
-status: pending
-applied-to: []
+status: applied
+applied-to: [.agents/rules/state-space-and-mutation-proof.md]
 session: claude-code
 ---
 
@@ -28,6 +28,11 @@ PR #682 で、型ガードの絞る型を検査する `check-type-guard-brands.t
 
 同じ原因での 3 件目の再発を、レビューの指摘とその修正で確かめた。
 PR #682（型述語）、PR #698（子プロセスの起動の参照）、Issue #658（モジュールの参照）の 3 件で、どれも書き方を思いついた順に列挙し、レビューが抜けを指摘した。
+
+## 失敗の種類
+
+- 種類: 条件で振る舞いを変えたい
+- 理由: 型の情報が要る判定と、取り決めの文書を直す状態で、構文の規則と 3 回の基準が当たらなかった
 
 ## 提案
 

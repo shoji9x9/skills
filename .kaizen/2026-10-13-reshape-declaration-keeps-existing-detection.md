@@ -3,8 +3,8 @@ date: 2026-10-13
 type: rule
 priority: high
 confidence: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [.agents/rules/state-space-and-mutation-proof.md]
 session: claude-code
 ---
 
@@ -35,6 +35,11 @@ commit 前の /code-review が `fallow list --files` で見つけ、ignorePatter
 
 - 2026-10-13: PR #604 のレビューの指摘と、803776c の修正。
 - 2026-10-27: 同じ原因での再発（宣言の組み替えから、ツールの移し替えへ）。/code-review が `fallow list --files` に `.agents/` のファイルが 1 件も出ないことで確かめた。
+
+## 失敗の種類
+
+- 種類: 要素が抜ける
+- 理由: 組み替えの確認で、変える前に検査していた範囲が毎回抜けた
 
 ## 提案
 

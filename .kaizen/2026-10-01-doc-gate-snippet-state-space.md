@@ -3,8 +3,8 @@ date: 2026-10-01
 type: rule
 priority: high
 confidence: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [.agents/rules/state-space-and-mutation-proof.md]
 session: claude-code
 ---
 
@@ -68,6 +68,11 @@ Issue #933 でも同じ原因で再発した（「再発の記録（#933）」�
 - 場所: `.agents/rules/state-space-and-mutation-proof.md`（入力の状態を列挙する手順の原本。`paths` が `skills/*/references/**` に当たらず、手順書の断片を書くときに読み込まれない）
 - 照合した範囲: `AGENTS.md`・`docs/agent-workflow.md`・`.agents/rules/` を「状態を実際に作って」「状態を列挙」で検索した。
   `AGENTS.md`「確かめ方」にも分岐の状態を作って確かめる 1 行があるが、どの状態を列挙するかの手順は上の rule にしか無い。`## 根本原因` の 2 つ目のとおり、原因はこの rule が読み込まれないことである
+
+## 失敗の種類
+
+- 種類: 条件で振る舞いを変えたい
+- 理由: 状態を列挙する rule が scripts だけを前提にし、手順書の断片を書く状態で読み込まれなかった
 
 ## 提案
 
