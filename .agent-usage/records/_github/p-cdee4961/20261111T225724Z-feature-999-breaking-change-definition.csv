@@ -50,3 +50,7 @@ ci:43097620748:1,ci,2026-11-11T23:26:21.816Z,p-cdee4961,github-actions,,,,2026-1
 ci:43097620707:1,ci,2026-11-11T23:26:21.816Z,p-cdee4961,github-actions,,,,2026-11-11T20:42:24.000Z,2026-11-11T23:26:21.816Z,Asia/Tokyo,feature/993-parity-replace-style-free,993,,,,,,,,,,Dependabot auto-merge;pull_request;open,
 ci:43097620755:1,ci,2026-11-11T23:26:21.816Z,p-cdee4961,github-actions,,,,2026-11-11T20:42:24.000Z,2026-11-11T23:26:21.816Z,Asia/Tokyo,feature/993-parity-replace-style-free,993,,,,,,,,,,CI;pull_request;open,
 coverage:github:2026-11-10T23:17:33.916Z:2026-11-11T23:26:21.816Z,coverage,2026-11-11T23:26:21.816Z,p-cdee4961,,,,,2026-11-10T23:17:33.916Z,2026-11-11T23:26:21.816Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:43097620748:1,ci,2026-11-11T23:27:02.296Z,p-cdee4961,github-actions,,,,2026-11-11T20:42:24.000Z,2026-11-11T23:27:02.296Z,Asia/Tokyo,feature/993-parity-replace-style-free,993,,,,,,,,,,CodeQL;pull_request;open,
+ci:43097620707:1,ci,2026-11-11T23:27:02.296Z,p-cdee4961,github-actions,,,,2026-11-11T20:42:24.000Z,2026-11-11T23:27:02.296Z,Asia/Tokyo,feature/993-parity-replace-style-free,993,,,,,,,,,,Dependabot auto-merge;pull_request;open,
+ci:43097620755:1,ci,2026-11-11T23:27:02.296Z,p-cdee4961,github-actions,,,,2026-11-11T20:42:24.000Z,2026-11-11T23:27:02.296Z,Asia/Tokyo,feature/993-parity-replace-style-free,993,,,,,,,,,,CI;pull_request;open,
+coverage:github:2026-11-10T23:26:21.816Z:2026-11-11T23:27:02.296Z,coverage,2026-11-11T23:27:02.296Z,p-cdee4961,,,,,2026-11-10T23:26:21.816Z,2026-11-11T23:27:02.296Z,Asia/Tokyo,,,,,,,,,,,,ok,
