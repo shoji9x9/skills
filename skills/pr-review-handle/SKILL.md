@@ -182,8 +182,8 @@ gh api --paginate repos/<owner>/<repo>/pulls/<番号>/reviews/<review-id>/commen
 - commit message は、「ブランチ運用・commit 規約の参照」で決めた規約に従う。リポジトリに commit-msg の検証（commitlint や lefthook など）があれば、それにも従う。
   - 検証が本文の行の長さを制限していれば、それを守る。長い本文は `git commit -F <file>` で渡す。
   - commit message の 1 行目は、commit する前に `writing-style` スキルの手順で読み直す（スキルが無ければ省く）。
-- 規約の文書に、リリースのバージョンを上げる破壊的変更の定義があれば、修正がそれに当たるかを commit の前に判断する。
-  当たるなら、規約の書き方（conventional commits なら `BREAKING CHANGE:` のフッター）で commit message に書き、PR の本文に破壊的変更を書く節があれば書き直す。
+- 規約の文書か、それがリンクや節名で案内する文書に、リリースのバージョンを上げる破壊的変更の定義と書き方があれば、修正の commit と PR のタイトル・本文をそれに従って直す。
+  修正で当たるようになったときも、当たらなくなったときも同じである。案内先を読めないときと、定義で決められないときは、commit の前に利用者に確認する。
 - 関係の無い変更を同じ commit に入れない。レビューへの対応で触ったファイルだけを stage する。
 - commit すると、設定されていれば pre-commit フック（lefthook など）や kaizen の commit 前のチェックが実行される。
   チェックで止まったら、指示に従って `kaizen --current` を実行してから commit し直す。

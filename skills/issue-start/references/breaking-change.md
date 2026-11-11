@@ -18,8 +18,10 @@ commit message の書き方の仕様（conventional commits など）は、破�
 当たるかは、最初の commit の前に判断する。commit message に書く形は、規約の文書に従う。
 conventional commits なら、1 行目の種別の後に `!` を付ける（`feat!:`・`feat(<scope>)!:`）か、本文の後のフッターに `BREAKING CHANGE: <利用者がすること>` を書く。
 commit した後に当たると分かったら、`--amend` せず、次の commit のフッターに書く。足す変更が残っていなければ、変更の無い commit（`git commit --allow-empty -F <file>`）でフッターだけを足す。
-squash で取り込むリポジトリでは、取り込むときの commit message の 1 行目になる PR のタイトルにも、`!` を付ける。squash は各 commit の 1 行目を本文の箇条にするので、commit の `!` は 1 行目に残らない。
-PR を作った後の修正（レビューへの対応など）で当たるようになったときも、その commit のフッターに書き、PR の本文の節を書き直す。
+squash で取り込むリポジトリでは、PR のタイトルに `!` を付け、PR の本文の節にも `BREAKING CHANGE:` の行を書く。
+squash の commit message は、リポジトリの設定によって PR のタイトル・各 commit の message・PR の本文のどれから作られるかが変わり、commit に書いた `!` やフッターが残らないことがあるからである。
+PR を作った後の修正（レビューへの対応など）で当たるようになったときも、その commit のフッターに書き、PR のタイトルと本文の節を書き直す。
+修正で当たらなくなったときは、前の commit に書いた `!` やフッターを消せない（`--amend` と force push をしない）。そのまま取り込むと major が上がるので、PR の本文の節にそのことを書き、取り込む前に利用者に確認する。
 
 定義の表で決められない変更と、境界で迷う変更は、仮に決めて進めない。
 その変更に沿った commit・push・PR の作成より前に、判断の材料（変更の内容・当たると判断できる箇所・当たらないと判断できる箇所）を添えて利用者に確認する。

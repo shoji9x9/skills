@@ -269,7 +269,7 @@ Issue ごとの専用の worktree で、`issue-start <Issue URL> --pr` と同じ
    heredoc・複合コマンド・コマンド置換を含む処理はファイルを書くツールでスクリプトにして絶対パスで実行し、git の操作は単独の呼び出しにする。拒否されてから直すと、run の中で同じ拒否が繰り返される。
    最初の commit の前に、`issue-start` の `references/breaking-change.md` で、変更が破壊的変更に当たるかを判断する。
    そこで利用者への確認に当たる場合（定義の文書を読めない、規約の定義で決められない）は、確認の代わりに判断待ちとして記録し、commit せずに BLOCKED にする。
-   当たると判断し、`merge_method` が `squash` なら、PR のタイトルにも `!` を付ける。squash の commit の 1 行目は PR のタイトルになり、各 commit の `!` は本文の箇条に入るので、semantic-release が major と判定しない。
+   PR のタイトルの扱いを決めるときは、`merge_method` を取り込む方法として当てる。
 
 `issue-start` の規約の決め方・影響範囲の確かめ直し・commit と PR の規約を、ここには書き写さない。参照先を読めなければ停止する。
 
