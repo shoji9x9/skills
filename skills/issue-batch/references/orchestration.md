@@ -267,6 +267,8 @@ Issue ごとの専用の worktree で、`issue-start <Issue URL> --pr` と同じ
 4. 実装し、リポジトリの規約が求める最小の範囲の lint と test を実行する。
    worktree に入った後の Bash は、`git-worktree` の `references/isolation.md`「隔離中の Bash は 1 コマンドずつ素の形で書く」の形で最初から書く。
    heredoc・複合コマンド・コマンド置換を含む処理はファイルを書くツールでスクリプトにして絶対パスで実行し、git の操作は単独の呼び出しにする。拒否されてから直すと、run の中で同じ拒否が繰り返される。
+   最初の commit の前に、`issue-start` の `references/breaking-change.md` で、変更が破壊的変更に当たるかを判断する。
+   そこで利用者への確認に当たる場合（定義の文書を読めない、規約の定義で決められない）は、確認の代わりに判断待ちとして記録し、commit せずに BLOCKED にする。
 
 `issue-start` の規約の決め方・影響範囲の確かめ直し・commit と PR の規約を、ここには書き写さない。参照先を読めなければ停止する。
 
@@ -461,7 +463,8 @@ commit message の 1 行目、PR のタイトルと本文、Issue へのコメ�
 
 見直すかどうかは、候補の一覧を添えて、判断待ちとして記録する。満たせない条件と同時に起きたら、「判断の扱い」のとおり 1 つの判断待ちにまとめる。
 exit 0 だけを見て push すると、確認がどこにも残らずに消える。
-通ったら push する。PR の本文には、`Closes #<Issue番号>`、変更の概要、静的な検査、受け入れ条件の突き合わせの表、browser-test の結果か対象外の根拠、Kaizen の結果、「仮に決めたこと」の節を含める。
+通ったら push する。PR の本文には、`Closes #<Issue番号>`、変更の概要、静的な検査、受け入れ条件の突き合わせの表、browser-test の結果か対象外の根拠、Kaizen の結果、「破壊的変更」の節、「仮に決めたこと」の節を含める。
+「破壊的変更」の節は、`issue-start` の `references/breaking-change.md` で書く。当たるかの判断は、最初の commit の前に済ませておく（「issue-start への handoff」の 4）。
 「仮に決めたこと」の節は、`issue-start` の `references/provisional-decisions.md` の 5 つの項目で書き、0 件でも節を置いて「PR を作るまでに仮に決めたことは無い」と書く。
 後で「PR の本文の「仮に決めたこと」への追記」が同じ節に項目を足すので、0 件の文は PR を作るまでの範囲に限って書く。
 載せるのは、manifest の `self_decisions` の `excluded_forms` と `others` のうち、その Issue の番号を持ち、解釈・値・形を選んだ項目である。
