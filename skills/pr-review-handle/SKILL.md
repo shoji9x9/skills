@@ -184,7 +184,7 @@ gh api --paginate repos/<owner>/<repo>/pulls/<番号>/reviews/<review-id>/commen
   - commit message の 1 行目は、commit する前に `writing-style` スキルの手順で読み直す（スキルが無ければ省く）。
 - リリースのバージョンを上げる破壊的変更の定義が、規約の文書か、それがリンクや節名で案内する文書にあるとする。そのときは、修正で当たるかの判断が変わるかを commit の前に確かめる。変わるとは、当たるようになることと当たらなくなることである。
   変わるなら、直し方を自分で決めず、修正を commit する前に利用者に確認する。案内先を読めないときと、定義で決められないときも同じである。
-  当たるようになった修正は、新しい commit に規約の書き方（conventional commits なら `BREAKING CHANGE:` のフッター）で書く。既にある commit は書き直さない。
+  答えで決まった直し方で、新しい commit（conventional commits なら `BREAKING CHANGE:` のフッター）と PR のタイトル・本文を直す。既にある commit は書き直さない。
 - 関係の無い変更を同じ commit に入れない。レビューへの対応で触ったファイルだけを stage する。
 - commit すると、設定されていれば pre-commit フック（lefthook など）や kaizen の commit 前のチェックが実行される。
   チェックで止まったら、指示に従って `kaizen --current` を実行してから commit し直す。
