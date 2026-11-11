@@ -153,9 +153,12 @@ CI だけで実行する検査が 2 つある。
   保存したファイルは `pnpm exec oxfmt` で整形する。
   `pnpm run lint:fallow` が通る状態で作り直す。循環的複雑度と認知的複雑度の指摘が残っていると、その件数もベースラインに入る。
   `--complexity` を外すと、判定に使わないリファクタリングの候補（`target_keys`）もベースラインに入る。
-  ブラウザでだけ実行する関数（Playwright の spec と fixture の雛形 `skills/*/assets/*.spec.template.ts`・`skills/*/assets/*.fixture.template.ts` と、eval の fixture をブラウザで作るジェネレータ）は、ユニットテストで実行できないので、ベースラインに載せたままにする
+  ブラウザか e2e の実行の中でだけ動く関数は、ユニットテストで実行できないので、ベースラインに載せたままにする。
+  対象は、Playwright の spec と fixture の雛形（`skills/*/assets/*.spec.template.ts`・`skills/*/assets/*.fixture.template.ts`）と、e2e の雛形（`skills/*/assets/*.e2e.template.ts`）である。
+  e2e のレポーターとブラウザの init script の雛形（`skills/spec-parity/assets/runtime-errors-reporter.template.ts`・`skills/spec-parity/assets/runtime-errors-init.template.mjs`）と、eval の fixture をブラウザで作るジェネレータも含む
 - `Lint` ジョブの `Test weakening`（`fallow audit`）: PR が増やした、テストを弱める変更（`.skip`・`.only` の追加、テストのケースや assertion の減少、カバレッジの閾値の引き下げ）。PR のベースとの差分を見るので、PR でだけ実行する。
-  意図して弱めるときは、理由を付けた `fallow-ignore-next-line weakened-tests` を書く
+  意図して弱めるときは、理由を付けた `fallow-ignore-next-line weakened-tests` を書く。
+  配布スキルの雛形は利用者のプロジェクトへコピーされるので、コメントを置かずに、`.config/fallow/base.jsonc` の `overrides` でそのファイルとインストール済みのコピーだけを外す
 
 #### 重複したコード（jscpd）
 
@@ -463,7 +466,7 @@ lefthook の pre-commit は、TypeScript か JavaScript（`ts`・`tsx`・`mts`�
 雛形は、利用者のプロジェクトへコピーした後に Playwright が読み込む。Playwright は拡張子なしの相対 import も解決するので、`bundler` で検査する。
 雛形が import する、コピー先にだけ在るモジュール（`../../lib/interactions` など）は、`types/parity-templates.ts` で `*` を含む名前の ambient 宣言にする。
 `*` を含む名前は相対の import にも一致するので、雛形に `// @ts-nocheck` などを足さずに済む。利用者のコピーには何も入らない。
-雛形に新しい import を足したら、`types/parity-templates.ts` にも足す。`@playwright/test` の型は devDependencies から読む。
+雛形に新しい import を足したら、`types/parity-templates.ts` にも足す。`@playwright/test`・`e2e`・`@e2e-dev/web` の型は、実行ではなく雛形の型の検査のために devDependencies に入れ、そこから読む。
 `types/` の宣言は `.d.ts` にしない。`skipLibCheck` は `node_modules` の型だけでなく、すべての `.d.ts` を検査から外すので、宣言の誤りが警告なしに通る。
 
 `JSON.parse` と `Response.json()` の戻り値は、`types/strict-json.ts` で `unknown` にしている（`tsconfig.repo.json` と `tsconfig.skills.json` が読む）。

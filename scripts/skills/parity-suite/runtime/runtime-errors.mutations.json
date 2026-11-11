@@ -14,12 +14,12 @@
       "replace": "      .filter(([key, s]) => false && !baseline.keys.has(key) && baseline.tests.get(s.test) === false)\n",
       "occurrences": 1,
       "expect_failing": [
-        "compare --write が無ければ diff-metadata.json を書かない",
-        "compare 分類は同じテスト × 署名へ持ち越し、説明になる分類だけで収束する",
-        "compare 新側だけに出たエラーと失敗したリクエストを、4 種類とも差分として検出し exit 1",
-        "compare 新側でスキップした試行のイベントは比べない。同じテストの通った回のイベントは比べる",
-        "compare 新側の 1 回にだけ出たエラーも差分にする（出た回数を残す）",
-        "compare 現側では別のテストに出ていたエラーは、そのテストでは差分にする"
+        "parity-suite の runtime-errors.mjs compare --write が無ければ diff-metadata.json を書かない",
+        "parity-suite の runtime-errors.mjs compare 分類は同じテスト × 署名へ持ち越し、説明になる分類だけで収束する",
+        "parity-suite の runtime-errors.mjs compare 新側だけに出たエラーと失敗したリクエストを、4 種類とも差分として検出し exit 1",
+        "parity-suite の runtime-errors.mjs compare 新側でスキップした試行のイベントは比べない。同じテストの通った回のイベントは比べる",
+        "parity-suite の runtime-errors.mjs compare 新側の 1 回にだけ出たエラーも差分にする（出た回数を残す）",
+        "parity-suite の runtime-errors.mjs compare 現側では別のテストに出ていたエラーは、そのテストでは差分にする"
       ]
     },
     {
@@ -30,12 +30,12 @@
       "replace": "      .filter(([key, s]) => baseline.tests.get(s.test) === false)\n",
       "occurrences": 1,
       "expect_failing": [
-        "compare 新側だけに出たエラーと失敗したリクエストを、4 種類とも差分として検出し exit 1",
-        "compare 新側の 1 回にだけ出たエラーも差分にする（出た回数を残す）",
-        "compare 現側では別のテストに出ていたエラーは、そのテストでは差分にする",
-        "compare 現側の 1 回にだけ出たエラーは、新側で出ても差分にしない",
-        "compare 現行にも出ていたエラーは、ホスト・クエリ・数字が違っても差分にしない",
-        "compare 正規化を 2 回当てると値が変わる署名（blob: の URL・上限で切った本文）も、基準と突き合わせられる"
+        "parity-suite の runtime-errors.mjs compare 新側だけに出たエラーと失敗したリクエストを、4 種類とも差分として検出し exit 1",
+        "parity-suite の runtime-errors.mjs compare 新側の 1 回にだけ出たエラーも差分にする（出た回数を残す）",
+        "parity-suite の runtime-errors.mjs compare 現側では別のテストに出ていたエラーは、そのテストでは差分にする",
+        "parity-suite の runtime-errors.mjs compare 現側の 1 回にだけ出たエラーは、新側で出ても差分にしない",
+        "parity-suite の runtime-errors.mjs compare 現行にも出ていたエラーは、ホスト・クエリ・数字が違っても差分にしない",
+        "parity-suite の runtime-errors.mjs compare 正規化を 2 回当てると値が変わる署名（blob: の URL・上限で切った本文）も、基準と突き合わせられる"
       ]
     },
     {
@@ -46,7 +46,7 @@
       "replace": "      .filter(([key, s]) => !baseline.keys.has(key) && baseline.tests.has(s.test))\n",
       "occurrences": 1,
       "expect_failing": [
-        "compare 新側でスキップしたテストは一覧に残して止めない。現側でスキップしたテストのエラーは比べない"
+        "parity-suite の runtime-errors.mjs compare 新側でスキップしたテストは一覧に残して止めない。現側でスキップしたテストのエラーは比べない"
       ]
     },
     {
@@ -57,13 +57,13 @@
       "replace": "    path = new URL(url).href;\n",
       "occurrences": 1,
       "expect_failing": [
-        "compare 新側だけに出たエラーと失敗したリクエストを、4 種類とも差分として検出し exit 1",
-        "compare 新側の 1 回にだけ出たエラーも差分にする（出た回数を残す）",
-        "compare 現側では別のテストに出ていたエラーは、そのテストでは差分にする",
-        "compare 現側の 1 回にだけ出たエラーは、新側で出ても差分にしない",
-        "compare 現行にも出ていたエラーは、ホスト・クエリ・数字が違っても差分にしない",
-        "正規化 オリジン・クエリ・フラグメントを捨て、数字の連なりを <n> にする",
-        "compare 正規化を 2 回当てると値が変わる署名（blob: の URL・上限で切った本文）も、基準と突き合わせられる"
+        "parity-suite の runtime-errors.mjs compare 新側だけに出たエラーと失敗したリクエストを、4 種類とも差分として検出し exit 1",
+        "parity-suite の runtime-errors.mjs compare 新側の 1 回にだけ出たエラーも差分にする（出た回数を残す）",
+        "parity-suite の runtime-errors.mjs compare 現側では別のテストに出ていたエラーは、そのテストでは差分にする",
+        "parity-suite の runtime-errors.mjs compare 現側の 1 回にだけ出たエラーは、新側で出ても差分にしない",
+        "parity-suite の runtime-errors.mjs compare 現行にも出ていたエラーは、ホスト・クエリ・数字が違っても差分にしない",
+        "parity-suite の runtime-errors.mjs 正規化 オリジン・クエリ・フラグメントを捨て、数字の連なりを <n> にする",
+        "parity-suite の runtime-errors.mjs compare 正規化を 2 回当てると値が変わる署名（blob: の URL・上限で切った本文）も、基準と突き合わせられる"
       ]
     },
     {
@@ -73,7 +73,9 @@
       "find": "  if (classification === \"許容\" && reason !== null && approvedAt !== null)\n",
       "replace": "  if (classification === \"許容\")\n",
       "occurrences": 1,
-      "expect_failing": ["compare 分類は同じテスト × 署名へ持ち越し、説明になる分類だけで収束する"]
+      "expect_failing": [
+        "parity-suite の runtime-errors.mjs compare 分類は同じテスト × 署名へ持ち越し、説明になる分類だけで収束する"
+      ]
     },
     {
       "id": "re-noise-without-evidence",
@@ -82,7 +84,9 @@
       "find": "  if (classification === \"環境ノイズ\" && evidence !== null)\n",
       "replace": "  if (classification === \"環境ノイズ\")\n",
       "occurrences": 1,
-      "expect_failing": ["compare 分類は同じテスト × 署名へ持ち越し、説明になる分類だけで収束する"]
+      "expect_failing": [
+        "parity-suite の runtime-errors.mjs compare 分類は同じテスト × 署名へ持ち越し、説明になる分類だけで収束する"
+      ]
     },
     {
       "id": "re-missing-tests-off",
@@ -91,7 +95,9 @@
       "find": "    else if (!t || t.statuses.length !== runCount) lists.missing.push(test);\n",
       "replace": "    else if (false) lists.missing.push(test);\n",
       "occurrences": 1,
-      "expect_failing": ["compare 新側で記録が欠けた・通らなかった・基準に無いテストは exit 1"]
+      "expect_failing": [
+        "parity-suite の runtime-errors.mjs compare 新側で記録が欠けた・通らなかった・基準に無いテストは exit 1"
+      ]
     },
     {
       "id": "re-baseline-id-trusted",
@@ -100,7 +106,9 @@
       "find": "    if (signatureId(s) !== s.id)\n",
       "replace": "    if (false)\n",
       "occurrences": 1,
-      "expect_failing": ["compare id の書き換え（基準・引数・新側の記録の誤り）は exit 2"]
+      "expect_failing": [
+        "parity-suite の runtime-errors.mjs compare id の書き換え（基準・引数・新側の記録の誤り）は exit 2"
+      ]
     },
     {
       "id": "re-current-failed-accepted",
@@ -110,7 +118,7 @@
       "replace": "    const bad = t.statuses.filter((s) => false);\n",
       "occurrences": 1,
       "expect_failing": [
-        "summarize 現側で通らなかったテスト・一部の実行にしか無いテスト・回でスキップが変わるテストは exit 1"
+        "parity-suite の runtime-errors.mjs summarize 現側で通らなかったテスト・一部の実行にしか無いテスト・回でスキップが変わるテストは exit 1"
       ]
     },
     {
@@ -121,7 +129,7 @@
       "replace": "  if (false && r.status === \"skipped\") return;\n",
       "occurrences": 1,
       "expect_failing": [
-        "compare 新側でスキップした試行のイベントは比べない。同じテストの通った回のイベントは比べる"
+        "parity-suite の runtime-errors.mjs compare 新側でスキップした試行のイベントは比べない。同じテストの通った回のイベントは比べる"
       ]
     }
   ]

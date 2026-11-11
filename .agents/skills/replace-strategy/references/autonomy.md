@@ -1,7 +1,8 @@
 # 実行スコープの自律性ポリシー（置換系スキル共通）
 
 このファイルは、`--autonomous` を付けて起動されたときだけ従う規約の原本である。
-従うのは `replace-strategy` と姉妹スキル（`current-environment-bootstrap` / `golden-dataset` / `parity-component` / `parity-suite` / `parity-replace` / `parity-diff`）である。
+従うのは `replace-strategy` と、その姉妹スキルである。
+姉妹スキルは、`current-environment-bootstrap` / `golden-dataset` / `parity-component` / `parity-suite` / `spec-parity` / `parity-replace` / `parity-diff` の 7 つである。
 各スキルは、そのスキルに固有の対応（どの確認が保留になるか・記録先・完了の値）だけを持ち、このファイルの規約を転記しない。
 
 これは承認を省く規約ではない。
@@ -193,7 +194,7 @@ node <replace-strategy>/scripts/pending-decisions-check.mjs --file <保留の記
 |---|---|---|
 | `.replace/features.md` と `.replace/components.md`（`replace-strategy setup` の完了） | `.replace/strategy-pending.json` | 作らず、`.replace/features.draft.md` / `.replace/components.draft.md` に下書きする。答えを反映したら、`features.draft.md` は正規の名前に移す。`components.draft.md` は、「共通部品を画面より先に作る」方針が採用されたときだけ移し、採用されなければ削除する（`components.md` があることは、方針が採用されたことを意味する） |
 | `.replace/dataset/metadata.json`（`golden-dataset` のフェーズ A・B） | `.replace/dataset/pending-decisions.json` | そのフェーズの記録を作らない・更新しない |
-| `.replace/parity/<slug>/metadata.json`（`parity-suite`） | `.replace/parity/<slug>/pending-decisions.json` | 同上 |
+| `.replace/parity/<slug>/metadata.json`（`parity-suite`・`spec-parity suite`） | `.replace/parity/<slug>/pending-decisions.json` | 同上 |
 | `.replace/parity/<slug>/new/<target>/replace-metadata.json`（`parity-replace` の `suite.new_green`） | `.replace/parity/<slug>/new/<target>/pending-decisions.json` | 同上。再実行の開始時に既存の `suite.new_green: true` が残っていれば、保留に依存する工程に入る前に `false` に戻す |
 
 ### 下流の前提判定（自律実行かどうかを問わない）
@@ -207,7 +208,7 @@ node <replace-strategy>/scripts/pending-decisions-check.mjs --file <保留の記
 | `replace-strategy setup` | `.replace/strategy-pending.json` の要素のうち `mode: setup` のもの。要素ごとの `mode` で絞り、ファイルの直下の `mode` は最後に実行したモードなので使わない。要素の `mode` が欠落していれば、setup のものとして止める |
 | `golden-dataset` のフェーズ A | `.replace/dataset/pending-decisions.json` の `phase: a` の要素 |
 | `golden-dataset` のフェーズ B（slug × target） | 同じファイルの `phase: b` で、`slugs` が対象の slug を含み、`target` が一致する要素。他の slug や target の保留では止めない。`slugs` が欠落しているか空の要素は、範囲を決められないので、同じ target のすべての slug を止める |
-| `parity-suite`（slug） | `.replace/parity/<slug>/pending-decisions.json` のすべての要素 |
+| `parity-suite`・`spec-parity suite`（slug） | `.replace/parity/<slug>/pending-decisions.json` のすべての要素 |
 | `parity-replace` の新側の green（slug × target） | `.replace/parity/<slug>/new/<target>/pending-decisions.json` のすべての要素 |
 
 - 記録先のファイルが無いのは「保留なし」で、前提の判定を変えない（自律実行していない、または保留が無かった）。

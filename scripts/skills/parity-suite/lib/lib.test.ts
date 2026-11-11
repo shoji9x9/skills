@@ -1,16 +1,15 @@
-// parity-suite の同梱スクリプトが共有する helper（scripts/lib/ の cli・errors・paths）のテスト。
+// parity-suite の同梱スクリプトが共有する helper（scripts/lib/ の cli・paths）のテスト。
+// errors と file-io は、spec-parity が同じ中身でコピーを持つので、scripts/skills/_cross/errors-file-io-copies.test.ts が両方のコピーで確かめる。
 //
 // どれも他のスクリプトが戻り値をそのまま判定に使う。読めない入力（起動時のパスが無い・解決できないパス・
 // message を持たない例外）で、合格として扱う値を返さないことを確かめる。
 
 import { afterEach, expect, test } from "vitest";
-import { mkdirSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import { isCliEntry } from "../../../../skills/parity-suite/scripts/lib/cli.mjs";
-import { errorMessage } from "../../../../skills/parity-suite/scripts/lib/errors.mjs";
-import { fileIo, writeFileAtomic } from "../../../../skills/parity-suite/scripts/lib/file-io.mjs";
 import { realPathOf } from "../../../../skills/parity-suite/scripts/lib/paths.mjs";
 
 const originalArgv = [...process.argv];
@@ -46,28 +45,6 @@ test("isCliEntry: シンボリックリンクから起動しても、実パス�
   expect(isCliEntry(pathToFileURL(join(dir, "other.mjs")).href)).toBe(false);
 });
 
-test("errorMessage: Error なら message を返し、Error でない値は String() で文字列にする", () => {
-  expect(errorMessage(new Error("読めない"))).toBe("読めない");
-  expect(errorMessage(new TypeError("型が違う"))).toBe("型が違う");
-  // Error でないオブジェクトは、message を持っていても String() で文字列にする。
-  expect(errorMessage({ message: "オブジェクトの message" })).toBe("[object Object]");
-  expect(errorMessage({})).toBe("[object Object]");
-  const fn = Object.assign(() => undefined, { message: "関数の message" });
-  expect(errorMessage(fn)).toBe(String(fn));
-  // 偽の値と真のプリミティブも、常に文字列を返す。
-  const values = [null, undefined, 0, "", false, "文字列の例外", 42, true];
-  expect(values.map(errorMessage)).toEqual([
-    "null",
-    "undefined",
-    "0",
-    "",
-    "false",
-    "文字列の例外",
-    "42",
-    "true",
-  ]);
-});
-
 test("realPathOf: 存在しないパスも、実在する祖先の実パスに残りを継ぎ足して返す", () => {
   const dir = makeTempDir("parity-suite-paths-");
   const realDir = join(dir, "real");
@@ -94,26 +71,4 @@ test("realPathOf: ENOENT 以外で解決できないパスは null を返す（�
   symlinkSync(join(dir, "b"), join(dir, "a"));
   symlinkSync(join(dir, "a"), join(dir, "b"));
   expect(realPathOf(join(dir, "a", "child"))).toBeNull();
-});
-
-test("writeFileAtomic: 中身を書き、一時ファイルを残さない。既にあるファイルは置き換える", () => {
-  const dir = makeTempDir("parity-suite-file-io-");
-  const file = join(dir, "out.json");
-  writeFileSync(file, "old");
-  writeFileAtomic(file, "new\n");
-  expect(readFileSync(file, "utf8")).toBe("new\n");
-  expect(readdirSync(dir)).toEqual(["out.json"]);
-});
-
-test("fileIo: 差し込まない関数は node:fs で補い、差し込んだ関数はそのまま使う", () => {
-  const dir = makeTempDir("parity-suite-file-io-");
-  const file = join(dir, "a.txt");
-  const io = fileIo({ cwd: dir });
-  io.writeFile(file, "x");
-  expect(io.readFile(file)).toBe("x");
-  expect(io.cwd).toBe(dir);
-  const written: string[] = [];
-  const injected = fileIo({ writeFile: (p, text) => written.push(`${p}=${text}`) });
-  injected.writeFile("p", "y");
-  expect(written).toEqual(["p=y"]);
 });

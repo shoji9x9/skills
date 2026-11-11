@@ -67,7 +67,7 @@ node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mj
 `default` を先に書くのはこのためで、2 つ目の書き込みが失敗しても、この誤りの状態を残さない。
 
 利用者が取り消しを断ったら、設定を書かずに `blocked` のまま進める。
-`replace-strategy` の測定・`golden-dataset`・`parity-suite`・`parity-component` の `capture` は `status` を読んで止まるので、残った設定の値で作り直しの途中の環境を使わない。
+`replace-strategy` の測定・`golden-dataset`・`parity-suite`・`spec-parity` の `suite`・`parity-component` の `capture` は `status` を読んで止まるので、残った設定の値で作り直しの途中の環境を使わない。
 
 ### `status` の値
 

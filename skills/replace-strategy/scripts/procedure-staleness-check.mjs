@@ -12,6 +12,7 @@
 //   - プロジェクト側の観点の追加: .replace/procedure-changes.md の「観点の追加」表（--ledger）。
 //     成果物の run.finished_at の日付が追加日以前の機能が対象（同じ日は含める。当てたかを日付で決められないため）
 // 判断の記録は同じ台帳の「既に閉じた機能への当て直し」表に追記する。形式の原本は references/procedure-changes.md である。
+// style_policy: free の成果物（spec-parity が作る）は、parity-suite の手順で作ったものではないので、どちらの出所も当てずに skipped に出す。
 //
 // 何をしないか: 当て直しが本当に行われたかの再測定はしない（記録の形だけを見る）。台帳・成果物の書き換えもしない。
 // Issue の open / closed は見ない（成果物があれば閉じていなくても旧手順で特性化されている）。
@@ -22,7 +23,7 @@
 // - 1: 未判断・見直し中が残る。
 // - 2: 使い方の誤り・読めない入力（台帳の表や列の欠落、語彙にない値、重複した ID、実在しない変更 ID など）。
 // - 3: 未判断は無いが、成果物を読めず、対象かどうかを判定できない機能がある（合格として扱わない）。
-// - 4: 対象外（特性化済みの成果物が 1 つも無い。0 件を「旧手順の機能なし」と読ませない）。
+// - 4: 対象外（parity-suite で特性化済みの成果物が 1 つも無い。spec-parity の成果物だけのときも含む。0 件を「旧手順の機能なし」と読ませない）。
 //
 // 決定論的: 乱数・現在時刻に依存しない。slug は名前順、記録は台帳の順で読む。
 // TypeScript 構文は使わない（型は JSDoc）。
@@ -46,7 +47,7 @@ import {
  * ツールのバージョン（このファイルで定義する）。判定の規則や出力の形を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "4";
+export const VERSION = "5";
 
 /** 成果物の mode の語彙（parity-suite の metadata.json の mode）。 */
 export const MODES = ["feature", "api-resource", "batch"];
@@ -60,6 +61,9 @@ export const DECISIONS = {
 
 /** 見直しの置き場のうち、Issue 番号でないもの（変更そのものの完了条件に入れる）。 */
 export const PLACEMENT_IN_CHANGE = "この変更の完了条件";
+
+/** 成果物の style_policy の語彙（replace-strategy の設定の style_policy と同じ値）。キーが無い成果物は reproduce として読む。 */
+export const STYLE_POLICIES = ["reproduce", "free"];
 
 /** 改訂一覧を持つスキル（成果物の run.procedure_revision はこのスキルの改訂番号）。 */
 export const REVISIONS_SKILL = "parity-suite";
@@ -423,6 +427,7 @@ export function readProcedureLedger(text, skillChangeIds) {
 
 /**
  * @typedef {{ slug: string, mode: string | null, procedure_revision: number | null, finished_on: string | null, problems: string[] }} ArtifactEntry
+ * @typedef {{ slug: string, reason: string }} SkippedEntry
  */
 
 /**
@@ -514,11 +519,28 @@ function readProcedureRevision(run, latestRevision, problems) {
 }
 
 /**
- * 読めた metadata.json の中身から、slug の記録を作る。
+ * style_policy を読み、spec-parity の成果物（free）かを返す。語彙の外の値は problems に積む。
+ * キーが無い成果物は、style_policy を入れる前の parity-suite の成果物なので reproduce として読む。
+ * @param {Record<string, unknown>} meta
+ * @param {string[]} problems
+ * @returns {boolean}
+ */
+function isFreeStyle(meta, problems) {
+  if (!Object.hasOwn(meta, "style_policy")) return false;
+  const policy = meta.style_policy;
+  if (typeof policy !== "string" || !STYLE_POLICIES.includes(policy)) {
+    problems.push(`style_policy が ${STYLE_POLICIES.join(" / ")} のどれでもない`);
+    return false;
+  }
+  return policy === "free";
+}
+
+/**
+ * 読めた metadata.json の中身から、slug の記録を作る。spec-parity の成果物なら SkippedEntry を返す。
  * @param {unknown} doc
  * @param {string} name 置き場の slug
  * @param {number} latestRevision
- * @returns {ArtifactEntry}
+ * @returns {ArtifactEntry | SkippedEntry}
  */
 function artifactFromMetadata(doc, name, latestRevision) {
   /** @type {string[]} */
@@ -529,6 +551,21 @@ function artifactFromMetadata(doc, name, latestRevision) {
   if (meta.slug !== name) {
     problems.push(
       `metadata.json の slug (${JSON.stringify(meta.slug)}) が置き場の slug (${name}) と一致しない`,
+    );
+  }
+  // spec-parity の成果物は run.procedure_revision を持たないので、改訂番号 0 として全改訂の対象にすると誤って古いと判定する。
+  // 置き場の slug と一致したものだけを外す（一致しなければ、別の機能の成果物を外すことになる）。
+  // spec-parity が作るのは mode: feature の成果物だけで、parity-suite は style_policy を書かない。
+  // free で mode が feature でない成果物はどちらの書き手も作らないので、外さずに判定不能に積む。
+  if (isFreeStyle(meta, problems) && problems.length === 0) {
+    if (meta.mode === "feature")
+      return {
+        slug: name,
+        reason:
+          "style_policy: free（spec-parity の成果物）。parity-suite の改訂も台帳の観点も当てない",
+      };
+    problems.push(
+      `style_policy: free の成果物の mode (${JSON.stringify(meta.mode)}) が feature でない（spec-parity が作るのは feature の成果物だけ）`,
     );
   }
   // MODES は文字列だけなので、typeof は型を絞るためだけにある（判定は変わらない）。
@@ -549,7 +586,7 @@ function artifactFromMetadata(doc, name, latestRevision) {
  * @param {string} parityDir
  * @param {string} name
  * @param {number} latestRevision
- * @returns {ArtifactEntry | null}
+ * @returns {ArtifactEntry | SkippedEntry | null}
  */
 function readArtifact(parityDir, name, latestRevision) {
   const dir = join(parityDir, name);
@@ -596,17 +633,21 @@ function readArtifact(parityDir, name, latestRevision) {
  * .replace/parity/<slug>/metadata.json を集める。
  * @param {string} parityDir
  * @param {number} latestRevision
- * @returns {{ slugs: ArtifactEntry[] }}
+ * @returns {{ slugs: ArtifactEntry[], skipped: SkippedEntry[] }}
  */
 export function readArtifacts(parityDir, latestRevision) {
   /** @type {ArtifactEntry[]} */
   const slugs = [];
+  /** @type {SkippedEntry[]} */
+  const skipped = [];
   const names = readdirSync(parityDir).sort();
   for (const name of names) {
     const entry = readArtifact(parityDir, name, latestRevision);
-    if (entry !== null) slugs.push(entry);
+    if (entry === null) continue;
+    if ("reason" in entry) skipped.push(entry);
+    else slugs.push(entry);
   }
-  return { slugs };
+  return { slugs, skipped };
 }
 
 /**
@@ -810,7 +851,7 @@ function loadLedger({ ledgerPath, explicit, skillChangeIds, io: { out, fail } })
  * @param {string} parityDir
  * @param {number} latestRevision
  * @param {Io} io
- * @returns {{ code: number } | { slugs: ArtifactEntry[] }}
+ * @returns {{ code: number } | { slugs: ArtifactEntry[], skipped: SkippedEntry[] }}
  */
 function loadArtifacts(parityDir, latestRevision, { fail }) {
   // 成果物の置き場が無いのを「旧手順の機能なし」として扱わない（cwd の誤り・綴り違いで合格が出る）。
@@ -916,7 +957,7 @@ export function main(argv, deps = {}) {
   const { ledger, ledgerExists } = loadedLedger;
   const artifacts = loadArtifacts(parityDir, revisions.revision, io);
   if ("code" in artifacts) return artifacts.code;
-  const { slugs } = artifacts;
+  const { slugs, skipped } = artifacts;
   const all = check({ revisions, ledger, slugs });
   const only = args["--change"];
   // --change に渡した変更 ID は、改訂一覧か台帳の変更にあるものだけを受け付ける。
@@ -936,6 +977,8 @@ export function main(argv, deps = {}) {
     parity_dir: parityDir,
     change: only ?? null,
     artifacts: slugs.map(artifactSummary),
+    // spec-parity の成果物は数えない（exit 4 の判定にも入れない）。外したことを出力に残す。
+    skipped,
     ...result,
   });
   return code;

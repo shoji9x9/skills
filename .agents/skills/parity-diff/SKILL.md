@@ -165,6 +165,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 
 | キー | 読/書 | 用途 |
 |---|---|---|
+| `style_policy` | 読 | UI の見た目を現行に合わせるか（`reproduce` / `free`。キーが無ければ `reproduce`）。前提の確認の最初に読み、`free` なら機能（feature）と `--component-change` では止まる（[`references/preflight.md`](references/preflight.md)「スタイルの方針の確認」）。意味はスキーマの文書の「スタイルの方針」で定義する |
 | `targets[]`（`side: new`） | 読 | 差分を検出する環境。`--target` で選ぶ（選択規則は上記「使い方」で示した原本に従い、ここへ転記しない）。`url` / `api_url` は、新側の疎通・撮影先・api-resource モードの送信先に使う（`PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` として解決する。`url_command` の target はコマンドを実行して解決し、失敗や空の出力なら停止する）。`pre_commands` / `start` / `check_urls` は撮影の前の起動と稼働の確認に使う。`on_diff`（対応手順のドキュメントのパス）は、要対応の差分が残ったときの分岐に使う（手順 7）。投入対象でない target（`dataset_mode: db` で `db` が未定義、または `db.env_vars` はあるが `seedable` の無い読み取り専用のもの）にはゴールデンデータが入っていない。この場合は phase B との整合を免除する代わりに、データに依存する差分を「未検証」として `diff.md` に書く（[`references/preflight.md`](references/preflight.md)） |
 | `intentional_diffs.{keep,may_change,pending}` | 読 | 意図的差異のレジストリ（正規化のノイズフィルタ）。`pending` に当たるものは除かずに要確認にする。`pending` は、収束判定での棚卸しの対象としても読む（対象は要素の `slug` で決める。書き換えるのは人間で、このスキルは書かない。要素の形はスキーマの文書の「`pending` 要素の形」で定義する） |
 | `uses_storage` / `targets[].storage` | 読 | ファイルストレージを使うかと、選択した新側の target の接続（`env_vars`）・アップロードの方法（`upload_route`）。現側と `upload_route` が違う場合、保存先の path の命名規則の差は、宣言が無ければ「許容」にせず未説明として残す（`intentional_diffs` の対象）。ストレージの実体への投入は範囲外（原本は `replace-strategy` の `references/scope.md`）なので、事前の配置に依存する差分は「未検証」として `diff.md` に書く |
@@ -205,7 +206,9 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 
 詳細は各 reference に書いてある。番号の順に進める。
 
-1. target の解決と前提の確認（[`references/preflight.md`](references/preflight.md)）。対象の target を決めてから、停止条件・データセットのバージョンが古くなっていないか・差分ツールのバージョンの一致・反復の上限を確かめる。
+1. target の解決と前提の確認（[`references/preflight.md`](references/preflight.md)）。
+   最初に設定の `style_policy` を読む。`free` で対象が画面のある機能なら、成果物を作らずに停止し、`spec-parity verify` を案内する（横断 API とバッチは止めない。同じ reference の「スタイルの方針の確認」）。
+   対象の target を決めてから、停止条件・データセットのバージョンが古くなっていないか・差分ツールのバージョンの一致・反復の上限を確かめる。
    選択した target の `new/<target>/replace-metadata.json` が無いか、`suite.new_green` でなければ、「その環境ではまだ green 証跡が無い」として停止し、同じ `--target` での `parity-replace` を案内する。
    green を取ったバージョン（`new.commit`。`--component-change` の一括再検証では変更の宣言の `commits.after`）が、撮る新側のバージョンと違うときも、撮らずに同じく停止する。
    前提が欠けていれば、成果物を作り出さずに停止し、依存の順に案内する。
@@ -315,6 +318,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
   反復の回数の記録と上限の管理（`--max-iterations` のデフォルトは 5）は、`parity-replace` がその target の `replace-metadata.json` の `loop.*` で行う（環境ごとに独立している）。
   上限を超えたら、差し戻さずに停止してユーザーへ上げる。
   同じ `loop.changed_scope`（直近の反復で描画に影響する変更を入れた範囲）は、自己ノイズの測定値を再利用してよい組の判定に使う（[`references/capture-new.md`](references/capture-new.md)「測定値の再利用」）。
+- `spec-parity` とは、`style_policy` で分担する。`free` の画面のある機能は `spec-parity verify` が新側を確かめ、このスキルは止まって案内する。横断 API とバッチは、どちらの値でもこのスキルが比べる
 - `issue-create` に任せるもの: target の `on_diff` のドキュメントが「起票して停止する」運用を指示するとき、差し戻す代わりに、要対応の差分の要約（該当のページ・分類・根拠・`diff.md` のパス）を渡して起票し、停止する（`gh` で直接起票しない）。
 - ブランチの作成・commit・PR は `issue-start` に任せる（`parity-replace` と同じやり方。このスキルは実装の流れを作り直さない）。
 - `replace-strategy status` が、`diff.md` と `diff-metadata.json` を読んで今の状態を導く。

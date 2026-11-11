@@ -49,6 +49,10 @@ scripts/eval/run/run-skill-eval.sh \
   設定の `current-test` は `url` と `default: true` を持ったままで、作り直しの取り消しがまだ書かれていない状態を表す。
   意味論が確定済みの `customer-list` を対象にするので、止まる理由は `status` だけである。**設定の値ではなく `status` を読んで止まること**を見る。
   baseline も記録の `blocked` を読んで止まるので、Delta には寄与しない。`status` を読まずに設定の target で進む後退を検知するための eval である
+- eval 46 の fixture（`style-free`）は、設定の `style_policy: free` と、機能 `order-list` と横断 API `user` を持つ features.md と、フェーズ A の記録を持つ（Issue #565）。
+  データセットの target は選択した `current-test` と一致させ、ほかの前提では止まらないようにしてある。
+  **機能の slug で、スイートを作らずに止まり、`spec-parity suite` を案内するか**を見る。fixture には止まる理由も案内先も書かない。
+  横断 API を止めないことは、止まる理由を `style_policy` だけに限っているかを区別するために見る
 - eval 20・21 は部品網羅表（Issue #274）の回帰で、前提の有無に関わらず会話で判定できる取り決めを対象にする。
   20 は、ベンダー資料を列挙の生成源に留めること・部品 × ページのインスタンスごとに測ること・3 値と `covered_by` の記録を見る。
   21 は、未測定を行の削除で消せないこと（判定できないときは失敗として扱う）と、`metadata.json` の `component_coverage` をキーごと省略しないことを見る。

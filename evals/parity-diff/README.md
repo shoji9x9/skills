@@ -97,3 +97,6 @@
   その場の更新とは、バージョンの +1・状態列の `未`→`済`・Issue 列の `未起票`→番号・空配列への最初の追記である。
   一覧の `unit`（`lines` / `markdown-structure` / `json-arrays`）で突き合わせの単位を分け、誤検出で収束が止まらないようにした。
   回帰は、テスト側で検出されることの確認と、誤検知しないことの確認の両方で押さえている
+- eval 30 の fixture（`style-free`）は、設定の `style_policy: free` と、`spec-parity suite` が作る形の `metadata.json` と、local-dev の新側の green の記録を持つ（Issue #565）。
+  `metadata.json` は `style_policy: free`・`mode: feature`・`suite.runner: e2e` を持ち、差分ツールとノイズ基準値を持たない。
+  **撮影へ進まずに止まり、`spec-parity verify` を案内するか**と、差分ツールが無いことを `parity-suite` の未完了と取り違えて差し戻さないかを見る

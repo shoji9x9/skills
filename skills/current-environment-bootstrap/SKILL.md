@@ -217,7 +217,7 @@ current-environment-bootstrap [--target <name>] [--resume] [--autonomous]
 一部だけ直すと、下流（`golden-dataset` のフェーズ A・`replace-strategy status`）が古い値を読むので、届いたものに関わる値を、テンプレートの定義に照らして 1 つずつ導き直す。
 
 `blocked` に戻す手順は次のとおりである。
-`replace-strategy` の測定・`golden-dataset`・`parity-suite`・`parity-component` の `capture` は `status` を読んで止まるので、先に `metadata.json` を書き換える。
+`replace-strategy` の測定・`golden-dataset`・`parity-suite`・`spec-parity` の `suite`・`parity-component` の `capture` は `status` を読んで止まるので、先に `metadata.json` を書き換える。
 
 1. `metadata.json` の `status` を `blocked` にする。`blocked_on` には、`工程 <番号>: <届いたもので生じた理由>` を書く。
    `resume` には、`from_step` と空の `deferred` を書く。`from_step` は、作り直しのツールを直すか「不足」の行があれば 3、暫定の起動データか投入ツールだけを直すなら 6 にする。
@@ -227,7 +227,7 @@ current-environment-bootstrap [--target <name>] [--resume] [--autonomous]
    次の成果物が在れば、作り直す前の環境で作ったものなので、成果物のパスとやり直すスキルを 1 件ずつ書く。無ければ空配列にする。
    - `.replace/survey.md`（`replace-strategy setup` の測定）
    - `.replace/dataset/metadata.json`（`golden-dataset` のフェーズ A。作り直しは空の環境から建てるので、投入したデータは消える）
-   - `.replace/parity/<slug>/metadata.json`（`parity-suite` の採取）
+   - `.replace/parity/<slug>/metadata.json`（`parity-suite` の採取。`style_policy: free` の画面のある機能では `spec-parity suite` のスイートと記録）
    - `.replace/components/<slug>/metadata.json`（`parity-component` の `capture`）
 
    挙げた一覧は、`blocked` で止まるときの報告にも載せる。次の引き渡しで報告してから空にする（[`references/verification-handoff.md`](references/verification-handoff.md)「工程 9: current target を引き渡す」）。
@@ -245,7 +245,7 @@ current-environment-bootstrap [--target <name>] [--resume] [--autonomous]
 |---|---|---|
 | 受け取った資産のインベントリと、不足する資産の一覧 | `.replace/bootstrap/assets-inventory.md` | 原本: [`assets/assets-inventory-template.md`](assets/assets-inventory-template.md) |
 | DB のスキーマと設定の、作り直しの根拠 | `.replace/bootstrap/schema.md` | 原本: [`assets/schema-template.md`](assets/schema-template.md) |
-| データの意味論の台帳（暫定のデータの根拠・確認の状態） | `.replace/bootstrap/semantics.md` | 原本: [`assets/semantics-template.md`](assets/semantics-template.md)。`golden-dataset` と `parity-suite` が読んで引き継ぐ |
+| データの意味論の台帳（暫定のデータの根拠・確認の状態） | `.replace/bootstrap/semantics.md` | 原本: [`assets/semantics-template.md`](assets/semantics-template.md)。`golden-dataset`・`parity-suite`・`spec-parity` が読んで引き継ぐ |
 | 先方・SME 向けの質問票と、追加の資産の依頼 | `.replace/bootstrap/questionnaire.md` | 原本: [`assets/questionnaire-template.md`](assets/questionnaire-template.md) |
 | 起動・認証・到達・再実行の検証の結果 | `.replace/bootstrap/verification.md` | 原本: [`assets/verification-template.md`](assets/verification-template.md) |
 | 引き渡しのメタデータ | `.replace/bootstrap/metadata.json` | 原本: [`assets/metadata-template.json`](assets/metadata-template.json) |
@@ -260,8 +260,8 @@ current-environment-bootstrap [--target <name>] [--resume] [--autonomous]
 - `golden-dataset`: `semantics.md` の確定済みの意味論と根拠を引き継いで、ゴールデンデータセットを設計する。
   確認待ちや、確かめたが確定できなかった意味論を、確定したものとして扱わない。暫定の起動データを流用しない。
   フェーズ A の投入は暫定の起動データを置き換えるので、起動に要る前提（認証のユーザー・マスタなど）は、確定の根拠に基づいてフェーズ A のデータ設計に含める。
-- `parity-suite` と `parity-component` の `capture`: `metadata.json` の `status` が `handed-off` でなければ、現行の環境を使わずに停止する。設定の current の target が前の環境を指したままでも同じである。
-- `parity-suite`: 対象の slug に欠かせない意味論が、`semantics.md` の状態「確認待ち」か「確認したが確定できなかったもの」に残っている間は、その機能のスイートの構築を始めない（足りない情報を報告して停止する）。
+- `parity-suite`・`spec-parity` の `suite`・`parity-component` の `capture`: `metadata.json` の `status` が `handed-off` でなければ、現行の環境を使わずに停止する。設定の current の target が前の環境を指したままでも同じである。
+- `parity-suite` と `spec-parity` の `suite`: 対象の slug に欠かせない意味論が、`semantics.md` の状態「確認待ち」か「確認したが確定できなかったもの」に残っている間は、その機能のスイートの構築を始めない（足りない情報を報告して停止する）。
 
 ## 利用者への確認
 

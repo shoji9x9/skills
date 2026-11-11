@@ -45,6 +45,10 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
   機能単位の `parity-suite` は部品より後に実行されるので、その結果を前提にすると部品を先に作れなくなる。
 - 部品カタログが要る（`build` だけ）。実体は問わないが、取り決めを満たしていること。取り決めと設定の解決は [`references/catalog.md`](references/catalog.md) にある。
 - 前提を次のように判定する。無ければ停止し、該当するスキルの実行を促す。無いものを作り出さない。
+  - 最初に、設定の `style_policy` を読む（`skill-config.mjs get replace-strategy style_policy --raw`。キーが無ければ `reproduce`）。
+    `free` なら、`capture` でも `build` でも、成果物を作らずに停止する。`free` は部品の見た目を現行に合わせない方針で、このスキルが採る見た目の基準を使わないからである。
+    画面のある機能は `spec-parity suite` と `spec-parity verify` で確かめ、部品は機能ごとに `parity-replace` が作ると案内する。
+    この確認は設定だけで済むので、ほかの前提の判定と target の起動より先に行う。読み取りがエラー（終了コード 1）なら、`reproduce` と見なして続けずに止まる。
   - `replace-strategy setup` の完了は、設定 `.config/skills/shoji9x9/replace-strategy.jsonc` と `.replace/features.md` が在ることで判定する。
   - 部品インベントリは、`.replace/components.md` が在り、対象の slug の行にインスタンスが 2 つ以上挙がっていることで判定する（[`references/instances.md`](references/instances.md)）。
   - `golden-dataset` のフェーズ A の完了は、`.replace/dataset/metadata.json` が在ることで判定する。
@@ -125,6 +129,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 
 | キー | 用途 |
 |---|---|
+| `style_policy` | UI の見た目を現行に合わせるか（`reproduce` / `free`。キーが無ければ `reproduce`）。`free` なら、モードに関わらず停止する（「前提」）。意味はスキーマの文書の「スタイルの方針」で定義する |
 | `targets` | 実行対象環境。`capture` は `side: current`、`build` は `side: new` の中から `--target` で選ぶ。`pre_commands`・`start`・`check_urls` があれば、起動と稼働の確認に使う |
 | `targets[].catalog_url` / `targets[].catalog_url_command` | 新側の target の部品カタログの baseURL。`build` ではどちらか 1 つが必須である。固定の文字列なら `catalog_url`、実行ごとに変わる環境なら `catalog_url_command` を使う（`url` / `url_command` と同じく、両方は書けず、解決の規則も同じ）。両方あるときも、どちらも無いときも、推測せずに停止してユーザーに確認する（取り決めは [`references/catalog.md`](references/catalog.md)） |
 | `targets[].auth.roles` / `targets[].forbidden_actions` | 選択した target の、ロールごとの認証情報（環境変数の名前）と、実施しない操作。`capture`（現行の target）と `build`（新側の target のカタログ）の両方で読む。保護されたカタログは、認証しないと見本に到達できないからである。`storageState` の作り方とロール名の扱いの原本は、`parity-suite` の `references/auth.md` である。`capture` も `forbidden_actions` を読む。`checked`・`selected`・`error` の状態はクリックや送信でしか作れず、採取自体は読み取りでも、状態を作る操作は書き込みになることがある。禁止された操作で作る状態には遷移せず、`gaps.md` に残す |
@@ -213,7 +218,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 
 ## 実行フロー（build）
 
-1. 前提を検証して着手する。`capture` の完了と、`references.architecture`・`references.component_catalog`・`verification_commands.full` を実測し、欠けていれば停止する。
+1. 前提を検証して着手する。最初に `style_policy` を確かめ（「前提」）、`free` なら停止する。次に、`capture` の完了と、`references.architecture`・`references.component_catalog`・`verification_commands.full` を実測し、欠けていれば停止する。
    採取物が古くなっていないかも、あわせて判定する。宣言だけを見ると、古い基準の上に実装して「一致した」と報告することになる。
    判定は 2 段で行う。先に設定の宣言と採取物の実体を全部調べ、欠けがあれば、下の 3 項目（古くなっていないかの判定）に進まずに、見つけた欠けをすべて挙げて停止する。
    宣言と実体はプロジェクトの中のファイルを読むだけで決まるが、古くなっていないかの判定は `parity-suite` 同梱ツールなど、外の実体に依存する。
@@ -362,6 +367,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 - 依存の順番: 全体の順番の原本は、`replace-strategy` の `SKILL.md`「姉妹スキルと依存順」である（ここへ転記しない）。
   このスキル（`capture` → `build`）の直前は `golden-dataset`（フェーズ A。部品インベントリは `replace-strategy setup` の手順 10 が作る）で、直後は各機能の `parity-suite` である。
   部品を画面より先に作らない方針のプロジェクトでは、このスキルを使わない（機能ごとに `parity-replace` が部品も作る）。
+- `spec-parity` との関係: `style_policy: free` では、このスキルを使わない。画面のある機能は `spec-parity` が確かめ、このスキルは前提の確認で止まって案内する
 - `replace-strategy` から受け取るもの: `.replace/components.md`（部品・slug・インスタンス・採否・データ依存の有無・Issue 番号）。
   このスキルはこのファイルを書かない。Issue 番号を書き戻すのは `replace-strategy issues` である。
 - `parity-suite` から受け取るもの: 特性採取ツールと差分ツール、撮影条件とノイズ基準値の規約、状態網羅の導出源の考え方。

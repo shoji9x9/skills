@@ -47,6 +47,9 @@ scripts/eval/run/run-skill-eval.sh \
 - eval 9（`lifecycle-binding`）は build の完了判定を問う。採取物と照合結果は `breaking-change-request` と同じで、全部一致している。
   ただし、新側の `new-app/src/components/Button/Button.tsx` が、市販部品の `initialized` で Enter キーの結び付けと活性を命令的に結び、effect の片付けで外す（Issue #477）。
   照合の一致だけで完了にせず、一生の順番で不具合が出る流れ（結び直し・初期化の後の `disabled` の変化）を名指しし、順番を強制する見本で確かめる手順を出すかを見る
+- eval 11（`style-free`）は、設定の `style_policy: free` と、`button` の行を持つ `.replace/components.md` を持つ（Issue #565）。
+  `components.md` は、方針を `free` に変える前に作られた記録として置いてある。**`components.md` があっても採取へ進まずに止まるか**を見る。
+  `.replace/components/` の採取物は置かない（`scripts/eval/fixtures/` の fixture の整合のテストが、`.replace/components/<slug>/` を持つ fixture をすべて検査するため）
 - 採点は assertion のテキストで対応づける（位置で対応づけない）。出力の中に矛盾があれば fail にする
 - **`--executor` を省略しない。** ランチャの引数を省いたときの値は後方互換のためのもので、運用で選ぶ基準ではない。
   いま作業しているエージェントに合わせ（Claude Code なら `claude-code`、Codex なら `codex`）、`with_skill` と `without_skill` で同じ executor を使う（`.agents/rules/eval-run-scope.md` で定義する）

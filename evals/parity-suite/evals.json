@@ -700,6 +700,40 @@
           "prompt_quote": "parity-suite --feature customer-list --target current-test"
         }
       ]
+    },
+    {
+      "id": 46,
+      "fixture": "fixtures/style-free",
+      "prompt": "parity-suite --feature order-list --target current-test",
+      "assertions": [
+        "設定の style_policy が free であることを理由に、機能一覧の行の order-list のスイートの構築へ進まずに停止している",
+        "代わりに spec-parity suite（order-list を対象にする）の実行を案内している",
+        "free で止めるのは画面のある機能だけで、横断 API の user は free でもこのスキルで扱うと区別している",
+        "e2e/ 配下にスペック・ロケータマッピング層・aria スナップショットを生成しておらず、.replace/parity/order-list/metadata.json も作っていない",
+        "設定の style_policy を reproduce に書き換えて進めるなど、fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない"
+      ],
+      "reachability": [
+        {
+          "assertion": "設定の style_policy が free であることを理由に、機能一覧の行の order-list のスイートの構築へ進まずに停止している",
+          "prompt_quote": "parity-suite --feature order-list --target current-test"
+        },
+        {
+          "assertion": "代わりに spec-parity suite（order-list を対象にする）の実行を案内している",
+          "prompt_quote": "parity-suite --feature order-list --target current-test"
+        },
+        {
+          "assertion": "free で止めるのは画面のある機能だけで、横断 API の user は free でもこのスキルで扱うと区別している",
+          "prompt_quote": "parity-suite --feature order-list --target current-test"
+        },
+        {
+          "assertion": "e2e/ 配下にスペック・ロケータマッピング層・aria スナップショットを生成しておらず、.replace/parity/order-list/metadata.json も作っていない",
+          "prompt_quote": "parity-suite --feature order-list --target current-test"
+        },
+        {
+          "assertion": "設定の style_policy を reproduce に書き換えて進めるなど、fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
+          "prompt_quote": "parity-suite --feature order-list --target current-test"
+        }
+      ]
     }
   ]
 }

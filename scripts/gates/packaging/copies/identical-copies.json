@@ -41,7 +41,8 @@
         "skills/parity-suite/references/user-confirmation.md",
         "skills/pr-finalize-loop/references/user-confirmation.md",
         "skills/pr-review-handle/references/user-confirmation.md",
-        "skills/replace-strategy/references/user-confirmation.md"
+        "skills/replace-strategy/references/user-confirmation.md",
+        "skills/spec-parity/references/user-confirmation.md"
       ],
       "reason": "利用者に承認を求める段と選択肢から選んでもらう段で、確認のツールを使えないエージェントがどう聞くか（Issue #855）。スキルで食い違うと、同じエージェントでも、スキルによって承認を待たずに更新する操作へ進んだり止まったりする"
     },
@@ -135,7 +136,8 @@
         "skills/replace-strategy/scripts/lib/is-array.mjs",
         "skills/golden-dataset/scripts/lib/is-array.mjs",
         "skills/issue-start/scripts/lib/is-array.mjs",
-        "skills/agent-usage/scripts/lib/is-array.mjs"
+        "skills/agent-usage/scripts/lib/is-array.mjs",
+        "skills/spec-parity/scripts/lib/is-array.mjs"
       ],
       "reason": "配布スキルの .mjs が使う配列の型ガード isArray。スキルの中で完結させるためにコピーする。片方だけを直すと、スキルごとに絞り込みの型が食い違う"
     },
@@ -156,7 +158,8 @@
         "skills/parity-component/scripts/lib/cli.mjs",
         "skills/replace-strategy/scripts/lib/cli.mjs",
         "skills/golden-dataset/scripts/lib/cli.mjs",
-        "skills/issue-start/scripts/lib/cli.mjs"
+        "skills/issue-start/scripts/lib/cli.mjs",
+        "skills/spec-parity/scripts/lib/cli.mjs"
       ],
       "reason": "配布スキルの .mjs が使う CLI の起動の判定 isCliEntry。スキルの中で完結させるためにコピーする。片方だけを直すと、シンボリックリンクから起動したときの振る舞いがスキルごとに食い違う"
     },
@@ -164,7 +167,8 @@
       "files": [
         "skills/parity-suite/scripts/lib/check-cli.mjs",
         "skills/parity-component/scripts/lib/check-cli.mjs",
-        "skills/golden-dataset/scripts/lib/check-cli.mjs"
+        "skills/golden-dataset/scripts/lib/check-cli.mjs",
+        "skills/spec-parity/scripts/lib/check-cli.mjs"
       ],
       "reason": "検査をする CLI が、判定した結果を JSON で書いて終了コードを返す処理と、誤りの出力。スキルの中で完結させるためにコピーする。片方だけを直すと、同じ形の CLI がスキルごとに別の形の結果を出す"
     },
@@ -184,7 +188,8 @@
         "skills/replace-strategy/scripts/lib/flags.mjs",
         "skills/issue-start/scripts/lib/flags.mjs",
         "skills/agent-usage/scripts/lib/flags.mjs",
-        "skills/aws-architecture-diagram/scripts/lib/flags.mjs"
+        "skills/aws-architecture-diagram/scripts/lib/flags.mjs",
+        "skills/spec-parity/scripts/lib/flags.mjs"
       ],
       "reason": "配布スキルの CLI が `--名前 値` の引数を読む部品（parseFlags）。スキルの中で完結させるためにコピーする。片方だけを直すと、同じ誤り（未知の名前・値の無い名前・同じ名前の 2 回目）をスキルごとに別の文で報告するか、受け付けてしまう"
     },
@@ -279,7 +284,8 @@
         "skills/parity-suite/scripts/header-normalize.mjs",
         "skills/parity-diff/scripts/lib/guards.mjs",
         "skills/parity-component/scripts/lib/guards.mjs",
-        "skills/replace-strategy/scripts/lib/guards.mjs"
+        "skills/replace-strategy/scripts/lib/guards.mjs",
+        "skills/spec-parity/scripts/lib/guards.mjs"
       ],
       "region": "is-plain-object-js",
       "reason": "trait-compare.mjs と header-normalize.mjs は利用者のプロジェクトへ 1 ファイルだけコピーして使い、隣のファイルを import できないので、lib/guards.mjs の isPlainObject と同じ関数を持つ。片方だけを直すと、同じ名前の型ガードがファイルごとに別の値を通す。parity-diff の lib/guards.mjs は、lib/json.mjs の canonicalize が使うので、parity-suite と同じ指紋を作るために同じ関数を持つ。parity-component と replace-strategy の lib/guards.mjs も、同じ名前の型ガードの意味がスキル間でずれないように同じ関数を持つ"
@@ -290,7 +296,8 @@
         "skills/parity-suite/scripts/header-normalize.mjs",
         "skills/parity-component/scripts/lib/guards.mjs",
         "skills/parity-diff/scripts/lib/guards.mjs",
-        "skills/replace-strategy/scripts/lib/guards.mjs"
+        "skills/replace-strategy/scripts/lib/guards.mjs",
+        "skills/spec-parity/scripts/lib/guards.mjs"
       ],
       "region": "non-empty-string-js",
       "reason": "header-normalize.mjs は利用者のプロジェクトへ 1 ファイルだけコピーして使い、隣のファイルを import できないので、lib/guards.mjs の nonEmptyString と同じ関数を持つ。片方だけを直すと、同じ名前の型ガードがファイルごとに別の値を通す。parity-component・parity-diff・replace-strategy の lib/guards.mjs も、同じ名前の型ガードの意味がスキル間でずれないように同じ関数を持つ"
@@ -298,7 +305,8 @@
     {
       "files": [
         "skills/parity-suite/scripts/lib/errors.mjs",
-        "skills/replace-strategy/scripts/lib/errors.mjs"
+        "skills/replace-strategy/scripts/lib/errors.mjs",
+        "skills/spec-parity/scripts/lib/errors.mjs"
       ],
       "reason": "catch した値の message を読む errorMessage。同じ名前・同じ説明の helper がスキルごとに違う値を返さないように、内容を一致させる"
     },
@@ -323,7 +331,8 @@
         "skills/pr-finalize-loop/scripts/skill-config/skill-config.mjs",
         "skills/pr-review-handle/scripts/skill-config/skill-config.mjs",
         "skills/replace-strategy/scripts/skill-config/skill-config.mjs",
-        "skills/writing-style/scripts/skill-config/skill-config.mjs"
+        "skills/writing-style/scripts/skill-config/skill-config.mjs",
+        "skills/spec-parity/scripts/skill-config/skill-config.mjs"
       ],
       "reason": "設定の読み取り（層の解決・検証・旧い場所での停止・書き込み）。スキルごとに読み方が食い違うと、同じ設定ファイルをスキルによって違う値として読むか、片方だけがエラーにする"
     },
@@ -348,7 +357,8 @@
         "skills/pr-finalize-loop/references/config-files.md",
         "skills/pr-review-handle/references/config-files.md",
         "skills/replace-strategy/references/config-files.md",
-        "skills/writing-style/references/config-files.md"
+        "skills/writing-style/references/config-files.md",
+        "skills/spec-parity/references/config-files.md"
       ],
       "reason": "設定ファイルの扱い（層・置き場所を選ぶ基準・解決の順序・書き込みの決まり・移行）。利用者がどのスキルの文書を読んでも、同じ置き場所と同じ決まりを読む"
     },
@@ -377,7 +387,8 @@
         "skills/parity-diff/config-schemas/replace-strategy.schema.json",
         "skills/parity-replace/config-schemas/replace-strategy.schema.json",
         "skills/parity-suite/config-schemas/replace-strategy.schema.json",
-        "skills/replace-strategy/config-schemas/replace-strategy.schema.json"
+        "skills/replace-strategy/config-schemas/replace-strategy.schema.json",
+        "skills/spec-parity/config-schemas/replace-strategy.schema.json"
       ],
       "reason": "replace-strategy の設定のスキーマ。姉妹スキルがすべて replace-strategy.jsonc を直接読むので、受け付けるキーと型を食い違わせない"
     },
@@ -399,10 +410,39 @@
     {
       "files": [
         "skills/parity-suite/assets/perf-capture.spec.template.ts",
-        "skills/parity-suite/assets/runtime-errors.fixture.template.ts"
+        "skills/parity-suite/assets/runtime-errors.fixture.template.ts",
+        "skills/spec-parity/assets/runtime-errors-reporter.template.ts"
       ],
       "region": "output-file",
       "reason": "記録の出力先の名前（slug・target）を 1 つのディレクトリ名に限る検査と、JSON を途中の状態で残さない書き込み。どちらの雛形も利用者のプロジェクトへ 1 ファイルだけコピーされ import できないので、同じ関数を持つ。片方だけを直すと、片方の雛形だけが .. を含む名前でリポジトリの外へ書く"
+    },
+    {
+      "files": [
+        "skills/parity-suite/scripts/lib/guards.mjs",
+        "skills/spec-parity/scripts/lib/guards.mjs"
+      ],
+      "reason": "判定のスクリプトが使う型ガード（isPlainObject・isNonEmptyString など）。spec-parity は parity-suite と同じ形の判定のスクリプトを持ち、スキルの中で完結させるためにコピーする。片方だけを直すと、同じ入力をスキルによって違う形として扱う"
+    },
+    {
+      "files": [
+        "skills/parity-suite/scripts/lib/file-io.mjs",
+        "skills/spec-parity/scripts/lib/file-io.mjs"
+      ],
+      "reason": "runtime-errors.mjs が読み書きに使う部品。runtime-errors.mjs を同じ中身で同梱するので、それが import する部品も同じ中身にする。片方だけを直すと、同じ記録を片方のスキルだけが読めない"
+    },
+    {
+      "files": [
+        "skills/parity-suite/scripts/runtime-errors.mjs",
+        "skills/spec-parity/scripts/runtime-errors.mjs"
+      ],
+      "reason": "操作中のエラーの記録を集計して現行と新側を比べる runtime-errors.mjs（Issue #929・#565）。spec-parity は e2e で採った記録を同じスクリプトで集計する。食い違うと、ランナーによって同じ記録から違う差分を出す"
+    },
+    {
+      "files": [
+        "evals/spec-parity/fixtures/verify-unapproved/setup.sh",
+        "evals/spec-parity/fixtures/verify-overflow/setup.sh"
+      ],
+      "reason": "spec-parity の eval 8・9 の fixture で、新側のリポジトリを作り、記録の commit をその HEAD にそろえる手順。片方だけを直すと、2 つの eval が違う前提の新側で実行される"
     }
   ]
 }

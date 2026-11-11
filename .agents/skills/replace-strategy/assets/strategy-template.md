@@ -22,6 +22,16 @@
 - ロケータマッピング層の規模の見積もり: <ratio と重複数から>
 - 読み取り側を先に進め、書き込み側は <DB を復元できるかに応じた方針>
 
+## スタイルの方針
+
+<!-- setup の手順 6 で利用者が選んだ値。設定の style_policy と同じ値を書く。意味は replace-strategy の references/project-config.md「スタイルの方針」 -->
+
+- `style_policy`: <reproduce | free>
+- 選んだ理由: <利用者が挙げた理由>
+- 画面のある機能の進め方: <reproduce なら parity-suite → parity-replace → parity-diff | free なら spec-parity suite → parity-replace → spec-parity verify>
+- 共通部品を画面より先に作る方針（parity-component）: <採る | 採らない | free なので使わない>
+- free で確かめないもの: <見た目の一致・性能の比較（reproduce なら「なし」と書く）>
+
 ## ゴールデンデータセットの方針
 
 - 本番を参照せずに一から作る（マスキングが要らない設計）

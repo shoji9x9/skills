@@ -1,0 +1,14 @@
+{
+  "_note": "spec-parity suite が .replace/parity/<slug>/strength-plan.json として書く強度の計画。strength-check.mjs が、e2e の結果と突き合わせる期待する集合である。test は「ファイルのパス › describe › テスト名」で、e2e の結果の file と titlePath から作る形と同じにする。observed は、注入が描画まで届いたと言い切れる観測（例: status が「読み込み 1 件」になった）を書く。",
+  "version": "1",
+  "slug": "<slug>",
+  "controls": ["tests/<slug>/strength/faults.e2e.ts › 対照: 注入しないと通る"],
+  "faults": [
+    {
+      "id": "<f-value のように、このファイルの中で一意>",
+      "class": "<故障クラス（値・件数・並び / 構造 / 静的なラベル / ドキュメントレベルの要素 / 状態表示 / 待ちの欠落 など）>",
+      "test": "tests/<slug>/strength/faults.e2e.ts › 故障: 応答の件数を変える",
+      "observed": "<注入した後に測った値>"
+    }
+  ]
+}

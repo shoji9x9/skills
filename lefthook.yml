@@ -69,6 +69,7 @@ pre-commit:
               - ".agents/skills/pr-finalize-loop/**"
               - ".agents/skills/pr-review-handle/**"
               - ".agents/skills/replace-strategy/**"
+              - ".agents/skills/spec-parity/**"
               - ".agents/skills/writing-style/**"
             run: shfmt -w {staged_files}
             stage_fixed: true
@@ -103,6 +104,7 @@ pre-commit:
               - ".agents/skills/pr-finalize-loop/**"
               - ".agents/skills/pr-review-handle/**"
               - ".agents/skills/replace-strategy/**"
+              - ".agents/skills/spec-parity/**"
               - ".agents/skills/writing-style/**"
               - "skills/*/scripts/skill-config/vendor/**"
               - "skills/*/scripts/vendor/**"
@@ -144,6 +146,7 @@ pre-commit:
               - ".agents/skills/pr-finalize-loop/**"
               - ".agents/skills/pr-review-handle/**"
               - ".agents/skills/replace-strategy/**"
+              - ".agents/skills/spec-parity/**"
               - ".agents/skills/writing-style/**"
             run: pnpm exec oxfmt {staged_files}
             stage_fixed: true

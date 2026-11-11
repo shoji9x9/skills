@@ -1,0 +1,289 @@
+{
+  "$comment": [
+    "e2e 0.23.0・@e2e-dev/web 0.15.5 の `e2e run --target=current` が書いた .e2e/report.json から、選ばれたテストと serialGroups だけを残したもの（Issue #565）。",
+    "steps・artifacts・environment・時刻などの判定に使わないフィールドは外した。",
+    "serial: describe(serial: true) に対照・故障（見出しを h2 に変える）・後続の 3 件。後続は前の失敗で serial-predecessor-failed になる。",
+    "retry: --retries=1 で、注入が届かない故障と assertion で赤くなる故障をそれぞれ別の serial group に置いた。"
+  ],
+  "serial": {
+    "schemaVersion": "report-1",
+    "run": {
+      "status": "failed",
+      "serialGroups": [
+        {
+          "id": "f4ebd9b86f1309b151304d0194666c3967a23f8365c0411731a2b6f83d69d84a",
+          "serialId": "serial::tests/serialprobe/serial.e2e.ts::%E7%9B%B4%E5%88%97",
+          "file": "tests/serialprobe/serial.e2e.ts",
+          "titlePath": ["直列"],
+          "targetId": "current",
+          "memberTestIds": [
+            "tests/serialprobe/serial.e2e.ts::%E7%9B%B4%E5%88%97::%E5%AF%BE%E7%85%A7%3A%20%E6%B3%A8%E5%85%A5%E3%81%97%E3%81%AA%E3%81%84%E3%81%A8%E9%80%9A%E3%82%8B",
+            "tests/serialprobe/serial.e2e.ts::%E7%9B%B4%E5%88%97::%E6%95%85%E9%9A%9C%3A%20%E8%A6%8B%E5%87%BA%E3%81%97%E3%81%AE%E9%9A%8E%E5%B1%A4%E3%82%92%E5%A4%89%E3%81%88%E3%82%8B",
+            "tests/serialprobe/serial.e2e.ts::%E7%9B%B4%E5%88%97::%E5%BE%8C%E7%B6%9A%3A%20%E5%89%8D%E3%81%8C%E8%B5%A4%E3%81%84%E3%81%A8%E3%81%A9%E3%81%86%E3%81%AA%E3%82%8B%E3%81%8B"
+          ],
+          "status": "failed",
+          "attempts": [
+            {
+              "id": "01a1c9a6-4db6-7e20-90c9-e8d0a63a13eb",
+              "index": 0,
+              "status": "failed",
+              "error": {
+                "category": "test",
+                "code": "ASSERTION_FAILED",
+                "message": "expect.toBeVisible failed\nlocator: getByRole(\"heading\", name: \"商品一覧\")\nexpected: visible\nobserved: no node (match count 0)",
+                "retryable": false,
+                "phase": "body"
+              },
+              "cleanup": "complete",
+              "cutRetry": false,
+              "members": [
+                {
+                  "id": "01a1c9a6-4db6-7e20-90c9-e8d0a63a13eb:member:0",
+                  "index": 0,
+                  "testId": "tests/serialprobe/serial.e2e.ts::%E7%9B%B4%E5%88%97::%E5%AF%BE%E7%85%A7%3A%20%E6%B3%A8%E5%85%A5%E3%81%97%E3%81%AA%E3%81%84%E3%81%A8%E9%80%9A%E3%82%8B",
+                  "status": "passed"
+                },
+                {
+                  "id": "01a1c9a6-4db6-7e20-90c9-e8d0a63a13eb:member:1",
+                  "index": 1,
+                  "testId": "tests/serialprobe/serial.e2e.ts::%E7%9B%B4%E5%88%97::%E6%95%85%E9%9A%9C%3A%20%E8%A6%8B%E5%87%BA%E3%81%97%E3%81%AE%E9%9A%8E%E5%B1%A4%E3%82%92%E5%A4%89%E3%81%88%E3%82%8B",
+                  "status": "failed",
+                  "error": {
+                    "category": "test",
+                    "code": "ASSERTION_FAILED",
+                    "message": "expect.toBeVisible failed\nlocator: getByRole(\"heading\", name: \"商品一覧\")\nexpected: visible\nobserved: no node (match count 0)",
+                    "retryable": false,
+                    "phase": "body"
+                  }
+                },
+                {
+                  "id": "01a1c9a6-4db6-7e20-90c9-e8d0a63a13eb:member:2",
+                  "index": 2,
+                  "testId": "tests/serialprobe/serial.e2e.ts::%E7%9B%B4%E5%88%97::%E5%BE%8C%E7%B6%9A%3A%20%E5%89%8D%E3%81%8C%E8%B5%A4%E3%81%84%E3%81%A8%E3%81%A9%E3%81%86%E3%81%AA%E3%82%8B%E3%81%8B",
+                  "status": "skipped",
+                  "skip": {
+                    "cause": "serial-predecessor-failed",
+                    "reason": "member 1 failed in this group attempt"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "results": [
+        {
+          "id": "e6527f20d42697fdf78fedbb1708fb926da7a5d6ea113490f6ed70b55475374b",
+          "testId": "tests/serialprobe/serial.e2e.ts::%E7%9B%B4%E5%88%97::%E5%AF%BE%E7%85%A7%3A%20%E6%B3%A8%E5%85%A5%E3%81%97%E3%81%AA%E3%81%84%E3%81%A8%E9%80%9A%E3%82%8B",
+          "titlePath": ["直列", "対照: 注入しないと通る"],
+          "file": "tests/serialprobe/serial.e2e.ts",
+          "targetId": "current",
+          "selected": true,
+          "serialGroupId": "f4ebd9b86f1309b151304d0194666c3967a23f8365c0411731a2b6f83d69d84a",
+          "status": "passed",
+          "attempts": []
+        },
+        {
+          "id": "4fa65b1664bce86a9ed299af96237d3fbba06dee3ab9c9996d97f1e7ec140f7f",
+          "testId": "tests/serialprobe/serial.e2e.ts::%E7%9B%B4%E5%88%97::%E6%95%85%E9%9A%9C%3A%20%E8%A6%8B%E5%87%BA%E3%81%97%E3%81%AE%E9%9A%8E%E5%B1%A4%E3%82%92%E5%A4%89%E3%81%88%E3%82%8B",
+          "titlePath": ["直列", "故障: 見出しの階層を変える"],
+          "file": "tests/serialprobe/serial.e2e.ts",
+          "targetId": "current",
+          "selected": true,
+          "serialGroupId": "f4ebd9b86f1309b151304d0194666c3967a23f8365c0411731a2b6f83d69d84a",
+          "status": "failed",
+          "attempts": []
+        },
+        {
+          "id": "3fd1a3c4ca001f58af5319fae435fdc9daeecfd3cc4de0afccaed5c59a20eb9b",
+          "testId": "tests/serialprobe/serial.e2e.ts::%E7%9B%B4%E5%88%97::%E5%BE%8C%E7%B6%9A%3A%20%E5%89%8D%E3%81%8C%E8%B5%A4%E3%81%84%E3%81%A8%E3%81%A9%E3%81%86%E3%81%AA%E3%82%8B%E3%81%8B",
+          "titlePath": ["直列", "後続: 前が赤いとどうなるか"],
+          "file": "tests/serialprobe/serial.e2e.ts",
+          "targetId": "current",
+          "selected": true,
+          "serialGroupId": "f4ebd9b86f1309b151304d0194666c3967a23f8365c0411731a2b6f83d69d84a",
+          "status": "skipped",
+          "skip": {
+            "cause": "serial-predecessor-failed",
+            "reason": "member 1 failed in this group attempt"
+          },
+          "attempts": []
+        }
+      ]
+    }
+  },
+  "retry": {
+    "schemaVersion": "report-1",
+    "run": {
+      "status": "failed",
+      "serialGroups": [
+        {
+          "id": "627f63b955094965258d0d35961423820f8afd4a76c2bb54f6a8e859fb29a180",
+          "serialId": "serial::tests/serialprobe/serial2.e2e.ts::%E7%9B%B4%E5%88%972",
+          "file": "tests/serialprobe/serial2.e2e.ts",
+          "titlePath": ["直列2"],
+          "targetId": "current",
+          "memberTestIds": [
+            "tests/serialprobe/serial2.e2e.ts::%E7%9B%B4%E5%88%972::%E6%95%85%E9%9A%9C%3A%20%E6%B3%A8%E5%85%A5%E3%81%8C%E5%B1%8A%E3%81%8B%E3%81%AA%E3%81%84"
+          ],
+          "status": "failed",
+          "attempts": [
+            {
+              "id": "01a1c9a7-099e-7779-a602-8d275d706028",
+              "index": 0,
+              "status": "failed",
+              "error": {
+                "category": "test",
+                "code": "ERROR",
+                "message": "PARITY_INJECTION_NOT_APPLIED 届かない",
+                "retryable": false,
+                "phase": "body"
+              },
+              "cleanup": "complete",
+              "cutRetry": false,
+              "members": [
+                {
+                  "id": "01a1c9a7-099e-7779-a602-8d275d706028:member:0",
+                  "index": 0,
+                  "testId": "tests/serialprobe/serial2.e2e.ts::%E7%9B%B4%E5%88%972::%E6%95%85%E9%9A%9C%3A%20%E6%B3%A8%E5%85%A5%E3%81%8C%E5%B1%8A%E3%81%8B%E3%81%AA%E3%81%84",
+                  "status": "failed",
+                  "error": {
+                    "category": "test",
+                    "code": "ERROR",
+                    "message": "PARITY_INJECTION_NOT_APPLIED 届かない",
+                    "retryable": false,
+                    "phase": "body"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "01a1c9a7-0c51-7d5a-9aa7-61556552a977",
+              "index": 1,
+              "status": "failed",
+              "error": {
+                "category": "test",
+                "code": "ERROR",
+                "message": "PARITY_INJECTION_NOT_APPLIED 届かない",
+                "retryable": false,
+                "phase": "body"
+              },
+              "cleanup": "complete",
+              "cutRetry": false,
+              "members": [
+                {
+                  "id": "01a1c9a7-0c51-7d5a-9aa7-61556552a977:member:0",
+                  "index": 0,
+                  "testId": "tests/serialprobe/serial2.e2e.ts::%E7%9B%B4%E5%88%972::%E6%95%85%E9%9A%9C%3A%20%E6%B3%A8%E5%85%A5%E3%81%8C%E5%B1%8A%E3%81%8B%E3%81%AA%E3%81%84",
+                  "status": "failed",
+                  "error": {
+                    "category": "test",
+                    "code": "ERROR",
+                    "message": "PARITY_INJECTION_NOT_APPLIED 届かない",
+                    "retryable": false,
+                    "phase": "body"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "9881daada50dd07a9369990201bf7638b22ab023116344c5fdfcc9677adc3e3b",
+          "serialId": "serial::tests/serialprobe/serial2.e2e.ts::%E7%9B%B4%E5%88%973",
+          "file": "tests/serialprobe/serial2.e2e.ts",
+          "titlePath": ["直列3"],
+          "targetId": "current",
+          "memberTestIds": [
+            "tests/serialprobe/serial2.e2e.ts::%E7%9B%B4%E5%88%973::%E6%95%85%E9%9A%9C%3A%20%E8%B5%A4"
+          ],
+          "status": "failed",
+          "attempts": [
+            {
+              "id": "01a1c9a7-0d47-774c-8a7a-aadc0a6ad58f",
+              "index": 0,
+              "status": "failed",
+              "error": {
+                "category": "test",
+                "code": "ASSERTION_FAILED",
+                "message": "expect.toBeVisible failed\nlocator: getByRole(\"heading\", name: \"無い見出し\")\nexpected: visible\nobserved: no node (match count 0)",
+                "retryable": false,
+                "phase": "body"
+              },
+              "cleanup": "complete",
+              "cutRetry": false,
+              "members": [
+                {
+                  "id": "01a1c9a7-0d47-774c-8a7a-aadc0a6ad58f:member:0",
+                  "index": 0,
+                  "testId": "tests/serialprobe/serial2.e2e.ts::%E7%9B%B4%E5%88%973::%E6%95%85%E9%9A%9C%3A%20%E8%B5%A4",
+                  "status": "failed",
+                  "error": {
+                    "category": "test",
+                    "code": "ASSERTION_FAILED",
+                    "message": "expect.toBeVisible failed\nlocator: getByRole(\"heading\", name: \"無い見出し\")\nexpected: visible\nobserved: no node (match count 0)",
+                    "retryable": false,
+                    "phase": "body"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "01a1c9a7-19ca-716f-940e-561a36d7defe",
+              "index": 1,
+              "status": "failed",
+              "error": {
+                "category": "test",
+                "code": "ASSERTION_FAILED",
+                "message": "expect.toBeVisible failed\nlocator: getByRole(\"heading\", name: \"無い見出し\")\nexpected: visible\nobserved: no node (match count 0)",
+                "retryable": false,
+                "phase": "body"
+              },
+              "cleanup": "complete",
+              "cutRetry": false,
+              "members": [
+                {
+                  "id": "01a1c9a7-19ca-716f-940e-561a36d7defe:member:0",
+                  "index": 0,
+                  "testId": "tests/serialprobe/serial2.e2e.ts::%E7%9B%B4%E5%88%973::%E6%95%85%E9%9A%9C%3A%20%E8%B5%A4",
+                  "status": "failed",
+                  "error": {
+                    "category": "test",
+                    "code": "ASSERTION_FAILED",
+                    "message": "expect.toBeVisible failed\nlocator: getByRole(\"heading\", name: \"無い見出し\")\nexpected: visible\nobserved: no node (match count 0)",
+                    "retryable": false,
+                    "phase": "body"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "results": [
+        {
+          "id": "33c538ebe0f2132d1d99ac7ddc739ef2e572660045148a76f5ca8a4bac274790",
+          "testId": "tests/serialprobe/serial2.e2e.ts::%E7%9B%B4%E5%88%972::%E6%95%85%E9%9A%9C%3A%20%E6%B3%A8%E5%85%A5%E3%81%8C%E5%B1%8A%E3%81%8B%E3%81%AA%E3%81%84",
+          "titlePath": ["直列2", "故障: 注入が届かない"],
+          "file": "tests/serialprobe/serial2.e2e.ts",
+          "targetId": "current",
+          "selected": true,
+          "serialGroupId": "627f63b955094965258d0d35961423820f8afd4a76c2bb54f6a8e859fb29a180",
+          "status": "failed",
+          "attempts": []
+        },
+        {
+          "id": "3648e803d8727e463b76e05812559842579b8a8d2446dd45201a8479462af423",
+          "testId": "tests/serialprobe/serial2.e2e.ts::%E7%9B%B4%E5%88%973::%E6%95%85%E9%9A%9C%3A%20%E8%B5%A4",
+          "titlePath": ["直列3", "故障: 赤"],
+          "file": "tests/serialprobe/serial2.e2e.ts",
+          "targetId": "current",
+          "selected": true,
+          "serialGroupId": "9881daada50dd07a9369990201bf7638b22ab023116344c5fdfcc9677adc3e3b",
+          "status": "failed",
+          "attempts": []
+        }
+      ]
+    }
+  }
+}

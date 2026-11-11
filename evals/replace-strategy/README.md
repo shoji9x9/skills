@@ -225,3 +225,9 @@ scripts/eval/run/run-skill-eval.sh \
   **iteration-43 で実測**（各 config 1 run・claude-code / opus）: `with_skill` 3/3・`without_skill` 1/3。**差が出たのは assertion 1・2** である。
   baseline も、スイート green が見た目の一致を示さないことには自力で気付く。しかし受け入れ条件には「スクリーンショット比較などの視覚差分チェック」を置き、
   `parity-diff` の収束（`converged: true`）には至らなかった。baseline は contamination: clean / isolation: sandboxed
+- eval 40〜42（Issue #565）は、`style_policy`（UI の見た目を現行に合わせるか）を fixture 無しで問う。
+  40 は `setup` の手順 6 で利用者に確かめる項目・判断の材料・記録先を、41 は `--autonomous` で保留に落とし、仮の値を設定に書かず、手順 10 の確認をその保留に依存させるかを見る。
+  prompt には `style_policy` のキー名も値も書かない（40・41）。42 は `free` のとき、機能 Issue の収束の項を `spec-parity verify` に替え、横断 API の Issue は `parity-diff` のまま残すかを見る
+- eval 43（Issue #565）の fixture（`status-style-free`）は、`style_policy: free` の機能 `order-list` について、`spec-parity suite` と `spec-parity verify` の記録を持つ。
+  中身は `evals/spec-parity/fixtures/verify-overflow` と同じで、新側の `local-dev` は幅 375 で横にはみ出し、`diff.md`・`diff-metadata.json`・部品網羅表は無い。
+  **`status` が `parity-diff` の成果物が無いことを未実施と読まず、`verify-metadata.json` から収束と通っていない確認を導くか**を見る

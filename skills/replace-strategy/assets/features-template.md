@@ -1,7 +1,7 @@
 # 機能インベントリ（features）
 
 <!-- replace-strategy が作り、更新する。このファイルの形式（slug の規則を含む）は replace-strategy で定義する。 -->
-<!-- 下流のスキル（golden-dataset / parity-suite / parity-replace / parity-diff）は、slug をここから読む（自分で採番しない）。 -->
+<!-- 下流のスキル（golden-dataset / parity-suite / spec-parity / parity-replace / parity-diff）は、slug をここから読む（自分で採番しない）。 -->
 <!-- 各行は例。実際の機能・値で置き換える。 -->
 <!-- 既存の行・ヘッダの項目・テンプレートに無い追記は、書き直すときに消さない（原本は replace-strategy スキルの「features.md の更新は非破壊」）。 -->
 <!-- Issue 列は、起票済みなら番号、未起票なら「未起票」と書く。open / closed の状態は列にしない。 -->

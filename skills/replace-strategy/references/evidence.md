@@ -11,7 +11,7 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
 ```
 
 - `--feature` は 1 回の実行につき 1 つである。`--endpoint` と `--evidence` は対で、口の数だけ繰り返す。
-- 呼び出し元は 3 つある。人（着手のときに確定した）、`parity-suite`（特性化の record/replay で確定した）、`parity-replace`（実装で現行のソースを読んで確定した）である。
+- 呼び出し元は 4 つある。人（着手のときに確定した）、`parity-suite`（特性化の record/replay で確定した）、`spec-parity`（`suite` の API の特性化で確定した）、`parity-replace`（実装で現行のソースを読んで確定した）である。
 - 口を省いて「この行はすべて確定した」とは書けない。行の単位で昇格させると、1 つでも `実測` があれば行全体が実測に見える。それを防ぐのが、この列を作った理由である。
 
 ## 「停止する」の粒度
@@ -45,7 +45,7 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
    - 確定した要求の単位が、API の列に書いた口（パス・メソッド・パスの `:id` の有無）と食い違う場合がある。
      そのとき根拠だけを `実測` に直すと、「間違った形が実測として確定した」状態になる。
      口の変更は、Issue の本文の受け入れ条件・パリティスイート・新側の実装に影響する。
-     そのため書き戻さず、食い違いの内容（今の口・確定した単位・影響する先）を報告して、`issues` の突き合わせのやり直しと `parity-suite` の見直しに回す。
+     そのため書き戻さず、食い違いの内容（今の口・確定した単位・影響する先）を報告して、`issues` の突き合わせのやり直しと、その機能のスイートを作ったスキル（`parity-suite` か `spec-parity suite`）の見直しに回す。
 5. 非破壊で更新する。
    - 該当するセルの、その口のエントリだけを差し替える。同じセルの他の口のエントリ・他の列・他の行・他の節には触らない
      （更新の仕方は [`features-issues.md`](features-issues.md)「features.md の更新は非破壊」で定義する）。
@@ -75,12 +75,12 @@ node <skill>/scripts/evidence-gap-check.mjs --features .replace/features.md --sl
   宣言の置き場所が無いので、未確認の口が 1 つも宣言されていないのが事実である。
   判定できないとすると、消費する側が完了を止めず、推定の口が残ったまま通る。その旨は `note:` に出す。
 - `endpoint` が文字列でない要素は、宣言に数えないが、件数を `note:` に出す。
-  `parity-suite` の検査はこのキーを見ないので、警告なしに捨てると、「宣言したのに未宣言と言われる」理由を読めない。
+  `parity-suite` と `spec-parity` の検査はこのキーを見ないので、警告なしに捨てると、「宣言したのに未宣言と言われる」理由を読めない。
 - 未確認の口が 1 つも無ければ、宣言を読まない（すべて `実測` の行は、`unmeasured` のキーの無い古い成果物でも exit 0）。
   宣言は、未確認の口の行き先を確かめるためのもので、未確認が 0 件なら判定に関係しない。
   判定できない結果を日常的に出すと、消費する側が exit 3 を無視する運用になる。
 - `unmeasured.declared: false` は「宣言を持たない」として、`entries` を読まない。
-  `parity-suite` の `artifact-health-check.mjs` はその節を判定しないので、読むと、誰も確かめていない宣言で合格と判定してしまう。
+  `parity-suite` の `artifact-health-check.mjs` も `spec-parity` の `convergence-check.mjs` もその節を判定しないので、読むと、誰も確かめていない宣言で合格と判定してしまう。
 - 終了コードは次のとおりである。
   - 0: 抜けが無い
   - 1: 宣言していない未確認の口がある

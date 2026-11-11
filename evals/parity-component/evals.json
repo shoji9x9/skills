@@ -309,6 +309,35 @@
           "prompt_quote": "これで完了にしていい？"
         }
       ]
+    },
+    {
+      "id": 11,
+      "fixture": "fixtures/style-free",
+      "prompt": "parity-component capture --component button",
+      "assertions": [
+        "設定の style_policy が free であることを理由に、.replace/components.md に button の行があっても、採取へ進まずに停止している",
+        "画面のある機能は spec-parity で確かめ、部品は機能ごとに parity-replace が作ると案内している",
+        ".replace/components/button/ に採取物（スクリーンショット・traits.json・css-rules.json・metadata.json）を作っていない",
+        "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない"
+      ],
+      "reachability": [
+        {
+          "assertion": "設定の style_policy が free であることを理由に、.replace/components.md に button の行があっても、採取へ進まずに停止している",
+          "prompt_quote": "parity-component capture --component button"
+        },
+        {
+          "assertion": "画面のある機能は spec-parity で確かめ、部品は機能ごとに parity-replace が作ると案内している",
+          "prompt_quote": "parity-component capture --component button"
+        },
+        {
+          "assertion": ".replace/components/button/ に採取物（スクリーンショット・traits.json・css-rules.json・metadata.json）を作っていない",
+          "prompt_quote": "parity-component capture --component button"
+        },
+        {
+          "assertion": "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
+          "prompt_quote": "parity-component capture --component button"
+        }
+      ]
     }
   ]
 }

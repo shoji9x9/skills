@@ -95,3 +95,8 @@ scripts/eval/run/run-skill-eval.sh \
   バイト一致を確かめる対象に挙げず、突き合わせないときの承認の形を示さなかった。assertion 1・2 は Delta ではなく、後退の検知の項目として残す。
   baseline は contamination: clean / isolation: sandboxed。
   **iteration-29 で再取得した**（`used: false` の廃止に合わせて assertion 1 を改訂。各 config 1 run・claude-code / opus）: `with_skill` 5/5・`without_skill` 2/5 で、差が出たのは同じ assertion 3・4・5 だった
+- eval 26 の fixture（`style-free`）は、設定の `style_policy: free`・機能 `order-list` と横断 API `user` を持つ features.md・フェーズ A の記録を持つ（Issue #565）。
+  加えて、`spec-parity suite` が書く形の `order-list` の `metadata.json` を持つ。
+  `metadata.json` は `suite.current_green` と `strength.validated` が `true` で、`differ.validated_by_strength_gate` を持たない。
+  **画面のある機能の slug で、実装に進まずに止まり、`free` の手順を持たないことを報告するか**を見る。fixture と prompt には止まる理由を書かない。
+  assertion 3 は、`parity-suite` の完了の条件で読んで `parity-suite` を案内する誤り（`parity-suite` は `free` の機能で止まるので、案内が往復する）を区別するために見る

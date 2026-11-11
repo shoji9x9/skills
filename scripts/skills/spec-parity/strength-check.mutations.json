@@ -1,0 +1,120 @@
+{
+  "$comment": [
+    "strength-check.test.ts の検出能力を示す変異の一覧（Issue #565）。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準の実行で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/spec-parity/strength-check.test.ts",
+  "mutations": [
+    {
+      "id": "st-red-code-off",
+      "why": "assertion 以外の失敗（操作の失敗・エラーの無い失敗）を、故障の検出として数える",
+      "file": "skills/spec-parity/scripts/strength-check.mjs",
+      "find": "  if (o.status === \"failed\" && o.code === \"ASSERTION_FAILED\") return \"red\";\n",
+      "replace": "  if (o.status === \"failed\") return \"red\";\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "strength-check の判定 故障の結果が 操作の失敗 なら、検出として数えず exit 1",
+        "strength-check の判定 故障の結果が エラーの無い失敗 なら、検出として数えず exit 1",
+        "strength-check の serial group（e2e の実物） 最後の試行のメンバーの記録で判定する（最後が操作の失敗なら赤にしない）"
+      ]
+    },
+    {
+      "id": "st-not-applied-off",
+      "why": "注入が届かなかった故障を、検出として数える",
+      "file": "skills/spec-parity/scripts/strength-check.mjs",
+      "find": "  if (o.message.includes(NOT_APPLIED_MARK)) return \"not-applied\";\n",
+      "replace": "  if (false) return \"not-applied\";\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "strength-check の判定 注入が届かなかった印を含む assertion の失敗は、検出として数えない",
+        "strength-check の serial group（e2e の実物） リトライした serial のメンバーで、注入が届かない故障は not-applied、assertion の故障は red"
+      ]
+    },
+    {
+      "id": "st-all-faults-off",
+      "why": "計画のうち 1 件でも赤くなれば、残りの故障が緑・未実行でも通す",
+      "file": "skills/spec-parity/scripts/strength-check.mjs",
+      "find": "    validated: controlsOk && red === faults.length,\n",
+      "replace": "    validated: controlsOk && red > 0,\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "strength-check の判定 注入しても緑のままの故障があれば exit 1 で、--write が validated: false を書く",
+        "strength-check の判定 故障の結果が timed-out なら、検出として数えず exit 1",
+        "strength-check の判定 故障の結果が 操作の失敗 なら、検出として数えず exit 1",
+        "strength-check の判定 故障の結果が エラーの無い失敗 なら、検出として数えず exit 1",
+        "strength-check の判定 注入が届かなかった印を含む assertion の失敗は、検出として数えない",
+        "strength-check の判定 計画に挙げた故障が結果に無ければ、未実行として exit 1",
+        "strength-check の判定 現行でない target の結果は数えない",
+        "strength-check の serial group（e2e の実物） 前のメンバーの失敗で飛ばされた故障は、検出として数えず exit 1"
+      ]
+    },
+    {
+      "id": "st-controls-off",
+      "why": "対照が通らなくても通す",
+      "file": "skills/spec-parity/scripts/strength-check.mjs",
+      "find": "  const controlsOk = controls.every((c) => c.ok);\n",
+      "replace": "  const controlsOk = true;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "strength-check の判定 対照が 失敗 なら exit 1",
+        "strength-check の判定 対照が 実行していない なら exit 1"
+      ]
+    },
+    {
+      "id": "st-last-attempt-off",
+      "why": "リトライの最後ではなく最初の試行で判定する",
+      "file": "skills/spec-parity/scripts/strength-check.mjs",
+      "find": "  const last = attempts.length > 0 ? attempts[attempts.length - 1] : null;\n",
+      "replace": "  const last = attempts.length > 0 ? attempts[0] : null;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "strength-check の判定 リトライの最後の試行で判定する（最後が assertion の失敗なら赤）"
+      ]
+    },
+    {
+      "id": "st-target-off",
+      "why": "現行でない target の結果を、現行への注入の結果として数える",
+      "file": "skills/spec-parity/scripts/strength-check.mjs",
+      "find": "    if (r.targetId !== \"current\" || r.selected !== true) continue;\n",
+      "replace": "    if (r.selected !== true) continue;\n",
+      "occurrences": 1,
+      "expect_failing": ["strength-check の判定 現行でない target の結果は数えない"]
+    },
+    {
+      "id": "st-serial-off",
+      "why": "serial group のメンバーを results[].attempts（空）で読み、検出したかに関わらず stopped にする",
+      "file": "skills/spec-parity/scripts/strength-check.mjs",
+      "find": "  const last = r.serialGroupId !== undefined ? serialMember(r, serial, i) : lastAttempt(r);\n",
+      "replace": "  const last = lastAttempt(r);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "strength-check の serial group（e2e の実物） serial のメンバーが assertion で赤くなれば、group の記録から検出として数えて exit 0",
+        "strength-check の serial group（e2e の実物） リトライした serial のメンバーで、注入が届かない故障は not-applied、assertion の故障は red",
+        "strength-check の serial group（e2e の実物） 最後の試行がメンバーに届かなければ、そのメンバーを実行した前の試行の記録で判定する",
+        "strength-check の serial group（e2e の実物） serialGroupId が serialGroups に無い なら exit 2"
+      ]
+    },
+    {
+      "id": "st-serial-last-off",
+      "why": "serial group のリトライで、最後ではなく最初にメンバーを実行した試行の記録で判定する",
+      "file": "skills/spec-parity/scripts/strength-check.mjs",
+      "find": "      members.set(m.testId, m);\n",
+      "replace": "      if (!members.has(m.testId)) members.set(m.testId, m);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "strength-check の serial group（e2e の実物） 最後の試行のメンバーの記録で判定する（最後が操作の失敗なら赤にしない）"
+      ]
+    },
+    {
+      "id": "st-serial-group-missing-off",
+      "why": "serialGroups に無い group を指す結果を、記録の無いメンバーとして読み、形の誤りを判定に進める",
+      "file": "skills/spec-parity/scripts/strength-check.mjs",
+      "find": "  if (!members)\n",
+      "replace": "  if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "strength-check の serial group（e2e の実物） serialGroupId が serialGroups に無い なら exit 2"
+      ]
+    }
+  ]
+}

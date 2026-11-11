@@ -20,6 +20,7 @@ import * as ParityComponent from "../../../skills/parity-component/scripts/lib/f
 import * as ParityDiff from "../../../skills/parity-diff/scripts/lib/flags.mjs";
 import * as ParitySuite from "../../../skills/parity-suite/scripts/lib/flags.mjs";
 import * as ReplaceStrategy from "../../../skills/replace-strategy/scripts/lib/flags.mjs";
+import * as SpecParity from "../../../skills/spec-parity/scripts/lib/flags.mjs";
 
 const COPIES = [
   { skill: "agent-usage", lib: AgentUsage },
@@ -30,6 +31,7 @@ const COPIES = [
   { skill: "parity-diff", lib: ParityDiff },
   { skill: "parity-suite", lib: ParitySuite },
   { skill: "replace-strategy", lib: ReplaceStrategy },
+  { skill: "spec-parity", lib: SpecParity },
 ];
 
 describe.each(COPIES)("$skill の lib/flags.mjs", ({ lib }) => {

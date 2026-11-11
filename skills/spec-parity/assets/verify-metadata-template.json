@@ -1,0 +1,69 @@
+{
+  "_note": "spec-parity verify が .replace/parity/<slug>/new/<target>/verify-metadata.json として書く。形式の原本は spec-parity である。converged と convergence は convergence-check.mjs --write だけが書き、手で true にしない。overflow は overflow-check.mjs --write が、runtime_errors は runtime-errors.mjs compare --write が書く。new.dirty は、新側のリポジトリの git status --porcelain の出力が空でなかったか（true = commit していない変更か追跡していないファイルがある）を真偽値で記録する。spec-parity の SKILL.md にある verify の手順 1 で書き、収束を判定する直前に取得し直して書き直す。false でなければ（雛形の値のままを含む）収束の判定が止まる。suite・overflow・design_review・human_review の記録は new.commit と同じバージョンの新側のもので、違うバージョンの記録は収束の判定で古いものとして数える。runtime_errors はバージョンを持たず、収束の判定もバージョンを比べないので、verify のたびに操作中のエラーの記録のディレクトリを消してから採り直す。",
+  "slug": "<slug>",
+  "target": "<新側の target の名前（replace-strategy の targets の side: new）>",
+  "style_policy": "free",
+  "new": {
+    "commit": "<確かめた新側のバージョン（コミットの完全な SHA。git -C <新側のリポジトリ> rev-parse HEAD の出力）。replace-metadata.json の new.commit と同じ値。none（新側が git で管理されていない）では収束の判定が止まる>",
+    "dirty": "<git -C <新側のリポジトリ> status --porcelain の出力が空なら false、空でなければ true（真偽値で書く。true では収束の判定が止まる）>",
+    "ui_url": "<解決した UI の baseURL。url_command の target では \"runtime\">"
+  },
+  "run": {
+    "started_at": "<ISO 8601>",
+    "agent": "<コーディングエージェントの名前>",
+    "model": "<モデルの名前>",
+    "autonomous": false
+  },
+  "suite": {
+    "commit": "<スイートを新側で実行したときの新側のバージョン>",
+    "report": ".replace/parity/<slug>/new/<target>/suite-report.json"
+  },
+  "overflow": null,
+  "runtime_errors": null,
+  "design_review": {
+    "source": "<web-design-guidelines（そのスキルで点検した）| bundled（同梱の観点で点検した）>",
+    "commit": "<点検した新側のバージョン>",
+    "completed_at": "<点検を終えた ISO 8601>",
+    "rules_note": "<web-design-guidelines を使ったときは、規則を取得した日時と、規則が毎回 main から取得されて結果を固定できないこと。bundled なら null>",
+    "pages_reviewed": ["<点検したページの path>"],
+    "findings": [
+      {
+        "id": "<dr-1 のように、このファイルの中で一意>",
+        "rule": "<指摘の元になった規則・観点>",
+        "page": "<ページの path>",
+        "summary": "<指摘の内容（1 文）>",
+        "decision": "<fix（直す。parity-replace へ差し戻す）| accept（受け入れる。利用者の承認が要る）>",
+        "approval": {
+          "approved_by": "<受け入れを承認した人>",
+          "approved_at": "<ISO 8601>",
+          "reason": "<受け入れる理由>"
+        }
+      }
+    ]
+  },
+  "human_review": {
+    "commit": "<人に見せた新側のバージョン>",
+    "screens": [
+      {
+        "page": "<ページの path>",
+        "viewport": { "width": "<幅>", "height": "<高さ>" },
+        "screenshot": "<見せた画面の記録のパス（比較には使わない。artifacts の設定に従い、デフォルトでは commit しない）>"
+      }
+    ],
+    "approval": {
+      "verdict": "<approved（違和感が無い）| rejected（違和感がある。notes を parity-replace へ差し戻す）>",
+      "approved_by": "<確かめた人>",
+      "approved_at": "<ISO 8601>",
+      "notes": "<違和感があった箇所（rejected のとき）>"
+    }
+  },
+  "unverified": [
+    {
+      "item": "performance",
+      "reason": "性能の比較（perf-stats.mjs）は Playwright の採取を前提にしているので、spec-parity では確かめない"
+    }
+  ],
+  "pending_decisions": [],
+  "converged": false,
+  "convergence": null
+}

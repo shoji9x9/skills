@@ -1,0 +1,389 @@
+{
+  "metadata": {
+    "skill_name": "spec-parity",
+    "skill_path": "<repo>/skills/spec-parity",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-11T09:05:32Z",
+    "evals_run": [1, 2, 3, 4, 5, 6, 7, 8, 9],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 27.007,
+        "tokens": 115212,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定に style_policy が無いので reproduce として読み、e2e のスイートの構築へ進まずに停止している",
+          "passed": true,
+          "evidence": "skill-config.mjs get の結果 reproduce を示し、style_policy が free でないことを止まった理由にしている"
+        },
+        {
+          "text": "代わりに parity-suite（と、新側の確認には parity-diff）の利用を案内している",
+          "passed": true,
+          "evidence": "「order-list のスイート作成は parity-suite で、新側の確認は parity-diff で」と案内している"
+        },
+        {
+          "text": "e2e.config.ts・tests/parity/・tests/order-list/ と、.replace/parity/order-list/ の成果物を作っていない",
+          "passed": true,
+          "evidence": "project-tree.txt に e2e.config.ts・tests/・.replace/parity/ が無い"
+        },
+        {
+          "text": "設定に style_policy: free を書き足して進めるなど、fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc・package.json）を書き換えていない",
+          "passed": true,
+          "evidence": "fixture の .replace/ と package.json は project-files と一致。raw に Write・Edit の呼び出しが 0 件（.jsonc はスナップショットの対象外なので raw で確かめた）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 46.115,
+        "tokens": 178540,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "package.json の devDependencies に e2e と @e2e-dev/web が無いことを理由に、スイートの構築へ進まずに停止している",
+          "passed": true,
+          "evidence": "前提の表で e2e と @e2e-dev/web が devDependencies に無いことを ❌ とし、止めている（前提スキルが無いことも併記）"
+        },
+        {
+          "text": "e2e と @e2e-dev/web を利用者の承認なしに導入しておらず、package.json を書き換えていない",
+          "passed": true,
+          "evidence": "npm install を実行せず承認を求めている。package.json は fixture と一致。raw に Write・Edit の呼び出しが 0 件"
+        },
+        {
+          "text": "e2e の代わりに、入っている @playwright/test でスイートを書き始めていない",
+          "passed": true,
+          "evidence": "@playwright/test でスイートを書いていない。project-tree.txt に tests/・e2e/ の成果物が無い"
+        },
+        {
+          "text": "気を付けることとして、e2e がテレメトリをデフォルトで送ることと、止め方（E2E_TELEMETRY_DISABLED=1 などの環境変数）を挙げている",
+          "passed": true,
+          "evidence": "「テレメトリを eu.i.posthog.com に送り」「E2E_TELEMETRY_DISABLED=1 DO_NOT_TRACK=1 ...を付けて」と挙げている"
+        },
+        {
+          "text": "気を付けることとして、agent.act などの agent のステップがアクセシビリティツリーや画面の内容をモデルの提供元へ送るので、利用者の承認が要ることを挙げている",
+          "passed": true,
+          "evidence": "agent のステップがアクセシビリティツリー・URL をモデルの提供元に送るので、送ってよいかを決め、承認を metadata に残すと挙げている"
+        },
+        {
+          "text": "気を付けることとして、@playwright/test と同じプロジェクトに入れると playwright-core とブラウザが 2 組になることを挙げている",
+          "passed": true,
+          "evidence": "「@playwright/test 1.56.1 と合わせて playwright-core と Chromium が 2 組になります」と挙げている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 25.464,
+        "tokens": 104582,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "replace-strategy の設定（.config/skills/shoji9x9/replace-strategy.jsonc）と .replace/features.md が無いことを理由に停止し、replace-strategy setup を案内している",
+          "passed": true,
+          "evidence": "設定 .config/skills/shoji9x9/replace-strategy.jsonc と .replace/features.md が無いことを表に挙げて止め、replace-strategy setup の実行を案内している"
+        },
+        {
+          "text": "order-list を自分で採番したり、features.md・設定・スイートを作ったりしていない",
+          "passed": true,
+          "evidence": "project-tree.txt が空（. だけ）。raw に Write・Edit の呼び出しが 0 件"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 65.529,
+        "tokens": 186719,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/dataset/metadata.json が無い（golden-dataset のフェーズ A が終わっていない）ことを、停止の理由に挙げている",
+          "passed": true,
+          "evidence": "応答の「足りない前提」の 3 に「golden-dataset のフェーズ A が済んでいません: .replace/dataset/metadata.json がありません」を挙げ、止めている"
+        },
+        {
+          "text": "golden-dataset のフェーズ A の実行を案内している",
+          "passed": true,
+          "evidence": "解消する順の 3 番目にフェーズ A が済んでいないことを挙げ、「1〜3 が整ったら」再実行と案内している（golden-dataset のコマンドは明示していない）"
+        },
+        {
+          "text": "テストのデータを自分で投入したり、.replace/dataset/ の記録を作ったりしておらず、e2e のスイートも作っていない",
+          "passed": true,
+          "evidence": "project-tree.txt に .replace/dataset/・tests/・e2e.config.ts が無い。応答も「何も作っていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 29.823,
+        "tokens": 135398,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/parity/order-list/metadata.json が無い（spec-parity suite が終わっていない）ことを理由に、新側の確認へ進まずに停止している",
+          "passed": true,
+          "evidence": ".replace/parity/order-list/ が無い（metadata.json が無い）ことを ❌ に挙げて止めている"
+        },
+        {
+          "text": "spec-parity suite（order-list を対象にする）の実行を案内している",
+          "passed": true,
+          "evidence": "「spec-parity suite --feature order-list --target current-test を実行する」と案内している"
+        },
+        {
+          "text": ".replace/parity/order-list/new/local-dev/ に verify-metadata.json などの成果物を作っていない",
+          "passed": true,
+          "evidence": "project-tree.txt に .replace/parity/ が無い。raw に Write・Edit の呼び出しが 0 件"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 40.607,
+        "tokens": 201762,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "new/local-dev/replace-metadata.json の suite.new_green が true でないことを理由に、新側の確認へ進まずに停止している",
+          "passed": true,
+          "evidence": "「新側にまだ green の証跡がありません。…suite.new_green が false」を止まった理由の 1 番目に挙げ、verify を始めずに止めている。"
+        },
+        {
+          "text": "parity-replace をそのまま実行するよう案内せず、parity-replace が style_policy: free の画面のある機能の手順を持たない（か、その SKILL.md を確かめられない）ので新側の green を記録する手順が無いことを報告している",
+          "passed": true,
+          "evidence": "「parity-replace の SKILL.md が読めないため、parity-replace は案内していません。いまの環境では、新側を実装して green を記録する手順がありません」と報告している。次にやることも、SKILL.md で free を扱えるかを確かめる条件付きにしている。"
+        },
+        {
+          "text": "verify-metadata.json を作っておらず、replace-metadata.json の suite.new_green を書き換えていない",
+          "passed": true,
+          "evidence": "project-tree に verify-metadata.json が無い。replace-metadata.json は fixture と cmp で一致し、ツールの呼び出しは Bash の読み取りと Skill だけだった。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 22.465,
+        "tokens": 104725,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "user が横断 API リソースの slug であることを理由に、成果物を作らずに停止している",
+          "passed": true,
+          "evidence": "user が横断 API の表の slug であることを理由に、何も作らずに止めている"
+        },
+        {
+          "text": "横断 API は style_policy: free でも parity-suite と parity-diff で扱うと案内している",
+          "passed": true,
+          "evidence": "「style_policy: free でも、横断 API はこちらが扱います」として parity-suite と parity-diff を案内している"
+        },
+        {
+          "text": "e2e のスイート・e2e.config.ts・.replace/parity/user/ を作っていない",
+          "passed": true,
+          "evidence": "project-tree.txt に tests/・e2e.config.ts・.replace/parity/user/ が無い。raw に Write・Edit の呼び出しが 0 件"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 141.549,
+        "tokens": 471922,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同梱の convergence-check.mjs を実行し、その終了コードで収束を判定している（応答で判定）",
+          "passed": true,
+          "evidence": "raw に convergence-check.mjs --slug-dir .replace/parity/order-list --target local-dev --write の実行があり、応答は「convergence-check.mjs --write は exit 1 で、converged: false」から未収束と判定している"
+        },
+        {
+          "text": "デザインの指摘 dr-1 は「受け入れる」になっているが承認の記録が無いので、収束しないとしている",
+          "passed": true,
+          "evidence": "「dr-1 は『受け入れる』になっていますが、承認者・日時・理由が雛形の値のまま」で未承認とし、収束しない理由に挙げている"
+        },
+        {
+          "text": "人による確認（human_review）の承認の記録が無いので、収束しないとしている",
+          "passed": true,
+          "evidence": "「human_review.approval が雛形の値のまま」で未承認とし、収束しない理由に挙げている"
+        },
+        {
+          "text": "モデル自身が画面の記録やデザインの指摘を見て問題ないと判断し、利用者の承認の代わりにしていない",
+          "passed": true,
+          "evidence": "「承認は推測で埋めていません」とし、dr-1 と画面の確認を「あなたが決めること」として判断待ち（pd-1・pd-2）に記録している"
+        },
+        {
+          "text": "dr-1 を受け入れるかと、新側の画面に違和感が無いかを、利用者に確かめる（承認を求める）としている",
+          "passed": true,
+          "evidence": "pd-1 で dr-1 を受け入れるか直すか、pd-2 で /orders を 375×800 と 1280×720 で見て違和感が無いと承認するかを利用者に求めている"
+        },
+        {
+          "text": "verify-metadata.json の converged を true にしておらず、承認の記録を自分で埋めていない",
+          "passed": true,
+          "evidence": "project-files の verify-metadata.json は converged: false で、dr-1 と human_review の approval は雛形の値のまま"
+        },
+        {
+          "text": "収束していないので、まだ Issue を閉じられないと答えている",
+          "passed": true,
+          "evidence": "「今は閉じないでください。収束したら閉じられます」と答えている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 53.189,
+        "tokens": 343612,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同梱の convergence-check.mjs の結果で、収束していないと判定している（応答で判定）",
+          "passed": true,
+          "evidence": "「convergence-check.mjs … --write は exit 1 で、converged: false」と応答で判定している。"
+        },
+        {
+          "text": "/orders の幅 375 で横にはみ出していること（scrollWidth 587）を理由に挙げている",
+          "passed": true,
+          "evidence": "「/orders を幅 375x800 で開くと…scroll_width 587、画面は 375」を収束しない理由に挙げている。"
+        },
+        {
+          "text": "はみ出しを要対応（差し戻す内容）とし、parity-replace が style_policy: free の画面のある機能の手順を持たない（か、その SKILL.md を確かめられない）ので parity-replace へは渡さず、利用者に報告するとしている",
+          "passed": true,
+          "evidence": "はみ出しを send-back に分類し、「parity-replace スキルが入っていません…SKILL.md を読めないときは渡さずに報告することになっているので、まだ渡していません」と報告している。"
+        },
+        {
+          "text": "差し戻しの入力を verify.md の差し戻す内容に、ページ・幅・測定値を添えて書くとしている",
+          "passed": true,
+          "evidence": "project-files の verify.md の「## 差し戻す内容」の表に、/orders・幅 375x800・scroll_width 587 を書いている。"
+        },
+        {
+          "text": "現行の画面と比べたり、現行もはみ出すかを測り直したりして、はみ出しを許容していない",
+          "passed": true,
+          "evidence": "現行がはみ出さないことは記録（overflow-current.json）から引いただけで、e2e もブラウザも実行しておらず、はみ出しを許容していない。"
+        },
+        {
+          "text": "verify-metadata.json の converged を true にしていない",
+          "passed": true,
+          "evidence": "project-files の verify-metadata.json の converged は false で、convergence-check.mjs --write が書いた convergence.converged も false。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 50.1942,
+        "stddev": 37.1341,
+        "min": 22.465,
+        "max": 141.549
+      },
+      "tokens": {
+        "mean": 204719.1111,
+        "stddev": 124774.7548,
+        "min": 104582,
+        "max": 471922
+      }
+    }
+  },
+  "notes": [
+    "with_skill だけを 1 run 実行した変更確認（Issue #565 で足した eval）。without_skill は実行していない。",
+    "executor: claude-code / model: opus / reasoning effort: 指定なし（parity-diff の直近の iteration-41 に合わせた）。",
+    "eval 6 と 9 は、assertion を書き換えた後に実行し直した結果に差し替えた。書き換える前の run は fingerprint が合わないので残していない。",
+    "eval 9 の最初の run は、parity-diff の references/preflight.md を読めないので止まる規定どおり verify.md を書かずに止まった。eval の requires_skills に parity-diff が無かったのが原因なので、parity-diff を足して実行し直した。最初の run は集計に含めていない。",
+    "eval 8 も verify の前提で parity-diff の references/preflight.md を読むので、requires_skills に parity-diff を足し、入力（fingerprint）が変わったので with_skill だけ実行し直した結果に差し替えた。前の run は集計に含めていない。"
+  ]
+}

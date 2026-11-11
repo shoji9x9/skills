@@ -225,6 +225,12 @@
       },
       "x-layers": ["repo"]
     },
+    "style_policy": {
+      "description": "UI のスタイル（見た目）を現行に合わせるか。reproduce（デフォルト）は parity-suite・parity-diff・parity-component で見た目まで比べる。free は見た目の一致を確かめず、画面のある機能を spec-parity で確かめる。意味の原本は project-config.md の「スタイルの方針」",
+      "enum": ["reproduce", "free"],
+      "default": "reproduce",
+      "x-layers": ["repo"]
+    },
     "parity_suite_dir": {
       "type": "string",
       "minLength": 1,

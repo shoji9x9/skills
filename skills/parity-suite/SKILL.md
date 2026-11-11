@@ -194,6 +194,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
 
 | キー | 用途 |
 |---|---|
+| `style_policy` | UI の見た目を現行に合わせるか（`reproduce` / `free`。キーが無ければ `reproduce`）。実行フローの手順 1 で読み、`free` なら機能（feature）モードでは止まる（意味は、スキーマ文書の「スタイルの方針」で定義する） |
 | `parity_suite_dir` | パリティスイートの置き場所（指定が無いときは `e2e/`） |
 | `artifacts.{retention,storage,size_threshold_mb,overrides.<slug>}` | 大きなバイナリの保存先のデフォルトと、機能ごとの上書き |
 | `secrets.wrapper` | シークレットが要るコマンドの前に付けるラッパー |
@@ -249,6 +250,11 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
 ### 1. 前提検証と早期失敗
 
 - `.replace/features.md` か設定が無ければ、`replace-strategy setup` を促して停止する
+- 設定の `style_policy` を読む（`skill-config.mjs get replace-strategy style_policy --raw`。キーが無ければ `reproduce`）。
+  `free` で、対象の slug が features.md の機能一覧の行（機能モード）なら、成果物を作らずに停止し、`spec-parity suite --feature <slug>` を案内する。
+  `free` では、見た目のベースラインも Playwright の画面のスイートも作らない取り決めで、画面のある機能は `spec-parity` が受け持つからである。
+  横断 API リソースとバッチは、`free` でも止めずに進める。`--feature` を省いたときは、`free` なら候補を横断 API リソースとバッチだけにする。
+  この確認は設定と features.md だけで済むので、データセットの確認と target の起動より先に行う
 - `.replace/dataset/metadata.json` が無ければ、`golden-dataset`（フェーズ A）を促して停止する
 - setup とフェーズ A は、未解決の保留があれば、証拠があっても未完了として同じく停止する。
   見る保留の範囲は、`replace-strategy` の `references/autonomy.md`「下流の前提判定」で定義する。フェーズ B の別の slug・別の target の保留では止めない
@@ -611,6 +617,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
     このスキルの `reaction-check.mjs --tests <テスト一覧> --recorded` で数え直す（一覧は `npx playwright test --list --reporter=json --project=current --project=new` の出力）
   - 新側専用のスペックの置き場所・`current` / `new` からの `testIgnore` による除外・採取用の `new-capture` プロジェクト。
     `metadata.json.suite.new_only` に記録する。スペック本体は、`parity-diff` が同梱の雛形から置く
+- `spec-parity` とは、`style_policy` で分担する。`free` の画面のある機能は `spec-parity` が受け持ち、このスキルは止まって案内する（手順 1）。横断 API とバッチは、どちらの値でもこのスキルが受け持つ
 - `replace-strategy evidence` には、API の特性化で確定した口の「要求単位の根拠」の書き戻し（`推定` → `実測`）を任せる。
   このスキルは `.replace/features.md` を書かないので、確定を観測した時点でこのモードを呼ぶ
   （[`references/api-batch.md`](references/api-batch.md)「要求単位を確定したら features.md へ書き戻す」）

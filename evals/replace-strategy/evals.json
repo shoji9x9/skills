@@ -764,6 +764,149 @@
           "prompt_quote": "コマンドの実行やファイルの変更はせずに説明して"
         }
       ]
+    },
+    {
+      "id": 40,
+      "prompt": "replace-strategy setup の手順 6（戦略の提示とユーザーの承認）に入った。測定は終わっていて、.replace/survey.md もある。利用者は、UI の見た目を今の画面に合わせるかについて、まだ何も言っていない。戦略の提示で利用者に何を確かめ、決まった値をどこに記録するかを報告して。設定や成果物は実際には書かず、方針だけ報告して。",
+      "assertions": [
+        "UI の見た目を現行に合わせるか（style_policy の reproduce / free）を、利用者に確かめる項目として挙げ、デフォルトの reproduce を確認なしに決めていない",
+        "判断の材料として、free では見た目の一致を確かめず、人が新側の画面を見て確かめること（spec-parity verify）を添えている",
+        "判断の材料として、free では性能の比較を行わないことを添えている",
+        "free では画面のある機能のランナーが e2e（spec-parity）に変わり、横断 API とバッチは parity-suite / parity-diff のままであると示している",
+        "free では共通部品を画面より先に作る方針（parity-component）を使えないことを添えている",
+        "決まった値を、設定の style_policy と .replace/strategy.md のスタイルの方針の節の両方に記録するとしている"
+      ],
+      "reachability": [
+        {
+          "assertion": "UI の見た目を現行に合わせるか（style_policy の reproduce / free）を、利用者に確かめる項目として挙げ、デフォルトの reproduce を確認なしに決めていない",
+          "prompt_quote": "利用者は、UI の見た目を今の画面に合わせるかについて、まだ何も言っていない"
+        },
+        {
+          "assertion": "判断の材料として、free では見た目の一致を確かめず、人が新側の画面を見て確かめること（spec-parity verify）を添えている",
+          "prompt_quote": "戦略の提示で利用者に何を確かめ"
+        },
+        {
+          "assertion": "判断の材料として、free では性能の比較を行わないことを添えている",
+          "prompt_quote": "戦略の提示で利用者に何を確かめ"
+        },
+        {
+          "assertion": "free では画面のある機能のランナーが e2e（spec-parity）に変わり、横断 API とバッチは parity-suite / parity-diff のままであると示している",
+          "prompt_quote": "戦略の提示で利用者に何を確かめ"
+        },
+        {
+          "assertion": "free では共通部品を画面より先に作る方針（parity-component）を使えないことを添えている",
+          "prompt_quote": "戦略の提示で利用者に何を確かめ"
+        },
+        {
+          "assertion": "決まった値を、設定の style_policy と .replace/strategy.md のスタイルの方針の節の両方に記録するとしている",
+          "prompt_quote": "決まった値をどこに記録するか"
+        }
+      ]
+    },
+    {
+      "id": 41,
+      "prompt": "replace-strategy setup --autonomous の手順 6 に入った。測定は終わった。この実行に利用者はいない。UI の見た目を今の画面に合わせるかは、誰も決めていない。この後の手順 10 には、共通部品を画面より先に作る方針の確認もある。見た目の扱いと手順 10 の確認をこの実行でどう扱うかを報告して。設定や成果物は実際には書かず、方針だけ報告して。",
+      "assertions": [
+        "style_policy を自分で選ばず、判断待ちの保留（.replace/strategy-pending.json の pending_decisions）に記録するとしている",
+        "設定に style_policy を仮の値（reproduce を含む）で書かないとし、キーが無いと reproduce として読まれることを理由に挙げている",
+        "手順 10 の共通部品を画面より先に作る方針の確認を、style_policy の保留に依存させて聞かないとしている（free ではこの方針を選べないため）",
+        ".replace/components.md を作らず、部品インベントリは下書き（components.draft.md）にとどめるとしている",
+        "戦略に依存しない測定の結果と機能インベントリの下書きは、保留があっても進めるとしている"
+      ],
+      "reachability": [
+        {
+          "assertion": "style_policy を自分で選ばず、判断待ちの保留（.replace/strategy-pending.json の pending_decisions）に記録するとしている",
+          "prompt_quote": "UI の見た目を今の画面に合わせるかは、誰も決めていない"
+        },
+        {
+          "assertion": "設定に style_policy を仮の値（reproduce を含む）で書かないとし、キーが無いと reproduce として読まれることを理由に挙げている",
+          "prompt_quote": "UI の見た目を今の画面に合わせるかは、誰も決めていない"
+        },
+        {
+          "assertion": "手順 10 の共通部品を画面より先に作る方針の確認を、style_policy の保留に依存させて聞かないとしている（free ではこの方針を選べないため）",
+          "prompt_quote": "この後の手順 10 には、共通部品を画面より先に作る方針の確認もある"
+        },
+        {
+          "assertion": ".replace/components.md を作らず、部品インベントリは下書き（components.draft.md）にとどめるとしている",
+          "prompt_quote": "この後の手順 10 には、共通部品を画面より先に作る方針の確認もある"
+        },
+        {
+          "assertion": "戦略に依存しない測定の結果と機能インベントリの下書きは、保留があっても進めるとしている",
+          "prompt_quote": "見た目の扱いと手順 10 の確認をこの実行でどう扱うか"
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "prompt": "設定の style_policy を free にした。replace-strategy issues で、機能 order-list と横断 API の user を起票する前に、2 つの Issue の本文の下書きのうち、ワークフローと、収束を確かめる受け入れ条件の項だけを示して。起票はしないで。",
+      "assertions": [
+        "order-list のワークフローを spec-parity suite → parity-replace → golden-dataset（フェーズ B）→ spec-parity verify の順にしている",
+        "order-list の収束の項を、spec-parity verify を実行して .replace/parity/order-list/new/<target>/verify-metadata.json の converged: true まで進める形にし、parity-diff の diff-metadata.json の項を置いていない",
+        "order-list の収束の項に、デザインの点検と、人が新側の画面を確かめた承認の記録を含めている",
+        "横断 API の user の収束の項は、free でも parity-diff の diff-metadata.json の converged: true のままにしている",
+        "起票していない（gh issue create も issue-create への委譲も行っていない）"
+      ],
+      "reachability": [
+        {
+          "assertion": "order-list のワークフローを spec-parity suite → parity-replace → golden-dataset（フェーズ B）→ spec-parity verify の順にしている",
+          "prompt_quote": "機能 order-list"
+        },
+        {
+          "assertion": "order-list の収束の項を、spec-parity verify を実行して .replace/parity/order-list/new/<target>/verify-metadata.json の converged: true まで進める形にし、parity-diff の diff-metadata.json の項を置いていない",
+          "prompt_quote": "収束を確かめる受け入れ条件の項"
+        },
+        {
+          "assertion": "order-list の収束の項に、デザインの点検と、人が新側の画面を確かめた承認の記録を含めている",
+          "prompt_quote": "収束を確かめる受け入れ条件の項"
+        },
+        {
+          "assertion": "横断 API の user の収束の項は、free でも parity-diff の diff-metadata.json の converged: true のままにしている",
+          "prompt_quote": "横断 API の user"
+        },
+        {
+          "assertion": "起票していない（gh issue create も issue-create への委譲も行っていない）",
+          "prompt_quote": "起票はしないで"
+        }
+      ]
+    },
+    {
+      "id": 43,
+      "fixture": "fixtures/status-style-free",
+      "prompt": "replace-strategy status を実行して、order-list の現況を報告して。コマンドの実行はしてよいが、ファイルの変更はしないで。",
+      "assertions": [
+        "order-list を、diff.md・diff-metadata.json が無いことを理由に parity-diff が未実施の機能として扱っていない",
+        "local-dev の収束の状態を new/local-dev/verify-metadata.json の converged から導き、未収束としている",
+        "通っていない確認として、横のはみ出し（overflow）を名前で挙げている",
+        "性能を比べていないことを、未検証の領域に挙げている",
+        "部品網羅表・反応の網羅表が無いことを、旧版の成果物や記録の欠けとして扱っていない",
+        "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない"
+      ],
+      "reachability": [
+        {
+          "assertion": "order-list を、diff.md・diff-metadata.json が無いことを理由に parity-diff が未実施の機能として扱っていない",
+          "prompt_quote": "order-list の現況を報告して"
+        },
+        {
+          "assertion": "local-dev の収束の状態を new/local-dev/verify-metadata.json の converged から導き、未収束としている",
+          "prompt_quote": "order-list の現況を報告して"
+        },
+        {
+          "assertion": "通っていない確認として、横のはみ出し（overflow）を名前で挙げている",
+          "prompt_quote": "order-list の現況を報告して"
+        },
+        {
+          "assertion": "性能を比べていないことを、未検証の領域に挙げている",
+          "prompt_quote": "order-list の現況を報告して"
+        },
+        {
+          "assertion": "部品網羅表・反応の網羅表が無いことを、旧版の成果物や記録の欠けとして扱っていない",
+          "prompt_quote": "order-list の現況を報告して"
+        },
+        {
+          "assertion": "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
+          "prompt_quote": "ファイルの変更はしないで"
+        }
+      ]
     }
   ]
 }

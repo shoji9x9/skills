@@ -1,0 +1,73 @@
+{
+  "_note": "spec-parity suite が .replace/parity/<slug>/metadata.json として書く。形式の原本は spec-parity である。すべての値はプレースホルダの例で、実測した値に置き換える（JSON はコメントを書けないので、説明を値の文字列で示す）。style_policy が free のリプレイスの成果物で、parity-suite の metadata.json とは形が違う（視覚のベースライン・差分ツール・ノイズの基準値を持たない）。自律実行の保留はこのファイルに書かず、同じディレクトリの pending-decisions.json に書く（下流がこのファイルを完了の証拠に使うため）。",
+  "slug": "<features.md が採番した slug（自分で採番しない）>",
+  "style_policy": "free",
+  "mode": "feature",
+  "target": {
+    "name": "<選んだ current の target の名前（replace-strategy の targets の side: current）>",
+    "ui_url": "<解決した UI の baseURL。url_command の target では \"runtime\">",
+    "api_url": "<解決した API の baseURL。api_url を省いて url_command で解決したときは \"runtime\">",
+    "commit": "<現行のリポジトリのコミットの SHA。入手できなければ none>"
+  },
+  "run": {
+    "started_at": "<ISO 8601>",
+    "finished_at": "<ISO 8601>",
+    "agent": "<コーディングエージェントの名前>",
+    "model": "<モデルの名前>",
+    "skill_version": "<spec-parity のバージョン>",
+    "autonomous": false
+  },
+  "dataset_version": "<採ったときの .replace/dataset/metadata.json の version>",
+  "runner": {
+    "e2e": "<e2e のバージョン（npx e2e --version）>",
+    "engine": "<@e2e-dev/web のバージョン>",
+    "telemetry_disabled": "<E2E_TELEMETRY_DISABLED=1 か DO_NOT_TRACK=1 で止めて実行したか（真偽値）>",
+    "agent_steps": "<agent.act などの agent のステップを使ったか（真偽値）。true なら、モデルの提供元へ送る内容を利用者が承認した記録の場所を agent_steps_approval に書く>",
+    "agent_steps_approval": "<承認の記録の場所。agent のステップを使わなければ null>"
+  },
+  "suite": {
+    "runner": "e2e",
+    "config": "<e2e の設定のパス（例: e2e.config.ts）>",
+    "dir": "<スイートのディレクトリ（例: tests/<slug>/）>",
+    "helpers": "<部品のディレクトリ（例: tests/parity/。sides.ts・test.ts・runtime-errors-reporter.ts・runtime-errors-init.js）>",
+    "current_green": "<現行でスイートが通ったか（真偽値）。通った結果を .replace/parity/<slug>/suite-report.json に保存してから true にする>",
+    "report": ".replace/parity/<slug>/suite-report.json",
+    "runtime_errors": {
+      "init_script": "<init script のパス（例: tests/parity/runtime-errors-init.js）>",
+      "reporter": "<reporter のパス（例: tests/parity/runtime-errors-reporter.ts）>"
+    },
+    "overflow": "<横のはみ出しを測るテストのパス（例: tests/<slug>/overflow.e2e.ts）>",
+    "strength": "<故障注入のテストのディレクトリ（例: tests/<slug>/strength/）>",
+    "auth_roles": ["<特性化に使った auth.roles のロール名（認証が要らなければ空の配列）>"]
+  },
+  "strength": {
+    "_note": "strength-check.mjs --write が書く。validated が true になるのは、対照が通り、計画のすべての故障が assertion で赤くなったときだけ。手で書かない",
+    "validated": false
+  },
+  "capture_conditions": {
+    "pages": ["<横のはみ出しを測るページの path（/ で始める。例: /orders）>"],
+    "viewports": [
+      {
+        "width": "<現行が横にはみ出さずに表示できると、overflow-check.mjs --side current で確かめた幅（整数）>",
+        "height": "<その幅で測るときの高さ（整数）>"
+      }
+    ],
+    "excluded_viewports": [
+      {
+        "width": "<候補にしたが、現行もはみ出したので保証していない幅>",
+        "height": "<高さ>",
+        "reason": "<現行がはみ出したページと scrollWidth。gaps.md にも同じ文言で書く>"
+      }
+    ]
+  },
+  "unmeasured": {
+    "_note": "API の要求単位を確定できなかった口と、測れなかった項目の機械で読める宣言（gaps.md の散文と対）。形と意味の原本は parity-suite の metadata-template.json の unmeasured と references/coverage.md「未測定を機械可読にする」で、ここへ転記しない。disposition: blocking が 1 件でも残る間は、convergence-check.mjs が収束させない（承認の記録が空の accepted も blocking として数える）。確定できた口は replace-strategy evidence が features.md へ書き戻すので、ここには宣言しない。entries の要素は item・reason・endpoint（API の口。それ以外は null）・disposition・approved_by・approved_at で、各項目の意味は parity-suite の雛形に従う。declared: true で entries が空なら、宣言する未測定が無いことを表す。キーごと無い成果物は判定されない。",
+    "declared": true,
+    "entries": [],
+    "reason": "<declared: false のときだけ、宣言しない理由。declared: true では null>"
+  },
+  "runtime_errors": {
+    "_note": "runtime-errors.mjs summarize --write が書く（declared・tool_version・runs・run_dirs・tests・signatures）。手で転記しない。記録できない事情があるときだけ declared: false と reason を書き、gaps.md にも同じ文言を残す",
+    "declared": true
+  }
+}

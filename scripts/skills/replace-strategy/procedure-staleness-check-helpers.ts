@@ -28,6 +28,7 @@ type Output = {
   handed_off: Entry[];
   undeterminable: Entry[];
   artifacts: Entry[];
+  skipped: Entry[];
   stray: unknown[];
   errors: string[];
 };

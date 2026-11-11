@@ -39,6 +39,20 @@
     },
     {
       "ref": "gaps.md",
+      "skills": ["spec-parity"],
+      "template": "skills/spec-parity/assets/gaps-template.md"
+    },
+    {
+      "ref": "strength.md",
+      "skills": ["spec-parity"],
+      "template": "skills/spec-parity/assets/strength-template.md"
+    },
+    {
+      "ref": "verify.md",
+      "template": "skills/spec-parity/assets/verify-template.md"
+    },
+    {
+      "ref": "gaps.md",
       "template": "skills/parity-suite/assets/gaps-template.md"
     },
     {

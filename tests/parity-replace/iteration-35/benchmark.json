@@ -1,0 +1,82 @@
+{
+  "metadata": {
+    "skill_name": "parity-replace",
+    "skill_path": "<repo>/skills/parity-replace",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-11T09:05:32Z",
+    "evals_run": [26],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 26,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 26.912,
+        "tokens": 225954,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定の style_policy が free であることを理由に、画面のある機能の order-list の実装（フェーズ分割・新側マッピング・実装）へ進まずに停止している",
+          "passed": true,
+          "evidence": "「前提の判定の最初の段階で止めました」とし、skill-config.mjs で style_policy が free、metadata.json の mode が feature（画面のある機能）であることを確かめて、issue-start・target の起動・実装に進んでいない。"
+        },
+        {
+          "text": "このスキルが style_policy: free の画面のある機能の手順を持たないことを、停止の理由として利用者に報告している",
+          "passed": true,
+          "evidence": "「このスキルには style_policy: free のときの手順がありません」を止めた理由の節に書いている。"
+        },
+        {
+          "text": "metadata.json に differ.validated_by_strength_gate が無いことを理由に parity-suite の実行を案内していない（free の機能のスイートは spec-parity が作ったものと区別している）",
+          "passed": true,
+          "evidence": "differ.validated_by_strength_gate が無いことは「参考: 次の段階で止まりそうな点（今回は判定していません）」に挙げただけで、parity-suite の実行は style_policy を reproduce に変える方針の変更（利用者が決める）と組にした選択肢としてだけ示している。"
+        },
+        {
+          "text": "issue-start でブランチを作っておらず、.replace/parity/order-list/new/ 配下に replace-metadata.json などの成果物を作っていない",
+          "passed": true,
+          "evidence": "project-tree に .replace/parity/order-list/new/ が無い。issue-start は実行していないと応答に書き、raw のツールの呼び出しも Skill と Bash の読み取り 3 件だけだった。"
+        },
+        {
+          "text": "設定の style_policy を reproduce に書き換えて進めるなど、fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
+          "passed": true,
+          "evidence": "fixture の .replace/ 配下の 3 ファイルは cmp で一致した。replace-strategy.jsonc はスナップショットの対象外の拡張子だが、raw のツールの呼び出しは読み取り（cat・skill-config.mjs get）だけで、Write・Edit は無い。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 26.912,
+        "stddev": 0,
+        "min": 26.912,
+        "max": 26.912
+      },
+      "tokens": {
+        "mean": 225954,
+        "stddev": 0,
+        "min": 225954,
+        "max": 225954
+      }
+    }
+  },
+  "notes": [
+    "with_skill だけを 1 run 実行した変更確認（Issue #565 で足した eval 26）。without_skill は実行していない。",
+    "executor: claude-code / model: opus / reasoning effort: 指定なし（直近の iteration-34 に合わせた）。"
+  ]
+}

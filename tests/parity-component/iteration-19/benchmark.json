@@ -1,0 +1,77 @@
+{
+  "metadata": {
+    "skill_name": "parity-component",
+    "skill_path": "<repo>/skills/parity-component",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-11T08:24:07Z",
+    "evals_run": [11],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 11,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 21.055,
+        "tokens": 148290,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定の style_policy が free であることを理由に、.replace/components.md に button の行があっても、採取へ進まずに停止している",
+          "passed": true,
+          "evidence": "style_policy が free（exit 0）であることを理由に、components.md の行を確かめる前に何も採取せず止めている"
+        },
+        {
+          "text": "画面のある機能は spec-parity で確かめ、部品は機能ごとに parity-replace が作ると案内している",
+          "passed": true,
+          "evidence": "画面のある機能は spec-parity suite / verify で、共通部品は各機能を実装するときに parity-replace が作ると案内している"
+        },
+        {
+          "text": ".replace/components/button/ に採取物（スクリーンショット・traits.json・css-rules.json・metadata.json）を作っていない",
+          "passed": true,
+          "evidence": "project-tree.txt に .replace/components/button/ が無い（fixture に無いパスが無い）"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
+          "passed": true,
+          "evidence": "project-files は fixture と同じ内容。raw に Write・Edit が 0 件"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 21.055,
+        "stddev": 0,
+        "min": 21.055,
+        "max": 21.055
+      },
+      "tokens": {
+        "mean": 148290,
+        "stddev": 0,
+        "min": 148290,
+        "max": 148290
+      }
+    }
+  },
+  "notes": [
+    "with_skill だけを 1 run 実行した変更確認（Issue #565 で足した eval）。without_skill は実行していない。",
+    "executor: claude-code / model: opus / reasoning effort: 指定なし（直近の iteration-18 に合わせた）。"
+  ]
+}

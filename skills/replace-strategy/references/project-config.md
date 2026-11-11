@@ -15,8 +15,8 @@
 このファイルは、人が確定させた方針の置き場所である。`gh skill update` はスキルのディレクトリの外にあるこのファイルに触れないので、設定は更新の後も残る。
 スキルが書くキーは限られている（下記「キーの書き手とライフサイクル」）。作業中に件数が増え続ける台帳は、ここに置かない。
 
-このファイルは、姉妹スキル（`current-environment-bootstrap`・`golden-dataset`・`parity-suite`・`parity-replace`・`parity-diff`・`parity-component`）が直接読む共通の取り決めである。
-キーの名前や構造を変えるときは、姉妹スキル側の参照と、各スキルに同梱したスキーマ（`config-schemas/replace-strategy.schema.json`。7 つのスキルで同じ内容）も一緒に更新する。
+このファイルは、姉妹スキル（`current-environment-bootstrap`・`golden-dataset`・`parity-suite`・`parity-replace`・`parity-diff`・`parity-component`・`spec-parity`）が直接読む共通の取り決めである。
+キーの名前や構造を変えるときは、姉妹スキル側の参照と、各スキルに同梱したスキーマ（`config-schemas/replace-strategy.schema.json`。8 つのスキルで同じ内容）も一緒に更新する。
 
 値は、同梱の `scripts/skill-config/skill-config.mjs` で読む。知らないキーと型の誤りは、読み取りがエラーにする（終了コード 1）。エラーが出たら、デフォルトの値で続けずに止まり、内容を利用者に示す。
 
@@ -144,7 +144,8 @@ node "$CFG" dump replace-strategy                         # すべてのキー�
   "secrets": {
     "wrapper": "" // 任意の起動ラッパー（例: aws-vault exec dev --）。シークレットが要るコマンドの前に付ける
   },
-  "parity_suite_dir": "e2e/", // パリティスイートの置き場所（parity-suite が読む。省略すると e2e/）
+  "style_policy": "reproduce", // UI の見た目を現行に合わせるか（下記「スタイルの方針」）。reproduce（デフォルトで、省略してよい）| free。値で、画面のある機能を確かめるスキルとテストのランナーが決まる
+  "parity_suite_dir": "e2e/", // パリティスイートの置き場所（parity-suite が読む。省略すると e2e/。spec-parity の e2e のスイートは、e2e の設定の tests で置き場所を決めるので、このキーを読まない）
   "dataset_tool_dir": "seed/", // golden-dataset の投入ツールの置き場所（golden-dataset が読む。省略すると seed/）
   "bootstrap_tool_dir": "bootstrap/", // current-environment-bootstrap の再構築ツールと暫定の起動データの投入ツールの置き場所（省略すると bootstrap/）。current.origin: received-assets のときだけ使う
   "dataset_mode": "db", // ゴールデンデータセットの実体（下記「データセットの実体」）。db（デフォルトで、省略してよい）| static
@@ -242,7 +243,7 @@ node "$CFG" append replace-strategy component_diffs '<要素の JSON>' --layer r
 
 | 区分 | キー | 書き込み |
 |---|---|---|
-| 人が確定させる方針 | `current`（`origin`・`received_assets`・`feedback_calls` を含む）・`new`・`targets`・`secrets`・`parity_suite_dir`・`dataset_tool_dir`・`bootstrap_tool_dir`・`dataset_mode`・`dataset_static_paths`・`uses_storage`・`verification_commands`・`artifacts`・`references`（パス型のキー）・`intentional_diffs.{keep,may_change}`・`component_diffs` | `setup` の対話で書くか、人が直接編集する。スキルが代わりに書く場合も、人が決めた値を 1 回記録するだけである。該当するのは次のものである。`references.dependency_policy`・`new.stack`・`references.architecture`・`current.feedback_calls` の確認の結果。`current-environment-bootstrap` が引き渡しのときに埋める現行 target の `url` と `default: true`（ユーザーが確認した実測値を 1 回記録する。引き渡しを取り消すときは、ユーザーに確かめて `url: none` と `default: false` に戻す）。`component_diffs` のユーザーが承認した宣言（`parity-replace`・`parity-diff` が非破壊で追記する）。静的資産で `同等物を作る` を選んだときの、`intentional_diffs.may_change` へのユーザーが承認した宣言（`replace-strategy` の `setup`・`parity-replace`・`parity-component` が非破壊で追記する。原本は [`static-assets.md`](static-assets.md)）。どれも `setup` の再実行を待たずに追記する |
+| 人が確定させる方針 | `current`（`origin`・`received_assets`・`feedback_calls` を含む）・`new`・`targets`・`secrets`・`style_policy`・`parity_suite_dir`・`dataset_tool_dir`・`bootstrap_tool_dir`・`dataset_mode`・`dataset_static_paths`・`uses_storage`・`verification_commands`・`artifacts`・`references`（パス型のキー）・`intentional_diffs.{keep,may_change}`・`component_diffs` | `setup` の対話で書くか、人が直接編集する。スキルが代わりに書く場合も、人が決めた値を 1 回記録するだけである。該当するのは次のものである。`references.dependency_policy`・`new.stack`・`references.architecture`・`current.feedback_calls` の確認の結果。`current-environment-bootstrap` が引き渡しのときに埋める現行 target の `url` と `default: true`（ユーザーが確認した実測値を 1 回記録する。引き渡しを取り消すときは、ユーザーに確かめて `url: none` と `default: false` に戻す）。`component_diffs` のユーザーが承認した宣言（`parity-replace`・`parity-diff` が非破壊で追記する）。静的資産で `同等物を作る` を選んだときの、`intentional_diffs.may_change` へのユーザーが承認した宣言（`replace-strategy` の `setup`・`parity-replace`・`parity-component` が非破壊で追記する。原本は [`static-assets.md`](static-assets.md)）。どれも `setup` の再実行を待たずに追記する |
 | スキルが作業中に追記する記録 | `intentional_diffs.pending` | 宣言に無い差を見つけたスキルが、追記元が分かる形で非破壊で追記する（要素の形は下記「意図的差異レジストリ」の「`pending` 要素の形」）。追記するのは `replace-strategy`（`setup` の手順 8 で「保留（測定結果で決める）」にした項目）と、`golden-dataset`・`parity-suite`・`parity-replace`・`parity-component` である。ユーザーの確認を経て、人が `keep` / `may_change` へ移す。設定ファイルに残る唯一の作業中の記録である。移す時期は下記「`pending` の棚卸し」で決まっていて、機能を閉じる工程（`parity-diff` の収束の判定）が棚卸しを求める |
 
 - `component_diffs` を設定の側に残す根拠: 要素は `component` × `property` の単位で、slug をまたいで当たる。
@@ -296,7 +297,7 @@ node "$CFG" append replace-strategy component_diffs '<要素の JSON>' --layer r
 | `component_catalog` | `parity-component` の `build`（見本を置く前と、カタログを採取する前に読む） | `parity-component` は `build` に入らずに止まる（カタログの実体・URL の決まり方・データの注入方法を推測で決めると、別のカタログに移した時点で、見本と採取のスペックの両方を書き直すことになる）。`capture` は読まないので止まらない。下記「部品カタログ」 |
 | `db_semantics` | `parity-replace` の実装（手順 4。クエリとデータアクセスを書く前に、移植の点検表として読む）、`golden-dataset` のフェーズ B（新側への変換と、現行と新側の一致の検証）、`parity-suite` の並び順の特性化、`parity-diff` の並び順の差の判断、`current-environment-bootstrap` の復元した項目の突き合わせ（整備済みのときだけ） | フェーズ B は止まる（変換の根拠が無い）。`parity-replace` は止まらないが、方言の差を推測で埋めない。下記「DB 意味論」の点検項目を、現行 DB と新 DB の一次ドキュメントで確かめ、結果を `porting.md` に記録し、整備を促す。`parity-suite` と `parity-diff` も止まらない（実測で特性化し、整備を促す） |
 | `env_setup` | すべてのスキル。接続の確認（現行 URL への疎通と、環境変数があるかの確認）に失敗したときの案内先 | 案内先が無いだけで、止まらない |
-| `dependency_policy` | 依存を決めるすべてのスキル（`replace-strategy`・`parity-suite`・`parity-replace`・`parity-diff`・`parity-component`） | 三値なので、下記「依存導入の方針」に従う（キーが無い＝未確認として、方針が要るかをユーザーに確認して記録する） |
+| `dependency_policy` | 依存を決めるすべてのスキル（`replace-strategy`・`parity-suite`・`parity-replace`・`parity-diff`・`parity-component`・`spec-parity`） | 三値なので、下記「依存導入の方針」に従う（キーが無い＝未確認として、方針が要るかをユーザーに確認して記録する） |
 
 ### references の拡張（新しいキーを足すとき）
 
@@ -333,6 +334,35 @@ node "$CFG" append replace-strategy component_diffs '<要素の JSON>' --layer r
 - `current.received_assets` は 1 つ以上のパスである。受け取りが複数回に分かれる場合は追記する（`current-environment-bootstrap` が、棚卸しですべてのパスを走査する）。
 - 再構築するのは `current-environment-bootstrap` で、`replace-strategy` は代わりにしない。
   そのスキルの成果物（`.replace/bootstrap/`）とツールの置き場所（`bootstrap_tool_dir`）の原本は、`current-environment-bootstrap` にある。
+
+## スタイルの方針（`style_policy`）
+
+新側の UI の見た目（色・寸法・余白・書体）を、現行に合わせるかを宣言する。
+値によって、画面のある機能（`.replace/features.md` の機能一覧の行。成果物の `mode: feature`）を確かめるスキルと、テストのランナーが決まる。
+
+| 値 | 意味 | 画面のある機能を確かめるスキル |
+|---|---|---|
+| `reproduce`（デフォルト） | UI の仕様に加えて、見た目も現行に合わせる | `parity-suite`（Playwright）がスイートと視覚ベースラインを作り、`parity-diff` が画素・特性照合・aria で現行と比べる。共通部品を画面より先に作る方針（`parity-component`）も選べる |
+| `free` | UI の仕様（操作・状態・role・テキスト・API）は現行に合わせ、見た目は合わせない。見た目は、人が見て違和感の無いものにする | `spec-parity suite`（e2e）がスイートを作り、`spec-parity verify` が新側だけを確かめる（横のはみ出し・操作中のエラー・デザインの点検・人による確認）。見た目の一致と性能は比べない（[`scope.md`](scope.md)）。`parity-component` は使わない |
+
+- キーが無ければ `reproduce` として扱う。このキーを入れる前に `setup` を終えたプロジェクトに、`setup` の再実行を求めない。
+- 横断 API とバッチは、値に関わらず `parity-suite` と `parity-diff` で扱う。この値は画面の見た目にだけ関わるからである。
+- 画面のある機能のスイートでは、2 つのランナー（Playwright のパリティスイートと e2e のスイート）を混在させない。
+  値は `setup` の戦略の決定（手順 6）で利用者に確かめて 1 回記録し、機能の着手の後に変えない。
+  変えると、変える前に作った機能の成果物を、変えた後のスキルが読まない（`parity-diff` は e2e のスイートを比べず、`spec-parity verify` は Playwright のスイートを実行しない）。
+  どうしても変えるなら、着手済みの機能の成果物を作り直すかを、機能ごとに利用者に確かめてから変える。
+- 読み方は次のとおりである。読み取りがエラー（終了コード 1）なら、`reproduce` と見なして続けずに止まる。
+
+  ```bash
+  node "$CFG" get replace-strategy style_policy --raw   # キーが無ければデフォルトの reproduce
+  ```
+
+- 読むスキルと、`free` のときの動作は次のとおりである。
+  - `parity-suite` と `parity-diff`: 前提の確認で読み、対象が画面のある機能なら、成果物を作らずに止まって `spec-parity suite` / `spec-parity verify` を案内する。横断 API とバッチは止めない
+  - `parity-component`: 前提の確認で読み、モードに関わらず止まる
+  - `parity-replace`: 前提の確認で読み、対象が画面のある機能なら、成果物を作らずに止まり、`free` の画面のある機能の手順を持たないことを報告する。横断 API とバッチは止めない
+  - `spec-parity`: `free` でないときに止まる
+  - `replace-strategy`: `setup` が書き、`issues` が機能の Issue の流れを、`status` が機能の現況の読み先を、この値で選ぶ
 
 ## フィードバック呼び出し（`current.feedback_calls`）
 
@@ -396,6 +426,7 @@ node "$CFG" append replace-strategy component_diffs '<要素の JSON>' --layer r
   | `parity-replace` | 新側の実装（と、付随する IaC の差分） | 完了判定（手順 8）は `full`。`diff` は、敵対的レビューの前の早い検出（手順 7）だけ | 止まる（完了判定が「新側で green ＋検証コマンド」なので、成り立たなくなる） |
   | `golden-dataset` | 投入ツール | `full` | 止まらず、`verification.md` に記録して進む |
   | `parity-suite` | スイート・マッピング層・操作アダプタ | `full` | 止まらず、`gaps.md` に記録して進む |
+  | `spec-parity`（`suite`） | e2e のスイートと部品 | `full` | 止まらず、`gaps.md` に記録して進む |
   | `current-environment-bootstrap` | 再構築ツールと暫定の起動データの投入ツール | `full` | 止まらず、`verification.md` に記録して進む |
 
 - 止まるのは、完了判定に使うスキルだけである。品質を保つことが目的の側は、検証が無いことを記録すれば足りる。
@@ -502,6 +533,7 @@ CI を複数の必須の job に分けるなど、1 つにまとめられない�
   | 共通部品の実装と見本（`parity-component` の `build`） | `new.repo`（見本は、カタログの取り決めが定める置き場所。`references.component_catalog` を読む） | 新側 |
   | 投入ツール（`golden-dataset`、`dataset_tool_dir`） | ツールを置くリポジトリ（フェーズ A は現行側の受け皿を触るので、現行側になることが多い） | そのリポジトリ |
   | パリティスイート（`parity-suite`、`parity_suite_dir`） | スイートを置くリポジトリ | そのリポジトリ |
+  | e2e のスイート（`spec-parity` の `suite`。置き場所は e2e の設定の `tests`） | スイートを置くリポジトリ | そのリポジトリ |
 
   `coding_conventions` に複数のリポジトリの規約が要る場合は、規約のドキュメントの側で、リポジトリごとに節を分ける（キーは 1 つのまま）。
 - 整備されていなくても止まらないが、自分の流儀を推測で持ち込まない。次の順で解決する。
@@ -601,8 +633,8 @@ local-dev・local-production・preview・develop など、同じスイートを�
   `parity-suite` が current 側で測った `noise_baseline` を、新側のすべての target に使えるとは限らない（CDN やフォントの読み込みなどで、環境のノイズは変わる）。
   `parity-diff` は新側の撮影のときに自分のノイズを測り、ずれが大きければ止まる（原本: `parity-diff` の `references/capture-new.md`）。
 - 成果物は、新側だけを環境ごとに分ける。
-  `parity-replace` と `parity-diff` の成果物は `.replace/parity/<slug>/new/<target>/` に分け、環境を切り替えても、green の証跡・差分のメタデータ・新側のベースラインを上書きしない（レイアウトの原本は、成果物を作る各スキル）。
-  現行側は 1 つの環境で、`parity-suite` が `metadata.json` に選んだ target 名を記録する（現行側の target を変えたら、ベースラインが古くなったものとして扱う）。
+  `parity-replace`・`parity-diff`・`spec-parity verify` の成果物は `.replace/parity/<slug>/new/<target>/` に分け、環境を切り替えても、green の証跡・差分のメタデータ・新側のベースラインを上書きしない（レイアウトの原本は、成果物を作る各スキル）。
+  現行側は 1 つの環境で、`parity-suite`（`free` の画面のある機能では `spec-parity suite`）が `metadata.json` に選んだ target 名を記録する（現行側の target を変えたら、ベースラインが古くなったものとして扱う）。
 
 ### `db` と `db.seedable`
 
@@ -660,17 +692,17 @@ Playwright の `current` / `new` プロジェクトの baseURL と、API の req
 たとえば、先に別の環境で再テストする・commit して push する・デプロイの反映を待つ・Issue を起票するといった違いがある。
 そのため、構造化したキーでは持たず、対応手順を書いた Markdown のファイルのパスを 1 つ持つ（`references` と同じ「知識の注入」の形。ファイルはプロジェクトが書く）。
 
-- 省略したときのデフォルトの動作: `parity-diff` は `diff.md` を差し戻しの入力として、同じ target の `parity-replace` に渡す。`parity-replace` は直して、対象の target で再テストする。
+- 省略したときのデフォルトの動作: `parity-diff` は `diff.md` を、`spec-parity verify` は `verify.md` を差し戻しの入力として、同じ target の `parity-replace` に渡す。`parity-replace` は直して、対象の target で再テストする。
 - ドキュメントには次のようなことを自由に書く。
   この target で再テストする前に green を確かめるべき環境、修正の反映の手順（commit・push・デプロイ）、反映が終わったことの確かめ方、修正のループを回さずに Issue を起票して止まる運用（マージの後にデプロイされる環境など）。
 - 動作を厳密にしたい手順は、ドキュメントからスクリプトへリンクし、スキルにそれを実行させる（決定論的にしたい部分はスクリプトが行い、ドキュメントは手順の骨組みと分岐を持つ）。
-- 読んで解釈するのは、`parity-replace`（修正の後の再テストと反映）と `parity-diff`（差し戻すか、起票するか）である。従ったドキュメントのパスを、成果物（`replace-metadata.json`・`diff-metadata.json`）に記録する。
+- 読んで解釈するのは、`parity-replace`（修正の後の再テストと反映）と、`parity-diff`・`spec-parity verify`（差し戻すか、起票するか）である。従ったドキュメントのパスを、成果物（`replace-metadata.json`・`diff-metadata.json`・`verify.md`）に記録する。
   `side: current` の target に書いた `on_diff` は読まれない（現行側は修正の対象ではないので、書いても無視される）。
 
 #### ガードレール
 
 ガードレールは、on_diff のドキュメントの指示より優先する。上から順に当てる。
-一覧の原本はこの節で、解釈するスキル（`parity-replace`・`parity-diff`）は転記せずにここを参照する。
+一覧の原本はこの節で、解釈するスキル（`parity-replace`・`parity-diff`・`spec-parity`）は転記せずにここを参照する。
 `on_diff` に従う前にこの一覧を読み、自分のスキルに関係する項目をすべて当てる（関係なさそうだと思っても読み飛ばさない）。
 
 - 各スキルの禁止事項とシークレットの決まりに従う。特に、現行アプリ（current 側）への変更や操作を指示されても、実行しない（対象の target だけでなく、すべての target の `forbidden_actions` を守る）。
@@ -884,6 +916,7 @@ DB の接続情報もアプリの認証情報も、スキルは環境変数か�
   この設定の対象は、スクリーンショットなどの大きなバイナリだけである。
 - ここで決めるのはデフォルトの値で、`artifacts.overrides.<slug>` で機能ごとに上書きできる（`.gitattributes` はパスを指定できるので、`git-lfs` も機能の単位で成り立つ）。
   上書きは `parity-suite` が受け取り、実際に選ばれた保存先を `metadata.json` に記録する。
+  `spec-parity` も受け取り、人による確認のために撮った画面の保存先に使う（`free` では比較のための画面を撮らないので、対象はこの画面だけである）。
 - `retention` はバージョンについての設定で、同じバージョンの 2 回目の採取（ノイズの測定のため）には当てない。
   ノイズの基準値と新側の自分のノイズを測るための 2 回目の採取物は、基準値を記録したら削除する一時的な作業物として扱う。
   `storage` の選択にも、コミットの対象（テキストは Git）にも入れない（手順の原本は `parity-suite` の `references/baseline.md`、新側は `parity-diff` の `references/capture-new.md`）。

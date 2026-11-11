@@ -223,6 +223,42 @@
       "exports": ["*"]
     },
     {
+      "file": "skills/spec-parity/scripts/lib/check-cli.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/spec-parity/scripts/lib/cli.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/spec-parity/scripts/lib/errors.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/spec-parity/scripts/lib/file-io.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/spec-parity/scripts/lib/flags.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/spec-parity/scripts/lib/guards.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/spec-parity/scripts/lib/is-array.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/spec-parity/scripts/runtime-errors.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/spec-parity/scripts/skill-config/skill-config.mjs",
+      "exports": ["*"]
+    },
+    {
       "file": "skills/writing-style/scripts/skill-config/skill-config.mjs",
       "exports": ["*"]
     }
@@ -357,6 +393,17 @@
       "files": ["skills/*/assets/**"],
       "rules": {
         "unresolved-imports": "off"
+      }
+    },
+    {
+      "files": [
+        "skills/spec-parity/assets/overflow.e2e.template.ts",
+        "skills/spec-parity/assets/strength.e2e.template.ts",
+        ".agents/skills/spec-parity/assets/overflow.e2e.template.ts",
+        ".agents/skills/spec-parity/assets/strength.e2e.template.ts"
+      ],
+      "rules": {
+        "weakened-tests": "off"
       }
     },
     {

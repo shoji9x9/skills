@@ -40,10 +40,11 @@ Claude Code・Codex・GitHub Copilot に対応した、マルチエージェン�
 | [replace-strategy](./skills/replace-strategy/) | 仕様を変えないアプリケーションリプレイスの起点。現行アプリを実測（セマンティクス・DB 復元可否・コード入手性・副作用・既存テスト）して戦略を決め、機能に分解して姉妹スキルへ振り分ける。自分では実装しない。`setup` / `issues`（issue-create へ委譲）/ `status` / `evidence`（確定した要求単位の根拠を機能インベントリへ書き戻す唯一の方法）の 4 モード。測定できなければ停止 |
 | [current-environment-bootstrap](./skills/current-environment-bootstrap/) | replace-strategy の姉妹スキル。先方から受領した資産だけを起点に、比較基準として測定可能な現行テスト環境（current target）を自社へ再構築する。受領資産の棚卸しと「受領済み／導出可能／不足」の分類、DB スキーマと設定の復元、データ意味論の根拠収集、不足に対する先方・SME 向け質問票の生成、根拠のある範囲での最小の暫定起動データ構築、起動・認証・主要画面到達の実測、空環境からの再構築の再実行検証、current target の引き渡しまで。カラム名や型からの推測でドメイン値を確定せず、出所・利用許可が不明なデータは投入しない。`current.origin: received-assets` のとき `replace-strategy setup` が測定の前に委譲する |
 | [golden-dataset](./skills/golden-dataset/) | replace-strategy の姉妹スキル。現行と新側の比較を成立させる共通データセットを構築。データそのものではなく冪等・決定論的な投入ツール（TypeScript / SQL）を作り、本番を参照せず一から作る。新側スキーマは後から出来るため 2 フェーズ（A: 現行テスト環境へ投入・検証、B: 新側スキーマへの対応づけ・投入・現新一致検証）。データセットのバージョンで parity-suite / parity-diff のベースライン陳腐化を検出。replace-strategy setup 未完了なら停止 |
-| [parity-component](./skills/parity-component/) | replace-strategy の姉妹スキル。共通 UI 部品を画面より先に作るときに、現行アプリから部品の見た目の基準を採り、実装し、部品カタログ上で照合する。採取の単位は部品インスタンス（部品 × ページ）で、要素単位のスクリーンショット・状態別の計算後スタイル・当たっている CSS 規則・データ依存部品の実データを採る。インスタンス間で値が割れた軸を可変（引数）、割れない軸を固定として決定論的に割り出す。`capture` / `build` の 2 モード。1 回で 1 部品。画面より先に部品を作らない方針なら使わない（機能ごとに parity-replace が作る） |
+| [parity-component](./skills/parity-component/) | replace-strategy の姉妹スキル。共通 UI 部品を画面より先に作るときに、現行アプリから部品の見た目の基準を採り、実装し、部品カタログ上で照合する。採取の単位は部品インスタンス（部品 × ページ）で、要素単位のスクリーンショット・状態別の計算後スタイル・当たっている CSS 規則・データ依存部品の実データを採る。インスタンス間で値が割れた軸を可変（引数）、割れない軸を固定として決定論的に割り出す。`capture` / `build` の 2 モード。1 回で 1 部品。画面より先に部品を作らない方針と `style_policy: free` では使わない（機能ごとに parity-replace が作る） |
 | [parity-suite](./skills/parity-suite/) | replace-strategy の姉妹スキル。現行アプリに対してパリティスイート（新旧どちらの実装にも当てられる実行可能な合否判定基準）を Playwright で構築し、故障注入で強度を検証。論理名のロケータマッピング・手書きの寛容な aria スナップショット・API の record/replay・視覚ベースラインとノイズ基準値の採取まで。1 回の実行で 1 機能。replace-strategy setup / golden-dataset 未完了・Playwright 不可なら停止 |
 | [parity-replace](./skills/parity-replace/) | replace-strategy の姉妹スキル。parity-suite が定義した論理名に対して新側を実装する意図的に薄い層。機能をページ単位のフェーズに分割し、新側ロケータマッピングの例外を充填し、実装役と分離した敵対的レビューを未コミット差分にかける。ブランチ作成・commit・PR は issue-start へ委譲。現行コードを一次情報源に読み、推測せず確信度を申告し、スイートが新に対して green ＋ 検証コマンド ＋ Issue の受け入れ条件の照合で完了（差分ゼロは parity-diff との往復の終了条件）。1 回で 1 機能。前提未完了なら停止 |
 | [parity-diff](./skills/parity-diff/) | replace-strategy の姉妹スキル。現行と新側の差分を検出・分類する。検出は決定論的ツール（画素・特性照合・aria の 3 つの方法）が行い、LLM は分類（要対応／許容／環境ノイズ）のみを行う。1 回の実行で 1 機能。前提（replace-strategy setup / golden-dataset / 対象 slug の parity-suite 完了・parity-replace の新側 green）未完了なら停止 |
+| [spec-parity](./skills/spec-parity/) | replace-strategy の姉妹スキル。`style_policy: free`（UI の仕様は現行に合わせ、見た目は合わせない）のリプレイスで、画面のある機能を parity-suite・parity-diff の代わりに確かめる。`suite` は現行に対して e2e のスイート（操作・状態・role ごとの assertion・API）を作り、故障注入で強度を確かめ、操作中のエラーの基準と現行が保証している幅を記録する。`verify` は新側だけで、横のはみ出し・操作中のエラー・デザインの点検・人による画面の確認を確かめて収束を判定する。見た目の一致と性能は比べない。1 回で 1 機能。`style_policy` が free でない・e2e が無い・前提未完了なら停止 |
 
 ## 前提条件
 
@@ -75,6 +76,7 @@ gh skill install shoji9x9/skills parity-component
 gh skill install shoji9x9/skills parity-suite
 gh skill install shoji9x9/skills parity-replace
 gh skill install shoji9x9/skills parity-diff
+gh skill install shoji9x9/skills spec-parity
 ```
 
 ## スキルの更新
@@ -107,7 +109,7 @@ gh skill update --all
 | `git-worktree` | git-worktree | worktree の置き場所とファイルを運ぶ方法 |
 | `writing-style` | writing-style | `style_docs`（プロジェクトの文章の規約）・`word_list`（使わない語の一覧）・`lint_command`（文章のリンター） |
 | `browser-test` | browser-test・issue-batch | 確認する環境と禁止する操作 |
-| `replace-strategy` | replace-strategy・current-environment-bootstrap・golden-dataset・parity-component・parity-suite・parity-replace・parity-diff | リプレイスの対象・環境・成果物の方針・意図的差異のレジストリ |
+| `replace-strategy` | replace-strategy・current-environment-bootstrap・golden-dataset・parity-component・parity-suite・parity-replace・parity-diff・spec-parity | リプレイスの対象・環境・スタイルの方針・成果物の方針・意図的差異のレジストリ |
 | `kaizen` | kaizen | 忘却・定期実行・コミット前のチェックの時間の上限 |
 | `agent-usage` | agent-usage | 単価・人の ID・判断の無いブランチの扱い |
 | `box` | box | 操作の対象のフォルダ |
