@@ -463,7 +463,7 @@ lefthook の pre-commit は、TypeScript か JavaScript（`ts`・`tsx`・`mts`�
 雛形は、利用者のプロジェクトへコピーした後に Playwright が読み込む。Playwright は拡張子なしの相対 import も解決するので、`bundler` で検査する。
 雛形が import する、コピー先にだけ在るモジュール（`../../lib/interactions` など）は、`types/parity-templates.ts` で `*` を含む名前の ambient 宣言にする。
 `*` を含む名前は相対の import にも一致するので、雛形に `// @ts-nocheck` などを足さずに済む。利用者のコピーには何も入らない。
-雛形に新しい import を足したら、`types/parity-templates.ts` にも足す。`@playwright/test` の型は devDependencies から読む。
+雛形に新しい import を足したら、`types/parity-templates.ts` にも足す。`@playwright/test`・`e2e`・`@e2e-dev/web` の型は、実行ではなく雛形の型の検査のために devDependencies に入れ、そこから読む。
 `types/` の宣言は `.d.ts` にしない。`skipLibCheck` は `node_modules` の型だけでなく、すべての `.d.ts` を検査から外すので、宣言の誤りが警告なしに通る。
 
 `JSON.parse` と `Response.json()` の戻り値は、`types/strict-json.ts` で `unknown` にしている（`tsconfig.repo.json` と `tsconfig.skills.json` が読む）。
