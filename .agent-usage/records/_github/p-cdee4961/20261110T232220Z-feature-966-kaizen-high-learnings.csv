@@ -37,3 +37,4 @@ ci:42924994055:1,ci,2026-11-11T01:02:36.512Z,p-cdee4961,github-actions,,,,2026-1
 ci:42924993918:1,ci,2026-11-11T01:02:36.512Z,p-cdee4961,github-actions,,,,2026-11-10T23:38:15.000Z,2026-11-10T23:38:16.000Z,Asia/Tokyo,feature/966-kaizen-high-learnings,966,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:42924994096:1,ci,2026-11-11T01:02:36.512Z,p-cdee4961,github-actions,,,,2026-11-10T23:38:15.000Z,2026-11-10T23:39:40.000Z,Asia/Tokyo,feature/966-kaizen-high-learnings,966,,,,,,,,,,CodeQL;pull_request;success,
 coverage:github:2026-11-09T23:37:10.654Z:2026-11-11T01:02:36.512Z,coverage,2026-11-11T01:02:36.512Z,p-cdee4961,,,,,2026-11-09T23:37:10.654Z,2026-11-11T01:02:36.512Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-10T01:02:36.512Z:2026-11-11T01:03:14.794Z,coverage,2026-11-11T01:03:14.794Z,p-cdee4961,,,,,2026-11-10T01:02:36.512Z,2026-11-11T01:03:14.794Z,Asia/Tokyo,,,,,,,,,,,,ok,
