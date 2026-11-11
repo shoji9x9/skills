@@ -12,7 +12,8 @@
 // あわせて、未検証の一覧（unverified）に、spec-parity が確かめない性能（performance）が理由付きで載っていることを確かめる。
 // 1・2・4・5 の記録は、verify-metadata.json の new.commit と同じバージョンのものでなければ、古い記録として数える。
 // 前提として、verify-metadata.json の new.commit が none（新側が git で管理されていない）でないことを確かめる。none では、どの記録のバージョンも特定できない。
-// parity-replace が新側を green にした記録（replace-metadata.json）は、dirty: false であることを確かめる。
+// verify-metadata.json の new.dirty も false であることを確かめる。commit していない変更を含む新側で採った記録は、new.commit のバージョンの記録と言えない。
+// parity-replace が新側を green にした記録（replace-metadata.json）も、dirty: false であることを確かめる。
 // あわせて、記録の slug・new.target・new.commit が、metadata.json の slug・--target・verify-metadata.json の new.commit と同じことを確かめる。
 // 前提の強度の確認も、metadata.json の strength.validated を信じず、strength-plan.json と strength-report.json から判定し直す。
 //
@@ -572,7 +573,7 @@ function checkStrength({ plan, report }, slug) {
 }
 
 /**
- * verify-metadata.json が対象の slug と target のもので、確かめる新側のバージョン（new.commit）を持つことを確かめる。
+ * verify-metadata.json が対象の slug と target のもので、確かめる新側のバージョン（new.commit）を持ち、new.dirty が false であることを確かめる。
  * @param {unknown} v
  * @param {{ slug: string, target: string }} key
  * @returns {{ v: Record<string, unknown>, commit: string }}
@@ -580,13 +581,19 @@ function checkStrength({ plan, report }, slug) {
 function readVerifyHead(v, { slug, target }) {
   if (!isPlainObject(v) || v.slug !== slug || v.target !== target)
     throw new UsageError(`verify-metadata.json の slug と target が ${slug} / ${target} でない`);
-  const commit = isPlainObject(v.new) ? v.new.commit : undefined;
+  const head = isPlainObject(v.new) ? v.new : {};
+  const commit = head.commit;
   if (!filled(commit))
     throw new UsageError("verify-metadata.json の new.commit が無い（雛形の値のままを含む）");
   // none は新側が git で管理されていないことを表し、どの記録のバージョンも特定できない（none どうしの比較は常に一致する）
   if (commit === "none")
     throw new UsageError(
       "verify-metadata.json の new.commit が none（新側を git で管理し、commit したバージョンで verify する）",
+    );
+  // replace-metadata.json の new.dirty と同じ扱い。commit していない変更を含む新側で採った記録は、new.commit のバージョンの記録と言えない
+  if (head.dirty !== false)
+    throw new UsageError(
+      "verify-metadata.json の new.dirty が false でない（commit していない変更を含む新側で確かめた記録は、バージョンを特定できない。新側を commit してから verify をやり直す）",
     );
   return { v, commit };
 }

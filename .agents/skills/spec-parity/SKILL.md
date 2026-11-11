@@ -61,6 +61,7 @@ spec-parity verify [--feature <slug>] [--target <name>] [--autonomous]
   記録の `slug`・`new.target`・`new.commit` が、対象の slug・選んだ target・確かめる新側のバージョンと同じで、`new.dirty` が `false` であることも前提にする。
   commit していない変更で green にした記録は、バージョンを特定できないので止まる。
   確かめる新側のバージョン（`verify-metadata.json` の `new.commit`）が `none`（新側が git で管理されていない）でも止まる。どの記録のバージョンも特定できないからである。
+  確かめる新側の作業ツリーに commit していない変更があるとき（`verify-metadata.json` の `new.dirty` が `false` でないとき）も止まる。採った記録が `new.commit` のバージョンのものと言えないからである。新側を commit してから verify をやり直すよう利用者に示す。
   `spec-parity` は git で管理されていない新側を確かめないので、新側を git で管理して commit するよう利用者に示す。
   ファイルが無いか `true` でないとき、または上の鍵が違うか `dirty` で止まったときは、「その環境ではまだ green の証跡が無い」として止まり、同じ `--target` での `parity-replace` を案内する（新側を commit してから green を記録し直す）。
   `new.commit` だけが違い、記録が `dirty: false` なら、確かめるバージョンを green にしたバージョンに戻す手も、利用者に示す。
@@ -158,6 +159,7 @@ node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mj
    `suite` の完了は、`metadata.json` の `style_policy: free`・`suite.current_green`・`strength.validated` で確かめる。
    強度は `strength.validated` を信じず、`strength-check.mjs` を `--write` なしで `strength-plan.json` と `strength-report.json` に当て、exit 0 であることも確かめる（手順 7 の判定も同じに判定し直す）。
    `verify-metadata.json` を雛形から作り（あれば前の保留を読んでから更新する）、`new.commit` に確かめる新側のバージョン（完全な SHA。`git rev-parse HEAD` の出力）を書く。
+   `new.dirty` には、新側のリポジトリで `git status --porcelain` が空なら `false`、空でなければ `true` を書く。`true` なら、ここで止まる（上の「前提」）。
 2. スイートを新側で実行する。`--target=new` で実行し、結果の JSON を `new/<target>/suite-report.json` に保存し、`suite.commit` を書く。
 3. 横のはみ出しを測る。記録した幅で新側を測り、`overflow-check.mjs --write` で `overflow` に書く（[`references/overflow.md`](references/overflow.md)）。
 4. 操作中のエラーを比べる。新側で 2 回以上記録し、`runtime-errors.mjs compare --write <verify-metadata.json>` で比べる。現行に無かった署名は 3 値に分類する（[`references/runtime-errors.md`](references/runtime-errors.md)）。

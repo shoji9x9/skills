@@ -4,6 +4,7 @@
   "style_policy": "free",
   "new": {
     "commit": "abc1234def5678",
+    "dirty": false,
     "ui_url": "http://localhost:5173"
   },
   "run": {

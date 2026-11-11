@@ -28,6 +28,8 @@ node <spec-parity>/scripts/convergence-check.mjs --slug-dir .replace/parity/<slu
 
 - スイート・横のはみ出し・デザインの点検・人による確認の記録は、`verify-metadata.json` の `new.commit` と同じバージョンのものでなければ、古い記録として数える。
   `verify-metadata.json` の `new.commit` が `none` なら、どの記録のバージョンも特定できないので、判定できないとして exit 2 にする。
+  `verify-metadata.json` の `new.dirty` が `false` でないとき（欠落・型の誤り・雛形の値のままを含む）も、記録が `new.commit` のバージョンのものと言えないので、判定できないとして exit 2 にする。
+  `replace-metadata.json` の `new.dirty` と同じ扱いである。新側を commit してから verify をやり直す。
   `parity-replace` が新側を green にした記録（`replace-metadata.json`）は、前提として確かめる。
   記録の鍵（`slug`・`new.target`・`new.commit`）のどれかが、`metadata.json` の `slug`・`--target`・`verify-metadata.json` の `new.commit` と違うとき（欠落と型の誤りを含む）は、判定できないとして exit 2 にする。
   `new.dirty` が `false` でないときも同じである。どちらも、verify の手順をやり直しても直らない。

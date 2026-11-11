@@ -670,6 +670,11 @@ describe("前提の欠落（exit 2）", () => {
       (g: ReturnType<typeof green>) => ({ ...g, new: { target: "stg", commit: COMMIT } }),
       "new.dirty が false でない",
     ],
+    [
+      "new.dirty が真偽値でない",
+      (g: ReturnType<typeof green>) => ({ ...g, new: { ...g.new, dirty: "false" } }),
+      "new.dirty が false でない",
+    ],
   ])(
     "parity-replace が green にした記録の %s なら、前提の欠落として exit 2",
     (_name, edit, message) => {
@@ -726,6 +731,24 @@ describe("前提の欠落（exit 2）", () => {
     expect(run(withVerify({ new: {} })).code).toBe(2);
   });
 
+  // verify の側の作業ツリーの状態。replace-metadata.json の new.dirty と同じく、false のときだけ通す
+  test.each([
+    ["true", { commit: COMMIT, dirty: true }],
+    ["無い", { commit: COMMIT }],
+    ["文字列", { commit: COMMIT, dirty: "false" }],
+    ["null", { commit: COMMIT, dirty: null }],
+  ])("verify-metadata.json の new.dirty が %s なら、前提の欠落として exit 2", (_name, head) => {
+    const r = run(withVerify({ new: head }));
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("verify-metadata.json の new.dirty が false でない");
+  });
+
+  test("verify-metadata.json の new.dirty が false なら、dirty では止まらず収束する", () => {
+    const r = run(withVerify({ new: { commit: COMMIT, dirty: false } }));
+    expect(r.code).toBe(0);
+    expect(r.stderr).not.toContain("new.dirty");
+  });
+
   test("--target の形が誤っていれば exit 2", () => {
     expect(run(convergedFs(), ["--slug-dir", SLUG_DIR, "--target", "../x"]).code).toBe(2);
   });
@@ -756,14 +779,28 @@ describe("同梱の雛形をそのまま使った記録", () => {
     expect(run(fs).code).toBe(2);
   });
 
-  test("new.commit だけを埋め、ほかを雛形の値のまま残すと、承認とやり直しを理由に exit 1", () => {
+  test("new.commit を埋めても、new.dirty が雛形の値のままなら exit 2", () => {
+    const fs = convergedFs();
+    const doc = parseJsonAs<{ new: Record<string, unknown> }>(readFileSync(TEMPLATE, "utf8"));
+    fs.put(VERIFY, {
+      ...doc,
+      slug: "orders",
+      target: "stg",
+      new: { ...doc.new, commit: COMMIT },
+    });
+    const r = run(fs);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("verify-metadata.json の new.dirty が false でない");
+  });
+
+  test("new.commit と new.dirty だけを埋め、ほかを雛形の値のまま残すと、承認とやり直しを理由に exit 1", () => {
     const fs = convergedFs();
     const doc = parseJsonAs<Record<string, unknown>>(readFileSync(TEMPLATE, "utf8"));
     fs.put(VERIFY, {
       ...doc,
       slug: "orders",
       target: "stg",
-      new: { commit: COMMIT },
+      new: { commit: COMMIT, dirty: false },
       suite: { commit: COMMIT },
     });
     const r = run(fs);

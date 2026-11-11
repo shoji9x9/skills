@@ -313,7 +313,23 @@
       "occurrences": 1,
       "expect_failing": [
         "前提の欠落（exit 2） parity-replace が green にした記録の new.dirty が true なら、前提の欠落として exit 2",
-        "前提の欠落（exit 2） parity-replace が green にした記録の new.dirty が無い なら、前提の欠落として exit 2"
+        "前提の欠落（exit 2） parity-replace が green にした記録の new.dirty が無い なら、前提の欠落として exit 2",
+        "前提の欠落（exit 2） parity-replace が green にした記録の new.dirty が真偽値でない なら、前提の欠落として exit 2"
+      ]
+    },
+    {
+      "id": "cv-verify-dirty-off",
+      "why": "commit していない変更を含む新側で確かめた verify-metadata.json の記録を、new.commit のバージョンの記録として通す",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  if (head.dirty !== false)\n",
+      "replace": "  if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "前提の欠落（exit 2） verify-metadata.json の new.dirty が true なら、前提の欠落として exit 2",
+        "前提の欠落（exit 2） verify-metadata.json の new.dirty が 無い なら、前提の欠落として exit 2",
+        "前提の欠落（exit 2） verify-metadata.json の new.dirty が 文字列 なら、前提の欠落として exit 2",
+        "前提の欠落（exit 2） verify-metadata.json の new.dirty が null なら、前提の欠落として exit 2",
+        "同梱の雛形をそのまま使った記録 new.commit を埋めても、new.dirty が雛形の値のままなら exit 2"
       ]
     },
     {

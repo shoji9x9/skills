@@ -163,7 +163,7 @@ export const verifyMetadata = (over: Record<string, unknown> = {}) => ({
   slug: "orders",
   target: "stg",
   style_policy: "free",
-  new: { commit: COMMIT },
+  new: { commit: COMMIT, dirty: false },
   suite: { commit: COMMIT, report: `${NEW_DIR}/suite-report.json` },
   runtime_errors: comparedOk(),
   design_review: {
