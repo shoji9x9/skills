@@ -26,22 +26,14 @@
 - `suite.current_green` と `strength.validated` がどちらも `true` である
 - 現行のスイートの結果（`suite.report`。デフォルトは `.replace/parity/<slug>/suite-report.json`）がある
 
-`strength.validated` は信じない。`spec-parity` の `scripts/strength-check.mjs` を `--write` なしで `strength-plan.json` と `strength-report.json` に当て、exit 0 であることも確かめる。
-`spec-parity verify` の手順 1 と同じ判定である。
-インストール済みの `spec-parity` から実行し、コピーしない。
+強度の記録を計画と結果から判定し直すのは、`spec-parity verify` の手順 1 と収束の判定である。このスキルは判定を転記して持たず、`strength.validated` を前提の確認に使う。
 
 満たさなければ、成果物を作らずに止まり、同じ slug の `spec-parity suite` を案内する。
 `differ.validated_by_strength_gate` は `parity-suite` の強度の記録で、`spec-parity suite` の成果物には無いので求めない。`parity-suite` も案内しない（`parity-suite` は `free` の画面のある機能で止まる）。
 `metadata.json` が `parity-suite` の形（`style_policy` が無いか、`suite.runner` が `e2e` でない）なら、設定と成果物の方針が食い違っている。
 `style_policy` を機能の着手の後に変えたときに起き、作り直すかは利用者が機能ごとに決める（`replace-strategy` の `references/project-config.md`「スタイルの方針」）。止まって、食い違いを報告する。
 
-e2e が入っていることも確かめる。プロジェクトの devDependencies に `e2e` と `@e2e-dev/web` があることを先に確かめ、次のコマンドが終了コード 0 で終わることで判定する。
-
-```bash
-E2E_TELEMETRY_DISABLED=1 DO_NOT_TRACK=1 E2E_UPDATE_CHECK_DISABLED=1 npx --no-install e2e --version </dev/null
-```
-
-`--no-install` は、入っていない e2e を `npx` がレジストリから取得して実行するのを止める。
+e2e が入っていることも確かめる。確かめ方の原本は `spec-parity` の `references/e2e-runner.md`「バージョンと導入」である（ここへ転記しない）。
 無ければ止まる。e2e を入れるのは `spec-parity suite` の工程なので、このスキルは入れない。
 
 `replace-strategy setup`・`golden-dataset` のフェーズ A とフェーズ B・未解決の保留の判定は、`SKILL.md`「前提」のままである。

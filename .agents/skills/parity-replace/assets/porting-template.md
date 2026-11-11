@@ -67,9 +67,9 @@
 
 ## 表への書き込み（読解のみの行）
 
-<!-- style_policy: free の機能は reactions.json が無いので、現行のコードから挙げた書き込みと新側で書く箇所を書く（該当が無ければ、読んだ範囲を添えて「該当なし」）。 -->
-<!-- feature モードのみ。parity-suite の reactions.json の side_effect_writes.sites のうち verification: source-only の行（例外時など移行元で起こせない書き込み）を 1 行ずつ転記する。 -->
+<!-- feature モードのみ。style_policy: reproduce では、parity-suite の reactions.json の side_effect_writes.sites のうち verification: source-only の行（例外時など移行元で起こせない書き込み）を 1 行ずつ転記する。 -->
 <!-- assertion の行はスイートの新側 green が根拠になるのでここには書かない。source-only の行が無ければ「該当なし」と書く（空欄にすると「無い」と「誰も見ていない」が区別できない）。 -->
+<!-- style_policy: free では reactions.json が無い。現行のコードから挙げた書き込みと新側で書く箇所を書き、該当が無ければ「該当なし（現行のコードを読んだ範囲: <範囲>）」と書く。 -->
 
 | 移行元の書き込み（file:line・表） | 時機・値・回数（sites の occasion / values / count） | 新側の書き込み箇所（ファイル・シンボル） | 敵対的レビューでの突き合わせ結果 |
 |---|---|---|---|
