@@ -608,30 +608,78 @@ describe("前提の欠落（exit 2）", () => {
     expect(run(fs).code).toBe(2);
   });
 
+  // 記録を識別する鍵ごとに、別の値・欠落・型の誤りを置く。どれも一致しないものとして止まる
+  const green = () => ({
+    slug: "orders",
+    suite: { new_green: true },
+    new: { target: "stg", commit: COMMIT, dirty: false },
+  });
   test.each([
-    ["バージョンが new.commit と違う", { commit: "old", dirty: false }, "と違う（parity-replace"],
-    ["new.commit が none", { commit: "none", dirty: false }, "と違う（parity-replace"],
-    ["dirty: true", { commit: COMMIT, dirty: true }, "new.dirty が false でない"],
-    ["dirty が無い", { commit: COMMIT }, "new.dirty が false でない"],
-    ["target が --target と違う", { commit: COMMIT, dirty: false, target: "prod" }, "new.target"],
+    ["slug が別の値", (g: ReturnType<typeof green>) => ({ ...g, slug: "invoices" }), "slug"],
+    ["slug が無い", ({ slug: _s, ...g }: ReturnType<typeof green>) => g, "slug"],
+    ["slug が文字列でない", (g: ReturnType<typeof green>) => ({ ...g, slug: 1 }), "slug"],
+    [
+      "new.target が別の値",
+      (g: ReturnType<typeof green>) => ({ ...g, new: { ...g.new, target: "prod" } }),
+      "new.target",
+    ],
+    [
+      "new.target が無い",
+      (g: ReturnType<typeof green>) => ({ ...g, new: { commit: COMMIT, dirty: false } }),
+      "new.target",
+    ],
+    [
+      "new.target が文字列でない",
+      (g: ReturnType<typeof green>) => ({ ...g, new: { ...g.new, target: null } }),
+      "new.target",
+    ],
+    [
+      "new.commit が別の値",
+      (g: ReturnType<typeof green>) => ({ ...g, new: { ...g.new, commit: "old" } }),
+      "new.commit",
+    ],
+    [
+      "new.commit が無い",
+      (g: ReturnType<typeof green>) => ({ ...g, new: { target: "stg", dirty: false } }),
+      "new.commit",
+    ],
+    [
+      "new.commit が文字列でない",
+      (g: ReturnType<typeof green>) => ({ ...g, new: { ...g.new, commit: 1 } }),
+      "new.commit",
+    ],
+    [
+      "new.dirty が true",
+      (g: ReturnType<typeof green>) => ({ ...g, new: { ...g.new, dirty: true } }),
+      "new.dirty が false でない",
+    ],
+    [
+      "new.dirty が無い",
+      (g: ReturnType<typeof green>) => ({ ...g, new: { target: "stg", commit: COMMIT } }),
+      "new.dirty が false でない",
+    ],
   ])(
     "parity-replace が green にした記録の %s なら、前提の欠落として exit 2",
-    (_name, n, message) => {
+    (_name, edit, message) => {
       const fs = convergedFs();
-      fs.put(`${NEW_DIR}/replace-metadata.json`, {
-        suite: { new_green: true },
-        new: { target: "stg", ...n },
-      });
+      fs.put(`${NEW_DIR}/replace-metadata.json`, edit(green()));
       const r = run(fs);
       expect(r.code).toBe(2);
       expect(r.stderr).toContain(message);
     },
   );
 
-  test("verify-metadata.json の new.commit が none なら、green の記録も none でも前提の欠落として exit 2", () => {
-    const fs = withVerify({ new: { commit: "none" } });
+  test("すべての記録の commit が none でも、verify-metadata.json の new.commit が none なら前提の欠落として exit 2", () => {
+    // none どうしの比較は常に一致するので、この検査が無いと、どの記録も同じバージョンとして通って収束する
+    const fs = withVerify({
+      new: { commit: "none" },
+      suite: { commit: "none", report: `${NEW_DIR}/suite-report.json` },
+      design_review: { ...verifyMetadata().design_review, commit: "none" },
+      human_review: { ...verifyMetadata().human_review, commit: "none" },
+    });
+    fs.put(`${NEW_DIR}/overflow.json`, overflowRecords({ commit: "none" }));
     fs.put(`${NEW_DIR}/replace-metadata.json`, {
-      suite: { new_green: true },
+      ...green(),
       new: { target: "stg", commit: "none", dirty: false },
     });
     const r = run(fs);

@@ -58,11 +58,13 @@ spec-parity verify [--feature <slug>] [--target <name>] [--autonomous]
   `suite` を作った後の変更が対象の slug に影響するなら、`spec-parity suite` をやり直すよう促して止まる。フェーズ B の側が古ければ、同じ target の `golden-dataset`（フェーズ B）を案内して止まる。
   投入の対象でない target の扱いも同じ表に従い、免除したときは、データに依存する確かめを `verify-metadata.json` の `unverified` に理由と一緒に書く。`parity-diff` の `references/preflight.md` を読めないときは、確かめたことにせず止まる。
 - `verify` は、選んだ target の `.replace/parity/<slug>/new/<target>/replace-metadata.json` の `suite.new_green` が `true` であることを前提にする。
-  `new.target` が選んだ target と同じで、`new.commit` が確かめる新側のバージョンと同じ SHA で、`new.dirty` が `false` であることも前提にする。
-  `none`（新側が git で管理されていない）と、commit していない変更で green にした記録は、バージョンを特定できないので止まる。
-  止まったら、新側を commit してから同じ `--target` で `parity-replace` をやり直して green を記録し直すか、確かめるバージョンを green にしたバージョンに戻すかを、利用者に示す。
-  ファイルが無いか `true` でなければ、「その環境ではまだ green の証跡が無い」として止まり、同じ `--target` での `parity-replace` を案内する。
-  案内する前に、`parity-replace` の `SKILL.md` の前提が `style_policy: free` の画面のある機能で止まると定めているかを確かめる（下記「姉妹スキルとの連携」）。
+  記録の `slug`・`new.target`・`new.commit` が、対象の slug・選んだ target・確かめる新側のバージョンと同じで、`new.dirty` が `false` であることも前提にする。
+  commit していない変更で green にした記録は、バージョンを特定できないので止まる。
+  確かめる新側のバージョン（`verify-metadata.json` の `new.commit`）が `none`（新側が git で管理されていない）でも止まる。どの記録のバージョンも特定できないからである。
+  `spec-parity` は git で管理されていない新側を確かめないので、新側を git で管理して commit するよう利用者に示す。
+  ファイルが無いか `true` でないとき、または上の鍵が違うか `dirty` で止まったときは、「その環境ではまだ green の証跡が無い」として止まり、同じ `--target` での `parity-replace` を案内する（新側を commit してから green を記録し直す）。
+  確かめるバージョンを green にしたバージョンに戻す手も、利用者に示す。
+  `parity-replace` を案内する前に、`parity-replace` の `SKILL.md` の前提が `style_policy: free` の画面のある機能で止まると定めているかを確かめる（下記「姉妹スキルとの連携」）。
   定めているときと、`parity-replace` の `SKILL.md` を読めないときは、`parity-replace` も前提の確認で止まり、このファイルを作らない。そのときは `parity-replace` を案内せず、新側を実装して green を記録する手順が無いことを利用者に報告して止まる。
 - 前提スキルの未解決の保留が無い。見る記録先と範囲の原本は `replace-strategy` の `references/autonomy.md`「下流の前提判定」で、`suite` の保留（`.replace/parity/<slug>/pending-decisions.json`）を含む。
   数えるのは `replace-strategy` の `scripts/pending-decisions-check.mjs` で、exit 0 でなければ、保留を抱えたスキルを案内して止まる。`replace-strategy` の文書を読めないときも止まる。

@@ -11,8 +11,8 @@
 //   7. 未測定: metadata.json の unmeasured に blocking（承認の無い accepted を含む）が残っていない（parity-diff の収束の判定と同じ扱い）
 // あわせて、未検証の一覧（unverified）に、spec-parity が確かめない性能（performance）が理由付きで載っていることを確かめる。
 // 1・2・4・5 の記録は、verify-metadata.json の new.commit と同じバージョンのものでなければ、古い記録として数える。
-// 前提として、parity-replace が新側を green にした記録（replace-metadata.json）が、同じバージョンで dirty: false であることを確かめる。
-// 新側が git で管理されていない（new.commit: none）か、commit していない変更で green にした記録は、バージョンを特定できないので判定しない。
+// 前提として、verify-metadata.json の new.commit が none（新側が git で管理されていない）でないことを確かめる。none では、どの記録のバージョンも特定できない。
+// parity-replace が新側を green にした記録（replace-metadata.json）は、slug・new.target・new.commit が verify と同じで、dirty: false であることを確かめる。
 // 前提の強度の確認も、metadata.json の strength.validated を信じず、strength-plan.json と strength-report.json から判定し直す。
 //
 // 保存された ok や件数は信じず、元の記録から判定し直す（手で書き換えた記録で収束させない）。
@@ -525,28 +525,30 @@ export function judgeUnmeasured(metadata, reasons) {
 
 /**
  * parity-replace が、verify するバージョンの新側を green にした記録（replace-metadata.json）があることを確かめる。
- * バージョンが違えば、verify の手順をやり直しても replace-metadata.json は変わらないので、やり直しの理由にせず前提の欠落にする。
+ * 記録を識別する鍵（slug・new.target・new.commit）を、verify の鍵と 1 つずつ厳密に比べる。欠落・型の誤り・別の値は、どれも一致しないものとして扱う。
+ * 鍵が違えば、verify の手順をやり直しても replace-metadata.json は変わらないので、やり直しの理由にせず前提の欠落にする。
  * @param {unknown} rm
- * @param {{ commit: string, target: string }} at - verify-metadata.json の new.commit（none でない）と --target
+ * @param {{ slug: string, target: string, commit: string }} want - verify の slug・--target・verify-metadata.json の new.commit（none でない）
  */
-function checkNewGreen(rm, { commit, target }) {
+function checkNewGreen(rm, want) {
+  const hint = `parity-replace で、--target ${want.target} の verify するバージョンの新側を green にしてから verify する`;
   if (!isPlainObject(rm) || !isPlainObject(rm.suite) || rm.suite.new_green !== true)
-    throw new UsageError(
-      "replace-metadata.json の suite.new_green が true でない（parity-replace で新側を green にしてから verify する）",
-    );
+    throw new UsageError(`replace-metadata.json の suite.new_green が true でない（${hint}）`);
   const n = isPlainObject(rm.new) ? rm.new : {};
   if (n.dirty !== false)
     throw new UsageError(
-      "replace-metadata.json の new.dirty が false でない（commit していない変更で green にした記録は、バージョンを特定できない）",
+      `replace-metadata.json の new.dirty が false でない（commit していない変更で green にした記録は、バージョンを特定できない。新側を commit してから、${hint}）`,
     );
-  // 同じ commit で dirty: false の記録は target をまたいで一致しうるので、別の target の記録のコピーも止める
-  if (n.target !== target)
+  /** @type {[string, unknown, string][]} */
+  const keys = [
+    ["slug", rm.slug, want.slug],
+    ["new.target", n.target, want.target],
+    ["new.commit", n.commit, want.commit],
+  ];
+  const bad = keys.filter(([, got, expected]) => got !== expected);
+  if (bad.length > 0)
     throw new UsageError(
-      `replace-metadata.json の new.target（${String(n.target)}）が --target（${target}）と違う`,
-    );
-  if (n.commit !== commit)
-    throw new UsageError(
-      `replace-metadata.json の new.commit（${String(n.commit)}）が verify-metadata.json の new.commit（${commit}）と違う（parity-replace で、verify するバージョンの新側を green にしてから verify する）`,
+      `replace-metadata.json の ${bad.map(([k, got, expected]) => `${k}（${JSON.stringify(got)}）が ${expected} でない`).join("、")}（${hint}）`,
     );
 }
 
@@ -583,7 +585,7 @@ function readVerifyHead(v, { slug, target }) {
     throw new UsageError(
       "verify-metadata.json の new.commit が none（新側を git で管理し、commit したバージョンで verify する）",
     );
-  return { v, commit: String(commit) };
+  return { v, commit };
 }
 
 /**
@@ -595,7 +597,7 @@ export function judgeConvergence(input) {
   const slug = String(metadata.slug);
   checkStrength({ plan: input.strengthPlan, report: input.strengthReport }, slug);
   const { v, commit } = readVerifyHead(input.verify, { slug, target: input.target });
-  checkNewGreen(input.replaceMetadata, { commit, target: input.target });
+  checkNewGreen(input.replaceMetadata, { slug, target: input.target, commit });
   const reasons = makeReasons();
   const suiteRecord = isPlainObject(v.suite) ? v.suite : {};
   sameCommit(reasons, "suite", { actual: suiteRecord.commit, expected: commit });

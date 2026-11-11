@@ -264,6 +264,7 @@ export function convergedFs(): Fs {
   fs.put(`${SLUG_DIR}/strength-report.json`, strengthReport());
   fs.put(`${SLUG_DIR}/suite-report.json`, passing("current"));
   fs.put(`${NEW_DIR}/replace-metadata.json`, {
+    slug: "orders",
     suite: { new_green: true },
     new: { target: "stg", commit: COMMIT, dirty: false },
   });

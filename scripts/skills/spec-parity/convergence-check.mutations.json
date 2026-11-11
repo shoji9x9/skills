@@ -312,31 +312,8 @@
       "replace": "  if (false)\n",
       "occurrences": 1,
       "expect_failing": [
-        "前提の欠落（exit 2） parity-replace が green にした記録の dirty: true なら、前提の欠落として exit 2",
-        "前提の欠落（exit 2） parity-replace が green にした記録の dirty が無い なら、前提の欠落として exit 2"
-      ]
-    },
-    {
-      "id": "cv-new-green-commit-off",
-      "why": "parity-replace が green にしたバージョンと verify するバージョンが違っても通す",
-      "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "  if (n.commit !== commit)\n",
-      "replace": "  if (false)\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "前提の欠落（exit 2） parity-replace が green にした記録の バージョンが new.commit と違う なら、前提の欠落として exit 2",
-        "前提の欠落（exit 2） parity-replace が green にした記録の new.commit が none なら、前提の欠落として exit 2"
-      ]
-    },
-    {
-      "id": "cv-new-green-target-off",
-      "why": "別の target の replace-metadata.json をコピーしただけの記録を、この target の green として通す",
-      "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "  if (n.target !== target)\n",
-      "replace": "  if (false)\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "前提の欠落（exit 2） parity-replace が green にした記録の target が --target と違う なら、前提の欠落として exit 2"
+        "前提の欠落（exit 2） parity-replace が green にした記録の new.dirty が true なら、前提の欠落として exit 2",
+        "前提の欠落（exit 2） parity-replace が green にした記録の new.dirty が無い なら、前提の欠落として exit 2"
       ]
     },
     {
@@ -347,7 +324,26 @@
       "replace": "  if (false)\n",
       "occurrences": 1,
       "expect_failing": [
-        "前提の欠落（exit 2） verify-metadata.json の new.commit が none なら、green の記録も none でも前提の欠落として exit 2"
+        "前提の欠落（exit 2） すべての記録の commit が none でも、verify-metadata.json の new.commit が none なら前提の欠落として exit 2"
+      ]
+    },
+    {
+      "id": "cv-new-green-key-off",
+      "why": "green の記録を識別する鍵（slug・new.target・new.commit）が verify と違っても、欠落や型の誤りでも通す",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  const bad = keys.filter(([, got, expected]) => got !== expected);\n",
+      "replace": "  const bad = keys.filter(() => false);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "前提の欠落（exit 2） parity-replace が green にした記録の slug が別の値 なら、前提の欠落として exit 2",
+        "前提の欠落（exit 2） parity-replace が green にした記録の slug が無い なら、前提の欠落として exit 2",
+        "前提の欠落（exit 2） parity-replace が green にした記録の slug が文字列でない なら、前提の欠落として exit 2",
+        "前提の欠落（exit 2） parity-replace が green にした記録の new.target が別の値 なら、前提の欠落として exit 2",
+        "前提の欠落（exit 2） parity-replace が green にした記録の new.target が無い なら、前提の欠落として exit 2",
+        "前提の欠落（exit 2） parity-replace が green にした記録の new.target が文字列でない なら、前提の欠落として exit 2",
+        "前提の欠落（exit 2） parity-replace が green にした記録の new.commit が別の値 なら、前提の欠落として exit 2",
+        "前提の欠落（exit 2） parity-replace が green にした記録の new.commit が無い なら、前提の欠落として exit 2",
+        "前提の欠落（exit 2） parity-replace が green にした記録の new.commit が文字列でない なら、前提の欠落として exit 2"
       ]
     }
   ]

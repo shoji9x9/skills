@@ -4,7 +4,7 @@
   "target": "<新側の target の名前（replace-strategy の targets の side: new）>",
   "style_policy": "free",
   "new": {
-    "commit": "<確かめた新側のバージョン（コミットの SHA）。replace-metadata.json の new.commit と同じ値>",
+    "commit": "<確かめた新側のバージョン（コミットの SHA）。replace-metadata.json の new.commit と同じ値。none（新側が git で管理されていない）では収束の判定が止まる>",
     "ui_url": "<解決した UI の baseURL。url_command の target では \"runtime\">"
   },
   "run": {
