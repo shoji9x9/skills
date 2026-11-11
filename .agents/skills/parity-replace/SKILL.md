@@ -399,6 +399,8 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
      issue-start <番号> --acceptance --out .replace/parity/<slug>/new/<target>/acceptance.json --allow-later parity-diff
      ```
 
+     `style_policy: free` の画面のある機能では、`--allow-later parity-diff` の代わりに `--allow-later spec-parity` を渡し、この先の `parity-diff` を `spec-parity` に読み替える（[`references/style-free.md`](references/style-free.md)「受け入れ条件の突き合わせ」）
+
    - 手順 8 の最後に、それまでに書いた成果物と実装を commit してから行う。成果物は `replace-metadata.json`・`component-comparison.json`・`asset-delivery.json`・`asset-probe/`・`porting.md` などである。
      突き合わせは、表そのもの以外の作業ツリーが clean であることを求める。未コミットの成果物が残ると、`commit-missing` で失敗する。
      保留の記録 `new/<target>/pending-decisions.json` があれば、`--decisions` にも渡す。手順と表の様式の原本は `issue-start` の `references/acceptance.md` である

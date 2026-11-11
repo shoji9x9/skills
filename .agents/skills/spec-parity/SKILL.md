@@ -67,6 +67,7 @@ spec-parity verify [--feature <slug>] [--target <name>] [--autonomous]
   変更を残すなら、commit してから、同じ `--target` の `parity-replace` で green を記録し直す。commit してから verify をやり直すだけでは、`new.commit` が green の記録と違うので止まる。
   ファイルが無いか `true` でないとき、または上の鍵が違うか `replace-metadata.json` の `new.dirty` で止まったときは、「その環境ではまだ green の証跡が無い」として止まる。
   止まったら、同じ `--target` での `parity-replace` を案内する（新側を commit してから green を記録し直す）。
+  インストール済みの `parity-replace` が `references/style-free.md` を持たない古いバージョンなら、`free` の画面のある機能で止まるので、先に `gh skill update` で `parity-replace` を更新するよう案内する。差し戻しのときも同じである。
   `new.commit` だけが違い、記録が `dirty: false` なら、確かめるバージョンを green にしたバージョンに戻す手も、利用者に示す。
 - 前提スキルの未解決の保留が無い。見る記録先と範囲の原本は `replace-strategy` の `references/autonomy.md`「下流の前提判定」で、`suite` の保留（`.replace/parity/<slug>/pending-decisions.json`）を含む。
   数えるのは `replace-strategy` の `scripts/pending-decisions-check.mjs` で、exit 0 でなければ、保留を抱えたスキルを案内して止まる。`replace-strategy` の文書を読めないときも止まる。

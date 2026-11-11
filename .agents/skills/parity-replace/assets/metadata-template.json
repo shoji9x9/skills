@@ -17,7 +17,7 @@
     "ui_url": "<その target の UI baseURL（PARITY_NEW_UI_URL に解決した値）。開発前で未設定なら none。target が url_command のときは解決値を書かず \"runtime\"（値は成果物に書かない。利用側は target 名から再解決する）>",
     "api_url": "<その target の API baseURL（PARITY_NEW_API_URL に解決した値。api_url 省略時は url と同じ）。固定の api_url はその値を記録し、api_url を省略して url_command で解決した UI URL を使う場合のみ \"runtime\">",
     "commit": "<新側リポジトリのコミット SHA。無ければ none。別 target での軽量な手順の判定に使う>",
-    "dirty": false,
+    "dirty": "<記録した時点の新側の作業ツリーの状態（取り方は replace-strategy の references/project-config.md「新側のバージョンの記録」）。commit していない変更が無ければ false、あれば true を真偽値で書く。この文字列のまま残すと、parity-diff と spec-parity verify は false でないとして止まる>",
     "render_inputs": [
       "<このページの描画に効くファイルの git pathspec（新側リポジトリ最上位からの相対。:(glob) で解釈し ** だけが階層を跨ぐ。例: ページの route・使う部品・テーマ・トークン・グローバル CSS）。無い・空なら証跡の鮮度は new.commit の一致だけで判定する>"
     ]

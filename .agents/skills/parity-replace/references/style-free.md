@@ -26,12 +26,22 @@
 - `suite.current_green` と `strength.validated` がどちらも `true` である
 - 現行のスイートの結果（`suite.report`。デフォルトは `.replace/parity/<slug>/suite-report.json`）がある
 
+`strength.validated` は信じない。`spec-parity` の `scripts/strength-check.mjs` を `--write` なしで `strength-plan.json` と `strength-report.json` に当て、exit 0 であることも確かめる。
+`spec-parity verify` の手順 1 と同じ判定である。
+インストール済みの `spec-parity` から実行し、コピーしない。
+
 満たさなければ、成果物を作らずに止まり、同じ slug の `spec-parity suite` を案内する。
 `differ.validated_by_strength_gate` は `parity-suite` の強度の記録で、`spec-parity suite` の成果物には無いので求めない。`parity-suite` も案内しない（`parity-suite` は `free` の画面のある機能で止まる）。
 `metadata.json` が `parity-suite` の形（`style_policy` が無いか、`suite.runner` が `e2e` でない）なら、設定と成果物の方針が食い違っている。
 `style_policy` を機能の着手の後に変えたときに起き、作り直すかは利用者が機能ごとに決める（`replace-strategy` の `references/project-config.md`「スタイルの方針」）。止まって、食い違いを報告する。
 
-e2e が入っていることも確かめる。プロジェクトの devDependencies に `e2e` と `@e2e-dev/web` があり、`npx e2e --version` が終了コード 0 で終わることで判定する。
+e2e が入っていることも確かめる。プロジェクトの devDependencies に `e2e` と `@e2e-dev/web` があることを先に確かめ、次のコマンドが終了コード 0 で終わることで判定する。
+
+```bash
+E2E_TELEMETRY_DISABLED=1 DO_NOT_TRACK=1 E2E_UPDATE_CHECK_DISABLED=1 npx --no-install e2e --version </dev/null
+```
+
+`--no-install` は、入っていない e2e を `npx` がレジストリから取得して実行するのを止める。
 無ければ止まる。e2e を入れるのは `spec-parity suite` の工程なので、このスキルは入れない。
 
 `replace-strategy setup`・`golden-dataset` のフェーズ A とフェーズ B・未解決の保留の判定は、`SKILL.md`「前提」のままである。
@@ -75,7 +85,7 @@ e2e が入っていることも確かめる。プロジェクトの devDependenc
 
 - [`adversarial-review.md`](adversarial-review.md) のまま行う。ただし、現側の反応の網羅表 `reactions.json` は `parity-suite` が書く記録で、`spec-parity suite` の成果物には無いので渡さない。
 - 「画面から見えない振る舞い」（送る前の判定と、表への書き込み）の観点は、現行のコード（一次情報源）だけを材料にして見る。
-  スイートに現れない書き込みは、新側で同じ表へ同じ値・時機・回数で書く箇所を、差分から名指しできるかまで見る。
+  スイートに現れない書き込みは、新側で同じ表へ同じ値・時機・回数で書く箇所を、差分から名指しできるかまで見る。結果は手順 8 の `porting.md`「表への書き込み（読解のみの行）」に残す。
 - `web-design-guidelines` の点検の結果（上の「手順 6（見た目）」）は、レビュー役に渡さない。実装役が行った点検で、レビュー役が独立に照合する外部の基準ではないからである。
 
 ### 手順 8（完了の判定）
@@ -99,9 +109,12 @@ e2e が入っていることも確かめる。プロジェクトの devDependenc
 #### 行う判定と行わない判定
 
 - `SKILL.md` のまま行うもの: `verification_commands.full`・静的資産の台帳の新側の突き合わせ・「要求単位の根拠」の取りこぼし・機能の Issue の受け入れ条件の突き合わせ
-- 行わないもの: 寸法の決まり方の照合・部品網羅表の新側の突き合わせ・表への書き込みの新側の根拠・他の機能の在席チェック。
-  どれも `parity-suite` が書く記録（`capture_conditions.dimension_model`・`component_coverage`・`reactions.json`・Playwright のスイートの在席チェック）を入力にし、`spec-parity suite` の成果物には無い。
-  `porting.md` の「寸法の決まり方」「移行元の宣言を反映しないと決めた箇所」「表への書き込み（読解のみの行）」には、「該当なし（style_policy: free）」と書く。
+- 行わないもの: 寸法の決まり方の照合・部品網羅表の新側の突き合わせ・他の機能の在席チェック。
+  どれも `parity-suite` が書く記録（`capture_conditions.dimension_model`・`component_coverage`・Playwright のスイートの在席チェック）を入力にし、`spec-parity suite` の成果物には無い。
+  `porting.md` の「寸法の決まり方」「移行元の宣言を反映しないと決めた箇所」には、「該当なし（style_policy: free）」と書く。
+- 表への書き込みの新側の根拠は、`reactions.json` が無いので、現行のコードから挙げる。
+  手順 7 で突き合わせた、スイートに現れない書き込み（表・値・時機・回数）と、新側で同じように書く箇所（ファイル・シンボル）を、`porting.md`「表への書き込み（読解のみの行）」に 1 行ずつ書く。
+  現行のコードに該当が無ければ「該当なし（現行のコードを読んだ範囲: <範囲>）」と書き、空欄のまま完了を名乗らない。
 
 #### `replace-metadata.json`
 
@@ -116,6 +129,7 @@ e2e が入っていることも確かめる。プロジェクトの devDependenc
 | `suite.new_green` | 上の「新側の green」が成り立ったときだけ `true` |
 
 - 新側の変更を commit してから green を確かめ、そのときのバージョンを書く。`new.dirty` が `true` の記録では、`spec-parity verify` が前提の確認で止まる。
+  `new.dirty` は、その時点で取得した値で書く。雛形の値のまま残さない。
 - `suite.locator_map_new` は `none` にする。`dimension_check` は、雛形のプレースホルダを残さず、キーごと省く。`loop.changed_scope` は `null` のままにする（`parity-diff` だけが読む値である）。
 
 #### 受け入れ条件の突き合わせ
