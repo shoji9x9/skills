@@ -58,7 +58,9 @@ spec-parity verify [--feature <slug>] [--target <name>] [--autonomous]
   `suite` を作った後の変更が対象の slug に影響するなら、`spec-parity suite` をやり直すよう促して止まる。フェーズ B の側が古ければ、同じ target の `golden-dataset`（フェーズ B）を案内して止まる。
   投入の対象でない target の扱いも同じ表に従い、免除したときは、データに依存する確かめを `verify-metadata.json` の `unverified` に理由と一緒に書く。`parity-diff` の `references/preflight.md` を読めないときは、確かめたことにせず止まる。
 - `verify` は、選んだ target の `.replace/parity/<slug>/new/<target>/replace-metadata.json` の `suite.new_green` が `true` であることを前提にする。
-  `new.commit` が確かめる新側のバージョンと同じ SHA で、`new.dirty` が `false` であることも前提にする。`none`（新側が git で管理されていない）と、commit していない変更で green にした記録は、バージョンを特定できないので止まる。
+  `new.target` が選んだ target と同じで、`new.commit` が確かめる新側のバージョンと同じ SHA で、`new.dirty` が `false` であることも前提にする。
+  `none`（新側が git で管理されていない）と、commit していない変更で green にした記録は、バージョンを特定できないので止まる。
+  止まったら、新側を commit してから同じ `--target` で `parity-replace` をやり直して green を記録し直すか、確かめるバージョンを green にしたバージョンに戻すかを、利用者に示す。
   ファイルが無いか `true` でなければ、「その環境ではまだ green の証跡が無い」として止まり、同じ `--target` での `parity-replace` を案内する。
   案内する前に、`parity-replace` の `SKILL.md` の前提が `style_policy: free` の画面のある機能で止まると定めているかを確かめる（下記「姉妹スキルとの連携」）。
   定めているときと、`parity-replace` の `SKILL.md` を読めないときは、`parity-replace` も前提の確認で止まり、このファイルを作らない。そのときは `parity-replace` を案内せず、新側を実装して green を記録する手順が無いことを利用者に報告して止まる。
@@ -149,7 +151,7 @@ node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mj
 
 ### verify
 
-1. 前提の確認。`style_policy`・機能一覧の行か・e2e・フェーズ B・データセットのバージョン・`replace-metadata.json` の `suite.new_green`・`new.commit`・`new.dirty` を確かめる。
+1. 前提の確認。`style_policy`・機能一覧の行か・e2e・フェーズ B・データセットのバージョン・`replace-metadata.json` の `suite.new_green`・`new.target`・`new.commit`・`new.dirty` を確かめる。
    `suite` の完了は、`metadata.json` の `style_policy: free`・`suite.current_green`・`strength.validated` で確かめる。
    強度は `strength.validated` を信じず、`strength-check.mjs` を `--write` なしで `strength-plan.json` と `strength-report.json` に当て、exit 0 であることも確かめる（手順 7 の判定も同じに判定し直す）。
    `verify-metadata.json` を雛形から作り（あれば前の保留を読んでから更新する）、`new.commit` に確かめる新側のバージョンを書く。

@@ -609,14 +609,15 @@ describe("前提の欠落（exit 2）", () => {
   });
 
   test.each([
-    ["バージョンが new.commit と違う", { commit: "old", dirty: false }, "同じ SHA でない"],
-    ["両方が none", { commit: "none", dirty: false }, "同じ SHA でない"],
+    ["バージョンが new.commit と違う", { commit: "old", dirty: false }, "と違う（parity-replace"],
+    ["new.commit が none", { commit: "none", dirty: false }, "と違う（parity-replace"],
     ["dirty: true", { commit: COMMIT, dirty: true }, "new.dirty が false でない"],
     ["dirty が無い", { commit: COMMIT }, "new.dirty が false でない"],
+    ["target が --target と違う", { commit: COMMIT, dirty: false, target: "prod" }, "new.target"],
   ])(
     "parity-replace が green にした記録の %s なら、前提の欠落として exit 2",
-    (name, n, message) => {
-      const fs = name === "両方が none" ? withVerify({ new: { commit: "none" } }) : convergedFs();
+    (_name, n, message) => {
+      const fs = convergedFs();
       fs.put(`${NEW_DIR}/replace-metadata.json`, {
         suite: { new_green: true },
         new: { target: "stg", ...n },
@@ -626,6 +627,17 @@ describe("前提の欠落（exit 2）", () => {
       expect(r.stderr).toContain(message);
     },
   );
+
+  test("verify-metadata.json の new.commit が none なら、green の記録も none でも前提の欠落として exit 2", () => {
+    const fs = withVerify({ new: { commit: "none" } });
+    fs.put(`${NEW_DIR}/replace-metadata.json`, {
+      suite: { new_green: true },
+      new: { target: "stg", commit: "none", dirty: false },
+    });
+    const r = run(fs);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("new.commit が none");
+  });
 
   test("parity-replace の新側の green が無ければ exit 2", () => {
     const fs = convergedFs();

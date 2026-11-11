@@ -318,14 +318,36 @@
     },
     {
       "id": "cv-new-green-commit-off",
-      "why": "parity-replace が green にしたバージョンと verify するバージョンが違っても、none どうしでも通す",
+      "why": "parity-replace が green にしたバージョンと verify するバージョンが違っても通す",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "  if (n.commit === \"none\" || n.commit !== commit)\n",
+      "find": "  if (n.commit !== commit)\n",
       "replace": "  if (false)\n",
       "occurrences": 1,
       "expect_failing": [
         "前提の欠落（exit 2） parity-replace が green にした記録の バージョンが new.commit と違う なら、前提の欠落として exit 2",
-        "前提の欠落（exit 2） parity-replace が green にした記録の 両方が none なら、前提の欠落として exit 2"
+        "前提の欠落（exit 2） parity-replace が green にした記録の new.commit が none なら、前提の欠落として exit 2"
+      ]
+    },
+    {
+      "id": "cv-new-green-target-off",
+      "why": "別の target の replace-metadata.json をコピーしただけの記録を、この target の green として通す",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  if (n.target !== target)\n",
+      "replace": "  if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "前提の欠落（exit 2） parity-replace が green にした記録の target が --target と違う なら、前提の欠落として exit 2"
+      ]
+    },
+    {
+      "id": "cv-verify-commit-none-off",
+      "why": "verify-metadata.json の new.commit が none でも、none どうしの比較で green の記録とスイートなどの記録を通す",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  if (commit === \"none\")\n",
+      "replace": "  if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "前提の欠落（exit 2） verify-metadata.json の new.commit が none なら、green の記録も none でも前提の欠落として exit 2"
       ]
     }
   ]

@@ -527,9 +527,9 @@ export function judgeUnmeasured(metadata, reasons) {
  * parity-replace が、verify するバージョンの新側を green にした記録（replace-metadata.json）があることを確かめる。
  * バージョンが違えば、verify の手順をやり直しても replace-metadata.json は変わらないので、やり直しの理由にせず前提の欠落にする。
  * @param {unknown} rm
- * @param {string} commit - verify-metadata.json の new.commit
+ * @param {{ commit: string, target: string }} at - verify-metadata.json の new.commit（none でない）と --target
  */
-function checkNewGreen(rm, commit) {
+function checkNewGreen(rm, { commit, target }) {
   if (!isPlainObject(rm) || !isPlainObject(rm.suite) || rm.suite.new_green !== true)
     throw new UsageError(
       "replace-metadata.json の suite.new_green が true でない（parity-replace で新側を green にしてから verify する）",
@@ -539,9 +539,14 @@ function checkNewGreen(rm, commit) {
     throw new UsageError(
       "replace-metadata.json の new.dirty が false でない（commit していない変更で green にした記録は、バージョンを特定できない）",
     );
-  if (n.commit === "none" || n.commit !== commit)
+  // 同じ commit で dirty: false の記録は target をまたいで一致しうるので、別の target の記録のコピーも止める
+  if (n.target !== target)
     throw new UsageError(
-      `replace-metadata.json の new.commit（${String(n.commit)}）が verify-metadata.json の new.commit（${commit}）と同じ SHA でない（none を含む。parity-replace で、verify するバージョンの新側を green にしてから verify する）`,
+      `replace-metadata.json の new.target（${String(n.target)}）が --target（${target}）と違う`,
+    );
+  if (n.commit !== commit)
+    throw new UsageError(
+      `replace-metadata.json の new.commit（${String(n.commit)}）が verify-metadata.json の new.commit（${commit}）と違う（parity-replace で、verify するバージョンの新側を green にしてから verify する）`,
     );
 }
 
@@ -562,6 +567,26 @@ function checkStrength({ plan, report }, slug) {
 }
 
 /**
+ * verify-metadata.json が対象の slug と target のもので、確かめる新側のバージョン（new.commit）を持つことを確かめる。
+ * @param {unknown} v
+ * @param {{ slug: string, target: string }} key
+ * @returns {{ v: Record<string, unknown>, commit: string }}
+ */
+function readVerifyHead(v, { slug, target }) {
+  if (!isPlainObject(v) || v.slug !== slug || v.target !== target)
+    throw new UsageError(`verify-metadata.json の slug と target が ${slug} / ${target} でない`);
+  const commit = isPlainObject(v.new) ? v.new.commit : undefined;
+  if (!filled(commit))
+    throw new UsageError("verify-metadata.json の new.commit が無い（雛形の値のままを含む）");
+  // none は新側が git で管理されていないことを表し、どの記録のバージョンも特定できない（none どうしの比較は常に一致する）
+  if (commit === "none")
+    throw new UsageError(
+      "verify-metadata.json の new.commit が none（新側を git で管理し、commit したバージョンで verify する）",
+    );
+  return { v, commit: String(commit) };
+}
+
+/**
  * 収束を判定する。
  * @param {{ slugDir: string, target: string, metadata: unknown, strengthPlan: unknown, strengthReport: unknown, replaceMetadata: unknown, verify: unknown, currentReport: unknown, newReport: unknown, measurements: unknown }} input
  */
@@ -569,15 +594,8 @@ export function judgeConvergence(input) {
   const metadata = checkSuiteMetadata(input.metadata, input.slugDir);
   const slug = String(metadata.slug);
   checkStrength({ plan: input.strengthPlan, report: input.strengthReport }, slug);
-  const v = input.verify;
-  if (!isPlainObject(v) || v.slug !== slug || v.target !== input.target)
-    throw new UsageError(
-      `verify-metadata.json の slug と target が ${slug} / ${input.target} でない`,
-    );
-  const commit = isPlainObject(v.new) ? v.new.commit : undefined;
-  if (!filled(commit))
-    throw new UsageError("verify-metadata.json の new.commit が無い（雛形の値のままを含む）");
-  checkNewGreen(input.replaceMetadata, commit);
+  const { v, commit } = readVerifyHead(input.verify, { slug, target: input.target });
+  checkNewGreen(input.replaceMetadata, { commit, target: input.target });
   const reasons = makeReasons();
   const suiteRecord = isPlainObject(v.suite) ? v.suite : {};
   sameCommit(reasons, "suite", { actual: suiteRecord.commit, expected: commit });
