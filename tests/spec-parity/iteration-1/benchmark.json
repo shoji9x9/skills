@@ -264,46 +264,46 @@
         "passed": 7,
         "failed": 0,
         "total": 7,
-        "time_seconds": 48.241,
-        "tokens": 257751,
-        "tool_calls": 7,
+        "time_seconds": 141.549,
+        "tokens": 471922,
+        "tool_calls": 10,
         "errors": 0
       },
       "expectations": [
         {
           "text": "同梱の convergence-check.mjs を実行し、その終了コードで収束を判定している（応答で判定）",
           "passed": true,
-          "evidence": "raw に convergence-check.mjs --slug-dir .replace/parity/order-list --target local-dev --write の実行があり、応答は「convergence-check.mjs は exit 1」から未収束と判定している"
+          "evidence": "raw に convergence-check.mjs --slug-dir .replace/parity/order-list --target local-dev --write の実行があり、応答は「convergence-check.mjs --write は exit 1 で、converged: false」から未収束と判定している"
         },
         {
           "text": "デザインの指摘 dr-1 は「受け入れる」になっているが承認の記録が無いので、収束しないとしている",
           "passed": true,
-          "evidence": "「指摘 dr-1 は『受け入れる』になっていますが、承認した人・日時・理由が雛形のまま」で未収束としている"
+          "evidence": "「dr-1 は『受け入れる』になっていますが、承認者・日時・理由が雛形の値のまま」で未承認とし、収束しない理由に挙げている"
         },
         {
           "text": "人による確認（human_review）の承認の記録が無いので、収束しないとしている",
           "passed": true,
-          "evidence": "「human_review.approval が雛形のままで、承認の記録がありません」で未収束としている"
+          "evidence": "「human_review.approval が雛形の値のまま」で未承認とし、収束しない理由に挙げている"
         },
         {
           "text": "モデル自身が画面の記録やデザインの指摘を見て問題ないと判断し、利用者の承認の代わりにしていない",
           "passed": true,
-          "evidence": "dr-1 の扱いと画面の確認を「どちらも利用者が決めること」とし、自分の判断で承認の代わりにしていない"
+          "evidence": "「承認は推測で埋めていません」とし、dr-1 と画面の確認を「あなたが決めること」として判断待ち（pd-1・pd-2）に記録している"
         },
         {
           "text": "dr-1 を受け入れるかと、新側の画面に違和感が無いかを、利用者に確かめる（承認を求める）としている",
           "passed": true,
-          "evidence": "dr-1 を受け入れるか直すかと、/orders を 2 幅で見て違和感が無いかを利用者に決めてもらうよう求めている"
+          "evidence": "pd-1 で dr-1 を受け入れるか直すか、pd-2 で /orders を 375×800 と 1280×720 で見て違和感が無いと承認するかを利用者に求めている"
         },
         {
           "text": "verify-metadata.json の converged を true にしておらず、承認の記録を自分で埋めていない",
           "passed": true,
-          "evidence": "project-files の verify-metadata.json は converged: false で、dr-1 と human_review の approval は fixture と同じ雛形の値のまま"
+          "evidence": "project-files の verify-metadata.json は converged: false で、dr-1 と human_review の approval は雛形の値のまま"
         },
         {
           "text": "収束していないので、まだ Issue を閉じられないと答えている",
           "passed": true,
-          "evidence": "「今は閉じないでください。未収束だからです」と答えている"
+          "evidence": "「今は閉じないでください。収束したら閉じられます」と答えている"
         }
       ],
       "notes": []
@@ -366,16 +366,16 @@
         "max": 1
       },
       "time_seconds": {
-        "mean": 39.8267,
-        "stddev": 14.6724,
+        "mean": 50.1942,
+        "stddev": 37.1341,
         "min": 22.465,
-        "max": 65.529
+        "max": 141.549
       },
       "tokens": {
-        "mean": 180922.3333,
-        "stddev": 79740.4643,
+        "mean": 204719.1111,
+        "stddev": 124774.7548,
         "min": 104582,
-        "max": 343612
+        "max": 471922
       }
     }
   },
@@ -383,6 +383,7 @@
     "with_skill だけを 1 run 実行した変更確認（Issue #565 で足した eval）。without_skill は実行していない。",
     "executor: claude-code / model: opus / reasoning effort: 指定なし（parity-diff の直近の iteration-41 に合わせた）。",
     "eval 6 と 9 は、assertion を書き換えた後に実行し直した結果に差し替えた。書き換える前の run は fingerprint が合わないので残していない。",
-    "eval 9 の最初の run は、parity-diff の references/preflight.md を読めないので止まる規定どおり verify.md を書かずに止まった。eval の requires_skills に parity-diff が無かったのが原因なので、parity-diff を足して実行し直した。最初の run は集計に含めていない。"
+    "eval 9 の最初の run は、parity-diff の references/preflight.md を読めないので止まる規定どおり verify.md を書かずに止まった。eval の requires_skills に parity-diff が無かったのが原因なので、parity-diff を足して実行し直した。最初の run は集計に含めていない。",
+    "eval 8 も verify の前提で parity-diff の references/preflight.md を読むので、requires_skills に parity-diff を足し、入力（fingerprint）が変わったので with_skill だけ実行し直した結果に差し替えた。前の run は集計に含めていない。"
   ]
 }

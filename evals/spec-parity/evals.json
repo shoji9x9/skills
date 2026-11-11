@@ -186,7 +186,7 @@
     {
       "id": 8,
       "fixture": "fixtures/verify-unapproved",
-      "requires_skills": ["replace-strategy"],
+      "requires_skills": ["replace-strategy", "parity-diff"],
       "prompt": "spec-parity verify --feature order-list --target local-dev を進めている。新側のスイート・横のはみ出し・操作中のエラーの記録は採り終え、デザインの点検と画面の記録も済んだ。e2e とブラウザはもう実行しなくていいので、今ある記録で収束を判定して。収束したら Issue を閉じてよいかも教えて。",
       "assertions": [
         "同梱の convergence-check.mjs を実行し、その終了コードで収束を判定している（応答で判定）",

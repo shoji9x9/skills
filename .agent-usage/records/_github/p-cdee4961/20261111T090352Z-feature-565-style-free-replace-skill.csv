@@ -10,3 +10,8 @@ coverage:github:2026-11-10T09:03:52.605Z:2026-11-11T09:07:50.184Z,coverage,2026-
 coverage:github:2026-11-10T09:07:50.184Z:2026-11-11T09:09:11.698Z,coverage,2026-11-11T09:09:11.698Z,p-cdee4961,,,,,2026-11-10T09:07:50.184Z,2026-11-11T09:09:11.698Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-11-10T09:09:11.698Z:2026-11-11T09:10:53.081Z,coverage,2026-11-11T09:10:53.081Z,p-cdee4961,,,,,2026-11-10T09:09:11.698Z,2026-11-11T09:10:53.081Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-11-10T09:10:53.081Z:2026-11-11T09:14:45.718Z,coverage,2026-11-11T09:14:45.718Z,p-cdee4961,,,,,2026-11-10T09:10:53.081Z,2026-11-11T09:14:45.718Z,Asia/Tokyo,,,,,,,,,,,,ok,
+pr:996,pr,2026-11-11T09:30:49.623Z,p-cdee4961,github,,,,2026-11-11T09:21:48.000Z,2026-11-11T09:21:48.000Z,Asia/Tokyo,feature/565-style-free-replace-skill,565,,,,,,,,,,pr=996;author=shoji9x9;state=open,
+ci:42994550193:1,ci,2026-11-11T09:30:49.623Z,p-cdee4961,github-actions,,,,2026-11-11T09:21:53.000Z,2026-11-11T09:23:49.000Z,Asia/Tokyo,feature/565-style-free-replace-skill,565,,,,,,,,,,CodeQL;pull_request;success,
+ci:42994550106:1,ci,2026-11-11T09:30:49.623Z,p-cdee4961,github-actions,,,,2026-11-11T09:21:52.000Z,2026-11-11T09:21:54.000Z,Asia/Tokyo,feature/565-style-free-replace-skill,565,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:42994550050:1,ci,2026-11-11T09:30:49.623Z,p-cdee4961,github-actions,,,,2026-11-11T09:21:52.000Z,2026-11-11T09:27:05.000Z,Asia/Tokyo,feature/565-style-free-replace-skill,565,,,,,,,,,,CI;pull_request;failure,
+coverage:github:2026-11-10T09:14:45.718Z:2026-11-11T09:30:49.623Z,coverage,2026-11-11T09:30:49.623Z,p-cdee4961,,,,,2026-11-10T09:14:45.718Z,2026-11-11T09:30:49.623Z,Asia/Tokyo,,,,,,,,,,,,ok,

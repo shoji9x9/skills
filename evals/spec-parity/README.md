@@ -38,7 +38,8 @@ fixture には、止まる理由・案内先・収束するかの結論を書か
 - eval 3 は fixture を持たない。設定と features.md が無いときに、slug を自分で採番しないことを見る
 - eval 7 は、横断 API の slug を `style_policy` の値に関わらず `parity-suite` と `parity-diff` へ戻すことを見る。eval 5 と同じ fixture なので、止まる理由が slug の種類であることを区別できる
 - eval 8 と 9 は、`replace-strategy` の `pending-decisions-check.mjs` と `append-only-check.mjs` を前提の判定と収束の報告で使うので、`requires_skills` に `replace-strategy` を置く。
+  `verify` の前提でデータセットのバージョンを確かめる `parity-diff` の `references/preflight.md` も読むので、`requires_skills` に `parity-diff` も置く。
   どちらも、モデルの判断を承認の代わりにしないことと、`converged` を手で書かないことを見る
-  eval 9 は、収束しないときに `verify.md` を書くところまで進む。データセットのバージョンを確かめる `parity-diff` の `references/preflight.md` も要るので、`requires_skills` に `parity-diff` も置く
+  eval 9 は、収束しないときに `verify.md` を書くところまで進む
 - `replace-strategy` の eval 43 は、`verify-overflow` と同じ中身の fixture（`evals/replace-strategy/fixtures/status-style-free`）を使う。
   `status` が `free` の機能を `verify-metadata.json` から導くかを見る

@@ -35,7 +35,9 @@ eval 6 と 9 の最初の run は、実行の途中で executor の認証が失�
 差し替えの run のうち、eval 9 の最初の run は `verify.md` を書かずに止まった（6 件中 5 件を満たした）。
 `spec-parity` は、`parity-diff` の `references/preflight.md` を読めないときは確かめたことにせず止まると定めている。eval 9 の `requires_skills` に `parity-diff` が無く、run はこの規定どおりに止まっていた。
 スキルではなく eval の前提の不足なので、`requires_skills` に `parity-diff` を足して実行し直した。最初の run は集計に含めていない。
-eval 8 も同じ `requires_skills` だが、入力を変えていないので実行していない。
+eval 8 も `verify` の前提で同じ `references/preflight.md` を読むので、`requires_skills` に `parity-diff` を足した。
+入力（fingerprint）が変わったので、eval 8 の `with_skill` だけを同じ条件で実行し直し、その run に差し替えた（7 件中 7 件を満たした）。前の run は集計に含めていない。
+実行し直した run は、`parity-diff` の `references/preflight.md` の「データセットバージョンの三者整合」を読んでから収束を判定した。
 
 ## 観察
 
