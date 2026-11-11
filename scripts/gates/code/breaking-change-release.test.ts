@@ -11,12 +11,13 @@ import { realpathSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { isArray } from "../../lib/is-array.ts";
+import { isRecord } from "../../lib/guards.ts";
 import releaseConfig from "../../../release.config.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
 function field(value: unknown, name: string): unknown {
-  return typeof value === "object" && value !== null ? Reflect.get(value, name) : undefined;
+  return isRecord(value) ? value[name] : undefined;
 }
 
 /** `owner` パッケージの依存として入った `dep` を import し、`name` の関数を返す。 */
@@ -30,6 +31,7 @@ async function dependencyFunction(
   const module: unknown = await import(pathToFileURL(resolved).href);
   const fn = field(module, name);
   if (typeof fn !== "function") throw new Error(`${dep} に関数 ${name} が無い`);
+  // fn は型の付かない Function なので、呼んだ結果を unknown で受けて、型の付いた関数として返す。
   return async (...args) => {
     const result: unknown = await Reflect.apply(fn, undefined, args);
     return result;
@@ -106,14 +108,20 @@ test.each([
 });
 
 test.each([
-  ["行の先頭", "BREAKING CHANGE には当たらない"],
-  ["行の先頭の空白の後", "  BREAKING CHANGE には当たらない"],
-  ["行の先頭の * の後", "* BREAKING CHANGE には当たらない"],
+  ["行の先頭の BREAKING CHANGE", "BREAKING CHANGE には当たらない", "major"],
+  ["空白の後の BREAKING CHANGE", "  BREAKING CHANGE には当たらない", "major"],
+  ["* の後の BREAKING CHANGE", "* BREAKING CHANGE には当たらない", "major"],
+  ["| の後の BREAKING CHANGE（表の行）", "| BREAKING CHANGE | 当たらない |", "major"],
+  ["小文字の breaking change", "breaking change の扱い", "major"],
+  ["先頭だけ大文字の Breaking change", "Breaking change の扱い", "major"],
+  ["コロンの無い BREAKING-CHANGE", "BREAKING-CHANGE の扱い", "major"],
+  ["- の後の breaking-change", "- breaking-change は無い", "patch"],
+  ["後に S が続く BREAKING CHANGES", "BREAKING CHANGES は無い", "patch"],
 ])(
-  "本文の%sに BREAKING CHANGE を置くと、コロンが無くても major と判定される",
-  async (_name, line) => {
+  "本文の行に%sを置いた fix の commit を、表の 3 列目のとおりに判定する",
+  async (_name, line, expected) => {
     const message = `fix: 判定の誤りを直す\n\n1 行目の説明\n${line}`;
-    expect(await releaseTypeOf(message)).toBe("major");
+    expect(await releaseTypeOf(message)).toBe(expected);
   },
 );
 
