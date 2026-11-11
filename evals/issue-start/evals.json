@@ -445,6 +445,69 @@
           "prompt_quote": "コマンドの実行やファイルの変更はせずに説明して"
         }
       ]
+    },
+    {
+      "id": 21,
+      "fixture": "fixtures/breaking-change-doc",
+      "prompt": "issue-start 41 --pr で、実装を終えて最初の commit をする前の場面を説明して。ファイルの変更・commit・push・GitHub への接続はしないで（リポジトリのファイルを読むことと、スキルに同梱の読み取りのスクリプトを実行することはよい）。Issue #41 は CSV の出力を直す依頼で、変更を 2 つの commit に分ける。1 つ目は、出力する CSV の「金額」と「日付」の列の順番を入れ替える。2 つ目は、日付の入力の検証を厳しくし、2 月 30 日のような暦に無い日付を拒否する。仕様書は、入力の日付を暦にある日に限っている。今までのバージョンは暦に無い日付も受け付けて、そのまま CSV に出していた。それぞれの commit message と、作る PR の本文の構成を述べて。",
+      "assertions": [
+        "列の順番を入れ替える commit を破壊的変更に当たると判断し、commit message に `!` か `BREAKING CHANGE:` を書くと述べている",
+        "日付の検証を厳しくする commit を破壊的変更に当たらないと判断し、その commit message に `!` も `BREAKING CHANGE:` も書かないと述べている",
+        "日付の検証を厳しくする変更が当たらない理由を、docs/release.md の「仕様では従来から不正だった入力を止める修正」に照らして述べている",
+        "PR の本文に、変更が破壊的変更に当たるかと理由を書く節を置くと述べている",
+        "PR の本文か commit message に、利用者が列の順番の変化にどう対応すれば従来の使い方を続けられるかを書くと述べている",
+        "ファイルの変更・commit・push・PR の作成をせず、説明に留めている"
+      ],
+      "reachability": [
+        {
+          "assertion": "列の順番を入れ替える commit を破壊的変更に当たると判断し、commit message に `!` か `BREAKING CHANGE:` を書くと述べている",
+          "prompt_quote": "「金額」と「日付」の列の順番を入れ替える"
+        },
+        {
+          "assertion": "日付の検証を厳しくする commit を破壊的変更に当たらないと判断し、その commit message に `!` も `BREAKING CHANGE:` も書かないと述べている",
+          "prompt_quote": "2 月 30 日のような暦に無い日付を拒否する"
+        },
+        {
+          "assertion": "日付の検証を厳しくする変更が当たらない理由を、docs/release.md の「仕様では従来から不正だった入力を止める修正」に照らして述べている",
+          "prompt_quote": "日付の入力の検証を厳しくし"
+        },
+        {
+          "assertion": "PR の本文に、変更が破壊的変更に当たるかと理由を書く節を置くと述べている",
+          "prompt_quote": "作る PR の本文の構成"
+        },
+        {
+          "assertion": "PR の本文か commit message に、利用者が列の順番の変化にどう対応すれば従来の使い方を続けられるかを書くと述べている",
+          "prompt_quote": "それぞれの commit message と、作る PR の本文の構成を述べて"
+        },
+        {
+          "assertion": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",
+          "prompt_quote": "ファイルの変更・commit・push・GitHub への接続はしないで"
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "fixture": "fixtures/no-breaking-change-doc",
+      "prompt": "issue-start 42 --pr で、実装を終えて最初の commit をする前の場面を説明して。ファイルの変更・commit・push・GitHub への接続はしないで（リポジトリのファイルを読むことと、スキルに同梱の読み取りのスクリプトを実行することはよい）。Issue #42 は設定ファイルを整理する依頼で、利用者が書く設定のキー `export.encoding` を `export.charset` に改名した。古いキーは読まなくなる。commit message と、作る PR の本文の構成を述べて。",
+      "assertions": [
+        "PR の本文に、規約の文書に破壊的変更の定義が無いことを書くと述べている",
+        "定義が無いことを書く箇所に、読んだ規約の文書のパス（CONTRIBUTING.md）を挙げている",
+        "ファイルの変更・commit・push・PR の作成をせず、説明に留めている"
+      ],
+      "reachability": [
+        {
+          "assertion": "PR の本文に、規約の文書に破壊的変更の定義が無いことを書くと述べている",
+          "prompt_quote": "作る PR の本文の構成"
+        },
+        {
+          "assertion": "定義が無いことを書く箇所に、読んだ規約の文書のパス（CONTRIBUTING.md）を挙げている",
+          "prompt_quote": "リポジトリのファイルを読むこと"
+        },
+        {
+          "assertion": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",
+          "prompt_quote": "ファイルの変更・commit・push・GitHub への接続はしないで"
+        }
+      ]
     }
   ]
 }
