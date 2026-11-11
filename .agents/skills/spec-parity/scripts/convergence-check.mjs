@@ -12,7 +12,8 @@
 // あわせて、未検証の一覧（unverified）に、spec-parity が確かめない性能（performance）が理由付きで載っていることを確かめる。
 // 1・2・4・5 の記録は、verify-metadata.json の new.commit と同じバージョンのものでなければ、古い記録として数える。
 // 前提として、verify-metadata.json の new.commit が none（新側が git で管理されていない）でないことを確かめる。none では、どの記録のバージョンも特定できない。
-// parity-replace が新側を green にした記録（replace-metadata.json）は、slug・new.target・new.commit が verify と同じで、dirty: false であることを確かめる。
+// parity-replace が新側を green にした記録（replace-metadata.json）は、dirty: false であることを確かめる。
+// あわせて、記録の slug・new.target・new.commit が、metadata.json の slug・--target・verify-metadata.json の new.commit と同じことを確かめる。
 // 前提の強度の確認も、metadata.json の strength.validated を信じず、strength-plan.json と strength-report.json から判定し直す。
 //
 // 保存された ok や件数は信じず、元の記録から判定し直す（手で書き換えた記録で収束させない）。
@@ -525,7 +526,8 @@ export function judgeUnmeasured(metadata, reasons) {
 
 /**
  * parity-replace が、verify するバージョンの新側を green にした記録（replace-metadata.json）があることを確かめる。
- * 記録を識別する鍵（slug・new.target・new.commit）を、verify の鍵と 1 つずつ厳密に比べる。欠落・型の誤り・別の値は、どれも一致しないものとして扱う。
+ * 記録を識別する鍵（slug・new.target・new.commit）を、metadata.json の slug・--target・verify-metadata.json の new.commit と 1 つずつ厳密に比べる。
+ * 欠落・型の誤り・別の値は、どれも一致しないものとして扱う。
  * 鍵が違えば、verify の手順をやり直しても replace-metadata.json は変わらないので、やり直しの理由にせず前提の欠落にする。
  * @param {unknown} rm
  * @param {{ slug: string, target: string, commit: string }} want - verify の slug・--target・verify-metadata.json の new.commit（none でない）
@@ -535,20 +537,21 @@ function checkNewGreen(rm, want) {
   if (!isPlainObject(rm) || !isPlainObject(rm.suite) || rm.suite.new_green !== true)
     throw new UsageError(`replace-metadata.json の suite.new_green が true でない（${hint}）`);
   const n = isPlainObject(rm.new) ? rm.new : {};
-  if (n.dirty !== false)
-    throw new UsageError(
-      `replace-metadata.json の new.dirty が false でない（commit していない変更で green にした記録は、バージョンを特定できない。新側を commit してから、${hint}）`,
-    );
-  /** @type {[string, unknown, string][]} */
+  // 鍵を dirty より先に比べる。別の機能・target の記録なら、commit しても直らないので、鍵の違いを先に示す
+  /** @type {[string, unknown, string, string][]} */
   const keys = [
-    ["slug", rm.slug, want.slug],
-    ["new.target", n.target, want.target],
-    ["new.commit", n.commit, want.commit],
+    ["slug", rm.slug, want.slug, "metadata.json の slug"],
+    ["new.target", n.target, want.target, "--target"],
+    ["new.commit", n.commit, want.commit, "verify-metadata.json の new.commit"],
   ];
   const bad = keys.filter(([, got, expected]) => got !== expected);
   if (bad.length > 0)
     throw new UsageError(
-      `replace-metadata.json の ${bad.map(([k, got, expected]) => `${k}（${JSON.stringify(got)}）が ${expected} でない`).join("、")}（${hint}）`,
+      `replace-metadata.json の ${bad.map(([k, got, expected, from]) => `${k}（${JSON.stringify(got)}）が ${from}（${expected}）と違う`).join("、")}（${hint}）`,
+    );
+  if (n.dirty !== false)
+    throw new UsageError(
+      `replace-metadata.json の new.dirty が false でない（commit していない変更で green にした記録は、バージョンを特定できない。新側を commit してから、${hint}）`,
     );
 }
 

@@ -615,38 +615,50 @@ describe("前提の欠落（exit 2）", () => {
     new: { target: "stg", commit: COMMIT, dirty: false },
   });
   test.each([
-    ["slug が別の値", (g: ReturnType<typeof green>) => ({ ...g, slug: "invoices" }), "slug"],
-    ["slug が無い", ({ slug: _s, ...g }: ReturnType<typeof green>) => g, "slug"],
-    ["slug が文字列でない", (g: ReturnType<typeof green>) => ({ ...g, slug: 1 }), "slug"],
+    [
+      "slug が別の値",
+      (g: ReturnType<typeof green>) => ({ ...g, slug: "invoices" }),
+      "replace-metadata.json の slug（",
+    ],
+    [
+      "slug が無い",
+      ({ slug: _s, ...g }: ReturnType<typeof green>) => g,
+      "replace-metadata.json の slug（",
+    ],
+    [
+      "slug が文字列でない",
+      (g: ReturnType<typeof green>) => ({ ...g, slug: 1 }),
+      "replace-metadata.json の slug（",
+    ],
     [
       "new.target が別の値",
       (g: ReturnType<typeof green>) => ({ ...g, new: { ...g.new, target: "prod" } }),
-      "new.target",
+      "replace-metadata.json の new.target（",
     ],
     [
       "new.target が無い",
       (g: ReturnType<typeof green>) => ({ ...g, new: { commit: COMMIT, dirty: false } }),
-      "new.target",
+      "replace-metadata.json の new.target（",
     ],
     [
       "new.target が文字列でない",
       (g: ReturnType<typeof green>) => ({ ...g, new: { ...g.new, target: null } }),
-      "new.target",
+      "replace-metadata.json の new.target（",
     ],
     [
       "new.commit が別の値",
       (g: ReturnType<typeof green>) => ({ ...g, new: { ...g.new, commit: "old" } }),
-      "new.commit",
+      "replace-metadata.json の new.commit（",
     ],
     [
       "new.commit が無い",
       (g: ReturnType<typeof green>) => ({ ...g, new: { target: "stg", dirty: false } }),
-      "new.commit",
+      "replace-metadata.json の new.commit（",
     ],
     [
       "new.commit が文字列でない",
       (g: ReturnType<typeof green>) => ({ ...g, new: { ...g.new, commit: 1 } }),
-      "new.commit",
+      "replace-metadata.json の new.commit（",
     ],
     [
       "new.dirty が true",
@@ -668,6 +680,19 @@ describe("前提の欠落（exit 2）", () => {
       expect(r.stderr).toContain(message);
     },
   );
+
+  test("別の機能の記録が dirty: true でも、dirty より先に鍵の違いを示す", () => {
+    const fs = convergedFs();
+    fs.put(`${NEW_DIR}/replace-metadata.json`, {
+      ...green(),
+      slug: "invoices",
+      new: { ...green().new, dirty: true },
+    });
+    const r = run(fs);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("replace-metadata.json の slug（");
+    expect(r.stderr).not.toContain("new.dirty");
+  });
 
   test("すべての記録の commit が none でも、verify-metadata.json の new.commit が none なら前提の欠落として exit 2", () => {
     // none どうしの比較は常に一致するので、この検査が無いと、どの記録も同じバージョンとして通って収束する

@@ -328,19 +328,40 @@
       ]
     },
     {
-      "id": "cv-new-green-key-off",
-      "why": "green の記録を識別する鍵（slug・new.target・new.commit）が verify と違っても、欠落や型の誤りでも通す",
+      "id": "cv-new-green-slug-key-off",
+      "why": "green の記録の鍵のうち slug を比べず、別の値・欠落・型の誤りでも通す",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "  const bad = keys.filter(([, got, expected]) => got !== expected);\n",
-      "replace": "  const bad = keys.filter(() => false);\n",
+      "find": "    [\"slug\", rm.slug, want.slug, \"metadata.json の slug\"],\n",
+      "replace": "",
       "occurrences": 1,
       "expect_failing": [
         "前提の欠落（exit 2） parity-replace が green にした記録の slug が別の値 なら、前提の欠落として exit 2",
         "前提の欠落（exit 2） parity-replace が green にした記録の slug が無い なら、前提の欠落として exit 2",
         "前提の欠落（exit 2） parity-replace が green にした記録の slug が文字列でない なら、前提の欠落として exit 2",
+        "前提の欠落（exit 2） 別の機能の記録が dirty: true でも、dirty より先に鍵の違いを示す"
+      ]
+    },
+    {
+      "id": "cv-new-green-target-key-off",
+      "why": "green の記録の鍵のうち target を比べず、別の値・欠落・型の誤りでも通す",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "    [\"new.target\", n.target, want.target, \"--target\"],\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
         "前提の欠落（exit 2） parity-replace が green にした記録の new.target が別の値 なら、前提の欠落として exit 2",
         "前提の欠落（exit 2） parity-replace が green にした記録の new.target が無い なら、前提の欠落として exit 2",
-        "前提の欠落（exit 2） parity-replace が green にした記録の new.target が文字列でない なら、前提の欠落として exit 2",
+        "前提の欠落（exit 2） parity-replace が green にした記録の new.target が文字列でない なら、前提の欠落として exit 2"
+      ]
+    },
+    {
+      "id": "cv-new-green-commit-key-off",
+      "why": "green の記録の鍵のうち commit を比べず、別の値・欠落・型の誤りでも通す",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "    [\"new.commit\", n.commit, want.commit, \"verify-metadata.json の new.commit\"],\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
         "前提の欠落（exit 2） parity-replace が green にした記録の new.commit が別の値 なら、前提の欠落として exit 2",
         "前提の欠落（exit 2） parity-replace が green にした記録の new.commit が無い なら、前提の欠落として exit 2",
         "前提の欠落（exit 2） parity-replace が green にした記録の new.commit が文字列でない なら、前提の欠落として exit 2"
