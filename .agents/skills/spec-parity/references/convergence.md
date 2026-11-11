@@ -62,8 +62,6 @@ node <spec-parity>/scripts/convergence-check.mjs --slug-dir .replace/parity/<slu
 | `remeasure` | 記録が無い・古い・欠ける | `verify` の該当する手順をやり直す。新側は直さない |
 | `approval` | 利用者の承認・判断を待っている | 利用者に確かめる（[`user-confirmation.md`](user-confirmation.md)）。自律実行では保留に記録する |
 
-- `parity-replace` の `SKILL.md` の前提が `style_policy: free` の画面のある機能で止まると定めているとき（読めないときを含む）は、`send-back` を渡さない。
-  `verify.md` の表を残して、利用者に報告する（`SKILL.md`「姉妹スキルとの連携」）。
 - 差し戻しの前に、`send-back` の理由を `verify.md` の差し戻す内容の表に並べる。ページ・論理名・測定値など、`parity-replace` が直す先を見つけられる情報を添える。
 - 反復の回数の記録と上限の管理は、`parity-replace` がその target の `replace-metadata.json` の `loop.*` で行う。上限を超えていたら、差し戻さずに止まって利用者へ上げる。
 - 選んだ target の `on_diff` のドキュメントが起票を指示するなら、差し戻さずに `issue-create` に要約を渡して起票し、止まる（`replace-strategy` の `references/project-config.md`「`on_diff`」）。

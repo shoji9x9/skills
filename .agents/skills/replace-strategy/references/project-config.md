@@ -360,7 +360,7 @@ node "$CFG" append replace-strategy component_diffs '<要素の JSON>' --layer r
 - 読むスキルと、`free` のときの動作は次のとおりである。
   - `parity-suite` と `parity-diff`: 前提の確認で読み、対象が画面のある機能なら、成果物を作らずに止まって `spec-parity suite` / `spec-parity verify` を案内する。横断 API とバッチは止めない
   - `parity-component`: 前提の確認で読み、モードに関わらず止まる
-  - `parity-replace`: 前提の確認で読み、対象が画面のある機能なら、成果物を作らずに止まり、`free` の画面のある機能の手順を持たないことを報告する。横断 API とバッチは止めない
+  - `parity-replace`: 前提の確認で読み、対象が画面のある機能なら、`spec-parity suite` の成果物を前提にし、e2e のスイートで新側の green を判定する。見た目を現行に寄せず、往復の相手を `spec-parity verify` にする。横断 API とバッチは `reproduce` と同じに扱う
   - `spec-parity`: `free` でないときに止まる
   - `replace-strategy`: `setup` が書き、`issues` が機能の Issue の流れを、`status` が機能の現況の読み先を、この値で選ぶ
 
@@ -411,6 +411,26 @@ node "$CFG" append replace-strategy component_diffs '<要素の JSON>' --layer r
 - `new.stack` が空か無くても止まらない。骨格が整備されていないことで止めるのは、`references.architecture` だけである。
   依存の候補が新側のスタックと合うかを判断する必要が出た時点で、推測せずにユーザーに確認し、確認したスキルが非破壊で追記する（`setup` の再実行を待たない）。
 - 骨格と部品の採否（複数の機能で使うライブラリ・フォントなど）の境界は、[`dependency-selection.md`](dependency-selection.md) が定める。
+
+## 新側のバージョンの記録（`new.commit` / `new.dirty`）
+
+新側のどのバージョンで確かめたかを、次の 3 か所が同じ取り方で記録し、照合する。取り方はここで定義し、3 つのスキルはここを参照する（ここへ転記しない）。
+
+- `parity-replace` の `replace-metadata.json` の `new.commit`・`new.dirty`
+- `spec-parity verify` の `verify-metadata.json` の `new.commit`・`new.dirty`
+- `parity-diff` の前提の確認で、撮るバージョンを確かめる処理
+
+取り方は次のとおりである。
+
+| 項目 | 取り方 |
+|---|---|
+| `new.commit` | `git -C <new.repo> rev-parse --verify HEAD` の出力（完全な SHA）。新側が git で管理されていなければ `none` |
+| `new.dirty` | `git -C <new.repo> status --porcelain` の出力が空なら `false`、空でなければ `true`。出力から何も外さない |
+
+- `new.repo` が git のリポジトリのサブディレクトリでも、2 つのコマンドはリポジトリ全体の状態を返す。HEAD はリポジトリの HEAD で、`status` はリポジトリ全体の変更を出す。
+- スキルが書く成果物（`.replace/`・e2e の結果の出力先・人による確認で撮った画面など）が `new.repo` と同じ git のリポジトリの中にあると、成果物を書くたびに `status` の出力に出て、`new.dirty` が `true` になる。
+  成果物の記録を commit すると HEAD が進み、記録した `new.commit` と一致しなくなる。どちらでも、3 つのスキルは前提の確認で止まる。
+  そのため、成果物を置くリポジトリを `new.repo` と分ける。新側の変更を退避する案内（`git stash --include-untracked`）も、分けていれば成果物を退避しない。
 
 ## 検証コマンド（`verification_commands`）
 

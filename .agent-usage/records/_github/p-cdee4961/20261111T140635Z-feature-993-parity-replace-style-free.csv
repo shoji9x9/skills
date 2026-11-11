@@ -1,0 +1,8 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+pr:996,pr,2026-11-11T14:06:35.674Z,p-cdee4961,github,,,,2026-11-11T09:21:48.000Z,2026-11-11T13:30:25.000Z,Asia/Tokyo,feature/565-style-free-replace-skill,565,,,,,,,,,,pr=996;author=shoji9x9;state=merged,
+ci:43029736359:1,ci,2026-11-11T14:06:35.674Z,p-cdee4961,github-actions,,,,2026-11-11T13:30:29.000Z,2026-11-11T13:30:57.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:43029736360:1,ci,2026-11-11T14:06:35.674Z,p-cdee4961,github-actions,,,,2026-11-11T13:30:29.000Z,2026-11-11T13:34:16.000Z,Asia/Tokyo,main,,,,,,,,,,,CodeQL;push;success,
+ci:43026014242:1,ci,2026-11-11T14:06:35.674Z,p-cdee4961,github-actions,,,,2026-11-11T13:05:37.000Z,2026-11-11T13:05:45.000Z,Asia/Tokyo,feature/565-style-free-replace-skill,565,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:43026014147:1,ci,2026-11-11T14:06:35.674Z,p-cdee4961,github-actions,,,,2026-11-11T13:05:37.000Z,2026-11-11T13:10:45.000Z,Asia/Tokyo,feature/565-style-free-replace-skill,565,,,,,,,,,,CI;pull_request;success,
+ci:43026014275:1,ci,2026-11-11T14:06:35.674Z,p-cdee4961,github-actions,,,,2026-11-11T13:05:37.000Z,2026-11-11T13:07:55.000Z,Asia/Tokyo,feature/565-style-free-replace-skill,565,,,,,,,,,,CodeQL;pull_request;success,
+coverage:github:2026-11-10T13:04:52.265Z:2026-11-11T14:06:35.674Z,coverage,2026-11-11T14:06:35.674Z,p-cdee4961,,,,,2026-11-10T13:04:52.265Z,2026-11-11T14:06:35.674Z,Asia/Tokyo,,,,,,,,,,,,ok,

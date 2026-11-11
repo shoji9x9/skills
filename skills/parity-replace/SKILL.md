@@ -15,6 +15,7 @@ license: MIT
 
 実装の流れそのもの（ブランチ作成・調査・commit・push・PR）は `issue-start` に委譲し、このスキルでは作り直さない。
 差分の検出は `parity-diff`、パリティスイートの構築は `parity-suite` が担う。
+設定の `style_policy` が `free` の画面のある機能では、スイートを `spec-parity suite` が e2e で作り、新側の確かめを `spec-parity verify` が担う（手順の置き換えは [`references/style-free.md`](references/style-free.md)）。
 
 ## 使い方
 
@@ -28,12 +29,12 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
   `mode` は、`parity-suite` が features.md の分類（下の表の起点）から記録している
 - `--target <name>`（任意）: 実装して検証する新側の実行対象環境。設定 `targets` のうち `side: new` のものだけを候補にする（このスキルが対象とする側は、ここで定義する）。
   省略したときのデフォルト・候補の提示・存在しない名前や側の違いで止まることなどの選択規則は、`replace-strategy` の `references/project-config.md`「実行対象環境」の「選択規則」に従う（ここへ転記しない）
-- `--max-iterations <n>`（任意、デフォルト 5）: `parity-diff` との往復ループの反復の上限。超えたら止まり、ユーザーに判断を求める
+- `--max-iterations <n>`（任意、デフォルト 5）: `parity-diff`（`style_policy: free` の画面のある機能では `spec-parity verify`）との往復ループの反復の上限。超えたら止まり、ユーザーに判断を求める
 - `--autonomous` は、その実行だけを自律で進める宣言である（下の「自律実行」）。省略したときは、判断のたびに確認する
 
 | モード | 起点 | 内容 |
 |---|---|---|
-| 機能（feature） | features.md の機能 | ページ単位にフェーズを分ける。新側マッピング・視覚系を含む全工程を使う |
+| 機能（feature） | features.md の機能 | ページ単位にフェーズを分ける。新側マッピング・視覚系を含む全工程を使う（`style_policy: free` では、新側マッピングと視覚系の工程を行わない。[`references/style-free.md`](references/style-free.md)） |
 | 横断 API（api-resource） | features.md の横断 API リソース | 画面を持たない API だけ。バックエンドの diff レビューと API スイートの green だけで、ページ分割・視覚・新側マッピングは無い |
 | バッチ（batch） | features.md のバッチ | バッチ本体の diff レビューと、出力の一致。画面系の工程は動かさない |
 
@@ -42,9 +43,12 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 ## 前提
 
 - ツール: `git`、Node.js（`parity-suite` と `replace-strategy` の同梱のスクリプトと、設定ファイルを読む `scripts/skill-config/skill-config.mjs` を実行する）。ブランチ作成・commit・push・PR は `issue-start` が行う（このスキルは実装の流れを作り直さない）
-- 前提スキル: `issue-start`（実装の流れと受け入れ条件の突き合わせの委譲先）、`replace-strategy`（`setup` の完了）、`golden-dataset`（フェーズ A の完了）、対象 slug の `parity-suite`（完了）
+- 前提スキル: `issue-start`（実装の流れと受け入れ条件の突き合わせの委譲先）、`replace-strategy`（`setup` の完了）、`golden-dataset`（フェーズ A の完了）、対象 slug の `parity-suite`（完了）。
+  `style_policy: free` の画面のある機能では、`parity-suite` の代わりに対象 slug の `spec-parity suite`（完了）が要り、e2e（`e2e` と `@e2e-dev/web`）も要る
+- 任意: `web-design-guidelines` スキル（`style_policy: free` の画面のある機能で、実装の点検に使う。無ければ点検しない。[`references/style-free.md`](references/style-free.md)「手順 6（見た目）」）
 - 前提スキルがインストールされていない場合: `gh skill install shoji9x9/skills <name>` で導入してから実行する。
-  このスキルは設定スキーマ・成果物の様式の原本を `replace-strategy` と `parity-suite` の `references/`・`assets/` に置いているので、単体では動かない（同時に導入されている前提である）
+  このスキルは設定スキーマ・成果物の様式の原本を `replace-strategy` と `parity-suite` の `references/`・`assets/` に置いているので、単体では動かない（同時に導入されている前提である）。
+  `style_policy: free` の画面のある機能では、`spec-parity` の `references/` も読むので、`spec-parity` も同時に導入されている前提である
 - MCP: 不要
 - 新側アーキテクチャは事前に決まっている前提に立つ。骨格（フレームワーク・レイヤとディレクトリの構成・API の設計方針・ホスティングの構成）の選定はスキル群の対象外である。
   新側リポジトリには骨格がスキャフォールドされている前提で、このスキルは決定記録（`references.architecture`）を読んで従うだけで、決めない
@@ -55,15 +59,17 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
   この代わりの方法も取れないときでも、レビューは省略しない（手順は [`references/adversarial-review.md`](references/adversarial-review.md)）
 - 前提の判定（無ければ止まり、該当するスキルの実行を促す。成果物を捏造しない）:
   - 最初に、設定の `style_policy` を読む（`skill-config.mjs get replace-strategy style_policy --raw`。キーが無ければ `reproduce`）。
-    `free` で、対象の slug が画面のある機能なら、成果物を作らずに止まり、このスキルが `style_policy: free` の手順を持たないことを利用者に報告する。
-    `free` の機能のスイートは `spec-parity suite` が e2e で作り、このスキルが前提にする強度の記録・寸法の式・`parity-diff` との往復を持たないからである。
+    `free` で、対象の slug が画面のある機能なら、この後の前提の判定と手順を [`references/style-free.md`](references/style-free.md) で置き換える。
+    `free` の機能のスイートは `spec-parity suite` が e2e で作り、このスキルが `reproduce` で前提にする強度の記録（`differ.validated_by_strength_gate`）・寸法の式・`parity-diff` との往復を持たないからである。
+    `references/style-free.md` を読めないときは、`reproduce` の手順で進めずに止まる。
     画面のある機能かは、`.replace/parity/<slug>/metadata.json` の `mode: feature` で決める。このファイルが無ければ、`.replace/features.md` の機能一覧に slug があることで決める。
-    横断 API（api-resource）とバッチ（batch）は、`free` でも止めずに次の判定へ進む。`free` でもこの 2 つは `parity-suite` と `parity-diff` が扱うからである。
+    横断 API（api-resource）とバッチ（batch）は、`free` でもこのファイルの手順で進める。`free` でもこの 2 つは `parity-suite` と `parity-diff` が扱うからである。
     読み取りがエラー（終了コード 1）なら、`reproduce` と見なして続けずに止まる。この確認は設定と成果物だけで済むので、ほかの前提の判定と target の起動より先に行う
   - `replace-strategy setup` の完了は、設定 `.config/skills/shoji9x9/replace-strategy.jsonc` と `.replace/features.md` があることで判定する
   - `golden-dataset` のフェーズ A の完了は、`.replace/dataset/metadata.json` があることで判定する（`version` は 1 から始まる整数）
   - 対象 slug の `parity-suite` の完了は、`.replace/parity/<slug>/metadata.json` があることで判定する。
-    `suite.current_green` と `differ.validated_by_strength_gate` がどちらも `true` であることも求める（`parity-diff` の前提確認と同じ条件）
+    `suite.current_green` と `differ.validated_by_strength_gate` がどちらも `true` であることも求める（`parity-diff` の前提確認と同じ条件）。
+    `style_policy: free` の画面のある機能では、この判定を `spec-parity suite` の完了の判定に置き換える（[`references/style-free.md`](references/style-free.md)「前提の判定」）
   - 上の setup・フェーズ A・`parity-suite` と、下のフェーズ B（slug × target）は、未解決の保留があれば、証拠があっても未完了として扱う。
     見る保留の範囲の原本は `replace-strategy` の `references/autonomy.md`「下流の前提判定」
   - `golden-dataset` のフェーズ B は、新側スキーマが確定した後の実行で、選んだ target が投入対象のときだけ判定する。
@@ -114,8 +120,10 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
     （収束は生の差分がゼロであることを求めない。原本は `parity-diff` の `references/convergence.md`「収束の定義」）
   - 収束する前に `parity-diff` が止まった（要対応・他の機能待ち・判断待ち・反復の上限）ときは、その差分と止まった理由をそのまま報告してよい。禁じるのは、一致や収束を主張することだけである
   - 報告の書き方は、手順 8 の「完了の報告」に従う
+  - `style_policy: free` の画面のある機能では、見た目を現行と比べないので、`parity-diff` の代わりに `spec-parity verify` を案内する。報告の書き方は [`references/style-free.md`](references/style-free.md)「完了の報告」に従う
 - 撮影したビューポートで測った px を並べて、レイアウトを作らない。3 つの比較方法はその 1 点でしか比べないので、1 点の px を並べたレイアウトは、すべての比較方法で緑のまま、別の窓の幅で崩れる。
-  位置と寸法は、`parity-suite` が読み取った式（`metadata.json` の `capture_conditions.dimension_model.fits`）で組み、完了の判定で `dimension-fit.mjs check` を通す（手順 8）
+  位置と寸法は、`parity-suite` が読み取った式（`metadata.json` の `capture_conditions.dimension_model.fits`）で組み、完了の判定で `dimension-fit.mjs check` を通す（手順 8）。
+  `style_policy: free` の画面のある機能では、`spec-parity suite` が寸法を採らないので、この照合は無い。横のはみ出しは `spec-parity verify` が、現行が保証している幅で新側を測る
 - 振る舞いを保つことと、品質を改善することを、同じフェーズで狙わない。レガシーの奇妙な挙動も再現する
 - リントを off にして差異を避けない。ロケータマッピングの層が現側の非セマンティックな部分を隔離しているので、新側を改善してもスイートは失敗しない
 - タブ順の厳密な一致を目標にしない。ARIA APG に準拠して新側のほうが正しくても、タブで止まる数が変わることがある
@@ -142,15 +150,15 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 
 | キー | 用途 |
 |---|---|
-| `style_policy` | UI の見た目を現行に合わせるか（`reproduce` / `free`。キーが無ければ `reproduce`）。前提の判定の最初に読み、`free` の画面のある機能では止まる（「前提」）。意味はスキーマ文書の「スタイルの方針」で定義する |
+| `style_policy` | UI の見た目を現行に合わせるか（`reproduce` / `free`。キーが無ければ `reproduce`）。前提の判定の最初に読み、`free` の画面のある機能では手順を [`references/style-free.md`](references/style-free.md) で置き換える（「前提」）。意味はスキーマ文書の「スタイルの方針」で定義する |
 | `verification_commands` | 検証コマンド。実行する範囲で 2 列に分かれる。`full`（全体を走査する）は、完了の判定（手順 8）で常に実行する列である。`diff`（変更したファイルだけ。`{changed_files}` はこのスキルが展開する）は、敵対的レビューの前の早期検出（手順 7）だけに使い、完了の判定には使わない。固有のツール名は設定の側に置く（スキル本体に書かない）。意味の原本は、スキーマ文書の「検証コマンド」 |
 | `intentional_diffs.{keep,may_change,pending}` | 意図的差異レジストリ。`keep` があるので、旧と新の diff をレビューできる。見つけた差異は、`pending` へ追記元が分かる形で非破壊で追記し、ユーザーに確認する。`pending` は、設定ファイルの中で唯一、スキルが書く作業中の記録である。`keep`・`may_change` へ移すのは人間である（書き手の区分の原本は、スキーマ文書の「キーの書き手とライフサイクル」）。例外は、静的資産で `同等物を作る` を選んだときの宣言で、ユーザーの承認の後に `may_change` へ非破壊で追記する（`pending` を経由しない。原本は `replace-strategy` の `references/static-assets.md`）。要素は 4 つのキーで書く。差異の文言は `item`（照合のキー）、`slug` は対象の slug、`added_by: parity-replace`、`added_at` は追記した日である。`item` を別のキー名で書くと、完了の判定は通り、数工程後の `parity-diff` の棚卸しで「`item` が空」として現れる（要素の形の原本は、スキーマ文書の「`pending` 要素の形」）。確定させる時期は、`parity-diff` の収束の判定が求める棚卸しである（同じ文書の「`pending` の棚卸し」） |
-| `component_diffs` | テーマで消せない構造差の系統差レジストリ。このスキルがユーザーに確認したうえで宣言し、`parity-diff` が比較の正規化に使う。T を当てられないインスタンス例外は、設定に置かない。`parity-diff` の slug の成果物 `.replace/parity/<slug>/component-diff-exceptions.json` に置き、このスキルは書かない（[`references/theming.md`](references/theming.md)） |
+| `component_diffs` | テーマで消せない構造差の系統差レジストリ（`style_policy: free` の画面のある機能では宣言しない）。このスキルがユーザーに確認したうえで宣言し、`parity-diff` が比較の正規化に使う。T を当てられないインスタンス例外は、設定に置かない。`parity-diff` の slug の成果物 `.replace/parity/<slug>/component-diff-exceptions.json` に置き、このスキルは書かない（[`references/theming.md`](references/theming.md)） |
 | `references.architecture` | 新側アプリの骨格（レイヤとディレクトリの構成・API の設計方針・ホスティングの構成）の決定記録のパス。骨格は事前に決まっているもので、このスキルは決めない。整備されていない（キーが無い・値が空・パスを解決できない）なら、部品の採否と実装（手順 3 以降）に入らずに止まる。新側リポジトリに骨格がすでに実装されていれば、実態から読み取った内容を下書きとして示し、ユーザーが確定させてから進める。確定した決定記録のパスは、このキーへ書く。意味の原本は、スキーマ文書の「新側アーキテクチャ」 |
 | `new.stack` | 新側のスタックの一覧。依存の候補が新側のスタック（フレームワーク・ORM など）と両立するかの判断に使う。空や欠けていれば推測せずユーザーに確認し、確認した結果をこのキーへ非破壊で追記する（記録しないと、機能ごとに聞き直すことになる）。骨格が整備されていないかのチェックは `references.architecture` が担うので、このキーだけでは止まらない |
 | `references.coding_conventions` | 新側リポジトリのコーディング規約（命名・エラー処理・型の扱い・テストの書き方・レビューの観点）。実装（手順 4）と敵対的レビュー（手順 7）で読む。整備されていなくても止まらないが、推測で自分の流儀を持ち込まない。新側リポジトリの基底ドキュメント・リントの設定・既存のコードから読み取り、解決できたパスをこのキーへ非破壊で追記する（意味の原本は、スキーマ文書の「コーディング規約」） |
 | `references.db_semantics` | 現行 DB から新 DB への型の対応・意味の差と、移植のときに当たる方言差の点検表。実装（手順 4）で、クエリやデータアクセスを書く前に読む。整備されていない（キーが無い・値が空・パスを解決できない）ときも止まらないが、方言差を推測で埋めない。スキーマ文書「DB 意味論」の点検項目を、現行 DB と新 DB の一次ドキュメントで確かめ、確かめた結果と未確定のものを `porting.md` へ記録して、整備を促す。差を吸収しないと決めたら、`intentional_diffs.pending` へ非破壊で追記し、ユーザーの確認へ回す（意味の原本は、スキーマ文書の「DB 意味論」） |
-| `references.ui_library` | 新 UI ライブラリの設定と、旧から新への design token の対応の reference のパス（特定のライブラリ名を固定しない）。整備されていない（キーが無い・値が空・パスを解決できない）なら、手順 6 に入らずに止まり、整備を促す。止まる位置は手順 6 の直前である。源流で系統差を縮められないと、宣言と未検証の領域が増えるからである。ライブラリを自分で決めない |
+| `references.ui_library` | 新 UI ライブラリの設定と、旧から新への design token の対応の reference のパス（特定のライブラリ名を固定しない。`style_policy: free` の画面のある機能では、ライブラリとデザインの規則だけを読み、トークンの対応は使わない）。整備されていない（キーが無い・値が空・パスを解決できない）なら、手順 6 に入らずに止まり、整備を促す。止まる位置は手順 6 の直前である。源流で系統差を縮められないと、宣言と未検証の領域が増えるからである。ライブラリを自分で決めない |
 | `references.dependency_policy` | 依存の導入の方針ドキュメントのパス（3 つの値を取る。意味の原本は、スキーマ文書の「依存導入の方針」）。キーが無い（未確認）ときだけ、ユーザーに要否を確認した結果を、このキーへ非破壊で追記する（記録しないと、毎回聞き直すことになる） |
 | `new.repo` | 新側リポジトリ（実装の対象）。コミットの SHA は、設定ではなく `replace-metadata.json` に記録する |
 | `targets`（`side: new` だけ） | 実行対象環境。`--target` で選ぶ。`check_urls` で稼働を判定し、落ちているときだけ `pre_commands`、`start` の順に起動する。UI と API の URL を `PARITY_NEW_UI_URL`・`PARITY_NEW_API_URL` に解決し、`new` プロジェクトの baseURL に渡す（`api_url` を省いたときは `url`）。`url_command` の target は、コマンドを実行して解決する（失敗したり出力が空だったりしたら止まる。解決した値は成果物に書かず、`"runtime"` と記録する）。`db.seedable` は投入対象かの取り決め（`dataset_mode: db` でフェーズ B が要るか）である。`commit_check` は、`start` を持たない配信型の target で、稼働中のコミットを確かめるためのもの（下の、同一 commit で環境だけ違う場合の手順） |
@@ -181,7 +189,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
   - 受け入れ条件の突き合わせ（手順 8）の結果を Issue へコメントし、チェックを付けること（外向きの操作）
 - 保留に積んでも進める工程: 保留に依存しないページのフェーズと実装単位。依存する実装単位は、`porting.md` に `TODO`（`判断待ち: <id>`）として残し、推測で実装しない
 - 自律実行でも止まるもの: 前提の成果物が欠けている、骨格（`references.architecture`）が整備されていない、`verification_commands.full` が無い、反復の上限に達した
-- 委譲: `issue-start --branch-only` でのブランチ作成は行ってよい。`golden-dataset --phase b` と `parity-diff` へは、`--autonomous` を引き継ぐ。commit・push・PR は、越えない線の範囲でだけ行う
+- 委譲: `issue-start --branch-only` でのブランチ作成は行ってよい。`golden-dataset --phase b` と `parity-diff`（`style_policy: free` の画面のある機能では `spec-parity verify`）へは、`--autonomous` を引き継ぐ。commit・push・PR は、越えない線の範囲でだけ行う
 - 記録先: `.replace/parity/<slug>/new/<target>/pending-decisions.json`（テンプレートは [`assets/pending-decisions-template.json`](assets/pending-decisions-template.json)）。
   - `replace-metadata.json` には書かない。`parity-diff` は、`replace-metadata.json` があることと `suite.new_green` を前提に使うので、保留を残す目的で `replace-metadata.json` を作ると、後の工程が進んでしまう
   - 未解決の保留が残る間は、このスキルの完了を報告しない。回答が付いても `blocks` の工程が済んでいないものは、未解決に含める（数え方の原本は `replace-strategy` の `references/autonomy.md`「保留の状態」）
@@ -192,7 +200,8 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 
 詳細は、各 reference に任せる。番号の順に進める。
 
-1. 前提の検証と早い失敗: 最初に `style_policy` を確かめ、`free` の画面のある機能なら止まる（上記「前提」）。次に、前提（上記）を metadata.json があるかで判定する。欠けていれば成果物を捏造せずに止まり、該当するスキル（`replace-strategy setup`・`golden-dataset`・対象 slug の `parity-suite`）の実行を促す。
+1. 前提の検証と早い失敗: 最初に `style_policy` を確かめ、`free` の画面のある機能なら、以降の手順を [`references/style-free.md`](references/style-free.md) で置き換える（上記「前提」）。
+   次に、前提（上記）を metadata.json があるかで判定する。欠けていれば成果物を捏造せずに止まり、該当するスキル（`replace-strategy setup`・`golden-dataset`・対象 slug の `parity-suite`。`free` の画面のある機能では `spec-parity suite`）の実行を促す。
    - `slug` を features.md と突き合わせ、モードとパスは metadata.json から読む
    - 着手するときは、slug に対応する features.md の Issue 列の番号で `issue-start <番号> --branch-only` を実行し、ブランチを作る。
      `--branch-only` は外さない。モードを指定しない issue-start は、ブランチを作った後にそのまま実装へ進む取り決めなので、任せると同じ Issue に対して実装が二重に行われる。
@@ -233,7 +242,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
      そのため、実装できた API は原則として確定している。確定したのに書き戻さないと、`status` はその API をずっと未確認として報告する
    - 確定した要求単位が、features.md の API 列の API と食い違うときは、根拠だけを直さず、API の見直しへ回す（`replace-strategy` の `references/evidence.md` 手順 4）
    - `replace-strategy` がインストールされておらず委譲先に届かないときは、features.md を自分で書かない。確定した API と根拠を報告し、導入を促す
-5. 新側ロケータマッピングと期待値の充填（feature モード）:
+5. 新側ロケータマッピングと期待値の充填（feature モード。`style_policy: free` では充填せず、スイートの実行の仕方も変わる。[`references/style-free.md`](references/style-free.md)「手順 5」）:
    - デフォルトでは書かない。role とアクセシブルネームで、同じ論理名が解決する。書くのは解決できない例外だけである。
      Select・Autocomplete・Date picker・Modal・Menu は、操作アダプタに実装ごとの分岐が要る
    - 期待値解決層（`metadata.json` の `suite.expectations`）には、宣言した意図的差異に対応する新側の値だけを埋める
@@ -245,7 +254,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
    - 新側でスイートを実行する前に、`new` プロジェクトが現側だけのスペック（ベースラインの採取・ノイズの測定・強度チェック）を `testIgnore` で外していることを確かめる（`metadata.json.suite.current_only`）。
      外していなければ、実行する前に設定する。外さないと、新側の実行が現側の証跡を警告なしに上書きする（配置と設定の原本は `parity-suite` の `references/locator-mapping.md`）
    - green 化そのものは、フェーズの最後（敵対的レビューの後）に行う。フェーズの順の原本は [`references/paging.md`](references/paging.md)
-6. 見た目の系統差を源流で縮める（feature モード）:
+6. 見た目の系統差を源流で縮める（feature モード。`style_policy: free` では行わず、利用者が選んだ UI ライブラリとデザインの規則に従う。[`references/style-free.md`](references/style-free.md)「手順 6」）:
    - `references.ui_library` が整備されていなければ、ここで止まり、整備を促す（推測でライブラリを決めない）
    - `references.ui_library` で新側のライブラリを選ぶ（固定しない）。テーマを変えられるなら、旧の design token を新側のテーマへ寄せる
    - テーマで消せない構造差は、クラスやトークンの単位の系統差として、ユーザーに確認したうえで `component_diffs` へ宣言する。宣言できない構造差は `gaps.md` へ追記する（比較の正規化であり、仕様の変更ではない）
@@ -262,6 +271,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
      渡すのは、差分・現行のコード・規約・DB 意味論の点検表・レジストリの `keep` と `may_change`・現行の弱点の仕分けである。実装の意図と確信度は知らせない
    - 指摘、修正、再レビューの順に進める。記録は `review.md` に残す（PR には置かない）。詳細は [`references/adversarial-review.md`](references/adversarial-review.md)
 8. 完了の判定（このスキル単体）: 選んだ target に対し、パリティスイートが新側で green になり、`verification_commands.full` が通ることを確かめる。
+   `style_policy: free` の画面のある機能では、green を e2e のスイートで判定し、下の判定の一部を行わない（[`references/style-free.md`](references/style-free.md)「手順 8」）。
    batch モードは実行できるスイートを持たないので、出力の一致と `full` で判定する（モード別の完了の判定は [`references/paging.md`](references/paging.md)）。モードに応じて、次の判定も加える。
 
    **寸法の決まり方の照合（feature モード）**
@@ -340,7 +350,8 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
    - あわせて、他の機能のスイートに置かれた在席チェックのうち、自分の slug を理由に飛ばされているものを外し、green を確かめる（自分の機能のページを、他の機能と共有している場合）。
      外して赤くなるなら、そのページで自分の機能の在席が欠けている。対象は、注記の機械的な目印（デフォルトは `presence:<slug>`）でスイート全体を検索して見つける（自然文を読んで探さない）。
      在席チェックの置き方の原本は `parity-suite` の `references/coverage.md`「同じページに乗る他機能の在席」
-   - 証跡は `.replace/parity/<slug>/new/<target>/replace-metadata.json` へ記録する（環境別。他の target の証跡を上書きしない）
+   - 証跡は `.replace/parity/<slug>/new/<target>/replace-metadata.json` へ記録する（環境別。他の target の証跡を上書きしない）。
+     `new.commit` と `new.dirty` の取り方の原本は、`replace-strategy` の `references/project-config.md`「新側のバージョンの記録」である（ここへ転記しない）
    - feature モードでは、`new.commit` と並べて `new.render_inputs`（このページの描画に影響するファイルの git pathspec の配列。route・使う部品・テーマ・トークン・グローバル CSS）も書いてよい。
      部品の改修で SHA が進んだとき、鮮度の検査は、描画の入力の差分が変更の宣言の範囲に収まるかで、証跡を持ち越す（`parity-diff` の `references/component-change.md`）。
      少なく書かない。抜けたファイルの変更は、持ち越しの判定をそのまま通る。判断がつかなければ書かない（無い・空なら、SHA の一致で判定する）
@@ -412,6 +423,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
      収束の入力は新側だけでなく、現側のベースライン・データセットのバージョン・撮影の条件・差分ツールの設定にも及び、その鮮度は `parity-diff` の前提確認（`parity-diff` の `references/preflight.md`）だけが判定する。
      収束を報告するのは、そのとき `parity-diff` を実行して得た結果に基づく場合だけにする
 9. `parity-diff` との往復ループ: 差し戻されたときは、`.replace/parity/<slug>/new/<target>/diff.md` を入力に、該当するページのフェーズから再開する（頭から作り直さない）。
+   `style_policy: free` の画面のある機能では、往復の相手は `spec-parity verify` で、入力は `new/<target>/verify.md` である（[`references/style-free.md`](references/style-free.md)「手順 9」）
    - 対象の target の `on_diff` ドキュメントがあれば、それに従って修正・反映・再テストを進める（無ければ、修正して対象の target でテストし直す）
    - 反復の回数と、その反復で描画に影響する変更を入れた範囲（`loop.changed_scope`。`parity-diff` が自分のノイズを測り直すかの判定に使う）を、`new/<target>/replace-metadata.json` に記録する
    - `on_diff` の解釈の手順・終了の条件・反復の上限（`--max-iterations`、デフォルト 5）の原本は [`references/diff-loop.md`](references/diff-loop.md)
@@ -469,13 +481,17 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 - テキストの成果物（`porting.md`・`review.md`・`replace-metadata.json`・`new/<target>/component-comparison.json`・`new/<target>/acceptance.json`・
   `new/<target>/dimension-samples.json`・`new/<target>/asset-delivery.json`・`new/<target>/asset-probe/`）は Git で管理する。
   敵対的レビューは、PR のレビュー機能ではなく、ローカルの未コミット差分に対して行い、その記録が `review.md` である（記録のファイル自体は Git で管理してよい）
+- `style_policy: free` の画面のある機能では、寸法の採取値・部品網羅表の新側の突き合わせを書かない（[`references/style-free.md`](references/style-free.md)「手順 8」）
 - green の証跡だけが環境別である。`replace-metadata.json` は `new/<target>/` の下に置き、環境を切り替えても他の target の証跡を上書きしない。`porting.md`・`review.md` は環境に依存しないので、slug の直下に置く
 - このスキルは、実行時に使う固有の決定論的なツールを同梱しない（差分ツールと視覚ベースラインは `parity-suite` が同梱し、`parity-diff` が担う）
 
 ## 姉妹スキルとの連携
 
 - 依存順: 全体の依存順の原本は `replace-strategy` の `SKILL.md`「姉妹スキルと依存順」である（ここへ転記しない）。
-  このスキルの直前は対象 slug の `parity-suite`、直後は `parity-diff`（このスキルと往復する）。`golden-dataset` のフェーズ B は、このスキルの途中で呼ぶ（下記）
+  このスキルの直前は対象 slug の `parity-suite`、直後は `parity-diff`（このスキルと往復する）。`golden-dataset` のフェーズ B は、このスキルの途中で呼ぶ（下記）。
+  `style_policy: free` の画面のある機能では、直前は `spec-parity suite`、直後は `spec-parity verify`（このスキルと往復する）である
+- `spec-parity` との往復（`style_policy: free` の画面のある機能）: 受け渡しは環境別のディレクトリ `.replace/parity/<slug>/new/<target>/` で行う。
+  このスキルが `replace-metadata.json` を書き、`spec-parity verify` がそれを読んで `verify.md` と `verify-metadata.json` を書く。手順は [`references/style-free.md`](references/style-free.md)
 - `parity-component` との関係: 共通部品が先に作られている場合、このスキルはその部品を使う側になる。
   実装の途中で部品に手を入れる必要が出たときの規律（切り分け・影響の測り方・破壊的変更の判断）の原本は `parity-component` の `references/amend.md` で、このスキルはそこへ委譲する。
   部品を先に作っていないプロジェクトでは、共通部品もこのスキルが機能ごとに作る

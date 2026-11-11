@@ -100,6 +100,7 @@ target を解決する前に、設定の `style_policy` を読む（`skill-confi
       CAPTURE=$(printf '%s' "$RAW" | tr -d '[:space:]' | tr 'A-F' 'a-f')
       WANT=$(printf '%s' "$RECORDED" | tr 'A-F' 'a-f')
     else
+      # HEAD と作業ツリーの状態の取り方の原本は、replace-strategy の references/project-config.md「新側のバージョンの記録」
       CAPTURE=$(git -C <新側リポジトリ> rev-parse --verify HEAD)
       if [ -n "$CAPTURE" ] && [ -n "$(git -C <新側リポジトリ> status --porcelain)" ]; then
         echo "停止: 新側の作業ツリーに未コミットの変更がある（撮るバージョンを特定できない）"; exit 1
