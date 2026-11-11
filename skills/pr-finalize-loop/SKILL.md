@@ -357,8 +357,9 @@ git branch --show-current
 - commit message は、「ブランチ運用・commit 規約の参照」で決めた規約に従う。
   commit-msg の検証（commitlint や lefthook など）があれば、それにも従う。本文の行の長さに上限があれば守り、長い本文は `git commit -F <file>` で渡す。
   commit message の 1 行目は、commit する前に `writing-style` スキルの手順で読み直す（スキルが無ければ省く）。
-- 規約の文書か、それがリンクや節名で案内する文書に、リリースのバージョンを上げる破壊的変更の定義と書き方があれば、修正の commit と PR のタイトル・本文をそれに従って直す。
-  修正で当たるようになったときも、当たらなくなったときも同じである。案内先を読めないときと、定義で決められないときは、commit の前に利用者に確認する（`--defer-decisions` では判断待ちとして残す）。
+- リリースのバージョンを上げる破壊的変更の定義が、規約の文書か、それがリンクや節名で案内する文書にあるとする。そのときは、修正で当たるかの判断が変わるかを commit の前に確かめる。変わるとは、当たるようになることと当たらなくなることである。
+  変わるなら、直し方を自分で決めず、修正を commit する前に利用者に確認する（`--defer-decisions` では判断待ちとして残す）。案内先を読めないときと、定義で決められないときも同じである。
+  当たるようになった修正は、新しい commit に規約の書き方（conventional commits なら `BREAKING CHANGE:` のフッター）で書く。既にある commit は書き直さない。
 - 関係の無い変更を同じ commit に入れない。CI の修正とレビューへの対応で触ったファイルだけを stage する。既存の worktree に関係の無い差分があれば、入れない。
 - pre-commit フック（lefthook など）や kaizen の commit 前のチェックがあれば実行される。チェックで止まったら、指示に従って `kaizen --current` を実行してから commit し直す。
 - commit の `--amend` と force push はしない。
