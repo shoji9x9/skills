@@ -223,6 +223,42 @@
       "exports": ["*"]
     },
     {
+      "file": "skills/spec-parity/scripts/lib/check-cli.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/spec-parity/scripts/lib/cli.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/spec-parity/scripts/lib/errors.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/spec-parity/scripts/lib/file-io.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/spec-parity/scripts/lib/flags.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/spec-parity/scripts/lib/guards.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/spec-parity/scripts/lib/is-array.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/spec-parity/scripts/runtime-errors.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/spec-parity/scripts/skill-config/skill-config.mjs",
+      "exports": ["*"]
+    },
+    {
       "file": "skills/writing-style/scripts/skill-config/skill-config.mjs",
       "exports": ["*"]
     }

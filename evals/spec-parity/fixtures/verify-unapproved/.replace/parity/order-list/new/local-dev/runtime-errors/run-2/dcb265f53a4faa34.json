@@ -1,0 +1,11 @@
+{
+  "version": "1",
+  "side": "new",
+  "slug": "order-list",
+  "target": "local-dev",
+  "run": 2,
+  "test": "tests/order-list/list.e2e.ts › 並び順を切り替える",
+  "status": "passed",
+  "retry": 0,
+  "events": []
+}

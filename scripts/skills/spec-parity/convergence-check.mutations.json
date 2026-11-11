@@ -1,0 +1,297 @@
+{
+  "$comment": [
+    "convergence-check.test.ts の検出能力を示す変異の一覧（Issue #565）。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準の実行で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/spec-parity/convergence-check.test.ts",
+  "mutations": [
+    {
+      "id": "cv-suite-status-off",
+      "why": "新側で passed でないテストを差し戻さない",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "    else if (!n.every((s) => s === \"passed\"))\n",
+      "replace": "    else if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "スイート 新側の結果が failed なら send-back",
+        "スイート 新側の結果が timed-out なら send-back",
+        "スイート 新側の結果が flaky なら send-back",
+        "スイート 新側の結果が skipped なら send-back"
+      ]
+    },
+    {
+      "id": "cv-suite-missing-off",
+      "why": "新側の結果に無いテストを数えない",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "    if (!n) reasons.add(\"remeasure\", \"suite\", `新側の結果に無いテスト: ${test}`);\n",
+      "replace": "    if (!n) void 0;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "スイート 新側の結果に無いテストは、やり直しとして exit 1",
+        "スイート 新側の結果で選ばれなかったテストは、結果に無いものとして扱う"
+      ]
+    },
+    {
+      "id": "cv-suite-extra-off",
+      "why": "現行の結果に無いテスト（スイートの変更）を見逃す",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "    if (!current.has(test))\n",
+      "replace": "    if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "スイート 現行の結果に無いテストが新側にあれば、スイートが変わったのでやり直す"
+      ]
+    },
+    {
+      "id": "cv-suite-all-skipped-off",
+      "why": "現行のテストがすべてスキップでも、比べたテストが 0 件のまま判定に進める",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  if (currentSkipped.length === current.size)\n",
+      "replace": "  if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "スイート 現行の結果のテストがすべてスキップなら、比べるテストが 0 件なので exit 2"
+      ]
+    },
+    {
+      "id": "cv-commit-off",
+      "why": "new.commit と違うバージョンの記録を、今のバージョンの記録として通す",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  if (commit === expected) return true;\n",
+      "replace": "  return true;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "スイート スイートを実行したバージョンが new.commit と違えば、古い記録としてやり直す",
+        "横のはみ出し 測ったバージョンが new.commit と違えば、古い記録としてやり直す",
+        "デザインの点検と人による確認 点検したバージョンが new.commit と違えば、古い記録としてやり直す",
+        "デザインの点検と人による確認 承認した画面のバージョンが new.commit と違えば、古い記録としてやり直す"
+      ]
+    },
+    {
+      "id": "cv-runtime-class-off",
+      "why": "現行に無かったエラーの分類を判定し直さず、説明済みとして通す",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "    const state = judgeClassification(isPlainObject(s) ? s : undefined).state;\n",
+      "replace": "    const state = \"explained\";\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作中のエラー 現行に無かったエラーが 要対応 なら send-back（保存された ok は信じない）",
+        "操作中のエラー 現行に無かったエラーが 分類が無い なら approval（保存された ok は信じない）",
+        "操作中のエラー 現行に無かったエラーが 許容で承認の日時が無い なら approval（保存された ok は信じない）",
+        "操作中のエラー 現行に無かったエラーが 環境ノイズで根拠が無い なら approval（保存された ok は信じない）"
+      ]
+    },
+    {
+      "id": "cv-runtime-lists-off",
+      "why": "compare が挙げた記録の欠け・通らなかったテスト・基準に無いテスト・新側でスキップしたテストを見逃す",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "    for (const t of list) reasons.add(category, \"runtime_errors\", `${key}: ${String(t)}`);\n",
+      "replace": "    for (const t of []) reasons.add(category, \"runtime_errors\", `${key}: ${String(t)}`);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作中のエラー compare の missing_tests が空でなければ remeasure",
+        "操作中のエラー compare の failed_tests が空でなければ send-back",
+        "操作中のエラー compare の extra_tests が空でなければ remeasure",
+        "操作中のエラー compare の skipped_tests が空でなければ remeasure"
+      ]
+    },
+    {
+      "id": "cv-design-fix-off",
+      "why": "「直す」のデザインの指摘を差し戻さない",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  if (f.decision === \"fix\") reasons.add(",
+      "replace": "  if (false) reasons.add(",
+      "occurrences": 1,
+      "expect_failing": ["デザインの点検と人による確認 指摘を 直す なら send-back"]
+    },
+    {
+      "id": "cv-design-approval-off",
+      "why": "承認の無い「受け入れる」のデザインの指摘を通す",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  else if (!hasApproval(approval) || !filled(approval?.reason))\n",
+      "replace": "  else if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "デザインの点検と人による確認 指摘を 受け入れるが承認が無い なら approval",
+        "デザインの点検と人による確認 指摘を 受け入れるが理由が無い なら approval"
+      ]
+    },
+    {
+      "id": "cv-human-approval-off",
+      "why": "利用者の承認の記録が無いまま、人による確認を通す",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  else if (!a || a.verdict !== \"approved\" || !hasApproval(a))\n",
+      "replace": "  else if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "デザインの点検と人による確認 人による確認が 承認の記録が無い なら approval",
+        "デザインの点検と人による確認 人による確認が 承認した人が無い なら approval"
+      ]
+    },
+    {
+      "id": "cv-unverified-off",
+      "why": "必ず載せる未検証の項目（performance・runtime_errors）が無くても通す",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "    if (!items.has(item))\n",
+      "replace": "    if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "未検証の一覧と判断待ち 未検証の一覧に performance が無ければ exit 1",
+        "操作中のエラー 現側で記録しなかった機能で、未検証の一覧に runtime_errors が無ければ exit 1"
+      ]
+    },
+    {
+      "id": "cv-pending-off",
+      "why": "未解決の保留を数えない",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  const open = list.filter((p) => !isSettled(p));\n",
+      "replace": "  const open = list.filter(() => false);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "未検証の一覧と判断待ち 保留が 回答が無い（open） なら承認待ちとして exit 1",
+        "未検証の一覧と判断待ち 保留が 回答はあるが工程を終えていない（decided） なら承認待ちとして exit 1",
+        "未検証の一覧と判断待ち 保留が 実施の記録の証拠が空の文字列だけ（decided） なら承認待ちとして exit 1"
+      ]
+    },
+    {
+      "id": "cv-overflow-recompute-off",
+      "why": "測定の記録にあるはみ出しを、収束の判定で数えない",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  for (const r of result.overflowing)\n",
+      "replace": "  for (const r of [])\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "横のはみ出し 測定の記録ではみ出しがあれば、verify-metadata.json の ok を信じずに差し戻す"
+      ]
+    },
+    {
+      "id": "cv-write-on-error-off",
+      "why": "判定できなかったときに、前の converged: true を残す",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "    for (const w of writable) writeConvergence(w, failed, io);\n",
+      "replace": "    void failed;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "前提の欠落（exit 2） 判定できないとき --write は、前の converged: true を false に書き換える"
+      ]
+    },
+    {
+      "id": "cv-unmeasured-blocking-off",
+      "why": "blocking の未測定が残っていても収束とする",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "    reasons.add(\"remeasure\", \"unmeasured\", `未測定が残っている（disposition: blocking）: ${item}`);\n",
+      "replace": "    void item;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "未測定の宣言（metadata.json の unmeasured） blocking が 1 件でも残れば、やり直しとして exit 1 になり、1 件目と件数を checks に残す",
+        "未測定の宣言（metadata.json の unmeasured） --write は、blocking があるとき converged: false を書く"
+      ]
+    },
+    {
+      "id": "cv-unmeasured-approval-off",
+      "why": "承認した人・日時が空の accepted を、承認済みとして通す",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  if (!filled(entry.approved_by) || !filled(entry.approved_at)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "未測定の宣言（metadata.json の unmeasured） accepted でも approved_by が null なら、承認待ちとして exit 1",
+        "未測定の宣言（metadata.json の unmeasured） accepted でも approved_at が空 なら、承認待ちとして exit 1",
+        "未測定の宣言（metadata.json の unmeasured） accepted でも 承認の日時が雛形の値のまま なら、承認待ちとして exit 1"
+      ]
+    },
+    {
+      "id": "cv-unmeasured-vocab-off",
+      "why": "語彙の外の disposition を blocking として数えない",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  if (typeof disposition !== \"string\" || !UNMEASURED_DISPOSITIONS.includes(disposition)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "未測定の宣言（metadata.json の unmeasured） disposition が語彙の外 の宣言は blocking として数え、やり直しにする",
+        "未測定の宣言（metadata.json の unmeasured） disposition が無い の宣言は blocking として数え、やり直しにする",
+        "未測定の宣言（metadata.json の unmeasured） disposition が文字列でない の宣言は blocking として数え、やり直しにする"
+      ]
+    },
+    {
+      "id": "cv-unmeasured-duplicate-off",
+      "why": "item が重複した宣言を、先勝ちで通す",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  if (seen.has(item)) return invalid(",
+      "replace": "  if (false) return invalid(",
+      "occurrences": 1,
+      "expect_failing": [
+        "未測定の宣言（metadata.json の unmeasured） item が重複した宣言は、先勝ちにせず blocking として数える"
+      ]
+    },
+    {
+      "id": "cv-unmeasured-item-empty-off",
+      "why": "item が空の宣言を、照合キーなしで通す",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  if (item === null) return invalid(",
+      "replace": "  if (false) return invalid(",
+      "occurrences": 1,
+      "expect_failing": [
+        "未測定の宣言（metadata.json の unmeasured） item が空 の宣言は blocking として数え、やり直しにする",
+        "未測定の宣言（metadata.json の unmeasured） item が文字列でない の宣言は blocking として数え、やり直しにする"
+      ]
+    },
+    {
+      "id": "cv-unmeasured-reason-empty-off",
+      "why": "reason が空の宣言を通す",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  if (!nonEmptyString(entry.reason)) return invalid(",
+      "replace": "  if (false) return invalid(",
+      "occurrences": 1,
+      "expect_failing": [
+        "未測定の宣言（metadata.json の unmeasured） reason が空 の宣言は blocking として数え、やり直しにする"
+      ]
+    },
+    {
+      "id": "cv-unmeasured-declared-false-off",
+      "why": "declared: false でも entries を読む",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  if (!decl.declared) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "未測定の宣言（metadata.json の unmeasured） declared: false なら entries の blocking を読まない なら収束する",
+        "未測定の宣言（metadata.json の unmeasured） declared: false に reason が無い なら判定できず exit 2"
+      ]
+    },
+    {
+      "id": "cv-unmeasured-wiring-off",
+      "why": "未測定の判定を収束の判定に入れない",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "    unmeasured: judgeUnmeasured(metadata, reasons),\n",
+      "replace": "    unmeasured: { judged: false },\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "未測定の宣言（metadata.json の unmeasured） キーごと無いときは、判定しなかったことと理由を checks に残す",
+        "未測定の宣言（metadata.json の unmeasured） blocking が 1 件でも残れば、やり直しとして exit 1 になり、1 件目と件数を checks に残す",
+        "未測定の宣言（metadata.json の unmeasured） --write は、blocking があるとき converged: false を書く",
+        "未測定の宣言（metadata.json の unmeasured） disposition が語彙の外 の宣言は blocking として数え、やり直しにする",
+        "未測定の宣言（metadata.json の unmeasured） disposition が無い の宣言は blocking として数え、やり直しにする",
+        "未測定の宣言（metadata.json の unmeasured） disposition が文字列でない の宣言は blocking として数え、やり直しにする",
+        "未測定の宣言（metadata.json の unmeasured） item が空 の宣言は blocking として数え、やり直しにする",
+        "未測定の宣言（metadata.json の unmeasured） item が文字列でない の宣言は blocking として数え、やり直しにする",
+        "未測定の宣言（metadata.json の unmeasured） reason が空 の宣言は blocking として数え、やり直しにする",
+        "未測定の宣言（metadata.json の unmeasured） item が重複した宣言は、先勝ちにせず blocking として数える",
+        "未測定の宣言（metadata.json の unmeasured） accepted でも approved_by が null なら、承認待ちとして exit 1",
+        "未測定の宣言（metadata.json の unmeasured） accepted でも approved_at が空 なら、承認待ちとして exit 1",
+        "未測定の宣言（metadata.json の unmeasured） accepted でも 承認の日時が雛形の値のまま なら、承認待ちとして exit 1",
+        "未測定の宣言（metadata.json の unmeasured） unmeasured が配列 なら判定できず exit 2",
+        "未測定の宣言（metadata.json の unmeasured） unmeasured が文字列 なら判定できず exit 2",
+        "未測定の宣言（metadata.json の unmeasured） unmeasured が null なら判定できず exit 2",
+        "未測定の宣言（metadata.json の unmeasured） declared が無い なら判定できず exit 2",
+        "未測定の宣言（metadata.json の unmeasured） declared が文字列 なら判定できず exit 2",
+        "未測定の宣言（metadata.json の unmeasured） declared: false に reason が無い なら判定できず exit 2",
+        "未測定の宣言（metadata.json の unmeasured） declared: false の reason が空白 なら判定できず exit 2",
+        "未測定の宣言（metadata.json の unmeasured） entries が無い なら判定できず exit 2",
+        "未測定の宣言（metadata.json の unmeasured） entries が配列でない なら判定できず exit 2",
+        "未測定の宣言（metadata.json の unmeasured） entries の要素がオブジェクトでない なら判定できず exit 2",
+        "未測定の宣言（metadata.json の unmeasured） entries の要素が null なら判定できず exit 2"
+      ]
+    }
+  ]
+}

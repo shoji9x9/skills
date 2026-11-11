@@ -1,0 +1,55 @@
+{
+  "$comment": [
+    "overflow-check.test.ts の検出能力を示す変異の一覧（Issue #565）。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準の実行で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/spec-parity/overflow-check.test.ts",
+  "mutations": [
+    {
+      "id": "ov-overflow-off",
+      "why": "scrollWidth が clientWidth を超えた組をはみ出しとして数えない",
+      "file": "skills/spec-parity/scripts/overflow-check.mjs",
+      "find": "      else if (r.scroll_width > r.client_width) overflowing.push(r);\n",
+      "replace": "      else if (false) overflowing.push(r);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "overflow-check の判定 1 組でも scrollWidth が clientWidth を超えれば exit 1（はみ出す fixture を検出する）",
+        "overflow-check の --write はみ出しがあっても、判定を書いてから exit 1 にする",
+        "overflow-check の --side current（suite で現行が保証する幅を決める） 現行がはみ出す幅があれば exit 1（その幅は保証していない）"
+      ]
+    },
+    {
+      "id": "ov-missing-off",
+      "why": "宣言した組の測定が無いことを未測定として数えない",
+      "file": "skills/spec-parity/scripts/overflow-check.mjs",
+      "find": "      if (!r) missing.push({ page, viewport });\n",
+      "replace": "      if (!r) continue;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "overflow-check の判定 宣言にある組の測定が無ければ、はみ出しが無くても exit 1（未測定を合格にしない）",
+        "overflow-check の判定 測定が 0 件なら、宣言したすべての組を未測定として exit 1",
+        "overflow-check の判定 同じページで高さだけが違う幅は、別の組として数える"
+      ]
+    },
+    {
+      "id": "ov-width-off",
+      "why": "宣言と違う幅で測った記録を、その幅の測定として通す",
+      "file": "skills/spec-parity/scripts/overflow-check.mjs",
+      "find": "      else if (r.inner_width !== viewport.width) widthMismatch.push(r);\n",
+      "replace": "      else if (false) widthMismatch.push(r);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "overflow-check の判定 innerWidth が宣言の幅と違う測定は、その幅で測れていないので exit 1"
+      ]
+    },
+    {
+      "id": "ov-extra-off",
+      "why": "宣言に無い組の測定を見逃す",
+      "file": "skills/spec-parity/scripts/overflow-check.mjs",
+      "find": "  const extra = records.filter((r) => !expected.has(keyOf(r.page, r.viewport)));\n",
+      "replace": "  const extra = records.filter(() => false);\n",
+      "occurrences": 1,
+      "expect_failing": ["overflow-check の判定 宣言に無い組の測定は extra として exit 1"]
+    }
+  ]
+}

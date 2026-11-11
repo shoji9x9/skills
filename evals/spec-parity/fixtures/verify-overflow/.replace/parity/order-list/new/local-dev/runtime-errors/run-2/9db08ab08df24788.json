@@ -1,0 +1,17 @@
+{
+  "version": "1",
+  "side": "new",
+  "slug": "order-list",
+  "target": "local-dev",
+  "run": 2,
+  "test": "tests/order-list/list.e2e.ts › 一覧を開く",
+  "status": "passed",
+  "retry": 0,
+  "events": [
+    {
+      "page": "http://localhost:5173/orders",
+      "kind": "console-error",
+      "text": "Warning: each child in a list should have a unique key"
+    }
+  ]
+}

@@ -81,6 +81,9 @@
     "scripts/skills/aws-architecture-diagram/validate-icon-svg.mutations.json": 1.3,
     "scripts/skills/aws-architecture-diagram/diagram-checks.mutations.json": 0.9,
     "scripts/weekly/security-audit-issue.mutations.json": 0.8,
-    "scripts/weekly/self-review-fix.mutations.json": 0.8
+    "scripts/weekly/self-review-fix.mutations.json": 0.8,
+    "scripts/skills/spec-parity/convergence-check.mutations.json": 0.77,
+    "scripts/skills/spec-parity/overflow-check.mutations.json": 0.74,
+    "scripts/skills/spec-parity/strength-check.mutations.json": 0.73
   }
 }

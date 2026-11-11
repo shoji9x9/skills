@@ -14,6 +14,7 @@ import { isCliEntry as issueStart } from "../../../skills/issue-start/scripts/li
 import { isCliEntry as parityComponent } from "../../../skills/parity-component/scripts/lib/cli.mjs";
 import { isCliEntry as parityDiff } from "../../../skills/parity-diff/scripts/lib/cli.mjs";
 import { isCliEntry as replaceStrategy } from "../../../skills/replace-strategy/scripts/lib/cli.mjs";
+import { isCliEntry as specParity } from "../../../skills/spec-parity/scripts/lib/cli.mjs";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 const COPIES = [
@@ -22,6 +23,7 @@ const COPIES = [
   { skill: "parity-component", isCliEntry: parityComponent },
   { skill: "parity-diff", isCliEntry: parityDiff },
   { skill: "replace-strategy", isCliEntry: replaceStrategy },
+  { skill: "spec-parity", isCliEntry: specParity },
 ];
 
 let savedArgv: string[];

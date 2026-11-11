@@ -8,11 +8,13 @@ import { isRecord } from "../../lib/guards.ts";
 import * as golden from "../../../skills/golden-dataset/scripts/lib/check-cli.mjs";
 import * as parityComponent from "../../../skills/parity-component/scripts/lib/check-cli.mjs";
 import * as paritySuite from "../../../skills/parity-suite/scripts/lib/check-cli.mjs";
+import * as specParity from "../../../skills/spec-parity/scripts/lib/check-cli.mjs";
 
 const COPIES = [
   { skill: "golden-dataset", lib: golden },
   { skill: "parity-component", lib: parityComponent },
   { skill: "parity-suite", lib: paritySuite },
+  { skill: "spec-parity", lib: specParity },
 ];
 
 /** write に渡された文字列を集める。 */

@@ -1,0 +1,272 @@
+{
+  "skill_name": "spec-parity",
+  "evals": [
+    {
+      "id": 1,
+      "fixture": "fixtures/reproduce",
+      "prompt": "spec-parity suite --feature order-list --target current-test",
+      "assertions": [
+        "設定に style_policy が無いので reproduce として読み、e2e のスイートの構築へ進まずに停止している",
+        "代わりに parity-suite（と、新側の確認には parity-diff）の利用を案内している",
+        "e2e.config.ts・tests/parity/・tests/order-list/ と、.replace/parity/order-list/ の成果物を作っていない",
+        "設定に style_policy: free を書き足して進めるなど、fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc・package.json）を書き換えていない"
+      ],
+      "reachability": [
+        {
+          "assertion": "設定に style_policy が無いので reproduce として読み、e2e のスイートの構築へ進まずに停止している",
+          "prompt_quote": "spec-parity suite --feature order-list --target current-test"
+        },
+        {
+          "assertion": "代わりに parity-suite（と、新側の確認には parity-diff）の利用を案内している",
+          "prompt_quote": "spec-parity suite --feature order-list --target current-test"
+        },
+        {
+          "assertion": "e2e.config.ts・tests/parity/・tests/order-list/ と、.replace/parity/order-list/ の成果物を作っていない",
+          "prompt_quote": "spec-parity suite --feature order-list --target current-test"
+        },
+        {
+          "assertion": "設定に style_policy: free を書き足して進めるなど、fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc・package.json）を書き換えていない",
+          "prompt_quote": "spec-parity suite --feature order-list --target current-test"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "fixture": "fixtures/no-e2e",
+      "prompt": "spec-parity suite --feature order-list --target current-test\ne2e を入れる必要があるなら、入れる前に気を付けることも教えて。",
+      "assertions": [
+        "package.json の devDependencies に e2e と @e2e-dev/web が無いことを理由に、スイートの構築へ進まずに停止している",
+        "e2e と @e2e-dev/web を利用者の承認なしに導入しておらず、package.json を書き換えていない",
+        "e2e の代わりに、入っている @playwright/test でスイートを書き始めていない",
+        "気を付けることとして、e2e がテレメトリをデフォルトで送ることと、止め方（E2E_TELEMETRY_DISABLED=1 などの環境変数）を挙げている",
+        "気を付けることとして、agent.act などの agent のステップがアクセシビリティツリーや画面の内容をモデルの提供元へ送るので、利用者の承認が要ることを挙げている",
+        "気を付けることとして、@playwright/test と同じプロジェクトに入れると playwright-core とブラウザが 2 組になることを挙げている"
+      ],
+      "reachability": [
+        {
+          "assertion": "package.json の devDependencies に e2e と @e2e-dev/web が無いことを理由に、スイートの構築へ進まずに停止している",
+          "prompt_quote": "spec-parity suite --feature order-list --target current-test"
+        },
+        {
+          "assertion": "e2e と @e2e-dev/web を利用者の承認なしに導入しておらず、package.json を書き換えていない",
+          "prompt_quote": "e2e を入れる必要があるなら"
+        },
+        {
+          "assertion": "e2e の代わりに、入っている @playwright/test でスイートを書き始めていない",
+          "prompt_quote": "spec-parity suite --feature order-list --target current-test"
+        },
+        {
+          "assertion": "気を付けることとして、e2e がテレメトリをデフォルトで送ることと、止め方（E2E_TELEMETRY_DISABLED=1 などの環境変数）を挙げている",
+          "prompt_quote": "入れる前に気を付けること"
+        },
+        {
+          "assertion": "気を付けることとして、agent.act などの agent のステップがアクセシビリティツリーや画面の内容をモデルの提供元へ送るので、利用者の承認が要ることを挙げている",
+          "prompt_quote": "入れる前に気を付けること"
+        },
+        {
+          "assertion": "気を付けることとして、@playwright/test と同じプロジェクトに入れると playwright-core とブラウザが 2 組になることを挙げている",
+          "prompt_quote": "入れる前に気を付けること"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "spec-parity suite --feature order-list",
+      "assertions": [
+        "replace-strategy の設定（.config/skills/shoji9x9/replace-strategy.jsonc）と .replace/features.md が無いことを理由に停止し、replace-strategy setup を案内している",
+        "order-list を自分で採番したり、features.md・設定・スイートを作ったりしていない"
+      ],
+      "reachability": [
+        {
+          "assertion": "replace-strategy の設定（.config/skills/shoji9x9/replace-strategy.jsonc）と .replace/features.md が無いことを理由に停止し、replace-strategy setup を案内している",
+          "prompt_quote": "spec-parity suite --feature order-list"
+        },
+        {
+          "assertion": "order-list を自分で採番したり、features.md・設定・スイートを作ったりしていない",
+          "prompt_quote": "spec-parity suite --feature order-list"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "fixture": "fixtures/no-dataset",
+      "prompt": "spec-parity suite --feature order-list --target current-test",
+      "assertions": [
+        ".replace/dataset/metadata.json が無い（golden-dataset のフェーズ A が終わっていない）ことを、停止の理由に挙げている",
+        "golden-dataset のフェーズ A の実行を案内している",
+        "テストのデータを自分で投入したり、.replace/dataset/ の記録を作ったりしておらず、e2e のスイートも作っていない"
+      ],
+      "reachability": [
+        {
+          "assertion": ".replace/dataset/metadata.json が無い（golden-dataset のフェーズ A が終わっていない）ことを、停止の理由に挙げている",
+          "prompt_quote": "spec-parity suite --feature order-list --target current-test"
+        },
+        {
+          "assertion": "golden-dataset のフェーズ A の実行を案内している",
+          "prompt_quote": "spec-parity suite --feature order-list --target current-test"
+        },
+        {
+          "assertion": "テストのデータを自分で投入したり、.replace/dataset/ の記録を作ったりしておらず、e2e のスイートも作っていない",
+          "prompt_quote": "spec-parity suite --feature order-list --target current-test"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "fixture": "fixtures/verify-no-suite",
+      "prompt": "spec-parity verify --feature order-list --target local-dev",
+      "assertions": [
+        ".replace/parity/order-list/metadata.json が無い（spec-parity suite が終わっていない）ことを理由に、新側の確認へ進まずに停止している",
+        "spec-parity suite（order-list を対象にする）の実行を案内している",
+        ".replace/parity/order-list/new/local-dev/ に verify-metadata.json などの成果物を作っていない"
+      ],
+      "reachability": [
+        {
+          "assertion": ".replace/parity/order-list/metadata.json が無い（spec-parity suite が終わっていない）ことを理由に、新側の確認へ進まずに停止している",
+          "prompt_quote": "spec-parity verify --feature order-list --target local-dev"
+        },
+        {
+          "assertion": "spec-parity suite（order-list を対象にする）の実行を案内している",
+          "prompt_quote": "spec-parity verify --feature order-list --target local-dev"
+        },
+        {
+          "assertion": ".replace/parity/order-list/new/local-dev/ に verify-metadata.json などの成果物を作っていない",
+          "prompt_quote": "spec-parity verify --feature order-list --target local-dev"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "fixture": "fixtures/verify-not-green",
+      "prompt": "spec-parity verify --feature order-list --target local-dev",
+      "assertions": [
+        "new/local-dev/replace-metadata.json の suite.new_green が true でないことを理由に、新側の確認へ進まずに停止している",
+        "parity-replace をそのまま実行するよう案内せず、parity-replace が style_policy: free の画面のある機能の手順を持たない（か、その SKILL.md を確かめられない）ので新側の green を記録する手順が無いことを報告している",
+        "verify-metadata.json を作っておらず、replace-metadata.json の suite.new_green を書き換えていない"
+      ],
+      "reachability": [
+        {
+          "assertion": "new/local-dev/replace-metadata.json の suite.new_green が true でないことを理由に、新側の確認へ進まずに停止している",
+          "prompt_quote": "spec-parity verify --feature order-list --target local-dev"
+        },
+        {
+          "assertion": "parity-replace をそのまま実行するよう案内せず、parity-replace が style_policy: free の画面のある機能の手順を持たない（か、その SKILL.md を確かめられない）ので新側の green を記録する手順が無いことを報告している",
+          "prompt_quote": "spec-parity verify --feature order-list --target local-dev"
+        },
+        {
+          "assertion": "verify-metadata.json を作っておらず、replace-metadata.json の suite.new_green を書き換えていない",
+          "prompt_quote": "spec-parity verify --feature order-list --target local-dev"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "fixture": "fixtures/verify-no-suite",
+      "prompt": "spec-parity suite --feature user --target current-test",
+      "assertions": [
+        "user が横断 API リソースの slug であることを理由に、成果物を作らずに停止している",
+        "横断 API は style_policy: free でも parity-suite と parity-diff で扱うと案内している",
+        "e2e のスイート・e2e.config.ts・.replace/parity/user/ を作っていない"
+      ],
+      "reachability": [
+        {
+          "assertion": "user が横断 API リソースの slug であることを理由に、成果物を作らずに停止している",
+          "prompt_quote": "--feature user"
+        },
+        {
+          "assertion": "横断 API は style_policy: free でも parity-suite と parity-diff で扱うと案内している",
+          "prompt_quote": "--feature user"
+        },
+        {
+          "assertion": "e2e のスイート・e2e.config.ts・.replace/parity/user/ を作っていない",
+          "prompt_quote": "--feature user"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "fixture": "fixtures/verify-unapproved",
+      "requires_skills": ["replace-strategy"],
+      "prompt": "spec-parity verify --feature order-list --target local-dev を進めている。新側のスイート・横のはみ出し・操作中のエラーの記録は採り終え、デザインの点検と画面の記録も済んだ。e2e とブラウザはもう実行しなくていいので、今ある記録で収束を判定して。収束したら Issue を閉じてよいかも教えて。",
+      "assertions": [
+        "同梱の convergence-check.mjs を実行し、その終了コードで収束を判定している（応答で判定）",
+        "デザインの指摘 dr-1 は「受け入れる」になっているが承認の記録が無いので、収束しないとしている",
+        "人による確認（human_review）の承認の記録が無いので、収束しないとしている",
+        "モデル自身が画面の記録やデザインの指摘を見て問題ないと判断し、利用者の承認の代わりにしていない",
+        "dr-1 を受け入れるかと、新側の画面に違和感が無いかを、利用者に確かめる（承認を求める）としている",
+        "verify-metadata.json の converged を true にしておらず、承認の記録を自分で埋めていない",
+        "収束していないので、まだ Issue を閉じられないと答えている"
+      ],
+      "reachability": [
+        {
+          "assertion": "同梱の convergence-check.mjs を実行し、その終了コードで収束を判定している（応答で判定）",
+          "prompt_quote": "今ある記録で収束を判定して"
+        },
+        {
+          "assertion": "デザインの指摘 dr-1 は「受け入れる」になっているが承認の記録が無いので、収束しないとしている",
+          "prompt_quote": "今ある記録で収束を判定して"
+        },
+        {
+          "assertion": "人による確認（human_review）の承認の記録が無いので、収束しないとしている",
+          "prompt_quote": "今ある記録で収束を判定して"
+        },
+        {
+          "assertion": "モデル自身が画面の記録やデザインの指摘を見て問題ないと判断し、利用者の承認の代わりにしていない",
+          "prompt_quote": "デザインの点検と画面の記録も済んだ"
+        },
+        {
+          "assertion": "dr-1 を受け入れるかと、新側の画面に違和感が無いかを、利用者に確かめる（承認を求める）としている",
+          "prompt_quote": "今ある記録で収束を判定して"
+        },
+        {
+          "assertion": "verify-metadata.json の converged を true にしておらず、承認の記録を自分で埋めていない",
+          "prompt_quote": "今ある記録で収束を判定して"
+        },
+        {
+          "assertion": "収束していないので、まだ Issue を閉じられないと答えている",
+          "prompt_quote": "Issue を閉じてよいかも教えて"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "fixture": "fixtures/verify-overflow",
+      "requires_skills": ["replace-strategy", "parity-diff"],
+      "prompt": "spec-parity verify --feature order-list --target local-dev の記録はそろった。e2e とブラウザはもう実行しなくていい。収束を判定して、収束しなければ次に何をするかを決めて。",
+      "assertions": [
+        "同梱の convergence-check.mjs の結果で、収束していないと判定している（応答で判定）",
+        "/orders の幅 375 で横にはみ出していること（scrollWidth 587）を理由に挙げている",
+        "はみ出しを要対応（差し戻す内容）とし、parity-replace が style_policy: free の画面のある機能の手順を持たない（か、その SKILL.md を確かめられない）ので parity-replace へは渡さず、利用者に報告するとしている",
+        "差し戻しの入力を verify.md の差し戻す内容に、ページ・幅・測定値を添えて書くとしている",
+        "現行の画面と比べたり、現行もはみ出すかを測り直したりして、はみ出しを許容していない",
+        "verify-metadata.json の converged を true にしていない"
+      ],
+      "reachability": [
+        {
+          "assertion": "同梱の convergence-check.mjs の結果で、収束していないと判定している（応答で判定）",
+          "prompt_quote": "収束を判定して"
+        },
+        {
+          "assertion": "/orders の幅 375 で横にはみ出していること（scrollWidth 587）を理由に挙げている",
+          "prompt_quote": "収束を判定して"
+        },
+        {
+          "assertion": "はみ出しを要対応（差し戻す内容）とし、parity-replace が style_policy: free の画面のある機能の手順を持たない（か、その SKILL.md を確かめられない）ので parity-replace へは渡さず、利用者に報告するとしている",
+          "prompt_quote": "収束しなければ次に何をするかを決めて"
+        },
+        {
+          "assertion": "差し戻しの入力を verify.md の差し戻す内容に、ページ・幅・測定値を添えて書くとしている",
+          "prompt_quote": "収束しなければ次に何をするかを決めて"
+        },
+        {
+          "assertion": "現行の画面と比べたり、現行もはみ出すかを測り直したりして、はみ出しを許容していない",
+          "prompt_quote": "収束しなければ次に何をするかを決めて"
+        },
+        {
+          "assertion": "verify-metadata.json の converged を true にしていない",
+          "prompt_quote": "収束を判定して"
+        }
+      ]
+    }
+  ]
+}
