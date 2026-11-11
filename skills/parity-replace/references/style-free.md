@@ -39,10 +39,14 @@ e2e が入っていることも確かめる。確かめ方の原本は `spec-par
 `replace-strategy setup`・`golden-dataset` のフェーズ A とフェーズ B・未解決の保留の判定は、`SKILL.md`「前提」のままである。
 見る保留には、`spec-parity suite` の保留（`.replace/parity/<slug>/pending-decisions.json`）も含む（原本は `replace-strategy` の `references/autonomy.md`「下流の前提判定」）。
 
+最後に、このファイルが参照する `spec-parity` の文書と節を、実装に入る前にまとめて読めることを確かめる。
+対象は、`spec-parity` の `SKILL.md`「前提」と、`references/` の `e2e-runner.md`・`suite-authoring.md`・`convergence.md` の、このファイルが名前で挙げた節である。
+どれかを読めないか節が無ければ、止まって `spec-parity` の導入か更新（`gh skill install` か `gh skill update`）を案内する。
+
 ## e2e を実行するときの注意
 
 - このスキルが起動する e2e には、テレメトリと更新の確認を止める環境変数を必ず付ける。e2e はテレメトリをデフォルトで送るからである。
-  付ける環境変数の原本は `spec-parity` の `references/e2e-runner.md`「外部へ送るデータと止め方」で、下の「新側の green」のコマンドはその値で書いている。
+  付ける環境変数の原本は `spec-parity` の `references/e2e-runner.md`「外部へ送るデータと止め方」である。下の「新側の green」のコマンドの環境変数が原本と食い違ったら、原本に従う。
 - スイートに agent のステップ（`agent.act` など）があると、実行のたびに、指示・画面のアクセシビリティツリー・URL をモデルの提供元へ送る。
   送ってよいかの承認と止め方は、`spec-parity` の `SKILL.md`「前提」の「外部へ送るデータ」と、`spec-parity` の `references/e2e-runner.md`「外部へ送るデータと止め方」に従う（ここへ転記しない）。
   この 2 つを読めないときは、e2e を実行せずに止まる。
