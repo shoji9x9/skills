@@ -38,6 +38,33 @@
       "crap_moderate": {
         "count": 2
       }
+    },
+    "skills/spec-parity/assets/overflow.e2e.template.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "skills/spec-parity/assets/runtime-errors-init.template.mjs": {
+      "crap_high": {
+        "count": 3
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "skills/spec-parity/assets/runtime-errors-reporter.template.ts": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 2
+      }
     }
   },
   "runtime_coverage_findings": [],

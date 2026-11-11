@@ -42,3 +42,4 @@ ci:43004834274:1,ci,2026-11-11T11:03:38.409Z,p-cdee4961,github-actions,,,,2026-1
 ci:43004834268:1,ci,2026-11-11T11:03:38.409Z,p-cdee4961,github-actions,,,,2026-11-11T10:35:03.000Z,2026-11-11T10:37:40.000Z,Asia/Tokyo,feature/565-style-free-replace-skill,565,,,,,,,,,,CodeQL;pull_request;success,
 ci:43004834280:1,ci,2026-11-11T11:03:38.409Z,p-cdee4961,github-actions,,,,2026-11-11T10:35:03.000Z,2026-11-11T10:38:39.000Z,Asia/Tokyo,feature/565-style-free-replace-skill,565,,,,,,,,,,CI;pull_request;failure,
 coverage:github:2026-11-10T10:33:50.159Z:2026-11-11T11:03:38.409Z,coverage,2026-11-11T11:03:38.409Z,p-cdee4961,,,,,2026-11-10T10:33:50.159Z,2026-11-11T11:03:38.409Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-10T11:03:38.409Z:2026-11-11T11:10:56.138Z,coverage,2026-11-11T11:10:56.138Z,p-cdee4961,,,,,2026-11-10T11:03:38.409Z,2026-11-11T11:10:56.138Z,Asia/Tokyo,,,,,,,,,,,,ok,
