@@ -1,0 +1,8 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+pr:991,pr,2026-11-11T04:30:37.986Z,p-cdee4961,github,,,,2026-11-11T00:48:59.000Z,2026-11-11T04:20:57.000Z,Asia/Tokyo,self-review/fixes-2026-11-10-42934046515,,,,,,,,,,,pr=991;author=shoji9x9-skills-autofix;state=merged,
+ci:42958643559:1,ci,2026-11-11T04:30:37.986Z,p-cdee4961,github-actions,,,,2026-11-11T04:21:00.000Z,2026-11-11T04:24:45.000Z,Asia/Tokyo,main,,,,,,,,,,,CodeQL;push;success,
+ci:42953541717:1,ci,2026-11-11T04:30:37.986Z,p-cdee4961,github-actions,,,,2026-11-11T03:33:29.000Z,2026-11-11T03:38:25.000Z,Asia/Tokyo,self-review/fixes-2026-11-10-42934046515,,,,,,,,,,,CI;pull_request;success,
+ci:42953541400:1,ci,2026-11-11T04:30:37.986Z,p-cdee4961,github-actions,,,,2026-11-11T03:33:28.000Z,2026-11-11T03:33:36.000Z,Asia/Tokyo,self-review/fixes-2026-11-10-42934046515,,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:42953541418:1,ci,2026-11-11T04:30:37.986Z,p-cdee4961,github-actions,,,,2026-11-11T03:33:28.000Z,2026-11-11T03:34:47.000Z,Asia/Tokyo,self-review/fixes-2026-11-10-42934046515,,,,,,,,,,,CodeQL;pull_request;success,
+ci:42952951125:1,ci,2026-11-11T04:30:37.986Z,p-cdee4961,github-actions,,,,2026-11-11T03:28:05.000Z,2026-11-11T03:33:16.000Z,Asia/Tokyo,self-review/fixes-2026-11-10-42934046515,,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-11-10T03:32:41.382Z:2026-11-11T04:30:37.986Z,coverage,2026-11-11T04:30:37.986Z,p-cdee4961,,,,,2026-11-10T03:32:41.382Z,2026-11-11T04:30:37.986Z,Asia/Tokyo,,,,,,,,,,,,ok,

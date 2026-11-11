@@ -156,7 +156,7 @@ jobs:
           github-token: ${{ github.token }}
           path: ${{ runner.temp }}/report
 
-      - uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
         if: steps.pause.outputs.skip != 'true'
 
       # 候補は、エージェントが読めるよう作業ツリーに置く。候補と結果のファイルは git の除外に入れ、エージェントが変えたファイルの検査に含めない。
@@ -180,7 +180,7 @@ jobs:
         env:
           # サブエージェントをバックグラウンドで起動させない（self-review.yml と同じ。Issue #956）。
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
-        uses: anthropics/claude-code-action@d535f5172dec02b204866b393d6b20b9b2aaf98d # v1.0.266
+        uses: anthropics/claude-code-action@c0949c50a78c1ec8ce2647db36629b870e715d0c # v1.0.268
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
@@ -237,7 +237,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
 
       - name: Download fix
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
