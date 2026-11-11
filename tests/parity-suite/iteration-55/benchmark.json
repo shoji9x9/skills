@@ -1,0 +1,82 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<repo>/skills/parity-suite",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-11T08:24:07Z",
+    "evals_run": [46],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 46,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 23.918,
+        "tokens": 233938,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定の style_policy が free であることを理由に、機能一覧の行の order-list のスイートの構築へ進まずに停止している",
+          "passed": true,
+          "evidence": "style_policy が free（skill-config の結果）で、order-list が機能一覧の行であることを理由に手順 1 で止めている"
+        },
+        {
+          "text": "代わりに spec-parity suite（order-list を対象にする）の実行を案内している",
+          "passed": true,
+          "evidence": "「代わりに spec-parity suite --feature order-list を実行してください」"
+        },
+        {
+          "text": "free で止めるのは画面のある機能だけで、横断 API の user は free でもこのスキルで扱うと区別している",
+          "passed": true,
+          "evidence": "「横断 API リソースの user は free でもこのスキルで扱えます」と区別している"
+        },
+        {
+          "text": "e2e/ 配下にスペック・ロケータマッピング層・aria スナップショットを生成しておらず、.replace/parity/order-list/metadata.json も作っていない",
+          "passed": true,
+          "evidence": "project-tree.txt に fixture に無いパスが無い（e2e/ の生成物・.replace/parity/order-list/metadata.json が無い）"
+        },
+        {
+          "text": "設定の style_policy を reproduce に書き換えて進めるなど、fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
+          "passed": true,
+          "evidence": "project-files は fixture と同じ内容。raw に Write・Edit が 0 件。style_policy の書き換えは利用者の判断として行っていない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 23.918,
+        "stddev": 0,
+        "min": 23.918,
+        "max": 23.918
+      },
+      "tokens": {
+        "mean": 233938,
+        "stddev": 0,
+        "min": 233938,
+        "max": 233938
+      }
+    }
+  },
+  "notes": [
+    "with_skill だけを 1 run 実行した変更確認（Issue #565 で足した eval）。without_skill は実行していない。",
+    "executor: claude-code / model: opus / reasoning effort: high。"
+  ]
+}

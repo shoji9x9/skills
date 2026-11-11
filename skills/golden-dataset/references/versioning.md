@@ -50,6 +50,7 @@ version の範囲が妥当な場合だけ、`V < change.version <= C` のすべ�
 |---|---|---|
 | `parity-suite` | `.replace/parity/<slug>/metadata.json` の `dataset_version` | ベースラインを採った後の変更がその slug に影響するときだけ、取得し直すと宣言する |
 | `parity-diff` | 同上を参照する | 古くなったベースラインで比べるのを避ける |
+| `spec-parity`（`style_policy: free` の画面のある機能） | `suite` が `.replace/parity/<slug>/metadata.json` の `dataset_version` に記録し、`verify` が参照する | `parity-suite` と `parity-diff` と同じ。古くなったスイートで新側を確かめるのを避ける |
 | `parity-component` | `.replace/components/<slug>/metadata.json` の `dataset_version` | データに依存する部品では、採った基準と、現行から抜いた実データの両方が古くなる（抜いたデータを見本の入力に使うため。データの出所の確認も同じ値で行う）。部品の slug は `.replace/features.md` に無いので、実効参照テーブルを直接読めない。下記の導出の規則で求める |
 | `replace-strategy status` | 上をまとめる | 記録した後の変更がその slug に影響するときだけ、「要再取得」と報告する |
 
@@ -75,6 +76,7 @@ version は順序を、`changes[].affects` は影響の範囲を、機械的に�
 `parity-suite` が現行のアプリを探索する途中で、シードに足りないケースが必ず見つかる。
 たとえば、このパターンのデータが無いと空のリストしか確かめられない、ページネーションが 1 ページで終わる、などである。
 これは `gaps.md` に「データ不足」として記録され、このスキルに戻る起点になる。
+`style_policy: free` の画面のある機能では、`spec-parity suite` が同じ種別で `gaps.md` に記録し、同じ手順で戻る。手順 5 の再実行の案内先は `spec-parity suite` になる。
 
 戻ってきたら、フェーズ A を次の順で再実行する。
 

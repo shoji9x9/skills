@@ -24,6 +24,7 @@ Issue の状態とリポジトリの中の成果物から、今の状況を導�
 | `.replace/parity/<slug>/new/<target>/replace-metadata.json` | 新側の green の記録（`suite.new_green`・`verification.passed_at`）と、差し戻しの往復の状態（`loop.iterations` / `loop.max_iterations` / `loop.last_diff_report`）。`parity-replace` が作り、スキーマの原本は `parity-replace` にある。新側の成果物は環境ごとなので、target ごとに存在することがある |
 | `.replace/parity/<slug>/new/<target>/diff.md` | 検出した差分と分類（要対応／許容／環境ノイズ）・根拠。`parity-diff` が作り、スキーマの原本は `parity-diff` にある。新側の成果物は環境ごとなので、target ごとに存在することがある |
 | `.replace/parity/<slug>/new/<target>/diff-metadata.json` | 収束の判定の機械可読な値（`converged`・`results`・`component_coverage`・`reaction_coverage`・`performance`・`runtime_errors`・`intentional_diffs_pending`）と、他の機能を待っている差分の帰属（`blocked_by[]`）。`parity-diff` が作り、スキーマの原本は `parity-diff` にある。target ごとに存在することがある |
+| `.replace/parity/<slug>/new/<target>/verify-metadata.json` と `verify.md` | `style_policy: free` の機能の、新側の確かめの記録（`converged`・`overflow`・`runtime_errors`・`design_review`・`human_review`・`unverified`）。`spec-parity verify` が作り、スキーマの原本は `spec-parity` にある。target ごとに存在することがある。この機能では `.replace/parity/<slug>/metadata.json` も `spec-parity suite` が作り、`style_policy: free` を持つ |
 | `.replace/dataset/metadata.json` | 今のデータセットのバージョン（`version`）、バージョンごとの影響範囲（`changes[].affects`。テーブル名で、`dataset_mode: static` では静的データの単位）、新側への投入の記録（`phase_b.<slug>.<target>`。target ごと）。`golden-dataset` が作る |
 | `.replace/dataset/verification.md` | 「意味論が未確定の機能」。`current.origin: received-assets` のときだけある。`golden-dataset` が作り、スキーマの原本は `golden-dataset` にある |
 | `.replace/bootstrap/metadata.json` | 現行の環境を作り直す作業の状態（`status` / `blocked_on` / `semantics.pending_features`）。`current-environment-bootstrap` が作り、スキーマの原本は `current-environment-bootstrap` にある。`received-assets` のときだけある |
@@ -92,6 +93,14 @@ open とも closed とも仮定せず、features.md の記述で代わりにし�
 
    新側の進み具合は target（環境）ごとに分かれるので、同じ slug でも環境ごとに状態を示す（例: local-dev は収束済み・preview は未実施）。
    `new/` の下に無い target は、「その環境では未実施」として扱う
+
+   `.replace/parity/<slug>/metadata.json` が `style_policy: free` を持つ機能（`spec-parity` の成果物）は、新側の到達点と収束を `diff.md` と `diff-metadata.json` から導かない。
+   `parity-diff` はこの機能で止まるので、2 つのファイルは作られず、無いことは未実施ではない。代わりに、target ごとに次のものを示す。
+   - `new/<target>/verify-metadata.json` の `converged`。`true` なら収束済み、`false` なら未収束で、`verify.md` の差し戻す内容の表と `convergence.reasons[]` の `category` を添える
+   - `suite.new_green` が true なのに `verify-metadata.json` が無ければ、「green 済み・`spec-parity verify` は未実施」とする
+   - `overflow`・`runtime_errors`・`design_review`・`human_review` のうち、通っていないものと承認が無いものを名前で挙げる。`unverified` は項目 3 の未検証の領域に入れる
+   - キーが無ければ「未記録」として示し、通ったとも 0 件とも読まない
+   - スイートの有無と強度は、`reproduce` と同じく `metadata.json` と `strength.md` から導く（`suite.current_green` と `strength.validated`）
 2. 他の機能を待っている差分が解けたかの検出。`diff-metadata.json` の `blocked_by[]` をすべての slug × target で集める。
    依存先が同じ target で新側の green（`new/<target>/replace-metadata.json` の `suite.new_green` が true）になっているものを並べる。
    これは「依存先が実装されたので、依存元の `parity-diff` を実行し直せば解ける可能性がある差分」である。
@@ -103,6 +112,11 @@ open とも closed とも仮定せず、features.md の記述で代わりにし�
      そして「意味論の確認待ちで開始できない」機能を、未着手と区別して示す。
      スイートを持たない点は同じでも、待っているものが違う（前者は質問票の回答、後者は着手）
    - スコープ外にした副作用（メール・外部連携）・hermetic でないテスト・データの不足も含め、対象外にした事実を隠さない。切り替えを判断する材料として示す
+   - `style_policy: free` の機能（上の 1）では、部品網羅表・反応の網羅表・性能の比較・`component-diff-exceptions.json` の行を「対象外（`spec-parity` の成果物）」として示す。
+     `metadata.json` にそれらのキーが無いことを、旧版の成果物と読まない。性能の比較は `free` で行わないので、未検証の領域に「性能は比べていない」と 1 行で入れる（原本は [`scope.md`](scope.md)）。
+     操作中のエラーは `verify-metadata.json` の `runtime_errors` から、未測定は同じファイルの `unverified` から示す
+     未測定の口の宣言は、`spec-parity suite` も `metadata.json` の `unmeasured` に書く。下の「未測定の機械可読な宣言」と項目 11 は、`free` の機能にも同じに当てる。
+     `unmeasured` をキーごと持たない成果物は、宣言を導入する前の `spec-parity` の成果物である。`推定` の口が残れば、項目 11 の「書き戻しの抜けの疑い」として名前を挙げる
    - 部品網羅表の状態を slug ごとに示す。`metadata.json.component_coverage` が `declared: true` なら、未測定のセルの数を `diff-metadata.json.component_coverage.unmeasured` から取る（`parity-diff` を実行した target のもの）。
      測っていない部品の操作は差分ゼロとして通るので、未検証の領域である。
      `component-coverage.json` の `value: unmeasured` の行を目で数えず、`metadata.json` の宣言の値も書き写さない。
@@ -126,7 +140,7 @@ open とも closed とも仮定せず、features.md の記述で代わりにし�
      ただの文字列の要素は帰属不明として数え、`added_at` が読めないことも報告する（警告なしに 0 件にまとめない）
    - 未測定の機械可読な宣言を示す。`metadata.json.unmeasured` が `declared: true` なら、`disposition: blocking` の件数を示す。
      `parity-diff` は、これが 1 件でも残る間は収束させない（数え直しは `parity-suite` の `scripts/artifact-health-check.mjs`）。
-     `declared: false` ならその理由を示す。キーごと無ければ、「未測定が未宣言（旧版の `parity-suite` の成果物で、`gaps.md` の文章しか無い）」として区別する。
+     `declared: false` ならその理由を示す。キーごと無ければ、「未測定が未宣言（旧版の `parity-suite` か `spec-parity` の成果物で、`gaps.md` の文章しか無い）」として区別する。
      `gaps.md` の文章は人向けの説明であって、収束の判定の入力ではない（原本は `parity-suite` の `references/coverage.md`「未測定を機械可読にする」）。
      `gaps.md` の行を目で数えて、blocking の件数の代わりにしない。文章には、承認済みの未検証と、測るべき未測定の両方が含まれている
 4. 横断 API の影響範囲。横断 API に手が入ったら、利用側のすべての機能を検証し直す必要がある。
@@ -155,7 +169,7 @@ open とも closed とも仮定せず、features.md の記述で代わりにし�
    `.replace/components.md` が無いときは、「共通部品を先に作る方針を採っていない」と報告し、未着手として数えない（節が無いことを、整備していないと読まない）。
    あわせて、`metadata.json.capture_gaps` の `inaccessible_sheets` / `unresolved_selectors` を未検証の領域（項目 3）に含める。0 件を「差が無い」の根拠にしない
 8. ページ要素の帰属。features.md の「ページ要素の帰属」表から、配置の所有者が空欄の行を、未検証の領域として並べる。
-   誰も配置しない要素は、実装した後の `parity-diff` まで、説明できない差分として現れない。そのため、着手前の確認事項として示す。
+   誰も配置しない要素は、実装した後の `parity-diff` まで、説明できない差分として現れない（`style_policy: free` では `parity-diff` の比較も無い。[`scope.md`](scope.md)「`style_policy: free` のとき（比較・検証）」）。そのため、着手前の確認事項として示す。
    節が「なし」（該当が無いと明記）なら、「該当なし」として報告する。
    節そのものが features.md に無い場合だけ、「要素の帰属が未導出（テンプレートを更新する前の features.md）」として報告する。節が無いことを「該当なし」と読まない
 
@@ -200,7 +214,7 @@ open とも closed とも仮定せず、features.md の記述で代わりにし�
       - 宣言も無ければ、「書き戻しの抜けの疑い」として名前を挙げる。
         確定したのに `replace-strategy evidence` を通していないか、確定できなかったのに宣言していないかのどちらかである。
         どちらも放っておくと、`status` がその口をいつまでも未確認として報告し続ける（書き戻しの方法の原本は [`evidence.md`](evidence.md)）
-    - `unmeasured` をキーごと持たない成果物（旧版の `parity-suite`）は、「宣言ゼロ」として扱い、未確認の口を書き戻しの抜けの疑いとして名前を挙げる。
+    - `unmeasured` をキーごと持たない成果物（旧版の `parity-suite` か `spec-parity`）は、「宣言ゼロ」として扱い、未確認の口を書き戻しの抜けの疑いとして名前を挙げる。
       機械のチェックと同じ規則である（原本は [`evidence.md`](evidence.md)「抜けを数える」）
 
     同じ判定は、slug ごとに機械可読で取れる。`node <skill>/scripts/evidence-gap-check.mjs --features .replace/features.md --slug <slug>` を使う。
@@ -267,6 +281,8 @@ open とも closed とも仮定せず、features.md の記述で代わりにし�
       `unresolved` は未解決、`undeterminable`（exit 3）は「対象かどうかを判定できない」、exit 4 は「特性化を終えた機能が無く、判定の対象が無い」である。
       exit 2 は「入力を読めない（台帳の不整合・改訂の一覧や成果物の置き場を読めない）」で、stderr か `errors` の内容を添える
     - `run.procedure_revision` を持たない成果物は、改訂番号を入れる前のものなので、すべての改訂の対象として出る（旧版の `parity-suite` の成果物。判断を台帳に記録すれば消える）
+    - `style_policy: free` の成果物は、`parity-suite` の手順で作ったものではないので、チェックは数えずに `skipped` に出す。「旧手順で閉じた機能」には入れず、`skipped` の slug を「対象外（`spec-parity` の成果物）」として示す。
+      プロジェクトの側の台帳（`.replace/procedure-changes.md`）の観点も、このチェックはこの成果物に当てない。台帳に画面のある機能を対象にした観点があれば、`skipped` の slug への当て直しを未確認として報告に添える
 15. 現行の弱点の未決と、露出の拡大。`.replace/weaknesses.md` の `状態` が `有効` の行から、次の行を並べる（形式の原本は [`security.md`](security.md)「現行の弱点の仕分け」）。
     - 仕分けが空欄の行（`該当なし` は未決ではない）
     - `引き継ぐ` に仕分けたもので、基準 3 が「否」（直すと仕様が変わる）なのに、扱う設計作業が空欄か「-」の行

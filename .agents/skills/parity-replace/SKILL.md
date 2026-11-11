@@ -53,6 +53,12 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
   起動できない場合は、差分だけを人間のレビュアーへ渡してレビューを受け、記録を `review.md` に残す（レビュー役が人間だったことを書く）。
   この代わりの方法も取れないときでも、レビューは省略しない（手順は [`references/adversarial-review.md`](references/adversarial-review.md)）
 - 前提の判定（無ければ止まり、該当するスキルの実行を促す。成果物を捏造しない）:
+  - 最初に、設定の `style_policy` を読む（`skill-config.mjs get replace-strategy style_policy --raw`。キーが無ければ `reproduce`）。
+    `free` で、対象の slug が画面のある機能なら、成果物を作らずに止まり、このスキルが `style_policy: free` の手順を持たないことを利用者に報告する。
+    `free` の機能のスイートは `spec-parity suite` が e2e で作り、このスキルが前提にする強度の記録・寸法の式・`parity-diff` との往復を持たないからである。
+    画面のある機能かは、`.replace/parity/<slug>/metadata.json` の `mode: feature` で決める。このファイルが無ければ、`.replace/features.md` の機能一覧に slug があることで決める。
+    横断 API（api-resource）とバッチ（batch）は、`free` でも止めずに次の判定へ進む。`free` でもこの 2 つは `parity-suite` と `parity-diff` が扱うからである。
+    読み取りがエラー（終了コード 1）なら、`reproduce` と見なして続けずに止まる。この確認は設定と成果物だけで済むので、ほかの前提の判定と target の起動より先に行う
   - `replace-strategy setup` の完了は、設定 `.config/skills/shoji9x9/replace-strategy.jsonc` と `.replace/features.md` があることで判定する
   - `golden-dataset` のフェーズ A の完了は、`.replace/dataset/metadata.json` があることで判定する（`version` は 1 から始まる整数）
   - 対象 slug の `parity-suite` の完了は、`.replace/parity/<slug>/metadata.json` があることで判定する。
@@ -135,6 +141,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 
 | キー | 用途 |
 |---|---|
+| `style_policy` | UI の見た目を現行に合わせるか（`reproduce` / `free`。キーが無ければ `reproduce`）。前提の判定の最初に読み、`free` の画面のある機能では止まる（「前提」）。意味はスキーマ文書の「スタイルの方針」で定義する |
 | `verification_commands` | 検証コマンド。実行する範囲で 2 列に分かれる。`full`（全体を走査する）は、完了の判定（手順 8）で常に実行する列である。`diff`（変更したファイルだけ。`{changed_files}` はこのスキルが展開する）は、敵対的レビューの前の早期検出（手順 7）だけに使い、完了の判定には使わない。固有のツール名は設定の側に置く（スキル本体に書かない）。意味の原本は、スキーマ文書の「検証コマンド」 |
 | `intentional_diffs.{keep,may_change,pending}` | 意図的差異レジストリ。`keep` があるので、旧と新の diff をレビューできる。見つけた差異は、`pending` へ追記元が分かる形で非破壊で追記し、ユーザーに確認する。`pending` は、設定ファイルの中で唯一、スキルが書く作業中の記録である。`keep`・`may_change` へ移すのは人間である（書き手の区分の原本は、スキーマ文書の「キーの書き手とライフサイクル」）。例外は、静的資産で `同等物を作る` を選んだときの宣言で、ユーザーの承認の後に `may_change` へ非破壊で追記する（`pending` を経由しない。原本は `replace-strategy` の `references/static-assets.md`）。要素は 4 つのキーで書く。差異の文言は `item`（照合のキー）、`slug` は対象の slug、`added_by: parity-replace`、`added_at` は追記した日である。`item` を別のキー名で書くと、完了の判定は通り、数工程後の `parity-diff` の棚卸しで「`item` が空」として現れる（要素の形の原本は、スキーマ文書の「`pending` 要素の形」）。確定させる時期は、`parity-diff` の収束の判定が求める棚卸しである（同じ文書の「`pending` の棚卸し」） |
 | `component_diffs` | テーマで消せない構造差の系統差レジストリ。このスキルがユーザーに確認したうえで宣言し、`parity-diff` が比較の正規化に使う。T を当てられないインスタンス例外は、設定に置かない。`parity-diff` の slug の成果物 `.replace/parity/<slug>/component-diff-exceptions.json` に置き、このスキルは書かない（[`references/theming.md`](references/theming.md)） |
@@ -184,7 +191,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 
 詳細は、各 reference に任せる。番号の順に進める。
 
-1. 前提の検証と早い失敗: 前提（上記）を metadata.json があるかで判定する。欠けていれば成果物を捏造せずに止まり、該当するスキル（`replace-strategy setup`・`golden-dataset`・対象 slug の `parity-suite`）の実行を促す。
+1. 前提の検証と早い失敗: 最初に `style_policy` を確かめ、`free` の画面のある機能なら止まる（上記「前提」）。次に、前提（上記）を metadata.json があるかで判定する。欠けていれば成果物を捏造せずに止まり、該当するスキル（`replace-strategy setup`・`golden-dataset`・対象 slug の `parity-suite`）の実行を促す。
    - `slug` を features.md と突き合わせ、モードとパスは metadata.json から読む
    - 着手するときは、slug に対応する features.md の Issue 列の番号で `issue-start <番号> --branch-only` を実行し、ブランチを作る。
      `--branch-only` は外さない。モードを指定しない issue-start は、ブランチを作った後にそのまま実装へ進む取り決めなので、任せると同じ Issue に対して実装が二重に行われる。

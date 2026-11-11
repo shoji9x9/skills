@@ -41,6 +41,7 @@
 **ページ一覧を書いたら、そのページの可視要素がすべてどれかの slug に帰属しているかを確かめる。**
 機能一覧が所有者を記録するのはテーブル・API・副作用出力だけで、画面に見えている要素の帰属は誰も確かめていない。
 どの機能も配置を担当しない要素は、スイートを書いて実装を終えた後に、`parity-diff` の視覚ベースラインの比較で「説明できない差分」として初めて現れる。
+`style_policy: free` では視覚ベースラインの比較が無いので、この比較でも現れない（[`scope.md`](scope.md)「`style_policy: free` のとき（比較・検証）」）。
 
 - ページごとに可視要素を並べ、それぞれの配置の所有者（slug）を決める。
   並べる要素は現行アプリの実際の画面から取り、機能一覧の「ページ」列から逆算して済ませない。
@@ -178,7 +179,7 @@
 - `cross-cutting` は予約語なので、slug に使わない。
   意図的差異のレジストリの `pending` で、「機能に帰属しない追記」を表すからである。使うと、横断の追記と機能の追記を区別できなくなる。
   原本は [`project-config.md`](project-config.md)「`pending` 要素の形」にある
-- その他 Issue の slug は `.replace/parity/<slug>/` を持たず、下流のスキル（`golden-dataset` / `parity-suite` / `parity-replace` / `parity-diff`）の対象にならない。
+- その他 Issue の slug は `.replace/parity/<slug>/` を持たず、下流のスキル（`golden-dataset` / `parity-suite` / `spec-parity` / `parity-replace` / `parity-diff`）の対象にならない。
   下流のスキルが features.md から読むのは、機能・横断 API リソース・バッチの slug だけである。
   その他 Issue の slug を対象に指定されたら、「下流の対象外」として止まる。名前の空間は共有するが、対象の範囲は共有しない
 
@@ -236,6 +237,11 @@
   `parity-replace` の完了（新側の green と検証コマンド）は、値・ラベル・役割しか見ない。機能 Issue の余白・幅・罫線・背景といった見た目は、`parity-diff` だけが見る。
   横断 API・バッチ Issue でも、例外の承認・判断待ちの解消・採取物の健全性を含む収束の条件は、`parity-diff` だけが判定する。
   この項が無いと、チェックを埋めきった Issue が、`parity-diff` を通らないまま閉じられる
+- 設定の `style_policy` が `free`（意味は [`project-config.md`](project-config.md)「スタイルの方針」）なら、機能 Issue に限って、上の項を次の文面に置き換える。
+  横断 API・バッチ Issue は、`free` でも上の文面のままにする。
+  「`<slug>` について、`parity-replace` と同じ target で `spec-parity verify` を実行する。
+  `.replace/parity/<slug>/new/<target>/verify-metadata.json` の `converged: true` まで進める。デザインの点検と、人が新側の画面を確かめた承認の記録を含む。スイートが green なことだけで完了と報告しない」
+  `free` の機能 Issue に `parity-diff` の項を置くと、`parity-diff` は画面のある機能で止まるので、その項は満たせないまま残る
 
 ### 機能 Issue
 
@@ -275,7 +281,8 @@
   軸を見つけた機能の網羅表とスイートに足すだけでは、直しはその機能にしか入らず、前に収束した機能は古い手順のまま収束した扱いで残る
   （台帳・判断の語彙・チェックの原本は [`procedure-changes.md`](procedure-changes.md)）
 - Issue の中は、ページ単位でフェーズを分ける（1 ページを作り切って比べてから、次のページに進む）
-- ワークフローは `parity-suite` → `parity-replace` → `golden-dataset`（フェーズ B）→ `parity-diff`（`parity-replace` と往復）の順である
+- ワークフローは `parity-suite` → `parity-replace` → `golden-dataset`（フェーズ B）→ `parity-diff`（`parity-replace` と往復）の順である。
+  `style_policy: free` なら、`spec-parity suite` → `parity-replace` → `golden-dataset`（フェーズ B）→ `spec-parity verify`（`parity-replace` と往復）の順にする
 
 ### 共通部品 Issue
 
@@ -338,7 +345,7 @@
 **起票で保証されるのは「行に Issue 番号が付いた」ことまでで、その行が誰かの完了の条件になったことではない。**
 起票の単位はインベントリの行で（種類ごとの単位は上記「Issue の種類」）、ページ単位の分割は Issue の中のフェーズで行う（上記「機能 Issue」）。
 機能・横断 API・バッチ・共通部品の行は Issue を 1 対 1 で持ち、番号を他の行と共有しない。
-下流（`parity-replace` / `parity-suite` / `parity-diff`、部品は `parity-component`）は、slug ごとに、その行の Issue 番号で着手する。
+下流（`parity-replace` / `parity-suite` / `parity-diff`、`style_policy: free` の機能は `spec-parity`、部品は `parity-component`）は、slug ごとに、その行の Issue 番号で着手する。
 そのため、番号を共有した 2 行は同じブランチ・PR の流れにまとめられ、別々に進められなくなる。
 
 それでも、実際の起票は行の粒度からずれる。複数の行が 1 つの番号を共有したり、受け入れ条件が行の一部しか名前で示さなかったり、1 行が複数の Issue に散ったりする。
@@ -540,4 +547,5 @@ Issue 列が埋まっていることを、引き受けの根拠にしない。�
 
 9. 完了したら、起票した Issue の実施に必要な姉妹スキルがインストールされているかを確かめる。
    対象は `golden-dataset` / `parity-suite` / `parity-replace` / `parity-diff` で、共通部品 Issue を起票したら `parity-component` も含む。
+   `style_policy: free` で機能 Issue を起票したら、`spec-parity` も含む（横断 API・バッチ Issue のために、`parity-suite` と `parity-diff` も外さない）。
    インストールされていなければ、`gh skill install` の手順を案内する

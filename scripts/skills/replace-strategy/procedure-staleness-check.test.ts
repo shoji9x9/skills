@@ -54,6 +54,62 @@ test("誤検知しないことの確認: metadata.json の無い特性化中の 
   expect(r.json.artifacts.map((a) => a.slug)).toEqual(["order"]);
 });
 
+// spec-parity の成果物（style_policy: free）は run.procedure_revision を持たない。改訂番号 0 として読むと、全改訂の未判断になる。
+const SPEC_PARITY_META = {
+  style_policy: "free",
+  mode: "feature",
+  suite: { runner: "e2e", current_green: true },
+  strength: { validated: true },
+};
+
+test("style_policy: free の成果物は、スキルの改訂も台帳の観点も当てずに skipped に出す", () => {
+  const work = workspace({
+    ledger: ledger(["| PC-001 | 2026-09-20 | 軸 | 由来 | feature | #1 |"], []),
+    artifacts: {
+      order: meta({ procedure_revision: 1, finished_at: "2026-09-25T00:00:00Z" }),
+      search: SPEC_PARITY_META,
+    },
+  });
+  const r = run(work);
+  expect(r.code).toBe(1);
+  assert.exists(r.json);
+  expect(r.json.unresolved.map((u) => [u.change, u.slug])).toEqual([["parity-suite#2", "order"]]);
+  expect(r.json.skipped.map((u) => u.slug)).toEqual(["search"]);
+  expect(r.json.undeterminable).toEqual([]);
+  expect(r.json.artifacts.map((a) => a.slug)).toEqual(["order"]);
+});
+
+test("style_policy: free の成果物だけなら、数えた成果物が無いので exit 4 にする", () => {
+  const r = run(workspace({ artifacts: { search: SPEC_PARITY_META } }));
+  expect(r.code).toBe(4);
+  assert.exists(r.json);
+  expect(r.json.skipped.map((u) => u.slug)).toEqual(["search"]);
+});
+
+test("誤検知しないことの確認: style_policy: reproduce の成果物は、キーが無い成果物と同じく改訂を当てる", () => {
+  const r = run(workspace({ artifacts: { order: { style_policy: "reproduce", ...meta({}) } } }));
+  expect(r.code).toBe(1);
+  assert.exists(r.json);
+  expect(r.json.skipped).toEqual([]);
+  expect(r.json.unresolved.map((u) => u.change)).toEqual(["parity-suite#1", "parity-suite#2"]);
+});
+
+test("語彙の外の style_policy と、置き場の slug と一致しない free の成果物は、外さずに判定不能に積む", () => {
+  // 外さないので、改訂番号の無い成果物として未判断（exit 1）にもなる。exit 1 は exit 3 より先に決まる。
+  const unknown = run(
+    workspace({ artifacts: { search: { ...SPEC_PARITY_META, style_policy: "loose" } } }),
+  );
+  expect(unknown.code).toBe(1);
+  assert.exists(unknown.json);
+  expect(unknown.json.skipped).toEqual([]);
+  expect(unknown.json.undeterminable.map((u) => u.reason).join("\n")).toContain("style_policy");
+  const moved = run(workspace({ artifacts: { search: { ...SPEC_PARITY_META, slug: "order" } } }));
+  expect(moved.code).toBe(1);
+  assert.exists(moved.json);
+  expect(moved.json.skipped).toEqual([]);
+  expect(moved.json.undeterminable.map((u) => u.slug)).toContain("search");
+});
+
 test("成果物の改訂より新しい改訂だけが対象になり、affects に無い mode は対象にしない", () => {
   const work = workspace({
     artifacts: {

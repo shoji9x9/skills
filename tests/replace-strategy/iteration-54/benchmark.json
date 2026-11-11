@@ -1,0 +1,221 @@
+{
+  "metadata": {
+    "skill_name": "replace-strategy",
+    "skill_path": "<repo>/skills/replace-strategy",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-11T08:24:07Z",
+    "evals_run": [40, 41, 42, 43],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 40,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 35.76,
+        "tokens": 167566,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "UI の見た目を現行に合わせるか（style_policy の reproduce / free）を、利用者に確かめる項目として挙げ、デフォルトの reproduce を確認なしに決めていない",
+          "passed": true,
+          "evidence": "style_policy の reproduce / free を問い 1 として利用者に選んでもらうとし、「デフォルト値の reproduce も、確認なしには書きません」と述べている"
+        },
+        {
+          "text": "判断の材料として、free では見た目の一致を確かめず、人が新側の画面を見て確かめること（spec-parity verify）を添えている",
+          "passed": true,
+          "evidence": "「free で確かめる方法：見た目の一致は確かめません。人が新側の画面を見て…（spec-parity verify）」を添えている"
+        },
+        {
+          "text": "判断の材料として、free では性能の比較を行わないことを添えている",
+          "passed": true,
+          "evidence": "同じ箇条で「性能の比較もしません」と添えている"
+        },
+        {
+          "text": "free では画面のある機能のランナーが e2e（spec-parity）に変わり、横断 API とバッチは parity-suite / parity-diff のままであると示している",
+          "passed": true,
+          "evidence": "「画面のある機能の E2E は、Playwright から e2e（spec-parity）に変わります。横断 API とバッチは、どちらを選んでも Playwright のまま」"
+        },
+        {
+          "text": "free では共通部品を画面より先に作る方針（parity-component）を使えないことを添えている",
+          "passed": true,
+          "evidence": "「共通部品を画面より先に作る方針（parity-component）は使えません」"
+        },
+        {
+          "text": "決まった値を、設定の style_policy と .replace/strategy.md のスタイルの方針の節の両方に記録するとしている",
+          "passed": true,
+          "evidence": "記録先として設定ファイルの style_policy（skill-config.mjs set）と .replace/strategy.md の「スタイルの方針」の節の 2 か所を挙げている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 41,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 41.525,
+        "tokens": 175386,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "style_policy を自分で選ばず、判断待ちの保留（.replace/strategy-pending.json の pending_decisions）に記録するとしている",
+          "passed": true,
+          "evidence": "style_policy を判断待ちの保留 pd-1 とし、記録先を .replace/strategy-pending.json にしている"
+        },
+        {
+          "text": "設定に style_policy を仮の値（reproduce を含む）で書かないとし、キーが無いと reproduce として読まれることを理由に挙げている",
+          "passed": true,
+          "evidence": "「設定の style_policy キーは書きません。キーが無いと reproduce として読まれてしまうので、仮の値も入れられません」"
+        },
+        {
+          "text": "手順 10 の共通部品を画面より先に作る方針の確認を、style_policy の保留に依存させて聞かないとしている（free ではこの方針を選べないため）",
+          "passed": true,
+          "evidence": "手順 10 の確認は「聞きません」とし、pd-1 が止めている工程として登録する。理由に free ではこの方針を選べないことを挙げている"
+        },
+        {
+          "text": ".replace/components.md を作らず、部品インベントリは下書き（components.draft.md）にとどめるとしている",
+          "passed": true,
+          "evidence": ".replace/components.md は作らず、.replace/components.draft.md の下書きにとどめるとしている"
+        },
+        {
+          "text": "戦略に依存しない測定の結果と機能インベントリの下書きは、保留があっても進めるとしている",
+          "passed": true,
+          "evidence": "features.draft.md の下書き・弱点の列挙・棚卸しなど、方針に依存しない工程は進めるとしている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 42,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 56.459,
+        "tokens": 329684,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "order-list のワークフローを spec-parity suite → parity-replace → golden-dataset（フェーズ B）→ spec-parity verify の順にしている",
+          "passed": true,
+          "evidence": "下書き 2 のワークフローが spec-parity suite → parity-replace → golden-dataset（フェーズ B）→ spec-parity verify の順"
+        },
+        {
+          "text": "order-list の収束の項を、spec-parity verify を実行して .replace/parity/order-list/new/<target>/verify-metadata.json の converged: true まで進める形にし、parity-diff の diff-metadata.json の項を置いていない",
+          "passed": true,
+          "evidence": "order-list の収束の項は spec-parity verify で verify-metadata.json の converged: true まで進める形で、diff-metadata.json の項は置いていない"
+        },
+        {
+          "text": "order-list の収束の項に、デザインの点検と、人が新側の画面を確かめた承認の記録を含めている",
+          "passed": true,
+          "evidence": "「デザインの点検と、人が新側の画面を確かめた承認の記録を含む」と書いている"
+        },
+        {
+          "text": "横断 API の user の収束の項は、free でも parity-diff の diff-metadata.json の converged: true のままにしている",
+          "passed": true,
+          "evidence": "user の収束の項は parity-diff の .replace/parity/user/new/<target>/diff-metadata.json の converged: true"
+        },
+        {
+          "text": "起票していない（gh issue create も issue-create への委譲も行っていない）",
+          "passed": true,
+          "evidence": "raw の Bash は ls・cat・sed・grep だけで、gh の呼び出しは無い。Skill の起動は replace-strategy だけで issue-create への委譲は無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 43,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 82.375,
+        "tokens": 572559,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "order-list を、diff.md・diff-metadata.json が無いことを理由に parity-diff が未実施の機能として扱っていない",
+          "passed": true,
+          "evidence": "「free の機能は diff-metadata.json を作らないので、対象外」とし、parity-diff 未実施として扱っていない"
+        },
+        {
+          "text": "local-dev の収束の状態を new/local-dev/verify-metadata.json の converged から導き、未収束としている",
+          "passed": true,
+          "evidence": "spec-parity verify（local-dev）を「未収束（converged: false）」としている"
+        },
+        {
+          "text": "通っていない確認として、横のはみ出し（overflow）を名前で挙げている",
+          "passed": true,
+          "evidence": "「overflow 不合格：/orders の 375×800 で横にはみ出します」と挙げている"
+        },
+        {
+          "text": "性能を比べていないことを、未検証の領域に挙げている",
+          "passed": true,
+          "evidence": "未検証の領域に「性能は比べていません」を挙げている"
+        },
+        {
+          "text": "部品網羅表・反応の網羅表が無いことを、旧版の成果物や記録の欠けとして扱っていない",
+          "passed": true,
+          "evidence": "「部品網羅表・反応の網羅表・性能の比較・インスタンス例外は、free なので対象外」としている"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
+          "passed": true,
+          "evidence": "project-files の .replace/ は fixture と同じ内容。raw に Write・Edit が 0 件（.jsonc はスナップショットの対象外）"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 54.0297,
+        "stddev": 20.8127,
+        "min": 35.76,
+        "max": 82.375
+      },
+      "tokens": {
+        "mean": 311298.75,
+        "stddev": 189496.0991,
+        "min": 167566,
+        "max": 572559
+      }
+    }
+  },
+  "notes": [
+    "with_skill だけを 1 run 実行した変更確認（Issue #565 で足した eval）。without_skill は実行していない。",
+    "executor: claude-code / model: opus / reasoning effort: high。"
+  ]
+}

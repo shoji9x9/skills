@@ -1,0 +1,130 @@
+{
+  "slug": "order-list",
+  "target": "local-dev",
+  "style_policy": "free",
+  "new": {
+    "commit": "abc1234def5678",
+    "ui_url": "http://localhost:5173"
+  },
+  "run": {
+    "started_at": "2026-05-03T01:00:00Z",
+    "agent": "Claude Code",
+    "model": "opus",
+    "autonomous": false
+  },
+  "suite": {
+    "commit": "abc1234def5678",
+    "report": ".replace/parity/order-list/new/local-dev/suite-report.json"
+  },
+  "overflow": {
+    "tool": "overflow-check",
+    "version": "1",
+    "judged": true,
+    "ok": false,
+    "counts": {
+      "expected": 2,
+      "measured": 2,
+      "overflowing": 1,
+      "missing": 0,
+      "width_mismatch": 0,
+      "extra": 0
+    },
+    "overflowing": [
+      {
+        "page": "/orders",
+        "viewport": {
+          "width": 375,
+          "height": 800
+        },
+        "inner_width": 375,
+        "client_width": 375,
+        "scroll_width": 587
+      }
+    ],
+    "missing": [],
+    "width_mismatch": [],
+    "extra": [],
+    "commit": "abc1234def5678",
+    "measurements": ".replace/parity/order-list/new/local-dev/overflow.json"
+  },
+  "runtime_errors": {
+    "tool": "runtime-errors",
+    "version": "1",
+    "judged": true,
+    "ok": true,
+    "runs": 2,
+    "counts": {
+      "new_signatures": 0,
+      "actionable": 0,
+      "explained": 0,
+      "unexplained": 0
+    },
+    "missing_tests": [],
+    "failed_tests": [],
+    "extra_tests": [],
+    "skipped_tests": [],
+    "current_skipped_tests": [],
+    "new_signatures": [],
+    "run_dirs": [
+      ".replace/parity/order-list/new/local-dev/runtime-errors/run-1",
+      ".replace/parity/order-list/new/local-dev/runtime-errors/run-2"
+    ]
+  },
+  "design_review": {
+    "source": "bundled",
+    "commit": "abc1234def5678",
+    "completed_at": "2026-05-03T02:30:00Z",
+    "rules_note": null,
+    "pages_reviewed": ["/orders"],
+    "findings": [
+      {
+        "id": "dr-1",
+        "rule": "focus-visible",
+        "page": "/orders",
+        "summary": "並び順の切り替えのボタンに、キーボードで移ったときの焦点の輪が出ない",
+        "decision": "accept",
+        "approval": {
+          "approved_by": "owner",
+          "approved_at": "2026-05-03T03:00:00Z",
+          "reason": "社内の画面の規定で、焦点の輪は全画面でまとめて直す"
+        }
+      }
+    ]
+  },
+  "human_review": {
+    "commit": "abc1234def5678",
+    "screens": [
+      {
+        "page": "/orders",
+        "viewport": {
+          "width": 375,
+          "height": 800
+        },
+        "screenshot": ".replace/parity/order-list/new/local-dev/review/orders-375.png"
+      },
+      {
+        "page": "/orders",
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        },
+        "screenshot": ".replace/parity/order-list/new/local-dev/review/orders-1280.png"
+      }
+    ],
+    "approval": {
+      "verdict": "approved",
+      "approved_by": "owner",
+      "approved_at": "2026-05-03T04:00:00Z",
+      "notes": ""
+    }
+  },
+  "unverified": [
+    {
+      "item": "performance",
+      "reason": "性能の比較（perf-stats.mjs）は Playwright の採取を前提にしているので、spec-parity では確かめない"
+    }
+  ],
+  "pending_decisions": [],
+  "converged": false,
+  "convergence": null
+}

@@ -271,3 +271,4 @@ rule は、対象のファイルを触るときに自動で読み込まれる。
 - `parity-suite`: replace-strategy の姉妹スキル。新旧どちらの実装にも当てられる合否の基準を Playwright で作り、故障を注入して強度を確かめる
 - `parity-replace`: replace-strategy の姉妹スキル。parity-suite の論理名に対して新しい実装を作る
 - `parity-diff`: replace-strategy の姉妹スキル。新旧の差分を決定論的なツールで検出し、LLM は分類だけを行う
+- `spec-parity`: replace-strategy の姉妹スキル。UI の見た目を現行に合わせないリプレイスで、画面のある機能の e2e のスイートを現行に対して作り、新側だけを確かめて収束を判定する

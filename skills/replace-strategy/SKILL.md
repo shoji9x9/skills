@@ -46,7 +46,7 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
 - MCP: chrome-devtools MCP（セマンティクスの測定に必須）
 - 固定する技術スタック（スキル群で共通。ここに挙げたもの以外は固定しない）:
   - 新側のフロントエンドとバックエンド: TypeScript
-  - パリティスイート: Playwright（TypeScript）
+  - パリティスイート: Playwright（TypeScript）。ただし、`style_policy: free` のとき、画面のある機能のスイートは e2e（`spec-parity`）で書く。横断 API とバッチは、どちらの値でも Playwright である
   - `golden-dataset` の投入ツール: TypeScript（SQL も使える）
   - テキストの成果物: Git
   - Issue・PR・任せる先: GitHub（`gh`）
@@ -113,7 +113,7 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
 
 - 判断待ち（保留に落とす）にするもの:
   - `setup` の対話セットアップ（手順 3）で人が決める値
-  - 戦略の承認（手順 6）
+  - 戦略の承認（手順 6）と、スタイルの方針（手順 6 の `style_policy`）
   - 現行の弱点の仕分け（手順 8）
   - ページ要素の帰属の確定（手順 9）
   - 依存の方針の要否と、共通部品の採否（手順 10）
@@ -127,6 +127,8 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
 - 依存関係:
   - 手順 3 の値のうち、設定に無い項目に依存する工程は止める（例: `targets` が未確定なら、測定も止まる）。
   - 手順 6 が保留なら、`.replace/strategy.md` を確定しない。戦略に依存しない測定（手順 5）と、機能インベントリの下書き（手順 9）は進める。
+  - `style_policy` が保留なら、設定に書かない（キーが無いと `reproduce` として読まれるので、仮の値も書かない）。
+    手順 10 の「共通部品を画面より先に作る方針」の確認も、同じ保留に依存させて聞かない（`free` ではこの方針を選べないため）。部品インベントリの下書きは作ってよい。
 - `issues` モードは起票しない（`issue-create` に任せるのは越えない線に当たる）。
   - 候補・依存関係・本文の下書きを作って保留に記録し、最後にまとめて承認を聞く。承認が得られたら、同じ実行で 1 件ずつ任せる。
   - 既存の Issue の本文の編集も越えない線なので、突き合わせで見つけた抜けた行・抜けたつながりの追記案も同じに扱う。
@@ -254,6 +256,15 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
      - ゴールデンデータセットの作り方
      - フロントとバックの非対称な設計（バックエンドは現行のコードから直接移植し、フロントエンドはパリティスイートとベースラインで進める）
      - 未検証の領域の扱い
+     - スタイルの方針（`style_policy`）。UI の見た目を現行に合わせるか（`reproduce`）、合わせずに UI の仕様だけを合わせるか（`free`）を、利用者に選んでもらう。
+       推測で決めず、デフォルトの `reproduce` も確認なしに書かない。確認には、次の判断の材料を添える。
+       - `reproduce` は、見た目を画素・特性照合・aria で現行と比べる。視覚の比較とその往復（`parity-diff` と `parity-replace`）に時間がかかる
+       - `free` は、見た目の一致を確かめない。人が新側の画面を見て、違和感が無いことを確かめる（`spec-parity verify`）。性能の比較も行わない
+       - `free` では、画面のある機能の E2E のランナーが Playwright から e2e に変わる（`spec-parity`）。横断 API とバッチは Playwright のままである
+       - `free` では、共通部品を画面より先に作る方針（`parity-component`）は使えない
+       - 機能の着手の後に値を変えると、着手済みの機能の成果物を作り直すことになる（[`references/project-config.md`](references/project-config.md)「スタイルの方針」）
+
+       選んだ値は、承認と同じ時点で設定（`skill-config.mjs set replace-strategy style_policy '"<値>"' --layer repo`）と、`.replace/strategy.md` の「スタイルの方針」の節に記録する。
 7. 成果物の扱いの決定（設定ファイルへ）
    - 保持の方針（作業ツリーは最新のものだけを持ち、履歴は Git が持つ）を決める。
    - 保存先は `local`（デフォルト、コミットしない）／`git`／`git-lfs` に限る。それ以外の外部の保管は対象外で、選ぶ場合はポインタの記録だけを残し、検証しないことを明記する。
@@ -311,7 +322,7 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
    - 4 種（ゴールデンデータセット／横断 API／機能／バッチ）に当てはめられない作業（例: テーブルをまたぐ新側のスキーマの前倒しの設計）は、「その他の Issue（4 種以外）」表に置く。
      記録先が無いことを理由に、ヘッダに独自の項目を足したり、記録をあきらめたりしない。
    - `current.origin: received-assets` の場合は、採番した slug を `.replace/bootstrap/semantics.md` の「対象機能」列に非破壊で書き戻す。
-     このファイルは `.replace/features.md` が無い時点で書かれるので、機能の呼び名しか持てない。書き戻さないと、`golden-dataset` / `parity-suite` が、確認待ちの意味論を slug で探せない。
+     このファイルは `.replace/features.md` が無い時点で書かれるので、機能の呼び名しか持てない。書き戻さないと、`golden-dataset` / `parity-suite` / `spec-parity` が、確認待ちの意味論を slug で探せない。
      原本は `current-environment-bootstrap` の `references/data-semantics.md` である。
 10. 共通部品の依存の決定
     - 複数の機能で使う部品を洗い出し、自前で書くか、どのパッケージを使うかを、実装が始まる前に決めて `.replace/dependencies.md` に記録する。
@@ -326,6 +337,9 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
       `none`（確認済みで方針なし）なら、確認し直さない。
     - 機能に固有の部品は、`parity-replace` が実装のフェーズの前に、同じ基準で決める（ここですべてを洗い出そうとしない）。
     - 共通の UI 部品を画面より先に作る方針を採るかを、ここで確かめる。採るなら、`.replace/components.md` に部品インベントリを作る（テンプレート: [`assets/components-template.md`](assets/components-template.md)）。
+      - `style_policy: free` なら、確かめずに「先に作らない」として扱う。この方針は部品の見た目を現行から採って照合するもので、`free` では見た目を比べないからである。
+        `.replace/components.md` と `references.component_catalog` は作らず、`.replace/strategy.md` の「スタイルの方針」に、この方針を使わないことを書く。
+        上の依存の決定（`.replace/dependencies.md`）は、`free` でも同じに行う。
       - 採否だけを記録して終えると、部品を実装する側は、「現行のどこを測れば実装の正解が分かるか」を自分で探すことになる。
         `dependencies.md` は採否の記録で、測定の対象の一覧ではない。`parity-suite` の網羅表はページができてから作られるので、部品を先に作る時点では、どちらも対象を持たない。
       - インベントリには、部品ごとに slug・インスタンス（ページと、その部品を指す論理名）・データへの依存の有無・採否を書く。
@@ -400,6 +414,8 @@ Issue の種類は 6 つある。ゴールデンデータセット／横断 API�
   features.md は番号だけを持つ（古いバージョンのテンプレートから来た「状態」列があっても読まない）。
   取得できなかった番号は `判定不能` として示し、open と closed のどちらとしても扱わない。
 - 機能ごとに、パリティスイートの有無・強度・データセットのバージョンが古くなっていないか・未検証の領域（`gaps`）を導く。
+- `style_policy: free` の機能は、成果物の `metadata.json` が `style_policy: free` を持つ。
+  この機能では、新側の収束を `spec-parity verify` の `new/<target>/verify-metadata.json` の `converged` から導く（[`references/status.md`](references/status.md)「導出する内容」の 1）。
 - 横断 API に変更があった場合の影響の範囲（使う側の機能の一覧）を、fan-out から導く。
 - 確かめる軸を足した変更より前に特性化を終えた機能を、「旧手順で閉じた機能」として列挙する（Issue が closed でも、`parity-diff` が収束済みでも出す）。
   導くのは同梱の [`scripts/procedure-staleness-check.mjs`](scripts/procedure-staleness-check.mjs) で、原本は [`references/procedure-changes.md`](references/procedure-changes.md) である。
@@ -454,10 +470,10 @@ Issue の種類は 6 つある。ゴールデンデータセット／横断 API�
 
 | 成果物 | 場所 | 内容 |
 |---|---|---|
-| 設定 | `.config/skills/shoji9x9/replace-strategy.jsonc` | 現・新のリポジトリとスタック（`new.stack` は事前に決まった骨格の記録）／現行環境の由来（`current.origin` / `current.received_assets` / `bootstrap_tool_dir`）／実行対象の環境（`targets`。環境ごとの URL・DB（`env_vars` と `seedable`）・ストレージ（`storage`）・認証・禁止操作・起動・`on_diff`）／データセットの実体（`dataset_mode` / `dataset_static_paths`）／ファイルストレージを使うか（`uses_storage`）／起動のラッパー／検証コマンド（`verification_commands` の `full` / `diff` の 2 列）／成果物の保持の方針・保存先・容量の閾値／パリティスイートの配置／意図的差異レジストリ／references |
+| 設定 | `.config/skills/shoji9x9/replace-strategy.jsonc` | スタイルの方針（`style_policy`）／現・新のリポジトリとスタック（`new.stack` は事前に決まった骨格の記録）／現行環境の由来（`current.origin` / `current.received_assets` / `bootstrap_tool_dir`）／実行対象の環境（`targets`。環境ごとの URL・DB（`env_vars` と `seedable`）・ストレージ（`storage`）・認証・禁止操作・起動・`on_diff`）／データセットの実体（`dataset_mode` / `dataset_static_paths`）／ファイルストレージを使うか（`uses_storage`）／起動のラッパー／検証コマンド（`verification_commands` の `full` / `diff` の 2 列）／成果物の保持の方針・保存先・容量の閾値／パリティスイートの配置／意図的差異レジストリ／references |
 | 測定レポート | `.replace/survey.md` | セマンティクスの測定値、DB を復元できるか、コードを入手できるか、副作用の棚卸し、既存のテストの評価。すべて実測値（横断の応答ヘッダーは、下の一覧を指すだけ） |
 | 横断の応答ヘッダーの一覧 | `.replace/response-headers.json` | 採った応答、ヘッダーごとの分類・値・付く応答・付ける側・持ち主の slug・サーバーの設定を引き受ける slug（形式の原本: [`assets/response-headers-template.json`](assets/response-headers-template.json)。`parity-suite` の `header-normalize.mjs` が読む） |
-| 戦略書 | `.replace/strategy.md` | 非対称な設計、パリティスイートの戦略、ゴールデンデータセットの方針、未検証の領域の扱い |
+| 戦略書 | `.replace/strategy.md` | 非対称な設計、パリティスイートの戦略、スタイルの方針、ゴールデンデータセットの方針、未検証の領域の扱い |
 | 機能インベントリ | `.replace/features.md` | 機能の一覧、依存の順、ページ／API／テーブル／副作用の出力、API の「要求単位の根拠」（`実測` / `推定`）、ページ一覧（ページ × 乗る機能）、ページ要素の帰属（要素 × 配置の持ち主の slug）、横断 API の fan-out・参照するテーブル・リソースのグループ、その他の Issue（4 種以外）、slug、Issue の番号（`open` / `closed` は持たない。状態の原本はトラッカー）、受け入れ条件との突き合わせの結果（どの行を引き受けたかの原本は Issue の本文）。更新は非破壊。「要求単位の根拠」列の `推定` → `実測` は、`evidence` モードだけが書く |
 | 依存パッケージの決定の記録 | `.replace/dependencies.md` | 部品ごとの決定（`パッケージ採用` / `自前実装` / `該当なし` / `内蔵` / `機能固有` / `未確認` の 6 値）と状態（`有効` / `取り消し済み`）、判断の材料、代わりの候補、採用しなかった理由、理由と引き取り手。このスキルが共通部品を、`parity-replace` / `parity-component` が機能に固有の部品と実装中の追加を、非破壊で追記する |
 | 現行の弱点の仕分け | `.replace/weaknesses.md` | 現行のセキュリティ上の弱点ごとの攻撃の流れ、基準の当てはめ、仕分け（直す／引き継ぐ）、宣言（`may_change` / `keep` の文言）、扱う設計の作業、露出を広げた差異。このスキルが `setup` の手順 8 で作り、`parity-suite` / `parity-replace` が見つけた弱点を、仕分けを空欄にして非破壊で追記する。原本は [`references/security.md`](references/security.md) |
@@ -491,20 +507,24 @@ Issue の種類は 6 つある。ゴールデンデータセット／横断 API�
 |---|---|
 | `current-environment-bootstrap` | 受領資産から現行のテスト環境（`side: current` の target）を再構築する。`current.origin: received-assets` のときだけ、`setup` が測定の前に任せる |
 | `golden-dataset` | 現行と新側に投入する、共通のテストデータの投入ツール（フェーズ A: 現行、フェーズ B: 新側）。すべての機能にまたがる |
-| `parity-component` | 共通 UI 部品の見た目の基準の採取・実装・カタログ上の照合。画面より先に部品を作る方針のときだけ、`.replace/components.md` を受けて、機能の着手の前に動く |
-| `parity-suite` | パリティスイート（新旧どちらにも当てられる、実行できる合否判定の基準）の構築と、強度の検証 |
+| `parity-component` | 共通 UI 部品の見た目の基準の採取・実装・カタログ上の照合。`style_policy: reproduce` で、画面より先に部品を作る方針のときだけ、`.replace/components.md` を受けて、機能の着手の前に動く |
+| `parity-suite` | パリティスイート（新旧どちらにも当てられる、実行できる合否判定の基準）の構築と、強度の検証。`style_policy: free` では、横断 API とバッチだけを扱う |
+| `spec-parity` | `style_policy: free` の画面のある機能で、`parity-suite` と `parity-diff` の代わりに動く。`suite` が現行に対して e2e のスイートを作り、`verify` が新側だけを確かめて収束を判定する |
 | `parity-replace` | 新側の実装の薄い層。ページ単位の分割・新側のマッピングの充填・敵対的レビュー。実装の流れは `issue-start` に任せる |
-| `parity-diff` | 決定論的な差分ツール（画素の比較・特性照合・aria の比較）→ LLM のトリアージ |
+| `parity-diff` | 決定論的な差分ツール（画素の比較・特性照合・aria の比較）→ LLM のトリアージ。`style_policy: free` では、横断 API とバッチだけを扱う |
 
-全体の依存の順は次のとおりである。
+全体の依存の順は次のとおりである。手順 5・6 は、`style_policy`（`setup` の手順 6 で決める）で分かれる。
 
 1. `replace-strategy`（`setup` の由来の確認）
 2. 必要なときだけ `current-environment-bootstrap`
 3. `replace-strategy`（測定・戦略・機能インベントリ）
 4. `golden-dataset`（フェーズ A）
-5. 画面より先に部品を作る方針なら、部品ごとに `parity-component`（`capture` → `build`）
-6. 機能ごとに、`parity-suite` → `parity-replace` → `parity-diff`（`parity-diff` は `parity-replace` と往復する）。
-   `parity-replace` は、新側のスキーマが確定した後、完了のチェックの前に、`golden-dataset` のフェーズ B を呼ぶ。
+5. `style_policy: reproduce` で、画面より先に部品を作る方針なら、部品ごとに `parity-component`（`capture` → `build`）。`free` では使わない
+6. 機能ごとに、次の順で進める。`parity-replace` は、新側のスキーマが確定した後、完了のチェックの前に、`golden-dataset` のフェーズ B を呼ぶ。
+   - `style_policy: reproduce`: `parity-suite` → `parity-replace` → `parity-diff`（`parity-diff` は `parity-replace` と往復する）
+   - `style_policy: free`: `spec-parity suite` → `parity-replace` → `spec-parity verify`（`spec-parity verify` は `parity-replace` と往復する）
+     `parity-replace` が `free` の画面のある機能の手順を持たないときは、`parity-replace` は前提の確認で止まる（読むスキルと動作は [`references/project-config.md`](references/project-config.md)「スタイルの方針」）
+   - 横断 API とバッチは、どちらの値でも `parity-suite` → `parity-replace` → `parity-diff` である
 
 共通部品の Issue は、機能の Issue より先にする。横断 API の Issue も、機能の Issue より先にする。
 

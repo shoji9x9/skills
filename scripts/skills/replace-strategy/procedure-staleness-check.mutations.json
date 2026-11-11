@@ -16,7 +16,9 @@
       "occurrences": 1,
       "expect_failing": [
         "改訂番号を持たない成果物は、スキルのすべての改訂について未判断として落とす",
-        "--change は名指した変更だけで判定し、実在しない変更 ID は exit 2 で落とす"
+        "--change は名指した変更だけで判定し、実在しない変更 ID は exit 2 で落とす",
+        "語彙の外の style_policy と、置き場の slug と一致しない free の成果物は、外さずに判定不能に積む",
+        "誤検知しないことの確認: style_policy: reproduce の成果物は、キーが無い成果物と同じく改訂を当てる"
       ]
     },
     {
@@ -156,7 +158,10 @@
       "find": "  if (meta.slug !== name) {\n",
       "replace": "  if (false) {\n",
       "occurrences": 1,
-      "expect_failing": ["成果物を読めず対象かを決められない機能は合格として扱わず exit 3 にする"]
+      "expect_failing": [
+        "成果物を読めず対象かを決められない機能は合格として扱わず exit 3 にする",
+        "語彙の外の style_policy と、置き場の slug と一致しない free の成果物は、外さずに判定不能に積む"
+      ]
     },
     {
       "id": "orphan-requires-full-columns",
@@ -190,7 +195,8 @@
       "replace": "        ? 0\n",
       "occurrences": 1,
       "expect_failing": [
-        "成果物の置き場・台帳を読めないときは合格としても未判断としても扱わず exit 2 にする"
+        "成果物の置き場・台帳を読めないときは合格としても未判断としても扱わず exit 2 にする",
+        "style_policy: free の成果物だけなら、数えた成果物が無いので exit 4 にする"
       ]
     },
     {
@@ -297,6 +303,28 @@
       "expect_failing": [
         "閉じない HTML コメントは、以降の表を読まずに合格させない",
         "表の途中で開いて閉じない HTML コメントは、後ろの行を判定から外さずに失敗にする"
+      ]
+    },
+    {
+      "id": "reproduce-style-skipped",
+      "why": "style_policy: reproduce の成果物も spec-parity の成果物として外し、parity-suite の改訂を当てない（旧手順で閉じた機能が報告から消える）",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "  return policy === \"free\";\n",
+      "replace": "  return true;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "誤検知しないことの確認: style_policy: reproduce の成果物は、キーが無い成果物と同じく改訂を当てる"
+      ]
+    },
+    {
+      "id": "free-style-skipped-despite-slug-mismatch",
+      "why": "置き場の slug と一致しない free の成果物も外し、別の機能の成果物を理由にこの機能を判定から消す",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "  if (isFreeStyle(meta, problems) && problems.length === 0) {\n",
+      "replace": "  if (isFreeStyle(meta, problems)) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "語彙の外の style_policy と、置き場の slug と一致しない free の成果物は、外さずに判定不能に積む"
       ]
     }
   ]

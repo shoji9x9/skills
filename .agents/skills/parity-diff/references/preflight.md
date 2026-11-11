@@ -3,6 +3,19 @@
 前提が欠けていたら、作り出さずに止まる。依存の順（`replace-strategy setup` → `golden-dataset` → 対象の slug の `parity-suite` → `parity-replace`）に案内する。
 検出の結果・成果物・ベースラインを作り出さない。判定は、指定したパスを Read して行う（jq は必須ではない）。
 
+## スタイルの方針の確認（最初）
+
+target を解決する前に、設定の `style_policy` を読む（`skill-config.mjs get replace-strategy style_policy --raw`。キーが無ければ `reproduce`）。
+意味の原本は `replace-strategy` の `references/project-config.md`「スタイルの方針」である。
+
+- `free` で、対象の slug が画面のある機能なら、成果物を作らずに止まり、`spec-parity verify --feature <slug>` を案内する。
+  画面のある機能かは、`.replace/parity/<slug>/metadata.json` の `mode: feature` で決める。このファイルが無ければ、`.replace/features.md` の機能一覧に slug があることで決める。
+  `free` の機能の `metadata.json` は `spec-parity suite` が作るもので、このスキルが比べる視覚ベースラインもノイズ基準値も持たない。
+- `free` では、`--component-change` も止まる。共通部品を画面より先に作る方針（`parity-component`）を使わないので、再検証する部品の照合が無いからである。
+- 横断 API（`api-resource`）とバッチ（`batch`）は、`free` でも止めずに次へ進む。
+- 読み取りがエラー（終了コード 1）なら、`reproduce` と見なして続けずに止まる。
+- この確認は設定と成果物だけで済むので、target の起動より先に行う。止まる機能のために新側を起動しない。
+
 ## 対象 target の解決（前提確認より先）
 
 成果物のパスも疎通先も target で決まるので、最初に対象の環境を決める。候補は、`replace-strategy.jsonc` の `targets` のうち `side: new` のものだけである。

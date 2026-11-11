@@ -358,6 +358,40 @@
           "prompt_quote": "favicon はタブにしか出ないし画素の比較にも出ないので"
         }
       ]
+    },
+    {
+      "id": 26,
+      "fixture": "fixtures/style-free",
+      "prompt": "parity-replace --feature order-list --target local-dev",
+      "assertions": [
+        "設定の style_policy が free であることを理由に、画面のある機能の order-list の実装（フェーズ分割・新側マッピング・実装）へ進まずに停止している",
+        "このスキルが style_policy: free の画面のある機能の手順を持たないことを、停止の理由として利用者に報告している",
+        "metadata.json に differ.validated_by_strength_gate が無いことを理由に parity-suite の実行を案内していない（free の機能のスイートは spec-parity が作ったものと区別している）",
+        "issue-start でブランチを作っておらず、.replace/parity/order-list/new/ 配下に replace-metadata.json などの成果物を作っていない",
+        "設定の style_policy を reproduce に書き換えて進めるなど、fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない"
+      ],
+      "reachability": [
+        {
+          "assertion": "設定の style_policy が free であることを理由に、画面のある機能の order-list の実装（フェーズ分割・新側マッピング・実装）へ進まずに停止している",
+          "prompt_quote": "parity-replace --feature order-list --target local-dev"
+        },
+        {
+          "assertion": "このスキルが style_policy: free の画面のある機能の手順を持たないことを、停止の理由として利用者に報告している",
+          "prompt_quote": "parity-replace --feature order-list --target local-dev"
+        },
+        {
+          "assertion": "metadata.json に differ.validated_by_strength_gate が無いことを理由に parity-suite の実行を案内していない（free の機能のスイートは spec-parity が作ったものと区別している）",
+          "prompt_quote": "parity-replace --feature order-list --target local-dev"
+        },
+        {
+          "assertion": "issue-start でブランチを作っておらず、.replace/parity/order-list/new/ 配下に replace-metadata.json などの成果物を作っていない",
+          "prompt_quote": "parity-replace --feature order-list --target local-dev"
+        },
+        {
+          "assertion": "設定の style_policy を reproduce に書き換えて進めるなど、fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
+          "prompt_quote": "parity-replace --feature order-list --target local-dev"
+        }
+      ]
     }
   ]
 }

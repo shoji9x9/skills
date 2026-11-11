@@ -24,7 +24,7 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>] [--autono
 | モード | 起点 | 内容 |
 |---|---|---|
 | フェーズ A（初回） | `.replace/dataset/metadata.json` が無い | 論理データの設計、投入ツールの生成、現行側への投入、現行側の検証 |
-| フェーズ A（再実行） | `parity-suite` の `gaps.md`「データ不足」の行 | 設計の追記、ツールの更新、再投入、再検証。`version` を 1 上げ、影響を受けるベースラインの再取得（`parity-suite` の再実行）を案内する |
+| フェーズ A（再実行） | `parity-suite` の `gaps.md`「データ不足」の行（`style_policy: free` の画面のある機能では `spec-parity suite` の `gaps.md` の同じ種別の行） | 設計の追記、ツールの更新、再投入、再検証。`version` を 1 上げ、影響を受けるベースラインの再取得（`parity-suite` の再実行。`free` の画面のある機能では `spec-parity suite` の再実行）を案内する |
 | フェーズ B（`--phase b --feature <slug>... [--target <name>]`） | 対象の slug の新側の受け皿（スキーマ／静的データの形式）がそろった | 新側への変換、選んだ新側の target への投入、新側の整合性と現新一致の検証。論理データは変えないので `version` は上げない |
 
 - 何も指定しないとき: `.replace/dataset/metadata.json` が無ければフェーズ A（初回）を行う。あれば用途（データの追加＝フェーズ A の再実行か、フェーズ B か）を確認する
@@ -232,6 +232,7 @@ UI に固有のページ送りの機能は UI で確定し、どこまで上げ�
   暫定の起動データとツールは流用せず（禁止事項 13）、`handoff.boot_requirements` の起動の要件だけを、このスキルのデータの設計に取り込む
 - `parity-suite`: フェーズ A の完了（`.replace/dataset/metadata.json` があること）が前提である。探索でシードの不足を見つけると、`gaps.md`「データ不足」でこのスキルに戻る。
   戻ると `version` が上がり、影響を受けるベースラインを再取得する
+- `spec-parity`: `style_policy: free` の画面のある機能で、`parity-suite` と `parity-diff` の代わりに、前提・戻り方（`gaps.md` の「データ不足」）・古さの検出を同じように扱う。`suite` が `metadata.json` の `dataset_version` を記録し、`verify` が古くなったことを検出する
 - `parity-replace`: フェーズ B の前提となる新側のスキーマを作る。自分が選んだ新側の target を渡して、`golden-dataset --phase b --feature <slug> --target <name>` として呼ぶ
 - `parity-diff` / `replace-strategy status`: `metadata.json` の version の順序と `changes[].affects` を、slug が実際に参照するテーブルと照らし合わせて、古くなったことを検出する。
   フェーズ B の投入の状況は、`phase_b.<slug>.<target>` を target の単位で同じ判定にかける

@@ -1,0 +1,112 @@
+{
+  "slug": "order-list",
+  "style_policy": "free",
+  "mode": "feature",
+  "target": {
+    "name": "current-test",
+    "ui_url": "http://localhost:8080",
+    "api_url": "http://localhost:8080",
+    "commit": "none"
+  },
+  "run": {
+    "started_at": "2026-07-21T00:00:00Z",
+    "finished_at": "2026-07-21T01:40:00Z",
+    "agent": "Claude Code",
+    "model": "opus",
+    "skill_version": "1.0.0",
+    "autonomous": false
+  },
+  "dataset_version": 1,
+  "runner": {
+    "e2e": "0.23.0",
+    "engine": "0.15.5",
+    "telemetry_disabled": true,
+    "agent_steps": false,
+    "agent_steps_approval": null
+  },
+  "suite": {
+    "runner": "e2e",
+    "config": "e2e.config.ts",
+    "dir": "tests/order-list/",
+    "helpers": "tests/parity/",
+    "current_green": true,
+    "report": ".replace/parity/order-list/suite-report.json",
+    "runtime_errors": {
+      "init_script": "tests/parity/runtime-errors-init.js",
+      "reporter": "tests/parity/runtime-errors-reporter.ts"
+    },
+    "overflow": "tests/order-list/overflow.e2e.ts",
+    "strength": "tests/order-list/strength/"
+  },
+  "strength": {
+    "tool": "strength-check",
+    "version": "1",
+    "judged": true,
+    "validated": true,
+    "counts": {
+      "controls": 1,
+      "controls_green": 1,
+      "faults": 1,
+      "red": 1
+    },
+    "classes": ["値・件数・並び"],
+    "controls": [
+      {
+        "test": "tests/order-list/strength/faults.e2e.ts › 対照: 注入しないと通る",
+        "status": "passed",
+        "ok": true
+      }
+    ],
+    "faults": [
+      {
+        "id": "f-count",
+        "class": "値・件数・並び",
+        "test": "tests/order-list/strength/faults.e2e.ts › 故障: 応答の件数を変える",
+        "observed": "行が 3 → 2 になった",
+        "verdict": "red",
+        "code": "ASSERTION_FAILED"
+      }
+    ],
+    "plan": ".replace/parity/order-list/strength-plan.json",
+    "report": ".replace/parity/order-list/strength-report.json"
+  },
+  "capture_conditions": {
+    "pages": ["/orders"],
+    "viewports": [
+      {
+        "width": 375,
+        "height": 800
+      },
+      {
+        "width": 1280,
+        "height": 720
+      }
+    ],
+    "excluded_viewports": []
+  },
+  "runtime_errors": {
+    "declared": true,
+    "tool_version": "1",
+    "runs": 2,
+    "run_dirs": [
+      ".replace/parity/order-list/runtime-errors/run-1",
+      ".replace/parity/order-list/runtime-errors/run-2"
+    ],
+    "tests": [
+      {
+        "test": "tests/order-list/list.e2e.ts › 一覧を開く",
+        "skipped": false
+      },
+      {
+        "test": "tests/order-list/list.e2e.ts › 並び順を切り替える",
+        "skipped": false
+      }
+    ],
+    "signatures": []
+  },
+  "unmeasured": {
+    "declared": true,
+    "entries": [],
+    "reason": null
+  }
+}

@@ -454,6 +454,40 @@
           "prompt_quote": "現側より 300ms 遅かった"
         }
       ]
+    },
+    {
+      "id": 30,
+      "fixture": "fixtures/style-free",
+      "prompt": "parity-diff --feature order-list --target local-dev",
+      "assertions": [
+        "設定の style_policy が free で、order-list が画面のある機能（metadata.json の mode: feature）であることを理由に、新側の撮影と差分の検出へ進まずに停止している",
+        "同じ target（local-dev）での spec-parity verify の実行を案内している",
+        "metadata.json に差分ツール・ノイズ基準値・視覚ベースラインが無いことを、parity-suite の未完了として扱って parity-suite の再実行を差し戻し先に案内していない",
+        "new/local-dev/ に diff.md・diff-metadata.json・新側のベースラインを作っていない",
+        "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない"
+      ],
+      "reachability": [
+        {
+          "assertion": "設定の style_policy が free で、order-list が画面のある機能（metadata.json の mode: feature）であることを理由に、新側の撮影と差分の検出へ進まずに停止している",
+          "prompt_quote": "parity-diff --feature order-list --target local-dev"
+        },
+        {
+          "assertion": "同じ target（local-dev）での spec-parity verify の実行を案内している",
+          "prompt_quote": "parity-diff --feature order-list --target local-dev"
+        },
+        {
+          "assertion": "metadata.json に差分ツール・ノイズ基準値・視覚ベースラインが無いことを、parity-suite の未完了として扱って parity-suite の再実行を差し戻し先に案内していない",
+          "prompt_quote": "parity-diff --feature order-list --target local-dev"
+        },
+        {
+          "assertion": "new/local-dev/ に diff.md・diff-metadata.json・新側のベースラインを作っていない",
+          "prompt_quote": "parity-diff --feature order-list --target local-dev"
+        },
+        {
+          "assertion": "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
+          "prompt_quote": "parity-diff --feature order-list --target local-dev"
+        }
+      ]
     }
   ]
 }
