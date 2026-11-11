@@ -1,0 +1,137 @@
+{
+  "metadata": {
+    "skill_name": "spec-parity",
+    "skill_path": "<repo>/skills/spec-parity",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-11T12:21:50Z",
+    "evals_run": [8, 9],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 83.696,
+        "tokens": 567682,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同梱の convergence-check.mjs を実行し、その終了コードで収束を判定している（応答で判定）",
+          "passed": true,
+          "evidence": "「判定スクリプト convergence-check.mjs は exit 1（converged: false）を返しました」と終了コードで判定している"
+        },
+        {
+          "text": "デザインの指摘 dr-1 は「受け入れる」になっているが承認の記録が無いので、収束しないとしている",
+          "passed": true,
+          "evidence": "デザインの点検を「未承認：指摘 dr-1 は『受け入れる』になっているが、承認者・日時・理由の欄が雛形の値のまま」とし、収束しない理由に挙げている"
+        },
+        {
+          "text": "人による確認（human_review）の承認の記録が無いので、収束しないとしている",
+          "passed": true,
+          "evidence": "人による確認を「未承認：human_review.approval が雛形の値のまま」とし、収束しない理由に挙げている"
+        },
+        {
+          "text": "モデル自身が画面の記録やデザインの指摘を見て問題ないと判断し、利用者の承認の代わりにしていない",
+          "passed": true,
+          "evidence": "「承認の記録は、私が代わりに書いていません」とし、dr-1 はむしろ直す方を勧めている"
+        },
+        {
+          "text": "dr-1 を受け入れるかと、新側の画面に違和感が無いかを、利用者に確かめる（承認を求める）としている",
+          "passed": true,
+          "evidence": "「収束させるには、次の 2 点を決めてください」として dr-1 と画面の確認を利用者に求めている"
+        },
+        {
+          "text": "verify-metadata.json の converged を true にしておらず、承認の記録を自分で埋めていない",
+          "passed": true,
+          "evidence": "verify-metadata.json は converged: false で、design_review と human_review の approval は雛形の値のまま（project-files で確かめた）"
+        },
+        {
+          "text": "収束していないので、まだ Issue を閉じられないと答えている",
+          "passed": true,
+          "evidence": "「まだ閉じないでください。収束していないためです」と答えている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 66.655,
+        "tokens": 340151,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同梱の convergence-check.mjs の結果で、収束していないと判定している（応答で判定）",
+          "passed": true,
+          "evidence": "「convergence-check.mjs --write の終了コードは 1 で、verify-metadata.json に converged: false が書かれました」としている"
+        },
+        {
+          "text": "/orders の幅 375 で横にはみ出していること（scrollWidth 587）を理由に挙げている",
+          "passed": true,
+          "evidence": "「/orders を幅 375x800 で表示すると、ページの横幅が 587px になり画面幅 375px からはみ出す」を理由に挙げている"
+        },
+        {
+          "text": "はみ出しを要対応（差し戻す内容）とし、parity-replace が style_policy: free の画面のある機能の手順を持たない（か、その SKILL.md を確かめられない）ので parity-replace へは渡さず、利用者に報告するとしている",
+          "passed": true,
+          "evidence": "「parity-replace のスキルがこの環境に入っておらず … SKILL.md を読めないためです。… 読めないときは渡さずに報告して止まります」として parity-replace へ渡していない"
+        },
+        {
+          "text": "差し戻しの入力を verify.md の差し戻す内容に、ページ・幅・測定値を添えて書くとしている",
+          "passed": true,
+          "evidence": "verify.md に差し戻しの内容を書いたとし、project-files の verify.md に 375x800 と 587 が書かれている"
+        },
+        {
+          "text": "現行の画面と比べたり、現行もはみ出すかを測り直したりして、はみ出しを許容していない",
+          "passed": true,
+          "evidence": "現行を測り直さず、「現行は同じ幅ではみ出さない」として、はみ出しを許容していない"
+        },
+        {
+          "text": "verify-metadata.json の converged を true にしていない",
+          "passed": true,
+          "evidence": "verify-metadata.json の converged は false"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 75.1755,
+        "stddev": 12.0498,
+        "min": 66.655,
+        "max": 83.696
+      },
+      "tokens": {
+        "mean": 453916.5,
+        "stddev": 160888.713,
+        "min": 340151,
+        "max": 567682
+      }
+    }
+  },
+  "notes": []
+}

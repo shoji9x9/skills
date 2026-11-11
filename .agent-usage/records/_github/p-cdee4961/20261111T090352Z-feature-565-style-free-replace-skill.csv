@@ -69,3 +69,7 @@ coverage:github:2026-11-10T12:08:47.820Z:2026-11-11T12:12:56.232Z,coverage,2026-
 ci:43017991173:1,ci,2026-11-11T12:16:35.710Z,p-cdee4961,github-actions,,,,2026-11-11T12:10:05.000Z,2026-11-11T12:14:15.000Z,Asia/Tokyo,feature/565-style-free-replace-skill,565,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-11-10T12:12:56.232Z:2026-11-11T12:16:35.710Z,coverage,2026-11-11T12:16:35.710Z,p-cdee4961,,,,,2026-11-10T12:12:56.232Z,2026-11-11T12:16:35.710Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-11-10T12:16:35.710Z:2026-11-11T12:17:06.949Z,coverage,2026-11-11T12:17:06.949Z,p-cdee4961,,,,,2026-11-10T12:16:35.710Z,2026-11-11T12:17:06.949Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:43019253041:1,ci,2026-11-11T12:22:04.433Z,p-cdee4961,github-actions,,,,2026-11-11T12:18:52.000Z,2026-11-11T12:18:53.000Z,Asia/Tokyo,feature/565-style-free-replace-skill,565,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:43019253093:1,ci,2026-11-11T12:22:04.433Z,p-cdee4961,github-actions,,,,2026-11-11T12:18:52.000Z,2026-11-11T12:22:04.433Z,Asia/Tokyo,feature/565-style-free-replace-skill,565,,,,,,,,,,CI;pull_request;open,
+ci:43019253031:1,ci,2026-11-11T12:22:04.433Z,p-cdee4961,github-actions,,,,2026-11-11T12:18:52.000Z,2026-11-11T12:21:32.000Z,Asia/Tokyo,feature/565-style-free-replace-skill,565,,,,,,,,,,CodeQL;pull_request;success,
+coverage:github:2026-11-10T12:17:06.949Z:2026-11-11T12:22:04.433Z,coverage,2026-11-11T12:22:04.433Z,p-cdee4961,,,,,2026-11-10T12:17:06.949Z,2026-11-11T12:22:04.433Z,Asia/Tokyo,,,,,,,,,,,,ok,
