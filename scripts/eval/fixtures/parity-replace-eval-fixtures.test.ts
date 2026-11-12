@@ -24,17 +24,11 @@ function run(cwd: string, file: string, ...args: string[]): string {
   });
 }
 
-test.each([
-  ["lightweight-deploy-target", false],
-  ["records-committed-same-repo", false],
-  // eval 29 の setup.sh は、作業ディレクトリが既に git のリポジトリの最上位なら git init しない
-  ["records-committed-same-repo", true],
-] as const)(
-  "%s の setup.sh は、記録の commit で HEAD が進み new.tree が同じ、clean な状態を作り、自身を消す（先に git init 済み: %s）",
-  (name, preInit) => {
+test.each(["lightweight-deploy-target", "records-committed-same-repo"])(
+  "%s の setup.sh は、記録の commit で HEAD が進み new.tree が同じ、clean な状態を作り、自身を消す",
+  (name) => {
     const dir = makeTempDir(`parity-replace-${name}-`);
     cpSync(join(fixturesRoot, name), dir, { recursive: true });
-    if (preInit) run(dir, "git", "init", "-q", "-b", "main");
     run(dir, "./setup.sh");
     // 被験体が手順を読めないよう、setup.sh は残らない
     expect(existsSync(join(dir, "setup.sh"))).toBe(false);

@@ -6,12 +6,7 @@ placeholder_commit=abc1234def5678
 placeholder_tree=9f2c4e1a7b3d5c6e8f0a1b2c3d4e5f6a7b8c9d0e
 record=.replace/parity/order-list/new/local-dev/replace-metadata.json
 
-# 作業ディレクトリ自身がリポジトリの最上位でなければ作る。CDPATH が設定されていると cd がパスを出すので外す
-top=$(git rev-parse --show-toplevel 2>/dev/null || true)
-here=$(CDPATH='' cd -- . && pwd -P)
-if [ "$top" != "$here" ]; then
-	git init -q -b main
-fi
+git init -q -b main
 git config user.name "Eval User"
 git config user.email "eval@example.invalid"
 
