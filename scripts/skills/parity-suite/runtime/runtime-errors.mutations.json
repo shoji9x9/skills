@@ -139,8 +139,8 @@
       "id": "re-classification-placeholder",
       "why": "分類の欄が雛形のプレースホルダ（<...>）のままでも、説明になる分類として数える",
       "file": "skills/parity-suite/scripts/runtime-errors.mjs",
-      "find": "    c && nonEmptyString(c[k]) && !isPlaceholder(c[k]) ? String(c[k]) : null;\n",
-      "replace": "    c && nonEmptyString(c[k]) ? String(c[k]) : null;\n",
+      "find": "    return v !== null && !isPlaceholder(v) ? v : null;\n",
+      "replace": "    return v;\n",
       "occurrences": 1,
       "expect_failing": [
         "parity-suite の runtime-errors.mjs compare 雛形のプレースホルダ（<...>）のままの分類の欄は、書いていないものとして読む"

@@ -340,7 +340,7 @@ function judgeSignatures(sigs, { tree, approvals, reasons }) {
 /**
  * 許容の承認が、承認の記録（approvals）に、同じテスト × 署名・同じバージョンで同じ値が積まれているか。
  * テストか署名の id が無い署名は、照合の鍵が無いので積まれていないものとして扱う（欠けた鍵どうしを一致させない）。
- * 承認した人（approved_by）を書いていない要素は、readApprovals が読み飛ばす。
+ * approvals は、judgeRuntimeErrors が承認した人（approved_by）を書いた runtime_errors の要素に絞って渡す。
  * @param {unknown} s - new_signatures の要素
  * @param {ReturnType<typeof judgeClassification>} judged
  * @param {{ tree: string, approvals: Record<string, unknown>[] }} ctx
@@ -403,7 +403,9 @@ export function judgeRuntimeErrors(baseline, compared, { tree, approvals, reason
   const sigs = compared.new_signatures;
   if (!isArray(sigs))
     throw new UsageError("verify-metadata.json の runtime_errors.new_signatures が配列でない");
-  judgeSignatures(sigs, { tree, approvals, reasons });
+  // 分類の欄は承認した人を持たないので、許容の承認は、承認した人（approved_by）を書いた要素とだけ照合する
+  const allowances = approvals.filter((a) => a.kind === "runtime_errors" && filled(a.approved_by));
+  judgeSignatures(sigs, { tree, approvals: allowances, reasons });
   judgeCompareLists(compared, reasons);
   return { judged: true, new_signatures: sigs.length };
 }
@@ -443,14 +445,8 @@ export function readApprovals(list) {
   // approvals は追記専用で要素を消せないので、ここで止めると、一度積んだ誤りの要素でいつまでも判定できなくなる
   /** @type {Record<string, unknown>[]} */
   const entries = [];
-  // 許容の承認（runtime_errors）は、分類の欄が承認した人を持たないので、承認した人（approved_by）を書いた要素だけを数える
   for (const a of list)
-    if (
-      isPlainObject(a) &&
-      APPROVAL_KINDS.includes(String(a.kind)) &&
-      (a.kind !== "runtime_errors" || filled(a.approved_by))
-    )
-      entries.push(a);
+    if (isPlainObject(a) && APPROVAL_KINDS.includes(String(a.kind))) entries.push(a);
   return { entries, ignored: list.length - entries.length };
 }
 

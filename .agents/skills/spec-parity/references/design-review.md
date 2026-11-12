@@ -81,7 +81,8 @@
   その要素を承認の欄と一緒に同じ値へ書き換えると、収束の判定も食い違いを見つけないので、どちらのチェックも検出しない。
   そのため、承認を積んだら、その `verify-metadata.json` を commit する。その後の書き換えは、その要素を含む commit を `--base` にした実行で検出できる。
 - 収束の判定は、`approvals[]` の中の、`kind` が `runtime_errors`・`design_review`・`human_review` でない要素とオブジェクトでない要素を承認として数えない。
-  承認した人（`approved_by`）の無い `runtime_errors` の要素も数えない。消せないので止めず、件数を `convergence.checks.approvals.ignored` に残す。
+  消せないので止めず、件数を `convergence.checks.approvals.ignored` に残す。
+- 操作中のエラーの許容は、承認した人（`approved_by`）を書いた `runtime_errors` の要素とだけ照合する。分類の欄は承認した人を持たないからである。
 - 新側を直して点検や確認をやり直したときも、前のバージョンの要素は残し、新しいバージョンの要素を足す。
   `verify-metadata.json` を雛形から作り直すときも、前の `approvals[]` をそのまま引き継ぐ。
 - `approvals[]` をキーごと持たない記録（この記録を始める前のもの）は、承認が積まれていないものとして扱う。利用者に承認し直してもらい、要素を追記する。

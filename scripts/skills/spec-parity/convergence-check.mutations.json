@@ -477,8 +477,8 @@
       "id": "cv-approvals-kind-off",
       "why": "承認の記録の語彙の外の要素を読み飛ばした件数（checks.approvals.ignored）に数えない。照合は kind も比べるので、承認の判定は変わらず、件数の報告だけが誤る",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "      APPROVAL_KINDS.includes(String(a.kind)) &&\n",
-      "replace": "      true &&\n",
+      "find": "    if (isPlainObject(a) && APPROVAL_KINDS.includes(String(a.kind))) entries.push(a);\n",
+      "replace": "    if (isPlainObject(a)) entries.push(a);\n",
       "occurrences": 1,
       "expect_failing": [
         "承認の記録（approvals） approvals に kind が語彙の外 の要素があっても、承認として数えずに判定を続ける"
@@ -628,8 +628,8 @@
       "id": "cv-allowance-approved-by",
       "why": "許容の承認の記録の要素に、承認した人（approved_by）が書いてあることを求める",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "      (a.kind !== \"runtime_errors\" || filled(a.approved_by))\n",
-      "replace": "      true\n",
+      "find": "  const allowances = approvals.filter((a) => a.kind === \"runtime_errors\" && filled(a.approved_by));\n",
+      "replace": "  const allowances = approvals.filter((a) => a.kind === \"runtime_errors\");\n",
       "occurrences": 1,
       "expect_failing": [
         "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人（approved_by）の無い承認しか無い なら承認待ちにする",
@@ -640,8 +640,8 @@
       "id": "cv-classification-placeholder",
       "why": "分類の欄（approved_at・reason・evidence）が雛形のプレースホルダのままでも、書いたものとして読む（spec-parity のコピー）",
       "file": "skills/spec-parity/scripts/runtime-errors.mjs",
-      "find": "    c && nonEmptyString(c[k]) && !isPlaceholder(c[k]) ? String(c[k]) : null;\n",
-      "replace": "    c && nonEmptyString(c[k]) ? String(c[k]) : null;\n",
+      "find": "    return v !== null && !isPlaceholder(v) ? v : null;\n",
+      "replace": "    return v;\n",
       "occurrences": 1,
       "expect_failing": [
         "操作中のエラーの許容と承認の記録（approvals） 許容の 承認の日時（approved_at） が雛形のプレースホルダのままなら、承認の記録に同じ値があっても承認待ちにする",

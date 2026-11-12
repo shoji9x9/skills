@@ -415,8 +415,11 @@ function previousClassifications(previous) {
  * @returns {{ classification: string | null, reason: string | null, approved_at: string | null, evidence: string | null, state: "actionable" | "explained" | "unexplained" }}
  */
 export function judgeClassification(c) {
-  const pick = (/** @type {string} */ k) =>
-    c && nonEmptyString(c[k]) && !isPlaceholder(c[k]) ? String(c[k]) : null;
+  const written = writtenClassification(c);
+  const pick = (/** @type {keyof typeof written} */ k) => {
+    const v = written[k];
+    return v !== null && !isPlaceholder(v) ? v : null;
+  };
   const classification = pick("classification");
   const reason = pick("reason");
   const approvedAt = pick("approved_at");
@@ -432,7 +435,8 @@ export function judgeClassification(c) {
 }
 
 /**
- * 前の分類の欄を、書いたままの値で返す（文字列でない値は null）。compare --write が書き戻すので、読み方で値を変えない。
+ * 前の分類の欄を、書いた値で返す。文字列でない値と、空の文字列（空白だけのものを含む）は null にする。
+ * compare --write が書き戻すので、それ以外の読み方（雛形のプレースホルダを外すなど）はここで当てない。分類の欄の一覧はこの関数が持つ。
  * @param {Record<string, unknown> | undefined} c
  * @returns {Record<"classification" | "reason" | "approved_at" | "evidence", string | null>}
  */
