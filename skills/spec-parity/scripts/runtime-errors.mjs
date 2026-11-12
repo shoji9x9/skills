@@ -36,11 +36,12 @@ import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
 import { writeFileAtomic } from "./lib/file-io.mjs";
 import { parseFlags, stripDashes } from "./lib/flags.mjs";
-import { isInteger, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
+import { isInteger, isPlaceholder, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
 /**
  * ツールのバージョン（原本）。判定規則・正規化・出力の形を変えたら上げる。
  * 読み手が読まなくても判定が変わらない欄を足すだけ（compare の tree）なら上げない。上げると、前のバージョンの基準をすべて作り直すことになる。
+ * 分類の読み方（judgeClassification）を変えるだけでも上げない。分類は compare を通し直すたびに判定し直し、基準の署名には関わらないからである。
  * @type {string}
  */
 export const VERSION = "1";
@@ -408,12 +409,13 @@ function previousClassifications(previous) {
 }
 
 /**
- * 分類が説明になっているかを判定する。
+ * 分類が説明になっているかを判定する。雛形のプレースホルダ（`<...>`）のままの欄は、書いていないものとして読む。
  * @param {Record<string, unknown> | undefined} c
  * @returns {{ classification: string | null, reason: string | null, approved_at: string | null, evidence: string | null, state: "actionable" | "explained" | "unexplained" }}
  */
 export function judgeClassification(c) {
-  const pick = (/** @type {string} */ k) => (c && nonEmptyString(c[k]) ? String(c[k]) : null);
+  const pick = (/** @type {string} */ k) =>
+    c && nonEmptyString(c[k]) && !isPlaceholder(c[k]) ? String(c[k]) : null;
   const classification = pick("classification");
   const reason = pick("reason");
   const approvedAt = pick("approved_at");

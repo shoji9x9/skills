@@ -97,7 +97,9 @@
         "操作中のエラーの許容と承認の記録（approvals） 許容が 承認の記録に無い なら承認待ちにする",
         "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人（approved_by）の無い承認しか無い なら承認待ちにする",
         "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人が雛形の値のままの承認しか無い なら承認待ちにする",
-        "操作中のエラーの許容と承認の記録（approvals） 承認の欄が雛形のプレースホルダのままなら、承認の記録に同じ値があっても承認待ちにする"
+        "操作中のエラーの許容と承認の記録（approvals） 環境ノイズの根拠（evidence）が雛形のプレースホルダのままなら、承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 許容の 承認の日時（approved_at） が雛形のプレースホルダのままなら、承認の記録に同じ値があっても承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 許容の 理由（reason） が雛形のプレースホルダのままなら、承認の記録に同じ値があっても承認待ちにする"
       ]
     },
     {
@@ -583,8 +585,7 @@
         "操作中のエラーの許容と承認の記録（approvals） 署名に id が無ければ、同じ欄の無い承認とも一致させない",
         "操作中のエラーの許容と承認の記録（approvals） 署名に test が無ければ、同じ欄の無い承認とも一致させない",
         "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人（approved_by）の無い承認しか無い なら承認待ちにする",
-        "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人が雛形の値のままの承認しか無い なら承認待ちにする",
-        "操作中のエラーの許容と承認の記録（approvals） 承認の欄が雛形のプレースホルダのままなら、承認の記録に同じ値があっても承認待ちにする"
+        "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人が雛形の値のままの承認しか無い なら承認待ちにする"
       ]
     },
     {
@@ -627,8 +628,8 @@
       "id": "cv-allowance-approved-by",
       "why": "許容の承認の記録の要素に、承認した人（approved_by）が書いてあることを求める",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "  return approvals.some((a) => filled(a.approved_by) && matches(a, want));\n",
-      "replace": "  return approvals.some((a) => matches(a, want));\n",
+      "find": "  return logged(approvals, want, (a) => filled(a.approved_by));\n",
+      "replace": "  return logged(approvals, want);\n",
       "occurrences": 1,
       "expect_failing": [
         "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人（approved_by）の無い承認しか無い なら承認待ちにする",
@@ -636,14 +637,16 @@
       ]
     },
     {
-      "id": "cv-allowance-placeholder",
-      "why": "承認の欄（approved_at・reason）が雛形のプレースホルダのままの許容を、承認の記録に同じ値があっても数えない",
-      "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "  if (!filled(judged.approved_at) || !filled(judged.reason)) return false;\n",
-      "replace": "",
+      "id": "cv-classification-placeholder",
+      "why": "分類の欄（approved_at・reason・evidence）が雛形のプレースホルダのままでも、書いたものとして読む（spec-parity のコピー）",
+      "file": "skills/spec-parity/scripts/runtime-errors.mjs",
+      "find": "    c && nonEmptyString(c[k]) && !isPlaceholder(c[k]) ? String(c[k]) : null;\n",
+      "replace": "    c && nonEmptyString(c[k]) ? String(c[k]) : null;\n",
       "occurrences": 1,
       "expect_failing": [
-        "操作中のエラーの許容と承認の記録（approvals） 承認の欄が雛形のプレースホルダのままなら、承認の記録に同じ値があっても承認待ちにする"
+        "操作中のエラーの許容と承認の記録（approvals） 許容の 承認の日時（approved_at） が雛形のプレースホルダのままなら、承認の記録に同じ値があっても承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 許容の 理由（reason） が雛形のプレースホルダのままなら、承認の記録に同じ値があっても承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 環境ノイズの根拠（evidence）が雛形のプレースホルダのままなら、承認待ちにする"
       ]
     }
   ]

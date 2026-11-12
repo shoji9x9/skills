@@ -558,10 +558,22 @@ describe("操作中のエラーの許容と承認の記録（approvals）", () =
     expect(kinds(r)).toEqual([["approval", "runtime_errors"]]);
   });
 
-  test("承認の欄が雛形のプレースホルダのままなら、承認の記録に同じ値があっても承認待ちにする", () => {
-    const placeholder = { approved_at: "<承認した日時>", reason: "<許容する理由>" };
-    const r = run(verify([allowed(placeholder)], [allowanceLog(placeholder)]));
-    expect(kinds(r)).toEqual([["approval", "runtime_errors"]]);
+  test.each([
+    ["承認の日時（approved_at）", { approved_at: "<承認した日時>" }],
+    ["理由（reason）", { reason: "<許容する理由>" }],
+  ])(
+    "許容の %s が雛形のプレースホルダのままなら、承認の記録に同じ値があっても承認待ちにする",
+    (_name, placeholder) => {
+      const r = run(verify([allowed(placeholder)], [allowanceLog(placeholder)]));
+      expect(kinds(r)).toEqual([["approval", "runtime_errors"]]);
+      // 承認の記録の照合まで進まず、分類か承認が無いエラーとして挙げる（approvals に足させない）
+      expect(r.result?.reasons[0]?.message).not.toContain("approvals");
+    },
+  );
+
+  test("環境ノイズの根拠（evidence）が雛形のプレースホルダのままなら、承認待ちにする", () => {
+    const noise = allowed({ classification: "環境ノイズ", evidence: "<出る条件と出ない条件>" });
+    expect(kinds(run(verify([noise], [])))).toEqual([["approval", "runtime_errors"]]);
   });
 
   test("前のバージョンの承認が残っていても、いまのバージョンの承認が積まれていれば収束する", () => {

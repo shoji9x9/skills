@@ -554,7 +554,8 @@ describe.each(COPIES)("$skill の runtime-errors.mjs", ({ lib }) => {
       ]);
     });
 
-    test("分類は同じテスト × 署名へ持ち越し、説明になる分類だけで収束する", () => {
+    /** 新側だけのエラーの署名に分類を書いて compare を通し直し、終了コードと state を確かめる。 */
+    const expectClassified = (cases: [Record<string, string>, number, string][]) => {
       const fs = withBaseline();
       recordNew(fs, () => [
         { test: LIST, events: [...commonOn("http://new", 5), NEW_ONLY[0]] },
@@ -570,19 +571,6 @@ describe.each(COPIES)("$skill の runtime-errors.mjs", ({ lib }) => {
         fs.put(DIFF, doc);
         return compare(fs).code;
       };
-      const cases: [Record<string, string>, number, string][] = [
-        [{ classification: "許容", reason: "現行の不具合を直した結果" }, 1, "unexplained"],
-        [{ classification: "許容", reason: "", approved_at: "2026-11-08" }, 1, "unexplained"],
-        [{ classification: "許容", reason: "理由", approved_at: "2026-11-08" }, 0, "explained"],
-        [{ classification: "環境ノイズ", evidence: "" }, 1, "unexplained"],
-        [
-          { classification: "環境ノイズ", evidence: "新側の CDN の一時的な失敗。2 回目は出ない" },
-          0,
-          "explained",
-        ],
-        [{ classification: "要対応", reason: "新側の不具合" }, 1, "actionable"],
-        [{ classification: "不明" }, 1, "unexplained"],
-      ];
       for (const [c, code, state] of cases) {
         const doc = fs.read<Written>(DIFF);
         doc.runtime_errors.new_signatures = doc.runtime_errors.new_signatures.map((s) => ({
@@ -596,6 +584,39 @@ describe.each(COPIES)("$skill の runtime-errors.mjs", ({ lib }) => {
         expect(classify(c), JSON.stringify(c)).toBe(code);
         expect(errorsOf(fs).new_signatures[0]?.state, JSON.stringify(c)).toBe(state);
       }
+    };
+
+    test("分類は同じテスト × 署名へ持ち越し、説明になる分類だけで収束する", () => {
+      expectClassified([
+        [{ classification: "許容", reason: "現行の不具合を直した結果" }, 1, "unexplained"],
+        [{ classification: "許容", reason: "", approved_at: "2026-11-08" }, 1, "unexplained"],
+        [{ classification: "許容", reason: "理由", approved_at: "2026-11-08" }, 0, "explained"],
+        [{ classification: "環境ノイズ", evidence: "" }, 1, "unexplained"],
+        [
+          { classification: "環境ノイズ", evidence: "新側の CDN の一時的な失敗。2 回目は出ない" },
+          0,
+          "explained",
+        ],
+        [{ classification: "要対応", reason: "新側の不具合" }, 1, "actionable"],
+        [{ classification: "不明" }, 1, "unexplained"],
+      ]);
+    });
+
+    // Issue #1003
+    test("雛形のプレースホルダ（<...>）のままの分類の欄は、書いていないものとして読む", () => {
+      expectClassified([
+        [
+          { classification: "許容", reason: "<許容する理由>", approved_at: "2026-11-08" },
+          1,
+          "unexplained",
+        ],
+        [
+          { classification: "許容", reason: "理由", approved_at: "<承認した日時>" },
+          1,
+          "unexplained",
+        ],
+        [{ classification: "環境ノイズ", evidence: "<出る条件と出ない条件>" }, 1, "unexplained"],
+      ]);
     });
 
     test("新側で記録が欠けた・通らなかった・基準に無いテストは exit 1", () => {

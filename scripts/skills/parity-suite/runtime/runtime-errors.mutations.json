@@ -19,7 +19,8 @@
         "parity-suite の runtime-errors.mjs compare 新側だけに出たエラーと失敗したリクエストを、4 種類とも差分として検出し exit 1",
         "parity-suite の runtime-errors.mjs compare 新側でスキップした試行のイベントは比べない。同じテストの通った回のイベントは比べる",
         "parity-suite の runtime-errors.mjs compare 新側の 1 回にだけ出たエラーも差分にする（出た回数を残す）",
-        "parity-suite の runtime-errors.mjs compare 現側では別のテストに出ていたエラーは、そのテストでは差分にする"
+        "parity-suite の runtime-errors.mjs compare 現側では別のテストに出ていたエラーは、そのテストでは差分にする",
+        "parity-suite の runtime-errors.mjs compare 雛形のプレースホルダ（<...>）のままの分類の欄は、書いていないものとして読む"
       ]
     },
     {
@@ -74,7 +75,8 @@
       "replace": "  if (classification === \"許容\")\n",
       "occurrences": 1,
       "expect_failing": [
-        "parity-suite の runtime-errors.mjs compare 分類は同じテスト × 署名へ持ち越し、説明になる分類だけで収束する"
+        "parity-suite の runtime-errors.mjs compare 分類は同じテスト × 署名へ持ち越し、説明になる分類だけで収束する",
+        "parity-suite の runtime-errors.mjs compare 雛形のプレースホルダ（<...>）のままの分類の欄は、書いていないものとして読む"
       ]
     },
     {
@@ -85,7 +87,8 @@
       "replace": "  if (classification === \"環境ノイズ\")\n",
       "occurrences": 1,
       "expect_failing": [
-        "parity-suite の runtime-errors.mjs compare 分類は同じテスト × 署名へ持ち越し、説明になる分類だけで収束する"
+        "parity-suite の runtime-errors.mjs compare 分類は同じテスト × 署名へ持ち越し、説明になる分類だけで収束する",
+        "parity-suite の runtime-errors.mjs compare 雛形のプレースホルダ（<...>）のままの分類の欄は、書いていないものとして読む"
       ]
     },
     {
@@ -130,6 +133,17 @@
       "occurrences": 1,
       "expect_failing": [
         "parity-suite の runtime-errors.mjs compare 新側でスキップした試行のイベントは比べない。同じテストの通った回のイベントは比べる"
+      ]
+    },
+    {
+      "id": "re-classification-placeholder",
+      "why": "分類の欄が雛形のプレースホルダ（<...>）のままでも、説明になる分類として数える",
+      "file": "skills/parity-suite/scripts/runtime-errors.mjs",
+      "find": "    c && nonEmptyString(c[k]) && !isPlaceholder(c[k]) ? String(c[k]) : null;\n",
+      "replace": "    c && nonEmptyString(c[k]) ? String(c[k]) : null;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-suite の runtime-errors.mjs compare 雛形のプレースホルダ（<...>）のままの分類の欄は、書いていないものとして読む"
       ]
     }
   ]
