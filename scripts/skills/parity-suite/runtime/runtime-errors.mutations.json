@@ -145,6 +145,17 @@
       "expect_failing": [
         "parity-suite の runtime-errors.mjs compare 雛形のプレースホルダ（<...>）のままの分類の欄は、書いていないものとして読む"
       ]
+    },
+    {
+      "id": "re-written-classification",
+      "why": "compare --write が、書いた分類の欄を読み方（プレースホルダを外す）で変えて書き戻す",
+      "file": "skills/parity-suite/scripts/runtime-errors.mjs",
+      "find": "  const raw = (/** @type {string} */ k) => (c && nonEmptyString(c[k]) ? String(c[k]) : null);\n",
+      "replace": "  const raw = (/** @type {string} */ k) => (c && nonEmptyString(c[k]) && !isPlaceholder(c[k]) ? String(c[k]) : null);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-suite の runtime-errors.mjs compare 雛形のプレースホルダ（<...>）のままの分類の欄は、書いていないものとして読む"
+      ]
     }
   ]
 }

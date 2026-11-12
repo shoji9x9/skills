@@ -39,9 +39,10 @@ import { parseFlags, stripDashes } from "./lib/flags.mjs";
 import { isInteger, isPlaceholder, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
 /**
- * ツールのバージョン（原本）。判定規則・正規化・出力の形を変えたら上げる。
- * 読み手が読まなくても判定が変わらない欄を足すだけ（compare の tree）なら上げない。上げると、前のバージョンの基準をすべて作り直すことになる。
- * 分類の読み方（judgeClassification）を変えるだけでも上げない。分類は compare を通し直すたびに判定し直し、基準の署名には関わらないからである。
+ * ツールのバージョン（原本）。署名の判定規則・正規化・出力の形を変えたら上げる。上げると、前のバージョンの基準をすべて作り直すことになる。
+ * 読み手が読まなくても判定が変わらない欄を足すだけ（compare の tree）なら上げない。
+ * 分類の読み方（judgeClassification）だけを変えたときも上げない。基準の署名には関わらず、次に compare を通したときに新しい読み方で判定し直される。
+ * 前に書いた compare の結果（ok・state）は、通し直すまで前の読み方のまま残る。
  * @type {string}
  */
 export const VERSION = "1";
@@ -431,6 +432,21 @@ export function judgeClassification(c) {
 }
 
 /**
+ * 前の分類の欄を、書いたままの値で返す（文字列でない値は null）。compare --write が書き戻すので、読み方で値を変えない。
+ * @param {Record<string, unknown> | undefined} c
+ * @returns {Record<"classification" | "reason" | "approved_at" | "evidence", string | null>}
+ */
+function writtenClassification(c) {
+  const raw = (/** @type {string} */ k) => (c && nonEmptyString(c[k]) ? String(c[k]) : null);
+  return {
+    classification: raw("classification"),
+    reason: raw("reason"),
+    approved_at: raw("approved_at"),
+    evidence: raw("evidence"),
+  };
+}
+
+/**
  * 基準のテストと新側のテストを突き合わせ、記録の欠け・通らなかった・基準に無い・スキップしたテストを挙げる。
  * @param {ReturnType<typeof readBaseline>} baseline
  * @param {ReturnType<typeof collect>["tests"]} tests
@@ -466,14 +482,16 @@ function newSignaturesOf(baseline, signatures, { runCount, previous }) {
       // 現側でスキップしたテストは基準が無いので比べない（現側の記録が無いことを「現行に無かった」にしない）
       .filter(([key, s]) => !baseline.keys.has(key) && baseline.tests.get(s.test) === false)
       .map(([key, s]) => {
-        const { state, ...fields } = judgeClassification(carried.get(key));
+        const c = carried.get(key);
+        const { state } = judgeClassification(c);
         return {
           test: s.test,
           ...s.sig,
           seen_runs: s.runs.size,
           runs: runCount,
           sample: s.sample,
-          ...fields,
+          // 書いた値はそのまま書き戻す（雛形のプレースホルダも消さない）。判定は state だけが表す
+          ...writtenClassification(c),
           state,
         };
       })

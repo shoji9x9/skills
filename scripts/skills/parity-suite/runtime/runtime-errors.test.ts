@@ -583,6 +583,9 @@ describe.each(COPIES)("$skill の runtime-errors.mjs", ({ lib }) => {
         fs.put(DIFF, doc);
         expect(classify(c), JSON.stringify(c)).toBe(code);
         expect(errorsOf(fs).new_signatures[0]?.state, JSON.stringify(c)).toBe(state);
+        // compare --write は、書いた値を読み方で変えずに書き戻す（空の文字列は書いていないものとして null）
+        const written: Record<string, unknown> = { ...errorsOf(fs).new_signatures[0] };
+        for (const [k, v] of Object.entries(c)) expect(written[k], k).toBe(v === "" ? null : v);
       }
     };
 

@@ -477,8 +477,8 @@
       "id": "cv-approvals-kind-off",
       "why": "承認の記録の語彙の外の要素を読み飛ばした件数（checks.approvals.ignored）に数えない。照合は kind も比べるので、承認の判定は変わらず、件数の報告だけが誤る",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "    if (isPlainObject(a) && APPROVAL_KINDS.includes(String(a.kind))) entries.push(a);\n",
-      "replace": "    if (isPlainObject(a)) entries.push(a);\n",
+      "find": "      APPROVAL_KINDS.includes(String(a.kind)) &&\n",
+      "replace": "      true &&\n",
       "occurrences": 1,
       "expect_failing": [
         "承認の記録（approvals） approvals に kind が語彙の外 の要素があっても、承認として数えずに判定を続ける"
@@ -628,8 +628,8 @@
       "id": "cv-allowance-approved-by",
       "why": "許容の承認の記録の要素に、承認した人（approved_by）が書いてあることを求める",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "  return logged(approvals, want, (a) => filled(a.approved_by));\n",
-      "replace": "  return logged(approvals, want);\n",
+      "find": "      (a.kind !== \"runtime_errors\" || filled(a.approved_by))\n",
+      "replace": "      true\n",
       "occurrences": 1,
       "expect_failing": [
         "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人（approved_by）の無い承認しか無い なら承認待ちにする",

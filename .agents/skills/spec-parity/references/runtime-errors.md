@@ -72,6 +72,7 @@ node <spec-parity>/scripts/runtime-errors.mjs compare \
 - `compare` が exit 1 で挙げた、現行に無かった署名（`new_signatures`）は、1 件ずつ要対応・許容・環境ノイズの 3 値に分類する。
   分類は `verify-metadata.json` の `runtime_errors.new_signatures[]` の `classification` に書き、`compare` を通し直す。前の分類は、同じテスト × 署名へ持ち越される。
 - 許容は、利用者の承認（`approved_at` と `reason`）で確定する。承認の前は説明の付いていない署名として数える。環境ノイズには根拠（`evidence`）が要る。
+  雛形のプレースホルダ（`<...>`）のままの欄は、書いていないものとして数える。
 - 許容を承認したら、同じ値と承認した人（`approved_by`）を承認の記録（`verify-metadata.json` の `approvals[]`）にも追記する（[`design-review.md`](design-review.md)「承認の記録」）。
   収束の判定は、同じテスト × 署名・同じ新側のバージョン・同じ `approved_at` と `reason` の要素が無い許容を、承認として数えない。
   同じ原因の署名をまとめて 1 回承認したときも、`approvals[]` の要素は署名（テスト × 署名）ごとに 1 件ずつ足す。
