@@ -425,6 +425,7 @@ node "$CFG" append replace-strategy component_diffs '<要素の JSON>' --layer r
 出力の JSON の `commit`・`tree`・`dirty` を、そのまま記録に書く。git のコマンドを手で組み立てない。
 終了コードが 2 のとき（git を起動できない、新側に commit が 1 つも無いなど）は、値を推測して書かずに止まる。
 `--rev <commit>` を足すと、HEAD の代わりにその commit から同じ範囲の tree を取る（`dirty` は作業ツリーと関係が無いので `null` になる）。
+新側が git で管理されていないときと、その commit が手元のリポジトリに無いときは、`--rev` を付けた実行は exit 2 で終わる。`none` を返して照合を飛ばすことはしない。
 デプロイした commit（`commit_check` の出力）や変更宣言の `commits.after` も、この tree で照合する。記録を commit した HEAD をデプロイしても、ソースが同じなら tree は同じになる。
 
 | 項目 | 値 | 一致の判定に使うか |
@@ -441,7 +442,7 @@ node "$CFG" append replace-strategy component_diffs '<要素の JSON>' --layer r
 - 記録と新側を同じ git のリポジトリに置いてよい。記録を書いただけでも、記録を commit した後でも、`new.tree` は変わらず、`new.dirty` も `true` にならない。
   記録の commit で HEAD が進んで `new.commit` が変わっても、一致の判定には影響しない。
 - 新側のソースを変えると、commit すれば `new.tree` が変わり、commit しなければ `new.dirty` が `true` になる。どちらでも、記録とは一致しない。
-- `new.tree` は、HEAD のツリーを一時的な index に読み、`.replace/` を外してから取る。利用者の index（`.git/index`）と作業ツリーは変えない。
+- `new.tree` は、HEAD のツリーから `.replace/` を除いて取る。`.replace/` が新側のディレクトリの中にあって commit にも含まれるときだけ、一時的な index に読んで外す。利用者の index（`.git/index`）と作業ツリーは変えない。
 - `new.dirty` の判定では、利用者の git の設定で結果が変わらないように、`git status` に `--untracked-files=all` と `--ignore-submodules=none` を付ける。
   `status.showUntrackedFiles=no` では追跡していないファイルが出力に出ず、`submodule.<name>.ignore` などのサブモジュールの設定では変更が出力から外れるからである。
   gitignore されたファイルは、`new.tree` にも `new.dirty` にも入らない。

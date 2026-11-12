@@ -351,30 +351,23 @@ describe.each(COPIES)("$skill の source-version.mjs", ({ lib, script: SCRIPT })
   });
 
   describe("呼び出し元の環境", () => {
-    test("呼び出し元の GIT_DIR を受け継がず、--repo のリポジトリを読む", () => {
+    // git が hook や子プロセスに渡す、リポジトリの場所を決める変数。別のリポジトリを指していても --repo を読む
+    test.each([
+      ["GIT_DIR", (other: string) => path.join(other, ".git")],
+      ["GIT_WORK_TREE", (other: string) => other],
+      ["GIT_INDEX_FILE", (other: string) => path.join(other, ".git/index")],
+      ["GIT_COMMON_DIR", (other: string) => path.join(other, ".git")],
+    ] as const)("呼び出し元の %s を受け継がず、--repo のリポジトリを読む", (name, value) => {
       const other = repoWith({ "o.js": "o\n" });
       const top = repoWith({ "src/a.js": "a\n" });
       const want = sourceVersion({ repo: top, artifacts: art(top) });
-      const saved = process.env.GIT_DIR;
-      process.env.GIT_DIR = path.join(other, ".git");
+      const saved = process.env[name];
+      process.env[name] = value(other);
       try {
         expect(sourceVersion({ repo: top, artifacts: art(top) })).toEqual(want);
       } finally {
-        if (saved === undefined) delete process.env.GIT_DIR;
-        else process.env.GIT_DIR = saved;
-      }
-    });
-
-    test("呼び出し元の GIT_CEILING_DIRECTORIES を受け継がず、git で管理されていないと判定しない", () => {
-      const top = repoWith({ "src/a.js": "a\n" });
-      const want = sourceVersion({ repo: path.join(top, "src"), artifacts: art(top) });
-      const saved = process.env.GIT_CEILING_DIRECTORIES;
-      process.env.GIT_CEILING_DIRECTORIES = top;
-      try {
-        expect(sourceVersion({ repo: path.join(top, "src"), artifacts: art(top) })).toEqual(want);
-      } finally {
-        if (saved === undefined) delete process.env.GIT_CEILING_DIRECTORIES;
-        else process.env.GIT_CEILING_DIRECTORIES = saved;
+        if (saved === undefined) delete process.env[name];
+        else process.env[name] = saved;
       }
     });
 

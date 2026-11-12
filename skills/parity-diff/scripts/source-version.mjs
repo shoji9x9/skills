@@ -6,7 +6,9 @@
 // 取り方の原本は replace-strategy の references/project-config.md「新側のバージョンの記録」である。
 //
 // 範囲: new.repo のディレクトリ（git のリポジトリのサブディレクトリなら、その下だけ）から、--artifacts のディレクトリを除いたもの。
-// new.tree: HEAD のツリーを一時的な index に読み、--artifacts を外してから、new.repo のディレクトリのツリーを書く（git write-tree --prefix）。
+// new.tree: HEAD のツリーから --artifacts を除いた、new.repo のディレクトリのツリーのハッシュ。
+//   --artifacts が新側のディレクトリの中にあり commit にも含まれるときだけ、一時的な index に読んで外してから書く。
+//   それ以外は除くものが無いので、commit のツリーから直接読む。
 //   利用者の index（.git/index）と作業ツリーは変えない。commit していない変更は new.tree に入らないので、new.dirty で表す。
 // new.dirty: 同じ範囲の git status --porcelain --untracked-files=all --ignore-submodules=none の出力が空でなければ true。
 //   オプションは、利用者の git の設定（status.showUntrackedFiles・submodule.<name>.ignore）で出力が変わらないようにするために付ける。
@@ -15,6 +17,7 @@
 // 新側が git で管理されていなければ、commit と tree を "none"、dirty を false にする。
 // --rev <commit> を渡すと、HEAD の代わりにその commit から同じ範囲の tree を取る（デプロイした commit や、
 //   変更宣言の commits.after を tree で照合するため）。作業ツリーとは関係が無いので、dirty は null にする。
+//   git で管理されていない新側に --rev を渡すと、確かめる commit が無いので exit 2 にする（none を返さない）。
 //
 // 使い方: node source-version.mjs --repo <new.repo> [--artifacts <.replace のパス>] [--rev <commit>]
 //   --artifacts のデフォルトは、作業ディレクトリの .replace である。
@@ -40,11 +43,6 @@ const REPO_LOCATING_ENV = [
   "GIT_ALTERNATE_OBJECT_DIRECTORIES",
   "GIT_NAMESPACE",
   "GIT_PREFIX",
-  // 探す範囲を狭める変数と、git -c で渡した設定（core.worktree など）。受け継ぐと --repo と別の場所を読む
-  "GIT_CEILING_DIRECTORIES",
-  "GIT_DISCOVERY_ACROSS_FILESYSTEM",
-  "GIT_CONFIG_PARAMETERS",
-  "GIT_CONFIG_COUNT",
 ];
 
 class UsageError extends Error {}
@@ -60,8 +58,6 @@ class UsageError extends Error {}
 function git(args, { cwd, env = {} }) {
   const base = { ...process.env };
   for (const name of REPO_LOCATING_ENV) delete base[name];
-  for (const name of Object.keys(base))
-    if (/^GIT_CONFIG_(KEY|VALUE)_\d+$/.test(name)) delete base[name];
   return execFileSync("git", args, {
     cwd,
     encoding: "utf8",

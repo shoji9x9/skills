@@ -75,7 +75,8 @@
    `diff-metadata.json` の `new.tree` と `new.commit` は書き換えず、改修前の記録のまま残す。
    持ち越しは「記録のバージョンから今のバージョンへ」の向きで、変更宣言の `commits.before` から `after` をたどって判定する。
    記録を `after` に書き換えると向きが逆になり、正しく宣言した改修まで、説明できない差分として失敗する。
-   撮った新側の commit（ローカルの target では HEAD、配信型の target では `commit_check` の出力）と、照合した `commits.after` は、`diff.md` の前提確認の表に書く（下の「記録」）。
+   撮った新側の commit と、照合した `commits.after` は、`diff.md` の前提確認の表に書く（下の「記録」）。
+   撮った commit は、ローカルの target では HEAD、`commit_check` を持つ配信型の target ではその出力、`commit_check` を持たない配信型の target では利用者がデプロイ済みと答えた commit である。
    tree で照合するので、撮った commit は `commits.after` と違うことがある（`after` の後に記録だけを commit したときなど）。そのうえで、機能ごとに次の検査を通す。
 
    ```bash

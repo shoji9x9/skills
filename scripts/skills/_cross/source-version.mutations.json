@@ -114,7 +114,9 @@
       "occurrences": 1,
       "expect_failing": [
         "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_DIR を受け継がず、--repo のリポジトリを読む",
-        "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_CEILING_DIRECTORIES を受け継がず、git で管理されていないと判定しない"
+        "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_WORK_TREE を受け継がず、--repo のリポジトリを読む",
+        "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_INDEX_FILE を受け継がず、--repo のリポジトリを読む",
+        "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_COMMON_DIR を受け継がず、--repo のリポジトリを読む"
       ]
     },
     {
@@ -149,17 +151,6 @@
       "occurrences": 1,
       "expect_failing": [
         "parity-replace の source-version.mjs --rev git で管理されていない新側に --rev を渡すと、none を返さずに使い方の誤りにする"
-      ]
-    },
-    {
-      "id": "sv-env-ceiling",
-      "why": "呼び出し元の GIT_CEILING_DIRECTORIES を子の git に受け継ぐ（新側を git で管理されていないと判定し、none を返す）",
-      "file": "skills/parity-replace/scripts/source-version.mjs",
-      "find": "  \"GIT_CEILING_DIRECTORIES\",\n",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_CEILING_DIRECTORIES を受け継がず、git で管理されていないと判定しない"
       ]
     }
   ]

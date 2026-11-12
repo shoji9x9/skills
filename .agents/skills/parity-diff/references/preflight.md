@@ -77,7 +77,8 @@ target を解決する前に、設定の `style_policy` を読む（`skill-confi
     その commit が手元のリポジトリに無ければ、`source-version.mjs` は exit 2 で終わるので、`git fetch` してからもう一度取る。
     照合の原本は [`capture-new.md`](capture-new.md)「URL の受け渡し」、`commit_check` の定義の原本は `replace-strategy` の `references/project-config.md` にある。
   - 配信型の target で `commit_check` を持たないものは、撮るバージョンを機械で知る方法が無い。
-    「対象の環境に commit `<new.commit の SHA>`（一括の再検証では `commits.after`）か、`.replace/` の外のソースがそれと同じ commit がデプロイ済みか」を利用者に確かめ、確認が取れるまで撮らない。
+    「対象の環境に commit `<new.commit の SHA>` がデプロイ済みか」を利用者に確かめ、確認が取れるまで撮らない。一括の再検証では、`commits.after` を確かめる。
+    その commit そのものでなくても、`.replace/` の外のファイルがその commit と同じ commit なら、同じバージョンとして扱ってよい。
     これは `parity-replace` の軽い方法と同じ扱いである。`--autonomous` では判断待ちの保留に記録し、この機能の撮影を始めない。確かめたことと回答は、`diff.md` の前提確認の表に書く
 - `replace-metadata.json` が `new.tree` を持たない記録なら、合格として扱わず、同じ `--target` の `parity-replace` で green を記録し直すよう案内して止まる。
   `new.commit` が一致していても、代わりに使わない
@@ -104,12 +105,12 @@ target を解決する前に、設定の `style_policy` を読む（`skill-confi
       # 稼働中のバージョンを機械で確かめる手段が無い。ローカルの値はデプロイ済みのバージョンを表さないので比べない
       # 照合相手の tree を取る前に止まる（手元に無い commits.after の fetch を求めずに、利用者の確認へ案内する）
       if [ -n "$CHANGE" ]; then ASK=$(FIELD commits.after "$CHANGE"); else ASK=$(FIELD new.commit "$REPLACE_META"); fi
-      echo "停止: commit_check が無い配信型 target。commit ${ASK:-（読めない）}（か、.replace/ の外のソースが同じ commit）がデプロイ済みか利用者に確認する"; exit 1
+      echo "停止: commit_check が無い配信型 target。commit ${ASK:-（読めない）} がデプロイ済みか利用者に確認する。.replace/ の外のファイルが同じ commit なら同じバージョンとして扱う"; exit 1
     fi
     if [ -n "$CHANGE" ]; then
       AFTER=$(FIELD commits.after "$CHANGE")
       [ -n "$AFTER" ] || { echo "停止: 変更宣言に commits.after が無い"; exit 1; }
-      WANT_JSON=$(SV --rev "$AFTER") || { echo "停止: commits.after（$AFTER）の tree を取れない（手元に無ければ git fetch する）"; exit 1; }
+      WANT_JSON=$(SV --rev "$AFTER") || { echo "停止: commits.after（$AFTER）の tree を取れない。理由は上の source-version.mjs の出力にある（手元に無い commit なら git fetch する）"; exit 1; }
       WANT=$(printf '%s' "$WANT_JSON" | FIELD tree)
     else
       WANT=$(FIELD new.tree "$REPLACE_META")
@@ -120,7 +121,7 @@ target を解決する前に、設定の `style_policy` を読む（`skill-confi
       RAW=$(bash -c "$COMMIT_CHECK" </dev/null) || { echo "停止: commit_check が失敗した（撮るバージョンを特定できない）"; exit 1; }
       DEPLOYED=$(printf '%s' "$RAW" | tr -d '[:space:]')
       printf '%s' "$DEPLOYED" | grep -Eqix '[0-9a-f]{40}|[0-9a-f]{64}' || { echo "停止: commit_check の出力が完全な SHA でない（$DEPLOYED）"; exit 1; }
-      CAPTURE_JSON=$(SV --rev "$DEPLOYED") || { echo "停止: デプロイ済みの commit（$DEPLOYED）の tree を取れない（手元に無ければ git fetch する）"; exit 1; }
+      CAPTURE_JSON=$(SV --rev "$DEPLOYED") || { echo "停止: デプロイ済みの commit（$DEPLOYED）の tree を取れない。理由は上の source-version.mjs の出力にある（手元に無い commit なら git fetch する）"; exit 1; }
       CAPTURE=$(printf '%s' "$CAPTURE_JSON" | FIELD tree)
     else
       VERSION=$(SV) || { echo "停止: 新側のバージョンを取れない（source-version.mjs が失敗した）"; exit 1; }
