@@ -28,7 +28,8 @@ Skills: replace-strategy, current-environment-bootstrap, golden-dataset, parity-
    measure, it stops.
    It checks the behavior from the cheapest method first: execution logs → source code → API → UI. It asks you whether to match the current appearance (`style_policy`) when deciding the strategy.
    It leaves filing issues to issue-create.
-   Invoke it with `replace-strategy setup`, `issues` or `status`.
+   `evidence` writes confirmed per-request API evidence back to the feature list (`.replace/features.md`). parity-suite and parity-replace may also call it.
+   Invoke it with `replace-strategy setup`, `issues`, `status` or `evidence`.
    Sources: the opening of `skills/replace-strategy/SKILL.md`, "使い方", "厳守の制約（禁止事項）", "setup モード"
 6. current-environment-bootstrap. Rebuilds the current app's test environment, which serves as the baseline for comparison, from the received assets only.
    It does not guess and fix values from type or column names, and it turns missing information into a questionnaire for the people in charge of the current app and business experts.

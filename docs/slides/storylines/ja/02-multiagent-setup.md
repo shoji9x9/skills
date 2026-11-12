@@ -2,7 +2,7 @@
 
 伝えること: スキル群の基になる考え（単一のエージェントに依存しない）と、その構成の作り方。
 
-人が判断する点の節は置かない。このスキルで人が判断するのは、依頼から対象を決められないときに尋ねられることだけで、流れの中で説明すれば足りる。
+人が判断する点の節は置かない。このスキルで人が判断するのは、対象を決められないときの確認、既存のファイルを更新するか、スキルを作るかとその確かめ方などで、流れの中で説明すれば足りる。
 
 ## スライド
 
@@ -15,7 +15,7 @@
    `skills/multiagent-setup/references/docs.md`「AGENTS.md の推奨構成」「既存の基底ドキュメントへの選択基準の追記」「CLAUDE.md / `.github/copilot-instructions.md` の方針」
 3. 構成の要点（図）。実体は `.agents/` に 1 つだけ置き、`.claude/skills/`・`.claude/rules/`・`.github/instructions/` からはシンボリックリンクで参照する。
    `AGENTS.md` を基にし、`CLAUDE.md` と `.github/copilot-instructions.md` には差分だけを書く。
-   Hook は、各エージェントの設定ファイルから `.agents/hooks/scripts/` の共通のスクリプトを呼ぶ。
+   プロジェクト固有の Hook は、各エージェントの設定ファイルから `.agents/hooks/scripts/` の共通のスクリプトを呼ぶ。
    根拠: `skills/multiagent-setup/references/skills.md`・`skills/multiagent-setup/references/rules.md`「ディレクトリ構造」、
    `skills/multiagent-setup/references/docs.md`「ファイル別役割」、`skills/multiagent-setup/references/hooks.md`
 4. 流れ。操作の対象を決める（依頼の文から推測し、決められなければ利用者に尋ねる）→ 対象のエージェントを確かめる（今ある設定のディレクトリを見て、依頼に無ければ尋ねる）→ 対象ごとの手順で作る → 後処理（スキルを作ったら、スキルの有無で比べた結果を示す）。
