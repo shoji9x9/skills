@@ -1,0 +1,233 @@
+{
+  "metadata": {
+    "skill_name": "parity-replace",
+    "skill_path": "<repo>/skills/parity-replace",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-12T06:01:17Z",
+    "evals_run": [6, 29],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 29,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 54.636,
+        "tokens": 301166,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "parity-replace の scripts/source-version.mjs を --repo ./new-app で実行して今の新側の tree を取り、local-dev の replace-metadata.json の new.tree と一致すると述べている",
+          "passed": true,
+          "evidence": "raw に source-version.mjs --repo ./new-app --artifacts .replace の実行があり、tree d47386a1… が local-dev の記録の new.tree と一致すると述べている"
+        },
+        {
+          "text": "記録の new.commit が今の HEAD と違うこと（HEAD は記録を commit した 1 つ後の commit）を、軽量な手順を当てない理由にしていない",
+          "passed": true,
+          "evidence": "new.commit は「参考。判定には使わない」とし、HEAD が記録を commit した 1 つ後の commit である理由も説明している"
+        },
+        {
+          "text": "記録と今の新側の new.dirty がどちらも false で new.tree が一致するので、軽量な手順を当てられると判定している",
+          "passed": true,
+          "evidence": "new.dirty がどちらも false で new.tree が一致するので、軽量な手順を当てられると判定している"
+        },
+        {
+          "text": "local-dev の green 証跡を local-preview の green 証跡として流用せず、local-preview でスイートを green にしてから new/local-preview/replace-metadata.json に記録する手順を挙げている",
+          "passed": true,
+          "evidence": "local-preview でスイートを green にし、new/local-preview/replace-metadata.json を新しく作る手順を挙げ、local-dev の証跡は上書きしないとしている"
+        },
+        {
+          "text": ".replace/parity/order-list/new/local-preview/replace-metadata.json を作っていない（project-files に存在しない）",
+          "passed": true,
+          "evidence": "project-tree.txt に new/local-preview/ が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 56.531,
+        "tokens": 281948,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "develop が start を持たない配信型 target であることを踏まえ、軽量な手順を確認なしに自動適用していない",
+          "passed": true,
+          "evidence": "develop は start も commit_check も無いデプロイで更新される環境と確かめ、稼働中の commit を確かめられないのでスイートを当てずに止めた"
+        },
+        {
+          "text": "develop に commit_check が無いため、稼働中のコードがどの commit かをユーザーに確認する必要がある旨を述べている",
+          "passed": true,
+          "evidence": "commit_check が無いので、develop にデプロイされている commit を先に確かめる必要があると述べ、ユーザーに完全な SHA を尋ねた"
+        },
+        {
+          "text": "確かめる値として、source-version.mjs が出す今の commit の完全な SHA を挙げるか、ユーザーが答えた commit の tree を source-version.mjs --rev で取って new.tree と比べると述べている",
+          "passed": true,
+          "evidence": "develop で動く commit の完全な SHA を答えてもらい、その tree を source-version.mjs --rev <SHA> で取って 78a0f806… と比べると述べた"
+        },
+        {
+          "text": "local-dev の green 証跡（.replace/parity/order-list/new/local-dev/replace-metadata.json）を develop の green 証跡として流用していない",
+          "passed": true,
+          "evidence": "local-dev の証跡を develop の証跡として扱わず、develop で green になったことはまだ主張できないとした。project-files の local-dev の記録も fixture のまま"
+        },
+        {
+          "text": ".replace/parity/order-list/new/develop/replace-metadata.json を捏造していない（project-files に存在しない）",
+          "passed": true,
+          "evidence": "project-tree.txt に .replace/parity/order-list/new/develop/ が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 29,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 54.701,
+        "tokens": 155114,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "parity-replace の scripts/source-version.mjs を --repo ./new-app で実行して今の新側の tree を取り、local-dev の replace-metadata.json の new.tree と一致すると述べている",
+          "passed": false,
+          "evidence": "source-version.mjs を実行せず、git rev-parse HEAD:new-app と git status で tree と dirty を取っている"
+        },
+        {
+          "text": "記録の new.commit が今の HEAD と違うこと（HEAD は記録を commit した 1 つ後の commit）を、軽量な手順を当てない理由にしていない",
+          "passed": true,
+          "evidence": "commit の違いは記録ファイルだけを足した commit によると説明し、軽量な手順を当てない理由にしていない"
+        },
+        {
+          "text": "記録と今の新側の new.dirty がどちらも false で new.tree が一致するので、軽量な手順を当てられると判定している",
+          "passed": true,
+          "evidence": "tree が同じで dirty がどちらも false なので、軽量な手順を当てられると判定している（DB と認証の準備を前提に足している）"
+        },
+        {
+          "text": "local-dev の green 証跡を local-preview の green 証跡として流用せず、local-preview でスイートを green にしてから new/local-preview/replace-metadata.json に記録する手順を挙げている",
+          "passed": true,
+          "evidence": "local-preview でスイートを実行し、green なら new/local-preview/replace-metadata.json を作る手順を挙げている"
+        },
+        {
+          "text": ".replace/parity/order-list/new/local-preview/replace-metadata.json を作っていない（project-files に存在しない）",
+          "passed": true,
+          "evidence": "project-tree.txt に new/local-preview/ が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 29.445,
+        "tokens": 84748,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "develop が start を持たない配信型 target であることを踏まえ、軽量な手順を確認なしに自動適用していない",
+          "passed": true,
+          "evidence": "develop を「PR マージ後に自動デプロイされる環境」と読み、develop での検証を始めずに止めた"
+        },
+        {
+          "text": "develop に commit_check が無いため、稼働中のコードがどの commit かをユーザーに確認する必要がある旨を述べている",
+          "passed": true,
+          "evidence": "commit_check の名前は挙げていないが、develop で動いている commit が分からないので確かめるようユーザーに求めた（設定に commit_check のキーは無い）"
+        },
+        {
+          "text": "確かめる値として、source-version.mjs が出す今の commit の完全な SHA を挙げるか、ユーザーが答えた commit の tree を source-version.mjs --rev で取って new.tree と比べると述べている",
+          "passed": false,
+          "evidence": "確かめた commit の new-app の tree を 78a0f80… と比べるとは述べたが、source-version.mjs も --rev も使わず、完全な SHA も挙げていない"
+        },
+        {
+          "text": "local-dev の green 証跡（.replace/parity/order-list/new/local-dev/replace-metadata.json）を develop の green 証跡として流用していない",
+          "passed": true,
+          "evidence": "local-dev の記録を develop 用に書き写していない。project-files の local-dev の記録も fixture のまま"
+        },
+        {
+          "text": ".replace/parity/order-list/new/develop/replace-metadata.json を捏造していない（project-files に存在しない）",
+          "passed": true,
+          "evidence": "project-tree.txt に .replace/parity/order-list/new/develop/ が無い"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 55.5835,
+        "stddev": 1.34,
+        "min": 54.636,
+        "max": 56.531
+      },
+      "tokens": {
+        "mean": 291557,
+        "stddev": 13589.1781,
+        "min": 281948,
+        "max": 301166
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.8,
+        "stddev": 0,
+        "min": 0.8,
+        "max": 0.8
+      },
+      "time_seconds": {
+        "mean": 42.073,
+        "stddev": 17.8587,
+        "min": 29.445,
+        "max": 54.701
+      },
+      "tokens": {
+        "mean": 119931,
+        "stddev": 49756.2758,
+        "min": 84748,
+        "max": 155114
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.20",
+      "time_seconds": "+13.5",
+      "tokens": "+171626"
+    }
+  },
+  "notes": []
+}
