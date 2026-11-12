@@ -581,6 +581,8 @@ describe("スイートの範囲（suite.dir）", () => {
         ),
       },
     ]);
+    // 新側の結果では、現行の結果が suite.dir に一致した後なので、suite.dir の綴りを見直し先に挙げない
+    expect(r.result?.reasons[0].message).not.toContain("suite.dir の綴り");
   });
 
   test("現行の結果にほかの機能のテストがあれば、suite をやり直すので exit 2", () => {

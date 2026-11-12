@@ -167,12 +167,14 @@ export function suitePrefix(dir) {
 /**
  * 結果の file が suite.dir に前方一致しなかったときの見直し先。原因の候補は、ほかの機能のテスト・suite.dir の書き誤り・file の起点や書き方の違いの 3 つである。
  * 結果の file だけからは区別できないので並べる。新側の結果では、現行の結果が suite.dir に一致した後なので、suite.dir の書き誤りは挙げない。
- * 誤りの文の括弧の中に入れないので、この文にも括弧を使わない。
+ * 見直し先の文は、誤りの文の括弧の外に置く（括弧を含むので、括弧の中に入れると括弧が入れ子になる）。
  */
+const OTHER_FEATURE_HINT = "ほかの機能のテストなら、スイートのパスで絞って実行し直す。";
+const SPELLING_HINT = "suite.dir の綴りが違うなら直す。";
 const FILE_ORIGIN_HINT =
   "結果の file の起点や書き方が違う（./ で始まる・区切りが \\ など）なら、e2e の設定ファイル e2e.config.ts の場所と、e2e を実行するディレクトリを見直す。";
-const CURRENT_MISMATCH_HINT = `ほかの機能のテストなら、スイートのパスで絞って実行し直す。suite.dir の綴りが違うなら直す。${FILE_ORIGIN_HINT}`;
-const NEW_MISMATCH_HINT = `ほかの機能のテストなら、スイートのパスで絞って実行し直す。${FILE_ORIGIN_HINT}`;
+const CURRENT_MISMATCH_HINT = `${OTHER_FEATURE_HINT}${SPELLING_HINT}${FILE_ORIGIN_HINT}`;
+const NEW_MISMATCH_HINT = `${OTHER_FEATURE_HINT}${FILE_ORIGIN_HINT}`;
 
 /**
  * e2e の結果の JSON から、指定した target で選ばれたテストを、テストの鍵 → 状態の一覧にする。

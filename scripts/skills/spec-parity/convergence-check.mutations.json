@@ -542,6 +542,17 @@
       "expect_failing": [
         "スイートの範囲（suite.dir） スイートの中のテストが 0 件なら、0 件を合格にせず exit 2"
       ]
+    },
+    {
+      "id": "cv-new-outside-hint-spelling",
+      "why": "新側の結果の外のテストの文に、現行の結果と同じ見直し先（suite.dir の綴り）を出す",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "新側の結果は verify の手順 2 で採り直す。${NEW_MISMATCH_HINT}",
+      "replace": "新側の結果は verify の手順 2 で採り直す。${CURRENT_MISMATCH_HINT}",
+      "occurrences": 1,
+      "expect_failing": [
+        "スイートの範囲（suite.dir） 新側の結果にほかの機能のテストがあれば、絞って採り直す（通らないほかの機能のテストで差し戻さない）"
+      ]
     }
   ]
 }
