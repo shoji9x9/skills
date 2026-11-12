@@ -174,7 +174,19 @@
       "replace": "true",
       "occurrences": 1,
       "expect_failing": [
-        "parity-replace の source-version.mjs 呼び出し元の環境 環境で渡した git の設定（GIT_CONFIG_COUNT）は受け継ぐ"
+        "parity-replace の source-version.mjs 呼び出し元の環境 環境で渡した git の設定（GIT_CONFIG_COUNT）は受け継ぐ",
+        "parity-replace の source-version.mjs 呼び出し元の環境 環境で渡した git の設定（GIT_CONFIG_PARAMETERS）は受け継ぐ"
+      ]
+    },
+    {
+      "id": "sv-env-config-parameters-dropped",
+      "why": "git -c で渡した設定（GIT_CONFIG_PARAMETERS）を外す（git -c safe.directory=... で呼ぶ環境で、子の git が設定を読めない）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "new Set([\"GIT_CONFIG_PARAMETERS\", \"GIT_CONFIG_COUNT\"])",
+      "replace": "new Set([\"GIT_CONFIG_COUNT\"])",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-replace の source-version.mjs 呼び出し元の環境 環境で渡した git の設定（GIT_CONFIG_PARAMETERS）は受け継ぐ"
       ]
     }
   ]

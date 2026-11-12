@@ -413,24 +413,34 @@ describe.each(COPIES)("$skill の source-version.mjs", ({ lib, script: SCRIPT })
       });
     });
 
-    test("環境で渡した git の設定（GIT_CONFIG_COUNT）は受け継ぐ", () => {
+    // 実行する人のグローバルとシステムの設定（~/.config/git/ignore の *.log など）を読まない状態で比べる
+    const NO_USER_CONFIG = { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
+
+    test.each([
+      [
+        "GIT_CONFIG_COUNT",
+        (f: string) => ({
+          GIT_CONFIG_COUNT: "1",
+          GIT_CONFIG_KEY_0: "core.excludesFile",
+          GIT_CONFIG_VALUE_0: f,
+        }),
+      ],
+      [
+        "GIT_CONFIG_PARAMETERS",
+        (f: string) => ({ GIT_CONFIG_PARAMETERS: `'core.excludesfile'='${f}'` }),
+      ],
+    ] as const)("環境で渡した git の設定（%s）は受け継ぐ", (_name, vars) => {
       const top = repoWith({ "src/a.js": "a\n" });
       const excludes = path.join(tmp(), "excludes");
       write(excludes, "*.log\n");
       write(path.join(top, "src/debug.log"), "x\n");
-      expect(sourceVersion({ repo: top, artifacts: art(top) }).dirty).toBe(true);
-      withEnv(
-        {
-          GIT_CONFIG_COUNT: "1",
-          GIT_CONFIG_KEY_0: "core.excludesFile",
-          GIT_CONFIG_VALUE_0: excludes,
-        },
-        () => {
+      withEnv(NO_USER_CONFIG, () => {
+        expect(sourceVersion({ repo: top, artifacts: art(top) }).dirty).toBe(true);
+        withEnv(vars(excludes), () => {
           expect(sourceVersion({ repo: top, artifacts: art(top) }).dirty).toBe(false);
-        },
-      );
+        });
+      });
     });
-
     test("git を起動できなければ、使い方の誤りにする（値を推測して出さない）", () => {
       const top = repoWith({ "src/a.js": "a\n" });
       const saved = process.env.PATH;

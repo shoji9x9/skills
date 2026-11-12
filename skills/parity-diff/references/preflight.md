@@ -78,8 +78,8 @@ target を解決する前に、設定の `style_policy` を読む（`skill-confi
     照合の原本は [`capture-new.md`](capture-new.md)「URL の受け渡し」、`commit_check` の定義の原本は `replace-strategy` の `references/project-config.md` にある。
   - 配信型の target で `commit_check` を持たないものは、撮るバージョンを機械で知る方法が無い。
     「対象の環境に commit `<new.commit の SHA>` がデプロイ済みか」を利用者に確かめ、確認が取れるまで撮らない。一括の再検証では、`commits.after` を確かめる。
-    利用者が別の commit を答えたら、下の断片の `COMMIT_CHECK` に `echo <答えた commit の完全な SHA>` を入れて実行し直す。
-    断片が、その commit の tree を照合相手（一括の再検証では `commits.after` の tree）と比べ、空の値・`none`・完全でないハッシュを一致にしない確認も通す。
+    利用者がデプロイ済みと答えた commit の完全な SHA（尋ねた commit そのものでも、別の commit でもよい）を、下の断片の `DEPLOYED_COMMIT` に入れて実行し直す。
+    断片は、値をシェルのコマンドとして実行せず、完全な SHA の形かを先に確かめる。そのうえで、その commit の tree を照合相手（一括の再検証では `commits.after` の tree）と比べる。
     これは `parity-replace` の軽い方法と同じ扱いである。`--autonomous` では判断待ちの保留に記録し、この機能の撮影を始めない。確かめたことと回答は、`diff.md` の前提確認の表に書く
 - `replace-metadata.json` が `new.tree` を持たない記録なら、合格として扱わず、同じ `--target` の `parity-replace` で green を記録し直すよう案内して止まる。
   `new.commit` が一致していても、代わりに使わない
@@ -95,6 +95,7 @@ target を解決する前に、設定の `style_policy` を読む（`skill-confi
   CHANGE=""   # --component-change の実行だけ変更宣言のパス（続けて当てた宣言があるなら最後の宣言）。通常の実行は空のまま
   COMMIT_CHECK=""   # start を持たない配信型 target で commit_check を持つなら、そのコマンド（secrets.wrapper が要るなら前置する）。ローカルの target は空のまま
   DELIVERED=""      # start を持たない配信型 target なら 1（commit_check の有無に依らない）。ローカルの target は空のまま
+  DEPLOYED_COMMIT="" # commit_check を持たない配信型 target で、利用者がデプロイ済みと答えた commit の完全な SHA。答えを得るまでは空のまま
   REPLACE_META=.replace/parity/<slug>/new/<target>/replace-metadata.json
   # 値の取り方と照合の規則の原本は、replace-strategy の references/project-config.md「新側のバージョンの記録」
   SV() { node <このスキルのディレクトリ>/scripts/source-version.mjs --repo <新側リポジトリ> "$@" </dev/null; }
@@ -102,11 +103,11 @@ target を解決する前に、設定の `style_policy` を読む（`skill-confi
   FIELD() { node -e 'const f = process.argv[2]; const s = f ? require("fs").readFileSync(f, "utf8") : require("fs").readFileSync(0, "utf8"); const v = process.argv[1].split(".").reduce((o, k) => (o == null ? undefined : o[k]), JSON.parse(s)); process.stdout.write(v == null ? "" : String(v))' "$@"; }
   # 停止する分岐は非 0 で終える（手順に組み込んだときに停止を表示したまま撮影へ進ませない）。対話シェルを閉じないよう ( ) で囲む
   (
-    if [ -n "$DELIVERED" ] && [ -z "$COMMIT_CHECK" ]; then
+    if [ -n "$DELIVERED" ] && [ -z "$COMMIT_CHECK" ] && [ -z "$DEPLOYED_COMMIT" ]; then
       # 稼働中のバージョンを機械で確かめる手段が無い。ローカルの値はデプロイ済みのバージョンを表さないので比べない
       # 照合相手の tree を取る前に止まる（手元に無い commits.after の fetch を求めずに、利用者の確認へ案内する）
       if [ -n "$CHANGE" ]; then ASK=$(FIELD commits.after "$CHANGE"); else ASK=$(FIELD new.commit "$REPLACE_META"); fi
-      echo "停止: commit_check が無い配信型 target。commit ${ASK:-（読めない）} がデプロイ済みか利用者に確認する。別の commit を答えたら、COMMIT_CHECK に echo <その commit> を入れて実行し直す"; exit 1
+      echo "停止: commit_check が無い配信型 target。commit ${ASK:-（読めない）} がデプロイ済みか利用者に確認し、答えた commit を DEPLOYED_COMMIT に入れて実行し直す"; exit 1
     fi
     if [ -n "$CHANGE" ]; then
       AFTER=$(FIELD commits.after "$CHANGE")
@@ -116,12 +117,17 @@ target を解決する前に、設定の `style_policy` を読む（`skill-confi
     else
       WANT=$(FIELD new.tree "$REPLACE_META")
     fi
-    if [ -n "$COMMIT_CHECK" ]; then
-      # 配信型 target: 稼働中のコードの commit は commit_check だけが知っている。その commit の tree で比べる
-      # 終了コードはパイプへ流す前に検査する（パイプの末尾の tr に隠れて、失敗した確認を成功扱いしない）
-      RAW=$(bash -c "$COMMIT_CHECK" </dev/null) || { echo "停止: commit_check が失敗した（撮るバージョンを特定できない）"; exit 1; }
+    if [ -n "$DELIVERED" ] || [ -n "$COMMIT_CHECK" ]; then
+      # 配信型 target: 稼働中のコードの commit は、commit_check の出力か利用者の答えだけが知っている。その commit の tree で比べる
+      if [ -n "$COMMIT_CHECK" ]; then
+        # 終了コードはパイプへ流す前に検査する（パイプの末尾の tr に隠れて、失敗した確認を成功扱いしない）
+        RAW=$(bash -c "$COMMIT_CHECK" </dev/null) || { echo "停止: commit_check が失敗した（撮るバージョンを特定できない）"; exit 1; }
+      else
+        # 利用者の答えはシェルのコマンドとして実行しない
+        RAW=$DEPLOYED_COMMIT
+      fi
       DEPLOYED=$(printf '%s' "$RAW" | tr -d '[:space:]')
-      printf '%s' "$DEPLOYED" | grep -Eqix '[0-9a-f]{40}|[0-9a-f]{64}' || { echo "停止: commit_check の出力が完全な SHA でない（$DEPLOYED）"; exit 1; }
+      printf '%s' "$DEPLOYED" | grep -Eqix '[0-9a-f]{40}|[0-9a-f]{64}' || { echo "停止: デプロイ済みの commit が完全な SHA でない（$DEPLOYED）"; exit 1; }
       CAPTURE_JSON=$(SV --rev "$DEPLOYED") || { echo "停止: デプロイ済みの commit（$DEPLOYED）の tree を取れない。理由は上の source-version.mjs の出力にある（手元に無い commit なら git fetch する）"; exit 1; }
       CAPTURE=$(printf '%s' "$CAPTURE_JSON" | FIELD tree)
     else
