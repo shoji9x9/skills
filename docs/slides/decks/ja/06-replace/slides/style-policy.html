@@ -6,5 +6,5 @@
 <tr><td>reproduce（デフォルト）</td><td>UI の仕様と、見た目（色・寸法・余白・書体）</td><td>parity-suite（Playwright）が基準を作り、parity-diff が新旧の画面を比べる</td></tr>
 <tr><td>free</td><td>UI の仕様（操作・状態・role・テキスト・API）だけ。見た目は、人が見て違和感の無いものにする</td><td>spec-parity（e2e）がスイートを作り、新側だけを確かめる。新旧の画面は比べない</td></tr>
 </table>
-<p style="font-size:26px;line-height:1.5;color:#5b6670">値は、setup で戦略を決めるときに利用者が選ぶ。機能に着手した後に変えるなら、着手済みの機能で作った成果物を作り直すかを機能ごとに確かめる。横断 API とバッチは、どちらの値でも parity-suite と parity-diff で確かめる。</p>
+<p style="font-size:26px;line-height:1.5;color:#5b6670">値は、setup で戦略を決めるときに利用者が選び、機能に着手した後は変えない。どうしても変えるなら、着手済みの機能で作った成果物を作り直すかを、機能ごとに利用者に確かめてから変える。横断 API とバッチは、どちらの値でも parity-suite と parity-diff で確かめる。</p>
 </section>

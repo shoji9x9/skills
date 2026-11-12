@@ -10,14 +10,14 @@ Skills: replace-strategy, current-environment-bootstrap, golden-dataset, parity-
    how the current app behaves today.
    When you ask a model to find differences between the screens of the current app and the new app, it misses small differences such as spacing, color and font.
    Sources: `skills/replace-strategy/SKILL.md` "厳守の制約（禁止事項）", the opening of `skills/parity-diff/SKILL.md`
-2. Approach. Capture the behavior of the current app as evidence (capture), reproduce it with a different implementation (reproduce), and confirm no differences or must-fix items remain (confirm). Repeat
-   this as a loop. In the flow that does not match the appearance (see 3), it does not compare screens and instead confirms no must-fix items remain in the new app.
+2. Approach. Capture the behavior of the current app as evidence (capture), reproduce it with a different implementation (reproduce), and confirm there are zero differences (confirm). Repeat
+   this as a loop.
    Sources: the opening of `skills/replace-strategy/SKILL.md`
 3. Style policy. The `style_policy` value in replace-strategy decides which skills check features with screens.
    `reproduce` (the default) also matches the appearance, and parity-suite and parity-diff compare the screens of both apps.
    `free` matches only UI behavior (actions, states, roles, text, API), and the appearance only needs to look right to people. spec-parity checks only the new app and does not compare screens.
-   You choose the value when setup decides the strategy.
-   To change it after work on features starts, you decide for each started feature whether to rebuild its outputs. Cross-cutting APIs and batches use parity-suite and parity-diff with either value.
+   You choose the value when setup decides the strategy, and keep it once work on features starts.
+   If you must change it, the agent first asks you, for each started feature, whether to rebuild its outputs. Cross-cutting APIs and batches use parity-suite and parity-diff with either value.
    Sources: `skills/replace-strategy/references/project-config.md` "スタイルの方針（`style_policy`）", `skills/replace-strategy/SKILL.md` "姉妹スキルと依存順"
 4. Overall order (diagram). Once at the start: replace-strategy setup → current-environment-bootstrap only when needed → measurement, strategy and feature list → golden-dataset phase A.
    If you build components before screens under `reproduce`, run parity-component.
@@ -64,7 +64,7 @@ Skills: replace-strategy, current-environment-bootstrap, golden-dataset, parity-
     answers to the questionnaire from the people in charge of the current app and business experts, approving items not measured and writes that
     cannot be cleaned up, approving assets not matched against acceptance criteria, and approving differences classified as "acceptable".
     In spec-parity, approving which design findings to accept and which runtime errors to allow, and confirming that the new app's screens look right.
-    Also deciding whether to install e2e and whether to send screen content to the model provider.
+    Also deciding whether to install e2e and web-design-guidelines, and whether agent steps may send page content to the model provider.
     The architecture of the new app (framework, structure and so on) is decided in advance, not by the skills. With `--autonomous`, items that need a decision are recorded as pending and
     asked together at the end.
     Sources: `skills/replace-strategy/SKILL.md` "前提" "自律実行（`--autonomous`）", the approval steps of each sibling skill
