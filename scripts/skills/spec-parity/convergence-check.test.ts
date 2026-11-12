@@ -558,6 +558,12 @@ describe("操作中のエラーの許容と承認の記録（approvals）", () =
     expect(kinds(r)).toEqual([["approval", "runtime_errors"]]);
   });
 
+  test("承認の欄が雛形のプレースホルダのままなら、承認の記録に同じ値があっても承認待ちにする", () => {
+    const placeholder = { approved_at: "<承認した日時>", reason: "<許容する理由>" };
+    const r = run(verify([allowed(placeholder)], [allowanceLog(placeholder)]));
+    expect(kinds(r)).toEqual([["approval", "runtime_errors"]]);
+  });
+
   test("前のバージョンの承認が残っていても、いまのバージョンの承認が積まれていれば収束する", () => {
     const r = run(verify([allowed()], [allowanceLog({ tree: "1".repeat(40) }), allowanceLog()]));
     expect(r.code).toBe(0);

@@ -96,7 +96,8 @@
         "操作中のエラーの許容と承認の記録（approvals） 許容が 承認の後に理由を書き換えた なら承認待ちにする",
         "操作中のエラーの許容と承認の記録（approvals） 許容が 承認の記録に無い なら承認待ちにする",
         "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人（approved_by）の無い承認しか無い なら承認待ちにする",
-        "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人が雛形の値のままの承認しか無い なら承認待ちにする"
+        "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人が雛形の値のままの承認しか無い なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 承認の欄が雛形のプレースホルダのままなら、承認の記録に同じ値があっても承認待ちにする"
       ]
     },
     {
@@ -582,7 +583,8 @@
         "操作中のエラーの許容と承認の記録（approvals） 署名に id が無ければ、同じ欄の無い承認とも一致させない",
         "操作中のエラーの許容と承認の記録（approvals） 署名に test が無ければ、同じ欄の無い承認とも一致させない",
         "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人（approved_by）の無い承認しか無い なら承認待ちにする",
-        "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人が雛形の値のままの承認しか無い なら承認待ちにする"
+        "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人が雛形の値のままの承認しか無い なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 承認の欄が雛形のプレースホルダのままなら、承認の記録に同じ値があっても承認待ちにする"
       ]
     },
     {
@@ -625,12 +627,23 @@
       "id": "cv-allowance-approved-by",
       "why": "許容の承認の記録の要素に、承認した人（approved_by）が書いてあることを求める",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "    approvals.filter((a) => filled(a.approved_by)),\n",
-      "replace": "    approvals,\n",
+      "find": "  return approvals.some((a) => filled(a.approved_by) && matches(a, want));\n",
+      "replace": "  return approvals.some((a) => matches(a, want));\n",
       "occurrences": 1,
       "expect_failing": [
         "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人（approved_by）の無い承認しか無い なら承認待ちにする",
         "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人が雛形の値のままの承認しか無い なら承認待ちにする"
+      ]
+    },
+    {
+      "id": "cv-allowance-placeholder",
+      "why": "承認の欄（approved_at・reason）が雛形のプレースホルダのままの許容を、承認の記録に同じ値があっても数えない",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  if (!filled(judged.approved_at) || !filled(judged.reason)) return false;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作中のエラーの許容と承認の記録（approvals） 承認の欄が雛形のプレースホルダのままなら、承認の記録に同じ値があっても承認待ちにする"
       ]
     }
   ]

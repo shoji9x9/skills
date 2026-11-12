@@ -341,6 +341,7 @@ function judgeSignatures(sigs, { tree, approvals, reasons }) {
  * 許容の承認が、承認の記録（approvals）に、同じテスト × 署名・同じバージョンで同じ値が積まれているか。
  * テストか署名の id が無い署名は、照合の鍵が無いので積まれていないものとして扱う（欠けた鍵どうしを一致させない）。
  * 分類の欄は承認した人を持たないので、承認の記録の要素には承認した人（approved_by）が書いてあることも求める。
+ * 承認の欄（approved_at・reason）が雛形のプレースホルダ（`<...>`）のままなら、承認の記録に同じ値があっても数えない。
  * @param {unknown} s - new_signatures の要素
  * @param {ReturnType<typeof judgeClassification>} judged
  * @param {{ tree: string, approvals: Record<string, unknown>[] }} ctx
@@ -348,6 +349,7 @@ function judgeSignatures(sigs, { tree, approvals, reasons }) {
  */
 function allowanceLogged(s, judged, { tree, approvals }) {
   if (!isPlainObject(s) || !nonEmptyString(s.test) || !nonEmptyString(s.id)) return false;
+  if (!filled(judged.approved_at) || !filled(judged.reason)) return false;
   const want = {
     kind: "runtime_errors",
     test: s.test,
@@ -356,10 +358,7 @@ function allowanceLogged(s, judged, { tree, approvals }) {
     approved_at: judged.approved_at,
     reason: judged.reason,
   };
-  return logged(
-    approvals.filter((a) => filled(a.approved_by)),
-    want,
-  );
+  return approvals.some((a) => filled(a.approved_by) && matches(a, want));
 }
 
 /**
@@ -458,7 +457,17 @@ export function readApprovals(list) {
  * @returns {boolean}
  */
 function logged(approvals, want) {
-  return approvals.some((a) => Object.entries(want).every(([k, v]) => a[k] === v));
+  return approvals.some((a) => matches(a, want));
+}
+
+/**
+ * 承認の記録の要素が、照合する欄をすべて同じ値で持つか。
+ * @param {Record<string, unknown>} a
+ * @param {Record<string, unknown>} want
+ * @returns {boolean}
+ */
+function matches(a, want) {
+  return Object.entries(want).every(([k, v]) => a[k] === v);
 }
 
 /**
