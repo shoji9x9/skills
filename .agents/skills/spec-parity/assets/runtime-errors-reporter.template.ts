@@ -18,6 +18,8 @@
  *   PARITY_REPO_ROOT   … .replace/ を持つリポジトリのルート（省略時は cwd）。
  * 出力先は、現側が `.replace/parity/<slug>/runtime-errors/run-<回>/`、新側が `.replace/parity/<slug>/new/<target>/runtime-errors/run-<回>/` である。
  * 採り直すときは、前の run-<回>/ を消してから実行する。
+ * 記録を採る実行では、--repeat-each と複数の agent を使わない（同じテストの記録が 1 つの run-<回>/ に 2 つでき、runtime-errors.mjs が exit 2 で止める）。
+ * 回を重ねるときは、PARITY_RUNTIME_RUN を変えて実行し直す。
  *
  * 記録を書かないテスト: どれかの試行で LOST の行が出たテスト（MARK の行がある試行があっても書かない）、どちらの行も無いテスト（後始末が動かなかった）。
  * スキップしたテストは、行が無くても空の記録を書く（runtime-errors.mjs はスキップしたテストのイベントを数えない）。
@@ -150,7 +152,12 @@ function writeRecord(byPair: Map<string, Captured>, event: FinishedEvent): void 
     return;
   }
   const out = outputDir(side);
-  const name = createHash("sha256").update(test).digest("hex").slice(0, 16);
+  // ファイル名は、テストに agent と繰り返しの回を足して決める。テストの名前だけで決めると、--repeat-each や複数の agent の実行で記録が上書きされ、
+  // 1 つの試行のエラーだけが残る。分けて書くと、runtime-errors.mjs が「同じテストの記録が 1 つの実行に 2 つある」で止める
+  const name = createHash("sha256")
+    .update(JSON.stringify([test, r.agent, r.repeat]))
+    .digest("hex")
+    .slice(0, 16);
   writeJsonAtomic(join(out.dir, `${name}.json`), {
     version: RUNTIME_ERRORS_VERSION,
     side,

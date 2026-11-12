@@ -8,7 +8,8 @@
 target を解決する前に、設定の `style_policy` を読む（`skill-config.mjs get replace-strategy style_policy --raw`。キーが無ければ `reproduce`）。
 意味の原本は `replace-strategy` の `references/project-config.md`「スタイルの方針」である。
 
-- `free` で、対象の slug が画面のある機能なら、成果物を作らずに止まり、`spec-parity verify --feature <slug>` を案内する。
+- `free` で、対象の slug が画面のある機能なら、成果物を作らずに止まり、同じ target の `spec-parity verify --feature <slug> --target <target>` を案内する。
+  `spec-parity` は新側の記録を target ごとに分けて置くので、target を省いた案内では、利用者が別の target で確かめうる。
   画面のある機能かは、`.replace/parity/<slug>/metadata.json` の `mode: feature` で決める。このファイルが無ければ、`.replace/features.md` の機能一覧に slug があることで決める。
   `free` の機能の `metadata.json` は `spec-parity suite` が作るもので、このスキルが比べる視覚ベースラインもノイズ基準値も持たない。
 - `free` では、`--component-change` も止まる。共通部品を画面より先に作る方針（`parity-component`）を使わないので、再検証する部品の照合が無いからである。

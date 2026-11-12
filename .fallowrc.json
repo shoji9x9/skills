@@ -255,6 +255,10 @@
       "exports": ["*"]
     },
     {
+      "file": "skills/spec-parity/scripts/lib/pending-state.mjs",
+      "exports": ["*"]
+    },
+    {
       "file": "skills/spec-parity/scripts/runtime-errors.mjs",
       "exports": ["*"]
     },

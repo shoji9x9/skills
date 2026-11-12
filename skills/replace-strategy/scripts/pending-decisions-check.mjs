@@ -23,6 +23,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
+import { classifyDecision } from "./lib/pending-state.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
 import { makeIo } from "./lib/flag-args.mjs";
@@ -37,75 +38,6 @@ export const VERSION = "1";
 
 /** 保留の状態の語彙（原本は references/autonomy.md「保留の状態」）。 */
 export const STATES = ["open", "decided", "settled"];
-
-/**
- * 保留 1 件の状態を決める。
- *   - open: resolution が無い（null・欠落）か、回答として読めない
- *   - decided: 回答はあるが、blocks の工程を実施した記録も残作業の置き場も無い
- *   - settled: 回答があり、blocks が空か、実施の記録か置き場のどちらかがある
- * @param {unknown} element
- * @returns {{ state: "open" | "decided" | "settled", reason: string, tracked_in?: string }}
- */
-export function classifyDecision(element) {
-  if (!isPlainObject(element)) return { state: "open", reason: "要素がオブジェクトでない" };
-  const resolution = element.resolution;
-  if (resolution === null || resolution === undefined) {
-    return { state: "open", reason: "resolution が無い" };
-  }
-  // 回答として読めない resolution を「解決済み」として扱わない（`true` や空オブジェクトで通さない）。
-  if (!isPlainObject(resolution) || !nonEmptyString(resolution.answer)) {
-    return { state: "open", reason: "resolution に answer が無い" };
-  }
-  if (!nonEmptyString(resolution.answered_at)) {
-    return { state: "open", reason: "resolution に answered_at が無い" };
-  }
-  const blocks = element.blocks;
-  // blocks の欠落・型崩れは「止めた工程が無い」ではなく「分からない」なので、工程があるものとして扱う。
-  if (!isArray(blocks)) {
-    return settledOrDecided(resolution, "blocks が配列でない（止めた工程を読めない）");
-  }
-  if (blocks.length === 0) return { state: "settled", reason: "止めた工程が無い" };
-  return settledOrDecided(
-    resolution,
-    "blocks の工程を実施した記録（resumed）も残作業の置き場（follow_up.tracked_in）も無い",
-  );
-}
-
-/**
- * 止めた工程がある（または読めない）保留を、実施の記録か置き場で済んだと数えるか。
- * @param {Record<string, unknown>} resolution
- * @param {string} missingReason
- * @returns {{ state: "decided" | "settled", reason: string, tracked_in?: string }}
- */
-function settledOrDecided(resolution, missingReason) {
-  const resumed = resolution.resumed;
-  // 実施の記録は日時と証拠の両方を要る。日時だけだと「再開した」と書けば通る。
-  if (
-    isPlainObject(resumed) &&
-    nonEmptyString(resumed.at) &&
-    isArray(resumed.evidence) &&
-    resumed.evidence.some(nonEmptyString)
-  ) {
-    return { state: "settled", reason: "blocks の工程を実施した記録がある" };
-  }
-  const followUp = resolution.follow_up;
-  // 置き場は残作業（what）と追跡先（tracked_in）の両方を要る。追跡先だけでは何を追っているか分からない。
-  const trackedIn = isPlainObject(followUp) ? followUp.tracked_in : undefined;
-  // nonEmptyString が真なら文字列なので、typeof は型を絞るためだけにある（判定は変わらない）。
-  if (
-    isPlainObject(followUp) &&
-    nonEmptyString(followUp.what) &&
-    typeof trackedIn === "string" &&
-    nonEmptyString(trackedIn)
-  ) {
-    return {
-      state: "settled",
-      reason: "残作業を別の置き場で追跡している",
-      tracked_in: trackedIn,
-    };
-  }
-  return { state: "decided", reason: missingReason };
-}
 
 /**
  * 絞り込みの値が指定されていて、要素の値と食い違うかを見る。要素の値が欠けていれば食い違いとして扱わない。

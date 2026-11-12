@@ -20,6 +20,10 @@ e2e には console と pageerror のイベントが無く、`afterEach` と fixt
 - reporter は、e2e の結果の状態を `runtime-errors.mjs` の語彙に読み替える（`timed-out` → `timedOut`、`flaky` → `passed`）。読み替えずに書いた記録は、`runtime-errors.mjs` が exit 2 で読まない。
 - img と script の 404 は、要素の `error` と Resource Timing の両方に現れる。init script は、状態コードが取れたものを `http-error` の 1 件にし、取れないもの（接続の失敗・別オリジンの応答）だけを `requestfailed` にする。
 - 記録を取り出せなかったテスト（ページが閉じた・別オリジンへ移った・後始末が動かなかった）は、reporter が記録のファイルを作らない。比較は、そのテストを「記録が欠けたテスト」として止める。0 件の記録として通さない。
+- reporter は、テスト・agent・繰り返しの回ごとに別のファイルを書く。記録を採る実行で `--repeat-each` や複数の agent を使うと、同じテストの記録が 1 つの `run-<回>/` に 2 つでき、`runtime-errors.mjs` が exit 2 で止める。
+  記録を採る実行では使わず、回を重ねるときは `PARITY_RUNTIME_RUN` を変えて実行し直す。
+  この分け方は、雛形の `assets/runtime-errors-reporter.template.ts` から起こした reporter が行う。前にコピーした reporter はファイル名をテストの名前だけで決めるので、記録が上書きされても止まらない。
+  前にコピーした reporter は、雛形からコピーし直す（コピーした雛形は `gh skill update` で更新されない）。
 
 ## 現行で基準を採る（suite）
 
@@ -30,7 +34,7 @@ rm -rf .replace/parity/<slug>/runtime-errors
 for n in 1 2; do
   E2E_TELEMETRY_DISABLED=1 DO_NOT_TRACK=1 E2E_UPDATE_CHECK_DISABLED=1 \
   PARITY_RUNTIME_CAPTURE=1 PARITY_RUNTIME_RUN=$n PARITY_SLUG=<slug> \
-  PARITY_CURRENT_UI_URL=<現行の UI の URL> npx e2e run --target=current </dev/null
+  PARITY_CURRENT_UI_URL=<現行の UI の URL> npx e2e run tests/<slug>/ --target=current </dev/null
 done
 node <spec-parity>/scripts/runtime-errors.mjs summarize \
   --metadata .replace/parity/<slug>/metadata.json \
@@ -38,6 +42,7 @@ node <spec-parity>/scripts/runtime-errors.mjs summarize \
   --run .replace/parity/<slug>/runtime-errors/run-2 --write
 ```
 
+- `tests/<slug>/` は、`metadata.json` の `suite.dir` のスイートのパスである。パスを付けないと、ほかの機能のテストの記録も基準に入る。
 - リポジトリのルートで実行し、`--run` はルートからの相対パスで渡す。終了コードの意味は `parity-suite` の `references/baseline.md`「操作中のエラーのベースライン」にある。
 - 記録できない事情（init script を入れられないなど）があるときだけ、`runtime_errors` に `declared: false` と `reason` を書き、`gaps.md` にも同じ文言を残す。
   そのときは、`verify` の `unverified` に `runtime_errors` を同じ理由で書く（書かないと収束しない）。
@@ -51,15 +56,19 @@ rm -rf .replace/parity/<slug>/new/<target>/runtime-errors
 for n in 1 2; do
   E2E_TELEMETRY_DISABLED=1 DO_NOT_TRACK=1 E2E_UPDATE_CHECK_DISABLED=1 \
   PARITY_RUNTIME_CAPTURE=1 PARITY_RUNTIME_RUN=$n PARITY_SLUG=<slug> PARITY_NEW_TARGET=<target> \
-  PARITY_NEW_UI_URL=<新側の UI の URL> npx e2e run --target=new </dev/null
+  PARITY_NEW_UI_URL=<新側の UI の URL> npx e2e run tests/<slug>/ --target=new </dev/null
 done
 node <spec-parity>/scripts/runtime-errors.mjs compare \
   --metadata .replace/parity/<slug>/metadata.json --target <target> \
   --run .replace/parity/<slug>/new/<target>/runtime-errors/run-1 \
   --run .replace/parity/<slug>/new/<target>/runtime-errors/run-2 \
-  --write .replace/parity/<slug>/new/<target>/verify-metadata.json
+  --write .replace/parity/<slug>/new/<target>/verify-metadata.json \
+  --tree <verify-metadata.json の new.tree>
 ```
 
+- `--tree` には、記録を採った新側のバージョン（verify の手順 1 で書いた `verify-metadata.json` の `new.tree`）を渡す。
+  記録（`run-<回>/` のファイル）はバージョンを持たないので、`compare` は渡した値が記録を採ったときの値かを確かめられない。記録のディレクトリを消してから採り直した直後に、その `new.tree` を渡す。`compare` は、渡した値を結果の `tree` に書く。
+  収束の判定は、この `tree` が `new.tree` と違う比較の結果と、`tree` を持たない比較の結果を、古い記録として採り直させる。`none` と空の値は exit 2 で受けない。
 - `compare` が exit 1 で挙げた、現行に無かった署名（`new_signatures`）は、1 件ずつ要対応・許容・環境ノイズの 3 値に分類する。
   分類は `verify-metadata.json` の `runtime_errors.new_signatures[]` の `classification` に書き、`compare` を通し直す。前の分類は、同じテスト × 署名へ持ち越される。
 - 許容は、利用者の承認（`approved_at` と `reason`）で確定する。承認の前は説明の付いていない署名として数える。環境ノイズには根拠（`evidence`）が要る。

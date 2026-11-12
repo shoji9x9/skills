@@ -17,17 +17,18 @@ node <spec-parity>/scripts/convergence-check.mjs --slug-dir .replace/parity/<slu
 
 | 確かめること | 読むもの | 収束しない例 |
 |---|---|---|
-| 現行で通ったテストが、新側ですべて `passed` | `suite-report.json`（現行）と `new/<target>/suite-report.json`（新側） | 新側で `failed`・`timed-out`・`flaky`・`skipped`、新側の結果に無いテスト、現行の結果に無いテスト |
+| 現行で通ったテストが、新側ですべて `passed` | `suite-report.json`（現行）と `new/<target>/suite-report.json`（新側） | 新側で `failed`・`timed-out`・`flaky`・`skipped`、新側の結果に無いテスト、現行の結果に無いテスト、新側の結果にある `suite.dir` の外のテスト |
 | 記録した幅で横にはみ出さない | `metadata.json` の `capture_conditions` と `new/<target>/overflow.json` | はみ出し・未測定・幅の不一致 |
-| 現行に無かった操作中のエラーが、要対応でも未説明でもない | `verify-metadata.json` の `runtime_errors`（`compare` の結果） | 要対応・未分類・承認の無い許容・根拠の無い環境ノイズ・記録の欠け・新側でスキップしたテスト（`skipped_tests`） |
-| デザインの指摘がすべて「受け入れる」で承認がある | `design_review` | 「直す」が残る・承認が無い・点検の記録が無い |
-| 利用者が新側の画面を承認した | `human_review` | 承認の記録が無い・却下 |
+| 現行に無かった操作中のエラーが、要対応でも未説明でもない | `verify-metadata.json` の `runtime_errors`（`compare` の結果） | 要対応・未分類・承認の無い許容・根拠の無い環境ノイズ・記録の欠け・新側でスキップしたテスト（`skipped_tests`）・`tree` が無いか `new.tree` と違う |
+| デザインの指摘がすべて「受け入れる」で承認がある | `design_review` と `approvals` | 「直す」が残る・承認が無い・点検の記録が無い・同じ承認が `approvals` に無い |
+| 利用者が新側の画面を承認した | `human_review` と `approvals` | 承認の記録が無い・却下・同じ承認が `approvals` に無い |
 | 未検証の一覧に、確かめないことが理由付きで載っている | `unverified` | `performance` が無い。現側で操作中のエラーを記録しなかった機能で `runtime_errors` が無い |
 | `blocking` の未測定が無い | `metadata.json` の `unmeasured` | `disposition: blocking` が残る。語彙の外の値と、承認の記録が空の `accepted` も数える |
 | 未解決の保留が無い | `pending_decisions` | `open`・`decided`（数え方の原本は `replace-strategy` の `references/autonomy.md`「保留の状態」） |
 
-- スイート・横のはみ出し・デザインの点検・人による確認の記録は、`verify-metadata.json` の `new.tree` と同じバージョンのものでなければ、古い記録として数える。
-  比べるのは各記録の `tree`（横のはみ出しの測定では、`PARITY_COMMIT` で渡した値が入る `commit`）で、`tree` を持たない古い記録も、もう一度測る対象として数える。
+- スイート・横のはみ出し・操作中のエラーの比較・デザインの点検・人による確認の記録は、`verify-metadata.json` の `new.tree` と同じバージョンのものでなければ、古い記録として数える。
+  比べるのは各記録の `tree` で、`tree` を持たない古い記録も、もう一度測る対象として数える。
+  横のはみ出しの測定では `PARITY_COMMIT` で渡した値が入る `commit` を、操作中のエラーの比較では `compare --tree` で渡した値を比べる。
   `new.tree` の意味と取り方の原本は `replace-strategy` の `references/project-config.md`「新側のバージョンの記録」である。`new.commit` は人が追うための値で、比べない。
   `verify-metadata.json` の `new.tree` が無いときと `none` のときは、どの記録のバージョンも特定できないので、判定できないとして exit 2 にする。
   `parity-replace` が新側を green にした記録（`replace-metadata.json`）は、前提として確かめる。
@@ -37,7 +38,19 @@ node <spec-parity>/scripts/convergence-check.mjs --slug-dir .replace/parity/<slu
   `replace-metadata.json` の確認より後にするのは、commit しても直らない鍵の違いを先に示すためである。
   変更を退避して green にしたバージョンに戻せば、verify をやり直して直る。退避は `.replace/` を除いた pathspec で行う（形は同じ節にある）。
   変更を commit したなら、`new.tree` が green の記録と違うので、green を記録し直してから verify する。記録だけを commit したときは `new.tree` が変わらないので、そのまま判定できる。
-  新側を直したら、これらをやり直す。操作中のエラーの記録は新側のバージョンを持たないので、verify のたびに記録のディレクトリを消してから採り直す。
+  新側を直したら、これらをやり直す。操作中のエラーの記録（`run-<回>/` のファイル）は新側のバージョンを持たないので、verify のたびに記録のディレクトリを消してから採り直し、採ったときの `new.tree` を `compare --tree` に渡す。
+- スイートの結果は、`metadata.json` の `suite.dir` の下のテストだけを数える。結果の `file` と書かれたままの字面で前方一致を比べるので、`suite.dir` は結果の `file` と同じ起点・同じ形（`tests/<slug>/`）で書く。
+  書き方の揺れ（先頭の `./`・区切りの `\`・続いた `/`・`.` と `..` の区間・絶対パス・ドライブ文字で始まる形・前後の空白）は正規化せず、`suite.dir` に書かれていれば exit 2 にする。強度の計画のテストの名前も、結果の `file` と同じ字面で書く。
+  結果の `file` が `suite.dir` に前方一致しないとき（ほかの機能のテスト・`suite.dir` の綴りの誤り・`./tests/<slug>/...` や `\` 区切りの `file`）は、次のように止まる。
+  結果のすべてのテストの `file` が一致しなければ、0 件として exit 2 にする。現行の結果の一部の `file` が一致しなければ exit 2、新側の結果の一部なら採り直し（`remeasure`）にする。
+  どの誤りの文も、前方一致しなかったテストを挙げ、見直し先を並べる。結果の `file` だけからは、どれが原因かを区別できないからである。
+  見直し先は次の 3 つである。1 つ目はスイートのパスで絞った実行、2 つ目は `suite.dir` の綴り、3 つ目は e2e の設定ファイル `e2e.config.ts` を置いた場所と e2e を実行するディレクトリである。
+  新側の結果の文は、現行の結果が `suite.dir` に一致した後なので、2 つ目を挙げない。Windows で e2e が `file` を `\` 区切りで書くかは確かめていない。
+  雛形のとおり設定（`e2e.config.ts`）をリポジトリのルートに置いた実行（e2e 0.23.0）では、`file` はルートからのパス（`tests/<slug>/...`）だった。設定を別の場所に置いたときの `file` の起点は確かめていない。新側の結果にその外のテスト（ほかの機能のテスト）があれば、スイートのパスで絞って採り直す（`remeasure`）。
+  現行の結果にその外のテストがあるときと、`suite.dir` が無い・雛形の値のままのときは、判定できないとして exit 2 にする。
+  同じテストの結果が 2 つある結果（`--repeat-each` や複数の agent で実行したもの）も、どちらかを採らずに exit 2 にする（`strength-check.mjs` と同じ扱い）。
+- デザインの指摘を受け入れた承認と人による確認の承認は、`approvals` に同じ値（バージョン・承認した人・日時・理由か返事）の要素が積まれていなければ、承認として数えない（`approval`）。
+  `approvals` の形と書き方は [`design-review.md`](design-review.md)「承認の記録」にある。`approvals` が縮んでいないかは、下の追記専用の成果物の確認が見る。
 - `unmeasured` の扱いは、`parity-diff` の収束の判定（`artifact-health-check.mjs --stage diff`）と同じである。
   キーごと無い成果物と `declared: false`（理由が要る）は判定せず、`verify-metadata.json` の `convergence.checks.unmeasured` に `judged: false` と理由を残す。
 - 保存された `ok` や件数は信じない。横のはみ出しは測定の記録から、操作中のエラーは署名ごとの分類から判定し直す。
@@ -48,12 +61,18 @@ node <spec-parity>/scripts/convergence-check.mjs --slug-dir .replace/parity/<slu
   現行の結果のテストがすべてスキップなら、比べるテストが 0 件なので、判定できないとして exit 2 にする。
 - `convergence-check.mjs` が exit 0 でも、追記専用の成果物が縮んでいれば、収束として報告しない。
   確かめる対象は、`replace-strategy` の `assets/append-only-manifest.json` に項目があるものだけである。
-  このスキルの成果物では、`.replace/parity/<slug>/gaps.md` と、`.replace/parity/<slug>/metadata.json` の `unmeasured.entries` が当たる。
+  このスキルの成果物では、`.replace/parity/<slug>/` の `gaps.md`・`metadata.json` の `unmeasured.entries`・`new/<target>/verify-metadata.json` の `approvals` が当たる。
   ほかに、features.md・設定ファイル・`.replace/dataset/metadata.json` の `changes` など、スキル群で共通の成果物が当たる。
-  `new/<target>/` の下の成果物（`verify-metadata.json` の承認の記録・`verify.md`）は一覧に無いので、このチェックの対象に入らない。承認の記録が消えていないかは、このチェックでは分からない。
+  `verify-metadata.json` のほかの欄（`design_review`・`human_review` の承認の欄を含む）と `verify.md` は、verify のたびに書き直すので一覧に無い。承認の欄の書き換えは、収束の判定が `approvals` との食い違いで検出する。
   `node <replace-strategy>/scripts/append-only-check.mjs --root . --base <機能に着手した時点のバージョン>` を実行し、exit 0 以外なら止めて、過去の決定を元に戻す。
   デフォルトの `HEAD` は使わない（書き直しを commit した後は作業ツリーと同じになり、失われた決定を検出できない）。一覧の原本は `replace-strategy` の `assets/append-only-manifest.json` である。
   `replace-strategy` のスクリプトに届かないときも、合格として扱わずに止まる。
+- `convergence-check.mjs` が exit 0 でも、意図的差異の保留（設定の `intentional_diffs.pending`）の棚卸しが済んでいなければ、収束として報告しない。
+  棚卸しの対象・記録の形・数え方の原本は、`parity-diff` の `references/convergence.md`「`intentional_diffs.pending` の棚卸し」である（ここへ転記しない）。
+  `style_policy: free` の機能でも、この機能に帰属する保留・横断の保留（`cross-cutting`）・帰属不明の保留が残っていれば、ここで棚卸しする。棚卸しをしないと、すべての機能が `free` のプロジェクトでは、横断の保留を誰も棚卸ししない。
+  記録は `verify-metadata.json` の `intentional_diffs_pending` に書き、`parity-diff` の `scripts/pending-triage-check.mjs` で数え直す。
+  `node <parity-diff>/scripts/pending-triage-check.mjs --registries <registries.json> --metadata .replace/parity/<slug>/new/<target>/verify-metadata.json --features .replace/features.md` が exit 0 以外なら、棚卸しを済ませてから判定し直す。
+  `registries.json` の組み立て方は、`parity-diff` の `references/normalize.md`「registries.json の組み立て」にある。`parity-diff` の文書かスクリプトに届かないときも、合格として扱わずに止まる。
 
 ## 理由の分類と次の工程
 

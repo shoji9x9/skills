@@ -37,7 +37,8 @@ spec-parity verify [--feature <slug>] [--target <name>] [--autonomous]
 前提が欠けていたら、成果物を作らずに止まり、足りないものを依存の順に案内する（スイート・記録・判定の結果を作り出さない）。前提があるかは、決まったパスを読んで判定する。
 
 - 設定の `style_policy` が `free` である（読み方は下記「プロジェクト設定の解決」）。`free` でないとき（キーが無いときの `reproduce` を含む）は止まり、`parity-suite` と `parity-diff` を案内する。
-- e2e: プロジェクトの devDependencies に `e2e` と `@e2e-dev/web` があり、`npx e2e --version` が通る。確かめたバージョンは e2e 0.23.0・`@e2e-dev/web` 0.15.5 で、Node.js 24.8 以上（22 なら 22.22.3 以上）が要る。
+- e2e: プロジェクトの devDependencies に `e2e` と `@e2e-dev/web` があり、プロジェクトに入った e2e が `--version` に答える。
+  レジストリから取得させない確かめ方は、[`references/e2e-runner.md`](references/e2e-runner.md)「バージョンと導入」にある。確かめたバージョンは e2e 0.23.0・`@e2e-dev/web` 0.15.5 で、Node.js 24.8 以上（22 なら 22.22.3 以上）が要る。
   無ければ止まり、導入を案内する（導入は利用者の承認を得てから行う）。詳しくは [`references/e2e-runner.md`](references/e2e-runner.md) にある。
 - 外部へ送るデータ: e2e はテレメトリをデフォルトで送り、`agent.act` などの agent のステップでは指示・アクセシビリティツリー・URL（求められたときはスクリーンショット）をモデルの提供元へ送る。
   このスキルが起動する e2e には、必ず `E2E_TELEMETRY_DISABLED=1 DO_NOT_TRACK=1 E2E_UPDATE_CHECK_DISABLED=1` を付ける。
@@ -49,6 +50,7 @@ spec-parity verify [--feature <slug>] [--target <name>] [--autonomous]
   `verify` では、さらに `suite` の完了 → `parity-replace`（選んだ target で新側が green）が要る。
   前提スキルが入っていなければ、`gh skill install shoji9x9/skills <name>` で入れてから実行する。
   `replace-strategy` が `references/` で、このスキルが読む設定のスキーマ・自律実行の規約・対応範囲を定義し、`parity-suite` が `references/` で強度の確認の考え方を定義している。そのため、このスキルは 2 つのスキルが入っていないと動かない。
+  `verify` は、さらに `parity-diff` の `references/preflight.md` と `scripts/pending-triage-check.mjs`（意図的差異の保留の棚卸し）を使うので、`parity-diff` も入っていないと動かない。
 - `suite` は、`parity-suite` がスイートを作る前に確かめる 2 つの条件を同じように確かめ、どちらかが成り立てば止まる。条件の原本は `parity-suite` の `SKILL.md`「2. 対象決定」と「4. データセットの投入先・バージョン確認」である。
   1 つは、`current.origin: received-assets` で現行の環境が引き渡されていないか、対象の slug の意味論が確定していないことである。
   もう 1 つは、`.replace/dataset/metadata.json` の `current.target` が選んだ target と違うことである（`null` なら照合しない）。
@@ -152,7 +154,9 @@ node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mj
 3. スイートを書く。操作・状態・role ごとの assertion・API を、[`references/suite-authoring.md`](references/suite-authoring.md) に従って `tests/<slug>/` に書く。
    スイートと部品は、`references.coding_conventions` の規約に従って書く。ログインが要る画面は、同じ reference の「認証」に従う。
    API の特性化では、確定した口の features.md への書き戻しを `replace-strategy evidence` に任せ、確定できなかった口を `metadata.json` の `unmeasured` に宣言する（同じ reference「API の要求単位の根拠と未測定」）。このスキルは features.md を自分では書かない。
-4. スイートを現行で通す。`--target=current` で実行して全件が通ったら、結果の JSON を `.replace/parity/<slug>/suite-report.json` に保存する。状態を変えるスイートは 2 回続けて通す。
+4. スイートを現行で通す。スイートのパス（`metadata.json` の `suite.dir`）を付けて、`npx e2e run tests/<slug>/ --target=current` の形で実行する。
+   全件が通ったら、結果の JSON を `.replace/parity/<slug>/suite-report.json` に保存する。状態を変えるスイートは 2 回続けて通す。
+   パスを付けないと、ほかの機能のテストも結果に入り、収束の判定（`convergence-check.mjs`）が判定できないとして止まる。手順 5 の記録と、`parity-replace` の新側の green の確認も、同じパスで絞る。
 5. 操作中のエラーの基準を採る。2 回以上記録して `runtime-errors.mjs summarize --write` で `metadata.json` の `runtime_errors` に書く（[`references/runtime-errors.md`](references/runtime-errors.md)）。
 6. 強度を確かめる。故障注入のテストと強度の計画を書き、`strength-check.mjs --write` で `metadata.json` の `strength` に書く。exit 0 になるまで、assertion を強めるか注入を直す（[`references/strength.md`](references/strength.md)）。
 7. 現行が保証している幅を記録する。候補の幅を現行で測り、`overflow-check.mjs --side current` が exit 0 になる幅を `capture_conditions.viewports` に残す（[`references/overflow.md`](references/overflow.md)）。
@@ -165,23 +169,26 @@ node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mj
    確かめる新側のバージョンが `none`（新側が git で管理されていない）なら、ここで止まる（上の「前提」）。
    `suite` の完了は、`metadata.json` の `style_policy: free`・`suite.current_green`・`strength.validated` で確かめる。
    強度は `strength.validated` を信じず、`strength-check.mjs` を `--write` なしで `strength-plan.json` と `strength-report.json` に当て、exit 0 であることも確かめる（手順 7 の判定も同じに判定し直す）。
-   `verify-metadata.json` を雛形から作り（あれば前の保留を読んでから更新する）、同梱の [`scripts/source-version.mjs`](scripts/source-version.mjs) の出力の `commit`・`tree`・`dirty` を `new.commit`・`new.tree`・`new.dirty` に書く。
-   `new.dirty` が `true` なら、ここで止まる（上の「前提」）。
+   このとき `--metadata .replace/parity/<slug>/metadata.json` を渡し、計画の slug も照合する。
+   `verify-metadata.json` を雛形から作る。前の記録があれば、保留と承認の記録（`approvals`）を読んでから更新し、`approvals` を引き継ぐ。
+   同梱の [`scripts/source-version.mjs`](scripts/source-version.mjs) の出力の `commit`・`tree`・`dirty` を `new.commit`・`new.tree`・`new.dirty` に書く。
+   `new.dirty` が `false` でなければ、ここで止まる（上の「前提」）。
    起動の形と取り方の原本は `replace-strategy` の `references/project-config.md`「新側のバージョンの記録」で、`parity-replace` の `replace-metadata.json` と `parity-diff` の前提の確認も同じ取り方を使う（ここへ転記しない）。
    除くのは `.replace/` だけである。e2e の結果の出力先（`.e2e/`）と人による確認で撮った画面が新側のディレクトリの中にあるなら、`.replace/` の下に置くか新側の `.gitignore` に入れる。
    どちらでもないと、書くたびに `new.dirty` が `true` になり、verify は止まる（同じ節）。
-2. スイートを新側で実行する。`--target=new` で実行し、結果の JSON を `new/<target>/suite-report.json` に保存し、実行した新側の `new.tree` を `suite.tree` に書く。
+2. スイートを新側で実行する。suite の手順 4 と同じスイートのパスを付けて `--target=new` で実行し、結果の JSON を `new/<target>/suite-report.json` に保存し、実行した新側の `new.tree` を `suite.tree` に書く。
 3. 横のはみ出しを測る。記録した幅で新側を測り、`overflow-check.mjs --write` で `overflow` に書く（[`references/overflow.md`](references/overflow.md)）。
-4. 操作中のエラーを比べる。新側で 2 回以上記録し、`runtime-errors.mjs compare --write <verify-metadata.json>` で比べる。現行に無かった署名は 3 値に分類する（[`references/runtime-errors.md`](references/runtime-errors.md)）。
-5. デザインを点検する。`web-design-guidelines` があれば使い、無ければ同梱の観点で点検する。指摘は「直す」か「受け入れる」に分け、受け入れるものは利用者が承認する（[`references/design-review.md`](references/design-review.md)）。
-6. 人に確かめてもらう。新側の画面を記録した幅で見てもらい、承認を記録する（[`references/design-review.md`](references/design-review.md)「人による確認」）。
+4. 操作中のエラーを比べる。新側で 2 回以上記録し、`runtime-errors.mjs compare --write <verify-metadata.json> --tree <new.tree>` で比べる。`--tree` には、記録を採った新側の `new.tree` を渡す。現行に無かった署名は 3 値に分類する（[`references/runtime-errors.md`](references/runtime-errors.md)）。
+5. デザインを点検する。`web-design-guidelines` があれば使い、無ければ同梱の観点で点検する。指摘は「直す」か「受け入れる」に分け、受け入れるものは利用者が承認し、承認を `approvals` に追記する（[`references/design-review.md`](references/design-review.md)）。
+6. 人に確かめてもらう。新側の画面を記録した幅で見てもらい、承認を記録して `approvals` に追記する（[`references/design-review.md`](references/design-review.md)「人による確認」と「承認の記録」）。
 7. 収束を判定し、差し戻す。判定の直前に、手順 1 と同じ `source-version.mjs` で新側のバージョンを取得し直す。
    出力の `tree` が `new.tree` と違えば、手順 2〜6 の記録がどのバージョンのものか分からないので、止まって手順 1 からやり直す。
    出力の `commit` だけが違うとき（記録を commit したときなど）は、やり直さずに `new.commit` を書き直す。作業ツリーの状態は `new.dirty` に書き直す（`true` なら、判定は前提の欠落で止まる）。
    `convergence-check.mjs --write` の終了コードで決める。`send-back` の理由が残れば `verify.md` を差し戻しの入力にして `parity-replace` へ渡し、`remeasure` は該当する手順をやり直し、`approval` は利用者に確かめる（[`references/convergence.md`](references/convergence.md)）。
-   exit 0 でも、`replace-strategy` の `append-only-check.mjs` で追記専用の成果物が縮んでいないことを確かめてから収束と報告する。
-   対象は、`replace-strategy` の `assets/append-only-manifest.json` に項目があるもの（`gaps.md`・`metadata.json` の `unmeasured` など）である。
-   `verify-metadata.json` の承認の記録は、このチェックの対象に入らない（同じ reference）。
+   exit 0 でも、次の 2 つが exit 0 になることを確かめてから収束と報告する（[`references/convergence.md`](references/convergence.md)）。
+   1 つは `replace-strategy` の `append-only-check.mjs` で、追記専用の成果物が縮んでいないことを確かめる。
+   対象は、`replace-strategy` の `assets/append-only-manifest.json` に項目があるもの（`gaps.md`・`metadata.json` の `unmeasured`・`verify-metadata.json` の `approvals` など）である。
+   もう 1 つは `parity-diff` の `pending-triage-check.mjs` で、意図的差異の保留（設定の `intentional_diffs.pending`）を棚卸ししたことを確かめる。
 
 ## 成果物
 
@@ -189,13 +196,13 @@ node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mj
 
 | 成果物 | 場所 | 原本のテンプレート |
 |---|---|---|
-| メタデータ（suite） | `.replace/parity/<slug>/metadata.json`（`style_policy: free`・`mode: feature`・`suite.runner: e2e`・`suite.current_green`・`strength`・`capture_conditions`・`runtime_errors`・`unmeasured`） | [`assets/metadata-template.json`](assets/metadata-template.json) |
+| メタデータ（suite） | `.replace/parity/<slug>/metadata.json`（`style_policy: free`・`mode: feature`・`suite.runner: e2e`・`suite.dir`・`suite.current_green`・`strength`・`capture_conditions`・`runtime_errors`・`unmeasured`） | [`assets/metadata-template.json`](assets/metadata-template.json) |
 | 現行のスイートの結果 | `.replace/parity/<slug>/suite-report.json` | — |
 | 強度の計画・結果・レポート | `.replace/parity/<slug>/strength-plan.json`・`strength-report.json`・`strength.md` | [`assets/strength-plan-template.json`](assets/strength-plan-template.json)・[`assets/strength-template.md`](assets/strength-template.md) |
 | 未検証の領域 | `.replace/parity/<slug>/gaps.md` | [`assets/gaps-template.md`](assets/gaps-template.md) |
 | 操作中のエラーの記録 | 現行は `.replace/parity/<slug>/runtime-errors/run-<回>/`、新側は `.replace/parity/<slug>/new/<target>/runtime-errors/run-<回>/` | 記録は雛形の init script と reporter が書く |
 | 横のはみ出しの測定 | 現行は `.replace/parity/<slug>/overflow-current.json`、新側は `.replace/parity/<slug>/new/<target>/overflow.json` | [`assets/overflow.e2e.template.ts`](assets/overflow.e2e.template.ts) |
-| メタデータ（verify） | `.replace/parity/<slug>/new/<target>/verify-metadata.json`（`converged`・`overflow`・`runtime_errors`・`design_review`・`human_review`・`unverified`・`pending_decisions`） | [`assets/verify-metadata-template.json`](assets/verify-metadata-template.json) |
+| メタデータ（verify） | `.replace/parity/<slug>/new/<target>/verify-metadata.json`（`converged`・`overflow`・`runtime_errors`・`design_review`・`human_review`・`approvals`・`intentional_diffs_pending`・`unverified`・`pending_decisions`） | [`assets/verify-metadata-template.json`](assets/verify-metadata-template.json) |
 | 新側のスイートの結果と確認のレポート | `.replace/parity/<slug>/new/<target>/suite-report.json`・`verify.md` | [`assets/verify-template.md`](assets/verify-template.md) |
 | 保留の記録（suite の自律実行） | `.replace/parity/<slug>/pending-decisions.json` | 形の原本は `replace-strategy` の `references/autonomy.md` |
 | スイートと部品 | `e2e.config.ts`・`tests/parity/`・`tests/<slug>/` | [`assets/e2e.config.template.ts`](assets/e2e.config.template.ts)・[`assets/sides.template.ts`](assets/sides.template.ts)・[`assets/test.template.ts`](assets/test.template.ts)・[`assets/runtime-errors-init.template.mjs`](assets/runtime-errors-init.template.mjs)・[`assets/runtime-errors-reporter.template.ts`](assets/runtime-errors-reporter.template.ts)・[`assets/strength.e2e.template.ts`](assets/strength.e2e.template.ts) |
@@ -207,6 +214,7 @@ node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mj
   対象は [`scripts/runtime-errors.mjs`](scripts/runtime-errors.mjs)・[`scripts/strength-check.mjs`](scripts/strength-check.mjs)・
   [`scripts/overflow-check.mjs`](scripts/overflow-check.mjs)・[`scripts/convergence-check.mjs`](scripts/convergence-check.mjs)・[`scripts/source-version.mjs`](scripts/source-version.mjs) である。
   `runtime-errors.mjs` は `parity-suite` のものと、`source-version.mjs` は `parity-replace`・`parity-diff` のものと同じ中身である。
+  `scripts/lib/pending-state.mjs`（保留の判定）は `replace-strategy` のものと同じ中身である。
 
 ## 姉妹スキルとの連携
 

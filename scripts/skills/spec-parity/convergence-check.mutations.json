@@ -9,7 +9,7 @@
       "id": "cv-suite-status-off",
       "why": "新側で passed でないテストを差し戻さない",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "    else if (!n.every((s) => s === \"passed\"))\n",
+      "find": "    else if (n !== \"passed\")\n",
       "replace": "    else if (false)\n",
       "occurrences": 1,
       "expect_failing": [
@@ -23,8 +23,8 @@
       "id": "cv-suite-missing-off",
       "why": "新側の結果に無いテストを数えない",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "    if (!n) reasons.add(\"remeasure\", \"suite\", `新側の結果に無いテスト: ${test}`);\n",
-      "replace": "    if (!n) void 0;\n",
+      "find": "    if (n === undefined) reasons.add(\"remeasure\", \"suite\", `新側の結果に無いテスト: ${test}`);\n",
+      "replace": "    if (n === undefined) void 0;\n",
       "occurrences": 1,
       "expect_failing": [
         "スイート 新側の結果に無いテストは、やり直しとして exit 1",
@@ -68,7 +68,10 @@
         "デザインの点検と人による確認 点検したバージョンが new.tree と違えば、古い記録としてやり直す",
         "デザインの点検と人による確認 点検の記録に tree が無ければ（commit だけの古い記録）、もう一度測る",
         "デザインの点検と人による確認 承認した画面のバージョンが new.tree と違えば、古い記録としてやり直す",
-        "デザインの点検と人による確認 承認した画面の記録に tree が無ければ（commit だけの古い記録）、もう一度測る"
+        "デザインの点検と人による確認 承認した画面の記録に tree が無ければ（commit だけの古い記録）、もう一度測る",
+        "操作中のエラーの比較のバージョン 比較の結果の tree が new.tree と違う なら、古い記録として採り直す",
+        "操作中のエラーの比較のバージョン 比較の結果の tree が 無い（compare --tree を渡す前の記録） なら、古い記録として採り直す",
+        "操作中のエラーの比較のバージョン 古いバージョンの比較に要対応の署名があっても、差し戻さずに採り直しだけを挙げる"
       ]
     },
     {
@@ -112,7 +115,7 @@
       "id": "cv-design-approval-off",
       "why": "承認の無い「受け入れる」のデザインの指摘を通す",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "  else if (!hasApproval(approval) || !filled(approval?.reason))\n",
+      "find": "  else if (!approval || !hasApproval(approval) || !filled(approval.reason))\n",
       "replace": "  else if (false)\n",
       "occurrences": 1,
       "expect_failing": [
@@ -148,13 +151,15 @@
       "id": "cv-pending-off",
       "why": "未解決の保留を数えない",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "  const open = list.filter((p) => !isSettled(p));\n",
+      "find": "  const open = list.filter((p) => classifyDecision(p).state !== \"settled\");\n",
       "replace": "  const open = list.filter(() => false);\n",
       "occurrences": 1,
       "expect_failing": [
         "未検証の一覧と判断待ち 保留が 回答が無い（open） なら承認待ちとして exit 1",
         "未検証の一覧と判断待ち 保留が 回答はあるが工程を終えていない（decided） なら承認待ちとして exit 1",
-        "未検証の一覧と判断待ち 保留が 実施の記録の証拠が空の文字列だけ（decided） なら承認待ちとして exit 1"
+        "未検証の一覧と判断待ち 保留が 実施の記録の証拠が空の文字列だけ（decided） なら承認待ちとして exit 1",
+        "未検証の一覧と判断待ち 保留の answer が雛形の値のままなら、回答として数えず承認待ちにする",
+        "未検証の一覧と判断待ち 保留の answered_at が雛形の値のままなら、回答として数えず承認待ちにする"
       ]
     },
     {
@@ -410,6 +415,143 @@
         "前提の欠落（exit 2） parity-replace が green にした記録の new.tree が無い（new.commit は同じ古い記録） なら、前提の欠落として exit 2",
         "前提の欠落（exit 2） parity-replace が green にした記録の new.tree が文字列でない なら、前提の欠落として exit 2",
         "前提の欠落（exit 2） new.commit が同じでも、new.tree が green の記録と違えば前提の欠落として exit 2"
+      ]
+    },
+    {
+      "id": "cv-runtime-errors-tree-off",
+      "why": "操作中のエラーの比較の結果の tree を new.tree と比べず、古いバージョンの新側で採った比較や tree を持たない比較で収束させる（Issue #995 の項目 4）",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  if (!sameTree(reasons, \"runtime_errors\", { actual: compared.tree, expected: tree }))\n",
+      "replace": "  if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作中のエラーの比較のバージョン 比較の結果の tree が new.tree と違う なら、古い記録として採り直す",
+        "操作中のエラーの比較のバージョン 比較の結果の tree が 無い（compare --tree を渡す前の記録） なら、古い記録として採り直す",
+        "操作中のエラーの比較のバージョン 古いバージョンの比較に要対応の署名があっても、差し戻さずに採り直しだけを挙げる"
+      ]
+    },
+    {
+      "id": "cv-design-approval-log-off",
+      "why": "受け入れたデザインの指摘の承認を、承認の記録（approvals）と照合せず、書き換えた承認でも収束させる（Issue #995 の項目 1）",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "    checkLog &&\n",
+      "replace": "    false &&\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "承認の記録（approvals） 承認の記録から、受け入れたデザインの指摘の承認が消えていれば、承認待ちにする",
+        "承認の記録（approvals） 受け入れたデザインの指摘の理由を、承認の後に書き換えたら承認待ちにする",
+        "承認の記録（approvals） 別のバージョンで積んだ承認は、いまの new.tree の承認として数えない",
+        "承認の記録（approvals） approvals をキーごと持たない記録（承認の記録の導入前）は、承認し直すまで承認待ちにする"
+      ]
+    },
+    {
+      "id": "cv-human-approval-log-off",
+      "why": "人による確認の承認を、承認の記録（approvals）と照合せず、却下を承認に書き換えた記録でも収束させる（Issue #995 の項目 1）",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "    fresh &&\n",
+      "replace": "    false &&\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "承認の記録（approvals） 承認の記録から、人による確認の承認が消えていれば、承認待ちにする",
+        "承認の記録（approvals） 却下（rejected）を承認（approved）に書き換えたら、承認の記録と食い違うので承認待ちにする",
+        "承認の記録（approvals） approvals をキーごと持たない記録（承認の記録の導入前）は、承認し直すまで承認待ちにする",
+        "承認の記録（approvals） approvals に kind が語彙の外 の要素があっても、承認として数えずに判定を続ける",
+        "承認の記録（approvals） approvals に オブジェクトでない の要素があっても、承認として数えずに判定を続ける"
+      ]
+    },
+    {
+      "id": "cv-approvals-kind-off",
+      "why": "承認の記録の語彙の外の要素を読み飛ばした件数（checks.approvals.ignored）に数えない。照合は kind も比べるので、承認の判定は変わらず、件数の報告だけが誤る",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "    if (isPlainObject(a) && (a.kind === \"design_review\" || a.kind === \"human_review\"))\n",
+      "replace": "    if (isPlainObject(a))\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "承認の記録（approvals） approvals に kind が語彙の外 の要素があっても、承認として数えずに判定を続ける"
+      ]
+    },
+    {
+      "id": "cv-suite-dir-off",
+      "why": "スイートの結果を suite.dir で絞らず、ほかの機能のテストを含む結果で判定する（Issue #995 のコメントの項目）",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "    if (!file.startsWith(prefix)) outside.push(key);\n",
+      "replace": "    if (false) outside.push(key);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "スイートの範囲（suite.dir） 新側の結果にほかの機能のテストがあれば、絞って採り直す（通らないほかの機能のテストで差し戻さない）",
+        "スイートの範囲（suite.dir） 現行の結果にほかの機能のテストがあれば、suite をやり直すので exit 2",
+        "スイートの範囲（suite.dir） 名前が前方で重なるディレクトリ（tests/orders-archive/）は、スイートの外として数える",
+        "スイートの範囲（suite.dir） スイートの中のテストが 0 件なら、0 件を合格にせず exit 2",
+        "スイートの範囲（suite.dir） 新側の結果の file が suite.dir と違う書き方（./）なら、スイートの中のテストとして読まず、0 件として exit 2（書き方の揺れを吸収しない）",
+        "スイートの範囲（suite.dir） suite.dir が › を含んでも、テストの名前（titlePath）の側では前方一致させない"
+      ]
+    },
+    {
+      "id": "cv-pending-placeholder-off",
+      "why": "保留の回答が雛形の値（<...>）のままでも、回答として数えて解決済みにする（Issue #995 の項目 5）",
+      "file": "skills/spec-parity/scripts/lib/pending-state.mjs",
+      "find": " && !/^<[\\s\\S]*>$/.test(String(v).trim())",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "未検証の一覧と判断待ち 保留の answer が雛形の値のままなら、回答として数えず承認待ちにする",
+        "未検証の一覧と判断待ち 保留の answered_at が雛形の値のままなら、回答として数えず承認待ちにする"
+      ]
+    },
+    {
+      "id": "cv-report-duplicate-off",
+      "why": "同じテストの結果が 2 つある e2e の結果を読み、後の結果で前の結果を上書きして判定する（Issue #995 の項目 5）",
+      "file": "skills/spec-parity/scripts/lib/e2e-report.mjs",
+      "find": "    if (results.has(name))\n",
+      "replace": "    if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "スイートの範囲（suite.dir） 同じテストの結果が 2 つある結果（--repeat-each・複数の agent）は、どちらかを採らずに exit 2"
+      ]
+    },
+    {
+      "id": "cv-suite-dir-shape-off",
+      "why": "suite.dir の形を確かめず、./・\\・続いた /・. と .. の区間・絶対パス・ドライブ文字で始まる形（ドライブ相対を含む）・前後の空白の suite.dir を、結果の file と一致しないまま読む",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  if (problem !== null)\n",
+      "replace": "  if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "スイートの範囲（suite.dir） suite.dir が 絶対パス なら exit 2",
+        "スイートの範囲（suite.dir） suite.dir が リポジトリのルート（.） なら exit 2",
+        "スイートの範囲（suite.dir） suite.dir が リポジトリのルート（./） なら exit 2",
+        "スイートの範囲（suite.dir） suite.dir が 途中の . の区間 なら exit 2",
+        "スイートの範囲（suite.dir） suite.dir が 末尾の . の区間 なら exit 2",
+        "スイートの範囲（suite.dir） suite.dir が ドライブ文字付きのパス（\\） なら exit 2",
+        "スイートの範囲（suite.dir） suite.dir が ドライブ文字付きのパス（/） なら exit 2",
+        "スイートの範囲（suite.dir） suite.dir が .. を含む なら exit 2",
+        "スイートの範囲（suite.dir） suite.dir が 先頭の ./ なら exit 2",
+        "スイートの範囲（suite.dir） suite.dir が 区切りが \\ なら exit 2",
+        "スイートの範囲（suite.dir） suite.dir が 続いた / なら exit 2",
+        "スイートの範囲（suite.dir） suite.dir が 前後の空白 なら exit 2",
+        "スイートの範囲（suite.dir） suite.dir が ドライブ相対のパス なら exit 2"
+      ]
+    },
+    {
+      "id": "cv-new-hint-spelling",
+      "why": "新側の結果の誤りの文に、現行の結果と同じ見直し先（suite.dir の綴り）を出し、現行の結果が一致した後の suite.dir を書き換えさせる",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "    hint: NEW_MISMATCH_HINT,\n",
+      "replace": "    hint: CURRENT_MISMATCH_HINT,\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "スイートの範囲（suite.dir） スイートの中のテストが 0 件なら、0 件を合格にせず exit 2"
+      ]
+    },
+    {
+      "id": "cv-new-outside-hint-spelling",
+      "why": "新側の結果の外のテストの文に、現行の結果と同じ見直し先（suite.dir の綴り）を出す",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "新側の結果は verify の手順 2 で採り直す。${NEW_MISMATCH_HINT}",
+      "replace": "新側の結果は verify の手順 2 で採り直す。${CURRENT_MISMATCH_HINT}",
+      "occurrences": 1,
+      "expect_failing": [
+        "スイートの範囲（suite.dir） 新側の結果にほかの機能のテストがあれば、絞って採り直す（通らないほかの機能のテストで差し戻さない）"
       ]
     }
   ]

@@ -50,6 +50,8 @@ node <spec-parity>/scripts/strength-check.mjs \
   --write .replace/parity/<slug>/metadata.json
 ```
 
+`--write` なしで判定し直すとき（`verify` の手順 1）は、`--write` の代わりに `--metadata .replace/parity/<slug>/metadata.json` を渡す。書かずに、計画の slug が機能と同じかを照合する。
+
 - 故障のテストが赤くなるので、e2e は exit 1 で終わる。判定に使うのは `strength-check.mjs` の終了コードである。
 - `strength-check.mjs` は、最後の試行のエラーが `ASSERTION_FAILED`（assertion が時間内に成り立たなかったときのエラーの code。<https://e2e.com/docs/reference/expect>）の故障だけを検出（`red`）として数える。
   注入しても通った故障（`green`）は一式の弱点で、assertion を足して強めるか、`gaps.md` に送る。

@@ -18,6 +18,7 @@
 
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
+import { selectedResults } from "./lib/e2e-report.mjs";
 import { parseFlags, stripDashes } from "./lib/flags.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 import {
@@ -193,26 +194,14 @@ function outcomeOf(r, serial, i) {
  * @returns {Map<string, Outcome>}
  */
 export function readStrengthReport(report) {
-  if (!isPlainObject(report) || report.schemaVersion !== "report-1")
-    throw new UsageError("強度の実行の結果が e2e の結果（schemaVersion: report-1）でない");
-  const run = report.run;
-  if (!isPlainObject(run) || !isArray(run.results))
-    throw new UsageError("強度の実行の結果に run.results が無い");
+  const { run, results } = selectedResults(report, {
+    targetId: "current",
+    where: "強度の実行の結果",
+  });
   const serial = readSerialMembers(run.serialGroups);
   /** @type {Map<string, Outcome>} */
   const out = new Map();
-  for (const [i, r] of run.results.entries()) {
-    if (!isPlainObject(r)) throw new UsageError(`results[${i}] がオブジェクトでない`);
-    if (r.targetId !== "current" || r.selected !== true) continue;
-    if (!nonEmptyString(r.file) || !isArray(r.titlePath))
-      throw new UsageError(`results[${i}] に file か titlePath が無い`);
-    const name = [r.file, ...r.titlePath.map(String)].join(" › ");
-    if (out.has(name))
-      throw new UsageError(
-        `同じテストの結果が 2 つある（repeat や agent を外して実行する）: ${name}`,
-      );
-    out.set(name, outcomeOf(r, serial, i));
-  }
+  for (const [name, { result, index }] of results) out.set(name, outcomeOf(result, serial, index));
   return out;
 }
 
@@ -263,16 +252,17 @@ export function judgeStrength(plan, results) {
 }
 
 const USAGE =
-  "usage: strength-check.mjs --plan <strength-plan.json> --report <strength-report.json> [--write <metadata.json>]";
+  "usage: strength-check.mjs --plan <strength-plan.json> --report <strength-report.json> [--write <metadata.json> | --metadata <metadata.json>]";
 
 /**
- * 書き込み先の metadata.json を読み、計画と同じ slug かを確かめる。
+ * metadata.json を読み、計画と同じ slug かを確かめる。--write の書き込み先と、書かずに照合だけする --metadata の両方で使う。
+ * 照合しないと、別の機能の計画をコピーした strength-plan.json でも強度の確認が通る。
  * @param {string} path
  * @param {string} slug
  * @param {import("./lib/read-json.mjs").JudgeIo} io
  * @returns {Record<string, unknown>}
  */
-function readMetadataForWrite(path, slug, io) {
+function readMetadataForSlug(path, slug, io) {
   const doc = readJsonFile(path, io);
   if (!isPlainObject(doc) || doc.slug !== slug)
     throw new UsageError(`metadata.json の slug が強度の計画の slug（${slug}）と違う`);
@@ -287,13 +277,18 @@ function readMetadataForWrite(path, slug, io) {
 export function main(argv, deps = {}) {
   const io = judgeIo(deps);
   return runJudge({ io, usage: USAGE }, () => {
-    const parsed = parseFlags(argv, { values: ["--plan", "--report", "--write"] });
+    const parsed = parseFlags(argv, { values: ["--plan", "--report", "--write", "--metadata"] });
     if (parsed.error !== undefined) throw new UsageError(parsed.error);
     const opts = stripDashes(parsed.strings);
     if (!nonEmptyString(opts.plan) || !nonEmptyString(opts.report))
       throw new UsageError("--plan と --report が要る");
     const plan = readPlan(readJsonFile(opts.plan, io));
-    const metadata = opts.write ? readMetadataForWrite(opts.write, plan.slug, io) : null;
+    if (opts.write && opts.metadata)
+      throw new UsageError(
+        "--write と --metadata は一緒に渡さない（--write の先の metadata.json でも slug を照合する）",
+      );
+    const metadata = opts.write ? readMetadataForSlug(opts.write, plan.slug, io) : null;
+    if (opts.metadata) readMetadataForSlug(opts.metadata, plan.slug, io);
     const result = {
       ...judgeStrength(plan, readStrengthReport(readJsonFile(opts.report, io))),
       plan: opts.plan,

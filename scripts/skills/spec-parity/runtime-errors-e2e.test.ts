@@ -10,7 +10,7 @@ import { describe, expect, test } from "vitest";
 import { main as convergence } from "../../../skills/spec-parity/scripts/convergence-check.mjs";
 import { main as runtimeErrors } from "../../../skills/spec-parity/scripts/runtime-errors.mjs";
 import { parseJsonAs } from "../../lib/parse-as.ts";
-import { EDIT, Fs, LIST, NEW_DIR, SLUG_DIR, VERIFY, convergedFs } from "./verify-fixture.ts";
+import { EDIT, Fs, LIST, NEW_DIR, SLUG_DIR, TREE, VERIFY, convergedFs } from "./verify-fixture.ts";
 
 type Event = {
   kind: string;
@@ -119,7 +119,12 @@ function baseline(): Fs {
   return fs;
 }
 
-function compareNew(fs: Fs, events: Event[], status = "passed") {
+// tree は compare --tree で渡す、記録を採った新側のバージョン（null は渡さない）
+function compareNew(
+  fs: Fs,
+  events: Event[],
+  { status = "passed", tree = TREE }: { status?: string; tree?: string | null } = {},
+) {
   for (const n of [1, 2]) {
     putRecord(fs, { side: "new", n }, { test: LIST, status, events });
     putRecord(fs, { side: "new", n }, { test: EDIT, status: "passed", events: [] });
@@ -138,6 +143,7 @@ function compareNew(fs: Fs, events: Event[], status = "passed") {
       runDir("new", 2),
       "--write",
       VERIFY,
+      ...(tree === null ? [] : ["--tree", tree]),
     ],
     io,
   );
@@ -183,7 +189,7 @@ describe("e2e の記録での操作中のエラーの比較", () => {
 
   test("e2e の timed-out を読み替えた timedOut は、新側で通らなかったテストとして差し戻す", () => {
     const fs = baseline();
-    const r = compareNew(fs, common("http://127.0.0.1:4102"), "timedOut");
+    const r = compareNew(fs, common("http://127.0.0.1:4102"), { status: "timedOut" });
     expect(r.code).toBe(1);
     expect(converge(fs).reasons).toContainEqual({
       category: "send-back",
@@ -194,6 +200,36 @@ describe("e2e の記録での操作中のエラーの比較", () => {
 
   test("e2e の状態の語彙のまま（timed-out）書いた記録は、compare が読まずに exit 2", () => {
     const fs = baseline();
-    expect(compareNew(fs, [], "timed-out").code).toBe(2);
+    expect(compareNew(fs, [], { status: "timed-out" }).code).toBe(2);
+  });
+
+  // 項目 4（Issue #995）: 比較の結果を、記録を採った新側のバージョンと突き合わせる
+  test.each([
+    ["--tree を渡さずに書いた（バージョンを持たない）", null, "記録にバージョン（tree）が無い"],
+    ["前のバージョンの新側で採った", "1".repeat(40), `が new.tree（${TREE}）と違う`],
+  ])("%s比較の結果は、収束の根拠にせず採り直す", (_label, tree, message) => {
+    const fs = baseline();
+    expect(compareNew(fs, common("http://127.0.0.1:4102"), { tree }).code).toBe(0);
+    const c = converge(fs);
+    expect(c.code).toBe(1);
+    expect(c.reasons).toEqual([
+      { category: "remeasure", check: "runtime_errors", message: expect.stringContaining(message) },
+    ]);
+  });
+
+  test("compare --tree の前後の空白は外して書く（貼り付けた値で new.tree と食い違わない）", () => {
+    const fs = baseline();
+    expect(compareNew(fs, common("http://127.0.0.1:4102"), { tree: ` ${TREE}\n` }).code).toBe(0);
+    expect(fs.json<{ runtime_errors: { tree: string } }>(VERIFY).runtime_errors.tree).toBe(TREE);
+    expect(converge(fs).code).toBe(0);
+  });
+
+  test("compare --tree に none や空の値を渡すと、書かずに exit 2", () => {
+    for (const tree of ["none", " "]) {
+      const fs = baseline();
+      const before = fs.files.get(VERIFY);
+      expect(compareNew(fs, common("http://127.0.0.1:4102"), { tree }).code).toBe(2);
+      expect(fs.files.get(VERIFY)).toBe(before);
+    }
   });
 });

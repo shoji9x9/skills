@@ -12,7 +12,11 @@
 // あわせて、未検証の一覧（unverified）に、spec-parity が確かめない性能（performance）が理由付きで載っていることを確かめる。
 // 新側のバージョンは new.tree（.replace/ を除いた新側のソースのツリーのハッシュ）で照合する。new.commit は人が追うための値で、照合に使わない。
 // 取り方の原本は replace-strategy の references/project-config.md「新側のバージョンの記録」である。
-// 1・2・4・5 の記録は、verify-metadata.json の new.tree と同じバージョンのものでなければ、古い記録として数える。tree を持たない記録も古い記録である。
+// 1〜5 の記録は、verify-metadata.json の new.tree と同じバージョンのものでなければ、古い記録として数える。tree を持たない記録も古い記録である。
+// 3 の比較の結果の tree は、runtime-errors.mjs compare --tree で渡した値である。
+// 4・5 の承認は、verify-metadata.json の approvals（追記専用。replace-strategy の append-only-check.mjs が縮んでいないかを確かめる）に
+// 同じ承認が積まれていなければ、承認として数えない。承認を後から書き換えると、approvals と食い違うか、approvals が縮む。
+// 1 のスイートの結果は、metadata.json の suite.dir の下のテストだけを含むものでなければ読まない（ほかの機能のテストを数えない）。
 // 前提として、verify-metadata.json の new.tree があり、none（新側が git で管理されていない）でないことを確かめる。none では、どの記録のバージョンも特定できない。
 // parity-replace が新側を green にした記録（replace-metadata.json）は、dirty: false であることを確かめる。
 // あわせて、記録の slug・new.target・new.tree が、metadata.json の slug・--target・verify-metadata.json の new.tree と同じことを確かめる。
@@ -30,7 +34,9 @@
 import { basename, join, resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
+import { selectedResults } from "./lib/e2e-report.mjs";
 import { parseFlags, stripDashes } from "./lib/flags.mjs";
+import { classifyDecision } from "./lib/pending-state.mjs";
 import { isPlaceholder, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 import {
   UsageError,
@@ -46,9 +52,6 @@ import { VERSION as RUNTIME_ERRORS_VERSION, judgeClassification } from "./runtim
 
 /** ツールのバージョン。判定規則と出力の形を変えたら上げる。 */
 export const VERSION = "1";
-
-/** e2e の結果の JSON の形式。e2e が形を変えると schemaVersion が変わる。 */
-const REPORT_SCHEMA = "report-1";
 
 /** 未検証の一覧に必ず載せる項目。性能は、比較の採取が Playwright を前提にしているので spec-parity では確かめない。 */
 const ALWAYS_UNVERIFIED = ["performance"];
@@ -124,57 +127,141 @@ export function checkSuiteMetadata(metadata, slugDir) {
 }
 
 /**
- * e2e の結果の JSON から、指定した target で選ばれたテストを、テストの鍵 → 状態の一覧にする。
- * @param {unknown} report
- * @param {string} targetId - e2e の設定の target 名（current / new）
- * @param {string} where
- * @returns {Map<string, string[]>}
+ * suite.dir の形の誤り（結果の file と前方一致で比べられない形）を返す。誤りが無ければ null。
+ * 書き方の揺れを正規化して吸収せず、結果の file と同じ字面の形（tests/<slug>/ のような、リポジトリのルートからの相対パス）だけを受ける。
+ * 正規化すると、結果の file・テストの鍵・強度の計画の名前のすべてに同じ正規化を当てることになり、どれかに当て忘れると一致しなくなる。
+ * 受けない形だけを挙げ、区間の文字（日本語・@ など）は限らない。
+ * ただし、1 文字の英字に : が続く形で始まる値（C:tests・x:legacy）は、Windows のドライブ文字と区別できないので受けない。
+ * @param {string} dir
+ * @returns {string | null}
  */
-export function readReport(report, targetId, where) {
-  if (!isPlainObject(report) || report.schemaVersion !== REPORT_SCHEMA)
-    throw new UsageError(`${where} が e2e の結果（schemaVersion: ${REPORT_SCHEMA}）でない`);
-  const run = report.run;
-  if (!isPlainObject(run) || !isArray(run.results))
-    throw new UsageError(`${where} に run.results が無い`);
-  /** @type {Map<string, string[]>} */
+function suiteDirProblem(dir) {
+  if (dir !== dir.trim()) return "前後に空白がある";
+  if (dir.includes("\\")) return "区切りに \\ を使っている";
+  // ドライブ文字で始まる形は、ドライブ相対（C:tests）を含めて、リポジトリのルートからの相対パスにならない
+  if (dir.startsWith("/") || /^[A-Za-z]:/.test(dir)) return "絶対パスかドライブ文字で始まる";
+  const segments = dir.replace(/\/$/, "").split("/");
+  if (segments.some((x) => x === "")) return "空の区間（続いた /）がある";
+  if (segments.some((x) => x === "." || x === "..")) return ". か .. の区間がある";
+  return null;
+}
+
+/**
+ * スイートのディレクトリを、結果の file と前方一致で比べる形（末尾を / にする）にする。
+ * @param {unknown} dir - metadata.json の suite.dir
+ * @returns {string}
+ */
+export function suitePrefix(dir) {
+  if (!filled(dir))
+    throw new UsageError(
+      "metadata.json の suite.dir が無い（雛形の値のままを含む。スイートのディレクトリを書く）",
+    );
+  const problem = suiteDirProblem(dir);
+  if (problem !== null)
+    throw new UsageError(
+      `metadata.json の suite.dir が、結果の file と同じ形の相対パス（例: tests/<slug>/）でない（${problem}）: ${JSON.stringify(dir)}`,
+    );
+  return dir.endsWith("/") ? dir : `${dir}/`;
+}
+
+/**
+ * 結果の file が suite.dir に前方一致しなかったときの見直し先。原因の候補は、ほかの機能のテスト・suite.dir の書き誤り・file の起点や書き方の違いの 3 つである。
+ * 結果の file だけからは区別できないので並べる。新側の結果では、現行の結果が suite.dir に一致した後なので、suite.dir の書き誤りは挙げない。
+ * 見直し先の文は、誤りの文の括弧の外に置く（括弧を含むので、括弧の中に入れると括弧が入れ子になる）。
+ */
+const OTHER_FEATURE_HINT = "ほかの機能のテストなら、スイートのパスで絞って実行し直す。";
+const SPELLING_HINT = "suite.dir の綴りが違うなら直す。";
+const FILE_ORIGIN_HINT =
+  "結果の file の起点や書き方が違う（./ で始まる・区切りが \\ など）なら、e2e の設定ファイル e2e.config.ts の場所と、e2e を実行するディレクトリを見直す。";
+const CURRENT_MISMATCH_HINT = `${OTHER_FEATURE_HINT}${SPELLING_HINT}${FILE_ORIGIN_HINT}`;
+const NEW_MISMATCH_HINT = `${OTHER_FEATURE_HINT}${FILE_ORIGIN_HINT}`;
+
+/**
+ * e2e の結果の JSON から、指定した target で選ばれたテストを、テストの鍵 → 状態の一覧にする。
+ * スイートのディレクトリ（prefix）の外のテストは、outside に分けて返す（ほかの機能のテストを含む実行の結果）。
+ * @param {unknown} report
+ * @param {{ targetId: string, where: string, prefix: string, hint: string }} ctx - targetId は e2e の設定の target 名（current / new）、hint は前方一致しなかったときの見直し先
+ * @returns {{ tests: Map<string, string>, outside: string[] }}
+ */
+export function readReport(report, { targetId, where, prefix, hint }) {
+  const { results } = selectedResults(report, { targetId, where });
+  /** @type {Map<string, string>} */
   const tests = new Map();
-  for (const [i, r] of run.results.entries()) {
-    if (!isPlainObject(r)) throw new UsageError(`${where} の results[${i}] がオブジェクトでない`);
-    if (r.targetId !== targetId || r.selected !== true) continue;
-    if (!nonEmptyString(r.file) || !isArray(r.titlePath) || !nonEmptyString(r.status))
-      throw new UsageError(`${where} の results[${i}] に file・titlePath・status が無い`);
-    const key = [r.file, ...r.titlePath.map(String)].join(" › ");
-    tests.set(key, [...(tests.get(key) ?? []), r.status]);
+  const outside = [];
+  for (const [key, { result: r, index, file }] of results) {
+    if (!nonEmptyString(r.status))
+      throw new UsageError(`${where} の results[${index}] に status が無い`);
+    // 鍵（file › titlePath）ではなく file で比べる。鍵で比べると、suite.dir が › を含むときに titlePath の側で一致する
+    if (!file.startsWith(prefix)) outside.push(key);
+    else tests.set(key, r.status);
   }
+  outside.sort(byText);
   if (tests.size === 0)
     throw new UsageError(
-      `${where} に、target ${targetId} で選ばれたテストが 0 件（0 件を合格にしない）`,
+      `${where} に、target ${targetId} で選ばれた ${prefix} の下のテストが 0 件（0 件を合格にしない）。` +
+        (outside.length > 0
+          ? `前方一致しなかったテスト: ${outside.slice(0, 2).join(", ")}。${hint}`
+          : `target ${targetId} で選ばれたテストが 1 件も無い`),
     );
-  return tests;
+  return { tests, outside };
+}
+
+/**
+ * 現行と新側の結果を読み、スイートのディレクトリの外のテストを扱う。
+ * 現行の結果の外のテストは、suite をやり直さないと直らないので判定できないとして止める。新側の外のテストは、採り直す理由にする。
+ * @param {{ currentReport: unknown, newReport: unknown, target: string }} input
+ * @param {string} prefix
+ * @param {Reasons} reasons
+ */
+function readReports(input, prefix, reasons) {
+  const current = readReport(input.currentReport, {
+    targetId: "current",
+    where: "現行の結果（suite-report.json）",
+    prefix,
+    hint: CURRENT_MISMATCH_HINT,
+  });
+  if (current.outside.length > 0)
+    throw new UsageError(
+      `現行の結果に、suite.dir の ${prefix} の外のテストがある: ${current.outside.join(", ")}。現行の結果は spec-parity suite の手順 4 で採り直す。${CURRENT_MISMATCH_HINT}`,
+    );
+  const next = readReport(input.newReport, {
+    targetId: "new",
+    where: `新側の結果（new/${input.target}/suite-report.json）`,
+    prefix,
+    hint: NEW_MISMATCH_HINT,
+  });
+  for (const test of next.outside)
+    reasons.add(
+      "remeasure",
+      "suite",
+      `新側の結果に、suite.dir の ${prefix} の外のテストがある: ${test}。新側の結果は verify の手順 2 で採り直す。${NEW_MISMATCH_HINT}`,
+    );
+  return { current: current.tests, next: next.tests };
 }
 
 /**
  * 現行で通ったテストが、新側ですべて passed かを判定する。
  * flaky（リトライで通った）は、新側が安定して通ったとは言えないので passed として扱わない。
- * @param {Map<string, string[]>} current
- * @param {Map<string, string[]>} next
+ * 同じテストの結果は 1 つだけである（lib/e2e-report.mjs が 2 つある結果を読まない）。
+ * @param {Map<string, string>} current
+ * @param {Map<string, string>} next
  * @param {Reasons} reasons
  */
 export function judgeSuite(current, next, reasons) {
   const currentSkipped = [];
-  for (const [test, statuses] of current) {
-    if (statuses.every((s) => s === "skipped")) {
+  for (const [test, status] of current) {
+    if (status === "skipped") {
       currentSkipped.push(test);
       continue;
     }
-    if (!statuses.every((s) => s === "passed"))
+    if (status !== "passed")
       throw new UsageError(
-        `現行の結果で通っていないテスト: ${test}（${statuses.join(", ")}。suite をやり直す）`,
+        `現行の結果で通っていないテスト: ${test}（${status}。suite をやり直す）`,
       );
     const n = next.get(test);
-    if (!n) reasons.add("remeasure", "suite", `新側の結果に無いテスト: ${test}`);
-    else if (!n.every((s) => s === "passed"))
-      reasons.add("send-back", "suite", `新側で通らないテスト: ${test}（${n.join(", ")}）`);
+    if (n === undefined) reasons.add("remeasure", "suite", `新側の結果に無いテスト: ${test}`);
+    else if (n !== "passed")
+      reasons.add("send-back", "suite", `新側で通らないテスト: ${test}（${n}）`);
   }
   // 現行のテストがすべてスキップなら、比べたテストが 0 件のまま収束してしまう（0 件を合格にしない）
   if (currentSkipped.length === current.size)
@@ -267,9 +354,9 @@ function judgeCompareLists(compared, reasons) {
  * 操作中のエラーの比較の結果を、分類から判定し直す。
  * @param {Record<string, unknown>} baseline - metadata.json の runtime_errors
  * @param {unknown} compared - verify-metadata.json の runtime_errors（compare --write が書いたもの）
- * @param {Reasons} reasons
+ * @param {{ tree: string, reasons: Reasons }} ctx - tree は verify-metadata.json の new.tree
  */
-export function judgeRuntimeErrors(baseline, compared, reasons) {
+export function judgeRuntimeErrors(baseline, compared, { tree, reasons }) {
   if (baseline.declared !== true) return { judged: false, reason: String(baseline.reason) };
   if (!isPlainObject(compared)) {
     reasons.add(
@@ -280,6 +367,10 @@ export function judgeRuntimeErrors(baseline, compared, reasons) {
     return { judged: false };
   }
   checkCompared(compared);
+  // compare --tree で渡した、記録を採った新側のバージョン。古いバージョンで採った比較を、収束の根拠にしない
+  // 古い比較は採り直すので、署名の分類からの差し戻しや承認待ちを重ねない（design_review・human_review と同じ扱い）
+  if (!sameTree(reasons, "runtime_errors", { actual: compared.tree, expected: tree }))
+    return { judged: false, reason: "比較の結果が new.tree のバージョンのものでない" };
   const sigs = compared.new_signatures;
   if (!isArray(sigs))
     throw new UsageError("verify-metadata.json の runtime_errors.new_signatures が配列でない");
@@ -307,6 +398,36 @@ function hasApproval(a) {
 }
 
 /**
+ * 承認の記録（verify-metadata.json の approvals）を読む。キーごと無い記録（approvals を書く前のもの）は、積まれた承認が 0 件として扱う。
+ * 読まなかった要素の件数（ignored）は、収束の判定の checks.approvals に残す。
+ * approvals は追記専用で、replace-strategy の append-only-check.mjs が縮んでいないかを確かめる（replace-strategy の assets/append-only-manifest.json）。
+ * @param {unknown} list
+ * @returns {{ entries: Record<string, unknown>[], ignored: number }}
+ */
+export function readApprovals(list) {
+  if (list === undefined) return { entries: [], ignored: 0 };
+  if (!isArray(list)) throw new UsageError("verify-metadata.json の approvals が配列でない");
+  // 語彙の外の要素（kind が design_review・human_review でない・オブジェクトでない）は、承認として数えずに件数だけを残す。
+  // approvals は追記専用で要素を消せないので、ここで止めると、一度積んだ誤りの要素でいつまでも判定できなくなる
+  /** @type {Record<string, unknown>[]} */
+  const entries = [];
+  for (const a of list)
+    if (isPlainObject(a) && (a.kind === "design_review" || a.kind === "human_review"))
+      entries.push(a);
+  return { entries, ignored: list.length - entries.length };
+}
+
+/**
+ * 承認の記録に、同じ承認（照合する欄がすべて同じ値）が積まれているか。
+ * @param {Record<string, unknown>[]} approvals
+ * @param {Record<string, unknown>} want - kind・tree と、照合する承認の欄
+ * @returns {boolean}
+ */
+function logged(approvals, want) {
+  return approvals.some((a) => Object.entries(want).every(([k, v]) => a[k] === v));
+}
+
+/**
  * デザインの点検の記録の形を確かめる。
  * @param {Record<string, unknown>} review
  * @returns {unknown[]}
@@ -323,59 +444,77 @@ function reviewFindings(review) {
 }
 
 /**
- * デザインの指摘 1 件を判定する。
+ * デザインの指摘 1 件を判定する。受け入れる承認は、承認の記録（approvals）に、同じ指摘・同じバージョンで同じ値が積まれていることも求める。
  * @param {Record<string, unknown> & { id: string }} f
- * @param {Reasons} reasons
+ * @param {{ tree: string, approvals: Record<string, unknown>[], reasons: Reasons, checkLog: boolean }} ctx - checkLog は点検の記録が new.tree のものか
  */
-function judgeFinding(f, reasons) {
+function judgeFinding(f, { tree, approvals, reasons, checkLog }) {
   const approval = isPlainObject(f.approval) ? f.approval : null;
   if (f.decision === "fix") reasons.add("send-back", "design_review", `直す指摘: ${f.id}`);
   else if (f.decision !== "accept")
     reasons.add("approval", "design_review", `「直す」か「受け入れる」に分けていない指摘: ${f.id}`);
-  else if (!hasApproval(approval) || !filled(approval?.reason))
+  else if (!approval || !hasApproval(approval) || !filled(approval.reason))
     reasons.add(
       "approval",
       "design_review",
       `受け入れる承認（承認した人・日時・理由）が無い指摘: ${f.id}`,
+    );
+  else if (
+    checkLog &&
+    !logged(approvals, {
+      kind: "design_review",
+      id: f.id,
+      tree,
+      approved_by: approval?.approved_by,
+      approved_at: approval?.approved_at,
+      reason: approval?.reason,
+    })
+  )
+    reasons.add(
+      "approval",
+      "design_review",
+      `受け入れる承認が、承認の記録（approvals）に同じ値で積まれていない指摘: ${f.id}（承認を書き換えたなら、利用者に承認し直してもらって approvals に追記する）`,
     );
 }
 
 /**
  * デザインの点検の記録を判定する。
  * @param {unknown} review
- * @param {string} tree
- * @param {Reasons} reasons
+ * @param {{ tree: string, approvals: Record<string, unknown>[], reasons: Reasons }} ctx
  */
-export function judgeDesignReview(review, tree, reasons) {
+export function judgeDesignReview(review, ctx) {
+  const { tree, reasons } = ctx;
   if (!isPlainObject(review) || !filled(review.completed_at)) {
     reasons.add("remeasure", "design_review", "デザインの点検の記録が無い（completed_at が無い）");
     return { judged: false };
   }
   const findings = reviewFindings(review);
-  sameTree(reasons, "design_review", { actual: review.tree, expected: tree });
+  // 古いバージョンの記録は採り直すので、承認の記録との照合はしない（理由を重ねない）
+  const fresh = sameTree(reasons, "design_review", { actual: review.tree, expected: tree });
   const ids = new Set();
   for (const [i, f] of findings.entries()) {
     if (!isPlainObject(f) || !nonEmptyString(f.id))
       throw new UsageError(`design_review.findings[${i}] に id が無い`);
     if (ids.has(f.id)) throw new UsageError(`design_review.findings の id が重複している: ${f.id}`);
     ids.add(f.id);
-    judgeFinding({ ...f, id: f.id }, reasons);
+    judgeFinding({ ...f, id: f.id }, { ...ctx, checkLog: fresh });
   }
   return { judged: true, source: review.source, findings: findings.length };
 }
 
 /**
  * 人による確認の記録を判定する。
+ * 承認は、承認の記録（approvals）に、同じバージョンで同じ値が積まれていることも求める。
  * @param {unknown} review
- * @param {string} tree
- * @param {Reasons} reasons
+ * @param {{ tree: string, approvals: Record<string, unknown>[], reasons: Reasons }} ctx
  */
-export function judgeHumanReview(review, tree, reasons) {
+export function judgeHumanReview(review, { tree, approvals, reasons }) {
   if (!isPlainObject(review) || !isArray(review.screens) || review.screens.length === 0) {
     reasons.add("remeasure", "human_review", "人に見せた画面の記録（screens）が無い");
     return { judged: false };
   }
-  sameTree(reasons, "human_review", { actual: review.tree, expected: tree });
+  // 古いバージョンの記録は採り直すので、承認の記録との照合はしない（理由を重ねない）
+  const fresh = sameTree(reasons, "human_review", { actual: review.tree, expected: tree });
   const a = isPlainObject(review.approval) ? review.approval : null;
   if (a && a.verdict === "rejected" && hasApproval(a))
     reasons.add(
@@ -388,6 +527,21 @@ export function judgeHumanReview(review, tree, reasons) {
       "approval",
       "human_review",
       "新側の画面を利用者が承認した記録（verdict: approved・承認した人・日時）が無い",
+    );
+  else if (
+    fresh &&
+    !logged(approvals, {
+      kind: "human_review",
+      tree,
+      verdict: "approved",
+      approved_by: a?.approved_by,
+      approved_at: a?.approved_at,
+    })
+  )
+    reasons.add(
+      "approval",
+      "human_review",
+      "新側の画面の承認が、承認の記録（approvals）に同じ値で積まれていない（承認を書き換えたなら、利用者に確かめ直して approvals に追記する）",
     );
   return { judged: true, screens: review.screens.length };
 }
@@ -418,28 +572,6 @@ export function judgeUnverified(list, required, reasons) {
 }
 
 /**
- * 保留が解決済み（replace-strategy の references/autonomy.md「保留の状態」の settled）かを判定する。
- * @param {unknown} p
- * @returns {boolean}
- */
-export function isSettled(p) {
-  if (!isPlainObject(p) || !isPlainObject(p.resolution)) return false;
-  const r = p.resolution;
-  if (!filled(r.answer) || !filled(r.answered_at)) return false;
-  if (isArray(p.blocks) && p.blocks.length === 0) return true;
-  const resumed = r.resumed;
-  const followUp = r.follow_up;
-  const resumedOk =
-    isPlainObject(resumed) &&
-    nonEmptyString(resumed.at) &&
-    isArray(resumed.evidence) &&
-    resumed.evidence.some(nonEmptyString);
-  const followOk =
-    isPlainObject(followUp) && nonEmptyString(followUp.what) && nonEmptyString(followUp.tracked_in);
-  return resumedOk || followOk;
-}
-
-/**
  * 未解決の保留を数える。
  * @param {unknown} list
  * @param {Reasons} reasons
@@ -449,7 +581,8 @@ export function judgePending(list, reasons) {
     throw new UsageError(
       "verify-metadata.json の pending_decisions が配列でない（保留が無ければ [] を書く）",
     );
-  const open = list.filter((p) => !isSettled(p));
+  // 数え方は replace-strategy の pending-decisions-check.mjs と同じ（lib/pending-state.mjs に同じ中身で持つ）
+  const open = list.filter((p) => classifyDecision(p).state !== "settled");
   for (const p of open)
     reasons.add(
       "approval",
@@ -636,23 +769,24 @@ export function judgeConvergence(input) {
   const reasons = makeReasons();
   const suiteRecord = isPlainObject(v.suite) ? v.suite : {};
   sameTree(reasons, "suite", { actual: suiteRecord.tree, expected: tree });
-  const suite = judgeSuite(
-    readReport(input.currentReport, "current", "現行の結果（suite-report.json）"),
-    readReport(input.newReport, "new", `新側の結果（new/${input.target}/suite-report.json）`),
-    reasons,
-  );
+  const suiteMeta = isPlainObject(metadata.suite) ? metadata.suite : {};
+  const reports = readReports(input, suitePrefix(suiteMeta.dir), reasons);
+  const suite = judgeSuite(reports.current, reports.next, reasons);
+  const approvalLog = readApprovals(v.approvals);
+  const approvals = approvalLog.entries;
   const overflow = judgeOverflowRecord({ metadata, input, tree }, reasons);
   const baseline = isPlainObject(metadata.runtime_errors) ? metadata.runtime_errors : {};
-  const runtimeErrors = judgeRuntimeErrors(baseline, v.runtime_errors, reasons);
+  const runtimeErrors = judgeRuntimeErrors(baseline, v.runtime_errors, { tree, reasons });
   const required =
     baseline.declared === true ? ALWAYS_UNVERIFIED : [...ALWAYS_UNVERIFIED, "runtime_errors"];
   const checks = {
     suite,
     overflow,
     runtime_errors: runtimeErrors,
-    design_review: judgeDesignReview(v.design_review, tree, reasons),
-    human_review: judgeHumanReview(v.human_review, tree, reasons),
+    design_review: judgeDesignReview(v.design_review, { tree, approvals, reasons }),
+    human_review: judgeHumanReview(v.human_review, { tree, approvals, reasons }),
     unverified: judgeUnverified(v.unverified, required, reasons),
+    approvals: { entries: approvals.length, ignored: approvalLog.ignored },
     pending_decisions: judgePending(v.pending_decisions, reasons),
     unmeasured: judgeUnmeasured(metadata, reasons),
   };

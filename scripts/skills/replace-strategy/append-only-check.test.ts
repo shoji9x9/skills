@@ -354,6 +354,55 @@ test.concurrent("空の例外台帳へ最初の承認を追記しても縮小に
   rmSync(root, { recursive: true, force: true });
 });
 
+// spec-parity verify の承認の記録（approvals）。承認を後から書き換えたことを、要素の消失として検出する（Issue #995 の項目 1）
+const VERIFY_PATH = ".replace/parity/order-list/new/stg/verify-metadata.json";
+const approval = (over: Record<string, unknown> = {}) => ({
+  kind: "human_review",
+  tree: "a".repeat(40),
+  verdict: "approved",
+  approved_by: "owner",
+  approved_at: "2026-11-11T02:00:00Z",
+  notes: "",
+  ...over,
+});
+const writeVerify = (root: string, approvals: unknown[], over: Record<string, unknown> = {}) => {
+  mkdirSync(join(root, ".replace/parity/order-list/new/stg"), { recursive: true });
+  writeFileSync(
+    join(root, VERIFY_PATH),
+    `${JSON.stringify({ slug: "order-list", target: "stg", approvals, ...over }, null, 2)}\n`,
+  );
+};
+
+test.concurrent("spec-parity の承認の記録へ、新しいバージョンの承認を追記しても縮小にしない", async () => {
+  const root = await makeRepo();
+  writeVerify(root, [approval()]);
+  await commit(root, "approve");
+  // 新側を直して点検をやり直すと、承認の欄（human_review）は書き直すが、承認の記録には追記するだけ
+  writeVerify(root, [approval(), approval({ tree: "b".repeat(40) })], {
+    human_review: { tree: "b".repeat(40) },
+  });
+  const r = await run(root, ["--base", "HEAD"]);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test.concurrent.each([
+  ["承認した人を書き換える", [approval()], [approval({ approved_by: "someone" })]],
+  ["却下を承認に書き換える", [approval({ verdict: "rejected" })], [approval()]],
+  ["承認を消す", [approval()], []],
+])("spec-parity の承認の記録で、%s と落ちる", async (_label, before, after) => {
+  const root = await makeRepo();
+  writeVerify(root, before);
+  await commit(root, "approve");
+  writeVerify(root, after);
+  const r = await run(root, ["--base", "HEAD"]);
+  expect(r.stdout).toMatch(/1 件（unit: json-arrays）が失われている/);
+  expect(r.stdout).toMatch(/approvals\|/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
 test.concurrent("一覧の unit が語彙外なら合格として扱わない（exit 2）", async () => {
   const root = await makeRepo();
   const manifest = writeManifest(root, [

@@ -70,7 +70,8 @@
     "run_dirs": [
       ".replace/parity/order-list/new/local-dev/runtime-errors/run-1",
       ".replace/parity/order-list/new/local-dev/runtime-errors/run-2"
-    ]
+    ],
+    "tree": "def5678abc1234"
   },
   "design_review": {
     "source": "bundled",
@@ -124,6 +125,24 @@
     {
       "item": "performance",
       "reason": "性能の比較（perf-stats.mjs）は Playwright の採取を前提にしているので、spec-parity では確かめない"
+    }
+  ],
+  "approvals": [
+    {
+      "kind": "design_review",
+      "id": "dr-1",
+      "tree": "def5678abc1234",
+      "approved_by": "owner",
+      "approved_at": "2026-05-03T03:00:00Z",
+      "reason": "社内の画面の規定で、焦点の輪は全画面でまとめて直す"
+    },
+    {
+      "kind": "human_review",
+      "tree": "def5678abc1234",
+      "verdict": "approved",
+      "approved_by": "owner",
+      "approved_at": "2026-05-03T04:00:00Z",
+      "notes": ""
     }
   ],
   "pending_decisions": [],

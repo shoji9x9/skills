@@ -91,12 +91,15 @@ e2e が入っていることも確かめる。確かめ方の原本は `spec-par
 
 #### 新側の green
 
-- スイートを `--target=new` で実行する（スイートの場所は `metadata.json` の `suite`）。
+- スイートを、スイートのパス（`metadata.json` の `suite.dir`）を付けて `--target=new` で実行する。
 
   ```bash
   E2E_TELEMETRY_DISABLED=1 DO_NOT_TRACK=1 E2E_UPDATE_CHECK_DISABLED=1 \
-  PARITY_NEW_UI_URL=<新側の UI の URL> PARITY_NEW_API_URL=<新側の API の URL> npx e2e run --target=new </dev/null
+  PARITY_NEW_UI_URL=<新側の UI の URL> PARITY_NEW_API_URL=<新側の API の URL> npx e2e run <suite.dir> --target=new </dev/null
   ```
+
+  パスを付けないと、ほかの機能のテストも結果に入る。新側にまだ無い機能のテストは `failed` になり、この機能の green が成り立たない。
+  `spec-parity` の suite（現行の結果）と verify（新側の結果）も同じパスで絞る（`spec-parity` の `references/convergence.md`「収束の条件」）。
 
 - ログインが要るスイートでは、選んだ new target の `auth.roles` から e2e の資格情報の環境変数を作って渡す（`secrets.wrapper` があれば前に付ける）。
   作り方の原本は `spec-parity` の `references/suite-authoring.md`「認証」である（ここへ転記しない）。渡さないと、ログインが要るテストが新側で通らない。

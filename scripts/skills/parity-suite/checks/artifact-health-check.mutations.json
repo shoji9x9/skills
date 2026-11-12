@@ -291,6 +291,19 @@
       "expect_failing": [
         "持ち越し: new.commit が同じで new.tree だけが違うとき、同じ commit の --carry-to も判定する"
       ]
+    },
+    {
+      "id": "ah-dirty-true-only",
+      "why": "replace-metadata.json の new.dirty を true のときだけ失敗にし、雛形のプレースホルダの文字列・欠落のまま残した記録を通す（Issue #995 のコメントの項目）",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "s.replaceNew.dirty !== false",
+      "replace": "s.replaceNew.dirty === true",
+      "occurrences": 1,
+      "expect_failing": [
+        "new.dirty が 雛形のプレースホルダの文字列 なら SHA が一致しても通さない（判定不能を合格として扱わない）",
+        "new.dirty が 文字列の false なら SHA が一致しても通さない（判定不能を合格として扱わない）",
+        "new.dirty が 欠落 なら SHA が一致しても通さない（判定不能を合格として扱わない）"
+      ]
     }
   ]
 }

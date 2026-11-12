@@ -208,7 +208,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 詳細は各 reference に書いてある。番号の順に進める。
 
 1. target の解決と前提の確認（[`references/preflight.md`](references/preflight.md)）。
-   最初に設定の `style_policy` を読む。`free` で対象が画面のある機能なら、成果物を作らずに停止し、`spec-parity verify` を案内する（横断 API とバッチは止めない。同じ reference の「スタイルの方針の確認」）。
+   最初に設定の `style_policy` を読む。`free` で対象が画面のある機能なら、成果物を作らずに停止し、同じ `--target` の `spec-parity verify` を案内する（横断 API とバッチは止めない。同じ reference の「スタイルの方針の確認」）。
    対象の target を決めてから、停止条件・データセットのバージョンが古くなっていないか・差分ツールのバージョンの一致・反復の上限を確かめる。
    選択した target の `new/<target>/replace-metadata.json` が無いか、`suite.new_green` でなければ、「その環境ではまだ green 証跡が無い」として停止し、同じ `--target` での `parity-replace` を案内する。
    green を取ったバージョン（`new.tree`。`--component-change` の一括再検証では変更の宣言の `commits.after` の tree）が、撮る新側のバージョンと違うときも、撮らずに同じく停止する。

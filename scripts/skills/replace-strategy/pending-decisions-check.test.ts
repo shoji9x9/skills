@@ -10,9 +10,9 @@ import { join } from "node:path";
 import { assert, test, expect } from "vitest";
 import {
   main,
-  classifyDecision,
   checkPendingDecisions,
 } from "../../../skills/replace-strategy/scripts/pending-decisions-check.mjs";
+import { classifyDecision } from "../../../skills/replace-strategy/scripts/lib/pending-state.mjs";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
@@ -94,6 +94,24 @@ test("回答が付いただけで blocks の工程を実施していない保留
   expect(r.json.unsettled).toHaveLength(1);
   expect(r.json.unsettled[0].state).toBe("decided");
   expect(r.json.counts).toEqual({ total: 1, in_scope: 1, open: 0, decided: 1, settled: 0 });
+});
+
+// 雛形の値（<...>）のままの回答は、回答として数えない。spec-parity の収束の判定も同じ数え方を同じ中身の部品で持つ（Issue #995）
+test.each([
+  ["answer", { answer: "<回答>", answered_at: "2026-11-11T00:00:00Z" }],
+  ["answered_at", { answer: "A にする", answered_at: "<ISO 8601>" }],
+])("resolution の %s が雛形の値のままなら open として数える", (_name, resolution) => {
+  expect(classifyDecision(decision({ blocks: [], resolution })).state).toBe("open");
+});
+
+test.each([
+  ["resumed.at", { resumed: { at: "<ISO 8601>", evidence: ["log.txt"] } }],
+  ["resumed.evidence", { resumed: { at: "2026-11-11T00:00:00Z", evidence: ["<証拠>"] } }],
+  ["follow_up.what", { follow_up: { what: "<残作業>", tracked_in: "#12" } }],
+  ["follow_up.tracked_in", { follow_up: { what: "残りの確認", tracked_in: "<Issue>" } }],
+])("%s が雛形の値のままなら、工程を終えた記録として数えず decided にする", (_name, extra) => {
+  const resolution = { answer: "A にする", answered_at: "2026-11-11T00:00:00Z", ...extra };
+  expect(classifyDecision(decision({ resolution })).state).toBe("decided");
 });
 
 test("resolution が null の保留は未解決として落とす", () => {

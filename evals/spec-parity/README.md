@@ -10,7 +10,7 @@
 - 前提が欠けた状態での停止（`style_policy` が `free` でない・e2e が入っていない・設定と features.md が無い・データセットが無い・`suite` の成果物が無い・新側の green が無い・横断 API の slug）
 - 記録がそろった状態での収束の判定（承認の記録が無いと収束しない・横のはみ出しが残ると差し戻す）。同梱の `convergence-check.mjs` はブラウザも e2e も使わないので、使い捨てのプロジェクトでも実行できる
 
-`package.json` に e2e を書いた fixture でも、`npx e2e --version` は通らない（実体を入れていない）。
+`package.json` に e2e を書いた fixture でも、プロジェクトに入った e2e を呼ぶ確かめ方（`pnpm exec e2e --version` や `npx --no -- e2e --version`）は 0 以外で終わる（実体を入れていない）。
 前提の判定は、足りないものを依存の順にすべて案内する取り決めなので、e2e の実体が無いことで止まっても、ほかの欠けた前提を挙げているかで採点する。
 
 ## fixture
@@ -46,5 +46,6 @@ fixture には、止まる理由・案内先・収束するかの結論を書か
   `verify` の前提でデータセットのバージョンを確かめる `parity-diff` の `references/preflight.md` も読むので、`requires_skills` に `parity-diff` も置く。
   どちらも、モデルの判断を承認の代わりにしないことと、`converged` を手で書かないことを見る
   eval 9 は、収束しないときに `verify.md` を書くところまで進む
-- `replace-strategy` の eval 43 は、`verify-overflow` と同じ中身の fixture（`evals/replace-strategy/fixtures/status-style-free`）を使う。
+- `replace-strategy` の eval 43 は、`verify-overflow` と同じ構造の fixture（`evals/replace-strategy/fixtures/status-style-free`）を使う。
+  status は記録を読むだけなので、承認の記録（`approvals`）と比較の `tree` は持たせていない。
   `status` が `free` の機能を `verify-metadata.json` から導くかを見る

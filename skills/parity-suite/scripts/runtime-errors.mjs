@@ -40,6 +40,7 @@ import { isInteger, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
 /**
  * ツールのバージョン（原本）。判定規則・正規化・出力の形を変えたら上げる。
+ * 読み手が読まなくても判定が変わらない欄を足すだけ（compare の tree）なら上げない。上げると、前のバージョンの基準をすべて作り直すことになる。
  * @type {string}
  */
 export const VERSION = "1";
@@ -519,7 +520,7 @@ export function compare(base, runs, previous) {
 
 const USAGE = [
   "usage: runtime-errors.mjs summarize --metadata <metadata.json> --run <run-1 のディレクトリ> --run <run-2 のディレクトリ> [...] [--write]",
-  "       runtime-errors.mjs compare   --metadata <現側 metadata.json> --target <新側の target> --run <run-1> --run <run-2> [...] [--write <diff-metadata.json>]",
+  "       runtime-errors.mjs compare   --metadata <現側 metadata.json> --target <新側の target> --run <run-1> --run <run-2> [...] [--write <diff-metadata.json>] [--tree <記録を採った新側の new.tree>]",
 ].join("\n");
 
 /**
@@ -544,7 +545,10 @@ function cliIo(deps) {
 
 const FLAG_SPECS = {
   summarize: { values: ["--metadata", "--run"], repeat: ["--run"], bools: ["--write"] },
-  compare: { values: ["--metadata", "--run", "--target", "--write"], repeat: ["--run"] },
+  compare: {
+    values: ["--metadata", "--run", "--target", "--write", "--tree"],
+    repeat: ["--run"],
+  },
 };
 
 /**
@@ -675,6 +679,10 @@ function compareFailureReasons(result) {
  */
 function runCompare({ opts, runDirs, metadata, slug, io }) {
   if (!nonEmptyString(opts.target)) throw new UsageError("--target が要る");
+  // 記録を採った新側のバージョン。読み手（spec-parity の convergence-check.mjs）が new.tree と比べ、古いバージョンで採った比較を数えない
+  if (opts.tree !== undefined && (!nonEmptyString(opts.tree) || opts.tree.trim() === "none"))
+    throw new UsageError("--tree は記録を採った新側の new.tree（none でない値）で渡す");
+  const tree = opts.tree === undefined ? {} : { tree: opts.tree.trim() };
   const runs = runDirs.map((d) => readRun(d, { side: "new", slug, target: opts.target }, io));
   /** @type {Record<string, unknown> | null} */
   let diffMetadata = null;
@@ -683,7 +691,10 @@ function runCompare({ opts, runDirs, metadata, slug, io }) {
     if (!isPlainObject(doc)) throw new UsageError("diff-metadata.json がオブジェクトでない");
     diffMetadata = doc;
   }
-  const result = compare(metadata.runtime_errors, runs, diffMetadata?.runtime_errors);
+  const result = {
+    ...compare(metadata.runtime_errors, runs, diffMetadata?.runtime_errors),
+    ...tree,
+  };
   // 書き込みに失敗しても判定の結果が残るよう、先に出力する
   io.stdout(`${JSON.stringify(result, null, 2)}\n`);
   if (diffMetadata && opts.write) {

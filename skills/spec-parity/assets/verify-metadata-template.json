@@ -1,12 +1,12 @@
 {
-  "_note": "spec-parity verify が .replace/parity/<slug>/new/<target>/verify-metadata.json として書く。形式の原本は spec-parity である。converged と convergence は convergence-check.mjs --write だけが書き、手で true にしない。overflow は overflow-check.mjs --write が、runtime_errors は runtime-errors.mjs compare --write が書く。new.commit・new.tree・new.dirty は、同梱の scripts/source-version.mjs の出力の commit・tree・dirty をそのまま書く。取り方と意味の原本は replace-strategy の references/project-config.md「新側のバージョンの記録」である。照合に使うのは new.tree（.replace/ を除いた新側のソースのツリーのハッシュ）で、new.commit は人が追うための値である。spec-parity の SKILL.md にある verify の手順 1 で書き、収束を判定する直前に取得し直して書き直す。new.tree が無い・none のとき、new.dirty が false でないとき（雛形の値のままを含む）は収束の判定が止まる。suite・design_review・human_review の tree と、overflow の測定の記録の commit（PARITY_COMMIT で渡した値）は、new.tree と同じ値でなければ、収束の判定で古い記録として数える（tree を持たない記録も同じ）。runtime_errors はバージョンを持たず、収束の判定もバージョンを比べないので、verify のたびに操作中のエラーの記録のディレクトリを消してから採り直す。",
+  "_note": "spec-parity verify が .replace/parity/<slug>/new/<target>/verify-metadata.json として書く。形式の原本は spec-parity である。converged と convergence は convergence-check.mjs --write だけが書き、手で true にしない。overflow は overflow-check.mjs --write が、runtime_errors は runtime-errors.mjs compare --write が書く。new.commit・new.tree・new.dirty は、同梱の scripts/source-version.mjs の出力の commit・tree・dirty をそのまま書く。取り方と意味の原本は replace-strategy の references/project-config.md「新側のバージョンの記録」である。照合に使うのは new.tree（.replace/ を除いた新側のソースのツリーのハッシュ）で、new.commit は人が追うための値である。spec-parity の SKILL.md にある verify の手順 1 で書き、収束を判定する直前に取得し直して書き直す。new.tree が無い・none のとき、new.dirty が false でないとき（雛形の値のままを含む）は収束の判定が止まる。suite・design_review・human_review の tree と、overflow の測定の記録の commit（PARITY_COMMIT で渡した値）は、new.tree と同じ値でなければ、収束の判定で古い記録として数える（tree を持たない記録も同じ）。runtime_errors の tree（runtime-errors.mjs compare --tree で渡した、記録を採った新側の new.tree）も、new.tree と同じ値でなければ古い記録として数える。approvals は追記専用の承認の記録で、承認するたびに要素（kind・id・tree・verdict・approved_by・approved_at・reason・notes）を足す。design_review と human_review の承認と同じ値の要素が無ければ承認として数えない（形の原本は spec-parity の references/design-review.md「承認の記録」）。既にある要素を消したり書き換えたりせず、雛形から作り直すときも前の approvals を引き継ぐ。intentional_diffs_pending は、意図的差異の保留の棚卸しの記録で、形と数え方の原本は parity-diff の references/convergence.md「intentional_diffs.pending の棚卸し」と assets/diff-metadata-template.json の同じキーである。",
   "slug": "<slug>",
   "target": "<新側の target の名前（replace-strategy の targets の side: new）>",
   "style_policy": "free",
   "new": {
     "commit": "<HEAD の完全な SHA（source-version.mjs の出力の commit）。人がどの commit で確かめたかを追うための値で、照合に使わない。記録を commit して HEAD が進んだときは、書き直してよい>",
     "tree": "<確かめた新側のバージョン（source-version.mjs の出力の tree）。replace-metadata.json の new.tree と同じ値。none（新側が git で管理されていない）では収束の判定が止まる>",
-    "dirty": "<source-version.mjs の出力の dirty（真偽値で書く。true では収束の判定が止まる）>",
+    "dirty": "<source-version.mjs の出力の dirty（真偽値で書く。false でなければ収束の判定が止まる）>",
     "ui_url": "<解決した UI の baseURL。url_command の target では \"runtime\">"
   },
   "run": {
@@ -67,6 +67,15 @@
       "reason": "性能の比較（perf-stats.mjs）は Playwright の採取を前提にしているので、spec-parity では確かめない"
     }
   ],
+  "approvals": [],
+  "intentional_diffs_pending": {
+    "attributed": 0,
+    "cross_cutting": 0,
+    "unattributed": 0,
+    "resolved": 0,
+    "carried_over": 0,
+    "entries": []
+  },
   "pending_decisions": [],
   "converged": false,
   "convergence": null

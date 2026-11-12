@@ -74,8 +74,8 @@
     {
       "id": "st-target-off",
       "why": "現行でない target の結果を、現行への注入の結果として数える",
-      "file": "skills/spec-parity/scripts/strength-check.mjs",
-      "find": "    if (r.targetId !== \"current\" || r.selected !== true) continue;\n",
+      "file": "skills/spec-parity/scripts/lib/e2e-report.mjs",
+      "find": "    if (r.targetId !== targetId || r.selected !== true) continue;\n",
       "replace": "    if (r.selected !== true) continue;\n",
       "occurrences": 1,
       "expect_failing": ["strength-check の判定 現行でない target の結果は数えない"]
@@ -114,6 +114,17 @@
       "occurrences": 1,
       "expect_failing": [
         "strength-check の serial group（e2e の実物） serialGroupId が serialGroups に無い なら exit 2"
+      ]
+    },
+    {
+      "id": "st-metadata-slug-off",
+      "why": "--metadata を渡しても計画の slug を照合せず、別の機能の計画をコピーした strength-plan.json で強度の確認を通す（Issue #995 のコメントの項目）",
+      "file": "skills/spec-parity/scripts/strength-check.mjs",
+      "find": "    if (opts.metadata) readMetadataForSlug(opts.metadata, plan.slug, io);\n",
+      "replace": "    if (false) readMetadataForSlug(opts.metadata, plan.slug, io);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "strength-check の判定できない入力（exit 2） --metadata の slug が計画と違えば、書かずに exit 2（別の機能の計画をコピーした strength-plan.json を通さない）"
       ]
     }
   ]
