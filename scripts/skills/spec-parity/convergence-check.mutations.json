@@ -474,7 +474,7 @@
       "id": "cv-suite-dir-off",
       "why": "スイートの結果を suite.dir で絞らず、ほかの機能のテストを含む結果で判定する（Issue #995 のコメントの項目）",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "    if (!String(r.file).startsWith(prefix)) outside.push(key);\n",
+      "find": "    if (!key.startsWith(prefix)) outside.push(key);\n",
       "replace": "    if (false) outside.push(key);\n",
       "occurrences": 1,
       "expect_failing": [
@@ -506,6 +506,28 @@
       "occurrences": 1,
       "expect_failing": [
         "スイートの範囲（suite.dir） 同じテストの結果が 2 つある結果（--repeat-each・複数の agent）は、どちらかを採らずに exit 2"
+      ]
+    },
+    {
+      "id": "cv-suite-dir-shape-off",
+      "why": "suite.dir の形を確かめず、./・\\・続いた /・. と .. の区間・絶対パス・前後の空白の suite.dir を、結果の file と一致しないまま読む",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  if (problem !== null)\n",
+      "replace": "  if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "スイートの範囲（suite.dir） suite.dir が 絶対パス なら exit 2",
+        "スイートの範囲（suite.dir） suite.dir が リポジトリのルート（.） なら exit 2",
+        "スイートの範囲（suite.dir） suite.dir が リポジトリのルート（./） なら exit 2",
+        "スイートの範囲（suite.dir） suite.dir が 途中の . の区間 なら exit 2",
+        "スイートの範囲（suite.dir） suite.dir が 末尾の . の区間 なら exit 2",
+        "スイートの範囲（suite.dir） suite.dir が ドライブ文字付きのパス（\\） なら exit 2",
+        "スイートの範囲（suite.dir） suite.dir が ドライブ文字付きのパス（/） なら exit 2",
+        "スイートの範囲（suite.dir） suite.dir が .. を含む なら exit 2",
+        "スイートの範囲（suite.dir） suite.dir が 先頭の ./ なら exit 2",
+        "スイートの範囲（suite.dir） suite.dir が 区切りが \\ なら exit 2",
+        "スイートの範囲（suite.dir） suite.dir が 続いた / なら exit 2",
+        "スイートの範囲（suite.dir） suite.dir が 前後の空白 なら exit 2"
       ]
     }
   ]

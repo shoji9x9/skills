@@ -8,7 +8,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { main } from "../../../skills/spec-parity/scripts/convergence-check.mjs";
+import { main, suitePrefix } from "../../../skills/spec-parity/scripts/convergence-check.mjs";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import {
   COMMIT,
@@ -661,13 +661,27 @@ describe("スイートの範囲（suite.dir）", () => {
       `${SLUG_DIR}/metadata.json`,
       suiteMetadata({ suite: { ...suiteMetadata().suite, dir } }),
     );
-    expect(run(fs).code).toBe(2);
+    const r = run(fs);
+    expect(r.code).toBe(2);
+    // 形の検査で止まる（結果の file と一致せずに 0 件になって止まるのと区別する）
+    expect(r.stderr).toMatch(/suite\.dir が(無い|、結果の file と同じ形の相対パス)/);
+  });
+
+  test.each([
+    ["tests/受注", "tests/受注/"],
+    ["tests/@admin/orders/", "tests/@admin/orders/"],
+    ["x:legacy/orders", "x:legacy/orders/"],
+  ])("suite.dir の区間の文字は限らない（%s）", (dir, prefix) => {
+    expect(suitePrefix(dir)).toBe(prefix);
   });
 
   test("スイートの中のテストが 0 件なら、0 件を合格にせず exit 2", () => {
     const fs = convergedFs();
     fs.put(`${NEW_DIR}/suite-report.json`, report("new", [OTHER]));
-    expect(run(fs).code).toBe(2);
+    const r = run(fs);
+    expect(r.code).toBe(2);
+    // 前方一致しなかった file を示し、書き方の違いの場合の見直し先を案内する
+    expect(r.stderr).toContain("前方一致しなかったテスト: tests/invoices/list.e2e.ts › 請求を開く");
   });
 
   // 項目 5（Issue #995）: 強度の確認と同じく、同じテストの結果が 2 つある結果は読まない

@@ -126,14 +126,26 @@ export function checkSuiteMetadata(metadata, slugDir) {
   return m;
 }
 
-/** suite.dir に受ける形。/ で区切った区間（英数字・. ・_・-）だけで、末尾の / は省いてよい。 */
-const SUITE_DIR = /^[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.-]+)*\/?$/;
+/**
+ * suite.dir の形の誤り（結果の file と前方一致で比べられない形）を返す。誤りが無ければ null。
+ * 書き方の揺れを正規化して吸収せず、結果の file と同じ字面の形（tests/<slug>/ のような、リポジトリのルートからの相対パス）だけを受ける。
+ * 正規化すると、結果の file・テストの鍵・強度の計画の名前のすべてに同じ正規化を当てることになり、どれかに当て忘れると一致しなくなる。
+ * 受けない形だけを挙げ、区間の文字（日本語・@ など）は限らない。
+ * @param {string} dir
+ * @returns {string | null}
+ */
+function suiteDirProblem(dir) {
+  if (dir !== dir.trim()) return "前後に空白がある";
+  if (dir.includes("\\")) return "区切りに \\ を使っている";
+  if (dir.startsWith("/") || /^[A-Za-z]:\//.test(dir)) return "絶対パスである";
+  const segments = dir.replace(/\/$/, "").split("/");
+  if (segments.some((x) => x === "")) return "空の区間（続いた /）がある";
+  if (segments.some((x) => x === "." || x === "..")) return ". か .. の区間がある";
+  return null;
+}
 
 /**
  * スイートのディレクトリを、結果の file と前方一致で比べる形（末尾を / にする）にする。
- * 書き方の揺れを正規化して吸収せず、結果の file と同じ字面の形（tests/<slug>/ のような、リポジトリのルートからの相対パス）だけを受ける。
- * 正規化すると、結果の file・テストの鍵・強度の計画の名前のすべてに同じ正規化を当てることになり、どれかが漏れると一致しなくなる。
- * ./ ・\ ・続いた / ・ . と .. の区間・絶対パス・ドライブ文字・リポジトリのルート（. や空）は受けない。
  * @param {unknown} dir - metadata.json の suite.dir
  * @returns {string}
  */
@@ -142,12 +154,12 @@ export function suitePrefix(dir) {
     throw new UsageError(
       "metadata.json の suite.dir が無い（雛形の値のままを含む。スイートのディレクトリを書く）",
     );
-  const segments = dir.replace(/\/$/, "").split("/");
-  if (!SUITE_DIR.test(dir) || segments.some((x) => x === "." || x === ".."))
+  const problem = suiteDirProblem(dir);
+  if (problem !== null)
     throw new UsageError(
-      `metadata.json の suite.dir が、結果の file と同じ形の相対パス（例: tests/<slug>/）でない: ${JSON.stringify(dir)}`,
+      `metadata.json の suite.dir が、結果の file と同じ形の相対パス（例: tests/<slug>/）でない（${problem}）: ${JSON.stringify(dir)}`,
     );
-  return `${segments.join("/")}/`;
+  return dir.endsWith("/") ? dir : `${dir}/`;
 }
 
 /**
@@ -165,12 +177,16 @@ export function readReport(report, { targetId, where, prefix }) {
   for (const [key, { result: r, index }] of results) {
     if (!nonEmptyString(r.status))
       throw new UsageError(`${where} の results[${index}] に status が無い`);
-    if (!String(r.file).startsWith(prefix)) outside.push(key);
+    // 鍵は結果の file で始まるので、鍵で前方一致を比べる
+    if (!key.startsWith(prefix)) outside.push(key);
     else tests.set(key, r.status);
   }
   if (tests.size === 0)
     throw new UsageError(
-      `${where} に、target ${targetId} で選ばれた ${prefix} の下のテストが 0 件（0 件を合格にしない）`,
+      `${where} に、target ${targetId} で選ばれた ${prefix} の下のテストが 0 件（0 件を合格にしない）。` +
+        (outside.length > 0
+          ? `前方一致しなかったテスト: ${outside.sort(byText).slice(0, 2).join(", ")}。結果の file の書き方（./・\\ など）が suite.dir と違うなら、e2e の設定の場所を見直す`
+          : "テストが選ばれていない"),
     );
   return { tests, outside: outside.sort(byText) };
 }
@@ -201,7 +217,7 @@ function readReports(input, prefix, reasons) {
     reasons.add(
       "remeasure",
       "suite",
-      `新側の結果に、suite.dir（${prefix}）の外のテストがある: ${test}（verify の手順 2 を、スイートのパスで絞って実行し直す）`,
+      `新側の結果に、suite.dir（${prefix}）の外のテストがある: ${test}（ほかの機能のテストなら、verify の手順 2 をスイートのパスで絞って実行し直す。結果の file の書き方（./・\\ など）が現行と違うなら、e2e の設定の場所を見直す）`,
     );
   return { current: current.tests, next: next.tests };
 }
