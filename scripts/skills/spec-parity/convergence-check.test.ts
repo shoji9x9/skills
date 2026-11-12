@@ -542,6 +542,7 @@ describe("操作中のエラーの許容と承認の記録（approvals）", () =
     ["別のテストの承認しか無い", {}, { test: EDIT }],
     ["承認した人（approved_by）の無い承認しか無い", {}, { approved_by: undefined }],
     ["承認した人が雛形の値のままの承認しか無い", {}, { approved_by: "<承認した人>" }],
+    ["kind だけが違う（design_review の）要素しか無い", {}, { kind: "design_review" }],
   ])("許容が %s なら承認待ちにする", (_name, sigOver, logOver) => {
     const logs = logOver === null ? [] : [allowanceLog(logOver)];
     const r = run(verify([allowed(sigOver)], logs));

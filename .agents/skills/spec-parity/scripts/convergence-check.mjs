@@ -332,7 +332,7 @@ function judgeSignatures(sigs, { tree, approvals, reasons }) {
       reasons.add(
         "approval",
         "runtime_errors",
-        `許容の承認が、承認の記録（approvals）に同じ値で積まれていないエラー: ${name}（承認を書き換えたか、前のバージョンの承認なら、利用者に承認し直してもらって approvals に追記する。承認した人 approved_by も書く）`,
+        `許容の承認が、承認の記録（approvals）に同じ値で積まれていないエラー: ${name}（承認を書き換えたか、前のバージョンの承認なら、利用者に承認し直してもらって approvals に追記する。承認した人（approved_by）も書き、雛形の値のままなら書き換える）`,
       );
   }
 }
@@ -340,7 +340,7 @@ function judgeSignatures(sigs, { tree, approvals, reasons }) {
 /**
  * 許容の承認が、承認の記録（approvals）に、同じテスト × 署名・同じバージョンで同じ値が積まれているか。
  * テストか署名の id が無い署名は、照合の鍵が無いので積まれていないものとして扱う（欠けた鍵どうしを一致させない）。
- * approvals は、judgeRuntimeErrors が承認した人（approved_by）を書いた runtime_errors の要素に絞って渡す。
+ * approvals は、judgeRuntimeErrors が承認した人（approved_by）を書いた要素に絞って渡す。kind は、ここで照合する欄（kind: runtime_errors）で確かめる。
  * @param {unknown} s - new_signatures の要素
  * @param {ReturnType<typeof judgeClassification>} judged
  * @param {{ tree: string, approvals: Record<string, unknown>[] }} ctx
