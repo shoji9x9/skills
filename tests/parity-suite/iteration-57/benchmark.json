@@ -1,0 +1,197 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<repo>/skills/parity-suite",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-12T07:50:41Z",
+    "evals_run": [42],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 42,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8571,
+        "passed": 6,
+        "failed": 1,
+        "total": 7,
+        "time_seconds": 97.395,
+        "tokens": 571583,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "網羅表の 3 値が移行元側の測定であり、present をいくら積んでも新側の欠落は 1 件も示さないと答えている",
+          "passed": true,
+          "evidence": "網羅表の 3 値は移行元に操作が在るかの記録で、新側については何も示さないと答えている"
+        },
+        {
+          "text": "unmeasured 0 を「新側で操作を完了できる」の根拠にしていない",
+          "passed": true,
+          "evidence": "unmeasured 0 件と exit 0 を、記録の形式が整っていることの根拠にとどめ、新側で操作を完了できる根拠にしていない"
+        },
+        {
+          "text": "新側で同じ操作を実施した記録を別の成果物（new/<target>/component-comparison.json）に持たせ、present のセル 1 つにつき 1 行を要求すると答えている",
+          "passed": true,
+          "evidence": "new/<target>/component-comparison.json に、present のセル 1 つにつき 1 行を書くと答えている"
+        },
+        {
+          "text": "突き合わせの証拠を起点・当たり判定・完了の 3 点に分けると答え、3 点が揃うまで突き合わせ済みにしないと述べている",
+          "passed": false,
+          "evidence": "起点・当たり判定・完了の 3 点を観測して書くとは答えるが、3 点が揃うまで突き合わせ済みにしないとは述べていない（まだの行を compared: false にするとだけ書く）"
+        },
+        {
+          "text": "ケースの文面（エクスポート・列のソート）には出てこない欠落であることに触れ、ケース一覧の網羅では拾えないと説明している",
+          "passed": true,
+          "evidence": "「機能は在るのに最後まで操作できない欠落は、ケースの文面に出てこず、スイートが green のまま通ります」と説明している"
+        },
+        {
+          "text": "新側で突き合わせていないことを理由に present を unmeasured へ落とさないと答えている",
+          "passed": true,
+          "evidence": "新側で突き合わせていないことを理由に present を unmeasured に戻さないと答えている（移行元で未実測のセルを戻すことは別の理由として分けている）"
+        },
+        {
+          "text": "新側の突き合わせを書くのは parity-replace だと示し、component-comparison-check.mjs で数え直すと述べている",
+          "passed": true,
+          "evidence": "書く工程を parity-replace と示し、component-comparison-check.mjs のコマンドで数え直すと述べている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 42,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.7143,
+        "passed": 5,
+        "failed": 2,
+        "total": 7,
+        "time_seconds": 112.706,
+        "tokens": 508652,
+        "tool_calls": 12,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "網羅表の 3 値が移行元側の測定であり、present をいくら積んでも新側の欠落は 1 件も示さないと答えている",
+          "passed": true,
+          "evidence": "網羅表の 3 値は移行元に操作が在るかの記録で、新側については何も示さないと答えている"
+        },
+        {
+          "text": "unmeasured 0 を「新側で操作を完了できる」の根拠にしていない",
+          "passed": true,
+          "evidence": "unmeasured 0 件と exit 0 を、記録の形式が整っていることの根拠にとどめ、新側で操作を完了できる根拠にしていない"
+        },
+        {
+          "text": "新側で同じ操作を実施した記録を別の成果物（new/<target>/component-comparison.json）に持たせ、present のセル 1 つにつき 1 行を要求すると答えている",
+          "passed": true,
+          "evidence": "new/<target>/component-comparison.json に、present のセル 1 つにつき 1 行を書くと答えている"
+        },
+        {
+          "text": "突き合わせの証拠を起点・当たり判定・完了の 3 点に分けると答え、3 点が揃うまで突き合わせ済みにしないと述べている",
+          "passed": true,
+          "evidence": "起点・当たり判定・完了の 3 点を挙げ、「どれか 1 つでも欠けたら突き合わせ済みにしません」と述べている"
+        },
+        {
+          "text": "ケースの文面（エクスポート・列のソート）には出てこない欠落であることに触れ、ケース一覧の網羅では拾えないと説明している",
+          "passed": false,
+          "evidence": "ケースの文面（エクスポート・列のソート）に出てこない欠落であること、ケース一覧の網羅では拾えないことに触れていない（ケースの粒度の不足は、プロファイルの展開の話として述べている）"
+        },
+        {
+          "text": "新側で突き合わせていないことを理由に present を unmeasured へ落とさないと答えている",
+          "passed": true,
+          "evidence": "新側で突き合わせていないことを理由に present を unmeasured に戻さないと答えている（移行元で未実測のセルを戻すことは別の理由として分けている）"
+        },
+        {
+          "text": "新側の突き合わせを書くのは parity-replace だと示し、component-comparison-check.mjs で数え直すと述べている",
+          "passed": false,
+          "evidence": "component-comparison-check.mjs で検査するとは述べるが、新側の突き合わせを書くのが parity-replace だとは示していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 42,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.8571,
+        "passed": 6,
+        "failed": 1,
+        "total": 7,
+        "time_seconds": 92.81,
+        "tokens": 472058,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "網羅表の 3 値が移行元側の測定であり、present をいくら積んでも新側の欠落は 1 件も示さないと答えている",
+          "passed": true,
+          "evidence": "網羅表の 3 値は移行元に操作が在るかの記録で、新側については何も示さないと答えている"
+        },
+        {
+          "text": "unmeasured 0 を「新側で操作を完了できる」の根拠にしていない",
+          "passed": true,
+          "evidence": "unmeasured 0 件と exit 0 を、記録の形式が整っていることの根拠にとどめ、新側で操作を完了できる根拠にしていない"
+        },
+        {
+          "text": "新側で同じ操作を実施した記録を別の成果物（new/<target>/component-comparison.json）に持たせ、present のセル 1 つにつき 1 行を要求すると答えている",
+          "passed": true,
+          "evidence": "new/<target>/component-comparison.json に、present のセル 1 つにつき 1 行を書くと答えている"
+        },
+        {
+          "text": "突き合わせの証拠を起点・当たり判定・完了の 3 点に分けると答え、3 点が揃うまで突き合わせ済みにしないと述べている",
+          "passed": true,
+          "evidence": "起点・当たり判定・完了の 3 点を挙げ、「3 点がそろうまで突き合わせ済みにしません」と述べている"
+        },
+        {
+          "text": "ケースの文面（エクスポート・列のソート）には出てこない欠落であることに触れ、ケース一覧の網羅では拾えないと説明している",
+          "passed": false,
+          "evidence": "ケースの文面に出てこない欠落であることと、ケース一覧の網羅では拾えないことに触れていない（ケースの一覧が green でも見えない差としては、性能と操作中のエラーだけを挙げている）"
+        },
+        {
+          "text": "新側で突き合わせていないことを理由に present を unmeasured へ落とさないと答えている",
+          "passed": true,
+          "evidence": "新側で突き合わせていないことを理由に present を unmeasured に戻さないと答えている（移行元で未実測のセルを戻すことは別の理由として分けている）"
+        },
+        {
+          "text": "新側の突き合わせを書くのは parity-replace だと示し、component-comparison-check.mjs で数え直すと述べている",
+          "passed": true,
+          "evidence": "「書くのは parity-replace です」と示し、component-comparison-check.mjs で検査すると述べている"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.8095,
+        "stddev": 0.0824,
+        "min": 0.7143,
+        "max": 0.8571
+      },
+      "time_seconds": {
+        "mean": 100.9703,
+        "stddev": 10.4187,
+        "min": 92.81,
+        "max": 112.706
+      },
+      "tokens": {
+        "mean": 517431,
+        "stddev": 50339.9398,
+        "min": 472058,
+        "max": 571583
+      }
+    }
+  },
+  "notes": [
+    "Issue #995 の受け入れ条件: PR #1001 の変更確認（iteration-56）と iteration-50 で fail した eval 42 の assertion を with_skill の 3 run で確かめた。without_skill は実行していない。"
+  ]
+}

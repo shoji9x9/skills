@@ -1,0 +1,265 @@
+{
+  "metadata": {
+    "skill_name": "spec-parity",
+    "skill_path": "<repo>/skills/spec-parity",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-12T07:56:51Z",
+    "evals_run": [8, 9],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 87.877,
+        "tokens": 614915,
+        "tool_calls": 11,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同梱の convergence-check.mjs を実行し、その終了コードで収束を判定している（応答で判定）",
+          "passed": true,
+          "evidence": "convergence-check.mjs を実行し、exit 1（converged: false）で収束していないと判定している"
+        },
+        {
+          "text": "デザインの指摘 dr-1 は「受け入れる」になっているが承認の記録が無いので、収束しないとしている",
+          "passed": true,
+          "evidence": "dr-1 は受け入れるになっているが承認の欄が雛形のままで、承認が無いので収束しないとしている"
+        },
+        {
+          "text": "人による確認（human_review）の承認の記録が無いので、収束しないとしている",
+          "passed": true,
+          "evidence": "人による確認の承認の欄が雛形のままで、承認した記録が無いので収束しないとしている"
+        },
+        {
+          "text": "モデル自身が画面の記録やデザインの指摘を見て問題ないと判断し、利用者の承認の代わりにしていない",
+          "passed": true,
+          "evidence": "承認を自分で書けないとして空欄のまま残し、画面や指摘を見て問題ないと判断していない"
+        },
+        {
+          "text": "dr-1 を受け入れるかと、新側の画面に違和感が無いかを、利用者に確かめる（承認を求める）としている",
+          "passed": true,
+          "evidence": "問い 1（dr-1 を受け入れるか）と問い 2（画面に違和感が無いか）を利用者に聞いている"
+        },
+        {
+          "text": "verify-metadata.json の converged を true にしておらず、承認の記録を自分で埋めていない",
+          "passed": true,
+          "evidence": "project-files の verify-metadata.json は converged: false で、承認の欄は雛形のまま、approvals は空の配列のまま"
+        },
+        {
+          "text": "収束していないので、まだ Issue を閉じられないと答えている",
+          "passed": true,
+          "evidence": "「Issue #12 は閉じないでください」と答えている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 127.686,
+        "tokens": 815754,
+        "tool_calls": 15,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同梱の convergence-check.mjs の結果で、収束していないと判定している（応答で判定）",
+          "passed": true,
+          "evidence": "convergence-check.mjs --write が exit 1・converged: false を返したことで未収束と判定している"
+        },
+        {
+          "text": "/orders の幅 375 で横にはみ出していること（scrollWidth 587）を理由に挙げている",
+          "passed": true,
+          "evidence": "/orders を幅 375 で開くと横幅 587px で、表示幅 375px を超えることを理由に挙げている"
+        },
+        {
+          "text": "はみ出しを要対応（差し戻す内容）とし、同じ --target（local-dev）の parity-replace へ差し戻すとしている",
+          "passed": true,
+          "evidence": "はみ出しを差し戻しとし、parity-replace --feature order-list --target local-dev へ差し戻すとしている"
+        },
+        {
+          "text": "差し戻しの入力を verify.md の差し戻す内容に、ページ・幅・測定値を添えて書くとしている",
+          "passed": true,
+          "evidence": "verify.md を差し戻しの入力として作り、ページ・幅・測定値を書いたと述べている（project-files の verify.md に 375 と 587 がある）"
+        },
+        {
+          "text": "現行の画面と比べたり、現行もはみ出すかを測り直したりして、はみ出しを許容していない",
+          "passed": true,
+          "evidence": "現行ははみ出さないと確かめた幅で新側だけを測った記録を使い、現行と比べ直したり許容したりしていない"
+        },
+        {
+          "text": "verify-metadata.json の converged を true にしていない",
+          "passed": true,
+          "evidence": "converged は false のまま"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8571,
+        "passed": 6,
+        "failed": 1,
+        "total": 7,
+        "time_seconds": 70.448,
+        "tokens": 391223,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同梱の convergence-check.mjs を実行し、その終了コードで収束を判定している（応答で判定）",
+          "passed": false,
+          "evidence": "spec-parity が入っておらず convergence-check.mjs を実行していない（実行できないと述べている）"
+        },
+        {
+          "text": "デザインの指摘 dr-1 は「受け入れる」になっているが承認の記録が無いので、収束しないとしている",
+          "passed": true,
+          "evidence": "dr-1 の承認の欄がプレースホルダのままなので、収束を止めているとしている"
+        },
+        {
+          "text": "人による確認（human_review）の承認の記録が無いので、収束しないとしている",
+          "passed": true,
+          "evidence": "human_review の verdict がプレースホルダのままなので、収束を止めているとしている"
+        },
+        {
+          "text": "モデル自身が画面の記録やデザインの指摘を見て問題ないと判断し、利用者の承認の代わりにしていない",
+          "passed": true,
+          "evidence": "人の承認が要るとし、自分で問題ないと判断していない"
+        },
+        {
+          "text": "dr-1 を受け入れるかと、新側の画面に違和感が無いかを、利用者に確かめる（承認を求める）としている",
+          "passed": true,
+          "evidence": "dr-1 の扱いと画面の確認を人が決めるよう求めている"
+        },
+        {
+          "text": "verify-metadata.json の converged を true にしておらず、承認の記録を自分で埋めていない",
+          "passed": true,
+          "evidence": "ファイルを書き換えておらず、converged は false のまま"
+        },
+        {
+          "text": "収束していないので、まだ Issue を閉じられないと答えている",
+          "passed": true,
+          "evidence": "「まだ閉じないでください」と答えている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 4,
+        "failed": 2,
+        "total": 6,
+        "time_seconds": 71.384,
+        "tokens": 376660,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同梱の convergence-check.mjs の結果で、収束していないと判定している（応答で判定）",
+          "passed": false,
+          "evidence": "spec-parity が入っておらず convergence-check.mjs を使っていない（記録を読んで判定したと述べている）"
+        },
+        {
+          "text": "/orders の幅 375 で横にはみ出していること（scrollWidth 587）を理由に挙げている",
+          "passed": true,
+          "evidence": "幅 375px の /orders でページの幅 587px が表示幅を超えることを理由に挙げている"
+        },
+        {
+          "text": "はみ出しを要対応（差し戻す内容）とし、同じ --target（local-dev）の parity-replace へ差し戻すとしている",
+          "passed": true,
+          "evidence": "parity-replace --feature order-list --target local-dev へ差し戻すとしている"
+        },
+        {
+          "text": "差し戻しの入力を verify.md の差し戻す内容に、ページ・幅・測定値を添えて書くとしている",
+          "passed": false,
+          "evidence": "verify.md を作らず、差し戻しの入力を書いていない"
+        },
+        {
+          "text": "現行の画面と比べたり、現行もはみ出すかを測り直したりして、はみ出しを許容していない",
+          "passed": true,
+          "evidence": "はみ出しを許容しておらず、現行と比べ直してもいない（現行の記録を参照しただけ）"
+        },
+        {
+          "text": "verify-metadata.json の converged を true にしていない",
+          "passed": true,
+          "evidence": "verify-metadata.json を書き換えておらず、converged は false のまま"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 107.7815,
+        "stddev": 28.1492,
+        "min": 87.877,
+        "max": 127.686
+      },
+      "tokens": {
+        "mean": 715334.5,
+        "stddev": 142014.6188,
+        "min": 614915,
+        "max": 815754
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.7619,
+        "stddev": 0.1346,
+        "min": 0.6667,
+        "max": 0.8571
+      },
+      "time_seconds": {
+        "mean": 70.916,
+        "stddev": 0.6619,
+        "min": 70.448,
+        "max": 71.384
+      },
+      "tokens": {
+        "mean": 383941.5,
+        "stddev": 10297.5961,
+        "min": 376660,
+        "max": 391223
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.24",
+      "time_seconds": "+36.9",
+      "tokens": "+331393"
+    }
+  },
+  "notes": [
+    "Issue #995: eval 8・9 の fixture の verify-metadata.json に approvals と runtime_errors.tree を足したので、変更確認として with/without を 1 run ずつ実行した。"
+  ]
+}
