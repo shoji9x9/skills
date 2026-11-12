@@ -32,7 +32,7 @@ issue-batch は、ほかのスキルをまとめて回すので最後に置く�
    費用と稼働状況（1 回の指示で動き続けた時間と、人の確認中・CI 待ち・レビュー待ち・未活用に分けた止まっていた時間）を記録し、HTML と CSV に集計する。
    根拠: `skills/agent-usage/SKILL.md` の冒頭と「コミットの前の確認」
 8. pr-review-handle。レビューの指摘を、確認・判断・修正（必要なときだけ）・返信・解決の順で扱う。
-   根拠: `skills/pr-review-handle/SKILL.md` の冒頭
+   根拠: `skills/pr-review-handle/SKILL.md` の冒頭・「使い方」
 9. pr-finalize-loop。CI の失敗の修正とレビューへの対応を、CI が成功して未解決の指摘が無くなるまでループで繰り返す。
    再レビューの依頼先（Copilot・Claude Code・Codex・手元・なし）を選べる。
    反復の上限（デフォルトは 5 回）で必ず止まる。手元の `/code-review` でレビューするときだけ、使い切った後に effort を下げて半分の回数を足す。

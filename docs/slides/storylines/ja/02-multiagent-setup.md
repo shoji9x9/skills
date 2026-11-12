@@ -2,7 +2,7 @@
 
 伝えること: スキル群の基になる考え（単一のエージェントに依存しない）と、その構成の作り方。
 
-人が判断する点の節は置かない。対象とエージェントを尋ねられることは、流れのスライドで説明する。既存のファイルを更新するかや、スキルを作るときの比べ方の確認は、手順の細部なので載せない。
+人が判断する点の節は置かない。
 
 ## スライド
 
@@ -17,7 +17,7 @@
    `AGENTS.md` を基にし、`CLAUDE.md` と `.github/copilot-instructions.md` には差分だけを書く。
    プロジェクト固有の Hook は、各エージェントの設定ファイルから `.agents/hooks/scripts/` の共通のスクリプトを呼ぶ。
    根拠: `skills/multiagent-setup/references/skills.md`・`skills/multiagent-setup/references/rules.md`「ディレクトリ構造」、
-   `skills/multiagent-setup/references/docs.md`「ファイル別役割」、`skills/multiagent-setup/references/hooks.md`
+   `skills/multiagent-setup/references/docs.md`「ファイル別役割」、`skills/multiagent-setup/references/hooks.md`「フックスクリプトの配置」
 4. 流れ。操作の対象を決める（依頼の文から推測し、決められなければ利用者に尋ねる）→ 対象のエージェントを確かめる（今ある設定のディレクトリを見て、依頼に無ければ尋ねる）→ 対象ごとの手順で作る → 後処理（スキルを作ったら、スキルの有無で比べた結果を示す）。
    スキルは、スキルが無い状態で同じ依頼をさせた結果を見てから書く。3 回とも期待する振る舞いがすべて起きたら、作るかを利用者に確かめる。
    根拠: `skills/multiagent-setup/SKILL.md`「フロー」、`skills/multiagent-setup/references/skills.md`「スキル作成手順」

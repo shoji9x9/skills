@@ -2,8 +2,7 @@
 
 Message: The idea behind the skill collection (do not depend on a single agent), and how to build that structure.
 
-There is no "Where people decide" section. The flow slide covers being asked for the target and the agents.
-Confirming whether to update existing files, or how to compare results when building a skill, is a procedural detail and is left out.
+There is no "Where people decide" section.
 
 ## Slides
 
@@ -19,7 +18,7 @@ Confirming whether to update existing files, or how to compare results when buil
    `AGENTS.md` is the base, and `CLAUDE.md` and `.github/copilot-instructions.md` hold only the differences.
    For project-specific hooks, each agent's configuration file calls shared scripts in `.agents/hooks/scripts/`.
    Sources: `skills/multiagent-setup/references/skills.md`, `skills/multiagent-setup/references/rules.md` "ディレクトリ構造",
-   `skills/multiagent-setup/references/docs.md` "ファイル別役割", `skills/multiagent-setup/references/hooks.md`
+   `skills/multiagent-setup/references/docs.md` "ファイル別役割", `skills/multiagent-setup/references/hooks.md` "フックスクリプトの配置"
 4. Flow. Decide the target of the operation (infer it from the request, and ask the user if that is not possible) → check the target agents (look at the existing configuration directories,
    and ask if the request does not say) → create each target with its own steps → follow-up (after creating a skill, show the runs without and with it).
    A skill is written after looking at the result of the same request run without it. If every expected behavior occurs in all three runs, ask the user whether to create it.
