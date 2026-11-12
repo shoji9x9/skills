@@ -36,11 +36,13 @@ import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
 import { writeFileAtomic } from "./lib/file-io.mjs";
 import { parseFlags, stripDashes } from "./lib/flags.mjs";
-import { isInteger, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
+import { isInteger, isPlaceholder, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
 /**
- * ツールのバージョン（原本）。判定規則・正規化・出力の形を変えたら上げる。
- * 読み手が読まなくても判定が変わらない欄を足すだけ（compare の tree）なら上げない。上げると、前のバージョンの基準をすべて作り直すことになる。
+ * ツールのバージョン（原本）。署名の判定規則・正規化・出力の形を変えたら上げる。上げると、前のバージョンの基準をすべて作り直すことになる。
+ * 読み手が読まなくても判定が変わらない欄を足すだけ（compare の tree）なら上げない。
+ * 分類の読み方（judgeClassification）だけを変えたときも上げない。基準の署名には関わらず、次に compare を通したときに新しい読み方で判定し直される。
+ * 前に書いた compare の結果（ok・state）は、通し直すまで前の読み方のまま残る。
  * @type {string}
  */
 export const VERSION = "1";
@@ -390,6 +392,9 @@ export function readBaseline(base) {
 
 /**
  * 前の実行の分類を読む（diff-metadata.json の runtime_errors.new_signatures）。読めない要素は持ち越さない。
+ * 持ち越しは新側のバージョン（tree）を見ない。spec-parity の収束の判定は、許容の承認を verify-metadata.json の approvals
+ * （要素が新側のバージョンを持つ）と照合するので、前のバージョンの承認を数えない。parity-diff は承認を照合せず、持ち越した許容を数える
+ * （範囲は replace-strategy の references/scope.md）。持ち越しにバージョンの一致を求めると、parity-diff でも新側を直すたびに全件を分類し直すことになる。
  * @param {unknown} previous
  * @returns {Map<string, Record<string, unknown>>}
  */
@@ -405,12 +410,16 @@ function previousClassifications(previous) {
 }
 
 /**
- * 分類が説明になっているかを判定する。
+ * 分類が説明になっているかを判定する。雛形のプレースホルダ（`<...>`）のままの欄は、書いていないものとして読む。
  * @param {Record<string, unknown> | undefined} c
  * @returns {{ classification: string | null, reason: string | null, approved_at: string | null, evidence: string | null, state: "actionable" | "explained" | "unexplained" }}
  */
 export function judgeClassification(c) {
-  const pick = (/** @type {string} */ k) => (c && nonEmptyString(c[k]) ? String(c[k]) : null);
+  const written = writtenClassification(c);
+  const pick = (/** @type {keyof typeof written} */ k) => {
+    const v = written[k];
+    return v !== null && !isPlaceholder(v) ? v : null;
+  };
   const classification = pick("classification");
   const reason = pick("reason");
   const approvedAt = pick("approved_at");
@@ -423,6 +432,22 @@ export function judgeClassification(c) {
   if (classification === "環境ノイズ" && evidence !== null)
     return { ...fields, state: "explained" };
   return { ...fields, state: "unexplained" };
+}
+
+/**
+ * 前の分類の欄を、書いた値で返す。文字列でない値と、空の文字列（空白だけのものを含む）は null にする。
+ * compare --write が書き戻すので、それ以外の読み方（雛形のプレースホルダを外すなど）はここで当てない。分類の欄の一覧はこの関数が持つ。
+ * @param {Record<string, unknown> | undefined} c
+ * @returns {Record<"classification" | "reason" | "approved_at" | "evidence", string | null>}
+ */
+function writtenClassification(c) {
+  const raw = (/** @type {string} */ k) => (c && nonEmptyString(c[k]) ? String(c[k]) : null);
+  return {
+    classification: raw("classification"),
+    reason: raw("reason"),
+    approved_at: raw("approved_at"),
+    evidence: raw("evidence"),
+  };
 }
 
 /**
@@ -461,14 +486,16 @@ function newSignaturesOf(baseline, signatures, { runCount, previous }) {
       // 現側でスキップしたテストは基準が無いので比べない（現側の記録が無いことを「現行に無かった」にしない）
       .filter(([key, s]) => !baseline.keys.has(key) && baseline.tests.get(s.test) === false)
       .map(([key, s]) => {
-        const { state, ...fields } = judgeClassification(carried.get(key));
+        const c = carried.get(key);
+        const { state } = judgeClassification(c);
         return {
           test: s.test,
           ...s.sig,
           seen_runs: s.runs.size,
           runs: runCount,
           sample: s.sample,
-          ...fields,
+          // 書いた値はそのまま書き戻す（雛形のプレースホルダも消さない）。判定は state だけが表す
+          ...writtenClassification(c),
           state,
         };
       })

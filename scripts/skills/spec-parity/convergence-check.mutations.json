@@ -78,14 +78,29 @@
       "id": "cv-runtime-class-off",
       "why": "現行に無かったエラーの分類を判定し直さず、説明済みとして通す",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "    const state = judgeClassification(isPlainObject(s) ? s : undefined).state;\n",
-      "replace": "    const state = \"explained\";\n",
+      "find": "    const judged = judgeClassification(isPlainObject(s) ? s : undefined);\n",
+      "replace": "    const judged = { state: \"explained\", classification: null };\n",
       "occurrences": 1,
       "expect_failing": [
         "操作中のエラー 現行に無かったエラーが 要対応 なら send-back（保存された ok は信じない）",
         "操作中のエラー 現行に無かったエラーが 分類が無い なら approval（保存された ok は信じない）",
         "操作中のエラー 現行に無かったエラーが 許容で承認の日時が無い なら approval（保存された ok は信じない）",
-        "操作中のエラー 現行に無かったエラーが 環境ノイズで根拠が無い なら approval（保存された ok は信じない）"
+        "操作中のエラー 現行に無かったエラーが 環境ノイズで根拠が無い なら approval（保存された ok は信じない）",
+        "操作中のエラーの許容と承認の記録（approvals） 承認の記録が無い許容は、承認の欄（approved_at・reason）が無いときと同じく承認待ちの 1 件にする",
+        "操作中のエラーの許容と承認の記録（approvals） 署名に id が無ければ、同じ欄の無い承認とも一致させない",
+        "操作中のエラーの許容と承認の記録（approvals） 署名に test が無ければ、同じ欄の無い承認とも一致させない",
+        "操作中のエラーの許容と承認の記録（approvals） 許容が 別のテストの承認しか無い なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 許容が 別の署名の承認しか無い なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 許容が 前のバージョン（tree）で積んだ承認しか無い（compare が分類を持ち越した） なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 許容が 承認の後に日時を書き換えた なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 許容が 承認の後に理由を書き換えた なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 許容が 承認の記録に無い なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人（approved_by）の無い承認しか無い なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人が雛形の値のままの承認しか無い なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 環境ノイズの根拠（evidence）が雛形のプレースホルダのままなら、承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 許容の 承認の日時（approved_at） が雛形のプレースホルダのままなら、承認の記録に同じ値があっても承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 許容の 理由（reason） が雛形のプレースホルダのままなら、承認の記録に同じ値があっても承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 許容が kind だけが違う（design_review の）要素しか無い なら承認待ちにする"
       ]
     },
     {
@@ -120,7 +135,9 @@
       "occurrences": 1,
       "expect_failing": [
         "デザインの点検と人による確認 指摘を 受け入れるが承認が無い なら approval",
-        "デザインの点検と人による確認 指摘を 受け入れるが理由が無い なら approval"
+        "デザインの点検と人による確認 指摘を 受け入れるが理由が無い なら approval",
+        "デザインの点検と人による確認 指摘を 受け入れるが承認した人が雛形の値のまま なら approval",
+        "デザインの点検と人による確認 指摘を 受け入れるが理由が雛形の値のまま なら approval"
       ]
     },
     {
@@ -132,7 +149,8 @@
       "occurrences": 1,
       "expect_failing": [
         "デザインの点検と人による確認 人による確認が 承認の記録が無い なら approval",
-        "デザインの点検と人による確認 人による確認が 承認した人が無い なら approval"
+        "デザインの点検と人による確認 人による確認が 承認した人が無い なら approval",
+        "デザインの点検と人による確認 人による確認が 承認の日時が雛形の値のまま なら approval"
       ]
     },
     {
@@ -463,8 +481,8 @@
       "id": "cv-approvals-kind-off",
       "why": "承認の記録の語彙の外の要素を読み飛ばした件数（checks.approvals.ignored）に数えない。照合は kind も比べるので、承認の判定は変わらず、件数の報告だけが誤る",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "    if (isPlainObject(a) && (a.kind === \"design_review\" || a.kind === \"human_review\"))\n",
-      "replace": "    if (isPlainObject(a))\n",
+      "find": "    if (isPlainObject(a) && APPROVAL_KINDS.includes(String(a.kind))) entries.push(a);\n",
+      "replace": "    if (isPlainObject(a)) entries.push(a);\n",
       "occurrences": 1,
       "expect_failing": [
         "承認の記録（approvals） approvals に kind が語彙の外 の要素があっても、承認として数えずに判定を続ける"
@@ -552,6 +570,122 @@
       "occurrences": 1,
       "expect_failing": [
         "スイートの範囲（suite.dir） 新側の結果にほかの機能のテストがあれば、絞って採り直す（通らないほかの機能のテストで差し戻さない）"
+      ]
+    },
+    {
+      "id": "cv-allowance-logged",
+      "why": "操作中のエラーの許容を、承認の記録（approvals）に同じ値が積まれていなければ承認待ちにする",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "judged.classification === \"許容\" && !allowanceLogged(s, judged, { tree, approvals })",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作中のエラーの許容と承認の記録（approvals） 許容が 承認の記録に無い なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 許容が 前のバージョン（tree）で積んだ承認しか無い（compare が分類を持ち越した） なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 許容が 承認の後に理由を書き換えた なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 許容が 承認の後に日時を書き換えた なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 許容が 別の署名の承認しか無い なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 許容が 別のテストの承認しか無い なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 署名に id が無ければ、同じ欄の無い承認とも一致させない",
+        "操作中のエラーの許容と承認の記録（approvals） 署名に test が無ければ、同じ欄の無い承認とも一致させない",
+        "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人（approved_by）の無い承認しか無い なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人が雛形の値のままの承認しか無い なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 許容が kind だけが違う（design_review の）要素しか無い なら承認待ちにする"
+      ]
+    },
+    {
+      "id": "cv-allowance-tree",
+      "why": "許容の承認を、同じ新側のバージョン（tree）で積んだものだけに限る",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "    tree,\n    approved_at: judged.approved_at,",
+      "replace": "    approved_at: judged.approved_at,",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作中のエラーの許容と承認の記録（approvals） 許容が 前のバージョン（tree）で積んだ承認しか無い（compare が分類を持ち越した） なら承認待ちにする"
+      ]
+    },
+    {
+      "id": "cv-allowance-key-guard",
+      "why": "テストか署名の id が無い署名を、同じ鍵の欠けた承認と一致させない",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "if (!isPlainObject(s) || !nonEmptyString(s.test) || !nonEmptyString(s.id)) return false;",
+      "replace": "if (!isPlainObject(s)) return false;",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作中のエラーの許容と承認の記録（approvals） 署名に id が無ければ、同じ欄の無い承認とも一致させない",
+        "操作中のエラーの許容と承認の記録（approvals） 署名に test が無ければ、同じ欄の無い承認とも一致させない"
+      ]
+    },
+    {
+      "id": "cv-approval-kind-runtime-errors",
+      "why": "承認の記録の runtime_errors の要素を、語彙の外として捨てずに承認として読む",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "const APPROVAL_KINDS = [\"runtime_errors\", \"design_review\", \"human_review\"];",
+      "replace": "const APPROVAL_KINDS = [\"design_review\", \"human_review\"];",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作中のエラー 承認した許容と、根拠のある環境ノイズは収束を止めない",
+        "操作中のエラーの許容と承認の記録（approvals） 同じテスト × 署名・同じバージョン・同じ値の承認が積まれていれば収束する",
+        "操作中のエラーの許容と承認の記録（approvals） 前のバージョンの承認が残っていても、いまのバージョンの承認が積まれていれば収束する"
+      ]
+    },
+    {
+      "id": "cv-allowance-approved-by",
+      "why": "許容の承認の記録の要素に、承認した人（approved_by）が書いてあることを求める",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  const allowances = approvals.filter((a) => filled(a.approved_by));\n",
+      "replace": "  const allowances = approvals;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人（approved_by）の無い承認しか無い なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人が雛形の値のままの承認しか無い なら承認待ちにする"
+      ]
+    },
+    {
+      "id": "cv-classification-placeholder",
+      "why": "分類の欄（approved_at・reason・evidence）が雛形のプレースホルダのままでも、書いたものとして読む（spec-parity のコピー）",
+      "file": "skills/spec-parity/scripts/runtime-errors.mjs",
+      "find": "    return v !== null && !isPlaceholder(v) ? v : null;\n",
+      "replace": "    return v;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作中のエラーの許容と承認の記録（approvals） 許容の 承認の日時（approved_at） が雛形のプレースホルダのままなら、承認の記録に同じ値があっても承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 許容の 理由（reason） が雛形のプレースホルダのままなら、承認の記録に同じ値があっても承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 環境ノイズの根拠（evidence）が雛形のプレースホルダのままなら、承認待ちにする"
+      ]
+    },
+    {
+      "id": "cv-allowance-kind",
+      "why": "許容の照合で、承認の記録の要素の kind が runtime_errors であることを求める",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "    kind: \"runtime_errors\",\n    test: s.test,\n",
+      "replace": "    test: s.test,\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作中のエラーの許容と承認の記録（approvals） 許容が kind だけが違う（design_review の）要素しか無い なら承認待ちにする"
+      ]
+    },
+    {
+      "id": "cv-approval-placeholder",
+      "why": "承認した人と承認の日時が雛形のプレースホルダのままの承認を、書いたものとして数える",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  return isPlainObject(a) && filled(a.approved_by) && filled(a.approved_at);\n",
+      "replace": "  return isPlainObject(a) && nonEmptyString(a.approved_by) && nonEmptyString(a.approved_at);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "デザインの点検と人による確認 指摘を 受け入れるが承認した人が雛形の値のまま なら approval",
+        "デザインの点検と人による確認 人による確認が 承認の日時が雛形の値のまま なら approval"
+      ]
+    },
+    {
+      "id": "cv-design-reason-placeholder",
+      "why": "受け入れるデザインの指摘の理由が雛形のプレースホルダのままでも、書いたものとして数える",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  else if (!approval || !hasApproval(approval) || !filled(approval.reason))\n",
+      "replace": "  else if (!approval || !hasApproval(approval) || !nonEmptyString(approval.reason))\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "デザインの点検と人による確認 指摘を 受け入れるが理由が雛形の値のまま なら approval"
       ]
     }
   ]

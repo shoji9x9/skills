@@ -19,7 +19,7 @@
  *   http-error    … 4xx と 5xx の応答（page の response のうち status() が 400 以上のもの）。
  * 出典: https://playwright.dev/docs/api/class-page#page-event-page-error ・ #page-event-console ・
  * #page-event-request-failed ・ #page-event-response（@playwright/test 1.64 で確かめた）。
- * 署名の正規化と、現側の基準との比較は、スキルの scripts/runtime-errors.mjs が決める（この fixture は並べるだけ）。
+ * 署名の正規化と、現側の基準との比較は、parity-suite スキルの scripts/runtime-errors.mjs が決める（この fixture は並べるだけ）。
  * テストが `page.route` で応答を止めたり 500 を返したりした分も記録される。現側でも同じテストが同じ失敗を起こすので、基準に入る。
  *
  * 環境変数は次のとおりである。
@@ -32,6 +32,12 @@
  * 出力先は、現側が `.replace/parity/<slug>/runtime-errors/run-<回>/`、新側が
  * `.replace/parity/<slug>/new/<target>/runtime-errors/run-<回>/` である。
  * テストごとに 1 ファイルを書くので、並列の worker が同じファイルを書かない。
+ * ファイル名は、Playwright のテストの id（testInfo.testId）から決める。テストの id は、project（同じ名前の project も別のもの）と
+ * 繰り返しの回（`--repeat-each` の何回目か）ごとに違い、リトライの試行では同じである。
+ * 出典: https://playwright.dev/docs/api/class-testinfo#test-info-test-id（@playwright/test 1.64 で確かめた）。
+ * 記録を採る実行で `--repeat-each` や同じ名前の複数の project を使うと、同じテストの記録が 1 つの run-<回>/ に 2 つできる。
+ * そのときは、parity-suite スキルの scripts/runtime-errors.mjs が exit 2 で止める（ファイル名をテストの識別子だけで決めると、記録が上書きされ、最後の試行のエラーだけが残る）。
+ * 記録を採る実行では使わず、回を重ねるときは PARITY_RUNTIME_RUN を変えて実行し直す。
  * 記録するのは project が `current` か `new` のときだけで、他の project（`new-capture` など）では何もしない。
  * 採り直すときは、前の run-<回>/ を消してから実行する（消したテストの記録が残ると、基準に無いテストとして比較が止まる）。
  */
@@ -142,7 +148,8 @@ function isEarlierRecord(doc: unknown, retry: number): doc is { retry: number; e
   return typeof r === "number" && r < retry && Array.isArray(Reflect.get(doc, "events"));
 }
 
-// 記録の出力先。テストの識別子のハッシュをファイル名にする（リトライの試行も同じファイルに書く）
+// 記録の出力先。テストの id のハッシュをファイル名にする（リトライの試行はテストの id が同じなので、同じファイルに書く）。
+// 記録の test の欄の識別子（testId 関数）は project を含まないので、ファイル名には使わない
 function outputPath(side: "current" | "new", testInfo: TestInfo): string {
   const slug = requireName("PARITY_SLUG");
   const run = Number(process.env.PARITY_RUNTIME_RUN);
@@ -154,7 +161,7 @@ function outputPath(side: "current" | "new", testInfo: TestInfo): string {
     side === "current"
       ? join(root, "runtime-errors")
       : join(root, "new", requireName("PARITY_NEW_TARGET"), "runtime-errors");
-  const name = createHash("sha256").update(testId(testInfo)).digest("hex").slice(0, 16);
+  const name = createHash("sha256").update(testInfo.testId).digest("hex").slice(0, 16);
   const out = join(base, `run-${run}`, `${name}.json`);
   const rel = relative(root, out);
   if (rel.startsWith("..") || isAbsolute(rel))

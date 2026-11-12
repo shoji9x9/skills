@@ -72,5 +72,12 @@ node <spec-parity>/scripts/runtime-errors.mjs compare \
 - `compare` が exit 1 で挙げた、現行に無かった署名（`new_signatures`）は、1 件ずつ要対応・許容・環境ノイズの 3 値に分類する。
   分類は `verify-metadata.json` の `runtime_errors.new_signatures[]` の `classification` に書き、`compare` を通し直す。前の分類は、同じテスト × 署名へ持ち越される。
 - 許容は、利用者の承認（`approved_at` と `reason`）で確定する。承認の前は説明の付いていない署名として数える。環境ノイズには根拠（`evidence`）が要る。
+  雛形のプレースホルダ（`<...>`）のままの欄は、書いていないものとして数える。
+- 許容を承認したら、同じ値と承認した人（`approved_by`）を承認の記録（`verify-metadata.json` の `approvals[]`）にも追記する（[`design-review.md`](design-review.md)「承認の記録」）。
+  収束の判定は、次の要素が `approvals[]` に無い許容を、承認として数えない。同じテスト × 署名・同じ新側のバージョン・同じ `approved_at` と `reason` を持ち、`approved_by` を書いた要素である。`approved_by` が雛形のプレースホルダのままなら、書いていないものとして扱う。
+  同じ原因の署名をまとめて 1 回承認したときも、`approvals[]` の要素は署名（テスト × 署名）ごとに 1 件ずつ足す。
+- `compare` は、前の分類を新側のバージョンを見ずに持ち越す。新側を直して記録を採り直した後に持ち越した許容は、前のバージョンの承認なので、収束の判定が承認待ちにする。
+  利用者に承認し直してもらい、承認の日時を `approved_at` に書き直して、新しいバージョンの要素を `approvals[]` に足す。前のバージョンの要素は消さない。
+  `compare` の結果の `ok` と署名の `state` は承認の記録を見ないので、持ち越した許容も `explained` として数える。許容が収束の根拠になるかは、収束の判定の結果で決める。
 - 要対応と、新側で通らなかったテストは、`parity-replace` へ差し戻す。記録が欠けたテストと、基準に無いテストは、採り直す。
 - `compare` のエラーの本文には `parity-suite` の名前が出るが、`spec-parity` では `spec-parity suite` の `summarize` と読み替える（スクリプトは同じ中身で持つので、本文を変えない）。

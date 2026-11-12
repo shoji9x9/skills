@@ -131,7 +131,7 @@
       "pattern": ".replace/parity/*/new/*/verify-metadata.json",
       "unit": "json-arrays",
       "arrays": ["approvals"],
-      "requirement": "spec-parity verify の承認の記録（デザインの指摘を受け入れた承認と、人による確認の承認）。承認するたびに要素を追記し、既にある要素を消したり書き換えたりしない（新側を直して点検をやり直したときも、前のバージョンの承認を残す）。収束の判定（spec-parity の convergence-check.mjs）は、design_review と human_review の承認と同じ値の要素がここに積まれていなければ承認として数えない",
+      "requirement": "spec-parity verify の承認の記録（デザインの指摘を受け入れた承認・人による確認の承認・操作中のエラーを許容した承認）。承認するたびに要素を追記し、既にある要素を消したり書き換えたりしない（新側を直して点検をやり直したときも、前のバージョンの承認を残す）。収束の判定（spec-parity の convergence-check.mjs）は、design_review・human_review・runtime_errors のどれかの承認について、同じ値の要素がここに積まれていなければ、その承認を数えない",
       "source": "spec-parity の references/design-review.md「承認の記録」"
     },
     {

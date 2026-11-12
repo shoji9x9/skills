@@ -64,22 +64,27 @@
 
 ## 承認の記録
 
-デザインの指摘を受け入れた承認と、人による確認の返事は、`verify-metadata.json` の `approvals[]` に 1 件ずつ追記する。
-`design_review.findings[].approval` と `human_review.approval` は、新側を直して点検をやり直すたびに書き直す。
+デザインの指摘を受け入れた承認と、人による確認の返事と、操作中のエラーの許容の承認は、`verify-metadata.json` の `approvals[]` に 1 件ずつ追記する。
+`design_review.findings[].approval` と `human_review.approval` と `runtime_errors.new_signatures[]` の承認の欄は、新側を直して確かめ直すたびに書き直す。
 そのため、承認を後から書き換えても、その欄だけでは検出できない。`approvals[]` は追記専用の記録で、既にある要素を消したり書き換えたりしない。
 
 | 承認 | 追記する要素 |
 |---|---|
 | デザインの指摘を受け入れた | `kind: design_review`・指摘の `id`・点検した新側のバージョン（`tree`）・`approved_by`・`approved_at`・`reason` |
 | 人による確認の返事 | `kind: human_review`・見せた新側のバージョン（`tree`）・`verdict`・`approved_by`・`approved_at`・`notes` |
+| 操作中のエラーの許容 | `kind: runtime_errors`・署名の `test` と `id`・記録を採った新側のバージョン（`tree`。`compare --tree` で渡した値）・`approved_by`・`approved_at`・`reason` |
 
-- 収束の判定（[`../scripts/convergence-check.mjs`](../scripts/convergence-check.mjs)）は、`design_review` と `human_review` の承認と同じ値の要素が `approvals[]` に無ければ、承認として数えない（`approval` の理由で止まる）。
+- 収束の判定（[`../scripts/convergence-check.mjs`](../scripts/convergence-check.mjs)）は、`design_review`・`human_review`・`runtime_errors` のどれかの承認について、同じ値の要素が `approvals[]` に無ければ、その承認を数えない（`approval` の理由で止まる）。
 - `approvals[]` が縮んでいないこと（要素の削除と書き換え）は、`replace-strategy` の `append-only-check.mjs` が確かめる。対象の一覧は `replace-strategy` の `assets/append-only-manifest.json` にある。
   このチェックが検出するのは、比較元（`--base`）のバージョンに在る要素の削除と書き換えだけである。
   比較元より後に積んだ要素の書き換えは、commit した後でも、その比較元での実行では検出しない。
   その要素を承認の欄と一緒に同じ値へ書き換えると、収束の判定も食い違いを見つけないので、どちらのチェックも検出しない。
   そのため、承認を積んだら、その `verify-metadata.json` を commit する。その後の書き換えは、その要素を含む commit を `--base` にした実行で検出できる。
-- 収束の判定は、`approvals[]` の中の、`kind` が `design_review`・`human_review` でない要素とオブジェクトでない要素を承認として数えない。消せないので止めず、件数を `convergence.checks.approvals.ignored` に残す。
+- 収束の判定は、`approvals[]` の中の、`kind` が `runtime_errors`・`design_review`・`human_review` でない要素とオブジェクトでない要素を承認として数えない。
+  消せないので止めず、件数を `convergence.checks.approvals.ignored` に残す。
+- 操作中のエラーの許容は、承認した人（`approved_by`）を書いた `runtime_errors` の要素とだけ照合する。分類の欄は承認した人を持たないからである。
+- 承認した人と承認の日時（3 つの承認）と、理由（デザインの指摘の受け入れと許容）が雛形のプレースホルダ（`<...>`）のままなら、収束の判定は書いていないものとして扱う。
+  人による確認の `notes` は、この扱いの外である。
 - 新側を直して点検や確認をやり直したときも、前のバージョンの要素は残し、新しいバージョンの要素を足す。
   `verify-metadata.json` を雛形から作り直すときも、前の `approvals[]` をそのまま引き継ぐ。
 - `approvals[]` をキーごと持たない記録（この記録を始める前のもの）は、承認が積まれていないものとして扱う。利用者に承認し直してもらい、要素を追記する。

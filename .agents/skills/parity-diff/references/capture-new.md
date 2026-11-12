@@ -205,6 +205,7 @@ PARITY_RUNTIME_CAPTURE=1 PARITY_RUNTIME_RUN=2 PARITY_SLUG=<slug> PARITY_NEW_TARG
 
 - 出力は `.replace/parity/<slug>/new/<target>/runtime-errors/run-<回>/` で、テキストの成果物として Git に入れる。採り直すときは、前の `runtime-errors/` を消してから実行する。
 - 回数は現側と同じでなくてよいが、2 回以上にする。1 回だけでは、新側で回によって出るエラーを見逃しやすい。
+- 記録を採る実行では、`--repeat-each` も、同じ名前の複数の project も使わない（`parity-suite` の `references/baseline.md`「操作中のエラーのベースライン」）。
 - 自己ノイズの再利用（下の「測定値の再利用」）は、操作中のエラーには当てない。新側の実装が変われば出るエラーも変わるので、毎回採る。
 - 書き込み系のスペックを含むなら、`parity-replace` の green の確認と同じ後始末の規律に従う。
 - `metadata.json` に `runtime_errors` が無いか `declared: false` なら、採らない（[`detect.md`](detect.md)「操作中のエラーの比較」）。

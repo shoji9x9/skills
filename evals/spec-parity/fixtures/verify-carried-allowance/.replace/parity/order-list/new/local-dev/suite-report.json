@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "report-1",
+  "run": {
+    "status": "passed",
+    "results": [
+      {
+        "file": "tests/order-list/list.e2e.ts",
+        "titlePath": ["一覧を開く"],
+        "targetId": "new",
+        "selected": true,
+        "status": "passed",
+        "attempts": [
+          {
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "file": "tests/order-list/list.e2e.ts",
+        "titlePath": ["並び順を切り替える"],
+        "targetId": "new",
+        "selected": true,
+        "status": "passed",
+        "attempts": [
+          {
+            "status": "passed"
+          }
+        ]
+      }
+    ]
+  }
+}

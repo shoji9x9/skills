@@ -1,0 +1,21 @@
+{
+  "$comment": [
+    "runtime-errors-fixture-template.test.ts の検出能力を示す変異の一覧（Issue #1003）。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/parity-suite/runtime/runtime-errors-fixture-template.test.ts",
+  "mutations": [
+    {
+      "id": "ref-file-name-test-only",
+      "why": "記録のファイル名をテストの識別子だけで決め、--repeat-each や同じ名前の複数の project の記録を上書きする（PR #1002 までの雛形の形）",
+      "file": "skills/parity-suite/assets/runtime-errors.fixture.template.ts",
+      "find": ".update(testInfo.testId)",
+      "replace": ".update(testId(testInfo))",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-suite の記録の fixture の雛形 1 つの実行に --repeat-each の 2 回目 の記録があれば、上書きせずに別のファイルに書き、summarize が exit 2 にする",
+        "parity-suite の記録の fixture の雛形 1 つの実行に 同じ名前の別の project の記録があれば、上書きせずに別のファイルに書き、summarize が exit 2 にする"
+      ]
+    }
+  ]
+}

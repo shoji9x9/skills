@@ -300,6 +300,7 @@ describe("操作中のエラー", () => {
           sig({ id: "y", classification: "環境ノイズ", evidence: "stg だけの CDN" }),
         ],
       },
+      approvals: [...approvalsLog(), allowanceLog()],
     });
     expect(run(fs).code).toBe(0);
   });
@@ -350,6 +351,23 @@ describe("デザインの点検と人による確認", () => {
       finding({ decision: "accept", approval: { approved_by: "o", approved_at: "t" } }),
     ],
     ["分けていない", "approval", finding({})],
+    // 承認の欄が雛形のプレースホルダ（<...>）のままなら、書いていないものとして扱う（design-review.md「承認の記録」）
+    [
+      "受け入れるが承認した人が雛形の値のまま",
+      "approval",
+      finding({
+        decision: "accept",
+        approval: { approved_by: "<承認した人>", approved_at: "t", reason: "r" },
+      }),
+    ],
+    [
+      "受け入れるが理由が雛形の値のまま",
+      "approval",
+      finding({
+        decision: "accept",
+        approval: { approved_by: "o", approved_at: "t", reason: "<受け入れる理由>" },
+      }),
+    ],
   ])("指摘を %s なら %s", (_name, category, f) => {
     const fs = withVerify({ design_review: review({ findings: [f] }) });
     const r = run(fs);
@@ -402,6 +420,11 @@ describe("デザインの点検と人による確認", () => {
     ],
     ["承認の記録が無い", "approval", null],
     ["承認した人が無い", "approval", { verdict: "approved", approved_at: "t" }],
+    [
+      "承認の日時が雛形の値のまま",
+      "approval",
+      { verdict: "approved", approved_by: "o", approved_at: "<承認した日時>" },
+    ],
   ])("人による確認が %s なら %s", (_name, category, approval) => {
     const fs = withVerify({ human_review: human(approval) });
     const r = run(fs);
@@ -487,6 +510,109 @@ describe("未検証の一覧と判断待ち", () => {
   ])("保留の %s が雛形の値のままなら、回答として数えず承認待ちにする", (_name, resolution) => {
     const fs = withVerify({ pending_decisions: [{ id: "pd-1", blocks: [], resolution }] });
     expect(kinds(run(fs))).toEqual([["approval", "pending_decisions"]]);
+  });
+});
+
+/** 操作中のエラーの許容の承認を積んだ approvals の要素。操作中のエラーの describe の sig の既定値と同じテスト × 署名を指す。 */
+const allowanceLog = (over: Record<string, unknown> = {}) => ({
+  kind: "runtime_errors",
+  test: LIST,
+  id: "x",
+  tree: TREE,
+  approved_by: "owner",
+  approved_at: "2026-11-11T00:00:00Z",
+  reason: "既知",
+  ...over,
+});
+
+// Issue #1003 の項目 1: 操作中のエラーの許容も、追記専用の承認の記録（approvals）に同じ値が積まれていなければ承認として数えない。
+// approvals の要素は新側のバージョン（tree）を持つので、compare が前のバージョンの分類を持ち越しても、承認し直すまで承認待ちになる
+describe("操作中のエラーの許容と承認の記録（approvals）", () => {
+  const allowed = (over: Record<string, unknown> = {}) => ({
+    test: LIST,
+    id: "x",
+    kind: "console-error",
+    text: "新側だけのエラー",
+    classification: "許容",
+    reason: "既知",
+    approved_at: "2026-11-11T00:00:00Z",
+    ...over,
+  });
+  const verify = (sigs: Record<string, unknown>[], approvals: unknown[]) =>
+    withVerify({
+      runtime_errors: { ...comparedOk(), new_signatures: sigs },
+      approvals: [...approvalsLog(), ...approvals],
+    });
+
+  test("同じテスト × 署名・同じバージョン・同じ値の承認が積まれていれば収束する", () => {
+    const r = run(verify([allowed()], [allowanceLog()]));
+    expect(r.code).toBe(0);
+    // runtime_errors の要素は、語彙の外として捨てずに承認として数える
+    expect(r.result?.checks.approvals).toEqual({ entries: 3, ignored: 0 });
+  });
+
+  test.each([
+    ["承認の記録に無い", {}, null],
+    [
+      "前のバージョン（tree）で積んだ承認しか無い（compare が分類を持ち越した）",
+      {},
+      { tree: "1".repeat(40) },
+    ],
+    ["承認の後に理由を書き換えた", { reason: "書き換えた理由" }, {}],
+    ["承認の後に日時を書き換えた", { approved_at: "2026-11-12T00:00:00Z" }, {}],
+    ["別の署名の承認しか無い", {}, { id: "y" }],
+    ["別のテストの承認しか無い", {}, { test: EDIT }],
+    ["承認した人（approved_by）の無い承認しか無い", {}, { approved_by: undefined }],
+    ["承認した人が雛形の値のままの承認しか無い", {}, { approved_by: "<承認した人>" }],
+    ["kind だけが違う（design_review の）要素しか無い", {}, { kind: "design_review" }],
+  ])("許容が %s なら承認待ちにする", (_name, sigOver, logOver) => {
+    const logs = logOver === null ? [] : [allowanceLog(logOver)];
+    const r = run(verify([allowed(sigOver)], logs));
+    expect(r.code).toBe(1);
+    expect(kinds(r)).toEqual([["approval", "runtime_errors"]]);
+    expect(r.result?.reasons[0]?.message).toContain("approvals");
+  });
+
+  test.each([
+    ["id", { id: undefined }, { id: undefined }],
+    ["test", { test: undefined }, { test: undefined }],
+  ])("署名に %s が無ければ、同じ欄の無い承認とも一致させない", (_key, sigOver, logOver) => {
+    const r = run(verify([allowed(sigOver)], [allowanceLog(logOver)]));
+    expect(kinds(r)).toEqual([["approval", "runtime_errors"]]);
+  });
+
+  test.each([
+    ["承認の日時（approved_at）", { approved_at: "<承認した日時>" }],
+    ["理由（reason）", { reason: "<許容する理由>" }],
+  ])(
+    "許容の %s が雛形のプレースホルダのままなら、承認の記録に同じ値があっても承認待ちにする",
+    (_name, placeholder) => {
+      const r = run(verify([allowed(placeholder)], [allowanceLog(placeholder)]));
+      expect(kinds(r)).toEqual([["approval", "runtime_errors"]]);
+      // 承認の記録の照合まで進まず、分類か承認が無いエラーとして挙げる（approvals に足させない）
+      expect(r.result?.reasons[0]?.message).not.toContain("approvals");
+    },
+  );
+
+  test("環境ノイズの根拠（evidence）が雛形のプレースホルダのままなら、承認待ちにする", () => {
+    const noise = allowed({ classification: "環境ノイズ", evidence: "<出る条件と出ない条件>" });
+    expect(kinds(run(verify([noise], [])))).toEqual([["approval", "runtime_errors"]]);
+  });
+
+  test("前のバージョンの承認が残っていても、いまのバージョンの承認が積まれていれば収束する", () => {
+    const r = run(verify([allowed()], [allowanceLog({ tree: "1".repeat(40) }), allowanceLog()]));
+    expect(r.code).toBe(0);
+  });
+
+  test("環境ノイズは承認の記録を求めない（根拠で確定する）", () => {
+    const noise = allowed({ classification: "環境ノイズ", evidence: "stg だけの CDN" });
+    expect(run(verify([noise], [])).code).toBe(0);
+  });
+
+  test("承認の記録が無い許容は、承認の欄（approved_at・reason）が無いときと同じく承認待ちの 1 件にする", () => {
+    const r = run(verify([allowed({ approved_at: undefined })], []));
+    expect(kinds(r)).toEqual([["approval", "runtime_errors"]]);
+    expect(r.result?.reasons[0]?.message).not.toContain("approvals");
   });
 });
 
