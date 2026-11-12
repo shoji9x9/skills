@@ -14,7 +14,7 @@
 3. スタイルの方針。画面のある機能を確かめるスキルは、replace-strategy の設定にある `style_policy` で決まる。
    `reproduce`（デフォルト）は見た目も現行に合わせ、parity-suite と parity-diff で新旧の画面を比べる。
    `free` は UI の仕様（操作・状態・role・テキスト・API）だけを合わせ、見た目は人が見て違和感の無いものにする。spec-parity が新側だけを確かめ、新旧の画面は比べない。
-   値は setup で戦略を決めるときに利用者が選び、機能に着手した後は変えない。どうしても変えるなら、着手済みの機能で作った成果物を作り直すかを、機能ごとに利用者に確かめてから変える。横断 API とバッチは、どちらの値でも parity-suite と parity-diff で確かめる。
+   値は setup で戦略を決めるときに利用者が選び、機能に着手した後は変えない。どうしても変えるなら、利用者は、着手済みの機能で作った成果物を作り直すかを機能ごとに決めてから変える。横断 API とバッチは、どちらの値でも parity-suite と parity-diff で確かめる。
    根拠: `skills/replace-strategy/references/project-config.md`「スタイルの方針（`style_policy`）」、`skills/replace-strategy/SKILL.md`「姉妹スキルと依存順」
 4. 全体の順序（図）。最初に 1 回、replace-strategy の setup → 必要なときだけ current-environment-bootstrap → 測定と戦略と機能の一覧 → golden-dataset のフェーズ A と進む。
    `reproduce` で部品を画面より先に作るなら parity-component を実行する。
@@ -54,7 +54,7 @@
     要対応は parity-replace に戻す。承認は追記だけの記録に残し、記録が減っていないことを確かめてから収束とする。
     根拠: `skills/spec-parity/SKILL.md` の冒頭・「使い方」・「実行フロー」
 13. 人が判断する点。戦略と、見た目を現行に合わせるか（`style_policy`）の承認、現行アプリの担当者や業務の専門家による質問票への回答、測らない項目と後始末できない書き込みの承認、受け入れ条件と突き合わせない資産の承認、「許容」に分けた差分の承認。
-    spec-parity では、デザインの指摘のうち受け入れるものと、許容する操作中のエラーを承認し、新側の画面に違和感が無いことを確かめる。
+    spec-parity では、デザインの指摘のうち受け入れるもの・許容する操作中のエラー・保証する幅から外す幅（現行もはみ出した幅）を承認し、新側の画面に違和感が無いことを確かめる。
     e2e と web-design-guidelines を入れるかと、agent のステップで画面の内容をモデルの提供元へ送るかも決める。
     新側のアーキテクチャ（フレームワーク・構成など）は、スキルが決めず、事前に決めておく。`--autonomous` では、判断が要るものを保留に記録し、最後にまとめて聞く。
     根拠: `skills/replace-strategy/SKILL.md`「前提」「自律実行（`--autonomous`）」、各姉妹スキルの承認の手順

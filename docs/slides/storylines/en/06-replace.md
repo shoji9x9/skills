@@ -17,7 +17,7 @@ Skills: replace-strategy, current-environment-bootstrap, golden-dataset, parity-
    `reproduce` (the default) also matches the appearance, and parity-suite and parity-diff compare the screens of both apps.
    `free` matches only UI behavior (actions, states, roles, text, API), and the appearance only needs to look right to people. spec-parity checks only the new app and does not compare screens.
    You choose the value when setup decides the strategy, and keep it once work on features starts.
-   If you must change it, the agent first asks you, for each started feature, whether to rebuild its outputs. Cross-cutting APIs and batches use parity-suite and parity-diff with either value.
+   If you must change it, first decide for each started feature whether to rebuild its outputs. Cross-cutting APIs and batches use parity-suite and parity-diff with either value.
    Sources: `skills/replace-strategy/references/project-config.md` "スタイルの方針（`style_policy`）", `skills/replace-strategy/SKILL.md` "姉妹スキルと依存順"
 4. Overall order (diagram). Once at the start: replace-strategy setup → current-environment-bootstrap only when needed → measurement, strategy and feature list → golden-dataset phase A.
    If you build components before screens under `reproduce`, run parity-component.
@@ -63,7 +63,8 @@ Skills: replace-strategy, current-environment-bootstrap, golden-dataset, parity-
 13. Where people decide. Approving the strategy and whether to match the current appearance (`style_policy`),
     answers to the questionnaire from the people in charge of the current app and business experts, approving items not measured and writes that
     cannot be cleaned up, approving assets not matched against acceptance criteria, and approving differences classified as "acceptable".
-    In spec-parity, approving which design findings to accept and which runtime errors to allow, and confirming that the new app's screens look right.
+    In spec-parity, approving which design findings to accept, which runtime errors to allow, and which widths to drop from the guaranteed range
+    (widths where the current app also overflows), and confirming that the new app's screens look right.
     Also deciding whether to install e2e and web-design-guidelines, and whether agent steps may send page content to the model provider.
     The architecture of the new app (framework, structure and so on) is decided in advance, not by the skills. With `--autonomous`, items that need a decision are recorded as pending and
     asked together at the end.
