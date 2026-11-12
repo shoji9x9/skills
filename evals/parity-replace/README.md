@@ -23,7 +23,7 @@ scripts/eval/run/run-skill-eval.sh \
 # fixture 付き eval（前提が揃った状態から始める。evals.json の "fixture" の値の前に evals/parity-replace/ を付けて渡す）
 scripts/eval/run/run-skill-eval.sh \
   --skill parity-replace --config with_skill \
-  --prompt "parity-replace --feature order-list --target develop （新側の作業ツリーは clean で、コミット SHA は local-dev で green になった abc1234def5678 と同一です）" \
+  --prompt "parity-replace --feature order-list --target develop （新側の作業ツリーは clean で、new.tree は local-dev で green になった記録と同じです。HEAD の commit は abc1234def5678 です）" \
   --fixture evals/parity-replace/fixtures/lightweight-deploy-target \
   --out tests/parity-replace/iteration-1/eval-6/with_skill/run-1 \
   --model opus
@@ -106,3 +106,8 @@ scripts/eval/run/run-skill-eval.sh \
   - eval 27・28 は、`style-free.md` が `spec-parity` の `references/` を読むので、`requires_skills` に `spec-parity` を置く。baseline も `spec-parity` を読めるので、`spec-parity` の側に書いた内容（次の工程の名前など）は差が出にくい
   - eval 27 は `style-free` で、完了の判定と次の工程を説明させる。green を e2e のスイートで判定すること、`replace-metadata.json` に `spec-parity verify` が読む値を書くこと、`later` の担当と次の工程が `spec-parity` であることを見る
   - eval 28 は `style-free` で、トークンを寄せて `component_diffs` を宣言し、UI ライブラリを選ぶよう頼む。どれも行わず、`references.ui_library` の整備を促し、見た目の受け入れを `spec-parity verify` に任せるかを見る
+- eval 29 の fixture（`records-committed-same-repo`）は、記録（`.replace/`）と新側（`new.repo: ./new-app`）を同じ git のリポジトリに置く。
+  `setup.sh` が、新側のソースを 1 つ目の commit に入れ、`new/local-dev/replace-metadata.json` の `new.commit`・`new.tree` をその値に置き換えてから、記録を 2 つ目の commit に入れる。
+  そのため HEAD は記録の `new.commit` と違い、`.replace/` を除いた `new-app` のツリーは記録の `new.tree` と同じになる。
+  `start` を持つ target（`local-preview`）で、記録の commit で HEAD が進んだことを理由に軽量な手順を外さず、同梱の `scripts/source-version.mjs` の `new.tree` で判定するかを見る。
+  fixture と prompt には、判定の結果と使う値の名前を書かない

@@ -4,6 +4,7 @@
   "style_policy": "free",
   "new": {
     "commit": "abc1234def5678",
+    "tree": "def5678abc1234",
     "dirty": false,
     "ui_url": "http://localhost:5173"
   },
@@ -14,7 +15,7 @@
     "autonomous": false
   },
   "suite": {
-    "commit": "abc1234def5678",
+    "tree": "def5678abc1234",
     "report": ".replace/parity/order-list/new/local-dev/suite-report.json"
   },
   "overflow": {
@@ -45,7 +46,7 @@
     "missing": [],
     "width_mismatch": [],
     "extra": [],
-    "commit": "abc1234def5678",
+    "commit": "def5678abc1234",
     "measurements": ".replace/parity/order-list/new/local-dev/overflow.json"
   },
   "runtime_errors": {
@@ -73,7 +74,7 @@
   },
   "design_review": {
     "source": "bundled",
-    "commit": "abc1234def5678",
+    "tree": "def5678abc1234",
     "completed_at": "2026-05-03T02:30:00Z",
     "rules_note": null,
     "pages_reviewed": ["/orders"],
@@ -93,7 +94,7 @@
     ]
   },
   "human_review": {
-    "commit": "abc1234def5678",
+    "tree": "def5678abc1234",
     "screens": [
       {
         "page": "/orders",

@@ -16,12 +16,12 @@
 //      記録する指紋は --fingerprint で出す（手で計算しない）。
 //   3. 未測定（unmeasured）: gaps.md の散文と対になる機械可読の宣言。disposition: blocking が残る間は収束させない。
 //   4. 工程の成果物（--target）: suite.new_green が真なら、同じ場所に diff-metadata.json が在ることを求める。
-//      加えて、それが「いまの新側」（new.commit と loop.iterations）に対応していることを求める
+//      加えて、それが「いまの新側」（new.tree と loop.iterations）に対応していることを求める。new.tree を持たない記録は通さない
 //      （converged が偽でも落とさない）。dataset_version は数値の一致では見ない。陳腐化の原本は
 //      golden-dataset の references/versioning.md で、ここでは交差を見るまでもなく確定する形だけを落とす。
 //      投入対象でない target は dataset_version: null ＋ dataset_version_exempt で免除される（parity-diff の references/preflight.md）。
 //      --carry-to <SHA> を渡すと、diff-metadata.json の new.commit からそのバージョンへの持ち越しも必ず判定する。
-//      部品改修の一括再検証の直後は、replace-metadata.json の new.commit が改修前のままで、食い違いの判定が呼ばれないためである。
+//      部品改修の一括再検証の直後は、replace-metadata.json の new.tree が改修前のままで、食い違いの判定が呼ばれないためである。
 //
 // 何をしないか: 採取・加工・スイートの実行はしない。ここでは記録と実体を突き合わせるだけ。
 //
@@ -47,7 +47,7 @@ import { realPathOf } from "./lib/paths.mjs";
  * ツールのバージョン（原本）。判定ロジック・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "11";
+export const VERSION = "12";
 
 /** 採取物の種別。derived は元の実体から作った加工物。 */
 const ARTIFACT_KINDS = ["captured", "derived"];
@@ -1829,12 +1829,12 @@ function readChange(change, byVersion) {
 /**
  * 工程が残す成果物の在否と鮮度を数え直す（--target のときだけ）。
  *
- * new.commit が両側とも SHA で食い違うときは、evidence-carry.mjs の judgeCarry で描画入力の差分から
- * 持ち越せるかを判定する（replace-metadata.json に new.render_inputs があるときだけ。無ければ従来どおり落とす）。
+ * new.tree が食い違うときは、evidence-carry.mjs の judgeCarry で、new.commit の間の描画入力の差分から持ち越せるかを判定する。
+ * 判定するのは replace-metadata.json に new.render_inputs があるときだけで、無ければ従来どおり落とす。
  * component-comparison-check.mjs の comparison-implementation-stale と同じ関数で判定し、2 つのチェックの判定を揃える。
  *
- * carryTo（--carry-to）を渡すと、replace-metadata.json の new.commit とは別に、diff-metadata.json の new.commit から
- * そのバージョンへの持ち越しを必ず judgeCarry で判定する。部品改修の一括再検証の直後は両方の記録が改修前のバージョンで
+ * carryTo（--carry-to）を渡すと、diff-metadata.json の new.commit からそのバージョンへの持ち越しを、必ず judgeCarry で判定する。
+ * replace-metadata.json の new.tree が一致していても判定する。部品改修の一括再検証の直後は両方の記録が改修前のバージョンで
  * 一致し、上の食い違いの判定が呼ばれないため、不正な evidence-carry.json がその場で見つからない。
  * 判定できない状態（工程の節を判定しない・記録のバージョンが SHA でない）は合格として扱わない。
  * @param {{ root: string, slugDir: string, target: string, newRepo?: string | null, replaceRoot?: string | null, featureMetadata?: unknown, carryTo?: string | null }} ctx
@@ -1994,48 +1994,102 @@ function carryFrom(s, recordedCommit, wantedCommit) {
 }
 
 /**
- * 両成果物の new.commit を突き合わせる。
+ * 両成果物の new.tree（.replace/ を除いた新側のソースのツリーのハッシュ）を突き合わせる。
+ * 一致の判定は new.tree で行い、new.commit は使わない（記録を commit して HEAD が進んでも、ソースが同じなら同じバージョン）。
+ * new.tree が食い違うときだけ、new.commit を差分の起点にして judgeCarry で持ち越せるかを判定する。
+ * 取り方の原本は replace-strategy の references/project-config.md「新側のバージョンの記録」。
  * @param {StageState} s
  * @returns {{ judgedWanted: string | null, versionDelegatedToIteration: boolean }}
  */
 function judgeStageCommits(s) {
-  const replaceCommit = s.replaceNew === null ? undefined : s.replaceNew.commit;
-  const diffCommit = s.diffNew === null ? undefined : s.diffNew.commit;
-  // judgedWanted: 食い違いの判定で既に judgeCarry に掛けた「今のバージョン」。--carry-to が同じバージョンなら二重に判定しない。
-  // versionDelegatedToIteration: commit が `none` センチネルで、バージョンの対応が反復回数だけに委ねられたか。
+  const replaceTree = s.replaceNew === null ? undefined : s.replaceNew.tree;
+  const diffTree = s.diffNew === null ? undefined : s.diffNew.tree;
+  // judgedWanted: 食い違いの判定で既に judgeCarry に掛けた「今のバージョン」（commit）。--carry-to が同じバージョンなら二重に判定しない。
+  // versionDelegatedToIteration: tree が `none` センチネルで、バージョンの対応が反復回数だけに委ねられたか。
   // 委ねた先も読めないときに、合格として扱わないための材料（反復回数の判定で使う）。
-  if (!nonEmptyString(replaceCommit) || !nonEmptyString(diffCommit)) {
-    s.notes.push(
-      "new.commit を片側が持たないため新側のバージョンの対応を判定しない（旧成果物）: 記録があれば次の実行から判定する",
-    );
+  if (reportMissingTrees(s, replaceTree, diffTree)) {
     return { judgedWanted: null, versionDelegatedToIteration: false };
   }
-  const wanted = String(replaceCommit).trim();
-  const recordedCommit = String(diffCommit).trim();
+  const wantedTree = String(replaceTree).trim();
+  const recordedTree = String(diffTree).trim();
   // **反復回数へ委ねるのは、両側とも `${NO_COMMIT}` のときだけである**。片側だけが `none` なら、
-  // 記録した SHA と現在の `none`（またはその逆）は同じバージョンを指さない。反復回数が
+  // 記録したツリーと現在の `none`（またはその逆）は同じバージョンを指さない。反復回数が
   // たまたま一致しただけで合格として扱うと、git 管理の有無が変わった新側で古い成果物が通る
   // （component-comparison-check.mjs と同じ規則。原本は references/coverage.md）。
-  if (wanted === NO_COMMIT && recordedCommit === NO_COMMIT) {
+  if (wantedTree === NO_COMMIT && recordedTree === NO_COMMIT) {
     s.notes.push(
-      `new.commit が ${NO_COMMIT}（新側リポジトリのコミットを持たない）ためバージョンの対応は反復回数だけで判定する: ${s.diffPath}`,
+      `new.tree が ${NO_COMMIT}（新側リポジトリのコミットを持たない）ためバージョンの対応は反復回数だけで判定する: ${s.diffPath}`,
     );
     return { judgedWanted: null, versionDelegatedToIteration: true };
   }
-  if (wanted === recordedCommit) return { judgedWanted: null, versionDelegatedToIteration: false };
-  // SHA の不一致を即失効にせず、ページの描画入力の差分で持ち越せるかを見る。
-  // 判定の原本は evidence-carry.mjs。component-comparison-check.mjs も同じ関数で判定する。
-  const carry = carryFrom(s, recordedCommit, wanted);
+  if (wantedTree === recordedTree)
+    return { judgedWanted: null, versionDelegatedToIteration: false };
+  return {
+    judgedWanted: judgeTreeMismatch(s, { wantedTree, recordedTree }),
+    versionDelegatedToIteration: false,
+  };
+}
+
+/**
+ * **new.tree を持たない記録を合格として扱わない**。new.commit の一致で代わりにせず、記録し直しを求める。
+ * @param {StageState} s
+ * @param {unknown} replaceTree
+ * @param {unknown} diffTree
+ * @returns {boolean} 片側でも欠けていれば true（所見を足した）
+ */
+function reportMissingTrees(s, replaceTree, diffTree) {
+  /** @type {Array<[string, unknown, string]>} */
+  const sides = [
+    ["replace-metadata.json", replaceTree, "parity-replace"],
+    ["diff-metadata.json", diffTree, "parity-diff"],
+  ];
+  const missing = sides.filter(([, tree]) => !nonEmptyString(tree));
+  for (const [label, , skill] of missing) {
+    s.findings.push(
+      `${label} が new.tree を持たない（新側のバージョンを確かめられない古い記録。同じ --target の ${skill} をもう一度実行して記録し直す）: ${s.diffPath}`,
+    );
+  }
+  return missing.length > 0;
+}
+
+/**
+ * new.tree の不一致を即失効にせず、ページの描画入力の差分で持ち越せるかを見る。差分は new.commit の間で取る。
+ * 判定の原本は evidence-carry.mjs。component-comparison-check.mjs も同じ関数で判定する。
+ * @param {StageState} s
+ * @param {{ wantedTree: string, recordedTree: string }} trees
+ * @returns {string | null} judgeCarry に掛けた「今のバージョン」（commit）。掛けられなければ null
+ */
+function judgeTreeMismatch(s, { wantedTree, recordedTree }) {
+  const wanted = nonEmptyString(s.replaceNew?.commit) ? String(s.replaceNew?.commit).trim() : "";
+  const recordedCommit = nonEmptyString(s.diffNew?.commit) ? String(s.diffNew?.commit).trim() : "";
+  // new.commit が同じなら描画入力の差分は必ず空になり、new.tree の食い違いを説明しないまま持ち越してしまう。
+  // 同じ commit で new.tree が違うのは、取った範囲（new.repo・.replace/ の場所）が違う記録なので、持ち越さない
+  const carry =
+    wanted === "" || recordedCommit === ""
+      ? {
+          ok: false,
+          findings: ["new.commit を片側が持たないので、描画入力の差分を取れない"],
+          notes: [],
+        }
+      : wanted === recordedCommit
+        ? {
+            ok: false,
+            findings: [
+              `new.commit が同じ（${wanted}）なのに new.tree が違う（取った範囲が違う記録なので、同じ取り方で記録し直す）`,
+            ],
+            notes: [],
+          }
+        : carryFrom(s, recordedCommit, wanted);
   if (carry.ok) {
     s.notes.push(...carry.notes.map((note) => `${note}: ${s.diffPath}`));
   } else {
     s.findings.push(
-      `diff-metadata.json が今の新側のバージョンに対応していない（new.commit ${recordedCommit} ≠ replace-metadata.json の ${wanted}）: ${s.diffPath}`,
+      `diff-metadata.json が今の新側のバージョンに対応していない（new.tree ${recordedTree} ≠ replace-metadata.json の ${wantedTree}）: ${s.diffPath}`,
     );
     s.findings.push(...carry.findings.map((f) => `証跡を持ち越せない: ${f}`));
     s.notes.push(...carry.notes);
   }
-  return { judgedWanted: wanted, versionDelegatedToIteration: false };
+  return wanted === "" ? null : wanted;
 }
 
 /**
@@ -2083,12 +2137,12 @@ function judgeStageIteration(s, versionDelegatedToIteration) {
       );
     }
   } else if (versionDelegatedToIteration) {
-    // **委譲した先が読めないことを合格として扱わない**。commit が `none` の枝は、バージョンの対応を
+    // **委譲した先が読めないことを合格として扱わない**。tree が `none` の枝は、バージョンの対応を
     // 反復回数へ委ねている。その反復回数も読めないと、実装を変えても古い成果物が、
     // バージョンの検査を 1 つも受けずに通ってしまう（component-comparison-check.mjs の
     // comparison-implementation-unversionable と同じ扱いにする）。
     s.findings.push(
-      `新側のバージョンを対応づける指標が無い（new.commit が ${NO_COMMIT} なのに iteration: ${recordedIteration === null ? "読めない" : recordedIteration} / loop.iterations: ${iterations === null ? "読めない" : iterations}）: ${s.diffPath}`,
+      `新側のバージョンを対応づける指標が無い（new.tree が ${NO_COMMIT} なのに iteration: ${recordedIteration === null ? "読めない" : recordedIteration} / loop.iterations: ${iterations === null ? "読めない" : iterations}）: ${s.diffPath}`,
     );
   } else {
     s.notes.push(
@@ -2430,8 +2484,8 @@ const usage = [
   "  --root      リポジトリルート（省略時は metadata のパスの .replace の親から導く）",
   "  --target    新側 target 名。渡したときだけ工程の成果物（diff-metadata.json）の在否と鮮度を判定する",
   "  --stage     呼び出し元の工程。diff（デフォルト・収束判定。未測定の blocking で落とす） | suite（完了判定。blocking は落とさない）",
-  "  --new-repo  新側リポジトリの最上位。new.commit が食い違うとき、new.render_inputs の差分で証跡を持ち越せるかを判定する（無ければ持ち越さない）",
-  "  --carry-to  検証先の新側のバージョン（部品改修の一括再検証では変更宣言の commits.after）。diff-metadata.json の new.commit からこのバージョンへの持ち越しを、replace-metadata.json の new.commit が同じでも必ず判定する（--target と --new-repo が要る）",
+  "  --new-repo  新側リポジトリの最上位。new.tree が食い違うとき、new.render_inputs の差分で証跡を持ち越せるかを判定する（無ければ持ち越さない）",
+  "  --carry-to  検証先の新側のバージョン（部品改修の一括再検証では変更宣言の commits.after）。diff-metadata.json の new.commit からこのバージョンへの持ち越しを、replace-metadata.json の new.tree が同じでも必ず判定する（--target と --new-repo が要る）",
   "  --fingerprint  検査せず、反復実行の記録に書く指紋（suite_fingerprint / shared_fingerprint / spec_fingerprints）を JSON で出す",
   "  --replace-root  .replace ディレクトリ（省略時は <root>/.replace）。変更宣言・部品 metadata・evidence-carry.json の相対パスはその親から解決する",
   "exit: 0 = 条件を満たす（判定しない節を含む） / 1 = 未検証・不整合が残る / 2 = 使い方の誤り・型の誤り",

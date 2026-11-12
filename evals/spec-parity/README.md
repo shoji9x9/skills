@@ -29,8 +29,10 @@ e2e の結果（`suite-report.json`・`strength-report.json`）と操作中の�
 | `verify-unapproved` | 記録はそろい、受け入れるデザインの指摘と人による確認に承認の記録が無い（雛形の値のまま） | 8 |
 | `verify-overflow` | 記録と承認はそろい、`/orders` の幅 375 で新側が横にはみ出す | 9 |
 
-`verify-unapproved` と `verify-overflow` は、ルートの `setup.sh` で新側のリポジトリ（設定の `new.repo: ./new-app`）を git で作り、記録の `commit` をその HEAD の完全な SHA に置き換える。
-verify の手順 7 は、収束を判定する直前に新側の HEAD と作業ツリーの状態を取得し直すので、新側のリポジトリが無いと判定の記録まで進めない。
+`verify-unapproved` と `verify-overflow` は、ルートの `setup.sh` で新側のリポジトリ（設定の `new.repo: ./new-app`）を git で作る。
+記録の `commit` の仮の値（`abc1234def5678`）はその HEAD の完全な SHA に、`tree` の仮の値（`def5678abc1234`）は HEAD のツリーのハッシュに置き換える。
+`.replace/` は `new-app` の外にあるので、`source-version.mjs` が出す `tree` は HEAD のツリーのハッシュと同じになる。
+verify の手順 7 は、収束を判定する直前に新側のバージョンを取得し直すので、新側のリポジトリが無いと判定の記録まで進めない。
 
 fixture には、止まる理由・案内先・収束するかの結論を書かない。書くと baseline がそれを読んで assertion を満たす。
 

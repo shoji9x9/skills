@@ -6,7 +6,7 @@
 
 - 対象 slug: （features.md の slug）
 - 新側の target: （target の名前）
-- 新側のバージョン: （new.commit）
+- 新側のバージョン: （new.tree。人が追うための commit は new.commit）
 - 実施日時: （ISO 8601）
 - 収束の判定: （convergence-check.mjs の終了コードと converged の値）
 - 従った on_diff のドキュメント: （選んだ target の on_diff のパス。無ければ -）

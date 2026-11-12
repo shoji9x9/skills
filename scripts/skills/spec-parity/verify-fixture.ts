@@ -8,6 +8,8 @@ export const SLUG_DIR = ".replace/parity/orders";
 export const NEW_DIR = `${SLUG_DIR}/new/stg`;
 export const VERIFY = `${NEW_DIR}/verify-metadata.json`;
 export const COMMIT = "0123456789abcdef0123456789abcdef01234567";
+// 新側のバージョンの照合に使う値（.replace/ を除いた新側のソースのツリーのハッシュ）。new.commit は人が追うための値で、照合に使わない
+export const TREE = "89abcdef0123456789abcdef0123456789abcdef";
 
 const NARROW = { width: 375, height: 800 };
 const WIDE = { width: 1280, height: 720 };
@@ -132,7 +134,8 @@ export const overflowRecords = (over: Record<string, unknown> = {}) => ({
   side: "new",
   slug: "orders",
   target: "stg",
-  commit: COMMIT,
+  // 横のはみ出しの記録の commit には、PARITY_COMMIT で渡した new.tree の値が入る
+  commit: TREE,
   records: [NARROW, WIDE].map((viewport) => ({
     page: "/orders",
     viewport,
@@ -163,12 +166,12 @@ export const verifyMetadata = (over: Record<string, unknown> = {}) => ({
   slug: "orders",
   target: "stg",
   style_policy: "free",
-  new: { commit: COMMIT, dirty: false },
-  suite: { commit: COMMIT, report: `${NEW_DIR}/suite-report.json` },
+  new: { commit: COMMIT, tree: TREE, dirty: false },
+  suite: { tree: TREE, report: `${NEW_DIR}/suite-report.json` },
   runtime_errors: comparedOk(),
   design_review: {
     source: "bundled",
-    commit: COMMIT,
+    tree: TREE,
     completed_at: "2026-11-11T00:00:00Z",
     pages_reviewed: PAGES,
     findings: [
@@ -187,7 +190,7 @@ export const verifyMetadata = (over: Record<string, unknown> = {}) => ({
     ],
   },
   human_review: {
-    commit: COMMIT,
+    tree: TREE,
     screens: [
       { page: "/orders", viewport: NARROW, screenshot: `${NEW_DIR}/review/orders-375.png` },
     ],
@@ -266,7 +269,7 @@ export function convergedFs(): Fs {
   fs.put(`${NEW_DIR}/replace-metadata.json`, {
     slug: "orders",
     suite: { new_green: true },
-    new: { target: "stg", commit: COMMIT, dirty: false },
+    new: { target: "stg", commit: COMMIT, tree: TREE, dirty: false },
   });
   fs.put(`${NEW_DIR}/suite-report.json`, passing("new"));
   fs.put(`${NEW_DIR}/overflow.json`, overflowRecords());

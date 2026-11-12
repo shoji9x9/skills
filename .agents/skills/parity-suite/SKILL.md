@@ -579,7 +579,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
   `parity-diff` は、インストールしたこのスキルから同じスクリプトを `--target` を付けて呼び、収束の判定に入れる（採取物・反復の実行・未測定・工程の成果物の 4 群）
 - [`scripts/component-impact.mjs`](scripts/component-impact.mjs) もコピーしない。共通部品の変更の宣言から、各機能の影響する撮影の組を導く。
   `parity-diff` の部品の改修の一括再検証（`parity-diff` の `references/component-change.md`）が呼び、鮮度の検査も同じ判定を計算し直す
-- [`scripts/evidence-carry.mjs`](scripts/evidence-carry.mjs) もコピーしない。新側の commit が変わった後も、差分の証跡を持ち越せるかを判定するライブラリである。
+- [`scripts/evidence-carry.mjs`](scripts/evidence-carry.mjs) もコピーしない。新側のソース（`new.tree`）が変わった後も、差分の証跡を持ち越せるかを判定するライブラリである。
   `artifact-health-check.mjs` と `component-comparison-check.mjs` が import し、このライブラリ自身は `component-impact.mjs` を import する。
   この 4 本は、同じディレクトリに置いたまま呼ぶ。
   持ち越しは、両方の検査に `--new-repo` を渡したときだけ評価される。

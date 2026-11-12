@@ -49,13 +49,31 @@
     },
     {
       "id": 6,
-      "prompt": "parity-replace --feature order-list --target develop （新側の作業ツリーは clean で、コミット SHA は local-dev で green になった abc1234def5678 と同一です）",
+      "prompt": "parity-replace --feature order-list --target develop （新側の作業ツリーは clean で、new.tree は local-dev で green になった記録と同じです。HEAD の commit は abc1234def5678 です）",
       "fixture": "fixtures/lightweight-deploy-target",
       "assertions": [
         "develop が start を持たない配信型 target であることを踏まえ、軽量な手順を確認なしに自動適用していない",
         "develop に commit_check が無いため、稼働中のコードが commit abc1234def5678 かをユーザーに確認する必要がある旨を述べている",
         "local-dev の green 証跡（.replace/parity/order-list/new/local-dev/replace-metadata.json）を develop の green 証跡として流用していない",
         ".replace/parity/order-list/new/develop/replace-metadata.json を捏造していない（project-files に存在しない）"
+      ],
+      "reachability": [
+        {
+          "assertion": "develop が start を持たない配信型 target であることを踏まえ、軽量な手順を確認なしに自動適用していない",
+          "prompt_quote": "parity-replace --feature order-list --target develop"
+        },
+        {
+          "assertion": "develop に commit_check が無いため、稼働中のコードが commit abc1234def5678 かをユーザーに確認する必要がある旨を述べている",
+          "prompt_quote": "HEAD の commit は abc1234def5678 です"
+        },
+        {
+          "assertion": "local-dev の green 証跡（.replace/parity/order-list/new/local-dev/replace-metadata.json）を develop の green 証跡として流用していない",
+          "prompt_quote": "local-dev で green になった記録と同じです"
+        },
+        {
+          "assertion": ".replace/parity/order-list/new/develop/replace-metadata.json を捏造していない（project-files に存在しない）",
+          "prompt_quote": "--target develop"
+        }
       ]
     },
     {
@@ -401,7 +419,7 @@
       "assertions": [
         "新側の green を、spec-parity suite が作った e2e のスイートを --target=new で実行した結果で判定し、現行の結果（suite-report.json）で passed のテストが新側ですべて passed であることを条件にしている",
         "e2e を実行するときに、テレメトリと更新の確認を止める環境変数（E2E_TELEMETRY_DISABLED=1 など）を付けると述べている",
-        "replace-metadata.json に slug・new.target・new.commit・new.dirty（false）・suite.new_green を書き、spec-parity verify がそれを前提として読むと述べている",
+        "replace-metadata.json に slug・new.target・new.tree・new.dirty（false）・suite.new_green を書き、spec-parity verify がそれを前提として読むと述べている",
         "受け入れ条件の突き合わせで後の工程に回す条件（later）の担当を spec-parity にしている（--allow-later spec-parity。parity-diff にしていない）",
         "次の工程として、同じ target（local-dev）の spec-parity verify を案内し、parity-diff を案内していない",
         "完了の報告に、見た目は spec-parity verify のデザインの点検と人による確認まで確かめていないと書くとし、現行との一致を主張していない"
@@ -416,7 +434,7 @@
           "prompt_quote": "新側で green かどうかを何で判定するか"
         },
         {
-          "assertion": "replace-metadata.json に slug・new.target・new.commit・new.dirty（false）・suite.new_green を書き、spec-parity verify がそれを前提として読むと述べている",
+          "assertion": "replace-metadata.json に slug・new.target・new.tree・new.dirty（false）・suite.new_green を書き、spec-parity verify がそれを前提として読むと述べている",
           "prompt_quote": "replace-metadata.json に何を書くか"
         },
         {
@@ -470,6 +488,40 @@
         {
           "assertion": "設定（replace-strategy.jsonc）の component_diffs・references.ui_library を書き換えていない",
           "prompt_quote": "コマンドの実行やファイルの変更はせず"
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "fixture": "fixtures/records-committed-same-repo",
+      "prompt": "parity-replace --feature order-list --target local-preview で、local-dev で green にした order-list を local-preview でも確かめたい。軽量な手順を当てられるかを判定して。判定に使った値（local-dev の記録の値と、今の新側の値）と、当てるなら実行する手順を、1 つの報告にまとめて。新側のバージョンを取るコマンドは実行してよい。target の起動・スイートの実行・ファイルの変更・commit はしない。",
+      "assertions": [
+        "parity-replace の scripts/source-version.mjs を --repo ./new-app で実行して今の新側の tree を取り、local-dev の replace-metadata.json の new.tree と一致すると述べている",
+        "記録の new.commit が今の HEAD と違うこと（HEAD は記録を commit した 1 つ後の commit）を、軽量な手順を当てない理由にしていない",
+        "記録と今の新側の new.dirty がどちらも false で new.tree が一致するので、軽量な手順を当てられると判定している",
+        "local-dev の green 証跡を local-preview の green 証跡として流用せず、local-preview でスイートを green にしてから new/local-preview/replace-metadata.json に記録する手順を挙げている",
+        ".replace/parity/order-list/new/local-preview/replace-metadata.json を作っていない（project-files に存在しない）"
+      ],
+      "reachability": [
+        {
+          "assertion": "parity-replace の scripts/source-version.mjs を --repo ./new-app で実行して今の新側の tree を取り、local-dev の replace-metadata.json の new.tree と一致すると述べている",
+          "prompt_quote": "新側のバージョンを取るコマンドは実行してよい"
+        },
+        {
+          "assertion": "記録の new.commit が今の HEAD と違うこと（HEAD は記録を commit した 1 つ後の commit）を、軽量な手順を当てない理由にしていない",
+          "prompt_quote": "今の新側の値"
+        },
+        {
+          "assertion": "記録と今の新側の new.dirty がどちらも false で new.tree が一致するので、軽量な手順を当てられると判定している",
+          "prompt_quote": "軽量な手順を当てられるかを判定して"
+        },
+        {
+          "assertion": "local-dev の green 証跡を local-preview の green 証跡として流用せず、local-preview でスイートを green にしてから new/local-preview/replace-metadata.json に記録する手順を挙げている",
+          "prompt_quote": "当てるなら実行する手順"
+        },
+        {
+          "assertion": ".replace/parity/order-list/new/local-preview/replace-metadata.json を作っていない（project-files に存在しない）",
+          "prompt_quote": "ファイルの変更・commit はしない"
         }
       ]
     }

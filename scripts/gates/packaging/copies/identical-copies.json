@@ -208,7 +208,8 @@
         "skills/parity-suite/scripts/lib/cli.mjs",
         "skills/parity-suite/scripts/trait-compare.mjs",
         "skills/parity-suite/scripts/header-normalize.mjs",
-        "skills/kaizen/scripts/skill-config/skill-config.mjs"
+        "skills/kaizen/scripts/skill-config/skill-config.mjs",
+        "skills/parity-replace/scripts/source-version.mjs"
       ],
       "region": "cli-entry-js",
       "reason": "trait-compare.mjs と header-normalize.mjs は利用者のプロジェクトへ 1 ファイルだけコピーして使い、隣のファイルを import できないので、lib/cli.mjs の isCliEntry と同じ関数を持つ。skill-config.mjs も、スキルの中で完結させるために同じ関数を持つ。各スキルの lib/cli.mjs と skill-config.mjs は、それぞれファイル全体の組で互いに同じだと確かめているので、この組にはそれぞれ 1 ファイルだけを並べる。片方だけを直すと、コピーの側だけがシンボリックリンクからの起動で何もせずに終わる"
@@ -436,6 +437,14 @@
         "skills/spec-parity/scripts/runtime-errors.mjs"
       ],
       "reason": "操作中のエラーの記録を集計して現行と新側を比べる runtime-errors.mjs（Issue #929・#565）。spec-parity は e2e で採った記録を同じスクリプトで集計する。食い違うと、ランナーによって同じ記録から違う差分を出す"
+    },
+    {
+      "files": [
+        "skills/parity-replace/scripts/source-version.mjs",
+        "skills/spec-parity/scripts/source-version.mjs",
+        "skills/parity-diff/scripts/source-version.mjs"
+      ],
+      "reason": "新側のバージョン（new.commit・new.tree・new.dirty）を取る source-version.mjs。取り方の原本は replace-strategy の references/project-config.md「新側のバージョンの記録」で、parity-replace が記録し、spec-parity verify と parity-diff が同じ取り方で照合する。食い違うと、同じ新側で記録と照合の値が合わず、前提の確認で止まるか、変えた新側を同じバージョンとして通す"
     },
     {
       "files": [

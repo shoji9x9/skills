@@ -1,8 +1,9 @@
 // 新側のコミットが変わった証跡を、ページの描画入力の差分で持ち越せるかを判定する（原本）。
 //
-// 何のためか: 証跡（diff-metadata.json の new.commit・component-comparison.json の new_implementation.commit）は
-// 新側リポジトリ全体のコミット SHA に結びついている。共通部品を 1 行直すと、その部品を使うかどうかに関わらず
-// 全ページの証跡が「古い」になる。ここでは SHA の不一致を即失効にせず、次を全部確かめられたときだけ持ち越す。
+// 何のためか: 証跡（diff-metadata.json の new.tree・component-comparison.json の new_implementation.tree）は
+// 新側のソース全体のツリーのハッシュに結びついている。共通部品を 1 行直すと、その部品を使うかどうかに関わらず
+// 全ページの証跡が「古い」になる。ここではツリーの不一致を即失効にせず、次を全部確かめられたときだけ持ち越す。
+// 差分は、記録の new.commit（new_implementation.commit）から今の new.commit までで取る（commit は差分の起点として使う）。
 //   1. そのページの描画に影響するファイル（replace-metadata.json の new.render_inputs。git pathspec）の差分 D を取る。
 //   2. D が空なら描画入力は変わっていないので、持ち越す。
 //   3. D の各ファイルが、evidence-carry.json の carries が指す変更宣言（parity-component の
@@ -19,7 +20,7 @@
 //
 // 次のどれに当たっても持ち越さない。リポジトリが無い・git が失敗する・コミットが無い・変更宣言が読めない／不正・
 // 影響が判定不能・amend-verify の記録が無い／読めない・組が覆われていない・pass でない・sha256 が一致しない。
-// render_inputs が無い・空のときだけは判定せず、`legacy: true` を返す。呼び出し元は従来どおり SHA の不一致として不合格にする
+// render_inputs が無い・空のときだけは判定せず、`legacy: true` を返す。呼び出し元は従来どおりバージョンの不一致として不合格にする
 // （後方互換。持ち越しは、描画入力を宣言した記録にだけ適用する）。
 //
 // パスの解決（原本）: evidence-carry.json の change / amend_verify と、amend-verify の記録の inputs.*.path は、

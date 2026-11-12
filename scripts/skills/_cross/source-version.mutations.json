@@ -1,0 +1,94 @@
+{
+  "$comment": [
+    "source-version.test.ts の検出能力を示す変異の一覧。",
+    "新側のバージョンの照合の範囲（.replace/ を除く・new.repo のディレクトリに絞る）と、利用者の git の設定に依らない dirty の判定を、テストが守ることを示す。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/_cross/source-version.test.ts",
+  "mutations": [
+    {
+      "id": "sv-tree-keeps-artifacts",
+      "why": "new.tree から .replace/ を除かない（記録を commit するたびに new.tree が変わり、3 つのスキルが前提の確認で止まる）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "    if (excluded !== null)\n      git(\n",
+      "replace": "    if (false)\n      git(\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "新側がルート・.replace/ がルート直下 記録を書いただけでも、記録を commit した後も、new.tree は変わらず dirty にならない",
+        "新側がサブディレクトリ・.replace/ が新側の中 記録を書いただけでも、記録を commit した後も、new.tree は変わらず dirty にならない"
+      ]
+    },
+    {
+      "id": "sv-dirty-keeps-artifacts",
+      "why": "dirty の判定から .replace/ を除かない（記録を書いただけで dirty になり、3 つのスキルが前提の確認で止まる）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "  if (excluded !== null) specs.push(",
+      "replace": "  if (false) specs.push(",
+      "occurrences": 1,
+      "expect_failing": [
+        "新側がルート・.replace/ がルート直下 記録を書いただけでも、記録を commit した後も、new.tree は変わらず dirty にならない",
+        "新側がルート・.replace/ がルート直下 .replace/ の外の追跡していないファイルは dirty、.replace/ の中なら dirty にしない",
+        "新側がサブディレクトリ・.replace/ が新側の中 記録を書いただけでも、記録を commit した後も、new.tree は変わらず dirty にならない",
+        "新側がサブディレクトリ・.replace/ が新側の中 .replace/ の外の追跡していないファイルは dirty、.replace/ の中なら dirty にしない",
+        "範囲 新側のディレクトリの名前をパターンとして読まない（app[1] が app1 に一致しない）"
+      ]
+    },
+    {
+      "id": "sv-tree-whole-repo",
+      "why": "new.tree を new.repo のディレクトリに絞らず、リポジトリ全体のツリーにする（新側の外の変更で照合が合わなくなる）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "    return subtree(top, whole, prefix);\n",
+      "replace": "    return whole;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "範囲 新側がサブディレクトリなら、新側の外の変更は new.tree にも dirty にも入らない",
+        "範囲 新側のディレクトリの名前をパターンとして読まない（app[1] が app1 に一致しない）",
+        "範囲 新側のディレクトリに追跡しているファイルが無ければ、空のツリーにする"
+      ]
+    },
+    {
+      "id": "sv-dirty-untracked-by-config",
+      "why": "status に --untracked-files=all を付けない（status.showUntrackedFiles=no の利用者で、追跡していないファイルを dirty として検出しない）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "        \"--untracked-files=all\",\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "範囲 利用者の git の設定で追跡していないファイルを隠していても、dirty として検出する"
+      ]
+    },
+    {
+      "id": "sv-artifacts-outside-not-excluded",
+      "why": "リポジトリの外の --artifacts を、外として扱わずに除く対象にする（../ で始まるパスを git rm に渡して失敗する）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "  if (rel.startsWith(\"..\") || path.isAbsolute(rel)) return null;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "範囲 新側がルートで .replace/ がリポジトリの外なら、何も除かずにリポジトリ全体のツリーになる"
+      ]
+    },
+    {
+      "id": "sv-not-git-is-none",
+      "why": "git で管理されていない新側を none にせず、使い方の誤りにする",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "/not a git repository/.test(err.stderr)",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": [
+        "git で管理されていない・取れない新側 git で管理されていなければ、commit と tree を none にする"
+      ]
+    },
+    {
+      "id": "sv-artifacts-must-exist",
+      "why": "--artifacts のディレクトリが在るかを確かめない（プロジェクトのルートの外で実行すると、何も除かずに .replace/ を含めた値を警告なしに出す）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "  if (!existsSync(artifacts) || !statSync(artifacts).isDirectory())\n",
+      "replace": "  if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "git で管理されていない・取れない新側 --artifacts のディレクトリが無ければ、使い方の誤りにする（.replace/ を含めた値を出さない）"
+      ]
+    }
+  ]
+}

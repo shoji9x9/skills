@@ -412,26 +412,45 @@ node "$CFG" append replace-strategy component_diffs '<要素の JSON>' --layer r
   依存の候補が新側のスタックと合うかを判断する必要が出た時点で、推測せずにユーザーに確認し、確認したスキルが非破壊で追記する（`setup` の再実行を待たない）。
 - 骨格と部品の採否（複数の機能で使うライブラリ・フォントなど）の境界は、[`dependency-selection.md`](dependency-selection.md) が定める。
 
-## 新側のバージョンの記録（`new.commit` / `new.dirty`）
+## 新側のバージョンの記録（`new.commit` / `new.tree` / `new.dirty`）
 
 新側のどのバージョンで確かめたかを、次の 3 か所が同じ取り方で記録し、照合する。取り方はここで定義し、3 つのスキルはここを参照する（ここへ転記しない）。
 
-- `parity-replace` の `replace-metadata.json` の `new.commit`・`new.dirty`
-- `spec-parity verify` の `verify-metadata.json` の `new.commit`・`new.dirty`
+- `parity-replace` の `replace-metadata.json` の `new.commit`・`new.tree`・`new.dirty`
+- `spec-parity verify` の `verify-metadata.json` の `new.commit`・`new.tree`・`new.dirty`
 - `parity-diff` の前提の確認で、撮るバージョンを確かめる処理
 
-取り方は次のとおりである。
+3 つのスキルは、同じ中身の `scripts/source-version.mjs` を同梱する。
+値は、プロジェクトのルート（`.replace/` を置くディレクトリ）で `node <スキルのディレクトリ>/scripts/source-version.mjs --repo <new.repo>` を実行して取る。
+出力の JSON の `commit`・`tree`・`dirty` を、そのまま記録に書く。git のコマンドを手で組み立てない。
+終了コードが 2 のとき（git を起動できない、新側に commit が 1 つも無いなど）は、値を推測して書かずに止まる。
 
-| 項目 | 取り方 |
-|---|---|
-| `new.commit` | `git -C <new.repo> rev-parse --verify HEAD` の出力（完全な SHA）。新側が git で管理されていなければ `none` |
-| `new.dirty` | `git -C <new.repo> status --porcelain --untracked-files=all --ignore-submodules=none` の出力が空なら `false`、空でなければ `true`。出力から何も外さない |
+| 項目 | 値 | 一致の判定に使うか |
+|---|---|---|
+| `new.tree` | 範囲（下記）の HEAD のツリーのハッシュ | 使う。同じバージョンかは、この値で決める |
+| `new.dirty` | 範囲の中に、commit していない変更か追跡していないファイルがあれば `true`、無ければ `false` | 使う。`true` の記録と、今の値が `true` の新側は、どのバージョンとも一致させない |
+| `new.commit` | HEAD の完全な SHA | 使わない。人がどの commit で確かめたかを追うための値である。証跡を持ち越せるかの判定（`parity-suite` の `scripts/evidence-carry.mjs`）が、差分を取る起点にも使う |
 
-- `status` のオプションは、利用者の git の設定で出力が変わらないようにするために付ける。`status.showUntrackedFiles=no` では追跡していないファイルが出力に出ず、`submodule.<name>.ignore` などのサブモジュールの設定では変更が出力から外れる。
-- `new.repo` が git のリポジトリのサブディレクトリでも、2 つのコマンドはリポジトリ全体の状態を返す。HEAD はリポジトリの HEAD で、`status` はリポジトリ全体の変更を出す。
-- スキルが書く成果物（`.replace/`・e2e の結果の出力先・人による確認で撮った画面など）が `new.repo` と同じ git のリポジトリの中にあると、成果物を書くたびに `status` の出力に出て、`new.dirty` が `true` になる。
-  成果物の記録を commit すると HEAD が進み、記録した `new.commit` と一致しなくなる。どちらでも、3 つのスキルは前提の確認で止まる。
-  そのため、成果物を置くリポジトリを `new.repo` と分ける。新側の変更を退避する案内（`git stash --include-untracked`）も、分けていれば成果物を退避しない。
+範囲は、`new.repo` のディレクトリから `.replace/` を除いたものである。`new.repo` が git のリポジトリのサブディレクトリなら、そのディレクトリの下だけを見る。
+
+- 除くのは `.replace/` の 1 つだけで、外す場所を列挙しない。
+  スキルが書くほかの成果物（e2e の結果の出力先・人による確認で撮った画面など）が `new.repo` の中にあるなら、`.replace/` の下に置くか、新側の `.gitignore` に入れる。
+  どちらでもないと、成果物を書くたびに `new.dirty` が `true` になり、3 つのスキルは前提の確認で止まる。
+- 記録と新側を同じ git のリポジトリに置いてよい。記録を書いただけでも、記録を commit した後でも、`new.tree` は変わらず、`new.dirty` も `true` にならない。
+  記録の commit で HEAD が進んで `new.commit` が変わっても、一致の判定には影響しない。
+- 新側のソースを変えると、commit すれば `new.tree` が変わり、commit しなければ `new.dirty` が `true` になる。どちらでも、記録とは一致しない。
+- `new.tree` は、HEAD のツリーを一時的な index に読み、`.replace/` を外してから取る。利用者の index（`.git/index`）と作業ツリーは変えない。
+- `new.dirty` の判定では、利用者の git の設定で結果が変わらないように、`git status` に `--untracked-files=all` と `--ignore-submodules=none` を付ける。
+  `status.showUntrackedFiles=no` では追跡していないファイルが出力に出ず、`submodule.<name>.ignore` などのサブモジュールの設定では変更が出力から外れるからである。
+  gitignore されたファイルは、`new.tree` にも `new.dirty` にも入らない。
+- 新側が git で管理されていなければ、`commit` と `tree` は `none`、`dirty` は `false` になる。`none` をどう扱うかは、照合するスキルが決める。
+
+照合では、記録の `new.tree` が今の `new.tree` と同じで、記録と今の `new.dirty` がどちらも `false` のときだけ、同じバージョンとして扱う。
+
+- `new.tree` を持たない記録は、合格として扱わず、「もう一度測る」と判定する。`new.commit` が一致していても、代わりに使わない。
+  利用者は、その記録を書いたスキルをもう一度実行して記録し直せば、続けられる。
+- 新側の変更を退避するよう利用者に案内するときは、記録を退避しないように、範囲を pathspec で渡す。
+  `git -C <new.repo> stash push --include-untracked -- . ':(top,exclude)<出力の excluded>'` の形で案内する。出力の `excluded`（リポジトリの最上位からの `.replace/` の相対パス）が `null` なら、`.` だけを渡す。
 
 ## 検証コマンド（`verification_commands`）
 

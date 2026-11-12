@@ -10,11 +10,13 @@
 //   6. 判断待ち: 未解決の保留（pending_decisions）が無い
 //   7. 未測定: metadata.json の unmeasured に blocking（承認の無い accepted を含む）が残っていない（parity-diff の収束の判定と同じ扱い）
 // あわせて、未検証の一覧（unverified）に、spec-parity が確かめない性能（performance）が理由付きで載っていることを確かめる。
-// 1・2・4・5 の記録は、verify-metadata.json の new.commit と同じバージョンのものでなければ、古い記録として数える。
-// 前提として、verify-metadata.json の new.commit が none（新側が git で管理されていない）でないことを確かめる。none では、どの記録のバージョンも特定できない。
+// 新側のバージョンは new.tree（.replace/ を除いた新側のソースのツリーのハッシュ）で照合する。new.commit は人が追うための値で、照合に使わない。
+// 取り方の原本は replace-strategy の references/project-config.md「新側のバージョンの記録」である。
+// 1・2・4・5 の記録は、verify-metadata.json の new.tree と同じバージョンのものでなければ、古い記録として数える。tree を持たない記録も古い記録である。
+// 前提として、verify-metadata.json の new.tree があり、none（新側が git で管理されていない）でないことを確かめる。none では、どの記録のバージョンも特定できない。
 // parity-replace が新側を green にした記録（replace-metadata.json）は、dirty: false であることを確かめる。
-// あわせて、記録の slug・new.target・new.commit が、metadata.json の slug・--target・verify-metadata.json の new.commit と同じことを確かめる。
-// その後で、verify-metadata.json の new.dirty も false であることを確かめる。commit していない変更を含む新側で採った記録は、new.commit のバージョンの記録と言えない。
+// あわせて、記録の slug・new.target・new.tree が、metadata.json の slug・--target・verify-metadata.json の new.tree と同じことを確かめる。
+// その後で、verify-metadata.json の new.dirty も false であることを確かめる。commit していない変更を含む新側で採った記録は、new.tree のバージョンの記録と言えない。
 // 前提の強度の確認も、metadata.json の strength.validated を信じず、strength-plan.json と strength-report.json から判定し直す。
 //
 // 保存された ok や件数は信じず、元の記録から判定し直す（手で書き換えた記録で収束させない）。
@@ -191,17 +193,19 @@ export function judgeSuite(current, next, reasons) {
 }
 
 /**
- * 記録が、verify-metadata.json の new.commit と同じバージョンのものかを確かめる。
+ * 記録が、verify-metadata.json の new.tree と同じバージョンのものかを確かめる。tree を持たない記録は古い記録として数える。
  * @param {Reasons} reasons
  * @param {string} check
  * @param {{ actual: unknown, expected: string }} pair
  */
-function sameCommit(reasons, check, { actual: commit, expected }) {
-  if (commit === expected) return true;
+function sameTree(reasons, check, { actual: tree, expected }) {
+  if (tree === expected) return true;
   reasons.add(
     "remeasure",
     check,
-    `記録のバージョン（${String(commit)}）が new.commit（${expected}）と違う`,
+    tree === undefined
+      ? "記録にバージョン（tree）が無い（new.tree を持たない記録なので、もう一度測る）"
+      : `記録のバージョン（${JSON.stringify(tree)}）が new.tree（${expected}）と違う`,
   );
   return false;
 }
@@ -339,16 +343,16 @@ function judgeFinding(f, reasons) {
 /**
  * デザインの点検の記録を判定する。
  * @param {unknown} review
- * @param {string} commit
+ * @param {string} tree
  * @param {Reasons} reasons
  */
-export function judgeDesignReview(review, commit, reasons) {
+export function judgeDesignReview(review, tree, reasons) {
   if (!isPlainObject(review) || !filled(review.completed_at)) {
     reasons.add("remeasure", "design_review", "デザインの点検の記録が無い（completed_at が無い）");
     return { judged: false };
   }
   const findings = reviewFindings(review);
-  sameCommit(reasons, "design_review", { actual: review.commit, expected: commit });
+  sameTree(reasons, "design_review", { actual: review.tree, expected: tree });
   const ids = new Set();
   for (const [i, f] of findings.entries()) {
     if (!isPlainObject(f) || !nonEmptyString(f.id))
@@ -363,15 +367,15 @@ export function judgeDesignReview(review, commit, reasons) {
 /**
  * 人による確認の記録を判定する。
  * @param {unknown} review
- * @param {string} commit
+ * @param {string} tree
  * @param {Reasons} reasons
  */
-export function judgeHumanReview(review, commit, reasons) {
+export function judgeHumanReview(review, tree, reasons) {
   if (!isPlainObject(review) || !isArray(review.screens) || review.screens.length === 0) {
     reasons.add("remeasure", "human_review", "人に見せた画面の記録（screens）が無い");
     return { judged: false };
   }
-  sameCommit(reasons, "human_review", { actual: review.commit, expected: commit });
+  sameTree(reasons, "human_review", { actual: review.tree, expected: tree });
   const a = isPlainObject(review.approval) ? review.approval : null;
   if (a && a.verdict === "rejected" && hasApproval(a))
     reasons.add(
@@ -527,11 +531,12 @@ export function judgeUnmeasured(metadata, reasons) {
 
 /**
  * parity-replace が、verify するバージョンの新側を green にした記録（replace-metadata.json）があることを確かめる。
- * 記録を識別する鍵（slug・new.target・new.commit）を、metadata.json の slug・--target・verify-metadata.json の new.commit と 1 つずつ厳密に比べる。
+ * 記録を識別する鍵（slug・new.target・new.tree）を、metadata.json の slug・--target・verify-metadata.json の new.tree と 1 つずつ厳密に比べる。
+ * new.commit は人が追うための値なので比べない（記録を commit して HEAD が進んでも、new.tree は変わらない）。
  * 欠落・型の誤り・別の値は、どれも一致しないものとして扱う。
  * 鍵が違えば、verify の手順をやり直しても replace-metadata.json は変わらないので、やり直しの理由にせず前提の欠落にする。
  * @param {unknown} rm
- * @param {{ slug: string, target: string, commit: string }} want - verify の slug・--target・verify-metadata.json の new.commit（none でない）
+ * @param {{ slug: string, target: string, tree: string }} want - verify の slug・--target・verify-metadata.json の new.tree（none でない）
  */
 function checkNewGreen(rm, want) {
   const hint = `parity-replace で、--target ${want.target} の verify するバージョンの新側を green にしてから verify する`;
@@ -543,12 +548,17 @@ function checkNewGreen(rm, want) {
   const keys = [
     ["slug", rm.slug, want.slug, "metadata.json の slug"],
     ["new.target", n.target, want.target, "--target"],
-    ["new.commit", n.commit, want.commit, "verify-metadata.json の new.commit"],
+    ["new.tree", n.tree, want.tree, "verify-metadata.json の new.tree"],
   ];
   const bad = keys.filter(([, got, expected]) => got !== expected);
+  // new.tree を持たない記録は、new.tree を記録する前に書いたもの。new.commit が同じでも代わりにせず、green を記録し直させる
+  const stale =
+    n.tree === undefined
+      ? "。new.tree が無い記録は、もう一度 parity-replace で green を記録し直す"
+      : "";
   if (bad.length > 0)
     throw new UsageError(
-      `replace-metadata.json の ${bad.map(([k, got, expected, from]) => `${k}（${JSON.stringify(got)}）が ${from}（${expected}）と違う`).join("、")}（${hint}）`,
+      `replace-metadata.json の ${bad.map(([k, got, expected, from]) => `${k}（${JSON.stringify(got)}）が ${from}（${expected}）と違う`).join("、")}（${hint}${stale}）`,
     );
   if (n.dirty !== false)
     throw new UsageError(
@@ -573,29 +583,32 @@ function checkStrength({ plan, report }, slug) {
 }
 
 /**
- * verify-metadata.json が対象の slug と target のもので、確かめる新側のバージョン（new.commit）を持つことを確かめる。
+ * verify-metadata.json が対象の slug と target のもので、確かめる新側のバージョン（new.tree）を持つことを確かめる。
  * @param {unknown} v
  * @param {{ slug: string, target: string }} key
- * @returns {{ v: Record<string, unknown>, head: Record<string, unknown>, commit: string }}
+ * @returns {{ v: Record<string, unknown>, head: Record<string, unknown>, tree: string }}
  */
 function readVerifyHead(v, { slug, target }) {
   if (!isPlainObject(v) || v.slug !== slug || v.target !== target)
     throw new UsageError(`verify-metadata.json の slug と target が ${slug} / ${target} でない`);
   const head = isPlainObject(v.new) ? v.new : {};
-  const commit = head.commit;
-  if (!filled(commit))
-    throw new UsageError("verify-metadata.json の new.commit が無い（雛形の値のままを含む）");
-  // none は新側が git で管理されていないことを表し、どの記録のバージョンも特定できない（none どうしの比較は常に一致する）
-  if (commit === "none")
+  const tree = head.tree;
+  // new.tree を持たない記録（new.tree を記録する前の verify-metadata.json）は、new.commit があっても代わりにしない
+  if (!filled(tree))
     throw new UsageError(
-      "verify-metadata.json の new.commit が none（新側を git で管理し、commit したバージョンで verify する）",
+      "verify-metadata.json の new.tree が無い（雛形の値のままを含む。verify の手順 1 から、もう一度測る）",
     );
-  return { v, head, commit };
+  // none は新側が git で管理されていないことを表し、どの記録のバージョンも特定できない（none どうしの比較は常に一致する）
+  if (tree === "none")
+    throw new UsageError(
+      "verify-metadata.json の new.tree が none（新側を git で管理し、commit したバージョンで verify する）",
+    );
+  return { v, head, tree };
 }
 
 /**
  * verify-metadata.json の new.dirty が false であることを確かめる（replace-metadata.json の new.dirty と同じ扱い）。
- * commit していない変更を含む新側で採った記録は、new.commit のバージョンの記録と言えない。
+ * commit していない変更を含む新側で採った記録は、new.tree のバージョンの記録と言えない。
  * green の記録の確認（checkNewGreen）の後に呼ぶ。鍵の違いは commit しても直らないので、そちらを先に示す。
  * @param {Record<string, unknown>} head - readVerifyHead が読んだ verify-metadata.json の new
  */
@@ -603,8 +616,9 @@ function checkVerifyClean(head) {
   if (head.dirty !== false)
     throw new UsageError(
       "verify-metadata.json の new.dirty が false でない（commit していない変更を含む新側で確かめた記録は、バージョンを特定できない。" +
-        "変更を退避して（git stash --include-untracked など）green にしたバージョンに戻してから verify をやり直すか、変更を commit して parity-replace で green を記録し直してから verify する。" +
-        "commit してから verify をやり直すだけでは、new.commit が green の記録と違うので止まる）",
+        "変更を退避して green にしたバージョンに戻してから verify をやり直すか、変更を commit して parity-replace で green を記録し直してから verify する。" +
+        "退避は .replace/ を除いた pathspec で行う（replace-strategy の references/project-config.md「新側のバージョンの記録」）。" +
+        "commit してから verify をやり直すだけでは、new.tree が green の記録と違うので止まる）",
     );
 }
 
@@ -616,18 +630,18 @@ export function judgeConvergence(input) {
   const metadata = checkSuiteMetadata(input.metadata, input.slugDir);
   const slug = String(metadata.slug);
   checkStrength({ plan: input.strengthPlan, report: input.strengthReport }, slug);
-  const { v, head, commit } = readVerifyHead(input.verify, { slug, target: input.target });
-  checkNewGreen(input.replaceMetadata, { slug, target: input.target, commit });
+  const { v, head, tree } = readVerifyHead(input.verify, { slug, target: input.target });
+  checkNewGreen(input.replaceMetadata, { slug, target: input.target, tree });
   checkVerifyClean(head);
   const reasons = makeReasons();
   const suiteRecord = isPlainObject(v.suite) ? v.suite : {};
-  sameCommit(reasons, "suite", { actual: suiteRecord.commit, expected: commit });
+  sameTree(reasons, "suite", { actual: suiteRecord.tree, expected: tree });
   const suite = judgeSuite(
     readReport(input.currentReport, "current", "現行の結果（suite-report.json）"),
     readReport(input.newReport, "new", `新側の結果（new/${input.target}/suite-report.json）`),
     reasons,
   );
-  const overflow = judgeOverflowRecord({ metadata, input, commit }, reasons);
+  const overflow = judgeOverflowRecord({ metadata, input, tree }, reasons);
   const baseline = isPlainObject(metadata.runtime_errors) ? metadata.runtime_errors : {};
   const runtimeErrors = judgeRuntimeErrors(baseline, v.runtime_errors, reasons);
   const required =
@@ -636,8 +650,8 @@ export function judgeConvergence(input) {
     suite,
     overflow,
     runtime_errors: runtimeErrors,
-    design_review: judgeDesignReview(v.design_review, commit, reasons),
-    human_review: judgeHumanReview(v.human_review, commit, reasons),
+    design_review: judgeDesignReview(v.design_review, tree, reasons),
+    human_review: judgeHumanReview(v.human_review, tree, reasons),
     unverified: judgeUnverified(v.unverified, required, reasons),
     pending_decisions: judgePending(v.pending_decisions, reasons),
     unmeasured: judgeUnmeasured(metadata, reasons),
@@ -647,7 +661,8 @@ export function judgeConvergence(input) {
     version: VERSION,
     slug,
     target: input.target,
-    commit,
+    tree,
+    commit: nonEmptyString(head.commit) ? head.commit : null,
     converged: reasons.list.length === 0,
     send_back: reasons.list.some((r) => r.category === "send-back"),
     reasons: reasons.list,
@@ -657,17 +672,19 @@ export function judgeConvergence(input) {
 
 /**
  * 横のはみ出しを、測定の記録から判定し直す。
- * @param {{ metadata: Record<string, unknown>, input: { target: string, measurements: unknown }, commit: string }} ctx
+ * 測定の記録の commit には、測るときに PARITY_COMMIT で渡した値が入る。新側の測定では new.tree の値を渡す取り決めなので、new.tree と比べる。
+ * 雛形のキーと環境変数の名前は、利用者のプロジェクトにコピー済みの雛形を直さずに続けられるよう、変えない。
+ * @param {{ metadata: Record<string, unknown>, input: { target: string, measurements: unknown }, tree: string }} ctx
  * @param {Reasons} reasons
  */
-function judgeOverflowRecord({ metadata, input, commit }, reasons) {
+function judgeOverflowRecord({ metadata, input, tree }, reasons) {
   if (input.measurements === null) {
     reasons.add("remeasure", "overflow", "測定の記録（overflow.json）が無い");
     return { judged: false };
   }
   const decl = readDeclaration(metadata);
   const m = readMeasurements(input.measurements, { slug: decl.slug, target: input.target });
-  sameCommit(reasons, "overflow", { actual: m.commit, expected: commit });
+  sameTree(reasons, "overflow", { actual: m.commit, expected: tree });
   const result = judgeOverflow(decl, m.records);
   for (const r of result.overflowing)
     reasons.add(

@@ -111,11 +111,17 @@ export function writeCheckerInputs(p: Project, recorded: string, wanted: string)
   writeJson(join(p.slugDir, "metadata.json"), metadata);
   writeJson(join(p.stageDir, "replace-metadata.json"), {
     suite: { new_green: true },
-    new: { target: TARGET, commit: wanted, dirty: false, render_inputs: RENDER_INPUTS },
+    new: {
+      target: TARGET,
+      commit: wanted,
+      tree: wanted,
+      dirty: false,
+      render_inputs: RENDER_INPUTS,
+    },
     loop: { iterations: 2 },
   });
   writeJson(join(p.stageDir, "diff-metadata.json"), {
-    new: { target: TARGET, commit: recorded },
+    new: { target: TARGET, commit: recorded, tree: recorded },
     iteration: 2,
     dataset_version: null,
     dataset_version_exempt: "投入対象でない target",
@@ -148,7 +154,7 @@ function writeComparisonInputs(p: Project, recorded: string) {
     slug: FEATURE,
     target: TARGET,
     source_coverage: { path: "component-coverage.json", fingerprint: fingerprintOf(keys) },
-    new_implementation: { commit: recorded, dirty: false },
+    new_implementation: { commit: recorded, tree: recorded, dirty: false },
     cells: [
       {
         component: "grid",

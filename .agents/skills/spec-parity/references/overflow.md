@@ -38,13 +38,15 @@
 
 ```bash
 E2E_TELEMETRY_DISABLED=1 DO_NOT_TRACK=1 E2E_UPDATE_CHECK_DISABLED=1 \
-PARITY_OVERFLOW_CAPTURE=1 PARITY_SLUG=<slug> PARITY_NEW_TARGET=<target> PARITY_COMMIT=<new.commit> \
+PARITY_OVERFLOW_CAPTURE=1 PARITY_SLUG=<slug> PARITY_NEW_TARGET=<target> PARITY_COMMIT=<new.tree> \
 PARITY_NEW_UI_URL=<新側の UI の URL> npx e2e run tests/<slug>/overflow.e2e.ts --target=new </dev/null
 node <spec-parity>/scripts/overflow-check.mjs --metadata .replace/parity/<slug>/metadata.json \
   --measurements .replace/parity/<slug>/new/<target>/overflow.json --target <target> \
   --write .replace/parity/<slug>/new/<target>/verify-metadata.json
 ```
 
-- `PARITY_COMMIT` には、`verify-metadata.json` の `new.commit` と同じ値を渡す。違うバージョンの測定は、収束の判定で古い記録として数える。
+- `PARITY_COMMIT` には、`verify-metadata.json` の `new.tree` と同じ値を渡す。違うバージョンの測定は、収束の判定で古い記録として数える。
+  `new.commit` の値で測った記録も、`new.tree` と違うので古い記録として数える。
+  環境変数の名前と記録の `commit` のキーは、コピー済みの雛形を直さずに使えるように変えない。値の意味は「測った側のバージョン」である。
 - exit 1 で `overflowing` に挙がった組は、要対応として `parity-replace` へ差し戻す。`missing`・`width_mismatch`・`extra` は、測り直す（`extra` は、宣言か測定のどちらかが古い）。
 - 収束の判定（`convergence-check.mjs`）は、`verify-metadata.json` の `overflow` を信じず、測定の記録（`overflow.json`）から判定し直す。

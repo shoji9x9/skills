@@ -41,7 +41,9 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 
 ## 前提
 
-- ツール: `git`、Node.js（`parity-suite` と `replace-strategy` の同梱のスクリプトと、設定ファイルを読む `scripts/skill-config/skill-config.mjs` を実行する）。ブランチ作成・commit・push・PR は `issue-start` が行う（このスキルは実装の流れを作り直さない）
+- ツール: `git`、Node.js（`parity-suite` と `replace-strategy` の同梱のスクリプト、`scripts/skill-config/skill-config.mjs`、`scripts/source-version.mjs` を実行する）。
+  `skill-config.mjs` は設定ファイルを読み、`source-version.mjs` は新側のバージョンを取る。
+  ブランチ作成・commit・push・PR は `issue-start` が行う（このスキルは実装の流れを作り直さない）
 - 前提スキル: `issue-start`（実装の流れと受け入れ条件の突き合わせの委譲先）、`replace-strategy`（`setup` の完了）、`golden-dataset`（フェーズ A の完了）、対象 slug の `parity-suite`（完了）。
   `style_policy: free` の画面のある機能では、`parity-suite` の代わりに対象 slug の `spec-parity suite`（完了）が要り、e2e（`e2e` と `@e2e-dev/web`）も要る
 - 任意: `web-design-guidelines` スキル（`style_policy: free` の画面のある機能で、実装の点検に使う。無ければ点検しない。[`references/style-free.md`](references/style-free.md)「手順 6（見た目）」）
@@ -160,8 +162,8 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 | `references.db_semantics` | 現行 DB から新 DB への型の対応・意味の差と、移植のときに当たる方言差の点検表。実装（手順 4）で、クエリやデータアクセスを書く前に読む。整備されていない（キーが無い・値が空・パスを解決できない）ときも止まらないが、方言差を推測で埋めない。スキーマ文書「DB 意味論」の点検項目を、現行 DB と新 DB の一次ドキュメントで確かめ、確かめた結果と未確定のものを `porting.md` へ記録して、整備を促す。差を吸収しないと決めたら、`intentional_diffs.pending` へ非破壊で追記し、ユーザーの確認へ回す（意味の原本は、スキーマ文書の「DB 意味論」） |
 | `references.ui_library` | 新 UI ライブラリの設定と、旧から新への design token の対応の reference のパス（特定のライブラリ名を固定しない。`style_policy: free` の画面のある機能では、ライブラリとデザインの規則だけを読み、トークンの対応は使わない）。整備されていない（キーが無い・値が空・パスを解決できない）なら、手順 6 に入らずに止まり、整備を促す。止まる位置は手順 6 の直前である。源流で系統差を縮められないと、宣言と未検証の領域が増えるからである。ライブラリを自分で決めない |
 | `references.dependency_policy` | 依存の導入の方針ドキュメントのパス（3 つの値を取る。意味の原本は、スキーマ文書の「依存導入の方針」）。キーが無い（未確認）ときだけ、ユーザーに要否を確認した結果を、このキーへ非破壊で追記する（記録しないと、毎回聞き直すことになる） |
-| `new.repo` | 新側リポジトリ（実装の対象）。コミットの SHA は、設定ではなく `replace-metadata.json` に記録する |
-| `targets`（`side: new` だけ） | 実行対象環境。`--target` で選ぶ。`check_urls` で稼働を判定し、落ちているときだけ `pre_commands`、`start` の順に起動する。UI と API の URL を `PARITY_NEW_UI_URL`・`PARITY_NEW_API_URL` に解決し、`new` プロジェクトの baseURL に渡す（`api_url` を省いたときは `url`）。`url_command` の target は、コマンドを実行して解決する（失敗したり出力が空だったりしたら止まる。解決した値は成果物に書かず、`"runtime"` と記録する）。`db.seedable` は投入対象かの取り決め（`dataset_mode: db` でフェーズ B が要るか）である。`commit_check` は、`start` を持たない配信型の target で、稼働中のコミットを確かめるためのもの（下の、同一 commit で環境だけ違う場合の手順） |
+| `new.repo` | 新側リポジトリ（実装の対象）。新側のバージョン（`new.commit`・`new.tree`・`new.dirty`）は、設定ではなく `replace-metadata.json` に記録する |
+| `targets`（`side: new` だけ） | 実行対象環境。`--target` で選ぶ。`check_urls` で稼働を判定し、落ちているときだけ `pre_commands`、`start` の順に起動する。UI と API の URL を `PARITY_NEW_UI_URL`・`PARITY_NEW_API_URL` に解決し、`new` プロジェクトの baseURL に渡す（`api_url` を省いたときは `url`）。`url_command` の target は、コマンドを実行して解決する（失敗したり出力が空だったりしたら止まる。解決した値は成果物に書かず、`"runtime"` と記録する）。`db.seedable` は投入対象かの取り決め（`dataset_mode: db` でフェーズ B が要るか）である。`commit_check` は、`start` を持たない配信型の target で、稼働中のコミットを確かめるためのもの（下の、同じ実装で環境だけ違う場合の手順） |
 | `targets[].on_diff` | 選んだ target で要対応の差分が出たときの対応手順を書いた Markdown のパス（任意。省いたときは、修正してから対象の target でテストし直す）。このスキルでの解釈の手順は [`references/diff-loop.md`](references/diff-loop.md) |
 | `targets[].auth.roles`・`targets[].forbidden_actions` | 選んだ target のロール別の認証情報（`<ロール名>.{user_name_env,password_env}`。値は環境変数の名前。認証が要らない環境では省ける）と、実施しない UI と API の操作（定義が無いときの扱いは原本に従う）。どちらも target ごとの定義だけで、側の単位での代わりの値は持たない |
 | `uses_storage`・`targets[].storage` | ファイルストレージを使うかと、選んだ新側の target の接続（`env_vars`）・書き込みの範囲（`write_scope`）・アップロードの方法（`upload_route`）。読むだけである。アップロードの方法を現側から変えるなら、意図的差異として `intentional_diffs.pending` へ非破壊で追記し、ユーザーの確認へ回す（`upload_route` を宣言しないまま実装しない）。ストレージの実体への投入は範囲外である（原本は、スキーマ文書「ファイルストレージ」。実装での扱いは [`references/paging.md`](references/paging.md)） |
@@ -301,9 +303,9 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
      書き先は `.replace/parity/<slug>/new/<target>/component-comparison.json` である（環境別。様式の原本は `parity-suite` の `assets/component-comparison-template.json`）。
      起点・当たり判定・完了の 3 点を観測して記録する。
      突き合わせられないセルは理由を書く。突き合わせないことを選ぶなら、**利用者の承認**（`disposition: accepted` と `approved_by`・`approved_at`）を得る
-   - 記録には新側のバージョン（`new_implementation.commit` にそのときの `new.commit`、`dirty: false`）も書く。書かないと、記録の後に実装を変えても古い証拠が通る
-     （当たり判定と完了の退行はスイートの green に出ないので、この工程が唯一の確認になる）
-   - `new.commit` が `none`（新側が git の管理を持たない）なら、`new_implementation.iteration` にそのときの `loop.iterations` も書く。
+   - 記録には新側のバージョン（`new_implementation.tree` にそのときの `new.tree`、`new_implementation.commit` に `new.commit`、`dirty: false`）も書く。
+     書かないと、記録の後に実装を変えても古い証拠が通る（当たり判定と完了の退行はスイートの green に出ないので、この工程が唯一の確認になる）
+   - `new.tree` が `none`（新側が git の管理を持たない）なら、`new_implementation.iteration` にそのときの `loop.iterations` も書く。
      `none` どうしの比較は常に一致するので、書かないと鮮度の検査が一度も機能しない（検査は `comparison-implementation-unversionable` で失敗にする）
    - 記録したら、インストール済みの `parity-suite` の次のコマンドを、exit 0 になるまで通す（コピーせず、スキルの下から実行する。`source_coverage.fingerprint` は手で書かず、検査が出す期待値を転記する）。
 
@@ -351,10 +353,14 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
      外して赤くなるなら、そのページで自分の機能の在席が欠けている。対象は、注記の機械的な目印（デフォルトは `presence:<slug>`）でスイート全体を検索して見つける（自然文を読んで探さない）。
      在席チェックの置き方の原本は `parity-suite` の `references/coverage.md`「同じページに乗る他機能の在席」
    - 証跡は `.replace/parity/<slug>/new/<target>/replace-metadata.json` へ記録する（環境別。他の target の証跡を上書きしない）。
-     `new.commit` と `new.dirty` の取り方の原本は、`replace-strategy` の `references/project-config.md`「新側のバージョンの記録」である（ここへ転記しない）
-   - feature モードでは、`new.commit` と並べて `new.render_inputs`（このページの描画に影響するファイルの git pathspec の配列。route・使う部品・テーマ・トークン・グローバル CSS）も書いてよい。
-     部品の改修で SHA が進んだとき、鮮度の検査は、描画の入力の差分が変更の宣言の範囲に収まるかで、証跡を持ち越す（`parity-diff` の `references/component-change.md`）。
-     少なく書かない。抜けたファイルの変更は、持ち越しの判定をそのまま通る。判断がつかなければ書かない（無い・空なら、SHA の一致で判定する）
+     `new.commit`・`new.tree`・`new.dirty` は、同梱の `scripts/source-version.mjs` の出力をそのまま書く。
+     取り方と照合の規則の原本は、`replace-strategy` の `references/project-config.md`「新側のバージョンの記録」である（ここへ転記しない）。
+     一致の判定には `new.tree` を使い、`new.commit` は人がどの commit で確かめたかを追うために残す
+   - 記録（`.replace/`）は、新側と同じ git のリポジトリに置いて commit してよい。`new.tree` は `.replace/` を除いて取るので、記録の commit で変わらない。
+     このスキルが `.replace/` の外の新側の作業ツリーに書く成果物（e2e の結果など）は、`.replace/` の下に置くか、新側の `.gitignore` に入れる。どちらでもないと `new.dirty` が `true` になる
+   - feature モードでは、`new.tree` と並べて `new.render_inputs`（このページの描画に影響するファイルの git pathspec の配列。route・使う部品・テーマ・トークン・グローバル CSS）も書いてよい。
+     部品の改修で `new.tree` が変わったとき、鮮度の検査は、記録の `new.commit` から今の `new.commit` までの描画の入力の差分が、変更の宣言の範囲に収まるかで、証跡を持ち越す（`parity-diff` の `references/component-change.md`）。
+     少なく書かない。抜けたファイルの変更は、持ち越しの判定をそのまま通る。判断がつかなければ書かない（無い・空なら、`new.tree` の一致だけで判定する）
    - `parity-diff` の差分ゼロは、完了の判定に含めない（循環を避けるため。理由の原本は [`references/diff-loop.md`](references/diff-loop.md)）。実装の流れ（commit・push・PR）は `issue-start` に任せる
 
    **「要求単位の根拠」の取りこぼし**
@@ -430,7 +436,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
    - 反復の回数と、その反復で描画に影響する変更を入れた範囲（`loop.changed_scope`。`parity-diff` が自分のノイズを測り直すかの判定に使う）を、`new/<target>/replace-metadata.json` に記録する
    - `on_diff` の解釈の手順・終了の条件・反復の上限（`--max-iterations`、デフォルト 5）の原本は [`references/diff-loop.md`](references/diff-loop.md)
 
-### 軽量な手順（同一 commit で環境だけ違う場合）
+### 軽量な手順（同じ実装で環境だけ違う場合）
 
 <!-- textlint-disable ai-words-ja/no-ai-words -->
 
@@ -438,13 +444,16 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 
 <!-- textlint-enable ai-words-ja/no-ai-words -->
 
-実装を変えずに、別の target で green になったコミットを、他の環境（例: local-dev から develop）で確かめるだけの実行では、実装の流れを起動しない。
+実装を変えずに、別の target で green になった新側を、他の環境（例: local-dev から develop）で確かめるだけの実行では、実装の流れを起動しない。
 
-- 当てはまる条件: 既存の `.replace/parity/<slug>/new/<別の target>/replace-metadata.json` と今の作業ツリーで、`new.dirty` が両方とも `false`（clean）で、コミットの SHA が一致すること。
-  `none` は、どの値とも一致しない（SHA を取れていない証跡や dirty な作業ツリーは、同じ実装であることを保証しないため）。満たさなければ、通常の流れ（手順 2 以降）で進める
+- 当てはまる条件: 既存の `.replace/parity/<slug>/new/<別の target>/replace-metadata.json` と今の新側で、`new.dirty` が両方とも `false`（clean）で、`new.tree` が一致すること。
+  今の新側の値は、同梱の `scripts/source-version.mjs` で取る（照合の規則の原本は `replace-strategy` の `references/project-config.md`「新側のバージョンの記録」）。
+  `none` は、どの値とも一致しない（バージョンを取れていない証跡や dirty な作業ツリーは、同じ実装であることを保証しないため）。
+  `new.tree` を持たない証跡も、一致として扱わない。`new.commit` が一致しても代わりにしない。満たさなければ、通常の流れ（手順 2 以降）で進める
 - 稼働中のコミットの確認: `start` を持つ target は、このスキルが起動するので、上の条件を満たせば自動で当ててよい。
   `start` の無い配信型の target（デプロイで更新される環境）では、稼働中のコードが同じ commit とは限らない。
-  `commit_check` があれば、その標準出力の SHA と照合する。無ければ、「対象の環境に commit `<SHA>` がデプロイされているか」をユーザーに確認してから当てる（確認が取れなければ当てない）
+  `commit_check` があれば、その標準出力の SHA を今の `new.commit` と照合する（デプロイされたものの確認は commit で行う）。
+  無ければ、「対象の環境に commit `<SHA>` がデプロイされているか」をユーザーに確認してから当てる（確認が取れなければ当てない）
 - 飛ばす手順: 2（ページの分割）・3（部品の洗い出しと依存の決定）・4（実装）・6（見た目の系統差）・7（敵対的レビュー）。
   手順 5 では、新側マッピングを充填せず、フェーズ B の確認・target の起動・green 化だけを行う
 - 実行する手順は、次の順である。

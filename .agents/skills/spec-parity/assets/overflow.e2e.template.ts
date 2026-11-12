@@ -19,7 +19,7 @@
  *   PARITY_SLUG             … 対象機能の slug（必須）。
  *   PARITY_NEW_TARGET       … new で測るとき必須（replace-strategy の target の名前）。
  *   PARITY_CURRENT_TARGET   … current で測るとき必須（replace-strategy の target の名前）。
- *   PARITY_COMMIT           … 測る側のバージョン（必須。新側は verify-metadata.json の new.commit と同じ値）。
+ *   PARITY_COMMIT           … 測る側のバージョン（必須。新側は verify-metadata.json の new.tree と同じ値）。
  *   PARITY_REPO_ROOT        … .replace/ を持つリポジトリのルート（省略時は cwd）。
  * 出力先は、新側が `.replace/parity/<slug>/new/<target>/overflow.json`、現側が `.replace/parity/<slug>/overflow-current.json` である。
  */

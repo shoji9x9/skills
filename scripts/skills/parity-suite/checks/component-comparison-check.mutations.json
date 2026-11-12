@@ -1,0 +1,56 @@
+{
+  "$comment": [
+    "component-comparison-check.test.ts のうち、突き合わせ表の鮮度を new.tree で判定する規則の検出能力を示す変異の一覧。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/parity-suite/checks/component-comparison-check.test.ts",
+  "mutations": [
+    {
+      "id": "cc-tree-unrecorded-passes",
+      "why": "突き合わせ表の new_implementation が tree を持たなくても落とさない（古い記録が commit の一致などで通る）",
+      "file": "skills/parity-suite/scripts/component-comparison-check.mjs",
+      "find": "  if (!nonEmptyString(observedTree)) {\n    findings.push({\n",
+      "replace": "  if (false) {\n    findings.push({\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "突き合わせは新側のバージョンに紐づける（記録後に実装が変わったら落ちる）",
+        "突き合わせ表の new_implementation が tree を持たなければ、commit が一致しても unrecorded"
+      ]
+    },
+    {
+      "id": "cc-replace-tree-missing-passes",
+      "why": "replace-metadata.json が new.tree を持たないことを、記録し直す理由として示さない",
+      "file": "skills/parity-suite/scripts/component-comparison-check.mjs",
+      "find": "  if (!nonEmptyString(replaceNew.tree)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "replace-metadata.json が new.tree を持たなければ、commit が一致しても replace-metadata-tree-missing"
+      ]
+    },
+    {
+      "id": "cc-version-by-commit",
+      "why": "鮮度を new.tree ではなく commit で突き合わせる（記録を commit して HEAD が進んだだけで stale になり、ソースを変えても commit が同じなら通る）",
+      "file": "skills/parity-suite/scripts/component-comparison-check.mjs",
+      "find": "  const wanted = String(replaceNew.tree).trim();\n  const recorded = String(observedTree).trim();\n",
+      "replace": "  const wanted = String(replaceNew.commit).trim();\n  const recorded = String(f.observed.commit).trim();\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "new.commit が違っても new.tree が同じなら、同じバージョンとして通す",
+        "new.commit が同じでも new.tree が違えば stale",
+        "持ち越し: commit が同じで tree だけが違えば、描画入力の差分が空でも stale"
+      ]
+    },
+    {
+      "id": "cc-same-commit-carries",
+      "why": "commit が同じで tree だけが違う記録を持ち越しの判定に掛ける（描画入力の差分が必ず空になり、tree の食い違いを説明しないまま通る）",
+      "file": "skills/parity-suite/scripts/component-comparison-check.mjs",
+      "find": "    recordedCommit !== wantedCommit\n",
+      "replace": "    true\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "持ち越し: commit が同じで tree だけが違えば、描画入力の差分が空でも stale"
+      ]
+    }
+  ]
+}

@@ -240,6 +240,44 @@
         "#473 再現（Codex レビュー）: 命名規則に当たらないファイルは、別名で test を呼んでいても宣言が無ければ落とす",
         "#473: 共通の関数・fixture は shared_files に宣言すれば共有ファイルとして通る（宣言しなければ落ちる）"
       ]
+    },
+    {
+      "id": "stage-tree-missing-passes",
+      "why": "new.tree を持たない古い記録を、もう一度測る対象として落とさない（new.commit の一致などで通ってしまう）",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "  if (reportMissingTrees(s, replaceTree, diffTree)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "diff-metadata.json が new.tree を持たなければ、new.commit が一致しても落とす",
+        "replace-metadata.json が new.tree を持たなければ、new.commit が一致しても落とす"
+      ]
+    },
+    {
+      "id": "stage-version-by-commit",
+      "why": "両成果物のバージョンを new.tree ではなく new.commit で突き合わせる（記録を commit して HEAD が進んだだけで落ち、ソースを変えても commit が同じなら通る）",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "  const replaceTree = s.replaceNew === null ? undefined : s.replaceNew.tree;\n  const diffTree = s.diffNew === null ? undefined : s.diffNew.tree;\n",
+      "replace": "  const replaceTree = s.replaceNew === null ? undefined : s.replaceNew.commit;\n  const diffTree = s.diffNew === null ? undefined : s.diffNew.commit;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "diff-metadata.json が new.tree を持たなければ、new.commit が一致しても落とす",
+        "replace-metadata.json が new.tree を持たなければ、new.commit が一致しても落とす",
+        "new.commit が違っても new.tree が同じなら、同じバージョンとして通す（記録を commit して HEAD が進んだ構成）",
+        "new.commit が同じでも new.tree が違えば、今の新側に対応していないとして落とす",
+        "持ち越し: new.commit が同じで new.tree だけが違えば、描画入力の差分が空でも持ち越さない"
+      ]
+    },
+    {
+      "id": "stage-same-commit-carries",
+      "why": "new.commit が同じで new.tree だけが違う記録を持ち越しの判定に掛ける（描画入力の差分が必ず空になり、new.tree の食い違いを説明しないまま通る）",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "      : wanted === recordedCommit\n",
+      "replace": "      : false\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "持ち越し: new.commit が同じで new.tree だけが違えば、描画入力の差分が空でも持ち越さない"
+      ]
     }
   ]
 }

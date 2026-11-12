@@ -266,12 +266,24 @@ export function writeStage(
   diffMeta: Record<string, unknown>,
   replaceExtra: Record<string, unknown> = {},
 ) {
+  // new を渡さない側には、両側で同じ新側のバージョン（STAGE_VERSION）を置く。
+  // バージョンの対応以外（データセット・反復）を測るテストが、new.tree の欠落で落ちないようにする。
   writeFileSync(
     join(slugDir, "new/local-dev/replace-metadata.json"),
-    JSON.stringify({ suite: { new_green: true }, ...replaceExtra }),
+    JSON.stringify({
+      suite: { new_green: true },
+      new: { ...STAGE_VERSION, dirty: false },
+      ...replaceExtra,
+    }),
   );
-  writeFileSync(join(slugDir, "new/local-dev/diff-metadata.json"), JSON.stringify(diffMeta));
+  writeFileSync(
+    join(slugDir, "new/local-dev/diff-metadata.json"),
+    JSON.stringify({ new: STAGE_VERSION, ...diffMeta }),
+  );
 }
+
+/** writeStage が new を渡さない側に置く新側のバージョン。 */
+export const STAGE_VERSION = { target: "local-dev", commit: "c".repeat(40), tree: "d".repeat(40) };
 
 /**
  * 状態を変えるスイートを 2 回緑で回した metadata を作る。
@@ -342,7 +354,7 @@ export function carryProject(
   writeStage(
     made.slugDir,
     {
-      new: { target: "local-dev", commit: carry.commits.base },
+      new: { target: "local-dev", commit: carry.commits.base, tree: carry.commits.base },
       iteration: 3,
       dataset_version: 7,
       converged: true,
@@ -351,6 +363,7 @@ export function carryProject(
       new: {
         target: "local-dev",
         commit: carry.commits.component,
+        tree: carry.commits.component,
         dirty: false,
         ...replaceNewExtra,
       },
