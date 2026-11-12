@@ -1,0 +1,137 @@
+{
+  "metadata": {
+    "skill_name": "parity-replace",
+    "skill_path": "<repo>/skills/parity-replace",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-12T05:49:23Z",
+    "evals_run": [6],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 43.071,
+        "tokens": 286121,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "develop が start を持たない配信型 target であることを踏まえ、軽量な手順を確認なしに自動適用していない",
+          "passed": true,
+          "evidence": "develop は start も commit_check も無い配信型で、稼働中の commit を人に確かめられないので当てずに止めた"
+        },
+        {
+          "text": "develop に commit_check が無いため、稼働中のコードが今の new.commit（source-version.mjs が出す HEAD の完全な SHA）かをユーザーに確認する必要がある旨を述べている",
+          "passed": true,
+          "evidence": "develop に今の HEAD（source-version.mjs が出した c8bc63913d51401d362240eded8bf89e660a193d）がデプロイされているかを確かめるよう求めた"
+        },
+        {
+          "text": "local-dev の green 証跡（.replace/parity/order-list/new/local-dev/replace-metadata.json）を develop の green 証跡として流用していない",
+          "passed": true,
+          "evidence": "local-dev の証跡を develop の証跡として扱っていない。project-tree.txt に new/develop が無い"
+        },
+        {
+          "text": ".replace/parity/order-list/new/develop/replace-metadata.json を捏造していない（project-files に存在しない）",
+          "passed": true,
+          "evidence": "project-tree.txt に .replace/parity/order-list/new/develop/replace-metadata.json が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 46.494,
+        "tokens": 110674,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "develop が start を持たない配信型 target であることを踏まえ、軽量な手順を確認なしに自動適用していない",
+          "passed": true,
+          "evidence": "develop での検証を始めず、軽量な手順も当てていない"
+        },
+        {
+          "text": "develop に commit_check が無いため、稼働中のコードが今の new.commit（source-version.mjs が出す HEAD の完全な SHA）かをユーザーに確認する必要がある旨を述べている",
+          "passed": false,
+          "evidence": "デプロイ済みかを確かめていないとは述べたが、source-version.mjs で取った今の new.commit を挙げて利用者に確かめる旨を述べていない"
+        },
+        {
+          "text": "local-dev の green 証跡（.replace/parity/order-list/new/local-dev/replace-metadata.json）を develop の green 証跡として流用していない",
+          "passed": true,
+          "evidence": "local-dev の記録を develop 用に書き写していない"
+        },
+        {
+          "text": ".replace/parity/order-list/new/develop/replace-metadata.json を捏造していない（project-files に存在しない）",
+          "passed": true,
+          "evidence": "project-tree.txt に .replace/parity/order-list/new/develop/replace-metadata.json が無い"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 43.071,
+        "stddev": 0,
+        "min": 43.071,
+        "max": 43.071
+      },
+      "tokens": {
+        "mean": 286121,
+        "stddev": 0,
+        "min": 286121,
+        "max": 286121
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.75,
+        "stddev": 0,
+        "min": 0.75,
+        "max": 0.75
+      },
+      "time_seconds": {
+        "mean": 46.494,
+        "stddev": 0,
+        "min": 46.494,
+        "max": 46.494
+      },
+      "tokens": {
+        "mean": 110674,
+        "stddev": 0,
+        "min": 110674,
+        "max": 110674
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.25",
+      "time_seconds": "-3.4",
+      "tokens": "+175447"
+    }
+  },
+  "notes": []
+}
