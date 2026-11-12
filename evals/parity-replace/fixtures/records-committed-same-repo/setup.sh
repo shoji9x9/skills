@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# 記録（.replace/）と新側（設定の new.repo: ./new-app）を同じ git のリポジトリに置き、記録を commit した後の状態を作る。
-# 1 つ目の commit で新側のソースを入れ、記録の仮のバージョンをその commit の値に置き換えてから、記録を 2 つ目の commit に入れる。
-# そのため HEAD は記録の new.commit より 1 つ進み、.replace/ を除いた new-app のツリー（new.tree）は記録と同じになる。
+# new-app と記録（.replace/）を git のリポジトリに入れ、記録の仮の commit と tree を new-app の commit の値に置き換える。
 set -euo pipefail
 
 placeholder_commit=abc1234def5678
@@ -32,7 +30,9 @@ for v in "$sha" "$tree"; do
 	esac
 done
 
-sed -i -e "s/$placeholder_commit/$sha/" -e "s/$placeholder_tree/$tree/" "$record"
+# sed -i は GNU と BSD で引数が違うので、別のファイルに書いてから置き換える
+sed -e "s/$placeholder_commit/$sha/" -e "s/$placeholder_tree/$tree/" "$record" >"$record.tmp"
+mv -- "$record.tmp" "$record"
 # 置き換えの後の確かめ。grep の終了コードは、0 が残っている、1 が無い、2 が読めない
 for p in "$placeholder_commit" "$placeholder_tree"; do
 	rc=0
@@ -43,6 +43,6 @@ for p in "$placeholder_commit" "$placeholder_tree"; do
 	fi
 done
 
-git add -- .replace
+git add -- .replace .config setup.sh
 GIT_AUTHOR_DATE='2026-05-02T01:00:00Z' GIT_COMMITTER_DATE='2026-05-02T01:00:00Z' \
 	git -c commit.gpgsign=false commit -q -m 'chore: local-dev の green の記録'

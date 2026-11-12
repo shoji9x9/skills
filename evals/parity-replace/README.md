@@ -23,7 +23,7 @@ scripts/eval/run/run-skill-eval.sh \
 # fixture 付き eval（前提が揃った状態から始める。evals.json の "fixture" の値の前に evals/parity-replace/ を付けて渡す）
 scripts/eval/run/run-skill-eval.sh \
   --skill parity-replace --config with_skill \
-  --prompt "parity-replace --feature order-list --target develop （新側の作業ツリーは clean で、ソースは local-dev で green にしたときから変えていません）" \
+  --prompt "parity-replace --feature order-list --target develop （新側の作業ツリーは clean で、ソースは local-dev で green にしたときから変えていません。develop で動いている commit は確かめていません）" \
   --fixture evals/parity-replace/fixtures/lightweight-deploy-target \
   --out tests/parity-replace/iteration-1/eval-6/with_skill/run-1 \
   --model opus
@@ -36,6 +36,7 @@ scripts/eval/run/run-skill-eval.sh \
   パリティスイート無しで実装しない・リント off / 推測実装を拒否する・発見した差異を確認なしで進めない・既存のパッケージを探さずに自前実装を始めない、の 4 つである。
   eval 7 は実装中に部品が必要になった場面で、判断材料の確認と `.replace/dependencies.md` への記録を省略しないことを検証する（基準は `replace-strategy` の `references/dependency-selection.md` で定義する）
 - eval 6 は fixture（設定・`.replace/features.md`・データセット／パリティスイートのメタデータ・`new/local-dev/` の green 証跡）で前提を揃える。
+  fixture の `setup.sh` が、`new-app` と記録を git のリポジトリに入れ、記録の仮の commit と tree を `new-app` の commit の値に置き換える。
   `start` も `commit_check` も持たない配信型の target（develop）へ、軽量な手順を確認なしに適用しないパスを検証する
 - eval 13 は、前提の有無に関わらず成立する取り決めの説明として、**DB の方言差を実装前に点検する**取り決めを検証する。
   具体的には、`references.db_semantics` を書く前に読む・未整備でも推測で埋めない・`porting.md` の「DB 方言差の点検結果」へ該当なしも含めて記録する・吸収しない差は `intentional_diffs.pending` へ回す、の 4 つである。
