@@ -1,0 +1,127 @@
+{
+  "metadata": {
+    "skill_name": "replace-strategy",
+    "skill_path": "<repo>/skills/replace-strategy",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-12T02:59:58Z",
+    "evals_run": [6, 43],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 43,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 101.55,
+        "tokens": 850612,
+        "tool_calls": 12,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "order-list を、diff.md・diff-metadata.json が無いことを理由に parity-diff が未実施の機能として扱っていない",
+          "passed": true,
+          "evidence": "「free の機能なので、diff-metadata.json が作られません」として対象外とし、parity-diff 未実施として扱っていない"
+        },
+        {
+          "text": "local-dev の収束の状態を new/local-dev/verify-metadata.json の converged から導き、未収束としている",
+          "passed": true,
+          "evidence": "収束を new/local-dev/verify-metadata.json から判断し「未収束（converged: false）」としている"
+        },
+        {
+          "text": "通っていない確認として、横のはみ出し（overflow）を名前で挙げている",
+          "passed": true,
+          "evidence": "local-dev の確認項目で「横はみ出し: NG」とし、375×800 の /orders で幅 587px と挙げている"
+        },
+        {
+          "text": "性能を比べていないことを、未検証の領域に挙げている",
+          "passed": true,
+          "evidence": "未検証の領域に「性能は比べていません」を挙げている"
+        },
+        {
+          "text": "部品網羅表・反応の網羅表が無いことを、旧版の成果物や記録の欠けとして扱っていない",
+          "passed": true,
+          "evidence": "部品網羅表・反応の網羅表を「free のため対象外（成果物は spec-parity が作る）」とし、旧版の欠けとして扱っていない"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
+          "passed": true,
+          "evidence": "project-files/.replace/ は fixture と diff -r で一致し、project-tree.txt も同じ（ハーネスの .claude だけ増加）。raw に Write・Edit が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 87.771,
+        "tokens": 513586,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "新側の状態を target（環境）ごとに分けて報告している（local-dev と develop を別々の状態として示している）",
+          "passed": true,
+          "evidence": "機能ごとの表で order-list の target を local-dev と develop の 2 行に分けて報告している"
+        },
+        {
+          "text": "local-dev を差分検出まで実施済み（収束済み）、develop をその環境では未実施として区別している",
+          "passed": true,
+          "evidence": "local-dev を「green かつ収束済み」、develop を「その環境では未実施（new/develop/ が無い）」として区別している"
+        },
+        {
+          "text": "db を持たない develop を「フェーズ B 未実施の疑い」として報告していない（投入対象外として扱っている）",
+          "passed": true,
+          "evidence": "develop のフェーズ B を「対象外（db の定義が無い）」としている"
+        },
+        {
+          "text": "差し戻しループの状態（loop.iterations 1 / max_iterations 5）を報告に含めている",
+          "passed": true,
+          "evidence": "表の往復の列に local-dev の「1 / 5」を載せている"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
+          "passed": true,
+          "evidence": "project-files/.replace/ は fixture と diff -r で一致し、project-tree.txt も同じ。raw に Write・Edit が無い"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 94.6605,
+        "stddev": 9.7432,
+        "min": 87.771,
+        "max": 101.55
+      },
+      "tokens": {
+        "mean": 682099,
+        "stddev": 238313.37,
+        "min": 513586,
+        "max": 850612
+      }
+    }
+  },
+  "notes": []
+}

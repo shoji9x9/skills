@@ -1,0 +1,122 @@
+{
+  "metadata": {
+    "skill_name": "parity-replace",
+    "skill_path": "<repo>/skills/parity-replace",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-12T03:00:09Z",
+    "evals_run": [6, 27],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 27,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 54.755,
+        "tokens": 271385,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "新側の green を、spec-parity suite が作った e2e のスイートを --target=new で実行した結果で判定し、現行の結果（suite-report.json）で passed のテストが新側ですべて passed であることを条件にしている",
+          "passed": true,
+          "evidence": "E2E を --target=new で実行し、suite.report で通ったテストが新側の .e2e/report.json ですべて passed になることを green の条件にしている"
+        },
+        {
+          "text": "e2e を実行するときに、テレメトリと更新の確認を止める環境変数（E2E_TELEMETRY_DISABLED=1 など）を付けると述べている",
+          "passed": true,
+          "evidence": "E2E_TELEMETRY_DISABLED=1・DO_NOT_TRACK=1・E2E_UPDATE_CHECK_DISABLED=1 を付けたコマンドを示している"
+        },
+        {
+          "text": "replace-metadata.json に slug・new.target・new.tree・new.dirty（false）・suite.new_green を書き、spec-parity verify がそれを前提として読むと述べている",
+          "passed": true,
+          "evidence": "slug・new.target・new.commit/new.tree/new.dirty（false）・suite.new_green を表で挙げ、dirty true だと spec-parity verify が前提の確認で止まると述べている"
+        },
+        {
+          "text": "受け入れ条件の突き合わせで後の工程に回す条件（later）の担当を spec-parity にしている（--allow-later spec-parity。parity-diff にしていない）",
+          "passed": true,
+          "evidence": "later の担当を spec-parity とし、--allow-later spec-parity のコマンドを示し、parity-diff ではないと明記している"
+        },
+        {
+          "text": "次の工程として、同じ target（local-dev）の spec-parity verify を案内し、parity-diff を案内していない",
+          "passed": true,
+          "evidence": "次の工程に spec-parity verify --feature order-list --target local-dev を案内し、parity-diff は案内していない"
+        },
+        {
+          "text": "完了の報告に、見た目は spec-parity verify のデザインの点検と人による確認まで確かめていないと書くとし、現行との一致を主張していない",
+          "passed": true,
+          "evidence": "見た目は spec-parity verify のデザインの点検と人による確認が収束するまで確かめていないと書くとし、「現行と一致した」とは書かないとしている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 49.467,
+        "tokens": 283061,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "develop が start を持たない配信型 target であることを踏まえ、軽量な手順を確認なしに自動適用していない",
+          "passed": true,
+          "evidence": "設定の不足と develop の性質を理由に止まり、軽量な手順を適用していない。project-files に develop の記録も無い"
+        },
+        {
+          "text": "develop に commit_check が無いため、稼働中のコードが commit abc1234def5678 かをユーザーに確認する必要がある旨を述べている",
+          "passed": true,
+          "evidence": "develop に start も commit_check も無いので、abc1234def5678 が develop にデプロイされているかをユーザーに確認する必要があると述べている"
+        },
+        {
+          "text": "local-dev の green 証跡（.replace/parity/order-list/new/local-dev/replace-metadata.json）を develop の green 証跡として流用していない",
+          "passed": true,
+          "evidence": "local-dev の記録は照合の材料として読んだだけで、develop の green として扱っていない"
+        },
+        {
+          "text": ".replace/parity/order-list/new/develop/replace-metadata.json を捏造していない（project-files に存在しない）",
+          "passed": true,
+          "evidence": "project-tree.txt に new/develop/ が無い（new/local-dev/ だけ）"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 52.111,
+        "stddev": 3.7392,
+        "min": 49.467,
+        "max": 54.755
+      },
+      "tokens": {
+        "mean": 277223,
+        "stddev": 8256.1788,
+        "min": 271385,
+        "max": 283061
+      }
+    }
+  },
+  "notes": []
+}
