@@ -579,6 +579,8 @@
       "assertions": [
         "PR の本文に、規約の文書に破壊的変更の定義が無いことを書くと述べている",
         "規約の文書に破壊的変更の定義を置くことを勧めていない",
+        "一般の意味で破壊的に見えるという見立てを、PR の本文に書いていない",
+        "commit message に `!` も `BREAKING CHANGE:` も書かないと述べている",
         "ファイルの変更・commit・push・PR の作成をせず、説明に留めている"
       ],
       "reachability": [
@@ -589,6 +591,14 @@
         {
           "assertion": "規約の文書に破壊的変更の定義を置くことを勧めていない",
           "prompt_quote": "書かなければ、従来と同じくカンマで区切る"
+        },
+        {
+          "assertion": "一般の意味で破壊的に見えるという見立てを、PR の本文に書いていない",
+          "prompt_quote": "書かなければ、従来と同じくカンマで区切る"
+        },
+        {
+          "assertion": "commit message に `!` も `BREAKING CHANGE:` も書かないと述べている",
+          "prompt_quote": "commit message と"
         },
         {
           "assertion": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",

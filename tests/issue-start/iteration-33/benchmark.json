@@ -1,0 +1,86 @@
+{
+  "metadata": {
+    "skill_name": "issue-start",
+    "skill_path": "<repo>/skills/issue-start",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-12T00:56:51Z",
+    "evals_run": [22],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 22,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 87.268,
+        "tokens": 263699,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR の本文に、規約の文書に破壊的変更の定義が無いことを書くと述べている",
+          "passed": true,
+          "evidence": "「`CONTRIBUTING.md` に破壊的変更の定義が無いので、判断していない」と書く"
+        },
+        {
+          "text": "定義が無いことを書く箇所に、読んだ規約の文書のパス（CONTRIBUTING.md）を挙げている",
+          "passed": true,
+          "evidence": "読んだ文書 `CONTRIBUTING.md` のパスを添える"
+        },
+        {
+          "text": "キーの改名を一般の意味で破壊的に見える（利用者が設定を書き直さないと従来の使い方を続けられない）とし、その見立てと理由を PR の本文の破壊的変更の節に書くと述べている",
+          "passed": true,
+          "evidence": "「見立て：一般の意味では破壊的に見えます…書き換えないと、従来の設定が効かなくなります」を節に書く"
+        },
+        {
+          "text": "規約の文書に破壊的変更の定義を置くことを勧めると述べている",
+          "passed": true,
+          "evidence": "「勧め：`CONTRIBUTING.md` に破壊的変更の定義を置くことを勧めます」"
+        },
+        {
+          "text": "commit message に `!` も `BREAKING CHANGE:` も書かないと述べている",
+          "passed": true,
+          "evidence": "「commit message にも PR のタイトルにも、`!` や `BREAKING CHANGE:` を書きません」"
+        },
+        {
+          "text": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",
+          "passed": true,
+          "evidence": "「ファイルの変更・commit・push・GitHub への接続はしていません」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 87.268,
+        "stddev": 0,
+        "min": 87.268,
+        "max": 87.268
+      },
+      "tokens": {
+        "mean": 263699,
+        "stddev": 0,
+        "min": 263699,
+        "max": 263699
+      }
+    }
+  },
+  "notes": [
+    "PR #1000 の medium のレビューへの対応の後の変更確認である。eval 22 は prompt と assertion を変えていないので、with_skill だけを実行した。"
+  ]
+}
