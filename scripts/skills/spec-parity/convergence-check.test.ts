@@ -577,7 +577,7 @@ describe("スイートの範囲（suite.dir）", () => {
         category: "remeasure",
         check: "suite",
         message: expect.stringContaining(
-          "suite.dir（tests/orders/）の外のテストがある: tests/invoices/list.e2e.ts › 請求を開く",
+          "suite.dir の tests/orders/ の外のテストがある: tests/invoices/list.e2e.ts › 請求を開く",
         ),
       },
     ]);
@@ -591,7 +591,7 @@ describe("スイートの範囲（suite.dir）", () => {
     );
     const r = run(fs);
     expect(r.code).toBe(2);
-    expect(r.stderr).toContain("suite.dir（tests/orders/）の外のテストがある");
+    expect(r.stderr).toContain("suite.dir の tests/orders/ の外のテストがある");
   });
 
   test("名前が前方で重なるディレクトリ（tests/orders-archive/）は、スイートの外として数える", () => {
@@ -608,7 +608,7 @@ describe("スイートの範囲（suite.dir）", () => {
         category: "remeasure",
         check: "suite",
         message: expect.stringContaining(
-          "suite.dir（tests/orders/）の外のテストがある: tests/orders-archive/",
+          "suite.dir の tests/orders/ の外のテストがある: tests/orders-archive/",
         ),
       },
     ]);
@@ -682,6 +682,8 @@ describe("スイートの範囲（suite.dir）", () => {
     expect(r.code).toBe(2);
     // 前方一致しなかった file を示し、書き方の違いの場合の見直し先を案内する
     expect(r.stderr).toContain("前方一致しなかったテスト: tests/invoices/list.e2e.ts › 請求を開く");
+    // 新側の結果では、現行の結果が suite.dir に一致した後なので、suite.dir の綴りを見直し先に挙げない
+    expect(r.stderr).not.toContain("suite.dir の綴り");
   });
 
   test("target new で選ばれたテストが 1 件も無い結果は、0 件として exit 2", () => {

@@ -15,7 +15,7 @@ export const REPORT_SCHEMA = "report-1";
  * ファイルのパスは書かれたまま使う（強度の計画のテストの名前も、結果の file と同じ字面で書く）。
  * @param {unknown} report
  * @param {{ targetId: string, where: string }} ctx - targetId は e2e の設定の target 名（current / new）、where は誤りの文に出す名前
- * @returns {{ run: Record<string, unknown>, results: Map<string, { result: Record<string, unknown>, index: number }> }}
+ * @returns {{ run: Record<string, unknown>, results: Map<string, { result: Record<string, unknown>, index: number, file: string }> }}
  */
 export function selectedResults(report, { targetId, where }) {
   if (!isPlainObject(report) || report.schemaVersion !== REPORT_SCHEMA)
@@ -23,7 +23,7 @@ export function selectedResults(report, { targetId, where }) {
   const run = report.run;
   if (!isPlainObject(run) || !isArray(run.results))
     throw new UsageError(`${where} に run.results が無い`);
-  /** @type {Map<string, { result: Record<string, unknown>, index: number }>} */
+  /** @type {Map<string, { result: Record<string, unknown>, index: number, file: string }>} */
   const results = new Map();
   for (const [index, r] of run.results.entries()) {
     if (!isPlainObject(r))
@@ -36,7 +36,7 @@ export function selectedResults(report, { targetId, where }) {
       throw new UsageError(
         `${where} に同じテストの結果が 2 つある（--repeat-each や複数の agent を外して実行し直す）: ${name}`,
       );
-    results.set(name, { result: r, index });
+    results.set(name, { result: r, index, file: r.file });
   }
   return { run, results };
 }

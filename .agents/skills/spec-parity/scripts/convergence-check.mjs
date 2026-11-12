@@ -131,6 +131,7 @@ export function checkSuiteMetadata(metadata, slugDir) {
  * 書き方の揺れを正規化して吸収せず、結果の file と同じ字面の形（tests/<slug>/ のような、リポジトリのルートからの相対パス）だけを受ける。
  * 正規化すると、結果の file・テストの鍵・強度の計画の名前のすべてに同じ正規化を当てることになり、どれかに当て忘れると一致しなくなる。
  * 受けない形だけを挙げ、区間の文字（日本語・@ など）は限らない。
+ * ただし、1 文字の英字に : が続く形で始まる値（C:tests・x:legacy）は、Windows のドライブ文字と区別できないので受けない。
  * @param {string} dir
  * @returns {string | null}
  */
@@ -164,30 +165,32 @@ export function suitePrefix(dir) {
 }
 
 /**
- * 結果の file が suite.dir に前方一致しなかったときの見直し先。0 件・現行の外・新側の外の 3 つの文で同じものを示す。
- * 原因の候補は、ほかの機能のテスト・suite.dir の書き誤り・file の書き方（起点）の違いの 3 つである。結果の file だけからは区別できないので、3 つを並べる。
+ * 結果の file が suite.dir に前方一致しなかったときの見直し先。原因の候補は、ほかの機能のテスト・suite.dir の書き誤り・file の起点や書き方の違いの 3 つである。
+ * 結果の file だけからは区別できないので並べる。新側の結果では、現行の結果が suite.dir に一致した後なので、suite.dir の書き誤りは挙げない。
+ * 誤りの文の括弧の中に入れないので、この文にも括弧を使わない。
  */
-const PREFIX_MISMATCH_HINT =
-  "ほかの機能のテストなら、スイートのパスで絞って実行し直す。suite.dir の綴りが違うなら直す。" +
-  "結果の file の起点や書き方（./・\\ など）が suite.dir と違うなら、e2e の設定（e2e.config.ts）の場所と、e2e を実行するディレクトリを見直す";
+const FILE_ORIGIN_HINT =
+  "結果の file の起点や書き方が違う（./ で始まる・区切りが \\ など）なら、e2e の設定ファイル e2e.config.ts の場所と、e2e を実行するディレクトリを見直す。";
+const CURRENT_MISMATCH_HINT = `ほかの機能のテストなら、スイートのパスで絞って実行し直す。suite.dir の綴りが違うなら直す。${FILE_ORIGIN_HINT}`;
+const NEW_MISMATCH_HINT = `ほかの機能のテストなら、スイートのパスで絞って実行し直す。${FILE_ORIGIN_HINT}`;
 
 /**
  * e2e の結果の JSON から、指定した target で選ばれたテストを、テストの鍵 → 状態の一覧にする。
  * スイートのディレクトリ（prefix）の外のテストは、outside に分けて返す（ほかの機能のテストを含む実行の結果）。
  * @param {unknown} report
- * @param {{ targetId: string, where: string, prefix: string }} ctx - targetId は e2e の設定の target 名（current / new）
+ * @param {{ targetId: string, where: string, prefix: string, hint: string }} ctx - targetId は e2e の設定の target 名（current / new）、hint は前方一致しなかったときの見直し先
  * @returns {{ tests: Map<string, string>, outside: string[] }}
  */
-export function readReport(report, { targetId, where, prefix }) {
+export function readReport(report, { targetId, where, prefix, hint }) {
   const { results } = selectedResults(report, { targetId, where });
   /** @type {Map<string, string>} */
   const tests = new Map();
   const outside = [];
-  for (const [key, { result: r, index }] of results) {
+  for (const [key, { result: r, index, file }] of results) {
     if (!nonEmptyString(r.status))
       throw new UsageError(`${where} の results[${index}] に status が無い`);
     // 鍵（file › titlePath）ではなく file で比べる。鍵で比べると、suite.dir が › を含むときに titlePath の側で一致する
-    if (!(typeof r.file === "string" && r.file.startsWith(prefix))) outside.push(key);
+    if (!file.startsWith(prefix)) outside.push(key);
     else tests.set(key, r.status);
   }
   outside.sort(byText);
@@ -195,7 +198,7 @@ export function readReport(report, { targetId, where, prefix }) {
     throw new UsageError(
       `${where} に、target ${targetId} で選ばれた ${prefix} の下のテストが 0 件（0 件を合格にしない）。` +
         (outside.length > 0
-          ? `前方一致しなかったテスト: ${outside.slice(0, 2).join(", ")}。${PREFIX_MISMATCH_HINT}`
+          ? `前方一致しなかったテスト: ${outside.slice(0, 2).join(", ")}。${hint}`
           : `target ${targetId} で選ばれたテストが 1 件も無い`),
     );
   return { tests, outside };
@@ -213,21 +216,23 @@ function readReports(input, prefix, reasons) {
     targetId: "current",
     where: "現行の結果（suite-report.json）",
     prefix,
+    hint: CURRENT_MISMATCH_HINT,
   });
   if (current.outside.length > 0)
     throw new UsageError(
-      `現行の結果に、suite.dir（${prefix}）の外のテストがある: ${current.outside.join(", ")}（現行の結果は spec-parity suite の手順 4 で採り直す。${PREFIX_MISMATCH_HINT}）`,
+      `現行の結果に、suite.dir の ${prefix} の外のテストがある: ${current.outside.join(", ")}。現行の結果は spec-parity suite の手順 4 で採り直す。${CURRENT_MISMATCH_HINT}`,
     );
   const next = readReport(input.newReport, {
     targetId: "new",
     where: `新側の結果（new/${input.target}/suite-report.json）`,
     prefix,
+    hint: NEW_MISMATCH_HINT,
   });
   for (const test of next.outside)
     reasons.add(
       "remeasure",
       "suite",
-      `新側の結果に、suite.dir（${prefix}）の外のテストがある: ${test}（新側の結果は verify の手順 2 で採り直す。${PREFIX_MISMATCH_HINT}）`,
+      `新側の結果に、suite.dir の ${prefix} の外のテストがある: ${test}。新側の結果は verify の手順 2 で採り直す。${NEW_MISMATCH_HINT}`,
     );
   return { current: current.tests, next: next.tests };
 }

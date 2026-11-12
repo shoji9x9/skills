@@ -474,7 +474,7 @@
       "id": "cv-suite-dir-off",
       "why": "スイートの結果を suite.dir で絞らず、ほかの機能のテストを含む結果で判定する（Issue #995 のコメントの項目）",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "    if (!(typeof r.file === \"string\" && r.file.startsWith(prefix))) outside.push(key);\n",
+      "find": "    if (!file.startsWith(prefix)) outside.push(key);\n",
       "replace": "    if (false) outside.push(key);\n",
       "occurrences": 1,
       "expect_failing": [
@@ -511,7 +511,7 @@
     },
     {
       "id": "cv-suite-dir-shape-off",
-      "why": "suite.dir の形を確かめず、./・\\・続いた /・. と .. の区間・絶対パス・前後の空白の suite.dir を、結果の file と一致しないまま読む",
+      "why": "suite.dir の形を確かめず、./・\\・続いた /・. と .. の区間・絶対パス・ドライブ文字で始まる形（ドライブ相対を含む）・前後の空白の suite.dir を、結果の file と一致しないまま読む",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
       "find": "  if (problem !== null)\n",
       "replace": "  if (false)\n",
@@ -530,6 +530,17 @@
         "スイートの範囲（suite.dir） suite.dir が 続いた / なら exit 2",
         "スイートの範囲（suite.dir） suite.dir が 前後の空白 なら exit 2",
         "スイートの範囲（suite.dir） suite.dir が ドライブ相対のパス なら exit 2"
+      ]
+    },
+    {
+      "id": "cv-new-hint-spelling",
+      "why": "新側の結果の誤りの文に、現行の結果と同じ見直し先（suite.dir の綴り）を出し、現行の結果が一致した後の suite.dir を書き換えさせる",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "    hint: NEW_MISMATCH_HINT,\n",
+      "replace": "    hint: CURRENT_MISMATCH_HINT,\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "スイートの範囲（suite.dir） スイートの中のテストが 0 件なら、0 件を合格にせず exit 2"
       ]
     }
   ]
