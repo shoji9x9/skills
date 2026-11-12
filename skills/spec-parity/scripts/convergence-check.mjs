@@ -332,7 +332,7 @@ function judgeSignatures(sigs, { tree, approvals, reasons }) {
       reasons.add(
         "approval",
         "runtime_errors",
-        `許容の承認が、承認の記録（approvals）に同じ値で積まれていないエラー: ${name}（承認を書き換えたか、前のバージョンの承認なら、利用者に承認し直してもらって approvals に追記する。承認した人（approved_by）も書き、雛形の値のままなら書き換える）`,
+        `許容の承認が、承認の記録（approvals）に同じ値で積まれていないエラー: ${name}（承認を書き換えたか、前のバージョンの承認なら、利用者に承認し直してもらって approvals に追記する。承認した人の approved_by も書く。雛形の値のまま積んだ要素は書き換えず、新しい要素を追記する）`,
       );
   }
 }

@@ -135,7 +135,9 @@
       "occurrences": 1,
       "expect_failing": [
         "デザインの点検と人による確認 指摘を 受け入れるが承認が無い なら approval",
-        "デザインの点検と人による確認 指摘を 受け入れるが理由が無い なら approval"
+        "デザインの点検と人による確認 指摘を 受け入れるが理由が無い なら approval",
+        "デザインの点検と人による確認 指摘を 受け入れるが承認した人が雛形の値のまま なら approval",
+        "デザインの点検と人による確認 指摘を 受け入れるが理由が雛形の値のまま なら approval"
       ]
     },
     {
@@ -147,7 +149,8 @@
       "occurrences": 1,
       "expect_failing": [
         "デザインの点検と人による確認 人による確認が 承認の記録が無い なら approval",
-        "デザインの点検と人による確認 人による確認が 承認した人が無い なら approval"
+        "デザインの点検と人による確認 人による確認が 承認した人が無い なら approval",
+        "デザインの点検と人による確認 人による確認が 承認の日時が雛形の値のまま なら approval"
       ]
     },
     {
@@ -660,6 +663,29 @@
       "occurrences": 1,
       "expect_failing": [
         "操作中のエラーの許容と承認の記録（approvals） 許容が kind だけが違う（design_review の）要素しか無い なら承認待ちにする"
+      ]
+    },
+    {
+      "id": "cv-approval-placeholder",
+      "why": "承認した人と承認の日時が雛形のプレースホルダのままの承認を、書いたものとして数える",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  return isPlainObject(a) && filled(a.approved_by) && filled(a.approved_at);\n",
+      "replace": "  return isPlainObject(a) && nonEmptyString(a.approved_by) && nonEmptyString(a.approved_at);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "デザインの点検と人による確認 指摘を 受け入れるが承認した人が雛形の値のまま なら approval",
+        "デザインの点検と人による確認 人による確認が 承認の日時が雛形の値のまま なら approval"
+      ]
+    },
+    {
+      "id": "cv-design-reason-placeholder",
+      "why": "受け入れるデザインの指摘の理由が雛形のプレースホルダのままでも、書いたものとして数える",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  else if (!approval || !hasApproval(approval) || !filled(approval.reason))\n",
+      "replace": "  else if (!approval || !hasApproval(approval) || !nonEmptyString(approval.reason))\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "デザインの点検と人による確認 指摘を 受け入れるが理由が雛形の値のまま なら approval"
       ]
     }
   ]

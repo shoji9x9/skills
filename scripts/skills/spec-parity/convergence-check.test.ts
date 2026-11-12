@@ -351,6 +351,23 @@ describe("デザインの点検と人による確認", () => {
       finding({ decision: "accept", approval: { approved_by: "o", approved_at: "t" } }),
     ],
     ["分けていない", "approval", finding({})],
+    // 承認の欄が雛形のプレースホルダ（<...>）のままなら、書いていないものとして扱う（design-review.md「承認の記録」）
+    [
+      "受け入れるが承認した人が雛形の値のまま",
+      "approval",
+      finding({
+        decision: "accept",
+        approval: { approved_by: "<承認した人>", approved_at: "t", reason: "r" },
+      }),
+    ],
+    [
+      "受け入れるが理由が雛形の値のまま",
+      "approval",
+      finding({
+        decision: "accept",
+        approval: { approved_by: "o", approved_at: "t", reason: "<受け入れる理由>" },
+      }),
+    ],
   ])("指摘を %s なら %s", (_name, category, f) => {
     const fs = withVerify({ design_review: review({ findings: [f] }) });
     const r = run(fs);
@@ -403,6 +420,11 @@ describe("デザインの点検と人による確認", () => {
     ],
     ["承認の記録が無い", "approval", null],
     ["承認した人が無い", "approval", { verdict: "approved", approved_at: "t" }],
+    [
+      "承認の日時が雛形の値のまま",
+      "approval",
+      { verdict: "approved", approved_by: "o", approved_at: "<承認した日時>" },
+    ],
   ])("人による確認が %s なら %s", (_name, category, approval) => {
     const fs = withVerify({ human_review: human(approval) });
     const r = run(fs);
