@@ -20,4 +20,4 @@ fixture の `setup.sh` が新側を git のリポジトリにし、記録の com
 ## 観察
 
 - 差が出たのは assertion 2 である。`with_skill` は `source-version.mjs` で今の HEAD の完全な SHA を取り、それがデプロイ済みかを確かめるよう求めた。baseline は、デプロイの証拠が無いと述べるだけだった。
-- 最初の prompt は「develop にデプロイしたのは今の HEAD」と答えを書いていて、確かめる必要の有無を測れなかった。その run は採点しなかった。
+- 最初の prompt は「develop にデプロイしたのは今の HEAD」と答えを書いていて、確かめる必要の有無を測れなかった。その run は採点せず、`iteration-41-discarded-prompt-answered` に残した。

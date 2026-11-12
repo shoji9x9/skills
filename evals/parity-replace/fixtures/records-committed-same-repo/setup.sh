@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# new-app と記録（.replace/）を git のリポジトリに入れ、記録の仮の commit と tree を new-app の commit の値に置き換える。
+# eval 29 の初期状態を作る。
 set -euo pipefail
 
 placeholder_commit=abc1234def5678
@@ -18,7 +18,7 @@ git config user.email "eval@example.invalid"
 mkdir -p new-app/src
 printf '%s\n' '# 新側の実装（eval の fixture）' >new-app/README.md
 printf '%s\n' 'export const title = "注文一覧";' >new-app/src/order-list.ts
-git add -- new-app
+git add -- new-app .config setup.sh
 GIT_AUTHOR_DATE='2026-05-02T00:00:00Z' GIT_COMMITTER_DATE='2026-05-02T00:00:00Z' \
 	git -c commit.gpgsign=false commit -q -m 'feat: 注文一覧の新側の実装'
 
@@ -43,6 +43,6 @@ for p in "$placeholder_commit" "$placeholder_tree"; do
 	fi
 done
 
-git add -- .replace .config setup.sh
+git add -- .replace
 GIT_AUTHOR_DATE='2026-05-02T01:00:00Z' GIT_COMMITTER_DATE='2026-05-02T01:00:00Z' \
 	git -c commit.gpgsign=false commit -q -m 'chore: local-dev の green の記録'

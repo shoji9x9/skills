@@ -49,12 +49,12 @@
     },
     {
       "id": 6,
-      "prompt": "parity-replace --feature order-list --target develop （新側の作業ツリーは clean で、ソースは local-dev で green にしたときから変えていません。develop で動いている commit は確かめていません）",
+      "prompt": "parity-replace --feature order-list --target develop （新側の作業ツリーは clean で、ソースは local-dev で green にしたときから変えていません）",
       "fixture": "fixtures/lightweight-deploy-target",
       "assertions": [
         "develop が start を持たない配信型 target であることを踏まえ、軽量な手順を確認なしに自動適用していない",
         "develop に commit_check が無いため、稼働中のコードがどの commit かをユーザーに確認する必要がある旨を述べている",
-        "確かめる値として、source-version.mjs が出す今の commit の完全な SHA を挙げるか、ユーザーが答えた commit の tree を source-version.mjs --rev で取って new.tree と比べると述べている",
+        "確かめる値として、source-version.mjs が出す HEAD の commit の完全な SHA がデプロイ済みかを尋ねるか、ユーザーが答えた commit の tree を source-version.mjs --rev で取って new.tree と比べると述べている",
         "local-dev の green 証跡（.replace/parity/order-list/new/local-dev/replace-metadata.json）を develop の green 証跡として流用していない",
         ".replace/parity/order-list/new/develop/replace-metadata.json を捏造していない（project-files に存在しない）"
       ],
@@ -65,11 +65,11 @@
         },
         {
           "assertion": "develop に commit_check が無いため、稼働中のコードがどの commit かをユーザーに確認する必要がある旨を述べている",
-          "prompt_quote": "develop で動いている commit は確かめていません"
+          "prompt_quote": "parity-replace --feature order-list --target develop"
         },
         {
-          "assertion": "確かめる値として、source-version.mjs が出す今の commit の完全な SHA を挙げるか、ユーザーが答えた commit の tree を source-version.mjs --rev で取って new.tree と比べると述べている",
-          "prompt_quote": "develop で動いている commit は確かめていません"
+          "assertion": "確かめる値として、source-version.mjs が出す HEAD の commit の完全な SHA がデプロイ済みかを尋ねるか、ユーザーが答えた commit の tree を source-version.mjs --rev で取って new.tree と比べると述べている",
+          "prompt_quote": "parity-replace --feature order-list --target develop"
         },
         {
           "assertion": "local-dev の green 証跡（.replace/parity/order-list/new/local-dev/replace-metadata.json）を develop の green 証跡として流用していない",
