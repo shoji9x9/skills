@@ -1,0 +1,10 @@
+<section id="style-policy" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">スタイルの方針で分かれる 2 つの流れ</h2>
+<p style="font-size:36px;font-weight:500;line-height:1.5">画面のある機能を確かめるスキルは、replace-strategy の style_policy の値で決まる。</p>
+<table style="font-size:26px;color:#17202a;background:#ffffff;border:1px solid #c9cec7">
+<tr><th style="width:20%">style_policy</th><th style="width:36%">現行に合わせるもの</th><th style="width:44%">画面のある機能を確かめるスキル</th></tr>
+<tr><td>reproduce（デフォルト）</td><td>UI の仕様と、見た目（色・寸法・余白・書体）</td><td>parity-suite（Playwright）が基準を作り、parity-diff が新旧の画面を比べる</td></tr>
+<tr><td>free</td><td>UI の仕様（操作・状態・role・テキスト・API）だけ。見た目は、人が見て違和感の無いものにする</td><td>spec-parity（e2e）がスイートを作り、新側だけを確かめる。新旧の画面は比べない</td></tr>
+</table>
+<p style="font-size:26px;line-height:1.5;color:#5b6670">値は、setup の戦略の決定で利用者が選び、機能に着手した後は変えない。横断 API とバッチは、どちらの値でも parity-suite と parity-diff で確かめる。</p>
+</section>

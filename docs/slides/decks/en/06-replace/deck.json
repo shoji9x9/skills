@@ -8,6 +8,7 @@
     "cover",
     "problem",
     "idea",
+    "style-policy",
     "order",
     "replace-strategy",
     "current-environment-bootstrap",
@@ -16,18 +17,19 @@
     "parity-suite",
     "parity-replace",
     "parity-diff",
+    "spec-parity",
     "human",
     "output",
     "next"
   ],
   "sections": {
-    "s1": { "description": "The problem, approach, overall order", "start": "cover" },
+    "s1": { "description": "The problem, approach, style policy, overall order", "start": "cover" },
     "s2": {
       "description": "Measure, then prepare the baseline environment and data",
       "start": "replace-strategy"
     },
     "s3": {
-      "description": "For each feature, build pass/fail criteria, implement the new app, check the differences",
+      "description": "For each feature, build pass/fail criteria, implement the new app, check the differences or the new app alone",
       "start": "parity-component"
     },
     "s4": { "description": "Where people decide, outputs, related skills", "start": "human" }

@@ -1,0 +1,12 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+pr:1002,pr,2026-11-12T09:32:11.410Z,p-cdee4961,github,,,,2026-11-12T08:03:23.000Z,2026-11-12T09:17:08.000Z,Asia/Tokyo,feature/995-spec-parity-convergence-checks,995,,,,,,,,,,pr=1002;author=shoji9x9;state=merged,
+ci:43190109720:1,ci,2026-11-12T09:32:11.410Z,p-cdee4961,github-actions,,,,2026-11-12T09:17:10.000Z,2026-11-12T09:17:37.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:43190109721:1,ci,2026-11-12T09:32:11.410Z,p-cdee4961,github-actions,,,,2026-11-12T09:17:10.000Z,2026-11-12T09:20:58.000Z,Asia/Tokyo,main,,,,,,,,,,,CodeQL;push;success,
+ci:43188556453:1,ci,2026-11-12T09:32:11.410Z,p-cdee4961,github-actions,,,,2026-11-12T09:06:47.000Z,2026-11-12T09:08:00.000Z,Asia/Tokyo,feature/995-spec-parity-convergence-checks,995,,,,,,,,,,CodeQL;pull_request;success,
+ci:43188556250:1,ci,2026-11-12T09:32:11.410Z,p-cdee4961,github-actions,,,,2026-11-12T09:06:46.000Z,2026-11-12T09:12:01.000Z,Asia/Tokyo,feature/995-spec-parity-convergence-checks,995,,,,,,,,,,CI;pull_request;success,
+ci:43188556173:1,ci,2026-11-12T09:32:11.410Z,p-cdee4961,github-actions,,,,2026-11-12T09:06:46.000Z,2026-11-12T09:06:55.000Z,Asia/Tokyo,feature/995-spec-parity-convergence-checks,995,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:43187810559:1,ci,2026-11-12T09:32:11.410Z,p-cdee4961,github-actions,,,,2026-11-12T09:01:37.000Z,2026-11-12T09:06:44.000Z,Asia/Tokyo,feature/995-spec-parity-convergence-checks,995,,,,,,,,,,CI;pull_request;success,
+ci:43097620748:1,ci,2026-11-12T09:32:11.410Z,p-cdee4961,github-actions,,,,2026-11-11T20:42:24.000Z,2026-11-12T09:32:11.410Z,Asia/Tokyo,feature/993-parity-replace-style-free,993,,,,,,,,,,CodeQL;pull_request;open,
+ci:43097620707:1,ci,2026-11-12T09:32:11.410Z,p-cdee4961,github-actions,,,,2026-11-11T20:42:24.000Z,2026-11-12T09:32:11.410Z,Asia/Tokyo,feature/993-parity-replace-style-free,993,,,,,,,,,,Dependabot auto-merge;pull_request;open,
+ci:43097620755:1,ci,2026-11-12T09:32:11.410Z,p-cdee4961,github-actions,,,,2026-11-11T20:42:24.000Z,2026-11-12T09:32:11.410Z,Asia/Tokyo,feature/993-parity-replace-style-free,993,,,,,,,,,,CI;pull_request;open,
+coverage:github:2026-11-11T09:05:31.714Z:2026-11-12T09:32:11.410Z,coverage,2026-11-12T09:32:11.410Z,p-cdee4961,,,,,2026-11-11T09:05:31.714Z,2026-11-12T09:32:11.410Z,Asia/Tokyo,,,,,,,,,,,,ok,
