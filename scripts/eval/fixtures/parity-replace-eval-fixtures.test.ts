@@ -24,11 +24,17 @@ function run(cwd: string, file: string, ...args: string[]): string {
   });
 }
 
-test.each(["lightweight-deploy-target", "records-committed-same-repo"])(
-  "%s の setup.sh は、記録の commit で HEAD が進み new.tree が同じ、clean な状態を作り、自身を消す",
-  (name) => {
+test.each([
+  ["lightweight-deploy-target", false],
+  ["records-committed-same-repo", false],
+  // eval 29 の setup.sh は、作業ディレクトリが既に git のリポジトリの最上位なら git init しない
+  ["records-committed-same-repo", true],
+] as const)(
+  "%s の setup.sh は、記録の commit で HEAD が進み new.tree が同じ、clean な状態を作り、自身を消す（先に git init 済み: %s）",
+  (name, preInit) => {
     const dir = makeTempDir(`parity-replace-${name}-`);
     cpSync(join(fixturesRoot, name), dir, { recursive: true });
+    if (preInit) run(dir, "git", "init", "-q", "-b", "main");
     run(dir, "./setup.sh");
     // 被験体が手順を読めないよう、setup.sh は残らない
     expect(existsSync(join(dir, "setup.sh"))).toBe(false);
@@ -39,7 +45,7 @@ test.each(["lightweight-deploy-target", "records-committed-same-repo"])(
     // 記録の new.commit は HEAD の 1 つ前で、HEAD との差分は記録のファイルだけである
     expect(record.new.commit).toBe(run(dir, "git", "rev-parse", "HEAD~1").trim());
     const changed = run(dir, "git", "diff", "--name-only", "HEAD~1", "HEAD").trim().split("\n");
-    expect(changed.length).toBeGreaterThan(0);
+    expect(changed).toContain(RECORD);
     expect(changed.every((f) => f.startsWith(".replace/"))).toBe(true);
     // 記録の new.tree は、source-version.mjs が今の新側から取る tree と同じである
     const now = parseJsonAs<{ tree: string; dirty: boolean }>(
