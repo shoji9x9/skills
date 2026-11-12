@@ -85,7 +85,7 @@
     "scripts/skills/spec-parity/convergence-check.mutations.json": 0.8,
     "scripts/skills/spec-parity/overflow-check.mutations.json": 0.74,
     "scripts/skills/spec-parity/strength-check.mutations.json": 0.73,
-    "scripts/skills/_cross/source-version.mutations.json": 10.7,
+    "scripts/skills/_cross/source-version.mutations.json": 11.6,
     "scripts/skills/parity-suite/checks/component-comparison-check.mutations.json": 1.9
   }
 }

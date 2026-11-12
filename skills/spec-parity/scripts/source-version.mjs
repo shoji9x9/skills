@@ -38,29 +38,31 @@ class UsageError extends Error {}
 /** @type {string[] | null} */
 let localEnvVars = null;
 
+// git -c や環境で渡した設定（safe.directory など）。git も別のリポジトリで子を起動するときに受け継がせるので、外さない
+const KEEP_CONFIG_ENV = new Set(["GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT"]);
+
 /**
- * 子の git に渡さない環境変数の名前。git が別のリポジトリでコマンドを実行するときに外す変数の一覧
- * （git rev-parse --local-env-vars。GIT_DIR・GIT_INDEX_FILE・GIT_CONFIG_PARAMETERS など）を、git 自身から取る。
- * hook などから受け継ぐと --repo と別のリポジトリを読むので外す。一覧を手で持つと、git の一覧とずれる。
- * 利用者の設定で探索の範囲を決める変数（GIT_CEILING_DIRECTORIES など）は、この一覧に無いので外さない。
- * そのため、GIT_CEILING_DIRECTORIES が新側の最上位を指していれば、新側を git で管理されていないと判定して none を返す。
+ * 子の git に渡さない環境変数の名前。git が別のリポジトリで子の git を起動するときと同じ扱いにする。
+ * git rev-parse --local-env-vars が出す、そのリポジトリだけに関わる変数（GIT_DIR・GIT_INDEX_FILE・GIT_NO_REPLACE_OBJECTS など）から、
+ * 設定を渡す変数（KEEP_CONFIG_ENV）を除いたものを外す。hook などから受け継ぐと、--repo と別のリポジトリや別の状態を読むからである。
+ * 一覧は git 自身から取る。手で持つと git の一覧とずれる。一覧は環境に依らないので、取るときに環境は変えない。
+ * 一覧に無い変数は外さない。GIT_NAMESPACE は ref の名前空間を決めるが、このスクリプトは ref を列挙しないので値に影響しない。
+ * GIT_CEILING_DIRECTORIES は利用者が探索を止める設定なので、受け継ぐ。新側のリポジトリの最上位を指していると、
+ * その下のサブディレクトリの新側は git で管理されていないと判定され、none になる（最上位そのものの新側は影響を受けない）。
  * @returns {string[]}
  */
 function repoLocalEnvVars() {
   if (localEnvVars === null) {
-    const base = { ...process.env };
-    for (const name of Object.keys(base)) if (name.startsWith("GIT_")) delete base[name];
     let out;
     try {
       out = execFileSync("git", ["rev-parse", "--local-env-vars"], {
         encoding: "utf8",
-        env: base,
         stdio: ["ignore", "pipe", "pipe"],
       });
     } catch (e) {
       throw gitError(e, "git の環境変数の一覧の取得");
     }
-    localEnvVars = out.split("\n").filter((name) => name !== "");
+    localEnvVars = out.split("\n").filter((name) => name !== "" && !KEEP_CONFIG_ENV.has(name));
   }
   return localEnvVars;
 }
@@ -107,6 +109,8 @@ function errorFields(e) {
  * @returns {UsageError}
  */
 function gitError(e, what) {
+  // 中で起きた使い方の誤り（一覧の取得の失敗など）は、メッセージを二重に包まずにそのまま返す
+  if (e instanceof UsageError) return e;
   const err = errorFields(e);
   if (err.code === "ENOENT") return new UsageError("git を起動できない（git が PATH に無い）");
   const stderr = typeof err.stderr === "string" ? err.stderr.trim() : "";

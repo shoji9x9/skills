@@ -383,13 +383,62 @@ describe.each(COPIES)("$skill の source-version.mjs", ({ lib, script: SCRIPT })
       });
     });
 
+    /** 環境変数を一時的に設定して fn を実行し、元に戻す。 */
+    function withEnv(vars: Record<string, string>, fn: () => void): void {
+      const saved = Object.fromEntries(Object.keys(vars).map((k) => [k, process.env[k]]));
+      Object.assign(process.env, vars);
+      try {
+        fn();
+      } finally {
+        for (const [k, v] of Object.entries(saved)) {
+          if (v === undefined) delete process.env[k];
+          else process.env[k] = v;
+        }
+      }
+    }
+
+    test("呼び出し元の GIT_NO_REPLACE_OBJECTS を受け継がず、git replace の置き換えを --repo の設定どおりに読む", () => {
+      // 手で持った一覧に無く、git rev-parse --local-env-vars にだけある変数。受け継ぐと同じ HEAD から別の tree を出す
+      const top = repoWith({ "src/a.js": "a\n" });
+      const original = git(top, "rev-parse", "HEAD").trim();
+      write(path.join(top, "src/a.js"), "replaced\n");
+      commitAll(top, "replacement");
+      const replacement = git(top, "rev-parse", "HEAD").trim();
+      git(top, "reset", "-q", "--hard", original);
+      git(top, "replace", original, replacement);
+      const want = sourceVersion({ repo: top, artifacts: art(top) });
+      expect(want.tree).toBe(git(top, "rev-parse", `${replacement}^{tree}`).trim());
+      withEnv({ GIT_NO_REPLACE_OBJECTS: "1" }, () => {
+        expect(sourceVersion({ repo: top, artifacts: art(top) })).toEqual(want);
+      });
+    });
+
+    test("環境で渡した git の設定（GIT_CONFIG_COUNT）は受け継ぐ", () => {
+      const top = repoWith({ "src/a.js": "a\n" });
+      const excludes = path.join(tmp(), "excludes");
+      write(excludes, "*.log\n");
+      write(path.join(top, "src/debug.log"), "x\n");
+      expect(sourceVersion({ repo: top, artifacts: art(top) }).dirty).toBe(true);
+      withEnv(
+        {
+          GIT_CONFIG_COUNT: "1",
+          GIT_CONFIG_KEY_0: "core.excludesFile",
+          GIT_CONFIG_VALUE_0: excludes,
+        },
+        () => {
+          expect(sourceVersion({ repo: top, artifacts: art(top) }).dirty).toBe(false);
+        },
+      );
+    });
+
     test("git を起動できなければ、使い方の誤りにする（値を推測して出さない）", () => {
       const top = repoWith({ "src/a.js": "a\n" });
       const saved = process.env.PATH;
       process.env.PATH = "";
       try {
+        // 外側の処理名で包み直さず、起動できないことだけを示す
         expect(() => sourceVersion({ repo: top, artifacts: art(top) })).toThrow(
-          /git を起動できない/,
+          /^git を起動できない/,
         );
       } finally {
         process.env.PATH = saved;

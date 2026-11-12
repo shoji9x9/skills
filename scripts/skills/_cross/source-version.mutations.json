@@ -117,7 +117,8 @@
         "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_WORK_TREE を受け継がず、--repo のリポジトリを読む",
         "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_INDEX_FILE を受け継がず、--repo のリポジトリを読む",
         "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_COMMON_DIR を受け継がず、--repo のリポジトリを読む",
-        "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_OBJECT_DIRECTORY を受け継がず、--repo のリポジトリを読む"
+        "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_OBJECT_DIRECTORY を受け継がず、--repo のリポジトリを読む",
+        "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_NO_REPLACE_OBJECTS を受け継がず、git replace の置き換えを --repo の設定どおりに読む"
       ]
     },
     {
@@ -152,6 +153,28 @@
       "occurrences": 1,
       "expect_failing": [
         "parity-replace の source-version.mjs --rev git で管理されていない新側に --rev を渡すと、none を返さずに使い方の誤りにする"
+      ]
+    },
+    {
+      "id": "sv-env-hand-list",
+      "why": "外す変数を git の一覧から取らず、手で持った一覧（場所を変える変数だけ）にする（GIT_NO_REPLACE_OBJECTS などを受け継ぎ、同じ HEAD から別の tree を出す）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "  for (const name of repoLocalEnvVars()) delete base[name];\n",
+      "replace": "  for (const name of [\"GIT_DIR\", \"GIT_WORK_TREE\", \"GIT_INDEX_FILE\", \"GIT_COMMON_DIR\", \"GIT_OBJECT_DIRECTORY\"]) delete base[name];\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_NO_REPLACE_OBJECTS を受け継がず、git replace の置き換えを --repo の設定どおりに読む"
+      ]
+    },
+    {
+      "id": "sv-env-config-dropped",
+      "why": "環境で渡した git の設定（GIT_CONFIG_COUNT・GIT_CONFIG_PARAMETERS）も外す（safe.directory などを渡す環境で、子の git が設定を読めない）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "!KEEP_CONFIG_ENV.has(name)",
+      "replace": "true",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-replace の source-version.mjs 呼び出し元の環境 環境で渡した git の設定（GIT_CONFIG_COUNT）は受け継ぐ"
       ]
     }
   ]
