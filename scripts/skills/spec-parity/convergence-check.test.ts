@@ -614,52 +614,31 @@ describe("スイートの範囲（suite.dir）", () => {
     ]);
   });
 
-  test("Windows の区切り（\\）で書いた結果の file も、同じスイートとして読む", () => {
-    const fs = convergedFs();
-    const win = (targetId: string) =>
-      report(
-        targetId,
-        ours.map((r) => ({ ...r, file: r.file.replaceAll("/", "\\") })),
-      );
-    fs.put(`${SLUG_DIR}/suite-report.json`, win("current"));
-    fs.put(`${NEW_DIR}/suite-report.json`, win("new"));
-    // 区切りを読み替えた後のテストの鍵は、現行と新側で同じなので、スイートの判定は通る
-    const r = run(fs);
-    expect(r.code).toBe(0);
-    expect(kinds(r)).toEqual([]);
-  });
-
-  test("現行と新側で file の書き方（./・\\）が違っても、同じテストとして突き合わせる", () => {
+  test("新側の結果の file が suite.dir と違う書き方（./）なら、スイートの中のテストとして読まず、0 件として exit 2（書き方の揺れを吸収しない）", () => {
     const fs = convergedFs();
     fs.put(
       `${NEW_DIR}/suite-report.json`,
       report(
         "new",
-        ours.map((r, n) => ({
-          ...r,
-          file: n === 0 ? `./${r.file}` : r.file.replaceAll("/", "\\"),
-        })),
+        ours.map((r) => ({ ...r, file: `./${r.file}` })),
       ),
     );
     const r = run(fs);
-    expect(r.code).toBe(0);
-    expect(kinds(r)).toEqual([]);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("tests/orders/ の下のテストが 0 件");
   });
 
-  test.each([
-    ["tests/orders"],
-    ["./tests/orders/"],
-    ["tests\\orders"],
-    ["tests//orders"],
-    [" tests/orders/ "],
-  ])("suite.dir が %s の形でも、同じスイートとして読む", (dir) => {
-    const fs = convergedFs();
-    fs.put(
-      `${SLUG_DIR}/metadata.json`,
-      suiteMetadata({ suite: { ...suiteMetadata().suite, dir } }),
-    );
-    expect(run(fs).code).toBe(0);
-  });
+  test.each([["tests/orders"], ["tests/orders/"]])(
+    "suite.dir が %s の形なら、同じスイートとして読む",
+    (dir) => {
+      const fs = convergedFs();
+      fs.put(
+        `${SLUG_DIR}/metadata.json`,
+        suiteMetadata({ suite: { ...suiteMetadata().suite, dir } }),
+      );
+      expect(run(fs).code).toBe(0);
+    },
+  );
 
   test.each([
     ["無い", undefined],
@@ -672,6 +651,10 @@ describe("スイートの範囲（suite.dir）", () => {
     ["ドライブ文字付きのパス（\\）", "C:\\repo\\tests\\orders"],
     ["ドライブ文字付きのパス（/）", "C:/repo/tests/orders"],
     [".. を含む", "tests/../orders/"],
+    ["先頭の ./", "./tests/orders/"],
+    ["区切りが \\", "tests\\orders"],
+    ["続いた /", "tests//orders"],
+    ["前後の空白", " tests/orders/ "],
   ])("suite.dir が %s なら exit 2", (_name, dir) => {
     const fs = convergedFs();
     fs.put(

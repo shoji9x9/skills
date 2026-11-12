@@ -39,7 +39,8 @@ node <spec-parity>/scripts/convergence-check.mjs --slug-dir .replace/parity/<slu
   変更を退避して green にしたバージョンに戻せば、verify をやり直して直る。退避は `.replace/` を除いた pathspec で行う（形は同じ節にある）。
   変更を commit したなら、`new.tree` が green の記録と違うので、green を記録し直してから verify する。記録だけを commit したときは `new.tree` が変わらないので、そのまま判定できる。
   新側を直したら、これらをやり直す。操作中のエラーの記録（`run-<回>/` のファイル）は新側のバージョンを持たないので、verify のたびに記録のディレクトリを消してから採り直し、採ったときの `new.tree` を `compare --tree` に渡す。
-- スイートの結果は、`metadata.json` の `suite.dir` の下のテストだけを数える。結果の `file` と前方一致で比べるので、`suite.dir` は結果の `file` と同じ起点で書く。
+- スイートの結果は、`metadata.json` の `suite.dir` の下のテストだけを数える。結果の `file` と書かれたままの字面で前方一致を比べるので、`suite.dir` は結果の `file` と同じ起点・同じ形（`tests/<slug>/`）で書く。
+  書き方の揺れ（先頭の `./`・区切りの `\`・続いた `/`・`.` と `..` の区間・絶対パス）は正規化せず、`suite.dir` に書かれていれば exit 2 にする。強度の計画のテストの名前も、結果の `file` と同じ字面で書く。
   雛形のとおり設定（`e2e.config.ts`）をリポジトリのルートに置いた実行（e2e 0.23.0）では、`file` はルートからのパス（`tests/<slug>/...`）だった。設定を別の場所に置いたときの `file` の起点は確かめていない。新側の結果にその外のテスト（ほかの機能のテスト）があれば、スイートのパスで絞って採り直す（`remeasure`）。
   現行の結果にその外のテストがあるときと、`suite.dir` が無い・雛形の値のままのときは、判定できないとして exit 2 にする。
   同じテストの結果が 2 つある結果（`--repeat-each` や複数の agent で実行したもの）も、どちらかを採らずに exit 2 にする（`strength-check.mjs` と同じ扱い）。

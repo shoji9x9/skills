@@ -34,7 +34,7 @@
 import { basename, join, resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
-import { normalizePath, selectedResults } from "./lib/e2e-report.mjs";
+import { selectedResults } from "./lib/e2e-report.mjs";
 import { parseFlags, stripDashes } from "./lib/flags.mjs";
 import { classifyDecision } from "./lib/pending-state.mjs";
 import { isPlaceholder, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
@@ -126,10 +126,14 @@ export function checkSuiteMetadata(metadata, slugDir) {
   return m;
 }
 
+/** suite.dir に受ける形。/ で区切った区間（英数字・. ・_・-）だけで、末尾の / は省いてよい。 */
+const SUITE_DIR = /^[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.-]+)*\/?$/;
+
 /**
- * スイートのディレクトリを、前方一致で比べる形（normalizePath の後、末尾を / にする）にする。
- * リポジトリのルート（. や空）は、ほかの機能のテストを絞れないので受けない。
- * normalizePath は lib/e2e-report.mjs のものを使い、テストの鍵と同じ正規化にする。
+ * スイートのディレクトリを、結果の file と前方一致で比べる形（末尾を / にする）にする。
+ * 書き方の揺れを正規化して吸収せず、結果の file と同じ字面の形（tests/<slug>/ のような、リポジトリのルートからの相対パス）だけを受ける。
+ * 正規化すると、結果の file・テストの鍵・強度の計画の名前のすべてに同じ正規化を当てることになり、どれかが漏れると一致しなくなる。
+ * ./ ・\ ・続いた / ・ . と .. の区間・絶対パス・ドライブ文字・リポジトリのルート（. や空）は受けない。
  * @param {unknown} dir - metadata.json の suite.dir
  * @returns {string}
  */
@@ -138,19 +142,12 @@ export function suitePrefix(dir) {
     throw new UsageError(
       "metadata.json の suite.dir が無い（雛形の値のままを含む。スイートのディレクトリを書く）",
     );
-  const d = normalizePath(dir).replace(/\/$/, "");
-  // 途中の . の区間・.. ・絶対パス（/ で始まる・ドライブ文字で始まる）は、結果の file と前方一致で比べられないので受けない
-  const segments = d.split("/");
-  if (
-    d === "" ||
-    d.startsWith("/") ||
-    /^[A-Za-z]:/.test(d) ||
-    segments.some((x) => x === "." || x === "..")
-  )
+  const segments = dir.replace(/\/$/, "").split("/");
+  if (!SUITE_DIR.test(dir) || segments.some((x) => x === "." || x === ".."))
     throw new UsageError(
-      `metadata.json の suite.dir が、リポジトリのルートの下のディレクトリの相対パスでない: ${dir}`,
+      `metadata.json の suite.dir が、結果の file と同じ形の相対パス（例: tests/<slug>/）でない: ${JSON.stringify(dir)}`,
     );
-  return d.endsWith("/") ? d : `${d}/`;
+  return `${segments.join("/")}/`;
 }
 
 /**
@@ -168,8 +165,7 @@ export function readReport(report, { targetId, where, prefix }) {
   for (const [key, { result: r, index }] of results) {
     if (!nonEmptyString(r.status))
       throw new UsageError(`${where} の results[${index}] に status が無い`);
-    // key のファイルのパスは selectedResults が normalizePath で正規化している
-    if (!key.startsWith(prefix)) outside.push(key);
+    if (!String(r.file).startsWith(prefix)) outside.push(key);
     else tests.set(key, r.status);
   }
   if (tests.size === 0)

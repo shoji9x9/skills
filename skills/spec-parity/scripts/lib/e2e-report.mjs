@@ -7,25 +7,12 @@ import { isArray } from "./is-array.mjs";
 import { isPlainObject, nonEmptyString } from "./guards.mjs";
 import { UsageError } from "./read-json.mjs";
 
-/**
- * パスを比べる形にする。区切りの \ を / に、続いた / を 1 つにし、先頭の ./ を外す。
- * テストの鍵・suite.dir との前方一致の両方に同じ正規化を当てる（片方だけにすると、書き方が違うだけで一致しない）。
- * @param {string} path
- * @returns {string}
- */
-export function normalizePath(path) {
-  return path
-    .trim()
-    .replace(/\\/g, "/")
-    .replace(/\/{2,}/g, "/")
-    .replace(/^(\.\/)+/, "");
-}
-
 /** e2e の結果の JSON の形式。e2e が形を変えると schemaVersion が変わる。 */
 export const REPORT_SCHEMA = "report-1";
 
 /**
- * 選ばれたテストの結果を、テストの名前（「ファイルのパス › describe › テスト名」）→ 結果の要素にする。ファイルのパスは normalizePath で正規化する。
+ * 選ばれたテストの結果を、テストの名前（「ファイルのパス › describe › テスト名」）→ 結果の要素にする。
+ * ファイルのパスは書かれたまま使う（強度の計画のテストの名前も、結果の file と同じ字面で書く）。
  * @param {unknown} report
  * @param {{ targetId: string, where: string }} ctx - targetId は e2e の設定の target 名（current / new）、where は誤りの文に出す名前
  * @returns {{ run: Record<string, unknown>, results: Map<string, { result: Record<string, unknown>, index: number }> }}
@@ -44,7 +31,7 @@ export function selectedResults(report, { targetId, where }) {
     if (r.targetId !== targetId || r.selected !== true) continue;
     if (!nonEmptyString(r.file) || !isArray(r.titlePath))
       throw new UsageError(`${where} の results[${index}] に file か titlePath が無い`);
-    const name = [normalizePath(r.file), ...r.titlePath.map(String)].join(" › ");
+    const name = [r.file, ...r.titlePath.map(String)].join(" › ");
     if (results.has(name))
       throw new UsageError(
         `${where} に同じテストの結果が 2 つある（--repeat-each や複数の agent を外して実行し直す）: ${name}`,
