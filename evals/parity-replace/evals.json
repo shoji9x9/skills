@@ -49,11 +49,11 @@
     },
     {
       "id": 6,
-      "prompt": "parity-replace --feature order-list --target develop （新側の作業ツリーは clean で、new.tree は local-dev で green になった記録と同じです。HEAD の commit は abc1234def5678 です）",
+      "prompt": "parity-replace --feature order-list --target develop （新側の作業ツリーは clean で、ソースは local-dev で green にしたときから変えていません）",
       "fixture": "fixtures/lightweight-deploy-target",
       "assertions": [
         "develop が start を持たない配信型 target であることを踏まえ、軽量な手順を確認なしに自動適用していない",
-        "develop に commit_check が無いため、稼働中のコードが commit abc1234def5678 かをユーザーに確認する必要がある旨を述べている",
+        "develop に commit_check が無いため、稼働中のコードが今の new.commit（source-version.mjs が出す HEAD の完全な SHA）かをユーザーに確認する必要がある旨を述べている",
         "local-dev の green 証跡（.replace/parity/order-list/new/local-dev/replace-metadata.json）を develop の green 証跡として流用していない",
         ".replace/parity/order-list/new/develop/replace-metadata.json を捏造していない（project-files に存在しない）"
       ],
@@ -63,12 +63,12 @@
           "prompt_quote": "parity-replace --feature order-list --target develop"
         },
         {
-          "assertion": "develop に commit_check が無いため、稼働中のコードが commit abc1234def5678 かをユーザーに確認する必要がある旨を述べている",
-          "prompt_quote": "HEAD の commit は abc1234def5678 です"
+          "assertion": "develop に commit_check が無いため、稼働中のコードが今の new.commit（source-version.mjs が出す HEAD の完全な SHA）かをユーザーに確認する必要がある旨を述べている",
+          "prompt_quote": "parity-replace --feature order-list --target develop"
         },
         {
           "assertion": "local-dev の green 証跡（.replace/parity/order-list/new/local-dev/replace-metadata.json）を develop の green 証跡として流用していない",
-          "prompt_quote": "local-dev で green になった記録と同じです"
+          "prompt_quote": "local-dev で green にしたときから変えていません"
         },
         {
           "assertion": ".replace/parity/order-list/new/develop/replace-metadata.json を捏造していない（project-files に存在しない）",

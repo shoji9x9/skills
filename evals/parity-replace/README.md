@@ -23,7 +23,7 @@ scripts/eval/run/run-skill-eval.sh \
 # fixture 付き eval（前提が揃った状態から始める。evals.json の "fixture" の値の前に evals/parity-replace/ を付けて渡す）
 scripts/eval/run/run-skill-eval.sh \
   --skill parity-replace --config with_skill \
-  --prompt "parity-replace --feature order-list --target develop （新側の作業ツリーは clean で、new.tree は local-dev で green になった記録と同じです。HEAD の commit は abc1234def5678 です）" \
+  --prompt "parity-replace --feature order-list --target develop （新側の作業ツリーは clean で、ソースは local-dev で green にしたときから変えていません）" \
   --fixture evals/parity-replace/fixtures/lightweight-deploy-target \
   --out tests/parity-replace/iteration-1/eval-6/with_skill/run-1 \
   --model opus
