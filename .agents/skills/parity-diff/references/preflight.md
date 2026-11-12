@@ -77,7 +77,7 @@ target を解決する前に、設定の `style_policy` を読む（`skill-confi
     その commit が手元のリポジトリに無ければ、`source-version.mjs` は exit 2 で終わるので、`git fetch` してからもう一度取る。
     照合の原本は [`capture-new.md`](capture-new.md)「URL の受け渡し」、`commit_check` の定義の原本は `replace-strategy` の `references/project-config.md` にある。
   - 配信型の target で `commit_check` を持たないものは、撮るバージョンを機械で知る方法が無い。
-    「対象の環境に commit `<new.commit の SHA>` がデプロイ済みか」を利用者に確かめ、確認が取れるまで撮らない。
+    「対象の環境に commit `<new.commit の SHA>`（一括の再検証では `commits.after`）か、`.replace/` の外のソースがそれと同じ commit がデプロイ済みか」を利用者に確かめ、確認が取れるまで撮らない。
     これは `parity-replace` の軽い方法と同じ扱いである。`--autonomous` では判断待ちの保留に記録し、この機能の撮影を始めない。確かめたことと回答は、`diff.md` の前提確認の表に書く
 - `replace-metadata.json` が `new.tree` を持たない記録なら、合格として扱わず、同じ `--target` の `parity-replace` で green を記録し直すよう案内して止まる。
   `new.commit` が一致していても、代わりに使わない
@@ -100,6 +100,12 @@ target を解決する前に、設定の `style_policy` を読む（`skill-confi
   FIELD() { node -e 'const f = process.argv[2]; const s = f ? require("fs").readFileSync(f, "utf8") : require("fs").readFileSync(0, "utf8"); const v = process.argv[1].split(".").reduce((o, k) => (o == null ? undefined : o[k]), JSON.parse(s)); process.stdout.write(v == null ? "" : String(v))' "$@"; }
   # 停止する分岐は非 0 で終える（手順に組み込んだときに停止を表示したまま撮影へ進ませない）。対話シェルを閉じないよう ( ) で囲む
   (
+    if [ -n "$DELIVERED" ] && [ -z "$COMMIT_CHECK" ]; then
+      # 稼働中のバージョンを機械で確かめる手段が無い。ローカルの値はデプロイ済みのバージョンを表さないので比べない
+      # 照合相手の tree を取る前に止まる（手元に無い commits.after の fetch を求めずに、利用者の確認へ案内する）
+      if [ -n "$CHANGE" ]; then ASK=$(FIELD commits.after "$CHANGE"); else ASK=$(FIELD new.commit "$REPLACE_META"); fi
+      echo "停止: commit_check が無い配信型 target。commit ${ASK:-（読めない）}（か、.replace/ の外のソースが同じ commit）がデプロイ済みか利用者に確認する"; exit 1
+    fi
     if [ -n "$CHANGE" ]; then
       AFTER=$(FIELD commits.after "$CHANGE")
       [ -n "$AFTER" ] || { echo "停止: 変更宣言に commits.after が無い"; exit 1; }
@@ -108,10 +114,7 @@ target を解決する前に、設定の `style_policy` を読む（`skill-confi
     else
       WANT=$(FIELD new.tree "$REPLACE_META")
     fi
-    if [ -n "$DELIVERED" ] && [ -z "$COMMIT_CHECK" ]; then
-      # 稼働中のバージョンを機械で確かめる手段が無い。ローカルの値はデプロイ済みのバージョンを表さないので比べない
-      echo "停止: commit_check が無い配信型 target。commit $(FIELD new.commit "$REPLACE_META") がデプロイ済みか利用者に確認する"; exit 1
-    elif [ -n "$COMMIT_CHECK" ]; then
+    if [ -n "$COMMIT_CHECK" ]; then
       # 配信型 target: 稼働中のコードの commit は commit_check だけが知っている。その commit の tree で比べる
       # 終了コードはパイプへ流す前に検査する（パイプの末尾の tr に隠れて、失敗した確認を成功扱いしない）
       RAW=$(bash -c "$COMMIT_CHECK" </dev/null) || { echo "停止: commit_check が失敗した（撮るバージョンを特定できない）"; exit 1; }

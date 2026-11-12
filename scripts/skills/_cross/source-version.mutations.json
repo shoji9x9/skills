@@ -79,7 +79,8 @@
       "replace": "false",
       "occurrences": 1,
       "expect_failing": [
-        "parity-replace の source-version.mjs git で管理されていない・取れない新側 git で管理されていなければ、commit と tree を none にする"
+        "parity-replace の source-version.mjs git で管理されていない・取れない新側 git で管理されていなければ、commit と tree を none にする",
+        "parity-replace の source-version.mjs --rev git で管理されていない新側に --rev を渡すと、none を返さずに使い方の誤りにする"
       ]
     },
     {
@@ -112,7 +113,8 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_DIR を受け継がず、--repo のリポジトリを読む"
+        "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_DIR を受け継がず、--repo のリポジトリを読む",
+        "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_CEILING_DIRECTORIES を受け継がず、git で管理されていないと判定しない"
       ]
     },
     {
@@ -136,6 +138,28 @@
       "expect_failing": [
         "parity-replace の source-version.mjs --rev --rev の commit の tree を取り、作業ツリーを見ないので dirty は null にする",
         "parity-replace の source-version.mjs --rev --rev の commit が手元に無ければ、使い方の誤りにする"
+      ]
+    },
+    {
+      "id": "sv-rev-not-git-none",
+      "why": "git で管理されていない新側に --rev を渡しても none を返す（preflight の照合が none どうしの「照合しない」に入り、撮影へ進む）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "    if (rev !== null)\n      throw new UsageError(",
+      "replace": "    if (false)\n      throw new UsageError(",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-replace の source-version.mjs --rev git で管理されていない新側に --rev を渡すと、none を返さずに使い方の誤りにする"
+      ]
+    },
+    {
+      "id": "sv-env-ceiling",
+      "why": "呼び出し元の GIT_CEILING_DIRECTORIES を子の git に受け継ぐ（新側を git で管理されていないと判定し、none を返す）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "  \"GIT_CEILING_DIRECTORIES\",\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_CEILING_DIRECTORIES を受け継がず、git で管理されていないと判定しない"
       ]
     }
   ]

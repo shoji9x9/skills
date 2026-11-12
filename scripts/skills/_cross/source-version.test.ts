@@ -327,6 +327,17 @@ describe.each(COPIES)("$skill の source-version.mjs", ({ lib, script: SCRIPT })
       expect(sourceVersion({ repo: top, artifacts: art(top), rev: head }).tree).toBe(before.tree);
     });
 
+    test("git で管理されていない新側に --rev を渡すと、none を返さずに使い方の誤りにする", () => {
+      const dir = tmp();
+      expect(() =>
+        sourceVersion({
+          repo: dir,
+          artifacts: art(dir),
+          rev: "0123456789abcdef0123456789abcdef01234567",
+        }),
+      ).toThrow(/git で管理されていない新側では、--rev/);
+    });
+
     test("--rev の commit が手元に無ければ、使い方の誤りにする", () => {
       const top = repoWith({ "src/a.js": "a\n" });
       expect(() =>
@@ -352,6 +363,50 @@ describe.each(COPIES)("$skill の source-version.mjs", ({ lib, script: SCRIPT })
         if (saved === undefined) delete process.env.GIT_DIR;
         else process.env.GIT_DIR = saved;
       }
+    });
+
+    test("呼び出し元の GIT_CEILING_DIRECTORIES を受け継がず、git で管理されていないと判定しない", () => {
+      const top = repoWith({ "src/a.js": "a\n" });
+      const want = sourceVersion({ repo: path.join(top, "src"), artifacts: art(top) });
+      const saved = process.env.GIT_CEILING_DIRECTORIES;
+      process.env.GIT_CEILING_DIRECTORIES = top;
+      try {
+        expect(sourceVersion({ repo: path.join(top, "src"), artifacts: art(top) })).toEqual(want);
+      } finally {
+        if (saved === undefined) delete process.env.GIT_CEILING_DIRECTORIES;
+        else process.env.GIT_CEILING_DIRECTORIES = saved;
+      }
+    });
+
+    test(".replace/ が新側の中で gitignore されていても、記録を書いて dirty にならず tree も変わらない", () => {
+      const top = repoWith({ "src/a.js": "a\n", ".gitignore": ".replace/\n" });
+      const before = sourceVersion({ repo: top, artifacts: art(top) });
+      expect(before.tree).toBe(git(top, "rev-parse", "HEAD^{tree}").trim());
+      write(path.join(top, ".replace/x.json"), "{}\n");
+      expect(sourceVersion({ repo: top, artifacts: art(top) })).toMatchObject({
+        tree: before.tree,
+        dirty: false,
+      });
+    });
+
+    test("git を起動できなければ、使い方の誤りにする（値を推測して出さない）", () => {
+      const top = repoWith({ "src/a.js": "a\n" });
+      const saved = process.env.PATH;
+      process.env.PATH = "";
+      try {
+        expect(() => sourceVersion({ repo: top, artifacts: art(top) })).toThrow(
+          /git を起動できない/,
+        );
+      } finally {
+        process.env.PATH = saved;
+      }
+    });
+
+    test("--repo がディレクトリでなければ、git の失敗を使い方の誤りにする", () => {
+      const top = repoWith({ "src/a.js": "a\n" });
+      expect(() =>
+        sourceVersion({ repo: path.join(top, "src/a.js"), artifacts: art(top) }),
+      ).toThrow(/新側のリポジトリの特定に失敗した/);
     });
 
     test("名前が .. で始まるリポジトリの中のディレクトリの .replace/ も除く", () => {

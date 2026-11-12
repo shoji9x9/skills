@@ -40,6 +40,11 @@ const REPO_LOCATING_ENV = [
   "GIT_ALTERNATE_OBJECT_DIRECTORIES",
   "GIT_NAMESPACE",
   "GIT_PREFIX",
+  // 探す範囲を狭める変数と、git -c で渡した設定（core.worktree など）。受け継ぐと --repo と別の場所を読む
+  "GIT_CEILING_DIRECTORIES",
+  "GIT_DISCOVERY_ACROSS_FILESYSTEM",
+  "GIT_CONFIG_PARAMETERS",
+  "GIT_CONFIG_COUNT",
 ];
 
 class UsageError extends Error {}
@@ -55,6 +60,8 @@ class UsageError extends Error {}
 function git(args, { cwd, env = {} }) {
   const base = { ...process.env };
   for (const name of REPO_LOCATING_ENV) delete base[name];
+  for (const name of Object.keys(base))
+    if (/^GIT_CONFIG_(KEY|VALUE)_\d+$/.test(name)) delete base[name];
   return execFileSync("git", args, {
     cwd,
     encoding: "utf8",
@@ -159,7 +166,7 @@ function scopeSpec(prefix) {
  */
 function sourceTree({ top, prefix, excluded }, commit) {
   try {
-    if (excluded === null || !excluded.startsWith(prefix))
+    if (excluded === null || !excluded.startsWith(prefix) || !inCommit(top, commit, excluded))
       return prefix === ""
         ? git(["rev-parse", "--verify", `${commit}^{tree}`], { cwd: top }).trim()
         : subtree(top, `${commit}^{tree}`, prefix);
@@ -167,6 +174,22 @@ function sourceTree({ top, prefix, excluded }, commit) {
   } catch (e) {
     if (e instanceof UsageError) throw e;
     throw gitError(e, "新側のツリーのハッシュの取得");
+  }
+}
+
+/**
+ * commit のツリーに path があるか（gitignore された .replace/ は commit に無いので、除く必要が無い）。
+ * @param {string} top
+ * @param {string} commit
+ * @param {string} rel
+ * @returns {boolean}
+ */
+function inCommit(top, commit, rel) {
+  try {
+    git(["cat-file", "-e", `${commit}:${rel}`], { cwd: top });
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -252,8 +275,12 @@ export function sourceVersion({ repo, artifacts, rev = null }) {
       `--artifacts のディレクトリが無い: ${artifacts}（プロジェクトのルートで実行するか、.replace/ のパスを渡す）`,
     );
   const loc = locateRepo(repo);
-  if (loc === null)
-    return { commit: NONE, tree: NONE, dirty: rev === null ? false : null, excluded: null };
+  if (loc === null) {
+    // --rev の commit を確かめる方法が無いので、none を返して照合を素通りさせない
+    if (rev !== null)
+      throw new UsageError(`git で管理されていない新側では、--rev の commit を取れない: ${rev}`);
+    return { commit: NONE, tree: NONE, dirty: false, excluded: null };
+  }
   const commit = resolveCommit(loc.top, rev);
   const scope = { ...loc, excluded: artifactsInRepo(loc, artifacts) };
   const tree = sourceTree(scope, commit);
