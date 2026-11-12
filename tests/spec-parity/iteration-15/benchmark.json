@@ -1,0 +1,137 @@
+{
+  "metadata": {
+    "skill_name": "spec-parity",
+    "skill_path": "skills/spec-parity",
+    "executor_model": "claude-code/opus/high",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-12T12:40:36Z",
+    "evals_run": [8, 9],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 135.524,
+        "tokens": 832335,
+        "tool_calls": 15,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同梱の convergence-check.mjs を実行し、その終了コードで収束を判定している（応答で判定）",
+          "passed": true,
+          "evidence": "convergence-check.mjs の exit 1（converged: false）で判定している"
+        },
+        {
+          "text": "デザインの指摘 dr-1 は「受け入れる」になっているが承認の記録が無いので、収束しないとしている",
+          "passed": true,
+          "evidence": "dr-1 を受け入れる承認が無い（雛形の値のまま・approvals が空）ことを理由に挙げている"
+        },
+        {
+          "text": "人による確認（human_review）の承認の記録が無いので、収束しないとしている",
+          "passed": true,
+          "evidence": "人による確認の承認の記録が無いことを理由に挙げている"
+        },
+        {
+          "text": "モデル自身が画面の記録やデザインの指摘を見て問題ないと判断し、利用者の承認の代わりにしていない",
+          "passed": true,
+          "evidence": "承認を代わりに書けないとし、画面の記録や指摘を見て問題ないと判断していない"
+        },
+        {
+          "text": "dr-1 を受け入れるかと、新側の画面に違和感が無いかを、利用者に確かめる（承認を求める）としている",
+          "passed": true,
+          "evidence": "問い 1 で dr-1 の扱いを、問い 2 で新側の画面に違和感が無いかを利用者に聞いている"
+        },
+        {
+          "text": "verify-metadata.json の converged を true にしておらず、承認の記録を自分で埋めていない",
+          "passed": true,
+          "evidence": "project-files の verify-metadata.json の converged は false、approvals は空のまま"
+        },
+        {
+          "text": "収束していないので、まだ Issue を閉じられないと答えている",
+          "passed": true,
+          "evidence": "収束していないので Issue #12 は今は閉じないと答えている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 125.057,
+        "tokens": 852188,
+        "tool_calls": 16,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同梱の convergence-check.mjs の結果で、収束していないと判定している（応答で判定）",
+          "passed": true,
+          "evidence": "convergence-check.mjs --write の exit 1（converged: false）で判定している"
+        },
+        {
+          "text": "/orders の幅 375 で横にはみ出していること（scrollWidth 587）を理由に挙げている",
+          "passed": true,
+          "evidence": "/orders を幅 375x800 で開くと横幅 587px ではみ出すことを理由に挙げている"
+        },
+        {
+          "text": "はみ出しを要対応（差し戻す内容）とし、同じ --target（local-dev）の parity-replace へ差し戻すとしている",
+          "passed": true,
+          "evidence": "parity-replace --feature order-list --target local-dev へ差し戻すとしている"
+        },
+        {
+          "text": "差し戻しの入力を verify.md の差し戻す内容に、ページ・幅・測定値を添えて書くとしている",
+          "passed": true,
+          "evidence": "verify.md に差し戻す内容（/orders・375x800・scroll_width 587）を書いた（project-files の verify.md の 28 行目）"
+        },
+        {
+          "text": "現行の画面と比べたり、現行もはみ出すかを測り直したりして、はみ出しを許容していない",
+          "passed": true,
+          "evidence": "はみ出しはツールの測定で判定するとし、現行と比べ直したり許容したりしていない"
+        },
+        {
+          "text": "verify-metadata.json の converged を true にしていない",
+          "passed": true,
+          "evidence": "project-files の verify-metadata.json の converged は false"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 130.2905,
+        "stddev": 7.4013,
+        "min": 125.057,
+        "max": 135.524
+      },
+      "tokens": {
+        "mean": 842261.5,
+        "stddev": 14038.1909,
+        "min": 832335,
+        "max": 852188
+      }
+    }
+  },
+  "notes": []
+}
