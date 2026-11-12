@@ -137,7 +137,8 @@ export function checkSuiteMetadata(metadata, slugDir) {
 function suiteDirProblem(dir) {
   if (dir !== dir.trim()) return "前後に空白がある";
   if (dir.includes("\\")) return "区切りに \\ を使っている";
-  if (dir.startsWith("/") || /^[A-Za-z]:\//.test(dir)) return "絶対パスである";
+  // ドライブ文字で始まる形は、ドライブ相対（C:tests）を含めて、リポジトリのルートからの相対パスにならない
+  if (dir.startsWith("/") || /^[A-Za-z]:/.test(dir)) return "絶対パスかドライブ文字で始まる";
   const segments = dir.replace(/\/$/, "").split("/");
   if (segments.some((x) => x === "")) return "空の区間（続いた /）がある";
   if (segments.some((x) => x === "." || x === "..")) return ". か .. の区間がある";
@@ -163,6 +164,14 @@ export function suitePrefix(dir) {
 }
 
 /**
+ * 結果の file が suite.dir に前方一致しなかったときの見直し先。0 件・現行の外・新側の外の 3 つの文で同じものを示す。
+ * 原因の候補は、ほかの機能のテスト・suite.dir の書き誤り・file の書き方（起点）の違いの 3 つである。結果の file だけからは区別できないので、3 つを並べる。
+ */
+const PREFIX_MISMATCH_HINT =
+  "ほかの機能のテストなら、スイートのパスで絞って実行し直す。suite.dir の綴りが違うなら直す。" +
+  "結果の file の起点や書き方（./・\\ など）が suite.dir と違うなら、e2e の設定（e2e.config.ts）の場所と、e2e を実行するディレクトリを見直す";
+
+/**
  * e2e の結果の JSON から、指定した target で選ばれたテストを、テストの鍵 → 状態の一覧にする。
  * スイートのディレクトリ（prefix）の外のテストは、outside に分けて返す（ほかの機能のテストを含む実行の結果）。
  * @param {unknown} report
@@ -177,18 +186,19 @@ export function readReport(report, { targetId, where, prefix }) {
   for (const [key, { result: r, index }] of results) {
     if (!nonEmptyString(r.status))
       throw new UsageError(`${where} の results[${index}] に status が無い`);
-    // 鍵は結果の file で始まるので、鍵で前方一致を比べる
-    if (!key.startsWith(prefix)) outside.push(key);
+    // 鍵（file › titlePath）ではなく file で比べる。鍵で比べると、suite.dir が › を含むときに titlePath の側で一致する
+    if (!(typeof r.file === "string" && r.file.startsWith(prefix))) outside.push(key);
     else tests.set(key, r.status);
   }
+  outside.sort(byText);
   if (tests.size === 0)
     throw new UsageError(
       `${where} に、target ${targetId} で選ばれた ${prefix} の下のテストが 0 件（0 件を合格にしない）。` +
         (outside.length > 0
-          ? `前方一致しなかったテスト: ${outside.sort(byText).slice(0, 2).join(", ")}。結果の file の書き方（./・\\ など）が suite.dir と違うなら、e2e の設定の場所を見直す`
-          : "テストが選ばれていない"),
+          ? `前方一致しなかったテスト: ${outside.slice(0, 2).join(", ")}。${PREFIX_MISMATCH_HINT}`
+          : `target ${targetId} で選ばれたテストが 1 件も無い`),
     );
-  return { tests, outside: outside.sort(byText) };
+  return { tests, outside };
 }
 
 /**
@@ -206,7 +216,7 @@ function readReports(input, prefix, reasons) {
   });
   if (current.outside.length > 0)
     throw new UsageError(
-      `現行の結果に、suite.dir（${prefix}）の外のテストがある: ${current.outside.join(", ")}（spec-parity suite の手順 4 を、スイートのパスで絞って実行し直す）`,
+      `現行の結果に、suite.dir（${prefix}）の外のテストがある: ${current.outside.join(", ")}（現行の結果は spec-parity suite の手順 4 で採り直す。${PREFIX_MISMATCH_HINT}）`,
     );
   const next = readReport(input.newReport, {
     targetId: "new",
@@ -217,7 +227,7 @@ function readReports(input, prefix, reasons) {
     reasons.add(
       "remeasure",
       "suite",
-      `新側の結果に、suite.dir（${prefix}）の外のテストがある: ${test}（ほかの機能のテストなら、verify の手順 2 をスイートのパスで絞って実行し直す。結果の file の書き方（./・\\ など）が現行と違うなら、e2e の設定の場所を見直す）`,
+      `新側の結果に、suite.dir（${prefix}）の外のテストがある: ${test}（新側の結果は verify の手順 2 で採り直す。${PREFIX_MISMATCH_HINT}）`,
     );
   return { current: current.tests, next: next.tests };
 }

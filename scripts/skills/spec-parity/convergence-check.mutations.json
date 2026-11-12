@@ -474,7 +474,7 @@
       "id": "cv-suite-dir-off",
       "why": "スイートの結果を suite.dir で絞らず、ほかの機能のテストを含む結果で判定する（Issue #995 のコメントの項目）",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "    if (!key.startsWith(prefix)) outside.push(key);\n",
+      "find": "    if (!(typeof r.file === \"string\" && r.file.startsWith(prefix))) outside.push(key);\n",
       "replace": "    if (false) outside.push(key);\n",
       "occurrences": 1,
       "expect_failing": [
@@ -482,7 +482,8 @@
         "スイートの範囲（suite.dir） 現行の結果にほかの機能のテストがあれば、suite をやり直すので exit 2",
         "スイートの範囲（suite.dir） 名前が前方で重なるディレクトリ（tests/orders-archive/）は、スイートの外として数える",
         "スイートの範囲（suite.dir） スイートの中のテストが 0 件なら、0 件を合格にせず exit 2",
-        "スイートの範囲（suite.dir） 新側の結果の file が suite.dir と違う書き方（./）なら、スイートの中のテストとして読まず、0 件として exit 2（書き方の揺れを吸収しない）"
+        "スイートの範囲（suite.dir） 新側の結果の file が suite.dir と違う書き方（./）なら、スイートの中のテストとして読まず、0 件として exit 2（書き方の揺れを吸収しない）",
+        "スイートの範囲（suite.dir） suite.dir が › を含んでも、テストの名前（titlePath）の側では前方一致させない"
       ]
     },
     {
@@ -527,7 +528,8 @@
         "スイートの範囲（suite.dir） suite.dir が 先頭の ./ なら exit 2",
         "スイートの範囲（suite.dir） suite.dir が 区切りが \\ なら exit 2",
         "スイートの範囲（suite.dir） suite.dir が 続いた / なら exit 2",
-        "スイートの範囲（suite.dir） suite.dir が 前後の空白 なら exit 2"
+        "スイートの範囲（suite.dir） suite.dir が 前後の空白 なら exit 2",
+        "スイートの範囲（suite.dir） suite.dir が ドライブ相対のパス なら exit 2"
       ]
     }
   ]

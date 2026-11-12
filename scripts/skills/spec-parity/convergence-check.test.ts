@@ -650,6 +650,7 @@ describe("スイートの範囲（suite.dir）", () => {
     ["末尾の . の区間", "tests/orders/."],
     ["ドライブ文字付きのパス（\\）", "C:\\repo\\tests\\orders"],
     ["ドライブ文字付きのパス（/）", "C:/repo/tests/orders"],
+    ["ドライブ相対のパス", "C:tests/orders"],
     [".. を含む", "tests/../orders/"],
     ["先頭の ./", "./tests/orders/"],
     ["区切りが \\", "tests\\orders"],
@@ -670,7 +671,6 @@ describe("スイートの範囲（suite.dir）", () => {
   test.each([
     ["tests/受注", "tests/受注/"],
     ["tests/@admin/orders/", "tests/@admin/orders/"],
-    ["x:legacy/orders", "x:legacy/orders/"],
   ])("suite.dir の区間の文字は限らない（%s）", (dir, prefix) => {
     expect(suitePrefix(dir)).toBe(prefix);
   });
@@ -682,6 +682,36 @@ describe("スイートの範囲（suite.dir）", () => {
     expect(r.code).toBe(2);
     // 前方一致しなかった file を示し、書き方の違いの場合の見直し先を案内する
     expect(r.stderr).toContain("前方一致しなかったテスト: tests/invoices/list.e2e.ts › 請求を開く");
+  });
+
+  test("target new で選ばれたテストが 1 件も無い結果は、0 件として exit 2", () => {
+    const fs = convergedFs();
+    fs.put(
+      `${NEW_DIR}/suite-report.json`,
+      report(
+        "new",
+        ours.map((r) => ({ ...r, selected: false })),
+      ),
+    );
+    const r = run(fs);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("target new で選ばれたテストが 1 件も無い");
+  });
+
+  test("suite.dir が › を含んでも、テストの名前（titlePath）の側では前方一致させない", () => {
+    const fs = convergedFs();
+    fs.put(
+      `${SLUG_DIR}/metadata.json`,
+      suiteMetadata({ suite: { ...suiteMetadata().suite, dir: "tests/orders › x" } }),
+    );
+    // 鍵（file › titlePath）は "tests/orders › x/a" で、suite.dir の "tests/orders › x/" に前方一致してしまう形
+    const odd = (targetId: string) =>
+      report(targetId, [{ file: "tests/orders", title: "x/a", status: "passed" }]);
+    fs.put(`${SLUG_DIR}/suite-report.json`, odd("current"));
+    fs.put(`${NEW_DIR}/suite-report.json`, odd("new"));
+    const r = run(fs);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("の下のテストが 0 件");
   });
 
   // 項目 5（Issue #995）: 強度の確認と同じく、同じテストの結果が 2 つある結果は読まない
