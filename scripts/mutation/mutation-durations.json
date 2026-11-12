@@ -35,7 +35,7 @@
     "scripts/skills/parity-diff/amend-verify.mutations.json": 1.1,
     "scripts/skills/parity-diff/diff-normalize-intentional-match.mutations.json": 1,
     "scripts/skills/parity-diff/pixel-crops.mutations.json": 3.4,
-    "scripts/skills/parity-suite/checks/artifact-health-check.mutations.json": 2.4,
+    "scripts/skills/parity-suite/checks/artifact-health-check.mutations.json": 2.5,
     "scripts/skills/parity-suite/checks/auto-wait-check.mutations.json": 1.4,
     "scripts/skills/parity-suite/checks/capture-scope-check.mutations.json": 0.6,
     "scripts/skills/parity-suite/evidence/checkpoint.mutations.json": 1,
@@ -85,7 +85,7 @@
     "scripts/skills/spec-parity/convergence-check.mutations.json": 0.8,
     "scripts/skills/spec-parity/overflow-check.mutations.json": 0.74,
     "scripts/skills/spec-parity/strength-check.mutations.json": 0.73,
-    "scripts/skills/_cross/source-version.mutations.json": 3.3,
+    "scripts/skills/_cross/source-version.mutations.json": 9.3,
     "scripts/skills/parity-suite/checks/component-comparison-check.mutations.json": 1.9
   }
 }

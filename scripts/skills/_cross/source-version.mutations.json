@@ -10,12 +10,13 @@
       "id": "sv-tree-keeps-artifacts",
       "why": "new.tree から .replace/ を除かない（記録を commit するたびに new.tree が変わり、3 つのスキルが前提の確認で止まる）",
       "file": "skills/parity-replace/scripts/source-version.mjs",
-      "find": "    if (excluded !== null)\n      git(\n",
-      "replace": "    if (false)\n      git(\n",
+      "find": "\"--ignore-unmatch\", \"--\", excluded]",
+      "replace": "\"--ignore-unmatch\", \"--\", \"no-such-path\"]",
       "occurrences": 1,
       "expect_failing": [
-        "新側がルート・.replace/ がルート直下 記録を書いただけでも、記録を commit した後も、new.tree は変わらず dirty にならない",
-        "新側がサブディレクトリ・.replace/ が新側の中 記録を書いただけでも、記録を commit した後も、new.tree は変わらず dirty にならない"
+        "parity-replace の source-version.mjs 新側がルート・.replace/ がルート直下 記録を書いただけでも、記録を commit した後も、new.tree は変わらず dirty にならない",
+        "parity-replace の source-version.mjs 新側がサブディレクトリ・.replace/ が新側の中 記録を書いただけでも、記録を commit した後も、new.tree は変わらず dirty にならない",
+        "parity-replace の source-version.mjs --rev --rev でも .replace/ を除く（記録の commit は tree を変えない）"
       ]
     },
     {
@@ -26,24 +27,26 @@
       "replace": "  if (false) specs.push(",
       "occurrences": 1,
       "expect_failing": [
-        "新側がルート・.replace/ がルート直下 記録を書いただけでも、記録を commit した後も、new.tree は変わらず dirty にならない",
-        "新側がルート・.replace/ がルート直下 .replace/ の外の追跡していないファイルは dirty、.replace/ の中なら dirty にしない",
-        "新側がサブディレクトリ・.replace/ が新側の中 記録を書いただけでも、記録を commit した後も、new.tree は変わらず dirty にならない",
-        "新側がサブディレクトリ・.replace/ が新側の中 .replace/ の外の追跡していないファイルは dirty、.replace/ の中なら dirty にしない",
-        "範囲 新側のディレクトリの名前をパターンとして読まない（app[1] が app1 に一致しない）"
+        "parity-replace の source-version.mjs 新側がルート・.replace/ がルート直下 記録を書いただけでも、記録を commit した後も、new.tree は変わらず dirty にならない",
+        "parity-replace の source-version.mjs 新側がルート・.replace/ がルート直下 .replace/ の外の追跡していないファイルは dirty、.replace/ の中なら dirty にしない",
+        "parity-replace の source-version.mjs 新側がサブディレクトリ・.replace/ が新側の中 記録を書いただけでも、記録を commit した後も、new.tree は変わらず dirty にならない",
+        "parity-replace の source-version.mjs 新側がサブディレクトリ・.replace/ が新側の中 .replace/ の外の追跡していないファイルは dirty、.replace/ の中なら dirty にしない",
+        "parity-replace の source-version.mjs 範囲 新側のディレクトリの名前をパターンとして読まない（app[1] が app1 に一致しない）",
+        "parity-replace の source-version.mjs 呼び出し元の環境 名前が .. で始まるリポジトリの中のディレクトリの .replace/ も除く"
       ]
     },
     {
       "id": "sv-tree-whole-repo",
       "why": "new.tree を new.repo のディレクトリに絞らず、リポジトリ全体のツリーにする（新側の外の変更で照合が合わなくなる）",
       "file": "skills/parity-replace/scripts/source-version.mjs",
-      "find": "    return subtree(top, whole, prefix);\n",
-      "replace": "    return whole;\n",
+      "find": "`${whole}:${prefix.replace(/\\/$/, \"\")}`",
+      "replace": "whole",
       "occurrences": 1,
       "expect_failing": [
-        "範囲 新側がサブディレクトリなら、新側の外の変更は new.tree にも dirty にも入らない",
-        "範囲 新側のディレクトリの名前をパターンとして読まない（app[1] が app1 に一致しない）",
-        "範囲 新側のディレクトリに追跡しているファイルが無ければ、空のツリーにする"
+        "parity-replace の source-version.mjs 範囲 新側がサブディレクトリなら、新側の外の変更は new.tree にも dirty にも入らない",
+        "parity-replace の source-version.mjs 範囲 新側のディレクトリの名前をパターンとして読まない（app[1] が app1 に一致しない）",
+        "parity-replace の source-version.mjs 範囲 新側のディレクトリに追跡しているファイルが無ければ、空のツリーにする",
+        "parity-replace の source-version.mjs 新側がサブディレクトリ・.replace/ がルート直下 記録を書いただけでも、記録を commit した後も、new.tree は変わらず dirty にならない"
       ]
     },
     {
@@ -54,18 +57,18 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "範囲 利用者の git の設定で追跡していないファイルを隠していても、dirty として検出する"
+        "parity-replace の source-version.mjs 範囲 利用者の git の設定で追跡していないファイルを隠していても、dirty として検出する"
       ]
     },
     {
       "id": "sv-artifacts-outside-not-excluded",
       "why": "リポジトリの外の --artifacts を、外として扱わずに除く対象にする（../ で始まるパスを git rm に渡して失敗する）",
       "file": "skills/parity-replace/scripts/source-version.mjs",
-      "find": "  if (rel.startsWith(\"..\") || path.isAbsolute(rel)) return null;\n",
+      "find": "  if (rel === \"..\" || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) return null;\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "範囲 新側がルートで .replace/ がリポジトリの外なら、何も除かずにリポジトリ全体のツリーになる"
+        "parity-replace の source-version.mjs 範囲 新側がルートで .replace/ がリポジトリの外なら、何も除かずにリポジトリ全体のツリーになる"
       ]
     },
     {
@@ -76,7 +79,7 @@
       "replace": "false",
       "occurrences": 1,
       "expect_failing": [
-        "git で管理されていない・取れない新側 git で管理されていなければ、commit と tree を none にする"
+        "parity-replace の source-version.mjs git で管理されていない・取れない新側 git で管理されていなければ、commit と tree を none にする"
       ]
     },
     {
@@ -87,7 +90,52 @@
       "replace": "  if (false)\n",
       "occurrences": 1,
       "expect_failing": [
-        "git で管理されていない・取れない新側 --artifacts のディレクトリが無ければ、使い方の誤りにする（.replace/ を含めた値を出さない）"
+        "parity-replace の source-version.mjs git で管理されていない・取れない新側 --artifacts のディレクトリが無ければ、使い方の誤りにする（.replace/ を含めた値を出さない）"
+      ]
+    },
+    {
+      "id": "sv-artifacts-dotdot-name",
+      "why": "名前が .. で始まるリポジトリの中のディレクトリを、リポジトリの外として扱う（.replace/ を除かずに tree と dirty を取る）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "rel.startsWith(`..${path.sep}`)",
+      "replace": "rel.startsWith(\"..\")",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-replace の source-version.mjs 呼び出し元の環境 名前が .. で始まるリポジトリの中のディレクトリの .replace/ も除く"
+      ]
+    },
+    {
+      "id": "sv-env-git-dir",
+      "why": "呼び出し元の GIT_DIR などを子の git に受け継ぐ（hook から実行すると --repo と別のリポジトリの値を出す）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "  for (const name of REPO_LOCATING_ENV) delete base[name];\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_DIR を受け継がず、--repo のリポジトリを読む"
+      ]
+    },
+    {
+      "id": "sv-artifacts-ancestor",
+      "why": "--artifacts が新側のディレクトリの祖先でも拒否しない（新側が何も残らず、どのバージョンでも同じ空の tree を出す）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "excluded === \"\" || prefix.startsWith(`${excluded}/`)",
+      "replace": "excluded === \"\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-replace の source-version.mjs git で管理されていない・取れない新側 --artifacts が新側のディレクトリの祖先なら、使い方の誤りにする（新側が何も残らない値を出さない）"
+      ]
+    },
+    {
+      "id": "sv-rev-ignored",
+      "why": "--rev を読まずに HEAD の tree を出す（デプロイした commit や commits.after を tree で照合できない）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "`${rev ?? \"HEAD\"}^{commit}`",
+      "replace": "\"HEAD^{commit}\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-replace の source-version.mjs --rev --rev の commit の tree を取り、作業ツリーを見ないので dirty は null にする",
+        "parity-replace の source-version.mjs --rev --rev の commit が手元に無ければ、使い方の誤りにする"
       ]
     }
   ]

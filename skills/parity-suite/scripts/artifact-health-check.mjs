@@ -2064,6 +2064,9 @@ function judgeTreeMismatch(s, { wantedTree, recordedTree }) {
   const recordedCommit = nonEmptyString(s.diffNew?.commit) ? String(s.diffNew?.commit).trim() : "";
   // new.commit が同じなら描画入力の差分は必ず空になり、new.tree の食い違いを説明しないまま持ち越してしまう。
   // 同じ commit で new.tree が違うのは、取った範囲（new.repo・.replace/ の場所）が違う記録なので、持ち越さない
+  // judgeCarry に掛けるのは、両側の commit があって違うときだけである。掛けなかったときは null を返し、
+  // --carry-to が同じ commit を指していても、judgeCarryTo が判定を飛ばさないようにする
+  const judged = wanted !== "" && recordedCommit !== "" && wanted !== recordedCommit;
   const carry =
     wanted === "" || recordedCommit === ""
       ? {
@@ -2089,7 +2092,7 @@ function judgeTreeMismatch(s, { wantedTree, recordedTree }) {
     s.findings.push(...carry.findings.map((f) => `証跡を持ち越せない: ${f}`));
     s.notes.push(...carry.notes);
   }
-  return wanted === "" ? null : wanted;
+  return judged ? wanted : null;
 }
 
 /**

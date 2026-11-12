@@ -211,7 +211,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
    最初に設定の `style_policy` を読む。`free` で対象が画面のある機能なら、成果物を作らずに停止し、`spec-parity verify` を案内する（横断 API とバッチは止めない。同じ reference の「スタイルの方針の確認」）。
    対象の target を決めてから、停止条件・データセットのバージョンが古くなっていないか・差分ツールのバージョンの一致・反復の上限を確かめる。
    選択した target の `new/<target>/replace-metadata.json` が無いか、`suite.new_green` でなければ、「その環境ではまだ green 証跡が無い」として停止し、同じ `--target` での `parity-replace` を案内する。
-   green を取ったバージョン（`new.tree`。`--component-change` の一括再検証では変更の宣言の `commits.after`）が、撮る新側のバージョンと違うときも、撮らずに同じく停止する。
+   green を取ったバージョン（`new.tree`。`--component-change` の一括再検証では変更の宣言の `commits.after` の tree）が、撮る新側のバージョンと違うときも、撮らずに同じく停止する。
    `new.tree` を持たない古い記録も、合格として扱わずに同じく停止する（照合の規則の原本は `replace-strategy` の `references/project-config.md`「新側のバージョンの記録」）。
    前提が欠けていれば、成果物を作り出さずに停止し、依存の順に案内する。
 2. モードで分ける。`metadata.json.mode` で、feature（3 つの比較方法）/ api-resource / batch に分ける。api-resource と batch では、画面の 3 つの比較方法を使わない（[`references/api-batch.md`](references/api-batch.md)）。

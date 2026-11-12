@@ -10,8 +10,9 @@
 
 - この手順を使うのは、変更宣言があり、`catalog_verification` の 2 つの値（範囲の外は差分ゼロ、範囲の中は現行と一致）がどちらも `true` のときだけである。
   宣言が無いときや照合が済んでいないときは、部品に触れた反復として、`loop.changed_scope.global: true` で各機能の `parity-diff` を実行する
-- 新側の作業ツリーが clean で、動いている新側が宣言の `commits.after` であること。続けて当てた宣言があるなら、最後の宣言の `after` である。
-  target の `commit_check` も、この SHA と照合する（固定の `url` か `url_command` かに関わらない）。
+- 新側の作業ツリーが clean で、動いている新側の tree が宣言の `commits.after` の tree と同じであること。続けて当てた宣言があるなら、最後の宣言の `after` である。
+  tree で比べるので、`after` の後に記録だけを commit して HEAD が進んでも止まらない。target の `commit_check` の出力の commit も、tree で照合する（固定の `url` か `url_command` かに関わらない）。
+  照合の断片は [`preflight.md`](preflight.md)「新側のバージョンの一致」にある。
   `new.tree` と `new.commit` は改修前の記録のまま残るので、そちらと照合すると止まる。食い違いが正当かどうかは、手順 5 の鮮度の検査が判定する
 - 影響する機能は、1 つのセッションでまとめて処理する。機能ごとに `parity-diff` のセッションを開き直さない。
   ただし、機能は 1 つずつ順に処理し、並行させない。「1 回の実行につき 1 つの機能」の例外は、この一括の再検証だけである

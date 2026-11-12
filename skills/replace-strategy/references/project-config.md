@@ -424,6 +424,8 @@ node "$CFG" append replace-strategy component_diffs '<要素の JSON>' --layer r
 値は、プロジェクトのルート（`.replace/` を置くディレクトリ）で `node <スキルのディレクトリ>/scripts/source-version.mjs --repo <new.repo>` を実行して取る。
 出力の JSON の `commit`・`tree`・`dirty` を、そのまま記録に書く。git のコマンドを手で組み立てない。
 終了コードが 2 のとき（git を起動できない、新側に commit が 1 つも無いなど）は、値を推測して書かずに止まる。
+`--rev <commit>` を足すと、HEAD の代わりにその commit から同じ範囲の tree を取る（`dirty` は作業ツリーと関係が無いので `null` になる）。
+デプロイした commit（`commit_check` の出力）や変更宣言の `commits.after` も、この tree で照合する。記録を commit した HEAD をデプロイしても、ソースが同じなら tree は同じになる。
 
 | 項目 | 値 | 一致の判定に使うか |
 |---|---|---|

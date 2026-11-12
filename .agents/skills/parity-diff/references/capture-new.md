@@ -40,8 +40,9 @@
 - 解決した値が、`new/<target>/replace-metadata.json` の `new.ui_url` と `new.api_url` に一致することを確かめる（別の環境の URL で撮らない）。
   記録が `"runtime"` のフィールドは解決した値を持たないので、target の名前の一致で代わりに照合する。
   固定の値で記録したフィールド（例: `url_command` の target の固定の `api_url`）は、そのまま照合する。
-  target に `commit_check` があれば（固定の `url` か `url_command` かに関わらず）、その出力が記録の `new.commit` と一致することも確かめる。
-  一致しなければ、green の証跡とは別のデプロイなので止まる。部品の改修をまとめて再検証するときは、照合相手が変更宣言の `commits.after` になる（[`component-change.md`](component-change.md)）
+  target に `commit_check` があれば（固定の `url` か `url_command` かに関わらず）、その出力の commit の tree が記録の `new.tree` と一致することも確かめる。
+  tree は `source-version.mjs --rev <commit_check の出力>` で取る（手順の断片は [`preflight.md`](preflight.md)「新側のバージョンの一致」）。
+  一致しなければ、green の証跡とは別のデプロイなので止まる。部品の改修をまとめて再検証するときは、照合相手が変更宣言の `commits.after` の tree になる（[`component-change.md`](component-change.md)）
 - 設定の原本は、`parity-suite` の `references/locator-mapping.md` である（`current`・`new`・`new-capture` のプロジェクトの baseURL を環境変数で参照する形。URL を config に直接書かない）
 
 ## 条件一致の先行検証（差分検出より前）

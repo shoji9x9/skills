@@ -13,8 +13,10 @@
 //   --no-optional-locks で、status が index を書き直さないようにする。
 // new.commit: HEAD の完全な SHA。人がどの commit で確かめたかを追うための値で、一致の判定には使わない。
 // 新側が git で管理されていなければ、commit と tree を "none"、dirty を false にする。
+// --rev <commit> を渡すと、HEAD の代わりにその commit から同じ範囲の tree を取る（デプロイした commit や、
+//   変更宣言の commits.after を tree で照合するため）。作業ツリーとは関係が無いので、dirty は null にする。
 //
-// 使い方: node source-version.mjs --repo <new.repo> [--artifacts <.replace のパス>]
+// 使い方: node source-version.mjs --repo <new.repo> [--artifacts <.replace のパス>] [--rev <commit>]
 //   --artifacts のデフォルトは、作業ディレクトリの .replace である。
 //
 // 終了コード: 0 ＝ 取れた、2 ＝ 使い方の誤り・git を起動できない・新側に commit が無いなど（値を出していない）。
@@ -26,7 +28,19 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const NONE = "none";
-const USAGE = "usage: node source-version.mjs --repo <new.repo> [--artifacts <.replace のパス>]";
+const USAGE =
+  "usage: node source-version.mjs --repo <new.repo> [--artifacts <.replace のパス>] [--rev <commit>]";
+// 呼び出し元の git（hook など）が渡す、リポジトリの場所を決める環境変数。受け継ぐと --repo が無視されるので外す
+const REPO_LOCATING_ENV = [
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_INDEX_FILE",
+  "GIT_COMMON_DIR",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+  "GIT_NAMESPACE",
+  "GIT_PREFIX",
+];
 
 class UsageError extends Error {}
 
@@ -39,10 +53,12 @@ class UsageError extends Error {}
  * @returns {string}
  */
 function git(args, { cwd, env = {} }) {
+  const base = { ...process.env };
+  for (const name of REPO_LOCATING_ENV) delete base[name];
   return execFileSync("git", args, {
     cwd,
     encoding: "utf8",
-    env: { ...process.env, LC_ALL: "C", ...env },
+    env: { ...base, LC_ALL: "C", ...env },
     maxBuffer: 256 * 1024 * 1024,
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -107,18 +123,21 @@ function locateRepo(repo) {
 
 /**
  * --artifacts のディレクトリが新側のリポジトリの中にあれば、最上位からの相対パス（/ 区切り）を返す。外にあれば null。
- * @param {string} top
+ * 新側のディレクトリそのものか、その祖先を指していれば、除くと新側が何も残らないので使い方の誤りにする。
+ * @param {{ top: string, prefix: string }} loc
  * @param {string} artifacts
  * @returns {string | null}
  */
-function artifactsInRepo(top, artifacts) {
+function artifactsInRepo({ top, prefix }, artifacts) {
   const rel = path.relative(top, realpathSync(artifacts));
-  if (rel === "")
+  // ".." で始まる名前（..data など）はリポジトリの中なので、".." そのものか ".." の下だけを外とする
+  if (rel === ".." || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) return null;
+  const excluded = rel.split(path.sep).join("/");
+  if (excluded === "" || prefix.startsWith(`${excluded}/`))
     throw new UsageError(
-      "--artifacts が新側のリポジトリの最上位そのものを指している（除くと何も残らない）",
+      `--artifacts が新側のディレクトリそのものか、その祖先を指している（除くと新側が何も残らない）: ${artifacts}`,
     );
-  if (rel.startsWith("..") || path.isAbsolute(rel)) return null;
-  return rel.split(path.sep).join("/");
+  return excluded;
 }
 
 /**
@@ -132,29 +151,43 @@ function scopeSpec(prefix) {
 }
 
 /**
- * HEAD のツリーから --artifacts を除き、new.repo のディレクトリのツリーのハッシュを返す。利用者の index は使わない。
+ * commit のツリーから --artifacts を除き、new.repo のディレクトリのツリーのハッシュを返す。利用者の index は使わない。
+ * --artifacts が新側のディレクトリの外にあれば除く必要が無いので、一時的な index を作らずに commit のツリーから読む。
  * @param {{ top: string, prefix: string, excluded: string | null }} scope
+ * @param {string} commit
  * @returns {string}
  */
-function sourceTree({ top, prefix, excluded }) {
-  const dir = mkdtempSync(path.join(tmpdir(), "source-version-"));
-  const env = { GIT_INDEX_FILE: path.join(dir, "index") };
+function sourceTree({ top, prefix, excluded }, commit) {
   try {
-    git(["read-tree", "HEAD"], { cwd: top, env });
-    if (excluded !== null)
-      git(
-        ["--literal-pathspecs", "rm", "--cached", "-r", "-q", "--ignore-unmatch", "--", excluded],
-        {
-          cwd: top,
-          env,
-        },
-      );
-    const whole = git(["write-tree"], { cwd: top, env }).trim();
-    if (prefix === "") return whole;
-    return subtree(top, whole, prefix);
+    if (excluded === null || !excluded.startsWith(prefix))
+      return prefix === ""
+        ? git(["rev-parse", "--verify", `${commit}^{tree}`], { cwd: top }).trim()
+        : subtree(top, `${commit}^{tree}`, prefix);
+    return treeWithout({ top, prefix, excluded }, commit);
   } catch (e) {
     if (e instanceof UsageError) throw e;
     throw gitError(e, "新側のツリーのハッシュの取得");
+  }
+}
+
+/**
+ * commit のツリーを一時的な index に読み、--artifacts を外してから、new.repo のディレクトリのツリーを書く。
+ * @param {{ top: string, prefix: string, excluded: string }} scope
+ * @param {string} commit
+ * @returns {string}
+ */
+function treeWithout({ top, prefix, excluded }, commit) {
+  const dir = mkdtempSync(path.join(tmpdir(), "source-version-"));
+  const env = { GIT_INDEX_FILE: path.join(dir, "index") };
+  try {
+    git(["read-tree", commit], { cwd: top, env });
+    git(["--literal-pathspecs", "rm", "--cached", "-r", "-q", "--ignore-unmatch", "--", excluded], {
+      cwd: top,
+      env,
+    });
+    const whole = git(["write-tree"], { cwd: top, env }).trim();
+    if (prefix === "") return whole;
+    return subtree(top, whole, prefix);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -207,11 +240,11 @@ function sourceDirty({ top, prefix, excluded }) {
 }
 
 /**
- * 新側のバージョンを取る。
- * @param {{ repo: string, artifacts: string }} opts
- * @returns {{ commit: string, tree: string, dirty: boolean, excluded: string | null }}
+ * 新側のバージョンを取る。rev を渡すと、HEAD の代わりにその commit の tree を取り、dirty は null にする。
+ * @param {{ repo: string, artifacts: string, rev?: string | null }} opts
+ * @returns {{ commit: string, tree: string, dirty: boolean | null, excluded: string | null }}
  */
-export function sourceVersion({ repo, artifacts }) {
+export function sourceVersion({ repo, artifacts, rev = null }) {
   if (!existsSync(repo)) throw new UsageError(`--repo のディレクトリが無い: ${repo}`);
   // 在らないパスを除いても何も除かれず、.replace/ を含めた値を警告なしに出すので、在ることを先に確かめる
   if (!existsSync(artifacts) || !statSync(artifacts).isDirectory())
@@ -219,28 +252,50 @@ export function sourceVersion({ repo, artifacts }) {
       `--artifacts のディレクトリが無い: ${artifacts}（プロジェクトのルートで実行するか、.replace/ のパスを渡す）`,
     );
   const loc = locateRepo(repo);
-  if (loc === null) return { commit: NONE, tree: NONE, dirty: false, excluded: null };
-  let commit;
+  if (loc === null)
+    return { commit: NONE, tree: NONE, dirty: rev === null ? false : null, excluded: null };
+  const commit = resolveCommit(loc.top, rev);
+  const scope = { ...loc, excluded: artifactsInRepo(loc, artifacts) };
+  const tree = sourceTree(scope, commit);
+  return {
+    commit,
+    tree,
+    dirty: rev === null ? sourceDirty(scope) : null,
+    excluded: scope.excluded,
+  };
+}
+
+/**
+ * HEAD か --rev の commit を、完全な SHA に解決する。
+ * @param {string} top
+ * @param {string | null} rev
+ * @returns {string}
+ */
+function resolveCommit(top, rev) {
   try {
-    commit = git(["rev-parse", "--verify", "--quiet", "HEAD^{commit}"], { cwd: loc.top }).trim();
+    return git(["rev-parse", "--verify", "--quiet", `${rev ?? "HEAD"}^{commit}`], {
+      cwd: top,
+    }).trim();
   } catch {
-    throw new UsageError("新側のリポジトリに commit が無い（最初の commit をしてから取る）");
+    throw new UsageError(
+      rev === null
+        ? "新側のリポジトリに commit が無い（最初の commit をしてから取る）"
+        : `--rev の commit が手元のリポジトリに無い: ${rev}（git fetch してから取る）`,
+    );
   }
-  const scope = { ...loc, excluded: artifactsInRepo(loc.top, artifacts) };
-  return { commit, tree: sourceTree(scope), dirty: sourceDirty(scope), excluded: scope.excluded };
 }
 
 /**
  * 引数を読む。値を取るオプションの重複と、知らないオプションは使い方の誤りにする。
  * @param {string[]} argv
- * @returns {{ repo: string, artifacts: string }}
+ * @returns {{ repo: string, artifacts: string, rev: string | null }}
  */
 export function parseArgs(argv) {
   /** @type {Record<string, string>} */
   const opts = {};
   for (let i = 0; i < argv.length; i++) {
     const [name, inline] = argv[i].split(/=(.*)/s, 2);
-    if (name !== "--repo" && name !== "--artifacts")
+    if (name !== "--repo" && name !== "--artifacts" && name !== "--rev")
       throw new UsageError(`知らない引数: ${argv[i]}`);
     if (name in opts) throw new UsageError(`${name} が 2 回ある`);
     const value = inline ?? argv[++i];
@@ -251,7 +306,11 @@ export function parseArgs(argv) {
   }
   if (opts["--repo"] === undefined)
     throw new UsageError("--repo が無い（新側のリポジトリのディレクトリを渡す）");
-  return { repo: opts["--repo"], artifacts: opts["--artifacts"] ?? ".replace" };
+  return {
+    repo: opts["--repo"],
+    artifacts: opts["--artifacts"] ?? ".replace",
+    rev: opts["--rev"] ?? null,
+  };
 }
 
 /**

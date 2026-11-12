@@ -1435,16 +1435,38 @@ test("持ち越し: 宣言外のファイルが変わっていれば落とす（
   rmSync(root, { recursive: true, force: true });
 });
 
+/** replace-metadata.json の new.commit を diff-metadata.json と同じ commit にし、new.tree だけが違う記録を作る。 */
+function sameCommitDifferentTree() {
+  const project = carryProject([["list", "default", "desktop"]]);
+  const replacePath = join(project.slugDir, "new/local-dev/replace-metadata.json");
+  const replace = parseJsonAs<{ new: { commit: unknown } }>(readFileSync(replacePath, "utf8"));
+  replace.new.commit = project.carry.commits.base;
+  writeFileSync(replacePath, JSON.stringify(replace));
+  return project;
+}
+
 // new.commit が同じなら描画入力の差分は必ず空になる。差分が空であることを、new.tree の食い違いの説明として扱わない
 test("持ち越し: new.commit が同じで new.tree だけが違えば、描画入力の差分が空でも持ち越さない", () => {
-  const { root, slugDir, metadataPath, carry } = carryProject([["list", "default", "desktop"]]);
-  const replacePath = join(slugDir, "new/local-dev/replace-metadata.json");
-  const replace = parseJsonAs<{ new: { commit: unknown } }>(readFileSync(replacePath, "utf8"));
-  replace.new.commit = carry.commits.base;
-  writeFileSync(replacePath, JSON.stringify(replace));
+  const { root, metadataPath, carry } = sameCommitDifferentTree();
   const r = run(metadataPath, ["--target", "local-dev", "--new-repo", carry.repo]);
   expect(r.stdout).toMatch(/今の新側のバージョンに対応していない/);
   expect(r.stdout).toMatch(/証跡を持ち越せない: new\.commit が同じ.*なのに new\.tree が違う/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// 食い違いの判定で judgeCarry に掛けなかったときは、--carry-to が同じ commit を指していても --carry-to の判定を飛ばさない
+test("持ち越し: new.commit が同じで new.tree だけが違うとき、同じ commit の --carry-to も判定する", () => {
+  const { root, metadataPath, carry } = sameCommitDifferentTree();
+  const r = run(metadataPath, [
+    "--target",
+    "local-dev",
+    "--new-repo",
+    carry.repo,
+    "--carry-to",
+    carry.commits.base,
+  ]);
+  expect(r.stdout).toContain(`--carry-to ${carry.commits.base}`);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });

@@ -265,7 +265,8 @@
         "replace-metadata.json が new.tree を持たなければ、new.commit が一致しても落とす",
         "new.commit が違っても new.tree が同じなら、同じバージョンとして通す（記録を commit して HEAD が進んだ構成）",
         "new.commit が同じでも new.tree が違えば、今の新側に対応していないとして落とす",
-        "持ち越し: new.commit が同じで new.tree だけが違えば、描画入力の差分が空でも持ち越さない"
+        "持ち越し: new.commit が同じで new.tree だけが違えば、描画入力の差分が空でも持ち越さない",
+        "持ち越し: new.commit が同じで new.tree だけが違うとき、同じ commit の --carry-to も判定する"
       ]
     },
     {
@@ -276,7 +277,19 @@
       "replace": "      : false\n",
       "occurrences": 1,
       "expect_failing": [
-        "持ち越し: new.commit が同じで new.tree だけが違えば、描画入力の差分が空でも持ち越さない"
+        "持ち越し: new.commit が同じで new.tree だけが違えば、描画入力の差分が空でも持ち越さない",
+        "持ち越し: new.commit が同じで new.tree だけが違うとき、同じ commit の --carry-to も判定する"
+      ]
+    },
+    {
+      "id": "stage-carry-to-skipped-same-commit",
+      "why": "judgeCarry に掛けなかった食い違い（同じ commit で tree だけが違う）でも、今の commit を判定済みとして返す（同じ commit の --carry-to の判定が飛ばされる）",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "  return judged ? wanted : null;\n",
+      "replace": "  return wanted === \"\" ? null : wanted;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "持ち越し: new.commit が同じで new.tree だけが違うとき、同じ commit の --carry-to も判定する"
       ]
     }
   ]

@@ -11,15 +11,22 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
-import {
-  parseArgs,
-  sourceVersion,
-} from "../../../skills/parity-replace/scripts/source-version.mjs";
+import * as parityDiff from "../../../skills/parity-diff/scripts/source-version.mjs";
+import * as parityReplace from "../../../skills/parity-replace/scripts/source-version.mjs";
+import * as specParity from "../../../skills/spec-parity/scripts/source-version.mjs";
 
-const SCRIPT = path.resolve(
-  import.meta.dirname,
-  "../../../skills/parity-replace/scripts/source-version.mjs",
-);
+// 3 つのコピーをそれぞれ測る（カバレッジはファイルごとに測るので、1 つだけを測ると残りが 0% になる）
+const COPIES = [
+  { skill: "parity-replace", lib: parityReplace },
+  { skill: "spec-parity", lib: specParity },
+  { skill: "parity-diff", lib: parityDiff },
+].map((c) => ({
+  ...c,
+  script: path.resolve(
+    import.meta.dirname,
+    `../../../skills/${c.skill}/scripts/source-version.mjs`,
+  ),
+}));
 const EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 // 子プロセスの git と node が止まっても、テストの実行全体を止めない
 const CHILD_TIMEOUT_MS = 30_000;
@@ -92,248 +99,318 @@ const LAYOUTS = [
   },
 ] as const;
 
-describe.each(LAYOUTS)("$name", ({ newDir, artifacts }) => {
-  function setup() {
-    const top = repoWith({
-      [path.posix.join(newDir, "src/app.js")]: "export const a = 1;\n",
-      [path.posix.join(artifacts, "parity/order/metadata.json")]: "{}\n",
-      "README.md": "root\n",
+describe.each(COPIES)("$skill の source-version.mjs", ({ lib, script: SCRIPT }) => {
+  const { parseArgs, sourceVersion } = lib;
+
+  describe.each(LAYOUTS)("$name", ({ newDir, artifacts }) => {
+    function setup() {
+      const top = repoWith({
+        [path.posix.join(newDir, "src/app.js")]: "export const a = 1;\n",
+        [path.posix.join(artifacts, "parity/order/metadata.json")]: "{}\n",
+        "README.md": "root\n",
+      });
+      const repo = path.join(top, newDir);
+      const art = path.join(top, artifacts);
+      const take = () => sourceVersion({ repo, artifacts: art });
+      return { top, repo, art, take };
+    }
+
+    test("記録を書いただけでも、記録を commit した後も、new.tree は変わらず dirty にならない", () => {
+      const { top, art, take } = setup();
+      const before = take();
+      expect(before.dirty).toBe(false);
+      write(path.join(art, "parity/order/new/local/replace-metadata.json"), "{}\n");
+      const written = take();
+      expect(written).toMatchObject({ tree: before.tree, dirty: false, commit: before.commit });
+      commitAll(top, "record");
+      const committed = take();
+      expect(committed.tree).toBe(before.tree);
+      expect(committed.dirty).toBe(false);
+      // new.commit は HEAD を追う値なので、記録の commit で進む
+      expect(committed.commit).not.toBe(before.commit);
     });
-    const repo = path.join(top, newDir);
-    const art = path.join(top, artifacts);
-    const take = () => sourceVersion({ repo, artifacts: art });
-    return { top, repo, art, take };
-  }
 
-  test("記録を書いただけでも、記録を commit した後も、new.tree は変わらず dirty にならない", () => {
-    const { top, art, take } = setup();
-    const before = take();
-    expect(before.dirty).toBe(false);
-    write(path.join(art, "parity/order/new/local/replace-metadata.json"), "{}\n");
-    const written = take();
-    expect(written).toMatchObject({ tree: before.tree, dirty: false, commit: before.commit });
-    commitAll(top, "record");
-    const committed = take();
-    expect(committed.tree).toBe(before.tree);
-    expect(committed.dirty).toBe(false);
-    // new.commit は HEAD を追う値なので、記録の commit で進む
-    expect(committed.commit).not.toBe(before.commit);
-  });
-
-  test("ソースを変えただけなら dirty になり、commit すると new.tree が変わる", () => {
-    const { top, repo, take } = setup();
-    const before = take();
-    write(path.join(repo, "src/app.js"), "export const a = 2;\n");
-    const edited = take();
-    expect(edited.dirty).toBe(true);
-    // commit していない変更は new.tree に入らない（HEAD のツリーから取る）
-    expect(edited.tree).toBe(before.tree);
-    commitAll(top, "src");
-    const committed = take();
-    expect(committed.dirty).toBe(false);
-    expect(committed.tree).not.toBe(before.tree);
-  });
-
-  test(".replace/ の外の追跡していないファイルは dirty、.replace/ の中なら dirty にしない", () => {
-    const { repo, art, take } = setup();
-    write(path.join(art, "untracked.json"), "{}\n");
-    expect(take().dirty).toBe(false);
-    write(path.join(repo, "src/new-file.js"), "x\n");
-    expect(take().dirty).toBe(true);
-  });
-
-  test("gitignore されたファイルは dirty にも new.tree にも入らない", () => {
-    const { top, repo, take } = setup();
-    write(path.join(repo, ".gitignore"), ".e2e/\n");
-    commitAll(top, "ignore");
-    const before = take();
-    write(path.join(repo, ".e2e/results.json"), "{}\n");
-    expect(take()).toMatchObject({ tree: before.tree, dirty: false });
-  });
-
-  test("利用者の index と作業ツリーを変えない", () => {
-    const { top, repo, take } = setup();
-    write(path.join(repo, "src/staged.js"), "s\n");
-    git(top, "add", "--", path.posix.join(newDir || ".", "src/staged.js"));
-    write(path.join(repo, "src/app.js"), "unstaged\n");
-    const index = path.join(top, ".git/index");
-    const indexBefore = sha256(index);
-    const statusBefore = git(top, "status", "--porcelain", "--untracked-files=all");
-    take();
-    expect(sha256(index)).toBe(indexBefore);
-    expect(git(top, "status", "--porcelain", "--untracked-files=all")).toBe(statusBefore);
-  });
-});
-
-describe("範囲", () => {
-  test("新側がサブディレクトリなら、新側の外の変更は new.tree にも dirty にも入らない", () => {
-    const top = repoWith({ "new-app/src/a.js": "a\n", "current-app/b.js": "b\n" });
-    const repo = path.join(top, "new-app");
-    const take = () => sourceVersion({ repo, artifacts: art(top) });
-    const before = take();
-    write(path.join(top, "current-app/b.js"), "b2\n");
-    expect(take().dirty).toBe(false);
-    commitAll(top, "current");
-    expect(take().tree).toBe(before.tree);
-    // .replace/ が新側の外なら、new.tree は HEAD の新側のディレクトリのツリーそのものになる
-    expect(take().tree).toBe(git(top, "rev-parse", "HEAD:new-app").trim());
-  });
-
-  test("新側のディレクトリの名前をパターンとして読まない（app[1] が app1 に一致しない）", () => {
-    const top = repoWith({
-      "app[1]/a.js": "a\n",
-      "app1/b.js": "b\n",
-      "app[1]/.replace/x.json": "{}\n",
+    test("ソースを変えただけなら dirty になり、commit すると new.tree が変わる", () => {
+      const { top, repo, take } = setup();
+      const before = take();
+      write(path.join(repo, "src/app.js"), "export const a = 2;\n");
+      const edited = take();
+      expect(edited.dirty).toBe(true);
+      // commit していない変更は new.tree に入らない（HEAD のツリーから取る）
+      expect(edited.tree).toBe(before.tree);
+      commitAll(top, "src");
+      const committed = take();
+      expect(committed.dirty).toBe(false);
+      expect(committed.tree).not.toBe(before.tree);
     });
-    const repo = path.join(top, "app[1]");
-    const take = () => sourceVersion({ repo, artifacts: art(repo) });
-    const before = take();
-    write(path.join(top, "app1/b.js"), "b2\n");
-    expect(take().dirty).toBe(false);
-    commitAll(top, "sibling");
-    expect(take().tree).toBe(before.tree);
-    write(path.join(repo, ".replace/y.json"), "{}\n");
-    expect(take().dirty).toBe(false);
-  });
 
-  test("新側がルートで .replace/ がリポジトリの外なら、何も除かずにリポジトリ全体のツリーになる", () => {
-    const top = repoWith({ "src/a.js": "a\n" });
-    const outside = tmp();
-    const v = sourceVersion({ repo: top, artifacts: art(outside) });
-    expect(v.excluded).toBeNull();
-    expect(v.tree).toBe(git(top, "rev-parse", "HEAD^{tree}").trim());
-  });
-
-  test(".replace/ だけを除き、名前が .replace で始まる別のディレクトリは除かない", () => {
-    const top = repoWith({
-      "src/a.js": "a\n",
-      ".replace/x.json": "{}\n",
-      ".replace-notes/n.md": "n\n",
+    test(".replace/ の外の追跡していないファイルは dirty、.replace/ の中なら dirty にしない", () => {
+      const { repo, art, take } = setup();
+      write(path.join(art, "untracked.json"), "{}\n");
+      expect(take().dirty).toBe(false);
+      write(path.join(repo, "src/new-file.js"), "x\n");
+      expect(take().dirty).toBe(true);
     });
-    const take = () => sourceVersion({ repo: top, artifacts: art(top) });
-    const before = take();
-    write(path.join(top, ".replace-notes/n.md"), "n2\n");
-    expect(take().dirty).toBe(true);
-    commitAll(top, "notes");
-    expect(take().tree).not.toBe(before.tree);
-  });
 
-  test("新側のディレクトリに追跡しているファイルが無ければ、空のツリーにする", () => {
-    const top = repoWith({ "README.md": "r\n" });
-    mkdirSync(path.join(top, "new-app"));
-    const v = sourceVersion({
-      repo: path.join(top, "new-app"),
-      artifacts: art(top),
+    test("gitignore されたファイルは dirty にも new.tree にも入らない", () => {
+      const { top, repo, take } = setup();
+      write(path.join(repo, ".gitignore"), ".e2e/\n");
+      commitAll(top, "ignore");
+      const before = take();
+      write(path.join(repo, ".e2e/results.json"), "{}\n");
+      expect(take()).toMatchObject({ tree: before.tree, dirty: false });
     });
-    expect(v.tree).toBe(EMPTY_TREE);
-  });
 
-  test("サブモジュールの commit を変えると dirty になり、commit すると new.tree が変わる", () => {
-    const sub = repoWith({ "lib.js": "1\n" });
-    const top = repoWith({ "src/a.js": "a\n" });
-    git(top, "-c", "protocol.file.allow=always", "submodule", "add", "-q", sub, "vendor/lib");
-    commitAll(top, "submodule");
-    const take = () => sourceVersion({ repo: top, artifacts: art(top) });
-    const before = take();
-    expect(before.dirty).toBe(false);
-    const inner = path.join(top, "vendor/lib");
-    write(path.join(inner, "lib.js"), "2\n");
-    git(inner, "commit", "-q", "-am", "2");
-    expect(take().dirty).toBe(true);
-    commitAll(top, "bump");
-    expect(take()).toMatchObject({ dirty: false });
-    expect(take().tree).not.toBe(before.tree);
-  });
-
-  test("利用者の git の設定で追跡していないファイルを隠していても、dirty として検出する", () => {
-    const top = repoWith({ "src/a.js": "a\n" });
-    git(top, "config", "status.showUntrackedFiles", "no");
-    write(path.join(top, "src/new.js"), "n\n");
-    expect(sourceVersion({ repo: top, artifacts: art(top) }).dirty).toBe(true);
-  });
-});
-
-describe("git で管理されていない・取れない新側", () => {
-  test("git で管理されていなければ、commit と tree を none にする", () => {
-    const dir = tmp();
-    expect(sourceVersion({ repo: dir, artifacts: art(dir) })).toEqual({
-      commit: "none",
-      tree: "none",
-      dirty: false,
-      excluded: null,
+    test("利用者の index と作業ツリーを変えない", () => {
+      const { top, repo, take } = setup();
+      write(path.join(repo, "src/staged.js"), "s\n");
+      git(top, "add", "--", path.posix.join(newDir || ".", "src/staged.js"));
+      write(path.join(repo, "src/app.js"), "unstaged\n");
+      const index = path.join(top, ".git/index");
+      const indexBefore = sha256(index);
+      const statusBefore = git(top, "status", "--porcelain", "--untracked-files=all");
+      take();
+      expect(sha256(index)).toBe(indexBefore);
+      expect(git(top, "status", "--porcelain", "--untracked-files=all")).toBe(statusBefore);
     });
   });
 
-  test("commit が 1 つも無いリポジトリは、値を出さずに使い方の誤りにする", () => {
-    const top = tmp();
-    git(top, "init", "-q");
-    expect(() => sourceVersion({ repo: top, artifacts: art(top) })).toThrow(/commit が無い/);
-  });
-
-  test("--repo のディレクトリが無ければ、使い方の誤りにする", () => {
-    expect(() =>
-      sourceVersion({ repo: path.join(tmp(), "missing"), artifacts: ".replace" }),
-    ).toThrow(/無い/);
-  });
-
-  test("--artifacts のディレクトリが無ければ、使い方の誤りにする（.replace/ を含めた値を出さない）", () => {
-    const top = repoWith({ "a.js": "a\n", ".replace/x.json": "{}\n" });
-    expect(() => sourceVersion({ repo: top, artifacts: path.join(top, "sub/.replace") })).toThrow(
-      /--artifacts のディレクトリが無い/,
-    );
-  });
-
-  test("--artifacts がリポジトリの最上位そのものなら、使い方の誤りにする", () => {
-    const top = repoWith({ "a.js": "a\n" });
-    expect(() => sourceVersion({ repo: top, artifacts: top })).toThrow(/最上位そのもの/);
-  });
-});
-
-describe("引数", () => {
-  test.each([
-    [["--repo", "x"], { repo: "x", artifacts: ".replace" }],
-    [["--repo=x", "--artifacts=y"], { repo: "x", artifacts: "y" }],
-  ])("%j を読む", (argv, want) => {
-    expect(parseArgs(argv)).toEqual(want);
-  });
-
-  test.each([
-    [[]],
-    [["--repo"]],
-    [["--repo", "x", "--repo", "y"]],
-    [["--repo", "x", "--other"]],
-    [["--repo", "--artifacts", "x"]],
-    [["--repo="]],
-  ])("%j は使い方の誤り", (argv) => {
-    expect(() => parseArgs(argv)).toThrow();
-  });
-});
-
-describe("CLI", () => {
-  test("取れたら JSON を出して exit 0、取れなければ exit 2", () => {
-    const top = repoWith({ "src/a.js": "a\n", ".replace/x.json": "{}\n" });
-    const ok = spawnSync(process.execPath, [SCRIPT, "--repo", top], {
-      cwd: top,
-      encoding: "utf8",
-      env: GIT_ENV,
-      timeout: CHILD_TIMEOUT_MS,
+  describe("範囲", () => {
+    test("新側がサブディレクトリなら、新側の外の変更は new.tree にも dirty にも入らない", () => {
+      const top = repoWith({ "new-app/src/a.js": "a\n", "current-app/b.js": "b\n" });
+      const repo = path.join(top, "new-app");
+      const take = () => sourceVersion({ repo, artifacts: art(top) });
+      const before = take();
+      write(path.join(top, "current-app/b.js"), "b2\n");
+      expect(take().dirty).toBe(false);
+      commitAll(top, "current");
+      expect(take().tree).toBe(before.tree);
+      // .replace/ が新側の外なら、new.tree は HEAD の新側のディレクトリのツリーそのものになる
+      expect(take().tree).toBe(git(top, "rev-parse", "HEAD:new-app").trim());
     });
-    expect(ok.status).toBe(0);
-    const out: unknown = JSON.parse(ok.stdout);
-    // --artifacts のデフォルトは作業ディレクトリの .replace
-    expect(out).toMatchObject({
-      dirty: false,
-      excluded: ".replace",
-      commit: expect.stringMatching(/^[0-9a-f]{40}$/),
+
+    test("新側のディレクトリの名前をパターンとして読まない（app[1] が app1 に一致しない）", () => {
+      const top = repoWith({
+        "app[1]/a.js": "a\n",
+        "app1/b.js": "b\n",
+        "app[1]/.replace/x.json": "{}\n",
+      });
+      const repo = path.join(top, "app[1]");
+      const take = () => sourceVersion({ repo, artifacts: art(repo) });
+      const before = take();
+      write(path.join(top, "app1/b.js"), "b2\n");
+      expect(take().dirty).toBe(false);
+      commitAll(top, "sibling");
+      expect(take().tree).toBe(before.tree);
+      write(path.join(repo, ".replace/y.json"), "{}\n");
+      expect(take().dirty).toBe(false);
     });
-    const ng = spawnSync(process.execPath, [SCRIPT], {
-      cwd: top,
-      encoding: "utf8",
-      env: GIT_ENV,
-      timeout: CHILD_TIMEOUT_MS,
+
+    test("新側がルートで .replace/ がリポジトリの外なら、何も除かずにリポジトリ全体のツリーになる", () => {
+      const top = repoWith({ "src/a.js": "a\n" });
+      const outside = tmp();
+      const v = sourceVersion({ repo: top, artifacts: art(outside) });
+      expect(v.excluded).toBeNull();
+      expect(v.tree).toBe(git(top, "rev-parse", "HEAD^{tree}").trim());
     });
-    expect(ng.status).toBe(2);
-    expect(ng.stdout).toBe("");
-    expect(ng.stderr).toMatch(/--repo が無い/);
+
+    test(".replace/ だけを除き、名前が .replace で始まる別のディレクトリは除かない", () => {
+      const top = repoWith({
+        "src/a.js": "a\n",
+        ".replace/x.json": "{}\n",
+        ".replace-notes/n.md": "n\n",
+      });
+      const take = () => sourceVersion({ repo: top, artifacts: art(top) });
+      const before = take();
+      write(path.join(top, ".replace-notes/n.md"), "n2\n");
+      expect(take().dirty).toBe(true);
+      commitAll(top, "notes");
+      expect(take().tree).not.toBe(before.tree);
+    });
+
+    test("新側のディレクトリに追跡しているファイルが無ければ、空のツリーにする", () => {
+      const top = repoWith({ "README.md": "r\n" });
+      mkdirSync(path.join(top, "new-app"));
+      const v = sourceVersion({
+        repo: path.join(top, "new-app"),
+        artifacts: art(top),
+      });
+      expect(v.tree).toBe(EMPTY_TREE);
+    });
+
+    test("サブモジュールの commit を変えると dirty になり、commit すると new.tree が変わる", () => {
+      const sub = repoWith({ "lib.js": "1\n" });
+      const top = repoWith({ "src/a.js": "a\n" });
+      git(top, "-c", "protocol.file.allow=always", "submodule", "add", "-q", sub, "vendor/lib");
+      commitAll(top, "submodule");
+      const take = () => sourceVersion({ repo: top, artifacts: art(top) });
+      const before = take();
+      expect(before.dirty).toBe(false);
+      const inner = path.join(top, "vendor/lib");
+      write(path.join(inner, "lib.js"), "2\n");
+      git(inner, "commit", "-q", "-am", "2");
+      expect(take().dirty).toBe(true);
+      commitAll(top, "bump");
+      expect(take()).toMatchObject({ dirty: false });
+      expect(take().tree).not.toBe(before.tree);
+    });
+
+    test("利用者の git の設定で追跡していないファイルを隠していても、dirty として検出する", () => {
+      const top = repoWith({ "src/a.js": "a\n" });
+      git(top, "config", "status.showUntrackedFiles", "no");
+      write(path.join(top, "src/new.js"), "n\n");
+      expect(sourceVersion({ repo: top, artifacts: art(top) }).dirty).toBe(true);
+    });
+  });
+
+  describe("git で管理されていない・取れない新側", () => {
+    test("git で管理されていなければ、commit と tree を none にする", () => {
+      const dir = tmp();
+      expect(sourceVersion({ repo: dir, artifacts: art(dir) })).toEqual({
+        commit: "none",
+        tree: "none",
+        dirty: false,
+        excluded: null,
+      });
+    });
+
+    test("commit が 1 つも無いリポジトリは、値を出さずに使い方の誤りにする", () => {
+      const top = tmp();
+      git(top, "init", "-q");
+      expect(() => sourceVersion({ repo: top, artifacts: art(top) })).toThrow(/commit が無い/);
+    });
+
+    test("--repo のディレクトリが無ければ、使い方の誤りにする", () => {
+      expect(() =>
+        sourceVersion({ repo: path.join(tmp(), "missing"), artifacts: ".replace" }),
+      ).toThrow(/無い/);
+    });
+
+    test("--artifacts のディレクトリが無ければ、使い方の誤りにする（.replace/ を含めた値を出さない）", () => {
+      const top = repoWith({ "a.js": "a\n", ".replace/x.json": "{}\n" });
+      expect(() => sourceVersion({ repo: top, artifacts: path.join(top, "sub/.replace") })).toThrow(
+        /--artifacts のディレクトリが無い/,
+      );
+    });
+
+    test("--artifacts がリポジトリの最上位そのものなら、使い方の誤りにする", () => {
+      const top = repoWith({ "a.js": "a\n" });
+      expect(() => sourceVersion({ repo: top, artifacts: top })).toThrow(/そのものか、その祖先/);
+    });
+
+    test("--artifacts が新側のディレクトリの祖先なら、使い方の誤りにする（新側が何も残らない値を出さない）", () => {
+      const top = repoWith({ "apps/new/a.js": "a\n", "apps/.replace/x.json": "{}\n" });
+      expect(() =>
+        sourceVersion({ repo: path.join(top, "apps/new"), artifacts: path.join(top, "apps") }),
+      ).toThrow(/そのものか、その祖先/);
+    });
+  });
+
+  describe("--rev", () => {
+    test("--rev の commit の tree を取り、作業ツリーを見ないので dirty は null にする", () => {
+      const top = repoWith({ "src/a.js": "a\n", ".replace/x.json": "{}\n" });
+      const first = git(top, "rev-parse", "HEAD").trim();
+      const before = sourceVersion({ repo: top, artifacts: art(top) });
+      write(path.join(top, "src/a.js"), "b\n");
+      commitAll(top, "src");
+      write(path.join(top, "src/a.js"), "dirty\n");
+      const v = sourceVersion({ repo: top, artifacts: art(top), rev: first });
+      expect(v).toEqual({ commit: first, tree: before.tree, dirty: null, excluded: ".replace" });
+    });
+
+    test("--rev でも .replace/ を除く（記録の commit は tree を変えない）", () => {
+      const top = repoWith({ "src/a.js": "a\n", ".replace/x.json": "{}\n" });
+      const before = sourceVersion({ repo: top, artifacts: art(top) });
+      write(path.join(top, ".replace/y.json"), "{}\n");
+      commitAll(top, "record");
+      const head = git(top, "rev-parse", "HEAD").trim();
+      expect(sourceVersion({ repo: top, artifacts: art(top), rev: head }).tree).toBe(before.tree);
+    });
+
+    test("--rev の commit が手元に無ければ、使い方の誤りにする", () => {
+      const top = repoWith({ "src/a.js": "a\n" });
+      expect(() =>
+        sourceVersion({
+          repo: top,
+          artifacts: art(top),
+          rev: "0123456789abcdef0123456789abcdef01234567",
+        }),
+      ).toThrow(/--rev の commit が手元のリポジトリに無い/);
+    });
+  });
+
+  describe("呼び出し元の環境", () => {
+    test("呼び出し元の GIT_DIR を受け継がず、--repo のリポジトリを読む", () => {
+      const other = repoWith({ "o.js": "o\n" });
+      const top = repoWith({ "src/a.js": "a\n" });
+      const want = sourceVersion({ repo: top, artifacts: art(top) });
+      const saved = process.env.GIT_DIR;
+      process.env.GIT_DIR = path.join(other, ".git");
+      try {
+        expect(sourceVersion({ repo: top, artifacts: art(top) })).toEqual(want);
+      } finally {
+        if (saved === undefined) delete process.env.GIT_DIR;
+        else process.env.GIT_DIR = saved;
+      }
+    });
+
+    test("名前が .. で始まるリポジトリの中のディレクトリの .replace/ も除く", () => {
+      const top = repoWith({ "..data/src/a.js": "a\n", "..data/.replace/x.json": "{}\n" });
+      const repo = path.join(top, "..data");
+      const v = sourceVersion({ repo, artifacts: path.join(repo, ".replace") });
+      expect(v.excluded).toBe("..data/.replace");
+      write(path.join(repo, ".replace/y.json"), "{}\n");
+      expect(sourceVersion({ repo, artifacts: path.join(repo, ".replace") }).dirty).toBe(false);
+    });
+  });
+
+  describe("引数", () => {
+    test.each([
+      [["--repo", "x"], { repo: "x", artifacts: ".replace", rev: null }],
+      [["--repo=x", "--artifacts=y"], { repo: "x", artifacts: "y", rev: null }],
+      [["--repo", "x", "--rev", "abc"], { repo: "x", artifacts: ".replace", rev: "abc" }],
+    ])("%j を読む", (argv, want) => {
+      expect(parseArgs(argv)).toEqual(want);
+    });
+
+    test.each([
+      [[]],
+      [["--repo"]],
+      [["--repo", "x", "--repo", "y"]],
+      [["--repo", "x", "--other"]],
+      [["--repo", "--artifacts", "x"]],
+      [["--repo="]],
+    ])("%j は使い方の誤り", (argv) => {
+      expect(() => parseArgs(argv)).toThrow();
+    });
+  });
+
+  describe("CLI", () => {
+    test("取れたら JSON を出して exit 0、取れなければ exit 2", () => {
+      const top = repoWith({ "src/a.js": "a\n", ".replace/x.json": "{}\n" });
+      const ok = spawnSync(process.execPath, [SCRIPT, "--repo", top], {
+        cwd: top,
+        encoding: "utf8",
+        env: GIT_ENV,
+        timeout: CHILD_TIMEOUT_MS,
+      });
+      expect(ok.status).toBe(0);
+      const out: unknown = JSON.parse(ok.stdout);
+      // --artifacts のデフォルトは作業ディレクトリの .replace
+      expect(out).toMatchObject({
+        dirty: false,
+        excluded: ".replace",
+        commit: expect.stringMatching(/^[0-9a-f]{40}$/),
+      });
+      const ng = spawnSync(process.execPath, [SCRIPT], {
+        cwd: top,
+        encoding: "utf8",
+        env: GIT_ENV,
+        timeout: CHILD_TIMEOUT_MS,
+      });
+      expect(ng.status).toBe(2);
+      expect(ng.stdout).toBe("");
+      expect(ng.stderr).toMatch(/--repo が無い/);
+    });
   });
 });
