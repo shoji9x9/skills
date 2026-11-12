@@ -14,8 +14,9 @@
 // 取り方の原本は replace-strategy の references/project-config.md「新側のバージョンの記録」である。
 // 1〜5 の記録は、verify-metadata.json の new.tree と同じバージョンのものでなければ、古い記録として数える。tree を持たない記録も古い記録である。
 // 3 の比較の結果の tree は、runtime-errors.mjs compare --tree で渡した値である。
-// 4・5 の承認は、verify-metadata.json の approvals（追記専用。replace-strategy の append-only-check.mjs が縮んでいないかを確かめる）に
+// 3 の許容と 4・5 の承認は、verify-metadata.json の approvals（追記専用。replace-strategy の append-only-check.mjs が縮んでいないかを確かめる）に
 // 同じ承認が積まれていなければ、承認として数えない。承認を後から書き換えると、approvals と食い違うか、approvals が縮む。
+// approvals の要素は新側のバージョン（tree）を持つので、前のバージョンで承認した許容は、compare が分類を持ち越しても承認として数えない。
 // 1 のスイートの結果は、metadata.json の suite.dir の下のテストだけを含むものでなければ読まない（ほかの機能のテストを数えない）。
 // 前提として、verify-metadata.json の new.tree があり、none（新側が git で管理されていない）でないことを確かめる。none では、どの記録のバージョンも特定できない。
 // parity-replace が新側を green にした記録（replace-metadata.json）は、dirty: false であることを確かめる。
@@ -313,21 +314,52 @@ function checkCompared(compared) {
 }
 
 /**
- * 現行に無かった署名を、分類から判定し直す。
+ * 現行に無かった署名を、分類から判定し直す。許容は、承認の記録（approvals）に同じ値が積まれていることも求める。
  * @param {unknown[]} sigs
- * @param {Reasons} reasons
+ * @param {{ tree: string, approvals: Record<string, unknown>[], reasons: Reasons }} ctx
  */
-function judgeSignatures(sigs, reasons) {
+function judgeSignatures(sigs, { tree, approvals, reasons }) {
   for (const s of sigs) {
-    const state = judgeClassification(isPlainObject(s) ? s : undefined).state;
+    const judged = judgeClassification(isPlainObject(s) ? s : undefined);
     const name = isPlainObject(s)
       ? `${String(s.test)} の ${String(s.kind)}「${String(s.text)}」`
       : "読めない署名";
-    if (state === "actionable")
+    if (judged.state === "actionable")
       reasons.add("send-back", "runtime_errors", `要対応のエラー: ${name}`);
-    else if (state === "unexplained")
+    else if (judged.state === "unexplained")
       reasons.add("approval", "runtime_errors", `分類か承認の無い、現行に無かったエラー: ${name}`);
+    else if (judged.classification === "許容" && !allowanceLogged(s, judged, { tree, approvals }))
+      reasons.add(
+        "approval",
+        "runtime_errors",
+        `許容の承認が、承認の記録（approvals）に同じ値で積まれていないエラー: ${name}（承認を書き換えたか、前のバージョンの承認なら、利用者に承認し直してもらって approvals に追記する）`,
+      );
   }
+}
+
+/**
+ * 許容の承認が、承認の記録（approvals）に、同じテスト × 署名・同じバージョンで同じ値が積まれているか。
+ * テストか署名の id が無い署名は、照合の鍵が無いので積まれていないものとして扱う（欠けた鍵どうしを一致させない）。
+ * 分類の欄は承認した人を持たないので、承認の記録の要素には承認した人（approved_by）が書いてあることも求める。
+ * @param {unknown} s - new_signatures の要素
+ * @param {ReturnType<typeof judgeClassification>} judged
+ * @param {{ tree: string, approvals: Record<string, unknown>[] }} ctx
+ * @returns {boolean}
+ */
+function allowanceLogged(s, judged, { tree, approvals }) {
+  if (!isPlainObject(s) || !nonEmptyString(s.test) || !nonEmptyString(s.id)) return false;
+  const want = {
+    kind: "runtime_errors",
+    test: s.test,
+    id: s.id,
+    tree,
+    approved_at: judged.approved_at,
+    reason: judged.reason,
+  };
+  return logged(
+    approvals.filter((a) => filled(a.approved_by)),
+    want,
+  );
 }
 
 /**
@@ -354,9 +386,9 @@ function judgeCompareLists(compared, reasons) {
  * 操作中のエラーの比較の結果を、分類から判定し直す。
  * @param {Record<string, unknown>} baseline - metadata.json の runtime_errors
  * @param {unknown} compared - verify-metadata.json の runtime_errors（compare --write が書いたもの）
- * @param {{ tree: string, reasons: Reasons }} ctx - tree は verify-metadata.json の new.tree
+ * @param {{ tree: string, approvals: Record<string, unknown>[], reasons: Reasons }} ctx - tree は verify-metadata.json の new.tree
  */
-export function judgeRuntimeErrors(baseline, compared, { tree, reasons }) {
+export function judgeRuntimeErrors(baseline, compared, { tree, approvals, reasons }) {
   if (baseline.declared !== true) return { judged: false, reason: String(baseline.reason) };
   if (!isPlainObject(compared)) {
     reasons.add(
@@ -374,7 +406,7 @@ export function judgeRuntimeErrors(baseline, compared, { tree, reasons }) {
   const sigs = compared.new_signatures;
   if (!isArray(sigs))
     throw new UsageError("verify-metadata.json の runtime_errors.new_signatures が配列でない");
-  judgeSignatures(sigs, reasons);
+  judgeSignatures(sigs, { tree, approvals, reasons });
   judgeCompareLists(compared, reasons);
   return { judged: true, new_signatures: sigs.length };
 }
@@ -397,6 +429,9 @@ function hasApproval(a) {
   return isPlainObject(a) && filled(a.approved_by) && filled(a.approved_at);
 }
 
+/** 承認の記録（approvals）の要素の kind。操作中のエラーの許容・デザインの指摘の受け入れ・人による確認の返事である。 */
+const APPROVAL_KINDS = ["runtime_errors", "design_review", "human_review"];
+
 /**
  * 承認の記録（verify-metadata.json の approvals）を読む。キーごと無い記録（approvals を書く前のもの）は、積まれた承認が 0 件として扱う。
  * 読まなかった要素の件数（ignored）は、収束の判定の checks.approvals に残す。
@@ -407,13 +442,12 @@ function hasApproval(a) {
 export function readApprovals(list) {
   if (list === undefined) return { entries: [], ignored: 0 };
   if (!isArray(list)) throw new UsageError("verify-metadata.json の approvals が配列でない");
-  // 語彙の外の要素（kind が design_review・human_review でない・オブジェクトでない）は、承認として数えずに件数だけを残す。
+  // 語彙の外の要素（kind が runtime_errors・design_review・human_review でない・オブジェクトでない）は、承認として数えずに件数だけを残す。
   // approvals は追記専用で要素を消せないので、ここで止めると、一度積んだ誤りの要素でいつまでも判定できなくなる
   /** @type {Record<string, unknown>[]} */
   const entries = [];
   for (const a of list)
-    if (isPlainObject(a) && (a.kind === "design_review" || a.kind === "human_review"))
-      entries.push(a);
+    if (isPlainObject(a) && APPROVAL_KINDS.includes(String(a.kind))) entries.push(a);
   return { entries, ignored: list.length - entries.length };
 }
 
@@ -776,7 +810,11 @@ export function judgeConvergence(input) {
   const approvals = approvalLog.entries;
   const overflow = judgeOverflowRecord({ metadata, input, tree }, reasons);
   const baseline = isPlainObject(metadata.runtime_errors) ? metadata.runtime_errors : {};
-  const runtimeErrors = judgeRuntimeErrors(baseline, v.runtime_errors, { tree, reasons });
+  const runtimeErrors = judgeRuntimeErrors(baseline, v.runtime_errors, {
+    tree,
+    approvals,
+    reasons,
+  });
   const required =
     baseline.declared === true ? ALWAYS_UNVERIFIED : [...ALWAYS_UNVERIFIED, "runtime_errors"];
   const checks = {

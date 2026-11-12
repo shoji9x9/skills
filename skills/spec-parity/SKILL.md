@@ -179,7 +179,7 @@ node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mj
    どちらでもないと、書くたびに `new.dirty` が `true` になり、verify は止まる（同じ節）。
 2. スイートを新側で実行する。suite の手順 4 と同じスイートのパスを付けて `--target=new` で実行し、結果の JSON を `new/<target>/suite-report.json` に保存し、実行した新側の `new.tree` を `suite.tree` に書く。
 3. 横のはみ出しを測る。記録した幅で新側を測り、`overflow-check.mjs --write` で `overflow` に書く（[`references/overflow.md`](references/overflow.md)）。
-4. 操作中のエラーを比べる。新側で 2 回以上記録し、`runtime-errors.mjs compare --write <verify-metadata.json> --tree <new.tree>` で比べる。`--tree` には、記録を採った新側の `new.tree` を渡す。現行に無かった署名は 3 値に分類する（[`references/runtime-errors.md`](references/runtime-errors.md)）。
+4. 操作中のエラーを比べる。新側で 2 回以上記録し、`runtime-errors.mjs compare --write <verify-metadata.json> --tree <new.tree>` で比べる。`--tree` には、記録を採った新側の `new.tree` を渡す。現行に無かった署名は 3 値に分類する。許容は利用者が承認し、承認を `approvals` に追記する（[`references/runtime-errors.md`](references/runtime-errors.md)）。
 5. デザインを点検する。`web-design-guidelines` があれば使い、無ければ同梱の観点で点検する。指摘は「直す」か「受け入れる」に分け、受け入れるものは利用者が承認し、承認を `approvals` に追記する（[`references/design-review.md`](references/design-review.md)）。
 6. 人に確かめてもらう。新側の画面を記録した幅で見てもらい、承認を記録して `approvals` に追記する（[`references/design-review.md`](references/design-review.md)「人による確認」と「承認の記録」）。
 7. 収束を判定し、差し戻す。判定の直前に、手順 1 と同じ `source-version.mjs` で新側のバージョンを取得し直す。

@@ -390,6 +390,9 @@ export function readBaseline(base) {
 
 /**
  * 前の実行の分類を読む（diff-metadata.json の runtime_errors.new_signatures）。読めない要素は持ち越さない。
+ * 持ち越しは新側のバージョン（tree）を見ない。spec-parity の収束の判定は、許容の承認を verify-metadata.json の approvals
+ * （要素が新側のバージョンを持つ）と照合するので、前のバージョンの承認を数えない。parity-diff は承認を照合せず、持ち越した許容を数える
+ * （範囲は replace-strategy の references/scope.md）。持ち越しにバージョンの一致を求めると、parity-diff でも新側を直すたびに全件を分類し直すことになる。
  * @param {unknown} previous
  * @returns {Map<string, Record<string, unknown>>}
  */

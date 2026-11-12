@@ -1,0 +1,168 @@
+{
+  "slug": "order-list",
+  "target": "local-dev",
+  "style_policy": "free",
+  "new": {
+    "commit": "abc1234def5678",
+    "tree": "def5678abc1234",
+    "dirty": false,
+    "ui_url": "http://localhost:5173"
+  },
+  "run": {
+    "started_at": "2026-05-03T01:00:00Z",
+    "agent": "Claude Code",
+    "model": "opus",
+    "autonomous": false
+  },
+  "suite": {
+    "tree": "def5678abc1234",
+    "report": ".replace/parity/order-list/new/local-dev/suite-report.json"
+  },
+  "overflow": {
+    "tool": "overflow-check",
+    "version": "1",
+    "judged": true,
+    "ok": true,
+    "counts": {
+      "expected": 2,
+      "measured": 2,
+      "overflowing": 0,
+      "missing": 0,
+      "width_mismatch": 0,
+      "extra": 0
+    },
+    "overflowing": [],
+    "missing": [],
+    "width_mismatch": [],
+    "extra": [],
+    "commit": "def5678abc1234",
+    "measurements": ".replace/parity/order-list/new/local-dev/overflow.json"
+  },
+  "runtime_errors": {
+    "tool": "runtime-errors",
+    "version": "1",
+    "judged": true,
+    "ok": true,
+    "runs": 2,
+    "counts": {
+      "new_signatures": 1,
+      "actionable": 0,
+      "explained": 1,
+      "unexplained": 0
+    },
+    "missing_tests": [],
+    "failed_tests": [],
+    "extra_tests": [],
+    "skipped_tests": [],
+    "current_skipped_tests": [],
+    "new_signatures": [
+      {
+        "test": "tests/order-list/list.e2e.ts › 並び順を切り替える",
+        "id": "b825be2cac3aa466",
+        "kind": "http-error",
+        "page": "/orders",
+        "method": "GET",
+        "url": "/api/orders/sort-presets",
+        "status": 404,
+        "text": "Not Found",
+        "seen_runs": 2,
+        "runs": 2,
+        "sample": "Not Found",
+        "classification": "許容",
+        "reason": "並び順の既定の一覧を返す API は新側で廃止した。画面は既定の並び順で表示するので、仕様として問題が無い",
+        "approved_at": "2026-04-28T06:00:00Z",
+        "evidence": null,
+        "state": "explained"
+      }
+    ],
+    "tree": "def5678abc1234",
+    "run_dirs": [
+      ".replace/parity/order-list/new/local-dev/runtime-errors/run-1",
+      ".replace/parity/order-list/new/local-dev/runtime-errors/run-2"
+    ]
+  },
+  "design_review": {
+    "source": "bundled",
+    "tree": "def5678abc1234",
+    "completed_at": "2026-05-03T02:30:00Z",
+    "rules_note": null,
+    "pages_reviewed": ["/orders"],
+    "findings": [
+      {
+        "id": "dr-1",
+        "rule": "focus-visible",
+        "page": "/orders",
+        "summary": "並び順の切り替えのボタンに、キーボードで移ったときの焦点の輪が出ない",
+        "decision": "accept",
+        "approval": {
+          "approved_by": "owner",
+          "approved_at": "2026-05-03T03:00:00Z",
+          "reason": "社内の画面の規定で、焦点の輪は全画面でまとめて直す"
+        }
+      }
+    ]
+  },
+  "human_review": {
+    "tree": "def5678abc1234",
+    "screens": [
+      {
+        "page": "/orders",
+        "viewport": {
+          "width": 375,
+          "height": 800
+        },
+        "screenshot": ".replace/parity/order-list/new/local-dev/review/orders-375.png"
+      },
+      {
+        "page": "/orders",
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        },
+        "screenshot": ".replace/parity/order-list/new/local-dev/review/orders-1280.png"
+      }
+    ],
+    "approval": {
+      "verdict": "approved",
+      "approved_by": "owner",
+      "approved_at": "2026-05-03T04:00:00Z",
+      "notes": ""
+    }
+  },
+  "unverified": [
+    {
+      "item": "performance",
+      "reason": "性能の比較（perf-stats.mjs）は Playwright の採取を前提にしているので、spec-parity では確かめない"
+    }
+  ],
+  "approvals": [
+    {
+      "kind": "runtime_errors",
+      "test": "tests/order-list/list.e2e.ts › 並び順を切り替える",
+      "id": "b825be2cac3aa466",
+      "tree": "7e2c9b41d0a35f86e1c4b7a2d9f03e5c6b8a1d47",
+      "approved_by": "owner",
+      "approved_at": "2026-04-28T06:00:00Z",
+      "reason": "並び順の既定の一覧を返す API は新側で廃止した。画面は既定の並び順で表示するので、仕様として問題が無い"
+    },
+    {
+      "kind": "design_review",
+      "id": "dr-1",
+      "tree": "def5678abc1234",
+      "approved_by": "owner",
+      "approved_at": "2026-05-03T03:00:00Z",
+      "reason": "社内の画面の規定で、焦点の輪は全画面でまとめて直す"
+    },
+    {
+      "kind": "human_review",
+      "tree": "def5678abc1234",
+      "verdict": "approved",
+      "approved_by": "owner",
+      "approved_at": "2026-05-03T04:00:00Z",
+      "notes": ""
+    }
+  ],
+  "pending_decisions": [],
+  "converged": false,
+  "convergence": null
+}

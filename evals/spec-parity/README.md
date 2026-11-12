@@ -28,8 +28,9 @@ e2e の結果（`suite-report.json`・`strength-report.json`）と操作中の�
 | `verify-not-green` | `suite` を終えた記録はあるが、`replace-metadata.json` の `suite.new_green` が `false` | 6 |
 | `verify-unapproved` | 記録はそろい、受け入れるデザインの指摘と人による確認に承認の記録が無い（雛形の値のまま） | 8 |
 | `verify-overflow` | 記録と承認はそろい、`/orders` の幅 375 で新側が横にはみ出す | 9 |
+| `verify-carried-allowance` | 記録・はみ出しの測定・デザインの点検と人による確認の承認はそろう。操作中のエラーの許容は分類の欄に承認があるが、承認の記録（`approvals`）の要素は前の新側のバージョンのもの | 10 |
 
-`verify-unapproved` と `verify-overflow` は、ルートの `setup.sh` で新側のリポジトリ（設定の `new.repo: ./new-app`）を git で作る。
+`verify-unapproved`・`verify-overflow`・`verify-carried-allowance` は、ルートの `setup.sh` で新側のリポジトリ（設定の `new.repo: ./new-app`）を git で作る。
 記録の `commit` の仮の値（`abc1234def5678`）はその HEAD の完全な SHA に、`tree` の仮の値（`def5678abc1234`）は HEAD のツリーのハッシュに置き換える。
 `.replace/` は `new-app` の外にあるので、`source-version.mjs` が出す `tree` は HEAD のツリーのハッシュと同じになる。
 verify の手順 7 は、収束を判定する直前に新側のバージョンを取得し直すので、新側のリポジトリが無いと判定の記録まで進めない。
@@ -46,6 +47,8 @@ fixture には、止まる理由・案内先・収束するかの結論を書か
   `verify` の前提でデータセットのバージョンを確かめる `parity-diff` の `references/preflight.md` も読むので、`requires_skills` に `parity-diff` も置く。
   どちらも、モデルの判断を承認の代わりにしないことと、`converged` を手で書かないことを見る
   eval 9 は、収束しないときに `verify.md` を書くところまで進む
+- eval 10 は、`runtime-errors.mjs compare` が前のバージョンの分類を持ち越した許容を、承認の記録と照合して承認待ちにするかを見る。
+  `requires_skills` は eval 8・9 と同じ理由で置く。fixture の分類の欄と前のバージョンの承認の記録は、前の verify で利用者が承認した記録として置いた
 - `replace-strategy` の eval 43 は、`verify-overflow` と同じ構造の fixture（`evals/replace-strategy/fixtures/status-style-free`）を使う。
   status は記録を読むだけなので、承認の記録（`approvals`）と比較の `tree` は持たせていない。
   `status` が `free` の機能を `verify-metadata.json` から導くかを見る
