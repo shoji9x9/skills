@@ -542,12 +542,21 @@ describe("承認の記録（approvals）", () => {
     ]);
   });
 
+  test("approvals が配列でなければ exit 2", () => {
+    expect(run(withVerify({ approvals: { kind: "human_review" } })).code).toBe(2);
+  });
+
+  // approvals は追記専用で要素を消せないので、語彙の外の要素で判定を止めない。承認として数えず、件数を残す
   test.each([
-    ["配列でない", { kind: "human_review" }],
-    ["kind が語彙の外", [{ ...humanLog, kind: "other" }]],
-    ["要素がオブジェクトでない", ["approved"]],
-  ])("approvals が %s なら exit 2", (_name, approvals) => {
-    expect(run(withVerify({ approvals })).code).toBe(2);
+    ["kind が語彙の外", { ...humanLog, kind: "other" }],
+    ["オブジェクトでない", "approved"],
+  ])("approvals に %s の要素があっても、承認として数えずに判定を続ける", (_name, extra) => {
+    const ok = run(withVerify({ approvals: [designLog, humanLog, extra] }));
+    expect(ok.code).toBe(0);
+    expect(ok.result?.checks.approvals).toEqual({ entries: 2, ignored: 1 });
+    // 語彙の外の要素だけでは、人による確認の承認にならない
+    const onlyExtra = run(withVerify({ approvals: [designLog, extra] }));
+    expect(kinds(onlyExtra)).toEqual([["approval", "human_review"]]);
   });
 });
 
@@ -618,22 +627,27 @@ describe("スイートの範囲（suite.dir）", () => {
     expect(kinds(run(fs))).toEqual([]);
   });
 
-  test.each([["tests/orders"], ["./tests/orders/"]])(
-    "suite.dir が %s の形でも、同じスイートとして読む",
-    (dir) => {
-      const fs = convergedFs();
-      fs.put(
-        `${SLUG_DIR}/metadata.json`,
-        suiteMetadata({ suite: { ...suiteMetadata().suite, dir } }),
-      );
-      expect(run(fs).code).toBe(0);
-    },
-  );
+  test.each([
+    ["tests/orders"],
+    ["./tests/orders/"],
+    ["tests\\orders"],
+    ["tests//orders"],
+    [" tests/orders/ "],
+  ])("suite.dir が %s の形でも、同じスイートとして読む", (dir) => {
+    const fs = convergedFs();
+    fs.put(
+      `${SLUG_DIR}/metadata.json`,
+      suiteMetadata({ suite: { ...suiteMetadata().suite, dir } }),
+    );
+    expect(run(fs).code).toBe(0);
+  });
 
   test.each([
     ["無い", undefined],
     ["雛形の値のまま", "<スイートのディレクトリ（例: tests/<slug>/）>"],
     ["絶対パス", "/tests/orders/"],
+    ["リポジトリのルート（.）", "."],
+    ["リポジトリのルート（./）", "./"],
     [".. を含む", "tests/../orders/"],
   ])("suite.dir が %s なら exit 2", (_name, dir) => {
     const fs = convergedFs();

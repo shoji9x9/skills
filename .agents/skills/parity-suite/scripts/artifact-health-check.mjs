@@ -1971,7 +1971,7 @@ function judgeStageTargets(s) {
   // （component-comparison-check.mjs と spec-parity の convergence-check.mjs と同じ扱い）。
   if (s.replaceNew !== null && s.replaceNew.dirty !== false) {
     s.findings.push(
-      `新側のバージョンを特定できない（replace-metadata.json の new.dirty が false でない: ${JSON.stringify(s.replaceNew.dirty)}。未コミット変更の有無を確かめられない）: ${s.diffPath}`,
+      `新側のバージョンを特定できない（replace-metadata.json の new.dirty が false でない: ${JSON.stringify(s.replaceNew.dirty)}。未コミット変更の有無を確かめられない。新側を commit してから、同じ --target の parity-replace で green を記録し直す。dirty を持たない前の記録も同じ）: ${s.diffPath}`,
     );
   }
 }

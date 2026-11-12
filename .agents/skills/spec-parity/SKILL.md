@@ -214,7 +214,7 @@ node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mj
   対象は [`scripts/runtime-errors.mjs`](scripts/runtime-errors.mjs)・[`scripts/strength-check.mjs`](scripts/strength-check.mjs)・
   [`scripts/overflow-check.mjs`](scripts/overflow-check.mjs)・[`scripts/convergence-check.mjs`](scripts/convergence-check.mjs)・[`scripts/source-version.mjs`](scripts/source-version.mjs) である。
   `runtime-errors.mjs` は `parity-suite` のものと、`source-version.mjs` は `parity-replace`・`parity-diff` のものと同じ中身である。
-  `scripts/lib/pending-state.mjs` の保留の判定は、`replace-strategy` の `scripts/pending-decisions-check.mjs` の判定と同じ中身である。
+  `scripts/lib/pending-state.mjs`（保留の判定）は `replace-strategy` のものと同じ中身である。
 
 ## 姉妹スキルとの連携
 

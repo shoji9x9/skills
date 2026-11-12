@@ -256,7 +256,7 @@
     },
     {
       "file": "skills/spec-parity/scripts/lib/pending-state.mjs",
-      "exports": ["classifyDecision"]
+      "exports": ["*"]
     },
     {
       "file": "skills/spec-parity/scripts/runtime-errors.mjs",

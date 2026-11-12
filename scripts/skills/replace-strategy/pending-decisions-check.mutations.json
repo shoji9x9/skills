@@ -10,7 +10,7 @@
     {
       "id": "decided-counted-settled",
       "why": "回答はあるが blocks の工程を実施した記録も置き場も無い保留を済んだと数える",
-      "file": "skills/replace-strategy/scripts/pending-decisions-check.mjs",
+      "file": "skills/replace-strategy/scripts/lib/pending-state.mjs",
       "find": "  return { state: \"decided\", reason: missingReason };\n",
       "replace": "  return { state: \"settled\", reason: missingReason };\n",
       "occurrences": 1,
@@ -27,7 +27,7 @@
     {
       "id": "resumed-without-evidence",
       "why": "証拠の無い実施の記録（日時だけ）で済んだと数える",
-      "file": "skills/replace-strategy/scripts/pending-decisions-check.mjs",
+      "file": "skills/replace-strategy/scripts/lib/pending-state.mjs",
       "find": "    resumed.evidence.some(answered)\n",
       "replace": "    true\n",
       "occurrences": 1,
@@ -39,7 +39,7 @@
     {
       "id": "blocks-missing-as-empty",
       "why": "blocks の欠落を「止めた工程が無い」とみなして済んだと数える",
-      "file": "skills/replace-strategy/scripts/pending-decisions-check.mjs",
+      "file": "skills/replace-strategy/scripts/lib/pending-state.mjs",
       "find": "  if (!isArray(blocks)) {\n",
       "replace": "  if (!isArray(blocks)) return { state: \"settled\", reason: \"\" };\n  if (false) {\n",
       "occurrences": 1,
@@ -59,7 +59,7 @@
     {
       "id": "pd-placeholder-answer-off",
       "why": "回答が雛形の値（<...>）のままの保留を、回答があるものとして数える（Issue #995 の項目 5）",
-      "file": "skills/replace-strategy/scripts/pending-decisions-check.mjs",
+      "file": "skills/replace-strategy/scripts/lib/pending-state.mjs",
       "find": " && !/^<[\\s\\S]*>$/.test(String(v).trim())",
       "replace": "",
       "occurrences": 1,

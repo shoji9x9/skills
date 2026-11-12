@@ -127,7 +127,22 @@ export function checkSuiteMetadata(metadata, slugDir) {
 }
 
 /**
- * スイートのディレクトリを、前方一致で比べる形（./ を外し、末尾を / にする）にする。
+ * パスを前方一致で比べる形にする。区切りの \ を / に、続いた / を 1 つにし、先頭の ./ を外す。
+ * suite.dir と結果の file の両方に同じ正規化を当てる（片方だけにすると、書き方が違うだけで一致しない）。
+ * @param {string} path
+ * @returns {string}
+ */
+function normalizePath(path) {
+  return path
+    .trim()
+    .replace(/\\/g, "/")
+    .replace(/\/{2,}/g, "/")
+    .replace(/^(\.\/)+/, "");
+}
+
+/**
+ * スイートのディレクトリを、前方一致で比べる形（normalizePath の後、末尾を / にする）にする。
+ * リポジトリのルート（. や空）は、ほかの機能のテストを絞れないので受けない。
  * @param {unknown} dir - metadata.json の suite.dir
  * @returns {string}
  */
@@ -136,10 +151,10 @@ export function suitePrefix(dir) {
     throw new UsageError(
       "metadata.json の suite.dir が無い（雛形の値のままを含む。スイートのディレクトリを書く）",
     );
-  const d = dir.trim().replace(/^(\.\/)+/, "");
+  const d = normalizePath(dir).replace(/^\.\/?$/, "");
   if (d === "" || d.startsWith("/") || d.split("/").includes(".."))
     throw new UsageError(
-      `metadata.json の suite.dir がリポジトリのルートからの相対パスでない: ${dir}`,
+      `metadata.json の suite.dir が、リポジトリのルートの下のディレクトリの相対パスでない: ${dir}`,
     );
   return d.endsWith("/") ? d : `${d}/`;
 }
@@ -149,24 +164,18 @@ export function suitePrefix(dir) {
  * スイートのディレクトリ（prefix）の外のテストは、outside に分けて返す（ほかの機能のテストを含む実行の結果）。
  * @param {unknown} report
  * @param {{ targetId: string, where: string, prefix: string }} ctx - targetId は e2e の設定の target 名（current / new）
- * @returns {{ tests: Map<string, string[]>, outside: string[] }}
+ * @returns {{ tests: Map<string, string>, outside: string[] }}
  */
 export function readReport(report, { targetId, where, prefix }) {
   const { results } = selectedResults(report, { targetId, where });
-  /** @type {Map<string, string[]>} */
+  /** @type {Map<string, string>} */
   const tests = new Map();
   const outside = [];
   for (const [key, { result: r, index }] of results) {
     if (!nonEmptyString(r.status))
       throw new UsageError(`${where} の results[${index}] に status が無い`);
-    if (
-      !String(r.file)
-        .replace(/\\/g, "/")
-        .replace(/^(\.\/)+/, "")
-        .startsWith(prefix)
-    )
-      outside.push(key);
-    else tests.set(key, [r.status]);
+    if (!normalizePath(String(r.file)).startsWith(prefix)) outside.push(key);
+    else tests.set(key, r.status);
   }
   if (tests.size === 0)
     throw new UsageError(
@@ -209,25 +218,26 @@ function readReports(input, prefix, reasons) {
 /**
  * 現行で通ったテストが、新側ですべて passed かを判定する。
  * flaky（リトライで通った）は、新側が安定して通ったとは言えないので passed として扱わない。
- * @param {Map<string, string[]>} current
- * @param {Map<string, string[]>} next
+ * 同じテストの結果は 1 つだけである（lib/e2e-report.mjs が 2 つある結果を読まない）。
+ * @param {Map<string, string>} current
+ * @param {Map<string, string>} next
  * @param {Reasons} reasons
  */
 export function judgeSuite(current, next, reasons) {
   const currentSkipped = [];
-  for (const [test, statuses] of current) {
-    if (statuses.every((s) => s === "skipped")) {
+  for (const [test, status] of current) {
+    if (status === "skipped") {
       currentSkipped.push(test);
       continue;
     }
-    if (!statuses.every((s) => s === "passed"))
+    if (status !== "passed")
       throw new UsageError(
-        `現行の結果で通っていないテスト: ${test}（${statuses.join(", ")}。suite をやり直す）`,
+        `現行の結果で通っていないテスト: ${test}（${status}。suite をやり直す）`,
       );
     const n = next.get(test);
-    if (!n) reasons.add("remeasure", "suite", `新側の結果に無いテスト: ${test}`);
-    else if (!n.every((s) => s === "passed"))
-      reasons.add("send-back", "suite", `新側で通らないテスト: ${test}（${n.join(", ")}）`);
+    if (n === undefined) reasons.add("remeasure", "suite", `新側の結果に無いテスト: ${test}`);
+    else if (n !== "passed")
+      reasons.add("send-back", "suite", `新側で通らないテスト: ${test}（${n}）`);
   }
   // 現行のテストがすべてスキップなら、比べたテストが 0 件のまま収束してしまう（0 件を合格にしない）
   if (currentSkipped.length === current.size)
@@ -365,23 +375,22 @@ function hasApproval(a) {
 
 /**
  * 承認の記録（verify-metadata.json の approvals）を読む。キーごと無い記録（approvals を書く前のもの）は、積まれた承認が 0 件として扱う。
+ * 読まなかった要素の件数（ignored）は、収束の判定の checks.approvals に残す。
  * approvals は追記専用で、replace-strategy の append-only-check.mjs が縮んでいないかを確かめる（replace-strategy の assets/append-only-manifest.json）。
  * @param {unknown} list
- * @returns {Record<string, unknown>[]}
+ * @returns {{ entries: Record<string, unknown>[], ignored: number }}
  */
 export function readApprovals(list) {
-  if (list === undefined) return [];
+  if (list === undefined) return { entries: [], ignored: 0 };
   if (!isArray(list)) throw new UsageError("verify-metadata.json の approvals が配列でない");
+  // 語彙の外の要素（kind が design_review・human_review でない・オブジェクトでない）は、承認として数えずに件数だけを残す。
+  // approvals は追記専用で要素を消せないので、ここで止めると、一度積んだ誤りの要素でいつまでも判定できなくなる
   /** @type {Record<string, unknown>[]} */
-  const out = [];
-  for (const [i, a] of list.entries()) {
-    if (!isPlainObject(a) || (a.kind !== "design_review" && a.kind !== "human_review"))
-      throw new UsageError(
-        `verify-metadata.json の approvals[${i}] の kind が design_review か human_review でない`,
-      );
-    out.push(a);
-  }
-  return out;
+  const entries = [];
+  for (const a of list)
+    if (isPlainObject(a) && (a.kind === "design_review" || a.kind === "human_review"))
+      entries.push(a);
+  return { entries, ignored: list.length - entries.length };
 }
 
 /**
@@ -739,7 +748,8 @@ export function judgeConvergence(input) {
   const suiteMeta = isPlainObject(metadata.suite) ? metadata.suite : {};
   const reports = readReports(input, suitePrefix(suiteMeta.dir), reasons);
   const suite = judgeSuite(reports.current, reports.next, reasons);
-  const approvals = readApprovals(v.approvals);
+  const approvalLog = readApprovals(v.approvals);
+  const approvals = approvalLog.entries;
   const overflow = judgeOverflowRecord({ metadata, input, tree }, reasons);
   const baseline = isPlainObject(metadata.runtime_errors) ? metadata.runtime_errors : {};
   const runtimeErrors = judgeRuntimeErrors(baseline, v.runtime_errors, { tree, reasons });
@@ -752,6 +762,7 @@ export function judgeConvergence(input) {
     design_review: judgeDesignReview(v.design_review, { tree, approvals, reasons }),
     human_review: judgeHumanReview(v.human_review, { tree, approvals, reasons }),
     unverified: judgeUnverified(v.unverified, required, reasons),
+    approvals: { entries: approvals.length, ignored: approvalLog.ignored },
     pending_decisions: judgePending(v.pending_decisions, reasons),
     unmeasured: judgeUnmeasured(metadata, reasons),
   };

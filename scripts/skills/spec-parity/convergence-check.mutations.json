@@ -9,7 +9,7 @@
       "id": "cv-suite-status-off",
       "why": "新側で passed でないテストを差し戻さない",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "    else if (!n.every((s) => s === \"passed\"))\n",
+      "find": "    else if (n !== \"passed\")\n",
       "replace": "    else if (false)\n",
       "occurrences": 1,
       "expect_failing": [
@@ -23,8 +23,8 @@
       "id": "cv-suite-missing-off",
       "why": "新側の結果に無いテストを数えない",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "    if (!n) reasons.add(\"remeasure\", \"suite\", `新側の結果に無いテスト: ${test}`);\n",
-      "replace": "    if (!n) void 0;\n",
+      "find": "    if (n === undefined) reasons.add(\"remeasure\", \"suite\", `新側の結果に無いテスト: ${test}`);\n",
+      "replace": "    if (n === undefined) void 0;\n",
       "occurrences": 1,
       "expect_failing": [
         "スイート 新側の結果に無いテストは、やり直しとして exit 1",
@@ -454,24 +454,28 @@
       "expect_failing": [
         "承認の記録（approvals） 承認の記録から、人による確認の承認が消えていれば、承認待ちにする",
         "承認の記録（approvals） 却下（rejected）を承認（approved）に書き換えたら、承認の記録と食い違うので承認待ちにする",
-        "承認の記録（approvals） approvals をキーごと持たない記録（承認の記録の導入前）は、承認し直すまで承認待ちにする"
+        "承認の記録（approvals） approvals をキーごと持たない記録（承認の記録の導入前）は、承認し直すまで承認待ちにする",
+        "承認の記録（approvals） approvals に kind が語彙の外 の要素があっても、承認として数えずに判定を続ける",
+        "承認の記録（approvals） approvals に オブジェクトでない の要素があっても、承認として数えずに判定を続ける"
       ]
     },
     {
       "id": "cv-approvals-kind-off",
-      "why": "承認の記録の kind を確かめず、語彙の外の要素を読んで判定する",
+      "why": "承認の記録の kind を確かめず、語彙の外の要素を承認として数える",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "(a.kind !== \"design_review\" && a.kind !== \"human_review\")",
-      "replace": "false",
+      "find": "    if (isPlainObject(a) && (a.kind === \"design_review\" || a.kind === \"human_review\"))\n",
+      "replace": "    if (isPlainObject(a))\n",
       "occurrences": 1,
-      "expect_failing": ["承認の記録（approvals） approvals が kind が語彙の外 なら exit 2"]
+      "expect_failing": [
+        "承認の記録（approvals） approvals に kind が語彙の外 の要素があっても、承認として数えずに判定を続ける"
+      ]
     },
     {
       "id": "cv-suite-dir-off",
       "why": "スイートの結果を suite.dir で絞らず、ほかの機能のテストを含む結果で判定する（Issue #995 のコメントの項目）",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "        .startsWith(prefix)\n",
-      "replace": "        .startsWith(\"\")\n",
+      "find": "    if (!normalizePath(String(r.file)).startsWith(prefix)) outside.push(key);\n",
+      "replace": "    if (false) outside.push(key);\n",
       "occurrences": 1,
       "expect_failing": [
         "スイートの範囲（suite.dir） 新側の結果にほかの機能のテストがあれば、絞って採り直す（通らないほかの機能のテストで差し戻さない）",

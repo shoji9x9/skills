@@ -1,13 +1,12 @@
-// 自律実行の保留（pending_decisions[]）1 件の状態を決める部品。
-// 判定の規則の原本は replace-strategy の scripts/pending-decisions-check.mjs で、印の間を同じ中身で持つ（identical-copies の組で確かめる）。
-// 状態の定義の原本は replace-strategy の references/autonomy.md「保留の状態」である。
-// spec-parity の収束の判定は、replace-strategy のスクリプトを import できない（スキルごとに別の場所に入る）ので、同じ判定をここに持つ。
-// 片方だけを直すと、前提の判定（pending-decisions-check.mjs）と収束の判定で、同じ保留の数え方が食い違う。
+// 自律実行の保留（pending_decisions[]）1 件の状態（open・decided・settled）を決める部品。
+// 状態の定義の原本は replace-strategy の references/autonomy.md「保留の状態」で、判定はこのファイルで定義する。
+// このファイルは replace-strategy と spec-parity が同じ中身で持つ（identical-copies の組で確かめる）。
+// replace-strategy の pending-decisions-check.mjs（前提の判定）と spec-parity の convergence-check.mjs（収束の判定）が使う。
+// 片方だけを直すと、前提の判定と収束の判定で、同じ保留の数え方が食い違う。
 
 import { isArray } from "./is-array.mjs";
 import { isPlainObject, nonEmptyString } from "./guards.mjs";
 
-// pending-state-js:begin
 /**
  * 回答として書いてあるか。雛形のプレースホルダ（`<...>`）のままの値は、書いていないものとして扱う。
  * @param {unknown} v
@@ -85,4 +84,3 @@ function settledOrDecided(resolution, missingReason) {
   }
   return { state: "decided", reason: missingReason };
 }
-// pending-state-js:end
