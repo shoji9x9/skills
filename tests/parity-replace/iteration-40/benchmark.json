@@ -1,0 +1,117 @@
+{
+  "metadata": {
+    "skill_name": "parity-replace",
+    "skill_path": "<repo>/skills/parity-replace",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-12T05:49:23Z",
+    "evals_run": [6, 29],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 29,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 59.52,
+        "tokens": 346028,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "parity-replace の scripts/source-version.mjs を --repo ./new-app で実行して今の新側の tree を取り、local-dev の replace-metadata.json の new.tree と一致すると述べている",
+          "passed": true,
+          "evidence": "raw に source-version.mjs --repo ./new-app --artifacts .replace の実行（exit=0）があり、tree d47386a1… が local-dev の記録の new.tree と一致すると述べている"
+        },
+        {
+          "text": "記録の new.commit が今の HEAD と違うこと（HEAD は記録を commit した 1 つ後の commit）を、軽量な手順を当てない理由にしていない",
+          "passed": true,
+          "evidence": "new.commit の違い（4b3b5aa… と f854e24…）は「判定には使いません」とし、記録の commit で HEAD が進んだためと説明している"
+        },
+        {
+          "text": "記録と今の新側の new.dirty がどちらも false で new.tree が一致するので、軽量な手順を当てられると判定している",
+          "passed": true,
+          "evidence": "new.dirty がどちらも false で new.tree が一致するので、軽量な手順を当てられると判定している"
+        },
+        {
+          "text": "local-dev の green 証跡を local-preview の green 証跡として流用せず、local-preview でスイートを green にしてから new/local-preview/replace-metadata.json に記録する手順を挙げている",
+          "passed": true,
+          "evidence": "local-preview でスイートを green にし、new/local-preview/replace-metadata.json に記録する手順を挙げ、local-dev の記録は上書きしないとしている"
+        },
+        {
+          "text": ".replace/parity/order-list/new/local-preview/replace-metadata.json を作っていない（project-files に存在しない）",
+          "passed": true,
+          "evidence": "project-tree.txt に new/local-preview/ が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 46.163,
+        "tokens": 227623,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "develop が start を持たない配信型 target であることを踏まえ、軽量な手順を確認なしに自動適用していない",
+          "passed": true,
+          "evidence": "設定の不足と develop の性質を理由に止まり、軽量な手順を適用していない。project-tree.txt に develop の記録も無い"
+        },
+        {
+          "text": "develop に commit_check が無いため、稼働中のコードが commit abc1234def5678 かをユーザーに確認する必要がある旨を述べている",
+          "passed": false,
+          "evidence": "commit_check が無いのでユーザーに確認が要ることは述べたが、確認する commit を「<今の new.commit>」とし、abc1234def5678 は挙げていない。申告の HEAD は根拠にしないとし、new-app が無く new.commit も取れていない"
+        },
+        {
+          "text": "local-dev の green 証跡（.replace/parity/order-list/new/local-dev/replace-metadata.json）を develop の green 証跡として流用していない",
+          "passed": true,
+          "evidence": "local-dev の記録は照合の値（tree 9f2c4e1a…）として読んだだけで、develop の green として扱っていない"
+        },
+        {
+          "text": ".replace/parity/order-list/new/develop/replace-metadata.json を捏造していない（project-files に存在しない）",
+          "passed": true,
+          "evidence": "project-tree.txt に new/develop/ が無い（new/local-dev/ だけ）。raw に Write・Edit が無い"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.875,
+        "stddev": 0.1768,
+        "min": 0.75,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 52.8415,
+        "stddev": 9.4448,
+        "min": 46.163,
+        "max": 59.52
+      },
+      "tokens": {
+        "mean": 286825.5,
+        "stddev": 83724.9784,
+        "min": 227623,
+        "max": 346028
+      }
+    }
+  },
+  "notes": []
+}

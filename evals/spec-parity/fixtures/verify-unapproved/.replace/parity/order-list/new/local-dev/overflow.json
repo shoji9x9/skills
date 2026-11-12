@@ -3,7 +3,7 @@
   "side": "new",
   "slug": "order-list",
   "target": "local-dev",
-  "commit": "abc1234def5678",
+  "commit": "def5678abc1234",
   "records": [
     {
       "page": "/orders",

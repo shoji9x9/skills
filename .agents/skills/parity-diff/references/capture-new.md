@@ -40,8 +40,9 @@
 - 解決した値が、`new/<target>/replace-metadata.json` の `new.ui_url` と `new.api_url` に一致することを確かめる（別の環境の URL で撮らない）。
   記録が `"runtime"` のフィールドは解決した値を持たないので、target の名前の一致で代わりに照合する。
   固定の値で記録したフィールド（例: `url_command` の target の固定の `api_url`）は、そのまま照合する。
-  target に `commit_check` があれば（固定の `url` か `url_command` かに関わらず）、その出力が記録の `new.commit` と一致することも確かめる。
-  一致しなければ、green の証跡とは別のデプロイなので止まる。部品の改修をまとめて再検証するときは、照合相手が変更宣言の `commits.after` になる（[`component-change.md`](component-change.md)）
+  target に `commit_check` があれば（固定の `url` か `url_command` かに関わらず）、その出力の commit の tree が記録の `new.tree` と一致することも確かめる。
+  tree は `source-version.mjs --rev <commit_check の出力>` で取る（手順の断片は [`preflight.md`](preflight.md)「新側のバージョンの一致」）。
+  一致しなければ、green の証跡とは別のデプロイなので止まる。部品の改修をまとめて再検証するときは、照合相手が変更宣言の `commits.after` の tree になる（[`component-change.md`](component-change.md)）
 - 設定の原本は、`parity-suite` の `references/locator-mapping.md` である（`current`・`new`・`new-capture` のプロジェクトの baseURL を環境変数で参照する形。URL を config に直接書かない）
 
 ## 条件一致の先行検証（差分検出より前）
@@ -271,20 +272,21 @@ PARITY_RUNTIME_CAPTURE=1 PARITY_RUNTIME_RUN=2 PARITY_SLUG=<slug> PARITY_NEW_TARG
 | 前の回の測定に、静止を待つ処理を通した記録が無い（`fingerprint.settle_wait` が無いか、`true` でない） | 全組 | 同じく `fingerprint.settle_wait`（静止を待つ処理を入れる前に測った値は、2 つの値のどちらかになる採取を「ノイズ 0」として持ち越すことがある） |
 | `fingerprint.dataset_version` より後に、対象の slug に影響するデータセットの変更がある | 全組 | `fingerprint.dataset_version` と、dataset の `changes[].affects`（判定の取り決めは `golden-dataset` の `references/versioning.md`） |
 | 反復が飛んでいる（`loop.iterations` − `noise_measurement.loop_iteration` が 0 でも 1 でもない） | 全組 | `new/<target>/replace-metadata.json` の `loop.iterations`（間の反復で変えた範囲をたどれない） |
-| 反復が進んでいない（差が 0）のに、`new.commit` が `noise_measurement.measured_at_commit` と違う | 全組 | 同じく `new.commit`（ループの外で新側を触っており、変えた範囲をたどれない） |
+| 反復が進んでいない（差が 0）のに、`new.tree` が `noise_measurement.measured_at_tree` と違う。`measured_at_tree` が無い記録も含める | 全組 | 同じく `new.tree`（ループの外で新側を触っており、変えた範囲をたどれない） |
 | `loop.changed_scope` が無いか、`null` である（範囲が決まっていない、または記録していない `parity-replace` の証跡） | 全組 | 同上（`null` は「範囲が分からない」であり、`pages: []`、つまり「描画に関わる変更は無い」という申告とは別のものである） |
 | 前の反復で、共有の資産（テーマ・design token・共通のコンポーネント・グローバルの CSS・フォントの読み込みなど）に、変更宣言なしで触れた | 全組 | `loop.changed_scope.global` が真（`components` と一緒に書かれていても、全組を優先する） |
 | 前の反復で、変更宣言のある共通の部品を直した | 宣言ごとに、この機能に影響する組（判定できなければ全組） | `loop.changed_scope.components[].change` を入力にした、`parity-suite` の `scripts/component-impact.mjs --feature <slug>` の出力（宣言を読めないときと、exit 2 のときも全組） |
-| 部品の改修をまとめて再検証する手順（[`component-change.md`](component-change.md)）で実行している | この機能に影響する組 | 同じ手順の 1 の `component-impact.mjs` の出力。反復も `replace-metadata.json` の `new.commit` も改修の前のまま進まないので、反復・SHA・`changed_scope` の行からは範囲が出ない。この行が範囲を決める |
+| 部品の改修をまとめて再検証する手順（[`component-change.md`](component-change.md)）で実行している | この機能に影響する組 | 同じ手順の 1 の `component-impact.mjs` の出力。反復も `replace-metadata.json` の `new.tree` も改修の前のまま進まないので、反復・`new.tree`・`changed_scope` の行からは範囲が出ない。この行が範囲を決める |
 | `loop.changed_scope.pages` に、現側の `noise_baseline[].page` のどれとも一致しない値がある | 全組 | 同じく `pages` と `metadata.json.noise_baseline[].page`（語彙が合わず、範囲を突き合わせられない） |
 | 前の反復で変えたページ | そのページの組 | `loop.changed_scope.pages` |
 | 組の `measured_at` から 24 時間を超えている | その組 | `noise_baseline_new[].measured_at` と今の時刻（別のセッションの測定値を当てはめない。他の組を測り直しても、古い組は失効させる） |
 | 前の回に測っていない組がある（ページ・状態・ビューポート〈表示の軸の変種の label を含む〉が増えた） | 増えた組 | `fingerprint.pairs` に無い組 |
 
-- 新側の commit の SHA（`new.commit`）が変わったことを、それだけで失効の条件にしない。往復ループでは反復ごとに変わるので、それだけを条件にすると使い回せなくなる。
-  反復が進んだ（差が 1）ときの SHA の変化は、`loop.changed_scope` で範囲を判定する。
+- 新側のバージョン（`new.tree`）が変わったことを、それだけで失効の条件にしない。往復ループでは反復ごとに変わるので、それだけを条件にすると使い回せなくなる。
+  反復が進んだ（差が 1）ときの変化は、`loop.changed_scope` で範囲を判定する。
   反復が進んでいないのに変わったときだけ（ループの外の変更で、範囲をたどれない）、上の表のとおりすべての組を測り直す。
-  SHA は `noise_measurement.measured_at_commit` に記録する（`changed_scope` の記録の取り決めの原本は、`parity-replace` の `references/diff-loop.md`）
+  `new.commit` の変化は使わない。記録を commit しただけでも HEAD は進むからである（照合の規則の原本は、`replace-strategy` の `references/project-config.md`「新側のバージョンの記録」）。
+  測ったときの値は、`noise_measurement.measured_at_tree` に `new.tree` を、`measured_at_commit` に `new.commit` を書く（`changed_scope` の記録の取り決めの原本は、`parity-replace` の `references/diff-loop.md`）
 - `components` は `global` の代わりに書く範囲だが、`global` と同時に書いてもよい。両方あれば、`global` の全組を優先する。
   `components` に書かれた部品の影響は宣言から機械で導き、自分で読み替えて組を減らさない
 - 現側の `noise_baseline` が更新されたことは、失効の条件にしない（新側で測った値は有効なままである）。新しい基準値で、チェックの判定だけをやり直す

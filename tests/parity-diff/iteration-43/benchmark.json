@@ -1,0 +1,165 @@
+{
+  "metadata": {
+    "skill_name": "parity-diff",
+    "skill_path": "<repo>/skills/parity-diff",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-12T02:59:58Z",
+    "evals_run": [4, 12, 30],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 12,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8333,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 45.993,
+        "tokens": 283220,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定ファイル（replace-strategy.jsonc）の最上位に component_diff_exceptions が残っていることを旧キーとして検出している",
+          "passed": true,
+          "evidence": "「replace-strategy.jsonc の最上位に、インスタンス例外が 3 件」を古いキー component_diff_exceptions として検出"
+        },
+        {
+          "text": "旧キーをフォールバックとして読まず（値で暗黙に代替せず）差分検出へ進まずに停止している",
+          "passed": true,
+          "evidence": "「古いキーを読み替えたり自動で移したりせず、移行を案内して止まる」とし、差分の検出は行わずに停止"
+        },
+        {
+          "text": "移行先が .replace/parity/order-list/component-diff-exceptions.json であることと、移行手順の原本が replace-strategy の references/project-config.md「移行」であることを示している",
+          "passed": false,
+          "evidence": "移行先 .replace/parity/order-list/component-diff-exceptions.json は示したが、移行手順の原本が replace-strategy の references/project-config.md「移行」であることを応答のどこにも書いていない"
+        },
+        {
+          "text": "3 インスタンスに複製されている同一原因の reason を component_diff_exception_causes の 1 件へ畳み、各インスタンスは cause で参照する形へ移すと示している",
+          "passed": true,
+          "evidence": "「原因は 1 件だけ定義し、3 件のインスタンスは cause で参照させます」「原因を component_diff_exception_causes[] に 1 回だけ定義」"
+        },
+        {
+          "text": "インスタンスは 3 件のまま残す（件数を畳まない・ワイルドカードで 1 エントリにまとめない）と示している",
+          "passed": true,
+          "evidence": "「3 件のインスタンスは cause で参照させます」と 3 件を残す形を示し、件数を畳む・ワイルドカードにまとめる案は無い"
+        },
+        {
+          "text": "設定ファイルを自動で書き換えて移行を代行していない（対応表を示して停止している）",
+          "passed": true,
+          "evidence": "「設定ファイルの移行（書き換え）は…自動では行っていません」、手順は「人が行う」。project-tree.txt は fixture と同じで、raw に Write・Edit が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 30,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 35.634,
+        "tokens": 219260,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定の style_policy が free で、order-list が画面のある機能（metadata.json の mode: feature）であることを理由に、新側の撮影と差分の検出へ進まずに停止している",
+          "passed": true,
+          "evidence": "style_policy: \"free\" と metadata.json の mode: \"feature\" を理由に、前提の確認の最初の段階で止まり、新側の起動・差分の検出をしていない"
+        },
+        {
+          "text": "同じ target（local-dev）での spec-parity verify の実行を案内している",
+          "passed": false,
+          "evidence": "「spec-parity verify --feature order-list を実行してください」とだけ案内し、同じ target（local-dev / --target local-dev）を示していない"
+        },
+        {
+          "text": "metadata.json に差分ツール・ノイズ基準値・視覚ベースラインが無いことを、parity-suite の未完了として扱って parity-suite の再実行を差し戻し先に案内していない",
+          "passed": true,
+          "evidence": "差分ツール・ノイズ基準値が無いことを free の機能の性質として説明し、parity-suite での採り直しは style_policy を reproduce に変える場合の分岐にだけ書いている"
+        },
+        {
+          "text": "new/local-dev/ に diff.md・diff-metadata.json・新側のベースラインを作っていない",
+          "passed": true,
+          "evidence": "project-tree.txt の new/local-dev/ には fixture にある replace-metadata.json だけで、diff.md・diff-metadata.json・新側のベースラインが無い"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
+          "passed": true,
+          "evidence": "project-files/.replace/ は fixture と diff -r で一致。raw に Write・Edit が無い（replace-strategy.jsonc はスナップショットの対象外）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 44.285,
+        "tokens": 308085,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "develop の new/develop/replace-metadata.json が無いことを検出し「その環境ではまだ green 証跡が無い」として停止している",
+          "passed": true,
+          "evidence": "「.replace/parity/order-list/new/develop/replace-metadata.json がありません」とし、「develop 環境には、新側が green になった証跡がありません」として停止。project-tree.txt にも new/develop/ が無い"
+        },
+        {
+          "text": "同じ --target develop での parity-replace の実行を案内している",
+          "passed": true,
+          "evidence": "次に行うことに「parity-replace --feature order-list --target develop で、develop 用の green の証跡を作ります」"
+        },
+        {
+          "text": "local-dev の green 証跡・新側ベースラインを develop 用に流用・複製・捏造していない",
+          "passed": true,
+          "evidence": "「別の環境（local-dev）の green の証跡は使い回していません」。project-tree.txt は fixture と同じ（ハーネスの .claude だけ増加）で、raw に Write・Edit が無い"
+        },
+        {
+          "text": "develop が db を持たない target であることの扱い（データセットバージョン三者整合の免除、またはデータ依存差分が未検証になる旨）に触れている",
+          "passed": true,
+          "evidence": "「develop には db の定義が無く…フェーズ B との整合は免除…データに依存する差分は、未検証として扱う必要があります」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.8778,
+        "stddev": 0.1072,
+        "min": 0.8,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 41.9707,
+        "stddev": 5.5538,
+        "min": 35.634,
+        "max": 45.993
+      },
+      "tokens": {
+        "mean": 270188.3333,
+        "stddev": 45823.9938,
+        "min": 219260,
+        "max": 308085
+      }
+    }
+  },
+  "notes": []
+}

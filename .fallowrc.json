@@ -187,6 +187,10 @@
       "exports": ["*"]
     },
     {
+      "file": "skills/parity-diff/scripts/source-version.mjs",
+      "exports": ["*"]
+    },
+    {
       "file": "skills/parity-replace/scripts/skill-config/skill-config.mjs",
       "exports": ["*"]
     },
@@ -256,6 +260,10 @@
     },
     {
       "file": "skills/spec-parity/scripts/skill-config/skill-config.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/spec-parity/scripts/source-version.mjs",
       "exports": ["*"]
     },
     {

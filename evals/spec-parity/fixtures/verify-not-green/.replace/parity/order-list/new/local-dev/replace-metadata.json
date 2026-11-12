@@ -15,6 +15,7 @@
     "ui_url": "http://localhost:5173",
     "api_url": "http://localhost:5173",
     "commit": "abc1234def5678",
+    "tree": "def5678abc1234",
     "dirty": false
   },
   "suite": {

@@ -184,12 +184,13 @@
 
     失敗にするのは次のものである。
     - `present` なのに突き合わせの行が無いもの、`compared: true` なのに起点・当たり判定・完了の観測が欠けているもの
-    - 突き合わせを取った新側のバージョン（`new_implementation.commit`）が無いか、今の `replace-metadata.json` の `new.commit` と違うもの（記録の後に実装が変わっている）。
+    - 突き合わせを取った新側のバージョン（`new_implementation.tree`）が無いか、今の `replace-metadata.json` の `new.tree` と違うもの（記録の後に実装が変わっている）。
+      `tree` を持たない古い記録は、`commit` が一致していても失敗にする。`replace-metadata.json` が `new.tree` を持たないもの（`replace-metadata-tree-missing`）も失敗にする
       `--new-repo` を渡し、部品の改修の持ち越しが覆う違いは通す
-    - `new.commit` が `none`（新側が git で管理されていない）のときに、`new_implementation.iteration` と `loop.iterations` が違うもの。
+    - `new.tree` が `none`（新側が git で管理されていない）のときに、`new_implementation.iteration` と `loop.iterations` が違うもの。
       両側が `none` なら文字列の比較は常に一致するので、新しさは反復の回数で確かめる
     - そのどちらかを読めないもの（`comparison-implementation-unversionable`）。代わりに確かめる手段が無いことを、合格として扱わない（規則は `parity-suite` の `references/coverage.md` で定義する）
-    - どちらかの `dirty` が `false` でないもの（commit していない変更を持つ作業ツリーの記録は、commit でバージョンを特定できない。欠落と真偽値でない値も失敗にする）
+    - どちらかの `dirty` が `false` でないもの（commit していない変更を持つ作業ツリーの記録は、`tree` でバージョンを特定できない。欠落と真偽値でない値も失敗にする）
     - `--replace-metadata` を渡していないもの（照合の相手が無いと新しさの確認そのものが飛ぶので、この引数は省けない）
     - `new.dirty: true`（commit していない変更があると、バージョンに結び付かない）
     - `compared: false` の理由が無いもの、承認記録の無い `accepted`、網羅表の指紋と合わない古い記録、別の target の記録、網羅表に無いセルの記録
@@ -251,18 +252,20 @@
        - `unmeasured.entries` に `disposition: blocking` が残るもの。語彙の外の値と、承認記録が空のものは `blocking` として数える
     4. 工程の成果物
        - `new/<target>/replace-metadata.json` の `suite.new_green` が真なのに、同じ場所に `diff-metadata.json` が無いもの
-       - `diff-metadata.json` が今の新側に対応していないもの（`new.commit` が `replace-metadata.json` と違う、または `iteration` が `loop.iterations` と違う）。
-         ただし SHA の違いは、`--new-repo` を渡したときに限り、部品の改修の持ち越し（`evidence-carry.json`。[`component-change.md`](component-change.md) の手順 5）が覆えば通す。
+       - `diff-metadata.json` が今の新側に対応していないもの（`new.tree` が `replace-metadata.json` と違う、または `iteration` が `loop.iterations` と違う）。
+         ただし `new.tree` の違いは、`--new-repo` を渡したときに限り、部品の改修の持ち越し（`evidence-carry.json`。[`component-change.md`](component-change.md) の手順 5）が覆えば通す。
          記録と `replace-metadata.json` のバージョンが一致したままの一括再検証の直後は、検証先のバージョンを `--carry-to` で渡したときだけ持ち越しを判定する（同じ手順 5）
+       - どちらかが `new.tree` を持たないもの（古い記録。`new.commit` が一致していても、同じ `--target` の `parity-replace` か `parity-diff` をもう一度実行して記録し直す）
        - `dataset_version` を読めないもの、今のバージョンより新しいもの、区間の `changes[].affects` に `*` があるもの、`changes` の履歴が不正なもの
 
     対応づけをバージョンだけに任せない。データセットを変えずに `parity-replace` が実装を作り直すと、前の反復で収束した `diff-metadata.json` が `dataset_version` の一致だけでこのチェックを満たす。
-    差分を採り直していないのに、「済んだ」ように見えてしまう。そのため、両方の成果物が持つ識別子（新側の commit の SHA と反復の回数）で結び付ける。
-    `new.commit` が `none` のとき、または片方が記録を持たない古い成果物のときは、その軸を判定せず、理由を出力に残す。
+    差分を採り直していないのに、「済んだ」ように見えてしまう。そのため、両方の成果物が持つ識別子（新側の `new.tree` と反復の回数）で結び付ける。
+    `new.commit` は使わない。記録を commit しただけでも HEAD は進むからである（照合の規則の原本は `replace-strategy` の `references/project-config.md`「新側のバージョンの記録」）。
+    `new.tree` が `none` のときは、バージョンの軸を反復の回数に任せる。反復の回数を片方が持たない古い成果物のときは、その軸を判定せず、理由を出力に残す。
     `replace-metadata.json` の `new.dirty: true` は失敗にする。commit していない変更のある作業ツリーでは「差分を採った実装」を特定できず、同じバージョン・同じ反復のまま中身だけが変わった実装を見逃すからである
     （`parity-replace` の軽い手順も、両側の `dirty: false` を適用の条件にしている）。
-    `new.commit` が `none` でも失敗にする。commit の比べ方を選ぶ前にこれを見る（`none` の分岐に入ると、この判定に届かない）。
-    両方の成果物の `new.target` を `--target` と突き合わせる。同じ commit・同じ反復は環境をまたいで一致しうるので、バージョンだけでは「別の target のディレクトリへコピーしただけの成果物」を見分けられない。
+    `new.tree` が `none` でも失敗にする。`new.tree` の比べ方を選ぶ前にこれを見る（`none` の分岐に入ると、この判定に届かない）。
+    両方の成果物の `new.target` を `--target` と突き合わせる。同じ `new.tree`・同じ反復は環境をまたいで一致しうるので、バージョンだけでは「別の target のディレクトリへコピーしただけの成果物」を見分けられない。
     `dataset_version_exempt` で免除するのは、`dataset_version: null` と対になっているときだけである。
     理由の文字列が残っているだけでバージョンのチェックを飛ばすと、投入対象の target に古い免除の文字列が残ったまま、新しさの判定がまるごと外れる。
 

@@ -50,7 +50,7 @@ target を解決する前に、設定の `style_policy` を読む（`skill-confi
 | 前提スキルの未解決の保留 | setup・`golden-dataset` のフェーズ A・選んだ target のフェーズ B・対象の slug の `parity-suite`・選んだ target の `parity-replace` について、範囲が一致する未解決の保留が無い。`.replace/parity/<slug>/new/<target>/pending-decisions.json` も含める。ファイルが無ければ保留は無い。`resolution` があっても、`blocks` の工程が済んでいなければ未解決である。見る記録先と範囲の原本は、`replace-strategy` の `references/autonomy.md`「下流の前提判定」である。数え方の原本は、同じファイルの「保留の状態」の `pending-decisions-check.mjs` である | 保留を抱えたスキル |
 | parity-replace の新側の green | `.replace/parity/<slug>/new/<target>/replace-metadata.json` の `suite.new_green: true` | `parity-replace`（同じ `--target` で新側を green にする） |
 | target の名前の一致 | 同じファイルの `new.target` が、解決した target の名前と一致する | 止まる（別の環境の green の証跡を使い回さない） |
-| 新側のバージョンの一致 | 同じファイルの `new.commit`（green を取ったバージョン）が、これから撮る新側のバージョンと一致する（下の「新側のバージョンの一致」） | `parity-replace`（同じ `--target` で、撮るバージョンの green を記録し直す） |
+| 新側のバージョンの一致 | 同じファイルの `new.tree`（green を取ったバージョン）が、これから撮る新側のバージョンと一致する（下の「新側のバージョンの一致」） | `parity-replace`（同じ `--target` で、撮るバージョンの green を記録し直す） |
 | Node.js と新側への疎通 | Node.js が使え、選んだ target の `url`（`new.ui_url` と同じ）に疎通できる。api-resource モードでは、`api_url`（`new.api_url` と同じ。省いたときは `ui_url`）にも疎通できる。`url_command` の target は、解決した後の URL へ疎通する（`new.ui_url` の記録は `"runtime"`） | 止まる（環境を整える） |
 
 - 選んだ target の `replace-metadata.json` が無いか、`suite.new_green` が偽なら、「その環境ではまだ green の証跡が無い」として止まる。別の環境の証跡で代えない（環境ごとに独立している）
@@ -59,75 +59,109 @@ target を解決する前に、設定の `style_policy` を読む（`skill-confi
 
 ### 新側のバージョンの一致
 
-`suite.new_green` は、その green を取ったバージョン（`new.commit`）でしか成り立たない。
+`suite.new_green` は、その green を取ったバージョン（`new.tree`）でしか成り立たない。
 新側のコードを変えた後にこのスキルだけを実行し直すと、採取・自己ノイズの 2 回の撮影・検出を最後まで実行した後で、収束の判定の `artifact-health-check` で失敗する。
 撮る前に、ここで止める。
 
-- 撮るバージョンは、次のように決まる。
-  - ローカルで起動する target（`start` を持つ）は、新側のリポジトリ（設定の `new.repo`）の作業ツリーの `HEAD`。
-  - 配信型の target（`start` を持たない）で `commit_check` を持つものは、URL の書き方（固定の `url` か `url_command` か）に関わらず、その出力。
+照合に使う値（`new.tree`・`new.dirty`）の取り方と照合の規則の原本は、`replace-strategy` の `references/project-config.md`「新側のバージョンの記録」である。ここへ転記しない。
+記録と新側が同じ git のリポジトリにあっても、記録を書いただけでも記録を commit した後でも、`new.tree` は変わらないので止まらない。
+このスキルが書く成果物は `.replace/` の下に置く。撮影のランナーの出力（Playwright の `test-results/` など）が新側のディレクトリの中にできるなら、新側の `.gitignore` に入れておく。
+入れていないと、撮るたびに `dirty` が `true` になって止まる。
+
+- 撮るバージョンは、次のように決まる。どれも `new.tree` と同じ取り方の tree で比べる。
+  - ローカルで起動する target（`start` を持つ）は、新側のリポジトリ（設定の `new.repo`）の今の tree。
+    同梱の [`../scripts/source-version.mjs`](../scripts/source-version.mjs) を、プロジェクトのルートで実行して取る。
+    出力の `dirty` が `true` なら、撮らずに止まる（撮るバージョンを特定できない）。
+  - 配信型の target（`start` を持たない）で `commit_check` を持つものは、URL の書き方（固定の `url` か `url_command` か）に関わらず、その出力の commit の tree。
+    `source-version.mjs --rev <commit_check の出力>` で取る。記録を commit した HEAD をデプロイしても、ソースが同じなら tree は同じになる。
+    その commit が手元のリポジトリに無ければ、`source-version.mjs` は exit 2 で終わるので、`git fetch` してからもう一度取る。
     照合の原本は [`capture-new.md`](capture-new.md)「URL の受け渡し」、`commit_check` の定義の原本は `replace-strategy` の `references/project-config.md` にある。
   - 配信型の target で `commit_check` を持たないものは、撮るバージョンを機械で知る方法が無い。
-    「対象の環境に commit `<照合相手の SHA>` がデプロイ済みか」を利用者に確かめ、確認が取れるまで撮らない。
+    「対象の環境に commit `<new.commit の SHA>` がデプロイ済みか」を利用者に確かめ、確認が取れるまで撮らない。一括の再検証では、`commits.after` を確かめる。
+    利用者がデプロイ済みと答えた commit の完全な SHA（尋ねた commit そのものでも、別の commit でもよい）を、下の断片の `DEPLOYED_COMMIT` に入れて実行し直す。
+    断片は、値をシェルのコマンドとして実行せず、完全な SHA の形かを先に確かめる。そのうえで、その commit の tree を照合相手（一括の再検証では `commits.after` の tree）と比べる。
     これは `parity-replace` の軽い方法と同じ扱いである。`--autonomous` では判断待ちの保留に記録し、この機能の撮影を始めない。確かめたことと回答は、`diff.md` の前提確認の表に書く
-- 部品の改修をまとめて再検証する場合（`--component-change`）は、照合相手が変更宣言の `commits.after` になる。
-  `new.commit` は改修前の記録のままである（原本は [`component-change.md`](component-change.md)「使う場面と使わない場面」）。
-  下の照合は、`CHANGE` に変更宣言のパスを入れると、照合相手を `commits.after` に切り替える。
-  `new.commit` のまま照合すると、正しい一括の再検証でも止まってしまう
-- 照合相手（ふつうは `new.commit`、一括の再検証では `commits.after`）を原本から読み、撮るバージョンと完全な SHA で突き合わせる（表示から書き写さない）。
-  撮るバージョンは、`COMMIT_CHECK` が空ならローカルの作業ツリーの `HEAD` で、配信型の target の `commit_check` を入れればその出力である（完全な SHA を出すこと。短縮した SHA は一致しないものとして止まる）。
-  `commit_check` を持たない配信型の target は、`DELIVERED=1` にする（ローカルの `HEAD` と比べず、利用者の確認が要るとして止まる）。
+- `replace-metadata.json` が `new.tree` を持たない記録なら、合格として扱わず、同じ `--target` の `parity-replace` で green を記録し直すよう案内して止まる。
+  `new.commit` が一致していても、代わりに使わない
+- 部品の改修をまとめて再検証する場合（`--component-change`）は、照合相手が変更宣言の `commits.after` の tree になる。
+  `new.tree` と `new.commit` は改修前の記録のままである（原本は [`component-change.md`](component-change.md)「使う場面と使わない場面」）。
+  下の照合は、`CHANGE` に変更宣言のパスを入れると、`source-version.mjs --rev <commits.after>` の tree を照合相手にする。
+  `new.tree` のまま照合すると、正しい一括の再検証でも止まってしまう
+- 照合相手を原本から読み、撮るバージョンと突き合わせる（表示から書き写さない）。
+  照合相手は、通常の実行では `replace-metadata.json` の `new.tree`、一括の再検証では `commits.after` の tree である。
+  `commit_check` を持たない配信型の target は、`DELIVERED=1` にする（ローカルの値と比べず、利用者の確認が要るとして止まる）。
 
   ```bash
   CHANGE=""   # --component-change の実行だけ変更宣言のパス（続けて当てた宣言があるなら最後の宣言）。通常の実行は空のまま
-  if [ -n "$CHANGE" ]; then
-    RECORDED=$(node -e 'const c = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(String(c.commits?.after ?? ""))' "$CHANGE")
-  else
-    RECORDED=$(node -e 'const m = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(String(m.new?.commit ?? ""))' \
-      .replace/parity/<slug>/new/<target>/replace-metadata.json)
-  fi
   COMMIT_CHECK=""   # start を持たない配信型 target で commit_check を持つなら、そのコマンド（secrets.wrapper が要るなら前置する）。ローカルの target は空のまま
   DELIVERED=""      # start を持たない配信型 target なら 1（commit_check の有無に依らない）。ローカルの target は空のまま
+  DEPLOYED_COMMIT="" # commit_check を持たない配信型 target で、利用者がデプロイ済みと答えた commit の完全な SHA。答えを得るまでは空のまま
+  REPLACE_META=.replace/parity/<slug>/new/<target>/replace-metadata.json
+  # 値の取り方と照合の規則の原本は、replace-strategy の references/project-config.md「新側のバージョンの記録」
+  SV() { node <このスキルのディレクトリ>/scripts/source-version.mjs --repo <新側リポジトリ> "$@" </dev/null; }
+  # 標準入力の JSON から 1 つのキーの値を出す。パスを渡すと、そのファイルの JSON から出す（a.b の形で入れ子を指す）
+  FIELD() { node -e 'const f = process.argv[2]; const s = f ? require("fs").readFileSync(f, "utf8") : require("fs").readFileSync(0, "utf8"); const v = process.argv[1].split(".").reduce((o, k) => (o == null ? undefined : o[k]), JSON.parse(s)); process.stdout.write(v == null ? "" : String(v))' "$@"; }
   # 停止する分岐は非 0 で終える（手順に組み込んだときに停止を表示したまま撮影へ進ませない）。対話シェルを閉じないよう ( ) で囲む
   (
-    if [ -n "$DELIVERED" ] && [ -z "$COMMIT_CHECK" ]; then
-      # 稼働中のバージョンを機械で確かめる手段が無い。ローカルの HEAD はデプロイ済みのバージョンを表さないので比べない
-      echo "停止: commit_check が無い配信型 target。commit ${RECORDED:-（読めない）} がデプロイ済みか利用者に確認する"; exit 1
-    elif [ -n "$COMMIT_CHECK" ]; then
-      # 配信型 target: 稼働中のコードのバージョンは commit_check だけが知っている（HEAD はデプロイ済みのバージョンを表さない）
-      # 終了コードはパイプへ流す前に検査する（パイプの末尾の tr に隠れて、失敗した確認を成功扱いしない）
-      RAW=$(bash -c "$COMMIT_CHECK" </dev/null) || { echo "停止: commit_check が失敗した（撮るバージョンを特定できない）"; exit 1; }
-      CAPTURE=$(printf '%s' "$RAW" | tr -d '[:space:]' | tr 'A-F' 'a-f')
-      WANT=$(printf '%s' "$RECORDED" | tr 'A-F' 'a-f')
+    if [ -n "$DELIVERED" ] && [ -z "$COMMIT_CHECK" ] && [ -z "$DEPLOYED_COMMIT" ]; then
+      # 稼働中のバージョンを機械で確かめる手段が無い。ローカルの値はデプロイ済みのバージョンを表さないので比べない
+      # 照合相手の tree を取る前に止まる（手元に無い commits.after の fetch を求めずに、利用者の確認へ案内する）
+      if [ -n "$CHANGE" ]; then ASK=$(FIELD commits.after "$CHANGE"); else ASK=$(FIELD new.commit "$REPLACE_META"); fi
+      echo "停止: commit_check が無い配信型 target。commit ${ASK:-（読めない）} がデプロイ済みか利用者に確認し、答えた commit を DEPLOYED_COMMIT に入れて実行し直す"; exit 1
+    fi
+    if [ -n "$CHANGE" ]; then
+      AFTER=$(FIELD commits.after "$CHANGE")
+      [ -n "$AFTER" ] || { echo "停止: 変更宣言に commits.after が無い"; exit 1; }
+      WANT_JSON=$(SV --rev "$AFTER") || { echo "停止: commits.after（$AFTER）の tree を取れない。理由は上の source-version.mjs の出力にある（手元に無い commit なら git fetch する）"; exit 1; }
+      WANT=$(printf '%s' "$WANT_JSON" | FIELD tree)
     else
-      # HEAD と作業ツリーの状態の取り方の原本は、replace-strategy の references/project-config.md「新側のバージョンの記録」
-      CAPTURE=$(git -C <新側リポジトリ> rev-parse --verify HEAD)
-      if [ -n "$CAPTURE" ] && [ -n "$(git -C <新側リポジトリ> status --porcelain --untracked-files=all --ignore-submodules=none)" ]; then
-        echo "停止: 新側の作業ツリーに未コミットの変更がある（撮るバージョンを特定できない）"; exit 1
+      WANT=$(FIELD new.tree "$REPLACE_META")
+    fi
+    if [ -n "$COMMIT_CHECK" ] && [ -n "$DEPLOYED_COMMIT" ]; then
+      # どちらの値で照合したかが分からなくなるので、片方だけを入れる
+      echo "停止: COMMIT_CHECK と DEPLOYED_COMMIT の両方が入っている。commit_check を持つ target では DEPLOYED_COMMIT を空にする"; exit 1
+    fi
+    if [ -n "$DELIVERED" ] || [ -n "$COMMIT_CHECK" ] || [ -n "$DEPLOYED_COMMIT" ]; then
+      # 配信型 target: 稼働中のコードの commit は、commit_check の出力か利用者の答えだけが知っている。その commit の tree で比べる
+      if [ -n "$COMMIT_CHECK" ]; then
+        # 終了コードはパイプへ流す前に検査する（パイプの末尾の tr に隠れて、失敗した確認を成功扱いしない）
+        RAW=$(bash -c "$COMMIT_CHECK" </dev/null) || { echo "停止: commit_check が失敗した（撮るバージョンを特定できない）"; exit 1; }
+      else
+        # 利用者の答えはシェルのコマンドとして実行しない
+        RAW=$DEPLOYED_COMMIT
       fi
-      WANT=$(git -C <新側リポジトリ> rev-parse --verify --quiet "${RECORDED}^{commit}")
+      DEPLOYED=$(printf '%s' "$RAW" | tr -d '[:space:]')
+      printf '%s' "$DEPLOYED" | grep -Eqix '[0-9a-f]{40}|[0-9a-f]{64}' || { echo "停止: デプロイ済みの commit が完全な SHA でない（$DEPLOYED）"; exit 1; }
+      CAPTURE_JSON=$(SV --rev "$DEPLOYED") || { echo "停止: デプロイ済みの commit（$DEPLOYED）の tree を取れない。理由は上の source-version.mjs の出力にある（手元に無い commit なら git fetch する）"; exit 1; }
+      CAPTURE=$(printf '%s' "$CAPTURE_JSON" | FIELD tree)
+    else
+      VERSION=$(SV) || { echo "停止: 新側のバージョンを取れない。理由は上の source-version.mjs の出力にある"; exit 1; }
+      if [ "$(printf '%s' "$VERSION" | FIELD dirty)" != false ]; then
+        echo "停止: 新側の作業ツリーに commit していない変更がある（撮るバージョンを特定できない）"; exit 1
+      fi
+      CAPTURE=$(printf '%s' "$VERSION" | FIELD tree)
     fi
     if [ -z "$CAPTURE" ]; then
-      # リポジトリのパス違い・commit_check の失敗等で空になると、下の比較が空同士で「一致」に倒れる
-      echo "停止: 撮るバージョンを読めない（新側リポジトリの HEAD / commit_check の出力が空）"; exit 1
-    elif [ "$RECORDED" = none ]; then
-      echo "照合しない: 照合相手が none（バージョンの対応は反復回数で取る）"
-    elif ! printf '%s' "$RECORDED" | grep -Eqix '[0-9a-f]{40}|[0-9a-f]{64}'; then
-      # rev-parse は短縮 SHA や参照名（main 等）も完全 SHA へ展開するので、展開する前の値を検査する
-      echo "停止: 照合相手が完全な SHA でない（${RECORDED:-（読めない）}）"; exit 1
-    elif ! printf '%s' "$CAPTURE" | grep -Eqx '[0-9a-f]{40}|[0-9a-f]{64}' || ! printf '%s' "$WANT" | grep -Eqx '[0-9a-f]{40}|[0-9a-f]{64}'; then
-      # 短縮 SHA・16 進でない値同士の一致（両方 deadbeef 等）をバージョンの一致にしない
-      echo "停止: 完全な SHA でない（照合相手 ${RECORDED:-（読めない）} / 撮るバージョン $CAPTURE）"; exit 1
+      # リポジトリのパス違い・commit_check の失敗等で空になると、下の比較が空同士で「一致」として扱われる
+      echo "停止: 撮るバージョンを読めない（source-version.mjs の出力が空）"; exit 1
+    elif [ -z "$WANT" ]; then
+      echo "停止: 照合相手（new.tree / commits.after の tree）が無い。new.tree を持たない古い記録なら、同じ --target の parity-replace で記録し直す"; exit 1
+    elif [ "$WANT" = none ] && [ "$CAPTURE" = none ]; then
+      echo "照合しない: 照合相手と撮るバージョンが none（バージョンの対応は反復回数で取る）"
+    elif ! printf '%s' "$WANT" | grep -Eqx '[0-9a-f]{40}|[0-9a-f]{64}' || ! printf '%s' "$CAPTURE" | grep -Eqx '[0-9a-f]{40}|[0-9a-f]{64}'; then
+      # 短縮した値・16 進でない値同士の一致（両方 deadbeef 等）をバージョンの一致にしない。片側だけ none も一致にしない
+      echo "停止: 完全なハッシュでない（照合相手 $WANT / 撮るバージョン $CAPTURE）"; exit 1
     elif [ "$WANT" = "$CAPTURE" ]; then
       echo "一致: $CAPTURE"
     else
-      echo "停止: 照合相手のバージョン ${RECORDED:-（読めない）} と撮るバージョン $CAPTURE が違う"; exit 1
+      echo "停止: 照合相手のバージョン $WANT と撮るバージョン $CAPTURE が違う"; exit 1
     fi
   )
   ```
 
 - 一致しなければ撮らずに止まり、同じ `--target` で `parity-replace` を実行するよう案内する（撮るバージョンで新側の green を記録し直す）。
-  `new.commit` が読めないときと、リポジトリに無いバージョンのときも、一致しないものとして扱う（合格として扱わない）
+  照合相手が読めないときと、`new.tree` を持たない古い記録のときも、一致しないものとして扱う（合格として扱わない）
+- 新側の変更を退避するよう案内するときは、記録を退避しない形（`replace-strategy` の `references/project-config.md`「新側のバージョンの記録」の pathspec 付きの `git stash`）で案内する
 - 収束の判定の `artifact-health-check` の照合（[`convergence.md`](convergence.md)）は残す。撮った後にバージョンが変わったときに、ここで見つかる
 
 ## モード別の追加要求（`metadata.json.mode` で分岐）

@@ -1,0 +1,206 @@
+{
+  "$comment": [
+    "source-version.test.ts の検出能力を示す変異の一覧。",
+    "新側のバージョンの照合の範囲（.replace/ を除く・new.repo のディレクトリに絞る）と、利用者の git の設定に依らない dirty の判定を、テストが守ることを示す。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/_cross/source-version.test.ts",
+  "mutations": [
+    {
+      "id": "sv-tree-keeps-artifacts",
+      "why": "new.tree から .replace/ を除かない（記録を commit するたびに new.tree が変わり、3 つのスキルが前提の確認で止まる）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "\"--ignore-unmatch\", \"--\", excluded]",
+      "replace": "\"--ignore-unmatch\", \"--\", \"no-such-path\"]",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-replace の source-version.mjs 新側がルート・.replace/ がルート直下 記録を書いただけでも、記録を commit した後も、new.tree は変わらず dirty にならない",
+        "parity-replace の source-version.mjs 新側がサブディレクトリ・.replace/ が新側の中 記録を書いただけでも、記録を commit した後も、new.tree は変わらず dirty にならない",
+        "parity-replace の source-version.mjs --rev --rev でも .replace/ を除く（記録の commit は tree を変えない）"
+      ]
+    },
+    {
+      "id": "sv-dirty-keeps-artifacts",
+      "why": "dirty の判定から .replace/ を除かない（記録を書いただけで dirty になり、3 つのスキルが前提の確認で止まる）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "  if (excluded !== null) specs.push(",
+      "replace": "  if (false) specs.push(",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-replace の source-version.mjs 新側がルート・.replace/ がルート直下 記録を書いただけでも、記録を commit した後も、new.tree は変わらず dirty にならない",
+        "parity-replace の source-version.mjs 新側がルート・.replace/ がルート直下 .replace/ の外の追跡していないファイルは dirty、.replace/ の中なら dirty にしない",
+        "parity-replace の source-version.mjs 新側がサブディレクトリ・.replace/ が新側の中 記録を書いただけでも、記録を commit した後も、new.tree は変わらず dirty にならない",
+        "parity-replace の source-version.mjs 新側がサブディレクトリ・.replace/ が新側の中 .replace/ の外の追跡していないファイルは dirty、.replace/ の中なら dirty にしない",
+        "parity-replace の source-version.mjs 範囲 新側のディレクトリの名前をパターンとして読まない（app[1] が app1 に一致しない）",
+        "parity-replace の source-version.mjs 呼び出し元の環境 名前が .. で始まるリポジトリの中のディレクトリの .replace/ も除く"
+      ]
+    },
+    {
+      "id": "sv-tree-whole-repo",
+      "why": "new.tree を new.repo のディレクトリに絞らず、リポジトリ全体のツリーにする（新側の外の変更で照合が合わなくなる）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "`${whole}:${prefix.replace(/\\/$/, \"\")}`",
+      "replace": "whole",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-replace の source-version.mjs 範囲 新側がサブディレクトリなら、新側の外の変更は new.tree にも dirty にも入らない",
+        "parity-replace の source-version.mjs 範囲 新側のディレクトリの名前をパターンとして読まない（app[1] が app1 に一致しない）",
+        "parity-replace の source-version.mjs 範囲 新側のディレクトリに追跡しているファイルが無ければ、空のツリーにする",
+        "parity-replace の source-version.mjs 新側がサブディレクトリ・.replace/ がルート直下 記録を書いただけでも、記録を commit した後も、new.tree は変わらず dirty にならない"
+      ]
+    },
+    {
+      "id": "sv-dirty-untracked-by-config",
+      "why": "status に --untracked-files=all を付けない（status.showUntrackedFiles=no の利用者で、追跡していないファイルを dirty として検出しない）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "        \"--untracked-files=all\",\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-replace の source-version.mjs 範囲 利用者の git の設定で追跡していないファイルを隠していても、dirty として検出する"
+      ]
+    },
+    {
+      "id": "sv-artifacts-outside-not-excluded",
+      "why": "リポジトリの外の --artifacts を、外として扱わずに除く対象にする（../ で始まるパスを git rm に渡して失敗する）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "  if (rel === \"..\" || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) return null;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-replace の source-version.mjs 範囲 新側がルートで .replace/ がリポジトリの外なら、何も除かずにリポジトリ全体のツリーになる"
+      ]
+    },
+    {
+      "id": "sv-not-git-is-none",
+      "why": "git で管理されていない新側を none にせず、使い方の誤りにする",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "/not a git repository/.test(err.stderr)",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-replace の source-version.mjs git で管理されていない・取れない新側 git で管理されていなければ、commit と tree を none にする",
+        "parity-replace の source-version.mjs --rev git で管理されていない新側に --rev を渡すと、none を返さずに使い方の誤りにする"
+      ]
+    },
+    {
+      "id": "sv-artifacts-must-exist",
+      "why": "--artifacts のディレクトリが在るかを確かめない（プロジェクトのルートの外で実行すると、何も除かずに .replace/ を含めた値を警告なしに出す）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "  if (!existsSync(artifacts) || !statSync(artifacts).isDirectory())\n",
+      "replace": "  if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-replace の source-version.mjs git で管理されていない・取れない新側 --artifacts のディレクトリが無ければ、使い方の誤りにする（.replace/ を含めた値を出さない）"
+      ]
+    },
+    {
+      "id": "sv-artifacts-dotdot-name",
+      "why": "名前が .. で始まるリポジトリの中のディレクトリを、リポジトリの外として扱う（.replace/ を除かずに tree と dirty を取る）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "rel.startsWith(`..${path.sep}`)",
+      "replace": "rel.startsWith(\"..\")",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-replace の source-version.mjs 呼び出し元の環境 名前が .. で始まるリポジトリの中のディレクトリの .replace/ も除く"
+      ]
+    },
+    {
+      "id": "sv-env-git-dir",
+      "why": "git rev-parse --local-env-vars の変数を子の git に受け継ぐ（hook から実行すると --repo と別のリポジトリの値を出す）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "  for (const name of repoLocalEnvVars()) delete base[name];\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_DIR を受け継がず、--repo のリポジトリを読む",
+        "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_WORK_TREE を受け継がず、--repo のリポジトリを読む",
+        "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_INDEX_FILE を受け継がず、--repo のリポジトリを読む",
+        "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_COMMON_DIR を受け継がず、--repo のリポジトリを読む",
+        "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_OBJECT_DIRECTORY を受け継がず、--repo のリポジトリを読む",
+        "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_NO_REPLACE_OBJECTS を受け継がず、git replace の置き換えを --repo の設定どおりに読む"
+      ]
+    },
+    {
+      "id": "sv-artifacts-ancestor",
+      "why": "--artifacts が新側のディレクトリの祖先でも拒否しない（新側が何も残らず、どのバージョンでも同じ空の tree を出す）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "excluded === \"\" || prefix.startsWith(`${excluded}/`)",
+      "replace": "excluded === \"\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-replace の source-version.mjs git で管理されていない・取れない新側 --artifacts が新側のディレクトリの祖先なら、使い方の誤りにする（新側が何も残らない値を出さない）"
+      ]
+    },
+    {
+      "id": "sv-rev-ignored",
+      "why": "--rev を読まずに HEAD の tree を出す（デプロイした commit や commits.after を tree で照合できない）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "`${rev ?? \"HEAD\"}^{commit}`",
+      "replace": "\"HEAD^{commit}\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-replace の source-version.mjs --rev --rev の commit の tree を取り、作業ツリーを見ないので dirty は null にする",
+        "parity-replace の source-version.mjs --rev --rev の commit が手元に無ければ、使い方の誤りにする"
+      ]
+    },
+    {
+      "id": "sv-rev-not-git-none",
+      "why": "git で管理されていない新側に --rev を渡しても none を返す（preflight の照合が none どうしの「照合しない」に入り、撮影へ進む）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "    if (rev !== null)\n      throw new UsageError(",
+      "replace": "    if (false)\n      throw new UsageError(",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-replace の source-version.mjs --rev git で管理されていない新側に --rev を渡すと、none を返さずに使い方の誤りにする"
+      ]
+    },
+    {
+      "id": "sv-env-hand-list",
+      "why": "外す変数を git の一覧から取らず、手で持った一覧（場所を変える変数だけ）にする（GIT_NO_REPLACE_OBJECTS などを受け継ぎ、同じ HEAD から別の tree を出す）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "  for (const name of repoLocalEnvVars()) delete base[name];\n",
+      "replace": "  for (const name of [\"GIT_DIR\", \"GIT_WORK_TREE\", \"GIT_INDEX_FILE\", \"GIT_COMMON_DIR\", \"GIT_OBJECT_DIRECTORY\"]) delete base[name];\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_NO_REPLACE_OBJECTS を受け継がず、git replace の置き換えを --repo の設定どおりに読む"
+      ]
+    },
+    {
+      "id": "sv-env-config-dropped",
+      "why": "環境で渡した git の設定（GIT_CONFIG_COUNT・GIT_CONFIG_PARAMETERS）も外す（safe.directory などを渡す環境で、子の git が設定を読めない）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "!KEEP_CONFIG_ENV.has(name)",
+      "replace": "true",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-replace の source-version.mjs 呼び出し元の環境 環境で渡した git の設定（GIT_CONFIG_COUNT）は受け継ぐ",
+        "parity-replace の source-version.mjs 呼び出し元の環境 環境で渡した git の設定（GIT_CONFIG_PARAMETERS）は受け継ぐ"
+      ]
+    },
+    {
+      "id": "sv-env-config-parameters-dropped",
+      "why": "git -c で渡した設定（GIT_CONFIG_PARAMETERS）を外す（git -c safe.directory=... で呼ぶ環境で、子の git が設定を読めない）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "new Set([\"GIT_CONFIG_PARAMETERS\", \"GIT_CONFIG_COUNT\"])",
+      "replace": "new Set([\"GIT_CONFIG_COUNT\"])",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-replace の source-version.mjs 呼び出し元の環境 環境で渡した git の設定（GIT_CONFIG_PARAMETERS）は受け継ぐ"
+      ]
+    },
+    {
+      "id": "sv-rev-full-sha-only",
+      "why": "--rev に branch 名や短縮した SHA も受け付ける（「main をデプロイした」という答えで、今の HEAD の tree を取って照合が通る）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "  if (rev !== null && !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(rev))\n",
+      "replace": "  if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-replace の source-version.mjs --rev --rev に完全な SHA でない値（HEAD）を渡すと、使い方の誤りにする",
+        "parity-replace の source-version.mjs --rev --rev に完全な SHA でない値（main）を渡すと、使い方の誤りにする",
+        "parity-replace の source-version.mjs --rev --rev に完全な SHA でない値（abc1234）を渡すと、使い方の誤りにする"
+      ]
+    }
+  ]
+}

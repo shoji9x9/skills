@@ -90,7 +90,7 @@ export function comparisonOf(
     new_implementation:
       "new_implementation" in override
         ? override.new_implementation
-        : { commit: "abc123", dirty: false },
+        : { commit: "abc123", tree: "abc123", dirty: false },
     cells: override.cells ?? [
       {
         component: "grid",
@@ -130,7 +130,7 @@ export const run = (argv: string[], files: Record<string, string>) =>
   runInMemory<CliResult>(main, argv, { files });
 
 /** 現在の新側のバージョン（`--replace-metadata` が読む形）。突き合わせ表の記録と同じ commit・clean。 */
-export const REPLACE_METADATA = { new: { commit: "abc123", dirty: false } };
+export const REPLACE_METADATA = { new: { commit: "abc123", tree: "abc123", dirty: false } };
 
 export const codesOf = (
   input: {
@@ -149,7 +149,7 @@ export const codesOf = (
 
 /** new.commit が "none"（新側が git 管理を持たない）の replace-metadata（Issue #408）。iterations を渡すと loop.iterations に置く。 */
 export const noneReplaceMetadata = (iterations?: unknown) => ({
-  new: { commit: "none", dirty: false },
+  new: { commit: "none", tree: "none", dirty: false },
   ...(iterations === undefined ? {} : { loop: { iterations } }),
 });
 
@@ -166,10 +166,16 @@ export function carryFiles(
   writeJson(join(p.slugDir, "component-coverage.json"), { ...COVERAGE, slug: FEATURE });
   writeJson(join(p.stageDir, "component-comparison.json"), {
     ...comparisonOf({ slug: FEATURE, target: TARGET }),
-    new_implementation: { commit: p.commits.base, dirty: false },
+    new_implementation: { commit: p.commits.base, tree: p.commits.base, dirty: false },
   });
   writeJson(join(p.stageDir, "replace-metadata.json"), {
-    new: { target: TARGET, commit: p.commits.component, dirty: false, ...replaceNewExtra },
+    new: {
+      target: TARGET,
+      commit: p.commits.component,
+      tree: p.commits.component,
+      dirty: false,
+      ...replaceNewExtra,
+    },
   });
   return p;
 }

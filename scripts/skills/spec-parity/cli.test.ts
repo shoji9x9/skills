@@ -87,7 +87,7 @@ describe("convergence-check.mjs の CLI", () => {
     const doc = parseJsonAs<Record<string, unknown>>(fs.files.get(VERIFY) ?? "{}");
     fs.put(VERIFY, {
       ...doc,
-      human_review: { commit: "x", screens: [{ page: "/" }], approval: null },
+      human_review: { tree: "x", screens: [{ page: "/" }], approval: null },
     });
     expect(cli("convergence-check.mjs", args, materialize(fs.files)).code).toBe(1);
   });

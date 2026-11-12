@@ -54,17 +54,21 @@
       ]
     },
     {
-      "id": "cv-commit-off",
-      "why": "new.commit と違うバージョンの記録を、今のバージョンの記録として通す",
+      "id": "cv-tree-off",
+      "why": "new.tree と違うバージョンの記録と、tree を持たない古い記録を、今のバージョンの記録として通す",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "  if (commit === expected) return true;\n",
+      "find": "  if (tree === expected) return true;\n",
       "replace": "  return true;\n",
       "occurrences": 1,
       "expect_failing": [
-        "スイート スイートを実行したバージョンが new.commit と違えば、古い記録としてやり直す",
-        "横のはみ出し 測ったバージョンが new.commit と違えば、古い記録としてやり直す",
-        "デザインの点検と人による確認 点検したバージョンが new.commit と違えば、古い記録としてやり直す",
-        "デザインの点検と人による確認 承認した画面のバージョンが new.commit と違えば、古い記録としてやり直す"
+        "スイート スイートを実行したバージョンが new.tree と違えば、古い記録としてやり直す",
+        "スイート スイートの記録に tree が無ければ（commit だけの古い記録）、commit が同じでももう一度測る",
+        "横のはみ出し 測ったバージョン（PARITY_COMMIT で渡した値）が new.tree と違えば、古い記録としてやり直す",
+        "横のはみ出し new.commit の値で測った記録（new.tree を渡す前の記録）は、古い記録としてやり直す",
+        "デザインの点検と人による確認 点検したバージョンが new.tree と違えば、古い記録としてやり直す",
+        "デザインの点検と人による確認 点検の記録に tree が無ければ（commit だけの古い記録）、もう一度測る",
+        "デザインの点検と人による確認 承認した画面のバージョンが new.tree と違えば、古い記録としてやり直す",
+        "デザインの点検と人による確認 承認した画面の記録に tree が無ければ（commit だけの古い記録）、もう一度測る"
       ]
     },
     {
@@ -319,7 +323,7 @@
     },
     {
       "id": "cv-verify-dirty-off",
-      "why": "commit していない変更を含む新側で確かめた verify-metadata.json の記録を、new.commit のバージョンの記録として通す",
+      "why": "commit していない変更を含む新側で確かめた verify-metadata.json の記録を、new.tree のバージョンの記録として通す",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
       "find": "  if (head.dirty !== false)\n",
       "replace": "  if (false)\n",
@@ -329,7 +333,7 @@
         "前提の欠落（exit 2） verify-metadata.json の new.dirty が 無い なら、前提の欠落として exit 2",
         "前提の欠落（exit 2） verify-metadata.json の new.dirty が 文字列 なら、前提の欠落として exit 2",
         "前提の欠落（exit 2） verify-metadata.json の new.dirty が null なら、前提の欠落として exit 2",
-        "同梱の雛形をそのまま使った記録 new.commit を埋めても、new.dirty が雛形の値のままなら exit 2",
+        "同梱の雛形をそのまま使った記録 new.tree を埋めても、new.dirty が雛形の値のままなら exit 2",
         "前提の欠落（exit 2） verify-metadata.json の new.dirty の理由は、commit してやり直すだけでは止まることを示す"
       ]
     },
@@ -337,22 +341,33 @@
       "id": "cv-verify-clean-before-green",
       "why": "verify-metadata.json の new.dirty を green の記録の確認より先に判定し、commit しても直らない鍵の違いより先に commit を促す",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "  checkNewGreen(input.replaceMetadata, { slug, target: input.target, commit });\n  checkVerifyClean(head);\n",
-      "replace": "  checkVerifyClean(head);\n  checkNewGreen(input.replaceMetadata, { slug, target: input.target, commit });\n",
+      "find": "  checkNewGreen(input.replaceMetadata, { slug, target: input.target, tree });\n  checkVerifyClean(head);\n",
+      "replace": "  checkVerifyClean(head);\n  checkNewGreen(input.replaceMetadata, { slug, target: input.target, tree });\n",
       "occurrences": 1,
       "expect_failing": [
         "前提の欠落（exit 2） verify-metadata.json の new.dirty が true でも、green の記録の鍵の違いを先に示す"
       ]
     },
     {
-      "id": "cv-verify-commit-none-off",
-      "why": "verify-metadata.json の new.commit が none でも、none どうしの比較で green の記録とスイートなどの記録を通す",
+      "id": "cv-verify-tree-none-off",
+      "why": "verify-metadata.json の new.tree が none でも、none どうしの比較で green の記録とスイートなどの記録を通す",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "  if (commit === \"none\")\n",
+      "find": "  if (tree === \"none\")\n",
       "replace": "  if (false)\n",
       "occurrences": 1,
       "expect_failing": [
-        "前提の欠落（exit 2） すべての記録の commit が none でも、verify-metadata.json の new.commit が none なら前提の欠落として exit 2"
+        "前提の欠落（exit 2） すべての記録の tree が none でも、verify-metadata.json の new.tree が none なら前提の欠落として exit 2"
+      ]
+    },
+    {
+      "id": "cv-verify-tree-missing-off",
+      "why": "verify-metadata.json に new.tree が無い古い記録（new.commit だけを持つ）を、もう一度測ると示さずに先へ進める",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  if (!filled(tree))\n",
+      "replace": "  if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "前提の欠落（exit 2） verify-metadata.json に new.commit だけがあり new.tree が無い古い記録は、もう一度測るとして exit 2"
       ]
     },
     {
@@ -384,16 +399,17 @@
       ]
     },
     {
-      "id": "cv-new-green-commit-key-off",
-      "why": "green の記録の鍵のうち commit を比べず、別の値・欠落・型の誤りでも通す",
+      "id": "cv-new-green-tree-key-off",
+      "why": "green の記録の鍵のうち new.tree を比べず、別の値・欠落・型の誤り・new.tree の無い古い記録でも通す",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "    [\"new.commit\", n.commit, want.commit, \"verify-metadata.json の new.commit\"],\n",
+      "find": "    [\"new.tree\", n.tree, want.tree, \"verify-metadata.json の new.tree\"],\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "前提の欠落（exit 2） parity-replace が green にした記録の new.commit が別の値 なら、前提の欠落として exit 2",
-        "前提の欠落（exit 2） parity-replace が green にした記録の new.commit が無い なら、前提の欠落として exit 2",
-        "前提の欠落（exit 2） parity-replace が green にした記録の new.commit が文字列でない なら、前提の欠落として exit 2"
+        "前提の欠落（exit 2） parity-replace が green にした記録の new.tree が別の値 なら、前提の欠落として exit 2",
+        "前提の欠落（exit 2） parity-replace が green にした記録の new.tree が無い（new.commit は同じ古い記録） なら、前提の欠落として exit 2",
+        "前提の欠落（exit 2） parity-replace が green にした記録の new.tree が文字列でない なら、前提の欠落として exit 2",
+        "前提の欠落（exit 2） new.commit が同じでも、new.tree が green の記録と違えば前提の欠落として exit 2"
       ]
     }
   ]

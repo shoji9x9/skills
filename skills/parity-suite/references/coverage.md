@@ -516,18 +516,20 @@ feature モードのときだけ作る。
 
 - `--replace-metadata` は必須である。
   省けるようにすると、記録の後に新側を変えても、鮮度の照合（`comparison-implementation-stale`）が一度も評価されず、古い証拠で収束してしまう。
-  突き合わせ表の `new_implementation.commit` は、`replace-metadata.json` の `new.commit` と一致する必要がある。
+  突き合わせ表の `new_implementation.tree` は、`replace-metadata.json` の `new.tree` と一致する必要がある。
+  `new.commit` は一致の判定に使わない（取り方と照合の原本は `replace-strategy` の `references/project-config.md`「新側のバージョンの記録」）。
+  `tree` を持たない記録は、`commit` が一致していても合格として扱わず、同じバージョンで記録し直す。
   例外は、部品の改修による持ち越しだけである。そのときは `--new-repo` を渡し、同じディレクトリの `evidence-carry.json` が対象にする違いを、
   [`../scripts/evidence-carry.mjs`](../scripts/evidence-carry.mjs) が認めたときに通す。
-  記録と `new.commit` が一致したままの一括の再検証の直後は、検証先のバージョンを `--carry-to` で渡したときだけ判定する。
+  記録と `new.tree` が一致したままの一括の再検証の直後は、検証先のバージョンを `--carry-to` で渡したときだけ判定する。
   手順の原本は、`parity-diff` の `references/component-change.md` である。
-  両方の `dirty` が `false` であることまで求める。commit していない変更を抱えた作業ツリーの記録は、commit でバージョンを特定できないからである。
-- `new.commit` が `none`（新側が git で管理されていない）なら、反復の回数で判定する。
+  両方の `dirty` が `false` であることまで求める。commit していない変更を抱えた作業ツリーの記録は、`tree` でバージョンを特定できないからである。
+- `new.tree` が `none`（新側が git で管理されていない）なら、反復の回数で判定する。
   文字列の比較では両側が `none` で常に一致するので、実装を変えても、古い記録が鮮度の検査を通り続けてしまう。
   そのため、`new_implementation.iteration` と、`replace-metadata.json` の `loop.iterations` を突き合わせる。
   どちらかが読めなければ、合格として扱わず、`comparison-implementation-unversionable` で失敗にする。
   片側だけが `none` のとき（git での管理の有無が、記録の後に変わった）は、反復の回数が一致しても `comparison-implementation-stale` で失敗にする。
-  `none` と実在する SHA は、同じバージョンを指さないからである。
+  `none` と実在するハッシュは、同じバージョンを指さないからである。
 - `component`・`item`・`instance` の id に `|` を使わない。突き合わせの鍵（`<component>|<item>|<instance>`）の区切りなので、含めると、あるセルの記録が別のセルの証拠として通る。
   網羅表の指紋も、区切りが曖昧になった同じ鍵を数えるので、一致してしまう。
 - セルの値は変えない。

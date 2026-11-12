@@ -51,6 +51,8 @@ e2e が入っていることも確かめる。確かめ方の原本は `spec-par
   送ってよいかの承認と止め方は、`spec-parity` の `SKILL.md`「前提」の「外部へ送るデータ」と、`spec-parity` の `references/e2e-runner.md`「外部へ送るデータと止め方」に従う（ここへ転記しない）。
   この 2 つを読めないときは、e2e を実行せずに止まる。
 - `.e2e/cache/` を commit しない。入力した値がそのまま残るからである（`spec-parity` の `references/e2e-runner.md`「`agent.act` のキャッシュ」）。
+- e2e の結果の出力先（デフォルトは `.e2e/`）が新側の作業ツリーの中にあるなら、新側の `.gitignore` に入れる。
+  入れないと、実行のたびに `new.dirty` が `true` になる（範囲の原本は `replace-strategy` の `references/project-config.md`「新側のバージョンの記録」）。
 
 ## 実行フローの置き換え
 
@@ -122,11 +124,12 @@ e2e が入っていることも確かめる。確かめ方の原本は `spec-par
 |---|---|
 | `slug` | 対象の slug（`metadata.json` の `slug` と同じ） |
 | `new.target` | 選んだ new target の名前（置き場所のディレクトリ名と同じ） |
-| `new.commit`・`new.dirty` | green を確かめた新側のバージョン。取り方の原本は `replace-strategy` の `references/project-config.md`「新側のバージョンの記録」 |
+| `new.commit`・`new.tree`・`new.dirty` | green を確かめた新側のバージョン。同梱の `scripts/source-version.mjs` の出力を書く。取り方と照合の規則の原本は `replace-strategy` の `references/project-config.md`「新側のバージョンの記録」 |
 | `suite.new_green` | 上の「新側の green」が成り立ったときだけ `true` |
 
 - 新側の変更を commit してから green を確かめ、そのときのバージョンを書く。`new.dirty` が `true` の記録では、`spec-parity verify` が前提の確認で止まる。
-  `new.dirty` は、その時点で取得した値で書く。雛形の値のまま残さない。
+  `new.tree` と `new.dirty` は、その時点で取得した値で書く。雛形の値のまま残さない。`spec-parity verify` は、`new.tree` を持たない記録を、green を記録し直すまで前提として使わない。
+- 記録（`.replace/`）は、新側と同じ git のリポジトリに置いて commit してよい。記録を書いても commit しても、`new.tree` は変わらない。
 - `suite.locator_map_new` は `none` にする。`dimension_check` は、雛形のプレースホルダを残さず、キーごと省く。`loop.changed_scope` は `null` のままにする（`parity-diff` だけが読む値である）。
 
 #### 受け入れ条件の突き合わせ
@@ -148,6 +151,6 @@ e2e が入っていることも確かめる。確かめ方の原本は `spec-par
 - 反復の数え方・上限（`--max-iterations`）・`on_diff` の扱いは、[`diff-loop.md`](diff-loop.md) のまま行う。`loop.last_diff_report` には `verify.md` のパスを書く。
 - `loop.changed_scope` は書かない（`null` のまま）。`spec-parity verify` はこの値を読まない。
 
-### 軽量な手順（同一 commit で環境だけ違う場合）
+### 軽量な手順（同じ実装で環境だけ違う場合）
 
 `SKILL.md`「軽量な手順」のまま行う。スイートの green は、上の「新側の green」で確かめる。

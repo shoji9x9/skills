@@ -1,0 +1,147 @@
+{
+  "metadata": {
+    "skill_name": "parity-replace",
+    "skill_path": "<repo>/skills/parity-replace",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-12T03:00:09Z",
+    "evals_run": [29],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 29,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 51.719,
+        "tokens": 301377,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "parity-replace の scripts/source-version.mjs を --repo ./new-app で実行して今の新側の tree を取り、local-dev の replace-metadata.json の new.tree と一致すると述べている",
+          "passed": true,
+          "evidence": "raw に source-version.mjs --repo ./new-app --artifacts .replace の実行があり、tree d47386a1… が local-dev の記録の new.tree と一致すると述べている"
+        },
+        {
+          "text": "記録の new.commit が今の HEAD と違うこと（HEAD は記録を commit した 1 つ後の commit）を、軽量な手順を当てない理由にしていない",
+          "passed": true,
+          "evidence": "new.commit の不一致は「判定には使わない」とし、記録の commit で HEAD が 1 つ進んだ理由も説明している"
+        },
+        {
+          "text": "記録と今の新側の new.dirty がどちらも false で new.tree が一致するので、軽量な手順を当てられると判定している",
+          "passed": true,
+          "evidence": "new.dirty がどちらも false で new.tree が一致するので、軽量な手順を当てられると判定している"
+        },
+        {
+          "text": "local-dev の green 証跡を local-preview の green 証跡として流用せず、local-preview でスイートを green にしてから new/local-preview/replace-metadata.json に記録する手順を挙げている",
+          "passed": true,
+          "evidence": "local-preview でスイートを green にし、new/local-preview/replace-metadata.json に記録する手順を挙げ、local-dev の証跡は上書きしないとしている"
+        },
+        {
+          "text": ".replace/parity/order-list/new/local-preview/replace-metadata.json を作っていない（project-files に存在しない）",
+          "passed": true,
+          "evidence": "project-tree.txt に new/local-preview/ が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 29,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 53.281,
+        "tokens": 98300,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "parity-replace の scripts/source-version.mjs を --repo ./new-app で実行して今の新側の tree を取り、local-dev の replace-metadata.json の new.tree と一致すると述べている",
+          "passed": false,
+          "evidence": "source-version.mjs を実行せず、git rev-parse HEAD:new-app と git status で tree と dirty を取っている"
+        },
+        {
+          "text": "記録の new.commit が今の HEAD と違うこと（HEAD は記録を commit した 1 つ後の commit）を、軽量な手順を当てない理由にしていない",
+          "passed": true,
+          "evidence": "commit の違いは new-app を変えていない commit によるものと説明し、軽量な手順を当てない理由にしていない"
+        },
+        {
+          "text": "記録と今の新側の new.dirty がどちらも false で new.tree が一致するので、軽量な手順を当てられると判定している",
+          "passed": true,
+          "evidence": "new.tree と new.dirty（false）が同じなので、新側のコードについては軽量な手順を当てられると判定している（データと認証の準備を前提に足している）"
+        },
+        {
+          "text": "local-dev の green 証跡を local-preview の green 証跡として流用せず、local-preview でスイートを green にしてから new/local-preview/replace-metadata.json に記録する手順を挙げている",
+          "passed": true,
+          "evidence": "local-preview でスイートを実行し、green なら new/local-preview/replace-metadata.json に記録する手順を挙げている"
+        },
+        {
+          "text": ".replace/parity/order-list/new/local-preview/replace-metadata.json を作っていない（project-files に存在しない）",
+          "passed": true,
+          "evidence": "project-tree.txt に new/local-preview/ が無い"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 51.719,
+        "stddev": 0,
+        "min": 51.719,
+        "max": 51.719
+      },
+      "tokens": {
+        "mean": 301377,
+        "stddev": 0,
+        "min": 301377,
+        "max": 301377
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.8,
+        "stddev": 0,
+        "min": 0.8,
+        "max": 0.8
+      },
+      "time_seconds": {
+        "mean": 53.281,
+        "stddev": 0,
+        "min": 53.281,
+        "max": 53.281
+      },
+      "tokens": {
+        "mean": 98300,
+        "stddev": 0,
+        "min": 98300,
+        "max": 98300
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.20",
+      "time_seconds": "-1.6",
+      "tokens": "+203077"
+    }
+  },
+  "notes": []
+}

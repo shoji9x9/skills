@@ -202,7 +202,7 @@ test("突き合わせは新側のバージョンに紐づける（記録後に�
   const stale = checkComponentComparison({
     coverage: COVERAGE,
     comparison: comparisonOf(),
-    replaceMetadata: { new: { commit: "def456", dirty: false } },
+    replaceMetadata: { new: { commit: "def456", tree: "def456", dirty: false } },
     target: "preview",
   }).findings.map((f) => f.code);
   expect(stale).toContain("comparison-implementation-stale");
@@ -211,7 +211,7 @@ test("突き合わせは新側のバージョンに紐づける（記録後に�
   const fresh = checkComponentComparison({
     coverage: COVERAGE,
     comparison: comparisonOf(),
-    replaceMetadata: { new: { commit: "abc123", dirty: false } },
+    replaceMetadata: { new: { commit: "abc123", tree: "abc123", dirty: false } },
     target: "preview",
   }).findings;
   expect(fresh).toEqual([]);
@@ -224,10 +224,56 @@ test("突き合わせは新側のバージョンに紐づける（記録後に�
     checkComponentComparison({
       coverage: COVERAGE,
       comparison: comparisonOf(),
-      replaceMetadata: { new: { commit: "abc123", dirty: true } },
+      replaceMetadata: { new: { commit: "abc123", tree: "abc123", dirty: true } },
       target: "preview",
     }).findings.map((f) => f.code),
   ).toContain("replace-metadata-dirty");
+});
+
+// 鍵は new.tree。記録を commit して HEAD が進んでも、ソースが同じなら同じバージョンとして扱う。
+test("new.commit が違っても new.tree が同じなら、同じバージョンとして通す", () => {
+  const findings = checkComponentComparison({
+    coverage: COVERAGE,
+    comparison: comparisonOf({
+      new_implementation: { commit: "abc123", tree: "t1", dirty: false },
+    }),
+    replaceMetadata: { new: { commit: "def456", tree: "t1", dirty: false } },
+    target: "preview",
+  }).findings;
+  expect(findings).toEqual([]);
+});
+
+test("new.commit が同じでも new.tree が違えば stale", () => {
+  const codes = checkComponentComparison({
+    coverage: COVERAGE,
+    comparison: comparisonOf({
+      new_implementation: { commit: "abc123", tree: "t1", dirty: false },
+    }),
+    replaceMetadata: { new: { commit: "abc123", tree: "t2", dirty: false } },
+    target: "preview",
+  }).findings.map((f) => f.code);
+  expect(codes).toContain("comparison-implementation-stale");
+});
+
+// new.tree を持たない古い記録は、new.commit が一致しても合格として扱わない
+test("突き合わせ表の new_implementation が tree を持たなければ、commit が一致しても unrecorded", () => {
+  const codes = checkComponentComparison({
+    coverage: COVERAGE,
+    comparison: comparisonOf({ new_implementation: { commit: "abc123", dirty: false } }),
+    replaceMetadata: { new: { commit: "abc123", tree: "abc123", dirty: false } },
+    target: "preview",
+  }).findings.map((f) => f.code);
+  expect(codes).toContain("comparison-implementation-unrecorded");
+});
+
+test("replace-metadata.json が new.tree を持たなければ、commit が一致しても replace-metadata-tree-missing", () => {
+  const codes = checkComponentComparison({
+    coverage: COVERAGE,
+    comparison: comparisonOf(),
+    replaceMetadata: { new: { commit: "abc123", dirty: false } },
+    target: "preview",
+  }).findings.map((f) => f.code);
+  expect(codes).toContain("replace-metadata-tree-missing");
 });
 
 test("網羅表に slug が無いことを免除にしない", () => {
@@ -357,11 +403,13 @@ test("replace-metadata が new オブジェクトを持たなければ鮮度を�
 
 test("バージョンの記録は dirty: false まで求める（未コミットの作業ツリーは commit がバージョンを指さない）", () => {
   for (const dirty of [undefined, true, "false", null]) {
-    const comparison = comparisonOf({ new_implementation: { commit: "abc123", dirty } });
+    const comparison = comparisonOf({
+      new_implementation: { commit: "abc123", tree: "abc123", dirty },
+    });
     expect(codesOf({ comparison })).toContain("comparison-implementation-dirty");
-    expect(codesOf({ replaceMetadata: { new: { commit: "abc123", dirty } } })).toContain(
-      "replace-metadata-dirty",
-    );
+    expect(
+      codesOf({ replaceMetadata: { new: { commit: "abc123", tree: "abc123", dirty } } }),
+    ).toContain("replace-metadata-dirty");
   }
   // 誤検知しないことの確認: どちらも false なら出ない。
   const clean = codesOf();
@@ -385,7 +433,7 @@ test("new.commit が none なら反復回数で鮮度を判定する", () => {
   expect(
     codesOf({
       comparison: comparisonOf({
-        new_implementation: { commit: "none", dirty: false, iteration: 2 },
+        new_implementation: { commit: "none", tree: "none", dirty: false, iteration: 2 },
       }),
       replaceMetadata: noneReplaceMetadata(3),
     }),
@@ -394,7 +442,7 @@ test("new.commit が none なら反復回数で鮮度を判定する", () => {
   expect(
     codesOf({
       comparison: comparisonOf({
-        new_implementation: { commit: "none", dirty: false, iteration: 3 },
+        new_implementation: { commit: "none", tree: "none", dirty: false, iteration: 3 },
       }),
       replaceMetadata: noneReplaceMetadata(3),
     }),
@@ -402,9 +450,13 @@ test("new.commit が none なら反復回数で鮮度を判定する", () => {
 });
 
 test.each([
-  ["記録側の iteration が無い", { commit: "none", dirty: false }, 3],
-  ["現在側の loop.iterations が無い", { commit: "none", dirty: false, iteration: 3 }, undefined],
-  ["iteration が整数でない", { commit: "none", dirty: false, iteration: "3" }, 3],
+  ["記録側の iteration が無い", { commit: "none", tree: "none", dirty: false }, 3],
+  [
+    "現在側の loop.iterations が無い",
+    { commit: "none", tree: "none", dirty: false, iteration: 3 },
+    undefined,
+  ],
+  ["iteration が整数でない", { commit: "none", tree: "none", dirty: false, iteration: "3" }, 3],
 ])(
   "none なのに退き先が読めなければ合格として扱わない: %s",
   (_label, implementation, iterations) => {
@@ -422,7 +474,9 @@ test.each([
 // unversionable（「iteration を書き足せ」と読める）が併発し、案内と実際の直し方がずれる。
 test("片側だけが none なら stale だけを出し、iteration の欠落は問わない", () => {
   const codes = codesOf({
-    comparison: comparisonOf({ new_implementation: { commit: "abc123", dirty: false } }),
+    comparison: comparisonOf({
+      new_implementation: { commit: "abc123", tree: "abc123", dirty: false },
+    }),
     replaceMetadata: noneReplaceMetadata(3),
   });
   expect(codes).toContain("comparison-implementation-stale");
@@ -433,7 +487,9 @@ test("commit が実在の SHA なら従来どおり文字列で判定する（�
   expect(codesOf()).toEqual([]);
   expect(
     codesOf({
-      comparison: comparisonOf({ new_implementation: { commit: "def456", dirty: false } }),
+      comparison: comparisonOf({
+        new_implementation: { commit: "def456", tree: "def456", dirty: false },
+      }),
     }),
   ).toContain("comparison-implementation-stale");
 });
@@ -443,13 +499,13 @@ test("commit が実在の SHA なら従来どおり文字列で判定する（�
 test.each([
   {
     label: "記録が SHA・現在が none",
-    implementation: { commit: "abc123", dirty: false, iteration: 3 },
+    implementation: { commit: "abc123", tree: "abc123", dirty: false, iteration: 3 },
     now: "none",
     iterations: 3,
   },
   {
     label: "記録が none・現在が SHA",
-    implementation: { commit: "none", dirty: false, iteration: 3 },
+    implementation: { commit: "none", tree: "none", dirty: false, iteration: 3 },
     now: "abc123",
     iterations: 3,
   },
@@ -459,7 +515,7 @@ test.each([
     expect(
       codesOf({
         comparison: comparisonOf({ new_implementation: implementation }),
-        replaceMetadata: { new: { commit: now, dirty: false }, loop: { iterations } },
+        replaceMetadata: { new: { commit: now, tree: now, dirty: false }, loop: { iterations } },
       }),
     ).toContain("comparison-implementation-stale");
   },
@@ -489,6 +545,7 @@ test("持ち越し: 宣言外のファイルが変わっていれば stale ＋ e
   const replacePath = join(p.stageDir, "replace-metadata.json");
   const replace = parseJsonAs<{ new: Record<string, unknown> }>(readFileSync(replacePath, "utf8"));
   replace.new.commit = theme;
+  replace.new.tree = theme;
   writeFileSync(replacePath, JSON.stringify(replace));
   const { code, result } = runCarry(p);
   expect(result.findings.map((f) => f.code)).toEqual([
@@ -496,6 +553,18 @@ test("持ち越し: 宣言外のファイルが変わっていれば stale ＋ e
     "evidence-carry-rejected",
   ]);
   expect(result.findings[1].message).toContain("src/theme.css");
+  expect(code).toBe(1);
+});
+
+// commit が同じなら描画入力の差分は必ず空になる。差分が空であることを、tree の食い違いの説明として扱わない
+test("持ち越し: commit が同じで tree だけが違えば、描画入力の差分が空でも stale", () => {
+  const p = carryFiles([["list", "default", "desktop"]]);
+  const replacePath = join(p.stageDir, "replace-metadata.json");
+  const replace = parseJsonAs<{ new: Record<string, unknown> }>(readFileSync(replacePath, "utf8"));
+  replace.new.commit = p.commits.base;
+  writeFileSync(replacePath, JSON.stringify(replace));
+  const { code, result } = runCarry(p);
+  expect(result.findings.map((f) => f.code)).toEqual(["comparison-implementation-stale"]);
   expect(code).toBe(1);
 });
 
@@ -543,7 +612,9 @@ test("carry を渡さない checkComponentComparison は従来どおり stale（
   const result = checkComponentComparison({
     coverage: COVERAGE,
     comparison: comparisonOf(),
-    replaceMetadata: { new: { commit: "def456", dirty: false, render_inputs: RENDER_INPUTS } },
+    replaceMetadata: {
+      new: { commit: "def456", tree: "def456", dirty: false, render_inputs: RENDER_INPUTS },
+    },
     target: null,
   });
   expect(result.findings.map((f) => f.code)).toEqual(["comparison-implementation-stale"]);

@@ -27,6 +27,7 @@ import {
   run,
   cli,
   writeStage,
+  STAGE_VERSION,
   mutatingSuite,
   FP_SUITE,
   recordedProject,
@@ -316,10 +317,13 @@ test("suite.new_green が真なのに diff-metadata.json が無ければ落と�
 /** 新側のバージョンと反復を両成果物に記録した状態（対応づけが通ることを確かめる基になる状態）。 */
 const CORRELATED = {
   replace: {
-    new: { target: "local-dev", commit: "a".repeat(40), dirty: false },
+    new: { target: "local-dev", commit: "a".repeat(40), tree: "a".repeat(40), dirty: false },
     loop: { iterations: 3 },
   },
-  diff: { new: { target: "local-dev", commit: "a".repeat(40) }, iteration: 3 },
+  diff: {
+    new: { target: "local-dev", commit: "a".repeat(40), tree: "a".repeat(40) },
+    iteration: 3,
+  },
 };
 
 test("記録後の changes[].affects に * があれば陳腐化として落とす", () => {
@@ -418,11 +422,11 @@ test("converged: false でもバージョンが一致していれば落とさな
   const { root, slugDir, metadataPath } = makeProject();
   writeFileSync(
     join(slugDir, "new/local-dev/replace-metadata.json"),
-    JSON.stringify({ suite: { new_green: true } }),
+    JSON.stringify({ suite: { new_green: true }, new: { ...STAGE_VERSION, dirty: false } }),
   );
   writeFileSync(
     join(slugDir, "new/local-dev/diff-metadata.json"),
-    JSON.stringify({ dataset_version: 7, converged: false }),
+    JSON.stringify({ new: STAGE_VERSION, dataset_version: 7, converged: false }),
   );
   const r = run(metadataPath, ["--target", "local-dev"]);
   expect(r.status).toBe(0);
@@ -589,7 +593,7 @@ test("新側のコミットが変わった diff-metadata.json は通さない", 
     slugDir,
     {
       ...CORRELATED.diff,
-      new: { target: "local-dev", commit: "b".repeat(40) },
+      new: { target: "local-dev", commit: "b".repeat(40), tree: "b".repeat(40) },
       dataset_version: 7,
       converged: true,
     },
@@ -601,20 +605,20 @@ test("新側のコミットが変わった diff-metadata.json は通さない", 
   rmSync(root, { recursive: true, force: true });
 });
 
-test("new.commit が none なら反復回数だけで判定する", () => {
+test("new.tree が none なら反復回数だけで判定する", () => {
   const { root, slugDir, metadataPath } = makeProject();
   writeStage(
     slugDir,
     {
-      new: { target: "local-dev", commit: "none" },
+      new: { target: "local-dev", commit: "none", tree: "none" },
       iteration: 3,
       dataset_version: 7,
       converged: true,
     },
-    { new: { target: "local-dev", commit: "none" }, loop: { iterations: 3 } },
+    { new: { target: "local-dev", commit: "none", tree: "none" }, loop: { iterations: 3 } },
   );
   const r = run(metadataPath, ["--target", "local-dev"]);
-  expect(r.stdout).toMatch(/new\.commit が none/);
+  expect(r.stdout).toMatch(/new\.tree が none/);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
@@ -625,7 +629,7 @@ test("new.dirty: true なら SHA が一致しても通さない（判定不能�
     slugDir,
     { ...CORRELATED.diff, dataset_version: 7, converged: true },
     {
-      new: { target: "local-dev", commit: "a".repeat(40), dirty: true },
+      new: { target: "local-dev", commit: "a".repeat(40), tree: "a".repeat(40), dirty: true },
       loop: { iterations: 3 },
     },
   );
@@ -635,13 +639,90 @@ test("new.dirty: true なら SHA が一致しても通さない（判定不能�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("対応づけの記録を片側が持たない旧成果物は判定しない（後方互換）", () => {
+test("反復回数を片側が持たない旧成果物は、反復の対応を判定しない（後方互換）", () => {
   const { root, slugDir, metadataPath } = makeProject();
-  writeStage(slugDir, { dataset_version: 7, converged: true }, CORRELATED.replace);
+  writeStage(
+    slugDir,
+    { ...CORRELATED.diff, iteration: undefined, dataset_version: 7, converged: true },
+    CORRELATED.replace,
+  );
   const r = run(metadataPath, ["--target", "local-dev"]);
-  expect(r.stdout).toMatch(/new\.commit を片側が持たないため/);
   expect(r.stdout).toMatch(/iteration \/ loop\.iterations を片側が持たないため/);
   expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// new.tree を持たない古い記録は、new.commit が一致していても合格として扱わず、記録し直しを求める
+test.each([
+  {
+    label: "diff-metadata.json",
+    diff: { new: { target: "local-dev", commit: "a".repeat(40) } },
+    replace: CORRELATED.replace,
+    skill: "parity-diff",
+  },
+  {
+    label: "replace-metadata.json",
+    diff: CORRELATED.diff,
+    replace: {
+      ...CORRELATED.replace,
+      new: { target: "local-dev", commit: "a".repeat(40), dirty: false },
+    },
+    skill: "parity-replace",
+  },
+])(
+  "$label が new.tree を持たなければ、new.commit が一致しても落とす",
+  ({ label, diff, replace, skill }) => {
+    const { root, slugDir, metadataPath } = makeProject();
+    writeStage(slugDir, { ...diff, iteration: 3, dataset_version: 7, converged: true }, replace);
+    const r = run(metadataPath, ["--target", "local-dev"]);
+    expect(r.stdout).toContain(`${label} が new.tree を持たない`);
+    expect(r.stdout).toContain(skill);
+    expect(r.status).toBe(1);
+    rmSync(root, { recursive: true, force: true });
+  },
+);
+
+test("new.commit が違っても new.tree が同じなら、同じバージョンとして通す（記録を commit して HEAD が進んだ構成）", () => {
+  const { root, slugDir, metadataPath } = makeProject();
+  writeStage(
+    slugDir,
+    {
+      new: { target: "local-dev", commit: "e".repeat(40), tree: "1".repeat(40) },
+      iteration: 3,
+      dataset_version: 7,
+      converged: true,
+    },
+    {
+      new: { target: "local-dev", commit: "f".repeat(40), tree: "1".repeat(40), dirty: false },
+      loop: { iterations: 3 },
+    },
+  );
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).not.toMatch(/今の新側のバージョンに対応していない/);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("new.commit が同じでも new.tree が違えば、今の新側に対応していないとして落とす", () => {
+  const { root, slugDir, metadataPath } = makeProject();
+  writeStage(
+    slugDir,
+    {
+      new: { target: "local-dev", commit: "e".repeat(40), tree: "1".repeat(40) },
+      iteration: 3,
+      dataset_version: 7,
+      converged: true,
+    },
+    {
+      new: { target: "local-dev", commit: "e".repeat(40), tree: "2".repeat(40), dirty: false },
+      loop: { iterations: 3 },
+    },
+  );
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).toMatch(
+    /今の新側のバージョンに対応していない（new\.tree 1{40} ≠ replace-metadata\.json の 2{40}）/,
+  );
+  expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
@@ -1026,12 +1107,15 @@ test("new.commit が none でも dirty なら落とす（コミットの比較�
   writeStage(
     slugDir,
     {
-      new: { target: "local-dev", commit: "none" },
+      new: { target: "local-dev", commit: "none", tree: "none" },
       iteration: 3,
       dataset_version: 7,
       converged: true,
     },
-    { new: { target: "local-dev", commit: "none", dirty: true }, loop: { iterations: 3 } },
+    {
+      new: { target: "local-dev", commit: "none", tree: "none", dirty: true },
+      loop: { iterations: 3 },
+    },
   );
   const r = run(metadataPath, ["--target", "local-dev"]);
   expect(r.stdout).toMatch(/新側のバージョンを特定できない.*new\.dirty: true/);
@@ -1046,11 +1130,14 @@ test("別の環境の成果物をコピーしただけなら落とす（new.targ
     slugDir,
     {
       ...CORRELATED.diff,
-      new: { target: "preview", commit: "a".repeat(40) },
+      new: { target: "preview", commit: "a".repeat(40), tree: "a".repeat(40) },
       dataset_version: 7,
       converged: true,
     },
-    { ...CORRELATED.replace, new: { target: "preview", commit: "a".repeat(40), dirty: false } },
+    {
+      ...CORRELATED.replace,
+      new: { target: "preview", commit: "a".repeat(40), tree: "a".repeat(40), dirty: false },
+    },
   );
   const r = run(metadataPath, ["--target", "local-dev"]);
   expect(r.stdout).toMatch(
@@ -1065,8 +1152,16 @@ test("new.target を持たない旧成果物は環境の対応を判定しない
   const { root, slugDir, metadataPath } = makeProject();
   writeStage(
     slugDir,
-    { new: { commit: "a".repeat(40) }, iteration: 3, dataset_version: 7, converged: true },
-    { new: { commit: "a".repeat(40), dirty: false }, loop: { iterations: 3 } },
+    {
+      new: { commit: "a".repeat(40), tree: "a".repeat(40) },
+      iteration: 3,
+      dataset_version: 7,
+      converged: true,
+    },
+    {
+      new: { commit: "a".repeat(40), tree: "a".repeat(40), dirty: false },
+      loop: { iterations: 3 },
+    },
   );
   const r = run(metadataPath, ["--target", "local-dev"]);
   expect(r.stdout).toMatch(/new\.target を持たないため環境の対応を判定しない/);
@@ -1187,7 +1282,7 @@ test("read_by が本当に無いときは従来どおり「無い」と報告す
   rmSync(root, { recursive: true, force: true });
 });
 
-// new.commit が none の枝はバージョンの対応を反復回数へ委ねている。委ねた先も読めないと、
+// new.tree が none の枝はバージョンの対応を反復回数へ委ねている。委ねた先も読めないと、
 // バージョンの検査を 1 つも通らないまま古い成果物が素通りする（委譲先が無いことを合格として扱わない）。
 test.each([
   ["記録側の iteration が無い", undefined, { iterations: 3 }],
@@ -1198,20 +1293,20 @@ test.each([
     "<replace-metadata.json の loop.iterations（数値）>",
     { iterations: 3 },
   ],
-])("new.commit が none なのに反復回数も読めなければ落とす: %s", (_label, iteration, loop) => {
+])("new.tree が none なのに反復回数も読めなければ落とす: %s", (_label, iteration, loop) => {
   const { root, slugDir, metadataPath } = makeProject();
   writeStage(
     slugDir,
     {
-      new: { target: "local-dev", commit: "none" },
+      new: { target: "local-dev", commit: "none", tree: "none" },
       ...(iteration === undefined ? {} : { iteration }),
       dataset_version: 7,
       converged: true,
     },
-    { new: { target: "local-dev", commit: "none", dirty: false }, loop },
+    { new: { target: "local-dev", commit: "none", tree: "none", dirty: false }, loop },
   );
   const r = run(metadataPath, ["--target", "local-dev"]);
-  expect(r.stdout).toMatch(/新側のバージョンを対応づける指標が無い（new\.commit が none なのに/);
+  expect(r.stdout).toMatch(/新側のバージョンを対応づける指標が無い（new\.tree が none なのに/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
@@ -1220,8 +1315,15 @@ test("commit が実在の SHA なら反復回数の片側欠落は従来どお�
   const { root, slugDir, metadataPath } = makeProject();
   writeStage(
     slugDir,
-    { new: { target: "local-dev", commit: "a".repeat(40) }, dataset_version: 7, converged: true },
-    { new: { target: "local-dev", commit: "a".repeat(40), dirty: false }, loop: {} },
+    {
+      new: { target: "local-dev", commit: "a".repeat(40), tree: "a".repeat(40) },
+      dataset_version: 7,
+      converged: true,
+    },
+    {
+      new: { target: "local-dev", commit: "a".repeat(40), tree: "a".repeat(40), dirty: false },
+      loop: {},
+    },
   );
   const r = run(metadataPath, ["--target", "local-dev"]);
   expect(r.stdout).toMatch(/反復の対応を判定しない（旧成果物）/);
@@ -1240,12 +1342,12 @@ test.each([
   writeStage(
     slugDir,
     {
-      new: { target: "local-dev", commit: recorded },
+      new: { target: "local-dev", commit: recorded, tree: recorded },
       iteration: 3,
       dataset_version: 7,
       converged: true,
     },
-    { new: { target: "local-dev", commit: now, dirty: false }, loop: { iterations: 3 } },
+    { new: { target: "local-dev", commit: now, tree: now, dirty: false }, loop: { iterations: 3 } },
   );
   const r = run(metadataPath, ["--target", "local-dev"]);
   expect(r.stdout).toMatch(/今の新側のバージョンに対応していない/);
@@ -1260,12 +1362,15 @@ test("反復回数は数字列を受けない（姉妹のチェックスクリ�
   writeStage(
     slugDir,
     {
-      new: { target: "local-dev", commit: "none" },
+      new: { target: "local-dev", commit: "none", tree: "none" },
       iteration: "3",
       dataset_version: 7,
       converged: true,
     },
-    { new: { target: "local-dev", commit: "none", dirty: false }, loop: { iterations: 3 } },
+    {
+      new: { target: "local-dev", commit: "none", tree: "none", dirty: false },
+      loop: { iterations: 3 },
+    },
   );
   const r = run(metadataPath, ["--target", "local-dev"]);
   expect(r.stdout).toMatch(/新側のバージョンを対応づける指標が無い/);
@@ -1317,12 +1422,51 @@ test("持ち越し: 宣言外のファイルが変わっていれば落とす（
   const { root, slugDir, metadataPath, carry } = carryProject([["list", "default", "desktop"]]);
   const theme = commitFiles(carry.repo, { "src/theme.css": ":root { --accent: red; }\n" }, "theme");
   const replacePath = join(slugDir, "new/local-dev/replace-metadata.json");
-  const replace = parseJsonAs<{ new: { commit: unknown } }>(readFileSync(replacePath, "utf8"));
+  const replace = parseJsonAs<{ new: { commit: unknown; tree: unknown } }>(
+    readFileSync(replacePath, "utf8"),
+  );
   replace.new.commit = theme;
+  replace.new.tree = theme;
   writeFileSync(replacePath, JSON.stringify(replace));
   const r = run(metadataPath, ["--target", "local-dev", "--new-repo", carry.repo]);
   expect(r.stdout).toMatch(/今の新側のバージョンに対応していない/);
   expect(r.stdout).toMatch(/証跡を持ち越せない: .*src\/theme\.css/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+/** replace-metadata.json の new.commit を diff-metadata.json と同じ commit にし、new.tree だけが違う記録を作る。 */
+function sameCommitDifferentTree() {
+  const project = carryProject([["list", "default", "desktop"]]);
+  const replacePath = join(project.slugDir, "new/local-dev/replace-metadata.json");
+  const replace = parseJsonAs<{ new: { commit: unknown } }>(readFileSync(replacePath, "utf8"));
+  replace.new.commit = project.carry.commits.base;
+  writeFileSync(replacePath, JSON.stringify(replace));
+  return project;
+}
+
+// new.commit が同じなら描画入力の差分は必ず空になる。差分が空であることを、new.tree の食い違いの説明として扱わない
+test("持ち越し: new.commit が同じで new.tree だけが違えば、描画入力の差分が空でも持ち越さない", () => {
+  const { root, metadataPath, carry } = sameCommitDifferentTree();
+  const r = run(metadataPath, ["--target", "local-dev", "--new-repo", carry.repo]);
+  expect(r.stdout).toMatch(/今の新側のバージョンに対応していない/);
+  expect(r.stdout).toMatch(/証跡を持ち越せない: new\.commit が同じ.*なのに new\.tree が違う/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// 食い違いの判定で judgeCarry に掛けなかったときは、--carry-to が同じ commit を指していても --carry-to の判定を飛ばさない
+test("持ち越し: new.commit が同じで new.tree だけが違うとき、同じ commit の --carry-to も判定する", () => {
+  const { root, metadataPath, carry } = sameCommitDifferentTree();
+  const r = run(metadataPath, [
+    "--target",
+    "local-dev",
+    "--new-repo",
+    carry.repo,
+    "--carry-to",
+    carry.commits.base,
+  ]);
+  expect(r.stdout).toContain(`--carry-to ${carry.commits.base}`);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
@@ -1366,7 +1510,7 @@ test("持ち越し: render_inputs が無ければ従来のメッセージのま�
   const { root, metadataPath, carry } = carryProject([["list", "default", "desktop"]], {});
   const r = run(metadataPath, ["--target", "local-dev", "--new-repo", carry.repo]);
   expect(r.stdout).toContain(
-    `warn: diff-metadata.json が今の新側のバージョンに対応していない（new.commit ${carry.commits.base} ≠ replace-metadata.json の ${carry.commits.component}）`,
+    `warn: diff-metadata.json が今の新側のバージョンに対応していない（new.tree ${carry.commits.base} ≠ replace-metadata.json の ${carry.commits.component}）`,
   );
   expect(r.stdout).not.toMatch(/証跡を持ち越せない/);
   expect(r.stdout).toMatch(/^note: .*render_inputs.*持ち越せない/m);

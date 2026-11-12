@@ -45,7 +45,7 @@ spec-parity verify [--feature <slug>] [--target <name>] [--autonomous]
   agent のステップは、送る内容を利用者が承認したときだけ使う（[`references/e2e-runner.md`](references/e2e-runner.md)「外部へ送るデータと止め方」）。
 - `agent.act` のキャッシュ: `.e2e/cache/` に、入力した値がそのまま残る。commit せず、再生を合否の根拠にしない（[`references/e2e-runner.md`](references/e2e-runner.md)「`agent.act` のキャッシュ」）。
 - Playwright との共存: e2e は `*.e2e.ts` だけを集めるので、Playwright のスイートと互いのテストを拾わない。`@e2e-dev/web` が自分の `playwright-core` を持つので、`playwright-core` と Chromium が 2 組になる。
-- ツール: `git`、Node.js。判定のスクリプトは依存パッケージを使わない。
+- ツール: `git`、Node.js。判定のスクリプトと、新側のバージョンを取る `scripts/source-version.mjs` は依存パッケージを使わない。
 - 前提スキル（依存の順）: `replace-strategy`（`setup` が完了）→ `golden-dataset`（`suite` はフェーズ A、`verify` は選んだ target のフェーズ B）。
   `verify` では、さらに `suite` の完了 → `parity-replace`（選んだ target で新側が green）が要る。
   前提スキルが入っていなければ、`gh skill install shoji9x9/skills <name>` で入れてから実行する。
@@ -59,17 +59,22 @@ spec-parity verify [--feature <slug>] [--target <name>] [--autonomous]
   `suite` を作った後の変更が対象の slug に影響するなら、`spec-parity suite` をやり直すよう促して止まる。フェーズ B の側が古ければ、同じ target の `golden-dataset`（フェーズ B）を案内して止まる。
   投入の対象でない target の扱いも同じ表に従い、免除したときは、データに依存する確かめを `verify-metadata.json` の `unverified` に理由と一緒に書く。`parity-diff` の `references/preflight.md` を読めないときは、確かめたことにせず止まる。
 - `verify` は、選んだ target の `.replace/parity/<slug>/new/<target>/replace-metadata.json` の `suite.new_green` が `true` であることを前提にする。
-  記録の `slug`・`new.target`・`new.commit` が、対象の slug・選んだ target・確かめる新側のバージョンと同じで、`new.dirty` が `false` であることも前提にする。
+  記録の `slug`・`new.target`・`new.tree` が、対象の slug・選んだ target・確かめる新側のバージョンと同じで、`new.dirty` が `false` であることも前提にする。
+  新側のバージョンは `new.tree`（`.replace/` を除いた新側のソースのツリーのハッシュ）で照合し、`new.commit` は照合に使わない。
+  値の意味と取り方の原本は `replace-strategy` の `references/project-config.md`「新側のバージョンの記録」である（ここへ転記しない）。読めないときは、確かめたことにせず止まる。
+  記録と新側を同じ git のリポジトリに置いてよい。記録を書いても commit しても、`new.tree` は変わらないので止まらない。
+  `new.tree` を持たない記録は、`new.commit` が同じでも合格として扱わず、もう一度測る（`parity-replace` で green を記録し直す）。
   commit していない変更で green にした記録は、バージョンを特定できないので止まる。
-  確かめる新側のバージョン（`verify-metadata.json` の `new.commit`）が `none`（新側が git で管理されていない）でも止まる。どの記録のバージョンも特定できないからである。
+  確かめる新側のバージョン（`verify-metadata.json` の `new.tree`）が `none`（新側が git で管理されていない）でも止まる。どの記録のバージョンも特定できないからである。
   `spec-parity` は git で管理されていない新側を確かめないので、新側を git で管理して commit するよう利用者に示す。
-  確かめる新側の作業ツリーに commit していない変更があるとき（`verify-metadata.json` の `new.dirty` が `false` でないとき）も止まる。採った記録が `new.commit` のバージョンのものと言えないからである。
-  利用者には、変更を退避して（追跡していないファイルも含める `git stash --include-untracked` など）green にしたバージョンに戻してから verify をやり直す手を示す。
-  変更を残すなら、commit してから、同じ `--target` の `parity-replace` で green を記録し直す。commit してから verify をやり直すだけでは、`new.commit` が green の記録と違うので止まる。
+  確かめる新側の作業ツリーに commit していない変更があるとき（`verify-metadata.json` の `new.dirty` が `false` でないとき）も止まる。採った記録が `new.tree` のバージョンのものと言えないからである。
+  利用者には、変更を退避して green にしたバージョンに戻してから verify をやり直す手を示す。
+  退避は、記録を退避しないように `.replace/` を除いた pathspec で行う（形は同じ節にある）。
+  変更を残すなら、commit してから、同じ `--target` の `parity-replace` で green を記録し直す。commit してから verify をやり直すだけでは、`new.tree` が green の記録と違うので止まる。
   ファイルが無いか `true` でないとき、または上の鍵が違うか `replace-metadata.json` の `new.dirty` で止まったときは、「その環境ではまだ green の証跡が無い」として止まる。
   止まったら、同じ `--target` での `parity-replace` を案内する（新側を commit してから green を記録し直す）。
   インストール済みの `parity-replace` が `references/style-free.md` を持たない古いバージョンなら、`free` の画面のある機能で止まるので、先に `gh skill update` で `parity-replace` を更新するよう案内する。差し戻しのときも同じである。
-  `new.commit` だけが違い、記録が `dirty: false` なら、確かめるバージョンを green にしたバージョンに戻す手も、利用者に示す。
+  `new.tree` だけが違い、記録が `dirty: false` なら、確かめるバージョンを green にしたバージョンに戻す手も、利用者に示す。
 - 前提スキルの未解決の保留が無い。見る記録先と範囲の原本は `replace-strategy` の `references/autonomy.md`「下流の前提判定」で、`suite` の保留（`.replace/parity/<slug>/pending-decisions.json`）を含む。
   数えるのは `replace-strategy` の `scripts/pending-decisions-check.mjs` で、exit 0 でなければ、保留を抱えたスキルを案内して止まる。`replace-strategy` の文書を読めないときも止まる。
 - 任意: `web-design-guidelines` スキル（デザインの点検に使う。無ければ同梱の観点で点検する。[`references/design-review.md`](references/design-review.md)）。
@@ -157,20 +162,23 @@ node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mj
 
 ### verify
 
-1. 前提の確認。`style_policy`・機能一覧の行か・e2e・フェーズ B・データセットのバージョン・`replace-metadata.json` の `suite.new_green`・`slug`・`new.target`・`new.commit`・`new.dirty` を確かめる。
+1. 前提の確認。`style_policy`・機能一覧の行か・e2e・フェーズ B・データセットのバージョン・`replace-metadata.json` の `suite.new_green`・`slug`・`new.target`・`new.tree`・`new.dirty` を確かめる。
    確かめる新側のバージョンが `none`（新側が git で管理されていない）なら、ここで止まる（上の「前提」）。
    `suite` の完了は、`metadata.json` の `style_policy: free`・`suite.current_green`・`strength.validated` で確かめる。
    強度は `strength.validated` を信じず、`strength-check.mjs` を `--write` なしで `strength-plan.json` と `strength-report.json` に当て、exit 0 であることも確かめる（手順 7 の判定も同じに判定し直す）。
-   `verify-metadata.json` を雛形から作り（あれば前の保留を読んでから更新する）、`new.commit` に確かめる新側のバージョン（完全な SHA）を、`new.dirty` に作業ツリーの状態を書く。`new.dirty` が `true` なら、ここで止まる（上の「前提」）。
-   取り方の原本は `replace-strategy` の `references/project-config.md`「新側のバージョンの記録」で、`parity-replace` の `replace-metadata.json` と `parity-diff` の前提の確認も同じ取り方を使う（ここへ転記しない）。
-   verify が書く成果物（`.replace/`・e2e の結果・人による確認で撮った画面）が新側と同じ git のリポジトリの中にあると、`new.dirty` が `true` になり、verify は止まる（同じ節）。
-2. スイートを新側で実行する。`--target=new` で実行し、結果の JSON を `new/<target>/suite-report.json` に保存し、`suite.commit` を書く。
+   `verify-metadata.json` を雛形から作り（あれば前の保留を読んでから更新する）、同梱の [`scripts/source-version.mjs`](scripts/source-version.mjs) の出力の `commit`・`tree`・`dirty` を `new.commit`・`new.tree`・`new.dirty` に書く。
+   `new.dirty` が `true` なら、ここで止まる（上の「前提」）。
+   起動の形と取り方の原本は `replace-strategy` の `references/project-config.md`「新側のバージョンの記録」で、`parity-replace` の `replace-metadata.json` と `parity-diff` の前提の確認も同じ取り方を使う（ここへ転記しない）。
+   除くのは `.replace/` だけである。e2e の結果の出力先（`.e2e/`）と人による確認で撮った画面が新側のディレクトリの中にあるなら、`.replace/` の下に置くか新側の `.gitignore` に入れる。
+   どちらでもないと、書くたびに `new.dirty` が `true` になり、verify は止まる（同じ節）。
+2. スイートを新側で実行する。`--target=new` で実行し、結果の JSON を `new/<target>/suite-report.json` に保存し、実行した新側の `new.tree` を `suite.tree` に書く。
 3. 横のはみ出しを測る。記録した幅で新側を測り、`overflow-check.mjs --write` で `overflow` に書く（[`references/overflow.md`](references/overflow.md)）。
 4. 操作中のエラーを比べる。新側で 2 回以上記録し、`runtime-errors.mjs compare --write <verify-metadata.json>` で比べる。現行に無かった署名は 3 値に分類する（[`references/runtime-errors.md`](references/runtime-errors.md)）。
 5. デザインを点検する。`web-design-guidelines` があれば使い、無ければ同梱の観点で点検する。指摘は「直す」か「受け入れる」に分け、受け入れるものは利用者が承認する（[`references/design-review.md`](references/design-review.md)）。
 6. 人に確かめてもらう。新側の画面を記録した幅で見てもらい、承認を記録する（[`references/design-review.md`](references/design-review.md)「人による確認」）。
-7. 収束を判定し、差し戻す。判定の直前に、新側の HEAD と作業ツリーの状態を、手順 1 と同じコマンドで取得し直す。
-   HEAD が `new.commit` と違えば、手順 2〜6 の記録がどのバージョンのものか分からないので、止まって手順 1 からやり直す。作業ツリーの状態は `new.dirty` に書き直す（`true` なら、判定は前提の欠落で止まる）。
+7. 収束を判定し、差し戻す。判定の直前に、手順 1 と同じ `source-version.mjs` で新側のバージョンを取得し直す。
+   出力の `tree` が `new.tree` と違えば、手順 2〜6 の記録がどのバージョンのものか分からないので、止まって手順 1 からやり直す。
+   出力の `commit` だけが違うとき（記録を commit したときなど）は、やり直さずに `new.commit` を書き直す。作業ツリーの状態は `new.dirty` に書き直す（`true` なら、判定は前提の欠落で止まる）。
    `convergence-check.mjs --write` の終了コードで決める。`send-back` の理由が残れば `verify.md` を差し戻しの入力にして `parity-replace` へ渡し、`remeasure` は該当する手順をやり直し、`approval` は利用者に確かめる（[`references/convergence.md`](references/convergence.md)）。
    exit 0 でも、`replace-strategy` の `append-only-check.mjs` で追記専用の成果物が縮んでいないことを確かめてから収束と報告する。
    対象は、`replace-strategy` の `assets/append-only-manifest.json` に項目があるもの（`gaps.md`・`metadata.json` の `unmeasured` など）である。
@@ -194,11 +202,12 @@ node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mj
 | スイートと部品 | `e2e.config.ts`・`tests/parity/`・`tests/<slug>/` | [`assets/e2e.config.template.ts`](assets/e2e.config.template.ts)・[`assets/sides.template.ts`](assets/sides.template.ts)・[`assets/test.template.ts`](assets/test.template.ts)・[`assets/runtime-errors-init.template.mjs`](assets/runtime-errors-init.template.mjs)・[`assets/runtime-errors-reporter.template.ts`](assets/runtime-errors-reporter.template.ts)・[`assets/strength.e2e.template.ts`](assets/strength.e2e.template.ts) |
 
 - テキストの成果物（JSON・Markdown・操作中のエラーの記録）は Git に入れる。人による確認のために撮った画面は `artifacts` の設定に従い、デフォルトでは commit しない。`.e2e/` は commit しない。
+  commit しない成果物が新側のディレクトリの中にあるなら、新側の `.gitignore` に入れる（入れないと `new.dirty` が `true` になる。上の verify の手順 1）。
 - 新側の成果物は環境ごとに置く（`new/<target>/` の下）。環境を切り替えても、他の環境の記録を上書きしない。
 - 同梱の判定のスクリプトは、プロジェクトへコピーせず、スキルのディレクトリの中から実行する（`gh skill update` で更新されるようにするため）。
   対象は [`scripts/runtime-errors.mjs`](scripts/runtime-errors.mjs)・[`scripts/strength-check.mjs`](scripts/strength-check.mjs)・
-  [`scripts/overflow-check.mjs`](scripts/overflow-check.mjs)・[`scripts/convergence-check.mjs`](scripts/convergence-check.mjs) である。
-  `runtime-errors.mjs` は `parity-suite` のものと同じ中身である。
+  [`scripts/overflow-check.mjs`](scripts/overflow-check.mjs)・[`scripts/convergence-check.mjs`](scripts/convergence-check.mjs)・[`scripts/source-version.mjs`](scripts/source-version.mjs) である。
+  `runtime-errors.mjs` は `parity-suite` のものと、`source-version.mjs` は `parity-replace`・`parity-diff` のものと同じ中身である。
 
 ## 姉妹スキルとの連携
 

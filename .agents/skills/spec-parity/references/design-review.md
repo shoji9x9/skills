@@ -47,14 +47,15 @@
   `fix` は、要対応として `parity-replace` へ差し戻す。直した後の新側で、点検をやり直す（前の点検の記録は、新側のバージョンが変わると古い記録になる）。
   `accept` は、利用者の承認（`approval` の `approved_by`・`approved_at`・`reason`）で確定する。承認の前は `accept` と書いても収束しない。
 - 受け入れるかの確認は、同じ原因の指摘をまとめて 1 回にしてよい。承認は指摘ごとの `approval` に同じ内容で書く（件数をまとめて 1 件にしない）。
-- 点検を終えたら、点検したページを `pages_reviewed` に、終えた日時を `completed_at` に、点検した新側のバージョンを `commit` に書く。指摘が 0 件でも、この 3 つは書く。
+- 点検を終えたら、点検したページを `pages_reviewed` に、終えた日時を `completed_at` に、点検した新側のバージョン（`verify-metadata.json` の `new.tree` の値）を `tree` に書く。指摘が 0 件でも、この 3 つは書く。
 
 ## 人による確認
 
 - 新側の画面を、記録した幅（`capture_conditions.viewports`）で開き、利用者に見てもらう。確かめるための画面の記録（スクリーンショット）は採ってよいが、比較には使わない。
   撮るときは、e2e のテストの外で撮るか、利用者の環境のブラウザで開いてもらう。撮った画面のパスを `human_review.screens[]` に書く。
+  画面を新側のディレクトリの中に保存するなら、`.replace/` の下に置くか新側の `.gitignore` に入れる（入れないと `new.dirty` が `true` になる）。
 - 判断の材料（ページ・幅・画面の記録のパス・デザインの点検の結果）を、確認のツールに入れて聞く（[`user-confirmation.md`](user-confirmation.md)）。
   選択肢は「違和感が無い（承認する）」「違和感がある（箇所を書いてもらう）」「承認しない」である。
 - 承認したら、`human_review.approval` に `verdict: approved` と、承認した人・日時を書く。違和感があれば `verdict: rejected` と `notes` を書き、`parity-replace` へ差し戻す。
-- 見せた画面の新側のバージョンを `human_review.commit` に書く。新側を直したら、確認をやり直す。
+- 見せた画面の新側のバージョン（`verify-metadata.json` の `new.tree` の値）を `human_review.tree` に書く。新側を直したら、確認をやり直す。
 - 返事をする人がいない実行（非対話・subagent・`--autonomous`）では、確認を飛ばさずに判断待ちとして記録する。承認の記録が無い間は収束しない。

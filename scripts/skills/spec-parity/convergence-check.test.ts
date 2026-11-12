@@ -12,6 +12,7 @@ import { main } from "../../../skills/spec-parity/scripts/convergence-check.mjs"
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import {
   COMMIT,
+  TREE,
   EDIT,
   Fs,
   LIST,
@@ -198,9 +199,15 @@ describe("スイート", () => {
     expect(kinds(run(fs))).toEqual([["remeasure", "suite"]]);
   });
 
-  test("スイートを実行したバージョンが new.commit と違えば、古い記録としてやり直す", () => {
-    const fs = withVerify({ suite: { commit: "old" } });
+  test("スイートを実行したバージョンが new.tree と違えば、古い記録としてやり直す", () => {
+    const fs = withVerify({ suite: { tree: "old" } });
     expect(kinds(run(fs))).toEqual([["remeasure", "suite"]]);
+  });
+
+  test("スイートの記録に tree が無ければ（commit だけの古い記録）、commit が同じでももう一度測る", () => {
+    const r = run(withVerify({ suite: { commit: COMMIT } }));
+    expect(kinds(r)).toEqual([["remeasure", "suite"]]);
+    expect(r.stdout).toContain("もう一度測る");
   });
 
   test.each([
@@ -247,9 +254,15 @@ describe("横のはみ出し", () => {
     expect(kinds(run(fs))).toEqual([["remeasure", "overflow"]]);
   });
 
-  test("測ったバージョンが new.commit と違えば、古い記録としてやり直す", () => {
+  test("測ったバージョン（PARITY_COMMIT で渡した値）が new.tree と違えば、古い記録としてやり直す", () => {
     const fs = convergedFs();
     fs.put(`${NEW_DIR}/overflow.json`, overflowRecords({ commit: "old" }));
+    expect(kinds(run(fs))).toEqual([["remeasure", "overflow"]]);
+  });
+
+  test("new.commit の値で測った記録（new.tree を渡す前の記録）は、古い記録としてやり直す", () => {
+    const fs = convergedFs();
+    fs.put(`${NEW_DIR}/overflow.json`, overflowRecords({ commit: COMMIT }));
     expect(kinds(run(fs))).toEqual([["remeasure", "overflow"]]);
   });
 });
@@ -346,9 +359,17 @@ describe("デザインの点検と人による確認", () => {
     expect(kinds(run(fs))).toEqual([["remeasure", "design_review"]]);
   });
 
-  test("点検したバージョンが new.commit と違えば、古い記録としてやり直す", () => {
-    const fs = withVerify({ design_review: review({ commit: "old" }) });
+  test("点検したバージョンが new.tree と違えば、古い記録としてやり直す", () => {
+    const fs = withVerify({ design_review: review({ tree: "old" }) });
     expect(kinds(run(fs))).toEqual([["remeasure", "design_review"]]);
+  });
+
+  test("点検の記録に tree が無ければ（commit だけの古い記録）、もう一度測る", () => {
+    const old: Record<string, unknown> = review({ commit: COMMIT });
+    delete old.tree;
+    expect(kinds(run(withVerify({ design_review: old })))).toEqual([
+      ["remeasure", "design_review"],
+    ]);
   });
 
   test.each([
@@ -363,7 +384,7 @@ describe("デザインの点検と人による確認", () => {
   });
 
   const human = (approval: unknown, over: Record<string, unknown> = {}) => ({
-    commit: COMMIT,
+    tree: TREE,
     screens: [{ page: "/orders" }],
     approval,
     ...over,
@@ -392,14 +413,22 @@ describe("デザインの点検と人による確認", () => {
     expect(kinds(run(fs))).toEqual([["remeasure", "human_review"]]);
   });
 
-  test("承認した画面のバージョンが new.commit と違えば、古い記録としてやり直す", () => {
+  test("承認した画面のバージョンが new.tree と違えば、古い記録としてやり直す", () => {
     const fs = withVerify({
       human_review: human(
         { verdict: "approved", approved_by: "o", approved_at: "t" },
-        { commit: "old" },
+        { tree: "old" },
       ),
     });
     expect(kinds(run(fs))).toEqual([["remeasure", "human_review"]]);
+  });
+
+  test("承認した画面の記録に tree が無ければ（commit だけの古い記録）、もう一度測る", () => {
+    const { tree: _t, ...old } = human(
+      { verdict: "approved", approved_by: "o", approved_at: "t" },
+      { commit: COMMIT },
+    );
+    expect(kinds(run(withVerify({ human_review: old })))).toEqual([["remeasure", "human_review"]]);
   });
 });
 
@@ -612,7 +641,7 @@ describe("前提の欠落（exit 2）", () => {
   const green = () => ({
     slug: "orders",
     suite: { new_green: true },
-    new: { target: "stg", commit: COMMIT, dirty: false },
+    new: { target: "stg", commit: COMMIT, tree: TREE, dirty: false },
   });
   test.each([
     [
@@ -637,7 +666,10 @@ describe("前提の欠落（exit 2）", () => {
     ],
     [
       "new.target が無い",
-      (g: ReturnType<typeof green>) => ({ ...g, new: { commit: COMMIT, dirty: false } }),
+      (g: ReturnType<typeof green>) => ({
+        ...g,
+        new: { commit: COMMIT, tree: TREE, dirty: false },
+      }),
       "replace-metadata.json の new.target（",
     ],
     [
@@ -646,19 +678,22 @@ describe("前提の欠落（exit 2）", () => {
       "replace-metadata.json の new.target（",
     ],
     [
-      "new.commit が別の値",
-      (g: ReturnType<typeof green>) => ({ ...g, new: { ...g.new, commit: "old" } }),
-      "replace-metadata.json の new.commit（",
+      "new.tree が別の値",
+      (g: ReturnType<typeof green>) => ({ ...g, new: { ...g.new, tree: "old" } }),
+      "replace-metadata.json の new.tree（",
     ],
     [
-      "new.commit が無い",
-      (g: ReturnType<typeof green>) => ({ ...g, new: { target: "stg", dirty: false } }),
-      "replace-metadata.json の new.commit（",
+      "new.tree が無い（new.commit は同じ古い記録）",
+      (g: ReturnType<typeof green>) => ({
+        ...g,
+        new: { target: "stg", commit: COMMIT, dirty: false },
+      }),
+      "もう一度 parity-replace で green を記録し直す",
     ],
     [
-      "new.commit が文字列でない",
-      (g: ReturnType<typeof green>) => ({ ...g, new: { ...g.new, commit: 1 } }),
-      "replace-metadata.json の new.commit（",
+      "new.tree が文字列でない",
+      (g: ReturnType<typeof green>) => ({ ...g, new: { ...g.new, tree: 1 } }),
+      "replace-metadata.json の new.tree（",
     ],
     [
       "new.dirty が true",
@@ -667,7 +702,10 @@ describe("前提の欠落（exit 2）", () => {
     ],
     [
       "new.dirty が無い",
-      (g: ReturnType<typeof green>) => ({ ...g, new: { target: "stg", commit: COMMIT } }),
+      (g: ReturnType<typeof green>) => ({
+        ...g,
+        new: { target: "stg", commit: COMMIT, tree: TREE },
+      }),
       "new.dirty が false でない",
     ],
     [
@@ -699,22 +737,36 @@ describe("前提の欠落（exit 2）", () => {
     expect(r.stderr).not.toContain("new.dirty");
   });
 
-  test("すべての記録の commit が none でも、verify-metadata.json の new.commit が none なら前提の欠落として exit 2", () => {
+  test("すべての記録の tree が none でも、verify-metadata.json の new.tree が none なら前提の欠落として exit 2", () => {
     // none どうしの比較は常に一致するので、この検査が無いと、どの記録も同じバージョンとして通って収束する
     const fs = withVerify({
-      new: { commit: "none" },
-      suite: { commit: "none", report: `${NEW_DIR}/suite-report.json` },
-      design_review: { ...verifyMetadata().design_review, commit: "none" },
-      human_review: { ...verifyMetadata().human_review, commit: "none" },
+      new: { commit: "none", tree: "none", dirty: false },
+      suite: { tree: "none", report: `${NEW_DIR}/suite-report.json` },
+      design_review: { ...verifyMetadata().design_review, tree: "none" },
+      human_review: { ...verifyMetadata().human_review, tree: "none" },
     });
     fs.put(`${NEW_DIR}/overflow.json`, overflowRecords({ commit: "none" }));
     fs.put(`${NEW_DIR}/replace-metadata.json`, {
       ...green(),
-      new: { target: "stg", commit: "none", dirty: false },
+      new: { target: "stg", commit: "none", tree: "none", dirty: false },
     });
     const r = run(fs);
     expect(r.code).toBe(2);
-    expect(r.stderr).toContain("new.commit が none");
+    expect(r.stderr).toContain("new.tree が none");
+  });
+
+  test("記録を commit して new.commit が進んでも、new.tree が同じなら収束する", () => {
+    // 記録と新側を同じリポジトリに置く構成。記録の commit で HEAD は進むが、.replace/ を除いたツリーは変わらない
+    const fs = withVerify({ new: { commit: "f".repeat(40), tree: TREE, dirty: false } });
+    const r = run(fs);
+    expect(r.code).toBe(0);
+  });
+
+  test("new.commit が同じでも、new.tree が green の記録と違えば前提の欠落として exit 2", () => {
+    const fs = withVerify({ new: { commit: COMMIT, tree: "f".repeat(40), dirty: false } });
+    const r = run(fs);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("replace-metadata.json の new.tree（");
   });
 
   test("parity-replace の新側の green が無ければ exit 2", () => {
@@ -727,16 +779,23 @@ describe("前提の欠落（exit 2）", () => {
     expect(run(withVerify({ target: "prod" })).code).toBe(2);
   });
 
-  test("new.commit が無ければ exit 2", () => {
+  test("new.tree が無ければ exit 2", () => {
     expect(run(withVerify({ new: {} })).code).toBe(2);
+  });
+
+  test("verify-metadata.json に new.commit だけがあり new.tree が無い古い記録は、もう一度測るとして exit 2", () => {
+    const r = run(withVerify({ new: { commit: COMMIT, dirty: false } }));
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("verify-metadata.json の new.tree が無い");
+    expect(r.stderr).toContain("もう一度測る");
   });
 
   // verify の側の作業ツリーの状態。replace-metadata.json の new.dirty と同じく、false のときだけ通す
   test.each([
-    ["true", { commit: COMMIT, dirty: true }],
-    ["無い", { commit: COMMIT }],
-    ["文字列", { commit: COMMIT, dirty: "false" }],
-    ["null", { commit: COMMIT, dirty: null }],
+    ["true", { commit: COMMIT, tree: TREE, dirty: true }],
+    ["無い", { commit: COMMIT, tree: TREE }],
+    ["文字列", { commit: COMMIT, tree: TREE, dirty: "false" }],
+    ["null", { commit: COMMIT, tree: TREE, dirty: null }],
   ])("verify-metadata.json の new.dirty が %s なら、前提の欠落として exit 2", (_name, head) => {
     const r = run(withVerify({ new: head }));
     expect(r.code).toBe(2);
@@ -745,7 +804,7 @@ describe("前提の欠落（exit 2）", () => {
 
   test("verify-metadata.json の new.dirty が true でも、green の記録の鍵の違いを先に示す", () => {
     // 鍵の違いは commit しても直らないので、commit を促す dirty の理由より先に示す
-    const fs = withVerify({ new: { commit: COMMIT, dirty: true } });
+    const fs = withVerify({ new: { commit: COMMIT, tree: TREE, dirty: true } });
     fs.put(`${NEW_DIR}/replace-metadata.json`, { ...green(), slug: "invoices" });
     const r = run(fs);
     expect(r.code).toBe(2);
@@ -754,14 +813,14 @@ describe("前提の欠落（exit 2）", () => {
   });
 
   test("verify-metadata.json の new.dirty の理由は、commit してやり直すだけでは止まることを示す", () => {
-    const r = run(withVerify({ new: { commit: COMMIT, dirty: true } }));
+    const r = run(withVerify({ new: { commit: COMMIT, tree: TREE, dirty: true } }));
     expect(r.code).toBe(2);
-    expect(r.stderr).toContain("git stash --include-untracked");
+    expect(r.stderr).toContain("pathspec");
     expect(r.stderr).toContain("parity-replace で green を記録し直して");
   });
 
   test("verify-metadata.json の new.dirty が false なら、dirty では止まらず収束する", () => {
-    const r = run(withVerify({ new: { commit: COMMIT, dirty: false } }));
+    const r = run(withVerify({ new: { commit: COMMIT, tree: TREE, dirty: false } }));
     expect(r.code).toBe(0);
     expect(r.stderr).not.toContain("new.dirty");
   });
@@ -790,35 +849,35 @@ const TEMPLATE = join(
 );
 
 describe("同梱の雛形をそのまま使った記録", () => {
-  test("verify-metadata の雛形の値のままでは収束しない（new.commit が雛形の値なので exit 2）", () => {
+  test("verify-metadata の雛形の値のままでは収束しない（new.tree が雛形の値なので exit 2）", () => {
     const fs = convergedFs();
     fs.put(VERIFY, readFileSync(TEMPLATE, "utf8"));
     expect(run(fs).code).toBe(2);
   });
 
-  test("new.commit を埋めても、new.dirty が雛形の値のままなら exit 2", () => {
+  test("new.tree を埋めても、new.dirty が雛形の値のままなら exit 2", () => {
     const fs = convergedFs();
     const doc = parseJsonAs<{ new: Record<string, unknown> }>(readFileSync(TEMPLATE, "utf8"));
     fs.put(VERIFY, {
       ...doc,
       slug: "orders",
       target: "stg",
-      new: { ...doc.new, commit: COMMIT },
+      new: { ...doc.new, commit: COMMIT, tree: TREE },
     });
     const r = run(fs);
     expect(r.code).toBe(2);
     expect(r.stderr).toContain("verify-metadata.json の new.dirty が false でない");
   });
 
-  test("new.commit と new.dirty だけを埋め、ほかを雛形の値のまま残すと、承認とやり直しを理由に exit 1", () => {
+  test("new.tree と new.dirty だけを埋め、ほかを雛形の値のまま残すと、承認とやり直しを理由に exit 1", () => {
     const fs = convergedFs();
     const doc = parseJsonAs<Record<string, unknown>>(readFileSync(TEMPLATE, "utf8"));
     fs.put(VERIFY, {
       ...doc,
       slug: "orders",
       target: "stg",
-      new: { commit: COMMIT, dirty: false },
-      suite: { commit: COMMIT },
+      new: { commit: COMMIT, tree: TREE, dirty: false },
+      suite: { tree: TREE },
     });
     const r = run(fs);
     expect(r.code).toBe(1);
