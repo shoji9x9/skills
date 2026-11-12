@@ -193,13 +193,16 @@ issue-start https://github.com/<owner>/<repo>/issues/220 --pr
 ## commit / PR の扱い
 
 - commit message は、「ブランチ運用・commit 規約の参照」で決めた規約に従う。commit-msg のチェック（commitlint や lefthook など）がリポジトリにあれば、それにも従う
+- `--commit` と `--pr` では、最初の commit の前に、変更がプロジェクトの規約の定義する破壊的変更に当たるかを判断する。
+  当たるなら、規約の書き方（conventional commits なら `!` か `BREAKING CHANGE:` のフッター）で commit message に書く。
+  定義の探し方、境界で迷うときの確認、PR の本文の「破壊的変更」の節に書くことは、[`references/breaking-change.md`](references/breaking-change.md) で定義する。読めなければ、commit せずに止まる
 - commit message の 1 行目、PR のタイトルと本文、Issue へのコメントは、外に出す前に `writing-style` スキルの手順で読み直す（スキルが無ければ省く）
 - 関係の無い変更を同じ commit に含めない。関連するファイルだけを stage する
 - 既存の worktree に関係の無い差分がある場合は、巻き込まずに、対象のファイルだけを扱う
 - commit のときに、pre-commit の hook（lefthook など）や kaizen の commit 前のチェックが設定されていれば、それが実行される。
   チェックで止められた場合は、指示に従って `kaizen --current` を実行してから、もう一度 commit する
 - `--pr` のときは、基本フローの step 10 の受け入れ条件の突き合わせと、step 11 の PR のベースブランチの確認を通してから、ブランチを push する。
-  関連する Issue・変更の概要・確認した内容・突き合わせの表・「仮に決めたこと」の節を含む PR を作る。
+  関連する Issue・変更の概要・確認した内容・突き合わせの表・「破壊的変更」の節・「仮に決めたこと」の節を含む PR を作る。
   「仮に決めたこと」には、Issue の本文・コメント・リポジトリの文書から導けず、実装の途中で自分で選んだもの（あいまいな条件の解釈・デフォルトの値・対象から外した形など）を 1 件ずつ書き、0 件でも節を置いて「PR を作るまでに仮に決めたことは無い」のように範囲を添えて「無い」と書く。
   記録する項目と、人に回すかの判断は [`references/provisional-decisions.md`](references/provisional-decisions.md) で定義する。読めなければ、PR を作らずに止まる
   PR を作ったら、突き合わせの結果を Issue にコメントし、満たした項目にチェックを付ける（手順は [`references/acceptance.md`](references/acceptance.md) の手順 7）
@@ -216,6 +219,7 @@ issue-start https://github.com/<owner>/<repo>/issues/220 --pr
 - `--plan` で詳しい計画を立てる前提が足りない（`--branch-only` では計画を立てないので、この条件は当たらない）
 - 本文とコメントが食い違い、どの決定に従うか判断できない（特に `--plan`）
 - 実装の途中で仮に決めたことのうち、人に回すと決めたものがある（PR を作る前に確認する。[`references/provisional-decisions.md`](references/provisional-decisions.md)）
+- 変更が破壊的変更に当たるかを、規約の定義で決められないか、定義の文書を読めない。または、最初の commit の後の修正で当たるかの判断が変わった（commit の前に確認する。[`references/breaking-change.md`](references/breaking-change.md)）
 - Issue に書かれた影響範囲と今の状態がずれていて、作業の範囲が変わる（書かれた対象が無い、別の PR で解決済み、書かれた範囲の外に影響する）
 
 ## 利用者への確認

@@ -1,0 +1,129 @@
+{
+  "metadata": {
+    "skill_name": "issue-start",
+    "skill_path": "<repo>/skills/issue-start",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-11T23:13:52Z",
+    "evals_run": [23],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 23,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 90.833,
+        "tokens": 189746,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "規約の文書が案内する docs/release.md を読めないことを挙げ、破壊的変更の定義が無いとして扱わずに利用者に確認すると述べている",
+          "passed": true,
+          "evidence": "「`docs/release.md` は存在しません」「『定義が無い』とは扱わず、commit する前に利用者に確認する」"
+        },
+        {
+          "text": "利用者への確認を、最初の commit より前に行うと述べている",
+          "passed": true,
+          "evidence": "「答えをもらうまでは、commit も…しません」"
+        },
+        {
+          "text": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",
+          "passed": true,
+          "evidence": "「commit・push・PR の作成はしません」。project-tree は fixture のまま"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 23,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 55.992,
+        "tokens": 145141,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "規約の文書が案内する docs/release.md を読めないことを挙げ、破壊的変更の定義が無いとして扱わずに利用者に確認すると述べている",
+          "passed": true,
+          "evidence": "「`docs/release.md` がない」「判断の基準になる docs/release.md がありません。commit の前にここで止めて、ユーザーに確認する」"
+        },
+        {
+          "text": "利用者への確認を、最初の commit より前に行うと述べている",
+          "passed": true,
+          "evidence": "「commit の前にここで止めて」"
+        },
+        {
+          "text": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",
+          "passed": true,
+          "evidence": "「commit・push・PR 作成は一切していません」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 90.833,
+        "stddev": 0,
+        "min": 90.833,
+        "max": 90.833
+      },
+      "tokens": {
+        "mean": 189746,
+        "stddev": 0,
+        "min": 189746,
+        "max": 189746
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 55.992,
+        "stddev": 0,
+        "min": 55.992,
+        "max": 55.992
+      },
+      "tokens": {
+        "mean": 145141,
+        "stddev": 0,
+        "min": 145141,
+        "max": 145141
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.00",
+      "time_seconds": "+34.8",
+      "tokens": "+44605"
+    }
+  },
+  "notes": [
+    "PR #1000 のレビューの指摘で、定義の案内先を読めない場合の eval 23 を足した変更確認。with_skill と without_skill を 1 run ずつ。"
+  ]
+}

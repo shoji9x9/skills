@@ -1,0 +1,226 @@
+{
+  "metadata": {
+    "skill_name": "issue-start",
+    "skill_path": "<repo>/skills/issue-start",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-11T22:55:30Z",
+    "evals_run": [21, 22],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 21,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 81.094,
+        "tokens": 283999,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "列の順番を入れ替える commit を破壊的変更に当たると判断し、commit message に `!` か `BREAKING CHANGE:` を書くと述べている",
+          "passed": true,
+          "evidence": "commit 1 を「当たる」とし `fix!:` と `BREAKING CHANGE:` のフッターを書いた"
+        },
+        {
+          "text": "日付の検証を厳しくする commit を破壊的変更に当たらないと判断し、その commit message に `!` も `BREAKING CHANGE:` も書かないと述べている",
+          "passed": true,
+          "evidence": "commit 2 を「当たらない」とし、`!` を付けない commit message を示した"
+        },
+        {
+          "text": "日付の検証を厳しくする変更が当たらない理由を、docs/release.md の「仕様では従来から不正だった入力を止める修正」に照らして述べている",
+          "passed": true,
+          "evidence": "「除外の項目に『入力の検証を厳しくする修正のうち、仕様では従来から不正だった入力を止めるもの』とあるため」"
+        },
+        {
+          "text": "PR の本文に、変更が破壊的変更に当たるかと理由を書く節を置くと述べている",
+          "passed": true,
+          "evidence": "PR の本文の構成の 5 に `## 破壊的変更` を置き、当たる・当たらないと根拠を書く"
+        },
+        {
+          "text": "PR の本文か commit message に、利用者が列の順番の変化にどう対応すれば従来の使い方を続けられるかを書くと述べている",
+          "passed": true,
+          "evidence": "フッターと PR の節に「列を位置で読む処理を…入れ替えて読むように直す」"
+        },
+        {
+          "text": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",
+          "passed": true,
+          "evidence": "「ファイルの変更、commit、push、GitHub への接続はしていません」。project-tree は fixture のまま"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 22,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 67.005,
+        "tokens": 211391,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR の本文に、規約の文書に破壊的変更の定義が無いことを書くと述べている",
+          "passed": true,
+          "evidence": "`## 破壊的変更` の行に「規約の文書に破壊的変更の定義が無いので、判断していない」と書くと述べた"
+        },
+        {
+          "text": "定義が無いことを書く箇所に、読んだ規約の文書のパス（CONTRIBUTING.md）を挙げている",
+          "passed": true,
+          "evidence": "同じ行に「読んだ文書 `CONTRIBUTING.md`」を挙げた"
+        },
+        {
+          "text": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",
+          "passed": true,
+          "evidence": "「ファイルの変更・commit・push・GitHub への接続は一切していません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 21,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 58.079,
+        "tokens": 79635,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "列の順番を入れ替える commit を破壊的変更に当たると判断し、commit message に `!` か `BREAKING CHANGE:` を書くと述べている",
+          "passed": true,
+          "evidence": "1 つ目に `fix(csv)!:` と `BREAKING CHANGE:` のフッター"
+        },
+        {
+          "text": "日付の検証を厳しくする commit を破壊的変更に当たらないと判断し、その commit message に `!` も `BREAKING CHANGE:` も書かないと述べている",
+          "passed": true,
+          "evidence": "2 つ目は `BREAKING CHANGE` を付けないと述べた"
+        },
+        {
+          "text": "日付の検証を厳しくする変更が当たらない理由を、docs/release.md の「仕様では従来から不正だった入力を止める修正」に照らして述べている",
+          "passed": true,
+          "evidence": "docs/release.md の「仕様では従来から不正だった入力を止めるもの」に当たるので破壊的変更ではない、と述べた"
+        },
+        {
+          "text": "PR の本文に、変更が破壊的変更に当たるかと理由を書く節を置くと述べている",
+          "passed": true,
+          "evidence": "PR の本文に「⚠️ 破壊的変更」と「破壊的変更に当たらない挙動の変化」の節を置き、理由を書いた"
+        },
+        {
+          "text": "PR の本文か commit message に、利用者が列の順番の変化にどう対応すれば従来の使い方を続けられるかを書くと述べている",
+          "passed": true,
+          "evidence": "フッターと PR の節に「列の位置で読んでいる処理を直す」"
+        },
+        {
+          "text": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",
+          "passed": true,
+          "evidence": "「ファイルの変更・commit・push・PR の作成はしていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 22,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 86.276,
+        "tokens": 144268,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR の本文に、規約の文書に破壊的変更の定義が無いことを書くと述べている",
+          "passed": false,
+          "evidence": "PR の本文の「⚠️ 破壊的変更と移行手順」は一般の判断で当たるとして書き、規約に定義が無いことには触れていない"
+        },
+        {
+          "text": "定義が無いことを書く箇所に、読んだ規約の文書のパス（CONTRIBUTING.md）を挙げている",
+          "passed": false,
+          "evidence": "定義が無いことを書く箇所が無く、CONTRIBUTING.md を挙げる箇所も無い"
+        },
+        {
+          "text": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",
+          "passed": true,
+          "evidence": "「ファイルの変更、commit、push、GitHub への接続はしていません」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 74.0495,
+        "stddev": 9.9624,
+        "min": 67.005,
+        "max": 81.094
+      },
+      "tokens": {
+        "mean": 247695,
+        "stddev": 51341.6092,
+        "min": 211391,
+        "max": 283999
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.6666,
+        "stddev": 0.4714,
+        "min": 0.3333,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 72.1775,
+        "stddev": 19.9383,
+        "min": 58.079,
+        "max": 86.276
+      },
+      "tokens": {
+        "mean": 111951.5,
+        "stddev": 45702.4326,
+        "min": 79635,
+        "max": 144268
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.33",
+      "time_seconds": "+1.9",
+      "tokens": "+135744"
+    }
+  },
+  "notes": [
+    "Issue #999 の変更確認。eval 21・22 を足し、with_skill と without_skill を 1 run ずつ実行した。",
+    "with_skill は、レビューで breaking-change.md を 2 回直した後の最終版で実行し直した。直す前の run は集計に入れていない（benchmark.md に経緯がある）。"
+  ]
+}

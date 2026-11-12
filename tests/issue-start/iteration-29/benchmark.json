@@ -1,0 +1,129 @@
+{
+  "metadata": {
+    "skill_name": "issue-start",
+    "skill_path": "<repo>/skills/issue-start",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-11T23:25:53Z",
+    "evals_run": [24],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 24,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 62.745,
+        "tokens": 158888,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "金額の表記を変える変更は docs/release.md の定義の表で決められないとし、当たるかを仮に決めずに利用者に確認すると述べている",
+          "passed": true,
+          "evidence": "「表のどの行にもはっきりとは当てはまりません」「仮に決めて進めてはいけない…commit の前に利用者に確認します」"
+        },
+        {
+          "text": "利用者への確認を、最初の commit より前に行うと述べている",
+          "passed": true,
+          "evidence": "「最初の commit の前に…判断します」「commit の前に利用者に確認します」"
+        },
+        {
+          "text": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",
+          "passed": true,
+          "evidence": "「ファイルの変更・commit・push・GitHub への接続はしていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 24,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 45.087,
+        "tokens": 79022,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "金額の表記を変える変更は docs/release.md の定義の表で決められないとし、当たるかを仮に決めずに利用者に確認すると述べている",
+          "passed": false,
+          "evidence": "表に当てはまらないと気付いたが、「安全側を選んでいます」として自分で当たると決め、利用者に確認していない"
+        },
+        {
+          "text": "利用者への確認を、最初の commit より前に行うと述べている",
+          "passed": false,
+          "evidence": "「対話ができる場面なら commit の前に確認する箇所」と述べるだけで、確認を待たずに `!` を付けた commit の案で進める"
+        },
+        {
+          "text": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",
+          "passed": true,
+          "evidence": "「commit・push・PR 作成はしていません」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 62.745,
+        "stddev": 0,
+        "min": 62.745,
+        "max": 62.745
+      },
+      "tokens": {
+        "mean": 158888,
+        "stddev": 0,
+        "min": 158888,
+        "max": 158888
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.3333,
+        "stddev": 0,
+        "min": 0.3333,
+        "max": 0.3333
+      },
+      "time_seconds": {
+        "mean": 45.087,
+        "stddev": 0,
+        "min": 45.087,
+        "max": 45.087
+      },
+      "tokens": {
+        "mean": 79022,
+        "stddev": 0,
+        "min": 79022,
+        "max": 79022
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.67",
+      "time_seconds": "+17.7",
+      "tokens": "+79866"
+    }
+  },
+  "notes": [
+    "PR #1000 の 2 回目のレビューの指摘で、定義の表で決められない変更の eval 24 を足した変更確認。with_skill と without_skill を 1 run ずつ。"
+  ]
+}

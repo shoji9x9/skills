@@ -1,0 +1,147 @@
+{
+  "metadata": {
+    "skill_name": "issue-start",
+    "skill_path": "<repo>/skills/issue-start",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-12T00:56:50Z",
+    "evals_run": [25],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 25,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 75.971,
+        "tokens": 210909,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR の本文に、規約の文書に破壊的変更の定義が無いことを書くと述べている",
+          "passed": true,
+          "evidence": "節に「規約の文書に破壊的変更の定義が無いので、判断していない」と `CONTRIBUTING.md` を書く"
+        },
+        {
+          "text": "規約の文書に破壊的変更の定義を置くことを勧めていない",
+          "passed": true,
+          "evidence": "「見立ても「定義を置くように」という勧めも書きません」"
+        },
+        {
+          "text": "一般の意味で破壊的に見えるという見立てを、PR の本文に書いていない",
+          "passed": true,
+          "evidence": "「一般の意味でも破壊的には見えないので、見立てと勧めは書きません」"
+        },
+        {
+          "text": "commit message に `!` も `BREAKING CHANGE:` も書かないと述べている",
+          "passed": true,
+          "evidence": "「commit message にも PR のタイトルにも、`!` と `BREAKING CHANGE:` は書きません」"
+        },
+        {
+          "text": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",
+          "passed": true,
+          "evidence": "GitHub に接続せず、説明に留めている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 25,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 43.933,
+        "tokens": 144124,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR の本文に、規約の文書に破壊的変更の定義が無いことを書くと述べている",
+          "passed": false,
+          "evidence": "定義が無いことに触れず、「破壊的変更ではありません」と自分で判断する"
+        },
+        {
+          "text": "規約の文書に破壊的変更の定義を置くことを勧めていない",
+          "passed": true,
+          "evidence": "定義を置く勧めを書いていない"
+        },
+        {
+          "text": "一般の意味で破壊的に見えるという見立てを、PR の本文に書いていない",
+          "passed": true,
+          "evidence": "破壊的に見えるという見立てを書いていない"
+        },
+        {
+          "text": "commit message に `!` も `BREAKING CHANGE:` も書かないと述べている",
+          "passed": true,
+          "evidence": "「`BREAKING CHANGE:` や `feat!:` は付けません」"
+        },
+        {
+          "text": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",
+          "passed": true,
+          "evidence": "「ファイルの変更・commit・push・GitHub への接続はしていません」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 75.971,
+        "stddev": 0,
+        "min": 75.971,
+        "max": 75.971
+      },
+      "tokens": {
+        "mean": 210909,
+        "stddev": 0,
+        "min": 210909,
+        "max": 210909
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.8,
+        "stddev": 0,
+        "min": 0.8,
+        "max": 0.8
+      },
+      "time_seconds": {
+        "mean": 43.933,
+        "stddev": 0,
+        "min": 43.933,
+        "max": 43.933
+      },
+      "tokens": {
+        "mean": 144124,
+        "stddev": 0,
+        "min": 144124,
+        "max": 144124
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.20",
+      "time_seconds": "+32.0",
+      "tokens": "+66785"
+    }
+  },
+  "notes": ["PR #1000 の medium のレビューへの対応の後の変更確認である（1 run ずつ）。"]
+}

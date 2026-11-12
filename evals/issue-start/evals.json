@@ -445,6 +445,166 @@
           "prompt_quote": "コマンドの実行やファイルの変更はせずに説明して"
         }
       ]
+    },
+    {
+      "id": 21,
+      "fixture": "fixtures/breaking-change-doc",
+      "prompt": "issue-start 41 --pr で、実装を終えて最初の commit をする前の場面を説明して。ファイルの変更・commit・push・GitHub への接続はしないで（リポジトリのファイルを読むことと、スキルに同梱の読み取りのスクリプトを実行することはよい）。Issue #41 は CSV の出力を直す依頼で、変更を 2 つの commit に分ける。1 つ目は、出力する CSV の「金額」と「日付」の列の順番を入れ替える。2 つ目は、日付の入力の検証を厳しくし、2 月 30 日のような暦に無い日付を拒否する。仕様書は、入力の日付を暦にある日に限っている。今までのバージョンは暦に無い日付も受け付けて、そのまま CSV に出していた。それぞれの commit message と、作る PR の本文の構成を述べて。",
+      "assertions": [
+        "列の順番を入れ替える commit を破壊的変更に当たると判断し、commit message に `!` か `BREAKING CHANGE:` を書くと述べている",
+        "日付の検証を厳しくする commit を破壊的変更に当たらないと判断し、その commit message に `!` も `BREAKING CHANGE:` も書かないと述べている",
+        "日付の検証を厳しくする変更が当たらない理由を、docs/release.md の「仕様では従来から不正だった入力を止める修正」に照らして述べている",
+        "PR の本文に、変更が破壊的変更に当たるかと理由を書く節を置くと述べている",
+        "PR の本文か commit message に、利用者が列の順番の変化にどう対応すれば従来の使い方を続けられるかを書くと述べている",
+        "ファイルの変更・commit・push・PR の作成をせず、説明に留めている"
+      ],
+      "reachability": [
+        {
+          "assertion": "列の順番を入れ替える commit を破壊的変更に当たると判断し、commit message に `!` か `BREAKING CHANGE:` を書くと述べている",
+          "prompt_quote": "「金額」と「日付」の列の順番を入れ替える"
+        },
+        {
+          "assertion": "日付の検証を厳しくする commit を破壊的変更に当たらないと判断し、その commit message に `!` も `BREAKING CHANGE:` も書かないと述べている",
+          "prompt_quote": "2 月 30 日のような暦に無い日付を拒否する"
+        },
+        {
+          "assertion": "日付の検証を厳しくする変更が当たらない理由を、docs/release.md の「仕様では従来から不正だった入力を止める修正」に照らして述べている",
+          "prompt_quote": "日付の入力の検証を厳しくし"
+        },
+        {
+          "assertion": "PR の本文に、変更が破壊的変更に当たるかと理由を書く節を置くと述べている",
+          "prompt_quote": "作る PR の本文の構成"
+        },
+        {
+          "assertion": "PR の本文か commit message に、利用者が列の順番の変化にどう対応すれば従来の使い方を続けられるかを書くと述べている",
+          "prompt_quote": "それぞれの commit message と、作る PR の本文の構成を述べて"
+        },
+        {
+          "assertion": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",
+          "prompt_quote": "ファイルの変更・commit・push・GitHub への接続はしないで"
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "fixture": "fixtures/no-breaking-change-doc",
+      "prompt": "issue-start 42 --pr で、実装を終えて最初の commit をする前の場面を説明して。ファイルの変更・commit・push・GitHub への接続はしないで（リポジトリのファイルを読むことと、スキルに同梱の読み取りのスクリプトを実行することはよい）。Issue #42 は設定ファイルを整理する依頼で、利用者が書く設定のキー `export.encoding` を `export.charset` に改名した。古いキーは読まなくなる。commit message と、作る PR の本文の構成を述べて。",
+      "assertions": [
+        "PR の本文に、規約の文書に破壊的変更の定義が無いことを書くと述べている",
+        "定義が無いことを書く箇所に、読んだ規約の文書のパス（CONTRIBUTING.md）を挙げている",
+        "キーの改名を一般の意味で破壊的に見える（利用者が設定を書き直さないと従来の使い方を続けられない）とし、その見立てと理由を PR の本文の破壊的変更の節に書くと述べている",
+        "規約の文書に破壊的変更の定義を置くことを勧めると述べている",
+        "commit message に `!` も `BREAKING CHANGE:` も書かないと述べている",
+        "ファイルの変更・commit・push・PR の作成をせず、説明に留めている"
+      ],
+      "reachability": [
+        {
+          "assertion": "PR の本文に、規約の文書に破壊的変更の定義が無いことを書くと述べている",
+          "prompt_quote": "作る PR の本文の構成"
+        },
+        {
+          "assertion": "定義が無いことを書く箇所に、読んだ規約の文書のパス（CONTRIBUTING.md）を挙げている",
+          "prompt_quote": "リポジトリのファイルを読むこと"
+        },
+        {
+          "assertion": "キーの改名を一般の意味で破壊的に見える（利用者が設定を書き直さないと従来の使い方を続けられない）とし、その見立てと理由を PR の本文の破壊的変更の節に書くと述べている",
+          "prompt_quote": "古いキーは読まなくなる"
+        },
+        {
+          "assertion": "規約の文書に破壊的変更の定義を置くことを勧めると述べている",
+          "prompt_quote": "作る PR の本文の構成"
+        },
+        {
+          "assertion": "commit message に `!` も `BREAKING CHANGE:` も書かないと述べている",
+          "prompt_quote": "commit message と"
+        },
+        {
+          "assertion": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",
+          "prompt_quote": "ファイルの変更・commit・push・GitHub への接続はしないで"
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "fixture": "fixtures/missing-breaking-change-doc",
+      "prompt": "issue-start 43 --pr で、実装を終えて最初の commit をする前の場面を説明して。ファイルの変更・commit・push・GitHub への接続はしないで（リポジトリのファイルを読むことと、スキルに同梱の読み取りのスクリプトを実行することはよい）。Issue #43 は CSV の出力を直す依頼で、出力する CSV の「金額」と「日付」の列の順番を入れ替えた。commit message と、作る PR の本文の構成を述べて。",
+      "assertions": [
+        "規約の文書が案内する docs/release.md を読めないことを挙げ、破壊的変更の定義が無いとして扱わずに利用者に確認すると述べている",
+        "利用者への確認を、最初の commit より前に行うと述べている",
+        "ファイルの変更・commit・push・PR の作成をせず、説明に留めている"
+      ],
+      "reachability": [
+        {
+          "assertion": "規約の文書が案内する docs/release.md を読めないことを挙げ、破壊的変更の定義が無いとして扱わずに利用者に確認すると述べている",
+          "prompt_quote": "作る PR の本文の構成"
+        },
+        {
+          "assertion": "利用者への確認を、最初の commit より前に行うと述べている",
+          "prompt_quote": "最初の commit をする前の場面"
+        },
+        {
+          "assertion": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",
+          "prompt_quote": "ファイルの変更・commit・push・GitHub への接続はしないで"
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "fixture": "fixtures/breaking-change-doc",
+      "prompt": "issue-start 44 --pr で、実装を終えて最初の commit をする前の場面を説明して。ファイルの変更・commit・push・GitHub への接続はしないで（リポジトリのファイルを読むことと、スキルに同梱の読み取りのスクリプトを実行することはよい）。Issue #44 は CSV の出力を直す依頼で、出力する CSV の「金額」の列の値を、整数（例: 1200）から小数点以下 2 桁の表記（例: 1200.00）に変えた。列の名前と順番は変えていない。commit message と、作る PR の本文の構成を述べて。",
+      "assertions": [
+        "金額の表記を変える変更は docs/release.md の定義の表で決められないとし、当たるかを仮に決めずに利用者に確認すると述べている",
+        "利用者への確認を、最初の commit より前に行うと述べている",
+        "ファイルの変更・commit・push・PR の作成をせず、説明に留めている"
+      ],
+      "reachability": [
+        {
+          "assertion": "金額の表記を変える変更は docs/release.md の定義の表で決められないとし、当たるかを仮に決めずに利用者に確認すると述べている",
+          "prompt_quote": "「金額」の列の値を、整数（例: 1200）から小数点以下 2 桁の表記（例: 1200.00）に変えた"
+        },
+        {
+          "assertion": "利用者への確認を、最初の commit より前に行うと述べている",
+          "prompt_quote": "最初の commit をする前の場面"
+        },
+        {
+          "assertion": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",
+          "prompt_quote": "ファイルの変更・commit・push・GitHub への接続はしないで"
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "fixture": "fixtures/no-breaking-change-doc",
+      "prompt": "issue-start 45 --pr で、実装を終えて最初の commit をする前の場面を説明して。ファイルの変更・commit・push・GitHub への接続はしないで（リポジトリのファイルを読むことと、スキルに同梱の読み取りのスクリプトを実行することはよい）。Issue #45 は CSV の出力を直す依頼で、利用者が書く設定に任意のキー `export.delimiter` を足した。書かなければ、従来と同じくカンマで区切る。commit message と、作る PR の本文の構成を述べて。",
+      "assertions": [
+        "PR の本文に、規約の文書に破壊的変更の定義が無いことを書くと述べている",
+        "規約の文書に破壊的変更の定義を置くことを勧めていない",
+        "一般の意味で破壊的に見えるという見立てを、PR の本文に書いていない",
+        "commit message に `!` も `BREAKING CHANGE:` も書かないと述べている",
+        "ファイルの変更・commit・push・PR の作成をせず、説明に留めている"
+      ],
+      "reachability": [
+        {
+          "assertion": "PR の本文に、規約の文書に破壊的変更の定義が無いことを書くと述べている",
+          "prompt_quote": "作る PR の本文の構成"
+        },
+        {
+          "assertion": "規約の文書に破壊的変更の定義を置くことを勧めていない",
+          "prompt_quote": "書かなければ、従来と同じくカンマで区切る"
+        },
+        {
+          "assertion": "一般の意味で破壊的に見えるという見立てを、PR の本文に書いていない",
+          "prompt_quote": "書かなければ、従来と同じくカンマで区切る"
+        },
+        {
+          "assertion": "commit message に `!` も `BREAKING CHANGE:` も書かないと述べている",
+          "prompt_quote": "commit message と"
+        },
+        {
+          "assertion": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",
+          "prompt_quote": "ファイルの変更・commit・push・GitHub への接続はしないで"
+        }
+      ]
     }
   ]
 }

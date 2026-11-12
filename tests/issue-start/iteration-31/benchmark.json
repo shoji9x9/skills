@@ -1,0 +1,152 @@
+{
+  "metadata": {
+    "skill_name": "issue-start",
+    "skill_path": "<repo>/skills/issue-start",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-12T00:40:16Z",
+    "evals_run": [21, 23, 24],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 21,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 85.668,
+        "tokens": 202520,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "列の順番を入れ替える commit を破壊的変更に当たると判断し、commit message に `!` か `BREAKING CHANGE:` を書くと述べている",
+          "passed": true,
+          "evidence": "commit 1 を「当たる」とし `fix!:` と `BREAKING CHANGE:` を書く"
+        },
+        {
+          "text": "日付の検証を厳しくする commit を破壊的変更に当たらないと判断し、その commit message に `!` も `BREAKING CHANGE:` も書かないと述べている",
+          "passed": true,
+          "evidence": "commit 2 を「当たらない」とし `!` も `BREAKING CHANGE:` も付けない"
+        },
+        {
+          "text": "日付の検証を厳しくする変更が当たらない理由を、docs/release.md の「仕様では従来から不正だった入力を止める修正」に照らして述べている",
+          "passed": true,
+          "evidence": "「仕様では従来から不正だった入力を止めるもの」がある、と docs/release.md に照らす"
+        },
+        {
+          "text": "PR の本文に、変更が破壊的変更に当たるかと理由を書く節を置くと述べている",
+          "passed": true,
+          "evidence": "PR の本文に `## 破壊的変更` の節を置き、commit ごとに当たるかと理由を書く"
+        },
+        {
+          "text": "PR の本文か commit message に、利用者が列の順番の変化にどう対応すれば従来の使い方を続けられるかを書くと述べている",
+          "passed": true,
+          "evidence": "フッターに「列の位置で CSV を読むスクリプトや表計算の手順は、2 つの列を入れ替えて読むよう直す」"
+        },
+        {
+          "text": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",
+          "passed": true,
+          "evidence": "GitHub に接続せず、案の説明に留めている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 23,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 79.041,
+        "tokens": 230981,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "規約の文書が案内する docs/release.md を読めないことを挙げ、破壊的変更の定義が無いとして扱わずに利用者に確認すると述べている",
+          "passed": true,
+          "evidence": "「`docs/` ディレクトリ自体がありません…「定義が無い」とみなしてはいけません。…利用者に確認します」"
+        },
+        {
+          "text": "利用者への確認を、最初の commit より前に行うと述べている",
+          "passed": true,
+          "evidence": "「最初の commit の前に利用者に確認します」「返事が来るまで、commit・push・PR の作成には進みません」"
+        },
+        {
+          "text": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",
+          "passed": true,
+          "evidence": "「commit・push・GitHub への接続はしていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 24,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 79.904,
+        "tokens": 289100,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "金額の表記を変える変更は docs/release.md の定義の表で決められないとし、当たるかを仮に決めずに利用者に確認すると述べている",
+          "passed": true,
+          "evidence": "「表のどの行にも書かれていません…境界で迷う変更です」「仮に決めて進めない」として確認する"
+        },
+        {
+          "text": "利用者への確認を、最初の commit より前に行うと述べている",
+          "passed": true,
+          "evidence": "「最初の commit をする前に、ここで止まって確認します」"
+        },
+        {
+          "text": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",
+          "passed": true,
+          "evidence": "「ファイルの変更、commit、push、GitHub への書き込みはしていません」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 81.5377,
+        "stddev": 3.6029,
+        "min": 79.041,
+        "max": 85.668
+      },
+      "tokens": {
+        "mean": 240867,
+        "stddev": 44128.4925,
+        "min": 202520,
+        "max": 289100
+      }
+    }
+  },
+  "notes": [
+    "PR #1000 で判断が変わったときの確認を足した後の with_skill だけの再実行である（1 run ずつ）。without_skill は入力が変わっていないので実行していない。"
+  ]
+}
