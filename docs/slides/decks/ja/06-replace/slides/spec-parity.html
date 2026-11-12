@@ -5,11 +5,11 @@
 <div style="flex:1.4;display:flex;flex-direction:column;gap:24px">
 <table style="font-size:24px;color:#17202a;background:#ffffff;border:1px solid #c9cec7">
 <tr><th style="width:18%">モード</th><th style="width:82%">行うこと</th></tr>
-<tr><td>suite</td><td>現行に対して e2e のスイート（操作・状態・role ごとの assertion・API）を作って通し、故障を入れて強度を確かめる。操作中のエラーの基準と、現行がはみ出さない画面の幅を記録する</td></tr>
+<tr><td>suite</td><td>現行に対して e2e のスイート（操作・状態・role ごとの assertion・API）を作って通し、故障を入れて強度を確かめる。操作中に出るエラーの基準と、現行がはみ出さない画面の幅を記録する</td></tr>
 <tr><td>verify</td><td>新側だけを確かめる。スイート・横のはみ出し・操作中のエラーはツールで、デザインの点検と人による確認は承認の記録で判定する</td></tr>
 </table>
 <ul style="font-size:30px;line-height:1.7">
-<li>新旧の画面を比べず、モデルに「問題ないか」を聞かない</li>
+<li>新旧の画面を比べない。合否を決めるときに、モデルに「問題ないか」を聞かない</li>
 <li>要対応は parity-replace に戻す。承認は追記だけの記録に残し、記録が減っていないことを確かめてから収束とする</li>
 </ul>
 </div>

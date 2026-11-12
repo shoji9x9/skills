@@ -10,13 +10,14 @@ Skills: replace-strategy, current-environment-bootstrap, golden-dataset, parity-
    how the current app behaves today.
    When you ask a model to find differences between the screens of the current app and the new app, it misses small differences such as spacing, color and font.
    Sources: `skills/replace-strategy/SKILL.md` "厳守の制約（禁止事項）", the opening of `skills/parity-diff/SKILL.md`
-2. Approach. Capture the behavior of the current app as evidence (capture), reproduce it with a different implementation (reproduce), and confirm there are zero differences (confirm). Repeat
+2. Approach. Capture the behavior of the current app as evidence (capture), reproduce it with a different implementation (reproduce), and confirm no differences or must-fix items remain (confirm). Repeat
    this as a loop. In the flow that does not match the appearance (see 3), it does not compare screens and instead confirms no must-fix items remain in the new app.
    Sources: the opening of `skills/replace-strategy/SKILL.md`
 3. Style policy. The `style_policy` value in replace-strategy decides which skills check features with screens.
    `reproduce` (the default) also matches the appearance, and parity-suite and parity-diff compare the screens of both apps.
    `free` matches only UI behavior (actions, states, roles, text, API), and the appearance only needs to look right to people. spec-parity checks only the new app and does not compare screens.
-   You choose the value when setup decides the strategy, and keep it once work on features starts. Cross-cutting APIs and batches use parity-suite and parity-diff with either value.
+   You choose the value when setup decides the strategy.
+   To change it after work on features starts, you decide for each started feature whether to rebuild its outputs. Cross-cutting APIs and batches use parity-suite and parity-diff with either value.
    Sources: `skills/replace-strategy/references/project-config.md` "スタイルの方針（`style_policy`）", `skills/replace-strategy/SKILL.md` "姉妹スキルと依存順"
 4. Overall order (diagram). Once at the start: replace-strategy setup → current-environment-bootstrap only when needed → measurement, strategy and feature list → golden-dataset phase A.
    If you build components before screens under `reproduce`, run parity-component.
@@ -43,7 +44,8 @@ Skills: replace-strategy, current-environment-bootstrap, golden-dataset, parity-
    It injects faults on purpose to confirm the criteria are strong enough to detect them, and hands the visual baselines and noise ranges to parity-diff.
    When `style_policy` is `free`, it handles only cross-cutting APIs and batches.
    Sources: `description` in `skills/parity-suite/SKILL.md`, the opening, "使い方", "姉妹スキルとの連携"
-10. parity-replace. Implements the new app against the logical names from parity-suite. It splits a feature into phases by page, and a reviewer role separate from the implementer reviews the diff.
+10. parity-replace. Implements the new app against the pass/fail suite (from parity-suite or spec-parity).
+    It splits a feature into phases by page, and a reviewer role separate from the implementer reviews the diff.
     It leaves creating branches, commits and PRs to issue-start.
     For features with screens under `free`, the spec-parity suite checks the new app, and it goes back and forth with spec-parity verify.
     Sources: `description` in `skills/parity-replace/SKILL.md`, the opening, "使い方", `skills/parity-replace/references/style-free.md` "相手のスキルと判定の置き換え"
@@ -52,15 +54,17 @@ Skills: replace-strategy, current-environment-bootstrap, golden-dataset, parity-
     In the parity-diff skill's terms, style comparison is characteristic matching, and structure comparison is aria comparison.
     Differences that need action go back to parity-replace. When `style_policy` is `free`, it handles only cross-cutting APIs and batches.
     Sources: the opening of `skills/parity-diff/SKILL.md`, "使い方", "姉妹スキルとの連携", `skills/parity-diff/references/detect.md` "3 つの比較方法の分担"
-12. spec-parity. Replaces parity-suite and parity-diff for features with screens when `style_policy` is `free`. It does not compare screens.
+12. spec-parity. Replaces parity-suite and parity-diff for features with screens when `style_policy` is `free`. It does not compare screens, or ask the model "Is this OK?" to decide pass/fail.
     `suite` builds an e2e suite (actions, states, assertions per role, API) against the current app, makes it pass, injects faults to check its strength, and records the baseline of runtime
     errors and the screen widths where the current app does not overflow.
     `verify` checks only the new app. Tools judge the suite, horizontal overflow and runtime errors, and approval records judge the design review and the human check.
     Must-fix items go back to parity-replace. Approvals are kept in append-only records, and it checks none shrank before calling it done.
     Sources: the opening of `skills/spec-parity/SKILL.md`, "使い方", "実行フロー"
-13. Where people decide. Approving the strategy, answers to the questionnaire from the people in charge of the current app and business experts, approving items not measured and writes that
+13. Where people decide. Approving the strategy and whether to match the current appearance (`style_policy`),
+    answers to the questionnaire from the people in charge of the current app and business experts, approving items not measured and writes that
     cannot be cleaned up, approving assets not matched against acceptance criteria, and approving differences classified as "acceptable".
     In spec-parity, approving which design findings to accept and which runtime errors to allow, and confirming that the new app's screens look right.
+    Also deciding whether to install e2e and whether to send screen content to the model provider.
     The architecture of the new app (framework, structure and so on) is decided in advance, not by the skills. With `--autonomous`, items that need a decision are recorded as pending and
     asked together at the end.
     Sources: `skills/replace-strategy/SKILL.md` "前提" "自律実行（`--autonomous`）", the approval steps of each sibling skill

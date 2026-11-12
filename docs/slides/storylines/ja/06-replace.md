@@ -9,13 +9,13 @@
 1. 困りごと。仕様を変えないリプレイスでは、同じ挙動かを推測や設計書で判断しやすい。設計書は今の現行の挙動と一致するとは限らない。
    新旧の画面の差分をモデルに探させると、余白・色・フォントのような細かな差を見落とす。
    根拠: `skills/replace-strategy/SKILL.md`「厳守の制約（禁止事項）」、`skills/parity-diff/SKILL.md` の冒頭
-2. 考え方。現行の挙動を証拠として固定し（固定する）、別の実装で再現し（再現する）、差分がゼロであることを確かめる（確かめる）。これをループで回す。
+2. 考え方。現行の挙動を証拠として固定し（固定する）、別の実装で再現し（再現する）、差分か要対応が残っていないことを確かめる（確かめる）。これをループで回す。
    見た目を現行に合わせない流れ（3 を参照）では、新旧の画面は比べず、新側で要対応が残っていないことを確かめる。
    根拠: `skills/replace-strategy/SKILL.md` の冒頭
-3. スタイルの方針。画面のある機能を確かめるスキルは、replace-strategy の `style_policy` で決まる。
+3. スタイルの方針。画面のある機能を確かめるスキルは、replace-strategy の設定にある `style_policy` で決まる。
    `reproduce`（デフォルト）は見た目も現行に合わせ、parity-suite と parity-diff で新旧の画面を比べる。
    `free` は UI の仕様（操作・状態・role・テキスト・API）だけを合わせ、見た目は人が見て違和感の無いものにする。spec-parity が新側だけを確かめ、新旧の画面は比べない。
-   値は setup の戦略の決定で利用者が選び、機能に着手した後は変えない。横断 API とバッチは、どちらの値でも parity-suite と parity-diff で確かめる。
+   値は setup で戦略を決めるときに利用者が選ぶ。機能に着手した後に変えるなら、着手済みの機能で作った成果物を作り直すかを機能ごとに確かめる。横断 API とバッチは、どちらの値でも parity-suite と parity-diff で確かめる。
    根拠: `skills/replace-strategy/references/project-config.md`「スタイルの方針（`style_policy`）」、`skills/replace-strategy/SKILL.md`「姉妹スキルと依存順」
 4. 全体の順序（図）。最初に 1 回、replace-strategy の setup → 必要なときだけ current-environment-bootstrap → 測定と戦略と機能の一覧 → golden-dataset のフェーズ A と進む。
    `reproduce` で部品を画面より先に作るなら parity-component を実行する。
@@ -40,7 +40,7 @@
 9. parity-suite。新旧どちらにも当てられる合否の基準を Playwright で作る。要素を論理名で指し、API の応答を記録して再生する。
    わざと故障を入れて、基準が故障を検出できる強さかを確かめ、見た目の基準とノイズの幅を parity-diff に渡す。`style_policy` が `free` のときは、横断 API とバッチだけを扱う。
    根拠: `skills/parity-suite/SKILL.md` の `description`・冒頭・「使い方」・「姉妹スキルとの連携」
-10. parity-replace。parity-suite の論理名に対して新側を実装する。機能をページ単位のフェーズに分け、実装役と分けたレビュー役が差分をレビューする。
+10. parity-replace。合否を決めるスイート（parity-suite か spec-parity）に対して新側を実装する。機能をページ単位のフェーズに分け、実装役と分けたレビュー役が差分をレビューする。
     ブランチの作成・commit・PR は issue-start に任せる。
     `style_policy` が `free` の画面のある機能では、spec-parity のスイートで新側を確かめ、spec-parity verify と往復する。
     根拠: `skills/parity-replace/SKILL.md` の `description`・冒頭・「使い方」、`skills/parity-replace/references/style-free.md`「相手のスキルと判定の置き換え」
@@ -49,16 +49,17 @@
     parity-diff のスキルの語では、スタイルの比較は特性照合に、構造の比較は aria の比較に当たる。
     対応が要る差分は parity-replace へ戻す。`style_policy` が `free` のときは、横断 API とバッチだけを扱う。
     根拠: `skills/parity-diff/SKILL.md` の冒頭・「使い方」・「姉妹スキルとの連携」、`skills/parity-diff/references/detect.md`「3 つの比較方法の分担」
-12. spec-parity。`style_policy` が `free` の画面のある機能で、parity-suite と parity-diff の代わりに動く。新旧の画面は比べない。
-    `suite` は、現行に対して e2e のスイート（操作・状態・role ごとの assertion・API）を作って通し、故障を入れて強度を確かめ、操作中のエラーの基準と現行がはみ出さない画面の幅を記録する。
+12. spec-parity。`style_policy` が `free` の画面のある機能で、parity-suite と parity-diff の代わりに動く。新旧の画面は比べず、合否を決めるときにモデルに「問題ないか」を聞かない。
+    `suite` は、現行に対して e2e のスイート（操作・状態・role ごとの assertion・API）を作って通し、故障を入れて強度を確かめ、操作中に出るエラーの基準と現行がはみ出さない画面の幅を記録する。
     `verify` は新側だけを確かめる。スイート・横のはみ出し・操作中のエラーはツールで、デザインの点検と人による確認は承認の記録で判定する。
     要対応は parity-replace に戻す。承認は追記だけの記録に残し、記録が減っていないことを確かめてから収束とする。
     根拠: `skills/spec-parity/SKILL.md` の冒頭・「使い方」・「実行フロー」
-13. 人が判断する点。戦略の承認、現行アプリの担当者や業務の専門家による質問票への回答、測らない項目と後始末できない書き込みの承認、受け入れ条件と突き合わせない資産の承認、「許容」に分けた差分の承認。
+13. 人が判断する点。戦略と、見た目を現行に合わせるか（`style_policy`）の承認、現行アプリの担当者や業務の専門家による質問票への回答、測らない項目と後始末できない書き込みの承認、受け入れ条件と突き合わせない資産の承認、「許容」に分けた差分の承認。
     spec-parity では、デザインの指摘のうち受け入れるものと、許容する操作中のエラーを承認し、新側の画面に違和感が無いことを確かめる。
+    e2e を入れるかと、画面の内容をモデルの提供元へ送るかも決める。
     新側のアーキテクチャ（フレームワーク・構成など）は、スキルが決めず、事前に決めておく。`--autonomous` では、判断が要るものを保留に記録し、最後にまとめて聞く。
     根拠: `skills/replace-strategy/SKILL.md`「前提」「自律実行（`--autonomous`）」、各姉妹スキルの承認の手順
-14. 成果物。`.replace/` の測定レポート・戦略書・機能の一覧、機能ごとの Issue、データの投入ツール、Playwright のパリティスイートか e2e のスイート、新側の実装と PR、差分の分類か新側の確認の記録。
+14. 成果物。`.replace/` の測定レポート・戦略書・機能の一覧、機能ごとの Issue、データの投入ツール、Playwright のパリティスイートか e2e のスイート、新側の実装と PR、差分の分類か新側を確かめた記録。
     根拠: `skills/replace-strategy/SKILL.md`「成果物」、各姉妹スキルの `SKILL.md` の成果物の節
 15. つながるスキル。起票は issue-create、実装の流れは issue-start に任せる（第 4 章）。現行アプリの操作は browser-test の作法に従う（第 7 章）。成果物の文書は writing-style で読み直す（第 3 章）。
     根拠: `skills/replace-strategy/SKILL.md`「前提」、`skills/parity-replace/SKILL.md` の冒頭

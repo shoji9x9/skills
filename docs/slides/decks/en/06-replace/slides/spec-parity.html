@@ -6,11 +6,11 @@
 <table style="font-size:24px;color:#17202a;background:#ffffff;border:1px solid #c9cec7">
 <tr><th style="width:18%">Mode</th><th style="width:82%">What it does</th></tr>
 <tr><td>suite</td><td>Builds an e2e suite (actions, states, assertions per role, API) against the current app, makes it pass, and injects faults to check its strength. Records the baseline of runtime errors and the screen widths where the current app does not overflow</td></tr>
-<tr><td>verify</td><td>Checks only the new app. Tools judge the suite, horizontal overflow and runtime errors. Approval records judge the design review and the human check</td></tr>
+<tr><td>verify</td><td>Checks only the new app. Tools judge the suite, overflow and runtime errors; approval records judge the design review and human check</td></tr>
 </table>
 <ul style="font-size:30px;line-height:1.7">
-<li>Does not compare screens or ask the model "Is this OK?"</li>
-<li>Sends must-fix items to parity-replace. Keeps approvals in append-only records and checks none shrank before calling it done</li>
+<li>Never compares screens or asks the model "Is this OK?" for pass/fail</li>
+<li>Sends must-fix items to parity-replace. Keeps approvals append-only and checks none shrank before calling it done</li>
 </ul>
 </div>
 <div style="flex:1;display:flex;flex-direction:column;gap:12px">

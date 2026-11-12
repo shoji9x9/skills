@@ -6,5 +6,5 @@
 <tr><td>reproduce (default)</td><td>UI behavior and appearance (color, size, spacing, fonts)</td><td>parity-suite (Playwright) builds the criteria, and parity-diff compares the screens of both apps</td></tr>
 <tr><td>free</td><td>UI behavior only (actions, states, roles, text, API). The appearance only needs to look right to people</td><td>spec-parity (e2e) builds the suite and checks only the new app. It does not compare screens</td></tr>
 </table>
-<p style="font-size:26px;line-height:1.5;color:#5b6670">You choose the value when setup decides the strategy, and keep it once work on features starts. Cross-cutting APIs and batches use parity-suite and parity-diff with either value.</p>
+<p style="font-size:26px;line-height:1.5;color:#5b6670">You choose the value when setup decides the strategy. To change it after work on features starts, you decide for each started feature whether to rebuild its outputs. Cross-cutting APIs and batches use parity-suite and parity-diff with either value.</p>
 </section>
