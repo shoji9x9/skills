@@ -10,7 +10,7 @@ Message: Create and update AWS architecture diagrams from IaC.
    Sources: `skills/aws-architecture-diagram/SKILL.md` "使い方"
 3. How it works (diagram). The agent reads the IaC or a description and writes a spec (nodes, edges, groups), and the bundled engine generates the SVG.
    The agent fixes the spec until the checks of the drawing rules
-   report 0 violations, then converts it to PNG and checks it visually.
+   report 0 violations, then converts it to PNG, checks it visually and fixes what looks off.
    Sources: the opening of `skills/aws-architecture-diagram/SKILL.md`, "入力（構成の情報源）" and "生成・更新（`update`・既定）"
 4. Setup flow. Placement → fetch the AWS icons → decide which environments get diagrams → initial spec → repeat generating and checking. From the second time on, update reflects changes in
    the sources into the spec and regenerates.

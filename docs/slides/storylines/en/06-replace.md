@@ -30,7 +30,7 @@ Skills: replace-strategy, current-environment-bootstrap, golden-dataset, parity-
    It leaves filing issues to issue-create.
    `evidence` writes confirmed per-request API evidence back to the feature list (`.replace/features.md`). parity-suite and parity-replace may also call it.
    Invoke it with `replace-strategy setup`, `issues`, `status` or `evidence`.
-   Sources: the opening of `skills/replace-strategy/SKILL.md`, "使い方", "厳守の制約（禁止事項）", "setup モード"
+   Sources: the opening of `skills/replace-strategy/SKILL.md`, "使い方", "厳守の制約（禁止事項）", "setup モード", "evidence モード"
 6. current-environment-bootstrap. Rebuilds the current app's test environment, which serves as the baseline for comparison, from the received assets only.
    It does not guess and fix values from type or column names, and it turns missing information into a questionnaire for the people in charge of the current app and business experts.
    Sources: `description` in `skills/current-environment-bootstrap/SKILL.md`, the opening, "使い方"

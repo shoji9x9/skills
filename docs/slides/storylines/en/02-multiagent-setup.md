@@ -2,8 +2,8 @@
 
 Message: The idea behind the skill collection (do not depend on a single agent), and how to build that structure.
 
-There is no "Where people decide" section. People decide things such as the target when the request does not settle it,
-whether to update existing files, and whether and how to build a skill, and the flow slide covers that.
+There is no "Where people decide" section. The flow slide covers being asked for the target and the agents.
+Confirming whether to update existing files, or how to compare results when building a skill, is a procedural detail and is left out.
 
 ## Slides
 

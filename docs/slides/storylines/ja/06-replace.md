@@ -26,7 +26,7 @@
    Issue の起票は issue-create に任せる。
    `evidence` で、確定した API の要求単位の根拠を、機能の一覧（`.replace/features.md`）に書き戻す。parity-suite・parity-replace から任されて呼ばれることもある。
    呼び出し方は `replace-strategy setup`・`issues`・`status`・`evidence`。
-   根拠: `skills/replace-strategy/SKILL.md` の冒頭・「使い方」・「厳守の制約（禁止事項）」・「setup モード」
+   根拠: `skills/replace-strategy/SKILL.md` の冒頭・「使い方」・「厳守の制約（禁止事項）」・「setup モード」・「evidence モード」
 6. current-environment-bootstrap。受け取った資産だけから、比べる基準になる現行のテスト環境を作り直す。
    型や列の名前から値を推測して確定せず、足りない情報は現行アプリの担当者や業務の専門家への質問票にする。
    根拠: `skills/current-environment-bootstrap/SKILL.md` の `description`・冒頭・「使い方」
