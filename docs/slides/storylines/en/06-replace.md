@@ -63,8 +63,8 @@ Skills: replace-strategy, current-environment-bootstrap, golden-dataset, parity-
 13. Where people decide. Approving the strategy and whether to match the current appearance (`style_policy`),
     answers to the questionnaire from the people in charge of the current app and business experts, approving items not measured and writes that
     cannot be cleaned up, approving assets not matched against acceptance criteria, and approving differences classified as "acceptable".
-    In spec-parity, approving which design findings to accept, which runtime errors to allow, and which widths to drop from the guaranteed range
-    (widths where the current app also overflows), and confirming that the new app's screens look right.
+    In spec-parity, approving which design findings to accept, which runtime errors to allow per cause, and dropping widths where the current app also
+    overflows from the guaranteed range, and confirming that the new app's screens look right.
     Also deciding whether to install e2e and web-design-guidelines, and whether agent steps may send page content to the model provider.
     The architecture of the new app (framework, structure and so on) is decided in advance, not by the skills. With `--autonomous`, items that need a decision are recorded as pending and
     asked together at the end.
