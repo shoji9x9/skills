@@ -53,8 +53,8 @@
       "fixture": "fixtures/lightweight-deploy-target",
       "assertions": [
         "develop が start を持たない配信型 target であることを踏まえ、軽量な手順を確認なしに自動適用していない",
-        "develop に commit_check が無いため、稼働中のコードがどの commit かをユーザーに確認する必要がある旨を述べている",
-        "確かめる値として、source-version.mjs が出す HEAD の commit の完全な SHA がデプロイ済みかを尋ねるか、ユーザーが答えた commit の tree を source-version.mjs --rev で取って new.tree と比べると述べている",
+        "develop に commit_check が無いことを理由に、稼働中のコードがどの commit かをユーザーに尋ねる必要があると述べている（理由を挙げずに確認を求めるだけでは満たさない）",
+        "確かめる値として、source-version.mjs が出す HEAD の commit か記録の new.commit の完全な SHA がデプロイ済みかを尋ねるか、ユーザーが答えた commit の tree を source-version.mjs --rev で取って new.tree と比べると述べている",
         "local-dev の green 証跡（.replace/parity/order-list/new/local-dev/replace-metadata.json）を develop の green 証跡として流用していない",
         ".replace/parity/order-list/new/develop/replace-metadata.json を捏造していない（project-files に存在しない）"
       ],
@@ -64,11 +64,11 @@
           "prompt_quote": "parity-replace --feature order-list --target develop"
         },
         {
-          "assertion": "develop に commit_check が無いため、稼働中のコードがどの commit かをユーザーに確認する必要がある旨を述べている",
+          "assertion": "develop に commit_check が無いことを理由に、稼働中のコードがどの commit かをユーザーに尋ねる必要があると述べている（理由を挙げずに確認を求めるだけでは満たさない）",
           "prompt_quote": "parity-replace --feature order-list --target develop"
         },
         {
-          "assertion": "確かめる値として、source-version.mjs が出す HEAD の commit の完全な SHA がデプロイ済みかを尋ねるか、ユーザーが答えた commit の tree を source-version.mjs --rev で取って new.tree と比べると述べている",
+          "assertion": "確かめる値として、source-version.mjs が出す HEAD の commit か記録の new.commit の完全な SHA がデプロイ済みかを尋ねるか、ユーザーが答えた commit の tree を source-version.mjs --rev で取って new.tree と比べると述べている",
           "prompt_quote": "parity-replace --feature order-list --target develop"
         },
         {

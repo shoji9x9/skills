@@ -9,7 +9,7 @@ git config user.name "Eval User"
 git config user.email "eval@example.invalid"
 mkdir -p new-app/src
 printf '%s\n' 'export const title = "注文一覧";' >new-app/src/order-list.ts
-git add -- new-app .config setup.sh
+git add -- new-app .config
 GIT_AUTHOR_DATE='2026-05-01T00:00:00Z' GIT_COMMITTER_DATE='2026-05-01T00:00:00Z' \
 	git -c commit.gpgsign=false commit -q -m 'feat: 注文一覧の新側の実装'
 
@@ -33,3 +33,5 @@ fi
 git add -- .replace
 GIT_AUTHOR_DATE='2026-05-01T01:00:00Z' GIT_COMMITTER_DATE='2026-05-01T01:00:00Z' \
 	git -c commit.gpgsign=false commit -q -m 'chore: local-dev の green の記録'
+# 被験体が手順を読んで答えを知らないよう、作り終えたら自身を消す（作業ツリーは clean のまま）
+rm -f -- "$0"
