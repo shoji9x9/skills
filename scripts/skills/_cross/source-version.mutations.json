@@ -107,16 +107,17 @@
     },
     {
       "id": "sv-env-git-dir",
-      "why": "呼び出し元の GIT_DIR などを子の git に受け継ぐ（hook から実行すると --repo と別のリポジトリの値を出す）",
+      "why": "git rev-parse --local-env-vars の変数を子の git に受け継ぐ（hook から実行すると --repo と別のリポジトリの値を出す）",
       "file": "skills/parity-replace/scripts/source-version.mjs",
-      "find": "  for (const name of REPO_LOCATING_ENV) delete base[name];\n",
+      "find": "  for (const name of repoLocalEnvVars()) delete base[name];\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
         "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_DIR を受け継がず、--repo のリポジトリを読む",
         "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_WORK_TREE を受け継がず、--repo のリポジトリを読む",
         "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_INDEX_FILE を受け継がず、--repo のリポジトリを読む",
-        "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_COMMON_DIR を受け継がず、--repo のリポジトリを読む"
+        "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_COMMON_DIR を受け継がず、--repo のリポジトリを読む",
+        "parity-replace の source-version.mjs 呼び出し元の環境 呼び出し元の GIT_OBJECT_DIRECTORY を受け継がず、--repo のリポジトリを読む"
       ]
     },
     {

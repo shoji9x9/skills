@@ -33,19 +33,37 @@ import { fileURLToPath } from "node:url";
 const NONE = "none";
 const USAGE =
   "usage: node source-version.mjs --repo <new.repo> [--artifacts <.replace のパス>] [--rev <commit>]";
-// 呼び出し元の git（hook など）が渡す、リポジトリの場所を決める環境変数。受け継ぐと --repo が無視されるので外す
-const REPO_LOCATING_ENV = [
-  "GIT_DIR",
-  "GIT_WORK_TREE",
-  "GIT_INDEX_FILE",
-  "GIT_COMMON_DIR",
-  "GIT_OBJECT_DIRECTORY",
-  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-  "GIT_NAMESPACE",
-  "GIT_PREFIX",
-];
-
 class UsageError extends Error {}
+
+/** @type {string[] | null} */
+let localEnvVars = null;
+
+/**
+ * 子の git に渡さない環境変数の名前。git が別のリポジトリでコマンドを実行するときに外す変数の一覧
+ * （git rev-parse --local-env-vars。GIT_DIR・GIT_INDEX_FILE・GIT_CONFIG_PARAMETERS など）を、git 自身から取る。
+ * hook などから受け継ぐと --repo と別のリポジトリを読むので外す。一覧を手で持つと、git の一覧とずれる。
+ * 利用者の設定で探索の範囲を決める変数（GIT_CEILING_DIRECTORIES など）は、この一覧に無いので外さない。
+ * そのため、GIT_CEILING_DIRECTORIES が新側の最上位を指していれば、新側を git で管理されていないと判定して none を返す。
+ * @returns {string[]}
+ */
+function repoLocalEnvVars() {
+  if (localEnvVars === null) {
+    const base = { ...process.env };
+    for (const name of Object.keys(base)) if (name.startsWith("GIT_")) delete base[name];
+    let out;
+    try {
+      out = execFileSync("git", ["rev-parse", "--local-env-vars"], {
+        encoding: "utf8",
+        env: base,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    } catch (e) {
+      throw gitError(e, "git の環境変数の一覧の取得");
+    }
+    localEnvVars = out.split("\n").filter((name) => name !== "");
+  }
+  return localEnvVars;
+}
 
 /**
  * git を起動し、標準出力を返す。ロケールに依らないメッセージにするため LC_ALL=C で起動する。
@@ -57,7 +75,7 @@ class UsageError extends Error {}
  */
 function git(args, { cwd, env = {} }) {
   const base = { ...process.env };
-  for (const name of REPO_LOCATING_ENV) delete base[name];
+  for (const name of repoLocalEnvVars()) delete base[name];
   return execFileSync("git", args, {
     cwd,
     encoding: "utf8",

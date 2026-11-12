@@ -455,7 +455,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
   `commit_check` があれば、その標準出力の SHA の tree を `source-version.mjs --rev <SHA>` で取り、今の `new.tree` と照合する。
   記録を commit した HEAD をデプロイしても、ソースが同じなら tree は同じになる。その commit が手元に無ければ、`git fetch` してから取る。
   無ければ、「対象の環境に commit `<今の new.commit>` がデプロイされているか」をユーザーに確認してから当てる（確認が取れなければ当てない）。
-  その commit そのものでなくても、`.replace/` の外のファイルが今の commit と同じ commit なら、同じバージョンとして扱ってよい
+  ユーザーが別の commit を答えたら、その commit を `source-version.mjs --rev` に渡して tree を取り、今の `new.tree` と比べる。同じなら当ててよい
 - 飛ばす手順: 2（ページの分割）・3（部品の洗い出しと依存の決定）・4（実装）・6（見た目の系統差）・7（敵対的レビュー）。
   手順 5 では、新側マッピングを充填せず、フェーズ B の確認・target の起動・green 化だけを行う
 - 実行する手順は、次の順である。

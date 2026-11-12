@@ -78,7 +78,7 @@ target を解決する前に、設定の `style_policy` を読む（`skill-confi
     照合の原本は [`capture-new.md`](capture-new.md)「URL の受け渡し」、`commit_check` の定義の原本は `replace-strategy` の `references/project-config.md` にある。
   - 配信型の target で `commit_check` を持たないものは、撮るバージョンを機械で知る方法が無い。
     「対象の環境に commit `<new.commit の SHA>` がデプロイ済みか」を利用者に確かめ、確認が取れるまで撮らない。一括の再検証では、`commits.after` を確かめる。
-    その commit そのものでなくても、`.replace/` の外のファイルがその commit と同じ commit なら、同じバージョンとして扱ってよい。
+    利用者が別の commit を答えたら、その commit を `source-version.mjs --rev` に渡して tree を取り、照合相手の tree と比べる。同じなら、同じバージョンとして撮る。
     これは `parity-replace` の軽い方法と同じ扱いである。`--autonomous` では判断待ちの保留に記録し、この機能の撮影を始めない。確かめたことと回答は、`diff.md` の前提確認の表に書く
 - `replace-metadata.json` が `new.tree` を持たない記録なら、合格として扱わず、同じ `--target` の `parity-replace` で green を記録し直すよう案内して止まる。
   `new.commit` が一致していても、代わりに使わない
@@ -105,7 +105,7 @@ target を解決する前に、設定の `style_policy` を読む（`skill-confi
       # 稼働中のバージョンを機械で確かめる手段が無い。ローカルの値はデプロイ済みのバージョンを表さないので比べない
       # 照合相手の tree を取る前に止まる（手元に無い commits.after の fetch を求めずに、利用者の確認へ案内する）
       if [ -n "$CHANGE" ]; then ASK=$(FIELD commits.after "$CHANGE"); else ASK=$(FIELD new.commit "$REPLACE_META"); fi
-      echo "停止: commit_check が無い配信型 target。commit ${ASK:-（読めない）} がデプロイ済みか利用者に確認する。.replace/ の外のファイルが同じ commit なら同じバージョンとして扱う"; exit 1
+      echo "停止: commit_check が無い配信型 target。commit ${ASK:-（読めない）} がデプロイ済みか利用者に確認する。別の commit を答えたら、その commit の tree を source-version.mjs --rev で取って照合相手と比べる"; exit 1
     fi
     if [ -n "$CHANGE" ]; then
       AFTER=$(FIELD commits.after "$CHANGE")
@@ -124,7 +124,7 @@ target を解決する前に、設定の `style_policy` を読む（`skill-confi
       CAPTURE_JSON=$(SV --rev "$DEPLOYED") || { echo "停止: デプロイ済みの commit（$DEPLOYED）の tree を取れない。理由は上の source-version.mjs の出力にある（手元に無い commit なら git fetch する）"; exit 1; }
       CAPTURE=$(printf '%s' "$CAPTURE_JSON" | FIELD tree)
     else
-      VERSION=$(SV) || { echo "停止: 新側のバージョンを取れない（source-version.mjs が失敗した）"; exit 1; }
+      VERSION=$(SV) || { echo "停止: 新側のバージョンを取れない。理由は上の source-version.mjs の出力にある"; exit 1; }
       if [ "$(printf '%s' "$VERSION" | FIELD dirty)" != false ]; then
         echo "停止: 新側の作業ツリーに commit していない変更がある（撮るバージョンを特定できない）"; exit 1
       fi

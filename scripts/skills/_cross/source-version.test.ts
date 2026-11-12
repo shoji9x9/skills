@@ -351,12 +351,13 @@ describe.each(COPIES)("$skill の source-version.mjs", ({ lib, script: SCRIPT })
   });
 
   describe("呼び出し元の環境", () => {
-    // git が hook や子プロセスに渡す、リポジトリの場所を決める変数。別のリポジトリを指していても --repo を読む
+    // git rev-parse --local-env-vars に挙がる変数のうち、リポジトリの場所を変えるもの。別のリポジトリを指していても --repo を読む
     test.each([
       ["GIT_DIR", (other: string) => path.join(other, ".git")],
       ["GIT_WORK_TREE", (other: string) => other],
       ["GIT_INDEX_FILE", (other: string) => path.join(other, ".git/index")],
       ["GIT_COMMON_DIR", (other: string) => path.join(other, ".git")],
+      ["GIT_OBJECT_DIRECTORY", (other: string) => path.join(other, ".git/objects")],
     ] as const)("呼び出し元の %s を受け継がず、--repo のリポジトリを読む", (name, value) => {
       const other = repoWith({ "o.js": "o\n" });
       const top = repoWith({ "src/a.js": "a\n" });
