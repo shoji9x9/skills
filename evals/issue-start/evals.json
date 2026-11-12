@@ -492,6 +492,9 @@
       "assertions": [
         "PR の本文に、規約の文書に破壊的変更の定義が無いことを書くと述べている",
         "定義が無いことを書く箇所に、読んだ規約の文書のパス（CONTRIBUTING.md）を挙げている",
+        "キーの改名を一般の意味で破壊的に見える（利用者が設定を書き直さないと従来の使い方を続けられない）とし、その見立てと理由を PR の本文の破壊的変更の節に書くと述べている",
+        "規約の文書に破壊的変更の定義を置くことを勧めると述べている",
+        "commit message に `!` も `BREAKING CHANGE:` も書かないと述べている",
         "ファイルの変更・commit・push・PR の作成をせず、説明に留めている"
       ],
       "reachability": [
@@ -502,6 +505,18 @@
         {
           "assertion": "定義が無いことを書く箇所に、読んだ規約の文書のパス（CONTRIBUTING.md）を挙げている",
           "prompt_quote": "リポジトリのファイルを読むこと"
+        },
+        {
+          "assertion": "キーの改名を一般の意味で破壊的に見える（利用者が設定を書き直さないと従来の使い方を続けられない）とし、その見立てと理由を PR の本文の破壊的変更の節に書くと述べている",
+          "prompt_quote": "古いキーは読まなくなる"
+        },
+        {
+          "assertion": "規約の文書に破壊的変更の定義を置くことを勧めると述べている",
+          "prompt_quote": "作る PR の本文の構成"
+        },
+        {
+          "assertion": "commit message に `!` も `BREAKING CHANGE:` も書かないと述べている",
+          "prompt_quote": "commit message と"
         },
         {
           "assertion": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",
@@ -550,6 +565,30 @@
         {
           "assertion": "利用者への確認を、最初の commit より前に行うと述べている",
           "prompt_quote": "最初の commit をする前の場面"
+        },
+        {
+          "assertion": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",
+          "prompt_quote": "ファイルの変更・commit・push・GitHub への接続はしないで"
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "fixture": "fixtures/no-breaking-change-doc",
+      "prompt": "issue-start 45 --pr で、実装を終えて最初の commit をする前の場面を説明して。ファイルの変更・commit・push・GitHub への接続はしないで（リポジトリのファイルを読むことと、スキルに同梱の読み取りのスクリプトを実行することはよい）。Issue #45 は CSV の出力を直す依頼で、利用者が書く設定に任意のキー `export.delimiter` を足した。書かなければ、従来と同じくカンマで区切る。commit message と、作る PR の本文の構成を述べて。",
+      "assertions": [
+        "PR の本文に、規約の文書に破壊的変更の定義が無いことを書くと述べている",
+        "規約の文書に破壊的変更の定義を置くことを勧めていない",
+        "ファイルの変更・commit・push・PR の作成をせず、説明に留めている"
+      ],
+      "reachability": [
+        {
+          "assertion": "PR の本文に、規約の文書に破壊的変更の定義が無いことを書くと述べている",
+          "prompt_quote": "作る PR の本文の構成"
+        },
+        {
+          "assertion": "規約の文書に破壊的変更の定義を置くことを勧めていない",
+          "prompt_quote": "書かなければ、従来と同じくカンマで区切る"
         },
         {
           "assertion": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",

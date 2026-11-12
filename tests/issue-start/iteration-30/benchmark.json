@@ -1,0 +1,225 @@
+{
+  "metadata": {
+    "skill_name": "issue-start",
+    "skill_path": "<repo>/skills/issue-start",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-12T00:40:16Z",
+    "evals_run": [22, 25],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 22,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 60.604,
+        "tokens": 196680,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR の本文に、規約の文書に破壊的変更の定義が無いことを書くと述べている",
+          "passed": true,
+          "evidence": "「`CONTRIBUTING.md` にも、そこから案内される文書にも定義がありません…「定義が無い」場合に当たります」、節に「判断していない」と書く"
+        },
+        {
+          "text": "定義が無いことを書く箇所に、読んだ規約の文書のパス（CONTRIBUTING.md）を挙げている",
+          "passed": true,
+          "evidence": "「読んだ文書 `CONTRIBUTING.md` を示します」"
+        },
+        {
+          "text": "キーの改名を一般の意味で破壊的に見える（利用者が設定を書き直さないと従来の使い方を続けられない）とし、その見立てと理由を PR の本文の破壊的変更の節に書くと述べている",
+          "passed": true,
+          "evidence": "「見立て: 一般の意味で破壊的に見えます。古いキーを読まなくなるので…」を `## 破壊的変更` の節に書く"
+        },
+        {
+          "text": "規約の文書に破壊的変更の定義を置くことを勧めると述べている",
+          "passed": true,
+          "evidence": "「勧め: `CONTRIBUTING.md` に破壊的変更の定義を置くこと」"
+        },
+        {
+          "text": "commit message に `!` も `BREAKING CHANGE:` も書かないと述べている",
+          "passed": true,
+          "evidence": "「commit message に `!` も `BREAKING CHANGE:` も書きません」、1 行目は `feat:`"
+        },
+        {
+          "text": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",
+          "passed": true,
+          "evidence": "「ファイルの変更、commit、push、GitHub への書き込みはしていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 25,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 84.134,
+        "tokens": 219259,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR の本文に、規約の文書に破壊的変更の定義が無いことを書くと述べている",
+          "passed": true,
+          "evidence": "`## 破壊的変更` の節に「規約の文書に破壊的変更の定義が無いので、判断していない。読んだ文書: `CONTRIBUTING.md`」"
+        },
+        {
+          "text": "規約の文書に破壊的変更の定義を置くことを勧めていない",
+          "passed": true,
+          "evidence": "「破壊的には見えないので、見立ても「定義を置く勧め」も書きません」"
+        },
+        {
+          "text": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",
+          "passed": true,
+          "evidence": "commit・push をせず、説明と案に留めている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 22,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 85.406,
+        "tokens": 97366,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR の本文に、規約の文書に破壊的変更の定義が無いことを書くと述べている",
+          "passed": false,
+          "evidence": "定義が無いことに触れず、一般の判断で破壊的変更として扱う"
+        },
+        {
+          "text": "定義が無いことを書く箇所に、読んだ規約の文書のパス（CONTRIBUTING.md）を挙げている",
+          "passed": false,
+          "evidence": "CONTRIBUTING.md は読んだ文書として挙げるが、定義が無いことを書く箇所が無い"
+        },
+        {
+          "text": "キーの改名を一般の意味で破壊的に見える（利用者が設定を書き直さないと従来の使い方を続けられない）とし、その見立てと理由を PR の本文の破壊的変更の節に書くと述べている",
+          "passed": true,
+          "evidence": "「⚠️ 破壊的変更と移行方法」の節に、古いキーを読まなくなる理由を書く"
+        },
+        {
+          "text": "規約の文書に破壊的変更の定義を置くことを勧めると述べている",
+          "passed": false,
+          "evidence": "規約の文書に定義を置く勧めが無い"
+        },
+        {
+          "text": "commit message に `!` も `BREAKING CHANGE:` も書かないと述べている",
+          "passed": false,
+          "evidence": "`feat!:` と `BREAKING CHANGE:` のフッターを書く"
+        },
+        {
+          "text": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",
+          "passed": true,
+          "evidence": "「commit・push・PR 作成はしていません。以下は文案です」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 25,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 56.913,
+        "tokens": 77087,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR の本文に、規約の文書に破壊的変更の定義が無いことを書くと述べている",
+          "passed": false,
+          "evidence": "「破壊的変更はないこと」と自分で判断して書き、定義が無いことに触れない"
+        },
+        {
+          "text": "規約の文書に破壊的変更の定義を置くことを勧めていない",
+          "passed": true,
+          "evidence": "定義を置く勧めを書いていない"
+        },
+        {
+          "text": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",
+          "passed": true,
+          "evidence": "「ファイルの変更・commit・push・GitHub への接続はしていません」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 72.369,
+        "stddev": 16.6382,
+        "min": 60.604,
+        "max": 84.134
+      },
+      "tokens": {
+        "mean": 207969.5,
+        "stddev": 15965.764,
+        "min": 196680,
+        "max": 219259
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5,
+        "stddev": 0.2357,
+        "min": 0.3333,
+        "max": 0.6667
+      },
+      "time_seconds": {
+        "mean": 71.1595,
+        "stddev": 20.1476,
+        "min": 56.913,
+        "max": 85.406
+      },
+      "tokens": {
+        "mean": 87226.5,
+        "stddev": 14339.4184,
+        "min": 77087,
+        "max": 97366
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.50",
+      "time_seconds": "+1.2",
+      "tokens": "+120743"
+    }
+  },
+  "notes": [
+    "PR #1000 の判断待ち r4544224845 を利用者の決定 C で直した後の変更確認である（1 run ずつ）。"
+  ]
+}
