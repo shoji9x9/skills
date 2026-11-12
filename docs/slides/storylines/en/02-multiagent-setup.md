@@ -2,7 +2,7 @@
 
 Message: The idea behind the skill collection (do not depend on a single agent), and how to build that structure.
 
-There is no "Where people decide" section. The only decision people make with this skill is answering when the agent cannot determine the target from the request, and the flow slide covers that.
+There is no "Where people decide" section.
 
 ## Slides
 
@@ -16,9 +16,9 @@ There is no "Where people decide" section. The only decision people make with th
    `skills/multiagent-setup/references/docs.md` "AGENTS.md の推奨構成" "既存の基底ドキュメントへの選択基準の追記" "CLAUDE.md / `.github/copilot-instructions.md` の方針"
 3. Key points of the structure (diagram). The actual files exist once in `.agents/`, and `.claude/skills/`, `.claude/rules/` and `.github/instructions/` refer to them through symbolic links.
    `AGENTS.md` is the base, and `CLAUDE.md` and `.github/copilot-instructions.md` hold only the differences.
-   For hooks, each agent's configuration file calls shared scripts in `.agents/hooks/scripts/`.
+   For project-specific hooks, each agent's configuration file calls shared scripts in `.agents/hooks/scripts/`.
    Sources: `skills/multiagent-setup/references/skills.md`, `skills/multiagent-setup/references/rules.md` "ディレクトリ構造",
-   `skills/multiagent-setup/references/docs.md` "ファイル別役割", `skills/multiagent-setup/references/hooks.md`
+   `skills/multiagent-setup/references/docs.md` "ファイル別役割", `skills/multiagent-setup/references/hooks.md` "フックスクリプトの配置"
 4. Flow. Decide the target of the operation (infer it from the request, and ask the user if that is not possible) → check the target agents (look at the existing configuration directories,
    and ask if the request does not say) → create each target with its own steps → follow-up (after creating a skill, show the runs without and with it).
    A skill is written after looking at the result of the same request run without it. If every expected behavior occurs in all three runs, ask the user whether to create it.

@@ -33,7 +33,7 @@ issue-batch runs the other skills together, so it comes last.
    It records cost and activity (how long the agent kept working on one instruction, and idle time split into human review, CI wait, review wait and unused) and summarizes them in HTML and CSV.
    Sources: the opening of `skills/agent-usage/SKILL.md` and "コミットの前の確認"
 8. pr-review-handle. Handles review comments in order: check, judge, fix (only when needed), reply, resolve.
-   Sources: the opening of `skills/pr-review-handle/SKILL.md`
+   Sources: the opening of `skills/pr-review-handle/SKILL.md`, "使い方"
 9. pr-finalize-loop. Loops on fixing CI failures and handling reviews until CI passes and no unresolved comments remain.
    You can choose who gets the re-review request (Copilot, Claude Code, Codex, local, none).
    It always stops at the iteration limit (5 by default). Only when reviewing locally with `/code-review`, after the limit is used up, it lowers the effort and adds half as many iterations.

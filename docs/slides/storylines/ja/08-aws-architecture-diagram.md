@@ -8,8 +8,8 @@
    根拠: `skills/aws-architecture-diagram/SKILL.md` の冒頭、`skills/aws-architecture-diagram/references/environments.md` の冒頭
 2. 呼び出し方。初回は `aws-architecture-diagram setup --from <IaC のパス>`、以降は `aws-architecture-diagram update --env <環境名>`。
    根拠: `skills/aws-architecture-diagram/SKILL.md`「使い方」
-3. 仕組み（図）。IaC か説明を読んで spec（ノード・エッジ・グループ）を書き、同梱のエンジンが SVG を作る。PNG に変換して目で確かめ、直す。
-   根拠: `skills/aws-architecture-diagram/SKILL.md` の冒頭と「入力（構成の情報源）」
+3. 仕組み（図）。IaC か説明を読んで spec（ノード・エッジ・グループ）を書き、同梱のエンジンが SVG を作る。作図ルールの観点を検査し、違反が 0 件になるまで直してから、PNG に変換して目で確かめ、崩れていれば直す。
+   根拠: `skills/aws-architecture-diagram/SKILL.md` の冒頭と「入力（構成の情報源）」「生成・更新（`update`・既定）」
 4. setup の流れ。配置 → AWS のアイコンの取得 → 図を持つ環境の決定 → 初期の spec → 生成と確認の繰り返し。2 回目からは update で、情報源の変化を spec に反映して生成し直す。
    根拠: `skills/aws-architecture-diagram/SKILL.md`「セットアップ（`setup`・対話的）」「生成・更新（`update`・既定）」
 5. コピーするものとしないもの。テンプレートは 1 回だけコピーして利用者が編集し、エンジンはコピーせずスキルから実行する。

@@ -1,0 +1,10 @@
+<section id="style-policy" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">Two flows, chosen by the style policy</h2>
+<p style="font-size:36px;font-weight:500;line-height:1.5">The style_policy value in replace-strategy decides which skills check features with screens.</p>
+<table style="font-size:26px;color:#17202a;background:#ffffff;border:1px solid #c9cec7">
+<tr><th style="width:20%">style_policy</th><th style="width:36%">Matches the current app in</th><th style="width:44%">Skills that check features with screens</th></tr>
+<tr><td>reproduce (default)</td><td>UI behavior and appearance (color, size, spacing, fonts)</td><td>parity-suite (Playwright) builds the criteria, and parity-diff compares the screens of both apps</td></tr>
+<tr><td>free</td><td>UI behavior only (actions, states, roles, text, API). The appearance only needs to look right to people</td><td>spec-parity (e2e) builds the suite and checks only the new app. It does not compare screens</td></tr>
+</table>
+<p style="font-size:26px;line-height:1.5;color:#5b6670">You choose the value when setup decides the strategy, and keep it once work on features starts. If you must change it, first decide for each started feature whether to rebuild its outputs. Cross-cutting APIs and batches use parity-suite and parity-diff with either value.</p>
+</section>

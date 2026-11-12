@@ -8,6 +8,7 @@
     "cover",
     "problem",
     "idea",
+    "style-policy",
     "order",
     "replace-strategy",
     "current-environment-bootstrap",
@@ -16,18 +17,19 @@
     "parity-suite",
     "parity-replace",
     "parity-diff",
+    "spec-parity",
     "human",
     "output",
     "next"
   ],
   "sections": {
-    "s1": { "description": "困りごと・考え方・全体の順序", "start": "cover" },
+    "s1": { "description": "困りごと・考え方・スタイルの方針・全体の順序", "start": "cover" },
     "s2": {
       "description": "測って、基準となる環境とデータを用意する",
       "start": "replace-strategy"
     },
     "s3": {
-      "description": "機能ごとに、合否の基準を作って新側を実装し、差分を確かめる",
+      "description": "機能ごとに、合否の基準を作って新側を実装し、新旧の差分か新側だけを確かめる",
       "start": "parity-component"
     },
     "s4": { "description": "人が判断する点・成果物・つながるスキル", "start": "human" }

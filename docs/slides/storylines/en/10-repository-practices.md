@@ -4,7 +4,7 @@ Message: Autonomous development by agents, the mechanisms that keep quality, and
 
 ## Slides
 
-1. Repository size. List the file and line counts for Source, Tests and Fixtures, and show that the line counts of Tests and Fixtures are close to Source.
+1. Repository size. List the file and line counts for Source, Tests and Fixtures, and show what share of the Source line count the Tests and Fixtures line counts make up together.
    Add what is not counted (installed copies, records, generated files and configuration) and where the per-skill breakdown lives (`docs/slides/repo-size.md`).
    The counted commit is the same commit shown on the cover of Chapter 1.
    Sources: the output of `scripts/tools/repo-size.ts`
@@ -24,7 +24,7 @@ Message: Autonomous development by agents, the mechanisms that keep quality, and
    the specification.
    Sources: `docs/skill-development.md` "回帰テストを実行する", `docs/testing.md` "期待値は仕様から決める" "カバレッジ" "ミューテーションテスト"
 7. Quality: cross-cutting checks. pre-commit and CI check document tiers and references, statements that become wrong over time, consistency with installed copies, the skill index, and the
-   directory structure.
+   relations between files (fallow).
    Sources: the `Lint` job in `.github/workflows/ci.yml`, `lefthook.yml`, `docs/tooling.md`
 8. Quality: writing. textlint checks the writing rules in documents, and a Stop hook checks them in responses to people (this repository applies the rules from Chapter 3 too). Rules that
    depend on meaning are not linted, and people check them.
