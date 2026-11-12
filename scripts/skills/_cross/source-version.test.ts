@@ -327,6 +327,16 @@ describe.each(COPIES)("$skill の source-version.mjs", ({ lib, script: SCRIPT })
       expect(sourceVersion({ repo: top, artifacts: art(top), rev: head }).tree).toBe(before.tree);
     });
 
+    test.each(["HEAD", "main", "abc1234"])(
+      "--rev に完全な SHA でない値（%s）を渡すと、使い方の誤りにする",
+      (rev) => {
+        const top = repoWith({ "src/a.js": "a\n" });
+        expect(() => sourceVersion({ repo: top, artifacts: art(top), rev })).toThrow(
+          /完全な SHA を渡す/,
+        );
+      },
+    );
+
     test("git で管理されていない新側に --rev を渡すと、none を返さずに使い方の誤りにする", () => {
       const dir = tmp();
       expect(() =>
@@ -441,6 +451,7 @@ describe.each(COPIES)("$skill の source-version.mjs", ({ lib, script: SCRIPT })
         });
       });
     });
+
     test("git を起動できなければ、使い方の誤りにする（値を推測して出さない）", () => {
       const top = repoWith({ "src/a.js": "a\n" });
       const saved = process.env.PATH;

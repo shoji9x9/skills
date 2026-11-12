@@ -188,6 +188,19 @@
       "expect_failing": [
         "parity-replace の source-version.mjs 呼び出し元の環境 環境で渡した git の設定（GIT_CONFIG_PARAMETERS）は受け継ぐ"
       ]
+    },
+    {
+      "id": "sv-rev-full-sha-only",
+      "why": "--rev に branch 名や短縮した SHA も受け付ける（「main をデプロイした」という答えで、今の HEAD の tree を取って照合が通る）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "  if (rev !== null && !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(rev))\n",
+      "replace": "  if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-replace の source-version.mjs --rev --rev に完全な SHA でない値（HEAD）を渡すと、使い方の誤りにする",
+        "parity-replace の source-version.mjs --rev --rev に完全な SHA でない値（main）を渡すと、使い方の誤りにする",
+        "parity-replace の source-version.mjs --rev --rev に完全な SHA でない値（abc1234）を渡すと、使い方の誤りにする"
+      ]
     }
   ]
 }

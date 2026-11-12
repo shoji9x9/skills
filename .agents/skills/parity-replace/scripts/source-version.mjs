@@ -18,6 +18,7 @@
 // --rev <commit> を渡すと、HEAD の代わりにその commit から同じ範囲の tree を取る（デプロイした commit や、
 //   変更宣言の commits.after を tree で照合するため）。作業ツリーとは関係が無いので、dirty は null にする。
 //   git で管理されていない新側に --rev を渡すと、確かめる commit が無いので exit 2 にする（none を返さない）。
+//   --rev に渡せるのは commit の完全な SHA だけで、branch 名や短縮した SHA は exit 2 にする。
 //
 // 使い方: node source-version.mjs --repo <new.repo> [--artifacts <.replace のパス>] [--rev <commit>]
 //   --artifacts のデフォルトは、作業ディレクトリの .replace である。
@@ -286,6 +287,11 @@ function sourceDirty({ top, prefix, excluded }) {
  * @returns {{ commit: string, tree: string, dirty: boolean | null, excluded: string | null }}
  */
 export function sourceVersion({ repo, artifacts, rev = null }) {
+  // branch 名や短縮した SHA は、解決した時点で別の commit を指しうる。デプロイ済みと確かめた commit そのものだけを受け付ける
+  if (rev !== null && !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(rev))
+    throw new UsageError(
+      `--rev には commit の完全な SHA を渡す（branch 名や短縮した SHA は受け付けない）: ${rev}`,
+    );
   if (!existsSync(repo)) throw new UsageError(`--repo のディレクトリが無い: ${repo}`);
   // 在らないパスを除いても何も除かれず、.replace/ を含めた値を警告なしに出すので、在ることを先に確かめる
   if (!existsSync(artifacts) || !statSync(artifacts).isDirectory())

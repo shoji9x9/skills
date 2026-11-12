@@ -117,7 +117,11 @@ target を解決する前に、設定の `style_policy` を読む（`skill-confi
     else
       WANT=$(FIELD new.tree "$REPLACE_META")
     fi
-    if [ -n "$DELIVERED" ] || [ -n "$COMMIT_CHECK" ]; then
+    if [ -n "$COMMIT_CHECK" ] && [ -n "$DEPLOYED_COMMIT" ]; then
+      # どちらの値で照合したかが分からなくなるので、片方だけを入れる
+      echo "停止: COMMIT_CHECK と DEPLOYED_COMMIT の両方が入っている。commit_check を持つ target では DEPLOYED_COMMIT を空にする"; exit 1
+    fi
+    if [ -n "$DELIVERED" ] || [ -n "$COMMIT_CHECK" ] || [ -n "$DEPLOYED_COMMIT" ]; then
       # 配信型 target: 稼働中のコードの commit は、commit_check の出力か利用者の答えだけが知っている。その commit の tree で比べる
       if [ -n "$COMMIT_CHECK" ]; then
         # 終了コードはパイプへ流す前に検査する（パイプの末尾の tr に隠れて、失敗した確認を成功扱いしない）
