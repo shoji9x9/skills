@@ -156,6 +156,18 @@
       "expect_failing": [
         "parity-suite の runtime-errors.mjs compare 雛形のプレースホルダ（<...>）のままの分類の欄は、書いていないものとして読む"
       ]
+    },
+    {
+      "id": "re-written-empty",
+      "why": "分類の欄の空の文字列と空白だけの文字列を、書いた値として読む",
+      "file": "skills/parity-suite/scripts/runtime-errors.mjs",
+      "find": "  const raw = (/** @type {string} */ k) => (c && nonEmptyString(c[k]) ? String(c[k]) : null);\n",
+      "replace": "  const raw = (/** @type {string} */ k) => (c && typeof c[k] === \"string\" ? String(c[k]) : null);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-suite の runtime-errors.mjs compare 分類は同じテスト × 署名へ持ち越し、説明になる分類だけで収束する",
+        "parity-suite の runtime-errors.mjs compare 雛形のプレースホルダ（<...>）のままの分類の欄は、書いていないものとして読む"
+      ]
     }
   ]
 }

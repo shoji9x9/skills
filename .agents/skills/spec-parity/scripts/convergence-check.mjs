@@ -332,7 +332,7 @@ function judgeSignatures(sigs, { tree, approvals, reasons }) {
       reasons.add(
         "approval",
         "runtime_errors",
-        `許容の承認が、承認の記録（approvals）に同じ値で積まれていないエラー: ${name}（承認を書き換えたか、前のバージョンの承認なら、利用者に承認し直してもらって approvals に追記する）`,
+        `許容の承認が、承認の記録（approvals）に同じ値で積まれていないエラー: ${name}（承認を書き換えたか、前のバージョンの承認なら、利用者に承認し直してもらって approvals に追記する。承認した人 approved_by も書く）`,
       );
   }
 }
@@ -404,7 +404,7 @@ export function judgeRuntimeErrors(baseline, compared, { tree, approvals, reason
   if (!isArray(sigs))
     throw new UsageError("verify-metadata.json の runtime_errors.new_signatures が配列でない");
   // 分類の欄は承認した人を持たないので、許容の承認は、承認した人（approved_by）を書いた要素とだけ照合する
-  const allowances = approvals.filter((a) => a.kind === "runtime_errors" && filled(a.approved_by));
+  const allowances = approvals.filter((a) => filled(a.approved_by));
   judgeSignatures(sigs, { tree, approvals: allowances, reasons });
   judgeCompareLists(compared, reasons);
   return { judged: true, new_signatures: sigs.length };

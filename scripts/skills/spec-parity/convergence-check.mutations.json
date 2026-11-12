@@ -628,8 +628,8 @@
       "id": "cv-allowance-approved-by",
       "why": "許容の承認の記録の要素に、承認した人（approved_by）が書いてあることを求める",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "  const allowances = approvals.filter((a) => a.kind === \"runtime_errors\" && filled(a.approved_by));\n",
-      "replace": "  const allowances = approvals.filter((a) => a.kind === \"runtime_errors\");\n",
+      "find": "  const allowances = approvals.filter((a) => filled(a.approved_by));\n",
+      "replace": "  const allowances = approvals;\n",
       "occurrences": 1,
       "expect_failing": [
         "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人（approved_by）の無い承認しか無い なら承認待ちにする",
