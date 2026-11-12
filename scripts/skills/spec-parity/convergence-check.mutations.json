@@ -461,7 +461,7 @@
     },
     {
       "id": "cv-approvals-kind-off",
-      "why": "承認の記録の kind を確かめず、語彙の外の要素を承認として数える",
+      "why": "承認の記録の語彙の外の要素を読み飛ばした件数（checks.approvals.ignored）に数えない。照合は kind も比べるので、承認の判定は変わらず、件数の報告だけが誤る",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
       "find": "    if (isPlainObject(a) && (a.kind === \"design_review\" || a.kind === \"human_review\"))\n",
       "replace": "    if (isPlainObject(a))\n",
@@ -474,7 +474,7 @@
       "id": "cv-suite-dir-off",
       "why": "スイートの結果を suite.dir で絞らず、ほかの機能のテストを含む結果で判定する（Issue #995 のコメントの項目）",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "    if (!normalizePath(String(r.file)).startsWith(prefix)) outside.push(key);\n",
+      "find": "    if (!key.startsWith(prefix)) outside.push(key);\n",
       "replace": "    if (false) outside.push(key);\n",
       "occurrences": 1,
       "expect_failing": [
@@ -505,6 +505,18 @@
       "occurrences": 1,
       "expect_failing": [
         "スイートの範囲（suite.dir） 同じテストの結果が 2 つある結果（--repeat-each・複数の agent）は、どちらかを採らずに exit 2"
+      ]
+    },
+    {
+      "id": "cv-report-key-normalize-off",
+      "why": "テストの鍵を作るときにファイルのパスを正規化せず、現行と新側で file の書き方（./・\\）が違うだけで同じテストを対応づけない",
+      "file": "skills/spec-parity/scripts/lib/e2e-report.mjs",
+      "find": "    const name = [normalizePath(r.file), ...r.titlePath.map(String)].join(\" › \");\n",
+      "replace": "    const name = [r.file, ...r.titlePath.map(String)].join(\" › \");\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "スイートの範囲（suite.dir） 現行と新側で file の書き方（./・\\）が違っても、同じテストとして突き合わせる",
+        "スイートの範囲（suite.dir） Windows の区切り（\\）で書いた結果の file も、同じスイートとして読む"
       ]
     }
   ]

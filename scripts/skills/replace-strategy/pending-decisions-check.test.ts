@@ -10,9 +10,9 @@ import { join } from "node:path";
 import { assert, test, expect } from "vitest";
 import {
   main,
-  classifyDecision,
   checkPendingDecisions,
 } from "../../../skills/replace-strategy/scripts/pending-decisions-check.mjs";
+import { classifyDecision } from "../../../skills/replace-strategy/scripts/lib/pending-state.mjs";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 

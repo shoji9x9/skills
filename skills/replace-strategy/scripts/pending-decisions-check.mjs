@@ -36,8 +36,6 @@ import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
  */
 export const VERSION = "1";
 
-export { classifyDecision };
-
 /** 保留の状態の語彙（原本は references/autonomy.md「保留の状態」）。 */
 export const STATES = ["open", "decided", "settled"];
 

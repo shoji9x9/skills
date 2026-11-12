@@ -624,7 +624,26 @@ describe("スイートの範囲（suite.dir）", () => {
     fs.put(`${SLUG_DIR}/suite-report.json`, win("current"));
     fs.put(`${NEW_DIR}/suite-report.json`, win("new"));
     // 区切りを読み替えた後のテストの鍵は、現行と新側で同じなので、スイートの判定は通る
-    expect(kinds(run(fs))).toEqual([]);
+    const r = run(fs);
+    expect(r.code).toBe(0);
+    expect(kinds(r)).toEqual([]);
+  });
+
+  test("現行と新側で file の書き方（./・\\）が違っても、同じテストとして突き合わせる", () => {
+    const fs = convergedFs();
+    fs.put(
+      `${NEW_DIR}/suite-report.json`,
+      report(
+        "new",
+        ours.map((r, n) => ({
+          ...r,
+          file: n === 0 ? `./${r.file}` : r.file.replaceAll("/", "\\"),
+        })),
+      ),
+    );
+    const r = run(fs);
+    expect(r.code).toBe(0);
+    expect(kinds(r)).toEqual([]);
   });
 
   test.each([
@@ -648,6 +667,10 @@ describe("スイートの範囲（suite.dir）", () => {
     ["絶対パス", "/tests/orders/"],
     ["リポジトリのルート（.）", "."],
     ["リポジトリのルート（./）", "./"],
+    ["途中の . の区間", "tests/./orders/"],
+    ["末尾の . の区間", "tests/orders/."],
+    ["ドライブ文字付きのパス（\\）", "C:\\repo\\tests\\orders"],
+    ["ドライブ文字付きのパス（/）", "C:/repo/tests/orders"],
     [".. を含む", "tests/../orders/"],
   ])("suite.dir が %s なら exit 2", (_name, dir) => {
     const fs = convergedFs();

@@ -34,7 +34,7 @@
 import { basename, join, resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
-import { selectedResults } from "./lib/e2e-report.mjs";
+import { normalizePath, selectedResults } from "./lib/e2e-report.mjs";
 import { parseFlags, stripDashes } from "./lib/flags.mjs";
 import { classifyDecision } from "./lib/pending-state.mjs";
 import { isPlaceholder, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
@@ -127,22 +127,9 @@ export function checkSuiteMetadata(metadata, slugDir) {
 }
 
 /**
- * パスを前方一致で比べる形にする。区切りの \ を / に、続いた / を 1 つにし、先頭の ./ を外す。
- * suite.dir と結果の file の両方に同じ正規化を当てる（片方だけにすると、書き方が違うだけで一致しない）。
- * @param {string} path
- * @returns {string}
- */
-function normalizePath(path) {
-  return path
-    .trim()
-    .replace(/\\/g, "/")
-    .replace(/\/{2,}/g, "/")
-    .replace(/^(\.\/)+/, "");
-}
-
-/**
  * スイートのディレクトリを、前方一致で比べる形（normalizePath の後、末尾を / にする）にする。
  * リポジトリのルート（. や空）は、ほかの機能のテストを絞れないので受けない。
+ * normalizePath は lib/e2e-report.mjs のものを使い、テストの鍵と同じ正規化にする。
  * @param {unknown} dir - metadata.json の suite.dir
  * @returns {string}
  */
@@ -151,8 +138,15 @@ export function suitePrefix(dir) {
     throw new UsageError(
       "metadata.json の suite.dir が無い（雛形の値のままを含む。スイートのディレクトリを書く）",
     );
-  const d = normalizePath(dir).replace(/^\.\/?$/, "");
-  if (d === "" || d.startsWith("/") || d.split("/").includes(".."))
+  const d = normalizePath(dir).replace(/\/$/, "");
+  // 途中の . の区間・.. ・絶対パス（/ で始まる・ドライブ文字で始まる）は、結果の file と前方一致で比べられないので受けない
+  const segments = d.split("/");
+  if (
+    d === "" ||
+    d.startsWith("/") ||
+    /^[A-Za-z]:/.test(d) ||
+    segments.some((x) => x === "." || x === "..")
+  )
     throw new UsageError(
       `metadata.json の suite.dir が、リポジトリのルートの下のディレクトリの相対パスでない: ${dir}`,
     );
@@ -174,7 +168,8 @@ export function readReport(report, { targetId, where, prefix }) {
   for (const [key, { result: r, index }] of results) {
     if (!nonEmptyString(r.status))
       throw new UsageError(`${where} の results[${index}] に status が無い`);
-    if (!normalizePath(String(r.file)).startsWith(prefix)) outside.push(key);
+    // key のファイルのパスは selectedResults が normalizePath で正規化している
+    if (!key.startsWith(prefix)) outside.push(key);
     else tests.set(key, r.status);
   }
   if (tests.size === 0)
