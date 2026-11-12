@@ -1,0 +1,11 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+pr:1001,pr,2026-11-12T07:59:05.989Z,p-cdee4961,github,,,,2026-11-12T03:06:10.000Z,2026-11-12T07:18:18.000Z,Asia/Tokyo,feature/998-source-tree-hash-version,998,,,,,,,,,,pr=1001;author=shoji9x9;state=merged,
+ci:43174273961:1,ci,2026-11-12T07:59:05.989Z,p-cdee4961,github-actions,,,,2026-11-12T07:18:21.000Z,2026-11-12T07:18:45.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:43174273937:1,ci,2026-11-12T07:59:05.989Z,p-cdee4961,github-actions,,,,2026-11-12T07:18:21.000Z,2026-11-12T07:22:10.000Z,Asia/Tokyo,main,,,,,,,,,,,CodeQL;push;success,
+ci:43169935634:1,ci,2026-11-12T07:59:05.989Z,p-cdee4961,github-actions,,,,2026-11-12T06:41:47.000Z,2026-11-12T06:41:48.000Z,Asia/Tokyo,feature/998-source-tree-hash-version,998,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:43169935658:1,ci,2026-11-12T07:59:05.989Z,p-cdee4961,github-actions,,,,2026-11-12T06:41:47.000Z,2026-11-12T06:43:25.000Z,Asia/Tokyo,feature/998-source-tree-hash-version,998,,,,,,,,,,CodeQL;pull_request;success,
+ci:43169935719:1,ci,2026-11-12T07:59:05.989Z,p-cdee4961,github-actions,,,,2026-11-12T06:41:47.000Z,2026-11-12T06:47:07.000Z,Asia/Tokyo,feature/998-source-tree-hash-version,998,,,,,,,,,,CI;pull_request;success,
+ci:43097620748:1,ci,2026-11-12T07:59:05.989Z,p-cdee4961,github-actions,,,,2026-11-11T20:42:24.000Z,2026-11-12T07:59:05.989Z,Asia/Tokyo,feature/993-parity-replace-style-free,993,,,,,,,,,,CodeQL;pull_request;open,
+ci:43097620707:1,ci,2026-11-12T07:59:05.989Z,p-cdee4961,github-actions,,,,2026-11-11T20:42:24.000Z,2026-11-12T07:59:05.989Z,Asia/Tokyo,feature/993-parity-replace-style-free,993,,,,,,,,,,Dependabot auto-merge;pull_request;open,
+ci:43097620755:1,ci,2026-11-12T07:59:05.989Z,p-cdee4961,github-actions,,,,2026-11-11T20:42:24.000Z,2026-11-12T07:59:05.989Z,Asia/Tokyo,feature/993-parity-replace-style-free,993,,,,,,,,,,CI;pull_request;open,
+coverage:github:2026-11-11T06:41:01.179Z:2026-11-12T07:59:05.989Z,coverage,2026-11-12T07:59:05.989Z,p-cdee4961,,,,,2026-11-11T06:41:01.179Z,2026-11-12T07:59:05.989Z,Asia/Tokyo,,,,,,,,,,,,ok,

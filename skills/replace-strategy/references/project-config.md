@@ -1043,7 +1043,8 @@ DB の接続情報もアプリの認証情報も、スキルは環境変数か�
   - 横断の `pending`（`slug: cross-cutting`。閉じる工程を持たないので、毎回示す）
   - 帰属が分からない `pending`（素の文字列か、`slug` が無いもの）
 - 各件を人に示し、`keep` / `may_change` へ移すか、持ち越す理由を記録する（理由を記録すれば通れるので、機能をずっと止めることはない）。
-- 件数を成果物に残す（`.replace/parity/<slug>/new/<target>/diff-metadata.json` の `intentional_diffs_pending`）。積んでいることには、件数で気づく。
+- 件数を成果物に残す（`.replace/parity/<slug>/new/<target>/diff-metadata.json` の `intentional_diffs_pending`）。
+  `style_policy: free` の画面のある機能では、`spec-parity verify` が同じ場所の `verify-metadata.json` の同じキーに残す。積んでいることには、件数で気づく。
 
 ### 同じ種類の前例を突き合わせる
 

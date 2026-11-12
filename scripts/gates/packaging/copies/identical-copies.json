@@ -440,6 +440,14 @@
     },
     {
       "files": [
+        "skills/replace-strategy/scripts/pending-decisions-check.mjs",
+        "skills/spec-parity/scripts/lib/pending-state.mjs"
+      ],
+      "region": "pending-state-js",
+      "reason": "自律実行の保留（pending_decisions[]）1 件の状態（open・decided・settled）を決める判定（Issue #995）。spec-parity の収束の判定は replace-strategy のスクリプトを import できないので、同じ判定を持つ。片方だけを直すと、前提の判定と収束の判定で、雛形の値のままの回答のような同じ保留の数え方が食い違う"
+    },
+    {
+      "files": [
         "skills/parity-replace/scripts/source-version.mjs",
         "skills/spec-parity/scripts/source-version.mjs",
         "skills/parity-diff/scripts/source-version.mjs"

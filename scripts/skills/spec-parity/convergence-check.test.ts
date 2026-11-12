@@ -19,6 +19,7 @@ import {
   NEW_DIR,
   SLUG_DIR,
   VERIFY,
+  approvalsLog,
   comparedOk,
   convergedFs,
   overflowRecords,
@@ -351,7 +352,10 @@ describe("デザインの点検と人による確認", () => {
     ["分けていない", "approval", finding({})],
   ])("指摘を %s なら %s", (_name, category, f) => {
     const fs = withVerify({ design_review: review({ findings: [f] }) });
-    expect(kinds(run(fs))).toEqual([[category, "design_review"]]);
+    const r = run(fs);
+    expect(kinds(r)).toEqual([[category, "design_review"]]);
+    // 承認の欄そのものの判定で止まる（承認の記録 approvals との照合まで進まない）
+    expect(r.result?.reasons.some((x) => x.message.includes("approvals"))).toBe(false);
   });
 
   test("点検の記録が無ければ、やり直しとして exit 1", () => {
@@ -400,7 +404,10 @@ describe("デザインの点検と人による確認", () => {
     ["承認した人が無い", "approval", { verdict: "approved", approved_at: "t" }],
   ])("人による確認が %s なら %s", (_name, category, approval) => {
     const fs = withVerify({ human_review: human(approval) });
-    expect(kinds(run(fs))).toEqual([[category, "human_review"]]);
+    const r = run(fs);
+    expect(kinds(r)).toEqual([[category, "human_review"]]);
+    // 承認の欄そのものの判定で止まる（承認の記録 approvals との照合まで進まない）
+    expect(r.result?.reasons.some((x) => x.message.includes("approvals"))).toBe(false);
   });
 
   test("人に見せた画面の記録が無ければ、やり直しとして exit 1", () => {
@@ -472,6 +479,206 @@ describe("未検証の一覧と判断待ち", () => {
 
   test("pending_decisions が無ければ exit 2（保留が無いことと記録が無いことを区別する）", () => {
     expect(run(withVerify({ pending_decisions: undefined })).code).toBe(2);
+  });
+  // 数え方は replace-strategy の pending-decisions-check.mjs と同じ（Issue #995 の項目 5）
+  test.each([
+    ["answer", { answer: "<回答>", answered_at: "2026-11-11T00:00:00Z" }],
+    ["answered_at", { answer: "a", answered_at: "<ISO 8601>" }],
+  ])("保留の %s が雛形の値のままなら、回答として数えず承認待ちにする", (_name, resolution) => {
+    const fs = withVerify({ pending_decisions: [{ id: "pd-1", blocks: [], resolution }] });
+    expect(kinds(run(fs))).toEqual([["approval", "pending_decisions"]]);
+  });
+});
+
+// 項目 1（Issue #995）: 承認を後から書き換えたことを、追記専用の承認の記録（approvals）との食い違いで検出する
+describe("承認の記録（approvals）", () => {
+  const [designLog, humanLog] = approvalsLog();
+  const base = verifyMetadata();
+
+  test("承認の記録から、受け入れたデザインの指摘の承認が消えていれば、承認待ちにする", () => {
+    const fs = withVerify({ approvals: [humanLog] });
+    expect(kinds(run(fs))).toEqual([["approval", "design_review"]]);
+  });
+
+  test("承認の記録から、人による確認の承認が消えていれば、承認待ちにする", () => {
+    const fs = withVerify({ approvals: [designLog] });
+    expect(kinds(run(fs))).toEqual([["approval", "human_review"]]);
+  });
+
+  test("受け入れたデザインの指摘の理由を、承認の後に書き換えたら承認待ちにする", () => {
+    const dr = structuredClone(base.design_review);
+    dr.findings[0].approval.reason = "書き換えた理由";
+    expect(kinds(run(withVerify({ design_review: dr })))).toEqual([["approval", "design_review"]]);
+  });
+
+  test("却下（rejected）を承認（approved）に書き換えたら、承認の記録と食い違うので承認待ちにする", () => {
+    const fs = withVerify({
+      human_review: { ...base.human_review, approval: { ...base.human_review.approval } },
+      approvals: [designLog, { ...humanLog, verdict: "rejected", notes: "表が詰まる" }],
+    });
+    expect(kinds(run(fs))).toEqual([["approval", "human_review"]]);
+  });
+
+  test("別のバージョンで積んだ承認は、いまの new.tree の承認として数えない", () => {
+    const fs = withVerify({
+      approvals: [{ ...designLog, tree: "1".repeat(40) }, humanLog],
+    });
+    expect(kinds(run(fs))).toEqual([["approval", "design_review"]]);
+  });
+
+  test("前のバージョンの承認が残っていても、いまのバージョンの承認が積まれていれば収束する", () => {
+    const old = "1".repeat(40);
+    const fs = withVerify({
+      approvals: [{ ...designLog, tree: old }, { ...humanLog, tree: old }, designLog, humanLog],
+    });
+    expect(run(fs).code).toBe(0);
+  });
+
+  test("approvals をキーごと持たない記録（承認の記録の導入前）は、承認し直すまで承認待ちにする", () => {
+    const fs = withVerify({ approvals: undefined });
+    expect(kinds(run(fs))).toEqual([
+      ["approval", "design_review"],
+      ["approval", "human_review"],
+    ]);
+  });
+
+  test.each([
+    ["配列でない", { kind: "human_review" }],
+    ["kind が語彙の外", [{ ...humanLog, kind: "other" }]],
+    ["要素がオブジェクトでない", ["approved"]],
+  ])("approvals が %s なら exit 2", (_name, approvals) => {
+    expect(run(withVerify({ approvals })).code).toBe(2);
+  });
+});
+
+// コメントの項目（Issue #995）: スイートのパス（metadata.json の suite.dir）の外のテストを含む結果は、この機能の結果として読まない
+describe("スイートの範囲（suite.dir）", () => {
+  const OTHER = { file: "tests/invoices/list.e2e.ts", title: "請求を開く", status: "failed" };
+  const ours = [
+    { file: "tests/orders/list.e2e.ts", title: "一覧を開く", status: "passed" },
+    { file: "tests/orders/list.e2e.ts", title: "編集する", status: "passed" },
+  ];
+
+  test("新側の結果にほかの機能のテストがあれば、絞って採り直す（通らないほかの機能のテストで差し戻さない）", () => {
+    const fs = convergedFs();
+    fs.put(`${NEW_DIR}/suite-report.json`, report("new", [...ours, OTHER]));
+    const r = run(fs);
+    expect(r.result?.reasons).toEqual([
+      {
+        category: "remeasure",
+        check: "suite",
+        message: expect.stringContaining(
+          "suite.dir（tests/orders/）の外のテストがある: tests/invoices/list.e2e.ts › 請求を開く",
+        ),
+      },
+    ]);
+  });
+
+  test("現行の結果にほかの機能のテストがあれば、suite をやり直すので exit 2", () => {
+    const fs = convergedFs();
+    fs.put(
+      `${SLUG_DIR}/suite-report.json`,
+      report("current", [...ours, { ...OTHER, status: "passed" }]),
+    );
+    const r = run(fs);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("suite.dir（tests/orders/）の外のテストがある");
+  });
+
+  test("名前が前方で重なるディレクトリ（tests/orders-archive/）は、スイートの外として数える", () => {
+    const fs = convergedFs();
+    fs.put(
+      `${NEW_DIR}/suite-report.json`,
+      report("new", [
+        ...ours,
+        { file: "tests/orders-archive/a.e2e.ts", title: "x", status: "passed" },
+      ]),
+    );
+    expect(run(fs).result?.reasons).toEqual([
+      {
+        category: "remeasure",
+        check: "suite",
+        message: expect.stringContaining(
+          "suite.dir（tests/orders/）の外のテストがある: tests/orders-archive/",
+        ),
+      },
+    ]);
+  });
+
+  test("Windows の区切り（\\）で書いた結果の file も、同じスイートとして読む", () => {
+    const fs = convergedFs();
+    const win = (targetId: string) =>
+      report(
+        targetId,
+        ours.map((r) => ({ ...r, file: r.file.replaceAll("/", "\\") })),
+      );
+    fs.put(`${SLUG_DIR}/suite-report.json`, win("current"));
+    fs.put(`${NEW_DIR}/suite-report.json`, win("new"));
+    // 区切りを読み替えた後のテストの鍵は、現行と新側で同じなので、スイートの判定は通る
+    expect(kinds(run(fs))).toEqual([]);
+  });
+
+  test.each([["tests/orders"], ["./tests/orders/"]])(
+    "suite.dir が %s の形でも、同じスイートとして読む",
+    (dir) => {
+      const fs = convergedFs();
+      fs.put(
+        `${SLUG_DIR}/metadata.json`,
+        suiteMetadata({ suite: { ...suiteMetadata().suite, dir } }),
+      );
+      expect(run(fs).code).toBe(0);
+    },
+  );
+
+  test.each([
+    ["無い", undefined],
+    ["雛形の値のまま", "<スイートのディレクトリ（例: tests/<slug>/）>"],
+    ["絶対パス", "/tests/orders/"],
+    [".. を含む", "tests/../orders/"],
+  ])("suite.dir が %s なら exit 2", (_name, dir) => {
+    const fs = convergedFs();
+    fs.put(
+      `${SLUG_DIR}/metadata.json`,
+      suiteMetadata({ suite: { ...suiteMetadata().suite, dir } }),
+    );
+    expect(run(fs).code).toBe(2);
+  });
+
+  test("スイートの中のテストが 0 件なら、0 件を合格にせず exit 2", () => {
+    const fs = convergedFs();
+    fs.put(`${NEW_DIR}/suite-report.json`, report("new", [OTHER]));
+    expect(run(fs).code).toBe(2);
+  });
+
+  // 項目 5（Issue #995）: 強度の確認と同じく、同じテストの結果が 2 つある結果は読まない
+  test("同じテストの結果が 2 つある結果（--repeat-each・複数の agent）は、どちらかを採らずに exit 2", () => {
+    const fs = convergedFs();
+    fs.put(`${NEW_DIR}/suite-report.json`, report("new", [...ours, ours[0]]));
+    const r = run(fs);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("同じテストの結果が 2 つある");
+  });
+});
+
+// 項目 4（Issue #995）: 操作中のエラーの比較の結果を、記録を採った新側のバージョン（compare --tree）と突き合わせる
+describe("操作中のエラーの比較のバージョン", () => {
+  test.each([
+    ["new.tree と違う", { ...comparedOk(), tree: "1".repeat(40) }],
+    ["無い（compare --tree を渡す前の記録）", { ...comparedOk(), tree: undefined }],
+  ])("比較の結果の tree が %s なら、古い記録として採り直す", (_name, runtimeErrors) => {
+    const fs = withVerify({ runtime_errors: runtimeErrors });
+    expect(kinds(run(fs))).toEqual([["remeasure", "runtime_errors"]]);
+  });
+
+  test("古いバージョンの比較に要対応の署名があっても、差し戻さずに採り直しだけを挙げる", () => {
+    const stale = {
+      ...comparedOk(),
+      tree: "1".repeat(40),
+      new_signatures: [{ test: LIST, kind: "pageerror", text: "x", classification: "要対応" }],
+    };
+    expect(kinds(run(withVerify({ runtime_errors: stale })))).toEqual([
+      ["remeasure", "runtime_errors"],
+    ]);
   });
 });
 

@@ -615,7 +615,11 @@ test("new.tree が none なら反復回数だけで判定する", () => {
       dataset_version: 7,
       converged: true,
     },
-    { new: { target: "local-dev", commit: "none", tree: "none" }, loop: { iterations: 3 } },
+    // source-version.mjs は、git で管理されていない新側の dirty を false にする
+    {
+      new: { target: "local-dev", commit: "none", tree: "none", dirty: false },
+      loop: { iterations: 3 },
+    },
   );
   const r = run(metadataPath, ["--target", "local-dev"]);
   expect(r.stdout).toMatch(/new\.tree が none/);
@@ -623,21 +627,36 @@ test("new.tree が none なら反復回数だけで判定する", () => {
   rmSync(root, { recursive: true, force: true });
 });
 
-test("new.dirty: true なら SHA が一致しても通さない（判定不能を合格として扱わない）", () => {
-  const { root, slugDir, metadataPath } = makeProject();
-  writeStage(
-    slugDir,
-    { ...CORRELATED.diff, dataset_version: 7, converged: true },
-    {
-      new: { target: "local-dev", commit: "a".repeat(40), tree: "a".repeat(40), dirty: true },
-      loop: { iterations: 3 },
-    },
-  );
-  const r = run(metadataPath, ["--target", "local-dev"]);
-  expect(r.stdout).toMatch(/新側のバージョンを特定できない.*new\.dirty: true/);
-  expect(r.status).toBe(1);
-  rmSync(root, { recursive: true, force: true });
-});
+// false でない値はすべて通さない。雛形のプレースホルダの文字列のまま残した記録と、dirty を書く前の記録も含む
+test.each([
+  ["true", { dirty: true }, "true"],
+  [
+    "雛形のプレースホルダの文字列",
+    { dirty: "<source-version.mjs の出力の dirty>" },
+    '"<source-version',
+  ],
+  ["文字列の false", { dirty: "false" }, '"false"'],
+  ["欠落", {}, "undefined"],
+])(
+  "new.dirty が %s なら SHA が一致しても通さない（判定不能を合格として扱わない）",
+  (_label, dirty, shown) => {
+    const { root, slugDir, metadataPath } = makeProject();
+    writeStage(
+      slugDir,
+      { ...CORRELATED.diff, dataset_version: 7, converged: true },
+      {
+        new: { target: "local-dev", commit: "a".repeat(40), tree: "a".repeat(40), ...dirty },
+        loop: { iterations: 3 },
+      },
+    );
+    const r = run(metadataPath, ["--target", "local-dev"]);
+    expect(r.stdout).toContain(
+      `新側のバージョンを特定できない（replace-metadata.json の new.dirty が false でない: ${shown}`,
+    );
+    expect(r.status).toBe(1);
+    rmSync(root, { recursive: true, force: true });
+  },
+);
 
 test("反復回数を片側が持たない旧成果物は、反復の対応を判定しない（後方互換）", () => {
   const { root, slugDir, metadataPath } = makeProject();
@@ -1118,7 +1137,7 @@ test("new.commit が none でも dirty なら落とす（コミットの比較�
     },
   );
   const r = run(metadataPath, ["--target", "local-dev"]);
-  expect(r.stdout).toMatch(/新側のバージョンを特定できない.*new\.dirty: true/);
+  expect(r.stdout).toMatch(/新側のバージョンを特定できない.*new\.dirty が false でない: true/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });

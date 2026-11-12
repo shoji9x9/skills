@@ -59,7 +59,8 @@
     "run_dirs": [
       ".replace/parity/order-list/new/local-dev/runtime-errors/run-1",
       ".replace/parity/order-list/new/local-dev/runtime-errors/run-2"
-    ]
+    ],
+    "tree": "def5678abc1234"
   },
   "design_review": {
     "source": "bundled",
@@ -115,6 +116,7 @@
       "reason": "性能の比較（perf-stats.mjs）は Playwright の採取を前提にしているので、spec-parity では確かめない"
     }
   ],
+  "approvals": [],
   "pending_decisions": [],
   "converged": false,
   "convergence": null

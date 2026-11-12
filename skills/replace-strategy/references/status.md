@@ -24,7 +24,7 @@ Issue の状態とリポジトリの中の成果物から、今の状況を導�
 | `.replace/parity/<slug>/new/<target>/replace-metadata.json` | 新側の green の記録（`suite.new_green`・`verification.passed_at`）と、差し戻しの往復の状態（`loop.iterations` / `loop.max_iterations` / `loop.last_diff_report`）。`parity-replace` が作り、スキーマの原本は `parity-replace` にある。新側の成果物は環境ごとなので、target ごとに存在することがある |
 | `.replace/parity/<slug>/new/<target>/diff.md` | 検出した差分と分類（要対応／許容／環境ノイズ）・根拠。`parity-diff` が作り、スキーマの原本は `parity-diff` にある。新側の成果物は環境ごとなので、target ごとに存在することがある |
 | `.replace/parity/<slug>/new/<target>/diff-metadata.json` | 収束の判定の機械可読な値（`converged`・`results`・`component_coverage`・`reaction_coverage`・`performance`・`runtime_errors`・`intentional_diffs_pending`）と、他の機能を待っている差分の帰属（`blocked_by[]`）。`parity-diff` が作り、スキーマの原本は `parity-diff` にある。target ごとに存在することがある |
-| `.replace/parity/<slug>/new/<target>/verify-metadata.json` と `verify.md` | `style_policy: free` の機能の、新側の確かめの記録（`converged`・`overflow`・`runtime_errors`・`design_review`・`human_review`・`unverified`）。`spec-parity verify` が作り、スキーマの原本は `spec-parity` にある。target ごとに存在することがある。この機能では `.replace/parity/<slug>/metadata.json` も `spec-parity suite` が作り、`style_policy: free` を持つ |
+| `.replace/parity/<slug>/new/<target>/verify-metadata.json` と `verify.md` | `style_policy: free` の機能の、新側の確かめの記録（`converged`・`overflow`・`runtime_errors`・`design_review`・`human_review`・`approvals`・`intentional_diffs_pending`・`unverified`）。`spec-parity verify` が作り、スキーマの原本は `spec-parity` にある。target ごとに存在することがある。この機能では `.replace/parity/<slug>/metadata.json` も `spec-parity suite` が作り、`style_policy: free` を持つ |
 | `.replace/dataset/metadata.json` | 今のデータセットのバージョン（`version`）、バージョンごとの影響範囲（`changes[].affects`。テーブル名で、`dataset_mode: static` では静的データの単位）、新側への投入の記録（`phase_b.<slug>.<target>`。target ごと）。`golden-dataset` が作る |
 | `.replace/dataset/verification.md` | 「意味論が未確定の機能」。`current.origin: received-assets` のときだけある。`golden-dataset` が作り、スキーマの原本は `golden-dataset` にある |
 | `.replace/bootstrap/metadata.json` | 現行の環境を作り直す作業の状態（`status` / `blocked_on` / `semantics.pending_features`）。`current-environment-bootstrap` が作り、スキーマの原本は `current-environment-bootstrap` にある。`received-assets` のときだけある |
@@ -98,7 +98,7 @@ open とも closed とも仮定せず、features.md の記述で代わりにし�
    `parity-diff` はこの機能で止まるので、2 つのファイルは作られず、無いことは未実施ではない。代わりに、target ごとに次のものを示す。
    - `new/<target>/verify-metadata.json` の `converged`。`true` なら収束済み、`false` なら未収束で、`verify.md` の差し戻す内容の表と `convergence.reasons[]` の `category` を添える
    - `suite.new_green` が true なのに `verify-metadata.json` が無ければ、「green 済み・`spec-parity verify` は未実施」とする
-   - `overflow`・`runtime_errors`・`design_review`・`human_review` のうち、通っていないものと承認が無いものを名前で挙げる。`unverified` は項目 3 の未検証の領域に入れる
+   - `overflow`・`runtime_errors`・`design_review`・`human_review` のうち、通っていないものと承認が無いものを名前で挙げる。承認の欄と同じ値が `approvals` に無い承認も、承認が無いものとして挙げる`unverified` は項目 3 の未検証の領域に入れる
    - キーが無ければ「未記録」として示し、通ったとも 0 件とも読まない
    - スイートの有無と強度は、`reproduce` と同じく `metadata.json` と `strength.md` から導く（`suite.current_green` と `strength.validated`）
 2. 他の機能を待っている差分が解けたかの検出。`diff-metadata.json` の `blocked_by[]` をすべての slug × target で集める。

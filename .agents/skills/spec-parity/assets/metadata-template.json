@@ -19,7 +19,7 @@
   },
   "dataset_version": "<採ったときの .replace/dataset/metadata.json の version>",
   "runner": {
-    "e2e": "<e2e のバージョン（npx e2e --version）>",
+    "e2e": "<e2e のバージョン（spec-parity の references/e2e-runner.md「バージョンと導入」の確かめ方で出した値）>",
     "engine": "<@e2e-dev/web のバージョン>",
     "telemetry_disabled": "<E2E_TELEMETRY_DISABLED=1 か DO_NOT_TRACK=1 で止めて実行したか（真偽値）>",
     "agent_steps": "<agent.act などの agent のステップを使ったか（真偽値）。true なら、モデルの提供元へ送る内容を利用者が承認した記録の場所を agent_steps_approval に書く>",

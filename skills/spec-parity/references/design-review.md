@@ -46,6 +46,7 @@
 - `decision` は `fix`（直す）か `accept`（受け入れる）である。
   `fix` は、要対応として `parity-replace` へ差し戻す。直した後の新側で、点検をやり直す（前の点検の記録は、新側のバージョンが変わると古い記録になる）。
   `accept` は、利用者の承認（`approval` の `approved_by`・`approved_at`・`reason`）で確定する。承認の前は `accept` と書いても収束しない。
+  承認を書いたら、同じ値を承認の記録（下の「承認の記録」）にも追記する。
 - 受け入れるかの確認は、同じ原因の指摘をまとめて 1 回にしてよい。承認は指摘ごとの `approval` に同じ内容で書く（件数をまとめて 1 件にしない）。
 - 点検を終えたら、点検したページを `pages_reviewed` に、終えた日時を `completed_at` に、点検した新側のバージョン（`verify-metadata.json` の `new.tree` の値）を `tree` に書く。指摘が 0 件でも、この 3 つは書く。
 
@@ -57,5 +58,23 @@
 - 判断の材料（ページ・幅・画面の記録のパス・デザインの点検の結果）を、確認のツールに入れて聞く（[`user-confirmation.md`](user-confirmation.md)）。
   選択肢は「違和感が無い（承認する）」「違和感がある（箇所を書いてもらう）」「承認しない」である。
 - 承認したら、`human_review.approval` に `verdict: approved` と、承認した人・日時を書く。違和感があれば `verdict: rejected` と `notes` を書き、`parity-replace` へ差し戻す。
+  どちらの返事も、同じ値を承認の記録（下の「承認の記録」）に追記する。
 - 見せた画面の新側のバージョン（`verify-metadata.json` の `new.tree` の値）を `human_review.tree` に書く。新側を直したら、確認をやり直す。
 - 返事をする人がいない実行（非対話・subagent・`--autonomous`）では、確認を飛ばさずに判断待ちとして記録する。承認の記録が無い間は収束しない。
+
+## 承認の記録
+
+デザインの指摘を受け入れた承認と、人による確認の返事は、`verify-metadata.json` の `approvals[]` に 1 件ずつ追記する。
+`design_review.findings[].approval` と `human_review.approval` は、新側を直して点検をやり直すたびに書き直す。
+そのため、承認を後から書き換えても、その欄だけでは検出できない。`approvals[]` は追記専用の記録で、既にある要素を消したり書き換えたりしない。
+
+| 承認 | 追記する要素 |
+|---|---|
+| デザインの指摘を受け入れた | `kind: design_review`・指摘の `id`・点検した新側のバージョン（`tree`）・`approved_by`・`approved_at`・`reason` |
+| 人による確認の返事 | `kind: human_review`・見せた新側のバージョン（`tree`）・`verdict`・`approved_by`・`approved_at`・`notes` |
+
+- 収束の判定（[`../scripts/convergence-check.mjs`](../scripts/convergence-check.mjs)）は、`design_review` と `human_review` の承認と同じ値の要素が `approvals[]` に無ければ、承認として数えない（`approval` の理由で止まる）。
+- `approvals[]` が縮んでいないこと（要素の削除と書き換え）は、`replace-strategy` の `append-only-check.mjs` が確かめる。対象の一覧は `replace-strategy` の `assets/append-only-manifest.json` にある。
+- 新側を直して点検や確認をやり直したときも、前のバージョンの要素は残し、新しいバージョンの要素を足す。
+  `verify-metadata.json` を雛形から作り直すときも、前の `approvals[]` をそのまま引き継ぐ。
+- `approvals[]` をキーごと持たない記録（この記録を始める前のもの）は、承認が積まれていないものとして扱う。利用者に承認し直してもらい、要素を追記する。

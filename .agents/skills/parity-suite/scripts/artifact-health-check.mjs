@@ -47,7 +47,7 @@ import { realPathOf } from "./lib/paths.mjs";
  * ツールのバージョン（原本）。判定ロジック・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "12";
+export const VERSION = "13";
 
 /** 採取物の種別。derived は元の実体から作った加工物。 */
 const ARTIFACT_KINDS = ["captured", "derived"];
@@ -1967,9 +1967,11 @@ function judgeStageTargets(s) {
   // 未コミット変更のある木では「差分を採った実装」を特定できない。
   // コミットの比較方法（一致 / none / 片側欠落）を選ぶ前に落とす。
   // none の枝へ入ると dirty の判定へ到達せず、同じ反復のまま中身だけ変わった実装が素通りする。
-  if (s.replaceNew !== null && s.replaceNew.dirty === true) {
+  // false でない値（欠落・雛形のプレースホルダの文字列・型の誤り）も落とす。true だけを落とすと、雛形のまま残した記録が通る
+  // （component-comparison-check.mjs と spec-parity の convergence-check.mjs と同じ扱い）。
+  if (s.replaceNew !== null && s.replaceNew.dirty !== false) {
     s.findings.push(
-      `新側のバージョンを特定できない（replace-metadata.json の new.dirty: true。未コミット変更があるのでバージョンの同一性を確かめられない）: ${s.diffPath}`,
+      `新側のバージョンを特定できない（replace-metadata.json の new.dirty が false でない: ${JSON.stringify(s.replaceNew.dirty)}。未コミット変更の有無を確かめられない）: ${s.diffPath}`,
     );
   }
 }

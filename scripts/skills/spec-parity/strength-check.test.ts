@@ -176,6 +176,27 @@ describe("strength-check の判定できない入力（exit 2）", () => {
     expect(main(["--plan", PLAN, "--report", REPORT, "--write", META], io)).toBe(2);
     expect(fs.writes).toEqual([]);
   });
+
+  // コメントの項目（Issue #995）: verify の手順 1 は書かずに判定し直すので、--metadata で slug だけを照合する
+  test("--metadata の slug が計画と違えば、書かずに exit 2（別の機能の計画をコピーした strength-plan.json を通さない）", () => {
+    const fs = new Fs();
+    fs.put(PLAN, plan({ slug: "invoices" }));
+    fs.put(REPORT, report(allGood()));
+    fs.put(META, { slug: "orders" });
+    const { io, out } = fs.io();
+    expect(main(["--plan", PLAN, "--report", REPORT, "--metadata", META], io)).toBe(2);
+    expect(out.stderr).toContain("強度の計画の slug（invoices）と違う");
+    expect(fs.writes).toEqual([]);
+  });
+
+  test("--metadata の slug が計画と同じなら、書かずに判定する", () => {
+    const r = run(allGood(), plan(), ["--metadata", META]);
+    expect(r.code).toBe(0);
+  });
+
+  test("--write と --metadata を一緒に渡せば exit 2", () => {
+    expect(run(allGood(), plan(), ["--write", META, "--metadata", META]).code).toBe(2);
+  });
 });
 
 // serial group のメンバーは results[].attempts が空で、試行の記録は run.serialGroups[].attempts[].members[] にある。

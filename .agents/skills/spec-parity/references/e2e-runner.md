@@ -8,8 +8,15 @@ e2e の仕様の出典は、公式のドキュメント（<https://e2e.com/docs/
 
 - 確かめたバージョンは、e2e 0.23.0・`@e2e-dev/web` 0.15.5・Node.js v26.13.0 である。雛形（`assets/`）と判定のスクリプトは、この組で実際に動かして確かめた。
 - Node.js は 24.8 以上（Node.js 22 なら 22.22.3 以上）が要る（出典: <https://e2e.com/docs/quickstart>）。
-- 入っているかは、プロジェクトの `package.json` の devDependencies に `e2e` と `@e2e-dev/web` があり、`npx e2e --version` が終了コード 0 でバージョンを出すことで確かめる。
-  どちらかが欠けていれば、成果物を作らずに止まり、導入を案内する。導入は依存の追加なので、利用者の承認を得てから行う（`replace-strategy` の `references/dependency-selection.md`）。
+- 入っているかは、プロジェクトの `package.json` の devDependencies に `e2e` と `@e2e-dev/web` があり、プロジェクトに入った e2e が `--version` に答えることで確かめる。
+  起動には、レジストリから取得して実行しない、プロジェクトのパッケージマネージャのコマンドを使う。
+  pnpm なら `pnpm exec e2e --version`、Yarn なら `yarn e2e --version`（Plug'n'Play で `node_modules/.bin` が無くても動く）、npm なら `npx --no -- e2e --version` である。
+  どれにも `E2E_TELEMETRY_DISABLED=1 DO_NOT_TRACK=1 E2E_UPDATE_CHECK_DISABLED=1` と `</dev/null` を付ける。
+  `npx e2e --version` は使わない。e2e が入っていないと、非対話の実行ではレジストリから e2e を取得して実行し、終了コード 0 で通る。
+  `--` を省いた `npx --no e2e --version` も使わない。npm 11.20.0 では、e2e が入っていなくても npm のバージョンを出して終了コード 0 になった。
+  `pnpm exec`（pnpm 12.17.0）と `npx --no --`（npm 11.20.0）は、e2e が入っていないディレクトリで 0 以外で終わり、入っているディレクトリでは e2e のバージョンを出すことを実測で確かめた。Yarn は実測していない（出典: <https://pnpm.io/cli/exec>・<https://docs.npmjs.com/cli/commands/npx>・<https://yarnpkg.com/cli/run>）。
+  どちらかが欠けていれば、成果物を作らずに止まり、導入を案内する。
+  このスキルの文書の実行の例（`npx e2e run ...`）は、この確かめが通ったプロジェクトのルートで実行する形である。別のディレクトリで実行するときは、`npx --no -- e2e run ...` かパッケージマネージャのコマンドで起動する。導入は依存の追加なので、利用者の承認を得てから行う（`replace-strategy` の `references/dependency-selection.md`）。
 - 導入は、プロジェクトのパッケージマネージャで `e2e` と `@e2e-dev/web` を devDependencies に足す。`npx e2e init` は設定と例のテストを書くので、既存の設定があるプロジェクトでは使わない。
   Chromium は、最初の実行が自動で取得する。取得の状態は `npx e2e doctor` で確かめる（出典: <https://e2e.com/docs/reference/cli>）。
 - 確かめたバージョンより新しい e2e で、結果の JSON の `schemaVersion` が `report-1` でなくなったときは、判定のスクリプトが exit 2 で止まる。形が変わったので、スクリプトを直すまで判定しない。
@@ -68,3 +75,6 @@ agent のステップを使う場合だけ関係する。次はドキュメン�
 - iframe の中と XMLHttpRequest のエラー（init script が記録しない）
 - Chromium 以外のブラウザ
 - `agent.act` のキャッシュの再生
+- 認証のうち、Cookie でログインする形のほか（トークンを localStorage や IndexedDB に置くログイン・ワンタイムコードを使うログイン・実行の途中でログインの状態の有効期限が切れる場合）。
+  Cookie でログインする形だけを実測した。ほかの形でログインの状態を保てないと、ログインの後の画面のテストが通らないか、ログインの画面の記録で通る
+- 性能（初期表示の読み込みの速さとレイアウトの揺れ）を e2e で採れるか。`parity-suite` の `perf-stats.mjs` の採取は Playwright のスペックを前提にしているので、`spec-parity` では性能を `unverified` の `performance` として残す

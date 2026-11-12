@@ -160,7 +160,29 @@ export const comparedOk = () => ({
   skipped_tests: [],
   current_skipped_tests: [],
   new_signatures: [],
+  // compare --tree で渡した、記録を採った新側のバージョン
+  tree: TREE,
 });
+
+/** 承認の記録（approvals）。design_review と human_review の承認と同じ値を、追記専用の配列に積む。 */
+export const approvalsLog = () => [
+  {
+    kind: "design_review",
+    id: "dr-1",
+    tree: TREE,
+    approved_by: "owner",
+    approved_at: "2026-11-11T01:00:00Z",
+    reason: "社内の規定の色",
+  },
+  {
+    kind: "human_review",
+    tree: TREE,
+    verdict: "approved",
+    approved_by: "owner",
+    approved_at: "2026-11-11T02:00:00Z",
+    notes: "",
+  },
+];
 
 export const verifyMetadata = (over: Record<string, unknown> = {}) => ({
   slug: "orders",
@@ -204,6 +226,7 @@ export const verifyMetadata = (over: Record<string, unknown> = {}) => ({
   unverified: [
     { item: "performance", reason: "性能の比較は Playwright の採取を前提にしているので確かめない" },
   ],
+  approvals: approvalsLog(),
   pending_decisions: [],
   run: { autonomous: false },
   converged: false,

@@ -38,6 +38,16 @@ export const VERSION = "1";
 /** 保留の状態の語彙（原本は references/autonomy.md「保留の状態」）。 */
 export const STATES = ["open", "decided", "settled"];
 
+// pending-state-js:begin
+/**
+ * 回答として書いてあるか。雛形のプレースホルダ（`<...>`）のままの値は、書いていないものとして扱う。
+ * @param {unknown} v
+ * @returns {boolean}
+ */
+function answered(v) {
+  return nonEmptyString(v) && !/^<[\s\S]*>$/.test(String(v).trim());
+}
+
 /**
  * 保留 1 件の状態を決める。
  *   - open: resolution が無い（null・欠落）か、回答として読めない
@@ -52,11 +62,11 @@ export function classifyDecision(element) {
   if (resolution === null || resolution === undefined) {
     return { state: "open", reason: "resolution が無い" };
   }
-  // 回答として読めない resolution を「解決済み」として扱わない（`true` や空オブジェクトで通さない）。
-  if (!isPlainObject(resolution) || !nonEmptyString(resolution.answer)) {
+  // 回答として読めない resolution を「解決済み」として扱わない（`true` や空オブジェクト・雛形の値のままで通さない）。
+  if (!isPlainObject(resolution) || !answered(resolution.answer)) {
     return { state: "open", reason: "resolution に answer が無い" };
   }
-  if (!nonEmptyString(resolution.answered_at)) {
+  if (!answered(resolution.answered_at)) {
     return { state: "open", reason: "resolution に answered_at が無い" };
   }
   const blocks = element.blocks;
@@ -82,9 +92,9 @@ function settledOrDecided(resolution, missingReason) {
   // 実施の記録は日時と証拠の両方を要る。日時だけだと「再開した」と書けば通る。
   if (
     isPlainObject(resumed) &&
-    nonEmptyString(resumed.at) &&
+    answered(resumed.at) &&
     isArray(resumed.evidence) &&
-    resumed.evidence.some(nonEmptyString)
+    resumed.evidence.some(answered)
   ) {
     return { state: "settled", reason: "blocks の工程を実施した記録がある" };
   }
@@ -94,9 +104,9 @@ function settledOrDecided(resolution, missingReason) {
   // nonEmptyString が真なら文字列なので、typeof は型を絞るためだけにある（判定は変わらない）。
   if (
     isPlainObject(followUp) &&
-    nonEmptyString(followUp.what) &&
+    answered(followUp.what) &&
     typeof trackedIn === "string" &&
-    nonEmptyString(trackedIn)
+    answered(trackedIn)
   ) {
     return {
       state: "settled",
@@ -106,6 +116,7 @@ function settledOrDecided(resolution, missingReason) {
   }
   return { state: "decided", reason: missingReason };
 }
+// pending-state-js:end
 
 /**
  * 絞り込みの値が指定されていて、要素の値と食い違うかを見る。要素の値が欠けていれば食い違いとして扱わない。

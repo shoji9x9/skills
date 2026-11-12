@@ -165,7 +165,7 @@
 
 | 状態 | 条件 | 数え方 |
 |---|---|---|
-| `open` | `resolution` が `null` か欠落している、または `answer` / `answered_at` が無い | 未解決 |
+| `open` | `resolution` が `null` か欠落している、または `answer` / `answered_at` が無いか、雛形のプレースホルダ（`<...>`）のまま | 未解決 |
 | `decided` | 回答はあるが、`blocks` が空でなく（欠落と形式の誤りも工程があるものとして扱う）、`resumed`（`at` と空でない `evidence`）も `follow_up`（`what` と `tracked_in`）も無い | 未解決 |
 | `settled` | 回答があり、`blocks` が空か、`resumed` か `follow_up` のどちらかがある | 解決済み（`follow_up` のものは、置き場とともに最終報告に並べる） |
 
