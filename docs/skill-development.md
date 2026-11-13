@@ -347,6 +347,14 @@ setup が 0 以外で終わったら、executor を起動せずに eval を失�
 
 - `run-skill-eval.sh` は両方の configuration を `scripts/eval/sandbox/eval-sandbox.sh` を通して起動する。
   このスクリプトは bwrap で、作業ツリー・兄弟の run の `/tmp`・OS のミラー・エージェントの記録の 4 つを読めなくする。
+  ホームの認証情報（`~/.config/box`・`~/.config/gh`・`~/.ssh`・`~/.aws` など）も読ませない。
+  `$HOME` を空にしてから、CLI とツール（mise・node・pnpm・git）の起動に要る場所だけを読み取り専用で戻す。
+  戻す場所は、スクリプトの `home_allow` で決める。
+  一覧に無い場所は警告なしに隠れる。ただし、CLI の実体が隠れるときは、sandbox が起動の前に理由を出して止まる（同じ引数の sandbox の中で見えるかを測って判定する）。
+  そのときは、CLI を sandbox が戻す場所に入れるか、CLI の実体（`readlink -f` で解決したパス）のディレクトリを、それを覆うマウントより後で戻す（`$HOME` の下の普通のパスなら `home_allow` に足す。`~/.claude` などの後から隠す場所の中は、足しても戻らない）。
+  PATH のディレクトリや設定ファイルなど、CLI 以外の場所を見落としても、run は止まらない。その場所を読むツールだけが失敗し、run の結果は警告なしに劣化しうる。
+  keyring は、ファイルを隠してもセッションのバスから中身を返すので、runtime dir（`$XDG_RUNTIME_DIR` と `/run/user/<uid>`）と、ssh-agent などのソケットを指す環境変数も隠す。
+  ほかの環境変数は run にそのまま渡るので、認証情報を環境変数に入れたシェルから eval を起動しない。
   利用者の設定（`~/.claude.json`・`~/.claude/settings.json`）は、そのまま読ませない。
   `~/.claude.json` は空の `{}` に、`settings.json` は API に接続するのに要るキーだけを残したコピー（`scripts/eval/sandbox/sanitize-claude-settings.ts`）に差し替える。
   hooks や権限の設定には、リポジトリの場所や学びのノートの名前が書かれていて、without_skill の run がそれを読んで答えに使ったことがある。
@@ -360,9 +368,11 @@ setup が 0 以外で終わったら、executor を起動せずに eval を失�
   `SKIPPED` は判定が実行されなかったことを表し、`clean` ではない。
 - bwrap か `eval-sandbox.sh` が無い環境では `UNISOLATED` を記録し、`flock` で `with_skill` の実行と排他にして、1 つずつ実行する。
   並列に実行できるのは、`/tmp` の隔離が有効なときだけである。
-- 遮断そのものを確かめるときは `scripts/eval/sandbox/eval-sandbox.sh --verify <marker>...` を使う。確かめるのは次の 3 つである。
+- 遮断そのものを確かめるときは `scripts/eval/sandbox/eval-sandbox.sh --verify <marker>...` を使う。確かめるのは次の 5 つである。
   リポジトリがサンドボックスの中から見えないこと。目印が 1 件も見つからないこと（探す場所ごとに既知の目印を置いて、見つけられることを先に確かめる）。
   `$HOME` への書き込みが拒否され、書き込める場所に書いたものがホストに出てこないこと。
+  名前の解決が、ベンダーの API のホストにだけ成功すること。
+  ホストの `$HOME` の下で戻していないパスがすべて見えず、戻したパスがすべて読めること（runtime dir とソケットの変数が無いことも含む）。
 - 対象のリポジトリが public なら、`gh` や WebFetch でスキルの本文を取得する方法は、ローカルの遮断では防げない。
   採点のときに、baseline がスキル固有の語や取り決めを再現していないかを確かめる。
 
