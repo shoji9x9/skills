@@ -268,23 +268,27 @@ done
 # Each entry is "<prefix>|<the XDG variable that relocates it, if any>". The prefixes
 # are every parent directory of an entry of home_allow (.config, .config/git, .local,
 # .local/share, ...), derived from it so that a new entry gets its parents handled too.
-home_prefixes=()
-declare -A seen_prefixes=()
-for rel in "${home_allow[@]}"; do
-	prefix="${rel}"
-	while [[ "${prefix}" == */* ]]; do
-		prefix="${prefix%/*}"
-		[ -z "${seen_prefixes["${prefix}"]+present}" ] || continue
-		seen_prefixes["${prefix}"]=1
-		case "${prefix}" in
-		.config) home_prefixes+=("${prefix}|XDG_CONFIG_HOME") ;;
-		.local/share) home_prefixes+=("${prefix}|XDG_DATA_HOME") ;;
-		.local/state) home_prefixes+=("${prefix}|XDG_STATE_HOME") ;;
-		.cache) home_prefixes+=("${prefix}|XDG_CACHE_HOME") ;;
-		*) home_prefixes+=("${prefix}|") ;;
-		esac
+list_home_prefixes() { # fills home_prefixes; a function, so its variables stay local
+	local rel prefix
+	local -A seen_prefixes=()
+	for rel in "${home_allow[@]}"; do
+		prefix="${rel}"
+		while [[ "${prefix}" == */* ]]; do
+			prefix="${prefix%/*}"
+			[ -z "${seen_prefixes["${prefix}"]+present}" ] || continue
+			seen_prefixes["${prefix}"]=1
+			case "${prefix}" in
+			.config) home_prefixes+=("${prefix}|XDG_CONFIG_HOME") ;;
+			.local/share) home_prefixes+=("${prefix}|XDG_DATA_HOME") ;;
+			.local/state) home_prefixes+=("${prefix}|XDG_STATE_HOME") ;;
+			.cache) home_prefixes+=("${prefix}|XDG_CACHE_HOME") ;;
+			*) home_prefixes+=("${prefix}|") ;;
+			esac
+		done
 	done
-done
+}
+home_prefixes=()
+list_home_prefixes
 extra_roots=()
 outside_roots=()
 under_root() { # is $1 equal to or below one of the roots handled so far?
@@ -522,8 +526,9 @@ fi
 # writable empty tmpfs. It comes after the $HOME tmpfs, so a runtime dir under $HOME is
 # still an empty dir the tools can write to, and after the roots, which add_root has
 # already refused whenever one holds a runtime dir or lies inside one, so the two never
-# cover each other. A runtime dir that holds $HOME, /tmp or the /etc mirror is not
-# refused, and its tmpfs covers them.
+# cover each other. Known gap: a runtime dir that holds $HOME, /tmp or the /etc mirror
+# is not refused, and its tmpfs covers them (the run then fails to start or to
+# authenticate; nothing it should not read becomes readable).
 for d in "${runtime_dirs[@]}"; do args+=(--tmpfs "${d}"); done
 
 # Last mount under $HOME is above; from here on $HOME is read-only (step 0).

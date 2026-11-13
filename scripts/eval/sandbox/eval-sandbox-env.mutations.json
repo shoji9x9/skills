@@ -22,7 +22,7 @@
       ]
     },
     {
-      "id": "env-locale-prefix-dropped",
+      "id": "env-locale-name-dropped",
       "why": "ロケールの分類の変数（LC_ALL）を許可リストから落とす",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
       "find": "\tLC_ALL LC_CTYPE LC_COLLATE LC_MESSAGES LC_MONETARY LC_NUMERIC LC_TIME\n",
@@ -369,8 +369,8 @@
       "id": "prefix-xdg-config-unmapped",
       "why": "home_allow から作った接頭辞のうち .config に、XDG_CONFIG_HOME を対応づけない",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\t\t.config) home_prefixes+=(\"${prefix}|XDG_CONFIG_HOME\") ;;\n",
-      "replace": "\t\t.config) home_prefixes+=(\"${prefix}|\") ;;\n",
+      "find": "\t\t\t.config) home_prefixes+=(\"${prefix}|XDG_CONFIG_HOME\") ;;\n",
+      "replace": "\t\t\t.config) home_prefixes+=(\"${prefix}|\") ;;\n",
       "occurrences": 1,
       "expect_failing": [
         "$HOME の外の設定の場所 XDG_CONFIG_HOME が $HOME の外なら tmpfs で隠し、許可リストの場所だけを読み取り専用で戻す",
@@ -383,6 +383,28 @@
         "$HOME の外の設定の場所 先に見つけた場所の中にリンクした許可リストの祖先も、その中の許可リストの場所を戻す",
         "$HOME の外の設定の場所 空白を含むパスの後ろの部分が別の場所と同じ字面でも、別の場所として両方を隠す",
         "--verify の stage 5 と、$HOME の外の場所 $HOME の外の XDG の場所も、戻していないパスを確かめる対象に入れる"
+      ]
+    },
+    {
+      "id": "env-locale-later-name-dropped",
+      "why": "名前で並べたロケールの変数の 2 行目（LC_ADDRESS など）を許可リストから落とす",
+      "file": "scripts/eval/sandbox/eval-sandbox.sh",
+      "find": "\tLC_ADDRESS LC_IDENTIFICATION LC_MEASUREMENT LC_NAME LC_PAPER LC_TELEPHONE\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "run に渡す環境変数 許可リストの外は渡さず、許可リストの中は渡す（起動の前の確認と run の両方で）"
+      ]
+    },
+    {
+      "id": "relative-runtime-dir-kept",
+      "why": "絶対パスでない XDG_RUNTIME_DIR を外す変数の一覧から落とす",
+      "file": "scripts/eval/sandbox/eval-sandbox.sh",
+      "find": "\tfor var in XDG_CONFIG_HOME XDG_DATA_HOME XDG_STATE_HOME XDG_CACHE_HOME XDG_RUNTIME_DIR; do\n",
+      "replace": "\tfor var in XDG_CONFIG_HOME XDG_DATA_HOME XDG_STATE_HOME XDG_CACHE_HOME; do\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "$HOME の外の設定の場所 XDG_RUNTIME_DIR が絶対パスでなければ、隠す場所として扱わず、run にも渡さない"
       ]
     }
   ]

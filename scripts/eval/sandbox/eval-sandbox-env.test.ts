@@ -38,9 +38,25 @@ const hiddenNames = {
   // LC_ で始まるが、ロケールの分類ではない。
   LC_DEPLOY_TOKEN: "dummy-lc",
 };
+// ロケールの分類の変数は、許可リストに名前で並べたものをすべて確かめる。
+const localeNames = [
+  "LC_ALL",
+  "LC_CTYPE",
+  "LC_COLLATE",
+  "LC_MESSAGES",
+  "LC_MONETARY",
+  "LC_NUMERIC",
+  "LC_TIME",
+  "LC_ADDRESS",
+  "LC_IDENTIFICATION",
+  "LC_MEASUREMENT",
+  "LC_NAME",
+  "LC_PAPER",
+  "LC_TELEPHONE",
+];
 const shownNames = {
   LANG: "C.UTF-8",
-  LC_ALL: "C.UTF-8",
+  ...Object.fromEntries(localeNames.map((name) => [name, "C.UTF-8"])),
   HTTPS_PROXY: "http://127.0.0.1:9",
   SHOJI9X9_SKILLS_IGNORE_USER_CONFIG: "1",
 };
