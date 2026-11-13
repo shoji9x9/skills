@@ -216,6 +216,18 @@ home_allow=(
 for rel in "${home_allow[@]}"; do
 	[ -e "${home}/${rel}" ] && args+=(--ro-bind "${home}/${rel}" "${home}/${rel}")
 done
+# An XDG value that is not an absolute path is invalid by the XDG Base Directory
+# specification, yet some tools still use it relative to the cwd (git reads
+# $XDG_CONFIG_HOME/git/config). It is neither hidden nor passed: it is removed from the
+# environment here, before the runtime dirs and the roots below are collected and
+# before anything is handed to bwrap.
+drop_relative_xdg_dirs() {
+	local var
+	for var in XDG_CONFIG_HOME XDG_DATA_HOME XDG_STATE_HOME XDG_CACHE_HOME XDG_RUNTIME_DIR; do
+		case "${!var-}" in "" | /*) ;; *) unset "${var}" ;; esac
+	done
+}
+drop_relative_xdg_dirs
 # Credentials served by agents rather than read from files. The runtime dir holds the
 # session bus, through which the keyring daemon hands out what ~/.local/share/keyrings
 # stores, and the ssh-agent and gpg-agent sockets. Measured: the Secret Service was
@@ -253,8 +265,26 @@ done
 # The roots are collected first and handled outermost first, so a root inside another
 # one only binds its entries back into the outer tmpfs and never covers what the outer
 # one bound (whatever order the variables and links come in).
-# Each entry is "<prefix>|<the XDG variable that relocates it, if any>".
-home_prefixes=(".config|XDG_CONFIG_HOME" ".config/git|" ".local|" ".local/share|XDG_DATA_HOME" ".local/state|XDG_STATE_HOME" ".cache|XDG_CACHE_HOME")
+# Each entry is "<prefix>|<the XDG variable that relocates it, if any>". The prefixes
+# are every parent directory of an entry of home_allow (.config, .config/git, .local,
+# .local/share, ...), derived from it so that a new entry gets its parents handled too.
+home_prefixes=()
+declare -A seen_prefixes=()
+for rel in "${home_allow[@]}"; do
+	prefix="${rel}"
+	while [[ "${prefix}" == */* ]]; do
+		prefix="${prefix%/*}"
+		[ -z "${seen_prefixes["${prefix}"]+present}" ] || continue
+		seen_prefixes["${prefix}"]=1
+		case "${prefix}" in
+		.config) home_prefixes+=("${prefix}|XDG_CONFIG_HOME") ;;
+		.local/share) home_prefixes+=("${prefix}|XDG_DATA_HOME") ;;
+		.local/state) home_prefixes+=("${prefix}|XDG_STATE_HOME") ;;
+		.cache) home_prefixes+=("${prefix}|XDG_CACHE_HOME") ;;
+		*) home_prefixes+=("${prefix}|") ;;
+		esac
+	done
+done
 extra_roots=()
 outside_roots=()
 under_root() { # is $1 equal to or below one of the roots handled so far?
@@ -296,17 +326,6 @@ add_root() { # $1 = real directory, $2 = the home_allow prefix it stands for
 	done
 	return 0
 }
-# An XDG value that is not an absolute path is invalid by the XDG Base Directory
-# specification, yet some tools still use it relative to the cwd (git reads
-# $XDG_CONFIG_HOME/git/config). It is neither hidden nor passed: it is removed from the
-# environment here, before anything is collected or handed to bwrap.
-drop_relative_xdg_dirs() {
-	local var
-	for var in XDG_CONFIG_HOME XDG_DATA_HOME XDG_STATE_HOME XDG_CACHE_HOME; do
-		case "${!var-}" in "" | /*) ;; *) unset "${var}" ;; esac
-	done
-}
-drop_relative_xdg_dirs
 # Ordered by path length (a directory is shorter than everything inside it), picked in
 # bash, not with sort: a failed pipeline behind a process substitution would leave
 # nothing to hide without stopping the run. A function, so its variables stay local.
@@ -500,12 +519,11 @@ fi
 [ -n "${scratch_etc}" ] && args+=(--ro-bind /etc "${host_etc_mount}" --ro-bind "${scratch_etc}" /etc)
 
 # The runtime dirs listed with the comment above $HOME's allowlist, each hidden by a
-# writable empty tmpfs. This is the position #1010 gave it, kept on purpose (decided on
-# PR #1013): after the $HOME tmpfs, so a runtime dir under $HOME is still an empty dir
-# the tools can write to, and after the roots, which add_root has already refused
-# whenever one holds a runtime dir or lies inside one, so the two never cover each
-# other. A runtime dir that holds $HOME, /tmp or the /etc mirror is not refused here
-# and its tmpfs covers them; that case is handled outside this change.
+# writable empty tmpfs. It comes after the $HOME tmpfs, so a runtime dir under $HOME is
+# still an empty dir the tools can write to, and after the roots, which add_root has
+# already refused whenever one holds a runtime dir or lies inside one, so the two never
+# cover each other. A runtime dir that holds $HOME, /tmp or the /etc mirror is not
+# refused, and its tmpfs covers them.
 for d in "${runtime_dirs[@]}"; do args+=(--tmpfs "${d}"); done
 
 # Last mount under $HOME is above; from here on $HOME is read-only (step 0).
@@ -523,12 +541,16 @@ args+=(--remount-ro "${home}")
 # such a name with EVAL_SANDBOX_ENV_ALLOW.
 #   HOME PATH USER LOGNAME SHELL PWD       the process basics; HOME is the resolved one
 #                                          and bwrap sets PWD to the --chdir directory
-#   TERM COLORTERM NO_COLOR LANG LANGUAGE LC_*  output and locale, kept so results do
-#                                          not change with this script
+#   TERM COLORTERM NO_COLOR LANG LANGUAGE LC_<category>  output and locale (the
+#                                          locale categories by name: an LC_ prefix
+#                                          would also pass LC_DEPLOY_TOKEN), kept so
+#                                          results do not change with this script
 #   TZ TMPDIR XDG_*_HOME XDG_RUNTIME_DIR   where tools put files (absolute XDG dirs are
 #                                          hidden and bound back above; relative ones
 #                                          were removed there)
 #   *_proxy, NODE_EXTRA_CA_CERTS, SSL_CERT_FILE, SSL_CERT_DIR  how the CLI reaches its API
+#                                          (a proxy URL with user:token in it reaches
+#                                          the run as it is)
 #   SHOJI9X9_SKILLS_IGNORE_USER_CONFIG     set by run-skill-eval.sh for every run
 #   vendor: the API key / token variables each CLI accepts instead of its credential file
 # The values never go on bwrap's command line: --setenv would put them in /proc/<pid>/
@@ -539,6 +561,8 @@ args+=(--remount-ro "${home}")
 env_allow=(
 	HOME PATH USER LOGNAME SHELL PWD
 	TERM COLORTERM NO_COLOR LANG LANGUAGE
+	LC_ALL LC_CTYPE LC_COLLATE LC_MESSAGES LC_MONETARY LC_NUMERIC LC_TIME
+	LC_ADDRESS LC_IDENTIFICATION LC_MEASUREMENT LC_NAME LC_PAPER LC_TELEPHONE
 	TZ TMPDIR XDG_CONFIG_HOME XDG_DATA_HOME XDG_STATE_HOME XDG_CACHE_HOME XDG_RUNTIME_DIR
 	http_proxy https_proxy no_proxy all_proxy HTTP_PROXY HTTPS_PROXY NO_PROXY ALL_PROXY
 	NODE_EXTRA_CA_CERTS SSL_CERT_FILE SSL_CERT_DIR
@@ -562,7 +586,6 @@ for name in "${env_allow_extra[@]}"; do
 done
 env_allowed() {
 	local a
-	case "$1" in LC_*) return 0 ;; esac
 	for a in "${env_allow[@]}"; do [ "${a}" != "$1" ] || return 0; done
 	return 1
 }

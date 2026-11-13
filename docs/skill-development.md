@@ -359,6 +359,7 @@ setup が 0 以外で終わったら、executor を起動せずに eval を失�
   keyring は、ファイルを隠してもセッションのバスから中身を返すので、runtime dir（`$XDG_RUNTIME_DIR` と `/run/user/<uid>`）も隠す。
   環境変数も許可リストにする。run に渡すのは、CLI とツールの起動・ロケール・API への接続（プロキシと証明書）・ハーネスに要る変数と、そのベンダーの API キーの変数だけである。
   `GH_TOKEN`・`AWS_*`・ソケットを指す変数（`SSH_AUTH_SOCK` など）や、eval を起動したエージェントのセッションの変数は渡らない。
+  渡す変数の値はそのまま run から読める。プロキシの URL に認証情報（`http://user:token@proxy`）を入れたシェルや、API キーを環境変数に入れたシェルから起動すると、run はその値を読める。
   渡す変数は、スクリプトの `env_allow` で決める。足りない変数は `EVAL_SANDBOX_ENV_ALLOW`（空白か改行で区切った名前）で足す。この変数は eval の run に渡す変数を増やすだけで、ほかの用途では読まれない。
   ツールの場所を示す変数（`JAVA_HOME`・`PNPM_HOME` など）を見落としても、run は止まらない。その変数を読むツールだけが失敗し、run の結果は警告なしに変わりうる。
   Bedrock・Vertex のように別の認証と別のホストを使う構成や、`ANTHROPIC_BASE_URL` を別のホストにした構成では、変数を `EVAL_SANDBOX_ENV_ALLOW` に、ホストを `EVAL_SANDBOX_NET_ALLOW` に足す。

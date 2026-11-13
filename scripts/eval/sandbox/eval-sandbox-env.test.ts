@@ -12,7 +12,7 @@
 // | EVAL_SANDBOX_ENV_ALLOW     | 無い / 変数名（空白・改行で区切る） / 変数名でない値 / glob の文字  |
 // | 値の置き場所               | 環境だけ（bwrap の引数に載らない）                                  |
 // | $HOME                      | 普通のパス / シンボリックリンク（解決したパスを渡す）               |
-// | XDG_*_HOME                 | 無い / $HOME の外 / $HOME の中のデフォルトでない場所 / $HOME を含む / cwd を含む / 「/」（$HOME を含む） / 互いを含む（どちらの並びでも） / runtime dir を含む / runtime dir の下 / 絶対パスでない（4 つの変数のそれぞれ） / 空白を含み、後ろの部分が別の場所と同じ字面 / 変数とリンクが同じ場所 |
+// | XDG_*_HOME                 | 無い / $HOME の外 / $HOME の中のデフォルトでない場所 / $HOME を含む / cwd を含む / 「/」（$HOME を含む） / 互いを含む（どちらの並びでも） / runtime dir を含む / runtime dir の下 / 絶対パスでない（XDG_RUNTIME_DIR を含む 5 つの変数のそれぞれ） / 空白を含み、後ろの部分が別の場所と同じ字面 / 変数とリンクが同じ場所 |
 // | 許可リストの祖先           | 普通のディレクトリ / $HOME の外へのリンク / $HOME の中へのリンク / 先に見つけた場所の中へのリンク |
 import { mkdirSync, renameSync, symlinkSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -35,6 +35,8 @@ const hiddenNames = {
   SSH_AUTH_SOCK: "/nonexistent/agent",
   WSL_INTEROP: "/nonexistent/interop",
   UNLISTED_TOOL_SETTING: "dummy",
+  // LC_ で始まるが、ロケールの分類ではない。
+  LC_DEPLOY_TOKEN: "dummy-lc",
 };
 const shownNames = {
   LANG: "C.UTF-8",
@@ -176,24 +178,27 @@ describe("$HOME の外の設定の場所", () => {
     expect(flagValues(bwrapArgs, "--ro-bind", 2)).not.toContain(join(home, "my-config/gh"));
   });
 
-  test.each(["XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME"])(
-    "%s が絶対パスでなければ、隠す場所として扱わず、run にも渡さない",
-    (name) => {
-      const { result, bwrapArgs, envNames } = sandbox(["--version"], {
-        setup: (paths) => {
-          const project = join(paths.root, "relative-project");
-          writeHomeFiles(project, { "rel/mise/marker": "MARKER\n" });
-          return { env: { [name]: "rel" }, cwd: project };
-        },
-      });
-      expect(result.status, result.stderr).toBe(0);
-      if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
-      expect(flagValues(bwrapArgs, "--tmpfs").filter((t) => t.endsWith("/rel"))).toEqual([]);
-      // 相対パスのまま渡すと、git などが run の cwd を基準に読む。
-      expect(envNames.length).toBeGreaterThan(0);
-      for (const names of envNames) expect(names).not.toContain(name);
-    },
-  );
+  test.each([
+    "XDG_CONFIG_HOME",
+    "XDG_DATA_HOME",
+    "XDG_STATE_HOME",
+    "XDG_CACHE_HOME",
+    "XDG_RUNTIME_DIR",
+  ])("%s が絶対パスでなければ、隠す場所として扱わず、run にも渡さない", (name) => {
+    const { result, bwrapArgs, envNames } = sandbox(["--version"], {
+      setup: (paths) => {
+        const project = join(paths.root, "relative-project");
+        writeHomeFiles(project, { "rel/mise/marker": "MARKER\n" });
+        return { env: { [name]: "rel" }, cwd: project };
+      },
+    });
+    expect(result.status, result.stderr).toBe(0);
+    if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
+    expect(flagValues(bwrapArgs, "--tmpfs").filter((t) => t.endsWith("/rel"))).toEqual([]);
+    // 相対パスのまま渡すと、git などが run の cwd を基準に読む。
+    expect(envNames.length).toBeGreaterThan(0);
+    for (const names of envNames) expect(names).not.toContain(name);
+  });
 
   test("空白を含むパスの後ろの部分が別の場所と同じ字面でも、別の場所として両方を隠す", () => {
     const { result, bwrapArgs, root } = sandbox(["--version"], {

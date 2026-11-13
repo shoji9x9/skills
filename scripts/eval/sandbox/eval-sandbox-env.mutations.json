@@ -23,10 +23,10 @@
     },
     {
       "id": "env-locale-prefix-dropped",
-      "why": "LC_* を許可リストに入れず、ロケールの変数を run から外す",
+      "why": "ロケールの分類の変数（LC_ALL）を許可リストから落とす",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\tcase \"$1\" in LC_*) return 0 ;; esac\n",
-      "replace": "\t:\n",
+      "find": "\tLC_ALL LC_CTYPE LC_COLLATE LC_MESSAGES LC_MONETARY LC_NUMERIC LC_TIME\n",
+      "replace": "\tLC_CTYPE LC_COLLATE LC_MESSAGES LC_MONETARY LC_NUMERIC LC_TIME\n",
       "occurrences": 1,
       "expect_failing": [
         "run に渡す環境変数 許可リストの外は渡さず、許可リストの中は渡す（起動の前の確認と run の両方で）"
@@ -246,7 +246,8 @@
       "replace": "\t\t\tif [ -z \"${best}\" ]; then best=\"${i}\" best_r=\"${r}\"; fi\n",
       "occurrences": 1,
       "expect_failing": [
-        "$HOME の外の設定の場所 XDG の場所が互いを含むとき（XDG_CONFIG_HOME が内側）、外側だけを tmpfs で隠し、両方の許可リストの場所を戻す"
+        "$HOME の外の設定の場所 XDG の場所が互いを含むとき（XDG_CONFIG_HOME が内側）、外側だけを tmpfs で隠し、両方の許可リストの場所を戻す",
+        "$HOME の外の設定の場所 先に見つけた場所の中にリンクした許可リストの祖先も、その中の許可リストの場所を戻す"
       ]
     },
     {
@@ -305,7 +306,8 @@
         "$HOME の外の設定の場所 XDG_CONFIG_HOME が絶対パスでなければ、隠す場所として扱わず、run にも渡さない",
         "$HOME の外の設定の場所 XDG_DATA_HOME が絶対パスでなければ、隠す場所として扱わず、run にも渡さない",
         "$HOME の外の設定の場所 XDG_STATE_HOME が絶対パスでなければ、隠す場所として扱わず、run にも渡さない",
-        "$HOME の外の設定の場所 XDG_CACHE_HOME が絶対パスでなければ、隠す場所として扱わず、run にも渡さない"
+        "$HOME の外の設定の場所 XDG_CACHE_HOME が絶対パスでなければ、隠す場所として扱わず、run にも渡さない",
+        "$HOME の外の設定の場所 XDG_RUNTIME_DIR が絶対パスでなければ、隠す場所として扱わず、run にも渡さない"
       ]
     },
     {
@@ -334,8 +336,8 @@
       "id": "relative-xdg-one-name-dropped",
       "why": "絶対パスでない値を外す変数の一覧から XDG_CONFIG_HOME を落とす",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\tfor var in XDG_CONFIG_HOME XDG_DATA_HOME XDG_STATE_HOME XDG_CACHE_HOME; do\n",
-      "replace": "\tfor var in XDG_DATA_HOME XDG_STATE_HOME XDG_CACHE_HOME; do\n",
+      "find": "\tfor var in XDG_CONFIG_HOME XDG_DATA_HOME XDG_STATE_HOME XDG_CACHE_HOME XDG_RUNTIME_DIR; do\n",
+      "replace": "\tfor var in XDG_DATA_HOME XDG_STATE_HOME XDG_CACHE_HOME XDG_RUNTIME_DIR; do\n",
       "occurrences": 1,
       "expect_failing": [
         "$HOME の外の設定の場所 XDG_CONFIG_HOME が絶対パスでなければ、隠す場所として扱わず、run にも渡さない"
@@ -350,6 +352,37 @@
       "occurrences": 1,
       "expect_failing": [
         "$HOME の外の設定の場所 runtime dir がシンボリックリンクでも、実際のパスで比べ、その中の XDG の場所を止める"
+      ]
+    },
+    {
+      "id": "env-lc-prefix-accepted",
+      "why": "LC_ で始まる変数を、ロケールの分類かどうかに関わらず通す",
+      "file": "scripts/eval/sandbox/eval-sandbox.sh",
+      "find": "\tlocal a\n\tfor a in \"${env_allow[@]}\"; do",
+      "replace": "\tlocal a\n\tcase \"$1\" in LC_*) return 0 ;; esac\n\tfor a in \"${env_allow[@]}\"; do",
+      "occurrences": 1,
+      "expect_failing": [
+        "run に渡す環境変数 許可リストの外は渡さず、許可リストの中は渡す（起動の前の確認と run の両方で）"
+      ]
+    },
+    {
+      "id": "prefix-xdg-config-unmapped",
+      "why": "home_allow から作った接頭辞のうち .config に、XDG_CONFIG_HOME を対応づけない",
+      "file": "scripts/eval/sandbox/eval-sandbox.sh",
+      "find": "\t\t.config) home_prefixes+=(\"${prefix}|XDG_CONFIG_HOME\") ;;\n",
+      "replace": "\t\t.config) home_prefixes+=(\"${prefix}|\") ;;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "$HOME の外の設定の場所 XDG_CONFIG_HOME が $HOME の外なら tmpfs で隠し、許可リストの場所だけを読み取り専用で戻す",
+        "$HOME の外の設定の場所 XDG の場所が互いを含むとき（XDG_CACHE_HOME が内側）、外側だけを tmpfs で隠し、両方の許可リストの場所を戻す",
+        "$HOME の外の設定の場所 XDG の場所が互いを含むとき（XDG_CONFIG_HOME が内側）、外側だけを tmpfs で隠し、両方の許可リストの場所を戻す",
+        "$HOME の外の設定の場所 XDG_CONFIG_HOME が $HOME の中のデフォルトでない場所なら、tmpfs は置かずに許可リストの場所を戻す",
+        "$HOME の外の設定の場所 XDG_CONFIG_HOME が $HOME を含むなら、隠せないので bwrap を起動せずに止める",
+        "$HOME の外の設定の場所 XDG_CONFIG_HOME が / として $HOME を含むなら、隠せないので bwrap を起動せずに止める",
+        "$HOME の外の設定の場所 XDG_CONFIG_HOME が cwd を含むなら、隠せないので bwrap を起動せずに止める",
+        "$HOME の外の設定の場所 先に見つけた場所の中にリンクした許可リストの祖先も、その中の許可リストの場所を戻す",
+        "$HOME の外の設定の場所 空白を含むパスの後ろの部分が別の場所と同じ字面でも、別の場所として両方を隠す",
+        "--verify の stage 5 と、$HOME の外の場所 $HOME の外の XDG の場所も、戻していないパスを確かめる対象に入れる"
       ]
     }
   ]
