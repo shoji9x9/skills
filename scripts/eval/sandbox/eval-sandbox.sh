@@ -246,9 +246,10 @@ list_runtime_dirs() { # fills runtime_dirs; a function, so its variables stay lo
 	local d
 	local -A seen_runtime_dirs=()
 	runtime_dirs=()
-	# ${UID}, not $(id -u): a failed command substitution in a for list does not stop
-	# the run, and "/run/user/" would then stand for every user's runtime dir.
-	for d in "${XDG_RUNTIME_DIR:-}" "/run/user/${UID}"; do
+	# ${EUID} (the effective uid, what id -u prints), not $(id -u): a failed command
+	# substitution in a for list does not stop the run, and "/run/user/" would then
+	# stand for every user's runtime dir.
+	for d in "${XDG_RUNTIME_DIR:-}" "/run/user/${EUID}"; do
 		[ -n "${d}" ] && [ -d "${d}" ] || continue
 		d="$(realpath -m -- "${d}")"
 		[ -z "${seen_runtime_dirs["${d}"]+present}" ] || continue
@@ -582,6 +583,8 @@ env_allow=(
 )
 case "${vendor}" in
 claude-code) env_allow+=(ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN ANTHROPIC_BASE_URL CLAUDE_CODE_OAUTH_TOKEN) ;;
+# CODEX_HOME: the run gets it from --setenv (the resolved path); it is listed so that
+# --verify does not count the host's own CODEX_HOME as a variable that leaked.
 codex) env_allow+=(OPENAI_API_KEY CODEX_API_KEY OPENAI_BASE_URL CODEX_HOME) ;;
 esac
 # Split with read, not an unquoted expansion: a glob character (`*`) would expand to

@@ -7,7 +7,7 @@
 // | 軸                         | 値                                                                  |
 // | -------------------------- | ------------------------------------------------------------------- |
 // | 許可リストの外の変数       | 認証情報（GH_TOKEN・AWS_*・BOX_*）/ 親のエージェントのトークンとソケット / 名前を挙げていない変数 / 名前が識別子でない変数・export した関数 |
-// | 許可リストの中の変数       | 起動の基本（PATH）/ 出力とロケール（LANG・LANGUAGE・LC_ALL とロケールの分類 12 個を名前で）/ ファイルの置き場所（TZ・TMPDIR）/ プロキシ（大文字・小文字）と証明書 / ハーネス / ベンダーの API キー |
+// | 許可リストの中の変数       | 起動の基本（PATH・USER・LOGNAME・SHELL・PWD。HOME は run_bwrap が設定し直す）/ XDG の場所（4 つの XDG_*_HOME と XDG_RUNTIME_DIR）/ 出力とロケール（LANG・LANGUAGE・LC_ALL とロケールの分類 12 個を名前で）/ ファイルの置き場所（TZ・TMPDIR）/ プロキシ（大文字・小文字）と証明書 / ハーネス / ベンダーの API キー |
 // | ベンダー                   | claude-code / codex（相手のベンダーのキーは渡さない）               |
 // | EVAL_SANDBOX_ENV_ALLOW     | 無い / 変数名（空白・改行で区切る） / 変数名でない値 / glob の文字  |
 // | 値の置き場所               | 環境だけ（bwrap の引数に載らない）                                  |
@@ -84,8 +84,9 @@ const shownNames = {
   XDG_STATE_HOME: "/nonexistent/xdg-state",
   XDG_CACHE_HOME: "/nonexistent/xdg-cache",
 };
-// テストの環境が必ず持つ、許可リストの中の変数（HOME・PATH・XDG_RUNTIME_DIR はヘルパーが入れ、PWD はシェルが入れる）。
-const alwaysShown = ["HOME", "PATH", "XDG_RUNTIME_DIR", "PWD"];
+// テストの環境が必ず持つ、許可リストの中の変数（PATH・XDG_RUNTIME_DIR はヘルパーが入れ、PWD はシェルが入れる）。
+// HOME は入れない。run_bwrap が解決したパスで設定し直すので、許可リストに無くても渡り、許可リストを確かめられない。
+const alwaysShown = ["PATH", "XDG_RUNTIME_DIR", "PWD"];
 const claudeKeys = [
   "ANTHROPIC_API_KEY",
   "ANTHROPIC_AUTH_TOKEN",

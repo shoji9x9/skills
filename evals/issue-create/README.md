@@ -3,7 +3,7 @@
 `docs/skill-development.md` の隔離手順に従い、with-skill / without-skill を同じ prompt・同じモデル条件で実行する。
 
 ```bash
-GH_TOKEN=invalid-for-eval scripts/eval/run/run-skill-eval.sh \
+GH_TOKEN=invalid-for-eval GH_CONFIG_DIR="$(mktemp -d)" scripts/eval/run/run-skill-eval.sh \
   --skill issue-create \
   --prompt '<evals.json の該当 eval の prompt>' \
   --config with_skill \
@@ -20,7 +20,8 @@ GH_TOKEN=invalid-for-eval scripts/eval/run/run-skill-eval.sh \
   ただし、sandbox で実行できない環境（`isolation.txt` が `UNISOLATED`）と、遮断を確かめていない run（`UNVERIFIED`）では、eval から実際に Issue を作れてしまう。
   どちらになるかを実行の前に確かめる手間と、確かめ忘れを無くすため、実行例のとおり常に `GH_TOKEN` に無効な値を渡す。
   `gh` は `GH_TOKEN` を設定ファイルより優先するので、sandbox を通らない run でも、その値のまま `gh` を呼べば書き込みは失敗する。
-  ただし、エージェントが `GH_TOKEN` を外して `gh` を呼び直すと、設定ファイルの認証で書き込めてしまう。sandbox を通る run では、sandbox がこの値も外す。
+  エージェントが `GH_TOKEN` を外して `gh` を呼び直しても設定ファイルの認証を使えないよう、`GH_CONFIG_DIR` も空のディレクトリに向ける。
+  sandbox を通る run では、sandbox がどちらの値も外す。
   prompt でも GitHub への書き込みを禁じる。
   `gh` の読み取り（重複の確認）も失敗するので、エージェントは確かめられなかったことを伝える形になる。
 - eval 6 は、大きな依頼を分ける手順と、分けた Issue の依存の書き方を検査する。
