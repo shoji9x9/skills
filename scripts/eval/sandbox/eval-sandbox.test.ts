@@ -4,7 +4,13 @@ import { spawnSync } from "node:child_process";
 import { afterEach, expect, test } from "vitest";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
-import { hostEnv, sandbox, sourceScript, writeWorktreeFakeBin } from "./eval-sandbox-helpers.ts";
+import {
+  hostEnv,
+  sandbox,
+  sourceScript,
+  writeFakeGit,
+  writeWorktreeFakeBin,
+} from "./eval-sandbox-helpers.ts";
 
 const temporaryDirectories: string[] = [];
 const hasBwrap =
@@ -37,6 +43,8 @@ test("refuses to replace an existing managed Codex directory", () => {
   writeFileSync(fakeBwrap, "#!/usr/bin/env bash\nexit 98\n", "utf8");
   chmodSync(fakeCodex, 0o755);
   chmodSync(fakeBwrap, 0o755);
+  // スクリプトのコピーは git のリポジトリの外にあるので、git worktree list にはスタブで答える。
+  writeFakeGit(fakeBin, [root]);
   const rewritten = readFileSync(sourceScript, "utf8").replaceAll("/etc/codex", managedDirectory);
   writeFileSync(copiedScript, rewritten, "utf8");
   chmodSync(copiedScript, 0o755);

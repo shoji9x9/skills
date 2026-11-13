@@ -141,12 +141,20 @@ args+=(--tmpfs "${repo_parent}")
 #     ~/projects/skills/.agents/skills/kaizen/ and described the PRE-change design,
 #     and contamination.txt flagged it CONTAMINATED. Hide the parent of every work
 #     tree git reports, not just our own.
+#     The list is taken by an assignment, not a process substitution: a git that fails
+#     (dubious ownership under safe.directory exits 128) would otherwise read as no
+#     work trees, and the run would start with the main checkout readable.
 if command -v git >/dev/null 2>&1; then
 	declare -A hidden_worktree_parents=(
 		["${repo_parent}"]=1
 		["/tmp"]=1
 	)
-	while IFS= read -r wt; do
+	worktree_list="$(git -C "${repo}" worktree list --porcelain)" || {
+		echo "eval-sandbox: git worktree list failed in ${repo} (exit $?); the other work trees of this repository cannot be hidden" >&2
+		exit 3
+	}
+	while IFS= read -r line; do
+		case "${line}" in "worktree "*) wt="${line#worktree }" ;; *) continue ;; esac
 		[ -n "${wt}" ] || continue
 		wt_parent="$(dirname "${wt}")"
 		# Already covered by ${repo_parent} (or by the /tmp tmpfs below), or a path
@@ -164,8 +172,7 @@ if command -v git >/dev/null 2>&1; then
 			hidden_worktree_parents["${wt_parent}"]=1
 			args+=(--tmpfs "${wt_parent}")
 		fi
-	done < <(git -C "${repo}" worktree list --porcelain 2>/dev/null |
-		sed -n 's/^worktree //p')
+	done <<<"${worktree_list}"
 fi
 
 # 2. sibling runs: /tmp holds other configurations' disposable projects, each a full
@@ -228,6 +235,19 @@ drop_relative_xdg_dirs() {
 	done
 }
 drop_relative_xdg_dirs
+# Stops the run when the directory $1 holds (is or contains) a place that must stay as it
+# is mounted. $2 says what $1 is; each further argument is "<what the place is>|<path>".
+refuse_holding() {
+	local r="$1" what="$2" kept
+	shift 2
+	for kept in "$@"; do
+		case "${kept#*|}/" in "${r%/}/"*)
+			echo "eval-sandbox: ${r} (${what}) holds ${kept%%|*} ${kept#*|}; it cannot be hidden without hiding that" >&2
+			exit 3
+			;;
+		esac
+	done
+}
 # Credentials served by agents rather than read from files. The runtime dir holds the
 # session bus, through which the keyring daemon hands out what ~/.local/share/keyrings
 # stores, and the ssh-agent and gpg-agent sockets. Measured: the Secret Service was
@@ -242,6 +262,10 @@ drop_relative_xdg_dirs
 # the tmpfs over each of them is added after the /etc binds. Each is resolved first, so
 # a symlinked runtime dir (or one spelled with a trailing /) compares with the resolved
 # roots, and bwrap mounts the tmpfs on the real directory.
+# A runtime dir that holds $HOME, the disposable project or /tmp stops the run: its
+# tmpfs comes after them and would cover the binds into $HOME (the CLI's credentials and
+# settings), the disposable project and the /etc mirror under /tmp (nsswitch.conf and the
+# certificates), so the run would fail to start or to authenticate.
 list_runtime_dirs() { # fills runtime_dirs; a function, so its variables stay local
 	local d
 	local -A seen_runtime_dirs=()
@@ -253,6 +277,8 @@ list_runtime_dirs() { # fills runtime_dirs; a function, so its variables stay lo
 		[ -n "${d}" ] && [ -d "${d}" ] || continue
 		d="$(realpath -m -- "${d}")"
 		[ -z "${seen_runtime_dirs["${d}"]+present}" ] || continue
+		refuse_holding "${d}" "the runtime dir" "\$HOME|${home}" "the disposable project|${PWD}" \
+			"the /etc mirror and the other mounts under|/tmp"
 		seen_runtime_dirs["${d}"]=1
 		runtime_dirs+=("${d}")
 	done
@@ -307,15 +333,9 @@ under_root() { # is $1 equal to or below one of the roots handled so far?
 	return 1
 }
 add_root() { # $1 = real directory, $2 = the home_allow prefix it stands for
-	local r="$1" prefix="$2" rel kept d
+	local r="$1" prefix="$2" rel d
 	if ! under_root "${r}"; then
-		for kept in "\$HOME|${home}" "the disposable project|${PWD}" "${runtime_dirs[@]/#/the runtime dir|}"; do
-			case "${kept#*|}/" in "${r%/}/"*)
-				echo "eval-sandbox: ${r} (${prefix}) holds ${kept%%|*} ${kept#*|}; it cannot be hidden without hiding that" >&2
-				exit 3
-				;;
-			esac
-		done
+		refuse_holding "${r}" "${prefix}" "\$HOME|${home}" "the disposable project|${PWD}" "${runtime_dirs[@]/#/the runtime dir|}"
 		for d in "${runtime_dirs[@]}"; do
 			case "${r}/" in "${d%/}/"*)
 				echo "eval-sandbox: ${r} (${prefix}) lies inside the runtime dir ${d}, whose tmpfs would cover it" >&2
@@ -534,9 +554,8 @@ fi
 # writable empty tmpfs. It comes after the $HOME tmpfs, so a runtime dir under $HOME is
 # still an empty dir the tools can write to, and after the roots, which add_root has
 # already refused whenever one holds a runtime dir or lies inside one, so the two never
-# cover each other. Known gap: a runtime dir that holds $HOME, /tmp or the /etc mirror
-# is not refused, and its tmpfs covers them (the run then fails to start or to
-# authenticate; nothing it should not read becomes readable).
+# cover each other. A runtime dir that holds $HOME, the disposable project or /tmp was
+# refused by list_runtime_dirs, so this tmpfs covers none of them.
 for d in "${runtime_dirs[@]}"; do args+=(--tmpfs "${d}"); done
 
 # Last mount under $HOME is above; from here on $HOME is read-only (step 0).
