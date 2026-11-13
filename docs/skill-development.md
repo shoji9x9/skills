@@ -361,7 +361,8 @@ setup が 0 以外で終わったら、executor を起動せずに eval を失�
   覆われるのは、`$HOME` の下の認証情報と `settings.json`・`CODEX_HOME` の `auth.json`・`/tmp` の下の `/etc` のミラー・使い捨てのプロジェクトなどである。
   sandbox は、runtime dir の tmpfs より前に bwrap に渡した bind の宛先（`--bind`・`--ro-bind`・`--dev-bind`）と cwd を集め、runtime dir がそのどれかと同じか、それを含むときは、`--verify` を含めて bwrap を起動する前に理由を出して止まる。
   宛先と cwd は、書いたままのパスと実際のパスの両方で比べる。そのため、シンボリックリンクを通して runtime dir の中を指す cwd でも止まる。
-  `/tmp` を含む runtime dir（`XDG_RUNTIME_DIR=/tmp` のコンテナなど）は、`/tmp` の下に宛先があるときに止まる。通常の構成では `/etc` のミラーを `/tmp` の下に置くので、止まる。`--verify` は、確かめるパスと環境変数の名前の一覧を `/tmp` の下に作って bind するので、常に止まる。
+  `/tmp` を含む runtime dir（`XDG_RUNTIME_DIR=/tmp` のコンテナなど）は、`/tmp` の下に宛先があるときに止まる。通常の構成では `/etc` のミラーを `/tmp` の下に置くので、止まる。
+  `--verify` は、確かめる対象を書いたファイルを `/tmp` の下のディレクトリに置いて bind するので、`/tmp` を含む runtime dir では常に止まる。
   同じリポジトリのほかの work tree の親も、`git worktree list` で挙げて隠す。
   `git worktree list` が失敗すると（`safe.directory` の dubious ownership など）、ほかの work tree を隠せないので、起動の前に止まる。
   git がスクリプトの置き場所からリポジトリを見つけられないとき（`.git` の無いコピーなど）も、`git worktree list` が失敗するので止まる。git が無い環境では、この確認を飛ばす。

@@ -555,33 +555,37 @@ fi
 # dir: the CLI's credentials and settings under $HOME, CODEX_HOME's auth.json, the /etc
 # mirror under /tmp, the disposable project. Listing such places misses the next one, so
 # the run stops when a runtime dir is or holds any bind target given to bwrap so far
-# (--bind, --ro-bind, --dev-bind), the cwd (which --chdir needs) or the directory that
-# --verify binds for stage 5. An earlier --tmpfs
+# (--bind, --ro-bind, --dev-bind) or the cwd (which --chdir needs). An earlier --tmpfs
 # target is left out: a tmpfs over it hides no more than it did, and whatever was bound
 # into it is a bind target itself. A target is compared both as written and by its real
 # path: bwrap creates a mount point inside an earlier tmpfs without following the host's
 # symlinks, and follows a symlink that is still there, so the mount can land at either.
 # The runtime dirs are real paths already, and the tmpfs goes on them.
+# One more place is compared for its own reason: the directory that --verify binds for
+# stage 5 after the tmpfs, whose mount point stage 5 would find in the runtime dir.
 refuse_covering_runtime_dirs() {
-	local i t p real d what targets=("${PWD}")
+	local i p real d targets=("${PWD}") whats=("the disposable project")
+	local whys=("its tmpfs is mounted after that and would cover it")
 	# Nothing to compare with: skip resolving every target.
 	[ "${#runtime_dirs[@]}" -gt 0 ] || return 0
 	for i in "${!args[@]}"; do
-		case "${args[i]}" in --bind | --ro-bind | --dev-bind) targets+=("${args[i + 2]}") ;; esac
+		case "${args[i]}" in
+		--bind | --ro-bind | --dev-bind)
+			targets+=("${args[i + 2]}") whats+=("the mount target") whys+=("${whys[0]}")
+			;;
+		esac
 	done
-	# The directory of the --verify stage 5 lists, bound later (see below).
-	[ -z "${home_lists}" ] || targets+=("${home_lists}")
+	if [ -n "${home_lists}" ]; then
+		targets+=("${home_lists}") whats+=("the directory where --verify writes its lists for stage 5")
+		whys+=("stage 5 would find that directory's mount point in the runtime dir")
+	fi
 	for i in "${!targets[@]}"; do
-		t="${targets[i]}"
-		what="the mount target"
-		[ "${i}" -ne 0 ] || what="the disposable project"
-		[ "${t}" != "${home_lists}" ] || what="the directory where --verify writes its lists for stage 5"
 		# A plain assignment, so a failed realpath stops the run under set -e.
-		real="$(realpath -m -- "${t}")"
-		for p in "${t}" "${real}"; do
+		real="$(realpath -m -- "${targets[i]}")"
+		for p in "${targets[i]}" "${real}"; do
 			for d in "${runtime_dirs[@]}"; do
 				case "${p%/}/" in "${d%/}/"*)
-					echo "eval-sandbox: ${d} (the runtime dir) holds ${what} ${t} (${real}); its tmpfs is mounted after that and would cover it" >&2
+					echo "eval-sandbox: ${d} (the runtime dir) holds ${whats[i]} ${targets[i]} (${real}); ${whys[i]}" >&2
 					exit 3
 					;;
 				esac
@@ -590,13 +594,13 @@ refuse_covering_runtime_dirs() {
 	done
 }
 # --verify stage 5 reads lists that this shell writes on the host into a directory and
-# binds into the sandbox. The directory is made here, before the check, which compares it
-# as one more target: a runtime dir holding it would make stage 5 see its own mount point
-# in the runtime dir. Under /tmp, not TMPDIR: a TMPDIR under $HOME would put the bind
-# target inside the read-only $HOME, where bwrap cannot create the mount point.
+# binds into the sandbox. The directory is made here, so that the check above can compare
+# it. Under /tmp, not TMPDIR: a TMPDIR under $HOME would put the bind target inside the
+# read-only $HOME, where bwrap cannot create the mount point. Without a marker --verify
+# only prints its usage, so the directory is not made.
 verify=""
 [ "${1:-}" != "--verify" ] || verify=1
-if [ -n "${verify}" ]; then
+if [ -n "${verify}" ] && [ "$#" -ge 2 ]; then
 	home_lists="$(mktemp -d /tmp/eval-sandbox-home-lists-XXXXXX)"
 fi
 refuse_covering_runtime_dirs

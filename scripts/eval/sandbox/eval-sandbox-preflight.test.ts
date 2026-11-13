@@ -230,6 +230,13 @@ describe("runtime dir が先に置いたマウントの宛先か cwd を覆う�
     expect(existsSync(held[1])).toBe(false);
   });
 
+  test("--verify: 印が無ければ、runtime dir が /tmp でも、一覧のディレクトリを作らずに使い方を出して exit 2 で止める", () => {
+    const { result, bwrapArgs } = runPlace(["--verify"], tmpWithoutTargets);
+    expect(result.status, result.stderr).toBe(2);
+    expect(result.stderr).toMatch(/^usage: .*--verify <marker>/mu);
+    expect(bwrapArgs).toBeNull();
+  });
+
   test.each(modes)(
     "$mode: cwd が /tmp の下のリンクでホームディレクトリの下を指すときは、止めずに起動する",
     ({ mode, args }) => {

@@ -63,8 +63,8 @@
       "id": "runtime-covering-real-path-dropped",
       "why": "宛先と cwd を書いたままのパスだけで比べ、リンクを通して runtime dir の中を指す cwd を止めない",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\t\treal=\"$(realpath -m -- \"${t}\")\"\n",
-      "replace": "\t\treal=\"${t}\"\n",
+      "find": "\t\treal=\"$(realpath -m -- \"${targets[i]}\")\"\n",
+      "replace": "\t\treal=\"${targets[i]}\"\n",
       "occurrences": 1,
       "expect_failing": [
         "runtime dir が先に置いたマウントの宛先か cwd を覆う構成 CLI の起動: runtime dir が リンクを通した cwd の実体を含むとき、bwrap を起動する前に理由を出して exit 3 で止める",
@@ -75,7 +75,7 @@
       "id": "runtime-covering-literal-dropped",
       "why": "宛先と cwd を実際のパスだけで比べ、runtime dir の中に置いたリンク（tmpfs の中ではそこにマウントされる）を止めない",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\t\tfor p in \"${t}\" \"${real}\"; do\n",
+      "find": "\t\tfor p in \"${targets[i]}\" \"${real}\"; do\n",
       "replace": "\t\tfor p in \"${real}\"; do\n",
       "occurrences": 1,
       "expect_failing": [
@@ -87,8 +87,8 @@
       "id": "runtime-covering-ro-bind-dropped",
       "why": "--ro-bind の宛先を集めず、/etc のミラーと CODEX_HOME の auth.json を覆う runtime dir を止めない",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\t\tcase \"${args[i]}\" in --bind | --ro-bind | --dev-bind) targets+=(\"${args[i + 2]}\") ;; esac\n",
-      "replace": "\t\tcase \"${args[i]}\" in --bind | --dev-bind) targets+=(\"${args[i + 2]}\") ;; esac\n",
+      "find": "\t\t--bind | --ro-bind | --dev-bind)\n",
+      "replace": "\t\t--bind | --dev-bind)\n",
       "occurrences": 1,
       "expect_failing": [
         "runtime dir が先に置いたマウントの宛先か cwd を覆う構成 CLI の起動: runtime dir が /tmp であり、/tmp の下に /etc のミラーがあるとき、bwrap を起動する前に理由を出して exit 3 で止める",
@@ -113,8 +113,8 @@
       "id": "runtime-covering-verify-lists-dropped",
       "why": "--verify の stage 5 の一覧の bind を宛先に入れず、runtime dir の tmpfs がその下にあっても止めない",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\t[ -z \"${home_lists}\" ] || targets+=(\"${home_lists}\")\n",
-      "replace": "\t:\n",
+      "find": "\tif [ -n \"${home_lists}\" ]; then\n",
+      "replace": "\tif false; then\n",
       "occurrences": 1,
       "expect_failing": [
         "runtime dir が先に置いたマウントの宛先か cwd を覆う構成 --verify: runtime dir が /tmp なら、stage 5 の一覧を /tmp に bind するので、bwrap を起動する前に止める"
