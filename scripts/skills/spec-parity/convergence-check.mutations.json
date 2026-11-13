@@ -787,6 +787,19 @@
       "expect_failing": [
         "操作中のエラー 現側の metadata.json の runtime_errors が declared: false の理由が雛形の値のまま なら、判定できず exit 2"
       ]
+    },
+    {
+      "id": "cv-runtime-declaration-reason",
+      "why": "理由の無い declared: false を、免除として読む（spec-parity のコピー）",
+      "file": "skills/spec-parity/scripts/runtime-errors.mjs",
+      "find": "  if (re.declared === false && isFilled(re.reason)) return \"exempt\";\n",
+      "replace": "  if (re.declared === false) return \"exempt\";\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作中のエラー 現側の metadata.json の runtime_errors が declared: false の理由が雛形の値のまま なら、判定できず exit 2",
+        "操作中のエラー 現側の metadata.json の runtime_errors が declared: false に理由が無い なら、判定できず exit 2",
+        "前提の欠落（exit 2） metadata.json の declared: false に理由が無い"
+      ]
     }
   ]
 }

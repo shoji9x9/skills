@@ -223,65 +223,71 @@ test("--target を渡さなければ工程の節ごと判定しない（承認�
   expect(r.status).toBe(0);
 });
 
+// 同梱の metadata-template.json の runtime_errors（利用者が始める形）をそのまま使う
+const TEMPLATE_RUNTIME_ERRORS = parseJsonAs<{ runtime_errors: unknown }>(
+  readFileSync(join(repoRoot, "skills/parity-suite/assets/metadata-template.json"), "utf8"),
+).runtime_errors;
+const EXEMPT = { declared: false, reason: "現側で記録しなかった" };
+const NOT_JUDGED = { runtime_errors: { judged: false, reason: "現側で記録しなかった" } };
+const TAGGED =
+  /warn: \[runtime-errors\] diff-metadata\.json の runtime_errors（judged: .*）が、現側の metadata\.json の宣言（.*）と合わない/;
+
+// 現側の宣言（runtimeErrorsDeclaration）× diff-metadata.json の比較の記録。照合するか、注記で通すか、[runtime-errors] の所見にするか
 test.each([
-  ["runtime_errors が無い", {}],
-  ["runtime_errors.judged が false", { runtime_errors: { judged: false, reason: "比べていない" } }],
+  ["declared: true で比較の結果が無い", { declared: true }, {}],
+  ["declared: true で judged: false", { declared: true }, NOT_JUDGED],
+  ["declared: false と理由の組で runtime_errors が無い", EXEMPT, {}],
+  [
+    "declared: false と理由の組で judged: false に理由が無い",
+    EXEMPT,
+    { runtime_errors: { judged: false } },
+  ],
+  [
+    "declared: false と理由の組で judged: false の理由が雛形の値のまま",
+    EXEMPT,
+    { runtime_errors: { judged: false, reason: "<理由>" } },
+  ],
+  [
+    "declared: false と理由の組で judged が雛形の値のまま",
+    EXEMPT,
+    { runtime_errors: { judged: "<true | false>", reason: "現側で記録しなかった" } },
+  ],
+  [
+    "declared: false と理由の組で judged が文字列の false",
+    EXEMPT,
+    { runtime_errors: { judged: "false", reason: "現側で記録しなかった" } },
+  ],
+  ["declared: false と理由の組なのに比較の結果がある", EXEMPT, { runtime_errors: compared([]) }],
+  ["雛形の値のままで比較の結果が無い", TEMPLATE_RUNTIME_ERRORS, {}],
+  [
+    "雛形の値のままなのに比較の結果がある",
+    TEMPLATE_RUNTIME_ERRORS,
+    { runtime_errors: compared([]) },
+  ],
+  ["declared が真偽値でない", { declared: "yes" }, {}],
+  ["declared: false に理由が無い", { declared: false }, NOT_JUDGED],
+  ["declared: false の理由が雛形の値のまま", { declared: false, reason: "<理由>" }, NOT_JUDGED],
+  ["runtime_errors がオブジェクトでない", "declared", {}],
+  ["runtime_errors を持たないのに比較の結果がある", NO_CURRENT, { runtime_errors: compared([]) }],
 ])(
-  "現側の metadata.json が runtime_errors.declared: true なのに diff-metadata.json の %s なら、照合を外したまま通さない",
-  (_name, extra) => {
-    const r = judge(extra, { declared: true });
-    expect(r.stdout).toMatch(
-      /warn: \[runtime-errors\] 現側の metadata\.json の runtime_errors\.declared が true なのに、diff-metadata\.json が/,
-    );
+  "現側の metadata.json の %s なら、記録が宣言と合わないとして [runtime-errors] の所見にする",
+  (_name, current, extra) => {
+    const r = judge(extra, current);
+    expect(r.stdout).toMatch(TAGGED);
     expect(r.stdout).not.toMatch(/操作中のエラーの承認を照合しない/);
     expect(r.status).toBe(1);
   },
 );
 
-test("誤検知しないことの確認: 現側の metadata.json が runtime_errors.declared: false なら、diff-metadata.json の judged: false を通す", () => {
-  const r = judge(
-    { runtime_errors: { judged: false, reason: "現側で記録しなかった" } },
-    { declared: false, reason: "現側で記録しなかった" },
+test("誤検知しないことの確認: 現側の metadata.json が declared: false と理由の組で、diff-metadata.json が judged: false と理由なら通す", () => {
+  const r = judge(NOT_JUDGED, EXEMPT);
+  expect(r.stdout).toMatch(
+    /runtime_errors\.declared: false のため、操作中のエラーの承認を照合しない/,
   );
-  expect(r.stdout).toMatch(/操作中のエラーの承認を照合しない/);
   expect(r.status).toBe(0);
 });
 
-// 同梱の metadata-template.json の runtime_errors（利用者が始める形）をそのまま使う
-const TEMPLATE_RUNTIME_ERRORS = parseJsonAs<{ runtime_errors: unknown }>(
-  readFileSync(join(repoRoot, "skills/parity-suite/assets/metadata-template.json"), "utf8"),
-).runtime_errors;
-
-test.each([
-  ["雛形の値のまま", TEMPLATE_RUNTIME_ERRORS],
-  ["真偽値でない", { declared: "yes" }],
-  ["declared: false に理由が無い", { declared: false }],
-  ["declared: false の理由が雛形の値のまま", { declared: false, reason: "<理由>" }],
-  ["オブジェクトでない", "declared"],
-])(
-  "現側の metadata.json の runtime_errors が %s なら、比較の結果の無い diff-metadata.json を照合しないまま通さない",
-  (_name, current) => {
-    const r = judge({}, current);
-    // 現側の記録の不備なので、接頭辞の無い所見にする（parity-suite で直す）
-    expect(r.stdout).toMatch(
-      /^warn: 現側の metadata\.json の runtime_errors が、declared: true か、declared: false と理由の組でない/m,
-    );
-    expect(r.stdout).not.toMatch(/\[runtime-errors\]/);
-    expect(r.status).toBe(1);
-  },
-);
-
-test.each([
-  ["runtime_errors が無い", {}],
-  ["judged: false に理由が無い", { runtime_errors: { judged: false } }],
-  ["judged: false の理由が雛形の値のまま", { runtime_errors: { judged: false, reason: "<理由>" } }],
-])(
-  "現側の metadata.json が runtime_errors.declared: false なのに、diff-metadata.json の %s なら、記録を書き直させる",
-  (_name, extra) => {
-    const r = judge(extra, { declared: false, reason: "現側で記録しなかった" });
-    expect(r.stdout).toMatch(
-      /warn: \[runtime-errors\] 現側の metadata\.json が runtime_errors\.declared: false なのに/,
-    );
-    expect(r.status).toBe(1);
-  },
-);
+test("所見に、現側の宣言の値を残す（どの不備かを読めるようにする）", () => {
+  const r = judge({}, { declared: false, reason: "<理由>" });
+  expect(r.stdout).toContain('declared: false・reason: "<理由>"');
+});

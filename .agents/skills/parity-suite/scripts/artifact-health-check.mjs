@@ -1896,10 +1896,10 @@ export const RUNTIME_ERRORS_TAG = "[runtime-errors]";
 /**
  * 照合する比較の結果（diff-metadata.json の runtime_errors）を返す。照合しないときは、注記か所見を足して null を返す。
  * 現側の metadata.json の宣言は、runtime-errors.mjs の runtimeErrorsDeclaration で読む（spec-parity の収束の判定と同じ読み方）。
- * - absent（操作中のエラーを記録する前の成果物）: 照合せず、注記に残す
- * - invalid（雛形の値のまま・理由の無い declared: false など）: 現側の記録の不備なので、接頭辞の無い所見にする（parity-suite で直す）
- * - declared で比較の結果が無い: RUNTIME_ERRORS_TAG の所見にする（parity-diff の中で compare --write を通し直す）
- * - exempt で judged: false と理由の記録が無い: RUNTIME_ERRORS_TAG の所見にする（parity-diff が diff-metadata.json に書く）
+ * 照合するのは、現側が declared: true で、diff-metadata.json に judged: true の比較の結果があるときだけである。
+ * 照合せずに通すのは、現側がキーごと持たない（操作中のエラーを記録する前の成果物）ときと、現側が declared: false と理由の組で、
+ * diff-metadata.json に judged: false と理由の記録があるときだけである。それ以外は、記録が現側の宣言と合わないとして
+ * RUNTIME_ERRORS_TAG の所見にする（直し方は parity-diff の references/convergence.md の接頭辞の表）。
  * @param {StageState} s
  * @returns {Record<string, unknown> | null}
  */
@@ -1908,33 +1908,30 @@ function comparedRuntimeErrors(s) {
   const re = diffMeta.runtime_errors;
   if (re !== undefined && !isPlainObject(re))
     throw new UsageError("diff-metadata.json の runtime_errors がオブジェクトでない");
-  if (isPlainObject(re) && re.judged === true) return re;
-  const declaration = runtimeErrorsDeclaration(
-    isPlainObject(s.ctx.featureMetadata) ? s.ctx.featureMetadata.runtime_errors : undefined,
-  );
-  const state =
-    re === undefined ? "runtime_errors を持たない" : "runtime_errors.judged が true でない";
-  if (declaration === "absent") {
+  const current = isPlainObject(s.ctx.featureMetadata)
+    ? s.ctx.featureMetadata.runtime_errors
+    : undefined;
+  const declaration = runtimeErrorsDeclaration(current);
+  const judged = isPlainObject(re) ? re.judged : undefined;
+  if (isPlainObject(re) && judged === true && declaration === "declared") return re;
+  if (judged !== true && declaration === "absent") {
     s.notes.push(
-      `diff-metadata.json が${state}ため、操作中のエラーの承認を照合しない: ${diffPath}`,
+      `現側の metadata.json が runtime_errors を持たないため、操作中のエラーの承認を照合しない: ${diffPath}`,
     );
-  } else if (declaration === "invalid") {
-    s.findings.push(
-      `現側の metadata.json の runtime_errors が、declared: true か、declared: false と理由の組でない（parity-suite で記録し直す）: ${diffPath}`,
-    );
-  } else if (declaration === "declared") {
-    s.findings.push(
-      `${RUNTIME_ERRORS_TAG} 現側の metadata.json の runtime_errors.declared が true なのに、diff-metadata.json が${state}。runtime-errors.mjs compare --write を通し直す: ${diffPath}`,
-    );
-  } else if (!isPlainObject(re) || !isFilled(re.reason)) {
-    s.findings.push(
-      `${RUNTIME_ERRORS_TAG} 現側の metadata.json が runtime_errors.declared: false なのに、diff-metadata.json に runtime_errors の judged: false と理由の記録が無い。judged: false と reason を書く: ${diffPath}`,
-    );
-  } else {
+    return null;
+  }
+  if (judged === false && declaration === "exempt" && isPlainObject(re) && isFilled(re.reason)) {
     s.notes.push(
       `現側の metadata.json が runtime_errors.declared: false のため、操作中のエラーの承認を照合しない: ${diffPath}`,
     );
+    return null;
   }
+  const shown = isPlainObject(current)
+    ? `declared: ${JSON.stringify(current.declared)}・reason: ${JSON.stringify(current.reason)}`
+    : JSON.stringify(current);
+  s.findings.push(
+    `${RUNTIME_ERRORS_TAG} diff-metadata.json の runtime_errors（judged: ${JSON.stringify(judged)}）が、現側の metadata.json の宣言（${shown}）と合わない: ${diffPath}`,
+  );
   return null;
 }
 
