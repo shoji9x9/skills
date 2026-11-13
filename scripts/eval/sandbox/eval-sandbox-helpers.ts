@@ -46,8 +46,30 @@ printf '%s\\n' "$@" >"${capturedArgs}"
 // | ホストの ~/.claude  | 印が無い / この検査の印 / 別の内容の同名ファイル                   |
 // | cwd                 | /tmp の下 / /tmp の外                                              |
 // | ホストの settings.json | 無い / 許可リストの外のキーを含む / JSON でない                 |
+// | ホストの $HOME      | 許可リストの場所が在る / 無い、許可リストの外に認証情報が在る / 無い |
+// | runtime dir         | 中身が在る / 空 / XDG_RUNTIME_DIR が実在しない                     |
+//
+// bwrap のスタブは呼び出しごとに引数を追記する（--verify は 2 回呼ぶ）。
+// FAKE_BWRAP_MODE=exec-credentials では、--verify の stage 5 の呼び出しだけを、隠さずにホストの上で実行する。
+// --setenv と --unsetenv は反映し、FAKE_BWRAP_KEEP_ENV=1 なら --unsetenv を反映しない。
+const FAKE_BWRAP_EXEC = `if [ "\${FAKE_BWRAP_MODE:-}" = exec-credentials ]; then
+  envs=() unsets=() cmd=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+    --setenv) envs+=("$2=$3"); shift 3 ;;
+    --unsetenv) unsets+=("$2"); shift 2 ;;
+    --) shift; cmd=("$@"); break ;;
+    *) shift ;;
+    esac
+  done
+  case " \${envs[*]} " in *" HOME_LISTS="*) ;; *) exit 0 ;; esac
+  if [ "\${FAKE_BWRAP_KEEP_ENV:-}" != 1 ]; then for u in "\${unsets[@]}"; do unset "$u"; done; fi
+  exec env "\${envs[@]}" "\${cmd[@]}"
+fi
+`;
 const FAKE_BWRAP = `#!/usr/bin/env bash
-printf '%s\\n' "$@" >"$FAKE_BWRAP_ARGS"
+printf '%s\\n' "$@" >>"$FAKE_BWRAP_ARGS"
+${FAKE_BWRAP_EXEC}
 # settings.json に bind されたコピーを、終了時に消される前に残す。
 if [ -n "\${FAKE_BWRAP_SETTINGS:-}" ]; then
   prev2="" prev1=""
@@ -70,7 +92,30 @@ export type SandboxOptions = {
   bwrap?: boolean;
   env?: Record<string, string>;
   cwd?: string;
+  /** 使い捨ての $HOME に置くファイル（$HOME からの相対パス → 内容）。 */
+  homeFiles?: Record<string, string>;
+  /** runtime dir に置くファイル名。省くと、XDG_RUNTIME_DIR を実在しないパスにする（ホストの runtime dir を読ませない）。 */
+  runtimeEntries?: string[];
+  /** CLI のスタブを置く、$HOME からの相対ディレクトリ。省くと $HOME の外の bin に置く。 */
+  cliHomeDir?: string;
 };
+
+/** 使い捨ての $HOME にファイルを置く。 */
+export function writeHomeFiles(home: string, files: Record<string, string>) {
+  for (const [relative, content] of Object.entries(files)) {
+    mkdirSync(dirname(join(home, relative)), { recursive: true });
+    writeFileSync(join(home, relative), content);
+  }
+}
+
+/** runtime dir を作り、XDG_RUNTIME_DIR に渡すパスを返す。 */
+function makeRuntimeDir(root: string, entries: string[] | undefined) {
+  const runtimeDir = join(root, "run");
+  if (entries === undefined) return runtimeDir;
+  mkdirSync(runtimeDir);
+  for (const entry of entries) writeFileSync(join(runtimeDir, entry), "");
+  return runtimeDir;
+}
 
 /** CLI・bwrap・getent のスタブを bin に置く。 */
 function writeSandboxFakeBin(bin: string, cli: string, options: SandboxOptions) {
@@ -117,19 +162,27 @@ export function sandbox(args: string[], options: SandboxOptions = {}) {
   const capturedArgs = join(root, "bwrap-args.txt");
   mkdirSync(dirname(copiedScript), { recursive: true });
   mkdirSync(join(home, ".claude"), { recursive: true });
+  writeHomeFiles(home, options.homeFiles ?? {});
+  const runtimeDir = makeRuntimeDir(root, options.runtimeEntries);
   mkdirSync(bin);
   // 内容を変えずにコピーする（同じ内容のスクリプトは、カバレッジで原本の実行として数える）。
   writeFileSync(copiedScript, readFileSync(sourceScript), { mode: 0o755 });
   // settings.json のコピーを作るスクリプトは、相対 import を原本の側で解決させるためにリンクで置く。
   symlinkSync(sanitizeScript, join(dirname(copiedScript), "sanitize-claude-settings.ts"));
   const cli = options.cli ?? "claude";
+  const cliDir = options.cliHomeDir === undefined ? bin : join(home, options.cliHomeDir);
+  mkdirSync(cliDir, { recursive: true });
   writeSandboxFakeBin(bin, cli, options);
+  if (cliDir !== bin && cli !== "") {
+    writeFileSync(join(cliDir, cli), "#!/usr/bin/env bash\nexit 99\n", { mode: 0o755 });
+  }
   const env: Record<string, string> = {
     ...process.env,
     HOME: home,
-    PATH: sandboxPath(bin, options),
+    PATH: cliDir === bin ? sandboxPath(bin, options) : `${cliDir}:${sandboxPath(bin, options)}`,
     EVAL_SANDBOX_CLI: cli === "" ? "absent-cli" : cli,
     FAKE_BWRAP_ARGS: capturedArgs,
+    XDG_RUNTIME_DIR: runtimeDir,
     ...options.env,
   };
   if (options.vendor !== undefined) env.EVAL_SANDBOX_VENDOR = options.vendor;
@@ -142,5 +195,23 @@ export function sandbox(args: string[], options: SandboxOptions = {}) {
     stdio: ["ignore", "pipe", "pipe"],
     timeout: CHILD_TIMEOUT_MS,
   });
-  return { result, bwrapArgs: readBwrapArgs(capturedArgs), home, root };
+  return { result, bwrapArgs: readBwrapArgs(capturedArgs), home, root, runtimeDir };
 }
+
+/** 許可リストの外に置く、認証情報に見立てた目印。 */
+export const credentialFiles = {
+  ".config/box/refresh_token": "MARKER-BOX\n",
+  ".config/gh/hosts.yml": "MARKER-GH\n",
+  ".ssh/id_ed25519": "MARKER-SSH\n",
+  ".aws/credentials": "MARKER-AWS\n",
+  ".local/share/keyrings/login.keyring": "MARKER-KEYRING\n",
+  ".unlisted-tool/token": "MARKER-UNLISTED\n",
+  ".config/git/credentials": "MARKER-GIT-CREDENTIALS\n",
+};
+/** 許可リストの中に置く目印。 */
+export const allowedFiles = {
+  ".config/mise/config.toml": "MARKER-MISE\n",
+  ".gitconfig": "[user]\n\tname = test\n",
+  ".config/git/ignore": "*.swp\n",
+  ".local/share/mise/installs/marker": "MARKER-MISE-INSTALL\n",
+};
