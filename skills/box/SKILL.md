@@ -185,9 +185,10 @@ curl -sSf -X POST "https://upload.box.com/api/2.0/files/content" \
 新しいバージョンでも、名前を変えないように、今の名前を取得して `attributes` の `name` に書く。
 Box の文書は、`attributes` の `name` を指定すると名前を変えると書き、`file` の部分の `filename` の扱いを書いていない（<https://developer.box.com/reference/post-files-id-content/>）。
 名前と一緒に `etag` も取得し、`If-Match` に付けて送る。取得してから送るまでに他の人がファイルを変えると、Box は 412 を返し、古い名前で上書きしない（同じ文書）。
-412 が返ったら（curl の stderr に `returned error: 412` が出る）、送り直さずに止まる。
-取得の後にファイルが変わった（他の人の新しいバージョン・名前の変更・先に送った分の成功など）ことを利用者に伝え、送り直すかを確かめる。
-送り直すと決まったら、名前と `etag` の取得からやり直して送る。`If-Match` を外して送り直さない。外すと、古い名前で上書きする。
+412 が返ったら（curl の stderr に `returned error: 412` が出る）、送り直さずに止まる。412 は、名前と `etag` を取得した後に Box のファイルが変わったことを表す。
+今のファイルを `fields=name,etag,sha1,modified_at,modified_by` で読み直し、手元のファイルの SHA-1（`sha1sum` など）と一緒に利用者に示して、どうするかを確かめる。
+Box の `sha1` が手元のファイルと同じなら、同じ中身がすでに上がっている。
+送り直すと決まったら、読み直した名前と `etag` で送る。送り直すときも `If-Match` を付け、読み直した後の変更も 412 で止める。
 パスの書き方と `set -o pipefail` の扱い（シェルに残したくなければサブシェルで囲む）は、上の新規ファイルと同じである。
 
 ```bash
