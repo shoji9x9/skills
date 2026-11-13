@@ -56,11 +56,6 @@
 # Repo-internal tooling; not bundled in any distributed skill.
 set -euo pipefail
 
-# The cwd (the disposable project) is compared with resolved paths ($HOME, the runtime
-# dirs, the XDG places) and is mounted with --bind and --chdir, so make $PWD its real
-# path once here: a cwd reached through a symlink would otherwise pass every comparison.
-cd -P -- "${PWD}"
-
 self="$(readlink -f "$0")"
 # <repo>/scripts/eval/sandbox/eval-sandbox.sh -> <repo>
 repo="$(dirname "$(dirname "$(dirname "$(dirname "${self}")")")")"

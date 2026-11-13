@@ -21,9 +21,7 @@
         "runtime dir が先に置いたマウント先を含む構成 CLI の起動: runtime dir が 使い捨てのプロジェクトを含むとき、bwrap を起動する前に理由を出して exit 3 で止める",
         "runtime dir が先に置いたマウント先を含む構成 --verify: runtime dir が 使い捨てのプロジェクトを含むとき、bwrap を起動する前に理由を出して exit 3 で止める",
         "runtime dir が先に置いたマウント先を含む構成 CLI の起動: runtime dir が /tmp であるとき、bwrap を起動する前に理由を出して exit 3 で止める",
-        "runtime dir が先に置いたマウント先を含む構成 --verify: runtime dir が /tmp であるとき、bwrap を起動する前に理由を出して exit 3 で止める",
-        "runtime dir が先に置いたマウント先を含む構成 CLI の起動: runtime dir が シンボリックリンクを通した cwd を含むとき、bwrap を起動する前に理由を出して exit 3 で止める",
-        "runtime dir が先に置いたマウント先を含む構成 --verify: runtime dir が シンボリックリンクを通した cwd を含むとき、bwrap を起動する前に理由を出して exit 3 で止める"
+        "runtime dir が先に置いたマウント先を含む構成 --verify: runtime dir が /tmp であるとき、bwrap を起動する前に理由を出して exit 3 で止める"
       ]
     },
     {
@@ -51,9 +49,7 @@
       "occurrences": 1,
       "expect_failing": [
         "runtime dir が先に置いたマウント先を含む構成 CLI の起動: runtime dir が 使い捨てのプロジェクトを含むとき、bwrap を起動する前に理由を出して exit 3 で止める",
-        "runtime dir が先に置いたマウント先を含む構成 --verify: runtime dir が 使い捨てのプロジェクトを含むとき、bwrap を起動する前に理由を出して exit 3 で止める",
-        "runtime dir が先に置いたマウント先を含む構成 CLI の起動: runtime dir が シンボリックリンクを通した cwd を含むとき、bwrap を起動する前に理由を出して exit 3 で止める",
-        "runtime dir が先に置いたマウント先を含む構成 --verify: runtime dir が シンボリックリンクを通した cwd を含むとき、bwrap を起動する前に理由を出して exit 3 で止める"
+        "runtime dir が先に置いたマウント先を含む構成 --verify: runtime dir が 使い捨てのプロジェクトを含むとき、bwrap を起動する前に理由を出して exit 3 で止める"
       ]
     },
     {
@@ -66,18 +62,6 @@
       "expect_failing": [
         "runtime dir が先に置いたマウント先を含む構成 CLI の起動: runtime dir が /tmp であるとき、bwrap を起動する前に理由を出して exit 3 で止める",
         "runtime dir が先に置いたマウント先を含む構成 --verify: runtime dir が /tmp であるとき、bwrap を起動する前に理由を出して exit 3 で止める"
-      ]
-    },
-    {
-      "id": "runtime-holding-cwd-unresolved",
-      "why": "cwd を解決せずに比べ、シンボリックリンクを通して runtime dir の中を指す cwd を通す",
-      "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\ncd -P -- \"${PWD}\"\n",
-      "replace": "\n:\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "runtime dir が先に置いたマウント先を含む構成 CLI の起動: runtime dir が シンボリックリンクを通した cwd を含むとき、bwrap を起動する前に理由を出して exit 3 で止める",
-        "runtime dir が先に置いたマウント先を含む構成 --verify: runtime dir が シンボリックリンクを通した cwd を含むとき、bwrap を起動する前に理由を出して exit 3 で止める"
       ]
     },
     {

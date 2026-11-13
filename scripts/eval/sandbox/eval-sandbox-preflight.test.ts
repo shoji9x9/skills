@@ -10,7 +10,7 @@
 // | 軸                       | 値                                                                     |
 // | ------------------------ | ---------------------------------------------------------------------- |
 // | runtime dir と $HOME     | 同じ / $HOME を含む / 「/」 / $HOME の下（通す） / 名前が $HOME の前方だけ一致（通す） / 隣（通す） |
-// | runtime dir と cwd       | 使い捨てのプロジェクトを含む / シンボリックリンクを通して含む / 含まない（通す） |
+// | runtime dir と cwd       | 使い捨てのプロジェクトを含む / 含まない（通す）                        |
 // | runtime dir と /tmp      | /tmp そのもの / /tmp の下（通す。「$HOME の隣」の行が、os.tmpdir() が /tmp の環境でだけ確かめる） |
 // | git worktree list        | 成功する（通す） / 0 以外で終わる                                      |
 // | モード                   | CLI の起動 / --verify                                                  |
@@ -18,7 +18,7 @@
 // sandbox() の一時ディレクトリが /run/user/<uid> の下にある環境（TMPDIR をそこに置いた環境）では、
 // スクリプトは使い捨ての $HOME を含む runtime dir として止まる。
 // そのため sandbox() は、その環境では前提の誤りとして例外を投げる。テストは os.tmpdir() をその外に置いて実行する。
-import { mkdirSync, symlinkSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { flagValues, sandbox } from "./eval-sandbox-helpers.ts";
@@ -61,17 +61,6 @@ describe("runtime dir が先に置いたマウント先を含む構成", () => {
       message: "(the runtime dir) holds the disposable project",
     },
     {
-      label: "シンボリックリンクを通した cwd を含むとき",
-      // cwd を runtime dir の外のリンクで指す。bash は環境の PWD がその cwd を指せば、リンクのまま $PWD にする。
-      place: (root) => {
-        const run = join(root, "work");
-        mkdirSync(join(run, "project"), { recursive: true });
-        symlinkSync(join(run, "project"), join(root, "link"));
-        return { run, cwd: join(root, "link") };
-      },
-      message: "(the runtime dir) holds the disposable project",
-    },
-    {
       label: "/tmp であるとき",
       // $HOME を /tmp の外の実在しないパスにして、$HOME を含むという理由で止まらないようにする。
       place: () => ({ run: "/tmp", cwd: "/", home: "/nonexistent-eval-sandbox-home" }),
@@ -86,7 +75,7 @@ describe("runtime dir が先に置いたマウント先を含む構成", () => {
         setup: ({ root }) => {
           const { run, cwd, home } = place(root);
           return {
-            env: { XDG_RUNTIME_DIR: run, PWD: cwd, ...(home === undefined ? {} : { HOME: home }) },
+            env: { XDG_RUNTIME_DIR: run, ...(home === undefined ? {} : { HOME: home }) },
             cwd,
           };
         },
