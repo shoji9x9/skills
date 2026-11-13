@@ -122,6 +122,11 @@ describe.skipIf(outsideTmp === null)("本物の bwrap", () => {
   });
 });
 
+/** 文字列を bash の単一引用符で包む（中の単一引用符は、引用を閉じてエスケープした 1 文字を足す）。 */
+function shellQuote(value: string) {
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
 /** $HOME の下に CLI のスタブを置き、PATH を最小にして sandbox を起動する。 */
 function startWithCli(
   home: string,
@@ -172,11 +177,14 @@ describe.skipIf(outsideTmp === null)(
       const result = startWithCli(home, {
         cliDir: ".local/bin",
         path: [join(home, ".cargo/bin")],
-        // sandbox の中の $HOME に頼らず、目印の絶対パスで確かめる。
-        body: `if [ -e ${JSON.stringify(join(home, ".cargo/bin/tool"))} ]; then echo "TOOL VISIBLE"; else echo "tool hidden"; fi\n`,
+        // sandbox の中の $HOME に頼らず、目印の絶対パスで確かめる。同じ方式で CLI のスタブ自身が
+        // 見えることも出させ、判定が動いていることを区別する（パスは単一引用符で包んで渡す）。
+        body: `for p in ${shellQuote(join(home, ".cargo/bin/tool"))} ${shellQuote(join(home, ".local/bin/claude-wrapper"))}; do if [ -e "$p" ]; then echo "visible $p"; else echo "hidden $p"; fi; done\n`,
       });
       expect(result.status, result.stderr).toBe(0);
-      expect(result.stdout).toBe("tool hidden\nSTARTED\n");
+      expect(result.stdout).toBe(
+        `hidden ${join(home, ".cargo/bin/tool")}\nvisible ${join(home, ".local/bin/claude-wrapper")}\nSTARTED\n`,
+      );
     });
 
     test("$HOME がシンボリックリンクでも、許可リストの中の CLI は起動する", () => {
