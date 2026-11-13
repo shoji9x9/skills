@@ -2,8 +2,8 @@
 // bwrap が無ければ飛ばす。スタブで確かめるテストは eval-sandbox-credentials.test.ts にある。
 // 使い捨ての $HOME は /tmp の外（/var/tmp）に置く。eval-sandbox.sh は /tmp を tmpfs で隠すので、
 // /tmp の下の $HOME では、$HOME の扱いを変えても目印が見えなくなり、検出できない。
-import { chmodSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { chmodSync, existsSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { describe, expect, test } from "vitest";
 import { makeSharedTempDir, makeTempDir } from "../../lib/testing/test-tmpdir.ts";
@@ -38,16 +38,9 @@ function makeRealHome(name: string) {
   return { home, runtimeDir };
 }
 
-describe.skipIf(outsideTmp === null)("本物の bwrap", () => {
-  test("run の中から、許可リストの外の目印は読めず、許可リストの中と CLI の認証は読める", () => {
-    const { home, runtimeDir } = makeRealHome("run");
-    const project = makeTempDir("eval-sandbox-credentials-project-");
-    const fakeBin = join(project, "bin");
-    mkdirSync(fakeBin);
-    const fakeCli = join(fakeBin, "claude-wrapper");
-    writeFileSync(
-      fakeCli,
-      `#!/usr/bin/env bash
+/** run の中で、目印・runtime dir・ソケットの変数・書き込みの可否を 1 行ずつ報告する CLI のスタブ。 */
+function visibilityReport() {
+  return `#!/usr/bin/env bash
 for p in ${Object.keys(credentialFiles).join(" ")} .claude/projects/transcript.jsonl; do
   if test -r "$HOME/$p"; then echo "READABLE $p"; else echo "hidden $p"; fi
 done
@@ -58,9 +51,17 @@ if [ -n "$(ls -A "$XDG_RUNTIME_DIR")" ]; then echo "RUNTIME VISIBLE"; else echo 
 echo "dbus=\${DBUS_SESSION_BUS_ADDRESS-unset}"
 if touch "$HOME/.probe" 2>/dev/null; then echo "HOME WRITABLE"; else echo "home read-only"; fi
 if touch "$HOME/.claude/.probe" 2>/dev/null; then echo "claude writable"; else echo "CLAUDE READ-ONLY"; fi
-`,
-      "utf8",
-    );
+`;
+}
+
+describe.skipIf(outsideTmp === null)("本物の bwrap", () => {
+  test("run の中から、許可リストの外の目印は読めず、許可リストの中と CLI の認証は読める", () => {
+    const { home, runtimeDir } = makeRealHome("run");
+    const project = makeTempDir("eval-sandbox-credentials-project-");
+    const fakeBin = join(project, "bin");
+    mkdirSync(fakeBin);
+    const fakeCli = join(fakeBin, "claude-wrapper");
+    writeFileSync(fakeCli, visibilityReport(), "utf8");
     chmodSync(fakeCli, 0o755);
     const result = spawnSync(sourceScript, ["--version"], {
       timeout: CHILD_TIMEOUT_MS,
@@ -74,7 +75,8 @@ if touch "$HOME/.claude/.probe" 2>/dev/null; then echo "claude writable"; else e
         HOME: home,
         XDG_RUNTIME_DIR: runtimeDir,
         DBUS_SESSION_BUS_ADDRESS: `unix:path=${runtimeDir}/bus`,
-        PATH: `${fakeBin}:${process.env.PATH}`,
+        // vitest の PATH にはリポジトリの node_modules/.bin が入り、sandbox はリポジトリを隠すので、起動の前の確認で止まる。
+        PATH: `${fakeBin}:/usr/bin:/bin`,
       },
     });
     expect(result.status, result.stderr).toBe(0);
@@ -120,3 +122,78 @@ if touch "$HOME/.claude/.probe" 2>/dev/null; then echo "claude writable"; else e
     expect(result.stdout).toContain("stage5 agent socket variables: unset (ok)");
   });
 });
+
+/** $HOME の下に CLI のスタブを置き、PATH を最小にして sandbox を起動する。 */
+function startWithCli(home: string, options: { cliDir: string; path: string[]; homeEnv?: string }) {
+  const project = makeTempDir("eval-sandbox-probe-project-");
+  const cli = join(home, options.cliDir, "claude-wrapper");
+  mkdirSync(dirname(cli), { recursive: true });
+  writeFileSync(cli, "#!/usr/bin/env bash\necho STARTED\n", { mode: 0o755 });
+  return spawnSync(sourceScript, ["--version"], {
+    timeout: CHILD_TIMEOUT_MS,
+    cwd: project,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      EVAL_SANDBOX_CLI: "claude-wrapper",
+      EVAL_SANDBOX_VENDOR: "claude-code",
+      EVAL_SANDBOX_NET: "off",
+      HOME: options.homeEnv ?? home,
+      XDG_RUNTIME_DIR: join(home, "..", "run-absent"),
+      PATH: [
+        join(options.homeEnv ?? home, options.cliDir),
+        ...options.path,
+        "/usr/bin",
+        "/bin",
+      ].join(":"),
+    },
+  });
+}
+
+describe.skipIf(outsideTmp === null)(
+  "起動の前の確認（本物の bwrap で、中で見えるかを測る）",
+  () => {
+    test("許可リストの外の CLI（~/.nvm/bin）は、起動の前に止める", () => {
+      const { home } = makeRealHome("probe-cli");
+      const result = startWithCli(home, { cliDir: ".nvm/bin", path: [] });
+      expect(result.status).toBe(3);
+      expect(result.stderr).toContain(
+        `the sandbox hides these, so the run would start without them: ${join(home, ".nvm/bin/claude-wrapper")}`,
+      );
+      expect(result.stdout).not.toContain("STARTED");
+    });
+
+    test.each([
+      ["$HOME の下の許可リストの外（.cargo/bin）", ".cargo/bin"],
+      ["後の tmpfs が覆う場所（.vscode-server/bin）", ".vscode-server/bin"],
+    ])("PATH のディレクトリが%sなら、起動の前に止める", (_label, dir) => {
+      const { home } = makeRealHome(`probe-path-${dir.replaceAll("/", "-")}`);
+      writeHomeFiles(home, { [`${dir}/tool`]: "" });
+      const result = startWithCli(home, { cliDir: ".local/bin", path: [join(home, dir)] });
+      expect(result.status).toBe(3);
+      expect(result.stderr).toContain(join(home, dir));
+      expect(result.stdout).not.toContain("STARTED");
+    });
+
+    test("$HOME がシンボリックリンクでも、許可リストの中の CLI は起動する", () => {
+      const { home } = makeRealHome("probe-home-link");
+      const homeEnv = join(dirname(home), "home-link");
+      symlinkSync(home, homeEnv);
+      const result = startWithCli(home, { cliDir: ".local/bin", path: [], homeEnv });
+      expect(result.status, result.stderr).toBe(0);
+      expect(result.stdout).toBe("STARTED\n");
+    });
+
+    test("許可リストの場所（~/.local/bin）がシンボリックリンクでも、PATH の確認で止めない", () => {
+      const { home } = makeRealHome("probe-allowlist-link");
+      writeHomeFiles(home, { "dotfiles/bin/tool": "" });
+      symlinkSync(join(home, "dotfiles/bin"), join(home, ".local/bin"));
+      const result = startWithCli(home, {
+        cliDir: ".local/share/claude",
+        path: [join(home, ".local/bin")],
+      });
+      expect(result.status, result.stderr).toBe(0);
+      expect(result.stdout).toBe("STARTED\n");
+    });
+  },
+);

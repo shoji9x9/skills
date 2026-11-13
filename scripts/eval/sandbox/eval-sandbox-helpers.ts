@@ -24,7 +24,7 @@ printf 'worktree %s\\n' ${worktrees.map((w) => `"${w}"`).join(" ")}
   writeFileSync(
     join(fakeBin, "bwrap"),
     `#!/usr/bin/env bash
-printf '%s\\n' "$@" >"${capturedArgs}"
+${FAKE_BWRAP_PROBE}printf '%s\\n' "$@" >"${capturedArgs}"
 `,
     { mode: 0o755 },
   );
@@ -48,8 +48,11 @@ printf '%s\\n' "$@" >"${capturedArgs}"
 // | ホストの settings.json | 無い / 許可リストの外のキーを含む / JSON でない                 |
 // | ホストの $HOME      | 許可リストの場所が在る / 無い、許可リストの外に認証情報が在る / 無い |
 // | runtime dir         | 中身が在る / 空 / XDG_RUNTIME_DIR が実在しない                     |
+// | 起動の前の確認      | CLI が見える / 隠れる、PATH のディレクトリが見える / 隠れる / 空 / 無い |
 //
 // bwrap のスタブは呼び出しごとに引数を追記する（--verify は 2 回呼ぶ）。
+// 起動の前の確認（CLI と PATH が見えるか）の呼び出しは記録せず、FAKE_BWRAP_HIDDEN（改行区切り）に
+// 挙げたパスを除いて「見える」と答える。何が隠れるかを測るのは、本物の bwrap のテストである。
 // FAKE_BWRAP_MODE=exec-credentials では、--verify の stage 5 の呼び出しだけを、隠さずにホストの上で実行する。
 // --setenv と --unsetenv は反映し、FAKE_BWRAP_KEEP_ENV=1 なら --unsetenv を反映しない。
 const FAKE_BWRAP_EXEC = `if [ "\${FAKE_BWRAP_MODE:-}" = exec-credentials ]; then
@@ -63,12 +66,30 @@ const FAKE_BWRAP_EXEC = `if [ "\${FAKE_BWRAP_MODE:-}" = exec-credentials ]; then
     esac
   done
   case " \${envs[*]} " in *" HOME_LISTS="*) ;; *) exit 0 ;; esac
+  # ホストの /run/user/<uid> の中身で結果が変わらないよう、runtime dir の一覧をテストの下に絞る。
+  if [ -n "\${FAKE_BWRAP_RUNTIME_UNDER:-}" ]; then
+    for e in "\${envs[@]}"; do case "$e" in HOME_LISTS=*) lists="\${e#HOME_LISTS=}" ;; esac; done
+    while IFS= read -r -d '' l; do
+      case "\${l#*|}" in "$FAKE_BWRAP_RUNTIME_UNDER"/*) printf '%s\\0' "$l" ;; esac
+    done <"$lists/runtime" >"$lists/runtime.kept"
+    mv -- "$lists/runtime.kept" "$lists/runtime"
+  fi
   if [ "\${FAKE_BWRAP_KEEP_ENV:-}" != 1 ]; then for u in "\${unsets[@]}"; do unset "$u"; done; fi
   exec env "\${envs[@]}" "\${cmd[@]}"
 fi
 `;
+const FAKE_BWRAP_PROBE = `case " $* " in *" EVAL_SANDBOX_PROBE 1 "*)
+  [ -z "\${FAKE_BWRAP_PROBE_ARGS:-}" ] || printf '%s\\n' "$@" >"$FAKE_BWRAP_PROBE_ARGS"
+  after=""
+  for a in "$@"; do
+    if [ -n "$after" ] && ! printf '%s\\n' "\${FAKE_BWRAP_HIDDEN:-}" | grep -qxF -- "$a"; then printf '%s\\0' "$a"; fi
+    [ "$a" != _ ] || after=1
+  done
+  exit 0 ;;
+esac
+`;
 const FAKE_BWRAP = `#!/usr/bin/env bash
-printf '%s\\n' "$@" >>"$FAKE_BWRAP_ARGS"
+${FAKE_BWRAP_PROBE}printf '%s\\n' "$@" >>"$FAKE_BWRAP_ARGS"
 ${FAKE_BWRAP_EXEC}
 # settings.json に bind されたコピーを、終了時に消される前に残す。
 if [ -n "\${FAKE_BWRAP_SETTINGS:-}" ]; then
@@ -96,21 +117,24 @@ export type SandboxOptions = {
   homeFiles?: Record<string, string>;
   /** runtime dir に置くファイル名。省くと、XDG_RUNTIME_DIR を実在しないパスにする（ホストの runtime dir を読ませない）。 */
   runtimeEntries?: string[];
-  /** CLI のスタブを置く、$HOME からの相対ディレクトリ。省くと $HOME の外の bin に置く。 */
-  cliHomeDir?: string;
-  /** /run/user/<uid> の代わりに置くディレクトリのファイル名。省くと実在しないパスにする（ホストの /run/user を読ませない）。 */
-  runUserEntries?: string[];
   /** スクリプトのコピー（とそのリポジトリ）を $HOME の下に置く。 */
   repoUnderHome?: boolean;
-  /** PATH の先頭に足す、$HOME からの相対ディレクトリ。exists が false なら作らない。 */
-  pathHomeDirs?: { dir: string; exists: boolean }[];
-  /** $HOME を、使い捨ての $HOME へのシンボリックリンクとして渡す。 */
-  homeSymlink?: boolean;
+  /** PATH の先頭に足す、$HOME からの相対ディレクトリ。state で、無い・空・ツールが在るを選ぶ。 */
+  pathHomeDirs?: PathHomeDir[];
+  /** 起動の前の確認で、CLI を隠れていると答える。 */
+  hiddenCli?: boolean;
+  /** 起動の前の確認で、隠れていると答える $HOME からの相対ディレクトリ。 */
+  hiddenPathHomeDirs?: string[];
 };
 
-/** PATH の先頭に足すディレクトリを（指定があれば）作り、PATH の接頭辞を返す。 */
-function homePathPrefix(home: string, dirs: { dir: string; exists: boolean }[]) {
-  for (const { dir, exists } of dirs) if (exists) mkdirSync(join(home, dir), { recursive: true });
+export type PathHomeDir = { dir: string; state: "absent" | "empty" | "tool" };
+
+/** PATH の先頭に足すディレクトリを state のとおりに作り、PATH の接頭辞を返す。 */
+function homePathPrefix(home: string, dirs: PathHomeDir[]) {
+  for (const { dir, state } of dirs) {
+    if (state !== "absent") mkdirSync(join(home, dir), { recursive: true });
+    if (state === "tool") writeFileSync(join(home, dir, "tool"), "", { mode: 0o755 });
+  }
   return dirs.map(({ dir }) => `${join(home, dir)}:`).join("");
 }
 
@@ -123,8 +147,8 @@ export function writeHomeFiles(home: string, files: Record<string, string>) {
 }
 
 /** runtime dir を作り、そのパスを返す。 */
-function makeRuntimeDir(root: string, entries: string[] | undefined, name = "run") {
-  const runtimeDir = join(root, name);
+function makeRuntimeDir(root: string, entries: string[] | undefined) {
+  const runtimeDir = join(root, "run");
   if (entries === undefined) return runtimeDir;
   mkdirSync(runtimeDir);
   for (const entry of entries) writeFileSync(join(runtimeDir, entry), "");
@@ -167,6 +191,36 @@ function readBwrapArgs(capturedArgs: string) {
   }
 }
 
+/** スクリプトを起動する環境変数を作る。 */
+function sandboxEnv(
+  paths: Record<
+    "root" | "home" | "bin" | "cli" | "runtimeDir" | "capturedArgs" | "probeArgs",
+    string
+  >,
+  options: SandboxOptions,
+) {
+  const { root, home, bin, cli } = paths;
+  const env: Record<string, string> = {
+    ...process.env,
+    HOME: home,
+    PATH: `${homePathPrefix(home, options.pathHomeDirs ?? [])}${sandboxPath(bin, options)}`,
+    EVAL_SANDBOX_CLI: cli === "" ? "absent-cli" : cli,
+    FAKE_BWRAP_ARGS: paths.capturedArgs,
+    XDG_RUNTIME_DIR: paths.runtimeDir,
+    FAKE_BWRAP_RUNTIME_UNDER: root,
+    FAKE_BWRAP_PROBE_ARGS: paths.probeArgs,
+    FAKE_BWRAP_HIDDEN: [
+      ...(options.hiddenCli === true ? [join(bin, cli)] : []),
+      ...(options.hiddenPathHomeDirs ?? []).map((dir) => join(home, dir)),
+    ].join("\n"),
+    ...options.env,
+  };
+  if (options.vendor !== undefined) env.EVAL_SANDBOX_VENDOR = options.vendor;
+  else delete env.EVAL_SANDBOX_VENDOR;
+  delete env.CODEX_HOME;
+  return env;
+}
+
 export function sandbox(args: string[], options: SandboxOptions = {}) {
   const root = makeTempDir("eval-sandbox-preflight-");
   const home = join(root, "home");
@@ -174,40 +228,19 @@ export function sandbox(args: string[], options: SandboxOptions = {}) {
   const bin = join(root, "bin");
   const copiedScript = join(repo, "scripts", "eval", "sandbox", "eval-sandbox.sh");
   const capturedArgs = join(root, "bwrap-args.txt");
+  const probeArgs = join(root, "bwrap-probe-args.txt");
   mkdirSync(dirname(copiedScript), { recursive: true });
   mkdirSync(join(home, ".claude"), { recursive: true });
   writeHomeFiles(home, options.homeFiles ?? {});
   const runtimeDir = makeRuntimeDir(root, options.runtimeEntries);
-  const runUserDir = makeRuntimeDir(root, options.runUserEntries, "run-user");
   mkdirSync(bin);
   // 内容を変えずにコピーする（同じ内容のスクリプトは、カバレッジで原本の実行として数える）。
   writeFileSync(copiedScript, readFileSync(sourceScript), { mode: 0o755 });
   // settings.json のコピーを作るスクリプトは、相対 import を原本の側で解決させるためにリンクで置く。
   symlinkSync(sanitizeScript, join(dirname(copiedScript), "sanitize-claude-settings.ts"));
   const cli = options.cli ?? "claude";
-  const cliDir = options.cliHomeDir === undefined ? bin : join(home, options.cliHomeDir);
-  mkdirSync(cliDir, { recursive: true });
   writeSandboxFakeBin(bin, cli, options);
-  if (cliDir !== bin && cli !== "") {
-    writeFileSync(join(cliDir, cli), "#!/usr/bin/env bash\nexit 99\n", { mode: 0o755 });
-  }
-  const homeEnv = options.homeSymlink === true ? join(root, "home-link") : home;
-  if (homeEnv !== home) symlinkSync(home, homeEnv);
-  const pathPrefix =
-    homePathPrefix(homeEnv, options.pathHomeDirs ?? []) + (cliDir === bin ? "" : `${cliDir}:`);
-  const env: Record<string, string> = {
-    ...process.env,
-    HOME: homeEnv,
-    PATH: `${pathPrefix}${sandboxPath(bin, options)}`,
-    EVAL_SANDBOX_CLI: cli === "" ? "absent-cli" : cli,
-    FAKE_BWRAP_ARGS: capturedArgs,
-    XDG_RUNTIME_DIR: runtimeDir,
-    EVAL_SANDBOX_RUN_USER_DIR: runUserDir,
-    ...options.env,
-  };
-  if (options.vendor !== undefined) env.EVAL_SANDBOX_VENDOR = options.vendor;
-  else delete env.EVAL_SANDBOX_VENDOR;
-  delete env.CODEX_HOME;
+  const env = sandboxEnv({ root, home, bin, cli, runtimeDir, capturedArgs, probeArgs }, options);
   const result = spawnSync("/bin/bash", [copiedScript, ...args], {
     cwd: options.cwd ?? root,
     encoding: "utf8",
@@ -215,7 +248,15 @@ export function sandbox(args: string[], options: SandboxOptions = {}) {
     stdio: ["ignore", "pipe", "pipe"],
     timeout: CHILD_TIMEOUT_MS,
   });
-  return { result, bwrapArgs: readBwrapArgs(capturedArgs), home, root, runtimeDir, runUserDir };
+  return {
+    result,
+    bwrapArgs: readBwrapArgs(capturedArgs),
+    probeArgs: readBwrapArgs(probeArgs),
+    home,
+    root,
+    runtimeDir,
+    bin,
+  };
 }
 
 /** 許可リストの外に置く、認証情報に見立てた目印。 */

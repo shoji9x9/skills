@@ -12,6 +12,7 @@
 // | runtime dir                | 中身が在る（少ない・SIGPIPE が起きる量）/ 空 / 実在しない / XDG_RUNTIME_DIR と /run/user/<uid> が違う |
 // | エージェントのソケットの変数 | 外す / 外さない（スタブで --unsetenv を反映しない）            |
 // | CLI の実体                 | $HOME の外 / $HOME の下で許可リストの中 / $HOME の下で許可リストの外 |
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { allowedFiles, credentialFiles, sandbox } from "./eval-sandbox-helpers.ts";
@@ -162,64 +163,55 @@ describe("runtime dir と CLI の場所", () => {
   });
 
   test("XDG_RUNTIME_DIR が /run/user/<uid> と違っても、在る方をどちらも隠す", () => {
-    const { result, bwrapArgs, runtimeDir, runUserDir } = sandbox(["--version"], {
-      runtimeEntries: ["bus"],
-      runUserEntries: ["bus"],
-    });
+    const { result, bwrapArgs, runtimeDir } = sandbox(["--version"], { runtimeEntries: ["bus"] });
     expect(result.status, result.stderr).toBe(0);
     if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
     const tmpfs = flagValues(bwrapArgs, "--tmpfs");
     expect(tmpfs).toContain(runtimeDir);
-    expect(tmpfs).toContain(runUserDir);
+    const uid = process.getuid?.();
+    if (uid === undefined) throw new Error("uid を取得できない");
+    expect(tmpfs.includes(`/run/user/${uid}`)).toBe(existsSync(`/run/user/${uid}`));
   });
 
-  test.each([
-    ["許可リストの外（.nvm/bin）", ".nvm/bin", 3],
-    ["許可リストの中（.local/bin）", ".local/bin", 0],
-  ])("$HOME の下の CLI が%sなら、外のときだけ起動の前に止める", (_label, dir, status) => {
-    const { result, bwrapArgs } = sandbox(["--version"], { cliHomeDir: dir });
-    expect(result.status, result.stderr).toBe(status);
-    if (status === 3) {
-      expect(result.stderr).toMatch(/the CLI is hidden inside the sandbox/u);
-      expect(bwrapArgs).toBeNull();
-    } else {
-      expect(bwrapArgs).not.toBeNull();
-    }
-  });
-
-  test("$HOME がシンボリックリンクでも、解決した CLI のパスを $HOME の下として確かめる", () => {
-    const { result, bwrapArgs } = sandbox(["--version"], {
-      cliHomeDir: ".nvm/bin",
-      homeSymlink: true,
-    });
+  // 起動の前の確認。何が隠れるかは本物の bwrap のテストが測る。ここでは、確かめるパスの選び方と、
+  // 隠れると答えられたときに止まるかを確かめる（スタブは FAKE_BWRAP_HIDDEN に挙げたパスを隠れると答える）。
+  test("CLI が隠れると答えられたら、run を起動せずに止める", () => {
+    const { result, bwrapArgs, bin } = sandbox(["--version"], { hiddenCli: true });
     expect(result.status).toBe(3);
-    expect(result.stderr).toMatch(/the CLI is hidden inside the sandbox/u);
+    expect(result.stderr).toContain(
+      `the sandbox hides these, so the run would start without them: ${join(bin, "claude")}.`,
+    );
     expect(bwrapArgs).toBeNull();
   });
 
-  test.each([
-    ["sandbox で隠れる（.cargo/bin）", [{ dir: ".cargo/bin", exists: true }], 3],
-    [
-      "許可リストの中（.local/share/mise/shims）",
-      [{ dir: ".local/share/mise/shims", exists: true }],
-      0,
-    ],
-    ["実在しない（.cargo/bin）", [{ dir: ".cargo/bin", exists: false }], 0],
-  ])(
-    "PATH の $HOME の下のディレクトリが%sなら、隠れるときだけ起動の前に止める",
-    (_label, dirs, status) => {
-      const { result, bwrapArgs, home } = sandbox(["--version"], { pathHomeDirs: dirs });
-      expect(result.status, result.stderr).toBe(status);
-      if (status === 3) {
-        expect(result.stderr).toContain(
-          `PATH holds directories that the sandbox hides, so the run would miss their tools: ${join(home, ".cargo/bin")}.`,
-        );
-        expect(bwrapArgs).toBeNull();
-      } else {
-        expect(bwrapArgs).not.toBeNull();
-      }
-    },
-  );
+  test("PATH のディレクトリが隠れると答えられたら、run を起動せずに止める", () => {
+    const { result, bwrapArgs } = sandbox(["--version"], {
+      pathHomeDirs: [{ dir: ".cargo/bin", state: "tool" }],
+      hiddenPathHomeDirs: [".cargo/bin"],
+    });
+    expect(result.status).toBe(3);
+    expect(result.stderr).toMatch(
+      /the sandbox hides these, so the run would start without them: \S*\/\.cargo\/bin\./u,
+    );
+    expect(bwrapArgs).toBeNull();
+  });
+
+  test("確かめるのは CLI と、ホストで中身のある PATH のディレクトリだけで、空と無いディレクトリは確かめない", () => {
+    const { result, home, bin, probeArgs } = sandbox(["--version"], {
+      pathHomeDirs: [
+        { dir: "tool-dir", state: "tool" },
+        { dir: "empty-dir", state: "empty" },
+        { dir: "absent-dir", state: "absent" },
+      ],
+    });
+    expect(result.status, result.stderr).toBe(0);
+    if (probeArgs === null) throw new Error("確認の呼び出しが無い");
+    const probed = probeArgs.slice(probeArgs.indexOf("_") + 1).filter(Boolean);
+    expect(probed).toContain(join(bin, "claude"));
+    expect(probed).toContain(join(home, "tool-dir"));
+    expect(probed).not.toContain(join(home, "empty-dir"));
+    expect(probed).not.toContain(join(home, "absent-dir"));
+  });
 
   test("$HOME の下のリポジトリを隠すマウントは、$HOME の tmpfs が覆うので、stage 5 はそのパスも確かめる", () => {
     const { result, home } = sandbox(["--verify", "MARKER"], {

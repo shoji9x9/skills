@@ -52,7 +52,9 @@ self="$(readlink -f "$0")"
 # <repo>/scripts/eval/sandbox/eval-sandbox.sh -> <repo>
 repo="$(dirname "$(dirname "$(dirname "$(dirname "${self}")")")")"
 repo_parent="$(dirname "${repo}")"
-home="${HOME:?HOME must be set}"
+# Resolved: bwrap cannot mount a tmpfs onto a symlinked $HOME, and paths resolved with
+# readlink -f (the CLI) must be spelled the same way as the mount targets.
+home="$(realpath -m -- "${HOME:?HOME must be set}")"
 cli="${EVAL_SANDBOX_CLI:-claude}"
 vendor="${EVAL_SANDBOX_VENDOR:-}"
 if [ -z "${vendor}" ]; then
@@ -106,11 +108,13 @@ scratch_settings=""
 scratch_etc=""
 host_etc_mount=""
 home_lists=""
+probe_out=""
 # shellcheck disable=SC2329 # invoked by the EXIT trap below
 cleanup() {
 	rm -f -- "${scratch_state}"
 	[ -z "${scratch_settings}" ] || rm -f -- "${scratch_settings}"
 	[ -z "${home_lists}" ] || rm -rf -- "${home_lists}"
+	[ -z "${probe_out}" ] || rm -f -- "${probe_out}"
 	[ -z "${scratch_etc}" ] || rm -rf -- "${scratch_etc}"
 	[ -z "${host_etc_mount}" ] || rmdir -- "${host_etc_mount}" 2>/dev/null || true
 }
@@ -366,10 +370,8 @@ fi
 # is shared, so a bus that listens only on one stays reachable.
 # XDG_RUNTIME_DIR and /run/user/<uid> can differ (WSLg points the variable elsewhere
 # while the systemd user bus stays under /run/user), so both are hidden.
-# EVAL_SANDBOX_RUN_USER_DIR replaces /run/user/<uid> for the tests only, so that their
-# result does not depend on the runtime dir of the machine that runs them.
 runtime_dirs=()
-for d in "${XDG_RUNTIME_DIR:-}" "${EVAL_SANDBOX_RUN_USER_DIR:-/run/user/$(id -u)}"; do
+for d in "${XDG_RUNTIME_DIR:-}" "/run/user/$(id -u)"; do
 	[ -n "${d}" ] && [ -d "${d}" ] || continue
 	case " ${runtime_dirs[*]} " in *" ${d} "*) continue ;; esac
 	runtime_dirs+=("${d}")
@@ -381,34 +383,28 @@ args+=(--unsetenv DBUS_SESSION_BUS_ADDRESS --unsetenv SSH_AUTH_SOCK --unsetenv G
 args+=(--remount-ro "${home}")
 
 # What decides a path inside the sandbox is the LAST mount whose target is the path or
-# one of its parents (bwrap applies them in order). Print that mount as
-# "<flag> <target>"; the checks below (the CLI, PATH, --verify stage 5) all use it, so
-# a later tmpfs that covers an earlier bind is accounted for in one place.
+# one of its parents (bwrap applies them in order). The mounts are read from args once,
+# here; --verify stage 5 asks covering_mount which of its targets put a path back.
+mount_flags=()
+mount_targets=()
+for i in "${!args[@]}"; do
+	case "${args[i]}" in
+	--bind | --ro-bind | --dev-bind) mount_flags+=("${args[i]}") mount_targets+=("${args[i + 2]}") ;;
+	--tmpfs) mount_flags+=("${args[i]}") mount_targets+=("${args[i + 1]}") ;;
+	esac
+done
+# Print the index (into mount_flags / mount_targets) of the mount that decides $1.
 covering_mount() {
-	local p="$1" i dest found=""
-	for i in "${!args[@]}"; do
-		case "${args[i]}" in
-		--bind | --ro-bind | --dev-bind) dest="${args[i + 2]}" ;;
-		--tmpfs) dest="${args[i + 1]}" ;;
-		*) continue ;;
-		esac
-		if [ "${dest}" = / ]; then
-			found="${args[i]} ${dest}"
+	local p="$1" i t found=""
+	for i in "${!mount_targets[@]}"; do
+		t="${mount_targets[i]}"
+		if [ "${t}" = / ]; then
+			found="${i}"
 			continue
 		fi
-		case "${p}" in "${dest}" | "${dest}"/*) found="${args[i]} ${dest}" ;; esac
+		case "${p}" in "${t}" | "${t}"/*) found="${i}" ;; esac
 	done
 	printf '%s\n' "${found}"
-}
-# A path resolved on the host (readlink -f) may spell $HOME differently from the mount
-# targets (a symlinked $HOME); map it back onto ${home} before asking covering_mount.
-home_real="$(realpath -m -- "${home}")"
-as_home_path() {
-	case "$1" in
-	"${home}" | "${home}"/*) printf '%s\n' "$1" ;;
-	"${home_real}" | "${home_real}"/*) printf '%s\n' "${home}${1#"${home_real}"}" ;;
-	*) printf '%s\n' "$1" ;;
-	esac
 }
 
 if [ "${1:-}" = "--verify" ]; then
@@ -552,18 +548,14 @@ exit $rc'
 	: >"${home_lists}/shown"
 	: >"${home_lists}/hidden"
 	home_targets=()
-	for i in "${!args[@]}"; do
-		case "${args[i]}" in
-		--bind | --ro-bind) t="${args[i + 2]}" ;;
-		--tmpfs) t="${args[i + 1]}" ;;
-		*) continue ;;
-		esac
+	for i in "${!mount_targets[@]}"; do
+		t="${mount_targets[i]}"
 		case "${t}" in "${home}"/*) ;; *) continue ;; esac
 		# A mount that a later one covers (a work tree under $HOME, placed before the
 		# $HOME tmpfs) puts nothing back, so its path stays in "hidden".
-		[ "$(covering_mount "${t}")" = "${args[i]} ${t}" ] || continue
+		[ "$(covering_mount "${t}")" = "${i}" ] || continue
 		home_targets+=("${t}")
-		[ "${args[i]}" = --tmpfs ] || printf '%s\0' "${t}" >>"${home_lists}/shown"
+		[ "${mount_flags[i]}" = --tmpfs ] || printf '%s\0' "${t}" >>"${home_lists}/shown"
 	done
 	walk_home() {
 		local e t below
@@ -625,32 +617,38 @@ fi
 # CLI's arguments (`-p <prompt> --output-format json ...`), so the binary has to be
 # prepended here. EVAL_SANDBOX_CLI allows a stub for smoke tests.
 # Not `exec`: the EXIT trap has to survive the run to delete the throwaway state file.
-# A CLI installed under $HOME outside home_allow (e.g. a node version manager's dir) is
-# hidden by step 0, and bwrap would fail with a bare exec error; say what to change.
-# Both checks look at $HOME only, which step 0 hides as a whole; the other hidden roots
-# (/tmp, /mnt/c) are the run's own business and are not on a normal PATH.
-hidden_under_home() {
-	local p
-	p="$(as_home_path "$1")"
-	case "${p}" in "${home}"/*) ;; *) return 1 ;; esac
-	case "$(covering_mount "${p}")" in --tmpfs\ *) return 0 ;; esac
-	return 1
-}
-if hidden_under_home "${cli_real}"; then
-	echo "eval-sandbox: the CLI is hidden inside the sandbox (under \$HOME but outside the start-up allowlist): ${cli_real}. Add its directory to home_allow in ${self}." >&2
-	exit 3
-fi
-# The same for the tools on PATH. A hidden PATH directory does not stop the CLI from
-# starting; the run would only see "command not found" for its tools and finish with
-# rc=0, recording a degraded answer for both configurations. Stop before that instead.
-hidden_path_dirs=()
+# Ask the sandbox what it shows instead of predicting it from the mounts: a $HOME
+# reached through a symlink, a later tmpfs over an earlier bind and links inside the
+# allowlist each made a prediction wrong in review. One short bwrap call with the same
+# args looks at the CLI and at every PATH directory that has entries on the host.
+# A hidden CLI makes bwrap fail with a bare exec error. A hidden PATH directory does not
+# stop the CLI, so the run would see "command not found" for its tools, end with rc=0
+# and record a degraded answer for both configurations. Stop before either.
+probe=("${cli_real}")
 IFS=: read -r -a path_dirs <<<"${PATH}"
 for d in "${path_dirs[@]}"; do
-	[ -n "${d}" ] && [ -d "${d}" ] || continue
-	if hidden_under_home "$(realpath -m -- "${d}")"; then hidden_path_dirs+=("${d}"); fi
+	if [ -n "${d}" ] && [ -d "${d}" ] && [ -n "$(ls -A -- "${d}" 2>/dev/null)" ]; then probe+=("${d}"); fi
 done
-[ "${#hidden_path_dirs[@]}" -eq 0 ] || {
-	echo "eval-sandbox: PATH holds directories that the sandbox hides, so the run would miss their tools: ${hidden_path_dirs[*]}. Add them to home_allow in ${self}, or drop them from PATH." >&2
+probe_out="$(mktemp /tmp/eval-sandbox-probe-XXXXXX)"
+# shellcheck disable=SC2016 # deliberate: $p expands inside the sandboxed shell
+probe_script='for p; do if [ -f "$p" ] || [ -n "$(ls -A -- "$p" 2>/dev/null)" ]; then printf "%s\0" "$p"; fi; done'
+bwrap "${args[@]}" --setenv EVAL_SANDBOX_PROBE 1 --chdir / -- /bin/bash -c "${probe_script}" _ "${probe[@]}" \
+	>"${probe_out}" </dev/null || {
+	echo "eval-sandbox: the sandbox did not start for the start-up check of the CLI and PATH" >&2
+	exit 3
+}
+shown_paths=()
+while IFS= read -r -d '' p; do shown_paths+=("${p}"); done <"${probe_out}"
+hidden_paths=()
+for p in "${probe[@]}"; do
+	seen=""
+	for q in "${shown_paths[@]}"; do [ "${q}" != "${p}" ] || seen=1; done
+	[ -n "${seen}" ] || hidden_paths+=("${p}")
+done
+[ "${#hidden_paths[@]}" -eq 0 ] || {
+	echo "eval-sandbox: the sandbox hides these, so the run would start without them: ${hidden_paths[*]}." \
+		"Drop the PATH entries the run does not need. To keep one, bind it back in ${self} after the mount" \
+		"that covers it (home_allow for a plain path under \$HOME)." >&2
 	exit 3
 }
 rc=0

@@ -88,6 +88,6 @@
     "scripts/skills/spec-parity/strength-check.mutations.json": 0.73,
     "scripts/skills/_cross/source-version.mutations.json": 12,
     "scripts/skills/parity-suite/checks/component-comparison-check.mutations.json": 1.9,
-    "scripts/eval/sandbox/eval-sandbox-credentials.mutations.json": 10.9
+    "scripts/eval/sandbox/eval-sandbox-credentials.mutations.json": 9.3
   }
 }
