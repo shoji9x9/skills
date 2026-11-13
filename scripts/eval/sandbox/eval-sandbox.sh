@@ -246,7 +246,9 @@ list_runtime_dirs() { # fills runtime_dirs; a function, so its variables stay lo
 	local d
 	local -A seen_runtime_dirs=()
 	runtime_dirs=()
-	for d in "${XDG_RUNTIME_DIR:-}" "/run/user/$(id -u)"; do
+	# ${UID}, not $(id -u): a failed command substitution in a for list does not stop
+	# the run, and "/run/user/" would then stand for every user's runtime dir.
+	for d in "${XDG_RUNTIME_DIR:-}" "/run/user/${UID}"; do
 		[ -n "${d}" ] && [ -d "${d}" ] || continue
 		d="$(realpath -m -- "${d}")"
 		[ -z "${seen_runtime_dirs["${d}"]+present}" ] || continue

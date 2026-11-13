@@ -406,6 +406,26 @@
       "expect_failing": [
         "$HOME の外の設定の場所 XDG_RUNTIME_DIR が絶対パスでなければ、隠す場所として扱わず、run にも渡さない"
       ]
+    },
+    {
+      "id": "env-claude-token-dropped",
+      "why": "Claude Code の run に、CLAUDE_CODE_OAUTH_TOKEN を渡さない",
+      "file": "scripts/eval/sandbox/eval-sandbox.sh",
+      "find": "ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN ANTHROPIC_BASE_URL CLAUDE_CODE_OAUTH_TOKEN) ;;",
+      "replace": "ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN ANTHROPIC_BASE_URL) ;;",
+      "occurrences": 1,
+      "expect_failing": ["run に渡す環境変数 claude-code では、そのベンダーの API キーだけを渡す"]
+    },
+    {
+      "id": "env-xdg-name-dropped",
+      "why": "XDG_CACHE_HOME を許可リストから落とす",
+      "file": "scripts/eval/sandbox/eval-sandbox.sh",
+      "find": "TZ TMPDIR XDG_CONFIG_HOME XDG_DATA_HOME XDG_STATE_HOME XDG_CACHE_HOME XDG_RUNTIME_DIR\n",
+      "replace": "TZ TMPDIR XDG_CONFIG_HOME XDG_DATA_HOME XDG_STATE_HOME XDG_RUNTIME_DIR\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "run に渡す環境変数 許可リストの外は渡さず、許可リストの中は渡す（起動の前の確認と run の両方で）"
+      ]
     }
   ]
 }

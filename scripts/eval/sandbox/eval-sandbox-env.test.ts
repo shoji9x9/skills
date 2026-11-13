@@ -7,7 +7,7 @@
 // | 軸                         | 値                                                                  |
 // | -------------------------- | ------------------------------------------------------------------- |
 // | 許可リストの外の変数       | 認証情報（GH_TOKEN・AWS_*・BOX_*）/ 親のエージェントのトークンとソケット / 名前を挙げていない変数 / 名前が識別子でない変数・export した関数 |
-// | 許可リストの中の変数       | 起動の基本（PATH）/ 出力とロケール（LANG・LANGUAGE・ロケールの分類 13 個を名前で）/ ファイルの置き場所（TZ・TMPDIR）/ プロキシ（大文字・小文字）と証明書 / ハーネス / ベンダーの API キー |
+// | 許可リストの中の変数       | 起動の基本（PATH）/ 出力とロケール（LANG・LANGUAGE・LC_ALL とロケールの分類 12 個を名前で）/ ファイルの置き場所（TZ・TMPDIR）/ プロキシ（大文字・小文字）と証明書 / ハーネス / ベンダーの API キー |
 // | ベンダー                   | claude-code / codex（相手のベンダーのキーは渡さない）               |
 // | EVAL_SANDBOX_ENV_ALLOW     | 無い / 変数名（空白・改行で区切る） / 変数名でない値 / glob の文字  |
 // | 値の置き場所               | 環境だけ（bwrap の引数に載らない）                                  |
@@ -75,7 +75,25 @@ const shownNames = {
   SSL_CERT_FILE: "/nonexistent/cert.pem",
   SSL_CERT_DIR: "/nonexistent/certs",
   SHOJI9X9_SKILLS_IGNORE_USER_CONFIG: "1",
+  USER: "eval-user",
+  LOGNAME: "eval-user",
+  SHELL: "/bin/bash",
+  // 実在しない絶対パスにして、隠す場所としては扱われないようにする（扱いは「$HOME の外の設定の場所」のテスト）。
+  XDG_CONFIG_HOME: "/nonexistent/xdg-config",
+  XDG_DATA_HOME: "/nonexistent/xdg-data",
+  XDG_STATE_HOME: "/nonexistent/xdg-state",
+  XDG_CACHE_HOME: "/nonexistent/xdg-cache",
 };
+// テストの環境が必ず持つ、許可リストの中の変数（HOME・PATH・XDG_RUNTIME_DIR はヘルパーが入れ、PWD はシェルが入れる）。
+const alwaysShown = ["HOME", "PATH", "XDG_RUNTIME_DIR", "PWD"];
+const claudeKeys = [
+  "ANTHROPIC_API_KEY",
+  "ANTHROPIC_AUTH_TOKEN",
+  "ANTHROPIC_BASE_URL",
+  "CLAUDE_CODE_OAUTH_TOKEN",
+];
+// CODEX_HOME は、Codex の run では sandbox が自分で設定するので、ここでは Claude Code の run に渡らないことだけを確かめる。
+const codexKeys = ["OPENAI_API_KEY", "CODEX_API_KEY", "OPENAI_BASE_URL"];
 
 describe("run に渡す環境変数", () => {
   test("許可リストの外は渡さず、許可リストの中は渡す（起動の前の確認と run の両方で）", () => {
@@ -87,27 +105,29 @@ describe("run に渡す環境変数", () => {
     expect(envNames).toHaveLength(2);
     for (const names of envNames) {
       for (const name of Object.keys(hiddenNames)) expect(names).not.toContain(name);
-      for (const name of [...Object.keys(shownNames), "HOME", "PATH", "ANTHROPIC_API_KEY"]) {
+      for (const name of [...Object.keys(shownNames), ...alwaysShown, "ANTHROPIC_API_KEY"]) {
         expect(names).toContain(name);
       }
     }
   });
 
   test.each([
-    ["claude-code", "claude", ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"]],
-    ["codex", "codex", ["OPENAI_API_KEY", "ANTHROPIC_API_KEY"]],
+    ["claude-code", "claude", [claudeKeys, [...codexKeys, "CODEX_HOME"]]],
+    ["codex", "codex", [codexKeys, claudeKeys]],
   ] as const)("%s では、そのベンダーの API キーだけを渡す", (vendor, cli, [own, other]) => {
+    const keys = (names: readonly string[], value: string) =>
+      Object.fromEntries(names.map((name) => [name, value]));
     const { result, envNames } = sandbox(["--version"], {
       cli,
       vendor,
       homeFiles: { ".codex/auth.json": "{}\n" },
-      env: { [own]: "dummy-own", [other]: "dummy-other", EVAL_SANDBOX_NET: "off" },
+      env: { ...keys(own, "dummy-own"), ...keys(other, "dummy-other"), EVAL_SANDBOX_NET: "off" },
     });
     expect(result.status, result.stderr).toBe(0);
     expect(envNames.length).toBeGreaterThan(0);
     for (const names of envNames) {
-      expect(names).toContain(own);
-      expect(names).not.toContain(other);
+      for (const name of own) expect(names).toContain(name);
+      for (const name of other) expect(names).not.toContain(name);
     }
   });
 
