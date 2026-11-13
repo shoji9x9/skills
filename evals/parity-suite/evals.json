@@ -591,9 +591,39 @@
         "unmeasured 0 を「新側で操作を完了できる」の根拠にしていない",
         "新側で同じ操作を実施した記録を別の成果物（new/<target>/component-comparison.json）に持たせ、present のセル 1 つにつき 1 行を要求すると答えている",
         "突き合わせの証拠を起点・当たり判定・完了の 3 点に分けると答え、3 点が揃うまで突き合わせ済みにしないと述べている",
-        "ケースの文面（エクスポート・列のソート）には出てこない欠落であることに触れ、ケース一覧の網羅では拾えないと説明している",
+        "機能は在るが操作を最後まで完了できない欠落は、試験仕様書のケースを網羅しても見つからないと説明している",
         "新側で突き合わせていないことを理由に present を unmeasured へ落とさないと答えている",
         "新側の突き合わせを書くのは parity-replace だと示し、component-comparison-check.mjs で数え直すと述べている"
+      ],
+      "reachability": [
+        {
+          "assertion": "網羅表の 3 値が移行元側の測定であり、present をいくら積んでも新側の欠落は 1 件も示さないと答えている",
+          "prompt_quote": "移行元で在席・活性・呼ばれる関数の実体まで読んだケースを present にしてある"
+        },
+        {
+          "assertion": "unmeasured 0 を「新側で操作を完了できる」の根拠にしていない",
+          "prompt_quote": "unmeasured は 0 件で、coverage-expand.mjs も exit 0"
+        },
+        {
+          "assertion": "新側で同じ操作を実施した記録を別の成果物（new/<target>/component-comparison.json）に持たせ、present のセル 1 つにつき 1 行を要求すると答えている",
+          "prompt_quote": "新側の実装は終わってスイートも green。この状態をどう評価する？"
+        },
+        {
+          "assertion": "突き合わせの証拠を起点・当たり判定・完了の 3 点に分けると答え、3 点が揃うまで突き合わせ済みにしないと述べている",
+          "prompt_quote": "足りないものがあれば教えて"
+        },
+        {
+          "assertion": "機能は在るが操作を最後まで完了できない欠落は、試験仕様書のケースを網羅しても見つからないと説明している",
+          "prompt_quote": "ベンダーの試験仕様書（6 分類 24 ケース）から項目を起こして"
+        },
+        {
+          "assertion": "新側で突き合わせていないことを理由に present を unmeasured へ落とさないと答えている",
+          "prompt_quote": "新側でまだ確かめていないセルは、網羅表の値を unmeasured に戻しておけばいい？"
+        },
+        {
+          "assertion": "新側の突き合わせを書くのは parity-replace だと示し、component-comparison-check.mjs で数え直すと述べている",
+          "prompt_quote": "新側の実装は終わってスイートも green"
+        }
       ]
     },
     {
