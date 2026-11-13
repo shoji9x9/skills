@@ -125,10 +125,15 @@ curl -sSf "https://api.box.com/2.0/files/<file-id>?fields=id,name,size,extension
 ```bash
 BOX_DOWNLOAD="$(mktemp)"
 trap 'rm -f "$BOX_AUTH" "$BOX_DOWNLOAD"' EXIT
-curl -fL "https://api.box.com/2.0/files/<file-id>/content" \
-  -H @"$BOX_AUTH" -o "$BOX_DOWNLOAD" &&
-  wc -c <"$BOX_DOWNLOAD"   # 中身を読む処理（この例はバイト数の確認）は && でつなぎ、curl が失敗したら空の一時ファイルを読まない
+if curl -fL "https://api.box.com/2.0/files/<file-id>/content" \
+  -H @"$BOX_AUTH" -o "$BOX_DOWNLOAD"; then
+  wc -c <"$BOX_DOWNLOAD"   # 中身を読む処理（この例はバイト数の確認）
+else
+  echo "box: ダウンロードに失敗した" >&2
+fi
 ```
+
+中身を読む処理は `then` の中に書く。curl が失敗したときに、空の一時ファイルを読まないためである。
 
 `BOX_DOWNLOAD` は、シェルが終わるときに消える。中身は、認証の例と同じく、ダウンロードと同じシェルの中で読む。
 ファイルを残すなら、`-o` に利用者が指定した保存先のパスを渡す。
@@ -149,28 +154,30 @@ curl -sSf -G "https://api.box.com/2.0/search" \
 ### アップロード（新規ファイル）
 
 アップロードするファイルは、利用者が指定したパスで渡す。`/tmp/report.txt` のように名前を決めて `/tmp` に置くファイルは、他のユーザーが同じ名前で先に置けるので使わない。
-パスは、単引用符で囲んだ絶対パスで変数に入れる。シェルは単引用符の中の `$` やバッククォートを展開しないが、`~` も展開しない。
-パスに単引用符を含むときは、その単引用符を `'\''` と書く。パスに二重引用符を含むファイルは、curl が正しく読めないので、含まない名前にしてから渡す。
-Box に置くときのファイル名は、パスの最後の部分を使う。別の名前にするなら、`UPLOAD_NAME` に同じ書き方で入れる。
+パスは単引用符で囲んで変数に入れる。シェルは単引用符の中の `$` やバッククォートを展開しない。`~` も展開しないので、ホームの下のファイルは `/home/<ユーザー>/...` のように書く。
+パスに単引用符を含むときは、その単引用符を `'\''` と書く。
+Box に置くときのファイル名は、パスの最後の部分（`basename`）を使う。別の名前にするときと、Windows の形のパス（`C:\Users\...`。`basename` が区切れない）のときは、`UPLOAD_NAME='<Box に置くファイル名>'` と書く。
 `attributes` は `jq` で組み立てて名前をエスケープし、`--form-string` で送る。`-F` で送ると、curl が名前の中の `;` を区切りとして読み、JSON が途中で切れる。
-ファイルは `-F` の `@` の後のパスを二重引用符で囲んで送るので、curl はパスの中の `;` を区切りとして読まない。
+ファイルは、`-F` の `@` の後に、二重引用符で囲んだパスを書いて送る。curl は引用符の中の `\` と `"` を特別に読むので、この 2 つを `\` でエスケープしてから渡す。
 
 ```bash
-UPLOAD_FILE='<アップロードするファイルの絶対パス>'
+UPLOAD_FILE='<アップロードするファイルのパス>'
 UPLOAD_NAME="$(basename -- "$UPLOAD_FILE")"
+UPLOAD_PATH="${UPLOAD_FILE//\\/\\\\}"; UPLOAD_PATH="${UPLOAD_PATH//\"/\\\"}"   # curl の引用符の中で読む形にする
 curl -sSf -X POST "https://upload.box.com/api/2.0/files/content" \
   -H @"$BOX_AUTH" \
   --form-string "attributes=$(jq -cn --arg name "$UPLOAD_NAME" --arg parent "$FOLDER" '{name: $name, parent: {id: $parent}}')" \
-  -F "file=@\"$UPLOAD_FILE\"" | jq '.entries[0] | {id, name, size}'
+  -F "file=@\"$UPLOAD_PATH\"" | jq '.entries[0] | {id, name, size}'
 ```
 
 ### 新しいバージョンのアップロード（既存のファイルの更新）
 
 ```bash
-UPLOAD_FILE='<アップロードするファイルの絶対パス>'
+UPLOAD_FILE='<アップロードするファイルのパス>'
+UPLOAD_PATH="${UPLOAD_FILE//\\/\\\\}"; UPLOAD_PATH="${UPLOAD_PATH//\"/\\\"}"
 curl -sSf -X POST "https://upload.box.com/api/2.0/files/<file-id>/content" \
   -H @"$BOX_AUTH" \
-  -F "file=@\"$UPLOAD_FILE\"" | jq '.entries[0] | {id, name, modified_at}'
+  -F "file=@\"$UPLOAD_PATH\"" | jq '.entries[0] | {id, name, modified_at}'
 ```
 
 ## 注意
