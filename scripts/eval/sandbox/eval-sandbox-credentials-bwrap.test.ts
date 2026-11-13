@@ -172,7 +172,8 @@ describe.skipIf(outsideTmp === null)(
       const result = startWithCli(home, {
         cliDir: ".local/bin",
         path: [join(home, ".cargo/bin")],
-        body: 'if [ -e "$HOME/.cargo/bin/tool" ]; then echo "TOOL VISIBLE"; else echo "tool hidden"; fi\n',
+        // sandbox の中の $HOME に頼らず、目印の絶対パスで確かめる。
+        body: `if [ -e ${JSON.stringify(join(home, ".cargo/bin/tool"))} ]; then echo "TOOL VISIBLE"; else echo "tool hidden"; fi\n`,
       });
       expect(result.status, result.stderr).toBe(0);
       expect(result.stdout).toBe("tool hidden\nSTARTED\n");
