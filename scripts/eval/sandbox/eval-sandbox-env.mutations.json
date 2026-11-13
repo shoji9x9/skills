@@ -122,7 +122,8 @@
         "$HOME の外の設定の場所 XDG_CONFIG_HOME が / として $HOME を含むなら、隠せないので bwrap を起動せずに止める",
         "$HOME の外の設定の場所 XDG の場所が runtime dir の下にあるなら、どちらかの tmpfs が他方を覆うので bwrap を起動せずに止める",
         "$HOME の外の設定の場所 XDG の場所が runtime dir を含むなら、どちらかの tmpfs が他方を覆うので bwrap を起動せずに止める",
-        "$HOME の外の設定の場所 空白を含むパスの後ろの部分が別の場所と同じ字面でも、別の場所として両方を隠す"
+        "$HOME の外の設定の場所 空白を含むパスの後ろの部分が別の場所と同じ字面でも、別の場所として両方を隠す",
+        "$HOME の外の設定の場所 runtime dir がシンボリックリンクでも、実際のパスで比べ、その中の XDG の場所を止める"
       ]
     },
     {
@@ -289,7 +290,8 @@
       "replace": "\t\t\tcase \"${r}/\" in \"/nonexistent-${d}/\"*)\n",
       "occurrences": 1,
       "expect_failing": [
-        "$HOME の外の設定の場所 XDG の場所が runtime dir の下にあるなら、どちらかの tmpfs が他方を覆うので bwrap を起動せずに止める"
+        "$HOME の外の設定の場所 XDG の場所が runtime dir の下にあるなら、どちらかの tmpfs が他方を覆うので bwrap を起動せずに止める",
+        "$HOME の外の設定の場所 runtime dir がシンボリックリンクでも、実際のパスで比べ、その中の XDG の場所を止める"
       ]
     },
     {
@@ -337,6 +339,17 @@
       "occurrences": 1,
       "expect_failing": [
         "$HOME の外の設定の場所 XDG_CONFIG_HOME が絶対パスでなければ、隠す場所として扱わず、run にも渡さない"
+      ]
+    },
+    {
+      "id": "runtime-dir-unresolved",
+      "why": "runtime dir をパスとして解決せずに、解決した XDG の場所と比べる",
+      "file": "scripts/eval/sandbox/eval-sandbox.sh",
+      "find": "\td=\"$(realpath -m -- \"${d}\")\"\n\t[ -z \"${seen_runtime_dirs[\"${d}\"]+present}\" ] || continue\n",
+      "replace": "\t[ -z \"${seen_runtime_dirs[\"${d}\"]+present}\" ] || continue\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "$HOME の外の設定の場所 runtime dir がシンボリックリンクでも、実際のパスで比べ、その中の XDG の場所を止める"
       ]
     }
   ]

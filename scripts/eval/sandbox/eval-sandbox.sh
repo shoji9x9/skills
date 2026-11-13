@@ -227,11 +227,14 @@ done
 # XDG_RUNTIME_DIR and /run/user/<uid> can differ (WSLg points the variable elsewhere
 # while the systemd user bus stays under /run/user), so both are hidden.
 # They are listed here because the roots below must not hold one or lie inside one;
-# the tmpfs over each of them is added after the /etc binds.
+# the tmpfs over each of them is added after the /etc binds. Each is resolved first, so
+# a symlinked runtime dir (or one spelled with a trailing /) compares with the resolved
+# roots, and bwrap mounts the tmpfs on the real directory.
 runtime_dirs=()
 declare -A seen_runtime_dirs=()
 for d in "${XDG_RUNTIME_DIR:-}" "/run/user/$(id -u)"; do
 	[ -n "${d}" ] && [ -d "${d}" ] || continue
+	d="$(realpath -m -- "${d}")"
 	[ -z "${seen_runtime_dirs["${d}"]+present}" ] || continue
 	seen_runtime_dirs["${d}"]=1
 	runtime_dirs+=("${d}")
@@ -497,7 +500,12 @@ fi
 [ -n "${scratch_etc}" ] && args+=(--ro-bind /etc "${host_etc_mount}" --ro-bind "${scratch_etc}" /etc)
 
 # The runtime dirs listed with the comment above $HOME's allowlist, each hidden by a
-# writable empty tmpfs.
+# writable empty tmpfs. This is the position #1010 gave it, kept on purpose (decided on
+# PR #1013): after the $HOME tmpfs, so a runtime dir under $HOME is still an empty dir
+# the tools can write to, and after the roots, which add_root has already refused
+# whenever one holds a runtime dir or lies inside one, so the two never cover each
+# other. A runtime dir that holds $HOME, /tmp or the /etc mirror is not refused here
+# and its tmpfs covers them; that case is handled outside this change.
 for d in "${runtime_dirs[@]}"; do args+=(--tmpfs "${d}"); done
 
 # Last mount under $HOME is above; from here on $HOME is read-only (step 0).

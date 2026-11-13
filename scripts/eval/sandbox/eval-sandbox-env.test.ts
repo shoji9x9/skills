@@ -344,6 +344,21 @@ describe("$HOME の外の設定の場所", () => {
       expect(bwrapArgs).toBeNull();
     },
   );
+
+  test("runtime dir がシンボリックリンクでも、実際のパスで比べ、その中の XDG の場所を止める", () => {
+    const { result, bwrapArgs } = sandbox(["--version"], {
+      setup: (paths) => {
+        const real = join(paths.root, "runtime-real");
+        writeHomeFiles(real, { bus: "", "cache/mise/marker": "MARKER\n" });
+        const link = join(paths.root, "runtime-link");
+        symlinkSync(real, link);
+        return { env: { XDG_RUNTIME_DIR: link, XDG_CACHE_HOME: join(real, "cache") }, cwd: "/" };
+      },
+    });
+    expect(result.status).toBe(3);
+    expect(result.stderr).toContain("lies inside the runtime dir");
+    expect(bwrapArgs).toBeNull();
+  });
 });
 
 describe("--verify の stage 5 と、$HOME の外の場所", () => {
