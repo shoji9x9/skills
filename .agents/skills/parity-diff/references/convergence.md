@@ -259,18 +259,9 @@
        - `dataset_version` を読めないもの、今のバージョンより新しいもの、区間の `changes[].affects` に `*` があるもの、`changes` の履歴が不正なもの
        - `runtime_errors.new_signatures[]` の許容と環境ノイズのうち、同じ値の承認が `approvals[]` に積まれていないもの（照合の鍵と書き方は [`triage.md`](triage.md)「承認の記録（`approvals`）」。新側のバージョンは照合しない）。
          `approvals` をキーごと持たない記録は、承認が 0 件として読む。
-         照合するのは、現側の `metadata.json` が `runtime_errors.declared: true` で、`diff-metadata.json` に `judged: true` の比較の結果があるときだけである。
-         照合せずに通すのは、現側が `runtime_errors` をキーごと持たない（操作中のエラーを記録する前の成果物）ときと、
-         `diff-metadata.json` の `mode` が `api-resource` か `batch`（雛形が `runtime_errors` を省く）ときと、
-         現側が `declared: false` と理由の組で、`diff-metadata.json` に `judged: false` と理由があるときだけである。
-         それ以外の組み合わせは、記録が現側の宣言と合わないとして、下の `[runtime-errors]` の所見にする
-
-    操作中のエラーの所見は、行の先頭の `warn:` の後に接頭辞を付けて出す。戻す先は、所見を出したほかのチェックと違い、この接頭辞で決める（この表が原本）。
-
-    | 接頭辞 | 所見 | 直し方 |
-    | --- | --- | --- |
-    | `[approval]` | 許容と環境ノイズの承認が `approvals[]` に無い | `parity-suite` へも `parity-replace` へも戻さない。利用者に承認し直してもらって `approvals` に追記する |
-    | `[runtime-errors]` | `diff-metadata.json` の操作中のエラーの記録が、現側の宣言と合わない（所見に両方の値と、次の直し方を出す） | `parity-replace` へは戻さない。現側が `declared: true` なら、このスキルの中で `runtime-errors.mjs compare --write` を通し直す。`declared: false` と理由の組なら、`judged: false` と理由を書く。現側の宣言がどちらでもない（雛形の値のまま・理由が無いなど）なら、`parity-suite` で基準を採り直すか `declared: false` と理由を書いてもらう |
+         `diff-metadata.json` に `judged: true` の比較の結果が無い記録は照合せず、注記に残す。現側の `metadata.json` の宣言とは突き合わせない。
+         現側が `declared: true` なのに比較の結果が無い記録は、下の「操作中のエラーの比較」の条件（`runtime-errors.mjs compare` が exit 0）で止める。
+         この所見は `warn: [approval]` で始まる。`parity-suite` へも `parity-replace` へも戻さず、利用者に承認し直してもらって `approvals` に追記する
 
     対応づけをバージョンだけに任せない。データセットを変えずに `parity-replace` が実装を作り直すと、前の反復で収束した `diff-metadata.json` が `dataset_version` の一致だけでこのチェックを満たす。
     差分を採り直していないのに、「済んだ」ように見えてしまう。そのため、両方の成果物が持つ識別子（新側の `new.tree` と反復の回数）で結び付ける。
@@ -288,7 +279,7 @@
     実際に参照するテーブルの導き方は `golden-dataset` の側の取り決めなので、このスクリプトは同じ実装をもう 1 つ作らない。重なりを見るまでもなく確定する形だけを失敗にする（重なりの判定は preflight が行う）。
     投入対象でない target（`db` を持たない、または `seedable` の無い読み取り専用のもの）は、`dataset_version: null` にして `dataset_version_exempt` に理由を書き、免除する
     （[`preflight.md`](preflight.md) で定義する）。この免除は正規の記録なので、失敗にしない。
-    `converged` が偽でも失敗にしない。偽は「まだ直っていない」という記録で、隠すものではない。失敗にするのは「無い」と「古い」と、操作中のエラーの記録の不備（上の接頭辞の表の 2 つの所見）だけである。
+    `converged` が偽でも失敗にしない。偽は「まだ直っていない」という記録で、隠すものではない。失敗にするのは「無い」と「古い」と、承認の記録（`approvals`）の無い操作中のエラーの許容と環境ノイズ（`warn: [approval]` の所見）だけである。
 
     `--stage diff` はデフォルトなので省いてもよいが、明示する。`parity-suite` は自分の完了の判定を `--stage suite` で通している（`blocking` は向こうが書く出力なので、失敗にしない）。
     どちらの工程のチェックかを読み手が取り違えると、収束判定で `suite` を渡して、未測定を通してしまう。

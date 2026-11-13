@@ -442,8 +442,8 @@ export function judgeClassification(c) {
 }
 
 /**
- * 現側の metadata.json の runtime_errors の宣言を読む。収束の判定（spec-parity の convergence-check.mjs と
- * parity-suite の artifact-health-check.mjs）が同じ読み方で判定するために、ここで定義する。
+ * 現側の metadata.json の runtime_errors の宣言を読む。spec-parity の収束の判定（convergence-check.mjs）が、
+ * 比較の結果を読むこのスクリプトと同じ読み方で宣言を判定するために、ここで定義する。
  * declared は declared: true、exempt は declared: false と理由（雛形のプレースホルダでない値）の組、absent はキーごと無い記録である。
  * それ以外（オブジェクトでない・declared が雛形の値のまま・真偽値でない・理由の無い declared: false）は invalid にする。
  * @param {unknown} re - metadata.json の runtime_errors

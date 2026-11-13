@@ -227,92 +227,21 @@ test("--target を渡さなければ工程の節ごと判定しない（承認�
 const TEMPLATE_RUNTIME_ERRORS = parseJsonAs<{ runtime_errors: unknown }>(
   readFileSync(join(repoRoot, "skills/parity-suite/assets/metadata-template.json"), "utf8"),
 ).runtime_errors;
-const EXEMPT = { declared: false, reason: "現側で記録しなかった" };
-const NOT_JUDGED = { runtime_errors: { judged: false, reason: "現側で記録しなかった" } };
-const TAGGED =
-  /warn: \[runtime-errors\] diff-metadata\.json の runtime_errors（judged: .*）が、現側の metadata\.json の宣言（.*）と合わない/;
 
-// 現側の宣言（runtimeErrorsDeclaration）× diff-metadata.json の比較の記録。照合するか、注記で通すか、[runtime-errors] の所見にするか
+// judged: true の比較の結果が無い記録は、現側の宣言に関わらず照合せず注記で通す（利用者の決定。PR #1009 の案 B）。
+// 現側が declared: true なのに比較の結果を消した記録も通る。これは検出しない範囲で、parity-diff の収束の条件（compare が exit 0）が止める
 test.each([
-  ["declared: true で比較の結果が無い", { declared: true }, {}],
-  ["declared: true で judged: false", { declared: true }, NOT_JUDGED],
-  ["declared: false と理由の組で runtime_errors が無い", EXEMPT, {}],
+  ["declared: true で比較の結果が無い（検出しない範囲）", { declared: true }, {}],
   [
-    "declared: false と理由の組で judged: false に理由が無い",
-    EXEMPT,
-    { runtime_errors: { judged: false } },
+    "declared: false と理由の組で judged: false",
+    { declared: false, reason: "現側で記録しなかった" },
+    { runtime_errors: { judged: false, reason: "現側で記録しなかった" } },
   ],
-  [
-    "declared: false と理由の組で judged: false の理由が雛形の値のまま",
-    EXEMPT,
-    { runtime_errors: { judged: false, reason: "<理由>" } },
-  ],
-  [
-    "declared: false と理由の組で judged が雛形の値のまま",
-    EXEMPT,
-    { runtime_errors: { judged: "<true | false>", reason: "現側で記録しなかった" } },
-  ],
-  [
-    "declared: false と理由の組で judged が文字列の false",
-    EXEMPT,
-    { runtime_errors: { judged: "false", reason: "現側で記録しなかった" } },
-  ],
-  ["declared: false と理由の組なのに比較の結果がある", EXEMPT, { runtime_errors: compared([]) }],
   ["雛形の値のままで比較の結果が無い", TEMPLATE_RUNTIME_ERRORS, {}],
-  [
-    "雛形の値のままなのに比較の結果がある",
-    TEMPLATE_RUNTIME_ERRORS,
-    { runtime_errors: compared([]) },
-  ],
-  ["declared が真偽値でない", { declared: "yes" }, {}],
-  ["declared: false に理由が無い", { declared: false }, NOT_JUDGED],
-  ["declared: false の理由が雛形の値のまま", { declared: false, reason: "<理由>" }, NOT_JUDGED],
-  ["runtime_errors がオブジェクトでない", "declared", {}],
-])(
-  "現側の metadata.json の %s なら、記録が宣言と合わないとして [runtime-errors] の所見にする",
-  (_name, current, extra) => {
-    const r = judge(extra, current);
-    expect(r.stdout).toMatch(TAGGED);
-    expect(r.stdout).not.toMatch(/操作中のエラーの承認を照合しない/);
-    expect(r.status).toBe(1);
-  },
-);
-
-test("誤検知しないことの確認: 現側の metadata.json が declared: false と理由の組で、diff-metadata.json が judged: false と理由なら通す", () => {
-  const r = judge(NOT_JUDGED, EXEMPT);
-  expect(r.stdout).toMatch(
-    /runtime_errors\.declared: false のため、操作中のエラーの承認を照合しない/,
-  );
-  expect(r.status).toBe(0);
-});
-
-test("所見に、現側の宣言の値を残す（どの不備かを読めるようにする）", () => {
-  const r = judge({}, { declared: false, reason: "<理由>" });
-  expect(r.stdout).toContain('declared: false・reason: "<理由>"');
-});
-
-test.each([
-  [
-    "現側の metadata.json が runtime_errors を持たないのに、比較の結果がある",
-    NO_CURRENT,
-    { runtime_errors: compared([]) },
-  ],
-  [
-    "mode が api-resource（雛形が runtime_errors を省く）",
-    TEMPLATE_RUNTIME_ERRORS,
-    { mode: "api-resource" },
-  ],
-  ["mode が batch（雛形が runtime_errors を省く）", { declared: false }, { mode: "batch" }],
-])("誤検知しないことの確認: %s なら、照合せずに注記で通す", (_name, current, extra) => {
+  ["judged が雛形の値のまま", { declared: true }, { runtime_errors: { judged: "<true | false>" } }],
+])("現側の metadata.json が %s なら、照合せずに注記で通す", (_name, current, extra) => {
   const r = judge(extra, current);
-  expect(r.stdout).toMatch(/操作中のエラーの承認を照合しない/);
+  expect(r.stdout).toMatch(/judged: true の比較の結果が無いため、操作中のエラーの承認を照合しない/);
+  expect(r.stdout).not.toMatch(APPROVAL_FINDING);
   expect(r.status).toBe(0);
-});
-
-test.each([
-  ["declared: true", { declared: true }, "runtime-errors.mjs compare --write を通し直す"],
-  ["declared: false と理由の組", EXEMPT, "judged: false と reason を書く"],
-  ["宣言の不備", { declared: false }, "parity-suite で基準を採り直す"],
-])("[runtime-errors] の所見に、現側の宣言が %s のときの直し方を添える", (_name, current, fix) => {
-  expect(judge({}, current).stdout).toContain(fix);
 });

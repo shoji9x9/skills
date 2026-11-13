@@ -39,143 +39,24 @@
         "現側の metadata.json が runtime_errors を持たない成果物で、runtime_errors が無い（操作中のエラーを比べる前の成果物） なら照合せず、理由を注記に残す",
         "現側の metadata.json が runtime_errors を持たない成果物で、runtime_errors.judged が false（declared: false） なら照合せず、理由を注記に残す",
         "現側の metadata.json が runtime_errors を持たない成果物で、runtime_errors.judged が雛形のプレースホルダのまま なら照合せず、理由を注記に残す",
-        "現側の metadata.json の declared: true で比較の結果が無い なら、記録が宣言と合わないとして [runtime-errors] の所見にする",
-        "現側の metadata.json の declared: true で judged: false なら、記録が宣言と合わないとして [runtime-errors] の所見にする",
-        "現側の metadata.json の declared: false と理由の組で runtime_errors が無い なら、記録が宣言と合わないとして [runtime-errors] の所見にする",
-        "現側の metadata.json の declared: false と理由の組で judged: false に理由が無い なら、記録が宣言と合わないとして [runtime-errors] の所見にする",
-        "現側の metadata.json の declared: false と理由の組で judged: false の理由が雛形の値のまま なら、記録が宣言と合わないとして [runtime-errors] の所見にする",
-        "現側の metadata.json の declared: false と理由の組で judged が雛形の値のまま なら、記録が宣言と合わないとして [runtime-errors] の所見にする",
-        "現側の metadata.json の declared: false と理由の組で judged が文字列の false なら、記録が宣言と合わないとして [runtime-errors] の所見にする",
-        "現側の metadata.json の declared: false と理由の組なのに比較の結果がある なら、記録が宣言と合わないとして [runtime-errors] の所見にする",
-        "現側の metadata.json の 雛形の値のままで比較の結果が無い なら、記録が宣言と合わないとして [runtime-errors] の所見にする",
-        "現側の metadata.json の 雛形の値のままなのに比較の結果がある なら、記録が宣言と合わないとして [runtime-errors] の所見にする",
-        "現側の metadata.json の declared が真偽値でない なら、記録が宣言と合わないとして [runtime-errors] の所見にする",
-        "現側の metadata.json の declared: false に理由が無い なら、記録が宣言と合わないとして [runtime-errors] の所見にする",
-        "現側の metadata.json の declared: false の理由が雛形の値のまま なら、記録が宣言と合わないとして [runtime-errors] の所見にする",
-        "現側の metadata.json の runtime_errors がオブジェクトでない なら、記録が宣言と合わないとして [runtime-errors] の所見にする",
-        "誤検知しないことの確認: 現側の metadata.json が declared: false と理由の組で、diff-metadata.json が judged: false と理由なら通す",
-        "所見に、現側の宣言の値を残す（どの不備かを読めるようにする）",
-        "誤検知しないことの確認: 現側の metadata.json が runtime_errors を持たないのに、比較の結果がある なら、照合せずに注記で通す",
-        "誤検知しないことの確認: mode が api-resource（雛形が runtime_errors を省く） なら、照合せずに注記で通す",
-        "誤検知しないことの確認: mode が batch（雛形が runtime_errors を省く） なら、照合せずに注記で通す",
-        "[runtime-errors] の所見に、現側の宣言が declared: true のときの直し方を添える",
-        "[runtime-errors] の所見に、現側の宣言が declared: false と理由の組 のときの直し方を添える",
-        "[runtime-errors] の所見に、現側の宣言が 宣言の不備 のときの直し方を添える"
+        "現側の metadata.json が declared: true で比較の結果が無い（検出しない範囲） なら、照合せずに注記で通す",
+        "現側の metadata.json が declared: false と理由の組で judged: false なら、照合せずに注記で通す",
+        "現側の metadata.json が 雛形の値のままで比較の結果が無い なら、照合せずに注記で通す",
+        "現側の metadata.json が judged が雛形の値のまま なら、照合せずに注記で通す"
       ]
     },
     {
-      "id": "ahc-rt-declared-only",
-      "why": "現側の宣言を確かめず、judged: true の比較の結果を照合する",
+      "id": "ahc-rt-judged-only",
+      "why": "judged: true でない記録（judged: false・雛形の値のまま）も照合する",
       "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
-      "find": "  if (isPlainObject(re) && judged === true && declaration === \"declared\") return re;\n",
-      "replace": "  if (isPlainObject(re) && judged === true) return re;\n",
+      "find": "  if (isPlainObject(re) && re.judged === true) return re;\n",
+      "replace": "  if (isPlainObject(re)) return re;\n",
       "occurrences": 1,
       "expect_failing": [
-        "現側の metadata.json の declared: false と理由の組なのに比較の結果がある なら、記録が宣言と合わないとして [runtime-errors] の所見にする",
-        "現側の metadata.json の 雛形の値のままなのに比較の結果がある なら、記録が宣言と合わないとして [runtime-errors] の所見にする",
-        "誤検知しないことの確認: 現側の metadata.json が runtime_errors を持たないのに、比較の結果がある なら、照合せずに注記で通す"
-      ]
-    },
-    {
-      "id": "ahc-rt-absent",
-      "why": "現側が runtime_errors を持たない成果物と、runtime_errors を省く mode を、注記で通さない",
-      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
-      "find": "  if (declaration === \"absent\" || NO_RUNTIME_ERRORS_MODES.includes(String(diffMeta.mode))) {\n",
-      "replace": "  if (false) {\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "現側の metadata.json が runtime_errors を持たない成果物で、runtime_errors が無い（操作中のエラーを比べる前の成果物） なら照合せず、理由を注記に残す",
         "現側の metadata.json が runtime_errors を持たない成果物で、runtime_errors.judged が false（declared: false） なら照合せず、理由を注記に残す",
         "現側の metadata.json が runtime_errors を持たない成果物で、runtime_errors.judged が雛形のプレースホルダのまま なら照合せず、理由を注記に残す",
-        "誤検知しないことの確認: 現側の metadata.json が runtime_errors を持たないのに、比較の結果がある なら、照合せずに注記で通す",
-        "誤検知しないことの確認: mode が api-resource（雛形が runtime_errors を省く） なら、照合せずに注記で通す",
-        "誤検知しないことの確認: mode が batch（雛形が runtime_errors を省く） なら、照合せずに注記で通す"
-      ]
-    },
-    {
-      "id": "ahc-rt-mode",
-      "why": "runtime_errors を省く mode（api-resource・batch）を、注記で通さない",
-      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
-      "find": "  if (declaration === \"absent\" || NO_RUNTIME_ERRORS_MODES.includes(String(diffMeta.mode))) {\n",
-      "replace": "  if (declaration === \"absent\") {\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "誤検知しないことの確認: mode が api-resource（雛形が runtime_errors を省く） なら、照合せずに注記で通す",
-        "誤検知しないことの確認: mode が batch（雛形が runtime_errors を省く） なら、照合せずに注記で通す"
-      ]
-    },
-    {
-      "id": "ahc-rt-exempt-declaration",
-      "why": "現側の宣言を確かめず、judged: false と理由の記録があれば注記で通す",
-      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
-      "find": "  if (judged === false && declaration === \"exempt\" && isPlainObject(re) && isFilled(re.reason)) {\n",
-      "replace": "  if (judged === false && isPlainObject(re) && isFilled(re.reason)) {\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "現側の metadata.json の declared: true で judged: false なら、記録が宣言と合わないとして [runtime-errors] の所見にする",
-        "現側の metadata.json の declared: false に理由が無い なら、記録が宣言と合わないとして [runtime-errors] の所見にする",
-        "現側の metadata.json の declared: false の理由が雛形の値のまま なら、記録が宣言と合わないとして [runtime-errors] の所見にする"
-      ]
-    },
-    {
-      "id": "ahc-rt-fix",
-      "why": "[runtime-errors] の所見に直し方を添えない",
-      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
-      "find": "と合わない。${RUNTIME_ERRORS_FIX[declaration]}: ${diffPath}",
-      "replace": "と合わない: ${diffPath}",
-      "occurrences": 1,
-      "expect_failing": [
-        "[runtime-errors] の所見に、現側の宣言が declared: true のときの直し方を添える",
-        "[runtime-errors] の所見に、現側の宣言が declared: false と理由の組 のときの直し方を添える",
-        "[runtime-errors] の所見に、現側の宣言が 宣言の不備 のときの直し方を添える"
-      ]
-    },
-    {
-      "id": "ahc-rt-exempt-judged",
-      "why": "現側が declared: false と理由の組なら、diff-metadata.json の judged を確かめずに通す",
-      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
-      "find": "  if (judged === false && declaration === \"exempt\" && isPlainObject(re) && isFilled(re.reason)) {\n",
-      "replace": "  if (declaration === \"exempt\" && isPlainObject(re) && isFilled(re.reason)) {\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "現側の metadata.json の declared: false と理由の組で judged が雛形の値のまま なら、記録が宣言と合わないとして [runtime-errors] の所見にする",
-        "現側の metadata.json の declared: false と理由の組で judged が文字列の false なら、記録が宣言と合わないとして [runtime-errors] の所見にする"
-      ]
-    },
-    {
-      "id": "ahc-rt-exempt-record",
-      "why": "現側が declared: false と理由の組なら、diff-metadata.json の理由を確かめずに通す",
-      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
-      "find": "  if (judged === false && declaration === \"exempt\" && isPlainObject(re) && isFilled(re.reason)) {\n",
-      "replace": "  if (judged === false && declaration === \"exempt\") {\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "現側の metadata.json の declared: false と理由の組で judged: false に理由が無い なら、記録が宣言と合わないとして [runtime-errors] の所見にする",
-        "現側の metadata.json の declared: false と理由の組で judged: false の理由が雛形の値のまま なら、記録が宣言と合わないとして [runtime-errors] の所見にする"
-      ]
-    },
-    {
-      "id": "ahc-rt-exempt-reason",
-      "why": "理由の無い declared: false を、免除として読む（parity-suite のコピー）",
-      "file": "skills/parity-suite/scripts/runtime-errors.mjs",
-      "find": "  if (re.declared === false && isFilled(re.reason)) return \"exempt\";\n",
-      "replace": "  if (re.declared === false) return \"exempt\";\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "現側の metadata.json の declared: false に理由が無い なら、記録が宣言と合わないとして [runtime-errors] の所見にする",
-        "現側の metadata.json の declared: false の理由が雛形の値のまま なら、記録が宣言と合わないとして [runtime-errors] の所見にする",
-        "[runtime-errors] の所見に、現側の宣言が 宣言の不備 のときの直し方を添える"
-      ]
-    },
-    {
-      "id": "ahc-rt-exempt-placeholder",
-      "why": "雛形の値のままの理由を、書いたものとして読む（parity-suite のコピー）",
-      "file": "skills/parity-suite/scripts/runtime-errors.mjs",
-      "find": "  if (re.declared === false && isFilled(re.reason)) return \"exempt\";\n",
-      "replace": "  if (re.declared === false && nonEmptyString(re.reason)) return \"exempt\";\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "現側の metadata.json の declared: false の理由が雛形の値のまま なら、記録が宣言と合わないとして [runtime-errors] の所見にする"
+        "現側の metadata.json が declared: false と理由の組で judged: false なら、照合せずに注記で通す",
+        "現側の metadata.json が judged が雛形の値のまま なら、照合せずに注記で通す"
       ]
     },
     {

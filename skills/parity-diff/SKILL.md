@@ -128,11 +128,11 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
   `capture_scope` を持たない現側の成果物は、後方互換として扱わず、範囲を実測して採り直す。判定は [`references/convergence.md`](references/convergence.md) で定義する。
 - 採取物と工程の健全性に未検証が残る状態で、`converged: true` にしない。インストール済みの `parity-suite` の
   `scripts/artifact-health-check.mjs --metadata <現側 metadata.json> --target <target> --stage diff` で数え直し、exit 0 以外なら `parity-suite` へ戻す。
-  ただし、`warn: [approval]` と `warn: [runtime-errors]` で始まる所見（操作中のエラー）は、この規則に従わない。戻す先を含む直し方は、[`references/convergence.md`](references/convergence.md) の接頭辞の表で決める
-  （`[runtime-errors]` で現側の宣言に不備があるときだけ、`parity-suite` で直す）。
+  ただし、`warn: [approval]` で始まる所見（操作中のエラーの許容と環境ノイズの承認が `approvals` に無い）は、`parity-suite` へ戻さず、利用者に承認し直してもらって追記する
+  （[`references/triage.md`](references/triage.md)「承認の記録（`approvals`）」）。
   次のものは、どれも緑のまま通ってしまう。読まれていない採取物、元が採り直されたのに古いままの加工物、後始末が機能していないスイート、`blocking` の未測定、
   `suite.new_green` が真なのに無いか古い `diff-metadata.json`、承認の記録の無い操作中のエラーの許容と環境ノイズ。
-  `converged` が偽でも失敗にはしない。失敗にするのは「無い」と「古い」と、操作中のエラーの記録の不備（`warn: [approval]`・`warn: [runtime-errors]` の所見）だけである。
+  `converged` が偽でも失敗にはしない。失敗にするのは「無い」と「古い」と、承認の記録の無い操作中のエラーの許容と環境ノイズ（`warn: [approval]` の所見）だけである。
   スクリプトが無ければ、判定を飛ばさずに停止する。判定は [`references/convergence.md`](references/convergence.md) で定義する。
 - 追記専用の成果物が縮んだ状態で、`converged: true` にしない。インストール済みの `replace-strategy` の
   `scripts/append-only-check.mjs --root . --base <機能に着手した時点のバージョン>` で数え直し、exit 0 以外なら止めて、過去の決定を元に戻す。
