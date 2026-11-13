@@ -12,7 +12,6 @@
 // | runtime dir                | 中身が在る（少ない・SIGPIPE が起きる量）/ 空 / 実在しない / XDG_RUNTIME_DIR と /run/user/<uid> が違う |
 // | エージェントのソケットの変数 | 外す / 外さない（スタブで --unsetenv を反映しない）            |
 // | CLI の実体                 | $HOME の外 / $HOME の下で許可リストの中 / $HOME の下で許可リストの外 |
-import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { allowedFiles, credentialFiles, sandbox } from "./eval-sandbox-helpers.ts";
@@ -162,15 +161,11 @@ describe("runtime dir と CLI の場所", () => {
     expect(result.stdout).toContain(`stage5 runtime dir ${runtimeDir}: VISIBLE (FAIL)`);
   });
 
-  test("XDG_RUNTIME_DIR が /run/user/<uid> と違っても、在る方をどちらも隠す", () => {
+  test("XDG_RUNTIME_DIR が在れば、tmpfs で隠す", () => {
     const { result, bwrapArgs, runtimeDir } = sandbox(["--version"], { runtimeEntries: ["bus"] });
     expect(result.status, result.stderr).toBe(0);
     if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
-    const tmpfs = flagValues(bwrapArgs, "--tmpfs");
-    expect(tmpfs).toContain(runtimeDir);
-    const uid = process.getuid?.();
-    if (uid === undefined) throw new Error("uid を取得できない");
-    expect(tmpfs.includes(`/run/user/${uid}`)).toBe(existsSync(`/run/user/${uid}`));
+    expect(flagValues(bwrapArgs, "--tmpfs")).toContain(runtimeDir);
   });
 
   // 起動の前の確認。何が隠れるかは本物の bwrap のテストが測る。ここでは、確かめるパスの選び方と、
@@ -178,9 +173,7 @@ describe("runtime dir と CLI の場所", () => {
   test("CLI が隠れると答えられたら、run を起動せずに止める", () => {
     const { result, bwrapArgs, bin } = sandbox(["--version"], { hiddenCli: true });
     expect(result.status).toBe(3);
-    expect(result.stderr).toContain(
-      `the sandbox hides these, so the run would start without them: ${join(bin, "claude")}.`,
-    );
+    expect(result.stderr).toContain(`the sandbox hides the CLI: ${join(bin, "claude")}.`);
     expect(bwrapArgs).toBeNull();
   });
 
@@ -191,7 +184,7 @@ describe("runtime dir と CLI の場所", () => {
     });
     expect(result.status).toBe(3);
     expect(result.stderr).toMatch(
-      /the sandbox hides these, so the run would start without them: \S*\/\.cargo\/bin\./u,
+      /the sandbox hides these PATH directories, so the run would start without their tools: \S*\/\.cargo\/bin\./u,
     );
     expect(bwrapArgs).toBeNull();
   });

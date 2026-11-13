@@ -291,3 +291,18 @@ test("settings.json を JSON として読めなければ、exit 3 で止め、bw
   expect(result.stderr).toMatch(/cannot sanitize .*settings\.json/u);
   expect(bwrapArgs).toBeNull();
 });
+
+// ホームの認証情報のテストは eval-sandbox-credentials.test.ts にある。このテストだけは結果が環境の
+// /run/user/<uid> の有無で変わるので、ミューテーションテストが測るそのファイルの外に置く。
+const runUserDir = `/run/user/${process.getuid?.() ?? "unknown"}`;
+// /run/user/<uid> はテストから作れないので、在る環境でだけ確かめる（無い環境では飛ばしたと分かる）。
+test.skipIf(!existsSync(runUserDir))(
+  "/run/user/<uid> が在れば、XDG_RUNTIME_DIR と違っても、それも tmpfs で隠す",
+  () => {
+    const { result, bwrapArgs } = sandbox(["--version"], { runtimeEntries: ["bus"] });
+    expect(result.status, result.stderr).toBe(0);
+    if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
+    const tmpfs = bwrapArgs.flatMap((arg, i) => (arg === "--tmpfs" ? [bwrapArgs[i + 1]] : []));
+    expect(tmpfs).toContain(runUserDir);
+  },
+);

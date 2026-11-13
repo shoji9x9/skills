@@ -158,7 +158,7 @@ describe.skipIf(outsideTmp === null)(
       const result = startWithCli(home, { cliDir: ".nvm/bin", path: [] });
       expect(result.status).toBe(3);
       expect(result.stderr).toContain(
-        `the sandbox hides these, so the run would start without them: ${join(home, ".nvm/bin/claude-wrapper")}`,
+        `the sandbox hides the CLI: ${join(home, ".nvm/bin/claude-wrapper")}.`,
       );
       expect(result.stdout).not.toContain("STARTED");
     });
