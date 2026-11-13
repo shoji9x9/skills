@@ -1,133 +1,234 @@
 // eval-sandbox.sh が bwrap を起動する前に止める構成のテスト（Issue #1015）。
 //
-// runtime dir の tmpfs は、$HOME の tmpfs と /etc の bind より後に置く。そのため、runtime dir が
-// $HOME・使い捨てのプロジェクト・/tmp を含むと、tmpfs がその中の bind（認証情報・settings.json・
-// /etc のミラー）を覆い、run が起動しないか CLI の認証が失敗する。
+// runtime dir の tmpfs は、ほかのマウントより後に置く。そのため、runtime dir が先に置いたマウントの宛先か
+// cwd と同じか、それを含むと、tmpfs がそれを覆い、run が起動しないか CLI の認証が失敗する。
+// スクリプトは、覆われる場所を挙げずに、bwrap に渡した宛先（--bind・--ro-bind・--dev-bind）と cwd を集めて比べる。
 // git worktree list が失敗すると、ほかの work tree の親を隠せず、without_skill の run がメインの
 // チェックアウトを読める。どちらも、bwrap を起動する前に理由を出して exit 3 で止める。
 // bwrap と git はスタブにする（eval-sandbox-helpers.ts）。
 //
-// | 軸                       | 値                                                                     |
-// | ------------------------ | ---------------------------------------------------------------------- |
-// | runtime dir と $HOME     | 同じ / $HOME を含む / 「/」 / $HOME の下（通す） / 名前が $HOME の前方だけ一致（通す） / 隣（通す） |
-// | runtime dir と cwd       | 使い捨てのプロジェクトを含む / 含まない（通す） / シンボリックリンクを通して含む（通す） |
-// | runtime dir と /tmp      | /tmp そのもの / /tmp の下（通す。「$HOME の隣」の行が、os.tmpdir() が /tmp の環境でだけ確かめる） |
-// | git worktree list        | 成功する（通す） / 0 以外で終わる                                      |
-// | モード                   | CLI の起動 / --verify                                                  |
+// | 軸                          | 値                                                                                   |
+// | --------------------------- | ------------------------------------------------------------------------------------ |
+// | 宛先                        | $HOME の下の bind / cwd（/tmp の下で bind する・/tmp の外で bind しない） / /tmp の下の /etc のミラー / CODEX_HOME の auth.json / 許可リストの bind |
+// | runtime dir と宛先の関係    | 同じ / 含む / 「/」 / 宛先の中（通す） / 名前が前方だけ一致（通す） / 隣（通す） / 宛先の無い /tmp（通す） |
+// | リンク                      | cwd がリンクで runtime dir の中を指す / cwd のリンクが runtime dir の中にある / runtime dir がリンク / cwd が /tmp のリンクで $HOME の下を指す（通す。cwd はリンクのままのパスで bind する） |
+// | git worktree list           | 成功する（通す） / 0 以外で終わる                                                    |
+// | モード                      | CLI の起動 / --verify                                                                |
 //
 // sandbox() は XDG_RUNTIME_DIR をテストの下に設定し直すので、ホストの値は結果に関係しない。
 // sandbox() の一時ディレクトリが /run/user/<uid> の下にある環境では、スクリプトは使い捨ての $HOME を含む
 // runtime dir として止まる。テストは、os.tmpdir() を /run/user/<uid> の外に置いて実行する。
-//
-// cwd は、add_root と同じく ${PWD} のまま比べる。シンボリックリンクを通して runtime dir の中を指す cwd の扱いは
-// Issue #1015 の範囲の外で、下のテストは、cwd を解決せずに比べる実装がその cwd を止めないことを確かめる。
-import { mkdirSync, realpathSync, symlinkSync } from "node:fs";
+import { mkdirSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { flagValues, sandbox } from "./eval-sandbox-helpers.ts";
+import { flagValues, sandbox, type SandboxOptions } from "./eval-sandbox-helpers.ts";
 
 const modes: { mode: string; args: string[] }[] = [
   { mode: "CLI の起動", args: ["--version"] },
   { mode: "--verify", args: ["--verify", "MARKER"] },
 ];
 
-/** runtime dir と、cwd と、必要なら $HOME を決める。 */
-type Place = (root: string) => { run: string; cwd: string; home?: string };
+/** runtime dir と cwd と、足す環境変数を決める。PWD はリンクのまま渡すために cwd と同じ値を入れる。 */
+type Place = (paths: { root: string; home: string }) => {
+  run: string;
+  cwd: string;
+  env?: Record<string, string>;
+};
 
-describe("runtime dir が先に置いたマウント先を含む構成", () => {
-  // 各行は、runtime dir と $HOME と cwd を決め、止まるときの理由を返す。
-  // ほかの行の理由で止まらないよう、ほかの場所は runtime dir の外に置く。
-  const holding: { label: string; place: Place; message: string }[] = [
+/** 構成を作ってスクリプトを起動し、runtime dir の実際のパスと結果を返す。 */
+function runPlace(args: string[], place: Place, options: SandboxOptions = {}) {
+  let run = "";
+  const result = sandbox(args, {
+    ...options,
+    setup: (paths) => {
+      const placed = place(paths);
+      run = placed.run;
+      return { env: { XDG_RUNTIME_DIR: run, PWD: placed.cwd, ...placed.env }, cwd: placed.cwd };
+    },
+  });
+  return { ...result, run };
+}
+
+/** /tmp の外の実在しないパス。$HOME をここに置くと、$HOME の下の宛先が /tmp の下に入らない。 */
+const homeOutsideTmp = "/nonexistent-eval-sandbox-home";
+
+describe("runtime dir が先に置いたマウントの宛先か cwd を覆う構成", () => {
+  // 各行は、runtime dir と cwd を決め、止まるときの理由を返す。
+  const covering: { label: string; place: Place; message: string; options?: SandboxOptions }[] = [
     {
       label: "$HOME と同じとき",
-      place: (root) => ({ run: join(root, "home"), cwd: "/" }),
-      message: "(the runtime dir) holds $HOME",
+      place: ({ home }) => ({ run: home, cwd: "/" }),
+      message: "(the runtime dir) holds the mount target",
     },
     {
       label: "$HOME を含むとき",
-      place: (root) => ({ run: root, cwd: "/" }),
-      message: "(the runtime dir) holds $HOME",
+      place: ({ root }) => ({ run: root, cwd: "/" }),
+      message: "(the runtime dir) holds the mount target",
     },
     // 「/」は、末尾の / を外して比べないと、どの場所も含まないと判定される。
     {
       label: "/ であるとき",
       place: () => ({ run: "/", cwd: "/" }),
-      message: "(the runtime dir) holds $HOME",
+      message: "(the runtime dir) holds the disposable project /",
     },
     {
-      label: "使い捨てのプロジェクトを含むとき",
-      place: (root) => {
-        const run = join(root, "work");
-        mkdirSync(join(run, "project"), { recursive: true });
-        return { run, cwd: join(run, "project") };
+      label: "/tmp の下で bind する cwd を含むとき",
+      place: ({ root }) => {
+        mkdirSync(join(root, "work", "project"), { recursive: true });
+        return { run: join(root, "work"), cwd: join(root, "work", "project") };
       },
       message: "(the runtime dir) holds the disposable project",
     },
     {
-      label: "/tmp であるとき",
-      // $HOME を /tmp の外の実在しないパスにして、$HOME を含むという理由で止まらないようにする。
-      place: () => ({ run: "/tmp", cwd: "/", home: "/nonexistent-eval-sandbox-home" }),
-      message: "(the runtime dir) holds the /etc mirror and the other mounts under /tmp",
+      label: "/tmp の下で bind する cwd と同じとき",
+      place: ({ root }) => {
+        mkdirSync(join(root, "work"), { recursive: true });
+        return { run: join(root, "work"), cwd: join(root, "work") };
+      },
+      message: "(the runtime dir) holds the disposable project",
+    },
+    {
+      label: "/tmp の外で bind しない cwd と同じとき",
+      place: () => ({ run: "/usr/share", cwd: "/usr/share" }),
+      message: "(the runtime dir) holds the disposable project /usr/share",
+    },
+    {
+      label: "/tmp であり、/tmp の下に /etc のミラーがあるとき",
+      place: () => ({ run: "/tmp", cwd: "/", env: { HOME: homeOutsideTmp } }),
+      message: "(the runtime dir) holds the mount target /tmp/eval-sandbox-host-etc-",
+    },
+    {
+      label: "$HOME の外の CODEX_HOME を含むとき",
+      place: ({ root }) => {
+        const run = join(root, "run");
+        mkdirSync(join(run, "codex"), { recursive: true });
+        writeFileSync(join(run, "codex", "auth.json"), "{}\n");
+        return { run, cwd: "/", env: { CODEX_HOME: join(run, "codex") } };
+      },
+      message: "/codex/auth.json",
+      options: { cli: "codex" },
+    },
+    {
+      label: "リンクを通した cwd の実体を含むとき",
+      place: ({ root }) => {
+        mkdirSync(join(root, "work", "project"), { recursive: true });
+        symlinkSync(join(root, "work", "project"), join(root, "link"));
+        return { run: join(root, "work"), cwd: join(root, "link") };
+      },
+      message: "(the runtime dir) holds the disposable project",
+    },
+    {
+      label: "外を指す cwd のリンクを含むとき",
+      place: ({ root, home }) => {
+        mkdirSync(join(home, "proj"), { recursive: true });
+        mkdirSync(join(root, "work"), { recursive: true });
+        symlinkSync(join(home, "proj"), join(root, "work", "link"));
+        return { run: join(root, "work"), cwd: join(root, "work", "link") };
+      },
+      message: "(the runtime dir) holds the disposable project",
+    },
+    {
+      label: "リンクで、cwd を含むとき",
+      place: ({ root }) => {
+        mkdirSync(join(root, "work", "project"), { recursive: true });
+        symlinkSync(join(root, "work"), join(root, "runlink"));
+        return { run: join(root, "runlink"), cwd: join(root, "work", "project") };
+      },
+      message: "(the runtime dir) holds the disposable project",
     },
   ];
 
-  test.each(modes.flatMap(({ mode, args }) => holding.map((row) => ({ mode, args, ...row }))))(
+  test.each(modes.flatMap(({ mode, args }) => covering.map((row) => ({ mode, args, ...row }))))(
     "$mode: runtime dir が $label、bwrap を起動する前に理由を出して exit 3 で止める",
-    ({ args, place, message }) => {
-      const { result, bwrapArgs } = sandbox(args, {
-        setup: ({ root }) => {
-          const { run, cwd, home } = place(root);
-          return {
-            env: { XDG_RUNTIME_DIR: run, ...(home === undefined ? {} : { HOME: home }) },
-            cwd,
-          };
-        },
-      });
+    ({ args, place, message, options }) => {
+      const { result, bwrapArgs } = runPlace(args, place, options);
       expect(result.status, result.stderr).toBe(3);
       expect(result.stderr).toContain(message);
       expect(bwrapArgs).toBeNull();
     },
   );
 
-  test.each([
-    ["$HOME の下", (root: string) => join(root, "home", ".run")],
-    ["名前が $HOME の前方だけ一致する場所", (root: string) => join(root, "hom")],
-    ["$HOME の隣", (root: string) => join(root, "run")],
-  ])("runtime dir が %sにあるなら、止めずに tmpfs で隠す", (_label, place) => {
-    let run = "";
-    const { result, bwrapArgs } = sandbox(["--version"], {
-      setup: ({ root }) => {
-        run = place(root);
-        mkdirSync(run, { recursive: true });
-        return { env: { XDG_RUNTIME_DIR: run }, cwd: root };
+  // 止めずに起動する構成。runtime dir の判定に達して一覧に入れたことを、tmpfs で隠す引数で確かめる。
+  const passing: { label: string; place: Place; tmpfsCount?: number }[] = [
+    {
+      label: "$HOME の下にあるとき",
+      place: ({ root, home }) => {
+        mkdirSync(join(home, ".run"), { recursive: true });
+        return { run: join(home, ".run"), cwd: root };
       },
-    });
-    expect(result.status, result.stderr).toBe(0);
-    if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
-    expect(flagValues(bwrapArgs, "--tmpfs")).toContain(run);
-  });
-});
+    },
+    {
+      label: "名前が $HOME の前方だけ一致する場所にあるとき",
+      place: ({ root }) => {
+        mkdirSync(join(root, "hom"), { recursive: true });
+        return { run: join(root, "hom"), cwd: root };
+      },
+    },
+    {
+      label: "$HOME の隣にあるとき",
+      place: ({ root }) => {
+        mkdirSync(join(root, "run"), { recursive: true });
+        return { run: join(root, "run"), cwd: root };
+      },
+    },
+    {
+      label: "bind の宛先の中にあるとき",
+      // ~/.local/bin は許可リストにあり、在れば読み取り専用で戻す。runtime dir はその中の 1 つのディレクトリだけを覆う。
+      place: ({ root, home }) => {
+        mkdirSync(join(home, ".local", "bin", "run"), { recursive: true });
+        return { run: join(home, ".local", "bin", "run"), cwd: root };
+      },
+    },
+    {
+      label: "/tmp であり、/tmp の下に宛先が無いとき",
+      // ネットワークの許可リストを外すと /etc のミラーを作らず、cwd も /tmp の外なので、/tmp の下に宛先が無い。
+      place: () => ({
+        run: "/tmp",
+        cwd: "/",
+        env: { HOME: homeOutsideTmp, EVAL_SANDBOX_NET: "off" },
+      }),
+      // /tmp の tmpfs は、兄弟の run を隠すものと runtime dir のものの 2 つになる。
+      tmpfsCount: 2,
+    },
+  ];
 
-test.each(modes)(
-  "$mode: シンボリックリンクを通して runtime dir の中を指す cwd は、解決せずに比べるので止まらない",
-  ({ args }) => {
-    let run = "";
-    const { result, bwrapArgs } = sandbox(args, {
-      setup: ({ root }) => {
-        run = join(root, "work");
-        mkdirSync(join(run, "project"), { recursive: true });
-        const cwd = join(root, "link");
-        symlinkSync(join(run, "project"), cwd);
-        // bash は、環境の PWD がその cwd を指せば、リンクのまま $PWD にする。
-        return { env: { XDG_RUNTIME_DIR: run, PWD: cwd }, cwd };
-      },
-    });
-    expect(result.status, result.stderr).toBe(0);
-    // runtime dir の判定に達して一覧に入れたことを、tmpfs で隠す引数で確かめる。
-    if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
-    expect(flagValues(bwrapArgs, "--tmpfs")).toContain(realpathSync(run));
-  },
-);
+  test.each(modes.flatMap(({ mode, args }) => passing.map((row) => ({ mode, args, ...row }))))(
+    "$mode: runtime dir が $label、止めずに tmpfs で隠す",
+    ({ args, place, tmpfsCount }) => {
+      const { result, bwrapArgs, run } = runPlace(args, place);
+      expect(result.status, result.stderr).toBe(0);
+      if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
+      const real = realpathSync(run);
+      const tmpfs = flagValues(bwrapArgs, "--tmpfs").filter((target) => target === real);
+      // スタブの bwrap は呼び出しごとに引数を追記する（--verify は 2 回呼ぶ）。呼び出しは --die-with-parent で数える。
+      const calls = bwrapArgs.filter((arg) => arg === "--die-with-parent").length;
+      expect(tmpfs).toHaveLength((tmpfsCount ?? 1) * calls);
+    },
+  );
+
+  test.each(modes)(
+    "$mode: cwd が /tmp の下のリンクでホームディレクトリの下を指すときは、止めずに起動する",
+    ({ mode, args }) => {
+      let cwd = "";
+      const { result, bwrapArgs, run } = runPlace(args, ({ root, home }) => {
+        mkdirSync(join(home, "proj"), { recursive: true });
+        mkdirSync(join(root, "run"), { recursive: true });
+        cwd = join(root, "link");
+        symlinkSync(join(home, "proj"), cwd);
+        return { run: join(root, "run"), cwd };
+      });
+      expect(result.status, result.stderr).toBe(0);
+      if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
+      // runtime dir を作っておき、cwd と比べたうえで tmpfs で隠したことを確かめる。
+      expect(flagValues(bwrapArgs, "--tmpfs")).toContain(realpathSync(run));
+      // /tmp の下の cwd は、リンクのままのパスで /tmp の tmpfs の上に戻す。
+      expect(flagValues(bwrapArgs, "--bind")).toContain(cwd);
+      if (mode === "CLI の起動") {
+        expect(bwrapArgs[bwrapArgs.lastIndexOf("--chdir") + 1]).toBe(cwd);
+      }
+    },
+  );
+});
 
 describe("git worktree list の失敗", () => {
   test.each(modes)(

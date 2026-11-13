@@ -263,10 +263,8 @@ refuse_holding() {
 # the tmpfs over each of them is added after the /etc binds. Each is resolved first, so
 # a symlinked runtime dir (or one spelled with a trailing /) compares with the resolved
 # roots, and bwrap mounts the tmpfs on the real directory.
-# A runtime dir that holds $HOME, the disposable project or /tmp stops the run: its
-# tmpfs comes after them and would cover the binds into $HOME (the CLI's credentials and
-# settings), the disposable project and the /etc mirror under /tmp (nsswitch.conf and the
-# certificates), so the run would fail to start or to authenticate.
+# A runtime dir whose tmpfs would cover an earlier mount stops the run; that is checked
+# where the tmpfs is added (refuse_covering_runtime_dirs below).
 list_runtime_dirs() { # fills runtime_dirs; a function, so its variables stay local
 	local d
 	local -A seen_runtime_dirs=()
@@ -278,11 +276,6 @@ list_runtime_dirs() { # fills runtime_dirs; a function, so its variables stay lo
 		[ -n "${d}" ] && [ -d "${d}" ] || continue
 		d="$(realpath -m -- "${d}")"
 		[ -z "${seen_runtime_dirs["${d}"]+present}" ] || continue
-		# ${PWD} is compared as it is, as add_root does, so a cwd reached through a symlink
-		# into a runtime dir is not refused. Issue #1015 does not cover that cwd;
-		# eval-sandbox-preflight.test.ts checks that it passes while ${PWD} is not resolved.
-		refuse_holding "${d}" "the runtime dir" "its tmpfs is mounted after that and would cover it" \
-			"\$HOME|${home}" "the disposable project|${PWD}" "the /etc mirror and the other mounts under|/tmp"
 		seen_runtime_dirs["${d}"]=1
 		runtime_dirs+=("${d}")
 	done
@@ -557,9 +550,40 @@ fi
 # The runtime dirs listed with the comment above $HOME's allowlist, each hidden by a
 # writable empty tmpfs. It comes after the $HOME tmpfs, so a runtime dir under $HOME is
 # still an empty dir the tools can write to, and after the roots, which add_root has
-# already refused whenever one holds a runtime dir or lies inside one, so the two never
-# cover each other. A runtime dir that holds $HOME, the disposable project or /tmp was
-# refused by list_runtime_dirs, so this tmpfs covers none of them.
+# already refused whenever one holds a runtime dir or lies inside one.
+# Coming after every mount above, the tmpfs covers whatever of them lies in the runtime
+# dir: the CLI's credentials and settings under $HOME, CODEX_HOME's auth.json, the /etc
+# mirror under /tmp, the disposable project. Listing such places misses the next one, so
+# the run stops when a runtime dir is or holds any bind target given to bwrap so far
+# (--bind, --ro-bind, --dev-bind), or the cwd (which --chdir needs). An earlier --tmpfs
+# target is left out: a tmpfs over it hides no more than it did, and whatever was bound
+# into it is a bind target itself. A target is compared both as written and by its real
+# path: bwrap creates a mount point inside an earlier tmpfs without following the host's
+# symlinks, and follows a symlink that is still there, so the mount can land at either.
+# The runtime dirs are real paths already, and the tmpfs goes on them.
+refuse_covering_runtime_dirs() {
+	local i t p real d what targets=("${PWD}")
+	for i in "${!args[@]}"; do
+		case "${args[i]}" in --bind | --ro-bind | --dev-bind) targets+=("${args[i + 2]}") ;; esac
+	done
+	for i in "${!targets[@]}"; do
+		t="${targets[i]}"
+		what="the mount target"
+		[ "${i}" -ne 0 ] || what="the disposable project"
+		# A plain assignment, so a failed realpath stops the run under set -e.
+		real="$(realpath -m -- "${t}")"
+		for p in "${t}" "${real}"; do
+			for d in "${runtime_dirs[@]}"; do
+				case "${p%/}/" in "${d%/}/"*)
+					echo "eval-sandbox: ${d} (the runtime dir) holds ${what} ${t} (${real}); its tmpfs is mounted after that and would cover it" >&2
+					exit 3
+					;;
+				esac
+			done
+		done
+	done
+}
+refuse_covering_runtime_dirs
 for d in "${runtime_dirs[@]}"; do args+=(--tmpfs "${d}"); done
 
 # Last mount under $HOME is above; from here on $HOME is read-only (step 0).

@@ -357,8 +357,11 @@ setup が 0 以外で終わったら、executor を起動せずに eval を失�
   その場所が `$HOME`・使い捨てのプロジェクト・runtime dir を含むときと、runtime dir の中にあるときは、隠せないので起動の前に止まる。
   それ以外の `$HOME` の外の場所は隠さない。`~/.aws` を `$HOME` の外へのシンボリックリンクにした環境のように、`$HOME` の外に置いた認証情報は、run からリンク先のパスで読める。
   keyring は、ファイルを隠してもセッションのバスから中身を返すので、runtime dir（`$XDG_RUNTIME_DIR` と `/run/user/<uid>`）も隠す。
-  runtime dir の tmpfs は `$HOME` と `/etc` の bind より後に置くので、runtime dir が `$HOME`・使い捨てのプロジェクト・`/tmp`（`/etc` のミラーと、使い捨てのプロジェクトの bind を置く場所）を含むと、その中の bind を覆う。
-  そうした構成（`XDG_RUNTIME_DIR=/tmp` のコンテナなど）では、`--verify` を含めて bwrap を起動する前に理由を出して止まる。
+  runtime dir の tmpfs はほかのマウントより後に置くので、runtime dir が先に置いたマウントの宛先か cwd を含むと、それを覆う。
+  覆われるのは、`$HOME` の下の認証情報と `settings.json`・`CODEX_HOME` の `auth.json`・`/tmp` の下の `/etc` のミラー・使い捨てのプロジェクトなどである。
+  sandbox は、bwrap に渡した bind の宛先（`--bind`・`--ro-bind`・`--dev-bind`）と cwd を集め、runtime dir がそのどれかと同じか、それを含むときは、`--verify` を含めて bwrap を起動する前に理由を出して止まる。
+  宛先と cwd は、書いたままのパスと実際のパスの両方で比べる。そのため、シンボリックリンクを通して runtime dir の中を指す cwd でも止まる。
+  `/tmp` を含む runtime dir（`XDG_RUNTIME_DIR=/tmp` のコンテナなど）は、`/tmp` の下に宛先があるときに止まる。通常の構成では `/etc` のミラーを `/tmp` の下に置くので、止まる。
   同じリポジトリのほかの work tree の親も、`git worktree list` で挙げて隠す。
   `git worktree list` が失敗すると（`safe.directory` の dubious ownership など）、ほかの work tree を隠せないので、起動の前に止まる。
   git がスクリプトの置き場所からリポジトリを見つけられないとき（`.git` の無いコピーなど）も、`git worktree list` が失敗するので止まる。git が無い環境では、この確認を飛ばす。

@@ -91,6 +91,6 @@
     "scripts/skills/parity-suite/checks/component-comparison-check.mutations.json": 1.9,
     "scripts/eval/sandbox/eval-sandbox-credentials.mutations.json": 7.9,
     "scripts/eval/sandbox/eval-sandbox-env.mutations.json": 9.1,
-    "scripts/eval/sandbox/eval-sandbox-preflight.mutations.json": 5.1
+    "scripts/eval/sandbox/eval-sandbox-preflight.mutations.json": 19.6
   }
 }
