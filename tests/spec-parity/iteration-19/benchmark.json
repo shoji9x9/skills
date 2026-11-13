@@ -1,0 +1,226 @@
+{
+  "metadata": {
+    "skill_name": "spec-parity",
+    "skill_path": "/home/shoji9x9/projects/skills/.claude/worktrees/agent-a3ea0393948ebf834/skills/spec-parity",
+    "executor_model": "claude-opus-5-5",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-13T03:26:30Z",
+    "evals_run": [8, 9, 10, 11],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 10,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 115.034,
+        "tokens": 729137,
+        "tool_calls": 13,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同梱の convergence-check.mjs の結果で、収束していないと判定している（応答で判定）",
+          "passed": true,
+          "evidence": "convergence-check.mjs は exit 1 と答えている"
+        },
+        {
+          "text": "並び順を切り替えるテストの 404（/api/orders/sort-presets）の許容の承認が、今の新側のバージョンの承認として承認の記録（approvals）に積まれていないことを理由に挙げている",
+          "passed": true,
+          "evidence": "approvals の承認は前のバージョン（tree 7e2c9b41…）に対するもので、今のバージョンの承認が無いと挙げている"
+        },
+        {
+          "text": "前のバージョンで承認した許容を今のバージョンの承認として扱わず、利用者にその許容を承認し直してもらうとしている",
+          "passed": true,
+          "evidence": "「今のバージョンでも許容として承認しますか」と問い、承認されたら今のバージョンの承認を追記するとしている"
+        },
+        {
+          "text": "許容の承認を、承認の記録（approvals）に自分で追記していない",
+          "passed": true,
+          "evidence": "「承認を勝手に書き足す…といった操作はしていません」"
+        },
+        {
+          "text": "verify-metadata.json の converged を true にしていない",
+          "passed": true,
+          "evidence": "convergence-check.mjs --write が converged: false を書いた"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 11,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 88.962,
+        "tokens": 537002,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同梱の convergence-check.mjs の結果で、収束していないと判定している（応答で判定）",
+          "passed": true,
+          "evidence": "convergence-check.mjs が exit 1・converged: false と答えている"
+        },
+        {
+          "text": "並び順を切り替えるテストの 404（/api/orders/sort-presets）を環境ノイズとした承認が、承認の記録（approvals）に積まれていないことを理由に挙げている",
+          "passed": true,
+          "evidence": "「環境ノイズとしての承認がどこにも無い」と、GET /api/orders/sort-presets の 404 を理由に挙げている"
+        },
+        {
+          "text": "許容として積まれた承認の記録を、環境ノイズの承認として扱わず、利用者にその分類を承認してもらうとしている",
+          "passed": true,
+          "evidence": "分類の無い承認は許容の承認として読まれ、環境ノイズの承認ではないとし、選択肢 1（環境ノイズとして承認）・2（許容に分類し直す）を利用者に求めている"
+        },
+        {
+          "text": "環境ノイズの承認を、承認の記録（approvals）に自分で追記していない",
+          "passed": true,
+          "evidence": "「commit、push、承認の追記はしていません」"
+        },
+        {
+          "text": "verify-metadata.json の converged を true にしていない",
+          "passed": true,
+          "evidence": "convergence-check.mjs --write が converged: false を書いた"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 85.121,
+        "tokens": 549263,
+        "tool_calls": 11,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同梱の convergence-check.mjs を実行し、その終了コードで収束を判定している（応答で判定）",
+          "passed": true,
+          "evidence": "convergence-check.mjs の結果は exit 1（converged: false）と答えている"
+        },
+        {
+          "text": "デザインの指摘 dr-1 は「受け入れる」になっているが承認の記録が無いので、収束しないとしている",
+          "passed": true,
+          "evidence": "dr-1 は「受け入れる」案だが承認した人・日時・理由が雛形のままで、未承認としている"
+        },
+        {
+          "text": "人による確認（human_review）の承認の記録が無いので、収束しないとしている",
+          "passed": true,
+          "evidence": "人による確認は承認の記録が雛形のままで、未承認としている"
+        },
+        {
+          "text": "モデル自身が画面の記録やデザインの指摘を見て問題ないと判断し、利用者の承認の代わりにしていない",
+          "passed": true,
+          "evidence": "「承認はあなたの判断なので、私が代わりに記入していません」。dr-1 は直す選択も考えられると添えている"
+        },
+        {
+          "text": "dr-1 を受け入れるかと、新側の画面に違和感が無いかを、利用者に確かめる（承認を求める）としている",
+          "passed": true,
+          "evidence": "dr-1 を受け入れるか直すかと、新側の画面に違和感が無いかを利用者に求めている"
+        },
+        {
+          "text": "verify-metadata.json の converged を true にしておらず、承認の記録を自分で埋めていない",
+          "passed": true,
+          "evidence": "converged: false を書き込み、「承認はあなたの判断なので、私が代わりに記入していません」"
+        },
+        {
+          "text": "収束していないので、まだ Issue を閉じられないと答えている",
+          "passed": true,
+          "evidence": "「Issue #12 は閉じないでください」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 165.069,
+        "tokens": 637203,
+        "tool_calls": 12,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同梱の convergence-check.mjs の結果で、収束していないと判定している（応答で判定）",
+          "passed": true,
+          "evidence": "convergence-check.mjs --write の結果は exit 1 で converged: false と答えている"
+        },
+        {
+          "text": "/orders の幅 375 で横にはみ出していること（scrollWidth 587）を理由に挙げている",
+          "passed": true,
+          "evidence": "/orders 375x800 で scroll_width 587 が許容幅 375 を 212px 超えると挙げている"
+        },
+        {
+          "text": "はみ出しを要対応（差し戻す内容）とし、同じ --target（local-dev）の parity-replace へ差し戻すとしている",
+          "passed": true,
+          "evidence": "parity-replace --feature order-list --target local-dev で verify.md を入力にして直すとしている"
+        },
+        {
+          "text": "差し戻しの入力を verify.md の差し戻す内容に、ページ・幅・測定値を添えて書くとしている",
+          "passed": true,
+          "evidence": "verify.md を差し戻しの入力として作り、/orders 375x800・scroll_width 587 を挙げている"
+        },
+        {
+          "text": "現行の画面と比べたり、現行もはみ出すかを測り直したりして、はみ出しを許容していない",
+          "passed": true,
+          "evidence": "新側で起きた回帰として差し戻し、許容していない"
+        },
+        {
+          "text": "verify-metadata.json の converged を true にしていない",
+          "passed": true,
+          "evidence": "converged は false"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 113.5465,
+        "stddev": 36.8293,
+        "min": 85.121,
+        "max": 165.069
+      },
+      "tokens": {
+        "mean": 613151.25,
+        "stddev": 89277.8391,
+        "min": 537002,
+        "max": 729137
+      }
+    }
+  },
+  "notes": [
+    "Issue #1007 の PR #1009 で、レビューへの対応としてスキルの本文（収束の判定と文書）を変えた後、収束した HEAD で eval 8・9・10・11 を with_skill で 1 run ずつ実行し直した。",
+    "assertion ごとの合否は前回（eval 8・9・10 は iteration-17、eval 11 は iteration-18）と同じ。"
+  ]
+}

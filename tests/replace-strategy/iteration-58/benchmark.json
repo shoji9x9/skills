@@ -1,0 +1,82 @@
+{
+  "metadata": {
+    "skill_name": "replace-strategy",
+    "skill_path": "/home/shoji9x9/projects/skills/.claude/worktrees/agent-a3ea0393948ebf834/skills/replace-strategy",
+    "executor_model": "claude-opus-5-5",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-13T03:26:31Z",
+    "evals_run": [42],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 42,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 57.57,
+        "tokens": 315460,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "order-list のワークフローを spec-parity suite → parity-replace → golden-dataset（フェーズ B）→ spec-parity verify の順にしている",
+          "passed": true,
+          "evidence": "spec-parity suite → parity-replace → golden-dataset（フェーズ B）→ spec-parity verify の順にしている"
+        },
+        {
+          "text": "order-list の収束の項を、spec-parity verify を実行して .replace/parity/order-list/new/<target>/verify-metadata.json の converged: true まで進める形にし、parity-diff の diff-metadata.json の項を置いていない",
+          "passed": true,
+          "evidence": "verify-metadata.json の converged: true まで進める形にし、parity-diff の項を置いていない"
+        },
+        {
+          "text": "order-list の収束の項に、デザインの点検と、人が新側の画面を確かめた承認の記録と、操作中のエラーを許容か環境ノイズとした承認の記録を含めている",
+          "passed": true,
+          "evidence": "デザインの点検・人が新側の画面を確かめた承認の記録・操作中のエラーを許容または環境ノイズとした承認の記録の 3 つを含めている"
+        },
+        {
+          "text": "横断 API の user の収束の項は、free でも parity-diff の diff-metadata.json の converged: true のままにしている",
+          "passed": true,
+          "evidence": "user の収束の項は parity-diff の diff-metadata.json の converged: true のまま"
+        },
+        {
+          "text": "起票していない（gh issue create も issue-create への委譲も行っていない）",
+          "passed": true,
+          "evidence": "「起票はしていません。gh issue create も issue-create への委譲も行わず」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 57.57,
+        "stddev": 0,
+        "min": 57.57,
+        "max": 57.57
+      },
+      "tokens": {
+        "mean": 315460,
+        "stddev": 0,
+        "min": 315460,
+        "max": 315460
+      }
+    }
+  },
+  "notes": [
+    "Issue #1007 の PR #1009 で、レビューへの対応としてスキルの本文を変えた後、収束した HEAD で eval 42 を with_skill で 1 run 実行し直した。",
+    "assertion ごとの合否は前回（iteration-57）と同じ。"
+  ]
+}
