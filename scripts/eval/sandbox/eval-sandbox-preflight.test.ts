@@ -17,7 +17,7 @@
 //
 // sandbox() の一時ディレクトリが /run/user/<uid> の下にある環境（TMPDIR をそこに置いた環境）では、
 // スクリプトは使い捨ての $HOME を含む runtime dir として止まる。
-// テストは、os.tmpdir() を /run/user/<uid> の外に置いて実行する。
+// そのため sandbox() は、その環境では前提の誤りとして例外を投げる。テストは os.tmpdir() をその外に置いて実行する。
 import { mkdirSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
@@ -58,7 +58,7 @@ describe("runtime dir が先に置いたマウント先を含む構成", () => {
         mkdirSync(join(run, "project"), { recursive: true });
         return { run, cwd: join(run, "project") };
       },
-      message: "(the runtime dir) holds the cwd",
+      message: "(the runtime dir) holds the disposable project",
     },
     {
       label: "シンボリックリンクを通した cwd を含むとき",
@@ -69,7 +69,7 @@ describe("runtime dir が先に置いたマウント先を含む構成", () => {
         symlinkSync(join(run, "project"), join(root, "link"));
         return { run, cwd: join(root, "link") };
       },
-      message: "(the runtime dir) holds the cwd",
+      message: "(the runtime dir) holds the disposable project",
     },
     {
       label: "/tmp であるとき",

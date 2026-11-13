@@ -361,7 +361,7 @@ setup が 0 以外で終わったら、executor を起動せずに eval を失�
   そうした構成（`XDG_RUNTIME_DIR=/tmp` のコンテナなど）では、`--verify` を含めて bwrap を起動する前に理由を出して止まる。
   同じリポジトリのほかの work tree の親も、`git worktree list` で挙げて隠す。
   `git worktree list` が失敗すると（`safe.directory` の dubious ownership など）、ほかの work tree を隠せないので、起動の前に止まる。
-  git のリポジトリでない場所（`.git` の無いコピーなど）に置いたスクリプトから起動したときも、`git worktree list` が失敗するので止まる。git が無い環境では、この確認を飛ばす。
+  git がスクリプトの置き場所からリポジトリを見つけられないとき（`.git` の無いコピーなど）も、`git worktree list` が失敗するので止まる。git が無い環境では、この確認を飛ばす。
   環境変数も許可リストにする。run に渡すのは、CLI とツールの起動・ロケール・API への接続（プロキシと証明書）・ハーネスに要る変数と、そのベンダーの API キーの変数だけである。
   `GH_TOKEN`・`AWS_*`・ソケットを指す変数（`SSH_AUTH_SOCK` など）や、eval を起動したエージェントのセッションの変数は渡らない。
   渡す変数の値は、そのまま run から読める（プロキシの URL に入れた認証情報 `http://user:token@proxy` や、API キーの変数）。

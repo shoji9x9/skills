@@ -56,6 +56,11 @@
 # Repo-internal tooling; not bundled in any distributed skill.
 set -euo pipefail
 
+# The cwd (the disposable project) is compared with resolved paths ($HOME, the runtime
+# dirs, the XDG places) and is mounted with --bind and --chdir, so make $PWD its real
+# path once here: a cwd reached through a symlink would otherwise pass every comparison.
+cd -P -- "${PWD}"
+
 self="$(readlink -f "$0")"
 # <repo>/scripts/eval/sandbox/eval-sandbox.sh -> <repo>
 repo="$(dirname "$(dirname "$(dirname "$(dirname "${self}")")")")"
@@ -267,10 +272,6 @@ refuse_holding() {
 # tmpfs comes after them and would cover the binds into $HOME (the CLI's credentials and
 # settings), the disposable project and the /etc mirror under /tmp (nsswitch.conf and the
 # certificates), so the run would fail to start or to authenticate.
-# The cwd is compared by its real path, as the runtime dirs and $HOME are: a cwd reached
-# through a symlink into a runtime dir would otherwise pass. A plain assignment, so a
-# failed realpath stops the run under set -e.
-cwd_real="$(realpath -m -- "${PWD}")"
 list_runtime_dirs() { # fills runtime_dirs; a function, so its variables stay local
 	local d
 	local -A seen_runtime_dirs=()
@@ -282,8 +283,8 @@ list_runtime_dirs() { # fills runtime_dirs; a function, so its variables stay lo
 		[ -n "${d}" ] && [ -d "${d}" ] || continue
 		d="$(realpath -m -- "${d}")"
 		[ -z "${seen_runtime_dirs["${d}"]+present}" ] || continue
-		refuse_holding "${d}" "the runtime dir" "its tmpfs, mounted after them, would cover the mounts there" \
-			"\$HOME|${home}" "the cwd|${cwd_real}" "the /etc mirror and the other mounts under|/tmp"
+		refuse_holding "${d}" "the runtime dir" "its tmpfs is mounted after that and would cover it" \
+			"\$HOME|${home}" "the disposable project|${PWD}" "the /etc mirror and the other mounts under|/tmp"
 		seen_runtime_dirs["${d}"]=1
 		runtime_dirs+=("${d}")
 	done
