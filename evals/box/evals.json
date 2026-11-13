@@ -106,7 +106,7 @@
         },
         {
           "assertion": "アップロード後に id/名前など結果を確認している",
-          "prompt_quote": "Box に report.txt を新規アップロードしたい"
+          "prompt_quote": "新規アップロードしたい。実行するコマンドを示して"
         }
       ]
     },
