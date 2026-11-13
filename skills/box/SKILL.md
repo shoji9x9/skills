@@ -32,7 +32,9 @@ trap 'rm -f "$BOX_AUTH"' EXIT
 printf 'Authorization: Bearer %s\n' "$TOKEN" >"$BOX_AUTH"
 ```
 
-この後の例は、すべてこの `BOX_AUTH` を使う。
+この後の例は、すべてこの `BOX_AUTH` を使う。`trap` がシェルの終わるときに `BOX_AUTH` を消すので、この例と API の呼び出しは同じシェルで実行する。
+エージェントのツールのように、コマンドの呼び出しごとにシェルが終わる環境では、この例と続けて行う API の呼び出しを 1 つの呼び出しにまとめる。下の「対象フォルダ」で取得する `FOLDER` も、同じ呼び出しの中で取得する。
+OAuth refresh では、`box-token.sh` を実行するたびに refresh token が新しい値に変わるので、この例を並列に実行しない。同じ refresh token を 2 つの実行が読むと、後の実行が失敗する。
 
 | 方式          | 必要な環境変数                                        | 特徴                                                                                                     |
 | ------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
@@ -117,10 +119,25 @@ curl -sSf "https://api.box.com/2.0/files/<file-id>?fields=id,name,size,extension
 
 ### ファイルのダウンロード
 
+ダウンロード先も `mktemp` で作る。`/tmp/box-download.bin` のように名前を決めて `/tmp` に置くファイルは、同じホストの他のユーザーが先に作れるので使わない。
+`trap` は前の設定を置き換えるので、`BOX_AUTH` と一緒に消すように設定し直す。
+
 ```bash
-curl -fL "https://api.box.com/2.0/files/<file-id>/content" \
-  -H @"$BOX_AUTH" -o /tmp/box-download.bin
+BOX_DOWNLOAD="$(mktemp)"
+trap 'rm -f "$BOX_AUTH" "$BOX_DOWNLOAD"' EXIT
+if curl -fL "https://api.box.com/2.0/files/<file-id>/content" \
+  -H @"$BOX_AUTH" -o "$BOX_DOWNLOAD"; then
+  wc -c <"$BOX_DOWNLOAD"   # 中身を読む処理（この例はバイト数の確認）
+else
+  echo "box: ダウンロードに失敗した" >&2
+  false   # if を呼び出しの最後に置いたときに、失敗が終了コードに残る
+fi
 ```
+
+中身を読む処理は `then` の中に書く。curl が失敗したときに、空の一時ファイルを読まないためである。
+
+`BOX_DOWNLOAD` は、シェルが終わるときに消える。中身は、認証の例と同じく、ダウンロードと同じシェルの中で読む。
+ファイルを残すなら、`-o` に利用者が指定した保存先の絶対パスを渡す。相対パスは、呼び出しごとに変わりうる作業ディレクトリから解決される。
 
 ### 検索（対象のフォルダの下に限る）
 
@@ -137,20 +154,65 @@ curl -sSf -G "https://api.box.com/2.0/search" \
 
 ### アップロード（新規ファイル）
 
+アップロードするファイルは、利用者が指定したパスで渡す。`/tmp/report.txt` のように名前を決めて `/tmp` に置くファイルは、他のユーザーが同じ名前で先に置けるので使わない。
+パスと Box に置くときのファイル名は、単引用符で囲んで変数に入れる。シェルは単引用符の中の `$` やバッククォートを展開しない。値に単引用符を含むときは、その単引用符を `'\''` と書く。
+利用者が Box に置く名前を指定しなければ、パスの最後の部分（`report.txt` など）を名前に書く。
+パスは、「ファイルのダウンロード」の節の保存先と同じ理由で、絶対パスで書く。
+`~` は単引用符の中で展開されないので、ホームの下のファイルは `UPLOAD_FILE=~/'docs/report.txt'` のように `~/` を単引用符の外に書き、シェルに展開させる。下の例のプレースホルダを置き換えるときも、`~/` は単引用符の外に出す。
+Windows のファイルは、WSL では `/mnt/c/...`、Git Bash では `/c/...` の形で書く。
+
+ファイルは、パスを curl の `-F` に書かず、シェルのリダイレクト（`<`）で stdin から送る（`file=@-`）。
+`-F` に書いたパスは curl が `;` や引用符を区切りとして読むが、リダイレクトのパスはシェルがそのまま開く。
+curl は stdin の中身を全部メモリに読んでから送るので、大きいファイルでは使うメモリが増える。
+Box は、ファイルの名前を `attributes` の `name` から取る（<https://developer.box.com/reference/post-files-content/>）。`file` の部分の `filename` の扱いは書いていないので、`filename` には決まった値（`upload`）を書き、名前は必ず `attributes` に書く。
+`attributes` は `jq` で組み立てて名前をエスケープし、`--form-string` で送る。`-F` で送ると、curl が名前の中の `;` を区切りとして読み、JSON が途中で切れる。
+Box は `attributes` が `file` より前にあることを求めるので、この順に書く。
+最後の `jq` がパイプの終了コードを決めるので、`set -o pipefail` で curl の失敗を終了コードに残す。
+`set -o pipefail` は例の後もシェルに残る。対話のシェルに残したくなければ、例の全体を `( ... )` で囲んでサブシェルで実行する。
+
 ```bash
+set -o pipefail
+UPLOAD_FILE='<アップロードするファイルの絶対パス>'
+UPLOAD_NAME='<Box に置くファイル名>'
 curl -sSf -X POST "https://upload.box.com/api/2.0/files/content" \
   -H @"$BOX_AUTH" \
-  -F "attributes={\"name\":\"report.txt\",\"parent\":{\"id\":\"$FOLDER\"}}" \
-  -F file=@/tmp/report.txt | jq '.entries[0] | {id, name, size}'
+  --form-string "attributes=$(jq -cn --arg name "$UPLOAD_NAME" --arg parent "$FOLDER" '{name: $name, parent: {id: $parent}}')" \
+  -F 'file=@-;filename=upload' <"$UPLOAD_FILE" | jq '.entries[0] | {id, name, size}'
 ```
 
 ### 新しいバージョンのアップロード（既存のファイルの更新）
 
+新しいバージョンでも、名前を変えないように、今の名前を取得して `attributes` の `name` に書く。
+Box の文書は、`attributes` の `name` を指定すると名前を変えると書き、`file` の部分の `filename` の扱いを書いていない（<https://developer.box.com/reference/post-files-id-content/>）。
+名前と一緒に `etag` も取得し、`If-Match` に付けて送る。取得してから送るまでに他の人がファイルを変えると、Box は 412 を返し、古い名前で上書きしない（同じ文書）。
+パスの書き方と `set -o pipefail` の扱い（シェルに残したくなければサブシェルで囲む）は、上の新規ファイルと同じである。
+
+例は、1 で今の状態を取得し、2 でその名前と `etag` を使って送る。
+
 ```bash
-curl -sSf -X POST "https://upload.box.com/api/2.0/files/<file-id>/content" \
-  -H @"$BOX_AUTH" \
-  -F file=@/tmp/report.txt | jq '.entries[0] | {id, name, modified_at}'
+set -o pipefail
+UPLOAD_FILE='<アップロードするファイルの絶対パス>'
+# 1. 今の状態を取得する
+FILE_META="$(curl -sSf "https://api.box.com/2.0/files/<file-id>?fields=name,etag,sha1,modified_at,modified_by" -H @"$BOX_AUTH")"
+# 2. 1 で取得した名前と etag で送る
+if FILE_NAME="$(printf '%s' "$FILE_META" | jq -er .name)" &&
+  FILE_ETAG="$(printf '%s' "$FILE_META" | jq -er .etag)"; then
+  curl -sSf -X POST "https://upload.box.com/api/2.0/files/<file-id>/content" \
+    -H @"$BOX_AUTH" -H "If-Match: $FILE_ETAG" \
+    --form-string "attributes=$(jq -cn --arg name "$FILE_NAME" '{name: $name}')" \
+    -F 'file=@-;filename=upload' <"$UPLOAD_FILE" | jq '.entries[0] | {id, name, modified_at}'
+else
+  echo "box: 今の名前と etag を取得できない" >&2
+  false
+fi
 ```
+
+412 が返ったら（curl の stderr に `returned error: 412` が出る）、エージェントは送り直さずに止まる。412 は、1 で取得した後に Box のファイルが変わったことを表す。
+エージェントは 1 だけをもう一度実行し、取得した応答（名前・`sha1`・`modified_at`・`modified_by`）を、手元のファイルの SHA-1（`sha1sum` など）と一緒に利用者に示す。
+Box の `sha1` が手元のファイルと同じなら、同じ中身がすでに上がっているので、送り直さない。名前などの変わった点は伝える。
+`sha1` が違えば、送り直すかを利用者に確かめる。
+送り直すと決まったら、エージェントは 1 を実行せず、利用者に示した応答を `FILE_META='<示した応答の JSON>'` と書いて 2 を実行する。JSON に単引用符（`O'Brien.docx` など）があれば、その単引用符を `'\''` と書く。
+示した後にファイルが変わっていれば、Box はまた 412 を返し、エージェントは同じように止まる。
 
 ## 注意
 

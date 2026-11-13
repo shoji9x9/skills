@@ -1,0 +1,107 @@
+{
+  "metadata": {
+    "skill_name": "browser-test",
+    "skill_path": "<repo>/skills/browser-test",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-13T00:02:28Z",
+    "evals_run": [4, 7],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 35.635,
+        "tokens": 145426,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "認証が必要な環境ではユーザーにログインを依頼し、完了の合図を待ってから確認を始めている",
+          "passed": true,
+          "evidence": "「dev が「ログインが必要」なら、ログインをお願いし、完了の連絡を待ってから始めます」と書いている"
+        },
+        {
+          "text": "課題を見つけた場合に変更を含まない別環境でのクロス環境切り分けを行う方針を示している",
+          "passed": true,
+          "evidence": "手順 4 で、変更を含まない別の環境で再現するかを試して切り分けると書いている"
+        },
+        {
+          "text": "確認観点 × 対象ページ × 結果の表と切り分け結果を報告する方針を示している",
+          "passed": true,
+          "evidence": "手順 5 で「確認の観点 × ページ × 結果の表にまとめて報告」と書いている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 31.906,
+        "tokens": 108677,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "渡された環境の URL（http://localhost:5173）を対象にし、設定ファイルの環境（http://localhost:9999 / 環境名 local）を参照も言及もしていない（呼び出し元から環境を渡されたときは設定解決を行わない取り決めに従っている）",
+          "passed": true,
+          "evidence": "渡された 5 つの値だけを使い、設定ファイルは開いていないと書いている。:9999 にも環境名 local にも触れていない"
+        },
+        {
+          "text": "check_urls（http://localhost:5173/）の疎通確認で稼働判定を先に行い、落ちているときだけ pre_commands（npm run build）→ start（npm run dev）を扱う方針を示している（稼働中なら npm run build を実行しない・build を無条件に実行するとは述べていない）",
+          "passed": true,
+          "evidence": "curl で http://localhost:5173/ の疎通を先に確かめ（HTTP 000）、落ちているので npm run build と npm run dev の実行を利用者に頼んでいる。build を実行していない"
+        },
+        {
+          "text": "渡された forbidden_actions（データの削除）を今回の確認に適用する方針を示している",
+          "passed": true,
+          "evidence": "「禁止の操作：「データの削除」は実行しません」と書いている"
+        },
+        {
+          "text": "chrome-devtools MCP が無く中断する際、環境が整った後に実施する確認内容（対象ページと確認観点）を残している",
+          "passed": true,
+          "evidence": "「再開したら行う確認」の表に、対象ページと観点（表示・Console・Network・主要コンポーネント）を残している"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 33.7705,
+        "stddev": 2.6368,
+        "min": 31.906,
+        "max": 35.635
+      },
+      "tokens": {
+        "mean": 127051.5,
+        "stddev": 25985.4671,
+        "min": 108677,
+        "max": 145426
+      }
+    }
+  },
+  "notes": []
+}

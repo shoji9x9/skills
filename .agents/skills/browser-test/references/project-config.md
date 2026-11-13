@@ -111,7 +111,8 @@ node "$CFG" append browser-test environments '{"name":"dev","url":"https://dev.e
 
 `pre_commands` は `start` の前提なので、`start` と同じく、稼働の判定の後（起動が必要なときだけ）実行する。
 動いている環境に対して、条件なしに実行しない。読み取り専用の確認しか要らない場面で、build や codegen などの副作用を承認なしに起こさないためである。
-このスキル（browser-test）は `pre_commands` と `start` のどちらも自動で実行せず、両方をまとめて示してユーザーに実行を促す（このスキルのフローの手順 2）。
+このスキル（browser-test）は、この実行順の 1〜4（稼働の判定と起動）を、ローカルの環境を選んだときだけ当てる（このスキルのフローの手順 2）。
+`pre_commands` と `start` はどちらも自動で実行せず、両方をまとめて示してユーザーに実行を促す。
 参照する側のスキルが自動で実行するかは、各スキルの手順が決める（自動で実行する場合も、1〜4 の条件付きの実行順は共通である）。
 
 この実行順と各項目の意味（`url`・`url_command`・`pre_commands`・`start`・`check_urls`・`forbidden_actions`）は、このファイルを原本とする。
