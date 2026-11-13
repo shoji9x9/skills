@@ -77,7 +77,7 @@ node <spec-parity>/scripts/runtime-errors.mjs compare \
   承認したら、`classification: 環境ノイズ` と同じ `evidence` と承認した人・日時を `approvals[]` に追記する（[`design-review.md`](design-review.md)「承認の記録」）。
   収束の判定は、同じテスト × 署名・同じ新側のバージョン・同じ `evidence` の要素が `approvals[]` に無い環境ノイズを、承認待ちにする。
 - 許容を承認したら、`classification: 許容` と同じ値と承認した人（`approved_by`）を承認の記録（`verify-metadata.json` の `approvals[]`）にも追記する（[`design-review.md`](design-review.md)「承認の記録」）。
-  収束の判定は、次の要素が `approvals[]` に無い許容を、承認として数えない。同じテスト × 署名・同じ新側のバージョン・同じ `approved_at` と `reason` を持ち、`approved_by` を書いた要素である。`approved_by` が雛形のプレースホルダのままなら、書いていないものとして扱う。
+  収束の判定は、次の要素が `approvals[]` に無い許容を、承認として数えない。同じテスト × 署名・同じ新側のバージョン・同じ `approved_at` と `reason` を持ち、`classification` が `許容` か無く、`approved_by` を書いた要素である。`approved_by` が雛形のプレースホルダのままなら、書いていないものとして扱う。
   同じ原因の署名をまとめて 1 回承認したときも、`approvals[]` の要素は署名（テスト × 署名）ごとに 1 件ずつ足す。
 - `compare` は、前の分類を新側のバージョンを見ずに持ち越す。新側を直して記録を採り直した後に持ち越した許容と環境ノイズは、前のバージョンの承認なので、収束の判定が承認待ちにする。
   利用者に承認し直してもらい、新しいバージョンの要素を `approvals[]` に足す（許容は承認の日時を `approved_at` に書き直す）。前のバージョンの要素は消さない。

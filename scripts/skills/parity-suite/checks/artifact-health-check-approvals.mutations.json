@@ -38,19 +38,36 @@
         "new_signatures が配列でない なら型の誤りとして exit 2",
         "runtime_errors が無い（操作中のエラーを比べる前の成果物） なら照合せず、理由を注記に残す",
         "runtime_errors.judged が false（declared: false） なら照合せず、理由を注記に残す",
-        "runtime_errors.judged が雛形のプレースホルダのまま なら照合せず、理由を注記に残す"
+        "runtime_errors.judged が雛形のプレースホルダのまま なら照合せず、理由を注記に残す",
+        "現側の metadata.json が runtime_errors.declared: true なのに diff-metadata.json の runtime_errors が無い なら、照合を外したまま通さない",
+        "現側の metadata.json が runtime_errors.declared: true なのに diff-metadata.json の runtime_errors.judged が false なら、照合を外したまま通さない",
+        "誤検知しないことの確認: 現側の metadata.json が runtime_errors.declared: false なら、diff-metadata.json の judged: false を通す"
       ]
     },
     {
       "id": "ahc-rt-judged-only",
       "why": "runtime_errors.judged が true でない記録（declared: false・雛形のまま）も照合する",
       "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
-      "find": "  if (re.judged !== true) {\n",
-      "replace": "  if (false) {\n",
+      "find": "  if (isPlainObject(re) && re.judged === true) return re;\n",
+      "replace": "  if (isPlainObject(re)) return re;\n",
       "occurrences": 1,
       "expect_failing": [
         "runtime_errors.judged が false（declared: false） なら照合せず、理由を注記に残す",
-        "runtime_errors.judged が雛形のプレースホルダのまま なら照合せず、理由を注記に残す"
+        "runtime_errors.judged が雛形のプレースホルダのまま なら照合せず、理由を注記に残す",
+        "現側の metadata.json が runtime_errors.declared: true なのに diff-metadata.json の runtime_errors.judged が false なら、照合を外したまま通さない",
+        "誤検知しないことの確認: 現側の metadata.json が runtime_errors.declared: false なら、diff-metadata.json の judged: false を通す"
+      ]
+    },
+    {
+      "id": "ahc-rt-declared",
+      "why": "現側が runtime_errors.declared: true なのに比較の結果が無い記録を、照合しないまま通す",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "  if (isPlainObject(current) && current.declared === true) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "現側の metadata.json が runtime_errors.declared: true なのに diff-metadata.json の runtime_errors が無い なら、照合を外したまま通さない",
+        "現側の metadata.json が runtime_errors.declared: true なのに diff-metadata.json の runtime_errors.judged が false なら、照合を外したまま通さない"
       ]
     },
     {
@@ -82,7 +99,7 @@
       "id": "ahc-rt-approved-by",
       "why": "承認した人（approved_by）の無い要素も承認として読む（parity-suite のコピー）",
       "file": "skills/parity-suite/scripts/runtime-errors.mjs",
-      "find": "      filledValue(a.approved_by) &&\n",
+      "find": "      isFilled(a.approved_by) &&\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
@@ -94,7 +111,7 @@
       "id": "ahc-rt-approved-at",
       "why": "承認の日時（approved_at）の無い要素も承認として読む（parity-suite のコピー）",
       "file": "skills/parity-suite/scripts/runtime-errors.mjs",
-      "find": "      filledValue(a.approved_at) &&\n",
+      "find": "      isFilled(a.approved_at) &&\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [

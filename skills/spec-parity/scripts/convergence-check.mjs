@@ -38,7 +38,7 @@ import { isCliEntry } from "./lib/cli.mjs";
 import { selectedResults } from "./lib/e2e-report.mjs";
 import { parseFlags, stripDashes } from "./lib/flags.mjs";
 import { classifyDecision } from "./lib/pending-state.mjs";
-import { isPlaceholder, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
+import { isFilled, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 import {
   UsageError,
   judgeIo,
@@ -392,14 +392,8 @@ export function judgeRuntimeErrors(baseline, compared, { tree, approvals, reason
   return { judged: true, new_signatures: sigs.length };
 }
 
-/**
- * 値が書いてあるか。雛形のプレースホルダ（`<...>`）のままの値は、書いていないものとして扱う。
- * @param {unknown} v
- * @returns {v is string}
- */
-function filled(v) {
-  return nonEmptyString(v) && !isPlaceholder(v);
-}
+/** 値が書いてあるか（雛形のプレースホルダのままの値は書いていないものとして扱う）。定義は lib/guards.mjs の isFilled。 */
+const filled = isFilled;
 
 /**
  * 承認の記録（承認した人・日時）が埋まっているか。

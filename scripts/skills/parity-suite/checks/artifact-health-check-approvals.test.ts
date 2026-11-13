@@ -59,8 +59,11 @@ const noiseLog = (over: Record<string, unknown> = {}) => ({
  * 工程の節のほかは条件を満たす成果物に、操作中のエラーの比較の結果と承認の記録を置いて判定する。
  * @param diffExtra diff-metadata.json に足す欄（runtime_errors・approvals）
  */
-function judge(diffExtra: Record<string, unknown>) {
-  const { root, slugDir, metadataPath } = makeProject();
+function judge(diffExtra: Record<string, unknown>, currentRuntimeErrors?: unknown) {
+  const { root, slugDir, metadataPath } = makeProject((m) => {
+    if (currentRuntimeErrors !== undefined)
+      Object.assign(m, { runtime_errors: currentRuntimeErrors });
+  });
   writeStage(slugDir, { dataset_version: 7, converged: true, ...diffExtra });
   const r = run(metadataPath, ["--target", "local-dev", "--stage", "diff"]);
   rmSync(root, { recursive: true, force: true });
@@ -68,8 +71,9 @@ function judge(diffExtra: Record<string, unknown>) {
 }
 
 const compared = (sigs: unknown[]) => ({ judged: true, ok: true, new_signatures: sigs });
+// 承認待ちの所見は [approval] で始まる（parity-diff はこの所見を parity-suite へ戻さない）
 const APPROVAL_FINDING =
-  /操作中のエラーの分類の承認が、承認の記録（approvals）に同じ値で積まれていない/;
+  /warn: \[approval\] 操作中のエラーの分類の承認が、承認の記録（approvals）に同じ値で積まれていない/;
 
 test("誤検知しないことの確認: 許容と環境ノイズの承認が approvals に同じ値で積まれていれば通す", () => {
   const r = judge({
@@ -201,5 +205,27 @@ test("--target を渡さなければ工程の節ごと判定しない（承認�
   const r = run(metadataPath, ["--stage", "diff"]);
   rmSync(root, { recursive: true, force: true });
   expect(r.stdout).not.toMatch(APPROVAL_FINDING);
+  expect(r.status).toBe(0);
+});
+
+test.each([
+  ["runtime_errors が無い", {}],
+  ["runtime_errors.judged が false", { runtime_errors: { judged: false, reason: "比べていない" } }],
+])(
+  "現側の metadata.json が runtime_errors.declared: true なのに diff-metadata.json の %s なら、照合を外したまま通さない",
+  (_name, extra) => {
+    const r = judge(extra, { declared: true });
+    expect(r.stdout).toMatch(/runtime_errors\.declared が true なのに、diff-metadata\.json が/);
+    expect(r.stdout).not.toMatch(/操作中のエラーの承認を照合しない/);
+    expect(r.status).toBe(1);
+  },
+);
+
+test("誤検知しないことの確認: 現側の metadata.json が runtime_errors.declared: false なら、diff-metadata.json の judged: false を通す", () => {
+  const r = judge(
+    { runtime_errors: { judged: false, reason: "現側で記録しなかった" } },
+    { declared: false, reason: "現側で記録しなかった" },
+  );
+  expect(r.stdout).toMatch(/操作中のエラーの承認を照合しない/);
   expect(r.status).toBe(0);
 });

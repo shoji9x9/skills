@@ -637,7 +637,7 @@
       "id": "cv-allowance-approved-by",
       "why": "承認の記録の要素に、承認した人（approved_by）が書いてあることを求める（spec-parity のコピー）",
       "file": "skills/spec-parity/scripts/runtime-errors.mjs",
-      "find": "      filledValue(a.approved_by) &&\n",
+      "find": "      isFilled(a.approved_by) &&\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
@@ -675,7 +675,7 @@
       "id": "cv-noise-approved-at",
       "why": "環境ノイズの承認の要素に、承認の日時（approved_at）が書いてあることを求める（spec-parity のコピー）",
       "file": "skills/spec-parity/scripts/runtime-errors.mjs",
-      "find": "      filledValue(a.approved_at) &&\n",
+      "find": "      isFilled(a.approved_at) &&\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [

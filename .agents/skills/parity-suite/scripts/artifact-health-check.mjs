@@ -1887,32 +1887,53 @@ export function checkStage(ctx) {
   return { judged: true, findings: s.findings, notes: s.notes };
 }
 
+/** 利用者の承認を待つ所見の接頭辞。parity-diff はこの所見を parity-suite へ戻さず、利用者に承認し直してもらう。 */
+export const APPROVAL_TAG = "[approval]";
+
+/**
+ * 照合する比較の結果（diff-metadata.json の runtime_errors）を返す。照合しないときは、注記か所見を足して null を返す。
+ * @param {StageState} s
+ * @returns {Record<string, unknown> | null}
+ */
+function comparedRuntimeErrors(s) {
+  const { diffMeta, diffPath } = s;
+  const re = diffMeta.runtime_errors;
+  if (re !== undefined && !isPlainObject(re))
+    throw new UsageError("diff-metadata.json の runtime_errors がオブジェクトでない");
+  if (isPlainObject(re) && re.judged === true) return re;
+  const current = isPlainObject(s.ctx.featureMetadata)
+    ? s.ctx.featureMetadata.runtime_errors
+    : undefined;
+  const state =
+    re === undefined ? "runtime_errors を持たない" : "runtime_errors.judged が true でない";
+  if (isPlainObject(current) && current.declared === true) {
+    s.findings.push(
+      `現側の metadata.json の runtime_errors.declared が true なのに、diff-metadata.json が${state}（runtime-errors.mjs compare --write を通し直す）: ${diffPath}`,
+    );
+  } else {
+    s.notes.push(
+      `diff-metadata.json が${state}ため、操作中のエラーの承認を照合しない: ${diffPath}`,
+    );
+  }
+  return null;
+}
+
 /**
  * diff-metadata.json の操作中のエラーの許容と環境ノイズを、同じファイルの承認の記録（approvals）と照合する。
  * 分類の欄（runtime_errors.new_signatures[]）は compare --write と実行のたびの書き直しで変わるので、承認を後から書き換えても欄だけでは検出できない。
  * approvals は追記専用で、縮んでいないかは replace-strategy の append-only-check.mjs が確かめる（replace-strategy の assets/append-only-manifest.json）。
- * 照合しない状態は閉じた集合にする。runtime_errors が無い（操作中のエラーを比べる前の成果物）・judged が true でない（declared: false など）だけである。
+ * 照合しない状態は閉じた集合にする。現側の metadata.json の runtime_errors.declared が true でないときだけ、照合しないことがある。
+ * そのうえで、diff-metadata.json の runtime_errors が無い（操作中のエラーを比べる前の成果物）か、judged が true でない（declared: false など）ときである。
+ * 現側が declared: true なのに比較の結果が無いか judged が true でない記録は、照合を外したまま収束させないために落とす。
  * approvals をキーごと持たない記録は、積まれた承認が 0 件として読む（許容と環境ノイズは承認待ちになる）。
+ * 承認待ちの所見は APPROVAL_TAG で始める。呼び出し側（parity-diff）は、この所見を parity-suite へ戻さず、利用者に承認し直してもらう。
  * 要対応と説明の付いていない署名は、compare の ok が収束を止めるので、ここでは数えない。
  * @param {StageState} s
  */
 function judgeStageRuntimeErrors(s) {
   const { diffMeta, diffPath } = s;
-  const re = diffMeta.runtime_errors;
-  if (re === undefined) {
-    s.notes.push(
-      `diff-metadata.json が runtime_errors を持たないため、操作中のエラーの承認を照合しない: ${diffPath}`,
-    );
-    return;
-  }
-  if (!isPlainObject(re))
-    throw new UsageError("diff-metadata.json の runtime_errors がオブジェクトでない");
-  if (re.judged !== true) {
-    s.notes.push(
-      `diff-metadata.json の runtime_errors.judged が true でないため、操作中のエラーの承認を照合しない: ${diffPath}`,
-    );
-    return;
-  }
+  const re = comparedRuntimeErrors(s);
+  if (re === null) return;
   const sigs = re.new_signatures;
   if (!isArray(sigs))
     throw new UsageError("diff-metadata.json の runtime_errors.new_signatures が配列でない");
@@ -1924,7 +1945,7 @@ function judgeStageRuntimeErrors(s) {
       ? `${String(sig.test)} の ${String(sig.kind)}「${String(sig.text)}」（${String(sig.classification)}）`
       : "読めない署名";
     s.findings.push(
-      `操作中のエラーの分類の承認が、承認の記録（approvals）に同じ値で積まれていない: ${name}。承認を書き換えたか、前の diff-metadata.json の approvals を書き戻していないか、承認の記録を持たない前の記録なら、利用者に承認し直してもらって approvals に追記する: ${diffPath}`,
+      `${APPROVAL_TAG} 操作中のエラーの分類の承認が、承認の記録（approvals）に同じ値で積まれていない: ${name}。承認を書き換えたか、前の diff-metadata.json の approvals を書き戻していないか、承認の記録を持たない前の記録なら、利用者に承認し直してもらって approvals に追記する: ${diffPath}`,
     );
   }
 }

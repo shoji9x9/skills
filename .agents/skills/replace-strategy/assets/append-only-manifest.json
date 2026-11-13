@@ -140,7 +140,7 @@
       "unit": "json-arrays",
       "arrays": ["approvals"],
       "requirement": "parity-diff の承認の記録（操作中のエラーを許容か環境ノイズとした承認）。承認するたびに要素を追記し、既にある要素を消したり書き換えたりしない。diff-metadata.json は実行のたびに作り直すので、前の diff-metadata.json の approvals をそのまま書き戻してから書く（書き戻しを忘れると、要素が消えたとしてここで落ちる）。収束の判定（parity-suite の artifact-health-check.mjs --stage diff --target）は、runtime_errors.new_signatures[] の許容と環境ノイズについて、同じ値の要素がここに積まれていなければ、その分類を承認として数えない",
-      "source": "parity-diff の references/triage.md「操作中のエラーの分類」"
+      "source": "parity-diff の references/triage.md「承認の記録（approvals）」"
     },
     {
       "id": "gaps",

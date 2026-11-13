@@ -36,7 +36,13 @@ import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
 import { writeFileAtomic } from "./lib/file-io.mjs";
 import { parseFlags, stripDashes } from "./lib/flags.mjs";
-import { isInteger, isPlaceholder, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
+import {
+  isFilled,
+  isInteger,
+  isPlaceholder,
+  isPlainObject,
+  nonEmptyString,
+} from "./lib/guards.mjs";
 
 /**
  * ツールのバージョン（原本）。署名の判定規則・正規化・出力の形を変えたら上げる。上げると、前のバージョンの基準をすべて作り直すことになる。
@@ -436,15 +442,6 @@ export function judgeClassification(c) {
 }
 
 /**
- * 値が書いてあるか。雛形のプレースホルダ（`<...>`）のままの値は、書いていないものとして扱う。
- * @param {unknown} v
- * @returns {boolean}
- */
-function filledValue(v) {
-  return nonEmptyString(v) && !isPlaceholder(v);
-}
-
-/**
  * 許容か環境ノイズの分類が、承認の記録（approvals）に同じ値で積まれているかを判定する。
  * 収束の判定（spec-parity の convergence-check.mjs と parity-suite の artifact-health-check.mjs --stage diff）が呼ぶ。
  * 分類の欄は書き直せるので、承認を後から書き換えても欄だけでは検出できない。追記専用の承認の記録と突き合わせて、書き換えを承認待ちにする。
@@ -475,8 +472,8 @@ export function approvalLogged(s, { approvals, tree }) {
     (a) =>
       isPlainObject(a) &&
       a.kind === "runtime_errors" &&
-      filledValue(a.approved_by) &&
-      filledValue(a.approved_at) &&
+      isFilled(a.approved_by) &&
+      isFilled(a.approved_at) &&
       a.test === s.test &&
       a.id === s.id &&
       (tree === null || a.tree === tree) &&
