@@ -1,0 +1,82 @@
+{
+  "metadata": {
+    "skill_name": "replace-strategy",
+    "skill_path": "/home/shoji9x9/projects/skills/.claude/worktrees/agent-a3ea0393948ebf834/skills/replace-strategy",
+    "executor_model": "claude-opus-5-5",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-13T01:31:09Z",
+    "evals_run": [42],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 42,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 50.644,
+        "tokens": 301086,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "order-list のワークフローを spec-parity suite → parity-replace → golden-dataset（フェーズ B）→ spec-parity verify の順にしている",
+          "passed": true,
+          "evidence": "spec-parity suite → parity-replace → golden-dataset（フェーズ B）→ spec-parity verify の順にしている"
+        },
+        {
+          "text": "order-list の収束の項を、spec-parity verify を実行して .replace/parity/order-list/new/<target>/verify-metadata.json の converged: true まで進める形にし、parity-diff の diff-metadata.json の項を置いていない",
+          "passed": true,
+          "evidence": "verify-metadata.json の converged: true まで進める形にし、parity-diff の項を置いていない"
+        },
+        {
+          "text": "order-list の収束の項に、デザインの点検と、人が新側の画面を確かめた承認の記録と、操作中のエラーを許容か環境ノイズとした承認の記録を含めている",
+          "passed": true,
+          "evidence": "デザインの点検・人が新側の画面を確かめた承認・操作中のエラーを許容または環境ノイズとした承認の 3 つを含めている"
+        },
+        {
+          "text": "横断 API の user の収束の項は、free でも parity-diff の diff-metadata.json の converged: true のままにしている",
+          "passed": true,
+          "evidence": "user の収束の項は parity-diff の diff-metadata.json の converged: true のまま"
+        },
+        {
+          "text": "起票していない（gh issue create も issue-create への委譲も行っていない）",
+          "passed": true,
+          "evidence": "「起票はしません」。gh issue create も issue-create への委譲も無い"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 50.644,
+        "stddev": 0,
+        "min": 50.644,
+        "max": 50.644
+      },
+      "tokens": {
+        "mean": 301086,
+        "stddev": 0,
+        "min": 301086,
+        "max": 301086
+      }
+    }
+  },
+  "notes": [
+    "Issue #1007 の変更確認。eval 42 の 3 つ目の assertion（reachability の同じ文を含む）を、features-issues.md の spec-parity 用の受け入れ条件の文に合わせて直した。既存の eval なので with_skill を 1 run 実行した。",
+    "文を変えた assertion は前回の記録と比べない。ほかの 4 つは前回と同じ合否。"
+  ]
+}

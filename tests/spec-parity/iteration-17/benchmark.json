@@ -1,0 +1,183 @@
+{
+  "metadata": {
+    "skill_name": "spec-parity",
+    "skill_path": "/home/shoji9x9/projects/skills/.claude/worktrees/agent-a3ea0393948ebf834/skills/spec-parity",
+    "executor_model": "claude-opus-5-5",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-13T01:31:09Z",
+    "evals_run": [8, 9, 10],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 10,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 80.664,
+        "tokens": 565235,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同梱の convergence-check.mjs の結果で、収束していないと判定している（応答で判定）",
+          "passed": true,
+          "evidence": "convergence-check.mjs は exit 1 と答えている"
+        },
+        {
+          "text": "並び順を切り替えるテストの 404（/api/orders/sort-presets）の許容の承認が、今の新側のバージョンの承認として承認の記録（approvals）に積まれていないことを理由に挙げている",
+          "passed": true,
+          "evidence": "承認は前のバージョン（tree 7e2c9b41…）に対するもので、今のバージョンの承認として数えられないと挙げている"
+        },
+        {
+          "text": "前のバージョンで承認した許容を今のバージョンの承認として扱わず、利用者にその許容を承認し直してもらうとしている",
+          "passed": true,
+          "evidence": "選択肢 1 で、今のバージョンの許容の要素を approvals に追記し、承認し直してもらうとしている"
+        },
+        {
+          "text": "許容の承認を、承認の記録（approvals）に自分で追記していない",
+          "passed": true,
+          "evidence": "「承認の記録（approvals）は書いていません」"
+        },
+        {
+          "text": "verify-metadata.json の converged を true にしていない",
+          "passed": true,
+          "evidence": "convergence-check.mjs --write が converged: false を書いた"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 84.054,
+        "tokens": 586526,
+        "tool_calls": 13,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同梱の convergence-check.mjs を実行し、その終了コードで収束を判定している（応答で判定）",
+          "passed": true,
+          "evidence": "convergence-check.mjs の結果は exit 1（converged: false）と答えている"
+        },
+        {
+          "text": "デザインの指摘 dr-1 は「受け入れる」になっているが承認の記録が無いので、収束しないとしている",
+          "passed": true,
+          "evidence": "dr-1 は「受け入れる」案だが承認した人・日時・理由が雛形のままで、未承認としている"
+        },
+        {
+          "text": "人による確認（human_review）の承認の記録が無いので、収束しないとしている",
+          "passed": true,
+          "evidence": "人による確認は承認の記録が雛形のままで、未承認としている"
+        },
+        {
+          "text": "モデル自身が画面の記録やデザインの指摘を見て問題ないと判断し、利用者の承認の代わりにしていない",
+          "passed": true,
+          "evidence": "承認の欄は空のまま判断待ちとして残したと書き、自分で問題ないと判断していない"
+        },
+        {
+          "text": "dr-1 を受け入れるかと、新側の画面に違和感が無いかを、利用者に確かめる（承認を求める）としている",
+          "passed": true,
+          "evidence": "dr-1 を受け入れるか直すかと、新側の画面に違和感が無いかを利用者に求めている"
+        },
+        {
+          "text": "verify-metadata.json の converged を true にしておらず、承認の記録を自分で埋めていない",
+          "passed": true,
+          "evidence": "converged は false。承認の欄は埋めず、判断待ち pd-1・pd-2 を追記した"
+        },
+        {
+          "text": "収束していないので、まだ Issue を閉じられないと答えている",
+          "passed": true,
+          "evidence": "「Issue #12 はまだ閉じられません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 85.495,
+        "tokens": 642864,
+        "tool_calls": 13,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同梱の convergence-check.mjs の結果で、収束していないと判定している（応答で判定）",
+          "passed": true,
+          "evidence": "convergence-check.mjs --write の結果は exit 1 で converged: false と答えている"
+        },
+        {
+          "text": "/orders の幅 375 で横にはみ出していること（scrollWidth 587）を理由に挙げている",
+          "passed": true,
+          "evidence": "/orders の 375×800 で scrollWidth 587px に対して clientWidth 375px とはみ出しを挙げている"
+        },
+        {
+          "text": "はみ出しを要対応（差し戻す内容）とし、同じ --target（local-dev）の parity-replace へ差し戻すとしている",
+          "passed": true,
+          "evidence": "verify.md を入力にして同じ target（local-dev）の parity-replace に渡すとしている"
+        },
+        {
+          "text": "差し戻しの入力を verify.md の差し戻す内容に、ページ・幅・測定値を添えて書くとしている",
+          "passed": true,
+          "evidence": "verify.md にページ（/orders）・幅 375・測定値を書いたと答えている"
+        },
+        {
+          "text": "現行の画面と比べたり、現行もはみ出すかを測り直したりして、はみ出しを許容していない",
+          "passed": true,
+          "evidence": "「はみ出しは承認があっても要対応のまま」。現行と比べて許容していない"
+        },
+        {
+          "text": "verify-metadata.json の converged を true にしていない",
+          "passed": true,
+          "evidence": "converged は false"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 83.4043,
+        "stddev": 2.4802,
+        "min": 80.664,
+        "max": 85.495
+      },
+      "tokens": {
+        "mean": 598208.3333,
+        "stddev": 40111.3836,
+        "min": 565235,
+        "max": 642864
+      }
+    }
+  },
+  "notes": [
+    "Issue #1007 の変更確認。eval 8・9・10 は既存の eval で、with_skill を 1 run ずつ実行した（収束の判定が環境ノイズも照合するようになり、fixture の setup.sh のコメントが変わった）。",
+    "assertion ごとの合否は前回（iteration-16）と同じ。新しい eval 11 は iteration-18 に分けた（configuration の組が違うため）。"
+  ]
+}

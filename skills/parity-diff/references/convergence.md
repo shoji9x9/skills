@@ -257,6 +257,11 @@
          記録と `replace-metadata.json` のバージョンが一致したままの一括再検証の直後は、検証先のバージョンを `--carry-to` で渡したときだけ持ち越しを判定する（同じ手順 5）
        - どちらかが `new.tree` を持たないもの（古い記録。`new.commit` が一致していても、同じ `--target` の `parity-replace` か `parity-diff` をもう一度実行して記録し直す）
        - `dataset_version` を読めないもの、今のバージョンより新しいもの、区間の `changes[].affects` に `*` があるもの、`changes` の履歴が不正なもの
+       - `runtime_errors.new_signatures[]` の許容と環境ノイズのうち、同じ値の承認が `approvals[]` に積まれていないもの（照合の鍵と書き方は [`triage.md`](triage.md)「承認の記録（`approvals`）」。新側のバージョンは照合しない）。
+         `approvals` をキーごと持たない記録は、承認が 0 件として読む。
+         `diff-metadata.json` に `judged: true` の比較の結果が無い記録は照合せず、注記に残す。現側の `metadata.json` の宣言とは突き合わせない。
+         現側が `declared: true` なのに比較の結果が無い記録は、下の「操作中のエラーの比較」の条件（`runtime-errors.mjs compare` が exit 0）で止める。
+         承認の記録と照合して見つかった所見（同じ値の承認が `approvals[]` に無い許容と環境ノイズ）は `warn: [approval]` で始まる。`parity-suite` へも `parity-replace` へも戻さず、利用者に承認し直してもらって `approvals` に追記する
 
     対応づけをバージョンだけに任せない。データセットを変えずに `parity-replace` が実装を作り直すと、前の反復で収束した `diff-metadata.json` が `dataset_version` の一致だけでこのチェックを満たす。
     差分を採り直していないのに、「済んだ」ように見えてしまう。そのため、両方の成果物が持つ識別子（新側の `new.tree` と反復の回数）で結び付ける。
@@ -274,7 +279,7 @@
     実際に参照するテーブルの導き方は `golden-dataset` の側の取り決めなので、このスクリプトは同じ実装をもう 1 つ作らない。重なりを見るまでもなく確定する形だけを失敗にする（重なりの判定は preflight が行う）。
     投入対象でない target（`db` を持たない、または `seedable` の無い読み取り専用のもの）は、`dataset_version: null` にして `dataset_version_exempt` に理由を書き、免除する
     （[`preflight.md`](preflight.md) で定義する）。この免除は正規の記録なので、失敗にしない。
-    `converged` が偽でも失敗にしない。偽は「まだ直っていない」という記録で、隠すものではない。失敗にするのは「無い」と「古い」だけである。
+    `converged` が偽でも失敗にしない。偽は「まだ直っていない」という記録で、隠すものではない。失敗にするのは「無い」と「古い」と、承認の記録（`approvals`）の無い操作中のエラーの許容と環境ノイズ（`warn: [approval]` の所見）だけである。
 
     `--stage diff` はデフォルトなので省いてもよいが、明示する。`parity-suite` は自分の完了の判定を `--stage suite` で通している（`blocking` は向こうが書く出力なので、失敗にしない）。
     どちらの工程のチェックかを読み手が取り違えると、収束判定で `suite` を渡して、未測定を通してしまう。
@@ -291,6 +296,7 @@
   - 追記専用の成果物が縮んでいない（一覧は `replace-strategy` の `assets/append-only-manifest.json` で定義する）。
     決定を積み上げる成果物は、既存の内容を消さずに追記すると定めてある。
     対象は、設定ファイル、`features.md` / `components.md` / `assets.md` / `dependencies.md` / `weaknesses.md`、インスタンス例外の台帳とその根拠、`gaps.md`、データセットのバージョンの記録である。
+    `diff-metadata.json` の `approvals`（操作中のエラーの承認の記録）も対象にする。
     ところが、追記であることを確かめないと、丸ごと書き直しても、今の状態が整合していればすべて通ってしまう。
     失われるのは過去の決定（なぜこの差分を許容したのか、いつ誰が承認したのか）で、収束の判定は今の状態しか見ないので、`converged: true` になりうる。
     数え直しは、インストール済みの `replace-strategy` のスクリプトが行う。
@@ -334,7 +340,8 @@
   - 操作中のエラーの比較に、説明の付いていない差分・要対応・記録の欠けが残っていない。
     `metadata.json` の `runtime_errors.declared` が `true` のときだけ判定に入り、トリアージの分類を書いた後に通し直した `runtime-errors.mjs compare` が exit 0 であること（手順の原本は [`detect.md`](detect.md)「操作中のエラーの比較」）。
     要対応と `failed_tests` は差し戻しに入り、`missing_tests`・`extra_tests` は差し戻さずに採り直す。
-    `results` の件数には足さず、`runtime_errors.ok` だけで判定する。
+    `results` の件数には足さず、`runtime_errors.ok` で判定する。
+    `ok` は承認の記録を見ないので、許容と環境ノイズの承認は、上の採取物と工程の健全性のチェック（`artifact-health-check.mjs`）が `approvals` と照合する。
     `runtime_errors` が無い・`declared: false` の成果物は判定せず、`diff-metadata.json` の `runtime_errors.judged: false` と理由、`diff.md` の未検証の領域に残す。
 
 ## `intentional_diffs.pending` の棚卸し

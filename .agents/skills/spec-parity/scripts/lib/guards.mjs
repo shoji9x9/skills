@@ -95,10 +95,20 @@ function isPlaceholder(value) {
   return typeof value === "string" && /^<[\s\S]*>$/.test(value.trim());
 }
 
+/**
+ * 値が書いてあるか。空でない文字列で、雛形のプレースホルダ（`<...>`）のままでない値だけを、書いたものとして数える。
+ * @param {unknown} value
+ * @returns {value is string}
+ */
+function isFilled(value) {
+  return nonEmptyString(value) && !isPlaceholder(value);
+}
+
 export {
   isFiniteNumber,
   isInteger,
   isObjectLike,
+  isFilled,
   isPlaceholder,
   isPlainObject,
   nonEmptyString,

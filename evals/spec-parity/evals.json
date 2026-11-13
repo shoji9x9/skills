@@ -302,6 +302,41 @@
           "prompt_quote": "収束を判定して"
         }
       ]
+    },
+    {
+      "id": 11,
+      "fixture": "fixtures/verify-rewritten-noise",
+      "requires_skills": ["replace-strategy", "parity-diff"],
+      "prompt": "spec-parity verify --feature order-list --target local-dev の記録はそろった。e2e とブラウザはもう実行しなくていい。収束を判定して、収束しなければ次に何をするかを決めて。",
+      "assertions": [
+        "同梱の convergence-check.mjs の結果で、収束していないと判定している（応答で判定）",
+        "並び順を切り替えるテストの 404（/api/orders/sort-presets）を環境ノイズとした承認が、承認の記録（approvals）に積まれていないことを理由に挙げている",
+        "許容として積まれた承認の記録を、環境ノイズの承認として扱わず、利用者にその分類を承認してもらうとしている",
+        "環境ノイズの承認を、承認の記録（approvals）に自分で追記していない",
+        "verify-metadata.json の converged を true にしていない"
+      ],
+      "reachability": [
+        {
+          "assertion": "同梱の convergence-check.mjs の結果で、収束していないと判定している（応答で判定）",
+          "prompt_quote": "収束を判定して"
+        },
+        {
+          "assertion": "並び順を切り替えるテストの 404（/api/orders/sort-presets）を環境ノイズとした承認が、承認の記録（approvals）に積まれていないことを理由に挙げている",
+          "prompt_quote": "収束を判定して"
+        },
+        {
+          "assertion": "許容として積まれた承認の記録を、環境ノイズの承認として扱わず、利用者にその分類を承認してもらうとしている",
+          "prompt_quote": "収束しなければ次に何をするかを決めて"
+        },
+        {
+          "assertion": "環境ノイズの承認を、承認の記録（approvals）に自分で追記していない",
+          "prompt_quote": "収束しなければ次に何をするかを決めて"
+        },
+        {
+          "assertion": "verify-metadata.json の converged を true にしていない",
+          "prompt_quote": "収束を判定して"
+        }
+      ]
     }
   ]
 }
