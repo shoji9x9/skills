@@ -86,7 +86,6 @@
         "$HOME の外の設定の場所 XDG_CONFIG_HOME が $HOME の外なら tmpfs で隠し、許可リストの場所だけを読み取り専用で戻す",
         "$HOME の外の設定の場所 ~/.config が $HOME の外へのシンボリックリンクなら、リンク先を tmpfs で隠して許可リストの場所を戻す",
         "$HOME の外の設定の場所 先に見つけた場所の中にリンクした許可リストの祖先も、その中の許可リストの場所を戻す",
-        "$HOME の外の設定の場所 XDG の場所が runtime dir の下でも、runtime dir の tmpfs より後に隠して戻す",
         "$HOME の外の設定の場所 XDG の場所が互いを含むとき（XDG_CONFIG_HOME が内側）、外側だけを tmpfs で隠し、両方の許可リストの場所を戻す",
         "$HOME の外の設定の場所 XDG の場所が互いを含むとき（XDG_CACHE_HOME が内側）、外側だけを tmpfs で隠し、両方の許可リストの場所を戻す"
       ]
@@ -118,8 +117,9 @@
         "$HOME の外の設定の場所 先に見つけた場所の中にリンクした許可リストの祖先も、その中の許可リストの場所を戻す",
         "$HOME の外の設定の場所 XDG の場所が互いを含むとき（XDG_CONFIG_HOME が内側）、外側だけを tmpfs で隠し、両方の許可リストの場所を戻す",
         "$HOME の外の設定の場所 XDG の場所が互いを含むとき（XDG_CACHE_HOME が内側）、外側だけを tmpfs で隠し、両方の許可リストの場所を戻す",
-        "$HOME の外の設定の場所 XDG の場所が runtime dir の下でも、runtime dir の tmpfs より後に隠して戻す",
-        "$HOME の外の設定の場所 XDG_CONFIG_HOME が / として $HOME を含むなら、隠せないので bwrap を起動せずに止める"
+        "$HOME の外の設定の場所 XDG_CONFIG_HOME が / として $HOME を含むなら、隠せないので bwrap を起動せずに止める",
+        "$HOME の外の設定の場所 XDG の場所が runtime dir の下にあるなら、どちらかの tmpfs が他方を覆うので bwrap を起動せずに止める",
+        "$HOME の外の設定の場所 XDG の場所が runtime dir を含むなら、どちらかの tmpfs が他方を覆うので bwrap を起動せずに止める"
       ]
     },
     {
@@ -156,8 +156,8 @@
       "id": "root-holding-home-hidden",
       "why": "$HOME を含む場所を、止めずにそのまま隠す",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\t\tcase \"${home}/\" in \"${r%/}/\"*)\n",
-      "replace": "\t\tcase \"${home}/\" in \"/nonexistent-${r}/\"*)\n",
+      "find": "\t\tfor kept in \"\\$HOME|${home}\" \"the disposable project|${PWD}\" \"${runtime_dirs[@]/#/the runtime dir|}\"; do\n",
+      "replace": "\t\tfor kept in \"the disposable project|${PWD}\" \"${runtime_dirs[@]/#/the runtime dir|}\"; do\n",
       "occurrences": 1,
       "expect_failing": [
         "$HOME の外の設定の場所 XDG_CONFIG_HOME が $HOME を含むなら、隠せないので bwrap を起動せずに止める",
@@ -168,8 +168,8 @@
       "id": "root-holding-cwd-hidden",
       "why": "cwd（使い捨てのプロジェクト）を含む場所を、止めずにそのまま隠す",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\t\tcase \"${PWD}/\" in \"${r%/}/\"*)\n",
-      "replace": "\t\tcase \"${PWD}/\" in \"/nonexistent-${r}/\"*)\n",
+      "find": "\t\tfor kept in \"\\$HOME|${home}\" \"the disposable project|${PWD}\" \"${runtime_dirs[@]/#/the runtime dir|}\"; do\n",
+      "replace": "\t\tfor kept in \"\\$HOME|${home}\" \"${runtime_dirs[@]/#/the runtime dir|}\"; do\n",
       "occurrences": 1,
       "expect_failing": [
         "$HOME の外の設定の場所 XDG_CONFIG_HOME が cwd を含むなら、隠せないので bwrap を起動せずに止める"
@@ -236,8 +236,8 @@
       "id": "roots-not-sorted",
       "why": "場所を外側から順に処理せず、見つけた順に処理する（内側の tmpfs を外側の tmpfs が覆う）",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\tsort -z -n -s | cut -z -f2-)\n",
-      "replace": "\tcut -z -f2-)\n",
+      "find": "\t\tif [ -z \"${best}\" ] || [ \"${#r}\" -lt \"${#best_r}\" ]; then best=\"${i}\" best_r=\"${r}\"; fi\n",
+      "replace": "\t\tif [ -z \"${best}\" ]; then best=\"${i}\" best_r=\"${r}\"; fi\n",
       "occurrences": 1,
       "expect_failing": [
         "$HOME の外の設定の場所 XDG の場所が互いを含むとき（XDG_CONFIG_HOME が内側）、外側だけを tmpfs で隠し、両方の許可リストの場所を戻す"
@@ -247,8 +247,8 @@
       "id": "root-slash-accepted",
       "why": "/ を指す場所を、$HOME を含む場所として止めずに tmpfs で隠す",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\t\tcase \"${home}/\" in \"${r%/}/\"*)\n",
-      "replace": "\t\tcase \"${home}/\" in \"${r}/\"*)\n",
+      "find": "\t\t\tcase \"${kept#*|}/\" in \"${r%/}/\"*)\n",
+      "replace": "\t\t\tcase \"${kept#*|}/\" in \"${r}/\"*)\n",
       "occurrences": 1,
       "expect_failing": [
         "$HOME の外の設定の場所 XDG_CONFIG_HOME が / として $HOME を含むなら、隠せないので bwrap を起動せずに止める"
@@ -263,6 +263,28 @@
       "occurrences": 1,
       "expect_failing": [
         "run に渡す環境変数 EVAL_SANDBOX_ENV_ALLOW に挙げた名前は（改行の後の名前も）渡し、挙げていない名前は渡さない"
+      ]
+    },
+    {
+      "id": "root-holding-runtime-hidden",
+      "why": "runtime dir を含む場所を、止めずにそのまま隠す（後の runtime dir の tmpfs との順序で、どちらかが見えなくなる）",
+      "file": "scripts/eval/sandbox/eval-sandbox.sh",
+      "find": "\"${runtime_dirs[@]/#/the runtime dir|}\"; do\n",
+      "replace": "; do\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "$HOME の外の設定の場所 XDG の場所が runtime dir を含むなら、どちらかの tmpfs が他方を覆うので bwrap を起動せずに止める"
+      ]
+    },
+    {
+      "id": "root-inside-runtime-hidden",
+      "why": "runtime dir の中の場所を、止めずに隠して戻す（後から置く runtime dir の tmpfs が覆う）",
+      "file": "scripts/eval/sandbox/eval-sandbox.sh",
+      "find": "\t\t\tcase \"${r}/\" in \"${d%/}/\"*)\n",
+      "replace": "\t\t\tcase \"${r}/\" in \"/nonexistent-${d}/\"*)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "$HOME の外の設定の場所 XDG の場所が runtime dir の下にあるなら、どちらかの tmpfs が他方を覆うので bwrap を起動せずに止める"
       ]
     }
   ]

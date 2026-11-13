@@ -153,14 +153,16 @@ function homePathPrefix(home: string, dirs: string[]) {
 }
 
 /**
- * テストを実行する環境の変数から、XDG の場所（XDG_CONFIG_HOME など）を除いて返す。
- * GitHub Actions の runner は XDG_CONFIG_HOME を設定するので、そのまま渡すと、sandbox が runner の
- * 設定の場所まで隠して戻し、使い捨ての $HOME だけを見るはずの判定の結果が変わる。
+ * テストを実行する環境の変数から、XDG の場所（XDG_*_HOME）と eval-sandbox.sh の設定（EVAL_SANDBOX_*）を
+ * 除いて返す。GitHub Actions の runner は XDG_CONFIG_HOME を設定するので、そのまま渡すと、sandbox が
+ * runner の設定の場所まで隠して戻し、使い捨ての $HOME だけを見るはずの判定の結果が変わる。
+ * 手元のシェルで export した EVAL_SANDBOX_ENV_ALLOW なども、同じように結果を変える。
  */
 export function hostEnv() {
-  const env: NodeJS.ProcessEnv = { ...process.env };
-  for (const name of ["XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME"]) {
-    delete env[name];
+  const env: NodeJS.ProcessEnv = {};
+  for (const [name, value] of Object.entries(process.env)) {
+    if (/^XDG_.*_HOME$/u.test(name) || name.startsWith("EVAL_SANDBOX_")) continue;
+    env[name] = value;
   }
   return env;
 }

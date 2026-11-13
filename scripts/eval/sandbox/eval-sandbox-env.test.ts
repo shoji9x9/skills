@@ -12,7 +12,7 @@
 // | EVAL_SANDBOX_ENV_ALLOW     | 無い / 変数名（空白・改行で区切る） / 変数名でない値 / glob の文字  |
 // | 値の置き場所               | 環境だけ（bwrap の引数に載らない）                                  |
 // | $HOME                      | 普通のパス / シンボリックリンク（解決したパスを渡す）               |
-// | XDG_*_HOME                 | 無い / $HOME の外 / $HOME の中のデフォルトでない場所 / $HOME を含む / cwd を含む / / / 互いを含む（どちらの並びでも） / runtime dir の下 |
+// | XDG_*_HOME                 | 無い / $HOME の外 / $HOME の中のデフォルトでない場所 / $HOME を含む / cwd を含む / 「/」（$HOME を含む） / 互いを含む（どちらの並びでも） / runtime dir を含む / runtime dir の下 |
 // | 許可リストの祖先           | 普通のディレクトリ / $HOME の外へのリンク / $HOME の中へのリンク / 先に見つけた場所の中へのリンク |
 import { mkdirSync, renameSync, symlinkSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -264,27 +264,26 @@ describe("$HOME の外の設定の場所", () => {
     },
   );
 
-  test("XDG の場所が runtime dir の下でも、runtime dir の tmpfs より後に隠して戻す", () => {
-    const { result, bwrapArgs, runtimeDir } = sandbox(["--version"], {
-      runtimeEntries: ["bus"],
-      setup: (paths) => {
-        const cache = join(paths.root, "run", "cache");
-        writeHomeFiles(cache, { "mise/marker": "MARKER\n" });
-        return { env: { XDG_CACHE_HOME: cache } };
-      },
-    });
-    expect(result.status, result.stderr).toBe(0);
-    if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
-    const cache = join(runtimeDir, "cache");
-    const tmpfsAt = (target: string) =>
-      bwrapArgs.findIndex((arg, i) => arg === "--tmpfs" && bwrapArgs[i + 1] === target);
-    const bindAt = bwrapArgs.findIndex(
-      (arg, i) => arg === "--ro-bind" && bwrapArgs[i + 2] === join(cache, "mise"),
-    );
-    expect(tmpfsAt(runtimeDir)).toBeGreaterThanOrEqual(0);
-    expect(tmpfsAt(cache)).toBeGreaterThan(tmpfsAt(runtimeDir));
-    expect(bindAt).toBeGreaterThan(tmpfsAt(cache));
-  });
+  test.each([
+    ["の下にある", "lies inside the runtime dir", (run: string) => join(run, "cache")],
+    ["を含む", "holds the runtime dir", (run: string) => dirname(run)],
+  ])(
+    "XDG の場所が runtime dir %sなら、どちらかの tmpfs が他方を覆うので bwrap を起動せずに止める",
+    (_label, message, place) => {
+      const { result, bwrapArgs } = sandbox(["--version"], {
+        setup: (paths) => {
+          const run = join(paths.root, "runtime-parent", "run");
+          const cache = place(run);
+          writeHomeFiles(run, { bus: "" });
+          writeHomeFiles(cache, { "mise/marker": "MARKER\n" });
+          return { env: { XDG_RUNTIME_DIR: run, XDG_CACHE_HOME: cache }, cwd: "/" };
+        },
+      });
+      expect(result.status).toBe(3);
+      expect(result.stderr).toContain(message);
+      expect(bwrapArgs).toBeNull();
+    },
+  );
 });
 
 describe("--verify の stage 5 と、$HOME の外の場所", () => {

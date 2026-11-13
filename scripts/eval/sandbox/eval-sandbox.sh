@@ -226,15 +226,13 @@ done
 # is shared, so a bus that listens only on one stays reachable.
 # XDG_RUNTIME_DIR and /run/user/<uid> can differ (WSLg points the variable elsewhere
 # while the systemd user bus stays under /run/user), so both are hidden.
-# This comes after the $HOME tmpfs (a runtime dir under $HOME stays a writable empty
-# dir) and before the roots below (an XDG directory under the runtime dir gets its
-# own tmpfs and binds after this one instead of being covered by it).
+# They are listed here because the roots below must not hold one or lie inside one;
+# the tmpfs over each of them is added after the /etc binds.
 runtime_dirs=()
 for d in "${XDG_RUNTIME_DIR:-}" "/run/user/$(id -u)"; do
 	[ -n "${d}" ] && [ -d "${d}" ] || continue
 	case " ${runtime_dirs[*]} " in *" ${d} "*) continue ;; esac
 	runtime_dirs+=("${d}")
-	args+=(--tmpfs "${d}")
 done
 
 # The same places can live elsewhere: an XDG base directory set to another path, or a
@@ -244,8 +242,9 @@ done
 # would be hidden. Each of them is a "root" standing for one prefix of home_allow:
 # outside $HOME it gets a tmpfs of its own, and wherever it is, the entries of
 # home_allow under that prefix are bound back at their real path.
-# A root that holds $HOME or the disposable project cannot be hidden without hiding
-# them, so the run stops instead of exposing it ("/" holds everything).
+# A root that holds $HOME, the disposable project or a runtime dir cannot be hidden
+# without hiding them, and a root inside a runtime dir would be covered by the runtime
+# dir's tmpfs, so the run stops instead of exposing it ("/" holds everything).
 # The roots are collected first and handled outermost first, so a root inside another
 # one only binds its entries back into the outer tmpfs and never covers what the outer
 # one bound (whatever order the variables and links come in).
@@ -261,18 +260,22 @@ under_root() { # is $1 equal to or below one of the roots handled so far?
 	return 1
 }
 add_root() { # $1 = real directory, $2 = the home_allow prefix it stands for
-	local r="$1" prefix="$2" rel
+	local r="$1" prefix="$2" rel kept d
 	if ! under_root "${r}"; then
-		case "${home}/" in "${r%/}/"*)
-			echo "eval-sandbox: ${r} (${prefix}) holds \$HOME; it cannot be hidden without hiding \$HOME" >&2
-			exit 3
-			;;
-		esac
-		case "${PWD}/" in "${r%/}/"*)
-			echo "eval-sandbox: ${r} (${prefix}) holds the disposable project ${PWD}; it cannot be hidden" >&2
-			exit 3
-			;;
-		esac
+		for kept in "\$HOME|${home}" "the disposable project|${PWD}" "${runtime_dirs[@]/#/the runtime dir|}"; do
+			case "${kept#*|}/" in "${r%/}/"*)
+				echo "eval-sandbox: ${r} (${prefix}) holds ${kept%%|*} ${kept#*|}; it cannot be hidden without hiding that" >&2
+				exit 3
+				;;
+			esac
+		done
+		for d in "${runtime_dirs[@]}"; do
+			case "${r}/" in "${d%/}/"*)
+				echo "eval-sandbox: ${r} (${prefix}) lies inside the runtime dir ${d}, whose tmpfs would cover it" >&2
+				exit 3
+				;;
+			esac
+		done
 		extra_roots+=("${r}")
 		case "${r}/" in
 		"${home}/"*) ;;
@@ -296,17 +299,21 @@ for entry in "${home_prefixes[@]}"; do
 	fi
 	[ ! -e "${home}/${prefix}" ] || root_candidates+=("$(realpath -m -- "${home}/${prefix}")|${prefix}")
 done
-# Outermost first: a directory sorts before everything inside it when the paths are
-# compared by length.
-while IFS= read -r -d '' entry; do
+# Outermost first: a directory comes before everything inside it when the paths are
+# ordered by length. Picked in bash, not with sort: a failed pipeline behind a process
+# substitution would leave nothing to hide without stopping the run.
+while [ "${#root_candidates[@]}" -gt 0 ]; do
+	best=""
+	for i in "${!root_candidates[@]}"; do
+		r="${root_candidates[i]%|*}"
+		if [ -z "${best}" ] || [ "${#r}" -lt "${#best_r}" ]; then best="${i}" best_r="${r}"; fi
+	done
+	entry="${root_candidates[best]}"
+	unset 'root_candidates[best]'
 	r="${entry%|*}" prefix="${entry##*|}"
 	[ "${r}" != "${home}/${prefix}" ] && [ -d "${r}" ] || continue
 	add_root "${r}" "${prefix}"
-done < <(for entry in "${root_candidates[@]}"; do
-	r="${entry%|*}"
-	printf '%s\t%s\0' "${#r}" "${entry}"
-done |
-	sort -z -n -s | cut -z -f2-)
+done
 # The CLI writes its own state to ~/.claude.json at startup, so give it a throwaway
 # one. It must NOT be a copy of the real file: that file records per-project history
 # and allowed tools — `--verify` caught a skill's own hook script name in there — plus
@@ -458,6 +465,10 @@ if [ "${vendor}" = "codex" ] && [ -f "${codex_auth}" ]; then
 fi
 
 [ -n "${scratch_etc}" ] && args+=(--ro-bind /etc "${host_etc_mount}" --ro-bind "${scratch_etc}" /etc)
+
+# The runtime dirs listed with the comment above $HOME's allowlist, each hidden by a
+# writable empty tmpfs.
+for d in "${runtime_dirs[@]}"; do args+=(--tmpfs "${d}"); done
 
 # Last mount under $HOME is above; from here on $HOME is read-only (step 0).
 for r in "${outside_roots[@]}"; do args+=(--remount-ro "${r}"); done
