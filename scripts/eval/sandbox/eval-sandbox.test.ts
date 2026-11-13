@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { afterEach, expect, test } from "vitest";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
-import { sandbox, sourceScript, writeWorktreeFakeBin } from "./eval-sandbox-helpers.ts";
+import { hostEnv, sandbox, sourceScript, writeWorktreeFakeBin } from "./eval-sandbox-helpers.ts";
 
 const temporaryDirectories: string[] = [];
 const hasBwrap =
@@ -46,7 +46,7 @@ test("refuses to replace an existing managed Codex directory", () => {
     cwd: root,
     encoding: "utf8",
     env: {
-      ...process.env,
+      ...hostEnv(),
       EVAL_SANDBOX_CLI: "codex-wrapper",
       EVAL_SANDBOX_VENDOR: "codex",
       HOME: fakeHome,
@@ -93,7 +93,7 @@ echo CUSTOM_CODEX_HOME_OK
     cwd: root,
     encoding: "utf8",
     env: {
-      ...process.env,
+      ...hostEnv(),
       CODEX_HOME: codexHome,
       EVAL_SANDBOX_CLI: "codex-wrapper",
       EVAL_SANDBOX_VENDOR: "codex",
@@ -135,7 +135,7 @@ test("deduplicates worktree parent mounts and leaves /tmp to the sibling-run mou
     cwd: project,
     encoding: "utf8",
     env: {
-      ...process.env,
+      ...hostEnv(),
       EVAL_SANDBOX_CLI: "claude-wrapper",
       EVAL_SANDBOX_VENDOR: "claude-code",
       HOME: fakeHome,
@@ -296,7 +296,9 @@ test("settings.json を JSON として読めなければ、exit 3 で止め、bw
 const runUserDir = `/run/user/${process.getuid?.() ?? "unknown"}`;
 // /run/user/<uid> はテストから作れないので、その環境の有無に合わせて期待値を決める。
 // 在る環境では「XDG_RUNTIME_DIR と違っても隠す」を、無い環境では「無いものに tmpfs を置かない」を確かめる。
-test("/run/user/<uid> は、XDG_RUNTIME_DIR と違っても在れば tmpfs で隠し、無ければ tmpfs を置かない", () => {
+// どちらを確かめたかが CI のログで分かるよう、テストの名前にその環境の有無を入れる。
+const runUserState = existsSync(runUserDir) ? "在る環境" : "無い環境";
+test(`/run/user/<uid> は、XDG_RUNTIME_DIR と違っても在れば tmpfs で隠し、無ければ tmpfs を置かない（${runUserState}）`, () => {
   const { result, bwrapArgs } = sandbox(["--version"], { runtimeEntries: ["bus"] });
   expect(result.status, result.stderr).toBe(0);
   if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");

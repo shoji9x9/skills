@@ -426,7 +426,8 @@ rc=0
 # 操作する人の手元のスキルの設定で、eval の振る舞いが起動した人によって変わってはいけない。
 # 人ごとの層（~/.config/skills/shoji9x9/）は SHOJI9X9_SKILLS_IGNORE_USER_CONFIG=1 で読ませない。
 # XDG_CONFIG_HOME は差し替えない。executor が使う git・mise の設定も読めなくなるためである。
-# gh の設定ファイルの認証は sandbox が隠す。環境変数（GH_TOKEN など）の認証は run にそのまま渡る。
+# gh の設定ファイルの認証も、環境変数（GH_TOKEN など）の認証も、sandbox が隠す。
+# sandbox は許可リストの環境変数だけを run に渡すので、ここで export する変数は、その許可リストにも足す。
 # 人ごと・リポジトリ限定の層（.local.jsonc）は fixture のディレクトリで読むので、開発者のものは入らない。
 # スキルのスキーマが挙げる環境変数も消す。x-env（環境変数の層）は開発者の値がファイルより優先して eval に入り、
 # x-legacy.env（使わなくなった環境変数）は読み取りを移行の手順で止める。どちらも起動した人で結果が変わる。

@@ -2,7 +2,15 @@
 // bwrap が無ければ飛ばす。スタブで確かめるテストは eval-sandbox-credentials.test.ts にある。
 // 使い捨ての $HOME は /tmp の外（/var/tmp）に置く。eval-sandbox.sh は /tmp を tmpfs で隠すので、
 // /tmp の下の $HOME では、$HOME の扱いを変えても目印が見えなくなり、検出できない。
-import { chmodSync, existsSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  renameSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { describe, expect, test } from "vitest";
@@ -11,6 +19,8 @@ import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 import {
   allowedFiles,
   credentialFiles,
+  hostEnv,
+  shellQuote,
   sourceScript,
   writeHomeFiles,
 } from "./eval-sandbox-helpers.ts";
@@ -48,7 +58,7 @@ for p in ${Object.keys(allowedFiles).join(" ")} .claude/.credentials.json; do
   if test -r "$HOME/$p"; then echo "readable $p"; else echo "HIDDEN $p"; fi
 done
 if [ -n "$(ls -A "$XDG_RUNTIME_DIR")" ]; then echo "RUNTIME VISIBLE"; else echo "runtime hidden"; fi
-echo "dbus=\${DBUS_SESSION_BUS_ADDRESS-unset}"
+echo "dbus=\${DBUS_SESSION_BUS_ADDRESS-unset} gh=\${GH_TOKEN+set} lang=\${LANG-unset}"
 if touch "$HOME/.probe" 2>/dev/null; then echo "HOME WRITABLE"; else echo "home read-only"; fi
 if touch "$HOME/.claude/.probe" 2>/dev/null; then echo "claude writable"; else echo "CLAUDE READ-ONLY"; fi
 `;
@@ -68,13 +78,15 @@ describe.skipIf(outsideTmp === null)("本物の bwrap", () => {
       cwd: project,
       encoding: "utf8",
       env: {
-        ...process.env,
+        ...hostEnv(),
         EVAL_SANDBOX_CLI: "claude-wrapper",
         EVAL_SANDBOX_VENDOR: "claude-code",
         EVAL_SANDBOX_NET: "off",
         HOME: home,
         XDG_RUNTIME_DIR: runtimeDir,
         DBUS_SESSION_BUS_ADDRESS: `unix:path=${runtimeDir}/bus`,
+        GH_TOKEN: "MARKER-GH-TOKEN-NOT-A-SECRET",
+        LANG: "C.UTF-8",
         PATH: `${fakeBin}:${process.env.PATH}`,
       },
     });
@@ -85,20 +97,20 @@ describe.skipIf(outsideTmp === null)("本物の bwrap", () => {
       ...Object.keys(allowedFiles).map((p) => `readable ${p}`),
       "readable .claude/.credentials.json",
       "runtime hidden",
-      "dbus=unset",
+      "dbus=unset gh= lang=C.UTF-8",
       "home read-only",
       "claude writable",
     ]);
   });
 
-  test("--verify の stage 5 は、使い捨ての $HOME で 4 つとも ok を出す", () => {
+  test("--verify の stage 5 は、使い捨ての $HOME で 5 つとも ok を出す", () => {
     const { home, runtimeDir } = makeRealHome("verify");
     const result = spawnSync(sourceScript, ["--verify", "MARKER-NOT-PLANTED-1008"], {
       timeout: CHILD_TIMEOUT_MS,
       cwd: "/",
       encoding: "utf8",
       env: {
-        ...process.env,
+        ...hostEnv(),
         // --verify も起動の前に CLI を探す。claude の無い環境（CI）でも止まらないよう、在る実行ファイルを渡す。
         EVAL_SANDBOX_CLI: "bash",
         EVAL_SANDBOX_VENDOR: "claude-code",
@@ -107,6 +119,7 @@ describe.skipIf(outsideTmp === null)("本物の bwrap", () => {
         HOME: home,
         XDG_RUNTIME_DIR: runtimeDir,
         DBUS_SESSION_BUS_ADDRESS: `unix:path=${runtimeDir}/bus`,
+        GH_TOKEN: "MARKER-GH-TOKEN-NOT-A-SECRET",
       },
     });
     expect(result.stdout, result.stderr).toMatch(
@@ -118,19 +131,25 @@ describe.skipIf(outsideTmp === null)("本物の bwrap", () => {
     expect(result.stdout).toContain(
       `stage5 runtime dir ${runtimeDir}: hidden (ok; 1 entries on the host)`,
     );
-    expect(result.stdout).toContain("stage5 agent socket variables: unset (ok)");
+    expect(result.stdout).toMatch(
+      /^stage5 environment allowlist positive control: \d+ host variables as expected \(ok\)$/mu,
+    );
+    expect(result.stdout).toMatch(
+      /^stage5 environment outside the allowlist: \d+ host variables as expected \(ok\)$/mu,
+    );
   });
 });
-
-/** 文字列を bash の単一引用符で包む（中の単一引用符は、引用を閉じてエスケープした 1 文字を足す）。 */
-function shellQuote(value: string) {
-  return `'${value.replaceAll("'", "'\\''")}'`;
-}
 
 /** $HOME の下に CLI のスタブを置き、PATH を最小にして sandbox を起動する。 */
 function startWithCli(
   home: string,
-  options: { cliDir: string; path: string[]; homeEnv?: string; body?: string },
+  options: {
+    cliDir: string;
+    path: string[];
+    homeEnv?: string;
+    body?: string;
+    env?: Record<string, string>;
+  },
 ) {
   const project = makeTempDir("eval-sandbox-probe-project-");
   const cli = join(home, options.cliDir, "claude-wrapper");
@@ -141,7 +160,7 @@ function startWithCli(
     cwd: project,
     encoding: "utf8",
     env: {
-      ...process.env,
+      ...hostEnv(),
       EVAL_SANDBOX_CLI: "claude-wrapper",
       EVAL_SANDBOX_VENDOR: "claude-code",
       EVAL_SANDBOX_NET: "off",
@@ -153,8 +172,14 @@ function startWithCli(
         "/usr/bin",
         "/bin",
       ].join(":"),
+      ...options.env,
     },
   });
+}
+
+/** run の中で、各パスが見えるかを 1 行ずつ出す CLI のスタブの本文（パスは単一引用符で包んで渡す）。 */
+function reportPaths(paths: string[]) {
+  return `for p in ${paths.map(shellQuote).join(" ")}; do if [ -r "$p" ]; then echo "readable $p"; else echo "hidden $p"; fi; done\n`;
 }
 
 describe.skipIf(outsideTmp === null)(
@@ -197,3 +222,96 @@ describe.skipIf(outsideTmp === null)(
     });
   },
 );
+
+describe.skipIf(outsideTmp === null)("$HOME の外に置いた設定の場所（本物の bwrap）", () => {
+  test("XDG_CONFIG_HOME が $HOME の外なら、その中の認証情報は隠れ、許可リストの場所は読める", () => {
+    const { home } = makeRealHome("xdg-outside");
+    const xdg = join(dirname(home), "xdg-config");
+    writeHomeFiles(xdg, {
+      "gh/hosts.yml": "MARKER-XDG-GH\n",
+      "mise/config.toml": "MARKER-XDG-MISE\n",
+    });
+    const result = startWithCli(home, {
+      cliDir: ".local/bin",
+      path: [],
+      env: { XDG_CONFIG_HOME: xdg },
+      body: reportPaths([join(xdg, "gh/hosts.yml"), join(xdg, "mise/config.toml")]),
+    });
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toBe(
+      `hidden ${join(xdg, "gh/hosts.yml")}\nreadable ${join(xdg, "mise/config.toml")}\nSTARTED\n`,
+    );
+  });
+
+  test("~/.config が $HOME の外へのシンボリックリンクなら、リンク先の認証情報は隠れ、許可リストの場所は読める", () => {
+    const { home } = makeRealHome("config-link-outside");
+    const target = join(dirname(home), "dotfiles-config");
+    writeHomeFiles(target, {
+      "box/refresh_token": "MARKER-LINKED-BOX\n",
+      "mise/config.toml": "MARKER-LINKED-MISE\n",
+    });
+    rmSync(join(home, ".config"), { recursive: true, force: true });
+    symlinkSync(target, join(home, ".config"));
+    const result = startWithCli(home, {
+      cliDir: ".local/bin",
+      path: [],
+      body: reportPaths([
+        join(target, "box/refresh_token"),
+        join(target, "mise/config.toml"),
+        join(home, ".config/box/refresh_token"),
+        join(home, ".config/mise/config.toml"),
+      ]),
+    });
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toBe(
+      [
+        `hidden ${join(target, "box/refresh_token")}`,
+        `readable ${join(target, "mise/config.toml")}`,
+        `hidden ${join(home, ".config/box/refresh_token")}`,
+        `readable ${join(home, ".config/mise/config.toml")}`,
+        "STARTED",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  test("$HOME のシンボリックリンクが /tmp（sandbox が隠す場所）に在っても、run の $HOME は解決する", () => {
+    const { home } = makeRealHome("home-link-in-tmp");
+    const homeEnv = join(makeTempDir("eval-sandbox-home-link-"), "home");
+    symlinkSync(home, homeEnv);
+    const result = startWithCli(home, {
+      cliDir: ".local/bin",
+      path: [],
+      homeEnv,
+      body: `if cd "$HOME" && [ -r .gitconfig ]; then echo "home resolves"; else echo "HOME DOES NOT RESOLVE"; fi\n`,
+    });
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toBe("home resolves\nSTARTED\n");
+  });
+
+  test("--verify の stage 5 は、~/.config が $HOME の中へのシンボリックリンクでも、誤って FAIL を出さない", () => {
+    const { home, runtimeDir } = makeRealHome("verify-config-link");
+    renameSync(join(home, ".config"), join(home, "dotfiles-config"));
+    symlinkSync(join(home, "dotfiles-config"), join(home, ".config"));
+    const result = spawnSync(sourceScript, ["--verify", "MARKER-NOT-PLANTED-1011"], {
+      timeout: CHILD_TIMEOUT_MS,
+      cwd: "/",
+      encoding: "utf8",
+      env: {
+        ...hostEnv(),
+        EVAL_SANDBOX_CLI: "bash",
+        EVAL_SANDBOX_VENDOR: "claude-code",
+        EVAL_SANDBOX_NET: "off",
+        EVAL_SANDBOX_CLONE_PROBE_URL: "/nonexistent/repo",
+        HOME: home,
+        XDG_RUNTIME_DIR: runtimeDir,
+      },
+    });
+    expect(result.stdout, result.stderr).toMatch(
+      /^stage5 home outside the allowlist: \d+ host paths absent \(ok\)$/mu,
+    );
+    expect(result.stdout).toMatch(
+      /^stage5 home allowlist positive control: \d+ bound paths readable \(ok\)$/mu,
+    );
+  });
+});
