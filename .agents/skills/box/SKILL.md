@@ -32,7 +32,7 @@ printf 'Authorization: Bearer %s\n' "$TOKEN" >"$BOX_AUTH"
 ```
 
 この後の例は、すべてこの `BOX_AUTH` を使う。`trap` がシェルの終わるときに `BOX_AUTH` を消すので、この例と API の呼び出しは同じシェルで実行する。
-エージェントのツールのように、コマンドの呼び出しごとにシェルが終わる環境では、この例と続けて行う API の呼び出しを 1 つの呼び出しにまとめる。
+エージェントのツールのように、コマンドの呼び出しごとにシェルが終わる環境では、この例と続けて行う API の呼び出しを 1 つの呼び出しにまとめる。下の「対象フォルダ」で取得する `FOLDER` も、同じ呼び出しの中で取得する。
 OAuth refresh では、`box-token.sh` を実行するたびに refresh token が新しい値に変わるので、この例を並列に実行しない。同じ refresh token を 2 つの実行が読むと、後の実行が失敗する。
 
 | 方式          | 必要な環境変数                                        | 特徴                                                                                                     |
@@ -125,8 +125,8 @@ curl -sSf "https://api.box.com/2.0/files/<file-id>?fields=id,name,size,extension
 BOX_DOWNLOAD="$(mktemp)"
 trap 'rm -f "$BOX_AUTH" "$BOX_DOWNLOAD"' EXIT
 curl -fL "https://api.box.com/2.0/files/<file-id>/content" \
-  -H @"$BOX_AUTH" -o "$BOX_DOWNLOAD" || exit 1   # 失敗したら、空の一時ファイルを読まずに止まる
-wc -c <"$BOX_DOWNLOAD"   # 中身を読む処理（この例はバイト数の確認）は、ダウンロードと同じシェルに書く
+  -H @"$BOX_AUTH" -o "$BOX_DOWNLOAD" &&
+  wc -c <"$BOX_DOWNLOAD"   # 中身を読む処理（この例はバイト数の確認）は && でつなぎ、curl が失敗したら空の一時ファイルを読まない
 ```
 
 `BOX_DOWNLOAD` は、シェルが終わるときに消える。中身は、認証の例と同じく、ダウンロードと同じシェルの中で読む。
@@ -148,23 +148,25 @@ curl -sSf -G "https://api.box.com/2.0/search" \
 ### アップロード（新規ファイル）
 
 アップロードするファイルは、利用者が指定したパスで渡す。`/tmp/report.txt` のように名前を決めて `/tmp` に置くファイルは、他のユーザーが同じ名前で先に置けるので使わない。
-パスと Box に置くときのファイル名は、単引用符で変数に入れる。シェルは単引用符の中の `$` やバッククォートを展開しない。
-`attributes` の JSON は `jq` で組み立て、名前の `"` をエスケープする。
-`-F` の `@` の後のパスを二重引用符で囲むので、curl はパスの中の `;` を区切りとして読まない。
+パスは、単引用符で囲んだ絶対パスで変数に入れる。シェルは単引用符の中の `$` やバッククォートを展開しないが、`~` も展開しない。
+パスに単引用符を含むときは、その単引用符を `'\''` と書く。パスに二重引用符を含むファイルは、curl が正しく読めないので、含まない名前にしてから渡す。
+Box に置くときのファイル名は、パスの最後の部分を使う。別の名前にするなら、`UPLOAD_NAME` に同じ書き方で入れる。
+`attributes` は `jq` で組み立てて名前をエスケープし、`--form-string` で送る。`-F` で送ると、curl が名前の中の `;` を区切りとして読み、JSON が途中で切れる。
+ファイルは `-F` の `@` の後のパスを二重引用符で囲んで送るので、curl はパスの中の `;` を区切りとして読まない。
 
 ```bash
-UPLOAD_FILE='<アップロードするファイルのパス>'
-UPLOAD_NAME='<Box に置くファイル名>'
+UPLOAD_FILE='<アップロードするファイルの絶対パス>'
+UPLOAD_NAME="$(basename -- "$UPLOAD_FILE")"
 curl -sSf -X POST "https://upload.box.com/api/2.0/files/content" \
   -H @"$BOX_AUTH" \
-  -F "attributes=$(jq -cn --arg name "$UPLOAD_NAME" --arg parent "$FOLDER" '{name: $name, parent: {id: $parent}}')" \
+  --form-string "attributes=$(jq -cn --arg name "$UPLOAD_NAME" --arg parent "$FOLDER" '{name: $name, parent: {id: $parent}}')" \
   -F "file=@\"$UPLOAD_FILE\"" | jq '.entries[0] | {id, name, size}'
 ```
 
 ### 新しいバージョンのアップロード（既存のファイルの更新）
 
 ```bash
-UPLOAD_FILE='<アップロードするファイルのパス>'
+UPLOAD_FILE='<アップロードするファイルの絶対パス>'
 curl -sSf -X POST "https://upload.box.com/api/2.0/files/<file-id>/content" \
   -H @"$BOX_AUTH" \
   -F "file=@\"$UPLOAD_FILE\"" | jq '.entries[0] | {id, name, modified_at}'

@@ -23,7 +23,7 @@ Claude Code・Codex・GitHub Copilot の 3 つのエージェントが共有で�
 - 対象はプロジェクトのレベルだけである。ユーザーの設定（`~/.claude/`、`~/.codex/` など）は対象にしない。
 - プロジェクトの `.codex/` は対象に含む。このスキルが `.codex/` に書くのは、Hooks の設定（`.codex/hooks.json` か `.codex/config.toml` の `[hooks]` テーブル）だけである。
   Codex のスキル・ルール・ドキュメントは `.codex/` に置かない。スキルは `.agents/skills/` から読ませる（`references/skills.md`）。
-  ルールは、基底ドキュメント（`AGENTS.md` など）の参照ルールガイドを通して `.agents/rules/` から読ませる（`references/rules.md`）。ドキュメントは基底ドキュメントから読ませる（`references/docs.md`）。
+  ルールは、基底ドキュメント（`AGENTS.md` など）の「参照ルールガイド」の節（ルールの一覧）を通して `.agents/rules/` から読ませる（`references/rules.md`）。ドキュメントは基底ドキュメントから読ませる（`references/docs.md`）。
 
 ## フロー
 
