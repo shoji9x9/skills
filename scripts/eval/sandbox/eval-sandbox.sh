@@ -236,13 +236,14 @@ drop_relative_xdg_dirs() {
 }
 drop_relative_xdg_dirs
 # Stops the run when the directory $1 holds (is or contains) a place that must stay as it
-# is mounted. $2 says what $1 is; each further argument is "<what the place is>|<path>".
+# is mounted. $2 says what $1 is and $3 why that stops the run; each further argument is
+# "<what the place is>|<path>".
 refuse_holding() {
-	local r="$1" what="$2" kept
-	shift 2
+	local r="$1" what="$2" why="$3" kept
+	shift 3
 	for kept in "$@"; do
 		case "${kept#*|}/" in "${r%/}/"*)
-			echo "eval-sandbox: ${r} (${what}) holds ${kept%%|*} ${kept#*|}; it cannot be hidden without hiding that" >&2
+			echo "eval-sandbox: ${r} (${what}) holds ${kept%%|*} ${kept#*|}; ${why}" >&2
 			exit 3
 			;;
 		esac
@@ -266,6 +267,10 @@ refuse_holding() {
 # tmpfs comes after them and would cover the binds into $HOME (the CLI's credentials and
 # settings), the disposable project and the /etc mirror under /tmp (nsswitch.conf and the
 # certificates), so the run would fail to start or to authenticate.
+# The cwd is compared by its real path, as the runtime dirs and $HOME are: a cwd reached
+# through a symlink into a runtime dir would otherwise pass. A plain assignment, so a
+# failed realpath stops the run under set -e.
+cwd_real="$(realpath -m -- "${PWD}")"
 list_runtime_dirs() { # fills runtime_dirs; a function, so its variables stay local
 	local d
 	local -A seen_runtime_dirs=()
@@ -277,8 +282,8 @@ list_runtime_dirs() { # fills runtime_dirs; a function, so its variables stay lo
 		[ -n "${d}" ] && [ -d "${d}" ] || continue
 		d="$(realpath -m -- "${d}")"
 		[ -z "${seen_runtime_dirs["${d}"]+present}" ] || continue
-		refuse_holding "${d}" "the runtime dir" "\$HOME|${home}" "the disposable project|${PWD}" \
-			"the /etc mirror and the other mounts under|/tmp"
+		refuse_holding "${d}" "the runtime dir" "its tmpfs, mounted after them, would cover the mounts there" \
+			"\$HOME|${home}" "the cwd|${cwd_real}" "the /etc mirror and the other mounts under|/tmp"
 		seen_runtime_dirs["${d}"]=1
 		runtime_dirs+=("${d}")
 	done
@@ -335,7 +340,7 @@ under_root() { # is $1 equal to or below one of the roots handled so far?
 add_root() { # $1 = real directory, $2 = the home_allow prefix it stands for
 	local r="$1" prefix="$2" rel d
 	if ! under_root "${r}"; then
-		refuse_holding "${r}" "${prefix}" "\$HOME|${home}" "the disposable project|${PWD}" "${runtime_dirs[@]/#/the runtime dir|}"
+		refuse_holding "${r}" "${prefix}" "it cannot be hidden without hiding that" "\$HOME|${home}" "the disposable project|${PWD}" "${runtime_dirs[@]/#/the runtime dir|}"
 		for d in "${runtime_dirs[@]}"; do
 			case "${r}/" in "${d%/}/"*)
 				echo "eval-sandbox: ${r} (${prefix}) lies inside the runtime dir ${d}, whose tmpfs would cover it" >&2

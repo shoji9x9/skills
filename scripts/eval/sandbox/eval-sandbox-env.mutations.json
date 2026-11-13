@@ -163,8 +163,8 @@
       "id": "root-holding-home-hidden",
       "why": "$HOME を含む場所を、止めずにそのまま隠す",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\t\trefuse_holding \"${r}\" \"${prefix}\" \"\\$HOME|${home}\" \"the disposable project|${PWD}\" \"${runtime_dirs[@]/#/the runtime dir|}\"\n",
-      "replace": "\t\trefuse_holding \"${r}\" \"${prefix}\" \"the disposable project|${PWD}\" \"${runtime_dirs[@]/#/the runtime dir|}\"\n",
+      "find": "\t\trefuse_holding \"${r}\" \"${prefix}\" \"it cannot be hidden without hiding that\" \"\\$HOME|${home}\" \"the disposable project|${PWD}\" \"${runtime_dirs[@]/#/the runtime dir|}\"\n",
+      "replace": "\t\trefuse_holding \"${r}\" \"${prefix}\" \"it cannot be hidden without hiding that\" \"the disposable project|${PWD}\" \"${runtime_dirs[@]/#/the runtime dir|}\"\n",
       "occurrences": 1,
       "expect_failing": [
         "$HOME の外の設定の場所 XDG_CONFIG_HOME が $HOME を含むなら、隠せないので bwrap を起動せずに止める",
@@ -175,8 +175,8 @@
       "id": "root-holding-cwd-hidden",
       "why": "cwd（使い捨てのプロジェクト）を含む場所を、止めずにそのまま隠す",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\t\trefuse_holding \"${r}\" \"${prefix}\" \"\\$HOME|${home}\" \"the disposable project|${PWD}\" \"${runtime_dirs[@]/#/the runtime dir|}\"\n",
-      "replace": "\t\trefuse_holding \"${r}\" \"${prefix}\" \"\\$HOME|${home}\" \"${runtime_dirs[@]/#/the runtime dir|}\"\n",
+      "find": "\t\trefuse_holding \"${r}\" \"${prefix}\" \"it cannot be hidden without hiding that\" \"\\$HOME|${home}\" \"the disposable project|${PWD}\" \"${runtime_dirs[@]/#/the runtime dir|}\"\n",
+      "replace": "\t\trefuse_holding \"${r}\" \"${prefix}\" \"it cannot be hidden without hiding that\" \"\\$HOME|${home}\" \"${runtime_dirs[@]/#/the runtime dir|}\"\n",
       "occurrences": 1,
       "expect_failing": [
         "$HOME の外の設定の場所 XDG_CONFIG_HOME が cwd を含むなら、隠せないので bwrap を起動せずに止める"

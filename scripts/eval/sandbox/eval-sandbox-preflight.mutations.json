@@ -8,7 +8,7 @@
       "id": "runtime-holding-unchecked",
       "why": "runtime dir が先に置いたマウント先を含むかを確かめずに、そのまま tmpfs で隠す",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\t\trefuse_holding \"${d}\" \"the runtime dir\" \"\\$HOME|${home}\" \"the disposable project|${PWD}\" \\\n\t\t\t\"the /etc mirror and the other mounts under|/tmp\"\n",
+      "find": "\t\trefuse_holding \"${d}\" \"the runtime dir\" \"its tmpfs, mounted after them, would cover the mounts there\" \\\n\t\t\t\"\\$HOME|${home}\" \"the cwd|${cwd_real}\" \"the /etc mirror and the other mounts under|/tmp\"\n",
       "replace": "\t\t:\n",
       "occurrences": 1,
       "expect_failing": [
@@ -21,15 +21,17 @@
         "runtime dir が先に置いたマウント先を含む構成 CLI の起動: runtime dir が 使い捨てのプロジェクトを含むとき、bwrap を起動する前に理由を出して exit 3 で止める",
         "runtime dir が先に置いたマウント先を含む構成 --verify: runtime dir が 使い捨てのプロジェクトを含むとき、bwrap を起動する前に理由を出して exit 3 で止める",
         "runtime dir が先に置いたマウント先を含む構成 CLI の起動: runtime dir が /tmp であるとき、bwrap を起動する前に理由を出して exit 3 で止める",
-        "runtime dir が先に置いたマウント先を含む構成 --verify: runtime dir が /tmp であるとき、bwrap を起動する前に理由を出して exit 3 で止める"
+        "runtime dir が先に置いたマウント先を含む構成 --verify: runtime dir が /tmp であるとき、bwrap を起動する前に理由を出して exit 3 で止める",
+        "runtime dir が先に置いたマウント先を含む構成 CLI の起動: runtime dir が シンボリックリンクを通した cwd を含むとき、bwrap を起動する前に理由を出して exit 3 で止める",
+        "runtime dir が先に置いたマウント先を含む構成 --verify: runtime dir が シンボリックリンクを通した cwd を含むとき、bwrap を起動する前に理由を出して exit 3 で止める"
       ]
     },
     {
       "id": "runtime-holding-home-dropped",
       "why": "$HOME を含む runtime dir を止めない（tmpfs が認証情報と settings.json の bind を覆う）",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\t\trefuse_holding \"${d}\" \"the runtime dir\" \"\\$HOME|${home}\" \"the disposable project|${PWD}\" \\\n",
-      "replace": "\t\trefuse_holding \"${d}\" \"the runtime dir\" \"the disposable project|${PWD}\" \\\n",
+      "find": "\t\t\t\"\\$HOME|${home}\" \"the cwd|${cwd_real}\" \"the /etc mirror and the other mounts under|/tmp\"\n",
+      "replace": "\t\t\t\"the cwd|${cwd_real}\" \"the /etc mirror and the other mounts under|/tmp\"\n",
       "occurrences": 1,
       "expect_failing": [
         "runtime dir が先に置いたマウント先を含む構成 CLI の起動: runtime dir が $HOME と同じとき、bwrap を起動する前に理由を出して exit 3 で止める",
@@ -42,22 +44,24 @@
     },
     {
       "id": "runtime-holding-project-dropped",
-      "why": "使い捨てのプロジェクトを含む runtime dir を止めない（tmpfs がプロジェクトを覆う）",
+      "why": "cwd（使い捨てのプロジェクト）を含む runtime dir を止めない（tmpfs がプロジェクトを覆う）",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\t\trefuse_holding \"${d}\" \"the runtime dir\" \"\\$HOME|${home}\" \"the disposable project|${PWD}\" \\\n",
-      "replace": "\t\trefuse_holding \"${d}\" \"the runtime dir\" \"\\$HOME|${home}\" \\\n",
+      "find": "\t\t\t\"\\$HOME|${home}\" \"the cwd|${cwd_real}\" \"the /etc mirror and the other mounts under|/tmp\"\n",
+      "replace": "\t\t\t\"\\$HOME|${home}\" \"the /etc mirror and the other mounts under|/tmp\"\n",
       "occurrences": 1,
       "expect_failing": [
         "runtime dir が先に置いたマウント先を含む構成 CLI の起動: runtime dir が 使い捨てのプロジェクトを含むとき、bwrap を起動する前に理由を出して exit 3 で止める",
-        "runtime dir が先に置いたマウント先を含む構成 --verify: runtime dir が 使い捨てのプロジェクトを含むとき、bwrap を起動する前に理由を出して exit 3 で止める"
+        "runtime dir が先に置いたマウント先を含む構成 --verify: runtime dir が 使い捨てのプロジェクトを含むとき、bwrap を起動する前に理由を出して exit 3 で止める",
+        "runtime dir が先に置いたマウント先を含む構成 CLI の起動: runtime dir が シンボリックリンクを通した cwd を含むとき、bwrap を起動する前に理由を出して exit 3 で止める",
+        "runtime dir が先に置いたマウント先を含む構成 --verify: runtime dir が シンボリックリンクを通した cwd を含むとき、bwrap を起動する前に理由を出して exit 3 で止める"
       ]
     },
     {
       "id": "runtime-holding-tmp-dropped",
       "why": "/tmp を含む runtime dir を止めない（tmpfs が /etc のミラーを覆う）",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\t\t\t\"the /etc mirror and the other mounts under|/tmp\"\n",
-      "replace": "\t\t\t\n",
+      "find": "\t\t\t\"\\$HOME|${home}\" \"the cwd|${cwd_real}\" \"the /etc mirror and the other mounts under|/tmp\"\n",
+      "replace": "\t\t\t\"\\$HOME|${home}\" \"the cwd|${cwd_real}\"\n",
       "occurrences": 1,
       "expect_failing": [
         "runtime dir が先に置いたマウント先を含む構成 CLI の起動: runtime dir が /tmp であるとき、bwrap を起動する前に理由を出して exit 3 で止める",
@@ -65,15 +69,15 @@
       ]
     },
     {
-      "id": "runtime-holding-slash-accepted",
-      "why": "runtime dir が / のとき、末尾の / を外さずに比べ、どの場所も含まないと判定する",
+      "id": "runtime-holding-cwd-unresolved",
+      "why": "cwd を解決せずに比べ、シンボリックリンクを通して runtime dir の中を指す cwd を通す",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\t\tcase \"${kept#*|}/\" in \"${r%/}/\"*)\n",
-      "replace": "\t\tcase \"${kept#*|}/\" in \"${r}/\"*)\n",
+      "find": "cwd_real=\"$(realpath -m -- \"${PWD}\")\"\n",
+      "replace": "cwd_real=\"${PWD}\"\n",
       "occurrences": 1,
       "expect_failing": [
-        "runtime dir が先に置いたマウント先を含む構成 CLI の起動: runtime dir が / であるとき、bwrap を起動する前に理由を出して exit 3 で止める",
-        "runtime dir が先に置いたマウント先を含む構成 --verify: runtime dir が / であるとき、bwrap を起動する前に理由を出して exit 3 で止める"
+        "runtime dir が先に置いたマウント先を含む構成 CLI の起動: runtime dir が シンボリックリンクを通した cwd を含むとき、bwrap を起動する前に理由を出して exit 3 で止める",
+        "runtime dir が先に置いたマウント先を含む構成 --verify: runtime dir が シンボリックリンクを通した cwd を含むとき、bwrap を起動する前に理由を出して exit 3 で止める"
       ]
     },
     {
