@@ -291,24 +291,30 @@ add_root() { # $1 = real directory, $2 = the home_allow prefix it stands for
 	done
 	return 0
 }
+# An XDG value that is not an absolute path is invalid by the XDG Base Directory
+# specification, yet some tools still use it relative to the cwd (git reads
+# $XDG_CONFIG_HOME/git/config). It is neither hidden nor passed: it is removed from the
+# environment here, before anything is collected or handed to bwrap.
+for var in XDG_CONFIG_HOME XDG_DATA_HOME XDG_STATE_HOME XDG_CACHE_HOME; do
+	case "${!var-}" in "" | /*) ;; *) unset "${var}" ;; esac
+done
 # Ordered by path length (a directory is shorter than everything inside it), picked in
 # bash, not with sort: a failed pipeline behind a process substitution would leave
 # nothing to hide without stopping the run. A function, so its variables stay local.
-# An XDG value that is not an absolute path is ignored, as the XDG Base Directory
-# specification says, and a place found twice (a variable and a link to the same
-# directory) is kept once.
+# A place found twice (a variable and a link to the same directory) is kept once.
 add_roots_outermost_first() {
-	local root_candidates=() collected=() entry prefix var best best_r i r
+	local root_candidates=() entry prefix var best best_r i r c
+	local -A seen=()
 	for entry in "${home_prefixes[@]}"; do
 		prefix="${entry%%|*}" var="${entry#*|}"
-		if [ -n "${var}" ]; then
-			case "${!var:-}" in /*) collected+=("$(realpath -m -- "${!var}")|${prefix}") ;; esac
-		fi
-		[ ! -e "${home}/${prefix}" ] || collected+=("$(realpath -m -- "${home}/${prefix}")|${prefix}")
-	done
-	for entry in "${collected[@]}"; do
-		case " ${root_candidates[*]} " in *" ${entry} "*) continue ;; esac
-		root_candidates+=("${entry}")
+		for c in \
+			"$([ -z "${var}" ] || [ -z "${!var:-}" ] || realpath -m -- "${!var}")" \
+			"$([ ! -e "${home}/${prefix}" ] || realpath -m -- "${home}/${prefix}")"; do
+			[ -n "${c}" ] || continue
+			[ -z "${seen["${c}|${prefix}"]+present}" ] || continue
+			seen["${c}|${prefix}"]=1
+			root_candidates+=("${c}|${prefix}")
+		done
 	done
 	while [ "${#root_candidates[@]}" -gt 0 ]; do
 		best=""
@@ -497,8 +503,9 @@ args+=(--remount-ro "${home}")
 #                                          and bwrap sets PWD to the --chdir directory
 #   TERM COLORTERM NO_COLOR LANG LANGUAGE LC_*  output and locale, kept so results do
 #                                          not change with this script
-#   TZ TMPDIR XDG_*_HOME XDG_RUNTIME_DIR   where tools put files (XDG dirs are hidden
-#                                          and bound back above)
+#   TZ TMPDIR XDG_*_HOME XDG_RUNTIME_DIR   where tools put files (absolute XDG dirs are
+#                                          hidden and bound back above; relative ones
+#                                          were removed there)
 #   *_proxy, NODE_EXTRA_CA_CERTS, SSL_CERT_FILE, SSL_CERT_DIR  how the CLI reaches its API
 #   SHOJI9X9_SKILLS_IGNORE_USER_CONFIG     set by run-skill-eval.sh for every run
 #   vendor: the API key / token variables each CLI accepts instead of its credential file

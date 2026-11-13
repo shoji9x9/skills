@@ -176,8 +176,8 @@ describe("$HOME の外の設定の場所", () => {
     expect(flagValues(bwrapArgs, "--ro-bind", 2)).not.toContain(join(home, "my-config/gh"));
   });
 
-  test("XDG_CACHE_HOME が絶対パスでなければ、XDG の仕様どおり無視し、cwd の下を隠さない", () => {
-    const { result, bwrapArgs } = sandbox(["--version"], {
+  test("XDG_CACHE_HOME が絶対パスでなければ、隠す場所として扱わず、run にも渡さない", () => {
+    const { result, bwrapArgs, envNames } = sandbox(["--version"], {
       setup: (paths) => {
         const project = join(paths.root, "relative-project");
         writeHomeFiles(project, { "cache/mise/marker": "MARKER\n" });
@@ -187,6 +187,30 @@ describe("$HOME の外の設定の場所", () => {
     expect(result.status, result.stderr).toBe(0);
     if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
     expect(flagValues(bwrapArgs, "--tmpfs").filter((t) => t.endsWith("/cache"))).toEqual([]);
+    // 相対パスのまま渡すと、git などが run の cwd を基準に読む。
+    expect(envNames.length).toBeGreaterThan(0);
+    for (const names of envNames) expect(names).not.toContain("XDG_CACHE_HOME");
+  });
+
+  test("空白を含むパスの後ろの部分が別の場所と同じ字面でも、別の場所として両方を隠す", () => {
+    const { result, bwrapArgs, root } = sandbox(["--version"], {
+      homeFiles: { ...allowedFiles },
+      setup: (paths) => {
+        // 1 つ目の場所のパスは「<root>/d x 」の後ろに 2 つ目の場所のパスを続けたものにする。
+        const linked = join(paths.root, "cfg");
+        const spaced = join(paths.root, `d x ${linked}`);
+        writeHomeFiles(spaced, { "mise/marker": "MARKER\n" });
+        renameSync(join(paths.home, ".config"), linked);
+        symlinkSync(linked, join(paths.home, ".config"));
+        return { env: { XDG_CONFIG_HOME: spaced } };
+      },
+    });
+    expect(result.status, result.stderr).toBe(0);
+    if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
+    const linked = join(root, "cfg");
+    expect(flagValues(bwrapArgs, "--tmpfs")).toEqual(
+      expect.arrayContaining([linked, join(root, `d x ${linked}`)]),
+    );
   });
 
   test("XDG_CONFIG_HOME と ~/.config のリンクが同じ場所を指しても、許可リストの場所は 1 回だけ戻す", () => {
@@ -205,7 +229,6 @@ describe("$HOME の外の設定の場所", () => {
     expect(
       flagValues(bwrapArgs, "--ro-bind", 2).filter((t) => t === join(target, "mise")),
     ).toHaveLength(1);
-    expect(flagValues(bwrapArgs, "--tmpfs").filter((t) => t === target)).toHaveLength(1);
   });
 
   test("~/.config が $HOME の外へのシンボリックリンクなら、リンク先を tmpfs で隠して許可リストの場所を戻す", () => {
