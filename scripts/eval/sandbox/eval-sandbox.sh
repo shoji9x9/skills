@@ -263,8 +263,8 @@ refuse_holding() {
 # the tmpfs over each of them is added after the /etc binds. Each is resolved first, so
 # a symlinked runtime dir (or one spelled with a trailing /) compares with the resolved
 # roots, and bwrap mounts the tmpfs on the real directory.
-# A runtime dir whose tmpfs would cover an earlier mount stops the run; that is checked
-# where the tmpfs is added (refuse_covering_runtime_dirs below).
+# A runtime dir whose tmpfs would cover a mount target or the cwd stops the run; that is
+# checked where the tmpfs is added (refuse_covering_runtime_dirs below).
 list_runtime_dirs() { # fills runtime_dirs; a function, so its variables stay local
 	local d
 	local -A seen_runtime_dirs=()
@@ -555,7 +555,8 @@ fi
 # dir: the CLI's credentials and settings under $HOME, CODEX_HOME's auth.json, the /etc
 # mirror under /tmp, the disposable project. Listing such places misses the next one, so
 # the run stops when a runtime dir is or holds any bind target given to bwrap so far
-# (--bind, --ro-bind, --dev-bind), or the cwd (which --chdir needs). An earlier --tmpfs
+# (--bind, --ro-bind, --dev-bind), the cwd (which --chdir needs) or the directory that
+# --verify binds for stage 5. An earlier --tmpfs
 # target is left out: a tmpfs over it hides no more than it did, and whatever was bound
 # into it is a bind target itself. A target is compared both as written and by its real
 # path: bwrap creates a mount point inside an earlier tmpfs without following the host's
@@ -568,12 +569,13 @@ refuse_covering_runtime_dirs() {
 	for i in "${!args[@]}"; do
 		case "${args[i]}" in --bind | --ro-bind | --dev-bind) targets+=("${args[i + 2]}") ;; esac
 	done
-	# The stage 5 lists of --verify, bound in front of the runtime tmpfs (see below).
+	# The directory of the --verify stage 5 lists, bound later (see below).
 	[ -z "${home_lists}" ] || targets+=("${home_lists}")
 	for i in "${!targets[@]}"; do
 		t="${targets[i]}"
 		what="the mount target"
 		[ "${i}" -ne 0 ] || what="the disposable project"
+		[ "${t}" != "${home_lists}" ] || what="the directory where --verify writes its lists for stage 5"
 		# A plain assignment, so a failed realpath stops the run under set -e.
 		real="$(realpath -m -- "${t}")"
 		for p in "${t}" "${real}"; do
@@ -587,16 +589,17 @@ refuse_covering_runtime_dirs() {
 		done
 	done
 }
-# --verify stage 5 reads lists that this shell writes on the host, bound into the sandbox.
-# The bind goes in front of the runtime tmpfs, as every other bind does, so the check above
-# counts it as a target and the runtime dirs stay empty for stage 5 to check. Under /tmp,
-# not TMPDIR: a TMPDIR under $HOME would put the bind target inside the read-only $HOME,
-# where bwrap cannot create the mount point.
-if [ "${1:-}" = "--verify" ]; then
+# --verify stage 5 reads lists that this shell writes on the host into a directory and
+# binds into the sandbox. The directory is made here, before the check, which compares it
+# as one more target: a runtime dir holding it would make stage 5 see its own mount point
+# in the runtime dir. Under /tmp, not TMPDIR: a TMPDIR under $HOME would put the bind
+# target inside the read-only $HOME, where bwrap cannot create the mount point.
+verify=""
+[ "${1:-}" != "--verify" ] || verify=1
+if [ -n "${verify}" ]; then
 	home_lists="$(mktemp -d /tmp/eval-sandbox-home-lists-XXXXXX)"
 fi
 refuse_covering_runtime_dirs
-runtime_tmpfs_at="${#args[@]}"
 for d in "${runtime_dirs[@]}"; do args+=(--tmpfs "${d}"); done
 
 # Last mount under $HOME is above; from here on $HOME is read-only (step 0).
@@ -717,7 +720,7 @@ covering_mount() {
 	printf '%s\n' "${found}"
 }
 
-if [ "${1:-}" = "--verify" ]; then
+if [ -n "${verify}" ]; then
 	shift
 	[ "$#" -ge 1 ] || {
 		echo "usage: $0 --verify <marker> [<marker>...]" >&2
@@ -923,8 +926,8 @@ exit $rc'
 	run_bwrap "${args[@]}" --setenv SENTINEL "${escape_sentinel}" \
 		--setenv ALLOW_HOSTS "${net_allow}" --setenv CLONE_PROBE_URL "${clone_probe_url}" \
 		--chdir / -- /bin/bash -c "${script}" _ "${repo}" "${markers[@]}" || rc=$?
-	run_bwrap "${args[@]:0:runtime_tmpfs_at}" --ro-bind "${home_lists}" "${home_lists}" \
-		"${args[@]:runtime_tmpfs_at}" --setenv HOME_LISTS "${home_lists}" \
+	run_bwrap "${args[@]}" --ro-bind "${home_lists}" "${home_lists}" \
+		--setenv HOME_LISTS "${home_lists}" \
 		--chdir / -- /bin/bash -c "${credentials_script}" || rc=$?
 	# Negative half of the containment check: the probe planted inside must not exist
 	# on the host. A missing probe here only counts once the inner half reported

@@ -18,7 +18,7 @@
 // sandbox() は XDG_RUNTIME_DIR をテストの下に設定し直すので、ホストの値は結果に関係しない。
 // sandbox() の一時ディレクトリが /run/user/<uid> の下にある環境では、スクリプトは使い捨ての $HOME を含む
 // runtime dir として止まる。テストは、os.tmpdir() を /run/user/<uid> の外に置いて実行する。
-import { mkdirSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { flagValues, sandbox, type SandboxOptions } from "./eval-sandbox-helpers.ts";
@@ -220,10 +220,14 @@ describe("runtime dir が先に置いたマウントの宛先か cwd を覆う�
   test("--verify: runtime dir が /tmp なら、stage 5 の一覧を /tmp に bind するので、bwrap を起動する前に止める", () => {
     const { result, bwrapArgs } = runPlace(["--verify", "MARKER"], tmpWithoutTargets);
     expect(result.status, result.stderr).toBe(3);
-    expect(result.stderr).toContain(
-      "(the runtime dir) holds the mount target /tmp/eval-sandbox-home-lists-",
-    );
+    const held =
+      /\(the runtime dir\) holds the directory where --verify writes its lists for stage 5 (\/tmp\/eval-sandbox-home-lists-\S+) \(/u.exec(
+        result.stderr,
+      );
+    if (held === null) throw new Error(result.stderr);
     expect(bwrapArgs).toBeNull();
+    // 止めた後に、作った一覧のディレクトリを消す。
+    expect(existsSync(held[1])).toBe(false);
   });
 
   test.each(modes)(

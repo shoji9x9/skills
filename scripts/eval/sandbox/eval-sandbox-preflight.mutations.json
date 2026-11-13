@@ -8,8 +8,8 @@
       "id": "runtime-covering-unchecked",
       "why": "runtime dir が先に置いたマウントの宛先か cwd を覆うかを確かめずに、そのまま tmpfs で隠す",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "refuse_covering_runtime_dirs\nruntime_tmpfs_at=",
-      "replace": ":\nruntime_tmpfs_at=",
+      "find": "refuse_covering_runtime_dirs\nfor d in",
+      "replace": ":\nfor d in",
       "occurrences": 1,
       "expect_failing": [
         "runtime dir が先に置いたマウントの宛先か cwd を覆う構成 CLI の起動: runtime dir が $HOME と同じとき、bwrap を起動する前に理由を出して exit 3 で止める",
