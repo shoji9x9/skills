@@ -347,8 +347,8 @@
       "id": "runtime-dir-unresolved",
       "why": "runtime dir をパスとして解決せずに、解決した XDG の場所と比べる",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\td=\"$(realpath -m -- \"${d}\")\"\n\t[ -z \"${seen_runtime_dirs[\"${d}\"]+present}\" ] || continue\n",
-      "replace": "\t[ -z \"${seen_runtime_dirs[\"${d}\"]+present}\" ] || continue\n",
+      "find": "\t\td=\"$(realpath -m -- \"${d}\")\"\n\t\t[ -z \"${seen_runtime_dirs[\"${d}\"]+present}\" ] || continue\n",
+      "replace": "\t\t[ -z \"${seen_runtime_dirs[\"${d}\"]+present}\" ] || continue\n",
       "occurrences": 1,
       "expect_failing": [
         "$HOME の外の設定の場所 runtime dir がシンボリックリンクでも、実際のパスで比べ、その中の XDG の場所を止める"

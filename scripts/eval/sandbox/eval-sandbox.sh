@@ -242,15 +242,19 @@ drop_relative_xdg_dirs
 # the tmpfs over each of them is added after the /etc binds. Each is resolved first, so
 # a symlinked runtime dir (or one spelled with a trailing /) compares with the resolved
 # roots, and bwrap mounts the tmpfs on the real directory.
-runtime_dirs=()
-declare -A seen_runtime_dirs=()
-for d in "${XDG_RUNTIME_DIR:-}" "/run/user/$(id -u)"; do
-	[ -n "${d}" ] && [ -d "${d}" ] || continue
-	d="$(realpath -m -- "${d}")"
-	[ -z "${seen_runtime_dirs["${d}"]+present}" ] || continue
-	seen_runtime_dirs["${d}"]=1
-	runtime_dirs+=("${d}")
-done
+list_runtime_dirs() { # fills runtime_dirs; a function, so its variables stay local
+	local d
+	local -A seen_runtime_dirs=()
+	runtime_dirs=()
+	for d in "${XDG_RUNTIME_DIR:-}" "/run/user/$(id -u)"; do
+		[ -n "${d}" ] && [ -d "${d}" ] || continue
+		d="$(realpath -m -- "${d}")"
+		[ -z "${seen_runtime_dirs["${d}"]+present}" ] || continue
+		seen_runtime_dirs["${d}"]=1
+		runtime_dirs+=("${d}")
+	done
+}
+list_runtime_dirs
 
 # The same places can live elsewhere: an XDG base directory set to another path, or a
 # directory of the allowlist reached through a symlink (dotfiles managers link ~/.config).
@@ -271,11 +275,13 @@ done
 list_home_prefixes() { # fills home_prefixes; a function, so its variables stay local
 	local rel prefix
 	local -A seen_prefixes=()
+	home_prefixes=()
 	for rel in "${home_allow[@]}"; do
 		prefix="${rel}"
 		while [[ "${prefix}" == */* ]]; do
 			prefix="${prefix%/*}"
-			[ -z "${seen_prefixes["${prefix}"]+present}" ] || continue
+			# Its parents were recorded with it, so there is nothing further up to add.
+			[ -z "${seen_prefixes["${prefix}"]+present}" ] || break
 			seen_prefixes["${prefix}"]=1
 			case "${prefix}" in
 			.config) home_prefixes+=("${prefix}|XDG_CONFIG_HOME") ;;
@@ -287,7 +293,6 @@ list_home_prefixes() { # fills home_prefixes; a function, so its variables stay 
 		done
 	done
 }
-home_prefixes=()
 list_home_prefixes
 extra_roots=()
 outside_roots=()

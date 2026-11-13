@@ -7,7 +7,7 @@
 // | 軸                         | 値                                                                  |
 // | -------------------------- | ------------------------------------------------------------------- |
 // | 許可リストの外の変数       | 認証情報（GH_TOKEN・AWS_*・BOX_*）/ 親のエージェントのトークンとソケット / 名前を挙げていない変数 / 名前が識別子でない変数・export した関数 |
-// | 許可リストの中の変数       | 起動の基本（PATH）/ ロケール（LANG・LC_*）/ プロキシ / ハーネス / ベンダーの API キー |
+// | 許可リストの中の変数       | 起動の基本（PATH）/ 出力とロケール（LANG・LANGUAGE・ロケールの分類 13 個を名前で）/ ファイルの置き場所（TZ・TMPDIR）/ プロキシ（大文字・小文字）と証明書 / ハーネス / ベンダーの API キー |
 // | ベンダー                   | claude-code / codex（相手のベンダーのキーは渡さない）               |
 // | EVAL_SANDBOX_ENV_ALLOW     | 無い / 変数名（空白・改行で区切る） / 変数名でない値 / glob の文字  |
 // | 値の置き場所               | 環境だけ（bwrap の引数に載らない）                                  |
@@ -16,6 +16,7 @@
 // | 許可リストの祖先           | 普通のディレクトリ / $HOME の外へのリンク / $HOME の中へのリンク / 先に見つけた場所の中へのリンク |
 import { mkdirSync, renameSync, symlinkSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { tmpdir } from "node:os";
 import { describe, expect, test } from "vitest";
 import {
   allowedFiles,
@@ -38,7 +39,7 @@ const hiddenNames = {
   // LC_ で始まるが、ロケールの分類ではない。
   LC_DEPLOY_TOKEN: "dummy-lc",
 };
-// ロケールの分類の変数は、許可リストに名前で並べたものをすべて確かめる。
+// ロケールの分類の変数（glibc の locale(7) が挙げる LC_ALL と 12 の分類）。許可リストはこの一覧を名前で並べる。
 const localeNames = [
   "LC_ALL",
   "LC_CTYPE",
@@ -54,10 +55,25 @@ const localeNames = [
   "LC_PAPER",
   "LC_TELEPHONE",
 ];
+// 許可リストの中の変数（ベンダーごとの API キーは別のテスト）。値はテスト用の無害な文字列である。
 const shownNames = {
   LANG: "C.UTF-8",
+  LANGUAGE: "en",
   ...Object.fromEntries(localeNames.map((name) => [name, "C.UTF-8"])),
-  HTTPS_PROXY: "http://127.0.0.1:9",
+  TERM: "dumb",
+  COLORTERM: "truecolor",
+  NO_COLOR: "1",
+  TZ: "UTC",
+  TMPDIR: tmpdir(),
+  ...Object.fromEntries(
+    ["http_proxy", "https_proxy", "no_proxy", "all_proxy"].flatMap((name) => [
+      [name, "http://127.0.0.1:9"],
+      [name.toUpperCase(), "http://127.0.0.1:9"],
+    ]),
+  ),
+  NODE_EXTRA_CA_CERTS: "/nonexistent/ca.pem",
+  SSL_CERT_FILE: "/nonexistent/cert.pem",
+  SSL_CERT_DIR: "/nonexistent/certs",
   SHOJI9X9_SKILLS_IGNORE_USER_CONFIG: "1",
 };
 
