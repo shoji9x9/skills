@@ -1,0 +1,74 @@
+{
+  "metadata": {
+    "skill_name": "multiagent-setup",
+    "skill_path": "<repo>/skills/multiagent-setup",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-13T00:02:28Z",
+    "evals_run": [2],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 73.284,
+        "tokens": 259020,
+        "tool_calls": 11,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "CLAUDE.md が AGENTS.md を参照している",
+          "passed": true,
+          "evidence": "project-files/CLAUDE.md に See AGENTS.md と @AGENTS.md"
+        },
+        {
+          "text": "AGENTS.md に書いた共通の内容（プロジェクトの概要・規約）を CLAUDE.md に複製していない",
+          "passed": true,
+          "evidence": "CLAUDE.md は見出しと参照の 2 行だけで、AGENTS.md の内容を複製していない"
+        },
+        {
+          "text": "AGENTS.md に 参照スキルガイド または 参照ルールガイド セクションがある",
+          "passed": true,
+          "evidence": "project-files/AGENTS.md に ## 参照スキルガイド と ## 参照ルールガイド"
+        },
+        {
+          "text": "ユーザー設定（~/.claude/ 等）は変更されていない",
+          "passed": true,
+          "evidence": "project-tree.txt に作られたのはプロジェクトの中のファイルだけで、~/.claude の変更は無い"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 73.284,
+        "stddev": 0,
+        "min": 73.284,
+        "max": 73.284
+      },
+      "tokens": {
+        "mean": 259020,
+        "stddev": 0,
+        "min": 259020,
+        "max": 259020
+      }
+    }
+  },
+  "notes": []
+}

@@ -21,6 +21,8 @@ Claude Code・Codex・GitHub Copilot の 3 つのエージェントが共有で�
 
 - `.agents/` ディレクトリに実体を置き、各エージェントに固有のディレクトリにはシンボリックリンクを作る。同じファイルを複数の場所に複製しない。
 - 対象はプロジェクトのレベルだけである。ユーザーの設定（`~/.claude/`、`~/.codex/` など）は対象にしない。
+- プロジェクトの `.codex/` は対象に含む。このスキルが `.codex/` に書くのは、Hooks の設定（`.codex/hooks.json` か `.codex/config.toml` の `[hooks]` テーブル）だけである。
+  Codex のスキル・ルール・ドキュメントは `.codex/` に置かず、`.agents/skills/` と基底ドキュメント（`AGENTS.md` など）から読ませる（`references/skills.md`・`references/rules.md`・`references/docs.md`）。
 
 ## フロー
 

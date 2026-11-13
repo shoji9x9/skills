@@ -32,7 +32,8 @@ trap 'rm -f "$BOX_AUTH"' EXIT
 printf 'Authorization: Bearer %s\n' "$TOKEN" >"$BOX_AUTH"
 ```
 
-この後の例は、すべてこの `BOX_AUTH` を使う。
+この後の例は、すべてこの `BOX_AUTH` を使う。`trap` がシェルの終わるときに `BOX_AUTH` を消すので、この例と API の呼び出しは同じシェルで実行する。
+エージェントのツールのように、コマンドの呼び出しごとにシェルが終わる環境では、この例を API の呼び出しと同じ呼び出しに入れる。
 
 | 方式          | 必要な環境変数                                        | 特徴                                                                                                     |
 | ------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
@@ -117,10 +118,19 @@ curl -sSf "https://api.box.com/2.0/files/<file-id>?fields=id,name,size,extension
 
 ### ファイルのダウンロード
 
+ダウンロード先も `mktemp` で作る。`/tmp/box-download.bin` のように名前を決めて `/tmp` に置くファイルは、同じホストの他のユーザーが先に作れるので使わない。
+`trap` は前の設定を置き換えるので、`BOX_AUTH` と一緒に消すように設定し直す。
+
 ```bash
+BOX_DOWNLOAD="$(mktemp)"
+trap 'rm -f "$BOX_AUTH" "$BOX_DOWNLOAD"' EXIT
 curl -fL "https://api.box.com/2.0/files/<file-id>/content" \
-  -H @"$BOX_AUTH" -o /tmp/box-download.bin
+  -H @"$BOX_AUTH" -o "$BOX_DOWNLOAD"
+wc -c <"$BOX_DOWNLOAD"   # 中身を読む処理（この例はバイト数の確認）は、ダウンロードと同じシェルに書く
 ```
+
+`BOX_DOWNLOAD` は、シェルが終わるときに消える。中身は、認証の例と同じく、ダウンロードと同じシェルの中で読む。
+ファイルを残すなら、`-o` に利用者が指定した保存先のパスを渡す。
 
 ### 検索（対象のフォルダの下に限る）
 
@@ -137,11 +147,14 @@ curl -sSf -G "https://api.box.com/2.0/search" \
 
 ### アップロード（新規ファイル）
 
+アップロードするファイルは、利用者が指定したパスで渡す。`/tmp/report.txt` のように名前を決めて `/tmp` に置くファイルは、他のユーザーが同じ名前で先に置けるので使わない。
+`attributes` の `name` には、Box に置くときのファイル名を書く。
+
 ```bash
 curl -sSf -X POST "https://upload.box.com/api/2.0/files/content" \
   -H @"$BOX_AUTH" \
-  -F "attributes={\"name\":\"report.txt\",\"parent\":{\"id\":\"$FOLDER\"}}" \
-  -F file=@/tmp/report.txt | jq '.entries[0] | {id, name, size}'
+  -F "attributes={\"name\":\"<Box に置くファイル名>\",\"parent\":{\"id\":\"$FOLDER\"}}" \
+  -F file=@"<アップロードするファイルのパス>" | jq '.entries[0] | {id, name, size}'
 ```
 
 ### 新しいバージョンのアップロード（既存のファイルの更新）
@@ -149,7 +162,7 @@ curl -sSf -X POST "https://upload.box.com/api/2.0/files/content" \
 ```bash
 curl -sSf -X POST "https://upload.box.com/api/2.0/files/<file-id>/content" \
   -H @"$BOX_AUTH" \
-  -F file=@/tmp/report.txt | jq '.entries[0] | {id, name, modified_at}'
+  -F file=@"<アップロードするファイルのパス>" | jq '.entries[0] | {id, name, modified_at}'
 ```
 
 ## 注意
