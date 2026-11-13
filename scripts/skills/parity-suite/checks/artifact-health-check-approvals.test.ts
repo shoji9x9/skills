@@ -6,9 +6,13 @@
 // parity-diff は承認を原因ごとに 1 回取り、新側のバージョンをまたいで持つので、tree は照合しない（spec-parity と違う）。
 
 import { test, expect } from "vitest";
-import { rmSync } from "node:fs";
+import { readFileSync, rmSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { parseJsonAs } from "../../../lib/parse-as.ts";
 import { makeProject, run, writeStage } from "./artifact-health-check-helpers.ts";
 
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 const TEST = "e2e/parity/order-list/orders.spec.ts > 一覧を開く";
 
 const allowance = (over: Record<string, unknown> = {}) => ({
@@ -227,7 +231,7 @@ test.each([
   (_name, extra) => {
     const r = judge(extra, { declared: true });
     expect(r.stdout).toMatch(
-      /warn: \[runtime-errors\] 現側の metadata\.json の runtime_errors が declared: false と理由の組でない（declared: true）のに/,
+      /warn: \[runtime-errors\] 現側の metadata\.json の runtime_errors\.declared が true なのに、diff-metadata\.json が/,
     );
     expect(r.stdout).not.toMatch(/操作中のエラーの承認を照合しない/);
     expect(r.status).toBe(1);
@@ -243,8 +247,13 @@ test("誤検知しないことの確認: 現側の metadata.json が runtime_err
   expect(r.status).toBe(0);
 });
 
+// 同梱の metadata-template.json の runtime_errors（利用者が始める形）をそのまま使う
+const TEMPLATE_RUNTIME_ERRORS = parseJsonAs<{ runtime_errors: unknown }>(
+  readFileSync(join(repoRoot, "skills/parity-suite/assets/metadata-template.json"), "utf8"),
+).runtime_errors;
+
 test.each([
-  ["雛形の値のまま", { declared: "<true | false>" }],
+  ["雛形の値のまま", TEMPLATE_RUNTIME_ERRORS],
   ["真偽値でない", { declared: "yes" }],
   ["declared: false に理由が無い", { declared: false }],
   ["declared: false の理由が雛形の値のまま", { declared: false, reason: "<理由>" }],
@@ -253,7 +262,26 @@ test.each([
   "現側の metadata.json の runtime_errors が %s なら、比較の結果の無い diff-metadata.json を照合しないまま通さない",
   (_name, current) => {
     const r = judge({}, current);
-    expect(r.stdout).toMatch(/warn: \[runtime-errors\] /);
+    // 現側の記録の不備なので、接頭辞の無い所見にする（parity-suite で直す）
+    expect(r.stdout).toMatch(
+      /^warn: 現側の metadata\.json の runtime_errors が、declared: true か、declared: false と理由の組でない/m,
+    );
+    expect(r.stdout).not.toMatch(/\[runtime-errors\]/);
+    expect(r.status).toBe(1);
+  },
+);
+
+test.each([
+  ["runtime_errors が無い", {}],
+  ["judged: false に理由が無い", { runtime_errors: { judged: false } }],
+  ["judged: false の理由が雛形の値のまま", { runtime_errors: { judged: false, reason: "<理由>" } }],
+])(
+  "現側の metadata.json が runtime_errors.declared: false なのに、diff-metadata.json の %s なら、記録を書き直させる",
+  (_name, extra) => {
+    const r = judge(extra, { declared: false, reason: "現側で記録しなかった" });
+    expect(r.stdout).toMatch(
+      /warn: \[runtime-errors\] 現側の metadata\.json が runtime_errors\.declared: false なのに/,
+    );
     expect(r.status).toBe(1);
   },
 );

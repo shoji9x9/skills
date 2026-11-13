@@ -761,6 +761,32 @@
       "expect_failing": [
         "デザインの点検と人による確認 指摘を 受け入れるが理由が雛形の値のまま なら approval"
       ]
+    },
+    {
+      "id": "cv-runtime-declaration",
+      "why": "現側の metadata.json の runtime_errors の宣言を確かめず、雛形の値のままや理由の無い declared: false を通す",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
+      "find": "  if (declaration !== \"declared\" && declaration !== \"exempt\")\n",
+      "replace": "  if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作中のエラー 現側の metadata.json の runtime_errors が declared: false の理由が雛形の値のまま なら、判定できず exit 2",
+        "操作中のエラー 現側の metadata.json の runtime_errors が declared: false に理由が無い なら、判定できず exit 2",
+        "操作中のエラー 現側の metadata.json の runtime_errors が declared が雛形の値のまま なら、判定できず exit 2",
+        "前提の欠落（exit 2） metadata.json の declared: false に理由が無い",
+        "前提の欠落（exit 2） metadata.json の runtime_errors が無い"
+      ]
+    },
+    {
+      "id": "cv-runtime-declaration-placeholder",
+      "why": "declared: false の理由が雛形の値のままでも、書いたものとして読む（spec-parity のコピー）",
+      "file": "skills/spec-parity/scripts/runtime-errors.mjs",
+      "find": "  if (re.declared === false && isFilled(re.reason)) return \"exempt\";\n",
+      "replace": "  if (re.declared === false && nonEmptyString(re.reason)) return \"exempt\";\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作中のエラー 現側の metadata.json の runtime_errors が declared: false の理由が雛形の値のまま なら、判定できず exit 2"
+      ]
     }
   ]
 }

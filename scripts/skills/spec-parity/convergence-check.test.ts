@@ -333,6 +333,17 @@ describe("操作中のエラー", () => {
     );
     expect(kinds(run(fs))).toEqual([["remeasure", "unverified"]]);
   });
+
+  // 宣言の読み方は parity-suite の artifact-health-check.mjs と同じ（runtime-errors.mjs の runtimeErrorsDeclaration）
+  test.each([
+    ["declared: false の理由が雛形の値のまま", { declared: false, reason: "<理由>" }],
+    ["declared: false に理由が無い", { declared: false }],
+    ["declared が雛形の値のまま", { declared: "<true | false>" }],
+  ])("現側の metadata.json の runtime_errors が %s なら、判定できず exit 2", (_name, re) => {
+    const fs = convergedFs();
+    fs.put(`${SLUG_DIR}/metadata.json`, suiteMetadata({ runtime_errors: re }));
+    expect(run(fs).code).toBe(2);
+  });
 });
 
 describe("デザインの点検と人による確認", () => {

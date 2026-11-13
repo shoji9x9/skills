@@ -130,7 +130,8 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
   ただし、`warn: [approval]` と `warn: [runtime-errors]` で始まる所見（操作中のエラー）は `parity-suite` へ戻さない。直し方は [`references/convergence.md`](references/convergence.md) の接頭辞の表で決める。
   次のものは、どれも緑のまま通ってしまう。読まれていない採取物、元が採り直されたのに古いままの加工物、後始末が機能していないスイート、`blocking` の未測定、
   `suite.new_green` が真なのに無いか古い `diff-metadata.json`、承認の記録の無い操作中のエラーの許容と環境ノイズ。
-  `converged` が偽でも失敗にはしない。失敗にするのは「無い」と「古い」と、承認の記録の無い許容と環境ノイズだけである。スクリプトが無ければ、判定を飛ばさずに停止する。判定は [`references/convergence.md`](references/convergence.md) で定義する。
+  `converged` が偽でも失敗にはしない。失敗にするのは「無い」と「古い」と、操作中のエラーの記録の不備（`warn: [approval]`・`warn: [runtime-errors]` の所見と、現側の `runtime_errors` の不備）だけである。
+  スクリプトが無ければ、判定を飛ばさずに停止する。判定は [`references/convergence.md`](references/convergence.md) で定義する。
 - 追記専用の成果物が縮んだ状態で、`converged: true` にしない。インストール済みの `replace-strategy` の
   `scripts/append-only-check.mjs --root . --base <機能に着手した時点のバージョン>` で数え直し、exit 0 以外なら止めて、過去の決定を元に戻す。
   デフォルトの `HEAD` は使わない。書き直しを commit した後の `HEAD` は作業ツリーと同じなので、何かが失われていても通ってしまう。

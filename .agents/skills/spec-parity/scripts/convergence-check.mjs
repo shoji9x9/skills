@@ -53,6 +53,7 @@ import {
   VERSION as RUNTIME_ERRORS_VERSION,
   approvalLogged,
   judgeClassification,
+  runtimeErrorsDeclaration,
 } from "./runtime-errors.mjs";
 
 /** ツールのバージョン。判定規則と出力の形を変えたら上げる。 */
@@ -120,11 +121,8 @@ export function checkSuiteMetadata(metadata, slugDir) {
   ];
   const failed = checks.find(([bad]) => bad);
   if (failed) throw new UsageError(`metadata.json の ${failed[1]}`);
-  const re = m.runtime_errors;
-  if (
-    !isPlainObject(re) ||
-    (re.declared !== true && !(re.declared === false && nonEmptyString(re.reason)))
-  )
+  const declaration = runtimeErrorsDeclaration(m.runtime_errors);
+  if (declaration !== "declared" && declaration !== "exempt")
     throw new UsageError(
       "metadata.json の runtime_errors が、declared: true か、declared: false と reason の組でない",
     );
