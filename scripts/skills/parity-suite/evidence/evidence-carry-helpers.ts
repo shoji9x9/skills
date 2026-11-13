@@ -43,7 +43,10 @@ export type RecordPair = ReturnType<typeof amendVerifyPair>;
 export type AmendRecord = { tool: string; change_id: string; pairs: RecordPair[] };
 
 /** 機能の metadata.json のうち、テストが消す欄を持つ形。 */
-type FeatureMetadataFile = FeatureMetadata & { suite: Record<string, unknown> };
+type FeatureMetadataFile = FeatureMetadata & {
+  suite: Record<string, unknown>;
+  runtime_errors?: unknown;
+};
 
 /** component-comparison-check の CLI が stdout に書く結果のうち、テストが読む部分。 */
 type ComparisonResult = { findings: { code: string; message: string }[]; notes: string[] };
@@ -100,7 +103,7 @@ const comparisonCheck = join(
  * @param {string} wanted
  */
 export function writeCheckerInputs(p: Project, recorded: string, wanted: string) {
-  // artifact-health-check の他の節（採取物・反復実行・未測定）はキーごと持たない旧成果物として判定させない
+  // artifact-health-check の他の節（採取物・反復実行・未測定・操作中のエラーの承認の照合）はキーごと持たない旧成果物として判定させない
   // （雛形のプレースホルダで落ちると、持ち越しの判定と区別できない）。
   const metadata = parseJsonAs<FeatureMetadataFile>(
     readFileSync(join(p.slugDir, "metadata.json"), "utf8"),
@@ -108,6 +111,7 @@ export function writeCheckerInputs(p: Project, recorded: string, wanted: string)
   delete metadata.artifact_health;
   delete metadata.unmeasured;
   delete metadata.suite.state_mutating;
+  delete metadata.runtime_errors;
   writeJson(join(p.slugDir, "metadata.json"), metadata);
   writeJson(join(p.stageDir, "replace-metadata.json"), {
     suite: { new_green: true },
