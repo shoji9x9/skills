@@ -240,7 +240,7 @@
 - 設定の `style_policy` が `free`（意味は [`project-config.md`](project-config.md)「スタイルの方針」）なら、機能 Issue に限って、上の項を次の文面に置き換える。
   横断 API・バッチ Issue は、`free` でも上の文面のままにする。
   「`<slug>` について、`parity-replace` と同じ target で `spec-parity verify` を実行する。
-  `.replace/parity/<slug>/new/<target>/verify-metadata.json` の `converged: true` まで進める。デザインの点検と、人が新側の画面を確かめた承認の記録を含む。スイートが green なことだけで完了と報告しない」
+  `.replace/parity/<slug>/new/<target>/verify-metadata.json` の `converged: true` まで進める。デザインの点検と、人が新側の画面を確かめた承認の記録と、操作中のエラーを許容か環境ノイズとした承認の記録を含む。スイートが green なことだけで完了と報告しない」
   `free` の機能 Issue に `parity-diff` の項を置くと、`parity-diff` は画面のある機能で止まるので、その項は満たせないまま残る
 
 ### 機能 Issue

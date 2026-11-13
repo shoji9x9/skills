@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "report-1",
+  "run": {
+    "status": "failed",
+    "results": [
+      {
+        "file": "tests/order-list/strength/faults.e2e.ts",
+        "titlePath": ["対照: 注入しないと通る"],
+        "targetId": "current",
+        "selected": true,
+        "status": "passed",
+        "attempts": [
+          {
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "file": "tests/order-list/strength/faults.e2e.ts",
+        "titlePath": ["故障: 応答の件数を変える"],
+        "targetId": "current",
+        "selected": true,
+        "status": "failed",
+        "attempts": [
+          {
+            "status": "failed",
+            "error": {
+              "code": "ASSERTION_FAILED",
+              "message": "expect.toHaveCount failed"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

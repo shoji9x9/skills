@@ -842,7 +842,7 @@
       "assertions": [
         "order-list のワークフローを spec-parity suite → parity-replace → golden-dataset（フェーズ B）→ spec-parity verify の順にしている",
         "order-list の収束の項を、spec-parity verify を実行して .replace/parity/order-list/new/<target>/verify-metadata.json の converged: true まで進める形にし、parity-diff の diff-metadata.json の項を置いていない",
-        "order-list の収束の項に、デザインの点検と、人が新側の画面を確かめた承認の記録を含めている",
+        "order-list の収束の項に、デザインの点検と、人が新側の画面を確かめた承認の記録と、操作中のエラーを許容か環境ノイズとした承認の記録を含めている",
         "横断 API の user の収束の項は、free でも parity-diff の diff-metadata.json の converged: true のままにしている",
         "起票していない（gh issue create も issue-create への委譲も行っていない）"
       ],
@@ -856,7 +856,7 @@
           "prompt_quote": "収束を確かめる受け入れ条件の項"
         },
         {
-          "assertion": "order-list の収束の項に、デザインの点検と、人が新側の画面を確かめた承認の記録を含めている",
+          "assertion": "order-list の収束の項に、デザインの点検と、人が新側の画面を確かめた承認の記録と、操作中のエラーを許容か環境ノイズとした承認の記録を含めている",
           "prompt_quote": "収束を確かめる受け入れ条件の項"
         },
         {

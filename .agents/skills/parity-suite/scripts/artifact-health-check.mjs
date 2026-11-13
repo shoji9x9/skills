@@ -22,6 +22,9 @@
 //      投入対象でない target は dataset_version: null ＋ dataset_version_exempt で免除される（parity-diff の references/preflight.md）。
 //      --carry-to <SHA> を渡すと、diff-metadata.json の new.commit からそのバージョンへの持ち越しも必ず判定する。
 //      部品改修の一括再検証の直後は、replace-metadata.json の new.tree が改修前のままで、食い違いの判定が呼ばれないためである。
+//      diff-metadata.json の runtime_errors.new_signatures[] の許容と環境ノイズは、同じファイルの追記専用の承認の記録（approvals）と
+//      照合し、同じ値の要素が無ければ承認待ちとして落とす。照合の規則は runtime-errors.mjs の approvalLogged で定義する。
+//      parity-diff は承認を原因ごとに 1 回取り、新側のバージョンをまたいで持つので、tree は照合しない。
 //
 // 何をしないか: 採取・加工・スイートの実行はしない。ここでは記録と実体を突き合わせるだけ。
 //
@@ -42,12 +45,13 @@ import { errorMessage } from "./lib/errors.mjs";
 import { parseFlags, stripDashes } from "./lib/flags.mjs";
 import { isPlainObject, nonEmptyString, toIterationCount } from "./lib/guards.mjs";
 import { realPathOf } from "./lib/paths.mjs";
+import { approvalLogged } from "./runtime-errors.mjs";
 
 /**
  * ツールのバージョン（原本）。判定ロジック・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "13";
+export const VERSION = "14";
 
 /** 採取物の種別。derived は元の実体から作った加工物。 */
 const ARTIFACT_KINDS = ["captured", "derived"];
@@ -1879,7 +1883,60 @@ export function checkStage(ctx) {
   judgeCarryTo(s, commits.judgedWanted);
   judgeStageIteration(s, commits.versionDelegatedToIteration);
   judgeStageDataset(s);
+  judgeStageRuntimeErrors(s);
   return { judged: true, findings: s.findings, notes: s.notes };
+}
+
+/** 利用者の承認を待つ所見の接頭辞。parity-diff はこの所見を parity-suite へ戻さず、利用者に承認し直してもらう。 */
+export const APPROVAL_TAG = "[approval]";
+
+/**
+ * 照合する比較の結果（diff-metadata.json の runtime_errors）を返す。judged: true の比較の結果が無ければ、注記を足して null を返す。
+ * 現側の metadata.json の宣言とは突き合わせない。現側が declared: true の機能で比較の結果を消した記録も、ここでは通る。
+ * その記録は、parity-diff の収束の条件（runtime-errors.mjs compare が exit 0）が止める。検出しない範囲は replace-strategy の references/scope.md に書く。
+ * @param {StageState} s
+ * @returns {Record<string, unknown> | null}
+ */
+function comparedRuntimeErrors(s) {
+  const { diffMeta, diffPath } = s;
+  const re = diffMeta.runtime_errors;
+  if (re !== undefined && !isPlainObject(re))
+    throw new UsageError("diff-metadata.json の runtime_errors がオブジェクトでない");
+  if (isPlainObject(re) && re.judged === true) return re;
+  s.notes.push(
+    `diff-metadata.json の runtime_errors に judged: true の比較の結果が無いため、操作中のエラーの承認を照合しない: ${diffPath}`,
+  );
+  return null;
+}
+
+/**
+ * diff-metadata.json の操作中のエラーの許容と環境ノイズを、同じファイルの承認の記録（approvals）と照合する。
+ * 分類の欄（runtime_errors.new_signatures[]）は compare --write と実行のたびの書き直しで変わるので、承認を後から書き換えても欄だけでは検出できない。
+ * approvals は追記専用で、縮んでいないかは replace-strategy の append-only-check.mjs が確かめる（replace-strategy の assets/append-only-manifest.json）。
+ * judged: true の比較の結果が無い記録は照合しない（comparedRuntimeErrors）。
+ * approvals をキーごと持たない記録は、積まれた承認が 0 件として読む（許容と環境ノイズは承認待ちになる）。
+ * 承認待ちの所見は APPROVAL_TAG で始める。parity-diff は、この所見を parity-suite へ戻さず、利用者に承認し直してもらう。
+ * 要対応と説明の付いていない署名は、compare の ok が収束を止めるので、ここでは数えない。
+ * @param {StageState} s
+ */
+function judgeStageRuntimeErrors(s) {
+  const { diffMeta, diffPath } = s;
+  const re = comparedRuntimeErrors(s);
+  if (re === null) return;
+  const sigs = re.new_signatures;
+  if (!isArray(sigs))
+    throw new UsageError("diff-metadata.json の runtime_errors.new_signatures が配列でない");
+  const approvals = diffMeta.approvals === undefined ? [] : diffMeta.approvals;
+  if (!isArray(approvals)) throw new UsageError("diff-metadata.json の approvals が配列でない");
+  for (const sig of sigs) {
+    if (approvalLogged(sig, { approvals, tree: null }) !== "missing") continue;
+    const name = isPlainObject(sig)
+      ? `${String(sig.test)} の ${String(sig.kind)}「${String(sig.text)}」（${String(sig.classification)}）`
+      : "読めない署名";
+    s.findings.push(
+      `${APPROVAL_TAG} 操作中のエラーの分類の承認が、承認の記録（approvals）に同じ値で積まれていない: ${name}。承認を書き換えたか、前の diff-metadata.json の approvals を書き戻していないか、承認の記録を持たない前の記録なら、利用者に承認し直してもらって approvals に追記する: ${diffPath}`,
+    );
+  }
 }
 
 /**

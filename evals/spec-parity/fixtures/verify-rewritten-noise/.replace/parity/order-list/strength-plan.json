@@ -1,0 +1,13 @@
+{
+  "version": "1",
+  "slug": "order-list",
+  "controls": ["tests/order-list/strength/faults.e2e.ts › 対照: 注入しないと通る"],
+  "faults": [
+    {
+      "id": "f-count",
+      "class": "値・件数・並び",
+      "test": "tests/order-list/strength/faults.e2e.ts › 故障: 応答の件数を変える",
+      "observed": "行が 3 → 2 になった"
+    }
+  ]
+}

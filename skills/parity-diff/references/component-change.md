@@ -104,7 +104,10 @@
    - `--carry-to` を省かない。一括の再検証の直後は、`replace-metadata.json` の `new.tree` も改修前のバージョンのままで、記録と一致する。
      そのため `--carry-to` が無いと持ち越しは評価されず、`evidence-carry.json` が無い・不正・宣言で説明できない差分がある状態でも通ってしまう。
      `--carry-to` を渡すと、記録の `new.commit` からそのバージョンへの持ち越しを、`new.tree` の一致に関わらず判定する（記録の `new.commit` が `none` なら判定できないので失敗する）
+   - `artifact-health-check.mjs` は、`--carry-to` を渡しても、操作中のエラーの許容と環境ノイズを `diff-metadata.json` の `approvals` と照合する（[`triage.md`](triage.md)「承認の記録（`approvals`）」）。
+     照合は新側のバージョンを見ないので、一括の再検証でも承認し直さない。`diff-metadata.json` を書き直すときは、前の `approvals` をそのまま書き戻す
    - 失敗したら、持ち越しは成り立っていない。描画の入力が無い機能や、宣言の外のファイルが変わっている機能は、同じ target の `parity-replace` からやり直す。
+     ただし、`warn: [approval]` で始まる所見（操作中のエラーの承認が `approvals` に無い）だけで失敗したときは、`parity-replace` からやり直さない。利用者に承認し直してもらって `approvals` に追記する
      収束の判定は、通常どおり [`convergence.md`](convergence.md) に従う
 
 ### 機械判定で通らない組がある機能

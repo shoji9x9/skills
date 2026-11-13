@@ -3,7 +3,7 @@ date: 2026-10-14
 type: hook
 priority: medium
 confidence: high
-status: pending
+status: forgotten
 applied-to: []
 session: claude-code
 ---

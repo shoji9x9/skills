@@ -36,13 +36,20 @@ import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
 import { writeFileAtomic } from "./lib/file-io.mjs";
 import { parseFlags, stripDashes } from "./lib/flags.mjs";
-import { isInteger, isPlaceholder, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
+import {
+  isFilled,
+  isInteger,
+  isPlaceholder,
+  isPlainObject,
+  nonEmptyString,
+} from "./lib/guards.mjs";
 
 /**
  * ツールのバージョン（原本）。署名の判定規則・正規化・出力の形を変えたら上げる。上げると、前のバージョンの基準をすべて作り直すことになる。
  * 読み手が読まなくても判定が変わらない欄を足すだけ（compare の tree）なら上げない。
  * 分類の読み方（judgeClassification）だけを変えたときも上げない。基準の署名には関わらず、次に compare を通したときに新しい読み方で判定し直される。
  * 前に書いた compare の結果（ok・state）は、通し直すまで前の読み方のまま残る。
+ * 収束の判定だけが呼ぶ関数（approvalLogged）を足したり変えたりしたときも上げない。compare の出力は変わらない。
  * @type {string}
  */
 export const VERSION = "1";
@@ -392,9 +399,9 @@ export function readBaseline(base) {
 
 /**
  * 前の実行の分類を読む（diff-metadata.json の runtime_errors.new_signatures）。読めない要素は持ち越さない。
- * 持ち越しは新側のバージョン（tree）を見ない。spec-parity の収束の判定は、許容の承認を verify-metadata.json の approvals
- * （要素が新側のバージョンを持つ）と照合するので、前のバージョンの承認を数えない。parity-diff は承認を照合せず、持ち越した許容を数える
- * （範囲は replace-strategy の references/scope.md）。持ち越しにバージョンの一致を求めると、parity-diff でも新側を直すたびに全件を分類し直すことになる。
+ * 持ち越しは新側のバージョン（tree）を見ない。許容と環境ノイズの承認は、収束の判定が承認の記録（approvals）と照合する（approvalLogged）。
+ * spec-parity は要素の tree の一致も求めるので、前のバージョンの承認を数えない。parity-diff は tree を照合せず、承認をバージョンをまたいで持つ。
+ * 持ち越しにバージョンの一致を求めると、parity-diff でも新側を直すたびに全件を分類し直すことになる。
  * @param {unknown} previous
  * @returns {Map<string, Record<string, unknown>>}
  */
@@ -432,6 +439,47 @@ export function judgeClassification(c) {
   if (classification === "環境ノイズ" && evidence !== null)
     return { ...fields, state: "explained" };
   return { ...fields, state: "unexplained" };
+}
+
+/**
+ * 許容か環境ノイズの分類が、承認の記録（approvals）に同じ値で積まれているかを判定する。
+ * 収束の判定（spec-parity の convergence-check.mjs と parity-suite の artifact-health-check.mjs --stage diff）が呼ぶ。
+ * 分類の欄は書き直せるので、承認を後から書き換えても欄だけでは検出できない。追記専用の承認の記録と突き合わせて、書き換えを承認待ちにする。
+ *
+ * 照合するのは kind: runtime_errors で、承認した人（approved_by）と日時（approved_at）を書いた要素だけである。
+ * 許容は、同じテスト × 署名・同じ approved_at と reason を持つ要素を求める。classification が無い要素も許容の承認として読む
+ * （spec-parity が環境ノイズを照合する前に積んだ要素は classification を持たない）。
+ * 環境ノイズは、同じテスト × 署名・classification: 環境ノイズ・同じ evidence を持つ要素を求める。
+ * classification を照合の鍵に入れるので、許容の承認を環境ノイズの承認として数えず、その逆も数えない。
+ * テストか署名の id が無い署名は、照合の鍵が無いので積まれていないものとして扱う（欠けた鍵どうしを一致させない）。
+ * @param {unknown} s - new_signatures の要素
+ * @param {{ approvals: unknown[], tree: string | null }} ctx - tree が文字列なら、要素の tree の一致も求める（spec-parity）。null なら見ない（parity-diff）
+ * @returns {"logged" | "missing" | "not-required"} not-required は、承認を照合しない状態（要対応・説明の付いていない署名）
+ */
+export function approvalLogged(s, { approvals, tree }) {
+  const judged = judgeClassification(isPlainObject(s) ? s : undefined);
+  if (judged.state !== "explained") return "not-required";
+  if (!isPlainObject(s) || !nonEmptyString(s.test) || !nonEmptyString(s.id)) return "missing";
+  const sameValue =
+    judged.classification === "許容"
+      ? (/** @type {Record<string, unknown>} */ a) =>
+          (a.classification === undefined || a.classification === "許容") &&
+          a.approved_at === judged.approved_at &&
+          a.reason === judged.reason
+      : (/** @type {Record<string, unknown>} */ a) =>
+          a.classification === "環境ノイズ" && a.evidence === judged.evidence;
+  const found = approvals.some(
+    (a) =>
+      isPlainObject(a) &&
+      a.kind === "runtime_errors" &&
+      isFilled(a.approved_by) &&
+      isFilled(a.approved_at) &&
+      a.test === s.test &&
+      a.id === s.id &&
+      (tree === null || a.tree === tree) &&
+      sameValue(a),
+  );
+  return found ? "logged" : "missing";
 }
 
 /**

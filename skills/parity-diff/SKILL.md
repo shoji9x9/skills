@@ -128,9 +128,12 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
   `capture_scope` を持たない現側の成果物は、後方互換として扱わず、範囲を実測して採り直す。判定は [`references/convergence.md`](references/convergence.md) で定義する。
 - 採取物と工程の健全性に未検証が残る状態で、`converged: true` にしない。インストール済みの `parity-suite` の
   `scripts/artifact-health-check.mjs --metadata <現側 metadata.json> --target <target> --stage diff` で数え直し、exit 0 以外なら `parity-suite` へ戻す。
+  ただし、`warn: [approval]` で始まる所見（操作中のエラーの許容と環境ノイズの承認が `approvals` に無い）は、`parity-suite` へ戻さず、利用者に承認し直してもらって追記する
+  （[`references/triage.md`](references/triage.md)「承認の記録（`approvals`）」）。
   次のものは、どれも緑のまま通ってしまう。読まれていない採取物、元が採り直されたのに古いままの加工物、後始末が機能していないスイート、`blocking` の未測定、
-  `suite.new_green` が真なのに無いか古い `diff-metadata.json`。
-  `converged` が偽でも失敗にはしない。失敗にするのは「無い」と「古い」だけである。スクリプトが無ければ、判定を飛ばさずに停止する。判定は [`references/convergence.md`](references/convergence.md) で定義する。
+  `suite.new_green` が真なのに無いか古い `diff-metadata.json`、承認の記録の無い操作中のエラーの許容と環境ノイズ。
+  `converged` が偽でも失敗にはしない。失敗にするのは「無い」と「古い」と、承認の記録の無い操作中のエラーの許容と環境ノイズ（`warn: [approval]` の所見）だけである。
+  スクリプトが無ければ、判定を飛ばさずに停止する。判定は [`references/convergence.md`](references/convergence.md) で定義する。
 - 追記専用の成果物が縮んだ状態で、`converged: true` にしない。インストール済みの `replace-strategy` の
   `scripts/append-only-check.mjs --root . --base <機能に着手した時点のバージョン>` で数え直し、exit 0 以外なら止めて、過去の決定を元に戻す。
   デフォルトの `HEAD` は使わない。書き直しを commit した後の `HEAD` は作業ツリーと同じなので、何かが失われていても通ってしまう。
@@ -240,6 +243,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
    「許容」はユーザーの承認で確定し、承認は原因の単位で行う（同じ原因の N インスタンスを 1 回で確定する。代表のインスタンスの判断の材料と件数 N を UI に載せる）。
    テキストの幅や字形の差は、分類の前にフォントの差を切り分ける（バージョンの差かヒンティングの差か。[`references/font-diff.md`](references/font-diff.md)）。
    操作中のエラーの差分は、crop 対の代わりに署名と最初に出た本文を見せて分類し、分類を `diff-metadata.json` の `runtime_errors.new_signatures[]` に書いて `compare` を通し直す（[`references/triage.md`](references/triage.md)「操作中のエラーの分類」）。
+   許容と環境ノイズは利用者が承認し、承認を同じ `diff-metadata.json` の `approvals` に追記する。`diff-metadata.json` を作り直すときは、前の `approvals` をそのまま書き戻す（同じ reference の「承認の記録（`approvals`）」）。
 7. 収束を判定し、差し戻す（[`references/convergence.md`](references/convergence.md)）。判定するのは差分ツールである。状態は 4 つある（収束／他機能待ち／判断待ち／未収束）。
    収束の条件に入れるものと、数え直しに使うスクリプトは次のとおりである。
    - 部品網羅表の未測定。現側の `metadata.json.component_coverage` が `declared: true` のとき、[`scripts/coverage-check.mjs`](scripts/coverage-check.mjs) で数え直す（目視で数えない。判定しなかった場合は、理由を記録して未検証に残す）。
@@ -249,7 +253,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
    - 新側での突き合わせ（`present` のセルごとの起点・当たり判定・完了）。現側の `metadata.json.component_coverage` が `declared: true` のとき、インストール済みの `parity-suite` の `scripts/component-comparison-check.mjs` で数え直す。
    - 撮る範囲の抜け（撮影領域の外・内部のスクロール領域の中・領域の外に出た論理名・撮っていない表示の軸の値）と、採取の環境と利用者の環境が一致するかの未確認。
      インストール済みの `parity-suite` の `scripts/capture-scope-check.mjs` で数え直す。
-   - 採取物と工程の健全性（採取物の読み手・加工物の新しさ・状態を変えるスイートの 2 回続けての緑・未測定の `blocking`・`suite.new_green` に対する `diff-metadata.json` の有無と新しさ）。
+   - 採取物と工程の健全性（採取物の読み手・加工物の新しさ・状態を変えるスイートの 2 回続けての緑・未測定の `blocking`・`suite.new_green` に対する `diff-metadata.json` の有無と新しさ・操作中のエラーの許容と環境ノイズの承認の記録）。
      インストール済みの `parity-suite` の `scripts/artifact-health-check.mjs --target <target> --stage diff` で数え直す。
      このチェックは、`diff-metadata.json` に結果を書いた後に通す。工程の節は、自分が書く成果物があるかを見るからである。`--stage suite` を渡すと、未測定の `blocking` を通してしまう。
    - 性能の比較（現側の `metadata.json.performance.declared` が `true` のとき）。`perf-stats.mjs compare` が exit 0 であること。回帰は差し戻し、判定できない組は採り直す。

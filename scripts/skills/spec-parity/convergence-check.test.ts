@@ -291,7 +291,7 @@ describe("操作中のエラー", () => {
     expect(kinds(r)).toEqual([[category, "runtime_errors"]]);
   });
 
-  test("承認した許容と、根拠のある環境ノイズは収束を止めない", () => {
+  test("承認した許容と、承認した環境ノイズは収束を止めない", () => {
     const fs = withVerify({
       runtime_errors: {
         ...comparedOk(),
@@ -300,7 +300,7 @@ describe("操作中のエラー", () => {
           sig({ id: "y", classification: "環境ノイズ", evidence: "stg だけの CDN" }),
         ],
       },
-      approvals: [...approvalsLog(), allowanceLog()],
+      approvals: [...approvalsLog(), allowanceLog(), noiseLog({ id: "y" })],
     });
     expect(run(fs).code).toBe(0);
   });
@@ -332,6 +332,17 @@ describe("操作中のエラー", () => {
       suiteMetadata({ runtime_errors: { declared: false, reason: "理由" } }),
     );
     expect(kinds(run(fs))).toEqual([["remeasure", "unverified"]]);
+  });
+
+  // 宣言は convergence-check.mjs の runtimeErrorsDeclaration で読む（理由が雛形の値のままの declared: false も不備）
+  test.each([
+    ["declared: false の理由が雛形の値のまま", { declared: false, reason: "<理由>" }],
+    ["declared: false に理由が無い", { declared: false }],
+    ["declared が雛形の値のまま", { declared: "<true | false>" }],
+  ])("現側の metadata.json の runtime_errors が %s なら、判定できず exit 2", (_name, re) => {
+    const fs = convergedFs();
+    fs.put(`${SLUG_DIR}/metadata.json`, suiteMetadata({ runtime_errors: re }));
+    expect(run(fs).code).toBe(2);
   });
 });
 
@@ -525,6 +536,19 @@ const allowanceLog = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+/** 操作中のエラーを環境ノイズとした承認を積んだ approvals の要素。allowanceLog と同じテスト × 署名を指す。 */
+const noiseLog = (over: Record<string, unknown> = {}) => ({
+  kind: "runtime_errors",
+  test: LIST,
+  id: "x",
+  tree: TREE,
+  classification: "環境ノイズ",
+  evidence: "stg だけの CDN",
+  approved_by: "owner",
+  approved_at: "2026-11-11T00:00:00Z",
+  ...over,
+});
+
 // Issue #1003 の項目 1: 操作中のエラーの許容も、追記専用の承認の記録（approvals）に同じ値が積まれていなければ承認として数えない。
 // approvals の要素は新側のバージョン（tree）を持つので、compare が前のバージョンの分類を持ち越しても、承認し直すまで承認待ちになる
 describe("操作中のエラーの許容と承認の記録（approvals）", () => {
@@ -595,8 +619,12 @@ describe("操作中のエラーの許容と承認の記録（approvals）", () =
   );
 
   test("環境ノイズの根拠（evidence）が雛形のプレースホルダのままなら、承認待ちにする", () => {
-    const noise = allowed({ classification: "環境ノイズ", evidence: "<出る条件と出ない条件>" });
-    expect(kinds(run(verify([noise], [])))).toEqual([["approval", "runtime_errors"]]);
+    const evidence = "<出る条件と出ない条件>";
+    const noise = allowed({ classification: "環境ノイズ", evidence });
+    const r = run(verify([noise], [noiseLog({ evidence })]));
+    expect(kinds(r)).toEqual([["approval", "runtime_errors"]]);
+    // 承認の記録に同じ値があっても、照合まで進まず、分類か承認が無いエラーとして挙げる
+    expect(r.result?.reasons[0]?.message).not.toContain("approvals");
   });
 
   test("前のバージョンの承認が残っていても、いまのバージョンの承認が積まれていれば収束する", () => {
@@ -604,9 +632,48 @@ describe("操作中のエラーの許容と承認の記録（approvals）", () =
     expect(r.code).toBe(0);
   });
 
-  test("環境ノイズは承認の記録を求めない（根拠で確定する）", () => {
-    const noise = allowed({ classification: "環境ノイズ", evidence: "stg だけの CDN" });
-    expect(run(verify([noise], [])).code).toBe(0);
+  // Issue #1007: 許容を環境ノイズに書き換えて、承認を経ずに収束させない。環境ノイズも承認の記録と照合する
+  const noise = (over: Record<string, unknown> = {}) =>
+    allowed({
+      classification: "環境ノイズ",
+      reason: undefined,
+      approved_at: undefined,
+      evidence: "stg だけの CDN",
+      ...over,
+    });
+
+  test("環境ノイズは、同じテスト × 署名・同じバージョン・同じ根拠の承認が積まれていれば収束する", () => {
+    expect(run(verify([noise()], [noiseLog()])).code).toBe(0);
+  });
+
+  test.each([
+    ["承認の記録に無い（承認の記録を持たない前の記録を含む）", {}, null],
+    ["許容の承認しか無い（許容を環境ノイズに書き換えた）", {}, { classification: "許容" }],
+    ["前のバージョン（tree）で積んだ承認しか無い", {}, { tree: "1".repeat(40) }],
+    ["承認の後に根拠を書き換えた", { evidence: "書き換えた根拠" }, {}],
+    ["別の署名の承認しか無い", {}, { id: "y" }],
+    ["別のテストの承認しか無い", {}, { test: EDIT }],
+    ["承認した人（approved_by）の無い承認しか無い", {}, { approved_by: undefined }],
+    ["承認の日時（approved_at）の無い承認しか無い", {}, { approved_at: undefined }],
+    ["承認の日時が雛形の値のままの承認しか無い", {}, { approved_at: "<承認した日時>" }],
+    ["kind だけが違う（design_review の）要素しか無い", {}, { kind: "design_review" }],
+    ["classification の無い要素しか無い", {}, { classification: undefined }],
+  ])("環境ノイズが %s なら承認待ちにする", (_name, sigOver, logOver) => {
+    const logs = logOver === null ? [] : [noiseLog(logOver)];
+    const r = run(verify([noise(sigOver)], logs));
+    expect(r.code).toBe(1);
+    expect(kinds(r)).toEqual([["approval", "runtime_errors"]]);
+    expect(r.result?.reasons[0]?.message).toContain("approvals");
+  });
+
+  test("環境ノイズの承認を、許容の承認として数えない（環境ノイズを許容に書き換えた）", () => {
+    // 環境ノイズの承認の要素に、許容の欄と同じ値の reason を書いても、classification が違うので一致させない
+    const r = run(verify([allowed()], [noiseLog({ reason: "既知" })]));
+    expect(kinds(r)).toEqual([["approval", "runtime_errors"]]);
+  });
+
+  test("classification: 許容 を書いた要素も、許容の承認として数える", () => {
+    expect(run(verify([allowed()], [allowanceLog({ classification: "許容" })])).code).toBe(0);
   });
 
   test("承認の記録が無い許容は、承認の欄（approved_at・reason）が無いときと同じく承認待ちの 1 件にする", () => {

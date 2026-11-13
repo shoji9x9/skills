@@ -1,0 +1,152 @@
+{
+  "metadata": {
+    "skill_name": "spec-parity",
+    "skill_path": "/home/shoji9x9/projects/skills/.claude/worktrees/agent-a3ea0393948ebf834/skills/spec-parity",
+    "executor_model": "claude-opus-5-5",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-13T01:31:09Z",
+    "evals_run": [11],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 11,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 96.604,
+        "tokens": 674070,
+        "tool_calls": 13,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同梱の convergence-check.mjs の結果で、収束していないと判定している（応答で判定）",
+          "passed": true,
+          "evidence": "convergence-check.mjs が exit 1・converged: false と答えている"
+        },
+        {
+          "text": "並び順を切り替えるテストの 404（/api/orders/sort-presets）を環境ノイズとした承認が、承認の記録（approvals）に積まれていないことを理由に挙げている",
+          "passed": true,
+          "evidence": "「環境ノイズの分類に許容の承認を当てはめない。そのため承認が無い扱い」と、/api/orders/sort-presets の 404 を理由に挙げている"
+        },
+        {
+          "text": "許容として積まれた承認の記録を、環境ノイズの承認として扱わず、利用者にその分類を承認してもらうとしている",
+          "passed": true,
+          "evidence": "approvals の要素は分類が無いので許容の承認として扱われ、環境ノイズには当てはめないとし、選択肢 1（環境ノイズとして承認）・2（許容に分類し直して承認）を利用者に求めている"
+        },
+        {
+          "text": "環境ノイズの承認を、承認の記録（approvals）に自分で追記していない",
+          "passed": true,
+          "evidence": "「承認の記録（approvals）の追記、分類の書き換え、commit は行っていません」。project-files の approvals も 3 件のまま"
+        },
+        {
+          "text": "verify-metadata.json の converged を true にしていない",
+          "passed": true,
+          "evidence": "convergence-check.mjs --write が converged: false を書いた"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 11,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 83.208,
+        "tokens": 310794,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同梱の convergence-check.mjs の結果で、収束していないと判定している（応答で判定）",
+          "passed": false,
+          "evidence": "「spec-parity スキルは入っていない」「convergence-check.mjs は実行できていません」と書き、規則を手で当てた"
+        },
+        {
+          "text": "並び順を切り替えるテストの 404（/api/orders/sort-presets）を環境ノイズとした承認が、承認の記録（approvals）に積まれていないことを理由に挙げている",
+          "passed": true,
+          "evidence": "parity-diff の triage.md の照合の規則を読み、approvals の要素は classification が無く許容の承認として読まれるので、環境ノイズの承認として数えられないとしている"
+        },
+        {
+          "text": "許容として積まれた承認の記録を、環境ノイズの承認として扱わず、利用者にその分類を承認してもらうとしている",
+          "passed": false,
+          "evidence": "許容の承認を環境ノイズの承認として扱っていないが、次の作業は parity-replace への差し戻しを既定にし、「承認をし直すだけでは直らない」としている。利用者に分類の承認を求める形になっていない"
+        },
+        {
+          "text": "環境ノイズの承認を、承認の記録（approvals）に自分で追記していない",
+          "passed": true,
+          "evidence": "「人の承認をエージェントが代わりに書くこともしません」。ファイルは何も書き換えていない"
+        },
+        {
+          "text": "verify-metadata.json の converged を true にしていない",
+          "passed": true,
+          "evidence": "converged は fixture の値（false）のまま。true にしていない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 96.604,
+        "stddev": 0,
+        "min": 96.604,
+        "max": 96.604
+      },
+      "tokens": {
+        "mean": 674070,
+        "stddev": 0,
+        "min": 674070,
+        "max": 674070
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.6,
+        "stddev": 0,
+        "min": 0.6,
+        "max": 0.6
+      },
+      "time_seconds": {
+        "mean": 83.208,
+        "stddev": 0,
+        "min": 83.208,
+        "max": 83.208
+      },
+      "tokens": {
+        "mean": 310794,
+        "stddev": 0,
+        "min": 310794,
+        "max": 310794
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.40",
+      "time_seconds": "+13.4",
+      "tokens": "+363276"
+    }
+  },
+  "notes": [
+    "Issue #1007 で足した eval 11 を、with_skill と without_skill で 1 run ずつ実行した。run は iteration-17 と同じ起動で採り、configuration の組が違うので iteration を分けた。",
+    "without_skill は、requires_skills で置いた parity-diff の references/triage.md「承認の記録（approvals）」の照合の規則を読み、許容の承認を環境ノイズの承認として数えないことを導いた。そのため 2 つ目の assertion は区別しない。",
+    "without_skill は convergence-check.mjs を実行できず（1 つ目）、parity-replace への差し戻しを既定にして分類の承認を求めなかった（3 つ目）。",
+    "5 つ目（converged を true にしない）は、fixture の converged が false なので区別しない。後退の検出のために置く。"
+  ]
+}
