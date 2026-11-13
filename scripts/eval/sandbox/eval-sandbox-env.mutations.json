@@ -18,7 +18,8 @@
         "run に渡す環境変数 codex では、そのベンダーの API キーだけを渡す",
         "run に渡す環境変数 EVAL_SANDBOX_ENV_ALLOW に挙げた名前は（改行の後の名前も）渡し、挙げていない名前は渡さない",
         "run に渡す環境変数 bash が unset できない変数（export した SHELLOPTS）も渡さない",
-        "run に渡す環境変数 名前が識別子でない変数と、export した関数も渡さない（bash は子に渡すが compgen -e に出ない）"
+        "run に渡す環境変数 名前が識別子でない変数と、export した関数も渡さない（bash は子に渡すが compgen -e に出ない）",
+        "--verify の stage 5 と、$HOME の外の場所 Codex の run で、ホストの CODEX_HOME は sandbox が設定し直すので、漏れた変数と数えない"
       ]
     },
     {
@@ -425,6 +426,17 @@
       "occurrences": 1,
       "expect_failing": [
         "run に渡す環境変数 許可リストの外は渡さず、許可リストの中は渡す（起動の前の確認と run の両方で）"
+      ]
+    },
+    {
+      "id": "env-codex-home-unlisted",
+      "why": "許可リストから CODEX_HOME を外し、ホストの CODEX_HOME を --verify が漏れた変数と数えるようにする",
+      "file": "scripts/eval/sandbox/eval-sandbox.sh",
+      "find": "codex) env_allow+=(OPENAI_API_KEY CODEX_API_KEY OPENAI_BASE_URL CODEX_HOME) ;;",
+      "replace": "codex) env_allow+=(OPENAI_API_KEY CODEX_API_KEY OPENAI_BASE_URL) ;;",
+      "occurrences": 1,
+      "expect_failing": [
+        "--verify の stage 5 と、$HOME の外の場所 Codex の run で、ホストの CODEX_HOME は sandbox が設定し直すので、漏れた変数と数えない"
       ]
     }
   ]

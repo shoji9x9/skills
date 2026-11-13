@@ -571,6 +571,8 @@ args+=(--remount-ro "${home}")
 # this shell's environment instead.
 # EVAL_SANDBOX_ENV_ALLOW adds names separated by spaces or newlines (for a vendor setting this script
 # does not know about). It only widens what the eval run sees.
+# HOME is set again by run_bwrap (the resolved path) and CODEX_HOME by --setenv; both
+# are listed so that --verify does not count the host's own value as one that leaked.
 env_allow=(
 	HOME PATH USER LOGNAME SHELL PWD
 	TERM COLORTERM NO_COLOR LANG LANGUAGE
@@ -583,8 +585,6 @@ env_allow=(
 )
 case "${vendor}" in
 claude-code) env_allow+=(ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN ANTHROPIC_BASE_URL CLAUDE_CODE_OAUTH_TOKEN) ;;
-# CODEX_HOME: the run gets it from --setenv (the resolved path); it is listed so that
-# --verify does not count the host's own CODEX_HOME as a variable that leaked.
 codex) env_allow+=(OPENAI_API_KEY CODEX_API_KEY OPENAI_BASE_URL CODEX_HOME) ;;
 esac
 # Split with read, not an unquoted expansion: a glob character (`*`) would expand to

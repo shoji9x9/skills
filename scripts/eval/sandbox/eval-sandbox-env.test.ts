@@ -420,6 +420,19 @@ describe("$HOME の外の設定の場所", () => {
 });
 
 describe("--verify の stage 5 と、$HOME の外の場所", () => {
+  test("Codex の run で、ホストの CODEX_HOME は sandbox が設定し直すので、漏れた変数と数えない", () => {
+    const { result } = sandbox(["--verify", "MARKER"], {
+      cli: "codex",
+      vendor: "codex",
+      homeFiles: { ".claude.json": "{}\n", ".codex/auth.json": "{}\n" },
+      env: { FAKE_BWRAP_MODE: "exec-credentials", EVAL_SANDBOX_NET: "off" },
+      setup: (paths) => ({ env: { CODEX_HOME: join(paths.home, ".codex") } }),
+    });
+    expect(result.stdout, result.stderr).toMatch(
+      /^stage5 environment outside the allowlist: \d+ host variables as expected \(ok\)$/mu,
+    );
+  });
+
   test("$HOME の外の XDG の場所も、戻していないパスを確かめる対象に入れる", () => {
     const { result, root } = sandbox(["--verify", "MARKER"], {
       homeFiles: { ".claude.json": "{}\n" },
