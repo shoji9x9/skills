@@ -59,19 +59,17 @@ set -euo pipefail
 # Errors that the arguments alone show are reported first, before any other check can
 # stop the run for another reason or anything is made.
 verify=""
-case "${1:-}" in
-"")
+[ "$#" -ge 1 ] || {
 	echo "usage: $0 <cli-args...>   (or: $0 --verify <marker>...)" >&2
 	exit 2
-	;;
---verify)
+}
+if [ "$1" = "--verify" ]; then
 	verify=1
 	[ "$#" -ge 2 ] || {
 		echo "usage: $0 --verify <marker> [<marker>...]" >&2
 		exit 2
 	}
-	;;
-esac
+fi
 
 self="$(readlink -f "$0")"
 # <repo>/scripts/eval/sandbox/eval-sandbox.sh -> <repo>
