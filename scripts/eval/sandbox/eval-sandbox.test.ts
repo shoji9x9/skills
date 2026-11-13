@@ -295,14 +295,12 @@ test("settings.json を JSON として読めなければ、exit 3 で止め、bw
 // ホームの認証情報のテストは eval-sandbox-credentials.test.ts にある。このテストだけは結果が環境の
 // /run/user/<uid> の有無で変わるので、ミューテーションテストが測るそのファイルの外に置く。
 const runUserDir = `/run/user/${process.getuid?.() ?? "unknown"}`;
-// /run/user/<uid> はテストから作れないので、在る環境でだけ確かめる（無い環境では飛ばしたと分かる）。
-test.skipIf(!existsSync(runUserDir))(
-  "/run/user/<uid> が在れば、XDG_RUNTIME_DIR と違っても、それも tmpfs で隠す",
-  () => {
-    const { result, bwrapArgs } = sandbox(["--version"], { runtimeEntries: ["bus"] });
-    expect(result.status, result.stderr).toBe(0);
-    if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
-    const tmpfs = bwrapArgs.flatMap((arg, i) => (arg === "--tmpfs" ? [bwrapArgs[i + 1]] : []));
-    expect(tmpfs).toContain(runUserDir);
-  },
-);
+// /run/user/<uid> はテストから作れないので、その環境の有無に合わせて期待値を決める。
+// 在る環境では「XDG_RUNTIME_DIR と違っても隠す」を、無い環境では「無いものに tmpfs を置かない」を確かめる。
+test("/run/user/<uid> は、XDG_RUNTIME_DIR と違っても在れば tmpfs で隠し、無ければ tmpfs を置かない", () => {
+  const { result, bwrapArgs } = sandbox(["--version"], { runtimeEntries: ["bus"] });
+  expect(result.status, result.stderr).toBe(0);
+  if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
+  const tmpfs = bwrapArgs.flatMap((arg, i) => (arg === "--tmpfs" ? [bwrapArgs[i + 1]] : []));
+  expect(tmpfs.includes(runUserDir)).toBe(existsSync(runUserDir));
+});

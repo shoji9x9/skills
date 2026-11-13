@@ -9,7 +9,7 @@
 // | 許可リストの場所           | ホストに在る / 無い                                             |
 // | 許可リストの外             | 名前を挙げた認証情報（box・gh・ssh・aws・keyring） / 名前を挙げていない場所 / 何も無い |
 // | 許可リストの祖先           | 祖先の中の許可リストの外（.config/box）/ 許可リストそのもの（.config/mise） |
-// | runtime dir                | 中身が在る（少ない・SIGPIPE が起きる量）/ 空 / 実在しない / XDG_RUNTIME_DIR と /run/user/<uid> が違う |
+// | runtime dir                | 中身が在る（少ない・SIGPIPE が起きる量）/ 空 / 実在しない（/run/user/<uid> の扱いは eval-sandbox.test.ts） |
 // | エージェントのソケットの変数 | 外す / 外さない（スタブで --unsetenv を反映しない）            |
 // | CLI の実体                 | $HOME の外 / $HOME の下で許可リストの中 / $HOME の下で許可リストの外 |
 import { join } from "node:path";
