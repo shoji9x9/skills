@@ -230,8 +230,8 @@ describe("runtime dir が先に置いたマウントの宛先か cwd を覆う�
     expect(existsSync(held[1])).toBe(false);
   });
 
-  // 印の無い --verify は、runtime dir の確認より前に使い方を出す。宛先を含む runtime dir（/etc のミラーのある
-  // /tmp・$HOME）でも、使い方の誤りを先に示す。
+  // 印の無い --verify は、ほかの確認より前（スクリプトの最初）に使い方を出す。宛先を含む runtime dir
+  // （/etc のミラーのある /tmp・$HOME）でも、使い方の誤りを先に示す。
   const noMarkerPlaces: [string, Place][] = [
     ["宛先の無い /tmp", tmpWithoutTargets],
     ["/etc のミラーのある /tmp", () => ({ run: "/tmp", cwd: "/", env: { HOME: homeOutsideTmp } })],

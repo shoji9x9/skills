@@ -56,6 +56,23 @@
 # Repo-internal tooling; not bundled in any distributed skill.
 set -euo pipefail
 
+# Errors that the arguments alone show are reported first, before any other check can
+# stop the run for another reason or anything is made.
+verify=""
+case "${1:-}" in
+"")
+	echo "usage: $0 <cli-args...>   (or: $0 --verify <marker>...)" >&2
+	exit 2
+	;;
+--verify)
+	verify=1
+	[ "$#" -ge 2 ] || {
+		echo "usage: $0 --verify <marker> [<marker>...]" >&2
+		exit 2
+	}
+	;;
+esac
+
 self="$(readlink -f "$0")"
 # <repo>/scripts/eval/sandbox/eval-sandbox.sh -> <repo>
 repo="$(dirname "$(dirname "$(dirname "$(dirname "${self}")")")")"
@@ -596,15 +613,8 @@ refuse_covering_runtime_dirs() {
 # --verify stage 5 reads lists that this shell writes on the host into a directory and
 # binds into the sandbox. The directory is made here, so that the check above can compare
 # it. Under /tmp, not TMPDIR: a TMPDIR under $HOME would put the bind target inside the
-# read-only $HOME, where bwrap cannot create the mount point. Without a marker --verify
-# prints its usage here, before the check, and makes nothing.
-verify=""
-if [ "${1:-}" = "--verify" ]; then
-	verify=1
-	[ "$#" -ge 2 ] || {
-		echo "usage: $0 --verify <marker> [<marker>...]" >&2
-		exit 2
-	}
+# read-only $HOME, where bwrap cannot create the mount point.
+if [ -n "${verify}" ]; then
 	home_lists="$(mktemp -d /tmp/eval-sandbox-home-lists-XXXXXX)"
 fi
 refuse_covering_runtime_dirs
@@ -953,11 +963,6 @@ exit $rc'
 	fi
 	exit "${rc}"
 fi
-
-[ "$#" -ge 1 ] || {
-	echo "usage: $0 <cli-args...>   (or: $0 --verify <marker>...)" >&2
-	exit 2
-}
 
 # `run-skill-eval.sh` substitutes this script for the CLI *name* and passes only the
 # CLI's arguments (`-p <prompt> --output-format json ...`), so the binary has to be
