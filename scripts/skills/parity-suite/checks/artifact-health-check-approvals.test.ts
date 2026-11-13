@@ -268,7 +268,6 @@ test.each([
   ["declared: false に理由が無い", { declared: false }, NOT_JUDGED],
   ["declared: false の理由が雛形の値のまま", { declared: false, reason: "<理由>" }, NOT_JUDGED],
   ["runtime_errors がオブジェクトでない", "declared", {}],
-  ["runtime_errors を持たないのに比較の結果がある", NO_CURRENT, { runtime_errors: compared([]) }],
 ])(
   "現側の metadata.json の %s なら、記録が宣言と合わないとして [runtime-errors] の所見にする",
   (_name, current, extra) => {
@@ -290,4 +289,30 @@ test("誤検知しないことの確認: 現側の metadata.json が declared: f
 test("所見に、現側の宣言の値を残す（どの不備かを読めるようにする）", () => {
   const r = judge({}, { declared: false, reason: "<理由>" });
   expect(r.stdout).toContain('declared: false・reason: "<理由>"');
+});
+
+test.each([
+  [
+    "現側の metadata.json が runtime_errors を持たないのに、比較の結果がある",
+    NO_CURRENT,
+    { runtime_errors: compared([]) },
+  ],
+  [
+    "mode が api-resource（雛形が runtime_errors を省く）",
+    TEMPLATE_RUNTIME_ERRORS,
+    { mode: "api-resource" },
+  ],
+  ["mode が batch（雛形が runtime_errors を省く）", { declared: false }, { mode: "batch" }],
+])("誤検知しないことの確認: %s なら、照合せずに注記で通す", (_name, current, extra) => {
+  const r = judge(extra, current);
+  expect(r.stdout).toMatch(/操作中のエラーの承認を照合しない/);
+  expect(r.status).toBe(0);
+});
+
+test.each([
+  ["declared: true", { declared: true }, "runtime-errors.mjs compare --write を通し直す"],
+  ["declared: false と理由の組", EXEMPT, "judged: false と reason を書く"],
+  ["宣言の不備", { declared: false }, "parity-suite で基準を採り直す"],
+])("[runtime-errors] の所見に、現側の宣言が %s のときの直し方を添える", (_name, current, fix) => {
+  expect(judge({}, current).stdout).toContain(fix);
 });

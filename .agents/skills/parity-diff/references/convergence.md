@@ -261,6 +261,7 @@
          `approvals` をキーごと持たない記録は、承認が 0 件として読む。
          照合するのは、現側の `metadata.json` が `runtime_errors.declared: true` で、`diff-metadata.json` に `judged: true` の比較の結果があるときだけである。
          照合せずに通すのは、現側が `runtime_errors` をキーごと持たない（操作中のエラーを記録する前の成果物）ときと、
+         `diff-metadata.json` の `mode` が `api-resource` か `batch`（雛形が `runtime_errors` を省く）ときと、
          現側が `declared: false` と理由の組で、`diff-metadata.json` に `judged: false` と理由があるときだけである。
          それ以外の組み合わせは、記録が現側の宣言と合わないとして、下の `[runtime-errors]` の所見にする
 
@@ -269,7 +270,7 @@
     | 接頭辞 | 所見 | 直し方 |
     | --- | --- | --- |
     | `[approval]` | 許容と環境ノイズの承認が `approvals[]` に無い | `parity-suite` へも `parity-replace` へも戻さない。利用者に承認し直してもらって `approvals` に追記する |
-    | `[runtime-errors]` | `diff-metadata.json` の操作中のエラーの記録が、現側の宣言と合わない（所見に両方の値を出す） | `parity-replace` へは戻さない。現側が `declared: true` なら、このスキルの中で `runtime-errors.mjs compare --write` を通し直す。`declared: false` と理由の組なら、`judged: false` と理由を書く。現側の宣言がどちらでもない（雛形の値のまま・理由が無いなど）なら、`parity-suite` で基準を採り直すか `declared: false` と理由を書いてもらう |
+    | `[runtime-errors]` | `diff-metadata.json` の操作中のエラーの記録が、現側の宣言と合わない（所見に両方の値と、次の直し方を出す） | `parity-replace` へは戻さない。現側が `declared: true` なら、このスキルの中で `runtime-errors.mjs compare --write` を通し直す。`declared: false` と理由の組なら、`judged: false` と理由を書く。現側の宣言がどちらでもない（雛形の値のまま・理由が無いなど）なら、`parity-suite` で基準を採り直すか `declared: false` と理由を書いてもらう |
 
     対応づけをバージョンだけに任せない。データセットを変えずに `parity-replace` が実装を作り直すと、前の反復で収束した `diff-metadata.json` が `dataset_version` の一致だけでこのチェックを満たす。
     差分を採り直していないのに、「済んだ」ように見えてしまう。そのため、両方の成果物が持つ識別子（新側の `new.tree` と反復の回数）で結び付ける。

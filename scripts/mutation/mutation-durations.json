@@ -35,7 +35,7 @@
     "scripts/skills/parity-diff/amend-verify.mutations.json": 1.1,
     "scripts/skills/parity-diff/diff-normalize-intentional-match.mutations.json": 1,
     "scripts/skills/parity-diff/pixel-crops.mutations.json": 3.4,
-    "scripts/skills/parity-suite/checks/artifact-health-check-approvals.mutations.json": 1.1,
+    "scripts/skills/parity-suite/checks/artifact-health-check-approvals.mutations.json": 1.2,
     "scripts/skills/parity-suite/checks/artifact-health-check.mutations.json": 2.5,
     "scripts/skills/parity-suite/checks/auto-wait-check.mutations.json": 1.4,
     "scripts/skills/parity-suite/checks/capture-scope-check.mutations.json": 0.6,
