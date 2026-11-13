@@ -1,0 +1,383 @@
+{
+  "metadata": {
+    "skill_name": "box",
+    "skill_path": "<repo>/skills/box",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-13T11:07:17Z",
+    "evals_run": [3],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 28.937,
+        "tokens": 69605,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "box-token.sh でアクセストークンを取得しようとしている",
+          "passed": true,
+          "evidence": "応答のコマンドで TOKEN=\"$(bash \"$SKILL/scripts/box-token.sh\")\" を使っている"
+        },
+        {
+          "text": "Authorization ヘッダーを自分だけが読めるファイル（mktemp など）に書き、curl に -H @<ファイル> で渡している",
+          "passed": true,
+          "evidence": "応答のコマンドで BOX_AUTH=\"$(mktemp)\" にヘッダーを書き、-H @\"$BOX_AUTH\" で渡している"
+        },
+        {
+          "text": "-H \"Authorization: Bearer $TOKEN\" の形で、トークンを curl の引数に載せていない",
+          "passed": true,
+          "evidence": "応答のコマンドに -H \"Authorization: Bearer $TOKEN\" の形が無い"
+        },
+        {
+          "text": "https://upload.box.com/api/2.0/files/content に POST している",
+          "passed": true,
+          "evidence": "応答のコマンドで https://upload.box.com/api/2.0/files/content に POST している"
+        },
+        {
+          "text": "attributes に name と parent.id を指定している",
+          "passed": true,
+          "evidence": "応答のコマンドで attributes に name（UPLOAD_NAME）と parent.id（FOLDER）を jq で組み立て、--form-string で送っている"
+        },
+        {
+          "text": "-F file=@ でファイル本体を送っている",
+          "passed": true,
+          "evidence": "応答のコマンドで -F 'file=@-;filename=upload' でファイル本体を送っている"
+        },
+        {
+          "text": "アップロード後に id/名前など結果を確認している",
+          "passed": true,
+          "evidence": "jq で .entries[0] の id・name・size を出し、返った id でファイルを読み直している"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 25.425,
+        "tokens": 76227,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "box-token.sh でアクセストークンを取得しようとしている",
+          "passed": true,
+          "evidence": "応答のコマンドで TOKEN=\"$(bash \"$SKILL/scripts/box-token.sh\")\" を使っている"
+        },
+        {
+          "text": "Authorization ヘッダーを自分だけが読めるファイル（mktemp など）に書き、curl に -H @<ファイル> で渡している",
+          "passed": true,
+          "evidence": "応答のコマンドで BOX_AUTH=\"$(mktemp)\" にヘッダーを書き、-H @\"$BOX_AUTH\" で渡している"
+        },
+        {
+          "text": "-H \"Authorization: Bearer $TOKEN\" の形で、トークンを curl の引数に載せていない",
+          "passed": true,
+          "evidence": "応答のコマンドに -H \"Authorization: Bearer $TOKEN\" の形が無い"
+        },
+        {
+          "text": "https://upload.box.com/api/2.0/files/content に POST している",
+          "passed": true,
+          "evidence": "応答のコマンドで https://upload.box.com/api/2.0/files/content に POST している"
+        },
+        {
+          "text": "attributes に name と parent.id を指定している",
+          "passed": true,
+          "evidence": "応答のコマンドで attributes に name（UPLOAD_NAME）と parent.id（FOLDER）を jq で組み立て、--form-string で送っている"
+        },
+        {
+          "text": "-F file=@ でファイル本体を送っている",
+          "passed": true,
+          "evidence": "応答のコマンドで -F 'file=@-;filename=upload' でファイル本体を送っている"
+        },
+        {
+          "text": "アップロード後に id/名前など結果を確認している",
+          "passed": true,
+          "evidence": "jq で .entries[0] の id・name・size を出し、「アップロード後の確認」の節で id から読み直し sha1 を比べるよう示している"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 24.701,
+        "tokens": 70204,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "box-token.sh でアクセストークンを取得しようとしている",
+          "passed": true,
+          "evidence": "応答のコマンドで TOKEN=\"$(bash \"$SKILL/scripts/box-token.sh\")\" を使っている"
+        },
+        {
+          "text": "Authorization ヘッダーを自分だけが読めるファイル（mktemp など）に書き、curl に -H @<ファイル> で渡している",
+          "passed": true,
+          "evidence": "応答のコマンドで BOX_AUTH=\"$(mktemp)\" にヘッダーを書き、-H @\"$BOX_AUTH\" で渡している"
+        },
+        {
+          "text": "-H \"Authorization: Bearer $TOKEN\" の形で、トークンを curl の引数に載せていない",
+          "passed": true,
+          "evidence": "応答のコマンドに -H \"Authorization: Bearer $TOKEN\" の形が無い"
+        },
+        {
+          "text": "https://upload.box.com/api/2.0/files/content に POST している",
+          "passed": true,
+          "evidence": "応答のコマンドで https://upload.box.com/api/2.0/files/content に POST している"
+        },
+        {
+          "text": "attributes に name と parent.id を指定している",
+          "passed": true,
+          "evidence": "応答のコマンドで attributes に name（UPLOAD_NAME）と parent.id（FOLDER）を jq で組み立て、--form-string で送っている"
+        },
+        {
+          "text": "-F file=@ でファイル本体を送っている",
+          "passed": true,
+          "evidence": "応答のコマンドで -F 'file=@-;filename=upload' でファイル本体を送っている"
+        },
+        {
+          "text": "アップロード後に id/名前など結果を確認している",
+          "passed": true,
+          "evidence": "jq で .entries[0] の id・name・size を出し、返った FILE_ID でファイルを読み直している"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5714,
+        "passed": 4,
+        "failed": 3,
+        "total": 7,
+        "time_seconds": 20.622,
+        "tokens": 36891,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "box-token.sh でアクセストークンを取得しようとしている",
+          "passed": false,
+          "evidence": "box-token.sh に触れていない。Box CLI の box login と BOX_ACCESS_TOKEN を案内している"
+        },
+        {
+          "text": "Authorization ヘッダーを自分だけが読めるファイル（mktemp など）に書き、curl に -H @<ファイル> で渡している",
+          "passed": false,
+          "evidence": "ヘッダーをファイルに書く手順が無い"
+        },
+        {
+          "text": "-H \"Authorization: Bearer $TOKEN\" の形で、トークンを curl の引数に載せていない",
+          "passed": false,
+          "evidence": "curl に -H \"Authorization: Bearer $BOX_ACCESS_TOKEN\" の形でトークンを引数に載せている"
+        },
+        {
+          "text": "https://upload.box.com/api/2.0/files/content に POST している",
+          "passed": true,
+          "evidence": "curl の例で https://upload.box.com/api/2.0/files/content に POST している"
+        },
+        {
+          "text": "attributes に name と parent.id を指定している",
+          "passed": true,
+          "evidence": "curl の例で -F attributes='{\"name\":\"report.txt\",\"parent\":{\"id\":\"0\"}}' を指定している"
+        },
+        {
+          "text": "-F file=@ でファイル本体を送っている",
+          "passed": true,
+          "evidence": "curl の例で -F file=@./report.txt を使っている"
+        },
+        {
+          "text": "アップロード後に id/名前など結果を確認している",
+          "passed": true,
+          "evidence": "「entries[0].id にファイル ID が入っているので、それでアップロードを確認できます」と書いている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.4286,
+        "passed": 3,
+        "failed": 4,
+        "total": 7,
+        "time_seconds": 21.353,
+        "tokens": 37398,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "box-token.sh でアクセストークンを取得しようとしている",
+          "passed": false,
+          "evidence": "box-token.sh に触れていない。Box CLI の box login と BOX_ACCESS_TOKEN を案内している"
+        },
+        {
+          "text": "Authorization ヘッダーを自分だけが読めるファイル（mktemp など）に書き、curl に -H @<ファイル> で渡している",
+          "passed": false,
+          "evidence": "ヘッダーをファイルに書く手順が無い"
+        },
+        {
+          "text": "-H \"Authorization: Bearer $TOKEN\" の形で、トークンを curl の引数に載せていない",
+          "passed": false,
+          "evidence": "curl に -H \"Authorization: Bearer ${BOX_ACCESS_TOKEN}\" の形でトークンを引数に載せている"
+        },
+        {
+          "text": "https://upload.box.com/api/2.0/files/content に POST している",
+          "passed": true,
+          "evidence": "curl の例で https://upload.box.com/api/2.0/files/content に POST している"
+        },
+        {
+          "text": "attributes に name と parent.id を指定している",
+          "passed": true,
+          "evidence": "curl の例で -F attributes='{\"name\":\"report.txt\",\"parent\":{\"id\":\"0\"}}' を指定している"
+        },
+        {
+          "text": "-F file=@ でファイル本体を送っている",
+          "passed": true,
+          "evidence": "curl の例で -F file=@./report.txt を使っている"
+        },
+        {
+          "text": "アップロード後に id/名前など結果を確認している",
+          "passed": false,
+          "evidence": "成功すると entries[0].id などが返ると説明するだけで、アップロード後に結果を確かめる手順は無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.5714,
+        "passed": 4,
+        "failed": 3,
+        "total": 7,
+        "time_seconds": 17.338,
+        "tokens": 36771,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "box-token.sh でアクセストークンを取得しようとしている",
+          "passed": false,
+          "evidence": "box-token.sh に触れていない。Box CLI の box login と BOX_ACCESS_TOKEN を案内している"
+        },
+        {
+          "text": "Authorization ヘッダーを自分だけが読めるファイル（mktemp など）に書き、curl に -H @<ファイル> で渡している",
+          "passed": false,
+          "evidence": "ヘッダーをファイルに書く手順が無い"
+        },
+        {
+          "text": "-H \"Authorization: Bearer $TOKEN\" の形で、トークンを curl の引数に載せていない",
+          "passed": false,
+          "evidence": "curl に -H \"Authorization: Bearer ${BOX_ACCESS_TOKEN}\" の形でトークンを引数に載せている"
+        },
+        {
+          "text": "https://upload.box.com/api/2.0/files/content に POST している",
+          "passed": true,
+          "evidence": "curl の例で https://upload.box.com/api/2.0/files/content に POST している"
+        },
+        {
+          "text": "attributes に name と parent.id を指定している",
+          "passed": true,
+          "evidence": "curl の例で -F attributes='{\"name\":\"report.txt\",\"parent\":{\"id\":\"0\"}}' を指定している"
+        },
+        {
+          "text": "-F file=@ でファイル本体を送っている",
+          "passed": true,
+          "evidence": "curl の例で -F file=@./report.txt を使っている"
+        },
+        {
+          "text": "アップロード後に id/名前など結果を確認している",
+          "passed": true,
+          "evidence": "「アップロードできたかは box folders:items 0 で確認できます」と書いている"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 26.3543,
+        "stddev": 2.2658,
+        "min": 24.701,
+        "max": 28.937
+      },
+      "tokens": {
+        "mean": 72012,
+        "stddev": 3662.5632,
+        "min": 69605,
+        "max": 76227
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5238,
+        "stddev": 0.0824,
+        "min": 0.4286,
+        "max": 0.5714
+      },
+      "time_seconds": {
+        "mean": 19.771,
+        "stddev": 2.1385,
+        "min": 17.338,
+        "max": 21.353
+      },
+      "tokens": {
+        "mean": 37020,
+        "stddev": 332.8108,
+        "min": 36771,
+        "max": 37398
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.48",
+      "time_seconds": "+6.6",
+      "tokens": "+34992"
+    }
+  },
+  "notes": [
+    "Issue #1014: eval 3 の prompt を「Box に report.txt を新規アップロードしたい。実行するコマンドを示して」に変え、with_skill と without_skill を 3 run ずつ実行した",
+    "実行の前に、eval の sandbox の中で BOX_* の環境変数が 0 件、~/.config/box/refresh_token が読めず、Box のホストが名前解決できないことを確かめた",
+    "どの run も box.com に向けたコマンドを実行していない"
+  ]
+}
