@@ -55,7 +55,7 @@ ${FAKE_BWRAP_PROBE}printf '%s\\n' "$@" >"${capturedArgs}"
 // 起動の前の確認（CLI が見えるか）の呼び出しは記録せず、FAKE_BWRAP_HIDDEN（改行区切り）に
 // 挙げたパスを除いて「見える」と答える。何が隠れるかを測るのは、本物の bwrap のテストである。
 // FAKE_BWRAP_MODE=exec-credentials では、--verify の stage 5 の呼び出しだけを、隠さずにホストの上で実行する。
-// --setenv と --unsetenv は反映する。FAKE_BWRAP_LEAK_ENV に挙げた名前は 1 を入れて渡し（環境変数が漏れた状態）、
+// --setenv と --unsetenv は反映する。FAKE_BWRAP_LEAK_ENV に挙げた名前は 1 を入れて渡し（許可リストの外の変数が run に渡った状態）、
 // FAKE_BWRAP_DROP_ENV に挙げた名前は外す（渡すはずの変数が欠けた状態）。
 // eval-sandbox.sh は bwrap を許可リストの環境変数だけで起動するので、スタブの設定（FAKE_BWRAP_*）は
 // 環境変数では届かない。スタブは隣の fake-bwrap.env から読む（export しないので、実行するコマンドには渡らない）。
@@ -152,6 +152,24 @@ function homePathPrefix(home: string, dirs: string[]) {
   return dirs.map((dir) => `${join(home, dir)}:`).join("");
 }
 
+/**
+ * テストを実行する環境の変数から、XDG の場所（XDG_CONFIG_HOME など）を除いて返す。
+ * GitHub Actions の runner は XDG_CONFIG_HOME を設定するので、そのまま渡すと、sandbox が runner の
+ * 設定の場所まで隠して戻し、使い捨ての $HOME だけを見るはずの判定の結果が変わる。
+ */
+export function hostEnv() {
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  for (const name of ["XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME"]) {
+    delete env[name];
+  }
+  return env;
+}
+
+/** bwrap の引数から、指定したフラグの n 個目の値を集める。 */
+export function flagValues(args: string[], flag: string, offset = 1) {
+  return args.flatMap((arg, i) => (arg === flag ? [args[i + offset]] : []));
+}
+
 /** 使い捨ての $HOME にファイルを置く。 */
 export function writeHomeFiles(home: string, files: Record<string, string>) {
   for (const [relative, content] of Object.entries(files)) {
@@ -242,7 +260,7 @@ function sandboxEnv(
 ) {
   const { root, home, bin, cli } = paths;
   const env: Record<string, string> = {
-    ...process.env,
+    ...hostEnv(),
     HOME: home,
     PATH: `${homePathPrefix(home, options.pathHomeDirs ?? [])}${sandboxPath(bin, options)}`,
     EVAL_SANDBOX_CLI: cli === "" ? "absent-cli" : cli,

@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { afterEach, expect, test } from "vitest";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
-import { sandbox, sourceScript, writeWorktreeFakeBin } from "./eval-sandbox-helpers.ts";
+import { hostEnv, sandbox, sourceScript, writeWorktreeFakeBin } from "./eval-sandbox-helpers.ts";
 
 const temporaryDirectories: string[] = [];
 const hasBwrap =
@@ -46,7 +46,7 @@ test("refuses to replace an existing managed Codex directory", () => {
     cwd: root,
     encoding: "utf8",
     env: {
-      ...process.env,
+      ...hostEnv(),
       EVAL_SANDBOX_CLI: "codex-wrapper",
       EVAL_SANDBOX_VENDOR: "codex",
       HOME: fakeHome,
@@ -93,7 +93,7 @@ echo CUSTOM_CODEX_HOME_OK
     cwd: root,
     encoding: "utf8",
     env: {
-      ...process.env,
+      ...hostEnv(),
       CODEX_HOME: codexHome,
       EVAL_SANDBOX_CLI: "codex-wrapper",
       EVAL_SANDBOX_VENDOR: "codex",
@@ -135,7 +135,7 @@ test("deduplicates worktree parent mounts and leaves /tmp to the sibling-run mou
     cwd: project,
     encoding: "utf8",
     env: {
-      ...process.env,
+      ...hostEnv(),
       EVAL_SANDBOX_CLI: "claude-wrapper",
       EVAL_SANDBOX_VENDOR: "claude-code",
       HOME: fakeHome,

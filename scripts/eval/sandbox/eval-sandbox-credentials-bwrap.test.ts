@@ -19,6 +19,7 @@ import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 import {
   allowedFiles,
   credentialFiles,
+  hostEnv,
   shellQuote,
   sourceScript,
   writeHomeFiles,
@@ -77,7 +78,7 @@ describe.skipIf(outsideTmp === null)("本物の bwrap", () => {
       cwd: project,
       encoding: "utf8",
       env: {
-        ...process.env,
+        ...hostEnv(),
         EVAL_SANDBOX_CLI: "claude-wrapper",
         EVAL_SANDBOX_VENDOR: "claude-code",
         EVAL_SANDBOX_NET: "off",
@@ -109,7 +110,7 @@ describe.skipIf(outsideTmp === null)("本物の bwrap", () => {
       cwd: "/",
       encoding: "utf8",
       env: {
-        ...process.env,
+        ...hostEnv(),
         // --verify も起動の前に CLI を探す。claude の無い環境（CI）でも止まらないよう、在る実行ファイルを渡す。
         EVAL_SANDBOX_CLI: "bash",
         EVAL_SANDBOX_VENDOR: "claude-code",
@@ -159,7 +160,7 @@ function startWithCli(
     cwd: project,
     encoding: "utf8",
     env: {
-      ...process.env,
+      ...hostEnv(),
       EVAL_SANDBOX_CLI: "claude-wrapper",
       EVAL_SANDBOX_VENDOR: "claude-code",
       EVAL_SANDBOX_NET: "off",
@@ -297,7 +298,7 @@ describe.skipIf(outsideTmp === null)("$HOME の外に置いた設定の場所（
       cwd: "/",
       encoding: "utf8",
       env: {
-        ...process.env,
+        ...hostEnv(),
         EVAL_SANDBOX_CLI: "bash",
         EVAL_SANDBOX_VENDOR: "claude-code",
         EVAL_SANDBOX_NET: "off",

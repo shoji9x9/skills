@@ -216,6 +216,27 @@ home_allow=(
 for rel in "${home_allow[@]}"; do
 	[ -e "${home}/${rel}" ] && args+=(--ro-bind "${home}/${rel}" "${home}/${rel}")
 done
+# Credentials served by agents rather than read from files. The runtime dir holds the
+# session bus, through which the keyring daemon hands out what ~/.local/share/keyrings
+# stores, and the ssh-agent and gpg-agent sockets. Measured: the Secret Service was
+# reachable from inside before this. The tmpfs keeps the dir writable for tools that
+# put locks there (pnpm). Neither CLI needs the bus: Claude Code reads
+# ~/.claude/.credentials.json and Codex reads auth.json.
+# Residual gap: an abstract-namespace socket is not a file, and the network namespace
+# is shared, so a bus that listens only on one stays reachable.
+# XDG_RUNTIME_DIR and /run/user/<uid> can differ (WSLg points the variable elsewhere
+# while the systemd user bus stays under /run/user), so both are hidden.
+# This comes after the $HOME tmpfs (a runtime dir under $HOME stays a writable empty
+# dir) and before the roots below (an XDG directory under the runtime dir gets its
+# own tmpfs and binds after this one instead of being covered by it).
+runtime_dirs=()
+for d in "${XDG_RUNTIME_DIR:-}" "/run/user/$(id -u)"; do
+	[ -n "${d}" ] && [ -d "${d}" ] || continue
+	case " ${runtime_dirs[*]} " in *" ${d} "*) continue ;; esac
+	runtime_dirs+=("${d}")
+	args+=(--tmpfs "${d}")
+done
+
 # The same places can live elsewhere: an XDG base directory set to another path, or a
 # directory of the allowlist reached through a symlink (dotfiles managers link ~/.config).
 # The tmpfs above hides only $HOME, so such a directory outside $HOME would stay
@@ -224,43 +245,34 @@ done
 # outside $HOME it gets a tmpfs of its own, and wherever it is, the entries of
 # home_allow under that prefix are bound back at their real path.
 # A root that holds $HOME or the disposable project cannot be hidden without hiding
-# them, so the run stops instead of exposing it.
-# Each entry is "<prefix>|<the XDG variable that relocates it, if any>", parents first.
+# them, so the run stops instead of exposing it ("/" holds everything).
+# The roots are collected first and handled outermost first, so a root inside another
+# one only binds its entries back into the outer tmpfs and never covers what the outer
+# one bound (whatever order the variables and links come in).
+# Each entry is "<prefix>|<the XDG variable that relocates it, if any>".
 home_prefixes=(".config|XDG_CONFIG_HOME" ".config/git|" ".local|" ".local/share|XDG_DATA_HOME" ".local/state|XDG_STATE_HOME" ".cache|XDG_CACHE_HOME")
 extra_roots=()
 outside_roots=()
-under_root() { # is $1 equal to or below one of the roots found so far?
+under_root() { # is $1 equal to or below one of the roots handled so far?
 	local r
 	for r in "${extra_roots[@]}"; do
-		case "$1/" in "${r}/"*) return 0 ;; esac
+		case "$1/" in "${r%/}/"*) return 0 ;; esac
 	done
 	return 1
 }
 add_root() { # $1 = real directory, $2 = the home_allow prefix it stands for
-	local r="$1" prefix="$2" rel e
-	[ "${r}" != "${home}/${prefix}" ] && [ -d "${r}" ] || return 0
-	# A root inside one found before is already hidden with it, but the entries of
-	# its own prefix still have to be bound back (~/.local linked into the directory
-	# that XDG_CONFIG_HOME names, for one).
+	local r="$1" prefix="$2" rel
 	if ! under_root "${r}"; then
-		case "${home}/" in "${r}/"*)
+		case "${home}/" in "${r%/}/"*)
 			echo "eval-sandbox: ${r} (${prefix}) holds \$HOME; it cannot be hidden without hiding \$HOME" >&2
 			exit 3
 			;;
 		esac
-		case "${PWD}/" in "${r}/"*)
+		case "${PWD}/" in "${r%/}/"*)
 			echo "eval-sandbox: ${r} (${prefix}) holds the disposable project ${PWD}; it cannot be hidden" >&2
 			exit 3
 			;;
 		esac
-		# The other way round, its tmpfs would cover what an earlier root bound back.
-		for e in "${extra_roots[@]}"; do
-			case "${e}/" in "${r}/"*)
-				echo "eval-sandbox: ${r} (${prefix}) holds ${e}, another place hidden before it; point the XDG variables at directories that do not contain each other" >&2
-				exit 3
-				;;
-			esac
-		done
 		extra_roots+=("${r}")
 		case "${r}/" in
 		"${home}/"*) ;;
@@ -276,13 +288,25 @@ add_root() { # $1 = real directory, $2 = the home_allow prefix it stands for
 	done
 	return 0
 }
+root_candidates=()
 for entry in "${home_prefixes[@]}"; do
 	prefix="${entry%%|*}" var="${entry#*|}"
 	if [ -n "${var}" ] && [ -n "${!var:-}" ]; then
-		add_root "$(realpath -m -- "${!var}")" "${prefix}"
+		root_candidates+=("$(realpath -m -- "${!var}")|${prefix}")
 	fi
-	[ ! -e "${home}/${prefix}" ] || add_root "$(realpath -m -- "${home}/${prefix}")" "${prefix}"
+	[ ! -e "${home}/${prefix}" ] || root_candidates+=("$(realpath -m -- "${home}/${prefix}")|${prefix}")
 done
+# Outermost first: a directory sorts before everything inside it when the paths are
+# compared by length.
+while IFS= read -r -d '' entry; do
+	r="${entry%|*}" prefix="${entry##*|}"
+	[ "${r}" != "${home}/${prefix}" ] && [ -d "${r}" ] || continue
+	add_root "${r}" "${prefix}"
+done < <(for entry in "${root_candidates[@]}"; do
+	r="${entry%|*}"
+	printf '%s\t%s\0' "${#r}" "${entry}"
+done |
+	sort -z -n -s | cut -z -f2-)
 # The CLI writes its own state to ~/.claude.json at startup, so give it a throwaway
 # one. It must NOT be a copy of the real file: that file records per-project history
 # and allowed tools — `--verify` caught a skill's own hook script name in there — plus
@@ -435,24 +459,6 @@ fi
 
 [ -n "${scratch_etc}" ] && args+=(--ro-bind /etc "${host_etc_mount}" --ro-bind "${scratch_etc}" /etc)
 
-# Credentials served by agents rather than read from files. The runtime dir holds the
-# session bus, through which the keyring daemon hands out what ~/.local/share/keyrings
-# stores, and the ssh-agent and gpg-agent sockets. Measured: the Secret Service was
-# reachable from inside before this. The tmpfs keeps the dir writable for tools that
-# put locks there (pnpm). Neither CLI needs the bus: Claude Code reads
-# ~/.claude/.credentials.json and Codex reads auth.json.
-# Residual gap: an abstract-namespace socket is not a file, and the network namespace
-# is shared, so a bus that listens only on one stays reachable.
-# XDG_RUNTIME_DIR and /run/user/<uid> can differ (WSLg points the variable elsewhere
-# while the systemd user bus stays under /run/user), so both are hidden.
-runtime_dirs=()
-for d in "${XDG_RUNTIME_DIR:-}" "/run/user/$(id -u)"; do
-	[ -n "${d}" ] && [ -d "${d}" ] || continue
-	case " ${runtime_dirs[*]} " in *" ${d} "*) continue ;; esac
-	runtime_dirs+=("${d}")
-	args+=(--tmpfs "${d}")
-done
-
 # Last mount under $HOME is above; from here on $HOME is read-only (step 0).
 for r in "${outside_roots[@]}"; do args+=(--remount-ro "${r}"); done
 args+=(--remount-ro "${home}")
@@ -462,7 +468,10 @@ args+=(--remount-ro "${home}")
 # a filtered environment; everything else the operator's shell exports (GH_TOKEN,
 # AWS_*, BOX_*, the parent agent's CLAUDE_CODE_* session token and socket,
 # DBUS_SESSION_BUS_ADDRESS, SSH_AUTH_SOCK, WSL_INTEROP, ...) stays out without being
-# named. Missing a needed one makes a start-up or API failure, not a leak.
+# named. Missing a needed one never exposes a value: the CLI fails to start or to
+# reach its API, or a tool that reads the variable (JAVA_HOME, PNPM_HOME, ...) fails
+# inside the run, and then the result of the run can change without a warning. Add
+# such a name with EVAL_SANDBOX_ENV_ALLOW.
 #   HOME PATH USER LOGNAME SHELL PWD       the process basics; HOME is the resolved one
 #                                          and bwrap sets PWD to the --chdir directory
 #   TERM COLORTERM NO_COLOR LANG LANGUAGE LC_*  output and locale, kept so results do
@@ -475,7 +484,7 @@ args+=(--remount-ro "${home}")
 # The values never go on bwrap's command line: --setenv would put them in /proc/<pid>/
 # cmdline, which the run can read (measured). They are inherited from a filtered copy of
 # this shell's environment instead.
-# EVAL_SANDBOX_ENV_ALLOW adds space-separated names (for a vendor setting this script
+# EVAL_SANDBOX_ENV_ALLOW adds names separated by spaces or newlines (for a vendor setting this script
 # does not know about). It only widens what the eval run sees.
 env_allow=(
 	HOME PATH USER LOGNAME SHELL PWD
@@ -491,7 +500,9 @@ codex) env_allow+=(OPENAI_API_KEY CODEX_API_KEY OPENAI_BASE_URL CODEX_HOME) ;;
 esac
 # Split with read, not an unquoted expansion: a glob character (`*`) would expand to
 # the file names in the cwd, and a file named like a variable would pass the check.
-read -r -a env_allow_extra <<<"${EVAL_SANDBOX_ENV_ALLOW:-}"
+# -d '' reads past newlines (read stops at the first one otherwise); it then returns 1
+# at the end of the input, which is not an error here.
+read -r -d '' -a env_allow_extra <<<"${EVAL_SANDBOX_ENV_ALLOW:-}" || true
 for name in "${env_allow_extra[@]}"; do
 	[[ "${name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || {
 		echo "eval-sandbox: EVAL_SANDBOX_ENV_ALLOW holds a name that is not a variable name: ${name}" >&2

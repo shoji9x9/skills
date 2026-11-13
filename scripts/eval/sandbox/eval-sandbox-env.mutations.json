@@ -16,7 +16,7 @@
         "run に渡す環境変数 許可リストの外は渡さず、許可リストの中は渡す（起動の前の確認と run の両方で）",
         "run に渡す環境変数 claude-code では、そのベンダーの API キーだけを渡す",
         "run に渡す環境変数 codex では、そのベンダーの API キーだけを渡す",
-        "run に渡す環境変数 EVAL_SANDBOX_ENV_ALLOW に挙げた名前は渡し、挙げていない名前は渡さない",
+        "run に渡す環境変数 EVAL_SANDBOX_ENV_ALLOW に挙げた名前は（改行の後の名前も）渡し、挙げていない名前は渡さない",
         "run に渡す環境変数 bash が unset できない変数（export した SHELLOPTS）も渡さない",
         "run に渡す環境変数 名前が識別子でない変数と、export した関数も渡さない（bash は子に渡すが compgen -e に出ない）"
       ]
@@ -60,7 +60,7 @@
       "replace": "\t:\n",
       "occurrences": 1,
       "expect_failing": [
-        "run に渡す環境変数 EVAL_SANDBOX_ENV_ALLOW に挙げた名前は渡し、挙げていない名前は渡さない"
+        "run に渡す環境変数 EVAL_SANDBOX_ENV_ALLOW に挙げた名前は（改行の後の名前も）渡し、挙げていない名前は渡さない"
       ]
     },
     {
@@ -85,7 +85,10 @@
       "expect_failing": [
         "$HOME の外の設定の場所 XDG_CONFIG_HOME が $HOME の外なら tmpfs で隠し、許可リストの場所だけを読み取り専用で戻す",
         "$HOME の外の設定の場所 ~/.config が $HOME の外へのシンボリックリンクなら、リンク先を tmpfs で隠して許可リストの場所を戻す",
-        "$HOME の外の設定の場所 先に見つけた場所の中にリンクした許可リストの祖先も、その中の許可リストの場所を戻す"
+        "$HOME の外の設定の場所 先に見つけた場所の中にリンクした許可リストの祖先も、その中の許可リストの場所を戻す",
+        "$HOME の外の設定の場所 XDG の場所が runtime dir の下でも、runtime dir の tmpfs より後に隠して戻す",
+        "$HOME の外の設定の場所 XDG の場所が互いを含むとき（XDG_CONFIG_HOME が内側）、外側だけを tmpfs で隠し、両方の許可リストの場所を戻す",
+        "$HOME の外の設定の場所 XDG の場所が互いを含むとき（XDG_CACHE_HOME が内側）、外側だけを tmpfs で隠し、両方の許可リストの場所を戻す"
       ]
     },
     {
@@ -113,14 +116,17 @@
         "$HOME の外の設定の場所 XDG_CONFIG_HOME が cwd を含むなら、隠せないので bwrap を起動せずに止める",
         "--verify の stage 5 と、$HOME の外の場所 $HOME の外の XDG の場所も、戻していないパスを確かめる対象に入れる",
         "$HOME の外の設定の場所 先に見つけた場所の中にリンクした許可リストの祖先も、その中の許可リストの場所を戻す",
-        "$HOME の外の設定の場所 後から見つけた場所が先に見つけた場所を含むなら、先に戻した場所を覆うので bwrap を起動せずに止める"
+        "$HOME の外の設定の場所 XDG の場所が互いを含むとき（XDG_CONFIG_HOME が内側）、外側だけを tmpfs で隠し、両方の許可リストの場所を戻す",
+        "$HOME の外の設定の場所 XDG の場所が互いを含むとき（XDG_CACHE_HOME が内側）、外側だけを tmpfs で隠し、両方の許可リストの場所を戻す",
+        "$HOME の外の設定の場所 XDG の場所が runtime dir の下でも、runtime dir の tmpfs より後に隠して戻す",
+        "$HOME の外の設定の場所 XDG_CONFIG_HOME が / として $HOME を含むなら、隠せないので bwrap を起動せずに止める"
       ]
     },
     {
       "id": "linked-ancestor-ignored",
       "why": "許可リストの祖先がシンボリックリンクでも、リンク先を扱わない",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\t[ ! -e \"${home}/${prefix}\" ] || add_root \"$(realpath -m -- \"${home}/${prefix}\")\" \"${prefix}\"\n",
+      "find": "\t[ ! -e \"${home}/${prefix}\" ] || root_candidates+=(\"$(realpath -m -- \"${home}/${prefix}\")|${prefix}\")\n",
       "replace": "\t:\n",
       "occurrences": 1,
       "expect_failing": [
@@ -141,26 +147,29 @@
         "$HOME の外の設定の場所 XDG_CONFIG_HOME が $HOME の中のデフォルトでない場所なら、tmpfs は置かずに許可リストの場所を戻す",
         "$HOME の外の設定の場所 ~/.config が $HOME の外へのシンボリックリンクなら、リンク先を tmpfs で隠して許可リストの場所を戻す",
         "--verify の stage 5 と、$HOME の外の場所 $HOME の外の XDG の場所も、戻していないパスを確かめる対象に入れる",
-        "--verify の stage 5 と、$HOME の外の場所 許可リストの祖先がシンボリックリンクでも、その中に下りて確かめ、リンクそのものは挙げない"
+        "--verify の stage 5 と、$HOME の外の場所 許可リストの祖先がシンボリックリンクでも、その中に下りて確かめ、リンクそのものは挙げない",
+        "$HOME の外の設定の場所 XDG の場所が互いを含むとき（XDG_CONFIG_HOME が内側）、外側だけを tmpfs で隠し、両方の許可リストの場所を戻す",
+        "$HOME の外の設定の場所 XDG の場所が互いを含むとき（XDG_CACHE_HOME が内側）、外側だけを tmpfs で隠し、両方の許可リストの場所を戻す"
       ]
     },
     {
       "id": "root-holding-home-hidden",
       "why": "$HOME を含む場所を、止めずにそのまま隠す",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\tcase \"${home}/\" in \"${r}/\"*)\n",
-      "replace": "\tcase \"${home}/\" in \"/nonexistent-${r}/\"*)\n",
+      "find": "\t\tcase \"${home}/\" in \"${r%/}/\"*)\n",
+      "replace": "\t\tcase \"${home}/\" in \"/nonexistent-${r}/\"*)\n",
       "occurrences": 1,
       "expect_failing": [
-        "$HOME の外の設定の場所 XDG_CONFIG_HOME が $HOME を含むなら、隠せないので bwrap を起動せずに止める"
+        "$HOME の外の設定の場所 XDG_CONFIG_HOME が $HOME を含むなら、隠せないので bwrap を起動せずに止める",
+        "$HOME の外の設定の場所 XDG_CONFIG_HOME が / として $HOME を含むなら、隠せないので bwrap を起動せずに止める"
       ]
     },
     {
       "id": "root-holding-cwd-hidden",
       "why": "cwd（使い捨てのプロジェクト）を含む場所を、止めずにそのまま隠す",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\tcase \"${PWD}/\" in \"${r}/\"*)\n",
-      "replace": "\tcase \"${PWD}/\" in \"/nonexistent-${r}/\"*)\n",
+      "find": "\t\tcase \"${PWD}/\" in \"${r%/}/\"*)\n",
+      "replace": "\t\tcase \"${PWD}/\" in \"/nonexistent-${r}/\"*)\n",
       "occurrences": 1,
       "expect_failing": [
         "$HOME の外の設定の場所 XDG_CONFIG_HOME が cwd を含むなら、隠せないので bwrap を起動せずに止める"
@@ -174,7 +183,9 @@
       "replace": "\tunder_root \"${r}\" && return 0\n\tif true; then\n",
       "occurrences": 1,
       "expect_failing": [
-        "$HOME の外の設定の場所 先に見つけた場所の中にリンクした許可リストの祖先も、その中の許可リストの場所を戻す"
+        "$HOME の外の設定の場所 先に見つけた場所の中にリンクした許可リストの祖先も、その中の許可リストの場所を戻す",
+        "$HOME の外の設定の場所 XDG の場所が互いを含むとき（XDG_CONFIG_HOME が内側）、外側だけを tmpfs で隠し、両方の許可リストの場所を戻す",
+        "$HOME の外の設定の場所 XDG の場所が互いを含むとき（XDG_CACHE_HOME が内側）、外側だけを tmpfs で隠し、両方の許可リストの場所を戻す"
       ]
     },
     {
@@ -222,14 +233,36 @@
       ]
     },
     {
-      "id": "root-holding-earlier-root-hidden",
-      "why": "先に見つけた場所を含む場所を、止めずにそのまま隠す（先に戻した場所を tmpfs が覆う）",
+      "id": "roots-not-sorted",
+      "why": "場所を外側から順に処理せず、見つけた順に処理する（内側の tmpfs を外側の tmpfs が覆う）",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\t\t\tcase \"${e}/\" in \"${r}/\"*)\n",
-      "replace": "\t\t\tcase \"${e}/\" in \"/nonexistent-${r}/\"*)\n",
+      "find": "\tsort -z -n -s | cut -z -f2-)\n",
+      "replace": "\tcut -z -f2-)\n",
       "occurrences": 1,
       "expect_failing": [
-        "$HOME の外の設定の場所 後から見つけた場所が先に見つけた場所を含むなら、先に戻した場所を覆うので bwrap を起動せずに止める"
+        "$HOME の外の設定の場所 XDG の場所が互いを含むとき（XDG_CONFIG_HOME が内側）、外側だけを tmpfs で隠し、両方の許可リストの場所を戻す"
+      ]
+    },
+    {
+      "id": "root-slash-accepted",
+      "why": "/ を指す場所を、$HOME を含む場所として止めずに tmpfs で隠す",
+      "file": "scripts/eval/sandbox/eval-sandbox.sh",
+      "find": "\t\tcase \"${home}/\" in \"${r%/}/\"*)\n",
+      "replace": "\t\tcase \"${home}/\" in \"${r}/\"*)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "$HOME の外の設定の場所 XDG_CONFIG_HOME が / として $HOME を含むなら、隠せないので bwrap を起動せずに止める"
+      ]
+    },
+    {
+      "id": "allow-newline-ignored",
+      "why": "EVAL_SANDBOX_ENV_ALLOW の改行の後の名前を読まない",
+      "file": "scripts/eval/sandbox/eval-sandbox.sh",
+      "find": "read -r -d '' -a env_allow_extra <<<\"${EVAL_SANDBOX_ENV_ALLOW:-}\" || true\n",
+      "replace": "read -r -a env_allow_extra <<<\"${EVAL_SANDBOX_ENV_ALLOW:-}\" || true\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "run に渡す環境変数 EVAL_SANDBOX_ENV_ALLOW に挙げた名前は（改行の後の名前も）渡し、挙げていない名前は渡さない"
       ]
     }
   ]

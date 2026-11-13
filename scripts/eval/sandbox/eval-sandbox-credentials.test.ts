@@ -10,16 +10,11 @@
 // | 許可リストの外             | 名前を挙げた認証情報（box・gh・ssh・aws・keyring） / 名前を挙げていない場所 / 何も無い |
 // | 許可リストの祖先           | 祖先の中の許可リストの外（.config/box）/ 許可リストそのもの（.config/mise） |
 // | runtime dir                | 中身が在る（少ない・SIGPIPE が起きる量）/ 空 / 実在しない（/run/user/<uid> の扱いは eval-sandbox.test.ts） |
-// | 環境変数（stage 5）        | 許可リストの外が漏れる / 許可リストの中が欠ける（スタブで再現する）。渡す変数そのものは eval-sandbox-env.test.ts |
+// | 環境変数（stage 5）        | 許可リストの外が渡る / 許可リストの中が欠ける（スタブで再現する）。渡す変数そのものは eval-sandbox-env.test.ts |
 // | CLI の実体                 | $HOME の外 / $HOME の下で許可リストの中 / $HOME の下で許可リストの外 |
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { allowedFiles, credentialFiles, sandbox } from "./eval-sandbox-helpers.ts";
-
-/** bwrap の引数から、指定したフラグの n 個目の値を集める。 */
-function flagValues(args: string[], flag: string, offset = 1) {
-  return args.flatMap((arg, i) => (arg === flag ? [args[i + offset]] : []));
-}
+import { allowedFiles, credentialFiles, flagValues, sandbox } from "./eval-sandbox-helpers.ts";
 
 describe("bwrap に渡す引数", () => {
   test("$HOME は空の tmpfs にし、許可リストのうちホストに在るものだけを読み取り専用で戻す", () => {

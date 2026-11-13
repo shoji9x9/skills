@@ -9,20 +9,21 @@
 // | 許可リストの外の変数       | 認証情報（GH_TOKEN・AWS_*・BOX_*）/ 親のエージェントのトークンとソケット / 名前を挙げていない変数 / 名前が識別子でない変数・export した関数 |
 // | 許可リストの中の変数       | 起動の基本（PATH）/ ロケール（LANG・LC_*）/ プロキシ / ハーネス / ベンダーの API キー |
 // | ベンダー                   | claude-code / codex（相手のベンダーのキーは渡さない）               |
-// | EVAL_SANDBOX_ENV_ALLOW     | 無い / 変数名 / 変数名でない値 / glob の文字                        |
+// | EVAL_SANDBOX_ENV_ALLOW     | 無い / 変数名（空白・改行で区切る） / 変数名でない値 / glob の文字  |
 // | 値の置き場所               | 環境だけ（bwrap の引数に載らない）                                  |
 // | $HOME                      | 普通のパス / シンボリックリンク（解決したパスを渡す）               |
-// | XDG_*_HOME                 | 無い / $HOME の外 / $HOME の中のデフォルトでない場所 / $HOME を含む / cwd を含む |
+// | XDG_*_HOME                 | 無い / $HOME の外 / $HOME の中のデフォルトでない場所 / $HOME を含む / cwd を含む / / / 互いを含む（どちらの並びでも） / runtime dir の下 |
 // | 許可リストの祖先           | 普通のディレクトリ / $HOME の外へのリンク / $HOME の中へのリンク / 先に見つけた場所の中へのリンク |
 import { mkdirSync, renameSync, symlinkSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { allowedFiles, credentialFiles, sandbox, writeHomeFiles } from "./eval-sandbox-helpers.ts";
-
-/** bwrap の引数から、指定したフラグの n 個目の値を集める。 */
-function flagValues(args: string[], flag: string, offset = 1) {
-  return args.flatMap((arg, i) => (arg === flag ? [args[i + offset]] : []));
-}
+import {
+  allowedFiles,
+  credentialFiles,
+  flagValues,
+  sandbox,
+  writeHomeFiles,
+} from "./eval-sandbox-helpers.ts";
 
 const hiddenNames = {
   GH_TOKEN: "dummy-gh",
@@ -86,18 +87,19 @@ describe("run に渡す環境変数", () => {
     expect(bwrapArgs.join("\n")).not.toContain("C.UTF-8");
   });
 
-  test("EVAL_SANDBOX_ENV_ALLOW に挙げた名前は渡し、挙げていない名前は渡さない", () => {
+  test("EVAL_SANDBOX_ENV_ALLOW に挙げた名前は（改行の後の名前も）渡し、挙げていない名前は渡さない", () => {
     const { result, envNames } = sandbox(["--version"], {
       env: {
-        EVAL_SANDBOX_ENV_ALLOW: "EXTRA_ONE  EXTRA_TWO",
+        EVAL_SANDBOX_ENV_ALLOW: "EXTRA_ONE  EXTRA_TWO\nEXTRA_FOUR",
         EXTRA_ONE: "1",
         EXTRA_TWO: "2",
         EXTRA_THREE: "3",
+        EXTRA_FOUR: "4",
       },
     });
     expect(result.status, result.stderr).toBe(0);
     for (const names of envNames) {
-      expect(names).toEqual(expect.arrayContaining(["EXTRA_ONE", "EXTRA_TWO"]));
+      expect(names).toEqual(expect.arrayContaining(["EXTRA_ONE", "EXTRA_TWO", "EXTRA_FOUR"]));
       expect(names).not.toContain("EXTRA_THREE");
     }
   });
@@ -214,11 +216,12 @@ describe("$HOME の外の設定の場所", () => {
   test.each([
     ["$HOME", (paths: { root: string; home: string }) => dirname(paths.home)],
     ["cwd", (paths: { root: string; home: string }) => join(paths.root, "cwd-parent")],
+    ["/ として $HOME", () => "/"],
   ])("XDG_CONFIG_HOME が %s を含むなら、隠せないので bwrap を起動せずに止める", (label, dir) => {
     const { result, bwrapArgs } = sandbox(["--version"], {
       setup: (paths) => {
         const xdg = dir(paths);
-        mkdirSync(join(xdg, "project"), { recursive: true });
+        if (xdg !== "/") mkdirSync(join(xdg, "project"), { recursive: true });
         return {
           env: { XDG_CONFIG_HOME: xdg },
           cwd: label === "cwd" ? join(xdg, "project") : undefined,
@@ -232,17 +235,55 @@ describe("$HOME の外の設定の場所", () => {
     expect(bwrapArgs).toBeNull();
   });
 
-  test("後から見つけた場所が先に見つけた場所を含むなら、先に戻した場所を覆うので bwrap を起動せずに止める", () => {
-    const { result, bwrapArgs } = sandbox(["--version"], {
+  // 外側の場所も内側の場所も、自分の許可リストの mise を持つ。どちらの変数が外側でも同じに扱う。
+  test.each([
+    ["XDG_CONFIG_HOME が内側", "XDG_CONFIG_HOME", "XDG_CACHE_HOME"],
+    ["XDG_CACHE_HOME が内側", "XDG_CACHE_HOME", "XDG_CONFIG_HOME"],
+  ])(
+    "XDG の場所が互いを含むとき（%s）、外側だけを tmpfs で隠し、両方の許可リストの場所を戻す",
+    (_label, innerVar, outerVar) => {
+      const { result, bwrapArgs, root } = sandbox(["--version"], {
+        setup: (paths) => {
+          const outer = join(paths.root, "xdg-outer");
+          writeHomeFiles(outer, {
+            "inner/mise/marker": "MARKER\n",
+            "mise/marker": "MARKER\n",
+            "gh/hosts.yml": "MARKER\n",
+          });
+          return { env: { [innerVar]: join(outer, "inner"), [outerVar]: outer } };
+        },
+      });
+      expect(result.status, result.stderr).toBe(0);
+      if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
+      const outer = join(root, "xdg-outer");
+      expect(flagValues(bwrapArgs, "--tmpfs").filter((t) => t.startsWith(outer))).toEqual([outer]);
+      const roBindTargets = flagValues(bwrapArgs, "--ro-bind", 2);
+      expect(roBindTargets).toContain(join(outer, "inner/mise"));
+      expect(roBindTargets).toContain(join(outer, "mise"));
+      expect(roBindTargets).not.toContain(join(outer, "gh"));
+    },
+  );
+
+  test("XDG の場所が runtime dir の下でも、runtime dir の tmpfs より後に隠して戻す", () => {
+    const { result, bwrapArgs, runtimeDir } = sandbox(["--version"], {
+      runtimeEntries: ["bus"],
       setup: (paths) => {
-        const outer = join(paths.root, "xdg-outer");
-        writeHomeFiles(outer, { "cfg/mise/config.toml": "MARKER\n", "mise/marker": "MARKER\n" });
-        return { env: { XDG_CONFIG_HOME: join(outer, "cfg"), XDG_CACHE_HOME: outer } };
+        const cache = join(paths.root, "run", "cache");
+        writeHomeFiles(cache, { "mise/marker": "MARKER\n" });
+        return { env: { XDG_CACHE_HOME: cache } };
       },
     });
-    expect(result.status).toBe(3);
-    expect(result.stderr).toContain("another place hidden before it");
-    expect(bwrapArgs).toBeNull();
+    expect(result.status, result.stderr).toBe(0);
+    if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
+    const cache = join(runtimeDir, "cache");
+    const tmpfsAt = (target: string) =>
+      bwrapArgs.findIndex((arg, i) => arg === "--tmpfs" && bwrapArgs[i + 1] === target);
+    const bindAt = bwrapArgs.findIndex(
+      (arg, i) => arg === "--ro-bind" && bwrapArgs[i + 2] === join(cache, "mise"),
+    );
+    expect(tmpfsAt(runtimeDir)).toBeGreaterThanOrEqual(0);
+    expect(tmpfsAt(cache)).toBeGreaterThan(tmpfsAt(runtimeDir));
+    expect(bindAt).toBeGreaterThan(tmpfsAt(cache));
   });
 });
 
