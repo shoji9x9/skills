@@ -236,8 +236,8 @@
       "id": "roots-not-sorted",
       "why": "場所を外側から順に処理せず、見つけた順に処理する（内側の tmpfs を外側の tmpfs が覆う）",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\t\tif [ -z \"${best}\" ] || [ \"${#r}\" -lt \"${#best_r}\" ]; then best=\"${i}\" best_r=\"${r}\"; fi\n",
-      "replace": "\t\tif [ -z \"${best}\" ]; then best=\"${i}\" best_r=\"${r}\"; fi\n",
+      "find": "\t\t\tif [ -z \"${best}\" ] || [ \"${#r}\" -lt \"${#best_r}\" ]; then best=\"${i}\" best_r=\"${r}\"; fi\n",
+      "replace": "\t\t\tif [ -z \"${best}\" ]; then best=\"${i}\" best_r=\"${r}\"; fi\n",
       "occurrences": 1,
       "expect_failing": [
         "$HOME の外の設定の場所 XDG の場所が互いを含むとき（XDG_CONFIG_HOME が内側）、外側だけを tmpfs で隠し、両方の許可リストの場所を戻す"

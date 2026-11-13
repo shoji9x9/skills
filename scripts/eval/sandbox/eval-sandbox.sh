@@ -301,19 +301,24 @@ for entry in "${home_prefixes[@]}"; do
 done
 # Outermost first: a directory comes before everything inside it when the paths are
 # ordered by length. Picked in bash, not with sort: a failed pipeline behind a process
-# substitution would leave nothing to hide without stopping the run.
-while [ "${#root_candidates[@]}" -gt 0 ]; do
-	best=""
-	for i in "${!root_candidates[@]}"; do
-		r="${root_candidates[i]%|*}"
-		if [ -z "${best}" ] || [ "${#r}" -lt "${#best_r}" ]; then best="${i}" best_r="${r}"; fi
+# substitution would leave nothing to hide without stopping the run. A function, so
+# the loop's variables stay local.
+add_roots_outermost_first() {
+	local best best_r i r entry prefix
+	while [ "${#root_candidates[@]}" -gt 0 ]; do
+		best=""
+		for i in "${!root_candidates[@]}"; do
+			r="${root_candidates[i]%|*}"
+			if [ -z "${best}" ] || [ "${#r}" -lt "${#best_r}" ]; then best="${i}" best_r="${r}"; fi
+		done
+		entry="${root_candidates[best]}"
+		unset 'root_candidates[best]'
+		r="${entry%|*}" prefix="${entry##*|}"
+		[ "${r}" != "${home}/${prefix}" ] && [ -d "${r}" ] || continue
+		add_root "${r}" "${prefix}"
 	done
-	entry="${root_candidates[best]}"
-	unset 'root_candidates[best]'
-	r="${entry%|*}" prefix="${entry##*|}"
-	[ "${r}" != "${home}/${prefix}" ] && [ -d "${r}" ] || continue
-	add_root "${r}" "${prefix}"
-done
+}
+add_roots_outermost_first
 # The CLI writes its own state to ~/.claude.json at startup, so give it a throwaway
 # one. It must NOT be a copy of the real file: that file records per-project history
 # and allowed tools — `--verify` caught a skill's own hook script name in there — plus
