@@ -278,9 +278,9 @@ list_runtime_dirs() { # fills runtime_dirs; a function, so its variables stay lo
 		[ -n "${d}" ] && [ -d "${d}" ] || continue
 		d="$(realpath -m -- "${d}")"
 		[ -z "${seen_runtime_dirs["${d}"]+present}" ] || continue
-		# ${PWD} is compared as it is, as add_root does: a cwd reached through a symlink into
-		# a runtime dir is not refused. How to treat that cwd is not decided (Issue #1015 does
-		# not cover it), and eval-sandbox-preflight.test.ts reproduces the current behavior.
+		# ${PWD} is compared as it is, as add_root does, so a cwd reached through a symlink
+		# into a runtime dir is not refused. Issue #1015 does not cover that cwd;
+		# eval-sandbox-preflight.test.ts checks that it passes while ${PWD} is not resolved.
 		refuse_holding "${d}" "the runtime dir" "its tmpfs is mounted after that and would cover it" \
 			"\$HOME|${home}" "the disposable project|${PWD}" "the /etc mirror and the other mounts under|/tmp"
 		seen_runtime_dirs["${d}"]=1

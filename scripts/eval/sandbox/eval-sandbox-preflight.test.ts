@@ -10,17 +10,18 @@
 // | 軸                       | 値                                                                     |
 // | ------------------------ | ---------------------------------------------------------------------- |
 // | runtime dir と $HOME     | 同じ / $HOME を含む / 「/」 / $HOME の下（通す） / 名前が $HOME の前方だけ一致（通す） / 隣（通す） |
-// | runtime dir と cwd       | 使い捨てのプロジェクトを含む / 含まない（通す）                        |
+// | runtime dir と cwd       | 使い捨てのプロジェクトを含む / 含まない（通す） / シンボリックリンクを通して含む（通す） |
 // | runtime dir と /tmp      | /tmp そのもの / /tmp の下（通す。「$HOME の隣」の行が、os.tmpdir() が /tmp の環境でだけ確かめる） |
 // | git worktree list        | 成功する（通す） / 0 以外で終わる                                      |
 // | モード                   | CLI の起動 / --verify                                                  |
 //
-// sandbox() の一時ディレクトリが runtime dir（/run/user/<uid> か XDG_RUNTIME_DIR）の下にある環境では、
-// スクリプトは使い捨ての $HOME を含む runtime dir として止まる。テストは、os.tmpdir() をその外に置いて実行する。
+// sandbox() は XDG_RUNTIME_DIR をテストの下に設定し直すので、ホストの値は結果に関係しない。
+// sandbox() の一時ディレクトリが /run/user/<uid> の下にある環境では、スクリプトは使い捨ての $HOME を含む
+// runtime dir として止まる。テストは、os.tmpdir() を /run/user/<uid> の外に置いて実行する。
 //
-// cwd は、add_root と同じく ${PWD} のまま比べる。シンボリックリンクを通して runtime dir の中を指す cwd は
-// 止まらない。この形の扱いは Issue #1015 に無いので決めておらず、下のテストは今の振る舞いを再現する。
-import { mkdirSync, symlinkSync } from "node:fs";
+// cwd は、add_root と同じく ${PWD} のまま比べる。シンボリックリンクを通して runtime dir の中を指す cwd の扱いは
+// Issue #1015 の範囲の外で、下のテストは、cwd を解決せずに比べる実装がその cwd を止めないことを確かめる。
+import { mkdirSync, realpathSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { flagValues, sandbox } from "./eval-sandbox-helpers.ts";
@@ -107,21 +108,26 @@ describe("runtime dir が先に置いたマウント先を含む構成", () => {
   });
 });
 
-test("シンボリックリンクを通して runtime dir の中を指す cwd は、解決せずに比べるので止まらない", () => {
-  let cwd = "";
-  const { result } = sandbox(["--version"], {
-    setup: ({ root }) => {
-      const run = join(root, "work");
-      mkdirSync(join(run, "project"), { recursive: true });
-      cwd = join(root, "link");
-      symlinkSync(join(run, "project"), cwd);
-      // bash は、環境の PWD がその cwd を指せば、リンクのまま $PWD にする。
-      return { env: { XDG_RUNTIME_DIR: run, PWD: cwd }, cwd };
-    },
-  });
-  expect(result.status, result.stderr).toBe(0);
-  expect(result.stderr).not.toContain("(the runtime dir) holds");
-});
+test.each(modes)(
+  "$mode: シンボリックリンクを通して runtime dir の中を指す cwd は、解決せずに比べるので止まらない",
+  ({ args }) => {
+    let run = "";
+    const { result, bwrapArgs } = sandbox(args, {
+      setup: ({ root }) => {
+        run = join(root, "work");
+        mkdirSync(join(run, "project"), { recursive: true });
+        const cwd = join(root, "link");
+        symlinkSync(join(run, "project"), cwd);
+        // bash は、環境の PWD がその cwd を指せば、リンクのまま $PWD にする。
+        return { env: { XDG_RUNTIME_DIR: run, PWD: cwd }, cwd };
+      },
+    });
+    expect(result.status, result.stderr).toBe(0);
+    // runtime dir の判定に達して一覧に入れたことを、tmpfs で隠す引数で確かめる。
+    if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
+    expect(flagValues(bwrapArgs, "--tmpfs")).toContain(realpathSync(run));
+  },
+);
 
 describe("git worktree list の失敗", () => {
   test.each(modes)(
