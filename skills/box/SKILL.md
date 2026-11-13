@@ -130,14 +130,14 @@ if curl -fL "https://api.box.com/2.0/files/<file-id>/content" \
   wc -c <"$BOX_DOWNLOAD"   # 中身を読む処理（この例はバイト数の確認）
 else
   echo "box: ダウンロードに失敗した" >&2
-  false   # if 全体を失敗で終え、失敗を終了コードに残す
+  false   # if を呼び出しの最後に置いたときに、失敗が終了コードに残る
 fi
 ```
 
 中身を読む処理は `then` の中に書く。curl が失敗したときに、空の一時ファイルを読まないためである。
 
 `BOX_DOWNLOAD` は、シェルが終わるときに消える。中身は、認証の例と同じく、ダウンロードと同じシェルの中で読む。
-ファイルを残すなら、`-o` に利用者が指定した保存先のパスを渡す。
+ファイルを残すなら、`-o` に利用者が指定した保存先の絶対パスを渡す。相対パスは、呼び出しごとに変わりうる作業ディレクトリから解決される。
 
 ### 検索（対象のフォルダの下に限る）
 
@@ -156,16 +156,21 @@ curl -sSf -G "https://api.box.com/2.0/search" \
 
 アップロードするファイルは、利用者が指定したパスで渡す。`/tmp/report.txt` のように名前を決めて `/tmp` に置くファイルは、他のユーザーが同じ名前で先に置けるので使わない。
 パスと Box に置くときのファイル名は、単引用符で囲んで変数に入れる。シェルは単引用符の中の `$` やバッククォートを展開しない。値に単引用符を含むときは、その単引用符を `'\''` と書く。
+利用者が Box に置く名前を指定しなければ、パスの最後の部分（`report.txt` など）を名前に書く。
 パスは絶対パスで書く。エージェントのツールでは呼び出しごとに作業ディレクトリが変わりうるので、相対パスは別の場所から解決されることがある。
-`~` は単引用符の中で展開されないので、ホームの下のファイルもホームのディレクトリから書く。WSL で Windows のファイルを渡すときは、`/mnt/c/...` の形で書く。
+`~` は単引用符の中で展開されないので、ホームの下のファイルは `/home/<ユーザー>/...`（macOS では `/Users/<ユーザー>/...`）の形で書く。
+Windows のファイルは、WSL では `/mnt/c/...`、Git Bash では `/c/...` の形で書く。
 
 ファイルは、パスを curl の `-F` に書かず、シェルのリダイレクト（`<`）で stdin から送る（`file=@-`）。
 `-F` に書いたパスは curl が `;` や引用符を区切りとして読むが、リダイレクトのパスはシェルがそのまま開く。
-Box は、ファイルの名前を `attributes` の `name` から取り、`file` の部分の `filename` を使わない（<https://developer.box.com/reference/post-files-content/>）。そのため `filename` には決まった値（`upload`）を書く。
+curl は stdin の中身を全部メモリに読んでから送るので、大きいファイルでは使うメモリが増える。
+Box は、ファイルの名前を `attributes` の `name` から取る（<https://developer.box.com/reference/post-files-content/>）。`file` の部分の `filename` の扱いは書いていないので、`filename` には決まった値（`upload`）を書き、名前は必ず `attributes` に書く。
 `attributes` は `jq` で組み立てて名前をエスケープし、`--form-string` で送る。`-F` で送ると、curl が名前の中の `;` を区切りとして読み、JSON が途中で切れる。
 Box は `attributes` が `file` より前にあることを求めるので、この順に書く。
+最後の `jq` がパイプの終了コードを決めるので、`set -o pipefail` で curl の失敗を終了コードに残す。
 
 ```bash
+set -o pipefail
 UPLOAD_FILE='<アップロードするファイルの絶対パス>'
 UPLOAD_NAME='<Box に置くファイル名>'
 curl -sSf -X POST "https://upload.box.com/api/2.0/files/content" \
@@ -176,11 +181,22 @@ curl -sSf -X POST "https://upload.box.com/api/2.0/files/content" \
 
 ### 新しいバージョンのアップロード（既存のファイルの更新）
 
+新しいバージョンでも、名前を変えないように、今の名前を取得して `attributes` の `name` に書く。
+Box の文書は、名前を変えるのは `attributes` の `name` だけと書き、`file` の部分の `filename` の扱いを書いていないからである（<https://developer.box.com/reference/post-files-id-content/>）。
+パスの書き方は、上の新規ファイルと同じである。
+
 ```bash
+set -o pipefail
 UPLOAD_FILE='<アップロードするファイルの絶対パス>'
-curl -sSf -X POST "https://upload.box.com/api/2.0/files/<file-id>/content" \
-  -H @"$BOX_AUTH" \
-  -F 'file=@-;filename=upload' <"$UPLOAD_FILE" | jq '.entries[0] | {id, name, modified_at}'
+if FILE_NAME="$(curl -sSf "https://api.box.com/2.0/files/<file-id>?fields=name" -H @"$BOX_AUTH" | jq -er .name)"; then
+  curl -sSf -X POST "https://upload.box.com/api/2.0/files/<file-id>/content" \
+    -H @"$BOX_AUTH" \
+    --form-string "attributes=$(jq -cn --arg name "$FILE_NAME" '{name: $name}')" \
+    -F 'file=@-;filename=upload' <"$UPLOAD_FILE" | jq '.entries[0] | {id, name, modified_at}'
+else
+  echo "box: 今の名前を取得できない" >&2
+  false
+fi
 ```
 
 ## 注意
