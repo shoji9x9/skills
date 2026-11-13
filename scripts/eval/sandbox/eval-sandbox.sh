@@ -291,20 +291,19 @@ add_root() { # $1 = real directory, $2 = the home_allow prefix it stands for
 	done
 	return 0
 }
-root_candidates=()
-for entry in "${home_prefixes[@]}"; do
-	prefix="${entry%%|*}" var="${entry#*|}"
-	if [ -n "${var}" ] && [ -n "${!var:-}" ]; then
-		root_candidates+=("$(realpath -m -- "${!var}")|${prefix}")
-	fi
-	[ ! -e "${home}/${prefix}" ] || root_candidates+=("$(realpath -m -- "${home}/${prefix}")|${prefix}")
-done
-# Outermost first: a directory comes before everything inside it when the paths are
-# ordered by length. Picked in bash, not with sort: a failed pipeline behind a process
-# substitution would leave nothing to hide without stopping the run. A function, so
-# the loop's variables stay local.
+# Collects the roots, then handles them outermost first: a directory comes before
+# everything inside it when the paths are ordered by length. Picked in bash, not with
+# sort: a failed pipeline behind a process substitution would leave nothing to hide
+# without stopping the run. A function, so its variables stay local.
 add_roots_outermost_first() {
-	local best best_r i r entry prefix
+	local root_candidates=() entry prefix var best best_r i r
+	for entry in "${home_prefixes[@]}"; do
+		prefix="${entry%%|*}" var="${entry#*|}"
+		if [ -n "${var}" ] && [ -n "${!var:-}" ]; then
+			root_candidates+=("$(realpath -m -- "${!var}")|${prefix}")
+		fi
+		[ ! -e "${home}/${prefix}" ] || root_candidates+=("$(realpath -m -- "${home}/${prefix}")|${prefix}")
+	done
 	while [ "${#root_candidates[@]}" -gt 0 ]; do
 		best=""
 		for i in "${!root_candidates[@]}"; do
