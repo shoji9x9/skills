@@ -24,7 +24,7 @@ printf 'worktree %s\\n' ${worktrees.map((w) => `"${w}"`).join(" ")}
   writeFileSync(
     join(fakeBin, "bwrap"),
     `#!/usr/bin/env bash
-printf '%s\\n' "$@" >"${capturedArgs}"
+${FAKE_BWRAP_PROBE}printf '%s\\n' "$@" >"${capturedArgs}"
 `,
     { mode: 0o755 },
   );
@@ -46,8 +46,51 @@ printf '%s\\n' "$@" >"${capturedArgs}"
 // | ホストの ~/.claude  | 印が無い / この検査の印 / 別の内容の同名ファイル                   |
 // | cwd                 | /tmp の下 / /tmp の外                                              |
 // | ホストの settings.json | 無い / 許可リストの外のキーを含む / JSON でない                 |
+// | ホストの $HOME      | 許可リストの場所が在る / 無い、許可リストの外に認証情報が在る / 無い |
+// | runtime dir         | 中身が在る / 空 / XDG_RUNTIME_DIR が実在しない                     |
+// | 起動の前の確認      | CLI が見える / 隠れる（PATH のディレクトリは確かめない）              |
+//
+// bwrap のスタブは呼び出しごとに引数を追記する（--verify は 2 回呼ぶ）。
+// 起動の前の確認（CLI が見えるか）の呼び出しは記録せず、FAKE_BWRAP_HIDDEN（改行区切り）に
+// 挙げたパスを除いて「見える」と答える。何が隠れるかを測るのは、本物の bwrap のテストである。
+// FAKE_BWRAP_MODE=exec-credentials では、--verify の stage 5 の呼び出しだけを、隠さずにホストの上で実行する。
+// --setenv と --unsetenv は反映し、FAKE_BWRAP_KEEP_ENV=1 なら --unsetenv を反映しない。
+const FAKE_BWRAP_EXEC = `if [ "\${FAKE_BWRAP_MODE:-}" = exec-credentials ]; then
+  envs=() unsets=() cmd=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+    --setenv) envs+=("$2=$3"); shift 3 ;;
+    --unsetenv) unsets+=("$2"); shift 2 ;;
+    --) shift; cmd=("$@"); break ;;
+    *) shift ;;
+    esac
+  done
+  case " \${envs[*]} " in *" HOME_LISTS="*) ;; *) exit 0 ;; esac
+  # ホストの /run/user/<uid> の中身で結果が変わらないよう、runtime dir の一覧をテストの下に絞る。
+  if [ -n "\${FAKE_BWRAP_RUNTIME_UNDER:-}" ]; then
+    for e in "\${envs[@]}"; do case "$e" in HOME_LISTS=*) lists="\${e#HOME_LISTS=}" ;; esac; done
+    while IFS= read -r -d '' l; do
+      case "\${l#*|}" in "$FAKE_BWRAP_RUNTIME_UNDER"/*) printf '%s\\0' "$l" ;; esac
+    done <"$lists/runtime" >"$lists/runtime.kept"
+    mv -- "$lists/runtime.kept" "$lists/runtime"
+  fi
+  if [ "\${FAKE_BWRAP_KEEP_ENV:-}" != 1 ]; then for u in "\${unsets[@]}"; do unset "$u"; done; fi
+  exec env "\${envs[@]}" "\${cmd[@]}"
+fi
+`;
+const FAKE_BWRAP_PROBE = `case " $* " in *" EVAL_SANDBOX_PROBE 1 "*)
+  [ -z "\${FAKE_BWRAP_PROBE_ARGS:-}" ] || printf '%s\\n' "$@" >"$FAKE_BWRAP_PROBE_ARGS"
+  after=""
+  for a in "$@"; do
+    if [ -n "$after" ] && ! printf '%s\\n' "\${FAKE_BWRAP_HIDDEN:-}" | grep -qxF -- "$a"; then printf '%s\\0' "$a"; fi
+    [ "$a" != _ ] || after=1
+  done
+  exit 0 ;;
+esac
+`;
 const FAKE_BWRAP = `#!/usr/bin/env bash
-printf '%s\\n' "$@" >"$FAKE_BWRAP_ARGS"
+${FAKE_BWRAP_PROBE}printf '%s\\n' "$@" >>"$FAKE_BWRAP_ARGS"
+${FAKE_BWRAP_EXEC}
 # settings.json に bind されたコピーを、終了時に消される前に残す。
 if [ -n "\${FAKE_BWRAP_SETTINGS:-}" ]; then
   prev2="" prev1=""
@@ -70,7 +113,43 @@ export type SandboxOptions = {
   bwrap?: boolean;
   env?: Record<string, string>;
   cwd?: string;
+  /** 使い捨ての $HOME に置くファイル（$HOME からの相対パス → 内容）。 */
+  homeFiles?: Record<string, string>;
+  /** runtime dir に置くファイル名。省くと、XDG_RUNTIME_DIR を実在しないパスにする（ホストの runtime dir を読ませない）。 */
+  runtimeEntries?: string[];
+  /** スクリプトのコピー（とそのリポジトリ）を $HOME の下に置く。 */
+  repoUnderHome?: boolean;
+  /** PATH の先頭に足す、$HOME からの相対ディレクトリ。中にツールを 1 つ置く。 */
+  pathHomeDirs?: string[];
+  /** 起動の前の確認で、CLI を隠れていると答える。 */
+  hiddenCli?: boolean;
 };
+
+/** PATH の先頭に足すディレクトリを作ってツールを 1 つ置き、PATH の接頭辞を返す。 */
+function homePathPrefix(home: string, dirs: string[]) {
+  for (const dir of dirs) {
+    mkdirSync(join(home, dir), { recursive: true });
+    writeFileSync(join(home, dir, "tool"), "", { mode: 0o755 });
+  }
+  return dirs.map((dir) => `${join(home, dir)}:`).join("");
+}
+
+/** 使い捨ての $HOME にファイルを置く。 */
+export function writeHomeFiles(home: string, files: Record<string, string>) {
+  for (const [relative, content] of Object.entries(files)) {
+    mkdirSync(dirname(join(home, relative)), { recursive: true });
+    writeFileSync(join(home, relative), content);
+  }
+}
+
+/** runtime dir を作り、そのパスを返す。 */
+function makeRuntimeDir(root: string, entries: string[] | undefined) {
+  const runtimeDir = join(root, "run");
+  if (entries === undefined) return runtimeDir;
+  mkdirSync(runtimeDir);
+  for (const entry of entries) writeFileSync(join(runtimeDir, entry), "");
+  return runtimeDir;
+}
 
 /** CLI・bwrap・getent のスタブを bin に置く。 */
 function writeSandboxFakeBin(bin: string, cli: string, options: SandboxOptions) {
@@ -108,15 +187,45 @@ function readBwrapArgs(capturedArgs: string) {
   }
 }
 
+/** スクリプトを起動する環境変数を作る。 */
+function sandboxEnv(
+  paths: Record<
+    "root" | "home" | "bin" | "cli" | "runtimeDir" | "capturedArgs" | "probeArgs",
+    string
+  >,
+  options: SandboxOptions,
+) {
+  const { root, home, bin, cli } = paths;
+  const env: Record<string, string> = {
+    ...process.env,
+    HOME: home,
+    PATH: `${homePathPrefix(home, options.pathHomeDirs ?? [])}${sandboxPath(bin, options)}`,
+    EVAL_SANDBOX_CLI: cli === "" ? "absent-cli" : cli,
+    FAKE_BWRAP_ARGS: paths.capturedArgs,
+    XDG_RUNTIME_DIR: paths.runtimeDir,
+    FAKE_BWRAP_RUNTIME_UNDER: root,
+    FAKE_BWRAP_PROBE_ARGS: paths.probeArgs,
+    FAKE_BWRAP_HIDDEN: options.hiddenCli === true ? join(bin, cli) : "",
+    ...options.env,
+  };
+  if (options.vendor !== undefined) env.EVAL_SANDBOX_VENDOR = options.vendor;
+  else delete env.EVAL_SANDBOX_VENDOR;
+  delete env.CODEX_HOME;
+  return env;
+}
+
 export function sandbox(args: string[], options: SandboxOptions = {}) {
   const root = makeTempDir("eval-sandbox-preflight-");
-  const repo = join(root, "repo");
   const home = join(root, "home");
+  const repo = options.repoUnderHome === true ? join(home, "projects", "repo") : join(root, "repo");
   const bin = join(root, "bin");
   const copiedScript = join(repo, "scripts", "eval", "sandbox", "eval-sandbox.sh");
   const capturedArgs = join(root, "bwrap-args.txt");
+  const probeArgs = join(root, "bwrap-probe-args.txt");
   mkdirSync(dirname(copiedScript), { recursive: true });
   mkdirSync(join(home, ".claude"), { recursive: true });
+  writeHomeFiles(home, options.homeFiles ?? {});
+  const runtimeDir = makeRuntimeDir(root, options.runtimeEntries);
   mkdirSync(bin);
   // 内容を変えずにコピーする（同じ内容のスクリプトは、カバレッジで原本の実行として数える）。
   writeFileSync(copiedScript, readFileSync(sourceScript), { mode: 0o755 });
@@ -124,17 +233,7 @@ export function sandbox(args: string[], options: SandboxOptions = {}) {
   symlinkSync(sanitizeScript, join(dirname(copiedScript), "sanitize-claude-settings.ts"));
   const cli = options.cli ?? "claude";
   writeSandboxFakeBin(bin, cli, options);
-  const env: Record<string, string> = {
-    ...process.env,
-    HOME: home,
-    PATH: sandboxPath(bin, options),
-    EVAL_SANDBOX_CLI: cli === "" ? "absent-cli" : cli,
-    FAKE_BWRAP_ARGS: capturedArgs,
-    ...options.env,
-  };
-  if (options.vendor !== undefined) env.EVAL_SANDBOX_VENDOR = options.vendor;
-  else delete env.EVAL_SANDBOX_VENDOR;
-  delete env.CODEX_HOME;
+  const env = sandboxEnv({ root, home, bin, cli, runtimeDir, capturedArgs, probeArgs }, options);
   const result = spawnSync("/bin/bash", [copiedScript, ...args], {
     cwd: options.cwd ?? root,
     encoding: "utf8",
@@ -142,5 +241,31 @@ export function sandbox(args: string[], options: SandboxOptions = {}) {
     stdio: ["ignore", "pipe", "pipe"],
     timeout: CHILD_TIMEOUT_MS,
   });
-  return { result, bwrapArgs: readBwrapArgs(capturedArgs), home, root };
+  return {
+    result,
+    bwrapArgs: readBwrapArgs(capturedArgs),
+    probeArgs: readBwrapArgs(probeArgs),
+    home,
+    root,
+    runtimeDir,
+    bin,
+  };
 }
+
+/** 許可リストの外に置く、認証情報に見立てた目印。 */
+export const credentialFiles = {
+  ".config/box/refresh_token": "MARKER-BOX\n",
+  ".config/gh/hosts.yml": "MARKER-GH\n",
+  ".ssh/id_ed25519": "MARKER-SSH\n",
+  ".aws/credentials": "MARKER-AWS\n",
+  ".local/share/keyrings/login.keyring": "MARKER-KEYRING\n",
+  ".unlisted-tool/token": "MARKER-UNLISTED\n",
+  ".config/git/credentials": "MARKER-GIT-CREDENTIALS\n",
+};
+/** 許可リストの中に置く目印。 */
+export const allowedFiles = {
+  ".config/mise/config.toml": "MARKER-MISE\n",
+  ".gitconfig": "[user]\n\tname = test\n",
+  ".config/git/ignore": "*.swp\n",
+  ".local/share/mise/installs/marker": "MARKER-MISE-INSTALL\n",
+};

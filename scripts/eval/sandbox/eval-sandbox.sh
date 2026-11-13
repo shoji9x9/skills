@@ -22,6 +22,15 @@
 # disposable project: one run rewrote ~/.claude/skills/skill-creator (a vendored
 # skill) while "applying" a learning. Only the disposable project stays writable.
 #
+# And it hides the user's credentials (Issue #1008). $HOME starts as an empty
+# tmpfs and only the places the CLIs and tools need to start are bound back
+# (home_allow below). Hiding an enumerated list of credential stores was rejected:
+# a run could read ~/.config/box/refresh_token, and a list cannot detect the next
+# tool's store. With the allowlist, a forgotten place surfaces as a start-up
+# failure instead of a token in the model input and in raw/. The keyring daemon
+# serves ~/.local/share/keyrings over the session bus, so the runtime dir that holds
+# the bus and the agent sockets is hidden too.
+#
 # USAGE (as the runner override; the wrapper runs the real CLI inside the sandbox):
 #   SKILL_EVAL_RUNNER="$PWD/scripts/eval/sandbox/eval-sandbox.sh" scripts/eval/run/run-skill-eval.sh --config without_skill ...
 #   scripts/eval/sandbox/eval-sandbox.sh --verify '<marker>' ...   # prove the blocking works first
@@ -32,7 +41,9 @@
 # can be silently unsearched — and (3) $HOME rejects writes, a writable path still
 # accepts them (the positive control — without it, "write failed" could just mean the
 # probe itself is broken), and the spots deliberately left writable under $HOME do not
-# reach the host. Stage 1 alone has missed routes before.
+# reach the host. Stage 1 alone has missed routes before. Stage 4 checks the network,
+# and (5) every host path under $HOME outside the allowlist is absent while every
+# path bound back is readable, and the runtime dir and agent socket variables are gone.
 #
 # Repo-internal tooling; not bundled in any distributed skill.
 set -euo pipefail
@@ -41,7 +52,9 @@ self="$(readlink -f "$0")"
 # <repo>/scripts/eval/sandbox/eval-sandbox.sh -> <repo>
 repo="$(dirname "$(dirname "$(dirname "$(dirname "${self}")")")")"
 repo_parent="$(dirname "${repo}")"
-home="${HOME:?HOME must be set}"
+# Resolved: bwrap cannot mount a tmpfs onto a symlinked $HOME, and paths resolved with
+# readlink -f (the CLI) must be spelled the same way as the mount targets.
+home="$(realpath -m -- "${HOME:?HOME must be set}")"
 cli="${EVAL_SANDBOX_CLI:-claude}"
 vendor="${EVAL_SANDBOX_VENDOR:-}"
 if [ -z "${vendor}" ]; then
@@ -90,30 +103,23 @@ command -v bwrap >/dev/null 2>&1 || {
 args=(--dev-bind / / --die-with-parent)
 [ "${vendor}" = "codex" ] && args+=(--setenv CODEX_HOME "${codex_home}")
 
-# 0. $HOME read-only, so nothing the run does escapes into the user's environment.
-#    This must precede every mount under $HOME: bwrap applies operations in order,
-#    and the tmpfs mounts below are what make the few needed spots writable again.
-args+=(--ro-bind "${home}" "${home}")
-# The CLI writes its own state to ~/.claude.json at startup, so give it a throwaway
-# one. It must NOT be a copy of the real file: that file records per-project history
-# and allowed tools — `--verify` caught a skill's own hook script name in there — plus
-# account identifiers. `{}` is the minimum the CLI accepts (an empty file aborts as
-# "corrupted"). `mktemp` lands in /tmp, resolved here on the host before the /tmp
-# tmpfs below hides it inside the sandbox.
 scratch_state="$(mktemp)"
 scratch_settings=""
 scratch_etc=""
 host_etc_mount=""
+home_lists=""
+probe_out=""
 # shellcheck disable=SC2329 # invoked by the EXIT trap below
 cleanup() {
 	rm -f -- "${scratch_state}"
 	[ -z "${scratch_settings}" ] || rm -f -- "${scratch_settings}"
+	[ -z "${home_lists}" ] || rm -rf -- "${home_lists}"
+	[ -z "${probe_out}" ] || rm -f -- "${probe_out}"
 	[ -z "${scratch_etc}" ] || rm -rf -- "${scratch_etc}"
 	[ -z "${host_etc_mount}" ] || rmdir -- "${host_etc_mount}" 2>/dev/null || true
 }
 trap cleanup EXIT
 printf '{}\n' >"${scratch_state}"
-args+=(--bind "${scratch_state}" "${home}/.claude.json")
 
 # 1. work tree: hide this repo and every sibling project (installed copies of the
 #    skill under .agents/.claude carry older revisions — a worse-than-useless baseline).
@@ -167,6 +173,48 @@ esac
 for d in /mnt/wslg /mnt/c; do
 	[ -e "${d}" ] && args+=(--tmpfs "${d}")
 done
+
+# 0. $HOME: an empty tmpfs with only the start-up allowlist bound back read-only.
+#    It comes after groups 1-3 so that it wins over them wherever they overlap: a
+#    work tree under $HOME is covered again, and a $HOME under /tmp (the tests) or
+#    under the disposable project is replaced rather than exposed by the /tmp bind.
+#    Every later mount under $HOME needs this tmpfs to create its mount point, and
+#    the --remount-ro at the end (after the last mount under $HOME) makes it
+#    read-only so nothing the run does escapes into the user's environment.
+#    The disposable project is never under $HOME (run-skill-eval.sh makes it under
+#    /tmp); a cwd under $HOME is hidden here and bwrap fails on --chdir, visibly.
+args+=(--tmpfs "${home}")
+# What the CLIs and tools read to start, measured by hiding everything else and
+# starting each of them (Issue #1008). Credentials are deliberately absent:
+# ~/.config/box, ~/.config/gh, ~/.ssh, ~/.aws, ~/.gnupg, ~/.docker,
+# ~/.local/share/keyrings and the rest of $HOME stay hidden without being named.
+# Each entry is bound only when it exists on the host.
+#   .local/bin           CLI launchers (claude, codex, mise)
+#   .local/share/claude  the Claude Code release the launcher points at
+#   mise (4 entries)     mise, its global config and the node/pnpm/python it installs
+#   pnpm (3 entries)     the package store, so an offline install still works
+#   .cache/ms-playwright, .cache/puppeteer  browsers for browser-driven skills
+#   .gitconfig, .config/git/{config,ignore,attributes}  the commit identity and global
+#                        ignore. Not the whole .config/git: git credential-store keeps
+#                        its tokens in .config/git/credentials.
+home_allow=(
+	.local/bin
+	.local/share/claude
+	.local/share/mise .config/mise .local/state/mise .cache/mise
+	.local/share/pnpm .local/state/pnpm .cache/pnpm
+	.cache/ms-playwright .cache/puppeteer
+	.gitconfig .config/git/config .config/git/ignore .config/git/attributes
+)
+for rel in "${home_allow[@]}"; do
+	[ -e "${home}/${rel}" ] && args+=(--ro-bind "${home}/${rel}" "${home}/${rel}")
+done
+# The CLI writes its own state to ~/.claude.json at startup, so give it a throwaway
+# one. It must NOT be a copy of the real file: that file records per-project history
+# and allowed tools — `--verify` caught a skill's own hook script name in there — plus
+# account identifiers. `{}` is the minimum the CLI accepts (an empty file aborts as
+# "corrupted"). `mktemp` lands in /tmp on the host; bwrap reads bind sources from
+# the host, so the /tmp tmpfs above does not hide it.
+args+=(--bind "${scratch_state}" "${home}/.claude.json")
 
 # 4. agent records: conversation transcripts, memory, plans, task state and history
 #    restate skill content verbatim, and ~/.claude/skills holds globally installed
@@ -312,6 +360,53 @@ fi
 
 [ -n "${scratch_etc}" ] && args+=(--ro-bind /etc "${host_etc_mount}" --ro-bind "${scratch_etc}" /etc)
 
+# Credentials served by agents rather than read from files. The runtime dir holds the
+# session bus, through which the keyring daemon hands out what ~/.local/share/keyrings
+# stores, and the ssh-agent and gpg-agent sockets. Measured: the Secret Service was
+# reachable from inside before this. The tmpfs keeps the dir writable for tools that
+# put locks there (pnpm). Neither CLI needs the bus: Claude Code reads
+# ~/.claude/.credentials.json and Codex reads auth.json.
+# Residual gap: an abstract-namespace socket is not a file, and the network namespace
+# is shared, so a bus that listens only on one stays reachable.
+# XDG_RUNTIME_DIR and /run/user/<uid> can differ (WSLg points the variable elsewhere
+# while the systemd user bus stays under /run/user), so both are hidden.
+runtime_dirs=()
+for d in "${XDG_RUNTIME_DIR:-}" "/run/user/$(id -u)"; do
+	[ -n "${d}" ] && [ -d "${d}" ] || continue
+	case " ${runtime_dirs[*]} " in *" ${d} "*) continue ;; esac
+	runtime_dirs+=("${d}")
+	args+=(--tmpfs "${d}")
+done
+args+=(--unsetenv DBUS_SESSION_BUS_ADDRESS --unsetenv SSH_AUTH_SOCK --unsetenv GPG_AGENT_INFO)
+
+# Last mount under $HOME is above; from here on $HOME is read-only (step 0).
+args+=(--remount-ro "${home}")
+
+# What decides a path inside the sandbox is the LAST mount whose target is the path or
+# one of its parents (bwrap applies them in order). The mounts are read from args once,
+# here; --verify stage 5 asks covering_mount which of its targets put a path back.
+mount_flags=()
+mount_targets=()
+for i in "${!args[@]}"; do
+	case "${args[i]}" in
+	--bind | --ro-bind | --dev-bind) mount_flags+=("${args[i]}") mount_targets+=("${args[i + 2]}") ;;
+	--tmpfs) mount_flags+=("${args[i]}") mount_targets+=("${args[i + 1]}") ;;
+	esac
+done
+# Print the index (into mount_flags / mount_targets) of the mount that decides $1.
+covering_mount() {
+	local p="$1" i t found=""
+	for i in "${!mount_targets[@]}"; do
+		t="${mount_targets[i]}"
+		if [ "${t}" = / ]; then
+			found="${i}"
+			continue
+		fi
+		case "${p}" in "${t}" | "${t}"/*) found="${i}" ;; esac
+	done
+	printf '%s\n' "${found}"
+}
+
 if [ "${1:-}" = "--verify" ]; then
 	shift
 	[ "$#" -ge 1 ] || {
@@ -338,7 +433,7 @@ if [ "${1:-}" = "--verify" ]; then
 	# visible (stderr is discarded, so the unreadable paths themselves are not listed).
 	# shellcheck disable=SC2016 # deliberate: $HOME / $1 / $m must expand inside the sandboxed shell, not here
 	script='set -u -o pipefail; rc=0
-printf "stage1 repo listing: "; if ls -A "$1" 2>/dev/null | grep -q .; then echo "REACHABLE (FAIL)"; rc=1; else echo "empty/absent (ok)"; fi
+printf "stage1 repo listing: "; if [ -n "$(ls -A "$1" 2>/dev/null)" ]; then echo "REACHABLE (FAIL)"; rc=1; else echo "empty/absent (ok)"; fi
 shift
 excludes="--exclude-dir=.git --exclude-dir=node_modules --exclude-dir=_cacache --exclude-dir=versions --exclude-dir=mise"
 roots=("$HOME" /tmp)
@@ -407,12 +502,91 @@ if timeout 30 git clone -q --depth 1 "$CLONE_PROBE_URL" /tmp/.eval-sandbox-clone
   echo "CLONE SUCCEEDED (FAIL)"; rm -rf /tmp/.eval-sandbox-clone-probe; rc=1
 else echo "blocked (ok)"; fi
 exit $rc'
+	# Stage 5: credentials, in a bwrap call of its own so the tests can run this script
+	# on the host (where nothing is hidden) and see each FAIL branch fire without bwrap.
+	# Judged by a pair again. The positive control is that every path bound back under
+	# $HOME is readable; without it, "absent" could just mean the probe looks in the
+	# wrong place. The paths are printed, never their content.
+	# shellcheck disable=SC2016 # deliberate: the variables expand inside the sandboxed shell
+	credentials_script='set -u -o pipefail; rc=0
+printf "stage5 home allowlist positive control: "
+shown=0; unread=()
+while IFS= read -r -d "" p; do shown=$((shown+1)); [ -r "$p" ] || unread+=("$p"); done <"$HOME_LISTS/shown"
+if [ "$shown" -eq 0 ]; then echo "NOTHING BOUND (FAIL: cannot prove the probe sees $HOME)"; rc=1
+elif [ "${#unread[@]}" -gt 0 ]; then echo "NOT READABLE (FAIL)"; printf "    %s\n" "${unread[@]}"; rc=1
+else echo "$shown bound paths readable (ok)"; fi
+printf "stage5 home outside the allowlist: "
+hidden=0; seen=()
+while IFS= read -r -d "" p; do hidden=$((hidden+1)); if [ -e "$p" ] || [ -L "$p" ]; then seen+=("$p"); fi; done <"$HOME_LISTS/hidden"
+if [ "$hidden" -eq 0 ]; then echo "NOTHING TO CHECK (FAIL: no host path lies outside the allowlist, so hiding is unproven)"; rc=1
+elif [ "${#seen[@]}" -gt 0 ]; then echo "VISIBLE (FAIL)"; printf "    %s\n" "${seen[@]}"; rc=1
+else echo "$hidden host paths absent (ok)"; fi
+# Each line is "<entries on the host>|<dir>". `ls | grep -q` is not used: under
+# pipefail, grep exiting on the first line makes ls die of SIGPIPE in a dir with many
+# entries, and the pipeline then reads as "empty".
+runtime_lines=0
+while IFS= read -r -d "" l; do
+  runtime_lines=$((runtime_lines+1)); n="${l%%|*}"; d="${l#*|}"
+  printf "stage5 runtime dir %s: " "$d"
+  if [ "$n" -eq 0 ]; then echo "no entries on the host (nothing to hide)"
+  elif [ -n "$(ls -A "$d" 2>/dev/null)" ]; then echo "VISIBLE (FAIL)"; rc=1
+  else echo "hidden (ok; $n entries on the host)"; fi
+done <"$HOME_LISTS/runtime"
+[ "$runtime_lines" -gt 0 ] || echo "stage5 runtime dir: none on the host (nothing to hide)"
+printf "stage5 agent socket variables: "
+set_vars=""
+for v in DBUS_SESSION_BUS_ADDRESS SSH_AUTH_SOCK GPG_AGENT_INFO; do [ -z "${!v+set}" ] || set_vars="$set_vars $v"; done
+if [ -n "$set_vars" ]; then echo "SET (FAIL):$set_vars"; rc=1; else echo "unset (ok)"; fi
+exit $rc'
+	# Stage 5 inputs, listed here on the host (paths only, NUL-separated). "shown" is
+	# every bind target under $HOME. "hidden" is every host path under $HOME that no
+	# mount puts back: the walk descends only into directories that hold a mount
+	# target, so a store that nobody named here is still checked.
+	# Under /tmp, not TMPDIR: a TMPDIR under $HOME would put the bind target inside the
+	# read-only $HOME, where bwrap cannot create the mount point.
+	home_lists="$(mktemp -d /tmp/eval-sandbox-home-lists-XXXXXX)"
+	: >"${home_lists}/shown"
+	: >"${home_lists}/hidden"
+	home_targets=()
+	for i in "${!mount_targets[@]}"; do
+		t="${mount_targets[i]}"
+		case "${t}" in "${home}"/*) ;; *) continue ;; esac
+		# A mount that a later one covers (a work tree under $HOME, placed before the
+		# $HOME tmpfs) puts nothing back, so its path stays in "hidden".
+		[ "$(covering_mount "${t}")" = "${i}" ] || continue
+		home_targets+=("${t}")
+		[ "${mount_flags[i]}" = --tmpfs ] || printf '%s\0' "${t}" >>"${home_lists}/shown"
+	done
+	walk_home() {
+		local e t below
+		for e in "$1"/* "$1"/.[!.]* "$1"/..?*; do
+			[ -e "${e}" ] || [ -L "${e}" ] || continue
+			below=""
+			for t in "${home_targets[@]}"; do
+				[ "${e}" = "${t}" ] && continue 2
+				case "${t}" in "${e}"/*) below=1 ;; esac
+			done
+			if [ -n "${below}" ] && [ -d "${e}" ] && [ ! -L "${e}" ]; then
+				walk_home "${e}"
+			else
+				printf '%s\0' "${e}" >>"${home_lists}/hidden"
+			fi
+		done
+	}
+	walk_home "${home}"
+	: >"${home_lists}/runtime"
+	for d in "${runtime_dirs[@]}"; do
+		printf '%s|%s\0' "$(find "${d}" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l)" "${d}" >>"${home_lists}/runtime"
+	done
 	rc=0
 	escape_sentinel="SENTINEL-EVAL-SANDBOX-ESCAPE"
 	clone_probe_url="${EVAL_SANDBOX_CLONE_PROBE_URL:-https://github.com/shoji9x9/skills}"
 	bwrap "${args[@]}" --setenv SENTINEL "${escape_sentinel}" \
 		--setenv ALLOW_HOSTS "${net_allow}" --setenv CLONE_PROBE_URL "${clone_probe_url}" \
 		--chdir / -- /bin/bash -c "${script}" _ "${repo}" "${markers[@]}" || rc=$?
+	bwrap "${args[@]}" --ro-bind "${home_lists}" "${home_lists}" \
+		--setenv HOME_LISTS "${home_lists}" \
+		--chdir / -- /bin/bash -c "${credentials_script}" || rc=$?
 	# Negative half of the containment check: the probe planted inside must not exist
 	# on the host. A missing probe here only counts once the inner half reported
 	# "probe planted" (it sets rc=1 otherwise), so "absent" cannot mean "never written".
@@ -443,6 +617,27 @@ fi
 # CLI's arguments (`-p <prompt> --output-format json ...`), so the binary has to be
 # prepended here. EVAL_SANDBOX_CLI allows a stub for smoke tests.
 # Not `exec`: the EXIT trap has to survive the run to delete the throwaway state file.
+# A CLI that the sandbox hides makes bwrap fail with a bare exec error, so check it first
+# and say what to change. Ask the sandbox what it shows instead of predicting it from
+# the mounts: spelling (a symlinked $HOME), mount order (a later tmpfs over an earlier
+# bind) and links in the allowlist all decide the answer. One short bwrap call with the
+# same args looks at the CLI.
+# PATH is not checked: a tool hidden from the run fails only where the run calls it.
+probe_out="$(mktemp /tmp/eval-sandbox-probe-XXXXXX)"
+# shellcheck disable=SC2016 # deliberate: $1 expands inside the sandboxed shell
+probe_script='if [ -f "$1" ]; then printf "%s\0" "$1"; fi'
+bwrap "${args[@]}" --setenv EVAL_SANDBOX_PROBE 1 --chdir / -- /bin/bash -c "${probe_script}" _ "${cli_real}" \
+	>"${probe_out}" </dev/null || {
+	echo "eval-sandbox: the sandbox did not start for the start-up check of the CLI" >&2
+	exit 3
+}
+shown=""
+while IFS= read -r -d '' p; do [ "${p}" != "${cli_real}" ] || shown=1; done <"${probe_out}"
+[ -n "${shown}" ] || {
+	echo "eval-sandbox: the sandbox hides the CLI: ${cli_real}. Install it where the sandbox binds it back" \
+		"(home_allow in ${self} for a plain path under \$HOME), or bind its directory back there." >&2
+	exit 3
+}
 rc=0
 bwrap "${args[@]}" --chdir "${PWD}" -- "${cli_real}" "$@" || rc=$?
 exit "${rc}"
