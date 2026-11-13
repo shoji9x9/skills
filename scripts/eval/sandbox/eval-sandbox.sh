@@ -563,6 +563,8 @@ fi
 # The runtime dirs are real paths already, and the tmpfs goes on them.
 refuse_covering_runtime_dirs() {
 	local i t p real d what targets=("${PWD}")
+	# Nothing to compare with: skip resolving every target.
+	[ "${#runtime_dirs[@]}" -gt 0 ] || return 0
 	for i in "${!args[@]}"; do
 		case "${args[i]}" in --bind | --ro-bind | --dev-bind) targets+=("${args[i + 2]}") ;; esac
 	done
@@ -820,13 +822,15 @@ elif [ "${#seen[@]}" -gt 0 ]; then echo "VISIBLE (FAIL)"; printf "    %s\n" "${s
 else echo "$hidden host paths absent (ok)"; fi
 # Each line is "<entries on the host>|<dir>". `ls | grep -q` is not used: under
 # pipefail, grep exiting on the first line makes ls die of SIGPIPE in a dir with many
-# entries, and the pipeline then reads as "empty".
+# entries, and the pipeline then reads as "empty". The mount point of $HOME_LISTS is not
+# counted: this call binds it after the tmpfs of the runtime dirs, and a runtime dir with no
+# mount target under it may be /tmp, where the lists live.
 runtime_lines=0
 while IFS= read -r -d "" l; do
   runtime_lines=$((runtime_lines+1)); n="${l%%|*}"; d="${l#*|}"
   printf "stage5 runtime dir %s: " "$d"
   if [ "$n" -eq 0 ]; then echo "no entries on the host (nothing to hide)"
-  elif [ -n "$(ls -A "$d" 2>/dev/null)" ]; then echo "VISIBLE (FAIL)"; rc=1
+  elif [ -n "$(find "$d" -mindepth 1 -maxdepth 1 ! -path "$HOME_LISTS" -print -quit 2>/dev/null)" ]; then echo "VISIBLE (FAIL)"; rc=1
   else echo "hidden (ok; $n entries on the host)"; fi
 done <"$HOME_LISTS/runtime"
 [ "$runtime_lines" -gt 0 ] || echo "stage5 runtime dir: none on the host (nothing to hide)"

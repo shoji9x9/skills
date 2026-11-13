@@ -54,7 +54,14 @@ const homeOutsideTmp = "/nonexistent-eval-sandbox-home";
 
 describe("runtime dir が先に置いたマウントの宛先か cwd を覆う構成", () => {
   // 各行は、runtime dir と cwd を決め、止まるときの理由を返す。
-  const covering: { label: string; place: Place; message: string; options?: SandboxOptions }[] = [
+  // path は、止めた理由の後に続く宛先のパスの一部（テストごとに一時ディレクトリが変わる部分を除く）。
+  const covering: {
+    label: string;
+    place: Place;
+    message: string;
+    path?: string;
+    options?: SandboxOptions;
+  }[] = [
     {
       label: "$HOME と同じとき",
       place: ({ home }) => ({ run: home, cwd: "/" }),
@@ -105,7 +112,8 @@ describe("runtime dir が先に置いたマウントの宛先か cwd を覆う�
         writeFileSync(join(run, "codex", "auth.json"), "{}\n");
         return { run, cwd: "/", env: { CODEX_HOME: join(run, "codex") } };
       },
-      message: "/codex/auth.json",
+      message: "(the runtime dir) holds the mount target ",
+      path: "/codex/auth.json (",
       options: { cli: "codex" },
     },
     {
@@ -140,10 +148,11 @@ describe("runtime dir が先に置いたマウントの宛先か cwd を覆う�
 
   test.each(modes.flatMap(({ mode, args }) => covering.map((row) => ({ mode, args, ...row }))))(
     "$mode: runtime dir が $label、bwrap を起動する前に理由を出して exit 3 で止める",
-    ({ args, place, message, options }) => {
+    ({ args, place, message, path, options }) => {
       const { result, bwrapArgs } = runPlace(args, place, options);
       expect(result.status, result.stderr).toBe(3);
       expect(result.stderr).toContain(message);
+      if (path !== undefined) expect(result.stderr).toContain(path);
       expect(bwrapArgs).toBeNull();
     },
   );
