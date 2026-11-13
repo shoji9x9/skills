@@ -88,7 +88,8 @@
         "$HOME の外の設定の場所 先に見つけた場所の中にリンクした許可リストの祖先も、その中の許可リストの場所を戻す",
         "$HOME の外の設定の場所 XDG の場所が互いを含むとき（XDG_CONFIG_HOME が内側）、外側だけを tmpfs で隠し、両方の許可リストの場所を戻す",
         "$HOME の外の設定の場所 XDG の場所が互いを含むとき（XDG_CACHE_HOME が内側）、外側だけを tmpfs で隠し、両方の許可リストの場所を戻す",
-        "$HOME の外の設定の場所 空白を含むパスの後ろの部分が別の場所と同じ字面でも、別の場所として両方を隠す"
+        "$HOME の外の設定の場所 空白を含むパスの後ろの部分が別の場所と同じ字面でも、別の場所として両方を隠す",
+        "$HOME の外の設定の場所 XDG_CONFIG_HOME と ~/.config のリンクが同じ場所を指しても、許可リストの場所は 1 回だけ戻す"
       ]
     },
     {
@@ -106,8 +107,8 @@
       "id": "xdg-variable-ignored",
       "why": "XDG_*_HOME を読まず、$HOME の下のデフォルトの場所だけを扱う",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\t\t\t\"$([ -z \"${var}\" ] || [ -z \"${!var:-}\" ] || realpath -m -- \"${!var}\")\" \\\n",
-      "replace": "\t\t\t\"\" \\\n",
+      "find": "\t\tif [ -n \"${var}\" ] && [ -n \"${!var:-}\" ]; then\n",
+      "replace": "\t\tif false; then\n",
       "occurrences": 1,
       "expect_failing": [
         "$HOME の外の設定の場所 XDG_CONFIG_HOME が $HOME の外なら tmpfs で隠し、許可リストの場所だけを読み取り専用で戻す",
@@ -128,8 +129,8 @@
       "id": "linked-ancestor-ignored",
       "why": "許可リストの祖先がシンボリックリンクでも、リンク先を扱わない",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\t\t\t\"$([ ! -e \"${home}/${prefix}\" ] || realpath -m -- \"${home}/${prefix}\")\"; do\n",
-      "replace": "\t\t\t\"\"; do\n",
+      "find": "\t\tif [ -e \"${home}/${prefix}\" ]; then\n",
+      "replace": "\t\tif false; then\n",
       "occurrences": 1,
       "expect_failing": [
         "$HOME の外の設定の場所 ~/.config が $HOME の外へのシンボリックリンクなら、リンク先を tmpfs で隠して許可リストの場所を戻す",
@@ -295,10 +296,13 @@
       "id": "relative-xdg-accepted",
       "why": "絶対パスでない XDG の値を環境から外さず、run に渡して cwd を基準に解決させる",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\tcase \"${!var-}\" in \"\" | /*) ;; *) unset \"${var}\" ;; esac\n",
-      "replace": "\t:\n",
+      "find": "\t\tcase \"${!var-}\" in \"\" | /*) ;; *) unset \"${var}\" ;; esac\n",
+      "replace": "\t\t:\n",
       "occurrences": 1,
       "expect_failing": [
+        "$HOME の外の設定の場所 XDG_CONFIG_HOME が絶対パスでなければ、隠す場所として扱わず、run にも渡さない",
+        "$HOME の外の設定の場所 XDG_DATA_HOME が絶対パスでなければ、隠す場所として扱わず、run にも渡さない",
+        "$HOME の外の設定の場所 XDG_STATE_HOME が絶対パスでなければ、隠す場所として扱わず、run にも渡さない",
         "$HOME の外の設定の場所 XDG_CACHE_HOME が絶対パスでなければ、隠す場所として扱わず、run にも渡さない"
       ]
     },
@@ -322,6 +326,17 @@
       "occurrences": 1,
       "expect_failing": [
         "$HOME の外の設定の場所 空白を含むパスの後ろの部分が別の場所と同じ字面でも、別の場所として両方を隠す"
+      ]
+    },
+    {
+      "id": "relative-xdg-one-name-dropped",
+      "why": "絶対パスでない値を外す変数の一覧から XDG_CONFIG_HOME を落とす",
+      "file": "scripts/eval/sandbox/eval-sandbox.sh",
+      "find": "\tfor var in XDG_CONFIG_HOME XDG_DATA_HOME XDG_STATE_HOME XDG_CACHE_HOME; do\n",
+      "replace": "\tfor var in XDG_DATA_HOME XDG_STATE_HOME XDG_CACHE_HOME; do\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "$HOME の外の設定の場所 XDG_CONFIG_HOME が絶対パスでなければ、隠す場所として扱わず、run にも渡さない"
       ]
     }
   ]

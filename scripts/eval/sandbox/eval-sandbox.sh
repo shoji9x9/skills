@@ -229,9 +229,11 @@ done
 # They are listed here because the roots below must not hold one or lie inside one;
 # the tmpfs over each of them is added after the /etc binds.
 runtime_dirs=()
+declare -A seen_runtime_dirs=()
 for d in "${XDG_RUNTIME_DIR:-}" "/run/user/$(id -u)"; do
 	[ -n "${d}" ] && [ -d "${d}" ] || continue
-	case " ${runtime_dirs[*]} " in *" ${d} "*) continue ;; esac
+	[ -z "${seen_runtime_dirs["${d}"]+present}" ] || continue
+	seen_runtime_dirs["${d}"]=1
 	runtime_dirs+=("${d}")
 done
 
@@ -295,22 +297,34 @@ add_root() { # $1 = real directory, $2 = the home_allow prefix it stands for
 # specification, yet some tools still use it relative to the cwd (git reads
 # $XDG_CONFIG_HOME/git/config). It is neither hidden nor passed: it is removed from the
 # environment here, before anything is collected or handed to bwrap.
-for var in XDG_CONFIG_HOME XDG_DATA_HOME XDG_STATE_HOME XDG_CACHE_HOME; do
-	case "${!var-}" in "" | /*) ;; *) unset "${var}" ;; esac
-done
+drop_relative_xdg_dirs() {
+	local var
+	for var in XDG_CONFIG_HOME XDG_DATA_HOME XDG_STATE_HOME XDG_CACHE_HOME; do
+		case "${!var-}" in "" | /*) ;; *) unset "${var}" ;; esac
+	done
+}
+drop_relative_xdg_dirs
 # Ordered by path length (a directory is shorter than everything inside it), picked in
 # bash, not with sort: a failed pipeline behind a process substitution would leave
 # nothing to hide without stopping the run. A function, so its variables stay local.
-# A place found twice (a variable and a link to the same directory) is kept once.
+# The same directory found twice for the same prefix (a variable and a link to it) is
+# kept once; for two prefixes it stays twice, so each prefix binds its own entries.
+# realpath runs in plain assignments, where a failure stops the run under set -e.
 add_roots_outermost_first() {
-	local root_candidates=() entry prefix var best best_r i r c
+	local root_candidates=() places=() entry prefix var best best_r i r c
 	local -A seen=()
 	for entry in "${home_prefixes[@]}"; do
 		prefix="${entry%%|*}" var="${entry#*|}"
-		for c in \
-			"$([ -z "${var}" ] || [ -z "${!var:-}" ] || realpath -m -- "${!var}")" \
-			"$([ ! -e "${home}/${prefix}" ] || realpath -m -- "${home}/${prefix}")"; do
-			[ -n "${c}" ] || continue
+		places=()
+		if [ -n "${var}" ] && [ -n "${!var:-}" ]; then
+			c="$(realpath -m -- "${!var}")"
+			places+=("${c}")
+		fi
+		if [ -e "${home}/${prefix}" ]; then
+			c="$(realpath -m -- "${home}/${prefix}")"
+			places+=("${c}")
+		fi
+		for c in "${places[@]}"; do
 			[ -z "${seen["${c}|${prefix}"]+present}" ] || continue
 			seen["${c}|${prefix}"]=1
 			root_candidates+=("${c}|${prefix}")
