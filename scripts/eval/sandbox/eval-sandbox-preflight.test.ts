@@ -10,7 +10,7 @@
 // | 軸                          | 値                                                                                   |
 // | --------------------------- | ------------------------------------------------------------------------------------ |
 // | 宛先                        | $HOME の下の bind / cwd（/tmp の下で bind する・/tmp の外で bind しない） / /tmp の下の /etc のミラー / CODEX_HOME の auth.json / 許可リストの bind |
-// | runtime dir と宛先の関係    | 同じ / 含む / 「/」 / 宛先の中（通す） / 名前が前方だけ一致（通す） / 隣（通す） / 宛先の無い /tmp（通す） |
+// | runtime dir と宛先の関係    | 同じ / 含む / 「/」 / 宛先の中（通す） / 名前が前方だけ一致（通す） / 隣（通す） / 宛先の無い /tmp（CLI の起動は通す。--verify は stage 5 の一覧が宛先になるので止める） |
 // | リンク                      | cwd がリンクで runtime dir の中を指す / cwd のリンクが runtime dir の中にある / runtime dir がリンク / cwd が /tmp のリンクで $HOME の下を指す（通す。cwd はリンクのままのパスで bind する） |
 // | git worktree list           | 成功する（通す） / 0 以外で終わる                                                    |
 // | モード                      | CLI の起動 / --verify                                                                |
@@ -54,12 +54,11 @@ const homeOutsideTmp = "/nonexistent-eval-sandbox-home";
 
 describe("runtime dir が先に置いたマウントの宛先か cwd を覆う構成", () => {
   // 各行は、runtime dir と cwd を決め、止まるときの理由を返す。
-  // path は、止めた理由の後に続く宛先のパスの一部（テストごとに一時ディレクトリが変わる部分を除く）。
+  // message は、止めた理由の文字列か、宛先のパスのうちテストごとに変わる部分を含む正規表現。
   const covering: {
     label: string;
     place: Place;
-    message: string;
-    path?: string;
+    message: string | RegExp;
     options?: SandboxOptions;
   }[] = [
     {
@@ -112,8 +111,7 @@ describe("runtime dir が先に置いたマウントの宛先か cwd を覆う�
         writeFileSync(join(run, "codex", "auth.json"), "{}\n");
         return { run, cwd: "/", env: { CODEX_HOME: join(run, "codex") } };
       },
-      message: "(the runtime dir) holds the mount target ",
-      path: "/codex/auth.json (",
+      message: /\(the runtime dir\) holds the mount target \S+\/codex\/auth\.json \(/u,
       options: { cli: "codex" },
     },
     {
@@ -148,17 +146,16 @@ describe("runtime dir が先に置いたマウントの宛先か cwd を覆う�
 
   test.each(modes.flatMap(({ mode, args }) => covering.map((row) => ({ mode, args, ...row }))))(
     "$mode: runtime dir が $label、bwrap を起動する前に理由を出して exit 3 で止める",
-    ({ args, place, message, path, options }) => {
+    ({ args, place, message, options }) => {
       const { result, bwrapArgs } = runPlace(args, place, options);
       expect(result.status, result.stderr).toBe(3);
-      expect(result.stderr).toContain(message);
-      if (path !== undefined) expect(result.stderr).toContain(path);
+      expect(result.stderr).toMatch(message);
       expect(bwrapArgs).toBeNull();
     },
   );
 
   // 止めずに起動する構成。runtime dir の判定に達して一覧に入れたことを、tmpfs で隠す引数で確かめる。
-  const passing: { label: string; place: Place; tmpfsCount?: number }[] = [
+  const passing: { label: string; place: Place }[] = [
     {
       label: "$HOME の下にあるとき",
       place: ({ root, home }) => {
@@ -188,22 +185,11 @@ describe("runtime dir が先に置いたマウントの宛先か cwd を覆う�
         return { run: join(home, ".local", "bin", "run"), cwd: root };
       },
     },
-    {
-      label: "/tmp であり、/tmp の下に宛先が無いとき",
-      // ネットワークの許可リストを外すと /etc のミラーを作らず、cwd も /tmp の外なので、/tmp の下に宛先が無い。
-      place: () => ({
-        run: "/tmp",
-        cwd: "/",
-        env: { HOME: homeOutsideTmp, EVAL_SANDBOX_NET: "off" },
-      }),
-      // /tmp の tmpfs は、兄弟の run を隠すものと runtime dir のものの 2 つになる。
-      tmpfsCount: 2,
-    },
   ];
 
   test.each(modes.flatMap(({ mode, args }) => passing.map((row) => ({ mode, args, ...row }))))(
     "$mode: runtime dir が $label、止めずに tmpfs で隠す",
-    ({ args, place, tmpfsCount }) => {
+    ({ args, place }) => {
       const { result, bwrapArgs, run } = runPlace(args, place);
       expect(result.status, result.stderr).toBe(0);
       if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
@@ -211,9 +197,34 @@ describe("runtime dir が先に置いたマウントの宛先か cwd を覆う�
       const tmpfs = flagValues(bwrapArgs, "--tmpfs").filter((target) => target === real);
       // スタブの bwrap は呼び出しごとに引数を追記する（--verify は 2 回呼ぶ）。呼び出しは --die-with-parent で数える。
       const calls = bwrapArgs.filter((arg) => arg === "--die-with-parent").length;
-      expect(tmpfs).toHaveLength((tmpfsCount ?? 1) * calls);
+      expect(tmpfs).toHaveLength(calls);
     },
   );
+
+  // ネットワークの許可リストを外すと /etc のミラーを作らず、cwd も /tmp の外なので、CLI の起動では
+  // /tmp の下に宛先が無い。--verify は stage 5 の一覧を /tmp に作って bind するので、それが宛先になる。
+  const tmpWithoutTargets: Place = () => ({
+    run: "/tmp",
+    cwd: "/",
+    env: { HOME: homeOutsideTmp, EVAL_SANDBOX_NET: "off" },
+  });
+
+  test("CLI の起動: runtime dir が /tmp であり、/tmp の下に宛先が無いとき、止めずに tmpfs で隠す", () => {
+    const { result, bwrapArgs } = runPlace(["--version"], tmpWithoutTargets);
+    expect(result.status, result.stderr).toBe(0);
+    if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
+    // /tmp の tmpfs は、兄弟の run を隠すものと runtime dir のものの 2 つになる。
+    expect(flagValues(bwrapArgs, "--tmpfs").filter((target) => target === "/tmp")).toHaveLength(2);
+  });
+
+  test("--verify: runtime dir が /tmp なら、stage 5 の一覧を /tmp に bind するので、bwrap を起動する前に止める", () => {
+    const { result, bwrapArgs } = runPlace(["--verify", "MARKER"], tmpWithoutTargets);
+    expect(result.status, result.stderr).toBe(3);
+    expect(result.stderr).toContain(
+      "(the runtime dir) holds the mount target /tmp/eval-sandbox-home-lists-",
+    );
+    expect(bwrapArgs).toBeNull();
+  });
 
   test.each(modes)(
     "$mode: cwd が /tmp の下のリンクでホームディレクトリの下を指すときは、止めずに起動する",

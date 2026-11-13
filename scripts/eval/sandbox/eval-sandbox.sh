@@ -568,6 +568,8 @@ refuse_covering_runtime_dirs() {
 	for i in "${!args[@]}"; do
 		case "${args[i]}" in --bind | --ro-bind | --dev-bind) targets+=("${args[i + 2]}") ;; esac
 	done
+	# The stage 5 lists of --verify, bound in front of the runtime tmpfs (see below).
+	[ -z "${home_lists}" ] || targets+=("${home_lists}")
 	for i in "${!targets[@]}"; do
 		t="${targets[i]}"
 		what="the mount target"
@@ -585,7 +587,16 @@ refuse_covering_runtime_dirs() {
 		done
 	done
 }
+# --verify stage 5 reads lists that this shell writes on the host, bound into the sandbox.
+# The bind goes in front of the runtime tmpfs, as every other bind does, so the check above
+# counts it as a target and the runtime dirs stay empty for stage 5 to check. Under /tmp,
+# not TMPDIR: a TMPDIR under $HOME would put the bind target inside the read-only $HOME,
+# where bwrap cannot create the mount point.
+if [ "${1:-}" = "--verify" ]; then
+	home_lists="$(mktemp -d /tmp/eval-sandbox-home-lists-XXXXXX)"
+fi
 refuse_covering_runtime_dirs
+runtime_tmpfs_at="${#args[@]}"
 for d in "${runtime_dirs[@]}"; do args+=(--tmpfs "${d}"); done
 
 # Last mount under $HOME is above; from here on $HOME is read-only (step 0).
@@ -822,15 +833,13 @@ elif [ "${#seen[@]}" -gt 0 ]; then echo "VISIBLE (FAIL)"; printf "    %s\n" "${s
 else echo "$hidden host paths absent (ok)"; fi
 # Each line is "<entries on the host>|<dir>". `ls | grep -q` is not used: under
 # pipefail, grep exiting on the first line makes ls die of SIGPIPE in a dir with many
-# entries, and the pipeline then reads as "empty". The mount point of $HOME_LISTS is not
-# counted: this call binds it after the tmpfs of the runtime dirs, and a runtime dir with no
-# mount target under it may be /tmp, where the lists live.
+# entries, and the pipeline then reads as "empty".
 runtime_lines=0
 while IFS= read -r -d "" l; do
   runtime_lines=$((runtime_lines+1)); n="${l%%|*}"; d="${l#*|}"
   printf "stage5 runtime dir %s: " "$d"
   if [ "$n" -eq 0 ]; then echo "no entries on the host (nothing to hide)"
-  elif [ -n "$(find "$d" -mindepth 1 -maxdepth 1 ! -path "$HOME_LISTS" -print -quit 2>/dev/null)" ]; then echo "VISIBLE (FAIL)"; rc=1
+  elif [ -n "$(ls -A "$d" 2>/dev/null)" ]; then echo "VISIBLE (FAIL)"; rc=1
   else echo "hidden (ok; $n entries on the host)"; fi
 done <"$HOME_LISTS/runtime"
 [ "$runtime_lines" -gt 0 ] || echo "stage5 runtime dir: none on the host (nothing to hide)"
@@ -858,9 +867,7 @@ exit $rc'
 	# inside, bwrap creates a plain directory there), so a store that nobody named here
 	# is still checked. "env-shown" / "env-hidden" split the host's variables by the
 	# environment allowlist; the probe variable makes sure the hidden side is never empty.
-	# Under /tmp, not TMPDIR: a TMPDIR under $HOME would put the bind target inside the
-	# read-only $HOME, where bwrap cannot create the mount point.
-	home_lists="$(mktemp -d /tmp/eval-sandbox-home-lists-XXXXXX)"
+	# The directory itself was made before the runtime dirs were checked (see there).
 	: >"${home_lists}/shown"
 	: >"${home_lists}/hidden"
 	hidden_roots=("${home}" "${outside_roots[@]}")
@@ -916,8 +923,8 @@ exit $rc'
 	run_bwrap "${args[@]}" --setenv SENTINEL "${escape_sentinel}" \
 		--setenv ALLOW_HOSTS "${net_allow}" --setenv CLONE_PROBE_URL "${clone_probe_url}" \
 		--chdir / -- /bin/bash -c "${script}" _ "${repo}" "${markers[@]}" || rc=$?
-	run_bwrap "${args[@]}" --ro-bind "${home_lists}" "${home_lists}" \
-		--setenv HOME_LISTS "${home_lists}" \
+	run_bwrap "${args[@]:0:runtime_tmpfs_at}" --ro-bind "${home_lists}" "${home_lists}" \
+		"${args[@]:runtime_tmpfs_at}" --setenv HOME_LISTS "${home_lists}" \
 		--chdir / -- /bin/bash -c "${credentials_script}" || rc=$?
 	# Negative half of the containment check: the probe planted inside must not exist
 	# on the host. A missing probe here only counts once the inner half reported

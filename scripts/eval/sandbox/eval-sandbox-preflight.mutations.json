@@ -8,8 +8,8 @@
       "id": "runtime-covering-unchecked",
       "why": "runtime dir が先に置いたマウントの宛先か cwd を覆うかを確かめずに、そのまま tmpfs で隠す",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "refuse_covering_runtime_dirs\nfor d in",
-      "replace": ":\nfor d in",
+      "find": "refuse_covering_runtime_dirs\nruntime_tmpfs_at=",
+      "replace": ":\nruntime_tmpfs_at=",
       "occurrences": 1,
       "expect_failing": [
         "runtime dir が先に置いたマウントの宛先か cwd を覆う構成 CLI の起動: runtime dir が $HOME と同じとき、bwrap を起動する前に理由を出して exit 3 で止める",
@@ -33,7 +33,8 @@
         "runtime dir が先に置いたマウントの宛先か cwd を覆う構成 --verify: runtime dir が $HOME の外の CODEX_HOME を含むとき、bwrap を起動する前に理由を出して exit 3 で止める",
         "runtime dir が先に置いたマウントの宛先か cwd を覆う構成 --verify: runtime dir が リンクを通した cwd の実体を含むとき、bwrap を起動する前に理由を出して exit 3 で止める",
         "runtime dir が先に置いたマウントの宛先か cwd を覆う構成 --verify: runtime dir が 外を指す cwd のリンクを含むとき、bwrap を起動する前に理由を出して exit 3 で止める",
-        "runtime dir が先に置いたマウントの宛先か cwd を覆う構成 --verify: runtime dir が リンクで、cwd を含むとき、bwrap を起動する前に理由を出して exit 3 で止める"
+        "runtime dir が先に置いたマウントの宛先か cwd を覆う構成 --verify: runtime dir が リンクで、cwd を含むとき、bwrap を起動する前に理由を出して exit 3 で止める",
+        "runtime dir が先に置いたマウントの宛先か cwd を覆う構成 --verify: runtime dir が /tmp なら、stage 5 の一覧を /tmp に bind するので、bwrap を起動する前に止める"
       ]
     },
     {
@@ -106,6 +107,17 @@
       "expect_failing": [
         "runtime dir が先に置いたマウントの宛先か cwd を覆う構成 CLI の起動: runtime dir が / であるとき、bwrap を起動する前に理由を出して exit 3 で止める",
         "runtime dir が先に置いたマウントの宛先か cwd を覆う構成 --verify: runtime dir が / であるとき、bwrap を起動する前に理由を出して exit 3 で止める"
+      ]
+    },
+    {
+      "id": "runtime-covering-verify-lists-dropped",
+      "why": "--verify の stage 5 の一覧の bind を宛先に入れず、runtime dir の tmpfs がその下にあっても止めない",
+      "file": "scripts/eval/sandbox/eval-sandbox.sh",
+      "find": "\t[ -z \"${home_lists}\" ] || targets+=(\"${home_lists}\")\n",
+      "replace": "\t:\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "runtime dir が先に置いたマウントの宛先か cwd を覆う構成 --verify: runtime dir が /tmp なら、stage 5 の一覧を /tmp に bind するので、bwrap を起動する前に止める"
       ]
     },
     {

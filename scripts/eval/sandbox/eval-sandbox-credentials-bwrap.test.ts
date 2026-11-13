@@ -289,28 +289,6 @@ describe.skipIf(outsideTmp === null)("$HOME の外に置いた設定の場所（
     expect(result.stdout).toBe("home resolves\nSTARTED\n");
   });
 
-  test("--verify の stage 5 は、runtime dir が /tmp でも、自分が /tmp に bind した一覧を runtime dir の中身と数えない", () => {
-    // ネットワークの許可リストを外し、cwd を /tmp の外にすると、/tmp の下にマウントの宛先が無いので、
-    // runtime dir が /tmp でも起動する。stage 5 の一覧（/tmp/eval-sandbox-home-lists-*）は、runtime dir の
-    // tmpfs より後に bind するので、その tmpfs の中にマウント先が見える。
-    const { home } = makeRealHome("verify-runtime-tmp");
-    const result = spawnSync(sourceScript, ["--verify", "MARKER-NOT-PLANTED-1015"], {
-      timeout: CHILD_TIMEOUT_MS,
-      cwd: "/",
-      encoding: "utf8",
-      env: {
-        ...hostEnv(),
-        EVAL_SANDBOX_CLI: "bash",
-        EVAL_SANDBOX_VENDOR: "claude-code",
-        EVAL_SANDBOX_NET: "off",
-        EVAL_SANDBOX_CLONE_PROBE_URL: "/nonexistent/repo",
-        HOME: home,
-        XDG_RUNTIME_DIR: "/tmp",
-      },
-    });
-    expect(result.stdout, result.stderr).toMatch(/^stage5 runtime dir \/tmp: hidden \(ok; /mu);
-  });
-
   test("--verify の stage 5 は、~/.config が $HOME の中へのシンボリックリンクでも、誤って FAIL を出さない", () => {
     const { home, runtimeDir } = makeRealHome("verify-config-link");
     renameSync(join(home, ".config"), join(home, "dotfiles-config"));
