@@ -6,13 +6,9 @@
 // parity-diff は承認を原因ごとに 1 回取り、新側のバージョンをまたいで持つので、tree は照合しない（spec-parity と違う）。
 
 import { test, expect } from "vitest";
-import { readFileSync, rmSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { parseJsonAs } from "../../../lib/parse-as.ts";
+import { rmSync } from "node:fs";
 import { makeProject, run, writeStage } from "./artifact-health-check-helpers.ts";
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 const TEST = "e2e/parity/order-list/orders.spec.ts > 一覧を開く";
 
 const allowance = (over: Record<string, unknown> = {}) => ({
@@ -125,11 +121,27 @@ test.each([
     { runtime_errors: { judged: "<true | false>", new_signatures: [allowance()] } },
   ],
 ])(
-  "現側の metadata.json が runtime_errors を持たない成果物で、%s なら照合せず、理由を注記に残す",
+  "diff-metadata.json の %s なら、現側が declared: true でも照合せず、理由を注記に残す（検出しない範囲）",
   (_name, extra) => {
-    const r = judge(extra, NO_CURRENT);
-    expect(r.stdout).toMatch(/操作中のエラーの承認を照合しない/);
+    // 案 B（PR #1009 の利用者の決定）: 現側の宣言と突き合わせない。比較の結果を消した記録は parity-diff の収束の条件が止める
+    const r = judge(extra, { declared: true });
+    expect(r.stdout).toMatch(
+      /judged: true の比較の結果が無いため、操作中のエラーの承認を照合しない/,
+    );
+    expect(r.stdout).not.toMatch(APPROVAL_FINDING);
     expect(r.status).toBe(0);
+  },
+);
+
+test.each([
+  ["runtime_errors をキーごと持たない", NO_CURRENT],
+  ["declared: false と理由の組", { declared: false, reason: "現側で記録しなかった" }],
+])(
+  "現側の metadata.json が %s でも、judged: true の比較の結果があれば承認の記録と照合する",
+  (_name, current) => {
+    const r = judge({ runtime_errors: compared([noise()]), approvals: [] }, current);
+    expect(r.stdout).toMatch(APPROVAL_FINDING);
+    expect(r.status).toBe(1);
   },
 );
 
@@ -219,29 +231,6 @@ test("--target を渡さなければ工程の節ごと判定しない（承認�
   });
   const r = run(metadataPath, ["--stage", "diff"]);
   rmSync(root, { recursive: true, force: true });
-  expect(r.stdout).not.toMatch(APPROVAL_FINDING);
-  expect(r.status).toBe(0);
-});
-
-// 同梱の metadata-template.json の runtime_errors（利用者が始める形）をそのまま使う
-const TEMPLATE_RUNTIME_ERRORS = parseJsonAs<{ runtime_errors: unknown }>(
-  readFileSync(join(repoRoot, "skills/parity-suite/assets/metadata-template.json"), "utf8"),
-).runtime_errors;
-
-// judged: true の比較の結果が無い記録は、現側の宣言に関わらず照合せず注記で通す（利用者の決定。PR #1009 の案 B）。
-// 現側が declared: true なのに比較の結果を消した記録も通る。これは検出しない範囲で、parity-diff の収束の条件（compare が exit 0）が止める
-test.each([
-  ["declared: true で比較の結果が無い（検出しない範囲）", { declared: true }, {}],
-  [
-    "declared: false と理由の組で judged: false",
-    { declared: false, reason: "現側で記録しなかった" },
-    { runtime_errors: { judged: false, reason: "現側で記録しなかった" } },
-  ],
-  ["雛形の値のままで比較の結果が無い", TEMPLATE_RUNTIME_ERRORS, {}],
-  ["judged が雛形の値のまま", { declared: true }, { runtime_errors: { judged: "<true | false>" } }],
-])("現側の metadata.json が %s なら、照合せずに注記で通す", (_name, current, extra) => {
-  const r = judge(extra, current);
-  expect(r.stdout).toMatch(/judged: true の比較の結果が無いため、操作中のエラーの承認を照合しない/);
   expect(r.stdout).not.toMatch(APPROVAL_FINDING);
   expect(r.status).toBe(0);
 });

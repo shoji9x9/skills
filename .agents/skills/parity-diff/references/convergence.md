@@ -261,7 +261,7 @@
          `approvals` をキーごと持たない記録は、承認が 0 件として読む。
          `diff-metadata.json` に `judged: true` の比較の結果が無い記録は照合せず、注記に残す。現側の `metadata.json` の宣言とは突き合わせない。
          現側が `declared: true` なのに比較の結果が無い記録は、下の「操作中のエラーの比較」の条件（`runtime-errors.mjs compare` が exit 0）で止める。
-         この所見は `warn: [approval]` で始まる。`parity-suite` へも `parity-replace` へも戻さず、利用者に承認し直してもらって `approvals` に追記する
+         承認の記録と照合して見つかった所見（同じ値の承認が `approvals[]` に無い許容と環境ノイズ）は `warn: [approval]` で始まる。`parity-suite` へも `parity-replace` へも戻さず、利用者に承認し直してもらって `approvals` に追記する
 
     対応づけをバージョンだけに任せない。データセットを変えずに `parity-replace` が実装を作り直すと、前の反復で収束した `diff-metadata.json` が `dataset_version` の一致だけでこのチェックを満たす。
     差分を採り直していないのに、「済んだ」ように見えてしまう。そのため、両方の成果物が持つ識別子（新側の `new.tree` と反復の回数）で結び付ける。

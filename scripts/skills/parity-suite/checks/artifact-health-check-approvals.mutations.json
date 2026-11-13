@@ -36,13 +36,11 @@
         "approvals が配列でない なら型の誤りとして exit 2",
         "runtime_errors がオブジェクトでない なら型の誤りとして exit 2",
         "new_signatures が配列でない なら型の誤りとして exit 2",
-        "現側の metadata.json が runtime_errors を持たない成果物で、runtime_errors が無い（操作中のエラーを比べる前の成果物） なら照合せず、理由を注記に残す",
-        "現側の metadata.json が runtime_errors を持たない成果物で、runtime_errors.judged が false（declared: false） なら照合せず、理由を注記に残す",
-        "現側の metadata.json が runtime_errors を持たない成果物で、runtime_errors.judged が雛形のプレースホルダのまま なら照合せず、理由を注記に残す",
-        "現側の metadata.json が declared: true で比較の結果が無い（検出しない範囲） なら、照合せずに注記で通す",
-        "現側の metadata.json が declared: false と理由の組で judged: false なら、照合せずに注記で通す",
-        "現側の metadata.json が 雛形の値のままで比較の結果が無い なら、照合せずに注記で通す",
-        "現側の metadata.json が judged が雛形の値のまま なら、照合せずに注記で通す"
+        "現側の metadata.json が runtime_errors をキーごと持たない でも、judged: true の比較の結果があれば承認の記録と照合する",
+        "現側の metadata.json が declared: false と理由の組 でも、judged: true の比較の結果があれば承認の記録と照合する",
+        "diff-metadata.json の runtime_errors が無い（操作中のエラーを比べる前の成果物） なら、現側が declared: true でも照合せず、理由を注記に残す（検出しない範囲）",
+        "diff-metadata.json の runtime_errors.judged が false（declared: false） なら、現側が declared: true でも照合せず、理由を注記に残す（検出しない範囲）",
+        "diff-metadata.json の runtime_errors.judged が雛形のプレースホルダのまま なら、現側が declared: true でも照合せず、理由を注記に残す（検出しない範囲）"
       ]
     },
     {
@@ -53,10 +51,20 @@
       "replace": "  if (isPlainObject(re)) return re;\n",
       "occurrences": 1,
       "expect_failing": [
-        "現側の metadata.json が runtime_errors を持たない成果物で、runtime_errors.judged が false（declared: false） なら照合せず、理由を注記に残す",
-        "現側の metadata.json が runtime_errors を持たない成果物で、runtime_errors.judged が雛形のプレースホルダのまま なら照合せず、理由を注記に残す",
-        "現側の metadata.json が declared: false と理由の組で judged: false なら、照合せずに注記で通す",
-        "現側の metadata.json が judged が雛形の値のまま なら、照合せずに注記で通す"
+        "diff-metadata.json の runtime_errors.judged が false（declared: false） なら、現側が declared: true でも照合せず、理由を注記に残す（検出しない範囲）",
+        "diff-metadata.json の runtime_errors.judged が雛形のプレースホルダのまま なら、現側が declared: true でも照合せず、理由を注記に残す（検出しない範囲）"
+      ]
+    },
+    {
+      "id": "ahc-rt-no-declaration",
+      "why": "現側の宣言を見て、宣言を持たない記録の比較の結果を照合しない（案 B は現側の宣言と突き合わせない）",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "  if (isPlainObject(re) && re.judged === true) return re;\n",
+      "replace": "  if (isPlainObject(re) && re.judged === true && s.ctx.featureMetadata?.runtime_errors?.declared === true) return re;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "現側の metadata.json が runtime_errors をキーごと持たない でも、judged: true の比較の結果があれば承認の記録と照合する",
+        "現側の metadata.json が declared: false と理由の組 でも、judged: true の比較の結果があれば承認の記録と照合する"
       ]
     },
     {
