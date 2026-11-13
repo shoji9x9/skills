@@ -98,7 +98,21 @@ export type SandboxOptions = {
   runtimeEntries?: string[];
   /** CLI のスタブを置く、$HOME からの相対ディレクトリ。省くと $HOME の外の bin に置く。 */
   cliHomeDir?: string;
+  /** /run/user/<uid> の代わりに置くディレクトリのファイル名。省くと実在しないパスにする（ホストの /run/user を読ませない）。 */
+  runUserEntries?: string[];
+  /** スクリプトのコピー（とそのリポジトリ）を $HOME の下に置く。 */
+  repoUnderHome?: boolean;
+  /** PATH の先頭に足す、$HOME からの相対ディレクトリ。exists が false なら作らない。 */
+  pathHomeDirs?: { dir: string; exists: boolean }[];
+  /** $HOME を、使い捨ての $HOME へのシンボリックリンクとして渡す。 */
+  homeSymlink?: boolean;
 };
+
+/** PATH の先頭に足すディレクトリを（指定があれば）作り、PATH の接頭辞を返す。 */
+function homePathPrefix(home: string, dirs: { dir: string; exists: boolean }[]) {
+  for (const { dir, exists } of dirs) if (exists) mkdirSync(join(home, dir), { recursive: true });
+  return dirs.map(({ dir }) => `${join(home, dir)}:`).join("");
+}
 
 /** 使い捨ての $HOME にファイルを置く。 */
 export function writeHomeFiles(home: string, files: Record<string, string>) {
@@ -108,9 +122,9 @@ export function writeHomeFiles(home: string, files: Record<string, string>) {
   }
 }
 
-/** runtime dir を作り、XDG_RUNTIME_DIR に渡すパスを返す。 */
-function makeRuntimeDir(root: string, entries: string[] | undefined) {
-  const runtimeDir = join(root, "run");
+/** runtime dir を作り、そのパスを返す。 */
+function makeRuntimeDir(root: string, entries: string[] | undefined, name = "run") {
+  const runtimeDir = join(root, name);
   if (entries === undefined) return runtimeDir;
   mkdirSync(runtimeDir);
   for (const entry of entries) writeFileSync(join(runtimeDir, entry), "");
@@ -155,8 +169,8 @@ function readBwrapArgs(capturedArgs: string) {
 
 export function sandbox(args: string[], options: SandboxOptions = {}) {
   const root = makeTempDir("eval-sandbox-preflight-");
-  const repo = join(root, "repo");
   const home = join(root, "home");
+  const repo = options.repoUnderHome === true ? join(home, "projects", "repo") : join(root, "repo");
   const bin = join(root, "bin");
   const copiedScript = join(repo, "scripts", "eval", "sandbox", "eval-sandbox.sh");
   const capturedArgs = join(root, "bwrap-args.txt");
@@ -164,6 +178,7 @@ export function sandbox(args: string[], options: SandboxOptions = {}) {
   mkdirSync(join(home, ".claude"), { recursive: true });
   writeHomeFiles(home, options.homeFiles ?? {});
   const runtimeDir = makeRuntimeDir(root, options.runtimeEntries);
+  const runUserDir = makeRuntimeDir(root, options.runUserEntries, "run-user");
   mkdirSync(bin);
   // 内容を変えずにコピーする（同じ内容のスクリプトは、カバレッジで原本の実行として数える）。
   writeFileSync(copiedScript, readFileSync(sourceScript), { mode: 0o755 });
@@ -176,13 +191,18 @@ export function sandbox(args: string[], options: SandboxOptions = {}) {
   if (cliDir !== bin && cli !== "") {
     writeFileSync(join(cliDir, cli), "#!/usr/bin/env bash\nexit 99\n", { mode: 0o755 });
   }
+  const homeEnv = options.homeSymlink === true ? join(root, "home-link") : home;
+  if (homeEnv !== home) symlinkSync(home, homeEnv);
+  const pathPrefix =
+    homePathPrefix(homeEnv, options.pathHomeDirs ?? []) + (cliDir === bin ? "" : `${cliDir}:`);
   const env: Record<string, string> = {
     ...process.env,
-    HOME: home,
-    PATH: cliDir === bin ? sandboxPath(bin, options) : `${cliDir}:${sandboxPath(bin, options)}`,
+    HOME: homeEnv,
+    PATH: `${pathPrefix}${sandboxPath(bin, options)}`,
     EVAL_SANDBOX_CLI: cli === "" ? "absent-cli" : cli,
     FAKE_BWRAP_ARGS: capturedArgs,
     XDG_RUNTIME_DIR: runtimeDir,
+    EVAL_SANDBOX_RUN_USER_DIR: runUserDir,
     ...options.env,
   };
   if (options.vendor !== undefined) env.EVAL_SANDBOX_VENDOR = options.vendor;
@@ -195,7 +215,7 @@ export function sandbox(args: string[], options: SandboxOptions = {}) {
     stdio: ["ignore", "pipe", "pipe"],
     timeout: CHILD_TIMEOUT_MS,
   });
-  return { result, bwrapArgs: readBwrapArgs(capturedArgs), home, root, runtimeDir };
+  return { result, bwrapArgs: readBwrapArgs(capturedArgs), home, root, runtimeDir, runUserDir };
 }
 
 /** 許可リストの外に置く、認証情報に見立てた目印。 */

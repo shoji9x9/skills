@@ -366,8 +366,10 @@ fi
 # is shared, so a bus that listens only on one stays reachable.
 # XDG_RUNTIME_DIR and /run/user/<uid> can differ (WSLg points the variable elsewhere
 # while the systemd user bus stays under /run/user), so both are hidden.
+# EVAL_SANDBOX_RUN_USER_DIR replaces /run/user/<uid> for the tests only, so that their
+# result does not depend on the runtime dir of the machine that runs them.
 runtime_dirs=()
-for d in "${XDG_RUNTIME_DIR:-}" "/run/user/$(id -u)"; do
+for d in "${XDG_RUNTIME_DIR:-}" "${EVAL_SANDBOX_RUN_USER_DIR:-/run/user/$(id -u)}"; do
 	[ -n "${d}" ] && [ -d "${d}" ] || continue
 	case " ${runtime_dirs[*]} " in *" ${d} "*) continue ;; esac
 	runtime_dirs+=("${d}")
@@ -377,6 +379,37 @@ args+=(--unsetenv DBUS_SESSION_BUS_ADDRESS --unsetenv SSH_AUTH_SOCK --unsetenv G
 
 # Last mount under $HOME is above; from here on $HOME is read-only (step 0).
 args+=(--remount-ro "${home}")
+
+# What decides a path inside the sandbox is the LAST mount whose target is the path or
+# one of its parents (bwrap applies them in order). Print that mount as
+# "<flag> <target>"; the checks below (the CLI, PATH, --verify stage 5) all use it, so
+# a later tmpfs that covers an earlier bind is accounted for in one place.
+covering_mount() {
+	local p="$1" i dest found=""
+	for i in "${!args[@]}"; do
+		case "${args[i]}" in
+		--bind | --ro-bind | --dev-bind) dest="${args[i + 2]}" ;;
+		--tmpfs) dest="${args[i + 1]}" ;;
+		*) continue ;;
+		esac
+		if [ "${dest}" = / ]; then
+			found="${args[i]} ${dest}"
+			continue
+		fi
+		case "${p}" in "${dest}" | "${dest}"/*) found="${args[i]} ${dest}" ;; esac
+	done
+	printf '%s\n' "${found}"
+}
+# A path resolved on the host (readlink -f) may spell $HOME differently from the mount
+# targets (a symlinked $HOME); map it back onto ${home} before asking covering_mount.
+home_real="$(realpath -m -- "${home}")"
+as_home_path() {
+	case "$1" in
+	"${home}" | "${home}"/*) printf '%s\n' "$1" ;;
+	"${home_real}" | "${home_real}"/*) printf '%s\n' "${home}${1#"${home_real}"}" ;;
+	*) printf '%s\n' "$1" ;;
+	esac
+}
 
 if [ "${1:-}" = "--verify" ]; then
 	shift
@@ -513,25 +546,22 @@ exit $rc'
 	# every bind target under $HOME. "hidden" is every host path under $HOME that no
 	# mount puts back: the walk descends only into directories that hold a mount
 	# target, so a store that nobody named here is still checked.
-	home_lists="$(mktemp -d)"
+	# Under /tmp, not TMPDIR: a TMPDIR under $HOME would put the bind target inside the
+	# read-only $HOME, where bwrap cannot create the mount point.
+	home_lists="$(mktemp -d /tmp/eval-sandbox-home-lists-XXXXXX)"
 	: >"${home_lists}/shown"
 	: >"${home_lists}/hidden"
 	home_targets=()
-	after_home=""
 	for i in "${!args[@]}"; do
 		case "${args[i]}" in
 		--bind | --ro-bind) t="${args[i + 2]}" ;;
 		--tmpfs) t="${args[i + 1]}" ;;
 		*) continue ;;
 		esac
-		# Mounts placed before the $HOME tmpfs (step 0), such as a work tree under $HOME,
-		# are covered by it and put nothing back, so their paths stay in "hidden".
-		if [ "${args[i]}" = --tmpfs ] && [ "${t}" = "${home}" ]; then
-			after_home=1
-			continue
-		fi
-		[ -n "${after_home}" ] || continue
 		case "${t}" in "${home}"/*) ;; *) continue ;; esac
+		# A mount that a later one covers (a work tree under $HOME, placed before the
+		# $HOME tmpfs) puts nothing back, so its path stays in "hidden".
+		[ "$(covering_mount "${t}")" = "${args[i]} ${t}" ] || continue
 		home_targets+=("${t}")
 		[ "${args[i]}" = --tmpfs ] || printf '%s\0' "${t}" >>"${home_lists}/shown"
 	done
@@ -597,22 +627,32 @@ fi
 # Not `exec`: the EXIT trap has to survive the run to delete the throwaway state file.
 # A CLI installed under $HOME outside home_allow (e.g. a node version manager's dir) is
 # hidden by step 0, and bwrap would fail with a bare exec error; say what to change.
-case "${cli_real}" in
-"${home}"/*)
-	cli_shown="" after_home=""
-	for i in "${!args[@]}"; do
-		# Only binds after the $HOME tmpfs put anything back under $HOME.
-		[ "${args[i]}" = --tmpfs ] && [ "${args[i + 1]}" = "${home}" ] && after_home=1
-		[ -n "${after_home}" ] || continue
-		case "${args[i]}" in --bind | --ro-bind) ;; *) continue ;; esac
-		case "${cli_real}" in "${args[i + 2]}" | "${args[i + 2]}"/*) cli_shown=1 ;; esac
-	done
-	[ -n "${cli_shown}" ] || {
-		echo "eval-sandbox: the CLI is under \$HOME but outside the start-up allowlist, so the sandbox hides it: ${cli_real}. Add its directory to home_allow in ${self}." >&2
-		exit 3
-	}
-	;;
-esac
+# Both checks look at $HOME only, which step 0 hides as a whole; the other hidden roots
+# (/tmp, /mnt/c) are the run's own business and are not on a normal PATH.
+hidden_under_home() {
+	local p
+	p="$(as_home_path "$1")"
+	case "${p}" in "${home}"/*) ;; *) return 1 ;; esac
+	case "$(covering_mount "${p}")" in --tmpfs\ *) return 0 ;; esac
+	return 1
+}
+if hidden_under_home "${cli_real}"; then
+	echo "eval-sandbox: the CLI is hidden inside the sandbox (under \$HOME but outside the start-up allowlist): ${cli_real}. Add its directory to home_allow in ${self}." >&2
+	exit 3
+fi
+# The same for the tools on PATH. A hidden PATH directory does not stop the CLI from
+# starting; the run would only see "command not found" for its tools and finish with
+# rc=0, recording a degraded answer for both configurations. Stop before that instead.
+hidden_path_dirs=()
+IFS=: read -r -a path_dirs <<<"${PATH}"
+for d in "${path_dirs[@]}"; do
+	[ -n "${d}" ] && [ -d "${d}" ] || continue
+	if hidden_under_home "$(realpath -m -- "${d}")"; then hidden_path_dirs+=("${d}"); fi
+done
+[ "${#hidden_path_dirs[@]}" -eq 0 ] || {
+	echo "eval-sandbox: PATH holds directories that the sandbox hides, so the run would miss their tools: ${hidden_path_dirs[*]}. Add them to home_allow in ${self}, or drop them from PATH." >&2
+	exit 3
+}
 rc=0
 bwrap "${args[@]}" --chdir "${PWD}" -- "${cli_real}" "$@" || rc=$?
 exit "${rc}"

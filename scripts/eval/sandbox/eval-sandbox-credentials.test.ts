@@ -2,7 +2,7 @@
 //
 // bwrap のスタブで、bwrap に渡す引数と --verify の stage 5 の判定を確かめる（CI でも実行する）。
 // 本物の bwrap で目印が読めるかを確かめるテストは eval-sandbox-credentials-bwrap.test.ts にある。
-// 分けるのは、ミューテーションテストの結果を bwrap の有無で変えないためである（CI には bwrap が無い）。
+// 分けるのは、ミューテーションテストの結果を、bwrap が在って動く環境かどうかで変えないためである。
 //
 // | 軸                         | 値                                                              |
 // | -------------------------- | --------------------------------------------------------------- |
@@ -12,7 +12,6 @@
 // | runtime dir                | 中身が在る（少ない・SIGPIPE が起きる量）/ 空 / 実在しない / XDG_RUNTIME_DIR と /run/user/<uid> が違う |
 // | エージェントのソケットの変数 | 外す / 外さない（スタブで --unsetenv を反映しない）            |
 // | CLI の実体                 | $HOME の外 / $HOME の下で許可リストの中 / $HOME の下で許可リストの外 |
-import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { allowedFiles, credentialFiles, sandbox } from "./eval-sandbox-helpers.ts";
@@ -139,9 +138,14 @@ describe("--verify の stage 5（スタブでホストの上で実行する）",
   });
 
   test("許可リストの外にホストのパスが 1 つも無ければ、隠せたと示せないので失敗にする", () => {
+    // ほかの判定を ok にして、終了コードの原因をこの判定だけにする。
     const { result } = sandbox(["--verify", "MARKER"], {
+      homeFiles: { ".claude.json": "{}\n" },
       env: { FAKE_BWRAP_MODE: "exec-credentials" },
     });
+    expect(result.stdout).toContain(
+      "stage5 home allowlist positive control: 1 bound paths readable (ok)",
+    );
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("stage5 home outside the allowlist: NOTHING TO CHECK (FAIL: ");
   });
@@ -158,14 +162,15 @@ describe("runtime dir と CLI の場所", () => {
   });
 
   test("XDG_RUNTIME_DIR が /run/user/<uid> と違っても、在る方をどちらも隠す", () => {
-    const { result, bwrapArgs, runtimeDir } = sandbox(["--version"], { runtimeEntries: ["bus"] });
+    const { result, bwrapArgs, runtimeDir, runUserDir } = sandbox(["--version"], {
+      runtimeEntries: ["bus"],
+      runUserEntries: ["bus"],
+    });
     expect(result.status, result.stderr).toBe(0);
     if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
     const tmpfs = flagValues(bwrapArgs, "--tmpfs");
     expect(tmpfs).toContain(runtimeDir);
-    const uid = process.getuid?.();
-    if (uid === undefined) throw new Error("uid を取得できない");
-    expect(tmpfs.includes(`/run/user/${uid}`)).toBe(existsSync(`/run/user/${uid}`));
+    expect(tmpfs).toContain(runUserDir);
   });
 
   test.each([
@@ -175,10 +180,53 @@ describe("runtime dir と CLI の場所", () => {
     const { result, bwrapArgs } = sandbox(["--version"], { cliHomeDir: dir });
     expect(result.status, result.stderr).toBe(status);
     if (status === 3) {
-      expect(result.stderr).toMatch(/the CLI is under \$HOME but outside the start-up allowlist/u);
+      expect(result.stderr).toMatch(/the CLI is hidden inside the sandbox/u);
       expect(bwrapArgs).toBeNull();
     } else {
       expect(bwrapArgs).not.toBeNull();
     }
+  });
+
+  test("$HOME がシンボリックリンクでも、解決した CLI のパスを $HOME の下として確かめる", () => {
+    const { result, bwrapArgs } = sandbox(["--version"], {
+      cliHomeDir: ".nvm/bin",
+      homeSymlink: true,
+    });
+    expect(result.status).toBe(3);
+    expect(result.stderr).toMatch(/the CLI is hidden inside the sandbox/u);
+    expect(bwrapArgs).toBeNull();
+  });
+
+  test.each([
+    ["sandbox で隠れる（.cargo/bin）", [{ dir: ".cargo/bin", exists: true }], 3],
+    [
+      "許可リストの中（.local/share/mise/shims）",
+      [{ dir: ".local/share/mise/shims", exists: true }],
+      0,
+    ],
+    ["実在しない（.cargo/bin）", [{ dir: ".cargo/bin", exists: false }], 0],
+  ])(
+    "PATH の $HOME の下のディレクトリが%sなら、隠れるときだけ起動の前に止める",
+    (_label, dirs, status) => {
+      const { result, bwrapArgs, home } = sandbox(["--version"], { pathHomeDirs: dirs });
+      expect(result.status, result.stderr).toBe(status);
+      if (status === 3) {
+        expect(result.stderr).toContain(
+          `PATH holds directories that the sandbox hides, so the run would miss their tools: ${join(home, ".cargo/bin")}.`,
+        );
+        expect(bwrapArgs).toBeNull();
+      } else {
+        expect(bwrapArgs).not.toBeNull();
+      }
+    },
+  );
+
+  test("$HOME の下のリポジトリを隠すマウントは、$HOME の tmpfs が覆うので、stage 5 はそのパスも確かめる", () => {
+    const { result, home } = sandbox(["--verify", "MARKER"], {
+      repoUnderHome: true,
+      env: { FAKE_BWRAP_MODE: "exec-credentials" },
+    });
+    expect(result.stdout).toContain("stage5 home outside the allowlist: VISIBLE (FAIL)");
+    expect(result.stdout).toContain(`    ${join(home, "projects")}\n`);
   });
 });

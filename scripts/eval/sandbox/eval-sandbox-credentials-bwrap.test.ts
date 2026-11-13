@@ -98,6 +98,9 @@ if touch "$HOME/.claude/.probe" 2>/dev/null; then echo "claude writable"; else e
       encoding: "utf8",
       env: {
         ...process.env,
+        // --verify も起動の前に CLI を探す。claude の無い環境（CI）でも止まらないよう、在る実行ファイルを渡す。
+        EVAL_SANDBOX_CLI: "bash",
+        EVAL_SANDBOX_VENDOR: "claude-code",
         EVAL_SANDBOX_NET: "off",
         EVAL_SANDBOX_CLONE_PROBE_URL: "/nonexistent/repo",
         HOME: home,
@@ -105,7 +108,7 @@ if touch "$HOME/.claude/.probe" 2>/dev/null; then echo "claude writable"; else e
         DBUS_SESSION_BUS_ADDRESS: `unix:path=${runtimeDir}/bus`,
       },
     });
-    expect(result.stdout).toMatch(
+    expect(result.stdout, result.stderr).toMatch(
       /^stage5 home allowlist positive control: \d+ bound paths readable \(ok\)$/mu,
     );
     expect(result.stdout).toMatch(
