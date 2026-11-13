@@ -552,8 +552,8 @@ args+=(--remount-ro "${home}")
 # reach its API, or a tool that reads the variable (JAVA_HOME, PNPM_HOME, ...) fails
 # inside the run, and then the result of the run can change without a warning. Add
 # such a name with EVAL_SANDBOX_ENV_ALLOW.
-#   HOME PATH USER LOGNAME SHELL PWD       the process basics; HOME is the resolved one
-#                                          and bwrap sets PWD to the --chdir directory
+#   HOME PATH USER LOGNAME SHELL PWD       the process basics; bwrap sets PWD to the
+#                                          --chdir directory (HOME: see below)
 #   TERM COLORTERM NO_COLOR LANG LANGUAGE LC_<category>  output and locale (the
 #                                          locale categories by name: an LC_ prefix
 #                                          would also pass LC_DEPLOY_TOKEN), kept so
@@ -566,6 +566,7 @@ args+=(--remount-ro "${home}")
 #                                          the run as it is)
 #   SHOJI9X9_SKILLS_IGNORE_USER_CONFIG     set by run-skill-eval.sh for every run
 #   vendor: the API key / token variables each CLI accepts instead of its credential file
+#                                          (and CODEX_HOME for Codex: see below)
 # The values never go on bwrap's command line: --setenv would put them in /proc/<pid>/
 # cmdline, which the run can read (measured). They are inherited from a filtered copy of
 # this shell's environment instead.
