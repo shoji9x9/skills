@@ -39,10 +39,10 @@
     },
     {
       "id": "runtime-covering-cwd-dropped",
-      "why": "cwd を比べる対象から外す（bind しない cwd を覆う runtime dir を止めない）",
+      "why": "cwd の代わりに無関係なパスを比べる（bind しない cwd を覆う runtime dir を止めない）",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
       "find": "targets=(\"${PWD}\")",
-      "replace": "targets=()",
+      "replace": "targets=(\"/nonexistent-eval-sandbox-cwd\")",
       "occurrences": 1,
       "expect_failing": [
         "runtime dir が先に置いたマウントの宛先か cwd を覆う構成 CLI の起動: runtime dir が /tmp の外で bind しない cwd と同じとき、bwrap を起動する前に理由を出して exit 3 で止める",
