@@ -179,7 +179,7 @@ describe("runtime dir と CLI の場所", () => {
 
   test("確かめるのは CLI だけで、PATH のディレクトリは確かめない", () => {
     const { result, bin, probeArgs } = sandbox(["--version"], {
-      pathHomeDirs: [{ dir: "tool-dir", state: "tool" }],
+      pathHomeDirs: ["tool-dir"],
     });
     expect(result.status, result.stderr).toBe(0);
     if (probeArgs === null) throw new Error("確認の呼び出しが無い");

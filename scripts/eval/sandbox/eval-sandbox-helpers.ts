@@ -119,21 +119,19 @@ export type SandboxOptions = {
   runtimeEntries?: string[];
   /** スクリプトのコピー（とそのリポジトリ）を $HOME の下に置く。 */
   repoUnderHome?: boolean;
-  /** PATH の先頭に足す、$HOME からの相対ディレクトリ。state で、無い・空・ツールが在るを選ぶ。 */
-  pathHomeDirs?: PathHomeDir[];
+  /** PATH の先頭に足す、$HOME からの相対ディレクトリ。中にツールを 1 つ置く。 */
+  pathHomeDirs?: string[];
   /** 起動の前の確認で、CLI を隠れていると答える。 */
   hiddenCli?: boolean;
 };
 
-export type PathHomeDir = { dir: string; state: "absent" | "empty" | "tool" };
-
-/** PATH の先頭に足すディレクトリを state のとおりに作り、PATH の接頭辞を返す。 */
-function homePathPrefix(home: string, dirs: PathHomeDir[]) {
-  for (const { dir, state } of dirs) {
-    if (state !== "absent") mkdirSync(join(home, dir), { recursive: true });
-    if (state === "tool") writeFileSync(join(home, dir, "tool"), "", { mode: 0o755 });
+/** PATH の先頭に足すディレクトリを作ってツールを 1 つ置き、PATH の接頭辞を返す。 */
+function homePathPrefix(home: string, dirs: string[]) {
+  for (const dir of dirs) {
+    mkdirSync(join(home, dir), { recursive: true });
+    writeFileSync(join(home, dir, "tool"), "", { mode: 0o755 });
   }
-  return dirs.map(({ dir }) => `${join(home, dir)}:`).join("");
+  return dirs.map((dir) => `${join(home, dir)}:`).join("");
 }
 
 /** 使い捨ての $HOME にファイルを置く。 */

@@ -123,11 +123,14 @@ describe.skipIf(outsideTmp === null)("本物の bwrap", () => {
 });
 
 /** $HOME の下に CLI のスタブを置き、PATH を最小にして sandbox を起動する。 */
-function startWithCli(home: string, options: { cliDir: string; path: string[]; homeEnv?: string }) {
+function startWithCli(
+  home: string,
+  options: { cliDir: string; path: string[]; homeEnv?: string; body?: string },
+) {
   const project = makeTempDir("eval-sandbox-probe-project-");
   const cli = join(home, options.cliDir, "claude-wrapper");
   mkdirSync(dirname(cli), { recursive: true });
-  writeFileSync(cli, "#!/usr/bin/env bash\necho STARTED\n", { mode: 0o755 });
+  writeFileSync(cli, `#!/usr/bin/env bash\n${options.body ?? ""}echo STARTED\n`, { mode: 0o755 });
   return spawnSync(sourceScript, ["--version"], {
     timeout: CHILD_TIMEOUT_MS,
     cwd: project,
@@ -165,9 +168,14 @@ describe.skipIf(outsideTmp === null)(
     test("PATH のディレクトリが隠れても止めない（確かめるのは CLI だけ）", () => {
       const { home } = makeRealHome("probe-path-hidden");
       writeHomeFiles(home, { ".cargo/bin/tool": "" });
-      const result = startWithCli(home, { cliDir: ".local/bin", path: [join(home, ".cargo/bin")] });
+      // run の中で .cargo/bin の中身が見えないこと（隠れた状態を作れたこと）も、CLI のスタブに出させて確かめる。
+      const result = startWithCli(home, {
+        cliDir: ".local/bin",
+        path: [join(home, ".cargo/bin")],
+        body: 'if [ -e "$HOME/.cargo/bin/tool" ]; then echo "TOOL VISIBLE"; else echo "tool hidden"; fi\n',
+      });
       expect(result.status, result.stderr).toBe(0);
-      expect(result.stdout).toBe("STARTED\n");
+      expect(result.stdout).toBe("tool hidden\nSTARTED\n");
     });
 
     test("$HOME がシンボリックリンクでも、許可リストの中の CLI は起動する", () => {
