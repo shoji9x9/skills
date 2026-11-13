@@ -49,12 +49,25 @@ ${FAKE_BWRAP_PROBE}printf '%s\\n' "$@" >"${capturedArgs}"
 // | ホストの $HOME      | 許可リストの場所が在る / 無い、許可リストの外に認証情報が在る / 無い |
 // | runtime dir         | 中身が在る / 空 / XDG_RUNTIME_DIR が実在しない                     |
 // | 起動の前の確認      | CLI が見える / 隠れる（PATH のディレクトリは確かめない）              |
+// | 環境変数            | 許可リストの外 / 中（軸の一覧は eval-sandbox-env.test.ts）          |
 //
 // bwrap のスタブは呼び出しごとに引数を追記する（--verify は 2 回呼ぶ）。
 // 起動の前の確認（CLI が見えるか）の呼び出しは記録せず、FAKE_BWRAP_HIDDEN（改行区切り）に
 // 挙げたパスを除いて「見える」と答える。何が隠れるかを測るのは、本物の bwrap のテストである。
 // FAKE_BWRAP_MODE=exec-credentials では、--verify の stage 5 の呼び出しだけを、隠さずにホストの上で実行する。
-// --setenv と --unsetenv は反映し、FAKE_BWRAP_KEEP_ENV=1 なら --unsetenv を反映しない。
+// --setenv と --unsetenv は反映する。FAKE_BWRAP_LEAK_ENV に挙げた名前は 1 を入れて渡し（環境変数が漏れた状態）、
+// FAKE_BWRAP_DROP_ENV に挙げた名前は外す（渡すはずの変数が欠けた状態）。
+// eval-sandbox.sh は bwrap を許可リストの環境変数だけで起動するので、スタブの設定（FAKE_BWRAP_*）は
+// 環境変数では届かない。スタブは隣の fake-bwrap.env から読む（export しないので、実行するコマンドには渡らない）。
+// FAKE_BWRAP_ENV_OUT を指定すると、呼び出しごとに、受け取った環境変数の名前（値は書かない）を 1 行ずつ追記し、
+// 呼び出しの区切りに "--" を書く。
+const FAKE_BWRAP_CONFIG = `config="$(dirname -- "$0")/fake-bwrap.env"
+[ ! -f "$config" ] || . "$config"
+[ -z "\${FAKE_BWRAP_ENV_OUT:-}" ] || {
+  while IFS= read -r -d '' e; do printf '%s\\n' "\${e%%=*}"; done </proc/$$/environ
+  echo --
+} >>"$FAKE_BWRAP_ENV_OUT"
+`;
 const FAKE_BWRAP_EXEC = `if [ "\${FAKE_BWRAP_MODE:-}" = exec-credentials ]; then
   envs=() unsets=() cmd=()
   while [ $# -gt 0 ]; do
@@ -74,8 +87,11 @@ const FAKE_BWRAP_EXEC = `if [ "\${FAKE_BWRAP_MODE:-}" = exec-credentials ]; then
     done <"$lists/runtime" >"$lists/runtime.kept"
     mv -- "$lists/runtime.kept" "$lists/runtime"
   fi
-  if [ "\${FAKE_BWRAP_KEEP_ENV:-}" != 1 ]; then for u in "\${unsets[@]}"; do unset "$u"; done; fi
-  exec env "\${envs[@]}" "\${cmd[@]}"
+  for u in "\${unsets[@]}"; do unset "$u"; done
+  for u in \${FAKE_BWRAP_DROP_ENV:-}; do unset "$u"; done
+  for u in \${FAKE_BWRAP_LEAK_ENV:-}; do envs+=("$u=1"); done
+  # SHLVL は、このスタブ（bash）が exec のときに足す。本物の bwrap は足さないので、env -u で外して揃える。
+  exec env -u SHLVL "\${envs[@]}" "\${cmd[@]}"
 fi
 `;
 const FAKE_BWRAP_PROBE = `case " $* " in *" EVAL_SANDBOX_PROBE 1 "*)
@@ -89,7 +105,7 @@ const FAKE_BWRAP_PROBE = `case " $* " in *" EVAL_SANDBOX_PROBE 1 "*)
 esac
 `;
 const FAKE_BWRAP = `#!/usr/bin/env bash
-${FAKE_BWRAP_PROBE}printf '%s\\n' "$@" >>"$FAKE_BWRAP_ARGS"
+${FAKE_BWRAP_CONFIG}${FAKE_BWRAP_PROBE}printf '%s\\n' "$@" >>"$FAKE_BWRAP_ARGS"
 ${FAKE_BWRAP_EXEC}
 # settings.json に bind されたコピーを、終了時に消される前に残す。
 if [ -n "\${FAKE_BWRAP_SETTINGS:-}" ]; then
@@ -123,6 +139,8 @@ export type SandboxOptions = {
   pathHomeDirs?: string[];
   /** 起動の前の確認で、CLI を隠れていると答える。 */
   hiddenCli?: boolean;
+  /** $HOME を作った後に呼ぶ。足す環境変数と cwd を返す（$HOME の外の場所を作るテスト用）。 */
+  setup?: (paths: { root: string; home: string }) => { env?: Record<string, string>; cwd?: string };
 };
 
 /** PATH の先頭に足すディレクトリを作ってツールを 1 つ置き、PATH の接頭辞を返す。 */
@@ -149,6 +167,19 @@ function makeRuntimeDir(root: string, entries: string[] | undefined) {
   mkdirSync(runtimeDir);
   for (const entry of entries) writeFileSync(join(runtimeDir, entry), "");
   return runtimeDir;
+}
+
+/** 文字列を bash の単一引用符で包む（中の単一引用符は、引用を閉じてエスケープした 1 文字を足す）。 */
+export function shellQuote(value: string) {
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+/** スタブの bwrap の設定（環境変数のうち FAKE_BWRAP_* の名前のもの）を、スタブの隣のファイルに書く。 */
+function writeFakeBwrapConfig(bin: string, env: Record<string, string | undefined>) {
+  const lines = Object.entries(env).flatMap(([name, value]) =>
+    name.startsWith("FAKE_BWRAP_") && value !== undefined ? [`${name}=${shellQuote(value)}\n`] : [],
+  );
+  writeFileSync(join(bin, "fake-bwrap.env"), lines.join(""));
 }
 
 /** CLI・bwrap・getent のスタブを bin に置く。 */
@@ -187,6 +218,20 @@ function readBwrapArgs(capturedArgs: string) {
   }
 }
 
+/** スタブの bwrap が呼び出しごとに記録した環境変数の名前を読む。呼ばれていなければ空の配列を返す。 */
+function readEnvNames(envOut: string) {
+  let text: string;
+  try {
+    text = readFileSync(envOut, "utf8");
+  } catch {
+    return [];
+  }
+  return text
+    .split("--\n")
+    .slice(0, -1)
+    .map((call) => call.split("\n").filter(Boolean));
+}
+
 /** スクリプトを起動する環境変数を作る。 */
 function sandboxEnv(
   paths: Record<
@@ -221,6 +266,7 @@ export function sandbox(args: string[], options: SandboxOptions = {}) {
   const bin = join(root, "bin");
   const copiedScript = join(repo, "scripts", "eval", "sandbox", "eval-sandbox.sh");
   const capturedArgs = join(root, "bwrap-args.txt");
+  const envOut = join(root, "bwrap-env-names.txt");
   const probeArgs = join(root, "bwrap-probe-args.txt");
   mkdirSync(dirname(copiedScript), { recursive: true });
   mkdirSync(join(home, ".claude"), { recursive: true });
@@ -233,9 +279,14 @@ export function sandbox(args: string[], options: SandboxOptions = {}) {
   symlinkSync(sanitizeScript, join(dirname(copiedScript), "sanitize-claude-settings.ts"));
   const cli = options.cli ?? "claude";
   writeSandboxFakeBin(bin, cli, options);
-  const env = sandboxEnv({ root, home, bin, cli, runtimeDir, capturedArgs, probeArgs }, options);
+  const extra = options.setup?.({ root, home }) ?? {};
+  const env = {
+    ...sandboxEnv({ root, home, bin, cli, runtimeDir, capturedArgs, probeArgs }, options),
+    ...extra.env,
+  };
+  writeFakeBwrapConfig(bin, { FAKE_BWRAP_ENV_OUT: envOut, ...env });
   const result = spawnSync("/bin/bash", [copiedScript, ...args], {
-    cwd: options.cwd ?? root,
+    cwd: extra.cwd ?? options.cwd ?? root,
     encoding: "utf8",
     env,
     stdio: ["ignore", "pipe", "pipe"],
@@ -245,6 +296,7 @@ export function sandbox(args: string[], options: SandboxOptions = {}) {
     result,
     bwrapArgs: readBwrapArgs(capturedArgs),
     probeArgs: readBwrapArgs(probeArgs),
+    envNames: readEnvNames(envOut),
     home,
     root,
     runtimeDir,

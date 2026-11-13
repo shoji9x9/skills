@@ -31,6 +31,12 @@
 # serves ~/.local/share/keyrings over the session bus, so the runtime dir that holds
 # the bus and the agent sockets is hidden too.
 #
+# The environment is an allowlist as well (Issue #1011): every bwrap call starts from
+# the variables the CLIs and the harness need (env_allowed below), so a token exported
+# in the operator's shell (GH_TOKEN, AWS_*, BOX_*, the parent agent's session token)
+# never reaches the run. XDG base directories outside $HOME and allowlisted
+# directories reached through a symlink are hidden the same way as $HOME.
+#
 # USAGE (as the runner override; the wrapper runs the real CLI inside the sandbox):
 #   SKILL_EVAL_RUNNER="$PWD/scripts/eval/sandbox/eval-sandbox.sh" scripts/eval/run/run-skill-eval.sh --config without_skill ...
 #   scripts/eval/sandbox/eval-sandbox.sh --verify '<marker>' ...   # prove the blocking works first
@@ -42,8 +48,10 @@
 # accepts them (the positive control — without it, "write failed" could just mean the
 # probe itself is broken), and the spots deliberately left writable under $HOME do not
 # reach the host. Stage 1 alone has missed routes before. Stage 4 checks the network,
-# and (5) every host path under $HOME outside the allowlist is absent while every
-# path bound back is readable, and the runtime dir and agent socket variables are gone.
+# and (5) every host path under $HOME (and under the XDG and symlinked directories
+# hidden with it) outside the allowlist is absent while every path bound back is
+# readable, the runtime dir is empty, and every host variable outside the environment
+# allowlist is unset while every allowlisted one is still set.
 #
 # Repo-internal tooling; not bundled in any distributed skill.
 set -euo pipefail
@@ -207,6 +215,73 @@ home_allow=(
 )
 for rel in "${home_allow[@]}"; do
 	[ -e "${home}/${rel}" ] && args+=(--ro-bind "${home}/${rel}" "${home}/${rel}")
+done
+# The same places can live elsewhere: an XDG base directory set to another path, or a
+# directory of the allowlist reached through a symlink (dotfiles managers link ~/.config).
+# The tmpfs above hides only $HOME, so such a directory outside $HOME would stay
+# readable by its real path, and a CLI or shim resolved through the link (readlink -f)
+# would be hidden. Each of them is a "root" standing for one prefix of home_allow:
+# outside $HOME it gets a tmpfs of its own, and wherever it is, the entries of
+# home_allow under that prefix are bound back at their real path.
+# A root that holds $HOME or the disposable project cannot be hidden without hiding
+# them, so the run stops instead of exposing it.
+# Each entry is "<prefix>|<the XDG variable that relocates it, if any>", parents first.
+home_prefixes=(".config|XDG_CONFIG_HOME" ".config/git|" ".local|" ".local/share|XDG_DATA_HOME" ".local/state|XDG_STATE_HOME" ".cache|XDG_CACHE_HOME")
+extra_roots=()
+outside_roots=()
+under_root() { # is $1 equal to or below one of the roots found so far?
+	local r
+	for r in "${extra_roots[@]}"; do
+		case "$1/" in "${r}/"*) return 0 ;; esac
+	done
+	return 1
+}
+add_root() { # $1 = real directory, $2 = the home_allow prefix it stands for
+	local r="$1" prefix="$2" rel e
+	[ "${r}" != "${home}/${prefix}" ] && [ -d "${r}" ] || return 0
+	# A root inside one found before is already hidden with it, but the entries of
+	# its own prefix still have to be bound back (~/.local linked into the directory
+	# that XDG_CONFIG_HOME names, for one).
+	if ! under_root "${r}"; then
+		case "${home}/" in "${r}/"*)
+			echo "eval-sandbox: ${r} (${prefix}) holds \$HOME; it cannot be hidden without hiding \$HOME" >&2
+			exit 3
+			;;
+		esac
+		case "${PWD}/" in "${r}/"*)
+			echo "eval-sandbox: ${r} (${prefix}) holds the disposable project ${PWD}; it cannot be hidden" >&2
+			exit 3
+			;;
+		esac
+		# The other way round, its tmpfs would cover what an earlier root bound back.
+		for e in "${extra_roots[@]}"; do
+			case "${e}/" in "${r}/"*)
+				echo "eval-sandbox: ${r} (${prefix}) holds ${e}, another place hidden before it; point the XDG variables at directories that do not contain each other" >&2
+				exit 3
+				;;
+			esac
+		done
+		extra_roots+=("${r}")
+		case "${r}/" in
+		"${home}/"*) ;;
+		*)
+			outside_roots+=("${r}")
+			args+=(--tmpfs "${r}")
+			;;
+		esac
+	fi
+	for rel in "${home_allow[@]}"; do
+		case "${rel}" in "${prefix}/"*) ;; *) continue ;; esac
+		[ -e "${r}/${rel#"${prefix}"/}" ] && args+=(--ro-bind "${r}/${rel#"${prefix}"/}" "${r}/${rel#"${prefix}"/}")
+	done
+	return 0
+}
+for entry in "${home_prefixes[@]}"; do
+	prefix="${entry%%|*}" var="${entry#*|}"
+	if [ -n "${var}" ] && [ -n "${!var:-}" ]; then
+		add_root "$(realpath -m -- "${!var}")" "${prefix}"
+	fi
+	[ ! -e "${home}/${prefix}" ] || add_root "$(realpath -m -- "${home}/${prefix}")" "${prefix}"
 done
 # The CLI writes its own state to ~/.claude.json at startup, so give it a throwaway
 # one. It must NOT be a copy of the real file: that file records per-project history
@@ -377,10 +452,85 @@ for d in "${XDG_RUNTIME_DIR:-}" "/run/user/$(id -u)"; do
 	runtime_dirs+=("${d}")
 	args+=(--tmpfs "${d}")
 done
-args+=(--unsetenv DBUS_SESSION_BUS_ADDRESS --unsetenv SSH_AUTH_SOCK --unsetenv GPG_AGENT_INFO)
 
 # Last mount under $HOME is above; from here on $HOME is read-only (step 0).
+for r in "${outside_roots[@]}"; do args+=(--remount-ro "${r}"); done
 args+=(--remount-ro "${home}")
+
+# The environment: only what the CLIs and the harness read to start and to reach the
+# API is passed (Issue #1011). Measured by starting both CLIs and the tools from
+# a filtered environment; everything else the operator's shell exports (GH_TOKEN,
+# AWS_*, BOX_*, the parent agent's CLAUDE_CODE_* session token and socket,
+# DBUS_SESSION_BUS_ADDRESS, SSH_AUTH_SOCK, WSL_INTEROP, ...) stays out without being
+# named. Missing a needed one makes a start-up or API failure, not a leak.
+#   HOME PATH USER LOGNAME SHELL PWD       the process basics; HOME is the resolved one
+#                                          and bwrap sets PWD to the --chdir directory
+#   TERM COLORTERM NO_COLOR LANG LANGUAGE LC_*  output and locale, kept so results do
+#                                          not change with this script
+#   TZ TMPDIR XDG_*_HOME XDG_RUNTIME_DIR   where tools put files (XDG dirs are hidden
+#                                          and bound back above)
+#   *_proxy, NODE_EXTRA_CA_CERTS, SSL_CERT_FILE, SSL_CERT_DIR  how the CLI reaches its API
+#   SHOJI9X9_SKILLS_IGNORE_USER_CONFIG     set by run-skill-eval.sh for every run
+#   vendor: the API key / token variables each CLI accepts instead of its credential file
+# The values never go on bwrap's command line: --setenv would put them in /proc/<pid>/
+# cmdline, which the run can read (measured). They are inherited from a filtered copy of
+# this shell's environment instead.
+# EVAL_SANDBOX_ENV_ALLOW adds space-separated names (for a vendor setting this script
+# does not know about). It only widens what the eval run sees.
+env_allow=(
+	HOME PATH USER LOGNAME SHELL PWD
+	TERM COLORTERM NO_COLOR LANG LANGUAGE
+	TZ TMPDIR XDG_CONFIG_HOME XDG_DATA_HOME XDG_STATE_HOME XDG_CACHE_HOME XDG_RUNTIME_DIR
+	http_proxy https_proxy no_proxy all_proxy HTTP_PROXY HTTPS_PROXY NO_PROXY ALL_PROXY
+	NODE_EXTRA_CA_CERTS SSL_CERT_FILE SSL_CERT_DIR
+	SHOJI9X9_SKILLS_IGNORE_USER_CONFIG
+)
+case "${vendor}" in
+claude-code) env_allow+=(ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN ANTHROPIC_BASE_URL CLAUDE_CODE_OAUTH_TOKEN) ;;
+codex) env_allow+=(OPENAI_API_KEY CODEX_API_KEY OPENAI_BASE_URL CODEX_HOME) ;;
+esac
+# Split with read, not an unquoted expansion: a glob character (`*`) would expand to
+# the file names in the cwd, and a file named like a variable would pass the check.
+read -r -a env_allow_extra <<<"${EVAL_SANDBOX_ENV_ALLOW:-}"
+for name in "${env_allow_extra[@]}"; do
+	[[ "${name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || {
+		echo "eval-sandbox: EVAL_SANDBOX_ENV_ALLOW holds a name that is not a variable name: ${name}" >&2
+		exit 3
+	}
+	env_allow+=("${name}")
+done
+env_allowed() {
+	local a
+	case "$1" in LC_*) return 0 ;; esac
+	for a in "${env_allow[@]}"; do [ "${a}" != "$1" ] || return 0; done
+	return 1
+}
+# Fills child_env_names with the names a child of this shell receives, read from a
+# child (env -0) rather than from `compgen -e`: bash also hands its children entries
+# whose names are not shell identifiers (GH.TOKEN=...) and exported functions
+# (BASH_FUNC_f%%), and compgen lists neither. An empty list would pass everything, so
+# it stops instead.
+list_child_env() {
+	local entries=() e
+	mapfile -d '' entries < <(env -0)
+	[ "${#entries[@]}" -gt 0 ] || {
+		echo "eval-sandbox: cannot list the environment to filter it" >&2
+		exit 3
+	}
+	child_env_names=()
+	for e in "${entries[@]}"; do child_env_names+=("${e%%=*}"); done
+}
+# Every bwrap call goes through here, so the start-up check, the run and --verify see
+# the same environment. `env -u` takes names only (no values on any command line), and
+# also removes what bash cannot unset (an exported SHELLOPTS is readonly here).
+run_bwrap() {
+	local name unset_args=()
+	list_child_env
+	for name in "${child_env_names[@]}"; do
+		env_allowed "${name}" || unset_args+=(-u "${name}")
+	done
+	env "${unset_args[@]}" HOME="${home}" bwrap "$@"
+}
 
 # What decides a path inside the sandbox is the LAST mount whose target is the path or
 # one of its parents (bwrap applies them in order). The mounts are read from args once,
@@ -533,47 +683,78 @@ while IFS= read -r -d "" l; do
   else echo "hidden (ok; $n entries on the host)"; fi
 done <"$HOME_LISTS/runtime"
 [ "$runtime_lines" -gt 0 ] || echo "stage5 runtime dir: none on the host (nothing to hide)"
-printf "stage5 agent socket variables: "
-set_vars=""
-for v in DBUS_SESSION_BUS_ADDRESS SSH_AUTH_SOCK GPG_AGENT_INFO; do [ -z "${!v+set}" ] || set_vars="$set_vars $v"; done
-if [ -n "$set_vars" ]; then echo "SET (FAIL):$set_vars"; rc=1; else echo "unset (ok)"; fi
+# The names this shell received from bwrap, which is what the CLI receives. Not the
+# shell variables: bash sets PWD, SHLVL and HOSTTYPE itself whatever it was given.
+received=" "
+while IFS= read -r -d "" e; do received="$received${e%%=*} "; done </proc/$$/environ
+for kind in shown hidden; do
+  printf "stage5 environment %s: " "$([ "$kind" = shown ] && echo "allowlist positive control" || echo "outside the allowlist")"
+  n=0; bad=()
+  while IFS= read -r -d "" v; do
+    n=$((n+1))
+    case "$received" in *" $v "*) [ "$kind" = shown ] || bad+=("$v") ;; *) [ "$kind" = hidden ] || bad+=("$v") ;; esac
+  done <"$HOME_LISTS/env-$kind"
+  if [ "$n" -eq 0 ]; then echo "NOTHING TO CHECK (FAIL: no host variable on this side, so the filter is unproven)"; rc=1
+  elif [ "${#bad[@]}" -gt 0 ] && [ "$kind" = shown ]; then echo "UNSET (FAIL)"; printf "    %s\n" "${bad[@]}"; rc=1
+  elif [ "${#bad[@]}" -gt 0 ]; then echo "SET (FAIL)"; printf "    %s\n" "${bad[@]}"; rc=1
+  else echo "$n host variables as expected (ok)"; fi
+done
 exit $rc'
-	# Stage 5 inputs, listed here on the host (paths only, NUL-separated). "shown" is
-	# every bind target under $HOME. "hidden" is every host path under $HOME that no
-	# mount puts back: the walk descends only into directories that hold a mount
-	# target, so a store that nobody named here is still checked.
+	# Stage 5 inputs, listed here on the host (paths and variable names only,
+	# NUL-separated). "shown" is every bind target under $HOME and the other hidden
+	# roots. "hidden" is every host path under them that no mount puts back: the walk
+	# descends only into directories that hold a mount target (through a symlink, too:
+	# inside, bwrap creates a plain directory there), so a store that nobody named here
+	# is still checked. "env-shown" / "env-hidden" split the host's variables by the
+	# environment allowlist; the probe variable makes sure the hidden side is never empty.
 	# Under /tmp, not TMPDIR: a TMPDIR under $HOME would put the bind target inside the
 	# read-only $HOME, where bwrap cannot create the mount point.
 	home_lists="$(mktemp -d /tmp/eval-sandbox-home-lists-XXXXXX)"
 	: >"${home_lists}/shown"
 	: >"${home_lists}/hidden"
-	home_targets=()
+	hidden_roots=("${home}" "${outside_roots[@]}")
+	root_targets=()
 	for i in "${!mount_targets[@]}"; do
 		t="${mount_targets[i]}"
-		case "${t}" in "${home}"/*) ;; *) continue ;; esac
+		in_root=""
+		for r in "${hidden_roots[@]}"; do
+			case "${t}" in "${r}"/*) in_root=1 ;; esac
+		done
+		[ -n "${in_root}" ] || continue
 		# A mount that a later one covers (a work tree under $HOME, placed before the
 		# $HOME tmpfs) puts nothing back, so its path stays in "hidden".
 		[ "$(covering_mount "${t}")" = "${i}" ] || continue
-		home_targets+=("${t}")
+		root_targets+=("${t}")
 		[ "${mount_flags[i]}" = --tmpfs ] || printf '%s\0' "${t}" >>"${home_lists}/shown"
 	done
-	walk_home() {
+	walk_root() {
 		local e t below
 		for e in "$1"/* "$1"/.[!.]* "$1"/..?*; do
 			[ -e "${e}" ] || [ -L "${e}" ] || continue
 			below=""
-			for t in "${home_targets[@]}"; do
+			for t in "${root_targets[@]}"; do
 				[ "${e}" = "${t}" ] && continue 2
 				case "${t}" in "${e}"/*) below=1 ;; esac
 			done
-			if [ -n "${below}" ] && [ -d "${e}" ] && [ ! -L "${e}" ]; then
-				walk_home "${e}"
+			if [ -n "${below}" ] && [ -d "${e}" ]; then
+				walk_root "${e}"
 			else
 				printf '%s\0' "${e}" >>"${home_lists}/hidden"
 			fi
 		done
 	}
-	walk_home "${home}"
+	for r in "${hidden_roots[@]}"; do walk_root "${r}"; done
+	export EVAL_SANDBOX_VERIFY_ENV_PROBE=1
+	: >"${home_lists}/env-shown"
+	: >"${home_lists}/env-hidden"
+	list_child_env
+	for name in "${child_env_names[@]}"; do
+		if env_allowed "${name}"; then
+			printf '%s\0' "${name}" >>"${home_lists}/env-shown"
+		else
+			printf '%s\0' "${name}" >>"${home_lists}/env-hidden"
+		fi
+	done
 	: >"${home_lists}/runtime"
 	for d in "${runtime_dirs[@]}"; do
 		printf '%s|%s\0' "$(find "${d}" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l)" "${d}" >>"${home_lists}/runtime"
@@ -581,10 +762,10 @@ exit $rc'
 	rc=0
 	escape_sentinel="SENTINEL-EVAL-SANDBOX-ESCAPE"
 	clone_probe_url="${EVAL_SANDBOX_CLONE_PROBE_URL:-https://github.com/shoji9x9/skills}"
-	bwrap "${args[@]}" --setenv SENTINEL "${escape_sentinel}" \
+	run_bwrap "${args[@]}" --setenv SENTINEL "${escape_sentinel}" \
 		--setenv ALLOW_HOSTS "${net_allow}" --setenv CLONE_PROBE_URL "${clone_probe_url}" \
 		--chdir / -- /bin/bash -c "${script}" _ "${repo}" "${markers[@]}" || rc=$?
-	bwrap "${args[@]}" --ro-bind "${home_lists}" "${home_lists}" \
+	run_bwrap "${args[@]}" --ro-bind "${home_lists}" "${home_lists}" \
 		--setenv HOME_LISTS "${home_lists}" \
 		--chdir / -- /bin/bash -c "${credentials_script}" || rc=$?
 	# Negative half of the containment check: the probe planted inside must not exist
@@ -626,7 +807,7 @@ fi
 probe_out="$(mktemp /tmp/eval-sandbox-probe-XXXXXX)"
 # shellcheck disable=SC2016 # deliberate: $1 expands inside the sandboxed shell
 probe_script='if [ -f "$1" ]; then printf "%s\0" "$1"; fi'
-bwrap "${args[@]}" --setenv EVAL_SANDBOX_PROBE 1 --chdir / -- /bin/bash -c "${probe_script}" _ "${cli_real}" \
+run_bwrap "${args[@]}" --setenv EVAL_SANDBOX_PROBE 1 --chdir / -- /bin/bash -c "${probe_script}" _ "${cli_real}" \
 	>"${probe_out}" </dev/null || {
 	echo "eval-sandbox: the sandbox did not start for the start-up check of the CLI" >&2
 	exit 3
@@ -639,5 +820,5 @@ while IFS= read -r -d '' p; do [ "${p}" != "${cli_real}" ] || shown=1; done <"${
 	exit 3
 }
 rc=0
-bwrap "${args[@]}" --chdir "${PWD}" -- "${cli_real}" "$@" || rc=$?
+run_bwrap "${args[@]}" --chdir "${PWD}" -- "${cli_real}" "$@" || rc=$?
 exit "${rc}"

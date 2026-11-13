@@ -1,0 +1,283 @@
+// eval-sandbox.sh が run に渡す環境変数と、$HOME の外の設定の場所の扱いのテスト（Issue #1011）。
+//
+// bwrap のスタブが、受け取った環境変数の名前（値は記録しない）と引数を記録する。
+// 本物の bwrap で run から見えるかを確かめるテストは eval-sandbox-credentials-bwrap.test.ts にある。
+// 環境変数の値は、テスト用の無害な文字列だけを使う。
+//
+// | 軸                         | 値                                                                  |
+// | -------------------------- | ------------------------------------------------------------------- |
+// | 許可リストの外の変数       | 認証情報（GH_TOKEN・AWS_*・BOX_*）/ 親のエージェントのトークンとソケット / 名前を挙げていない変数 / 名前が識別子でない変数・export した関数 |
+// | 許可リストの中の変数       | 起動の基本（PATH）/ ロケール（LANG・LC_*）/ プロキシ / ハーネス / ベンダーの API キー |
+// | ベンダー                   | claude-code / codex（相手のベンダーのキーは渡さない）               |
+// | EVAL_SANDBOX_ENV_ALLOW     | 無い / 変数名 / 変数名でない値 / glob の文字                        |
+// | 値の置き場所               | 環境だけ（bwrap の引数に載らない）                                  |
+// | $HOME                      | 普通のパス / シンボリックリンク（解決したパスを渡す）               |
+// | XDG_*_HOME                 | 無い / $HOME の外 / $HOME の中のデフォルトでない場所 / $HOME を含む / cwd を含む |
+// | 許可リストの祖先           | 普通のディレクトリ / $HOME の外へのリンク / $HOME の中へのリンク / 先に見つけた場所の中へのリンク |
+import { mkdirSync, renameSync, symlinkSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { describe, expect, test } from "vitest";
+import { allowedFiles, credentialFiles, sandbox, writeHomeFiles } from "./eval-sandbox-helpers.ts";
+
+/** bwrap の引数から、指定したフラグの n 個目の値を集める。 */
+function flagValues(args: string[], flag: string, offset = 1) {
+  return args.flatMap((arg, i) => (arg === flag ? [args[i + offset]] : []));
+}
+
+const hiddenNames = {
+  GH_TOKEN: "dummy-gh",
+  AWS_ACCESS_KEY_ID: "dummy-aws",
+  BOX_CLIENT_SECRET: "dummy-box",
+  CLAUDE_CODE_MESSAGING_TOKEN: "dummy-session",
+  CLAUDE_CODE_MESSAGING_SOCKET: "/nonexistent/sock",
+  DBUS_SESSION_BUS_ADDRESS: "unix:path=/nonexistent/bus",
+  SSH_AUTH_SOCK: "/nonexistent/agent",
+  WSL_INTEROP: "/nonexistent/interop",
+  UNLISTED_TOOL_SETTING: "dummy",
+};
+const shownNames = {
+  LANG: "C.UTF-8",
+  LC_ALL: "C.UTF-8",
+  HTTPS_PROXY: "http://127.0.0.1:9",
+  SHOJI9X9_SKILLS_IGNORE_USER_CONFIG: "1",
+};
+
+describe("run に渡す環境変数", () => {
+  test("許可リストの外は渡さず、許可リストの中は渡す（起動の前の確認と run の両方で）", () => {
+    const { result, envNames } = sandbox(["--version"], {
+      env: { ...hiddenNames, ...shownNames, ANTHROPIC_API_KEY: "dummy-key" },
+    });
+    expect(result.status, result.stderr).toBe(0);
+    // 起動の前の確認と run の 2 回。
+    expect(envNames).toHaveLength(2);
+    for (const names of envNames) {
+      for (const name of Object.keys(hiddenNames)) expect(names).not.toContain(name);
+      for (const name of [...Object.keys(shownNames), "HOME", "PATH", "ANTHROPIC_API_KEY"]) {
+        expect(names).toContain(name);
+      }
+    }
+  });
+
+  test.each([
+    ["claude-code", "claude", ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"]],
+    ["codex", "codex", ["OPENAI_API_KEY", "ANTHROPIC_API_KEY"]],
+  ] as const)("%s では、そのベンダーの API キーだけを渡す", (vendor, cli, [own, other]) => {
+    const { result, envNames } = sandbox(["--version"], {
+      cli,
+      vendor,
+      homeFiles: { ".codex/auth.json": "{}\n" },
+      env: { [own]: "dummy-own", [other]: "dummy-other", EVAL_SANDBOX_NET: "off" },
+    });
+    expect(result.status, result.stderr).toBe(0);
+    expect(envNames.length).toBeGreaterThan(0);
+    for (const names of envNames) {
+      expect(names).toContain(own);
+      expect(names).not.toContain(other);
+    }
+  });
+
+  test("値は bwrap の引数に載せない（run の中から /proc/<pid>/cmdline で読めるため）", () => {
+    const { result, bwrapArgs } = sandbox(["--version"], {
+      env: { ...shownNames, ANTHROPIC_API_KEY: "VALUE-MUST-NOT-BE-AN-ARGUMENT" },
+    });
+    expect(result.status, result.stderr).toBe(0);
+    if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
+    expect(bwrapArgs.join("\n")).not.toContain("VALUE-MUST-NOT-BE-AN-ARGUMENT");
+    expect(bwrapArgs.join("\n")).not.toContain("C.UTF-8");
+  });
+
+  test("EVAL_SANDBOX_ENV_ALLOW に挙げた名前は渡し、挙げていない名前は渡さない", () => {
+    const { result, envNames } = sandbox(["--version"], {
+      env: {
+        EVAL_SANDBOX_ENV_ALLOW: "EXTRA_ONE  EXTRA_TWO",
+        EXTRA_ONE: "1",
+        EXTRA_TWO: "2",
+        EXTRA_THREE: "3",
+      },
+    });
+    expect(result.status, result.stderr).toBe(0);
+    for (const names of envNames) {
+      expect(names).toEqual(expect.arrayContaining(["EXTRA_ONE", "EXTRA_TWO"]));
+      expect(names).not.toContain("EXTRA_THREE");
+    }
+  });
+
+  test("EVAL_SANDBOX_ENV_ALLOW に変数名でない値があれば、bwrap を起動せずに止める", () => {
+    const { result, envNames } = sandbox(["--version"], {
+      env: { EVAL_SANDBOX_ENV_ALLOW: "OK_NAME BAD-NAME" },
+    });
+    expect(result.status).toBe(3);
+    expect(result.stderr).toContain("not a variable name: BAD-NAME");
+    expect(envNames).toEqual([]);
+  });
+
+  test("名前が識別子でない変数と、export した関数も渡さない（bash は子に渡すが compgen -e に出ない）", () => {
+    const { result, envNames } = sandbox(["--version"], {
+      env: { "GH.TOKEN": "dummy-dotted", "BASH_FUNC_probe%%": "() {  :\n}" },
+    });
+    expect(result.status, result.stderr).toBe(0);
+    expect(envNames).toHaveLength(2);
+    for (const names of envNames) {
+      expect(names).not.toContain("GH.TOKEN");
+      expect(names).not.toContain("BASH_FUNC_probe%%");
+    }
+  });
+
+  test("EVAL_SANDBOX_ENV_ALLOW の * は、cwd のファイル名に展開しない", () => {
+    const { result, envNames } = sandbox(["--version"], {
+      env: { EVAL_SANDBOX_ENV_ALLOW: "*", GLOB_NAMED: "1" },
+      setup: (paths) => {
+        writeHomeFiles(paths.root, { "glob-cwd/GLOB_NAMED": "" });
+        return { cwd: join(paths.root, "glob-cwd") };
+      },
+    });
+    expect(result.status).toBe(3);
+    expect(result.stderr).toContain("not a variable name: *");
+    expect(envNames).toEqual([]);
+  });
+
+  test("bash が unset できない変数（export した SHELLOPTS）も渡さない", () => {
+    const { result, envNames } = sandbox(["--version"], { env: { SHELLOPTS: "braceexpand" } });
+    expect(result.status, result.stderr).toBe(0);
+    for (const names of envNames) expect(names).not.toContain("SHELLOPTS");
+  });
+});
+
+describe("$HOME の外の設定の場所", () => {
+  test("XDG_CONFIG_HOME が $HOME の外なら tmpfs で隠し、許可リストの場所だけを読み取り専用で戻す", () => {
+    const { result, bwrapArgs, root } = sandbox(["--version"], {
+      setup: (paths) => {
+        const xdg = join(paths.root, "xdg-config");
+        writeHomeFiles(xdg, { "gh/hosts.yml": "MARKER\n", "mise/config.toml": "MARKER\n" });
+        return { env: { XDG_CONFIG_HOME: xdg } };
+      },
+    });
+    expect(result.status, result.stderr).toBe(0);
+    if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
+    const xdg = join(root, "xdg-config");
+    expect(flagValues(bwrapArgs, "--tmpfs")).toContain(xdg);
+    const roBindTargets = flagValues(bwrapArgs, "--ro-bind", 2);
+    expect(roBindTargets).toContain(join(xdg, "mise"));
+    expect(roBindTargets).not.toContain(join(xdg, "gh"));
+    expect(flagValues(bwrapArgs, "--remount-ro")).toContain(xdg);
+  });
+
+  test("XDG_CONFIG_HOME が $HOME の中のデフォルトでない場所なら、tmpfs は置かずに許可リストの場所を戻す", () => {
+    const { result, bwrapArgs, home } = sandbox(["--version"], {
+      homeFiles: { "my-config/mise/config.toml": "MARKER\n", "my-config/gh/hosts.yml": "MARKER\n" },
+      setup: (paths) => ({ env: { XDG_CONFIG_HOME: join(paths.home, "my-config") } }),
+    });
+    expect(result.status, result.stderr).toBe(0);
+    if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
+    expect(flagValues(bwrapArgs, "--tmpfs")).not.toContain(join(home, "my-config"));
+    expect(flagValues(bwrapArgs, "--ro-bind", 2)).toContain(join(home, "my-config/mise"));
+    expect(flagValues(bwrapArgs, "--ro-bind", 2)).not.toContain(join(home, "my-config/gh"));
+  });
+
+  test("~/.config が $HOME の外へのシンボリックリンクなら、リンク先を tmpfs で隠して許可リストの場所を戻す", () => {
+    const { result, bwrapArgs, root } = sandbox(["--version"], {
+      homeFiles: { ...credentialFiles, ...allowedFiles },
+      setup: (paths) => {
+        renameSync(join(paths.home, ".config"), join(paths.root, "dot-config"));
+        symlinkSync(join(paths.root, "dot-config"), join(paths.home, ".config"));
+        return {};
+      },
+    });
+    expect(result.status, result.stderr).toBe(0);
+    if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
+    const target = join(root, "dot-config");
+    expect(flagValues(bwrapArgs, "--tmpfs")).toContain(target);
+    const roBindTargets = flagValues(bwrapArgs, "--ro-bind", 2);
+    expect(roBindTargets).toContain(join(target, "mise"));
+    expect(roBindTargets).toContain(join(target, "git/ignore"));
+    expect(roBindTargets).not.toContain(join(target, "box"));
+  });
+
+  test("先に見つけた場所の中にリンクした許可リストの祖先も、その中の許可リストの場所を戻す", () => {
+    const { result, bwrapArgs, root } = sandbox(["--version"], {
+      homeFiles: { ...allowedFiles },
+      setup: (paths) => {
+        const xdg = join(paths.root, "xdg-all");
+        writeHomeFiles(xdg, { "mise/config.toml": "MARKER\n" });
+        renameSync(join(paths.home, ".local"), join(xdg, "local"));
+        symlinkSync(join(xdg, "local"), join(paths.home, ".local"));
+        return { env: { XDG_CONFIG_HOME: xdg } };
+      },
+    });
+    expect(result.status, result.stderr).toBe(0);
+    if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
+    const xdg = join(root, "xdg-all");
+    expect(flagValues(bwrapArgs, "--tmpfs").filter((t) => t.startsWith(xdg))).toEqual([xdg]);
+    expect(flagValues(bwrapArgs, "--ro-bind", 2)).toContain(join(xdg, "local/share/mise"));
+  });
+
+  test.each([
+    ["$HOME", (paths: { root: string; home: string }) => dirname(paths.home)],
+    ["cwd", (paths: { root: string; home: string }) => join(paths.root, "cwd-parent")],
+  ])("XDG_CONFIG_HOME が %s を含むなら、隠せないので bwrap を起動せずに止める", (label, dir) => {
+    const { result, bwrapArgs } = sandbox(["--version"], {
+      setup: (paths) => {
+        const xdg = dir(paths);
+        mkdirSync(join(xdg, "project"), { recursive: true });
+        return {
+          env: { XDG_CONFIG_HOME: xdg },
+          cwd: label === "cwd" ? join(xdg, "project") : undefined,
+        };
+      },
+    });
+    expect(result.status).toBe(3);
+    expect(result.stderr).toContain(
+      label === "cwd" ? "holds the disposable project" : "holds $HOME",
+    );
+    expect(bwrapArgs).toBeNull();
+  });
+
+  test("後から見つけた場所が先に見つけた場所を含むなら、先に戻した場所を覆うので bwrap を起動せずに止める", () => {
+    const { result, bwrapArgs } = sandbox(["--version"], {
+      setup: (paths) => {
+        const outer = join(paths.root, "xdg-outer");
+        writeHomeFiles(outer, { "cfg/mise/config.toml": "MARKER\n", "mise/marker": "MARKER\n" });
+        return { env: { XDG_CONFIG_HOME: join(outer, "cfg"), XDG_CACHE_HOME: outer } };
+      },
+    });
+    expect(result.status).toBe(3);
+    expect(result.stderr).toContain("another place hidden before it");
+    expect(bwrapArgs).toBeNull();
+  });
+});
+
+describe("--verify の stage 5 と、$HOME の外の場所", () => {
+  test("$HOME の外の XDG の場所も、戻していないパスを確かめる対象に入れる", () => {
+    const { result, root } = sandbox(["--verify", "MARKER"], {
+      homeFiles: { ".claude.json": "{}\n" },
+      env: { FAKE_BWRAP_MODE: "exec-credentials" },
+      setup: (paths) => {
+        const xdg = join(paths.root, "xdg-config");
+        writeHomeFiles(xdg, { "gh/hosts.yml": "MARKER\n", "mise/config.toml": "MARKER\n" });
+        return { env: { XDG_CONFIG_HOME: xdg } };
+      },
+    });
+    // スタブはホストの上で実行するので、隠したはずのパスが見え、FAIL に挙がる。
+    expect(result.stdout).toContain("stage5 home outside the allowlist: VISIBLE (FAIL)");
+    expect(result.stdout).toContain(`    ${join(root, "xdg-config/gh")}\n`);
+    expect(result.stdout).not.toContain(`    ${join(root, "xdg-config/mise")}`);
+  });
+
+  test("許可リストの祖先がシンボリックリンクでも、その中に下りて確かめ、リンクそのものは挙げない", () => {
+    const { result, home } = sandbox(["--verify", "MARKER"], {
+      homeFiles: { ".claude.json": "{}\n", ...credentialFiles, ...allowedFiles },
+      env: { FAKE_BWRAP_MODE: "exec-credentials" },
+      setup: (paths) => {
+        renameSync(join(paths.home, ".config"), join(paths.home, "dotfiles-config"));
+        symlinkSync(join(paths.home, "dotfiles-config"), join(paths.home, ".config"));
+        return {};
+      },
+    });
+    // リンクの側（~/.config）と、リンク先の側（~/dotfiles-config）の両方に下りる。
+    for (const dir of [".config", "dotfiles-config"]) {
+      expect(result.stdout).toContain(`    ${join(home, dir, "box")}\n`);
+      expect(result.stdout).not.toContain(`    ${join(home, dir)}\n`);
+      expect(result.stdout).not.toContain(`    ${join(home, dir, "mise")}`);
+    }
+  });
+});

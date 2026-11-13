@@ -10,7 +10,7 @@
 // | 許可リストの外             | 名前を挙げた認証情報（box・gh・ssh・aws・keyring） / 名前を挙げていない場所 / 何も無い |
 // | 許可リストの祖先           | 祖先の中の許可リストの外（.config/box）/ 許可リストそのもの（.config/mise） |
 // | runtime dir                | 中身が在る（少ない・SIGPIPE が起きる量）/ 空 / 実在しない（/run/user/<uid> の扱いは eval-sandbox.test.ts） |
-// | エージェントのソケットの変数 | 外す / 外さない（スタブで --unsetenv を反映しない）            |
+// | 環境変数（stage 5）        | 許可リストの外が漏れる / 許可リストの中が欠ける（スタブで再現する）。渡す変数そのものは eval-sandbox-env.test.ts |
 // | CLI の実体                 | $HOME の外 / $HOME の下で許可リストの中 / $HOME の下で許可リストの外 |
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
@@ -63,31 +63,25 @@ describe("bwrap に渡す引数", () => {
     ["中身が在る", ["bus", "keyring"], true],
     ["空", [], true],
     ["実在しない", undefined, false],
-  ])(
-    "runtime dir が%sなら、在るときだけ tmpfs で隠し、ソケットの変数は常に外す",
-    (_label, entries, hidden) => {
-      const { result, bwrapArgs, runtimeDir } = sandbox(["--version"], { runtimeEntries: entries });
-      expect(result.status, result.stderr).toBe(0);
-      if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
-      expect(flagValues(bwrapArgs, "--tmpfs").includes(runtimeDir)).toBe(hidden);
-      expect(flagValues(bwrapArgs, "--unsetenv")).toEqual([
-        "DBUS_SESSION_BUS_ADDRESS",
-        "SSH_AUTH_SOCK",
-        "GPG_AGENT_INFO",
-      ]);
-    },
-  );
+  ])("runtime dir が%sなら、在るときだけ tmpfs で隠す", (_label, entries, hidden) => {
+    const { result, bwrapArgs, runtimeDir } = sandbox(["--version"], { runtimeEntries: entries });
+    expect(result.status, result.stderr).toBe(0);
+    if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
+    expect(flagValues(bwrapArgs, "--tmpfs").includes(runtimeDir)).toBe(hidden);
+  });
 });
 
 describe("--verify の stage 5（スタブでホストの上で実行する）", () => {
-  test("許可リストの外が見え、戻した場所が読めず、runtime dir とソケットの変数が残っていれば、それぞれ失敗にする", () => {
+  test("許可リストの外が見え、戻した場所が読めず、runtime dir と許可リストの外の環境変数が残り、許可リストの中の環境変数が欠ければ、それぞれ失敗にする", () => {
     const { result, home, runtimeDir } = sandbox(["--verify", "MARKER"], {
       homeFiles: { ...credentialFiles, ...allowedFiles },
       runtimeEntries: ["bus"],
       env: {
         FAKE_BWRAP_MODE: "exec-credentials",
-        FAKE_BWRAP_KEEP_ENV: "1",
+        FAKE_BWRAP_LEAK_ENV: "DBUS_SESSION_BUS_ADDRESS",
+        FAKE_BWRAP_DROP_ENV: "LANG",
         DBUS_SESSION_BUS_ADDRESS: "unix:path=/nonexistent/bus",
+        LANG: "C.UTF-8",
       },
     });
     expect(result.status).toBe(1);
@@ -118,11 +112,14 @@ describe("--verify の stage 5（スタブでホストの上で実行する）",
     }
     expect(result.stdout).toContain(`stage5 runtime dir ${runtimeDir}: VISIBLE (FAIL)`);
     expect(result.stdout).toContain(
-      "stage5 agent socket variables: SET (FAIL): DBUS_SESSION_BUS_ADDRESS",
+      "stage5 environment allowlist positive control: UNSET (FAIL)\n    LANG\n",
+    );
+    expect(result.stdout).toContain(
+      "stage5 environment outside the allowlist: SET (FAIL)\n    DBUS_SESSION_BUS_ADDRESS\n",
     );
   });
 
-  test("戻した場所がすべて読め、--unsetenv が反映されていれば、その 2 つは ok にする", () => {
+  test("戻した場所がすべて読め、環境変数が許可リストのとおりなら、その 3 つは ok にする", () => {
     const { result, runtimeDir } = sandbox(["--verify", "MARKER"], {
       homeFiles: { ".claude.json": "{}\n", ...allowedFiles },
       runtimeEntries: [],
@@ -131,7 +128,12 @@ describe("--verify の stage 5（スタブでホストの上で実行する）",
     expect(result.stdout).toMatch(
       /^stage5 home allowlist positive control: \d+ bound paths readable \(ok\)$/mu,
     );
-    expect(result.stdout).toContain("stage5 agent socket variables: unset (ok)");
+    expect(result.stdout).toMatch(
+      /^stage5 environment allowlist positive control: \d+ host variables as expected \(ok\)$/mu,
+    );
+    expect(result.stdout).toMatch(
+      /^stage5 environment outside the allowlist: \d+ host variables as expected \(ok\)$/mu,
+    );
     expect(result.stdout).toContain(
       `stage5 runtime dir ${runtimeDir}: no entries on the host (nothing to hide)`,
     );
