@@ -258,9 +258,16 @@
        - どちらかが `new.tree` を持たないもの（古い記録。`new.commit` が一致していても、同じ `--target` の `parity-replace` か `parity-diff` をもう一度実行して記録し直す）
        - `dataset_version` を読めないもの、今のバージョンより新しいもの、区間の `changes[].affects` に `*` があるもの、`changes` の履歴が不正なもの
        - `runtime_errors.new_signatures[]` の許容と環境ノイズのうち、同じ値の承認が `approvals[]` に積まれていないもの（照合の鍵と書き方は [`triage.md`](triage.md)「承認の記録（`approvals`）」。新側のバージョンは照合しない）。
-         `approvals` をキーごと持たない記録は、承認が 0 件として読む。現側が `runtime_errors.declared: true` でなく、`runtime_errors` が無いか `judged` が `true` でない記録は照合しない。
-         この所見は `[approval]` で始まる。`parity-suite` へ戻さず、利用者に承認し直してもらって `approvals` に追記する。
-         現側の `metadata.json` の `runtime_errors.declared` が `true` なのに、`runtime_errors` が無いか `judged` が `true` でない記録は、照合しないまま通さずに失敗にする
+         `approvals` をキーごと持たない記録は、承認が 0 件として読む。
+         照合しないのは、`runtime_errors` が無いか `judged` が `true` でない記録のうち、現側の `metadata.json` が `runtime_errors` をキーごと持たないか、`declared: false` と理由の組を書いたものだけである。
+         それ以外（`declared: true`・雛形の値のまま・理由の無い `declared: false` など）は、照合しないまま通さずに失敗にする
+
+    操作中のエラーの所見は、行の先頭の `warn:` の後に接頭辞を付けて出す。戻す先は、所見を出したほかのチェックと違い、この接頭辞で決める（この表が原本）。
+
+    | 接頭辞 | 所見 | 直し方 |
+    | --- | --- | --- |
+    | `[approval]` | 許容と環境ノイズの承認が `approvals[]` に無い | `parity-suite` へも `parity-replace` へも戻さない。利用者に承認し直してもらって `approvals` に追記する |
+    | `[runtime-errors]` | 現側が `declared: false` と理由の組でないのに、`diff-metadata.json` に比較の結果が無い | `parity-suite` へも `parity-replace` へも戻さない。このスキルの中で `runtime-errors.mjs compare --write` を通し直す |
 
     対応づけをバージョンだけに任せない。データセットを変えずに `parity-replace` が実装を作り直すと、前の反復で収束した `diff-metadata.json` が `dataset_version` の一致だけでこのチェックを満たす。
     差分を採り直していないのに、「済んだ」ように見えてしまう。そのため、両方の成果物が持つ識別子（新側の `new.tree` と反復の回数）で結び付ける。

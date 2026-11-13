@@ -107,7 +107,7 @@
    - `artifact-health-check.mjs` は、`--carry-to` を渡しても、操作中のエラーの許容と環境ノイズを `diff-metadata.json` の `approvals` と照合する（[`triage.md`](triage.md)「承認の記録（`approvals`）」）。
      照合は新側のバージョンを見ないので、一括の再検証でも承認し直さない。`diff-metadata.json` を書き直すときは、前の `approvals` をそのまま書き戻す
    - 失敗したら、持ち越しは成り立っていない。描画の入力が無い機能や、宣言の外のファイルが変わっている機能は、同じ target の `parity-replace` からやり直す。
-     ただし、`[approval]` で始まる所見（操作中のエラーの承認が `approvals` に無い）だけで失敗したときは、`parity-replace` からやり直さない。利用者に承認し直してもらって `approvals` に追記する
+     ただし、`warn: [approval]` か `warn: [runtime-errors]` で始まる所見（操作中のエラー）だけで失敗したときは、`parity-replace` からやり直さない。直し方は [`convergence.md`](convergence.md) の接頭辞の表で決める
      収束の判定は、通常どおり [`convergence.md`](convergence.md) に従う
 
 ### 機械判定で通らない組がある機能

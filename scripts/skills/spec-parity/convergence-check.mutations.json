@@ -119,7 +119,7 @@
       "id": "cv-design-approval-off",
       "why": "承認の無い「受け入れる」のデザインの指摘を通す",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "  else if (!approval || !hasApproval(approval) || !filled(approval.reason))\n",
+      "find": "  else if (!approval || !hasApproval(approval) || !isFilled(approval.reason))\n",
       "replace": "  else if (false)\n",
       "occurrences": 1,
       "expect_failing": [
@@ -207,7 +207,7 @@
       "id": "cv-unmeasured-approval-off",
       "why": "承認した人・日時が空の accepted を、承認済みとして通す",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "  if (!filled(entry.approved_by) || !filled(entry.approved_at)) {\n",
+      "find": "  if (!isFilled(entry.approved_by) || !isFilled(entry.approved_at)) {\n",
       "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
@@ -375,7 +375,7 @@
       "id": "cv-verify-tree-missing-off",
       "why": "verify-metadata.json に new.tree が無い古い記録（new.commit だけを持つ）を、もう一度測ると示さずに先へ進める",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "  if (!filled(tree))\n",
+      "find": "  if (!isFilled(tree))\n",
       "replace": "  if (false)\n",
       "occurrences": 1,
       "expect_failing": [
@@ -743,7 +743,7 @@
       "id": "cv-approval-placeholder",
       "why": "承認した人と承認の日時が雛形のプレースホルダのままの承認を、書いたものとして数える",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "  return isPlainObject(a) && filled(a.approved_by) && filled(a.approved_at);\n",
+      "find": "  return isPlainObject(a) && isFilled(a.approved_by) && isFilled(a.approved_at);\n",
       "replace": "  return isPlainObject(a) && nonEmptyString(a.approved_by) && nonEmptyString(a.approved_at);\n",
       "occurrences": 1,
       "expect_failing": [
@@ -755,7 +755,7 @@
       "id": "cv-design-reason-placeholder",
       "why": "受け入れるデザインの指摘の理由が雛形のプレースホルダのままでも、書いたものとして数える",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "  else if (!approval || !hasApproval(approval) || !filled(approval.reason))\n",
+      "find": "  else if (!approval || !hasApproval(approval) || !isFilled(approval.reason))\n",
       "replace": "  else if (!approval || !hasApproval(approval) || !nonEmptyString(approval.reason))\n",
       "occurrences": 1,
       "expect_failing": [

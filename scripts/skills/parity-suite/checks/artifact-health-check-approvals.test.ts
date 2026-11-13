@@ -55,13 +55,21 @@ const noiseLog = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+/** 現側の metadata.json に runtime_errors を書かない（操作中のエラーを記録する前の成果物）ことを表す。 */
+const NO_CURRENT = Symbol("no-current");
+
 /**
  * 工程の節のほかは条件を満たす成果物に、操作中のエラーの比較の結果と承認の記録を置いて判定する。
+ * 現側の metadata.json は、比較の結果を持つ実際の形（runtime_errors.declared: true）をデフォルトにする。
  * @param diffExtra diff-metadata.json に足す欄（runtime_errors・approvals）
+ * @param currentRuntimeErrors 現側の metadata.json の runtime_errors（NO_CURRENT なら書かない）
  */
-function judge(diffExtra: Record<string, unknown>, currentRuntimeErrors?: unknown) {
+function judge(
+  diffExtra: Record<string, unknown>,
+  currentRuntimeErrors: unknown = { declared: true },
+) {
   const { root, slugDir, metadataPath } = makeProject((m) => {
-    if (currentRuntimeErrors !== undefined)
+    if (currentRuntimeErrors !== NO_CURRENT)
       Object.assign(m, { runtime_errors: currentRuntimeErrors });
   });
   writeStage(slugDir, { dataset_version: 7, converged: true, ...diffExtra });
@@ -112,11 +120,14 @@ test.each([
     "runtime_errors.judged が雛形のプレースホルダのまま",
     { runtime_errors: { judged: "<true | false>", new_signatures: [allowance()] } },
   ],
-])("%s なら照合せず、理由を注記に残す", (_name, extra) => {
-  const r = judge(extra);
-  expect(r.stdout).toMatch(/操作中のエラーの承認を照合しない/);
-  expect(r.status).toBe(0);
-});
+])(
+  "現側の metadata.json が runtime_errors を持たない成果物で、%s なら照合せず、理由を注記に残す",
+  (_name, extra) => {
+    const r = judge(extra, NO_CURRENT);
+    expect(r.stdout).toMatch(/操作中のエラーの承認を照合しない/);
+    expect(r.status).toBe(0);
+  },
+);
 
 test.each([
   ["approvals をキーごと持たない（承認の記録を始める前の記録）", undefined],
@@ -215,7 +226,9 @@ test.each([
   "現側の metadata.json が runtime_errors.declared: true なのに diff-metadata.json の %s なら、照合を外したまま通さない",
   (_name, extra) => {
     const r = judge(extra, { declared: true });
-    expect(r.stdout).toMatch(/runtime_errors\.declared が true なのに、diff-metadata\.json が/);
+    expect(r.stdout).toMatch(
+      /warn: \[runtime-errors\] 現側の metadata\.json の runtime_errors が declared: false と理由の組でない（declared: true）のに/,
+    );
     expect(r.stdout).not.toMatch(/操作中のエラーの承認を照合しない/);
     expect(r.status).toBe(1);
   },
@@ -229,3 +242,18 @@ test("誤検知しないことの確認: 現側の metadata.json が runtime_err
   expect(r.stdout).toMatch(/操作中のエラーの承認を照合しない/);
   expect(r.status).toBe(0);
 });
+
+test.each([
+  ["雛形の値のまま", { declared: "<true | false>" }],
+  ["真偽値でない", { declared: "yes" }],
+  ["declared: false に理由が無い", { declared: false }],
+  ["declared: false の理由が雛形の値のまま", { declared: false, reason: "<理由>" }],
+  ["オブジェクトでない", "declared"],
+])(
+  "現側の metadata.json の runtime_errors が %s なら、比較の結果の無い diff-metadata.json を照合しないまま通さない",
+  (_name, current) => {
+    const r = judge({}, current);
+    expect(r.stdout).toMatch(/warn: \[runtime-errors\] /);
+    expect(r.status).toBe(1);
+  },
+);

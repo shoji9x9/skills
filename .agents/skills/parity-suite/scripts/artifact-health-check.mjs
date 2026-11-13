@@ -43,7 +43,7 @@ import { EVIDENCE_CARRY_FILE, judgeCarry } from "./evidence-carry.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
 import { parseFlags, stripDashes } from "./lib/flags.mjs";
-import { isPlainObject, nonEmptyString, toIterationCount } from "./lib/guards.mjs";
+import { isFilled, isPlainObject, nonEmptyString, toIterationCount } from "./lib/guards.mjs";
 import { realPathOf } from "./lib/paths.mjs";
 import { approvalLogged } from "./runtime-errors.mjs";
 
@@ -1890,8 +1890,14 @@ export function checkStage(ctx) {
 /** 利用者の承認を待つ所見の接頭辞。parity-diff はこの所見を parity-suite へ戻さず、利用者に承認し直してもらう。 */
 export const APPROVAL_TAG = "[approval]";
 
+/** parity-diff の中で runtime-errors.mjs compare --write を通し直せば直る所見の接頭辞。parity-suite・parity-replace へは戻さない。 */
+export const RUNTIME_ERRORS_TAG = "[runtime-errors]";
+
 /**
  * 照合する比較の結果（diff-metadata.json の runtime_errors）を返す。照合しないときは、注記か所見を足して null を返す。
+ * 照合しないまま通すのは、現側の metadata.json が runtime_errors をキーごと持たない（操作中のエラーを記録する前の成果物）か、
+ * declared: false と理由の組を書いたときだけである。それ以外（declared: true・雛形の値のまま・真偽値でない・理由の無い declared: false・
+ * オブジェクトでない）で比較の結果が無ければ、照合を外したまま収束させないために所見にする。
  * @param {StageState} s
  * @returns {Record<string, unknown> | null}
  */
@@ -1906,13 +1912,17 @@ function comparedRuntimeErrors(s) {
     : undefined;
   const state =
     re === undefined ? "runtime_errors を持たない" : "runtime_errors.judged が true でない";
-  if (isPlainObject(current) && current.declared === true) {
-    s.findings.push(
-      `現側の metadata.json の runtime_errors.declared が true なのに、diff-metadata.json が${state}（runtime-errors.mjs compare --write を通し直す）: ${diffPath}`,
-    );
-  } else {
+  const exempt =
+    current === undefined ||
+    (isPlainObject(current) && current.declared === false && isFilled(current.reason));
+  if (exempt) {
     s.notes.push(
       `diff-metadata.json が${state}ため、操作中のエラーの承認を照合しない: ${diffPath}`,
+    );
+  } else {
+    const declared = isPlainObject(current) ? JSON.stringify(current.declared) : "読めない";
+    s.findings.push(
+      `${RUNTIME_ERRORS_TAG} 現側の metadata.json の runtime_errors が declared: false と理由の組でない（declared: ${declared}）のに、diff-metadata.json が${state}。runtime-errors.mjs compare --write を通し直す: ${diffPath}`,
     );
   }
   return null;
@@ -1922,11 +1932,9 @@ function comparedRuntimeErrors(s) {
  * diff-metadata.json の操作中のエラーの許容と環境ノイズを、同じファイルの承認の記録（approvals）と照合する。
  * 分類の欄（runtime_errors.new_signatures[]）は compare --write と実行のたびの書き直しで変わるので、承認を後から書き換えても欄だけでは検出できない。
  * approvals は追記専用で、縮んでいないかは replace-strategy の append-only-check.mjs が確かめる（replace-strategy の assets/append-only-manifest.json）。
- * 照合しない状態は閉じた集合にする。現側の metadata.json の runtime_errors.declared が true でないときだけ、照合しないことがある。
- * そのうえで、diff-metadata.json の runtime_errors が無い（操作中のエラーを比べる前の成果物）か、judged が true でない（declared: false など）ときである。
- * 現側が declared: true なのに比較の結果が無いか judged が true でない記録は、照合を外したまま収束させないために落とす。
+ * 照合しない状態は閉じた集合にする（comparedRuntimeErrors）。比較の結果が無い記録を、照合を外したまま収束させない。
  * approvals をキーごと持たない記録は、積まれた承認が 0 件として読む（許容と環境ノイズは承認待ちになる）。
- * 承認待ちの所見は APPROVAL_TAG で始める。呼び出し側（parity-diff）は、この所見を parity-suite へ戻さず、利用者に承認し直してもらう。
+ * 承認待ちの所見は APPROVAL_TAG、比較の結果が無い所見は RUNTIME_ERRORS_TAG で始める。呼び出し側（parity-diff）は、どちらも parity-suite へ戻さない。
  * 要対応と説明の付いていない署名は、compare の ok が収束を止めるので、ここでは数えない。
  * @param {StageState} s
  */

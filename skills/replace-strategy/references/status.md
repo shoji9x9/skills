@@ -87,7 +87,8 @@ open とも closed とも仮定せず、features.md の記述で代わりにし�
      `parity-diff` を実行していないことが、「未着手」の中に埋もれないようにするためである。
      同じ判定を機械可読で取るなら、`parity-suite` の `scripts/artifact-health-check.mjs --metadata <現側 metadata.json> --target <target> --stage diff` を使う。
      これは `diff-metadata.json` が無いことと、古いことまで見る。
-     `[approval]` で始まる所見（操作中のエラーの承認が `approvals` に無い）は、差分の検出を済ませて利用者の承認を待つ状態なので、「未実施」や「古い」とは報告しない
+     `warn: [approval]` で始まる所見（操作中のエラーの承認が `approvals` に無い）は、差分の検出を済ませて利用者の承認を待つ状態として報告する。
+     `warn: [runtime-errors]` で始まる所見は、差分の検出の途中（操作中のエラーの比較が無い）として報告する。どちらも「未実施」や「古い」とは報告しない
    - 差し戻しの往復の状態（`loop.iterations` と `loop.max_iterations`）。
      1 以上で収束していなければ「往復中（n 回目）」、`loop.iterations` が `max_iterations` に達していれば「上限に到達・人の判断待ち」とする
    - `parity-diff` の進み具合（`new/<target>/diff.md` の分類を集計した「要対応」の残りの数）。収束の判定そのものは `parity-diff` が行い、このモードは集計した値を報告するだけである

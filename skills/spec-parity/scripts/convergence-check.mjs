@@ -157,7 +157,7 @@ function suiteDirProblem(dir) {
  * @returns {string}
  */
 export function suitePrefix(dir) {
-  if (!filled(dir))
+  if (!isFilled(dir))
     throw new UsageError(
       "metadata.json の suite.dir が無い（雛形の値のままを含む。スイートのディレクトリを書く）",
     );
@@ -392,16 +392,13 @@ export function judgeRuntimeErrors(baseline, compared, { tree, approvals, reason
   return { judged: true, new_signatures: sigs.length };
 }
 
-/** 値が書いてあるか（雛形のプレースホルダのままの値は書いていないものとして扱う）。定義は lib/guards.mjs の isFilled。 */
-const filled = isFilled;
-
 /**
  * 承認の記録（承認した人・日時）が埋まっているか。
  * @param {unknown} a
  * @returns {boolean}
  */
 function hasApproval(a) {
-  return isPlainObject(a) && filled(a.approved_by) && filled(a.approved_at);
+  return isPlainObject(a) && isFilled(a.approved_by) && isFilled(a.approved_at);
 }
 
 /** 承認の記録（approvals）の要素の kind。操作中のエラーの許容・デザインの指摘の受け入れ・人による確認の返事である。 */
@@ -462,7 +459,7 @@ function judgeFinding(f, { tree, approvals, reasons, checkLog }) {
   if (f.decision === "fix") reasons.add("send-back", "design_review", `直す指摘: ${f.id}`);
   else if (f.decision !== "accept")
     reasons.add("approval", "design_review", `「直す」か「受け入れる」に分けていない指摘: ${f.id}`);
-  else if (!approval || !hasApproval(approval) || !filled(approval.reason))
+  else if (!approval || !hasApproval(approval) || !isFilled(approval.reason))
     reasons.add(
       "approval",
       "design_review",
@@ -493,7 +490,7 @@ function judgeFinding(f, { tree, approvals, reasons, checkLog }) {
  */
 export function judgeDesignReview(review, ctx) {
   const { tree, reasons } = ctx;
-  if (!isPlainObject(review) || !filled(review.completed_at)) {
+  if (!isPlainObject(review) || !isFilled(review.completed_at)) {
     reasons.add("remeasure", "design_review", "デザインの点検の記録が無い（completed_at が無い）");
     return { judged: false };
   }
@@ -632,7 +629,7 @@ function judgeUnmeasuredEntry(entry, { index, seen }, reasons) {
     reasons.add("remeasure", "unmeasured", `未測定が残っている（disposition: blocking）: ${item}`);
     return true;
   }
-  if (!filled(entry.approved_by) || !filled(entry.approved_at)) {
+  if (!isFilled(entry.approved_by) || !isFilled(entry.approved_at)) {
     reasons.add(
       "approval",
       "unmeasured",
@@ -736,7 +733,7 @@ function readVerifyHead(v, { slug, target }) {
   const head = isPlainObject(v.new) ? v.new : {};
   const tree = head.tree;
   // new.tree を持たない記録（new.tree を記録する前の verify-metadata.json）は、new.commit があっても代わりにしない
-  if (!filled(tree))
+  if (!isFilled(tree))
     throw new UsageError(
       "verify-metadata.json の new.tree が無い（雛形の値のままを含む。verify の手順 1 から、もう一度測る）",
     );

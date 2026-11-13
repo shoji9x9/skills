@@ -36,12 +36,17 @@
         "approvals が配列でない なら型の誤りとして exit 2",
         "runtime_errors がオブジェクトでない なら型の誤りとして exit 2",
         "new_signatures が配列でない なら型の誤りとして exit 2",
-        "runtime_errors が無い（操作中のエラーを比べる前の成果物） なら照合せず、理由を注記に残す",
-        "runtime_errors.judged が false（declared: false） なら照合せず、理由を注記に残す",
-        "runtime_errors.judged が雛形のプレースホルダのまま なら照合せず、理由を注記に残す",
+        "現側の metadata.json が runtime_errors を持たない成果物で、runtime_errors が無い（操作中のエラーを比べる前の成果物） なら照合せず、理由を注記に残す",
+        "現側の metadata.json が runtime_errors を持たない成果物で、runtime_errors.judged が false（declared: false） なら照合せず、理由を注記に残す",
+        "現側の metadata.json が runtime_errors を持たない成果物で、runtime_errors.judged が雛形のプレースホルダのまま なら照合せず、理由を注記に残す",
         "現側の metadata.json が runtime_errors.declared: true なのに diff-metadata.json の runtime_errors が無い なら、照合を外したまま通さない",
         "現側の metadata.json が runtime_errors.declared: true なのに diff-metadata.json の runtime_errors.judged が false なら、照合を外したまま通さない",
-        "誤検知しないことの確認: 現側の metadata.json が runtime_errors.declared: false なら、diff-metadata.json の judged: false を通す"
+        "誤検知しないことの確認: 現側の metadata.json が runtime_errors.declared: false なら、diff-metadata.json の judged: false を通す",
+        "現側の metadata.json の runtime_errors が 雛形の値のまま なら、比較の結果の無い diff-metadata.json を照合しないまま通さない",
+        "現側の metadata.json の runtime_errors が 真偽値でない なら、比較の結果の無い diff-metadata.json を照合しないまま通さない",
+        "現側の metadata.json の runtime_errors が declared: false に理由が無い なら、比較の結果の無い diff-metadata.json を照合しないまま通さない",
+        "現側の metadata.json の runtime_errors が declared: false の理由が雛形の値のまま なら、比較の結果の無い diff-metadata.json を照合しないまま通さない",
+        "現側の metadata.json の runtime_errors が オブジェクトでない なら、比較の結果の無い diff-metadata.json を照合しないまま通さない"
       ]
     },
     {
@@ -52,8 +57,8 @@
       "replace": "  if (isPlainObject(re)) return re;\n",
       "occurrences": 1,
       "expect_failing": [
-        "runtime_errors.judged が false（declared: false） なら照合せず、理由を注記に残す",
-        "runtime_errors.judged が雛形のプレースホルダのまま なら照合せず、理由を注記に残す",
+        "現側の metadata.json が runtime_errors を持たない成果物で、runtime_errors.judged が false（declared: false） なら照合せず、理由を注記に残す",
+        "現側の metadata.json が runtime_errors を持たない成果物で、runtime_errors.judged が雛形のプレースホルダのまま なら照合せず、理由を注記に残す",
         "現側の metadata.json が runtime_errors.declared: true なのに diff-metadata.json の runtime_errors.judged が false なら、照合を外したまま通さない",
         "誤検知しないことの確認: 現側の metadata.json が runtime_errors.declared: false なら、diff-metadata.json の judged: false を通す"
       ]
@@ -62,12 +67,29 @@
       "id": "ahc-rt-declared",
       "why": "現側が runtime_errors.declared: true なのに比較の結果が無い記録を、照合しないまま通す",
       "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
-      "find": "  if (isPlainObject(current) && current.declared === true) {\n",
-      "replace": "  if (false) {\n",
+      "find": "  if (exempt) {\n",
+      "replace": "  if (true) {\n",
       "occurrences": 1,
       "expect_failing": [
         "現側の metadata.json が runtime_errors.declared: true なのに diff-metadata.json の runtime_errors が無い なら、照合を外したまま通さない",
-        "現側の metadata.json が runtime_errors.declared: true なのに diff-metadata.json の runtime_errors.judged が false なら、照合を外したまま通さない"
+        "現側の metadata.json が runtime_errors.declared: true なのに diff-metadata.json の runtime_errors.judged が false なら、照合を外したまま通さない",
+        "現側の metadata.json の runtime_errors が 雛形の値のまま なら、比較の結果の無い diff-metadata.json を照合しないまま通さない",
+        "現側の metadata.json の runtime_errors が 真偽値でない なら、比較の結果の無い diff-metadata.json を照合しないまま通さない",
+        "現側の metadata.json の runtime_errors が declared: false に理由が無い なら、比較の結果の無い diff-metadata.json を照合しないまま通さない",
+        "現側の metadata.json の runtime_errors が declared: false の理由が雛形の値のまま なら、比較の結果の無い diff-metadata.json を照合しないまま通さない",
+        "現側の metadata.json の runtime_errors が オブジェクトでない なら、比較の結果の無い diff-metadata.json を照合しないまま通さない"
+      ]
+    },
+    {
+      "id": "ahc-rt-exempt-reason",
+      "why": "理由の無い declared: false を、照合しない免除として扱う",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "current.declared === false && isFilled(current.reason)",
+      "replace": "current.declared === false",
+      "occurrences": 1,
+      "expect_failing": [
+        "現側の metadata.json の runtime_errors が declared: false に理由が無い なら、比較の結果の無い diff-metadata.json を照合しないまま通さない",
+        "現側の metadata.json の runtime_errors が declared: false の理由が雛形の値のまま なら、比較の結果の無い diff-metadata.json を照合しないまま通さない"
       ]
     },
     {
