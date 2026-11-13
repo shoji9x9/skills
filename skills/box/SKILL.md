@@ -157,8 +157,8 @@ curl -sSf -G "https://api.box.com/2.0/search" \
 アップロードするファイルは、利用者が指定したパスで渡す。`/tmp/report.txt` のように名前を決めて `/tmp` に置くファイルは、他のユーザーが同じ名前で先に置けるので使わない。
 パスと Box に置くときのファイル名は、単引用符で囲んで変数に入れる。シェルは単引用符の中の `$` やバッククォートを展開しない。値に単引用符を含むときは、その単引用符を `'\''` と書く。
 利用者が Box に置く名前を指定しなければ、パスの最後の部分（`report.txt` など）を名前に書く。
-パスは絶対パスで書く。エージェントのツールでは呼び出しごとに作業ディレクトリが変わりうるので、相対パスは別の場所から解決されることがある。
-`~` は単引用符の中で展開されないので、ホームの下のファイルは `/home/<ユーザー>/...`（macOS では `/Users/<ユーザー>/...`）の形で書く。
+パスは、ダウンロードの保存先と同じ理由で、絶対パスで書く。
+`~` は単引用符の中で展開されないので、ホームの下のファイルは、`printf '%s\n' "$HOME"` が出すディレクトリから書く。
 Windows のファイルは、WSL では `/mnt/c/...`、Git Bash では `/c/...` の形で書く。
 
 ファイルは、パスを curl の `-F` に書かず、シェルのリダイレクト（`<`）で stdin から送る（`file=@-`）。
@@ -168,6 +168,7 @@ Box は、ファイルの名前を `attributes` の `name` から取る（<https
 `attributes` は `jq` で組み立てて名前をエスケープし、`--form-string` で送る。`-F` で送ると、curl が名前の中の `;` を区切りとして読み、JSON が途中で切れる。
 Box は `attributes` が `file` より前にあることを求めるので、この順に書く。
 最後の `jq` がパイプの終了コードを決めるので、`set -o pipefail` で curl の失敗を終了コードに残す。
+`set -o pipefail` は例の後もシェルに残る。対話のシェルで元に戻すなら、例の後に `set +o pipefail` を実行する。
 
 ```bash
 set -o pipefail
@@ -182,19 +183,22 @@ curl -sSf -X POST "https://upload.box.com/api/2.0/files/content" \
 ### 新しいバージョンのアップロード（既存のファイルの更新）
 
 新しいバージョンでも、名前を変えないように、今の名前を取得して `attributes` の `name` に書く。
-Box の文書は、名前を変えるのは `attributes` の `name` だけと書き、`file` の部分の `filename` の扱いを書いていないからである（<https://developer.box.com/reference/post-files-id-content/>）。
+Box の文書は、`attributes` の `name` を指定すると名前を変えると書き、`file` の部分の `filename` の扱いを書いていない（<https://developer.box.com/reference/post-files-id-content/>）。
+名前と一緒に `etag` も取得し、`If-Match` に付けて送る。取得してから送るまでに他の人がファイルを変えると、Box は 412 を返し、古い名前で上書きしない（同じ文書）。
 パスの書き方は、上の新規ファイルと同じである。
 
 ```bash
 set -o pipefail
 UPLOAD_FILE='<アップロードするファイルの絶対パス>'
-if FILE_NAME="$(curl -sSf "https://api.box.com/2.0/files/<file-id>?fields=name" -H @"$BOX_AUTH" | jq -er .name)"; then
+if FILE_META="$(curl -sSf "https://api.box.com/2.0/files/<file-id>?fields=name,etag" -H @"$BOX_AUTH")" &&
+  FILE_NAME="$(printf '%s' "$FILE_META" | jq -er .name)" &&
+  FILE_ETAG="$(printf '%s' "$FILE_META" | jq -er .etag)"; then
   curl -sSf -X POST "https://upload.box.com/api/2.0/files/<file-id>/content" \
-    -H @"$BOX_AUTH" \
+    -H @"$BOX_AUTH" -H "If-Match: $FILE_ETAG" \
     --form-string "attributes=$(jq -cn --arg name "$FILE_NAME" '{name: $name}')" \
     -F 'file=@-;filename=upload' <"$UPLOAD_FILE" | jq '.entries[0] | {id, name, modified_at}'
 else
-  echo "box: 今の名前を取得できない" >&2
+  echo "box: 今の名前と etag を取得できない" >&2
   false
 fi
 ```
