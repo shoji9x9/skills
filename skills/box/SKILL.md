@@ -185,18 +185,17 @@ curl -sSf -X POST "https://upload.box.com/api/2.0/files/content" \
 新しいバージョンでも、名前を変えないように、今の名前を取得して `attributes` の `name` に書く。
 Box の文書は、`attributes` の `name` を指定すると名前を変えると書き、`file` の部分の `filename` の扱いを書いていない（<https://developer.box.com/reference/post-files-id-content/>）。
 名前と一緒に `etag` も取得し、`If-Match` に付けて送る。取得してから送るまでに他の人がファイルを変えると、Box は 412 を返し、古い名前で上書きしない（同じ文書）。
-412 が返ったら（curl の stderr に `returned error: 412` が出る）、送り直さずに止まる。412 は、名前と `etag` を取得した後に Box のファイルが変わったことを表す。
-Box のファイルのメタデータを `fields=name,etag,sha1,modified_at,modified_by` で取得し直し（「ファイルのメタデータの取得」の節の例）、手元のファイルの SHA-1（`sha1sum` など）と一緒に利用者に示す。
-Box の `sha1` が手元のファイルと同じなら、同じ中身がすでに上がっているので、送り直さない。違えば、送り直すかを利用者に確かめる。
-送り直すと決まったら、上の例をもう一度実行する。例が取得し直した `etag` が利用者に示した `etag` と違えば、送らずにもう一度示す。
-送り直すときも例は `If-Match` を付けるので、その後にファイルが変わっていれば Box はまた 412 を返し、エージェントは同じように止まる。
 パスの書き方と `set -o pipefail` の扱い（シェルに残したくなければサブシェルで囲む）は、上の新規ファイルと同じである。
+
+例は、1 で今の状態を取得し、2 でその名前と `etag` を使って送る。
 
 ```bash
 set -o pipefail
 UPLOAD_FILE='<アップロードするファイルの絶対パス>'
-if FILE_META="$(curl -sSf "https://api.box.com/2.0/files/<file-id>?fields=name,etag" -H @"$BOX_AUTH")" &&
-  FILE_NAME="$(printf '%s' "$FILE_META" | jq -er .name)" &&
+# 1. 今の状態を取得する
+FILE_META="$(curl -sSf "https://api.box.com/2.0/files/<file-id>?fields=name,etag,sha1,modified_at,modified_by" -H @"$BOX_AUTH")"
+# 2. 1 で取得した名前と etag で送る
+if FILE_NAME="$(printf '%s' "$FILE_META" | jq -er .name)" &&
   FILE_ETAG="$(printf '%s' "$FILE_META" | jq -er .etag)"; then
   curl -sSf -X POST "https://upload.box.com/api/2.0/files/<file-id>/content" \
     -H @"$BOX_AUTH" -H "If-Match: $FILE_ETAG" \
@@ -207,6 +206,13 @@ else
   false
 fi
 ```
+
+412 が返ったら（curl の stderr に `returned error: 412` が出る）、エージェントは送り直さずに止まる。412 は、1 で取得した後に Box のファイルが変わったことを表す。
+エージェントは 1 だけをもう一度実行し、取得した応答（名前・`sha1`・`modified_at`・`modified_by`）を、手元のファイルの SHA-1（`sha1sum` など）と一緒に利用者に示す。
+Box の `sha1` が手元のファイルと同じなら、同じ中身がすでに上がっているので、送り直さない。名前などの変わった点は伝える。
+`sha1` が違えば、送り直すかを利用者に確かめる。
+送り直すと決まったら、エージェントは 1 を実行せず、利用者に示した応答を `FILE_META='<示した応答の JSON>'` と書いて 2 を実行する。
+示した後にファイルが変わっていれば、Box はまた 412 を返し、エージェントは同じように止まる。
 
 ## 注意
 
