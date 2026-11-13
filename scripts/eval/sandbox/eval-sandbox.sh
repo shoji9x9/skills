@@ -564,14 +564,14 @@ fi
 # One more place is compared for its own reason: the directory that --verify binds for
 # stage 5 after the tmpfs, whose mount point stage 5 would find in the runtime dir.
 refuse_covering_runtime_dirs() {
-	local i p real d targets=("${PWD}") whats=("the disposable project")
-	local whys=("its tmpfs is mounted after that and would cover it")
+	local covered="its tmpfs is mounted after that and would cover it"
+	local i p real d targets=("${PWD}") whats=("the disposable project") whys=("${covered}")
 	# Nothing to compare with: skip resolving every target.
 	[ "${#runtime_dirs[@]}" -gt 0 ] || return 0
 	for i in "${!args[@]}"; do
 		case "${args[i]}" in
 		--bind | --ro-bind | --dev-bind)
-			targets+=("${args[i + 2]}") whats+=("the mount target") whys+=("${whys[0]}")
+			targets+=("${args[i + 2]}") whats+=("the mount target") whys+=("${covered}")
 			;;
 		esac
 	done
@@ -597,10 +597,14 @@ refuse_covering_runtime_dirs() {
 # binds into the sandbox. The directory is made here, so that the check above can compare
 # it. Under /tmp, not TMPDIR: a TMPDIR under $HOME would put the bind target inside the
 # read-only $HOME, where bwrap cannot create the mount point. Without a marker --verify
-# only prints its usage, so the directory is not made.
+# prints its usage here, before the check, and makes nothing.
 verify=""
-[ "${1:-}" != "--verify" ] || verify=1
-if [ -n "${verify}" ] && [ "$#" -ge 2 ]; then
+if [ "${1:-}" = "--verify" ]; then
+	verify=1
+	[ "$#" -ge 2 ] || {
+		echo "usage: $0 --verify <marker> [<marker>...]" >&2
+		exit 2
+	}
 	home_lists="$(mktemp -d /tmp/eval-sandbox-home-lists-XXXXXX)"
 fi
 refuse_covering_runtime_dirs
@@ -726,10 +730,6 @@ covering_mount() {
 
 if [ -n "${verify}" ]; then
 	shift
-	[ "$#" -ge 1 ] || {
-		echo "usage: $0 --verify <marker> [<marker>...]" >&2
-		exit 2
-	}
 	# Stage 1: the repo must be unreachable. Stage 2: no marker anywhere reachable
 	# (path enumeration cannot detect routes missing from the enumeration), with a
 	# sentinel per root so an unsearched root cannot pass as a clean one.
