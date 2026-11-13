@@ -1,13 +1,5 @@
 // eval-sandbox.test.ts のヘルパー（スタブの bwrap・getent・CLI を置いて eval-sandbox.sh を起動する）。
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  realpathSync,
-  symlinkSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -300,24 +292,8 @@ function sandboxEnv(
   return env;
 }
 
-/**
- * スクリプトは /run/user/<euid> を runtime dir として隠し、それが使い捨ての $HOME や cwd を含めば止まる。
- * 一時ディレクトリがその下にある環境では、スクリプトを起動するテストがすべて同じ理由で止まる。
- * テストの期待と違う理由で落ちる前に、前提の誤りとして示す。スクリプトと同じく、両方を解決したパスで比べる。
- */
-export function assertTmpdirOutsideRunUser(dir: string = tmpdir()) {
-  const runUser = `/run/user/${process.geteuid?.() ?? "unknown"}`;
-  const runUserReal = existsSync(runUser) ? realpathSync(runUser) : runUser;
-  if (`${realpathSync(dir)}/`.startsWith(`${runUserReal}/`)) {
-    throw new Error(
-      `一時ディレクトリ ${dir} が ${runUser} の下にある。TMPDIR をその外に置いて実行する`,
-    );
-  }
-}
-
 export function sandbox(args: string[], options: SandboxOptions = {}) {
   const root = makeTempDir("eval-sandbox-preflight-");
-  assertTmpdirOutsideRunUser(root);
   const home = join(root, "home");
   const repo = options.repoUnderHome === true ? join(home, "projects", "repo") : join(root, "repo");
   const bin = join(root, "bin");

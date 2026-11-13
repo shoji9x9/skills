@@ -18,16 +18,12 @@ import { makeSharedTempDir, makeTempDir } from "../../lib/testing/test-tmpdir.ts
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 import {
   allowedFiles,
-  assertTmpdirOutsideRunUser,
   credentialFiles,
   hostEnv,
   shellQuote,
   sourceScript,
   writeHomeFiles,
 } from "./eval-sandbox-helpers.ts";
-
-// プロジェクトと $HOME を一時ディレクトリに作るので、それが /run/user/<euid> の下に無いことを先に確かめる。
-assertTmpdirOutsideRunUser();
 
 const hasBwrap =
   spawnSync("sh", ["-c", "command -v bwrap >/dev/null 2>&1"], { timeout: CHILD_TIMEOUT_MS })
