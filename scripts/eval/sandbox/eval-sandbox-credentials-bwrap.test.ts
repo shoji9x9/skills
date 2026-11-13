@@ -75,8 +75,7 @@ describe.skipIf(outsideTmp === null)("本物の bwrap", () => {
         HOME: home,
         XDG_RUNTIME_DIR: runtimeDir,
         DBUS_SESSION_BUS_ADDRESS: `unix:path=${runtimeDir}/bus`,
-        // vitest の PATH にはリポジトリの node_modules/.bin が入り、sandbox はリポジトリを隠すので、起動の前の確認で止まる。
-        PATH: `${fakeBin}:/usr/bin:/bin`,
+        PATH: `${fakeBin}:${process.env.PATH}`,
       },
     });
     expect(result.status, result.stderr).toBe(0);
@@ -163,16 +162,12 @@ describe.skipIf(outsideTmp === null)(
       expect(result.stdout).not.toContain("STARTED");
     });
 
-    test.each([
-      ["$HOME の下の許可リストの外（.cargo/bin）", ".cargo/bin"],
-      ["後の tmpfs が覆う場所（.vscode-server/bin）", ".vscode-server/bin"],
-    ])("PATH のディレクトリが%sなら、起動の前に止める", (_label, dir) => {
-      const { home } = makeRealHome(`probe-path-${dir.replaceAll("/", "-")}`);
-      writeHomeFiles(home, { [`${dir}/tool`]: "" });
-      const result = startWithCli(home, { cliDir: ".local/bin", path: [join(home, dir)] });
-      expect(result.status).toBe(3);
-      expect(result.stderr).toContain(join(home, dir));
-      expect(result.stdout).not.toContain("STARTED");
+    test("PATH のディレクトリが隠れても止めない（確かめるのは CLI だけ）", () => {
+      const { home } = makeRealHome("probe-path-hidden");
+      writeHomeFiles(home, { ".cargo/bin/tool": "" });
+      const result = startWithCli(home, { cliDir: ".local/bin", path: [join(home, ".cargo/bin")] });
+      expect(result.status, result.stderr).toBe(0);
+      expect(result.stdout).toBe("STARTED\n");
     });
 
     test("$HOME がシンボリックリンクでも、許可リストの中の CLI は起動する", () => {
@@ -180,18 +175,6 @@ describe.skipIf(outsideTmp === null)(
       const homeEnv = join(dirname(home), "home-link");
       symlinkSync(home, homeEnv);
       const result = startWithCli(home, { cliDir: ".local/bin", path: [], homeEnv });
-      expect(result.status, result.stderr).toBe(0);
-      expect(result.stdout).toBe("STARTED\n");
-    });
-
-    test("許可リストの場所（~/.local/bin）がシンボリックリンクでも、PATH の確認で止めない", () => {
-      const { home } = makeRealHome("probe-allowlist-link");
-      writeHomeFiles(home, { "dotfiles/bin/tool": "" });
-      symlinkSync(join(home, "dotfiles/bin"), join(home, ".local/bin"));
-      const result = startWithCli(home, {
-        cliDir: ".local/share/claude",
-        path: [join(home, ".local/bin")],
-      });
       expect(result.status, result.stderr).toBe(0);
       expect(result.stdout).toBe("STARTED\n");
     });

@@ -48,10 +48,10 @@ ${FAKE_BWRAP_PROBE}printf '%s\\n' "$@" >"${capturedArgs}"
 // | ホストの settings.json | 無い / 許可リストの外のキーを含む / JSON でない                 |
 // | ホストの $HOME      | 許可リストの場所が在る / 無い、許可リストの外に認証情報が在る / 無い |
 // | runtime dir         | 中身が在る / 空 / XDG_RUNTIME_DIR が実在しない                     |
-// | 起動の前の確認      | CLI が見える / 隠れる、PATH のディレクトリが見える / 隠れる / 空 / 無い |
+// | 起動の前の確認      | CLI が見える / 隠れる（PATH のディレクトリは確かめない）              |
 //
 // bwrap のスタブは呼び出しごとに引数を追記する（--verify は 2 回呼ぶ）。
-// 起動の前の確認（CLI と PATH が見えるか）の呼び出しは記録せず、FAKE_BWRAP_HIDDEN（改行区切り）に
+// 起動の前の確認（CLI が見えるか）の呼び出しは記録せず、FAKE_BWRAP_HIDDEN（改行区切り）に
 // 挙げたパスを除いて「見える」と答える。何が隠れるかを測るのは、本物の bwrap のテストである。
 // FAKE_BWRAP_MODE=exec-credentials では、--verify の stage 5 の呼び出しだけを、隠さずにホストの上で実行する。
 // --setenv と --unsetenv は反映し、FAKE_BWRAP_KEEP_ENV=1 なら --unsetenv を反映しない。
@@ -123,8 +123,6 @@ export type SandboxOptions = {
   pathHomeDirs?: PathHomeDir[];
   /** 起動の前の確認で、CLI を隠れていると答える。 */
   hiddenCli?: boolean;
-  /** 起動の前の確認で、隠れていると答える $HOME からの相対ディレクトリ。 */
-  hiddenPathHomeDirs?: string[];
 };
 
 export type PathHomeDir = { dir: string; state: "absent" | "empty" | "tool" };
@@ -209,10 +207,7 @@ function sandboxEnv(
     XDG_RUNTIME_DIR: paths.runtimeDir,
     FAKE_BWRAP_RUNTIME_UNDER: root,
     FAKE_BWRAP_PROBE_ARGS: paths.probeArgs,
-    FAKE_BWRAP_HIDDEN: [
-      ...(options.hiddenCli === true ? [join(bin, cli)] : []),
-      ...(options.hiddenPathHomeDirs ?? []).map((dir) => join(home, dir)),
-    ].join("\n"),
+    FAKE_BWRAP_HIDDEN: options.hiddenCli === true ? join(bin, cli) : "",
     ...options.env,
   };
   if (options.vendor !== undefined) env.EVAL_SANDBOX_VENDOR = options.vendor;

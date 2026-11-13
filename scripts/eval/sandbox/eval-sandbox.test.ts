@@ -98,8 +98,7 @@ echo CUSTOM_CODEX_HOME_OK
       EVAL_SANDBOX_CLI: "codex-wrapper",
       EVAL_SANDBOX_VENDOR: "codex",
       HOME: fakeHome,
-      // vitest の PATH にはリポジトリの node_modules/.bin が入り、sandbox はリポジトリを隠すので、起動の前の確認で止まる。
-      PATH: `${fakeBin}:/usr/bin:/bin`,
+      PATH: `${fakeBin}:${process.env.PATH}`,
     },
   });
 

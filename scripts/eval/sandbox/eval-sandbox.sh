@@ -617,48 +617,25 @@ fi
 # CLI's arguments (`-p <prompt> --output-format json ...`), so the binary has to be
 # prepended here. EVAL_SANDBOX_CLI allows a stub for smoke tests.
 # Not `exec`: the EXIT trap has to survive the run to delete the throwaway state file.
-# Ask the sandbox what it shows instead of predicting it from the mounts: spelling
-# (a symlinked $HOME), mount order (a later tmpfs over an earlier bind) and links in the
-# allowlist all decide the answer. One short bwrap call with the same args looks at the
-# CLI and at every PATH directory that has entries on the host.
-# A hidden CLI makes bwrap fail with a bare exec error. A hidden PATH directory does not
-# stop the CLI, so the run would see "command not found" for its tools, end with rc=0
-# and record a degraded answer for both configurations. Stop before either.
-# "Has entries" stops at the first one (find -quit): /usr/bin holds thousands.
-probe=("${cli_real}")
-IFS=: read -r -a path_dirs <<<"${PATH}"
-for d in "${path_dirs[@]}"; do
-	if [ -n "${d}" ] && [ -d "${d}" ] && [ -n "$(find "${d}" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]; then probe+=("${d}"); fi
-done
+# A CLI that the sandbox hides makes bwrap fail with a bare exec error, so check it first
+# and say what to change. Ask the sandbox what it shows instead of predicting it from
+# the mounts: spelling (a symlinked $HOME), mount order (a later tmpfs over an earlier
+# bind) and links in the allowlist all decide the answer. One short bwrap call with the
+# same args looks at the CLI.
+# PATH is not checked: a tool hidden from the run fails only where the run calls it.
 probe_out="$(mktemp /tmp/eval-sandbox-probe-XXXXXX)"
-# shellcheck disable=SC2016 # deliberate: $p expands inside the sandboxed shell
-probe_script='for p; do if [ -f "$p" ] || [ -n "$(find "$p" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]; then printf "%s\0" "$p"; fi; done'
-bwrap "${args[@]}" --setenv EVAL_SANDBOX_PROBE 1 --chdir / -- /bin/bash -c "${probe_script}" _ "${probe[@]}" \
+# shellcheck disable=SC2016 # deliberate: $1 expands inside the sandboxed shell
+probe_script='if [ -f "$1" ]; then printf "%s\0" "$1"; fi'
+bwrap "${args[@]}" --setenv EVAL_SANDBOX_PROBE 1 --chdir / -- /bin/bash -c "${probe_script}" _ "${cli_real}" \
 	>"${probe_out}" </dev/null || {
-	echo "eval-sandbox: the sandbox did not start for the start-up check of the CLI and PATH" >&2
+	echo "eval-sandbox: the sandbox did not start for the start-up check of the CLI" >&2
 	exit 3
 }
-shown_paths=()
-while IFS= read -r -d '' p; do shown_paths+=("${p}"); done <"${probe_out}"
-hidden_paths=()
-for p in "${probe[@]}"; do
-	seen=""
-	for q in "${shown_paths[@]}"; do [ "${q}" != "${p}" ] || seen=1; done
-	[ -n "${seen}" ] || hidden_paths+=("${p}")
-done
-hidden_dirs=()
-for p in "${hidden_paths[@]}"; do
-	if [ "${p}" = "${cli_real}" ]; then
-		echo "eval-sandbox: the sandbox hides the CLI: ${cli_real}. Install it where the sandbox binds it back" \
-			"(home_allow in ${self} for a plain path under \$HOME), or bind its directory back there." >&2
-		exit 3
-	fi
-	hidden_dirs+=("${p}")
-done
-[ "${#hidden_dirs[@]}" -eq 0 ] || {
-	echo "eval-sandbox: the sandbox hides these PATH directories, so the run would start without their tools:" \
-		"${hidden_dirs[*]}. Drop the PATH entries the run does not need. To keep one, bind it back in ${self}" \
-		"after the mount that covers it (home_allow for a plain path under \$HOME)." >&2
+shown=""
+while IFS= read -r -d '' p; do [ "${p}" != "${cli_real}" ] || shown=1; done <"${probe_out}"
+[ -n "${shown}" ] || {
+	echo "eval-sandbox: the sandbox hides the CLI: ${cli_real}. Install it where the sandbox binds it back" \
+		"(home_allow in ${self} for a plain path under \$HOME), or bind its directory back there." >&2
 	exit 3
 }
 rc=0

@@ -168,7 +168,7 @@ describe("runtime dir と CLI の場所", () => {
     expect(flagValues(bwrapArgs, "--tmpfs")).toContain(runtimeDir);
   });
 
-  // 起動の前の確認。何が隠れるかは本物の bwrap のテストが測る。ここでは、確かめるパスの選び方と、
+  // 起動の前の確認。何が隠れるかは本物の bwrap のテストが測る。ここでは、確かめるパスと、
   // 隠れると答えられたときに止まるかを確かめる（スタブは FAKE_BWRAP_HIDDEN に挙げたパスを隠れると答える）。
   test("CLI が隠れると答えられたら、run を起動せずに止める", () => {
     const { result, bwrapArgs, bin } = sandbox(["--version"], { hiddenCli: true });
@@ -177,33 +177,15 @@ describe("runtime dir と CLI の場所", () => {
     expect(bwrapArgs).toBeNull();
   });
 
-  test("PATH のディレクトリが隠れると答えられたら、run を起動せずに止める", () => {
-    const { result, bwrapArgs } = sandbox(["--version"], {
-      pathHomeDirs: [{ dir: ".cargo/bin", state: "tool" }],
-      hiddenPathHomeDirs: [".cargo/bin"],
-    });
-    expect(result.status).toBe(3);
-    expect(result.stderr).toMatch(
-      /the sandbox hides these PATH directories, so the run would start without their tools: \S*\/\.cargo\/bin\./u,
-    );
-    expect(bwrapArgs).toBeNull();
-  });
-
-  test("確かめるのは CLI と、ホストで中身のある PATH のディレクトリだけで、空と無いディレクトリは確かめない", () => {
-    const { result, home, bin, probeArgs } = sandbox(["--version"], {
-      pathHomeDirs: [
-        { dir: "tool-dir", state: "tool" },
-        { dir: "empty-dir", state: "empty" },
-        { dir: "absent-dir", state: "absent" },
-      ],
+  test("確かめるのは CLI だけで、PATH のディレクトリは確かめない", () => {
+    const { result, bin, probeArgs } = sandbox(["--version"], {
+      pathHomeDirs: [{ dir: "tool-dir", state: "tool" }],
     });
     expect(result.status, result.stderr).toBe(0);
     if (probeArgs === null) throw new Error("確認の呼び出しが無い");
-    const probed = probeArgs.slice(probeArgs.indexOf("_") + 1).filter(Boolean);
-    expect(probed).toContain(join(bin, "claude"));
-    expect(probed).toContain(join(home, "tool-dir"));
-    expect(probed).not.toContain(join(home, "empty-dir"));
-    expect(probed).not.toContain(join(home, "absent-dir"));
+    expect(probeArgs.slice(probeArgs.indexOf("_") + 1).filter(Boolean)).toEqual([
+      join(bin, "claude"),
+    ]);
   });
 
   test("$HOME の下のリポジトリを隠すマウントは、$HOME の tmpfs が覆うので、stage 5 はそのパスも確かめる", () => {
