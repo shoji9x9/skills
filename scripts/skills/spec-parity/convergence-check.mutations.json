@@ -779,8 +779,8 @@
     },
     {
       "id": "cv-runtime-declaration-placeholder",
-      "why": "declared: false の理由が雛形の値のままでも、書いたものとして読む（spec-parity のコピー）",
-      "file": "skills/spec-parity/scripts/runtime-errors.mjs",
+      "why": "declared: false の理由が雛形の値のままでも、書いたものとして読む",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
       "find": "  if (re.declared === false && isFilled(re.reason)) return \"exempt\";\n",
       "replace": "  if (re.declared === false && nonEmptyString(re.reason)) return \"exempt\";\n",
       "occurrences": 1,
@@ -790,8 +790,8 @@
     },
     {
       "id": "cv-runtime-declaration-reason",
-      "why": "理由の無い declared: false を、免除として読む（spec-parity のコピー）",
-      "file": "skills/spec-parity/scripts/runtime-errors.mjs",
+      "why": "理由の無い declared: false を、免除として読む",
+      "file": "skills/spec-parity/scripts/convergence-check.mjs",
       "find": "  if (re.declared === false && isFilled(re.reason)) return \"exempt\";\n",
       "replace": "  if (re.declared === false) return \"exempt\";\n",
       "occurrences": 1,

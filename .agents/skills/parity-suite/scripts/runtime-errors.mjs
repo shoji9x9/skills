@@ -442,22 +442,6 @@ export function judgeClassification(c) {
 }
 
 /**
- * 現側の metadata.json の runtime_errors の宣言を読む。spec-parity の収束の判定（convergence-check.mjs）が、
- * 比較の結果を読むこのスクリプトと同じ読み方で宣言を判定するために、ここで定義する。
- * declared は declared: true、exempt は declared: false と理由（雛形のプレースホルダでない値）の組、absent はキーごと無い記録である。
- * それ以外（オブジェクトでない・declared が雛形の値のまま・真偽値でない・理由の無い declared: false）は invalid にする。
- * @param {unknown} re - metadata.json の runtime_errors
- * @returns {"declared" | "exempt" | "absent" | "invalid"}
- */
-export function runtimeErrorsDeclaration(re) {
-  if (re === undefined) return "absent";
-  if (!isPlainObject(re)) return "invalid";
-  if (re.declared === true) return "declared";
-  if (re.declared === false && isFilled(re.reason)) return "exempt";
-  return "invalid";
-}
-
-/**
  * 許容か環境ノイズの分類が、承認の記録（approvals）に同じ値で積まれているかを判定する。
  * 収束の判定（spec-parity の convergence-check.mjs と parity-suite の artifact-health-check.mjs --stage diff）が呼ぶ。
  * 分類の欄は書き直せるので、承認を後から書き換えても欄だけでは検出できない。追記専用の承認の記録と突き合わせて、書き換えを承認待ちにする。

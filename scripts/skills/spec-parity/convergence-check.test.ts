@@ -334,7 +334,7 @@ describe("操作中のエラー", () => {
     expect(kinds(run(fs))).toEqual([["remeasure", "unverified"]]);
   });
 
-  // 宣言は、比較の結果を読む runtime-errors.mjs の runtimeErrorsDeclaration で読む
+  // 宣言は convergence-check.mjs の runtimeErrorsDeclaration で読む（理由が雛形の値のままの declared: false も不備）
   test.each([
     ["declared: false の理由が雛形の値のまま", { declared: false, reason: "<理由>" }],
     ["declared: false に理由が無い", { declared: false }],

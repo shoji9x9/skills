@@ -53,7 +53,6 @@ import {
   VERSION as RUNTIME_ERRORS_VERSION,
   approvalLogged,
   judgeClassification,
-  runtimeErrorsDeclaration,
 } from "./runtime-errors.mjs";
 
 /** ツールのバージョン。判定規則と出力の形を変えたら上げる。 */
@@ -280,6 +279,21 @@ export function judgeSuite(current, next, reasons) {
       );
   }
   return { tests: current.size, current_skipped: currentSkipped.sort(byText) };
+}
+
+/**
+ * 現側の metadata.json の runtime_errors の宣言を読む。
+ * declared は declared: true、exempt は declared: false と理由（雛形のプレースホルダでない値）の組、absent はキーごと無い記録である。
+ * それ以外（オブジェクトでない・declared が雛形の値のまま・真偽値でない・理由の無い declared: false）は invalid にする。
+ * @param {unknown} re - metadata.json の runtime_errors
+ * @returns {"declared" | "exempt" | "absent" | "invalid"}
+ */
+function runtimeErrorsDeclaration(re) {
+  if (re === undefined) return "absent";
+  if (!isPlainObject(re)) return "invalid";
+  if (re.declared === true) return "declared";
+  if (re.declared === false && isFilled(re.reason)) return "exempt";
+  return "invalid";
 }
 
 /**
