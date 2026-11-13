@@ -87,20 +87,9 @@
         "操作中のエラー 現行に無かったエラーが 許容で承認の日時が無い なら approval（保存された ok は信じない）",
         "操作中のエラー 現行に無かったエラーが 環境ノイズで根拠が無い なら approval（保存された ok は信じない）",
         "操作中のエラーの許容と承認の記録（approvals） 承認の記録が無い許容は、承認の欄（approved_at・reason）が無いときと同じく承認待ちの 1 件にする",
-        "操作中のエラーの許容と承認の記録（approvals） 署名に id が無ければ、同じ欄の無い承認とも一致させない",
-        "操作中のエラーの許容と承認の記録（approvals） 署名に test が無ければ、同じ欄の無い承認とも一致させない",
-        "操作中のエラーの許容と承認の記録（approvals） 許容が 別のテストの承認しか無い なら承認待ちにする",
-        "操作中のエラーの許容と承認の記録（approvals） 許容が 別の署名の承認しか無い なら承認待ちにする",
-        "操作中のエラーの許容と承認の記録（approvals） 許容が 前のバージョン（tree）で積んだ承認しか無い（compare が分類を持ち越した） なら承認待ちにする",
-        "操作中のエラーの許容と承認の記録（approvals） 許容が 承認の後に日時を書き換えた なら承認待ちにする",
-        "操作中のエラーの許容と承認の記録（approvals） 許容が 承認の後に理由を書き換えた なら承認待ちにする",
-        "操作中のエラーの許容と承認の記録（approvals） 許容が 承認の記録に無い なら承認待ちにする",
-        "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人（approved_by）の無い承認しか無い なら承認待ちにする",
-        "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人が雛形の値のままの承認しか無い なら承認待ちにする",
         "操作中のエラーの許容と承認の記録（approvals） 環境ノイズの根拠（evidence）が雛形のプレースホルダのままなら、承認待ちにする",
         "操作中のエラーの許容と承認の記録（approvals） 許容の 承認の日時（approved_at） が雛形のプレースホルダのままなら、承認の記録に同じ値があっても承認待ちにする",
-        "操作中のエラーの許容と承認の記録（approvals） 許容の 理由（reason） が雛形のプレースホルダのままなら、承認の記録に同じ値があっても承認待ちにする",
-        "操作中のエラーの許容と承認の記録（approvals） 許容が kind だけが違う（design_review の）要素しか無い なら承認待ちにする"
+        "操作中のエラーの許容と承認の記録（approvals） 許容の 理由（reason） が雛形のプレースホルダのままなら、承認の記録に同じ値があっても承認待ちにする"
       ]
     },
     {
@@ -574,10 +563,10 @@
     },
     {
       "id": "cv-allowance-logged",
-      "why": "操作中のエラーの許容を、承認の記録（approvals）に同じ値が積まれていなければ承認待ちにする",
+      "why": "操作中のエラーの許容と環境ノイズを、承認の記録（approvals）に同じ値が積まれていなければ承認待ちにする",
       "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "judged.classification === \"許容\" && !allowanceLogged(s, judged, { tree, approvals })",
-      "replace": "false",
+      "find": "    else if (approvalLogged(s, { approvals, tree }) === \"missing\")\n",
+      "replace": "    else if (false)\n",
       "occurrences": 1,
       "expect_failing": [
         "操作中のエラーの許容と承認の記録（approvals） 許容が 承認の記録に無い なら承認待ちにする",
@@ -586,30 +575,43 @@
         "操作中のエラーの許容と承認の記録（approvals） 許容が 承認の後に日時を書き換えた なら承認待ちにする",
         "操作中のエラーの許容と承認の記録（approvals） 許容が 別の署名の承認しか無い なら承認待ちにする",
         "操作中のエラーの許容と承認の記録（approvals） 許容が 別のテストの承認しか無い なら承認待ちにする",
-        "操作中のエラーの許容と承認の記録（approvals） 署名に id が無ければ、同じ欄の無い承認とも一致させない",
-        "操作中のエラーの許容と承認の記録（approvals） 署名に test が無ければ、同じ欄の無い承認とも一致させない",
         "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人（approved_by）の無い承認しか無い なら承認待ちにする",
         "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人が雛形の値のままの承認しか無い なら承認待ちにする",
-        "操作中のエラーの許容と承認の記録（approvals） 許容が kind だけが違う（design_review の）要素しか無い なら承認待ちにする"
+        "操作中のエラーの許容と承認の記録（approvals） 許容が kind だけが違う（design_review の）要素しか無い なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 環境ノイズが 承認の記録に無い（承認の記録を持たない前の記録を含む） なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 環境ノイズが 許容の承認しか無い（許容を環境ノイズに書き換えた） なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 環境ノイズが 前のバージョン（tree）で積んだ承認しか無い なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 環境ノイズが 承認の後に根拠を書き換えた なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 環境ノイズが 別の署名の承認しか無い なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 環境ノイズが 別のテストの承認しか無い なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 環境ノイズが 承認した人（approved_by）の無い承認しか無い なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 環境ノイズが 承認の日時（approved_at）の無い承認しか無い なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 環境ノイズが 承認の日時が雛形の値のままの承認しか無い なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 環境ノイズが kind だけが違う（design_review の）要素しか無い なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 環境ノイズが classification の無い要素しか無い なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 署名に id が無ければ、同じ欄の無い承認とも一致させない",
+        "操作中のエラーの許容と承認の記録（approvals） 署名に test が無ければ、同じ欄の無い承認とも一致させない",
+        "操作中のエラーの許容と承認の記録（approvals） 環境ノイズの承認を、許容の承認として数えない（環境ノイズを許容に書き換えた）"
       ]
     },
     {
       "id": "cv-allowance-tree",
-      "why": "許容の承認を、同じ新側のバージョン（tree）で積んだものだけに限る",
-      "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "    tree,\n    approved_at: judged.approved_at,",
-      "replace": "    approved_at: judged.approved_at,",
+      "why": "許容と環境ノイズの承認を、同じ新側のバージョン（tree）で積んだものだけに限る（spec-parity のコピー）",
+      "file": "skills/spec-parity/scripts/runtime-errors.mjs",
+      "find": "      (tree === null || a.tree === tree) &&\n",
+      "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "操作中のエラーの許容と承認の記録（approvals） 許容が 前のバージョン（tree）で積んだ承認しか無い（compare が分類を持ち越した） なら承認待ちにする"
+        "操作中のエラーの許容と承認の記録（approvals） 許容が 前のバージョン（tree）で積んだ承認しか無い（compare が分類を持ち越した） なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 環境ノイズが 前のバージョン（tree）で積んだ承認しか無い なら承認待ちにする"
       ]
     },
     {
       "id": "cv-allowance-key-guard",
-      "why": "テストか署名の id が無い署名を、同じ鍵の欠けた承認と一致させない",
-      "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "if (!isPlainObject(s) || !nonEmptyString(s.test) || !nonEmptyString(s.id)) return false;",
-      "replace": "if (!isPlainObject(s)) return false;",
+      "why": "テストか署名の id が無い署名を、同じ鍵の欠けた承認と一致させない（spec-parity のコピー）",
+      "file": "skills/spec-parity/scripts/runtime-errors.mjs",
+      "find": "  if (!isPlainObject(s) || !nonEmptyString(s.test) || !nonEmptyString(s.id)) return \"missing\";\n",
+      "replace": "  if (!isPlainObject(s)) return \"missing\";\n",
       "occurrences": 1,
       "expect_failing": [
         "操作中のエラーの許容と承認の記録（approvals） 署名に id が無ければ、同じ欄の無い承認とも一致させない",
@@ -624,21 +626,24 @@
       "replace": "const APPROVAL_KINDS = [\"design_review\", \"human_review\"];",
       "occurrences": 1,
       "expect_failing": [
-        "操作中のエラー 承認した許容と、根拠のある環境ノイズは収束を止めない",
+        "操作中のエラー 承認した許容と、承認した環境ノイズは収束を止めない",
         "操作中のエラーの許容と承認の記録（approvals） 同じテスト × 署名・同じバージョン・同じ値の承認が積まれていれば収束する",
-        "操作中のエラーの許容と承認の記録（approvals） 前のバージョンの承認が残っていても、いまのバージョンの承認が積まれていれば収束する"
+        "操作中のエラーの許容と承認の記録（approvals） 前のバージョンの承認が残っていても、いまのバージョンの承認が積まれていれば収束する",
+        "操作中のエラーの許容と承認の記録（approvals） 環境ノイズは、同じテスト × 署名・同じバージョン・同じ根拠の承認が積まれていれば収束する",
+        "操作中のエラーの許容と承認の記録（approvals） classification: 許容 を書いた要素も、許容の承認として数える"
       ]
     },
     {
       "id": "cv-allowance-approved-by",
-      "why": "許容の承認の記録の要素に、承認した人（approved_by）が書いてあることを求める",
-      "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "  const allowances = approvals.filter((a) => filled(a.approved_by));\n",
-      "replace": "  const allowances = approvals;\n",
+      "why": "承認の記録の要素に、承認した人（approved_by）が書いてあることを求める（spec-parity のコピー）",
+      "file": "skills/spec-parity/scripts/runtime-errors.mjs",
+      "find": "      filledValue(a.approved_by) &&\n",
+      "replace": "",
       "occurrences": 1,
       "expect_failing": [
         "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人（approved_by）の無い承認しか無い なら承認待ちにする",
-        "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人が雛形の値のままの承認しか無い なら承認待ちにする"
+        "操作中のエラーの許容と承認の記録（approvals） 許容が 承認した人が雛形の値のままの承認しか無い なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 環境ノイズが 承認した人（approved_by）の無い承認しか無い なら承認待ちにする"
       ]
     },
     {
@@ -656,13 +661,82 @@
     },
     {
       "id": "cv-allowance-kind",
-      "why": "許容の照合で、承認の記録の要素の kind が runtime_errors であることを求める",
-      "file": "skills/spec-parity/scripts/convergence-check.mjs",
-      "find": "    kind: \"runtime_errors\",\n    test: s.test,\n",
-      "replace": "    test: s.test,\n",
+      "why": "許容と環境ノイズの照合で、承認の記録の要素の kind が runtime_errors であることを求める（spec-parity のコピー）",
+      "file": "skills/spec-parity/scripts/runtime-errors.mjs",
+      "find": "      a.kind === \"runtime_errors\" &&\n",
+      "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "操作中のエラーの許容と承認の記録（approvals） 許容が kind だけが違う（design_review の）要素しか無い なら承認待ちにする"
+        "操作中のエラーの許容と承認の記録（approvals） 許容が kind だけが違う（design_review の）要素しか無い なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 環境ノイズが kind だけが違う（design_review の）要素しか無い なら承認待ちにする"
+      ]
+    },
+    {
+      "id": "cv-noise-approved-at",
+      "why": "環境ノイズの承認の要素に、承認の日時（approved_at）が書いてあることを求める（spec-parity のコピー）",
+      "file": "skills/spec-parity/scripts/runtime-errors.mjs",
+      "find": "      filledValue(a.approved_at) &&\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作中のエラーの許容と承認の記録（approvals） 環境ノイズが 承認の日時（approved_at）の無い承認しか無い なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 環境ノイズが 承認の日時が雛形の値のままの承認しか無い なら承認待ちにする"
+      ]
+    },
+    {
+      "id": "cv-noise-classification",
+      "why": "環境ノイズの承認を、classification: 環境ノイズ の要素だけに限る（許容の承認を環境ノイズの承認として数えない。spec-parity のコピー）",
+      "file": "skills/spec-parity/scripts/runtime-errors.mjs",
+      "find": "          a.classification === \"環境ノイズ\" && a.evidence === judged.evidence;\n",
+      "replace": "          a.evidence === judged.evidence;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作中のエラーの許容と承認の記録（approvals） 環境ノイズが 許容の承認しか無い（許容を環境ノイズに書き換えた） なら承認待ちにする",
+        "操作中のエラーの許容と承認の記録（approvals） 環境ノイズが classification の無い要素しか無い なら承認待ちにする"
+      ]
+    },
+    {
+      "id": "cv-noise-evidence",
+      "why": "環境ノイズの承認を、同じ根拠（evidence）の要素だけに限る（spec-parity のコピー）",
+      "file": "skills/spec-parity/scripts/runtime-errors.mjs",
+      "find": "          a.classification === \"環境ノイズ\" && a.evidence === judged.evidence;\n",
+      "replace": "          a.classification === \"環境ノイズ\";\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作中のエラーの許容と承認の記録（approvals） 環境ノイズが 承認の後に根拠を書き換えた なら承認待ちにする"
+      ]
+    },
+    {
+      "id": "cv-allowance-classification",
+      "why": "許容の承認を、classification が無いか 許容 の要素だけに限る（環境ノイズの承認を許容の承認として数えない。spec-parity のコピー）",
+      "file": "skills/spec-parity/scripts/runtime-errors.mjs",
+      "find": "          (a.classification === undefined || a.classification === \"許容\") &&\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作中のエラーの許容と承認の記録（approvals） 環境ノイズの承認を、許容の承認として数えない（環境ノイズを許容に書き換えた）"
+      ]
+    },
+    {
+      "id": "cv-allowance-approved-at",
+      "why": "許容の承認を、同じ承認の日時（approved_at）の要素だけに限る（spec-parity のコピー）",
+      "file": "skills/spec-parity/scripts/runtime-errors.mjs",
+      "find": "          a.approved_at === judged.approved_at &&\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作中のエラーの許容と承認の記録（approvals） 許容が 承認の後に日時を書き換えた なら承認待ちにする"
+      ]
+    },
+    {
+      "id": "cv-allowance-reason",
+      "why": "許容の承認を、同じ理由（reason）の要素だけに限る（spec-parity のコピー）",
+      "file": "skills/spec-parity/scripts/runtime-errors.mjs",
+      "find": "          a.reason === judged.reason\n",
+      "replace": "          true\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作中のエラーの許容と承認の記録（approvals） 許容が 承認の後に理由を書き換えた なら承認待ちにする"
       ]
     },
     {

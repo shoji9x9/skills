@@ -2,7 +2,7 @@
 # 新側のリポジトリ（設定の new.repo: ./new-app）を git で作り、記録の new.commit をその HEAD に、new.tree などをその HEAD のツリーにそろえる。
 # .replace/ は new-app の外にあるので、new.tree（replace-strategy の references/project-config.md「新側のバージョンの記録」）は HEAD のツリーのハッシュと同じになる。
 # verify の手順 7 は、収束を判定する直前に新側の HEAD と作業ツリーの状態を取得し直すので、新側のリポジトリが要る。
-# verify-unapproved・verify-overflow・verify-carried-allowance の setup.sh は同じ中身である（scripts/gates/packaging/copies/identical-copies.json）。
+# eval 8・9・10・11 の fixture（verify-*）の setup.sh は同じ中身である。組は scripts/gates/packaging/copies/identical-copies.json にある。
 set -euo pipefail
 
 # 前の実行が途中で止まっていても、置き換えまで進める。次のどれかに当たれば作り直す。

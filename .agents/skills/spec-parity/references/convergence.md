@@ -19,7 +19,7 @@ node <spec-parity>/scripts/convergence-check.mjs --slug-dir .replace/parity/<slu
 |---|---|---|
 | 現行で通ったテストが、新側ですべて `passed` | `suite-report.json`（現行）と `new/<target>/suite-report.json`（新側） | 新側で `failed`・`timed-out`・`flaky`・`skipped`、新側の結果に無いテスト、現行の結果に無いテスト、新側の結果にある `suite.dir` の外のテスト |
 | 記録した幅で横にはみ出さない | `metadata.json` の `capture_conditions` と `new/<target>/overflow.json` | はみ出し・未測定・幅の不一致 |
-| 現行に無かった操作中のエラーが、要対応でも未説明でもない | `verify-metadata.json` の `runtime_errors`（`compare` の結果） | 要対応・未分類・承認の無い許容・同じ承認が `approvals` に無い許容・根拠の無い環境ノイズ・記録の欠け・新側でスキップしたテスト（`skipped_tests`）・`tree` が無いか `new.tree` と違う |
+| 現行に無かった操作中のエラーが、要対応でも未説明でもない | `verify-metadata.json` の `runtime_errors`（`compare` の結果） | 要対応・未分類・承認の無い許容・同じ承認が `approvals` に無い許容・根拠の無い環境ノイズ・同じ承認が `approvals` に無い環境ノイズ・記録の欠け・新側でスキップしたテスト（`skipped_tests`）・`tree` が無いか `new.tree` と違う |
 | デザインの指摘がすべて「受け入れる」で承認がある | `design_review` と `approvals` | 「直す」が残る・承認が無い・点検の記録が無い・同じ承認が `approvals` に無い |
 | 利用者が新側の画面を承認した | `human_review` と `approvals` | 承認の記録が無い・却下・同じ承認が `approvals` に無い |
 | 未検証の一覧に、確かめないことが理由付きで載っている | `unverified` | `performance` が無い。現側で操作中のエラーを記録しなかった機能で `runtime_errors` が無い |
@@ -51,6 +51,7 @@ node <spec-parity>/scripts/convergence-check.mjs --slug-dir .replace/parity/<slu
   同じテストの結果が 2 つある結果（`--repeat-each` や複数の agent で実行したもの）も、どちらかを採らずに exit 2 にする（`strength-check.mjs` と同じ扱い）。
 - デザインの指摘を受け入れた承認と人による確認の承認は、`approvals` に同じ値（バージョン・承認した人・日時・理由か返事）の要素が積まれていなければ、承認として数えない（`approval`）。
   操作中のエラーの許容も、`approvals` に同じ値（テスト × 署名・バージョン・日時・理由）の要素が積まれていなければ、承認として数えない（`approval`）。
+  環境ノイズも、`approvals` に同じ値（テスト × 署名・バージョン・`classification: 環境ノイズ`・根拠）の要素が積まれていなければ、承認として数えない（`approval`）。許容の承認を環境ノイズの承認として数えず、その逆も数えない。
   `approvals` の形と書き方は [`design-review.md`](design-review.md)「承認の記録」にある。`approvals` が縮んでいないかは、下の追記専用の成果物の確認が見る。
 - `unmeasured` の扱いは、`parity-diff` の収束の判定（`artifact-health-check.mjs --stage diff`）と同じである。
   キーごと無い成果物と `declared: false`（理由が要る）は判定せず、`verify-metadata.json` の `convergence.checks.unmeasured` に `judged: false` と理由を残す。
@@ -64,7 +65,7 @@ node <spec-parity>/scripts/convergence-check.mjs --slug-dir .replace/parity/<slu
   確かめる対象は、`replace-strategy` の `assets/append-only-manifest.json` に項目があるものだけである。
   このスキルの成果物では、`.replace/parity/<slug>/` の `gaps.md`・`metadata.json` の `unmeasured.entries`・`new/<target>/verify-metadata.json` の `approvals` が当たる。
   ほかに、features.md・設定ファイル・`.replace/dataset/metadata.json` の `changes` など、スキル群で共通の成果物が当たる。
-  `verify-metadata.json` のほかの欄（`design_review`・`human_review` の承認の欄と、`runtime_errors.new_signatures[]` の許容の承認の欄を含む）と `verify.md` は、verify のたびに書き直すので一覧に無い。承認の欄の書き換えは、収束の判定が `approvals` との食い違いで検出する。
+  `verify-metadata.json` のほかの欄（`design_review`・`human_review` の承認の欄と、`runtime_errors.new_signatures[]` の許容と環境ノイズの欄を含む）と `verify.md` は、verify のたびに書き直すので一覧に無い。承認の欄の書き換えは、収束の判定が `approvals` との食い違いで検出する。
   `node <replace-strategy>/scripts/append-only-check.mjs --root . --base <機能に着手した時点のバージョン>` を実行し、exit 0 以外なら止めて、過去の決定を元に戻す。
   デフォルトの `HEAD` は使わない（書き直しを commit した後は作業ツリーと同じになり、失われた決定を検出できない）。一覧の原本は `replace-strategy` の `assets/append-only-manifest.json` である。
   `replace-strategy` のスクリプトに届かないときも、合格として扱わずに止まる。

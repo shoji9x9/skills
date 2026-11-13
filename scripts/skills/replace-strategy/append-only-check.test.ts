@@ -403,6 +403,61 @@ test.concurrent.each([
   rmSync(root, { recursive: true, force: true });
 });
 
+// parity-diff の承認の記録（diff-metadata.json の approvals）。diff-metadata.json は実行のたびに作り直すので、
+// 前の approvals を書き戻し忘れたことを、要素の消失として検出する（Issue #1007）
+const DIFF_PATH = ".replace/parity/order-list/new/stg/diff-metadata.json";
+const runtimeApproval = (over: Record<string, unknown> = {}) => ({
+  kind: "runtime_errors",
+  test: "orders.spec.ts > 一覧を開く",
+  id: "sig-1",
+  classification: "環境ノイズ",
+  evidence: "stg だけの CDN",
+  approved_by: "owner",
+  approved_at: "2026-11-13T00:00:00Z",
+  ...over,
+});
+const writeDiff = (root: string, approvals: unknown[] | undefined) => {
+  mkdirSync(join(root, ".replace/parity/order-list/new/stg"), { recursive: true });
+  writeFileSync(
+    join(root, DIFF_PATH),
+    `${JSON.stringify({ slug: "order-list", converged: false, approvals }, null, 2)}\n`,
+  );
+};
+
+test.concurrent.each([
+  ["承認の記録を持たない前の記録に、最初の承認を追記する", undefined, [runtimeApproval()]],
+  [
+    "承認の記録に、次の承認を追記する",
+    [runtimeApproval()],
+    [runtimeApproval(), runtimeApproval({ id: "sig-2" })],
+  ],
+])("parity-diff の %s のは縮小にしない", async (_label, before, after) => {
+  const root = await makeRepo();
+  writeDiff(root, before);
+  await commit(root, "diff");
+  writeDiff(root, after);
+  const r = await run(root, ["--base", "HEAD"]);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test.concurrent.each([
+  ["前の approvals を書き戻さずに作り直す", [runtimeApproval()], []],
+  ["前の approvals をキーごと落として作り直す", [runtimeApproval()], undefined],
+  ["承認の根拠を書き換える", [runtimeApproval()], [runtimeApproval({ evidence: "別の根拠" })]],
+])("parity-diff の承認の記録で、%s と落ちる", async (_label, before, after) => {
+  const root = await makeRepo();
+  writeDiff(root, before);
+  await commit(root, "diff");
+  writeDiff(root, after);
+  const r = await run(root, ["--base", "HEAD"]);
+  expect(r.stdout).toMatch(/1 件（unit: json-arrays）が失われている/);
+  expect(r.stdout).toMatch(/diff-metadata\.json/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
 test.concurrent("一覧の unit が語彙外なら合格として扱わない（exit 2）", async () => {
   const root = await makeRepo();
   const manifest = writeManifest(root, [

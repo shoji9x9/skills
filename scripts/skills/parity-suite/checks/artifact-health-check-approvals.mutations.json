@@ -1,0 +1,167 @@
+{
+  "$comment": [
+    "artifact-health-check-approvals.test.ts の検出能力を示す変異の一覧（Issue #1007）。",
+    "runtime-errors.mjs は parity-suite のコピーを変異させる（artifact-health-check.mjs が import するのはこちら）。spec-parity のコピーは spec-parity の convergence-check.mutations.json が変異させる。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/parity-suite/checks/artifact-health-check-approvals.test.ts",
+  "mutations": [
+    {
+      "id": "ahc-rt-wiring",
+      "why": "操作中のエラーの承認の照合を、工程の節に入れない",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "  judgeStageRuntimeErrors(s);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "環境ノイズが approvals をキーごと持たない（承認の記録を始める前の記録） なら、承認待ちとして落とす（exit 2 にしない）",
+        "環境ノイズが approvals が空 なら、承認待ちとして落とす（exit 2 にしない）",
+        "環境ノイズが 許容を環境ノイズに書き換えて、許容の承認しか無い（根拠も同じ値の要素） なら、承認待ちとして落とす（exit 2 にしない）",
+        "環境ノイズが 環境ノイズの承認の後に根拠を書き換えた なら、承認待ちとして落とす（exit 2 にしない）",
+        "環境ノイズが 承認した人（approved_by）の無い要素しか無い なら、承認待ちとして落とす（exit 2 にしない）",
+        "環境ノイズが 承認した人が雛形の値のままの要素しか無い なら、承認待ちとして落とす（exit 2 にしない）",
+        "環境ノイズが kind が runtime_errors でない要素しか無い なら、承認待ちとして落とす（exit 2 にしない）",
+        "環境ノイズが 別のテストの要素しか無い なら、承認待ちとして落とす（exit 2 にしない）",
+        "環境ノイズが 承認の日時（approved_at）の無い要素しか無い なら、承認待ちとして落とす（exit 2 にしない）",
+        "環境ノイズが 承認の日時が雛形の値のままの要素しか無い なら、承認待ちとして落とす（exit 2 にしない）",
+        "環境ノイズが classification の無い要素しか無い なら、承認待ちとして落とす（exit 2 にしない）",
+        "環境ノイズが オブジェクトでない要素しか無い なら、承認待ちとして落とす（exit 2 にしない）",
+        "許容が approvals をキーごと持たない（承認の記録を始める前の記録） なら、承認待ちとして落とす",
+        "許容が 承認の後に理由を書き換えた なら、承認待ちとして落とす",
+        "許容が 承認の後に日時を書き換えた なら、承認待ちとして落とす",
+        "許容が 環境ノイズを許容に書き換えて、環境ノイズの承認しか無い（理由と日時も同じ値の要素） なら、承認待ちとして落とす",
+        "許容が 別の署名の要素しか無い なら、承認待ちとして落とす",
+        "署名に id が無ければ、同じ欄の無い承認とも一致させない",
+        "前の diff-metadata.json の approvals を書き戻し忘れた記録を、承認待ちとして落とす",
+        "approvals が配列でない なら型の誤りとして exit 2",
+        "runtime_errors がオブジェクトでない なら型の誤りとして exit 2",
+        "new_signatures が配列でない なら型の誤りとして exit 2",
+        "runtime_errors が無い（操作中のエラーを比べる前の成果物） なら照合せず、理由を注記に残す",
+        "runtime_errors.judged が false（declared: false） なら照合せず、理由を注記に残す",
+        "runtime_errors.judged が雛形のプレースホルダのまま なら照合せず、理由を注記に残す"
+      ]
+    },
+    {
+      "id": "ahc-rt-judged-only",
+      "why": "runtime_errors.judged が true でない記録（declared: false・雛形のまま）も照合する",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "  if (re.judged !== true) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "runtime_errors.judged が false（declared: false） なら照合せず、理由を注記に残す",
+        "runtime_errors.judged が雛形のプレースホルダのまま なら照合せず、理由を注記に残す"
+      ]
+    },
+    {
+      "id": "ahc-rt-tree-null",
+      "why": "parity-diff でも承認の要素に今の新側のバージョン（tree）の一致を求める（バージョンをまたいで持たない）",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "approvalLogged(sig, { approvals, tree: null })",
+      "replace": "approvalLogged(sig, { approvals, tree: String(s.diffNew?.tree) })",
+      "occurrences": 1,
+      "expect_failing": [
+        "誤検知しないことの確認: 許容と環境ノイズの承認が approvals に同じ値で積まれていれば通す",
+        "誤検知しないことの確認: 新側のバージョンが変わっても、承認は持ち越す（tree を照合しない）",
+        "誤検知しないことの確認: 許容は classification の無い要素 を承認として数える",
+        "誤検知しないことの確認: 許容は classification: 許容 の要素 を承認として数える"
+      ]
+    },
+    {
+      "id": "ahc-rt-kind",
+      "why": "kind が runtime_errors でない要素も承認として読む（parity-suite のコピー）",
+      "file": "skills/parity-suite/scripts/runtime-errors.mjs",
+      "find": "      a.kind === \"runtime_errors\" &&\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "環境ノイズが kind が runtime_errors でない要素しか無い なら、承認待ちとして落とす（exit 2 にしない）"
+      ]
+    },
+    {
+      "id": "ahc-rt-approved-by",
+      "why": "承認した人（approved_by）の無い要素も承認として読む（parity-suite のコピー）",
+      "file": "skills/parity-suite/scripts/runtime-errors.mjs",
+      "find": "      filledValue(a.approved_by) &&\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "環境ノイズが 承認した人（approved_by）の無い要素しか無い なら、承認待ちとして落とす（exit 2 にしない）",
+        "環境ノイズが 承認した人が雛形の値のままの要素しか無い なら、承認待ちとして落とす（exit 2 にしない）"
+      ]
+    },
+    {
+      "id": "ahc-rt-approved-at",
+      "why": "承認の日時（approved_at）の無い要素も承認として読む（parity-suite のコピー）",
+      "file": "skills/parity-suite/scripts/runtime-errors.mjs",
+      "find": "      filledValue(a.approved_at) &&\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "環境ノイズが 承認の日時（approved_at）の無い要素しか無い なら、承認待ちとして落とす（exit 2 にしない）",
+        "環境ノイズが 承認の日時が雛形の値のままの要素しか無い なら、承認待ちとして落とす（exit 2 にしない）"
+      ]
+    },
+    {
+      "id": "ahc-rt-key-guard",
+      "why": "テストか署名の id が無い署名を、同じ鍵の欠けた承認と一致させる（parity-suite のコピー）",
+      "file": "skills/parity-suite/scripts/runtime-errors.mjs",
+      "find": "  if (!isPlainObject(s) || !nonEmptyString(s.test) || !nonEmptyString(s.id)) return \"missing\";\n",
+      "replace": "  if (!isPlainObject(s)) return \"missing\";\n",
+      "occurrences": 1,
+      "expect_failing": ["署名に id が無ければ、同じ欄の無い承認とも一致させない"]
+    },
+    {
+      "id": "ahc-rt-noise-classification",
+      "why": "許容の承認を環境ノイズの承認として数える（parity-suite のコピー）",
+      "file": "skills/parity-suite/scripts/runtime-errors.mjs",
+      "find": "          a.classification === \"環境ノイズ\" && a.evidence === judged.evidence;\n",
+      "replace": "          a.evidence === judged.evidence;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "環境ノイズが 許容を環境ノイズに書き換えて、許容の承認しか無い（根拠も同じ値の要素） なら、承認待ちとして落とす（exit 2 にしない）",
+        "環境ノイズが classification の無い要素しか無い なら、承認待ちとして落とす（exit 2 にしない）"
+      ]
+    },
+    {
+      "id": "ahc-rt-noise-evidence",
+      "why": "環境ノイズの根拠を書き換えても承認として数える（parity-suite のコピー）",
+      "file": "skills/parity-suite/scripts/runtime-errors.mjs",
+      "find": "          a.classification === \"環境ノイズ\" && a.evidence === judged.evidence;\n",
+      "replace": "          a.classification === \"環境ノイズ\";\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "環境ノイズが 環境ノイズの承認の後に根拠を書き換えた なら、承認待ちとして落とす（exit 2 にしない）"
+      ]
+    },
+    {
+      "id": "ahc-rt-allowance-classification",
+      "why": "環境ノイズの承認を許容の承認として数える（parity-suite のコピー）",
+      "file": "skills/parity-suite/scripts/runtime-errors.mjs",
+      "find": "          (a.classification === undefined || a.classification === \"許容\") &&\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "許容が 環境ノイズを許容に書き換えて、環境ノイズの承認しか無い（理由と日時も同じ値の要素） なら、承認待ちとして落とす"
+      ]
+    },
+    {
+      "id": "ahc-rt-allowance-approved-at",
+      "why": "許容の承認の日時を書き換えても承認として数える（parity-suite のコピー）",
+      "file": "skills/parity-suite/scripts/runtime-errors.mjs",
+      "find": "          a.approved_at === judged.approved_at &&\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["許容が 承認の後に日時を書き換えた なら、承認待ちとして落とす"]
+    },
+    {
+      "id": "ahc-rt-allowance-reason",
+      "why": "許容の理由を書き換えても承認として数える（parity-suite のコピー）",
+      "file": "skills/parity-suite/scripts/runtime-errors.mjs",
+      "find": "          a.reason === judged.reason\n",
+      "replace": "          true\n",
+      "occurrences": 1,
+      "expect_failing": ["許容が 承認の後に理由を書き換えた なら、承認待ちとして落とす"]
+    }
+  ]
+}

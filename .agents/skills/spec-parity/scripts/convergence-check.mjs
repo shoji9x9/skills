@@ -14,9 +14,9 @@
 // 取り方の原本は replace-strategy の references/project-config.md「新側のバージョンの記録」である。
 // 1〜5 の記録は、verify-metadata.json の new.tree と同じバージョンのものでなければ、古い記録として数える。tree を持たない記録も古い記録である。
 // 3 の比較の結果の tree は、runtime-errors.mjs compare --tree で渡した値である。
-// 3 の許容と 4・5 の承認は、verify-metadata.json の approvals（追記専用。replace-strategy の append-only-check.mjs が縮んでいないかを確かめる）に
+// 3 の許容と環境ノイズと 4・5 の承認は、verify-metadata.json の approvals（追記専用。replace-strategy の append-only-check.mjs が縮んでいないかを確かめる）に
 // 同じ承認が積まれていなければ、承認として数えない。承認を後から書き換えると、approvals と食い違うか、approvals が縮む。
-// approvals の要素は新側のバージョン（tree）を持つので、前のバージョンで承認した許容は、compare が分類を持ち越しても承認として数えない。
+// approvals の要素は新側のバージョン（tree）を持つので、前のバージョンで承認した許容と環境ノイズは、compare が分類を持ち越しても承認として数えない。
 // 1 のスイートの結果は、metadata.json の suite.dir の下のテストだけを含むものでなければ読まない（ほかの機能のテストを数えない）。
 // 前提として、verify-metadata.json の new.tree があり、none（新側が git で管理されていない）でないことを確かめる。none では、どの記録のバージョンも特定できない。
 // parity-replace が新側を green にした記録（replace-metadata.json）は、dirty: false であることを確かめる。
@@ -49,10 +49,14 @@ import {
 } from "./lib/read-json.mjs";
 import { judgeOverflow, readDeclaration, readMeasurements } from "./overflow-check.mjs";
 import { judgeStrength, readPlan, readStrengthReport } from "./strength-check.mjs";
-import { VERSION as RUNTIME_ERRORS_VERSION, judgeClassification } from "./runtime-errors.mjs";
+import {
+  VERSION as RUNTIME_ERRORS_VERSION,
+  approvalLogged,
+  judgeClassification,
+} from "./runtime-errors.mjs";
 
 /** ツールのバージョン。判定規則と出力の形を変えたら上げる。 */
-export const VERSION = "1";
+export const VERSION = "2";
 
 /** 未検証の一覧に必ず載せる項目。性能は、比較の採取が Playwright を前提にしているので spec-parity では確かめない。 */
 const ALWAYS_UNVERIFIED = ["performance"];
@@ -314,7 +318,8 @@ function checkCompared(compared) {
 }
 
 /**
- * 現行に無かった署名を、分類から判定し直す。許容は、承認の記録（approvals）に同じ値が積まれていることも求める。
+ * 現行に無かった署名を、分類から判定し直す。許容と環境ノイズは、承認の記録（approvals）に同じバージョンで同じ値が積まれていることも求める。
+ * 照合の規則は runtime-errors.mjs の approvalLogged で定義する（parity-diff の収束の判定と同じ関数を使う）。
  * @param {unknown[]} sigs
  * @param {{ tree: string, approvals: Record<string, unknown>[], reasons: Reasons }} ctx
  */
@@ -328,35 +333,13 @@ function judgeSignatures(sigs, { tree, approvals, reasons }) {
       reasons.add("send-back", "runtime_errors", `要対応のエラー: ${name}`);
     else if (judged.state === "unexplained")
       reasons.add("approval", "runtime_errors", `分類か承認の無い、現行に無かったエラー: ${name}`);
-    else if (judged.classification === "許容" && !allowanceLogged(s, judged, { tree, approvals }))
+    else if (approvalLogged(s, { approvals, tree }) === "missing")
       reasons.add(
         "approval",
         "runtime_errors",
-        `許容の承認が、承認の記録（approvals）に同じ値で積まれていないエラー: ${name}（承認を書き換えたか、前のバージョンの承認なら、利用者に承認し直してもらって approvals に追記する。承認した人の approved_by も書く。雛形の値のまま積んだ要素は書き換えず、新しい要素を追記する）`,
+        `${String(judged.classification)}の承認が、承認の記録（approvals）に同じ値で積まれていないエラー: ${name}（承認を書き換えたか、前のバージョンの承認か、承認の記録を持たない前の記録なら、利用者に承認し直してもらって approvals に追記する。承認した人の approved_by と日時の approved_at も書く。雛形の値のまま積んだ要素は書き換えず、新しい要素を追記する）`,
       );
   }
-}
-
-/**
- * 許容の承認が、承認の記録（approvals）に、同じテスト × 署名・同じバージョンで同じ値が積まれているか。
- * テストか署名の id が無い署名は、照合の鍵が無いので積まれていないものとして扱う（欠けた鍵どうしを一致させない）。
- * approvals は、judgeRuntimeErrors が承認した人（approved_by）を書いた要素に絞って渡す。kind は、ここで照合する欄（kind: runtime_errors）で確かめる。
- * @param {unknown} s - new_signatures の要素
- * @param {ReturnType<typeof judgeClassification>} judged
- * @param {{ tree: string, approvals: Record<string, unknown>[] }} ctx
- * @returns {boolean}
- */
-function allowanceLogged(s, judged, { tree, approvals }) {
-  if (!isPlainObject(s) || !nonEmptyString(s.test) || !nonEmptyString(s.id)) return false;
-  const want = {
-    kind: "runtime_errors",
-    test: s.test,
-    id: s.id,
-    tree,
-    approved_at: judged.approved_at,
-    reason: judged.reason,
-  };
-  return logged(approvals, want);
 }
 
 /**
@@ -403,9 +386,8 @@ export function judgeRuntimeErrors(baseline, compared, { tree, approvals, reason
   const sigs = compared.new_signatures;
   if (!isArray(sigs))
     throw new UsageError("verify-metadata.json の runtime_errors.new_signatures が配列でない");
-  // 分類の欄は承認した人を持たないので、許容の承認は、承認した人（approved_by）を書いた要素とだけ照合する
-  const allowances = approvals.filter((a) => filled(a.approved_by));
-  judgeSignatures(sigs, { tree, approvals: allowances, reasons });
+  // 分類の欄は承認した人を持たないので、承認した人（approved_by）を書いた要素だけと照合する（絞り込みは approvalLogged が行う）
+  judgeSignatures(sigs, { tree, approvals, reasons });
   judgeCompareLists(compared, reasons);
   return { judged: true, new_signatures: sigs.length };
 }

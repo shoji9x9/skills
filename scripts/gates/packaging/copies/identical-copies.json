@@ -457,9 +457,10 @@
       "files": [
         "evals/spec-parity/fixtures/verify-unapproved/setup.sh",
         "evals/spec-parity/fixtures/verify-overflow/setup.sh",
-        "evals/spec-parity/fixtures/verify-carried-allowance/setup.sh"
+        "evals/spec-parity/fixtures/verify-carried-allowance/setup.sh",
+        "evals/spec-parity/fixtures/verify-rewritten-noise/setup.sh"
       ],
-      "reason": "spec-parity の eval 8・9・10 の fixture で、新側のリポジトリを作り、記録の commit をその HEAD にそろえる手順。1 つだけを直すと、3 つの eval が違う前提の新側で実行される"
+      "reason": "spec-parity の eval 8・9・10・11 の fixture で、新側のリポジトリを作り、記録の commit をその HEAD にそろえる手順。1 つだけを直すと、4 つの eval が違う前提の新側で実行される"
     }
   ]
 }
