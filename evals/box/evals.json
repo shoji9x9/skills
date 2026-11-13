@@ -69,7 +69,7 @@
     },
     {
       "id": 3,
-      "prompt": "Box に report.txt を新規アップロードして",
+      "prompt": "Box に report.txt を新規アップロードしたい。実行するコマンドを示して",
       "assertions": [
         "box-token.sh でアクセストークンを取得しようとしている",
         "Authorization ヘッダーを自分だけが読めるファイル（mktemp など）に書き、curl に -H @<ファイル> で渡している",
@@ -82,31 +82,31 @@
       "reachability": [
         {
           "assertion": "box-token.sh でアクセストークンを取得しようとしている",
-          "prompt_quote": "Box に report.txt を新規アップロードして"
+          "prompt_quote": "実行するコマンドを示して"
         },
         {
           "assertion": "Authorization ヘッダーを自分だけが読めるファイル（mktemp など）に書き、curl に -H @<ファイル> で渡している",
-          "prompt_quote": "Box に report.txt を新規アップロードして"
+          "prompt_quote": "実行するコマンドを示して"
         },
         {
           "assertion": "-H \"Authorization: Bearer $TOKEN\" の形で、トークンを curl の引数に載せていない",
-          "prompt_quote": "Box に report.txt を新規アップロードして"
+          "prompt_quote": "実行するコマンドを示して"
         },
         {
           "assertion": "https://upload.box.com/api/2.0/files/content に POST している",
-          "prompt_quote": "Box に report.txt を新規アップロードして"
+          "prompt_quote": "Box に report.txt を新規アップロードしたい"
         },
         {
           "assertion": "attributes に name と parent.id を指定している",
-          "prompt_quote": "Box に report.txt を新規アップロードして"
+          "prompt_quote": "report.txt を新規アップロードしたい。実行するコマンドを示して"
         },
         {
           "assertion": "-F file=@ でファイル本体を送っている",
-          "prompt_quote": "Box に report.txt を新規アップロードして"
+          "prompt_quote": "report.txt を新規アップロードしたい。実行するコマンドを示して"
         },
         {
           "assertion": "アップロード後に id/名前など結果を確認している",
-          "prompt_quote": "Box に report.txt を新規アップロードして"
+          "prompt_quote": "新規アップロードしたい。実行するコマンドを示して"
         }
       ]
     },
