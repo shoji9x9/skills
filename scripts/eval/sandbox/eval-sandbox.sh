@@ -291,18 +291,24 @@ add_root() { # $1 = real directory, $2 = the home_allow prefix it stands for
 	done
 	return 0
 }
-# Collects the roots, then handles them outermost first: a directory comes before
-# everything inside it when the paths are ordered by length. Picked in bash, not with
-# sort: a failed pipeline behind a process substitution would leave nothing to hide
-# without stopping the run. A function, so its variables stay local.
+# Ordered by path length (a directory is shorter than everything inside it), picked in
+# bash, not with sort: a failed pipeline behind a process substitution would leave
+# nothing to hide without stopping the run. A function, so its variables stay local.
+# An XDG value that is not an absolute path is ignored, as the XDG Base Directory
+# specification says, and a place found twice (a variable and a link to the same
+# directory) is kept once.
 add_roots_outermost_first() {
-	local root_candidates=() entry prefix var best best_r i r
+	local root_candidates=() collected=() entry prefix var best best_r i r
 	for entry in "${home_prefixes[@]}"; do
 		prefix="${entry%%|*}" var="${entry#*|}"
-		if [ -n "${var}" ] && [ -n "${!var:-}" ]; then
-			root_candidates+=("$(realpath -m -- "${!var}")|${prefix}")
+		if [ -n "${var}" ]; then
+			case "${!var:-}" in /*) collected+=("$(realpath -m -- "${!var}")|${prefix}") ;; esac
 		fi
-		[ ! -e "${home}/${prefix}" ] || root_candidates+=("$(realpath -m -- "${home}/${prefix}")|${prefix}")
+		[ ! -e "${home}/${prefix}" ] || collected+=("$(realpath -m -- "${home}/${prefix}")|${prefix}")
+	done
+	for entry in "${collected[@]}"; do
+		case " ${root_candidates[*]} " in *" ${entry} "*) continue ;; esac
+		root_candidates+=("${entry}")
 	done
 	while [ "${#root_candidates[@]}" -gt 0 ]; do
 		best=""
