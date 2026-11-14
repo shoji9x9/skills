@@ -13,13 +13,14 @@
 //   記録ありの側では、マスクの論理名が、矩形 1 つ・矩形が複数（1 つの名前が複数の要素に当たる）・空の rects・
 //   面積が 0 の矩形だけ・記録に無い（traits.json から探す）、である。
 //   両側の記録の組み合わせは、両側で同じ位置・両側で違う位置・片側だけ記録あり、である。
-//   ほかの入力との組み合わせは、traits.json が無い側・--mask-bbox・--scale が 2、である。
+//   ほかの入力との組み合わせは、traits.json が無い側・--mask-bbox・--scale が 2 と 1.5、である。
+//   記録の rects は、配列・null（iframe の中の要素）である。引数を渡さない側は、隣に mask-rects.json が在る・無い、である。
 // - 座標の倍率（--scale）は、1・2 である。
 // - 領域の種類は、regions・strict_only_regions である。
 // - 引数は、必須の欠け・--scale が 0・--mask-bbox の形の誤りである。
 
 import { spawnSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
@@ -545,6 +546,9 @@ test("mask-rects.json の要素の形が違うか、同じ名前を 2 回記録�
     ]),
   });
   expect(readMaskRects({ a: [] }, "new")).toHaveProperty("error");
+  expect(readMaskRects([{ name: "a", rects: null }], "new")).toEqual({
+    byName: new Map([["a", null]]),
+  });
   expect(readMaskRects([{ rects: [] }], "new")).toHaveProperty("error");
   expect(readMaskRects([{ name: "", rects: [] }], "new")).toHaveProperty("error");
   expect(readMaskRects([{ name: "a" }], "new")).toHaveProperty("error");
@@ -624,7 +628,7 @@ test.each([
   ["無いと宣言した", null],
   ["引数を渡さない", undefined],
 ])(
-  "CLI: 片側だけ mask-rects.json が記録し、もう片側は%s側で traits.json に名前が無ければ、今と同じ mask_unlocated を出す",
+  "CLI: 片側だけ mask-rects.json が記録し、もう片側は%s側で traits.json に名前が無ければ、もう片側を mask_unlocated にする",
   (_label, nextMask) => {
     const res = run({
       current: TRAITS,
@@ -650,7 +654,7 @@ test.each([
   },
 );
 
-test("CLI: 両側とも mask-rects.json が無いと宣言すれば、今と同じ出力（mask_unlocated と unknown）になる", () => {
+test("CLI: 両側とも mask-rects.json が無いと宣言すれば、traits.json だけで判定し、マスクの名前が無ければ mask_unlocated と unknown を出す", () => {
   const res = run({
     current: TRAITS,
     next: TRAITS,
@@ -858,4 +862,106 @@ test("CLI: mask-rects.json の小数の縁は、四捨五入した位置で覆�
   });
   expect(res.status).toBe(0);
   expect(JSON.parse(res.stdout)).toMatchObject({ regions: [{}, { status: "masked" }] });
+});
+
+test("CLI: iframe の中の要素なので矩形を記録できなかった名前（rects: null）は、traits.json を探さず in_frame として位置が分からないマスクにする", () => {
+  // traits.json の rect は iframe の中の座標なので、名前が在っても画像の位置として使わない。
+  const traits = [...TRAITS, { name: "account-id", rect: rect([90, 90, 30, 30]) }];
+  const res = run({
+    current: traits,
+    next: traits,
+    currentMask: [{ name: "account-id", rects: null }],
+    nextMask: COVER_MASK,
+    args: MASK_ARGS,
+  });
+  expect(res.status).toBe(1);
+  expect(JSON.parse(res.stdout)).toMatchObject({
+    masks: { unlocated: [{ name: "account-id", side: "current", reason: "in_frame" }] },
+    regions: [{}, { status: "unknown", unresolved: ["mask_unlocated:current:account-id"] }],
+  });
+  expect(res.stderr).toContain('mask "account-id" is in an iframe');
+});
+
+// 現側と新側の traits.json を別のディレクトリに置き、mask-rects.json をその隣に置くかを選ぶ。
+function runWithSiblings(opts: { siblings: boolean; extra?: string[] }) {
+  const dir = makeTempDir("region-names-sibling-");
+  const crops = join(dir, "crops.json");
+  writeFileSync(
+    crops,
+    JSON.stringify({
+      regions: [{ id: 1, bbox: rect([10, 10, 4, 4]) }],
+      strict_only_regions: [{ id: "s1", bbox: rect([100, 100, 4, 4]) }],
+    }),
+  );
+  const paths: string[] = [];
+  for (const side of ["current", "new"]) {
+    const sideDir = join(dir, side);
+    mkdirSync(sideDir);
+    writeFileSync(join(sideDir, "traits.json"), JSON.stringify(TRAITS));
+    if (opts.siblings) writeFileSync(join(sideDir, "mask-rects.json"), JSON.stringify(FAR_MASK));
+    paths.push(`--${side}-traits`, join(sideDir, "traits.json"));
+  }
+  const res = spawnSync(
+    process.execPath,
+    [SCRIPT, crops, ...paths, ...MASK_ARGS, ...(opts.extra ?? [])],
+    { encoding: "utf8", timeout: CHILD_TIMEOUT_MS },
+  );
+  return { status: res.status, stdout: res.stdout, stderr: res.stderr };
+}
+
+test("CLI: mask-rects.json の引数を渡さない側は、traits.json の隣の mask-rects.json を読む", () => {
+  const res = runWithSiblings({ siblings: true });
+  expect(res.status).toBe(0);
+  expect(JSON.parse(res.stdout)).toMatchObject({
+    mask_rects: { current: "present", new: "present" },
+    masks: { unlocated: [] },
+    regions: [{}, { status: "unnamed", unresolved: [] }],
+  });
+});
+
+test("CLI: 隣に mask-rects.json があっても、無いと宣言した側では読まない", () => {
+  const res = runWithSiblings({ siblings: true, extra: ["--current-mask-rects-missing"] });
+  expect(res.status).toBe(1);
+  expect(JSON.parse(res.stdout)).toMatchObject({
+    mask_rects: { current: "missing", new: "present" },
+    masks: { unlocated: [{ name: "account-id", side: "current", reason: "absent" }] },
+  });
+});
+
+test("CLI: 引数を渡さず、traits.json の隣に mask-rects.json も無い側は、記録の無い側として扱う", () => {
+  const res = runWithSiblings({ siblings: false });
+  expect(res.status).toBe(1);
+  expect(JSON.parse(res.stdout)).toMatchObject({
+    mask_rects: { current: "missing", new: "missing" },
+    regions: [{}, { status: "unknown" }],
+  });
+});
+
+test("CLI: deviceScaleFactor が 1.5 で縁が半画素になるとき、塗られた画素は覆い、半分だけ覆う縁の画素は覆わない", () => {
+  // CSS の px で (11,10) から 20×10。--scale 1.5 で画像の画素の (16.5,15)〜(46.5,30) になる。
+  // Chromium の mask は x が 17〜45 の画素を塗る（実測）。x が 16 と 46 の画素は半分しか覆われない。
+  const mask = [{ name: "account-id", rects: [rect([11, 10, 20, 10])] }];
+  const res = run({
+    regions: {
+      regions: [
+        { id: "inside", bbox: rect([17, 15, 29, 15]) },
+        { id: "left-edge", bbox: rect([16, 15, 1, 15]) },
+        { id: "right-edge", bbox: rect([46, 15, 1, 15]) },
+      ],
+      strict_only_regions: [],
+    },
+    current: [],
+    next: [],
+    currentMask: mask,
+    nextMask: mask,
+    args: ["--scale", "1.5", "--mask-name", "account-id"],
+  });
+  expect(res.status).toBe(0);
+  expect(JSON.parse(res.stdout)).toMatchObject({
+    regions: [
+      { id: "inside", status: "masked" },
+      { id: "left-edge", status: "unnamed" },
+      { id: "right-edge", status: "unnamed" },
+    ],
+  });
 });

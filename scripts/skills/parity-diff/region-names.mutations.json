@@ -34,10 +34,13 @@
         "CLI: マスクの論理名が traits.json に無ければ、論理名と重ならない領域を unknown にする",
         "CLI: マスクの論理名が traits.json にあっても面積が 0 なら、名前が無いのではなく面積が 0 だと出す",
         "CLI: マスクの論理名の位置を片側でしか確かめられなければ、覆われた領域を masked にせず unknown にする",
-        "CLI: 片側だけ mask-rects.json が記録し、もう片側は無いと宣言した側で traits.json に名前が無ければ、今と同じ mask_unlocated を出す",
-        "CLI: 片側だけ mask-rects.json が記録し、もう片側は引数を渡さない側で traits.json に名前が無ければ、今と同じ mask_unlocated を出す",
-        "CLI: 両側とも mask-rects.json が無いと宣言すれば、今と同じ出力（mask_unlocated と unknown）になる",
-        "CLI: mask-rects.json に名前が無ければ、その側は traits.json から探し、無ければ mask_unlocated を出す"
+        "CLI: 片側だけ mask-rects.json が記録し、もう片側は無いと宣言した側で traits.json に名前が無ければ、もう片側を mask_unlocated にする",
+        "CLI: 片側だけ mask-rects.json が記録し、もう片側は引数を渡さない側で traits.json に名前が無ければ、もう片側を mask_unlocated にする",
+        "CLI: 両側とも mask-rects.json が無いと宣言すれば、traits.json だけで判定し、マスクの名前が無ければ mask_unlocated と unknown を出す",
+        "CLI: mask-rects.json に名前が無ければ、その側は traits.json から探し、無ければ mask_unlocated を出す",
+        "CLI: iframe の中の要素なので矩形を記録できなかった名前（rects: null）は、traits.json を探さず in_frame として位置が分からないマスクにする",
+        "CLI: 引数を渡さず、traits.json の隣に mask-rects.json も無い側は、記録の無い側として扱う",
+        "CLI: 隣に mask-rects.json があっても、無いと宣言した側では読まない"
       ]
     },
     {
@@ -66,7 +69,8 @@
         "CLI: mask-rects.json の矩形にも --scale を掛けて比べる",
         "CLI: traits.json が無い側でも、mask-rects.json の記録でマスクの中の領域を masked にする",
         "CLI: --mask-bbox と mask-rects.json のマスクは、側ごとの和で覆うかを決める",
-        "CLI: mask-rects.json の小数の縁は、四捨五入した位置で覆うかを決める"
+        "CLI: mask-rects.json の小数の縁は、四捨五入した位置で覆うかを決める",
+        "CLI: deviceScaleFactor が 1.5 で縁が半画素になるとき、塗られた画素は覆い、半分だけ覆う縁の画素は覆わない"
       ]
     },
     {
@@ -80,23 +84,25 @@
         "CLI: マスクの論理名の位置を片側でしか確かめられなければ、覆われた領域を masked にせず unknown にする",
         "CLI: マスクの論理名の位置が両側で違えば、片側のマスクだけが覆う領域を masked にしない",
         "CLI: mask-rects.json の位置が両側で違えば、片側のマスクだけが覆う領域を masked にしない",
-        "CLI: 片側だけ mask-rects.json が記録し、もう片側は無いと宣言した側で traits.json に名前が無ければ、今と同じ mask_unlocated を出す",
-        "CLI: 片側だけ mask-rects.json が記録し、もう片側は引数を渡さない側で traits.json に名前が無ければ、今と同じ mask_unlocated を出す",
+        "CLI: 片側だけ mask-rects.json が記録し、もう片側は無いと宣言した側で traits.json に名前が無ければ、もう片側を mask_unlocated にする",
+        "CLI: 片側だけ mask-rects.json が記録し、もう片側は引数を渡さない側で traits.json に名前が無ければ、もう片側を mask_unlocated にする",
         "CLI: mask-rects.json の記録が空の rects（ロケータが 0 件に当たった）なら、その側ではマスクが何も塗らなかったとして扱い、mask_unlocated を出さない",
         "CLI: mask-rects.json の記録が面積が 0 の矩形だけなら、その側ではマスクが何も塗らなかったとして扱い、mask_unlocated を出さない",
-        "CLI: mask-rects.json に名前が無ければ、その側は traits.json から探し、無ければ mask_unlocated を出す"
+        "CLI: mask-rects.json に名前が無ければ、その側は traits.json から探し、無ければ mask_unlocated を出す",
+        "CLI: iframe の中の要素なので矩形を記録できなかった名前（rects: null）は、traits.json を探さず in_frame として位置が分からないマスクにする"
       ]
     },
     {
       "id": "unrecorded-name-as-empty",
       "why": "mask-rects.json に記録の無いマスクの論理名を、その側で何も塗らなかったマスクとして扱い、traits.json から探さず mask_unlocated も出さない（位置の分からないマスクの近くの領域を unnamed にする）",
       "file": "skills/parity-diff/scripts/region-names.mjs",
-      "find": "  return record.byName.get(name) ?? null;",
+      "find": "  return record.byName.get(name);",
       "replace": "  return record.byName.get(name) ?? [];",
       "occurrences": 1,
       "expect_failing": [
         "CLI: mask-rects.json に名前が無ければ、その側は traits.json から探し、無ければ mask_unlocated を出す",
-        "CLI: mask-rects.json に名前が無くても、traits.json にあればその rect をマスクの位置にする"
+        "CLI: mask-rects.json に名前が無くても、traits.json にあればその rect をマスクの位置にする",
+        "CLI: iframe の中の要素なので矩形を記録できなかった名前（rects: null）は、traits.json を探さず in_frame として位置が分からないマスクにする"
       ]
     },
     {
@@ -106,7 +112,21 @@
       "find": "    return { rects: painted.map((r) => scaleRect(r, scale)), reason: null };",
       "replace": "    return { rects: painted.map((r) => scaleRect(r, 1)), reason: null };",
       "occurrences": 1,
-      "expect_failing": ["CLI: mask-rects.json の矩形にも --scale を掛けて比べる"]
+      "expect_failing": [
+        "CLI: mask-rects.json の矩形にも --scale を掛けて比べる",
+        "CLI: deviceScaleFactor が 1.5 で縁が半画素になるとき、塗られた画素は覆い、半分だけ覆う縁の画素は覆わない"
+      ]
+    },
+    {
+      "id": "in-frame-as-painted-nothing",
+      "why": "iframe の中の要素なので矩形を記録できなかった名前（rects: null）を、その側では何も塗らなかったマスクとして扱い、mask_unlocated を出さない（iframe の中の塗られた位置の差分を unnamed として扱い、位置が分からないことを伝えない）",
+      "file": "skills/parity-diff/scripts/region-names.mjs",
+      "find": "  if (recorded === null) return { rects: [], reason: \"in_frame\" };",
+      "replace": "  if (recorded === null) return { rects: [], reason: null };",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: iframe の中の要素なので矩形を記録できなかった名前（rects: null）は、traits.json を探さず in_frame として位置が分からないマスクにする"
+      ]
     }
   ]
 }

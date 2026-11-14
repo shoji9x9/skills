@@ -17,10 +17,14 @@
 // マスクの論理名の位置は、側ごとに次の順で決める。
 // 1. その側の mask-rects.json（撮影のときにマスクを当てた矩形の記録）がその名前を記録していれば、記録した矩形を使う。
 //    記録した rects が空か、面積が 0 の矩形だけなら、その側ではマスクが何も塗らなかったと分かる（位置は決まる）。
+//    rects が null（iframe の中の要素）なら、位置の分からないマスクにする（traits.json は探さない）。
 // 2. 記録していなければ（mask-rects.json が無いと宣言した側を含む）、その側の traits.json の rect から探す。
+// mask-rects.json の引数を渡さない側は、traits.json の隣の mask-rects.json を読む（無ければ記録の無い側）。
 // mask-rects.json の矩形は、撮影した画像での位置で、単位は CSS の px である（全画面の撮影ではスクロールの量を足してある）。
 // 縁を CSS の px の整数に四捨五入してから、rect と同じく --scale を掛けて比べる。Playwright の Chromium の mask は、
-// 縁を四捨五入した位置を塗る（実測。deviceScaleFactor が 1・2・3 で一致し、1.5 では 1 画素以内でずれた）。
+// 縁を四捨五入した位置を塗る。--scale が整数でなく縁が画素の途中に来ると、mask は範囲に全体が入る画素だけを塗り、
+// coveredByUnion も半分だけ覆われた画素を覆っていないと判定するので、判定は塗った画素と一致する
+// （実測した deviceScaleFactor は 1・1.5・2・3）。
 // 四捨五入しないと、小数の縁が 1 画素より細い帯を作り、塗られた縁の画素の領域が覆われていないと判定される。
 //
 // 判定できない領域を「重なる論理名なし」にしない。
@@ -32,7 +36,8 @@
 // 終了コードは、0 がすべての領域を判定できた、1 が判定できない領域がある、2 が入力の誤りである。
 // 乱数と現在時刻に依存しない。入力が同じなら出力も同じになる。TypeScript の構文は使わない（型は JSDoc で書く）。
 
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { isCliEntry } from "./lib/cli.mjs";
 import { parseFlags } from "./lib/flags.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
@@ -55,7 +60,8 @@ export const VERSION = "2";
 /**
  * 側ごとの mask-rects.json。missing は、`--<side>-mask-rects-missing` で無いと宣言したか、どちらの引数も渡さなかった側である。
  * byName は、記録したマスクの論理名から、ロケータが当たったすべての要素の矩形への対応である。
- * @typedef {{ side:Side, missing:true } | { side:Side, missing:false, byName:Map<string, Rect[]> }} SideMaskRects
+ * null は、iframe の中の要素なので矩形を記録できなかったことを表す。
+ * @typedef {{ side:Side, missing:true } | { side:Side, missing:false, byName:Map<string, Rect[] | null> }} SideMaskRects
  */
 /**
  * マスクの矩形。bySide は側ごとの矩形で、bbox で渡したマスクは両側に同じ矩形を持つ。
@@ -274,30 +280,35 @@ export function snapMaskRect(r) {
 }
 
 /**
- * その側の mask-rects.json が記録した、マスクの論理名の矩形。記録が無ければ null を返す（空の配列とは区別する）。
+ * その側の mask-rects.json が記録した、マスクの論理名の矩形。
+ * 記録が無ければ undefined を、iframe の中の要素なので矩形を記録できなかった（rects: null）なら null を返す。
+ * どちらも空の配列（ロケータが 0 件に当たった）とは区別する。
  * @param {SideMaskRects[]} maskRects
  * @param {Side} side
  * @param {string} name
- * @returns {Rect[] | null}
+ * @returns {Rect[] | null | undefined}
  */
 function recordedMaskRects(maskRects, side, name) {
   const record = maskRects.find((m) => m.side === side);
-  if (!record || record.missing) return null;
-  return record.byName.get(name) ?? null;
+  if (!record || record.missing) return undefined;
+  return record.byName.get(name);
 }
 
 /**
  * 1 つの側で、マスクの論理名を画像の画素の矩形に直す。先にその側の mask-rects.json の記録を使い、記録が無ければ traits.json から探す。
- * 位置を決められなければ、reason に理由（名前が無い absent・名前はあるが面積が 0 の zero_area）を入れる。
+ * 位置を決められなければ、reason に理由（名前が無い absent・名前はあるが面積が 0 の zero_area・
+ * 記録が iframe の中の要素なので矩形を持たない in_frame）を入れる。in_frame では traits.json を探さない
+ * （traits.json の rect は iframe の中の座標なので、画像の位置にならない）。
  * その側の traits.json が無く記録も無いときは、理由を入れない（traits_missing が判定できない理由になる）。
  * @param {string} name
  * @param {SideTraits} s
  * @param {{ scale:number, maskRects:SideMaskRects[] }} input
- * @returns {{ rects:Rect[], reason:("absent"|"zero_area"|null) }}
+ * @returns {{ rects:Rect[], reason:("absent"|"zero_area"|"in_frame"|null) }}
  */
 function locateOnSide(name, s, { scale, maskRects }) {
   const recorded = recordedMaskRects(maskRects, s.side, name);
-  if (recorded !== null) {
+  if (recorded === null) return { rects: [], reason: "in_frame" };
+  if (recorded !== undefined) {
     const painted = recorded.map(snapMaskRect).filter(hasArea);
     return { rects: painted.map((r) => scaleRect(r, scale)), reason: null };
   }
@@ -312,12 +323,12 @@ function locateOnSide(name, s, { scale, maskRects }) {
  * マスクの論理名を、側ごとに矩形に直す（locateOnSide）。位置を決められない名前と側は unlocated に入れる。
  * @param {string[]} names
  * @param {{ sides:SideTraits[], scale:number, maskRects?:SideMaskRects[] }} input
- * @returns {{ areas:MaskArea[], unlocated:Array<{ name:string, side:Side, reason:("absent"|"zero_area") }> }}
+ * @returns {{ areas:MaskArea[], unlocated:Array<{ name:string, side:Side, reason:("absent"|"zero_area"|"in_frame") }> }}
  */
 export function locateMaskNames(names, { sides, scale, maskRects = [] }) {
   /** @type {MaskArea[]} */
   const areas = [];
-  /** @type {Array<{ name:string, side:Side, reason:("absent"|"zero_area") }>} */
+  /** @type {Array<{ name:string, side:Side, reason:("absent"|"zero_area"|"in_frame") }>} */
   const unlocated = [];
   for (const name of names) {
     /** @type {Record<Side, Rect[]>} */
@@ -453,22 +464,22 @@ export function readTraits(json, side) {
 }
 
 /**
- * mask-rects.json の中身を読む。形は `[{ name, rects }]` で、rects は矩形の配列である。形が違えば理由を返す。
+ * mask-rects.json の中身を読む。形は `[{ name, rects }]` で、rects は矩形の配列か null（iframe の中の要素）である。形が違えば理由を返す。
  * 同じ名前を 2 回記録したものは、どちらの矩形を使うか決まらないので誤りにする。
  * @param {unknown} json
  * @param {Side} side
- * @returns {{ error:string } | { byName:Map<string, Rect[]> }}
+ * @returns {{ error:string } | { byName:Map<string, Rect[] | null> }}
  */
 export function readMaskRects(json, side) {
   if (!isArray(json)) return { error: `${side} mask rects must be an array (mask-rects.json)` };
-  /** @type {Map<string, Rect[]>} */
+  /** @type {Map<string, Rect[] | null>} */
   const byName = new Map();
   for (const [i, e] of json.entries()) {
-    if (!isPlainObject(e) || !nonEmptyString(e.name) || !isArray(e.rects)) {
-      return { error: `${side} mask rects[${i}] must have a non-empty name and rects[]` };
+    if (!isPlainObject(e) || !nonEmptyString(e.name) || !(isArray(e.rects) || e.rects === null)) {
+      return { error: `${side} mask rects[${i}] must have a non-empty name and rects[] (or null)` };
     }
     const rects = e.rects;
-    if (!rects.every(isRect)) {
+    if (rects !== null && !rects.every(isRect)) {
       return {
         error: `${side} mask rects[${i}].rects must be {x,y,width,height} with width,height >= 0`,
       };
@@ -554,12 +565,12 @@ const USAGE =
 
 /**
  * 1 つの側のファイル（traits.json か mask-rects.json）の指定を読む。パスと無いことの宣言の両方は受け付けない。
- * required なら、どちらか 1 つを求める（traits.json）。required でなければ、どちらも無い側を無いと宣言した側として扱う
- * （mask-rects.json。この引数を渡さない呼び出し元でも、traits.json だけで判定するため）。
+ * required なら、どちらか 1 つを求める（traits.json）。required でなければ、どちらも渡さなくてよい（mask-rects.json）。
+ * declared は、無いことを宣言したかである。
  * @param {{ strings:Record<string, string>, bools:Record<string, true> }} parsed
  * @param {Side} side
  * @param {{ file:("traits"|"mask-rects"), required:boolean }} spec
- * @returns {{ error:string } | { path:(string|null) }}
+ * @returns {{ error:string } | { path:(string|null), declared:boolean }}
  */
 function sideFileArg(parsed, side, { file, required }) {
   const flag = `--${side}-${file}`;
@@ -574,7 +585,45 @@ function sideFileArg(parsed, side, { file, required }) {
   }
   // 標準入力は読まない。
   if (path === "-") return { error: `error: ${flag} must be a file path (stdin is not read)\n` };
-  return { path: path ?? null };
+  return { path: path ?? null, declared: missing };
+}
+
+/**
+ * mask-rects.json の指定を、読むファイルに直す。パスを渡した側はそのパス、無いと宣言した側は null である。
+ * どちらも渡さない側は、traits.json の隣の mask-rects.json を探す（auto）。引数の渡し忘れで、在る記録を使わずに
+ * traits.json だけで判定しないためである。traits.json も無いと宣言した側は、探す場所が無いので null にする。
+ * @param {{ path:(string|null), declared:boolean }} arg
+ * @param {string | null} traitsPath
+ * @returns {{ path:(string|null), auto:boolean }}
+ */
+function maskRectsSource(arg, traitsPath) {
+  if (arg.path !== null || arg.declared || traitsPath === null)
+    return { path: arg.path, auto: false };
+  return { path: join(dirname(traitsPath), "mask-rects.json"), auto: true };
+}
+
+/**
+ * 読む mask-rects.json のパス。隣を探した側（auto）で、ファイルが無ければ記録の無い側（null）にする（記録を書く前の採取）。
+ * パスを渡した側は、ファイルが無くても null にしない（パスの誤りと区別できないので、読み込みで入力の誤りにする）。
+ * @param {{ path:(string|null), auto:boolean }} source
+ * @returns {string | null}
+ */
+function maskRectsPath(source) {
+  if (source.auto && source.path !== null && !isFile(source.path)) return null;
+  return source.path;
+}
+
+/**
+ * 通常のファイルとして在るか。
+ * @param {string} path
+ * @returns {boolean}
+ */
+function isFile(path) {
+  try {
+    return statSync(path).isFile();
+  } catch {
+    return false;
+  }
 }
 
 /** 受け付ける引数。 */
@@ -604,7 +653,8 @@ const FLAG_SPEC = {
  * 引数を読み、値を確かめる。誤りは stderr に出す文で返す。
  * @param {string[]} argv
  * @returns {{ error:string } | { regionsPath:string, currentTraits:(string|null), newTraits:(string|null), scale:number,
- *   maskBboxes:Rect[], maskNames:string[], currentMaskRects:(string|null), newMaskRects:(string|null) }}
+ *   maskBboxes:Rect[], maskNames:string[], currentMaskRects:{ path:(string|null), auto:boolean },
+ *   newMaskRects:{ path:(string|null), auto:boolean } }}
  */
 function parseArgs(argv) {
   const parsed = parseFlags(argv, FLAG_SPEC);
@@ -645,8 +695,8 @@ function parseArgs(argv) {
     scale,
     maskBboxes,
     maskNames,
-    currentMaskRects: currentMask.path,
-    newMaskRects: nextMask.path,
+    currentMaskRects: maskRectsSource(currentMask, current.path),
+    newMaskRects: maskRectsSource(nextMask, next.path),
   };
 }
 
@@ -671,7 +721,7 @@ function loadBothSides(paths, load) {
 /**
  * 入力のファイルを読む。誤りは stderr に出す文で返す。
  * @param {{ regionsPath:string, currentTraits:(string|null), newTraits:(string|null),
- *   currentMaskRects:(string|null), newMaskRects:(string|null) }} paths
+ *   currentMaskRects:{ path:(string|null), auto:boolean }, newMaskRects:{ path:(string|null), auto:boolean } }} paths
  * @returns {{ error:string } | { regions:Region[], sides:SideTraits[], maskRects:SideMaskRects[] }}
  */
 function loadInputs({ regionsPath, currentTraits, newTraits, currentMaskRects, newMaskRects }) {
@@ -681,7 +731,10 @@ function loadInputs({ regionsPath, currentTraits, newTraits, currentMaskRects, n
   if ("error" in regions) return { error: `error: ${regions.error}\n` };
   const sides = loadBothSides([currentTraits, newTraits], loadSide);
   if ("error" in sides) return sides;
-  const maskRects = loadBothSides([currentMaskRects, newMaskRects], loadMaskRectsSide);
+  const maskRects = loadBothSides(
+    [maskRectsPath(currentMaskRects), maskRectsPath(newMaskRects)],
+    loadMaskRectsSide,
+  );
   if ("error" in maskRects) return maskRects;
   return { regions: regions.regions, sides: sides.loaded, maskRects: maskRects.loaded };
 }
@@ -718,7 +771,7 @@ function warnUnusedRecords(maskRects, maskNames) {
 /**
  * 判定できなかったことを stderr に出す。
  * @param {{ sides:SideTraits[], maskRects:SideMaskRects[] }} inputs
- * @param {Array<{ name:string, side:Side, reason:("absent"|"zero_area") }>} unlocated
+ * @param {Array<{ name:string, side:Side, reason:("absent"|"zero_area"|"in_frame") }>} unlocated
  * @param {number} unknown
  */
 function warnUnresolved({ sides, maskRects }, unlocated, unknown) {
@@ -735,9 +788,11 @@ function warnUnresolved({ sides, maskRects }, unlocated, unknown) {
       ? ` (not recorded in the ${u.side} mask-rects.json)`
       : "";
     const where =
-      u.reason === "zero_area"
-        ? `has no area (width or height 0) in the ${u.side} traits.json${notRecorded}`
-        : `is not in the ${u.side} traits.json${notRecorded}`;
+      u.reason === "in_frame"
+        ? `is in an iframe, and the ${u.side} mask-rects.json records no rects for it (rects: null)`
+        : u.reason === "zero_area"
+          ? `has no area (width or height 0) in the ${u.side} traits.json${notRecorded}`
+          : `is not in the ${u.side} traits.json${notRecorded}`;
     process.stderr.write(
       `warning: mask "${u.name}" ${where}; regions that overlap no name are reported as unknown\n`,
     );

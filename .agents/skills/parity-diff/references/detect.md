@@ -106,8 +106,9 @@ node <スキルディレクトリ>/scripts/region-names.mjs <pixel-crops.mjs の
   結果は stdout に出るので、`pixel-crops.mjs` の `--out` と同じディレクトリに `region-names.json` として保存する。終了コードが 1 のときも、stdout の JSON はそのまま使える
 - `mask-rects.json` は、撮影のときにマスクを当てた矩形の記録で、`traits.json` の隣に組ごと・側ごとに置く（下の「マスクを当てた矩形の記録（`mask-rects.json`）」）。
   `traits.json` と同じく、その組の場所にファイルが在るかを確かめ、在ればパスを、無ければ `--current-mask-rects-missing` か `--new-mask-rects-missing` を渡す。
-  ファイルがあるのに無いと宣言するか引数を渡し忘れると、その側のマスクの位置を `traits.json` から探すので、見つからなければ領域が `unknown` に回る。
-  どちらの引数も渡さない側は、無いと宣言した側と同じに扱う。パスと宣言の両方を渡したときと、パスのファイルが無い・形が違うときは exit 2 にする
+  どちらの引数も渡さない側は、その側の `traits.json` の隣（同じディレクトリ）の `mask-rects.json` を読み、無ければ記録の無い側として扱う。渡し忘れで、在る記録を使わずに判定しないためである。
+  ファイルがあるのに無いと宣言すると、その側のマスクの位置を `traits.json` から探すので、見つからなければ領域が `unknown` に回る。
+  パスと宣言の両方を渡したときと、パスのファイルが無い・形が違うときは exit 2 にする
 - `--scale` は、撮影に使った `deviceScaleFactor` である。Playwright のプロジェクトの `use` に書いた値を使う。
   `use` にデバイスの記述子（`devices['iPhone 13']` など）を展開したときは、その記述子の `deviceScaleFactor` を使う。どちらにも無ければ 1 である。
   スクリプトはこの値を確かめないので、誤った値を渡すと、誤った論理名が exit 0 のまま出る。
@@ -136,6 +137,7 @@ node <スキルディレクトリ>/scripts/region-names.mjs <pixel-crops.mjs の
 - 判定できない理由は、領域ごとの `unresolved` に出る。理由は 2 つある。
   - `traits_missing:<side>`: その組のその側の `traits.json` が無い（`--<side>-traits-missing` を渡した）。重なる論理名を探せたのはもう片側だけである
   - `mask_unlocated:<side>:<論理名>`: マスクの論理名が、その側の `mask-rects.json` に記録されておらず、`traits.json` にも無いか、幅か高さが 0 である（`masks.unlocated[].reason` の `absent` と `zero_area`）。
+    `mask-rects.json` が iframe の中の要素として `rects: null` を記録した名前も、ここに入る（`reason` は `in_frame`）。
     マスクの位置が分からないので、マスクの中かどうかを判定できない。
     片側でだけ位置が分かったマスクも、もう片側で当たったかを判定できないので、`masked` の判定に使わない
 
@@ -158,11 +160,15 @@ node <スキルディレクトリ>/scripts/region-names.mjs <pixel-crops.mjs の
 
 - 形は `[{ "name": "<マスクの論理名>", "rects": [{ "x", "y", "width", "height" }, ...] }]` である。`capture_conditions.masks[]` の名前ごとに 1 要素を書く。
 - `rects` には、ロケータが当たったすべての要素の矩形を書く。当たる要素が無ければ空の配列にし、名前を省かない（記録に名前が無いと、位置が分からないマスクとして扱われる）。
-- iframe の中の要素に当たる名前だけは、記録しない。`mask` はその iframe の表示範囲の中だけを塗るので、要素の矩形を書くと、塗っていない位置までマスクとして扱われ、そこにある差分が隠れる。
+- iframe の中の要素に当たる名前は、`rects` を `null` にする。`mask` はその iframe の表示範囲の中だけを塗るので、要素の矩形を書くと、塗っていない位置までマスクとして扱われ、そこにある差分が隠れる。
+  スクリプトは、`null` の名前を位置の分からないマスクとして扱い、`traits.json` からも探さない（`traits.json` の `rect` は iframe の中の座標なので、画像の位置にならない）。
+- 矩形は撮影の直後に採る。`animations: 'disabled'` は撮影のときに途中のトランジションを終わらせるので、撮影の前に採ると途中の位置を記録してしまう。
 - 文字列やスタイルは書かない。マスクは隠したい値を成果物に残さないために当てるので、矩形だけを書く。
 - 座標は撮影した画像での位置で、単位は CSS の px である。全画面の撮影は文書の原点から撮るので、`getBoundingClientRect` にスクロールの量を足す。ビューポートの撮影では足さない。
-  スクリプトは、縁を CSS の px の整数に四捨五入してから `--scale` を掛けて比べる。Playwright の Chromium の `mask` は、縁を四捨五入した位置を塗るからである（実測では、deviceScaleFactor が 1・2・3 で一致し、1.5 では 1 画素以内でずれた）。
+  スクリプトは、縁を CSS の px の整数に四捨五入してから `--scale` を掛けて比べる。Playwright の Chromium の `mask` は、縁を四捨五入した位置を塗るからである。
+  `--scale` が 1.5 のように整数でないと、縁が画素の途中に来る。`mask` はその範囲に全体が入る画素だけを塗り、スクリプトも半分だけ覆われた画素を覆っていないと判定するので、`masked` の判定は塗った画素と一致する（実測した deviceScaleFactor は 1・1.5・2・3）。
 - 書き忘れを検出するチェックは無い。記録が無い組は、`traits.json` から探し、見つからなければ `mask_unlocated` になる。
+- `artifact_health` を宣言した現側の成果物では、`mask-rects.json` も `entries` に宣言する（`parity-suite` の `references/baseline.md`「マスクを当てた矩形を書き出す」）。
 
 ## 特性照合
 

@@ -121,10 +121,12 @@
 
 - 形は `[{ "name": "<マスクの論理名>", "rects": [{ "x", "y", "width", "height" }, ...] }]` で、`capture_conditions.masks[]` の名前ごとに 1 要素を書く。
 - `rects` には、ロケータが当たったすべての要素の矩形を書く（Playwright の `mask` は、当たったすべての要素を塗る）。当たる要素が無ければ空の配列にし、名前を省かない。
-- iframe の中の要素に当たる名前だけは、記録しない。`mask` はその iframe の表示範囲の中だけを塗るので、要素の矩形を書くと、塗っていない位置の差分まで隠れる。
+- iframe の中の要素に当たる名前は、`rects` を `null` にする。`mask` はその iframe の表示範囲の中だけを塗るので、要素の矩形を書くと、塗っていない位置の差分まで隠れる。
+- 矩形は撮影の直後に採る。`animations: 'disabled'` は撮影のときに途中のトランジションを終わらせるので、撮影の前に採ると途中の位置を記録してしまう。
 - 書くのは矩形だけで、文字列やスタイルは採らない。
 - 座標は撮影した画像での位置で、単位は CSS の px である。全画面の撮影ではスクロールの量を足し、ビューポートの撮影では足さない（`traits.json` の `rect` はビューポート基準なので、ここが違う）。
 - 書き忘れを検出するチェックは無い。書かなかった組では、`parity-diff` はマスクの位置を `traits.json` から探し、見つからなければ判定できない理由（`mask_unlocated`）を出す。
+  `traits.json` の隣（同じディレクトリ）に置けば、`parity-diff` は引数で渡されなくても読む。
 - `artifact_health` を宣言した成果物では、`mask-rects.json` も採取物なので、`traits.json` と同じく `entries` に `kind: captured` で宣言する（下の「採取物の健全性」）。
   読むのはスペックではなく `parity-diff` の `region-names.mjs` なので、`read_by` を空にし、`unread_reason` にそのことを書く。
   宣言しないと、書き出した後の健全性のチェックが、未宣言のファイルとして失敗にする。
@@ -144,12 +146,10 @@ const inImage = (els: Element[], full: boolean) =>
         const { x, y, width, height } = el.getBoundingClientRect();
         return full ? { x: x + scrollX, y: y + scrollY, width, height } : { x, y, width, height };
       });
-const maskRects = [];
-for (const [name, loc] of located) {
-  const rects = await loc.evaluateAll(inImage, fullPage === true);
-  if (rects !== null) maskRects.push({ name, rects });
-}
 await page.screenshot({ path: join(outDir, "screenshot.png"), fullPage, animations: "disabled", mask: located.map(([, loc]) => loc) });
+// 撮影の直後に採る（撮影が終わらせたトランジションの後の位置を記録する）
+const maskRects = [];
+for (const [name, loc] of located) maskRects.push({ name, rects: await loc.evaluateAll(inImage, fullPage === true) });
 writeFileSync(join(outDir, "mask-rects.json"), `${JSON.stringify(maskRects, null, 2)}\n`);
 ```
 
