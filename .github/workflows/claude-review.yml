@@ -253,18 +253,32 @@ jobs:
           git diff --no-color "$base" "$SHA" >"$INPUT_DIR/full.diff"
           since_note="前回の目印は無い（初回のレビュー）。full.diff を読む。"
           previous_base=""
-          if [ -n "$previous" ] && git cat-file -e "$previous^{commit}" 2>/dev/null; then
-            # 共通の祖先が無い（履歴の無い内容で force push したなど）と、merge base は求まらない。
-            previous_base="$(git merge-base "origin/$BASE_REF" "$previous" || true)"
+          if [ -n "$previous" ]; then
+            if ! git cat-file -e "$previous^{commit}" 2>/dev/null; then
+              since_note="前回レビューした commit（$previous）が履歴に無い（rebase して force push したなど）。full.diff を全体として読む。"
+            else
+              # merge-base の終了コードは、0 が求まった、1 が共通の祖先が無い（履歴の無い内容で force push したなど）、
+              # それ以外が読めない。読めないときは、共通の祖先が無いことと区別できないので段を失敗させる。
+              rc=0
+              previous_base="$(git merge-base "origin/$BASE_REF" "$previous")" || rc=$?
+              case "$rc" in
+              0) ;;
+              1) since_note="前回レビューした commit（$previous）と base のブランチに共通の祖先が無い。full.diff を全体として読む。" ;;
+              *)
+                echo "::error title=Claude review::前回レビューした commit の merge base を求められない（終了コード: $rc）"
+                exit 1
+                ;;
+              esac
+            fi
           fi
           if [ -n "$previous_base" ]; then
-            # 前回からの差分は、PR が変えたファイルに絞る。base のブランチを取り込んだり rebase したりしても、
-            # PR が触れていないファイルの base 側の変更は入らない。PR が触れたファイルの base 側の変更は入りうるので、README に書く。
+            # since.diff は、前回から HEAD までの差分を、PR が変えたファイルに絞った目安である。
             # PR が変えたファイルは、今の時点で PR が変えているファイル（full.diff のファイル）と、
             # 前回の時点で PR が変えていたファイル（今の base のブランチと前回の commit の merge base から前回の commit まで）を合わせたものである。
             # 前回の後に base と同じ内容へ戻したファイルは、後者で拾う。commit の履歴をたどらないので、
             # 履歴の形（merge の親の向き・コンフリクトの解消・rebase）に依らない。
-            # PR の base のブランチを変えた後は、merge base が古い分岐点になり、後者に base 側のファイルが入りうる。
+            # 絞り込みは目安で、base 側の変更が入る場合がある（PR が触れたファイルへの base 側の変更、PR の base のブランチを変えた後、
+            # merge base が複数ある履歴）。そのためエージェントには、範囲の原本は full.diff だと README で伝える。
             # rename は削除と追加に分けて両方の名前を挙げる。ファイル名は pathspec のワイルドカードとして読ませない。
             # 重複はバイト列で比べる（ロケールの照合で別の名前を 1 つにまとめない）。
             {
@@ -277,9 +291,7 @@ jobs:
             else
               : >"$INPUT_DIR/since.diff"
             fi
-            since_note="前回レビューした commit は $previous。since.diff は、そこから HEAD までの差分を PR が変えたファイルに絞ったものである（base の取り込みや rebase による、同じファイルへの base 側の変更を含みうる）。"
-          elif [ -n "$previous" ]; then
-            since_note="前回レビューした commit（$previous）が履歴に無いか、base のブランチと共通の祖先が無い（force push など）。full.diff を全体として読む。"
+            since_note="前回レビューした commit は $previous。since.diff は、そこから HEAD までの差分を PR が変えたファイルに絞った目安で、base 側の変更を含むことがある。PR の変更の範囲は full.diff で確かめる。"
           fi
           {
             echo "# レビューの入力"

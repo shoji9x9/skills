@@ -701,6 +701,7 @@ describe("Collect review inputs", () => {
     expect(outputs(res.dir).previous).toBe(previous);
     expect(existsSync(join(input, "since.diff"))).toBe(false);
     expect(read(input, "README.md")).toContain("共通の祖先が無い");
+    expect(read(input, "README.md")).not.toContain("履歴に無い");
   });
 
   test("取り込みのコンフリクトを base の内容で解消して PR の変更を捨てたファイルも、since.diff に入れる", () => {
