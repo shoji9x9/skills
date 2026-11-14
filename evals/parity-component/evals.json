@@ -338,6 +338,61 @@
           "prompt_quote": "parity-component capture --component button"
         }
       ]
+    },
+    {
+      "id": 12,
+      "prompt": "parity-component build --component button の手順 7 の照合をやり直している（target は local-dev）。見本 users-create/default を element-shot.mjs で撮ったら、見本の element.shot.json の png は 110x28 だった。pixel-strict-count.mjs は `PNG dimensions differ (must match)` で exit 2 になり、trait-compare.mjs は `[]` で exit 0 だった。見本はカタログの幅 300px の枠の中に置いてある。この組をどう判定するか、見本の採取物をどこに置いてどのツールで寸法を確かめるか、枠の幅を変えれば済む話か、parity.md のこの組の行に何を書くかを答えて。ファイルの変更と外部への接続はしないで。スキルと採取物を読むことと、同梱のスクリプトを実行することはしてよい。",
+      "fixture": "fixtures/breaking-change-request",
+      "requires_skills": ["parity-suite"],
+      "assertions": [
+        "画素の比較が実行できなかったこの組を、一致・許容・環境ノイズのどれとしても扱っていない",
+        "trait-compare.mjs の差分 0 件を寸法が一致した根拠にせず、特性の照合は要素 1 つの幅や高さの差を出さないと述べている",
+        "見本の採取物を、部品の成果物ディレクトリ（.replace/components/button/）の下の new/local-dev/catalog/users-create/default/ に置くとしている",
+        "寸法の確かめ方として、shot-size-compare.mjs を --baseline と --catalog を付けて実行するコマンドを示している",
+        "基準の element.shot.json の png（102x28）と見本の png（110x28）を比べ、幅だけが違うと述べている",
+        "枠の幅を合わせてよいかを、現行の勝っている宣言（css-rules.json か cascade-resolve.mjs）で幅が親から決まるかを確かめて決めるとしている",
+        "現行の button は幅を中身から決める（inline-block で幅の宣言が無い）ので、枠の幅を変えても寸法の差は消えないと判断している",
+        "parity.md のこの組の行に、基準と見本の PNG の寸法の対を書くとしている",
+        "fixture の成果物（.replace/ 配下）を書き換えていない"
+      ],
+      "reachability": [
+        {
+          "assertion": "画素の比較が実行できなかったこの組を、一致・許容・環境ノイズのどれとしても扱っていない",
+          "prompt_quote": "この組をどう判定するか"
+        },
+        {
+          "assertion": "trait-compare.mjs の差分 0 件を寸法が一致した根拠にせず、特性の照合は要素 1 つの幅や高さの差を出さないと述べている",
+          "prompt_quote": "trait-compare.mjs は `[]` で exit 0 だった"
+        },
+        {
+          "assertion": "見本の採取物を、部品の成果物ディレクトリ（.replace/components/button/）の下の new/local-dev/catalog/users-create/default/ に置くとしている",
+          "prompt_quote": "見本の採取物をどこに置いて"
+        },
+        {
+          "assertion": "寸法の確かめ方として、shot-size-compare.mjs を --baseline と --catalog を付けて実行するコマンドを示している",
+          "prompt_quote": "どのツールで寸法を確かめるか"
+        },
+        {
+          "assertion": "基準の element.shot.json の png（102x28）と見本の png（110x28）を比べ、幅だけが違うと述べている",
+          "prompt_quote": "見本の element.shot.json の png は 110x28 だった"
+        },
+        {
+          "assertion": "枠の幅を合わせてよいかを、現行の勝っている宣言（css-rules.json か cascade-resolve.mjs）で幅が親から決まるかを確かめて決めるとしている",
+          "prompt_quote": "枠の幅を変えれば済む話か"
+        },
+        {
+          "assertion": "現行の button は幅を中身から決める（inline-block で幅の宣言が無い）ので、枠の幅を変えても寸法の差は消えないと判断している",
+          "prompt_quote": "枠の幅を変えれば済む話か"
+        },
+        {
+          "assertion": "parity.md のこの組の行に、基準と見本の PNG の寸法の対を書くとしている",
+          "prompt_quote": "parity.md のこの組の行に何を書くか"
+        },
+        {
+          "assertion": "fixture の成果物（.replace/ 配下）を書き換えていない",
+          "prompt_quote": "ファイルの変更と外部への接続はしないで"
+        }
+      ]
     }
   ]
 }

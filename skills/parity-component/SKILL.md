@@ -268,7 +268,10 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
    テーマで消せない構造の差の扱い（`component_diffs` に宣言するか、`gaps.md` に書くか）は、`parity-replace` の `references/theming.md` で定義する。
 6. 敵対的レビューをする。commit の前に、ローカルの commit していない差分をレビューする。実装役とレビュー役を分け、レビュー役には判断の基準（差分・現行のコード・採取物・規約・レジストリ）だけを渡す。
    手順の原本は、`parity-replace` の `references/adversarial-review.md` である。サブエージェントを起動できないことを、レビューを省く理由にしない。差分だけを人のレビュアーへ渡す方法に切り替える。
-7. カタログを採って照合する。カタログを現行と同じ条件で採り、`parity-suite` 同梱の差分ツール（画素の比較・特性の照合）で基準と突き合わせる。
+7. カタログを採って照合する。カタログを現行と同じ条件で採り、`new/<target>/catalog/<instance>/<state>/` に置く。
+   特性の照合は要素 1 つの幅や高さの差を出さないので、先に PNG の寸法を `node <skill>/scripts/shot-size-compare.mjs` で突き合わせる。
+   `--baseline` には `.replace/components/<slug>/` を、`--catalog` には `.replace/components/<slug>/new/<target>/catalog/` を渡す。
+   次に、`parity-suite` 同梱の差分ツール（画素の比較・特性の照合）で基準と突き合わせる。
    差分は決定論的なツールが出し、LLM は 1 件ずつ分類（要対応・許容・環境ノイズ）する。要対応は手順 4 へ戻す。詳しくは [`references/compare.md`](references/compare.md) にある。
 
    操作の結果も突き合わせる。`capture` と同じ操作を、見本で同じ手順で行い、`new/<target>/behavior-comparison.json` に書く。
@@ -281,7 +284,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 8. 完了を判定する。次のすべてを満たしたら完了である。
    - 説明できない差分が 0 件である。要対応が 0 件で、許容は全件が `intentional_diffs` か `component_diffs` の宣言に結び付いている。
    - `verification_commands.full` が通る。
-   - 比較の母集合（上の「前提」）のすべての組み合わせに対応する見本があり、全件を照合した。
+   - 比較の母集合（上の「前提」）のすべての組み合わせに対応する見本があり、全件を照合した。`shot-size-compare.mjs` が exit 0 であるか、exit 1 の `size-mismatch` が全件、分類に載っている。
    - 母集合に対応しない見本（基準の無い見本）が 0 件である（[`references/catalog.md`](references/catalog.md)「現行に無い見た目を見本に作らない」）。
    - `behavior-compare.mjs` が exit 0 である（操作の結果に、突き合わせていないものと一致しないものが 0 件）。
    - `motion-compare.mjs` が exit 0 である（動きに、突き合わせていないものと一致しないものが 0 件）。
@@ -334,6 +337,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 | 当たっている CSS 規則 | `.replace/components/<slug>/baseline/<instance>/<state>/css-rules.json` | — |
 | データ依存の部品の実データ | `.replace/components/<slug>/baseline/<instance>/data.json` | — |
 | 操作の結果（現行） | `.replace/components/<slug>/baseline/<instance>/behaviors.json` | [`assets/behaviors-template.json`](assets/behaviors-template.json) |
+| カタログの見本の採取物（環境ごと） | `.replace/components/<slug>/new/<target>/catalog/<instance>/<state>/` に、基準と同じファイル名（`element.png`・`element.shot.json`・`traits.json`） | — |
 | 操作の結果の突き合わせ（環境ごと） | `.replace/components/<slug>/new/<target>/behavior-comparison.json` | [`assets/behavior-comparison-template.json`](assets/behavior-comparison-template.json) |
 | 動きの時系列（現行） | `.replace/components/<slug>/baseline/<instance>/motions.json` | [`assets/motions-template.json`](assets/motions-template.json) |
 | 動きの突き合わせ（環境ごと） | `.replace/components/<slug>/new/<target>/motion-comparison.json` | [`assets/motion-comparison-template.json`](assets/motion-comparison-template.json) |
@@ -357,6 +361,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 - 次のスクリプトはコピーせず、スキルの中のものをそのまま実行する。`gh skill update` で自動で更新されるようにするためである。
   - [`scripts/css-rules-capture.mjs`](scripts/css-rules-capture.mjs)
   - [`scripts/axis-diff.mjs`](scripts/axis-diff.mjs)
+  - [`scripts/shot-size-compare.mjs`](scripts/shot-size-compare.mjs)
   - [`scripts/behavior-compare.mjs`](scripts/behavior-compare.mjs)
   - [`scripts/motion-compare.mjs`](scripts/motion-compare.mjs)
   - [`scripts/lifecycle-check.mjs`](scripts/lifecycle-check.mjs)
