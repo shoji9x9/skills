@@ -294,10 +294,11 @@ sandbox="${repo}/scripts/eval/sandbox/eval-sandbox.sh"
 runner_override=""
 runner_is_sandbox=0
 sandbox_real="$(realpath -e -- "${sandbox}" 2>/dev/null)" || sandbox_real=""
-# sandbox は、自分の実体のパスの 4 つ上を repo として、その親を隠す。sandbox のファイルが <repo>/scripts/eval/sandbox/ の
-# 外の実体へのシンボリックリンクだと、--repo の親ではない別のディレクトリを隠す（Issue #1024）。
+# sandbox は、自分の実体がある場所を基に repo を決め、その親を隠す。repo から sandbox のファイルまでの途中
+# （ファイル自体か、scripts・eval・sandbox のディレクトリ）がシンボリックリンクだと、--repo の親ではない別の
+# ディレクトリを隠しうる（Issue #1024）。
 # そのため、実体のパスが ${repo}/scripts/eval/sandbox/eval-sandbox.sh と一致するときだけ sandbox として扱う。
-# 同じディレクトリの別名へのリンクのように、隠す範囲が変わらないリンクも止める。リンクを許す形を挙げて確かめるより、
+# 途中にリンクがあれば、隠す範囲が変わらないリンクでも止める。リンクを許す形を挙げて確かめるより、
 # 実体がその場所にあることだけを求めるほうが、判定の抜けが生じないためである。
 # repo は realpath で解決済みなので、--repo 自体や上位のディレクトリがリンクでも一致する。
 # 一致しないときは、SKILL_EVAL_RUNNER が無い場合も sandbox を指す場合も、下の分岐で UNISOLATED にする。
@@ -340,7 +341,8 @@ sandboxed*) ;;
 		{
 			echo "refusing to start the executor: read isolation is ${isolation}"
 			echo "  a run outside the sandbox can read the operator's credentials (\$HOME, GH_TOKEN, ...)."
-			echo "  to isolate: install bubblewrap, keep ${sandbox} executable and a regular file (not a symlink),"
+			echo "  to isolate: install bubblewrap, keep ${sandbox} executable with no symlink between ${repo} and it"
+			echo "  (neither the file itself nor scripts/, eval/, sandbox/),"
 			echo "  and leave SKILL_EVAL_RUNNER unset"
 			echo "  (or set it to the absolute path of that script)."
 			echo "  to run without isolation anyway (a stub runner, for example), set SKILL_EVAL_ALLOW_UNISOLATED=1."
@@ -516,8 +518,8 @@ rc=0
 	export SHOJI9X9_SKILLS_IGNORE_USER_CONFIG=1
 	EVAL_SANDBOX_CLI="${executor_binary}" EVAL_SANDBOX_VENDOR="${executor}" "${runner}" "${executor_args[@]}"
 ) </dev/null >"${raw_trace}" 2>"${out}/stderr.log" || rc=$?
-# CLI 自身の終了コード。warn の行・result.json の exit_code・done の行の cli_rc= は、この値を使う。
-# rc は、下で正規化の失敗の 5 などに上書きされうるハーネスの終了コードとして扱う。
+# CLI 自身の終了コードを cli_rc に残す。warn の行と result.json の exit_code と、done の行に出す cli_rc= は、この値を使う。
+# rc はハーネスの終了コードで、正規化が失敗したときなどに、下で 5 に上書きされる。
 cli_rc="${rc}"
 ended_ms="$(date +%s%3N)"
 ended_at="$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
