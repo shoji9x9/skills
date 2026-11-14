@@ -357,6 +357,15 @@ setup が 0 以外で終わったら、executor を起動せずに eval を失�
   その場所が `$HOME`・使い捨てのプロジェクト・runtime dir を含むときと、runtime dir の中にあるときは、隠せないので起動の前に止まる。
   それ以外の `$HOME` の外の場所は隠さない。`~/.aws` を `$HOME` の外へのシンボリックリンクにした環境のように、`$HOME` の外に置いた認証情報は、run からリンク先のパスで読める。
   keyring は、ファイルを隠してもセッションのバスから中身を返すので、runtime dir（`$XDG_RUNTIME_DIR` と `/run/user/<uid>`）も隠す。
+  runtime dir の tmpfs はほかのマウントより後に置くので、runtime dir が先に置いたマウントの宛先か cwd を含むと、それを覆う。
+  覆われるのは、`$HOME` の下の認証情報と `settings.json`・`CODEX_HOME` の `auth.json`・`/tmp` の下の `/etc` のミラー・使い捨てのプロジェクトなどである。
+  sandbox は、runtime dir の tmpfs より前に bwrap に渡した bind の宛先（`--bind`・`--ro-bind`・`--dev-bind`）と cwd を集め、runtime dir がそのどれかと同じか、それを含むときは、`--verify` を含めて bwrap を起動する前に理由を出して止まる。
+  宛先と cwd は、書いたままのパスと実際のパスの両方で比べる。そのため、シンボリックリンクを通して runtime dir の中を指す cwd でも止まる。
+  `/tmp` を含む runtime dir（`XDG_RUNTIME_DIR=/tmp` のコンテナなど）は、`/tmp` の下に宛先があるときに止まる。通常の構成では `/etc` のミラーを `/tmp` の下に置くので、止まる。
+  目印（`<marker>`）を渡した `--verify` は、確かめる対象を書いたファイルを `/tmp` の下のディレクトリに置いて bind するので、`/tmp` を含む runtime dir では常に止まる。
+  同じリポジトリのほかの work tree の親も、`git worktree list` で挙げて隠す。
+  `git worktree list` が失敗すると（`safe.directory` の dubious ownership など）、ほかの work tree を隠せないので、起動の前に止まる。
+  git がスクリプトの置き場所からリポジトリを見つけられないとき（`.git` の無いコピーなど）も、`git worktree list` が失敗するので止まる。git が無い環境では、この確認を飛ばす。
   環境変数も許可リストにする。run に渡すのは、CLI とツールの起動・ロケール・API への接続（プロキシと証明書）・ハーネスに要る変数と、そのベンダーの API キーの変数だけである。
   `GH_TOKEN`・`AWS_*`・ソケットを指す変数（`SSH_AUTH_SOCK` など）や、eval を起動したエージェントのセッションの変数は渡らない。
   渡す変数の値は、そのまま run から読める（プロキシの URL に入れた認証情報 `http://user:token@proxy` や、API キーの変数）。

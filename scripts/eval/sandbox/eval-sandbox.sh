@@ -56,6 +56,21 @@
 # Repo-internal tooling; not bundled in any distributed skill.
 set -euo pipefail
 
+# Errors that the arguments alone show are reported first, before any other check can
+# stop the run for another reason or anything is made.
+verify=""
+[ "$#" -ge 1 ] || {
+	echo "usage: $0 <cli-args...>   (or: $0 --verify <marker>...)" >&2
+	exit 2
+}
+if [ "$1" = "--verify" ]; then
+	verify=1
+	[ "$#" -ge 2 ] || {
+		echo "usage: $0 --verify <marker> [<marker>...]" >&2
+		exit 2
+	}
+fi
+
 self="$(readlink -f "$0")"
 # <repo>/scripts/eval/sandbox/eval-sandbox.sh -> <repo>
 repo="$(dirname "$(dirname "$(dirname "$(dirname "${self}")")")")"
@@ -141,12 +156,20 @@ args+=(--tmpfs "${repo_parent}")
 #     ~/projects/skills/.agents/skills/kaizen/ and described the PRE-change design,
 #     and contamination.txt flagged it CONTAMINATED. Hide the parent of every work
 #     tree git reports, not just our own.
+#     The list is taken by an assignment, not a process substitution: a git that fails
+#     (dubious ownership under safe.directory exits 128) would otherwise read as no
+#     work trees, and the run would start with the main checkout readable.
 if command -v git >/dev/null 2>&1; then
 	declare -A hidden_worktree_parents=(
 		["${repo_parent}"]=1
 		["/tmp"]=1
 	)
-	while IFS= read -r wt; do
+	worktree_list="$(git -C "${repo}" worktree list --porcelain)" || {
+		echo "eval-sandbox: git worktree list failed in ${repo} (exit $?); the other work trees of this repository cannot be hidden" >&2
+		exit 3
+	}
+	while IFS= read -r line; do
+		case "${line}" in "worktree "*) wt="${line#worktree }" ;; *) continue ;; esac
 		[ -n "${wt}" ] || continue
 		wt_parent="$(dirname "${wt}")"
 		# Already covered by ${repo_parent} (or by the /tmp tmpfs below), or a path
@@ -164,8 +187,7 @@ if command -v git >/dev/null 2>&1; then
 			hidden_worktree_parents["${wt_parent}"]=1
 			args+=(--tmpfs "${wt_parent}")
 		fi
-	done < <(git -C "${repo}" worktree list --porcelain 2>/dev/null |
-		sed -n 's/^worktree //p')
+	done <<<"${worktree_list}"
 fi
 
 # 2. sibling runs: /tmp holds other configurations' disposable projects, each a full
@@ -228,6 +250,20 @@ drop_relative_xdg_dirs() {
 	done
 }
 drop_relative_xdg_dirs
+# Stops the run when the directory $1 holds (is or contains) a place that must stay as it
+# is mounted. $2 says what $1 is and $3 why that stops the run; each further argument is
+# "<what the place is>|<path>".
+refuse_holding() {
+	local r="$1" what="$2" why="$3" kept
+	shift 3
+	for kept in "$@"; do
+		case "${kept#*|}/" in "${r%/}/"*)
+			echo "eval-sandbox: ${r} (${what}) holds ${kept%%|*} ${kept#*|}; ${why}" >&2
+			exit 3
+			;;
+		esac
+	done
+}
 # Credentials served by agents rather than read from files. The runtime dir holds the
 # session bus, through which the keyring daemon hands out what ~/.local/share/keyrings
 # stores, and the ssh-agent and gpg-agent sockets. Measured: the Secret Service was
@@ -242,6 +278,8 @@ drop_relative_xdg_dirs
 # the tmpfs over each of them is added after the /etc binds. Each is resolved first, so
 # a symlinked runtime dir (or one spelled with a trailing /) compares with the resolved
 # roots, and bwrap mounts the tmpfs on the real directory.
+# A runtime dir whose tmpfs would cover a mount target or the cwd stops the run; that is
+# checked where the tmpfs is added (refuse_covering_runtime_dirs below).
 list_runtime_dirs() { # fills runtime_dirs; a function, so its variables stay local
 	local d
 	local -A seen_runtime_dirs=()
@@ -307,15 +345,9 @@ under_root() { # is $1 equal to or below one of the roots handled so far?
 	return 1
 }
 add_root() { # $1 = real directory, $2 = the home_allow prefix it stands for
-	local r="$1" prefix="$2" rel kept d
+	local r="$1" prefix="$2" rel d
 	if ! under_root "${r}"; then
-		for kept in "\$HOME|${home}" "the disposable project|${PWD}" "${runtime_dirs[@]/#/the runtime dir|}"; do
-			case "${kept#*|}/" in "${r%/}/"*)
-				echo "eval-sandbox: ${r} (${prefix}) holds ${kept%%|*} ${kept#*|}; it cannot be hidden without hiding that" >&2
-				exit 3
-				;;
-			esac
-		done
+		refuse_holding "${r}" "${prefix}" "it cannot be hidden without hiding that" "\$HOME|${home}" "the disposable project|${PWD}" "${runtime_dirs[@]/#/the runtime dir|}"
 		for d in "${runtime_dirs[@]}"; do
 			case "${r}/" in "${d%/}/"*)
 				echo "eval-sandbox: ${r} (${prefix}) lies inside the runtime dir ${d}, whose tmpfs would cover it" >&2
@@ -533,10 +565,57 @@ fi
 # The runtime dirs listed with the comment above $HOME's allowlist, each hidden by a
 # writable empty tmpfs. It comes after the $HOME tmpfs, so a runtime dir under $HOME is
 # still an empty dir the tools can write to, and after the roots, which add_root has
-# already refused whenever one holds a runtime dir or lies inside one, so the two never
-# cover each other. Known gap: a runtime dir that holds $HOME, /tmp or the /etc mirror
-# is not refused, and its tmpfs covers them (the run then fails to start or to
-# authenticate; nothing it should not read becomes readable).
+# already refused whenever one holds a runtime dir or lies inside one.
+# Coming after every mount above, the tmpfs covers whatever of them lies in the runtime
+# dir: the CLI's credentials and settings under $HOME, CODEX_HOME's auth.json, the /etc
+# mirror under /tmp, the disposable project. Listing such places misses the next one, so
+# the run stops when a runtime dir is or holds any bind target given to bwrap so far
+# (--bind, --ro-bind, --dev-bind) or the cwd (which --chdir needs). An earlier --tmpfs
+# target is left out: a tmpfs over it hides no more than it did, and whatever was bound
+# into it is a bind target itself. A target is compared both as written and by its real
+# path: bwrap creates a mount point inside an earlier tmpfs without following the host's
+# symlinks, and follows a symlink that is still there, so the mount can land at either.
+# The runtime dirs are real paths already, and the tmpfs goes on them.
+# One more place is compared for its own reason: the directory that --verify binds for
+# stage 5 after the tmpfs, whose mount point stage 5 would find in the runtime dir.
+refuse_covering_runtime_dirs() {
+	local covered="its tmpfs is mounted after that and would cover it"
+	local i p real d targets=("${PWD}") whats=("the disposable project") whys=("${covered}")
+	# Nothing to compare with: skip resolving every target.
+	[ "${#runtime_dirs[@]}" -gt 0 ] || return 0
+	for i in "${!args[@]}"; do
+		case "${args[i]}" in
+		--bind | --ro-bind | --dev-bind)
+			targets+=("${args[i + 2]}") whats+=("the mount target") whys+=("${covered}")
+			;;
+		esac
+	done
+	if [ -n "${home_lists}" ]; then
+		targets+=("${home_lists}") whats+=("the directory where --verify writes its lists for stage 5")
+		whys+=("stage 5 would find that directory's mount point in the runtime dir")
+	fi
+	for i in "${!targets[@]}"; do
+		# A plain assignment, so a failed realpath stops the run under set -e.
+		real="$(realpath -m -- "${targets[i]}")"
+		for p in "${targets[i]}" "${real}"; do
+			for d in "${runtime_dirs[@]}"; do
+				case "${p%/}/" in "${d%/}/"*)
+					echo "eval-sandbox: ${d} (the runtime dir) holds ${whats[i]} ${targets[i]} (${real}); ${whys[i]}" >&2
+					exit 3
+					;;
+				esac
+			done
+		done
+	done
+}
+# --verify stage 5 reads lists that this shell writes on the host into a directory and
+# binds into the sandbox. The directory is made here, so that the check above can compare
+# it. Under /tmp, not TMPDIR: a TMPDIR under $HOME would put the bind target inside the
+# read-only $HOME, where bwrap cannot create the mount point.
+if [ -n "${verify}" ]; then
+	home_lists="$(mktemp -d /tmp/eval-sandbox-home-lists-XXXXXX)"
+fi
+refuse_covering_runtime_dirs
 for d in "${runtime_dirs[@]}"; do args+=(--tmpfs "${d}"); done
 
 # Last mount under $HOME is above; from here on $HOME is read-only (step 0).
@@ -657,12 +736,8 @@ covering_mount() {
 	printf '%s\n' "${found}"
 }
 
-if [ "${1:-}" = "--verify" ]; then
+if [ -n "${verify}" ]; then
 	shift
-	[ "$#" -ge 1 ] || {
-		echo "usage: $0 --verify <marker> [<marker>...]" >&2
-		exit 2
-	}
 	# Stage 1: the repo must be unreachable. Stage 2: no marker anywhere reachable
 	# (path enumeration cannot detect routes missing from the enumeration), with a
 	# sentinel per root so an unsearched root cannot pass as a clean one.
@@ -807,9 +882,7 @@ exit $rc'
 	# inside, bwrap creates a plain directory there), so a store that nobody named here
 	# is still checked. "env-shown" / "env-hidden" split the host's variables by the
 	# environment allowlist; the probe variable makes sure the hidden side is never empty.
-	# Under /tmp, not TMPDIR: a TMPDIR under $HOME would put the bind target inside the
-	# read-only $HOME, where bwrap cannot create the mount point.
-	home_lists="$(mktemp -d /tmp/eval-sandbox-home-lists-XXXXXX)"
+	# The directory itself was made before the runtime dirs were checked (see there).
 	: >"${home_lists}/shown"
 	: >"${home_lists}/hidden"
 	hidden_roots=("${home}" "${outside_roots[@]}")
@@ -888,11 +961,6 @@ exit $rc'
 	fi
 	exit "${rc}"
 fi
-
-[ "$#" -ge 1 ] || {
-	echo "usage: $0 <cli-args...>   (or: $0 --verify <marker>...)" >&2
-	exit 2
-}
 
 # `run-skill-eval.sh` substitutes this script for the CLI *name* and passes only the
 # CLI's arguments (`-p <prompt> --output-format json ...`), so the binary has to be

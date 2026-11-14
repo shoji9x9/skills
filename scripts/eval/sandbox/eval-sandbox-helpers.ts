@@ -9,18 +9,28 @@ import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 export const sourceScript = resolve(dirname(fileURLToPath(import.meta.url)), "eval-sandbox.sh");
 const sanitizeScript = resolve(dirname(sourceScript), "sanitize-claude-settings.ts");
 
+/**
+ * `git worktree list --porcelain` に答える git のスタブを bin に置く。
+ * worktrees を渡すと、実物と同じ形（work tree ごとに worktree・HEAD・branch の行と空行）で出力する。
+ * "fail" を渡すと、WSL の dubious ownership と同じように stderr に理由を出して 128 で終わる。
+ */
+export function writeFakeGit(bin: string, worktrees: string[] | "fail") {
+  const body =
+    worktrees === "fail"
+      ? "echo \"fatal: detected dubious ownership in repository at '$2'\" >&2\nexit 128\n"
+      : `for w in ${worktrees.map((w) => shellQuote(w)).join(" ")}; do
+  printf 'worktree %s\\nHEAD 0000000000000000000000000000000000000000\\nbranch refs/heads/main\\n\\n' "$w"
+done
+`;
+  writeFileSync(join(bin, "git"), `#!/usr/bin/env bash\n${body}`, { mode: 0o755 });
+}
+
 /** worktree の親のマウントを確かめるテスト用に、CLI・git・bwrap のスタブを bin に置く。 */
 export function writeWorktreeFakeBin(fakeBin: string, worktrees: string[], capturedArgs: string) {
   writeFileSync(join(fakeBin, "claude-wrapper"), "#!/usr/bin/env bash\nexit 99\n", {
     mode: 0o755,
   });
-  writeFileSync(
-    join(fakeBin, "git"),
-    `#!/usr/bin/env bash
-printf 'worktree %s\\n' ${worktrees.map((w) => `"${w}"`).join(" ")}
-`,
-    { mode: 0o755 },
-  );
+  writeFakeGit(fakeBin, worktrees);
   writeFileSync(
     join(fakeBin, "bwrap"),
     `#!/usr/bin/env bash
@@ -50,6 +60,7 @@ ${FAKE_BWRAP_PROBE}printf '%s\\n' "$@" >"${capturedArgs}"
 // | runtime dir         | 中身が在る / 空 / XDG_RUNTIME_DIR が実在しない                     |
 // | 起動の前の確認      | CLI が見える / 隠れる（PATH のディレクトリは確かめない）              |
 // | 環境変数            | 許可リストの外 / 中（軸の一覧は eval-sandbox-env.test.ts）          |
+// | 起動の前に止める構成 | runtime dir と git worktree list（軸の一覧は eval-sandbox-preflight.test.ts） |
 //
 // bwrap のスタブは呼び出しごとに引数を追記する（--verify は 2 回呼ぶ）。
 // 起動の前の確認（CLI が見えるか）の呼び出しは記録せず、FAKE_BWRAP_HIDDEN（改行区切り）に
@@ -139,6 +150,8 @@ export type SandboxOptions = {
   pathHomeDirs?: string[];
   /** 起動の前の確認で、CLI を隠れていると答える。 */
   hiddenCli?: boolean;
+  /** git worktree list のスタブが失敗する（省くと、スクリプトのコピーを置いたリポジトリだけを返す）。 */
+  gitFails?: boolean;
   /** $HOME を作った後に呼ぶ。足す環境変数と cwd を返す（$HOME の外の場所を作るテスト用）。 */
   setup?: (paths: { root: string; home: string }) => { env?: Record<string, string>; cwd?: string };
 };
@@ -299,6 +312,8 @@ export function sandbox(args: string[], options: SandboxOptions = {}) {
   symlinkSync(sanitizeScript, join(dirname(copiedScript), "sanitize-claude-settings.ts"));
   const cli = options.cli ?? "claude";
   writeSandboxFakeBin(bin, cli, options);
+  // スクリプトのコピーは git のリポジトリの外にあるので、git worktree list にはスタブで答える。
+  writeFakeGit(bin, options.gitFails === true ? "fail" : [repo]);
   const extra = options.setup?.({ root, home }) ?? {};
   const env = {
     ...sandboxEnv({ root, home, bin, cli, runtimeDir, capturedArgs, probeArgs }, options),

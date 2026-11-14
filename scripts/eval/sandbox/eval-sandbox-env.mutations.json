@@ -163,8 +163,8 @@
       "id": "root-holding-home-hidden",
       "why": "$HOME を含む場所を、止めずにそのまま隠す",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\t\tfor kept in \"\\$HOME|${home}\" \"the disposable project|${PWD}\" \"${runtime_dirs[@]/#/the runtime dir|}\"; do\n",
-      "replace": "\t\tfor kept in \"the disposable project|${PWD}\" \"${runtime_dirs[@]/#/the runtime dir|}\"; do\n",
+      "find": "\t\trefuse_holding \"${r}\" \"${prefix}\" \"it cannot be hidden without hiding that\" \"\\$HOME|${home}\" \"the disposable project|${PWD}\" \"${runtime_dirs[@]/#/the runtime dir|}\"\n",
+      "replace": "\t\trefuse_holding \"${r}\" \"${prefix}\" \"it cannot be hidden without hiding that\" \"the disposable project|${PWD}\" \"${runtime_dirs[@]/#/the runtime dir|}\"\n",
       "occurrences": 1,
       "expect_failing": [
         "$HOME の外の設定の場所 XDG_CONFIG_HOME が $HOME を含むなら、隠せないので bwrap を起動せずに止める",
@@ -175,8 +175,8 @@
       "id": "root-holding-cwd-hidden",
       "why": "cwd（使い捨てのプロジェクト）を含む場所を、止めずにそのまま隠す",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\t\tfor kept in \"\\$HOME|${home}\" \"the disposable project|${PWD}\" \"${runtime_dirs[@]/#/the runtime dir|}\"; do\n",
-      "replace": "\t\tfor kept in \"\\$HOME|${home}\" \"${runtime_dirs[@]/#/the runtime dir|}\"; do\n",
+      "find": "\t\trefuse_holding \"${r}\" \"${prefix}\" \"it cannot be hidden without hiding that\" \"\\$HOME|${home}\" \"the disposable project|${PWD}\" \"${runtime_dirs[@]/#/the runtime dir|}\"\n",
+      "replace": "\t\trefuse_holding \"${r}\" \"${prefix}\" \"it cannot be hidden without hiding that\" \"\\$HOME|${home}\" \"${runtime_dirs[@]/#/the runtime dir|}\"\n",
       "occurrences": 1,
       "expect_failing": [
         "$HOME の外の設定の場所 XDG_CONFIG_HOME が cwd を含むなら、隠せないので bwrap を起動せずに止める"
@@ -255,8 +255,8 @@
       "id": "root-slash-accepted",
       "why": "/ を指す場所を、$HOME を含む場所として止めずに tmpfs で隠す",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\t\t\tcase \"${kept#*|}/\" in \"${r%/}/\"*)\n",
-      "replace": "\t\t\tcase \"${kept#*|}/\" in \"${r}/\"*)\n",
+      "find": "\t\tcase \"${kept#*|}/\" in \"${r%/}/\"*)\n",
+      "replace": "\t\tcase \"${kept#*|}/\" in \"${r}/\"*)\n",
       "occurrences": 1,
       "expect_failing": [
         "$HOME の外の設定の場所 XDG_CONFIG_HOME が / として $HOME を含むなら、隠せないので bwrap を起動せずに止める"
@@ -277,8 +277,8 @@
       "id": "root-holding-runtime-hidden",
       "why": "runtime dir を含む場所を、止めずにそのまま隠す（後の runtime dir の tmpfs との順序で、どちらかが見えなくなる）",
       "file": "scripts/eval/sandbox/eval-sandbox.sh",
-      "find": "\"${runtime_dirs[@]/#/the runtime dir|}\"; do\n",
-      "replace": "; do\n",
+      "find": " \"${runtime_dirs[@]/#/the runtime dir|}\"\n",
+      "replace": "\n",
       "occurrences": 1,
       "expect_failing": [
         "$HOME の外の設定の場所 XDG の場所が runtime dir を含むなら、どちらかの tmpfs が他方を覆うので bwrap を起動せずに止める"
