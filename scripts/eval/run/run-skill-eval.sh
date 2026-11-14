@@ -294,11 +294,11 @@ sandbox="${repo}/scripts/eval/sandbox/eval-sandbox.sh"
 runner_override=""
 runner_is_sandbox=0
 sandbox_real="$(realpath -e -- "${sandbox}" 2>/dev/null)" || sandbox_real=""
-# sandbox は、自分の実体がある場所を基に repo を決め、その親を隠す。repo から sandbox のファイルまでの途中
-# （ファイル自体か、scripts・eval・sandbox のディレクトリ）がシンボリックリンクだと、--repo の親ではない別の
+# sandbox は、自分の実体がある場所を基に repo を決め、その親を隠す。sandbox のファイル自体か、そこに至る
+# scripts・eval・sandbox のディレクトリのどれかがシンボリックリンクだと、--repo の親ではない別の
 # ディレクトリを隠しうる（Issue #1024）。
 # そのため、実体のパスが ${repo}/scripts/eval/sandbox/eval-sandbox.sh と一致するときだけ sandbox として扱う。
-# 途中にリンクがあれば、隠す範囲が変わらないリンクでも止める。リンクを許す形を挙げて確かめるより、
+# このどれかがリンクなら、隠す範囲が変わらないリンクでも止める。リンクを許す形を挙げて確かめるより、
 # 実体がその場所にあることだけを求めるほうが、判定の抜けが生じないためである。
 # repo は realpath で解決済みなので、--repo 自体や上位のディレクトリがリンクでも一致する。
 # 一致しないときは、SKILL_EVAL_RUNNER が無い場合も sandbox を指す場合も、下の分岐で UNISOLATED にする。
@@ -341,8 +341,8 @@ sandboxed*) ;;
 		{
 			echo "refusing to start the executor: read isolation is ${isolation}"
 			echo "  a run outside the sandbox can read the operator's credentials (\$HOME, GH_TOKEN, ...)."
-			echo "  to isolate: install bubblewrap, keep ${sandbox} executable with no symlink between ${repo} and it"
-			echo "  (neither the file itself nor scripts/, eval/, sandbox/),"
+			echo "  to isolate: install bubblewrap, keep ${sandbox} executable, and make neither that file"
+			echo "  nor the scripts/, eval/, sandbox/ directories above it a symlink,"
 			echo "  and leave SKILL_EVAL_RUNNER unset"
 			echo "  (or set it to the absolute path of that script)."
 			echo "  to run without isolation anyway (a stub runner, for example), set SKILL_EVAL_ALLOW_UNISOLATED=1."
@@ -519,7 +519,7 @@ rc=0
 	EVAL_SANDBOX_CLI="${executor_binary}" EVAL_SANDBOX_VENDOR="${executor}" "${runner}" "${executor_args[@]}"
 ) </dev/null >"${raw_trace}" 2>"${out}/stderr.log" || rc=$?
 # CLI 自身の終了コードを cli_rc に残す。warn の行と result.json の exit_code と、done の行に出す cli_rc= は、この値を使う。
-# rc はハーネスの終了コードで、正規化が失敗したときなどに、下で 5 に上書きされる。
+# rc はハーネスの終了コードで、正規化が失敗したときは 5 に、汚染された baseline では 4 に、下で上書きされる。
 cli_rc="${rc}"
 ended_ms="$(date +%s%3N)"
 ended_at="$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
@@ -812,10 +812,11 @@ if [ "${config}" = "without_skill" ]; then
 	esac
 fi
 
-echo "done: executor=${executor} config=${config} skill=${skill} -> ${out} (rc=${rc} cli_rc=${cli_rc})"
 # 汚染された baseline が 0 で終わると、本物の測定として集計される。そのため、終了コードでも 4 として示す。
 # 4 は rc が 0 のときだけにし、0 以外の rc（CLI の失敗の値か、正規化の失敗の 5）を上書きしない。
+# done の行の rc= がハーネスの終了コードと一致するように、行を出す前に rc を決める。
 if [ "${rc}" -eq 0 ] && [ "${contaminated}" -eq 1 ]; then
-	exit 4
+	rc=4
 fi
+echo "done: executor=${executor} config=${config} skill=${skill} -> ${out} (rc=${rc} cli_rc=${cli_rc})"
 exit "${rc}"

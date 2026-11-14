@@ -9,7 +9,7 @@
 // | sandbox の絶対パス・シンボリックリンク | 実行可能    | 在る  | sandboxed    |
 // | 無い・sandbox のリンク先の実体         | <repo>/scripts/eval/sandbox/ の外へのシンボリックリンク | 在る | UNISOLATED |
 // | 無い                                  | 同じディレクトリの別名へのシンボリックリンク | 在る | UNISOLATED |
-// | 無い                                  | scripts/eval/sandbox のディレクトリが外へのシンボリックリンク | 在る | UNISOLATED |
+// | 無い                                  | scripts/eval/sandbox のディレクトリが scripts/eval/ の外へのシンボリックリンク | 在る | UNISOLATED |
 // | sandbox の絶対パス                    | 実行可能    | 無い  | UNISOLATED   |
 // | sandbox の相対パス・同名の別ファイル・実在しないパス・スタブ | 実行可能 | 在る | UNVERIFIED |
 // sandboxed 以外は、変数が 1 のときだけ続け、未設定・空・1 以外の値では exit 7 で止める。
@@ -89,15 +89,16 @@ function makeRepository(sandbox: Sandbox, skill: string) {
   const sandboxDir = join(root, "scripts", "eval", "sandbox");
   const sandboxPath = join(sandboxDir, "eval-sandbox.sh");
   const sandboxLog = join(root, "sandbox-invoked");
-  const sandboxTarget = sandboxTargetOf(sandbox, root, sandboxDir);
-  if (sandbox !== "missing") {
-    writeSandbox({ sandbox, sandboxDir, sandboxPath, sandboxTarget });
+  const layout = SANDBOX_LAYOUTS[sandbox];
+  const sandboxTarget = layout === null ? sandboxPath : layout.target(root, sandboxDir);
+  if (layout !== null) {
+    placeSandbox(layout, { sandboxDir, sandboxPath, sandboxTarget });
     writeFileSync(
       sandboxTarget,
       `#!/usr/bin/env bash\nprintf '%s\\n' "\${EVAL_SANDBOX_VENDOR}" >>${JSON.stringify(sandboxLog)}\nexec ${JSON.stringify(stub)} "$@"\n`,
       "utf8",
     );
-    chmodSync(sandboxTarget, sandbox === "not-executable" ? 0o644 : 0o755);
+    chmodSync(sandboxTarget, layout.mode);
   }
 
   // fixture の setup.sh は、使い捨てのプロジェクトを作った後に実行される。止めた run では実行されない。
@@ -113,37 +114,58 @@ function makeRepository(sandbox: Sandbox, skill: string) {
   return { root, installedLog, stub, sandboxPath, sandboxTarget, sandboxLog, fixture, setupLog };
 }
 
-/**
- * sandbox の実体を置くパスを返す。リンクの構成では、ハーネスの sandbox のパスとは別の場所になる。
- * symlink は <repo>/scripts/eval/sandbox/ の外の実体へのファイルのリンク、alias は同じディレクトリの別名へのリンク、
- * dir-link は scripts/eval/sandbox のディレクトリ自体を外のディレクトリへのリンクにする構成である。
- */
-function sandboxTargetOf(sandbox: Sandbox, root: string, sandboxDir: string) {
-  if (sandbox === "symlink") return join(root, "real-sandbox", "eval-sandbox.sh");
-  if (sandbox === "alias") return join(sandboxDir, "eval-sandbox-impl.sh");
-  if (sandbox === "dir-link") return join(root, "sandbox-v2", "eval-sandbox.sh");
-  return join(sandboxDir, "eval-sandbox.sh");
-}
+type SandboxLayout = {
+  /** 実体を置くパス。 */
+  target: (root: string, sandboxDir: string) => string;
+  /** none は実体をその場所に置く。file はハーネスの sandbox のパスを実体へのリンクに、dir は sandbox のディレクトリをリンクにする。 */
+  link: "none" | "file" | "dir";
+  mode: number;
+};
 
-/** sandbox の実体を置くディレクトリと、構成ごとのリンクを作る。実体の中身は呼び出し元が書く。 */
-function writeSandbox({
-  sandbox,
-  sandboxDir,
-  sandboxPath,
-  sandboxTarget,
-}: {
-  sandbox: Sandbox;
-  sandboxDir: string;
-  sandboxPath: string;
-  sandboxTarget: string;
-}) {
+/**
+ * sandbox の構成ごとの置き方（missing は置かない）。構成を足すときは、この表だけを変える。
+ * symlink は、<repo>/scripts/eval/sandbox/ の外の実体へのファイルのリンクである。alias は、同じディレクトリの別名へのリンクである。
+ * dir-link は、scripts/eval/sandbox のディレクトリ自体を、scripts/eval/ の外のディレクトリへのリンクにする。
+ */
+const SANDBOX_LAYOUTS = {
+  executable: { target: (_root, dir) => join(dir, "eval-sandbox.sh"), link: "none", mode: 0o755 },
+  "not-executable": {
+    target: (_root, dir) => join(dir, "eval-sandbox.sh"),
+    link: "none",
+    mode: 0o644,
+  },
+  symlink: {
+    target: (root) => join(root, "real-sandbox", "eval-sandbox.sh"),
+    link: "file",
+    mode: 0o755,
+  },
+  alias: { target: (_root, dir) => join(dir, "eval-sandbox-impl.sh"), link: "file", mode: 0o755 },
+  "dir-link": {
+    target: (root) => join(root, "sandbox-v2", "eval-sandbox.sh"),
+    link: "dir",
+    mode: 0o755,
+  },
+  missing: null,
+} satisfies Record<Sandbox, SandboxLayout | null>;
+
+/** 実体を置くディレクトリと、構成のリンクを作る。実体の中身は呼び出し元が書く。 */
+function placeSandbox(
+  layout: SandboxLayout,
+  {
+    sandboxDir,
+    sandboxPath,
+    sandboxTarget,
+  }: { sandboxDir: string; sandboxPath: string; sandboxTarget: string },
+) {
   mkdirSync(dirname(sandboxTarget), { recursive: true });
-  if (sandbox === "dir-link") {
+  // sandbox のディレクトリの親（scripts/eval）は、ほかの準備に頼らずにここで作る。
+  mkdirSync(dirname(sandboxDir), { recursive: true });
+  if (layout.link === "dir") {
     symlinkSync(dirname(sandboxTarget), sandboxDir);
     return;
   }
   mkdirSync(sandboxDir, { recursive: true });
-  if (sandboxTarget !== sandboxPath) symlinkSync(sandboxTarget, sandboxPath);
+  if (layout.link === "file") symlinkSync(sandboxTarget, sandboxPath);
 }
 
 /** ハーネスを起動する PATH を作る。bwrap はスタブを置くか、PATH から除く。 */
@@ -329,9 +351,9 @@ describe.concurrent("run-skill-eval read isolation stop", () => {
       { runner: "none", sandbox: "alias", bwrap: true, allow: undefined },
       /UNISOLATED \(.*\/scripts\/eval\/sandbox\/eval-sandbox\.sh resolves to .*\/scripts\/eval\/sandbox\/eval-sandbox-impl\.sh, not to itself/u,
     ],
-    // ファイル自体はリンクでなくても、途中のディレクトリがリンクなら止める。リンクかどうかだけを見る判定では通ってしまう。
+    // ファイル自体はリンクでなくても、sandbox のディレクトリがリンクなら止める。
     [
-      "sandbox のディレクトリが外のディレクトリへのシンボリックリンク",
+      "sandbox のディレクトリが scripts/eval/ の外のディレクトリへのシンボリックリンク",
       { runner: "none", sandbox: "dir-link", bwrap: true, allow: undefined },
       /UNISOLATED \(.*\/scripts\/eval\/sandbox\/eval-sandbox\.sh resolves to .*\/sandbox-v2\/eval-sandbox\.sh, not to itself/u,
     ],

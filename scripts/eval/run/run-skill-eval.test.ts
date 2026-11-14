@@ -1400,6 +1400,8 @@ describe.concurrent("run-skill-eval required sibling skills", () => {
     const { output, result } = await run(fixture, "without_skill", "CITE_SUBJECT");
 
     expect(result.status).toBe(4);
+    // done の行の rc= は、ハーネスの終了コード（4）と一致する。CLI 自身は 0 で終わっている。
+    expect(result.stdout).toMatch(/\(rc=4 cli_rc=0\)$/mu);
     const verdict = readFileSync(join(output, "contamination.txt"), "utf8");
     expect(verdict).toMatch(/^verdict: CONTAMINATED$/mu);
     expect(verdict).toMatch(/^references\/subject-guide\.md\t/mu);

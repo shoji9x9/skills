@@ -28,7 +28,7 @@
         "run-skill-eval read isolation stop sandbox が外の実体へのシンボリックリンクで、runner がそのリンク先の実体 なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
         "run-skill-eval read isolation stop 止めた run は、fingerprint の一時ファイルを残さない",
         "run-skill-eval read isolation stop sandbox が同じディレクトリの別名へのシンボリックリンク なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
-        "run-skill-eval read isolation stop sandbox のディレクトリが外のディレクトリへのシンボリックリンク なら、executor を起動する前に理由と続け方を出して exit 7 で止める"
+        "run-skill-eval read isolation stop sandbox のディレクトリが scripts/eval/ の外のディレクトリへのシンボリックリンク なら、executor を起動する前に理由と続け方を出して exit 7 で止める"
       ]
     },
     {
@@ -99,7 +99,7 @@
         "run-skill-eval read isolation stop sandbox が外の実体へのシンボリックリンク でも、変数が 1 なら警告を出して続ける",
         "run-skill-eval read isolation stop sandbox が外の実体へのシンボリックリンクで、runner がそのリンク先の実体 でも、変数が 1 なら警告を出して続ける",
         "run-skill-eval read isolation stop sandbox が同じディレクトリの別名へのシンボリックリンク なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
-        "run-skill-eval read isolation stop sandbox のディレクトリが外のディレクトリへのシンボリックリンク なら、executor を起動する前に理由と続け方を出して exit 7 で止める"
+        "run-skill-eval read isolation stop sandbox のディレクトリが scripts/eval/ の外のディレクトリへのシンボリックリンク なら、executor を起動する前に理由と続け方を出して exit 7 で止める"
       ]
     },
     {

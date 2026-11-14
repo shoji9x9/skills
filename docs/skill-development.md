@@ -384,8 +384,8 @@ setup が 0 以外で終わったら、ハーネスは executor を起動せず�
   その `eval-sandbox.sh` を `realpath` で解決したパスが `<repo>/scripts/eval/sandbox/eval-sandbox.sh` である（下の段落）。bwrap がある。
   シンボリックリンクを経た指定も一致する。相対パスとコマンド名は一致として扱わない。
   `SKILL_EVAL_RUNNER` が無いときと sandbox を指すときは、`eval-sandbox.sh` を `realpath` で解決したパスが `<repo>/scripts/eval/sandbox/eval-sandbox.sh` と一致しなければ、`UNISOLATED` と記録する。
-  `eval-sandbox.sh` は、自分の実体がある場所を基に、隠すリポジトリを決める。`<repo>` から `eval-sandbox.sh` までの途中（ファイル自体か、`scripts`・`eval`・`sandbox` のディレクトリ）がシンボリックリンクだと、`--repo` の親ではない別のディレクトリを隠しうる。
-  そのため、ハーネスは途中にリンクがあれば、隠す範囲が変わるかを問わずに `UNISOLATED` と記録する。止まったら、そのリンクを実体に置き換える。
+  `eval-sandbox.sh` は、自分の実体がある場所を基に、隠すリポジトリを決める。`<repo>/scripts/eval/sandbox/eval-sandbox.sh` のファイル自体か、そこに至る `scripts`・`eval`・`sandbox` のディレクトリのどれかがシンボリックリンクだと、`--repo` の親ではない別のディレクトリを隠しうる。
+  そのため、ハーネスはこのどれかがリンクなら、隠す範囲が変わるかを問わずに `UNISOLATED` と記録する。止まったら、そのリンクを実体に置き換える。
   sandbox 以外を指す `SKILL_EVAL_RUNNER` は、この判定より前に `UNVERIFIED` になる。
   `--repo` 自体や上位のディレクトリがシンボリックリンクでも、ハーネスは `--repo` を解決してから比べるので、一致する。
   記録の `UNVERIFIED` は、遮断を確かめていないことを表し、隔離されたかどうかは表さない。
@@ -399,7 +399,7 @@ setup が 0 以外で終わったら、ハーネスは executor を起動せず�
 - bwrap か `eval-sandbox.sh` が無い環境では、isolation は `UNISOLATED` になる。
   `UNISOLATED` で executor を起動すると、sandbox を通さないので、run は操作する人の認証情報を読める。`UNVERIFIED` で起動した run は、読めないことを確かめていない。
   そのため、isolation が `sandboxed` 以外のときは、`SKILL_EVAL_ALLOW_UNISOLATED=1` を設定しない限り、ハーネスは executor を起動する前に理由と続け方を出し、exit 7 で止まる。
-  続け方は、止まった原因で変わる。bwrap が無ければ bubblewrap を入れる。`SKILL_EVAL_RUNNER` の指定で `UNVERIFIED` になったなら、変数を外すか `eval-sandbox.sh` の絶対パスにする。`<repo>` から `eval-sandbox.sh` までの途中にシンボリックリンクがあれば、リンクを実体に置き換える。
+  続け方は、止まった原因で変わる。bwrap が無ければ bubblewrap を入れる。`SKILL_EVAL_RUNNER` の指定で `UNVERIFIED` になったなら、変数を外すか `eval-sandbox.sh` の絶対パスにする。`eval-sandbox.sh` のファイルか、そこに至る `scripts`・`eval`・`sandbox` のディレクトリがシンボリックリンクなら、リンクを実体に置き換える。
   スタブの runner などで続けるときだけ `SKILL_EVAL_ALLOW_UNISOLATED=1` を設定する。値が `1` 以外（空を含む）なら止まる。認証情報を読むスキル（`box`・`issue-create` など）の eval は、この変数で続けない。
   baseline の再利用（`--reuse-baseline`）は executor を起動しないので、止まらない。
   続けた run は `UNISOLATED` か `UNVERIFIED` を記録し、`flock` で `with_skill` の実行と排他にして、1 つずつ実行する。
