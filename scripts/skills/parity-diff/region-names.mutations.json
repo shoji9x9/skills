@@ -38,7 +38,7 @@
         "CLI: 片側だけ mask-rects.json が記録し、もう片側は引数を渡さない側で traits.json に名前が無ければ、もう片側を mask_unlocated にする",
         "CLI: 両側とも mask-rects.json が無いと宣言すれば、traits.json だけで判定し、マスクの名前が無ければ mask_unlocated と unknown を出す",
         "CLI: mask-rects.json に名前が無ければ、その側は traits.json から探し、無ければ mask_unlocated を出す",
-        "CLI: iframe の中の要素なので矩形を記録できなかった名前（rects: null）は、traits.json を探さず in_frame として位置が分からないマスクにする",
+        "CLI: 矩形を記録できなかった名前（rects: null）は、traits.json を探さず unrecordable として位置が分からないマスクにする",
         "CLI: 引数を渡さず、traits.json の隣に mask-rects.json も無い側は、記録の無い側として扱う",
         "CLI: 隣に mask-rects.json があっても、無いと宣言した側では読まない"
       ]
@@ -89,7 +89,7 @@
         "CLI: mask-rects.json の記録が空の rects（ロケータが 0 件に当たった）なら、その側ではマスクが何も塗らなかったとして扱い、mask_unlocated を出さない",
         "CLI: mask-rects.json の記録が面積が 0 の矩形だけなら、その側ではマスクが何も塗らなかったとして扱い、mask_unlocated を出さない",
         "CLI: mask-rects.json に名前が無ければ、その側は traits.json から探し、無ければ mask_unlocated を出す",
-        "CLI: iframe の中の要素なので矩形を記録できなかった名前（rects: null）は、traits.json を探さず in_frame として位置が分からないマスクにする"
+        "CLI: 矩形を記録できなかった名前（rects: null）は、traits.json を探さず unrecordable として位置が分からないマスクにする"
       ]
     },
     {
@@ -102,7 +102,7 @@
       "expect_failing": [
         "CLI: mask-rects.json に名前が無ければ、その側は traits.json から探し、無ければ mask_unlocated を出す",
         "CLI: mask-rects.json に名前が無くても、traits.json にあればその rect をマスクの位置にする",
-        "CLI: iframe の中の要素なので矩形を記録できなかった名前（rects: null）は、traits.json を探さず in_frame として位置が分からないマスクにする"
+        "CLI: 矩形を記録できなかった名前（rects: null）は、traits.json を探さず unrecordable として位置が分からないマスクにする"
       ]
     },
     {
@@ -118,14 +118,14 @@
       ]
     },
     {
-      "id": "in-frame-as-painted-nothing",
-      "why": "iframe の中の要素なので矩形を記録できなかった名前（rects: null）を、その側では何も塗らなかったマスクとして扱い、mask_unlocated を出さない（iframe の中の塗られた位置の差分を unnamed として扱い、位置が分からないことを伝えない）",
+      "id": "unrecordable-as-painted-nothing",
+      "why": "矩形を記録できなかった名前（rects: null）を、その側では何も塗らなかったマスクとして扱い、mask_unlocated を出さない（塗られた位置の差分を unnamed として扱い、位置が分からないことを伝えない）",
       "file": "skills/parity-diff/scripts/region-names.mjs",
-      "find": "  if (recorded === null) return { rects: [], reason: \"in_frame\" };",
+      "find": "  if (recorded === null) return { rects: [], reason: \"unrecordable\" };",
       "replace": "  if (recorded === null) return { rects: [], reason: null };",
       "occurrences": 1,
       "expect_failing": [
-        "CLI: iframe の中の要素なので矩形を記録できなかった名前（rects: null）は、traits.json を探さず in_frame として位置が分からないマスクにする"
+        "CLI: 矩形を記録できなかった名前（rects: null）は、traits.json を探さず unrecordable として位置が分からないマスクにする"
       ]
     }
   ]

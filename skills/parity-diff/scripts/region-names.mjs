@@ -17,8 +17,10 @@
 // マスクの論理名の位置は、側ごとに次の順で決める。
 // 1. その側の mask-rects.json（撮影のときにマスクを当てた矩形の記録）がその名前を記録していれば、記録した矩形を使う。
 //    記録した rects が空か、面積が 0 の矩形だけなら、その側ではマスクが何も塗らなかったと分かる（位置は決まる）。
-//    rects が null（iframe の中の要素）なら、位置の分からないマスクにする（traits.json は探さない）。
-// 2. 記録していなければ（mask-rects.json が無いと宣言した側を含む）、その側の traits.json の rect から探す。
+//    rects が null（iframe の中の要素か、無限に繰り返すアニメーションの中の要素なので、撮影の後に矩形を採っても
+//    塗った位置と合わない）なら、位置の分からないマスクにする（traits.json は探さない）。
+// 2. 記録していなければ（mask-rects.json が無いと宣言した側と、隣にも mask-rects.json が無い側を含む）、
+//    その側の traits.json の rect から探す。
 // mask-rects.json の引数を渡さない側は、traits.json の隣の mask-rects.json を読む（無ければ記録の無い側）。
 // mask-rects.json の矩形は、撮影した画像での位置で、単位は CSS の px である（全画面の撮影ではスクロールの量を足してある）。
 // 縁を CSS の px の整数に四捨五入してから、rect と同じく --scale を掛けて比べる。Playwright の Chromium の mask は、
@@ -29,8 +31,8 @@
 //
 // 判定できない領域を「重なる論理名なし」にしない。
 // - traits.json が無い側がある組で、どの論理名とも重ならない領域は status: "unknown" にする
-// - マスクの論理名の位置を決められない組（mask-rects.json に記録が無く、traits.json に名前が無いか面積が 0）で、
-//   どの論理名とも重ならない領域も status: "unknown" にする
+// - マスクの論理名の位置を決められない組（mask-rects.json の rects が null か、mask-rects.json に記録が無く
+//   traits.json に名前が無いか面積が 0）で、どの論理名とも重ならない領域も status: "unknown" にする
 // - 現側でも新側でも、その側のマスクの矩形の和に領域の全体が覆われるなら status: "masked" にする。
 //   覆うかは側ごとに判定するので、片側でしか位置を確かめられなかったマスクの論理名では masked にならない
 // 終了コードは、0 がすべての領域を判定できた、1 が判定できない領域がある、2 が入力の誤りである。
@@ -58,9 +60,10 @@ export const VERSION = "2";
  * @typedef {{ side:Side, missing:true } | { side:Side, missing:false, entries:NamedRect[] }} SideTraits
  */
 /**
- * 側ごとの mask-rects.json。missing は、`--<side>-mask-rects-missing` で無いと宣言したか、どちらの引数も渡さなかった側である。
+ * 側ごとの mask-rects.json。missing は、`--<side>-mask-rects-missing` で無いと宣言したか、
+ * どちらの引数も渡さず traits.json の隣にも mask-rects.json が無い側である。
  * byName は、記録したマスクの論理名から、ロケータが当たったすべての要素の矩形への対応である。
- * null は、iframe の中の要素なので矩形を記録できなかったことを表す。
+ * null は、矩形を記録できなかった（iframe の中の要素か、無限に繰り返すアニメーションの中の要素）ことを表す。
  * @typedef {{ side:Side, missing:true } | { side:Side, missing:false, byName:Map<string, Rect[] | null> }} SideMaskRects
  */
 /**
@@ -68,7 +71,8 @@ export const VERSION = "2";
  * 位置の違う 2 つの側の矩形を 1 つの和にまとめて覆うかを判定すると、片側のマスクしか覆っていない領域（もう片側では
  * マスクされていない要素が描かれている）まで masked になる。そのため、覆うかは側ごとに判定する。
  * 片側でしか位置を確かめられなかったマスクは、もう片側の矩形が空なので、側ごとの判定で masked にならない。
- * 位置を確かめられないのは、その側の mask-rects.json に記録が無く、traits.json が無いか、名前が無いか面積が 0 のときである。
+ * 位置を確かめられないのは、その側の mask-rects.json の rects が null のときである。
+ * mask-rects.json に記録が無く、traits.json が無いか、traits.json に名前が無いか面積が 0 のときも、位置を確かめられない。
  * @typedef {{ label:string, bySide:Record<Side, Rect[]> }} MaskArea
  */
 
@@ -281,7 +285,7 @@ export function snapMaskRect(r) {
 
 /**
  * その側の mask-rects.json が記録した、マスクの論理名の矩形。
- * 記録が無ければ undefined を、iframe の中の要素なので矩形を記録できなかった（rects: null）なら null を返す。
+ * 記録が無ければ undefined を、矩形を記録できなかった（rects: null）なら null を返す。
  * どちらも空の配列（ロケータが 0 件に当たった）とは区別する。
  * @param {SideMaskRects[]} maskRects
  * @param {Side} side
@@ -297,17 +301,17 @@ function recordedMaskRects(maskRects, side, name) {
 /**
  * 1 つの側で、マスクの論理名を画像の画素の矩形に直す。先にその側の mask-rects.json の記録を使い、記録が無ければ traits.json から探す。
  * 位置を決められなければ、reason に理由（名前が無い absent・名前はあるが面積が 0 の zero_area・
- * 記録が iframe の中の要素なので矩形を持たない in_frame）を入れる。in_frame では traits.json を探さない
- * （traits.json の rect は iframe の中の座標なので、画像の位置にならない）。
+ * 矩形を記録できなかった unrecordable）を入れる。unrecordable では traits.json を探さない
+ * （iframe の中の要素なら traits.json の rect は iframe の中の座標で、アニメーションの中の要素なら位置が定まらない）。
  * その側の traits.json が無く記録も無いときは、理由を入れない（traits_missing が判定できない理由になる）。
  * @param {string} name
  * @param {SideTraits} s
  * @param {{ scale:number, maskRects:SideMaskRects[] }} input
- * @returns {{ rects:Rect[], reason:("absent"|"zero_area"|"in_frame"|null) }}
+ * @returns {{ rects:Rect[], reason:("absent"|"zero_area"|"unrecordable"|null) }}
  */
 function locateOnSide(name, s, { scale, maskRects }) {
   const recorded = recordedMaskRects(maskRects, s.side, name);
-  if (recorded === null) return { rects: [], reason: "in_frame" };
+  if (recorded === null) return { rects: [], reason: "unrecordable" };
   if (recorded !== undefined) {
     const painted = recorded.map(snapMaskRect).filter(hasArea);
     return { rects: painted.map((r) => scaleRect(r, scale)), reason: null };
@@ -323,12 +327,12 @@ function locateOnSide(name, s, { scale, maskRects }) {
  * マスクの論理名を、側ごとに矩形に直す（locateOnSide）。位置を決められない名前と側は unlocated に入れる。
  * @param {string[]} names
  * @param {{ sides:SideTraits[], scale:number, maskRects?:SideMaskRects[] }} input
- * @returns {{ areas:MaskArea[], unlocated:Array<{ name:string, side:Side, reason:("absent"|"zero_area"|"in_frame") }> }}
+ * @returns {{ areas:MaskArea[], unlocated:Array<{ name:string, side:Side, reason:("absent"|"zero_area"|"unrecordable") }> }}
  */
 export function locateMaskNames(names, { sides, scale, maskRects = [] }) {
   /** @type {MaskArea[]} */
   const areas = [];
-  /** @type {Array<{ name:string, side:Side, reason:("absent"|"zero_area"|"in_frame") }>} */
+  /** @type {Array<{ name:string, side:Side, reason:("absent"|"zero_area"|"unrecordable") }>} */
   const unlocated = [];
   for (const name of names) {
     /** @type {Record<Side, Rect[]>} */
@@ -464,7 +468,7 @@ export function readTraits(json, side) {
 }
 
 /**
- * mask-rects.json の中身を読む。形は `[{ name, rects }]` で、rects は矩形の配列か null（iframe の中の要素）である。形が違えば理由を返す。
+ * mask-rects.json の中身を読む。形は `[{ name, rects }]` で、rects は矩形の配列か null（矩形を記録できなかった）である。形が違えば理由を返す。
  * 同じ名前を 2 回記録したものは、どちらの矩形を使うか決まらないので誤りにする。
  * @param {unknown} json
  * @param {Side} side
@@ -603,26 +607,17 @@ function maskRectsSource(arg, traitsPath) {
 }
 
 /**
- * 読む mask-rects.json のパス。隣を探した側（auto）で、ファイルが無ければ記録の無い側（null）にする（記録を書く前の採取）。
+ * 読む mask-rects.json のパス。隣を探した側（auto）で、通常のファイルが無ければ記録の無い側（null）にする（記録を書く前の採取）。
  * パスを渡した側は、ファイルが無くても null にしない（パスの誤りと区別できないので、読み込みで入力の誤りにする）。
  * @param {{ path:(string|null), auto:boolean }} source
  * @returns {string | null}
  */
 function maskRectsPath(source) {
-  if (source.auto && source.path !== null && !isFile(source.path)) return null;
-  return source.path;
-}
-
-/**
- * 通常のファイルとして在るか。
- * @param {string} path
- * @returns {boolean}
- */
-function isFile(path) {
+  if (!source.auto || source.path === null) return source.path;
   try {
-    return statSync(path).isFile();
+    return statSync(source.path).isFile() ? source.path : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -703,7 +698,7 @@ function parseArgs(argv) {
 /**
  * 現側と新側のファイルを、同じ読み込みの関数で読む。誤りは stderr に出す文で返す。
  * @template T
- * @param {[string | null, string | null]} paths - 現側と新側のパス（null は無いと宣言した側）
+ * @param {[string | null, string | null]} paths - 現側と新側のパス（null は、無いと宣言した側か、探した隣にファイルが無かった側）
  * @param {(path:(string|null), side:Side) => ({ error:string } | { value:T })} load
  * @returns {{ error:string } | { loaded:T[] }}
  */
@@ -771,7 +766,7 @@ function warnUnusedRecords(maskRects, maskNames) {
 /**
  * 判定できなかったことを stderr に出す。
  * @param {{ sides:SideTraits[], maskRects:SideMaskRects[] }} inputs
- * @param {Array<{ name:string, side:Side, reason:("absent"|"zero_area"|"in_frame") }>} unlocated
+ * @param {Array<{ name:string, side:Side, reason:("absent"|"zero_area"|"unrecordable") }>} unlocated
  * @param {number} unknown
  */
 function warnUnresolved({ sides, maskRects }, unlocated, unknown) {
@@ -788,8 +783,8 @@ function warnUnresolved({ sides, maskRects }, unlocated, unknown) {
       ? ` (not recorded in the ${u.side} mask-rects.json)`
       : "";
     const where =
-      u.reason === "in_frame"
-        ? `is in an iframe, and the ${u.side} mask-rects.json records no rects for it (rects: null)`
+      u.reason === "unrecordable"
+        ? `has no rects in the ${u.side} mask-rects.json (rects: null: in an iframe or in an infinite animation)`
         : u.reason === "zero_area"
           ? `has no area (width or height 0) in the ${u.side} traits.json${notRecorded}`
           : `is not in the ${u.side} traits.json${notRecorded}`;

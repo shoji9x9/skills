@@ -465,9 +465,11 @@ type MaskLocator = { name: string; locator: import("@playwright/test").Locator }
 // mask が塗る画素は、この矩形の縁を四捨五入して deviceScaleFactor を掛けた範囲の中で、全体が入る画素である。
 // Playwright の Chromium で、全画面とビューポートの撮影・deviceScaleFactor 1・1.5・2・3・スクロールした状態・
 // 固定位置の要素・overflow で切られた要素について確かめた。
-// iframe の中の要素に当たる名前は、rects を null にする。mask はその iframe の表示範囲の中だけを塗り、
-// 要素の矩形はその範囲を超えうるので、矩形を書くと塗っていない位置の差分まで隠れる。
-// region-names.mjs は、null の名前を位置の分からないマスクとして扱う。
+// 次の名前は、矩形を書かずに rects を null にする。region-names.mjs は、null の名前を位置の分からないマスクとして扱う。
+// - iframe の中の要素に当たる名前。mask はその iframe の表示範囲の中だけを塗り、要素の矩形はその範囲を超えうるので、
+//   矩形を書くと塗っていない位置の差分まで隠れる。iframe の中でも要素に 1 件も当たらなければ、空の配列にする
+// - 無限に繰り返すアニメーションの中の要素に当たる名前。mask は最初の状態に戻した位置を塗り、撮影の後に採る矩形は
+//   再生し直した途中の位置になりうる
 // 出典: https://playwright.dev/docs/api/class-locator#locator-evaluate-all
 async function recordMaskRects(
   maskLocators: MaskLocator[],
@@ -476,22 +478,30 @@ async function recordMaskRects(
 > {
   const maskRects = [];
   for (const { name, locator } of maskLocators) {
-    const rects = await locator.evaluateAll(
-      (elements, documentOrigin) =>
-        // iframe の中の要素なら null を返す
-        window !== window.top
-          ? null
-          : elements.map((el) => {
-              const r = el.getBoundingClientRect();
-              return {
-                x: r.x + (documentOrigin ? window.scrollX : 0),
-                y: r.y + (documentOrigin ? window.scrollY : 0),
-                width: r.width,
-                height: r.height,
-              };
-            }),
-      fullPage === true,
-    );
+    const rects = await locator.evaluateAll((elements, documentOrigin) => {
+      // 無限に繰り返すアニメーションが、その要素か祖先で再生中か
+      const inInfiniteAnimation = (el: Element) =>
+        document.getAnimations().some((a) => {
+          const target = a.effect instanceof KeyframeEffect ? a.effect.target : null;
+          return (
+            a.playState === "running" &&
+            a.effect?.getComputedTiming().iterations === Infinity &&
+            target instanceof Element &&
+            target.contains(el)
+          );
+        });
+      const inFrame = window !== window.top && elements.length > 0;
+      if (inFrame || elements.some(inInfiniteAnimation)) return null;
+      return elements.map((el) => {
+        const r = el.getBoundingClientRect();
+        return {
+          x: r.x + (documentOrigin ? window.scrollX : 0),
+          y: r.y + (documentOrigin ? window.scrollY : 0),
+          width: r.width,
+          height: r.height,
+        };
+      });
+    }, fullPage === true);
     maskRects.push({ name, rects });
   }
   return maskRects;
@@ -508,6 +518,9 @@ async function captureArtifacts(
     name,
     locator: resolveLocator(page, name),
   }));
+  // 前の回の記録を先に消す。撮影の後に矩形を採る前に失敗すると、新しい画像の隣に前の回の記録が残り、
+  // region-names.mjs がそれをこの画像のマスクの位置として読むからである
+  rmSync(join(outDir, "mask-rects.json"), { force: true });
   // 撮影条件（アニメーション無効・マスク）は現側と同一。
   // 出典: https://playwright.dev/docs/api/class-page#page-screenshot（animations / mask）
   await page.screenshot({

@@ -14,7 +14,7 @@
 //   面積が 0 の矩形だけ・記録に無い（traits.json から探す）、である。
 //   両側の記録の組み合わせは、両側で同じ位置・両側で違う位置・片側だけ記録あり、である。
 //   ほかの入力との組み合わせは、traits.json が無い側・--mask-bbox・--scale が 2 と 1.5、である。
-//   記録の rects は、配列・null（iframe の中の要素）である。引数を渡さない側は、隣に mask-rects.json が在る・無い、である。
+//   記録の rects は、配列・null（記録できなかった）である。引数を渡さない側は、隣に mask-rects.json が在る・無い、である。
 // - 座標の倍率（--scale）は、1・2 である。
 // - 領域の種類は、regions・strict_only_regions である。
 // - 引数は、必須の欠け・--scale が 0・--mask-bbox の形の誤りである。
@@ -256,14 +256,22 @@ type Scene = {
   // mask-rects.json。undefined は引数を渡さない、null は無いことを宣言する、それ以外はファイルに書いて渡す。
   currentMask?: unknown;
   nextMask?: unknown;
+  // 両側の traits.json の隣（同じディレクトリ）に置く mask-rects.json。undefined なら置かない。
+  siblingMask?: unknown;
   args?: string[];
 };
 
 function run(scene: Scene) {
   const dir = makeTempDir("region-names-");
   const regionsPath = join(dir, "crops.json");
-  const currentPath = join(dir, "current-traits.json");
-  const newPath = join(dir, "new-traits.json");
+  // traits.json は、側ごとのディレクトリに置く（撮影の成果物と同じ並び）。
+  const currentPath = join(dir, "current", "traits.json");
+  const newPath = join(dir, "new", "traits.json");
+  for (const side of ["current", "new"]) {
+    mkdirSync(join(dir, side));
+    if (scene.siblingMask !== undefined)
+      writeFileSync(join(dir, side, "mask-rects.json"), JSON.stringify(scene.siblingMask));
+  }
   writeFileSync(
     regionsPath,
     JSON.stringify(
@@ -864,8 +872,8 @@ test("CLI: mask-rects.json の小数の縁は、四捨五入した位置で覆�
   expect(JSON.parse(res.stdout)).toMatchObject({ regions: [{}, { status: "masked" }] });
 });
 
-test("CLI: iframe の中の要素なので矩形を記録できなかった名前（rects: null）は、traits.json を探さず in_frame として位置が分からないマスクにする", () => {
-  // traits.json の rect は iframe の中の座標なので、名前が在っても画像の位置として使わない。
+test("CLI: 矩形を記録できなかった名前（rects: null）は、traits.json を探さず unrecordable として位置が分からないマスクにする", () => {
+  // iframe の中の要素なら traits.json の rect は iframe の中の座標なので、名前が在っても画像の位置として使わない。
   const traits = [...TRAITS, { name: "account-id", rect: rect([90, 90, 30, 30]) }];
   const res = run({
     current: traits,
@@ -876,41 +884,14 @@ test("CLI: iframe の中の要素なので矩形を記録できなかった名�
   });
   expect(res.status).toBe(1);
   expect(JSON.parse(res.stdout)).toMatchObject({
-    masks: { unlocated: [{ name: "account-id", side: "current", reason: "in_frame" }] },
+    masks: { unlocated: [{ name: "account-id", side: "current", reason: "unrecordable" }] },
     regions: [{}, { status: "unknown", unresolved: ["mask_unlocated:current:account-id"] }],
   });
-  expect(res.stderr).toContain('mask "account-id" is in an iframe');
+  expect(res.stderr).toContain('mask "account-id" has no rects in the current mask-rects.json');
 });
 
-// 現側と新側の traits.json を別のディレクトリに置き、mask-rects.json をその隣に置くかを選ぶ。
-function runWithSiblings(opts: { siblings: boolean; extra?: string[] }) {
-  const dir = makeTempDir("region-names-sibling-");
-  const crops = join(dir, "crops.json");
-  writeFileSync(
-    crops,
-    JSON.stringify({
-      regions: [{ id: 1, bbox: rect([10, 10, 4, 4]) }],
-      strict_only_regions: [{ id: "s1", bbox: rect([100, 100, 4, 4]) }],
-    }),
-  );
-  const paths: string[] = [];
-  for (const side of ["current", "new"]) {
-    const sideDir = join(dir, side);
-    mkdirSync(sideDir);
-    writeFileSync(join(sideDir, "traits.json"), JSON.stringify(TRAITS));
-    if (opts.siblings) writeFileSync(join(sideDir, "mask-rects.json"), JSON.stringify(FAR_MASK));
-    paths.push(`--${side}-traits`, join(sideDir, "traits.json"));
-  }
-  const res = spawnSync(
-    process.execPath,
-    [SCRIPT, crops, ...paths, ...MASK_ARGS, ...(opts.extra ?? [])],
-    { encoding: "utf8", timeout: CHILD_TIMEOUT_MS },
-  );
-  return { status: res.status, stdout: res.stdout, stderr: res.stderr };
-}
-
 test("CLI: mask-rects.json の引数を渡さない側は、traits.json の隣の mask-rects.json を読む", () => {
-  const res = runWithSiblings({ siblings: true });
+  const res = run({ current: TRAITS, next: TRAITS, siblingMask: FAR_MASK, args: MASK_ARGS });
   expect(res.status).toBe(0);
   expect(JSON.parse(res.stdout)).toMatchObject({
     mask_rects: { current: "present", new: "present" },
@@ -920,7 +901,13 @@ test("CLI: mask-rects.json の引数を渡さない側は、traits.json の隣�
 });
 
 test("CLI: 隣に mask-rects.json があっても、無いと宣言した側では読まない", () => {
-  const res = runWithSiblings({ siblings: true, extra: ["--current-mask-rects-missing"] });
+  const res = run({
+    current: TRAITS,
+    next: TRAITS,
+    currentMask: null,
+    siblingMask: FAR_MASK,
+    args: MASK_ARGS,
+  });
   expect(res.status).toBe(1);
   expect(JSON.parse(res.stdout)).toMatchObject({
     mask_rects: { current: "missing", new: "present" },
@@ -929,7 +916,7 @@ test("CLI: 隣に mask-rects.json があっても、無いと宣言した側で�
 });
 
 test("CLI: 引数を渡さず、traits.json の隣に mask-rects.json も無い側は、記録の無い側として扱う", () => {
-  const res = runWithSiblings({ siblings: false });
+  const res = run({ current: TRAITS, next: TRAITS, args: MASK_ARGS });
   expect(res.status).toBe(1);
   expect(JSON.parse(res.stdout)).toMatchObject({
     mask_rects: { current: "missing", new: "missing" },
