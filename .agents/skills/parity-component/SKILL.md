@@ -269,7 +269,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
    手順の原本は、`parity-replace` の `references/adversarial-review.md` である。サブエージェントを起動できないことを、レビューを省く理由にしない。差分だけを人のレビュアーへ渡す方法に切り替える。
 7. カタログを採って照合する。カタログを現行と同じ条件で採り、`new/<target>/catalog/<instance>/<state>/` に置く。
    特性の照合は要素 1 つの幅や高さの差を出さないので、先に PNG の寸法を `node <skill>/scripts/shot-size-compare.mjs` で突き合わせる。
-   `--baseline` には `.replace/components/<slug>/` を、`--catalog` には `.replace/components/<slug>/new/<target>/catalog/` を渡す（この形以外のパスは受け付けない）。
+   `--baseline` には `.replace/components/<slug>/` を、`--catalog` には `.replace/components/<slug>/new/<target>/catalog/` を渡す（実際の成果物ディレクトリの直下の、リンクを通さない場所だけを受け付ける）。
    次に、`parity-suite` 同梱の差分ツール（画素の比較・特性の照合）で基準と突き合わせる。
    差分は決定論的なツールが出し、LLM は 1 件ずつ分類（要対応・許容・環境ノイズ）する。要対応は手順 4 へ戻す。詳しくは [`references/compare.md`](references/compare.md) にある。
 

@@ -10,9 +10,11 @@
 // unreachable_states を除いた組）のすべてについて、次の 2 つの element.shot.json を読む。
 //   - 基準: <部品の成果物ディレクトリ>/baseline/<instance>/<state>/element.shot.json
 //   - 見本: <部品の成果物ディレクトリ>/new/<target>/catalog/<instance>/<state>/element.shot.json
-// --catalog は <部品の成果物ディレクトリ>/new/<target>/catalog の形のディレクトリ（リンクを通さない）だけを受け付ける。
-// 任意のパスを受け付けると、基準の baseline/ を取り違えて渡したときに、基準を基準と比べて全組が一致する。
-// 取り違えを綴りや inode で見つける判定は、別の綴り・別の階層・ファイルシステムの違いで抜けが続いたので、置き場所の形で決める。
+// 2 つのディレクトリは、1 つの規則で受け付ける。--baseline と --catalog を両方とも実パスに直し、
+// 基準は <実際の成果物ディレクトリ>/baseline、見本は <実際の成果物ディレクトリ>/new/<target>/catalog で、
+// どちらもリンクを通さないものだけを受け付ける。それ以外は比べずに exit 2 にする（path-invalid）。
+// 任意のパスを受け付けると、基準の baseline/ を見本として渡したとき（またはリンクで同じ場所を指すとき）に、
+// 基準を基準と比べて全組が一致する。
 // 判定は png.width と png.height の完全一致で行う。画素の比較が要るのはこの一致だからである。
 // page_rect（ページ全体の座標で測った矩形。element-shot.mjs はこれを丸めて切り抜く）の幅と高さは、
 // 差の大きさ（1px 未満の差が丸めで 1px になったのか、など）を読むための診断として添える。
@@ -21,8 +23,7 @@
 //   - metadata.json を読めない、instances か capture.states が空、id と状態名がパスの 1 セグメントとして不正、id の重複
 //   - unreachable_states の宣言が { state, reason }（reason は空でない）の形でない、capture.states に無い状態を宣言している
 //   - 組の element.shot.json が片側に無い・読めない、png の幅と高さが正の整数でない、tool_version が無いか両側で違う
-//   - --catalog が上の形でない（catalog-path-invalid。比べずに止める）
-//   - 基準の baseline/ が無いか、ディレクトリでない（baseline-missing）
+//   - --catalog か基準の baseline/ が上の規則に合わない（path-invalid。無い・ディレクトリでない・リンクを通す・形が違う・読めない）
 //   - 母集合に無い組の見本がカタログの側にある（基準の無い見本）、カタログの一覧を読めない
 // 寸法の差（size-mismatch）は、exit 2 のときも出力に含める。直す箇所を、構造の誤りを直す前に読めるようにするためである。
 // 比べた組が 0 件のときも exit 2 にする（nothing-compared）。0 件になる入力は、上の metadata.json の検査
@@ -34,7 +35,8 @@
 // 出力は次のとおりである。exit 2 のときも、比べ終えた組の size-mismatch と counts を出す。
 //   - findings: 指摘
 //   - excluded: 到達不能と宣言して外した組の一覧
-//   - counts.pairs: 母集合の組の数。counts.compared: 両側の記録を読めて比べた組の数
+//   - counts.pairs: 母集合のうち metadata.json から組として読めた数。counts.compared: 両側の記録を読めて比べた組の数。
+//     counts.excluded: 到達不能と宣言して外した組の数（exit 2 のときは一覧を出さないので、数だけを出す）
 // 終了コード: 0 ＝ すべての組で寸法が一致、1 ＝ 寸法の差がある、2 ＝ 使い方の誤り・判定できない入力。
 
 import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
@@ -348,43 +350,73 @@ function comparePair({ pair, readers, findings }) {
 }
 
 /**
- * --catalog が <baselineDir>/new/<target>/catalog の形の、リンクを通さないディレクトリかを確かめる。違えば理由の文を返す。
+ * --baseline と --catalog が規則に合うかを確かめ、合えば基準の baseline/ と見本の実パスを返す。合わなければ理由の文の一覧を返す。
+ * 規則: 両方を実パスに直し、基準は <実際の成果物ディレクトリ>/baseline、見本は <実際の成果物ディレクトリ>/new/<target>/catalog で、
+ * どちらもリンクを通さないディレクトリであること。リンクを通さないかは、渡されたパスの末尾の名前（baseline、new/<target>/catalog）が
+ * 実パスの末尾と同じかで確かめる。成果物ディレクトリより上の綴り（/tmp と /private/tmp など）は、両方を実パスに直すので問わない。
  * @param {string} baselineDir
  * @param {string} catalogDir
- * @returns {string | null}
+ * @returns {{ baselineRoot: string, catalogRoot: string } | { problems: string[] }}
  */
-function catalogPathProblem(baselineDir, catalogDir) {
-  const parts = relative(baselineDir, catalogDir).split(sep);
-  const formed =
-    parts.length === 3 && parts[0] === "new" && safeSegment(parts[1]) && parts[2] === "catalog";
-  if (!formed) {
-    return `--catalog は <--baseline>/new/<target>/catalog の形で渡す（渡された値: ${catalogDir}）`;
-  }
+function resolveRoots(baselineDir, catalogDir) {
+  let realBase;
   try {
-    // 途中にリンクがあると、別の場所（基準の baseline/ など）を見本として読む。実パスが形どおりかで確かめる。
-    if (realpathSync(catalogDir) !== join(realpathSync(baselineDir), ...parts)) {
-      return `--catalog の途中にリンクがある（リンクを通さない実際のディレクトリを渡す）: ${catalogDir}`;
-    }
+    realBase = realpathSync(baselineDir);
   } catch (error) {
-    return `--catalog を解決できない: ${String(field(error, "message"))}`;
+    return { problems: [`--baseline を解決できない: ${String(field(error, "message"))}`] };
   }
-  return null;
+  const baselineRoot = join(realBase, "baseline");
+  const problems = [
+    ...rootProblems({
+      given: join(baselineDir, "baseline"),
+      expected: baselineRoot,
+      label: "基準の baseline/",
+    }),
+    ...catalogProblems(realBase, catalogDir),
+  ];
+  if (problems.length > 0) return { problems };
+  return { baselineRoot, catalogRoot: realpathSync(catalogDir) };
 }
 
 /**
- * 基準の baseline/ が読めるディレクトリでなければ、理由の文を返す。
- * @param {string} baselineRoot
- * @returns {string | null}
+ * 渡されたパスが、期待する実パスのディレクトリそのものか（リンクを通さないか）を確かめ、違えば理由の文を返す。
+ * @param {{ given: string, expected: string, label: string }} arg
+ * @returns {string[]}
  */
-function baselineRootProblem(baselineRoot) {
+function rootProblems({ given, expected, label }) {
+  let real;
   try {
-    return statSync(baselineRoot).isDirectory()
-      ? null
-      : `基準の baseline/ がディレクトリでない: ${baselineRoot}`;
+    real = realpathSync(given);
   } catch (error) {
-    if (field(error, "code") === "ENOENT") return `基準の baseline/ が無い: ${baselineRoot}`;
-    return `基準の baseline/ を読めない: ${String(field(error, "message"))}`;
+    if (field(error, "code") === "ENOENT") return [`${label}が無い: ${given}`];
+    return [`${label}を読めない: ${String(field(error, "message"))}`];
   }
+  if (real !== expected) {
+    return [
+      `${label}実際の場所が ${expected} でない（リンクを通すか、別の部品を指す）: ${given} → ${real}`,
+    ];
+  }
+  if (!statSync(real).isDirectory()) return [`${label}がディレクトリでない: ${given}`];
+  return [];
+}
+
+/**
+ * --catalog が <実際の成果物ディレクトリ>/new/<target>/catalog で、リンクを通さないかを確かめ、違えば理由の文を返す。
+ * @param {string} realBase --baseline の実パス
+ * @param {string} catalogDir
+ * @returns {string[]}
+ */
+function catalogProblems(realBase, catalogDir) {
+  const form = `--catalog は <--baseline>/new/<target>/catalog の形で渡す（渡された値: ${catalogDir}）`;
+  const tail = catalogDir.split(sep).slice(-3);
+  if (tail.length !== 3 || tail[0] !== "new" || !safeSegment(tail[1]) || tail[2] !== "catalog") {
+    return [form];
+  }
+  return rootProblems({
+    given: catalogDir,
+    expected: join(realBase, ...tail),
+    label: "--catalog の",
+  });
 }
 
 /**
@@ -421,9 +453,11 @@ function stopped(findings) {
  * @returns {{ structural: boolean, findings: SizeFinding[], pairs: number, compared: number, excluded: { instance: string, state: string }[] }}
  */
 export function compareShotSizes({ baselineDir, catalogDir }) {
-  const catalogProblem = catalogPathProblem(baselineDir, catalogDir);
-  if (catalogProblem !== null)
-    return stopped([{ code: "catalog-path-invalid", detail: catalogProblem }]);
+  const roots = resolveRoots(baselineDir, catalogDir);
+  if ("problems" in roots) {
+    return stopped(roots.problems.map((detail) => ({ code: "path-invalid", detail })));
+  }
+  const { baselineRoot, catalogRoot } = roots;
   let metadata;
   try {
     metadata = JSON.parse(readFileSync(join(baselineDir, "metadata.json"), "utf8"));
@@ -434,16 +468,10 @@ export function compareShotSizes({ baselineDir, catalogDir }) {
   /** @type {SizeFinding[]} */
   const structuralFindings = [];
   const { pairs, excluded } = population(metadata, structuralFindings);
-  const baselineRoot = join(baselineDir, "baseline");
-  checkCatalogExtras({ catalogDir, pairs, findings: structuralFindings });
-  // baseline/ を読めなければ、組ごとに同じ理由の shot-unreadable を並べず、1 件の指摘で止める。
-  const baselineProblem = baselineRootProblem(baselineRoot);
-  if (baselineProblem !== null) {
-    structuralFindings.push({ code: "baseline-missing", detail: baselineProblem });
-  }
+  checkCatalogExtras({ catalogDir: catalogRoot, pairs, findings: structuralFindings });
   const { compared, sizeFindings } = comparePairs({
-    pairs: baselineProblem === null ? pairs : [],
-    readers: { baseline: insideReader(baselineRoot), catalog: insideReader(catalogDir) },
+    pairs,
+    readers: { baseline: insideReader(baselineRoot), catalog: insideReader(catalogRoot) },
     structuralFindings,
   });
   if (structuralFindings.length === 0 && compared === 0) {
@@ -498,7 +526,10 @@ export function main(argv, io = {}) {
   // 組の数は exit 2 のときも counts に出す。pairs と compared を比べれば、size-mismatch が全組の分か一部の分かを読める。
   return writeCheckResult(
     write,
-    { ...result, counts: { pairs: result.pairs, compared: result.compared } },
+    {
+      ...result,
+      counts: { pairs: result.pairs, compared: result.compared, excluded: result.excluded.length },
+    },
     { tool: "shot-size-compare", version: VERSION, fields: { excluded: result.excluded } },
   );
 }

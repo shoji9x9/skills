@@ -32,7 +32,7 @@
     "scripts/skills/parity-component/lifecycle-check.mutations.json": 0.7,
     "scripts/skills/parity-component/motion-compare.mutations.json": 0.8,
     "scripts/skills/parity-component/motion-probe.mutations.json": 0.8,
-    "scripts/skills/parity-component/shot-size-compare.mutations.json": 1.2,
+    "scripts/skills/parity-component/shot-size-compare.mutations.json": 1.4,
     "scripts/skills/parity-diff/amend-verify.mutations.json": 1.1,
     "scripts/skills/parity-diff/diff-normalize-intentional-match.mutations.json": 1,
     "scripts/skills/parity-diff/pixel-crops.mutations.json": 3.4,

@@ -43,8 +43,8 @@
       "id": "unreachable-sample",
       "why": "到達できないと宣言した組の見本を、母集合の組として数えて通す",
       "file": "skills/parity-component/scripts/shot-size-compare.mjs",
-      "find": "checkCatalogExtras({ catalogDir, pairs, findings: structuralFindings });",
-      "replace": "checkCatalogExtras({ catalogDir, pairs: [...pairs, ...excluded], findings: structuralFindings });",
+      "find": "checkCatalogExtras({ catalogDir: catalogRoot, pairs, findings: structuralFindings });",
+      "replace": "checkCatalogExtras({ catalogDir: catalogRoot, pairs: [...pairs, ...excluded], findings: structuralFindings });",
       "occurrences": 1,
       "expect_failing": ["到達できないと宣言した組に見本があれば、基準の無い見本として止める"]
     },
@@ -87,41 +87,17 @@
       "expect_failing": ["判定できない組があっても、比べ終えた組の寸法の差を出力に含める"]
     },
     {
-      "id": "catalog-path-form",
-      "why": "--catalog が new/<target>/catalog の形でなくても受け付け、基準の baseline/ などを見本として比べる",
+      "id": "path-real-location",
+      "why": "基準の baseline/ か --catalog が、成果物ディレクトリの決まった場所と別の実際の場所を指しても受け付け、基準を基準と（見本を見本と）比べる",
       "file": "skills/parity-component/scripts/shot-size-compare.mjs",
-      "find": "if (!formed) {",
+      "find": "if (real !== expected) {",
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "--catalog が基準の baseline/ そのものを指すと、比べずに止める",
-        "--catalog が基準の baseline/ の中を指すと、比べずに止める",
-        "--catalog が部品の成果物ディレクトリそのものを指すと、比べずに止める",
-        "--catalog がnew/<target> まで（catalog の 1 段上）を指すと、比べずに止める",
-        "--catalog がnew/<target>/catalog の下を指すと、比べずに止める"
-      ]
-    },
-    {
-      "id": "catalog-path-link",
-      "why": "形どおりの --catalog がリンクで基準の baseline/ を指しても、見本として比べる",
-      "file": "skills/parity-component/scripts/shot-size-compare.mjs",
-      "find": "if (realpathSync(catalogDir) !== join(realpathSync(baselineDir), ...parts)) {",
-      "replace": "if (false) {",
-      "occurrences": 1,
-      "expect_failing": [
-        "--catalog が形どおりでも、リンクで基準の baseline/ を指すなら比べずに止める"
-      ]
-    },
-    {
-      "id": "baseline-missing",
-      "why": "基準の baseline/ が無いのに、組ごとの読めない記録だけを並べる（理由が埋もれる）",
-      "file": "skills/parity-component/scripts/shot-size-compare.mjs",
-      "find": "const baselineProblem = baselineRootProblem(baselineRoot);",
-      "replace": "const baselineProblem = null;",
-      "occurrences": 1,
-      "expect_failing": [
-        "基準の baseline/ が無ければ、組ごとに並べず 1 件の指摘で止める",
-        "基準の baseline/ がファイルなら、無いとは書かずにディレクトリでないと報告する"
+        "--catalog が別の部品の catalogを指すと、比べずに止める",
+        "--catalog が形どおりでも、リンクで基準の baseline/ を指すなら比べずに止める",
+        "基準の baseline/ がリンクで見本の catalog を指すと、見本を見本と比べずに止める",
+        "--catalog が形どおりでも、new/<target> がリンクで別の target を指すなら止める"
       ]
     }
   ]

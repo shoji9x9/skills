@@ -54,16 +54,18 @@ node <このスキル>/scripts/shot-size-compare.mjs \
   --catalog .replace/components/<slug>/new/<target>/catalog
 ```
 
-- `--catalog` は、`<--baseline>/new/<target>/catalog` の形で、途中にリンクを通さない実際のディレクトリだけを受け付ける。
-  それ以外のパス（基準の `baseline/` など）を渡すと、比べずに exit 2（`catalog-path-invalid`）で止まる
+- 2 つのディレクトリは、実際の成果物ディレクトリの直下の `baseline/` と `new/<target>/catalog` で、リンクを通さないものだけを受け付ける。
+  `--baseline` と `--catalog` は両方とも実際のパスに直して比べるので、上の階層の綴りの違い（リンクを通した親ディレクトリ）は問わない。
+  それ以外（基準の `baseline/` を `--catalog` に渡す、`baseline/` がリンクで見本を指す、など）は、比べずに exit 2（`path-invalid`）で止まる
 - 判定は、両側の `element.shot.json` の `png` の幅と高さの完全一致である。差は `size-mismatch` として 1 件ずつ出る（exit 1）。
   `page_rect`（ページ全体の座標で測った矩形。element-shot.mjs はこれを丸めて切り抜く）の幅と高さは、差の大きさを読むための診断として添えられる。判定には使わない
 - exit 2 は、判定できなかったという意味である。合格として扱わない。0 と 1 以外の終了コードも同じに扱う。
   主な例は次のとおりである。組の記録が片側に無い・読めない。`png` が正の整数でない。両側の element-shot.mjs のバージョンが違う。母集合に無い組の見本がある。
-  基準の `baseline/` が無いか読めないときと、`--catalog` が上の形でないときも当たる。
+  2 つのディレクトリが上の決まりに合わないとき（無い・ディレクトリでない・リンクを通す・形が違う）も当たる。
   `metadata.json` の `instances`・`capture.states`・`unreachable_states` が判定できない形のときも当たる。
   出力の `findings` のうち `size-mismatch` 以外の指摘が、判定できなかった理由である。`code` と `detail` に従って採取物・見本・`metadata.json` を直し、もう一度実行する。
-  exit 2 の出力にも、比べ終えた組の `size-mismatch` が含まれる。母集合の組の数は `counts.pairs`、比べた組の数は `counts.compared` にある。2 つが違えば全組を比べていないので、ここで分類を確定しない
+  exit 2 の出力にも、比べ終えた組の `size-mismatch` が含まれる。ただし全組を比べたとは限らないので、exit 0 か 1 で終わるまで分類を確定しない。
+  組として読めた数は `counts.pairs`、比べた組の数は `counts.compared`、到達不能と宣言して外した組の数は `counts.excluded` にある
 - 寸法の差は、分類（下の「分類」）に 1 件ずつ載せる。画素の比較は、その組では寸法がそろうまで実行できない。
   宣言に結び付けて許容にした寸法の差の組は、画素で比べないまま残る。その組の見た目を確かめていないことを `gaps.md` に書き、完了報告でも示す
 - `page_rect` の差が 1px 未満でも、PNG の寸法は違うことがある。element-shot.mjs は `page_rect` の幅と高さを軸ごとに四捨五入して撮るので、80.48px と 80.5px は 80px と 81px の PNG になる。
