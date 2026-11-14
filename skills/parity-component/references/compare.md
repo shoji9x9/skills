@@ -55,13 +55,13 @@ node <このスキル>/scripts/shot-size-compare.mjs \
 ```
 
 - 判定は、両側の `element.shot.json` の `png` の幅と高さの完全一致である。差は `size-mismatch` として 1 件ずつ出る（exit 1）。
-  `page_rect`（最上位の座標の矩形。element-shot.mjs はこれを丸めて切り抜く）の幅と高さは、差の大きさを読むための診断として添えられる。判定には使わない
+  `page_rect`（ページ全体の座標で測った矩形。element-shot.mjs はこれを丸めて切り抜く）の幅と高さは、差の大きさを読むための診断として添えられる。判定には使わない
 - exit 2 は、判定できなかったという意味である。合格として扱わない。0 と 1 以外の終了コードも同じに扱う。
   主な例は次のとおりである。組の記録が片側に無い・読めない。`png` が正の整数でない。両側の element-shot.mjs のバージョンが違う。母集合に無い組の見本がある。
-  `--catalog` が基準の `baseline/` を指す（基準を基準と比べると全組が一致してしまう）ときも当たる。
+  `--catalog` が基準の `baseline/` か部品の成果物ディレクトリを指すとき（基準を基準と比べると全組が一致してしまう）と、基準の `baseline/` が無いときも当たる。
   `metadata.json` の `instances`・`capture.states`・`unreachable_states` が判定できない形のときも当たる。
-  出力の `findings` の `code` と `detail` が理由を示すので、それに従って採取物・見本・`metadata.json` を直し、もう一度実行する。
-  比べ終えた組の `size-mismatch` も、exit 2 の出力に含まれる
+  出力の `findings` のうち `size-mismatch` 以外の指摘が、判定できなかった理由である。`code` と `detail` に従って採取物・見本・`metadata.json` を直し、もう一度実行する。
+  exit 2 の出力にも、比べ終えた組の `size-mismatch` が含まれる。比べた組の数は `counts.compared` にあり、全組を比べたとは限らないので、ここで分類を確定しない
 - 寸法の差は、分類（下の「分類」）に 1 件ずつ載せる。画素の比較は、その組では寸法がそろうまで実行できない。
   宣言に結び付けて許容にした寸法の差の組は、画素で比べないまま残る。その組の見た目を確かめていないことを `gaps.md` に書き、完了報告でも示す
 - `page_rect` の差が 1px 未満でも、PNG の寸法は違うことがある。element-shot.mjs は `page_rect` の幅と高さを軸ごとに四捨五入して撮るので、80.48px と 80.5px は 80px と 81px の PNG になる。

@@ -156,7 +156,11 @@ test("page_rect が無い記録でも、png で判定し、診断の page_rect �
 
 test.each<[string, Layout, string]>([
   ["見本の側に記録が無い", { catalog: {} }, "catalog"],
-  ["基準の側に記録が無い", { baseline: {} }, "baseline"],
+  [
+    "基準の側に記録が無い",
+    { baseline: { "orders-search/hover": shot({ width: 100, height: 20 }) } },
+    "baseline",
+  ],
   ["見本の記録が JSON として読めない", { catalog: { "orders-search/default": "{" } }, "catalog"],
 ])("%s組は、合格として扱わずに止める", (_name, input, side) => {
   const result = compareShotSizes(layout(input));
@@ -360,6 +364,40 @@ test.each<[string, (baselineDir: string) => string]>([
   expect(codes(result)).toContain("catalog-is-baseline");
 });
 
+test("--catalog が部品の成果物ディレクトリそのものを指すと、取り違えとして止める", () => {
+  const { baselineDir } = layout();
+  const result = compareShotSizes({ baselineDir, catalogDir: baselineDir });
+  expect(codes(result)).toContain("catalog-is-baseline");
+});
+
+test("--catalog がリンクで基準の baseline/ を指しても、取り違えとして止める", () => {
+  const { dir, baselineDir } = layout();
+  const link = join(dir, "catalog-link");
+  symlinkSync(join(baselineDir, "baseline"), link);
+  const result = compareShotSizes({ baselineDir, catalogDir: link });
+  expect(codes(result)).toContain("catalog-is-baseline");
+});
+
+test("正しい置き場所の --catalog は、取り違えとして扱わない", () => {
+  const { baselineDir, catalogDir } = layout();
+  expect(codes(compareShotSizes({ baselineDir, catalogDir }))).not.toContain("catalog-is-baseline");
+});
+
+test("基準の baseline/ が無ければ、組ごとに並べず 1 件の指摘で止める", () => {
+  const result = compareShotSizes(
+    layout({
+      metadata: {
+        instances: [{ id: "orders-search" }, { id: "users-create" }],
+        capture: { states: ["default", "hover"] },
+      },
+      baseline: {},
+      catalog: {},
+    }),
+  );
+  expect(result.structural).toBe(true);
+  expect(codes(result)).toEqual(["baseline-missing"]);
+});
+
 test("判定できない組があっても、比べ終えた組の寸法の差を出力に含める", () => {
   const { baselineDir, catalogDir } = layout({
     metadata: {
@@ -409,7 +447,11 @@ test("CLI: 一致で exit 0、寸法の差で exit 1、記録の欠けと引数�
   const missing = layout({ catalog: {} });
   const broken = run(["--baseline", missing.baselineDir, "--catalog", missing.catalogDir]);
   expect(broken.status).toBe(2);
-  expect(JSON.parse(broken.stdout)).toMatchObject({ ok: false, structural: true });
+  expect(JSON.parse(broken.stdout)).toMatchObject({
+    ok: false,
+    structural: true,
+    counts: { compared: 0, excluded: 0 },
+  });
 
   let err = "";
   const io = { write: () => {}, writeErr: (s: string) => (err += s) };

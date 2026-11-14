@@ -11,7 +11,7 @@
 //   - 基準: <部品の成果物ディレクトリ>/baseline/<instance>/<state>/element.shot.json
 //   - 見本: <カタログの採取ディレクトリ>/<instance>/<state>/element.shot.json
 // 判定は png.width と png.height の完全一致で行う。画素の比較が要るのはこの一致だからである。
-// page_rect（最上位の座標の矩形。element-shot.mjs はこれを丸めて切り抜く）の幅と高さは、
+// page_rect（ページ全体の座標で測った矩形。element-shot.mjs はこれを丸めて切り抜く）の幅と高さは、
 // 差の大きさ（1px 未満の差が丸めで 1px になったのか、など）を読むための診断として添える。
 //
 // 判定できない入力は、合格として扱わずに exit 2 にする。
@@ -30,7 +30,7 @@
 // 終了コード: 0 ＝ すべての組で寸法が一致、1 ＝ 寸法の差がある、2 ＝ 使い方の誤り・判定できない入力。
 
 import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { cliIo, usageFailer, writeCheckResult } from "./lib/check-cli.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { parseFlags } from "./lib/flags.mjs";
@@ -340,27 +340,76 @@ function comparePair({ pair, readers, findings }) {
 }
 
 /**
- * カタログの採取ディレクトリが、基準の baseline/ そのものか、その中を指していれば指摘に積む。
- * 取り違えると、基準を基準自身と比べて全組が一致し、見本を 1 件も撮っていないのに exit 0 になる。
- * 実パスを解決できなければ確かめない。基準の baseline/ が無ければ、どの組も記録を読めず shot-unreadable で止まる。
- * カタログの側は、main がディレクトリが在ることを確かめてから渡す。
- * @param {{ baselineRoot: string, catalogDir: string, findings: SizeFinding[] }} arg
+ * ディレクトリの同一性（デバイスと inode）。読めなければ null。
+ * 綴りで比べると、大文字と小文字を区別しないファイルシステムで `Baseline` と `baseline` を別のものとして扱う。
+ * @param {string} path
+ * @returns {string | null}
  */
-function checkCatalogNotBaseline({ baselineRoot, catalogDir, findings }) {
-  let realBaseline;
+function dirIdentity(path) {
+  try {
+    const st = statSync(path);
+    return st.isDirectory() ? `${st.dev}:${st.ino}` : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * path か、その祖先のどれかが、target と同じディレクトリか。path は実パスで渡す。
+ * @param {string} path
+ * @param {string} target dirIdentity の値
+ */
+function isAtOrUnder(path, target) {
+  for (let p = path; ; p = dirname(p)) {
+    if (dirIdentity(p) === target) return true;
+    if (dirname(p) === p) return false;
+  }
+}
+
+/**
+ * カタログの採取ディレクトリの取り違えを指摘に積む。当たるのは、基準の baseline/ そのものか、その中を指す場合と、
+ * 部品の成果物ディレクトリ（--baseline と同じディレクトリ）を指す場合である。
+ * 前者では基準を基準自身と比べて全組が一致し、見本を 1 件も撮っていないのに exit 0 になる。
+ * 後者は exit 2 にはなるが、基準の無い見本と読めない記録が並ぶだけで、原因の --catalog の誤りを読み取れない。
+ * 同じディレクトリかは、綴りではなくデバイスと inode で比べる（リンク経由の指定も同じに扱う）。
+ * @param {{ baselineDir: string, baselineRoot: string, catalogDir: string, findings: SizeFinding[] }} arg
+ */
+function checkCatalogNotBaseline({ baselineDir, baselineRoot, catalogDir, findings }) {
   let realCatalog;
   try {
-    realBaseline = realpathSync(baselineRoot);
     realCatalog = realpathSync(catalogDir);
   } catch {
+    // main がディレクトリが在ることを確かめてから渡すので、ここで解決できないのは渡した後に消えたときだけである。
+    // 一覧を読む checkCatalogExtras が catalog-unreadable として止める。
     return;
   }
-  if (realCatalog === realBaseline || isStrictlyInside(realBaseline, realCatalog)) {
+  const baselineId = dirIdentity(baselineRoot);
+  const insideBaseline = baselineId !== null && isAtOrUnder(realCatalog, baselineId);
+  if (insideBaseline || dirIdentity(realCatalog) === dirIdentity(baselineDir)) {
     findings.push({
       code: "catalog-is-baseline",
-      detail: `カタログの採取ディレクトリが基準の baseline/ を指す: ${catalogDir}`,
+      detail: `カタログの採取ディレクトリが、基準の baseline/ か部品の成果物ディレクトリを指す: ${catalogDir}`,
     });
   }
+}
+
+/**
+ * 母集合の組を 1 つずつ比べる。読めない組の指摘は structuralFindings に積み、寸法の差は分けて返す。
+ * @param {{ pairs: { instance: string, state: string }[], readers: { baseline: (segments: string[]) => string, catalog: (segments: string[]) => string }, structuralFindings: SizeFinding[] }} arg
+ * @returns {{ compared: number, sizeFindings: SizeFinding[] }}
+ */
+function comparePairs({ pairs, readers, structuralFindings }) {
+  /** @type {SizeFinding[]} */
+  const sizeFindings = [];
+  let compared = 0;
+  for (const pair of pairs) {
+    /** @type {SizeFinding[]} */
+    const shotFindings = [];
+    if (comparePair({ pair, readers, findings: shotFindings })) compared += 1;
+    for (const f of shotFindings)
+      (f.code === "size-mismatch" ? sizeFindings : structuralFindings).push(f);
+  }
+  return { compared, sizeFindings };
 }
 
 /**
@@ -385,19 +434,21 @@ export function compareShotSizes({ baselineDir, catalogDir }) {
   }
   const { pairs, excluded } = population(metadata, structuralFindings);
   const baselineRoot = join(baselineDir, "baseline");
-  checkCatalogNotBaseline({ baselineRoot, catalogDir, findings: structuralFindings });
+  checkCatalogNotBaseline({ baselineDir, baselineRoot, catalogDir, findings: structuralFindings });
   checkCatalogExtras({ catalogDir, pairs, findings: structuralFindings });
-  /** @type {SizeFinding[]} */
-  const sizeFindings = [];
-  const readers = { baseline: insideReader(baselineRoot), catalog: insideReader(catalogDir) };
-  let compared = 0;
-  for (const pair of pairs) {
-    /** @type {SizeFinding[]} */
-    const shotFindings = [];
-    if (comparePair({ pair, readers, findings: shotFindings })) compared += 1;
-    for (const f of shotFindings)
-      (f.code === "size-mismatch" ? sizeFindings : structuralFindings).push(f);
+  // baseline/ が無ければ、組ごとに同じ理由の shot-unreadable を並べず、1 件の指摘で止める。
+  const baselinePresent = dirIdentity(baselineRoot) !== null;
+  if (!baselinePresent) {
+    structuralFindings.push({
+      code: "baseline-missing",
+      detail: `基準の baseline/ が無い: ${baselineRoot}`,
+    });
   }
+  const { compared, sizeFindings } = comparePairs({
+    pairs: baselinePresent ? pairs : [],
+    readers: { baseline: insideReader(baselineRoot), catalog: insideReader(catalogDir) },
+    structuralFindings,
+  });
   if (structuralFindings.length === 0 && compared === 0) {
     structuralFindings.push({ code: "nothing-compared", detail: "比べた組が 0 件" });
   }
@@ -453,11 +504,16 @@ export function main(argv, io = {}) {
     if (!isDirectory(dir)) return fail(`${name} のディレクトリが無い: ${dir}`);
   }
   const result = compareShotSizes({ baselineDir, catalogDir });
-  return writeCheckResult(write, result, {
-    tool: "shot-size-compare",
-    version: VERSION,
-    fields: { compared: result.compared, excluded: result.excluded },
-  });
+  // compared と excluded は、exit 2 のときも counts に出す（size-mismatch が全組の分か一部の分かを読めるようにする）。
+  return writeCheckResult(
+    write,
+    { ...result, counts: { compared: result.compared, excluded: result.excluded.length } },
+    {
+      tool: "shot-size-compare",
+      version: VERSION,
+      fields: { compared: result.compared, excluded: result.excluded },
+    },
+  );
 }
 
 if (isCliEntry(import.meta.url)) {

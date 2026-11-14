@@ -81,12 +81,14 @@
       "id": "catalog-is-baseline",
       "why": "--catalog が基準の baseline/ を指すときに、基準を基準と比べて一致として通す",
       "file": "skills/parity-component/scripts/shot-size-compare.mjs",
-      "find": "if (realCatalog === realBaseline || isStrictlyInside(realBaseline, realCatalog)) {",
+      "find": "if (insideBaseline || dirIdentity(realCatalog) === dirIdentity(baselineDir)) {",
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "--catalog が基準の baseline/ そのものを指すと、基準を基準と比べずに止める",
-        "--catalog が基準の baseline/ の中を指すと、基準を基準と比べずに止める"
+        "--catalog が基準の baseline/ の中を指すと、基準を基準と比べずに止める",
+        "--catalog が部品の成果物ディレクトリそのものを指すと、取り違えとして止める",
+        "--catalog がリンクで基準の baseline/ を指しても、取り違えとして止める"
       ]
     },
     {
