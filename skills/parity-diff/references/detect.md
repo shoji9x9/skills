@@ -95,6 +95,8 @@ node <スキルディレクトリ>/scripts/region-names.mjs <pixel-crops.mjs の
 
 - 入力は、同じページ・状態・ビューポートの組の `pixel-crops.mjs` の出力と、現側と新側の `traits.json` である。
   その組のある側に `traits.json` が無いときは、パスの代わりに `--current-traits-missing` か `--new-traits-missing` を渡す。
+  無いと判断してよいのは、上のコマンドの例のとおりに組のページ・状態・ビューポートからパスを組み立て、そのパスにファイルが無いと確かめたときだけである。
+  スクリプトは宣言を確かめないので、ファイルがあるのに宣言すると、その側の論理名を探さないまま `unknown` が増える。
   パスを渡してファイルが無いときは、パスの誤りと区別できないので、無い組として扱わずに exit 2 にする。
   結果は stdout に出るので、`pixel-crops.mjs` の `--out` と同じディレクトリに `region-names.json` として保存する。終了コードが 1 のときも、stdout の JSON はそのまま使える
 - `--scale` は、撮影に使った `deviceScaleFactor` である。Playwright のプロジェクトの `use` に書いた値を使う。

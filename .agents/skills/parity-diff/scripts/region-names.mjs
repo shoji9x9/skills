@@ -40,7 +40,8 @@ export const VERSION = "1";
 /** @typedef {{ name:string, rect:Rect }} NamedRect */
 /** @typedef {{ id:(string|number), kind:("threshold"|"strict_only"), bbox:Rect }} Region */
 /**
- * 側ごとの traits.json。missing は、ファイルが無いことを表す（読めない・形の誤りは入力の誤りにする）。
+ * 側ごとの traits.json。missing は、呼び出し元が `--<side>-traits-missing` で無いと宣言したことを表す。
+ * 渡したパスのファイルが無い・読めない・形が違うときは、missing にせず入力の誤りにする。
  * @typedef {{ side:Side, missing:true } | { side:Side, missing:false, entries:NamedRect[] }} SideTraits
  */
 /**
