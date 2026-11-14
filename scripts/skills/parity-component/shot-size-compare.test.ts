@@ -22,7 +22,7 @@ const script = join(repoRoot, "skills/parity-component/scripts/shot-size-compare
 
 type Size = { width: number; height: number };
 
-/** element-shot.mjs が書く形の記録。png と rect を上書きできる。 */
+/** element-shot.mjs が書く形の記録。png と page_rect などを上書きできる。 */
 function shot(size: Size, override: Record<string, unknown> = {}) {
   return {
     clip: { x: 8, y: 8, ...size },
@@ -81,12 +81,12 @@ test("寸法が同じ組だけなら、差分 0 件で判定できる", () => {
   expect(result).toMatchObject({ structural: false, findings: [], compared: 1 });
 });
 
-test("要素 1 つで幅だけが違うと、width の差を rect の診断と一緒に出す", () => {
+test("要素 1 つで幅だけが違うと、width の差を page_rect の診断と一緒に出す", () => {
   const { baselineDir, catalogDir } = layout({
     catalog: {
       "orders-search/default": shot(
         { width: 140, height: 20 },
-        { rect: { x: 8, y: 8, width: 140.4, height: 20 } },
+        { page_rect: { x: 8, y: 8, width: 140.4, height: 20 } },
       ),
     },
   });
@@ -100,7 +100,7 @@ test("要素 1 つで幅だけが違うと、width の差を rect の診断と�
       axis: "width",
       baseline: 100,
       catalog: 140,
-      rect: { baseline: { width: 100, height: 20 }, catalog: { width: 140.4, height: 20 } },
+      page_rect: { baseline: { width: 100, height: 20 }, catalog: { width: 140.4, height: 20 } },
     },
   ]);
 });
@@ -141,14 +141,16 @@ test("複数の組のうち 1 組だけ違えば、その組だけを出す", ()
   ]);
 });
 
-test("rect が無い記録でも、png で判定し、診断の rect を null にする", () => {
+test("page_rect が無い記録でも、png で判定し、診断の page_rect を null にする", () => {
   const { baselineDir, catalogDir } = layout({
-    catalog: { "orders-search/default": shot({ width: 101, height: 20 }, { rect: undefined }) },
+    catalog: {
+      "orders-search/default": shot({ width: 101, height: 20 }, { page_rect: undefined }),
+    },
   });
   const result = compareShotSizes({ baselineDir, catalogDir });
   expect(result.findings[0]).toMatchObject({
     code: "size-mismatch",
-    rect: { baseline: { width: 100, height: 20 }, catalog: null },
+    page_rect: { baseline: { width: 100, height: 20 }, catalog: null },
   });
 });
 
@@ -346,6 +348,36 @@ test.each([
   const result = compareShotSizes(layout({ metadata }));
   expect(result.structural).toBe(true);
   expect(codes(result)).toContain(code);
+});
+
+test.each<[string, (baselineDir: string) => string]>([
+  ["基準の baseline/ そのもの", (b) => join(b, "baseline")],
+  ["基準の baseline/ の中", (b) => join(b, "baseline", "orders-search")],
+])("--catalog が%sを指すと、基準を基準と比べずに止める", (_name, catalogOf) => {
+  const { baselineDir } = layout();
+  const result = compareShotSizes({ baselineDir, catalogDir: catalogOf(baselineDir) });
+  expect(result.structural).toBe(true);
+  expect(codes(result)).toContain("catalog-is-baseline");
+});
+
+test("判定できない組があっても、比べ終えた組の寸法の差を出力に含める", () => {
+  const { baselineDir, catalogDir } = layout({
+    metadata: {
+      instances: [{ id: "orders-search" }, { id: "users-create" }],
+      capture: { states: ["default"] },
+    },
+    baseline: {
+      "orders-search/default": shot({ width: 100, height: 20 }),
+      "users-create/default": shot({ width: 102, height: 28 }),
+    },
+    catalog: { "users-create/default": shot({ width: 110, height: 28 }) },
+  });
+  const result = compareShotSizes({ baselineDir, catalogDir });
+  expect(result.structural).toBe(true);
+  expect(result.findings.map((f) => `${f.code}:${f.instance}`)).toEqual([
+    "shot-unreadable:orders-search",
+    "size-mismatch:users-create",
+  ]);
 });
 
 test("記録のパスがリンクで基準の外を指すと、読まずに止める", () => {

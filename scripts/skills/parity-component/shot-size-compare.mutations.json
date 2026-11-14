@@ -15,11 +15,12 @@
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "要素 1 つで幅だけが違うと、width の差を rect の診断と一緒に出す",
+        "要素 1 つで幅だけが違うと、width の差を page_rect の診断と一緒に出す",
         "要素 1 つで高さだけが違うと、height の差だけを出す",
         "複数の組のうち 1 組だけ違えば、その組だけを出す",
-        "rect が無い記録でも、png で判定し、診断の rect を null にする",
-        "CLI: 一致で exit 0、寸法の差で exit 1、記録の欠けと引数の誤りは exit 2"
+        "page_rect が無い記録でも、png で判定し、診断の page_rect を null にする",
+        "CLI: 一致で exit 0、寸法の差で exit 1、記録の欠けと引数の誤りは exit 2",
+        "判定できない組があっても、比べ終えた組の寸法の差を出力に含める"
       ]
     },
     {
@@ -60,7 +61,7 @@
       "id": "path-containment",
       "why": "リンクで基準の外を指す記録を、基準として読む",
       "file": "skills/parity-component/scripts/shot-size-compare.mjs",
-      "find": "if (rel === \"\" || rel === \"..\" || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {",
+      "find": "if (!isStrictlyInside(realRoot, realPath)) {",
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": ["記録のパスがリンクで基準の外を指すと、読まずに止める"]
@@ -75,6 +76,27 @@
       "expect_failing": [
         "カタログの側の一覧を読めない（リンク先が無い）ときは、異常終了せずに判定できない入力として止める"
       ]
+    },
+    {
+      "id": "catalog-is-baseline",
+      "why": "--catalog が基準の baseline/ を指すときに、基準を基準と比べて一致として通す",
+      "file": "skills/parity-component/scripts/shot-size-compare.mjs",
+      "find": "if (realCatalog === realBaseline || isStrictlyInside(realBaseline, realCatalog)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "--catalog が基準の baseline/ そのものを指すと、基準を基準と比べずに止める",
+        "--catalog が基準の baseline/ の中を指すと、基準を基準と比べずに止める"
+      ]
+    },
+    {
+      "id": "size-with-structural",
+      "why": "判定できない組があるときに、比べ終えた組の寸法の差を出力から捨てる",
+      "file": "skills/parity-component/scripts/shot-size-compare.mjs",
+      "find": "findings: [...structuralFindings, ...sizeFindings],",
+      "replace": "findings: structuralFindings,",
+      "occurrences": 1,
+      "expect_failing": ["判定できない組があっても、比べ終えた組の寸法の差を出力に含める"]
     }
   ]
 }

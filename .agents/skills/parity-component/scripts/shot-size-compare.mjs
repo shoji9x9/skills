@@ -11,14 +11,18 @@
 //   - 基準: <部品の成果物ディレクトリ>/baseline/<instance>/<state>/element.shot.json
 //   - 見本: <カタログの採取ディレクトリ>/<instance>/<state>/element.shot.json
 // 判定は png.width と png.height の完全一致で行う。画素の比較が要るのはこの一致だからである。
-// rect の幅と高さは、差の大きさ（1px 未満の差が丸めで 1px になったのか、など）を読むための診断として添える。
+// page_rect（最上位の座標の矩形。element-shot.mjs はこれを丸めて切り抜く）の幅と高さは、
+// 差の大きさ（1px 未満の差が丸めで 1px になったのか、など）を読むための診断として添える。
 //
 // 判定できない入力は、合格として扱わずに exit 2 にする。
 //   - metadata.json を読めない、instances か capture.states が空、id と状態名がパスの 1 セグメントとして不正、id の重複
 //   - unreachable_states の宣言が { state, reason }（reason は空でない）の形でない、capture.states に無い状態を宣言している
 //   - 組の element.shot.json が片側に無い・読めない、png の幅と高さが正の整数でない、tool_version が無いか両側で違う
-//   - 母集合に無い組の見本がカタログの側にある（基準の無い見本）
-//   - 比べた組が 0 件（すべて到達不能と宣言されている）
+//   - 母集合に無い組の見本がカタログの側にある（基準の無い見本）、カタログの一覧を読めない
+//   - カタログの採取ディレクトリが基準の baseline/ そのものか、その中を指す（基準を基準と比べて一致してしまう）
+// 寸法の差（size-mismatch）は、exit 2 のときも出力に含める。直す箇所を、構造の誤りを直す前に読めるようにするためである。
+// 比べた組が 0 件のときも exit 2 にする（nothing-compared）。0 件になる入力は、上の metadata.json の検査
+// （どのインスタンスでも到達できない状態を含む）が先に止めるので、この分岐は 0 件を合格にしないための防御である。
 //
 // 決定論的: 乱数・現在時刻・ネットワークに依存しない。読むのは JSON とディレクトリの一覧だけである。
 //
@@ -50,7 +54,7 @@ const SHOT_FILE = "element.shot.json";
  *   axis?: "width" | "height",
  *   baseline?: number,
  *   catalog?: number,
- *   rect?: { baseline: RectSize | null, catalog: RectSize | null },
+ *   page_rect?: { baseline: RectSize | null, catalog: RectSize | null },
  * }} SizeFinding
  */
 
@@ -58,7 +62,7 @@ const SHOT_FILE = "element.shot.json";
 
 /**
  * 読んだ撮影の記録のうち、判定と診断に使う値。
- * @typedef {{ png: { width: number, height: number }, rect: RectSize | null, toolVersion: string }} Shot
+ * @typedef {{ png: { width: number, height: number }, pageRect: RectSize | null, toolVersion: string }} Shot
  */
 
 /**
@@ -71,32 +75,45 @@ function isPositiveInteger(v) {
 }
 
 /**
- * 根の下のパスを読む。解決後のパスが根の外を指せば投げる（リンク経由で外のファイルを読ませない）。
- * @param {string} root
- * @param {string[]} segments
- * @returns {string} ファイルの中身
+ * child が parent の中（parent 自身を含めない）か。両辺とも実パスで渡す。
+ * @param {string} parent
+ * @param {string} child
  */
-function readInside(root, segments) {
-  const realRoot = realpathSync(root);
-  const realPath = realpathSync(resolve(root, ...segments));
-  const rel = relative(realRoot, realPath);
-  if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
-    throw new Error(`採取物のパスが ${root} の外を指す: ${realPath}`);
-  }
-  return readFileSync(realPath, "utf8");
+function isStrictlyInside(parent, child) {
+  const rel = relative(parent, child);
+  return !(rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel));
+}
+
+/**
+ * 根の下のファイルを読む関数を作る。解決後のパスが根の外を指せば投げる（リンク経由で外のファイルを読ませない）。
+ * 根の実パスは、最初に読むときに 1 回だけ解決する。
+ * @param {string} root
+ * @returns {(segments: string[]) => string} ファイルの中身を返す
+ */
+function insideReader(root) {
+  /** @type {string | undefined} */
+  let realRoot;
+  return (segments) => {
+    realRoot ??= realpathSync(root);
+    const realPath = realpathSync(resolve(root, ...segments));
+    if (!isStrictlyInside(realRoot, realPath)) {
+      throw new Error(`採取物のパスが ${root} の外を指す: ${realPath}`);
+    }
+    return readFileSync(realPath, "utf8");
+  };
 }
 
 /**
  * 撮影の記録 1 件を読んで形を確かめる。読めないか形が違えば、理由の文を返す。
- * @param {string} root
+ * @param {(segments: string[]) => string} read insideReader が作った関数
  * @param {string} instance
  * @param {string} state
  * @returns {Shot | string}
  */
-function readShot(root, instance, state) {
+function readShot(read, instance, state) {
   let record;
   try {
-    record = JSON.parse(readInside(root, [instance, state, SHOT_FILE]));
+    record = JSON.parse(read([instance, state, SHOT_FILE]));
   } catch (error) {
     return `${SHOT_FILE} を読めない: ${String(field(error, "message"))}`;
   }
@@ -108,11 +125,11 @@ function readShot(root, instance, state) {
   }
   const toolVersion = field(record, "tool_version");
   if (!nonEmptyString(toolVersion)) return "tool_version が無い";
-  return { png: { width, height }, rect: rectSize(field(record, "rect")), toolVersion };
+  return { png: { width, height }, pageRect: rectSize(field(record, "page_rect")), toolVersion };
 }
 
 /**
- * 診断に添える rect の幅と高さ。読めなければ null（判定には使わない）。
+ * 診断に添える page_rect の幅と高さ。読めなければ null（判定には使わない）。
  * @param {unknown} rect
  * @returns {RectSize | null}
  */
@@ -278,13 +295,13 @@ function checkCatalogExtras({ catalogDir, pairs, findings }) {
 
 /**
  * 1 つの組について、両側の記録を読んで寸法を比べる。
- * @param {{ pair: { instance: string, state: string }, roots: { baseline: string, catalog: string }, findings: SizeFinding[] }} arg
+ * @param {{ pair: { instance: string, state: string }, readers: { baseline: (segments: string[]) => string, catalog: (segments: string[]) => string }, findings: SizeFinding[] }} arg
  * @returns {boolean} 判定できる記録が両側にそろったか
  */
-function comparePair({ pair, roots, findings }) {
+function comparePair({ pair, readers, findings }) {
   const { instance, state } = pair;
-  const baseline = readShot(roots.baseline, instance, state);
-  const catalog = readShot(roots.catalog, instance, state);
+  const baseline = readShot(readers.baseline, instance, state);
+  const catalog = readShot(readers.catalog, instance, state);
   /** @type {Array<["baseline" | "catalog", Shot | string]>} */
   const sides = [
     ["baseline", baseline],
@@ -315,11 +332,35 @@ function comparePair({ pair, roots, findings }) {
         axis,
         baseline: baseline.png[axis],
         catalog: catalog.png[axis],
-        rect: { baseline: baseline.rect, catalog: catalog.rect },
+        page_rect: { baseline: baseline.pageRect, catalog: catalog.pageRect },
       });
     }
   }
   return true;
+}
+
+/**
+ * カタログの採取ディレクトリが、基準の baseline/ そのものか、その中を指していれば指摘に積む。
+ * 取り違えると、基準を基準自身と比べて全組が一致し、見本を 1 件も撮っていないのに exit 0 になる。
+ * 実パスを解決できなければ確かめない。基準の baseline/ が無ければ、どの組も記録を読めず shot-unreadable で止まる。
+ * カタログの側は、main がディレクトリが在ることを確かめてから渡す。
+ * @param {{ baselineRoot: string, catalogDir: string, findings: SizeFinding[] }} arg
+ */
+function checkCatalogNotBaseline({ baselineRoot, catalogDir, findings }) {
+  let realBaseline;
+  let realCatalog;
+  try {
+    realBaseline = realpathSync(baselineRoot);
+    realCatalog = realpathSync(catalogDir);
+  } catch {
+    return;
+  }
+  if (realCatalog === realBaseline || isStrictlyInside(realBaseline, realCatalog)) {
+    findings.push({
+      code: "catalog-is-baseline",
+      detail: `カタログの採取ディレクトリが基準の baseline/ を指す: ${catalogDir}`,
+    });
+  }
 }
 
 /**
@@ -343,15 +384,17 @@ export function compareShotSizes({ baselineDir, catalogDir }) {
     };
   }
   const { pairs, excluded } = population(metadata, structuralFindings);
+  const baselineRoot = join(baselineDir, "baseline");
+  checkCatalogNotBaseline({ baselineRoot, catalogDir, findings: structuralFindings });
   checkCatalogExtras({ catalogDir, pairs, findings: structuralFindings });
   /** @type {SizeFinding[]} */
   const sizeFindings = [];
-  const roots = { baseline: join(baselineDir, "baseline"), catalog: catalogDir };
+  const readers = { baseline: insideReader(baselineRoot), catalog: insideReader(catalogDir) };
   let compared = 0;
   for (const pair of pairs) {
     /** @type {SizeFinding[]} */
     const shotFindings = [];
-    if (comparePair({ pair, roots, findings: shotFindings })) compared += 1;
+    if (comparePair({ pair, readers, findings: shotFindings })) compared += 1;
     for (const f of shotFindings)
       (f.code === "size-mismatch" ? sizeFindings : structuralFindings).push(f);
   }
@@ -359,7 +402,13 @@ export function compareShotSizes({ baselineDir, catalogDir }) {
     structuralFindings.push({ code: "nothing-compared", detail: "比べた組が 0 件" });
   }
   if (structuralFindings.length > 0) {
-    return { structural: true, findings: structuralFindings, compared, excluded };
+    // 寸法の差も一緒に出す。構造の誤りを直す前に、比べ終えた組の差を読めるようにする（終了コードは 2 のまま）。
+    return {
+      structural: true,
+      findings: [...structuralFindings, ...sizeFindings],
+      compared,
+      excluded,
+    };
   }
   return { structural: false, findings: sizeFindings, compared, excluded };
 }
