@@ -10,11 +10,9 @@
 // unreachable_states を除いた組）のすべてについて、次の 2 つの element.shot.json を読む。
 //   - 基準: <部品の成果物ディレクトリ>/baseline/<instance>/<state>/element.shot.json
 //   - 見本: <部品の成果物ディレクトリ>/new/<target>/catalog/<instance>/<state>/element.shot.json
-// 2 つのディレクトリは、1 つの規則で受け付ける。--baseline と --catalog を両方とも実パスに直し、
-// 基準は <実際の成果物ディレクトリ>/baseline、見本は <実際の成果物ディレクトリ>/new/<target>/catalog で、
-// どちらもリンクを通さないものだけを受け付ける。それ以外は比べずに exit 2 にする（path-invalid）。
-// 任意のパスを受け付けると、基準の baseline/ を見本として渡したとき（またはリンクで同じ場所を指すとき）に、
-// 基準を基準と比べて全組が一致する。
+// パスについて確かめるのは、基準の baseline/ と --catalog が同じ実際のディレクトリ（デバイスと inode が同じ）を
+// 指さないことだけである。同じなら、基準を基準と比べて全組が一致するので、比べずに exit 2 にする（same-location）。
+// それ以外の取り違え（別の部品のカタログを渡すなど）は確かめない。置き場所の決まりは parity-component の references/compare.md にある。
 // 判定は png.width と png.height の完全一致で行う。画素の比較が要るのはこの一致だからである。
 // page_rect（ページ全体の座標で測った矩形。element-shot.mjs はこれを丸めて切り抜く）の幅と高さは、
 // 差の大きさ（1px 未満の差が丸めで 1px になったのか、など）を読むための診断として添える。
@@ -23,7 +21,8 @@
 //   - metadata.json を読めない、instances か capture.states が空、id と状態名がパスの 1 セグメントとして不正、id の重複
 //   - unreachable_states の宣言が { state, reason }（reason は空でない）の形でない、capture.states に無い状態を宣言している
 //   - 組の element.shot.json が片側に無い・読めない、png の幅と高さが正の整数でない、tool_version が無いか両側で違う
-//   - --catalog か基準の baseline/ が上の規則に合わない（path-invalid。無い・ディレクトリでない・リンクを通す・形が違う・読めない）
+//   - 基準の baseline/ と --catalog が同じ実際のディレクトリを指す（same-location）
+//   - 基準の baseline/ が無いか、ディレクトリでない（baseline-missing。組ごとに同じ理由を並べず、1 件で止める）
 //   - 母集合に無い組の見本がカタログの側にある（基準の無い見本）、カタログの一覧を読めない
 // 寸法の差（size-mismatch）は、exit 2 のときも出力に含める。直す箇所を、構造の誤りを直す前に読めるようにするためである。
 // 比べた組が 0 件のときも exit 2 にする（nothing-compared）。0 件になる入力は、上の metadata.json の検査
@@ -32,11 +31,11 @@
 // 決定論的: 乱数・現在時刻・ネットワークに依存しない。読むのは JSON とディレクトリの一覧だけである。
 //
 // 使い方: node shot-size-compare.mjs --baseline <部品の成果物ディレクトリ> --catalog <部品の成果物ディレクトリ>/new/<target>/catalog
-// 出力は次のとおりである。exit 2 のときも、比べ終えた組の size-mismatch と counts を出す。
+// 出力は次のとおりである。exit 2 のときも、比べ終えた組の size-mismatch を出す。
 //   - findings: 指摘
-//   - excluded: 到達不能と宣言して外した組の一覧
-//   - counts.pairs: 母集合のうち metadata.json から組として読めた数。counts.compared: 両側の記録を読めて比べた組の数。
-//     counts.excluded: 到達不能と宣言して外した組の数（exit 2 のときは一覧を出さないので、数だけを出す）
+//   - excluded: 到達不能と宣言して外した組の一覧（exit 0・1 のときだけ）
+//   - counts: metadata.json から組を数えたときだけ出す。pairs は組として読めた数、compared は両側の記録を読めて比べた組の数、
+//     excluded は到達不能と宣言して外した組の数である。exit 2 のときは、全組を比べたとは限らない
 // 終了コード: 0 ＝ すべての組で寸法が一致、1 ＝ 寸法の差がある、2 ＝ 使い方の誤り・判定できない入力。
 
 import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
@@ -350,73 +349,18 @@ function comparePair({ pair, readers, findings }) {
 }
 
 /**
- * --baseline と --catalog が規則に合うかを確かめ、合えば基準の baseline/ と見本の実パスを返す。合わなければ理由の文の一覧を返す。
- * 規則: 両方を実パスに直し、基準は <実際の成果物ディレクトリ>/baseline、見本は <実際の成果物ディレクトリ>/new/<target>/catalog で、
- * どちらもリンクを通さないディレクトリであること。リンクを通さないかは、渡されたパスの末尾の名前（baseline、new/<target>/catalog）が
- * 実パスの末尾と同じかで確かめる。成果物ディレクトリより上の綴り（/tmp と /private/tmp など）は、両方を実パスに直すので問わない。
- * @param {string} baselineDir
- * @param {string} catalogDir
- * @returns {{ baselineRoot: string, catalogRoot: string } | { problems: string[] }}
+ * ディレクトリの同一性（デバイスと inode）。ディレクトリとして読めなければ null。
+ * 64 bit の値を丸めずに比べるため、bigint で読む。
+ * @param {string} path
+ * @returns {string | null}
  */
-function resolveRoots(baselineDir, catalogDir) {
-  let realBase;
+function dirIdentity(path) {
   try {
-    realBase = realpathSync(baselineDir);
-  } catch (error) {
-    return { problems: [`--baseline を解決できない: ${String(field(error, "message"))}`] };
+    const st = statSync(path, { bigint: true });
+    return st.isDirectory() ? `${st.dev}:${st.ino}` : null;
+  } catch {
+    return null;
   }
-  const baselineRoot = join(realBase, "baseline");
-  const problems = [
-    ...rootProblems({
-      given: join(baselineDir, "baseline"),
-      expected: baselineRoot,
-      label: "基準の baseline/",
-    }),
-    ...catalogProblems(realBase, catalogDir),
-  ];
-  if (problems.length > 0) return { problems };
-  return { baselineRoot, catalogRoot: realpathSync(catalogDir) };
-}
-
-/**
- * 渡されたパスが、期待する実パスのディレクトリそのものか（リンクを通さないか）を確かめ、違えば理由の文を返す。
- * @param {{ given: string, expected: string, label: string }} arg
- * @returns {string[]}
- */
-function rootProblems({ given, expected, label }) {
-  let real;
-  try {
-    real = realpathSync(given);
-  } catch (error) {
-    if (field(error, "code") === "ENOENT") return [`${label}が無い: ${given}`];
-    return [`${label}を読めない: ${String(field(error, "message"))}`];
-  }
-  if (real !== expected) {
-    return [
-      `${label}実際の場所が ${expected} でない（リンクを通すか、別の部品を指す）: ${given} → ${real}`,
-    ];
-  }
-  if (!statSync(real).isDirectory()) return [`${label}がディレクトリでない: ${given}`];
-  return [];
-}
-
-/**
- * --catalog が <実際の成果物ディレクトリ>/new/<target>/catalog で、リンクを通さないかを確かめ、違えば理由の文を返す。
- * @param {string} realBase --baseline の実パス
- * @param {string} catalogDir
- * @returns {string[]}
- */
-function catalogProblems(realBase, catalogDir) {
-  const form = `--catalog は <--baseline>/new/<target>/catalog の形で渡す（渡された値: ${catalogDir}）`;
-  const tail = catalogDir.split(sep).slice(-3);
-  if (tail.length !== 3 || tail[0] !== "new" || !safeSegment(tail[1]) || tail[2] !== "catalog") {
-    return [form];
-  }
-  return rootProblems({
-    given: catalogDir,
-    expected: join(realBase, ...tail),
-    label: "--catalog の",
-  });
 }
 
 /**
@@ -439,25 +383,26 @@ function comparePairs({ pairs, readers, structuralFindings }) {
 }
 
 /**
- * 判定できない入力だけで終える結果。
+ * 組を数える前に終える結果。counts は出さない（数えていないので、0 件と区別できなくなる）。
  * @param {SizeFinding[]} findings
- * @returns {{ structural: true, findings: SizeFinding[], pairs: number, compared: number, excluded: { instance: string, state: string }[] }}
+ * @returns {{ structural: true, findings: SizeFinding[], counted: false, pairs: 0, compared: 0, excluded: [] }}
  */
 function stopped(findings) {
-  return { structural: true, findings, pairs: 0, compared: 0, excluded: [] };
+  return { structural: true, findings, counted: false, pairs: 0, compared: 0, excluded: [] };
 }
 
 /**
  * 基準とカタログの寸法を突き合わせる。
  * @param {{ baselineDir: string, catalogDir: string }} dirs
- * @returns {{ structural: boolean, findings: SizeFinding[], pairs: number, compared: number, excluded: { instance: string, state: string }[] }}
+ * @returns {{ structural: boolean, findings: SizeFinding[], counted: boolean, pairs: number, compared: number, excluded: { instance: string, state: string }[] }}
  */
 export function compareShotSizes({ baselineDir, catalogDir }) {
-  const roots = resolveRoots(baselineDir, catalogDir);
-  if ("problems" in roots) {
-    return stopped(roots.problems.map((detail) => ({ code: "path-invalid", detail })));
+  const baselineRoot = join(baselineDir, "baseline");
+  const baselineId = dirIdentity(baselineRoot);
+  if (baselineId !== null && baselineId === dirIdentity(catalogDir)) {
+    const detail = `基準の baseline/ と --catalog が同じディレクトリを指す: ${catalogDir}`;
+    return stopped([{ code: "same-location", detail }]);
   }
-  const { baselineRoot, catalogRoot } = roots;
   let metadata;
   try {
     metadata = JSON.parse(readFileSync(join(baselineDir, "metadata.json"), "utf8"));
@@ -468,10 +413,15 @@ export function compareShotSizes({ baselineDir, catalogDir }) {
   /** @type {SizeFinding[]} */
   const structuralFindings = [];
   const { pairs, excluded } = population(metadata, structuralFindings);
-  checkCatalogExtras({ catalogDir: catalogRoot, pairs, findings: structuralFindings });
+  checkCatalogExtras({ catalogDir, pairs, findings: structuralFindings });
+  // baseline/ が無ければ、組ごとに同じ理由の shot-unreadable を並べず、1 件の指摘で止める。
+  if (baselineId === null) {
+    const detail = `基準の baseline/ が無いか、ディレクトリでない: ${baselineRoot}`;
+    structuralFindings.push({ code: "baseline-missing", detail });
+  }
   const { compared, sizeFindings } = comparePairs({
-    pairs,
-    readers: { baseline: insideReader(baselineRoot), catalog: insideReader(catalogRoot) },
+    pairs: baselineId === null ? [] : pairs,
+    readers: { baseline: insideReader(baselineRoot), catalog: insideReader(catalogDir) },
     structuralFindings,
   });
   if (structuralFindings.length === 0 && compared === 0) {
@@ -480,7 +430,7 @@ export function compareShotSizes({ baselineDir, catalogDir }) {
   const structural = structuralFindings.length > 0;
   // exit 2 のときも寸法の差を一緒に出す。構造の誤りを直す前に、比べ終えた組の差を読めるようにする。
   const findings = structural ? [...structuralFindings, ...sizeFindings] : sizeFindings;
-  return { structural, findings, pairs: pairs.length, compared, excluded };
+  return { structural, findings, counted: true, pairs: pairs.length, compared, excluded };
 }
 
 /**
@@ -523,13 +473,13 @@ export function main(argv, io = {}) {
     if (!isDirectory(dir)) return fail(`${name} のディレクトリが無い: ${dir}`);
   }
   const result = compareShotSizes({ baselineDir, catalogDir });
-  // 組の数は exit 2 のときも counts に出す。pairs と compared を比べれば、size-mismatch が全組の分か一部の分かを読める。
+  // 組を数えたときだけ counts を出す。比べる前に止まったときの 0 を、数えた結果の 0 と取り違えないようにする。
+  const counts = result.counted
+    ? { pairs: result.pairs, compared: result.compared, excluded: result.excluded.length }
+    : undefined;
   return writeCheckResult(
     write,
-    {
-      ...result,
-      counts: { pairs: result.pairs, compared: result.compared, excluded: result.excluded.length },
-    },
+    { ...result, ...(counts ? { counts } : {}) },
     { tool: "shot-size-compare", version: VERSION, fields: { excluded: result.excluded } },
   );
 }

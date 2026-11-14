@@ -10,6 +10,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseJsonAs } from "../../lib/parse-as.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import {
   compareShotSizes,
@@ -354,51 +355,35 @@ test.each([
   expect(codes(result)).toContain(code);
 });
 
-test.each<[string, (baselineDir: string) => string]>([
-  ["基準の baseline/ そのもの", (b) => join(b, "baseline")],
-  ["基準の baseline/ の中", (b) => join(b, "baseline", "orders-search")],
-  ["部品の成果物ディレクトリそのもの", (b) => b],
-  ["new/<target> まで（catalog の 1 段上）", (b) => join(b, "new", "local")],
-  ["new/<target>/catalog の下", (b) => join(b, "new", "local", "catalog", "orders-search")],
-  ["別の部品の catalog", (b) => join(b, "..", "other", "new", "local", "catalog")],
-])("--catalog が%sを指すと、比べずに止める", (_name, catalogOf) => {
+test("--catalog に基準の baseline/ そのものを渡すと、基準を基準と比べずに止める", () => {
   const { baselineDir } = layout();
-  const catalogDir = catalogOf(baselineDir);
-  // 形の判定に届くように、渡すディレクトリは実在させる（無いことで止まるのと区別する）。
-  mkdirSync(catalogDir, { recursive: true });
-  const result = compareShotSizes({ baselineDir, catalogDir });
-  expect(result).toMatchObject({ structural: true, compared: 0 });
-  expect(codes(result)).toEqual(["path-invalid"]);
+  const result = compareShotSizes({ baselineDir, catalogDir: join(baselineDir, "baseline") });
+  expect(result).toMatchObject({ structural: true, counted: false, compared: 0 });
+  expect(codes(result)).toEqual(["same-location"]);
 });
 
-test("--catalog が形どおりでも、リンクで基準の baseline/ を指すなら比べずに止める", () => {
-  const { baselineDir } = layout();
-  mkdirSync(join(baselineDir, "new", "linked"), { recursive: true });
-  symlinkSync(join(baselineDir, "baseline"), join(baselineDir, "new", "linked", "catalog"));
-  const result = compareShotSizes({
-    baselineDir,
-    catalogDir: join(baselineDir, "new", "linked", "catalog"),
-  });
-  expect(codes(result)).toEqual(["path-invalid"]);
-  expect(result.findings[0].detail).toMatch(/リンク/);
+test("--catalog がリンクで基準の baseline/ を指すと、基準を基準と比べずに止める", () => {
+  const { dir, baselineDir } = layout();
+  const link = join(dir, "catalog-link");
+  symlinkSync(join(baselineDir, "baseline"), link);
+  expect(codes(compareShotSizes({ baselineDir, catalogDir: link }))).toEqual(["same-location"]);
 });
 
 test("基準の baseline/ がリンクで見本の catalog を指すと、見本を見本と比べずに止める", () => {
   const { baselineDir, catalogDir } = layout({ baseline: {} });
   symlinkSync(catalogDir, join(baselineDir, "baseline"));
-  const result = compareShotSizes({ baselineDir, catalogDir });
-  expect(result).toMatchObject({ structural: true, compared: 0 });
-  expect(codes(result)).toEqual(["path-invalid"]);
+  expect(codes(compareShotSizes({ baselineDir, catalogDir }))).toEqual(["same-location"]);
 });
 
-test("--catalog が形どおりでも、new/<target> がリンクで別の target を指すなら止める", () => {
+test.each<[string, (baselineDir: string) => string]>([
+  ["基準の baseline/ の中", (b) => join(b, "baseline", "orders-search")],
+  ["部品の成果物ディレクトリそのもの", (b) => b],
+  ["new/<target> まで（catalog の 1 段上）", (b) => join(b, "new", "local")],
+])("--catalog に%sを渡す取り違えは確かめないが、合格にもならない", (_name, catalogOf) => {
   const { baselineDir } = layout();
-  symlinkSync(join(baselineDir, "new", "local"), join(baselineDir, "new", "alias"));
-  const result = compareShotSizes({
-    baselineDir,
-    catalogDir: join(baselineDir, "new", "alias", "catalog"),
-  });
-  expect(codes(result)).toEqual(["path-invalid"]);
+  const result = compareShotSizes({ baselineDir, catalogDir: catalogOf(baselineDir) });
+  expect(result.structural).toBe(true);
+  expect(codes(result)).not.toContain("same-location");
 });
 
 test("--baseline だけをリンクを通した綴りで渡しても、実パスの --catalog は受け付ける", () => {
@@ -409,7 +394,7 @@ test("--baseline だけをリンクを通した綴りで渡しても、実パス
   expect(result).toMatchObject({ structural: false, findings: [], compared: 1 });
 });
 
-test("--baseline がリンクを通した道でも、形どおりの --catalog は受け付ける", () => {
+test("--baseline と --catalog の両方をリンクを通した綴りで渡しても、受け付ける", () => {
   const { dir, baselineDir } = layout();
   const linkedBase = join(dir, "linked-component");
   symlinkSync(baselineDir, linkedBase);
@@ -432,14 +417,14 @@ test("基準の baseline/ が無ければ、組ごとに並べず 1 件の指摘
     }),
   );
   expect(result.structural).toBe(true);
-  expect(codes(result)).toEqual(["path-invalid"]);
+  expect(codes(result)).toEqual(["baseline-missing"]);
 });
 
 test("基準の baseline/ がファイルなら、無いとは書かずにディレクトリでないと報告する", () => {
   const { baselineDir, catalogDir } = layout({ baseline: {} });
   writeFileSync(join(baselineDir, "baseline"), "");
   const result = compareShotSizes({ baselineDir, catalogDir });
-  expect(codes(result)).toEqual(["path-invalid"]);
+  expect(codes(result)).toEqual(["baseline-missing"]);
   expect(result.findings[0].detail).toMatch(/ディレクトリでない/);
 });
 
@@ -474,6 +459,19 @@ test("記録のパスがリンクで基準の外を指すと、読まずに止�
     expect.objectContaining({ code: "shot-unreadable", side: "baseline" }),
   ]);
   expect(result.findings[0].detail).toMatch(/外を指す/);
+});
+
+test("CLI: 組を数える前に止まったときは、0 件と取り違えないように counts を出さない", () => {
+  const { baselineDir } = layout();
+  let out = "";
+  const code = main(["--baseline", baselineDir, "--catalog", join(baselineDir, "baseline")], {
+    write: (s: string) => (out += s),
+    writeErr: () => {},
+  });
+  expect(code).toBe(2);
+  const parsed = parseJsonAs<{ findings: { code: string }[] }>(out);
+  expect(parsed.findings.map((f) => f.code)).toEqual(["same-location"]);
+  expect(parsed).not.toHaveProperty("counts");
 });
 
 test("CLI: 一致で exit 0、寸法の差で exit 1、記録の欠けと引数の誤りは exit 2", () => {
