@@ -391,9 +391,9 @@ setup が 0 以外で終わったら、executor を起動せずに eval を失�
   その run の Delta は無効として扱う。`grading.json` を置かずに集計から外し、遮断か判定の前提を直してから実行し直し、benchmark に経緯を残す。
   `SKIPPED` は判定が実行されなかったことを表し、`clean` ではない。
 - bwrap か `eval-sandbox.sh` が無い環境では、isolation は `UNISOLATED` になる。
-  `UNISOLATED` の run は sandbox を通さずに executor を起動するので、操作する人の認証情報を読める。`UNVERIFIED` の run は、読めないことを確かめていない。
-  そのため、isolation が `sandboxed` 以外の run では、ハーネスは executor を起動する前に理由と続け方を出し、exit 7 で止まる。
-  そのため、bwrap の無い環境では、下の `SKILL_EVAL_ALLOW_UNISOLATED=1` を設定しない限り executor を起動しない。bubblewrap を入れてから実行する。
+  `UNISOLATED` で executor を起動すると、sandbox を通さないので、run は操作する人の認証情報を読める。`UNVERIFIED` で起動した run は、読めないことを確かめていない。
+  そのため、isolation が `sandboxed` 以外のときは、`SKILL_EVAL_ALLOW_UNISOLATED=1` を設定しない限り、ハーネスは executor を起動する前に理由と続け方を出し、exit 7 で止まる。
+  bwrap の無い環境では、bubblewrap を入れてから実行する。
   スタブの runner などで続けるときだけ `SKILL_EVAL_ALLOW_UNISOLATED=1` を設定する。値が `1` 以外（空を含む）なら止まる。認証情報を読むスキル（`box`・`issue-create` など）の eval は、この変数で続けない。
   baseline の再利用（`--reuse-baseline`）は executor を起動しないので、止まらない。
   続けた run は `UNISOLATED` か `UNVERIFIED` を記録し、`flock` で `with_skill` の実行と排他にして、1 つずつ実行する。
