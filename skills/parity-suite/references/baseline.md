@@ -123,7 +123,7 @@
   要点は、名前ごとにロケータが当たったすべての要素の矩形を、撮影の直後に採ることと、文字列やスタイルは採らないことである。
   参照先を読めないときは、下のコード例のとおりに書く。
 - 恒久マスクを、位置が動く要素（カルーセル・ティッカー・ポーリングで行が増える一覧など）に当てない。
-  撮影のスペックは撮影の後に矩形を採るので、撮影の後の 10 フレームの間に止まっていた要素の位置を、塗った位置と違っても記録する。
+  採取のスペックは撮影の後に矩形を採るので、撮影の後の 10 フレームの間に止まっていた要素の位置を、塗った位置と違っても記録する。
   その記録を読むと、`parity-diff` は塗っていない位置の差分をマスクの中として扱い、報告から外す。当てるなら、撮影の前の状態の操作（`applyState`）でその動きを止める。
 - 書き忘れを検出するチェックは無い。書かなかった組では、`parity-diff` はマスクの位置を `traits.json` から探し、見つからなければ判定できない理由（`mask_unlocated`）を出す。
   `traits.json` の隣（同じディレクトリ）に置けば、`parity-diff` は引数で渡されなくても読む。
@@ -153,19 +153,17 @@ await page.screenshot({ path: join(outDir, "screenshot.png"), fullPage, animatio
 const sampleAll = () => Promise.all(located.map(([, loc]) => loc.evaluateAll(inImage, fullPage === true)));
 const first = await sampleAll();
 const needsSecond = first.some((f) => !f.inFrame && f.rects.length > 0);
-// requestAnimationFrame を 10 回つないで待つ
-const tenFrames = () =>
-  new Promise((done) => {
-    let n = 0;
-    const tick = () => (++n >= 10 ? done(undefined) : requestAnimationFrame(tick));
-    requestAnimationFrame(tick);
+// 主文書で 10 フレーム待つ（parity-diff の採取の雛形と同じ待ち方）
+if (needsSecond) {
+  await page.evaluate(async () => {
+    for (let frame = 0; frame < 10; frame += 1) await new Promise(requestAnimationFrame);
   });
-if (needsSecond) await page.evaluate(tenFrames);
+}
 const again = needsSecond ? await sampleAll() : first;
-// iframe の中の要素（0 件なら空の配列）と、2 回で位置が変わった要素は null にする
 const maskRects = located.map(([name], i) => {
-  const recordable =
-    !(first[i].inFrame && first[i].rects.length > 0) && JSON.stringify(again[i].rects) === JSON.stringify(first[i].rects);
+  // 1 回目に 0 件なら空の配列、iframe の中の要素と 2 回で位置が変わった要素は null にする
+  if (first[i].rects.length === 0) return { name, rects: [] };
+  const recordable = !first[i].inFrame && JSON.stringify(again[i].rects) === JSON.stringify(first[i].rects);
   return { name, rects: recordable ? first[i].rects : null };
 });
 writeFileSync(join(outDir, "mask-rects.json"), `${JSON.stringify(maskRects, null, 2)}\n`);

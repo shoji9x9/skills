@@ -478,7 +478,8 @@ type MaskLocator = { name: string; locator: import("@playwright/test").Locator }
 // ロケータが新しく当たった要素がこれに当たる。
 // 1 回目はすべての名前の要求を一度に送り（同じフレームで採るとは限らない）、待つのは主文書で 1 回だけにする。
 // 名前ごとに順に採ったり待ったりすると、後の名前ほど撮影から離れた時点の位置になる。
-// 比べる名前（iframe の外で要素に当たった名前）が無ければ待たず、2 回目も採らずに 1 回目をそのまま使う。
+// 比べる名前（iframe の外で要素に当たった名前）が無ければ待たず、2 回目も採らない（記録するかは settledRects が
+// 1 回目から決め、iframe の中で要素に当たった名前は null のままにする）。
 // 出典: https://playwright.dev/docs/api/class-locator#locator-evaluate-all
 type MaskRect = { x: number; y: number; width: number; height: number };
 type MaskSample = { inFrame: boolean; rects: MaskRect[] };
@@ -518,10 +519,12 @@ async function recordMaskRects(
   return maskLocators.map(({ name }, i) => ({ name, rects: settledRects(first[i], second[i]) }));
 }
 
-// 2 回採った矩形から、記録する矩形を決める。iframe の中の要素（1 件以上）と、2 回で位置が変わった要素は null にする。
+// 2 回採った矩形から、記録する矩形を決める。1 回目に 0 件なら空の配列、iframe の中の要素と、2 回で位置が変わった要素は null にする。
 // 記録するかは、ここだけで決める（待つかの判定は、比べる名前があるかで別に決める）
 function settledRects(first: MaskSample, second: MaskSample): MaskRect[] | null {
-  if (first.inFrame && first.rects.length > 0) return null;
+  // 撮影の直後に 1 件も当たらなかった名前は、mask が何も塗っていないので空の配列にする（同じ組の他の名前に依らない）
+  if (first.rects.length === 0) return [];
+  if (first.inFrame) return null;
   return JSON.stringify(second.rects) === JSON.stringify(first.rects) ? first.rects : null;
 }
 
