@@ -1,0 +1,1020 @@
+{
+  "metadata": {
+    "skill_name": "pr-finalize-loop",
+    "skill_path": "<repo>/skills/pr-finalize-loop",
+    "executor_model": "opus",
+    "analyzer_model": "claude-sonnet",
+    "timestamp": "2026-11-14T11:46:45Z",
+    "evals_run": [27, 28, 29],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 27,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 65.241,
+        "tokens": 474567,
+        "tool_calls": 11,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "run 5001 の目印では今の HEAD をレビュー済みとしないと述べている（目印の effort が今の段階の medium と違う、または run 5001 が返信より前に作られた、のどちらかを理由にしている）",
+          "passed": true,
+          "evidence": "run 5001 は 10:00:10Z で返信 10:05:00Z より前、目印は effort=high で今は medium と述べ、`status=not-reviewed` としている。"
+        },
+        {
+          "text": "依頼を workflow_dispatch（同梱の claude-review-action.sh の request か、gh workflow run claude-review.yml）で行うと述べている",
+          "passed": true,
+          "evidence": "`claude-review-action.sh request`（workflow_dispatch を起動）で依頼すると述べている。"
+        },
+        {
+          "text": "@claude review を投稿して依頼しない（claude-code の依頼の方法と取り違えていない）",
+          "passed": true,
+          "evidence": "`@claude review` を投稿する方法は挙げていない（run2・run3 は「投稿しない」と明記）。"
+        },
+        {
+          "text": "依頼に effort medium を渡すと述べている",
+          "passed": true,
+          "evidence": "`--effort medium` を渡すと述べている。"
+        },
+        {
+          "text": "返信を投稿した時刻 2026-03-02T10:05:00Z を、それより前の run を数えない基準（--since）として依頼の判定に渡すと述べている",
+          "passed": true,
+          "evidence": "`--since 2026-03-02T10:05:00Z` を `check`・`request` に渡すと述べている。"
+        },
+        {
+          "text": "依頼する HEAD の SHA を表示から書き写さず、取得した値をファイル（--sha-file）で渡すと述べている",
+          "passed": true,
+          "evidence": "`gh pr view --json headRefOid` の結果を `--sha-file` のファイルで渡し、表示から書き写さないと述べている。"
+        },
+        {
+          "text": "実行はせず説明に留めている（GitHub への接続・ファイルの変更を行っていない）",
+          "passed": true,
+          "evidence": "接続・変更をしていないと明記（手元で実行したのは GitHub に接続しない resolve-review-tool.sh のみ）。project-tree に新規ファイルなし。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 27,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 69.854,
+        "tokens": 433113,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "run 5001 の目印では今の HEAD をレビュー済みとしないと述べている（目印の effort が今の段階の medium と違う、または run 5001 が返信より前に作られた、のどちらかを理由にしている）",
+          "passed": true,
+          "evidence": "run 5001 は 10:00:10Z で返信 10:05:00Z より前、目印は effort=high で今は medium と述べ、`status=not-reviewed` としている。"
+        },
+        {
+          "text": "依頼を workflow_dispatch（同梱の claude-review-action.sh の request か、gh workflow run claude-review.yml）で行うと述べている",
+          "passed": true,
+          "evidence": "`claude-review-action.sh request`（workflow_dispatch を起動）で依頼すると述べている。"
+        },
+        {
+          "text": "@claude review を投稿して依頼しない（claude-code の依頼の方法と取り違えていない）",
+          "passed": true,
+          "evidence": "`@claude review` を投稿する方法は挙げていない（run2・run3 は「投稿しない」と明記）。"
+        },
+        {
+          "text": "依頼に effort medium を渡すと述べている",
+          "passed": true,
+          "evidence": "`--effort medium` を渡すと述べている。"
+        },
+        {
+          "text": "返信を投稿した時刻 2026-03-02T10:05:00Z を、それより前の run を数えない基準（--since）として依頼の判定に渡すと述べている",
+          "passed": true,
+          "evidence": "`--since 2026-03-02T10:05:00Z` を `check`・`request` に渡すと述べている。"
+        },
+        {
+          "text": "依頼する HEAD の SHA を表示から書き写さず、取得した値をファイル（--sha-file）で渡すと述べている",
+          "passed": true,
+          "evidence": "`gh pr view --json headRefOid` の結果を `--sha-file` のファイルで渡し、表示から書き写さないと述べている。"
+        },
+        {
+          "text": "実行はせず説明に留めている（GitHub への接続・ファイルの変更を行っていない）",
+          "passed": true,
+          "evidence": "接続・変更をしていないと明記（手元で実行したのは GitHub に接続しない resolve-review-tool.sh のみ）。project-tree に新規ファイルなし。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 27,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 81.244,
+        "tokens": 696553,
+        "tool_calls": 14,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "run 5001 の目印では今の HEAD をレビュー済みとしないと述べている（目印の effort が今の段階の medium と違う、または run 5001 が返信より前に作られた、のどちらかを理由にしている）",
+          "passed": true,
+          "evidence": "run 5001 は 10:00:10Z で返信 10:05:00Z より前、目印は effort=high で今は medium と述べ、`status=not-reviewed` としている。"
+        },
+        {
+          "text": "依頼を workflow_dispatch（同梱の claude-review-action.sh の request か、gh workflow run claude-review.yml）で行うと述べている",
+          "passed": true,
+          "evidence": "`claude-review-action.sh request`（workflow_dispatch を起動）で依頼すると述べている。"
+        },
+        {
+          "text": "@claude review を投稿して依頼しない（claude-code の依頼の方法と取り違えていない）",
+          "passed": true,
+          "evidence": "`@claude review` を投稿する方法は挙げていない（run2・run3 は「投稿しない」と明記）。"
+        },
+        {
+          "text": "依頼に effort medium を渡すと述べている",
+          "passed": true,
+          "evidence": "`--effort medium` を渡すと述べている。"
+        },
+        {
+          "text": "返信を投稿した時刻 2026-03-02T10:05:00Z を、それより前の run を数えない基準（--since）として依頼の判定に渡すと述べている",
+          "passed": true,
+          "evidence": "`--since 2026-03-02T10:05:00Z` を `check`・`request` に渡すと述べている。"
+        },
+        {
+          "text": "依頼する HEAD の SHA を表示から書き写さず、取得した値をファイル（--sha-file）で渡すと述べている",
+          "passed": true,
+          "evidence": "`gh pr view --json headRefOid` の結果を `--sha-file` のファイルで渡し、表示から書き写さないと述べている。"
+        },
+        {
+          "text": "実行はせず説明に留めている（GitHub への接続・ファイルの変更を行っていない）",
+          "passed": true,
+          "evidence": "接続・変更をしていないと明記（手元で実行したのは GitHub に接続しない resolve-review-tool.sh のみ）。project-tree に新規ファイルなし。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 28,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 75.186,
+        "tokens": 463667,
+        "tool_calls": 12,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "コメント A を数えない（書き手が github-actions[bot] でない）と述べている",
+          "passed": true,
+          "evidence": "A は投稿者が github-actions[bot] でないので取得の段階で外れ、数えない（ignored にも入らない）と述べている。"
+        },
+        {
+          "text": "コメント B を数えない（run 4999 は claude-review.yml の、今の HEAD を対象にした run でない）と述べている",
+          "passed": true,
+          "evidence": "B は run 4999 が ci.yml の run で、claude-review.yml の今の HEAD の run の一覧に無いので数えない（ignored）と述べている。"
+        },
+        {
+          "text": "コメント C を数えない（run 5002 が成功で終わっていない）と述べている",
+          "passed": true,
+          "evidence": "C は run 5002 が `completed/failure` で成功で終わっていないので数えないと述べている。"
+        },
+        {
+          "text": "コメント D の目印で、指摘 0 件でも今の HEAD をレビュー済みとしている",
+          "passed": true,
+          "evidence": "D は SHA・run-name・成功・effort=high がそろうので数え、`status=reviewed`（findings=0）とレビュー済みにしている。"
+        },
+        {
+          "text": "reviews[] が空なことと、今の HEAD に check-run が無いことを、未レビューの根拠にしていない",
+          "passed": true,
+          "evidence": "`reviews[]` が空で check-run が無いことは判定に使わず、問題にならないと述べている。"
+        },
+        {
+          "text": "目印と run の突き合わせを、同梱のスクリプト claude-review-action.sh の check で行うと述べている",
+          "passed": true,
+          "evidence": "`claude-review-action.sh check --pr 42 --effort high --since ...` で判定すると述べている。"
+        },
+        {
+          "text": "スレッドの外（トップレベルのコメント A〜C の本文を含む）に未対応の指摘が残っていなければ、収束（完了）と判定できると述べている",
+          "passed": true,
+          "evidence": "手順 2 の条件のうち、A〜D の本文に対応していない指摘が無ければ「収束（完了）」と述べている。"
+        },
+        {
+          "text": "実行はせず説明に留めている（GitHub への接続・ファイルの変更を行っていない）",
+          "passed": true,
+          "evidence": "接続・変更をしていないと明記し、project-tree に新規ファイルなし。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 28,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 62.342,
+        "tokens": 297478,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "コメント A を数えない（書き手が github-actions[bot] でない）と述べている",
+          "passed": true,
+          "evidence": "A は投稿者が github-actions[bot] でないので取得の段階で外れ、数えない（ignored にも入らない）と述べている。"
+        },
+        {
+          "text": "コメント B を数えない（run 4999 は claude-review.yml の、今の HEAD を対象にした run でない）と述べている",
+          "passed": true,
+          "evidence": "B は run 4999 が ci.yml の run で、claude-review.yml の今の HEAD の run の一覧に無いので数えない（ignored）と述べている。"
+        },
+        {
+          "text": "コメント C を数えない（run 5002 が成功で終わっていない）と述べている",
+          "passed": true,
+          "evidence": "C は run 5002 が `completed/failure` で成功で終わっていないので数えないと述べている。"
+        },
+        {
+          "text": "コメント D の目印で、指摘 0 件でも今の HEAD をレビュー済みとしている",
+          "passed": true,
+          "evidence": "D は SHA・run-name・成功・effort=high がそろうので数え、`status=reviewed`（findings=0）とレビュー済みにしている。"
+        },
+        {
+          "text": "reviews[] が空なことと、今の HEAD に check-run が無いことを、未レビューの根拠にしていない",
+          "passed": true,
+          "evidence": "`reviews[]` が空で check-run が無いことは判定に使わず、問題にならないと述べている。"
+        },
+        {
+          "text": "目印と run の突き合わせを、同梱のスクリプト claude-review-action.sh の check で行うと述べている",
+          "passed": true,
+          "evidence": "`claude-review-action.sh check --pr 42 --effort high --since ...` で判定すると述べている。"
+        },
+        {
+          "text": "スレッドの外（トップレベルのコメント A〜C の本文を含む）に未対応の指摘が残っていなければ、収束（完了）と判定できると述べている",
+          "passed": true,
+          "evidence": "手順 2 の条件のうち、A〜D の本文に対応していない指摘が無ければ「収束（完了）」と述べている。"
+        },
+        {
+          "text": "実行はせず説明に留めている（GitHub への接続・ファイルの変更を行っていない）",
+          "passed": true,
+          "evidence": "接続・変更をしていないと明記し、project-tree に新規ファイルなし。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 28,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 70.152,
+        "tokens": 394589,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "コメント A を数えない（書き手が github-actions[bot] でない）と述べている",
+          "passed": true,
+          "evidence": "A は投稿者が github-actions[bot] でないので取得の段階で外れ、数えない（ignored にも入らない）と述べている。"
+        },
+        {
+          "text": "コメント B を数えない（run 4999 は claude-review.yml の、今の HEAD を対象にした run でない）と述べている",
+          "passed": true,
+          "evidence": "B は run 4999 が ci.yml の run で、claude-review.yml の今の HEAD の run の一覧に無いので数えない（ignored）と述べている。"
+        },
+        {
+          "text": "コメント C を数えない（run 5002 が成功で終わっていない）と述べている",
+          "passed": true,
+          "evidence": "C は run 5002 が `completed/failure` で成功で終わっていないので数えないと述べている。"
+        },
+        {
+          "text": "コメント D の目印で、指摘 0 件でも今の HEAD をレビュー済みとしている",
+          "passed": true,
+          "evidence": "D は SHA・run-name・成功・effort=high がそろうので数え、`status=reviewed`（findings=0）とレビュー済みにしている。"
+        },
+        {
+          "text": "reviews[] が空なことと、今の HEAD に check-run が無いことを、未レビューの根拠にしていない",
+          "passed": true,
+          "evidence": "`reviews[]` が空で check-run が無いことは判定に使わず、問題にならないと述べている。"
+        },
+        {
+          "text": "目印と run の突き合わせを、同梱のスクリプト claude-review-action.sh の check で行うと述べている",
+          "passed": true,
+          "evidence": "`claude-review-action.sh check --pr 42 --effort high --since ...` で判定すると述べている。"
+        },
+        {
+          "text": "スレッドの外（トップレベルのコメント A〜C の本文を含む）に未対応の指摘が残っていなければ、収束（完了）と判定できると述べている",
+          "passed": true,
+          "evidence": "手順 2 の条件のうち、A〜D の本文に対応していない指摘が無ければ「収束（完了）」と述べている。"
+        },
+        {
+          "text": "実行はせず説明に留めている（GitHub への接続・ファイルの変更を行っていない）",
+          "passed": true,
+          "evidence": "接続・変更をしていないと明記し、project-tree に新規ファイルなし。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 29,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 58.407,
+        "tokens": 362376,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "10:00 の時点では、すぐに依頼せず、上限を決めて自動の run が現れるのを待つと述べている",
+          "passed": true,
+          "evidence": "10:00 は依頼せず、上限を決めて自動の run が一覧に現れるのを待ち、現れなければ初めて request と述べている。"
+        },
+        {
+          "text": "10:01 の時点では、run 5010 が進行中なので依頼せず、終わるのを待つ（同じ HEAD に重ねて依頼しない）と述べている",
+          "passed": true,
+          "evidence": "10:01 は `in-progress` なので依頼せず（request しても exit 4）、上限を決めて終わりを待つと述べている。"
+        },
+        {
+          "text": "10:03 の時点では、目印の effort が今の段階の effort と同じなので、今の HEAD をレビュー済みとし、依頼しないと述べている",
+          "passed": true,
+          "evidence": "10:03 は目印の effort=high が段階の effort と一致するので `status=reviewed`、依頼しないと述べている。"
+        },
+        {
+          "text": "10:03 の時点で、findings=2 の指摘（インラインコメントと総評）を集めて対応に進むと述べている",
+          "passed": true,
+          "evidence": "`findings=2`・`open=0` からインラインのスレッド 2 件と総評を集め、次の反復で対応すると述べている。"
+        },
+        {
+          "text": "どの時点でも @claude review を投稿しない（claude-code の依頼の方法と取り違えていない）",
+          "passed": true,
+          "evidence": "`@claude review` は投稿せず、依頼は request（workflow_dispatch）に限ると述べている。"
+        },
+        {
+          "text": "実行はせず説明に留めている（GitHub への接続・ファイルの変更を行っていない）",
+          "passed": true,
+          "evidence": "接続・変更をしていないと明記し、project-tree に新規ファイルなし。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 29,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 73.599,
+        "tokens": 513578,
+        "tool_calls": 14,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "10:00 の時点では、すぐに依頼せず、上限を決めて自動の run が現れるのを待つと述べている",
+          "passed": true,
+          "evidence": "10:00 は依頼せず、上限を決めて自動の run が一覧に現れるのを待ち、現れなければ初めて request と述べている。"
+        },
+        {
+          "text": "10:01 の時点では、run 5010 が進行中なので依頼せず、終わるのを待つ（同じ HEAD に重ねて依頼しない）と述べている",
+          "passed": true,
+          "evidence": "10:01 は `in-progress` なので依頼せず（request しても exit 4）、上限を決めて終わりを待つと述べている。"
+        },
+        {
+          "text": "10:03 の時点では、目印の effort が今の段階の effort と同じなので、今の HEAD をレビュー済みとし、依頼しないと述べている",
+          "passed": true,
+          "evidence": "10:03 は目印の effort=high が段階の effort と一致するので `status=reviewed`、依頼しないと述べている。"
+        },
+        {
+          "text": "10:03 の時点で、findings=2 の指摘（インラインコメントと総評）を集めて対応に進むと述べている",
+          "passed": true,
+          "evidence": "`findings=2`・`open=0` からインラインのスレッド 2 件と総評を集め、次の反復で対応すると述べている。"
+        },
+        {
+          "text": "どの時点でも @claude review を投稿しない（claude-code の依頼の方法と取り違えていない）",
+          "passed": true,
+          "evidence": "`@claude review` は投稿せず、依頼は request（workflow_dispatch）に限ると述べている。"
+        },
+        {
+          "text": "実行はせず説明に留めている（GitHub への接続・ファイルの変更を行っていない）",
+          "passed": true,
+          "evidence": "接続・変更をしていないと明記し、project-tree に新規ファイルなし。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 29,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 61.899,
+        "tokens": 559932,
+        "tool_calls": 12,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "10:00 の時点では、すぐに依頼せず、上限を決めて自動の run が現れるのを待つと述べている",
+          "passed": true,
+          "evidence": "10:00 は依頼せず、上限を決めて自動の run が一覧に現れるのを待ち、現れなければ初めて request と述べている。"
+        },
+        {
+          "text": "10:01 の時点では、run 5010 が進行中なので依頼せず、終わるのを待つ（同じ HEAD に重ねて依頼しない）と述べている",
+          "passed": true,
+          "evidence": "10:01 は `in-progress` なので依頼せず（request しても exit 4）、上限を決めて終わりを待つと述べている。"
+        },
+        {
+          "text": "10:03 の時点では、目印の effort が今の段階の effort と同じなので、今の HEAD をレビュー済みとし、依頼しないと述べている",
+          "passed": true,
+          "evidence": "10:03 は目印の effort=high が段階の effort と一致するので `status=reviewed`、依頼しないと述べている。"
+        },
+        {
+          "text": "10:03 の時点で、findings=2 の指摘（インラインコメントと総評）を集めて対応に進むと述べている",
+          "passed": true,
+          "evidence": "`findings=2`・`open=0` からインラインのスレッド 2 件と総評を集め、次の反復で対応すると述べている。"
+        },
+        {
+          "text": "どの時点でも @claude review を投稿しない（claude-code の依頼の方法と取り違えていない）",
+          "passed": true,
+          "evidence": "`@claude review` は投稿せず、依頼は request（workflow_dispatch）に限ると述べている。"
+        },
+        {
+          "text": "実行はせず説明に留めている（GitHub への接続・ファイルの変更を行っていない）",
+          "passed": true,
+          "evidence": "接続・変更をしていないと明記し、project-tree に新規ファイルなし。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 27,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5714,
+        "passed": 4,
+        "failed": 3,
+        "total": 7,
+        "time_seconds": 64.839,
+        "tokens": 174922,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "run 5001 の目印では今の HEAD をレビュー済みとしないと述べている（目印の effort が今の段階の medium と違う、または run 5001 が返信より前に作られた、のどちらかを理由にしている）",
+          "passed": true,
+          "evidence": "「effort が合っていない」「run 5001 は…返信より前のレビュー」として今の HEAD をレビュー済みとしていない。"
+        },
+        {
+          "text": "依頼を workflow_dispatch（同梱の claude-review-action.sh の request か、gh workflow run claude-review.yml）で行うと述べている",
+          "passed": true,
+          "evidence": "`workflow_dispatch` で起動する（`gh workflow run` の例を含む）と述べている。"
+        },
+        {
+          "text": "@claude review を投稿して依頼しない（claude-code の依頼の方法と取り違えていない）",
+          "passed": false,
+          "evidence": "workflow_dispatch が無い場合の代替として「PR に `@claude` でコメントする」方法を挙げており、投稿して依頼しないという基準を満たさない。"
+        },
+        {
+          "text": "依頼に effort medium を渡すと述べている",
+          "passed": true,
+          "evidence": "依頼に `effort=medium` を渡すと述べている。"
+        },
+        {
+          "text": "返信を投稿した時刻 2026-03-02T10:05:00Z を、それより前の run を数えない基準（--since）として依頼の判定に渡すと述べている",
+          "passed": false,
+          "evidence": "10:05:00Z は新しい run の受理条件として挙げるだけで、`--since` として依頼の判定に渡すとは述べていない。"
+        },
+        {
+          "text": "依頼する HEAD の SHA を表示から書き写さず、取得した値をファイル（--sha-file）で渡すと述べている",
+          "passed": false,
+          "evidence": "完全な SHA を渡すとは述べるが、取得した値をファイル（--sha-file）で渡すとは述べていない。"
+        },
+        {
+          "text": "実行はせず説明に留めている（GitHub への接続・ファイルの変更を行っていない）",
+          "passed": true,
+          "evidence": "GitHub への接続・ファイルの変更をしていないと明記し、project-tree に新規ファイルなし。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 27,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.5714,
+        "passed": 4,
+        "failed": 3,
+        "total": 7,
+        "time_seconds": 96.019,
+        "tokens": 164152,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "run 5001 の目印では今の HEAD をレビュー済みとしないと述べている（目印の effort が今の段階の medium と違う、または run 5001 が返信より前に作られた、のどちらかを理由にしている）",
+          "passed": true,
+          "evidence": "「effort が合っていない」「run 5001 は…返信より前のレビュー」として今の HEAD をレビュー済みとしていない。"
+        },
+        {
+          "text": "依頼を workflow_dispatch（同梱の claude-review-action.sh の request か、gh workflow run claude-review.yml）で行うと述べている",
+          "passed": true,
+          "evidence": "`workflow_dispatch` で起動する（`gh workflow run` の例を含む）と述べている。"
+        },
+        {
+          "text": "@claude review を投稿して依頼しない（claude-code の依頼の方法と取り違えていない）",
+          "passed": false,
+          "evidence": "workflow_dispatch が無い場合の代替として「PR に `@claude` でコメントする」方法を挙げており、投稿して依頼しないという基準を満たさない。"
+        },
+        {
+          "text": "依頼に effort medium を渡すと述べている",
+          "passed": true,
+          "evidence": "依頼に `effort=medium` を渡すと述べている。"
+        },
+        {
+          "text": "返信を投稿した時刻 2026-03-02T10:05:00Z を、それより前の run を数えない基準（--since）として依頼の判定に渡すと述べている",
+          "passed": false,
+          "evidence": "10:05:00Z は新しい run の受理条件として挙げるだけで、`--since` として依頼の判定に渡すとは述べていない。"
+        },
+        {
+          "text": "依頼する HEAD の SHA を表示から書き写さず、取得した値をファイル（--sha-file）で渡すと述べている",
+          "passed": false,
+          "evidence": "完全な SHA を渡すとは述べるが、取得した値をファイル（--sha-file）で渡すとは述べていない。"
+        },
+        {
+          "text": "実行はせず説明に留めている（GitHub への接続・ファイルの変更を行っていない）",
+          "passed": true,
+          "evidence": "GitHub への接続・ファイルの変更をしていないと明記し、project-tree に新規ファイルなし。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 27,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.5714,
+        "passed": 4,
+        "failed": 3,
+        "total": 7,
+        "time_seconds": 92.229,
+        "tokens": 141222,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "run 5001 の目印では今の HEAD をレビュー済みとしないと述べている（目印の effort が今の段階の medium と違う、または run 5001 が返信より前に作られた、のどちらかを理由にしている）",
+          "passed": true,
+          "evidence": "「effort が合っていない」「run 5001 は…返信より前のレビュー」として今の HEAD をレビュー済みとしていない。"
+        },
+        {
+          "text": "依頼を workflow_dispatch（同梱の claude-review-action.sh の request か、gh workflow run claude-review.yml）で行うと述べている",
+          "passed": true,
+          "evidence": "`workflow_dispatch` で起動する（`gh workflow run` の例を含む）と述べている。"
+        },
+        {
+          "text": "@claude review を投稿して依頼しない（claude-code の依頼の方法と取り違えていない）",
+          "passed": false,
+          "evidence": "workflow_dispatch が無い場合の代替として「PR に `@claude` でコメントする」方法を挙げており、投稿して依頼しないという基準を満たさない。"
+        },
+        {
+          "text": "依頼に effort medium を渡すと述べている",
+          "passed": true,
+          "evidence": "依頼に `effort=medium` を渡すと述べている。"
+        },
+        {
+          "text": "返信を投稿した時刻 2026-03-02T10:05:00Z を、それより前の run を数えない基準（--since）として依頼の判定に渡すと述べている",
+          "passed": false,
+          "evidence": "10:05:00Z は新しい run の受理条件として挙げるだけで、`--since` として依頼の判定に渡すとは述べていない。"
+        },
+        {
+          "text": "依頼する HEAD の SHA を表示から書き写さず、取得した値をファイル（--sha-file）で渡すと述べている",
+          "passed": false,
+          "evidence": "完全な SHA を渡すとは述べるが、取得した値をファイル（--sha-file）で渡すとは述べていない。"
+        },
+        {
+          "text": "実行はせず説明に留めている（GitHub への接続・ファイルの変更を行っていない）",
+          "passed": true,
+          "evidence": "GitHub への接続・ファイルの変更をしていないと明記し、project-tree に新規ファイルなし。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 28,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 6,
+        "failed": 2,
+        "total": 8,
+        "time_seconds": 73.544,
+        "tokens": 174207,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "コメント A を数えない（書き手が github-actions[bot] でない）と述べている",
+          "passed": true,
+          "evidence": "コメント A は人が書いたもので使わない（bot 以外は証拠にならない）と述べている。"
+        },
+        {
+          "text": "コメント B を数えない（run 4999 は claude-review.yml の、今の HEAD を対象にした run でない）と述べている",
+          "passed": true,
+          "evidence": "コメント B は run 4999 が ci.yml の run で Claude のレビューではないので使わないと述べている。"
+        },
+        {
+          "text": "コメント C を数えない（run 5002 が成功で終わっていない）と述べている",
+          "passed": true,
+          "evidence": "コメント C は conclusion が failure でレビューが終わった証拠にならないので使わないと述べている。"
+        },
+        {
+          "text": "コメント D の目印で、指摘 0 件でも今の HEAD をレビュー済みとしている",
+          "passed": true,
+          "evidence": "コメント D（findings=0・open=0）を採用し、今の HEAD はレビュー済みとしている。"
+        },
+        {
+          "text": "reviews[] が空なことと、今の HEAD に check-run が無いことを、未レビューの根拠にしていない",
+          "passed": true,
+          "evidence": "reviews[] が空・check-run が無いことは、claude-code-action では問題にならない（それだけでは判断しない）と述べている。"
+        },
+        {
+          "text": "目印と run の突き合わせを、同梱のスクリプト claude-review-action.sh の check で行うと述べている",
+          "passed": false,
+          "evidence": "claude-review-action.sh の check には触れず、各条件を一般論で突き合わせると述べている（スキル本体が見つからなかったと記載）。"
+        },
+        {
+          "text": "スレッドの外（トップレベルのコメント A〜C の本文を含む）に未対応の指摘が残っていなければ、収束（完了）と判定できると述べている",
+          "passed": false,
+          "evidence": "未解決スレッドが無く D がある点で収束としているが、トップレベルのコメント（A〜C を含む）の本文に未対応の指摘が無いことを条件に挙げていない。"
+        },
+        {
+          "text": "実行はせず説明に留めている（GitHub への接続・ファイルの変更を行っていない）",
+          "passed": true,
+          "evidence": "接続・変更をしていないと明記し、project-tree に新規ファイルなし。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 28,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 6,
+        "failed": 2,
+        "total": 8,
+        "time_seconds": 60.729,
+        "tokens": 137070,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "コメント A を数えない（書き手が github-actions[bot] でない）と述べている",
+          "passed": true,
+          "evidence": "コメント A は人が書いたもので使わない（bot 以外は証拠にならない）と述べている。"
+        },
+        {
+          "text": "コメント B を数えない（run 4999 は claude-review.yml の、今の HEAD を対象にした run でない）と述べている",
+          "passed": true,
+          "evidence": "コメント B は run 4999 が ci.yml の run で Claude のレビューではないので使わないと述べている。"
+        },
+        {
+          "text": "コメント C を数えない（run 5002 が成功で終わっていない）と述べている",
+          "passed": true,
+          "evidence": "コメント C は conclusion が failure でレビューが終わった証拠にならないので使わないと述べている。"
+        },
+        {
+          "text": "コメント D の目印で、指摘 0 件でも今の HEAD をレビュー済みとしている",
+          "passed": true,
+          "evidence": "コメント D（findings=0・open=0）を採用し、今の HEAD はレビュー済みとしている。"
+        },
+        {
+          "text": "reviews[] が空なことと、今の HEAD に check-run が無いことを、未レビューの根拠にしていない",
+          "passed": true,
+          "evidence": "reviews[] が空・check-run が無いことは、claude-code-action では問題にならない（それだけでは判断しない）と述べている。"
+        },
+        {
+          "text": "目印と run の突き合わせを、同梱のスクリプト claude-review-action.sh の check で行うと述べている",
+          "passed": false,
+          "evidence": "claude-review-action.sh の check には触れず、各条件を一般論で突き合わせると述べている（スキル本体が見つからなかったと記載）。"
+        },
+        {
+          "text": "スレッドの外（トップレベルのコメント A〜C の本文を含む）に未対応の指摘が残っていなければ、収束（完了）と判定できると述べている",
+          "passed": false,
+          "evidence": "未解決スレッドが無く D がある点で収束としているが、トップレベルのコメント（A〜C を含む）の本文に未対応の指摘が無いことを条件に挙げていない。"
+        },
+        {
+          "text": "実行はせず説明に留めている（GitHub への接続・ファイルの変更を行っていない）",
+          "passed": true,
+          "evidence": "接続・変更をしていないと明記し、project-tree に新規ファイルなし。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 28,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 6,
+        "failed": 2,
+        "total": 8,
+        "time_seconds": 60.24,
+        "tokens": 184932,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "コメント A を数えない（書き手が github-actions[bot] でない）と述べている",
+          "passed": true,
+          "evidence": "コメント A は人が書いたもので使わない（bot 以外は証拠にならない）と述べている。"
+        },
+        {
+          "text": "コメント B を数えない（run 4999 は claude-review.yml の、今の HEAD を対象にした run でない）と述べている",
+          "passed": true,
+          "evidence": "コメント B は run 4999 が ci.yml の run で Claude のレビューではないので使わないと述べている。"
+        },
+        {
+          "text": "コメント C を数えない（run 5002 が成功で終わっていない）と述べている",
+          "passed": true,
+          "evidence": "コメント C は conclusion が failure でレビューが終わった証拠にならないので使わないと述べている。"
+        },
+        {
+          "text": "コメント D の目印で、指摘 0 件でも今の HEAD をレビュー済みとしている",
+          "passed": true,
+          "evidence": "コメント D（findings=0・open=0）を採用し、今の HEAD はレビュー済みとしている。"
+        },
+        {
+          "text": "reviews[] が空なことと、今の HEAD に check-run が無いことを、未レビューの根拠にしていない",
+          "passed": true,
+          "evidence": "reviews[] が空・check-run が無いことは、claude-code-action では問題にならない（それだけでは判断しない）と述べている。"
+        },
+        {
+          "text": "目印と run の突き合わせを、同梱のスクリプト claude-review-action.sh の check で行うと述べている",
+          "passed": false,
+          "evidence": "claude-review-action.sh の check には触れず、各条件を一般論で突き合わせると述べている（スキル本体が見つからなかったと記載）。"
+        },
+        {
+          "text": "スレッドの外（トップレベルのコメント A〜C の本文を含む）に未対応の指摘が残っていなければ、収束（完了）と判定できると述べている",
+          "passed": false,
+          "evidence": "未解決スレッドが無く D がある点で収束としているが、トップレベルのコメント（A〜C を含む）の本文に未対応の指摘が無いことを条件に挙げていない。"
+        },
+        {
+          "text": "実行はせず説明に留めている（GitHub への接続・ファイルの変更を行っていない）",
+          "passed": true,
+          "evidence": "接続・変更をしていないと明記し、project-tree に新規ファイルなし。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 29,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 59.156,
+        "tokens": 119830,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "10:00 の時点では、すぐに依頼せず、上限を決めて自動の run が現れるのを待つと述べている",
+          "passed": true,
+          "evidence": "10:00 は依頼せず、今の HEAD の run が現れるのを待つ。十分待っても現れない場合に限り手動を検討すると述べている（上限の語は明示せず、弱い）。"
+        },
+        {
+          "text": "10:01 の時点では、run 5010 が進行中なので依頼せず、終わるのを待つ（同じ HEAD に重ねて依頼しない）と述べている",
+          "passed": true,
+          "evidence": "10:01 は run 5010 が動いているので依頼せず、完了を待つ。重複して run が走るだけと述べている。"
+        },
+        {
+          "text": "10:03 の時点では、目印の effort が今の段階の effort と同じなので、今の HEAD をレビュー済みとし、依頼しないと述べている",
+          "passed": true,
+          "evidence": "10:03 は目印の effort=high が今の段階と一致するので有効なレビューとして採用し、依頼しないと述べている。"
+        },
+        {
+          "text": "10:03 の時点で、findings=2 の指摘（インラインコメントと総評）を集めて対応に進むと述べている",
+          "passed": true,
+          "evidence": "`findings=2` なので指摘ゼロではない、2 件の中身を読み、対応すべきなら直して push すると述べている。"
+        },
+        {
+          "text": "どの時点でも @claude review を投稿しない（claude-code の依頼の方法と取り違えていない）",
+          "passed": true,
+          "evidence": "`@claude review` の投稿を勧めておらず、どの時点でも依頼しないと述べている。"
+        },
+        {
+          "text": "実行はせず説明に留めている（GitHub への接続・ファイルの変更を行っていない）",
+          "passed": true,
+          "evidence": "接続・変更をしていないと明記し、project-tree に新規ファイルなし。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 29,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.8333,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 35.55,
+        "tokens": 137604,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "10:00 の時点では、すぐに依頼せず、上限を決めて自動の run が現れるのを待つと述べている",
+          "passed": true,
+          "evidence": "10:00 は依頼せず、今の HEAD の run が現れるのを待つ。十分待っても現れない場合に限り手動を検討すると述べている（上限の語は明示せず、弱い）。"
+        },
+        {
+          "text": "10:01 の時点では、run 5010 が進行中なので依頼せず、終わるのを待つ（同じ HEAD に重ねて依頼しない）と述べている",
+          "passed": true,
+          "evidence": "10:01 は run 5010 が動いているので依頼せず、完了を待つ。重複して run が走るだけと述べている。"
+        },
+        {
+          "text": "10:03 の時点では、目印の effort が今の段階の effort と同じなので、今の HEAD をレビュー済みとし、依頼しないと述べている",
+          "passed": true,
+          "evidence": "10:03 は目印の effort=high が今の段階と一致するので有効なレビューとして採用し、依頼しないと述べている。"
+        },
+        {
+          "text": "10:03 の時点で、findings=2 の指摘（インラインコメントと総評）を集めて対応に進むと述べている",
+          "passed": false,
+          "evidence": "「findings=2 ですが open=0 なので、直すべき未解決の指摘はありません」「high の段階はこの HEAD で指摘ゼロになり、収束した」と、指摘に対応しない結論になっている。"
+        },
+        {
+          "text": "どの時点でも @claude review を投稿しない（claude-code の依頼の方法と取り違えていない）",
+          "passed": true,
+          "evidence": "`@claude review` の投稿を勧めておらず、どの時点でも依頼しないと述べている。"
+        },
+        {
+          "text": "実行はせず説明に留めている（GitHub への接続・ファイルの変更を行っていない）",
+          "passed": true,
+          "evidence": "接続・変更をしていないと明記し、project-tree に新規ファイルなし。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 29,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.8333,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 79.799,
+        "tokens": 138658,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "10:00 の時点では、すぐに依頼せず、上限を決めて自動の run が現れるのを待つと述べている",
+          "passed": true,
+          "evidence": "10:00 は依頼せず、今の HEAD の run が現れるのを待つ。十分待っても現れない場合に限り手動を検討すると述べている（上限の語は明示せず、弱い）。"
+        },
+        {
+          "text": "10:01 の時点では、run 5010 が進行中なので依頼せず、終わるのを待つ（同じ HEAD に重ねて依頼しない）と述べている",
+          "passed": true,
+          "evidence": "10:01 は run 5010 が動いているので依頼せず、完了を待つ。重複して run が走るだけと述べている。"
+        },
+        {
+          "text": "10:03 の時点では、目印の effort が今の段階の effort と同じなので、今の HEAD をレビュー済みとし、依頼しないと述べている",
+          "passed": true,
+          "evidence": "10:03 は目印の effort=high が今の段階と一致するので有効なレビューとして採用し、依頼しないと述べている。"
+        },
+        {
+          "text": "10:03 の時点で、findings=2 の指摘（インラインコメントと総評）を集めて対応に進むと述べている",
+          "passed": false,
+          "evidence": "「open=0 … この段階で直すべき指摘は残っていません」と読み、対応が要らなければ次の段階へ進むとしている。指摘を集めて対応に進むとは述べていない。"
+        },
+        {
+          "text": "どの時点でも @claude review を投稿しない（claude-code の依頼の方法と取り違えていない）",
+          "passed": true,
+          "evidence": "`@claude review` の投稿を勧めておらず、どの時点でも依頼しないと述べている。"
+        },
+        {
+          "text": "実行はせず説明に留めている（GitHub への接続・ファイルの変更を行っていない）",
+          "passed": true,
+          "evidence": "接続・変更をしていないと明記し、project-tree に新規ファイルなし。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 68.6582,
+        "stddev": 7.3436,
+        "min": 58.407,
+        "max": 81.244
+      },
+      "tokens": {
+        "mean": 466205.8889,
+        "stddev": 117067.6679,
+        "min": 297478,
+        "max": 696553
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.7368,
+        "stddev": 0.146,
+        "min": 0.5714,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 69.1228,
+        "stddev": 18.6581,
+        "min": 35.55,
+        "max": 96.019
+      },
+      "tokens": {
+        "mean": 152510.7778,
+        "stddev": 22382.0282,
+        "min": 119830,
+        "max": 184932
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.26",
+      "time_seconds": "-0.5",
+      "tokens": "+313695"
+    }
+  },
+  "notes": [
+    "Issue #1030 の PR B で足した eval 27〜29 の benchmark（claude-code / opus / effort high、3 run × 2 config）。依頼者の指定で 3 run にした。",
+    "すべての run は sandboxed で、without_skill の汚染の判定は clean、invalid_run は無い。",
+    "区別できる assertion: eval 27 の @claude review を投稿しない・--since・--sha-file、eval 28 の check スクリプト・スレッドの外の指摘の条件、eval 29 の findings=2 の指摘に進む（without_skill は 3 run 中 1 run だけ pass）。",
+    "区別できない assertion（without_skill も 3 run とも pass）は、場面の説明から一般論で答えられるもので、後退の検出のために置く。"
+  ]
+}
