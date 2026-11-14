@@ -78,27 +78,51 @@
       ]
     },
     {
-      "id": "catalog-is-baseline",
-      "why": "--catalog が基準の baseline/ を指すときに、基準を基準と比べて一致として通す",
-      "file": "skills/parity-component/scripts/shot-size-compare.mjs",
-      "find": "if (insideBaseline || dirIdentity(realCatalog) === dirIdentity(baselineDir)) {",
-      "replace": "if (false) {",
-      "occurrences": 1,
-      "expect_failing": [
-        "--catalog が基準の baseline/ そのものを指すと、基準を基準と比べずに止める",
-        "--catalog が基準の baseline/ の中を指すと、基準を基準と比べずに止める",
-        "--catalog が部品の成果物ディレクトリそのものを指すと、取り違えとして止める",
-        "--catalog がリンクで基準の baseline/ を指しても、取り違えとして止める"
-      ]
-    },
-    {
       "id": "size-with-structural",
       "why": "判定できない組があるときに、比べ終えた組の寸法の差を出力から捨てる",
       "file": "skills/parity-component/scripts/shot-size-compare.mjs",
-      "find": "findings: [...structuralFindings, ...sizeFindings],",
-      "replace": "findings: structuralFindings,",
+      "find": "const findings = structural ? [...structuralFindings, ...sizeFindings] : sizeFindings;",
+      "replace": "const findings = structural ? structuralFindings : sizeFindings;",
       "occurrences": 1,
       "expect_failing": ["判定できない組があっても、比べ終えた組の寸法の差を出力に含める"]
+    },
+    {
+      "id": "catalog-path-form",
+      "why": "--catalog が new/<target>/catalog の形でなくても受け付け、基準の baseline/ などを見本として比べる",
+      "file": "skills/parity-component/scripts/shot-size-compare.mjs",
+      "find": "if (!formed) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "--catalog が基準の baseline/ そのものを指すと、比べずに止める",
+        "--catalog が基準の baseline/ の中を指すと、比べずに止める",
+        "--catalog が部品の成果物ディレクトリそのものを指すと、比べずに止める",
+        "--catalog がnew/<target> まで（catalog の 1 段上）を指すと、比べずに止める",
+        "--catalog がnew/<target>/catalog の下を指すと、比べずに止める"
+      ]
+    },
+    {
+      "id": "catalog-path-link",
+      "why": "形どおりの --catalog がリンクで基準の baseline/ を指しても、見本として比べる",
+      "file": "skills/parity-component/scripts/shot-size-compare.mjs",
+      "find": "if (realpathSync(catalogDir) !== join(realpathSync(baselineDir), ...parts)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "--catalog が形どおりでも、リンクで基準の baseline/ を指すなら比べずに止める"
+      ]
+    },
+    {
+      "id": "baseline-missing",
+      "why": "基準の baseline/ が無いのに、組ごとの読めない記録だけを並べる（理由が埋もれる）",
+      "file": "skills/parity-component/scripts/shot-size-compare.mjs",
+      "find": "const baselineProblem = baselineRootProblem(baselineRoot);",
+      "replace": "const baselineProblem = null;",
+      "occurrences": 1,
+      "expect_failing": [
+        "基準の baseline/ が無ければ、組ごとに並べず 1 件の指摘で止める",
+        "基準の baseline/ がファイルなら、無いとは書かずにディレクトリでないと報告する"
+      ]
     }
   ]
 }

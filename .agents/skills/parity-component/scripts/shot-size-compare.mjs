@@ -9,7 +9,10 @@
 // 比べるもの: 比較の母集合（metadata.json の instances[] × capture.states から、宣言済みの
 // unreachable_states を除いた組）のすべてについて、次の 2 つの element.shot.json を読む。
 //   - 基準: <部品の成果物ディレクトリ>/baseline/<instance>/<state>/element.shot.json
-//   - 見本: <カタログの採取ディレクトリ>/<instance>/<state>/element.shot.json
+//   - 見本: <部品の成果物ディレクトリ>/new/<target>/catalog/<instance>/<state>/element.shot.json
+// --catalog は <部品の成果物ディレクトリ>/new/<target>/catalog の形のディレクトリ（リンクを通さない）だけを受け付ける。
+// 任意のパスを受け付けると、基準の baseline/ を取り違えて渡したときに、基準を基準と比べて全組が一致する。
+// 取り違えを綴りや inode で見つける判定は、別の綴り・別の階層・ファイルシステムの違いで抜けが続いたので、置き場所の形で決める。
 // 判定は png.width と png.height の完全一致で行う。画素の比較が要るのはこの一致だからである。
 // page_rect（ページ全体の座標で測った矩形。element-shot.mjs はこれを丸めて切り抜く）の幅と高さは、
 // 差の大きさ（1px 未満の差が丸めで 1px になったのか、など）を読むための診断として添える。
@@ -18,19 +21,24 @@
 //   - metadata.json を読めない、instances か capture.states が空、id と状態名がパスの 1 セグメントとして不正、id の重複
 //   - unreachable_states の宣言が { state, reason }（reason は空でない）の形でない、capture.states に無い状態を宣言している
 //   - 組の element.shot.json が片側に無い・読めない、png の幅と高さが正の整数でない、tool_version が無いか両側で違う
+//   - --catalog が上の形でない（catalog-path-invalid。比べずに止める）
+//   - 基準の baseline/ が無いか、ディレクトリでない（baseline-missing）
 //   - 母集合に無い組の見本がカタログの側にある（基準の無い見本）、カタログの一覧を読めない
-//   - カタログの採取ディレクトリが基準の baseline/ そのものか、その中を指す（基準を基準と比べて一致してしまう）
 // 寸法の差（size-mismatch）は、exit 2 のときも出力に含める。直す箇所を、構造の誤りを直す前に読めるようにするためである。
 // 比べた組が 0 件のときも exit 2 にする（nothing-compared）。0 件になる入力は、上の metadata.json の検査
 // （どのインスタンスでも到達できない状態を含む）が先に止めるので、この分岐は 0 件を合格にしないための防御である。
 //
 // 決定論的: 乱数・現在時刻・ネットワークに依存しない。読むのは JSON とディレクトリの一覧だけである。
 //
-// 使い方: node shot-size-compare.mjs --baseline <部品の成果物ディレクトリ> --catalog <カタログの採取ディレクトリ>
+// 使い方: node shot-size-compare.mjs --baseline <部品の成果物ディレクトリ> --catalog <部品の成果物ディレクトリ>/new/<target>/catalog
+// 出力は次のとおりである。exit 2 のときも、比べ終えた組の size-mismatch と counts を出す。
+//   - findings: 指摘
+//   - excluded: 到達不能と宣言して外した組の一覧
+//   - counts.pairs: 母集合の組の数。counts.compared: 両側の記録を読めて比べた組の数
 // 終了コード: 0 ＝ すべての組で寸法が一致、1 ＝ 寸法の差がある、2 ＝ 使い方の誤り・判定できない入力。
 
 import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { cliIo, usageFailer, writeCheckResult } from "./lib/check-cli.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { parseFlags } from "./lib/flags.mjs";
@@ -340,56 +348,42 @@ function comparePair({ pair, readers, findings }) {
 }
 
 /**
- * ディレクトリの同一性（デバイスと inode）。読めなければ null。
- * 綴りで比べると、大文字と小文字を区別しないファイルシステムで `Baseline` と `baseline` を別のものとして扱う。
- * @param {string} path
+ * --catalog が <baselineDir>/new/<target>/catalog の形の、リンクを通さないディレクトリかを確かめる。違えば理由の文を返す。
+ * @param {string} baselineDir
+ * @param {string} catalogDir
  * @returns {string | null}
  */
-function dirIdentity(path) {
-  try {
-    const st = statSync(path);
-    return st.isDirectory() ? `${st.dev}:${st.ino}` : null;
-  } catch {
-    return null;
+function catalogPathProblem(baselineDir, catalogDir) {
+  const parts = relative(baselineDir, catalogDir).split(sep);
+  const formed =
+    parts.length === 3 && parts[0] === "new" && safeSegment(parts[1]) && parts[2] === "catalog";
+  if (!formed) {
+    return `--catalog は <--baseline>/new/<target>/catalog の形で渡す（渡された値: ${catalogDir}）`;
   }
+  try {
+    // 途中にリンクがあると、別の場所（基準の baseline/ など）を見本として読む。実パスが形どおりかで確かめる。
+    if (realpathSync(catalogDir) !== join(realpathSync(baselineDir), ...parts)) {
+      return `--catalog の途中にリンクがある（リンクを通さない実際のディレクトリを渡す）: ${catalogDir}`;
+    }
+  } catch (error) {
+    return `--catalog を解決できない: ${String(field(error, "message"))}`;
+  }
+  return null;
 }
 
 /**
- * path か、その祖先のどれかが、target と同じディレクトリか。path は実パスで渡す。
- * @param {string} path
- * @param {string} target dirIdentity の値
+ * 基準の baseline/ が読めるディレクトリでなければ、理由の文を返す。
+ * @param {string} baselineRoot
+ * @returns {string | null}
  */
-function isAtOrUnder(path, target) {
-  for (let p = path; ; p = dirname(p)) {
-    if (dirIdentity(p) === target) return true;
-    if (dirname(p) === p) return false;
-  }
-}
-
-/**
- * カタログの採取ディレクトリの取り違えを指摘に積む。当たるのは、基準の baseline/ そのものか、その中を指す場合と、
- * 部品の成果物ディレクトリ（--baseline と同じディレクトリ）を指す場合である。
- * 前者では基準を基準自身と比べて全組が一致し、見本を 1 件も撮っていないのに exit 0 になる。
- * 後者は exit 2 にはなるが、基準の無い見本と読めない記録が並ぶだけで、原因の --catalog の誤りを読み取れない。
- * 同じディレクトリかは、綴りではなくデバイスと inode で比べる（リンク経由の指定も同じに扱う）。
- * @param {{ baselineDir: string, baselineRoot: string, catalogDir: string, findings: SizeFinding[] }} arg
- */
-function checkCatalogNotBaseline({ baselineDir, baselineRoot, catalogDir, findings }) {
-  let realCatalog;
+function baselineRootProblem(baselineRoot) {
   try {
-    realCatalog = realpathSync(catalogDir);
-  } catch {
-    // main がディレクトリが在ることを確かめてから渡すので、ここで解決できないのは渡した後に消えたときだけである。
-    // 一覧を読む checkCatalogExtras が catalog-unreadable として止める。
-    return;
-  }
-  const baselineId = dirIdentity(baselineRoot);
-  const insideBaseline = baselineId !== null && isAtOrUnder(realCatalog, baselineId);
-  if (insideBaseline || dirIdentity(realCatalog) === dirIdentity(baselineDir)) {
-    findings.push({
-      code: "catalog-is-baseline",
-      detail: `カタログの採取ディレクトリが、基準の baseline/ か部品の成果物ディレクトリを指す: ${catalogDir}`,
-    });
+    return statSync(baselineRoot).isDirectory()
+      ? null
+      : `基準の baseline/ がディレクトリでない: ${baselineRoot}`;
+  } catch (error) {
+    if (field(error, "code") === "ENOENT") return `基準の baseline/ が無い: ${baselineRoot}`;
+    return `基準の baseline/ を読めない: ${String(field(error, "message"))}`;
   }
 }
 
@@ -413,55 +407,52 @@ function comparePairs({ pairs, readers, structuralFindings }) {
 }
 
 /**
+ * 判定できない入力だけで終える結果。
+ * @param {SizeFinding[]} findings
+ * @returns {{ structural: true, findings: SizeFinding[], pairs: number, compared: number, excluded: { instance: string, state: string }[] }}
+ */
+function stopped(findings) {
+  return { structural: true, findings, pairs: 0, compared: 0, excluded: [] };
+}
+
+/**
  * 基準とカタログの寸法を突き合わせる。
  * @param {{ baselineDir: string, catalogDir: string }} dirs
- * @returns {{ structural: boolean, findings: SizeFinding[], compared: number, excluded: { instance: string, state: string }[] }}
+ * @returns {{ structural: boolean, findings: SizeFinding[], pairs: number, compared: number, excluded: { instance: string, state: string }[] }}
  */
 export function compareShotSizes({ baselineDir, catalogDir }) {
-  /** @type {SizeFinding[]} */
-  const structuralFindings = [];
+  const catalogProblem = catalogPathProblem(baselineDir, catalogDir);
+  if (catalogProblem !== null)
+    return stopped([{ code: "catalog-path-invalid", detail: catalogProblem }]);
   let metadata;
   try {
     metadata = JSON.parse(readFileSync(join(baselineDir, "metadata.json"), "utf8"));
   } catch (error) {
     const detail = `metadata.json を読めない: ${String(field(error, "message"))}`;
-    return {
-      structural: true,
-      findings: [{ code: "metadata-unreadable", detail }],
-      compared: 0,
-      excluded: [],
-    };
+    return stopped([{ code: "metadata-unreadable", detail }]);
   }
+  /** @type {SizeFinding[]} */
+  const structuralFindings = [];
   const { pairs, excluded } = population(metadata, structuralFindings);
   const baselineRoot = join(baselineDir, "baseline");
-  checkCatalogNotBaseline({ baselineDir, baselineRoot, catalogDir, findings: structuralFindings });
   checkCatalogExtras({ catalogDir, pairs, findings: structuralFindings });
-  // baseline/ が無ければ、組ごとに同じ理由の shot-unreadable を並べず、1 件の指摘で止める。
-  const baselinePresent = dirIdentity(baselineRoot) !== null;
-  if (!baselinePresent) {
-    structuralFindings.push({
-      code: "baseline-missing",
-      detail: `基準の baseline/ が無い: ${baselineRoot}`,
-    });
+  // baseline/ を読めなければ、組ごとに同じ理由の shot-unreadable を並べず、1 件の指摘で止める。
+  const baselineProblem = baselineRootProblem(baselineRoot);
+  if (baselineProblem !== null) {
+    structuralFindings.push({ code: "baseline-missing", detail: baselineProblem });
   }
   const { compared, sizeFindings } = comparePairs({
-    pairs: baselinePresent ? pairs : [],
+    pairs: baselineProblem === null ? pairs : [],
     readers: { baseline: insideReader(baselineRoot), catalog: insideReader(catalogDir) },
     structuralFindings,
   });
   if (structuralFindings.length === 0 && compared === 0) {
     structuralFindings.push({ code: "nothing-compared", detail: "比べた組が 0 件" });
   }
-  if (structuralFindings.length > 0) {
-    // 寸法の差も一緒に出す。構造の誤りを直す前に、比べ終えた組の差を読めるようにする（終了コードは 2 のまま）。
-    return {
-      structural: true,
-      findings: [...structuralFindings, ...sizeFindings],
-      compared,
-      excluded,
-    };
-  }
-  return { structural: false, findings: sizeFindings, compared, excluded };
+  const structural = structuralFindings.length > 0;
+  // exit 2 のときも寸法の差を一緒に出す。構造の誤りを直す前に、比べ終えた組の差を読めるようにする。
+  const findings = structural ? [...structuralFindings, ...sizeFindings] : sizeFindings;
+  return { structural, findings, pairs: pairs.length, compared, excluded };
 }
 
 /**
@@ -486,7 +477,7 @@ export function main(argv, io = {}) {
   const { cwd, write, writeErr } = cliIo(io);
   const fail = usageFailer(
     writeErr,
-    "usage: shot-size-compare.mjs --baseline <部品の成果物ディレクトリ> --catalog <カタログの採取ディレクトリ>",
+    "usage: shot-size-compare.mjs --baseline <部品の成果物ディレクトリ> --catalog <部品の成果物ディレクトリ>/new/<target>/catalog",
   );
   const parsed = parseFlags(argv, { values: ["--baseline", "--catalog"] });
   if (parsed.error !== undefined) return fail(parsed.error);
@@ -504,15 +495,11 @@ export function main(argv, io = {}) {
     if (!isDirectory(dir)) return fail(`${name} のディレクトリが無い: ${dir}`);
   }
   const result = compareShotSizes({ baselineDir, catalogDir });
-  // compared と excluded は、exit 2 のときも counts に出す（size-mismatch が全組の分か一部の分かを読めるようにする）。
+  // 組の数は exit 2 のときも counts に出す。pairs と compared を比べれば、size-mismatch が全組の分か一部の分かを読める。
   return writeCheckResult(
     write,
-    { ...result, counts: { compared: result.compared, excluded: result.excluded.length } },
-    {
-      tool: "shot-size-compare",
-      version: VERSION,
-      fields: { compared: result.compared, excluded: result.excluded },
-    },
+    { ...result, counts: { pairs: result.pairs, compared: result.compared } },
+    { tool: "shot-size-compare", version: VERSION, fields: { excluded: result.excluded } },
   );
 }
 
