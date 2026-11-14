@@ -3,7 +3,7 @@
 `docs/skill-development.md` の隔離手順に従い、with-skill / without-skill を同じ prompt・同じモデル条件で実行する。
 
 ```bash
-GH_TOKEN=invalid-for-eval GH_CONFIG_DIR=/nonexistent/gh-config-for-eval scripts/eval/run/run-skill-eval.sh \
+env -u SKILL_EVAL_ALLOW_UNISOLATED GH_TOKEN=invalid-for-eval GH_CONFIG_DIR=/nonexistent/gh-config-for-eval scripts/eval/run/run-skill-eval.sh \
   --skill issue-create \
   --prompt '<evals.json の該当 eval の prompt>' \
   --config with_skill \
@@ -19,7 +19,8 @@ GH_TOKEN=invalid-for-eval GH_CONFIG_DIR=/nonexistent/gh-config-for-eval scripts/
 - eval の sandbox は、`gh` の認証（`~/.config/gh` と、`GH_TOKEN` などの環境変数）を run に見せず、GitHub への名前の解決も止める。
   sandbox で実行できない環境（`isolation.txt` が `UNISOLATED`）と、遮断を確かめていない run（`UNVERIFIED`）では、run がホームの認証情報を読めるので、eval から実際に Issue を作れてしまう。
   その環境ではこの eval を実行しない。
-  `run-skill-eval.sh` はその状態でも警告を出して run を始めるので、起動の前に `command -v bwrap` が成功し、`SKILL_EVAL_RUNNER` が空であることを確かめる。
+  `run-skill-eval.sh` はその状態では executor を起動せずに exit 7 で止まるが、`SKILL_EVAL_ALLOW_UNISOLATED=1` を設定すると run を始める。この eval では、その変数を設定しない。
+  シェルに残った値で続けないように、実行例は `env -u SKILL_EVAL_ALLOW_UNISOLATED` でその変数を外して起動する。
   実行例の無効な `GH_TOKEN` と、実在しない `GH_CONFIG_DIR` は、誤って sandbox の外で起動したときの保険である。
   `gh` の呼び出しと、`GH_TOKEN` だけを外した呼び直しは失敗する。ただし、両方を外した呼び直しや、ホームの設定ファイルの token を直に使う run は止められない。
   sandbox を通る run では、sandbox がどちらの値も外す。
