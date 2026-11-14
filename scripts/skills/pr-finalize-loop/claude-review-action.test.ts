@@ -422,6 +422,8 @@ describe("request", () => {
     );
     expect(r.status, r.stderr).toBe(0);
     expect(r.out).toMatchObject({ status: "requested", run: "21" });
+    // dispatch の API が本文を返さないとき（204）は、空の括弧を出さない
+    expect(r.stderr).toMatch(/effort medium で依頼した$/m);
     const log = readFileSync(join(r.dir, "calls.log"), "utf8");
     const call = log.split("\n").find((l) => l.includes("/dispatches")) ?? "";
     expect(call).toContain("repos/o/r/actions/workflows/claude-review.yml/dispatches");

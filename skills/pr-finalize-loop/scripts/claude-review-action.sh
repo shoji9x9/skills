@@ -350,7 +350,7 @@ if ! dispatched=$(gh api ${host_args[@]+"${host_args[@]}"} --method POST \
 	echo "error: 依頼できない: $(tr '\n' ' ' <"${err}")" >&2
 	exit 2
 fi
-echo "note: ${head} を effort ${effort:-（ワークフローのデフォルト）} で依頼した（${dispatched:+応答: ${dispatched}}）" >&2
+echo "note: ${head} を effort ${effort:-（ワークフローのデフォルト）} で依頼した${dispatched:+（応答: ${dispatched}）}" >&2
 
 new_run=""
 tries=0
