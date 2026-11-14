@@ -17,7 +17,7 @@
 // マスクの論理名の位置は、側ごとに次の順で決める。
 // 1. その側の mask-rects.json（撮影のときにマスクを当てた矩形の記録）がその名前を記録していれば、記録した矩形を使う。
 //    記録した rects が空か、面積が 0 の矩形だけなら、その側ではマスクが何も塗らなかったと分かる（位置は決まる）。
-//    rects が null（iframe の中の要素か、無限に繰り返すアニメーションの中の要素なので、撮影の後に矩形を採っても
+//    rects が null（iframe の中の要素か、撮影の直後に動いていた要素なので、撮影の後に矩形を採っても
 //    塗った位置と合わない）なら、位置の分からないマスクにする（traits.json は探さない）。
 // 2. 記録していなければ（mask-rects.json が無いと宣言した側と、隣にも mask-rects.json が無い側を含む）、
 //    その側の traits.json の rect から探す。
@@ -63,7 +63,7 @@ export const VERSION = "2";
  * 側ごとの mask-rects.json。missing は、`--<side>-mask-rects-missing` で無いと宣言したか、
  * どちらの引数も渡さず traits.json の隣にも mask-rects.json が無い側である。
  * byName は、記録したマスクの論理名から、ロケータが当たったすべての要素の矩形への対応である。
- * null は、矩形を記録できなかった（iframe の中の要素か、無限に繰り返すアニメーションの中の要素）ことを表す。
+ * null は、矩形を記録できなかった（iframe の中の要素か、撮影の直後に動いていた要素）ことを表す。
  * @typedef {{ side:Side, missing:true } | { side:Side, missing:false, byName:Map<string, Rect[] | null> }} SideMaskRects
  */
 /**
@@ -302,7 +302,7 @@ function recordedMaskRects(maskRects, side, name) {
  * 1 つの側で、マスクの論理名を画像の画素の矩形に直す。先にその側の mask-rects.json の記録を使い、記録が無ければ traits.json から探す。
  * 位置を決められなければ、reason に理由（名前が無い absent・名前はあるが面積が 0 の zero_area・
  * 矩形を記録できなかった unrecordable）を入れる。unrecordable では traits.json を探さない
- * （iframe の中の要素なら traits.json の rect は iframe の中の座標で、アニメーションの中の要素なら位置が定まらない）。
+ * （iframe の中の要素なら traits.json の rect は iframe の中の座標で、動いている要素なら位置が定まらない）。
  * その側の traits.json が無く記録も無いときは、理由を入れない（traits_missing が判定できない理由になる）。
  * @param {string} name
  * @param {SideTraits} s
@@ -784,7 +784,7 @@ function warnUnresolved({ sides, maskRects }, unlocated, unknown) {
       : "";
     const where =
       u.reason === "unrecordable"
-        ? `has no rects in the ${u.side} mask-rects.json (rects: null: in an iframe or in an infinite animation)`
+        ? `has no rects in the ${u.side} mask-rects.json (rects: null: in an iframe or moving after the capture)`
         : u.reason === "zero_area"
           ? `has no area (width or height 0) in the ${u.side} traits.json${notRecorded}`
           : `is not in the ${u.side} traits.json${notRecorded}`;
