@@ -634,15 +634,72 @@ describe("Collect review inputs", () => {
   });
 
   test("前回の後の rename は、元の名前の削除と新しい名前の追加の両方を since.diff に入れる", () => {
+    // base にあり PR がまだ触れていない r.txt を、内容を変えずに rename する。
+    // rename として扱うと、ファイルの一覧に元の名前（r.txt）が出ず、削除が since.diff から抜ける。
     const { since } = sinceAfter(
-      () => {},
+      (repo, git) => {
+        // 前回より前に、base が r.txt を足し、PR がそれを取り込む。
+        git("checkout", "-q", "-b", "base-r", "refs/remotes/origin/main");
+        writeFileSync(
+          join(repo, "r.txt"),
+          "base にある、PR がまだ触れていないファイル\n".repeat(5),
+        );
+        git("add", "-A");
+        git("commit", "-q", "-m", "base adds r");
+        git("update-ref", "refs/remotes/origin/main", "HEAD");
+        git("checkout", "-q", "main");
+        git("merge", "-q", "--no-edit", "base-r");
+      },
       (_repo, git) => {
-        git("mv", "f.txt", "f2.txt");
+        git("mv", "r.txt", "r2.txt");
         git("commit", "-q", "-m", "rename");
       },
     );
-    expect(since).toContain("--- a/f.txt");
-    expect(since).toContain("+++ b/f2.txt");
+    expect(since).toContain("--- a/r.txt");
+    expect(since).toContain("+++ b/r2.txt");
+  });
+
+  test("取り込みのコンフリクトを base の内容で解消して PR の変更を捨てたファイルも、since.diff に入れる", () => {
+    const { since } = sinceAfter(
+      () => {},
+      (repo, git) => {
+        // sinceAfter の merge は f.txt で競合しないので、ここで base 側を進めてから競合させる。
+        git("checkout", "-q", "base-moved");
+        writeFileSync(join(repo, "f.txt"), "base 側の f\n");
+        git("commit", "-q", "-am", "base changes f");
+        git("update-ref", "refs/remotes/origin/main", "HEAD");
+        git("checkout", "-q", "main");
+        spawnSync("git", ["merge", "-q", "base-moved"], { cwd: repo, timeout: CHILD_TIMEOUT_MS });
+        git("checkout", "--theirs", "f.txt");
+        git("add", "f.txt");
+        git("commit", "-q", "--no-edit");
+      },
+    );
+    expect(since).toContain("f.txt");
+    expect(since).toContain("-second");
+  });
+
+  test("merge の 2 番目の親の側の commit が base と同じ内容へ戻したファイルも、since.diff に入れる", () => {
+    const { since } = sinceAfter(
+      (repo, git) => {
+        writeFileSync(join(repo, "h.txt"), "前回までに足したファイル\n");
+        git("add", "-A");
+        git("commit", "-q", "-m", "add h");
+      },
+      (repo, git) => {
+        // 別の branch で h.txt を消し、手元の別の commit の後に merge する（git pull の merge と同じ形）。
+        git("checkout", "-q", "-b", "remote-side");
+        git("rm", "-q", "h.txt");
+        git("commit", "-q", "-m", "remove h");
+        git("checkout", "-q", "main");
+        writeFileSync(join(repo, "a.txt"), "手元の変更\n");
+        git("add", "-A");
+        git("commit", "-q", "-m", "local");
+        git("merge", "-q", "--no-edit", "remote-side");
+      },
+    );
+    expect(since).toContain("deleted file");
+    expect(since).toContain("h.txt");
     expect(since).not.toContain("g.txt");
   });
 
