@@ -340,7 +340,7 @@ sandboxed*) ;;
 		{
 			echo "refusing to start the executor: read isolation is ${isolation}"
 			echo "  a run outside the sandbox can read the operator's credentials (\$HOME, GH_TOKEN, ...)."
-			echo "  to isolate: install bubblewrap, keep ${sandbox} executable and in place (not a symlink to a file elsewhere),"
+			echo "  to isolate: install bubblewrap, keep ${sandbox} executable and a regular file (not a symlink),"
 			echo "  and leave SKILL_EVAL_RUNNER unset"
 			echo "  (or set it to the absolute path of that script)."
 			echo "  to run without isolation anyway (a stub runner, for example), set SKILL_EVAL_ALLOW_UNISOLATED=1."
@@ -516,12 +516,13 @@ rc=0
 	export SHOJI9X9_SKILLS_IGNORE_USER_CONFIG=1
 	EVAL_SANDBOX_CLI="${executor_binary}" EVAL_SANDBOX_VENDOR="${executor}" "${runner}" "${executor_args[@]}"
 ) </dev/null >"${raw_trace}" 2>"${out}/stderr.log" || rc=$?
-# CLI 自身の終了コード。下で rc を 5 に上書きしても、done の行にはこの値を出す。
+# CLI 自身の終了コード。warn の行・result.json の exit_code・done の行の cli_rc= は、この値を使う。
+# rc は、下で正規化の失敗の 5 などに上書きされうるハーネスの終了コードとして扱う。
 cli_rc="${rc}"
 ended_ms="$(date +%s%3N)"
 ended_at="$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
 duration_ms=$((ended_ms - started_ms))
-[ "${rc}" -ne 0 ] && echo "warn: ${executor_binary} exited ${rc} (see ${out}/stderr.log)" >&2
+[ "${cli_rc}" -ne 0 ] && echo "warn: ${executor_binary} exited ${cli_rc} (see ${out}/stderr.log)" >&2
 
 normalizer_args=(
 	--executor "${executor}"
@@ -530,7 +531,7 @@ normalizer_args=(
 	--timing "${out}/timing.json"
 	--metrics "${out}/outputs/metrics.json"
 	--response "${out}/outputs/response.md"
-	--exit-code "${rc}"
+	--exit-code "${cli_rc}"
 	--duration-ms "${duration_ms}"
 	--started-at "${started_at}"
 	--ended-at "${ended_at}"
