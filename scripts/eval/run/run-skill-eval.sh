@@ -45,7 +45,8 @@
 #   6: ベースラインの再利用を拒否した（入力・実行条件・出所・成果物のどれかを確かめられない）。
 #   7: 読み取りの隔離を確かめられない（isolation が sandboxed 以外）ので、executor を起動せずに止めた。
 #      SKILL_EVAL_ALLOW_UNISOLATED=1 を設定したときだけ、警告を出して続ける。
-#   2〜7 は、CLI が同じ値で終わったときにも返る。止めたことは、stderr の理由の行と、--out が作られていないことで確かめる。
+#   2〜7 は、CLI が同じ値で終わったときにも返る。止めたことは、stderr の理由の行（refusing to start the executor）で確かめる。
+#      --out は既にあっても拒否しないので、--out が無いことは止めた根拠にならない。
 set -euo pipefail
 
 usage() {

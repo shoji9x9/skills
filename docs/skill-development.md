@@ -382,7 +382,8 @@ setup が 0 以外で終わったら、executor を起動せずに eval を失�
   ただし、次の 3 つがそろうときは `sandboxed` と記録する。
   値が絶対パスで、`realpath` で解決したパスがハーネスの `eval-sandbox.sh` と一致する。その `eval-sandbox.sh` が実行可能である。bwrap がある。
   シンボリックリンクを経た指定も一致する。相対パスとコマンド名は一致として扱わない。
-  `SKILL_EVAL_RUNNER` に `eval-sandbox.sh` を指定した run の記録に `UNVERIFIED` があれば、それはハーネスがこの一致を判定しなかった run で、遮断を確かめていないことだけを表す。隔離されなかったことは表さない。
+  記録の `UNVERIFIED` は、遮断を確かめていないことを表し、隔離されたかどうかは表さない。
+  一致を判定しないハーネスで記録した run は、`eval-sandbox.sh` の絶対パスを指定していても `UNVERIFIED` になっている。
   `sandboxed` と記録した run は、baseline の再利用でも受け付けられる。
 - `with_skill` も隔離するのは、比べる差をスキルの有無だけにするためである。
   隔離しないと、`with_skill` はエージェントの履歴（スキルを書いたセッションや eval を設計したセッションのトランスクリプト）や、グローバルにインストールしたスキルを読めてしまい、Delta が実際より大きくなる。
@@ -392,7 +393,7 @@ setup が 0 以外で終わったら、executor を起動せずに eval を失�
   `SKIPPED` は判定が実行されなかったことを表し、`clean` ではない。
 - bwrap か `eval-sandbox.sh` が無い環境では、isolation は `UNISOLATED` になる。
   isolation が `sandboxed` 以外（`UNISOLATED`・`UNVERIFIED`）の run は、操作する人の認証情報を読めるので、ハーネスは executor を起動する前に理由と続け方を出し、exit 7 で止まる。
-  そのため、bwrap の無い環境では eval を起動できない。bubblewrap を入れてから実行する。
+  そのため、bwrap の無い環境では、下の `SKILL_EVAL_ALLOW_UNISOLATED=1` を設定しない限り executor を起動しない。bubblewrap を入れてから実行する。
   スタブの runner などで続けるときだけ `SKILL_EVAL_ALLOW_UNISOLATED=1` を設定する。値が `1` 以外（空を含む）なら止まる。認証情報を読むスキル（`box`・`issue-create` など）の eval は、この変数で続けない。
   baseline の再利用（`--reuse-baseline`）は executor を起動しないので、止まらない。
   続けた run は `UNISOLATED` か `UNVERIFIED` を記録し、`flock` で `with_skill` の実行と排他にして、1 つずつ実行する。
