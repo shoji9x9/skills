@@ -700,7 +700,7 @@ describe("Collect review inputs", () => {
     );
     expect(outputs(res.dir).previous).toBe(previous);
     expect(existsSync(join(input, "since.diff"))).toBe(false);
-    expect(read(input, "README.md")).toContain("共通の祖先が無い");
+    expect(read(input, "README.md")).toContain("git merge-base の終了コード: 1");
     expect(read(input, "README.md")).not.toContain("履歴に無い");
   });
 

@@ -257,18 +257,16 @@ jobs:
             if ! git cat-file -e "$previous^{commit}" 2>/dev/null; then
               since_note="前回レビューした commit（$previous）が履歴に無い（rebase して force push したなど）。full.diff を全体として読む。"
             else
-              # merge-base の終了コードは、0 が求まった、1 が共通の祖先が無い（履歴の無い内容で force push したなど）、
-              # それ以外が読めない。読めないときは、共通の祖先が無いことと区別できないので段を失敗させる。
+              # merge base を求められないとき（終了コード 1 は共通の祖先が無い。履歴の無い内容で force push したなど）は、
+              # since.diff を作らずに full.diff だけを読ませる。since.diff は目安なので、作れなくてもレビューは続ける。
+              # 終了コードは、原因を後で追えるよう README とログに残す。
               rc=0
               previous_base="$(git merge-base "origin/$BASE_REF" "$previous")" || rc=$?
-              case "$rc" in
-              0) ;;
-              1) since_note="前回レビューした commit（$previous）と base のブランチに共通の祖先が無い。full.diff を全体として読む。" ;;
-              *)
-                echo "::error title=Claude review::前回レビューした commit の merge base を求められない（終了コード: $rc）"
-                exit 1
-                ;;
-              esac
+              if [ "$rc" -ne 0 ]; then
+                previous_base=""
+                since_note="前回レビューした commit（$previous）との merge base を求められない（git merge-base の終了コード: $rc。1 は base のブランチと共通の祖先が無い）。full.diff を全体として読む。"
+                echo "::warning title=Claude review::$since_note"
+              fi
             fi
           fi
           if [ -n "$previous_base" ]; then
