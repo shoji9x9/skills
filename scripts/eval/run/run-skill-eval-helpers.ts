@@ -169,6 +169,9 @@ export async function runEval(options: RunEvalOptions) {
         ...process.env,
         PATH: `${dirname(stub)}:${process.env.PATH}`,
         SKILL_EVAL_RUNNER: stub,
+        // スタブの runner は sandbox ではないので、ハーネスは変数が 1 でなければ executor の起動前に止める。
+        // 止まることを確かめるテスト（run-skill-eval-isolation.test.ts）は、このヘルパーを通さずに変数なしで起動する。
+        SKILL_EVAL_ALLOW_UNISOLATED: "1",
         SKILL_EVAL_CLI_VERSION: `${effectiveExecutor} stub-version`,
         ...env,
       },
@@ -269,11 +272,15 @@ export function copyHarness(root: string) {
   }
 }
 
-/** 対象のスキル subject-skill と、その evals.json を root に書く。 */
-export function writeSubjectSkill(root: string, evalDefinition: Record<string, unknown>) {
-  const subject = join(root, "skills", "subject-skill");
+/** 対象のスキル（デフォルトの名前は subject-skill）と、その evals.json を root に書く。 */
+export function writeSubjectSkill(
+  root: string,
+  evalDefinition: Record<string, unknown>,
+  name = "subject-skill",
+) {
+  const subject = join(root, "skills", name);
   mkdirSync(join(subject, "references"), { recursive: true });
-  const subjectEvals = join(root, "evals", "subject-skill");
+  const subjectEvals = join(root, "evals", name);
   mkdirSync(subjectEvals, { recursive: true });
   writeFileSync(join(subject, "SKILL.md"), "# subject\n", "utf8");
   writeFileSync(join(subject, "references", "subject-guide.md"), "guide\n", "utf8");
@@ -284,7 +291,7 @@ export function writeSubjectSkill(root: string, evalDefinition: Record<string, u
   writeFileSync(join(subject, "references", "handoff.md"), "handoff\n", "utf8");
   // 配布先には届く同梱物。設定を読むスキルは、run の中で config-schemas/ を読む。
   mkdirSync(join(subject, "config-schemas"));
-  writeFileSync(join(subject, "config-schemas", "subject-skill.schema.json"), "{}\n", "utf8");
+  writeFileSync(join(subject, "config-schemas", `${name}.schema.json`), "{}\n", "utf8");
   writeFileSync(join(subject, "checks.json"), "{}\n", "utf8");
   writeFileSync(
     join(subjectEvals, "evals.json"),

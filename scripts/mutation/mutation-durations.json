@@ -3,6 +3,7 @@
   "seconds_per_run": {
     "scripts/eval/benchmark/build-skill-eval-benchmark.mutations.json": 2.9,
     "scripts/eval/run/normalize-skill-eval-result.mutations.json": 0.6,
+    "scripts/eval/run/run-skill-eval-isolation.mutations.json": 5.1,
     "scripts/eval/run/run-skill-eval.mutations.json": 16.4,
     "scripts/gates/docs/check-doc-refs.mutations.json": 2.7,
     "scripts/gates/packaging/copies/check-identical-copies.mutations.json": 1,
@@ -32,6 +33,7 @@
     "scripts/skills/parity-component/lifecycle-check.mutations.json": 0.7,
     "scripts/skills/parity-component/motion-compare.mutations.json": 0.8,
     "scripts/skills/parity-component/motion-probe.mutations.json": 0.8,
+    "scripts/skills/parity-component/shot-size-compare.mutations.json": 1.2,
     "scripts/skills/parity-diff/amend-verify.mutations.json": 1.1,
     "scripts/skills/parity-diff/diff-normalize-intentional-match.mutations.json": 1,
     "scripts/skills/parity-diff/pixel-crops.mutations.json": 3.4,

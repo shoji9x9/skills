@@ -1097,6 +1097,7 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
           ...process.env,
           SKILL_EVAL_CLI_VERSION: "codex stub-version",
           SKILL_EVAL_RUNNER: stub,
+          SKILL_EVAL_ALLOW_UNISOLATED: "1",
         },
       },
     );
@@ -1191,7 +1192,12 @@ describe.concurrent("run-skill-eval required sibling skills", () => {
       ],
       {
         timeout: CHILD_TIMEOUT_MS,
-        env: { ...process.env, SKILL_EVAL_RUNNER: stub, SKILL_EVAL_CLI_VERSION: "stub-version" },
+        env: {
+          ...process.env,
+          SKILL_EVAL_RUNNER: stub,
+          SKILL_EVAL_ALLOW_UNISOLATED: "1",
+          SKILL_EVAL_CLI_VERSION: "stub-version",
+        },
       },
     );
     return { output, result };

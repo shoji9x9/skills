@@ -50,6 +50,12 @@ scripts/eval/run/run-skill-eval.sh \
 - eval 11（`style-free`）は、設定の `style_policy: free` と、`button` の行を持つ `.replace/components.md` を持つ（Issue #565）。
   `components.md` は、方針を `free` に変える前に作られた記録として置いてある。**`components.md` があっても採取へ進まずに止まるか**を見る。
   `.replace/components/` の採取物は置かない（`scripts/eval/fixtures/` の fixture の整合のテストが、`.replace/components/<slug>/` を持つ fixture をすべて検査するため）
+- eval 12 は、`breaking-change-request` の採取物を使い、build の照合で部品の幅だけが違う組を問う（Issue #1019）。
+  見本の PNG の寸法は prompt で渡す（110x28。基準の `users-create/default` は 102x28）。fixture に見本の採取物は置かない。
+  画素の比較が止まり、特性の照合が 0 件で通った組を、一致や許容にしないかを見る。
+  寸法を `shot-size-compare.mjs` で突き合わせることと、見本の置き場所（`new/<target>/catalog/`）を答えるかも見る。
+  現行の `.btn` は `display: inline-block` で幅の宣言が無いので、カタログの枠の幅を変えても差は消えない。
+  「親の寸法に追従する部品」の扱いを、宣言を確かめずに当てないかを見る
 - 採点は assertion のテキストで対応づける（位置で対応づけない）。出力の中に矛盾があれば fail にする
 - **`--executor` を省略しない。** ランチャの引数を省いたときの値は後方互換のためのもので、運用で選ぶ基準ではない。
   いま作業しているエージェントに合わせ（Claude Code なら `claude-code`、Codex なら `codex`）、`with_skill` と `without_skill` で同じ executor を使う（`.agents/rules/eval-run-scope.md` で定義する）

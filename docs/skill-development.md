@@ -378,14 +378,25 @@ setup が 0 以外で終わったら、executor を起動せずに eval を失�
   `~/.claude.json` は空の `{}` に、`settings.json` は API に接続するのに要るキーだけを残したコピー（`scripts/eval/sandbox/sanitize-claude-settings.ts`）に差し替える。
   hooks や権限の設定には、リポジトリの場所や学びのノートの名前が書かれていて、without_skill の run がそれを読んで答えに使ったことがある。
   各 run には、遮断できたかを書いた `isolation.txt` を必ず残す。`without_skill` には、判定を書いた `contamination.txt` も残す。
-  `SKILL_EVAL_RUNNER` を指定したときはそれを優先し、遮断は確かめていないものとして記録する。
+  `SKILL_EVAL_RUNNER` を指定したときはそれを優先し、遮断を確かめていない run（`UNVERIFIED`）として記録する。
+  ただし、次の 3 つがそろうときは `sandboxed` と記録する。
+  値が絶対パスで、`realpath` で解決したパスがハーネスの `eval-sandbox.sh` と一致する。その `eval-sandbox.sh` が実行可能である。bwrap がある。
+  シンボリックリンクを経た指定も一致する。相対パスとコマンド名は一致として扱わない。
+  記録の `UNVERIFIED` は、遮断を確かめていないことを表し、隔離されたかどうかは表さない。
+  `sandboxed` と記録した run は、baseline の再利用でも受け付けられる。
 - `with_skill` も隔離するのは、比べる差をスキルの有無だけにするためである。
   隔離しないと、`with_skill` はエージェントの履歴（スキルを書いたセッションや eval を設計したセッションのトランスクリプト）や、グローバルにインストールしたスキルを読めてしまい、Delta が実際より大きくなる。
   実際に、それを読んで根拠にした run があった。使い捨てのプロジェクトの中のスキルはサンドボックスの中でも読めるので、`with_skill` は成り立つ。
 - `contamination.txt` の `verdict` が `clean` 以外（`CONTAMINATED`・`CHECK-BROKEN`・`SKIPPED`）のときは、run が成功していても exit 4 になる。
   その run の Delta は無効として扱う。`grading.json` を置かずに集計から外し、遮断か判定の前提を直してから実行し直し、benchmark に経緯を残す。
   `SKIPPED` は判定が実行されなかったことを表し、`clean` ではない。
-- bwrap か `eval-sandbox.sh` が無い環境では `UNISOLATED` を記録し、`flock` で `with_skill` の実行と排他にして、1 つずつ実行する。
+- bwrap か `eval-sandbox.sh` が無い環境では、isolation は `UNISOLATED` になる。
+  `UNISOLATED` で executor を起動すると、sandbox を通さないので、run は操作する人の認証情報を読める。`UNVERIFIED` で起動した run は、読めないことを確かめていない。
+  そのため、isolation が `sandboxed` 以外のときは、`SKILL_EVAL_ALLOW_UNISOLATED=1` を設定しない限り、ハーネスは executor を起動する前に理由と続け方を出し、exit 7 で止まる。
+  続け方は、止まった原因で変わる。bwrap が無ければ bubblewrap を入れる。`SKILL_EVAL_RUNNER` の指定で `UNVERIFIED` になったなら、変数を外すか `eval-sandbox.sh` の絶対パスにする。
+  スタブの runner などで続けるときだけ `SKILL_EVAL_ALLOW_UNISOLATED=1` を設定する。値が `1` 以外（空を含む）なら止まる。認証情報を読むスキル（`box`・`issue-create` など）の eval は、この変数で続けない。
+  baseline の再利用（`--reuse-baseline`）は executor を起動しないので、止まらない。
+  続けた run は `UNISOLATED` か `UNVERIFIED` を記録し、`flock` で `with_skill` の実行と排他にして、1 つずつ実行する。
   並列に実行できるのは、`/tmp` の隔離が有効なときだけである。
 - 遮断そのものを確かめるときは `scripts/eval/sandbox/eval-sandbox.sh --verify <marker>...` を使う。確かめるのは次の 5 つである。
   リポジトリがサンドボックスの中から見えないこと。目印が 1 件も見つからないこと（探す場所ごとに既知の目印を置いて、見つけられることを先に確かめる）。
@@ -395,6 +406,19 @@ setup が 0 以外で終わったら、executor を起動せずに eval を失�
   runtime dir が空で、ホストの環境変数のうち許可リストの外がすべて無く、許可リストの中がすべて渡ること。
 - 対象のリポジトリが public なら、`gh` や WebFetch でスキルの本文を取得する方法は、ローカルの遮断では防げない。
   採点のときに、baseline がスキル固有の語や取り決めを再現していないかを確かめる。
+- sandbox が隠す `$HOME` の外の場所は、`/tmp`（使い捨てのプロジェクトを除く）・runtime dir・`/mnt/wslg`・`/mnt/c` などの決まった場所だけで、ほかは run から見える。
+  主な場所を測った結果を次の表に挙げる。網羅した一覧ではない。
+  claude-code の vendor で、`/tmp` の使い捨てのディレクトリを cwd にし、`EVAL_SANDBOX_CLI=/bin/cat`・`EVAL_SANDBOX_VENDOR=claude-code` を付けて `eval-sandbox.sh` を起動した。
+  自分で置いた無害な目印だけを読み、既存のパスは `/usr/bin/test -e` で有無だけを確かめた。Codex の vendor では測っていない。
+
+  | 場所 | sandbox の中から |
+  | --- | --- |
+  | `/var/tmp`・`/dev/shm`・`/mnt/wsl` に置いた目印 | 読める |
+  | `/tmp` の cwd の外・`~/.bashrc`・`/run/user/<uid>/bus`・`/mnt/wslg`・`/mnt/c` | 見えない |
+  | `/mnt/winsys`・`/opt`・`/srv`・`/media`・`/usr/local`・`/var/lib`・`/root` | 場所が見える。その下のファイルを読めるかは、置くのに権限が要るので測っていない |
+
+  認証情報を `$HOME` の外に置いた環境（`BOX_REFRESH_TOKEN_FILE` で refresh token を `/srv` の下に置く、`~/.aws` を `$HOME` の外へのシンボリックリンクにする、など）では、その認証情報を読むスキルの eval を実行しない。
+  sandbox はその場所を隠さないので、run が認証情報を読める。
 
 fixture に期待する答えを書かない。
 fixture はスキルが読む入力で、取り決めの知識ではない。
