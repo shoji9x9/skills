@@ -1,0 +1,80 @@
+{
+  "$comment": [
+    "shot-size-compare.test.ts のうち、部品の寸法の突き合わせ（Issue #1019）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/parity-component/shot-size-compare.test.ts",
+  "mutations": [
+    {
+      "id": "size-mismatch",
+      "why": "幅や高さだけが違う組を、寸法が一致したとして通す",
+      "file": "skills/parity-component/scripts/shot-size-compare.mjs",
+      "find": "if (baseline.png[axis] !== catalog.png[axis]) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "要素 1 つで幅だけが違うと、width の差を rect の診断と一緒に出す",
+        "要素 1 つで高さだけが違うと、height の差だけを出す",
+        "複数の組のうち 1 組だけ違えば、その組だけを出す",
+        "rect が無い記録でも、png で判定し、診断の rect を null にする",
+        "CLI: 一致で exit 0、寸法の差で exit 1、記録の欠けと引数の誤りは exit 2"
+      ]
+    },
+    {
+      "id": "png-invalid",
+      "why": "png の幅と高さが数でない記録を読めたとして扱う（両側とも欠けると undefined どうしが一致して通る）",
+      "file": "skills/parity-component/scripts/shot-size-compare.mjs",
+      "find": "if (!isPositiveInteger(width) || !isPositiveInteger(height)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "png のキーが無い記録は、比べずに止める",
+        "png が null記録は、比べずに止める",
+        "幅が文字列記録は、比べずに止める",
+        "高さが無い記録は、比べずに止める",
+        "幅が小数記録は、比べずに止める",
+        "幅が 0記録は、比べずに止める"
+      ]
+    },
+    {
+      "id": "unreachable-sample",
+      "why": "到達できないと宣言した組の見本を、母集合の組として数えて通す",
+      "file": "skills/parity-component/scripts/shot-size-compare.mjs",
+      "find": "checkCatalogExtras({ catalogDir, pairs, findings: structuralFindings });",
+      "replace": "checkCatalogExtras({ catalogDir, pairs: [...pairs, ...excluded], findings: structuralFindings });",
+      "occurrences": 1,
+      "expect_failing": ["到達できないと宣言した組に見本があれば、基準の無い見本として止める"]
+    },
+    {
+      "id": "unreachable-reason",
+      "why": "理由の無い到達不能の宣言で、組を比較の母集合から外す",
+      "file": "skills/parity-component/scripts/shot-size-compare.mjs",
+      "find": "if (!nonEmptyString(state) || !nonEmptyString(field(d, \"reason\"))) {",
+      "replace": "if (!nonEmptyString(state)) {",
+      "occurrences": 1,
+      "expect_failing": ["reason の無い宣言は、到達できない組として外さずに止める"]
+    },
+    {
+      "id": "path-containment",
+      "why": "リンクで基準の外を指す記録を、基準として読む",
+      "file": "skills/parity-component/scripts/shot-size-compare.mjs",
+      "find": "if (rel === \"\" || rel === \"..\" || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["記録のパスがリンクで基準の外を指すと、読まずに止める"]
+    },
+    {
+      "id": "catalog-unreadable",
+      "why": "カタログの側の一覧を読めないときに、基準の無い見本を 0 件として通す",
+      "file": "skills/parity-component/scripts/shot-size-compare.mjs",
+      "find": "findings.push({ code: \"catalog-unreadable\", detail });",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "カタログの側の一覧を読めない（リンク先が無い）ときは、異常終了せずに判定できない入力として止める"
+      ]
+    }
+  ]
+}
