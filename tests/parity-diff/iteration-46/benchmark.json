@@ -1,0 +1,163 @@
+{
+  "metadata": {
+    "skill_name": "parity-diff",
+    "skill_path": "<repo>/skills/parity-diff",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-14T00:52:14Z",
+    "evals_run": [31],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 31,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 87.754,
+        "tokens": 781143,
+        "tool_calls": 16,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "desktop の組で、save-button の矩形に重なる領域には save-button を対応づけ、どの論理名の矩形とも重ならない横線の領域は論理名が無いと、領域ごとに区別して出している",
+          "passed": true,
+          "evidence": "表で ID 1 は save-button、ID 2 は「要素名なし」と領域ごとに区別。region-names.json も作成"
+        },
+        {
+          "text": "mobile の組で、どの論理名とも重ならない帯の領域を、新側の traits.json が無いため判定できないものとして扱い、名前を付けていない要素の差分と断定していない",
+          "passed": true,
+          "evidence": "ID 4 を「判定できない」とし「名前の無い要素の差とは扱えない」と明記"
+        },
+        {
+          "text": "mobile の組で、現側の traits.json の status-badge に重なる領域には status-badge を対応づけている（新側の traits.json が無いことを理由に、その領域の対応づけを捨てていない）",
+          "passed": true,
+          "evidence": "ID 3 に status-badge を対応づけ、現行側だけで判定した結果と注記"
+        },
+        {
+          "text": "diff.md の画素の行のうち、位置の bbox がどの領域とも一致しない ID 6 の行を、画像の領域に結べなかった行として挙げている",
+          "passed": true,
+          "evidence": "3 節で ID 6 を「画像の領域に結べなかった行」の表に分けたと報告"
+        },
+        {
+          "text": "画像の上に差分を示したページを承認の記録として残さず、分類と承認は diff.md・diff-metadata.json・承認の記録に残すと答えている",
+          "passed": true,
+          "evidence": "4 節で「いいえ」。記録は diff.md・component-diff-exceptions・diff-metadata に残し、ページの場所ではなく見せた中身を書くと回答"
+        },
+        {
+          "text": "diff.md と diff-metadata.json を書き換えていない",
+          "passed": true,
+          "evidence": "diff.md と diff-metadata.json のハッシュが前後で同じと報告。project-tree でも変更物は region-names.json と diff-report.html だけ"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 31,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8333,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 175.813,
+        "tokens": 786412,
+        "tool_calls": 20,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "desktop の組で、save-button の矩形に重なる領域には save-button を対応づけ、どの論理名の矩形とも重ならない横線の領域は論理名が無いと、領域ごとに区別して出している",
+          "passed": true,
+          "evidence": "表で ID 1 は save-button、ID 2 は「該当なし（採取した要素のどれとも重ならない）」と区別"
+        },
+        {
+          "text": "mobile の組で、どの論理名とも重ならない帯の領域を、新側の traits.json が無いため判定できないものとして扱い、名前を付けていない要素の差分と断定していない",
+          "passed": false,
+          "evidence": "ID 4 を「該当なし」とし、「traits を採った対象の外にある線や帯」と名前の無い要素の差として断定。新側 traits が無いことは ID 3 の確定度にだけ当てている"
+        },
+        {
+          "text": "mobile の組で、現側の traits.json の status-badge に重なる領域には status-badge を対応づけている（新側の traits.json が無いことを理由に、その領域の対応づけを捨てていない）",
+          "passed": true,
+          "evidence": "ID 3 に status-badge を暫定として対応づけ"
+        },
+        {
+          "text": "diff.md の画素の行のうち、位置の bbox がどの領域とも一致しない ID 6 の行を、画像の領域に結べなかった行として挙げている",
+          "passed": true,
+          "evidence": "ID 6 は crops.json に対応する領域が無いと挙げている"
+        },
+        {
+          "text": "画像の上に差分を示したページを承認の記録として残さず、分類と承認は diff.md・diff-metadata.json・承認の記録に残すと答えている",
+          "passed": true,
+          "evidence": "「できません」と回答し、承認は diff-metadata.json の approvals に記録すると回答（ページは根拠として参照できるとも述べる）"
+        },
+        {
+          "text": "diff.md と diff-metadata.json を書き換えていない",
+          "passed": true,
+          "evidence": "書き換えていないことをハッシュで確認と報告。project-tree でも pixel-overlay.html と pixel-attribution.json を足しただけ"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 87.754,
+        "stddev": 0,
+        "min": 87.754,
+        "max": 87.754
+      },
+      "tokens": {
+        "mean": 781143,
+        "stddev": 0,
+        "min": 781143,
+        "max": 781143
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.8333,
+        "stddev": 0,
+        "min": 0.8333,
+        "max": 0.8333
+      },
+      "time_seconds": {
+        "mean": 175.813,
+        "stddev": 0,
+        "min": 175.813,
+        "max": 175.813
+      },
+      "tokens": {
+        "mean": 786412,
+        "stddev": 0,
+        "min": 786412,
+        "max": 786412
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.17",
+      "time_seconds": "-88.1",
+      "tokens": "-5269"
+    }
+  },
+  "notes": [
+    "Issue #1018 で足した eval 31 の変更確認（with_skill と without_skill を 1 run ずつ）。executor は claude-code、model は opus、reasoning effort は high。",
+    "新しく足した eval なので、比べる前の記録は無い。",
+    "差が出たのは assertion 2 だけである。without_skill は、新側の traits.json が無い mobile の組で、どの論理名とも重ならない帯の領域を「採った対象の外にある線や帯」と名前の無い要素の差として断定した。with_skill は region-names.mjs の unknown を根拠に「判定できない」とした。",
+    "assertion 1・3・4・5・6 は without_skill も自力で満たした（座標の重なりを自分で計算し、crops.json に無い ID 6 を見つけ、ページを承認の記録にしないと答えた）。これらは後退の検知のためのもので、Delta に寄与しない。",
+    "1 run では分散を測れないので、続けて iteration-47 で 3 run を実行する。"
+  ]
+}
