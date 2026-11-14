@@ -91,7 +91,7 @@ function makeRepository(sandbox: Sandbox, skill: string) {
   const sandboxPath = join(sandboxDir, "eval-sandbox.sh");
   const sandboxLog = join(root, "sandbox-invoked");
   const layout = SANDBOX_LAYOUTS[sandbox];
-  const sandboxTarget = layout === null ? sandboxPath : layout.target(root, sandboxDir);
+  const sandboxTarget = layout === null ? sandboxPath : sandboxTargetOf(layout, root, sandboxDir);
   if (layout !== null) {
     placeSandbox(layout, { sandboxDir, sandboxPath, sandboxTarget });
     writeFileSync(
@@ -115,19 +115,19 @@ function makeRepository(sandbox: Sandbox, skill: string) {
   return { root, installedLog, stub, sandboxPath, sandboxTarget, sandboxLog, fixture, setupLog };
 }
 
-type SandboxLayout = {
-  /** 実体を置くパス。 */
-  target: (root: string, sandboxDir: string) => string;
-  /**
-   * none は実体をその場所に置く。file はハーネスの sandbox のパスを実体へのリンクに、dir は sandbox のディレクトリをリンクにする。
-   * dir では、実体のファイル名を eval-sandbox.sh にする。ハーネスはリンクしたディレクトリの中のその名前を読むからである。
-   */
-  link: "none" | "file" | "dir";
-  mode: number;
-};
+/**
+ * sandbox の置き方。none は実体をハーネスが読む場所に置く。file はハーネスの sandbox のパスを、target の実体へのリンクにする。
+ * dir は sandbox のディレクトリを、realDir のディレクトリへのリンクにする。dir の実体の名前は、ハーネスが読む eval-sandbox.sh に固定する。
+ */
+type SandboxLayout =
+  | { link: "none"; mode: number }
+  | { link: "file"; target: (root: string, sandboxDir: string) => string; mode: number }
+  | { link: "dir"; realDir: (root: string) => string; mode: number };
 
-/** ハーネスが読む場所（<repo>/scripts/eval/sandbox/eval-sandbox.sh）に実体を置く。 */
-function inSandboxDir(_root: string, sandboxDir: string) {
+/** 置き方から、実体を置くパスを返す。 */
+function sandboxTargetOf(layout: SandboxLayout, root: string, sandboxDir: string) {
+  if (layout.link === "file") return layout.target(root, sandboxDir);
+  if (layout.link === "dir") return join(layout.realDir(root), "eval-sandbox.sh");
   return join(sandboxDir, "eval-sandbox.sh");
 }
 
@@ -137,19 +137,15 @@ function inSandboxDir(_root: string, sandboxDir: string) {
  * dir-link は、scripts/eval/sandbox のディレクトリ自体を、scripts/eval/ の外のディレクトリへのリンクにする。
  */
 const SANDBOX_LAYOUTS = {
-  executable: { target: inSandboxDir, link: "none", mode: 0o755 },
-  "not-executable": { target: inSandboxDir, link: "none", mode: 0o644 },
+  executable: { link: "none", mode: 0o755 },
+  "not-executable": { link: "none", mode: 0o644 },
   symlink: {
-    target: (root) => join(root, "real-sandbox", "eval-sandbox.sh"),
     link: "file",
+    target: (root) => join(root, "real-sandbox", "eval-sandbox.sh"),
     mode: 0o755,
   },
-  alias: { target: (_root, dir) => join(dir, "eval-sandbox-impl.sh"), link: "file", mode: 0o755 },
-  "dir-link": {
-    target: (root) => join(root, "sandbox-v2", "eval-sandbox.sh"),
-    link: "dir",
-    mode: 0o755,
-  },
+  alias: { link: "file", target: (_root, dir) => join(dir, "eval-sandbox-impl.sh"), mode: 0o755 },
+  "dir-link": { link: "dir", realDir: (root) => join(root, "sandbox-v2"), mode: 0o755 },
   missing: null,
 } satisfies Record<string, SandboxLayout | null>;
 
