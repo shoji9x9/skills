@@ -40,7 +40,8 @@ export const VERSION = "1";
 /** @typedef {{ name:string, rect:Rect }} NamedRect */
 /** @typedef {{ id:(string|number), kind:("threshold"|"strict_only"), bbox:Rect }} Region */
 /**
- * 側ごとの traits.json。missing は、`--<side>-traits-missing` で無いと宣言した側である（理由は readJsonFile に書く）。
+ * 側ごとの traits.json。missing は、`--<side>-traits-missing` で無いと宣言した側である。
+ * 渡したパスのファイルが無い・読めないときの扱いと理由は readJsonFile に、形が違うときの扱いは readTraits に書く（どちらも入力の誤り）。
  * @typedef {{ side:Side, missing:true } | { side:Side, missing:false, entries:NamedRect[] }} SideTraits
  */
 /**

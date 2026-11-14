@@ -87,19 +87,19 @@
 
 ```text
 node <スキルディレクトリ>/scripts/region-names.mjs <pixel-crops.mjs の出力の JSON> \
-  (--current-traits <現側の baseline/ の同じ組の traits.json> | --current-traits-missing) \
-  (--new-traits <new/<target>/baseline-new/<page>/<state>/<viewport>/traits.json> | --new-traits-missing) \
+  (--current-traits <同じ組の特性照合に baseline.json として渡すファイル> | --current-traits-missing) \
+  (--new-traits <同じ組の特性照合に capture.json として渡すファイル> | --new-traits-missing) \
   --scale <撮影の deviceScaleFactor> [--mask-name <論理名>]... [--mask-bbox <x,y,w,h>]... \
   > <pixel-crops.mjs の --out のディレクトリ>/region-names.json
 ```
 
 - 入力は、同じページ・状態・ビューポートの組の `pixel-crops.mjs` の出力と、現側と新側の `traits.json` である。
   その組のある側に `traits.json` が無いときは、パスの代わりに `--current-traits-missing` か `--new-traits-missing` を渡す。
-  無いと判断してよいのは、その側の採取物の並びでパスを組み立て、そのパスにファイルが無いと確かめたときだけである。
-  新側は上のコマンドの例の並び（`baseline-new/<page>/<state>/<viewport>/`）である。現側の `baseline/` の下は、採取のスペックが決めた並びで、ページ・状態・ビューポートを `/` か `.` で区切った名前になる。
-  現側は、`baseline/` の下でその組のページ・状態・ビューポートを名前に含む `traits.json` を探し、見つからないときだけ無いと判断する。
-  スクリプトは宣言を確かめない。ファイルがあるのに宣言すると、その側の論理名とマスクの論理名を探さない。
-  その結果、どの論理名とも重ならない領域は `unknown` になり、マスクの中の領域は `masked` にならず、両側で重なる論理名は `sides` に片側だけで出る。
+  渡すファイルは、同じ組の特性照合（下の「特性照合」）で `trait-compare.mjs` に渡すファイルと同じにする。ここで別に探さない。
+  無いと宣言してよいのは、特性照合でもその側のファイルが無く、その組を照合できなかったときだけである。
+  スクリプトは宣言を確かめない。ファイルがあるのに宣言すると、その側の論理名と `--mask-name` のマスクの位置を探さない。
+  その結果、どの論理名とも重ならない領域は `unknown` になり、`--mask-name` のマスクの中の領域は `masked` にならない。
+  両側で重なる論理名は、`sides` に片側だけで出る。`--mask-bbox` のマスクは両側に当たるので変わらない。
   パスを渡してファイルが無いときは、パスの誤りと区別できないので、無い組として扱わずに exit 2 にする。
   結果は stdout に出るので、`pixel-crops.mjs` の `--out` と同じディレクトリに `region-names.json` として保存する。終了コードが 1 のときも、stdout の JSON はそのまま使える
 - `--scale` は、撮影に使った `deviceScaleFactor` である。Playwright のプロジェクトの `use` に書いた値を使う。
