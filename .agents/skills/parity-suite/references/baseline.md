@@ -122,6 +122,9 @@
 - 形・`rects` を `null` にする名前（iframe の中の要素と、撮影の直後に動いていた要素）・座標・矩形を採る時点の取り決めの原本は、`parity-diff` の `references/detect.md`「マスクを当てた矩形の記録（`mask-rects.json`）」である。ここへ転記しない。
   要点は、名前ごとにロケータが当たったすべての要素の矩形を、撮影の直後に採ることと、文字列やスタイルは採らないことである。
   参照先を読めないときは、下のコード例のとおりに書く。
+- 恒久マスクを、位置が動く要素（カルーセル・ティッカー・ポーリングで行が増える一覧など）に当てない。
+  撮影の後に採る矩形は、撮影の後でしばらく止まっていた要素の位置を、塗った位置と違っても正しいものとして記録する。
+  記録した位置が塗った位置と違うと、その位置の差分が `parity-diff` でマスクの中として隠れる。当てるなら、撮影の前の状態の操作（`applyState`）でその動きを止める。
 - 書き忘れを検出するチェックは無い。書かなかった組では、`parity-diff` はマスクの位置を `traits.json` から探し、見つからなければ判定できない理由（`mask_unlocated`）を出す。
   `traits.json` の隣（同じディレクトリ）に置けば、`parity-diff` は引数で渡されなくても読む。
 - `artifact_health` を宣言した成果物では、`mask-rects.json` も採取物なので、`traits.json` と同じく `entries` に `kind: captured` で宣言する（下の「採取物の健全性」）。
@@ -146,19 +149,21 @@ const inImage = (els: Element[], full: boolean) => ({
 // 前の回の記録を消してから撮る（撮影の後で失敗したときに、新しい画像の隣に古い記録を残さない）
 rmSync(join(outDir, "mask-rects.json"), { force: true });
 await page.screenshot({ path: join(outDir, "screenshot.png"), fullPage, animations: "disabled", mask: located.map(([, loc]) => loc) });
-// 撮影の直後にすべての名前を採り、主文書で 10 フレーム待って、iframe の外の名前をもう一度採る
-const first = [];
-for (const [, loc] of located) first.push(await loc.evaluateAll(inImage, fullPage === true));
-await page.evaluate(async () => {
-  for (let i = 0; i < 10; i += 1) await new Promise((done) => requestAnimationFrame(() => done(undefined)));
-});
-const maskRects = [];
-for (const [i, [name, loc]] of located.entries()) {
-  const again = first[i].inFrame ? first[i] : await loc.evaluateAll(inImage, fullPage === true);
-  // iframe の中の要素（0 件なら空の配列）と、2 回で位置が変わった要素は null にする
-  const recordable = !(first[i].inFrame && first[i].rects.length > 0) && JSON.stringify(again.rects) === JSON.stringify(first[i].rects);
-  maskRects.push({ name, rects: recordable ? first[i].rects : null });
+// 撮影の直後にすべての名前を同時に採り、比べる名前があれば主文書で 10 フレーム待って、もう一度採る
+const sampleAll = () => Promise.all(located.map(([, loc]) => loc.evaluateAll(inImage, fullPage === true)));
+const first = await sampleAll();
+if (first.some((f) => !f.inFrame && f.rects.length > 0)) {
+  await page.evaluate(async () => {
+    for (let i = 0; i < 10; i += 1) await new Promise((done) => requestAnimationFrame(() => done(undefined)));
+  });
 }
+const again = await sampleAll();
+// iframe の中の要素（0 件なら空の配列）と、2 回で位置が変わった要素は null にする
+const maskRects = located.map(([name], i) => {
+  const recordable =
+    !(first[i].inFrame && first[i].rects.length > 0) && JSON.stringify(again[i].rects) === JSON.stringify(first[i].rects);
+  return { name, rects: recordable ? first[i].rects : null };
+});
 writeFileSync(join(outDir, "mask-rects.json"), `${JSON.stringify(maskRects, null, 2)}\n`);
 ```
 

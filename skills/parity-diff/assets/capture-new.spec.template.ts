@@ -476,8 +476,8 @@ type MaskLocator = { name: string; locator: import("@playwright/test").Locator }
 // 撮影の後に採るので、撮影の後で 10 フレームの間に動かなかった要素の位置は、塗った位置と違っても見分けられない。
 // 撮影の後に一度止まってから動く要素（止まる区間を持つ無限のアニメーション・タイマーで切り替わる要素）と、撮影の後に
 // ロケータが新しく当たった要素がこれに当たる。
-// 待つのは主文書で 1 回だけにする。iframe の中で待つと、描画を止められたフレームで返らないことがあり、
-// 名前ごとに待つと、後の名前ほど撮影から離れた時点の位置になる。
+// 1 回目はすべての名前を同時に採り、待つのは主文書で 1 回だけにする。名前ごとに順に採ったり待ったりすると、
+// 後の名前ほど撮影から離れた時点の位置になる。比べる名前（iframe の外で要素に当たった名前）が無ければ待たない。
 // 出典: https://playwright.dev/docs/api/class-locator#locator-evaluate-all
 type MaskRect = { x: number; y: number; width: number; height: number };
 type MaskSample = { inFrame: boolean; rects: MaskRect[] };
@@ -503,23 +503,20 @@ async function recordMaskRects(
       }),
       fullPage === true,
     );
-  const first: MaskSample[] = [];
-  for (const { locator } of maskLocators) first.push(await sample(locator));
-  await page.evaluate(async () => {
-    for (let i = 0; i < 10; i += 1) {
-      await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
-    }
-  });
-  const maskRects = [];
-  for (const [i, { name, locator }] of maskLocators.entries()) {
-    // iframe の中の名前は、もう一度採らない（記録しないことが 1 回目で決まる）
-    const second = first[i].inFrame ? first[i] : await sample(locator);
-    maskRects.push({ name, rects: settledRects(first[i], second) });
+  const first = await Promise.all(maskLocators.map(({ locator }) => sample(locator)));
+  if (first.some((f) => !f.inFrame && f.rects.length > 0)) {
+    await page.evaluate(async () => {
+      for (let i = 0; i < 10; i += 1) {
+        await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+      }
+    });
   }
-  return maskRects;
+  const second = await Promise.all(maskLocators.map(({ locator }) => sample(locator)));
+  return maskLocators.map(({ name }, i) => ({ name, rects: settledRects(first[i], second[i]) }));
 }
 
-// 2 回採った矩形から、記録する矩形を決める。iframe の中の要素（1 件以上）と、2 回で位置が変わった要素は null にする
+// 2 回採った矩形から、記録する矩形を決める。iframe の中の要素（1 件以上）と、2 回で位置が変わった要素は null にする。
+// iframe の中の名前の扱いは、ここだけで決める
 function settledRects(first: MaskSample, second: MaskSample): MaskRect[] | null {
   if (first.inFrame && first.rects.length > 0) return null;
   return JSON.stringify(second.rects) === JSON.stringify(first.rects) ? first.rects : null;
