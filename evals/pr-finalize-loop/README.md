@@ -36,6 +36,7 @@
 
 eval 27〜29 は、fixture `review-tool-claude-code-action` で、ワークフローの目印による完了の判定と、`workflow_dispatch` による依頼を確かめる。
 区別できるのは、同梱のスクリプト `claude-review-action.sh` の使い方（`check` での突き合わせ、`request` に渡す `--since` と `--sha-file`）と、`@claude review` と取り違えないことである。
+eval 29 の「10:03 に `findings=2` の指摘を集めて対応に進む」は、区別できる場合がある。iteration-24 では、without_skill の 3 run のうち 2 run が `open=0` を見て直す指摘は無いと結論して fail した。
 次の assertion は、prompt の場面から一般の判断で答えられるので、without_skill も pass する（iteration-24）。
 
 - eval 27: 目印でレビュー済みとしない・`workflow_dispatch` で依頼する・effort medium を渡す・説明に留める。
