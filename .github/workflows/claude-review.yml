@@ -58,6 +58,8 @@ env:
   DEFAULT_MAX_TURNS: "60"
   # エージェントに渡す入力を置くディレクトリ。エージェントの Read は作業ツリーの中だけに限るので、作業ツリーの中に置く。
   INPUT_DIR: .claude-review-input
+  # 実行記録（SDK のメッセージの配列）から最後の result を選ぶ jq の式。Post review と Record usage が同じ式を使う。
+  LAST_RESULT: '[.[] | select(type == "object" and .type == "result")] | last'
 
 jobs:
   review:
@@ -251,17 +253,18 @@ jobs:
           git diff --no-color "$base" "$SHA" >"$INPUT_DIR/full.diff"
           since_note="前回の目印は無い（初回のレビュー）。full.diff を読む。"
           if [ -n "$previous" ]; then
-            # base のブランチを取り込んだ（merge commit がある）か rebase した（祖先でない）ときは、
-            # 前回からの差分に PR に無い変更が入るので作らない。
-            if ! git cat-file -e "$previous^{commit}" 2>/dev/null; then
-              since_note="前回レビューした commit（$previous）が履歴に無い（force push など）。full.diff を全体として読む。"
-            elif ! git merge-base --is-ancestor "$previous" "$SHA"; then
-              since_note="前回レビューした commit（$previous）が HEAD の祖先でない（rebase など）。full.diff を全体として読む。"
-            elif [ -n "$(git rev-list --merges "$previous..$SHA")" ]; then
-              since_note="前回レビューした commit（$previous）から HEAD までに merge commit がある（base の取り込みなど）。full.diff を全体として読む。"
+            if git cat-file -e "$previous^{commit}" 2>/dev/null; then
+              # 前回からの差分は、PR が変えたファイル（full.diff のファイル）に絞る。base のブランチを取り込んだり rebase したりしても、
+              # PR が触れていないファイルの base 側の変更は入らない。PR が触れたファイルの base 側の変更は入りうるので、README に書く。
+              git diff --no-color --name-only -z "$base" "$SHA" >"$RUNNER_TEMP/pr-files"
+              if [ -s "$RUNNER_TEMP/pr-files" ]; then
+                xargs -0 git diff --no-color "$previous" "$SHA" -- <"$RUNNER_TEMP/pr-files" >"$INPUT_DIR/since.diff"
+              else
+                : >"$INPUT_DIR/since.diff"
+              fi
+              since_note="前回レビューした commit は $previous。since.diff は、そこから HEAD までの差分を PR が変えたファイルに絞ったものである（base の取り込みや rebase による、同じファイルへの base 側の変更を含みうる）。"
             else
-              git diff --no-color "$previous" "$SHA" >"$INPUT_DIR/since.diff"
-              since_note="前回レビューした commit は $previous。since.diff がそこから HEAD までの差分である。"
+              since_note="前回レビューした commit（$previous）が履歴に無い（force push など）。full.diff を全体として読む。"
             fi
           fi
           {
@@ -364,7 +367,7 @@ jobs:
           # 段を起動できず、段の env はログにも出るからである。
           result="$RUNNER_TEMP/review-result.json"
           [ -n "$EXECUTION_FILE" ] && [ -f "$EXECUTION_FILE" ] || fail "実行記録が無い"
-          jq '[.[] | select(type == "object" and .type == "result")] | last | .structured_output' \
+          jq "$LAST_RESULT | .structured_output" \
             "$EXECUTION_FILE" >"$result" || fail "実行記録を読めない"
           jq -e '(.summary | type == "string") and (.findings | type == "array")
             and all(.findings[]; (.body | type == "string" and length > 0)
@@ -446,8 +449,8 @@ jobs:
           set -o pipefail
           out="$RUNNER_TEMP/agent-usage-claude"
           mkdir -p "$out"
-          jq '[map(select(type == "object" and .type == "result")) | last | select(. != null)
-            | {type, subtype, is_error, num_turns, duration_ms, duration_api_ms, total_cost_usd, usage, modelUsage}]' \
+          jq "[$LAST_RESULT | select(. != null)
+            | {type, subtype, is_error, num_turns, duration_ms, duration_api_ms, total_cost_usd, usage, modelUsage}]" \
             "$EXECUTION_FILE" >"$out/claude-execution-output.json"
           jq -e 'length == 1' "$out/claude-execution-output.json" >/dev/null || {
             echo "::warning title=Claude review::実行記録に result が無い"

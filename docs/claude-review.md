@@ -36,7 +36,8 @@ gh workflow run claude-review.yml -f pr=<番号> -f sha="$sha" -f effort=medium
 - `open` は、行に付けずに総評に書いた指摘の件数である。行の指摘はスレッドの解決で追えるが、総評の指摘は追えないので分けて数える。
   手元のレビューの記録（配布スキル `pr-finalize-loop` の `local-review-record.sh`）の `open` と同じ考え方である。
 - レビューが失敗・時間切れ・取り消しになった回は、目印を書かない。HEAD の SHA と一致する目印が無ければ、その HEAD はレビューし終えていない。
-- `CLAUDE_REVIEW_SKIP` で一時停止した回と、対象外の PR（draft など）で job を飛ばした回も、目印を書かずに成功で終わる。目印を待つ側は、run の Summary か変数で一時停止を見分ける。
+- 目印を書かない回は、ほかに 2 つある。`CLAUDE_REVIEW_SKIP` で一時停止した回は、run が成功で終わり、Summary に一時停止と書く。
+  対象外の PR（draft など）で job を飛ばした回は、run と job の conclusion が `skipped` になる。目印を待つ側は、run の conclusion と Summary でこの 2 つを見分ける。
 - 目印は、`github-actions[bot]` が書いたコメントの 1 行目だけを読む。人が同じ形を書いたコメントと、総評の本文の中の同じ形は、目印として扱わない。
 - run の一覧では、`run-name` の `Claude review PR #<番号> <SHA>` で、どの PR のどの commit の run かを見分ける。
 
@@ -47,7 +48,7 @@ check-run（名前 `Review`）は、`workflow_dispatch` の run ではデフォ�
 ワークフローは、エージェントを起動する前に次のものを作業ツリーの `.claude-review-input/` に書き、エージェントに読ませる。
 
 - 前回の目印の SHA から HEAD までの差分（`since.diff`）。前回の目印が無ければ作らず、エージェントは base からの差分（`full.diff`）を全体として読む。
-  前回の commit が HEAD の祖先でない（rebase した）ときと、間に merge commit がある（base を取り込んだ）ときも作らない。PR に無い変更が差分に入るからである
+  差分は PR が変えたファイルに絞る。base を取り込んだり rebase したりしても、PR が触れていないファイルの変更は入らない。前回の commit が履歴に無いときは作らない
 - レビューのスレッド（解決済みかと、作成者の返信）と、トップレベルのコメント
 
 プロンプトは、解決済みの指摘と、作成者が理由を添えて直さないと返信した指摘を、新しい根拠なしに出し直さないよう指示する。

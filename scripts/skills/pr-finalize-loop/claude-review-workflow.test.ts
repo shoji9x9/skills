@@ -376,6 +376,23 @@ describe("Post review", () => {
     expect(ok.status, ok.stderr + ok.stdout).toBe(0);
   });
 
+  test("実行記録に result が複数あれば最後のものを使い、オブジェクトでない要素は読み飛ばす", () => {
+    const res = postRaw(
+      JSON.stringify([
+        "文字列の要素",
+        null,
+        { type: "result", structured_output: { summary: "古い総評", findings: [] } },
+        { type: "assistant" },
+        { type: "result", structured_output: { summary: "新しい総評", findings: [] } },
+        42,
+      ]),
+    );
+    expect(res.status, res.stderr + res.stdout).toBe(0);
+    const comment = read(res.dir, "comment.md");
+    expect(comment).toContain("新しい総評");
+    expect(comment).not.toContain("古い総評");
+  });
+
   test("総評が上限より長くても、文字の途中で切らずに目印付きで投稿する", () => {
     // 切る位置に複数バイトの文字を置く。結果は実行記録から読むので、環境変数 1 つの上限（128 KiB）を超える長さでも投稿できる。
     const res = post({ summary: "a".repeat(59000) + "あ".repeat(50000), findings: [] });
@@ -522,26 +539,33 @@ describe("Collect review inputs", () => {
   });
 
   test.each([
-    [
-      "前回から HEAD までに merge commit がある",
-      (repo: string, git: (...args: string[]) => string) => {
-        git("checkout", "-q", "-b", "side", "HEAD~2");
-        writeFileSync(join(repo, "g.txt"), "main の変更\n");
-        git("add", "g.txt");
-        git("commit", "-q", "-m", "side");
-        git("checkout", "-q", "main");
-        git("merge", "-q", "--no-edit", "side");
-      },
-      "merge commit",
-    ],
-  ])("%s なら since.diff を作らず、README にそう書く", (_label, prepare, message) => {
-    // 目印は、merge する前の HEAD（merge の後の HEAD~1 の 1 つ目の親）を指す。
+    ["base を取り込んだ（merge commit がある）", false],
+    ["rebase した（前回の commit が HEAD の祖先でない）", true],
+  ])("%s後も、since.diff は PR が変えたファイルだけに絞る", (_label, rebase) => {
+    // 前回レビューした commit（previous）の後に、base のブランチが別のファイル（g.txt）を変えて進む。
+    // PR はそれを取り込み（merge か rebase）、さらに f.txt を変える。since.diff に g.txt が入ってはいけない。
+    let previous = "";
     const { input } = collect(
-      (_head, first) => [{ user: { login: "github-actions[bot]" }, body: MARK(first, "1") }],
-      prepare,
+      () => [{ user: { login: "github-actions[bot]" }, body: MARK(previous, "1") }],
+      (repo, git) => {
+        previous = git("rev-parse", "HEAD");
+        git("checkout", "-q", "-b", "base-moved", "refs/remotes/origin/main");
+        writeFileSync(join(repo, "g.txt"), "base 側の変更\n");
+        git("add", "g.txt");
+        git("commit", "-q", "-m", "base moved");
+        git("update-ref", "refs/remotes/origin/main", "HEAD");
+        git("checkout", "-q", "main");
+        if (rebase) git("rebase", "-q", "base-moved");
+        else git("merge", "-q", "--no-edit", "base-moved");
+        writeFileSync(join(repo, "f.txt"), "base\nfirst\nsecond\nthird\n");
+        git("commit", "-q", "-am", "third");
+      },
     );
-    expect(existsSync(join(input, "since.diff"))).toBe(false);
-    expect(read(input, "README.md")).toContain(message);
+    const since = read(input, "since.diff");
+    expect(since).toContain("+third");
+    expect(since).not.toContain("g.txt");
+    expect(read(input, "full.diff")).not.toContain("g.txt");
+    expect(read(input, "README.md")).toContain(`前回レビューした commit は ${previous}`);
   });
 
   test("前回の目印が無ければ初回として full.diff だけを作る", () => {
