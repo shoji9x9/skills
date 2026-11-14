@@ -22,7 +22,8 @@
 //   - unreachable_states の宣言が { state, reason }（reason は空でない）の形でない、capture.states に無い状態を宣言している
 //   - 組の element.shot.json が片側に無い・読めない、png の幅と高さが正の整数でない、tool_version が無いか両側で違う
 //   - 基準の baseline/ と --catalog が同じ実際のディレクトリを指す（same-location）
-//   - 基準の baseline/ が無いか、ディレクトリでない（baseline-missing。組ごとに同じ理由を並べず、1 件で止める）
+//   - 基準の baseline/ が無い・ディレクトリでない・読めない（baseline-missing。理由は detail に書き分け、組ごとに並べず 1 件で止める）
+//   - --catalog のディレクトリを読めない（catalog-unreadable。CLI は先に使い方の誤りとして止める）
 //   - 母集合に無い組の見本がカタログの側にある（基準の無い見本）、カタログの一覧を読めない
 // 寸法の差（size-mismatch）は、exit 2 のときも出力に含める。直す箇所を、構造の誤りを直す前に読めるようにするためである。
 // 比べた組が 0 件のときも exit 2 にする（nothing-compared）。0 件になる入力は、上の metadata.json の検査
@@ -38,7 +39,7 @@
 //     excluded は到達不能と宣言して外した組の数である。exit 2 のときは、全組を比べたとは限らない
 // 終了コード: 0 ＝ すべての組で寸法が一致、1 ＝ 寸法の差がある、2 ＝ 使い方の誤り・判定できない入力。
 
-import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { lstatSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { cliIo, usageFailer, writeCheckResult } from "./lib/check-cli.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
@@ -361,9 +362,34 @@ function dirIdentity(path) {
       ? { id: `${st.dev}:${st.ino}` }
       : { problem: `ディレクトリでない: ${path}` };
   } catch (error) {
-    if (field(error, "code") === "ENOENT") return { problem: `無い: ${path}` };
+    if (field(error, "code") === "ENOENT") {
+      // エントリが在るのに ENOENT なら、リンク先が無い（リンクは在る）。作り直す前に、リンクを確かめられるようにする。
+      return { problem: isLink(path) ? `リンクだがリンク先が無い: ${path}` : `無い: ${path}` };
+    }
     return { problem: `読めない: ${String(field(error, "message"))}` };
   }
+}
+
+/**
+ * パスがリンクそのものか（リンク先をたどらずに確かめる）。読めなければ false。
+ * @param {string} path
+ */
+function isLink(path) {
+  try {
+    return lstatSync(path).isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 組を数える前に止まる結果。counts は持たない（数えた結果の 0 と取り違えないため）。
+ * @param {string} code
+ * @param {string} detail
+ * @returns {{ structural: true, findings: SizeFinding[], excluded: [] }}
+ */
+function stoppedBeforeCounting(code, detail) {
+  return { structural: true, findings: [{ code, detail }], excluded: [] };
 }
 
 /**
@@ -399,16 +425,19 @@ export function compareShotSizes({ baselineDir, catalogDir }) {
   const baselineRoot = join(baselineDir, "baseline");
   const baseline = dirIdentity(baselineRoot);
   const catalog = dirIdentity(catalogDir);
-  if ("id" in baseline && "id" in catalog && baseline.id === catalog.id) {
+  if ("problem" in catalog) {
+    return stoppedBeforeCounting("catalog-unreadable", `--catalog が${catalog.problem}`);
+  }
+  if ("id" in baseline && baseline.id === catalog.id) {
     const detail = `基準の baseline/ と --catalog が同じディレクトリを指す: ${catalogDir}`;
-    return { structural: true, findings: [{ code: "same-location", detail }], excluded: [] };
+    return stoppedBeforeCounting("same-location", detail);
   }
   let metadata;
   try {
     metadata = JSON.parse(readFileSync(join(baselineDir, "metadata.json"), "utf8"));
   } catch (error) {
     const detail = `metadata.json を読めない: ${String(field(error, "message"))}`;
-    return { structural: true, findings: [{ code: "metadata-unreadable", detail }], excluded: [] };
+    return stoppedBeforeCounting("metadata-unreadable", detail);
   }
   /** @type {SizeFinding[]} */
   const structuralFindings = [];

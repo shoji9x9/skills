@@ -61,7 +61,7 @@ node <このスキル>/scripts/shot-size-compare.mjs \
   `page_rect`（ページ全体の座標で測った矩形。element-shot.mjs はこれを丸めて切り抜く）の幅と高さは、差の大きさを読むための診断として添えられる。判定には使わない
 - exit 2 は、判定できなかったという意味である。合格として扱わない。0 と 1 以外の終了コードも同じに扱う。
   主な例は次のとおりである。組の記録が片側に無い・読めない。`png` が正の整数でない。両側の element-shot.mjs のバージョンが違う。母集合に無い組の見本がある。
-  基準の `baseline/` が無いか、ディレクトリでないときも当たる（`baseline-missing`）。
+  基準の `baseline/` が無い・ディレクトリでない・読めない（リンク先が無い・リンクが循環するなど）ときも当たる（`baseline-missing`。理由は `detail` にある）。
   `--baseline` か `--catalog` のディレクトリが無いときは、使い方の誤りとして stderr に理由を出し、JSON は出さない。
   `metadata.json` の `instances`・`capture.states`・`unreachable_states` が判定できない形のときも当たる。
   出力の `findings` のうち `size-mismatch` 以外の指摘が、判定できなかった理由である。`code` と `detail` に従って採取物・見本・`metadata.json` を直し、もう一度実行する。

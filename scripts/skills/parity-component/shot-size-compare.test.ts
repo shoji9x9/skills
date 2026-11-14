@@ -380,11 +380,7 @@ test("基準の baseline/ がリンクで見本の catalog を指すと、見本
 // それでも次の 3 つは、見本の組を読めないので合格にならない。止まる理由を固定し、fixture を変えて exit 0 になったら気付けるようにする。
 test.each<[string, (baselineDir: string) => string, string[]]>([
   ["基準の baseline/ の中", (b) => join(b, "baseline", "orders-search"), ["shot-unreadable"]],
-  [
-    "部品の成果物ディレクトリそのもの",
-    (b) => b,
-    ["sample-without-baseline", "sample-without-baseline", "shot-unreadable"],
-  ],
+  ["部品の成果物ディレクトリそのもの", (b) => b, ["sample-without-baseline", "shot-unreadable"]],
   [
     "new/<target> まで（catalog の 1 段上）",
     (b) => join(b, "new", "local"),
@@ -396,7 +392,8 @@ test.each<[string, (baselineDir: string) => string, string[]]>([
     const { baselineDir } = layout();
     const result = compareShotSizes({ baselineDir, catalogDir: catalogOf(baselineDir) });
     expect(result.structural).toBe(true);
-    expect(codes(result)).toEqual(expected);
+    // 件数は fixture の組の数で変わるので、止まる理由の code の集合で固定する。
+    expect([...new Set(codes(result))].sort()).toEqual(expected);
   },
 );
 
@@ -461,6 +458,21 @@ test("基準の baseline/ のリンクが循環していれば、無いとは書
   const result = compareShotSizes({ baselineDir, catalogDir });
   expect(codes(result)).toEqual(["baseline-missing"]);
   expect(result.findings[0].detail).toMatch(/読めない/);
+});
+
+test("基準の baseline/ がリンク先の無いリンクなら、無いとは書かずにリンク先が無いと報告する", () => {
+  const { dir, baselineDir, catalogDir } = layout({ baseline: {} });
+  symlinkSync(join(dir, "gone"), join(baselineDir, "baseline"));
+  const result = compareShotSizes({ baselineDir, catalogDir });
+  expect(codes(result)).toEqual(["baseline-missing"]);
+  expect(result.findings[0].detail).toMatch(/リンク先が無い/);
+});
+
+test("--catalog のディレクトリを読めなければ、組を数えずに止める", () => {
+  const { dir, baselineDir } = layout();
+  const result = compareShotSizes({ baselineDir, catalogDir: join(dir, "no-such-catalog") });
+  expect(codes(result)).toEqual(["catalog-unreadable"]);
+  expect(result).not.toHaveProperty("counts");
 });
 
 test("判定できない組があっても、比べ終えた組の寸法の差を出力に含める", () => {
