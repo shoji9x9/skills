@@ -61,7 +61,11 @@ const classify = (
     {
       sides,
       scale: extra.scale ?? 1,
-      masks: extra.masks ?? [],
+      // 関数の粒度のテストのマスクは、両側の同じ座標に当たるもの（--mask-bbox と同じ）として渡す。
+      masks: (extra.masks ?? []).map((m) => ({
+        label: m.label,
+        bySide: { current: m.rects, new: m.rects },
+      })),
       maskNames: new Set(extra.masks?.map((m) => m.label) ?? []),
       reasons: extra.reasons ?? [],
     },
@@ -382,6 +386,27 @@ test("CLI: 標準入力は読まないので、- を入力のファイルとし�
   expect(res.stderr).not.toContain("not found");
   expect(res.stdout).toBe("");
 });
+
+test.each(["--current-traits", "--new-traits"])(
+  "CLI: %s に - を渡すと、traits.json の無い組として扱わずに exit 2 にする",
+  (flag) => {
+    const dir = makeTempDir("region-names-dash-");
+    const traits = join(dir, "traits.json");
+    const crops = join(dir, "crops.json");
+    writeFileSync(traits, JSON.stringify(TRAITS));
+    writeFileSync(crops, JSON.stringify({ regions: [], strict_only_regions: [] }));
+    const files: Record<string, string> = { "--current-traits": traits, "--new-traits": traits };
+    files[flag] = "-";
+    const res = spawnSync(
+      process.execPath,
+      [SCRIPT, crops, ...Object.entries(files).flat(), "--scale", "1"],
+      { encoding: "utf8", timeout: CHILD_TIMEOUT_MS },
+    );
+    expect(res.status).toBe(2);
+    expect(res.stderr).toContain("stdin is not read");
+    expect(res.stdout).toBe("");
+  },
+);
 
 test("CLI: マスクの論理名を traits.json で見つけ、領域を覆えば masked にする", () => {
   const traits = [...TRAITS, { name: "account-id", rect: rect([90, 90, 30, 30]) }];

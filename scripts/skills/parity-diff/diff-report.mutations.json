@@ -29,6 +29,15 @@
         "行は、画素で、ページ・状態・ビューポートと bbox が一致する領域にだけ結ぶ",
         "CLI: ページが違う組には行を結ばない"
       ]
+    },
+    {
+      "id": "second-table-as-rows",
+      "why": "差分一覧の節の 2 つ目の表の見出しと行を、差分一覧の行として読む（別の表の行の分類を承認する人に見せる）",
+      "file": "skills/parity-diff/scripts/diff-report.mjs",
+      "find": "  if (body.some((line) => isSeparatorRow(line))) {",
+      "replace": "  if (body.some((line) => isSeparatorRow(line) && false)) {",
+      "occurrences": 1,
+      "expect_failing": ["差分一覧の節に表が 2 つあるか、文の後に表の行があれば誤りにする"]
     }
   ]
 }

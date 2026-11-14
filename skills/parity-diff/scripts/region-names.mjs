@@ -16,9 +16,10 @@
 //
 // 判定できない領域を「重なる論理名なし」にしない。
 // - traits.json が無い側がある組で、どの論理名とも重ならない領域は status: "unknown" にする
-// - マスクの論理名を traits.json で見つけられない組で、どの論理名とも重ならない領域も status: "unknown" にする
-// - 領域がすべてマスクの中にある（マスクの矩形の和に覆われる）なら status: "masked" にする。
-//   片側でしか位置を確かめられなかったマスクの論理名は、この矩形の和に入れない
+// - マスクの論理名の位置を traits.json で決められない組（名前が無いか、面積が 0）で、どの論理名とも重ならない領域も
+//   status: "unknown" にする
+// - 現側でも新側でも、その側のマスクの矩形の和に領域の全体が覆われるなら status: "masked" にする。
+//   覆うかは側ごとに判定するので、片側でしか位置を確かめられなかったマスクの論理名では masked にならない
 // 終了コードは、0 がすべての領域を判定できた、1 が判定できない領域がある、2 が入力の誤りである。
 // 乱数と現在時刻に依存しない。入力が同じなら出力も同じになる。TypeScript の構文は使わない（型は JSDoc で書く）。
 
@@ -43,12 +44,12 @@ export const VERSION = "1";
  * @typedef {{ side:Side, missing:true } | { side:Side, missing:false, entries:NamedRect[] }} SideTraits
  */
 /**
- * マスクの矩形。bySide は、論理名のマスクの側ごとの矩形である。bbox で渡したマスクは両側の同じ座標に当たるので持たない。
+ * マスクの矩形。bySide は側ごとの矩形で、bbox で渡したマスクは両側に同じ矩形を持つ。
  * 位置の違う 2 つの側の矩形を 1 つの和にまとめて覆うかを判定すると、片側のマスクしか覆っていない領域（もう片側では
  * マスクされていない要素が描かれている）まで masked になる。そのため、覆うかは側ごとに判定する。
  * 片側でしか位置を確かめられなかったマスクは、もう片側の矩形が空なので、側ごとの判定で masked にならない。
  * 位置を確かめられないのは、その側の traits.json が無いときと、名前が無いか面積が 0 のときである。
- * @typedef {{ label:string, rects:Rect[], bySide?:Record<Side, Rect[]> }} MaskArea
+ * @typedef {{ label:string, bySide:Record<Side, Rect[]> }} MaskArea
  */
 
 const SIDES = /** @type {const} */ (["current", "new"]);
@@ -257,8 +258,7 @@ export function locateMaskNames(names, { sides, scale }) {
       }
       bySide[s.side].push(...found.map((e) => scaleRect(e.rect, scale)));
     }
-    const rects = [...bySide.current, ...bySide.new];
-    if (rects.length > 0) areas.push({ label: name, rects, bySide });
+    if (bySide.current.length + bySide.new.length > 0) areas.push({ label: name, bySide });
   }
   return { areas, unlocated };
 }
@@ -274,7 +274,7 @@ export function maskedOnBothSides(bbox, masks) {
   return SIDES.every((side) =>
     coveredByUnion(
       bbox,
-      masks.flatMap((m) => (m.bySide ? m.bySide[side] : m.rects)),
+      masks.flatMap((m) => m.bySide[side]),
     ),
   );
 }
@@ -300,7 +300,7 @@ function unresolvedReasons(sides, unlocated) {
 export function classifyRegion(region, { sides, scale, masks, maskNames, reasons }) {
   const names = overlappingNames(region.bbox, { sides, scale, maskNames });
   const touchedMasks = masks.filter((m) =>
-    m.rects.some((r) => intersectionArea(region.bbox, r) > 0),
+    SIDES.some((side) => m.bySide[side].some((r) => intersectionArea(region.bbox, r) > 0)),
   );
   const masked = maskedOnBothSides(region.bbox, touchedMasks);
   /** @type {"masked" | "named" | "unknown" | "unnamed"} */
@@ -457,6 +457,12 @@ function parseArgs(argv) {
   const scaleText = parsed.strings["--scale"];
   if (!regionsPath || !currentTraits || !newTraits || scaleText === undefined)
     return { error: USAGE };
+  // 標準入力は読まない。`-` を渡すとファイルが無いことになり、traits.json の無い組（正規の状態）として扱ってしまう。
+  if (currentTraits === "-" || newTraits === "-") {
+    return {
+      error: "error: --current-traits and --new-traits must be file paths (stdin is not read)\n",
+    };
+  }
   const scale = Number(scaleText);
   if (!Number.isFinite(scale) || scale <= 0)
     return { error: "error: --scale must be a number > 0\n" };
@@ -560,7 +566,10 @@ export function main(argv) {
   /** @type {MaskArea[]} */
   const masks = [
     ...located.areas,
-    ...args.maskBboxes.map((b) => ({ label: `${b.x},${b.y},${b.width},${b.height}`, rects: [b] })),
+    ...args.maskBboxes.map((b) => ({
+      label: `${b.x},${b.y},${b.width},${b.height}`,
+      bySide: { current: [b], new: [b] },
+    })),
   ];
   const reasons = unresolvedReasons(sides, located.unlocated);
   const maskNames = new Set(args.maskNames);

@@ -62,8 +62,8 @@
       "id": "partial-mask-as-covering",
       "why": "マスクの論理名の両側の矩形を 1 つの和にまとめて覆うかを判定し、片側のマスクだけが覆う領域の差をマスクの中として隠す",
       "file": "skills/parity-diff/scripts/region-names.mjs",
-      "find": "      masks.flatMap((m) => (m.bySide ? m.bySide[side] : m.rects)),",
-      "replace": "      masks.flatMap((m) => m.rects),",
+      "find": "      masks.flatMap((m) => m.bySide[side]),",
+      "replace": "      masks.flatMap((m) => [...m.bySide.current, ...m.bySide.new]),",
       "occurrences": 1,
       "expect_failing": [
         "CLI: マスクの論理名の位置を片側でしか確かめられなければ、覆われた領域を masked にせず unknown にする",

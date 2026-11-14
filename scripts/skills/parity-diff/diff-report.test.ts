@@ -18,6 +18,7 @@ import { expect, test } from "vitest";
 import {
   bboxesInText,
   escapeHtml,
+  isSeparatorRow,
   parseDiffRows,
   pngSize,
   readMappedRegions,
@@ -188,6 +189,35 @@ test("表の途中の空行と HTML コメントの行を読み飛ばし、後�
   const parsed = parseDiffRows(diffMd(rows));
   if ("error" in parsed) throw new Error(parsed.error);
   expect(parsed.rows.map((r) => r.id)).toEqual(["1", "2"]);
+});
+
+test("コメントを閉じた行の後ろに続く表の行も読み、行の末尾で開いたコメントの中の行は読まない", () => {
+  const rows =
+    "| 1 | 画素 | list | default | desktop | 1,1,1,1 | a | b | c | d |\n" +
+    "<!--\n注記\n--> | 2 | 画素 | list | default | desktop | 2,2,2,2 | a | b | c | d |\n" +
+    "| 3 | 画素 | list | default | desktop | 3,3,3,3 | a | b | c | d | <!--\n" +
+    "| 4 | 画素 | list | default | desktop | 4,4,4,4 | a | b | c | d |\n-->\n";
+  const parsed = parseDiffRows(diffMd(rows));
+  if ("error" in parsed) throw new Error(parsed.error);
+  expect(parsed.rows.map((r) => r.id)).toEqual(["1", "2", "3"]);
+});
+
+test("閉じていない HTML コメントは、どこまでがコメントかを決められないので誤りにする", () => {
+  expect(
+    parseDiffRows(
+      diffMd("| 1 | 画素 | a | b | c | 1,1,1,1 | a | b | c | d |\n<!-- 閉じていない\n"),
+    ),
+  ).toHaveProperty("error");
+});
+
+test("すべての欄が空の行は区切りの行ではなく、表が 2 つあるとは扱わない", () => {
+  expect(isSeparatorRow("| | | |")).toBe(false);
+  expect(isSeparatorRow("|---|:---:|--:|")).toBe(true);
+  const parsed = parseDiffRows(
+    diffMd("| | | | | | | | | | |\n| 1 | 画素 | a | b | c | 1,1,1,1 | a | b | c | d |\n"),
+  );
+  if ("error" in parsed) throw new Error(parsed.error);
+  expect(parsed.rows.map((r) => r.id)).toEqual(["", "1"]);
 });
 
 test("差分一覧の節に表が 2 つあるか、文の後に表の行があれば誤りにする", () => {
