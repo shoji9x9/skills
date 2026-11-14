@@ -468,23 +468,30 @@ type MaskLocator = { name: string; locator: import("@playwright/test").Locator }
 // 次の名前は、矩形を書かずに rects を null にする。region-names.mjs は、null の名前を位置の分からないマスクとして扱う。
 // - iframe の中の要素に当たる名前。mask はその iframe の表示範囲の中だけを塗り、要素の矩形はその範囲を超えうるので、
 //   矩形を書くと塗っていない位置の差分まで隠れる。iframe の中でも要素に 1 件も当たらなければ、空の配列にする
-// - 撮影の直後に 2 回（間に 10 フレーム）採った矩形が違う名前。動いている要素は、mask が塗った位置と、撮影の後に
+// - 撮影の直後と、主文書で 10 フレーム待った後とで、矩形が違う名前。動いている要素は、mask が塗った位置と、撮影の後に
 //   採った位置が合うとは限らない（無限のアニメーションは撮影のときに最初の状態に戻されるなど）。動く理由
-//   （CSS のアニメーション・shadow DOM の中・requestAnimationFrame・タイマー）を見分けずに、位置が変わったかで決める。
+//   （CSS のアニメーション・shadow DOM の中・requestAnimationFrame）は見分けず、位置が変わったかで決める。
 //   Chromium で、無限のアニメーションの中・shadow DOM の中・requestAnimationFrame で動く・60 秒かけて動く要素は null、
 //   止まっている要素と opacity だけが変わる要素は矩形になることを確かめた
+// 撮影の後に採るので、撮影の後で 10 フレームの間に動かなかった要素の位置は、塗った位置と違っても見分けられない。
+// 撮影の後に一度止まってから動く要素（止まる区間を持つ無限のアニメーション・タイマーで切り替わる要素）と、撮影の後に
+// ロケータが新しく当たった要素がこれに当たる。
+// 待つのは主文書で 1 回だけにする。iframe の中で待つと、描画を止められたフレームで返らないことがあり、
+// 名前ごとに待つと、後の名前ほど撮影から離れた時点の位置になる。
 // 出典: https://playwright.dev/docs/api/class-locator#locator-evaluate-all
 type MaskRect = { x: number; y: number; width: number; height: number };
+type MaskSample = { inFrame: boolean; rects: MaskRect[] };
 
 async function recordMaskRects(
+  page: import("@playwright/test").Page,
   maskLocators: MaskLocator[],
 ): Promise<{ name: string; rects: MaskRect[] | null }[]> {
-  const maskRects = [];
-  for (const { name, locator } of maskLocators) {
-    // ページの中では採るだけにし、記録できるかの判定は settledRects で行う
-    const sampled = await locator.evaluateAll(async (elements, documentOrigin) => {
-      const read = () =>
-        elements.map((el) => {
+  // ページの中では採るだけにし、記録できるかの判定は settledRects で行う
+  const sample = (locator: import("@playwright/test").Locator): Promise<MaskSample> =>
+    locator.evaluateAll(
+      (elements, documentOrigin) => ({
+        inFrame: window !== window.top,
+        rects: elements.map((el) => {
           const r = el.getBoundingClientRect();
           return {
             x: r.x + (documentOrigin ? window.scrollX : 0),
@@ -492,26 +499,30 @@ async function recordMaskRects(
             width: r.width,
             height: r.height,
           };
-        });
-      const first = read();
-      for (let i = 0; i < 10; i += 1) {
-        await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
-      }
-      return { inFrame: window !== window.top, first, second: read() };
-    }, fullPage === true);
-    maskRects.push({ name, rects: settledRects(sampled) });
+        }),
+      }),
+      fullPage === true,
+    );
+  const first: MaskSample[] = [];
+  for (const { locator } of maskLocators) first.push(await sample(locator));
+  await page.evaluate(async () => {
+    for (let i = 0; i < 10; i += 1) {
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+    }
+  });
+  const maskRects = [];
+  for (const [i, { name, locator }] of maskLocators.entries()) {
+    // iframe の中の名前は、もう一度採らない（記録しないことが 1 回目で決まる）
+    const second = first[i].inFrame ? first[i] : await sample(locator);
+    maskRects.push({ name, rects: settledRects(first[i], second) });
   }
   return maskRects;
 }
 
 // 2 回採った矩形から、記録する矩形を決める。iframe の中の要素（1 件以上）と、2 回で位置が変わった要素は null にする
-function settledRects(sampled: {
-  inFrame: boolean;
-  first: MaskRect[];
-  second: MaskRect[];
-}): MaskRect[] | null {
-  if (sampled.inFrame && sampled.first.length > 0) return null;
-  return JSON.stringify(sampled.second) === JSON.stringify(sampled.first) ? sampled.first : null;
+function settledRects(first: MaskSample, second: MaskSample): MaskRect[] | null {
+  if (first.inFrame && first.rects.length > 0) return null;
+  return JSON.stringify(second.rects) === JSON.stringify(first.rects) ? first.rects : null;
 }
 
 // 1 つの組の成果物（スクリーンショット・マスクを当てた矩形・特性・aria スナップショット）を書き出す
@@ -538,7 +549,7 @@ async function captureArtifacts(
     animations: "disabled",
     mask: maskLocators.map((m) => m.locator),
   });
-  writeJson(join(outDir, "mask-rects.json"), await recordMaskRects(maskLocators));
+  writeJson(join(outDir, "mask-rects.json"), await recordMaskRects(page, maskLocators));
 
   // 特性は論理名 1 件ずつ渡して採る（まとめて渡すと 1 件の失敗で既採取分ごと失う）
   const traits = [];

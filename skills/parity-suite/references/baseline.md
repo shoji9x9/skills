@@ -119,15 +119,9 @@
 これを避けるため、撮影の組ごとに、マスクを当てた矩形を `mask-rects.json` に書き出す。置き場所は、その組の `traits.json` の隣である。
 新側は `parity-diff` の採取の雛形が同じ形で書くので、現側の採取のスペックにも同じ処理を入れる。
 
-- 形は `[{ "name": "<マスクの論理名>", "rects": [{ "x", "y", "width", "height" }, ...] }]` で、`capture_conditions.masks[]` の名前ごとに 1 要素を書く。`rects` は、矩形を記録できない名前（下の 2 つ）だけ `null` にする。
-- `rects` には、ロケータが当たったすべての要素の矩形を書く（Playwright の `mask` は、当たったすべての要素を塗る）。当たる要素が無ければ空の配列にし、名前を省かない。
-- iframe の中の要素に当たる名前は、`rects` を `null` にする。`mask` はその iframe の表示範囲の中だけを塗るので、要素の矩形を書くと、塗っていない位置の差分まで隠れる。
-  iframe の中でも要素に 1 件も当たらなければ、空の配列にする。
-- 撮影の直後に 2 回（間に 10 フレーム）採った矩形が違う名前も、`rects` を `null` にする。動いている要素は、`mask` が塗った位置と撮影の後に採った位置が合うとは限らない（無限のアニメーションは撮影のときに最初の状態に戻されるなど）。
-  動く理由（CSS のアニメーション・shadow DOM の中・`requestAnimationFrame`・タイマー）は見分けず、位置が変わったかで決める。
-- 矩形は撮影の直後に採る。`animations: 'disabled'` は撮影のときに途中のトランジションを終わらせるので、撮影の前に採ると途中の位置を記録してしまう。
-- 書くのは矩形だけで、文字列やスタイルは採らない。
-- 座標は撮影した画像での位置で、単位は CSS の px である。全画面の撮影ではスクロールの量を足し、ビューポートの撮影では足さない（`traits.json` の `rect` はビューポート基準なので、ここが違う）。
+- 形・`rects` を `null` にする名前（iframe の中の要素と、撮影の直後に動いていた要素）・座標・矩形を採る時点の取り決めの原本は、`parity-diff` の `references/detect.md`「マスクを当てた矩形の記録（`mask-rects.json`）」である。ここへ転記しない。
+  要点は、名前ごとにロケータが当たったすべての要素の矩形を、撮影の直後に採ることと、文字列やスタイルは採らないことである。
+  参照先を読めないときは、下のコード例のとおりに書く。
 - 書き忘れを検出するチェックは無い。書かなかった組では、`parity-diff` はマスクの位置を `traits.json` から探し、見つからなければ判定できない理由（`mask_unlocated`）を出す。
   `traits.json` の隣（同じディレクトリ）に置けば、`parity-diff` は引数で渡されなくても読む。
 - `artifact_health` を宣言した成果物では、`mask-rects.json` も採取物なので、`traits.json` と同じく `entries` に `kind: captured` で宣言する（下の「採取物の健全性」）。
@@ -141,25 +135,30 @@
 // 同じ論理名は 1 回だけ記録する（parity-diff は、同じ名前を 2 回記録したファイルを形の誤りにする）
 const names = [...new Set(masks.map((m: { name: string }) => m.name))];
 const located = names.map((name) => [name, resolveLocator(page, name)] as const);
-// 全画面の撮影は文書の原点から撮るので、スクロールの量を足す。iframe の中の要素（0 件なら空の配列）と、
-// 10 フレームの間に位置が変わった要素なら null を返す
-const inImage = async (els: Element[], full: boolean) => {
-  if (window !== window.top && els.length > 0) return null;
-  const read = () =>
-    els.map((el) => {
-      const { x, y, width, height } = el.getBoundingClientRect();
-      return full ? { x: x + scrollX, y: y + scrollY, width, height } : { x, y, width, height };
-    });
-  const first = read();
-  for (let i = 0; i < 10; i += 1) await new Promise((done) => requestAnimationFrame(() => done(undefined)));
-  return JSON.stringify(read()) === JSON.stringify(first) ? first : null;
-};
+// 全画面の撮影は文書の原点から撮るので、スクロールの量を足す
+const inImage = (els: Element[], full: boolean) => ({
+  inFrame: window !== window.top,
+  rects: els.map((el) => {
+    const { x, y, width, height } = el.getBoundingClientRect();
+    return full ? { x: x + scrollX, y: y + scrollY, width, height } : { x, y, width, height };
+  }),
+});
 // 前の回の記録を消してから撮る（撮影の後で失敗したときに、新しい画像の隣に古い記録を残さない）
 rmSync(join(outDir, "mask-rects.json"), { force: true });
 await page.screenshot({ path: join(outDir, "screenshot.png"), fullPage, animations: "disabled", mask: located.map(([, loc]) => loc) });
-// 撮影の直後に採る（撮影が終わらせたトランジションの後の位置を記録する）
+// 撮影の直後にすべての名前を採り、主文書で 10 フレーム待って、iframe の外の名前をもう一度採る
+const first = [];
+for (const [, loc] of located) first.push(await loc.evaluateAll(inImage, fullPage === true));
+await page.evaluate(async () => {
+  for (let i = 0; i < 10; i += 1) await new Promise((done) => requestAnimationFrame(() => done(undefined)));
+});
 const maskRects = [];
-for (const [name, loc] of located) maskRects.push({ name, rects: await loc.evaluateAll(inImage, fullPage === true) });
+for (const [i, [name, loc]] of located.entries()) {
+  const again = first[i].inFrame ? first[i] : await loc.evaluateAll(inImage, fullPage === true);
+  // iframe の中の要素（0 件なら空の配列）と、2 回で位置が変わった要素は null にする
+  const recordable = !(first[i].inFrame && first[i].rects.length > 0) && JSON.stringify(again.rects) === JSON.stringify(first[i].rects);
+  maskRects.push({ name, rects: recordable ? first[i].rects : null });
+}
 writeFileSync(join(outDir, "mask-rects.json"), `${JSON.stringify(maskRects, null, 2)}\n`);
 ```
 
