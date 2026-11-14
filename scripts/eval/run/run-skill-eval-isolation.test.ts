@@ -30,7 +30,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { spawnAsync } from "../../lib/spawn-async.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
@@ -91,9 +91,9 @@ function makeRepository(sandbox: Sandbox, skill: string) {
   const sandboxPath = join(sandboxDir, "eval-sandbox.sh");
   const sandboxLog = join(root, "sandbox-invoked");
   const layout = SANDBOX_LAYOUTS[sandbox];
-  const sandboxTarget = layout === null ? sandboxPath : sandboxTargetOf(layout, root, sandboxDir);
+  const sandboxTarget =
+    layout === null ? sandboxPath : placeSandbox(layout, { root, sandboxDir, sandboxPath });
   if (layout !== null) {
-    placeSandbox(layout, { sandboxDir, sandboxPath, sandboxTarget });
     writeFileSync(
       sandboxTarget,
       `#!/usr/bin/env bash\nprintf '%s\\n' "\${EVAL_SANDBOX_VENDOR}" >>${JSON.stringify(sandboxLog)}\nexec ${JSON.stringify(stub)} "$@"\n`,
@@ -117,19 +117,12 @@ function makeRepository(sandbox: Sandbox, skill: string) {
 
 /**
  * sandbox の置き方。none は実体をハーネスが読む場所に置く。file はハーネスの sandbox のパスを、target の実体へのリンクにする。
- * dir は sandbox のディレクトリを、realDir のディレクトリへのリンクにする。dir の実体の名前は、ハーネスが読む eval-sandbox.sh に固定する。
+ * dir は sandbox のディレクトリを、realDir のディレクトリへのリンクにする。実体のパスは placeSandbox が決める。
  */
 type SandboxLayout =
   | { link: "none"; mode: number }
   | { link: "file"; target: (root: string, sandboxDir: string) => string; mode: number }
   | { link: "dir"; realDir: (root: string) => string; mode: number };
-
-/** 置き方から、実体を置くパスを返す。 */
-function sandboxTargetOf(layout: SandboxLayout, root: string, sandboxDir: string) {
-  if (layout.link === "file") return layout.target(root, sandboxDir);
-  if (layout.link === "dir") return join(layout.realDir(root), "eval-sandbox.sh");
-  return join(sandboxDir, "eval-sandbox.sh");
-}
 
 /**
  * sandbox の構成ごとの置き方（missing は置かない）。構成を足すときは、この表だけを変える。
@@ -149,24 +142,28 @@ const SANDBOX_LAYOUTS = {
   missing: null,
 } satisfies Record<string, SandboxLayout | null>;
 
-/** 実体を置くディレクトリと、構成のリンクを作る。実体の中身は呼び出し元が書く。 */
+/**
+ * 実体を置くディレクトリと、構成のリンクを作り、実体を置くパスを返す。実体の中身は呼び出し元が書く。
+ * 実体のパスとリンク先は、この関数の中の 1 か所でだけ決める。実体の名前は、ハーネスが読む sandboxPath の名前を使う。
+ */
 function placeSandbox(
   layout: SandboxLayout,
-  {
-    sandboxDir,
-    sandboxPath,
-    sandboxTarget,
-  }: { sandboxDir: string; sandboxPath: string; sandboxTarget: string },
+  { root, sandboxDir, sandboxPath }: { root: string; sandboxDir: string; sandboxPath: string },
 ) {
-  mkdirSync(dirname(sandboxTarget), { recursive: true });
   // sandbox のディレクトリの親（scripts/eval）は、copyHarness が作るかに頼らずにここで作る。
   mkdirSync(dirname(sandboxDir), { recursive: true });
   if (layout.link === "dir") {
-    symlinkSync(dirname(sandboxTarget), sandboxDir);
-    return;
+    const realDir = layout.realDir(root);
+    mkdirSync(realDir, { recursive: true });
+    symlinkSync(realDir, sandboxDir);
+    return join(realDir, basename(sandboxPath));
   }
   mkdirSync(sandboxDir, { recursive: true });
-  if (layout.link === "file") symlinkSync(sandboxTarget, sandboxPath);
+  if (layout.link === "none") return sandboxPath;
+  const target = layout.target(root, sandboxDir);
+  mkdirSync(dirname(target), { recursive: true });
+  symlinkSync(target, sandboxPath);
+  return target;
 }
 
 /** ハーネスを起動する PATH を作る。bwrap はスタブを置くか、PATH から除く。 */
