@@ -54,6 +54,8 @@ Claude Code では、push する前に、手元で `/code-review` に続けて `
 妥当な指摘は直し、直さない指摘は理由を PR の本文に書く。
 `/security-review` を持たないエージェント（Codex・GitHub Copilot）では、push の前のレビューに、同じ観点で差分を確かめるよう指示を添える。
 CI では `/security-review` を実行しない。手元の実行で同じ差分を push の前に確かめられ、CI で重ねると PR ごとに使用量が増えるからである。
+PR ごとの Claude のレビュー（[`claude-review.md`](claude-review.md)）は、セキュリティも観点に含むが、`/security-review` の代わりにはしない。
+そのレビューは、レビューの回数を減らすために置いたもので、PR ごとの使用量は上限（`--max-turns`・`timeout-minutes`）と一時停止の変数で抑える。
 
 ## リポジトリ全体の監査
 
