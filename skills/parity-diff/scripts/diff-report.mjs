@@ -101,6 +101,8 @@ export function splitTableRow(line) {
 
 /**
  * 差分一覧の節の表の行を返す。節の見出しは「差分一覧」を含む `## ` の行である。
+ * 空行と HTML コメントの行は読み飛ばし、表の途中にあっても後の行を読む（警告なしに後半の行を捨てない）。
+ * 表が始まった後に、表でも空行でもコメントでもない行があり、その後にまた表の行があれば、どの表の行かを決められないので誤りにする。
  * @param {string} markdown
  * @returns {{ error:string } | { lines:string[] }}
  */
@@ -110,13 +112,50 @@ function sectionTableLines(markdown) {
   if (start < 0) return { error: "diff.md has no section heading with 差分一覧" };
   /** @type {string[]} */
   const table = [];
+  const state = { inComment: false, interrupted: false };
   for (const line of lines.slice(start + 1)) {
     if (/^##\s/.test(line)) break;
-    if (line.trim().startsWith("|")) table.push(line);
-    else if (table.length > 0) break;
+    const kind = classifyLine(line.trim(), state);
+    if (kind === "row") {
+      if (state.interrupted)
+        return { error: "diff.md section 差分一覧 has table rows after other text" };
+      table.push(line);
+    } else if (kind === "text" && table.length > 0) {
+      state.interrupted = true;
+    }
   }
   if (table.length < 2) return { error: "diff.md section 差分一覧 has no table" };
   return { lines: table };
+}
+
+/**
+ * 差分一覧の節の 1 行を、表の行・読み飛ばす行（空行と HTML コメント）・それ以外の文に分ける。
+ * 複数行にわたる HTML コメントの中かを state.inComment で持ち越す。
+ * @param {string} trimmed
+ * @param {{ inComment:boolean }} state
+ * @returns {"row" | "skip" | "text"}
+ */
+function classifyLine(trimmed, state) {
+  if (state.inComment) {
+    if (trimmed.includes("-->")) state.inComment = false;
+    return "skip";
+  }
+  if (trimmed === "") return "skip";
+  if (trimmed.startsWith("<!--")) {
+    if (!trimmed.includes("-->")) state.inComment = true;
+    return "skip";
+  }
+  return trimmed.startsWith("|") ? "row" : "text";
+}
+
+/**
+ * 欄の前後のバッククォート（コードの書式）を外す。ページ・状態・ビューポートを組と比べるときに使う。
+ * @param {string} text
+ * @returns {string}
+ */
+function stripCode(text) {
+  const m = /^`([^`]*)`$/.exec(text);
+  return m ? m[1].trim() : text;
 }
 
 /**
@@ -149,6 +188,10 @@ export function parseDiffRows(markdown) {
   }
   const columns = columnIndex(splitTableRow(headerLine));
   if ("error" in columns) return columns;
+  // 空行やコメントの後に、別の表の見出しと区切りの行が続いていれば、その表の行を差分一覧の行として読まない。
+  if (body.some((line) => /^\|?[\s:|-]+\|?$/.test(line.trim()))) {
+    return { error: "diff.md section 差分一覧 has more than one table" };
+  }
   const rows = body.map((line) => {
     const cells = splitTableRow(line);
     const cell = (/** @type {keyof DiffRow} */ key) => cells[columns.index.get(key) ?? -1] ?? "";
@@ -156,9 +199,9 @@ export function parseDiffRows(markdown) {
     const row = {
       id: cell("id"),
       method: cell("method"),
-      page: cell("page"),
-      state: cell("state"),
-      viewport: cell("viewport"),
+      page: stripCode(cell("page")),
+      state: stripCode(cell("state")),
+      viewport: stripCode(cell("viewport")),
       position: cell("position"),
       content: cell("content"),
       normalized: cell("normalized"),

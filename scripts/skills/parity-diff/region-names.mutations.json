@@ -32,6 +32,7 @@
         "CLI: 新側の traits.json が無ければ、論理名と重ならない領域を unknown にして exit 1 で警告する",
         "CLI: 両側とも traits.json が無ければ、すべての領域が unknown になる",
         "CLI: マスクの論理名が traits.json に無ければ、論理名と重ならない領域を unknown にする",
+        "CLI: マスクの論理名が traits.json にあっても面積が 0 なら、名前が無いのではなく面積が 0 だと出す",
         "CLI: マスクの論理名の位置を片側でしか確かめられなければ、覆われた領域を masked にせず unknown にする"
       ]
     },
@@ -59,13 +60,14 @@
     },
     {
       "id": "partial-mask-as-covering",
-      "why": "片側でしか位置を確かめられなかったマスクの論理名で領域が覆われたことにし、もう片側の差をマスクの中として隠す",
+      "why": "マスクの論理名の両側の矩形を 1 つの和にまとめて覆うかを判定し、片側のマスクだけが覆う領域の差をマスクの中として隠す",
       "file": "skills/parity-diff/scripts/region-names.mjs",
-      "find": "    touchedMasks.filter((m) => !m.partial).flatMap((m) => m.rects),",
-      "replace": "    touchedMasks.filter((m) => m.partial !== null).flatMap((m) => m.rects),",
+      "find": "      masks.flatMap((m) => (m.bySide ? m.bySide[side] : m.rects)),",
+      "replace": "      masks.flatMap((m) => m.rects),",
       "occurrences": 1,
       "expect_failing": [
-        "CLI: マスクの論理名の位置を片側でしか確かめられなければ、覆われた領域を masked にせず unknown にする"
+        "CLI: マスクの論理名の位置を片側でしか確かめられなければ、覆われた領域を masked にせず unknown にする",
+        "CLI: マスクの論理名の位置が両側で違えば、片側のマスクだけが覆う領域を masked にしない"
       ]
     }
   ]

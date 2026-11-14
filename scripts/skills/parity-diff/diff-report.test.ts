@@ -180,6 +180,38 @@ test("差分一覧の節の表だけを読み、ほかの節の表を読まな�
   });
 });
 
+test("表の途中の空行と HTML コメントの行を読み飛ばし、後の行も読む", () => {
+  const rows =
+    "| 1 | 画素 | list | default | desktop | 1,1,1,1 | a | b | c | d |\n\n" +
+    "<!-- 途中の注記 -->\n<!--\n複数行の注記\n-->\n" +
+    "| 2 | 画素 | list | default | desktop | 2,2,2,2 | a | b | c | d |\n";
+  const parsed = parseDiffRows(diffMd(rows));
+  if ("error" in parsed) throw new Error(parsed.error);
+  expect(parsed.rows.map((r) => r.id)).toEqual(["1", "2"]);
+});
+
+test("差分一覧の節に表が 2 つあるか、文の後に表の行があれば誤りにする", () => {
+  const second = "\n| ID | x |\n|---|---|\n| 9 | y |\n";
+  expect(
+    parseDiffRows(diffMd(`| 1 | 画素 | a | b | c | 1,1,1,1 | a | b | c | d |\n${second}`)),
+  ).toHaveProperty("error");
+  expect(
+    parseDiffRows(
+      diffMd(
+        "| 1 | 画素 | a | b | c | 1,1,1,1 | a | b | c | d |\n\n注記の文\n\n| 2 | 画素 | a | b | c | 2,2,2,2 | a | b | c | d |\n",
+      ),
+    ),
+  ).toHaveProperty("error");
+});
+
+test("ページ・状態・ビューポートの欄の前後のバッククォートを外してから比べる", () => {
+  const parsed = parseDiffRows(
+    diffMd("| 1 | 画素 | `list` | `default` | `desktop` | 1,1,1,1 | a | b | c | d |\n"),
+  );
+  if ("error" in parsed) throw new Error(parsed.error);
+  expect(parsed.rows[0]).toMatchObject({ page: "list", state: "default", viewport: "desktop" });
+});
+
 test("差分一覧の節が無いか、列が足りなければ誤りにする", () => {
   expect(parseDiffRows("# x\n\n## 2. サマリ\n\n| a |\n|---|\n")).toHaveProperty("error");
   expect(

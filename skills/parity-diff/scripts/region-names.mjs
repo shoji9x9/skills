@@ -43,9 +43,12 @@ export const VERSION = "1";
  * @typedef {{ side:Side, missing:true } | { side:Side, missing:false, entries:NamedRect[] }} SideTraits
  */
 /**
- * マスクの矩形。partial は、マスクの論理名の位置を片側でしか確かめられなかったこと（その側の traits.json が無いか、
- * その側の traits.json に名前が無い）を表す。片側の位置だけでは、もう片側でマスクが当たったかを判定できない。
- * @typedef {{ label:string, rects:Rect[], partial?:boolean }} MaskArea
+ * マスクの矩形。bySide は、論理名のマスクの側ごとの矩形である。bbox で渡したマスクは両側の同じ座標に当たるので持たない。
+ * 位置の違う 2 つの側の矩形を 1 つの和にまとめて覆うかを判定すると、片側のマスクしか覆っていない領域（もう片側では
+ * マスクされていない要素が描かれている）まで masked になる。そのため、覆うかは側ごとに判定する。
+ * 片側でしか位置を確かめられなかったマスクは、もう片側の矩形が空なので、側ごとの判定で masked にならない。
+ * 位置を確かめられないのは、その側の traits.json が無いときと、名前が無いか面積が 0 のときである。
+ * @typedef {{ label:string, rects:Rect[], bySide?:Record<Side, Rect[]> }} MaskArea
  */
 
 const SIDES = /** @type {const} */ (["current", "new"]);
@@ -231,37 +234,49 @@ export function overlappingNames(bbox, { sides, scale, maskNames }) {
 }
 
 /**
- * マスクの論理名を、各側の traits.json で矩形に直す。traits.json がある側で見つからない名前は unlocated に入れる。
+ * マスクの論理名を、各側の traits.json で矩形に直す。traits.json がある側で位置を決められない名前は unlocated に入れる。
+ * reason は、名前が無い（absent）か、名前はあるが面積が 0 である（zero_area）かを表す。
  * @param {string[]} names
  * @param {{ sides:SideTraits[], scale:number }} input
- * @returns {{ areas:MaskArea[], unlocated:Array<{ name:string, side:Side }> }}
+ * @returns {{ areas:MaskArea[], unlocated:Array<{ name:string, side:Side, reason:("absent"|"zero_area") }> }}
  */
 export function locateMaskNames(names, { sides, scale }) {
   /** @type {MaskArea[]} */
   const areas = [];
-  /** @type {Array<{ name:string, side:Side }>} */
+  /** @type {Array<{ name:string, side:Side, reason:("absent"|"zero_area") }>} */
   const unlocated = [];
   for (const name of names) {
-    /** @type {Rect[]} */
-    const rects = [];
-    let partial = false;
+    /** @type {Record<Side, Rect[]>} */
+    const bySide = { current: [], new: [] };
     for (const s of sides) {
-      if (s.missing) {
-        partial = true;
-        continue;
-      }
-      const found = s.entries.filter(
-        (e) => e.name === name && e.rect.width > 0 && e.rect.height > 0,
-      );
+      if (s.missing) continue;
+      const named = s.entries.filter((e) => e.name === name);
+      const found = named.filter((e) => e.rect.width > 0 && e.rect.height > 0);
       if (found.length === 0) {
-        unlocated.push({ name, side: s.side });
-        partial = true;
+        unlocated.push({ name, side: s.side, reason: named.length > 0 ? "zero_area" : "absent" });
       }
-      rects.push(...found.map((e) => scaleRect(e.rect, scale)));
+      bySide[s.side].push(...found.map((e) => scaleRect(e.rect, scale)));
     }
-    if (rects.length > 0) areas.push({ label: name, rects, partial });
+    const rects = [...bySide.current, ...bySide.new];
+    if (rects.length > 0) areas.push({ label: name, rects, bySide });
   }
   return { areas, unlocated };
+}
+
+/**
+ * 領域がマスクの中か。両側のどちらでも、その側のマスクの矩形の和に全体が覆われるときだけ真にする。
+ * 片側のマスクだけで覆われた領域を masked にすると、もう片側の差をマスクの中として隠すからである。
+ * @param {Rect} bbox
+ * @param {MaskArea[]} masks
+ * @returns {boolean}
+ */
+export function maskedOnBothSides(bbox, masks) {
+  return SIDES.every((side) =>
+    coveredByUnion(
+      bbox,
+      masks.flatMap((m) => (m.bySide ? m.bySide[side] : m.rects)),
+    ),
+  );
 }
 
 /**
@@ -287,11 +302,7 @@ export function classifyRegion(region, { sides, scale, masks, maskNames, reasons
   const touchedMasks = masks.filter((m) =>
     m.rects.some((r) => intersectionArea(region.bbox, r) > 0),
   );
-  // 片側でしか位置を確かめられなかったマスクは、覆うかの判定に使わない（もう片側の差をマスクの中として隠さない）。
-  const masked = coveredByUnion(
-    region.bbox,
-    touchedMasks.filter((m) => !m.partial).flatMap((m) => m.rects),
-  );
+  const masked = maskedOnBothSides(region.bbox, touchedMasks);
   /** @type {"masked" | "named" | "unknown" | "unnamed"} */
   let status = "unnamed";
   if (masked) status = "masked";
@@ -436,6 +447,8 @@ function parseArgs(argv) {
     values: ["--current-traits", "--new-traits", "--scale", "--mask-name", "--mask-bbox"],
     repeat: ["--mask-name", "--mask-bbox"],
     positionals: 1,
+    // 標準入力は読まないので、`-` を位置引数として受け付けない（ファイルが無いという誤った理由で失敗させない）。
+    stdin: false,
   });
   if (parsed.error !== undefined) return { error: `error: ${parsed.error}\n${USAGE}` };
   const regionsPath = parsed.positionals[0];
@@ -501,7 +514,7 @@ function summarize(results) {
 /**
  * 判定できなかったことを stderr に出す。
  * @param {SideTraits[]} sides
- * @param {Array<{ name:string, side:Side }>} unlocated
+ * @param {Array<{ name:string, side:Side, reason:("absent"|"zero_area") }>} unlocated
  * @param {number} unknown
  */
 function warnUnresolved(sides, unlocated, unknown) {
@@ -513,8 +526,12 @@ function warnUnresolved(sides, unlocated, unknown) {
     }
   }
   for (const u of unlocated) {
+    const where =
+      u.reason === "zero_area"
+        ? `has no area (width or height 0) in the ${u.side} traits.json`
+        : `is not in the ${u.side} traits.json`;
     process.stderr.write(
-      `warning: mask "${u.name}" is not in the ${u.side} traits.json; regions that overlap no name are reported as unknown\n`,
+      `warning: mask "${u.name}" ${where}; regions that overlap no name are reported as unknown\n`,
     );
   }
   if (unknown > 0)

@@ -337,12 +337,50 @@ test("CLI: マスクの論理名が traits.json に無ければ、論理名と�
   expect(out).toHaveProperty(
     ["masks", "unlocated"],
     [
-      { name: "account-id", side: "current" },
-      { name: "account-id", side: "new" },
+      { name: "account-id", side: "current", reason: "absent" },
+      { name: "account-id", side: "new", reason: "absent" },
     ],
   );
   expect(out).toHaveProperty(["regions", 1, "status"], "unknown");
-  expect(res.stderr).toContain('mask "account-id"');
+  expect(res.stderr).toContain('mask "account-id" is not in the current traits.json');
+});
+
+test("CLI: マスクの論理名が traits.json にあっても面積が 0 なら、名前が無いのではなく面積が 0 だと出す", () => {
+  const zero = [...TRAITS, { name: "account-id", rect: rect([90, 90, 0, 30]) }];
+  const res = run({
+    current: zero,
+    next: zero,
+    args: ["--scale", "1", "--mask-name", "account-id"],
+  });
+  expect(res.status).toBe(1);
+  const out: unknown = JSON.parse(res.stdout);
+  expect(out).toHaveProperty(["masks", "unlocated", 0, "reason"], "zero_area");
+  expect(res.stderr).toContain('mask "account-id" has no area');
+  expect(res.stderr).not.toContain("is not in the");
+});
+
+test("CLI: マスクの論理名の位置が両側で違えば、片側のマスクだけが覆う領域を masked にしない", () => {
+  const current = [...TRAITS, { name: "ad", rect: rect([90, 90, 30, 30]) }];
+  const next = [...TRAITS, { name: "ad", rect: rect([200, 200, 30, 30]) }];
+  const res = run({ current, next, args: ["--scale", "1", "--mask-name", "ad"] });
+  expect(res.status).toBe(0);
+  expect(JSON.parse(res.stdout)).toMatchObject({
+    regions: [{}, { status: "unnamed", masks: ["ad"] }],
+  });
+});
+
+test("CLI: 標準入力は読まないので、- を入力のファイルとして受け付けない", () => {
+  const dir = makeTempDir("region-names-stdin-");
+  const traits = join(dir, "traits.json");
+  writeFileSync(traits, JSON.stringify(TRAITS));
+  const res = spawnSync(
+    process.execPath,
+    [SCRIPT, "-", "--current-traits", traits, "--new-traits", traits, "--scale", "1"],
+    { encoding: "utf8", timeout: CHILD_TIMEOUT_MS, input: "{}" },
+  );
+  expect(res.status).toBe(2);
+  expect(res.stderr).not.toContain("not found");
+  expect(res.stdout).toBe("");
 });
 
 test("CLI: マスクの論理名を traits.json で見つけ、領域を覆えば masked にする", () => {

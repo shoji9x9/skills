@@ -95,7 +95,9 @@ node <スキルディレクトリ>/scripts/region-names.mjs <pixel-crops.mjs の
 
 - 入力は、同じページ・状態・ビューポートの組の `pixel-crops.mjs` の出力と、現側と新側の `traits.json` である。
   結果は stdout に出るので、`pixel-crops.mjs` の `--out` と同じディレクトリに `region-names.json` として保存する。終了コードが 1 のときも、stdout の JSON はそのまま使える
-- `--scale` は、撮影に使った `deviceScaleFactor`（Playwright のプロジェクトの `use` に書いた値。書いていなければ 1）である。
+- `--scale` は、撮影に使った `deviceScaleFactor` である。Playwright のプロジェクトの `use` に書いた値を使う。
+  `use` にデバイスの記述子（`devices['iPhone 13']` など）を展開したときは、その記述子の `deviceScaleFactor` を使う。どちらにも無ければ 1 である。
+  スクリプトはこの値を確かめないので、誤った値を渡すと、誤った論理名が exit 0 のまま出る。
   `traits.json` の `rect` は CSS の px、領域の `bbox` は画像の画素なので、`rect` にこの値を掛けてから比べる
 - 重なるとは、領域の `bbox` と論理名の `rect` の交わりの面積が 0 より大きいことである。辺や角が接するだけでは重ならない。面積が 0 の論理名（幅か高さが 0）は、どの領域とも重ならない。
   領域が要素を含む場合も、要素が領域を含む場合も重なる。面積の閾値は置かない。小さな重なりを閾値で消すと、名前の付いた要素の差を「名前なし」として読ませるからである。
@@ -106,7 +108,7 @@ node <スキルディレクトリ>/scripts/region-names.mjs <pixel-crops.mjs の
 
   | `status` | 条件 |
   |---|---|
-  | `masked` | 領域の全体が、マスクの矩形の和に覆われる。マスクの論理名は、両側の `traits.json` で位置を確かめたものだけを和に入れる |
+  | `masked` | 現側でも新側でも、その側のマスクの矩形の和に領域の全体が覆われる。マスクの論理名は、両側の `traits.json` で位置を確かめたものだけを使う |
   | `named` | 重なる論理名が 1 件以上ある |
   | `unknown` | 重なる論理名が無く、判定できない理由（下記）がある |
   | `unnamed` | 重なる論理名が無く、判定できない理由も無い。`traits.json` に採った論理名（`traits.elements`）のどれとも重ならない要素の差分である |
@@ -116,7 +118,7 @@ node <スキルディレクトリ>/scripts/region-names.mjs <pixel-crops.mjs の
   一部だけマスクに重なる領域は、`masks` に重なったマスクを持ち、`status` は重なる論理名で決める
 - 判定できない理由は、領域ごとの `unresolved` に出る。理由は 2 つある。
   - `traits_missing:<side>`: その組のその側の `traits.json` が無い。重なる論理名を探せたのはもう片側だけである
-  - `mask_unlocated:<side>:<論理名>`: マスクの論理名が、その側の `traits.json` に無い。マスクの位置が分からないので、マスクの中かどうかを判定できない。
+  - `mask_unlocated:<side>:<論理名>`: マスクの論理名が、その側の `traits.json` に無いか、幅か高さが 0 である（`masks.unlocated[].reason` の `absent` と `zero_area`）。マスクの位置が分からないので、マスクの中かどうかを判定できない。
     片側でだけ位置が分かったマスクも、もう片側で当たったかを判定できないので、`masked` の判定に使わない
 
   これらの理由がある組で、どの論理名とも重ならない領域は `unknown` にし、`unnamed`（名前を付けていない要素の差分）として扱わない。
