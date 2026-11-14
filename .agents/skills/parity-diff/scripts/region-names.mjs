@@ -397,16 +397,17 @@ export function parseBbox(text) {
 }
 
 /**
- * JSON のファイルを読む。ファイルが無ければ missing を返し、読めない・JSON でなければ理由を返す。
+ * JSON のファイルを読む。読めない（ファイルが無いときを含む）・JSON でなければ理由を返す。
+ * ファイルが無いことを traits.json の無い組として扱わない。パスの誤りと区別できないからである。
+ * 無い側は、呼び出し元が `--current-traits-missing` か `--new-traits-missing` で宣言する。
  * @param {string} path
- * @returns {{ missing:true } | { error:string } | { json:unknown }}
+ * @returns {{ error:string } | { json:unknown }}
  */
 function readJsonFile(path) {
   let text;
   try {
     text = readFileSync(path, "utf8");
   } catch (err) {
-    if (isPlainObject(err) && err.code === "ENOENT") return { missing: true };
     const message = err instanceof Error ? err.message : String(err);
     return { error: `cannot read ${path}: ${message}` };
   }
@@ -419,14 +420,14 @@ function readJsonFile(path) {
 }
 
 /**
- * 1 つの側の traits.json を読む。
- * @param {string} path
+ * 1 つの側の traits.json を読む。path が null なら、その側の traits.json が無いと宣言されている。
+ * @param {string | null} path
  * @param {Side} side
  * @returns {{ error:string } | SideTraits}
  */
 function loadSide(path, side) {
+  if (path === null) return { side, missing: true };
   const read = readJsonFile(path);
-  if ("missing" in read) return { side, missing: true };
   if ("error" in read) return read;
   const parsed = readTraits(read.json, side);
   if ("error" in parsed) return parsed;
@@ -434,35 +435,51 @@ function loadSide(path, side) {
 }
 
 const USAGE =
-  "usage: node region-names.mjs <pixel-crops.json> --current-traits <traits.json> --new-traits <traits.json> --scale <deviceScaleFactor> [--mask-name <logical name>]... [--mask-bbox <x,y,w,h>]...\n";
+  "usage: node region-names.mjs <pixel-crops.json> (--current-traits <traits.json> | --current-traits-missing) (--new-traits <traits.json> | --new-traits-missing) --scale <deviceScaleFactor> [--mask-name <logical name>]... [--mask-bbox <x,y,w,h>]...\n";
+
+/**
+ * 1 つの側の traits.json の指定を読む。パスと無いことの宣言のどちらか 1 つだけを受け付ける。
+ * @param {{ strings:Record<string, string>, bools:Record<string, true> }} parsed
+ * @param {Side} side
+ * @returns {{ error:string } | { path:(string|null) }}
+ */
+function sideArg(parsed, side) {
+  const path = parsed.strings[`--${side}-traits`];
+  const missing = parsed.bools[`--${side}-traits-missing`] === true;
+  if ((path === undefined) === !missing) {
+    return {
+      error: `error: give exactly one of --${side}-traits and --${side}-traits-missing\n${USAGE}`,
+    };
+  }
+  // 標準入力は読まない。
+  if (path === "-")
+    return { error: `error: --${side}-traits must be a file path (stdin is not read)\n` };
+  return { path: path ?? null };
+}
 
 /**
  * 引数を読み、値を確かめる。誤りは stderr に出す文で返す。
  * @param {string[]} argv
- * @returns {{ error:string } | { regionsPath:string, currentTraits:string, newTraits:string, scale:number,
+ * @returns {{ error:string } | { regionsPath:string, currentTraits:(string|null), newTraits:(string|null), scale:number,
  *   maskBboxes:Rect[], maskNames:string[] }}
  */
 function parseArgs(argv) {
   const parsed = parseFlags(argv, {
     values: ["--current-traits", "--new-traits", "--scale", "--mask-name", "--mask-bbox"],
     repeat: ["--mask-name", "--mask-bbox"],
+    bools: ["--current-traits-missing", "--new-traits-missing"],
     positionals: 1,
-    // 標準入力は読まないので、`-` を位置引数として受け付けない（ファイルが無いという誤った理由で失敗させない）。
+    // 標準入力は読まないので、`-` を位置引数として受け付けない。
     stdin: false,
   });
   if (parsed.error !== undefined) return { error: `error: ${parsed.error}\n${USAGE}` };
   const regionsPath = parsed.positionals[0];
-  const currentTraits = parsed.strings["--current-traits"];
-  const newTraits = parsed.strings["--new-traits"];
   const scaleText = parsed.strings["--scale"];
-  if (!regionsPath || !currentTraits || !newTraits || scaleText === undefined)
-    return { error: USAGE };
-  // 標準入力は読まない。`-` を渡すとファイルが無いことになり、traits.json の無い組（正規の状態）として扱ってしまう。
-  if (currentTraits === "-" || newTraits === "-") {
-    return {
-      error: "error: --current-traits and --new-traits must be file paths (stdin is not read)\n",
-    };
-  }
+  if (!regionsPath || scaleText === undefined) return { error: USAGE };
+  const current = sideArg(parsed, "current");
+  if ("error" in current) return current;
+  const next = sideArg(parsed, "new");
+  if ("error" in next) return next;
   const scale = Number(scaleText);
   if (!Number.isFinite(scale) || scale <= 0)
     return { error: "error: --scale must be a number > 0\n" };
@@ -477,23 +494,29 @@ function parseArgs(argv) {
     maskBboxes.push(bbox);
   }
   const maskNames = parsed.lists["--mask-name"] ?? [];
-  return { regionsPath, currentTraits, newTraits, scale, maskBboxes, maskNames };
+  return {
+    regionsPath,
+    currentTraits: current.path,
+    newTraits: next.path,
+    scale,
+    maskBboxes,
+    maskNames,
+  };
 }
 
 /**
  * 入力のファイルを読む。誤りは stderr に出す文で返す。
- * @param {{ regionsPath:string, currentTraits:string, newTraits:string }} paths
+ * @param {{ regionsPath:string, currentTraits:(string|null), newTraits:(string|null) }} paths
  * @returns {{ error:string } | { regions:Region[], sides:SideTraits[] }}
  */
 function loadInputs({ regionsPath, currentTraits, newTraits }) {
   const read = readJsonFile(regionsPath);
-  if ("missing" in read) return { error: `error: cannot read ${regionsPath}: not found\n` };
   if ("error" in read) return { error: `error: ${read.error}\n` };
   const regions = readRegions(read.json);
   if ("error" in regions) return { error: `error: ${regions.error}\n` };
   /** @type {SideTraits[]} */
   const sides = [];
-  /** @type {Array<[Side, string]>} */
+  /** @type {Array<[Side, string | null]>} */
   const files = [
     ["current", currentTraits],
     ["new", newTraits],

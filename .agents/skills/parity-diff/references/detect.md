@@ -87,13 +87,15 @@
 
 ```text
 node <スキルディレクトリ>/scripts/region-names.mjs <pixel-crops.mjs の出力の JSON> \
-  --current-traits <現側の baseline/ の同じ組の traits.json> \
-  --new-traits <new/<target>/baseline-new/<page>/<state>/<viewport>/traits.json> \
+  (--current-traits <現側の baseline/ の同じ組の traits.json> | --current-traits-missing) \
+  (--new-traits <new/<target>/baseline-new/<page>/<state>/<viewport>/traits.json> | --new-traits-missing) \
   --scale <撮影の deviceScaleFactor> [--mask-name <論理名>]... [--mask-bbox <x,y,w,h>]... \
   > <pixel-crops.mjs の --out のディレクトリ>/region-names.json
 ```
 
 - 入力は、同じページ・状態・ビューポートの組の `pixel-crops.mjs` の出力と、現側と新側の `traits.json` である。
+  その組のある側に `traits.json` が無いときは、パスの代わりに `--current-traits-missing` か `--new-traits-missing` を渡す。
+  パスを渡してファイルが無いときは、パスの誤りと区別できないので、無い組として扱わずに exit 2 にする。
   結果は stdout に出るので、`pixel-crops.mjs` の `--out` と同じディレクトリに `region-names.json` として保存する。終了コードが 1 のときも、stdout の JSON はそのまま使える
 - `--scale` は、撮影に使った `deviceScaleFactor` である。Playwright のプロジェクトの `use` に書いた値を使う。
   `use` にデバイスの記述子（`devices['iPhone 13']` など）を展開したときは、その記述子の `deviceScaleFactor` を使う。どちらにも無ければ 1 である。
@@ -117,7 +119,7 @@ node <スキルディレクトリ>/scripts/region-names.mjs <pixel-crops.mjs の
   `--mask-bbox` の座標は画像の画素である。マスクの論理名は、`traits.json` の `rect` で矩形に直す。マスクの論理名そのものは、重なる論理名に数えない（塗りつぶされているため）。
   一部だけマスクに重なる領域は、`masks` に重なったマスクを持ち、`status` は重なる論理名で決める
 - 判定できない理由は、領域ごとの `unresolved` に出る。理由は 2 つある。
-  - `traits_missing:<side>`: その組のその側の `traits.json` が無い。重なる論理名を探せたのはもう片側だけである
+  - `traits_missing:<side>`: その組のその側の `traits.json` が無い（`--<side>-traits-missing` を渡した）。重なる論理名を探せたのはもう片側だけである
   - `mask_unlocated:<side>:<論理名>`: マスクの論理名が、その側の `traits.json` に無いか、幅か高さが 0 である（`masks.unlocated[].reason` の `absent` と `zero_area`）。マスクの位置が分からないので、マスクの中かどうかを判定できない。
     片側でだけ位置が分かったマスクも、もう片側で当たったかを判定できないので、`masked` の判定に使わない
 
@@ -125,7 +127,7 @@ node <スキルディレクトリ>/scripts/region-names.mjs <pixel-crops.mjs の
   `unknown` の領域は、名前があるかを確かめていない候補として、トリアージに回し、判定できなかった理由を `diff.md` の根拠の欄に書く
 - `rect` は `getBoundingClientRect` の値で、ビューポートを基準にした座標である。全画面（`capture_conditions.full_page: true`）で、スクロールした状態で撮った組では、画像の座標とずれる。
   このスクリプトはスクロールの位置を知らないので、このずれを検出しない。スクロールしてから撮る状態の組では、出た論理名を crop と突き合わせてから使う
-- 終了コードは、0 がすべての領域を判定できた、1 が `unknown` の領域がある、2 が入力の誤り（引数・JSON の形・`--scale` が正でない）である。
+- 終了コードは、0 がすべての領域を判定できた、1 が `unknown` の領域がある、2 が入力の誤り（引数・渡したパスのファイルが無い・JSON の形・`--scale` が正でない）である。
   1 は結果であって停止の合図ではない。`unknown` の件数と理由は、stdout の `summary` と stderr の警告に出る
 - 結果は、[`triage.md`](triage.md) の入力（crop 対に添える情報）と、承認する人が見る HTML のレポート（[`triage.md`](triage.md)「承認する人が見る HTML のレポート」）に使う
 

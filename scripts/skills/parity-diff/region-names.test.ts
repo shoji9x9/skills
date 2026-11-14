@@ -61,7 +61,7 @@ const classify = (
     {
       sides,
       scale: extra.scale ?? 1,
-      // 関数の粒度のテストのマスクは、両側の同じ座標に当たるもの（--mask-bbox と同じ）として渡す。
+      // 関数を直接呼ぶテストでは、マスクを両側の同じ座標に当てる（--mask-bbox と同じ）。
       masks: (extra.masks ?? []).map((m) => ({
         label: m.label,
         bySide: { current: m.rects, new: m.rects },
@@ -262,17 +262,19 @@ function run(scene: Scene) {
       },
     ),
   );
-  if (scene.current !== undefined) writeFileSync(currentPath, JSON.stringify(scene.current));
-  if (scene.next !== undefined) writeFileSync(newPath, JSON.stringify(scene.next));
+  // traits.json を渡さない側は、無いことを宣言する引数で渡す。
+  const sideArgs = (flag: string, path: string, value: unknown) => {
+    if (value === undefined) return [`${flag}-missing`];
+    writeFileSync(path, JSON.stringify(value));
+    return [flag, path];
+  };
   const res = spawnSync(
     process.execPath,
     [
       SCRIPT,
       regionsPath,
-      "--current-traits",
-      currentPath,
-      "--new-traits",
-      newPath,
+      ...sideArgs("--current-traits", currentPath, scene.current),
+      ...sideArgs("--new-traits", newPath, scene.next),
       ...(scene.args ?? ["--scale", "1"]),
     ],
     { encoding: "utf8", timeout: CHILD_TIMEOUT_MS },
@@ -404,6 +406,39 @@ test.each(["--current-traits", "--new-traits"])(
     );
     expect(res.status).toBe(2);
     expect(res.stderr).toContain("stdin is not read");
+    expect(res.stdout).toBe("");
+  },
+);
+
+test.each([
+  [
+    "パスのファイルが無い（綴りの誤り）",
+    ["--current-traits", "TYPO", "--new-traits", "TRAITS"],
+    "cannot read",
+  ],
+  [
+    "パスと無いことの宣言の両方",
+    ["--current-traits", "TRAITS", "--current-traits-missing", "--new-traits", "TRAITS"],
+    "exactly one",
+  ],
+  ["パスも無いことの宣言も無い", ["--new-traits", "TRAITS"], "exactly one"],
+])(
+  "CLI: traits.json の指定が %s なら、無い組として扱わずに exit 2 にする",
+  (_label, args, message) => {
+    const dir = makeTempDir("region-names-sidearg-");
+    const traits = join(dir, "traits.json");
+    const crops = join(dir, "crops.json");
+    writeFileSync(traits, JSON.stringify(TRAITS));
+    writeFileSync(crops, JSON.stringify({ regions: [], strict_only_regions: [] }));
+    const resolved = args.map((a) =>
+      a === "TRAITS" ? traits : a === "TYPO" ? join(dir, "traits.jsno") : a,
+    );
+    const res = spawnSync(process.execPath, [SCRIPT, crops, ...resolved, "--scale", "1"], {
+      encoding: "utf8",
+      timeout: CHILD_TIMEOUT_MS,
+    });
+    expect(res.status).toBe(2);
+    expect(res.stderr).toContain(message);
     expect(res.stdout).toBe("");
   },
 );

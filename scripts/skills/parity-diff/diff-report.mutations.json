@@ -37,7 +37,7 @@
       "find": "  if (body.some((line) => isSeparatorRow(line))) {",
       "replace": "  if (body.some((line) => isSeparatorRow(line) && false)) {",
       "occurrences": 1,
-      "expect_failing": ["差分一覧の節に表が 2 つあるか、文の後に表の行があれば誤りにする"]
+      "expect_failing": ["差分一覧の節に表が 2 つあれば誤りにする"]
     }
   ]
 }
