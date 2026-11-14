@@ -169,6 +169,9 @@ export async function runEval(options: RunEvalOptions) {
         ...process.env,
         PATH: `${dirname(stub)}:${process.env.PATH}`,
         SKILL_EVAL_RUNNER: stub,
+        // スタブの runner は sandbox ではないので、ハーネスは変数が 1 でなければ executor の起動前に止める。
+        // 止まることを確かめるテスト（run-skill-eval-isolation.test.ts）は、このヘルパーを通さずに変数なしで起動する。
+        SKILL_EVAL_ALLOW_UNISOLATED: "1",
         SKILL_EVAL_CLI_VERSION: `${effectiveExecutor} stub-version`,
         ...env,
       },
