@@ -20,6 +20,10 @@ if [[ "$args" == *EXPECT_EXECUTOR_AND_NORMALIZER_FAIL* ]]; then
   printf 'not-json\n'
   exit 7
 fi
+if [[ "$args" == *EXPECT_NORMALIZER_ONLY_FAIL* ]]; then
+  printf 'not-json\n'
+  exit 0
+fi
 if [[ "$args" == *EXPECT_REVIEW_ENV_CLEARED* ]]; then test -z "\${SKILLS_REVIEW_TOOL+x}"; fi
 if [[ "$args" == *EXPECT_USER_CONFIG_IGNORED* ]]; then test "\${SHOJI9X9_SKILLS_IGNORE_USER_CONFIG-}" = 1; fi
 if [[ "$args" == *EXPECT_CREATE_FILE* ]]; then printf 'generated\n' >generated.txt; fi

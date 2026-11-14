@@ -1044,18 +1044,23 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
     ]);
   });
 
-  test("fails before starting the executor when fixture setup fails", async () => {
-    const { directory, stub } = makeStub();
+  // setup.sh の値をそのまま返すと、3（ロックを取れなかった）のようなハーネス自身の値と区別できない（Issue #1024）。
+  test("exits 1 and reports the setup.sh exit code before starting the executor when fixture setup fails", async () => {
+    const { directory, invocationLog, stub } = makeStub();
     const fixture = join(directory, "fixture");
     const output = join(directory, "iteration-1", "eval-1", "with_skill", "run-1");
     mkdirSync(fixture);
     const setup = join(fixture, "setup.sh");
-    writeFileSync(setup, "#!/usr/bin/env bash\nexit 23\n", "utf8");
+    writeFileSync(setup, "#!/usr/bin/env bash\nexit 3\n", "utf8");
     chmodSync(setup, 0o755);
 
     await expect(
       runEval({ config: "with_skill", prompt: "EXPECT_WITH_SKILL", output, stub, fixture }),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({
+      status: 1,
+      stderr: expect.stringMatching(/fixture setup\.sh exited 3/u),
+    });
+    expect(existsSync(invocationLog)).toBe(false);
     expect(existsSync(output)).toBe(false);
   });
 
@@ -1070,7 +1075,11 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
     expect(readJson(join(output, "result.json")).status).toBe("succeeded");
   });
 
-  test("returns exit 5 when normalization and the executor both fail", async () => {
+  // 正規化の失敗は、CLI の値に関わらず 5 にする。CLI の値は done の行の cli_rc と result.json に残す（Issue #1024）。
+  test.each([
+    { label: "the executor also fails", prompt: "EXPECT_EXECUTOR_AND_NORMALIZER_FAIL", cliRc: 7 },
+    { label: "the executor succeeds", prompt: "EXPECT_NORMALIZER_ONLY_FAIL", cliRc: 0 },
+  ])("returns exit 5 when normalization fails and $label", async ({ prompt, cliRc }) => {
     const { directory, stub } = makeStub();
     const output = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
     const result = await spawnAsync(
@@ -1079,7 +1088,7 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
         "--skill",
         "box",
         "--prompt",
-        "EXPECT_EXECUTOR_AND_NORMALIZER_FAIL",
+        prompt,
         "--config",
         "without_skill",
         "--out",
@@ -1102,11 +1111,16 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
       },
     );
 
-    expect(result.status).toBe(5);
-    expect(result.stderr).toMatch(/codex exited 7/u);
+    expect(result.status, result.stderr).toBe(5);
     expect(result.stderr).toMatch(/result normalization failed/u);
+    if (cliRc === 0) {
+      expect(result.stderr).not.toMatch(/codex exited/u);
+    } else {
+      expect(result.stderr).toMatch(new RegExp(`codex exited ${cliRc}`, "u"));
+    }
+    expect(result.stdout).toMatch(new RegExp(`\\(rc=5 cli_rc=${cliRc}\\)$`, "mu"));
     expect(readJson(join(output, "result.json"))).toMatchObject({
-      exit_code: 7,
+      exit_code: cliRc,
       status: "failed",
     });
   });
@@ -1146,6 +1160,84 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
     expect(result.stderr).toMatch(/invalid --reasoning-effort/u);
     expect(existsSync(output)).toBe(false);
   });
+});
+
+// 入力のファイルが見つからない run は、CLI を起動する前に exit 1 で止まり、--out を作らない（Issue #1024）。
+// requires_skills の兄弟のスキルが無い場合は、下の required sibling skills のテストが確かめる。
+describe.concurrent("run-skill-eval missing inputs", () => {
+  test.each([
+    {
+      label: "the fixture directory",
+      remove: (_root: string) => undefined,
+      fixture: "no-such-fixture",
+      message: /fixture dir not found/u,
+    },
+    {
+      label: "the skill source",
+      remove: (root: string) => rmSync(join(root, "skills", "subject-skill", "SKILL.md")),
+      fixture: undefined,
+      message: /skill source not found/u,
+    },
+    {
+      label: "the normalizer",
+      remove: (root: string) =>
+        rmSync(join(root, "scripts", "eval", "run", "normalize-skill-eval-result.ts")),
+      fixture: undefined,
+      message: /normalizer not found/u,
+    },
+    {
+      label: "the fingerprint helper",
+      remove: (root: string) =>
+        rmSync(join(root, "scripts", "eval", "baseline", "skill-eval-fingerprint.ts")),
+      fixture: undefined,
+      message: /baseline fingerprint helpers not found/u,
+    },
+  ])(
+    "exits 1 without starting the executor or creating --out when $label is missing",
+    async ({ remove, fixture, message }) => {
+      const root = tempDir("skill-eval-missing-");
+      copyHarness(root);
+      symlinkSync(join(repository, "scripts", "lib"), join(root, "scripts", "lib"));
+      writeSubjectSkill(root, {});
+      const { installedLog, stub } = writeInstallRecordingStub(root);
+      remove(root);
+      const output = join(root, "iteration-1", "eval-1", "with_skill", "run-1");
+      const fixtureArgs = fixture === undefined ? [] : ["--fixture", join(root, fixture)];
+
+      const result = await spawnAsync(
+        join(root, "scripts", "eval", "run", "run-skill-eval.sh"),
+        [
+          "--skill",
+          "subject-skill",
+          "--prompt",
+          "PROMPT",
+          "--config",
+          "with_skill",
+          "--out",
+          output,
+          "--eval-id",
+          "1",
+          ...fixtureArgs,
+          "--repo",
+          root,
+        ],
+        {
+          timeout: CHILD_TIMEOUT_MS,
+          env: {
+            ...process.env,
+            SKILL_EVAL_RUNNER: stub,
+            SKILL_EVAL_ALLOW_UNISOLATED: "1",
+            SKILL_EVAL_CLI_VERSION: "stub-version",
+          },
+        },
+      );
+
+      expect(result.status, result.stderr).toBe(1);
+      expect(result.stderr).toMatch(message);
+      expect(existsSync(installedLog)).toBe(false);
+      expect(existsSync(output)).toBe(false);
+    },
+  );
 });
 
 describe.concurrent("run-skill-eval required sibling skills", () => {

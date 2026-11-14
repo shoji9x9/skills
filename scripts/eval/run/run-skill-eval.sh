@@ -35,8 +35,11 @@
 # 隔離しないベースラインは、with_skill の run と同時に実行しない（直列にする）。
 # ベースラインの run には、すべて汚染の判定を付ける。
 #
-# 終了コード:
-#   0。run が失敗したときは、CLI 自身の終了コード。
+# 終了コード（主な値だけを挙げる。網羅した一覧ではない）:
+#   0。run が失敗したときは、CLI 自身の終了コード。ただし、結果の正規化に失敗したときは、CLI の値に関わらず 5 にする。
+#   1: CLI を起動する前に、入力か準備で止めた。入力のファイル（fixture のディレクトリ・スキルのソース・
+#      正規化・fingerprint・baseline の再利用のスクリプト・requires_skills のスキル）が見つからないときと、fixture の setup.sh が
+#      0 以外で終わったときである。どれも --out を作らない。
 #   2: 使い方の誤り。
 #   3: 直列化のロックを取れなかった。
 #   4: run 自体は成功したが、ベースラインが汚染されている（CONTAMINATED）か、汚染のチェックを信頼できない
@@ -46,6 +49,9 @@
 #   7: 読み取りの隔離を確かめられない（isolation が sandboxed 以外）ので、executor を起動せずに止めた。
 #      止めたときは、stderr に refusing to start the executor の行を出す。
 #      SKILL_EVAL_ALLOW_UNISOLATED=1 を設定したときだけ、警告を出して続ける。
+# CLI 自身の終了コードは、1〜7 のどの値とも重なりうる。CLI を起動した run は、stdout の
+# `done: ... (rc=<ハーネスの値> cli_rc=<CLI の値>)` の行に CLI の値を残す。正規化が result.json を書けたときは、
+# その exit_code にも残る。
 set -euo pipefail
 
 usage() {
@@ -287,11 +293,21 @@ sandbox="${repo}/scripts/eval/sandbox/eval-sandbox.sh"
 # 環境から同じ名前の変数を受け取っても、sandboxed の判定の外で runner を決めないように空で始める。
 runner_override=""
 runner_is_sandbox=0
+sandbox_real="$(realpath -e -- "${sandbox}" 2>/dev/null)" || sandbox_real=""
+# sandbox は、自分の実体のパスの 4 つ上を repo として、その親を隠す。実体が <repo>/scripts/eval/sandbox/ の外に
+# あると（sandbox のファイルがその外へのシンボリックリンクだと）、--repo の親ではない別のディレクトリを隠す（Issue #1024）。
+# そのため、実体のパスが ${repo}/scripts/eval/sandbox/eval-sandbox.sh と一致するときだけ sandbox として扱う。
+# repo は realpath で解決済みなので、--repo 自体や上位のディレクトリがリンクでも一致する。
+# 一致しないときは、SKILL_EVAL_RUNNER が無い場合も sandbox を指す場合も、下の分岐で UNISOLATED にする。
+# sandbox 以外を指す SKILL_EVAL_RUNNER は、この判定より前の分岐で UNVERIFIED になる。
+sandbox_in_repo=0
+if [ -n "${sandbox_real}" ] && [ "${sandbox_real}" = "${sandbox}" ]; then
+	sandbox_in_repo=1
+fi
 if [ -n "${SKILL_EVAL_RUNNER:-}" ]; then
 	case "${SKILL_EVAL_RUNNER}" in
 	/*)
 		runner_real="$(realpath -e -- "${SKILL_EVAL_RUNNER}" 2>/dev/null)" || runner_real=""
-		sandbox_real="$(realpath -e -- "${sandbox}" 2>/dev/null)" || sandbox_real=""
 		if [ -n "${runner_real}" ] && [ "${runner_real}" = "${sandbox_real}" ]; then
 			runner_is_sandbox=1
 		fi
@@ -302,6 +318,8 @@ if [ -n "${SKILL_EVAL_RUNNER:-}" ] && [ "${runner_is_sandbox}" -eq 0 ]; then
 	isolation="UNVERIFIED (operator-supplied SKILL_EVAL_RUNNER=${SKILL_EVAL_RUNNER})"
 elif [ ! -x "${sandbox}" ]; then
 	isolation="UNISOLATED (${sandbox} missing or not executable)"
+elif [ "${sandbox_in_repo}" -eq 0 ]; then
+	isolation="UNISOLATED (${sandbox} resolves to ${sandbox_real}, not to itself; the sandbox decides which repository to hide from its real path)"
 elif ! command -v bwrap >/dev/null 2>&1; then
 	isolation="UNISOLATED (bwrap not found; install bubblewrap to isolate reads)"
 else
@@ -320,7 +338,8 @@ sandboxed*) ;;
 		{
 			echo "refusing to start the executor: read isolation is ${isolation}"
 			echo "  a run outside the sandbox can read the operator's credentials (\$HOME, GH_TOKEN, ...)."
-			echo "  to isolate: install bubblewrap, keep ${sandbox} executable, and leave SKILL_EVAL_RUNNER unset"
+			echo "  to isolate: install bubblewrap, keep ${sandbox} executable and in place (not a symlink to a file elsewhere),"
+			echo "  and leave SKILL_EVAL_RUNNER unset"
 			echo "  (or set it to the absolute path of that script)."
 			echo "  to run without isolation anyway (a stub runner, for example), set SKILL_EVAL_ALLOW_UNISOLATED=1."
 		} >&2
@@ -353,7 +372,15 @@ trap cleanup EXIT
 if [ -n "${fixture}" ]; then
 	cp -R -- "${fixture}/." "${proj}/"
 	if [ -f "${proj}/setup.sh" ] && [ -x "${proj}/setup.sh" ]; then
-		(cd "${proj}" && ./setup.sh)
+		# setup.sh の終了コードをそのまま返すと、ハーネス自身の値（3 のロックなど）と区別できない。
+		# CLI を起動する前の準備の失敗として 1 にし、setup.sh の値は stderr に出す。
+		# この時点では --out もロックも作っていない。使い捨てのプロジェクトは EXIT の trap が消す。
+		setup_rc=0
+		(cd "${proj}" && ./setup.sh) || setup_rc=$?
+		if [ "${setup_rc}" -ne 0 ]; then
+			echo "fixture setup.sh exited ${setup_rc}; the executor was not started" >&2
+			exit 1
+		fi
 	fi
 fi
 
@@ -605,6 +632,9 @@ if [ "${config}" = "without_skill" ] && [ "${executor}" = "codex" ]; then
 fi
 normalizer_rc=0
 node "${normalizer}" "${normalizer_args[@]}" 2>>"${out}/stderr.log" || normalizer_rc=$?
+# 正規化に失敗した run は、CLI の値に関わらず 5 で終える（PR #238 の選択）。result.json を信頼できない run を、
+# CLI の 0 で成功として集計させないためである。CLI の値は cli_rc に残し、done の行に出す。
+cli_rc="${rc}"
 if [ "${normalizer_rc}" -ne 0 ]; then
 	rc=5
 	echo "warn: result normalization failed (see ${out}/stderr.log)" >&2
@@ -776,9 +806,9 @@ if [ "${config}" = "without_skill" ]; then
 	esac
 fi
 
-echo "done: executor=${executor} config=${config} skill=${skill} -> ${out} (rc=${rc})"
-# A contaminated baseline that exits 0 gets aggregated as a real measurement, so
-# surface it in the exit status too — but never mask the CLI's own failure code.
+echo "done: executor=${executor} config=${config} skill=${skill} -> ${out} (rc=${rc} cli_rc=${cli_rc})"
+# 汚染された baseline が 0 で終わると、本物の測定として集計される。そのため、終了コードでも 4 として示す。
+# 4 は rc が 0 のときだけにし、0 以外の rc（CLI の失敗の値か、正規化の失敗の 5）を上書きしない。
 if [ "${rc}" -eq 0 ] && [ "${contaminated}" -eq 1 ]; then
 	exit 4
 fi

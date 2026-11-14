@@ -40,7 +40,8 @@
 # USAGE (the wrapper runs the real CLI inside the sandbox):
 #   scripts/eval/run/run-skill-eval.sh --config without_skill ...   # the harness runs every run through this script by default
 #   SKILL_EVAL_RUNNER="$PWD/scripts/eval/sandbox/eval-sandbox.sh" scripts/eval/run/run-skill-eval.sh ...
-#     # the same: an absolute path that resolves (realpath) to this script is recorded as sandboxed
+#     # the same: an absolute path that resolves (realpath) to this script is recorded as sandboxed,
+#     # as long as this script itself resolves to <repo>/scripts/eval/sandbox/eval-sandbox.sh (Issue #1024)
 #   scripts/eval/sandbox/eval-sandbox.sh --verify '<marker>' ...   # prove the blocking works first
 # Without bwrap the harness refuses to start the executor (exit 7) unless SKILL_EVAL_ALLOW_UNISOLATED=1 is set.
 #

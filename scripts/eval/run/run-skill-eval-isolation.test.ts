@@ -7,10 +7,11 @@
 // | 無い                                  | 無い・非実行 | 在る  | UNISOLATED   |
 // | 無い                                  | 実行可能    | 無い  | UNISOLATED   |
 // | sandbox の絶対パス・シンボリックリンク | 実行可能    | 在る  | sandboxed    |
-// | sandbox のリンク先の実体               | シンボリックリンク | 在る | sandboxed |
+// | 無い・sandbox のリンク先の実体         | <repo>/scripts/eval/sandbox/ の外へのシンボリックリンク | 在る | UNISOLATED |
 // | sandbox の絶対パス                    | 実行可能    | 無い  | UNISOLATED   |
 // | sandbox の相対パス・同名の別ファイル・実在しないパス・スタブ | 実行可能 | 在る | UNVERIFIED |
 // sandboxed 以外は、変数が 1 のときだけ続け、未設定・空・1 以外の値では exit 7 で止める。
+// --repo がリポジトリへのシンボリックリンクでも、ハーネスは解決してから比べるので、sandbox が実行可能で bwrap が在れば sandboxed になる。
 //
 // 止まる側のテストは変数を渡さない（ヘルパーのデフォルトに持たせると、止まることを確かめられない）。
 // 子の環境からは、操作する人の SKILL_EVAL_RUNNER と SKILL_EVAL_ALLOW_UNISOLATED を消してから、ケースの値を置く。
@@ -57,6 +58,8 @@ type Case = {
   sandbox: Sandbox;
   bwrap: boolean;
   allow: string | undefined;
+  /** --repo に、一時のリポジトリへのシンボリックリンクを渡す。 */
+  repoLink?: boolean;
 };
 
 /** PATH の各ディレクトリの中身を、bwrap だけを除いてリンクしたディレクトリを作る。 */
@@ -84,7 +87,7 @@ function makeRepository(sandbox: Sandbox, skill: string) {
   const sandboxDir = join(root, "scripts", "eval", "sandbox");
   const sandboxPath = join(sandboxDir, "eval-sandbox.sh");
   const sandboxLog = join(root, "sandbox-invoked");
-  // symlink の構成では、ハーネスの sandbox のパスをリンクにし、実体をリポジトリの外の場所に置く。
+  // symlink の構成では、ハーネスの sandbox のパスをリンクにし、実体を <repo>/scripts/eval/sandbox/ の外の場所に置く。
   const sandboxTarget =
     sandbox === "symlink" ? join(root, "real-sandbox", "eval-sandbox.sh") : sandboxPath;
   if (sandbox !== "missing") {
@@ -128,7 +131,10 @@ function makePath(root: string, stub: string, bwrap: boolean) {
 }
 
 /** 一時のリポジトリにケースの構成を置き、ハーネスを起動する。skill を渡すと、対象のスキルをその名前で作る。 */
-async function runCase({ runner, sandbox, bwrap, allow }: Case, skill = "subject-skill") {
+async function runCase(
+  { runner, sandbox, bwrap, allow, repoLink = false }: Case,
+  skill = "subject-skill",
+) {
   const repo = makeRepository(sandbox, skill);
   const env: NodeJS.ProcessEnv = {
     ...process.env,
@@ -142,6 +148,7 @@ async function runCase({ runner, sandbox, bwrap, allow }: Case, skill = "subject
   if (allow !== undefined) env.SKILL_EVAL_ALLOW_UNISOLATED = allow;
 
   const output = join(repo.root, "iteration-1", "eval-1", "with_skill", "run-1");
+  const repoArgument = repoArgumentOf(repo.root, repoLink);
   const result = await spawnAsync(
     join(repo.root, "scripts", "eval", "run", "run-skill-eval.sh"),
     [
@@ -162,7 +169,7 @@ async function runCase({ runner, sandbox, bwrap, allow }: Case, skill = "subject
       "--fixture",
       repo.fixture,
       "--repo",
-      repo.root,
+      repoArgument,
     ],
     { cwd: repo.root, timeout: CHILD_TIMEOUT_MS, env },
   );
@@ -173,6 +180,15 @@ async function runCase({ runner, sandbox, bwrap, allow }: Case, skill = "subject
     sandboxRan: existsSync(repo.sandboxLog),
     setupRan: existsSync(repo.setupLog),
   };
+}
+
+/** --repo に渡す値を返す。repoLink なら、リポジトリへのシンボリックリンクを作って返す。 */
+function repoArgumentOf(root: string, repoLink: boolean) {
+  if (!repoLink) return root;
+  // 一時ディレクトリの外に作ると後片付けされないので、リポジトリの中に自分自身へのリンクを置く。
+  const link = join(root, "repo-link");
+  symlinkSync(root, link);
+  return link;
 }
 
 /** ケースの runner の指定を、SKILL_EVAL_RUNNER に渡す値にする。 */
@@ -270,6 +286,17 @@ describe.concurrent("run-skill-eval read isolation stop", () => {
       { runner: "stub", sandbox: "executable", bwrap: true, allow: "true" },
       /UNVERIFIED/u,
     ],
+    // sandbox は実体のパスから隠すリポジトリを決めるので、外の実体へのリンクだと別のディレクトリを隠す（Issue #1024）。
+    [
+      "sandbox が外の実体へのシンボリックリンクで、runner の指定が無い",
+      { runner: "none", sandbox: "symlink", bwrap: true, allow: undefined },
+      /UNISOLATED \(.*\/scripts\/eval\/sandbox\/eval-sandbox\.sh resolves to .*\/real-sandbox\/eval-sandbox\.sh, not to itself/u,
+    ],
+    [
+      "sandbox が外の実体へのシンボリックリンクで、runner がそのリンク先の実体",
+      { runner: "sandbox-target", sandbox: "symlink", bwrap: true, allow: undefined },
+      /UNISOLATED \(.*\/scripts\/eval\/sandbox\/eval-sandbox\.sh resolves to .*\/real-sandbox\/eval-sandbox\.sh, not to itself/u,
+    ],
   ])(
     "%s なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
     async (_label, testCase, reason) => {
@@ -302,6 +329,11 @@ describe.concurrent("run-skill-eval read isolation stop", () => {
       { runner: "stub", sandbox: "executable", bwrap: true, allow: "1" },
       /^isolation: UNVERIFIED /mu,
     ],
+    [
+      "sandbox が外の実体へのシンボリックリンク",
+      { runner: "none", sandbox: "symlink", bwrap: true, allow: "1" },
+      /^isolation: UNISOLATED \(.*resolves to .*\/real-sandbox\/eval-sandbox\.sh, not to itself/mu,
+    ],
   ])("%s でも、変数が 1 なら警告を出して続ける", async (_label, testCase, isolation) => {
     const run = await runCase(testCase);
 
@@ -326,9 +358,10 @@ describe.concurrent("run-skill-eval read isolation stop", () => {
       "runner が sandbox へのシンボリックリンク",
       { runner: "sandbox-symlink", sandbox: "executable", bwrap: true, allow: undefined },
     ],
+    // ハーネスは --repo を解決してから sandbox の実体と比べるので、リポジトリへのリンクは受け付ける（Issue #1024）。
     [
-      "sandbox がシンボリックリンクで、runner がそのリンク先の実体",
-      { runner: "sandbox-target", sandbox: "symlink", bwrap: true, allow: undefined },
+      "--repo がリポジトリへのシンボリックリンク",
+      { runner: "none", sandbox: "executable", bwrap: true, allow: undefined, repoLink: true },
     ],
   ])(
     "%s で bwrap が在れば、sandboxed と記録し、変数なしで sandbox の中の executor を起動する",
