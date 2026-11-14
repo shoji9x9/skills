@@ -43,6 +43,9 @@
 #      （CHECK-BROKEN / SKIPPED。実行されなかったチェックは、汚染なしの判定ではない）。
 #   5: fingerprint の生成、結果の正規化、eval の metadata の生成のどれかに失敗した。
 #   6: ベースラインの再利用を拒否した（入力・実行条件・出所・成果物のどれかを確かめられない）。
+#   7: 読み取りの隔離を確かめられない（isolation が sandboxed 以外）ので、executor を起動せずに止めた。
+#      止めたときは、stderr に refusing to start the executor の行を出す。
+#      SKILL_EVAL_ALLOW_UNISOLATED=1 を設定したときだけ、警告を出して続ける。
 set -euo pipefail
 
 usage() {
@@ -239,6 +242,9 @@ if [ -n "${metadata_eval_id}" ] && [ -f "${evals_file}" ]; then
 fi
 
 fingerprint_file="$(mktemp "/tmp/skill-eval-fingerprint-${skill}-XXXXXX.json")"
+# 使い捨てのプロジェクトを作るまでの出口（隔離を確かめられないときの exit 7 など）でも、一時ファイルを残さない。
+# プロジェクトを作った後は、下の cleanup の trap がこの trap を置き換え、同じファイルも消す。
+trap 'rm -f -- "${fingerprint_file}"' EXIT
 fingerprint_args=(
 	--skill "${skill}"
 	--prompt "${prompt}"
@@ -251,20 +257,77 @@ fingerprint_args=(
 [ -n "${metadata_eval_id}" ] && fingerprint_args+=(--eval-id "${metadata_eval_id}" --evals "${evals_file}")
 [ -n "${fixture}" ] && fingerprint_args+=(--fixture "${fixture}")
 fingerprint_args+=(--skills-root "${repo}/skills")
-node "${fingerprinter}" "${fingerprint_args[@]}" >"${fingerprint_file}" || {
-	rm -f -- "${fingerprint_file}"
-	exit 5
-}
+node "${fingerprinter}" "${fingerprint_args[@]}" >"${fingerprint_file}" || exit 5
 
 if [ -n "${reuse_baseline}" ]; then
 	node "${reuse_helper}" "${reuse_baseline}" "${out}" "${fingerprint_file}" || {
-		rm -f -- "${fingerprint_file}"
 		echo "baseline reuse rejected; run a new without_skill evaluation" >&2
 		exit 6
 	}
-	rm -f -- "${fingerprint_file}"
 	exit 0
 fi
+
+# Read isolation, applied to BOTH configurations. Isolating only the baseline
+# leaves the comparison differing by more than the skill: a with_skill run reads
+# $HOME freely, and ~/.claude/projects holds transcripts of the session that wrote
+# the skill and designed the assertions (observed: runs cited ~/.claude/skills and
+# grepped a globally installed skill's source). The sandbox hides the same routes
+# from both, so the only remaining difference is the skill inside the disposable
+# project. SKILL_EVAL_RUNNER still wins so a stub can be used for smoke tests, but
+# leaving it unset no longer means "no isolation": the sandbox is the default, and
+# a run whose isolation is not sandboxed stops before the executor starts unless
+# SKILL_EVAL_ALLOW_UNISOLATED=1 is set.
+
+# 隔離の判定は、使い捨てのプロジェクトを作る前に行う。止めた run が何も残さない（fixture の setup.sh も実行しない）ようにするためである。
+sandbox="${repo}/scripts/eval/sandbox/eval-sandbox.sh"
+# SKILL_EVAL_RUNNER は、この sandbox 自身を指すときだけ sandbox として扱う（Issue #1020）。
+# 比べる両辺に同じ正規化（realpath -e）を当てるので、シンボリックリンクを経た指定も一致する。
+# 相対パスとコマンド名は一致として扱わない。executor は一時プロジェクトを cwd にして起動するので、
+# ここで解決したパスと、実際に起動されるものが同じだと言えないためである。
+# 環境から同じ名前の変数を受け取っても、sandboxed の判定の外で runner を決めないように空で始める。
+runner_override=""
+runner_is_sandbox=0
+if [ -n "${SKILL_EVAL_RUNNER:-}" ]; then
+	case "${SKILL_EVAL_RUNNER}" in
+	/*)
+		runner_real="$(realpath -e -- "${SKILL_EVAL_RUNNER}" 2>/dev/null)" || runner_real=""
+		sandbox_real="$(realpath -e -- "${sandbox}" 2>/dev/null)" || sandbox_real=""
+		if [ -n "${runner_real}" ] && [ "${runner_real}" = "${sandbox_real}" ]; then
+			runner_is_sandbox=1
+		fi
+		;;
+	esac
+fi
+if [ -n "${SKILL_EVAL_RUNNER:-}" ] && [ "${runner_is_sandbox}" -eq 0 ]; then
+	isolation="UNVERIFIED (operator-supplied SKILL_EVAL_RUNNER=${SKILL_EVAL_RUNNER})"
+elif [ ! -x "${sandbox}" ]; then
+	isolation="UNISOLATED (${sandbox} missing or not executable)"
+elif ! command -v bwrap >/dev/null 2>&1; then
+	isolation="UNISOLATED (bwrap not found; install bubblewrap to isolate reads)"
+else
+	runner_override="${sandbox}"
+	isolation="sandboxed (scripts/eval/sandbox/eval-sandbox.sh)"
+fi
+
+# 隔離を確かめられない run は、executor を起動する前に止める（Issue #1020）。
+# 警告だけで続けると、README や文書を読まずに起動した人や、eval を一括で起動するエージェントが、
+# 操作する人の認証情報（~/.config/gh・~/.config/box・GH_TOKEN など）を読める run を実行してしまう。
+# 続けるのは SKILL_EVAL_ALLOW_UNISOLATED が 1 のときだけにする。空や 1 以外の値は、未設定と同じに止める。
+case "${isolation}" in
+sandboxed*) ;;
+*)
+	if [ "${SKILL_EVAL_ALLOW_UNISOLATED:-}" != "1" ]; then
+		{
+			echo "refusing to start the executor: read isolation is ${isolation}"
+			echo "  a run outside the sandbox can read the operator's credentials (\$HOME, GH_TOKEN, ...)."
+			echo "  to isolate: install bubblewrap, keep ${sandbox} executable, and leave SKILL_EVAL_RUNNER unset"
+			echo "  (or set it to the absolute path of that script)."
+			echo "  to run without isolation anyway (a stub runner, for example), set SKILL_EVAL_ALLOW_UNISOLATED=1."
+		} >&2
+		exit 7
+	fi
+	;;
+esac
 
 # Disposable empty project under /tmp. Its parents hold no .claude/skills, so a
 # without_skill run has no skill installed; a with_skill run only sees the one we
@@ -292,27 +355,6 @@ if [ -n "${fixture}" ]; then
 	if [ -f "${proj}/setup.sh" ] && [ -x "${proj}/setup.sh" ]; then
 		(cd "${proj}" && ./setup.sh)
 	fi
-fi
-
-# Read isolation, applied to BOTH configurations. Isolating only the baseline
-# leaves the comparison differing by more than the skill: a with_skill run reads
-# $HOME freely, and ~/.claude/projects holds transcripts of the session that wrote
-# the skill and designed the assertions (observed: runs cited ~/.claude/skills and
-# grepped a globally installed skill's source). The sandbox hides the same routes
-# from both, so the only remaining difference is the skill inside the disposable
-# project. SKILL_EVAL_RUNNER still wins so a stub can be used for smoke tests, but
-# leaving it unset no longer means "no isolation": the sandbox is the default and
-# its absence is recorded rather than assumed away.
-sandbox="${repo}/scripts/eval/sandbox/eval-sandbox.sh"
-if [ -n "${SKILL_EVAL_RUNNER:-}" ]; then
-	isolation="UNVERIFIED (operator-supplied SKILL_EVAL_RUNNER=${SKILL_EVAL_RUNNER})"
-elif [ ! -x "${sandbox}" ]; then
-	isolation="UNISOLATED (${sandbox} missing or not executable)"
-elif ! command -v bwrap >/dev/null 2>&1; then
-	isolation="UNISOLATED (bwrap not found; install bubblewrap to isolate reads)"
-else
-	runner_override="${sandbox}"
-	isolation="sandboxed (scripts/eval/sandbox/eval-sandbox.sh)"
 fi
 
 # Serialize whenever read isolation is not proven. A parallel with_skill run keeps

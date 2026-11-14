@@ -1,0 +1,107 @@
+{
+  "$comment": [
+    "run-skill-eval-isolation.test.ts のうち、隔離を確かめられない run を止める判定と、SKILL_EVAL_RUNNER が sandbox 自身かの判定（Issue #1020）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。"
+  ],
+  "test_file": "scripts/eval/run/run-skill-eval-isolation.test.ts",
+  "mutations": [
+    {
+      "id": "unisolated-run-not-stopped",
+      "why": "isolation が sandboxed 以外でも、変数を見ずに executor を起動する",
+      "file": "scripts/eval/run/run-skill-eval.sh",
+      "find": "\tif [ \"${SKILL_EVAL_ALLOW_UNISOLATED:-}\" != \"1\" ]; then\n",
+      "replace": "\tif false; then\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "run-skill-eval read isolation stop sandbox が無い なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
+        "run-skill-eval read isolation stop sandbox が実行可能でない なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
+        "run-skill-eval read isolation stop bwrap が無い なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
+        "run-skill-eval read isolation stop runner が sandbox でも bwrap が無い なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
+        "run-skill-eval read isolation stop runner がスタブ なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
+        "run-skill-eval read isolation stop runner が sandbox の相対パス なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
+        "run-skill-eval read isolation stop runner が sandbox と同名の別ファイル なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
+        "run-skill-eval read isolation stop runner が実在しないパス なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
+        "run-skill-eval read isolation stop runner がスタブで、変数が空 なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
+        "run-skill-eval read isolation stop runner がスタブで、変数が 0 なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
+        "run-skill-eval read isolation stop runner がスタブで、変数が true なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
+        "run-skill-eval read isolation stop 止めた run は、fingerprint の一時ファイルを残さない"
+      ]
+    },
+    {
+      "id": "any-allow-value-continues",
+      "why": "SKILL_EVAL_ALLOW_UNISOLATED が 1 以外の空でない値でも続ける",
+      "file": "scripts/eval/run/run-skill-eval.sh",
+      "find": "\"${SKILL_EVAL_ALLOW_UNISOLATED:-}\" != \"1\"",
+      "replace": "-z \"${SKILL_EVAL_ALLOW_UNISOLATED:-}\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "run-skill-eval read isolation stop runner がスタブで、変数が 0 なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
+        "run-skill-eval read isolation stop runner がスタブで、変数が true なら、executor を起動する前に理由と続け方を出して exit 7 で止める"
+      ]
+    },
+    {
+      "id": "runner-sandbox-match-removed",
+      "why": "SKILL_EVAL_RUNNER が sandbox 自身を指しても、一致として扱わない（UNVERIFIED のまま）",
+      "file": "scripts/eval/run/run-skill-eval.sh",
+      "find": "\t\t\trunner_is_sandbox=1\n",
+      "replace": "\t\t\trunner_is_sandbox=0\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "run-skill-eval read isolation stop runner が sandbox でも bwrap が無い なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
+        "run-skill-eval read isolation stop runner が sandbox の絶対パス で bwrap が在れば、sandboxed と記録し、変数なしで sandbox の中の executor を起動する",
+        "run-skill-eval read isolation stop runner が sandbox へのシンボリックリンク で bwrap が在れば、sandboxed と記録し、変数なしで sandbox の中の executor を起動する",
+        "run-skill-eval read isolation stop sandbox がシンボリックリンクで、runner がそのリンク先の実体 で bwrap が在れば、sandboxed と記録し、変数なしで sandbox の中の executor を起動する"
+      ]
+    },
+    {
+      "id": "runner-sandbox-match-any-path",
+      "why": "実在する絶対パスの SKILL_EVAL_RUNNER を、sandbox と比べずに一致として扱う",
+      "file": "scripts/eval/run/run-skill-eval.sh",
+      "find": "\t\tif [ -n \"${runner_real}\" ] && [ \"${runner_real}\" = \"${sandbox_real}\" ]; then\n",
+      "replace": "\t\tif [ -n \"${runner_real}\" ]; then\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "run-skill-eval read isolation stop runner がスタブ なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
+        "run-skill-eval read isolation stop runner が sandbox と同名の別ファイル なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
+        "run-skill-eval read isolation stop runner がスタブで、変数が空 なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
+        "run-skill-eval read isolation stop runner がスタブで、変数が 0 なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
+        "run-skill-eval read isolation stop runner がスタブで、変数が true なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
+        "run-skill-eval read isolation stop runner がスタブ でも、変数が 1 なら警告を出して続ける",
+        "run-skill-eval read isolation stop 止めた run は、fingerprint の一時ファイルを残さない"
+      ]
+    },
+    {
+      "id": "runner-path-not-normalized",
+      "why": "SKILL_EVAL_RUNNER の側だけ realpath を当てずに比べる（シンボリックリンクを経た指定が一致しない）",
+      "file": "scripts/eval/run/run-skill-eval.sh",
+      "find": "runner_real=\"$(realpath -e -- \"${SKILL_EVAL_RUNNER}\" 2>/dev/null)\" || runner_real=\"\"",
+      "replace": "runner_real=\"${SKILL_EVAL_RUNNER}\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "run-skill-eval read isolation stop runner が sandbox へのシンボリックリンク で bwrap が在れば、sandboxed と記録し、変数なしで sandbox の中の executor を起動する"
+      ]
+    },
+    {
+      "id": "sandbox-path-not-normalized",
+      "why": "sandbox の側だけ realpath を当てずに比べる（sandbox のパスがシンボリックリンクのとき、リンク先の実体を指す指定が一致しない）",
+      "file": "scripts/eval/run/run-skill-eval.sh",
+      "find": "sandbox_real=\"$(realpath -e -- \"${sandbox}\" 2>/dev/null)\" || sandbox_real=\"\"",
+      "replace": "sandbox_real=\"${sandbox}\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "run-skill-eval read isolation stop sandbox がシンボリックリンクで、runner がそのリンク先の実体 で bwrap が在れば、sandboxed と記録し、変数なしで sandbox の中の executor を起動する"
+      ]
+    },
+    {
+      "id": "fingerprint-trap-removed",
+      "why": "fingerprint の一時ファイルを EXIT の trap で消さない（止めた run が /tmp にファイルを残す）",
+      "file": "scripts/eval/run/run-skill-eval.sh",
+      "find": "trap 'rm -f -- \"${fingerprint_file}\"' EXIT\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "run-skill-eval read isolation stop 止めた run は、fingerprint の一時ファイルを残さない"
+      ]
+    }
+  ]
+}

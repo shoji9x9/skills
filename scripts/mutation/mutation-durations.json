@@ -3,6 +3,7 @@
   "seconds_per_run": {
     "scripts/eval/benchmark/build-skill-eval-benchmark.mutations.json": 2.9,
     "scripts/eval/run/normalize-skill-eval-result.mutations.json": 0.6,
+    "scripts/eval/run/run-skill-eval-isolation.mutations.json": 5.1,
     "scripts/eval/run/run-skill-eval.mutations.json": 16.4,
     "scripts/gates/docs/check-doc-refs.mutations.json": 2.7,
     "scripts/gates/packaging/copies/check-identical-copies.mutations.json": 1,

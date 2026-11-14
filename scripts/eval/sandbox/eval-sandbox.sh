@@ -37,9 +37,12 @@
 # never reaches the run. XDG base directories outside $HOME and allowlisted
 # directories reached through a symlink are hidden the same way as $HOME.
 #
-# USAGE (as the runner override; the wrapper runs the real CLI inside the sandbox):
-#   SKILL_EVAL_RUNNER="$PWD/scripts/eval/sandbox/eval-sandbox.sh" scripts/eval/run/run-skill-eval.sh --config without_skill ...
+# USAGE (the wrapper runs the real CLI inside the sandbox):
+#   scripts/eval/run/run-skill-eval.sh --config without_skill ...   # the harness runs every run through this script by default
+#   SKILL_EVAL_RUNNER="$PWD/scripts/eval/sandbox/eval-sandbox.sh" scripts/eval/run/run-skill-eval.sh ...
+#     # the same: an absolute path that resolves (realpath) to this script is recorded as sandboxed
 #   scripts/eval/sandbox/eval-sandbox.sh --verify '<marker>' ...   # prove the blocking works first
+# Without bwrap the harness refuses to start the executor (exit 7) unless SKILL_EVAL_ALLOW_UNISOLATED=1 is set.
 #
 # `--verify` runs the checks the kaizen entry requires: (1) the repo path is gone
 # inside the sandbox, (2) grepping for skill-specific markers over the reachable
@@ -116,7 +119,7 @@ cli_real="$(readlink -f -- "${cli_launcher}" 2>/dev/null || true)"
 }
 
 command -v bwrap >/dev/null 2>&1 || {
-	echo "eval-sandbox: bwrap not found; cannot isolate reads. Install bubblewrap or record the run as UNISOLATED." >&2
+	echo "eval-sandbox: bwrap not found; cannot isolate reads. Install bubblewrap (run-skill-eval.sh refuses to start an unisolated run unless SKILL_EVAL_ALLOW_UNISOLATED=1)." >&2
 	exit 3
 }
 
