@@ -105,14 +105,16 @@
   ```
 
   - workflow の名前やジョブの名前がレビューのエージェントを示すもの（例: workflow「Claude Review」やジョブ `auto-review`）が `pending` なら、進行中とみなす。
-    `review_tool: claude-code-action` のときは、ワークフロー `claude-review.yml` の check（workflow「Claude review」）を、別のエージェントの判定から除く。このツール自身の進行中は、`check` の `in-progress` で判定する。
     名前はリポジトリごとに違うので、決まった一覧ではなく名前から判断する。
-  - 除くものの条件は、`review_tool` によって変える。
-    `review_tool: copilot` のとき、Copilot 自身のチェック（チェックの名前は `copilot-pull-request-reviewer`。実測）は、別のエージェントではなく、設定したレビューツールのレビューが進行中であることのシグナルとして扱う。
-    そのため、上のコマンドで、別のエージェントの判定から除く。pending なら新しく依頼せず、完了を待つ。
-  - `review_tool` が copilot 以外（`claude-code`・`claude-code-action`・`codex`・`local`・`none`）のときは、Copilot は設定したツールではないので、pending の Copilot のチェックは、別のエージェントの進行中のレビューにあたる。
-    除かないのは Copilot のチェックで、`claude-code-action` のときに除くワークフロー自身の check（下の項目）とは別である。
-    このときは除かずに（jq の `and .name!="copilot-pull-request-reviewer"` を外して）進行中として扱い、保留して完了を待つ。
+  - 除くものは、設定したレビューツール自身の check だけで、`review_tool` によって次のように変える（上のコマンドのコメントと同じ）。
+    除いた check は、別のエージェントではなく設定したツールの進行中のシグナルなので、そのツールの手順で完了を待つ。除かなかった pending の check は、別のエージェントの進行中のレビューとして扱い、保留して完了を待つ。
+
+    | `review_tool` | jq の末尾 | 除く check |
+    | --- | --- | --- |
+    | `copilot` | `and .name!="copilot-pull-request-reviewer"`（上のコマンドのまま） | Copilot 自身のチェック（名前は `copilot-pull-request-reviewer`。実測） |
+    | `claude-code-action` | `and .workflow!="Claude review"` に替える | ワークフロー `claude-review.yml` 自身の check。このツールの進行中は `check` の `in-progress` で判定する |
+    | `claude-code`・`codex`・`local`・`none` | 外す | 無い。pending の Copilot のチェックも、別のエージェントの進行中のレビューにあたる |
+
 - 補助のシグナル（bot の進行中のコメント）: check-run として現れないレビューのエージェント（クラウドで実行するものなど）のためのシグナルである。bot による直近のコメントが作業中を示していないかを見る。
   見る対象は、今の反復（直近の push より後）に作られたか更新された、レビューのエージェントのコメントだけである。レビューと関係の無い bot（カバレッジなど）や古いコメントは、進行中の根拠にしない。
 
