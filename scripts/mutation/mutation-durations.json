@@ -55,6 +55,7 @@
     "scripts/skills/parity-suite/visual/trait-capture.mutations.json": 0.7,
     "scripts/skills/parity-suite/visual/trait-compare.mutations.json": 1.6,
     "scripts/skills/pnpm-audit-alert-issue/normalize-pnpm-audit.mutations.json": 1.3,
+    "scripts/skills/pr-finalize-loop/claude-review-action.mutations.json": 2.4,
     "scripts/skills/pr-finalize-loop/local-review-record.mutations.json": 1.4,
     "scripts/skills/replace-strategy/append-only-check.mutations.json": 11.4,
     "scripts/skills/replace-strategy/asset-delivery-check.mutations.json": 1.2,

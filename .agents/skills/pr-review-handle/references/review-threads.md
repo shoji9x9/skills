@@ -83,6 +83,7 @@ mutation {
   本文の冒頭には、`### 🟡 Not ready to approve` のような総合の判定も入る。
 - トップレベルのコメント: Claude の GitHub Action（`review_tool: claude-code`）は、総評と軽い指摘をトップレベルのコメントに置き、`reviews[].body` を空、`state` を `COMMENTED` にする。
   この形では、指摘がスレッドにも本文にも現れない。
+  `review_tool: claude-code-action` のワークフローも、行に付けない指摘を `github-actions[bot]` の総評のコメント（1 行目が `<!-- claude-review` の目印）の「行に付けない指摘」の節に書く。
 
 トップレベルのコメントから指摘を集める対象は、自分（PR の作成者。pr-review-handle と pr-finalize-loop が書いた依頼のコメントや対応の記録を含む）以外の投稿すべてである。
 ただし、`review_tool: local` の記録のうち、PR の作成者か担当者が投稿したもの（本文が `<!-- pr-finalize-loop:local-review` で始まるコメント）は除く。

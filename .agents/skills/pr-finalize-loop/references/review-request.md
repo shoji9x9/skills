@@ -9,6 +9,9 @@
 レビューを依頼する直前（収束を判定するときと、手順 6 で対応の後に依頼するときの両方）と、各反復で状態を取得するときに、必ずこの検出をする。進行中なら依頼せず、結果を待つ。
 対象は別のエージェントに限らない。設定したレビューツール自身の進行中のレビュー（PR の作成時や push のときの自動レビューを含む）も含める。
 
+`review_tool: claude-code-action` では、設定したツール自身の進行中を、同梱の `scripts/claude-review-action.sh check` の `status=in-progress` で判定する。
+下のタイムライン・check-run・bot のコメントのシグナルは、このツール自身の判定には使わない。別のエージェントの進行中のレビューは、`local` と同じように、下の `gh pr checks` の確認で見る。
+
 - 自動依頼のシグナル（タイムライン。`review_tool: copilot` のとき）: リポジトリの設定によっては、PR の作成時や push のときに、Copilot へのレビューの依頼が自動で出る（実測）。
   Copilot 宛ての `review_requested` イベントの `created_at` を基準の時刻と比べて、現在の HEAD への依頼かを判定する。
   基準の時刻より後のイベントがあり、その HEAD への作成者以外のレビューがまだ無ければ、依頼済みでレビューが進行中であるとみなし、新しく依頼しない。
@@ -95,17 +98,18 @@
 
   ```bash
   # review_tool: copilot のときは Copilot 自身のチェックを別エージェント判定から除外する。
-  # copilot 以外（claude-code / codex / local / none）のときは末尾の `and .name!=...` を外し、除外しない。
+  # copilot 以外（claude-code / claude-code-action / codex / local / none）のときは末尾の `and .name!=...` を外し、除外しない。
   gh pr checks <番号> --repo <owner>/<repo> --json name,bucket,workflow \
     --jq '.[] | select(.bucket=="pending" and .name!="copilot-pull-request-reviewer")'
   ```
 
   - workflow の名前やジョブの名前がレビューのエージェントを示すもの（例: workflow「Claude Review」やジョブ `auto-review`）が `pending` なら、進行中とみなす。
+    `review_tool: claude-code-action` のときは、ワークフロー `claude-review.yml` の check（workflow「Claude review」）を、別のエージェントの判定から除く。このツール自身の進行中は、`check` の `in-progress` で判定する。
     名前はリポジトリごとに違うので、決まった一覧ではなく名前から判断する。
   - 除くものの条件は、`review_tool` によって変える。
     `review_tool: copilot` のとき、Copilot 自身のチェック（チェックの名前は `copilot-pull-request-reviewer`。実測）は、別のエージェントではなく、設定したレビューツールのレビューが進行中であることのシグナルとして扱う。
     そのため、上のコマンドで、別のエージェントの判定から除く。pending なら新しく依頼せず、完了を待つ。
-  - `review_tool` が copilot 以外（`claude-code`・`codex`・`local`・`none`）のときは、Copilot は設定したツールではないので、pending の Copilot のチェックは、別のエージェントの進行中のレビューにあたる。
+  - `review_tool` が copilot 以外（`claude-code`・`claude-code-action`・`codex`・`local`・`none`）のときは、Copilot は設定したツールではないので、pending の Copilot のチェックは、別のエージェントの進行中のレビューにあたる。
     このときは除かずに（jq の `and .name!="copilot-pull-request-reviewer"` を外して）進行中として扱い、保留して完了を待つ。
 - 補助のシグナル（bot の進行中のコメント）: check-run として現れないレビューのエージェント（クラウドで実行するものなど）のためのシグナルである。bot による直近のコメントが作業中を示していないかを見る。
   見る対象は、今の反復（直近の push より後）に作られたか更新された、レビューのエージェントのコメントだけである。レビューと関係の無い bot（カバレッジなど）や古いコメントは、進行中の根拠にしない。
@@ -137,6 +141,10 @@ push した反復では、デフォルトでは push の直後に（CI の再実
 - `copilot`: `requested_reviewers` API に `copilot-pull-request-reviewer[bot]` を渡す。成立は、タイムラインの Copilot 宛ての `review_requested` イベントで確かめる。`requested_reviewers` が空でも、すぐに成立しなかったとはしない（実測）。
 - `claude-code`・`codex`: PR のトップレベルのコメントに `@claude review` か `@codex review` を投稿して依頼する。成立は、依頼のコメントを投稿したことと、その後の進行中の bot のレビューかコメントと、レビューが届いたことで確かめる。
 - `local`: 依頼せず、エージェント自身が手元で HEAD をレビューし、`scripts/local-review-record.sh post` で記録を投稿する。成立は、記録の投稿が exit 0 で終わったことと、その後の `check` の `record` が投稿した記録を指すこと（`status` は `reviewed` か `open`）で確かめる。待たない。
+- `claude-code-action`: `scripts/claude-review-action.sh request` で `workflow_dispatch` を起動する。成立は、`request` が exit 0 で起動した run の ID を出したことで確かめる。
+  exit 5（run を確かめられない）は依頼し直さず、`check` で run が現れるのを待つ。exit 4 は、出力の `status` が依頼を許さない（[`review-tool.md`](review-tool.md) の「claude-code-action」の表）。
+  exit 1 は HEAD を取得し直して依頼し直す。exit 2 は間隔を空けて数回やり直し、それでも exit 2 なら「行き詰まり」として止まる。exit 3（ワークフローが無い）は、すぐに「行き詰まり」として止まり、導入が要ることか、head のブランチに無いことを報告に書く。
+  `status` が `paused`（一時停止の変数で止めている）か `failed`（`workflow_dispatch` の run が失敗した）なら、依頼し直してもレビューされないので、待たずに「レビュー未着で待機終了」として止まる。報告には、その `status` と、`failed` なら run の ID を書く。
 
 タイムラインなどで確かめられないときも、上限のあるポーリング（後述の「レビューが現れるのを待つ」）でレビューが届くのを待てば、成立を確かめられる。どちらでも確かめられなければ、成立しなかったとして報告する。
 レビューが付くまでの待ちは、後述の「レビューが現れるのを待つ」の上限のあるポーリングに従い、止まったままにしない。
@@ -148,6 +156,7 @@ push した反復では、デフォルトでは push の直後に（CI の再実
 残りの作業が無くなり、上限に達したまま終わるなら、止まった理由は「完了」ではなく「レビュー未着で待機終了」にする。
 
 - 完了の条件は、`review-status.md`「HEAD のレビュー済み判定」と同じ 3 つの方法で書く。作成者以外のレビュー（bot か、書き込み権限を持つ人のもの）が届いたこと、レビュー用の check-run、commit を書いた bot のコメントである。
+  `review_tool: claude-code-action` では、3 つの方法の代わりに、`check` が `reviewed` を返すことを完了の条件にする。`paused` か `failed` を返したら、待つのをやめる。
   1 つの方法だけを見て待つ処理を書かない。他の方法で届いているレビューを「届いていない」と報告することになる。
   参照する文書に「〜のことがある」と書かれた方法は、例外を足したものであって、方法の置き換えではない。例外だけを実装の条件にしない。
 - 上限は、同じリポジトリの同じレビューツールで観測した、届くまでの時間から決める。実測した通常の遅れより短い固定の上限（90 秒など）で打ち切らない。

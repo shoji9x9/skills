@@ -6,7 +6,7 @@
 ## 設定の解決
 
 次の優先順位で、最初に設定されている値を使う。
-受け付ける値は `copilot`・`claude-code`・`codex`・`local`・`none` の 5 つだけで、それ以外の値なら、警告なしにデフォルトの値を使うことはせず止まる。
+受け付ける値は `copilot`・`claude-code`・`claude-code-action`・`codex`・`local`・`none` の 6 つだけで、それ以外の値なら、警告なしにデフォルトの値を使うことはせず止まる。
 
 1. pr-finalize-loop の `--review-tool <tool>`（その 1 回だけ変える）
 2. `.config/skills/shoji9x9/common.local.jsonc` の `review_tool`（このリポジトリで、自分だけが使う値）
@@ -20,6 +20,7 @@
 | --- | --- |
 | `copilot`（デフォルト） | GitHub Copilot。`requested_reviewers` API に bot の login を渡して依頼する |
 | `claude-code` | Claude Code。PR のトップレベルのコメントで mention して依頼する |
+| `claude-code-action` | リポジトリに置いた GitHub Actions のワークフロー（`anthropics/claude-code-action` を使う同梱の雛形）。`workflow_dispatch` で依頼し、ワークフローが PR に書く目印のコメントで完了を判定する |
 | `codex` | OpenAI Codex。PR のトップレベルのコメントで mention して依頼する |
 | `local` | 今使っているエージェント自身が手元でレビューし、レビューした HEAD の SHA と指摘の件数を PR に記録する。PR に投稿する AI レビュアーを使わないリポジトリ向け |
 | `none` | AI レビュアーに再レビューを依頼しない。人だけがレビューするリポジトリ向け |
@@ -38,7 +39,7 @@
 ```jsonc
 // .config/skills/shoji9x9/common.jsonc（リポジトリの全員の値）
 {
-  "review_tool": "copilot", // copilot | claude-code | codex | local | none
+  "review_tool": "copilot", // copilot | claude-code | claude-code-action | codex | local | none
 }
 ```
 
@@ -66,6 +67,7 @@ bash ~/.claude/skills/<skill>/scripts/resolve-review-tool.sh [--review-tool <too
 
 `copilot` 以外の bot がレビューやコメントを投稿するときの login は、導入した GitHub App によって変わるので、決まった名前を前提にしない。
 HEAD がレビュー済みかの判定と、レビューが進行中かの検出には、ツール固有の login に依存しない次の 3 つのシグナルを使う。
+`claude-code-action` と `local` は、この 3 つのシグナルを使わず、それぞれの節の判定を使う。
 
 - 現在の HEAD に、PR の作成者以外のレビューが届いた。レビュー済みの判定に数えるのは、bot か、リポジトリへの書き込み権限を持つ人のレビューである（`pr-finalize-loop` の `references/review-status.md`「HEAD のレビュー済み判定」）。
 - レビューするエージェントの bot がコメントした。
@@ -127,6 +129,78 @@ gh api --method POST \
 - 出典は次の 2 つである。
   - Claude Code Review: <https://code.claude.com/docs/en/code-review>。指摘が 0 件なら check-run を更新し、確認のコメントを投稿する場合がある。手動で起動するには、トップレベルのコメントに `@claude review` と書く。
   - GitHub Actions: <https://code.claude.com/docs/en/github-actions>
+
+### claude-code-action
+
+`claude-code` とは別の値である。`claude-code` は、Claude の GitHub App（マネージドの Code Review）に `@claude review` で依頼する。
+`claude-code-action` は、リポジトリに置いた GitHub Actions のワークフロー `.github/workflows/claude-review.yml` が、`anthropics/claude-code-action` で PR をレビューする。`@claude review` は投稿しない。
+ワークフローは、`pull_request`（opened・synchronize・ready_for_review・reopened）で自動にレビューし、`workflow_dispatch`（入力は `pr`・`sha`・`effort`）で依頼を受ける。
+
+#### 導入
+
+ワークフローの雛形は、pr-finalize-loop に同梱した `assets/claude-review.yml` である。pr-review-handle は雛形を同梱しないので、pr-finalize-loop の雛形を使う。
+
+1. リポジトリに `.github/workflows/claude-review.yml` が無いときだけ、利用者に確かめてから雛形をコピーする。既にあるファイルは上書きしない。中身が雛形と違うときは、差分を示して扱いを利用者に任せる。
+   ファイル名は `claude-review.yml` から変えない。同梱のスクリプトは、この名前で run を探し、依頼する。
+2. secret `CLAUDE_CODE_OAUTH_TOKEN` は、利用者が登録する。値は、利用者が手元で `claude setup-token` を実行して作る token である（[Claude Code GitHub Actions](https://code.claude.com/docs/en/github-actions)）。エージェントは token を作らず、登録もしない。
+3. リポジトリ変数は任意で、無くても動く。`CLAUDE_REVIEW_SKIP`（`on`・`true`・`yes`・`1` で一時停止）、`CLAUDE_REVIEW_EFFORT`（`pull_request` のレビューの effort。無ければ `high`）、`CLAUDE_REVIEW_MODEL`、`CLAUDE_REVIEW_MAX_TURNS` である。設定も利用者が行う。
+4. `workflow_dispatch` は、ワークフローがデフォルトブランチに入るまで起動できない（GitHub の仕様）。雛形をコピーした PR が merge されるまでは、`pull_request` の自動のレビューだけが動く。
+
+使用量は、secret の token の持ち主の Claude のプランの上限から使う。同じ token を使うほかのワークフローや手元のセッションと、同じ上限を共有する。
+
+#### 目印と判定
+
+ワークフローは、レビューが成功した回だけ、総評のコメントの 1 行目に次の目印を書く。失敗・時間切れ・取り消し・一時停止の回は書かない。
+
+```text
+<!-- claude-review sha=<レビューした commit の完全な SHA> findings=<指摘の件数> open=<総評に書いた指摘の件数> effort=<effort> run=<run の ID> -->
+```
+
+総評とインラインコメントは、どちらも `github-actions[bot]` が投稿する。同じ login で投稿するほかのワークフローのコメントと取り違えないよう、HEAD がレビュー済みかは同梱のスクリプトの `check` で判定する。
+
+```bash
+bash <スキルのディレクトリ>/scripts/claude-review-action.sh check --pr <PR URL> [--effort <effort>] [--since <時刻>]
+```
+
+`check` は、目印の `run` を、ワークフロー `claude-review.yml` の run の一覧と突き合わせる。
+数えるのは、run-name が `Claude review PR #<番号> <HEAD の SHA>` で、成功で終わった run の目印だけである。
+人が同じ形を書いたコメント、別の SHA や別のワークフローの run を指す目印、失敗した run の目印は数えない。
+`--effort` を渡すと、目印の `effort` がその値と一致するものだけを数える。`--since` を渡すと、その時刻より前に作られた run の目印を数えない。
+
+| `status` | 意味 | 依頼 |
+| --- | --- | --- |
+| `reviewed`（exit 0） | HEAD をレビューし終えた。出力の `findings`・`open`・`effort`・`run` は、その目印の値である | しない |
+| `in-progress` | HEAD を対象にした run が終わっていない | しない。終わるまで待つ |
+| `paused` | HEAD を対象にした最後の run が成功したのに、目印が無い（一時停止の変数で止めた回） | しない。依頼しても同じになる |
+| `failed` | HEAD を対象にした最後の run が、失敗した `workflow_dispatch` の run である | しない。同じ原因で止まりうる |
+| `not-reviewed` | 上のどれでもない（run が無い、目印の effort が違う、`--since` より前の run しか無いなど） | してよい（`requestable=yes`） |
+
+- exit 2 は判定できないことを表すので、レビュー済みとも未レビューとも扱わずに取得し直す。exit 3 は、ワークフローがリポジトリに無いことを表す（「導入」に戻る）。
+- `findings` が 0 の回も、目印を書いた総評を投稿する。指摘が 0 件のときにレビューのレコードが無くても、目印で完了を判定できる。
+- 総評に書いた指摘（`open` の件数）とインラインコメントは、ほかのツールの指摘と同じように集めて対応する（[`review-threads.md`](review-threads.md)「スレッドの外の指摘の形と集める対象」）。目印は、レビューし終えたかの判定だけに使う。
+- `@claude review` のコメント・bot のコメントの本文・check-run は、判定に使わない。`workflow_dispatch` の run の check-run は、PR の HEAD ではなく起動した ref の commit に付くことがある。総評のコメントは、SHA を目印の行にしか書かない。
+- `paused` と `failed` は、同じ HEAD のままでは変わらない。利用者が原因（一時停止の変数・run の失敗の原因）を取り除いた後は、`--since` にその後の時刻を渡すと、それより前の run を数えないので依頼できる。新しい commit を push しても依頼できる。
+
+#### 依頼
+
+依頼は `request` で行う。`request` は、`check` と同じ判定で `requestable=yes` のときだけ、`workflow_dispatch` を PR の head のブランチで起動し、起動した run の ID を出す。
+同じ HEAD に run が進行中か済んでいれば依頼しないので、同じ HEAD のレビューを重ねて起動しない。
+
+```bash
+gh pr view <番号> --repo <owner>/<repo> --json headRefOid --jq .headRefOid > <SHA を保存するファイル>
+bash <スキルのディレクトリ>/scripts/claude-review-action.sh request --pr <PR URL> --sha-file <SHA を保存したファイル> [--effort <effort>] [--since <時刻>]
+```
+
+- SHA は、表示から書き写さずにファイルで渡す。ファイルは作業ツリーの外（`mktemp` で作るファイルなど）に置く。
+- exit 0 は依頼が成立した（出力の `run` が起動した run）。exit 4 は状態が依頼を許さない（出力の `status` を上の表で読む）。
+  exit 1 は、渡した SHA が PR の今の HEAD と違う（取得し直してから依頼する）。exit 2 は取得か依頼に失敗した（間隔を空けて数回やり直す）。
+  exit 3 は、ワークフローがリポジトリか PR の head のブランチに無い。ブランチに無いときは、デフォルトブランチを取り込むと依頼できる。
+- exit 5 は、依頼は受け付けられたが、起動した run を一覧で確かめられなかったことを表す。依頼し直さずに、`check` で run が現れるのを待つ。依頼し直すと、レビューが重なる。
+- push した直後は、`pull_request` の自動の run がまだ一覧に現れていないことがある。そのとき `check` は `not-reviewed`（`runs=0`）を返すので、push した後は、すぐに依頼せず、上限を決めて run が現れるのを待つ（各スキルの手順）。
+- `gh workflow run claude-review.yml --ref <PR の head のブランチ> -f pr=<番号> -f sha=<SHA> -f effort=<effort>` でも同じ依頼ができる。`--ref` を省くと、デフォルトブランチのワークフローで起動する。ただし、重ねて依頼しないかの判定を含まないので、使う前に `check` を実行する。
+- 出典は次の 2 つである。
+  - workflow の run の一覧（`display_title`・`created` の条件）と `workflow_dispatch` の起動の REST API: <https://docs.github.com/en/rest/actions/workflow-runs>、<https://docs.github.com/en/rest/actions/workflows>
+  - claude-code-action の入力と認証: <https://github.com/anthropics/claude-code-action/blob/main/docs/setup.md>
 
 ### codex
 

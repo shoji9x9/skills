@@ -65,6 +65,12 @@ query($endCursor: String) {
   未対応が判断待ちだけなら、HEAD はレビュー済みとして扱い、ほかの判断待ちと同じ扱いにする（`--defer-decisions` では「判断待ちで終了」、付けないときは利用者に確かめる）。
   直すと決めた指摘が残っているか、判断待ちだけかは、記録の本文に書いた対応で見分ける。
   記録は PR の作成者か担当者が投稿するので、作成者を除く上の規則は、この記録には当てない（[`review-tool.md`](review-tool.md) の「local」）。
+- `review_tool` が `claude-code-action` のときは、上の根拠の代わりに、同梱のスクリプトの `check` で判定する。
+  コマンドは `scripts/claude-review-action.sh check --pr <PR URL> --effort <今の段階の effort> [--since <直近の対応の createdAt>]` である。
+  exit 0（`status=reviewed`）で、出力の `head` が `headRefOid` と一致するときだけレビュー済みとする。
+  exit 1 は、出力の `status` で扱いを分ける（[`review-tool.md`](review-tool.md) の「claude-code-action」の表）。`in-progress` は完了を待ち、`not-reviewed` は `SKILL.md` の手順 6 で依頼し、`paused` と `failed` は依頼せずに「レビュー未着で待機終了」として止まる。
+  exit 2 は判定できないので、間隔を空けて数回取得し直し、それでも exit 2 なら「行き詰まり」として止まる。exit 3 はワークフローが無いので、すぐに「行き詰まり」として止まり、導入が要ることを報告に書く。
+  レビューのレコード・check-run・bot のコメントの本文は、このツールの判定に使わない。指摘が 0 件でも、目印で判定できる。
 - 上の根拠がどれも無ければ、最新の HEAD はレビューされていない。
   レビュー済みと判定した後も、レビューの本文・トップレベルのコメント・check-run の出力に、対応していない指摘や失敗が無いかを、この後の収集と突き合わせで確かめる。「届いた」と「指摘が無い」を同じものとして扱わない。
 - 収束の判定では、この「HEAD がレビュー済み」を条件に入れる（`review_tool: none` を除く）。すでにレビュー済みならレビューを依頼しない。完了した PR に余計なレビューを起こさないためである。
@@ -102,6 +108,7 @@ gh api repos/<owner>/<repo>/issues/comments/<comment-id> \
 - 反復ごとに、索引から本文を読む対象（HEAD への作成者以外のレビュー、前回の取得より後に届いたレビュー、未処理のレビュー）を決めて、`body` を読む。`state` が `COMMENTED` でも、本文に指摘や総合の判定が入る。
 - トップレベルのコメントも、反復ごとに、索引で新しいものと更新されたものを見つけて読む。
   特に `review_tool` が mention で依頼する方法（`claude-code`・`codex`）のときは、レビュアーが総評と指摘をここに置くものとして扱う。`reviews[].body` が空でも指摘はある。
+  `claude-code-action` も、行に付けない指摘を `github-actions[bot]` の総評のコメントに書く。
   自分（PR の作成者）の投稿と、作成者か担当者が投稿した `<!-- pr-finalize-loop:local-review` で始まる記録は、集める対象から除く。それ以外の人が投稿した、目印で始まるコメントは除かない。`.user.type` で bot だけに絞らない。人のレビュアーが総評をトップレベルに置くこともある。
 - 切り詰めずに読む。`review-request.md`「レビュー進行中の検出」の補助のシグナルは同じ API を `body: .body[:200]` で取得するが、それは進行中か完了かの判定のためである。
   その取得を指摘の収集に使い回さない。200 文字より後ろの指摘を取りこぼす。
