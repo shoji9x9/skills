@@ -35,8 +35,11 @@
 # 隔離しないベースラインは、with_skill の run と同時に実行しない（直列にする）。
 # ベースラインの run には、すべて汚染の判定を付ける。
 #
-# 終了コード:
-#   0。run が失敗したときは、CLI 自身の終了コード。
+# 終了コード（主な値だけを挙げる。網羅した一覧ではない）:
+#   0。run が失敗したときは、CLI 自身の終了コード。ただし、結果の正規化に失敗したときは、CLI の値に関わらず 5 にする。
+#   1: CLI を起動する前に、入力か準備で止めた。入力のファイル（fixture のディレクトリ・スキルのソース・
+#      正規化・fingerprint・baseline の再利用のスクリプト・requires_skills のスキル）が見つからないときと、fixture の setup.sh が
+#      0 以外で終わったときである。どれも --out を作らない。
 #   2: 使い方の誤り。
 #   3: 直列化のロックを取れなかった。
 #   4: run 自体は成功したが、ベースラインが汚染されている（CONTAMINATED）か、汚染のチェックを信頼できない
@@ -46,6 +49,9 @@
 #   7: 読み取りの隔離を確かめられない（isolation が sandboxed 以外）ので、executor を起動せずに止めた。
 #      止めたときは、stderr に refusing to start the executor の行を出す。
 #      SKILL_EVAL_ALLOW_UNISOLATED=1 を設定したときだけ、警告を出して続ける。
+# CLI 自身の終了コードは、1〜7 のどの値とも重なりうる。CLI を起動した run は、stdout の
+# `done: ... (rc=<ハーネスの値> cli_rc=<CLI の値>)` の行に CLI の値を残す。正規化が result.json を書けたときは、
+# その exit_code にも残る。
 set -euo pipefail
 
 usage() {
@@ -287,11 +293,24 @@ sandbox="${repo}/scripts/eval/sandbox/eval-sandbox.sh"
 # 環境から同じ名前の変数を受け取っても、sandboxed の判定の外で runner を決めないように空で始める。
 runner_override=""
 runner_is_sandbox=0
+sandbox_real="$(realpath -e -- "${sandbox}" 2>/dev/null)" || sandbox_real=""
+# sandbox は、自分の実体がある場所を基に repo を決め、その親を隠す。sandbox のファイル自体か、そこに至る
+# scripts・eval・sandbox のディレクトリのどれかがシンボリックリンクだと、--repo の親ではない別の
+# ディレクトリを隠しうる（Issue #1024）。
+# そのため、実体のパスが ${repo}/scripts/eval/sandbox/eval-sandbox.sh と一致するときだけ sandbox として扱う。
+# このどれかがリンクなら、隠す範囲が変わらないリンクでも止める。リンクを許す形を挙げて確かめるより、
+# 実体がその場所にあることだけを求めるほうが、判定の抜けが生じないためである。
+# repo は realpath で解決済みなので、--repo 自体や上位のディレクトリがリンクでも一致する。
+# 一致しないときは、SKILL_EVAL_RUNNER が無い場合も sandbox を指す場合も、下の分岐で UNISOLATED にする。
+# sandbox 以外を指す SKILL_EVAL_RUNNER は、この判定より前の分岐で UNVERIFIED になる。
+sandbox_in_repo=0
+if [ -n "${sandbox_real}" ] && [ "${sandbox_real}" = "${sandbox}" ]; then
+	sandbox_in_repo=1
+fi
 if [ -n "${SKILL_EVAL_RUNNER:-}" ]; then
 	case "${SKILL_EVAL_RUNNER}" in
 	/*)
 		runner_real="$(realpath -e -- "${SKILL_EVAL_RUNNER}" 2>/dev/null)" || runner_real=""
-		sandbox_real="$(realpath -e -- "${sandbox}" 2>/dev/null)" || sandbox_real=""
 		if [ -n "${runner_real}" ] && [ "${runner_real}" = "${sandbox_real}" ]; then
 			runner_is_sandbox=1
 		fi
@@ -302,6 +321,8 @@ if [ -n "${SKILL_EVAL_RUNNER:-}" ] && [ "${runner_is_sandbox}" -eq 0 ]; then
 	isolation="UNVERIFIED (operator-supplied SKILL_EVAL_RUNNER=${SKILL_EVAL_RUNNER})"
 elif [ ! -x "${sandbox}" ]; then
 	isolation="UNISOLATED (${sandbox} missing or not executable)"
+elif [ "${sandbox_in_repo}" -eq 0 ]; then
+	isolation="UNISOLATED (${sandbox} resolves to ${sandbox_real}, not to itself; the sandbox decides which repository to hide from its real path)"
 elif ! command -v bwrap >/dev/null 2>&1; then
 	isolation="UNISOLATED (bwrap not found; install bubblewrap to isolate reads)"
 else
@@ -320,7 +341,9 @@ sandboxed*) ;;
 		{
 			echo "refusing to start the executor: read isolation is ${isolation}"
 			echo "  a run outside the sandbox can read the operator's credentials (\$HOME, GH_TOKEN, ...)."
-			echo "  to isolate: install bubblewrap, keep ${sandbox} executable, and leave SKILL_EVAL_RUNNER unset"
+			echo "  to isolate: install bubblewrap, keep ${sandbox} executable, and make neither that file"
+			echo "  nor the scripts/, eval/, sandbox/ directories above it a symlink,"
+			echo "  and leave SKILL_EVAL_RUNNER unset"
 			echo "  (or set it to the absolute path of that script)."
 			echo "  to run without isolation anyway (a stub runner, for example), set SKILL_EVAL_ALLOW_UNISOLATED=1."
 		} >&2
@@ -353,7 +376,15 @@ trap cleanup EXIT
 if [ -n "${fixture}" ]; then
 	cp -R -- "${fixture}/." "${proj}/"
 	if [ -f "${proj}/setup.sh" ] && [ -x "${proj}/setup.sh" ]; then
-		(cd "${proj}" && ./setup.sh)
+		# setup.sh の終了コードをそのまま返すと、ハーネス自身の値（3 のロックなど）と区別できない。
+		# CLI を起動する前の準備の失敗として 1 にし、setup.sh の値は stderr に出す。
+		# この時点では --out もロックも作っていない。使い捨てのプロジェクトは EXIT の trap が消す。
+		setup_rc=0
+		(cd "${proj}" && ./setup.sh) || setup_rc=$?
+		if [ "${setup_rc}" -ne 0 ]; then
+			echo "fixture setup.sh exited ${setup_rc}; the executor was not started" >&2
+			exit 1
+		fi
 	fi
 fi
 
@@ -487,10 +518,14 @@ rc=0
 	export SHOJI9X9_SKILLS_IGNORE_USER_CONFIG=1
 	EVAL_SANDBOX_CLI="${executor_binary}" EVAL_SANDBOX_VENDOR="${executor}" "${runner}" "${executor_args[@]}"
 ) </dev/null >"${raw_trace}" 2>"${out}/stderr.log" || rc=$?
+# CLI 自身の終了コードを cli_rc に残す。warn の行と result.json の exit_code と、done の行に出す cli_rc= は、この値を使う。
+# rc はハーネスの終了コードで、下で上書きされる。正規化が失敗したときは 5 にする。汚染された baseline では、
+# rc がまだ 0 のときだけ 4 にする。
+cli_rc="${rc}"
 ended_ms="$(date +%s%3N)"
 ended_at="$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
 duration_ms=$((ended_ms - started_ms))
-[ "${rc}" -ne 0 ] && echo "warn: ${executor_binary} exited ${rc} (see ${out}/stderr.log)" >&2
+[ "${cli_rc}" -ne 0 ] && echo "warn: ${executor_binary} exited ${cli_rc} (see ${out}/stderr.log)" >&2
 
 normalizer_args=(
 	--executor "${executor}"
@@ -499,7 +534,7 @@ normalizer_args=(
 	--timing "${out}/timing.json"
 	--metrics "${out}/outputs/metrics.json"
 	--response "${out}/outputs/response.md"
-	--exit-code "${rc}"
+	--exit-code "${cli_rc}"
 	--duration-ms "${duration_ms}"
 	--started-at "${started_at}"
 	--ended-at "${ended_at}"
@@ -605,6 +640,8 @@ if [ "${config}" = "without_skill" ] && [ "${executor}" = "codex" ]; then
 fi
 normalizer_rc=0
 node "${normalizer}" "${normalizer_args[@]}" 2>>"${out}/stderr.log" || normalizer_rc=$?
+# 正規化に失敗した run は、CLI の値に関わらず 5 で終える（PR #238 の選択）。result.json を信頼できない run を、
+# CLI の 0 で成功として集計させないためである。CLI の値は、上で cli_rc に残してある。
 if [ "${normalizer_rc}" -ne 0 ]; then
 	rc=5
 	echo "warn: result normalization failed (see ${out}/stderr.log)" >&2
@@ -776,10 +813,11 @@ if [ "${config}" = "without_skill" ]; then
 	esac
 fi
 
-echo "done: executor=${executor} config=${config} skill=${skill} -> ${out} (rc=${rc})"
-# A contaminated baseline that exits 0 gets aggregated as a real measurement, so
-# surface it in the exit status too — but never mask the CLI's own failure code.
+# 汚染された baseline が 0 で終わると、本物の測定として集計される。そのため、終了コードでも 4 として示す。
+# 4 は rc が 0 のときだけにし、0 以外の rc（CLI の失敗の値か、正規化の失敗の 5）を上書きしない。
+# done の行の rc= がハーネスの終了コードと一致するように、行を出す前に rc を決める。
 if [ "${rc}" -eq 0 ] && [ "${contaminated}" -eq 1 ]; then
-	exit 4
+	rc=4
 fi
+echo "done: executor=${executor} config=${config} skill=${skill} -> ${out} (rc=${rc} cli_rc=${cli_rc})"
 exit "${rc}"

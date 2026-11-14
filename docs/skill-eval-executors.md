@@ -27,7 +27,7 @@ scripts/eval/run/run-skill-eval.sh \
 ```
 
 `--fixture`、`with_skill|without_skill`、`--model` の扱いは、どちらの executor でも同じである。
-fixture のルートに実行できる `setup.sh` があれば、fixture をコピーした後、executor を起動する前に実行する。0 以外で終了したら、run を失敗として扱う。
+fixture のルートに実行できる `setup.sh` があれば、fixture をコピーした後、executor を起動する前に実行する。0 以外で終了したら、run を失敗として扱い、exit 1 で止める。
 `--eval-id` を渡すと、`evals.json` の assertion を読み、`eval-<id>/eval_metadata.json` を作る。viewer が以前の配置でも読めるように、run の下にもコピーを置く。
 
 Codex だけの run は `codex exec` だけを起動し、Claude Code CLI や Anthropic API を呼ばない。
@@ -86,6 +86,8 @@ prompt、対象の assertion、fixture、`requires_skills`（名前と、置い�
 raw trace は、調査と決定論的な採点に使う。集計と viewer は、ベンダーごとに違う raw の形に依存しない。
 次の場合は、CLI が 0 で終了していても、正規化を失敗として扱い、runner を 0 以外で終了させる。
 Codex の `item.type=error` か `turn.failed`、Claude Code の `is_error`、raw を解析できない、最後の応答が無い、のどれかに当たる場合である。
+正規化に失敗した run は、CLI の終了コードに関わらず exit 5 で終わる。CLI の値は、stdout の `done` の行の `cli_rc=` に残る。正規化が `result.json` を書けたときは、その `exit_code` にも残る。
+終了コードの一覧は、`run-skill-eval.sh` の冒頭のコメントにある。
 
 `grading.json` は、executor に依存しない既存のスキーマを使う。必須のフィールドは `summary.{pass_rate,passed,failed,total}` と `expectations[].{text,passed,evidence}` である。
 採点の後は、このリポジトリの `scripts/eval/benchmark/build-skill-eval-benchmark.ts` が集計する。判定は assertion の文で突き合わせる。viewer は skill-creator の `eval-viewer/generate_review.py` をそのまま使う。
