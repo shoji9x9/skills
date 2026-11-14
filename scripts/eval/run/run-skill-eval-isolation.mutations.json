@@ -23,7 +23,8 @@
         "run-skill-eval read isolation stop runner が実在しないパス なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
         "run-skill-eval read isolation stop runner がスタブで、変数が空 なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
         "run-skill-eval read isolation stop runner がスタブで、変数が 0 なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
-        "run-skill-eval read isolation stop runner がスタブで、変数が true なら、executor を起動する前に理由と続け方を出して exit 7 で止める"
+        "run-skill-eval read isolation stop runner がスタブで、変数が true なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
+        "run-skill-eval read isolation stop 止めた run は、fingerprint の一時ファイルを残さない"
       ]
     },
     {
@@ -65,7 +66,8 @@
         "run-skill-eval read isolation stop runner がスタブで、変数が空 なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
         "run-skill-eval read isolation stop runner がスタブで、変数が 0 なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
         "run-skill-eval read isolation stop runner がスタブで、変数が true なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
-        "run-skill-eval read isolation stop runner がスタブ でも、変数が 1 なら警告を出して続ける"
+        "run-skill-eval read isolation stop runner がスタブ でも、変数が 1 なら警告を出して続ける",
+        "run-skill-eval read isolation stop 止めた run は、fingerprint の一時ファイルを残さない"
       ]
     },
     {
@@ -88,6 +90,17 @@
       "occurrences": 1,
       "expect_failing": [
         "run-skill-eval read isolation stop sandbox がシンボリックリンクで、runner がそのリンク先の実体 で bwrap が在れば、sandboxed と記録し、変数なしで sandbox の中の executor を起動する"
+      ]
+    },
+    {
+      "id": "fingerprint-trap-removed",
+      "why": "fingerprint の一時ファイルを EXIT の trap で消さない（止めた run が /tmp にファイルを残す）",
+      "file": "scripts/eval/run/run-skill-eval.sh",
+      "find": "trap 'rm -f -- \"${fingerprint_file}\"' EXIT\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "run-skill-eval read isolation stop 止めた run は、fingerprint の一時ファイルを残さない"
       ]
     }
   ]

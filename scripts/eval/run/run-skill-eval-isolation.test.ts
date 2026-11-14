@@ -22,6 +22,8 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  renameSync,
+  rmSync,
   statSync,
   symlinkSync,
   writeFileSync,
@@ -126,9 +128,13 @@ function makePath(root: string, stub: string, bwrap: boolean) {
   return `${bin}:${process.env.PATH}`;
 }
 
-/** 一時のリポジトリにケースの構成を置き、ハーネスを起動する。 */
-async function runCase({ runner, sandbox, bwrap, allow }: Case) {
+/** 一時のリポジトリにケースの構成を置き、ハーネスを起動する。skill を渡すと、対象のスキルをその名前に変える。 */
+async function runCase({ runner, sandbox, bwrap, allow }: Case, skill = "subject-skill") {
   const repo = makeRepository(sandbox);
+  if (skill !== "subject-skill") {
+    renameSync(join(repo.root, "skills", "subject-skill"), join(repo.root, "skills", skill));
+    renameSync(join(repo.root, "evals", "subject-skill"), join(repo.root, "evals", skill));
+  }
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     PATH: makePath(repo.root, repo.stub, bwrap),
@@ -145,7 +151,7 @@ async function runCase({ runner, sandbox, bwrap, allow }: Case) {
     join(repo.root, "scripts", "eval", "run", "run-skill-eval.sh"),
     [
       "--skill",
-      "subject-skill",
+      skill,
       "--prompt",
       "PROMPT",
       "--config",
@@ -343,6 +349,24 @@ describe.concurrent("run-skill-eval read isolation stop", () => {
       expect(run.executorRan).toBe(true);
     },
   );
+
+  // fingerprint の一時ファイルは /tmp に、スキルの名前を含む名前で作られる。
+  // 並べて実行するほかのテストと区別するため、このテストだけの名前のスキルで起動する。
+  test("止めた run は、fingerprint の一時ファイルを残さない", async () => {
+    const skill = `stop-tmp-${process.pid}-${Date.now()}`;
+    const run = await runCase(
+      { runner: "stub", sandbox: "executable", bwrap: true, allow: undefined },
+      skill,
+    );
+
+    const leaked = readdirSync("/tmp").filter((name) =>
+      name.startsWith(`skill-eval-fingerprint-${skill}-`),
+    );
+    // 変異で trap を外したときに残るファイルも、確かめる前に消しておく。
+    for (const name of leaked) rmSync(join("/tmp", name), { force: true });
+    expect(run.result.status, run.result.stderr).toBe(7);
+    expect(leaked).toEqual([]);
+  });
 
   // baseline の再利用は executor を起動しないので、隔離を確かめられない構成でも止めない。
   test("baseline の再利用は、変数なしでも止めない", async () => {
