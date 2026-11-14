@@ -98,7 +98,8 @@
 
   ```bash
   # review_tool: copilot のときは Copilot 自身のチェックを別エージェント判定から除外する。
-  # copilot 以外（claude-code / claude-code-action / codex / local / none）のときは末尾の `and .name!=...` を外し、除外しない。
+  # claude-code-action のときは、末尾を `and .workflow!="Claude review"` に替えて、ワークフロー claude-review.yml 自身の check を除外する。
+  # それ以外（claude-code / codex / local / none）のときは末尾の `and .name!=...` を外し、除外しない。
   gh pr checks <番号> --repo <owner>/<repo> --json name,bucket,workflow \
     --jq '.[] | select(.bucket=="pending" and .name!="copilot-pull-request-reviewer")'
   ```
@@ -110,6 +111,7 @@
     `review_tool: copilot` のとき、Copilot 自身のチェック（チェックの名前は `copilot-pull-request-reviewer`。実測）は、別のエージェントではなく、設定したレビューツールのレビューが進行中であることのシグナルとして扱う。
     そのため、上のコマンドで、別のエージェントの判定から除く。pending なら新しく依頼せず、完了を待つ。
   - `review_tool` が copilot 以外（`claude-code`・`claude-code-action`・`codex`・`local`・`none`）のときは、Copilot は設定したツールではないので、pending の Copilot のチェックは、別のエージェントの進行中のレビューにあたる。
+    除かないのは Copilot のチェックで、`claude-code-action` のときに除くワークフロー自身の check（下の項目）とは別である。
     このときは除かずに（jq の `and .name!="copilot-pull-request-reviewer"` を外して）進行中として扱い、保留して完了を待つ。
 - 補助のシグナル（bot の進行中のコメント）: check-run として現れないレビューのエージェント（クラウドで実行するものなど）のためのシグナルである。bot による直近のコメントが作業中を示していないかを見る。
   見る対象は、今の反復（直近の push より後）に作られたか更新された、レビューのエージェントのコメントだけである。レビューと関係の無い bot（カバレッジなど）や古いコメントは、進行中の根拠にしない。

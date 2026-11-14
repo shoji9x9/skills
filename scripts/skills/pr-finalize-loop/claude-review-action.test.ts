@@ -64,6 +64,7 @@ if [ "$1" = "pr" ] && [ "$2" = "view" ]; then
   jq -r "$jq_expr" "$dir/pr.json"
 elif [ "$method" = "POST" ]; then
   [ -f "$dir/dispatch-fail" ] && { echo "HTTP 422: Unexpected inputs" >&2; exit 1; }
+  [ -f "$dir/dispatch-notrigger" ] && { echo "gh: Workflow does not have 'workflow_dispatch' trigger (HTTP 422)" >&2; exit 1; }
   [ ! -f "$dir/runs-after.json" ] || cp "$dir/runs-after.json" "$dir/runs.json"
 elif [[ "$endpoint" == */actions/workflows/*/runs* ]]; then
   [ -f "$dir/runs-404" ] && { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
@@ -103,7 +104,7 @@ type Fixture = {
   runs?: Run[][];
   runsAfter?: Run[][];
   comments?: Comment[][];
-  fail?: ("pr" | "comments" | "dispatch" | "runs-404")[];
+  fail?: ("pr" | "comments" | "dispatch" | "dispatch-notrigger" | "runs-404")[];
 };
 
 const toRun = (r: Run) => ({
@@ -144,7 +145,10 @@ function setup(f: Fixture = {}) {
     ),
   );
   writeFileSync(join(dir, "sha"), `${HEAD}\n`);
-  for (const k of f.fail ?? []) writeFileSync(join(dir, k === "runs-404" ? k : `${k}-fail`), "");
+  for (const k of f.fail ?? []) {
+    const name = k === "runs-404" || k === "dispatch-notrigger" ? k : `${k}-fail`;
+    writeFileSync(join(dir, name), "");
+  }
   return dir;
 }
 
@@ -469,6 +473,12 @@ describe("request", () => {
     const r = request({});
     expect(r.status).toBe(5);
     expect(r.stderr).toMatch(/依頼し直さずに/);
+  });
+
+  test("head のブランチのワークフローが workflow_dispatch を持たない（GitHub が 422 を返す）なら、ワークフローが無いとして exit 3", () => {
+    const r = request({ fail: ["dispatch-notrigger"] });
+    expect(r.status).toBe(3);
+    expect(r.stderr).toMatch(/ブランチ feature\/x に無い/);
   });
 
   test("--sha-file が無ければ exit 64", () => {

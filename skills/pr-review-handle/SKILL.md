@@ -215,7 +215,9 @@ GitHub の側で自動レビューを設定していても、push の後にレ�
 `claude-code-action` では、同梱のスクリプト `scripts/claude-review-action.sh` の `check` で判定する。push した後は、`pull_request` の自動の run が一覧に現れるまで（出力の `runs` が 1 以上になるまで）上限を決めて待ってから判定する。
 `status` が `reviewed` なら依頼せず、そのことを利用者に伝えてレビューの結果の確認に進む。`in-progress` なら依頼せず、上限を決めて `reviewed` になるのを待つ。`paused` と `failed` なら依頼せず、その理由を利用者に伝える。
 依頼の成立は、`request` が exit 0 で run の ID を出したことで確かめ、その後は `check` が `reviewed` を返すまで上限を決めて待つ。`request` のほかの終了コードの扱いは、[`references/review-tool.md`](references/review-tool.md) の「claude-code-action」にある。
-依頼は同じスクリプトの `request` で行い、push しなかったときは `--since` にこの対応で最後に投稿した返信やコメントの `createdAt` を渡す。それより前の run は対応を見ていないからである（[`references/review-tool.md`](references/review-tool.md) の「claude-code-action」）。
+依頼は同じスクリプトの `request` で行う。
+push しなかったときは、依頼の前後の `check` と `request` の両方の `--since` に、この対応で最後に投稿した返信やコメントの `createdAt` を渡す。
+それより前の run は対応を見ていないので、その目印で `reviewed` と判定しないためである（[`references/review-tool.md`](references/review-tool.md) の「claude-code-action」）。
 判定の手順は [`references/review-tool.md`](references/review-tool.md) にある。
 push が終わった直後に記録した時刻より後に自動レビューが始まっていれば、改めて依頼せず、そのことを利用者に伝える。そのうえで、依頼するかの確認を省いて、レビューの結果の確認に進む。
 最新のイベントの日時だけでは判定できないので、前の HEAD への古い依頼（PR を作ったときなど）を、自動で依頼された根拠にしない。

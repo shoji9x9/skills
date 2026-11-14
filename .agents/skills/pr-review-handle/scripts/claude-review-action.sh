@@ -342,8 +342,9 @@ dispatch_args=(-f "ref=${head_ref}" -f "inputs[pr]=${number}" -f "inputs[sha]=${
 [ -z "${effort}" ] || dispatch_args+=(-f "inputs[effort]=${effort}")
 if ! dispatched=$(gh api ${host_args[@]+"${host_args[@]}"} --method POST \
 	"${repo_path}/actions/workflows/${WORKFLOW_FILE}/dispatches" "${dispatch_args[@]}" </dev/null 2>"${err}"); then
-	if grep -q "HTTP 404" "${err}"; then
-		echo "error: ワークフロー ${WORKFLOW_FILE} がリポジトリに無いか、ブランチ ${head_ref} に無い" >&2
+	# ブランチにワークフローが無いときは 404 でなく 422（Workflow does not have 'workflow_dispatch' trigger）が返る（実測）
+	if grep -q -e "HTTP 404" -e "does not have 'workflow_dispatch' trigger" "${err}"; then
+		echo "error: ワークフロー ${WORKFLOW_FILE} がリポジトリに無いか、ブランチ ${head_ref} に無い（workflow_dispatch を持たない古いバージョンを含む）" >&2
 		exit 3
 	fi
 	echo "error: 依頼できない: $(tr '\n' ' ' <"${err}")" >&2
