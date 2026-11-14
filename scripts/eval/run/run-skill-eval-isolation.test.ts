@@ -53,7 +53,8 @@ type Runner =
   | "same-name-copy"
   | "missing"
   | "stub";
-type Sandbox = "executable" | "symlink" | "alias" | "dir-link" | "missing" | "not-executable";
+/** sandbox の構成。値は、下の表 SANDBOX_LAYOUTS のキーから作る。 */
+type Sandbox = keyof typeof SANDBOX_LAYOUTS;
 
 type Case = {
   runner: Runner;
@@ -117,10 +118,18 @@ function makeRepository(sandbox: Sandbox, skill: string) {
 type SandboxLayout = {
   /** 実体を置くパス。 */
   target: (root: string, sandboxDir: string) => string;
-  /** none は実体をその場所に置く。file はハーネスの sandbox のパスを実体へのリンクに、dir は sandbox のディレクトリをリンクにする。 */
+  /**
+   * none は実体をその場所に置く。file はハーネスの sandbox のパスを実体へのリンクに、dir は sandbox のディレクトリをリンクにする。
+   * dir では、実体のファイル名を eval-sandbox.sh にする。ハーネスはリンクしたディレクトリの中のその名前を読むからである。
+   */
   link: "none" | "file" | "dir";
   mode: number;
 };
+
+/** ハーネスが読む場所（<repo>/scripts/eval/sandbox/eval-sandbox.sh）に実体を置く。 */
+function inSandboxDir(_root: string, sandboxDir: string) {
+  return join(sandboxDir, "eval-sandbox.sh");
+}
 
 /**
  * sandbox の構成ごとの置き方（missing は置かない）。構成を足すときは、この表だけを変える。
@@ -128,12 +137,8 @@ type SandboxLayout = {
  * dir-link は、scripts/eval/sandbox のディレクトリ自体を、scripts/eval/ の外のディレクトリへのリンクにする。
  */
 const SANDBOX_LAYOUTS = {
-  executable: { target: (_root, dir) => join(dir, "eval-sandbox.sh"), link: "none", mode: 0o755 },
-  "not-executable": {
-    target: (_root, dir) => join(dir, "eval-sandbox.sh"),
-    link: "none",
-    mode: 0o644,
-  },
+  executable: { target: inSandboxDir, link: "none", mode: 0o755 },
+  "not-executable": { target: inSandboxDir, link: "none", mode: 0o644 },
   symlink: {
     target: (root) => join(root, "real-sandbox", "eval-sandbox.sh"),
     link: "file",
@@ -146,7 +151,7 @@ const SANDBOX_LAYOUTS = {
     mode: 0o755,
   },
   missing: null,
-} satisfies Record<Sandbox, SandboxLayout | null>;
+} satisfies Record<string, SandboxLayout | null>;
 
 /** 実体を置くディレクトリと、構成のリンクを作る。実体の中身は呼び出し元が書く。 */
 function placeSandbox(
@@ -158,7 +163,7 @@ function placeSandbox(
   }: { sandboxDir: string; sandboxPath: string; sandboxTarget: string },
 ) {
   mkdirSync(dirname(sandboxTarget), { recursive: true });
-  // sandbox のディレクトリの親（scripts/eval）は、ほかの準備に頼らずにここで作る。
+  // sandbox のディレクトリの親（scripts/eval）は、copyHarness が作るかに頼らずにここで作る。
   mkdirSync(dirname(sandboxDir), { recursive: true });
   if (layout.link === "dir") {
     symlinkSync(dirname(sandboxTarget), sandboxDir);
@@ -371,6 +376,10 @@ describe.concurrent("run-skill-eval read isolation stop", () => {
       expect(run.result.stderr).toMatch(/refusing to start the executor: read isolation is /u);
       expect(run.result.stderr).toMatch(reason);
       expect(run.result.stderr).toMatch(/set SKILL_EVAL_ALLOW_UNISOLATED=1/u);
+      // 隔離する続け方として、sandbox のファイルとディレクトリをリンクにしないことを案内する。
+      expect(run.result.stderr).toMatch(
+        /make neither that file\n.*nor the scripts\/, eval\/, sandbox\/ directories above it a symlink/u,
+      );
       expect(run.executorRan).toBe(false);
       expect(run.sandboxRan).toBe(false);
       expect(run.setupRan).toBe(false);

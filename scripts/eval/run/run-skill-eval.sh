@@ -519,7 +519,8 @@ rc=0
 	EVAL_SANDBOX_CLI="${executor_binary}" EVAL_SANDBOX_VENDOR="${executor}" "${runner}" "${executor_args[@]}"
 ) </dev/null >"${raw_trace}" 2>"${out}/stderr.log" || rc=$?
 # CLI 自身の終了コードを cli_rc に残す。warn の行と result.json の exit_code と、done の行に出す cli_rc= は、この値を使う。
-# rc はハーネスの終了コードで、正規化が失敗したときは 5 に、汚染された baseline では 4 に、下で上書きされる。
+# rc はハーネスの終了コードで、下で上書きされる。正規化が失敗したときは 5 にする。汚染された baseline では、
+# rc がまだ 0 のときだけ 4 にする。
 cli_rc="${rc}"
 ended_ms="$(date +%s%3N)"
 ended_at="$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
