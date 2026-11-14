@@ -389,6 +389,46 @@
           "prompt_quote": "コマンドの実行やファイルの変更はせずに説明して"
         }
       ]
+    },
+    {
+      "id": 15,
+      "prompt": "pr-review-handle 42 で進める手順を、GitHub への接続とファイルの変更はせずに説明して（スキルとリポジトリのファイルを読むのはよい）。PR #42 は自分が作成した PR で、未解決のスレッド 2 件には、コードを直さずに返信だけで対応して解決した。最後の返信は 2026-03-02T10:05:00Z に投稿した。push はしていない。今の HEAD には、push のときに起動した pull_request の run 5001 があり、2026-03-02T10:00:10Z に作られて成功で終わった。github-actions[bot] の総評のコメントの 1 行目に、今の HEAD の SHA と run=5001 の目印がある。利用者は再レビューを「今すぐ依頼」と選んだ。どの方法で依頼し、依頼の前に何を確かめ、依頼に何を渡すかを述べて。",
+      "fixture": "fixtures/review-tool-claude-code-action",
+      "expected_output": "返信より前の run の目印を根拠にせず、進行中の run が無いことを確かめてから、同梱の request に --since 返信の時刻を渡して workflow_dispatch で依頼する。@claude review は投稿しない。",
+      "assertions": [
+        "依頼を workflow_dispatch（同梱の claude-review-action.sh の request か、gh workflow run claude-review.yml）で行うと述べている",
+        "@claude review を投稿して依頼しない（claude-code の依頼の方法と取り違えていない）",
+        "run 5001 の目印は返信より前の run なので、今の HEAD を返信の後にレビューした根拠にしないと述べている",
+        "最後の返信の時刻 2026-03-02T10:05:00Z を、それより前の run を数えない基準（--since）として渡すと述べている",
+        "依頼の前に、今の HEAD を対象にした run が進行中でないこと（同じ HEAD に重ねて依頼しないこと）を確かめると述べている",
+        "実行はせず手順の提示に留めている（返信・resolve・push・依頼を行っていない）"
+      ],
+      "reachability": [
+        {
+          "assertion": "依頼を workflow_dispatch（同梱の claude-review-action.sh の request か、gh workflow run claude-review.yml）で行うと述べている",
+          "prompt_quote": "どの方法で依頼し"
+        },
+        {
+          "assertion": "@claude review を投稿して依頼しない（claude-code の依頼の方法と取り違えていない）",
+          "prompt_quote": "どの方法で依頼し"
+        },
+        {
+          "assertion": "run 5001 の目印は返信より前の run なので、今の HEAD を返信の後にレビューした根拠にしないと述べている",
+          "prompt_quote": "2026-03-02T10:00:10Z に作られて成功で終わった"
+        },
+        {
+          "assertion": "最後の返信の時刻 2026-03-02T10:05:00Z を、それより前の run を数えない基準（--since）として渡すと述べている",
+          "prompt_quote": "最後の返信は 2026-03-02T10:05:00Z に投稿した"
+        },
+        {
+          "assertion": "依頼の前に、今の HEAD を対象にした run が進行中でないこと（同じ HEAD に重ねて依頼しないこと）を確かめると述べている",
+          "prompt_quote": "依頼の前に何を確かめ"
+        },
+        {
+          "assertion": "実行はせず手順の提示に留めている（返信・resolve・push・依頼を行っていない）",
+          "prompt_quote": "GitHub への接続とファイルの変更はせずに説明して"
+        }
+      ]
     }
   ]
 }
