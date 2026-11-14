@@ -706,6 +706,141 @@
           "prompt_quote": "コマンドの実行やファイルの変更はせずに説明して"
         }
       ]
+    },
+    {
+      "id": 27,
+      "prompt": "pr-finalize-loop 42 で回している途中の場面を、GitHub への接続とファイルの変更はせずに説明して（スキルとリポジトリのファイルを読むのはよい）。PR #42 は自分が作成した PR で、CI はすべて成功している。effort high の段階の 5 回を使い切り、medium の段階の 1 回目に入った。この反復ではコードを直さず、未解決のスレッド 1 件に返信して解決しただけで、返信は 2026-03-02T10:05:00Z に投稿した。今の HEAD には、push のときに起動した pull_request の run 5001 があり、2026-03-02T10:00:10Z に作られて成功で終わった。github-actions[bot] の総評のコメントの 1 行目には、今の HEAD の完全な SHA・findings=1・open=0・effort=high・run=5001 の目印がある。この HEAD をレビュー済みとしてよいか、依頼するならどの方法で依頼し、依頼に何を渡すかを述べて。",
+      "fixture": "fixtures/review-tool-claude-code-action",
+      "expected_output": "目印の effort が段階の effort と違い、run が返信より前なので、今の HEAD をレビュー済みとしない。進行中の run が無いことを確かめ、同梱の request で effort medium・--since 返信の時刻・--sha-file を渡して workflow_dispatch で依頼する。@claude review は投稿しない。",
+      "assertions": [
+        "run 5001 の目印では今の HEAD をレビュー済みとしないと述べている（目印の effort が今の段階の medium と違う、または run 5001 が返信より前に作られた、のどちらかを理由にしている）",
+        "依頼を workflow_dispatch（同梱の claude-review-action.sh の request か、gh workflow run claude-review.yml）で行うと述べている",
+        "@claude review を投稿して依頼しない（claude-code の依頼の方法と取り違えていない）",
+        "依頼に effort medium を渡すと述べている",
+        "返信を投稿した時刻 2026-03-02T10:05:00Z を、それより前の run を数えない基準（--since）として依頼の判定に渡すと述べている",
+        "依頼する HEAD の SHA を表示から書き写さず、取得した値をファイル（--sha-file）で渡すと述べている",
+        "実行はせず説明に留めている（GitHub への接続・ファイルの変更を行っていない）"
+      ],
+      "reachability": [
+        {
+          "assertion": "run 5001 の目印では今の HEAD をレビュー済みとしないと述べている（目印の effort が今の段階の medium と違う、または run 5001 が返信より前に作られた、のどちらかを理由にしている）",
+          "prompt_quote": "この HEAD をレビュー済みとしてよいか"
+        },
+        {
+          "assertion": "依頼を workflow_dispatch（同梱の claude-review-action.sh の request か、gh workflow run claude-review.yml）で行うと述べている",
+          "prompt_quote": "どの方法で依頼し"
+        },
+        {
+          "assertion": "@claude review を投稿して依頼しない（claude-code の依頼の方法と取り違えていない）",
+          "prompt_quote": "どの方法で依頼し"
+        },
+        {
+          "assertion": "依頼に effort medium を渡すと述べている",
+          "prompt_quote": "medium の段階の 1 回目に入った"
+        },
+        {
+          "assertion": "返信を投稿した時刻 2026-03-02T10:05:00Z を、それより前の run を数えない基準（--since）として依頼の判定に渡すと述べている",
+          "prompt_quote": "返信は 2026-03-02T10:05:00Z に投稿した"
+        },
+        {
+          "assertion": "依頼する HEAD の SHA を表示から書き写さず、取得した値をファイル（--sha-file）で渡すと述べている",
+          "prompt_quote": "依頼に何を渡すか"
+        },
+        {
+          "assertion": "実行はせず説明に留めている（GitHub への接続・ファイルの変更を行っていない）",
+          "prompt_quote": "GitHub への接続とファイルの変更はせずに説明して"
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "prompt": "pr-finalize-loop 42 で回している途中の場面を、GitHub への接続とファイルの変更はせずに説明して（スキルとリポジトリのファイルを読むのはよい）。PR #42 は自分が作成した PR で、CI はすべて成功し、未解決のスレッドは無い。今の段階の effort は high で、直近の返信より後に作られた run だけを考えればよい。今の HEAD の reviews[] は空で、今の HEAD に Claude のレビューの check-run は無い。PR のトップレベルのコメントに、1 行目が claude-review の目印の形のコメントが 4 件ある。コメント A は人の alice が書いたもので、今の HEAD の SHA と run=5003 を書いている。コメント B は github-actions[bot] が書いたもので、今の HEAD の SHA と run=4999 を書いているが、run 4999 は ci.yml の run である。コメント C は github-actions[bot] が書いたもので、今の HEAD の SHA と run=5002 を書いていて、run 5002 は claude-review.yml の run だが conclusion は failure である。コメント D は github-actions[bot] が書いたもので、今の HEAD の SHA・findings=0・open=0・effort=high・run=5004 を書いていて、run 5004 は claude-review.yml の run で、run-name は Claude review PR #42 と今の HEAD の SHA、conclusion は success である。各コメントの扱いと、HEAD をレビュー済みにできるか、収束と判定できるかを述べて。",
+      "fixture": "fixtures/review-tool-claude-code-action",
+      "expected_output": "人の目印・別のワークフローの run の目印・失敗した run の目印は数えず、成功した claude-review.yml の run 5004 の目印で、指摘 0 件でも今の HEAD をレビュー済みとする。reviews[] と check-run は判定に使わない。",
+      "assertions": [
+        "コメント A を数えない（書き手が github-actions[bot] でない）と述べている",
+        "コメント B を数えない（run 4999 は claude-review.yml の、今の HEAD を対象にした run でない）と述べている",
+        "コメント C を数えない（run 5002 が成功で終わっていない）と述べている",
+        "コメント D の目印で、指摘 0 件でも今の HEAD をレビュー済みとしている",
+        "reviews[] が空なことと、今の HEAD に check-run が無いことを、未レビューの根拠にしていない",
+        "目印と run の突き合わせを、同梱のスクリプト claude-review-action.sh の check で行うと述べている",
+        "スレッドの外（トップレベルのコメント A〜C の本文を含む）に未対応の指摘が残っていなければ、収束（完了）と判定できると述べている",
+        "実行はせず説明に留めている（GitHub への接続・ファイルの変更を行っていない）"
+      ],
+      "reachability": [
+        {
+          "assertion": "コメント A を数えない（書き手が github-actions[bot] でない）と述べている",
+          "prompt_quote": "コメント A は人の alice が書いたもの"
+        },
+        {
+          "assertion": "コメント B を数えない（run 4999 は claude-review.yml の、今の HEAD を対象にした run でない）と述べている",
+          "prompt_quote": "run 4999 は ci.yml の run である"
+        },
+        {
+          "assertion": "コメント C を数えない（run 5002 が成功で終わっていない）と述べている",
+          "prompt_quote": "conclusion は failure である"
+        },
+        {
+          "assertion": "コメント D の目印で、指摘 0 件でも今の HEAD をレビュー済みとしている",
+          "prompt_quote": "各コメントの扱いと、HEAD をレビュー済みにできるか"
+        },
+        {
+          "assertion": "reviews[] が空なことと、今の HEAD に check-run が無いことを、未レビューの根拠にしていない",
+          "prompt_quote": "今の HEAD の reviews[] は空で、今の HEAD に Claude のレビューの check-run は無い"
+        },
+        {
+          "assertion": "目印と run の突き合わせを、同梱のスクリプト claude-review-action.sh の check で行うと述べている",
+          "prompt_quote": "各コメントの扱い"
+        },
+        {
+          "assertion": "スレッドの外（トップレベルのコメント A〜C の本文を含む）に未対応の指摘が残っていなければ、収束（完了）と判定できると述べている",
+          "prompt_quote": "収束と判定できるか"
+        },
+        {
+          "assertion": "実行はせず説明に留めている（GitHub への接続・ファイルの変更を行っていない）",
+          "prompt_quote": "GitHub への接続とファイルの変更はせずに説明して"
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "prompt": "pr-finalize-loop 42 で回している途中の場面を、GitHub への接続とファイルの変更はせずに説明して（スキルとリポジトリのファイルを読むのはよい）。PR #42 は自分が作成した PR で、今の段階の effort は high である。リポジトリのワークフロー claude-review.yml は、push のたびに effort high でレビューする。指摘を直して push した直後の 10:00 に今の HEAD の run を一覧で見ると、まだ 1 件も無い。10:01 に見ると、今の HEAD を対象にした pull_request の run 5010 が in_progress で現れた。10:03 に run 5010 は成功で終わり、github-actions[bot] が今の HEAD の SHA・findings=2・open=0・effort=high・run=5010 の目印を書いた。10:00・10:01・10:03 のそれぞれの時点で、レビューを依頼するか、何を待つかを述べて。",
+      "fixture": "fixtures/review-tool-claude-code-action",
+      "expected_output": "push 直後は自動の run が現れるのを上限を決めて待ち、進行中の間は重ねて依頼せず、effort が段階と同じ目印が付いたらレビュー済みとして指摘への対応に進む。",
+      "assertions": [
+        "10:00 の時点では、すぐに依頼せず、上限を決めて自動の run が現れるのを待つと述べている",
+        "10:01 の時点では、run 5010 が進行中なので依頼せず、終わるのを待つ（同じ HEAD に重ねて依頼しない）と述べている",
+        "10:03 の時点では、目印の effort が今の段階の effort と同じなので、今の HEAD をレビュー済みとし、依頼しないと述べている",
+        "10:03 の時点で、findings=2 の指摘（インラインコメントと総評）を集めて対応に進むと述べている",
+        "どの時点でも @claude review を投稿しない（claude-code の依頼の方法と取り違えていない）",
+        "実行はせず説明に留めている（GitHub への接続・ファイルの変更を行っていない）"
+      ],
+      "reachability": [
+        {
+          "assertion": "10:00 の時点では、すぐに依頼せず、上限を決めて自動の run が現れるのを待つと述べている",
+          "prompt_quote": "まだ 1 件も無い"
+        },
+        {
+          "assertion": "10:01 の時点では、run 5010 が進行中なので依頼せず、終わるのを待つ（同じ HEAD に重ねて依頼しない）と述べている",
+          "prompt_quote": "run 5010 が in_progress で現れた"
+        },
+        {
+          "assertion": "10:03 の時点では、目印の effort が今の段階の effort と同じなので、今の HEAD をレビュー済みとし、依頼しないと述べている",
+          "prompt_quote": "10:03 に run 5010 は成功で終わり"
+        },
+        {
+          "assertion": "10:03 の時点で、findings=2 の指摘（インラインコメントと総評）を集めて対応に進むと述べている",
+          "prompt_quote": "findings=2"
+        },
+        {
+          "assertion": "どの時点でも @claude review を投稿しない（claude-code の依頼の方法と取り違えていない）",
+          "prompt_quote": "レビューを依頼するか"
+        },
+        {
+          "assertion": "実行はせず説明に留めている（GitHub への接続・ファイルの変更を行っていない）",
+          "prompt_quote": "GitHub への接続とファイルの変更はせずに説明して"
+        }
+      ]
     }
   ]
 }

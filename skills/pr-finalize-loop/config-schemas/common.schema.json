@@ -13,7 +13,7 @@
     },
     "review_tool": {
       "description": "pr-review-handle と pr-finalize-loop が再レビューを依頼するツール。リポジトリの方針はリポジトリの層に、このリポジトリでだけ自分が変えたい値は .local.jsonc に、自分のすべてのリポジトリで使う値は人ごとの層に置く",
-      "enum": ["copilot", "claude-code", "codex", "local", "none"],
+      "enum": ["copilot", "claude-code", "claude-code-action", "codex", "local", "none"],
       "default": "copilot",
       "x-layers": ["repo", "local", "user"]
     },

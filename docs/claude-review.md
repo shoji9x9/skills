@@ -1,6 +1,7 @@
 # PR の Claude によるレビュー
 
 `.github/workflows/claude-review.yml` が、PR の差分を `anthropics/claude-code-action` でレビューし、指摘を PR に書く。
+このワークフローは、配布スキル `pr-finalize-loop` に同梱した雛形 `skills/pr-finalize-loop/assets/claude-review.yml` のバイト単位の複製である。直すときは両方を同じ内容にする（`scripts/skills/pr-finalize-loop/claude-review-workflow.test.ts` が一致を確かめる）。
 必須チェックではない。マージを止めるのは、ルールセットの必須チェックと code scanning の規則だけである（`AGENTS.md`「ブランチ運用」）。
 
 ## 起動
@@ -16,6 +17,9 @@
 sha="$(gh pr view <番号> --json headRefOid --jq .headRefOid)"
 gh workflow run claude-review.yml -f pr=<番号> -f sha="$sha" -f effort=medium
 ```
+
+スキル（`pr-finalize-loop`・`pr-review-handle`）を `review_tool: claude-code-action` で使うときは、同梱のスクリプト `claude-review-action.sh` の `request` で依頼する。
+`request` は、同じ HEAD の run が進行中か済んでいれば依頼しない。手順は `pr-finalize-loop` の [`references/review-tool.md`](../skills/pr-finalize-loop/references/review-tool.md)「claude-code-action」にある。
 
 `workflow_dispatch` は、ワークフローがデフォルトブランチに入るまで起動できない（GitHub の仕様）。
 コメントで起動する `issue_comment` は使わない。secret のある job を、PR のコメントから誰でも動かせてしまうからである。
@@ -116,5 +120,6 @@ checkout の `persist-credentials: false` は、この書き込みを防がな�
 ## このワークフローを別のリポジトリで使う
 
 ワークフローは、このリポジトリに固有のパスとツールを使わない。別のリポジトリにそのままコピーして使える。
+配布先へは、`pr-finalize-loop` に同梱した雛形として届く。導入の手順は、`pr-finalize-loop` の [`references/review-tool.md`](../skills/pr-finalize-loop/references/review-tool.md)「claude-code-action」にある。
 変えるのは、リポジトリ変数と、ワークフローの `env` の `DEFAULT_EFFORT`・`DEFAULT_MAX_TURNS` だけである。
 エージェントは、リポジトリのルートの `AGENTS.md`・`CLAUDE.md`・`.github/copilot-instructions.md` のうち、在るものを規約として読む。

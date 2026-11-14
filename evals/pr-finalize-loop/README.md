@@ -31,3 +31,16 @@
   2 つの軸そのものは、判断待ちの印（`<!-- pr-finalize-loop:deferred -->`）を残す assertion と組み合わせたときだけ区別できる。
 - eval 23（承認などを待つジョブの上限）のうち、10:35 で待ち続ける・environment と reviewers を報告する・実行はせず説明に留める、の 3 本は、場面の説明から推測できるので without_skill も pass する。
   それぞれ、上限の前に止める扱いへ戻った後退、報告から待っている相手が消えた後退、説明に留める指示が消えた後退を検出するために置く。
+
+## review_tool が claude-code-action の eval
+
+eval 27〜29 は、fixture `review-tool-claude-code-action` で、ワークフローの目印による完了の判定と、`workflow_dispatch` による依頼を確かめる。
+区別できるのは、同梱のスクリプト `claude-review-action.sh` の使い方（`check` での突き合わせ、`request` に渡す `--since` と `--sha-file`）と、`@claude review` と取り違えないことである。
+eval 29 の「10:03 に `findings=2` の指摘を集めて対応に進む」は、区別できる場合がある。iteration-24 では、without_skill の 3 run のうち 2 run が `open=0` を見て直す指摘は無いと結論して fail した。
+次の assertion は、prompt の場面から一般の判断で答えられるので、without_skill も pass する（iteration-24）。
+
+- eval 27: 目印でレビュー済みとしない・`workflow_dispatch` で依頼する・effort medium を渡す・説明に留める。
+- eval 28: コメント A〜C を数えない・D でレビュー済みとする・`reviews[]` と check-run を根拠にしない・説明に留める。
+- eval 29: 10:00 に待つ・10:01 に依頼しない・10:03 にレビュー済みとする・`@claude review` を投稿しない・説明に留める。
+
+これらは、目印の判定や重ねない依頼の扱いが消えたり食い違ったりした後退を検出するために置く。

@@ -1,6 +1,6 @@
 ---
 argument-hint: <PR URL> [--max-iterations <N>] [--wait-ci-before-review] [--review-tool <tool>] [--defer-decisions]
-description: 作成済み GitHub PR の CI エラー解消とレビュー指摘対応を、CI が成功しレビュー指摘が尽きるまで自律ループで回すスキル。PR URL を受け取り、CI 失敗の修正・レビュースレッドの返信/解決・commit/push・設定したレビューツール（Copilot/Claude Code/Codex/local/none）への再レビュー依頼を反復する。自分の PR でなければ着手前に確認する。ループ中はユーザー確認を挟まず自律動作するが、人間判断を要する指摘だけは確認し、反映後にループへ戻る（`--defer-decisions` では確認せず判断待ちとして残す）。`--max-iterations`（既定 5、上限で effort を下げ半数追加）で止まる。レビュー対応単体は姉妹スキル pr-review-handle が担う。「PR を最後まで解決して」「CI とレビュー指摘がなくなるまで回して」「PR の CI とレビューを収束させて」「pr-finalize-loop」で必ず発動する。
+description: 作成済み GitHub PR の CI エラー解消とレビュー指摘対応を、CI が成功しレビュー指摘が尽きるまで自律ループで回すスキル。PR URL を受け取り、CI 失敗の修正・レビュースレッドの返信/解決・commit/push・設定したレビューツール（Copilot/Claude Code/Codex/claude-code-action/local/none）への再レビュー依頼を反復する。自分の PR でなければ着手前に確認する。ループ中は確認を挟まず自律動作するが、人間判断を要する指摘だけは確認し、反映後にループへ戻る（`--defer-decisions` では判断待ちとして残す）。`--max-iterations`（既定 5、上限で effort を下げ半数追加）で止まる。レビュー対応単体は姉妹スキル pr-review-handle が担う。「PR を最後まで解決して」「CI とレビュー指摘がなくなるまで回して」「PR の CI とレビューを収束させて」「pr-finalize-loop」で必ず発動する。
 license: MIT
 name: pr-finalize-loop
 ---
@@ -32,7 +32,7 @@ pr-finalize-loop <PR URL> [--max-iterations <N>] [--wait-ci-before-review] [--re
   デフォルト（オフ）では、push の直後に CI の完了を待たずに依頼し、CI とレビューを並行して進める。収束が速くなる。
   レビューが進行中なら（設定したツールの自動レビューでも、別のエージェントのレビューでも）依頼を保留する。
   失敗している HEAD にレビューを始めさせたくないときだけ指定する。
-- `--review-tool <tool>`（任意）: この実行だけ、`copilot`・`claude-code`・`codex`・`local`・`none` のどれかを使う。設定ファイルを変えずに、クレジットの状況などに一時的に対応できる。
+- `--review-tool <tool>`（任意）: この実行だけ、`copilot`・`claude-code`・`claude-code-action`・`codex`・`local`・`none` のどれかを使う。設定ファイルを変えずに、クレジットの状況などに一時的に対応できる。
 - `--defer-decisions`（任意。デフォルトはオフ）: 人の判断が要る指摘を利用者に確認せず、判断待ちとして残す。利用者が不在の自律実行の呼び出し元（`issue-batch` の run など）が付ける。
   付けたときの扱いは「自律性ポリシー」で定義する。単独で使うときは付けず、従来どおり確認する。
 - ループの間は、利用者に確認せずに自律して進める。
@@ -65,7 +65,10 @@ push の後などに再レビューを依頼する AI レビュアーは、CLI �
 依頼先は同梱のスクリプト `scripts/resolve-review-tool.sh` で決め、値と、それがどの層（cli・local・user・repo・default）から来たかを報告してから使う。
 決める順序を推測すると層を取り違え、設定してある値を「未設定」と判定して、別のツールに依頼してしまう。手順は [`references/review-tool.md`](references/review-tool.md) にある。
 
-値は `copilot`・`claude-code`・`codex`・`local`・`none` のどれかである。
+値は `copilot`・`claude-code`・`claude-code-action`・`codex`・`local`・`none` のどれかである。
+`claude-code-action` のときは、リポジトリに置いた GitHub Actions のワークフロー `claude-review.yml`（雛形は同梱の `assets/claude-review.yml`）がレビューする。
+依頼と「HEAD がレビュー済み」の判定は、同梱のスクリプト `scripts/claude-review-action.sh` の `request` と `check` で行う。`check` は、ワークフローが PR に書く目印の SHA・effort と、その run が HEAD を対象にして成功したかを突き合わせる。
+手順と、ワークフローが無いときの導入は [`references/review-tool.md`](references/review-tool.md) の「claude-code-action」にある。
 `local` のときは、依頼する代わりにエージェント自身が手元で HEAD をレビューし、レビューした HEAD の SHA と指摘の件数を、同梱のスクリプト `scripts/local-review-record.sh` で PR に記録する。
 「HEAD がレビュー済み」は、その記録の SHA が HEAD と一致するかで判定する。手順は [`references/review-tool.md`](references/review-tool.md) の「local」にある。
 `none` のときは再レビューを一切依頼せず、収束と完了の判定から「HEAD がレビュー済み」の条件を外す。CI がすべて成功し、未解決のスレッドが無く、スレッドの外の指摘にも対応していれば完了とする。
@@ -142,6 +145,7 @@ push の後などに再レビューを依頼する AI レビュアーは、CLI �
    - 未解決のレビュースレッド: [`references/state-query.md`](references/state-query.md) の reviewThreads の索引を `--paginate` で全件取得し、`isResolved == false` で絞る。すべてのレビュアーを対象にし、作成者では絞らない。
    - 現在の HEAD がレビュー済みかを判定する（`references/review-status.md`「HEAD のレビュー済み判定」）。
      根拠に使うのは、レビュー、現在の HEAD のレビュー用の check-run、現在の HEAD の完全な commit の OID を書いたレビューの bot のコメントである。
+     `local` と `claude-code-action` は、これらの代わりに同梱のスクリプトの `check` で判定する。
    - レビューが進行中かを確かめる。現在の HEAD に進行中のレビュー（PR の作成時や push のときの自動レビューを含む）や、進行中のレビューのエージェントが無いかを見る。
      方法は `references/review-request.md`「レビュー進行中の検出」にあり、`review_tool` によって変わる。`none` は再依頼しないので、この保留そのものが要らない。`local` は自分のレビューの完了を待たないが、別のエージェントの進行中のレビューは確かめる。
      進行中なら依頼せず、上限を決めて結果を待ち、届いた分を反映してから判定する。
@@ -164,6 +168,7 @@ push の後などに再レビューを依頼する AI レビュアーは、CLI �
      前者にすると、前の反復の対応を拾えず、対応した反復の次で収束したと判定してしまう。
      満たさなければ手順 6 で再レビューを依頼し、新しいレビューの結果が届くか、上限まで待ち終えるまで、収束したと判定しない。
      この時刻の条件は、`review_tool: local` には当てない。`local` では、記録の SHA が HEAD と一致すれば満たす。返信と解決をしたエージェント自身がレビューするからである（[`references/review-tool.md`](references/review-tool.md) の「local」）。
+     `review_tool: claude-code-action` では、`check` の `--since` に直近の対応の `createdAt` を渡して、この条件を当てる。それより前に作られた run の目印は数えない。
    - CI がすべて成功して未解決のスレッドも無いのに、HEAD がレビューされていないときだけ（`review_tool: none` を除く）、レビューを依頼する。
      `references/review-request.md`「レビュー進行中の検出」を通ってから、設定したレビューツールに依頼し、上限を決めて待つ（同じファイルの「再レビュー依頼」）。
      レビューが付けば、次の反復で拾う。
@@ -220,6 +225,8 @@ push の後などに再レビューを依頼する AI レビュアーは、CLI �
    - push した反復: 新しい HEAD はレビューされていないので依頼する。
      まず、push に合わせて自動レビューが始まっていないかを、`references/review-request.md`「レビュー進行中の検出」で確かめる。
      `copilot` ではタイムラインの Copilot 宛ての `review_requested` イベントで、`claude-code` と `codex` では進行中の bot のレビューかコメントで確かめる。
+     `claude-code-action` では、`check` で、`pull_request` の自動の run が一覧に現れるまで（出力の `runs` が 1 以上になるまで）上限を決めて待ち、現れたら終わるまで待つ。
+     終わった後に `requestable=yes` なら（自動の run の effort が今の段階の effort と違うときなど）、`request` で依頼する。上限まで run が現れなければ、`request` で依頼する。
      始まっていれば、このスキルからは依頼せず、そのレビューの結果を次の反復で拾う。
      自動レビューが無いときだけ、レビューツールに再依頼する。依頼は、モードに関わらず、`references/review-request.md`「レビュー進行中の検出」を通ってから行う。
      デフォルトでは CI の完了を待たずに依頼し、CI の再実行が終わるのは次の反復の最初の手順 1 で待つ（CI とレビューが並行して進む）。
@@ -228,6 +235,7 @@ push の後などに再レビューを依頼する AI レビュアーは、CLI �
      行っていれば、リモートの HEAD は変わらず、CI も新しく実行されないので、`--wait-ci-before-review` は関係しない。判断待ちの印だけを残した反復は、行ったものに数えない（「自律性ポリシー」）。
      `references/review-request.md`「レビュー進行中の検出」を通ってから、今の HEAD を対象に依頼する。
      基準の時刻には push が終わった時刻が無いので、HEAD の commit の `committedDate` ではなく、この反復で最後に投稿した返信やコメントの `createdAt` を下限に使う。それより前のレビューは対応を見ていない。
+     `claude-code-action` では、この時刻を `request` の `--since` に渡し、`workflow_dispatch` で今の HEAD のレビューを依頼する。
 
    `review_tool: local` では、push した反復でだけ、新しい HEAD を手元でレビューして記録する（[`references/review-tool.md`](references/review-tool.md) の「local」）。
    記録は、そのレビューの指摘を直して手順 5 で push するより前に、レビューの前に保存した SHA で投稿する。push の後に回すと、レビューした HEAD の記録を残せず、次の反復が PR の全体をレビューし直す。
@@ -252,13 +260,18 @@ push の後などに再レビューを依頼する AI レビュアーは、CLI �
 - 半分の回数が 0 回になるか、それより下の effort が無くなったら、「最大反復到達」で止まる。
 - 段階の回数を使い切ったときに、CI の失敗か判断待ちが残っていれば、effort を下げずに「最大反復到達」で止まる。effort を下げても、CI と判断待ちは片付かないからである。
 
-effort を指定できるのは、`review_tool: local` で Claude Code の `/code-review <effort>` を使う場合だけである。effort は高い順に max・xhigh・high・medium・low である。
+effort を指定できるのは、`review_tool: local` で Claude Code の `/code-review <effort>` を使う場合と、`review_tool: claude-code-action` の場合である。effort は高い順に max・xhigh・high・medium・low である。
 それ以外の依頼の方法は、effort を指定できないツールとして扱う。Copilot の `requested_reviewers`、`@claude review`・`@codex review` の mention、`codex review`、Copilot CLI がこれに当たる。
 `references/review-tool.md` の依頼の手順に、これらに effort を渡す方法が無いからである。
 手順に無い語を依頼に足して effort を渡そうとしない（`@codex review` に `review` 以外の語を足すと別の動作になることは、同じファイルに書いてある）。
 一番下の effort（`low`）で始めた場合と、effort を指定できないツールの場合は、最初の段階が終わったら止まる。
 
-| `--max-iterations` | 反復（`/code-review` を high で始めた場合） | 合計 |
+`claude-code-action` では、今の段階の effort を `check` と `request` の `--effort` に渡す。
+`pull_request` の自動の run は、ワークフローの設定（リポジトリ変数 `CLAUDE_REVIEW_EFFORT`。無ければ high）の effort でレビューするので、段階の effort と違うことがある。
+目印の effort が段階の effort と違う run は、HEAD のレビュー済みに数えない。その run が終わるのを待ってから、段階の effort で `request` する。
+effort が違うために数えない run も、その指摘は、ほかの指摘と同じように集めて対応する。
+
+| `--max-iterations` | 反復（high で始めた場合） | 合計 |
 | --- | --- | --- |
 | 5 | high 5 回 → medium 2 回 → low 1 回 | 8 回 |
 | 3 | high 3 回 → medium 1 回 | 4 回 |
@@ -284,9 +297,9 @@ effort を指定できるのは、`review_tool: local` で Claude Code の `/cod
 | 止まった理由 | 条件 |
 | --- | --- |
 | 完了 | CI がすべて成功し、未解決のスレッドが無く、レビューの本文とトップレベルのコメントに対応していない指摘が無く、HEAD がレビュー済みである。`review_tool: none` では HEAD がレビュー済みかを問わず、CI がすべて成功し、未解決のスレッドが無く、スレッドの外の指摘にも対応していれば完了とする |
-| レビュー未着で待機終了 | 上のうち HEAD がレビュー済みであることだけを満たさず、レビューが現れるのを待つ時間が上限に達した |
+| レビュー未着で待機終了 | 上のうち HEAD がレビュー済みであることだけを満たさず、レビューが現れるのを待つ時間が上限に達した。`review_tool: claude-code-action` で、`check` が `paused`（一時停止）か `failed`（`workflow_dispatch` の run の失敗）を返したときは、待たずにここで止まり、その `status` を書く |
 | 最大反復到達 | 「反復の段階と effort」の最後の段階の回数を使い切った（effort を下げられないツールでは `--max-iterations` に達した）。または、進み具合のメモを失って段階が分からなくなり、1 回だけ反復した（「完了」「レビュー未着で待機終了」「判断待ちで終了」の条件を満たせば、そちらにする）。段階ごとの effort と反復の回数を書く。残っている CI の失敗、未解決のスレッド、スレッドの外（レビューの本文とトップレベルのコメント）の指摘を書く。止まった時点の HEAD が `references/review-status.md`「HEAD のレビュー済み判定」でレビュー済みでなければ、そのことを書く（`none` を除く）。その HEAD の CI が終わっていなければ、終わっていないと書く |
-| 行き詰まり | 同じ CI の失敗が良くならず、新しく打てる手が無い。失敗の内容と、どうすれば直せそうかを報告する。runner が割り当てられないジョブか、承認などを待つジョブが上限を超えて始まらないときも、ここで止まる。ベースブランチとの競合で CI が起動しないとき（競合があるかを判定できないときを含む）も同じである（`references/ci-checks.md`「`no checks` を確かめ直す」）。手順 3 でベースブランチを取り込もうとして、merge が競合したときと、規約が merge を許さないときも同じである |
+| 行き詰まり | 同じ CI の失敗が良くならず、新しく打てる手が無い。`review_tool: claude-code-action` の `check` か `request` が、ワークフローが無い（exit 3）か、やり直しても判定できない（exit 2）ときも、ここで止まる（`references/review-request.md`「再レビュー依頼」）。失敗の内容と、どうすれば直せそうかを報告する。runner が割り当てられないジョブか、承認などを待つジョブが上限を超えて始まらないときも、ここで止まる。ベースブランチとの競合で CI が起動しないとき（競合があるかを判定できないときを含む）も同じである（`references/ci-checks.md`「`no checks` を確かめ直す」）。手順 3 でベースブランチを取り込もうとして、merge が競合したときと、規約が merge を許さないときも同じである |
 | 仕上げ対象なし | 着手する前か、ループの中の状態の取得で見つける。PR が OPEN でない（`MERGED` か `CLOSED`）。ループの途中で他の人のマージやクローズで対象が無くなったときも同じように止まる |
 | 前提不一致 | 着手する前に止まる。repo が一致しない、または現在のブランチが PR の head と一致しない |
 | 判断待ちで終了 | `--defer-decisions` のときだけ。CI がすべて成功し、残りの未解決のスレッドとスレッドの外の指摘が、すべて判断待ちにした人の判断が要る指摘か、それと関係するとして判断待ちに含めた指摘であり、HEAD がレビュー済みである（`review_tool: none` を除く）。判断待ちの一覧を、上の報告と同じ形で書く。「完了」とは別の止まった理由にする |

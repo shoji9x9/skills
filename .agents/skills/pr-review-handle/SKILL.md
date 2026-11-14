@@ -142,6 +142,7 @@ gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
   その取得を指摘の収集に使い回さない。切り詰めた後ろにある指摘を取りこぼす。
 - 自分（PR の作成者）の投稿と、作成者か担当者が投稿した `<!-- pr-finalize-loop:local-review` で始まる記録は、集める対象から除く。それ以外の人が投稿した、目印で始まるコメントは除かない。`.user.type` で bot だけに絞らない。人のレビュアーが総評をトップレベルに置くこともある。
 - 特に `review_tool` が mention で依頼する方法（`claude-code`・`codex`）のときは、レビュアーが総評と指摘をトップレベルのコメントに置くものとして読む。`reviews[].body` が空でも指摘はある。
+  `claude-code-action` も、行に付けない指摘を `github-actions[bot]` の総評のコメントに書く。
 - レビューの本文とトップレベルのコメントにある指摘には、返信するスレッドが無く、`resolve` もできない。
   PR のトップレベルのコメントで、対象の箇所・判断・根拠・実測した結果を書いて返す。直した場合も、見送った場合も残す。
   指摘の側には対応の記録が残らないので、このコメントだけが証跡になる。
@@ -210,6 +211,12 @@ GitHub の側で自動レビューを設定していても、push の後にレ�
 `copilot` ではタイムラインの Copilot 宛ての `review_requested` イベントで、mention で依頼する方法（`claude-code`・`codex`）では現在の HEAD への進行中の bot のレビューかコメントで判定する。
 `local` では、自分のレビューが自動で始まることは無い。ただし、別のエージェントの自動レビュー（Copilot など）が始まっていないかは、mention で依頼する方法と同じように確かめる（[`references/review-tool.md`](references/review-tool.md) の「local」）。
 `local` での「依頼」は、エージェント自身が手元でレビューして記録を投稿することを指す。
+`claude-code-action` では、同梱のスクリプト `scripts/claude-review-action.sh` の `check` で判定する。push した後は、`pull_request` の自動の run が一覧に現れるまで（出力の `runs` が 1 以上になるまで）上限を決めて待ってから判定する。
+`status` が `reviewed` なら依頼せず、そのことを利用者に伝えてレビューの結果の確認に進む。`in-progress` なら依頼せず、上限を決めて `reviewed` になるのを待つ。`paused` と `failed` なら依頼せず、その理由を利用者に伝える。
+依頼の成立は、`request` が exit 0 で run の ID を出したことで確かめ、その後は `check` が `reviewed` を返すまで上限を決めて待つ。`request` のほかの終了コードの扱いは、[`references/review-tool.md`](references/review-tool.md) の「claude-code-action」にある。
+依頼は同じスクリプトの `request` で行う。
+push しなかったときは、依頼の前後の `check` と `request` の両方の `--since` に、この対応で最後に投稿した返信やコメントの `createdAt` を渡す。
+それより前の run は対応を見ていないので、その目印で `reviewed` と判定しないためである（[`references/review-tool.md`](references/review-tool.md) の「claude-code-action」）。
 判定の手順は [`references/review-tool.md`](references/review-tool.md) にある。
 push が終わった直後に記録した時刻より後に自動レビューが始まっていれば、改めて依頼せず、そのことを利用者に伝える。そのうえで、依頼するかの確認を省いて、レビューの結果の確認に進む。
 最新のイベントの日時だけでは判定できないので、前の HEAD への古い依頼（PR を作ったときなど）を、自動で依頼された根拠にしない。

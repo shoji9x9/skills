@@ -7,7 +7,9 @@ name: Claude review
 #
 # このファイルは、リポジトリに固有のパス・ツールを使わない。別のリポジトリにそのままコピーして使える。
 # リポジトリごとに変えるのは、リポジトリ変数（CLAUDE_REVIEW_*）と、下の env の DEFAULT_* の値だけである。
-# 運用（変数・一時停止・費用・危険と対策）は、配布元のリポジトリの docs/claude-review.md にある。
+# 原本は、配布元（shoji9x9/skills）の pr-finalize-loop スキルに同梱した assets/claude-review.yml である。
+# 配布元のリポジトリのワークフローは、そのバイト単位の複製で、配布元のテストが一致を確かめる。
+# 導入の手順（secret・リポジトリ変数）と、目印の読み方・依頼の方法は、pr-finalize-loop の references/review-tool.md「claude-code-action」にある。
 #
 # 入力名と意味は、claude-code-action の公式の文書で確かめた。
 #   https://github.com/anthropics/claude-code-action/blob/main/action.yml
