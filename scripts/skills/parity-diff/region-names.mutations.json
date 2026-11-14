@@ -1,6 +1,6 @@
 {
   "$comment": [
-    "region-names.test.ts のうち、画素の差分の領域に論理名を対応づける判定（Issue #1018）の検出能力を示す変異の一覧。",
+    "region-names.test.ts のうち、画素の差分の領域に論理名を対応づける判定（Issue #1018、#1025）の検出能力を示す変異の一覧。",
     "どの変異も、誤っても終了コードは変わらず、分類する人とモデルに誤った論理名か「名前なし」を渡す。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
   ],
@@ -33,7 +33,14 @@
         "CLI: 両側とも traits.json が無ければ、すべての領域が unknown になる",
         "CLI: マスクの論理名が traits.json に無ければ、論理名と重ならない領域を unknown にする",
         "CLI: マスクの論理名が traits.json にあっても面積が 0 なら、名前が無いのではなく面積が 0 だと出す",
-        "CLI: マスクの論理名の位置を片側でしか確かめられなければ、覆われた領域を masked にせず unknown にする"
+        "CLI: マスクの論理名の位置を片側でしか確かめられなければ、覆われた領域を masked にせず unknown にする",
+        "CLI: 片側だけ mask-rects.json が記録し、もう片側は無いと宣言した側で traits.json に名前が無ければ、もう片側を mask_unlocated にする",
+        "CLI: 片側だけ mask-rects.json が記録し、もう片側は引数を渡さない側で traits.json に名前が無ければ、もう片側を mask_unlocated にする",
+        "CLI: 両側とも mask-rects.json が無いと宣言すれば、traits.json だけで判定し、マスクの名前が無ければ mask_unlocated と unknown を出す",
+        "CLI: mask-rects.json に名前が無ければ、その側は traits.json から探し、無ければ mask_unlocated を出す",
+        "CLI: 矩形を記録できなかった名前（rects: null）は、traits.json を探さず unrecordable として位置が分からないマスクにする",
+        "CLI: 引数を渡さず、traits.json の隣に mask-rects.json も無い側は、記録の無い側として扱う",
+        "CLI: 隣に mask-rects.json があっても、無いと宣言した側では読まない"
       ]
     },
     {
@@ -55,7 +62,15 @@
       "expect_failing": [
         "マスクの矩形の和に全体が覆われる領域は masked になる（重なる論理名より先に決まる）",
         "CLI: マスクの論理名を traits.json で見つけ、領域を覆えば masked にする",
-        "CLI: --mask-bbox で渡した画素の矩形も、マスクとして扱う"
+        "CLI: --mask-bbox で渡した画素の矩形も、マスクとして扱う",
+        "CLI: 両側の mask-rects.json がマスクの位置を記録していれば、traits.json に名前が無くてもマスクの中の領域を masked にする",
+        "CLI: 1 つの名前が複数の要素に当たるマスクは、記録したすべての矩形の和で覆うかを決める",
+        "CLI: mask-rects.json に名前が無くても、traits.json にあればその rect をマスクの位置にする",
+        "CLI: mask-rects.json の矩形にも --scale を掛けて比べる",
+        "CLI: traits.json が無い側でも、mask-rects.json の記録でマスクの中の領域を masked にする",
+        "CLI: --mask-bbox と mask-rects.json のマスクは、側ごとの和で覆うかを決める",
+        "CLI: mask-rects.json の小数の縁は、四捨五入した位置で覆うかを決める",
+        "CLI: deviceScaleFactor が 1.5 で縁が半画素になるとき、塗られた画素は覆い、半分だけ覆う縁の画素は覆わない"
       ]
     },
     {
@@ -67,7 +82,50 @@
       "occurrences": 1,
       "expect_failing": [
         "CLI: マスクの論理名の位置を片側でしか確かめられなければ、覆われた領域を masked にせず unknown にする",
-        "CLI: マスクの論理名の位置が両側で違えば、片側のマスクだけが覆う領域を masked にしない"
+        "CLI: マスクの論理名の位置が両側で違えば、片側のマスクだけが覆う領域を masked にしない",
+        "CLI: mask-rects.json の位置が両側で違えば、片側のマスクだけが覆う領域を masked にしない",
+        "CLI: 片側だけ mask-rects.json が記録し、もう片側は無いと宣言した側で traits.json に名前が無ければ、もう片側を mask_unlocated にする",
+        "CLI: 片側だけ mask-rects.json が記録し、もう片側は引数を渡さない側で traits.json に名前が無ければ、もう片側を mask_unlocated にする",
+        "CLI: mask-rects.json の記録が空の rects（ロケータが 0 件に当たった）なら、その側ではマスクが何も塗らなかったとして扱い、mask_unlocated を出さない",
+        "CLI: mask-rects.json の記録が面積が 0 の矩形だけなら、その側ではマスクが何も塗らなかったとして扱い、mask_unlocated を出さない",
+        "CLI: mask-rects.json に名前が無ければ、その側は traits.json から探し、無ければ mask_unlocated を出す",
+        "CLI: 矩形を記録できなかった名前（rects: null）は、traits.json を探さず unrecordable として位置が分からないマスクにする"
+      ]
+    },
+    {
+      "id": "unrecorded-name-as-empty",
+      "why": "mask-rects.json に記録の無いマスクの論理名を、その側で何も塗らなかったマスクとして扱い、traits.json から探さず mask_unlocated も出さない（位置の分からないマスクの近くの領域を unnamed にする）",
+      "file": "skills/parity-diff/scripts/region-names.mjs",
+      "find": "  return record.byName.get(name);",
+      "replace": "  return record.byName.get(name) ?? [];",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: mask-rects.json に名前が無ければ、その側は traits.json から探し、無ければ mask_unlocated を出す",
+        "CLI: mask-rects.json に名前が無くても、traits.json にあればその rect をマスクの位置にする",
+        "CLI: 矩形を記録できなかった名前（rects: null）は、traits.json を探さず unrecordable として位置が分からないマスクにする"
+      ]
+    },
+    {
+      "id": "mask-rects-ignore-scale",
+      "why": "mask-rects.json の CSS の px の矩形を画像の画素に直さずに比べる（deviceScaleFactor が 1 でない組で、マスクの外の領域を masked にするか、中の領域を masked にしない）",
+      "file": "skills/parity-diff/scripts/region-names.mjs",
+      "find": "    return { rects: painted.map((r) => scaleRect(r, scale)), reason: null };",
+      "replace": "    return { rects: painted.map((r) => scaleRect(r, 1)), reason: null };",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: mask-rects.json の矩形にも --scale を掛けて比べる",
+        "CLI: deviceScaleFactor が 1.5 で縁が半画素になるとき、塗られた画素は覆い、半分だけ覆う縁の画素は覆わない"
+      ]
+    },
+    {
+      "id": "unrecordable-as-painted-nothing",
+      "why": "矩形を記録できなかった名前（rects: null）を、その側では何も塗らなかったマスクとして扱い、mask_unlocated を出さない（塗られた位置の差分を unnamed として扱い、位置が分からないことを伝えない）",
+      "file": "skills/parity-diff/scripts/region-names.mjs",
+      "find": "  if (recorded === null) return { rects: [], reason: \"unrecordable\" };",
+      "replace": "  if (recorded === null) return { rects: [], reason: null };",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: 矩形を記録できなかった名前（rects: null）は、traits.json を探さず unrecordable として位置が分からないマスクにする"
       ]
     }
   ]

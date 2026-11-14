@@ -89,6 +89,8 @@
 node <スキルディレクトリ>/scripts/region-names.mjs <pixel-crops.mjs の出力の JSON> \
   (--current-traits .replace/parity/<slug>/baseline/<page>/<state>/<viewport>/traits.json | --current-traits-missing) \
   (--new-traits .replace/parity/<slug>/new/<target>/baseline-new/<page>/<state>/<viewport>/traits.json | --new-traits-missing) \
+  (--current-mask-rects .replace/parity/<slug>/baseline/<page>/<state>/<viewport>/mask-rects.json | --current-mask-rects-missing) \
+  (--new-mask-rects .replace/parity/<slug>/new/<target>/baseline-new/<page>/<state>/<viewport>/mask-rects.json | --new-mask-rects-missing) \
   --scale <撮影の deviceScaleFactor> [--mask-name <論理名>]... [--mask-bbox <x,y,w,h>]... \
   > <pixel-crops.mjs の --out のディレクトリ>/region-names.json
 ```
@@ -97,11 +99,16 @@ node <スキルディレクトリ>/scripts/region-names.mjs <pixel-crops.mjs の
   その組のある側に `traits.json` が無いときは、パスの代わりに `--current-traits-missing` か `--new-traits-missing` を渡す。
   `traits.json` の場所は、コマンドの例のとおりである。新側は採取のスペック（[`../assets/capture-new.spec.template.ts`](../assets/capture-new.spec.template.ts)）が組ごとに書く場所で、現側の `baseline/` はそれと対称の並びである。
   無いと宣言してよいのは、その組の場所にファイルが在るかを確かめ（`test -f` など）、無かったときだけである。ほかの工程の結果（特性照合が失敗したことなど）から推し量らない。
-  スクリプトは宣言を確かめない。ファイルがあるのに宣言すると、その側の論理名と `--mask-name` のマスクの位置を探さない。
-  その結果、どの論理名とも重ならない領域は `unknown` になり、`--mask-name` のマスクの中の領域は `masked` にならない。
+  スクリプトは宣言を確かめない。ファイルがあるのに宣言すると、その側の論理名を探さず、`mask-rects.json` に記録の無いマスクの位置も探さない。
+  その結果、どの論理名とも重ならない領域は `unknown` になり、その側の位置が分からないマスクの中の領域は `masked` にならない。
   両側で重なる論理名は、`sides` に片側だけで出る。`--mask-bbox` のマスクは両側に当たるので変わらない。
   パスを渡してファイルが無いときは、パスの誤りと区別できないので、無い組として扱わずに exit 2 にする。
   結果は stdout に出るので、`pixel-crops.mjs` の `--out` と同じディレクトリに `region-names.json` として保存する。終了コードが 1 のときも、stdout の JSON はそのまま使える
+- `mask-rects.json` は、撮影のときにマスクを当てた矩形の記録で、`traits.json` の隣に組ごと・側ごとに置く（下の「マスクを当てた矩形の記録（`mask-rects.json`）」）。
+  `traits.json` と同じく、その組の場所にファイルが在るかを確かめ、在ればパスを、無ければ `--current-mask-rects-missing` か `--new-mask-rects-missing` を渡す。
+  どちらの引数も渡さない側は、その側の `traits.json` の隣（同じディレクトリ）の `mask-rects.json` を読み、無ければ記録の無い側として扱う。渡し忘れで、在る記録を使わずに判定しないためである。
+  ファイルがあるのに無いと宣言すると、その側のマスクの位置を `traits.json` から探すので、見つからなければ領域が `unknown` に回る。
+  パスと宣言の両方を渡したときと、パスのファイルが無い・形が違うときは exit 2 にする
 - `--scale` は、撮影に使った `deviceScaleFactor` である。Playwright のプロジェクトの `use` に書いた値を使う。
   `use` にデバイスの記述子（`devices['iPhone 13']` など）を展開したときは、その記述子の `deviceScaleFactor` を使う。どちらにも無ければ 1 である。
   スクリプトはこの値を確かめないので、誤った値を渡すと、誤った論理名が exit 0 のまま出る。
@@ -121,20 +128,59 @@ node <スキルディレクトリ>/scripts/region-names.mjs <pixel-crops.mjs の
   | `unnamed` | 重なる論理名が無く、判定できない理由も無い。`traits.json` に採った論理名（`traits.elements`）のどれとも重ならない要素の差分である |
 
 - マスクは、撮影の恒久のマスク（`capture_conditions.masks[].name`）を `--mask-name` で、共同居住機能の実行時のマスク（[`capture-new.md`](capture-new.md)「共同居住機能の実行時マスク」で当てた `bbox`）を `--mask-bbox` で渡す。
-  `--mask-bbox` の座標は画像の画素である。マスクの論理名は、`traits.json` の `rect` で矩形に直す。マスクの論理名そのものは、重なる論理名に数えない（塗りつぶされているため）。
+  `--mask-bbox` の座標は画像の画素である。マスクの論理名そのものは、重なる論理名に数えない（塗りつぶされているため）。
   一部だけマスクに重なる領域は、`masks` に重なったマスクを持ち、`status` は重なる論理名で決める
+- マスクの論理名は、側ごとに次の順で矩形に直す。
+  1. その側の `mask-rects.json` がその名前を記録していれば、記録した矩形を使う。
+     記録した `rects` が空か、面積が 0 の矩形だけなら、その側ではマスクが何も塗らなかったとして扱う（位置は分かったので、判定できない理由にしない）。
+     記録した `rects` が `null`（矩形を記録できなかった）なら、位置の分からないマスクにし、`traits.json` からは探さない
+  2. 記録していなければ（`mask-rects.json` が無い側を含む）、その側の `traits.json` の `rect` から探す
 - 判定できない理由は、領域ごとの `unresolved` に出る。理由は 2 つある。
   - `traits_missing:<side>`: その組のその側の `traits.json` が無い（`--<side>-traits-missing` を渡した）。重なる論理名を探せたのはもう片側だけである
-  - `mask_unlocated:<side>:<論理名>`: マスクの論理名が、その側の `traits.json` に無いか、幅か高さが 0 である（`masks.unlocated[].reason` の `absent` と `zero_area`）。マスクの位置が分からないので、マスクの中かどうかを判定できない。
+  - `mask_unlocated:<side>:<論理名>`: マスクの論理名が、その側の `mask-rects.json` に記録されておらず、`traits.json` にも無いか、幅か高さが 0 である（`masks.unlocated[].reason` の `absent` と `zero_area`）。
+    `mask-rects.json` が `rects: null`（矩形を記録できなかった）を記録した名前も、ここに入る（`reason` は `unrecordable`）。
+    マスクの位置が分からないので、マスクの中かどうかを判定できない。
     片側でだけ位置が分かったマスクも、もう片側で当たったかを判定できないので、`masked` の判定に使わない
 
   これらの理由がある組で、どの論理名とも重ならない領域は `unknown` にし、`unnamed`（名前を付けていない要素の差分）として扱わない。
   `unknown` の領域は、名前があるかを確かめていない候補として、トリアージに回し、判定できなかった理由を `diff.md` の根拠の欄に書く
 - `rect` は `getBoundingClientRect` の値で、ビューポートを基準にした座標である。全画面（`capture_conditions.full_page: true`）で、スクロールした状態で撮った組では、画像の座標とずれる。
-  このスクリプトはスクロールの位置を知らないので、このずれを検出しない。スクロールしてから撮る状態の組では、出た論理名を crop と突き合わせてから使う
+  このスクリプトはスクロールの位置を知らないので、このずれを検出しない。スクロールしてから撮る状態の組では、出た論理名を crop と突き合わせてから使う。
+  `mask-rects.json` の矩形は撮影した画像の座標で記録するので、このずれは無い
+- 出力の `mask_rects` は、側ごとに `mask-rects.json` を読んだか（`present`）、無い側として扱ったか（`missing`）を表す。
+  `--mask-name` に渡していない名前を `mask-rects.json` が記録していれば、マスクとして使わず、stderr に警告を出す
 - 終了コードは、0 がすべての領域を判定できた、1 が `unknown` の領域がある、2 が入力の誤り（引数・渡したパスのファイルが無い・JSON の形・`--scale` が正でない）である。
   1 は結果であって停止の合図ではない。`unknown` の件数と理由は、stdout の `summary` と stderr の警告に出る
 - 結果は、[`triage.md`](triage.md) の入力（crop 対に添える情報）と、承認する人が見る HTML のレポート（[`triage.md`](triage.md)「承認する人が見る HTML のレポート」）に使う
+
+#### マスクを当てた矩形の記録（`mask-rects.json`）
+
+恒久マスクの論理名は、`traits.elements` に入らないことが多い（入れると、マスクで隠した値が `traits.json` に残る）。
+そのため、マスクの位置は撮影のときに別のファイルへ記録する。新側は、採取のスペック（[`../assets/capture-new.spec.template.ts`](../assets/capture-new.spec.template.ts)）が組ごとに書く。
+現側は、`parity-suite` の `references/baseline.md`「マスクを当てた矩形を書き出す」のコード例で書く。
+
+- 形は `[{ "name": "<マスクの論理名>", "rects": [{ "x", "y", "width", "height" }, ...] }]` である。`capture_conditions.masks[]` の名前ごとに 1 要素を書く。
+  `rects` は、矩形を記録できない名前（下の 2 つ）だけ `null` にする。
+- `rects` には、ロケータが当たったすべての要素の矩形を書く。当たる要素が無ければ空の配列にし、名前を省かない（記録に名前が無いと、位置が分からないマスクとして扱われる）。
+- iframe の中の要素に当たる名前は、`rects` を `null` にする。`mask` はその iframe の表示範囲の中だけを塗るので、要素の矩形を書くと、塗っていない位置までマスクとして扱われ、そこにある差分が隠れる。
+  iframe の中でも要素に 1 件も当たらなければ、空の配列にする。
+- 撮影の直後と、主文書で 10 フレーム待った後とで、採った矩形が違う名前も、`rects` を `null` にする。動いている要素は、`mask` が塗った位置と撮影の後に採った位置が合うとは限らない（無限のアニメーションは撮影のときに最初の状態に戻されるなど）。
+  動く理由（CSS のアニメーション・shadow DOM の中・`requestAnimationFrame`）は見分けず、位置が変わったかで決める。
+  1 回目はすべての名前の要求を一度に送り、待つのは主文書で 1 回だけにする。名前ごとに順に採ったり待ったりすると、後の名前ほど撮影から離れた時点の位置になる。
+  比べる名前（iframe の外で要素に当たった名前）が無ければ、待たず、2 回目も採らない。iframe の中で要素に当たった名前は、この場合も `null` にする。
+  撮影の直後に 1 件も当たらなかった名前は、`mask` が何も塗っていないので、2 回目の結果に依らず空の配列にする。
+- 撮影の後に採るので、撮影の後で 10 フレームの間に動かなかった要素の位置は、塗った位置と違っても見分けられない。
+  撮影の後に一度止まってから動く要素（止まる区間を持つ無限のアニメーション・タイマーで切り替わる要素）と、撮影の後にロケータが新しく当たった要素がこれに当たる。
+  恒久マスクは隠したい値を残さないために当てるもので、動く要素に当てることは少ない。当てるなら、撮影の前の状態の操作でその動きを止める。
+- スクリプトは、`null` の名前を位置の分からないマスクとして扱い、`traits.json` からも探さない（iframe の中の要素の `rect` は iframe の中の座標で、動いている要素は位置が定まらない）。
+- 撮影の前に、その組の前の回の `mask-rects.json` を消す。撮影の後で失敗したときに、新しい画像の隣に古い記録を残さないためである。
+- 矩形は撮影の直後に採る。`animations: 'disabled'` は撮影のときに途中のトランジションを終わらせるので、撮影の前に採ると途中の位置を記録してしまう。
+- 文字列やスタイルは書かない。マスクは隠したい値を成果物に残さないために当てるので、矩形だけを書く。
+- 座標は撮影した画像での位置で、単位は CSS の px である。全画面の撮影は文書の原点から撮るので、`getBoundingClientRect` にスクロールの量を足す。ビューポートの撮影では足さない。
+  スクリプトは、縁を CSS の px の整数に四捨五入してから `--scale` を掛けて比べる。Playwright の Chromium の `mask` は、縁を四捨五入した位置を塗るからである。
+  `--scale` が 1.5 のように整数でないと、縁が画素の途中に来る。`mask` はその範囲に全体が入る画素だけを塗り、スクリプトも半分だけ覆われた画素を覆っていないと判定するので、`masked` の判定は塗った画素と一致する（実測した deviceScaleFactor は 1・1.5・2・3）。
+- 書き忘れを検出するチェックは無い。記録が無い組は、`traits.json` から探し、見つからなければ `mask_unlocated` になる。
+- `artifact_health` を宣言した現側の成果物では、`mask-rects.json` も `entries` に宣言する（`parity-suite` の `references/baseline.md`「マスクを当てた矩形を書き出す」）。
 
 ## 特性照合
 

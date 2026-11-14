@@ -452,11 +452,96 @@ async function verifyCdpBrowser(page: import("@playwright/test").Page): Promise<
   }
 }
 
-// 1 つの組の成果物（スクリーンショット・特性・aria スナップショット）を書き出す
+type MaskLocator = { name: string; locator: import("@playwright/test").Locator };
+
+// マスクを当てた矩形を、マスクの論理名ごとに集める。mask-rects.json へ書き出し、parity-diff の
+// region-names.mjs が側ごとのマスクの位置として読む。
+// 撮影の直後に採る。animations: "disabled" は撮影のときに途中のトランジションを終わらせるので、撮影の前に採ると、
+// 途中の位置を記録してしまう（トランジションの途中の要素で、撮影の前は x=37、撮影の後と塗った位置は x=500 だった）。
+// ロケータが当たったすべての要素の矩形を書く。当たる要素が無ければ rects は空の配列にする（名前を省かない）。
+// 文字列やスタイルは採らない。マスクは隠したい値を成果物に残さないために当てるので、矩形だけを書く。
+// 座標は撮影した画像での位置で、単位は CSS の px である。全画面の撮影は文書の原点から撮るのでスクロールの量を足し、
+// ビューポートの撮影は getBoundingClientRect のままにする（traits.json の rect はビューポート基準なので、ここが違う）。
+// mask が塗る画素は、この矩形の縁を四捨五入して deviceScaleFactor を掛けた範囲の中で、全体が入る画素である。
+// Playwright の Chromium で、全画面とビューポートの撮影・deviceScaleFactor 1・1.5・2・3・スクロールした状態・
+// 固定位置の要素・overflow で切られた要素について確かめた。
+// 次の名前は、矩形を書かずに rects を null にする。region-names.mjs は、null の名前を位置の分からないマスクとして扱う。
+// - iframe の中の要素に当たる名前。mask はその iframe の表示範囲の中だけを塗り、要素の矩形はその範囲を超えうるので、
+//   矩形を書くと塗っていない位置の差分まで隠れる。iframe の中でも要素に 1 件も当たらなければ、空の配列にする
+// - 撮影の直後と、主文書で 10 フレーム待った後とで、矩形が違う名前。動いている要素は、mask が塗った位置と、撮影の後に
+//   採った位置が合うとは限らない（無限のアニメーションは撮影のときに最初の状態に戻されるなど）。動く理由
+//   （CSS のアニメーション・shadow DOM の中・requestAnimationFrame）は見分けず、位置が変わったかで決める。
+//   Chromium で、無限のアニメーションの中・shadow DOM の中・requestAnimationFrame で動く・60 秒かけて動く要素は null、
+//   止まっている要素と opacity だけが変わる要素は矩形になることを確かめた
+// 撮影の後に採るので、撮影の後で 10 フレームの間に動かなかった要素の位置は、塗った位置と違っても見分けられない。
+// 撮影の後に一度止まってから動く要素（止まる区間を持つ無限のアニメーション・タイマーで切り替わる要素）と、撮影の後に
+// ロケータが新しく当たった要素がこれに当たる。
+// 1 回目はすべての名前の要求を一度に送り（同じフレームで採るとは限らない）、待つのは主文書で 1 回だけにする。
+// 名前ごとに順に採ったり待ったりすると、後の名前ほど撮影から離れた時点の位置になる。
+// 比べる名前（iframe の外で要素に当たった名前）が無ければ待たず、2 回目も採らない（記録するかは settledRects が
+// 1 回目から決め、iframe の中で要素に当たった名前は null のままにする）。
+// 出典: https://playwright.dev/docs/api/class-locator#locator-evaluate-all
+type MaskRect = { x: number; y: number; width: number; height: number };
+type MaskSample = { inFrame: boolean; rects: MaskRect[] };
+
+async function recordMaskRects(
+  page: import("@playwright/test").Page,
+  maskLocators: MaskLocator[],
+): Promise<{ name: string; rects: MaskRect[] | null }[]> {
+  // ページの中では採るだけにし、記録できるかの判定は settledRects で行う
+  const sample = (locator: import("@playwright/test").Locator): Promise<MaskSample> =>
+    locator.evaluateAll(
+      (elements, documentOrigin) => ({
+        inFrame: window !== window.top,
+        rects: elements.map((el) => {
+          const r = el.getBoundingClientRect();
+          return {
+            x: r.x + (documentOrigin ? window.scrollX : 0),
+            y: r.y + (documentOrigin ? window.scrollY : 0),
+            width: r.width,
+            height: r.height,
+          };
+        }),
+      }),
+      fullPage === true,
+    );
+  const sampleAll = () => Promise.all(maskLocators.map(({ locator }) => sample(locator)));
+  const first = await sampleAll();
+  const compare = first.some((f) => !f.inFrame && f.rects.length > 0);
+  if (compare) {
+    await page.evaluate(async () => {
+      for (let i = 0; i < 10; i += 1) {
+        await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+      }
+    });
+  }
+  const second = compare ? await sampleAll() : first;
+  return maskLocators.map(({ name }, i) => ({ name, rects: settledRects(first[i], second[i]) }));
+}
+
+// 2 回採った矩形から、記録する矩形を決める。1 回目に 0 件なら空の配列、iframe の中の要素と、2 回で位置が変わった要素は null にする。
+// 記録するかは、ここだけで決める（待つかの判定は、比べる名前があるかで別に決める）
+function settledRects(first: MaskSample, second: MaskSample): MaskRect[] | null {
+  // 撮影の直後に 1 件も当たらなかった名前は、mask が何も塗っていないので空の配列にする（同じ組の他の名前に依らない）
+  if (first.rects.length === 0) return [];
+  if (first.inFrame) return null;
+  return JSON.stringify(second.rects) === JSON.stringify(first.rects) ? first.rects : null;
+}
+
+// 1 つの組の成果物（スクリーンショット・マスクを当てた矩形・特性・aria スナップショット）を書き出す
 async function captureArtifacts(
   page: import("@playwright/test").Page,
   outDir: string,
 ): Promise<void> {
+  // 同じ論理名は 1 回だけ記録する。region-names.mjs は、同じ名前を 2 回記録した mask-rects.json を形の誤りにする
+  const maskNames = [...new Set<string>(masks.map((m: { name: string }) => m.name))];
+  const maskLocators: MaskLocator[] = maskNames.map((name) => ({
+    name,
+    locator: resolveLocator(page, name),
+  }));
+  // 前の回の記録を先に消す。撮影の後に矩形を採る前に失敗すると、新しい画像の隣に前の回の記録が残り、
+  // region-names.mjs がそれをこの画像のマスクの位置として読むからである
+  rmSync(join(outDir, "mask-rects.json"), { force: true });
   // 撮影条件（アニメーション無効・マスク）は現側と同一。
   // 出典: https://playwright.dev/docs/api/class-page#page-screenshot（animations / mask）
   await page.screenshot({
@@ -465,8 +550,9 @@ async function captureArtifacts(
     // ここを決め打ちすると画像サイズが違い、条件一致検証を通り抜けたまま全ページが全面差分になる
     fullPage: fullPage,
     animations: "disabled",
-    mask: masks.map((m: { name: string }) => resolveLocator(page, m.name)),
+    mask: maskLocators.map((m) => m.locator),
   });
+  writeJson(join(outDir, "mask-rects.json"), await recordMaskRects(page, maskLocators));
 
   // 特性は論理名 1 件ずつ渡して採る（まとめて渡すと 1 件の失敗で既採取分ごと失う）
   const traits = [];

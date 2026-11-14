@@ -112,6 +112,65 @@
 
 依存先が green になった次の実行では、候補を自動で外し、原本のまま全面の比較に戻れる。
 
+### マスクを当てた矩形を書き出す
+
+恒久マスクの論理名は、`traits.elements` に入れない。入れると、マスクで隠した値（文字列・スタイル）が `traits.json` に残る。
+そのため `parity-diff` は、マスクの位置を `traits.json` から決められない。マスクから遠く、どの論理名とも重ならない差分の領域まで「判定できない」（`unknown`）に回る。
+これを避けるため、撮影の組ごとに、マスクを当てた矩形を `mask-rects.json` に書き出す。置き場所は、その組の `traits.json` の隣である。
+新側は `parity-diff` の採取の雛形が同じ形で書くので、現側の採取のスペックにも同じ処理を入れる。
+
+- 形・`rects` を `null` にする名前（iframe の中の要素と、撮影の直後に動いていた要素）・座標・矩形を採る時点の取り決めの原本は、`parity-diff` の `references/detect.md`「マスクを当てた矩形の記録（`mask-rects.json`）」である。ここへ転記しない。
+  要点は、名前ごとにロケータが当たったすべての要素の矩形を、撮影の直後に採ることと、文字列やスタイルは採らないことである。
+  参照先を読めないときは、下のコード例のとおりに書く。
+- 恒久マスクを、位置が動く要素（カルーセル・ティッカー・ポーリングで行が増える一覧など）に当てない。
+  採取のスペックは撮影の後に矩形を採るので、撮影の後の 10 フレームの間に止まっていた要素の位置を、塗った位置と違っても記録する。
+  その記録を読むと、`parity-diff` は塗っていない位置の差分をマスクの中として扱い、報告から外す。当てるなら、撮影の前の状態の操作（`applyState`）でその動きを止める。
+- 書き忘れを検出するチェックは無い。書かなかった組では、`parity-diff` はマスクの位置を `traits.json` から探し、見つからなければ判定できない理由（`mask_unlocated`）を出す。
+  `traits.json` の隣（同じディレクトリ）に置けば、`parity-diff` は引数で渡されなくても読む。
+- `artifact_health` を宣言した成果物では、`mask-rects.json` も採取物なので、`traits.json` と同じく `entries` に `kind: captured` で宣言する（下の「採取物の健全性」）。
+  読むのはスペックではなく `parity-diff` の `region-names.mjs` なので、`read_by` を空にし、`unread_reason` にそのことを書く。
+  宣言しないと、書き出した後の健全性のチェックが、未宣言のファイルとして失敗にする。
+
+```ts
+// 出典: https://playwright.dev/docs/api/class-locator#locator-evaluate-all、
+//       https://playwright.dev/docs/api/class-page#page-screenshot（mask）
+// masks は capture_conditions.masks、fullPage は capture_conditions.full_page、resolveLocator はロケータマッピング
+// 同じ論理名は 1 回だけ記録する（parity-diff は、同じ名前を 2 回記録したファイルを形の誤りにする）
+const names = [...new Set(masks.map((m: { name: string }) => m.name))];
+const located = names.map((name) => [name, resolveLocator(page, name)] as const);
+// 全画面の撮影は文書の原点から撮るので、スクロールの量を足す
+const inImage = (els: Element[], full: boolean) => ({
+  inFrame: window !== window.top,
+  rects: els.map((el) => {
+    const { x, y, width, height } = el.getBoundingClientRect();
+    return full ? { x: x + scrollX, y: y + scrollY, width, height } : { x, y, width, height };
+  }),
+});
+// 前の回の記録を消してから撮る（撮影の後で失敗したときに、新しい画像の隣に古い記録を残さない）
+rmSync(join(outDir, "mask-rects.json"), { force: true });
+await page.screenshot({ path: join(outDir, "screenshot.png"), fullPage, animations: "disabled", mask: located.map(([, loc]) => loc) });
+// 撮影の直後にすべての名前の要求を一度に送り、比べる名前があれば主文書で 10 フレーム待って、もう一度採る
+const sampleAll = () => Promise.all(located.map(([, loc]) => loc.evaluateAll(inImage, fullPage === true)));
+const first = await sampleAll();
+const needsSecond = first.some((f) => !f.inFrame && f.rects.length > 0);
+// 主文書で 10 フレーム待つ（parity-diff の採取の雛形と同じ待ち方）
+if (needsSecond) {
+  await page.evaluate(async () => {
+    for (let frame = 0; frame < 10; frame += 1) await new Promise(requestAnimationFrame);
+  });
+}
+const again = needsSecond ? await sampleAll() : first;
+const maskRects = located.map(([name], i) => {
+  // 1 回目に 0 件なら空の配列、iframe の中の要素と 2 回で位置が変わった要素は null にする
+  if (first[i].rects.length === 0) return { name, rects: [] };
+  const recordable = !first[i].inFrame && JSON.stringify(again[i].rects) === JSON.stringify(first[i].rects);
+  return { name, rects: recordable ? first[i].rects : null };
+});
+writeFileSync(join(outDir, "mask-rects.json"), `${JSON.stringify(maskRects, null, 2)}\n`);
+```
+
+`parity-diff` がこの記録をどう読むか（矩形の縁の丸め方を含む）は、`parity-diff` の `references/detect.md`「マスクを当てた矩形の記録（`mask-rects.json`）」で定義する。
+
 ### ページの path の解決規則
 
 `capture_conditions.pages[].path` は、**target の baseURL（`target.ui_url`）からの相対パス**で、次の規則で 1 つの URL に解決する。
