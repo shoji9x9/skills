@@ -14,10 +14,19 @@
 // 掛けてから比べる。rect はビューポートを基準にした座標なので、全画面（fullPage）をスクロールした状態で撮った組では
 // 画像の座標とずれる。このスクリプトはスクロールの位置を知らないので、そのずれを検出しない（references/detect.md に書く）。
 //
+// マスクの論理名の位置は、側ごとに次の順で決める。
+// 1. その側の mask-rects.json（撮影のときにマスクを当てた矩形の記録）がその名前を記録していれば、記録した矩形を使う。
+//    記録した rects が空か、面積が 0 の矩形だけなら、その側ではマスクが何も塗らなかったと分かる（位置は決まる）。
+// 2. 記録していなければ（mask-rects.json が無いと宣言した側を含む）、その側の traits.json の rect から探す。
+// mask-rects.json の矩形は、撮影した画像での位置で、単位は CSS の px である（全画面の撮影ではスクロールの量を足してある）。
+// 縁を CSS の px の整数に四捨五入してから、rect と同じく --scale を掛けて比べる。Playwright の Chromium の mask は、
+// 縁を四捨五入した位置を塗る（実測。deviceScaleFactor が 1・2・3 で一致し、1.5 では 1 画素以内でずれた）。
+// 四捨五入しないと、小数の縁が 1 画素より細い帯を作り、塗られた縁の画素の領域が覆われていないと判定される。
+//
 // 判定できない領域を「重なる論理名なし」にしない。
 // - traits.json が無い側がある組で、どの論理名とも重ならない領域は status: "unknown" にする
-// - マスクの論理名の位置を traits.json で決められない組（名前が無いか、面積が 0）で、どの論理名とも重ならない領域も
-//   status: "unknown" にする
+// - マスクの論理名の位置を決められない組（mask-rects.json に記録が無く、traits.json に名前が無いか面積が 0）で、
+//   どの論理名とも重ならない領域も status: "unknown" にする
 // - 現側でも新側でも、その側のマスクの矩形の和に領域の全体が覆われるなら status: "masked" にする。
 //   覆うかは側ごとに判定するので、片側でしか位置を確かめられなかったマスクの論理名では masked にならない
 // 終了コードは、0 がすべての領域を判定できた、1 が判定できない領域がある、2 が入力の誤りである。
@@ -33,7 +42,7 @@ import { isArray } from "./lib/is-array.mjs";
  * ツールのバージョン（原本）。重なりの定義や出力の形を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "1";
+export const VERSION = "2";
 
 /** @typedef {{ x:number, y:number, width:number, height:number }} Rect */
 /** @typedef {"current" | "new"} Side */
@@ -44,11 +53,16 @@ export const VERSION = "1";
  * @typedef {{ side:Side, missing:true } | { side:Side, missing:false, entries:NamedRect[] }} SideTraits
  */
 /**
+ * 側ごとの mask-rects.json。missing は、`--<side>-mask-rects-missing` で無いと宣言したか、どちらの引数も渡さなかった側である。
+ * byName は、記録したマスクの論理名から、ロケータが当たったすべての要素の矩形への対応である。
+ * @typedef {{ side:Side, missing:true } | { side:Side, missing:false, byName:Map<string, Rect[]> }} SideMaskRects
+ */
+/**
  * マスクの矩形。bySide は側ごとの矩形で、bbox で渡したマスクは両側に同じ矩形を持つ。
  * 位置の違う 2 つの側の矩形を 1 つの和にまとめて覆うかを判定すると、片側のマスクしか覆っていない領域（もう片側では
  * マスクされていない要素が描かれている）まで masked になる。そのため、覆うかは側ごとに判定する。
  * 片側でしか位置を確かめられなかったマスクは、もう片側の矩形が空なので、側ごとの判定で masked にならない。
- * 位置を確かめられないのは、その側の traits.json が無いときと、名前が無いか面積が 0 のときである。
+ * 位置を確かめられないのは、その側の mask-rects.json に記録が無く、traits.json が無いか、名前が無いか面積が 0 のときである。
  * @typedef {{ label:string, bySide:Record<Side, Rect[]> }} MaskArea
  */
 
@@ -235,13 +249,72 @@ export function overlappingNames(bbox, { sides, scale, maskNames }) {
 }
 
 /**
- * マスクの論理名を、各側の traits.json で矩形に直す。traits.json がある側で位置を決められない名前は unlocated に入れる。
- * reason は、名前が無い（absent）か、名前はあるが面積が 0 である（zero_area）かを表す。
+ * 面積が正の矩形か（幅も高さも 0 より大きい）。マスクは面積が 0 の要素を塗らない。
+ * @param {Rect} r
+ * @returns {boolean}
+ */
+function hasArea(r) {
+  return r.width > 0 && r.height > 0;
+}
+
+/**
+ * 記録したマスクの矩形の縁を、CSS の px の整数に四捨五入する（mask が塗る画素に合わせる）。
+ * @param {Rect} r
+ * @returns {Rect}
+ */
+export function snapMaskRect(r) {
+  const x = Math.round(r.x);
+  const y = Math.round(r.y);
+  return {
+    x,
+    y,
+    width: Math.round(r.x + r.width) - x,
+    height: Math.round(r.y + r.height) - y,
+  };
+}
+
+/**
+ * その側の mask-rects.json が記録した、マスクの論理名の矩形。記録が無ければ null を返す（空の配列とは区別する）。
+ * @param {SideMaskRects[]} maskRects
+ * @param {Side} side
+ * @param {string} name
+ * @returns {Rect[] | null}
+ */
+function recordedMaskRects(maskRects, side, name) {
+  const record = maskRects.find((m) => m.side === side);
+  if (!record || record.missing) return null;
+  return record.byName.get(name) ?? null;
+}
+
+/**
+ * 1 つの側で、マスクの論理名を画像の画素の矩形に直す。先にその側の mask-rects.json の記録を使い、記録が無ければ traits.json から探す。
+ * 位置を決められなければ、reason に理由（名前が無い absent・名前はあるが面積が 0 の zero_area）を入れる。
+ * その側の traits.json が無く記録も無いときは、理由を入れない（traits_missing が判定できない理由になる）。
+ * @param {string} name
+ * @param {SideTraits} s
+ * @param {{ scale:number, maskRects:SideMaskRects[] }} input
+ * @returns {{ rects:Rect[], reason:("absent"|"zero_area"|null) }}
+ */
+function locateOnSide(name, s, { scale, maskRects }) {
+  const recorded = recordedMaskRects(maskRects, s.side, name);
+  if (recorded !== null) {
+    const painted = recorded.map(snapMaskRect).filter(hasArea);
+    return { rects: painted.map((r) => scaleRect(r, scale)), reason: null };
+  }
+  if (s.missing) return { rects: [], reason: null };
+  const named = s.entries.filter((e) => e.name === name);
+  const found = named.filter((e) => hasArea(e.rect));
+  if (found.length === 0) return { rects: [], reason: named.length > 0 ? "zero_area" : "absent" };
+  return { rects: found.map((e) => scaleRect(e.rect, scale)), reason: null };
+}
+
+/**
+ * マスクの論理名を、側ごとに矩形に直す（locateOnSide）。位置を決められない名前と側は unlocated に入れる。
  * @param {string[]} names
- * @param {{ sides:SideTraits[], scale:number }} input
+ * @param {{ sides:SideTraits[], scale:number, maskRects?:SideMaskRects[] }} input
  * @returns {{ areas:MaskArea[], unlocated:Array<{ name:string, side:Side, reason:("absent"|"zero_area") }> }}
  */
-export function locateMaskNames(names, { sides, scale }) {
+export function locateMaskNames(names, { sides, scale, maskRects = [] }) {
   /** @type {MaskArea[]} */
   const areas = [];
   /** @type {Array<{ name:string, side:Side, reason:("absent"|"zero_area") }>} */
@@ -250,13 +323,9 @@ export function locateMaskNames(names, { sides, scale }) {
     /** @type {Record<Side, Rect[]>} */
     const bySide = { current: [], new: [] };
     for (const s of sides) {
-      if (s.missing) continue;
-      const named = s.entries.filter((e) => e.name === name);
-      const found = named.filter((e) => e.rect.width > 0 && e.rect.height > 0);
-      if (found.length === 0) {
-        unlocated.push({ name, side: s.side, reason: named.length > 0 ? "zero_area" : "absent" });
-      }
-      bySide[s.side].push(...found.map((e) => scaleRect(e.rect, scale)));
+      const { rects, reason } = locateOnSide(name, s, { scale, maskRects });
+      if (reason !== null) unlocated.push({ name, side: s.side, reason });
+      bySide[s.side].push(...rects);
     }
     if (bySide.current.length + bySide.new.length > 0) areas.push({ label: name, bySide });
   }
@@ -384,6 +453,35 @@ export function readTraits(json, side) {
 }
 
 /**
+ * mask-rects.json の中身を読む。形は `[{ name, rects }]` で、rects は矩形の配列である。形が違えば理由を返す。
+ * 同じ名前を 2 回記録したものは、どちらの矩形を使うか決まらないので誤りにする。
+ * @param {unknown} json
+ * @param {Side} side
+ * @returns {{ error:string } | { byName:Map<string, Rect[]> }}
+ */
+export function readMaskRects(json, side) {
+  if (!isArray(json)) return { error: `${side} mask rects must be an array (mask-rects.json)` };
+  /** @type {Map<string, Rect[]>} */
+  const byName = new Map();
+  for (const [i, e] of json.entries()) {
+    if (!isPlainObject(e) || !nonEmptyString(e.name) || !isArray(e.rects)) {
+      return { error: `${side} mask rects[${i}] must have a non-empty name and rects[]` };
+    }
+    const rects = e.rects;
+    if (!rects.every(isRect)) {
+      return {
+        error: `${side} mask rects[${i}].rects must be {x,y,width,height} with width,height >= 0`,
+      };
+    }
+    if (byName.has(e.name)) {
+      return { error: `${side} mask rects[${i}]: "${e.name}" is recorded twice` };
+    }
+    byName.set(e.name, rects);
+  }
+  return { byName };
+}
+
+/**
  * "x,y,w,h" を画素の矩形に直す。
  * @param {string} text
  * @returns {Rect | null}
@@ -424,63 +522,108 @@ function readJsonFile(path) {
  * 渡したパスのファイルが無い・読めない（readJsonFile）ときと、形が違う（readTraits）ときは、missing にせず入力の誤りを返す。
  * @param {string | null} path
  * @param {Side} side
- * @returns {{ error:string } | SideTraits}
+ * @returns {{ error:string } | { value:SideTraits }}
  */
 function loadSide(path, side) {
-  if (path === null) return { side, missing: true };
+  if (path === null) return { value: { side, missing: true } };
   const read = readJsonFile(path);
   if ("error" in read) return read;
   const parsed = readTraits(read.json, side);
   if ("error" in parsed) return parsed;
-  return { side, missing: false, entries: parsed.entries };
+  return { value: { side, missing: false, entries: parsed.entries } };
+}
+
+/**
+ * 1 つの側の mask-rects.json を読む。path が null なら、その側の記録が無いと宣言されている。
+ * 渡したパスのファイルが無い・読めない・形が違うときは、missing にせず入力の誤りを返す。
+ * @param {string | null} path
+ * @param {Side} side
+ * @returns {{ error:string } | { value:SideMaskRects }}
+ */
+function loadMaskRectsSide(path, side) {
+  if (path === null) return { value: { side, missing: true } };
+  const read = readJsonFile(path);
+  if ("error" in read) return read;
+  const parsed = readMaskRects(read.json, side);
+  if ("error" in parsed) return parsed;
+  return { value: { side, missing: false, byName: parsed.byName } };
 }
 
 const USAGE =
-  "usage: node region-names.mjs <pixel-crops.json> (--current-traits <traits.json> | --current-traits-missing) (--new-traits <traits.json> | --new-traits-missing) --scale <deviceScaleFactor> [--mask-name <logical name>]... [--mask-bbox <x,y,w,h>]...\n";
+  "usage: node region-names.mjs <pixel-crops.json> (--current-traits <traits.json> | --current-traits-missing) (--new-traits <traits.json> | --new-traits-missing) --scale <deviceScaleFactor> [--current-mask-rects <mask-rects.json> | --current-mask-rects-missing] [--new-mask-rects <mask-rects.json> | --new-mask-rects-missing] [--mask-name <logical name>]... [--mask-bbox <x,y,w,h>]...\n";
 
 /**
- * 1 つの側の traits.json の指定を読む。パスと無いことの宣言のどちらか 1 つだけを受け付ける。
+ * 1 つの側のファイル（traits.json か mask-rects.json）の指定を読む。パスと無いことの宣言の両方は受け付けない。
+ * required なら、どちらか 1 つを求める（traits.json）。required でなければ、どちらも無い側を無いと宣言した側として扱う
+ * （mask-rects.json。この引数を渡さない呼び出し元でも、traits.json だけで判定するため）。
  * @param {{ strings:Record<string, string>, bools:Record<string, true> }} parsed
  * @param {Side} side
+ * @param {{ file:("traits"|"mask-rects"), required:boolean }} spec
  * @returns {{ error:string } | { path:(string|null) }}
  */
-function sideArg(parsed, side) {
-  const path = parsed.strings[`--${side}-traits`];
-  const missing = parsed.bools[`--${side}-traits-missing`] === true;
-  if ((path === undefined) === !missing) {
-    return {
-      error: `error: give exactly one of --${side}-traits and --${side}-traits-missing\n${USAGE}`,
-    };
+function sideFileArg(parsed, side, { file, required }) {
+  const flag = `--${side}-${file}`;
+  const path = parsed.strings[flag];
+  const missing = parsed.bools[`${flag}-missing`] === true;
+  if (path !== undefined && missing) {
+    const count = required ? "exactly" : "at most";
+    return { error: `error: give ${count} one of ${flag} and ${flag}-missing\n${USAGE}` };
+  }
+  if (required && path === undefined && !missing) {
+    return { error: `error: give exactly one of ${flag} and ${flag}-missing\n${USAGE}` };
   }
   // 標準入力は読まない。
-  if (path === "-")
-    return { error: `error: --${side}-traits must be a file path (stdin is not read)\n` };
+  if (path === "-") return { error: `error: ${flag} must be a file path (stdin is not read)\n` };
   return { path: path ?? null };
 }
+
+/** 受け付ける引数。 */
+const FLAG_SPEC = {
+  values: [
+    "--current-traits",
+    "--new-traits",
+    "--scale",
+    "--mask-name",
+    "--mask-bbox",
+    "--current-mask-rects",
+    "--new-mask-rects",
+  ],
+  repeat: ["--mask-name", "--mask-bbox"],
+  bools: [
+    "--current-traits-missing",
+    "--new-traits-missing",
+    "--current-mask-rects-missing",
+    "--new-mask-rects-missing",
+  ],
+  positionals: 1,
+  // 標準入力は読まないので、`-` を位置引数として受け付けない。
+  stdin: false,
+};
 
 /**
  * 引数を読み、値を確かめる。誤りは stderr に出す文で返す。
  * @param {string[]} argv
  * @returns {{ error:string } | { regionsPath:string, currentTraits:(string|null), newTraits:(string|null), scale:number,
- *   maskBboxes:Rect[], maskNames:string[] }}
+ *   maskBboxes:Rect[], maskNames:string[], currentMaskRects:(string|null), newMaskRects:(string|null) }}
  */
 function parseArgs(argv) {
-  const parsed = parseFlags(argv, {
-    values: ["--current-traits", "--new-traits", "--scale", "--mask-name", "--mask-bbox"],
-    repeat: ["--mask-name", "--mask-bbox"],
-    bools: ["--current-traits-missing", "--new-traits-missing"],
-    positionals: 1,
-    // 標準入力は読まないので、`-` を位置引数として受け付けない。
-    stdin: false,
-  });
+  const parsed = parseFlags(argv, FLAG_SPEC);
   if (parsed.error !== undefined) return { error: `error: ${parsed.error}\n${USAGE}` };
   const regionsPath = parsed.positionals[0];
   const scaleText = parsed.strings["--scale"];
   if (!regionsPath || scaleText === undefined) return { error: USAGE };
-  const current = sideArg(parsed, "current");
+  /** @type {{ file:"traits", required:boolean }} */
+  const traits = { file: "traits", required: true };
+  /** @type {{ file:"mask-rects", required:boolean }} */
+  const maskRecords = { file: "mask-rects", required: false };
+  const current = sideFileArg(parsed, "current", traits);
   if ("error" in current) return current;
-  const next = sideArg(parsed, "new");
+  const next = sideFileArg(parsed, "new", traits);
   if ("error" in next) return next;
+  const currentMask = sideFileArg(parsed, "current", maskRecords);
+  if ("error" in currentMask) return currentMask;
+  const nextMask = sideFileArg(parsed, "new", maskRecords);
+  if ("error" in nextMask) return nextMask;
   const scale = Number(scaleText);
   if (!Number.isFinite(scale) || scale <= 0)
     return { error: "error: --scale must be a number > 0\n" };
@@ -502,32 +645,45 @@ function parseArgs(argv) {
     scale,
     maskBboxes,
     maskNames,
+    currentMaskRects: currentMask.path,
+    newMaskRects: nextMask.path,
   };
 }
 
 /**
- * 入力のファイルを読む。誤りは stderr に出す文で返す。
- * @param {{ regionsPath:string, currentTraits:(string|null), newTraits:(string|null) }} paths
- * @returns {{ error:string } | { regions:Region[], sides:SideTraits[] }}
+ * 現側と新側のファイルを、同じ読み込みの関数で読む。誤りは stderr に出す文で返す。
+ * @template T
+ * @param {[string | null, string | null]} paths - 現側と新側のパス（null は無いと宣言した側）
+ * @param {(path:(string|null), side:Side) => ({ error:string } | { value:T })} load
+ * @returns {{ error:string } | { loaded:T[] }}
  */
-function loadInputs({ regionsPath, currentTraits, newTraits }) {
+function loadBothSides(paths, load) {
+  /** @type {T[]} */
+  const loaded = [];
+  for (const [i, side] of SIDES.entries()) {
+    const result = load(paths[i], side);
+    if ("error" in result) return { error: `error: ${result.error}\n` };
+    loaded.push(result.value);
+  }
+  return { loaded };
+}
+
+/**
+ * 入力のファイルを読む。誤りは stderr に出す文で返す。
+ * @param {{ regionsPath:string, currentTraits:(string|null), newTraits:(string|null),
+ *   currentMaskRects:(string|null), newMaskRects:(string|null) }} paths
+ * @returns {{ error:string } | { regions:Region[], sides:SideTraits[], maskRects:SideMaskRects[] }}
+ */
+function loadInputs({ regionsPath, currentTraits, newTraits, currentMaskRects, newMaskRects }) {
   const read = readJsonFile(regionsPath);
   if ("error" in read) return { error: `error: ${read.error}\n` };
   const regions = readRegions(read.json);
   if ("error" in regions) return { error: `error: ${regions.error}\n` };
-  /** @type {SideTraits[]} */
-  const sides = [];
-  /** @type {Array<[Side, string | null]>} */
-  const files = [
-    ["current", currentTraits],
-    ["new", newTraits],
-  ];
-  for (const [side, path] of files) {
-    const loaded = loadSide(path, side);
-    if ("error" in loaded) return { error: `error: ${loaded.error}\n` };
-    sides.push(loaded);
-  }
-  return { regions: regions.regions, sides };
+  const sides = loadBothSides([currentTraits, newTraits], loadSide);
+  if ("error" in sides) return sides;
+  const maskRects = loadBothSides([currentMaskRects, newMaskRects], loadMaskRectsSide);
+  if ("error" in maskRects) return maskRects;
+  return { regions: regions.regions, sides: sides.loaded, maskRects: maskRects.loaded };
 }
 
 /**
@@ -542,12 +698,30 @@ function summarize(results) {
 }
 
 /**
+ * mask-rects.json が記録したのに --mask-name に渡していない名前を、マスクとして使わなかったことを stderr に出す。
+ * @param {SideMaskRects[]} maskRects
+ * @param {string[]} maskNames
+ */
+function warnUnusedRecords(maskRects, maskNames) {
+  const passed = new Set(maskNames);
+  for (const m of maskRects) {
+    if (m.missing) continue;
+    const unused = [...m.byName.keys()].filter((name) => !passed.has(name));
+    for (const name of unused) {
+      process.stderr.write(
+        `warning: ${m.side} mask-rects.json records "${name}", which is not given with --mask-name; it is not used as a mask\n`,
+      );
+    }
+  }
+}
+
+/**
  * 判定できなかったことを stderr に出す。
- * @param {SideTraits[]} sides
+ * @param {{ sides:SideTraits[], maskRects:SideMaskRects[] }} inputs
  * @param {Array<{ name:string, side:Side, reason:("absent"|"zero_area") }>} unlocated
  * @param {number} unknown
  */
-function warnUnresolved(sides, unlocated, unknown) {
+function warnUnresolved({ sides, maskRects }, unlocated, unknown) {
   for (const s of sides) {
     if (s.missing) {
       process.stderr.write(
@@ -555,11 +729,15 @@ function warnUnresolved(sides, unlocated, unknown) {
       );
     }
   }
+  const recordedSides = new Set(maskRects.filter((m) => !m.missing).map((m) => m.side));
   for (const u of unlocated) {
+    const notRecorded = recordedSides.has(u.side)
+      ? ` (not recorded in the ${u.side} mask-rects.json)`
+      : "";
     const where =
       u.reason === "zero_area"
-        ? `has no area (width or height 0) in the ${u.side} traits.json`
-        : `is not in the ${u.side} traits.json`;
+        ? `has no area (width or height 0) in the ${u.side} traits.json${notRecorded}`
+        : `is not in the ${u.side} traits.json${notRecorded}`;
     process.stderr.write(
       `warning: mask "${u.name}" ${where}; regions that overlap no name are reported as unknown\n`,
     );
@@ -569,7 +747,16 @@ function warnUnresolved(sides, unlocated, unknown) {
 }
 
 /**
- * CLI エントリ。stdout に結果の JSON（キーは version・scale・traits・masks・summary・regions）を出す。
+ * --mask-bbox で渡した画素の矩形を、両側に同じ矩形を当てるマスクにする。
+ * @param {Rect} b
+ * @returns {MaskArea}
+ */
+function bboxMask(b) {
+  return { label: `${b.x},${b.y},${b.width},${b.height}`, bySide: { current: [b], new: [b] } };
+}
+
+/**
+ * CLI エントリ。stdout に結果の JSON（キーは version・scale・traits・mask_rects・masks・summary・regions）を出す。
  * @param {string[]} argv
  * @returns {number} exit code
  */
@@ -584,28 +771,26 @@ export function main(argv) {
     process.stderr.write(inputs.error);
     return 2;
   }
-  const { regions, sides } = inputs;
+  const { regions, sides, maskRects } = inputs;
   const { scale } = args;
-  const located = locateMaskNames(args.maskNames, { sides, scale });
+  const located = locateMaskNames(args.maskNames, { sides, scale, maskRects });
   /** @type {MaskArea[]} */
-  const masks = [
-    ...located.areas,
-    ...args.maskBboxes.map((b) => ({
-      label: `${b.x},${b.y},${b.width},${b.height}`,
-      bySide: { current: [b], new: [b] },
-    })),
-  ];
+  const masks = [...located.areas, ...args.maskBboxes.map(bboxMask)];
   const reasons = unresolvedReasons(sides, located.unlocated);
   const maskNames = new Set(args.maskNames);
   const results = regions.map((r) =>
     classifyRegion(r, { sides, scale, masks, maskNames, reasons }),
   );
   const summary = summarize(results);
-  warnUnresolved(sides, located.unlocated, summary.unknown);
+  warnUnusedRecords(maskRects, args.maskNames);
+  warnUnresolved({ sides, maskRects }, located.unlocated, summary.unknown);
   const out = {
     version: VERSION,
     scale,
     traits: Object.fromEntries(sides.map((s) => [s.side, s.missing ? "missing" : "present"])),
+    mask_rects: Object.fromEntries(
+      maskRects.map((m) => [m.side, m.missing ? "missing" : "present"]),
+    ),
     masks: {
       names: args.maskNames,
       bboxes: args.maskBboxes,

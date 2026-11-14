@@ -1,4 +1,4 @@
-// region-names.mjs の回帰テスト（Issue #1018）。
+// region-names.mjs の回帰テスト（Issue #1018、#1025）。
 // 期待値は references/detect.md の「領域に論理名を対応づける」の取り決めから決める。
 //
 // 入力の状態を軸ごとに挙げ、各状態を少なくとも 1 件のテストにする。
@@ -9,6 +9,11 @@
 // - 論理名の在る側は、両側・片側だけである。
 // - マスクは、無し・論理名で全体を覆う・bbox の和で全体を覆う・一部だけ重なる、である。
 // - マスクの論理名の位置は、両側の traits.json に無い・片側の traits.json にだけある、である。
+// - mask-rects.json は、側ごとに、記録あり・無いと宣言・引数なし・形の誤り・パスの誤りである。
+//   記録ありの側では、マスクの論理名が、矩形 1 つ・矩形が複数（1 つの名前が複数の要素に当たる）・空の rects・
+//   面積が 0 の矩形だけ・記録に無い（traits.json から探す）、である。
+//   両側の記録の組み合わせは、両側で同じ位置・両側で違う位置・片側だけ記録あり、である。
+//   ほかの入力との組み合わせは、traits.json が無い側・--mask-bbox・--scale が 2、である。
 // - 座標の倍率（--scale）は、1・2 である。
 // - 領域の種類は、regions・strict_only_regions である。
 // - 引数は、必須の欠け・--scale が 0・--mask-bbox の形の誤りである。
@@ -23,8 +28,10 @@ import {
   coveredByUnion,
   intersectionArea,
   overlappingNames,
+  readMaskRects,
   readRegions,
   readTraits,
+  snapMaskRect,
 } from "../../../skills/parity-diff/scripts/region-names.mjs";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
@@ -245,6 +252,9 @@ type Scene = {
   regions?: unknown;
   current?: unknown;
   next?: unknown;
+  // mask-rects.json。undefined は引数を渡さない、null は無いことを宣言する、それ以外はファイルに書いて渡す。
+  currentMask?: unknown;
+  nextMask?: unknown;
   args?: string[];
 };
 
@@ -268,6 +278,12 @@ function run(scene: Scene) {
     writeFileSync(path, JSON.stringify(value));
     return [flag, path];
   };
+  const maskArgs = (flag: string, path: string, value: unknown) => {
+    if (value === undefined) return [];
+    if (value === null) return [`${flag}-missing`];
+    writeFileSync(path, JSON.stringify(value));
+    return [flag, path];
+  };
   const res = spawnSync(
     process.execPath,
     [
@@ -275,6 +291,8 @@ function run(scene: Scene) {
       regionsPath,
       ...sideArgs("--current-traits", currentPath, scene.current),
       ...sideArgs("--new-traits", newPath, scene.next),
+      ...maskArgs("--current-mask-rects", join(dir, "current-mask-rects.json"), scene.currentMask),
+      ...maskArgs("--new-mask-rects", join(dir, "new-mask-rects.json"), scene.nextMask),
       ...(scene.args ?? ["--scale", "1"]),
     ],
     { encoding: "utf8", timeout: CHILD_TIMEOUT_MS },
@@ -289,6 +307,8 @@ test("CLI: 両側の traits.json があれば exit 0 で、領域ごとに named
   expect(res.status).toBe(0);
   const out: unknown = JSON.parse(res.stdout);
   expect(out).toHaveProperty("traits", { current: "present", new: "present" });
+  // mask-rects.json の引数を渡さない呼び出しは、記録が無い側として扱う。
+  expect(out).toHaveProperty("mask_rects", { current: "missing", new: "missing" });
   expect(out).toHaveProperty("summary", {
     regions: 2,
     named: 1,
@@ -507,4 +527,335 @@ test.each([
   expect(res.status).toBe(2);
   expect(res.stderr).toContain(message);
   expect(res.stdout).toBe("");
+});
+
+test("mask-rects.json の要素の形が違うか、同じ名前を 2 回記録していれば、形の誤りにする", () => {
+  expect(
+    readMaskRects(
+      [
+        { name: "a", rects: [rect([1, 2, 3, 4]), rect([5, 6, 7, 8])] },
+        { name: "b", rects: [] },
+      ],
+      "current",
+    ),
+  ).toEqual({
+    byName: new Map([
+      ["a", [rect([1, 2, 3, 4]), rect([5, 6, 7, 8])]],
+      ["b", []],
+    ]),
+  });
+  expect(readMaskRects({ a: [] }, "new")).toHaveProperty("error");
+  expect(readMaskRects([{ rects: [] }], "new")).toHaveProperty("error");
+  expect(readMaskRects([{ name: "", rects: [] }], "new")).toHaveProperty("error");
+  expect(readMaskRects([{ name: "a" }], "new")).toHaveProperty("error");
+  expect(
+    readMaskRects([{ name: "a", rects: [{ x: 0, y: 0, width: -1, height: 1 }] }], "new"),
+  ).toHaveProperty("error");
+  expect(
+    readMaskRects(
+      [
+        { name: "a", rects: [] },
+        { name: "a", rects: [rect([0, 0, 1, 1])] },
+      ],
+      "current",
+    ),
+  ).toHaveProperty("error", 'current mask rects[1]: "a" is recorded twice');
+});
+
+// --- CLI の粒度: mask-rects.json（Issue #1025） ---
+
+// どの論理名とも重ならない領域 s1（100,100 の 4×4）から遠い位置のマスク。traits.json にはマスクの名前が無い。
+const FAR_MASK = [{ name: "account-id", rects: [rect([300, 300, 20, 20])] }];
+// 領域 s1 を覆うマスク。
+const COVER_MASK = [{ name: "account-id", rects: [rect([90, 90, 30, 30])] }];
+const MASK_ARGS = ["--scale", "1", "--mask-name", "account-id"];
+
+test("CLI: 両側の mask-rects.json がマスクの位置を記録していれば、マスクから遠く論理名と重ならない領域は unnamed になる", () => {
+  const res = run({
+    current: TRAITS,
+    next: TRAITS,
+    currentMask: FAR_MASK,
+    nextMask: FAR_MASK,
+    args: MASK_ARGS,
+  });
+  expect(res.status).toBe(0);
+  const out: unknown = JSON.parse(res.stdout);
+  expect(out).toHaveProperty("mask_rects", { current: "present", new: "present" });
+  expect(out).toHaveProperty(["masks", "unlocated"], []);
+  expect(out).toMatchObject({
+    regions: [
+      { id: 1, status: "named", unresolved: [] },
+      { id: "s1", status: "unnamed", masks: [], unresolved: [] },
+    ],
+  });
+  expect(res.stderr).toBe("");
+});
+
+test("CLI: 両側の mask-rects.json がマスクの位置を記録していれば、traits.json に名前が無くてもマスクの中の領域を masked にする", () => {
+  const res = run({
+    current: TRAITS,
+    next: TRAITS,
+    currentMask: COVER_MASK,
+    nextMask: COVER_MASK,
+    args: MASK_ARGS,
+  });
+  expect(res.status).toBe(0);
+  expect(JSON.parse(res.stdout)).toMatchObject({
+    masks: { unlocated: [] },
+    regions: [{}, { status: "masked", masks: ["account-id"], names: [], unresolved: [] }],
+  });
+});
+
+test("CLI: mask-rects.json の位置が両側で違えば、片側のマスクだけが覆う領域を masked にしない", () => {
+  const res = run({
+    current: TRAITS,
+    next: TRAITS,
+    currentMask: COVER_MASK,
+    nextMask: FAR_MASK,
+    args: MASK_ARGS,
+  });
+  expect(res.status).toBe(0);
+  expect(JSON.parse(res.stdout)).toMatchObject({
+    regions: [{}, { status: "unnamed", masks: ["account-id"], unresolved: [] }],
+  });
+});
+
+test.each([
+  ["無いと宣言した", null],
+  ["引数を渡さない", undefined],
+])(
+  "CLI: 片側だけ mask-rects.json が記録し、もう片側は%s側で traits.json に名前が無ければ、今と同じ mask_unlocated を出す",
+  (_label, nextMask) => {
+    const res = run({
+      current: TRAITS,
+      next: TRAITS,
+      currentMask: COVER_MASK,
+      nextMask,
+      args: MASK_ARGS,
+    });
+    expect(res.status).toBe(1);
+    const out: unknown = JSON.parse(res.stdout);
+    expect(out).toHaveProperty("mask_rects", { current: "present", new: "missing" });
+    expect(out).toHaveProperty(
+      ["masks", "unlocated"],
+      [{ name: "account-id", side: "new", reason: "absent" }],
+    );
+    expect(out).toMatchObject({
+      regions: [
+        {},
+        { status: "unknown", masks: ["account-id"], unresolved: ["mask_unlocated:new:account-id"] },
+      ],
+    });
+    expect(res.stderr).toContain('mask "account-id" is not in the new traits.json;');
+  },
+);
+
+test("CLI: 両側とも mask-rects.json が無いと宣言すれば、今と同じ出力（mask_unlocated と unknown）になる", () => {
+  const res = run({
+    current: TRAITS,
+    next: TRAITS,
+    currentMask: null,
+    nextMask: null,
+    args: MASK_ARGS,
+  });
+  expect(res.status).toBe(1);
+  const out: unknown = JSON.parse(res.stdout);
+  expect(out).toHaveProperty("mask_rects", { current: "missing", new: "missing" });
+  expect(out).toHaveProperty(
+    ["masks", "unlocated"],
+    [
+      { name: "account-id", side: "current", reason: "absent" },
+      { name: "account-id", side: "new", reason: "absent" },
+    ],
+  );
+  expect(out).toHaveProperty(["regions", 1, "status"], "unknown");
+});
+
+test("CLI: 1 つの名前が複数の要素に当たるマスクは、記録したすべての矩形の和で覆うかを決める", () => {
+  // 領域 s1（x が 100〜104）を、左の矩形（〜102）と右の矩形（102〜）の和だけが覆う。
+  const split = [{ name: "account-id", rects: [rect([90, 90, 12, 30]), rect([102, 90, 20, 30])] }];
+  const res = run({
+    current: TRAITS,
+    next: TRAITS,
+    currentMask: split,
+    nextMask: split,
+    args: MASK_ARGS,
+  });
+  expect(res.status).toBe(0);
+  expect(JSON.parse(res.stdout)).toMatchObject({
+    regions: [{}, { status: "masked", masks: ["account-id"] }],
+  });
+});
+
+test.each([
+  ["空の rects（ロケータが 0 件に当たった）", []],
+  ["面積が 0 の矩形だけ", [rect([100, 100, 0, 10])]],
+])(
+  "CLI: mask-rects.json の記録が%sなら、その側ではマスクが何も塗らなかったとして扱い、mask_unlocated を出さない",
+  (_label, rects) => {
+    const res = run({
+      current: TRAITS,
+      next: TRAITS,
+      currentMask: [{ name: "account-id", rects }],
+      nextMask: COVER_MASK,
+      args: MASK_ARGS,
+    });
+    expect(res.status).toBe(0);
+    expect(JSON.parse(res.stdout)).toMatchObject({
+      masks: { unlocated: [] },
+      regions: [{}, { status: "unnamed", masks: ["account-id"], unresolved: [] }],
+    });
+  },
+);
+
+test("CLI: mask-rects.json に名前が無ければ、その側は traits.json から探し、無ければ mask_unlocated を出す", () => {
+  const other = [{ name: "ad", rects: [rect([300, 300, 20, 20])] }];
+  const res = run({
+    current: TRAITS,
+    next: TRAITS,
+    currentMask: other,
+    nextMask: COVER_MASK,
+    args: MASK_ARGS,
+  });
+  expect(res.status).toBe(1);
+  expect(JSON.parse(res.stdout)).toMatchObject({
+    masks: { unlocated: [{ name: "account-id", side: "current", reason: "absent" }] },
+    regions: [{}, { status: "unknown", unresolved: ["mask_unlocated:current:account-id"] }],
+  });
+  expect(res.stderr).toContain("(not recorded in the current mask-rects.json)");
+  expect(res.stderr).toContain('current mask-rects.json records "ad", which is not given');
+});
+
+test("CLI: mask-rects.json に名前が無くても、traits.json にあればその rect をマスクの位置にする", () => {
+  const traits = [...TRAITS, { name: "account-id", rect: rect([90, 90, 30, 30]) }];
+  const res = run({
+    current: traits,
+    next: TRAITS,
+    currentMask: [],
+    nextMask: COVER_MASK,
+    args: MASK_ARGS,
+  });
+  expect(res.status).toBe(0);
+  expect(JSON.parse(res.stdout)).toMatchObject({
+    masks: { unlocated: [] },
+    regions: [{}, { status: "masked" }],
+  });
+});
+
+test("CLI: mask-rects.json の矩形にも --scale を掛けて比べる", () => {
+  // CSS の px で (45,45) から 15×15。--scale 2 で画像の画素の (90,90) から 30×30 になり、領域 s1 を覆う。
+  const half = [{ name: "account-id", rects: [rect([45, 45, 15, 15])] }];
+  const res = run({
+    current: [],
+    next: [],
+    currentMask: half,
+    nextMask: half,
+    args: ["--scale", "2", "--mask-name", "account-id"],
+  });
+  expect(res.status).toBe(0);
+  expect(JSON.parse(res.stdout)).toMatchObject({
+    regions: [{ status: "unnamed" }, { status: "masked" }],
+  });
+});
+
+test("CLI: traits.json が無い側でも、mask-rects.json の記録でマスクの中の領域を masked にする", () => {
+  const res = run({
+    next: TRAITS,
+    currentMask: COVER_MASK,
+    nextMask: COVER_MASK,
+    args: MASK_ARGS,
+  });
+  expect(res.status).toBe(0);
+  expect(JSON.parse(res.stdout)).toMatchObject({
+    masks: { unlocated: [] },
+    regions: [{ status: "named" }, { status: "masked", unresolved: ["traits_missing:current"] }],
+  });
+});
+
+test("CLI: --mask-bbox と mask-rects.json のマスクは、側ごとの和で覆うかを決める", () => {
+  // 領域 s1（x が 100〜104）を、記録した矩形（〜102）と --mask-bbox（102〜）の和だけが覆う。
+  const left = [{ name: "account-id", rects: [rect([90, 90, 12, 30])] }];
+  const res = run({
+    current: TRAITS,
+    next: TRAITS,
+    currentMask: left,
+    nextMask: left,
+    args: [...MASK_ARGS, "--mask-bbox", "102,90,20,30"],
+  });
+  expect(res.status).toBe(0);
+  expect(JSON.parse(res.stdout)).toMatchObject({
+    regions: [{}, { status: "masked", masks: ["account-id", "102,90,20,30"] }],
+  });
+});
+
+test.each([
+  [
+    "パスと無いことの宣言の両方",
+    ["--current-mask-rects", "MASK", "--current-mask-rects-missing"],
+    "at most one",
+  ],
+  ["- を渡す", ["--new-mask-rects", "-"], "stdin is not read"],
+  ["パスのファイルが無い（綴りの誤り）", ["--new-mask-rects", "TYPO"], "cannot read"],
+  ["形の誤り", ["--current-mask-rects", "BAD"], "current mask rects must be an array"],
+])(
+  "CLI: mask-rects.json の指定が%sなら、記録の無い側として扱わずに exit 2 にする",
+  (_label, args, message) => {
+    const dir = makeTempDir("region-names-maskarg-");
+    const traits = join(dir, "traits.json");
+    const crops = join(dir, "crops.json");
+    const mask = join(dir, "mask-rects.json");
+    const bad = join(dir, "bad.json");
+    writeFileSync(traits, JSON.stringify(TRAITS));
+    writeFileSync(crops, JSON.stringify({ regions: [], strict_only_regions: [] }));
+    writeFileSync(mask, JSON.stringify(COVER_MASK));
+    writeFileSync(bad, JSON.stringify({ name: "account-id" }));
+    const resolved = args.map((a) =>
+      a === "MASK" ? mask : a === "BAD" ? bad : a === "TYPO" ? join(dir, "mask-rects.jsno") : a,
+    );
+    const res = spawnSync(
+      process.execPath,
+      [
+        SCRIPT,
+        crops,
+        "--current-traits",
+        traits,
+        "--new-traits",
+        traits,
+        ...resolved,
+        ...MASK_ARGS,
+      ],
+      { encoding: "utf8", timeout: CHILD_TIMEOUT_MS },
+    );
+    expect(res.status).toBe(2);
+    expect(res.stderr).toContain(message);
+    expect(res.stdout).toBe("");
+  },
+);
+
+test("記録したマスクの矩形の縁は、CSS の px の整数に四捨五入する（Chromium の mask が塗る画素）", () => {
+  // 実測した要素の矩形と、mask が塗った位置（deviceScaleFactor 1）。
+  expect(snapMaskRect({ x: 10.5, y: 1200.25, width: 20.5, height: 10.5 })).toEqual(
+    rect([11, 1200, 20, 11]),
+  );
+  expect(snapMaskRect({ x: 33.3, y: 1250.7, width: 7.4, height: 5.6 })).toEqual(
+    rect([33, 1251, 8, 5]),
+  );
+  expect(snapMaskRect({ x: 5, y: 5, width: 0.4, height: 3 })).toEqual(rect([5, 5, 0, 3]));
+});
+
+test("CLI: mask-rects.json の小数の縁は、四捨五入した位置で覆うかを決める", () => {
+  // 縁を四捨五入すると (90,100) から 30×30 になり、領域 s1（100,100 の 4×4）を覆う。
+  // 四捨五入しないと、y が 100〜100.25 の帯が覆われていないと判定される。
+  const fractional = [
+    { name: "account-id", rects: [{ x: 89.6, y: 100.25, width: 30, height: 29.5 }] },
+  ];
+  const res = run({
+    current: TRAITS,
+    next: TRAITS,
+    currentMask: fractional,
+    nextMask: fractional,
+    args: MASK_ARGS,
+  });
+  expect(res.status).toBe(0);
+  expect(JSON.parse(res.stdout)).toMatchObject({ regions: [{}, { status: "masked" }] });
 });
