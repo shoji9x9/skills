@@ -18,7 +18,7 @@ env -u SKILL_EVAL_ALLOW_UNISOLATED GH_TOKEN=invalid-for-eval GH_CONFIG_DIR=/none
 
 - eval の sandbox は、`gh` の認証（`~/.config/gh` と、`GH_TOKEN` などの環境変数）を run に見せず、GitHub への名前の解決も止める。
   sandbox で実行できない環境（`isolation.txt` が `UNISOLATED`）では、run がホームの認証情報を読めるので、eval から実際に Issue を作れてしまう。
-  `SKILL_EVAL_RUNNER` に sandbox 以外の runner を指定した run（`UNVERIFIED`）では、run が認証情報を読めないことを確かめていないので、同じように Issue を作れてしまうおそれがある。
+  `SKILL_EVAL_RUNNER` にハーネスの `eval-sandbox.sh` の絶対パス以外（相対パス・コマンド名・ほかの runner）を指定した run（`UNVERIFIED`）では、run が認証情報を読めないことを確かめていないので、同じように Issue を作れてしまうおそれがある。
   `UNISOLATED` の環境でも、`UNVERIFIED` になる指定でも、この eval を実行しない。
   `run-skill-eval.sh` はその状態では executor を起動せずに exit 7 で止まるが、`SKILL_EVAL_ALLOW_UNISOLATED=1` を設定すると run を始める。この eval では、その変数を設定しない。
   シェルに残った値で続けないように、実行例は `env -u SKILL_EVAL_ALLOW_UNISOLATED` でその変数を外して起動する。
