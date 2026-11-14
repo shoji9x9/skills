@@ -235,6 +235,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 4. 決定論的に差分を検出する（[`references/detect.md`](references/detect.md)）。画素・特性照合・aria の 3 つの比較方法で検出し、LLM は使わない。
    画素の差分の領域には、[`scripts/region-names.mjs`](scripts/region-names.mjs) で重なる論理名を対応づける（同じ reference の「領域に論理名を対応づける」）。
    `traits.json` が無い組やマスクの位置が分からない組で、どの論理名とも重ならない領域は `unknown` になる。名前を付けていない要素の差分として扱わない。
+   マスクの位置は、撮影のときに組ごと・側ごとに書いた `mask-rects.json` から先に決める（同じ reference の「マスクを当てた矩形の記録（`mask-rects.json`）」）。
    `unknown` の領域があるとスクリプトは exit 1 で終わるが、停止の合図ではない。出力をそのまま次の工程に使う。
    性能は、インストール済みの `parity-suite` の `scripts/perf-stats.mjs compare --target <target> --write <diff-metadata.json>` で比べる。許容幅を超えた悪化（`regressed`）は、トリアージを通さず要対応にする。
    操作中のエラーは、インストール済みの `parity-suite` の `scripts/runtime-errors.mjs compare --target <target> --run <新側の実行> --write <diff-metadata.json>` で比べる。現行に無かった署名（`new_signatures`）は、手順 6 のトリアージに回す。

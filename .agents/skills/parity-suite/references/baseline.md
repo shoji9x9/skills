@@ -112,6 +112,49 @@
 
 依存先が green になった次の実行では、候補を自動で外し、原本のまま全面の比較に戻れる。
 
+### マスクを当てた矩形を書き出す
+
+恒久マスクの論理名は、`traits.elements` に入れない。入れると、マスクで隠した値（文字列・スタイル）が `traits.json` に残る。
+そのため `parity-diff` は、マスクの位置を `traits.json` から決められない。マスクから遠く、どの論理名とも重ならない差分の領域まで「判定できない」（`unknown`）に回る。
+これを避けるため、撮影の組ごとに、マスクを当てた矩形を `mask-rects.json` に書き出す。置き場所は、その組の `traits.json` の隣である。
+新側は `parity-diff` の採取の雛形が同じ形で書くので、現側の採取のスペックにも同じ処理を入れる。
+
+- 形は `[{ "name": "<マスクの論理名>", "rects": [{ "x", "y", "width", "height" }, ...] }]` で、`capture_conditions.masks[]` の名前ごとに 1 要素を書く。
+- `rects` には、ロケータが当たったすべての要素の矩形を書く（Playwright の `mask` は、当たったすべての要素を塗る）。当たる要素が無ければ空の配列にし、名前を省かない。
+- iframe の中の要素に当たる名前だけは、記録しない。`mask` はその iframe の表示範囲の中だけを塗るので、要素の矩形を書くと、塗っていない位置の差分まで隠れる。
+- 書くのは矩形だけで、文字列やスタイルは採らない。
+- 座標は撮影した画像での位置で、単位は CSS の px である。全画面の撮影ではスクロールの量を足し、ビューポートの撮影では足さない（`traits.json` の `rect` はビューポート基準なので、ここが違う）。
+- 書き忘れを検出するチェックは無い。書かなかった組では、`parity-diff` はマスクの位置を `traits.json` から探し、見つからなければ判定できない理由（`mask_unlocated`）を出す。
+- `artifact_health` を宣言した成果物では、`mask-rects.json` も採取物なので、`traits.json` と同じく `entries` に `kind: captured` で宣言する（下の「採取物の健全性」）。
+  読むのはスペックではなく `parity-diff` の `region-names.mjs` なので、`read_by` を空にし、`unread_reason` にそのことを書く。
+  宣言しないと、書き出した後の健全性のチェックが、未宣言のファイルとして失敗にする。
+
+```ts
+// 出典: https://playwright.dev/docs/api/class-locator#locator-evaluate-all、
+//       https://playwright.dev/docs/api/class-page#page-screenshot（mask）
+// masks は capture_conditions.masks、fullPage は capture_conditions.full_page、resolveLocator はロケータマッピング
+// 同じ論理名は 1 回だけ記録する（parity-diff は、同じ名前を 2 回記録したファイルを形の誤りにする）
+const names = [...new Set(masks.map((m: { name: string }) => m.name))];
+const located = names.map((name) => [name, resolveLocator(page, name)] as const);
+// 全画面の撮影は文書の原点から撮るので、スクロールの量を足す。iframe の中の要素なら null を返す
+const inImage = (els: Element[], full: boolean) =>
+  window !== window.top
+    ? null
+    : els.map((el) => {
+        const { x, y, width, height } = el.getBoundingClientRect();
+        return full ? { x: x + scrollX, y: y + scrollY, width, height } : { x, y, width, height };
+      });
+const maskRects = [];
+for (const [name, loc] of located) {
+  const rects = await loc.evaluateAll(inImage, fullPage === true);
+  if (rects !== null) maskRects.push({ name, rects });
+}
+await page.screenshot({ path: join(outDir, "screenshot.png"), fullPage, animations: "disabled", mask: located.map(([, loc]) => loc) });
+writeFileSync(join(outDir, "mask-rects.json"), `${JSON.stringify(maskRects, null, 2)}\n`);
+```
+
+`parity-diff` がこの記録をどう読むか（矩形の縁の丸め方を含む）は、`parity-diff` の `references/detect.md`「マスクを当てた矩形の記録（`mask-rects.json`）」で定義する。
+
 ### ページの path の解決規則
 
 `capture_conditions.pages[].path` は、**target の baseURL（`target.ui_url`）からの相対パス**で、次の規則で 1 つの URL に解決する。
