@@ -22,7 +22,6 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
-  renameSync,
   rmSync,
   statSync,
   symlinkSync,
@@ -74,12 +73,12 @@ function linkPathWithoutBwrap(bin: string) {
 }
 
 /** 一時のリポジトリにハーネス・対象のスキル・スタブ・sandbox・fixture を置く。 */
-function makeRepository(sandbox: Sandbox) {
+function makeRepository(sandbox: Sandbox, skill: string) {
   const root = tempDir("skill-eval-isolation-");
   copyHarness(root);
   // ヘルパーは scripts/lib を import するので、node_modules のあるリポジトリへリンクする。
   symlinkSync(join(repository, "scripts", "lib"), join(root, "scripts", "lib"));
-  writeSubjectSkill(root, {});
+  writeSubjectSkill(root, {}, skill);
   const { installedLog, stub } = writeInstallRecordingStub(root);
 
   const sandboxDir = join(root, "scripts", "eval", "sandbox");
@@ -128,13 +127,9 @@ function makePath(root: string, stub: string, bwrap: boolean) {
   return `${bin}:${process.env.PATH}`;
 }
 
-/** 一時のリポジトリにケースの構成を置き、ハーネスを起動する。skill を渡すと、対象のスキルをその名前に変える。 */
+/** 一時のリポジトリにケースの構成を置き、ハーネスを起動する。skill を渡すと、対象のスキルをその名前で作る。 */
 async function runCase({ runner, sandbox, bwrap, allow }: Case, skill = "subject-skill") {
-  const repo = makeRepository(sandbox);
-  if (skill !== "subject-skill") {
-    renameSync(join(repo.root, "skills", "subject-skill"), join(repo.root, "skills", skill));
-    renameSync(join(repo.root, "evals", "subject-skill"), join(repo.root, "evals", skill));
-  }
+  const repo = makeRepository(sandbox, skill);
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     PATH: makePath(repo.root, repo.stub, bwrap),
