@@ -540,7 +540,7 @@ describe("Collect review inputs", () => {
 
   test.each([
     ["base を取り込んだ（merge commit がある）", false],
-    ["rebase した（前回の commit が HEAD の祖先でない）", true],
+    ["rebase した（前回の commit が残っていて、HEAD の祖先でない）", true],
   ])("%s後も、since.diff は PR が変えたファイルだけに絞る", (_label, rebase) => {
     // 前回レビューした commit（previous）の後に、base のブランチが別のファイル（g.txt）を変えて進む。
     // PR はそれを取り込み（merge か rebase）、さらに f.txt を変える。since.diff に g.txt が入ってはいけない。
@@ -566,6 +566,98 @@ describe("Collect review inputs", () => {
     expect(since).not.toContain("g.txt");
     expect(read(input, "full.diff")).not.toContain("g.txt");
     expect(read(input, "README.md")).toContain(`前回レビューした commit は ${previous}`);
+  });
+
+  type Git = (...args: string[]) => string;
+
+  /**
+   * before で前回までの状態を作り、その HEAD を前回の目印にしてから after で後の変更を作る。
+   * after の前に、base のブランチが moved のファイルを変えて進み、PR がそれを merge で取り込む。
+   */
+  function sinceAfter(
+    before: (repo: string, git: Git) => void,
+    after: (repo: string, git: Git) => void,
+    moved: Record<string, string> = { "g.txt": "base 側の変更\n" },
+  ) {
+    let previous = "";
+    const { input } = collect(
+      () => [{ user: { login: "github-actions[bot]" }, body: MARK(previous, "1") }],
+      (repo, git) => {
+        before(repo, git);
+        previous = git("rev-parse", "HEAD");
+        git("checkout", "-q", "-b", "base-moved", "refs/remotes/origin/main");
+        for (const [name, content] of Object.entries(moved))
+          writeFileSync(join(repo, name), content);
+        git("add", "-A");
+        git("commit", "-q", "-m", "base moved");
+        git("update-ref", "refs/remotes/origin/main", "HEAD");
+        git("checkout", "-q", "main");
+        git("merge", "-q", "--no-edit", "base-moved");
+        after(repo, git);
+      },
+    );
+    return {
+      input,
+      since: existsSync(join(input, "since.diff")) ? read(input, "since.diff") : null,
+    };
+  }
+
+  test("ファイル名の [ ] をワイルドカードとして読まず、名前が一致するファイルだけを since.diff に入れる", () => {
+    const { since } = sinceAfter(
+      () => {},
+      (repo, git) => {
+        writeFileSync(join(repo, "x[ab].txt"), "PR の変更\n");
+        git("add", "-A");
+        git("commit", "-q", "-m", "pr");
+      },
+      { "xa.txt": "base 側の変更\n" },
+    );
+    expect(since).toContain("x[ab].txt");
+    expect(since).not.toContain("xa.txt");
+  });
+
+  test("前回の後に base と同じ内容へ戻したファイルも since.diff に入れる", () => {
+    const { since } = sinceAfter(
+      (repo, git) => {
+        writeFileSync(join(repo, "h.txt"), "前回までに足したファイル\n");
+        git("add", "-A");
+        git("commit", "-q", "-m", "add h");
+      },
+      (_repo, git) => {
+        git("rm", "-q", "h.txt");
+        git("commit", "-q", "-m", "remove h");
+      },
+    );
+    expect(since).toContain("deleted file");
+    expect(since).toContain("h.txt");
+    expect(since).not.toContain("g.txt");
+  });
+
+  test("前回の後の rename は、元の名前の削除と新しい名前の追加の両方を since.diff に入れる", () => {
+    const { since } = sinceAfter(
+      () => {},
+      (_repo, git) => {
+        git("mv", "f.txt", "f2.txt");
+        git("commit", "-q", "-m", "rename");
+      },
+    );
+    expect(since).toContain("--- a/f.txt");
+    expect(since).toContain("+++ b/f2.txt");
+    expect(since).not.toContain("g.txt");
+  });
+
+  test("PR が変えたファイルが無ければ、空の since.diff を作り、base 側の変更を入れない", () => {
+    const { since } = sinceAfter(
+      (repo, git) => {
+        // PR 全体を base と同じ内容に戻す。
+        writeFileSync(join(repo, "f.txt"), "base\n");
+        git("commit", "-q", "-am", "revert all");
+      },
+      (_repo, git) => {
+        git("commit", "-q", "--allow-empty", "-m", "empty");
+      },
+    );
+    expect(since).toBe("");
   });
 
   test("前回の目印が無ければ初回として full.diff だけを作る", () => {

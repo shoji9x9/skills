@@ -254,11 +254,20 @@ jobs:
           since_note="前回の目印は無い（初回のレビュー）。full.diff を読む。"
           if [ -n "$previous" ]; then
             if git cat-file -e "$previous^{commit}" 2>/dev/null; then
-              # 前回からの差分は、PR が変えたファイル（full.diff のファイル）に絞る。base のブランチを取り込んだり rebase したりしても、
+              # 前回からの差分は、PR が変えたファイルに絞る。base のブランチを取り込んだり rebase したりしても、
               # PR が触れていないファイルの base 側の変更は入らない。PR が触れたファイルの base 側の変更は入りうるので、README に書く。
-              git diff --no-color --name-only -z "$base" "$SHA" >"$RUNNER_TEMP/pr-files"
+              # PR が変えたファイルは、次の 2 つを合わせたものである。
+              # - base から HEAD までに変わったファイル（full.diff のファイル）
+              # - 前回から HEAD までの PR の commit（first-parent の merge でない commit のうち、base に無いもの）が触れたファイル。
+              #   前回の後に base と同じ内容へ戻したファイルは、full.diff には出ないので、こちらで拾う。
+              # rename は削除と追加に分けて両方の名前を挙げる。ファイル名は pathspec のワイルドカードとして読ませない。
+              {
+                git diff --no-renames --name-only -z "$base" "$SHA"
+                git log --first-parent --no-merges --no-renames --format= --name-only -z "$previous..$SHA" "^origin/$BASE_REF"
+              } | sort -zu | sed -z '/^$/d' >"$RUNNER_TEMP/pr-files"
               if [ -s "$RUNNER_TEMP/pr-files" ]; then
-                xargs -0 git diff --no-color "$previous" "$SHA" -- <"$RUNNER_TEMP/pr-files" >"$INPUT_DIR/since.diff"
+                xargs -0 git --literal-pathspecs diff --no-color --no-renames "$previous" "$SHA" -- \
+                  <"$RUNNER_TEMP/pr-files" >"$INPUT_DIR/since.diff"
               else
                 : >"$INPUT_DIR/since.diff"
               fi
