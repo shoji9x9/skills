@@ -383,7 +383,6 @@ setup が 0 以外で終わったら、executor を起動せずに eval を失�
   値が絶対パスで、`realpath` で解決したパスがハーネスの `eval-sandbox.sh` と一致する。その `eval-sandbox.sh` が実行可能である。bwrap がある。
   シンボリックリンクを経た指定も一致する。相対パスとコマンド名は一致として扱わない。
   記録の `UNVERIFIED` は、遮断を確かめていないことを表し、隔離されたかどうかは表さない。
-  この一致の判定を持たないバージョンのハーネス（`run-skill-eval.sh` に `runner_is_sandbox` が無いもの）は、`SKILL_EVAL_RUNNER` に `eval-sandbox.sh` の絶対パスを指定した run も `UNVERIFIED` と記録している。
   `sandboxed` と記録した run は、baseline の再利用でも受け付けられる。
 - `with_skill` も隔離するのは、比べる差をスキルの有無だけにするためである。
   隔離しないと、`with_skill` はエージェントの履歴（スキルを書いたセッションや eval を設計したセッションのトランスクリプト）や、グローバルにインストールしたスキルを読めてしまい、Delta が実際より大きくなる。

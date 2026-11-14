@@ -45,8 +45,8 @@
 #   6: ベースラインの再利用を拒否した（入力・実行条件・出所・成果物のどれかを確かめられない）。
 #   7: 読み取りの隔離を確かめられない（isolation が sandboxed 以外）ので、executor を起動せずに止めた。
 #      SKILL_EVAL_ALLOW_UNISOLATED=1 を設定したときだけ、警告を出して続ける。
-#   2〜7 は、CLI が同じ値で終わったときにも返る。exit 7 でハーネスが止めたときは、stderr に
-#   refusing to start the executor の行を出す。
+#   2〜7 は、CLI が同じ値で終わったときにも返る。終了コードだけでは、ハーネスが止めたのか CLI が終わったのかを区別できない。
+#      exit 7 でハーネスが止めたときは、stderr に refusing to start the executor の行を出す。
 set -euo pipefail
 
 usage() {
