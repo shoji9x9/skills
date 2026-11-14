@@ -123,8 +123,8 @@
   要点は、名前ごとにロケータが当たったすべての要素の矩形を、撮影の直後に採ることと、文字列やスタイルは採らないことである。
   参照先を読めないときは、下のコード例のとおりに書く。
 - 恒久マスクを、位置が動く要素（カルーセル・ティッカー・ポーリングで行が増える一覧など）に当てない。
-  撮影の後に採る矩形は、撮影の後でしばらく止まっていた要素の位置を、塗った位置と違っても正しいものとして記録する。
-  記録した位置が塗った位置と違うと、その位置の差分が `parity-diff` でマスクの中として隠れる。当てるなら、撮影の前の状態の操作（`applyState`）でその動きを止める。
+  撮影のスペックは撮影の後に矩形を採るので、撮影の後の 10 フレームの間に止まっていた要素の位置を、塗った位置と違っても記録する。
+  その記録を読むと、`parity-diff` は塗っていない位置の差分をマスクの中として扱い、報告から外す。当てるなら、撮影の前の状態の操作（`applyState`）でその動きを止める。
 - 書き忘れを検出するチェックは無い。書かなかった組では、`parity-diff` はマスクの位置を `traits.json` から探し、見つからなければ判定できない理由（`mask_unlocated`）を出す。
   `traits.json` の隣（同じディレクトリ）に置けば、`parity-diff` は引数で渡されなくても読む。
 - `artifact_health` を宣言した成果物では、`mask-rects.json` も採取物なので、`traits.json` と同じく `entries` に `kind: captured` で宣言する（下の「採取物の健全性」）。
@@ -149,15 +149,19 @@ const inImage = (els: Element[], full: boolean) => ({
 // 前の回の記録を消してから撮る（撮影の後で失敗したときに、新しい画像の隣に古い記録を残さない）
 rmSync(join(outDir, "mask-rects.json"), { force: true });
 await page.screenshot({ path: join(outDir, "screenshot.png"), fullPage, animations: "disabled", mask: located.map(([, loc]) => loc) });
-// 撮影の直後にすべての名前を同時に採り、比べる名前があれば主文書で 10 フレーム待って、もう一度採る
+// 撮影の直後にすべての名前の要求を一度に送り、比べる名前があれば主文書で 10 フレーム待って、もう一度採る
 const sampleAll = () => Promise.all(located.map(([, loc]) => loc.evaluateAll(inImage, fullPage === true)));
 const first = await sampleAll();
-if (first.some((f) => !f.inFrame && f.rects.length > 0)) {
-  await page.evaluate(async () => {
-    for (let i = 0; i < 10; i += 1) await new Promise((done) => requestAnimationFrame(() => done(undefined)));
+const needsSecond = first.some((f) => !f.inFrame && f.rects.length > 0);
+// requestAnimationFrame を 10 回つないで待つ
+const tenFrames = () =>
+  new Promise((done) => {
+    let n = 0;
+    const tick = () => (++n >= 10 ? done(undefined) : requestAnimationFrame(tick));
+    requestAnimationFrame(tick);
   });
-}
-const again = await sampleAll();
+if (needsSecond) await page.evaluate(tenFrames);
+const again = needsSecond ? await sampleAll() : first;
 // iframe の中の要素（0 件なら空の配列）と、2 回で位置が変わった要素は null にする
 const maskRects = located.map(([name], i) => {
   const recordable =
