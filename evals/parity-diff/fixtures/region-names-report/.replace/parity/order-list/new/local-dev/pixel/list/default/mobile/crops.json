@@ -1,0 +1,62 @@
+{
+  "summary": {
+    "total_pixels": 60000,
+    "threshold_pixels": 600,
+    "strict_pixels": 600,
+    "strict_only_pixels": 0,
+    "strict_max_channel_delta": 90,
+    "strict_only_max_channel_delta": 0,
+    "threshold_ratio": 1,
+    "strict_ratio": 1,
+    "strict_only_regions_total": 0,
+    "strict_only_regions_emitted": 0,
+    "strict_only_dropped_clusters": 0,
+    "strict_only_dropped_pixels": 0,
+    "strict_min_cluster": 4,
+    "strict_only_absorbed_pixels": 0,
+    "strict_only_overlapping_regions": 0
+  },
+  "regions": [
+    {
+      "id": 1,
+      "bbox": {
+        "x": 150,
+        "y": 20,
+        "width": 20,
+        "height": 20
+      },
+      "pixels": 400,
+      "strict_pixels": 400,
+      "threshold_bbox": {
+        "x": 150,
+        "y": 20,
+        "width": 20,
+        "height": 20
+      },
+      "absorbed_strict_only_pixels": 0,
+      "crop_current": ".replace/parity/order-list/new/local-dev/pixel/list/default/mobile/crop-1-current.png",
+      "crop_new": ".replace/parity/order-list/new/local-dev/pixel/list/default/mobile/crop-1-new.png"
+    },
+    {
+      "id": 2,
+      "bbox": {
+        "x": 10,
+        "y": 280,
+        "width": 50,
+        "height": 4
+      },
+      "pixels": 200,
+      "strict_pixels": 200,
+      "threshold_bbox": {
+        "x": 10,
+        "y": 280,
+        "width": 50,
+        "height": 4
+      },
+      "absorbed_strict_only_pixels": 0,
+      "crop_current": ".replace/parity/order-list/new/local-dev/pixel/list/default/mobile/crop-2-current.png",
+      "crop_new": ".replace/parity/order-list/new/local-dev/pixel/list/default/mobile/crop-2-new.png"
+    }
+  ],
+  "strict_only_regions": []
+}

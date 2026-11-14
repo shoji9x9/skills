@@ -1,0 +1,38 @@
+[
+  {
+    "name": "status-badge",
+    "computed": {
+      "background-color": "rgb(255, 255, 255)",
+      "color": "rgb(33, 33, 33)"
+    },
+    "before": null,
+    "after": null,
+    "rect": {
+      "x": 150,
+      "y": 20,
+      "width": 20,
+      "height": 20
+    },
+    "child_inline_styles": [],
+    "text_owners": [],
+    "scroll": null
+  },
+  {
+    "name": "order-table",
+    "computed": {
+      "background-color": "rgb(255, 255, 255)",
+      "color": "rgb(33, 33, 33)"
+    },
+    "before": null,
+    "after": null,
+    "rect": {
+      "x": 10,
+      "y": 60,
+      "width": 180,
+      "height": 150
+    },
+    "child_inline_styles": [],
+    "text_owners": [],
+    "scroll": null
+  }
+]

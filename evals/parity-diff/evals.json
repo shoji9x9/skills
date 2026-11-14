@@ -488,6 +488,45 @@
           "prompt_quote": "parity-diff --feature order-list --target local-dev"
         }
       ]
+    },
+    {
+      "id": 31,
+      "fixture": "fixtures/region-names-report",
+      "prompt": "parity-diff で order-list を local-dev と比べている途中。前提の確認・新側の撮影・画素の検出は済んでいて、組ごとの pixel-crops.mjs の出力は .replace/parity/order-list/new/local-dev/pixel/list/default/<viewport>/crops.json にある。撮影の deviceScaleFactor は 1 で、mobile の組だけ新側の traits.json を採り損ねた。トリアージに渡す前に、画素の各領域がどの要素の差なのかを添えたい。承認する人が diff.md の表と画像を自分で突き合わせずに済むよう、画像の上に差分を示したページも作ってほしい。承認する人がそのページを見て OK と言ったら、そのページを承認の記録として残せばよいかも答えて。diff.md と diff-metadata.json は書き換えないで。スキルの読み取りと同梱のスクリプトの実行はしてよい。作ったものと判断を 1 つの報告にまとめて。",
+      "assertions": [
+        "desktop の組で、save-button の矩形に重なる領域には save-button を対応づけ、どの論理名の矩形とも重ならない横線の領域は論理名が無いと、領域ごとに区別して出している",
+        "mobile の組で、どの論理名とも重ならない帯の領域を、新側の traits.json が無いため判定できないものとして扱い、名前を付けていない要素の差分と断定していない",
+        "mobile の組で、現側の traits.json の status-badge に重なる領域には status-badge を対応づけている（新側の traits.json が無いことを理由に、その領域の対応づけを捨てていない）",
+        "diff.md の画素の行のうち、位置の bbox がどの領域とも一致しない ID 6 の行を、画像の領域に結べなかった行として挙げている",
+        "画像の上に差分を示したページを承認の記録として残さず、分類と承認は diff.md・diff-metadata.json・承認の記録に残すと答えている",
+        "diff.md と diff-metadata.json を書き換えていない"
+      ],
+      "reachability": [
+        {
+          "assertion": "desktop の組で、save-button の矩形に重なる領域には save-button を対応づけ、どの論理名の矩形とも重ならない横線の領域は論理名が無いと、領域ごとに区別して出している",
+          "prompt_quote": "画素の各領域がどの要素の差なのかを添えたい"
+        },
+        {
+          "assertion": "mobile の組で、どの論理名とも重ならない帯の領域を、新側の traits.json が無いため判定できないものとして扱い、名前を付けていない要素の差分と断定していない",
+          "prompt_quote": "mobile の組だけ新側の traits.json を採り損ねた"
+        },
+        {
+          "assertion": "mobile の組で、現側の traits.json の status-badge に重なる領域には status-badge を対応づけている（新側の traits.json が無いことを理由に、その領域の対応づけを捨てていない）",
+          "prompt_quote": "mobile の組だけ新側の traits.json を採り損ねた"
+        },
+        {
+          "assertion": "diff.md の画素の行のうち、位置の bbox がどの領域とも一致しない ID 6 の行を、画像の領域に結べなかった行として挙げている",
+          "prompt_quote": "承認する人が diff.md の表と画像を自分で突き合わせずに済むよう、画像の上に差分を示したページも作ってほしい"
+        },
+        {
+          "assertion": "画像の上に差分を示したページを承認の記録として残さず、分類と承認は diff.md・diff-metadata.json・承認の記録に残すと答えている",
+          "prompt_quote": "そのページを承認の記録として残せばよいかも答えて"
+        },
+        {
+          "assertion": "diff.md と diff-metadata.json を書き換えていない",
+          "prompt_quote": "diff.md と diff-metadata.json は書き換えないで"
+        }
+      ]
     }
   ]
 }

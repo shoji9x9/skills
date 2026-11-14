@@ -1,0 +1,43 @@
+{
+  "$comment": [
+    "diff-report.test.ts のうち、HTML に埋め込む文字の扱いと、diff.md の行を画像の領域に結ぶ判定（Issue #1018）の検出能力を示す変異の一覧。",
+    "どちらの変異も、誤っても終了コードは 0 のままで、承認する人に別の行の分類を見せるか、埋め込んだ文字を HTML として読ませる。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/parity-diff/diff-report.test.ts",
+  "mutations": [
+    {
+      "id": "no-escape-lt",
+      "why": "論理名・分類・根拠の < を文字参照にせず、タグとして読ませる",
+      "file": "skills/parity-diff/scripts/diff-report.mjs",
+      "find": "    .replaceAll(\"<\", \"&lt;\")",
+      "replace": "    .replaceAll(\"<\", \"<\")",
+      "occurrences": 1,
+      "expect_failing": [
+        "HTML の特別な文字をすべて文字参照にする",
+        "CLI: 論理名・分類・根拠・ページの HTML の特別な文字は、文字参照にして埋め込む"
+      ]
+    },
+    {
+      "id": "ignore-page",
+      "why": "ページの違う行を、同じ状態・ビューポート・bbox の領域に結ぶ",
+      "file": "skills/parity-diff/scripts/diff-report.mjs",
+      "find": "  if (row.page !== pair.page || row.state !== pair.state",
+      "replace": "  if (row.state !== pair.state",
+      "occurrences": 1,
+      "expect_failing": [
+        "行は、画素で、ページ・状態・ビューポートと bbox が一致する領域にだけ結ぶ",
+        "CLI: ページが違う組には行を結ばない"
+      ]
+    },
+    {
+      "id": "second-table-as-rows",
+      "why": "差分一覧の節の 2 つ目の表の見出しと行を、差分一覧の行として読む（別の表の行の分類を承認する人に見せる）",
+      "file": "skills/parity-diff/scripts/diff-report.mjs",
+      "find": "  if (body.some((line) => isSeparatorRow(line))) {",
+      "replace": "  if (body.some((line) => isSeparatorRow(line) && false)) {",
+      "occurrences": 1,
+      "expect_failing": ["差分一覧の節に表が 2 つあれば誤りにする"]
+    }
+  ]
+}

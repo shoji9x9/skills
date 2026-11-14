@@ -1,0 +1,88 @@
+{
+  "metadata": {
+    "skill_name": "parity-diff",
+    "skill_path": "<repo>/skills/parity-diff",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-14T01:44:12Z",
+    "evals_run": [31],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 31,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 64.402,
+        "tokens": 493315,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "desktop の組で、save-button の矩形に重なる領域には save-button を対応づけ、どの論理名の矩形とも重ならない横線の領域は論理名が無いと、領域ごとに区別して出している",
+          "passed": true,
+          "evidence": "ID 1 は save-button、ID 2 は名前の付いていない要素と区別。region-names.json も作成"
+        },
+        {
+          "text": "mobile の組で、どの論理名とも重ならない帯の領域を、新側の traits.json が無いため判定できないものとして扱い、名前を付けていない要素の差分と断定していない",
+          "passed": true,
+          "evidence": "ID 4 を判定できないとした。mobile の region-names.json は traits.new が missing で status は unknown"
+        },
+        {
+          "text": "mobile の組で、現側の traits.json の status-badge に重なる領域には status-badge を対応づけている（新側の traits.json が無いことを理由に、その領域の対応づけを捨てていない）",
+          "passed": true,
+          "evidence": "ID 3 に status-badge（現行側だけ）"
+        },
+        {
+          "text": "diff.md の画素の行のうち、位置の bbox がどの領域とも一致しない ID 6 の行を、画像の領域に結べなかった行として挙げている",
+          "passed": true,
+          "evidence": "ID 6 を画像の領域に結べなかった行として挙げている"
+        },
+        {
+          "text": "画像の上に差分を示したページを承認の記録として残さず、分類と承認は diff.md・diff-metadata.json・承認の記録に残すと答えている",
+          "passed": true,
+          "evidence": "承認の記録にはならないと回答し、記録先を説明"
+        },
+        {
+          "text": "diff.md と diff-metadata.json を書き換えていない",
+          "passed": true,
+          "evidence": "diff.md と diff-metadata.json は fixture と同じ（cmp で確認）"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 64.402,
+        "stddev": 0,
+        "min": 64.402,
+        "max": 64.402
+      },
+      "tokens": {
+        "mean": 493315,
+        "stddev": 0,
+        "min": 493315,
+        "max": 493315
+      }
+    }
+  },
+  "notes": [
+    "PR #1022 のレビューで region-names.mjs の引数を変えた後の確認（with_skill を 1 run）。traits.json が無い側は --current-traits-missing / --new-traits-missing で宣言する形に変えたので、fixture の mobile の組（新側の traits.json が無い）でエージェントがこの引数に届くかを見た。",
+    "with_skill は 6/6 で、mobile の組で --new-traits-missing を渡し、帯の領域を unknown にした。",
+    "without_skill は引数の変更の影響を受けないので実行していない（比べる記録は iteration-47）。"
+  ]
+}

@@ -1,0 +1,38 @@
+[
+  {
+    "name": "save-button",
+    "computed": {
+      "background-color": "rgb(255, 255, 255)",
+      "color": "rgb(33, 33, 33)"
+    },
+    "before": null,
+    "after": null,
+    "rect": {
+      "x": 40,
+      "y": 40,
+      "width": 80,
+      "height": 30
+    },
+    "child_inline_styles": [],
+    "text_owners": [],
+    "scroll": null
+  },
+  {
+    "name": "order-table",
+    "computed": {
+      "background-color": "rgb(255, 255, 255)",
+      "color": "rgb(33, 33, 33)"
+    },
+    "before": null,
+    "after": null,
+    "rect": {
+      "x": 50,
+      "y": 100,
+      "width": 300,
+      "height": 80
+    },
+    "child_inline_styles": [],
+    "text_owners": [],
+    "scroll": null
+  }
+]

@@ -80,6 +80,62 @@
 - 判断の材料（承認 UI・差し戻し）にも、両方の数を渡す。隠れた差の大きさは `strict_only_max_channel_delta` で読む。これが 1 なら「色が 1/255 違う」という形が分かる。
   `strict_max_channel_delta` は差がある画素全体の最大値なので、別の場所に本物の差があると 255 などになり、隠れた差の大きさとしては読めない
 
+### 領域に論理名を対応づける
+
+`pixel-crops.mjs` の領域は、どの要素の差かを示さない。分類する人とモデルが crop と座標から要素を推し量らずに済むよう、組ごとに同梱の [`../scripts/region-names.mjs`](../scripts/region-names.mjs) で、領域に重なる論理名を出す。
+対応づけは決定論的なスクリプトが行い、LLM には任せない。
+
+```text
+node <スキルディレクトリ>/scripts/region-names.mjs <pixel-crops.mjs の出力の JSON> \
+  (--current-traits .replace/parity/<slug>/baseline/<page>/<state>/<viewport>/traits.json | --current-traits-missing) \
+  (--new-traits .replace/parity/<slug>/new/<target>/baseline-new/<page>/<state>/<viewport>/traits.json | --new-traits-missing) \
+  --scale <撮影の deviceScaleFactor> [--mask-name <論理名>]... [--mask-bbox <x,y,w,h>]... \
+  > <pixel-crops.mjs の --out のディレクトリ>/region-names.json
+```
+
+- 入力は、同じページ・状態・ビューポートの組の `pixel-crops.mjs` の出力と、現側と新側の `traits.json` である。
+  その組のある側に `traits.json` が無いときは、パスの代わりに `--current-traits-missing` か `--new-traits-missing` を渡す。
+  `traits.json` の場所は、コマンドの例のとおりである。新側は採取のスペック（[`../assets/capture-new.spec.template.ts`](../assets/capture-new.spec.template.ts)）が組ごとに書く場所で、現側の `baseline/` はそれと対称の並びである。
+  無いと宣言してよいのは、その組の場所にファイルが在るかを確かめ（`test -f` など）、無かったときだけである。ほかの工程の結果（特性照合が失敗したことなど）から推し量らない。
+  スクリプトは宣言を確かめない。ファイルがあるのに宣言すると、その側の論理名と `--mask-name` のマスクの位置を探さない。
+  その結果、どの論理名とも重ならない領域は `unknown` になり、`--mask-name` のマスクの中の領域は `masked` にならない。
+  両側で重なる論理名は、`sides` に片側だけで出る。`--mask-bbox` のマスクは両側に当たるので変わらない。
+  パスを渡してファイルが無いときは、パスの誤りと区別できないので、無い組として扱わずに exit 2 にする。
+  結果は stdout に出るので、`pixel-crops.mjs` の `--out` と同じディレクトリに `region-names.json` として保存する。終了コードが 1 のときも、stdout の JSON はそのまま使える
+- `--scale` は、撮影に使った `deviceScaleFactor` である。Playwright のプロジェクトの `use` に書いた値を使う。
+  `use` にデバイスの記述子（`devices['iPhone 13']` など）を展開したときは、その記述子の `deviceScaleFactor` を使う。どちらにも無ければ 1 である。
+  スクリプトはこの値を確かめないので、誤った値を渡すと、誤った論理名が exit 0 のまま出る。
+  `traits.json` の `rect` は CSS の px、領域の `bbox` は画像の画素なので、`rect` にこの値を掛けてから比べる
+- 重なるとは、領域の `bbox` と論理名の `rect` の交わりの面積が 0 より大きいことである。辺や角が接するだけでは重ならない。面積が 0 の論理名（幅か高さが 0）は、どの領域とも重ならない。
+  領域が要素を含む場合も、要素が領域を含む場合も重なる。面積の閾値は置かない。小さな重なりを閾値で消すと、名前の付いた要素の差を「名前なし」として読ませるからである。
+  代わりに、論理名ごとに `region_coverage`（交わり ÷ 領域の面積）と `element_coverage`（交わり ÷ 要素の面積）を出し、`region_coverage` の大きい順に並べる。
+  ページ全体を包む論理名のように広い要素は、`element_coverage` が小さく出るので、分類ではそれを手がかりに、領域を最もよく覆う狭い論理名から読む
+- 論理名は、現側と新側のどちらかで重なれば出し、重なった側を `sides` に持つ。片側だけで重なる論理名は、位置や大きさが両側で違う手がかりになる
+- 領域ごとの `status` は、次の表の上の行から順に決める。
+
+  | `status` | 条件 |
+  |---|---|
+  | `masked` | 現側でも新側でも、その側のマスクの矩形の和に領域の全体が覆われる。マスクの論理名は、両側の `traits.json` で位置を確かめたものだけを使う |
+  | `named` | 重なる論理名が 1 件以上ある |
+  | `unknown` | 重なる論理名が無く、判定できない理由（下記）がある |
+  | `unnamed` | 重なる論理名が無く、判定できない理由も無い。`traits.json` に採った論理名（`traits.elements`）のどれとも重ならない要素の差分である |
+
+- マスクは、撮影の恒久のマスク（`capture_conditions.masks[].name`）を `--mask-name` で、共同居住機能の実行時のマスク（[`capture-new.md`](capture-new.md)「共同居住機能の実行時マスク」で当てた `bbox`）を `--mask-bbox` で渡す。
+  `--mask-bbox` の座標は画像の画素である。マスクの論理名は、`traits.json` の `rect` で矩形に直す。マスクの論理名そのものは、重なる論理名に数えない（塗りつぶされているため）。
+  一部だけマスクに重なる領域は、`masks` に重なったマスクを持ち、`status` は重なる論理名で決める
+- 判定できない理由は、領域ごとの `unresolved` に出る。理由は 2 つある。
+  - `traits_missing:<side>`: その組のその側の `traits.json` が無い（`--<side>-traits-missing` を渡した）。重なる論理名を探せたのはもう片側だけである
+  - `mask_unlocated:<side>:<論理名>`: マスクの論理名が、その側の `traits.json` に無いか、幅か高さが 0 である（`masks.unlocated[].reason` の `absent` と `zero_area`）。マスクの位置が分からないので、マスクの中かどうかを判定できない。
+    片側でだけ位置が分かったマスクも、もう片側で当たったかを判定できないので、`masked` の判定に使わない
+
+  これらの理由がある組で、どの論理名とも重ならない領域は `unknown` にし、`unnamed`（名前を付けていない要素の差分）として扱わない。
+  `unknown` の領域は、名前があるかを確かめていない候補として、トリアージに回し、判定できなかった理由を `diff.md` の根拠の欄に書く
+- `rect` は `getBoundingClientRect` の値で、ビューポートを基準にした座標である。全画面（`capture_conditions.full_page: true`）で、スクロールした状態で撮った組では、画像の座標とずれる。
+  このスクリプトはスクロールの位置を知らないので、このずれを検出しない。スクロールしてから撮る状態の組では、出た論理名を crop と突き合わせてから使う
+- 終了コードは、0 がすべての領域を判定できた、1 が `unknown` の領域がある、2 が入力の誤り（引数・渡したパスのファイルが無い・JSON の形・`--scale` が正でない）である。
+  1 は結果であって停止の合図ではない。`unknown` の件数と理由は、stdout の `summary` と stderr の警告に出る
+- 結果は、[`triage.md`](triage.md) の入力（crop 対に添える情報）と、承認する人が見る HTML のレポート（[`triage.md`](triage.md)「承認する人が見る HTML のレポート」）に使う
+
 ## 特性照合
 
 - プロジェクト側のコピー `metadata.json.differ.trait_compare` の `trait-compare.mjs` を使う

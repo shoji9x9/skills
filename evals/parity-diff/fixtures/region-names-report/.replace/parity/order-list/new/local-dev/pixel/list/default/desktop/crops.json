@@ -1,0 +1,62 @@
+{
+  "summary": {
+    "total_pixels": 120000,
+    "threshold_pixels": 3120,
+    "strict_pixels": 3120,
+    "strict_only_pixels": 0,
+    "strict_max_channel_delta": 80,
+    "strict_only_max_channel_delta": 0,
+    "threshold_ratio": 2.6,
+    "strict_ratio": 2.6,
+    "strict_only_regions_total": 0,
+    "strict_only_regions_emitted": 0,
+    "strict_only_dropped_clusters": 0,
+    "strict_only_dropped_pixels": 0,
+    "strict_min_cluster": 4,
+    "strict_only_absorbed_pixels": 0,
+    "strict_only_overlapping_regions": 0
+  },
+  "regions": [
+    {
+      "id": 1,
+      "bbox": {
+        "x": 40,
+        "y": 40,
+        "width": 80,
+        "height": 30
+      },
+      "pixels": 2400,
+      "strict_pixels": 2400,
+      "threshold_bbox": {
+        "x": 40,
+        "y": 40,
+        "width": 80,
+        "height": 30
+      },
+      "absorbed_strict_only_pixels": 0,
+      "crop_current": ".replace/parity/order-list/new/local-dev/pixel/list/default/desktop/crop-1-current.png",
+      "crop_new": ".replace/parity/order-list/new/local-dev/pixel/list/default/desktop/crop-1-new.png"
+    },
+    {
+      "id": 2,
+      "bbox": {
+        "x": 20,
+        "y": 250,
+        "width": 360,
+        "height": 2
+      },
+      "pixels": 720,
+      "strict_pixels": 720,
+      "threshold_bbox": {
+        "x": 20,
+        "y": 250,
+        "width": 360,
+        "height": 2
+      },
+      "absorbed_strict_only_pixels": 0,
+      "crop_current": ".replace/parity/order-list/new/local-dev/pixel/list/default/desktop/crop-2-current.png",
+      "crop_new": ".replace/parity/order-list/new/local-dev/pixel/list/default/desktop/crop-2-new.png"
+    }
+  ],
+  "strict_only_regions": []
+}

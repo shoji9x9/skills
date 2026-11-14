@@ -233,6 +233,9 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
    ページの一覧と、同じ target の green 証跡から有効な集合を導き直し、現側に由来する `bbox` を両方の画像に当てる。新側に root が無いことを、停止の理由や `blocked_by` の根拠にしない。
    当てた詳細は `diff-metadata.json.capture_conditions_verified.cofeature_masks[]` に記録して報告する。恒久的なマスクの検証の結果である既存の `.masks` には混ぜない。
 4. 決定論的に差分を検出する（[`references/detect.md`](references/detect.md)）。画素・特性照合・aria の 3 つの比較方法で検出し、LLM は使わない。
+   画素の差分の領域には、[`scripts/region-names.mjs`](scripts/region-names.mjs) で重なる論理名を対応づける（同じ reference の「領域に論理名を対応づける」）。
+   `traits.json` が無い組やマスクの位置が分からない組で、どの論理名とも重ならない領域は `unknown` になる。名前を付けていない要素の差分として扱わない。
+   `unknown` の領域があるとスクリプトは exit 1 で終わるが、停止の合図ではない。出力をそのまま次の工程に使う。
    性能は、インストール済みの `parity-suite` の `scripts/perf-stats.mjs compare --target <target> --write <diff-metadata.json>` で比べる。許容幅を超えた悪化（`regressed`）は、トリアージを通さず要対応にする。
    操作中のエラーは、インストール済みの `parity-suite` の `scripts/runtime-errors.mjs compare --target <target> --run <新側の実行> --write <diff-metadata.json>` で比べる。現行に無かった署名（`new_signatures`）は、手順 6 のトリアージに回す。
 5. 正規化とノイズフィルタ（[`references/normalize.md`](references/normalize.md)）。
@@ -243,6 +246,8 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
    テキストの幅や字形の差は、分類の前にフォントの差を切り分ける（バージョンの差かヒンティングの差か。[`references/font-diff.md`](references/font-diff.md)）。
    操作中のエラーの差分は、crop 対の代わりに署名と最初に出た本文を見せて分類し、分類を `diff-metadata.json` の `runtime_errors.new_signatures[]` に書いて `compare` を通し直す（[`references/triage.md`](references/triage.md)「操作中のエラーの分類」）。
    許容と環境ノイズは利用者が承認し、承認を同じ `diff-metadata.json` の `approvals` に追記する。`diff-metadata.json` を作り直すときは、前の `approvals` をそのまま書き戻す（同じ reference の「承認の記録（`approvals`）」）。
+   承認を求めるときは、`diff.md` と `diff-metadata.json` から [`scripts/diff-report.mjs`](scripts/diff-report.mjs) で HTML のレポートを作って添える（同じ reference の「承認する人が見る HTML のレポート」）。
+   レポートは記録から作る表示で、承認の根拠の記録として扱わない。分類と承認は `diff.md`・`diff-metadata.json`・承認の記録に残す。
 7. 収束を判定し、差し戻す（[`references/convergence.md`](references/convergence.md)）。判定するのは差分ツールである。状態は 4 つある（収束／他機能待ち／判断待ち／未収束）。
    収束の条件に入れるものと、数え直しに使うスクリプトは次のとおりである。
    - 部品網羅表の未測定。現側の `metadata.json.component_coverage` が `declared: true` のとき、[`scripts/coverage-check.mjs`](scripts/coverage-check.mjs) で数え直す（目視で数えない。判定しなかった場合は、理由を記録して未検証に残す）。
@@ -277,6 +282,8 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 | 差分レポート | `.replace/parity/<slug>/new/<target>/diff.md` | [`assets/diff-template.md`](assets/diff-template.md) |
 | メタデータ | `.replace/parity/<slug>/new/<target>/diff-metadata.json` | [`assets/diff-metadata-template.json`](assets/diff-metadata-template.json) |
 | 新側のベースライン | `.replace/parity/<slug>/new/<target>/baseline-new/`（現側の `baseline/` と対称のレイアウト） | — |
+| 画素の差分の領域に重なる論理名 | `pixel-crops.mjs` の `--out` と同じディレクトリの `region-names.json`（テキストなので Git に入れる） | 同梱の [`scripts/region-names.mjs`](scripts/region-names.mjs) が作る（[`references/detect.md`](references/detect.md)「領域に論理名を対応づける」） |
+| 承認する人が見る HTML のレポート（記録ではなく、`diff.md` と `diff-metadata.json` から作る表示） | `.replace/parity/<slug>/new/<target>/diff-report.html`（スクリーンショットを埋め込むので、`artifacts` の設定に従う。デフォルトでは commit しない） | 同梱の [`scripts/diff-report.mjs`](scripts/diff-report.mjs) が作る |
 | 新側の性能の採取値（現側が `performance.declared: true` のときだけ） | `.replace/parity/<slug>/new/<target>/perf-samples.json`（Git に入れる。比べた結果は `diff-metadata.json` の `performance`） | 採取のスペックは `parity-suite` が置いた `perf/`（`metadata.json` の `suite.perf`） |
 | 新側の操作中のエラーの記録（現側が `runtime_errors.declared: true` のときだけ） | `.replace/parity/<slug>/new/<target>/runtime-errors/run-<回>/`（Git に入れる。比べた結果と分類は `diff-metadata.json` の `runtime_errors`） | 記録の fixture は `parity-suite` がスイートの基に組み込んだもの（`metadata.json` の `suite.runtime_errors`） |
 | 新側の採取スペック | `metadata.json.suite.new_only` の場所（デフォルトは `<parity_suite_dir>/parity/<slug>/new-only/`。既にあれば上書きしない） | [`assets/capture-new.spec.template.ts`](assets/capture-new.spec.template.ts) |
@@ -293,7 +300,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 - 自己ノイズの測定の 2 回目の採取物（`new/<target>/noise-pass2/`）と、撮影に使ったブラウザの同一性の記録（`new/<target>/browser-identity.<pass>.json`）は成果物ではない。
   測定値と指紋を `diff-metadata.json` に記録したら削除し、commit しない（テキストでも Git に入れない。原本は [`references/capture-new.md`](references/capture-new.md)）。
 - このスキルに同梱した決定論的なツールは、プロジェクトへコピーせず、スキルのディレクトリの中から実行する（`gh skill update` で自動で更新されるようにするため）。
-  対象は [`scripts/pixel-crops.mjs`](scripts/pixel-crops.mjs)・[`scripts/diff-normalize.mjs`](scripts/diff-normalize.mjs)・[`scripts/json-normalize-diff.mjs`](scripts/json-normalize-diff.mjs)・
+  対象は [`scripts/pixel-crops.mjs`](scripts/pixel-crops.mjs)・[`scripts/region-names.mjs`](scripts/region-names.mjs)・[`scripts/diff-report.mjs`](scripts/diff-report.mjs)・[`scripts/diff-normalize.mjs`](scripts/diff-normalize.mjs)・[`scripts/json-normalize-diff.mjs`](scripts/json-normalize-diff.mjs)・
   [`scripts/coverage-check.mjs`](scripts/coverage-check.mjs)・[`scripts/pending-triage-check.mjs`](scripts/pending-triage-check.mjs)・[`scripts/amend-verify.mjs`](scripts/amend-verify.mjs)・
   [`scripts/source-version.mjs`](scripts/source-version.mjs)（新側のバージョンを取る。取り方の原本は `replace-strategy` の `references/project-config.md`「新側のバージョンの記録」）である。
   性能の比較は、インストール済みの `parity-suite` の `scripts/perf-stats.mjs` を `compare` で呼ぶ（コピーしない）。

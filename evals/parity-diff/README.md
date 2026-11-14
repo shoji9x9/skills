@@ -100,3 +100,14 @@
 - eval 30 の fixture（`style-free`）は、設定の `style_policy: free` と、`spec-parity suite` が作る形の `metadata.json` と、local-dev の新側の green の記録を持つ（Issue #565）。
   `metadata.json` は `style_policy: free`・`mode: feature`・`suite.runner: e2e` を持ち、差分ツールとノイズ基準値を持たない。
   **撮影へ進まずに止まり、`spec-parity verify` を案内するか**と、差分ツールが無いことを `parity-suite` の未完了と取り違えて差し戻さないかを見る
+- eval 31 は、画素の差分の領域に論理名を対応づける手順と、承認する人が見る HTML のレポート（Issue #1018）の回帰である。
+  fixture `region-names-report` は、list の default の desktop と mobile の 2 組を持つ。両側のスクリーンショット・現側の `traits.json`・`pixel-crops.mjs` の出力（`crops.json` と crop 対）・`diff.md`・`diff-metadata.json` が入っている。
+  mobile の組だけ、新側の `traits.json` が無い。
+  スクリーンショットと差分画像は、`fake-pngjs.ts` の `encodePng` で塗った矩形から作り、`crops.json` はそれを `pixel-crops.mjs` に通した出力をそのまま置いた。
+  `traits.json` は、Playwright を動かせないので `trait-capture.mjs` の出力の形に合わせて手で書いた（`rect` 以外の欄は対応づけに使わない）。
+  `diff.md` の ID 6 は、どの領域とも `bbox` が一致しない画素の行である。
+  対象は、領域ごとの論理名（desktop の 1 件が名前あり・1 件が名前なし）、新側の `traits.json` が無い組で名前と重ならない領域を名前なしと断定しないこと、
+  片側の `traits.json` で見つかった名前を捨てないこと、領域に結べない行を挙げること、レポートを承認の記録にしないこと、記録を書き換えないことである。
+  対応づけとレポートの判定そのものは、`scripts/skills/parity-diff/region-names.test.ts` と `diff-report.test.ts` が確かめる。
+  iteration-47 の 3 run で差が出たのは、名前と重ならない領域を名前なしと断定しない assertion だけだった。
+  ほかの assertion は `without_skill` も自力で満たしたので、後退の検知のためのもので、Delta には寄与しない

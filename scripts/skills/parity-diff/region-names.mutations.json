@@ -1,0 +1,74 @@
+{
+  "$comment": [
+    "region-names.test.ts のうち、画素の差分の領域に論理名を対応づける判定（Issue #1018）の検出能力を示す変異の一覧。",
+    "どの変異も、誤っても終了コードは変わらず、分類する人とモデルに誤った論理名か「名前なし」を渡す。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/parity-diff/region-names.test.ts",
+  "mutations": [
+    {
+      "id": "touching-counts-as-overlap",
+      "why": "辺や角が接するだけ（交わりの面積 0）の論理名を、重なる論理名として出す",
+      "file": "skills/parity-diff/scripts/region-names.mjs",
+      "find": "  return w > 0 && h > 0 ? w * h : 0;",
+      "replace": "  return w >= 0 && h >= 0 ? Math.max(w * h, 1) : 0;",
+      "occurrences": 1,
+      "expect_failing": [
+        "辺や角が接するだけの矩形は重ならない（交わりの面積が 0）",
+        "重なる論理名が 0 件の領域は unnamed になる（両側の traits.json があり、マスクが無い）",
+        "面積が 0 の論理名は、領域の内側にあっても重ならない"
+      ]
+    },
+    {
+      "id": "unresolved-as-unnamed",
+      "why": "traits.json の無い側や見つからないマスクがあっても、論理名と重ならない領域を「名前を付けていない要素の差分」にする",
+      "file": "skills/parity-diff/scripts/region-names.mjs",
+      "find": "  else if (reasons.length > 0) status = \"unknown\";",
+      "replace": "  else if (reasons.length < 0) status = \"unknown\";",
+      "occurrences": 1,
+      "expect_failing": [
+        "判定できない理由があり、どの論理名とも重ならない領域は unknown になり、unnamed にならない",
+        "CLI: 現側の traits.json が無ければ、論理名と重ならない領域を unknown にして exit 1 で警告する",
+        "CLI: 新側の traits.json が無ければ、論理名と重ならない領域を unknown にして exit 1 で警告する",
+        "CLI: 両側とも traits.json が無ければ、すべての領域が unknown になる",
+        "CLI: マスクの論理名が traits.json に無ければ、論理名と重ならない領域を unknown にする",
+        "CLI: マスクの論理名が traits.json にあっても面積が 0 なら、名前が無いのではなく面積が 0 だと出す",
+        "CLI: マスクの論理名の位置を片側でしか確かめられなければ、覆われた領域を masked にせず unknown にする"
+      ]
+    },
+    {
+      "id": "ignore-scale",
+      "why": "CSS の px の rect を画像の画素に直さずに比べる（deviceScaleFactor が 1 でない組で、別の要素を名指す）",
+      "file": "skills/parity-diff/scripts/region-names.mjs",
+      "find": "    const rect = scaleRect(entry.rect, scale);",
+      "replace": "    const rect = scaleRect(entry.rect, 1);",
+      "occurrences": 1,
+      "expect_failing": ["--scale を掛けた rect で比べる（CSS の px と画像の画素）"]
+    },
+    {
+      "id": "masked-ignored",
+      "why": "マスクに全体が覆われた領域を、マスクの下の論理名の差分として出す",
+      "file": "skills/parity-diff/scripts/region-names.mjs",
+      "find": "  if (masked) status = \"masked\";",
+      "replace": "  if (!masked && masked) status = \"masked\";",
+      "occurrences": 1,
+      "expect_failing": [
+        "マスクの矩形の和に全体が覆われる領域は masked になる（重なる論理名より先に決まる）",
+        "CLI: マスクの論理名を traits.json で見つけ、領域を覆えば masked にする",
+        "CLI: --mask-bbox で渡した画素の矩形も、マスクとして扱う"
+      ]
+    },
+    {
+      "id": "partial-mask-as-covering",
+      "why": "マスクの論理名の両側の矩形を 1 つの和にまとめて覆うかを判定し、片側のマスクだけが覆う領域の差をマスクの中として隠す",
+      "file": "skills/parity-diff/scripts/region-names.mjs",
+      "find": "      masks.flatMap((m) => m.bySide[side]),",
+      "replace": "      masks.flatMap((m) => [...m.bySide.current, ...m.bySide.new]),",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: マスクの論理名の位置を片側でしか確かめられなければ、覆われた領域を masked にせず unknown にする",
+        "CLI: マスクの論理名の位置が両側で違えば、片側のマスクだけが覆う領域を masked にしない"
+      ]
+    }
+  ]
+}
