@@ -87,16 +87,16 @@
 
 ```text
 node <スキルディレクトリ>/scripts/region-names.mjs <pixel-crops.mjs の出力の JSON> \
-  (--current-traits <同じ組の特性照合に baseline.json として渡すファイル> | --current-traits-missing) \
-  (--new-traits <同じ組の特性照合に capture.json として渡すファイル> | --new-traits-missing) \
+  (--current-traits .replace/parity/<slug>/baseline/<page>/<state>/<viewport>/traits.json | --current-traits-missing) \
+  (--new-traits .replace/parity/<slug>/new/<target>/baseline-new/<page>/<state>/<viewport>/traits.json | --new-traits-missing) \
   --scale <撮影の deviceScaleFactor> [--mask-name <論理名>]... [--mask-bbox <x,y,w,h>]... \
   > <pixel-crops.mjs の --out のディレクトリ>/region-names.json
 ```
 
 - 入力は、同じページ・状態・ビューポートの組の `pixel-crops.mjs` の出力と、現側と新側の `traits.json` である。
   その組のある側に `traits.json` が無いときは、パスの代わりに `--current-traits-missing` か `--new-traits-missing` を渡す。
-  渡すファイルは、同じ組の特性照合（下の「特性照合」）で `trait-compare.mjs` に渡すファイルと同じにする。ここで別に探さない。
-  無いと宣言してよいのは、特性照合でもその側のファイルが無く、その組を照合できなかったときだけである。
+  `traits.json` の場所は、コマンドの例のとおりである。新側は採取のスペック（[`../assets/capture-new.spec.template.ts`](../assets/capture-new.spec.template.ts)）が組ごとに書く場所で、現側の `baseline/` はそれと対称の並びである。
+  無いと宣言してよいのは、その組の場所にファイルが在るかを確かめ（`test -f` など）、無かったときだけである。ほかの工程の結果（特性照合が失敗したことなど）から推し量らない。
   スクリプトは宣言を確かめない。ファイルがあるのに宣言すると、その側の論理名と `--mask-name` のマスクの位置を探さない。
   その結果、どの論理名とも重ならない領域は `unknown` になり、`--mask-name` のマスクの中の領域は `masked` にならない。
   両側で重なる論理名は、`sides` に片側だけで出る。`--mask-bbox` のマスクは両側に当たるので変わらない。

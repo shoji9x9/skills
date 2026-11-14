@@ -41,7 +41,6 @@ export const VERSION = "1";
 /** @typedef {{ id:(string|number), kind:("threshold"|"strict_only"), bbox:Rect }} Region */
 /**
  * 側ごとの traits.json。missing は、`--<side>-traits-missing` で無いと宣言した側である。
- * 渡したパスのファイルが無い・読めないときの扱いと理由は readJsonFile に、形が違うときの扱いは readTraits に書く（どちらも入力の誤り）。
  * @typedef {{ side:Side, missing:true } | { side:Side, missing:false, entries:NamedRect[] }} SideTraits
  */
 /**
@@ -422,6 +421,7 @@ function readJsonFile(path) {
 
 /**
  * 1 つの側の traits.json を読む。path が null なら、その側の traits.json が無いと宣言されている。
+ * 渡したパスのファイルが無い・読めない（readJsonFile）ときと、形が違う（readTraits）ときは、missing にせず入力の誤りを返す。
  * @param {string | null} path
  * @param {Side} side
  * @returns {{ error:string } | SideTraits}
