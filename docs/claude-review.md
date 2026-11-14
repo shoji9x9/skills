@@ -88,11 +88,17 @@ check-run（名前 `Review`）は、`workflow_dispatch` の run ではデフォ�
 | fork の PR のコードを、secret のある job で読ませる | `pull_request` は fork の PR を除く。`workflow_dispatch` は HEAD のリポジトリを API で確かめてから checkout する |
 | 古い HEAD をレビューして、新しい HEAD のレビューとして扱う | `workflow_dispatch` は入力の SHA と PR の今の HEAD が違えば止める。目印には、レビューした SHA を書く |
 | PR の本文・コメント・差分に仕込まれた指示に、エージェントが従う | エージェントのツールを、作業ツリーの中を読むこと（`Read`・`Grep`・`Glob`）だけに限る。書くツール・Bash・Web・サブエージェントを与えない。リポジトリの設定（`.claude/settings.json` の Hook と `.mcp.json`）を読ませない |
-| エージェントが資格情報を PR に書く | エージェントはリポジトリの外と `.git/` の中（`claude-code-action` が token を書きうる `.git/config`）を読めない。投稿の前に、結果に資格情報の値と token の形の文字列が無いことを確かめ、あれば何も投稿しない |
+| エージェントが資格情報を PR に書く | エージェントはリポジトリの外と `.git/` の中を読めない（下の段落）。投稿の前に、結果に資格情報の値と token の形の文字列が無いことを確かめ、あれば何も投稿しない |
 | エージェントが許可していないツールを使う | `--permission-mode default` で、許可の規則に無い呼び出しを拒否する。デフォルトで auto mode を使うバージョンの `claude-code-action` は、許可の規則に無い呼び出しを安全性の判定で通しうる |
 | エージェントの文章が、目印と同じ形を含む | 総評の本文の中の `<!--` を `&lt;!--` に置き換える |
 | PR が `.claude-review-input/` にファイルを置き、エージェントの入力をすり替える | 入力を書く前に、そのディレクトリを消す |
 | 実行記録から情報が出る | 実行記録の全体は残さず、使用量の数値だけを artifact に残す |
+
+`claude-code-action` は、agent モードでは、`github_token` を `.git/config` の remote の URL に書き込む。
+書き込むのは、action の `src/github/operations/git-config.ts` の `replaceCheckoutCredentials` である。
+checkout の `persist-credentials: false` は、この書き込みを防がない。そのため、エージェントの許可の規則（`Read(./**)`）に加えて、`Read(./.git/**)` を拒否の規則に入れる。
+この拒否の規則は、Read に加えて Grep と Glob にも当たる。Grep と Glob の形の拒否の規則（`Grep(./.git/**)` など）は当たらない。
+手元の Claude Code 2.1.325 の `claude -p` で、この拒否の規則があると Read・Grep・Glob のどれでも `.git/config` の中を読めないことを確かめた。拒否の規則が無いと、Read でも Grep でも読めた。
 
 受け入れている危険は次のとおりである。
 

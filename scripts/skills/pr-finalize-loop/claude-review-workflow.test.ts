@@ -16,7 +16,12 @@ import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const WORKFLOW = ".github/workflows/claude-review.yml";
 
-type Step = { name?: string; run?: string; env?: Record<string, string> };
+type Step = {
+  name?: string;
+  run?: string;
+  env?: Record<string, string>;
+  with?: Record<string, string>;
+};
 type Workflow = { env: Record<string, string>; jobs: { review: { steps: Step[] } } };
 
 const doc = loadYamlAs<Workflow>(readFileSync(join(repoRoot, WORKFLOW), "utf8"));
@@ -430,5 +435,18 @@ describe("Collect review inputs", () => {
     expect(outputs(res.dir).previous).toBe(OTHER_SHA);
     expect(existsSync(join(input, "since.diff"))).toBe(false);
     expect(read(input, "README.md")).toContain("履歴に無い");
+  });
+});
+
+// action は agent モードで github_token を作業ツリーの git の設定（remote の URL）に書き込む。
+// 作業ツリーの中を許可する規則だけでは、その設定も読める。拒否の規則 Read(./.git/**) が Read・Grep・Glob の 3 つに当たることは、
+// 手元の claude -p で確かめた（docs/claude-review.md「危険と対策」）。ここでは、宣言から拒否の規則が消えていないことを確かめる。
+describe("Run Claude Code の claude_args", () => {
+  const args = step("Run Claude Code").with?.claude_args ?? "";
+
+  test("使えるツールを読み取りの 3 つに限り、git の設定のディレクトリの読み取りを拒否する", () => {
+    expect(args).toContain('--tools "Read,Grep,Glob"');
+    expect(args).toContain("--permission-mode default");
+    expect(args).toMatch(/--disallowed-tools "[^"]*Read\(\.\/\.git\/\*\*\)[^"]*"/);
   });
 });

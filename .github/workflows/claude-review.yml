@@ -302,7 +302,8 @@ jobs:
           # エージェントのツールは、作業ツリーの中を読むことだけに限る（--tools と、パスの規則を付けた --allowed-tools）。
           # 書くツール・Bash・Web・サブエージェントを与えないので、リポジトリの外（/proc や ~/.claude）の資格情報を読むことも、
           # 作業ツリーや git の設定を書き換えて後の段にコマンドを実行させることもできない。
-          # .git/ の中は読ませない。claude-code-action が git の認証を設定し直すと、.git/config に token が入りうる。
+          # .git/ の中は読ませない。claude-code-action は agent モードで github_token を .git/config の remote の URL に書き込む。
+          # 書き込むのは、action の src/github/operations/git-config.ts の replaceCheckoutCredentials である。
           # `Read(./.git/**)` の拒否は Grep と Glob にも当たる（Grep と Glob の形の拒否の規則は当たらない）。
           # 拒否が許可より優先されることは、手元の Claude Code 2.1.325 の claude -p で確かめた。
           # 作業ツリーの外を指すシンボリックリンクを `Read(./**)` で読めないことも、同じ方法で確かめた。
