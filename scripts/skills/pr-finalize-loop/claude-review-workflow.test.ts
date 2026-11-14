@@ -657,10 +657,54 @@ describe("Collect review inputs", () => {
     );
     expect(since).toContain("--- a/r.txt");
     expect(since).toContain("+++ b/r2.txt");
+    expect(since).not.toContain("g.txt");
+  });
+
+  test("前回までの rename を前回の後に戻したときも、両方の名前を since.diff に入れる", () => {
+    // 前回の時点で PR は base の r.txt を r2.txt に rename していた。前回の後に r.txt へ戻すと、
+    // 今の時点では base と同じなので full.diff に出ない。前回の時点の一覧が rename を 1 つの名前にまとめると、r.txt が抜ける。
+    const { since } = sinceAfter(
+      (repo, git) => {
+        git("checkout", "-q", "-b", "base-r", "refs/remotes/origin/main");
+        writeFileSync(join(repo, "r.txt"), "base にあるファイル\n".repeat(5));
+        git("add", "-A");
+        git("commit", "-q", "-m", "base adds r");
+        git("update-ref", "refs/remotes/origin/main", "HEAD");
+        git("checkout", "-q", "main");
+        git("merge", "-q", "--no-edit", "base-r");
+        git("mv", "r.txt", "r2.txt");
+        git("commit", "-q", "-m", "rename");
+      },
+      (_repo, git) => {
+        git("mv", "r2.txt", "r.txt");
+        git("commit", "-q", "-m", "rename back");
+      },
+    );
+    expect(since).toContain("--- a/r2.txt");
+    expect(since).toContain("+++ b/r.txt");
+    expect(since).not.toContain("g.txt");
+  });
+
+  test("前回の commit と base のブランチに共通の祖先が無ければ since.diff を作らず、README にそう書く", () => {
+    let previous = "";
+    const { res, input } = collect(
+      () => [{ user: { login: "github-actions[bot]" }, body: MARK(previous, "1") }],
+      (repo, git) => {
+        git("checkout", "-q", "--orphan", "unrelated");
+        writeFileSync(join(repo, "f.txt"), "履歴の無い内容\n");
+        git("add", "-A");
+        git("commit", "-q", "-m", "unrelated");
+        previous = git("rev-parse", "HEAD");
+        git("checkout", "-q", "-f", "main");
+      },
+    );
+    expect(outputs(res.dir).previous).toBe(previous);
+    expect(existsSync(join(input, "since.diff"))).toBe(false);
+    expect(read(input, "README.md")).toContain("共通の祖先が無い");
   });
 
   test("取り込みのコンフリクトを base の内容で解消して PR の変更を捨てたファイルも、since.diff に入れる", () => {
-    const { since } = sinceAfter(
+    const { since, input } = sinceAfter(
       () => {},
       (repo, git) => {
         // sinceAfter の merge は f.txt で競合しないので、ここで base 側を進めてから競合させる。
@@ -669,7 +713,14 @@ describe("Collect review inputs", () => {
         git("commit", "-q", "-am", "base changes f");
         git("update-ref", "refs/remotes/origin/main", "HEAD");
         git("checkout", "-q", "main");
-        spawnSync("git", ["merge", "-q", "base-moved"], { cwd: repo, timeout: CHILD_TIMEOUT_MS });
+        const merge = spawnSync("git", ["merge", "-q", "base-moved"], {
+          cwd: repo,
+          encoding: "utf8",
+          timeout: CHILD_TIMEOUT_MS,
+        });
+        // 前提: f.txt でコンフリクトして merge が止まる。
+        expect(merge.status, merge.stderr).toBe(1);
+        expect(git("diff", "--name-only", "--diff-filter=U")).toBe("f.txt");
         git("checkout", "--theirs", "f.txt");
         git("add", "f.txt");
         git("commit", "-q", "--no-edit");
@@ -677,6 +728,8 @@ describe("Collect review inputs", () => {
     );
     expect(since).toContain("f.txt");
     expect(since).toContain("-second");
+    // f.txt は今の時点で base と同じなので full.diff に出ず、前回の時点の一覧からだけ拾われる。
+    expect(read(input, "full.diff")).not.toContain("f.txt");
   });
 
   test("merge の 2 番目の親の側の commit が base と同じ内容へ戻したファイルも、since.diff に入れる", () => {
