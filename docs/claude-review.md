@@ -36,6 +36,7 @@ gh workflow run claude-review.yml -f pr=<番号> -f sha="$sha" -f effort=medium
 - `open` は、行に付けずに総評に書いた指摘の件数である。行の指摘はスレッドの解決で追えるが、総評の指摘は追えないので分けて数える。
   手元のレビューの記録（配布スキル `pr-finalize-loop` の `local-review-record.sh`）の `open` と同じ考え方である。
 - レビューが失敗・時間切れ・取り消しになった回は、目印を書かない。HEAD の SHA と一致する目印が無ければ、その HEAD はレビューし終えていない。
+- `CLAUDE_REVIEW_SKIP` で一時停止した回と、対象外の PR（draft など）で job を飛ばした回も、目印を書かずに成功で終わる。目印を待つ側は、run の Summary か変数で一時停止を見分ける。
 - 目印は、`github-actions[bot]` が書いたコメントの 1 行目だけを読む。人が同じ形を書いたコメントと、総評の本文の中の同じ形は、目印として扱わない。
 - run の一覧では、`run-name` の `Claude review PR #<番号> <SHA>` で、どの PR のどの commit の run かを見分ける。
 
@@ -45,7 +46,8 @@ check-run（名前 `Review`）は、`workflow_dispatch` の run ではデフォ�
 
 ワークフローは、エージェントを起動する前に次のものを作業ツリーの `.claude-review-input/` に書き、エージェントに読ませる。
 
-- 前回の目印の SHA から HEAD までの差分（`since.diff`）。前回の目印が無ければ作らず、エージェントは base からの差分（`full.diff`）を全体として読む
+- 前回の目印の SHA から HEAD までの差分（`since.diff`）。前回の目印が無ければ作らず、エージェントは base からの差分（`full.diff`）を全体として読む。
+  前回の commit が HEAD の祖先でない（rebase した）ときと、間に merge commit がある（base を取り込んだ）ときも作らない。PR に無い変更が差分に入るからである
 - レビューのスレッド（解決済みかと、作成者の返信）と、トップレベルのコメント
 
 プロンプトは、解決済みの指摘と、作成者が理由を添えて直さないと返信した指摘を、新しい根拠なしに出し直さないよう指示する。
@@ -99,6 +101,7 @@ check-run（名前 `Review`）は、`workflow_dispatch` の run ではデフォ�
 checkout の `persist-credentials: false` は、この書き込みを防がない。そのため、エージェントの許可の規則（`Read(./**)`）に加えて、`Read(./.git/**)` を拒否の規則に入れる。
 この拒否の規則は、Read に加えて Grep と Glob にも当たる。Grep と Glob の形の拒否の規則（`Grep(./.git/**)` など）は当たらない。
 手元の Claude Code 2.1.325 の `claude -p` で、この拒否の規則があると Read・Grep・Glob のどれでも `.git/config` の中を読めないことを確かめた。拒否の規則が無いと、Read でも Grep でも読めた。
+作業ツリーの中から `.git/` の中を指すシンボリックリンク（`x -> .git/config` など）も、同じ拒否の規則で読めなかった。作業ツリーの外を指すシンボリックリンクは、許可の規則（`Read(./**)`）に当たらないので読めなかった。
 
 受け入れている危険は次のとおりである。
 

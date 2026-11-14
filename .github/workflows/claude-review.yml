@@ -149,6 +149,7 @@ jobs:
             echo "sha=$sha"
             echo "effort=$effort"
             echo "base_ref=$base_ref"
+            echo "pr_json=$pr_json"
           } >>"$GITHUB_OUTPUT"
           echo "PR #$pr の $sha を effort $effort でレビューする" >>"$GITHUB_STEP_SUMMARY"
 
@@ -210,6 +211,7 @@ jobs:
           PR: ${{ steps.target.outputs.pr }}
           SHA: ${{ steps.target.outputs.sha }}
           BASE_REF: ${{ steps.target.outputs.base_ref }}
+          TARGET_PR_JSON: ${{ steps.target.outputs.pr_json }}
         run: |
           set -o pipefail
           # PR が同じ名前のファイルやシンボリックリンクを commit していても、ワークフローが書いたものだけをエージェントに読ませる。
@@ -217,7 +219,9 @@ jobs:
           mkdir -p "$INPUT_DIR"
           marker_re='^<!-- claude-review sha=([0-9a-f]{40}) findings=[0-9]+ open=[0-9]+ effort=[a-z]+ run=[0-9]+ -->$'
 
-          gh pr view "$PR" --repo "$REPO" --json number,title,body,author,baseRefName,headRefName,url >"$INPUT_DIR/pr.json"
+          # PR は Resolve target が検査に使ったものを渡す。取得し直すと、検査した内容と渡す内容が食い違いうる。
+          jq '{number, title, body, author: .user.login, base: .base.ref, head: .head.ref, url: .html_url}' \
+            "$TARGET_PR_JSON" >"$INPUT_DIR/pr.json"
 
           # トップレベルのコメント。前回の目印を探すのと、作成者の返信をエージェントに渡すのに使う。
           gh api --paginate "repos/$REPO/issues/$PR/comments?per_page=100" \
@@ -236,10 +240,10 @@ jobs:
             repository(owner: $owner, name: $name) { pullRequest(number: $number) {
               reviewThreads(first: 100, after: $endCursor) { pageInfo { hasNextPage endCursor }
                 nodes { isResolved isOutdated path line originalLine
-                  comments(first: 100) { nodes { author { login } createdAt body } } } } } } }'
+                  comments(first: 100) { totalCount nodes { author { login } createdAt body } } } } } } }'
           gh api graphql --paginate -f owner="${REPO%%/*}" -f name="${REPO#*/}" -F number="$PR" -f query="$query" \
             --jq '.data.repository.pullRequest.reviewThreads.nodes[]' | jq -s . >"$RUNNER_TEMP/threads.json"
-          jq -r '.[] | "## \(.path):\(.line // .originalLine // "-")（\(if .isResolved then "解決済み" else "未解決" end)\(if .isOutdated then "・古い行" else "" end)）\n\n\(.comments.nodes | map("### \(.author.login // "削除されたユーザー")（\(.createdAt)）\n\n\(.body)\n") | join("\n"))"' \
+          jq -r '.[] | "## \(.path):\(.line // .originalLine // "-")（\(if .isResolved then "解決済み" else "未解決" end)\(if .isOutdated then "・古い行" else "" end)）\n\n\(.comments.nodes | map("### \(.author.login // "削除されたユーザー")（\(.createdAt)）\n\n\(.body)\n") | join("\n"))\(if .comments.totalCount > (.comments.nodes | length) then "\n（このスレッドのコメント \(.comments.totalCount) 件のうち、最初の \(.comments.nodes | length) 件だけを載せた）\n" else "" end)"' \
             "$RUNNER_TEMP/threads.json" >"$INPUT_DIR/threads.md"
 
           # checkout は fetch-depth: 0 で全ブランチを origin/<名前> に取得している。
@@ -247,11 +251,17 @@ jobs:
           git diff --no-color "$base" "$SHA" >"$INPUT_DIR/full.diff"
           since_note="前回の目印は無い（初回のレビュー）。full.diff を読む。"
           if [ -n "$previous" ]; then
-            if git cat-file -e "$previous^{commit}" 2>/dev/null; then
+            # base のブランチを取り込んだ（merge commit がある）か rebase した（祖先でない）ときは、
+            # 前回からの差分に PR に無い変更が入るので作らない。
+            if ! git cat-file -e "$previous^{commit}" 2>/dev/null; then
+              since_note="前回レビューした commit（$previous）が履歴に無い（force push など）。full.diff を全体として読む。"
+            elif ! git merge-base --is-ancestor "$previous" "$SHA"; then
+              since_note="前回レビューした commit（$previous）が HEAD の祖先でない（rebase など）。full.diff を全体として読む。"
+            elif [ -n "$(git rev-list --merges "$previous..$SHA")" ]; then
+              since_note="前回レビューした commit（$previous）から HEAD までに merge commit がある（base の取り込みなど）。full.diff を全体として読む。"
+            else
               git diff --no-color "$previous" "$SHA" >"$INPUT_DIR/since.diff"
               since_note="前回レビューした commit は $previous。since.diff がそこから HEAD までの差分である。"
-            else
-              since_note="前回レビューした commit（$previous）が履歴に無い（force push など）。full.diff を全体として読む。"
             fi
           fi
           {
@@ -337,7 +347,7 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           GITHUB_TOKEN_VALUE: ${{ github.token }}
           SECRET_FORMS: "sk-ant-[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}"
-          RESULT: ${{ steps.claude.outputs.structured_output }}
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
           REPO: ${{ github.repository }}
           PR: ${{ steps.target.outputs.pr }}
           SHA: ${{ steps.target.outputs.sha }}
@@ -350,8 +360,12 @@ jobs:
             echo "::error title=Claude review::$1"
             exit 1
           }
+          # structured output は、環境変数で渡さず実行記録の最後の result から読む。環境変数 1 つの上限（128 KiB）を超えると
+          # 段を起動できず、段の env はログにも出るからである。
           result="$RUNNER_TEMP/review-result.json"
-          printf '%s' "$RESULT" >"$result"
+          [ -n "$EXECUTION_FILE" ] && [ -f "$EXECUTION_FILE" ] || fail "実行記録が無い"
+          jq '[.[] | select(type == "object" and .type == "result")] | last | .structured_output' \
+            "$EXECUTION_FILE" >"$result" || fail "実行記録を読めない"
           jq -e '(.summary | type == "string") and (.findings | type == "array")
             and all(.findings[]; (.body | type == "string" and length > 0)
               and ((has("path") and has("line")) or ((has("path") or has("line") or has("start_line")) | not)))' \

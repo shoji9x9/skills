@@ -63,8 +63,7 @@ case "$*" in
     if [ -n "\${FAIL_PATH:-}" ] && [ "$(jq -r .path "$input")" = "$FAIL_PATH" ]; then exit 1; fi
     jq -c . "$input" >>"$INLINE_LOG" ;;
   "pr comment "*) cp "$body_file" "$COMMENT_OUT" ;;
-  "pr view "*) echo '{}' ;;
-  "api graphql "*) echo '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}' | emit ;;
+  "api graphql "*) emit <"$THREADS_JSON" ;;
   "api --paginate "*"/issues/"*"/comments"*) emit <"$COMMENTS_JSON" ;;
   "api repos/"*"/pulls/"*) [ -f "\${PR_JSON:-}" ] || exit 1; emit <"$PR_JSON" ;;
   *) echo "unexpected gh call: $*" >&2; exit 99 ;;
@@ -208,6 +207,38 @@ describe("Resolve target", () => {
   });
 });
 
+describe("Resolve options", () => {
+  const script = stepRun("Resolve options");
+  const run = (model: string, maxTurns: string) =>
+    runStep(script, { CLAUDE_REVIEW_MODEL: model, CLAUDE_REVIEW_MAX_TURNS: maxTurns });
+
+  test("変数が無ければ --model を渡さず、往復の上限は DEFAULT_MAX_TURNS にする", () => {
+    const res = run("", "");
+    expect(res.status, res.stderr + res.stdout).toBe(0);
+    expect(outputs(res.dir)).toEqual({ model_args: "", max_turns: doc.env.DEFAULT_MAX_TURNS });
+  });
+
+  test.each(["opus", "claude-opus-5-5", "us.anthropic.claude:1"])("モデル名 %s は通す", (model) => {
+    const res = run(model, "30");
+    expect(res.status, res.stderr + res.stdout).toBe(0);
+    expect(outputs(res.dir)).toEqual({ model_args: `--model ${model}`, max_turns: "30" });
+  });
+
+  test.each([
+    ["空白を含むモデル名", "opus --tools Bash", ""],
+    ["引用符を含むモデル名", 'opus"', ""],
+    ["- で始まるモデル名", "-x", ""],
+    ["改行を含むモデル名", "opus\n--tools Bash", ""],
+    ["往復の上限が 0", "", "0"],
+    ["往復の上限が 1000", "", "1000"],
+    ["往復の上限に空白", "", "6 --x"],
+  ])("%s なら止まり、何も出力しない", (_label, model, maxTurns) => {
+    const res = run(model, maxTurns);
+    expect(res.status).toBe(1);
+    expect(read(res.dir, "output")).toBe("");
+  });
+});
+
 describe("Post review", () => {
   const script = stepRun("Post review");
   const base = {
@@ -221,12 +252,20 @@ describe("Post review", () => {
     // 段の env の値をそのまま使い、ワークフローの正規表現を確かめる。
     SECRET_FORMS: step("Post review").env?.SECRET_FORMS ?? "",
   };
+  /** 実行記録（SDK のメッセージの配列）を書いて段を実行する。null なら実行記録が無い状態にする。 */
+  const postRaw = (execution: string | null, env: Record<string, string> = {}) => {
+    const file = join(makeTempDir("claude-review-exec-"), "execution.json");
+    if (execution !== null) writeFileSync(file, execution);
+    return runStep(script, { ...base, EXECUTION_FILE: execution === null ? "" : file, ...env });
+  };
   const post = (result: unknown, env: Record<string, string> = {}) =>
-    runStep(script, {
-      ...base,
-      RESULT: typeof result === "string" ? result : JSON.stringify(result),
-      ...env,
-    });
+    postRaw(
+      JSON.stringify([
+        { type: "system", subtype: "init" },
+        { type: "result", subtype: "success", structured_output: result },
+      ]),
+      env,
+    );
   const marker = (findings: number, open: number) =>
     `<!-- claude-review sha=${SHA} findings=${findings} open=${open} effort=high run=345 -->`;
 
@@ -297,8 +336,18 @@ describe("Post review", () => {
   });
 
   test.each([
-    ["structured output が空", ""],
-    ["JSON でない", "not json"],
+    ["実行記録が無い", null],
+    ["実行記録が JSON でない", "not json"],
+    ["result が無い", JSON.stringify([{ type: "system" }])],
+    ["structured output が無い", JSON.stringify([{ type: "result", subtype: "success" }])],
+  ])("%s なら、何も投稿せずに失敗する", (_label, execution) => {
+    const res = postRaw(execution);
+    expect(res.status).toBe(1);
+    expect(existsSync(join(res.dir, "comment.md"))).toBe(false);
+    expect(read(res.dir, "gh.log")).toBe("");
+  });
+
+  test.each([
     ["findings が無い", { summary: "s" }],
     ["body が空の指摘", { summary: "s", findings: [{ body: "" }] }],
     ["path だけで line が無い指摘", { summary: "s", findings: [{ path: "a.ts", body: "x" }] }],
@@ -328,8 +377,8 @@ describe("Post review", () => {
   });
 
   test("総評が上限より長くても、文字の途中で切らずに目印付きで投稿する", () => {
-    // 切る位置に複数バイトの文字を置く。環境変数 1 つの上限（128 KiB）に収まる長さにする。
-    const res = post({ summary: "a".repeat(59000) + "あ".repeat(3000), findings: [] });
+    // 切る位置に複数バイトの文字を置く。結果は実行記録から読むので、環境変数 1 つの上限（128 KiB）を超える長さでも投稿できる。
+    const res = post({ summary: "a".repeat(59000) + "あ".repeat(50000), findings: [] });
     expect(res.status, res.stderr + res.stdout).toBe(0);
     const comment = read(res.dir, "comment.md");
     expect(comment.split("\n")[0]).toBe(marker(0, 0));
@@ -362,36 +411,138 @@ describe("Collect review inputs", () => {
     git("update-ref", "refs/remotes/origin/main", "HEAD");
     writeFileSync(join(repo, "f.txt"), "base\nfirst\n");
     git("commit", "-q", "-am", "first");
-    const first = git("rev-parse", "HEAD");
     writeFileSync(join(repo, "f.txt"), "base\nfirst\nsecond\n");
     git("commit", "-q", "-am", "second");
-    return { repo, head: git("rev-parse", "HEAD"), first };
+    return { repo, git };
   }
 
   type Comment = { user: { login: string }; body: string };
 
+  /** 偽の gh が返す応答（コメント・スレッド）と、Resolve target が保存する PR を書き、その場所を env の形で返す。 */
+  function writeApiResponses(comments: Comment[], threads: unknown[]) {
+    const tmp = makeTempDir("claude-review-collect-");
+    const write = (name: string, value: unknown) => {
+      const path = join(tmp, name);
+      writeFileSync(path, JSON.stringify(value));
+      return path;
+    };
+    return {
+      COMMENTS_JSON: write(
+        "comments.json",
+        comments.map((c) => ({ ...c, created_at: "2026-01-01T00:00:00Z" })),
+      ),
+      TARGET_PR_JSON: write("target-pr.json", {
+        number: 12,
+        title: "タイトル",
+        body: "本文",
+        user: { login: "author" },
+        base: { ref: "main" },
+        head: { ref: "feature" },
+        html_url: "https://example.invalid/pull/12",
+      }),
+      THREADS_JSON: write("threads.json", {
+        data: { repository: { pullRequest: { reviewThreads: { nodes: threads } } } },
+      }),
+    };
+  }
+
   /** コメントは HEAD と 1 つ前の SHA から作る（目印に実在の SHA を書くため）。 */
   function collect(
     makeComments: (head: string, first: string) => Comment[],
-    prepare?: (repo: string) => void,
+    prepare?: (repo: string, git: (...args: string[]) => string) => void,
+    threads: unknown[] = [],
   ) {
-    const { repo, head, first } = makeRepo();
-    prepare?.(repo);
-    const comments = makeComments(head, first);
-    const commentsJson = join(makeTempDir("claude-review-comments-"), "comments.json");
-    writeFileSync(
-      commentsJson,
-      JSON.stringify(comments.map((c) => ({ ...c, created_at: "2026-01-01T00:00:00Z" }))),
-    );
+    const { repo, git } = makeRepo();
+    prepare?.(repo, git);
+    const head = git("rev-parse", "HEAD");
+    const first = git("rev-parse", "HEAD~1");
     const res = runStep(
       script,
-      { PR: "12", SHA: head, BASE_REF: "main", COMMENTS_JSON: commentsJson },
+      {
+        PR: "12",
+        SHA: head,
+        BASE_REF: "main",
+        ...writeApiResponses(makeComments(head, first), threads),
+      },
       repo,
     );
     expect(res.status, res.stderr + res.stdout).toBe(0);
     const input = join(repo, doc.env.INPUT_DIR ?? "");
     return { res, head, first, input };
   }
+
+  test("pr.json は Resolve target が検査した PR から作る", () => {
+    const { res, input } = collect(() => []);
+    expect(JSON.parse(read(input, "pr.json"))).toEqual({
+      number: 12,
+      title: "タイトル",
+      body: "本文",
+      author: "author",
+      base: "main",
+      head: "feature",
+      url: "https://example.invalid/pull/12",
+    });
+    expect(read(res.dir, "gh.log")).not.toContain("pr view");
+  });
+
+  test("threads.md に、解決済みか・古い行か・返信の本文と、載せきれなかった件数を書く", () => {
+    const comment = (login: string | null, body: string) => ({
+      author: login === null ? null : { login },
+      createdAt: "2026-01-01T00:00:00Z",
+      body,
+    });
+    const { input } = collect(() => [], undefined, [
+      {
+        isResolved: true,
+        isOutdated: false,
+        path: "a.ts",
+        line: 3,
+        originalLine: 3,
+        comments: {
+          totalCount: 2,
+          nodes: [comment("bot", "指摘 A"), comment("author", "直さない理由")],
+        },
+      },
+      {
+        isResolved: false,
+        isOutdated: true,
+        path: "b.ts",
+        line: null,
+        originalLine: 7,
+        comments: { totalCount: 150, nodes: [comment(null, "指摘 B")] },
+      },
+    ]);
+    const md = read(input, "threads.md");
+    expect(md).toContain("## a.ts:3（解決済み）");
+    expect(md).toContain("### author（2026-01-01T00:00:00Z）\n\n直さない理由");
+    expect(md).toContain("## b.ts:7（未解決・古い行）");
+    expect(md).toContain("### 削除されたユーザー");
+    expect(md).toContain("コメント 150 件のうち、最初の 1 件");
+    expect(md).not.toMatch(/a\.ts[^\n]*\n[\s\S]*件のうち[\s\S]*## b\.ts/);
+  });
+
+  test.each([
+    [
+      "前回から HEAD までに merge commit がある",
+      (repo: string, git: (...args: string[]) => string) => {
+        git("checkout", "-q", "-b", "side", "HEAD~2");
+        writeFileSync(join(repo, "g.txt"), "main の変更\n");
+        git("add", "g.txt");
+        git("commit", "-q", "-m", "side");
+        git("checkout", "-q", "main");
+        git("merge", "-q", "--no-edit", "side");
+      },
+      "merge commit",
+    ],
+  ])("%s なら since.diff を作らず、README にそう書く", (_label, prepare, message) => {
+    // 目印は、merge する前の HEAD（merge の後の HEAD~1 の 1 つ目の親）を指す。
+    const { input } = collect(
+      (_head, first) => [{ user: { login: "github-actions[bot]" }, body: MARK(first, "1") }],
+      prepare,
+    );
+    expect(existsSync(join(input, "since.diff"))).toBe(false);
+    expect(read(input, "README.md")).toContain(message);
+  });
 
   test("前回の目印が無ければ初回として full.diff だけを作る", () => {
     const { res, input } = collect(() => []);
