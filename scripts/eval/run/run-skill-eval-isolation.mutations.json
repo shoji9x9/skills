@@ -52,7 +52,8 @@
         "run-skill-eval read isolation stop runner が sandbox でも bwrap が無い なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
         "run-skill-eval read isolation stop runner が sandbox の絶対パス で bwrap が在れば、sandboxed と記録し、変数なしで sandbox の中の executor を起動する",
         "run-skill-eval read isolation stop runner が sandbox へのシンボリックリンク で bwrap が在れば、sandboxed と記録し、変数なしで sandbox の中の executor を起動する",
-        "run-skill-eval read isolation stop sandbox が外の実体へのシンボリックリンクで、runner がそのリンク先の実体 なら、executor を起動する前に理由と続け方を出して exit 7 で止める"
+        "run-skill-eval read isolation stop sandbox が外の実体へのシンボリックリンクで、runner がそのリンク先の実体 なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
+        "run-skill-eval read isolation stop sandbox が外の実体へのシンボリックリンクで、runner がそのリンク先の実体 でも、変数が 1 なら警告を出して続ける"
       ]
     },
     {
@@ -93,7 +94,8 @@
       "expect_failing": [
         "run-skill-eval read isolation stop sandbox が外の実体へのシンボリックリンクで、runner の指定が無い なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
         "run-skill-eval read isolation stop sandbox が外の実体へのシンボリックリンクで、runner がそのリンク先の実体 なら、executor を起動する前に理由と続け方を出して exit 7 で止める",
-        "run-skill-eval read isolation stop sandbox が外の実体へのシンボリックリンク でも、変数が 1 なら警告を出して続ける"
+        "run-skill-eval read isolation stop sandbox が外の実体へのシンボリックリンク でも、変数が 1 なら警告を出して続ける",
+        "run-skill-eval read isolation stop sandbox が外の実体へのシンボリックリンクで、runner がそのリンク先の実体 でも、変数が 1 なら警告を出して続ける"
       ]
     },
     {

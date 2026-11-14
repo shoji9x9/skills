@@ -294,9 +294,11 @@ sandbox="${repo}/scripts/eval/sandbox/eval-sandbox.sh"
 runner_override=""
 runner_is_sandbox=0
 sandbox_real="$(realpath -e -- "${sandbox}" 2>/dev/null)" || sandbox_real=""
-# sandbox は、自分の実体のパスの 4 つ上を repo として、その親を隠す。実体が <repo>/scripts/eval/sandbox/ の外に
-# あると（sandbox のファイルがその外へのシンボリックリンクだと）、--repo の親ではない別のディレクトリを隠す（Issue #1024）。
+# sandbox は、自分の実体のパスの 4 つ上を repo として、その親を隠す。sandbox のファイルが <repo>/scripts/eval/sandbox/ の
+# 外の実体へのシンボリックリンクだと、--repo の親ではない別のディレクトリを隠す（Issue #1024）。
 # そのため、実体のパスが ${repo}/scripts/eval/sandbox/eval-sandbox.sh と一致するときだけ sandbox として扱う。
+# 同じディレクトリの別名へのリンクのように、隠す範囲が変わらないリンクも止める。リンクを許す形を挙げて確かめるより、
+# 実体がその場所にあることだけを求めるほうが、判定の抜けが生じないためである。
 # repo は realpath で解決済みなので、--repo 自体や上位のディレクトリがリンクでも一致する。
 # 一致しないときは、SKILL_EVAL_RUNNER が無い場合も sandbox を指す場合も、下の分岐で UNISOLATED にする。
 # sandbox 以外を指す SKILL_EVAL_RUNNER は、この判定より前の分岐で UNVERIFIED になる。
@@ -514,6 +516,8 @@ rc=0
 	export SHOJI9X9_SKILLS_IGNORE_USER_CONFIG=1
 	EVAL_SANDBOX_CLI="${executor_binary}" EVAL_SANDBOX_VENDOR="${executor}" "${runner}" "${executor_args[@]}"
 ) </dev/null >"${raw_trace}" 2>"${out}/stderr.log" || rc=$?
+# CLI 自身の終了コード。下で rc を 5 に上書きしても、done の行にはこの値を出す。
+cli_rc="${rc}"
 ended_ms="$(date +%s%3N)"
 ended_at="$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
 duration_ms=$((ended_ms - started_ms))
@@ -633,8 +637,7 @@ fi
 normalizer_rc=0
 node "${normalizer}" "${normalizer_args[@]}" 2>>"${out}/stderr.log" || normalizer_rc=$?
 # 正規化に失敗した run は、CLI の値に関わらず 5 で終える（PR #238 の選択）。result.json を信頼できない run を、
-# CLI の 0 で成功として集計させないためである。CLI の値は cli_rc に残し、done の行に出す。
-cli_rc="${rc}"
+# CLI の 0 で成功として集計させないためである。CLI の値は、上で cli_rc に残してある。
 if [ "${normalizer_rc}" -ne 0 ]; then
 	rc=5
 	echo "warn: result normalization failed (see ${out}/stderr.log)" >&2

@@ -334,6 +334,13 @@ describe.concurrent("run-skill-eval read isolation stop", () => {
       { runner: "none", sandbox: "symlink", bwrap: true, allow: "1" },
       /^isolation: UNISOLATED \(.*resolves to .*\/real-sandbox\/eval-sandbox\.sh, not to itself/mu,
     ],
+    // 続けた run は、ほかの UNISOLATED・UNVERIFIED と同じに、SKILL_EVAL_RUNNER を指定していればそれを起動する。
+    // 記録は UNISOLATED のままで、sandboxed とは記録しない。
+    [
+      "sandbox が外の実体へのシンボリックリンクで、runner がそのリンク先の実体",
+      { runner: "sandbox-target", sandbox: "symlink", bwrap: true, allow: "1" },
+      /^isolation: UNISOLATED \(.*resolves to .*\/real-sandbox\/eval-sandbox\.sh, not to itself/mu,
+    ],
   ])("%s でも、変数が 1 なら警告を出して続ける", async (_label, testCase, isolation) => {
     const run = await runCase(testCase);
 

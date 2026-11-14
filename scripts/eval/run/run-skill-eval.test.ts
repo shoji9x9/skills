@@ -1116,7 +1116,7 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
     if (cliRc === 0) {
       expect(result.stderr).not.toMatch(/codex exited/u);
     } else {
-      expect(result.stderr).toMatch(new RegExp(`codex exited ${cliRc}`, "u"));
+      expect(result.stderr).toMatch(new RegExp(`codex exited ${cliRc} `, "u"));
     }
     expect(result.stdout).toMatch(new RegExp(`\\(rc=5 cli_rc=${cliRc}\\)$`, "mu"));
     expect(readJson(join(output, "result.json"))).toMatchObject({
@@ -1189,6 +1189,13 @@ describe.concurrent("run-skill-eval missing inputs", () => {
       label: "the fingerprint helper",
       remove: (root: string) =>
         rmSync(join(root, "scripts", "eval", "baseline", "skill-eval-fingerprint.ts")),
+      fixture: undefined,
+      message: /baseline fingerprint helpers not found/u,
+    },
+    {
+      label: "the baseline reuse helper",
+      remove: (root: string) =>
+        rmSync(join(root, "scripts", "eval", "baseline", "reuse-skill-eval-baseline.ts")),
       fixture: undefined,
       message: /baseline fingerprint helpers not found/u,
     },

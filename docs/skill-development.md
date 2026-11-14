@@ -384,8 +384,8 @@ setup が 0 以外で終わったら、ハーネスは executor を起動せず�
   その `eval-sandbox.sh` を `realpath` で解決したパスが `<repo>/scripts/eval/sandbox/eval-sandbox.sh` である（下の段落）。bwrap がある。
   シンボリックリンクを経た指定も一致する。相対パスとコマンド名は一致として扱わない。
   `SKILL_EVAL_RUNNER` が無いときと sandbox を指すときは、`eval-sandbox.sh` を `realpath` で解決したパスが `<repo>/scripts/eval/sandbox/eval-sandbox.sh` と一致しなければ、`UNISOLATED` と記録する。
+  `eval-sandbox.sh` は自分の実体のパスから隠すリポジトリを決める。そのため、`<repo>/scripts/eval/sandbox/` の外の実体へのシンボリックリンクだと、`--repo` の親ではない別のディレクトリを隠す。
   sandbox 以外を指す `SKILL_EVAL_RUNNER` は、この判定より前に `UNVERIFIED` になる。
-  `eval-sandbox.sh` は自分の実体のパスから隠すリポジトリを決めるので、その外の実体へのシンボリックリンクだと、`--repo` の親ではない別のディレクトリを隠すからである。
   `--repo` 自体や上位のディレクトリがシンボリックリンクでも、ハーネスは `--repo` を解決してから比べるので、一致する。
   記録の `UNVERIFIED` は、遮断を確かめていないことを表し、隔離されたかどうかは表さない。
   `sandboxed` と記録した run は、baseline の再利用でも受け付けられる。
