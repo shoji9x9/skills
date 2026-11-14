@@ -54,8 +54,9 @@ node <このスキル>/scripts/shot-size-compare.mjs \
   --catalog .replace/components/<slug>/new/<target>/catalog
 ```
 
-- `--catalog` には、見本の置き場所（`new/<target>/catalog`）を渡す。別の場所（別の部品や別の target のカタログ）を渡す取り違えは、ツールは確かめないので、この置き場所の決まりで防ぐ。
-  ツールが止めるのは、基準の `baseline/` と `--catalog` が同じ実際のディレクトリを指すとき（基準を基準と比べて全組が一致してしまう）だけで、比べずに exit 2（`same-location`）になる
+- `--catalog` には、比べる target の見本の置き場所（`new/<target>/catalog`）を渡す。ツールは、別の部品や別の target のカタログを渡す取り違えを確かめない。
+  実行する人は、渡す前に `--catalog` が照合する target の置き場所かを確かめる。
+  パスについてツールが止めるのは、基準の `baseline/` と `--catalog` が同じ実際のディレクトリを指すとき（基準を基準と比べて全組が一致してしまう）だけで、比べずに exit 2（`same-location`）になる
 - 判定は、両側の `element.shot.json` の `png` の幅と高さの完全一致である。差は `size-mismatch` として 1 件ずつ出る（exit 1）。
   `page_rect`（ページ全体の座標で測った矩形。element-shot.mjs はこれを丸めて切り抜く）の幅と高さは、差の大きさを読むための診断として添えられる。判定には使わない
 - exit 2 は、判定できなかったという意味である。合格として扱わない。0 と 1 以外の終了コードも同じに扱う。

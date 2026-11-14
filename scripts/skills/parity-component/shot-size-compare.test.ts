@@ -79,7 +79,7 @@ function codes(result: { findings: { code: string }[] }) {
 
 test("寸法が同じ組だけなら、差分 0 件で判定できる", () => {
   const result = compareShotSizes(layout());
-  expect(result).toMatchObject({ structural: false, findings: [], compared: 1 });
+  expect(result).toMatchObject({ structural: false, findings: [], counts: { compared: 1 } });
 });
 
 test("要素 1 つで幅だけが違うと、width の差を page_rect の診断と一緒に出す", () => {
@@ -136,7 +136,7 @@ test("複数の組のうち 1 組だけ違えば、その組だけを出す", ()
     },
   });
   const result = compareShotSizes({ baselineDir, catalogDir });
-  expect(result.compared).toBe(4);
+  expect(result.counts?.compared).toBe(4);
   expect(result.findings.map((f) => `${f.instance}/${f.state}/${f.axis}`)).toEqual([
     "user-create/hover/width",
   ]);
@@ -185,7 +185,7 @@ test.each([
   );
   expect(result.structural).toBe(true);
   expect(codes(result)).toEqual(["shot-unreadable"]);
-  expect(result.compared).toBe(0);
+  expect(result.counts?.compared).toBe(0);
 });
 
 test("両側の element-shot のバージョンが違うと、PNG の寸法を比べずに止める", () => {
@@ -232,7 +232,7 @@ test("宣言済みの到達できない組は読まずに外し、excluded に�
   expect(result).toMatchObject({
     structural: false,
     findings: [],
-    compared: 3,
+    counts: { compared: 3 },
     excluded: [{ instance: "orders-search", state: "disabled" }],
   });
 });
@@ -358,7 +358,8 @@ test.each([
 test("--catalog に基準の baseline/ そのものを渡すと、基準を基準と比べずに止める", () => {
   const { baselineDir } = layout();
   const result = compareShotSizes({ baselineDir, catalogDir: join(baselineDir, "baseline") });
-  expect(result).toMatchObject({ structural: true, counted: false, compared: 0 });
+  expect(result.structural).toBe(true);
+  expect(result).not.toHaveProperty("counts");
   expect(codes(result)).toEqual(["same-location"]);
 });
 
@@ -375,15 +376,41 @@ test("基準の baseline/ がリンクで見本の catalog を指すと、見本
   expect(codes(compareShotSizes({ baselineDir, catalogDir }))).toEqual(["same-location"]);
 });
 
-test.each<[string, (baselineDir: string) => string]>([
-  ["基準の baseline/ の中", (b) => join(b, "baseline", "orders-search")],
-  ["部品の成果物ディレクトリそのもの", (b) => b],
-  ["new/<target> まで（catalog の 1 段上）", (b) => join(b, "new", "local")],
-])("--catalog に%sを渡す取り違えは確かめないが、合格にもならない", (_name, catalogOf) => {
+// パスの取り違えは same-location のほかは確かめない（置き場所の決まりに任せる）。
+// それでも次の 3 つは、見本の組を読めないので合格にならない。止まる理由を固定し、fixture を変えて exit 0 になったら気付けるようにする。
+test.each<[string, (baselineDir: string) => string, string[]]>([
+  ["基準の baseline/ の中", (b) => join(b, "baseline", "orders-search"), ["shot-unreadable"]],
+  [
+    "部品の成果物ディレクトリそのもの",
+    (b) => b,
+    ["sample-without-baseline", "sample-without-baseline", "shot-unreadable"],
+  ],
+  [
+    "new/<target> まで（catalog の 1 段上）",
+    (b) => join(b, "new", "local"),
+    ["sample-without-baseline", "shot-unreadable"],
+  ],
+])(
+  "--catalog に%sを渡す取り違えは確かめないが、見本を読めないので合格にもならない",
+  (_name, catalogOf, expected) => {
+    const { baselineDir } = layout();
+    const result = compareShotSizes({ baselineDir, catalogDir: catalogOf(baselineDir) });
+    expect(result.structural).toBe(true);
+    expect(codes(result)).toEqual(expected);
+  },
+);
+
+test("別の target のカタログは確かめずに受け付け、寸法が同じなら exit 0 の結果になる", () => {
   const { baselineDir } = layout();
-  const result = compareShotSizes({ baselineDir, catalogDir: catalogOf(baselineDir) });
-  expect(result.structural).toBe(true);
-  expect(codes(result)).not.toContain("same-location");
+  const other = join(baselineDir, "new", "staging", "catalog");
+  writeJson(
+    join(other, "orders-search", "default", "element.shot.json"),
+    shot({ width: 100, height: 20 }),
+  );
+  expect(compareShotSizes({ baselineDir, catalogDir: other })).toMatchObject({
+    structural: false,
+    findings: [],
+  });
 });
 
 test("--baseline だけをリンクを通した綴りで渡しても、実パスの --catalog は受け付ける", () => {
@@ -391,7 +418,7 @@ test("--baseline だけをリンクを通した綴りで渡しても、実パス
   const linkedBase = join(dir, "linked-component-2");
   symlinkSync(baselineDir, linkedBase);
   const result = compareShotSizes({ baselineDir: linkedBase, catalogDir });
-  expect(result).toMatchObject({ structural: false, findings: [], compared: 1 });
+  expect(result).toMatchObject({ structural: false, findings: [], counts: { compared: 1 } });
 });
 
 test("--baseline と --catalog の両方をリンクを通した綴りで渡しても、受け付ける", () => {
@@ -402,7 +429,7 @@ test("--baseline と --catalog の両方をリンクを通した綴りで渡し�
     baselineDir: linkedBase,
     catalogDir: join(linkedBase, "new", "local", "catalog"),
   });
-  expect(result).toMatchObject({ structural: false, findings: [], compared: 1 });
+  expect(result).toMatchObject({ structural: false, findings: [], counts: { compared: 1 } });
 });
 
 test("基準の baseline/ が無ければ、組ごとに並べず 1 件の指摘で止める", () => {
@@ -428,6 +455,14 @@ test("基準の baseline/ がファイルなら、無いとは書かずにディ
   expect(result.findings[0].detail).toMatch(/ディレクトリでない/);
 });
 
+test("基準の baseline/ のリンクが循環していれば、無いとは書かずに読めないと報告する", () => {
+  const { baselineDir, catalogDir } = layout({ baseline: {} });
+  symlinkSync(join(baselineDir, "baseline"), join(baselineDir, "baseline"));
+  const result = compareShotSizes({ baselineDir, catalogDir });
+  expect(codes(result)).toEqual(["baseline-missing"]);
+  expect(result.findings[0].detail).toMatch(/読めない/);
+});
+
 test("判定できない組があっても、比べ終えた組の寸法の差を出力に含める", () => {
   const { baselineDir, catalogDir } = layout({
     metadata: {
@@ -441,7 +476,7 @@ test("判定できない組があっても、比べ終えた組の寸法の差�
     catalog: { "users-create/default": shot({ width: 110, height: 28 }) },
   });
   const result = compareShotSizes({ baselineDir, catalogDir });
-  expect(result).toMatchObject({ structural: true, pairs: 2, compared: 1 });
+  expect(result).toMatchObject({ structural: true, counts: { pairs: 2, compared: 1 } });
   expect(result.findings.map((f) => `${f.code}:${f.instance}`)).toEqual([
     "shot-unreadable:orders-search",
     "size-mismatch:users-create",

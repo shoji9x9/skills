@@ -90,7 +90,7 @@
       "id": "same-location",
       "why": "基準の baseline/ と --catalog が同じディレクトリでも比べ、基準を基準と比べて全組が一致したとして通す",
       "file": "skills/parity-component/scripts/shot-size-compare.mjs",
-      "find": "if (baselineId !== null && baselineId === dirIdentity(catalogDir)) {",
+      "find": "if (\"id\" in baseline && \"id\" in catalog && baseline.id === catalog.id) {",
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": [
@@ -104,12 +104,13 @@
       "id": "baseline-missing",
       "why": "基準の baseline/ が無いのに、その理由を出さない",
       "file": "skills/parity-component/scripts/shot-size-compare.mjs",
-      "find": "  if (baselineId === null) {",
+      "find": "  if (\"problem\" in baseline) {",
       "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "基準の baseline/ が無ければ、組ごとに並べず 1 件の指摘で止める",
-        "基準の baseline/ がファイルなら、無いとは書かずにディレクトリでないと報告する"
+        "基準の baseline/ がファイルなら、無いとは書かずにディレクトリでないと報告する",
+        "基準の baseline/ のリンクが循環していれば、無いとは書かずに読めないと報告する"
       ]
     }
   ]

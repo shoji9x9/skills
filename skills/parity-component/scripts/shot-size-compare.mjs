@@ -349,17 +349,20 @@ function comparePair({ pair, readers, findings }) {
 }
 
 /**
- * ディレクトリの同一性（デバイスと inode）。ディレクトリとして読めなければ null。
- * 64 bit の値を丸めずに比べるため、bigint で読む。
+ * ディレクトリの同一性（デバイスと inode）を読む。64 bit の値を丸めずに比べるため、bigint で読む。
+ * ディレクトリとして読めなければ、理由の文を返す（無い・ディレクトリでない・読めない、を分ける）。
  * @param {string} path
- * @returns {string | null}
+ * @returns {{ id: string } | { problem: string }}
  */
 function dirIdentity(path) {
   try {
     const st = statSync(path, { bigint: true });
-    return st.isDirectory() ? `${st.dev}:${st.ino}` : null;
-  } catch {
-    return null;
+    return st.isDirectory()
+      ? { id: `${st.dev}:${st.ino}` }
+      : { problem: `ディレクトリでない: ${path}` };
+  } catch (error) {
+    if (field(error, "code") === "ENOENT") return { problem: `無い: ${path}` };
+    return { problem: `読めない: ${String(field(error, "message"))}` };
   }
 }
 
@@ -383,44 +386,41 @@ function comparePairs({ pairs, readers, structuralFindings }) {
 }
 
 /**
- * 組を数える前に終える結果。counts は出さない（数えていないので、0 件と区別できなくなる）。
- * @param {SizeFinding[]} findings
- * @returns {{ structural: true, findings: SizeFinding[], counted: false, pairs: 0, compared: 0, excluded: [] }}
+ * 組を数えた件数。数える前に止まったときは無い（0 件と区別するため）。
+ * @typedef {{ pairs: number, compared: number, excluded: number }} Counts
  */
-function stopped(findings) {
-  return { structural: true, findings, counted: false, pairs: 0, compared: 0, excluded: [] };
-}
 
 /**
  * 基準とカタログの寸法を突き合わせる。
  * @param {{ baselineDir: string, catalogDir: string }} dirs
- * @returns {{ structural: boolean, findings: SizeFinding[], counted: boolean, pairs: number, compared: number, excluded: { instance: string, state: string }[] }}
+ * @returns {{ structural: boolean, findings: SizeFinding[], excluded: { instance: string, state: string }[], counts?: Counts }}
  */
 export function compareShotSizes({ baselineDir, catalogDir }) {
   const baselineRoot = join(baselineDir, "baseline");
-  const baselineId = dirIdentity(baselineRoot);
-  if (baselineId !== null && baselineId === dirIdentity(catalogDir)) {
+  const baseline = dirIdentity(baselineRoot);
+  const catalog = dirIdentity(catalogDir);
+  if ("id" in baseline && "id" in catalog && baseline.id === catalog.id) {
     const detail = `基準の baseline/ と --catalog が同じディレクトリを指す: ${catalogDir}`;
-    return stopped([{ code: "same-location", detail }]);
+    return { structural: true, findings: [{ code: "same-location", detail }], excluded: [] };
   }
   let metadata;
   try {
     metadata = JSON.parse(readFileSync(join(baselineDir, "metadata.json"), "utf8"));
   } catch (error) {
     const detail = `metadata.json を読めない: ${String(field(error, "message"))}`;
-    return stopped([{ code: "metadata-unreadable", detail }]);
+    return { structural: true, findings: [{ code: "metadata-unreadable", detail }], excluded: [] };
   }
   /** @type {SizeFinding[]} */
   const structuralFindings = [];
   const { pairs, excluded } = population(metadata, structuralFindings);
   checkCatalogExtras({ catalogDir, pairs, findings: structuralFindings });
-  // baseline/ が無ければ、組ごとに同じ理由の shot-unreadable を並べず、1 件の指摘で止める。
-  if (baselineId === null) {
-    const detail = `基準の baseline/ が無いか、ディレクトリでない: ${baselineRoot}`;
+  // baseline/ を読めなければ、組ごとに同じ理由の shot-unreadable を並べず、1 件の指摘で止める。
+  if ("problem" in baseline) {
+    const detail = `基準の baseline/ が${baseline.problem}`;
     structuralFindings.push({ code: "baseline-missing", detail });
   }
   const { compared, sizeFindings } = comparePairs({
-    pairs: baselineId === null ? [] : pairs,
+    pairs: "id" in baseline ? pairs : [],
     readers: { baseline: insideReader(baselineRoot), catalog: insideReader(catalogDir) },
     structuralFindings,
   });
@@ -430,7 +430,8 @@ export function compareShotSizes({ baselineDir, catalogDir }) {
   const structural = structuralFindings.length > 0;
   // exit 2 のときも寸法の差を一緒に出す。構造の誤りを直す前に、比べ終えた組の差を読めるようにする。
   const findings = structural ? [...structuralFindings, ...sizeFindings] : sizeFindings;
-  return { structural, findings, counted: true, pairs: pairs.length, compared, excluded };
+  const counts = { pairs: pairs.length, compared, excluded: excluded.length };
+  return { structural, findings, excluded, counts };
 }
 
 /**
@@ -473,15 +474,12 @@ export function main(argv, io = {}) {
     if (!isDirectory(dir)) return fail(`${name} のディレクトリが無い: ${dir}`);
   }
   const result = compareShotSizes({ baselineDir, catalogDir });
-  // 組を数えたときだけ counts を出す。比べる前に止まったときの 0 を、数えた結果の 0 と取り違えないようにする。
-  const counts = result.counted
-    ? { pairs: result.pairs, compared: result.compared, excluded: result.excluded.length }
-    : undefined;
-  return writeCheckResult(
-    write,
-    { ...result, ...(counts ? { counts } : {}) },
-    { tool: "shot-size-compare", version: VERSION, fields: { excluded: result.excluded } },
-  );
+  // counts は、組を数えたときだけ結果にある（writeCheckResult は無ければ書かない）。
+  return writeCheckResult(write, result, {
+    tool: "shot-size-compare",
+    version: VERSION,
+    fields: { excluded: result.excluded },
+  });
 }
 
 if (isCliEntry(import.meta.url)) {
