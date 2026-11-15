@@ -71,7 +71,7 @@ Claude Code では、push する前に、手元で `/code-review` に続けて `
 CI では `/security-review` を実行しない。手元の実行で同じ差分を push の前に確かめられ、CI で重ねると PR ごとに使用量が増えるからである。
 PR の Claude のレビュー（[`claude-review.md`](claude-review.md)）は、セキュリティも観点に含むが、`/security-review` の代わりにはしない。
 そのレビューは、レビューの回数を減らすために置いたもので、使用量は上限（`--max-turns`・`timeout-minutes`）と、自動のレビューを切る変数・一時停止の変数で抑える。
-このリポジトリでは自動のレビューを切り、依頼したときだけ実行する（[`claude-review.md`](claude-review.md)「レビューの使い分け」）。
+このリポジトリは自動のレビューを切り、依頼したときだけ実行する方針である（[`claude-review.md`](claude-review.md)「レビューの使い分け」）。
 
 ## リポジトリ全体の監査
 

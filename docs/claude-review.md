@@ -105,7 +105,7 @@ check-run（名前 `Review`）は、`workflow_dispatch` の run では起動し�
 - PR でのレビューは、PR の内容に応じて、このワークフロー（`claude-code-action`）・`local`（手元の `/code-review --comment`）・Copilot を使い分ける。
   どれを使うかは、`pr-finalize-loop` の `review_tool`（設定ファイルか、その実行だけなら `--review-tool`）で決める。
 - このワークフローのレビューは、`review_tool` が `claude-code-action` のときだけ実行する。
-  このリポジトリでは、リポジトリ変数 `CLAUDE_REVIEW_AUTO` を `off` にして `pull_request` の自動のレビューを切り、`pr-finalize-loop` の依頼（`claude-review-action.sh` の `request`）でだけ起動する。
+  このリポジトリは、リポジトリ変数 `CLAUDE_REVIEW_AUTO` を `off` にして `pull_request` の自動のレビューを切る方針とし、`pr-finalize-loop` の依頼（`claude-review-action.sh` の `request`）でだけ起動する。変数が未設定の間は、自動でレビューする。
   リポジトリの層の設定（`common.jsonc`）の `review_tool` は `claude-code-action` でないので、このワークフローは、`--review-tool claude-code-action` か、人ごとの層の設定で選んだ実行でだけ動く。
 - 目安として、文書・スクリプト・テストにまたがる取り決めを変える PR は、`local` か Copilot のレビューを使う。このワークフローが挙げ損ねた誤りの多くが、その種類だったからである。
 

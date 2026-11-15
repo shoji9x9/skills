@@ -11,6 +11,7 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isArray } from "../../lib/is-array.ts";
 import { loadYamlAs } from "../../lib/text/yaml-as.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
@@ -902,6 +903,139 @@ describe("Run Claude Code の claude_args", () => {
   });
 });
 
+// GitHub Actions の式を、job の if が使う構文（文字列・文脈の参照・`!`・`&&`・`||`・`==`・`!=`・括弧・contains・fromJSON・
+// format）だけ評価する。規則は公式の文書の「Operators」と「Functions」に従う。
+//   https://docs.github.com/en/actions/reference/workflows-and-actions/expressions
+// - 型の違う値の比較は数値に変換する（null・空文字は 0、真偽値は 1 と 0、JSON の数でない文字列は NaN）。文字列どうしは大文字と小文字を区別しない。
+// - && と || は、評価した値をそのまま返す。偽になるのは false・0・空文字・null・NaN である。
+// - contains の search が配列なら、要素と item を上の比較で比べる。未設定の変数を null とすると、配布元で実際に
+//   job を飛ばした run（未設定の変数を contains にそのまま渡した式）と同じ結果になる。
+// - 文脈に無い参照は失敗にする。テストの文脈に足し忘れた参照を null として評価すると、条件を足しても結果が変わらない
+//   ことがあり、足した条件を確かめないまま通る。未設定の変数は、文脈に null を置いて表す。
+type GhaValue = string | number | boolean | null | GhaValue[];
+type GhaCtx = Record<string, GhaValue>;
+const toNumber = (v: GhaValue): number => {
+  if (v === null) return 0;
+  if (typeof v === "boolean") return v ? 1 : 0;
+  if (typeof v === "number") return v;
+  if (isArray(v)) return Number.NaN;
+  if (v === "") return 0;
+  return /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(v.trim()) ? Number(v) : Number.NaN;
+};
+const looseEq = (a: GhaValue, b: GhaValue): boolean => {
+  if (typeof a === "string" && typeof b === "string") return a.toLowerCase() === b.toLowerCase();
+  if (isArray(a) || isArray(b)) return a === b;
+  if (typeof a === typeof b) return a === b;
+  return toNumber(a) === toNumber(b);
+};
+const isTruthy = (v: GhaValue): boolean =>
+  !(
+    v === false ||
+    v === null ||
+    v === "" ||
+    (typeof v === "number" && (v === 0 || Number.isNaN(v)))
+  );
+const toStr = (v: GhaValue): string => (v === null ? "" : isArray(v) ? "Array" : String(v));
+
+function toGhaValue(x: unknown): GhaValue {
+  if (x === null || typeof x === "string" || typeof x === "number" || typeof x === "boolean") {
+    return x;
+  }
+  if (isArray(x)) return x.map(toGhaValue);
+  throw new Error(`評価できない JSON の値: ${JSON.stringify(x)}`);
+}
+
+// format は、このワークフローが使う {0} だけを置き換える。
+function callGhaFunction(name: string, args: GhaValue[]): GhaValue {
+  const [a = null, b = null] = args;
+  if (name === "fromJSON") return toGhaValue(JSON.parse(toStr(a)));
+  if (name === "format") return toStr(a).replaceAll("{0}", () => toStr(b));
+  if (name === "contains") {
+    return isArray(a)
+      ? a.some((e) => looseEq(e, b))
+      : toStr(a).toLowerCase().includes(toStr(b).toLowerCase());
+  }
+  throw new Error(`評価できない関数: ${name}`);
+}
+
+type GhaCursor = { tokens: string[]; i: number; ctx: GhaCtx };
+const ghaPeek = (c: GhaCursor): string | undefined => c.tokens[c.i];
+function ghaTake(c: GhaCursor, expected?: string): string {
+  const tok = c.tokens[c.i++];
+  if (expected !== undefined) expect(tok, `式の構文: ${expected} を期待した`).toBe(expected);
+  return tok ?? "";
+}
+
+function ghaArgs(c: GhaCursor): GhaValue[] {
+  ghaTake(c, "(");
+  const args: GhaValue[] = [];
+  while (ghaPeek(c) !== ")") {
+    args.push(ghaOr(c));
+    if (ghaPeek(c) !== ")") ghaTake(c, ",");
+  }
+  ghaTake(c, ")");
+  return args;
+}
+
+function ghaPrimary(c: GhaCursor): GhaValue {
+  const tok = ghaTake(c);
+  if (tok === "(") {
+    const v = ghaOr(c);
+    ghaTake(c, ")");
+    return v;
+  }
+  if (tok.startsWith("'")) return tok.slice(1, -1).replaceAll("''", "'");
+  if (tok === "true" || tok === "false") return tok === "true";
+  if (tok === "null") return null;
+  if (ghaPeek(c) === "(") return callGhaFunction(tok, ghaArgs(c));
+  expect(tok, "評価できない項").toMatch(/^[a-z_][\w.-]*$/);
+  expect(Object.hasOwn(c.ctx, tok), `文脈に無い参照: ${tok}`).toBe(true);
+  return c.ctx[tok] ?? null;
+}
+
+function ghaUnary(c: GhaCursor): GhaValue {
+  if (ghaPeek(c) !== "!") return ghaPrimary(c);
+  ghaTake(c, "!");
+  return !isTruthy(ghaUnary(c));
+}
+
+function ghaEq(c: GhaCursor): GhaValue {
+  const left = ghaUnary(c);
+  const op = ghaPeek(c);
+  if (op !== "==" && op !== "!=") return left;
+  ghaTake(c, op);
+  const same = looseEq(left, ghaUnary(c));
+  return op === "==" ? same : !same;
+}
+
+function ghaAnd(c: GhaCursor): GhaValue {
+  let v = ghaEq(c);
+  while (ghaPeek(c) === "&&") {
+    ghaTake(c, "&&");
+    const r = ghaEq(c);
+    v = isTruthy(v) ? r : v;
+  }
+  return v;
+}
+
+function ghaOr(c: GhaCursor): GhaValue {
+  let v = ghaAnd(c);
+  while (ghaPeek(c) === "||") {
+    ghaTake(c, "||");
+    const r = ghaAnd(c);
+    v = isTruthy(v) ? v : r;
+  }
+  return v;
+}
+
+function evalGha(expr: string, ctx: GhaCtx): GhaValue {
+  const tokens = expr.match(/'(?:[^']|'')*'|&&|\|\||==|!=|[!(),]|[A-Za-z_][\w.-]*|\S/g) ?? [];
+  const c: GhaCursor = { tokens, i: 0, ctx };
+  const value = ghaOr(c);
+  expect(c.i, `式を最後まで読めない: ${expr}`).toBe(tokens.length);
+  return value;
+}
+
 // CLAUDE_REVIEW_AUTO を切ったときは、pull_request の job を飛ばし、run を skipped で終える。依頼する側は skipped の run を
 // 数えないので、HEAD を未レビューとして workflow_dispatch で依頼できる（claude-review-action.test.ts の request のテスト）。
 // 段の中で止めると run が成功で終わり、依頼する側は「一時停止」として依頼しなくなるので、job の if で止める。
@@ -913,14 +1047,47 @@ describe("自動のレビューの切り替え（CLAUDE_REVIEW_AUTO）", () => {
   // 最初の || より前が workflow_dispatch の側、後ろの括弧の中が pull_request の側である。
   const dispatchPrefix = "github.event_name == 'workflow_dispatch' || (";
 
-  test("pull_request の側の条件だけが、変数が off・false・no・0 のときに job を飛ばす", () => {
+  test("workflow_dispatch の側は、変数を読まない", () => {
     expect(cond.startsWith(dispatchPrefix)).toBe(true);
     expect(cond.endsWith(")")).toBe(true);
-    const pullRequestSide = cond.slice(dispatchPrefix.length, -1);
-    expect(pullRequestSide).toContain(
-      `&& !contains(fromJSON('["off","false","no","0"]'), vars.CLAUDE_REVIEW_AUTO)`,
-    );
-    expect(cond.match(/CLAUDE_REVIEW_AUTO/g)).toHaveLength(1);
+  });
+
+  // 以前のテストは式の字面だけを見ていたので、未設定（null）の変数が '0' と等しいと判定されて job を飛ばす誤りを
+  // 検出できなかった。ここでは、GitHub の式の規則（下の evalGha）で job の if を評価し、値ごとの結果を固定する。
+  const prCtx = (auto: string | null): GhaCtx => ({
+    "github.event_name": "pull_request",
+    "github.event.pull_request.draft": false,
+    "github.event.pull_request.head.repo.full_name": "o/r",
+    "github.repository": "o/r",
+    "github.event.pull_request.user.login": "someone",
+    "github.actor": "someone",
+    "vars.CLAUDE_REVIEW_AUTO": auto,
+  });
+  test.each<[string, string | null, boolean]>([
+    ["未設定（null）", null, true],
+    ["空文字", "", true],
+    ["off", "off", false],
+    ["OFF", "OFF", false],
+    ["0", "0", false],
+    ["false", "false", false],
+    ["no", "no", false],
+    ["on", "on", true],
+    ["1", "1", true],
+    ["true", "true", true],
+    ["前後に空白のある off", " off ", true],
+  ])("pull_request で変数が %s のときに job を実行するかを固定する", (_label, auto, runs) => {
+    expect(isTruthy(evalGha(cond, prCtx(auto)))).toBe(runs);
+  });
+
+  test("workflow_dispatch は、変数が切る値でも job を実行する", () => {
+    expect(
+      isTruthy(evalGha(cond, { ...prCtx("off"), "github.event_name": "workflow_dispatch" })),
+    ).toBe(true);
+  });
+
+  test("検出されることの確認: 変数を contains にそのまま渡す式は、未設定（null）で job を飛ばす", () => {
+    const naive = `github.event_name == 'workflow_dispatch' || (!contains(fromJSON('["off","false","no","0"]'), vars.CLAUDE_REVIEW_AUTO))`;
+    expect(isTruthy(evalGha(naive, prCtx(null)))).toBe(false);
   });
 
   test("段の中（一時停止の段）では、CLAUDE_REVIEW_AUTO を読まない", () => {

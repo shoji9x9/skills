@@ -82,7 +82,13 @@ jobs:
     # そのときは job を飛ばすので、run は skipped で終わり、エージェントは起動しない。依頼する側（claude-review-action.sh）は
     # skipped の run を数えないので、HEAD を未レビューとして扱い、workflow_dispatch で依頼できる。
     # 段の中で止める CLAUDE_REVIEW_SKIP（一時停止）は、run が成功で終わるので、依頼する側は「一時停止」として依頼しない。
-    # contains は配列の要素と比べ、大文字と小文字を区別しない。job の if では vars を読める。
+    # 変数が未設定のときは、必ず自動でレビューする。式は、型の違う値を数値に変換して比べる（null も空文字も '0' も 0 になる）。
+    # 未設定の変数を contains にそのまま渡した式は、未設定なのに job を飛ばした（実際の run で確かめた）。
+    # 未設定の値が '0' と等しいと判定されたと見られるので、先に空でないことを確かめ（null と空文字は、空文字と比べた不一致の判定が偽になる）、
+    # format で文字列にしてから比べる。文字列どうしの比較は、大文字と小文字を区別しない。
+    # 公式の文書は未設定の変数を空文字と書くが、実際の run の結果は null として比べたときと合う。
+    # どちらの値でも自動でレビューするよう、空でないことの確認と format の両方を置く。片方だけにしない。
+    #   https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#operators
     #   https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#contains
     #   https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#context-availability
     if: >-
@@ -91,7 +97,8 @@ jobs:
         && github.event.pull_request.head.repo.full_name == github.repository
         && github.event.pull_request.user.login != 'dependabot[bot]'
         && github.actor != 'dependabot[bot]'
-        && !contains(fromJSON('["off","false","no","0"]'), vars.CLAUDE_REVIEW_AUTO))
+        && !(vars.CLAUDE_REVIEW_AUTO != ''
+          && contains(fromJSON('["off","false","no","0"]'), format('{0}', vars.CLAUDE_REVIEW_AUTO))))
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
