@@ -1,0 +1,355 @@
+{
+  "metadata": {
+    "skill_name": "golden-dataset",
+    "skill_path": "<repo>/skills/golden-dataset",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-15T10:36:49Z",
+    "evals_run": [23, 24, 25, 26],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 23,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 19.817,
+        "tokens": 85355,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "投入ツールの言語を Java にしている（new.stack に TypeScript が含まれていても、TypeScript をデフォルトとして選んでいない）",
+          "passed": true,
+          "evidence": "応答「投入ツールの言語：Java」「TypeScript（React）は画面の層の言語なので選びません」"
+        },
+        {
+          "text": "Java を選ぶ理由として、new.stack に挙げた言語のうち投入先の DB を読み書きする層（バックエンド）の言語であることを挙げている",
+          "passed": true,
+          "evidence": "応答「この場合は、投入先を読み書きする層の言語にします」「DB を読み書きするのはバックエンド（Spring Boot + MyBatis）」"
+        },
+        {
+          "text": "選んだ言語を .replace/dataset/metadata.json の tool.language に java として記録すると述べている",
+          "passed": true,
+          "evidence": "応答「\"tool\": { \"language\": \"java\", ... } と書きます」"
+        },
+        {
+          "text": "Java で書くのが難しい場合は SQL（まとめて commit できる形）で書いてよいと示している",
+          "passed": true,
+          "evidence": "応答「Java で書くのが難しいとき：SQL で書く」「SQL ファイルにして、ツールと一緒にまとめてコミットできる形にします」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 24,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 33.771,
+        "tokens": 96944,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "new.stack が空なので投入ツールの言語を推測で決めず（TypeScript や SQL を勝手に選ばず）、判断待ちとして扱っている",
+          "passed": true,
+          "evidence": "応答「推測せず、利用者に確かめます」「SQL に逃がすこともしません」「--autonomous では、この確認は「保留」になります」"
+        },
+        {
+          "text": "判断待ちを .replace/dataset/pending-decisions.json に保留として記録すると述べている（metadata.json には書かない）",
+          "passed": true,
+          "evidence": "応答「.replace/dataset/pending-decisions.json に、保留を 1 件として記録します」「metadata.json の作成 | 作りません」"
+        },
+        {
+          "text": "保留の間もデータの設計までは進め、投入ツールの生成とそれ以降（投入・投入後の検証・metadata.json への記録）は行わないと区別している",
+          "passed": true,
+          "evidence": "応答の表で、データの設計までは行い、投入ツールの生成・投入・検証・metadata.json の作成は行わないと区別している"
+        },
+        {
+          "text": "言語が確かめられたら、その言語を設定の new.stack に既存の値を消さずに追記すると述べている",
+          "passed": true,
+          "evidence": "応答「設定 new.stack: 分かった言語を、既存の値を消さずに追記します」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 25,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 20.707,
+        "tokens": 94734,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "投入ツールの言語を typescript のまま使い続けるとしている（new.stack が Java になったことを理由に Java へ書き直していない）",
+          "passed": true,
+          "evidence": "応答「今回も TypeScript で書きます」「Java には切り替えません」"
+        },
+        {
+          "text": "使い続ける理由として、言語を変えると同じデータを作り直せることを確かめ直す必要が出ることを挙げている",
+          "passed": true,
+          "evidence": "応答「作り直せることの保証が切れる: Java に移すと既存の投入ツールを書き直すことになります。冪等性、決定論…を一から確かめ直す必要が出ます」"
+        },
+        {
+          "text": "metadata.json の tool.language が既にあることを、new.stack より先に見る根拠にしている",
+          "passed": true,
+          "evidence": "応答「tool.language: \"typescript\" が既にあるので、1 で決まり、new.stack は見ません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 26,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 32.091,
+        "tokens": 97798,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "new.stack が空なので設定から言語を決められないと判断し、利用者が示した Kotlin を投入ツールの言語にしている（TypeScript や SQL を推測で選んでいない）",
+          "passed": true,
+          "evidence": "応答「推測で決めず、利用者（あなた）に確認します」「候補としては…Kotlin を…提案します」。TypeScript や SQL を推測で選んでいない"
+        },
+        {
+          "text": "確かめた言語（Kotlin）を設定の new.stack に、既存の値を消さずに追記するとしている",
+          "passed": true,
+          "evidence": "応答の表「設定の new.stack | 言語を確認した後 | 確認した言語（例: Kotlin）を、既存の値を消さずに追記します」"
+        },
+        {
+          "text": "選んだ言語を .replace/dataset/metadata.json の tool.language に kotlin として記録するとしている",
+          "passed": true,
+          "evidence": "応答の表「tool.language（例: \"kotlin\"）」"
+        },
+        {
+          "text": "Kotlin で書くのが難しい場合は SQL（まとめて commit できる形）で書いてよいと示している",
+          "passed": true,
+          "evidence": "応答「SQL で書いてかまいません。…まとめてコミットできる形にします」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 23,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 23.097,
+        "tokens": 55919,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "投入ツールの言語を Java にしている（new.stack に TypeScript が含まれていても、TypeScript をデフォルトとして選んでいない）",
+          "passed": true,
+          "evidence": "応答「何の言語で書くか → Java」「React と TypeScript は画面側なので…選びません」"
+        },
+        {
+          "text": "Java を選ぶ理由として、new.stack に挙げた言語のうち投入先の DB を読み書きする層（バックエンド）の言語であることを挙げている",
+          "passed": true,
+          "evidence": "応答「DB への投入はバックエンドの仕事なので、言語はバックエンドに合わせて Java」"
+        },
+        {
+          "text": "選んだ言語を .replace/dataset/metadata.json の tool.language に java として記録すると述べている",
+          "passed": false,
+          "evidence": "記録のキーは loader.language で値は \"Java\"。tool.language に java として記録するとは述べていない"
+        },
+        {
+          "text": "Java で書くのが難しい場合は SQL（まとめて commit できる形）で書いてよいと示している",
+          "passed": false,
+          "evidence": "代わりの手段に SQL・DB の一括ロード・Python を並べるが、まとめて commit できる形の SQL という形は示していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 24,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 31.815,
+        "tokens": 66601,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "new.stack が空なので投入ツールの言語を推測で決めず（TypeScript や SQL を勝手に選ばず）、判断待ちとして扱っている",
+          "passed": true,
+          "evidence": "応答「言語は推測で決めません」"
+        },
+        {
+          "text": "判断待ちを .replace/dataset/pending-decisions.json に保留として記録すると述べている（metadata.json には書かない）",
+          "passed": false,
+          "evidence": "未決事項を metadata.json の null の欄と決定記録に残すとし、pending-decisions.json に触れない。metadata.json にも書くとしている"
+        },
+        {
+          "text": "保留の間もデータの設計までは進め、投入ツールの生成とそれ以降（投入・投入後の検証・metadata.json への記録）は行わないと区別している",
+          "passed": false,
+          "evidence": "表で「.replace/dataset/metadata.json の新規作成 | 実行する」としており、metadata.json への記録を行わないという区別になっていない"
+        },
+        {
+          "text": "言語が確かめられたら、その言語を設定の new.stack に既存の値を消さずに追記すると述べている",
+          "passed": true,
+          "evidence": "応答「設定ファイルの new.stack に言語を入れる（ここが正式な値）」。new.stack は空なので、消す既存の値は無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 25,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 19.079,
+        "tokens": 40591,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "投入ツールの言語を typescript のまま使い続けるとしている（new.stack が Java になったことを理由に Java へ書き直していない）",
+          "passed": true,
+          "evidence": "応答「投入ツールの言語は TypeScript のままにします」"
+        },
+        {
+          "text": "使い続ける理由として、言語を変えると同じデータを作り直せることを確かめ直す必要が出ることを挙げている",
+          "passed": true,
+          "evidence": "応答の補足「旧ツールと新ツールで同じデータが投入されることを確かめる必要があります」"
+        },
+        {
+          "text": "metadata.json の tool.language が既にあることを、new.stack より先に見る根拠にしている",
+          "passed": true,
+          "evidence": "応答「metadata.json の tool.language: \"typescript\" が…記録された値です」「new.stack は…投入ツールの言語を決めるものではありません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 26,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 33.068,
+        "tokens": 86083,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "new.stack が空なので設定から言語を決められないと判断し、利用者が示した Kotlin を投入ツールの言語にしている（TypeScript や SQL を推測で選んでいない）",
+          "passed": true,
+          "evidence": "応答「新側に合わせて Kotlin で書き、DB アクセスには Exposed を使うのが基本です」"
+        },
+        {
+          "text": "確かめた言語（Kotlin）を設定の new.stack に、既存の値を消さずに追記するとしている",
+          "passed": true,
+          "evidence": "応答「設定の new.stack：言語（Kotlin とバージョン）…を書きます」。new.stack は空なので、消す既存の値は無い"
+        },
+        {
+          "text": "選んだ言語を .replace/dataset/metadata.json の tool.language に kotlin として記録するとしている",
+          "passed": false,
+          "evidence": "metadata.json に「投入ツールの言語」を記録するとするだけで、tool.language に kotlin と記録するとは述べていない"
+        },
+        {
+          "text": "Kotlin で書くのが難しい場合は SQL（まとめて commit できる形）で書いてよいと示している",
+          "passed": false,
+          "evidence": "代わりに SQL スクリプトや Python を挙げるが、まとめて commit できる形の SQL という形は示していない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 26.5965,
+        "stddev": 7.3555,
+        "min": 19.817,
+        "max": 33.771
+      },
+      "tokens": {
+        "mean": 93707.75,
+        "stddev": 5716.2074,
+        "min": 85355,
+        "max": 97798
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.625,
+        "stddev": 0.25,
+        "min": 0.5,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 26.7648,
+        "stddev": 6.7764,
+        "min": 19.079,
+        "max": 33.068
+      },
+      "tokens": {
+        "mean": 62298.5,
+        "stddev": 19114.8069,
+        "min": 40591,
+        "max": 86083
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.38",
+      "time_seconds": "-0.2",
+      "tokens": "+31409"
+    }
+  },
+  "notes": []
+}
