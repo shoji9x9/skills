@@ -295,11 +295,11 @@ jobs:
             - Budget: エージェントの起動 ${{ steps.settings.outputs.budget }} 回
             OS が強制する sandbox はありません。対象のコードのビルド・テスト・実行はせず、実行で確かめる候補は needs_validation として残します。
             ネットワークは使えません。書き込むのは出力のディレクトリの下だけです。
-            Bash で実行できるのは、スキルの validate-findings.cjs と validate-coverage-ledger.cjs で、出力のディレクトリの記録を検証する次の 2 つのコマンドだけです。
+            Bash で使うのは、スキルの validate-findings.cjs と validate-coverage-ledger.cjs で、出力のディレクトリの記録を検証する次の 2 つのコマンドだけです。
             パスは引用符で囲まず、書き換えず、cd や && でつながずに、この形のまま 1 つのコマンドとして実行します。
             - node ${{ steps.settings.outputs.skill_dir }}/validate-findings.cjs ${{ steps.settings.outputs.runs_dir }}/run-${{ steps.restore.outputs.next }}/findings.json
             - node ${{ steps.settings.outputs.skill_dir }}/validate-coverage-ledger.cjs ${{ steps.settings.outputs.runs_dir }}/run-${{ steps.restore.outputs.next }}/coverage-ledger.json
-            それ以外の Bash（cd・ls・find・git・python3・mkdir・自分で書いたスクリプト）はすべて拒否されるので、試さないでください。
+            この 2 つのコマンド以外の Bash は使わないでください。書き込みや実行を伴うコマンドは拒否されます。
             ファイルの一覧は Glob、中身は Read、検索は Grep で取得します。ディレクトリは Write でファイルを書くと作られます。
             対象の commit は、上の Source ref の値を使います。.git/ の中は読まないでください。
             サブエージェントも同じ制限で動くので、サブエージェントに渡す指示にも、上の Bash の制限と、ファイルの読み方を書いてください。
