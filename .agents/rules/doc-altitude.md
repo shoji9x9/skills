@@ -32,7 +32,7 @@ applyTo: "AGENTS.md,CLAUDE.md,**/SKILL.md,skills/**/references/**/*.md,.agents/r
 | Tier | 文書 | 置くもの |
 | --- | --- | --- |
 | 1 | `AGENTS.md`、`CLAUDE.md`（`AGENTS.md` を読み込むだけ）、`.github/copilot-instructions.md`（`AGENTS.md` を参照するだけ） | リポジトリの目的と、作業内容に依らず常に守る原則・規約の要約 |
-| 2 | `.agents/rules/**`、`docs/**`、`skills/**`、private skill（`.agents/skills/<name>/` のうち `.private-skill` を持つもの）、`.textlint/word-list.md`（`.textlint/words.json` から生成する）、`README.md` | 特定の作業で守る規約・手順と、スキル |
+| 2 | `.agents/rules/**`、`docs/**`、`skills/**`、private skill（`.agents/skills/<name>/` のうち `.private-skill` を持つもの）、`.textlint/word-list.md`（`.textlint/words.json` から生成する）、`README.md`、`SECURITY.md` | 特定の作業で守る規約・手順と、スキル |
 | 3 | `evals/*/README.md`、コードコメント（設定ファイルのコメントを含む） | テストの設計と、実装の説明 |
 | 4 | `.kaizen/**`、`tests/` の結果、Issue・PR | 経過と判断の記録（追記していく） |
 
