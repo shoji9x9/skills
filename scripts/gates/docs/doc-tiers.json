@@ -28,7 +28,8 @@
           "label": "private skill（`.agents/skills/<name>/` のうち `.private-skill` を持つもの）"
         },
         { "glob": ".textlint/word-list.md", "note": "`.textlint/words.json` から生成する" },
-        { "glob": "README.md" }
+        { "glob": "README.md" },
+        { "glob": "SECURITY.md" }
       ]
     },
     {
