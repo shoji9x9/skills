@@ -1,0 +1,195 @@
+{
+  "metadata": {
+    "skill_name": "pr-finalize-loop",
+    "skill_path": "<repo>/skills/pr-finalize-loop",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-15T02:12:40Z",
+    "evals_run": [21],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 21,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 52.404,
+        "tokens": 148688,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反復の残りが少ないこと（最後の反復であること）を、指摘を見送る理由にしないと述べている",
+          "passed": true,
+          "evidence": "残りの反復が少ないことは直さない根拠にしないと述べる。"
+        },
+        {
+          "text": "この指摘を直し、スレッドに返信してから解決すると述べている",
+          "passed": true,
+          "evidence": "直して、返信してから解決する（順序を守る）と述べる。"
+        },
+        {
+          "text": "指摘を直さずに見送ってよい根拠を、事実と違う・範囲の外・人の判断が要る・基準で人に回さないと決まって推奨の案で見送った、の 4 つに限ると述べている",
+          "passed": true,
+          "evidence": "直さない根拠を 4 つ（事実と違う・範囲の外・人の判断が要る・基準で回さないと決めて見送った）と挙げる。"
+        },
+        {
+          "text": "この指摘は、見送ってよい根拠のどれにも当たらないと述べている",
+          "passed": true,
+          "evidence": "4 つのどれにも当たらないと述べる。"
+        },
+        {
+          "text": "止まった理由を「完了」ではなく「最大反復到達」として報告すると述べている",
+          "passed": true,
+          "evidence": "「完了」ではなく「最大反復到達」で止まると述べる。"
+        },
+        {
+          "text": "直して push した HEAD がレビューを受けていないことを報告に書くと述べている",
+          "passed": true,
+          "evidence": "push した HEAD がレビューされていないことを報告に書くと述べる。"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "実行・変更をしていないと述べ、project-tree に変更が無い。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 21,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.8571,
+        "passed": 6,
+        "failed": 1,
+        "total": 7,
+        "time_seconds": 40.57,
+        "tokens": 71486,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反復の残りが少ないこと（最後の反復であること）を、指摘を見送る理由にしないと述べている",
+          "passed": true,
+          "evidence": "残りの反復が少ないことは直さない根拠にしないと述べる。"
+        },
+        {
+          "text": "この指摘を直し、スレッドに返信してから解決すると述べている",
+          "passed": true,
+          "evidence": "直して、返信してから解決する（順序を守る）と述べる。"
+        },
+        {
+          "text": "指摘を直さずに見送ってよい根拠を、事実と違う・範囲の外・人の判断が要る・基準で人に回さないと決まって推奨の案で見送った、の 4 つに限ると述べている",
+          "passed": false,
+          "evidence": "「4 つがどれも当てはまりません」と書くが、挙げたのは事実・範囲・人の判断の 3 つで、「基準で人に回さないと決まって推奨の案で見送った」が抜けている（iteration-25 と同じ形）。"
+        },
+        {
+          "text": "この指摘は、見送ってよい根拠のどれにも当たらないと述べている",
+          "passed": true,
+          "evidence": "4 つのどれにも当たらないと述べる。"
+        },
+        {
+          "text": "止まった理由を「完了」ではなく「最大反復到達」として報告すると述べている",
+          "passed": true,
+          "evidence": "「完了」ではなく「最大反復到達」で止まると述べる。"
+        },
+        {
+          "text": "直して push した HEAD がレビューを受けていないことを報告に書くと述べている",
+          "passed": true,
+          "evidence": "push した HEAD がレビューされていないことを報告に書くと述べる。"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "実行・変更をしていないと述べ、project-tree に変更が無い。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 21,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 50.189,
+        "tokens": 148890,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反復の残りが少ないこと（最後の反復であること）を、指摘を見送る理由にしないと述べている",
+          "passed": true,
+          "evidence": "残りの反復が少ないことは直さない根拠にしないと述べる。"
+        },
+        {
+          "text": "この指摘を直し、スレッドに返信してから解決すると述べている",
+          "passed": true,
+          "evidence": "直して、返信してから解決する（順序を守る）と述べる。"
+        },
+        {
+          "text": "指摘を直さずに見送ってよい根拠を、事実と違う・範囲の外・人の判断が要る・基準で人に回さないと決まって推奨の案で見送った、の 4 つに限ると述べている",
+          "passed": true,
+          "evidence": "直さない根拠を 4 つ（事実と違う・範囲の外・人の判断が要る・基準で回さないと決めて見送った）と挙げる。"
+        },
+        {
+          "text": "この指摘は、見送ってよい根拠のどれにも当たらないと述べている",
+          "passed": true,
+          "evidence": "4 つのどれにも当たらないと述べる。"
+        },
+        {
+          "text": "止まった理由を「完了」ではなく「最大反復到達」として報告すると述べている",
+          "passed": true,
+          "evidence": "「完了」ではなく「最大反復到達」で止まると述べる。"
+        },
+        {
+          "text": "直して push した HEAD がレビューを受けていないことを報告に書くと述べている",
+          "passed": true,
+          "evidence": "push した HEAD がレビューされていないことを報告に書くと述べる。"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "実行・変更をしていないと述べ、project-tree に変更が無い。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9524,
+        "stddev": 0.0825,
+        "min": 0.8571,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 47.721,
+        "stddev": 6.2912,
+        "min": 40.57,
+        "max": 52.404
+      },
+      "tokens": {
+        "mean": 123021.3333,
+        "stddev": 44631.0221,
+        "min": 71486,
+        "max": 148890
+      }
+    }
+  },
+  "notes": []
+}
