@@ -299,7 +299,7 @@ jobs:
             パスは引用符で囲まず、書き換えず、cd や && でつながずに、この形のまま 1 つのコマンドとして実行します。
             - node ${{ steps.settings.outputs.skill_dir }}/validate-findings.cjs ${{ steps.settings.outputs.runs_dir }}/run-${{ steps.restore.outputs.next }}/findings.json
             - node ${{ steps.settings.outputs.skill_dir }}/validate-coverage-ledger.cjs ${{ steps.settings.outputs.runs_dir }}/run-${{ steps.restore.outputs.next }}/coverage-ledger.json
-            この 2 つのコマンド以外の Bash は使わないでください。書き込みや実行を伴うコマンドは拒否されます。
+            この 2 つのコマンド以外の Bash は使わないでください。
             ファイルの一覧は Glob、中身は Read、検索は Grep で取得します。ディレクトリは Write でファイルを書くと作られます。
             対象の commit は、上の Source ref の値を使います。.git/ の中は読まないでください。
             サブエージェントも同じ制限で動くので、サブエージェントに渡す指示にも、上の Bash の制限と、ファイルの読み方を書いてください。
