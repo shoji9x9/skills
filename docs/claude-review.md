@@ -25,6 +25,8 @@ gh workflow run claude-review.yml -f pr=<番号> -f sha="$sha" -f effort=medium
 
 プロンプトや設定を変える前後で、同じ commit の指摘を比べるときは、`-f dry_run=true` を付けて起動する。
 変えたプロンプトを試すには、変えたブランチを `--ref` に渡す。
+エージェントへの入力は、commit に加えて、起動した時点の PR のスレッド・コメント・前回の目印（`since.diff` を作るか）で決まる。
+前後の比較は、その間にスレッドとコメントが変わらない PR（下の測定用の draft PR など）で行う。
 
 ```bash
 gh workflow run claude-review.yml --ref <プロンプトを変えたブランチ> -f pr=<番号> -f sha="$sha" -f effort=high -f dry_run=true
@@ -37,6 +39,8 @@ gh workflow run claude-review.yml --ref <プロンプトを変えたブランチ
   base を一時ブランチにした draft PR は、CI の対象（base が `main` の PR）に入らない。このワークフローの `pull_request` の run は作られるが、job は draft を除く条件で skipped になる。
 - リポジトリ変数 `CLAUDE_REVIEW_SKIP` で一時停止している間は、`dry_run` の run もエージェントを起動せずに成功で終わり、artifact `claude-review-result` を残さない。
 - `dry_run` の run も、使用量を artifact `agent-usage-review-claude` に残す。配布スキル `agent-usage` の collect は、それを対象の PR のレビューの費用として数えるので、測定の費用がレビューの費用に含まれる。
+- job `Review` の check-run は、`--ref` に渡したブランチの HEAD の commit に付く。そのブランチの PR の checks に現れるので、測定の run が失敗すると、その PR の checks も失敗に見える。測定の run の失敗は、その PR の CI の失敗として扱わない。
+- 同じ run を再実行すると、artifact `claude-review-result` を前の試行と同じ名前で上げられず、job が失敗する。測定をやり直すときは、新しい run を起動する。
 
 `workflow_dispatch` は、ワークフローがデフォルトブランチに入るまで起動できない（GitHub の仕様）。
 コメントで起動する `issue_comment` は使わない。secret のある job を、PR のコメントから誰でも動かせてしまうからである。
@@ -62,7 +66,7 @@ gh workflow run claude-review.yml --ref <プロンプトを変えたブランチ
 - 目印は、`github-actions[bot]` が書いたコメントの 1 行目だけを読む。人が同じ形を書いたコメントと、総評の本文の中の同じ形は、目印として扱わない。
 - run の一覧では、`run-name` の `Claude review PR #<番号> <SHA>` で、どの PR のどの commit の run かを見分ける。
 
-check-run（名前 `Review`）は、`workflow_dispatch` の run ではデフォルトブランチの commit に付く。PR の HEAD をレビューしたかの判定には使わない。
+check-run（名前 `Review`）は、`workflow_dispatch` の run では起動した ref の HEAD の commit に付く（`--ref` を省くとデフォルトブランチ）。PR の HEAD をレビューしたかの判定には使わない。
 
 ## 2 回目からのレビュー
 
@@ -75,7 +79,7 @@ check-run（名前 `Review`）は、`workflow_dispatch` の run ではデフォ�
 
 プロンプトは、解決済みの指摘と、作成者が理由を添えて直さないと返信した指摘を、新しい根拠なしに出し直さないよう指示する。
 公式のプラグイン（`/code-review:code-review`）は使わない。Claude が既にコメントした PR ではレビューを止める手順を持つので、2 回目からのレビューが飛ばされうるからである。
-プラグインは、テストの不足を観点に挙げず、バグを探す担当が差分の外を読まない。Bash と書き込みの権限も要る。
+`anthropics/claude-plugins-official` の `plugins/code-review` の手順を読んで確かめた範囲では、テストの不足を観点に挙げず、バグを探す担当が差分の外を読まない。Bash と書き込みの権限も要る。
 
 ## レビューの観点と手順
 
