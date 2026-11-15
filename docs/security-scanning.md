@@ -24,10 +24,12 @@ PR が触らない依存の脆弱性では失敗しない。`main` で既に脆�
 eval の fixture のように古いバージョンを意図して固定した依存と、替えられない依存は、許容するかを人が決める。
 許容するなら、理由を PR のコメントに書いてマージする。Dependabot は PR の本文を書き換えるので、本文には書かない。Dependency Review は失敗したまま残る。
 CI の失敗を直し続ける自律の手順（`pr-finalize-loop` など）は、この失敗を直せないまま止まる。止まったら、許容するかの判断を人に渡す。
-マージした後は、その advisory を Dependabot alerts と `pnpm audit` の側で扱う。無視するかと、その設定は [`vulnerability-handling.md`](vulnerability-handling.md) の手順で決める。
+マージした後の扱いは、[`vulnerability-handling.md`](vulnerability-handling.md) で決める。
+npm の advisory は、Dependabot alerts と `pnpm audit` の側で無視するかを決める（「無視する advisory」）。
+action の advisory は、替える時期を Issue で追う（「GitHub Actions の action の advisory」）。
 ワークフローに除外（`allow-ghsas`）は置かない。無視の設定を Dependabot alerts と `pnpm audit` の側だけに持ち、Dependency Review は PR が持ち込んだことを知らせるだけにするためである。
 GitHub の自動マージ（`dependabot-automerge.yml` と、`issue-batch` の `merge_mode: auto`）は必須チェックだけを待つので、Dependency Review が失敗した PR も取り込む。
-失敗を知らせる仕組みは無いので、自動マージで取り込まれた advisory も、マージの後に Dependabot alerts と `pnpm audit` の側で扱う。
+失敗を知らせる仕組みは無いので、自動マージで取り込まれた advisory も、マージの後に [`vulnerability-handling.md`](vulnerability-handling.md) の手順で扱う。
 
 zizmor は mise でインストールする（`mise.toml`）。手元では、CI の `Security lint (zizmor)` のステップと同じ対象に実行する。テンプレートが 1 つなら、次のとおりである。
 
