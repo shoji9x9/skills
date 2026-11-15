@@ -145,8 +145,12 @@ gh api --method POST \
 1. リポジトリに `.github/workflows/claude-review.yml` が無いときだけ、利用者に確かめてから雛形をコピーする。既にあるファイルは上書きしない。中身が雛形と違うときは、差分を示して扱いを利用者に任せる。
    ファイル名は `claude-review.yml` から変えない。同梱のスクリプトは、この名前で run を探し、依頼する。
 2. secret `CLAUDE_CODE_OAUTH_TOKEN` は、利用者が登録する。値は、利用者が手元で `claude setup-token` を実行して作る token である（[Claude Code GitHub Actions](https://code.claude.com/docs/en/github-actions)）。エージェントは token を作らず、登録もしない。
-3. リポジトリ変数は任意で、無くても動く。`CLAUDE_REVIEW_SKIP`（`on`・`true`・`yes`・`1` で一時停止）、`CLAUDE_REVIEW_EFFORT`（`pull_request` のレビューの effort。無ければ `high`）、`CLAUDE_REVIEW_MODEL`、`CLAUDE_REVIEW_MAX_TURNS` である。設定も利用者が行う。
-4. `workflow_dispatch` は、ワークフローがデフォルトブランチに入るまで起動できない（GitHub の仕様）。雛形をコピーした PR が merge されるまでは、`pull_request` の自動のレビューだけが動く。
+3. リポジトリ変数は任意で、無くても動く。設定も利用者が行う。
+   変数は、`CLAUDE_REVIEW_SKIP`・`CLAUDE_REVIEW_AUTO`・`CLAUDE_REVIEW_EFFORT`・`CLAUDE_REVIEW_MODEL`・`CLAUDE_REVIEW_MAX_TURNS` である。
+   `CLAUDE_REVIEW_SKIP` が `on`・`true`・`yes`・`1` なら一時停止する。`CLAUDE_REVIEW_EFFORT` は `pull_request` のレビューの effort で、無ければ `high` である。
+   `CLAUDE_REVIEW_AUTO` が `off`・`false`・`no`・`0` なら、`pull_request` の自動のレビューをせず、`request` の依頼でだけレビューする。
+   `review_tool` が `claude-code-action` のときだけレビューを受けたいリポジトリで使う。切った回の run は `skipped` で終わり、`check` はそれを状態の判定に数えない（出力の `runs` には含む）。
+4. `workflow_dispatch` は、ワークフローがデフォルトブランチに入るまで起動できない（GitHub の仕様）。雛形をコピーした PR が merge されるまでは、`pull_request` の自動のレビューだけが動く。`CLAUDE_REVIEW_AUTO` で自動のレビューを切っていれば、その間はレビューされない。
 
 使用量は、secret の token の持ち主の Claude のプランの上限から使う。同じ token を使うほかのワークフローや手元のセッションと、同じ上限を共有する。
 fork と Dependabot の PR を除く条件、エージェントに与えるツールの制限、資格情報を投稿しない検査などの危険と対策は、雛形の各段のコメントに書いてある。導入する前に利用者と読む。

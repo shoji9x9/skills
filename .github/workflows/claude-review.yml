@@ -78,12 +78,20 @@ jobs:
     # pull_request: draft・fork・Dependabot の PR は対象から除く。fork と Dependabot の PR には secret が渡らない。
     # Dependabot が起動した run（人の PR を rebase したときなど）にも secret が渡らないので、actor でも除く。
     # workflow_dispatch: 同じ条件は「Resolve target」の段で、PR を取得して確かめる。
+    # pull_request: リポジトリ変数 CLAUDE_REVIEW_AUTO が off・false・no・0（大文字と小文字を区別しない）なら、自動のレビューをしない。
+    # そのときは job を飛ばすので、run は skipped で終わり、エージェントは起動しない。依頼する側（claude-review-action.sh）は
+    # skipped の run を数えないので、HEAD を未レビューとして扱い、workflow_dispatch で依頼できる。
+    # 段の中で止める CLAUDE_REVIEW_SKIP（一時停止）は、run が成功で終わるので、依頼する側は「一時停止」として依頼しない。
+    # contains は配列の要素と比べ、大文字と小文字を区別しない。job の if では vars を読める。
+    #   https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#contains
+    #   https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#context-availability
     if: >-
       github.event_name == 'workflow_dispatch'
       || (github.event.pull_request.draft == false
         && github.event.pull_request.head.repo.full_name == github.repository
         && github.event.pull_request.user.login != 'dependabot[bot]'
-        && github.actor != 'dependabot[bot]')
+        && github.actor != 'dependabot[bot]'
+        && !contains(fromJSON('["off","false","no","0"]'), vars.CLAUDE_REVIEW_AUTO))
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -504,6 +512,8 @@ jobs:
           path: ${{ runner.temp }}/claude-review-result/
           if-no-files-found: error
           retention-days: 30
+          # 同じ run を再実行したときは、前の試行の結果を消して、新しい試行の結果を残す。
+          overwrite: true
 
       # 1 回の使用量を、artifact に残す。形は、配布元の agent-usage スキルの collect が読む形
       # （artifact の名前 agent-usage-review-claude、claude-execution-output.json と meta.json）に合わせる。

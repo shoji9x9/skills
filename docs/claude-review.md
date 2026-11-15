@@ -8,7 +8,7 @@
 
 | イベント | 対象 | effort |
 | --- | --- | --- |
-| `pull_request`（`opened`・`synchronize`・`ready_for_review`・`reopened`） | 同じリポジトリのブランチの PR。draft・fork・Dependabot の PR は除く | リポジトリ変数 `CLAUDE_REVIEW_EFFORT`。無ければ `high` |
+| `pull_request`（`opened`・`synchronize`・`ready_for_review`・`reopened`） | 同じリポジトリのブランチの PR。draft・fork・Dependabot の PR は除く。リポジトリ変数 `CLAUDE_REVIEW_AUTO` で自動のレビューを切ったときも除く | リポジトリ変数 `CLAUDE_REVIEW_EFFORT`。無ければ `high` |
 | `workflow_dispatch` | 入力の `pr` の PR。入力の `sha` が PR の今の HEAD と一致し、HEAD が同じリポジトリのブランチで、PR が open で、Dependabot の PR でないときだけ | 入力の `effort`。空なら `pull_request` と同じ |
 
 `workflow_dispatch` は、push せずに返信だけをしたときなど、同じ HEAD をもう一度レビューさせるときに使う。書き込み権限を持つ人だけが起動できる。
@@ -40,7 +40,8 @@ gh workflow run claude-review.yml --ref <プロンプトを変えたブランチ
 - リポジトリ変数 `CLAUDE_REVIEW_SKIP` で一時停止している間は、`dry_run` の run もエージェントを起動せずに成功で終わり、artifact `claude-review-result` を残さない。
 - `dry_run` の run も、使用量を artifact `agent-usage-review-claude` に残す。配布スキル `agent-usage` の collect は、それを対象の PR のレビューの費用として数えるので、測定の費用がレビューの費用に含まれる。
 - job `Review` の check-run は、`--ref` に渡したブランチの HEAD の commit に付く。そのブランチの PR の checks に現れるので、測定の run が失敗すると、その PR の checks も失敗に見える。測定の run の失敗は、その PR の CI の失敗として扱わない。
-- 同じ run を再実行すると、artifact `claude-review-result` を前の試行と同じ名前で上げられず、job が失敗する。測定をやり直すときは、新しい run を起動する。
+- 同じ run を再実行すると、artifact `claude-review-result` は新しい試行の結果で上書きされる（`overwrite`）。前の試行の結果は残らない。
+  使用量の artifact `agent-usage-review-claude` は上書きせず、最初の試行のものが残る。指摘の件数と費用を同じ試行で比べるときは、再実行せずに新しい run を起動する。
 
 `workflow_dispatch` は、ワークフローがデフォルトブランチに入るまで起動できない（GitHub の仕様）。
 コメントで起動する `issue_comment` は使わない。secret のある job を、PR のコメントから誰でも動かせてしまうからである。
@@ -63,6 +64,8 @@ gh workflow run claude-review.yml --ref <プロンプトを変えたブランチ
 - レビューが失敗・時間切れ・取り消しになった回は、目印を書かない。HEAD の SHA と一致する目印が無ければ、その HEAD はレビューし終えていない。
 - 目印を書かない回は、ほかに 2 つある。`CLAUDE_REVIEW_SKIP` で一時停止した回は、run が成功で終わり、Summary に一時停止と書く。
   対象外の PR（draft など）で job を飛ばした回は、run と job の conclusion が `skipped` になる。目印を待つ側は、run の conclusion と Summary でこの 2 つを見分ける。
+  `CLAUDE_REVIEW_AUTO` で自動のレビューを切った `pull_request` の回も、job を飛ばすので `skipped` になる。
+  `claude-review-action.sh` の `check` は `skipped` の run を状態の判定に数えない（出力の `runs` には含む）ので、その HEAD は未レビューとして依頼できる。一時停止の回は成功で終わるので、`check` は `paused` を返して依頼しない。
 - 目印は、`github-actions[bot]` が書いたコメントの 1 行目だけを読む。人が同じ形を書いたコメントと、総評の本文の中の同じ形は、目印として扱わない。
 - run の一覧では、`run-name` の `Claude review PR #<番号> <SHA>` で、どの PR のどの commit の run かを見分ける。
 
@@ -98,6 +101,7 @@ check-run（名前 `Review`）は、`workflow_dispatch` の run では起動し�
 | 名前 | 値 | 未設定のとき |
 | --- | --- | --- |
 | `CLAUDE_REVIEW_SKIP` | `on`・`true`・`yes`・`1` のどれかなら、レビューを一時停止する | レビューする |
+| `CLAUDE_REVIEW_AUTO` | `off`・`false`・`no`・`0` のどれか（大文字と小文字を区別しない）なら、`pull_request` の自動のレビューをしない。`workflow_dispatch` の依頼はレビューする | 自動でレビューする |
 | `CLAUDE_REVIEW_EFFORT` | `pull_request` のレビューの effort（`low`・`medium`・`high`・`xhigh`・`max`） | `high` |
 | `CLAUDE_REVIEW_MODEL` | エージェントのモデル（例: `opus`） | `claude-code-action` のデフォルトのモデル |
 | `CLAUDE_REVIEW_MAX_TURNS` | エージェントの往復の上限（1〜999） | 60 |

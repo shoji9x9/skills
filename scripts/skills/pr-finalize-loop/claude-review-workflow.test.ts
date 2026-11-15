@@ -902,6 +902,32 @@ describe("Run Claude Code の claude_args", () => {
   });
 });
 
+// CLAUDE_REVIEW_AUTO を切ったときは、pull_request の job を飛ばし、run を skipped で終える。依頼する側は skipped の run を
+// 数えないので、HEAD を未レビューとして workflow_dispatch で依頼できる（claude-review-action.test.ts の request のテスト）。
+// 段の中で止めると run が成功で終わり、依頼する側は「一時停止」として依頼しなくなるので、job の if で止める。
+describe("自動のレビューの切り替え（CLAUDE_REVIEW_AUTO）", () => {
+  const raw = loadYamlAs<{ jobs: { review: { if: string } } }>(
+    readFileSync(join(repoRoot, WORKFLOW), "utf8"),
+  );
+  const cond = raw.jobs.review.if;
+  // 最初の || より前が workflow_dispatch の側、後ろの括弧の中が pull_request の側である。
+  const dispatchPrefix = "github.event_name == 'workflow_dispatch' || (";
+
+  test("pull_request の側の条件だけが、変数が off・false・no・0 のときに job を飛ばす", () => {
+    expect(cond.startsWith(dispatchPrefix)).toBe(true);
+    expect(cond.endsWith(")")).toBe(true);
+    const pullRequestSide = cond.slice(dispatchPrefix.length, -1);
+    expect(pullRequestSide).toContain(
+      `&& !contains(fromJSON('["off","false","no","0"]'), vars.CLAUDE_REVIEW_AUTO)`,
+    );
+    expect(cond.match(/CLAUDE_REVIEW_AUTO/g)).toHaveLength(1);
+  });
+
+  test("段の中（一時停止の段）では、CLAUDE_REVIEW_AUTO を読まない", () => {
+    expect(JSON.stringify(doc.jobs.review.steps)).not.toContain("CLAUDE_REVIEW_AUTO");
+  });
+});
+
 // 依頼する側（claude-review-action.sh）は、run-name が「Claude review PR #<番号> <SHA>」と一致する run を HEAD の run として数える。
 // dry_run の run がこの形だと、目印の無い成功した run として「一時停止した回」に数えられ、その HEAD の依頼が止まる。
 describe("dry_run の run の見分け", () => {
@@ -974,9 +1000,11 @@ describe("dry_run の run の見分け", () => {
     );
   });
 
-  test("dry_run の結果を残す段は、Post review が成功し dry_run のときだけ動く", () => {
-    expect(step("Upload dry-run result").if).toBe(
+  test("dry_run の結果を残す段は、Post review が成功し dry_run のときだけ動き、再実行では前の試行の結果を上書きする", () => {
+    const upload = step("Upload dry-run result");
+    expect(upload.if).toBe(
       "steps.post.outcome == 'success' && steps.target.outputs.dry_run == 'true'",
     );
+    expect(upload.with?.overwrite).toBe(true);
   });
 });

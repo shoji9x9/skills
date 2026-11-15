@@ -446,6 +446,18 @@ describe("request", () => {
     expect(log).not.toContain("inputs[effort]");
   });
 
+  // ワークフローの自動のレビューを切った（CLAUDE_REVIEW_AUTO が off）リポジトリでは、push のたびに
+  // pull_request の run が skipped で作られる。その HEAD も、依頼すればレビューされなければならない。
+  test("自動のレビューを切って pull_request の run が skipped だけなら、依頼する", () => {
+    const r = request({
+      runs: [[{ id: 11, event: "pull_request", conclusion: "skipped" }]],
+      runsAfter: [[{ id: 21, event: "workflow_dispatch", status: "queued", conclusion: null }]],
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.out).toMatchObject({ status: "requested", run: "21" });
+    expect(r.dispatched).toBe(true);
+  });
+
   const refusing: [string, Fixture, string][] = [
     ["進行中", { runs: [[{ id: 13, status: "in_progress", conclusion: null }]] }, "in-progress"],
     [
