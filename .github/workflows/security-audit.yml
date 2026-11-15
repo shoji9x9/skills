@@ -309,15 +309,17 @@ jobs:
           # 書き込みを出力の下に限るのは、git の設定などを書き換えて、後の段の git にコマンドを実行させないためである。
           # Edit の規則は Write にも当たる。Bash は検証スクリプトの起動の形だけを許す（Claude Code は複合コマンドを 1 つずつ照合する）。
           # 検証スクリプトは引数のファイルを読み、エラーに値を含めるので、引数は出力のディレクトリの 2 つの記録に限り、ワイルドカードを使わない。
-          # 許可の規則に無い呼び出しは --permission-mode default で拒否する。デフォルトで auto mode を使うバージョンの action では、
-          # 許可の規則に無い呼び出しを安全性の判定で通しうる。
+          # --permission-mode default は、許可の規則に無い Bash の呼び出し（引数の違う検証スクリプトなど。読むだけのコマンドを除く）と、作業ディレクトリと
+          # --add-dir の外の読み取りを拒否する。デフォルトで auto mode を使うバージョンの action では、これらを安全性の判定で通しうる。
+          # 作業ディレクトリ（GITHUB_WORKSPACE）の中の読み取りは、読むだけの Bash（cat など）も含めて、許可の規則が無くても通る。
+          # そのため、dvna を監査するときの read_glob は、作業ツリーの中で読める範囲を限らない。
           # 拒否の一覧はツールが足されるたびに抜けが出るので、--tools で使えるツールそのものを限る（使えないツールは拒否の一覧に書かない）。
           # 設定はユーザーの層（runner には無い）だけを読む。リポジトリの .claude/settings.json の Hook（応答の言語の確認・kaizen の記録）を
           # 監査の中で実行させないためである。Hook は出力のディレクトリの外に書き、英語で書く上流のスキルの応答を書き直させる。
           # MCP のサーバーも、--mcp-config で渡したもの（action が渡すもの）だけにし、リポジトリの .mcp.json のサーバーを起動させない。
-          # action は、エージェントを起動する前に github_token を作業ツリーの .git/config（remote の URL）に書く。self を監査するときは
-          # Read(./**) の許可がそれも読めるので、拒否の一覧にはパスの規則 Read(./.git/**) だけを置く。この規則は Grep と Glob にも当たり、
-          # サブエージェントにも当たる（.agents/rules/github-actions-authoring.md）。action が書くのは作業ツリーの .git/config だけなので、
+          # action は、エージェントを起動する前に github_token を作業ツリーの .git/config（remote の URL）に書く。監査の対象に関わらず
+          # 作業ディレクトリの中は読めるので、拒否の一覧にはパスの規則 Read(./.git/**) だけを置く。この規則は Grep・Glob・サブエージェントと、
+          # Bash の cat・head・grep にも当たる（.agents/rules/github-actions-authoring.md）。action が書くのは作業ツリーの .git/config だけなので、
           # audit-target/.git（persist-credentials: false）と、スキルを取得した root の下の .git には資格情報が無い。
           claude_args: >-
             --tools "Read,Grep,Glob,Edit,Write,Agent,Bash"

@@ -191,7 +191,7 @@ jobs:
           # エージェントが変えたファイルは、次の段でもスクリプトが確かめる。
           # 設定はユーザーの層（runner には無い）だけを読み、リポジトリの Hook と .mcp.json のサーバーを起動させない（security-audit.yml と同じ）。
           # action が .git/config に書く github_token を読ませないよう、Read(./.git/**) を拒否する（self-review.yml と同じ）。
-          # 許可の規則に無い呼び出しは --permission-mode default で拒否する（self-review.yml と同じ）。
+          # 許可の規則に無い書き込みと、作業ディレクトリの外の読み取りは、--permission-mode default で拒否する（self-review.yml と同じ）。
           claude_args: >-
             --tools "Read,Grep,Glob,Edit,Write"
             --setting-sources user

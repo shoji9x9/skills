@@ -3,10 +3,10 @@
 // 拒否の規則 `Read(./.git/**)` が Read・Grep・Glob とサブエージェントに当たることは、手元の claude -p で確かめた。
 // 確かめた内容は .agents/rules/github-actions-authoring.md と Issue #1031 にある。
 // 規則が消えても、ほかの検査と run は成功のまま進むので、エージェントを動かすワークフローの宣言をここで確かめる。
-// .github/workflows/claude-review.yml は scripts/skills/pr-finalize-loop/claude-review-workflow.test.ts が確かめる。
+// 対象は、.github/workflows/ と skills/*/assets/ の YAML のうち、Claude Code の段を持つものすべてである。
 import { describe, expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { loadYamlAs } from "../lib/text/yaml-as.ts";
 import { makeTempDir } from "../lib/testing/test-tmpdir.ts";
@@ -41,14 +41,39 @@ const optionValues = (args: string, option: string) =>
 
 const GIT_DENY = "Read(./.git/**)";
 
-// Claude Code を動かすワークフロー（claude-review.yml を除く）と、kaizen の配布する雛形。
-const WORKFLOWS = [
-  ".github/workflows/self-review.yml",
-  ".github/workflows/self-review-fix.yml",
-  ".github/workflows/security-audit.yml",
-  ".github/workflows/kaizen-schedule.yml",
-  "skills/kaizen/assets/kaizen-schedule.yml",
-];
+/** ワークフローと配布スキルの雛形のうち、Claude Code の段を持つものを集める（一覧を手で持つと、足したワークフローが抜ける）。 */
+function claudeWorkflows() {
+  const yml = (dir: string) =>
+    readdirSync(join(repoRoot, dir))
+      .filter((f) => /\.ya?ml$/.test(f))
+      .map((f) => `${dir}/${f}`);
+  const assets = readdirSync(join(repoRoot, "skills"), { withFileTypes: true })
+    .filter((d) => d.isDirectory() && existsSync(join(repoRoot, "skills", d.name, "assets")))
+    .flatMap((d) => yml(`skills/${d.name}/assets`));
+  // 手順の断片の YAML（jobs を持たない）は読まない。
+  const hasJobs = (path: string) => /^jobs:/m.test(readFileSync(join(repoRoot, path), "utf8"));
+  return [...yml(".github/workflows"), ...assets]
+    .filter(hasJobs)
+    .filter((path) => claudeSteps(path).length > 0)
+    .toSorted();
+}
+
+const WORKFLOWS = claudeWorkflows();
+
+// 集める処理が空振りしたときに、どのワークフローも検査せずに通らないよう、知っているものが入っていることを確かめる。
+test("Claude Code の段を持つワークフローと雛形を、もれなく集める", () => {
+  for (const path of [
+    ".github/workflows/self-review.yml",
+    ".github/workflows/self-review-fix.yml",
+    ".github/workflows/security-audit.yml",
+    ".github/workflows/kaizen-schedule.yml",
+    ".github/workflows/claude-review.yml",
+    "skills/kaizen/assets/kaizen-schedule.yml",
+    "skills/pr-finalize-loop/assets/claude-review.yml",
+  ]) {
+    expect(WORKFLOWS).toContain(path);
+  }
+});
 
 describe("エージェントに .git/ を読ませない", () => {
   test.each(WORKFLOWS)("%s の Claude Code の段は、Read(./.git/**) を拒否する", (path) => {

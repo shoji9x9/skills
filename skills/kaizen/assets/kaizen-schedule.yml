@@ -242,8 +242,8 @@ jobs:
           # action は、エージェントを起動する前に github_token を作業ツリーの .git/config（remote の URL）に書く。
           # Read(./**) の許可はそれも読めるので、Read(./.git/**) を拒否する。この規則は Read に加えて Grep と Glob にも当たり、
           # .git の中を指すシンボリックリンクの読み取りも止める。Glob(./.git/**) の形の規則は当たらない（Claude Code 2.1.325 の claude -p で確かめた）。
-          # 許可の規則に無い呼び出しは --permission-mode default で拒否する。デフォルトで auto mode を使うバージョンの
-          # claude-code-action では、許可の規則に無い呼び出しを安全性の判定で通しうる。
+          # 許可の規則に無い書き込みと、作業ディレクトリの外の読み取りは、--permission-mode default で拒否する。
+          # デフォルトで auto mode を使うバージョンの claude-code-action では、これらを安全性の判定で通しうる。
           claude_args: >-
             --tools "Read,Grep,Glob,Edit,Write"
             --setting-sources user
