@@ -1,6 +1,6 @@
 ---
 name: pnpm-audit-alert-issue
-description: Dependabot alerts と `pnpm audit` が同じ advisory を挙げるかを確かめる間、`pnpm audit --json` の結果を正規化して Dependabot alerts と比べ、open の alert にも自動で却下された alert にも無い advisory だけを `dependabot-alert-issue` の外部 audit findings mode に渡して脆弱性 Issue を作る private skill。比べた結果は、この private skill をやめる条件の判定に使う。「pnpm audit から Issue」「pnpm の脆弱性を起票」「pnpm audit と Dependabot alerts を比べて」「pnpm-audit-alert-issue」で必ず使用する。
+description: Dependabot alerts と `pnpm audit` が同じ advisory を挙げるかを確かめる間、`pnpm audit --json` の結果を正規化して Dependabot alerts と比べ、open の alert にも却下された alert にも無い advisory だけを `dependabot-alert-issue` の外部 audit findings mode に渡して脆弱性 Issue を作る private skill。比べた結果は、この private skill をやめる条件の判定に使う。「pnpm audit から Issue」「pnpm の脆弱性を起票」「pnpm audit と Dependabot alerts を比べて」「pnpm-audit-alert-issue」で必ず使用する。
 license: MIT
 ---
 
@@ -205,7 +205,7 @@ pnpm の transitive 依存の更新に特有の制約と手段は、`dependabot-
 
 - `direct_dependencies`: 脆弱な package を持ち込む direct 依存の名前の配列
 - `why_summary`: `pnpm why` から分かる、依存のつながりの短いまとめ（`pnpm install --frozen-lockfile` で node_modules を合わせた後に取る）
-- `context_note`: open の Dependabot alert が無い理由（人が却下した alert の advisory であるなど）の短い補足
+- `context_note`: open の Dependabot alert が無い理由（`fixed` の alert だけがあり、lockfile に古いバージョンが残っているなど）の短い補足
 
 これらの補助のフィールドは、Issue にするときの判断の材料である。最終的な重複の確認、着手できるかの分類、本文の作成は `dependabot-alert-issue` が受け持つ。
 
