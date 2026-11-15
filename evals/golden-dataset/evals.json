@@ -316,7 +316,7 @@
         "new.stack が空なので投入ツールの言語を推測で決めず（TypeScript や SQL を勝手に選ばず）、判断待ちとして扱っている",
         "判断待ちを .replace/dataset/pending-decisions.json に保留として記録すると述べている（metadata.json には書かない）",
         "保留の間もデータの設計までは進め、投入ツールの生成とそれ以降（投入・投入後の検証・metadata.json への記録）は行わないと区別している",
-        "言語が確かめられたら、その言語を設定の new.stack に既存の値を消さずに追記すると述べている"
+        "言語が確かめられたら、その言語を設定の new.stack に追記すると述べている"
       ],
       "reachability": [
         {
@@ -332,7 +332,7 @@
           "prompt_quote": "投入ツールの言語はどう扱って、どこまで進めますか"
         },
         {
-          "assertion": "言語が確かめられたら、その言語を設定の new.stack に既存の値を消さずに追記すると述べている",
+          "assertion": "言語が確かめられたら、その言語を設定の new.stack に追記すると述べている",
           "prompt_quote": "言語が分かったら設定や記録のどこを更新しますか"
         }
       ]
@@ -365,7 +365,7 @@
       "prompt": "フェーズ A の投入ツールをこれから書きます。設定の new.stack はまだ空のままです。新側はバックエンドが Kotlin の Spring Boot で、DB へは Exposed でアクセスすると聞いています。.replace/dataset/metadata.json はまだありません。投入ツールの言語と、それをどこに残すかを教えてください。設定や記録のどこを更新しますか。その言語で書くのが難しいときはどうしますか。",
       "assertions": [
         "new.stack が空なので設定から言語を決められないと判断し、利用者が示した Kotlin を投入ツールの言語にしている（TypeScript や SQL を推測で選んでいない）",
-        "確かめた言語（Kotlin）を設定の new.stack に、既存の値を消さずに追記するとしている",
+        "確かめた言語（Kotlin）を設定の new.stack に追記するとしている",
         "選んだ言語を .replace/dataset/metadata.json の tool.language に kotlin として記録するとしている",
         "Kotlin で書くのが難しい場合は SQL（まとめて commit できる形）で書いてよいと示している"
       ],
@@ -375,7 +375,7 @@
           "prompt_quote": "設定の new.stack はまだ空のままです"
         },
         {
-          "assertion": "確かめた言語（Kotlin）を設定の new.stack に、既存の値を消さずに追記するとしている",
+          "assertion": "確かめた言語（Kotlin）を設定の new.stack に追記するとしている",
           "prompt_quote": "設定や記録のどこを更新しますか"
         },
         {

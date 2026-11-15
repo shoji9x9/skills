@@ -77,7 +77,7 @@
 - eval 24 は fixture 無しで、`new.stack` が空のまま `--autonomous` で実行したい状況を与える。
   言語を推測せずに判断待ちとして `pending-decisions.json` に記録すること、保留の間はデータの設計までで止めて投入ツールを生成しないこと、
   確かめた言語を `new.stack` に追記することを検証する（Issue #1052）。プロンプトには、保留にするという結論も、どこまで進めるかも書かない。
-  **iteration-28 で実測**（変更確認・各 config 1 run・claude-code / opus / medium。prompt に問いを足した後）: `with_skill` 4/4・`without_skill` 2/4。
+  **iteration-29 で実測**（変更確認・各 config 1 run・claude-code / opus / medium。assertion 4 から消す既存の値の条件を外した後）: `with_skill` 4/4・`without_skill` 2/4。
   baseline も言語を推測では選ばず、確かめた言語を `new.stack` に入れるとも述べる。差が出たのは、保留を `metadata.json` に書いて `pending-decisions.json` に触れない点（assertion 2・3）である
 - eval 25 は fixture 無しで、`metadata.json` の `tool.language` が `typescript` のまま、`new.stack` が Java に変わった状況を与える。
   記録済みの言語を `new.stack` より先に見て使い続けること（言語の選択の手順 1）を検証する（Issue #1052 の PR #1053 のレビュー）。
@@ -85,7 +85,7 @@
   **iteration-28 で実測**（変更確認・各 config 1 run・claude-code / opus / medium。prompt に問いを足した後）: `with_skill` 3/3・`without_skill` 3/3。
   理由を問う文を足すと、baseline も記録済みの言語を使い続け、同じデータを投入できることを確かめ直す必要を挙げる。差は出ないので、手順 1 が外れたことを検知する後退の検知の eval として残す
 - eval 26 は fixture 無しで、`new.stack` が空のまま対話で実行し、利用者が新側の言語（Kotlin）を会話で示す状況を与える。
-  示された言語を投入ツールの言語にし、`new.stack` へ既存の値を消さずに追記し、`tool.language` に記録することを検証する（同じレビュー）。
+  示された言語を投入ツールの言語にし、`new.stack` へ追記し、`tool.language` に記録することを検証する（同じレビュー）。
   eval 24 が `--autonomous` の場合を、この eval が対話の場合を受け持つ。プロンプトには、追記するという結論を書かない。
-  **iteration-28 で実測**（変更確認・各 config 1 run・claude-code / opus / medium。prompt に問いを足した後）: `with_skill` 4/4・`without_skill` 2/4。
+  **iteration-29 で実測**（変更確認・各 config 1 run・claude-code / opus / medium。assertion 2 から消す既存の値の条件を外した後）: `with_skill` 4/4・`without_skill` 2/4。
   baseline も Kotlin を選んで `new.stack` に書くとするが、記録のキーを `tool.language` にせず、SQL を代わりに使うときも、まとめて commit できる形を示さない
