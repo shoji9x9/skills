@@ -67,6 +67,9 @@ query($endCursor: String) {
   記録は PR の作成者か担当者が投稿するので、作成者を除く上の規則は、この記録には当てない（[`review-tool.md`](review-tool.md) の「local」）。
 - `review_tool` が `claude-code-action` のときは、上の根拠の代わりに、同梱のスクリプトの `check` で判定する。
   コマンドは `scripts/claude-review-action.sh check --pr <PR URL> --effort <今の段階の effort> [--since <直近の対応の createdAt>]` である。
+  `rereview_after_reply` が `false` のときは、先に `--since` ありの `check` で時刻の条件を満たすかを判定し、`not-reviewed` のときだけ `--since` なしの `check` で HEAD の SHA がレビュー済みかを判定する（`SKILL.md` の手順 2）。
+  `--since` ありが `not-reviewed` で `--since` なしが `reviewed` なら、HEAD の SHA はレビュー済みとして扱う。ほかの完了の条件を満たしていれば、依頼せずに「返信済み・再レビューなしで終了」として止まる。
+  `--since` ありが `in-progress`・`paused`・`failed` を返したときと、2 回目の `--since` なしが `reviewed` 以外を返したときは、値が `true` のときと同じく下の終了コードと status の扱いに従う（`not-reviewed` なら依頼する）。
   exit 0（`status=reviewed`）で、出力の `head` が `headRefOid` と一致するときだけレビュー済みとする。
   exit 1 は、出力の `status` で扱いを分ける（[`review-tool.md`](review-tool.md) の「claude-code-action」の表）。`in-progress` は完了を待ち、`not-reviewed` は `SKILL.md` の手順 6 で依頼し、`paused` と `failed` は依頼せずに「レビュー未着で待機終了」として止まる。
   exit 2 は判定できないので、間隔を空けて数回取得し直し、それでも exit 2 なら「行き詰まり」として止まる。exit 3 はワークフローが無いので、すぐに「行き詰まり」として止まり、導入が要ることを報告に書く。

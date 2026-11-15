@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "pr-finalize-loop の設定（.config/skills/shoji9x9/pr-finalize-loop.jsonc ほか）",
+  "description": "置き場所・層・解決の順序は references/config-files.md にある。x-layers はそのキーを置ける層。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "rereview_after_reply": {
+      "description": "push せずに返信・解決・スレッドの外への対応の記録だけをした反復で、再レビューを依頼するか。false なら依頼せず、「返信済み・再レビューなしで終了」で止まる。review_tool が copilot・claude-code・codex・claude-code-action のときだけ意味を持つ。リポジトリの方針はリポジトリの層に、このリポジトリでだけ自分が変えたい値は .local.jsonc に、自分のすべてのリポジトリで使う値は人ごとの層に置く",
+      "type": "boolean",
+      "default": true,
+      "x-layers": ["repo", "local", "user"]
+    }
+  }
+}

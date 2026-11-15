@@ -104,6 +104,7 @@ gh skill update --all
 | --- | --- | --- |
 | `common` | issue-start・issue-batch・pr-review-handle・pr-finalize-loop・dependabot-alert-issue | `conventions_doc`（ブランチ運用と commit の規約のドキュメント）、`review_tool`（再レビューの依頼先） |
 | `dependabot-merge` | dependabot-merge | `merge_method` |
+| `pr-finalize-loop` | pr-finalize-loop | `rereview_after_reply`（push せずに返信だけをした反復で再レビューを依頼するか） |
 | `dependabot-alert-issue` | dependabot-alert-issue | `minimum_release_age_days`・`ignore`・`dismiss` |
 | `issue-batch` | issue-batch | 反復の上限・CI の待機・merge・deployment の監視 |
 | `git-worktree` | git-worktree | worktree の置き場所とファイルを運ぶ方法 |
