@@ -9,7 +9,8 @@ name: Dependency Review
 # （comment-summary-in-pr）は pull-requests: write が要るので使わず、結果はジョブの Summary とログで読む。
 # 入力の意味: https://github.com/actions/dependency-review-action#configuration-options
 #
-# paths で起動を絞らない。dependency graph は package.json・pnpm-lock.yaml のほかに、ワークフローの uses: も依存として読む。
+# paths で起動を絞らない。dependency graph は直下の package.json・pnpm-lock.yaml のほかに、evals/ の fixture の package.json と、
+# .github/workflows/ のワークフローの uses: も依存として読む。配布するテンプレート（skills/*/assets/）の uses: は読まない。
 # 絞ると、依存を変える PR を起動の条件から外しうる。ジョブは checkout も install もしないので、すべての PR で動かしても短い。
 on:
   pull_request:
@@ -32,9 +33,11 @@ jobs:
       - name: Review dependency changes
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
-          # moderate 以上で失敗させる。low はログと Summary に出すだけにする。
+          # moderate 以上で失敗させる。action は fail-on-severity より低い脆弱性を結果から外すので、low はログにも Summary にも出ない。
           fail-on-severity: moderate
           # このリポジトリの依存は開発用のツールが中心なので、development も対象にする。
           fail-on-scopes: runtime,development,unknown
           # ライセンスは検査しない。依存は開発用のツールが中心なので、ライセンスのポリシーを持たない。
           license-check: false
+          # 判定に使わない OpenSSF Scorecard の取得（足す依存ごとに外部の API を呼ぶ）をしない。
+          show-openssf-scorecard: false
