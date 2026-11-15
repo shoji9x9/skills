@@ -20,11 +20,10 @@ code scanning の規則は、PR の commit に CodeQL の結果が上がるの�
 
 Dependency Review は、GitHub の dependency graph で PR の base と head の依存を比べ、PR が足すかバージョンを変える依存だけを検査する。
 PR が触らない依存の脆弱性では失敗しない。`main` で既に脆弱な依存でも、PR がバージョンを変え、変えた先も脆弱なら失敗する。
-失敗したら、修正版に上げてからマージする。
-修正版の無い npm の advisory は、[`vulnerability-handling.md`](vulnerability-handling.md)「無視する advisory」の基準で判断する。許容するなら、同じ節の手順で `ignoreGhsas` と `dismiss` に足す。
-修正版の無い action の advisory は、別の action に替えられないかを先に確かめる。許容するなら `dismiss` にだけ足す。`ignoreGhsas` は `pnpm audit` が読む npm の一覧なので、action の advisory を足さない。
-Dependency Review は `ignoreGhsas` も `dismiss` も読まないので、許容しても失敗したまま残る。許容する理由を PR の本文に書いてマージする。
-ワークフローに除外（`allow-ghsas`）は置かない。置くと、`ignoreGhsas` と `dismiss` に並ぶ 3 つ目の無視の一覧になり、週次の見直しの対象から外れる。
+失敗したら、修正版に上げるか、脆弱性の無い別の依存（action なら別の action）に替えてからマージする。
+どちらもできないときは、許容する理由を PR の本文に書いてマージする。Dependency Review は失敗したまま残る。
+マージした後は、その advisory を Dependabot alerts と `pnpm audit` の側で扱う。無視するかと、その設定は [`vulnerability-handling.md`](vulnerability-handling.md) の手順で決める。
+ワークフローに除外（`allow-ghsas`）は置かない。無視の設定を Dependabot alerts と `pnpm audit` の側だけに持ち、Dependency Review は PR が持ち込んだことを知らせるだけにするためである。
 GitHub の自動マージ（`dependabot-automerge.yml` と、`issue-batch` の `merge_mode: auto`）は必須チェックだけを待つので、Dependency Review が失敗した PR も取り込む。
 自動マージを予約した PR で Dependency Review の失敗に気付いたら、取り込まれる前に予約を外し、上の手順で扱う。
 
