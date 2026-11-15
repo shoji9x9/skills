@@ -9,13 +9,19 @@
   "mutations": [
     {
       "id": "exclude-all-live-alerts",
-      "why": "起票から除く alert を open に限らず、fixed でない alert すべてにする（自動で却下された alert の advisory が起票されなくなる）",
+      "why": "open の alert の組として扱う範囲を、fixed でない alert すべてにする（却下された alert の組が、open として扱われて skipped_dismissed に出なくなる）",
       "file": ".agents/skills/pnpm-audit-alert-issue/scripts/compare-dependabot-alerts.ts",
       "find": "alerts.filter((a) => a.state === \"open\").map(keyOf)",
       "replace": "alerts.filter((a) => a.state !== \"fixed\").map(keyOf)",
       "occurrences": 1,
       "expect_failing": [
-        "compare dismissed と auto_dismissed の alert も一致に数え、その findings は起票に渡す",
+        "compare dismissed の alert は一致に数え、その findings は起票に渡さず skipped_dismissed に出す",
+        "compare 同じ組に auto_dismissed と dismissed の alert があるときの扱い",
+        "compare 同じ組に dismissed と auto_dismissed の alert があるときの扱い",
+        "compare 同じ組に fixed と dismissed の alert があるときの扱い",
+        "compare 同じ組に fixed と auto_dismissed の alert があるときの扱い",
+        "compare auto_dismissed の alert は一致に数え、その findings は起票に渡さず skipped_dismissed に出す",
+        "compare open 3 件・auto_dismissed 2 件の alert と、pnpm audit の 5 件が一致すると、起票に渡すのは 0 件になる",
         "compare 同じ組の findings が複数あっても、組は 1 件として数える",
         "CLI 比べた結果を出し、起票に渡す findings を source などを残したまま書く"
       ]
@@ -28,7 +34,9 @@
       "replace": "`${norm(pair.ghsa)}`",
       "occurrences": 1,
       "expect_failing": [
-        "compare 同じ GHSA でもパッケージが違えば一致にせず、open の alert の無いパッケージの finding は起票に渡す"
+        "compare auto_dismissed の alert と GHSA が同じでもパッケージが違う finding は、起票に渡す",
+        "compare 同じ GHSA でもパッケージが違えば一致にせず、open の alert の無いパッケージの finding は起票に渡す",
+        "CLI 比べた結果を出し、起票に渡す findings を source などを残したまま書く"
       ]
     },
     {
@@ -62,6 +70,105 @@
       "occurrences": 1,
       "expect_failing": [
         "compare 両方に同じ組で載る advisory は matched になり、open の alert の組は起票に渡さない"
+      ]
+    },
+    {
+      "id": "dismissed-filed",
+      "why": "人が却下した alert（dismissed）を却下された組として扱わない（却下した advisory の Issue が作られる）",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/compare-dependabot-alerts.ts",
+      "find": "a.state === \"dismissed\")",
+      "replace": "a.state === \"never\")",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare dismissed の alert は一致に数え、その findings は起票に渡さず skipped_dismissed に出す",
+        "compare 同じ組に auto_dismissed と dismissed の alert があるときの扱い",
+        "compare 同じ組に dismissed と auto_dismissed の alert があるときの扱い",
+        "compare 同じ組に fixed と dismissed の alert があるときの扱い",
+        "compare 同じ組の findings が複数あっても、組は 1 件として数える",
+        "CLI 比べた結果を出し、起票に渡す findings を source などを残したまま書く"
+      ]
+    },
+    {
+      "id": "auto-dismissed-filed",
+      "why": "自動で却下された alert の組を、起票に渡す findings から外さない（却下された advisory の Issue が作り直される）",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/compare-dependabot-alerts.ts",
+      "find": "a.state === \"auto_dismissed\" &&",
+      "replace": "false &&",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 同じ組に fixed と auto_dismissed の alert があるときの扱い",
+        "compare auto_dismissed の alert は一致に数え、その findings は起票に渡さず skipped_dismissed に出す",
+        "compare open 3 件・auto_dismissed 2 件の alert と、pnpm audit の 5 件が一致すると、起票に渡すのは 0 件になる",
+        "compare GHSA の大文字と小文字が違っても、auto_dismissed の alert と同じ組として起票に渡さない",
+        "CLI 比べた結果を出し、起票に渡す findings を source などを残したまま書く"
+      ]
+    },
+    {
+      "id": "dismissed-overwritten-by-auto",
+      "why": "dismissed と auto_dismissed が両方ある組で、状態を auto_dismissed にする（人の判断の dismissed が出力から消える）",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/compare-dependabot-alerts.ts",
+      "find": " && !dismissedState.has(k)",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["compare 同じ組に dismissed と auto_dismissed の alert があるときの扱い"]
+    },
+    {
+      "id": "open-not-prioritized",
+      "why": "同じ組に open の alert もあるとき、open を優先せず却下された組として分ける（open の alert の組が skipped_dismissed に出る）",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/compare-dependabot-alerts.ts",
+      "find": "if (openKeys.has(k)) continue;",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 同じ組に open と dismissed の alert があるときの扱い",
+        "compare 同じ組に auto_dismissed と open の alert があるときの扱い",
+        "compare 同じ組に open・auto_dismissed・dismissed の alert があるときの扱い",
+        "compare 同じ組に open と auto_dismissed の alert があれば、open として扱い skipped_dismissed に出さない"
+      ]
+    },
+    {
+      "id": "fixed-skipped",
+      "why": "fixed の alert の組も却下された組として扱う（lockfile に古いバージョンが残る advisory が起票されなくなる）",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/compare-dependabot-alerts.ts",
+      "find": "if (a.state === \"dismissed\") dismissedState.set(k, \"dismissed\");",
+      "replace": "if (a.state === \"dismissed\" || a.state === \"fixed\") dismissedState.set(k, \"dismissed\");",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 同じ組に fixed と auto_dismissed の alert があるときの扱い",
+        "compare fixed の alert と同じ組の finding は、起票に渡す",
+        "CLI 比べた結果を出し、起票に渡す findings を source などを残したまま書く"
+      ]
+    },
+    {
+      "id": "skipped-from-alerts",
+      "why": "skipped_dismissed を pnpm audit に載った組に限らず、alert すべてにする（pnpm audit に無い alert まで、起票を外した組として報告される）",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/compare-dependabot-alerts.ts",
+      "find": "skipped_dismissed: [...auditSide]",
+      "replace": "skipped_dismissed: [...alertSide]",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare auto_dismissed の alert が pnpm audit に無ければ、only_in_alerts に出し、skipped_dismissed には出さない",
+        "compare auto_dismissed の alert と GHSA が同じでもパッケージが違う finding は、起票に渡す"
+      ]
+    },
+    {
+      "id": "dismissed-not-excluded-from-file",
+      "why": "起票に渡す findings から、却下された組を外さない（skipped_dismissed に出るのに起票に渡る）",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/compare-dependabot-alerts.ts",
+      "find": " && !dismissedState.has(key)",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare dismissed の alert は一致に数え、その findings は起票に渡さず skipped_dismissed に出す",
+        "compare 同じ組に auto_dismissed と dismissed の alert があるときの扱い",
+        "compare 同じ組に dismissed と auto_dismissed の alert があるときの扱い",
+        "compare 同じ組に fixed と dismissed の alert があるときの扱い",
+        "compare 同じ組に fixed と auto_dismissed の alert があるときの扱い",
+        "compare auto_dismissed の alert は一致に数え、その findings は起票に渡さず skipped_dismissed に出す",
+        "compare open 3 件・auto_dismissed 2 件の alert と、pnpm audit の 5 件が一致すると、起票に渡すのは 0 件になる",
+        "compare GHSA の大文字と小文字が違っても、auto_dismissed の alert と同じ組として起票に渡さない",
+        "compare 同じ組の findings が複数あっても、組は 1 件として数える",
+        "CLI 比べた結果を出し、起票に渡す findings を source などを残したまま書く"
       ]
     }
   ]

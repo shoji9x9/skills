@@ -9,8 +9,12 @@
 // alert の無い ignoreGhsas の GHSA も、片方にしか無い組にせず、ignored_without_alert に分ける。
 // GHSA の無い finding は比べられないので、組にまとめずに without_ghsa に 1 件ずつ出す。
 //
-// 起票に渡すのは、GHSA とパッケージの組が open の alert に無い findings である。
+// 起票に渡すのは、GHSA とパッケージの組が open の alert にも、却下された alert（dismissed・auto_dismissed）にも無い findings である。
 // open の alert の Issue は、dependabot-alert-issue の Dependabot alerts を読むモードが作る。
+// 却下された alert は、人の判断（dismissed）にも GitHub の自動トリアージ（auto_dismissed）にも従い、起票の対象にしない。
+// 該当する組は matched には数えたまま、skipped_dismissed に状態を付けて出し、起票に渡す findings から外す。
+// 同じ組に open の alert があれば open を優先し、却下された alert だけのときは、人の判断の dismissed を auto_dismissed より優先して状態に書く。
+// fixed の alert だけの組は、修正済みなのに pnpm audit が挙げるので、lockfile に古いバージョンが残っている。起票に渡す。
 import { readFileSync, writeFileSync } from "node:fs";
 import { errorMessage } from "../../../../scripts/lib/errors.ts";
 import { isRecord } from "../../../../scripts/lib/guards.ts";
@@ -22,6 +26,7 @@ import { loadedGhsas } from "../../../../scripts/weekly/ignored-advisories.ts";
 const ALERT_STATES = ["open", "dismissed", "auto_dismissed", "fixed"] as const;
 type AlertState = (typeof ALERT_STATES)[number];
 
+export type DismissedState = "dismissed" | "auto_dismissed";
 export type Alert = { state: AlertState; ghsa: string; package: string };
 export type Pair = { ghsa: string; package: string };
 export type Comparison = {
@@ -29,6 +34,7 @@ export type Comparison = {
   matched_ignored: Pair[];
   only_in_audit: Pair[];
   only_in_alerts: Pair[];
+  skipped_dismissed: (Pair & { state: DismissedState })[];
   ignored_without_alert: string[];
   without_ghsa: Pair[];
   findings_to_file: Record<string, unknown>[];
@@ -96,6 +102,16 @@ export function compare(
   const auditSide = uniquePairs(findingPairs.filter((p) => p.ghsa !== ""));
   const alertSide = uniquePairs(live);
   const openKeys = new Set(alerts.filter((a) => a.state === "open").map(keyOf));
+  // 同じ組に open の alert もあれば、open の alert の Issue を別のモードが作るので、そちらを優先する。
+  const dismissedState = new Map<string, DismissedState>();
+  for (const a of alerts) {
+    const k = keyOf(a);
+    if (openKeys.has(k)) continue;
+    if (a.state === "dismissed") dismissedState.set(k, "dismissed");
+    else if (a.state === "auto_dismissed" && !dismissedState.has(k)) {
+      dismissedState.set(k, "auto_dismissed");
+    }
+  }
   const liveGhsa = new Set(live.map((a) => a.ghsa));
 
   const alertPairs = [...alertSide.values()];
@@ -104,9 +120,16 @@ export function compare(
     matched_ignored: alertPairs.filter((p) => ignoredSet.has(p.ghsa) && !auditSide.has(keyOf(p))),
     only_in_audit: [...auditSide].filter(([k]) => !alertSide.has(k)).map(([, p]) => p),
     only_in_alerts: alertPairs.filter((p) => !ignoredSet.has(p.ghsa) && !auditSide.has(keyOf(p))),
+    skipped_dismissed: [...auditSide].flatMap(([k, p]) => {
+      const state = dismissedState.get(k);
+      return state === undefined ? [] : [{ ...p, state }];
+    }),
     ignored_without_alert: [...ignoredSet].filter((g) => !liveGhsa.has(g)),
     without_ghsa: findingPairs.filter((p) => p.ghsa === ""),
-    findings_to_file: findings.filter((f) => !openKeys.has(keyOf(pairOfFinding(f)))),
+    findings_to_file: findings.filter((f) => {
+      const key = keyOf(pairOfFinding(f));
+      return !openKeys.has(key) && !dismissedState.has(key);
+    }),
   };
 }
 

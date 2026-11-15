@@ -1,12 +1,12 @@
 ---
 name: pnpm-audit-alert-issue
-description: Dependabot alerts と `pnpm audit` が同じ advisory を挙げるかを確かめる間、`pnpm audit --json` の結果を正規化して Dependabot alerts と比べ、open の alert に無い advisory だけを `dependabot-alert-issue` の外部 audit findings mode に渡して脆弱性 Issue を作る private skill。比べた結果は、この private skill をやめる条件の判定に使う。「pnpm audit から Issue」「pnpm の脆弱性を起票」「pnpm audit と Dependabot alerts を比べて」「pnpm-audit-alert-issue」で必ず使用する。
+description: Dependabot alerts と `pnpm audit` が同じ advisory を挙げるかを確かめる間、`pnpm audit --json` の結果を正規化して Dependabot alerts と比べ、open の alert にも却下された alert にも無い advisory だけを `dependabot-alert-issue` の外部 audit findings mode に渡して脆弱性 Issue を作る private skill。比べた結果は、この private skill をやめる条件の判定に使う。「pnpm audit から Issue」「pnpm の脆弱性を起票」「pnpm audit と Dependabot alerts を比べて」「pnpm-audit-alert-issue」で必ず使用する。
 license: MIT
 ---
 
 # PNPM Audit Alert Issue
 
-`pnpm audit --json` の結果を Dependabot alerts と比べ、open の alert に無い advisory の Issue を作る private skill。
+`pnpm audit --json` の結果を Dependabot alerts と比べ、open の alert にも却下された alert にも無い advisory の Issue を作る private skill。
 Dependabot alerts と `pnpm audit` が同じ advisory を挙げることを確かめるまで、配布スキル `dependabot-alert-issue` の Dependabot alerts を読むモードと並べて使う。
 並べて使う理由・起票の順・やめる条件は、`docs/vulnerability-handling.md`「脆弱性の確認と起票」で定義する。ここへ転記しない。読めないときは、起票に進まずに止まる。
 
@@ -37,7 +37,8 @@ Issue のまとめ方と起票は、配布スキル `dependabot-alert-issue` の
    そのモードが alert を却下した後に、次の手順で alerts を取得する。
 5. Dependabot alerts を状態を絞らずに取得し、正規化した findings と比べる（後述「Dependabot alerts との比較」）。
    比べた結果は、findings の件数に関わらず最後の報告に添える
-6. findings から、GHSA とパッケージの組が open の alert と同じものを除く。それらの Issue は、`dependabot-alert-issue` の Dependabot alerts を読むモードが作るからである。
+6. findings から、GHSA とパッケージの組が open の alert と同じものと、却下された alert（`dismissed`・`auto_dismissed`）と同じものを除く。
+   open の alert の Issue は、`dependabot-alert-issue` の Dependabot alerts を読むモードが作る。却下された alert は、人と GitHub の自動トリアージの判断に従って起票しない（`docs/vulnerability-handling.md`「起票の対象にする alert の状態」）。
    残りが 0 件なら「起票する findings なし」と報告して終える（手順 5 の比較の結果と、手順 11 の一覧は添える）
 7. `pnpm install --frozen-lockfile` で、node_modules を lockfile に合わせる。
    これは、後の `pnpm why` で依存のつながりを補うための前提である。今の version の判定は lockfile と `pnpm audit` で行い、`pnpm why` や `pnpm list` を根拠にしない
@@ -110,10 +111,12 @@ cat "$tmpdir/compare-summary.json"
 
 - alerts の取得が 403 や 404 で失敗したら、比べずに止まる。取得に失敗したことを、alert が 0 件として扱わない（原因の切り分けは `dependabot-alert-issue` の「gh メカニクス」に従う）
 - `pnpm config get audit` が失敗したときも、比べずに止まる。無視の一覧を 0 件として比べると、却下した alert が `only_in_alerts` に出る
-- 比べた結果は、組の一覧（`matched`・`matched_ignored`・`only_in_audit`・`only_in_alerts`・`without_ghsa`）と、`ignored_without_alert` と、`findings_to_file` である。
+- 比べた結果は、組の一覧（`matched`・`matched_ignored`・`only_in_audit`・`only_in_alerts`・`skipped_dismissed`・`without_ghsa`）と、`ignored_without_alert` と、`findings_to_file` である。
   `ignored_without_alert` は alert の無い無視の GHSA で、`findings_to_file` は起票に渡す件数である。
   GHSA は GitHub の表記（接頭辞だけ大文字）で出す。終了コードは、比べられたら 0、入力を読めなければ 1、引数の誤りは 2 になる
 - `ghsa` の無い finding は、alerts と比べられないので `without_ghsa` に 1 件ずつ出て、起票に渡す側に残る。報告では、GHSA が無くて比べられなかったと書く
+- `skipped_dismissed` は、却下された alert（`dismissed`・`auto_dismissed`）と同じ組の finding で、組に一致した alert の状態（`state`）を付けて出す。起票に渡さない。`matched` にも数える。
+  報告では、却下された alert なので起票しなかったと、状態とともに書く。`fixed` の alert の組は、起票に渡す
 - 無視している GHSA の advisory は `pnpm audit` に出ないので、alert と組になっても `matched` に数えず、`matched_ignored` に出す。`fixed` でない alert が無いものは、`ignored_without_alert` に出す。どちらも片方にしか無い組にしない
 - `only_in_audit` か `only_in_alerts` が 1 件以上なら、`docs/vulnerability-handling.md`「private skill をやめる条件」に従って原因を調べ、報告に書く
 - 起票には `$to_file_json` を `dependabot-alert-issue` の外部 audit findings mode に渡す。`$findings_json` を渡すと、open の alert の Issue を二重に作る
@@ -123,7 +126,8 @@ cat "$tmpdir/compare-summary.json"
 比べた結果は、やめる時期を判断する Issue にコメントして記録する。
 記録する Issue の条件・コメントに書く内容・新しい advisory の数え方は、`docs/vulnerability-handling.md`「private skill をやめる条件」で定義する。ここへ転記しない。
 基本フローの手順 5 で比較のスクリプトが出した JSON は、`$tmpdir/compare-summary.json` に残してある。
-記録の元にするのは、その `matched`・`matched_ignored`・`only_in_audit`・`only_in_alerts` の 4 つの組である。`ignored_without_alert` は GHSA の一覧であり、`without_ghsa` は GHSA が無く GHSA とパッケージの組として比べられないので、どちらもコメントに書かず、報告にだけ添える。
+記録の元にするのは、その `matched`・`matched_ignored`・`only_in_audit`・`only_in_alerts` の 4 つの組である。`skipped_dismissed` の組は `matched` にも入っているので、記録には別に書かない。
+`ignored_without_alert` は GHSA の一覧であり、`without_ghsa` は GHSA が無く GHSA とパッケージの組として比べられないので、どちらもコメントに書かず、報告にだけ添える。
 
 1. 記録先の Issue を、タイトルで探す。open の Issue を取得してから、タイトルが `pnpm-audit-alert-issue:` で始まるものに絞る。
 
@@ -201,7 +205,7 @@ pnpm の transitive 依存の更新に特有の制約と手段は、`dependabot-
 
 - `direct_dependencies`: 脆弱な package を持ち込む direct 依存の名前の配列
 - `why_summary`: `pnpm why` から分かる、依存のつながりの短いまとめ（`pnpm install --frozen-lockfile` で node_modules を合わせた後に取る）
-- `context_note`: open の Dependabot alert が無い理由（自動で却下された alert の advisory であるなど）の短い補足
+- `context_note`: open の Dependabot alert が無い理由（`fixed` の alert だけがあり、lockfile に古いバージョンが残っているなど）の短い補足
 
 これらの補助のフィールドは、Issue にするときの判断の材料である。最終的な重複の確認、着手できるかの分類、本文の作成は `dependabot-alert-issue` が受け持つ。
 
