@@ -36,6 +36,7 @@ gh workflow run claude-review.yml --ref <プロンプトを変えたブランチ
 - 対象の検査（PR が open で、入力の SHA が PR の今の HEAD）は、`dry_run` でも同じに当てる。merge 済みの PR の commit を測るには、その commit と当時の base を指す一時ブランチで draft PR を作る。
   base を一時ブランチにした draft PR は、CI の対象（base が `main` の PR）に入らない。このワークフローの `pull_request` の run は作られるが、job は draft を除く条件で skipped になる。
 - リポジトリ変数 `CLAUDE_REVIEW_SKIP` で一時停止している間は、`dry_run` の run もエージェントを起動せずに成功で終わり、artifact `claude-review-result` を残さない。
+- `dry_run` の run も、使用量を artifact `agent-usage-review-claude` に残す。配布スキル `agent-usage` の collect は、それを対象の PR のレビューの費用として数えるので、測定の費用がレビューの費用に含まれる。
 
 `workflow_dispatch` は、ワークフローがデフォルトブランチに入るまで起動できない（GitHub の仕様）。
 コメントで起動する `issue_comment` は使わない。secret のある job を、PR のコメントから誰でも動かせてしまうからである。
@@ -117,7 +118,7 @@ effort がエージェントの振る舞いに反映されたことは、run の
 
 1 回のレビューの目安は、所要 5 分以内・費用 1 USD 相当以内である。プロンプトや上限を変えたら、`dry_run` で同じ commit を変更の前後に測り、指摘の件数とあわせてこの目安に収まるかを確かめる。
 
-1 回の使用量は、artifact `agent-usage-review-claude` に残す（90 日）。中身は、最後の result のうち数値の項目とモデルの名前だけである。
+1 回の使用量は、artifact `agent-usage-review-claude` に残す（90 日）。中身は、最後の result のうち数値の項目とモデルの名前だけである。`dry_run` の run も残す（「投稿しない実行（`dry_run`）」）。
 形は配布スキル `agent-usage` の collect が読む形（`claude-execution-output.json` と `meta.json`）に合わせている。
 所要時間・往復の回数・費用の見積もりは、run の Summary にも出す。同じ run を再実行すると、同じ名前の artifact を上げられないので、前の試行の使用量だけが残る。
 
