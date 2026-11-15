@@ -134,7 +134,9 @@ gh api --method POST \
 
 `claude-code` とは別の値である。`claude-code` は、Claude の GitHub App（マネージドの Code Review）に `@claude review` で依頼する。
 `claude-code-action` は、リポジトリに置いた GitHub Actions のワークフロー `.github/workflows/claude-review.yml` が、`anthropics/claude-code-action` で PR をレビューする。`@claude review` は投稿しない。
-ワークフローは、`pull_request`（opened・synchronize・ready_for_review・reopened）で自動にレビューし、`workflow_dispatch`（入力は `pr`・`sha`・`effort`）で依頼を受ける。
+ワークフローは、`pull_request`（opened・synchronize・ready_for_review・reopened）で自動にレビューし、`workflow_dispatch`（入力は `pr`・`sha`・`effort`・`dry_run`）で依頼を受ける。
+`dry_run` は、プロンプトを変える前後で同じ commit の指摘を比べるための入力で、PR に何も書かずに結果を artifact `claude-review-result` に残す。目印を書かず、run-name の先頭も `Claude review (dry run)` になるので、`check` は数えない。レビューの依頼には使わない。
+レビューの観点（文書と実装の食い違い・条件の抜け・記録の項目の抜け・テストが固定していない分岐など）と、差分の外を読む手順は、雛形の `prompt` にある。
 
 #### 導入
 

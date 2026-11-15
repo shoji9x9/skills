@@ -21,6 +21,21 @@ gh workflow run claude-review.yml -f pr=<番号> -f sha="$sha" -f effort=medium
 スキル（`pr-finalize-loop`・`pr-review-handle`）を `review_tool: claude-code-action` で使うときは、同梱のスクリプト `claude-review-action.sh` の `request` で依頼する。
 `request` は、同じ HEAD の run が進行中か済んでいれば依頼しない。手順は `pr-finalize-loop` の [`references/review-tool.md`](../skills/pr-finalize-loop/references/review-tool.md)「claude-code-action」にある。
 
+### 投稿しない実行（`dry_run`）
+
+プロンプトや設定を変える前後で、同じ commit の指摘を比べるときは、`-f dry_run=true` を付けて起動する。
+変えたプロンプトを試すには、変えたブランチを `--ref` に渡す。
+
+```bash
+gh workflow run claude-review.yml --ref <プロンプトを変えたブランチ> -f pr=<番号> -f sha="$sha" -f effort=high -f dry_run=true
+```
+
+- PR には何も書かず、目印も書かない。投稿の前と同じ資格情報の検査を通した結果（structured output）を、artifact `claude-review-result` に残す（30 日）。
+- run-name の先頭は `Claude review (dry run)` になる。`claude-review-action.sh` の `check` は run-name が `Claude review PR #<番号> <SHA>` の run だけを数えるので、`dry_run` の run は HEAD のレビューの判定に入らない。
+- `concurrency` の group も分けるので、`dry_run` の run は投稿するレビューを取り消さない。同じ PR の `dry_run` の run どうしは取り消し合うので、1 回ずつ終わるのを待ってから起動する。
+- 対象の検査（PR が open で、入力の SHA が PR の今の HEAD）は、`dry_run` でも同じに当てる。merge 済みの PR の commit を測るには、その commit と当時の base を指す一時ブランチで draft PR を作る。
+  base を一時ブランチにした draft PR は、CI の対象（base が `main` の PR）に入らない。このワークフローの `pull_request` の run は作られるが、job は draft を除く条件で skipped になる。
+
 `workflow_dispatch` は、ワークフローがデフォルトブランチに入るまで起動できない（GitHub の仕様）。
 コメントで起動する `issue_comment` は使わない。secret のある job を、PR のコメントから誰でも動かせてしまうからである。
 
@@ -58,6 +73,17 @@ check-run（名前 `Review`）は、`workflow_dispatch` の run ではデフォ�
 
 プロンプトは、解決済みの指摘と、作成者が理由を添えて直さないと返信した指摘を、新しい根拠なしに出し直さないよう指示する。
 公式のプラグイン（`/code-review:code-review`）は使わない。Claude が既にコメントした PR ではレビューを止める手順を持つので、2 回目からのレビューが飛ばされうるからである。
+プラグインは、テストの不足を観点に挙げず、バグを探す担当が差分の外を読まない。Bash と書き込みの権限も要る。
+
+## レビューの観点と手順
+
+プロンプトの原本は、ワークフローの `Run Claude Code` の段の `prompt` である。手元の `/code-review` が挙げ、このワークフローが挙げ損ねた誤りの分類から、次の観点と手順を置いている。
+
+- 観点: 不具合・セキュリティ・規約との食い違いに加えて、次の 4 つを挙げる。文書・コメントと実装の食い違い（文書どうしを含む）・条件や入力の状態の抜け・記録の項目の抜け・テストが固定していない分岐である。
+- 差分の外: 差分で変えた名前・見出し・設定のキー・取り決めの語を Grep で検索し、それを参照する他のファイル（文書・テスト・設定）を読む。
+- 確かめ: 指摘の候補ごとに、根拠のファイルと行を開いて確かめてから出す。
+
+エージェントのツールは、作業ツリーの中を読むこと（`Read`・`Grep`・`Glob`）だけに限ったままである。差分の外を読む手順のために、Bash やサブエージェントは与えない。
 
 ## リポジトリ変数
 
@@ -72,6 +98,9 @@ check-run（名前 `Review`）は、`workflow_dispatch` の run ではデフォ�
 
 値の形が違うと、job はエージェントを起動せずに失敗する。値は `claude_args` に入るので、別の引数を足せる形（空白・引用符）を受け付けない。
 
+effort は、`claude_args` の `--effort` で Claude Code に渡す。`claude-code-action` は、`claude_args` のうち自分で扱わない引数を SDK にそのまま渡す（action の `base-action/src/parse-sdk-options.ts`）。
+effort がエージェントの振る舞いに反映されたことは、run のログでは確かめられない。ワークフローが `show_full_output` を有効にしないので、ログにはエージェントの設定もツールの呼び出しも出ない。
+
 資格情報は、週次のワークフローと同じ secret の `CLAUDE_CODE_OAUTH_TOKEN` を使う。
 
 ## 費用
@@ -84,6 +113,8 @@ check-run（名前 `Review`）は、`workflow_dispatch` の run ではデフォ�
 - エージェントの段の `timeout-minutes` は 15 分、job は 25 分である。
 - `--max-turns`（`CLAUDE_REVIEW_MAX_TURNS`）で往復の回数を限る。上限に達した回は失敗として扱い、目印を書かない。
 - 同じ PR の古い HEAD のレビューは取り消す。
+
+1 回のレビューの目安は、所要 5 分以内・費用 1 USD 相当以内である。プロンプトや上限を変えたら、`dry_run` で同じ commit を変更の前後に測り、指摘の件数とあわせてこの目安に収まるかを確かめる。
 
 1 回の使用量は、artifact `agent-usage-review-claude` に残す（90 日）。中身は、最後の result のうち数値の項目とモデルの名前だけである。
 形は配布スキル `agent-usage` の collect が読む形（`claude-execution-output.json` と `meta.json`）に合わせている。
