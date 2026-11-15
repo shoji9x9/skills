@@ -49,5 +49,8 @@ eval 29 の「10:03 に `findings=2` の指摘を集めて対応に進む」は�
 
 eval 30 は、fixture `rereview-after-reply-false` で、設定 `pr-finalize-loop` の `rereview_after_reply: false` の扱いを確かめる。
 fixture には、利用者が書く設定のファイル（`common.jsonc` の `review_tool: copilot` と `pr-finalize-loop.jsonc`）だけを置く。
-キーの名前から「依頼しない」ことは推測できるので、依頼しない・設定を根拠に挙げる・説明に留める、の 3 本は without_skill も pass しうる。
-区別を見込むのは、止まった理由の語（「返信済み・再レビューなしで終了」）、読まれていない返信の URL を 1 件ずつ報告すること（2 本）、HEAD の SHA がレビューされていなければ依頼してこの理由で止まらないこと（2 本）、の 5 本である。
+区別できるのは、次の 4 本である（iteration-26 で without_skill が 3 run ともすべて fail した）。
+止まった理由の語（「返信済み・再レビューなしで終了」）、読まれていない返信の URL を 1 件ずつ報告すること（2 本）、HEAD の SHA がレビューされていなければこの理由で止まらないこと、である。
+次の 4 本は、without_skill も 3 run とも pass した。キーの名前と、push した HEAD はレビューが要るという一般の判断から答えられるからである。
+依頼しない・設定を根拠に挙げる・HEAD の SHA がレビューされていなければ依頼する・説明に留める、の 4 本である。
+これらは、設定を読まなくなった後退と、未レビューの HEAD に依頼しなくなった後退を検出するために置く。
