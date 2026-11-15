@@ -200,7 +200,7 @@ Claude Code はセッション開始時に両方を読み込み、Copilot のレ
 
 ## 脆弱性対応
 
-Dependabot が pnpm の複数ドキュメントの lockfile に対応するまでの脆弱性の確認と起票、major 更新の手動確認の方針は [`docs/vulnerability-handling.md`](docs/vulnerability-handling.md) にある。
+脆弱性の確認と起票（Dependabot alerts と `pnpm audit` の両方で確かめる）、major 更新の手動確認の方針は [`docs/vulnerability-handling.md`](docs/vulnerability-handling.md) にある。
 PR ごとのセキュリティの検査（CodeQL・zizmor・push の前の `/security-review`）と、指摘を除外する方法は [`docs/security-scanning.md`](docs/security-scanning.md) にある。
 
 ## エージェントの自己設定編集
@@ -261,7 +261,7 @@ rule は、対象のファイルを触るときに自動で読み込まれる。
 - `pr-finalize-loop`: 作成済みの PR の CI エラーとレビューの指摘を、CI が成功して未解決が無くなるまで自律的に解消する
 - `dependabot-merge`: Dependabot の PR の CI の確認・影響のレビュー・判断の記録・マージを標準化する
 - `dependabot-alert-issue`: Dependabot alerts（または外部の audit の結果）から、解消用の Issue を作る
-- `pnpm-audit-alert-issue`: private skill。Dependabot が pnpm-lock.yaml の依存グラフを読めない間（dependabot/dependabot-core#15904）、`pnpm audit --json` から `dependabot-alert-issue` を通して Issue を作る
+- `pnpm-audit-alert-issue`: private skill。Dependabot alerts と `pnpm audit` の一致を確かめる間、`pnpm audit --json` の advisory を alerts と比べ、open の alert に無いものだけを `dependabot-alert-issue` を通して起票する
 - `browser-test`: 変更による回帰を、実際のブラウザ（chrome-devtools MCP）で確認する
 - `aws-architecture-diagram`: IaC や説明から AWS の構成図を spec に起こし、SVG として生成・更新する
 - `box`: Box のファイルとフォルダを、Box REST API（`curl` と `jq`）で参照・検索・更新する
