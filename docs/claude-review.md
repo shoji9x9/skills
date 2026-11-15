@@ -94,6 +94,20 @@ check-run（名前 `Review`）は、`workflow_dispatch` の run では起動し�
 
 エージェントのツールは、作業ツリーの中を読むこと（`Read`・`Grep`・`Glob`）だけに限ったままである。差分の外を読む手順のために、Bash やサブエージェントは与えない。
 
+## レビューの使い分け
+
+このワークフローのレビューは、上の観点と手順を置いても、手元の `/code-review` が挙げる誤りの多くを挙げられない。
+観点と手順を足したときの測定では、手元のレビューが挙げて作成者が直した誤り 14 件のうち、1 回の run が挙げたのは平均 2.0 件だった。
+
+そのため、次のように使い分ける。
+
+- push の前のレビューは、[`security-scanning.md`](security-scanning.md)「push の前のレビュー」の手順（手元の `/code-review` と `/security-review`）で行う。
+- PR でのレビューは、PR の内容に応じて、このワークフロー（`claude-code-action`）・`local`（手元の `/code-review --comment`）・Copilot を使い分ける。
+  どれを使うかは、`pr-finalize-loop` の `review_tool`（設定ファイルか、その実行だけなら `--review-tool`）で決める。
+- このワークフローのレビューは、`review_tool` が `claude-code-action` のときだけ実行する。
+  このリポジトリでは、リポジトリ変数 `CLAUDE_REVIEW_AUTO` を `off` にして `pull_request` の自動のレビューを切り、`pr-finalize-loop` の依頼（`claude-review-action.sh` の `request`）でだけ起動する。
+- 目安として、文書・スクリプト・テストにまたがる取り決めを変える PR は、`local` か Copilot のレビューを使う。このワークフローが挙げ損ねた誤りの多くが、その種類だったからである。
+
 ## リポジトリ変数
 
 どれも未設定で動く。設定は `gh variable set <名前> --body <値>` か、リポジトリの Settings の Variables で行う。
