@@ -9,8 +9,11 @@
 // alert の無い ignoreGhsas の GHSA も、片方にしか無い組にせず、ignored_without_alert に分ける。
 // GHSA の無い finding は比べられないので、組にまとめずに without_ghsa に 1 件ずつ出す。
 //
-// 起票に渡すのは、GHSA とパッケージの組が open の alert に無い findings である。
+// 起票に渡すのは、GHSA とパッケージの組が open の alert に無く、自動で却下された alert（auto_dismissed）にも無い findings である。
 // open の alert の Issue は、dependabot-alert-issue の Dependabot alerts を読むモードが作る。
+// auto_dismissed の alert は GitHub の自動トリアージの判断に従い、起票の対象にしない。
+// 該当する組は matched には数えたまま、skipped_auto_dismissed にも出して、起票に渡す findings から外す。
+// 人が却下した alert（dismissed）と fixed の alert の組は、open でないので起票に渡す。
 import { readFileSync, writeFileSync } from "node:fs";
 import { errorMessage } from "../../../../scripts/lib/errors.ts";
 import { isRecord } from "../../../../scripts/lib/guards.ts";
@@ -29,6 +32,7 @@ export type Comparison = {
   matched_ignored: Pair[];
   only_in_audit: Pair[];
   only_in_alerts: Pair[];
+  skipped_auto_dismissed: Pair[];
   ignored_without_alert: string[];
   without_ghsa: Pair[];
   findings_to_file: Record<string, unknown>[];
@@ -96,6 +100,13 @@ export function compare(
   const auditSide = uniquePairs(findingPairs.filter((p) => p.ghsa !== ""));
   const alertSide = uniquePairs(live);
   const openKeys = new Set(alerts.filter((a) => a.state === "open").map(keyOf));
+  // 同じ組に open の alert もあれば、open の alert の Issue を別のモードが作るので、そちらを優先する。
+  const autoDismissedKeys = new Set(
+    alerts
+      .filter((a) => a.state === "auto_dismissed")
+      .map(keyOf)
+      .filter((k) => !openKeys.has(k)),
+  );
   const liveGhsa = new Set(live.map((a) => a.ghsa));
 
   const alertPairs = [...alertSide.values()];
@@ -104,9 +115,15 @@ export function compare(
     matched_ignored: alertPairs.filter((p) => ignoredSet.has(p.ghsa) && !auditSide.has(keyOf(p))),
     only_in_audit: [...auditSide].filter(([k]) => !alertSide.has(k)).map(([, p]) => p),
     only_in_alerts: alertPairs.filter((p) => !ignoredSet.has(p.ghsa) && !auditSide.has(keyOf(p))),
+    skipped_auto_dismissed: [...auditSide]
+      .filter(([k]) => autoDismissedKeys.has(k))
+      .map(([, p]) => p),
     ignored_without_alert: [...ignoredSet].filter((g) => !liveGhsa.has(g)),
     without_ghsa: findingPairs.filter((p) => p.ghsa === ""),
-    findings_to_file: findings.filter((f) => !openKeys.has(keyOf(pairOfFinding(f)))),
+    findings_to_file: findings.filter((f) => {
+      const key = keyOf(pairOfFinding(f));
+      return !openKeys.has(key) && !autoDismissedKeys.has(key);
+    }),
   };
 }
 

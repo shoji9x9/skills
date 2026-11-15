@@ -4,7 +4,10 @@
 // - `docs/vulnerability-handling.md`「private skill をやめる条件」: 比べるのは、pnpm audit の findings の組と、
 //   状態が fixed でない alert の組。GHSA の ID とパッケージの名前が同じ組で載っていれば一致とする。
 //   ignoreGhsas の advisory は pnpm audit に出ないので、alert と組になっても一致に数えない（matched_ignored に分ける）。
-// - 同じ文書「脆弱性の確認と起票」: 起票に渡すのは、GHSA とパッケージの組が open の alert に無い findings。
+// - 同じ文書「脆弱性の確認と起票」: 起票に渡すのは、GHSA とパッケージの組が open の alert にも
+//   自動で却下された alert（auto_dismissed）にも無い findings。auto_dismissed は GitHub の自動トリアージの判断に従い、
+//   起票の対象にしない（Issue #1038 の決定）。matched には数え、skipped_auto_dismissed にも出す。
+//   人が却下した alert（dismissed）と fixed の alert の組は、open でないので起票に渡す。
 // - GHSA は大文字と小文字を区別しない（Dependabot alerts の API は小文字、Issue には大文字の表記もある）。
 //   出力は、記録と比べられるように GitHub の表記（接頭辞だけ大文字で、本体は小文字）にそろえる。
 // - alert の無い ignoreGhsas の GHSA は片方にしか無い組にせず、GHSA の無い finding は組にまとめずに出す。
@@ -25,6 +28,7 @@ import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 type Summary = {
   matched: unknown[];
+  skipped_auto_dismissed: unknown[];
   only_in_audit: unknown[];
   ignored_without_alert: unknown[];
   findings_to_file: number;
@@ -39,6 +43,7 @@ const script = join(
 const A = "GHSA-aaaa-aaaa-aaaa";
 const B = "GHSA-bbbb-bbbb-bbbb";
 const C = "GHSA-cccc-cccc-cccc";
+const D = "GHSA-dddd-dddd-dddd";
 const up = (g: string): string => g.toUpperCase();
 const alert = (state: Alert["state"], ghsa: string, pkg: string): Alert => ({
   state,
@@ -102,17 +107,73 @@ describe("compare", () => {
     expect(r.findings_to_file).toEqual([]);
   });
 
-  test("dismissed と auto_dismissed の alert も一致に数え、その findings は起票に渡す", () => {
-    const findings = [
-      { package: "p1", ghsa: A },
-      { package: "p2", ghsa: B },
+  test("dismissed の alert は一致に数え、その findings は起票に渡す", () => {
+    const findings = [{ package: "p1", ghsa: A }];
+    const r = compare(findings, [alert("dismissed", A, "p1")], []);
+    expect(r.matched).toEqual([{ ghsa: A, package: "p1" }]);
+    expect(r.skipped_auto_dismissed).toEqual([]);
+    expect(r.findings_to_file).toEqual(findings);
+  });
+
+  test("auto_dismissed の alert は一致に数え、その findings は起票に渡さず skipped_auto_dismissed に出す", () => {
+    const findings = [{ package: "p2", ghsa: B }];
+    const r = compare(findings, [alert("auto_dismissed", B, "p2")], []);
+    expect(r.matched).toEqual([{ ghsa: B, package: "p2" }]);
+    expect(r.skipped_auto_dismissed).toEqual([{ ghsa: B, package: "p2" }]);
+    expect(r.findings_to_file).toEqual([]);
+  });
+
+  test("open 3 件・auto_dismissed 2 件の alert と、pnpm audit の 5 件が一致すると、起票に渡すのは 0 件になる", () => {
+    const pairs: [string, string, Alert["state"]][] = [
+      ["GHSA-1111-1111-1111", "o1", "open"],
+      ["GHSA-2222-2222-2222", "o2", "open"],
+      ["GHSA-3333-3333-3333", "o3", "open"],
+      ["GHSA-4444-4444-4444", "d1", "auto_dismissed"],
+      ["GHSA-5555-5555-5555", "d2", "auto_dismissed"],
     ];
     const r = compare(
-      findings,
-      [alert("dismissed", A, "p1"), alert("auto_dismissed", B, "p2")],
+      pairs.map(([ghsa, pkg]) => ({ package: pkg, ghsa })),
+      pairs.map(([ghsa, pkg, state]) => alert(state, ghsa, pkg)),
       [],
     );
-    expect(r.matched).toHaveLength(2);
+    expect(r.matched).toHaveLength(5);
+    expect(r.skipped_auto_dismissed.map((p) => p.package)).toEqual(["d1", "d2"]);
+    expect(r.only_in_audit).toEqual([]);
+    expect(r.findings_to_file).toEqual([]);
+  });
+
+  test("同じ組に open と auto_dismissed の alert があれば、open として扱い skipped_auto_dismissed に出さない", () => {
+    const r = compare(
+      [{ package: "p1", ghsa: A }],
+      [alert("auto_dismissed", A, "p1"), alert("open", A, "p1")],
+      [],
+    );
+    expect(r.skipped_auto_dismissed).toEqual([]);
+    expect(r.findings_to_file).toEqual([]);
+  });
+
+  test("auto_dismissed の alert が pnpm audit に無ければ、only_in_alerts に出し、skipped_auto_dismissed には出さない", () => {
+    const r = compare([], [alert("auto_dismissed", B, "p2")], []);
+    expect(r.only_in_alerts).toEqual([{ ghsa: B, package: "p2" }]);
+    expect(r.skipped_auto_dismissed).toEqual([]);
+  });
+
+  test("auto_dismissed の alert と GHSA が同じでもパッケージが違う finding は、起票に渡す", () => {
+    const r = compare([{ package: "p3", ghsa: B }], [alert("auto_dismissed", B, "p2")], []);
+    expect(r.skipped_auto_dismissed).toEqual([]);
+    expect(r.findings_to_file).toEqual([{ package: "p3", ghsa: B }]);
+  });
+
+  test("GHSA の大文字と小文字が違っても、auto_dismissed の alert と同じ組として起票に渡さない", () => {
+    const r = compare([{ package: "p2", ghsa: up(B) }], [alert("auto_dismissed", B, "p2")], []);
+    expect(r.findings_to_file).toEqual([]);
+  });
+
+  test("fixed の alert と同じ組の finding は、起票に渡す", () => {
+    const findings = [{ package: "p1", ghsa: A }];
+    const r = compare(findings, [alert("fixed", A, "p1")], []);
+    expect(r.only_in_audit).toEqual([{ ghsa: A, package: "p1" }]);
+    expect(r.skipped_auto_dismissed).toEqual([]);
     expect(r.findings_to_file).toEqual(findings);
   });
 
@@ -177,7 +238,7 @@ describe("compare", () => {
         { package: "p1", ghsa: A },
         { package: "p1", ghsa: up(A) },
       ],
-      [alert("auto_dismissed", A, "p1")],
+      [alert("dismissed", A, "p1")],
       [],
     );
     expect(r.matched).toHaveLength(1);
@@ -211,22 +272,24 @@ describe("CLI", () => {
       findings: [
         { package: "p1", ghsa: up(A) },
         { package: "p2", ghsa: up(B) },
+        { package: "p3", ghsa: up(C) },
       ],
     });
     const { res, out } = run({
       findings,
-      alerts: `open\t${A}\tp1\nauto_dismissed\t${B}\tp2\n`,
-      ignored: `{"ignore":["${C}"]}`,
+      alerts: `open\t${A}\tp1\nauto_dismissed\t${B}\tp2\ndismissed\t${C}\tp3\n`,
+      ignored: `{"ignore":["${D}"]}`,
     });
     expect(res.status).toBe(0);
     const summary = parseJsonAs<Summary>(res.stdout);
-    expect(summary.matched).toHaveLength(2);
+    expect(summary.matched).toHaveLength(3);
     expect(summary.matched).toContainEqual({ ghsa: A, package: "p1" });
-    expect(summary.ignored_without_alert).toEqual([C]);
+    expect(summary.skipped_auto_dismissed).toEqual([{ ghsa: B, package: "p2" }]);
+    expect(summary.ignored_without_alert).toEqual([D]);
     expect(summary.findings_to_file).toBe(1);
     expect(parseJsonAs<unknown>(readFileSync(out, "utf8"))).toEqual({
       source: "pnpm-audit",
-      findings: [{ package: "p2", ghsa: up(B) }],
+      findings: [{ package: "p3", ghsa: up(C) }],
     });
   });
 
