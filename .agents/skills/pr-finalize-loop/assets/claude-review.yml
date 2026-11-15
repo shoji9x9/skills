@@ -16,13 +16,15 @@ name: Claude review
 #   https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
 #   https://github.com/anthropics/claude-code-action/blob/main/docs/security.md
 #   https://code.claude.com/docs/en/github-actions
-run-name: "Claude review PR #${{ github.event.pull_request.number || inputs.pr }} ${{ github.event.pull_request.head.sha || inputs.sha }}"
+# dry_run の run は、run-name の先頭を変える。依頼する側は run-name で HEAD の run を探すので、変えないと、
+# 目印を書かない dry_run の run を「一時停止した回」として数え、その HEAD のレビューを依頼しなくなる。
+run-name: "${{ inputs.dry_run && 'Claude review (dry run)' || 'Claude review' }} PR #${{ github.event.pull_request.number || inputs.pr }} ${{ github.event.pull_request.head.sha || inputs.sha }}"
 
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
   # 再レビューを手で依頼する（push せずに返信だけをしたときなど）。書き込み権限を持つ人だけが起動できる（GitHub の仕様）。
-  # gh workflow run claude-review.yml -f pr=<番号> -f sha=<PR の HEAD の完全な SHA> [-f effort=<low|medium|high|xhigh|max>]
+  # gh workflow run claude-review.yml -f pr=<番号> -f sha=<PR の HEAD の完全な SHA> [-f effort=<low|medium|high|xhigh|max>] [-f dry_run=true]
   workflow_dispatch:
     inputs:
       pr:
@@ -38,13 +40,20 @@ on:
         type: string
         required: false
         default: ""
+      # プロンプトや設定を変える前後で、同じ commit の指摘を比べるときに使う。投稿しないので、目印も残さない。
+      dry_run:
+        description: true なら PR にコメントを書かず、エージェントの結果を artifact（claude-review-result）に残す
+        type: boolean
+        required: false
+        default: false
 
 # 同じ PR・同じイベントのレビューは 1 つだけ動かす。新しい push や依頼が来たら、古いレビューは取り消す。
 # 取り消した回は目印を残さないので、依頼する側は古い HEAD をレビュー済みとして扱わない。
 # イベントで group を分けるのは、group を決める時点では dispatch の入力を確かめていないからである。
 # 分けないと、SHA を誤った dispatch（Resolve target で止まる）が、動いている pull_request のレビューを取り消す。
+# dry_run の run も group を分け、投稿するレビューを取り消さないようにする。
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || inputs.pr }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ inputs.dry_run && 'dry-run-' || '' }}${{ github.event.pull_request.number || inputs.pr }}
   cancel-in-progress: true
 
 permissions:
@@ -114,6 +123,7 @@ jobs:
           INPUT_PR: ${{ inputs.pr }}
           INPUT_SHA: ${{ inputs.sha }}
           INPUT_EFFORT: ${{ inputs.effort }}
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
           VAR_EFFORT: ${{ vars.CLAUDE_REVIEW_EFFORT }}
         run: |
           fail() {
@@ -124,11 +134,16 @@ jobs:
             pr="$INPUT_PR"
             sha="$INPUT_SHA"
             effort="${INPUT_EFFORT:-${VAR_EFFORT:-$DEFAULT_EFFORT}}"
+            # 入力を省いた依頼（デフォルトの false）は、投稿する。
+            dry_run="${INPUT_DRY_RUN:-false}"
           else
             pr="$EVENT_PR"
             sha="$EVENT_SHA"
             effort="${VAR_EFFORT:-$DEFAULT_EFFORT}"
+            dry_run=false
           fi
+          # 真偽値の入力は "true" か "false" で渡る。それ以外の値を「投稿する」として扱うと、測定のつもりの run が PR に書く。
+          [[ "$dry_run" =~ ^(true|false)$ ]] || fail "dry_run は true か false で渡す: '$dry_run'"
           # grep -x は行ごとに判定し、改行を含む値を通すので、値全体を bash の正規表現で判定する。
           [[ "$pr" =~ ^[1-9][0-9]{0,9}$ ]] || fail "PR の番号の形が不正: '$pr'"
           [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || fail "SHA は 40 桁の小文字の 16 進数で渡す: '$sha'"
@@ -152,10 +167,11 @@ jobs:
             echo "pr=$pr"
             echo "sha=$sha"
             echo "effort=$effort"
+            echo "dry_run=$dry_run"
             echo "base_ref=$base_ref"
             echo "pr_json=$pr_json"
           } >>"$GITHUB_OUTPUT"
-          echo "PR #$pr の $sha を effort $effort でレビューする" >>"$GITHUB_STEP_SUMMARY"
+          echo "PR #$pr の $sha を effort $effort でレビューする（dry_run: $dry_run）" >>"$GITHUB_STEP_SUMMARY"
 
       - name: Check agent credential
         id: cred
@@ -368,6 +384,7 @@ jobs:
       # 目印: <!-- claude-review sha=<40 桁の SHA> findings=<指摘の件数> open=<総評に書いた指摘の件数> effort=<effort> run=<run の ID> -->
       # open は、行に付けずに総評に書いた指摘の件数である。行の指摘はスレッドの解決で追えるが、総評の指摘は追えないので分けて数える。
       # 結果に資格情報（token の値と、token の形の文字列）があれば、何も投稿せずに失敗させる。
+      # dry_run では、同じ検査の後に結果をファイルに残すだけで、投稿しない。
       - name: Post review
         id: post
         if: steps.claude.outcome == 'success'
@@ -381,6 +398,7 @@ jobs:
           PR: ${{ steps.target.outputs.pr }}
           SHA: ${{ steps.target.outputs.sha }}
           EFFORT: ${{ steps.target.outputs.effort }}
+          DRY_RUN: ${{ steps.target.outputs.dry_run }}
           RUN_ID: ${{ github.run_id }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
@@ -413,6 +431,15 @@ jobs:
           done
 
           total="$(jq '.findings | length' "$result")"
+          # dry_run では、上の検査を通った結果を次の段が artifact に残し、PR には何も書かない（目印も書かない）。
+          # 判定は "true" との一致で行う。Resolve target が true と false 以外を拒否している。
+          if [ "$DRY_RUN" = true ]; then
+            mkdir -p "$RUNNER_TEMP/claude-review-result"
+            cp "$result" "$RUNNER_TEMP/claude-review-result/review-result.json"
+            echo "findings=$total" >>"$GITHUB_OUTPUT"
+            echo "dry_run のため投稿しない。指摘 $total 件は artifact claude-review-result にある" >>"$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           general="$RUNNER_TEMP/general.jsonl"
           jq -c '.findings[] | select(has("path") | not)' "$result" >"$general"
           inline=0
@@ -459,6 +486,16 @@ jobs:
             echo "open=$open"
           } >>"$GITHUB_OUTPUT"
           echo "指摘 $total 件（行 $inline 件、総評 $open 件）" >>"$GITHUB_STEP_SUMMARY"
+
+      # dry_run の結果（Post review の検査を通った structured output）を残す。中身は、投稿するときに PR に書く内容と同じである。
+      - name: Upload dry-run result
+        if: steps.post.outcome == 'success' && steps.target.outputs.dry_run == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: claude-review-result
+          path: ${{ runner.temp }}/claude-review-result/
+          if-no-files-found: error
+          retention-days: 30
 
       # 1 回の使用量を、artifact に残す。形は、配布元の agent-usage スキルの collect が読む形
       # （artifact の名前 agent-usage-review-claude、claude-execution-output.json と meta.json）に合わせる。

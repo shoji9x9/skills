@@ -32,6 +32,7 @@ test("雛形と複製の一致: 雛形とこのリポジトリのワークフロ
 
 type Step = {
   name?: string;
+  if?: string;
   run?: string;
   env?: Record<string, string>;
   with?: Record<string, string>;
@@ -192,6 +193,34 @@ describe("Resolve target", () => {
     expect(outputs(res.dir)).toMatchObject({ pr: "12", sha: SHA, effort: "medium" });
   });
 
+  test("dry_run は、dispatch の入力が true のときだけ true にし、入力が無い dispatch と pull_request では false にする", () => {
+    expect(outputs(dispatch({ INPUT_DRY_RUN: "true" }).dir).dry_run).toBe("true");
+    expect(outputs(dispatch({ INPUT_DRY_RUN: "false" }).dir).dry_run).toBe("false");
+    expect(outputs(dispatch({}).dir).dry_run).toBe("false");
+    const dir = makeTempDir("claude-review-pr-");
+    const pr = runStep(script, {
+      EVENT_NAME: "pull_request",
+      EVENT_PR: "7",
+      EVENT_SHA: SHA,
+      VAR_EFFORT: "",
+      INPUT_DRY_RUN: "true",
+      PR_JSON: prJson(dir),
+    });
+    expect(outputs(pr.dir).dry_run).toBe("false");
+  });
+
+  test("dry_run でも、dispatch の検査（SHA が PR の HEAD・open）は同じに当てる", () => {
+    const stale = dispatch(
+      { INPUT_DRY_RUN: "true" },
+      { head: { sha: OTHER_SHA, repo: { full_name: "o/r" } } },
+    );
+    expect(stale.status).toBe(1);
+    expect(stale.stdout).toContain("一致しない");
+    const closed = dispatch({ INPUT_DRY_RUN: "true" }, { state: "closed" });
+    expect(closed.status).toBe(1);
+    expect(closed.stdout).toContain("open でない");
+  });
+
   test.each([
     ["SHA が HEAD と違う", { head: { sha: OTHER_SHA, repo: { full_name: "o/r" } } }, "一致しない"],
     ["HEAD が fork", { head: { sha: SHA, repo: { full_name: "fork/r" } } }, "同じリポジトリ"],
@@ -213,6 +242,7 @@ describe("Resolve target", () => {
     ["改行を含む SHA", { INPUT_SHA: `${SHA}\n${SHA}` }],
     ["語彙に無い effort", { INPUT_EFFORT: "ultra" }],
     ["空白を含む effort", { INPUT_EFFORT: "high --tools Bash" }],
+    ["真偽値でない dry_run", { INPUT_DRY_RUN: "yes" }],
   ])("%s は、PR を取得する前に止まる", (_label, inputs) => {
     const res = dispatch(inputs);
     expect(res.status).toBe(1);
@@ -388,6 +418,35 @@ describe("Post review", () => {
     // 検出されることの確認: 同じ形で資格情報が無ければ投稿する。
     const ok = post({ summary: "s", findings: [{ path: "a.ts", line: 1, body: "値は無い" }] });
     expect(ok.status, ok.stderr + ok.stdout).toBe(0);
+  });
+
+  test("dry_run では、PR に何も書かず（目印も書かない）、検査を通った結果をファイルに残す", () => {
+    const result = {
+      summary: "s",
+      findings: [{ path: "a.ts", line: 3, body: "行の指摘" }, { body: "全体の指摘" }],
+    };
+    const res = post(result, { DRY_RUN: "true" });
+    expect(res.status, res.stderr + res.stdout).toBe(0);
+    expect(read(res.dir, "gh.log")).toBe("");
+    expect(existsSync(join(res.dir, "comment.md"))).toBe(false);
+    const saved: unknown = JSON.parse(read(res.dir, "claude-review-result/review-result.json"));
+    expect(saved).toEqual(result);
+    expect(outputs(res.dir)).toMatchObject({ findings: "2" });
+    // 検出されることの確認: DRY_RUN が false なら、同じ結果を投稿する。
+    const posted = post(result, { DRY_RUN: "false" });
+    expect(posted.status, posted.stderr + posted.stdout).toBe(0);
+    expect(read(posted.dir, "comment.md").split("\n")[0]).toBe(marker(2, 1));
+    expect(existsSync(join(posted.dir, "claude-review-result"))).toBe(false);
+  });
+
+  test("dry_run でも、結果に資格情報があれば、ファイルに残さずに失敗する", () => {
+    const res = post(
+      { summary: "s", findings: [{ body: "値は oauth-value-xyz" }] },
+      { DRY_RUN: "true" },
+    );
+    expect(res.status).toBe(1);
+    expect(existsSync(join(res.dir, "claude-review-result"))).toBe(false);
+    expect(read(res.dir, "gh.log")).toBe("");
   });
 
   test("実行記録に result が複数あれば最後のものを使い、オブジェクトでない要素は読み飛ばす", () => {
@@ -840,5 +899,34 @@ describe("Run Claude Code の claude_args", () => {
     expect(args).toContain('--tools "Read,Grep,Glob"');
     expect(args).toContain("--permission-mode default");
     expect(args).toMatch(/--disallowed-tools "[^"]*Read\(\.\/\.git\/\*\*\)[^"]*"/);
+  });
+});
+
+// 依頼する側（claude-review-action.sh）は、run-name が「Claude review PR #<番号> <SHA>」と一致する run を HEAD の run として数える。
+// dry_run の run がこの形だと、目印の無い成功した run として「一時停止した回」に数えられ、その HEAD の依頼が止まる。
+describe("dry_run の run の見分け", () => {
+  const raw = loadYamlAs<{ "run-name": string; concurrency: { group: string } }>(
+    readFileSync(join(repoRoot, WORKFLOW), "utf8"),
+  );
+  const action = readFileSync(
+    join(repoRoot, "skills/pr-finalize-loop/scripts/claude-review-action.sh"),
+    "utf8",
+  );
+
+  test("run-name は、dry_run のときだけ依頼する側が数える形と違う先頭にする", () => {
+    expect(action).toContain('title="Claude review PR #${number} ${head}"');
+    expect(raw["run-name"]).toMatch(
+      /^\$\{\{ inputs\.dry_run && 'Claude review \(dry run\)' \|\| 'Claude review' \}\} PR #/,
+    );
+  });
+
+  test("concurrency の group を分け、dry_run の run が投稿するレビューを取り消さない", () => {
+    expect(raw.concurrency.group).toContain("inputs.dry_run && 'dry-run-'");
+  });
+
+  test("dry_run の結果を残す段は、Post review が成功し dry_run のときだけ動く", () => {
+    expect(step("Upload dry-run result").if).toBe(
+      "steps.post.outcome == 'success' && steps.target.outputs.dry_run == 'true'",
+    );
   });
 });
