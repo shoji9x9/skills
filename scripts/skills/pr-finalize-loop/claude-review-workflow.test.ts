@@ -913,15 +913,65 @@ describe("dry_run の run の見分け", () => {
     "utf8",
   );
 
-  test("run-name は、dry_run のときだけ依頼する側が数える形と違う先頭にする", () => {
+  // 式は、このワークフローが使う形（`a || b` と `a && 'x' || 'y'`）だけを GitHub の評価の規則で評価する。
+  // 値が falsy（undefined・false・空文字）なら次の項に進み、最後の項の値を返す。
+  type Ctx = Record<string, string | boolean | undefined>;
+  const operand = (term: string, ctx: Ctx): string | boolean | undefined => {
+    const t = term.trim();
+    const lit = /^'([^']*)'$/.exec(t);
+    if (lit) return lit[1];
+    expect(t, "評価できない項").toMatch(/^[a-z_.]+$/);
+    return ctx[t];
+  };
+  const evaluate = (expr: string, ctx: Ctx): string => {
+    let value: string | boolean | undefined;
+    for (const alt of expr.split("||")) {
+      const [cond, then] = alt.split("&&");
+      value =
+        then === undefined
+          ? operand(cond ?? "", ctx)
+          : operand(cond ?? "", ctx) && operand(then, ctx);
+      if (value) break;
+    }
+    return value ? String(value) : "";
+  };
+  const render = (template: string, ctx: Ctx) =>
+    template.replace(/\$\{\{(.*?)\}\}/g, (_m, expr: string) => evaluate(expr, ctx));
+
+  const PR = "12";
+  const pullRequest: Ctx = {
+    "github.workflow": "Claude review",
+    "github.event_name": "pull_request",
+    "github.event.pull_request.number": PR,
+    "github.event.pull_request.head.sha": SHA,
+  };
+  const dispatch = (dryRun: boolean): Ctx => ({
+    "github.workflow": "Claude review",
+    "github.event_name": "workflow_dispatch",
+    "inputs.pr": PR,
+    "inputs.sha": SHA,
+    "inputs.dry_run": dryRun,
+  });
+  // 依頼する側が探す run-name。claude-review-action.sh の title の形に、番号と SHA を入れたもの。
+  const counted = `Claude review PR #${PR} ${SHA}`;
+
+  test("run-name は、dry_run でない run では依頼する側が数える形と全体で一致し、dry_run の run では一致しない", () => {
     expect(action).toContain('title="Claude review PR #${number} ${head}"');
-    expect(raw["run-name"]).toMatch(
-      /^\$\{\{ inputs\.dry_run && 'Claude review \(dry run\)' \|\| 'Claude review' \}\} PR #/,
+    expect(render(raw["run-name"], pullRequest)).toBe(counted);
+    expect(render(raw["run-name"], dispatch(false))).toBe(counted);
+    expect(render(raw["run-name"], dispatch(true))).toBe(
+      `Claude review (dry run) PR #${PR} ${SHA}`,
     );
   });
 
-  test("concurrency の group を分け、dry_run の run が投稿するレビューを取り消さない", () => {
-    expect(raw.concurrency.group).toContain("inputs.dry_run && 'dry-run-'");
+  test("concurrency の group は、dry_run の run だけを分け、ほかの run は dry_run を足す前と同じ group にする", () => {
+    expect(render(raw.concurrency.group, pullRequest)).toBe(`Claude review-pull_request-${PR}`);
+    expect(render(raw.concurrency.group, dispatch(false))).toBe(
+      `Claude review-workflow_dispatch-${PR}`,
+    );
+    expect(render(raw.concurrency.group, dispatch(true))).toBe(
+      `Claude review-workflow_dispatch-dry-run-${PR}`,
+    );
   });
 
   test("dry_run の結果を残す段は、Post review が成功し dry_run のときだけ動く", () => {
