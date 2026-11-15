@@ -146,6 +146,12 @@ describe("compare", () => {
     expect(r.only_in_alerts).toEqual([]);
   });
 
+  test("ignoreGhsas の GHSA でも pnpm audit が報告した組は matched に入れ、matched_ignored に重ねない", () => {
+    const r = compare([{ package: "p3", ghsa: C }], [alert("dismissed", C, "p3")], [C]);
+    expect(r.matched).toEqual([{ ghsa: up(C), package: "p3" }]);
+    expect(r.matched_ignored).toEqual([]);
+  });
+
   test("ignoreGhsas の GHSA で fixed でない alert が無いものは、印のパッケージ名で only_in_audit に出す", () => {
     const r = compare([], [alert("fixed", C, "p3")], [C]);
     expect(r.only_in_audit).toEqual([{ ghsa: up(C), package: IGNORED_WITHOUT_ALERT }]);
