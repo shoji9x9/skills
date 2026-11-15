@@ -106,6 +106,9 @@ gh secret set SECURITY_AUDIT_STATE_KEY --repo shoji9x9/skills <~/security-audit-
 | `budget` | エージェントを起動する回数の上限（1〜999） |
 
 エージェントのツールは、対象とスキルと記録を読むこと、出力のディレクトリに書くこと、サブエージェントを使うこと、上流の検証スクリプト（`validate-findings.cjs`・`validate-coverage-ledger.cjs`）を実行することに限る。
+検証スクリプトの引数は、出力のディレクトリの `findings.json` と `coverage-ledger.json` に限る。
+許可の規則に無い Bash の呼び出しと、作業ディレクトリと上流のスキルの置き場所の外の読み取りは、`--permission-mode default` で拒否する。
+作業ディレクトリ（このリポジトリの作業ツリー）の中は、`.git/` を除いて、`dvna` を監査するときも読める。`cat` のような読むだけの Bash でも読める。
 GitHub-hosted runner には、上流のスキルが対象のコードを実行する前に求める、OS が強制する sandbox が無い。
 そのため、対象のコードを実行して確かめる候補は、上流のスキルの決まりどおり `needs_validation`（確かめきれなかった候補）として残る。
 コードを読めば明らかな脆弱性（`dvna` の SQL インジェクションなど）も、`confirmed` ではなく `needs_validation` になる。`needs_validation` の候補は、人が記録を読んで対応するかを決める。

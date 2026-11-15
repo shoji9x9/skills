@@ -239,11 +239,18 @@ jobs:
           # 設定はユーザーの層（runner には無い）だけを読み、MCP のサーバーは action が渡すものだけにする。
           # リポジトリの .claude/settings.json の Hook と .mcp.json のサーバーは --tools の制限の外で動き、
           # 同じ設定の permissions は読める範囲を広げうるので、資格情報のある環境で読ませない。
+          # action は、エージェントを起動する前に github_token を作業ツリーの .git/config（remote の URL）に書く。
+          # Read(./**) の許可はそれも読めるので、Read(./.git/**) を拒否する。この規則は Read に加えて Grep と Glob にも当たり、
+          # .git の中を指すシンボリックリンクの読み取りも止める。Glob(./.git/**) の形の規則は当たらない（Claude Code 2.1.325 の claude -p で確かめた）。
+          # 許可の規則に無い書き込みと、作業ディレクトリの外の読み取りは、--permission-mode default で拒否する。
+          # デフォルトで auto mode を使うバージョンの claude-code-action では、これらを安全性の判定で通しうる。
           claude_args: >-
             --tools "Read,Grep,Glob,Edit,Write"
             --setting-sources user
             --strict-mcp-config
+            --permission-mode default
             --allowed-tools "Read(./**),Grep(./**),Glob(./**),Edit(./${{ env.REPORT_FILE }})"
+            --disallowed-tools "Read(./.git/**)"
             ${{ steps.settings.outputs.model && format('--model {0}', steps.settings.outputs.model) || '' }}
 
       # Codex のシェルのコマンドが読める場所を、リポジトリの中に限る permission profile を書く。
