@@ -191,12 +191,14 @@ jobs:
           # そこで --tools で、使えるツールそのものを Read・Grep・Glob・Edit・Write に限る。Write の書き先は Edit の規則で絞る。
           # 設定はユーザーの層（runner には無い）だけを読み、MCP のサーバーは action が渡すものだけにする（security-audit.yml と同じ）。
           # リポジトリの .claude/settings.json の Hook と .mcp.json のサーバーは、--tools の制限の外で動くので、資格情報のある環境で起動させない。
+          # action は、エージェントを起動する前に github_token を作業ツリーの .git/config（remote の URL）に書く。
+          # Read(./**) の許可はそれも読めるので、Read(./.git/**) を拒否する。この規則は Grep と Glob にも当たる（.agents/rules/github-actions-authoring.md）。
           claude_args: >-
             --tools "Read,Grep,Glob,Edit,Write"
             --setting-sources user
             --strict-mcp-config
             --allowed-tools "Read(./**),Grep(./**),Glob(./**),Edit(./${{ env.REPORT_FILE }})"
-            --disallowed-tools "Bash,WebFetch,WebSearch,NotebookEdit,Agent"
+            --disallowed-tools "Bash,WebFetch,WebSearch,NotebookEdit,Agent,Read(./.git/**)"
             ${{ steps.model.outputs.args }}
 
       - name: Upload report

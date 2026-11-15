@@ -31,6 +31,10 @@ applyTo: ".github/workflows/**"
 
 - 使えるツールは、拒否の一覧（`--disallowed-tools`）ではなく `--tools` で限る。拒否の一覧は、エージェントがツールを足すたびに抜けが出る。
 - 読む・書くツールはパスの規則で限る（`Read(./**)`・`Grep(./**)`・`Glob(./**)` と、結果のファイルへの `Edit(./<file>)`）。Claude Code では `Edit(<path>)` の規則が Write にも当たり、`Write(<path>)` の形の規則は当たらない。
+- `claude-code-action` は agent モードで、エージェントを起動する前に `github_token` を作業ツリーの `.git/config`（remote の URL）に書く。checkout の `persist-credentials: false` はこれを防がない。
+  `Read(./**)` を許可するなら、`--disallowed-tools` に `Read(./.git/**)` を入れる。この規則は Read に加えて Grep と Glob にも当たり、`.git` の中を指すシンボリックリンクとサブエージェントの読み取りも止める。
+  Claude Code 2.1.325 の `claude -p` で、絶対パスでの読み取りも含めて確かめた。`Glob(./.git/**)` の形の拒否の規則は、Glob にも当たらなかった。
+  `Grep(./.git/**)` の形も当たらないことは、`docs/claude-review.md`「危険と対策」に記録がある。
 - リポジトリの設定を読ませない（`--setting-sources user` と `--strict-mcp-config`）。`.claude/settings.json` の Hook と `.mcp.json` の MCP サーバーは `--tools` の制限の外で動き、同じ設定の `permissions` は読める範囲を広げうる。
 - Codex（`openai/codex-action`）の組み込みの `:read-only` は、ファイルシステム全体を読める。`codex-home` の `config.toml` に、`":root" = "deny"` と `:workspace_roots` の read を持つ名前付きの permission profile を書き、`permission-profile` にその名前を渡す。
   シェルに渡す環境変数は `[shell_environment_policy]` の `inherit = "core"` で絞る。`codex-args` の `-c` で permission を上書きする形は、action が拒否する。

@@ -145,14 +145,23 @@ jobs:
             echo "budget が 1〜999 の整数でない" >&2
           fi
           root="$RUNNER_TEMP/security-audit"
+          # 監査する commit は、checkout した commit をここで渡す。エージェントには .git/ を読ませない（Run Claude Code の段のコメント）。
           if [ "$INPUT_TARGET" = self ]; then
             target_dir="$GITHUB_WORKSPACE"
             read_glob="./**"
             repo_name="skills"
+            source_ref="$GITHUB_SHA"
           else
             target_dir="$GITHUB_WORKSPACE/audit-target"
             read_glob="./audit-target/**"
             repo_name="dvna"
+            source_ref="$DVNA_SHA"
+          fi
+          if ! [[ "$source_ref" =~ ^[0-9a-f]{40}$ ]]; then
+            valid=false
+            echo "監査する commit が 40 桁の SHA でない" >&2
+            # 改行を含む値を GITHUB_OUTPUT に書くと、後ろの行が valid などの別の出力を上書きするので、空にする。
+            source_ref=""
           fi
           {
             echo "valid=$valid"
@@ -166,6 +175,7 @@ jobs:
             echo "target_dir=$target_dir"
             echo "read_glob=$read_glob"
             echo "repo_name=$repo_name"
+            echo "source_ref=$source_ref"
           } >>"$GITHUB_OUTPUT"
 
       # 要約のスクリプトと、上流のスキルの検証スクリプトを動かす node を入れる。
@@ -278,6 +288,7 @@ jobs:
             - Skill directory: ${{ steps.settings.outputs.skill_dir }}
             - Target: ${{ steps.settings.outputs.target_dir }}
             - Repo name: ${{ steps.settings.outputs.repo_name }}
+            - Source ref: commit ${{ steps.settings.outputs.source_ref }}（checkout した commit）
             - Output directory: ${{ steps.settings.outputs.runs_dir }}/run-${{ steps.restore.outputs.next }}（作成済み。対象の外にある）
             - 前回までの記録: ${{ steps.settings.outputs.runs_dir }} の下の、出力のディレクトリ以外の run-* ディレクトリ（無ければ初回）
             - Profile: ${{ steps.settings.outputs.profile }}
@@ -290,7 +301,7 @@ jobs:
             - node ${{ steps.settings.outputs.skill_dir }}/validate-coverage-ledger.cjs <coverage-ledger.json のパス>
             それ以外の Bash（cd・ls・find・git・python3・mkdir・自分で書いたスクリプト）はすべて拒否されるので、試さないでください。
             ファイルの一覧は Glob、中身は Read、検索は Grep で取得します。ディレクトリは Write でファイルを書くと作られます。
-            対象の commit は、対象の .git/HEAD と、そこから参照する ref のファイルを Read で読んで決めます。
+            対象の commit は、上の Source ref の値を使います。.git/ の中は読まないでください。
             サブエージェントも同じ制限で動くので、サブエージェントに渡す指示にも、上の Bash の制限と、ファイルの読み方を書いてください。
             サブエージェントは、結果が返るまで待ってから次に進めます。
             終える前に、出力のディレクトリの run-metadata.json の run_status を complete か incomplete（理由つき）にしてください。
@@ -301,11 +312,16 @@ jobs:
           # 設定はユーザーの層（runner には無い）だけを読む。リポジトリの .claude/settings.json の Hook（応答の言語の確認・kaizen の記録）を
           # 監査の中で実行させないためである。Hook は出力のディレクトリの外に書き、英語で書く上流のスキルの応答を書き直させる。
           # MCP のサーバーも、--mcp-config で渡したもの（action が渡すもの）だけにし、リポジトリの .mcp.json のサーバーを起動させない。
+          # action は、エージェントを起動する前に github_token を作業ツリーの .git/config（remote の URL）に書く。self を監査するときは
+          # Read(./**) の許可がそれも読めるので、拒否の一覧にはパスの規則 Read(./.git/**) だけを置く。この規則は Grep と Glob にも当たり、
+          # サブエージェントにも当たる（.agents/rules/github-actions-authoring.md）。action が書くのは作業ツリーの .git/config だけなので、
+          # audit-target/.git（persist-credentials: false）と、スキルを取得した root の下の .git には資格情報が無い。
           claude_args: >-
             --tools "Read,Grep,Glob,Edit,Write,Agent,Bash"
             --setting-sources user
             --strict-mcp-config
             --add-dir "${{ steps.settings.outputs.root }}"
+            --disallowed-tools "Read(./.git/**)"
             --allowed-tools "Read(${{ steps.settings.outputs.read_glob }}),Grep(${{ steps.settings.outputs.read_glob }}),Glob(${{ steps.settings.outputs.read_glob }}),Read(/${{ steps.settings.outputs.root }}/**),Grep(/${{ steps.settings.outputs.root }}/**),Glob(/${{ steps.settings.outputs.root }}/**),Edit(/${{ steps.settings.outputs.runs_dir }}/run-${{ steps.restore.outputs.next }}/**),Agent,Bash(node ${{ steps.settings.outputs.skill_dir }}/validate-findings.cjs *),Bash(node ${{ steps.settings.outputs.skill_dir }}/validate-coverage-ledger.cjs *)"
             ${{ steps.settings.outputs.model_args }}
 
