@@ -2,6 +2,7 @@
 
 PR ごとに、決定論的なスキャナと LLM の差分レビューで、セキュリティの観点を確かめる。
 リポジトリ全体を LLM で監査する処理は時間がかかるので、PR ごとには行わず、別のワークフローで行う（「リポジトリ全体の監査」）。
+外部の人からの脆弱性の報告は、[`SECURITY.md`](../SECURITY.md) の方法（private vulnerability reporting）で受け付ける。
 
 ## 構成
 
@@ -9,12 +10,21 @@ PR ごとに、決定論的なスキャナと LLM の差分レビューで、セ
 | --- | --- | --- | --- |
 | CodeQL（`javascript-typescript` と `actions`） | JavaScript・TypeScript のコードと `.github/workflows/` | `.github/workflows/codeql.yml`（PR・`push: main`・週次の `schedule`） | 結果を code scanning に表示し、ルールセットの code scanning の規則がマージを止める |
 | zizmor | `.github/`（ワークフローと `dependabot.yml`）と、配布するワークフローのテンプレート（`skills/*/assets/` の YAML のうち、`jobs:` を持つもの） | CI の `GitHub Actions lint` ジョブ | 1 件でもあればジョブが失敗する |
+| Dependency Review（`actions/dependency-review-action`） | PR が足す・変える依存（npm と、ワークフローの `uses:` の action） | `.github/workflows/dependency-review.yml`（すべての PR） | `moderate` 以上の既知の脆弱性があればジョブが失敗する。必須チェックではないので、マージは止めない |
 | gitleaks | pre-commit はステージした差分、CI は全履歴 | pre-commit と CI の `Secret scan` ジョブ | commit とジョブが失敗する |
 | `/security-review`（Claude Code に組み込みのコマンド） | push する前の差分 | 手元（「push の前のレビュー」） | 妥当な指摘だけを直してから push する |
 
 CodeQL の解析のジョブは、指摘があっても失敗しない。
 マージを止めるのは、`main` のルールセットの code scanning の規則（ツールは CodeQL）である。
 code scanning の規則は、PR の commit に CodeQL の結果が上がるのを待ち、閾値以上の指摘があればマージを止める。
+
+Dependency Review は、GitHub の dependency graph で PR の base と head の依存を比べ、PR が足すかバージョンを変える依存だけを検査する。
+PR が触らない依存の脆弱性では失敗しない。`main` で既に脆弱な依存でも、PR がバージョンを変え、変えた先も脆弱なら失敗する。
+失敗したら、修正版に上げてからマージする。修正版が無いときは、[`vulnerability-handling.md`](vulnerability-handling.md)「無視する advisory」の基準で判断する。
+許容するなら、同じ節の手順で `ignoreGhsas` と `dismiss` に足す。Dependency Review はこの 2 つを読まないので、失敗したまま残る。理由を PR の本文に書いてマージする。
+ワークフローに除外（`allow-ghsas`）は置かない。置くと、`ignoreGhsas` と `dismiss` に並ぶ 3 つ目の無視の一覧になり、週次の見直しの対象から外れる。
+GitHub の自動マージ（`dependabot-automerge.yml` と、`issue-batch` の `merge_mode: auto`）は必須チェックだけを待つので、Dependency Review が失敗した PR も取り込む。
+自動マージを予約した PR で Dependency Review の失敗に気付いたら、取り込まれる前に予約を外し、上の手順で扱う。
 
 zizmor は mise でインストールする（`mise.toml`）。手元では、CI の `Security lint (zizmor)` のステップと同じ対象に実行する。テンプレートが 1 つなら、次のとおりである。
 

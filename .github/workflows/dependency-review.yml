@@ -1,0 +1,40 @@
+name: Dependency Review
+
+# PR が足す・変える依存（npm と GitHub Actions）に既知の脆弱性があれば、マージの前に失敗させる。
+# 必須チェックにはしない。構成と、既存の検査との違いは docs/security-scanning.md「構成」にある。
+#
+# action は dependency graph の比較の API（PR の base と head の差分）を読むだけで、リポジトリを checkout しない。
+# そのため、PR のコードを実行する危険が無く、pull_request_target を使う理由（base のファイルを読む）も無い。
+# fork の PR では GITHUB_TOKEN が読み取りだけになるが、contents: read で足りる。PR へのコメント
+# （comment-summary-in-pr）は pull-requests: write が要るので使わず、結果はジョブの Summary とログで読む。
+# 入力の意味: https://github.com/actions/dependency-review-action#configuration-options
+#
+# paths で起動を絞らない。dependency graph は package.json・pnpm-lock.yaml のほかに、ワークフローの uses: も依存として読む。
+# 絞ると、依存を変える PR を起動の条件から外しうる。ジョブは checkout も install もしないので、すべての PR で動かしても短い。
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          # moderate 以上で失敗させる。low はログと Summary に出すだけにする。
+          fail-on-severity: moderate
+          # このリポジトリの依存は開発用のツールが中心なので、development も対象にする。
+          fail-on-scopes: runtime,development,unknown
+          # ライセンスは検査しない。依存は開発用のツールが中心なので、ライセンスのポリシーを持たない。
+          license-check: false
