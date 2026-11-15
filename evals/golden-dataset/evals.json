@@ -280,6 +280,62 @@
         "排他が機能することを、ロックを保持したまま 2 つ目を起動して 1 行も書かずに非 0 で終えることの実測で確かめるとしている（同時に実行して不整合が起きなかったことを根拠にしていない）",
         "ロックが止めるのは投入どうしの衝突だけで、同じ投入先を読むテストとの衝突は直列化するか投入先を分けて避ける必要があると示している"
       ]
+    },
+    {
+      "id": 23,
+      "prompt": "フェーズ A の投入ツールをこれから書きます。設定の new.stack は [\"Java\", \"Spring Boot\", \"MyBatis\", \"React\", \"TypeScript\"] で、新側はバックエンドが Spring Boot、画面が React です。dataset_mode は db で、.replace/dataset/metadata.json はまだありません。投入ツールは何の言語で書き、選んだ言語はどこに残しますか。",
+      "assertions": [
+        "投入ツールの言語を Java にしている（new.stack に TypeScript が含まれていても、TypeScript をデフォルトとして選んでいない）",
+        "Java を選ぶ理由として、new.stack に挙げた言語のうち投入先の DB を読み書きする層（バックエンド）の言語であることを挙げている",
+        "選んだ言語を .replace/dataset/metadata.json の tool.language に java として記録すると述べている",
+        "Java で書くのが難しい場合は SQL（まとめて commit できる形）で書いてよいと示している"
+      ],
+      "reachability": [
+        {
+          "assertion": "投入ツールの言語を Java にしている（new.stack に TypeScript が含まれていても、TypeScript をデフォルトとして選んでいない）",
+          "prompt_quote": "設定の new.stack は [\"Java\", \"Spring Boot\", \"MyBatis\", \"React\", \"TypeScript\"]"
+        },
+        {
+          "assertion": "Java を選ぶ理由として、new.stack に挙げた言語のうち投入先の DB を読み書きする層（バックエンド）の言語であることを挙げている",
+          "prompt_quote": "新側はバックエンドが Spring Boot、画面が React です。dataset_mode は db"
+        },
+        {
+          "assertion": "選んだ言語を .replace/dataset/metadata.json の tool.language に java として記録すると述べている",
+          "prompt_quote": "選んだ言語はどこに残しますか"
+        },
+        {
+          "assertion": "Java で書くのが難しい場合は SQL（まとめて commit できる形）で書いてよいと示している",
+          "prompt_quote": "投入ツールは何の言語で書き"
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "prompt": "golden-dataset を --autonomous で今夜流しっぱなしにしたいです。設定の new.stack はまだ空のままで、新側の言語は別のチームが決めているので私は知りません。.replace/dataset/metadata.json もまだありません。投入ツールの言語はどう扱って、どこまで進めますか。",
+      "assertions": [
+        "new.stack が空なので投入ツールの言語を推測で決めず（TypeScript や SQL を勝手に選ばず）、判断待ちとして扱っている",
+        "判断待ちを .replace/dataset/pending-decisions.json に保留として記録すると述べている（metadata.json には書かない）",
+        "保留の間もデータの設計までは進め、投入ツールの生成とそれ以降（投入・投入後の検証・metadata.json への記録）は行わないと区別している",
+        "言語が確かめられたら、その言語を設定の new.stack に既存の値を消さずに追記すると述べている"
+      ],
+      "reachability": [
+        {
+          "assertion": "new.stack が空なので投入ツールの言語を推測で決めず（TypeScript や SQL を勝手に選ばず）、判断待ちとして扱っている",
+          "prompt_quote": "設定の new.stack はまだ空のままで、新側の言語は別のチームが決めているので私は知りません"
+        },
+        {
+          "assertion": "判断待ちを .replace/dataset/pending-decisions.json に保留として記録すると述べている（metadata.json には書かない）",
+          "prompt_quote": "golden-dataset を --autonomous で今夜流しっぱなしにしたいです"
+        },
+        {
+          "assertion": "保留の間もデータの設計までは進め、投入ツールの生成とそれ以降（投入・投入後の検証・metadata.json への記録）は行わないと区別している",
+          "prompt_quote": "投入ツールの言語はどう扱って、どこまで進めますか"
+        },
+        {
+          "assertion": "言語が確かめられたら、その言語を設定の new.stack に既存の値を消さずに追記すると述べている",
+          "prompt_quote": "新側の言語は別のチームが決めているので私は知りません"
+        }
+      ]
     }
   ]
 }

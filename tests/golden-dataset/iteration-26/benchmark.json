@@ -1,0 +1,213 @@
+{
+  "metadata": {
+    "skill_name": "golden-dataset",
+    "skill_path": "<repo>/skills/golden-dataset",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-15T09:58:27Z",
+    "evals_run": [23, 24],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 23,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 19.286,
+        "tokens": 93712,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "投入ツールの言語を Java にしている（new.stack に TypeScript が含まれていても、TypeScript をデフォルトとして選んでいない）",
+          "passed": true,
+          "evidence": "応答「結論: 言語は Java」。React / TypeScript は画面の層で候補にならないと明記"
+        },
+        {
+          "text": "Java を選ぶ理由として、new.stack に挙げた言語のうち投入先の DB を読み書きする層（バックエンド）の言語であることを挙げている",
+          "passed": true,
+          "evidence": "応答「言語が複数あるときは、投入先を読み書きする層の言語」「新側で DB を読み書きするのは Spring Boot + MyBatis のバックエンド」"
+        },
+        {
+          "text": "選んだ言語を .replace/dataset/metadata.json の tool.language に java として記録すると述べている",
+          "passed": true,
+          "evidence": "応答「記録先は .replace/dataset/metadata.json の tool.language（値は \"java\"）」"
+        },
+        {
+          "text": "Java で書くのが難しい場合は SQL（まとめて commit できる形）で書いてよいと示している",
+          "passed": true,
+          "evidence": "応答「Java で書くのが難しい場合は SQL にしてもかまいません。その場合は、まとめてコミットできる形にし」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 24,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 28.348,
+        "tokens": 130160,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "new.stack が空なので投入ツールの言語を推測で決めず（TypeScript や SQL を勝手に選ばず）、判断待ちとして扱っている",
+          "passed": true,
+          "evidence": "応答「推測せずに利用者に確かめる」「--autonomous で流しても、この判断は「判断待ち（保留）」になります。なんとなく TypeScript にする、SQL で逃げる、といった推測はしません」"
+        },
+        {
+          "text": "判断待ちを .replace/dataset/pending-decisions.json に保留として記録すると述べている（metadata.json には書かない）",
+          "passed": true,
+          "evidence": "応答「保留は .replace/dataset/pending-decisions.json に phase: \"a\" で書きます」「metadata.json の作成 | 行わない」"
+        },
+        {
+          "text": "保留の間もデータの設計までは進め、投入ツールの生成とそれ以降（投入・投入後の検証・metadata.json への記録）は行わないと区別している",
+          "passed": true,
+          "evidence": "応答の表で、データ設計は行い、投入ツールの生成・投入・検証・metadata.json の作成は行わないと区別している"
+        },
+        {
+          "text": "言語が確かめられたら、その言語を設定の new.stack に既存の値を消さずに追記すると述べている",
+          "passed": true,
+          "evidence": "応答「その言語を new.stack に追記します（既存の値は消しません）」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 23,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 16.496,
+        "tokens": 40303,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "投入ツールの言語を Java にしている（new.stack に TypeScript が含まれていても、TypeScript をデフォルトとして選んでいない）",
+          "passed": true,
+          "evidence": "応答「言語: Java（新側のバックエンド、Spring Boot と同じ言語）」「TypeScript もありますが、これは画面（React）の言語」"
+        },
+        {
+          "text": "Java を選ぶ理由として、new.stack に挙げた言語のうち投入先の DB を読み書きする層（バックエンド）の言語であることを挙げている",
+          "passed": true,
+          "evidence": "応答「新側でデータベースを扱うのはバックエンドの Spring Boot と MyBatis で、React はデータベースに触れません」"
+        },
+        {
+          "text": "選んだ言語を .replace/dataset/metadata.json の tool.language に java として記録すると述べている",
+          "passed": false,
+          "evidence": "記録先は metadata.json だが、キーは仮の loader.language で値は \"Java\"。tool.language に java として記録するとは述べていない"
+        },
+        {
+          "text": "Java で書くのが難しい場合は SQL（まとめて commit できる形）で書いてよいと示している",
+          "passed": false,
+          "evidence": "SQL で書く選択に触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 24,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 32.247,
+        "tokens": 86243,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "new.stack が空なので投入ツールの言語を推測で決めず（TypeScript や SQL を勝手に選ばず）、判断待ちとして扱っている",
+          "passed": true,
+          "evidence": "応答「new.stack が空のあいだは、投入ツール（seeder）の言語を自動では選びません」"
+        },
+        {
+          "text": "判断待ちを .replace/dataset/pending-decisions.json に保留として記録すると述べている（metadata.json には書かない）",
+          "passed": false,
+          "evidence": "pending-decisions.json に触れず、metadata.json に seeder: blocked を書くとしている"
+        },
+        {
+          "text": "保留の間もデータの設計までは進め、投入ツールの生成とそれ以降（投入・投入後の検証・metadata.json への記録）は行わないと区別している",
+          "passed": false,
+          "evidence": "seeder の生成と投入は止めるが、metadata.json を作成して進捗を記録するとしており、metadata.json への記録を行わないという区別になっていない"
+        },
+        {
+          "text": "言語が確かめられたら、その言語を設定の new.stack に既存の値を消さずに追記すると述べている",
+          "passed": false,
+          "evidence": "再開の条件を「別チームが new.stack を確定して設定に入れること」とし、確かめた言語を既存の値を消さずに new.stack に追記するとは述べていない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 23.817,
+        "stddev": 6.4078,
+        "min": 19.286,
+        "max": 28.348
+      },
+      "tokens": {
+        "mean": 111936,
+        "stddev": 25772.628,
+        "min": 93712,
+        "max": 130160
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.375,
+        "stddev": 0.1768,
+        "min": 0.25,
+        "max": 0.5
+      },
+      "time_seconds": {
+        "mean": 24.3715,
+        "stddev": 11.1376,
+        "min": 16.496,
+        "max": 32.247
+      },
+      "tokens": {
+        "mean": 63273,
+        "stddev": 32484.4855,
+        "min": 40303,
+        "max": 86243
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.63",
+      "time_seconds": "-0.6",
+      "tokens": "+48663"
+    }
+  },
+  "notes": []
+}

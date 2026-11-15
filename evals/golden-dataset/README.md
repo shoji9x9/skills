@@ -67,3 +67,15 @@
   そのため、取得できないときに待たず非 0 で終える形にも、排他が機能することの実測にも届かない。空の表を読む害も「比較が成立しない」までで、
   **空を正解として緑で通る**形は説明しない。
   冪等性と同時実行の区別（assertion 1）と、読み手との衝突（assertion 6）は baseline も自力で到達するので、後退の検知の項目として残す
+- eval 23 は fixture 無しで、`new.stack` に Java と TypeScript の両方を含み、フロントエンドとバックエンドで言語が違う状況を与える。
+  投入ツールの言語を `new.stack` から選び、言語が複数あるときは投入先の DB を読み書きする層の言語にすること、
+  選んだ言語を `metadata.json` の `tool.language` に記録することを検証する（Issue #1052）。
+  プロンプトには、どの層の言語を選ぶかという結論を書かない。
+  **iteration-26 で実測**（変更確認・各 config 1 run・claude-code / opus / medium）: `with_skill` 4/4・`without_skill` 2/4。
+  baseline もバックエンドの言語として Java を選ぶので、assertion 1・2 は後退の検知の項目として残す。
+  差が出たのは assertion 3・4 で、baseline は記録のキーを `tool.language` にせず、SQL で書く選択にも触れない
+- eval 24 は fixture 無しで、`new.stack` が空のまま `--autonomous` で実行したい状況を与える。
+  言語を推測せずに判断待ちとして `pending-decisions.json` に記録すること、保留の間はデータの設計までで止めて投入ツールを生成しないこと、
+  確かめた言語を `new.stack` に追記することを検証する（Issue #1052）。プロンプトには、保留にするという結論も、どこまで進めるかも書かない。
+  **iteration-26 で実測**（変更確認・各 config 1 run・claude-code / opus / medium）: `with_skill` 4/4・`without_skill` 1/4。
+  baseline も言語を推測では選ばないが、`metadata.json` に未定と書いて進捗を記録し、確かめた言語を `new.stack` に追記するとも述べない

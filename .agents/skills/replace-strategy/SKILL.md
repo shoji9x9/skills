@@ -44,9 +44,8 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
   - `current-environment-bootstrap`（現行環境の由来が「受領資産からの再構築」のときだけ要る。任せる先で、下の「setup モード」の手順 2・4 で使う）
 - MCP: chrome-devtools MCP（セマンティクスの測定に必須）
 - 固定する技術スタック（スキル群で共通。ここに挙げたもの以外は固定しない）:
-  - 新側のフロントエンドとバックエンド: TypeScript
-  - パリティスイート: Playwright（TypeScript）。ただし、`style_policy: free` のとき、画面のある機能のスイートは e2e（`spec-parity`）で書く。横断 API とバッチは、どちらの値でも Playwright である
-  - `golden-dataset` の投入ツール: TypeScript（SQL も使える）
+  - パリティスイート: Playwright（TypeScript）。ただし、`style_policy: free` のとき、画面のある機能のスイートは e2e（`spec-parity`）で書く。横断 API とバッチは、どちらの値でも Playwright である。
+    スイートは新側をブラウザと HTTP の外側から確かめるので、新側の言語に依存しない
   - テキストの成果物: Git
   - Issue・PR・任せる先: GitHub（`gh`）
 - 利用者が選ぶもの（設定と references で受け取る。スキル本体に固有の名前を書かない）:
@@ -57,8 +56,8 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
   - 検証コマンドの一式（静的解析・テスト。全体を対象にする `full` と、差分に限る `diff` の 2 列）
   - 実行対象の環境（`targets`）と、環境変数の用意の方法
   - 現行アプリのスタックは、測定で把握する。
-- 新側のアーキテクチャは、このスキル群の対象外である。フレームワーク、バックエンドの構成、ORM、レイヤとディレクトリの構成、API の設計方針、ホスティングとリリースの構成、実行基盤と使うマネージドサービスがこれに当たる。
-  - 言語は上のとおり TypeScript に固定で、骨格はその上での選択である。言語まで利用者が選べるという意味ではない。
+- 新側のアーキテクチャは、このスキル群の対象外である。言語、フレームワーク、バックエンドの構成、ORM、レイヤとディレクトリの構成、API の設計方針、ホスティングとリリースの構成、実行基盤と使うマネージドサービスがこれに当たる。
+  - 言語も骨格の一部で、利用者が選ぶ。選んだ言語は `new.stack` に記録し、言語に依存する判断（依存の候補・`golden-dataset` の投入ツールの言語）はこのキーから読む。
   - 骨格は事前に決まっていて、新側のリポジトリには骨格がスキャフォールド済みである前提に立つ。
   - 骨格は現行アプリの測定からは決まらない（組織の制約・運用・既存の資産・人員で決まる）。スキルが決めると、「測定できなければ止まる」という規律が成り立たなくなる。
     そのため、`setup` は決定の確認と記録だけを行う（`new.stack` / `references.architecture`。原本は [`references/project-config.md`](references/project-config.md) の「新側アーキテクチャ」）。
@@ -159,7 +158,7 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
    - シークレットの扱いは、[`references/project-config.md`](references/project-config.md) の「シークレットの扱い」に従う。接続を最初に確かめ、つながらなければ早い段階で失敗にする。
    - 現・新のリポジトリと、起動のラッパー。
    - 新側のアーキテクチャの確認と記録:
-     - 事前に決まっている骨格を確かめ、スタックの列挙を `new.stack` に、決定を記録したドキュメントのパスを `references.architecture` に記録する。
+     - 事前に決まっている骨格を確かめ、スタックの列挙（言語を含む）を `new.stack` に、決定を記録したドキュメントのパスを `references.architecture` に記録する。
      - 骨格を決めず、下書きも作らない。決まっていなければ決定を促し、`references.architecture` は空の値の枠だけを残す。原本は [`references/project-config.md`](references/project-config.md) の「新側アーキテクチャ」である。
    - 実行対象の環境（`targets`）:
      - 現側は測定の対象のテスト環境、新側は local-dev / develop などである。
