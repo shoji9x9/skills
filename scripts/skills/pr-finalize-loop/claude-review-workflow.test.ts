@@ -1052,6 +1052,13 @@ describe("自動のレビューの切り替え（CLAUDE_REVIEW_AUTO）", () => {
     expect(cond.endsWith(")")).toBe(true);
   });
 
+  // 未設定の値が null か空文字かを確かめきれていないので、式は 2 つの守りを両方持つ（雛形のコメント）。
+  // 下の評価の関数の規則では片方だけでも未設定を扱えるので、片方を消しても評価のテストは落ちない。両方があることをここで固定する。
+  test("空でないことの確認と、format で文字列にしてからの比較を、両方持つ", () => {
+    expect(cond).toContain("vars.CLAUDE_REVIEW_AUTO != ''");
+    expect(cond).toContain("format('{0}', vars.CLAUDE_REVIEW_AUTO)");
+  });
+
   // 以前のテストは式の字面だけを見ていたので、未設定（null）の変数が '0' と等しいと判定されて job を飛ばす誤りを
   // 検出できなかった。ここでは、GitHub の式の規則（下の evalGha）で job の if を評価し、値ごとの結果を固定する。
   const prCtx = (auto: string | null): GhaCtx => ({

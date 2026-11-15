@@ -116,7 +116,7 @@ check-run（名前 `Review`）は、`workflow_dispatch` の run では起動し�
 | 名前 | 値 | 未設定のとき |
 | --- | --- | --- |
 | `CLAUDE_REVIEW_SKIP` | `on`・`true`・`yes`・`1` のどれかなら、レビューを一時停止する | レビューする |
-| `CLAUDE_REVIEW_AUTO` | `off`・`false`・`no`・`0` のどれか（大文字と小文字を区別しない）なら、`pull_request` の自動のレビューをしない。`workflow_dispatch` の依頼はレビューする | 自動でレビューする |
+| `CLAUDE_REVIEW_AUTO` | `off`・`false`・`no`・`0` のどれか（大文字と小文字を区別しない）なら、`pull_request` の自動のレビューをしない。前後の空白は取り除かないので、` off ` は切る値にならない。`workflow_dispatch` の依頼はレビューする | 自動でレビューする |
 | `CLAUDE_REVIEW_EFFORT` | `pull_request` のレビューの effort（`low`・`medium`・`high`・`xhigh`・`max`） | `high` |
 | `CLAUDE_REVIEW_MODEL` | エージェントのモデル（例: `opus`） | `claude-code-action` のデフォルトのモデル |
 | `CLAUDE_REVIEW_MAX_TURNS` | エージェントの往復の上限（1〜999） | 60 |
