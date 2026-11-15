@@ -1,14 +1,16 @@
 // pr-finalize-loop の設定（config-schemas/pr-finalize-loop.schema.json）の回帰テスト。
 //
-// 同梱の読み取り（scripts/skill-config/skill-config.mjs）を CLI として起動し、SKILL.md の
-// 「返信だけの反復で再レビューを依頼するか」が書く値の決め方を確かめる。
+// 同梱の読み取り（scripts/skill-config/skill-config.mjs）を CLI として起動し、このスキーマに固有の事実
+// （真偽値・デフォルトの true・置ける 3 つの層・common.jsonc には置けない）を確かめる。
+// 層の優先順位・引数の優先・JSON でない引数など、読み取りに共通の振る舞いは
+// scripts/skills/_cross/skill-config.test.ts が確かめるので、ここでは繰り返さない。
 //
-// | 軸                   | 値                                                                  |
-// | -------------------- | ------------------------------------------------------------------- |
-// | 引数（--cli-value）  | 無い / true / false / 真偽値でない JSON / JSON でない                |
-// | ファイルの層         | 無い / リポジトリ / 人ごと・リポジトリ限定 / 人ごと / 複数の層        |
-// | ファイルの値         | true / false / 真偽値でない                                          |
-// | 置き場所             | pr-finalize-loop.jsonc / common.jsonc（置けない）                    |
+// | 軸                   | 値                                                     |
+// | -------------------- | ------------------------------------------------------ |
+// | 引数（--cli-value）  | 無い / 真偽値でない JSON                                |
+// | ファイルの層         | 無い / リポジトリ / 人ごと・リポジトリ限定 / 人ごと      |
+// | ファイルの値         | false / 真偽値でない                                    |
+// | 置き場所             | pr-finalize-loop.jsonc / common.jsonc（置けない）       |
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -74,38 +76,6 @@ test.each([
   expect(r.stdout).toContain(`source=${source}`);
 });
 
-test("人ごと・リポジトリ限定の層が、リポジトリの層より優先する", () => {
-  const s = setup();
-  s.repo('{ "rereview_after_reply": true }');
-  s.local('{ "rereview_after_reply": false }');
-  const r = get(s);
-  expect(r.status).toBe(0);
-  expect(r.stdout).toContain("value=false");
-  expect(r.stdout).toContain("source=local");
-});
-
-test("人ごとの層が、リポジトリの層より優先する", () => {
-  const s = setup();
-  s.repo('{ "rereview_after_reply": true }');
-  s.user('{ "rereview_after_reply": false }');
-  const r = get(s);
-  expect(r.status).toBe(0);
-  expect(r.stdout).toContain("value=false");
-  expect(r.stdout).toContain("source=user");
-});
-
-test.each([
-  ["false", "true", "true"],
-  ["true", "false", "false"],
-])("引数は設定より優先する（設定 %s・引数 %s）", (file, cli, want) => {
-  const s = setup();
-  s.repo(`{ "rereview_after_reply": ${file} }`);
-  const r = get(s, cli);
-  expect(r.status).toBe(0);
-  expect(r.stdout).toContain(`value=${want}`);
-  expect(r.stdout).toContain("source=cli");
-});
-
 test("真偽値でない設定は、デフォルトで続けずに exit 1 で止まる", () => {
   const s = setup();
   s.repo('{ "rereview_after_reply": "no" }');
@@ -117,12 +87,6 @@ test("真偽値でない設定は、デフォルトで続けずに exit 1 で止
 test("真偽値でない JSON の引数は、exit 1 で止まる", () => {
   const r = get(setup(), '"false"');
   expect(r.status).toBe(1);
-});
-
-test("JSON でない引数（yes）は、exit 2 で止まる（SKILL.md は 0 以外をすべて止まる扱いにする）", () => {
-  const r = get(setup(), "yes");
-  expect(r.status).toBe(2);
-  expect(r.stdout).not.toContain("value=");
 });
 
 test("common.jsonc に置いたキーは、知らないキーとして止まる（common のスキーマは変えない）", () => {
