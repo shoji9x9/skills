@@ -122,3 +122,7 @@ gh skill update --all
   "review_tool": "codex"
 }
 ```
+
+## 脆弱性の報告
+
+スキルやこのリポジトリのワークフローに脆弱性を見つけたら、公開の Issue に書かず、[`SECURITY.md`](SECURITY.md) の方法で報告する。
