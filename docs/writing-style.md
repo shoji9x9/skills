@@ -11,7 +11,7 @@ applyTo: "**,**/.*/**,**/.*"
 ## 対象
 
 - 人が読む Markdown
-  - `AGENTS.md`、`README.md`、`docs/`、`.agents/rules/`
+  - `AGENTS.md`、`README.md`、`SECURITY.md` の日本語の節、`docs/`、`.agents/rules/`
   - `skills/` の文書と、private skill（`.agents/skills/<name>/` のうち `.private-skill` を持つもの）の文書
   - `evals/` の README と fixtures、`.kaizen/` の学び
 - コードコメント（設定ファイルのコメントを含む）
@@ -24,6 +24,7 @@ applyTo: "**,**/.*/**,**/.*"
 - `.kaizen/archive/` の学びと `tests/` の結果。過去の記録として書き換えない
 - インストール済みのスキルのコピー（`.agents/skills/<name>/`）とエージェント用のリンク（`.claude/`）。`skills/` と同じ中身なので、`skills/` を直す
 - 英語で書くスライドの文書（`docs/slides/storylines/en/` と `docs/slides/prompts/`）。規則は日本語の文章向けである
+- `SECURITY.md` の英語の節。外部の報告者向けに日本語の節と同じ内容を英語で書く。規則は日本語の文章向けである。ただし `lint-prose.ts` は節で分けずにファイル全体を見る
 
 スクリプトが解析する見出し・列名や、eval の assertion が依存する節名を変えると、スクリプトや eval が動かなくなる。
 これらに当たる変更は、そのつど人に確認してから行う。

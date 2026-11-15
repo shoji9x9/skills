@@ -286,9 +286,15 @@ describe("エージェントが読める範囲を、リポジトリの中に限�
     expect(args).toContain("--setting-sources user");
     expect(args).toContain("--strict-mcp-config");
     // 権限の確認を外すフラグと、読める場所を足すフラグは、--allowed-tools のパスの規則を迂回する。
-    for (const flag of ["dangerously-skip-permissions", "--permission-mode", "--add-dir"]) {
+    for (const flag of ["dangerously-skip-permissions", "--add-dir"]) {
       expect(args).not.toContain(flag);
     }
+    // 権限のモードは default だけを渡す。bypassPermissions・acceptEdits・auto は、許可の規則に無い呼び出しを通しうる。
+    // 渡さないと action のデフォルトになり、auto mode をデフォルトにしたバージョンでは許可の規則に無い呼び出しを通しうる。
+    // `--permission-mode=<mode>` の形も CLI は受け付けるので、空白と `=` の両方で値を取る。
+    expect([...args.matchAll(/--permission-mode(?:=|\s+)(\S+)/g)].map((m) => m[1])).toStrictEqual([
+      "default",
+    ]);
   });
 
   test("Codex は、書いた permission profile で動き、profile を書けなかったときは起動しない", () => {
