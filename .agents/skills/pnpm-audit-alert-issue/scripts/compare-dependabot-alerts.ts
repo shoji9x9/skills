@@ -6,6 +6,8 @@
 // - alerts の側: 状態が fixed でない alert の GHSA とパッケージの組。
 // ignoreGhsas の GHSA は pnpm audit に出ないので、alerts の側の組と一致しても matched に数えず、matched_ignored に分ける。
 // matched に入れると、pnpm audit が検出したかを確かめないまま、やめる条件の件数に加わるからである。
+// alert の無い ignoreGhsas の GHSA も、片方にしか無い組にせず、ignored_without_alert に分ける。
+// GHSA の無い finding は比べられないので、組にまとめずに without_ghsa に 1 件ずつ出す。
 //
 // 起票に渡すのは、GHSA とパッケージの組が open の alert に無い findings である。
 // open の alert の Issue は、dependabot-alert-issue の Dependabot alerts を読むモードが作る。
@@ -27,13 +29,16 @@ export type Comparison = {
   matched_ignored: Pair[];
   only_in_audit: Pair[];
   only_in_alerts: Pair[];
+  ignored_without_alert: string[];
+  without_ghsa: Pair[];
   findings_to_file: Record<string, unknown>[];
 };
 
-/** パッケージの名前の代わりに使う印。ignoreGhsas の GHSA は、alert が無いとパッケージの名前を持たない。 */
-export const IGNORED_WITHOUT_ALERT = "(ignoreGhsas)";
-
-const norm = (ghsa: string): string => ghsa.toUpperCase();
+/**
+ * GHSA を GitHub の表記（接頭辞だけ大文字で、本体は小文字）にそろえる。
+ * Issue には大文字で書いたものもあるので、比べる前にそろえる。出力も、記録と比べられるようにこの表記で出す。
+ */
+const norm = (ghsa: string): string => ghsa.toLowerCase().replace(/^ghsa-/, "GHSA-");
 const keyOf = (pair: Pair): string => `${norm(pair.ghsa)}\t${pair.package}`;
 
 const ALERT_STATE_SET: ReadonlySet<string> = new Set(ALERT_STATES);
@@ -87,7 +92,8 @@ export function compare(
 ): Comparison {
   const ignoredSet = new Set(ignored.map(norm));
   const live = alerts.filter((a) => a.state !== "fixed");
-  const auditSide = uniquePairs(findings.map(pairOfFinding));
+  const findingPairs = findings.map(pairOfFinding);
+  const auditSide = uniquePairs(findingPairs.filter((p) => p.ghsa !== ""));
   const alertSide = uniquePairs(live);
   const openKeys = new Set(alerts.filter((a) => a.state === "open").map(keyOf));
   const liveGhsa = new Set(live.map((a) => a.ghsa));
@@ -96,13 +102,10 @@ export function compare(
   return {
     matched: [...auditSide].filter(([k]) => alertSide.has(k)).map(([, p]) => p),
     matched_ignored: alertPairs.filter((p) => ignoredSet.has(p.ghsa) && !auditSide.has(keyOf(p))),
-    only_in_audit: [
-      ...[...auditSide].filter(([k]) => !alertSide.has(k)).map(([, p]) => p),
-      ...[...ignoredSet]
-        .filter((g) => !liveGhsa.has(g))
-        .map((g) => ({ ghsa: g, package: IGNORED_WITHOUT_ALERT })),
-    ],
+    only_in_audit: [...auditSide].filter(([k]) => !alertSide.has(k)).map(([, p]) => p),
     only_in_alerts: alertPairs.filter((p) => !ignoredSet.has(p.ghsa) && !auditSide.has(keyOf(p))),
+    ignored_without_alert: [...ignoredSet].filter((g) => !liveGhsa.has(g)),
+    without_ghsa: findingPairs.filter((p) => p.ghsa === ""),
     findings_to_file: findings.filter((f) => !openKeys.has(keyOf(pairOfFinding(f)))),
   };
 }

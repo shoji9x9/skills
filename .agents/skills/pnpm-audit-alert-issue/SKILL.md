@@ -84,25 +84,33 @@ alerts_tsv="$tmpdir/dependabot-alerts.tsv"
 ignored_json="$tmpdir/pnpm-audit-ignored.json"
 to_file_json="$tmpdir/pnpm-audit-findings-to-file.json"
 
-# state を付けずに取得すると、すべての状態の alert が返る
+# state を付けずに取得すると、すべての状態の alert が返る。
+# pnpm audit が読むのはルートの pnpm-lock.yaml だけなので、ほかの manifest（eval の fixture の package.json など）の alert は除く
 if ! gh api --paginate "/repos/<owner>/<repo>/dependabot/alerts?per_page=100" \
-  --jq '.[] | [.state, .security_advisory.ghsa_id, .security_vulnerability.package.name] | @tsv' \
+  --jq '.[] | select(.dependency.manifest_path == "pnpm-lock.yaml")
+    | [.state, .security_advisory.ghsa_id, .security_vulnerability.package.name] | @tsv' \
   > "$alerts_tsv"; then
   echo "failed to fetch Dependabot alerts; stop without comparing" >&2
   exit 1
 fi
 
 # 一覧が空のときやキーが無いとき、pnpm は空の出力か null を返す
-pnpm config get audit --json </dev/null > "$ignored_json"
+if ! pnpm config get audit --json </dev/null > "$ignored_json"; then
+  echo "failed to read pnpm audit config; stop without comparing" >&2
+  exit 1
+fi
 
 node .agents/skills/pnpm-audit-alert-issue/scripts/compare-dependabot-alerts.ts \
   "$findings_json" "$alerts_tsv" "$ignored_json" "$to_file_json"
 ```
 
 - alerts の取得が 403 や 404 で失敗したら、比べずに止まる。取得に失敗したことを、alert が 0 件として扱わない（原因の切り分けは `dependabot-alert-issue` の「gh メカニクス」に従う）
-- `ghsa` の無い finding は、alerts と比べられないので `only_in_audit` に出て、起票に渡す側に残る。報告では、GHSA が無くて比べられなかったと書く
-- 比べた結果は、`matched`・`matched_ignored`・`only_in_audit`・`only_in_alerts` の組の一覧と、起票に渡す件数（`findings_to_file`）である。終了コードは、比べられたら 0、入力を読めなければ 1、引数の誤りは 2 になる
-- 無視している GHSA の advisory は `pnpm audit` に出ないので、alert と組になっても `matched` に数えず、`matched_ignored` に出す。`fixed` でない alert が無いものは、パッケージの名前を `(ignoreGhsas)` として `only_in_audit` に出る
+- `pnpm config get audit` が失敗したときも、比べずに止まる。無視の一覧を 0 件として比べると、却下した alert が `only_in_alerts` に出る
+- 比べた結果は、組の一覧（`matched`・`matched_ignored`・`only_in_audit`・`only_in_alerts`・`without_ghsa`）と、`ignored_without_alert` と、`findings_to_file` である。
+  `ignored_without_alert` は alert の無い無視の GHSA で、`findings_to_file` は起票に渡す件数である。
+  GHSA は GitHub の表記（接頭辞だけ大文字）で出す。終了コードは、比べられたら 0、入力を読めなければ 1、引数の誤りは 2 になる
+- `ghsa` の無い finding は、alerts と比べられないので `without_ghsa` に 1 件ずつ出て、起票に渡す側に残る。報告では、GHSA が無くて比べられなかったと書く
+- 無視している GHSA の advisory は `pnpm audit` に出ないので、alert と組になっても `matched` に数えず、`matched_ignored` に出す。`fixed` でない alert が無いものは、`ignored_without_alert` に出す。どちらも片方にしか無い組にしない
 - `only_in_audit` か `only_in_alerts` が 1 件以上なら、`docs/vulnerability-handling.md`「private skill をやめる条件」に従って原因を調べ、報告に書く
 - 起票には `$to_file_json` を `dependabot-alert-issue` の外部 audit findings mode に渡す。`$findings_json` を渡すと、open の alert の Issue を二重に作る
 
@@ -110,7 +118,7 @@ node .agents/skills/pnpm-audit-alert-issue/scripts/compare-dependabot-alerts.ts 
 
 ### 依存のつながりの確認
 
-正規化した JSON の `findings[].package` の重複を除き、package ごとに `pnpm why` を実行する。
+起票に渡す findings（`$to_file_json` の `findings[].package`）の重複を除き、package ごとに `pnpm why` を実行する。
 これは、pnpm audit の結果に pnpm に固有の依存のつながりの情報を足すための手順である。Issue の重複の確認や分類は `dependabot-alert-issue` に任せる。
 
 実行する前に、基本フローの手順 7 で node_modules を lockfile に合わせておく。
@@ -151,7 +159,7 @@ pnpm の transitive 依存の更新に特有の制約と手段は、`dependabot-
 - 手段の優先順
 - 今の状態の判定も更新の結果の判定も、node_modules から得た出力ではなく lockfile を根拠にすること
 
-補える場合は、外部 audit findings の JSON の各 finding に、次の任意のフィールドを足してよい。
+補える場合は、起票に渡す findings の JSON（`$to_file_json`）の各 finding に、次の任意のフィールドを足してよい。
 
 - `direct_dependencies`: 脆弱な package を持ち込む direct 依存の名前の配列
 - `why_summary`: `pnpm why` から分かる、依存のつながりの短いまとめ（`pnpm install --frozen-lockfile` で node_modules を合わせた後に取る）
