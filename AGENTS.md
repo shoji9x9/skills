@@ -263,7 +263,7 @@ rule は、対象のファイルを触るときに自動で読み込まれる。
 - `pr-finalize-loop`: 作成済みの PR の CI エラーとレビューの指摘を、CI が成功して未解決が無くなるまで自律的に解消する
 - `dependabot-merge`: Dependabot の PR の CI の確認・影響のレビュー・判断の記録・マージを標準化する
 - `dependabot-alert-issue`: Dependabot alerts（または外部の audit の結果）から、解消用の Issue を作る
-- `pnpm-audit-alert-issue`: private skill。Dependabot alerts と `pnpm audit` の一致を確かめる間、`pnpm audit --json` の advisory を alerts と比べる。open の alert にも自動で却下された alert にも無いものだけを、`dependabot-alert-issue` を通して起票する
+- `pnpm-audit-alert-issue`: private skill。Dependabot alerts と `pnpm audit` の一致を確かめる間、`pnpm audit --json` の advisory を alerts と比べる。open の alert にも却下された alert にも無いものだけを、`dependabot-alert-issue` を通して起票する
 - `browser-test`: 変更による回帰を、実際のブラウザ（chrome-devtools MCP）で確認する
 - `aws-architecture-diagram`: IaC や説明から AWS の構成図を spec に起こし、SVG として生成・更新する
 - `box`: Box のファイルとフォルダを、Box REST API（`curl` と `jq`）で参照・検索・更新する
