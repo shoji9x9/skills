@@ -97,6 +97,6 @@
     "scripts/eval/sandbox/eval-sandbox-preflight.mutations.json": 19.9,
     "scripts/skills/parity-diff/diff-report.mutations.json": 1.4,
     "scripts/skills/parity-diff/region-names.mutations.json": 1.4,
-    "scripts/skills/pnpm-audit-alert-issue/compare-dependabot-alerts.mutations.json": 1.6
+    "scripts/skills/pnpm-audit-alert-issue/compare-dependabot-alerts.mutations.json": 1.5
   }
 }

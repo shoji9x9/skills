@@ -92,6 +92,7 @@ describe("compare", () => {
     expect(r.matched).toEqual([{ ghsa: A, package: "p1" }]);
     expect(r.only_in_audit).toEqual([]);
     expect(r.only_in_alerts).toEqual([]);
+    expect(r.without_ghsa).toEqual([]);
     expect(r.findings_to_file).toEqual([]);
   });
 
@@ -154,6 +155,7 @@ describe("compare", () => {
     expect(r.matched).toEqual([]);
     expect(r.matched_ignored).toEqual([{ ghsa: C, package: "p3" }]);
     expect(r.only_in_alerts).toEqual([]);
+    expect(r.ignored_without_alert).toEqual([]);
   });
 
   test("ignoreGhsas の GHSA でも pnpm audit が報告した組は matched に入れ、matched_ignored に重ねない", () => {
