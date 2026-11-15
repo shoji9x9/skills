@@ -122,8 +122,8 @@ cat "$tmpdir/compare-summary.json"
 
 比べた結果は、やめる時期を判断する Issue にコメントして記録する。
 記録する Issue の条件・コメントに書く内容・新しい advisory の数え方は、`docs/vulnerability-handling.md`「private skill をやめる条件」で定義する。ここへ転記しない。
-手順 5 で比較のスクリプトが出した JSON は、`$tmpdir/compare-summary.json` に残してある。
-記録の元にするのは、その `matched`・`matched_ignored`・`only_in_audit`・`only_in_alerts` の 4 つの組である。`ignored_without_alert` と `without_ghsa` は組ではないので、コメントに書かず、報告にだけ添える。
+基本フローの手順 5 で比較のスクリプトが出した JSON は、`$tmpdir/compare-summary.json` に残してある。
+記録の元にするのは、その `matched`・`matched_ignored`・`only_in_audit`・`only_in_alerts` の 4 つの組である。`ignored_without_alert` は GHSA の一覧であり、`without_ghsa` は GHSA が無く GHSA とパッケージの組として比べられないので、どちらもコメントに書かず、報告にだけ添える。
 
 1. 記録先の Issue を、タイトルで探す。open の Issue を取得してから、タイトルが `pnpm-audit-alert-issue:` で始まるものに絞る。
 
@@ -142,10 +142,10 @@ cat "$tmpdir/compare-summary.json"
    これらをすべて読み、載っている組を全部集める。最後の 1 件だけを読むと、前の回に載った組が後の回から消えたとき、同じ組を新しい advisory に数え直す。
    読めないときは、新しい advisory を数えず、コメントもせずに止まる。
    本文にも該当する見出しのコメントにも組が載っていないときは、今回の組を最初の記録（以後の基準）として投稿し、新しい advisory は数えない。
-   このときの見出しも `## 比べた結果（YYYY-MM-DD）` にし、「新しい advisory」の節は空にする。`only_in_*` があれば、その原因は手順 3 のとおり書く
-3. 新しい advisory として数えるのは、今回の `matched` の組のうち、手順 2 で集めた組に無いものである。
+   このときの見出しも `## 比べた結果（YYYY-MM-DD）` にし、「新しい advisory」の節は空にする。`only_in_*` があれば、その原因はこの節の手順 3 のとおり書く
+3. 新しい advisory として数えるのは、今回の `matched` の組のうち、この節の手順 2 で集めた組に無いものである。
    `only_in_audit`・`only_in_alerts`・`matched_ignored` の組は一致していないので数えない。
-   `only_in_audit` か `only_in_alerts` が 1 件以上なら、手順 5 に従って調べた原因も書く
+   `only_in_audit` か `only_in_alerts` が 1 件以上なら、「Dependabot alerts との比較」の箇条に従って調べた原因も書く
 4. コメントの本文を先にファイルへ書き、`gh issue comment <番号> --body-file <path>` で投稿する。
    見出しは `## 比べた結果（YYYY-MM-DD）` にする。本文に書く内容は、`docs/vulnerability-handling.md`「private skill をやめる条件」に従う。
    本文に節「新しい advisory」を置き、今回数えた組を載せる。累計は、集めた記録のこの節に載った組の数と今回の数の合計である。
