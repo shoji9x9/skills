@@ -46,6 +46,8 @@ Issue のまとめ方と起票は、配布スキル `dependabot-alert-issue` の
 10. その後の重複の確認、着手できるかの分類、Issue の下書き、起票は `dependabot-alert-issue` に任せる
 11. findings の件数に関わらず、無視している GHSA の一覧と件数を、最後の報告に添える。
     一覧は `pnpm-workspace.yaml` の `auditConfig.ignoreGhsas` から読む。`pnpm audit --json` の出力と正規化した JSON には、無視した advisory が含まれない
+12. 手順 5 の比べた結果を、記録する Issue にコメントする（後述「比べた結果の記録」）。
+    findings の件数に関わらず、これを行う。手順 6 で終える場合も、手順 11 の後に行う
 
 ## コマンド手順
 
@@ -101,7 +103,9 @@ if ! pnpm config get audit --json </dev/null > "$ignored_json"; then
 fi
 
 node .agents/skills/pnpm-audit-alert-issue/scripts/compare-dependabot-alerts.ts \
-  "$findings_json" "$alerts_tsv" "$ignored_json" "$to_file_json"
+  "$findings_json" "$alerts_tsv" "$ignored_json" "$to_file_json" \
+  > "$tmpdir/compare-summary.json"
+cat "$tmpdir/compare-summary.json"
 ```
 
 - alerts の取得が 403 や 404 で失敗したら、比べずに止まる。取得に失敗したことを、alert が 0 件として扱わない（原因の切り分けは `dependabot-alert-issue` の「gh メカニクス」に従う）
@@ -113,6 +117,32 @@ node .agents/skills/pnpm-audit-alert-issue/scripts/compare-dependabot-alerts.ts 
 - 無視している GHSA の advisory は `pnpm audit` に出ないので、alert と組になっても `matched` に数えず、`matched_ignored` に出す。`fixed` でない alert が無いものは、`ignored_without_alert` に出す。どちらも片方にしか無い組にしない
 - `only_in_audit` か `only_in_alerts` が 1 件以上なら、`docs/vulnerability-handling.md`「private skill をやめる条件」に従って原因を調べ、報告に書く
 - 起票には `$to_file_json` を `dependabot-alert-issue` の外部 audit findings mode に渡す。`$findings_json` を渡すと、open の alert の Issue を二重に作る
+
+## 比べた結果の記録
+
+比べた結果は、やめる時期を判断する Issue にコメントして記録する。
+記録する Issue の条件・コメントに書く内容・新しい advisory の数え方は、`docs/vulnerability-handling.md`「private skill をやめる条件」で定義する。ここへ転記しない。
+手順 5 で比較のスクリプトが出した JSON は、`$tmpdir/compare-summary.json` に残してある。
+記録の元にするのは、その `matched`・`matched_ignored`・`only_in_audit`・`only_in_alerts`・`ignored_without_alert`・`without_ghsa` である。
+
+1. 記録先の Issue を、タイトルで探す。open の Issue を取得してから、タイトルが `pnpm-audit-alert-issue:` で始まるものに絞る。
+
+   ```bash
+   gh issue list --state open --limit 100 --search 'in:title pnpm-audit-alert-issue' \
+     --json number,title --jq '[.[] | select(.title | startswith("pnpm-audit-alert-issue:"))]'
+   ```
+
+   - 1 件ならそれを記録先にする
+   - 0 件か複数件なら、記録先を選ばず、利用者に確かめる。複数件のときは候補を示し、0 件のときは見つからなかったことを伝える。0 件で作るときは `issue-create` を使う
+2. 前の回の記録を、その Issue のコメントから読む。コメントは `gh issue view <番号> --json comments` で取得する。
+   最後の記録（組の一覧を載せたコメント）と、基準の一覧を載せたコメントを探す。
+   読めないときは、新しい advisory を数えず、コメントもせずに止まる。
+   記録がまだ 1 件も無いときは、今回の組を最初の記録（以後の基準）として投稿し、新しい advisory は数えない
+3. 今回の組のうち、前の回の記録（基準の一覧を含む）に無い組を、新しい advisory として数える。
+   `only_in_audit` か `only_in_alerts` が 1 件以上なら、手順 5 に従って調べた原因も書く
+4. コメントの本文を先にファイルへ書き、`gh issue comment <番号> --body-file <path>` で投稿する。
+   本文に書く内容は、`docs/vulnerability-handling.md`「private skill をやめる条件」に従う。
+   外向きの操作なので、投稿の前に本文を利用者に見せて確かめる
 
 ## PNPM 補強手順
 
