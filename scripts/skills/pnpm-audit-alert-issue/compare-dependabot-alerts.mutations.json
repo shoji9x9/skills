@@ -1,0 +1,35 @@
+{
+  "$comment": [
+    "compare-dependabot-alerts.test.ts が、起票に渡す findings を選ぶ判定を検出できることを示す変異の一覧。",
+    "どちらも、誤ると Issue の起票が警告なしに抜けるか重なる判定である。",
+    "scripts/mutation/check-mutation-proof.ts が、置換が当たったことと expect_failing のテストだけが落ちたことの両方を確かめる。",
+    "テスト名を変えたら expect_failing も直す。"
+  ],
+  "test_file": "scripts/skills/pnpm-audit-alert-issue/compare-dependabot-alerts.test.ts",
+  "mutations": [
+    {
+      "id": "exclude-all-live-alerts",
+      "why": "起票から除く alert を open に限らず、fixed でない alert すべてにする（自動で却下された alert の advisory が起票されなくなる）",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/compare-dependabot-alerts.ts",
+      "find": "alerts.filter((a) => a.state === \"open\").map(keyOf)",
+      "replace": "alerts.filter((a) => a.state !== \"fixed\").map(keyOf)",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare dismissed と auto_dismissed の alert も一致に数え、その findings は起票に渡す",
+        "compare 同じ組の findings が複数あっても、組は 1 件として数える",
+        "CLI 比べた結果を出し、起票に渡す findings を source などを残したまま書く"
+      ]
+    },
+    {
+      "id": "pair-key-ghsa-only",
+      "why": "組のキーからパッケージを外し、GHSA だけで照合する（同じ GHSA の別のパッケージの finding が、起票から除かれる）",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/compare-dependabot-alerts.ts",
+      "find": "`${norm(pair.ghsa)}\\t${pair.package}`",
+      "replace": "`${norm(pair.ghsa)}`",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 同じ GHSA でもパッケージが違えば一致にせず、open の alert の無いパッケージの finding は起票に渡す"
+      ]
+    }
+  ]
+}

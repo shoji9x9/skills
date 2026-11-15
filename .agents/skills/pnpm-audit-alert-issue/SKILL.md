@@ -95,39 +95,14 @@ fi
 # 一覧が空のときやキーが無いとき、pnpm は空の出力か null を返す
 pnpm config get audit --json </dev/null > "$ignored_json"
 
-node - "$findings_json" "$alerts_tsv" "$ignored_json" "$to_file_json" <<'JS'
-const fs = require("node:fs");
-const [findingsPath, alertsPath, ignoredPath, outPath] = process.argv.slice(2);
-const norm = (s) => String(s ?? "").toUpperCase();
-const doc = JSON.parse(fs.readFileSync(findingsPath, "utf8"));
-const alerts = fs.readFileSync(alertsPath, "utf8").split("\n").filter(Boolean)
-  .map((l) => { const [state, ghsa, pkg] = l.split("\t"); return { state, ghsa: norm(ghsa), pkg }; });
-const ignoredText = fs.readFileSync(ignoredPath, "utf8").trim();
-const ignoredList = ignoredText === "" || ignoredText === "null" ? [] : JSON.parse(ignoredText).ignore ?? [];
-const ignored = new Set(ignoredList.map(norm));
-const key = (ghsa, pkg) => `${ghsa}\t${pkg}`;
-const live = alerts.filter((a) => a.state !== "fixed");
-const alertSide = new Set(live.map((a) => key(a.ghsa, a.pkg)));
-const auditSide = new Set(doc.findings.map((f) => key(norm(f.ghsa), f.package)));
-// ignoreGhsas はパッケージの名前を持たないので、同じ GHSA の alert のパッケージと組にする。
-for (const a of live) if (ignored.has(a.ghsa)) auditSide.add(key(a.ghsa, a.pkg));
-const liveGhsa = new Set(live.map((a) => a.ghsa));
-const ignoredWithoutAlert = [...ignored].filter((g) => !liveGhsa.has(g)).map((g) => key(g, "(ignoreGhsas)"));
-const openKeys = new Set(alerts.filter((a) => a.state === "open").map((a) => key(a.ghsa, a.pkg)));
-const toFile = doc.findings.filter((f) => !openKeys.has(key(norm(f.ghsa), f.package)));
-fs.writeFileSync(outPath, JSON.stringify({ ...doc, findings: toFile }, null, 2));
-console.log(JSON.stringify({
-  matched: [...auditSide].filter((k) => alertSide.has(k)),
-  only_in_audit: [...auditSide].filter((k) => !alertSide.has(k)).concat(ignoredWithoutAlert),
-  only_in_alerts: [...alertSide].filter((k) => !auditSide.has(k)),
-  findings_to_file: toFile.length,
-}, null, 2));
-JS
+node .agents/skills/pnpm-audit-alert-issue/scripts/compare-dependabot-alerts.ts \
+  "$findings_json" "$alerts_tsv" "$ignored_json" "$to_file_json"
 ```
 
 - alerts の取得が 403 や 404 で失敗したら、比べずに止まる。取得に失敗したことを、alert が 0 件として扱わない（原因の切り分けは `dependabot-alert-issue` の「gh メカニクス」に従う）
 - `ghsa` の無い finding は、alerts と比べられないので `only_in_audit` に出て、起票に渡す側に残る。報告では、GHSA が無くて比べられなかったと書く
-- 無視している GHSA のうち、`fixed` でない alert が無いものは、パッケージの名前を `(ignoreGhsas)` として `only_in_audit` に出る
+- 比べた結果は、`matched`・`matched_ignored`・`only_in_audit`・`only_in_alerts` の組の一覧と、起票に渡す件数（`findings_to_file`）である。終了コードは、比べられたら 0、入力を読めなければ 1、引数の誤りは 2 になる
+- 無視している GHSA の advisory は `pnpm audit` に出ないので、alert と組になっても `matched` に数えず、`matched_ignored` に出す。`fixed` でない alert が無いものは、パッケージの名前を `(ignoreGhsas)` として `only_in_audit` に出る
 - `only_in_audit` か `only_in_alerts` が 1 件以上なら、`docs/vulnerability-handling.md`「private skill をやめる条件」に従って原因を調べ、報告に書く
 - 起票には `$to_file_json` を `dependabot-alert-issue` の外部 audit findings mode に渡す。`$findings_json` を渡すと、open の alert の Issue を二重に作る
 
