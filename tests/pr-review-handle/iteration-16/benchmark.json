@@ -1,0 +1,352 @@
+{
+  "metadata": {
+    "skill_name": "pr-review-handle",
+    "skill_path": "<repo>/skills/pr-review-handle",
+    "executor_model": "opus",
+    "analyzer_model": "claude-sonnet",
+    "timestamp": "2026-11-14T11:46:45Z",
+    "evals_run": [15],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 15,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 70.895,
+        "tokens": 318655,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "依頼を workflow_dispatch（同梱の claude-review-action.sh の request か、gh workflow run claude-review.yml）で行うと述べている",
+          "passed": true,
+          "evidence": "workflow_dispatch で request を使うと明記"
+        },
+        {
+          "text": "@claude review を投稿して依頼しない（claude-code の依頼の方法と取り違えていない）",
+          "passed": true,
+          "evidence": "@claude review は claude-code の方法として使わないと明記"
+        },
+        {
+          "text": "run 5001 の目印は返信より前の run なので、今の HEAD を返信の後にレビューした根拠にしないと述べている",
+          "passed": true,
+          "evidence": "run 5001(10:00:10Z)は返信より前で、返信を見ていないと明記し、--since なしだと reviewed と誤判定されるとも述べる"
+        },
+        {
+          "text": "最後の返信の時刻 2026-03-02T10:05:00Z を、それより前の run を数えない基準（--since）として渡すと述べている",
+          "passed": true,
+          "evidence": "--since 2026-03-02T10:05:00Z を check と request に渡すと明記"
+        },
+        {
+          "text": "依頼の前に、今の HEAD を対象にした run が進行中でないこと（同じ HEAD に重ねて依頼しないこと）を確かめると述べている",
+          "passed": true,
+          "evidence": "check で in-progress なら依頼せず待つと述べている"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push・依頼を行っていない）",
+          "passed": true,
+          "evidence": "gh は実行せず手順のみ提示。resolve-review-tool.sh のローカル読み取りだけ実行。ファイル作成なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 15,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 67.567,
+        "tokens": 277418,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "依頼を workflow_dispatch（同梱の claude-review-action.sh の request か、gh workflow run claude-review.yml）で行うと述べている",
+          "passed": true,
+          "evidence": "workflow_dispatch で request を使うと明記"
+        },
+        {
+          "text": "@claude review を投稿して依頼しない（claude-code の依頼の方法と取り違えていない）",
+          "passed": true,
+          "evidence": "@claude review は claude-code の方法として使わないと明記"
+        },
+        {
+          "text": "run 5001 の目印は返信より前の run なので、今の HEAD を返信の後にレビューした根拠にしないと述べている",
+          "passed": true,
+          "evidence": "run 5001(10:00:10Z)は返信より前で、返信を見ていないと明記し、--since なしだと reviewed と誤判定されるとも述べる"
+        },
+        {
+          "text": "最後の返信の時刻 2026-03-02T10:05:00Z を、それより前の run を数えない基準（--since）として渡すと述べている",
+          "passed": true,
+          "evidence": "--since 2026-03-02T10:05:00Z を check と request に渡すと明記"
+        },
+        {
+          "text": "依頼の前に、今の HEAD を対象にした run が進行中でないこと（同じ HEAD に重ねて依頼しないこと）を確かめると述べている",
+          "passed": true,
+          "evidence": "check で in-progress なら依頼せず待つと述べている"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push・依頼を行っていない）",
+          "passed": true,
+          "evidence": "gh は実行せず手順のみ提示。resolve-review-tool.sh のローカル読み取りだけ実行。ファイル作成なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 15,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 62.987,
+        "tokens": 364866,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "依頼を workflow_dispatch（同梱の claude-review-action.sh の request か、gh workflow run claude-review.yml）で行うと述べている",
+          "passed": true,
+          "evidence": "workflow_dispatch で request を使うと明記"
+        },
+        {
+          "text": "@claude review を投稿して依頼しない（claude-code の依頼の方法と取り違えていない）",
+          "passed": true,
+          "evidence": "@claude review は claude-code の方法として使わないと明記"
+        },
+        {
+          "text": "run 5001 の目印は返信より前の run なので、今の HEAD を返信の後にレビューした根拠にしないと述べている",
+          "passed": true,
+          "evidence": "run 5001(10:00:10Z)は返信より前で、返信を見ていないと明記し、--since なしだと reviewed と誤判定されるとも述べる"
+        },
+        {
+          "text": "最後の返信の時刻 2026-03-02T10:05:00Z を、それより前の run を数えない基準（--since）として渡すと述べている",
+          "passed": true,
+          "evidence": "--since 2026-03-02T10:05:00Z を check と request に渡すと明記"
+        },
+        {
+          "text": "依頼の前に、今の HEAD を対象にした run が進行中でないこと（同じ HEAD に重ねて依頼しないこと）を確かめると述べている",
+          "passed": true,
+          "evidence": "check で in-progress なら依頼せず待つと述べている"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push・依頼を行っていない）",
+          "passed": true,
+          "evidence": "gh は実行せず手順のみ提示。resolve-review-tool.sh のローカル読み取りだけ実行。ファイル作成なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 15,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 3,
+        "failed": 3,
+        "total": 6,
+        "time_seconds": 49.139,
+        "tokens": 163626,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "依頼を workflow_dispatch（同梱の claude-review-action.sh の request か、gh workflow run claude-review.yml）で行うと述べている",
+          "passed": false,
+          "evidence": "@claude を含むコメントの投稿で依頼すると述べ、workflow_dispatch に触れていない"
+        },
+        {
+          "text": "@claude review を投稿して依頼しない（claude-code の依頼の方法と取り違えていない）",
+          "passed": false,
+          "evidence": "PR に @claude コメントを投稿して依頼すると述べている"
+        },
+        {
+          "text": "run 5001 の目印は返信より前の run なので、今の HEAD を返信の後にレビューした根拠にしないと述べている",
+          "passed": true,
+          "evidence": "run 5001 は 10:00:10Z で返信前なので返信を読んでいない、と述べ根拠にしていない"
+        },
+        {
+          "text": "最後の返信の時刻 2026-03-02T10:05:00Z を、それより前の run を数えない基準（--since）として渡すと述べている",
+          "passed": false,
+          "evidence": "10:05:00Z は『より後の run を探す』目安として出るだけで、--since として渡す記述はない"
+        },
+        {
+          "text": "依頼の前に、今の HEAD を対象にした run が進行中でないこと（同じ HEAD に重ねて依頼しないこと）を確かめると述べている",
+          "passed": true,
+          "evidence": "10:05:00Z より後に作られた実行中・待機中の run がないかを見て、あれば依頼しないと述べている"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push・依頼を行っていない）",
+          "passed": true,
+          "evidence": "コマンド例は未実行と明記。スキルが見つからなかったと断りつつ推定の手順のみ"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 15,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 3,
+        "failed": 3,
+        "total": 6,
+        "time_seconds": 89.161,
+        "tokens": 120263,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "依頼を workflow_dispatch（同梱の claude-review-action.sh の request か、gh workflow run claude-review.yml）で行うと述べている",
+          "passed": false,
+          "evidence": "gh run rerun 5001 で依頼すると述べ、workflow_dispatch は依頼の方法としていない"
+        },
+        {
+          "text": "@claude review を投稿して依頼しない（claude-code の依頼の方法と取り違えていない）",
+          "passed": false,
+          "evidence": "主な方法は rerun だが、期限切れ時の代替として @claude コメント投稿を挙げており、使わないとは言っていない"
+        },
+        {
+          "text": "run 5001 の目印は返信より前の run なので、今の HEAD を返信の後にレビューした根拠にしないと述べている",
+          "passed": true,
+          "evidence": "run 5001 は 10:00:10Z で返信 10:05:00Z より前なので、今の総評は返信を反映していないと述べている"
+        },
+        {
+          "text": "最後の返信の時刻 2026-03-02T10:05:00Z を、それより前の run を数えない基準（--since）として渡すと述べている",
+          "passed": false,
+          "evidence": "--since に相当する時刻の受け渡しの記述がない（run_attempt と updated_at で判定すると述べる）"
+        },
+        {
+          "text": "依頼の前に、今の HEAD を対象にした run が進行中でないこと（同じ HEAD に重ねて依頼しないこと）を確かめると述べている",
+          "passed": true,
+          "evidence": "同じ HEAD で同じワークフローの run が queued / in_progress でないことを確かめると述べている"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push・依頼を行っていない）",
+          "passed": true,
+          "evidence": "コマンドは未実行と明記し、手順のみ提示"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 15,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 3,
+        "failed": 3,
+        "total": 6,
+        "time_seconds": 69.325,
+        "tokens": 162160,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "依頼を workflow_dispatch（同梱の claude-review-action.sh の request か、gh workflow run claude-review.yml）で行うと述べている",
+          "passed": false,
+          "evidence": "@claude コメント投稿で依頼すると述べ、workflow_dispatch に触れていない"
+        },
+        {
+          "text": "@claude review を投稿して依頼しない（claude-code の依頼の方法と取り違えていない）",
+          "passed": false,
+          "evidence": "@claude を含むコメントを投稿して依頼すると述べている"
+        },
+        {
+          "text": "run 5001 の目印は返信より前の run なので、今の HEAD を返信の後にレビューした根拠にしないと述べている",
+          "passed": true,
+          "evidence": "run 5001 は返信より前のレビューで返信が反映されないと述べ、再実行を退けている"
+        },
+        {
+          "text": "最後の返信の時刻 2026-03-02T10:05:00Z を、それより前の run を数えない基準（--since）として渡すと述べている",
+          "passed": false,
+          "evidence": "10:05:00Z は run を探す目安として出るだけで、--since として渡す記述はない"
+        },
+        {
+          "text": "依頼の前に、今の HEAD を対象にした run が進行中でないこと（同じ HEAD に重ねて依頼しないこと）を確かめると述べている",
+          "passed": true,
+          "evidence": "今の HEAD について 10:05:00Z より後に実行中・完了の run がないかを確かめると述べている"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push・依頼を行っていない）",
+          "passed": true,
+          "evidence": "コメント例は提示のみで未投稿と明記"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 67.1497,
+        "stddev": 3.9705,
+        "min": 62.987,
+        "max": 70.895
+      },
+      "tokens": {
+        "mean": 320313,
+        "stddev": 43747.5702,
+        "min": 277418,
+        "max": 364866
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5,
+        "stddev": 0,
+        "min": 0.5,
+        "max": 0.5
+      },
+      "time_seconds": {
+        "mean": 69.2083,
+        "stddev": 20.0113,
+        "min": 49.139,
+        "max": 89.161
+      },
+      "tokens": {
+        "mean": 148683,
+        "stddev": 24623.3545,
+        "min": 120263,
+        "max": 163626
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.50",
+      "time_seconds": "-2.1",
+      "tokens": "+171630"
+    }
+  },
+  "notes": [
+    "Issue #1030 の PR B で足した eval 15 の benchmark（claude-code / opus / effort high、3 run × 2 config）。",
+    "すべての run は sandboxed で、without_skill の汚染の判定は clean、invalid_run は無い。"
+  ]
+}

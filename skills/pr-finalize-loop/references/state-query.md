@@ -14,6 +14,7 @@ CI とレビューを繰り返し確かめるときに、reviews・timeline・�
 | reviewThreads | `isResolved == false` のスレッドと、その指摘の本文 |
 | トップレベルのコメント | 作成者以外のコメントの ID、作成者、createdAt、updatedAt、本文の文字数。`body` はまだ返さない |
 | timeline | review request やレビューの開始など、進行中かの判定に要るイベントと時刻だけ |
+| `review_tool: claude-code-action` の目印 | 同梱の `scripts/claude-review-action.sh check` の出力（`status`・`run`・`findings`・`open`・`effort`）。目印の行と run の一覧はスクリプトが読むので、会話に返さない |
 | check-runs（`review_tool` が `claude-code` か `codex` のとき） | 現在の `headRefOid` を ref にした、レビュー用の候補の ID、name、head_sha、app、status、conclusion、started_at、completed_at。1 段目では `output` を返さず、2 段目で候補だけについて `output.title` と `output.summary` を取り出す |
 
 reviews と reviewThreads はページネーションのカーソルが別なので、1 つの `$endCursor` を共用せず、別のクエリでそれぞれ全ページを取得する。

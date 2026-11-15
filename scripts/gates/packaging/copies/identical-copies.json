@@ -111,6 +111,13 @@
     },
     {
       "files": [
+        "skills/pr-review-handle/scripts/claude-review-action.sh",
+        "skills/pr-finalize-loop/scripts/claude-review-action.sh"
+      ],
+      "reason": "review_tool: claude-code-action の目印の読み方と、重ねない依頼の判定。姉妹スキルで食い違うと、片方がレビュー済みとした HEAD をもう片方が依頼し直す"
+    },
+    {
+      "files": [
         "skills/issue-start/references/conventions.md",
         "skills/dependabot-alert-issue/references/conventions.md",
         "skills/pr-review-handle/references/conventions.md",

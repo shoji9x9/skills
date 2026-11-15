@@ -1,4 +1,6 @@
-// .github/workflows/claude-review.yml の段（run の本文）を取り出し、偽の gh で実行して振る舞いを確かめる（Issue #1030）。
+// pr-finalize-loop に同梱したワークフローの雛形（skills/pr-finalize-loop/assets/claude-review.yml）の段（run の本文）を取り出し、
+// 偽の gh で実行して振る舞いを確かめる（Issue #1030）。
+// このリポジトリの .github/workflows/claude-review.yml は、雛形のバイト単位の複製である（下の「雛形と複製の一致」）。
 //
 // このワークフローは、レビューを依頼する側（pr-finalize-loop など）が読む目印のコメントを書く。
 // 目印が誤って残ると、依頼する側はレビューしていない HEAD をレビュー済みとして扱う。
@@ -14,7 +16,19 @@ import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const WORKFLOW = ".github/workflows/claude-review.yml";
+const WORKFLOW = "skills/pr-finalize-loop/assets/claude-review.yml";
+const WIRED = ".github/workflows/claude-review.yml";
+
+// 複製を置くのは、actionlint・ghalint が .github/workflows/** しか見ず、このリポジトリのレビューもこの複製で動くからである。
+// 片方だけを直すと、配布先へ配る雛形と、このリポジトリで確かめた実物が食い違う。
+test("雛形と複製の一致: 雛形とこのリポジトリのワークフローがバイト単位で一致する", () => {
+  const canon = readFileSync(join(repoRoot, WORKFLOW), "utf8");
+  const wired = readFileSync(join(repoRoot, WIRED), "utf8");
+  expect(
+    wired,
+    `雛形と複製がずれている。直した側のファイルを他方へ cp でコピーし、scripts/tools/reinstall-skill.sh pr-finalize-loop を実行する`,
+  ).toBe(canon);
+});
 
 type Step = {
   name?: string;

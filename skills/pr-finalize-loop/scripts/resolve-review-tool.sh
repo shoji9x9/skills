@@ -17,14 +17,14 @@
 # 設定ファイルがあって Node.js が無ければ、書いた設定を警告なしに無視しないように止まる。
 #
 # 出力（key=value の 2 行。パースして使う）:
-#   value=<copilot|claude-code|codex|local|none>
+#   value=<copilot|claude-code|claude-code-action|codex|local|none>
 #   source=<cli|local|user|repo|default>
 #
 # 終了コード: 0=値を決められた / 2=決められない（受け付けない値・設定の誤り・旧い場所の設定・Node.js が無い）/
 # 64=引数が不正。
 set -euo pipefail
 
-ACCEPTED="copilot claude-code codex local none"
+ACCEPTED="copilot claude-code claude-code-action codex local none"
 DEFAULT_TOOL="copilot"
 NAMESPACE="shoji9x9"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

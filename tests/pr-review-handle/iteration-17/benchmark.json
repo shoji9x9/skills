@@ -1,0 +1,76 @@
+{
+  "metadata": {
+    "skill_name": "pr-review-handle",
+    "skill_path": "<repo>/skills/pr-review-handle",
+    "executor_model": "opus",
+    "analyzer_model": "claude-sonnet",
+    "timestamp": "2026-11-14T11:46:45Z",
+    "evals_run": [10],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 10,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 25.648,
+        "tokens": 157247,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "トップレベルの PR コメント（issues/<番号>/comments）を指摘の収集対象として読む方針である",
+          "passed": true,
+          "evidence": "「トップレベルのコメントを、本文を切らずに全部読む」（`issues/6/comments`）"
+        },
+        {
+          "text": "レビュアーが総評・軽微な指摘をトップレベルコメントに置く形を挙げている（スレッド 0 件・reviews[].body 空を根拠に「指摘なし」と結論していない）",
+          "passed": true,
+          "evidence": "`claude-code` が総評と軽い指摘をトップレベルのコメントに置き、`reviews[].body` を空にする形を挙げ、「指摘なしとは言えません」"
+        },
+        {
+          "text": "トップレベルコメントは切り詰めずに全文読む（.body[:200] のような切り詰めた取得を指摘収集に使わない）と述べている",
+          "passed": true,
+          "evidence": "「`body[:60]` のように切った結果を使い回さないでください」。jq は `body` を全文取得"
+        },
+        {
+          "text": "トップレベルコメントの指摘には返信先スレッドが無く resolve もできないため、自分のトップレベルコメントで判断と根拠を返す方針である",
+          "passed": true,
+          "evidence": "「返信先のスレッドがなく、resolve もできません。PR のトップレベルにコメントを 1 件書き」、対象箇所・直したか見送ったか・根拠を残す"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 25.648,
+        "stddev": 0,
+        "min": 25.648,
+        "max": 25.648
+      },
+      "tokens": {
+        "mean": 157247,
+        "stddev": 0,
+        "min": 157247,
+        "max": 157247
+      }
+    }
+  },
+  "notes": [
+    "変更確認（with_skill 1 run）。eval 10（claude-code）を、review-threads.md と SKILL.md の変更を受けて選んだ。比べる記録は iteration-13。下がった assertion は無い。"
+  ]
+}

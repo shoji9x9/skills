@@ -1,0 +1,290 @@
+{
+  "metadata": {
+    "skill_name": "pr-finalize-loop",
+    "skill_path": "<repo>/skills/pr-finalize-loop",
+    "executor_model": "opus",
+    "analyzer_model": "claude-sonnet",
+    "timestamp": "2026-11-14T11:46:45Z",
+    "evals_run": [15, 16, 21, 22, 23],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 15,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 68.353,
+        "tokens": 346979,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "review_tool: claude-code では指摘 0 件のとき reviews[] にレコード自体が作られない形を扱っている",
+          "passed": true,
+          "evidence": "「`claude-code` は指摘が 0 件だと `reviews[]` にレコードを作らず」"
+        },
+        {
+          "text": "現在の headRefOid を commit ref にした check-runs API を使い、レビュー用 check-run の head_sha・status・conclusion・output の趣旨を確認する方針である",
+          "passed": true,
+          "evidence": "「現在の HEAD の check-run」を `commits/<headRefOid>/check-runs` で取得し、`head_sha`・`status`・`conclusion`・`output.title/summary` を確認する"
+        },
+        {
+          "text": "正常完了した現在 HEAD の Claude レビュー用 check-runをレビュー到着証跡として認めている",
+          "passed": true,
+          "evidence": "「現在の HEAD の Claude 用 check-run が正常に完了している」を到着証跡として採用"
+        },
+        {
+          "text": "push 後に作成・更新されたという時刻だけのレビューボットコメントを単独の到着証跡にせず、単独で使うなら本文に現在の完全な headRefOid が必要としている",
+          "passed": true,
+          "evidence": "「SHA が書かれていない…ものは除く」「本文の commit を完全な SHA に解決して `headRefOid` と一致したときだけ、単独の根拠になります」"
+        },
+        {
+          "text": "status: completed だけで合格にせず、失敗・timeout・skip・spend cap と、無関係な check-run を除外している",
+          "passed": true,
+          "evidence": "「`status: completed` だけで判断したもの」を除外。failure・timed_out・skipped・spend cap・無関係な bot（カバレッジなど）も除外"
+        },
+        {
+          "text": "レビュー到着と指摘なしを分け、レビュー本文・トップレベルコメント・check-run 出力に未対応指摘や失敗が無いことも確認してから収束と判定している",
+          "passed": true,
+          "evidence": "到着（条件 1〜3）と、未対応指摘の確認（スレッド・レビュー本文・トップレベルコメント全文・check-run output）を分けて収束を判定"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 16,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 46.174,
+        "tokens": 336565,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Lint の成功はレビュー用 check-run ではないためレビュー到着証跡から除外している",
+          "passed": true,
+          "evidence": "「成功した Lint check | ならない | 通常の CI であり、Claude のレビュー用の check-run ではありません」"
+        },
+        {
+          "text": "旧HEADで開始して現在HEADのpush後に完了・更新されたコメントでも、現在の完全なheadRefOidを本文に含まなければ単独の証拠にしていない",
+          "passed": true,
+          "evidence": "「push より後に完了・更新されたという時刻だけでは根拠にしない」「本文の commit を完全な SHA に解決できない」"
+        },
+        {
+          "text": "working のレビューボットコメントを完了扱いせず、上限付きで完了を待って再評価する方針である",
+          "passed": true,
+          "evidence": "「依頼は出さずに、working のコメントの完了を待ちます。上限は…」"
+        },
+        {
+          "text": "PR 著者自身のコメントをレビュー到着証跡から除外している",
+          "passed": true,
+          "evidence": "「著者自身の『レビュー完了』コメント | ならない」"
+        },
+        {
+          "text": "有効な証跡が無いため現在 HEAD は未レビューと判定し、完了後の再評価または再レビュー依頼へ進む方針である",
+          "passed": true,
+          "evidence": "「現在の HEAD はレビュー済みにできません」。完了後に再評価し、根拠が無ければ `@claude review` で依頼"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 21,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8571,
+        "passed": 6,
+        "failed": 1,
+        "total": 7,
+        "time_seconds": 38.322,
+        "tokens": 86707,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反復の残りが少ないこと（最後の反復であること）を、指摘を見送る理由にしないと述べている",
+          "passed": true,
+          "evidence": "「残りの反復が少ないことは、直さない根拠になりません」"
+        },
+        {
+          "text": "この指摘を直し、スレッドに返信してから解決すると述べている",
+          "passed": true,
+          "evidence": "「直す」「返信してから解決する」の手順（3）"
+        },
+        {
+          "text": "指摘を直さずに見送ってよい根拠を、事実と違う・範囲の外・人の判断が要る・基準で人に回さないと決まって推奨の案で見送った、の 4 つに限ると述べている",
+          "passed": false,
+          "evidence": "「認められる 4 つのどれにも当たりません」とあるが、挙げるのは事実として正しい・範囲の中・人の判断が不要の 3 つだけで、4 つ目（基準で人に回さないと決まって推奨の案で見送った）を述べていない"
+        },
+        {
+          "text": "この指摘は、見送ってよい根拠のどれにも当たらないと述べている",
+          "passed": true,
+          "evidence": "「4 つのどれにも当たりません」（事実として正しい・範囲の中・直し方が 1 つ）"
+        },
+        {
+          "text": "止まった理由を「完了」ではなく「最大反復到達」として報告すると述べている",
+          "passed": true,
+          "evidence": "「止まった理由は『最大反復到達』です」「『完了』にはしません」"
+        },
+        {
+          "text": "直して push した HEAD がレビューを受けていないことを報告に書くと述べている",
+          "passed": true,
+          "evidence": "「止まった時点の HEAD はまだレビューされていないこと」を報告に書く"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行、ファイルの変更、commit、push、GitHub への書き込みはしていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 22,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 59.026,
+        "tokens": 244222,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スレッド A を判断待ちにせず、推奨の案で直すか見送り、選んだ案と根拠を返信に書いて解決すると述べている",
+          "passed": true,
+          "evidence": "スレッド A は「自分で決めて解決する」。推奨の案を選び、選んだ案と根拠を返信し、返信後に解決"
+        },
+        {
+          "text": "スレッド B は直さず解決もせず、判断待ちの印（<!-- pr-finalize-loop:deferred -->）を付けた返信を残すと述べている",
+          "passed": true,
+          "evidence": "スレッド B は「コードは直さず、スレッドも解決しません」。`<!-- pr-finalize-loop:deferred -->` を入れた返信を残す"
+        },
+        {
+          "text": "判断待ちにするかを、利用者への影響の大きさと、merge の後に覆せるかで分けたと述べている",
+          "passed": true,
+          "evidence": "「影響の大きさと後で覆せるか」で分ける（基準 3）。B は利用者の CI を新しく失敗させるので人に回す"
+        },
+        {
+          "text": "5 回の反復の後、effort を medium に下げて 2 回反復すると述べている",
+          "passed": true,
+          "evidence": "「medium の段階（2 回、5 の半分を切り下げ）」"
+        },
+        {
+          "text": "medium の 2 回でも残れば、effort を low に下げて 1 回反復すると述べている",
+          "passed": true,
+          "evidence": "「low の段階に進みます。回数は 2 の半分で 1 回」"
+        },
+        {
+          "text": "low の 1 回でも残れば、それより下げずに最大反復到達で止まると述べている",
+          "passed": true,
+          "evidence": "「これより下の effort は無く…『最大反復到達』で止まります。合計は 8 回」"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行もファイルの変更もせず、説明だけ」。返信・resolve・push は行っていない（読み取りの grep 1 回のみ）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 23,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 41.213,
+        "tokens": 155840,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "wait timer が終わる 10:20 までの待ちを、上限の時間に数えないと述べている",
+          "passed": true,
+          "evidence": "「10:00〜10:20 は正常な wait timer の待ちなので、上限には数えません」"
+        },
+        {
+          "text": "10:35 の時点では止めずに待ち続けると述べている",
+          "passed": true,
+          "evidence": "「10:35 の判断：止めずに待ち続ける」"
+        },
+        {
+          "text": "待つ上限を 30 分とし、10:55 の時点で上限を超えたと判断している",
+          "passed": true,
+          "evidence": "上限は 30 分。10:55 は 10:20 から 35 分で「上限の 30 分を超えています」"
+        },
+        {
+          "text": "10:55 で止まる理由を「行き詰まり」としている",
+          "passed": true,
+          "evidence": "「止まる理由は…『行き詰まり』」"
+        },
+        {
+          "text": "報告に run の ID（7001）・ジョブの名前（deploy）・状態（waiting）・待った時間を書くと述べている",
+          "passed": true,
+          "evidence": "報告に「run ID: 7001」「deploy（id 9001）、状態 waiting」「待った時間 35 分（10:20〜10:55）、初見から 55 分」"
+        },
+        {
+          "text": "報告に environment の名前（production）と reviewers（alice）を書くと述べている",
+          "passed": true,
+          "evidence": "「environment: production」「reviewers: alice」を報告に書く"
+        },
+        {
+          "text": "実行はせず説明に留めている（gh の実行・ファイルの変更を行っていない）",
+          "passed": true,
+          "evidence": "「説明だけを行いました。コマンドの実行、ファイルの変更、GitHub への書き込みはしていません」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9714,
+        "stddev": 0.0639,
+        "min": 0.8571,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 50.6176,
+        "stddev": 12.6947,
+        "min": 38.322,
+        "max": 68.353
+      },
+      "tokens": {
+        "mean": 234062.6,
+        "stddev": 113128.8168,
+        "min": 86707,
+        "max": 346979
+      }
+    }
+  },
+  "notes": [
+    "変更確認（with_skill 1 run）。review_tool の値 claude-code-action の追加で読む文書が変わった既存の eval（15・16・21・22・23）を選んだ。",
+    "比べる記録は eval 15・16・22・23 が iteration-21、eval 21 が iteration-22（どちらも with_skill 1 run、opus）。",
+    "eval 21 の 1 件（見送ってよい根拠を 4 つに限る）が前回 pass から fail になった。1 run どうしの比較なので、回帰かばらつきかを区別できない。3 run の実行を残りの作業に挙げる。"
+  ]
+}

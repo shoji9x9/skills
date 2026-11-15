@@ -172,7 +172,7 @@ for (const script of SCRIPTS) {
     [
       "未知の値",
       '{ "review_tool": "gemini" }',
-      /"gemini" は "copilot"・"claude-code"・"codex"・"local"・"none" のどれでもない/,
+      /"gemini" は "copilot"・"claude-code"・"claude-code-action"・"codex"・"local"・"none" のどれでもない/,
     ],
     ["知らないキー", '{ "review_tol": "codex" }', /知らないキー "review_tol"/],
     ["構文の誤り", '{ "review_tool": "codex" "x": 1 }', /JSONC として読めない/],
@@ -304,7 +304,7 @@ for (const script of SCRIPTS) {
     expect(r.stderr).toMatch(/受理しない review_tool: 'gemini'（出所: cli）/);
   });
 
-  test.each(["copilot", "claude-code", "codex", "local", "none"])(
+  test.each(["copilot", "claude-code", "claude-code-action", "codex", "local", "none"])(
     `${name}: 受理する値 %s を CLI からも設定ファイルからも受け取る`,
     (value) => {
       const s = setup();
@@ -377,7 +377,9 @@ for (const script of SCRIPTS) {
     expect(r.status, r.stderr).toBe(0);
     const out = parse(r.stdout);
     expect(out.source).toBe("repo");
-    expect(["copilot", "claude-code", "codex", "local", "none"]).toContain(out.value);
+    expect(["copilot", "claude-code", "claude-code-action", "codex", "local", "none"]).toContain(
+      out.value,
+    );
   });
 }
 
