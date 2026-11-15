@@ -1,0 +1,203 @@
+{
+  "metadata": {
+    "skill_name": "golden-dataset",
+    "skill_path": "<repo>/skills/golden-dataset",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-15T10:27:45Z",
+    "evals_run": [25, 26],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 25,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 14.742,
+        "tokens": 94252,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "投入ツールの言語を typescript のまま使い続けるとしている（new.stack が Java になったことを理由に Java へ書き直していない）",
+          "passed": true,
+          "evidence": "応答「TypeScript で書きます。既存の seed/ の TypeScript 投入ツールを更新して使い、Java に書き直すことはしません」"
+        },
+        {
+          "text": "使い続ける理由として、言語を変えると既存の投入ツールを書き直すことになり、同じデータを作り直せることを確かめ直す必要が出ることを挙げている",
+          "passed": true,
+          "evidence": "応答「言語を変えると投入ツールを書き直すことになり、同じデータを作り直せることを確かめ直す必要が出るためです」"
+        },
+        {
+          "text": "metadata.json の tool.language が既にあることを、new.stack より先に見る根拠にしている",
+          "passed": true,
+          "evidence": "応答「metadata.json に tool.language があれば、その言語を使い続けます。これがいちばん優先される規則」「new.stack から言語を選ぶのは、tool.language が無いときだけ」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 26,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 29.586,
+        "tokens": 168996,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "new.stack が空なので設定から言語を決められないと判断し、利用者が示した Kotlin を投入ツールの言語にしている（TypeScript や SQL を推測で選んでいない）",
+          "passed": true,
+          "evidence": "応答「言語 Kotlin（ただし、あなたの確認待ちです）」。new.stack が空なので推測で決めず確かめるとし、TypeScript や SQL を推測で選んでいない"
+        },
+        {
+          "text": "確かめた言語（Kotlin）を設定の new.stack に、既存の値を消さずに追記するとしている",
+          "passed": true,
+          "evidence": "応答「new.stack に Kotlin を追記します（既存の値は消しません）」"
+        },
+        {
+          "text": "選んだ言語を .replace/dataset/metadata.json の tool.language に kotlin として記録するとしている",
+          "passed": true,
+          "evidence": "応答「metadata.json の tool.language: \"kotlin\" に書きます」"
+        },
+        {
+          "text": "Kotlin で書くのが難しい場合は SQL（まとめて commit できる形）で書いてよいと示している",
+          "passed": true,
+          "evidence": "応答「Kotlin で書くのが難しければ、代わりに SQL（まとめてコミットできる形）でも構いません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 25,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 15.648,
+        "tokens": 40346,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "投入ツールの言語を typescript のまま使い続けるとしている（new.stack が Java になったことを理由に Java へ書き直していない）",
+          "passed": true,
+          "evidence": "応答「これまでどおり TypeScript で書きます」"
+        },
+        {
+          "text": "使い続ける理由として、言語を変えると既存の投入ツールを書き直すことになり、同じデータを作り直せることを確かめ直す必要が出ることを挙げている",
+          "passed": false,
+          "evidence": "理由は version の継続と、データの変化かツールの作り直しかを見分けられないこと。書き直すと同じデータを作り直せることを確かめ直す必要が出る、という理由は挙げていない"
+        },
+        {
+          "text": "metadata.json の tool.language が既にあることを、new.stack より先に見る根拠にしている",
+          "passed": true,
+          "evidence": "応答「言語を決めているのは tool.language です」「new.stack は…投入するツールの言語を決める設定ではありません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 26,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 29.985,
+        "tokens": 85512,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "new.stack が空なので設定から言語を決められないと判断し、利用者が示した Kotlin を投入ツールの言語にしている（TypeScript や SQL を推測で選んでいない）",
+          "passed": false,
+          "evidence": "応答「Kotlin / Exposed にはしない」。SQL を直接流す形を勧めている"
+        },
+        {
+          "text": "確かめた言語（Kotlin）を設定の new.stack に、既存の値を消さずに追記するとしている",
+          "passed": false,
+          "evidence": "応答「伝聞のまま設定に書かず、担当者に確認してから埋めてください」。自分で new.stack に追記するとは述べていない"
+        },
+        {
+          "text": "選んだ言語を .replace/dataset/metadata.json の tool.language に kotlin として記録するとしている",
+          "passed": false,
+          "evidence": "metadata.json に「投入ツールの種類（SQL 直、と言語）」を入れるとするだけで、tool.language に kotlin と記録するとは述べていない"
+        },
+        {
+          "text": "Kotlin で書くのが難しい場合は SQL（まとめて commit できる形）で書いてよいと示している",
+          "passed": false,
+          "evidence": "SQL を最初の選択として勧めており、Kotlin が難しいときの代わりとして示していない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 22.164,
+        "stddev": 10.4963,
+        "min": 14.742,
+        "max": 29.586
+      },
+      "tokens": {
+        "mean": 131624,
+        "stddev": 52851.9893,
+        "min": 94252,
+        "max": 168996
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.3333,
+        "stddev": 0.4714,
+        "min": 0,
+        "max": 0.6667
+      },
+      "time_seconds": {
+        "mean": 22.8165,
+        "stddev": 10.1378,
+        "min": 15.648,
+        "max": 29.985
+      },
+      "tokens": {
+        "mean": 62929,
+        "stddev": 31937.1849,
+        "min": 40346,
+        "max": 85512
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.67",
+      "time_seconds": "-0.7",
+      "tokens": "+68695"
+    }
+  },
+  "notes": []
+}

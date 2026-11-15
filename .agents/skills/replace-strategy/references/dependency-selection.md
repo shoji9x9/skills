@@ -168,7 +168,7 @@
 | 配布元の素性 | 公式の配布か、第三者による再配布か | `latest` の `repository` / `homepage` を、上流の公式のサイトやリポジトリと突き合わせる |
 | バンドルサイズ | 配布物のサイズ、tree-shaking ができるか | `latest` の `dist.unpackedSize` |
 | 型定義 | 同梱か、`@types/*` か、無いか | `latest` の `types` / `typings`、`@types/<pkg>` があるか |
-| 実行基盤との両立 | 新側の実行ランタイムで動くか（ネイティブのバイナリ・ファイルシステムへの書き込み・Node の標準の API への依存） | `latest` の `engines` / `os` / `cpu` / `scripts.install`（インストールのときにバイナリを取得するか）、上流のランタイムごとのサポート表 |
+| 実行基盤との両立 | 新側の実行ランタイムで動くか（ネイティブのバイナリ・ファイルシステムへの書き込み・実行ランタイムの標準の API への依存） | `latest` の `engines` / `os` / `cpu` / `scripts.install`（インストールのときにバイナリを取得するか）、上流のランタイムごとのサポート表 |
 | 代わりの候補 | 何と比べたか、なぜ採らなかったか | — |
 
 - レジストリの API の一次情報は <https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md> ・ <https://github.com/npm/registry/blob/main/docs/download-counts.md> である。
