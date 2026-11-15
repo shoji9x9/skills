@@ -11,6 +11,7 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isArray } from "../../lib/is-array.ts";
 import { loadYamlAs } from "../../lib/text/yaml-as.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
@@ -32,6 +33,7 @@ test("雛形と複製の一致: 雛形とこのリポジトリのワークフロ
 
 type Step = {
   name?: string;
+  if?: string;
   run?: string;
   env?: Record<string, string>;
   with?: Record<string, string>;
@@ -192,6 +194,34 @@ describe("Resolve target", () => {
     expect(outputs(res.dir)).toMatchObject({ pr: "12", sha: SHA, effort: "medium" });
   });
 
+  test("dry_run は、dispatch の入力が true のときだけ true にし、入力が無い dispatch と pull_request では false にする", () => {
+    expect(outputs(dispatch({ INPUT_DRY_RUN: "true" }).dir).dry_run).toBe("true");
+    expect(outputs(dispatch({ INPUT_DRY_RUN: "false" }).dir).dry_run).toBe("false");
+    expect(outputs(dispatch({}).dir).dry_run).toBe("false");
+    const dir = makeTempDir("claude-review-pr-");
+    const pr = runStep(script, {
+      EVENT_NAME: "pull_request",
+      EVENT_PR: "7",
+      EVENT_SHA: SHA,
+      VAR_EFFORT: "",
+      INPUT_DRY_RUN: "true",
+      PR_JSON: prJson(dir),
+    });
+    expect(outputs(pr.dir).dry_run).toBe("false");
+  });
+
+  test("dry_run でも、dispatch の検査（SHA が PR の HEAD・open）は同じに当てる", () => {
+    const stale = dispatch(
+      { INPUT_DRY_RUN: "true" },
+      { head: { sha: OTHER_SHA, repo: { full_name: "o/r" } } },
+    );
+    expect(stale.status).toBe(1);
+    expect(stale.stdout).toContain("一致しない");
+    const closed = dispatch({ INPUT_DRY_RUN: "true" }, { state: "closed" });
+    expect(closed.status).toBe(1);
+    expect(closed.stdout).toContain("open でない");
+  });
+
   test.each([
     ["SHA が HEAD と違う", { head: { sha: OTHER_SHA, repo: { full_name: "o/r" } } }, "一致しない"],
     ["HEAD が fork", { head: { sha: SHA, repo: { full_name: "fork/r" } } }, "同じリポジトリ"],
@@ -213,6 +243,7 @@ describe("Resolve target", () => {
     ["改行を含む SHA", { INPUT_SHA: `${SHA}\n${SHA}` }],
     ["語彙に無い effort", { INPUT_EFFORT: "ultra" }],
     ["空白を含む effort", { INPUT_EFFORT: "high --tools Bash" }],
+    ["真偽値でない dry_run", { INPUT_DRY_RUN: "yes" }],
   ])("%s は、PR を取得する前に止まる", (_label, inputs) => {
     const res = dispatch(inputs);
     expect(res.status).toBe(1);
@@ -388,6 +419,35 @@ describe("Post review", () => {
     // 検出されることの確認: 同じ形で資格情報が無ければ投稿する。
     const ok = post({ summary: "s", findings: [{ path: "a.ts", line: 1, body: "値は無い" }] });
     expect(ok.status, ok.stderr + ok.stdout).toBe(0);
+  });
+
+  test("dry_run では、PR に何も書かず（目印も書かない）、検査を通った結果をファイルに残す", () => {
+    const result = {
+      summary: "s",
+      findings: [{ path: "a.ts", line: 3, body: "行の指摘" }, { body: "全体の指摘" }],
+    };
+    const res = post(result, { DRY_RUN: "true" });
+    expect(res.status, res.stderr + res.stdout).toBe(0);
+    expect(read(res.dir, "gh.log")).toBe("");
+    expect(existsSync(join(res.dir, "comment.md"))).toBe(false);
+    const saved: unknown = JSON.parse(read(res.dir, "claude-review-result/review-result.json"));
+    expect(saved).toEqual(result);
+    expect(outputs(res.dir)).toMatchObject({ findings: "2" });
+    // 検出されることの確認: DRY_RUN が false なら、同じ結果を投稿する。
+    const posted = post(result, { DRY_RUN: "false" });
+    expect(posted.status, posted.stderr + posted.stdout).toBe(0);
+    expect(read(posted.dir, "comment.md").split("\n")[0]).toBe(marker(2, 1));
+    expect(existsSync(join(posted.dir, "claude-review-result"))).toBe(false);
+  });
+
+  test("dry_run でも、結果に資格情報があれば、ファイルに残さずに失敗する", () => {
+    const res = post(
+      { summary: "s", findings: [{ body: "値は oauth-value-xyz" }] },
+      { DRY_RUN: "true" },
+    );
+    expect(res.status).toBe(1);
+    expect(existsSync(join(res.dir, "claude-review-result"))).toBe(false);
+    expect(read(res.dir, "gh.log")).toBe("");
   });
 
   test("実行記録に result が複数あれば最後のものを使い、オブジェクトでない要素は読み飛ばす", () => {
@@ -840,5 +900,285 @@ describe("Run Claude Code の claude_args", () => {
     expect(args).toContain('--tools "Read,Grep,Glob"');
     expect(args).toContain("--permission-mode default");
     expect(args).toMatch(/--disallowed-tools "[^"]*Read\(\.\/\.git\/\*\*\)[^"]*"/);
+  });
+});
+
+// GitHub Actions の式を、job の if が使う構文（文字列・文脈の参照・`!`・`&&`・`||`・`==`・`!=`・括弧・contains・fromJSON・
+// format）だけ評価する。規則は公式の文書の「Operators」と「Functions」に従う。
+//   https://docs.github.com/en/actions/reference/workflows-and-actions/expressions
+// - 型の違う値の比較は数値に変換する（null・空文字は 0、真偽値は 1 と 0、JSON の数でない文字列は NaN）。文字列どうしは大文字と小文字を区別しない。
+// - && と || は、評価した値をそのまま返す。偽になるのは false・0・空文字・null・NaN である。
+// - contains の search が配列なら、要素と item を上の比較で比べる。未設定の変数を null とすると、配布元で実際に
+//   job を飛ばした run（未設定の変数を contains にそのまま渡した式）と同じ結果になる。
+// - 文脈に無い参照は失敗にする。テストの文脈に足し忘れた参照を null として評価すると、条件を足しても結果が変わらない
+//   ことがあり、足した条件を確かめないまま通る。未設定の変数は、文脈に null を置いて表す。
+type GhaValue = string | number | boolean | null | GhaValue[];
+type GhaCtx = Record<string, GhaValue>;
+const toNumber = (v: GhaValue): number => {
+  if (v === null) return 0;
+  if (typeof v === "boolean") return v ? 1 : 0;
+  if (typeof v === "number") return v;
+  if (isArray(v)) return Number.NaN;
+  if (v === "") return 0;
+  return /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(v.trim()) ? Number(v) : Number.NaN;
+};
+const looseEq = (a: GhaValue, b: GhaValue): boolean => {
+  if (typeof a === "string" && typeof b === "string") return a.toLowerCase() === b.toLowerCase();
+  if (isArray(a) || isArray(b)) return a === b;
+  if (typeof a === typeof b) return a === b;
+  return toNumber(a) === toNumber(b);
+};
+const isTruthy = (v: GhaValue): boolean =>
+  !(
+    v === false ||
+    v === null ||
+    v === "" ||
+    (typeof v === "number" && (v === 0 || Number.isNaN(v)))
+  );
+const toStr = (v: GhaValue): string => (v === null ? "" : isArray(v) ? "Array" : String(v));
+
+function toGhaValue(x: unknown): GhaValue {
+  if (x === null || typeof x === "string" || typeof x === "number" || typeof x === "boolean") {
+    return x;
+  }
+  if (isArray(x)) return x.map(toGhaValue);
+  throw new Error(`評価できない JSON の値: ${JSON.stringify(x)}`);
+}
+
+// format は、このワークフローが使う {0} だけを置き換える。
+function callGhaFunction(name: string, args: GhaValue[]): GhaValue {
+  const [a = null, b = null] = args;
+  if (name === "fromJSON") return toGhaValue(JSON.parse(toStr(a)));
+  if (name === "format") return toStr(a).replaceAll("{0}", () => toStr(b));
+  if (name === "contains") {
+    return isArray(a)
+      ? a.some((e) => looseEq(e, b))
+      : toStr(a).toLowerCase().includes(toStr(b).toLowerCase());
+  }
+  throw new Error(`評価できない関数: ${name}`);
+}
+
+type GhaCursor = { tokens: string[]; i: number; ctx: GhaCtx };
+const ghaPeek = (c: GhaCursor): string | undefined => c.tokens[c.i];
+function ghaTake(c: GhaCursor, expected?: string): string {
+  const tok = c.tokens[c.i++];
+  if (expected !== undefined) expect(tok, `式の構文: ${expected} を期待した`).toBe(expected);
+  return tok ?? "";
+}
+
+function ghaArgs(c: GhaCursor): GhaValue[] {
+  ghaTake(c, "(");
+  const args: GhaValue[] = [];
+  while (ghaPeek(c) !== ")") {
+    args.push(ghaOr(c));
+    if (ghaPeek(c) !== ")") ghaTake(c, ",");
+  }
+  ghaTake(c, ")");
+  return args;
+}
+
+function ghaPrimary(c: GhaCursor): GhaValue {
+  const tok = ghaTake(c);
+  if (tok === "(") {
+    const v = ghaOr(c);
+    ghaTake(c, ")");
+    return v;
+  }
+  if (tok.startsWith("'")) return tok.slice(1, -1).replaceAll("''", "'");
+  if (tok === "true" || tok === "false") return tok === "true";
+  if (tok === "null") return null;
+  if (ghaPeek(c) === "(") return callGhaFunction(tok, ghaArgs(c));
+  expect(tok, "評価できない項").toMatch(/^[a-z_][\w.-]*$/);
+  expect(Object.hasOwn(c.ctx, tok), `文脈に無い参照: ${tok}`).toBe(true);
+  return c.ctx[tok] ?? null;
+}
+
+function ghaUnary(c: GhaCursor): GhaValue {
+  if (ghaPeek(c) !== "!") return ghaPrimary(c);
+  ghaTake(c, "!");
+  return !isTruthy(ghaUnary(c));
+}
+
+function ghaEq(c: GhaCursor): GhaValue {
+  const left = ghaUnary(c);
+  const op = ghaPeek(c);
+  if (op !== "==" && op !== "!=") return left;
+  ghaTake(c, op);
+  const same = looseEq(left, ghaUnary(c));
+  return op === "==" ? same : !same;
+}
+
+function ghaAnd(c: GhaCursor): GhaValue {
+  let v = ghaEq(c);
+  while (ghaPeek(c) === "&&") {
+    ghaTake(c, "&&");
+    const r = ghaEq(c);
+    v = isTruthy(v) ? r : v;
+  }
+  return v;
+}
+
+function ghaOr(c: GhaCursor): GhaValue {
+  let v = ghaAnd(c);
+  while (ghaPeek(c) === "||") {
+    ghaTake(c, "||");
+    const r = ghaAnd(c);
+    v = isTruthy(v) ? v : r;
+  }
+  return v;
+}
+
+function evalGha(expr: string, ctx: GhaCtx): GhaValue {
+  const tokens = expr.match(/'(?:[^']|'')*'|&&|\|\||==|!=|[!(),]|[A-Za-z_][\w.-]*|\S/g) ?? [];
+  const c: GhaCursor = { tokens, i: 0, ctx };
+  const value = ghaOr(c);
+  expect(c.i, `式を最後まで読めない: ${expr}`).toBe(tokens.length);
+  return value;
+}
+
+// CLAUDE_REVIEW_AUTO を切ったときは、pull_request の job を飛ばし、run を skipped で終える。依頼する側は skipped の run を
+// 数えないので、HEAD を未レビューとして workflow_dispatch で依頼できる（claude-review-action.test.ts の request のテスト）。
+// 段の中で止めると run が成功で終わり、依頼する側は「一時停止」として依頼しなくなるので、job の if で止める。
+describe("自動のレビューの切り替え（CLAUDE_REVIEW_AUTO）", () => {
+  const raw = loadYamlAs<{ jobs: { review: { if: string } } }>(
+    readFileSync(join(repoRoot, WORKFLOW), "utf8"),
+  );
+  const cond = raw.jobs.review.if;
+  // 最初の || より前が workflow_dispatch の側、後ろの括弧の中が pull_request の側である。
+  const dispatchPrefix = "github.event_name == 'workflow_dispatch' || (";
+
+  test("workflow_dispatch の側は、変数を読まない", () => {
+    expect(cond.startsWith(dispatchPrefix)).toBe(true);
+    expect(cond.endsWith(")")).toBe(true);
+  });
+
+  // 未設定の値が null か空文字かを確かめきれていないので、式は 2 つの守りを両方持つ（雛形のコメント）。
+  // 下の評価の関数の規則では片方だけでも未設定を扱えるので、片方を消しても評価のテストは落ちない。両方があることをここで固定する。
+  test("空でないことの確認と、format で文字列にしてからの比較を、両方持つ", () => {
+    expect(cond).toContain("vars.CLAUDE_REVIEW_AUTO != ''");
+    expect(cond).toContain("format('{0}', vars.CLAUDE_REVIEW_AUTO)");
+  });
+
+  // 以前のテストは式の字面だけを見ていたので、未設定（null）の変数が '0' と等しいと判定されて job を飛ばす誤りを
+  // 検出できなかった。ここでは、GitHub の式の規則（下の evalGha）で job の if を評価し、値ごとの結果を固定する。
+  const prCtx = (auto: string | null): GhaCtx => ({
+    "github.event_name": "pull_request",
+    "github.event.pull_request.draft": false,
+    "github.event.pull_request.head.repo.full_name": "o/r",
+    "github.repository": "o/r",
+    "github.event.pull_request.user.login": "someone",
+    "github.actor": "someone",
+    "vars.CLAUDE_REVIEW_AUTO": auto,
+  });
+  test.each<[string, string | null, boolean]>([
+    ["未設定（null）", null, true],
+    ["空文字", "", true],
+    ["off", "off", false],
+    ["OFF", "OFF", false],
+    ["0", "0", false],
+    ["false", "false", false],
+    ["no", "no", false],
+    ["on", "on", true],
+    ["1", "1", true],
+    ["true", "true", true],
+    ["前後に空白のある off", " off ", true],
+  ])("pull_request で変数が %s のときに job を実行するかを固定する", (_label, auto, runs) => {
+    expect(isTruthy(evalGha(cond, prCtx(auto)))).toBe(runs);
+  });
+
+  test("workflow_dispatch は、変数が切る値でも job を実行する", () => {
+    expect(
+      isTruthy(evalGha(cond, { ...prCtx("off"), "github.event_name": "workflow_dispatch" })),
+    ).toBe(true);
+  });
+
+  test("検出されることの確認: 変数を contains にそのまま渡す式は、未設定（null）で job を飛ばす", () => {
+    const naive = `github.event_name == 'workflow_dispatch' || (!contains(fromJSON('["off","false","no","0"]'), vars.CLAUDE_REVIEW_AUTO))`;
+    expect(isTruthy(evalGha(naive, prCtx(null)))).toBe(false);
+  });
+
+  test("段の中（一時停止の段）では、CLAUDE_REVIEW_AUTO を読まない", () => {
+    expect(JSON.stringify(doc.jobs.review.steps)).not.toContain("CLAUDE_REVIEW_AUTO");
+  });
+});
+
+// 依頼する側（claude-review-action.sh）は、run-name が「Claude review PR #<番号> <SHA>」と一致する run を HEAD の run として数える。
+// dry_run の run がこの形だと、目印の無い成功した run として「一時停止した回」に数えられ、その HEAD の依頼が止まる。
+describe("dry_run の run の見分け", () => {
+  const raw = loadYamlAs<{ "run-name": string; concurrency: { group: string } }>(
+    readFileSync(join(repoRoot, WORKFLOW), "utf8"),
+  );
+  const action = readFileSync(
+    join(repoRoot, "skills/pr-finalize-loop/scripts/claude-review-action.sh"),
+    "utf8",
+  );
+
+  // 式は、このワークフローが使う形（`a || b` と `a && 'x' || 'y'`）だけを GitHub の評価の規則で評価する。
+  // 値が falsy（undefined・false・空文字）なら次の項に進み、最後の項の値を返す。
+  type Ctx = Record<string, string | boolean | undefined>;
+  const operand = (term: string, ctx: Ctx): string | boolean | undefined => {
+    const t = term.trim();
+    const lit = /^'([^']*)'$/.exec(t);
+    if (lit) return lit[1];
+    expect(t, "評価できない項").toMatch(/^[a-z_.]+$/);
+    return ctx[t];
+  };
+  const evaluate = (expr: string, ctx: Ctx): string => {
+    let value: string | boolean | undefined;
+    for (const alt of expr.split("||")) {
+      const [cond, then] = alt.split("&&");
+      value =
+        then === undefined
+          ? operand(cond ?? "", ctx)
+          : operand(cond ?? "", ctx) && operand(then, ctx);
+      if (value) break;
+    }
+    return value ? String(value) : "";
+  };
+  const render = (template: string, ctx: Ctx) =>
+    template.replace(/\$\{\{(.*?)\}\}/g, (_m, expr: string) => evaluate(expr, ctx));
+
+  const PR = "12";
+  const pullRequest: Ctx = {
+    "github.workflow": "Claude review",
+    "github.event_name": "pull_request",
+    "github.event.pull_request.number": PR,
+    "github.event.pull_request.head.sha": SHA,
+  };
+  const dispatch = (dryRun: boolean): Ctx => ({
+    "github.workflow": "Claude review",
+    "github.event_name": "workflow_dispatch",
+    "inputs.pr": PR,
+    "inputs.sha": SHA,
+    "inputs.dry_run": dryRun,
+  });
+  // 依頼する側が探す run-name。claude-review-action.sh の title の形に、番号と SHA を入れたもの。
+  const counted = `Claude review PR #${PR} ${SHA}`;
+
+  test("run-name は、dry_run でない run では依頼する側が数える形と全体で一致し、dry_run の run では一致しない", () => {
+    expect(action).toContain('title="Claude review PR #${number} ${head}"');
+    expect(render(raw["run-name"], pullRequest)).toBe(counted);
+    expect(render(raw["run-name"], dispatch(false))).toBe(counted);
+    expect(render(raw["run-name"], dispatch(true))).toBe(
+      `Claude review (dry run) PR #${PR} ${SHA}`,
+    );
+  });
+
+  test("concurrency の group は、dry_run の run だけを分け、ほかの run は dry_run を足す前と同じ group にする", () => {
+    expect(render(raw.concurrency.group, pullRequest)).toBe(`Claude review-pull_request-${PR}`);
+    expect(render(raw.concurrency.group, dispatch(false))).toBe(
+      `Claude review-workflow_dispatch-${PR}`,
+    );
+    expect(render(raw.concurrency.group, dispatch(true))).toBe(
+      `Claude review-workflow_dispatch-dry-run-${PR}`,
+    );
+  });
+
+  test("dry_run の結果を残す段は、Post review が成功し dry_run のときだけ動き、再実行では前の試行の結果を上書きする", () => {
+    const upload = step("Upload dry-run result");
+    expect(upload.if).toBe(
+      "steps.post.outcome == 'success' && steps.target.outputs.dry_run == 'true'",
+    );
+    expect(upload.with?.overwrite).toBe(true);
   });
 });

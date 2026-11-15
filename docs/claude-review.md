@@ -8,7 +8,7 @@
 
 | イベント | 対象 | effort |
 | --- | --- | --- |
-| `pull_request`（`opened`・`synchronize`・`ready_for_review`・`reopened`） | 同じリポジトリのブランチの PR。draft・fork・Dependabot の PR は除く | リポジトリ変数 `CLAUDE_REVIEW_EFFORT`。無ければ `high` |
+| `pull_request`（`opened`・`synchronize`・`ready_for_review`・`reopened`） | 同じリポジトリのブランチの PR。draft・fork・Dependabot の PR は除く。リポジトリ変数 `CLAUDE_REVIEW_AUTO` で自動のレビューを切ったときも除く | リポジトリ変数 `CLAUDE_REVIEW_EFFORT`。無ければ `high` |
 | `workflow_dispatch` | 入力の `pr` の PR。入力の `sha` が PR の今の HEAD と一致し、HEAD が同じリポジトリのブランチで、PR が open で、Dependabot の PR でないときだけ | 入力の `effort`。空なら `pull_request` と同じ |
 
 `workflow_dispatch` は、push せずに返信だけをしたときなど、同じ HEAD をもう一度レビューさせるときに使う。書き込み権限を持つ人だけが起動できる。
@@ -20,6 +20,28 @@ gh workflow run claude-review.yml -f pr=<番号> -f sha="$sha" -f effort=medium
 
 スキル（`pr-finalize-loop`・`pr-review-handle`）を `review_tool: claude-code-action` で使うときは、同梱のスクリプト `claude-review-action.sh` の `request` で依頼する。
 `request` は、同じ HEAD の run が進行中か済んでいれば依頼しない。手順は `pr-finalize-loop` の [`references/review-tool.md`](../skills/pr-finalize-loop/references/review-tool.md)「claude-code-action」にある。
+
+### 投稿しない実行（`dry_run`）
+
+プロンプトや設定を変える前後で、同じ commit の指摘を比べるときは、`-f dry_run=true` を付けて起動する。
+変えたプロンプトを試すには、変えたブランチを `--ref` に渡す。
+エージェントへの入力は、commit に加えて、起動した時点の PR のスレッド・コメント・前回の目印（`since.diff` を作るか）で決まる。
+前後の比較は、その間にスレッドとコメントが変わらない PR（下の測定用の draft PR など）で行う。
+
+```bash
+gh workflow run claude-review.yml --ref <プロンプトを変えたブランチ> -f pr=<番号> -f sha="$sha" -f effort=high -f dry_run=true
+```
+
+- PR には何も書かず、目印も書かない。投稿の前と同じ資格情報の検査を通した結果（structured output）を、artifact `claude-review-result` に残す（30 日）。
+- run-name の先頭は `Claude review (dry run)` になる。`claude-review-action.sh` の `check` は run-name が `Claude review PR #<番号> <SHA>` の run だけを数えるので、`dry_run` の run は HEAD のレビューの判定に入らない。
+- `concurrency` の group も分けるので、`dry_run` の run は投稿するレビューを取り消さない。同じ PR の `dry_run` の run どうしは取り消し合うので、1 回ずつ終わるのを待ってから起動する。
+- 対象の検査（PR が open で、入力の SHA が PR の今の HEAD）は、`dry_run` でも同じに当てる。merge 済みの PR の commit を測るには、その commit と当時の base を指す一時ブランチで draft PR を作る。
+  base を一時ブランチにした draft PR は、CI の対象（base が `main` の PR）に入らない。このワークフローの `pull_request` の run は作られるが、job は draft を除く条件で skipped になる。
+- リポジトリ変数 `CLAUDE_REVIEW_SKIP` で一時停止している間は、`dry_run` の run もエージェントを起動せずに成功で終わり、artifact `claude-review-result` を残さない。
+- `dry_run` の run も、使用量を artifact `agent-usage-review-claude` に残す。配布スキル `agent-usage` の collect は、それを対象の PR のレビューの費用として数えるので、測定の費用がレビューの費用に含まれる。
+- job `Review` の check-run は、`--ref` に渡したブランチの HEAD の commit に付く。そのブランチの PR の checks に現れるので、測定の run が失敗すると、その PR の checks も失敗に見える。測定の run の失敗は、その PR の CI の失敗として扱わない。
+- 同じ run を再実行すると、artifact `claude-review-result` は新しい試行の結果で上書きされる（`overwrite`）。前の試行の結果は残らない。
+  使用量の artifact `agent-usage-review-claude` は上書きせず、最初の試行のものが残る。指摘の件数と費用を同じ試行で比べるときは、再実行せずに新しい run を起動する。
 
 `workflow_dispatch` は、ワークフローがデフォルトブランチに入るまで起動できない（GitHub の仕様）。
 コメントで起動する `issue_comment` は使わない。secret のある job を、PR のコメントから誰でも動かせてしまうからである。
@@ -40,12 +62,14 @@ gh workflow run claude-review.yml -f pr=<番号> -f sha="$sha" -f effort=medium
 - `open` は、行に付けずに総評に書いた指摘の件数である。行の指摘はスレッドの解決で追えるが、総評の指摘は追えないので分けて数える。
   手元のレビューの記録（配布スキル `pr-finalize-loop` の `local-review-record.sh`）の `open` と同じ考え方である。
 - レビューが失敗・時間切れ・取り消しになった回は、目印を書かない。HEAD の SHA と一致する目印が無ければ、その HEAD はレビューし終えていない。
-- 目印を書かない回は、ほかに 2 つある。`CLAUDE_REVIEW_SKIP` で一時停止した回は、run が成功で終わり、Summary に一時停止と書く。
-  対象外の PR（draft など）で job を飛ばした回は、run と job の conclusion が `skipped` になる。目印を待つ側は、run の conclusion と Summary でこの 2 つを見分ける。
+- 目印を書かない回は、ほかに 2 種類ある。`CLAUDE_REVIEW_SKIP` で一時停止した回は、run が成功で終わり、Summary に一時停止と書く。
+  job を飛ばした回は、run と job の conclusion が `skipped` になる。対象外の PR（draft など）の回と、`CLAUDE_REVIEW_AUTO` で自動のレビューを切った `pull_request` の回がこれに当たり、この 2 つは見分けられない。
+  目印を待つ側は、run の conclusion と Summary で、一時停止の回と `skipped` の回を見分ける。
+  `claude-review-action.sh` の `check` は `skipped` の run を状態の判定に数えない（出力の `runs` には含む）ので、その HEAD は未レビューとして依頼できる。一時停止の回は成功で終わるので、`check` は `paused` を返して依頼しない。
 - 目印は、`github-actions[bot]` が書いたコメントの 1 行目だけを読む。人が同じ形を書いたコメントと、総評の本文の中の同じ形は、目印として扱わない。
 - run の一覧では、`run-name` の `Claude review PR #<番号> <SHA>` で、どの PR のどの commit の run かを見分ける。
 
-check-run（名前 `Review`）は、`workflow_dispatch` の run ではデフォルトブランチの commit に付く。PR の HEAD をレビューしたかの判定には使わない。
+check-run（名前 `Review`）は、`workflow_dispatch` の run では起動した ref の HEAD の commit に付く（`--ref` を省くとデフォルトブランチ）。PR の HEAD をレビューしたかの判定には使わない。
 
 ## 2 回目からのレビュー
 
@@ -58,6 +82,32 @@ check-run（名前 `Review`）は、`workflow_dispatch` の run ではデフォ�
 
 プロンプトは、解決済みの指摘と、作成者が理由を添えて直さないと返信した指摘を、新しい根拠なしに出し直さないよう指示する。
 公式のプラグイン（`/code-review:code-review`）は使わない。Claude が既にコメントした PR ではレビューを止める手順を持つので、2 回目からのレビューが飛ばされうるからである。
+`anthropics/claude-plugins-official` の `plugins/code-review` の手順を読んで確かめた範囲では、テストの不足を観点に挙げず、バグを探す担当が差分の外を読まない。Bash と書き込みの権限も要る。
+
+## レビューの観点と手順
+
+プロンプトの原本は、ワークフローの `Run Claude Code` の段の `prompt` である。手元の `/code-review` が挙げ、このワークフローが挙げ損ねた誤りの分類から、次の観点と手順を置いている。
+
+- 観点: 不具合・セキュリティ・規約との食い違いに加えて、次の 4 つを挙げる。文書・コメントと実装の食い違い（文書どうしを含む）・条件や入力の状態の抜け・記録の項目の抜け・テストが固定していない分岐である。
+- 差分の外: 差分で変えた名前・見出し・設定のキー・取り決めの語を Grep で検索し、それを参照する他のファイル（文書・テスト・設定）を読む。
+- 確かめ: 指摘の候補ごとに、根拠のファイルと行を開いて確かめてから出す。項目やテストが無いことの指摘は、それを求める記述の行と、探した範囲を根拠にする。
+
+エージェントのツールは、作業ツリーの中を読むこと（`Read`・`Grep`・`Glob`）だけに限ったままである。差分の外を読む手順のために、Bash やサブエージェントは与えない。
+
+## レビューの使い分け
+
+このワークフローのレビューは、上の観点と手順を置いても、手元の `/code-review` が挙げる誤りの多くを挙げられない。
+観点と手順を足したときの測定では、手元のレビューが挙げて作成者が直した誤り 14 件のうち、1 回の run が挙げたのは平均 2.0 件だった。
+
+そのため、次のように使い分ける。
+
+- push の前のレビューは、[`security-scanning.md`](security-scanning.md)「push の前のレビュー」の手順（手元の `/code-review` と `/security-review`）で行う。
+- PR でのレビューは、PR の内容に応じて、このワークフロー（`claude-code-action`）・`local`（手元の `/code-review --comment`）・Copilot を使い分ける。
+  どれを使うかは、`pr-finalize-loop` の `review_tool`（設定ファイルか、その実行だけなら `--review-tool`）で決める。
+- このワークフローのレビューは、`review_tool` が `claude-code-action` のときだけ実行する。
+  このリポジトリは、リポジトリ変数 `CLAUDE_REVIEW_AUTO` を `off` にして `pull_request` の自動のレビューを切る方針とし、`pr-finalize-loop` の依頼（`claude-review-action.sh` の `request`）でだけ起動する。変数が未設定の間は、自動でレビューする。
+  リポジトリの層の設定（`common.jsonc`）の `review_tool` は `claude-code-action` でないので、このワークフローは、`--review-tool claude-code-action` か、人ごとの層の設定で選んだ実行でだけ動く。
+- 目安として、文書・スクリプト・テストにまたがる取り決めを変える PR は、`local` か Copilot のレビューを使う。このワークフローが挙げ損ねた誤りの多くが、その種類だったからである。
 
 ## リポジトリ変数
 
@@ -66,11 +116,15 @@ check-run（名前 `Review`）は、`workflow_dispatch` の run ではデフォ�
 | 名前 | 値 | 未設定のとき |
 | --- | --- | --- |
 | `CLAUDE_REVIEW_SKIP` | `on`・`true`・`yes`・`1` のどれかなら、レビューを一時停止する | レビューする |
+| `CLAUDE_REVIEW_AUTO` | `off`・`false`・`no`・`0` のどれか（大文字と小文字を区別しない）なら、`pull_request` の自動のレビューをしない。前後の空白は取り除かないので、` off ` は切る値にならない。`workflow_dispatch` の依頼はレビューする | 自動でレビューする |
 | `CLAUDE_REVIEW_EFFORT` | `pull_request` のレビューの effort（`low`・`medium`・`high`・`xhigh`・`max`） | `high` |
 | `CLAUDE_REVIEW_MODEL` | エージェントのモデル（例: `opus`） | `claude-code-action` のデフォルトのモデル |
 | `CLAUDE_REVIEW_MAX_TURNS` | エージェントの往復の上限（1〜999） | 60 |
 
 値の形が違うと、job はエージェントを起動せずに失敗する。値は `claude_args` に入るので、別の引数を足せる形（空白・引用符）を受け付けない。
+
+effort は、`claude_args` の `--effort` で Claude Code に渡す。`claude-code-action` は、`claude_args` のうち自分で扱わない引数を SDK にそのまま渡す（action の `base-action/src/parse-sdk-options.ts`）。
+effort がエージェントの振る舞いに反映されたことは、run のログでは確かめられない。ワークフローが `show_full_output` を有効にしないので、ログにはエージェントの設定もツールの呼び出しも出ない。
 
 資格情報は、週次のワークフローと同じ secret の `CLAUDE_CODE_OAUTH_TOKEN` を使う。
 
@@ -85,7 +139,9 @@ check-run（名前 `Review`）は、`workflow_dispatch` の run ではデフォ�
 - `--max-turns`（`CLAUDE_REVIEW_MAX_TURNS`）で往復の回数を限る。上限に達した回は失敗として扱い、目印を書かない。
 - 同じ PR の古い HEAD のレビューは取り消す。
 
-1 回の使用量は、artifact `agent-usage-review-claude` に残す（90 日）。中身は、最後の result のうち数値の項目とモデルの名前だけである。
+1 回のレビューの目安は、所要 5 分以内・費用 1 USD 相当以内である。プロンプトや上限を変えたら、`dry_run` で同じ commit を変更の前後に測り、指摘の件数とあわせてこの目安に収まるかを確かめる。
+
+1 回の使用量は、artifact `agent-usage-review-claude` に残す（90 日）。中身は、最後の result のうち数値の項目とモデルの名前だけである。`dry_run` の run も残す（「投稿しない実行（`dry_run`）」）。
 形は配布スキル `agent-usage` の collect が読む形（`claude-execution-output.json` と `meta.json`）に合わせている。
 所要時間・往復の回数・費用の見積もりは、run の Summary にも出す。同じ run を再実行すると、同じ名前の artifact を上げられないので、前の試行の使用量だけが残る。
 
