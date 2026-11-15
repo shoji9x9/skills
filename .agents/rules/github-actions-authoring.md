@@ -31,6 +31,8 @@ applyTo: ".github/workflows/**"
 
 - 使えるツールは、拒否の一覧（`--disallowed-tools`）ではなく `--tools` で限る。拒否の一覧は、エージェントがツールを足すたびに抜けが出る。
 - 読む・書くツールはパスの規則で限る（`Read(./**)`・`Grep(./**)`・`Glob(./**)` と、結果のファイルへの `Edit(./<file>)`）。Claude Code では `Edit(<path>)` の規則が Write にも当たり、`Write(<path>)` の形の規則は当たらない。
+- `claude_args` に `--permission-mode default` を渡す。`claude-code-action` は v1.0.273 から auto mode をデフォルトにし、許可の規則に無い呼び出しを安全性の判定で通しうる。
+  Bash の許可の規則は、引数まで決めたコマンドで書く。`*` を使うと、引数に任意のパスを渡せる。
 - `claude-code-action` は agent モードで、エージェントを起動する前に `github_token` を作業ツリーの `.git/config`（remote の URL）に書く。checkout の `persist-credentials: false` はこれを防がない。
   `Read(./**)` を許可するなら、`--disallowed-tools` に `Read(./.git/**)` を入れる。この規則は Read に加えて Grep と Glob にも当たり、`.git` の中を指すシンボリックリンクとサブエージェントの読み取りも止める。
   Claude Code 2.1.325 の `claude -p` で、絶対パスでの読み取りも含めて確かめた。`Glob(./.git/**)` の形の拒否の規則は、Glob にも当たらなかった。

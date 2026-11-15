@@ -67,6 +67,46 @@ describe("エージェントに .git/ を読ませない", () => {
       }
     }
   });
+
+  // 権限のモードを渡さないと action のデフォルトになる。auto mode をデフォルトにしたバージョンの action では、
+  // 許可の規則に無い呼び出しを安全性の判定で通しうる。bypassPermissions・acceptEdits も同じく通しうる。
+  test.each(WORKFLOWS)("%s の Claude Code の段は、権限のモードに default だけを渡す", (path) => {
+    const found = claudeSteps(path);
+    expect(found.length, `${path} に Claude Code の段が無い`).toBeGreaterThan(0);
+    for (const step of found) {
+      const args = withString(step, "claude_args");
+      // `--permission-mode=<mode>` の形も CLI は受け付けるので、空白と `=` の両方で値を取る。
+      const modes = [...args.matchAll(/--permission-mode(?:=|\s+)(\S+)/g)].map((m) => m[1]);
+      expect(modes, `${path} の --permission-mode`).toStrictEqual(["default"]);
+      expect(args, path).not.toContain("dangerously-skip-permissions");
+    }
+  });
+});
+
+// 検証スクリプトは引数のファイルを読み、エラーのメッセージに値を含める。引数を出力のディレクトリの記録に限る。
+describe("security-audit.yml は、検証スクリプトの引数を出力のディレクトリの記録に限る", () => {
+  const PATH = ".github/workflows/security-audit.yml";
+  const OUT = "${{ steps.settings.outputs.runs_dir }}/run-${{ steps.restore.outputs.next }}";
+  const SKILL = "${{ steps.settings.outputs.skill_dir }}";
+  const expected = [
+    `Bash(node ${SKILL}/validate-findings.cjs ${OUT}/findings.json)`,
+    `Bash(node ${SKILL}/validate-coverage-ledger.cjs ${OUT}/coverage-ledger.json)`,
+  ];
+
+  test("Bash の許可の規則は、2 つの記録を検証するコマンドだけで、ワイルドカードを含まない", () => {
+    const [step] = claudeSteps(PATH);
+    const allowed = optionValues(withString(step, "claude_args"), "--allowed-tools");
+    expect(allowed).toHaveLength(1);
+    const bash = (allowed[0] ?? "").split(",").filter((r) => r.startsWith("Bash"));
+    expect(bash).toStrictEqual(expected);
+  });
+
+  test("prompt は、許可の規則と同じコマンドを示す", () => {
+    const prompt = withString(claudeSteps(PATH)[0], "prompt");
+    for (const rule of expected) {
+      expect(prompt).toContain(`- ${rule.slice("Bash(".length, -1)}\n`);
+    }
+  });
 });
 
 // security-audit.yml の上流のスキルは、監査した commit を記録する。.git/HEAD を読ませない代わりに、ワークフローが渡す。
