@@ -1,0 +1,213 @@
+{
+  "metadata": {
+    "skill_name": "golden-dataset",
+    "skill_path": "<repo>/skills/golden-dataset",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-15T10:45:43Z",
+    "evals_run": [24, 26],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 24,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 55.146,
+        "tokens": 202838,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "new.stack が空なので投入ツールの言語を推測で決めず（TypeScript や SQL を勝手に選ばず）、判断待ちとして扱っている",
+          "passed": true,
+          "evidence": "応答「推測せず利用者に確かめる」「--autonomous では、これは判断待ちの保留になります」「新側の言語を勝手に選ぶことも、とりあえず SQL にすることもしません」"
+        },
+        {
+          "text": "判断待ちを .replace/dataset/pending-decisions.json に保留として記録すると述べている（metadata.json には書かない）",
+          "passed": true,
+          "evidence": "応答「.replace/dataset/pending-decisions.json に書きます」「metadata.json には書きません。作りもしません」"
+        },
+        {
+          "text": "保留の間もデータの設計までは進め、投入ツールの生成とそれ以降（投入・投入後の検証・metadata.json への記録）は行わないと区別している",
+          "passed": true,
+          "evidence": "応答の表で、データの設計までは実行し、投入ツールの生成・投入・検証・metadata.json の作成はやらないと区別している"
+        },
+        {
+          "text": "言語が確かめられたら、その言語を設定の new.stack に追記すると述べている",
+          "passed": true,
+          "evidence": "応答「設定 new.stack: 確かめた言語を、既存の値を消さずに追記します」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 26,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 43.531,
+        "tokens": 142336,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "new.stack が空なので設定から言語を決められないと判断し、利用者が示した Kotlin を投入ツールの言語にしている（TypeScript や SQL を推測で選んでいない）",
+          "passed": true,
+          "evidence": "応答「候補は Kotlin です」「推測で決めず利用者に確かめるのがルールです」。TypeScript や SQL を推測で選んでいない"
+        },
+        {
+          "text": "確かめた言語（Kotlin）を設定の new.stack に追記するとしている",
+          "passed": true,
+          "evidence": "応答の表「設定ファイル new.stack | 確認できた言語（Kotlin）を skill-config.mjs append で追記します」"
+        },
+        {
+          "text": "選んだ言語を .replace/dataset/metadata.json の tool.language に kotlin として記録するとしている",
+          "passed": true,
+          "evidence": "応答の表「tool.language: \"kotlin\"」"
+        },
+        {
+          "text": "Kotlin で書くのが難しい場合は SQL（まとめて commit できる形）で書いてよいと示している",
+          "passed": true,
+          "evidence": "応答「Kotlin で書くのが難しいとき: SQL で書きます。まとめてコミットできる形にします」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 24,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 34.428,
+        "tokens": 56188,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "new.stack が空なので投入ツールの言語を推測で決めず（TypeScript や SQL を勝手に選ばず）、判断待ちとして扱っている",
+          "passed": true,
+          "evidence": "応答「推測で決めません」"
+        },
+        {
+          "text": "判断待ちを .replace/dataset/pending-decisions.json に保留として記録すると述べている（metadata.json には書かない）",
+          "passed": false,
+          "evidence": "未確定を metadata.json の new_stack: null と blocked_on に残すとし、pending-decisions.json に触れない"
+        },
+        {
+          "text": "保留の間もデータの設計までは進め、投入ツールの生成とそれ以降（投入・投入後の検証・metadata.json への記録）は行わないと区別している",
+          "passed": false,
+          "evidence": "進めるものに「.replace/dataset/metadata.json の新規作成」を挙げており、metadata.json への記録を行わないという区別になっていない"
+        },
+        {
+          "text": "言語が確かめられたら、その言語を設定の new.stack に追記すると述べている",
+          "passed": true,
+          "evidence": "応答「設定の new.stack：決まった言語やランタイムを記入します」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 26,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 33.872,
+        "tokens": 62963,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "new.stack が空なので設定から言語を決められないと判断し、利用者が示した Kotlin を投入ツールの言語にしている（TypeScript や SQL を推測で選んでいない）",
+          "passed": true,
+          "evidence": "応答「Kotlin（新側と同じ構成）で書くことを推奨します」"
+        },
+        {
+          "text": "確かめた言語（Kotlin）を設定の new.stack に追記するとしている",
+          "passed": true,
+          "evidence": "応答「設定の new.stack: 今は空なので、言語 Kotlin…を記入します」"
+        },
+        {
+          "text": "選んだ言語を .replace/dataset/metadata.json の tool.language に kotlin として記録するとしている",
+          "passed": false,
+          "evidence": "metadata.json に「投入ツールの言語」を記録するとするだけで、tool.language に kotlin と記録するとは述べていない"
+        },
+        {
+          "text": "Kotlin で書くのが難しい場合は SQL（まとめて commit できる形）で書いてよいと示している",
+          "passed": false,
+          "evidence": "代わりに SQL ファイルか CSV と DB の取り込み機能を挙げるが、まとめて commit できる形の SQL という形は示していない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 49.3385,
+        "stddev": 8.213,
+        "min": 43.531,
+        "max": 55.146
+      },
+      "tokens": {
+        "mean": 172587,
+        "stddev": 42781.3745,
+        "min": 142336,
+        "max": 202838
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5,
+        "stddev": 0,
+        "min": 0.5,
+        "max": 0.5
+      },
+      "time_seconds": {
+        "mean": 34.15,
+        "stddev": 0.3932,
+        "min": 33.872,
+        "max": 34.428
+      },
+      "tokens": {
+        "mean": 59575.5,
+        "stddev": 4790.6484,
+        "min": 56188,
+        "max": 62963
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.50",
+      "time_seconds": "+15.2",
+      "tokens": "+113012"
+    }
+  },
+  "notes": []
+}

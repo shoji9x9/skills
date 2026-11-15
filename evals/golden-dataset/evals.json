@@ -280,6 +280,113 @@
         "排他が機能することを、ロックを保持したまま 2 つ目を起動して 1 行も書かずに非 0 で終えることの実測で確かめるとしている（同時に実行して不整合が起きなかったことを根拠にしていない）",
         "ロックが止めるのは投入どうしの衝突だけで、同じ投入先を読むテストとの衝突は直列化するか投入先を分けて避ける必要があると示している"
       ]
+    },
+    {
+      "id": 23,
+      "prompt": "フェーズ A の投入ツールをこれから書きます。設定の new.stack は [\"Java\", \"Spring Boot\", \"MyBatis\", \"React\", \"TypeScript\"] で、新側はバックエンドが Spring Boot、画面が React です。dataset_mode は db で、.replace/dataset/metadata.json はまだありません。投入ツールは何の言語で書き、選んだ言語はどこに残しますか。その言語で書くのが難しいときはどうしますか。",
+      "assertions": [
+        "投入ツールの言語を Java にしている（new.stack に TypeScript が含まれていても、TypeScript をデフォルトとして選んでいない）",
+        "Java を選ぶ理由として、new.stack に挙げた言語のうち投入先の DB を読み書きする層（バックエンド）の言語であることを挙げている",
+        "選んだ言語を .replace/dataset/metadata.json の tool.language に java として記録すると述べている",
+        "Java で書くのが難しい場合は SQL（まとめて commit できる形）で書いてよいと示している"
+      ],
+      "reachability": [
+        {
+          "assertion": "投入ツールの言語を Java にしている（new.stack に TypeScript が含まれていても、TypeScript をデフォルトとして選んでいない）",
+          "prompt_quote": "設定の new.stack は [\"Java\", \"Spring Boot\", \"MyBatis\", \"React\", \"TypeScript\"]"
+        },
+        {
+          "assertion": "Java を選ぶ理由として、new.stack に挙げた言語のうち投入先の DB を読み書きする層（バックエンド）の言語であることを挙げている",
+          "prompt_quote": "新側はバックエンドが Spring Boot、画面が React です。dataset_mode は db"
+        },
+        {
+          "assertion": "選んだ言語を .replace/dataset/metadata.json の tool.language に java として記録すると述べている",
+          "prompt_quote": "選んだ言語はどこに残しますか"
+        },
+        {
+          "assertion": "Java で書くのが難しい場合は SQL（まとめて commit できる形）で書いてよいと示している",
+          "prompt_quote": "その言語で書くのが難しいときはどうしますか"
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "prompt": "golden-dataset を --autonomous で今夜流しっぱなしにしたいです。設定の new.stack はまだ空のままで、新側の言語は別のチームが決めているので私は知りません。.replace/dataset/metadata.json もまだありません。投入ツールの言語はどう扱って、どこまで進めますか。決まっていないことはどこに残し、言語が分かったら設定や記録のどこを更新しますか。",
+      "assertions": [
+        "new.stack が空なので投入ツールの言語を推測で決めず（TypeScript や SQL を勝手に選ばず）、判断待ちとして扱っている",
+        "判断待ちを .replace/dataset/pending-decisions.json に保留として記録すると述べている（metadata.json には書かない）",
+        "保留の間もデータの設計までは進め、投入ツールの生成とそれ以降（投入・投入後の検証・metadata.json への記録）は行わないと区別している",
+        "言語が確かめられたら、その言語を設定の new.stack に追記すると述べている"
+      ],
+      "reachability": [
+        {
+          "assertion": "new.stack が空なので投入ツールの言語を推測で決めず（TypeScript や SQL を勝手に選ばず）、判断待ちとして扱っている",
+          "prompt_quote": "設定の new.stack はまだ空のままで、新側の言語は別のチームが決めているので私は知りません"
+        },
+        {
+          "assertion": "判断待ちを .replace/dataset/pending-decisions.json に保留として記録すると述べている（metadata.json には書かない）",
+          "prompt_quote": "決まっていないことはどこに残し"
+        },
+        {
+          "assertion": "保留の間もデータの設計までは進め、投入ツールの生成とそれ以降（投入・投入後の検証・metadata.json への記録）は行わないと区別している",
+          "prompt_quote": "投入ツールの言語はどう扱って、どこまで進めますか"
+        },
+        {
+          "assertion": "言語が確かめられたら、その言語を設定の new.stack に追記すると述べている",
+          "prompt_quote": "言語が分かったら設定や記録のどこを更新しますか"
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "prompt": "フェーズ A を再実行してデータセットの version を上げます。.replace/dataset/metadata.json の tool.language は typescript で、seed/ に TypeScript の投入ツールがあります。その後、新側の方針が変わり、設定の new.stack は [\"Java\", \"Spring Boot\", \"MyBatis\"] になりました。今回の投入ツールは何の言語で書きますか。その言語にする理由も添えてください。",
+      "assertions": [
+        "投入ツールの言語を typescript のまま使い続けるとしている（new.stack が Java になったことを理由に Java へ書き直していない）",
+        "使い続ける理由として、言語を変えると同じデータを作り直せることを確かめ直す必要が出ることを挙げている",
+        "metadata.json の tool.language が既にあることを、new.stack より先に見る根拠にしている"
+      ],
+      "reachability": [
+        {
+          "assertion": "投入ツールの言語を typescript のまま使い続けるとしている（new.stack が Java になったことを理由に Java へ書き直していない）",
+          "prompt_quote": "フェーズ A を再実行してデータセットの version を上げます。.replace/dataset/metadata.json の tool.language は typescript"
+        },
+        {
+          "assertion": "使い続ける理由として、言語を変えると同じデータを作り直せることを確かめ直す必要が出ることを挙げている",
+          "prompt_quote": "その言語にする理由も添えてください"
+        },
+        {
+          "assertion": "metadata.json の tool.language が既にあることを、new.stack より先に見る根拠にしている",
+          "prompt_quote": ".replace/dataset/metadata.json の tool.language は typescript"
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "prompt": "フェーズ A の投入ツールをこれから書きます。設定の new.stack はまだ空のままです。新側はバックエンドが Kotlin の Spring Boot で、DB へは Exposed でアクセスすると聞いています。.replace/dataset/metadata.json はまだありません。投入ツールの言語と、それをどこに残すかを教えてください。設定や記録のどこを更新しますか。その言語で書くのが難しいときはどうしますか。",
+      "assertions": [
+        "new.stack が空なので設定から言語を決められないと判断し、利用者が示した Kotlin を投入ツールの言語にしている（TypeScript や SQL を推測で選んでいない）",
+        "確かめた言語（Kotlin）を設定の new.stack に追記するとしている",
+        "選んだ言語を .replace/dataset/metadata.json の tool.language に kotlin として記録するとしている",
+        "Kotlin で書くのが難しい場合は SQL（まとめて commit できる形）で書いてよいと示している"
+      ],
+      "reachability": [
+        {
+          "assertion": "new.stack が空なので設定から言語を決められないと判断し、利用者が示した Kotlin を投入ツールの言語にしている（TypeScript や SQL を推測で選んでいない）",
+          "prompt_quote": "設定の new.stack はまだ空のままです"
+        },
+        {
+          "assertion": "確かめた言語（Kotlin）を設定の new.stack に追記するとしている",
+          "prompt_quote": "設定や記録のどこを更新しますか"
+        },
+        {
+          "assertion": "選んだ言語を .replace/dataset/metadata.json の tool.language に kotlin として記録するとしている",
+          "prompt_quote": "投入ツールの言語と、それをどこに残すかを教えてください"
+        },
+        {
+          "assertion": "Kotlin で書くのが難しい場合は SQL（まとめて commit できる形）で書いてよいと示している",
+          "prompt_quote": "その言語で書くのが難しいときはどうしますか"
+        }
+      ]
     }
   ]
 }

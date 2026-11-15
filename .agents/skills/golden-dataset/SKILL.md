@@ -1,6 +1,6 @@
 ---
 argument-hint: '[--phase <a|b>] [--feature <slug>...] [--target <name>] [--autonomous]'
-description: 仕様を変えないアプリケーションリプレイスで、現行と新側の比較を成立させるための共通ゴールデンデータセットを構築する replace-strategy の姉妹スキル。データそのものではなく、冪等・決定論的な投入ツール（TypeScript か SQL）を作る。本番環境は参照せずデータを一から作る。新側スキーマは後から出来るため 2 フェーズに分ける（A は論理データ設計と現行テスト環境への投入・検証、B は新側スキーマへの変換・投入・現新一致検証）。投入先の環境は --target で選ぶ（フェーズ B の記録は target 別）。データセットにバージョンを持たせ parity-suite / parity-diff のベースライン陳腐化検出に使う。replace-strategy setup 完了が前提。「ゴールデンデータセットを作って」「テストデータを投入して」「golden-dataset」や --phase / --target を伴う依頼で発動する。
+description: 仕様を変えないアプリケーションリプレイスで、現行と新側の比較を成立させるための共通ゴールデンデータセットを構築する replace-strategy の姉妹スキル。データそのものではなく、冪等・決定論的な投入ツール（新側の言語か SQL）を作る。本番環境は参照せずデータを一から作る。新側スキーマは後から出来るため 2 フェーズに分ける（A は論理データ設計と現行テスト環境への投入・検証、B は新側スキーマへの変換・投入・現新一致検証）。投入先の環境は --target で選ぶ（フェーズ B の記録は target 別）。データセットにバージョンを持たせ parity-suite / parity-diff のベースライン陳腐化検出に使う。replace-strategy setup 完了が前提。「ゴールデンデータセットを作って」「テストデータを投入して」「golden-dataset」や --phase / --target を伴う依頼で発動する。
 license: MIT
 name: golden-dataset
 ---
@@ -45,7 +45,8 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>] [--autono
 - 前提スキルがインストールされていない場合: `gh skill install shoji9x9/skills replace-strategy` で導入してから実行する。
   このスキルは、設定のスキーマと成果物の様式を `replace-strategy` の `references/` と `assets/` で定義しているので、単体では動かない（同時に導入されている前提）
 - MCP: 要らない
-- 技術スタック: 投入ツールは、デフォルトでは TypeScript で書く。難しければ SQL（まとめてコミットできる形）で書く
+- 技術スタック: 投入ツールは、`metadata.json` の `tool.language` があればその言語で、無ければ新側の言語（設定の `new.stack`）で書く。難しければ SQL（まとめてコミットできる形）で書く。
+  どちらからも言語を決められなければ、推測せずに利用者に確かめる（[`references/seeding-tool.md`](references/seeding-tool.md)「言語の選択」）
 
 設定（`.config/skills/shoji9x9/replace-strategy.jsonc`）か `.replace/features.md` が無ければ、成果物を捏造せずに止まり、`replace-strategy setup` を促す。
 `.replace/strategy-pending.json` に `setup` の未解決の保留があるときも、同じく止まる。どの保留を見るかは、`replace-strategy` の `references/autonomy.md`「下流の前提判定」で定義する。
@@ -111,6 +112,7 @@ UI に固有のページ送りの機能は UI で確定し、どこまで上げ�
 | `references.coding_conventions` | 投入ツールを書くときに従うコーディング規約。投入ツールは対象のプロジェクト側のコードなので、そのリポジトリの規約に従う。未整備でも止まらないが、推測で自分の流儀を持ち込まず、基底ドキュメント・リントの設定・既存のコードから読み取る。意味論はスキーマの文書の「コーディング規約」で定義する |
 | `references.dependency_policy` | 投入ツールに依存を足すときの方針（3 つの値。意味論はスキーマの文書の「依存導入の方針」で定義する）。キーが無い＝未確認のときだけ、ユーザーに要否を確かめた結果を同じキーに、既存を消さずに追記する |
 | `dataset_tool_dir` | 投入ツールの置き場所（指定が無ければ `seed/`） |
+| `new.stack` | 投入ツールの言語を選ぶ（[`references/seeding-tool.md`](references/seeding-tool.md)「言語の選択」）。言語を決められなければ利用者に確かめ、確かめた言語を既存の値を消さずに追記する |
 | `current.origin` | 現行環境の由来（`managed` / `received-assets`。キーが無ければ `managed`）。`received-assets` のときだけ、`.replace/bootstrap/` を前提の確認と設計の入力にする。意味論はスキーマの文書の「現行環境の由来」で定義する |
 | `bootstrap_tool_dir` | `current-environment-bootstrap` の暫定起動データの投入ツールの置き場所（指定が無ければ `bootstrap/`）。このスキルの `dataset_tool_dir` と分けるために読む（同じディレクトリ・同じエントリに相乗りさせない。禁止事項 13） |
 
@@ -122,11 +124,12 @@ UI に固有のページ送りの機能は UI で確定し、どこまで上げ�
 
 - スキーマの文書の「移行」の節に挙がった旧キーは、フォールバックとして読まない。見つけたら、その節を示して止まる。
   一律に止まるのは、キーの名前が変わった旧キーだけである。`verification_commands` がリストの場合のように、キーの名前が変わらない移行は、上の表の挙動に従う
-- このスキルは設定を生成しない（読むだけ）。例外は、既存を消さずに追記する次の 2 つである。
+- このスキルは設定を生成しない（読むだけ）。例外は、既存を消さずに追記する次の 3 つである。
   - フェーズ B で見つけた新しい意図的差異を、`intentional_diffs.pending` に、追記元が分かる形で追記し、ユーザーの確認に回す。
     書くのは 4 つのキーで、差異の文言は `item`（照合のキー）、`added_by: golden-dataset`、`added_at`、`slug` である。`slug` は、帰属できる機能があればその slug、無ければ `cross-cutting` にする。
     `item` を別のキーの名前で書くと、追記のときは通り、何工程か後の `parity-diff` の棚卸しで「`item` が空」として表に出る。要素の形は、スキーマの文書の「`pending` 要素の形」で定義する
   - 投入ツールに依存を足すときに `references.dependency_policy` がキーの無い＝未確認だった場合、確認の結果を同じキーに追記する
+  - 投入ツールの言語を `new.stack` から決められなかった場合、利用者に確かめた言語を `new.stack` に追記する
 
 ## 自律実行（`--autonomous`）
 
@@ -134,9 +137,10 @@ UI に固有のページ送りの機能は UI で確定し、どこまで上げ�
 `replace-strategy` の `references/autonomy.md` を読めない場合は、自律実行せず、確認のたびに止まる。このスキルに固有の扱いは次のとおりである。
 
 - 対象の選択（何も指定せず既存の `metadata.json` があるときの用途〈フェーズ A の再実行かフェーズ B か〉と、デフォルトの無い `--target`）は、保留にせず、候補を示して止まる（`replace-strategy` の `references/autonomy.md`「宣言」）
-- 判断待ち（保留にする）: 投入の前の自己申告のチェック（テスト環境であることの確認。自律実行でも省かない）、投入ツールへの依存の追加、フェーズ B で `intentional_diffs.pending` に追記した差異の確認
+- 判断待ち（保留にする）: 投入の前の自己申告のチェック（テスト環境であることの確認。自律実行でも省かない）、投入ツールへの依存の追加、`new.stack` から決められなかった投入ツールの言語、フェーズ B で `intentional_diffs.pending` に追記した差異の確認
 - 保留にしても進める工程: 自己申告のチェックが保留なら、データの設計・投入ツールの生成・`verification_commands.full` の実行までは進める。
-  投入・投入後の検証・`metadata.json` への投入の記録（`current.seeded_at` / `current.verified_at` / `phase_b.<slug>.<target>`）は行わない
+  投入・投入後の検証・`metadata.json` への投入の記録（`current.seeded_at` / `current.verified_at` / `phase_b.<slug>.<target>`）は行わない。
+  投入ツールの言語が保留なら、データの設計までは進め、投入ツールの生成とそれ以降は行わない
 - 自律実行でも止まる場合: DDL や静的データの形式を決定論的に得られない、設定によるチェック（`seedable` / `dataset_static_paths`）を通らない、`current-environment-bootstrap` が `handed-off` でない
 - 記録先: `.replace/dataset/pending-decisions.json`（テンプレート: [`assets/pending-decisions-template.json`](assets/pending-decisions-template.json)）。
   - 要素ごとに `phase` を書く。フェーズ B では、`slugs`（その判断が影響するすべての slug）と `target` も書く。下流は範囲が一致する保留だけで止まるので、書かないと関係の無い機能まで止まる
