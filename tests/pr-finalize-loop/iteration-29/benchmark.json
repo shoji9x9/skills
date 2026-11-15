@@ -1,0 +1,177 @@
+{
+  "metadata": {
+    "skill_name": "pr-finalize-loop",
+    "skill_path": "<repo>/skills/pr-finalize-loop",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-15T03:16:40Z",
+    "evals_run": [30],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 30,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 68.044,
+        "tokens": 286140,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "返信と解決だけをしたこの反復では、Copilot に再レビューを依頼しないと述べている",
+          "passed": true,
+          "evidence": "false で HEAD の SHA がレビュー済みなので、手順 6 で依頼しないと述べる。"
+        },
+        {
+          "text": "依頼しない根拠として、pr-finalize-loop の設定 rereview_after_reply が false であることを挙げている",
+          "passed": true,
+          "evidence": "同梱の読み取りで rereview_after_reply=false（リポジトリの層）を確かめ、根拠にしている。"
+        },
+        {
+          "text": "止まった理由を「返信済み・再レビューなしで終了」として報告すると述べている",
+          "passed": true,
+          "evidence": "3 回目の手順 2 で時刻の条件だけを満たさず「返信済み・再レビューなしで終了」で止まると述べる。"
+        },
+        {
+          "text": "報告に、レビュアーが読んでいない返信として discussion_r101 の URL を載せると述べている",
+          "passed": true,
+          "evidence": "読まれていない返信の一覧に discussion_r101 を載せる。"
+        },
+        {
+          "text": "報告に、レビュアーが読んでいない返信として discussion_r102 の URL を載せると述べている",
+          "passed": true,
+          "evidence": "読まれていない返信の一覧に discussion_r102 を載せる。"
+        },
+        {
+          "text": "今の HEAD にレビューがまだ付いていなければ、再レビューを依頼する（依頼済みで進行中なら、重ねて依頼せずに完了を待つ）と述べている",
+          "passed": true,
+          "evidence": "HEAD の SHA が未レビューなら値に関わらず依頼し、進行中なら新しく依頼せずに完了を待つと述べる。"
+        },
+        {
+          "text": "今の HEAD にレビューがまだ付いていなければ、「返信済み・再レビューなしで終了」では止まらないと述べている",
+          "passed": true,
+          "evidence": "HEAD の SHA が未レビューなら「返信済み・再レビューなしで終了」では止まらないと明記する。"
+        },
+        {
+          "text": "実行はせず説明に留めている（GitHub への接続・ファイルの変更を行っていない）",
+          "passed": true,
+          "evidence": "GitHub に接続せず、設定の読み取りだけを行い、ファイルを変えていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 30,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 4,
+        "failed": 4,
+        "total": 8,
+        "time_seconds": 65.708,
+        "tokens": 145335,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "返信と解決だけをしたこの反復では、Copilot に再レビューを依頼しないと述べている",
+          "passed": true,
+          "evidence": "rereview_after_reply: false なので依頼しないと述べる。"
+        },
+        {
+          "text": "依頼しない根拠として、pr-finalize-loop の設定 rereview_after_reply が false であることを挙げている",
+          "passed": true,
+          "evidence": "設定の rereview_after_reply: false を根拠に挙げる。"
+        },
+        {
+          "text": "止まった理由を「返信済み・再レビューなしで終了」として報告すると述べている",
+          "passed": false,
+          "evidence": "止まった理由を「完了（収束）」とし、この理由の語を出さない。"
+        },
+        {
+          "text": "報告に、レビュアーが読んでいない返信として discussion_r101 の URL を載せると述べている",
+          "passed": false,
+          "evidence": "r101 は「直さずに解決した」指摘として載せるだけで、レビュアーが読んでいない返信として扱わない。"
+        },
+        {
+          "text": "報告に、レビュアーが読んでいない返信として discussion_r102 の URL を載せると述べている",
+          "passed": false,
+          "evidence": "r102 は「直さずに解決した」指摘として載せるだけで、レビュアーが読んでいない返信として扱わない。"
+        },
+        {
+          "text": "今の HEAD にレビューがまだ付いていなければ、再レビューを依頼する（依頼済みで進行中なら、重ねて依頼せずに完了を待つ）と述べている",
+          "passed": true,
+          "evidence": "未レビューの HEAD には、依頼するか自動レビューを待つと述べる。"
+        },
+        {
+          "text": "今の HEAD にレビューがまだ付いていなければ、「返信済み・再レビューなしで終了」では止まらないと述べている",
+          "passed": false,
+          "evidence": "「完了にできない」「レビュー待ち」とは述べるが、「返信済み・再レビューなしで終了」の理由には触れない。"
+        },
+        {
+          "text": "実行はせず説明に留めている（GitHub への接続・ファイルの変更を行っていない）",
+          "passed": true,
+          "evidence": "GitHub に接続せず、ファイルを変えていない。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 68.044,
+        "stddev": 0,
+        "min": 68.044,
+        "max": 68.044
+      },
+      "tokens": {
+        "mean": 286140,
+        "stddev": 0,
+        "min": 286140,
+        "max": 286140
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5,
+        "stddev": 0,
+        "min": 0.5,
+        "max": 0.5
+      },
+      "time_seconds": {
+        "mean": 65.708,
+        "stddev": 0,
+        "min": 65.708,
+        "max": 65.708
+      },
+      "tokens": {
+        "mean": 145335,
+        "stddev": 0,
+        "min": 145335,
+        "max": 145335
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.50",
+      "time_seconds": "+2.3",
+      "tokens": "+140805"
+    }
+  },
+  "notes": []
+}
