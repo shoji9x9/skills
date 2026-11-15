@@ -10,7 +10,7 @@ PR ごとに、決定論的なスキャナと LLM の差分レビューで、セ
 | --- | --- | --- | --- |
 | CodeQL（`javascript-typescript` と `actions`） | JavaScript・TypeScript のコードと `.github/workflows/` | `.github/workflows/codeql.yml`（PR・`push: main`・週次の `schedule`） | 結果を code scanning に表示し、ルールセットの code scanning の規則がマージを止める |
 | zizmor | `.github/`（ワークフローと `dependabot.yml`）と、配布するワークフローのテンプレート（`skills/*/assets/` の YAML のうち、`jobs:` を持つもの） | CI の `GitHub Actions lint` ジョブ | 1 件でもあればジョブが失敗する |
-| Dependency Review（`actions/dependency-review-action`） | PR が足す・変える依存（npm と、ワークフローの `uses:` の action） | `.github/workflows/dependency-review.yml`（すべての PR） | `moderate` 以上の既知の脆弱性があればジョブが失敗する。必須チェックではないので、マージは止めない |
+| Dependency Review（`actions/dependency-review-action`） | PR が足す・変える依存（npm の `package.json`・`pnpm-lock.yaml` と、eval の fixture の `package.json`、`.github/workflows/` の `uses:` の action） | `.github/workflows/dependency-review.yml`（すべての PR） | `moderate` 以上の既知の脆弱性があればジョブが失敗する。必須チェックではないので、マージは止めない |
 | gitleaks | pre-commit はステージした差分、CI は全履歴 | pre-commit と CI の `Secret scan` ジョブ | commit とジョブが失敗する |
 | `/security-review`（Claude Code に組み込みのコマンド） | push する前の差分 | 手元（「push の前のレビュー」） | 妥当な指摘だけを直してから push する |
 
@@ -21,11 +21,13 @@ code scanning の規則は、PR の commit に CodeQL の結果が上がるの�
 Dependency Review は、GitHub の dependency graph で PR の base と head の依存を比べ、PR が足すかバージョンを変える依存だけを検査する。
 PR が触らない依存の脆弱性では失敗しない。`main` で既に脆弱な依存でも、PR がバージョンを変え、変えた先も脆弱なら失敗する。
 失敗したら、修正版に上げるか、脆弱性の無い別の依存（action なら別の action）に替えてからマージする。
-どちらもできないときは、許容する理由を PR の本文に書いてマージする。Dependency Review は失敗したまま残る。
+eval の fixture のように古いバージョンを意図して固定した依存と、替えられない依存は、許容するかを人が決める。
+許容するなら、理由を PR のコメントに書いてマージする。Dependabot は PR の本文を書き換えるので、本文には書かない。Dependency Review は失敗したまま残る。
+CI の失敗を直し続ける自律の手順（`pr-finalize-loop` など）は、この失敗を直せないまま止まる。止まったら、許容するかの判断を人に渡す。
 マージした後は、その advisory を Dependabot alerts と `pnpm audit` の側で扱う。無視するかと、その設定は [`vulnerability-handling.md`](vulnerability-handling.md) の手順で決める。
 ワークフローに除外（`allow-ghsas`）は置かない。無視の設定を Dependabot alerts と `pnpm audit` の側だけに持ち、Dependency Review は PR が持ち込んだことを知らせるだけにするためである。
 GitHub の自動マージ（`dependabot-automerge.yml` と、`issue-batch` の `merge_mode: auto`）は必須チェックだけを待つので、Dependency Review が失敗した PR も取り込む。
-自動マージを予約した PR で Dependency Review の失敗に気付いたら、取り込まれる前に予約を外し、上の手順で扱う。
+失敗を知らせる仕組みは無いので、自動マージで取り込まれた advisory も、マージの後に Dependabot alerts と `pnpm audit` の側で扱う。
 
 zizmor は mise でインストールする（`mise.toml`）。手元では、CI の `Security lint (zizmor)` のステップと同じ対象に実行する。テンプレートが 1 つなら、次のとおりである。
 

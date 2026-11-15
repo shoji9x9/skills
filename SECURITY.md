@@ -17,8 +17,8 @@ The English version follows the Japanese version. Both versions say the same thi
 
 ### サポートするバージョン
 
-`main` ブランチの最新だけをサポートする。配布スキルの修正は、`main` に入れた後にリリースとして公開する。
-インストールしたスキルは、`gh skill update` で最新に更新する。
+配布スキルは最新のリリースだけを、ワークフローは `main` ブランチの最新だけをサポートする。
+配布スキルの修正は、`main` に入れた後に新しいリリースとして公開する。修正が届くのは、そのリリースを `gh skill update` で入れた後である。
 
 ### 脆弱性の報告
 
@@ -41,8 +41,8 @@ You can also report a vulnerability in a skill that you installed into your own 
 
 ### Supported Versions
 
-Only the latest version on the `main` branch is supported. Fixes to the distributed skills are merged into `main` and then published in a new release.
-To get a fix, update your installed skills with `gh skill update`.
+For the distributed skills, only the latest release is supported. For the workflows, only the latest commit on the `main` branch is supported.
+Fixes to the distributed skills are merged into `main` and then published in a new release. You get a fix after you install that release with `gh skill update`.
 
 ### Reporting a Vulnerability
 
