@@ -73,8 +73,15 @@
     "conventional-changelog-conventionalcommits",
     "jsonc-parser",
     "mdast-util-from-markdown",
-    "mdast-util-gfm"
+    "mdast-util-gfm",
+    // 配布スキルは利用者のプロジェクトで pngjs を動的に import する。このリポジトリのテストは、pngjs が無いときの振る舞いを
+    // 確かめるために resolve を試すだけなので、直接の依存にしない（pixelmatch の依存として入るが、ルートからは解決できない）。
+    "pngjs"
   ],
+  // package.json に無い、外から提供されるコマンド。locale は OS が、mise・shfmt は mise が提供する。
+  // if・then・fi・2 は、lint:fallow のシェルの構文（if 文と >&2）を fallow がコマンド名と読んだもの（fallow-rs/fallow#4566）。
+  // fallow を #4566 の修正を含む 3.43.1 以上に上げたら、この 4 つを外し、lint:fallow が通るかを確かめる。
+  "ignoreBinaries": ["locale", "mise", "shfmt", "if", "then", "fi", "2"],
   "duplicates": {
     // 重複は jscpd で JS/TS・シェル・Markdown をまとめて検査する。
     "enabled": false
