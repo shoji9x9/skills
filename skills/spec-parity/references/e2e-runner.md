@@ -14,7 +14,7 @@ e2e の仕様の出典は、公式のドキュメント（<https://e2e.com/docs/
   どれにも `E2E_TELEMETRY_DISABLED=1 DO_NOT_TRACK=1 E2E_UPDATE_CHECK_DISABLED=1` と `</dev/null` を付ける。
   `npx e2e --version` は使わない。e2e が入っていないと、非対話の実行ではレジストリから e2e を取得して実行し、終了コード 0 で通る。
   `--` を省いた `npx --no e2e --version` も使わない。npm 11.20.0 では、e2e が入っていなくても npm のバージョンを出して終了コード 0 になった。
-  `pnpm exec`（pnpm 12.17.0）と `npx --no --`（npm 11.20.0）は、e2e が入っていないディレクトリで 0 以外で終わり、入っているディレクトリでは e2e のバージョンを出すことを実測で確かめた。Yarn は実測していない（出典: <https://pnpm.io/cli/exec>・<https://docs.npmjs.com/cli/commands/npx>・<https://yarnpkg.com/cli/run>）。
+  `pnpm exec`（pnpm 12.18.0）と `npx --no --`（npm 11.20.0）は、e2e が入っていないディレクトリで 0 以外で終わり、入っているディレクトリでは e2e のバージョンを出すことを実測で確かめた。Yarn は実測していない（出典: <https://pnpm.io/cli/exec>・<https://docs.npmjs.com/cli/commands/npx>・<https://yarnpkg.com/cli/run>）。
   どちらかが欠けていれば、成果物を作らずに止まり、導入を案内する。
   このスキルの文書の実行の例（`npx e2e run ...`）は、この確かめが通ったプロジェクトのルートで実行する形である。別のディレクトリで実行するときは、`npx --no -- e2e run ...` かパッケージマネージャのコマンドで起動する。導入は依存の追加なので、利用者の承認を得てから行う（`replace-strategy` の `references/dependency-selection.md`）。
 - 導入は、プロジェクトのパッケージマネージャで `e2e` と `@e2e-dev/web` を devDependencies に足す。`npx e2e init` は設定と例のテストを書くので、既存の設定があるプロジェクトでは使わない。
