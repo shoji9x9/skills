@@ -1,0 +1,207 @@
+{
+  "metadata": {
+    "skill_name": "issue-batch",
+    "skill_path": "<repo>/skills/issue-batch",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-16T04:32:43Z",
+    "evals_run": [23],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 23,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 11,
+        "failed": 0,
+        "total": 11,
+        "time_seconds": 80.474,
+        "tokens": 220517,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "満たせない条件について、run の途中で利用者に確認を送らないと述べている",
+          "passed": true,
+          "evidence": "前提『run は始まっているので、利用者には確認を送らない』"
+        },
+        {
+          "text": "#101 を判断待ち（BLOCKED）として manifest に記録すると述べている",
+          "passed": true,
+          "evidence": "1-4『状態は BLOCKED（判断待ち）』、pending_decisions を manifest に書く"
+        },
+        {
+          "text": "#101 を判断待ちにした後、#102 に進むと述べている",
+          "passed": true,
+          "evidence": "2『continue_on_blocked が true なので、次の Issue に進みます』"
+        },
+        {
+          "text": "条件を外す承認と #108 の見直しを、1 つの判断待ちにまとめると述べている",
+          "passed": true,
+          "evidence": "1-3『1 件の判断待ち（kind: acceptance）にまとめる』"
+        },
+        {
+          "text": "#101 を push しないと述べている",
+          "passed": true,
+          "evidence": "1-4『push…は行いません』"
+        },
+        {
+          "text": "最終報告の判断待ちに、推奨を示すと述べている",
+          "passed": true,
+          "evidence": "3-2『推奨：…事実として添え、それを根拠に推奨を書きます』"
+        },
+        {
+          "text": "最終報告の判断待ちに、今の手順（何をどの順で行っているか）を示すと述べている",
+          "passed": true,
+          "evidence": "3-2『今の手順：実装とレビューは済んでいる。push の直前で止めており、PR はまだない』（手順の段階を示す。順序の列挙は弱い）"
+        },
+        {
+          "text": "最終報告の判断待ちに、選択肢ごとに選ぶと今の手順がどう変わるかを示すと述べている",
+          "passed": true,
+          "evidence": "3-2 選択肢 1〜3 ごとに『選んだ後の手順の違い』（waived なら push・PR・merge まで、deferred なら BLOCKED のまま、など）"
+        },
+        {
+          "text": "最終報告の判断待ちに、決まった後に残る作業を示すと述べている",
+          "passed": true,
+          "evidence": "3-2『決まった後に残る作業』"
+        },
+        {
+          "text": "ファイルを読んで満たしたと判断した条件を、最終報告の「自分で判断して進めたもの」の一覧に載せると述べている",
+          "passed": true,
+          "evidence": "3-3 others『他の条件を strength: read で met にした判断』"
+        },
+        {
+          "text": "回答の中で、run の途中で利用者に確認して返答を待つ進め方を併記していない",
+          "passed": true,
+          "evidence": "確認待ちの進め方の併記なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 23,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4545,
+        "passed": 5,
+        "failed": 6,
+        "total": 11,
+        "time_seconds": 39.037,
+        "tokens": 40557,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "満たせない条件について、run の途中で利用者に確認を送らないと述べている",
+          "passed": true,
+          "evidence": "『非対話なので…止まらず、安全な側で続けます』"
+        },
+        {
+          "text": "#101 を判断待ち（BLOCKED）として manifest に記録すると述べている",
+          "passed": false,
+          "evidence": "manifest・BLOCKED の記録に触れていない（『push の前で停止』のみ）"
+        },
+        {
+          "text": "#101 を判断待ちにした後、#102 に進むと述べている",
+          "passed": true,
+          "evidence": "3『#102 は #101 の結果を待たずに進める』"
+        },
+        {
+          "text": "条件を外す承認と #108 の見直しを、1 つの判断待ちにまとめると述べている",
+          "passed": false,
+          "evidence": "#108 は『未確認』として別扱い。1 つの判断待ちにまとめていない"
+        },
+        {
+          "text": "#101 を push しないと述べている",
+          "passed": true,
+          "evidence": "『#101 は push の前で止めます』"
+        },
+        {
+          "text": "最終報告の判断待ちに、推奨を示すと述べている",
+          "passed": false,
+          "evidence": "選択肢 (a)(b)(c) を並べるだけで推奨が無い"
+        },
+        {
+          "text": "最終報告の判断待ちに、今の手順（何をどの順で行っているか）を示すと述べている",
+          "passed": true,
+          "evidence": "最終報告 2『状態：実装は完了し…push の前で停止』（with と同程度の弱い根拠。判別力は低い）"
+        },
+        {
+          "text": "最終報告の判断待ちに、選択肢ごとに選ぶと今の手順がどう変わるかを示すと述べている",
+          "passed": false,
+          "evidence": "(a)(b)(c) は挙げるが、選ぶと手順がどう変わるかは書いていない"
+        },
+        {
+          "text": "最終報告の判断待ちに、決まった後に残る作業を示すと述べている",
+          "passed": false,
+          "evidence": "決まった後に残る作業の記述なし"
+        },
+        {
+          "text": "ファイルを読んで満たしたと判断した条件を、最終報告の「自分で判断して進めたもの」の一覧に載せると述べている",
+          "passed": false,
+          "evidence": "『自分で判断して進めたもの』の一覧が無い。達成項目は根拠の注記のみ"
+        },
+        {
+          "text": "回答の中で、run の途中で利用者に確認して返答を待つ進め方を併記していない",
+          "passed": true,
+          "evidence": "併記なし"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 80.474,
+        "stddev": 0,
+        "min": 80.474,
+        "max": 80.474
+      },
+      "tokens": {
+        "mean": 220517,
+        "stddev": 0,
+        "min": 220517,
+        "max": 220517
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.4545,
+        "stddev": 0,
+        "min": 0.4545,
+        "max": 0.4545
+      },
+      "time_seconds": {
+        "mean": 39.037,
+        "stddev": 0,
+        "min": 39.037,
+        "max": 39.037
+      },
+      "tokens": {
+        "mean": 40557,
+        "stddev": 0,
+        "min": 40557,
+        "max": 40557
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.55",
+      "time_seconds": "+41.4",
+      "tokens": "+179960"
+    }
+  },
+  "notes": []
+}
