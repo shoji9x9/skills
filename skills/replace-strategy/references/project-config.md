@@ -420,7 +420,8 @@ node "$CFG" append replace-strategy component_diffs '<要素の JSON>' --layer r
 - `spec-parity verify` の `verify-metadata.json` の `new.commit`・`new.tree`・`new.dirty`
 - `parity-diff` の前提の確認で、撮るバージョンを確かめる処理
 
-3 つのスキルは、同じ中身の `scripts/source-version.mjs` を同梱する（現行側を記録して照合するスキルも、同じ中身を同梱する。下記「現行側のバージョンの記録」）。
+新側を記録して照合する 3 つのスキル（`parity-replace`・`spec-parity`・`parity-diff`）は、同じ中身の `scripts/source-version.mjs` を同梱する。
+現行側を記録して照合する `parity-suite`・`golden-dataset`・`replace-strategy` も同じ中身を同梱するので、同梱するスキルは合わせて 6 つである（下記「現行側のバージョンの記録」）。
 値は、プロジェクトのルート（`.replace/` を置くディレクトリ）で `node <スキルのディレクトリ>/scripts/source-version.mjs --repo <new.repo>` を実行して取る。
 出力の JSON の `commit`・`tree`・`dirty` を、そのまま記録に書く。git のコマンドを手で組み立てない。
 終了コードが 2 のとき（git を起動できない、新側に commit が 1 つも無いなど）は、値を推測して書かずに止まる。

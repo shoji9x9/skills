@@ -58,6 +58,7 @@ target を解決する前に、設定の `style_policy` を読む（`skill-confi
 - `parity-replace` の「完了」を待つのではなく、`suite.new_green` を前提にする。差分ゼロはこのスキルとの往復で達成するので、`parity-replace` 単体の完了の条件には差分ゼロが含まれない
 - スイートは実行し直さない。新側に対して green かどうかは、`suite.new_green` のキーで判定する
 - 基準にした現行のバージョンも照合する。`.replace/parity/<slug>/metadata.json` の `target` を、同梱の `scripts/source-version.mjs` の `--compare` で今の現行と照合する（`--repo <current.repo>`）。
+  `--rev` を付けるかは、記録した target（`target.name`）の `start` と `commit_check` から決める（配信型の target は `commit_check` の出力を渡す。決め方の原本は下に挙げる節の「照合」）。
   `same` 以外でも止めない。新側との比較は記録したベースラインに対して行うので、結果そのものは誤らない。
   `differs` と `rerecord` は、基準にした現行が古いことを `diff.md` と報告に書き、`parity-suite` で記録を持ち越すか再取得するよう案内する。`unverifiable` は未検証として同じく書く。終了コードが 2 なら止まる。
   照合の形と、結果ごとの扱いの原本は `replace-strategy` の `references/project-config.md`「現行側のバージョンの記録」である

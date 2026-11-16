@@ -113,6 +113,7 @@ node <skill>/scripts/source-version.mjs --repo <current.repo> [--rev <commit>] \
 
 出力の `compare.result` が `same` なら、そのまま進む。`unverifiable` なら止めずに進み、確かめられなかったことを `current.version_unverified_reason` と報告に書く。終了コードが 2 なら止まる。
 `differs` と `rerecord` なら、論理データを変えずに、今の投入ツールで新しい現行へ投入し、手順 6 の検証をやり直す。
+出力の `dirty`（今の値）が `true` なら、持ち越しにも再取得にも進まずに止まり、現行の変更を commit するか退避するかを利用者に確かめる。新しい記録を書けないからである。
 
 - 投入と検証が通り、`verification.md` の「述語ごとの該当行数」が前の記録と同じなら、記録を持ち越す。
   `current.commit`・`current.tree`・`current.dirty` を新しい値に書き換え、`current.carried` に `{ "from": { "commit": ..., "tree": ... }, "to": { "commit": ..., "tree": ... }, "at": "<ISO 8601>" }` を 1 件足す。

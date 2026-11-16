@@ -143,7 +143,7 @@ node <skill>/scripts/source-version.mjs --repo <current.repo> [--rev <commit>] \
 ```
 
 出力の `compare.result` が `same` なら、そのまま進む。`unverifiable` なら止めずに進み、確かめられなかったことを `target.version_unverified_reason` と報告に書く。終了コードが 2 なら止まる。
-`differs` と `rerecord` なら、次のように扱う。
+`differs` と `rerecord` なら、次のように扱う。出力の `dirty`（今の値）が `true` なら、持ち越しにも再取得にも進まずに止まり、現行の変更を commit するか退避するかを利用者に確かめる。新しい記録を書けないからである。
 
 - スイートを新しい現行に当てる（上の「スイートを現行で通す」と同じ実行）。すべて通り、操作中のエラーの基準に無いエラーも出なければ、記録を持ち越す。
   `target.commit`・`target.tree`・`target.dirty` を新しい値に書き換え、`suite-report.json` を保存し直す。

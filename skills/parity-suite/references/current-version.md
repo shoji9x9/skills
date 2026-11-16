@@ -21,6 +21,7 @@ node <skill>/scripts/source-version.mjs --repo <current.repo> [--rev <commit>] \
 ```
 
 出力の `compare.result` が `same` なら、そのまま進む。`differs` と `rerecord` なら、いつもの撮影とスイートの実行には進まず、次の「現行が進んだときの扱い」に進む。
+出力の `dirty`（今の値）が `true` なら、持ち越しにも再取得にも進まずに止まり、現行の変更を commit するか退避するかを利用者に確かめる。新しい記録を書けないからである。
 `unverifiable` なら止めずに進み、確かめられなかったことを `target.version_unverified_reason` と完了報告に書く。終了コードが 2 なら止まる。
 記録の後に撮り足す・スイートを直すなど、既存の記録に足す作業も、この照合を通してから行う。違う現行で採った成果物が 1 つの記録に混在するからである。
 
@@ -39,6 +40,9 @@ node <skill>/scripts/source-version.mjs --repo <current.repo> [--rev <commit>] \
 - `target.commit`・`target.tree`・`target.dirty` を、新しい現行の値に書き換える。
 - `target.carried` の配列に 1 件足す。要素は `from`（前の `commit` と `tree`）・`to`（新しい `commit` と `tree`）・`at`（ISO 8601）・`checks` を持つ。
   `checks` は `["suite", "recapture"]` で、`api-resource` と `batch` では `["suite"]` である。
+- 反応の網羅表（`reactions.json`）の `feedback_calls` は、新しい commit で走査し直す。`reaction-check.mjs` は、`source.version` が `target.commit` と違うと失敗するからである。
+  走査の結果（呼び出しの一覧と、操作ごとのハンドラ）が前と同じなら、`source.version` を新しい commit に書き換え、`reaction-check.mjs` を exit 0 まで通す。
+  結果が違えば、利用者に見える副作用の呼び出しが変わったので、持ち越さずに再取得する。`source.version` が `none` の記録は、書き換えない。
 - `run.finished_at`・`procedure_revision`・ベースラインの実体・`noise_baseline` は変えない。持ち越しは特性化のやり直しではないからである。
 - 性能のベースラインは、持ち越しの判定に使わず、そのまま持ち越す。性能だけが変わったと疑うなら、利用者に再取得するかを確かめる。
 

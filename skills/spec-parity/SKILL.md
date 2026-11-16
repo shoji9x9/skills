@@ -176,7 +176,7 @@ node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mj
    `verify-metadata.json` を雛形から作る。前の記録があれば、保留と承認の記録（`approvals`）を読んでから更新し、`approvals` を引き継ぐ。
    同梱の [`scripts/source-version.mjs`](scripts/source-version.mjs) の出力の `commit`・`tree`・`dirty` を `new.commit`・`new.tree`・`new.dirty` に書く。
    `new.dirty` が `false` でなければ、ここで止まる（上の「前提」）。
-   現行の側は、`metadata.json` の記録した現行のバージョンを今の現行と照合する。違っても止めず、基準にした現行が古いことを `verify.md` と報告に書く（照合の規則は `replace-strategy` の `references/project-config.md`「現行側のバージョンの記録」）。
+   現行の側は、`metadata.json` の記録した現行のバージョンを今の現行と照合する。違っても止めず、基準にした現行が古いことを `verify.md` と報告に書く。`--rev` を付けるかは、記録した target の `start` と `commit_check` から決める（照合の規則と `--rev` の決め方は `replace-strategy` の `references/project-config.md`「現行側のバージョンの記録」）。
    起動の形と取り方の原本は `replace-strategy` の `references/project-config.md`「新側のバージョンの記録」で、`parity-replace` の `replace-metadata.json` と `parity-diff` の前提の確認も同じ取り方を使う（ここへ転記しない）。
    除くのは `.replace/` だけである。e2e の結果の出力先（`.e2e/`）と人による確認で撮った画面が新側のディレクトリの中にあるなら、`.replace/` の下に置くか新側の `.gitignore` に入れる。
    どちらでもないと、書くたびに `new.dirty` が `true` になり、verify は止まる（同じ節）。
