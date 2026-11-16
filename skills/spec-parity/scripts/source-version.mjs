@@ -1,9 +1,12 @@
-// 新側のバージョン（new.commit・new.tree・new.dirty）を取り、JSON で標準出力に出す。
+// 新側か現行側のバージョン（commit・tree・dirty）を取り、JSON で標準出力に出す。
+// 新側の記録は new.commit・new.tree・new.dirty、現行側の記録は target.commit・target.tree・target.dirty などに書く。
+// 取り方は両方の側で同じで、--repo に渡すリポジトリ（new.repo か current.repo）だけが違う。
 //
 // 何のためか: リプレイスの記録（.replace/）と新側のソースを同じ git のリポジトリに置くと、記録を書くたびに作業ツリーが変わり、
 // 記録を commit するたびに HEAD が進む。HEAD の SHA で照合すると、記録を書いただけで次のスキルが止まる。
 // そこで、記録の置き場所（.replace/）を除いた新側のソースのツリーのハッシュ（new.tree）で照合する。
-// 取り方の原本は replace-strategy の references/project-config.md「新側のバージョンの記録」である。
+// 取り方の原本は replace-strategy の references/project-config.md「新側のバージョンの記録」で、
+// 現行側での使い方は同じファイルの「現行側のバージョンの記録」にある。
 //
 // 範囲: new.repo のディレクトリ（git のリポジトリのサブディレクトリなら、その下だけ）から、--artifacts のディレクトリを除いたもの。
 // new.tree: HEAD のツリーから --artifacts を除いた、new.repo のディレクトリのツリーのハッシュ。
@@ -20,20 +23,25 @@
 //   git で管理されていない新側に --rev を渡すと、確かめる commit が無いので exit 2 にする（none を返さない）。
 //   --rev に渡せるのは commit の完全な SHA だけで、branch 名や短縮した SHA は exit 2 にする。
 //
-// 使い方: node source-version.mjs --repo <new.repo> [--artifacts <.replace のパス>] [--rev <commit>]
-//   --artifacts のデフォルトは、作業ディレクトリの .replace である。
+// --compare <記録の JSON> --at <キー> を渡すと、取った値を記録の <キー>（例: target・current・new）の
+//   commit・tree・dirty と照合し、出力の compare.result に結果を書く。照合の規則は compareVersion にある。
 //
-// 終了コード: 0 ＝ 取れた、2 ＝ 使い方の誤り・git を起動できない・新側に commit が無いなど（値を出していない）。
+// 使い方は USAGE にある。--artifacts のデフォルトは、作業ディレクトリの .replace である。
+//
+// 終了コード: 0 は、値を取れたことを表す。--compare を渡したときは、同じバージョンだったことも表す。
+//   1 は、--compare を渡し、同じバージョンと判定できなかったことを表す（理由は compare.result）。
+//   2 は、使い方の誤り・git を起動できない・commit が無い・記録を読めないことを表す（値は出さない）。
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, realpathSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const NONE = "none";
 const USAGE =
-  "usage: node source-version.mjs --repo <new.repo> [--artifacts <.replace のパス>] [--rev <commit>]";
+  "usage: node source-version.mjs --repo <new.repo | current.repo> [--artifacts <.replace のパス>] [--rev <commit>] [--compare <記録の JSON> --at <キー>]";
+const OPTIONS = new Set(["--repo", "--artifacts", "--rev", "--compare", "--at"]);
 class UsageError extends Error {}
 
 /** @type {string[] | null} */
@@ -339,15 +347,34 @@ function resolveCommit(top, rev) {
 /**
  * 引数を読む。値を取るオプションの重複と、知らないオプションは使い方の誤りにする。
  * @param {string[]} argv
- * @returns {{ repo: string, artifacts: string, rev: string | null }}
+ * @returns {{ repo: string, artifacts: string, rev: string | null, compare: string | null, at: string | null }}
  */
 export function parseArgs(argv) {
+  const opts = readOptions(argv);
+  if (opts["--repo"] === undefined)
+    throw new UsageError("--repo が無い（新側か現行側のリポジトリのディレクトリを渡す）");
+  if ((opts["--compare"] === undefined) !== (opts["--at"] === undefined))
+    throw new UsageError("--compare と --at は一緒に渡す（記録のファイルと、照合するキー）");
+  return {
+    repo: opts["--repo"],
+    artifacts: opts["--artifacts"] ?? ".replace",
+    rev: opts["--rev"] ?? null,
+    compare: opts["--compare"] ?? null,
+    at: opts["--at"] ?? null,
+  };
+}
+
+/**
+ * オプションと値の組を読む。値を取るオプションの重複と、知らないオプションは使い方の誤りにする。
+ * @param {string[]} argv
+ * @returns {Record<string, string>}
+ */
+function readOptions(argv) {
   /** @type {Record<string, string>} */
   const opts = {};
   for (let i = 0; i < argv.length; i++) {
     const [name, inline] = argv[i].split(/=(.*)/s, 2);
-    if (name !== "--repo" && name !== "--artifacts" && name !== "--rev")
-      throw new UsageError(`知らない引数: ${argv[i]}`);
+    if (!OPTIONS.has(name)) throw new UsageError(`知らない引数: ${argv[i]}`);
     if (name in opts) throw new UsageError(`${name} が 2 回ある`);
     const value = inline ?? argv[++i];
     // 次の引数がオプションなら、値を書き忘れたとして扱う（--repo --artifacts x を repo = "--artifacts" と読まない）
@@ -355,13 +382,69 @@ export function parseArgs(argv) {
       throw new UsageError(`${name} に値が無い`);
     opts[name] = value;
   }
-  if (opts["--repo"] === undefined)
-    throw new UsageError("--repo が無い（新側のリポジトリのディレクトリを渡す）");
-  return {
-    repo: opts["--repo"],
-    artifacts: opts["--artifacts"] ?? ".replace",
-    rev: opts["--rev"] ?? null,
-  };
+  return opts;
+}
+
+/**
+ * 記録のバージョンと今のバージョンを照合する。規則の原本は replace-strategy の references/project-config.md
+ * 「新側のバージョンの記録」の照合の段落で、現行側にも同じ規則を当てる。
+ * - same: tree が同じで、どちらの dirty も true でない（--rev で取った値の dirty は null で、作業ツリーを持たない commit を表す）
+ * - differs: tree が違うか、どちらかの dirty が true（commit していない変更を含む記録とは、どのバージョンも一致させない）
+ * - rerecord: 記録に tree か dirty が無い（commit が一致していても代わりに使わない。記録を書いたスキルで測り直す）
+ * - unverifiable: 記録か今の値の tree が none（git で管理されていないので、同じかを確かめられない）
+ * 記録の値の型が違うとき（tree が空や文字列でない、dirty が真偽値でも null でもない）は、記録を読めないとして使い方の誤りにする。
+ * @param {Record<string, unknown>} recorded 記録の <キー> の値
+ * @param {{ tree: string, dirty: boolean | null }} now
+ * @returns {"same" | "differs" | "rerecord" | "unverifiable"}
+ */
+export function compareVersion(recorded, now) {
+  const hasTree = Object.hasOwn(recorded, "tree");
+  const hasDirty = Object.hasOwn(recorded, "dirty");
+  const { tree, dirty } = recorded;
+  // 型は、無いかを見る前に確かめる。片方だけがある記録でも、ある側の型の誤りを測り直しとして扱わない
+  if (hasTree && (typeof tree !== "string" || tree === ""))
+    throw new UsageError(`記録の tree が空か文字列でない: ${JSON.stringify(tree)}`);
+  if (hasDirty && dirty !== null && typeof dirty !== "boolean")
+    throw new UsageError(`記録の dirty が真偽値でも null でもない: ${JSON.stringify(dirty)}`);
+  if (!hasTree || !hasDirty) return "rerecord";
+  if (tree === NONE || now.tree === NONE) return "unverifiable";
+  if (dirty === true || now.dirty === true) return "differs";
+  return tree === now.tree ? "same" : "differs";
+}
+
+/**
+ * 記録の JSON から、ドットで区切ったキー（target・current.version など）の値を読む。
+ * @param {string} file
+ * @param {string} at
+ * @returns {Record<string, unknown>}
+ */
+export function readRecorded(file, at) {
+  let data;
+  try {
+    data = JSON.parse(readFileSync(file, "utf8"));
+  } catch (e) {
+    throw new UsageError(
+      `記録を JSON として読めない: ${file}（${String(errorFields(e).message)}）`,
+    );
+  }
+  /** @type {unknown} */
+  let node = data;
+  for (const key of at.split(".")) {
+    if (key === "" || !isRecord(node) || !Object.hasOwn(node, key))
+      throw new UsageError(`記録に ${at} が無い: ${file}`);
+    node = node[key];
+  }
+  if (!isRecord(node)) throw new UsageError(`記録の ${at} がオブジェクトでない: ${file}`);
+  return node;
+}
+
+/**
+ * @param {unknown} v
+ * @returns {v is Record<string, unknown>}
+ */
+function isRecord(v) {
+  // JSON.parse の結果だけを受けるので、配列と null を除いた素のオブジェクトかで足りる
+  return Object.prototype.toString.call(v) === "[object Object]";
 }
 
 /**
@@ -370,8 +453,20 @@ export function parseArgs(argv) {
  */
 export function main(argv) {
   try {
-    process.stdout.write(`${JSON.stringify(sourceVersion(parseArgs(argv)))}\n`);
-    return 0;
+    const { compare, at, ...opts } = parseArgs(argv);
+    // 記録を先に読む。読めない記録で git を起動してから止まらない
+    const recorded = compare === null || at === null ? null : readRecorded(compare, at);
+    const now = sourceVersion(opts);
+    if (recorded === null) {
+      process.stdout.write(`${JSON.stringify(now)}\n`);
+      return 0;
+    }
+    const result = compareVersion(recorded, now);
+    const { commit = null, tree = null, dirty = null } = recorded;
+    process.stdout.write(
+      `${JSON.stringify({ ...now, compare: { file: compare, at, result, recorded: { commit, tree, dirty } } })}\n`,
+    );
+    return result === "same" ? 0 : 1;
   } catch (e) {
     if (!(e instanceof UsageError)) throw e;
     process.stderr.write(`source-version: ${e.message}\n${USAGE}\n`);

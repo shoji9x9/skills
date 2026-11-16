@@ -1,9 +1,11 @@
-// source-version.mjs（新側のバージョンの取り方）の振る舞いを、使い捨ての git のリポジトリで確かめる。
-// 取り方の原本は replace-strategy の references/project-config.md「新側のバージョンの記録」である。
+// source-version.mjs（新側と現行側のバージョンの取り方と、記録との照合）の振る舞いを、使い捨ての git のリポジトリで確かめる。
+// 取り方の原本は replace-strategy の references/project-config.md「新側のバージョンの記録」で、
+// 現行側での使い方は同じファイルの「現行側のバージョンの記録」にある。
 // 期待値は、その節が決める性質から決め、ハッシュの値そのものは書かない。
 // 性質は、記録を書いても commit しても new.tree が変わらないこと・ソースを変えると変わること・
 // .replace/ の外の追跡していないファイルを dirty にすること・利用者の index を変えないことである。
-// 3 つのスキル（parity-replace・spec-parity・parity-diff）が同じ中身のコピーを持ち、一致は check-identical-copies.ts が確かめる。
+// 6 つのスキル（parity-replace・spec-parity・parity-diff・parity-suite・golden-dataset・replace-strategy）が
+// 同じ中身のコピーを持ち、一致は check-identical-copies.ts が確かめる。
 
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -11,15 +13,21 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import * as goldenDataset from "../../../skills/golden-dataset/scripts/source-version.mjs";
 import * as parityDiff from "../../../skills/parity-diff/scripts/source-version.mjs";
 import * as parityReplace from "../../../skills/parity-replace/scripts/source-version.mjs";
+import * as paritySuite from "../../../skills/parity-suite/scripts/source-version.mjs";
+import * as replaceStrategy from "../../../skills/replace-strategy/scripts/source-version.mjs";
 import * as specParity from "../../../skills/spec-parity/scripts/source-version.mjs";
 
-// 3 つのコピーをそれぞれ測る（カバレッジはファイルごとに測るので、1 つだけを測ると残りが 0% になる）
+// 6 つのコピーをそれぞれ測る（カバレッジはファイルごとに測るので、1 つだけを測ると残りが 0% になる）
 const COPIES = [
   { skill: "parity-replace", lib: parityReplace },
   { skill: "spec-parity", lib: specParity },
   { skill: "parity-diff", lib: parityDiff },
+  { skill: "parity-suite", lib: paritySuite },
+  { skill: "golden-dataset", lib: goldenDataset },
+  { skill: "replace-strategy", lib: replaceStrategy },
 ].map((c) => ({
   ...c,
   script: path.resolve(
@@ -100,7 +108,7 @@ const LAYOUTS = [
 ] as const;
 
 describe.each(COPIES)("$skill の source-version.mjs", ({ lib, script: SCRIPT }) => {
-  const { parseArgs, sourceVersion } = lib;
+  const { compareVersion, parseArgs, readRecorded, sourceVersion } = lib;
 
   describe.each(LAYOUTS)("$name", ({ newDir, artifacts }) => {
     function setup() {
@@ -483,11 +491,168 @@ describe.each(COPIES)("$skill の source-version.mjs", ({ lib, script: SCRIPT })
     });
   });
 
+  describe("記録との照合", () => {
+    const T = "a".repeat(40);
+    const U = "b".repeat(40);
+    // 照合の規則は project-config.md「新側のバージョンの記録」の照合の段落から決める
+    test.each(
+      (
+        [
+          [
+            "tree が同じで、どちらも dirty でない",
+            { commit: "x", tree: T, dirty: false },
+            { tree: T, dirty: false },
+            "same",
+          ],
+          [
+            "記録が --rev で取った値（dirty が null）でも、tree が同じなら同じ",
+            { tree: T, dirty: null },
+            { tree: T, dirty: false },
+            "same",
+          ],
+          [
+            "今の値が --rev で取った値（dirty が null）でも、tree が同じなら同じ",
+            { tree: T, dirty: false },
+            { tree: T, dirty: null },
+            "same",
+          ],
+          ["tree が違う", { tree: T, dirty: false }, { tree: U, dirty: false }, "differs"],
+          [
+            "記録が dirty なら、tree が同じでも一致させない",
+            { tree: T, dirty: true },
+            { tree: T, dirty: false },
+            "differs",
+          ],
+          [
+            "今の値が dirty なら、tree が同じでも一致させない",
+            { tree: T, dirty: false },
+            { tree: T, dirty: true },
+            "differs",
+          ],
+          [
+            "記録に tree が無ければ、commit が同じでも測り直す",
+            { commit: "c", dirty: false },
+            { tree: T, dirty: false },
+            "rerecord",
+          ],
+          ["記録に dirty が無ければ、測り直す", { tree: T }, { tree: T, dirty: false }, "rerecord"],
+          [
+            "記録の tree が none なら確かめられない",
+            { tree: "none", dirty: false },
+            { tree: T, dirty: false },
+            "unverifiable",
+          ],
+          [
+            "今の tree が none なら確かめられない",
+            { tree: T, dirty: false },
+            { tree: "none", dirty: false },
+            "unverifiable",
+          ],
+          [
+            "両方の tree が none でも、同じとして扱わない",
+            { tree: "none", dirty: false },
+            { tree: "none", dirty: false },
+            "unverifiable",
+          ],
+        ] as const
+      ).map(([name, recorded, now, want]) => ({ name, recorded, now, want })),
+    )("$name", ({ recorded, now, want }) => {
+      expect(compareVersion(recorded, now)).toBe(want);
+    });
+
+    test.each([
+      ["tree が空", { tree: "", dirty: false }],
+      ["tree が文字列でない", { tree: 1, dirty: false }],
+      ["tree が null", { tree: null, dirty: false }],
+      ["dirty が文字列", { tree: T, dirty: "false" }],
+      ["dirty が無い記録の tree が文字列でない", { tree: 5 }],
+      ["tree が無い記録の dirty が文字列", { dirty: "false" }],
+    ] as const)("記録の値の型が違えば、記録を読めないとして扱う（%s）", (_name, recorded) => {
+      expect(() => compareVersion(recorded, { tree: T, dirty: false })).toThrow(/記録の/);
+    });
+
+    test.each([
+      ["target", { target: { tree: T, dirty: false } }, { tree: T, dirty: false }],
+      ["current.version", { current: { version: { tree: T } } }, { tree: T }],
+    ] as const)("ドットで区切ったキー %s の値を読む", (at, data, want) => {
+      const file = path.join(tmp(), "metadata.json");
+      write(file, JSON.stringify(data));
+      expect(readRecorded(file, at)).toEqual(want);
+    });
+
+    test.each(
+      (
+        [
+          ["キーが無い", '{"other":{}}', "target", /target が無い/],
+          ["キーの途中が無い", '{"current":{}}', "current.version", /current.version が無い/],
+          ["空のキー", '{"target":{}}', "target.", /target. が無い/],
+          ["値がオブジェクトでない", '{"target":"abc"}', "target", /オブジェクトでない/],
+          ["値が配列", '{"target":[]}', "target", /オブジェクトでない/],
+          ["値が null", '{"target":null}', "target", /オブジェクトでない/],
+          ["JSON として読めない", "{", "target", /JSON として読めない/],
+        ] as const
+      ).map(([name, text, at, want]) => ({ name, text, at, want })),
+    )("記録を読めなければ使い方の誤りにする（$name）", ({ text, at, want }) => {
+      const file = path.join(tmp(), "metadata.json");
+      write(file, text);
+      expect(() => readRecorded(file, at)).toThrow(want);
+    });
+
+    test("CLI: 同じなら exit 0、ソースを変えて commit すると exit 1、記録を読めなければ exit 2", () => {
+      const top = repoWith({ "src/a.js": "a\n", ".replace/x.json": "{}\n" });
+      const meta = path.join(top, ".replace/parity/order/metadata.json");
+      const run = () =>
+        spawnSync(process.execPath, [SCRIPT, "--repo", top, "--compare", meta, "--at", "target"], {
+          cwd: top,
+          encoding: "utf8",
+          env: GIT_ENV,
+          timeout: CHILD_TIMEOUT_MS,
+        });
+      const v = sourceVersion({ repo: top, artifacts: path.join(top, ".replace") });
+      write(meta, JSON.stringify({ target: { commit: v.commit, tree: v.tree, dirty: v.dirty } }));
+      const same = run();
+      expect(same.status).toBe(0);
+      expect(JSON.parse(same.stdout)).toMatchObject({
+        tree: v.tree,
+        compare: { at: "target", result: "same", recorded: { tree: v.tree, dirty: false } },
+      });
+
+      write(path.join(top, "src/a.js"), "b\n");
+      commitAll(top, "change");
+      const moved = run();
+      expect(moved.status).toBe(1);
+      expect(JSON.parse(moved.stdout)).toMatchObject({ compare: { result: "differs" } });
+
+      write(meta, JSON.stringify({ target: { commit: v.commit } }));
+      const old = run();
+      expect(old.status).toBe(1);
+      expect(JSON.parse(old.stdout)).toMatchObject({
+        compare: { result: "rerecord", recorded: { commit: v.commit, tree: null, dirty: null } },
+      });
+
+      write(meta, "{");
+      const broken = run();
+      expect(broken.status).toBe(2);
+      expect(broken.stdout).toBe("");
+      expect(broken.stderr).toMatch(/JSON として読めない/);
+    });
+  });
+
   describe("引数", () => {
     test.each([
-      [["--repo", "x"], { repo: "x", artifacts: ".replace", rev: null }],
-      [["--repo=x", "--artifacts=y"], { repo: "x", artifacts: "y", rev: null }],
-      [["--repo", "x", "--rev", "abc"], { repo: "x", artifacts: ".replace", rev: "abc" }],
+      [["--repo", "x"], { repo: "x", artifacts: ".replace", rev: null, compare: null, at: null }],
+      [
+        ["--repo=x", "--artifacts=y"],
+        { repo: "x", artifacts: "y", rev: null, compare: null, at: null },
+      ],
+      [
+        ["--repo", "x", "--rev", "abc"],
+        { repo: "x", artifacts: ".replace", rev: "abc", compare: null, at: null },
+      ],
+      [
+        ["--repo", "x", "--compare", "m.json", "--at", "target"],
+        { repo: "x", artifacts: ".replace", rev: null, compare: "m.json", at: "target" },
+      ],
     ])("%j を読む", (argv, want) => {
       expect(parseArgs(argv)).toEqual(want);
     });
@@ -499,6 +664,8 @@ describe.each(COPIES)("$skill の source-version.mjs", ({ lib, script: SCRIPT })
       [["--repo", "x", "--other"]],
       [["--repo", "--artifacts", "x"]],
       [["--repo="]],
+      [["--repo", "x", "--compare", "m.json"]],
+      [["--repo", "x", "--at", "target"]],
     ])("%j は使い方の誤り", (argv) => {
       expect(() => parseArgs(argv)).toThrow();
     });

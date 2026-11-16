@@ -115,6 +115,10 @@
       "exports": ["*"]
     },
     {
+      "file": "skills/golden-dataset/scripts/source-version.mjs",
+      "exports": ["*"]
+    },
+    {
       "file": "skills/issue-batch/scripts/skill-config/skill-config.mjs",
       "exports": ["*"]
     },
@@ -199,6 +203,10 @@
       "exports": ["*"]
     },
     {
+      "file": "skills/parity-suite/scripts/source-version.mjs",
+      "exports": ["*"]
+    },
+    {
       "file": "skills/pr-finalize-loop/scripts/skill-config/skill-config.mjs",
       "exports": ["*"]
     },
@@ -224,6 +232,10 @@
     },
     {
       "file": "skills/replace-strategy/scripts/skill-config/skill-config.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/replace-strategy/scripts/source-version.mjs",
       "exports": ["*"]
     },
     {

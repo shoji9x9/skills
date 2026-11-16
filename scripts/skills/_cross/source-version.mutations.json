@@ -32,7 +32,8 @@
         "parity-replace の source-version.mjs 新側がサブディレクトリ・.replace/ が新側の中 記録を書いただけでも、記録を commit した後も、new.tree は変わらず dirty にならない",
         "parity-replace の source-version.mjs 新側がサブディレクトリ・.replace/ が新側の中 .replace/ の外の追跡していないファイルは dirty、.replace/ の中なら dirty にしない",
         "parity-replace の source-version.mjs 範囲 新側のディレクトリの名前をパターンとして読まない（app[1] が app1 に一致しない）",
-        "parity-replace の source-version.mjs 呼び出し元の環境 名前が .. で始まるリポジトリの中のディレクトリの .replace/ も除く"
+        "parity-replace の source-version.mjs 呼び出し元の環境 名前が .. で始まるリポジトリの中のディレクトリの .replace/ も除く",
+        "parity-replace の source-version.mjs 記録との照合 CLI: 同じなら exit 0、ソースを変えて commit すると exit 1、記録を読めなければ exit 2"
       ]
     },
     {
@@ -200,6 +201,44 @@
         "parity-replace の source-version.mjs --rev --rev に完全な SHA でない値（HEAD）を渡すと、使い方の誤りにする",
         "parity-replace の source-version.mjs --rev --rev に完全な SHA でない値（main）を渡すと、使い方の誤りにする",
         "parity-replace の source-version.mjs --rev --rev に完全な SHA でない値（abc1234）を渡すと、使い方の誤りにする"
+      ]
+    },
+    {
+      "id": "sv-compare-dirty-ignored",
+      "why": "照合で dirty を見ない（commit していない変更を含む現行や新側の記録を、同じバージョンとして通す）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "  if (dirty === true || now.dirty === true) return \"differs\";\n",
+      "replace": "  if (false) return \"differs\";\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-replace の source-version.mjs 記録との照合 記録が dirty なら、tree が同じでも一致させない",
+        "parity-replace の source-version.mjs 記録との照合 今の値が dirty なら、tree が同じでも一致させない"
+      ]
+    },
+    {
+      "id": "sv-compare-none-matches",
+      "why": "tree が none どうしを同じとして扱う（git で管理されていない現行が進んでも、記録を持ち越す）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "  if (tree === NONE || now.tree === NONE) return \"unverifiable\";\n",
+      "replace": "  if (false) return \"unverifiable\";\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-replace の source-version.mjs 記録との照合 記録の tree が none なら確かめられない",
+        "parity-replace の source-version.mjs 記録との照合 今の tree が none なら確かめられない",
+        "parity-replace の source-version.mjs 記録との照合 両方の tree が none でも、同じとして扱わない"
+      ]
+    },
+    {
+      "id": "sv-compare-missing-tree-passes",
+      "why": "tree の無い古い記録（target.commit だけ）を測り直しにしない（現行が進んだかを確かめないまま進む）",
+      "file": "skills/parity-replace/scripts/source-version.mjs",
+      "find": "  if (!hasTree || !hasDirty) return \"rerecord\";\n",
+      "replace": "  if (false) return \"rerecord\";\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "parity-replace の source-version.mjs 記録との照合 記録に tree が無ければ、commit が同じでも測り直す",
+        "parity-replace の source-version.mjs 記録との照合 記録に dirty が無ければ、測り直す",
+        "parity-replace の source-version.mjs 記録との照合 CLI: 同じなら exit 0、ソースを変えて commit すると exit 1、記録を読めなければ exit 2"
       ]
     }
   ]
