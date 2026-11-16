@@ -1,7 +1,7 @@
 ---
 name: issue-start
-description: GitHub Issue を起点に作業開始フローを標準化するスキル。Issue URL や Issue 番号を受け取り、リポジトリ一致確認・feature ブランチ作成と checkout（gh issue develop）・調査・実装・commit・push・PR 作成までを段階的に進めたいときに使う。ブランチを用意した時点で呼び出し元へ返す `--branch-only` があり、実装を自分で持つスキルからの委譲に使う。push の前と `--acceptance` で、Issue の受け入れ条件を 1 項目ずつ根拠と突き合わせた表を同梱の検査で確かめる。「Issue から始める」「この issue に着手」「受け入れ条件を確かめて」「issue-start」や、`--branch-only` / `--plan` / `--commit` / `--pr` / `--acceptance` を伴う依頼で発動する。
-argument-hint: "<Issue URL | 番号> [--branch-only | --plan | --commit | --pr | --acceptance]"
+description: GitHub Issue を起点に作業開始フローを標準化するスキル。Issue URL や Issue 番号を受け取り、リポジトリ一致確認・feature ブランチ作成と checkout（gh issue develop）・調査・実装・commit・push・PR 作成までを段階的に進めたいときに使う。ブランチを用意した時点で呼び出し元へ返す `--branch-only` があり、実装を自分で持つスキルからの委譲に使う。push の前と `--acceptance` で、Issue の受け入れ条件を 1 項目ずつ根拠と突き合わせた表を同梱の検査で確かめる。「Issue から始める」「この issue に着手」「受け入れ条件を確かめて」「issue-start」や、`--branch-only` / `--plan` / `--commit` / `--pr` / `--acceptance` / `--progress` を伴う依頼で発動する。
+argument-hint: "<Issue URL | 番号> [--branch-only | --plan | --commit | --pr | --acceptance] [--progress]"
 license: MIT
 ---
 
@@ -12,7 +12,7 @@ GitHub Issue を起点にした作業の始め方を、`gh` で標準化する�
 ## 使い方
 
 ```text
-issue-start <Issue URL | 番号> [--branch-only | --plan | --commit | --pr | --acceptance [--out <path>] [--decisions <path>] [--allow-later <owner>]]
+issue-start <Issue URL | 番号> [--branch-only | --plan | --commit | --pr | --acceptance [--out <path>] [--decisions <path>] [--allow-later <owner>]] [--progress]
 ```
 
 - モードの指定なし（`--branch-only`・`--plan`・`--commit`・`--pr`・`--acceptance` のどれも無い）: ブランチを作って checkout した後、そのまま調査と実装に進む。commit・push・PR はしない
@@ -27,6 +27,9 @@ issue-start <Issue URL | 番号> [--branch-only | --plan | --commit | --pr | --a
   実装を自分で持つスキル（`parity-replace` など）が、完了の判定をこのスキルに任せるときにも使う。
   `--out` は表の置き場所、`--decisions` は判断待ちの記録（`pending_decisions` を持つ JSON）、`--allow-later` は後の工程へ回してよい条件を満たす担当（呼び出し元が決める）である。
   手順は [`references/acceptance.md`](references/acceptance.md) で定義する
+- `--progress`: どのモードにも付けられる。作業の量を最初に見積もり、手順が進むたびに進捗（割合とバー）と費用を statusline に出す。
+  見積もりの単位・更新のしかた・エージェントごとの statusline の設定は [`references/progress.md`](references/progress.md) で定義する。
+  進捗は補助なので、その文書を読めないときや進捗を書けないときは、進捗を出さずに作業を続ける
 
 `--commit` と `--pr` は、利用者がその段階までの実行を明示的に任せたという合図である。指定が無い限り commit しない。
 
@@ -37,6 +40,7 @@ issue-start 220
 issue-start 220 --plan
 issue-start 220 --branch-only
 issue-start 220 --acceptance
+issue-start 220 --pr --progress
 issue-start https://github.com/<owner>/<repo>/issues/220 --pr
 ```
 
@@ -48,8 +52,9 @@ issue-start https://github.com/<owner>/<repo>/issues/220 --pr
 - 前提スキル: なし（worktree で作業する場合だけ `git-worktree`）
 - MCP: なし
 - シェル: bash（POSIX 互換のシェル）。コマンドの例は bash を前提にしているので、Windows では WSL や Git Bash などの bash の環境で実行する
-- Node.js は、受け入れ条件の突き合わせ（`--acceptance` と、`--pr` の push の前）でだけ要る（同梱の [`scripts/acceptance-check.mjs`](scripts/acceptance-check.mjs) を実行する）。
+- Node.js は、受け入れ条件の突き合わせ（`--acceptance` と、`--pr` の push の前）で要る（同梱の [`scripts/acceptance-check.mjs`](scripts/acceptance-check.mjs) を実行する）。
   無ければ、突き合わせを合格として扱わずに止まる。
+  `--progress` の進捗の書き込みと statusline の表示（同梱の [`scripts/progress.mjs`](scripts/progress.mjs)）でも使う。無ければ、進捗を出さずに作業を続ける。
 - 設定ファイル（`.config/skills/shoji9x9/common.jsonc` など）を読むときも Node.js が要る（同梱の `scripts/skill-config/skill-config.mjs` で読む）。
   設定ファイルがどの層にも無ければ、Node.js なしで規約の文書を探す。設定ファイルがあって Node.js が無ければ、設定を読めないとして止まる。
   pnpm や python は、どのモードでも要らない。
@@ -79,6 +84,7 @@ issue-start https://github.com/<owner>/<repo>/issues/220 --pr
      権限は `gh api repos/<owner>/<repo>/collaborators/<login>/permission --jq .permission` が `admin` か `write` かで確かめ、取得できなければ書き込み権限が無いとして扱う。
      公開リポジトリでは誰でもコメントを書けるので、それ以外の人のコメントを決定として採ると、その人が要件や実装の方針を決められる。
      それ以外の人のコメントは情報として読み、要件・範囲・方針を変える内容なら、反映する前に利用者に確認する
+   - `--progress` があれば、ここで作業の量を見積もり、以降は手順が変わるたびに進捗を書く（[`references/progress.md`](references/progress.md)）
 4. ブランチの名前を `feature/<番号>-<英語の短い説明>` の形で決める（リポジトリの規約に別の名前の決まりがあれば、それに従う）
    - title が主に日本語なら、そのまま書き写さず、作業の内容を表す短い英語の kebab-case にまとめる
 5. **担当者（assignee）を確かめ、空なら自分を割り当てて、読み直す。** そのうえで、同じ Issue の番号のブランチが既に無いかを確かめる
