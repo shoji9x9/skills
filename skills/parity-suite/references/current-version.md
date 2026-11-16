@@ -37,6 +37,7 @@ node <skill>/scripts/source-version.mjs --repo <current.repo> [--rev <commit>] \
    すべての組の値が、`noise_baseline` の同じ組の値以下なら満たす。1 組でも超えれば満たさない。`api-resource` と `batch` は、1 だけで判定する。
 
 持ち越すときは、`metadata.json` を次のように直し、`current-recheck/` を削除する（ノイズの 2 回目と同じく、commit しない）。
+直す前に、`metadata.json` と `reactions.json` を `current-recheck/` に控える。下の反応の網羅表の箇条で取り消すときに、2 つを元に戻すためである。
 
 - `target.commit`・`target.tree`・`target.dirty` を、新しい現行の値に書き換える。
 - `target.carried` の配列に 1 件足す。要素は `from`（前の `commit` と `tree`）・`to`（新しい `commit` と `tree`）・`at`（ISO 8601）・`checks` を持つ。
@@ -47,7 +48,7 @@ node <skill>/scripts/source-version.mjs --repo <current.repo> [--rev <commit>] \
   工程が失敗したら、原因で分ける。
   - 表の書き方の不備か、監査のやり直しで直る失敗: 手順 8 と同じく表を直して exit 0 まで通す。
   - 走査が、表に無い操作か書き込み箇所を見つけた失敗: 現行の挙動が変わったものとして扱う。スイートと撮り直しは、既存のテストと撮影の組しか確かめないので、新しい操作を見つけられないからである。
-    書き換えた `target.commit`・`target.tree`・`target.dirty` を前の値に戻し、`target.carried` に足した 1 件を消してから、下の「持ち越せないとき」に進む。報告には、見つかった操作か書き込み箇所を挙げる。
+    `metadata.json` と `reactions.json` を控えに戻してから、下の「持ち越せないとき」に進む。工程は `reactions.json` を失敗のときも書き戻すので、`metadata.json` だけを戻すと 2 つが食い違う。報告には、見つかった操作か書き込み箇所を挙げる。
 - `run.finished_at`・`procedure_revision`・ベースラインの実体・`noise_baseline` は変えない。持ち越しは特性化のやり直しではないからである。
 - 性能のベースラインは、持ち越しの判定に使わず、そのまま持ち越す。性能だけが変わったと疑うなら、利用者に再取得するかを確かめる。
 
