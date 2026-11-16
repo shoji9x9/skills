@@ -289,8 +289,10 @@
     "conventional-changelog-conventionalcommits",
     "jsonc-parser",
     "mdast-util-from-markdown",
-    "mdast-util-gfm"
+    "mdast-util-gfm",
+    "pngjs"
   ],
+  "ignoreBinaries": ["locale", "mise", "shfmt", "if", "then", "fi", "2"],
   "duplicates": {
     "enabled": false
   },
