@@ -28,6 +28,7 @@ node <skill>/scripts/source-version.mjs --repo <current.repo> [--rev <commit>] \
 ## 現行が進んだときの扱い
 
 新しい現行に対して次の 2 つを確かめ、両方を満たせば記録を持ち越す。どちらかを満たさなければ、仕様の変更として再取得する。
+持ち越した後に、反応の網羅表の工程が新しい操作を見つけたときは、持ち越しを取り消す（下の「持ち越すとき」の反応の網羅表の箇条）。
 
 1. スイートを新しい現行に当てて green になる。手順 8 の「スイートが現側に対して green」と同じ実行で確かめ、結果を `suite-report.json` に保存し直す。
    操作中のエラーのベースラインに無いエラーが出たら、green でも満たさないとして扱う。
@@ -40,17 +41,19 @@ node <skill>/scripts/source-version.mjs --repo <current.repo> [--rev <commit>] \
 - `target.commit`・`target.tree`・`target.dirty` を、新しい現行の値に書き換える。
 - `target.carried` の配列に 1 件足す。要素は `from`（前の `commit` と `tree`）・`to`（新しい `commit` と `tree`）・`at`（ISO 8601）・`checks` を持つ。
   `checks` は `["suite", "recapture"]` で、`api-resource` と `batch` では `["suite"]` である。
-- 反応の網羅表（`reactions.json`）は、持ち越しの判定に使わない。挙動が変わったかは、上の 2 つで判定する。
-  `target.*` を書き換えた後に、表を新しい commit に合わせる。項目は手で書き換えず、`SKILL.md` の手順 8 の反応の網羅の工程（移行元のソースの走査・`covered_by` の監査・`reaction-check.mjs --write`）をやり直して exit 0 まで通す。
+- 反応の網羅表（`reactions.json`）は、`target.*` を書き換えた後に、新しい commit に合わせる。項目は手で書き換えず、`SKILL.md` の手順 8 の反応の網羅の工程（移行元のソースの走査・`covered_by` の監査・`reaction-check.mjs --write`）をやり直して exit 0 まで通す。
   `reaction-check.mjs` は、走査したバージョンを `target.commit` と照合し、表の指紋で監査と `conformance` が今の表のものかを確かめるので、項目を 1 つだけ書き換えると別の照合で失敗するからである。
   対象は、`reaction_coverage.declared` が `true` で、`target.commit` が `none` でない機能だけである。`declared: false` の機能（`api-resource` と `batch` など）と `none` の記録は、何もしない。
-  工程が失敗したら、手順 8 と同じく表を直して exit 0 まで通す。挙動が変わっていないことは上の 2 つで確かめたので、ここで持ち越しをやめて再取得には移らない。
+  工程が失敗したら、原因で分ける。
+  - 表の書き方の不備か、監査のやり直しで直る失敗: 手順 8 と同じく表を直して exit 0 まで通す。
+  - 走査が、表に無い操作か書き込み箇所を見つけた失敗: 現行の挙動が変わったものとして扱う。スイートと撮り直しは、既存のテストと撮影の組しか確かめないので、新しい操作を見つけられないからである。
+    書き換えた `target.commit`・`target.tree`・`target.dirty` を前の値に戻し、`target.carried` に足した 1 件を消してから、下の「持ち越せないとき」に進む。報告には、見つかった操作か書き込み箇所を挙げる。
 - `run.finished_at`・`procedure_revision`・ベースラインの実体・`noise_baseline` は変えない。持ち越しは特性化のやり直しではないからである。
 - 性能のベースラインは、持ち越しの判定に使わず、そのまま持ち越す。性能だけが変わったと疑うなら、利用者に再取得するかを確かめる。
 
 持ち越せないときは、次のように扱う。
 
-- 超えた組と、red になったテストの名前を完了報告に挙げ、その機能を手順 5〜9 で再取得する。`current-recheck/` は削除する。
+- 超えた組・red になったテストの名前・反応の網羅表の走査で見つかった操作を完了報告に挙げ、その機能を手順 5〜9 で再取得する。`current-recheck/` は削除する。
 - 再取得する前に、新側に同じ機能の green の証跡や差分の記録（`.replace/parity/<slug>/new/`）があれば、それらが古い現行に合わせたものになることを報告に書く。
-- 再取得した後、新側への反映を Issue にするかを利用者に確かめる。起票するなら `issue-create` に任せ、変わった挙動（red のテスト・超えた組）と、記録の commit から今の commit までの変更を本文に書く。
+- 再取得した後、新側への反映を Issue にするかを利用者に確かめる。起票するなら `issue-create` に任せ、変わった挙動（red のテスト・超えた組・見つかった操作）と、記録の commit から今の commit までの変更を本文に書く。
 - `--autonomous` では、再取得と起票の確認を `pending-decisions.json` に残して止まる（再取得すると前のベースラインが消えるので、利用者の判断なしに進めない）。

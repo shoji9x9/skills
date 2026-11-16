@@ -510,7 +510,7 @@ node <スキルのディレクトリ>/scripts/source-version.mjs --repo <current
 現行の変更のうち、外から見える挙動が変わらないもの（依存の更新など）は記録を持ち越し、挙動が変わるもの（仕様の変更）だけを再取得と新側への反映につなげる。
 持ち越せるかは、変更の中身ではなく、新しい現行に対する測定の結果で決める。
 
-- `parity-suite`: スイートを新しい現行に当てて green になり、画面のある機能では、同じ撮影条件で撮り直した結果が既存のベースラインとノイズの基準値の範囲で一致すれば、持ち越す。手順の原本は `parity-suite` の `references/current-version.md` である。
+- `parity-suite`: スイートを新しい現行に当てて green になり、画面のある機能では、同じ撮影条件で撮り直した結果が既存のベースラインとノイズの基準値の範囲で一致すれば、持ち越す。持ち越した後の反応の網羅表の工程が新しい操作を見つけたら、取り消す。手順の原本は `parity-suite` の `references/current-version.md` である。
 - `spec-parity suite`: スイートを新しい現行に当てて green なら持ち越す（見た目を現行に合わせないので、撮り直しはしない）。手順の原本は `spec-parity` の `references/suite-authoring.md`「現行が進んだとき」である。
 - `golden-dataset`: 投入と現行側の検証を新しい現行でやり直して通れば持ち越す。手順の原本は `golden-dataset` の `references/versioning.md`「現行が進んだとき」である。
 
