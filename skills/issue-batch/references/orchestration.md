@@ -181,7 +181,7 @@ run を始めた後（全体 preflight を終え、manifest の作成などの�
 
 - 途中で利用者の判断が要る状態になったら、確認を送る代わりに、その Issue を BLOCKED（判断待ち）にして manifest に記録する。
   そのうえで、`continue_on_blocked` に従って次の Issue に進むか run を止める（「全体 preflight」の最後の段落）。
-  記録するのは、一意な `id`・種別（`kind`）・論点・選択肢・それぞれの根拠と影響・推奨・決まった後に残る作業である（`id` は受け入れ条件の表の `decision_ref` が指す）。利用者が最終報告だけを読んで決められるようにする。
+  記録するのは、一意な `id`・種別（`kind`）・論点・今の手順・選択肢・それぞれの根拠と影響（選ぶと今の手順がどう変わるか）・推奨・決まった後に残る作業である（`id` は受け入れ条件の表の `decision_ref` が指す）。利用者が最終報告だけを読んで決められるようにする。
   `kind` は、判断待ちが生じた元で決める。値は次の 5 つで、どれにも当たらなければ `other` にする。
   - `provisional`: Issue から導けずに選んだ解釈・値・形のうち、人の答えを待つもの（`issue-start` の `references/provisional-decisions.md` で人に回すと決めたもの）。
     PR を作った後にも、issue-batch が自分で変更を足す工程（`FINALIZING` に戻した後の記録の commit・base の merge・「deployment 修復」）で生じる。
