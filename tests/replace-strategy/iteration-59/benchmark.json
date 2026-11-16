@@ -1,0 +1,152 @@
+{
+  "metadata": {
+    "skill_name": "replace-strategy",
+    "skill_path": "skills/replace-strategy",
+    "executor_model": "claude-code / opus / high",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-16T06:12:16Z",
+    "evals_run": [44],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 44,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 107.816,
+        "tokens": 893526,
+        "tool_calls": 12,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "order-list を、基準にした現行のバージョンから現行が進んだ機能として挙げ、記録の持ち越しか再取得が要ると報告している",
+          "passed": true,
+          "evidence": "order-list の「基準にした現行」を「古い（differs）。持ち越すか再取得するかの判断が要ります」と報告"
+        },
+        {
+          "text": "記録の commit から今の現行の HEAD までの変更として、commit「fix: 注文一覧の日付を和暦の書式で表示する」を挙げている",
+          "passed": true,
+          "evidence": "「e67f9ab fix: 注文一覧の日付を和暦の書式で表示する」を挙げている"
+        },
+        {
+          "text": "現行が進んだかを、replace-strategy 同梱の source-version.mjs の --compare で記録と照合して判定している（応答で判定）",
+          "passed": true,
+          "evidence": "raw で node $S/source-version.mjs --repo ./current-app --compare .replace/parity/order-list/metadata.json --at target を実行し、応答にも --compare の結果 differs を書いている"
+        },
+        {
+          "text": "local-dev で収束済みであることを理由に、order-list をそのまま切り替えに進めてよいと結論していない",
+          "passed": true,
+          "evidence": "「まだ切り替えには進めません」「古い現行を基準にした収束」"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）と current-app を書き換えていない",
+          "passed": true,
+          "evidence": "raw に Write・Edit の呼び出しが無く、応答に「ファイルは変更していません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 44,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 72.545,
+        "tokens": 223383,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "order-list を、基準にした現行のバージョンから現行が進んだ機能として挙げ、記録の持ち越しか再取得が要ると報告している",
+          "passed": true,
+          "evidence": "「測定のあとに現行側が変わっている」として、今の現行を前提に測り直すよう提案。持ち越しの選択肢は挙げていないが、再取得が要ることは報告している"
+        },
+        {
+          "text": "記録の commit から今の現行の HEAD までの変更として、commit「fix: 注文一覧の日付を和暦の書式で表示する」を挙げている",
+          "passed": true,
+          "evidence": "「e67f9ab（2026-07-10「fix: 注文一覧の日付を和暦の書式で表示する」）」を挙げている"
+        },
+        {
+          "text": "現行が進んだかを、replace-strategy 同梱の source-version.mjs の --compare で記録と照合して判定している（応答で判定）",
+          "passed": false,
+          "evidence": "raw に source-version の呼び出しが無い。記録と current-app の git 状態を手で突き合わせたと応答に書いている"
+        },
+        {
+          "text": "local-dev で収束済みであることを理由に、order-list をそのまま切り替えに進めてよいと結論していない",
+          "passed": true,
+          "evidence": "「まだ切り替えには進めません」「今の「収束」は今の現行に対して有効ではなくなります」"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）と current-app を書き換えていない",
+          "passed": true,
+          "evidence": "raw に Write・Edit の呼び出しが無く、応答に「ファイルの変更…はしていません」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 107.816,
+        "stddev": 0,
+        "min": 107.816,
+        "max": 107.816
+      },
+      "tokens": {
+        "mean": 893526,
+        "stddev": 0,
+        "min": 893526,
+        "max": 893526
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.8,
+        "stddev": 0,
+        "min": 0.8,
+        "max": 0.8
+      },
+      "time_seconds": {
+        "mean": 72.545,
+        "stddev": 0,
+        "min": 72.545,
+        "max": 72.545
+      },
+      "tokens": {
+        "mean": 223383,
+        "stddev": 0,
+        "min": 223383,
+        "max": 223383
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.20",
+      "time_seconds": "+35.3",
+      "tokens": "+670143"
+    }
+  },
+  "notes": [
+    "Issue #1051 で足した eval 44（現行が記録の後に進んだときの status の報告）を、with_skill と without_skill で 1 run ずつ実行した変更確認である。",
+    "新しく足した eval なので、比べる前回の記録は無い。",
+    "without_skill も、fixture の current-app の git の履歴と setup.sh を読んで、現行が進んだことと記録の後の commit を自力で見つけた。",
+    "そのため assertion 1・2・4 は差が出ず、後退の検出のための assertion である。差が出たのは、同梱の source-version.mjs の --compare で照合したかを見る assertion 3 だけである。"
+  ]
+}

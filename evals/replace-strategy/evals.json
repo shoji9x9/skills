@@ -907,6 +907,40 @@
           "prompt_quote": "ファイルの変更はしないで"
         }
       ]
+    },
+    {
+      "id": 44,
+      "fixture": "fixtures/status-current-advanced",
+      "prompt": "replace-strategy status を実行して、現況を 1 つの報告にまとめて。order-list は現行で測り終えて新側も local-dev で収束したので、このまま切り替えに進めるかを知りたい。コマンドの実行はしてよいが、ファイルの変更はしないで。",
+      "assertions": [
+        "order-list を、基準にした現行のバージョンから現行が進んだ機能として挙げ、記録の持ち越しか再取得が要ると報告している",
+        "記録の commit から今の現行の HEAD までの変更として、commit「fix: 注文一覧の日付を和暦の書式で表示する」を挙げている",
+        "現行が進んだかを、replace-strategy 同梱の source-version.mjs の --compare で記録と照合して判定している（応答で判定）",
+        "local-dev で収束済みであることを理由に、order-list をそのまま切り替えに進めてよいと結論していない",
+        "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）と current-app を書き換えていない"
+      ],
+      "reachability": [
+        {
+          "assertion": "order-list を、基準にした現行のバージョンから現行が進んだ機能として挙げ、記録の持ち越しか再取得が要ると報告している",
+          "prompt_quote": "現況を 1 つの報告にまとめて"
+        },
+        {
+          "assertion": "記録の commit から今の現行の HEAD までの変更として、commit「fix: 注文一覧の日付を和暦の書式で表示する」を挙げている",
+          "prompt_quote": "現況を 1 つの報告にまとめて"
+        },
+        {
+          "assertion": "現行が進んだかを、replace-strategy 同梱の source-version.mjs の --compare で記録と照合して判定している（応答で判定）",
+          "prompt_quote": "現況を 1 つの報告にまとめて"
+        },
+        {
+          "assertion": "local-dev で収束済みであることを理由に、order-list をそのまま切り替えに進めてよいと結論していない",
+          "prompt_quote": "このまま切り替えに進めるかを知りたい"
+        },
+        {
+          "assertion": "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）と current-app を書き換えていない",
+          "prompt_quote": "ファイルの変更はしないで"
+        }
+      ]
     }
   ]
 }
