@@ -40,11 +40,11 @@ node <skill>/scripts/source-version.mjs --repo <current.repo> [--rev <commit>] \
 - `target.commit`・`target.tree`・`target.dirty` を、新しい現行の値に書き換える。
 - `target.carried` の配列に 1 件足す。要素は `from`（前の `commit` と `tree`）・`to`（新しい `commit` と `tree`）・`at`（ISO 8601）・`checks` を持つ。
   `checks` は `["suite", "recapture"]` で、`api-resource` と `batch` では `["suite"]` である。
-- 反応の網羅表（`reactions.json`）は、項目を手で書き換えず、`SKILL.md` の手順 8 の反応の網羅の工程を、新しい commit でやり直す。
-  工程は、移行元のソースの走査・`covered_by` の監査（`assertion_audit`）・`reaction-check.mjs --write` までである。
-  `reaction-check.mjs` は、走査したバージョン（`source.version`）を `target.commit` と照合し、表の指紋で監査と `conformance` が今の表のものかを確かめる。
-  そのため、項目を 1 つだけ書き換えると、別の項目の照合で失敗する。
-  走査の結果（利用者に見える副作用の呼び出しと、表への書き込み）が前と同じなら、持ち越しを続ける。違えば、持ち越さずに再取得する。
+- 反応の網羅表（`reactions.json`）は、持ち越しの判定に使わない。挙動が変わったかは、上の 2 つで判定する。
+  `target.*` を書き換えた後に、表を新しい commit に合わせる。項目は手で書き換えず、`SKILL.md` の手順 8 の反応の網羅の工程（移行元のソースの走査・`covered_by` の監査・`reaction-check.mjs --write`）をやり直して exit 0 まで通す。
+  `reaction-check.mjs` は、走査したバージョンを `target.commit` と照合し、表の指紋で監査と `conformance` が今の表のものかを確かめるので、項目を 1 つだけ書き換えると別の照合で失敗するからである。
+  対象は、`reaction_coverage.declared` が `true` で、`target.commit` が `none` でない機能だけである。`declared: false` の機能（`api-resource` と `batch` など）と `none` の記録は、何もしない。
+  工程で表を直せずに exit 0 にできないほど操作が変わっていたら、持ち越しをやめて再取得する。書き換えた `target.*` は、再取得の手順 8 が書き直す。
 - `run.finished_at`・`procedure_revision`・ベースラインの実体・`noise_baseline` は変えない。持ち越しは特性化のやり直しではないからである。
 - 性能のベースラインは、持ち越しの判定に使わず、そのまま持ち越す。性能だけが変わったと疑うなら、利用者に再取得するかを確かめる。
 
