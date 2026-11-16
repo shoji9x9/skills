@@ -31,10 +31,10 @@ action の advisory は、替える時期を Issue で追う（「GitHub Actions
 GitHub の自動マージ（`dependabot-automerge.yml` と、`issue-batch` の `merge_mode: auto`）は必須チェックだけを待つので、Dependency Review が失敗した PR も取り込む。
 失敗を知らせる仕組みは無いので、自動マージで取り込まれた advisory も、マージの後に [`vulnerability-handling.md`](vulnerability-handling.md) の手順で扱う。
 
-zizmor は mise でインストールする（`mise.toml`）。手元では、CI の `Security lint (zizmor)` のステップと同じ対象に実行する。テンプレートが 1 つなら、次のとおりである。
+zizmor は mise でインストールする（`mise.toml`）。手元では、CI の `Security lint (zizmor)` のステップと同じ対象（`.github` と、`skills/*/assets/` の YAML のうち `jobs:` を持つもの）に実行する。今のテンプレートでは、次のとおりである。
 
 ```bash
-GH_TOKEN="$(gh auth token)" zizmor .github skills/kaizen/assets/kaizen-schedule.yml
+GH_TOKEN="$(gh auth token)" zizmor .github skills/kaizen/assets/kaizen-schedule.yml skills/pr-finalize-loop/assets/claude-review.yml
 ```
 
 `GH_TOKEN` を渡さないと、GitHub API を読む検査（タグの付け替え・既知の脆弱性を持つ Action）が実行されない。
