@@ -462,5 +462,5 @@ test.each([
 ])("main は、%s ときに exit 2 で止まる", (_name, argv) => {
   const r = run(argv, { env: {} });
   expect(r.code).toBe(2);
-  expect(r.stderr).toContain("使い方");
+  expect(r.stderr).toMatch(/^usage: /m);
 });

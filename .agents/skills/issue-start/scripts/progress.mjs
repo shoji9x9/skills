@@ -22,9 +22,8 @@ import { isCliEntry } from "./lib/cli.mjs";
 import { parseFlags } from "./lib/flags.mjs";
 
 const USAGE = [
-  "使い方:",
-  "  progress.mjs set --done <完了した数> --total <全体の数> --label <今の手順> [--session <ID>]",
-  "  progress.mjs statusline   （stdin に statusLine の JSON を渡す）",
+  "usage: node progress.mjs set --done <完了した数> --total <全体の数> --label <今の手順> [--session <ID>]",
+  "       node progress.mjs statusline   （stdin に statusLine の JSON を渡す）",
 ].join("\n");
 
 // Copilot CLI の COPILOT_AGENT_SESSION_ID は `copilot help environment` に載っている。
@@ -573,7 +572,7 @@ export function main(argv, deps = {}) {
     (deps.stdout ?? ((s) => process.stdout.write(s)))(`${line}\n`);
     return 0;
   }
-  return fail(`不明な引数: ${argv.join(" ")}`);
+  return fail(command === undefined ? "コマンドが無い" : `不明な引数: ${argv.join(" ")}`);
 }
 
 if (isCliEntry(import.meta.url)) {
