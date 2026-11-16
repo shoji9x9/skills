@@ -4,7 +4,7 @@
 // statusline は入力が読めなくても読めた部分だけを出して exit 0 で終わる。
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "vitest";
 import {
@@ -97,14 +97,30 @@ test.each([
 });
 
 test.each([
-  ["無い", {}, "セッションの ID が無い"],
-  ["パスの区切りを含む", { CLAUDE_CODE_SESSION_ID: "../evil" }, "使えない文字"],
-  ["`.` で始まる", { CLAUDE_CODE_SESSION_ID: ".hidden" }, "使えない文字"],
-])("set は、セッションの ID が %s ときに exit 2 で止まる", (_name, session, message) => {
+  ["パスの区切りを含む", { CLAUDE_CODE_SESSION_ID: "../evil" }],
+  ["`.` で始まる", { CLAUDE_CODE_SESSION_ID: ".hidden" }],
+])("set は、セッションの ID が %s ときに、引数の誤りとして exit 2 で止まる", (_name, session) => {
   const dir = makeTempDir("progress-");
   const r = run(setArgs("1", "5"), { env: { ISSUE_START_PROGRESS_DIR: dir, ...session } });
   expect(r.code).toBe(2);
-  expect(r.stderr).toContain(message);
+  expect(r.stderr).toContain("使えない文字");
+  expect(r.stderr).toMatch(/^usage: /m);
+});
+
+test("set は、セッションの ID が無ければ、引数の誤りと分けて exit 3 で止まり、書かない", () => {
+  const dir = makeTempDir("progress-");
+  const r = run(setArgs("1", "5"), { env: { ISSUE_START_PROGRESS_DIR: dir } });
+  expect(r.code).toBe(3);
+  expect(r.stderr).toContain("セッションの ID が無い");
+  expect(r.stderr).not.toMatch(/^usage: /m);
+  expect(readdirSync(dir)).toEqual([]);
+});
+
+test("set は、最後の手順の後の「完了」を、完了した数と全体の数が同じ形で書ける", () => {
+  const dir = makeTempDir("progress-");
+  expect(run(setArgs("14", "14", "完了"), { env: claudeEnv(dir) }).code).toBe(0);
+  expect(formatProgress({ done: 14, total: 14, label: "完了" })).toBe("[██████████] 100% 完了");
+  expect(readSaved(dir)).toMatchObject({ done: 14, total: 14, label: "完了" });
 });
 
 test("進捗の置き場所は、ISSUE_START_PROGRESS_DIR、XDG_STATE_HOME、HOME の順に決める", () => {
