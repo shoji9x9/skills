@@ -218,7 +218,8 @@ function installBrowserGlobals(styles: Styles, o: ResolvedLocatorOptions) {
         ? element.textStyle
         : pseudo
           ? (o.pseudoStylesBy[pseudo] ?? o.pseudoStyles)
-          : styles)[prop] ?? "",
+          : styles
+      )[prop] ?? "",
   });
   browser.CSS =
     o.webkitSupported === null

@@ -43,8 +43,8 @@
     "mdast-util-gfm": "^3.1.0",
     "micromark": "^4.0.3",
     "micromark-extension-gfm": "^3.0.0",
-    "oxfmt": "^0.75.0",
-    "oxlint": "^1.90.0",
+    "oxfmt": "^0.77.0",
+    "oxlint": "^1.92.0",
     "oxlint-tsgolint": "^7.0.2005",
     "semantic-release": "^25.0.9",
     "textlint": "^15.8.0",
@@ -52,7 +52,7 @@
     "textlint-rule-preset-ai-words-ja": "^1.2.1",
     "textlint-rule-preset-ja-technical-writing": "^12.0.2",
     "typescript": "^6.0.3",
-    "vitest": "^5.0.5"
+    "vitest": "^5.1.0"
   },
   "devEngines": {
     "packageManager": {
