@@ -605,6 +605,44 @@
           "prompt_quote": "ファイルの変更・commit・push・GitHub への接続はしないで"
         }
       ]
+    },
+    {
+      "id": 26,
+      "prompt": "issue-start 12 --pr --progress を Claude Code で使う場面を説明して。ファイルの変更・設定の書き換え・GitHub への接続はしないで（スキルの文書を読むのはよい）。作業量はいつどう見積もるのか。進捗はどの手順のときに何を実行して更新するのか。~/.claude/settings.json の statusLine には自作のスクリプトが既に設定されているが、この設定はどう扱うのか。同じことを Codex で使う場合は何が違うのか。",
+      "assertions": [
+        "作業量を、Issue を取得した後に、そのモードで行う手順を単位にして数えると述べている",
+        "手順が変わるたびに、同梱の progress.mjs の set を実行して進捗を書くと述べている",
+        "既にある statusLine を置き換えると今の表示が使われなくなることを示し、承認を得るまで書き換えないと述べている",
+        "Codex では progress.mjs を使わず、update_plan で進捗を更新すると述べている",
+        "Codex の statusline（config.toml の status_line）に task-progress を足すと述べている",
+        "ファイルの変更と設定の書き換えをせず、説明に留めている"
+      ],
+      "reachability": [
+        {
+          "assertion": "作業量を、Issue を取得した後に、そのモードで行う手順を単位にして数えると述べている",
+          "prompt_quote": "作業量はいつどう見積もるのか"
+        },
+        {
+          "assertion": "手順が変わるたびに、同梱の progress.mjs の set を実行して進捗を書くと述べている",
+          "prompt_quote": "進捗はどの手順のときに何を実行して更新するのか"
+        },
+        {
+          "assertion": "既にある statusLine を置き換えると今の表示が使われなくなることを示し、承認を得るまで書き換えないと述べている",
+          "prompt_quote": "この設定はどう扱うのか"
+        },
+        {
+          "assertion": "Codex では progress.mjs を使わず、update_plan で進捗を更新すると述べている",
+          "prompt_quote": "同じことを Codex で使う場合は何が違うのか"
+        },
+        {
+          "assertion": "Codex の statusline（config.toml の status_line）に task-progress を足すと述べている",
+          "prompt_quote": "同じことを Codex で使う場合は何が違うのか"
+        },
+        {
+          "assertion": "ファイルの変更と設定の書き換えをせず、説明に留めている",
+          "prompt_quote": "ファイルの変更・設定の書き換え・GitHub への接続はしないで"
+        }
+      ]
     }
   ]
 }
