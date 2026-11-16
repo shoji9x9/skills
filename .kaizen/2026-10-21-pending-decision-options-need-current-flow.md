@@ -3,8 +3,8 @@ date: 2026-10-21
 type: skill
 priority: high
 confidence: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [skills/kaizen/references/user-confirmation.md, skills/issue-batch/SKILL.md, AGENTS.md, docs/agent-workflow.md]
 session: claude-code
 ---
 
@@ -46,6 +46,11 @@ KEDB 照合（「選択肢」と「AskUserQuestion」・「推奨」・「位置
 `2026-10-16-ask-user-question-language-unchecked.md` は確認の文の言語を扱い、原因が違う。
 `2026-09-23-recommend-before-precedent-survey.md` は applied で、前例を調べずに推奨したことを扱う。
 
+## 優先度の見直し（Issue #992）
+
+2026-11-16、Issue #992 で見直し、high のままにした。
+2026-10-21 と 2026-11-11 の 2 回起き、どちらも利用者が 3 回聞き返すか、質問を却下した。判断を往復するたびに利用者の作業が止まるので、medium に下げる根拠は無い。
+
 ## 既存の規約
 
 - 扱い: なし
@@ -57,6 +62,11 @@ KEDB 照合（「選択肢」と「AskUserQuestion」・「推奨」・「位置
 
 - 相手: なし
 - 判断: なし
+
+## 失敗の種類
+
+- 種類: 要素が抜ける
+- 理由: 選択肢を示すたびに作る出力（最終報告の判断待ち・確認の選択肢）から、選ぶと何が変わるかと推奨の理由になる事実が抜けた
 
 ## 提案
 

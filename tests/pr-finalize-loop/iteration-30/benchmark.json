@@ -1,0 +1,187 @@
+{
+  "metadata": {
+    "skill_name": "pr-finalize-loop",
+    "skill_path": "<repo>/skills/pr-finalize-loop",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-16T04:32:43Z",
+    "evals_run": [20],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 20,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 9,
+        "failed": 0,
+        "total": 9,
+        "time_seconds": 48.779,
+        "tokens": 166445,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スレッド B について、利用者に確認を送らないと述べている",
+          "passed": true,
+          "evidence": "『--defer-decisions…利用者には確認せず判断待ちとして残す』"
+        },
+        {
+          "text": "スレッド B を直さず、解決もせずに残すと述べている",
+          "passed": true,
+          "evidence": "『直さず、解決もしない』"
+        },
+        {
+          "text": "スレッド A は直して、返信してから解決すると述べている",
+          "passed": true,
+          "evidence": "A は『返信してから解決』『順番は必ず返信が先』"
+        },
+        {
+          "text": "残りがスレッド B だけになったら、--max-iterations を待たずにループを止めると述べている",
+          "passed": true,
+          "evidence": "『max-iterations を使い切るまで回すことはしません』"
+        },
+        {
+          "text": "スレッド A の修正を push した後の HEAD が再レビューされたことを確かめてから止めると述べている",
+          "passed": true,
+          "evidence": "『新しい HEAD の…レビューが届くのを待つ…HEAD がレビュー済み』"
+        },
+        {
+          "text": "止まった理由を「完了」ではなく、判断待ちで終えたことを表す理由として報告すると述べている",
+          "passed": true,
+          "evidence": "『「完了」にはせず「判断待ちで終了」』"
+        },
+        {
+          "text": "判断待ちの報告に、スレッド B の選択肢（案 X・案 Y）と推奨を載せると述べている",
+          "passed": true,
+          "evidence": "『案 X と案 Y のそれぞれについて、根拠と…推奨する案』"
+        },
+        {
+          "text": "判断待ちの報告に、案 X・案 Y ごとに選ぶと今の手順がどう変わるかを載せると述べている",
+          "passed": true,
+          "evidence": "『案 X と案 Y のそれぞれについて…選ぶと今の動きがどう変わるか』"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "『実際には何も実行していません』"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 6,
+        "failed": 3,
+        "total": 9,
+        "time_seconds": 26.934,
+        "tokens": 38141,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スレッド B について、利用者に確認を送らないと述べている",
+          "passed": true,
+          "evidence": "B は『保留中の判断として記録するだけで止まらず』、停止時に提示（途中の確認なし）"
+        },
+        {
+          "text": "スレッド B を直さず、解決もせずに残すと述べている",
+          "passed": true,
+          "evidence": "『コード変更も resolve もせず、未解決のまま残します』"
+        },
+        {
+          "text": "スレッド A は直して、返信してから解決すると述べている",
+          "passed": true,
+          "evidence": "『commit して push し…返信して resolve』"
+        },
+        {
+          "text": "残りがスレッド B だけになったら、--max-iterations を待たずにループを止めると述べている",
+          "passed": true,
+          "evidence": "『自分で進められる作業がなくなった時点で止まります』"
+        },
+        {
+          "text": "スレッド A の修正を push した後の HEAD が再レビューされたことを確かめてから止めると述べている",
+          "passed": false,
+          "evidence": "push 後は CI の成功を待つのみ。HEAD の再レビュー確認の記述なし"
+        },
+        {
+          "text": "止まった理由を「完了」ではなく、判断待ちで終えたことを表す理由として報告すると述べている",
+          "passed": true,
+          "evidence": "『decisions-pending』（完了ではない）"
+        },
+        {
+          "text": "判断待ちの報告に、スレッド B の選択肢（案 X・案 Y）と推奨を載せると述べている",
+          "passed": false,
+          "evidence": "案 X・案 Y の影響を提示とあるが、推奨を載せるとは書いていない"
+        },
+        {
+          "text": "判断待ちの報告に、案 X・案 Y ごとに選ぶと今の手順がどう変わるかを載せると述べている",
+          "passed": false,
+          "evidence": "『それぞれの影響』のみ。選ぶと手順がどう変わるかではない"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "『実行はしていません』"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 48.779,
+        "stddev": 0,
+        "min": 48.779,
+        "max": 48.779
+      },
+      "tokens": {
+        "mean": 166445,
+        "stddev": 0,
+        "min": 166445,
+        "max": 166445
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.6667,
+        "stddev": 0,
+        "min": 0.6667,
+        "max": 0.6667
+      },
+      "time_seconds": {
+        "mean": 26.934,
+        "stddev": 0,
+        "min": 26.934,
+        "max": 26.934
+      },
+      "tokens": {
+        "mean": 38141,
+        "stddev": 0,
+        "min": 38141,
+        "max": 38141
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.33",
+      "time_seconds": "+21.8",
+      "tokens": "+128304"
+    }
+  },
+  "notes": []
+}
