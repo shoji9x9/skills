@@ -4,8 +4,8 @@
 //
 // set: エージェントが手順の変わり目に実行する。セッションの ID は --session か、エージェントがシェルに渡す環境変数
 // （Claude Code の CLAUDE_CODE_SESSION_ID、Copilot CLI の COPILOT_AGENT_SESSION_ID）から取る。
-// 終了コードは 0 ＝ 書いた、1 ＝ ファイルを書けない、2 ＝ 使い方の誤り（値の形・未知の名前・重複・セッションの ID の形）、
-// 3 ＝ セッションの ID が無い。3 は呼び出し方を直しても変わらない環境の状態なので、引数の誤りの 2 と分ける。
+// 終了コードは次のとおりである。0 は書いた、1 はファイルを書けない、2 は引数の誤り（値の形・未知の名前・重複・--session の ID の形）。
+// 3 は、環境変数のセッションの ID が無いか形が違う。2 は引数を直せば変わるが、3 は呼び出し方を直しても変わらない環境の状態なので分ける。
 //
 // statusline: Claude Code と Copilot CLI の statusLine の command として起動される。場所（user@host・ディレクトリ・branch）、
 // セッション（モデル・effort・コンテキスト・費用と、stdin の JSON の session_id で選んだ進捗）、プランの利用枠（5 時間・7 日）を、
@@ -129,17 +129,24 @@ export function progressFromFlags(strings) {
 }
 
 /**
- * セッションの ID を、引数か環境変数から決める。無ければ終了コード 3、形が違えば 2 と理由を返す。
+ * セッションの ID を、引数か環境変数から決める。
+ * 誤りの終了コードは、ID の出どころで決める。--session で渡した ID の形の誤りは引数を直せるので 2、
+ * 環境変数の ID が無いか形が違うときは呼び出し方を直しても変わらないので 3 にする。
  * @param {string | undefined} given
  * @param {Record<string, string | undefined>} env
  * @returns {{ session: string } | { error: string, code: 2 | 3 }}
  */
 export function resolveSession(given, env) {
-  const session = given ?? SESSION_ENV.map((name) => env[name]).find(Boolean);
+  if (given !== undefined) {
+    return SESSION_FORM.test(given)
+      ? { session: given }
+      : { error: "--session の ID に、使えない文字がある", code: 2 };
+  }
+  const session = SESSION_ENV.map((name) => env[name]).find(Boolean);
   if (!session)
     return { error: `セッションの ID が無い（--session か ${SESSION_ENV.join("・")}）`, code: 3 };
   if (!SESSION_FORM.test(session))
-    return { error: "セッションの ID に、使えない文字がある", code: 2 };
+    return { error: "環境変数のセッションの ID に、使えない文字がある", code: 3 };
   return { session };
 }
 

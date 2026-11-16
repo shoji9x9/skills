@@ -97,15 +97,33 @@ test.each([
 });
 
 test.each([
-  ["パスの区切りを含む", { CLAUDE_CODE_SESSION_ID: "../evil" }],
-  ["`.` で始まる", { CLAUDE_CODE_SESSION_ID: ".hidden" }],
-])("set は、セッションの ID が %s ときに、引数の誤りとして exit 2 で止まる", (_name, session) => {
+  ["パスの区切りを含む", "../evil"],
+  ["`.` で始まる", ".hidden"],
+])("set は、--session の ID が %s ときに、直せる引数の誤りとして exit 2 で止まる", (_name, id) => {
   const dir = makeTempDir("progress-");
-  const r = run(setArgs("1", "5"), { env: { ISSUE_START_PROGRESS_DIR: dir, ...session } });
+  const r = run([...setArgs("1", "5"), "--session", id], { env: claudeEnv(dir) });
   expect(r.code).toBe(2);
-  expect(r.stderr).toContain("使えない文字");
+  expect(r.stderr).toContain("--session の ID に、使えない文字がある");
   expect(r.stderr).toMatch(/^usage: /m);
+  expect(readdirSync(dir)).toEqual([]);
 });
+
+test.each([
+  ["パスの区切りを含む", "../evil"],
+  ["`.` で始まる", ".hidden"],
+])(
+  "set は、環境変数のセッションの ID が %s ときに、直せない環境の状態として exit 3 で止まる",
+  (_name, id) => {
+    const dir = makeTempDir("progress-");
+    const r = run(setArgs("1", "5"), {
+      env: { ISSUE_START_PROGRESS_DIR: dir, CLAUDE_CODE_SESSION_ID: id },
+    });
+    expect(r.code).toBe(3);
+    expect(r.stderr).toContain("環境変数のセッションの ID に、使えない文字がある");
+    expect(r.stderr).not.toMatch(/^usage: /m);
+    expect(readdirSync(dir)).toEqual([]);
+  },
+);
 
 test("set は、セッションの ID が無ければ、引数の誤りと分けて exit 3 で止まり、書かない", () => {
   const dir = makeTempDir("progress-");
