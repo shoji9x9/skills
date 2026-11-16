@@ -269,6 +269,9 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
   最初の稼働の判定で止まっていたことは、停止の条件ではなく、起動の合図である。
   `pre_commands` / `start` / 起動した後の確認が失敗したら、そこで停止し、後の工程へ進まない
 - 選択した target の `url` / `api_url` に届くかと、認証の環境変数があるか（値は出さない）を確かめ、早めに失敗する
+- 対象の slug に既存の `metadata.json` があれば、記録した現行のバージョンと今の現行を、撮影とスイートの実行より先に照合する。
+  `target.name` が手順 1 で確定した target と違えば、照合せずに再取得する（手順 8 の target の名前の不一致と同じ扱い）。
+  違えば測らずに、スイートと撮り直しで記録を持ち越すか、仕様の変更として再取得する（手順は [`references/current-version.md`](references/current-version.md)）
 
 ### 2. 対象決定
 
@@ -477,6 +480,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
 - 記録が無い網羅表と `ok: false` の網羅表は、`parity-diff` が収束させない（`conformance` が無いことは、古い成果物ではなく未実行として扱われる）
 - `metadata.json` には、選択した current の target の名前と、解決した URL を記録する。現側は 1 つの環境である。
   既存の `metadata.json` と target の名前が違えば、ベースラインが古くなったとして再取得を宣言する
+- 測った現行のバージョンを `target.commit`・`target.tree`・`target.dirty` に記録する（取り方は [`references/current-version.md`](references/current-version.md)「記録する」）
 - データが足りなければ、`golden-dataset` へ戻るよう案内する
 
 ### 9. 採取物と工程の健全性の記録

@@ -456,9 +456,12 @@
       "files": [
         "skills/parity-replace/scripts/source-version.mjs",
         "skills/spec-parity/scripts/source-version.mjs",
-        "skills/parity-diff/scripts/source-version.mjs"
+        "skills/parity-diff/scripts/source-version.mjs",
+        "skills/parity-suite/scripts/source-version.mjs",
+        "skills/golden-dataset/scripts/source-version.mjs",
+        "skills/replace-strategy/scripts/source-version.mjs"
       ],
-      "reason": "新側のバージョン（new.commit・new.tree・new.dirty）を取る source-version.mjs。取り方の原本は replace-strategy の references/project-config.md「新側のバージョンの記録」で、parity-replace が記録し、spec-parity verify と parity-diff が同じ取り方で照合する。食い違うと、同じ新側で記録と照合の値が合わず、前提の確認で止まるか、変えた新側を同じバージョンとして通す"
+      "reason": "新側と現行側のバージョン（commit・tree・dirty）を取り、記録と照合する source-version.mjs。取り方の原本は replace-strategy の references/project-config.md「新側のバージョンの記録」と「現行側のバージョンの記録」である。新側は parity-replace が記録し、spec-parity verify と parity-diff が照合する。現行側は parity-suite・spec-parity suite・golden-dataset が記録して照合し、replace-strategy status・parity-diff・spec-parity verify が古くなった記録を知らせる。食い違うと、同じバージョンで記録と照合の値が合わずに止まるか、変わったバージョンを同じとして通す"
     },
     {
       "files": [

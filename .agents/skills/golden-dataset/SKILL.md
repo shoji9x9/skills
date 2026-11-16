@@ -165,6 +165,8 @@ UI に固有のページ送りの機能は UI で確定し、どこまで上げ�
      確定したら、その `db.env_vars` があることの確認（値は出さない）を、`secrets.wrapper` を前に付けて最初に行い、つながらなければ早く失敗させる
    - `static`: `dataset_static_paths` が 1 つ以上あることを確かめ（無ければ止まる）、その下を現行のリポジトリで読み書きできることを確かめる。投入先の target に `db` を求めない。
      現行の静的データの形式（ファイルの配置・フィールドの構成・型。DDL に当たる）を現行のリポジトリから決定論的に読み取れなければ、止まってユーザーに確認する
+   - 既存の `.replace/dataset/metadata.json` があれば、記録した現行のバージョン（`current.tree`・`current.dirty`）と今の現行を、投入より先に照合する。
+     違えば、データを変える前に、記録を持ち越すかやり直すかを決める（[`references/versioning.md`](references/versioning.md)「現行が進んだとき」）
 2. データの設計。DDL の制約と機能のインベントリを起点に、エッジケースを意図して含めて設計する。詳細: [`references/data-design.md`](references/data-design.md)。
    - `current.origin: received-assets` では、加えて `.replace/bootstrap/semantics.md` を読む。「確定済み」の意味論だけを設計の根拠に使い、「確認待ち」の行は根拠にしない（禁止事項 14）。
    - `handoff.boot_requirements` に挙がった起動の要件（認証ユーザー・マスタ・コード表など）は、必ず設計に含める。このフェーズの投入は、暫定の起動データを事前の削除で置き換える。
@@ -197,6 +199,7 @@ UI に固有のページ送りの機能は UI で確定し、どこまで上げ�
    - `db`: `current.target` に、投入先の current の target 名を記録する（`parity-suite` がベースラインの採取のときに自分の選んだ target と照らし合わせ、一致しなければ止まる）
    - `static`: 投入先の環境を持たないので、`current.target` と `current.seeded_at` を `null` にする。代わりに、`current.fingerprint` に生成物の決定論的なハッシュを記録する
      （`parity-suite` は、`current.target` が `null` なら target を照らし合わせない）
+   - どちらのモードでも、検証した現行のバージョンを `current.commit`・`current.tree`・`current.dirty` に記録する（取り方は [`references/versioning.md`](references/versioning.md)「現行のバージョンの記録」）
 
 ### フェーズ B（新側フェーズ・slug ごと）
 

@@ -124,3 +124,31 @@ API の特性化に入る前に、対象の slug の features.md で根拠が `�
   結果の JSON は、e2e の出力先の `report.json`（デフォルトは `.e2e/report.json`。<https://e2e.com/docs/reference/config#output>）をコピーする。
 - 保存した結果が、収束の判定で「現行で通ったテスト」の一覧になる。スイートを変えたら、現行で実行し直して保存し直す（新側の結果にだけあるテストは、収束の判定でやり直しになる）。
 - 状態を変えるスイートは、2 回続けて通ることを確かめる（1 回目は初期状態から始まるので、後始末が機能しているかが結果に出ない）。
+
+## 現行のバージョンを記録する
+
+スイートを現行で通したら、通した現行のバージョンを `metadata.json` の `target.commit`・`target.tree`・`target.dirty` に書く。
+値は同梱の [`../scripts/source-version.mjs`](../scripts/source-version.mjs) に `--repo <current.repo>` を渡して取る。
+`--rev` を付けるかと、取れないときに `none` と `target.version_unverified_reason` を書くことは、`replace-strategy` の `references/project-config.md`「現行側のバージョンの記録」で定義する。
+`dirty` が `true` のときに止まることも、同じ節で定義する。
+その節を読めなければ、記録せずに止まる。
+
+## 現行が進んだとき
+
+対象の slug に既存の `metadata.json` があれば、スイートを書き足す前と現行で実行し直す前に、次の形で照合する。
+
+```bash
+node <skill>/scripts/source-version.mjs --repo <current.repo> [--rev <commit>] \
+  --compare .replace/parity/<slug>/metadata.json --at target
+```
+
+出力の `compare.result` が `same` なら、そのまま進む。`unverifiable` なら止めずに進み、確かめられなかったことを `target.version_unverified_reason` と報告に書く。終了コードが 2 なら止まる。
+`differs` と `rerecord` なら、次のように扱う。出力の `dirty`（今の値）が `true` なら、持ち越しにも再取得にも進まずに止まり、現行の変更を commit するか退避するかを利用者に確かめる。新しい記録を書けないからである。
+
+- スイートを新しい現行に当てる（上の「スイートを現行で通す」と同じ実行）。すべて通り、操作中のエラーの基準に無いエラーも出なければ、記録を持ち越す。
+  `target.commit`・`target.tree`・`target.dirty` を新しい値に書き換え、`suite-report.json` を保存し直す。
+  `target.carried` には、`from`（前の `commit` と `tree`）・`to`（新しい `commit` と `tree`）・`at`（ISO 8601）・`checks`（`["suite"]`）を持つ要素を 1 件足す。
+  見た目を現行に合わせないので、画面は撮り直さない。
+- 通らなければ、仕様の変更として扱う。通らなかったテストの名前を報告に挙げ、その機能の suite の手順 3〜8 をやり直す。
+  新側に同じ機能の verify の記録（`.replace/parity/<slug>/new/`）があれば、古い現行に合わせたものになることも報告に書く。
+  やり直した後、新側への反映を Issue にするかを利用者に確かめる。起票するなら `issue-create` に任せる。`--autonomous` では、確認を `pending-decisions.json` に残して止まる。

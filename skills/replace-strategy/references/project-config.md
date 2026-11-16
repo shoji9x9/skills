@@ -125,7 +125,7 @@ node "$CFG" dump replace-strategy                         # すべてのキー�
       },
       "catalog_url": "<URL>", // 任意（side: new だけ。catalog_url_command と同時には書けない）。部品カタログの baseURL（固定の文字列）。parity-component の build が読み、どちらも無ければ推測せずに停止する
       // "catalog_url_command": "<コマンド>", // catalog_url と同時には書けない。標準出力に URL を 1 行出す（url_command と同じ解決と記録の規則）
-      "commit_check": "<コマンド>", // 任意。稼働中の新側のコミットの SHA を標準出力に出す（start を持たない配信型の target で、parity-replace が軽い判定に使う）
+      "commit_check": "<コマンド>", // 任意。稼働中のコミットの完全な SHA を標準出力に出す（start を持たない配信型の target で使う。新側は parity-replace の軽い判定、現行側は下記「現行側のバージョンの記録」）
       "on_diff": "<path>" // 任意。この target で要対応の差分が出たときの対応手順を書いた Markdown のパス（下記「on_diff」。無ければデフォルトの動作）
     },
     {
@@ -420,7 +420,8 @@ node "$CFG" append replace-strategy component_diffs '<要素の JSON>' --layer r
 - `spec-parity verify` の `verify-metadata.json` の `new.commit`・`new.tree`・`new.dirty`
 - `parity-diff` の前提の確認で、撮るバージョンを確かめる処理
 
-3 つのスキルは、同じ中身の `scripts/source-version.mjs` を同梱する。
+新側を記録して照合する 3 つのスキル（`parity-replace`・`spec-parity`・`parity-diff`）は、同じ中身の `scripts/source-version.mjs` を同梱する。
+現行側を記録して照合する `parity-suite`・`golden-dataset`・`replace-strategy` も同じ中身を同梱するので、同梱するスキルは合わせて 6 つである（下記「現行側のバージョンの記録」）。
 値は、プロジェクトのルート（`.replace/` を置くディレクトリ）で `node <スキルのディレクトリ>/scripts/source-version.mjs --repo <new.repo>` を実行して取る。
 出力の JSON の `commit`・`tree`・`dirty` を、そのまま記録に書く。git のコマンドを手で組み立てない。
 終了コードが 2 のとき（git を起動できない、新側に commit が 1 つも無いなど）は、値を推測して書かずに止まる。
@@ -454,6 +455,66 @@ node "$CFG" append replace-strategy component_diffs '<要素の JSON>' --layer r
   利用者は、その記録を書いたスキルをもう一度実行して記録し直せば、続けられる。
 - 新側の変更を退避するよう利用者に案内するときは、記録を退避しないように、範囲を pathspec で渡す。
   `git -C <new.repo> stash push --include-untracked -- . ':(top,exclude)<出力の excluded>'` の形で案内する。出力の `excluded`（リポジトリの最上位からの `.replace/` の相対パス）が `null` なら、`.` だけを渡す。
+
+## 現行側のバージョンの記録（`target.commit` / `target.tree` / `target.dirty`）
+
+現行を測った成果物に、現行のどのバージョンで測ったかを記録し、次に測る前に照合する。
+リプレイスの間も、現行はセキュリティの対応や依存の更新で変わることがある。記録が無いと、進んだ現行に古いベースラインのまま新側を合わせることになる。
+取り方と照合の規則はここで定義し、記録して照合するスキルはここを参照する（ここへ転記しない）。
+
+| 成果物 | 記録するキー | 書くスキル |
+|---|---|---|
+| `.replace/parity/<slug>/metadata.json`（ベースライン・特性化・ノイズの基準値） | `target.commit`・`target.tree`・`target.dirty` | `parity-suite`、`spec-parity suite` |
+| `.replace/dataset/metadata.json`（フェーズ A の現行側の検証） | `current.commit`・`current.tree`・`current.dirty` | `golden-dataset` |
+
+値は、新側と同じ同梱の `scripts/source-version.mjs` で、`--repo <current.repo>` を渡して取る（範囲・`dirty`・`none` の意味は上の「新側のバージョンの記録」と同じ）。
+どの commit を取るかは、測る current の target で決まる。
+
+- `start` を持つ target（`current.repo` の作業ツリーから起動する環境）: `--rev` を付けずに、HEAD と作業ツリーを取る。
+- `start` を持たない target で `commit_check` があるもの: その出力の commit を `--rev` に渡す。
+- `start` も `commit_check` も持たない target: 動いているのが `current.repo` のどの commit かを利用者に確かめ、答えた完全な SHA を `--rev` に渡す。
+  答えを得られない（`--autonomous` など）ときは、`commit` と `tree` を `none`、`dirty` を `false` にする。
+  理由は `version_unverified_reason`（`parity-suite` と `spec-parity` では `target.` の下、`golden-dataset` では `current.` の下）に書く。
+- `current.repo` が `none` か、手元のディレクトリでない（`owner/repo` の形）ときは、取れない。同じく `none` と理由を書く。`owner/repo` なら、手元に clone したディレクトリのパスを `current.repo` に書くよう勧める。
+- 記録するときに `dirty` が `true` なら、測らずに止まる。commit していない変更の上で測った記録は、後でどのバージョンとも一致しないからである。現行の変更を commit するか退避するかを、利用者に確かめる。
+
+現行の target は、`current.repo` の特定の commit から手元で起動できる形（依存を lockfile で固定し、`start` で開発用のサーバーを起動する target）で定義するよう勧める。
+デプロイ先の環境は、測った後に誰かがデプロイすると記録とずれ、`commit_check` が無ければ、どの commit が動いているかも分からない。
+
+### 照合（`--compare`）
+
+既に記録がある成果物について、その現行に対して測る前と、記録を基に判断する前に、次の形で照合する。
+
+```bash
+node <スキルのディレクトリ>/scripts/source-version.mjs --repo <current.repo> [--rev <commit>] \
+  --compare .replace/parity/<slug>/metadata.json --at target   # golden-dataset は --compare .replace/dataset/metadata.json --at current
+```
+
+規則は上の「新側のバージョンの記録」の照合と同じで、結果は出力の `compare.result` に出る。終了コードは、同じなら 0、同じと判定できなければ 1、記録を読めないか値を取れなければ 2 である。
+`--rev` を付けるかは、現行を測らない工程でも、記録した target（`target.name`、`golden-dataset` では `current.target`）の定義から上の箇条と同じに決める。
+記録した target が `null`（`golden-dataset` の `static`）なら、`--rev` を付けない。動いている commit を利用者から得られなければ、照合せずに未検証として報告に出す。
+
+| `compare.result` | 現行を測る工程（`parity-suite`・`spec-parity suite`・`golden-dataset` の現行側の検証） | 現行を測らない工程（`parity-diff`・`spec-parity verify`・`replace-strategy status`） |
+|---|---|---|
+| `same` | そのまま測る | そのまま進める |
+| `differs` | 測らずに止まり、下の「現行が進んだときの扱い」に進む。出力の `dirty`（今の値）が `true` なら、持ち越しの確認に進まずに止まる（新しい記録を書けないため） | 止めずに、基準にした現行が古いことを報告に出す。新側の比較は記録したベースラインに対して行うので、結果そのものは誤らない |
+| `rerecord`（`tree` か `dirty` の無い記録） | `differs` と同じに扱う | `differs` と同じに扱う |
+| `unverifiable`（どちらかの `tree` が `none`） | 止めずに測り、現行が進んだかを確かめられないことを `version_unverified_reason` と報告に残す | 止めずに、未検証として報告に出す |
+| 終了コードが 2 | 値を推測せずに止まる | 値を推測せずに止まる |
+
+`replace-strategy status` は、`differs` の機能ごとに、記録の commit から今の commit までの変更を `git -C <current.repo> log --oneline <記録の commit>..<今の commit>` で挙げる。
+記録の commit が完全な SHA でない（`none` か、`rerecord` で commit も無い）ときと手元に無いときは、`git log` を実行しない。代わりに、変更を挙げられないことを書く。
+
+### 現行が進んだときの扱い
+
+現行の変更のうち、外から見える挙動が変わらないもの（依存の更新など）は記録を持ち越し、挙動が変わるもの（仕様の変更）だけを再取得と新側への反映につなげる。
+持ち越せるかは、変更の中身ではなく、新しい現行に対する測定の結果で決める。
+
+- `parity-suite`: スイートを新しい現行に当てて green になり、画面のある機能では、同じ撮影条件で撮り直した結果が既存のベースラインとノイズの基準値の範囲で一致すれば、持ち越す。持ち越した後の反応の網羅表の工程が新しい操作を見つけたら、取り消す。手順の原本は `parity-suite` の `references/current-version.md` である。
+- `spec-parity suite`: スイートを新しい現行に当てて green なら持ち越す（見た目を現行に合わせないので、撮り直しはしない）。手順の原本は `spec-parity` の `references/suite-authoring.md`「現行が進んだとき」である。
+- `golden-dataset`: 投入と現行側の検証を新しい現行でやり直して通れば持ち越す。手順の原本は `golden-dataset` の `references/versioning.md`「現行が進んだとき」である。
+
+持ち越せなければ仕様の変更として扱い、その機能の成果物を再取得する。再取得した後、新側への反映を Issue にするかを利用者に確かめる（起票は `issue-create` に任せる）。
 
 ## 検証コマンド（`verification_commands`）
 
