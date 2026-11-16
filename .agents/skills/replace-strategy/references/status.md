@@ -76,6 +76,10 @@ open とも closed とも仮定せず、features.md の記述で代わりにし�
    - パリティスイートの有無と強度（`strength.md` の弱点・未検証の種別を含む）、ベースラインの有無
    - データセットのバージョンが古くなったか。ベースラインの `dataset_version` より後の `changes[].affects` が、その slug の実効の参照テーブルと交わるときだけ「要再取得」とする。
      実効の参照テーブルと、判定できないときに失敗として扱う条件の原本は、`golden-dataset` の `references/versioning.md` にある
+   - 基準にした現行が古くなったか。`.replace/parity/<slug>/metadata.json` の `target` と `.replace/dataset/metadata.json` の `current` を、今の現行と照合する。
+     照合には、同梱の [`../scripts/source-version.mjs`](../scripts/source-version.mjs) の `--compare` を使う。
+     `differs` と `rerecord` は「現行が進んだ・持ち越しか再取得が要る」とし、記録の commit から今の commit までの変更を挙げる。`unverifiable` は項目 3 の未検証の領域に入れる。
+     照合の形・commit の挙げ方・再取得を促す先の原本は [`project-config.md`](project-config.md)「現行側のバージョンの記録」である。このモードは照合して報告するだけで、記録を書き換えない
    - フェーズ B の状態。`new/<target>/` が存在する target について見る（`diff.md` の有無は問わない。差分を検出する前でも新側のデータは要る）。
      - 対応する `phase_b.<slug>.<target>` が無ければ、「その環境でフェーズ B が未実施の疑い」とする
      - `phase_b.<slug>.<target>.dataset_version` より後の変更がその slug に影響するなら、「その環境の新側のデータが古い・再投入が要る」とする。

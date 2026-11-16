@@ -7,7 +7,11 @@
     "name": "<選んだ current の target の名前（replace-strategy の targets の side: current）>",
     "ui_url": "<解決した UI の baseURL。url_command の target では \"runtime\">",
     "api_url": "<解決した API の baseURL。api_url を省いて url_command で解決したときは \"runtime\">",
-    "commit": "<現行のリポジトリのコミットの SHA。入手できなければ none>"
+    "commit": "<現行のリポジトリのコミットの SHA（source-version.mjs の commit）。入手できなければ none>",
+    "tree": "<source-version.mjs の tree。照合に使う値。取れなければ none（取り方の原本は replace-strategy の references/project-config.md「現行側のバージョンの記録」）>",
+    "dirty": "<source-version.mjs の dirty（真偽値。--rev で取ったときは null）。true のときは記録せずに止まる>",
+    "version_unverified_reason": "<tree が none のときだけ書く。取れなかった理由>",
+    "carried": "<現行が進んだときに記録を持ち越した履歴の配列。要素は { from: { commit, tree }, to: { commit, tree }, at: ISO 8601, checks: [suite] }。持ち越したことが無ければ空配列（原本は spec-parity の references/suite-authoring.md「現行が進んだとき」）>"
   },
   "run": {
     "started_at": "<ISO 8601>",

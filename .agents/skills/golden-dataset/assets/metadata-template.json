@@ -12,7 +12,11 @@
   "generated_at": "<生成日時（ISO 8601）>",
   "current": {
     "target": "<db: 投入先の current target 名（設定 targets の side: current で db.seedable: true のもの）／static: null>",
-    "commit": "<現行リポジトリのコミット SHA。入手不可なら none>",
+    "commit": "<現行リポジトリのコミット SHA（source-version.mjs の commit）。入手不可なら none>",
+    "tree": "<source-version.mjs の tree。照合に使う値。取れなければ none（取り方の原本は replace-strategy の references/project-config.md「現行側のバージョンの記録」）>",
+    "dirty": "<source-version.mjs の dirty（真偽値。--rev で取ったときは null）。true のときは記録せずに止まる>",
+    "version_unverified_reason": "<tree が none のときだけ書く。取れなかった理由>",
+    "carried": "<現行が進んだときに記録を持ち越した履歴の配列。要素は { from: { commit, tree }, to: { commit, tree }, at: ISO 8601 }。持ち越したことが無ければ空配列（原本は golden-dataset の references/versioning.md「現行が進んだとき」）>",
     "seeded_at": "<db: 現行テスト環境へ投入した日時（ISO 8601）／static: null（環境へ投入しないため）>",
     "fingerprint": "<static: 生成した静的データの決定論的ハッシュ（パス順に正規化して算出。アルゴリズムは verification.md に記す）／db: null>",
     "verified_at": "<現行側検証を完了した日時（ISO 8601）>"

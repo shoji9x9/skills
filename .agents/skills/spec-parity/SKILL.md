@@ -150,6 +150,7 @@ node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mj
 
 1. 前提の確認。`style_policy`・features.md の機能一覧の行か・e2e・`golden-dataset` のフェーズ A を、データセットの確認と target の起動より先に確かめる（上記「前提」）。
    target を解決し、`check_urls` で稼働を確かめる。
+   対象の slug に既存の `metadata.json` があれば、記録した現行のバージョンと今の現行を照合し、違えばスイートを書き足す前に持ち越すか再取得する（[`references/suite-authoring.md`](references/suite-authoring.md)「現行が進んだとき」）。
 2. 部品と設定を置く。`tests/parity/` の部品と `e2e.config.ts` を雛形から置く（既にあれば上書きしない）。置き場所は [`references/suite-authoring.md`](references/suite-authoring.md)「置き場所」にある。
 3. スイートを書く。操作・状態・role ごとの assertion・API を、[`references/suite-authoring.md`](references/suite-authoring.md) に従って `tests/<slug>/` に書く。
    スイートと部品は、`references.coding_conventions` の規約に従って書く。ログインが要る画面は、同じ reference の「認証」に従う。
@@ -161,6 +162,7 @@ node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mj
 6. 強度を確かめる。故障注入のテストと強度の計画を書き、`strength-check.mjs --write` で `metadata.json` の `strength` に書く。exit 0 になるまで、assertion を強めるか注入を直す（[`references/strength.md`](references/strength.md)）。
 7. 現行が保証している幅を記録する。候補の幅を現行で測り、`overflow-check.mjs --side current` が exit 0 になる幅を `capture_conditions.viewports` に残す（[`references/overflow.md`](references/overflow.md)）。
 8. 仕上げる。`verification_commands.full` をスイートと部品に通す（無ければ `gaps.md` に記録して進む）。
+   測った現行のバージョンを `target.commit`・`target.tree`・`target.dirty` に記録する（[`references/suite-authoring.md`](references/suite-authoring.md)「現行のバージョンを記録する」）。
    `strength.md`・`gaps.md` を書き、`metadata.json` の `suite.current_green` を `true` にし、`unmeasured` が `gaps.md` と同じ文言になっていることを確かめる。保留が残るなら `true` にしない。
 
 ### verify
@@ -173,6 +175,7 @@ node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mj
    `verify-metadata.json` を雛形から作る。前の記録があれば、保留と承認の記録（`approvals`）を読んでから更新し、`approvals` を引き継ぐ。
    同梱の [`scripts/source-version.mjs`](scripts/source-version.mjs) の出力の `commit`・`tree`・`dirty` を `new.commit`・`new.tree`・`new.dirty` に書く。
    `new.dirty` が `false` でなければ、ここで止まる（上の「前提」）。
+   現行の側は、`metadata.json` の記録した現行のバージョンを今の現行と照合する。違っても止めず、基準にした現行が古いことを `verify.md` と報告に書く（照合の規則は `replace-strategy` の `references/project-config.md`「現行側のバージョンの記録」）。
    起動の形と取り方の原本は `replace-strategy` の `references/project-config.md`「新側のバージョンの記録」で、`parity-replace` の `replace-metadata.json` と `parity-diff` の前提の確認も同じ取り方を使う（ここへ転記しない）。
    除くのは `.replace/` だけである。e2e の結果の出力先（`.e2e/`）と人による確認で撮った画面が新側のディレクトリの中にあるなら、`.replace/` の下に置くか新側の `.gitignore` に入れる。
    どちらでもないと、書くたびに `new.dirty` が `true` になり、verify は止まる（同じ節）。
@@ -214,7 +217,7 @@ node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mj
 - 同梱の判定のスクリプトは、プロジェクトへコピーせず、スキルのディレクトリの中から実行する（`gh skill update` で更新されるようにするため）。
   対象は [`scripts/runtime-errors.mjs`](scripts/runtime-errors.mjs)・[`scripts/strength-check.mjs`](scripts/strength-check.mjs)・
   [`scripts/overflow-check.mjs`](scripts/overflow-check.mjs)・[`scripts/convergence-check.mjs`](scripts/convergence-check.mjs)・[`scripts/source-version.mjs`](scripts/source-version.mjs) である。
-  `runtime-errors.mjs` は `parity-suite` のものと、`source-version.mjs` は `parity-replace`・`parity-diff` のものと同じ中身である。
+  `runtime-errors.mjs` は `parity-suite` のものと、`source-version.mjs` は `parity-replace`・`parity-diff`・`parity-suite`・`golden-dataset`・`replace-strategy` のものと同じ中身である。
   `scripts/lib/pending-state.mjs`（保留の判定）は `replace-strategy` のものと同じ中身である。
 
 ## 姉妹スキルとの連携

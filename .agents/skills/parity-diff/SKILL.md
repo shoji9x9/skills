@@ -303,7 +303,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 - このスキルに同梱した決定論的なツールは、プロジェクトへコピーせず、スキルのディレクトリの中から実行する（`gh skill update` で自動で更新されるようにするため）。
   対象は [`scripts/pixel-crops.mjs`](scripts/pixel-crops.mjs)・[`scripts/region-names.mjs`](scripts/region-names.mjs)・[`scripts/diff-report.mjs`](scripts/diff-report.mjs)・[`scripts/diff-normalize.mjs`](scripts/diff-normalize.mjs)・[`scripts/json-normalize-diff.mjs`](scripts/json-normalize-diff.mjs)・
   [`scripts/coverage-check.mjs`](scripts/coverage-check.mjs)・[`scripts/pending-triage-check.mjs`](scripts/pending-triage-check.mjs)・[`scripts/amend-verify.mjs`](scripts/amend-verify.mjs)・
-  [`scripts/source-version.mjs`](scripts/source-version.mjs)（新側のバージョンを取る。取り方の原本は `replace-strategy` の `references/project-config.md`「新側のバージョンの記録」）である。
+  [`scripts/source-version.mjs`](scripts/source-version.mjs)（新側のバージョンを取り、基準にした現行のバージョンを照合する。原本は `replace-strategy` の `references/project-config.md`「新側のバージョンの記録」と「現行側のバージョンの記録」）である。
   性能の比較は、インストール済みの `parity-suite` の `scripts/perf-stats.mjs` を `compare` で呼ぶ（コピーしない）。
   操作中のエラーの比較は、インストール済みの `parity-suite` の `scripts/runtime-errors.mjs` を `compare` で呼ぶ（コピーしない）。
   特性照合と応答ヘッダーの正規化は、`parity-suite` で確定した取り決めに従い、プロジェクトの側のコピー（`trait-capture.mjs`・`trait-compare.mjs`・`header-normalize.mjs`）を使う。

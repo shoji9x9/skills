@@ -178,6 +178,9 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
      - 先に、「新側はローカルだけで始めるか、配信型の環境（`develop` / `preview` など）も使うか」を確かめる。
        ローカルだけなら、`commit_check` / `on_diff` は確かめず、配信型の環境が求める CI/CD のパイプラインの前提も当たらない（前提の条件は上の「前提」）。
        配信型の環境は後から足せるので、この時点で無理に決めさせない。
+     - 現側の target は、`current.repo` の特定の commit から手元で起動できる形（依存を lockfile で固定し、`start` で開発用のサーバーを起動する）で定義するよう勧める。
+       現行が進んだかを、記録した現行のバージョンと照合して見つけるためである。デプロイ先の環境を測るなら、`commit_check` を確かめる。
+       `current.repo` が `owner/repo` の形なら、手元に clone したディレクトリのパスを書くよう勧める（原本は [`references/project-config.md`](references/project-config.md)「現行側のバージョンの記録」）。
    - ゴールデンデータセットの実体（`dataset_mode`）:
      - DB なら `db`（デフォルト）、リポジトリ内の静的なデータなら `static` を選ぶ。`static` では、投入ツールが作って消してよい `dataset_static_paths` を確定する。
      - `seedable` と `dataset_static_paths` は、設定による投入の制限である。デフォルトでは許可しない（書かなければ投入されない）。

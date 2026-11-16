@@ -90,3 +90,34 @@ version は順序を、`changes[].affects` は影響の範囲を、機械的に�
 
 このループは、`dataset_mode` に関わらず回す。DB を持たないプロジェクト（`static`）でも、投入先の target に `db` を求めない。
 そのため、フェーズ A の再実行は「投入先が無い」ことを理由に停止しない。停止するとループが止まったままになり、`parity-suite` の「データ不足」をいつまでも解消できなくなる。
+
+## 現行のバージョンの記録
+
+フェーズ A で検証した現行のバージョンを、`metadata.json` の `current.commit`・`current.tree`・`current.dirty` に書く。
+値は同梱の [`../scripts/source-version.mjs`](../scripts/source-version.mjs) に `--repo <current.repo>` を渡して取る。
+`--rev` を付けるかと、取れないときに `none` と `current.version_unverified_reason` を書くことは、`replace-strategy` の `references/project-config.md`「現行側のバージョンの記録」で定義する。
+`dirty` が `true` のときに止まることも、同じ節で定義する。
+その節を読めなければ、記録せずに止まる。
+
+`dataset_mode: static` では、生成した静的データが現行のリポジトリの中（`dataset_static_paths`）にある。
+生成したデータを commit してから値を取る。commit する前に取ると `dirty` が `true` になり、記録できない。
+
+## 現行が進んだとき
+
+既存の `metadata.json` があるフェーズ A では、投入より先に次の形で照合する。
+
+```bash
+node <skill>/scripts/source-version.mjs --repo <current.repo> [--rev <commit>] \
+  --compare .replace/dataset/metadata.json --at current
+```
+
+出力の `compare.result` が `same` なら、そのまま進む。`unverifiable` なら止めずに進み、確かめられなかったことを `current.version_unverified_reason` と報告に書く。終了コードが 2 なら止まる。
+`differs` と `rerecord` なら、論理データを変えずに、今の投入ツールで新しい現行へ投入し、手順 6 の検証をやり直す。
+
+- 投入と検証が通り、`verification.md` の「述語ごとの該当行数」が前の記録と同じなら、記録を持ち越す。
+  `current.commit`・`current.tree`・`current.dirty` を新しい値に書き換え、`current.carried` に `{ "from": { "commit": ..., "tree": ... }, "to": { "commit": ..., "tree": ... }, "at": "<ISO 8601>" }` を 1 件足す。
+  `version` は上げない。論理データは変わっていないので、下流のベースラインは古くならない。
+- 投入が失敗したとき、検証が通らないとき、該当行数が変わったときは、現行のスキーマか意味論が変わったとして扱う。
+  変わった点を報告に挙げ、手順 2 から設計をやり直す。論理データを変えたら、上の「version のセマンティクス」に従って `version` を上げる。
+  上げた `version` で、下流（`parity-suite` などのベースライン）の陳腐化を判定する。
+- `--autonomous` では、設計のやり直しを `pending-decisions.json` に残して止まる。
