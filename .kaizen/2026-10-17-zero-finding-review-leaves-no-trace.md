@@ -2,7 +2,7 @@
 date: 2026-10-17
 type: skill
 priority: medium
-status: pending
+status: forgotten
 applied-to: []
 session: claude-code
 ---

@@ -3,7 +3,7 @@ date: 2026-10-17
 type: doc
 priority: medium
 confidence: high
-status: pending
+status: forgotten
 applied-to: []
 session: claude-code
 ---
