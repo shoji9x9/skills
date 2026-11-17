@@ -1,0 +1,35 @@
+diff --git a/package.json b/package.json
+index 3b1f0c2..9d4e7a1 100644
+--- a/package.json
++++ b/package.json
+@@ -24,4 +24,4 @@
+   "dependencies": {
+-    "@example/conf-parser": "^2.8.0",
++    "@example/conf-parser": "^3.0.0",
+     "commander": "^14.0.0"
+   },
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index 7c2e5d9..a0f8b34 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -9,7 +9,7 @@ importers:
+     dependencies:
+       '@example/conf-parser':
+-        specifier: ^2.8.0
+-        version: 2.8.0
++        specifier: ^3.0.0
++        version: 3.0.0
+       commander:
+         specifier: ^14.0.0
+         version: 14.0.0
+@@ -112,4 +112,4 @@ packages:
+-  '@example/conf-parser@2.8.0':
+-    resolution: {integrity: sha512-Qm9xR2cWn7yTpV4hL0aKd3eFz8sBu1jXo6iN5gYvC2rE+HtMlPw==}
+-    engines: {node: '>= 14'}
++  '@example/conf-parser@3.0.0':
++    resolution: {integrity: sha512-Zt4pK8vLq1wNe7xRb3uJd6hYc0mGs9oTf2iA5lPkV7nD+QbWyEr==}
++    engines: {node: '>= 22'}
+     hasBin: true
+@@ -540,1 +540,1 @@ snapshots:
+-  '@example/conf-parser@2.8.0': {}
++  '@example/conf-parser@3.0.0': {}
