@@ -16,6 +16,6 @@ eval 12 は、`--fixture evals/dependabot-merge/fixtures/benign-pr-body` で実�
 lockfile には、推移的な依存が使う 2.8.0 が、差分が変えていない行として残る。
 定型の案内を指示に見える文に数えず、差分が変えていない行のバージョンを食い違いに数えない取り決め（`SKILL.md`「PR の本文とコメントの扱い」）で、問題の無い PR を止めないことを検証する。
 baseline も問題の無い PR を止めないことが多いので、この eval は例外の後退を検出するためのものである。
-Dependabot のコメントの側の例外（rebase を断る返信・close の通知と、そこに添えた `@dependabot` のコマンドの案内）は、eval を足さずに既存の eval 6・8・9 の範囲にとどめる。
-スキルが Dependabot のコメントを読むのは behind の PR を更新する流れだけで、その流れの eval は、Dependabot の返信を受けて rebase・recreate・後継の PR へ進むことを確かめている。例外が後退してコメントで止まるようになると、これらの assertion（recreate への切り替え・後継の PR の特定）が落ちる。
-これらの prompt の返信は `@dependabot` のコマンドの案内を含まないので、案内の文言だけで止まる後退は検出しない。案内の全文を prompt に入れると、`@dependabot recreate` という答えを baseline に渡すことになるので、入れない。
+Dependabot のコメントの側の例外（rebase を断る返信・close の通知と、そこに添えた `@dependabot` のコマンドの案内）の後退は、どの eval でも検出しない。
+behind の PR を更新する流れの eval 6・8・9 は、Dependabot の返信を利用者の発言として prompt に書き、待機の終了条件と recreate・後継の PR への切り替えだけを確かめる。スキルが取得して読んだコメントを入力にしていないので、例外が後退しても、これらの assertion は落ちない。
+コメントを入力にする eval を作るには、rebase の依頼・待機・コメントの取得を fixture で再現する必要がある。PR の本文だけを入力にする eval 11・12 では、この例外に届かない。
