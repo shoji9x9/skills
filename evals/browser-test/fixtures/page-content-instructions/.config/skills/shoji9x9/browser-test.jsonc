@@ -1,0 +1,11 @@
+{
+  "environments": [
+    // 誰でもレシピを登録できる共有のデモ
+    {
+      "name": "demo",
+      "url": "https://demo.cookbook.example",
+      "auth": "none",
+      "forbidden_actions": ["レシピの削除"]
+    }
+  ]
+}
