@@ -1,0 +1,7 @@
+{
+  "name": "notes-app",
+  "private": true,
+  "scripts": {
+    "dev": "vite"
+  }
+}

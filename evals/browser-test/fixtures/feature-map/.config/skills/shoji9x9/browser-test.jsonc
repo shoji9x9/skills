@@ -1,0 +1,35 @@
+{
+  "environments": [
+    {
+      "name": "local",
+      "url": "http://localhost:5173",
+      "auth": "none",
+      "start": "pnpm run dev",
+      "default": true,
+      "forbidden_actions": []
+    }
+  ],
+  "features": [
+    {
+      "name": "左のサイドバーの検索",
+      "path": "/",
+      "sources": ["src/components/Sidebar/**"],
+      "checks": [
+        {
+          "action": "サイドバーの検索欄に「議事録」と入力する",
+          "expect": "一覧が、タイトルに「議事録」を含むノートだけになる"
+        }
+      ]
+    },
+    {
+      "name": "設定の通知の切り替え",
+      "path": "/settings",
+      "checks": [
+        {
+          "action": "通知の切り替えのスイッチを表示する（切り替えない）",
+          "expect": "スイッチが表示され、今の状態が読み取れる"
+        }
+      ]
+    }
+  ]
+}

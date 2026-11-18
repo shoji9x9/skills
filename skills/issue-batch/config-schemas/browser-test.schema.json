@@ -43,6 +43,48 @@
         }
       },
       "x-layers": ["repo", "local"]
+    },
+    "features": {
+      "description": "機能マップ。利用者から見た機能の呼び名と、開くページ・確かめる操作を並べる。無ければ、変更したファイルをルーターの定義からページに対応づける。.local.jsonc に置くと、リポジトリの層の一覧を丸ごと置き換える",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "path", "checks"],
+        "properties": {
+          "name": {
+            "description": "機能の呼び名（人が範囲を指定するときの名前）。一覧の中で重ならないようにする",
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "description": "開くページ。環境の url からの相対のパスで、/ で始める",
+            "type": "string",
+            "pattern": "^/"
+          },
+          "sources": {
+            "description": "変更したらこの機能に当たるソースのパス（リポジトリのルートからの glob）",
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "checks": {
+            "description": "確かめる操作と、期待する結果",
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["action", "expect"],
+              "properties": {
+                "action": { "type": "string", "minLength": 1 },
+                "expect": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        }
+      },
+      "x-layers": ["repo", "local"]
     }
   }
 }
