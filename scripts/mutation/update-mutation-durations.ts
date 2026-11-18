@@ -3,7 +3,7 @@
 //
 // 使い方:
 //   gh run view <run ID> --log > run.log   # 全件を測った PR の CI か、週次の全件の run
-//   node scripts/mutation/update-mutation-durations.ts run.log [...]
+//   node scripts/mutation/update-mutation-durations.ts [--summary <path>] run.log [...]
 //
 // ランナー（`check-mutation-proof.ts`）は、宣言ごとに `=== <宣言> → <テスト>` の行を出し、測り終えると
 // `時間: X 秒（N 変異、基準 run を含む）` の行を出す。重い宣言は複数のシャードに分かれ、一部ごとに基準 run を含むので、
@@ -12,10 +12,16 @@
 // `=== ` の行と `時間:` の行は、同じジョブの中で対応づける。手元のランナーの出力（タブを持たない）も同じに読む。
 //
 // ログに無い宣言の見積もりは変えない。実在しない宣言の行は、見積もりに入れずに件数と名前を出す。
-// 値が変わった宣言を、前と後の値で出す。見積もりから大きくずれたことは、ランナーのログの「見積もりとのずれ:」で分かる。
+// 値が変わった宣言を、前と後の値で出す。
+// 見積もりから大きくずれた宣言は、ランナーがログに出す「見積もりとのずれ:」の行から集め、その件数を 0 件でも出す。
+// ずれの判定はランナーが持つので、ここでは判定し直さない。
+// `--summary <path>` を渡すと、ずれた宣言と値が変わった宣言を Markdown でそのファイルに追記する。
+// 週次の全件の run（`.github/workflows/mutation-proof.yml`）が、ジョブの結果（`GITHUB_STEP_SUMMARY`）に出すのに使う（Issue #1077）。
 //
-// 終了コード: 0 は更新した、2 は更新できない（引数・ログを読めない・`時間:` の行が 0 件・`=== ` の行と対応しない `時間:` の行）。
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+// `--shard i/N` で分けた run のログは、1〜N のすべてのシャードの分がそろわなければ更新しない。
+//
+// 終了コード: 0 は更新した、2 は更新できない（引数・ログを読めない・`時間:` の行が 0 件・`=== ` の行と対応しない `時間:` の行・欠けたシャード）。
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { errorMessage } from "../lib/errors.ts";
@@ -98,6 +104,54 @@ export function parseTimings(text: string): Measured {
   return measured;
 }
 
+const SHARD_LINE = /シャード (\d+)\/(\d+): 選んだ変異/;
+
+/**
+ * `--shard i/N` で分けた run のログが、1〜N のすべてのシャードの分を持つかを確かめる。欠けていれば例外にする。
+ * 前の段（checkout・install）で失敗したシャードは、ログを残さない。残りのシャードのログだけで更新すると、
+ * そのシャードの宣言の見積もりが古いまま、更新が成功したように見える。
+ * シャードの行が 1 行も無いログ（`--shard` を付けない手元の実行）は、確かめずに通す。
+ */
+export function checkShards(text: string): void {
+  const totals = new Set<number>();
+  const seen = new Set<number>();
+  for (const line of text.split("\n")) {
+    const m = SHARD_LINE.exec(line);
+    if (!m) continue;
+    seen.add(Number(m[1]));
+    totals.add(Number(m[2]));
+  }
+  if (totals.size === 0) return;
+  if (totals.size > 1) {
+    throw new Error(`シャードの数が違うログが混在している: ${[...totals].join(", ")}`);
+  }
+  const [total = 0] = totals;
+  const lacking = Array.from({ length: total }, (_, i) => i + 1).filter((i) => !seen.has(i));
+  if (lacking.length > 0) {
+    throw new Error(
+      `シャード ${lacking.map((i) => `${i}/${total}`).join(", ")} のログが無い（そのシャードは前の段で失敗した）`,
+    );
+  }
+}
+
+const DRIFT_LINE =
+  /見積もりとのずれ: (\S+\.mutations\.json) 1 回 (\d+(?:\.\d+)?) 秒（見積もり (\d+(?:\.\d+)?) 秒）/;
+
+/** ランナーが「見積もりとのずれ:」の行で挙げた宣言。分けた宣言は一部ごとに 1 行になるので、行ごとに返す。 */
+export type Drift = { spec: string; perRun: number; estimate: number };
+
+export function parseDrifts(text: string): Drift[] {
+  return text.split("\n").flatMap((line) => {
+    const m = DRIFT_LINE.exec(line);
+    return m ? [{ spec: m[1] ?? "", perRun: Number(m[2]), estimate: Number(m[3]) }] : [];
+  });
+}
+
+/** ずれの行が挙げた宣言の数。同じ宣言の一部ごとの行は 1 件に数える。 */
+function countSpecs(drifts: Drift[]): number {
+  return new Set(drifts.map((d) => d.spec)).size;
+}
+
 export type Change = { spec: string; before: number | undefined; after: number };
 
 /**
@@ -132,18 +186,80 @@ function formatChange(c: Change): string {
   return `  ${c.spec}: ${before} → ${c.after} 秒`;
 }
 
-export function main(argv: string[], root = repoRoot): number {
-  if (argv.length === 0 || argv.some((a) => a.startsWith("-"))) {
-    console.error(
-      "使い方: node scripts/mutation/update-mutation-durations.ts <ランナーのログ> ...",
+/** ジョブの結果に出す Markdown。ずれた宣言を先に、値が変わった宣言を後に置く。 */
+export function summaryMarkdown(drifts: Drift[], changes: Change[]): string {
+  const lines = ["## ミューテーションテストの所要時間の見積もり", ""];
+  // 分けた宣言は一部ごとに 1 行になるので、件数は宣言の数で数える
+  const driftedSpecs = countSpecs(drifts);
+  if (drifts.length === 0) {
+    lines.push(
+      "見積もりから大きくずれた宣言は無い（ランナーの「見積もりとのずれ」の行が 0 件）。",
+      "",
     );
+  } else {
+    lines.push(
+      `見積もりから大きくずれた宣言: ${driftedSpecs} 件。`,
+      "このジョブの artifact の `mutation-durations.json` で `scripts/mutation/mutation-durations.json` を置き換える PR を作る。",
+      "",
+      "| 宣言 | 1 回の実測 | 見積もり |",
+      "| --- | --- | --- |",
+      ...drifts.map((d) => `| \`${d.spec}\` | ${d.perRun} 秒 | ${d.estimate} 秒 |`),
+      "",
+    );
+  }
+  lines.push(`実測で値が変わった宣言: ${changes.length} 件。`, "");
+  if (changes.length > 0) {
+    lines.push(
+      "| 宣言 | 前 | 後 |",
+      "| --- | --- | --- |",
+      ...changes.map(
+        (c) =>
+          `| \`${c.spec}\` | ${c.before === undefined ? "（無し）" : `${c.before} 秒`} | ${c.after} 秒 |`,
+      ),
+      "",
+    );
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+const USAGE =
+  "使い方: node scripts/mutation/update-mutation-durations.ts [--summary <path>] <ランナーのログ> ...";
+
+/** 引数を読む。`--summary` の値が無いときと、ほかの `-` で始まる引数は誤りにする。 */
+function parseArgs(argv: string[]): { summary: string | undefined; logs: string[] } | undefined {
+  let summary: string | undefined;
+  const logs: string[] = [];
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i] ?? "";
+    if (arg === "--summary") {
+      const value = argv[i + 1];
+      if (value === undefined || value.startsWith("-") || summary !== undefined) return undefined;
+      summary = value;
+      i++;
+    } else if (arg.startsWith("-")) {
+      return undefined;
+    } else {
+      logs.push(arg);
+    }
+  }
+  return logs.length === 0 ? undefined : { summary, logs };
+}
+
+export function main(argv: string[], root = repoRoot): number {
+  const args = parseArgs(argv);
+  if (args === undefined) {
+    console.error(USAGE);
     return 2;
   }
   const path = join(root, DURATIONS_FILE);
   let measured: Measured;
   let durations: Durations;
+  let drifts: Drift[];
   try {
-    measured = parseTimings(argv.map((f) => readFileSync(f, "utf8")).join("\n"));
+    const text = args.logs.map((f) => readFileSync(f, "utf8")).join("\n");
+    checkShards(text);
+    measured = parseTimings(text);
+    drifts = parseDrifts(text);
     durations = readDurations(readFileSync(path, "utf8"));
   } catch (err) {
     console.error(`更新できない: ${errorMessage(err)}`);
@@ -163,6 +279,13 @@ export function main(argv: string[], root = repoRoot): number {
     console.log(`実在しないので見積もりに入れなかった宣言: ${missing.length} 件`);
     for (const spec of missing) console.log(`  ${spec}`);
   }
+  // 0 件でも出す。出さないと「ずれが無い」と「ずれの行を読んでいない」が同じ出力になる
+  console.log(
+    `見積もりから大きくずれた宣言: ${countSpecs(drifts)} 件（ログの「見積もりとのずれ」の行）`,
+  );
+  for (const d of drifts)
+    console.log(`  ${d.spec}: 1 回 ${d.perRun} 秒（見積もり ${d.estimate} 秒）`);
+  if (args.summary !== undefined) appendFileSync(args.summary, summaryMarkdown(drifts, changes));
   return 0;
 }
 

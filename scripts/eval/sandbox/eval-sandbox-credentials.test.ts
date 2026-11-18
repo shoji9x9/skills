@@ -14,11 +14,19 @@
 // | CLI の実体                 | $HOME の外 / $HOME の下で許可リストの中 / $HOME の下で許可リストの外 |
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { allowedFiles, credentialFiles, flagValues, sandbox } from "./eval-sandbox-helpers.ts";
+import {
+  allowedFiles,
+  concurrentSandbox,
+  credentialFiles,
+  flagValues,
+} from "./eval-sandbox-helpers.ts";
 
-describe("bwrap に渡す引数", () => {
-  test("$HOME は空の tmpfs にし、許可リストのうちホストに在るものだけを読み取り専用で戻す", () => {
-    const { result, bwrapArgs, home } = sandbox(["--version"], {
+// テストは describe.concurrent で並べる。各テストは sandbox が作る自分の一時ディレクトリだけを使う。
+const sandbox = concurrentSandbox("eval-sandbox-credentials-");
+
+describe.concurrent("bwrap に渡す引数", () => {
+  test("$HOME は空の tmpfs にし、許可リストのうちホストに在るものだけを読み取り専用で戻す", async () => {
+    const { result, bwrapArgs, home } = await sandbox(["--version"], {
       homeFiles: { ...credentialFiles, ...allowedFiles },
     });
     expect(result.status, result.stderr).toBe(0);
@@ -36,8 +44,8 @@ describe("bwrap に渡す引数", () => {
     }
   });
 
-  test("$HOME の tmpfs は $HOME の下のどのマウントより先に置き、--remount-ro は最後に置く", () => {
-    const { result, bwrapArgs, home } = sandbox(["--version"], { homeFiles: allowedFiles });
+  test("$HOME の tmpfs は $HOME の下のどのマウントより先に置き、--remount-ro は最後に置く", async () => {
+    const { result, bwrapArgs, home } = await sandbox(["--version"], { homeFiles: allowedFiles });
     expect(result.status, result.stderr).toBe(0);
     if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
     const homeTmpfs = bwrapArgs.findIndex(
@@ -58,17 +66,19 @@ describe("bwrap に渡す引数", () => {
     ["中身が在る", ["bus", "keyring"], true],
     ["空", [], true],
     ["実在しない", undefined, false],
-  ])("runtime dir が%sなら、在るときだけ tmpfs で隠す", (_label, entries, hidden) => {
-    const { result, bwrapArgs, runtimeDir } = sandbox(["--version"], { runtimeEntries: entries });
+  ])("runtime dir が%sなら、在るときだけ tmpfs で隠す", async (_label, entries, hidden) => {
+    const { result, bwrapArgs, runtimeDir } = await sandbox(["--version"], {
+      runtimeEntries: entries,
+    });
     expect(result.status, result.stderr).toBe(0);
     if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
     expect(flagValues(bwrapArgs, "--tmpfs").includes(runtimeDir)).toBe(hidden);
   });
 });
 
-describe("--verify の stage 5（スタブでホストの上で実行する）", () => {
-  test("許可リストの外が見え、戻した場所が読めず、runtime dir と許可リストの外の環境変数が残り、許可リストの中の環境変数が欠ければ、それぞれ失敗にする", () => {
-    const { result, home, runtimeDir } = sandbox(["--verify", "MARKER"], {
+describe.concurrent("--verify の stage 5（スタブでホストの上で実行する）", () => {
+  test("許可リストの外が見え、戻した場所が読めず、runtime dir と許可リストの外の環境変数が残り、許可リストの中の環境変数が欠ければ、それぞれ失敗にする", async () => {
+    const { result, home, runtimeDir } = await sandbox(["--verify", "MARKER"], {
       homeFiles: { ...credentialFiles, ...allowedFiles },
       runtimeEntries: ["bus"],
       env: {
@@ -114,8 +124,8 @@ describe("--verify の stage 5（スタブでホストの上で実行する）",
     );
   });
 
-  test("戻した場所がすべて読め、環境変数が許可リストのとおりなら、その 3 つは ok にする", () => {
-    const { result, runtimeDir } = sandbox(["--verify", "MARKER"], {
+  test("戻した場所がすべて読め、環境変数が許可リストのとおりなら、その 3 つは ok にする", async () => {
+    const { result, runtimeDir } = await sandbox(["--verify", "MARKER"], {
       homeFiles: { ".claude.json": "{}\n", ...allowedFiles },
       runtimeEntries: [],
       env: { FAKE_BWRAP_MODE: "exec-credentials", DBUS_SESSION_BUS_ADDRESS: "unix:path=/x" },
@@ -134,9 +144,9 @@ describe("--verify の stage 5（スタブでホストの上で実行する）",
     );
   });
 
-  test("許可リストの外にホストのパスが 1 つも無ければ、隠せたと示せないので失敗にする", () => {
+  test("許可リストの外にホストのパスが 1 つも無ければ、隠せたと示せないので失敗にする", async () => {
     // ほかの判定を ok にして、終了コードの原因をこの判定だけにする。
-    const { result } = sandbox(["--verify", "MARKER"], {
+    const { result } = await sandbox(["--verify", "MARKER"], {
       homeFiles: { ".claude.json": "{}\n" },
       env: { FAKE_BWRAP_MODE: "exec-credentials" },
     });
@@ -148,18 +158,20 @@ describe("--verify の stage 5（スタブでホストの上で実行する）",
   });
 });
 
-describe("runtime dir と CLI の場所", () => {
-  test("runtime dir の中身が多くても（ls が SIGPIPE で止まる量）、見えていれば失敗にする", () => {
+describe.concurrent("runtime dir と CLI の場所", () => {
+  test("runtime dir の中身が多くても（ls が SIGPIPE で止まる量）、見えていれば失敗にする", async () => {
     const entries = Array.from({ length: 3000 }, (_, i) => `socket-with-a-long-name-${i}`);
-    const { result, runtimeDir } = sandbox(["--verify", "MARKER"], {
+    const { result, runtimeDir } = await sandbox(["--verify", "MARKER"], {
       runtimeEntries: entries,
       env: { FAKE_BWRAP_MODE: "exec-credentials" },
     });
     expect(result.stdout).toContain(`stage5 runtime dir ${runtimeDir}: VISIBLE (FAIL)`);
   });
 
-  test("XDG_RUNTIME_DIR が在れば、tmpfs で隠す", () => {
-    const { result, bwrapArgs, runtimeDir } = sandbox(["--version"], { runtimeEntries: ["bus"] });
+  test("XDG_RUNTIME_DIR が在れば、tmpfs で隠す", async () => {
+    const { result, bwrapArgs, runtimeDir } = await sandbox(["--version"], {
+      runtimeEntries: ["bus"],
+    });
     expect(result.status, result.stderr).toBe(0);
     if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
     expect(flagValues(bwrapArgs, "--tmpfs")).toContain(runtimeDir);
@@ -167,15 +179,15 @@ describe("runtime dir と CLI の場所", () => {
 
   // 起動の前の確認。何が隠れるかは本物の bwrap のテストが測る。ここでは、確かめるパスと、
   // 隠れると答えられたときに止まるかを確かめる（スタブは FAKE_BWRAP_HIDDEN に挙げたパスを隠れると答える）。
-  test("CLI が隠れると答えられたら、run を起動せずに止める", () => {
-    const { result, bwrapArgs, bin } = sandbox(["--version"], { hiddenCli: true });
+  test("CLI が隠れると答えられたら、run を起動せずに止める", async () => {
+    const { result, bwrapArgs, bin } = await sandbox(["--version"], { hiddenCli: true });
     expect(result.status).toBe(3);
     expect(result.stderr).toContain(`the sandbox hides the CLI: ${join(bin, "claude")}.`);
     expect(bwrapArgs).toBeNull();
   });
 
-  test("確かめるのは CLI だけで、PATH のディレクトリは確かめない", () => {
-    const { result, bin, probeArgs } = sandbox(["--version"], {
+  test("確かめるのは CLI だけで、PATH のディレクトリは確かめない", async () => {
+    const { result, bin, probeArgs } = await sandbox(["--version"], {
       pathHomeDirs: ["tool-dir"],
     });
     expect(result.status, result.stderr).toBe(0);
@@ -185,8 +197,8 @@ describe("runtime dir と CLI の場所", () => {
     ]);
   });
 
-  test("$HOME の下のリポジトリを隠すマウントは、$HOME の tmpfs が覆うので、stage 5 はそのパスも確かめる", () => {
-    const { result, home } = sandbox(["--verify", "MARKER"], {
+  test("$HOME の下のリポジトリを隠すマウントは、$HOME の tmpfs が覆うので、stage 5 はそのパスも確かめる", async () => {
+    const { result, home } = await sandbox(["--verify", "MARKER"], {
       repoUnderHome: true,
       env: { FAKE_BWRAP_MODE: "exec-credentials" },
     });

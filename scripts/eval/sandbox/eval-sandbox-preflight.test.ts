@@ -21,7 +21,10 @@
 import { existsSync, mkdirSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { flagValues, sandbox, type SandboxOptions } from "./eval-sandbox-helpers.ts";
+import { concurrentSandbox, flagValues, type SandboxOptions } from "./eval-sandbox-helpers.ts";
+
+// テストは describe.concurrent で並べる。各テストは sandbox が作る自分の一時ディレクトリだけを使う。
+const sandbox = concurrentSandbox("eval-sandbox-preflight-");
 
 const modes: { mode: string; args: string[] }[] = [
   { mode: "CLI の起動", args: ["--version"] },
@@ -36,9 +39,9 @@ type Place = (paths: { root: string; home: string }) => {
 };
 
 /** 構成を作ってスクリプトを起動し、runtime dir の実際のパスと結果を返す。 */
-function runPlace(args: string[], place: Place, options: SandboxOptions = {}) {
+async function runPlace(args: string[], place: Place, options: SandboxOptions = {}) {
   let run = "";
-  const result = sandbox(args, {
+  const result = await sandbox(args, {
     ...options,
     setup: (paths) => {
       const placed = place(paths);
@@ -52,7 +55,7 @@ function runPlace(args: string[], place: Place, options: SandboxOptions = {}) {
 /** /tmp の外の実在しないパス。$HOME をここに置くと、$HOME の下の宛先が /tmp の下に入らない。 */
 const homeOutsideTmp = "/nonexistent-eval-sandbox-home";
 
-describe("runtime dir が先に置いたマウントの宛先か cwd を覆う構成", () => {
+describe.concurrent("runtime dir が先に置いたマウントの宛先か cwd を覆う構成", () => {
   // 各行は、runtime dir と cwd を決め、止まるときの理由を返す。
   // message は、止めた理由の文字列か、宛先のパスのうちテストごとに変わる部分を含む正規表現。
   const covering: {
@@ -146,8 +149,8 @@ describe("runtime dir が先に置いたマウントの宛先か cwd を覆う�
 
   test.each(modes.flatMap(({ mode, args }) => covering.map((row) => ({ mode, args, ...row }))))(
     "$mode: runtime dir が $label、bwrap を起動する前に理由を出して exit 3 で止める",
-    ({ args, place, message, options }) => {
-      const { result, bwrapArgs } = runPlace(args, place, options);
+    async ({ args, place, message, options }) => {
+      const { result, bwrapArgs } = await runPlace(args, place, options);
       expect(result.status, result.stderr).toBe(3);
       expect(result.stderr).toMatch(message);
       expect(bwrapArgs).toBeNull();
@@ -189,8 +192,8 @@ describe("runtime dir が先に置いたマウントの宛先か cwd を覆う�
 
   test.each(modes.flatMap(({ mode, args }) => passing.map((row) => ({ mode, args, ...row }))))(
     "$mode: runtime dir が $label、止めずに tmpfs で隠す",
-    ({ args, place }) => {
-      const { result, bwrapArgs, run } = runPlace(args, place);
+    async ({ args, place }) => {
+      const { result, bwrapArgs, run } = await runPlace(args, place);
       expect(result.status, result.stderr).toBe(0);
       if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
       const real = realpathSync(run);
@@ -209,16 +212,16 @@ describe("runtime dir が先に置いたマウントの宛先か cwd を覆う�
     env: { HOME: homeOutsideTmp, EVAL_SANDBOX_NET: "off" },
   });
 
-  test("CLI の起動: runtime dir が /tmp であり、/tmp の下に宛先が無いとき、止めずに tmpfs で隠す", () => {
-    const { result, bwrapArgs } = runPlace(["--version"], tmpWithoutTargets);
+  test("CLI の起動: runtime dir が /tmp であり、/tmp の下に宛先が無いとき、止めずに tmpfs で隠す", async () => {
+    const { result, bwrapArgs } = await runPlace(["--version"], tmpWithoutTargets);
     expect(result.status, result.stderr).toBe(0);
     if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
     // /tmp の tmpfs は、兄弟の run を隠すものと runtime dir のものの 2 つになる。
     expect(flagValues(bwrapArgs, "--tmpfs").filter((target) => target === "/tmp")).toHaveLength(2);
   });
 
-  test("--verify: runtime dir が /tmp なら、stage 5 の一覧を /tmp に bind するので、bwrap を起動する前に止める", () => {
-    const { result, bwrapArgs } = runPlace(["--verify", "MARKER"], tmpWithoutTargets);
+  test("--verify: runtime dir が /tmp なら、stage 5 の一覧を /tmp に bind するので、bwrap を起動する前に止める", async () => {
+    const { result, bwrapArgs } = await runPlace(["--verify", "MARKER"], tmpWithoutTargets);
     expect(result.status, result.stderr).toBe(3);
     const held =
       /\(the runtime dir\) holds the directory where --verify writes its lists for stage 5 (\/tmp\/eval-sandbox-home-lists-\S+) \(/u.exec(
@@ -239,8 +242,8 @@ describe("runtime dir が先に置いたマウントの宛先か cwd を覆う�
   ];
   test.each(noMarkerPlaces)(
     "--verify: 目印が無ければ、runtime dir が %s でも、使い方を出して exit 2 で止める",
-    (_label, place) => {
-      const { result, bwrapArgs } = runPlace(["--verify"], place);
+    async (_label, place) => {
+      const { result, bwrapArgs } = await runPlace(["--verify"], place);
       expect(result.status, result.stderr).toBe(2);
       expect(result.stderr).toMatch(/^usage: .*--verify <marker>/mu);
       expect(bwrapArgs).toBeNull();
@@ -251,18 +254,21 @@ describe("runtime dir が先に置いたマウントの宛先か cwd を覆う�
   test.each([
     ["引数が無い", [], /^usage: .*<cli-args\.\.\.>/mu],
     ["--verify に目印が無い", ["--verify"], /^usage: .*--verify <marker> \[<marker>\.\.\.\]/mu],
-  ])("%s なら、bwrap が無い環境でも、使い方を出して exit 2 で止める", (_label, args, stderr) => {
-    const { result, bwrapArgs } = sandbox(args, { bwrap: false });
-    expect(result.status, result.stderr).toBe(2);
-    expect(result.stderr).toMatch(stderr);
-    expect(bwrapArgs).toBeNull();
-  });
+  ])(
+    "%s なら、bwrap が無い環境でも、使い方を出して exit 2 で止める",
+    async (_label, args, stderr) => {
+      const { result, bwrapArgs } = await sandbox(args, { bwrap: false });
+      expect(result.status, result.stderr).toBe(2);
+      expect(result.stderr).toMatch(stderr);
+      expect(bwrapArgs).toBeNull();
+    },
+  );
 
   test.each(modes)(
     "$mode: cwd が /tmp の下のリンクでホームディレクトリの下を指すときは、止めずに起動する",
-    ({ mode, args }) => {
+    async ({ mode, args }) => {
       let cwd = "";
-      const { result, bwrapArgs, run } = runPlace(args, ({ root, home }) => {
+      const { result, bwrapArgs, run } = await runPlace(args, ({ root, home }) => {
         mkdirSync(join(home, "proj"), { recursive: true });
         mkdirSync(join(root, "run"), { recursive: true });
         cwd = join(root, "link");
@@ -282,11 +288,11 @@ describe("runtime dir が先に置いたマウントの宛先か cwd を覆う�
   );
 });
 
-describe("git worktree list の失敗", () => {
+describe.concurrent("git worktree list の失敗", () => {
   test.each(modes)(
     "$mode: git worktree list が 0 以外で終わるなら、bwrap を起動する前に理由を出して exit 3 で止める",
-    ({ args }) => {
-      const { result, bwrapArgs } = sandbox(args, { gitFails: true });
+    async ({ args }) => {
+      const { result, bwrapArgs } = await sandbox(args, { gitFails: true });
       expect(result.status, result.stderr).toBe(3);
       expect(result.stderr).toMatch(/git worktree list failed in .* \(exit 128\)/u);
       // git が出した理由も stderr に残す。
@@ -295,8 +301,8 @@ describe("git worktree list の失敗", () => {
     },
   );
 
-  test("git worktree list が成功すれば、止めずに起動する", () => {
-    const { result, bwrapArgs } = sandbox(["--version"]);
+  test("git worktree list が成功すれば、止めずに起動する", async () => {
+    const { result, bwrapArgs } = await sandbox(["--version"]);
     expect(result.status, result.stderr).toBe(0);
     expect(bwrapArgs).not.toBeNull();
   });

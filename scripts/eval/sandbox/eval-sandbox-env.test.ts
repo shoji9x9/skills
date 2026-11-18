@@ -21,10 +21,13 @@ import { describe, expect, test } from "vitest";
 import {
   allowedFiles,
   credentialFiles,
+  concurrentSandbox,
   flagValues,
-  sandbox,
   writeHomeFiles,
 } from "./eval-sandbox-helpers.ts";
+
+// テストは describe.concurrent で並べる。各テストは sandbox が作る自分の一時ディレクトリだけを使う。
+const sandbox = concurrentSandbox("eval-sandbox-env-");
 
 const hiddenNames = {
   GH_TOKEN: "dummy-gh",
@@ -96,9 +99,9 @@ const claudeKeys = [
 // CODEX_HOME は、Codex の run では sandbox が自分で設定するので、ここでは Claude Code の run に渡らないことだけを確かめる。
 const codexKeys = ["OPENAI_API_KEY", "CODEX_API_KEY", "OPENAI_BASE_URL"];
 
-describe("run に渡す環境変数", () => {
-  test("許可リストの外は渡さず、許可リストの中は渡す（起動の前の確認と run の両方で）", () => {
-    const { result, envNames } = sandbox(["--version"], {
+describe.concurrent("run に渡す環境変数", () => {
+  test("許可リストの外は渡さず、許可リストの中は渡す（起動の前の確認と run の両方で）", async () => {
+    const { result, envNames } = await sandbox(["--version"], {
       env: { ...hiddenNames, ...shownNames, ANTHROPIC_API_KEY: "dummy-key" },
     });
     expect(result.status, result.stderr).toBe(0);
@@ -115,10 +118,10 @@ describe("run に渡す環境変数", () => {
   test.each([
     ["claude-code", "claude", [claudeKeys, [...codexKeys, "CODEX_HOME"]]],
     ["codex", "codex", [codexKeys, claudeKeys]],
-  ] as const)("%s では、そのベンダーの API キーだけを渡す", (vendor, cli, [own, other]) => {
+  ] as const)("%s では、そのベンダーの API キーだけを渡す", async (vendor, cli, [own, other]) => {
     const keys = (names: readonly string[], value: string) =>
       Object.fromEntries(names.map((name) => [name, value]));
-    const { result, envNames } = sandbox(["--version"], {
+    const { result, envNames } = await sandbox(["--version"], {
       cli,
       vendor,
       homeFiles: { ".codex/auth.json": "{}\n" },
@@ -132,8 +135,8 @@ describe("run に渡す環境変数", () => {
     }
   });
 
-  test("値は bwrap の引数に載せない（run の中から /proc/<pid>/cmdline で読めるため）", () => {
-    const { result, bwrapArgs } = sandbox(["--version"], {
+  test("値は bwrap の引数に載せない（run の中から /proc/<pid>/cmdline で読めるため）", async () => {
+    const { result, bwrapArgs } = await sandbox(["--version"], {
       env: { ...shownNames, ANTHROPIC_API_KEY: "VALUE-MUST-NOT-BE-AN-ARGUMENT" },
     });
     expect(result.status, result.stderr).toBe(0);
@@ -142,8 +145,8 @@ describe("run に渡す環境変数", () => {
     expect(bwrapArgs.join("\n")).not.toContain("C.UTF-8");
   });
 
-  test("EVAL_SANDBOX_ENV_ALLOW に挙げた名前は（改行の後の名前も）渡し、挙げていない名前は渡さない", () => {
-    const { result, envNames } = sandbox(["--version"], {
+  test("EVAL_SANDBOX_ENV_ALLOW に挙げた名前は（改行の後の名前も）渡し、挙げていない名前は渡さない", async () => {
+    const { result, envNames } = await sandbox(["--version"], {
       env: {
         EVAL_SANDBOX_ENV_ALLOW: "EXTRA_ONE  EXTRA_TWO\nEXTRA_FOUR",
         EXTRA_ONE: "1",
@@ -159,8 +162,8 @@ describe("run に渡す環境変数", () => {
     }
   });
 
-  test("EVAL_SANDBOX_ENV_ALLOW に変数名でない値があれば、bwrap を起動せずに止める", () => {
-    const { result, envNames } = sandbox(["--version"], {
+  test("EVAL_SANDBOX_ENV_ALLOW に変数名でない値があれば、bwrap を起動せずに止める", async () => {
+    const { result, envNames } = await sandbox(["--version"], {
       env: { EVAL_SANDBOX_ENV_ALLOW: "OK_NAME BAD-NAME" },
     });
     expect(result.status).toBe(3);
@@ -168,8 +171,8 @@ describe("run に渡す環境変数", () => {
     expect(envNames).toEqual([]);
   });
 
-  test("名前が識別子でない変数と、export した関数も渡さない（bash は子に渡すが compgen -e に出ない）", () => {
-    const { result, envNames } = sandbox(["--version"], {
+  test("名前が識別子でない変数と、export した関数も渡さない（bash は子に渡すが compgen -e に出ない）", async () => {
+    const { result, envNames } = await sandbox(["--version"], {
       env: { "GH.TOKEN": "dummy-dotted", "BASH_FUNC_probe%%": "() {  :\n}" },
     });
     expect(result.status, result.stderr).toBe(0);
@@ -180,8 +183,8 @@ describe("run に渡す環境変数", () => {
     }
   });
 
-  test("EVAL_SANDBOX_ENV_ALLOW の * は、cwd のファイル名に展開しない", () => {
-    const { result, envNames } = sandbox(["--version"], {
+  test("EVAL_SANDBOX_ENV_ALLOW の * は、cwd のファイル名に展開しない", async () => {
+    const { result, envNames } = await sandbox(["--version"], {
       env: { EVAL_SANDBOX_ENV_ALLOW: "*", GLOB_NAMED: "1" },
       setup: (paths) => {
         writeHomeFiles(paths.root, { "glob-cwd/GLOB_NAMED": "" });
@@ -193,16 +196,18 @@ describe("run に渡す環境変数", () => {
     expect(envNames).toEqual([]);
   });
 
-  test("bash が unset できない変数（export した SHELLOPTS）も渡さない", () => {
-    const { result, envNames } = sandbox(["--version"], { env: { SHELLOPTS: "braceexpand" } });
+  test("bash が unset できない変数（export した SHELLOPTS）も渡さない", async () => {
+    const { result, envNames } = await sandbox(["--version"], {
+      env: { SHELLOPTS: "braceexpand" },
+    });
     expect(result.status, result.stderr).toBe(0);
     for (const names of envNames) expect(names).not.toContain("SHELLOPTS");
   });
 });
 
-describe("$HOME の外の設定の場所", () => {
-  test("XDG_CONFIG_HOME が $HOME の外なら tmpfs で隠し、許可リストの場所だけを読み取り専用で戻す", () => {
-    const { result, bwrapArgs, root } = sandbox(["--version"], {
+describe.concurrent("$HOME の外の設定の場所", () => {
+  test("XDG_CONFIG_HOME が $HOME の外なら tmpfs で隠し、許可リストの場所だけを読み取り専用で戻す", async () => {
+    const { result, bwrapArgs, root } = await sandbox(["--version"], {
       setup: (paths) => {
         const xdg = join(paths.root, "xdg-config");
         writeHomeFiles(xdg, { "gh/hosts.yml": "MARKER\n", "mise/config.toml": "MARKER\n" });
@@ -219,8 +224,8 @@ describe("$HOME の外の設定の場所", () => {
     expect(flagValues(bwrapArgs, "--remount-ro")).toContain(xdg);
   });
 
-  test("XDG_CONFIG_HOME が $HOME の中のデフォルトでない場所なら、tmpfs は置かずに許可リストの場所を戻す", () => {
-    const { result, bwrapArgs, home } = sandbox(["--version"], {
+  test("XDG_CONFIG_HOME が $HOME の中のデフォルトでない場所なら、tmpfs は置かずに許可リストの場所を戻す", async () => {
+    const { result, bwrapArgs, home } = await sandbox(["--version"], {
       homeFiles: { "my-config/mise/config.toml": "MARKER\n", "my-config/gh/hosts.yml": "MARKER\n" },
       setup: (paths) => ({ env: { XDG_CONFIG_HOME: join(paths.home, "my-config") } }),
     });
@@ -237,8 +242,8 @@ describe("$HOME の外の設定の場所", () => {
     "XDG_STATE_HOME",
     "XDG_CACHE_HOME",
     "XDG_RUNTIME_DIR",
-  ])("%s が絶対パスでなければ、隠す場所として扱わず、run にも渡さない", (name) => {
-    const { result, bwrapArgs, envNames } = sandbox(["--version"], {
+  ])("%s が絶対パスでなければ、隠す場所として扱わず、run にも渡さない", async (name) => {
+    const { result, bwrapArgs, envNames } = await sandbox(["--version"], {
       setup: (paths) => {
         const project = join(paths.root, "relative-project");
         writeHomeFiles(project, { "rel/mise/marker": "MARKER\n" });
@@ -253,8 +258,8 @@ describe("$HOME の外の設定の場所", () => {
     for (const names of envNames) expect(names).not.toContain(name);
   });
 
-  test("空白を含むパスの後ろの部分が別の場所と同じ字面でも、別の場所として両方を隠す", () => {
-    const { result, bwrapArgs, root } = sandbox(["--version"], {
+  test("空白を含むパスの後ろの部分が別の場所と同じ字面でも、別の場所として両方を隠す", async () => {
+    const { result, bwrapArgs, root } = await sandbox(["--version"], {
       homeFiles: { ...allowedFiles },
       setup: (paths) => {
         // 1 つ目の場所のパスは「<root>/d x 」の後ろに 2 つ目の場所のパスを続けたものにする。
@@ -274,8 +279,8 @@ describe("$HOME の外の設定の場所", () => {
     );
   });
 
-  test("XDG_CONFIG_HOME と ~/.config のリンクが同じ場所を指しても、許可リストの場所は 1 回だけ戻す", () => {
-    const { result, bwrapArgs, root } = sandbox(["--version"], {
+  test("XDG_CONFIG_HOME と ~/.config のリンクが同じ場所を指しても、許可リストの場所は 1 回だけ戻す", async () => {
+    const { result, bwrapArgs, root } = await sandbox(["--version"], {
       homeFiles: { ...allowedFiles },
       setup: (paths) => {
         const target = join(paths.root, "same-config");
@@ -294,8 +299,8 @@ describe("$HOME の外の設定の場所", () => {
     expect(flagValues(bwrapArgs, "--tmpfs").filter((t) => t === target)).toHaveLength(1);
   });
 
-  test("~/.config が $HOME の外へのシンボリックリンクなら、リンク先を tmpfs で隠して許可リストの場所を戻す", () => {
-    const { result, bwrapArgs, root } = sandbox(["--version"], {
+  test("~/.config が $HOME の外へのシンボリックリンクなら、リンク先を tmpfs で隠して許可リストの場所を戻す", async () => {
+    const { result, bwrapArgs, root } = await sandbox(["--version"], {
       homeFiles: { ...credentialFiles, ...allowedFiles },
       setup: (paths) => {
         renameSync(join(paths.home, ".config"), join(paths.root, "dot-config"));
@@ -313,8 +318,8 @@ describe("$HOME の外の設定の場所", () => {
     expect(roBindTargets).not.toContain(join(target, "box"));
   });
 
-  test("先に見つけた場所の中にリンクした許可リストの祖先も、その中の許可リストの場所を戻す", () => {
-    const { result, bwrapArgs, root } = sandbox(["--version"], {
+  test("先に見つけた場所の中にリンクした許可リストの祖先も、その中の許可リストの場所を戻す", async () => {
+    const { result, bwrapArgs, root } = await sandbox(["--version"], {
       homeFiles: { ...allowedFiles },
       setup: (paths) => {
         const xdg = join(paths.root, "xdg-all");
@@ -335,23 +340,26 @@ describe("$HOME の外の設定の場所", () => {
     ["$HOME", (paths: { root: string; home: string }) => dirname(paths.home)],
     ["cwd", (paths: { root: string; home: string }) => join(paths.root, "cwd-parent")],
     ["/ として $HOME", () => "/"],
-  ])("XDG_CONFIG_HOME が %s を含むなら、隠せないので bwrap を起動せずに止める", (label, dir) => {
-    const { result, bwrapArgs } = sandbox(["--version"], {
-      setup: (paths) => {
-        const xdg = dir(paths);
-        if (xdg !== "/") mkdirSync(join(xdg, "project"), { recursive: true });
-        return {
-          env: { XDG_CONFIG_HOME: xdg },
-          cwd: label === "cwd" ? join(xdg, "project") : undefined,
-        };
-      },
-    });
-    expect(result.status).toBe(3);
-    expect(result.stderr).toContain(
-      label === "cwd" ? "holds the disposable project" : "holds $HOME",
-    );
-    expect(bwrapArgs).toBeNull();
-  });
+  ])(
+    "XDG_CONFIG_HOME が %s を含むなら、隠せないので bwrap を起動せずに止める",
+    async (label, dir) => {
+      const { result, bwrapArgs } = await sandbox(["--version"], {
+        setup: (paths) => {
+          const xdg = dir(paths);
+          if (xdg !== "/") mkdirSync(join(xdg, "project"), { recursive: true });
+          return {
+            env: { XDG_CONFIG_HOME: xdg },
+            cwd: label === "cwd" ? join(xdg, "project") : undefined,
+          };
+        },
+      });
+      expect(result.status).toBe(3);
+      expect(result.stderr).toContain(
+        label === "cwd" ? "holds the disposable project" : "holds $HOME",
+      );
+      expect(bwrapArgs).toBeNull();
+    },
+  );
 
   // 外側の場所も内側の場所も、自分の許可リストの mise を持つ。どちらの変数が外側でも同じに扱う。
   test.each([
@@ -359,8 +367,8 @@ describe("$HOME の外の設定の場所", () => {
     ["XDG_CACHE_HOME が内側", "XDG_CACHE_HOME", "XDG_CONFIG_HOME"],
   ])(
     "XDG の場所が互いを含むとき（%s）、外側だけを tmpfs で隠し、両方の許可リストの場所を戻す",
-    (_label, innerVar, outerVar) => {
-      const { result, bwrapArgs, root } = sandbox(["--version"], {
+    async (_label, innerVar, outerVar) => {
+      const { result, bwrapArgs, root } = await sandbox(["--version"], {
         setup: (paths) => {
           const outer = join(paths.root, "xdg-outer");
           writeHomeFiles(outer, {
@@ -387,8 +395,8 @@ describe("$HOME の外の設定の場所", () => {
     ["を含む", "holds the runtime dir", (run: string) => dirname(run)],
   ])(
     "XDG の場所が runtime dir %sなら、どちらかの tmpfs が他方を覆うので bwrap を起動せずに止める",
-    (_label, message, place) => {
-      const { result, bwrapArgs } = sandbox(["--version"], {
+    async (_label, message, place) => {
+      const { result, bwrapArgs } = await sandbox(["--version"], {
         setup: (paths) => {
           const run = join(paths.root, "runtime-parent", "run");
           const cache = place(run);
@@ -403,8 +411,8 @@ describe("$HOME の外の設定の場所", () => {
     },
   );
 
-  test("runtime dir がシンボリックリンクでも、実際のパスで比べ、その中の XDG の場所を止める", () => {
-    const { result, bwrapArgs } = sandbox(["--version"], {
+  test("runtime dir がシンボリックリンクでも、実際のパスで比べ、その中の XDG の場所を止める", async () => {
+    const { result, bwrapArgs } = await sandbox(["--version"], {
       setup: (paths) => {
         const real = join(paths.root, "runtime-real");
         writeHomeFiles(real, { bus: "", "cache/mise/marker": "MARKER\n" });
@@ -419,9 +427,9 @@ describe("$HOME の外の設定の場所", () => {
   });
 });
 
-describe("--verify の stage 5 と、$HOME の外の場所", () => {
-  test("Codex の run で、ホストの CODEX_HOME は sandbox が設定し直すので、漏れた変数と数えない", () => {
-    const { result } = sandbox(["--verify", "MARKER"], {
+describe.concurrent("--verify の stage 5 と、$HOME の外の場所", () => {
+  test("Codex の run で、ホストの CODEX_HOME は sandbox が設定し直すので、漏れた変数と数えない", async () => {
+    const { result } = await sandbox(["--verify", "MARKER"], {
       cli: "codex",
       vendor: "codex",
       homeFiles: { ".claude.json": "{}\n", ".codex/auth.json": "{}\n" },
@@ -433,8 +441,8 @@ describe("--verify の stage 5 と、$HOME の外の場所", () => {
     );
   });
 
-  test("$HOME の外の XDG の場所も、戻していないパスを確かめる対象に入れる", () => {
-    const { result, root } = sandbox(["--verify", "MARKER"], {
+  test("$HOME の外の XDG の場所も、戻していないパスを確かめる対象に入れる", async () => {
+    const { result, root } = await sandbox(["--verify", "MARKER"], {
       homeFiles: { ".claude.json": "{}\n" },
       env: { FAKE_BWRAP_MODE: "exec-credentials" },
       setup: (paths) => {
@@ -449,8 +457,8 @@ describe("--verify の stage 5 と、$HOME の外の場所", () => {
     expect(result.stdout).not.toContain(`    ${join(root, "xdg-config/mise")}`);
   });
 
-  test("許可リストの祖先がシンボリックリンクでも、その中に下りて確かめ、リンクそのものは挙げない", () => {
-    const { result, home } = sandbox(["--verify", "MARKER"], {
+  test("許可リストの祖先がシンボリックリンクでも、その中に下りて確かめ、リンクそのものは挙げない", async () => {
+    const { result, home } = await sandbox(["--verify", "MARKER"], {
       homeFiles: { ".claude.json": "{}\n", ...credentialFiles, ...allowedFiles },
       env: { FAKE_BWRAP_MODE: "exec-credentials" },
       setup: (paths) => {
