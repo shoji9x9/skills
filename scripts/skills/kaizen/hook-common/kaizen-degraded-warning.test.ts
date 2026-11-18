@@ -13,13 +13,19 @@
 // | 対象スクリプト | 共通ライブラリを読む同梱スクリプト全部（列挙は実測から） |
 //
 // 誤検知しないことの確認: 本番構成（原本の場所）で実行したとき、この警告が出ないこと。
+//
+// スクリプトは、cwd の git のルートか CLAUDE_PROJECT_DIR を作業の対象にする。引数なしの kaizen-extract-done.sh は
+// kaizen-forget.sh --auto を呼び、古い学びを forgotten に書き換える（Issue #1075）。
+// そのため、どちらのテストも使い捨ての git のリポジトリを cwd にし、CLAUDE_PROJECT_DIR を外して起動する。
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, readFileSync, readdirSync, rmSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { createHash } from "node:crypto";
+import { copyFileSync, existsSync, readFileSync, readdirSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
+import { gitInit } from "../../../lib/testing/repo-file.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 const scriptsDir = join(repoRoot, "skills/kaizen/scripts");
@@ -41,6 +47,43 @@ const INVOCATION: Record<string, { args?: string[]; input?: string }> = {
   },
 };
 
+/**
+ * 実リポジトリの .kaizen/ の直下の学び（*.md）の名前と中身から作る指紋。
+ * 目印のファイル（.pending-extract など）は、テストの間にエージェントの Hook が書き換えるので含めない。
+ */
+function kaizenDigest(): string {
+  const dir = join(repoRoot, ".kaizen");
+  if (!existsSync(dir)) return "";
+  const h = createHash("sha256");
+  for (const f of readdirSync(dir, { withFileTypes: true })
+    .filter((e) => e.isFile() && e.name.endsWith(".md"))
+    .map((e) => e.name)
+    .sort()) {
+    h.update(f)
+      .update("\0")
+      .update(readFileSync(join(dir, f)))
+      .update("\0");
+  }
+  return h.digest("hex");
+}
+const kaizenBefore = kaizenDigest();
+
+/** 使い捨ての git のリポジトリを作り、スクリプトがその外を作業の対象にしない環境で起動する。 */
+function run(script: string, cwd: string) {
+  gitInit(cwd);
+  const { args = [], input = "" } = INVOCATION[basename(script)] ?? {};
+  const env = { ...process.env };
+  delete env.CLAUDE_PROJECT_DIR;
+  return spawnSync("bash", [script, ...args], {
+    timeout: CHILD_TIMEOUT_MS,
+    cwd,
+    env,
+    encoding: "utf8",
+    // 入力待ちで止まらないよう stdin を閉じる。
+    input,
+  });
+}
+
 test("対象スクリプトを検出できている（0 件を成功として扱わない）", () => {
   expect(targets.length).toBeGreaterThan(5);
 });
@@ -54,31 +97,21 @@ test.each(targets)(
   (name) => {
     const dir = makeTempDir("kaizen-degraded-");
     copyFileSync(join(scriptsDir, name), join(dir, name));
-    // 入力待ちで止まらないよう stdin を閉じ、引数なしで起動する。
-    const { args = [], input = "" } = INVOCATION[name] ?? {};
-    const r = spawnSync("bash", [name, ...args], {
-      timeout: CHILD_TIMEOUT_MS,
-      cwd: dir,
-      encoding: "utf8",
-      input,
-    });
+    const r = run(name, dir);
     expect(r.stderr).toMatch(
       new RegExp(`${name}: 共通ライブラリを読めないため、機能を減らして動きます`),
     );
-    rmSync(dir, { recursive: true, force: true });
   },
 );
 
 test.each(targets)(
   "%s: 本番構成では機能を減らした旨の警告を出さない（誤検知しないことの確認）",
   (name) => {
-    const { args = [], input = "" } = INVOCATION[name] ?? {};
-    const r = spawnSync("bash", [join(scriptsDir, name), ...args], {
-      timeout: CHILD_TIMEOUT_MS,
-      cwd: repoRoot,
-      encoding: "utf8",
-      input,
-    });
+    const r = run(join(scriptsDir, name), makeTempDir("kaizen-production-"));
     expect(r.stderr).not.toMatch(/共通ライブラリを読めないため、機能を減らして動きます/);
   },
 );
+
+test("実リポジトリの .kaizen/ を書き換えない（Issue #1075）", () => {
+  expect(kaizenDigest()).toBe(kaizenBefore);
+});
