@@ -12,8 +12,8 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { expect, test } from "vitest";
-import config from "../../../vitest.config.ts";
-import { makeTempDir } from "./test-tmpdir.ts";
+import config from "../../../../vitest.config.ts";
+import { makeTempDir } from "../test-tmpdir.ts";
 import {
   REPO_LOCAL_GIT_ENV,
   clearActionsFileCommandEnv,
@@ -88,7 +88,9 @@ test("実物の git が挙げるリポジトリに固有の変数を、一覧が
 });
 
 test("実リポジトリの vitest.config.ts が、他の setupFiles より先にこの setup を読み込む", () => {
-  expect(config.test?.setupFiles?.[0]).toBe("scripts/lib/testing/vitest-child-env-setup.ts");
+  expect(config.test?.setupFiles?.[0]).toBe(
+    "scripts/lib/testing/vitest-setup/vitest-child-env-setup.ts",
+  );
 });
 
 test("読み込んだだけで外すので、GIT_DIR を受け継いだ子の git の commit が元のリポジトリに入らない", () => {

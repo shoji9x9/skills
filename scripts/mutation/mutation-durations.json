@@ -12,7 +12,7 @@
     "scripts/gates/tooling/formatter-scope.mutations.json": 1.8,
     "scripts/gates/tooling/lint-scope.mutations.json": 0.7,
     "scripts/lib/spawn-async.mutations.json": 1.3,
-    "scripts/lib/testing/vitest-child-env-setup.mutations.json": 0.7,
+    "scripts/lib/testing/vitest-setup/vitest-child-env-setup.mutations.json": 0.7,
     "scripts/mutation/check-mutation-proof.mutations.json": 12.3,
     "scripts/skills/_cross/skill-script-cli-entry.mutations.json": 5.7,
     "scripts/skills/aws-architecture-diagram/strip-active-content.mutations.json": 0.7,
@@ -97,6 +97,7 @@
     "scripts/eval/sandbox/eval-sandbox-preflight.mutations.json": 19.9,
     "scripts/skills/parity-diff/diff-report.mutations.json": 1.4,
     "scripts/skills/parity-diff/region-names.mutations.json": 1.4,
-    "scripts/skills/pnpm-audit-alert-issue/compare-dependabot-alerts.mutations.json": 1.5
+    "scripts/skills/pnpm-audit-alert-issue/compare-dependabot-alerts.mutations.json": 1.5,
+    "scripts/lib/text/tracking-diff.property.mutations.json": 1.8
   }
 }

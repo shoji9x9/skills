@@ -10,7 +10,7 @@
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "vitest";
-import { makeTempDir } from "./test-tmpdir.ts";
+import { makeTempDir } from "../test-tmpdir.ts";
 import { sweepStaleFixtures } from "./vitest-global-setup.ts";
 
 test("直下の mutation-proof-fixture-* だけを中身ごと消し、他の名前と下の階層は残す", () => {

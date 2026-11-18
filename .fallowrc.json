@@ -27,7 +27,7 @@
       "exports": ["default"]
     },
     {
-      "file": "scripts/lib/testing/vitest-global-setup.ts",
+      "file": "scripts/lib/testing/vitest-setup/vitest-global-setup.ts",
       "exports": ["setup"]
     },
     {

@@ -1277,7 +1277,7 @@ function spawnTests(
         stdio: ["ignore", fd, fd],
         env: {
           ...process.env,
-          // 子 vitest に、使用中の fixture を掃かせない（`scripts/lib/testing/vitest-global-setup.ts`）。
+          // 子 vitest に、使用中の fixture を掃かせない（`scripts/lib/testing/vitest-setup/vitest-global-setup.ts`）。
           MUTATION_PROOF_CHILD: "1",
           MUTATION_PROOF_PROGRESS_FILE: join(dir, "progress.log"),
           MUTATION_PROOF_WRAPPER_IDLE_MS: String(
