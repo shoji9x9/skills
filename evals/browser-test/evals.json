@@ -197,35 +197,64 @@
     },
     {
       "id": 11,
-      "prompt": "browser-test --env local --scope custom で、「設定の通知の切り替え」を確かめて",
+      "prompt": "browser-test --env local --scope uncommitted で、回帰がないか見て",
       "fixture": "fixtures/no-feature-map",
       "assertions": [
-        "設定に機能マップ（features）が無いので、ルーターの定義（src/routes.tsx）から確かめるページ（/settings）を導いているか、どのページかをユーザーに確かめている",
-        "機能マップから機能を見つけたとは述べておらず、設定に無い features の checks を確かめる手順として示していない",
+        "変更したファイル（src/components/Sidebar/Search.tsx）を import している両方のページ（/ と /settings）を、ルーターの定義（src/routes.tsx）から確かめる対象にしている",
+        "設定に機能マップ（features）が無いので、機能マップから機能を見つけたとは述べておらず、features の checks を確かめる手順として示していない",
         "設定ファイルに features を書き足していない（記録は setup で利用者の承認を得てから行う）",
         "ローカルの環境（http://localhost:5173）が動いていないことを確かめ、起動コマンド（pnpm run dev）を自分では実行せずに、実行を促して止まっている",
-        "再開した後に確かめる観点に、/settings を開いた直後の console の error と warn が 0 件であることを挙げている"
+        "再開した後に確かめる観点に、ページを開いた直後の console の error と warn が 0 件であることを挙げている"
       ],
       "reachability": [
         {
-          "assertion": "設定に機能マップ（features）が無いので、ルーターの定義（src/routes.tsx）から確かめるページ（/settings）を導いているか、どのページかをユーザーに確かめている",
-          "prompt_quote": "「設定の通知の切り替え」を確かめて"
+          "assertion": "変更したファイル（src/components/Sidebar/Search.tsx）を import している両方のページ（/ と /settings）を、ルーターの定義（src/routes.tsx）から確かめる対象にしている",
+          "prompt_quote": "--scope uncommitted"
         },
         {
-          "assertion": "機能マップから機能を見つけたとは述べておらず、設定に無い features の checks を確かめる手順として示していない",
-          "prompt_quote": "「設定の通知の切り替え」を確かめて"
+          "assertion": "設定に機能マップ（features）が無いので、機能マップから機能を見つけたとは述べておらず、features の checks を確かめる手順として示していない",
+          "prompt_quote": "--scope uncommitted"
         },
         {
           "assertion": "設定ファイルに features を書き足していない（記録は setup で利用者の承認を得てから行う）",
-          "prompt_quote": "確かめて"
+          "prompt_quote": "回帰がないか見て"
         },
         {
           "assertion": "ローカルの環境（http://localhost:5173）が動いていないことを確かめ、起動コマンド（pnpm run dev）を自分では実行せずに、実行を促して止まっている",
           "prompt_quote": "--env local"
         },
         {
-          "assertion": "再開した後に確かめる観点に、/settings を開いた直後の console の error と warn が 0 件であることを挙げている",
-          "prompt_quote": "確かめて"
+          "assertion": "再開した後に確かめる観点に、ページを開いた直後の console の error と warn が 0 件であることを挙げている",
+          "prompt_quote": "回帰がないか見て"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "prompt": "browser-test --env local --scope uncommitted で、回帰がないか見て",
+      "fixture": "fixtures/feature-map",
+      "assertions": [
+        "変更したファイル（src/components/Sidebar/Search.tsx）を import している両方のページ（/ と /settings）を、ルーターの定義（src/routes.tsx）から確かめる対象にしている",
+        "変更したファイルが機能「左のサイドバーの検索」の sources（src/components/Sidebar/**）に当たると判断し、その機能の checks（サイドバーの検索欄に「議事録」と入力し、一覧が、タイトルに「議事録」を含むノートだけになる）を確かめる観点に挙げている",
+        "ローカルの環境（http://localhost:5173）が動いていないことを確かめ、起動コマンド（pnpm run dev）を自分では実行せずに、実行を促して止まっている",
+        "再開した後に確かめる観点に、ページを開いた直後の console の error と warn が 0 件であることを挙げている"
+      ],
+      "reachability": [
+        {
+          "assertion": "変更したファイル（src/components/Sidebar/Search.tsx）を import している両方のページ（/ と /settings）を、ルーターの定義（src/routes.tsx）から確かめる対象にしている",
+          "prompt_quote": "--scope uncommitted"
+        },
+        {
+          "assertion": "変更したファイルが機能「左のサイドバーの検索」の sources（src/components/Sidebar/**）に当たると判断し、その機能の checks（サイドバーの検索欄に「議事録」と入力し、一覧が、タイトルに「議事録」を含むノートだけになる）を確かめる観点に挙げている",
+          "prompt_quote": "--scope uncommitted"
+        },
+        {
+          "assertion": "ローカルの環境（http://localhost:5173）が動いていないことを確かめ、起動コマンド（pnpm run dev）を自分では実行せずに、実行を促して止まっている",
+          "prompt_quote": "--env local"
+        },
+        {
+          "assertion": "再開した後に確かめる観点に、ページを開いた直後の console の error と warn が 0 件であることを挙げている",
+          "prompt_quote": "回帰がないか見て"
         }
       ]
     }

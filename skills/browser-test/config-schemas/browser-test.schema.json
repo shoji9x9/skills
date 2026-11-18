@@ -59,9 +59,9 @@
             "minLength": 1
           },
           "path": {
-            "description": "開くページ。環境の url からの相対のパスで、/ で始める",
+            "description": "開くページ。環境の url からの相対のパスで、/ で始める。// で始まる値は別のホストを指すので受け付けない",
             "type": "string",
-            "pattern": "^/"
+            "pattern": "^/([^/].*)?$"
           },
           "sources": {
             "description": "変更したらこの機能に当たるソースのパス（リポジトリのルートからの glob）",

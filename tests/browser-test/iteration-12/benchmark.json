@@ -1,0 +1,313 @@
+{
+  "metadata": {
+    "skill_name": "browser-test",
+    "skill_path": "<repo>/skills/browser-test",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-18T13:08:22Z",
+    "evals_run": [10, 11, 12],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 10,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 31.924,
+        "tokens": 188573,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定の機能マップ（features）から「左のサイドバーの検索」を見つけ、その path（/）を確かめるページにしている",
+          "passed": true,
+          "evidence": "「機能マップに同じ名前で登録されている「左のサイドバーの検索」1 件」を対象にし、確認の表の対象を / にしている"
+        },
+        {
+          "text": "確かめる操作と期待する結果として、機能マップの checks（サイドバーの検索欄に「議事録」と入力し、一覧が、タイトルに「議事録」を含むノートだけになる）を挙げている",
+          "passed": true,
+          "evidence": "表の「機能マップの check」の行に、検索欄に「議事録」と入力すると、一覧がタイトルに「議事録」を含むノートだけになる、と書いている"
+        },
+        {
+          "text": "機能マップで見つけた機能の外のページ（/settings など）を、確かめる対象に足していない",
+          "passed": true,
+          "evidence": "確認の表の対象は / だけで、/settings を挙げていない"
+        },
+        {
+          "text": "ローカルの環境（http://localhost:5173）が動いていないことを確かめ、起動コマンド（pnpm run dev）を自分では実行せずに、実行を促して止まっている",
+          "passed": true,
+          "evidence": "curl で 000 を確かめ、「起動コマンドは実行していません」と書き、pnpm run dev を促して止まった"
+        },
+        {
+          "text": "再開した後に確かめる観点に、機能マップの checks と並べて、ページを開いた直後の console の error と warn が 0 件であることを挙げている",
+          "passed": true,
+          "evidence": "表の 1 行目に「console / 開いた直後に error と warn が 0 件」を、機能マップの check と並べて挙げている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 11,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 33.976,
+        "tokens": 195767,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "変更したファイル（src/components/Sidebar/Search.tsx）を import している両方のページ（/ と /settings）を、ルーターの定義（src/routes.tsx）から確かめる対象にしている",
+          "passed": true,
+          "evidence": "「この部品を import しているのは Home.tsx と Settings.tsx の 2 つ」「ルーターの定義と対応づけると、次の 2 ページ」として / と /settings を挙げている"
+        },
+        {
+          "text": "設定に機能マップ（features）が無いので、機能マップから機能を見つけたとは述べておらず、features の checks を確かめる手順として示していない",
+          "passed": true,
+          "evidence": "「設定に機能マップ（features）は無いので、ルーターの定義だけから導いています」と書き、features の checks を挙げていない"
+        },
+        {
+          "text": "設定ファイルに features を書き足していない（記録は setup で利用者の承認を得てから行う）",
+          "passed": true,
+          "evidence": "「commit やファイルの書き込みもしていません」と書いている"
+        },
+        {
+          "text": "ローカルの環境（http://localhost:5173）が動いていないことを確かめ、起動コマンド（pnpm run dev）を自分では実行せずに、実行を促して止まっている",
+          "passed": true,
+          "evidence": "curl で 000（exit 7）を確かめ、「pnpm run dev は実行していません」と書いて起動を促した"
+        },
+        {
+          "text": "再開した後に確かめる観点に、ページを開いた直後の console の error と warn が 0 件であることを挙げている",
+          "passed": true,
+          "evidence": "表の 1 行目に「console に error と warn が 0 件か」を / と /settings の両方で挙げている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 32.066,
+        "tokens": 186895,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "変更したファイル（src/components/Sidebar/Search.tsx）を import している両方のページ（/ と /settings）を、ルーターの定義（src/routes.tsx）から確かめる対象にしている",
+          "passed": true,
+          "evidence": "「SidebarSearch は src/pages/Home.tsx と src/pages/Settings.tsx が import しています。そのため / と /settings の両方が対象です」と、ルーターの定義から両方のページを挙げている"
+        },
+        {
+          "text": "変更したファイルが機能「左のサイドバーの検索」の sources（src/components/Sidebar/**）に当たると判断し、その機能の checks（サイドバーの検索欄に「議事録」と入力し、一覧が、タイトルに「議事録」を含むノートだけになる）を確かめる観点に挙げている",
+          "passed": true,
+          "evidence": "「機能マップから: 「左のサイドバーの検索」の sources（src/components/Sidebar/**）に当たります」と書き、表に検索欄に「議事録」と入力すると一覧がタイトルに「議事録」を含むノートだけになるか、を挙げている"
+        },
+        {
+          "text": "ローカルの環境（http://localhost:5173）が動いていないことを確かめ、起動コマンド（pnpm run dev）を自分では実行せずに、実行を促して止まっている",
+          "passed": true,
+          "evidence": "curl で 000（exit 7）を確かめ、「サーバーの起動はこちらでは行っていません」と書いて pnpm run dev を促した"
+        },
+        {
+          "text": "再開した後に確かめる観点に、ページを開いた直後の console の error と warn が 0 件であることを挙げている",
+          "passed": true,
+          "evidence": "表の / と /settings の両方で「console に error と warn が 0 件か」を挙げている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 40.187,
+        "tokens": 165237,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定の機能マップ（features）から「左のサイドバーの検索」を見つけ、その path（/）を確かめるページにしている",
+          "passed": true,
+          "evidence": "「設定の feature「左のサイドバーの検索」（path /）に絞りました」と書いている"
+        },
+        {
+          "text": "確かめる操作と期待する結果として、機能マップの checks（サイドバーの検索欄に「議事録」と入力し、一覧が、タイトルに「議事録」を含むノートだけになる）を挙げている",
+          "passed": true,
+          "evidence": "設定のチェックとして、検索欄に「議事録」と入力すると一覧がタイトルに「議事録」を含むノートだけになる、を挙げている"
+        },
+        {
+          "text": "機能マップで見つけた機能の外のページ（/settings など）を、確かめる対象に足していない",
+          "passed": true,
+          "evidence": "/settings を対象に挙げていない"
+        },
+        {
+          "text": "ローカルの環境（http://localhost:5173）が動いていないことを確かめ、起動コマンド（pnpm run dev）を自分では実行せずに、実行を促して止まっている",
+          "passed": false,
+          "evidence": "表に「pnpm run dev で起動 | 失敗：sh: 1: vite: not found（exit 127）」とあり、起動コマンドを自分で実行している"
+        },
+        {
+          "text": "再開した後に確かめる観点に、機能マップの checks と並べて、ページを開いた直後の console の error と warn が 0 件であることを挙げている",
+          "passed": false,
+          "evidence": "確かめる観点に console の error と warn を挙げていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 11,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 34.933,
+        "tokens": 140585,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "変更したファイル（src/components/Sidebar/Search.tsx）を import している両方のページ（/ と /settings）を、ルーターの定義（src/routes.tsx）から確かめる対象にしている",
+          "passed": true,
+          "evidence": "影響を受けるページの表に /（Home）と /settings（Settings）を挙げている"
+        },
+        {
+          "text": "設定に機能マップ（features）が無いので、機能マップから機能を見つけたとは述べておらず、features の checks を確かめる手順として示していない",
+          "passed": true,
+          "evidence": "機能マップには触れておらず、features の checks を挙げていない"
+        },
+        {
+          "text": "設定ファイルに features を書き足していない（記録は setup で利用者の承認を得てから行う）",
+          "passed": true,
+          "evidence": "「ファイルの変更・依存のインストール・commit はしていません」と書いている"
+        },
+        {
+          "text": "ローカルの環境（http://localhost:5173）が動いていないことを確かめ、起動コマンド（pnpm run dev）を自分では実行せずに、実行を促して止まっている",
+          "passed": false,
+          "evidence": "「pnpm run dev → sh: 1: vite: not found（終了コード 127）」とあり、起動コマンドを自分で実行している"
+        },
+        {
+          "text": "再開した後に確かめる観点に、ページを開いた直後の console の error と warn が 0 件であることを挙げている",
+          "passed": false,
+          "evidence": "確かめる観点に console の error と warn を挙げていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 35.428,
+        "tokens": 141350,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "変更したファイル（src/components/Sidebar/Search.tsx）を import している両方のページ（/ と /settings）を、ルーターの定義（src/routes.tsx）から確かめる対象にしている",
+          "passed": true,
+          "evidence": "影響の表に /（左のサイドバーの検索）と /settings（SidebarSearch を読み込んでいる）を挙げている"
+        },
+        {
+          "text": "変更したファイルが機能「左のサイドバーの検索」の sources（src/components/Sidebar/**）に当たると判断し、その機能の checks（サイドバーの検索欄に「議事録」と入力し、一覧が、タイトルに「議事録」を含むノートだけになる）を確かめる観点に挙げている",
+          "passed": true,
+          "evidence": "「sources: src/components/Sidebar/** に当たる」と判断し、「議事録」と入力して一覧が絞り込まれる期待を静的に確かめている"
+        },
+        {
+          "text": "ローカルの環境（http://localhost:5173）が動いていないことを確かめ、起動コマンド（pnpm run dev）を自分では実行せずに、実行を促して止まっている",
+          "passed": true,
+          "evidence": "実行したコマンドは ls・cat・curl・which などで、pnpm run dev を実行していない（raw の tool_use で確かめた）"
+        },
+        {
+          "text": "再開した後に確かめる観点に、ページを開いた直後の console の error と warn が 0 件であることを挙げている",
+          "passed": false,
+          "evidence": "確かめる観点に console の error と warn を挙げていない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 32.6553,
+        "stddev": 1.1459,
+        "min": 31.924,
+        "max": 33.976
+      },
+      "tokens": {
+        "mean": 190411.6667,
+        "stddev": 4713.1324,
+        "min": 186895,
+        "max": 195767
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.65,
+        "stddev": 0.0866,
+        "min": 0.6,
+        "max": 0.75
+      },
+      "time_seconds": {
+        "mean": 36.8493,
+        "stddev": 2.9011,
+        "min": 34.933,
+        "max": 40.187
+      },
+      "tokens": {
+        "mean": 149057.3333,
+        "stddev": 14017.2221,
+        "min": 140585,
+        "max": 165237
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.35",
+      "time_seconds": "-4.2",
+      "tokens": "+41354"
+    }
+  },
+  "notes": [
+    "Issue #1073 の Copilot のレビューを受けた変更確認。eval 10 は fixture を変え、eval 11 は --scope uncommitted に作り直し、eval 12 を新しく足した。各 eval を with_skill と without_skill で 1 run ずつ実行した。",
+    "eval 12 は、根拠の無い assertion（sources を持たない機能の checks を挙げない）を 1 本消して、2 run を実行し直した。",
+    "機能マップの path・checks・sources を使う assertion は without_skill も満たす（fixture の設定ファイルを自分で読むため）。後退の検出のためのもので、差は起動コマンドを自分で実行しない・console の確認を挙げる、の 2 本で見る。"
+  ]
+}
