@@ -25,6 +25,7 @@
     "scripts/skills/issue-start/acceptance-check.mutations.json": 0.5,
     "scripts/skills/kaizen/hooks/kaizen-precommit-gate.mutations.json": 20.3,
     "scripts/skills/kaizen/hook-common/kaizen-config.mutations.json": 0.9,
+    "scripts/skills/kaizen/hook-common/kaizen-degraded-warning.mutations.json": 1.9,
     "scripts/skills/kaizen/hooks/kaizen-context-inject.mutations.json": 8.8,
     "scripts/skills/kaizen/lifecycle/kaizen-forget.mutations.json": 4.9,
     "scripts/skills/kaizen/extract/kaizen-candidate-scan.mutations.json": 2.6,
