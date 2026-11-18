@@ -20,7 +20,14 @@
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFileSync, existsSync, readFileSync, readdirSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+} from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
@@ -111,6 +118,37 @@ test.each(targets)(
     expect(r.stderr).not.toMatch(/共通ライブラリを読めないため、機能を減らして動きます/);
   },
 );
+
+// 古い pending の学び（30 日を過ぎた priority: low）。kaizen-forget.sh --auto が forgotten に書き換える。
+const STALE_NOTE =
+  "---\ndate: 2026-01-01\ntype: doc\npriority: low\nstatus: pending\n---\n\n# 古い学び\n";
+
+function writeStaleNote(root: string): string {
+  const path = join(root, ".kaizen", "2026-01-01-stale.md");
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, STALE_NOTE);
+  return path;
+}
+
+test("起動したスクリプトは cwd の使い捨てのリポジトリだけを書き換え、CLAUDE_PROJECT_DIR のプロジェクトを書き換えない", () => {
+  // エージェントの Hook から起動したテストでは、CLAUDE_PROJECT_DIR が実リポジトリを指す。その状態を別のプロジェクトで作る。
+  const outer = makeTempDir("kaizen-outer-");
+  gitInit(outer);
+  const outerNote = writeStaleNote(outer);
+  const cwd = makeTempDir("kaizen-cwd-");
+  const cwdNote = writeStaleNote(cwd);
+  const saved = process.env.CLAUDE_PROJECT_DIR;
+  process.env.CLAUDE_PROJECT_DIR = outer;
+  try {
+    run(join(scriptsDir, "kaizen-extract-done.sh"), cwd);
+  } finally {
+    if (saved === undefined) delete process.env.CLAUDE_PROJECT_DIR;
+    else process.env.CLAUDE_PROJECT_DIR = saved;
+  }
+  // cwd の学びが書き換わることで、スクリプトが忘却まで進んだことを確かめる（進まなければ外側の確認は何も示さない）。
+  expect(readFileSync(cwdNote, "utf8")).toMatch(/^status: forgotten$/m);
+  expect(readFileSync(outerNote, "utf8")).toBe(STALE_NOTE);
+});
 
 test("実リポジトリの .kaizen/ を書き換えない（Issue #1075）", () => {
   expect(kaizenDigest()).toBe(kaizenBefore);
