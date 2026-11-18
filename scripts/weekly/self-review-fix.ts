@@ -36,7 +36,7 @@ import {
 } from "./self-review-issue.ts";
 
 /**
- * 文の書き換えで直せる項目。やりすぎなチェック・回帰 eval・GitHub Actions は、チェックやコードの扱いを人が決めるので外す。
+ * 文の書き換えで直せる項目。やりすぎなチェック・回帰 eval・GitHub Actions・チェックの無い規約は、チェックやコードの扱いを人が決めるので外す。
  * 値は docs/self-review-procedure.md の `category` と同じにする。
  */
 const FIXABLE: readonly Category[] = ["unused", "inconsistency", "overdoc", "wording"];
