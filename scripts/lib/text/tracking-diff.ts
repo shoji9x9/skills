@@ -21,9 +21,16 @@ export function oneLine(text: string): string {
   return text.replace(/\s+/gu, " ").trim();
 }
 
-/** Markdown の表のセル。改行と `|` で表の行が崩れないよう、1 行にして `|` をエスケープする。 */
+/**
+ * Markdown の表のセル。改行と `|` で表の行が分かれないよう、1 行にして `|` をエスケープする。
+ * GFM は `|` の直前のバックスラッシュもエスケープとして読む（`\\|` は `\` と区切りの `|` になる）。
+ * そのため、`|` の直前に続くバックスラッシュも 1 つずつエスケープする。
+ */
 export function tableCell(text: string): string {
-  return oneLine(text).replaceAll("|", "\\|");
+  return oneLine(text).replace(
+    /(\\*)\|/gu,
+    (_, backslashes: string) => `${backslashes.replaceAll("\\", "\\\\")}\\|`,
+  );
 }
 
 /**
@@ -34,9 +41,16 @@ export function naturalOrder(a: string, b: string): number {
   return a.localeCompare(b, "en", { numeric: true }) || (a < b ? -1 : a > b ? 1 : 0);
 }
 
-/** 本文の最後に置く、識別子の一覧の目印の行。 */
+/**
+ * 本文の最後に置く、識別子の一覧の目印の行。
+ * JSON.stringify は U+2028 と U+2029 をエスケープしないが、readKeys の正規表現はこの 2 つを行の区切りとして読む。
+ * エスケープしないと目印が読めず、前回の識別子がすべて新規として扱われるので、ここでエスケープする。
+ */
 export function markerLine(name: string, keys: readonly string[]): string {
-  return `${markerPrefix(name)}${JSON.stringify(keys)} -->`;
+  const json = JSON.stringify(keys).replace(/[\u2028\u2029]/gu, (c) =>
+    c === "\u2028" ? "\\u2028" : "\\u2029",
+  );
+  return `${markerPrefix(name)}${json} -->`;
 }
 
 function parseKeys(json: string, keyForm: RegExp): string[] {

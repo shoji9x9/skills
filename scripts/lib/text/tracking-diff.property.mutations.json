@@ -1,0 +1,28 @@
+{
+  "$comment": [
+    "tracking-diff.property.test.ts の検出能力を示す変異の一覧（Issue #1071）。ランナーは test_file だけを実行するので、tracking-diff.test.ts は測らない。",
+    "プロパティベースのテストの入力は、ミューテーションテストの実行では seed を固定する（scripts/lib/testing/vitest-setup/vitest-fast-check-setup.ts）。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/lib/text/tracking-diff.property.test.ts",
+  "mutations": [
+    {
+      "id": "marker-line-separator-unescaped",
+      "why": "目印の JSON の U+2028・U+2029 をエスケープしないと、readKeys が目印を読めず、前回の識別子をすべて新規として扱う",
+      "file": "scripts/lib/text/tracking-diff.ts",
+      "find": "/[\\u2028\\u2029]/gu",
+      "replace": "/(?!)/gu",
+      "occurrences": 1,
+      "expect_failing": ["markerLine で書いた識別子を readKeys で読むと、同じ並びに戻る"]
+    },
+    {
+      "id": "table-cell-backslash-before-pipe-unescaped",
+      "why": "| の直前のバックスラッシュをエスケープしないと、GFM が | を区切りとして読み、セルの文字が欠ける",
+      "file": "scripts/lib/text/tracking-diff.ts",
+      "find": "${backslashes.replaceAll(\"\\\\\", \"\\\\\\\\\")}\\\\|",
+      "replace": "${backslashes}\\\\|",
+      "occurrences": 1,
+      "expect_failing": ["tableCell を通したセルは、表の行のセルの数を変えず、セルの文字も変えない"]
+    }
+  ]
+}

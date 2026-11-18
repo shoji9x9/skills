@@ -213,7 +213,7 @@ function miniRepo(body: string): string {
   );
   write(
     "tests/setup.mjs",
-    readFileSync(join(ROOT, "scripts/lib/testing/vitest-coverage-setup.ts"), "utf8"),
+    readFileSync(join(ROOT, "scripts/lib/testing/vitest-setup/vitest-coverage-setup.ts"), "utf8"),
   );
   write(
     "skills/x/a.mjs",

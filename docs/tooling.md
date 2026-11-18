@@ -420,7 +420,7 @@ private skill は配布せず、このリポジトリの中でだけ動くので
 
 ツールが読む `.ts` の設定は次のとおりである。
 
-- `vitest.config.ts`、`scripts/lib/testing/vitest-global-setup.ts`
+- `vitest.config.ts`、`scripts/lib/testing/vitest-setup/vitest-global-setup.ts`
 - `commitlint.config.ts`、`release.config.ts`、`commit-types.ts`
 - `oxlint.config.ts`、`oxfmt.config.ts`
 

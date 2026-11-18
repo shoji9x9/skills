@@ -2061,7 +2061,7 @@ describe.concurrent("時間切れの後の作業ツリー", () => {
 // `describe.concurrent` の suite は、隣の concurrent な suite とも並べて実行される（最後に置いても並んだ）。
 // この suite は concurrent にせず、前の suite が終わってから始める。中の 2 本だけを `test.concurrent` で互いに並べる。
 describe("本物の vitest を通す end-to-end", () => {
-  // **使用中の fixture を消させない。** `scripts/lib/testing/vitest-global-setup.ts` は、収集の前に
+  // **使用中の fixture を消させない。** `scripts/lib/testing/vitest-setup/vitest-global-setup.ts` は、収集の前に
   // `scripts/mutation-proof-fixture-*` を消す。そこで runner が起動する子の vitest には
   // `MUTATION_PROOF_CHILD` を渡して、消す処理を止めている（渡さないと fixture ごと消えて、10 テストが落ちた）。
   // ここでは**ambient な marker を明示的に外して**測る（ハーネス自身が渡す値で成功しないように）。

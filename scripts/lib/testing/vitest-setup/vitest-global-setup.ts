@@ -12,7 +12,7 @@ import { readdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 // ロックと復元情報は `node_modules/.cache/mutation-proof/` に置く（`check-mutation-proof.ts` が
 // 「状態ファイルは `/tmp` に置かない」理由つきでそう決めている）。`scripts/` 配下に残るのは fixture だけ。
 const STALE_PREFIXES = ["mutation-proof-fixture-"];
