@@ -16,8 +16,10 @@
 //
 // スクリプトは、cwd の git のルートか CLAUDE_PROJECT_DIR を作業の対象にする。引数なしの kaizen-extract-done.sh は
 // kaizen-forget.sh --auto を呼び、古い学びを forgotten に書き換える（Issue #1075）。
-// そのため、どちらのテストも使い捨ての git のリポジトリを cwd にし、CLAUDE_PROJECT_DIR を外して起動する。
-import { test, expect } from "vitest";
+// そのため、どちらのテストも使い捨ての git のリポジトリを cwd にし、CLAUDE_PROJECT_DIR もそのリポジトリにして起動する。
+// エージェントの Hook から起動すると、このプロセスの CLAUDE_PROJECT_DIR は実リポジトリを指す。
+// run の環境の組み立てを変異させた実行でも実リポジトリに届かないよう、このファイルの間は CLAUDE_PROJECT_DIR を外しておく。
+import { afterAll, beforeAll, test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
@@ -75,12 +77,20 @@ function kaizenDigest(): string {
 }
 const kaizenBefore = kaizenDigest();
 
+const inheritedProjectDir = process.env.CLAUDE_PROJECT_DIR;
+beforeAll(() => {
+  delete process.env.CLAUDE_PROJECT_DIR;
+});
+afterAll(() => {
+  if (inheritedProjectDir !== undefined) process.env.CLAUDE_PROJECT_DIR = inheritedProjectDir;
+});
+
 /** 使い捨ての git のリポジトリを作り、スクリプトがその外を作業の対象にしない環境で起動する。 */
 function run(script: string, cwd: string) {
   gitInit(cwd);
   const { args = [], input = "" } = INVOCATION[basename(script)] ?? {};
   const env = { ...process.env };
-  delete env.CLAUDE_PROJECT_DIR;
+  env.CLAUDE_PROJECT_DIR = cwd;
   return spawnSync("bash", [script, ...args], {
     timeout: CHILD_TIMEOUT_MS,
     cwd,
@@ -131,19 +141,18 @@ function writeStaleNote(root: string): string {
 }
 
 test("起動したスクリプトは cwd の使い捨てのリポジトリだけを書き換え、CLAUDE_PROJECT_DIR のプロジェクトを書き換えない", () => {
-  // エージェントの Hook から起動したテストでは、CLAUDE_PROJECT_DIR が実リポジトリを指す。その状態を別のプロジェクトで作る。
+  // エージェントの Hook から起動したテストでは、このプロセスの CLAUDE_PROJECT_DIR が実リポジトリを指す。
+  // その状態を別のプロジェクトで作り、run が子に渡す値を cwd に置き換えることを確かめる。
   const outer = makeTempDir("kaizen-outer-");
   gitInit(outer);
   const outerNote = writeStaleNote(outer);
   const cwd = makeTempDir("kaizen-cwd-");
   const cwdNote = writeStaleNote(cwd);
-  const saved = process.env.CLAUDE_PROJECT_DIR;
   process.env.CLAUDE_PROJECT_DIR = outer;
   try {
     run(join(scriptsDir, "kaizen-extract-done.sh"), cwd);
   } finally {
-    if (saved === undefined) delete process.env.CLAUDE_PROJECT_DIR;
-    else process.env.CLAUDE_PROJECT_DIR = saved;
+    delete process.env.CLAUDE_PROJECT_DIR;
   }
   // cwd の学びが書き換わることで、スクリプトが忘却まで進んだことを確かめる（進まなければ外側の確認は何も示さない）。
   expect(readFileSync(cwdNote, "utf8")).toMatch(/^status: forgotten$/m);

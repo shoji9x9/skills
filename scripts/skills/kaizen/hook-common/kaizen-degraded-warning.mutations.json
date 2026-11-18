@@ -7,10 +7,10 @@
   "test_file": "scripts/skills/kaizen/hook-common/kaizen-degraded-warning.test.ts",
   "mutations": [
     {
-      "id": "kaizen-degraded-keeps-claude-project-dir",
-      "why": "子のプロセスの環境に CLAUDE_PROJECT_DIR を残す（エージェントの Hook から起動したテストで、同梱スクリプトが実リポジトリの学びを書き換える）",
+      "id": "kaizen-degraded-inherits-claude-project-dir",
+      "why": "子のプロセスの CLAUDE_PROJECT_DIR を cwd に置き換えない（エージェントの Hook から起動したテストで、同梱スクリプトが実リポジトリの学びを書き換える）",
       "file": "scripts/skills/kaizen/hook-common/kaizen-degraded-warning.test.ts",
-      "find": "  delete env.CLAUDE_PROJECT_DIR;\n  return spawnSync(",
+      "find": "  env.CLAUDE_PROJECT_DIR = cwd;\n  return spawnSync(",
       "replace": "  return spawnSync(",
       "occurrences": 1,
       "expect_failing": [
