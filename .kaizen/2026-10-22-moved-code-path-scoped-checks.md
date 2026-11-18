@@ -1,7 +1,7 @@
 ---
 date: 2026-10-22
 type: doc
-priority: medium
+priority: high
 confidence: high
 status: pending
 applied-to: []
@@ -19,6 +19,10 @@ Issue #757 で、51 件のテストのトップレベルのヘルパーを `*-he
   切り出した subagent は、別のヘルパー `caught` の振る舞いを変えて閾値を満たしていた（レビューで指摘されて戻した）。
 - 変異の差分選択: `--changed-since` は定義・`test_file`・変異の対象だけを見ていた。表明をヘルパーへ移したので、ヘルパーだけを変える PR で定義が選ばれなくなった（`/code-review` で指摘された）。
 
+Issue #1071 では、vitest の setup ファイルを `scripts/lib/testing/vitest-setup/` に移し、古いパスを grep して参照を直した。
+そのうち 1 件が `scripts/mutation/check-mutation-proof.ts` のコメントだった。ランナーが変わったとして、PR の Mutation proof が全 1057 件の変異を測った。
+shard 1 が 20 分の上限で 3 回 cancel され、CI を 3 回待った。コメントの変更を取り消して直した。
+
 ## 根本原因
 
 - なぜ後で分かったか → 移す前に、移した先のファイルにどのチェックが当たるかを挙げていなかった
@@ -29,7 +33,19 @@ Issue #757 で、51 件のテストのトップレベルのヘルパーを `*-he
 
 同じ PR の中で、同じ原因の事象が 2 つの別のチェックで起きた（カバレッジは pre-push の失敗、差分選択はレビューの指摘）。
 KEDB 照合（ヘルパー・coverage、切り出・changed-since、カバレッジ・helpers、移・mutation・test_file）で、同じ原因の学びは無かった。
+再発（Issue #1071）: 同じ原因である。パスで対象を決めるチェック（変異の差分選択の「ランナーが変わったら全宣言を測る」規則）を挙げずに、移したファイルの参照を直した。
 一致した `2026-10-17-mutation-find-mismatch-found-late.md` は、移した行に `find` が当たらない事象で、文字列を鍵にするチェックの側である。
+
+## 既存の規約
+
+- 扱い: なし
+- 場所: なし（`AGENTS.md`「編集」は、文字列を鍵にするチェックだけを挙げる）
+- 照合した範囲: `AGENTS.md`・`docs/agent-workflow.md`・`docs/tooling.md` を「全宣言」「パスの形」で検索した
+
+## 食い違い
+
+- 相手: なし
+- 判断: なし
 
 ## 提案
 
@@ -38,3 +54,4 @@ KEDB 照合（ヘルパー・coverage、切り出・changed-since、カバレッ
 - 適用先候補: `AGENTS.md`「編集」の「一括で書き換える前に、その文字列を鍵にする他のチェックを挙げる」の隣に 1 行、理由と実例を `docs/agent-workflow.md`「編集」に置く
 - 挙げる先の例: カバレッジの対象（`scripts/coverage/coverage-thresholds.json` と `run-coverage.ts`）と、変異の差分選択（`selectChangedSpecs`）
 - 挙げる先の例: `oxlint.config.ts` の `overrides` と、`scripts/gates/layout/dir-file-count.json`
+- 挙げる先の例: 変異の差分選択は、ランナー（`scripts/mutation/check-mutation-proof.ts`）を変えると全宣言を測る。参照を直す一括の置換で、ランナーのコメントを変えない
