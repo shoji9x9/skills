@@ -18,7 +18,9 @@
 // `--summary <path>` を渡すと、ずれた宣言と値が変わった宣言を Markdown でそのファイルに追記する。
 // 週次の全件の run（`.github/workflows/mutation-proof.yml`）が、ジョブの結果（`GITHUB_STEP_SUMMARY`）に出すのに使う（Issue #1077）。
 //
-// 終了コード: 0 は更新した、2 は更新できない（引数・ログを読めない・`時間:` の行が 0 件・`=== ` の行と対応しない `時間:` の行）。
+// `--shard i/N` で分けた run のログは、1〜N のすべてのシャードの分がそろわなければ更新しない。
+//
+// 終了コード: 0 は更新した、2 は更新できない（引数・ログを読めない・`時間:` の行が 0 件・`=== ` の行と対応しない `時間:` の行・欠けたシャード）。
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -100,6 +102,36 @@ export function parseTimings(text: string): Measured {
     );
   }
   return measured;
+}
+
+const SHARD_LINE = /シャード (\d+)\/(\d+): 選んだ変異/;
+
+/**
+ * `--shard i/N` で分けた run のログが、1〜N のすべてのシャードの分を持つかを確かめる。欠けていれば例外にする。
+ * 前の段（checkout・install）で失敗したシャードは、ログを残さない。残りのシャードのログだけで更新すると、
+ * そのシャードの宣言の見積もりが古いまま、更新が成功したように見える。
+ * シャードの行が 1 行も無いログ（`--shard` を付けない手元の実行）は、確かめずに通す。
+ */
+export function checkShards(text: string): void {
+  const totals = new Set<number>();
+  const seen = new Set<number>();
+  for (const line of text.split("\n")) {
+    const m = SHARD_LINE.exec(line);
+    if (!m) continue;
+    seen.add(Number(m[1]));
+    totals.add(Number(m[2]));
+  }
+  if (totals.size === 0) return;
+  if (totals.size > 1) {
+    throw new Error(`シャードの数が違うログが混在している: ${[...totals].join(", ")}`);
+  }
+  const [total = 0] = totals;
+  const lacking = Array.from({ length: total }, (_, i) => i + 1).filter((i) => !seen.has(i));
+  if (lacking.length > 0) {
+    throw new Error(
+      `シャード ${lacking.map((i) => `${i}/${total}`).join(", ")} のログが無い（そのシャードは前の段で失敗した）`,
+    );
+  }
 }
 
 const DRIFT_LINE =
@@ -225,6 +257,7 @@ export function main(argv: string[], root = repoRoot): number {
   let drifts: Drift[];
   try {
     const text = args.logs.map((f) => readFileSync(f, "utf8")).join("\n");
+    checkShards(text);
     measured = parseTimings(text);
     drifts = parseDrifts(text);
     durations = readDurations(readFileSync(path, "utf8"));

@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  checkShards,
   main,
   parseDrifts,
   parseTimings,
@@ -83,6 +84,36 @@ describe("「見積もりとのずれ」の行の読み取り", () => {
       { spec: A, perRun: 41, estimate: 9.1 },
       { spec: B, perRun: 0.5, estimate: 3 },
     ]);
+  });
+});
+
+describe("シャードのログがそろっているかの確認", () => {
+  const shard = (i: number, n: number) =>
+    gh(`shard ${i}`, `シャード ${i}/${n}: 選んだ変異 10 件のうち 3 件を測る`);
+
+  test.each([
+    ["シャードの行が無い（--shard を付けない手元の実行）", `=== ${A} → t`],
+    ["1〜N がそろう", [shard(2, 3), shard(1, 3), shard(3, 3)].join("\n")],
+    ["同じシャードが重なっても、1〜N がそろう", [shard(1, 2), shard(2, 2), shard(2, 2)].join("\n")],
+  ])("%s ときは通す", (_case, log) => {
+    expect(() => checkShards(log)).not.toThrow();
+  });
+
+  test.each([
+    ["真ん中のシャードが無い", [shard(1, 3), shard(3, 3)].join("\n"), "シャード 2/3 のログが無い"],
+    [
+      "最後のシャードが無い",
+      [shard(1, 4), shard(2, 4), shard(3, 4)].join("\n"),
+      "シャード 4/4 のログが無い",
+    ],
+    ["複数が無い", shard(2, 4), "シャード 1/4, 3/4, 4/4 のログが無い"],
+    [
+      "シャードの数が違う run のログが混在する",
+      [shard(1, 2), shard(2, 3)].join("\n"),
+      "シャードの数が違う",
+    ],
+  ])("%s ときは例外にする", (_case, log, message) => {
+    expect(() => checkShards(log)).toThrow(message);
   });
 });
 
@@ -221,6 +252,22 @@ describe("main", () => {
     expect(main(resolved, r.root)).toBe(2);
     expect(readFileSync(r.file, "utf8")).toBe(before);
     expect(existsSync(join(r.root, "a.md"))).toBe(false);
+  });
+
+  test("シャードのログが欠けているときは書き換えずに 2 を返し、--summary のファイルを作らない", () => {
+    const { root, file, log } = repo();
+    const before = readFileSync(file, "utf8");
+    const summary = join(root, "summary.md");
+    const path = log(
+      [
+        "シャード 1/2: 選んだ変異 2 件のうち 1 件を測る",
+        `=== ${A} → t`,
+        "時間: 12.0 秒（1 変異、基準 run を含む）",
+      ].join("\n"),
+    );
+    expect(main(["--summary", summary, path], root)).toBe(2);
+    expect(readFileSync(file, "utf8")).toBe(before);
+    expect(existsSync(summary)).toBe(false);
   });
 
   test.each([

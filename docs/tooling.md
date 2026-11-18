@@ -251,6 +251,7 @@ node scripts/mutation/update-mutation-durations.ts run.log
 
 このツールは、定義ごとに `時間:` の X の合計 ÷ (N + 1) の合計を、1 回の実行の秒数として書き込む。ログに無い定義の見積もりは変えない。
 途中で止まった run のログ（`時間:` の行が無い定義がある）を渡すと、見積もりを書き換えずに exit 2 で終わる。
+`--shard i/N` で分けた run のログは、1〜N のどれかのシャードのログが無いときも、見積もりを書き換えずに exit 2 で終わる。
 CI の 1 回の実行の秒数は、run ごとに 2 割ほど変わる。複数の run のログを渡すと、それらの合計で平均するので、見積もりのばらつきが小さくなる。
 定義を足したら、見積もりも足す（`mutations-declaration.test.ts` が、どの定義にも見積もりがあることを確かめる）。最初は手元の実行のログを `update-mutation-durations.ts` に渡す。
 `mutations-declaration.test.ts` は、lefthook の pre-commit（`cross-file-tests`）が毎回実行する。定義の `find` がコードと合わないことを、全件の実行の前に見つける。
