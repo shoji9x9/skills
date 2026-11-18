@@ -35,6 +35,7 @@ import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 import { gitInit } from "../../../lib/testing/repo-file.ts";
+import { kaizenEnv } from "../kaizen-config-env.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 const scriptsDir = join(repoRoot, "skills/kaizen/scripts");
@@ -89,8 +90,8 @@ afterAll(() => {
 function run(script: string, cwd: string) {
   gitInit(cwd);
   const { args = [], input = "" } = INVOCATION[basename(script)] ?? {};
-  const env = { ...process.env };
-  env.CLAUDE_PROJECT_DIR = cwd;
+  // 手元の kaizen の設定（~/.config の kaizen.jsonc・KAIZEN_*）も外す。forget_auto などが結果を変えるため。
+  const env = kaizenEnv(cwd, { CLAUDE_PROJECT_DIR: cwd });
   return spawnSync("bash", [script, ...args], {
     timeout: CHILD_TIMEOUT_MS,
     cwd,

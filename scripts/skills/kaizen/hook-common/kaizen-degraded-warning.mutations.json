@@ -10,8 +10,8 @@
       "id": "kaizen-degraded-inherits-claude-project-dir",
       "why": "子のプロセスの CLAUDE_PROJECT_DIR を cwd に置き換えない（エージェントの Hook から起動したテストで、同梱スクリプトが実リポジトリの学びを書き換える）",
       "file": "scripts/skills/kaizen/hook-common/kaizen-degraded-warning.test.ts",
-      "find": "  env.CLAUDE_PROJECT_DIR = cwd;\n  return spawnSync(",
-      "replace": "  return spawnSync(",
+      "find": "const env = kaizenEnv(cwd, { CLAUDE_PROJECT_DIR: cwd });",
+      "replace": "const env = kaizenEnv(cwd);",
       "occurrences": 1,
       "expect_failing": [
         "起動したスクリプトは cwd の使い捨てのリポジトリだけを書き換え、CLAUDE_PROJECT_DIR のプロジェクトを書き換えない"
