@@ -1,8 +1,8 @@
 ---
 date: 2026-10-26
 type: rule
-priority: medium
-confidence: medium
+priority: high
+confidence: high
 status: pending
 applied-to: []
 session: claude-code
@@ -20,6 +20,10 @@ PR #785 で、エージェントのレポートを `review` ジョブから `tra
 失敗したジョブの outputs を下流が読めるかは公式のドキュメントに書かれておらず、読めなければ `tracking-issue` が skip される。
 Copilot の 3 回目のレビューで指摘され、upload を `continue-on-error` にして `review` を成功で終える形に直した。
 
+PR #1081 で、週次の `mutation-proof.yml` の各シャードがログを artifact に上げ、`mutation-durations` ジョブがそれを集めて見積もりを更新する形にした。
+受け取る側はログが 1 件以上あることしか確かめず、前の段（checkout・install）で失敗してログを上げなかったシャードがあっても、残りのログで更新して成功していた。
+Copilot のレビューで指摘され、ランナーのログの「シャード i/N:」の行から 1〜N がそろうかを確かめる形に直した。
+
 ## 根本原因
 
 - なぜ名前が合わなくなったか: upload する側と download する側が、同じ式でそれぞれに名前を作っていた
@@ -35,6 +39,15 @@ Copilot の 3 回目のレビューで指摘され、upload を `continue-on-err
 その後、Copilot が、失敗したジョブだけの再実行で名前が合わないことを指摘した。
 さらに Copilot が、upload の失敗で `review` が失敗すると `tracking-issue` が skip されうることを指摘した。同じ原因で、同じ PR の中で 2 回目の手戻りである。
 KEDB 照合（再実行・run_attempt）は一致なし。
+
+PR #1081 での再発で、確信度を high にした。同じ原因（受け渡しで、渡す側のジョブの失敗を当てていない）である。
+KEDB 照合（シャード・artifact、期待する集合・観測）は一致なし。本文を読み比べてこのノートと同じ原因と決めた。
+
+## 既存の規約
+
+- 扱い: なし
+- 照合した範囲: `.agents/rules/github-actions-authoring.md`（「渡す側」「再実行」で 0 件）
+- 近い規約: `.agents/rules/state-space-and-mutation-proof.md`「期待する集合の出所」。`paths` は `scripts/**` などで、ワークフローの bash を書くときには読み込まれない
 
 ## 提案
 
