@@ -3,7 +3,8 @@ import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { makeTempDir, makeTempDirFactory } from "../../lib/testing/test-tmpdir.ts";
+import { spawnAsync } from "../../lib/spawn-async.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 export const sourceScript = resolve(dirname(fileURLToPath(import.meta.url)), "eval-sandbox.sh");
@@ -292,8 +293,8 @@ function sandboxEnv(
   return env;
 }
 
-export function sandbox(args: string[], options: SandboxOptions = {}) {
-  const root = makeTempDir("eval-sandbox-preflight-");
+/** 使い捨ての root の下に、スクリプトのコピーとスタブを置き、起動する cwd と環境変数を決める。 */
+function prepareSandbox(root: string, options: SandboxOptions) {
   const home = join(root, "home");
   const repo = options.repoUnderHome === true ? join(home, "projects", "repo") : join(root, "repo");
   const bin = join(root, "bin");
@@ -320,15 +321,7 @@ export function sandbox(args: string[], options: SandboxOptions = {}) {
     ...extra.env,
   };
   writeFakeBwrapConfig(bin, { FAKE_BWRAP_ENV_OUT: envOut, ...env });
-  const result = spawnSync("/bin/bash", [copiedScript, ...args], {
-    cwd: extra.cwd ?? options.cwd ?? root,
-    encoding: "utf8",
-    env,
-    stdio: ["ignore", "pipe", "pipe"],
-    timeout: CHILD_TIMEOUT_MS,
-  });
-  return {
-    result,
+  const collect = () => ({
     bwrapArgs: readBwrapArgs(capturedArgs),
     probeArgs: readBwrapArgs(probeArgs),
     envNames: readEnvNames(envOut),
@@ -336,6 +329,41 @@ export function sandbox(args: string[], options: SandboxOptions = {}) {
     root,
     runtimeDir,
     bin,
+  });
+  return { copiedScript, cwd: extra.cwd ?? options.cwd ?? root, env, collect };
+}
+
+export function sandbox(args: string[], options: SandboxOptions = {}) {
+  const { copiedScript, cwd, env, collect } = prepareSandbox(
+    makeTempDir("eval-sandbox-preflight-"),
+    options,
+  );
+  const result = spawnSync("/bin/bash", [copiedScript, ...args], {
+    cwd,
+    encoding: "utf8",
+    env,
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: CHILD_TIMEOUT_MS,
+  });
+  return { result, ...collect() };
+}
+
+/**
+ * 並べて実行するテスト（`describe.concurrent`）用の `sandbox`。収集時に呼び、返した関数をテストの中で `await` する。
+ * `sandbox` はスクリプトの終了を `spawnSync` で待つので、並べても 1 本ずつしか進まない（`scripts/lib/spawn-async.ts`）。
+ * 一時ディレクトリは `makeTempDirFactory` で作る（並べたテストの中では `makeTempDir` を使えない）。
+ */
+export function concurrentSandbox(prefix: string) {
+  const makeRoot = makeTempDirFactory(prefix);
+  return async (args: string[], options: SandboxOptions = {}) => {
+    const { copiedScript, cwd, env, collect } = prepareSandbox(makeRoot("case-"), options);
+    // stdin は、input を渡さないとすぐ閉じる（spawnSync の "ignore" と同じく、スクリプトは何も読めない）。
+    const result = await spawnAsync("/bin/bash", [copiedScript, ...args], {
+      cwd,
+      env,
+      timeout: CHILD_TIMEOUT_MS,
+    });
+    return { result, ...collect() };
   };
 }
 
