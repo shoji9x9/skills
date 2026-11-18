@@ -3,10 +3,11 @@
 // | 軸 | 値 |
 // | --- | --- |
 // | 結果の JSON | 正しい / JSON でない / オブジェクトでない / findings が配列でない / notes が配列でない |
-// | 指摘 | 正しい / category が知らない値・無い / path・summary・evidence が空 / suggestion が無い・空 / 改行を含む |
+// | 指摘 | 正しい / category が知らない値・無い / category が unenforced（チェックの無い規約） / path・summary・evidence が空 / suggestion が無い・空 / 改行を含む |
 // | 同じ組 | 1 件 / 同じ category と path が 2 件（まとめる）/ category だけ違う（分ける） |
 // | canary | path で当たる / 存在しないスクリプトの path で当たる / 内容だけで当たる（残すが、見つけたことにしない）/ 当たらない（例外）/ 指摘が canary だけ（0 件として出す）/ メモで触れる（残す） |
 // | 載せる文 | @name を含む / メモに < を含む |
+// | 項目ごとの件数 | 指摘のある項目 / 0 件の項目（表に出ない項目も 0 件と書く） / 指摘が 0 件 |
 // | 前回の本文 | 目印なし / 継続と解消 / 識別子の形が違う |
 // | CLI の引数 | 正しい / 足りない / 未知 / --previous が空 / 結果を読めない（1） |
 import { describe, expect, test } from "vitest";
@@ -19,6 +20,7 @@ import {
   formatBody,
   formatComment,
   main,
+  categoryCounts,
   codeSpan,
   mergeFindings,
   parseReport,
@@ -243,9 +245,42 @@ describe("追跡 Issue の本文", () => {
     expect(parsed.notes).toHaveLength(20);
   });
 
+  test("チェックの無い規約（unenforced）の指摘を読み、表に項目の名前で載せる", () => {
+    const report = parseReport(
+      JSON.stringify({
+        findings: [
+          {
+            category: "unenforced",
+            path: "docs/agent-workflow.md",
+            summary: "規約 A",
+            evidence: "根拠",
+            suggestion: "lint",
+          },
+        ],
+      }),
+    );
+    expect(report.findings.map((f) => f.category)).toEqual(["unenforced"]);
+    const body = formatBody(report);
+    expect(body).toContain("| チェックの無い規約 | docs/agent-workflow.md | ");
+    expect(previousKeys(body)).toEqual(["unenforced docs/agent-workflow.md"]);
+  });
+
+  test("項目ごとの件数は、指摘の無い項目も 0 件と書く", () => {
+    const counts = categoryCounts([
+      finding(),
+      finding({ path: "docs/b.md" }),
+      finding({ category: "unenforced", path: "AGENTS.md" }),
+    ]);
+    expect(counts).toBe(
+      "項目ごとの件数: 不要物 0 件、文書の食い違い・重複 2 件、やりすぎな記述 0 件、やりすぎなチェック 0 件、回帰 eval の妥当性 0 件、効果の無い GitHub Actions 0 件、分かりにくい語・旧称 0 件、チェックの無い規約 1 件",
+    );
+    expect(formatBody({ findings: [finding()], notes: [] })).toContain("チェックの無い規約 0 件");
+  });
+
   test("0 件は表とメモを書かない", () => {
     const body = formatBody({ findings: [], notes: [] });
     expect(body).toContain("指摘: 0 件");
+    expect(body).toContain("チェックの無い規約 0 件");
     expect(body).not.toContain("| 項目 |");
     expect(body).not.toContain("点検のメモ");
     expect(previousKeys(body)).toEqual([]);
