@@ -31,7 +31,7 @@
 ## 設定ファイル
 
 設定は `browser-test` の名前の設定ファイルに書く。置き場所・層・解決の順序・書き込みの決まりは [`config-files.md`](config-files.md) で定義する。
-キーは `environments` だけで、型はスキーマ（`config-schemas/browser-test.schema.json`）で定義する。
+キーは `environments` と `features`（機能マップ。下の「機能マップ」）で、型はスキーマ（`config-schemas/browser-test.schema.json`）で定義する。
 全員が使う環境はリポジトリの層（`.config/skills/shoji9x9/browser-test.jsonc`）に置く。
 このリポジトリで自分だけが使う環境（手元のポートなど）は、人ごと・リポジトリ限定の層（`browser-test.local.jsonc`）に置ける。
 `.local.jsonc` の `environments` は、リポジトリの層の一覧を丸ごと置き換える（要素ごとには混ぜない）。
@@ -81,7 +81,7 @@ node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mj
 ### 記録する
 
 - 書く値は、探索かユーザーへの確認で得た、実在する環境と起動方法にする。上の URL・ポート・コマンド・禁止操作は例なので、そのままコピーしない。
-- 作成と追記は非破壊にする。書くのは `environments` だけで、既にあるキー・値・コメントと、他のスキルの設定ファイルは変えない。
+- 作成と追記は非破壊にする。書くのは `environments` と `features`（「機能マップ」）だけで、既にあるキー・値・コメントと、他のスキルの設定ファイルは変えない。
 - `environments` が無ければ、`set` で一覧ごと書く。既にあれば、同じ `name` の無い環境だけを `append --unique-by name` で足す。
   既にある環境の値は変えない。変えるのは、今の値と新しい値を示してユーザーの了承を得た後だけにする（`--replace`）。
 - 書き込みの決まり（コメントと整形を残す・書いた後に検証する・`.local.jsonc` は gitignore を確かめる）は、[`config-files.md`](config-files.md)「書き込みの決まり」で定義する。
@@ -119,6 +119,44 @@ node "$CFG" append browser-test environments '{"name":"dev","url":"https://dev.e
 同じ形の環境の定義を持つ他のスキル（`replace-strategy` の `targets` など）は、ここを参照する。
 `auth` はこの対象に含めない。このスキルの `auth: none | user` は browser-test に固有で、参照する側は独自に定義する。
 
+## 機能マップ
+
+機能マップは、利用者から見た機能（「左のサイドバーの検索」「設定の通知の切り替え」など）を並べた一覧で、設定の `features` に書く。
+人とエージェントが同じ呼び名で同じ機能を指せるようにし、確かめるページと操作を推測せずに決めるために使う。
+`features` が無い設定では、確かめる範囲をルーターの定義だけから導く（`SKILL.md` のフローの step 3）。
+
+各機能には、次の項目を書く。
+
+- `name`: 機能の呼び名。人が範囲を指定するときの名前なので、一覧の中で重ならないようにする
+- `path`: 開くページ。環境の `url` からの相対のパスで、`/` で始める。どの環境でも同じ機能を指せるよう、ホスト名を含めない。別のホストを指す値（`//host`・`/\host` など）を受け付けないよう、スキーマは URL のパスに使う文字（英数字と `-._~!$&'()*+,;=:@%/?#`）だけを受け付け、2 文字目の `/` を拒否する
+- `sources`（任意）: 変更したらこの機能に当たるソースのパス（リポジトリのルートからの glob）。差分のファイルから機能を探すのに使う
+- `checks`: 確かめる操作（`action`）と、期待する結果（`expect`）の組の一覧
+
+```jsonc
+// .config/skills/shoji9x9/browser-test.jsonc
+{
+  "environments": [
+    // 上の「設定ファイル」と同じ
+  ],
+  "features": [
+    {
+      "name": "左のサイドバーの検索",
+      "path": "/",
+      "sources": ["src/components/Sidebar/**"],
+      "checks": [{ "action": "サイドバーの検索欄に「設定」と入力する", "expect": "一覧が「設定」を含む項目だけになる" }]
+    }
+  ]
+}
+```
+
+`checks` の操作も、「厳守の制約」と環境の `forbidden_actions` に従う。副作用を伴う操作を書いた機能も、承認を得る前には実施しない。
+
+記録するときは、`environments` と同じく非破壊にする。`features` が無ければ `set` で一覧ごと書き、既にあれば同じ `name` の無い機能だけを `append --unique-by name` で足す。
+
+```bash
+node "$CFG" append browser-test features '{"name":"左のサイドバーの検索","path":"/","checks":[{"action":"…","expect":"…"}]}' --layer repo --unique-by name
+```
+
 ## セットアップモード（`browser-test setup`）
 
 上の解決を対話で先に行い、結果を設定ファイルに記録するモードである。回帰の確認はしない。
@@ -130,3 +168,9 @@ node "$CFG" append browser-test environments '{"name":"dev","url":"https://dev.e
    - 環境ごとの禁止操作（`forbidden_actions`。その環境で実施しない画面の操作。すべて実施してよいなら空にする）
 3. 確かめた結果を、上の「記録する」に従って `browser-test` の設定ファイルに書く。全員が使う環境はリポジトリの層に、自分だけの環境は `.local.jsonc` に書く。
    既存の値と違う回答を得た環境は、今の値と新しい値を示し、ユーザーの了承を得てから更新する（他のスキルの設定ファイルには触れない）。
+4. 機能マップの下書きを作る。ルーターの定義（React Router の Route の定義、Next.js の `pages/`・`app/` ディレクトリ、Vue Router など）からページを挙げる。
+   ページごとの画面の主な部品（検索欄・タブ・トグル・一覧など）から、機能の呼び名・`path`・`sources`・`checks` の案を作る。
+   画面をブラウザで開いて確かめられるのは、ローカルの環境が動いているときだけである。動いていなければ、ソースから案を作り、画面で確かめていないことを添える。
+   `checks` の案には、副作用の無い操作を書く。副作用を伴う操作が要る機能は、そのことを案に書いて利用者に決めてもらう。
+5. 下書きを利用者に示し、承認を得る。直すと言われた機能は直してから示し直す。承認を得た機能だけを、「機能マップ」の記録の決まりで書く。
+   利用者が機能マップを要らないと答えたら、`features` を書かない。

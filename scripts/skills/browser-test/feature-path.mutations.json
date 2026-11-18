@@ -1,0 +1,25 @@
+{
+  "$comment": [
+    "feature-path.test.ts の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/browser-test/feature-path.test.ts",
+  "mutations": [
+    {
+      "id": "feature-path-denylist",
+      "why": "path のパターンを、2 文字目の / だけを拒否する形に戻す（/\\host のように、別の綴りで環境の外のホストを指せる）",
+      "file": "skills/browser-test/config-schemas/browser-test.schema.json",
+      "find": "\"pattern\": \"^/([A-Za-z0-9._~!$&'()*+,;=:@%-][A-Za-z0-9._~!$&'()*+,;=:@%/?#-]*)?$\"",
+      "replace": "\"pattern\": \"^/([^/].*)?$\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "機能マップの path 2 文字目がバックスラッシュ の値は受け付けない",
+        "機能マップの path 2 文字目がタブ の値は受け付けない",
+        "機能マップの path 2 文字目が空白 の値は受け付けない",
+        "機能マップの path 途中にバックスラッシュ の値は受け付けない",
+        "機能マップの path 受け付けた値は、2 文字目と 3 文字目の組み合わせによらず、環境のホストのまま開く"
+      ]
+    }
+  ]
+}

@@ -39,3 +39,10 @@ declare module "*/App" {
   import type { ComponentType } from "react";
   export const App: ComponentType;
 }
+
+// ルーターの定義（browser-test の fixture。機能マップの有無で範囲の決め方を比べる）
+declare module "react-router-dom" {
+  import type { ComponentType, ReactElement, ReactNode } from "react";
+  export const Routes: ComponentType<{ children?: ReactNode }>;
+  export const Route: ComponentType<{ path?: string; element?: ReactElement }>;
+}
