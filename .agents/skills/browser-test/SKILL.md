@@ -136,9 +136,12 @@ browser-test setup
       `node <このスキル>/scripts/feature-check.mjs --feature "<機能の呼び名>" --env <環境名>` を実行する。
       `url_command` の環境は、解決した URL を `--base-url` で渡す。
       `auth: user` の環境は、利用者がログインした Chrome にデバッグのポートがあれば `--browser-url` で渡す。無ければ CLI を使わない。
+      実行する前に、機能の `steps` の操作（`click`・`fill`・`press`）を環境の `forbidden_actions` と突き合わせる。
+      CLI は `forbidden_actions` を読まないので、当たりうる操作が 1 つでもあれば、その機能は CLI を使わず、「厳守の制約」に従って MCP のツールで確かめる。
       CLI は、`steps` を持つ check のうち、副作用の無い操作だけのものを実行する。結果の JSON は、次のとおり扱う。
       - `passed` の check と、`console`（ページを開いた直後と各 check の間に出た error と warning）は、そのまま報告に使う。MCP で確かめ直さない
       - `failed` の check と、ページを開けなかったこと（`navigation.ok` が false）は、課題として、このフローの 5（環境を変えて原因を切り分ける）で切り分ける
+      - `blocked_requests`（CLI が止めた書き込みの要求）がある check は、課題ではなく設定の誤り（`side_effect: false` を誤って書いた）として報告し、宣言を直すよう利用者に伝える
       - `not_automated`（`steps` が無い）の check は、MCP のツールで `action` と `expect` のとおりに確かめる
       - `skipped`（副作用の無い操作だと書かれていない）の check は、「厳守の制約」に従って承認を得てから MCP のツールで確かめる
       - exit 2（設定の誤り）と exit 3（ブラウザを使えない）では、理由を報告に書き、その機能を MCP のツールで確かめる

@@ -102,6 +102,6 @@
     "scripts/skills/parity-diff/region-names.mutations.json": 2.1,
     "scripts/skills/pnpm-audit-alert-issue/compare-dependabot-alerts.mutations.json": 1.5,
     "scripts/lib/text/tracking-diff.property.mutations.json": 1.2,
-    "scripts/skills/browser-test/feature-check.mutations.json": 30.6
+    "scripts/skills/browser-test/feature-check.mutations.json": 28.7
   }
 }

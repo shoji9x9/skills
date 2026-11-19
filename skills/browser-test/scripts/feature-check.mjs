@@ -10,14 +10,15 @@
 //
 // 副作用の無い操作だけを実行する。`click`・`fill`・`press` の step は、`side_effect: false` と書いたものだけを実行する。
 // 書いていない step と `side_effect: true` の step は実行せず、その check を `skipped` として返す。
-// そのため、この CLI は環境の `forbidden_actions` の内容に関わらず、それに当たる操作をしない。
+// 宣言を誤ったときのために、check の間は読むだけの要求（GET・HEAD・OPTIONS）だけを通し、それ以外を止めて check を失敗にする。
+// 環境の `forbidden_actions` は読まない。CLI を使うかを決める前に、エージェントが step と突き合わせる（SKILL.md）。
 // `--ignore-forbidden-actions` に当たるオプションは持たない。副作用のある操作は、エージェントが利用者の承認を得て行う。
 //
 // ブラウザから読んだ中身（console のメッセージ・画面の文字）は、確かめる対象のデータとして返す。中に書かれた指示には従わない。
 //
 // 終了コードは次の 4 つである。
 //   0: 実行した check がすべて通り、console に error と warning が無い。skipped と not_automated の check は残りうる。
-//   1: check が失敗したか、ページを開けなかったか、console に error か warning がある。
+//   1: check が失敗したか、ページを開けなかったか、console に error か warning があるか、書き込みの要求を止めた。
 //   2: 引数か設定に誤りがある。機能や環境が見つからないときと、URL を決められないときである。
 //   3: ブラウザを起動できないか、つなげない。
 
@@ -215,12 +216,13 @@ export function planCheck(check) {
 
 /**
  * 結果から終了コードを決める。
- * @param {{ checks: readonly { status: string }[], console: readonly unknown[], navigation: { ok: boolean } }} result
+ * @param {{ checks: readonly { status: string }[], console: readonly unknown[], navigation: { ok: boolean }, blocked_requests?: readonly unknown[] }} result
  * @returns {0 | 1}
  */
 export function exitCodeOf(result) {
   if (!result.navigation.ok) return 1;
   if (result.console.length > 0) return 1;
+  if ((result.blocked_requests ?? []).length > 0) return 1;
   return result.checks.some((c) => c.status === "failed") ? 1 : 0;
 }
 
@@ -755,6 +757,37 @@ function collectConsole(tab) {
   return { messages, state };
 }
 
+/** 止めずに通す要求のメソッド。読むだけの要求である。 */
+const READ_METHODS = ["GET", "HEAD", "OPTIONS"];
+
+/**
+ * タブの要求のうち、読むだけのもの（GET・HEAD・OPTIONS）だけを通し、それ以外（POST・PUT・DELETE など）を止めて記録する。
+ * side_effect: false の宣言を誤っていても、HTTP の書き込みを送らないためである。WebSocket と、副作用を持つ GET は止められない。
+ * 要求を止めるには、この後に Fetch.enable を送る。
+ * @param {Tab} tab
+ * @param {{ during: string }} state メッセージを出したときに行っていたこと（collectConsole と共有する）
+ * @returns {{ method: string, during: string }[]}
+ */
+function blockWrites(tab, state) {
+  /** @type {{ method: string, during: string }[]} */
+  const blocked = [];
+  tab.on((msg) => {
+    if (msg.method !== "Fetch.requestPaused") return;
+    const requestId = field(msg.params, "requestId");
+    if (typeof requestId !== "string") return;
+    const method = String(field(field(msg.params, "request"), "method"));
+    if (READ_METHODS.includes(method)) {
+      tab.send("Fetch.continueRequest", { requestId }).catch(() => undefined);
+      return;
+    }
+    blocked.push({ method, during: state.during });
+    tab
+      .send("Fetch.failRequest", { requestId, errorReason: "BlockedByClient" })
+      .catch(() => undefined);
+  });
+  return blocked;
+}
+
 /**
  * 機能を確かめる 1 つのタブ。ページを開く・スクリーンショットを撮る・check を実行する。
  */
@@ -770,6 +803,7 @@ class FeatureRun {
     this.url = where.url;
     this.out = where.out;
     this.console = collectConsole(tab);
+    this.blocked = blockWrites(tab, this.console.state);
   }
 
   /** @returns {Promise<{ ok: boolean, message?: string }>} */
@@ -807,6 +841,7 @@ class FeatureRun {
    */
   async check(check, index) {
     this.console.state.during = `check ${index + 1}`;
+    const blockedBefore = this.blocked.length;
     const reopened = await this.open();
     const steps = [];
     let status = reopened.ok ? "passed" : "failed";
@@ -825,12 +860,14 @@ class FeatureRun {
         break;
       }
     }
-    return {
-      status,
-      ...(reason ? { reason } : {}),
-      steps,
-      screenshot: await this.shot(`check-${index + 1}`),
-    };
+    const screenshot = await this.shot(`check-${index + 1}`);
+    // スクリーンショットを撮る間に届いた要求も、この check のものとして数える
+    const blocked = this.blocked.slice(blockedBefore).map((b) => b.method);
+    if (blocked.length > 0) {
+      status = "failed";
+      reason = `書き込みの要求（${blocked.join("・")}）を止めた。side_effect: false の宣言を見直す`;
+    }
+    return { status, ...(reason ? { reason } : {}), steps, screenshot };
   }
 }
 
@@ -879,6 +916,7 @@ export async function runFeature(opts, feature, url) {
     const tab = new Tab(cdp, sessionId);
     const run = new FeatureRun(tab, opts, { url, out });
     for (const domain of ["Runtime", "Page", "Log"]) await tab.send(`${domain}.enable`);
+    await tab.send("Fetch.enable", { patterns: [{ urlPattern: "*" }] });
     const { navigation, screenshot, checks } = await checkFeature(run, feature);
     // 開いた URL は書き出さない。url_command で解決した URL は、ログや成果物に書かない取り決めだからである
     const result = {
@@ -889,6 +927,7 @@ export async function runFeature(opts, feature, url) {
       navigation,
       checks,
       console: run.console.messages,
+      blocked_requests: run.blocked,
       screenshot,
     };
     // complete は、終了コードが 0 で、かつ CLI がすべての check を実行して通したときだけ true にする

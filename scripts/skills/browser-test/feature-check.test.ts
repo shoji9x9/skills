@@ -270,6 +270,7 @@ type Result = {
   complete: boolean;
   navigation: { ok: boolean; message?: string };
   console: { level: string; text: string; during: string }[];
+  blocked_requests: { method: string; during: string }[];
   checks: {
     status: string;
     reason?: string;
@@ -481,6 +482,23 @@ describe("実際の Chrome で機能を確かめる", () => {
     const r = await run(repo([{ name: "f", path: "/", checks: [check] }]), "f");
     expect(r.status, r.stderr).toBe(0);
     expect(r.json.checks[0]).toMatchObject({ status: "passed" });
+  }, 60000);
+
+  test("side_effect: false と誤って書いた操作が書き込みの要求を送ると、要求を止めて check を failed にし、exit 1 で終わる", async () => {
+    const before = posts;
+    const check = {
+      action: "保存する",
+      expect: "保存される",
+      steps: [{ click: "#save", side_effect: false }, { wait_for: "#r" }],
+    };
+    const r = await run(repo([{ name: "f", path: "/", checks: [check] }]), "f");
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.json.checks[0]).toMatchObject({
+      status: "failed",
+      reason: expect.stringContaining("書き込みの要求（POST）を止めた"),
+    });
+    expect(r.json.blocked_requests).toEqual([{ method: "POST", during: "check 1" }]);
+    expect(posts).toBe(before);
   }, 60000);
 
   test("ページを開けないときは exit 1 で終わり、操作する check を failed にする", async () => {

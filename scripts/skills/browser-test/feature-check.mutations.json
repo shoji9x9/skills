@@ -31,7 +31,8 @@
         "終了コード console にメッセージがある ときは 1",
         "実際の Chrome で機能を確かめる /error を開いて console に error が出たら、exit 1 で終わり、メッセージを返す",
         "実際の Chrome で機能を確かめる /warn を開いて console に warning が出たら、exit 1 で終わり、メッセージを返す",
-        "実際の Chrome で機能を確かめる /throw を開いて console に error が出たら、exit 1 で終わり、メッセージを返す"
+        "実際の Chrome で機能を確かめる /throw を開いて console に error が出たら、exit 1 で終わり、メッセージを返す",
+        "実際の Chrome で機能を確かめる side_effect: false と誤って書いた操作が書き込みの要求を送ると、要求を止めて check を failed にし、exit 1 で終わる"
       ]
     },
     {
@@ -84,6 +85,17 @@
       "expect_failing": [
         "機能の選び方と URL https://h.example/app/?a=1 と /p から https://h.example/app/p を開く（path は環境の url からの相対）",
         "機能の選び方と URL https://h.example/app#top と /p?q=1 から https://h.example/app/p?q=1 を開く（path は環境の url からの相対）"
+      ]
+    },
+    {
+      "id": "feature-check-block-writes",
+      "why": "side_effect: false と誤って書いた操作の書き込みの要求（POST など）を止めずに送る",
+      "file": "skills/browser-test/scripts/feature-check.mjs",
+      "find": "if (READ_METHODS.includes(method)) {",
+      "replace": "if (true) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "実際の Chrome で機能を確かめる side_effect: false と誤って書いた操作が書き込みの要求を送ると、要求を止めて check を failed にし、exit 1 で終わる"
       ]
     }
   ]
