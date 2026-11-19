@@ -11,6 +11,7 @@ env -u SKILL_EVAL_ALLOW_UNISOLATED GH_TOKEN=invalid-for-eval GH_CONFIG_DIR=/none
 ```
 
 `--config without_skill` でベースラインを同様に実行する。
+`evals.json` の該当する eval に `fixture` があるときは、`--fixture evals/issue-create/<fixture>` を付ける。
 `evals.json` の `id` が `tests/issue-create/iteration-N/eval-<id>/` に対応する。
 集計とビューアの手順は `docs/skill-development.md` にある。
 
@@ -27,6 +28,13 @@ env -u SKILL_EVAL_ALLOW_UNISOLATED GH_TOKEN=invalid-for-eval GH_CONFIG_DIR=/none
   sandbox を通る run では、sandbox がどちらの値も外す。
   prompt でも GitHub への書き込みを禁じる。
   `gh` の読み取り（重複の確認）も失敗するので、エージェントは確かめられなかったことを伝える形になる。
+- eval 1・2・4・5 は、テンプレートの選び方と起票のコマンドの形を検査する。fixture（`fixtures/` の 3 つ）は、テンプレートの有無だけを変えたリポジトリである。
+  - eval 1 は、リポジトリのバグのテンプレート（同梱のものと節とラベルが違う）を優先して使うことと、本文を `--body-file` で渡すことを検査する。
+  - eval 2 と eval 5 は、リポジトリに種別に合うテンプレートが無いときに、同梱のテンプレートの節で本文を書き、`.github/ISSUE_TEMPLATE/` へのコピーを利用者に尋ねることを検査する。
+    eval 5 のリポジトリには機能要望のテンプレートだけがあり、バグの依頼には合わない。
+  - eval 4 は、同梱にも合うテンプレートが無いタスクで、汎用の構成の節で本文を書くことを検査する。
+  - 下書きを見せて承認を得る前に起票しないことは、prompt が書き込みを禁じるのでベースラインも満たす。そのため assertion にしない。
+- 曖昧な依頼に推測で本文を埋めずに確かめるかを問う eval は置かない。ベースラインも一般的な判断で確かめるので、スキルの有無で差が出ない。
 - eval 6 は、大きな依頼を分ける手順と、分けた Issue の依存の書き方を検査する。
   スキル固有の取り決めは、依存の節を番号で書き、前提にされる側から起票する順にすることで、2 つ目の assertion がこれを検査する。
   - 次の 3 つの assertion は、後退の検出のために置く。一般的な判断でも答えられるので、ベースラインも通り、Delta には寄与しない。
