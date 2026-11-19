@@ -132,6 +132,7 @@ node "$CFG" append browser-test environments '{"name":"dev","url":"https://dev.e
 - `sources`（任意）: 変更したらこの機能に当たるソースのパス（リポジトリのルートからの glob）。差分のファイルから機能を探すのに使う
 - `checks`: 確かめる操作（`action`）と、期待する結果（`expect`）の組の一覧
   - `steps`（任意）: 同梱の CLI（`scripts/feature-check.mjs`）が実行する手順。`steps` の無い check は、エージェントが `action` と `expect` に従って確かめる。
+    CLI は、結果を確かめる step（`expect_visible` か `expect_text`）を 1 つも持たない check を実行しない。その check も、エージェントが `action` と `expect` に従って確かめる。
     各 step は次のどれか 1 つの形で書き、セレクタは CSS セレクタにする。
 
     | step | 動き |

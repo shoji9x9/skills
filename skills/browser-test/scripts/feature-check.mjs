@@ -50,6 +50,8 @@ const ACTIONS = /** @type {const} */ (["click", "fill", "press"]);
 /** 読むだけの操作。 */
 const PROBES = /** @type {const} */ (["wait_for", "expect_visible", "expect_text"]);
 const KINDS = [...ACTIONS, ...PROBES];
+/** 期待する結果を確かめる step。check にはこのどれかが要る。 */
+const EXPECTS = ["expect_visible", "expect_text"];
 
 /** `press` で送るキーの定義（CDP の Input.dispatchKeyEvent に渡す値）。 */
 /** @type {Record<string, { key: string, code: string, keyCode: number, text?: string }>} */
@@ -210,6 +212,15 @@ export function planCheck(check) {
         reason: `${index + 1} 番目の step（${kind}）は副作用が無いと書かれていない（${why}）。利用者の承認を得て確かめる`,
       };
     }
+  }
+  // 操作だけで結果を確かめない check を合格にしないよう、expect_visible か expect_text を求める
+  if (!check.steps.some((step) => EXPECTS.includes(stepKind(step)))) {
+    return {
+      run: false,
+      status: "not_automated",
+      reason:
+        "結果を確かめる step（expect_visible か expect_text）が無い。エージェントが expect に従って確かめる",
+    };
   }
   return { run: true };
 }
@@ -697,8 +708,11 @@ async function runStep(tab, step, timeoutMs) {
   if (kind === "press") return press(tab, target);
   if (kind === "click" || kind === "fill") {
     const found = await poll(tab, { selector: target, kind: "visible" }, timeoutMs);
-    if (!found.ok)
-      return { ok: false, message: `${timeoutMs} ミリ秒待っても表示されない: ${target}` };
+    // セレクタの誤りなど、ページの中で例外が出たときは、その理由も添える（読むだけの step と同じ）
+    if (!found.ok) {
+      const failure = `${timeoutMs} ミリ秒待っても表示されない: ${target}`;
+      return { ok: false, message: found.message ? `${failure}（${found.message}）` : failure };
+    }
     const value = typeof step.value === "string" ? step.value : "";
     return evaluate(tab, { selector: target, kind, value });
   }

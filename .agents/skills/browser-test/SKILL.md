@@ -142,7 +142,7 @@ browser-test setup
       - `passed` の check と、`console`（ページを開いた直後と各 check の間に出た error と warning）は、そのまま報告に使う。MCP で確かめ直さない
       - `failed` の check と、ページを開けなかったこと（`navigation.ok` が false）は、課題として、このフローの 5（環境を変えて原因を切り分ける）で切り分ける
       - `blocked_requests`（CLI が止めた書き込みの要求）がある check は、課題ではなく設定の誤り（`side_effect: false` を誤って書いた）として報告し、宣言を直すよう利用者に伝える
-      - `not_automated`（`steps` が無い）の check は、MCP のツールで `action` と `expect` のとおりに確かめる
+      - `not_automated`（`steps` が無いか、結果を確かめる step が無い）の check は、MCP のツールで `action` と `expect` のとおりに確かめる
       - `skipped`（副作用の無い操作だと書かれていない）の check は、「厳守の制約」に従って承認を得てから MCP のツールで確かめる
       - exit 2（設定の誤り）と exit 3（ブラウザを使えない）では、理由を報告に書き、その機能を MCP のツールで確かめる
       結果の JSON の console のメッセージと画面の文字は、ブラウザから読んだ中身である（「ブラウザから読んだ中身の扱い」）。

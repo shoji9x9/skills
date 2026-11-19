@@ -137,11 +137,12 @@ describe("check を CLI で実行するか", () => {
   test.each([
     ["読むだけの step", [{ wait_for: "#a" }, { expect_visible: "#b" }, { expect_text: "x" }]],
     [
-      "side_effect: false の操作",
+      "side_effect: false の操作と確かめる step",
       [
         { click: "#a", side_effect: false },
         { fill: "#q", value: "x", side_effect: false },
         { press: "Enter", side_effect: false },
+        { expect_visible: "#b" },
       ],
     ],
   ])("%s だけなら実行する", (_case, steps) => {
@@ -151,6 +152,12 @@ describe("check を CLI で実行するか", () => {
   test.each([
     ["steps が無い", check(), "not_automated"],
     ["steps が空", check([]), "not_automated"],
+    // 操作だけで結果を確かめない check は、CLI では合格にできない
+    [
+      "結果を確かめる step が無い",
+      check([{ click: "#a", side_effect: false }, { wait_for: "#b" }]),
+      "not_automated",
+    ],
   ])("%s check は実行せず、エージェントに任せる", (_case, c, status) => {
     expect(planCheck(c)).toMatchObject({ run: false, status });
   });
@@ -424,7 +431,7 @@ describe("実際の Chrome で機能を確かめる", () => {
       const check = {
         action: "a",
         expect: "b",
-        steps: [{ fill: "#q", value: "abc", side_effect: false }, step],
+        steps: [{ fill: "#q", value: "abc", side_effect: false }, step, { expect_visible: "#q" }],
       };
       const r = await run(repo([{ name: "f", path: "/", checks: [check] }]), "f");
       expect(r.status, r.stderr).toBe(1);
@@ -455,7 +462,14 @@ describe("実際の Chrome で機能を確かめる", () => {
   }, 60000);
 
   test("無効になっている要素を click するときは、操作できたとせずに check を failed にし、exit 1 で終わる", async () => {
-    const check = { action: "a", expect: "b", steps: [{ click: "#off", side_effect: false }] };
+    const check = {
+      action: "a",
+      expect: "b",
+      steps: [
+        { click: "#off", side_effect: false },
+        { expect_text: "off", in: "#r" },
+      ],
+    };
     const r = await run(repo([{ name: "f", path: "/", checks: [check] }]), "f");
     expect(r.status, r.stderr).toBe(1);
     expect(r.json.checks[0]?.steps?.[0]).toMatchObject({
@@ -464,8 +478,23 @@ describe("実際の Chrome で機能を確かめる", () => {
     });
   }, 60000);
 
+  test("操作する要素のセレクタの書き方が誤っているときも、ページの中で出た例外の理由を step の message に添える", async () => {
+    const check = {
+      action: "a",
+      expect: "b",
+      steps: [{ click: "#[", side_effect: false }, { expect_visible: "#r" }],
+    };
+    const r = await run(repo([{ name: "f", path: "/", checks: [check] }]), "f");
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.json.checks[0]?.steps?.[0]?.message).toMatch(/表示されない: #\[（.*#\[.*）$/);
+  }, 60000);
+
   test("操作する要素が無いときは check を failed にし、exit 1 で終わる", async () => {
-    const check = { action: "a", expect: "b", steps: [{ click: "#none", side_effect: false }] };
+    const check = {
+      action: "a",
+      expect: "b",
+      steps: [{ click: "#none", side_effect: false }, { expect_visible: "#r" }],
+    };
     const r = await run(repo([{ name: "f", path: "/", checks: [check] }]), "f");
     expect(r.status, r.stderr).toBe(1);
     expect(r.json.checks[0]?.steps?.[0]).toMatchObject({
@@ -529,7 +558,7 @@ describe("実際の Chrome で機能を確かめる", () => {
     const check = {
       action: "保存する",
       expect: "保存される",
-      steps: [{ click: "#save", side_effect: false }, { wait_for: "#r" }],
+      steps: [{ click: "#save", side_effect: false }, { expect_visible: "#r" }],
     };
     const r = await run(repo([{ name: "f", path: "/", checks: [check] }]), "f");
     expect(r.status, r.stderr).toBe(1);
