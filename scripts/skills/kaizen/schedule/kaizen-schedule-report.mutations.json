@@ -61,7 +61,21 @@
         "設定解決（層・デフォルト値への置き換え） 環境変数の不正な値も exit 1 で止める",
         "設定解決（層・デフォルト値への置き換え） 旧い .kaizen/config が残っていれば、移行の手順を示して止める",
         "設定解決（層・デフォルト値への置き換え） 設定ファイルがあるのに node が無ければ止め、無ければ node なしで opt-in の判定まで進む",
-        "設定ファイルを読めない場合 設定ファイルがパーミッションで読めないときは exit 1 で止める"
+        "設定ファイルを読めない場合 設定ファイルがパーミッションで読めないときは exit 1 で止める",
+        "採った層を出すのは config だけ issue も設定を読めないときは exit 1 で止める",
+        "採った層を出すのは config だけ prompt も設定を読めないときは exit 1 で止める"
+      ]
+    },
+    {
+      "id": "SR-ISSUE-PROMPT-TRACE-LAYERS",
+      "why": "issue と prompt も値を解決して採った層を stderr に出す。環境変数を受け取らない step のログに、mode=notify のような実際と違う値が残る",
+      "file": "skills/kaizen/scripts/kaizen-schedule-report.sh",
+      "find": "\t# 実際と違う値が残るので、設定を読めるかだけを確かめる。\n\tload_config_or_exit\n",
+      "replace": "\t# 実際と違う値が残るので、設定を読めるかだけを確かめる。\n\tresolve_config\n",
+      "occurrences": 2,
+      "expect_failing": [
+        "採った層を出すのは config だけ issue は採った層を stderr に出さない",
+        "採った層を出すのは config だけ prompt は採った層を stderr に出さない"
       ]
     },
     {
