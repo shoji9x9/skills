@@ -357,11 +357,12 @@ export class Cdp {
    * @returns {Promise<Cdp>}
    */
   static connect(url, timeoutMs) {
+    // url（CDP の WebSocket の URL）は、パスにブラウザを操作できるトークンを含むので、誤りのメッセージに書かない
     return new Promise((resolve, reject) => {
       const ws = new WebSocket(url);
       const timer = setTimeout(() => {
         ws.close();
-        reject(new BrowserError(`ブラウザにつなげない（${timeoutMs} ミリ秒で応答が無い）: ${url}`));
+        reject(new BrowserError(`ブラウザにつなげない（${timeoutMs} ミリ秒で応答が無い）`));
       }, timeoutMs);
       ws.addEventListener("open", () => {
         clearTimeout(timer);
@@ -369,7 +370,7 @@ export class Cdp {
       });
       ws.addEventListener("error", () => {
         clearTimeout(timer);
-        reject(new BrowserError(`ブラウザにつなげない: ${url}`));
+        reject(new BrowserError("ブラウザにつなげない"));
       });
     });
   }

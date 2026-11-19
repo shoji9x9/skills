@@ -552,7 +552,12 @@ describe("実際の Chrome で機能を確かめる", () => {
       expect(r.json).toMatchObject({ browser: "connected", complete: true });
       expect(await pages()).toBe(before);
     } finally {
-      chrome.kill();
+      // 終わるのを待ってからプロファイルを消す。待たないと、Chrome が書き込んでいる途中で消そうとして ENOTEMPTY になる
+      if (chrome.exitCode === null && chrome.signalCode === null) {
+        const exited = new Promise((r) => chrome.once("exit", r));
+        chrome.kill();
+        await exited;
+      }
     }
   }, 60000);
 });
@@ -627,6 +632,24 @@ describe("設定とブラウザの誤り", () => {
     },
     60000,
   );
+
+  test("CDP の WebSocket につなげないときは、その URL（ブラウザを操作できるトークンを含む）を出さずに exit 3 で終わる", async () => {
+    const fake = createServer((_req, res) => {
+      res.setHeader("content-type", "application/json");
+      res.end(
+        JSON.stringify({ webSocketDebuggerUrl: "ws://127.0.0.1:9/devtools/browser/secret-token" }),
+      );
+    });
+    await new Promise<void>((r) => fake.listen(0, "127.0.0.1", r));
+    try {
+      const r = await run(repo([f]), "検索", ["--browser-url", `http://127.0.0.1:${portOf(fake)}`]);
+      expect(r.status, r.stderr).toBe(3);
+      expect(r.stderr).toContain("ブラウザにつなげない");
+      expect(r.stderr).not.toContain("secret-token");
+    } finally {
+      fake.close();
+    }
+  }, 60000);
 
   test("機能マップの無い設定では exit 2 で終わる", async () => {
     const root = repo([f]);
