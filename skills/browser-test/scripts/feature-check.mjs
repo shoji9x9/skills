@@ -814,29 +814,23 @@ export class FeatureRun {
 
   /** @returns {Promise<{ ok: boolean, message?: string }>} */
   async open() {
-    // ページを開けなかったときは、読み込みの待ち（タイマーとリスナー）をすぐに外す
     const cancel = new AbortController();
     const loaded = this.tab.waitEvent("Page.loadEventFired", this.timeoutMs, cancel.signal);
-    /** @type {unknown} */
-    let nav;
     try {
-      nav = await this.tab.send("Page.navigate", { url: this.url });
-    } catch (e) {
-      // 要求そのものが失敗した（応答が無い・接続が切れた）ときも、待ちを外してから呼び出し元へ伝える
+      const nav = await this.tab.send("Page.navigate", { url: this.url });
+      const errorText = field(nav, "errorText");
+      if (typeof errorText === "string" && errorText !== "")
+        return { ok: false, message: `ページを開けない: ${errorText}` };
+      // URL が # の後ろだけ違う移動は同じ文書の中で終わり（loaderId が無い）、読み込みが起きず前の check の状態も残る。
+      // そのため、読み込み直して check ごとに新しい文書から始める
+      if (field(nav, "loaderId") === undefined) await this.tab.send("Page.reload");
+      if (!(await loaded))
+        return { ok: false, message: `${this.timeoutMs} ミリ秒でページの読み込みが終わらない` };
+      return { ok: true };
+    } finally {
+      // どの出口でも読み込みの待ち（タイマーとリスナー）を外す。ページを開けなかったときと、要求そのものが失敗したときも含む
       cancel.abort();
-      throw e;
     }
-    const errorText = field(nav, "errorText");
-    if (typeof errorText === "string" && errorText !== "") {
-      cancel.abort();
-      return { ok: false, message: `ページを開けない: ${errorText}` };
-    }
-    // URL が # の後ろだけ違う移動は同じ文書の中で終わり（loaderId が無い）、読み込みが起きず前の check の状態も残る。
-    // そのため、読み込み直して check ごとに新しい文書から始める
-    if (field(nav, "loaderId") === undefined) await this.tab.send("Page.reload");
-    if (!(await loaded))
-      return { ok: false, message: `${this.timeoutMs} ミリ秒でページの読み込みが終わらない` };
-    return { ok: true };
   }
 
   /** @param {string} name */
