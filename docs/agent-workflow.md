@@ -282,7 +282,7 @@ SHA で対応づけるポーリング（commit・review・check-run）では、�
 
 前段が lint で、出力を短くするためにパイプで `tail` に通すと、`&&` が見る終了コードは `tail` のものになる。
 `lint-prose.ts <本文> 2>&1 | tail -1 && gh pr create ...` の形で、lint が指摘を出して 0 以外で終わったのに、Issue の起票と PR の作成まで進んだことが 2 回ある。どちらも、外に出した後で本文を直した。
-外向きの操作の前提にする lint は、`lint >log 2>&1; rc=$?` で終了コードを保存し、`if [ "$rc" = 0 ]` で分岐してから外向きの操作に進む。出力は分岐の後で `tail log` で読む。
+外向きの操作の前提にする lint は、`rc=0; lint >log 2>&1 || rc=$?` で終了コードを保存し、`if [ "$rc" = 0 ]` で分岐してから外向きの操作に進む。出力は分岐の後で `tail log` で読む。
 
 ### 破壊的な操作は、許可リストで対象を決め、対象と件数を確かめてから実行する
 
@@ -338,8 +338,9 @@ eval の文言を一括で書き換えたところ、指紋で持つ 130 件の�
 ### コードを別のファイルへ移す前に、パスや名前の形で対象を決めるチェックを挙げる
 
 中身が同じコードでも、置くファイルのパスや名前が変わると、扱いを変えるチェックがある。
-カバレッジは `*.test.ts` を測らず、`*-helpers.ts` は閾値の対象にする（`scripts/coverage/run-coverage.ts` と `scripts/coverage/coverage-thresholds.json`）。
+カバレッジは `*.test.ts` を測らず、`*-helpers.ts` は閾値の対象にする（`scripts/coverage/check-coverage.ts` の `isMeasured` と `scripts/coverage/coverage-thresholds.json`）。
 変異の差分選択（`scripts/mutation/check-mutation-proof.ts` の `selectChangedSpecs`）は、定義・`test_file`・`test_file` が import するファイル・変異の対象のパスで定義を選び、ランナー自身が変わるとすべての定義を測る。
+import をたどる対象から `scripts/lib/` を外すので、`scripts/lib/` へ移したコードは、変異の対象でなければ、変えても定義を選ばない。
 `oxlint.config.ts` の `overrides` も、パスの形で規則を外す。
 
 テストのヘルパーを `*-helpers.ts` に切り出したときは、実行されない分岐がカバレッジの閾値に当たって pre-push で止まった。表明をヘルパーへ移したので、ヘルパーだけを変える PR で変異の定義が選ばれなくなった（この後、選ぶ対象に import するファイルを足した）。
