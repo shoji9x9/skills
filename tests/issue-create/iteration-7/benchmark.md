@@ -24,6 +24,7 @@ Issue #1063 で、eval 1・2・4・5 を、テンプレートの選び方と起�
 ## 気付いたこと
 
 - eval 1 の、リポジトリのテンプレートの節とラベルを使う 2 つの assertion は、without_skill も通った。リポジトリにテンプレートがあれば、ベースラインも読んで使う。差が出たのは `--body-file` に一時ファイルを渡す assertion だけだった（without_skill は `--body-file -` に heredoc を渡した）。
+  節とラベルの 2 つの assertion は、Delta ではなく後退の検出のために置く（`evals/issue-create/README.md`）。
 - eval 2・4・5 の without_skill は、同梱のテンプレートが無いので独自の節で書き、タイトルの接頭辞も付けず、テンプレートのコピーも尋ねなかった。
 - with_skill の 4 run は、すべてスキルの文書を読んだ。without_skill の 4 run の汚染の判定は、すべて clean だった。
 
