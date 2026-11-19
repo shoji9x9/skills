@@ -339,13 +339,15 @@ eval の文言を一括で書き換えたところ、指紋で持つ 130 件の�
 
 中身が同じコードでも、置くファイルのパスや名前が変わると、扱いを変えるチェックがある。
 カバレッジは `*.test.ts` を測らず、`*-helpers.ts` は閾値の対象にする（`scripts/coverage/check-coverage.ts` の `isMeasured` と `scripts/coverage/coverage-thresholds.json`）。
-変異の差分選択（`scripts/mutation/check-mutation-proof.ts` の `selectChangedSpecs`）は、定義・`test_file`・`test_file` が import するファイル・変異の対象のパスで定義を選び、ランナー自身が変わるとすべての定義を測る。
-import をたどる対象から `scripts/lib/` を外すので、`scripts/lib/` へ移したコードは、変異の対象でなければ、変えても定義を選ばない。
+変異の差分選択（`scripts/mutation/check-mutation-proof.ts` の `selectChangedSpecs`）は、定義・`test_file`・変異の対象のパスで定義を選び、ランナー自身が変わるとすべての定義を測る。
+`test_file` からは、相対の import を間接のものまでたどった `scripts/` の `.ts` も見るが、`scripts/lib/` は外す。
+そのため、`scripts/lib/` や `scripts/` の外へ移したコードは、変異の対象でなければ、変えても定義を選ばない。
 `oxlint.config.ts` の `overrides` も、パスの形で規則を外す。
 
 テストのヘルパーを `*-helpers.ts` に切り出したときは、実行されない分岐がカバレッジの閾値に当たって pre-push で止まった。表明をヘルパーへ移したので、ヘルパーだけを変える PR で変異の定義が選ばれなくなった（この後、選ぶ対象に import するファイルを足した）。
 vitest の setup ファイルを移して古いパスの参照を直したときは、ランナーのコメントも書き換えたので、PR の Mutation proof がすべての変異を測った。シャードが時間の上限で 3 回 cancel され、CI を 3 回待った。
-移す・分ける前に、移す元と移す先のパスを `scripts/` と設定ファイルで grep し、チェックごとに新しく当たるか外れるかを決めてから始める。参照を直す一括の置換では、ランナーのコメントを変えない。
+移す・分ける前に、移す元と移す先のパスを `scripts/` と設定ファイルで grep し、チェックごとに新しく当たるか外れるかを決めてから始める。参照を直す一括の置換では、ランナーのファイルを置換の対象から外す。
+ランナーのコメントも直す必要があるなら、PR の Mutation proof がすべての変異を測ることを前提にして、別の commit にし、CI の時間を見込んでから push する。
 
 ### 複数の置換をまとめたスクリプトは、置換ごとにファイルに書き戻す
 
