@@ -4,9 +4,7 @@
 
 ## 技術スタック
 
-- pnpm のバージョンは `mise.toml`、`package.json` の `packageManager` と `devEngines.packageManager`、`pnpm-lock.yaml` の 4 か所に書く。
-  誤って別のパッケージマネージャを使うと、`devEngines` が警告する。
-  4 か所をそろえてバージョンを上げる手順と、不具合のあるバージョンを避ける方法は [`docs/package-manager.md`](package-manager.md) にある。
+- pnpm のバージョンを書く場所と、バージョンを上げる手順・不具合のあるバージョンを避ける方法は [`docs/package-manager.md`](package-manager.md) にある。
 - フォーマッタとリンタは「リントと整形」の表のとおりである。
 - テストは skill-creator で行う。eval viewer には Python 3.8 以上が要る。結果の集計は `scripts/eval/benchmark/build-skill-eval-benchmark.ts`（Node）で行う。
 - 実行環境は mise で管理する。
