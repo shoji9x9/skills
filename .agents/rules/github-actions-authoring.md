@@ -44,5 +44,5 @@ applyTo: ".github/workflows/**"
   シェルに渡す環境変数は `[shell_environment_policy]` の `inherit = "core"` で絞る。`codex-args` の `-c` で permission を上書きする形は、action が拒否する。
   sandbox の中で codex を起動するには、codex を入れた場所の read も要る。codex-action は自分の `actions/setup-node` の Node に codex を入れるので、action より前の段で取った `npm root -g` とは場所が違う。ツールキャッシュ（`RUNNER_TOOL_CACHE`）に read を与える。
 - GitHub Copilot CLI は、`--available-tools` で使えるツールを読み取りのもの（`view`・`grep`・`glob`）に限り、`--allow-all-paths`・`--add-dir` を付けない。
-- 出力を正規表現で検査して塞がない。加工した値（区切り文字を挟むなど）が通るので、読める範囲を絞るほうを選ぶ。
+- 資格情報が出力に出るのを、出力を正規表現で検査して止める作りにしない。加工した値（区切り文字を挟むなど）は正規表現に当たらずに出力されるので、エージェントが読める範囲を絞る。
 - 拒否や限定が機能するかは、そのツールを使うよう指示したエージェントの CLI（`claude -p`・`codex sandbox -P`・`copilot -p`）を、限る場合と限らない場合の両方で実行して確かめる。

@@ -4,9 +4,7 @@
 
 ## 技術スタック
 
-- pnpm のバージョンは `mise.toml`、`package.json` の `packageManager` と `devEngines.packageManager`、`pnpm-lock.yaml` の 4 か所に書く。
-  誤って別のパッケージマネージャを使うと、`devEngines` が警告する。
-  4 か所をそろえてバージョンを上げる手順と、不具合のあるバージョンを避ける方法は [`docs/package-manager.md`](package-manager.md) にある。
+- pnpm のバージョンを書く場所と、バージョンを上げる手順・不具合のあるバージョンを避ける方法は [`docs/package-manager.md`](package-manager.md) にある。
 - フォーマッタとリンタは「リントと整形」の表のとおりである。
 - テストは skill-creator で行う。eval viewer には Python 3.8 以上が要る。結果の集計は `scripts/eval/benchmark/build-skill-eval-benchmark.ts`（Node）で行う。
 - 実行環境は mise で管理する。
@@ -130,6 +128,7 @@ fallow はドットで始まるディレクトリを走査しないので、イ�
 
 参照の向きは、fallow の構文の解析が読む参照（`import`・`export from`・`import()`・`require()`・`import type`・JSDoc の `{import("…")}`・`vi.mock`・`new URL`）で判定する。
 次の書き方は検出しないので、相対パスのモジュールを読むときは使わない。`createRequire` の戻り値を別名で呼ぶ、`vi.importActual`、`/// <reference path>`、相対パスの文字列を任意の関数に渡して読む、である。
+`vi.importActual` は oxlint の `no-restricted-properties` が検出する。
 
 `pnpm run lint:fallow` と CI の CRAP（`pnpm run lint:crap`）は、`fallow health` の出力のうち、関数ごとの複雑度の指摘（`--complexity`）だけを検査する。
 ほかの出力（ファイルの点数・hotspot・一緒に変更されたファイルの組・リファクタリングの候補）は、`--fail-on-issues` を付けても失敗にならないので実行しない（全体の要約の数行だけは毎回出る）。
@@ -141,7 +140,7 @@ CRAP のベースラインの扱いは、下の CI の検査の項にある。
 直したら、`pnpm exec fallow dead-code --save-baseline .config/fallow/dead-code-baseline.json` で作り直す。
 保存したファイルは `pnpm exec oxfmt .config/fallow/dead-code-baseline.json` で整形する。
 使われていない export は、`fallow fix --dry-run` で提案を確かめてから `fallow fix` で直す。`fallow fix` は `export` を外し、依存を消すので、pre-commit と CI では自動に適用しない。
-誤検知は、`base.jsonc` で理由を書いて外す。配布スキルには `fallow-ignore` のコメントを置かない。
+誤検知は、`base.jsonc` で理由を書いて外す。配布スキルには `fallow-ignore` のコメントを置かない（`scripts/gates/code/check-skill-lint-directives.ts` が検出する）。
 
 CI だけで実行する検査が 2 つある。
 
@@ -533,6 +532,16 @@ fixture の検査も strict のままにする。型が足りない fixture は�
 `tests/**` は、リントと整形の対象に含める。`.agents/skills/**` と `.claude/**` は、インストール済みのコピーとエージェント用のシンボリックリンクなので、対象から外す。
 型の検査は、エディタで開く雛形のコピーとリンクを対象にする（上の「型の検査」）。
 ただし、`.agents/rules/`（rule の実体）と private skill（`.private-skill` を持つ `.agents/skills/<name>/`）は対象にする。rule へのリンクを置く `.github/instructions/` は対象から外す。
+
+### チェックを作らない規約
+
+機械的に判定できるが、`.agents/rules/check-cost-benefit.md` の基準で見合わないと判断し、チェックを作らない規約を次に挙げる。
+誤りの記録が増えたら、そのときに判断し直す。
+
+| 規約 | 作らない理由 |
+| --- | --- |
+| `./node_modules/.bin/<tool>` を直接指定しない（`AGENTS.md`「技術スタック」） | 誤ると、リポジトリの外では起動が `No version is set for shim` でその場で失敗するので気付ける。コマンドの文字列で判定する Hook は、引用の中の文章（commit message・`grep` の引数）も止める |
+| commit の `--amend` をしない（`AGENTS.md`「ブランチ運用」） | `--amend` を使って誤った記録が無いうちは、チェックの費用が見合わない。コマンドの文字列で判定する Hook は、引用の中の文章も止める。`bash-command-guard.sh` には規則を足さないと決めている |
 
 ### 同梱するパッケージの更新
 

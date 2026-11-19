@@ -8,7 +8,7 @@
 // | evals          | 配列 / 非配列                                                                     |
 // | eval           | オブジェクト / null                                                               |
 // | id             | 数値 / 文字列 / 欠落 / ":" を含む / 重複                                          |
-// | prompt         | 正常 / 空                                                                         |
+// | prompt         | 正常 / 空 / 行為を禁じる字面（しないで・せず・しない。先頭・途中・末尾、backlog の eval も） |
 // | assertions     | 正常 / 空配列 / 空要素 / テキスト重複                                             |
 // | reachability   | 無い（免除あり / 免除なし） / ある                                               |
 // | reachability[] | 正常 / 非オブジェクト / assertion 不在 / assertion 重複 / quote 空 / quote 非部分文字列 |
@@ -69,6 +69,42 @@ test("誤検知しないことの確認（実データ）: 実リポジトリの
   const { evals, violations } = checkAll(repoRoot, files);
   expect(violations).toEqual([]);
   expect(evals).toBeGreaterThan(100);
+});
+
+test.each([
+  ["しないで（途中）", `${PROMPT}まだ何も実行しないで、手順だけ示して。`, "何も実行しない"],
+  ["せず（末尾）", `${PROMPT}何も実行せず`, "何も実行せず"],
+  ["しない（先頭）", `何も実行しないこと。${PROMPT}`, "何も実行しない"],
+])("prompt が行為を禁じる字面（%s）なら落とす", (_label, prompt, word) => {
+  const quoted = {
+    prompt,
+    reachability: [
+      { assertion: A1, prompt_quote: "撮る状態をどう決めて" },
+      { assertion: A2, prompt_quote: "何をどこに残すか" },
+    ],
+  };
+  const v = check(file({}, quoted));
+  expect(v).toHaveLength(1);
+  expect(v[0]).toContain(`「${word}」で行為を禁じている`);
+});
+
+test("backlog に載る eval でも、行為を禁じる字面は落とす", () => {
+  const v = check(file({}, { prompt: `${PROMPT}何も実行しないで。`, reachability: undefined }), [
+    "demo:1",
+  ]);
+  expect(v).toHaveLength(1);
+  expect(v[0]).toContain("行為を禁じている");
+});
+
+test.each([
+  [
+    "副作用で禁じる形",
+    "GitHub への書き込みとファイルの変更はしないこと。スキルの文書の読み取りはしてよい。",
+  ],
+  ["コマンドの実行と変更を禁じる形", "コマンドの実行やファイルの変更はせず、手順だけ示して。"],
+  ["何も変更しない", "ファイルは何も変更しないで。"],
+])("誤検知しないことの確認: 行為の字面でない prompt（%s）は通す", (_label, tail) => {
+  expect(check(file({}, { prompt: `${PROMPT}${tail}` }))).toEqual([]);
 });
 
 test("reachability が無く免除も無ければ落とす（足す eval の id を添えて案内する）", () => {

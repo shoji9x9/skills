@@ -79,7 +79,7 @@ jobs:
       # 重複したコード（JS/TS・シェル・Markdown）。既存の重複は .config/jscpd/ の baseline.json と baseline-tests.json。
       - name: Duplicates (jscpd)
         run: pnpm run lint:duplicates
-      # 対象は tsconfig.json が束ねる 4 つのプロジェクト（Node で実行する .ts、配布スキルの雛形とインストール済みのコピー、Claude Code 用のリンクから見た雛形、eval の fixture）。
+      # 対象は tsconfig.json が束ねる 5 つのプロジェクト（配布スキルの .mjs、Node で実行する .ts、配布スキルの雛形とインストール済みのコピー、Claude Code 用のリンクから見た雛形、eval の fixture）。
       - name: TypeScript type check
         run: pnpm run typecheck
       - name: JSON lint
@@ -215,7 +215,7 @@ jobs:
         run: |
           echo "シャードの結果: ${RESULT}"
           if [ "${RESULT}" != "success" ]; then
-            echo "変異実証のシャードが成功していない（${RESULT}）。各シャードのログを確かめる" >&2
+            echo "ミューテーションテストのシャードが成功していない（${RESULT}）。各シャードのログを確かめる" >&2
             exit 1
           fi
 
@@ -245,7 +245,7 @@ jobs:
         run: |
           shopt -s nullglob
           templates=(skills/*/assets/*.yml skills/*/assets/*.yaml)
-          # 対象 0 件を成功として扱わない（glob が空振りしただけの緑を根拠にしない）。
+          # 対象 0 件を成功として扱わない（glob が何にも当たらずに成功しただけの結果を根拠にしない）。
           if [ "${#templates[@]}" -eq 0 ]; then
             echo "配布テンプレートが 1 件も見つからない（glob を確認する）" >&2
             exit 1
@@ -279,7 +279,7 @@ jobs:
               echo "対象外（トップレベルに jobs: が無い）: $f"
             fi
           done
-          # 対象 0 件を成功として扱わない（glob か判定が空振りしただけの緑を根拠にしない）。
+          # 対象 0 件を成功として扱わない（glob か判定が何にも当たらずに成功しただけの結果を根拠にしない）。
           if [ "${#templates[@]}" -eq 0 ]; then
             echo "配布するワークフローのテンプレートが 1 件も見つからない（glob と jobs: の判定を確認する）" >&2
             exit 1

@@ -201,6 +201,7 @@ README には、そのスキルの eval を実行するコマンドの例を置�
 各 assertion を引き出す prompt の文を、`{ "assertion": "<assertions に実在するテキスト>", "prompt_quote": "<prompt 内の部分文字列>" }` の形で並べる。
 `scripts/gates/packaging/check-eval-reachability.ts` が pre-commit と CI で次のものをエラーにする。
 対応する要素が無いもの、引用が空のもの、prompt に無い引用、assertions に無い assertion である。対応はテキストで付け、位置では付けない。
+加えて、prompt が「何も実行しない」「何も実行せず」で行為を禁じている eval も、一覧で免除した eval を含めてエラーにする。
 `reachability` を書いていない既存の eval は、`scripts/gates/packaging/eval-reachability-backlog.json` に eval の id（`<skill_name>:<id>`）の一覧で載せて免除する。
 新しい eval をこの一覧に足さない。既存の eval を変えたら、`reachability` を書いて一覧から消す。
 
