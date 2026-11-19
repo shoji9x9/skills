@@ -651,6 +651,49 @@ describe("pending の数え方と並び", () => {
   });
 });
 
+// 同梱のワークフローは環境変数を config の step にだけ渡す。issue と prompt が採った層を出すと、
+// agent モードの run でも後の step のログに「mode=notify（既定）」と残り、指定が反映されなかったと読まれる（Issue #1084）。
+describe("採った層を出すのは config だけ", () => {
+  const layerLine = /^kaizen-schedule-report: (mode|agent|model|effort)=/m;
+  // effort は agent=claude では渡す先が無いという警告も effort= で始まるので、その行も出ないことを含めて測る。
+  const config =
+    '{ "schedule_enabled": true, "schedule_model": "some-model", "schedule_effort": "high" }\n';
+  const env = { KAIZEN_SCHEDULE_MODE: "agent" };
+
+  test("config は mode・agent・model・effort を採った層を stderr に出す", () => {
+    withProject({ notes: { a: {} }, config }, (p) => {
+      const { status, stderr } = run(p, ["config"], env);
+      expect(status).toBe(0);
+      expect(stderr).toContain("mode=agent（環境変数 KAIZEN_SCHEDULE_MODE）");
+      expect(stderr).toContain("agent=claude（既定）");
+      expect(stderr).toContain(
+        "model=some-model（kaizen の設定ファイル（repo の層）の schedule_model）",
+      );
+      expect(stderr).toContain(
+        "effort=high（kaizen の設定ファイル（repo の層）の schedule_effort）",
+      );
+    });
+  });
+
+  test.each(["issue", "prompt"])("%s は採った層を stderr に出さない", (sub) => {
+    withProject({ notes: { a: {} }, config }, (p) => {
+      const { status, stdout, stderr } = run(p, [sub], env);
+      expect(status).toBe(0);
+      expect(stdout).toContain(".kaizen/a.md");
+      expect(stderr).not.toMatch(layerLine);
+    });
+  });
+
+  test.each(["issue", "prompt"])("%s も設定を読めないときは exit 1 で止める", (sub) => {
+    withProject({ notes: { a: {} }, config: '{ "schedule_mode": "bogus" }\n' }, (p) => {
+      const { status, stdout, stderr } = run(p, [sub]);
+      expect(status).toBe(1);
+      expect(stderr).toContain("kaizen の設定を読めないので止める");
+      expect(stdout).toBe("");
+    });
+  });
+});
+
 test("未知のサブコマンドは exit 2 で usage を出す", () => {
   withProject({ notes: {} }, (p) => {
     const res = run(p, ["bogus"]);

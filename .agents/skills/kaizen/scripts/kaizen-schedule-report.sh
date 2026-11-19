@@ -12,8 +12,11 @@
 #
 # 設定は kaizen の設定ファイル（`.config/skills/shoji9x9/kaizen.jsonc` の schedule_* キー。references/config-files.md）
 # から、同梱の読み取りで読む。解決の順序は、環境変数 KAIZEN_SCHEDULE_MODE・AGENT・MODEL・EFFORT（workflow が渡す一時的な上書き）、
-# 設定ファイル、スキーマのデフォルトである。**どの層の値を採ったかを stderr に出す**ので、
+# 設定ファイル、スキーマのデフォルトである。`config` は**どの層の値を採ったかを stderr に出す**ので、
 # 「設定したつもりの値で動いていない」を実行ログから切り分けられる。
+# `issue` と `prompt` は解決した値を使わないので、設定を読めるかだけを確かめ、採った層を出さない。
+# 同梱のワークフローは環境変数を `config` の step にだけ渡すので、出すと後の step のログに
+# 実際とは違う値が残る（agent モードの run でも mode=notify と出るなど）。
 #
 # 同梱のワークフローが環境変数へ渡すのは、`workflow_dispatch` の入力（mode / agent / model /
 # effort）と、リポジトリ変数 `vars.KAIZEN_SCHEDULE_SKIP` だけである。**`inputs.*` は schedule
@@ -246,19 +249,23 @@ summary_of() {
 
 # ---- 設定解決 ----------------------------------------------------------------
 
+# 設定を読めないとき（不正な値・旧い場所の設定・node が無いのに設定ファイルがある）は止める。
+# 定期実行は CI で動くので、失敗として記録して設定を直してもらう。
+load_config_or_exit() {
+	if ! kaizen_config_load; then
+		warn "${kaizen_config_error:-}"
+		warn "kaizen の設定を読めないので止める（設定を直してから実行し直す）"
+		exit 1
+	fi
+}
+
 resolve_config() {
 	local enabled enabled_source skip_raw mode agent model effort bool_status
 
 	skip="false"
 	skip_reason=""
 
-	# 設定を読めないとき（不正な値・旧い場所の設定・node が無いのに設定ファイルがある）は止める。
-	# 定期実行は CI で動くので、失敗として記録して設定を直してもらう。
-	if ! kaizen_config_load; then
-		warn "${kaizen_config_error:-}"
-		warn "kaizen の設定を読めないので止める（設定を直してから実行し直す）"
-		exit 1
-	fi
+	load_config_or_exit
 	if [ -n "${config_unloadable}" ]; then
 		skip="true"
 		skip_reason="${config_unloadable}。停止する側として扱った"
@@ -350,7 +357,9 @@ cmd_config() {
 
 cmd_issue() {
 	local count _rank _sort_key idx shown escaped=0 path_cell summary_cell
-	resolve_config
+	# 解決した値は使わない。採った層を出すと、環境変数を受け取らない step のログに
+	# 実際と違う値が残るので、設定を読めるかだけを確かめる。
+	load_config_or_exit
 	build_pending_index
 	count=${#pending_files[@]}
 
@@ -402,7 +411,9 @@ cmd_issue() {
 
 cmd_prompt() {
 	local count _rank _sort_key idx
-	resolve_config
+	# 解決した値は使わない。採った層を出すと、環境変数を受け取らない step のログに
+	# 実際と違う値が残るので、設定を読めるかだけを確かめる。
+	load_config_or_exit
 	build_pending_index
 	count=${#pending_files[@]}
 
