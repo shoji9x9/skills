@@ -115,6 +115,15 @@ describe("機能の選び方と URL", () => {
   ])("$case ときは誤りにする", ({ base, path, message }) => {
     expect(() => featureUrl(base, path)).toThrow(message);
   });
+
+  test("環境の URL を読めないときの誤りに、その URL を書かない（url_command で解決した URL でありうる）", () => {
+    expect(() => featureUrl("ftp://secret.example/token", "/")).toThrow(
+      expect.objectContaining({ message: expect.not.stringContaining("secret") }),
+    );
+    expect(() => featureUrl("secret-token", "/")).toThrow(
+      expect.objectContaining({ message: expect.not.stringContaining("secret") }),
+    );
+  });
 });
 
 describe("check を CLI で実行するか", () => {
@@ -240,6 +249,7 @@ describe("Chrome の探し方", () => {
 /** 手元のサーバーが返すページ。検索欄・結果・保存のボタン（押すと POST を送る）を持つ。 */
 const PAGE = (extra: string) => `<!doctype html><meta charset="utf-8">
 <input id="q"><div id="r"></div><button id="save" onclick="fetch('/save', { method: 'POST' })">保存</button>
+<button id="toggle" onclick="document.getElementById('r').textContent = 'toggled'">切り替え</button>
 <script>
   document.getElementById("q").addEventListener("keydown", (e) => {
     if (e.key === "Enter") document.getElementById("r").textContent = "hit: " + e.target.value;
@@ -321,10 +331,12 @@ const search = {
   ],
 };
 
+/** CLI を実行する。extra に --timeout-ms が無ければ 3000 を渡す。 */
 async function run(root: string, feature: string, extra: string[] = []) {
+  const timeout = extra.includes("--timeout-ms") ? [] : ["--timeout-ms", "3000"];
   const res = await spawnAsync(
     process.execPath,
-    [CLI, "--feature", feature, "--env", "local", "--root", root, "--timeout-ms", "3000", ...extra],
+    [CLI, "--feature", feature, "--env", "local", "--root", root, ...timeout, ...extra],
     { timeout: CHILD_TIMEOUT_MS },
   );
   return {
@@ -345,10 +357,11 @@ describe("実際の Chrome で機能を確かめる", () => {
 
   test("操作が通り、console にメッセージが無ければ exit 0 で、check ごとの結果とスクリーンショットのパスを返す", async () => {
     const r = await run(repo([{ name: "検索", path: "/", checks: [search] }]), "検索");
-    expect(r.status).toBe(0);
+    expect(r.status, r.stderr).toBe(0);
     expect(r.json).toMatchObject({
       feature: "検索",
-      url: `${base}/`,
+      env: "local",
+      path: "/",
       browser: "launched",
       navigation: { ok: true },
       console: [],
@@ -366,6 +379,8 @@ describe("実際の Chrome で機能を確かめる", () => {
     });
     expect(existsSync(r.json.screenshot)).toBe(true);
     expect(existsSync(r.json.checks[0].screenshot)).toBe(true);
+    // 開いた URL は、url_command で解決したものでありうるので書き出さない
+    expect(r.stdout).not.toContain(base);
   }, 60000);
 
   test.each([
@@ -381,7 +396,7 @@ describe("実際の Chrome で機能を確かめる", () => {
         steps: [{ fill: "#q", value: "abc", side_effect: false }, step],
       };
       const r = await run(repo([{ name: "f", path: "/", checks: [check] }]), "f");
-      expect(r.status).toBe(1);
+      expect(r.status, r.stderr).toBe(1);
       expect(r.json.checks[0]).toMatchObject({
         status: "failed",
         reason: "2 番目の step が失敗した",
@@ -394,14 +409,14 @@ describe("実際の Chrome で機能を確かめる", () => {
   test("セレクタの書き方が誤っているときは、ページの中で出た例外の理由を step の message に添える", async () => {
     const check = { action: "a", expect: "b", steps: [{ expect_visible: "#[" }] };
     const r = await run(repo([{ name: "f", path: "/", checks: [check] }]), "f");
-    expect(r.status).toBe(1);
+    expect(r.status, r.stderr).toBe(1);
     expect(r.json.checks[0]?.steps?.[0]?.message).toMatch(/表示されない: #\[（.*#\[.*）$/);
   }, 60000);
 
   test("path が # を含む機能でも、check ごとにページを読み込み直し、前の check の状態を持ち越さない", async () => {
     const carried = { action: "a", expect: "b", steps: [{ expect_text: "hit: abc", in: "#r" }] };
     const r = await run(repo([{ name: "f", path: "/app#/home", checks: [search, carried] }]), "f");
-    expect(r.status).toBe(1);
+    expect(r.status, r.stderr).toBe(1);
     expect(r.json.checks.map((c) => [c.status, c.reason])).toEqual([
       ["passed", undefined],
       ["failed", "1 番目の step が失敗した"],
@@ -411,7 +426,7 @@ describe("実際の Chrome で機能を確かめる", () => {
   test("操作する要素が無いときは check を failed にし、exit 1 で終わる", async () => {
     const check = { action: "a", expect: "b", steps: [{ click: "#none", side_effect: false }] };
     const r = await run(repo([{ name: "f", path: "/", checks: [check] }]), "f");
-    expect(r.status).toBe(1);
+    expect(r.status, r.stderr).toBe(1);
     expect(r.json.checks[0]?.steps?.[0]).toMatchObject({
       ok: false,
       message: expect.stringContaining("#none"),
@@ -426,8 +441,9 @@ describe("実際の Chrome で機能を確かめる", () => {
     "%s を開いて console に %s が出たら、exit 1 で終わり、メッセージを返す",
     async (path, level, text) => {
       const r = await run(repo([{ name: "f", path, checks: [search] }]), "f");
-      expect(r.status).toBe(1);
+      expect(r.status, r.stderr).toBe(1);
       expect(r.json.checks[0].status).toBe("passed");
+      expect(r.json.complete).toBe(false);
       expect(r.json.console).toContainEqual(
         expect.objectContaining({ level, during: "load", text: expect.stringContaining(text) }),
       );
@@ -443,7 +459,7 @@ describe("実際の Chrome で機能を確かめる", () => {
       { action: "見た目", expect: "崩れない" },
     ];
     const r = await run(repo([{ name: "f", path: "/", checks }]), "f");
-    expect(r.status).toBe(0);
+    expect(r.status, r.stderr).toBe(0);
     expect(r.json.checks.map((c: { status: string }) => c.status)).toEqual([
       "skipped",
       "skipped",
@@ -454,15 +470,17 @@ describe("実際の Chrome で機能を確かめる", () => {
   }, 60000);
 
   test("side_effect: false と書いた click は実行する（書き方を区別していることの確認）", async () => {
-    const before = posts;
     const check = {
       action: "a",
       expect: "b",
-      steps: [{ click: "#save", side_effect: false }, { wait_for: "#r" }],
+      steps: [
+        { click: "#toggle", side_effect: false },
+        { expect_text: "toggled", in: "#r" },
+      ],
     };
     const r = await run(repo([{ name: "f", path: "/", checks: [check] }]), "f");
-    expect(r.status).toBe(0);
-    await expect.poll(() => posts, { timeout: 5000 }).toBe(before + 1);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.json.checks[0]).toMatchObject({ status: "passed" });
   }, 60000);
 
   test("ページを開けないときは exit 1 で終わり、操作する check を failed にする", async () => {
@@ -471,8 +489,14 @@ describe("実際の Chrome で機能を確かめる", () => {
     const url = `http://127.0.0.1:${portOf(closed)}`;
     closed.close();
     const env = [{ name: "local", url, auth: "none" }];
-    const r = await run(repo([{ name: "f", path: "/", checks: [search] }], env), "f");
-    expect(r.status).toBe(1);
+    // 読み込みの待ちの上限より十分に早く終わる（開けなかったときに待ちを残さない）
+    const started = Date.now();
+    const r = await run(repo([{ name: "f", path: "/", checks: [search] }], env), "f", [
+      "--timeout-ms",
+      "20000",
+    ]);
+    expect(Date.now() - started).toBeLessThan(15000);
+    expect(r.status, r.stderr).toBe(1);
     expect(r.json.navigation).toMatchObject({
       ok: false,
       message: expect.stringContaining("ページを開けない"),
@@ -506,7 +530,7 @@ describe("実際の Chrome で機能を確かめる", () => {
         "--browser-url",
         browserUrl,
       ]);
-      expect(r.status).toBe(0);
+      expect(r.status, r.stderr).toBe(0);
       expect(r.json).toMatchObject({ browser: "connected", complete: true });
       expect(await pages()).toBe(before);
     } finally {
@@ -542,6 +566,14 @@ describe("設定とブラウザの誤り", () => {
       extra: [],
       code: 2,
       message: "環境「local」が設定に無い",
+    },
+    {
+      case: "auth: user の環境で --browser-url が無い",
+      make: () => repo([f], [{ name: "local", url: base, auth: "user" }]),
+      feature: "検索",
+      extra: [],
+      code: 2,
+      message: "auth: user なので、ログインした Chrome を --browser-url で渡す",
     },
     {
       case: "url_command の環境で --base-url が無い",
@@ -585,7 +617,7 @@ describe("設定とブラウザの誤り", () => {
       JSON.stringify({ environments: [{ name: "local", url: base, auth: "none" }] }),
     );
     const r = await run(root, "検索");
-    expect(r.status).toBe(2);
+    expect(r.status, r.stderr).toBe(2);
     expect(r.stderr).toContain("機能マップ（features）が無い");
   }, 60000);
 
@@ -594,7 +626,7 @@ describe("設定とブラウザの誤り", () => {
       repo([{ ...f, checks: [{ ...search, steps: [{ press: "F5" }] }] }]),
       "検索",
     );
-    expect(r.status).toBe(2);
+    expect(r.status, r.stderr).toBe(2);
     expect(r.stderr).toContain("設定を読めない");
   }, 60000);
 });

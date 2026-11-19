@@ -127,7 +127,7 @@ export function parseArgs(argv) {
  * @typedef {Record<string, unknown>} Step
  * @typedef {{ action: string, expect: string, steps?: Step[] }} Check
  * @typedef {{ name: string, path: string, checks: Check[] }} Feature
- * @typedef {{ name: string, url?: string, url_command?: string }} Environment
+ * @typedef {{ name: string, url?: string, url_command?: string, auth?: string }} Environment
  */
 
 /**
@@ -158,10 +158,10 @@ export function featureUrl(base, path) {
   try {
     origin = new URL(base);
   } catch {
-    throw new UsageError(`環境の URL を読めない: ${base}`);
+    throw new UsageError("環境の URL を読めない");
   }
   if (origin.protocol !== "http:" && origin.protocol !== "https:") {
-    throw new UsageError(`環境の URL は http か https にする: ${base}`);
+    throw new UsageError("環境の URL は http か https にする");
   }
   if (!path.startsWith("/")) throw new UsageError(`機能の path は / で始める: ${path}`);
   // 環境の url の後ろにつなぐので、path が何であってもホストは環境のまま変わらない。
@@ -264,6 +264,12 @@ export function resolveTarget(opts) {
       `環境「${opts.env}」が設定に無い（ある環境: ${envs.map((e) => e.name).join(", ")}）`,
     );
   }
+  // 起動した Chrome は使い捨てのプロファイルでログインしていないので、ログインが要る環境ではログイン済みの Chrome を求める
+  if (env.auth === "user" && opts.browserUrl === undefined) {
+    throw new UsageError(
+      `環境「${env.name}」は auth: user なので、ログインした Chrome を --browser-url で渡す`,
+    );
+  }
   const base = opts.baseUrl ?? env.url;
   if (base === undefined) {
     throw new UsageError(
@@ -277,6 +283,12 @@ export function resolveTarget(opts) {
 
 /** 1 つの要求の応答を待つ上限（ページの読み込みと要素の出現は --timeout-ms で別に待つ）。 */
 const REQUEST_TIMEOUT_MS = 30000;
+
+/**
+ * Chrome の起動と接続を待つ上限。--timeout-ms はページの読み込みと要素の出現の待ちに使い、ここには使わない。
+ * 新しいマシンで初めて起動した Chrome は、CDP の URL を出すまでに数秒かかることがあるからである。
+ */
+const START_TIMEOUT_MS = 30000;
 
 /**
  * @typedef {{ method: string, params: unknown, sessionId?: string }} CdpEvent
@@ -416,9 +428,10 @@ class Tab {
    * イベントを 1 回待つ。
    * @param {string} method
    * @param {number} timeoutMs
+   * @param {AbortSignal} [signal] 中止したら、待つのをやめて false を返す
    * @returns {Promise<boolean>} 時間内に来れば true
    */
-  waitEvent(method, timeoutMs) {
+  waitEvent(method, timeoutMs, signal) {
     return new Promise((resolve) => {
       /** @param {CdpEvent} msg */
       const listener = (msg) => {
@@ -432,6 +445,7 @@ class Tab {
       };
       const timer = setTimeout(() => done(false), timeoutMs);
       this.cdp.listeners.push(listener);
+      signal?.addEventListener("abort", () => done(false), { once: true });
     });
   }
 }
@@ -553,14 +567,14 @@ async function browserWsUrl(browserUrl, timeoutMs) {
 async function openBrowser(opts) {
   if (opts.browserUrl !== undefined) {
     const cdp = await Cdp.connect(
-      await browserWsUrl(opts.browserUrl, opts.timeoutMs),
-      opts.timeoutMs,
+      await browserWsUrl(opts.browserUrl, START_TIMEOUT_MS),
+      START_TIMEOUT_MS,
     );
     return { cdp, stop: () => undefined };
   }
-  const launched = await launchChrome(findChrome(opts.chrome, process.env), opts.timeoutMs);
+  const launched = await launchChrome(findChrome(opts.chrome, process.env), START_TIMEOUT_MS);
   try {
-    return { cdp: await Cdp.connect(launched.wsUrl, opts.timeoutMs), stop: launched.stop };
+    return { cdp: await Cdp.connect(launched.wsUrl, START_TIMEOUT_MS), stop: launched.stop };
   } catch (e) {
     launched.stop();
     throw e;
@@ -760,11 +774,15 @@ class FeatureRun {
 
   /** @returns {Promise<{ ok: boolean, message?: string }>} */
   async open() {
-    const loaded = this.tab.waitEvent("Page.loadEventFired", this.timeoutMs);
+    // ページを開けなかったときは、読み込みの待ち（タイマーとリスナー）をすぐに外す
+    const cancel = new AbortController();
+    const loaded = this.tab.waitEvent("Page.loadEventFired", this.timeoutMs, cancel.signal);
     const nav = await this.tab.send("Page.navigate", { url: this.url });
     const errorText = field(nav, "errorText");
-    if (typeof errorText === "string" && errorText !== "")
+    if (typeof errorText === "string" && errorText !== "") {
+      cancel.abort();
       return { ok: false, message: `ページを開けない: ${errorText}` };
+    }
     // URL が # の後ろだけ違う移動は同じ文書の中で終わり（loaderId が無い）、読み込みが起きず前の check の状態も残る。
     // そのため、読み込み直して check ごとに新しい文書から始める
     if (field(nav, "loaderId") === undefined) await this.tab.send("Page.reload");
@@ -862,15 +880,21 @@ export async function runFeature(opts, feature, url) {
     const run = new FeatureRun(tab, opts, { url, out });
     for (const domain of ["Runtime", "Page", "Log"]) await tab.send(`${domain}.enable`);
     const { navigation, screenshot, checks } = await checkFeature(run, feature);
-    return {
+    // 開いた URL は書き出さない。url_command で解決した URL は、ログや成果物に書かない取り決めだからである
+    const result = {
       feature: feature.name,
-      url,
+      env: opts.env,
+      path: feature.path,
       browser: opts.browserUrl === undefined ? "launched" : "connected",
       navigation,
       checks,
       console: run.console.messages,
       screenshot,
-      complete: checks.every((c) => c.status === "passed"),
+    };
+    // complete は、終了コードが 0 で、かつ CLI がすべての check を実行して通したときだけ true にする
+    return {
+      ...result,
+      complete: exitCodeOf(result) === 0 && checks.every((c) => c.status === "passed"),
     };
   } finally {
     if (targetId !== undefined)
