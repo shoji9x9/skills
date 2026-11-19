@@ -1,0 +1,469 @@
+{
+  "metadata": {
+    "skill_name": "issue-start",
+    "skill_path": "<repo>/skills/issue-start",
+    "executor_model": "claude-opus-5-5",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-19T04:51:20Z",
+    "evals_run": [7, 8, 12, 13],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 12,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 44.021,
+        "tokens": 145246,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "--branch-only を、ブランチ作成・checkout まで行って返すモードとして説明している",
+          "passed": true,
+          "evidence": "ブランチを用意した時点で呼び出し元へ返るモードと説明し、step 7 で --checkout まで行う"
+        },
+        {
+          "text": "ブランチ名を feature/12-<英語の短い説明> の形式にすると述べている",
+          "passed": true,
+          "evidence": "形は feature/12-<英語の kebab-case>"
+        },
+        {
+          "text": "ブランチ作成に gh issue develop を使い、ベースブランチを規約から解決する（main に固定しない）と述べている",
+          "passed": true,
+          "evidence": "gh issue develop を使い、ベースは conventions_doc か規約の文書から決め、決まらなければ確認する"
+        },
+        {
+          "text": "ブランチを用意した後は調査・実装へ進まず呼び出し元へ返る、と述べている",
+          "passed": true,
+          "evidence": "step 9 で呼び出し元へ返り、調査・計画・実装はしないと述べる"
+        },
+        {
+          "text": "commit / push / PR はこのモードの対象外だと述べている",
+          "passed": true,
+          "evidence": "commit・push・PR はどれも行わないと述べる"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（ブランチ作成・ファイル変更を行っていない）",
+          "passed": true,
+          "evidence": "担当者の割り当てとブランチの作成はしていないと述べる"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 42.654,
+        "tokens": 135142,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "push の前に、Issue の受け入れ条件を 1 項目ずつ根拠と突き合わせた表を作り、issue-start 同梱の acceptance-check.mjs を通すと述べ、テスト・lint の緑を受け入れ条件の充足の根拠にしていない",
+          "passed": true,
+          "evidence": "step 10 に従い、表を作って acceptance-check.mjs を exit 0 にするまで push しないとし、テストとリントの成功は根拠にならないと述べる"
+        },
+        {
+          "text": "本文のチェックリスト 2 項目をそれぞれ表の行（source: checklist）にすると述べている",
+          "passed": true,
+          "evidence": "チェックリストの 2 項目に source: checklist を付けると述べる"
+        },
+        {
+          "text": "コメントで足された CSV 出力の条件も、原文を quote に転記した行（source: comment）として表に載せると述べている",
+          "passed": true,
+          "evidence": "CSV の行に source: comment を付け、引用欄にコメントの原文を写すと述べる"
+        },
+        {
+          "text": "URL の条件を、移行元に合わせてコードに注記しただけで満たした扱い（met）や外した扱い（waived）にせず、利用者の判断を仰ぐと述べている",
+          "passed": true,
+          "evidence": "URL の件は unmet で、コードの注記は承認の代わりにならず、waived か deferred には利用者の承認が要るとして問い 1 で確かめる"
+        },
+        {
+          "text": "検査が exit 0 にならない間（unmet・判断待ちの行が残る間）は push しないと述べている",
+          "passed": true,
+          "evidence": "検査が exit 0 になるまで push できないと述べる"
+        },
+        {
+          "text": "Closes #12 と書けるのは検査の closable が true のときだけで、CSV 出力を利用者の承認で別作業へ回す（deferred）なら Refs #12 にすると述べている",
+          "passed": true,
+          "evidence": "closable: true なら Closes #12、false（deferred がある）なら Refs #12 と述べる"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（push・PR 作成・Issue へのコメントを行っていない）",
+          "passed": true,
+          "evidence": "書き込みと変更はしていないと述べる"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 33.445,
+        "tokens": 113902,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "worktree の作成手段（`git worktree add -b` / `EnterWorktree` の `name`）に branch を作らせず、先に `gh issue develop` で branch を作る順序を示している",
+          "passed": true,
+          "evidence": "「先にブランチを作り、そのブランチに worktree を作ります」とし、worktree add -b や EnterWorktree の name に作らせないと述べる"
+        },
+        {
+          "text": "worktree で作業するため `gh issue develop` に `--checkout` を付けず、branch だけ作ると述べている",
+          "passed": true,
+          "evidence": "手順 7 で gh issue develop に --checkout を付けないと述べる"
+        },
+        {
+          "text": "`--checkout` 無しではローカル ref が作られないため、`git fetch` してから `git branch <名前> FETCH_HEAD` でローカル branch を起こしてから `git-worktree` へ渡すと述べている（共有ツリーの checkout は変えない）",
+          "passed": true,
+          "evidence": "手順 8 で git fetch と git branch \"${BRANCH}\" FETCH_HEAD を示し、共有ツリーの checkout は変わらないと述べる"
+        },
+        {
+          "text": "作成手段に作らせると branch 名がその機構の命名規則になり、Issue とブランチの紐付け（linked branches）が失われると述べている",
+          "passed": true,
+          "evidence": "名前が worktree-<名前> になり linked branches が作られないと述べる"
+        },
+        {
+          "text": "worktree の機構（置き場所・セッションの移動・運搬・除外・後片付け）は `git-worktree` スキルへ委譲し、手順をここへ複製していない",
+          "passed": true,
+          "evidence": "手順 9 で git-worktree enter <branch> の取り決めに任せ、置き場所などの手順を書き写していない"
+        },
+        {
+          "text": "`git worktree add` しただけでは隔離にならず、セッションを worktree へ移す必要があると述べている",
+          "passed": true,
+          "evidence": "「git worktree add を実行しただけでは作業は分かれません。セッションを移さないと…」"
+        },
+        {
+          "text": "実行はせず手順の提示に留め、commit / push / PR へ進んでいない",
+          "passed": true,
+          "evidence": "GitHub への書き込みと変更はしていないと述べ、手順の提示で止めている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 35.722,
+        "tokens": 115226,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "既存 branch を使う前に Issue との紐付けを確かめる必要があると述べている",
+          "passed": true,
+          "evidence": "「ローカルにしか無いブランチなので、Issue との紐付けはまだ無い」と見て、gh issue develop --list 91 で確かめる"
+        },
+        {
+          "text": "remote の有無を `git ls-remote --heads` でリモートへ直接問い合わせている（`git branch -r --list` は fetch していないと実在する branch を 0 件と誤判定するため使わない）",
+          "passed": true,
+          "evidence": "git ls-remote --heads origin を使う"
+        },
+        {
+          "text": "local にしか無い branch は紐付けの対象になり得ない（紐付けはリポジトリ側に存在する ref が対象）と述べている",
+          "passed": true,
+          "evidence": "ローカルにしか無いブランチには紐付けが無いと述べる"
+        },
+        {
+          "text": "未 commit でベースと同一コミットなら `gh issue develop --name <同じ名前> --base <ベース>` で回復できると述べている",
+          "passed": true,
+          "evidence": "commit が無くベースと同じなら gh issue develop 91 --name feature/91-x --base <ベース> で付け直せると述べる"
+        },
+        {
+          "text": "commit 済みでは回復できない（作られる branch がベースの先端を指す）ため、ユーザーに確認すると述べている",
+          "passed": true,
+          "evidence": "commit がある場合は付け直せないので確認すると述べる"
+        },
+        {
+          "text": "実行はせず手順の提示に留め、commit / push / PR へ進んでいない",
+          "passed": true,
+          "evidence": "GitHub もファイルも変更していないと述べる"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.1667,
+        "passed": 1,
+        "failed": 5,
+        "total": 6,
+        "time_seconds": 32.088,
+        "tokens": 141513,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "--branch-only を、ブランチ作成・checkout まで行って返すモードとして説明している",
+          "passed": false,
+          "evidence": "スキルの文書が見つからず説明を控えた"
+        },
+        {
+          "text": "ブランチ名を feature/12-<英語の短い説明> の形式にすると述べている",
+          "passed": false,
+          "evidence": "説明していない"
+        },
+        {
+          "text": "ブランチ作成に gh issue develop を使い、ベースブランチを規約から解決する（main に固定しない）と述べている",
+          "passed": false,
+          "evidence": "説明していない"
+        },
+        {
+          "text": "ブランチを用意した後は調査・実装へ進まず呼び出し元へ返る、と述べている",
+          "passed": false,
+          "evidence": "説明していない"
+        },
+        {
+          "text": "commit / push / PR はこのモードの対象外だと述べている",
+          "passed": false,
+          "evidence": "説明していない"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（ブランチ作成・ファイル変更を行っていない）",
+          "passed": true,
+          "evidence": "書き込み・変更はしていないと述べる"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2857,
+        "passed": 2,
+        "failed": 5,
+        "total": 7,
+        "time_seconds": 33.384,
+        "tokens": 80296,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "push の前に、Issue の受け入れ条件を 1 項目ずつ根拠と突き合わせた表を作り、issue-start 同梱の acceptance-check.mjs を通すと述べ、テスト・lint の緑を受け入れ条件の充足の根拠にしていない",
+          "passed": false,
+          "evidence": "表と acceptance-check.mjs に触れていない"
+        },
+        {
+          "text": "本文のチェックリスト 2 項目をそれぞれ表の行（source: checklist）にすると述べている",
+          "passed": false,
+          "evidence": "表の source に触れていない"
+        },
+        {
+          "text": "コメントで足された CSV 出力の条件も、原文を quote に転記した行（source: comment）として表に載せると述べている",
+          "passed": false,
+          "evidence": "表の source に触れていない"
+        },
+        {
+          "text": "URL の条件を、移行元に合わせてコードに注記しただけで満たした扱い（met）や外した扱い（waived）にせず、利用者の判断を仰ぐと述べている",
+          "passed": true,
+          "evidence": "URL の件は未達として扱い、起票者との合意を得るとし、満たした扱いにしていない"
+        },
+        {
+          "text": "検査が exit 0 にならない間（unmet・判断待ちの行が残る間）は push しないと述べている",
+          "passed": false,
+          "evidence": "合意が出ていなくても Draft PR を push してよいとする"
+        },
+        {
+          "text": "Closes #12 と書けるのは検査の closable が true のときだけで、CSV 出力を利用者の承認で別作業へ回す（deferred）なら Refs #12 にすると述べている",
+          "passed": false,
+          "evidence": "closable に触れず、合意の後に Closes に切り替えるとする"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（push・PR 作成・Issue へのコメントを行っていない）",
+          "passed": true,
+          "evidence": "push・PR 作成・コメントは行わないと述べる"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.1429,
+        "passed": 1,
+        "failed": 6,
+        "total": 7,
+        "time_seconds": 23.775,
+        "tokens": 78816,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "worktree の作成手段（`git worktree add -b` / `EnterWorktree` の `name`）に branch を作らせず、先に `gh issue develop` で branch を作る順序を示している",
+          "passed": false,
+          "evidence": "git worktree add -b で branch と worktree を同時に作る手順を示す"
+        },
+        {
+          "text": "worktree で作業するため `gh issue develop` に `--checkout` を付けず、branch だけ作ると述べている",
+          "passed": false,
+          "evidence": "gh issue develop を使っていない"
+        },
+        {
+          "text": "`--checkout` 無しではローカル ref が作られないため、`git fetch` してから `git branch <名前> FETCH_HEAD` でローカル branch を起こしてから `git-worktree` へ渡すと述べている（共有ツリーの checkout は変えない）",
+          "passed": false,
+          "evidence": "FETCH_HEAD から local branch を作る手順は無い"
+        },
+        {
+          "text": "作成手段に作らせると branch 名がその機構の命名規則になり、Issue とブランチの紐付け（linked branches）が失われると述べている",
+          "passed": false,
+          "evidence": "紐付けに触れていない"
+        },
+        {
+          "text": "worktree の機構（置き場所・セッションの移動・運搬・除外・後片付け）は `git-worktree` スキルへ委譲し、手順をここへ複製していない",
+          "passed": false,
+          "evidence": "git-worktree スキルに触れていない"
+        },
+        {
+          "text": "`git worktree add` しただけでは隔離にならず、セッションを worktree へ移す必要があると述べている",
+          "passed": false,
+          "evidence": "セッションを移す必要には触れず、cd で移るとだけ書く"
+        },
+        {
+          "text": "実行はせず手順の提示に留め、commit / push / PR へ進んでいない",
+          "passed": true,
+          "evidence": "branch・worktree の作成はしていないと述べる"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 25.781,
+        "tokens": 95371,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "既存 branch を使う前に Issue との紐付けを確かめる必要があると述べている",
+          "passed": false,
+          "evidence": "Issue との紐付けを確かめる手順は無い"
+        },
+        {
+          "text": "remote の有無を `git ls-remote --heads` でリモートへ直接問い合わせている（`git branch -r --list` は fetch していないと実在する branch を 0 件と誤判定するため使わない）",
+          "passed": true,
+          "evidence": "git ls-remote --heads origin feature/91-x でリモートに問い合わせる"
+        },
+        {
+          "text": "local にしか無い branch は紐付けの対象になり得ない（紐付けはリポジトリ側に存在する ref が対象）と述べている",
+          "passed": false,
+          "evidence": "紐付けの対象に触れていない"
+        },
+        {
+          "text": "未 commit でベースと同一コミットなら `gh issue develop --name <同じ名前> --base <ベース>` で回復できると述べている",
+          "passed": false,
+          "evidence": "gh issue develop による回復は無い"
+        },
+        {
+          "text": "commit 済みでは回復できない（作られる branch がベースの先端を指す）ため、ユーザーに確認すると述べている",
+          "passed": false,
+          "evidence": "commit 済みの場合の扱いは無い"
+        },
+        {
+          "text": "実行はせず手順の提示に留め、commit / push / PR へ進んでいない",
+          "passed": true,
+          "evidence": "書き込みと変更はしていないと述べる"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 38.9605,
+        "stddev": 5.1691,
+        "min": 33.445,
+        "max": 44.021
+      },
+      "tokens": {
+        "mean": 127379,
+        "stddev": 15371.1721,
+        "min": 113902,
+        "max": 145246
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.2322,
+        "stddev": 0.0919,
+        "min": 0.1429,
+        "max": 0.3333
+      },
+      "time_seconds": {
+        "mean": 28.757,
+        "stddev": 4.6969,
+        "min": 23.775,
+        "max": 33.384
+      },
+      "tokens": {
+        "mean": 98999,
+        "stddev": 29313.0135,
+        "min": 78816,
+        "max": 141513
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.77",
+      "time_seconds": "+10.2",
+      "tokens": "+28380"
+    }
+  },
+  "notes": [
+    "Issue #1063 の変更確認（1 run）。eval 7・8・12・13 の prompt の「まだ何も実行しないで」を、副作用で禁じてスキルの読み取りを許す形に直した。",
+    "with_skill の 4 run はすべてスキルを読んだ（result.json の skill_usage.read が true）。without_skill の 4 run はすべて clean。",
+    "eval 7 は iteration-5、eval 13 は iteration-19 の 1 run の記録と assertion ごとに同じ合否だった。eval 8・12 は比べる記録が無い。"
+  ]
+}

@@ -1277,7 +1277,7 @@ function spawnTests(
         stdio: ["ignore", fd, fd],
         env: {
           ...process.env,
-          // 子 vitest に、使用中の fixture を掃かせない（`scripts/lib/testing/vitest-global-setup.ts`）。
+          // 子 vitest に、使用中の fixture を掃かせない（`scripts/lib/testing/vitest-setup/vitest-global-setup.ts`）。
           MUTATION_PROOF_CHILD: "1",
           MUTATION_PROOF_PROGRESS_FILE: join(dir, "progress.log"),
           MUTATION_PROOF_WRAPPER_IDLE_MS: String(
@@ -1674,7 +1674,8 @@ function isDrifted(perRun: number, estimate: number, runs: number): boolean {
 }
 
 /**
- * 1 回の実行の秒数（基準 run を含めた回数で割る）が見積もりからずれていたら（`isDrifted`）、そのことを出力して true を返す。
+ * 1 回の実行の秒数（基準 run を含めた回数で割る）が見積もりからずれていたら（`isDrifted`）、そのことを宣言のパスと一緒に出力して true を返す。
+ * 行だけでどの宣言かが分かるので、週次の全件の run の後に `update-mutation-durations.ts` がこの行を集めて結果に出す（Issue #1077）。
  * 見積もりは `--shard` の割り当てにだけ使うので、`--shard` の無い実行（durations が無い）では比べない。
  */
 function reportDrift(
@@ -1686,7 +1687,7 @@ function reportDrift(
   const estimate = durations.seconds.get(spec) ?? durations.defaultSeconds;
   if (!isDrifted(perRun, estimate, count + 1)) return false;
   console.log(
-    `見積もりとのずれ: 1 回 ${perRun.toFixed(1)} 秒（見積もり ${estimate} 秒）。` +
+    `見積もりとのずれ: ${spec} 1 回 ${perRun.toFixed(1)} 秒（見積もり ${estimate} 秒）。` +
       "scripts/mutation/update-mutation-durations.ts で見積もりを更新する",
   );
   return true;

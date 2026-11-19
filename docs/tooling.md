@@ -4,9 +4,7 @@
 
 ## 技術スタック
 
-- pnpm のバージョンは `mise.toml`、`package.json` の `packageManager` と `devEngines.packageManager`、`pnpm-lock.yaml` の 4 か所に書く。
-  誤って別のパッケージマネージャを使うと、`devEngines` が警告する。
-  4 か所をそろえてバージョンを上げる手順と、不具合のあるバージョンを避ける方法は [`docs/package-manager.md`](package-manager.md) にある。
+- pnpm のバージョンを書く場所と、バージョンを上げる手順・不具合のあるバージョンを避ける方法は [`docs/package-manager.md`](package-manager.md) にある。
 - フォーマッタとリンタは「リントと整形」の表のとおりである。
 - テストは skill-creator で行う。eval viewer には Python 3.8 以上が要る。結果の集計は `scripts/eval/benchmark/build-skill-eval-benchmark.ts`（Node）で行う。
 - 実行環境は mise で管理する。
@@ -130,6 +128,7 @@ fallow はドットで始まるディレクトリを走査しないので、イ�
 
 参照の向きは、fallow の構文の解析が読む参照（`import`・`export from`・`import()`・`require()`・`import type`・JSDoc の `{import("…")}`・`vi.mock`・`new URL`）で判定する。
 次の書き方は検出しないので、相対パスのモジュールを読むときは使わない。`createRequire` の戻り値を別名で呼ぶ、`vi.importActual`、`/// <reference path>`、相対パスの文字列を任意の関数に渡して読む、である。
+`vi.importActual` は oxlint の `no-restricted-properties` が検出する。
 
 `pnpm run lint:fallow` と CI の CRAP（`pnpm run lint:crap`）は、`fallow health` の出力のうち、関数ごとの複雑度の指摘（`--complexity`）だけを検査する。
 ほかの出力（ファイルの点数・hotspot・一緒に変更されたファイルの組・リファクタリングの候補）は、`--fail-on-issues` を付けても失敗にならないので実行しない（全体の要約の数行だけは毎回出る）。
@@ -141,7 +140,7 @@ CRAP のベースラインの扱いは、下の CI の検査の項にある。
 直したら、`pnpm exec fallow dead-code --save-baseline .config/fallow/dead-code-baseline.json` で作り直す。
 保存したファイルは `pnpm exec oxfmt .config/fallow/dead-code-baseline.json` で整形する。
 使われていない export は、`fallow fix --dry-run` で提案を確かめてから `fallow fix` で直す。`fallow fix` は `export` を外し、依存を消すので、pre-commit と CI では自動に適用しない。
-誤検知は、`base.jsonc` で理由を書いて外す。配布スキルには `fallow-ignore` のコメントを置かない。
+誤検知は、`base.jsonc` で理由を書いて外す。配布スキルには `fallow-ignore` のコメントを置かない（`scripts/gates/code/check-skill-lint-directives.ts` が検出する）。
 
 CI だけで実行する検査が 2 つある。
 
@@ -155,7 +154,7 @@ CI だけで実行する検査が 2 つある。
   `--complexity` を外すと、判定に使わないリファクタリングの候補（`target_keys`）もベースラインに入る。
   ブラウザか e2e の実行の中でだけ動く関数は、ユニットテストで実行できないので、ベースラインに載せたままにする。
   対象は、Playwright の spec と fixture の雛形（`skills/*/assets/*.spec.template.ts`・`skills/*/assets/*.fixture.template.ts`）と、e2e の雛形（`skills/*/assets/*.e2e.template.ts`）である。
-  e2e のレポーターとブラウザの init script の雛形（`skills/spec-parity/assets/runtime-errors-reporter.template.ts`・`skills/spec-parity/assets/runtime-errors-init.template.mjs`）と、eval の fixture をブラウザで作るジェネレータも含む
+  e2e のレポーターとブラウザの init script の雛形（`skills/spec-parity/assets/runtime-errors-reporter.template.ts`・`skills/spec-parity/assets/runtime-errors-init.template.mjs`）と、eval の fixture をブラウザで作るジェネレータと、CLI がブラウザの中で実行するページのコード（`skills/*/scripts/page/*.page.mjs`）も含む
 - `Lint` ジョブの `Test weakening`（`fallow audit`）: PR が増やした、テストを弱める変更（`.skip`・`.only` の追加、テストのケースや assertion の減少、カバレッジの閾値の引き下げ）。PR のベースとの差分を見るので、PR でだけ実行する。
   意図して弱めるときは、理由を付けた `fallow-ignore-next-line weakened-tests` を書く。
   配布スキルの雛形は利用者のプロジェクトへコピーされるので、コメントを置かずに、`.config/fallow/base.jsonc` の `overrides` でそのファイルとインストール済みのコピーだけを外す
@@ -237,10 +236,12 @@ CI では、選んだ変異を matrix で 12 個のシャードに分けて並�
 シャードには定義を単位に割り当て、基準 run（変異を入れずにテストを 1 回実行する分）を定義ごとに 1 つのシャードでだけ実行する（下の重い定義は、分けた一部ごとに実行する）。
 1 つのシャードの目安を超える重い定義だけを、変異で分ける。所要時間は `scripts/mutation/mutation-durations.json`（定義ごとの、テストファイルを 1 回実行する秒数）で見積もる。
 見積もりは割り当ての釣り合いにだけ使い、測る変異の集合は変えない。各シャードのログには、そのシャードの見積もり（`見積もり: 全体 … 秒、このシャード … 秒`）と、定義ごとの実測（`時間: X 秒（N 変異、基準 run を含む）`）が出る。
-1 回の実行の秒数が見積もりから大きくずれた定義は、`時間:` の次の行に `見積もりとのずれ:` が出る。最後の一覧の後には、その件数が 0 件でも出る。
+1 回の実行の秒数が見積もりから大きくずれた定義は、`時間:` の次の行に `見積もりとのずれ: <定義のパス> 1 回 … 秒（見積もり … 秒）` が出る。最後の一覧の後には、その件数が 0 件でも出る。
 ずれの判定（比が 1.5 倍以上で、差の合計が 30 秒以上）は、ランナーの `isDrifted` で定義する。
 定義を足したときや、ずれが出たときは、全件を検証した run のログから見積もりを更新する。
 全件を検証した run は、ランナーを変えた PR の CI か、週次の全件の実行である。週次の実行も同じ `--shard` で matrix に分けて測り、分割数とその根拠は `.github/workflows/mutation-proof.yml` のコメントにある。
+週次の実行では、`Mutation durations` のジョブが全シャードのログで見積もりを更新し、ずれた定義と変わった値をジョブの結果に出す。
+ずれた定義があれば、警告の注釈も出す。更新したファイルは artifact（`mutation-durations`）に残るので、それで `mutation-durations.json` を置き換える PR を作る。
 
 ```bash
 gh run view <run ID> --log > run.log
@@ -249,6 +250,7 @@ node scripts/mutation/update-mutation-durations.ts run.log
 
 このツールは、定義ごとに `時間:` の X の合計 ÷ (N + 1) の合計を、1 回の実行の秒数として書き込む。ログに無い定義の見積もりは変えない。
 途中で止まった run のログ（`時間:` の行が無い定義がある）を渡すと、見積もりを書き換えずに exit 2 で終わる。
+`--shard i/N` で分けた run のログは、1〜N のどれかのシャードのログが無いときも、見積もりを書き換えずに exit 2 で終わる。
 CI の 1 回の実行の秒数は、run ごとに 2 割ほど変わる。複数の run のログを渡すと、それらの合計で平均するので、見積もりのばらつきが小さくなる。
 定義を足したら、見積もりも足す（`mutations-declaration.test.ts` が、どの定義にも見積もりがあることを確かめる）。最初は手元の実行のログを `update-mutation-durations.ts` に渡す。
 `mutations-declaration.test.ts` は、lefthook の pre-commit（`cross-file-tests`）が毎回実行する。定義の `find` がコードと合わないことを、全件の実行の前に見つける。
@@ -419,7 +421,7 @@ private skill は配布せず、このリポジトリの中でだけ動くので
 
 ツールが読む `.ts` の設定は次のとおりである。
 
-- `vitest.config.ts`、`scripts/lib/testing/vitest-global-setup.ts`
+- `vitest.config.ts`、`scripts/lib/testing/vitest-setup/vitest-global-setup.ts`
 - `commitlint.config.ts`、`release.config.ts`、`commit-types.ts`
 - `oxlint.config.ts`、`oxfmt.config.ts`
 
@@ -529,6 +531,16 @@ fixture の検査も strict のままにする。型が足りない fixture は�
 `tests/**` は、リントと整形の対象に含める。`.agents/skills/**` と `.claude/**` は、インストール済みのコピーとエージェント用のシンボリックリンクなので、対象から外す。
 型の検査は、エディタで開く雛形のコピーとリンクを対象にする（上の「型の検査」）。
 ただし、`.agents/rules/`（rule の実体）と private skill（`.private-skill` を持つ `.agents/skills/<name>/`）は対象にする。rule へのリンクを置く `.github/instructions/` は対象から外す。
+
+### チェックを作らない規約
+
+機械的に判定できるが、`.agents/rules/check-cost-benefit.md` の基準で見合わないと判断し、チェックを作らない規約を次に挙げる。
+誤りの記録が増えたら、そのときに判断し直す。
+
+| 規約 | 作らない理由 |
+| --- | --- |
+| `./node_modules/.bin/<tool>` を直接指定しない（`AGENTS.md`「技術スタック」） | 誤ると、リポジトリの外では起動が `No version is set for shim` でその場で失敗するので気付ける。コマンドの文字列で判定する Hook は、引用の中の文章（commit message・`grep` の引数）も止める |
+| commit の `--amend` をしない（`AGENTS.md`「ブランチ運用」） | `--amend` を使って誤った記録が無いうちは、チェックの費用が見合わない。コマンドの文字列で判定する Hook は、引用の中の文章も止める。`bash-command-guard.sh` には規則を足さないと決めている |
 
 ### 同梱するパッケージの更新
 

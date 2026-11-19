@@ -80,6 +80,7 @@
     ],
     [
       "skills/agent-usage/scripts/lib/is-array.mjs",
+      "skills/browser-test/scripts/lib/is-array.mjs",
       "skills/golden-dataset/scripts/lib/is-array.mjs",
       "skills/issue-start/scripts/lib/is-array.mjs",
       "skills/parity-component/scripts/lib/is-array.mjs",
@@ -92,6 +93,7 @@
       "skills/agent-usage/scripts/skill-config/skill-config.mjs",
       "skills/aws-architecture-diagram/scripts/skill-config/skill-config.mjs",
       "skills/box/scripts/skill-config/skill-config.mjs",
+      "skills/browser-test/scripts/lib/is-array.mjs",
       "skills/browser-test/scripts/skill-config/skill-config.mjs",
       "skills/current-environment-bootstrap/scripts/skill-config/skill-config.mjs",
       "skills/dependabot-alert-issue/scripts/skill-config/skill-config.mjs",

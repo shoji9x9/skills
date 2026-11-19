@@ -100,7 +100,7 @@
     },
     {
       "id": 7,
-      "prompt": "Issue #91 に着手したい。別セッションが今のブランチを使っているので worktree で作業したい。まだ何も実行しないで、branch と worktree をどの順で作るのか手順だけ先に示して。",
+      "prompt": "Issue #91 に着手したい。別セッションが今のブランチを使っているので worktree で作業したい。GitHub への書き込みとファイルの変更はまだしないで（スキルの文書の読み取りと、読み取りだけのコマンドの実行はしてよい）。branch と worktree をどの順で作るのか手順だけ先に示して。",
       "assertions": [
         "worktree の作成手段（`git worktree add -b` / `EnterWorktree` の `name`）に branch を作らせず、先に `gh issue develop` で branch を作る順序を示している",
         "worktree で作業するため `gh issue develop` に `--checkout` を付けず、branch だけ作ると述べている",
@@ -109,11 +109,41 @@
         "worktree の機構（置き場所・セッションの移動・運搬・除外・後片付け）は `git-worktree` スキルへ委譲し、手順をここへ複製していない",
         "`git worktree add` しただけでは隔離にならず、セッションを worktree へ移す必要があると述べている",
         "実行はせず手順の提示に留め、commit / push / PR へ進んでいない"
+      ],
+      "reachability": [
+        {
+          "assertion": "worktree の作成手段（`git worktree add -b` / `EnterWorktree` の `name`）に branch を作らせず、先に `gh issue develop` で branch を作る順序を示している",
+          "prompt_quote": "branch と worktree をどの順で作るのか"
+        },
+        {
+          "assertion": "worktree で作業するため `gh issue develop` に `--checkout` を付けず、branch だけ作ると述べている",
+          "prompt_quote": "branch と worktree をどの順で作るのか"
+        },
+        {
+          "assertion": "`--checkout` 無しではローカル ref が作られないため、`git fetch` してから `git branch <名前> FETCH_HEAD` でローカル branch を起こしてから `git-worktree` へ渡すと述べている（共有ツリーの checkout は変えない）",
+          "prompt_quote": "branch と worktree をどの順で作るのか"
+        },
+        {
+          "assertion": "作成手段に作らせると branch 名がその機構の命名規則になり、Issue とブランチの紐付け（linked branches）が失われると述べている",
+          "prompt_quote": "branch と worktree をどの順で作るのか"
+        },
+        {
+          "assertion": "worktree の機構（置き場所・セッションの移動・運搬・除外・後片付け）は `git-worktree` スキルへ委譲し、手順をここへ複製していない",
+          "prompt_quote": "worktree で作業したい"
+        },
+        {
+          "assertion": "`git worktree add` しただけでは隔離にならず、セッションを worktree へ移す必要があると述べている",
+          "prompt_quote": "worktree で作業したい"
+        },
+        {
+          "assertion": "実行はせず手順の提示に留め、commit / push / PR へ進んでいない",
+          "prompt_quote": "GitHub への書き込みとファイルの変更はまだしないで"
+        }
       ]
     },
     {
       "id": 8,
-      "prompt": "Issue #91 用の branch feature/91-x はもうローカルにある（前に worktree を作ったときに一緒に作られた）。まだ push していない。この branch で作業を続けたい。まだ何も実行しないで、何を確認してどう進めるか手順だけ示して。",
+      "prompt": "Issue #91 用の branch feature/91-x はもうローカルにある（前に worktree を作ったときに一緒に作られた）。まだ push していない。この branch で作業を続けたい。GitHub への書き込みとファイルの変更はまだしないで（スキルの文書の読み取りと、読み取りだけのコマンドの実行はしてよい）。何を確認してどう進めるか手順だけ示して。",
       "assertions": [
         "既存 branch を使う前に Issue との紐付けを確かめる必要があると述べている",
         "remote の有無を `git ls-remote --heads` でリモートへ直接問い合わせている（`git branch -r --list` は fetch していないと実在する branch を 0 件と誤判定するため使わない）",
@@ -121,6 +151,32 @@
         "未 commit でベースと同一コミットなら `gh issue develop --name <同じ名前> --base <ベース>` で回復できると述べている",
         "commit 済みでは回復できない（作られる branch がベースの先端を指す）ため、ユーザーに確認すると述べている",
         "実行はせず手順の提示に留め、commit / push / PR へ進んでいない"
+      ],
+      "reachability": [
+        {
+          "assertion": "既存 branch を使う前に Issue との紐付けを確かめる必要があると述べている",
+          "prompt_quote": "この branch で作業を続けたい"
+        },
+        {
+          "assertion": "remote の有無を `git ls-remote --heads` でリモートへ直接問い合わせている（`git branch -r --list` は fetch していないと実在する branch を 0 件と誤判定するため使わない）",
+          "prompt_quote": "まだ push していない"
+        },
+        {
+          "assertion": "local にしか無い branch は紐付けの対象になり得ない（紐付けはリポジトリ側に存在する ref が対象）と述べている",
+          "prompt_quote": "まだ push していない"
+        },
+        {
+          "assertion": "未 commit でベースと同一コミットなら `gh issue develop --name <同じ名前> --base <ベース>` で回復できると述べている",
+          "prompt_quote": "何を確認してどう進めるか"
+        },
+        {
+          "assertion": "commit 済みでは回復できない（作られる branch がベースの先端を指す）ため、ユーザーに確認すると述べている",
+          "prompt_quote": "何を確認してどう進めるか"
+        },
+        {
+          "assertion": "実行はせず手順の提示に留め、commit / push / PR へ進んでいない",
+          "prompt_quote": "GitHub への書き込みとファイルの変更はまだしないで"
+        }
       ]
     },
     {
@@ -160,7 +216,7 @@
     },
     {
       "id": 12,
-      "prompt": "issue-start 12 --branch-only まだ何も実行しないで。このモードで何をどこまで行い、どこで呼び出し元へ返すのかを手順で説明して",
+      "prompt": "issue-start 12 --branch-only GitHub への書き込みとファイルの変更はまだしないで（スキルの文書の読み取りと、読み取りだけのコマンドの実行はしてよい）。このモードで何をどこまで行い、どこで呼び出し元へ返すのかを手順で説明して",
       "assertions": [
         "--branch-only を、ブランチ作成・checkout まで行って返すモードとして説明している",
         "ブランチ名を feature/12-<英語の短い説明> の形式にすると述べている",
@@ -168,11 +224,37 @@
         "ブランチを用意した後は調査・実装へ進まず呼び出し元へ返る、と述べている",
         "commit / push / PR はこのモードの対象外だと述べている",
         "実行はせず手順の提示に留めている（ブランチ作成・ファイル変更を行っていない）"
+      ],
+      "reachability": [
+        {
+          "assertion": "--branch-only を、ブランチ作成・checkout まで行って返すモードとして説明している",
+          "prompt_quote": "--branch-only"
+        },
+        {
+          "assertion": "ブランチ名を feature/12-<英語の短い説明> の形式にすると述べている",
+          "prompt_quote": "issue-start 12"
+        },
+        {
+          "assertion": "ブランチ作成に gh issue develop を使い、ベースブランチを規約から解決する（main に固定しない）と述べている",
+          "prompt_quote": "このモードで何をどこまで行い"
+        },
+        {
+          "assertion": "ブランチを用意した後は調査・実装へ進まず呼び出し元へ返る、と述べている",
+          "prompt_quote": "どこで呼び出し元へ返すのか"
+        },
+        {
+          "assertion": "commit / push / PR はこのモードの対象外だと述べている",
+          "prompt_quote": "このモードで何をどこまで行い"
+        },
+        {
+          "assertion": "実行はせず手順の提示に留めている（ブランチ作成・ファイル変更を行っていない）",
+          "prompt_quote": "GitHub への書き込みとファイルの変更はまだしないで"
+        }
       ]
     },
     {
       "id": 13,
-      "prompt": "issue-start 12 --pr で実装が終わり、pnpm test も lint も全部通った。このまま push して、PR 本文は Closes #12 で作っていい？ Issue #12 の本文とコメントは次のとおり（この環境から gh は使えないので、これを正とする）。本文: 「## 受け入れ条件 / - [ ] 検索条件を URL のクエリで持ち、再読み込みで復元する / - [ ] 保存に失敗したらエラーログを書く」。コメント 1 件: 「CSV 出力も対象にしてほしい。別 Issue に切るかは後で相談」。実装では、URL の件は移行元が URL に条件を持たないので入れず、コードに注記しておいた。CSV 出力は手を付けていない。まだ何も実行しないで、push の前に何をするかを手順で示して。",
+      "prompt": "issue-start 12 --pr で実装が終わり、pnpm test も lint も全部通った。このまま push して、PR 本文は Closes #12 で作っていい？ Issue #12 の本文とコメントは次のとおり（この環境から gh は使えないので、これを正とする）。本文: 「## 受け入れ条件 / - [ ] 検索条件を URL のクエリで持ち、再読み込みで復元する / - [ ] 保存に失敗したらエラーログを書く」。コメント 1 件: 「CSV 出力も対象にしてほしい。別 Issue に切るかは後で相談」。実装では、URL の件は移行元が URL に条件を持たないので入れず、コードに注記しておいた。CSV 出力は手を付けていない。GitHub への書き込みとファイルの変更はまだしないで（スキルの文書の読み取りと、読み取りだけのコマンドの実行はしてよい）。push の前に何をするかを手順で示して。",
       "assertions": [
         "push の前に、Issue の受け入れ条件を 1 項目ずつ根拠と突き合わせた表を作り、issue-start 同梱の acceptance-check.mjs を通すと述べ、テスト・lint の緑を受け入れ条件の充足の根拠にしていない",
         "本文のチェックリスト 2 項目をそれぞれ表の行（source: checklist）にすると述べている",
@@ -209,7 +291,7 @@
         },
         {
           "assertion": "実行はせず手順の提示に留めている（push・PR 作成・Issue へのコメントを行っていない）",
-          "prompt_quote": "まだ何も実行しないで"
+          "prompt_quote": "GitHub への書き込みとファイルの変更はまだしないで"
         }
       ]
     },
@@ -603,6 +685,44 @@
         {
           "assertion": "ファイルの変更・commit・push・PR の作成をせず、説明に留めている",
           "prompt_quote": "ファイルの変更・commit・push・GitHub への接続はしないで"
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "prompt": "issue-start 12 --pr --progress を Claude Code で使う場面を説明して。ファイルの変更・設定の書き換え・GitHub への接続はしないで（スキルの文書を読むのはよい）。作業量はいつどう見積もるのか。進捗はどの手順のときに何を実行して更新するのか。~/.claude/settings.json の statusLine には自作のスクリプトが既に設定されているが、この設定はどう扱うのか。同じことを Codex で使う場合は何が違うのか。",
+      "assertions": [
+        "作業量を、Issue を取得した後に、そのモードで行う手順を単位にして数えると述べている",
+        "手順が変わるたびに、同梱の progress.mjs の set を実行して進捗を書くと述べている",
+        "既にある statusLine を置き換えると今の表示が使われなくなることを示し、承認を得るまで書き換えないと述べている",
+        "Codex では progress.mjs を使わず、update_plan で進捗を更新すると述べている",
+        "Codex の statusline（config.toml の status_line）に task-progress を足すと述べている",
+        "ファイルの変更と設定の書き換えをせず、説明に留めている"
+      ],
+      "reachability": [
+        {
+          "assertion": "作業量を、Issue を取得した後に、そのモードで行う手順を単位にして数えると述べている",
+          "prompt_quote": "作業量はいつどう見積もるのか"
+        },
+        {
+          "assertion": "手順が変わるたびに、同梱の progress.mjs の set を実行して進捗を書くと述べている",
+          "prompt_quote": "進捗はどの手順のときに何を実行して更新するのか"
+        },
+        {
+          "assertion": "既にある statusLine を置き換えると今の表示が使われなくなることを示し、承認を得るまで書き換えないと述べている",
+          "prompt_quote": "この設定はどう扱うのか"
+        },
+        {
+          "assertion": "Codex では progress.mjs を使わず、update_plan で進捗を更新すると述べている",
+          "prompt_quote": "同じことを Codex で使う場合は何が違うのか"
+        },
+        {
+          "assertion": "Codex の statusline（config.toml の status_line）に task-progress を足すと述べている",
+          "prompt_quote": "同じことを Codex で使う場合は何が違うのか"
+        },
+        {
+          "assertion": "ファイルの変更と設定の書き換えをせず、説明に留めている",
+          "prompt_quote": "ファイルの変更・設定の書き換え・GitHub への接続はしないで"
         }
       ]
     }

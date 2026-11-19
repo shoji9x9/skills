@@ -61,6 +61,13 @@ describe("目印", () => {
     expect(() => markerLine(name, [])).toThrow("目印の名前の形でない");
     expect(() => readKeys("", name, FORM)).toThrow("目印の名前の形でない");
   });
+
+  test("行の区切りとして読まれる U+2028・U+2029 を含む識別子も、書いて読み直せる", () => {
+    const keys = [`k a${String.fromCharCode(0x2028)}b`, `k c${String.fromCharCode(0x2029)}d`];
+    const line = markerLine("weekly-check", keys);
+    expect(line).not.toMatch(/[\u2028\u2029]/u);
+    expect(readKeys(`本文\n\n${line}\n`, "weekly-check", /^k [\s\S]+$/u)).toEqual(keys);
+  });
 });
 
 describe("差分", () => {
@@ -117,6 +124,12 @@ describe("本文の整形", () => {
   test("空白と改行を 1 つにまとめ、表のセルでは | をエスケープする", () => {
     expect(oneLine("  a\n\tb  c ")).toBe("a b c");
     expect(tableCell("a |\nb")).toBe("a \\| b");
+  });
+
+  test("| の直前のバックスラッシュもエスケープし、表のセルを分けない", () => {
+    expect(tableCell("a\\|b")).toBe("a\\\\\\|b");
+    expect(tableCell("a\\\\|b")).toBe("a\\\\\\\\\\|b");
+    expect(tableCell("a\\b")).toBe("a\\b");
   });
 
   test("数を数として並べ、localeCompare が等しい違う文字列もコード単位で順を決める", () => {

@@ -1,0 +1,62 @@
+// feature-check.mjs がページの中で実行する関数。CDP の Runtime.evaluate へ関数のソースだけを送るので、
+// この関数は外の名前を参照しない（本体が使う関数は、本体の中に入れ子で書く）。
+//
+// kind ごとの動き:
+//   exists・visible・text  要素があるか・表示されているか・文字を含むかを返す（待つのは呼び出し側）
+//   click・fill            要素を表示の位置まで動かしてから操作する。fill はフレームワークが値の変化を拾えるよう、
+//                          要素の型の setter で値を入れてから input と change を送る
+
+/**
+ * @param {{ selector: string, kind: string, value?: string, text?: string }} a selector が空なら body を対象にする
+ * @returns {{ ok: boolean, message?: string }}
+ */
+export function featureCheckInPage(a) {
+  const el = a.selector === "" ? document.body : document.querySelector(a.selector);
+  /** @param {Element} e */
+  const visible = (e) =>
+    e.getClientRects().length > 0 && getComputedStyle(e).visibility !== "hidden";
+  /** 読むだけの kind の結果。読むだけの kind でなければ undefined。 */
+  const probe = () => {
+    if (a.kind === "exists") return { ok: el !== null };
+    if (a.kind === "visible") return { ok: el !== null && visible(el) };
+    if (a.kind !== "text") return undefined;
+    const text = el instanceof HTMLElement ? el.innerText : (el?.textContent ?? "");
+    return { ok: el !== null && text.includes(a.text ?? "") };
+  };
+  /** @param {HTMLInputElement | HTMLTextAreaElement} input 読み取り専用の欄は利用者が入力できないので、入力できたとして返さない */
+  const fill = (input) => {
+    if (input.readOnly) return { ok: false, message: `読み取り専用の要素: ${a.selector}` };
+    input.focus();
+    const proto =
+      input instanceof HTMLInputElement
+        ? HTMLInputElement.prototype
+        : HTMLTextAreaElement.prototype;
+    Object.getOwnPropertyDescriptor(proto, "value")?.set?.call(input, a.value ?? "");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    return { ok: true };
+  };
+  /** @returns {{ el: HTMLElement } | { message: string }} 操作できる要素か、操作できない理由 */
+  const operable = () => {
+    if (el === null) return { message: `要素が無い: ${a.selector}` };
+    if (!(el instanceof HTMLElement)) return { message: `操作できる要素でない: ${a.selector}` };
+    // 無効な要素は click も入力も受け付けないので、操作できたとして返さない
+    if (el.matches(":disabled")) return { message: `無効になっている要素: ${a.selector}` };
+    return { el };
+  };
+  /** 操作する kind の結果。 */
+  const act = () => {
+    const target = operable();
+    if ("message" in target) return { ok: false, message: target.message };
+    target.el.scrollIntoView({ block: "center" });
+    if (a.kind === "click") {
+      target.el.click();
+      return { ok: true };
+    }
+    if (a.kind !== "fill") return { ok: false, message: `知らない操作: ${a.kind}` };
+    if (target.el instanceof HTMLInputElement || target.el instanceof HTMLTextAreaElement)
+      return fill(target.el);
+    return { ok: false, message: `入力欄でない: ${a.selector}` };
+  };
+  return probe() ?? act();
+}

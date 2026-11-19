@@ -38,6 +38,8 @@ jobs:
   # 6 分割・変異の通し番号の割り当てでは、1457 変異で 1 シャード最長 11 分 10 秒になった（PR #604、run 38253076063）。
   # 12 シャード・宣言を単位に所要時間で均す割り当て（Issue #607）では、1468 変異で 1 シャード最長 5 分 36 秒（PR #608、run 38319089775）。
   # ci.yml のシャードの timeout（20 分）はこの値を根拠にしている（変異が増える前提で、約 3.5 倍の余裕を取る）。
+  # 変異が増えた後、全宣言を測る PR の CI では、1059 変異で 1 シャード最長 9 分 12 秒だった（PR #1081、run 44409778284）。
+  # 最長のシャードが timeout の半分（10 分）を超えたら、重いテストを速くするか、シャードの本数を増やす（Issue #1077）。
   mutation-proof-shard:
     name: All mutations shard ${{ matrix.shard }}
     runs-on: ubuntu-latest
@@ -57,11 +59,27 @@ jobs:
       - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
       - run: pnpm install --frozen-lockfile
       # 宣言のパスを渡さないので、`scripts/**/*.mutations.json` の全件から、`--shard` がこのシャードの分を選ぶ。宣言 0 件は成功として扱わない（スクリプト側で exit 2）。
+      # 出力をファイルにも残し、下の mutation-durations が所要時間の見積もりの更新に読む（Issue #1077）。
+      # pipefail を指定するので、ランナーが失敗すれば tee があってもこのステップは失敗する。
       - name: Mutation proof (all specs, one shard)
         env:
           JOB_INDEX: ${{ strategy.job-index }}
           JOB_TOTAL: ${{ strategy.job-total }}
-        run: node scripts/mutation/check-mutation-proof.ts --shard "$((JOB_INDEX + 1))/${JOB_TOTAL}"
+        run: |
+          set -o pipefail
+          node scripts/mutation/check-mutation-proof.ts --shard "$((JOB_INDEX + 1))/${JOB_TOTAL}" 2>&1 | tee "${RUNNER_TEMP}/mutation-shard.log"
+      # 失敗したシャードのログも残す（途中で止まったログは、mutation-durations が「更新できない」と出す）。
+      # 失敗したジョブだけを再実行したときは、同じ名前の artifact を上書きし、新しい実行のログを読ませる。
+      # 出典（overwrite）: https://github.com/actions/upload-artifact/blob/v7.0.2/action.yml
+      - name: Upload shard log
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mutation-shard-log-${{ strategy.job-index }}
+          path: ${{ runner.temp }}/mutation-shard.log
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 14
 
   # 実行の結果を 1 つにまとめる。シャードが 1 本でも成功以外（失敗・中止・スキップ）なら落とす。
   mutation-proof:
@@ -81,3 +99,58 @@ jobs:
             echo "ミューテーションテストのシャードが成功していない（${RESULT}）。各シャードのログを確かめる" >&2
             exit 1
           fi
+
+  # 所要時間の見積もり（mutation-durations.json）が実測から大きくずれた宣言を、手で気付く前に結果に出す（Issue #1077）。
+  # ずれたまま残すと、全定義を測る PR の CI（ci.yml）でシャードの割り当てが偏り、1 本だけが timeout に近づく（PR #1076）。
+  # 全シャードのログから見積もりを更新し、ずれた宣言と変わった値をジョブの結果に出す。更新したファイルは artifact に残し、
+  # それで置き換える PR は人が作る（このワークフローに書き込みの権限を渡さない）。ずれても、このジョブは失敗にしない。
+  mutation-durations:
+    name: Mutation durations
+    # 中止した run（concurrency の cancel-in-progress など）では、途中のログで「更新できない」と失敗させない。
+    if: ${{ !cancelled() }}
+    needs: [mutation-proof-shard]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+      # name を渡さずに pattern で取ると、artifact ごとにその名前のディレクトリに置く（merge-multiple を付けないとき）。
+      # 出典: https://github.com/actions/download-artifact/blob/v8.0.2/README.md#download-all-artifacts
+      - name: Download shard logs
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: mutation-shard-log-*
+          path: ${{ runner.temp }}/mutation-logs
+      # 更新できない（途中で止まったシャードのログがある・前の段で失敗してログを残さなかったシャードがある、など）ときは、
+      # 理由を結果に出してこのジョブを失敗にする。
+      - name: Update durations from the logs
+        run: |
+          shopt -s nullglob
+          logs=("${RUNNER_TEMP}"/mutation-logs/*/mutation-shard.log)
+          echo "読むログ: ${#logs[@]} 件"
+          if [ "${#logs[@]}" -eq 0 ]; then
+            echo "シャードのログが 1 件も無い" | tee -a "${GITHUB_STEP_SUMMARY}" >&2
+            exit 1
+          fi
+          rc=0
+          node scripts/mutation/update-mutation-durations.ts --summary "${GITHUB_STEP_SUMMARY}" "${logs[@]}" >"${RUNNER_TEMP}/update.log" 2>&1 || rc=$?
+          cat "${RUNNER_TEMP}/update.log"
+          if [ "${rc}" -ne 0 ]; then
+            { echo "## ミューテーションテストの所要時間の見積もり"; echo; echo "見積もりを更新できない（exit ${rc}）。"; echo; sed 's/^/    /' "${RUNNER_TEMP}/update.log"; } >>"${GITHUB_STEP_SUMMARY}"
+            exit 1
+          fi
+          if ! grep -q '^見積もりから大きくずれた宣言: 0 件' "${RUNNER_TEMP}/update.log"; then
+            echo "::warning title=Mutation durations::見積もりから大きくずれた宣言がある。ジョブの結果と artifact の mutation-durations.json を確かめる"
+          fi
+      - name: Upload updated durations
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mutation-durations
+          path: scripts/mutation/mutation-durations.json
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 14

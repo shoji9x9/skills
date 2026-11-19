@@ -72,6 +72,23 @@
 - 使わない語の一覧（`.textlint/word-list.md`）に無い比喩や造語
 - 利用者に表示するメッセージ・テスト名・`evals/*/evals.json` の assertion の中の旧称（今は別の名前になったスキル・ファイル・用語）
 
+### 8. チェックの無い規約（`unenforced`）
+
+文章で書いた規約のうち、機械的に判定できるのに、それを確かめる機構が無いものを挙げる。機構を作るかは、人が `.agents/rules/check-cost-benefit.md` の基準で決める。
+
+- 対象の文書は、`AGENTS.md`・`docs/agent-workflow.md`・`.agents/rules/*.md`・`docs/tooling.md`・`docs/testing.md` である
+- 機械的に判定できる規約は、違反をファイルの内容（パス・ファイル名・決まった字面・JSON や YAML のキー）か、エージェントが実行するコマンドの文字列から決められるものである。
+  意味や意図を読まないと違反かどうかを決められない規約（「読み手が補わずに意味を取れるように書く」など）は対象にしない
+- 機構は、lint の設定（`oxlint.config.ts`・`.textlint/`・`.markdownlint-cli2.yaml`）と、`scripts/gates/` のチェックである。
+  `lefthook.yml`、`.github/workflows/` のジョブ、テストも機構に含める。
+  Hook は、設定（`.claude/settings.json`・`.codex/`・`.github/hooks/`）に書かれたスクリプトを機構に含める。
+  そのスクリプトは `scripts/hooks/` のほかに、インストール済みのスキル（`.agents/skills/<name>/scripts/`）にもあるので、同じ名前のファイルを `skills/<name>/scripts/` で読む。
+  規約の語（コマンド名・ファイル名・決まった字面）でこれらを検索し、規約を確かめるものが見つからないときだけ指摘にする
+- チェックを作らずに規約の追記で終えると決めた記録（規約の本文・Issue への参照・`.kaizen/` の学びの判断）があれば、指摘にせず `notes` に書く
+- `path` は規約を書いた文書にする。`suggestion` には、機構の種類（lint・Hook・テスト・CI のチェック）を書く
+- `evidence` には、規約の行と、検索した語と結果を書く。その規約に当たる `.kaizen/` の学び（再発の記録）があれば、そのパスも書く。
+  見つからなければ「`.kaizen/` に当たる学びは無い」と書く
+
 ## 結果の書き方
 
 作業ディレクトリの `self-review-report.json` に、次の形の JSON を書く。ほかの形式（Markdown など）にしない。

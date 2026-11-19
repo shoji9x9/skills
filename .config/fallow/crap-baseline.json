@@ -9,6 +9,14 @@
         "count": 2
       }
     },
+    "skills/browser-test/scripts/page/feature-check.page.mjs": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
     "skills/parity-diff/assets/capture-new.spec.template.ts": {
       "crap_critical": {
         "count": 1

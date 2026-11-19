@@ -25,6 +25,7 @@ const CLIS: Cli[] = [
   },
   { path: "skills/golden-dataset/scripts/predicate-coverage-check.mjs", flag: "--design" },
   { path: "skills/issue-start/scripts/acceptance-check.mjs", flag: "--root" },
+  { path: "skills/issue-start/scripts/progress.mjs", prefix: ["set"], flag: "--label" },
   {
     path: "skills/kaizen/scripts/skill-config/skill-config.mjs",
     prefix: ["get", "kaizen", "k"],

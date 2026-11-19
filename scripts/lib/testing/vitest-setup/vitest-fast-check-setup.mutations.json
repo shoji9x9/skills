@@ -1,0 +1,33 @@
+{
+  "$comment": [
+    "vitest-fast-check-setup.test.ts の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/lib/testing/vitest-setup/vitest-fast-check-setup.test.ts",
+  "mutations": [
+    {
+      "id": "fast-check-seed-not-configured",
+      "why": "読み込んでも fast-check の設定に seed を入れない（ミューテーションテストの入力が実行ごとに変わる）",
+      "file": "scripts/lib/testing/vitest-setup/vitest-fast-check-setup.ts",
+      "find": "if (seed !== undefined) fc.configureGlobal({ ...fc.readConfigureGlobal(), seed });",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "MUTATION_PROOF_CHILD のある子のプロセスでは、読み込んだだけで fast-check の seed が固定される"
+      ]
+    },
+    {
+      "id": "fast-check-seed-always-fixed",
+      "why": "MUTATION_PROOF_CHILD が無くても seed を固定する（通常の実行が毎回同じ入力しか試さない）",
+      "file": "scripts/lib/testing/vitest-setup/vitest-fast-check-setup.ts",
+      "find": "return env.MUTATION_PROOF_CHILD ? MUTATION_PROOF_SEED : undefined;",
+      "replace": "return MUTATION_PROOF_SEED;",
+      "occurrences": 1,
+      "expect_failing": [
+        "ミューテーションテストの子の実行でだけ seed を固定する",
+        "MUTATION_PROOF_CHILD の無い子のプロセスでは、読み込んでも seed を固定しない"
+      ]
+    }
+  ]
+}

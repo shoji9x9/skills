@@ -9,11 +9,12 @@
 // 残す場所も、書いていないことを検出する仕組みも無かった。到達できない assertion を抱えたまま実行し、
 // 6 run・9 run をやり直した記録が 3 度ある（実行の回数が 1.75〜2.5 倍になった）。
 //
-// チェックするのは、機械的に判定できる次の 4 点だけである。
+// チェックするのは、機械的に判定できる次の 5 点だけである。
 //   1. assertion ごとに対応要素があるか
 //   2. `prompt_quote` が空でないか
 //   3. `prompt_quote` がその eval の prompt の部分文字列か
 //   4. `assertion` がその eval の assertions に実在するか（位置ではなくテキストで対応づける）
+//   5. prompt が「何も実行しない／何も実行せず」で行為を禁じていないか（backlog の eval も対象にする）
 // 「1 assertion 1 主張」「選択肢が両方立つ材料があるか」等はレビュー観点として rule に残す
 // （機械検査は部分文字列の実在までしか見ない）。
 //
@@ -92,6 +93,23 @@ function checkEvalShape(ev: unknown, where: string, seenIds: Set<string>): EvalS
     return `${where}: assertions のテキストが重複している（テキストで対応づけられない）`;
   }
   return { where, id, prompt, assertions, ev };
+}
+
+/**
+ * dry-run の prompt で、行為そのもの（「何も実行しないで」「何も実行せず」）を禁じる字面。
+ * この形で禁じると、with_skill がスキルを開かずに答える（`.agents/rules/eval-assertion-discrimination.md` の dry-run の段落）。
+ * 禁じる対象は副作用（GitHub への書き込み・ファイルの変更）で書き、スキルの読み取りを許すと明記する。
+ * 検出するのはこの 2 つの字面だけで、ツールの名前で禁じる形（「gh や git のコマンドは実行せず」）は対象にしない。
+ */
+const ACTION_BAN_RE = /何も実行(?:しない|せず)/;
+
+function promptWordingViolations({ where, prompt }: EvalShape): string[] {
+  const m = ACTION_BAN_RE.exec(prompt);
+  if (!m) return [];
+  return [
+    `${where}: prompt が「${m[0]}」で行為を禁じている。禁じる対象を副作用（GitHub への書き込み・ファイルの変更）で書き、` +
+      "スキルの文書の読み取りと読み取りだけのコマンドの実行は許すと書く",
+  ];
 }
 
 /**
@@ -224,6 +242,7 @@ export function checkEvalFile({
       violations.push(shape);
       continue;
     }
+    violations.push(...promptWordingViolations(shape));
     const key = backlogKey(skill, shape.id);
     keys.push(key);
     const hasReachability = Object.hasOwn(shape.ev, "reachability");

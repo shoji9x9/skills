@@ -18,7 +18,8 @@
         "skills/parity-component/scripts/behavior-compare.mjs: シンボリックリンク経由でも引数不足を usage と exit 2 で知らせる",
         "skills/parity-component/scripts/cascade-resolve.mjs: シンボリックリンク経由でも引数不足を usage と exit 2 で知らせる",
         "skills/parity-component/scripts/lifecycle-check.mjs: シンボリックリンク経由でも引数不足を usage と exit 2 で知らせる",
-        "skills/parity-component/scripts/motion-compare.mjs: シンボリックリンク経由でも引数不足を usage と exit 2 で知らせる"
+        "skills/parity-component/scripts/motion-compare.mjs: シンボリックリンク経由でも引数不足を usage と exit 2 で知らせる",
+        "skills/parity-component/scripts/shot-size-compare.mjs: シンボリックリンク経由でも引数不足を usage と exit 2 で知らせる"
       ]
     },
     {

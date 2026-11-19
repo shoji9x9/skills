@@ -21,6 +21,7 @@ import { spawnAsync } from "../lib/spawn-async.ts";
 import { makeSharedTempDir, makeTempDirFactory } from "../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../lib/testing/child-timeout.ts";
 import { gitInit } from "../lib/testing/repo-file.ts";
+import { parseDrifts } from "./update-mutation-durations.ts";
 
 // `check-mutation-proof.ts` は「変異が当たったこと」と「狙ったテストが落ちたこと」の両方で
 // 判定する。**当たらなかった変異を成功として扱わない**のがこのチェックの主目的なので、
@@ -1519,12 +1520,14 @@ describe.concurrent("--shard", () => {
     const res = await runRunner(a, b, "--shard", "1/1", durations({ [a]: 100 }));
     expect(res.status, res.out).toBe(0);
     const drifts = [
-      ...res.stdout.matchAll(/^見積もりとのずれ: 1 回 \d+\.\d 秒（見積もり (\S+) 秒）/gm),
+      ...res.stdout.matchAll(/^見積もりとのずれ: (\S+) 1 回 \d+\.\d 秒（見積もり (\S+) 秒）/gm),
     ];
     expect(
-      drifts.map((m) => m[1]),
+      drifts.map((m) => [m[1], m[2]]),
       res.stdout,
-    ).toEqual(["100"]);
+    ).toEqual([[relative(repoRoot, a), "100"]]);
+    // 週次の run の後に見積もりを更新するスクリプトが、この行から同じ宣言を読む（Issue #1077）
+    expect(parseDrifts(res.stdout).map((d) => d.spec)).toEqual([relative(repoRoot, a)]);
     expect(res.stdout).toContain("見積もりからずれた宣言: 1 件");
     // 0 件でも出す（比べたことが出力で分かる）
     const none = await runRunner(b, "--shard", "1/1", durations());
@@ -2061,7 +2064,7 @@ describe.concurrent("時間切れの後の作業ツリー", () => {
 // `describe.concurrent` の suite は、隣の concurrent な suite とも並べて実行される（最後に置いても並んだ）。
 // この suite は concurrent にせず、前の suite が終わってから始める。中の 2 本だけを `test.concurrent` で互いに並べる。
 describe("本物の vitest を通す end-to-end", () => {
-  // **使用中の fixture を消させない。** `scripts/lib/testing/vitest-global-setup.ts` は、収集の前に
+  // **使用中の fixture を消させない。** `scripts/lib/testing/vitest-setup/vitest-global-setup.ts` は、収集の前に
   // `scripts/mutation-proof-fixture-*` を消す。そこで runner が起動する子の vitest には
   // `MUTATION_PROOF_CHILD` を渡して、消す処理を止めている（渡さないと fixture ごと消えて、10 テストが落ちた）。
   // ここでは**ambient な marker を明示的に外して**測る（ハーネス自身が渡す値で成功しないように）。

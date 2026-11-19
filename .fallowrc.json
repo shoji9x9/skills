@@ -27,7 +27,7 @@
       "exports": ["default"]
     },
     {
-      "file": "scripts/lib/testing/vitest-global-setup.ts",
+      "file": "scripts/lib/testing/vitest-setup/vitest-global-setup.ts",
       "exports": ["setup"]
     },
     {
@@ -68,6 +68,10 @@
     },
     {
       "file": "skills/box/scripts/skill-config/skill-config.mjs",
+      "exports": ["*"]
+    },
+    {
+      "file": "skills/browser-test/scripts/lib/is-array.mjs",
       "exports": ["*"]
     },
     {

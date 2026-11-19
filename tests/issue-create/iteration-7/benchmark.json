@@ -1,0 +1,310 @@
+{
+  "metadata": {
+    "skill_name": "issue-create",
+    "skill_path": "<repo>/skills/issue-create",
+    "executor_model": "claude-opus-5-5",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-19T04:51:20Z",
+    "evals_run": [1, 2, 4, 5],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 27.731,
+        "tokens": 108088,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "下書きの本文を、リポジトリの .github/ISSUE_TEMPLATE/bug_report.md の節（発生した画面・再現手順・期待した結果・実際の結果・ログ）に沿って書いている",
+          "passed": true,
+          "evidence": "本文が 発生した画面・再現手順・期待した結果・実際の結果・ログ の節"
+        },
+        {
+          "text": "起票のコマンドに、リポジトリのバグのテンプレートのラベル（bug と needs-triage の両方）を付けている",
+          "passed": true,
+          "evidence": "--label \"bug\" --label \"needs-triage\""
+        },
+        {
+          "text": "起票のコマンドで、本文を一時ファイルに書き出して gh issue create の --body-file で渡している",
+          "passed": true,
+          "evidence": "tmp=$(mktemp) に quoted heredoc で書き、--body-file \"$tmp\" で渡す"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 41.285,
+        "tokens": 145115,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "リポジトリに .github/ISSUE_TEMPLATE/ が無いので、スキルに同梱の機能要望のテンプレートの節（背景・目的、提案内容、スコープ、受け入れ条件）に沿って本文を書いている",
+          "passed": true,
+          "evidence": "同梱の feature_request.md をひな型にし、背景・目的・提案内容・スコープ・受け入れ条件の節で書く"
+        },
+        {
+          "text": "同梱のテンプレートを .github/ISSUE_TEMPLATE/ にコピーするかを利用者に尋ねている",
+          "passed": true,
+          "evidence": "問い 2 で同梱のテンプレートを .github/ISSUE_TEMPLATE/ にコピーするかを尋ねる"
+        },
+        {
+          "text": "タイトルを feat: の接頭辞で始めている",
+          "passed": true,
+          "evidence": "タイトルは feat: ダークモードに対応する"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 41.795,
+        "tokens": 129305,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "種別に合うテンプレートがリポジトリにも同梱にも無いので、汎用の構成の節（背景・目的、提案内容、スコープ、受け入れ条件）で本文を書いている",
+          "passed": true,
+          "evidence": "同梱にも合うテンプレートが無いとして、背景・目的・提案内容・スコープ・受け入れ条件の節で書く"
+        },
+        {
+          "text": "タイトルを conventional commits の形の接頭辞（chore: など）で始めている",
+          "passed": true,
+          "evidence": "タイトルは chore: 依存ライブラリを最新のバージョンに更新する"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 36.504,
+        "tokens": 130744,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "リポジトリの .github/ISSUE_TEMPLATE/ にバグのテンプレートが無いので、スキルに同梱のバグのテンプレートの節（概要・再現手順・期待する挙動・実際の挙動・環境）に沿って本文を書いている",
+          "passed": true,
+          "evidence": "リポジトリには feature_request.md だけなので、同梱の bug_report.md の節（概要・再現手順・期待する挙動・実際の挙動・環境）で書く"
+        },
+        {
+          "text": "同梱のバグのテンプレートを .github/ISSUE_TEMPLATE/ にコピーするかを利用者に尋ねている",
+          "passed": true,
+          "evidence": "問い 3 で同梱のバグのテンプレートをコピーするかを尋ねる"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 24.42,
+        "tokens": 58742,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "下書きの本文を、リポジトリの .github/ISSUE_TEMPLATE/bug_report.md の節（発生した画面・再現手順・期待した結果・実際の結果・ログ）に沿って書いている",
+          "passed": true,
+          "evidence": "リポジトリのテンプレートの節に沿う"
+        },
+        {
+          "text": "起票のコマンドに、リポジトリのバグのテンプレートのラベル（bug と needs-triage の両方）を付けている",
+          "passed": true,
+          "evidence": "--label bug --label needs-triage"
+        },
+        {
+          "text": "起票のコマンドで、本文を一時ファイルに書き出して gh issue create の --body-file で渡している",
+          "passed": false,
+          "evidence": "--body-file - に heredoc を stdin で渡し、一時ファイルに書き出していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 3,
+        "total": 3,
+        "time_seconds": 26.319,
+        "tokens": 99094,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "リポジトリに .github/ISSUE_TEMPLATE/ が無いので、スキルに同梱の機能要望のテンプレートの節（背景・目的、提案内容、スコープ、受け入れ条件）に沿って本文を書いている",
+          "passed": false,
+          "evidence": "節は 概要・背景・動機・提案内容・要確認事項・完了条件（案）で、スコープと受け入れ条件の節が無い"
+        },
+        {
+          "text": "同梱のテンプレートを .github/ISSUE_TEMPLATE/ にコピーするかを利用者に尋ねている",
+          "passed": false,
+          "evidence": "テンプレートのコピーに触れていない"
+        },
+        {
+          "text": "タイトルを feat: の接頭辞で始めている",
+          "passed": false,
+          "evidence": "タイトルは「機能要望: ダークモードの追加」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 2,
+        "total": 2,
+        "time_seconds": 32.995,
+        "tokens": 139791,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "種別に合うテンプレートがリポジトリにも同梱にも無いので、汎用の構成の節（背景・目的、提案内容、スコープ、受け入れ条件）で本文を書いている",
+          "passed": false,
+          "evidence": "節は 概要・背景・目的・作業内容・完了条件・補足 で、提案内容とスコープが無い"
+        },
+        {
+          "text": "タイトルを conventional commits の形の接頭辞（chore: など）で始めている",
+          "passed": false,
+          "evidence": "タイトルに接頭辞が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 2,
+        "total": 2,
+        "time_seconds": 27.196,
+        "tokens": 79292,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "リポジトリの .github/ISSUE_TEMPLATE/ にバグのテンプレートが無いので、スキルに同梱のバグのテンプレートの節（概要・再現手順・期待する挙動・実際の挙動・環境）に沿って本文を書いている",
+          "passed": false,
+          "evidence": "節は 起きていること・再現の手順・期待する動き・未確認の点・完了の条件 で、同梱のテンプレートではない"
+        },
+        {
+          "text": "同梱のバグのテンプレートを .github/ISSUE_TEMPLATE/ にコピーするかを利用者に尋ねている",
+          "passed": false,
+          "evidence": "テンプレートのコピーに触れていない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 36.8287,
+        "stddev": 6.5166,
+        "min": 27.731,
+        "max": 41.795
+      },
+      "tokens": {
+        "mean": 128313,
+        "stddev": 15256.1644,
+        "min": 108088,
+        "max": 145115
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.1667,
+        "stddev": 0.3333,
+        "min": 0,
+        "max": 0.6667
+      },
+      "time_seconds": {
+        "mean": 27.7325,
+        "stddev": 3.6947,
+        "min": 24.42,
+        "max": 32.995
+      },
+      "tokens": {
+        "mean": 94229.75,
+        "stddev": 34554.3302,
+        "min": 58742,
+        "max": 139791
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.83",
+      "time_seconds": "+9.1",
+      "tokens": "+34083"
+    }
+  },
+  "notes": [
+    "Issue #1063 の変更確認（1 run）。eval 1・2・4・5 を、テンプレートの選び方と起票のコマンドの形を検査する assertion に作り直し、fixture を足した。eval 3 は消した。",
+    "assertion の文を変えたので、前回の記録とは比べない。",
+    "with_skill の 4 run はすべてスキルを読んだ。without_skill の 4 run はすべて clean。",
+    "eval 1 の 1 つ目と 2 つ目の assertion（リポジトリのテンプレートの節とラベル）は without_skill も通った。テンプレートがリポジトリにあれば、ベースラインも読んで使う。"
+  ]
+}

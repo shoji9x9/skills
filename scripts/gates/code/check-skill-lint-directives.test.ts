@@ -4,7 +4,7 @@
 //
 // | 軸                       | 値                                                                          |
 // | ------------------------ | --------------------------------------------------------------------------- |
-// | 指示の種類               | oxlint-disable（-next-line・-line）/ eslint-disable / biome-ignore / @ts-expect-error / deno-lint-ignore / 対象外（textlint・shellcheck） |
+// | 指示の種類               | oxlint-disable（-next-line・-line）/ eslint-disable / biome-ignore / @ts-expect-error / deno-lint-ignore / fallow-ignore（-next-line・-file）/ 対象外（textlint・shellcheck） |
 // | コメントの形             | `//` / `/*` / `/**` / JSDoc の 2 行目以降の `*` / コードの後ろの `//`（空白あり・なし） |
 // | コメント以外の出現       | 文章の途中の名前 / 文字列 / テンプレート / 正規表現（どれも `//` を含む形も）  |
 // | 拡張子                   | .mjs / .ts / .md（対象外）                                                   |
@@ -42,6 +42,8 @@ test.each([
   ["biome-ignore-all", "// biome-ignore-all lint: 理由", "biome-ignore"],
   ["deno-lint-ignore-file", "// deno-lint-ignore-file", "deno-lint-ignore"],
   ["閉じの */ の直前", "/* eslint-disable*/", "eslint-disable"],
+  ["fallow-ignore-next-line", "// fallow-ignore-next-line unused-export", "fallow-ignore"],
+  ["fallow-ignore-file", "// fallow-ignore-file code-duplication", "fallow-ignore"],
 ])("抑止の指示（%s）を違反にする", (_label, comment, directive) => {
   const found = findDirectives(`export const a = 1;\n${comment}\n`);
   expect(found).toHaveLength(1);
@@ -70,6 +72,8 @@ test.each([
   ["// deno-lint-ignores"],
   ["// eslint-disable-foo"],
   ["// biome-ignore-file"],
+  ["// fallow-ignore のコメントは置かない"],
+  ["// fallow-ignore-line"],
 ])("指示として読まれない %s は違反にしない", (line) => {
   expect(findDirectives(`${line}\n`)).toEqual([]);
 });

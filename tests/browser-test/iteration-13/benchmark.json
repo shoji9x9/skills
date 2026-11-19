@@ -1,0 +1,140 @@
+{
+  "metadata": {
+    "skill_name": "browser-test",
+    "skill_path": "<repo>/skills/browser-test",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-19T00:22:01Z",
+    "evals_run": [13],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 13,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 21.872,
+        "tokens": 162097,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "機能「左のサイドバーの検索」を、同梱の CLI（scripts/feature-check.mjs）に --feature で機能の呼び名と、--env local を渡して確かめる手順を挙げている",
+          "passed": false,
+          "evidence": "「同梱の feature-check.mjs で自動で確かめる」と CLI を使う手順は挙げたが、--feature に機能の呼び名と --env local を渡すことは書いていない"
+        },
+        {
+          "text": "ピン留めの check は、click の step に side_effect: false が無いので CLI が実行しないと判断し、利用者の承認を得てから確かめるものとして扱っている",
+          "passed": true,
+          "evidence": "ピン留めの行で「click に side_effect: false が無いため skipped になる。MCP で確かめる」とし、承認を「要る」としている"
+        },
+        {
+          "text": "steps の無い check（検索欄の幅）は、CLI ではなく MCP のツールで action と expect のとおりに確かめるものとして挙げている",
+          "passed": true,
+          "evidence": "検索欄の幅の行で「steps が無い（not_automated）ので、MCP で snapshot と screenshot を撮って目視で確かめる」としている"
+        },
+        {
+          "text": "ローカルの環境（http://localhost:5173）が動いていないことを確かめ、起動コマンド（pnpm run dev）を自分では実行せずに、実行を促して止まっている",
+          "passed": true,
+          "evidence": "curl で 000 を確かめ、起動コマンドは自分では実行しない決まりだとして pnpm run dev を促して止まった"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 30.08,
+        "tokens": 117381,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "機能「左のサイドバーの検索」を、同梱の CLI（scripts/feature-check.mjs）に --feature で機能の呼び名と、--env local を渡して確かめる手順を挙げている",
+          "passed": false,
+          "evidence": "CLI に触れていない。検査は実行せず、ソースから予想した"
+        },
+        {
+          "text": "ピン留めの check は、click の step に side_effect: false が無いので CLI が実行しないと判断し、利用者の承認を得てから確かめるものとして扱っている",
+          "passed": false,
+          "evidence": "ピン留めは side_effect の指定が無いが、local 環境で禁止されていないので「実行自体は可能」としている。承認を得るとはしていない"
+        },
+        {
+          "text": "steps の無い check（検索欄の幅）は、CLI ではなく MCP のツールで action と expect のとおりに確かめるものとして挙げている",
+          "passed": false,
+          "evidence": "steps の無い check は「自動の手順なし」とし、MCP のツールで確かめるとはしていない"
+        },
+        {
+          "text": "ローカルの環境（http://localhost:5173）が動いていないことを確かめ、起動コマンド（pnpm run dev）を自分では実行せずに、実行を促して止まっている",
+          "passed": false,
+          "evidence": "起動コマンド pnpm run dev を自分で実行した（vite: not found で失敗）"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.75,
+        "stddev": 0,
+        "min": 0.75,
+        "max": 0.75
+      },
+      "time_seconds": {
+        "mean": 21.872,
+        "stddev": 0,
+        "min": 21.872,
+        "max": 21.872
+      },
+      "tokens": {
+        "mean": 162097,
+        "stddev": 0,
+        "min": 162097,
+        "max": 162097
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0,
+        "stddev": 0,
+        "min": 0,
+        "max": 0
+      },
+      "time_seconds": {
+        "mean": 30.08,
+        "stddev": 0,
+        "min": 30.08,
+        "max": 30.08
+      },
+      "tokens": {
+        "mean": 117381,
+        "stddev": 0,
+        "min": 117381,
+        "max": 117381
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.75",
+      "time_seconds": "-8.2",
+      "tokens": "+44716"
+    }
+  },
+  "notes": [
+    "変更確認（eval 13 を with_skill と without_skill で 1 run ずつ）。eval 13 は新しく足した eval なので、比べる前の記録は無い。",
+    "with_skill は、CLI を使う手順は挙げたが、--feature と --env の引数までは書かなかったので 1 本目を満たさなかった。"
+  ]
+}

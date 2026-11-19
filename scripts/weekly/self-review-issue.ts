@@ -33,6 +33,7 @@ const CATEGORY_LABEL = {
   eval: "回帰 eval の妥当性",
   actions: "効果の無い GitHub Actions",
   wording: "分かりにくい語・旧称",
+  unenforced: "チェックの無い規約",
 } as const;
 
 export type Category = keyof typeof CATEGORY_LABEL;
@@ -195,6 +196,22 @@ const KEY_FORM = new RegExp(`^(${Object.keys(CATEGORY_LABEL).join("|")}) [A-Za-z
 const tracking = trackingKeys({ marker: "self-review", keyForm: KEY_FORM, keyOf });
 export const { previousKeys, diff: diffFindings } = tracking;
 
+/**
+ * 項目ごとの件数を、すべての項目について並べる（0 件の項目も書く）。
+ * 表には指摘のある項目しか出ないので、表に出ない項目の件数を、この行で読めるようにする。
+ * 件数は指摘から数えるので、0 件の項目を点検したかは示さない。点検していない項目は、エージェントが notes に書く。
+ */
+export function categoryCounts(findings: readonly Finding[]): string {
+  const counts = Object.keys(CATEGORY_LABEL)
+    .filter(isCategory)
+    .map((c) => {
+      const n = findings.filter((f) => f.category === c).length;
+      return `${CATEGORY_LABEL[c]} ${n} 件`;
+    });
+  // 項目の名前が「・」を含むので、区切りは「、」にする。
+  return `項目ごとの件数: ${counts.join("、")}`;
+}
+
 function findingTable(findings: readonly Finding[], kept: ReadonlySet<string>): string[] {
   if (findings.length === 0) return [];
   const lines = [
@@ -219,6 +236,8 @@ export function formatBody(report: Report, previous: readonly string[] = []): st
     "この Issue は `Self review` ワークフローが作成・更新・クローズします。点検の手順は `docs/self-review-procedure.md` にあります。",
     "",
     `指摘: ${findings.length} 件`,
+    "",
+    categoryCounts(findings),
     "",
     // 前回との比較と識別子の目印は全件で行い、表だけを切り詰める。比較の前に切ると、残っている指摘を「解消」と書いてしまう。
     ...findingTable(findings.slice(0, MAX_FINDINGS), new Set(kept)),

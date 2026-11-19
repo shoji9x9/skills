@@ -1,0 +1,46 @@
+diff --git a/package.json b/package.json
+index 3b1f0c2..5e8a2d4 100644
+--- a/package.json
++++ b/package.json
+@@ -24,4 +24,4 @@
+   "dependencies": {
+-    "@example/conf-parser": "^2.8.0",
++    "@example/conf-parser": "^2.8.1",
+     "commander": "^14.0.0"
+   },
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index 7c2e5d9..c41b7e0 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -9,7 +9,7 @@ importers:
+     dependencies:
+       '@example/conf-parser':
+-        specifier: ^2.8.0
+-        version: 2.8.0
++        specifier: ^2.8.1
++        version: 2.8.1
+       commander:
+         specifier: ^14.0.0
+         version: 14.0.0
+@@ -112,8 +112,13 @@ packages:
+   '@example/conf-parser@2.8.0':
+     resolution: {integrity: sha512-Qm9xR2cWn7yTpV4hL0aKd3eFz8sBu1jXo6iN5gYvC2rE+HtMlPw==}
+     engines: {node: '>= 14'}
+     hasBin: true
+ 
++  '@example/conf-parser@2.8.1':
++    resolution: {integrity: sha512-Hc3wN7pLx2qRt5vKm8yJd1eSz0aBf4uXo9iG6nTvE2rW+MkQpLy==}
++    engines: {node: '>= 14'}
++    hasBin: true
++
+   '@example/lint-config@1.4.0':
+     resolution: {integrity: sha512-Tr8uY2bVn5mKx0pQw7sHd4jLc1aGf9eXo3iR6zNkE5tB+WyPqMv==}
+ 
+@@ -540,5 +545,7 @@ snapshots:
+   '@example/conf-parser@2.8.0': {}
+ 
++  '@example/conf-parser@2.8.1': {}
++
+   '@example/lint-config@1.4.0':
+     dependencies:
+       '@example/conf-parser': 2.8.0

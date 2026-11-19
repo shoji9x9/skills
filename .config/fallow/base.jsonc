@@ -41,7 +41,7 @@
     // oxlint が設定の jsPlugins でパスから読む。
     { "file": "scripts/gates/code/oxlint-plugin/plugin.ts", "exports": ["default"] },
     // vitest が設定の globalSetup でパスから読む。
-    { "file": "scripts/lib/testing/vitest-global-setup.ts", "exports": ["setup"] },
+    { "file": "scripts/lib/testing/vitest-setup/vitest-global-setup.ts", "exports": ["setup"] },
     // ミューテーションテストのランナーが、子の vitest の --reporter でパスから読ませる。
     { "file": "scripts/mutation/progress-reporter.ts", "exports": ["default"] },
     // 子プロセスで、fake-pngjs-hooks.ts が pngjs の import をこのファイルに向ける。

@@ -1,7 +1,7 @@
 # pre-commit は次の 3 段で実行する。
 #   1. format: 整形して再ステージするジョブ（piped＝逐次。並列 stage_fixed の index 競合を避ける）
-#   2. lint:   ファイル単位の checker（並列・再ステージしない）
-#   3. scan:   シークレット走査・リポジトリ全体検査（並列）
+#   2. lint:   ファイル単位の checker とリポジトリ全体の検査（並列・再ステージしない）
+#   3. scan:   シークレットの走査（並列）
 pre-commit:
   jobs:
     - name: format
