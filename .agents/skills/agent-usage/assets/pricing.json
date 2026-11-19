@@ -4,14 +4,21 @@
     "モデル名は、ログの名前から末尾の [1m] などの括弧と -YYYYMMDD の日付を除いた形で引く（scripts/lib/pricing.mjs の normalizeModel）。",
     "Anthropic のキャッシュの読み取りは cacheRead、書き込みは cacheWrite5m と cacheWrite1h。OpenAI のキャッシュ済みの入力は cacheRead に置く（書き込みの単価は無い）。",
     "reviews は、レビューツールごとの 1 回あたりの推定額（USD）。リポジトリの設定（.config/skills/shoji9x9/agent-usage.jsonc）の reviewPricing が同じツールを持てば、そちらを優先する。",
-    "Claude Haiku 5.5 は 100,000 トークンを超えるプロンプトの単価が上がるが、ここでは 100,000 トークン以下の単価だけを持つ。OpenAI の gpt-5.6-sol と gpt-5.6-terra も、272K を超える入力の単価は持たない。"
+    "Claude Haiku 5.5 は 100,000 トークンを超えるプロンプトの単価が上がるが、ここでは 100,000 トークン以下の単価だけを持つ。OpenAI の gpt-6 系と gpt-5.6 系も、272K を超える入力の単価は持たない。"
   ],
-  "retrieved": "2026-10-14",
+  "retrieved": "2026-11-19",
   "sources": [
     "https://platform.claude.com/docs/en/about-claude/pricing",
     "https://developers.openai.com/api/docs/pricing"
   ],
   "models": {
+    "claude-fable-5-2": {
+      "input": 8,
+      "cacheWrite5m": 10,
+      "cacheWrite1h": 16,
+      "cacheRead": 0.2,
+      "output": 40
+    },
     "claude-fable-5-1": {
       "input": 10,
       "cacheWrite5m": 12.5,
@@ -110,11 +117,17 @@
       "cacheRead": 0.1,
       "output": 5
     },
+    "gpt-6.2-astra": { "input": 8, "cacheRead": 0.4, "output": 40 },
+    "gpt-6.2-sol": { "input": 2, "cacheRead": 0.1, "output": 10 },
+    "gpt-6.1-sol": { "input": 2, "cacheRead": 0.1, "output": 10 },
+    "gpt-6.1-terra": { "input": 1, "cacheRead": 0.05, "output": 5 },
+    "gpt-6-astra": { "input": 10, "cacheRead": 1, "output": 50 },
+    "gpt-6-sol": { "input": 2, "cacheRead": 0.2, "output": 10 },
+    "gpt-6-luna": { "input": 0.1, "cacheRead": 0.01, "output": 0.5 },
     "gpt-5.6-sol": { "input": 4, "cacheRead": 0.4, "output": 20 },
     "gpt-5.6-terra": { "input": 2, "cacheRead": 0.2, "output": 12 },
     "gpt-5.6-luna": { "input": 0.2, "cacheRead": 0.02, "output": 1.2 },
-    "gpt-5.5": { "input": 5, "cacheRead": 0.5, "output": 30 },
-    "gpt-5.3-codex": { "input": 1.75, "cacheRead": 0.175, "output": 14 }
+    "gpt-5.5": { "input": 5, "cacheRead": 0.5, "output": 30 }
   },
   "reviews": {
     "copilot": {
