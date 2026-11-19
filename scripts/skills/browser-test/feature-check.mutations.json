@@ -1,0 +1,90 @@
+{
+  "$comment": [
+    "feature-check.test.ts の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/browser-test/feature-check.test.ts",
+  "mutations": [
+    {
+      "id": "feature-check-side-effect-gate",
+      "why": "副作用が無いと書いていない操作も実行する（利用者の承認を得ずに、書き込みや送信をする）",
+      "file": "skills/browser-test/scripts/feature-check.mjs",
+      "find": "ACTIONS.some((a) => a === kind) && step.side_effect !== false",
+      "replace": "ACTIONS.some((a) => a === kind) && step.side_effect === true",
+      "occurrences": 1,
+      "expect_failing": [
+        "check を CLI で実行するか click に side_effect が無い check は 1 つの step も実行せずに skipped にする",
+        "check を CLI で実行するか press に side_effect が無い check は 1 つの step も実行せずに skipped にする",
+        "check を CLI で実行するか 読むだけの step の後に side_effect の無い操作がある check は 1 つの step も実行せずに skipped にする",
+        "実際の Chrome で機能を確かめる 副作用が無いと書いていない操作は実行せず（POST を送らず）、skipped と not_automated を返して exit 0 で終わる"
+      ]
+    },
+    {
+      "id": "feature-check-console-exit",
+      "why": "console に error や warning があっても exit 0 にする（呼び出し元が合格として扱う）",
+      "file": "skills/browser-test/scripts/feature-check.mjs",
+      "find": "if (result.console.length > 0) return 1;",
+      "replace": "if (result.console.length > 0) return 0;",
+      "occurrences": 1,
+      "expect_failing": [
+        "終了コード console にメッセージがある ときは 1",
+        "実際の Chrome で機能を確かめる /error を開いて console に error が出たら、exit 1 で終わり、メッセージを返す",
+        "実際の Chrome で機能を確かめる /warn を開いて console に warning が出たら、exit 1 で終わり、メッセージを返す",
+        "実際の Chrome で機能を確かめる /throw を開いて console に error が出たら、exit 1 で終わり、メッセージを返す"
+      ]
+    },
+    {
+      "id": "feature-check-failed-exit",
+      "why": "check が失敗しても exit 0 にする（呼び出し元が合格として扱う）",
+      "file": "skills/browser-test/scripts/feature-check.mjs",
+      "find": "return result.checks.some((c) => c.status === \"failed\") ? 1 : 0;",
+      "replace": "return 0;",
+      "occurrences": 1,
+      "expect_failing": [
+        "終了コード check が失敗した ときは 1",
+        "実際の Chrome で機能を確かめる 要素が現れない ときは check を failed にし、exit 1 で終わる",
+        "実際の Chrome で機能を確かめる 文字が現れない ときは check を failed にし、exit 1 で終わる",
+        "実際の Chrome で機能を確かめる 待つ要素が現れない ときは check を failed にし、exit 1 で終わる",
+        "実際の Chrome で機能を確かめる 操作する要素が無いときは check を failed にし、exit 1 で終わる",
+        "実際の Chrome で機能を確かめる セレクタの書き方が誤っているときは、ページの中で出た例外の理由を step の message に添える",
+        "実際の Chrome で機能を確かめる path が # を含む機能でも、check ごとにページを読み込み直し、前の check の状態を持ち越さない"
+      ]
+    },
+    {
+      "id": "feature-check-ambiguous-feature",
+      "why": "呼び名が重なる機能のうち、先に見つかったものを推測で選ぶ（別の機能を確かめて合格にする）",
+      "file": "skills/browser-test/scripts/feature-check.mjs",
+      "find": "if (hits.length === 1 && hits[0] !== undefined) return hits[0];",
+      "replace": "if (hits.length >= 1 && hits[0] !== undefined) return hits[0];",
+      "occurrences": 1,
+      "expect_failing": [
+        "機能の選び方と URL 一致する機能が 2 件ある ときは推測で選ばずに誤りにする",
+        "設定とブラウザの誤り 呼び名が 2 件ある ときは exit 2 で終わり、理由を出す"
+      ]
+    },
+    {
+      "id": "feature-check-same-document-reload",
+      "why": "path が # を含む機能で、同じ文書の中の移動の後に読み込み直さない（2 つ目以降の check が読み込みを待ってタイムアウトし、前の check の状態も持ち越す）",
+      "file": "skills/browser-test/scripts/feature-check.mjs",
+      "find": "if (field(nav, \"loaderId\") === undefined) await this.tab.send(\"Page.reload\");",
+      "replace": "if (false) await this.tab.send(\"Page.reload\");",
+      "occurrences": 1,
+      "expect_failing": [
+        "実際の Chrome で機能を確かめる path が # を含む機能でも、check ごとにページを読み込み直し、前の check の状態を持ち越さない"
+      ]
+    },
+    {
+      "id": "feature-check-strip-base-query",
+      "why": "環境の url のクエリとフラグメントを残し、path がその一部になる（別のページを確かめる）",
+      "file": "skills/browser-test/scripts/feature-check.mjs",
+      "find": "  origin.search = \"\";\n  origin.hash = \"\";\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "機能の選び方と URL https://h.example/app/?a=1 と /p から https://h.example/app/p を開く（path は環境の url からの相対）",
+        "機能の選び方と URL https://h.example/app#top と /p?q=1 から https://h.example/app/p?q=1 を開く（path は環境の url からの相対）"
+      ]
+    }
+  ]
+}

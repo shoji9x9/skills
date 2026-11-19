@@ -28,6 +28,7 @@ export const IS_ARRAY_HOLDERS = [
   ...SKILL_CONFIG_READERS,
   "scripts/lib/is-array.ts",
   "scripts/mutation/check-mutation-proof.ts",
+  "skills/browser-test/scripts/lib/is-array.mjs",
   "skills/golden-dataset/scripts/lib/is-array.mjs",
   "skills/issue-start/scripts/lib/is-array.mjs",
   "skills/agent-usage/scripts/lib/is-array.mjs",

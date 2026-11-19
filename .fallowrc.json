@@ -71,6 +71,10 @@
       "exports": ["*"]
     },
     {
+      "file": "skills/browser-test/scripts/lib/is-array.mjs",
+      "exports": ["*"]
+    },
+    {
       "file": "skills/browser-test/scripts/skill-config/skill-config.mjs",
       "exports": ["*"]
     },
