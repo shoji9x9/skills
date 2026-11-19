@@ -43,6 +43,8 @@ const DIRECTIVES: Record<string, string[]> = {
   "biome-ignore": ["", "-all", "-start", "-end"],
   "@ts-expect-error": [""],
   "deno-lint-ignore": ["", "-file"],
+  // fallow は使われない抑止を stale-suppressions として報告する。接尾辞の無い `fallow-ignore` は指示ではない。
+  "fallow-ignore": ["-next-line", "-file"],
 };
 
 // 指示と接尾辞は英小文字・`-`・`@` だけなので、文字クラスの外ではそのまま正規表現に置ける。

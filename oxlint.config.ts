@@ -5,7 +5,23 @@ import { PENDING_FIXES, pendingOverrides } from "./scripts/gates/code/oxlint-pen
 
 // 禁じるプロパティ。型ガード isArray を持つファイル（IS_ARRAY_HOLDERS）では、`Array.isArray` だけを除いた一覧を当てる。
 // 規則ごと "off" にしないのは、ここに足した他の禁止まで、そのファイルで外れてしまうからである。
-const RESTRICTED_PROPERTIES = [IS_ARRAY_RESTRICTION];
+// vi.mock・vi.doMock・vi.importMock は、このリポジトリのモジュールを差し替えて本物のつなぎ方を確かめなくなる
+// （docs/testing.md「偽物（スタブ・モック・fixture）を使う場面」）。
+// vi.importActual は、fallow が参照の向きを判定できない読み方である（docs/tooling.md の fallow の節）。
+const MOCK_MESSAGE =
+  "モジュールを差し替えない。偽物は境界（外部コマンド・ネットワーク）にだけ使う（docs/testing.md）";
+const VITEST_RESTRICTIONS = [
+  { object: "vi", property: "mock", message: `vi.mock は使わない。${MOCK_MESSAGE}` },
+  { object: "vi", property: "doMock", message: `vi.doMock は使わない。${MOCK_MESSAGE}` },
+  { object: "vi", property: "importMock", message: `vi.importMock は使わない。${MOCK_MESSAGE}` },
+  {
+    object: "vi",
+    property: "importActual",
+    message:
+      "vi.importActual は fallow が参照の向きを判定できない。import で読む（docs/tooling.md）",
+  },
+];
+const RESTRICTED_PROPERTIES = [IS_ARRAY_RESTRICTION, ...VITEST_RESTRICTIONS];
 
 export default defineConfig({
   plugins: ["typescript", "unicorn", "oxc", "import"],
