@@ -400,6 +400,11 @@ export class Cdp {
 }
 
 /**
+ * タブを操作する処理が使う部分。テストは、この形の偽物を渡して確かめる。
+ * @typedef {Pick<Tab, "send" | "on" | "waitEvent">} TabApi
+ */
+
+/**
  * 1 つのタブとの接続。要求とイベントを、そのタブの sessionId に絞る。
  */
 class Tab {
@@ -588,7 +593,7 @@ async function openBrowser(opts) {
 
 /**
  * ページの中で featureCheckInPage を実行する。
- * @param {Tab} tab
+ * @param {TabApi} tab
  * @param {Parameters<typeof featureCheckInPage>[0]} args
  * @returns {Promise<{ ok: boolean, message?: string }>}
  */
@@ -612,7 +617,7 @@ async function evaluate(tab, args) {
 
 /**
  * 条件が成り立つまで待つ。ページの移動の途中で評価が失敗しても、時間内なら続けて試す。
- * @param {Tab} tab
+ * @param {TabApi} tab
  * @param {Parameters<typeof featureCheckInPage>[0]} args
  * @param {number} timeoutMs
  * @returns {Promise<{ ok: boolean, message?: string }>}
@@ -634,7 +639,7 @@ async function poll(tab, args, timeoutMs) {
 
 /**
  * キーを 1 回押して離す。
- * @param {Tab} tab
+ * @param {TabApi} tab
  * @param {string} name
  * @returns {Promise<{ ok: boolean, message?: string }>}
  */
@@ -681,7 +686,7 @@ function probeOf(kind, step, timeoutMs) {
 
 /**
  * step を 1 つ実行する。
- * @param {Tab} tab
+ * @param {TabApi} tab
  * @param {Step} step
  * @param {number} timeoutMs
  * @returns {Promise<{ ok: boolean, message?: string }>}
@@ -723,7 +728,7 @@ function consoleText(args) {
 /**
  * タブの console の error と warning、捕まえられなかった例外、ブラウザのログの error と warning を集める。
  * `during` には、メッセージが出たときに行っていたこと（load か check の番号）を入れる。
- * @param {Tab} tab
+ * @param {TabApi} tab
  */
 function collectConsole(tab) {
   /** @type {{ level: string, text: string, during: string }[]} */
@@ -765,7 +770,7 @@ const READ_METHODS = ["GET", "HEAD", "OPTIONS"];
  * タブの要求のうち、読むだけのもの（GET・HEAD・OPTIONS）だけを通し、それ以外（POST・PUT・DELETE など）を止めて記録する。
  * side_effect: false の宣言を誤っていても、HTTP の書き込みを送らないためである。WebSocket と、副作用を持つ GET は止められない。
  * 要求を止めるには、この後に Fetch.enable を送る。
- * @param {Tab} tab
+ * @param {TabApi} tab
  * @param {{ during: string }} state メッセージを出したときに行っていたこと（collectConsole と共有する）
  * @returns {{ method: string, during: string }[]}
  */
@@ -792,9 +797,9 @@ function blockWrites(tab, state) {
 /**
  * 機能を確かめる 1 つのタブ。ページを開く・スクリーンショットを撮る・check を実行する。
  */
-class FeatureRun {
+export class FeatureRun {
   /**
-   * @param {Tab} tab
+   * @param {TabApi} tab
    * @param {Options} opts
    * @param {{ url: string, out: string }} where
    */
@@ -812,7 +817,15 @@ class FeatureRun {
     // ページを開けなかったときは、読み込みの待ち（タイマーとリスナー）をすぐに外す
     const cancel = new AbortController();
     const loaded = this.tab.waitEvent("Page.loadEventFired", this.timeoutMs, cancel.signal);
-    const nav = await this.tab.send("Page.navigate", { url: this.url });
+    /** @type {unknown} */
+    let nav;
+    try {
+      nav = await this.tab.send("Page.navigate", { url: this.url });
+    } catch (e) {
+      // 要求そのものが失敗した（応答が無い・接続が切れた）ときも、待ちを外してから呼び出し元へ伝える
+      cancel.abort();
+      throw e;
+    }
     const errorText = field(nav, "errorText");
     if (typeof errorText === "string" && errorText !== "") {
       cancel.abort();

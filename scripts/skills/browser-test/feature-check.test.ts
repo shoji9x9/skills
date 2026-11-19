@@ -19,6 +19,7 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import {
   exitCodeOf,
+  FeatureRun,
   featureUrl,
   findChrome,
   parseArgs,
@@ -245,6 +246,30 @@ describe("Chrome の探し方", () => {
 });
 
 // ---- 実際の Chrome で操作する ----
+
+describe("ページを開く", () => {
+  test("Page.navigate の要求そのものが失敗したら、読み込みの待ちを外してから誤りを伝える", async () => {
+    let signal: AbortSignal | undefined;
+    const tab = {
+      on: () => undefined,
+      send: async (method: string) => {
+        if (method === "Page.navigate") throw new Error("ブラウザとの接続が切れた");
+        return {};
+      },
+      waitEvent: async (_method: string, _timeoutMs: number, s?: AbortSignal) => {
+        signal = s;
+        return false;
+      },
+    };
+    const opts = parseArgs(["--feature", "f", "--env", "local", "--timeout-ms", "20000"]);
+    const run = new FeatureRun(tab, opts, {
+      url: "http://127.0.0.1/",
+      out: makeTempDir("feature-check-out-"),
+    });
+    await expect(run.open()).rejects.toThrow("接続が切れた");
+    expect(signal?.aborted).toBe(true);
+  });
+});
 
 /** 手元のサーバーが返すページ。検索欄・結果・保存のボタン（押すと POST を送る）を持つ。 */
 const PAGE = (extra: string) => `<!doctype html><meta charset="utf-8">
