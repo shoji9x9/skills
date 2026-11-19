@@ -350,7 +350,6 @@ markdownlint-cli2 は `.mjs`・`.png`・`.yml` まで書き換えて構文エラ
 
 どの渡し方でも割り当て外の種類が変わらないことは、`scripts/gates/tooling/formatter-scope.test.ts` が実物のツールで確かめる。
 許可リストと lefthook の一致は `scripts/gates/tooling/lint-scope.test.ts` が確かめる。
-Markdown の整形は `markdownlint-cli2 --fix` で行う。
 生成物は、生成スクリプト自身が出力ファイルを並べて整形する。手順書で人に oxfmt を当てさせない。
 
 `markdownlint-cli2` の行長のルール（MD013）は strict にせずに使う（`line_length: 200`。`code_blocks`・`tables`・`headings` は除く）。
