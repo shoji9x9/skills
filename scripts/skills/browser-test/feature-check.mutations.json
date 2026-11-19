@@ -49,7 +49,8 @@
         "実際の Chrome で機能を確かめる 待つ要素が現れない ときは check を failed にし、exit 1 で終わる",
         "実際の Chrome で機能を確かめる 操作する要素が無いときは check を failed にし、exit 1 で終わる",
         "実際の Chrome で機能を確かめる セレクタの書き方が誤っているときは、ページの中で出た例外の理由を step の message に添える",
-        "実際の Chrome で機能を確かめる path が # を含む機能でも、check ごとにページを読み込み直し、前の check の状態を持ち越さない"
+        "実際の Chrome で機能を確かめる path が # を含む機能でも、check ごとにページを読み込み直し、前の check の状態を持ち越さない",
+        "実際の Chrome で機能を確かめる 無効になっている要素を click するときは、操作できたとせずに check を failed にし、exit 1 で終わる"
       ]
     },
     {
@@ -72,7 +73,8 @@
       "replace": "if (false) await this.tab.send(\"Page.reload\");",
       "occurrences": 1,
       "expect_failing": [
-        "実際の Chrome で機能を確かめる path が # を含む機能でも、check ごとにページを読み込み直し、前の check の状態を持ち越さない"
+        "実際の Chrome で機能を確かめる path が # を含む機能でも、check ごとにページを読み込み直し、前の check の状態を持ち越さない",
+        "ページを開く Page.reload の要求そのものが失敗したら、読み込みの待ちを外してから誤りを伝える"
       ]
     },
     {

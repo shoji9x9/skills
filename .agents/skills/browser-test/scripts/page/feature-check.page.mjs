@@ -35,18 +35,26 @@ export function featureCheckInPage(a) {
     input.dispatchEvent(new Event("change", { bubbles: true }));
     return { ok: true };
   };
+  /** @returns {{ el: HTMLElement } | { message: string }} 操作できる要素か、操作できない理由 */
+  const operable = () => {
+    if (el === null) return { message: `要素が無い: ${a.selector}` };
+    if (!(el instanceof HTMLElement)) return { message: `操作できる要素でない: ${a.selector}` };
+    // 無効な要素は click も入力も受け付けないので、操作できたとして返さない
+    if (el.matches(":disabled")) return { message: `無効になっている要素: ${a.selector}` };
+    return { el };
+  };
   /** 操作する kind の結果。 */
   const act = () => {
-    if (el === null) return { ok: false, message: `要素が無い: ${a.selector}` };
-    if (!(el instanceof HTMLElement))
-      return { ok: false, message: `操作できる要素でない: ${a.selector}` };
-    el.scrollIntoView({ block: "center" });
+    const target = operable();
+    if ("message" in target) return { ok: false, message: target.message };
+    target.el.scrollIntoView({ block: "center" });
     if (a.kind === "click") {
-      el.click();
+      target.el.click();
       return { ok: true };
     }
     if (a.kind !== "fill") return { ok: false, message: `知らない操作: ${a.kind}` };
-    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return fill(el);
+    if (target.el instanceof HTMLInputElement || target.el instanceof HTMLTextAreaElement)
+      return fill(target.el);
     return { ok: false, message: `入力欄でない: ${a.selector}` };
   };
   return probe() ?? act();

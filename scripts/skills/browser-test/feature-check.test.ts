@@ -279,6 +279,7 @@ describe("ページを開く", () => {
 const PAGE = (extra: string) => `<!doctype html><meta charset="utf-8">
 <input id="q"><div id="r"></div><button id="save" onclick="fetch('/save', { method: 'POST' })">保存</button>
 <button id="toggle" onclick="document.getElementById('r').textContent = 'toggled'">切り替え</button>
+<button id="off" disabled onclick="document.getElementById('r').textContent = 'off'">無効</button>
 <script>
   document.getElementById("q").addEventListener("keydown", (e) => {
     if (e.key === "Enter") document.getElementById("r").textContent = "hit: " + e.target.value;
@@ -451,6 +452,16 @@ describe("実際の Chrome で機能を確かめる", () => {
       ["passed", undefined],
       ["failed", "1 番目の step が失敗した"],
     ]);
+  }, 60000);
+
+  test("無効になっている要素を click するときは、操作できたとせずに check を failed にし、exit 1 で終わる", async () => {
+    const check = { action: "a", expect: "b", steps: [{ click: "#off", side_effect: false }] };
+    const r = await run(repo([{ name: "f", path: "/", checks: [check] }]), "f");
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.json.checks[0]?.steps?.[0]).toMatchObject({
+      ok: false,
+      message: "無効になっている要素: #off",
+    });
   }, 60000);
 
   test("操作する要素が無いときは check を failed にし、exit 1 で終わる", async () => {
