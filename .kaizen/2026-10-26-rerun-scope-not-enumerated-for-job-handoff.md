@@ -1,7 +1,7 @@
 ---
 date: 2026-10-26
 type: rule
-priority: high
+priority: medium
 confidence: high
 status: pending
 applied-to: []
@@ -42,6 +42,9 @@ KEDB 照合（再実行・run_attempt）は一致なし。
 
 PR #1081 での再発で、確信度を high にした。同じ原因（受け渡しで、渡す側のジョブの失敗を当てていない）である。
 KEDB 照合（シャード・artifact、期待する集合・観測）は一致なし。本文を読み比べてこのノートと同じ原因と決めた。
+
+2026-11-19 の見直し（Issue #1082）で、優先度を high から medium に下げた。
+3 回ともレビューの指摘で見つかった手戻りで、作業がその場で止まったことは無い（`references/extract.md` の基準の medium）。
 
 ## 既存の規約
 

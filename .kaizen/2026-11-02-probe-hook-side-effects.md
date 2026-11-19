@@ -1,10 +1,10 @@
 ---
 date: 2026-11-02
-type: rule
+type: doc
 priority: high
 confidence: high
-status: pending
-applied-to: []
+status: applied
+applied-to: ["AGENTS.md", "docs/agent-workflow.md"]
 session: claude-code
 ---
 
