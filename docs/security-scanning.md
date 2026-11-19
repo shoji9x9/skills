@@ -40,7 +40,12 @@ templates=()
 for f in skills/*/assets/*.yml skills/*/assets/*.yaml; do
   if grep -qE '^jobs:' "$f"; then templates+=("$f"); fi
 done
-GH_TOKEN="$(gh auth token)" zizmor .github "${templates[@]}"
+if [ "${#templates[@]}" -eq 0 ]; then
+  echo 'テンプレートが 0 件なので検査しない（glob と jobs: の判定を確認する）' >&2
+  false
+else
+  GH_TOKEN="$(gh auth token)" zizmor .github "${templates[@]}"
+fi
 ```
 
 `GH_TOKEN` を渡さないと、GitHub API を読む検査（タグの付け替え・既知の脆弱性を持つ Action）が実行されない。
