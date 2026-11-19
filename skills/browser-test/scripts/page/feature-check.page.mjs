@@ -23,8 +23,9 @@ export function featureCheckInPage(a) {
     const text = el instanceof HTMLElement ? el.innerText : (el?.textContent ?? "");
     return { ok: el !== null && text.includes(a.text ?? "") };
   };
-  /** @param {HTMLInputElement | HTMLTextAreaElement} input */
+  /** @param {HTMLInputElement | HTMLTextAreaElement} input 読み取り専用の欄は利用者が入力できないので、入力できたとして返さない */
   const fill = (input) => {
+    if (input.readOnly) return { ok: false, message: `読み取り専用の要素: ${a.selector}` };
     input.focus();
     const proto =
       input instanceof HTMLInputElement

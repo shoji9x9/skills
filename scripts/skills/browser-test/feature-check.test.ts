@@ -287,6 +287,7 @@ const PAGE = (extra: string) => `<!doctype html><meta charset="utf-8">
 <input id="q"><div id="r"></div><button id="save" onclick="fetch('/save', { method: 'POST' })">保存</button>
 <button id="toggle" onclick="document.getElementById('r').textContent = 'toggled'">切り替え</button>
 <button id="off" disabled onclick="document.getElementById('r').textContent = 'off'">無効</button>
+<input id="ro" readonly value="固定">
 <script>
   document.getElementById("q").addEventListener("keydown", (e) => {
     if (e.key === "Enter") document.getElementById("r").textContent = "hit: " + e.target.value;
@@ -475,6 +476,20 @@ describe("実際の Chrome で機能を確かめる", () => {
     expect(r.json.checks[0]?.steps?.[0]).toMatchObject({
       ok: false,
       message: "無効になっている要素: #off",
+    });
+  }, 60000);
+
+  test("読み取り専用の欄に fill するときは、入力できたとせずに check を failed にし、exit 1 で終わる", async () => {
+    const check = {
+      action: "a",
+      expect: "b",
+      steps: [{ fill: "#ro", value: "新しい値", side_effect: false }, { expect_visible: "#ro" }],
+    };
+    const r = await run(repo([{ name: "f", path: "/", checks: [check] }]), "f");
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.json.checks[0]?.steps?.[0]).toMatchObject({
+      ok: false,
+      message: "読み取り専用の要素: #ro",
     });
   }, 60000);
 

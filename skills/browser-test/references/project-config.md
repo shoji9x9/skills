@@ -148,6 +148,7 @@ node "$CFG" append browser-test environments '{"name":"dev","url":"https://dev.e
     CLI は `side_effect: false` と書いた操作だけを実行し、書いていない操作と `side_effect: true` の操作を含む check は 1 つも実行せずに `skipped` として返す。
     宣言を誤ったときのために、CLI は check の間、読むだけの要求（GET・HEAD・OPTIONS）だけを通し、それ以外の要求を止めてその check を `failed` にする。
     WebSocket と、副作用を持つ GET は止められないので、宣言は副作用が無いと確かめた操作だけに書く。
+    操作から時間をおいて送る要求は、CLI が次のページを開くかタブを閉じた時点で送られずに終わり、宣言の誤りとして検出されない。
     CLI は環境の `forbidden_actions` を読まない。副作用の無い操作でも `forbidden_actions` に当たりうるので、CLI を使うかはエージェントが step と突き合わせて決める（SKILL.md のフローの step 4）。
     副作用のある check は、エージェントが承認を得て確かめる
 
