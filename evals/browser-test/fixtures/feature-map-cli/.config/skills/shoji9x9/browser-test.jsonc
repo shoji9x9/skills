@@ -1,0 +1,42 @@
+{
+  "environments": [
+    {
+      "name": "local",
+      "url": "http://localhost:5173",
+      "auth": "none",
+      "start": "pnpm run dev",
+      "default": true,
+      "forbidden_actions": []
+    }
+  ],
+  "features": [
+    {
+      "name": "左のサイドバーの検索",
+      "path": "/",
+      "sources": ["src/components/Sidebar/**"],
+      "checks": [
+        {
+          "action": "サイドバーの検索欄に「議事録」と入力する",
+          "expect": "一覧が、タイトルに「議事録」を含むノートだけになる",
+          "steps": [
+            {
+              "fill": "input[aria-label=\"ノートを検索\"]",
+              "value": "議事録",
+              "side_effect": false
+            },
+            { "expect_text": "議事録", "in": "aside" }
+          ]
+        },
+        {
+          "action": "検索の結果の先頭のノートをピン留めする",
+          "expect": "ノートに「ピン留め中」の印が付く",
+          "steps": [{ "click": "button[aria-label=\"ピン留め\"]" }, { "expect_text": "ピン留め中" }]
+        },
+        {
+          "action": "検索欄の幅が、サイドバーに収まっている",
+          "expect": "検索欄がサイドバーからはみ出していない"
+        }
+      ]
+    }
+  ]
+}

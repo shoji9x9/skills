@@ -17,7 +17,7 @@ scripts/eval/run/run-skill-eval.sh \
   --out tests/browser-test/iteration-1/eval-1/with_skill/run-1 \
   --model opus
 
-# fixture 付き eval（eval 5・7・9〜12）は --fixture で事前状態を使い捨てプロジェクトへコピーして実行する
+# fixture 付き eval（eval 5・7・9〜13）は --fixture で事前状態を使い捨てプロジェクトへコピーして実行する
 scripts/eval/run/run-skill-eval.sh \
   --skill browser-test --config with_skill \
   --fixture evals/browser-test/fixtures/handoff-ignores-config \
@@ -40,3 +40,7 @@ scripts/eval/run/run-skill-eval.sh \
   eval 12（`feature-map`・`--scope uncommitted`）は、差分のファイルが `sources` に当たる機能の `checks` を足し、機能の `path` の外の `/settings` も対象に残すことを見る。
   どの eval も、起動コマンドを自分で実行しない・ページを開いた直後の console の確認を挙げる、の 2 本で Delta を見る。ほかの assertion は、baseline も fixture の `browser-test.jsonc` を読んで満たせるので、後退の検出のためのものである。
   どれもローカルの環境は動いていないので、起動を促して止まる。止まるときの報告に挙げた対象のページと観点で採点する（`SKILL.md` の「前提」）。
+- eval 13 は、機能マップの機能を同梱の CLI（`scripts/feature-check.mjs`）で確かめる手順を見る。fixture `feature-map-cli` は `feature-map` と同じアプリを持ち、機能の `checks` に次の 3 つを書く。
+  `steps` を持ち副作用の無い操作だけの check（検索）、`click` に `side_effect: false` が無い check（ピン留め）、`steps` の無い check（検索欄の幅）である。
+  CLI に機能の呼び名と環境を渡すこと、ピン留めを承認の要る操作として CLI に任せないこと、`steps` の無い check を MCP のツールで確かめることを見る。
+  ローカルの環境は動いていないので、止まるときの報告に挙げた手順で採点する。Delta は 1 本目（CLI を使う）で見る。
