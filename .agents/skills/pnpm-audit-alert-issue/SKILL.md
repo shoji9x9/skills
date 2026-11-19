@@ -111,8 +111,8 @@ cat "$tmpdir/compare-summary.json"
 
 - alerts の取得が 403 や 404 で失敗したら、比べずに止まる。取得に失敗したことを、alert が 0 件として扱わない（原因の切り分けは `dependabot-alert-issue` の「gh メカニクス」に従う）
 - `pnpm config get audit` が失敗したときも、比べずに止まる。無視の一覧を 0 件として比べると、却下した alert が `only_in_alerts` に出る
-- 比べた結果は、組の一覧（`matched`・`matched_ignored`・`only_in_audit`・`only_in_alerts`・`skipped_dismissed`・`without_ghsa`）と、`ignored_without_alert` と、`findings_to_file` である。
-  `ignored_without_alert` は alert の無い無視の GHSA で、`findings_to_file` は起票に渡す件数である。
+- 比べた結果は、組の一覧（`matched`・`matched_ignored`・`only_in_audit`・`only_in_alerts`・`skipped_dismissed`）と、`without_ghsa`・`ignored_without_alert`・`findings_to_file` である。
+  `without_ghsa` は GHSA の無い finding の一覧で、組として比べられない。`ignored_without_alert` は alert の無い無視の GHSA で、`findings_to_file` は起票に渡す件数である。
   GHSA は GitHub の表記（接頭辞だけ大文字）で出す。終了コードは、比べられたら 0、入力を読めなければ 1、引数の誤りは 2 になる
 - `ghsa` の無い finding は、alerts と比べられないので `without_ghsa` に 1 件ずつ出て、起票に渡す側に残る。報告では、GHSA が無くて比べられなかったと書く
 - `skipped_dismissed` は、却下された alert（`dismissed`・`auto_dismissed`）と同じ組の finding で、組に一致した alert の状態（`state`）を付けて出す。起票に渡さない。`matched` にも数える。
@@ -138,7 +138,7 @@ cat "$tmpdir/compare-summary.json"
 
    - 1 件ならそれを記録先にする
    - 0 件か複数件なら、記録先を選ばず、利用者に確かめる。複数件のときは候補を示し、0 件のときは見つからなかったことを伝える。
-     0 件で利用者が作ると決めたら、`issue-create` で作る。docs は「見つからなければ作る」と書くが、勝手に作らず、作る前に確かめる。
+     0 件で利用者が作ると決めたら、`issue-create` で作る。
      タイトルは `pnpm-audit-alert-issue:` で始める。別の題で作ると、次の回の検索で見つからない
    - 検索は件数の上限（100 件）を置く。タイトルで絞るので、上限に達するほど該当する Issue があれば、絞り込みの誤りを疑って利用者に確かめる
 2. 前の回の記録を、その Issue の本文とコメントから読む。コメントは `gh issue view <番号> --json body,comments` で取得する。
