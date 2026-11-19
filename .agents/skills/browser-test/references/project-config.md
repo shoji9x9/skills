@@ -131,6 +131,26 @@ node "$CFG" append browser-test environments '{"name":"dev","url":"https://dev.e
 - `path`: 開くページ。環境の `url` からの相対のパスで、`/` で始める。どの環境でも同じ機能を指せるよう、ホスト名を含めない。別のホストを指す値（`//host`・`/\host` など）を受け付けないよう、スキーマは URL のパスに使う文字（英数字と `-._~!$&'()*+,;=:@%/?#`）だけを受け付け、2 文字目の `/` を拒否する
 - `sources`（任意）: 変更したらこの機能に当たるソースのパス（リポジトリのルートからの glob）。差分のファイルから機能を探すのに使う
 - `checks`: 確かめる操作（`action`）と、期待する結果（`expect`）の組の一覧
+  - `steps`（任意）: 同梱の CLI（`scripts/feature-check.mjs`）が実行する手順。`steps` の無い check は、エージェントが `action` と `expect` に従って確かめる。
+    CLI は、結果を確かめる step（`expect_visible` か `expect_text`）を 1 つも持たない check を実行しない。その check も、エージェントが `action` と `expect` に従って確かめる。
+    各 step は次のどれか 1 つの形で書き、セレクタは CSS セレクタにする。
+
+    | step | 動き |
+    | --- | --- |
+    | `{ "click": "<セレクタ>", "side_effect": false }` | 要素が表示されるまで待ってからクリックする |
+    | `{ "fill": "<セレクタ>", "value": "<文字列>", "side_effect": false }` | 入力欄に値を入れる |
+    | `{ "press": "Enter", "side_effect": false }` | キーを押す（`Enter`・`Escape`・`Tab`・矢印・`Space`・`Backspace`） |
+    | `{ "wait_for": "<セレクタ>" }` | 要素が現れるまで待つ |
+    | `{ "expect_visible": "<セレクタ>" }` | 要素が表示されることを確かめる |
+    | `{ "expect_text": "<文字列>", "in": "<セレクタ>" }` | 文字が現れることを確かめる（`in` が無ければページ全体） |
+
+    `click`・`fill`・`press` は、副作用（書き込み・課金・生成・通知）が無いときだけ `side_effect: false` と書く。
+    CLI は `side_effect: false` と書いた操作だけを実行し、書いていない操作と `side_effect: true` の操作を含む check は 1 つも実行せずに `skipped` として返す。
+    宣言を誤ったときのために、CLI は check の間、読むだけの要求（GET・HEAD・OPTIONS）だけを通し、それ以外の要求を止めてその check を `failed` にする。
+    WebSocket と、副作用を持つ GET は止められないので、宣言は副作用が無いと確かめた操作だけに書く。
+    操作から時間をおいて送る要求は、CLI が次のページを開くかタブを閉じた時点で送られずに終わり、宣言の誤りとして検出されない。
+    CLI は環境の `forbidden_actions` を読まない。副作用の無い操作でも `forbidden_actions` に当たりうるので、CLI を使うかはエージェントが step と突き合わせて決める（SKILL.md のフローの step 4）。
+    副作用のある check は、エージェントが承認を得て確かめる
 
 ```jsonc
 // .config/skills/shoji9x9/browser-test.jsonc
@@ -143,7 +163,16 @@ node "$CFG" append browser-test environments '{"name":"dev","url":"https://dev.e
       "name": "左のサイドバーの検索",
       "path": "/",
       "sources": ["src/components/Sidebar/**"],
-      "checks": [{ "action": "サイドバーの検索欄に「設定」と入力する", "expect": "一覧が「設定」を含む項目だけになる" }]
+      "checks": [
+        {
+          "action": "サイドバーの検索欄に「設定」と入力する",
+          "expect": "一覧が「設定」を含む項目だけになる",
+          "steps": [
+            { "fill": "#sidebar-search", "value": "設定", "side_effect": false },
+            { "expect_text": "設定", "in": "#sidebar-results" }
+          ]
+        }
+      ]
     }
   ]
 }
@@ -172,5 +201,6 @@ node "$CFG" append browser-test features '{"name":"左のサイドバーの検�
    ページごとの画面の主な部品（検索欄・タブ・トグル・一覧など）から、機能の呼び名・`path`・`sources`・`checks` の案を作る。
    画面をブラウザで開いて確かめられるのは、ローカルの環境が動いているときだけである。動いていなければ、ソースから案を作り、画面で確かめていないことを添える。
    `checks` の案には、副作用の無い操作を書く。副作用を伴う操作が要る機能は、そのことを案に書いて利用者に決めてもらう。
+   ソースから要素のセレクタ（`id`・`name`・`role` など）を決められる check には、`steps` の案も添える。`side_effect: false` は、操作に副作用が無いと利用者が承認したものだけに書く。
 5. 下書きを利用者に示し、承認を得る。直すと言われた機能は直してから示し直す。承認を得た機能だけを、「機能マップ」の記録の決まりで書く。
    利用者が機能マップを要らないと答えたら、`features` を書かない。

@@ -257,6 +257,35 @@
           "prompt_quote": "回帰がないか見て"
         }
       ]
+    },
+    {
+      "id": 13,
+      "prompt": "browser-test --env local --scope custom で、「左のサイドバーの検索」を確かめて",
+      "fixture": "fixtures/feature-map-cli",
+      "assertions": [
+        "機能「左のサイドバーの検索」を、同梱の CLI（scripts/feature-check.mjs）に --feature で機能の呼び名と、--env local を渡して確かめる手順を挙げている",
+        "ピン留めの check は、click の step に side_effect: false が無いので CLI が実行しないと判断し、利用者の承認を得てから確かめるものとして扱っている",
+        "steps の無い check（検索欄の幅）は、CLI ではなく MCP のツールで action と expect のとおりに確かめるものとして挙げている",
+        "ローカルの環境（http://localhost:5173）が動いていないことを確かめ、起動コマンド（pnpm run dev）を自分では実行せずに、実行を促して止まっている"
+      ],
+      "reachability": [
+        {
+          "assertion": "機能「左のサイドバーの検索」を、同梱の CLI（scripts/feature-check.mjs）に --feature で機能の呼び名と、--env local を渡して確かめる手順を挙げている",
+          "prompt_quote": "「左のサイドバーの検索」を確かめて"
+        },
+        {
+          "assertion": "ピン留めの check は、click の step に side_effect: false が無いので CLI が実行しないと判断し、利用者の承認を得てから確かめるものとして扱っている",
+          "prompt_quote": "「左のサイドバーの検索」を確かめて"
+        },
+        {
+          "assertion": "steps の無い check（検索欄の幅）は、CLI ではなく MCP のツールで action と expect のとおりに確かめるものとして挙げている",
+          "prompt_quote": "「左のサイドバーの検索」を確かめて"
+        },
+        {
+          "assertion": "ローカルの環境（http://localhost:5173）が動いていないことを確かめ、起動コマンド（pnpm run dev）を自分では実行せずに、実行を促して止まっている",
+          "prompt_quote": "--env local"
+        }
+      ]
     }
   ]
 }
