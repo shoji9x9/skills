@@ -60,6 +60,7 @@
     "scripts/skills/pnpm-audit-alert-issue/normalize-pnpm-audit.mutations.json": 1.4,
     "scripts/skills/pr-finalize-loop/claude-review-action.mutations.json": 1.9,
     "scripts/skills/pr-finalize-loop/local-review-record.mutations.json": 1.6,
+    "scripts/skills/pr-finalize-loop/wait-review.mutations.json": 5.5,
     "scripts/skills/replace-strategy/append-only-check.mutations.json": 7,
     "scripts/skills/replace-strategy/asset-delivery-check.mutations.json": 1,
     "scripts/skills/replace-strategy/evidence-gap-check.mutations.json": 3.1,
