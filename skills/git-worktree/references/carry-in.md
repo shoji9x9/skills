@@ -28,6 +28,37 @@ Claude Code には、ファイルを運ぶ方法が 2 つある。`.worktreeincl
 
 「`.env` や受領物が要る作業か」で決める。要らないなら、リポジトリの外に置いて除外の手間をなくすのが安い。
 
+## Codex の場合
+
+Codex で `.worktreeinclude` を適用するのは、ChatGPT デスクトップアプリがローカルに管理用の worktree を作るときだけである
+（[Worktrees](https://learn.chatgpt.com/docs/environments/git-worktrees)）。
+
+Codex CLI が作る worktree には、ファイルが運ばれない。
+`codex --worktree` と `codex exec --worktree` で作った worktree には、追跡済みのファイル（`.worktreeinclude` 自身を含む）だけが入る。
+`.worktreeinclude` に書いた無視対象の `.env` はコピーされなかった（Codex CLI 0.171.0 の `codex exec --worktree` で確かめた）。
+この挙動は上流の [openai/codex#60015](https://github.com/openai/codex/issues/60015) で報告されている。
+`git worktree add` で自分で作った worktree に `codex -C <パス>` で入る場合も、ファイルは運ばれない。
+
+そのため、Codex CLI で worktree を使うリポジトリでは、`setup` で `carry_in.method` に `manual` を選び、要るファイルを `carry_in.files` に挙げる。
+上流の Issue が解決して CLI も `.worktreeinclude` を適用するようになるまでは、`worktreeinclude` を選んでも CLI の worktree ではファイルが揃わない。
+
+worktree に入った後、`carry_in.files` に挙げたファイルを 1 件ずつ手でコピーする。
+`carry_in.files` にパターン（`.config/skills/shoji9x9/*.local.jsonc` など）を書いた場合は、共有ツリーで一致するファイルを先に挙げ、1 件ずつ次の手順を当てる。
+コピーする前に、コピー先で対象のファイルが Git の無視対象になっていることを確かめる。
+無視対象でないファイル（`.env` など）をコピーすると、未追跡のファイルとして `git status` に現れ、`git add -A` で commit に入る。
+
+```bash
+src=<共有ツリーのルート>
+wt=<worktree のルート>
+f=.env   # carry_in.files の 1 件（パターンなら、一致したファイルの 1 件）
+if git -C "$wt" check-ignore -q -- "$f"; then
+  mkdir -p "$wt/$(dirname "$f")"
+  cp -p "$src/$f" "$wt/$f"
+else
+  echo "$f はコピー先で無視対象ではない。コピーしない" >&2
+fi
+```
+
 ## `.worktreeinclude`（コピー）
 
 リポジトリの直下に置く、`.gitignore` と同じ書式のファイルである。1 行に 1 つのパターンを書き、`#` で始まる行はコメント、空行は無視される。
