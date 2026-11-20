@@ -47,16 +47,32 @@ worktree に入った後、`carry_in.files` に挙げたファイルを 1 件ず
 コピーする前に、コピー先で対象のファイルが Git の無視対象になっていることを確かめる。
 無視対象でないファイル（`.env` など）をコピーすると、未追跡のファイルとして `git status` に現れ、`git add -A` で commit に入る。
 
+`cp` は、コピー先に既にあるファイルを上書きし、コピー先がシンボリックリンクならリンク先に書き込む。
+そのため、次のどれかに当たれば、コピーせずに 0 以外で止まる。
+
+- コピー先で無視対象ではない
+- 共有ツリーのファイルが、通常のファイルでないか、シンボリックリンクである（自動のコピーも、ソース側のシンボリックリンクを飛ばす）
+- コピー先に、ファイルかシンボリックリンクが既にある（worktree の中で変えた `.env` を上書きしない）
+- コピー先のディレクトリの実体が、worktree の外にある（commit されたシンボリックリンクを通って外に書き込まない）
+
+止まったら、理由を確かめてから、そのファイルを運ぶかを決め直す。
+
 ```bash
 src=<共有ツリーのルート>
 wt=<worktree のルート>
 f=.env   # carry_in.files の 1 件（パターンなら、一致したファイルの 1 件）
-if git -C "$wt" check-ignore -q -- "$f"; then
-  mkdir -p "$wt/$(dirname "$f")"
-  cp -p "$src/$f" "$wt/$f"
-else
-  echo "$f はコピー先で無視対象ではない。コピーしない" >&2
-fi
+fail() { echo "$f: $1。コピーしない" >&2; exit 1; }
+git -C "$wt" check-ignore -q -- "$f" || fail "コピー先で無視対象ではない"
+if [ -L "$src/$f" ] || [ ! -f "$src/$f" ]; then fail "共有ツリーに通常のファイルとして無い"; fi
+if [ -e "$wt/$f" ] || [ -L "$wt/$f" ]; then fail "コピー先に既にある"; fi
+# コピー先のディレクトリのうち、既にある最も深いものの実体を worktree の実体と比べる
+d=$(dirname "$wt/$f")
+while [ ! -e "$d" ] && [ ! -L "$d" ]; do d=$(dirname "$d"); done
+real_wt=$(cd "$wt" && pwd -P) || fail "worktree のルートを解決できない"
+real_d=$(cd "$d" && pwd -P) || fail "コピー先のディレクトリを解決できない"
+case "$real_d/" in "$real_wt"/*) ;; *) fail "コピー先が worktree の外を指す" ;; esac
+mkdir -p "$(dirname "$wt/$f")"
+cp -p "$src/$f" "$wt/$f"
 ```
 
 ## `.worktreeinclude`（コピー）
