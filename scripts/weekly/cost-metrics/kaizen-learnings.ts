@@ -3,14 +3,15 @@
 //
 // 数える対象は `<dir>/*.md` と `<dir>/archive/*.md` のうち、名前が `YYYY-MM-DD-<slug>.md` のファイルである（archive の INDEX.md などは学びではない）。
 // 今の status は、作業ツリーのファイルの frontmatter から読む。
-// status が変わった日は、frontmatter に欄が無いので、git の履歴（`status:` の行を足した commit の日時）から読む。
+// status が変わった日は、frontmatter に欄が無いので、git の履歴から読む。学びを変えた commit ごとに、変更の後の全文を差分から組み立て、
+// その frontmatter の status を、その commit の日時の status として読む。差分の行だけを見ると、frontmatter の行と本文の行を区別できない。
 // 履歴は first-parent でたどり、merge commit は 1 つ目の親との差分で読む。日時は、変更が HEAD の系列（main など）に入った commit の日時になる。
 // PR の branch の commit をたどると、merge のときの競合の解消で足した学びを取りこぼす（merge commit の差分はデフォルトでは出ない）。
 // 学びはファイル名で追い、名前の変更（archive への移動・日付の書き直し）は git の `rename from`・`rename to` で追う。
-// 履歴の `status:` の行のうち、次のものは status の事象として読まず、読み飛ばした件数を本文に出す。
-// frontmatter の範囲（先頭の FRONTMATTER_LINES 行）の外に足した行（本文の例など）、知らない値の行、1 つの commit で同じ学びに 2 回目以降に足した行である。
-// git の履歴は後から直せないので、例外にすると、そうした commit が 1 件入っただけで週次の点検が止まり続ける。
-// 読み飛ばした結果で今の status が食い違えば、作業ツリーとの突き合わせ（checkHistory）が例外にする。
+// 変更の後の frontmatter から status を読めない commit（status が無い・知らない値・2 回ある、全文を組み立てられない）は、
+// status の事象として読まず、読み飛ばした件数を本文に出す。git の履歴は後から直せないので、例外にすると、
+// そうした commit が 1 件入っただけで週次の点検が止まり続ける。読み飛ばした結果で今の status が食い違えば、
+// 作業ツリーとの突き合わせ（checkHistory）が例外にする。
 // 再発は、frontmatter の `recurrence-of`（適用済みの学びと同じ原因で起きたと書いた学び）だけを数える。
 // 本文の KEDB 照合の記述は書き方が揃っていないので、読まない。
 //
@@ -28,8 +29,8 @@ import { median } from "./median.ts";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const NOTE_NAME = /^\d{4}-\d{2}-\d{2}-[^/\s]+\.md$/u;
 const COMMIT = "@@C ";
-/** frontmatter が収まると見なす行数。この行数より後に足した `status:` の行は、本文の行として読み飛ばす。 */
-const FRONTMATTER_LINES = 40;
+/** 差分の文脈の行数。学びのファイルより大きくし、hunk を 1 つにして変更の後の全文を出させる。 */
+const FULL_CONTEXT = 1_000_000;
 
 const STATUSES = ["pending", "applied", "forgotten", "rejected"] as const;
 export type Status = (typeof STATUSES)[number];
@@ -170,20 +171,50 @@ type CommitChanges = {
 type LogState = {
   commit: CommitChanges | null;
   file: string | null;
-  /** 次に足す行の、変更後のファイルでの行番号。hunk の見出しで決まる。 */
-  line: number;
+  /** 学びの差分の hunk に入ったか。hunk の中の `+` と ` ` の行は内容で、`+++` で始まる行も内容として読む。 */
+  inHunk: boolean;
+  /** hunk が 1 行目から始まらない（変更の後の全文を組み立てられない）。 */
+  partial: boolean;
+  /** 読んでいる差分が、ファイルを消す差分か。同じ commit で同じ名前を消して足す（archive への移動）ことがあるので、名前ではなく差分ごとに持つ。 */
+  deleting: boolean;
+  /** 変更の後のファイルの行（hunk の ` ` と `+` の行）。 */
+  content: string[];
   renameFrom: string | null;
   commits: CommitChanges[];
-  /** status の事象として読まなかった `status:` の行の数。 */
+  /** 変更の後の内容の frontmatter から status を読めなかった、学びの変更の数。 */
   skipped: number;
 };
 
+/** 変更の後の内容の frontmatter の status。読めなければ null。 */
+function statusOf(lines: readonly string[]): Status | null {
+  const end = lines.indexOf("---", 1);
+  if (lines[0] !== "---" || end === -1) return null;
+  const found = lines.slice(1, end).filter((line) => line.startsWith("status:"));
+  const value = found.length === 1 ? /^status: (\S+)$/u.exec(found[0] ?? "")?.[1] : undefined;
+  return value !== undefined && isStatus(value) ? value : null;
+}
+
+/** 読んでいた学びの差分を閉じ、変更の後の内容から status を読む。名前だけの変更（hunk が無い）と消した学びは読まない。 */
+function finishFile(state: LogState): void {
+  const { commit, file } = state;
+  if (commit !== null && file !== null && state.inHunk && !state.deleting) {
+    const status = state.partial ? null : statusOf(state.content);
+    if (status === null) state.skipped += 1;
+    else commit.set.set(file, status);
+  }
+  state.file = null;
+  state.inHunk = false;
+  state.partial = false;
+  state.deleting = false;
+  state.content = [];
+}
+
 function startCommit(state: LogState, line: string): void {
+  finishFile(state);
   const at = Date.parse(line.slice(COMMIT.length).split(" ")[1] ?? "");
   if (Number.isNaN(at)) throw new Error(`git log の commit の日時を読めない: ${line}`);
   state.commit = { at, renamed: [], deleted: [], set: new Map() };
   state.commits.push(state.commit);
-  state.file = null;
 }
 
 function renameLine(state: LogState, line: string, dir: string): void {
@@ -198,41 +229,40 @@ function renameLine(state: LogState, line: string, dir: string): void {
   state.renameFrom = null;
 }
 
-function addStatus(state: LogState, line: string): void {
-  const { commit, file } = state;
-  const at = state.line;
-  state.line += 1;
-  if (commit === null || file === null) return;
-  const value = /^\+status: (\S+)$/u.exec(line)?.[1];
-  // 同じ学びに 2 回目以降に足した行は、1 回目（ファイルの前の方にある frontmatter の行）より後ろの本文の行である。
-  if (at > FRONTMATTER_LINES || value === undefined || !isStatus(value) || commit.set.has(file)) {
-    state.skipped += 1;
+/** hunk の中の 1 行。変更の後の内容（` ` と `+` の行）を集め、消した行（`-`）と `\ No newline` の注記は読まない。 */
+function readHunkLine(state: LogState, line: string): void {
+  const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/u.exec(line);
+  if (hunk !== null) {
+    // 2 つ目以降の hunk か、1 行目より後から始まる hunk は、文脈が足りず全文を組み立てられない。
+    if (state.inHunk || Number(hunk[1]) > 1) state.partial = true;
+    state.inHunk = true;
     return;
   }
-  commit.set.set(file, value);
+  if (state.inHunk && (line.startsWith(" ") || line.startsWith("+"))) {
+    state.content.push(line.slice(1));
+  }
 }
 
 function readLogLine(state: LogState, line: string, dir: string): void {
   if (line.startsWith(COMMIT)) return startCommit(state, line);
   if (line.startsWith("diff --git ")) {
-    // 読めない見出しは学びでないとして扱い、前のファイルの名前を残さない。残すと、そのファイルに足した行を前の学びの status として読む。
+    finishFile(state);
+    // 読めない見出しは学びでないとして扱い、前のファイルの名前を残さない。残すと、そのファイルの内容を前の学びの内容として読む。
     const target = diffTarget(line);
     state.file = target === null ? null : noteNameOf(target, dir);
     return;
   }
-  const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/u.exec(line);
-  if (hunk !== null) {
-    state.line = Number(hunk[1]);
-    return;
+  if (state.file === null) return;
+  if (!state.inHunk) {
+    if (line.startsWith("rename from ") || line.startsWith("rename to "))
+      return renameLine(state, line, dir);
+    if (line.startsWith("deleted file mode")) {
+      state.deleting = true;
+      state.commit?.deleted.push(state.file);
+      return;
+    }
   }
-  if (line.startsWith("rename from ") || line.startsWith("rename to "))
-    return renameLine(state, line, dir);
-  if (line.startsWith("deleted file mode") && state.file !== null) {
-    state.commit?.deleted.push(state.file);
-    return;
-  }
-  if (line.startsWith("+status:")) return addStatus(state, line);
-  if (line.startsWith("+") && !line.startsWith("+++")) state.line += 1;
+  readHunkLine(state, line);
 }
 
 export type StatusHistory = { events: Map<string, StatusEvent[]>; skipped: number };
@@ -245,12 +275,16 @@ export function parseStatusLog(log: string, dir: string): StatusHistory {
   const state: LogState = {
     commit: null,
     file: null,
-    line: 0,
+    inHunk: false,
+    partial: false,
+    deleting: false,
+    content: [],
     renameFrom: null,
     commits: [],
     skipped: 0,
   };
   for (const line of log.split("\n")) readLogLine(state, line, dir);
+  finishFile(state);
   const events = new Map<string, StatusEvent[]>();
   const push = (name: string, event: StatusEvent): void => {
     events.set(name, [...(events.get(name) ?? []), event]);
@@ -291,7 +325,7 @@ export async function statusLog(run: Runner, root: string, dir: string): Promise
     "-M",
     `--format=${COMMIT}%H %cI`,
     "-p",
-    "--unified=0",
+    `--unified=${FULL_CONTEXT}`,
     "--no-color",
     "--no-ext-diff",
     // 本文に制御文字を含む学びを、git は binary として扱い、差分を出さない（制御文字を扱う学びで実測した）。
@@ -390,7 +424,7 @@ export type KaizenMetrics = {
   /** pending のまま、最初の記録から staleDays 日を過ぎた学び。 */
   stale: string[];
   recurrences: Recurrence[];
-  /** 履歴で status の事象として読まなかった `status:` の行の数。 */
+  /** 履歴のうち、変更の後の frontmatter から status を読めなかった学びの変更の数。 */
   skippedLines: number;
 };
 
@@ -544,7 +578,7 @@ export function kaizenTable(
     `- pending のまま ${config.staleDays} 日を過ぎた学び: ${listOrNone(metrics.stale)}`,
     `- 適用した後に同じ原因で再発した学び: ${metrics.recurrences.length} 件（直近 ${config.days} 日に ${recent} 件）`,
     "",
-    `日数は、git の履歴で \`status:\` の行を変えた commit の日時から数えた。履歴の \`status:\` の行のうち、frontmatter の範囲の外・知らない値・同じ commit の 2 回目以降の ${metrics.skippedLines} 行は読み飛ばした。`,
+    `日数は、git の履歴で学びを変えた commit の日時と、その commit の後の frontmatter の status から数えた。frontmatter から status を読めなかった学びの変更 ${metrics.skippedLines} 件は読み飛ばした。`,
     "再発は、frontmatter に `recurrence-of` を書いた学びだけを数え、この欄を書く前の学びは数えていない。",
     "",
     "</details>",

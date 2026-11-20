@@ -166,10 +166,11 @@ describe("学びのディレクトリ", () => {
 
 type Change =
   | { kind: "add"; path: string; status: string; line?: number }
-  | { kind: "modify"; path: string; status: string; line?: number }
+  | { kind: "modify"; path: string; status: string; line?: number; extra?: string[] }
   | { kind: "rename"; from: string; to: string }
   | { kind: "delete"; path: string; status: string }
-  | { kind: "body"; path: string; line: number };
+  | { kind: "body"; path: string }
+  | { kind: "partial"; path: string; status: string };
 
 /** 変更したファイルの差分の見出し（実物の `git log -p` の形）。 */
 const modified = (path: string): string[] => [
@@ -209,14 +210,25 @@ function changeText(c: Change): string[] {
     case "add":
       return added(c.path, c.status, c.line);
     case "modify": {
-      const line = c.line ?? 5;
+      // 文脈を十分に取った差分なので、hunk は 1 行目から始まり、変更の後の全文を含む。status は line 行目にある。
+      const keys = Array.from({ length: (c.line ?? 3) - 2 }, (_, i) => ` key${i}: x`);
+      const extra = (c.extra ?? []).map((l) => ` ${l}`);
+      const size = keys.length + extra.length + 5;
       return [
         ...modified(c.path),
-        `@@ -${line} +${line} @@ type: doc`,
+        `@@ -1,${size} +1,${size} @@`,
+        " ---",
+        ...keys,
         "-status: pending",
         `+status: ${c.status}`,
+        ...extra,
+        " ---",
+        " ",
+        " # 学び",
       ];
     }
+    case "partial":
+      return [...modified(c.path), "@@ -5,1 +5,1 @@", "-status: pending", `+status: ${c.status}`];
     case "rename":
       return [
         `diff --git a/${c.from} b/${c.to}`,
@@ -227,10 +239,15 @@ function changeText(c: Change): string[] {
     case "delete":
       return deleted(c.path, c.status);
     case "body":
+      // 本文に、桁 0 の `status:` の行（frontmatter の例など）を足した変更。
       return [
         ...modified(c.path),
-        `@@ -${c.line - 1},0 +${c.line},2 @@ ## 事象`,
-        "+本文の行",
+        "@@ -1,4 +1,6 @@",
+        " ---",
+        " status: pending",
+        " ---",
+        " ",
+        "+例:",
         "+status: applied",
       ];
   }
@@ -437,7 +454,7 @@ describe("git の履歴", () => {
     expect(events.get("2026-10-01-a.md")?.at(-1)?.status).toBe("applied");
   });
 
-  test("学びでないパスと、frontmatter の範囲の内側の本文の変更は数えない", () => {
+  test("学びでないパスは数えず、本文に足した status の行は frontmatter の status と取り違えない", () => {
     const log = gitLog([
       {
         daysAgo: 10,
@@ -447,57 +464,59 @@ describe("git の履歴", () => {
           { kind: "add", path: ".kaizen/2026-10-01-a.md", status: "pending" },
         ],
       },
-      { daysAgo: 5, changes: [{ kind: "body", path: ".kaizen/2026-10-01-a.md", line: 30 }] },
+      { daysAgo: 5, changes: [{ kind: "body", path: ".kaizen/2026-10-01-a.md" }] },
     ]);
-    const { events } = parseStatusLog(log, ".kaizen");
+    const { events, skipped } = parseStatusLog(log, ".kaizen");
     expect([...events.keys()]).toEqual(["2026-10-01-a.md"]);
-    // 本文の行（31 行目）は frontmatter の範囲（40 行）の内側なので、status の事象として読む。
-    expect(statuses(events.get("2026-10-01-a.md"))).toEqual(["pending", "applied"]);
+    // 本文の `status: applied` は frontmatter の外にあるので、5 日前の status は frontmatter の pending のままである。
+    expect(statuses(events.get("2026-10-01-a.md"))).toEqual(["pending", "pending"]);
+    expect(skipped).toBe(0);
+  });
+
+  test("frontmatter が長い学び（status が 45 行目）の status も読む", () => {
+    const log = gitLog([
+      {
+        daysAgo: 1,
+        changes: [{ kind: "modify", path: ".kaizen/2026-10-01-a.md", status: "applied", line: 45 }],
+      },
+    ]);
+    const { events, skipped } = parseStatusLog(log, ".kaizen");
+    expect(statuses(events.get("2026-10-01-a.md"))).toEqual(["applied"]);
+    expect(skipped).toBe(0);
   });
 
   const A = ".kaizen/2026-10-01-a.md";
-  // git の履歴は後から直せないので、読めない行は例外にせず、読み飛ばして件数に数える。
-  const skippedLogs: { name: string; changes: Change[]; expected: (Status | null)[] }[] = [
+  // git の履歴は後から直せないので、status を読めない変更は例外にせず、読み飛ばして件数に数える。
+  const skippedLogs: { name: string; changes: Change[] }[] = [
+    { name: "status が知らない値", changes: [{ kind: "modify", path: A, status: "done" }] },
     {
-      name: "frontmatter の範囲の外に status の行を足した",
-      changes: [{ kind: "body", path: A, line: 40 }],
-      expected: [],
+      name: "frontmatter に status が 2 回ある",
+      changes: [{ kind: "modify", path: A, status: "applied", extra: ["status: forgotten"] }],
     },
     {
-      name: "1 つの commit で status の行を 2 回足した（1 回目を読む）",
-      changes: [
-        { kind: "modify", path: A, status: "applied" },
-        { kind: "modify", path: A, status: "forgotten", line: 8 },
-      ],
-      expected: ["applied"],
-    },
-    {
-      name: "status が知らない値",
-      changes: [{ kind: "modify", path: A, status: "done" }],
-      expected: [],
+      name: "hunk が 1 行目から始まらず、全文を組み立てられない",
+      changes: [{ kind: "partial", path: A, status: "applied" }],
     },
   ];
-  test.each(skippedLogs)("$name ときは、その行を読み飛ばして数える", ({ changes, expected }) => {
+  test.each(skippedLogs)("$name ときは、その変更を読み飛ばして数える", ({ changes }) => {
     const { events, skipped } = parseStatusLog(gitLog([{ daysAgo: 1, changes }]), ".kaizen");
-    expect(statuses(events.get("2026-10-01-a.md")) ?? []).toEqual(expected);
+    expect(events.get("2026-10-01-a.md")).toBeUndefined();
     expect(skipped).toBe(1);
   });
 
-  test("読み飛ばす行が無ければ 0 件", () => {
+  test("読み飛ばす変更が無ければ 0 件", () => {
     const log = gitLog([{ daysAgo: 1, changes: [{ kind: "add", path: A, status: "pending" }] }]);
     expect(parseStatusLog(log, ".kaizen").skipped).toBe(0);
   });
 
-  test("frontmatter の範囲の最後の行（40 行目）の status の行は読む", () => {
+  test("消した学びの差分は status として読まない", () => {
     const log = gitLog([
-      {
-        daysAgo: 1,
-        changes: [{ kind: "modify", path: ".kaizen/2026-10-01-a.md", status: "applied", line: 40 }],
-      },
+      { daysAgo: 2, changes: [{ kind: "add", path: A, status: "applied" }] },
+      { daysAgo: 1, changes: [{ kind: "delete", path: A, status: "applied" }] },
     ]);
-    expect(statuses(parseStatusLog(log, ".kaizen").events.get("2026-10-01-a.md"))).toEqual([
-      "applied",
-    ]);
+    const { events, skipped } = parseStatusLog(log, ".kaizen");
+    expect(statuses(events.get("2026-10-01-a.md"))).toEqual(["applied", null]);
+    expect(skipped).toBe(0);
   });
 
   test("commit の日時を読めなければ例外", () => {
@@ -771,9 +790,11 @@ describe("本文の表", () => {
     expect(text).toContain("適用までの日数の中央値: 2.0 日（今 applied の 1 件）");
     expect(text).toContain("pending のまま 30 日を過ぎた学び: `p.md`");
     expect(text).toContain("適用した後に同じ原因で再発した学び: 1 件（直近 7 日に 1 件）");
-    expect(text).toContain("同じ commit の 2 回目以降の 0 行は読み飛ばした。");
+    expect(text).toContain("frontmatter から status を読めなかった学びの変更 0 件は読み飛ばした。");
     const skipped = kaizenTable({ ...m, skippedLines: 2 }, { now: NOW, config }).join("\n");
-    expect(skipped).toContain("同じ commit の 2 回目以降の 2 行は読み飛ばした。");
+    expect(skipped).toContain(
+      "frontmatter から status を読めなかった学びの変更 2 件は読み飛ばした。",
+    );
   });
 
   test("適用した学びも古い pending も無ければ、そう書く", () => {
@@ -802,7 +823,8 @@ describe("まとめて数える", () => {
     expect(m?.counts).toEqual({ pending: 2, applied: 1, forgotten: 0, rejected: 0 });
     expect(m?.previous).toEqual({ pending: 1, applied: 1, forgotten: 0, rejected: 0 });
     expect(m?.daysToApply).toEqual({ median: 10, notes: 1 });
-    expect(m?.skippedLines).toBe(1);
+    // ctl の本文の `status: applied` は frontmatter の外にあるので、読み飛ばしにも数えず、ctl は pending のまま数える。
+    expect(m?.skippedLines).toBe(0);
     // merge の 2 つ目の親（topic）との差分には a の `+status: applied` があるが、main に入った変更ではないので読まない。
     const { events } = parseStatusLog(await statusLog(defaultRunner, root, ".kaizen"), ".kaizen");
     expect(statuses(events.get("2026-10-01-a.md"))).toEqual(["pending", "applied"]);
@@ -831,7 +853,7 @@ function gitAt(root: string): (args: string[], daysAgo?: number) => void {
 
 /**
  * 学びの履歴を持つリポジトリを作る。a は 20 日前に記録し、15 日前に名前を変え、10 日前に適用し、1 日前に archive へ移す。
- * ctl は本文に制御文字と、frontmatter の範囲の外の status の行を含む（--text が無いと git が binary として扱い、差分を出さない）。
+ * ctl は本文に制御文字と、frontmatter の外の status の行を含む（--text が無いと git が binary として扱い、差分を出さない）。
  * b は branch で 3 日前に記録し、2 日前に main へ merge する（merge commit の差分にだけ現れる）。
  */
 function buildHistory(root: string): void {
@@ -841,7 +863,7 @@ function buildHistory(root: string): void {
   git(["config", "user.name", "test"]);
   writeFiles(root, {
     ".kaizen/2026-10-02-a.md": noteText("pending"),
-    // 本文の例として、frontmatter の範囲の外（41 行目より後）に status の行も書く。
+    // 本文の例として、frontmatter の外に status の行も書く。
     ".kaizen/2026-10-03-ctl.md": `${noteText("pending")}\u0001\n${"\n".repeat(40)}status: applied\n`,
   });
   git(["add", "-A"], 20);
