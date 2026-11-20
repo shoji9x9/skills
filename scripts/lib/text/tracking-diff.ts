@@ -167,3 +167,41 @@ export function parseTrackingCli(args: readonly string[]): TrackingCli | null {
   const cli = parseTrackingCliWith(args, []);
   return cli === null ? null : { out: cli.out, commentOut: cli.commentOut, previous: cli.previous };
 }
+
+/** 種類・対象・内容を持つ検出。種類と対象から識別子を作る点検（費用の指標・単価表の差）が使う。 */
+export type KindFinding<K extends string> = { kind: K; target: string; detail: string };
+
+export type KindTracking<K extends string> = ReturnType<typeof trackingKeys<KindFinding<K>>> & {
+  keyOf: (finding: KindFinding<K>) => string;
+  /** 検出の表（種類・対象・内容・前回から）の行。検出が 0 件なら空の配列にする。 */
+  table: (
+    findings: readonly KindFinding<K>[],
+    kept: readonly string[],
+    kindHeader: string,
+  ) => string[];
+};
+
+/**
+ * 種類ごとの表示名から、識別子（`<種類> <対象>`）の形と、検出の表を作る。
+ * 識別子には、週や月ごとに変わる内容（件数・秒数・単価）を含めず、種類と対象だけを使う。対象は 1 行にする。
+ */
+export function kindTracking<K extends string>(
+  marker: string,
+  labels: Readonly<Record<K, string>>,
+): KindTracking<K> {
+  const keyOf = (f: KindFinding<K>): string => `${f.kind} ${oneLine(f.target)}`;
+  const keyForm = new RegExp(`^(${Object.keys(labels).join("|")}) \\S(.*\\S)?$`, "u");
+  const table: KindTracking<K>["table"] = (findings, kept, kindHeader) => {
+    if (findings.length === 0) return [];
+    const keptSet = new Set(kept);
+    const lines = [`| ${kindHeader} | 対象 | 内容 | 前回から |`, "| --- | --- | --- | --- |"];
+    for (const f of findings) {
+      const state = keptSet.has(keyOf(f)) ? "継続" : "新規";
+      lines.push(
+        `| ${labels[f.kind]} | ${tableCell(f.target)} | ${tableCell(f.detail)} | ${state} |`,
+      );
+    }
+    return lines;
+  };
+  return { ...trackingKeys({ marker, keyForm, keyOf }), keyOf, table };
+}

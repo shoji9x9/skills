@@ -132,7 +132,7 @@ describe("collectLocal のキャッシュ", () => {
     person: "p-00000001",
     tz: "UTC",
     repoPricing: {},
-    bundledPricing: { "claude-opus-5-5": { input: 5, output: 25 } },
+    bundledPricing: { "claude-opus-5-5": [{ since: null, price: { input: 5, output: 25 } }] },
   };
 
   /** ルートと、そのルートで動いたセッションのログを 1 つ置く。 */

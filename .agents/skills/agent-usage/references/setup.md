@@ -201,8 +201,14 @@ Hook のスクリプトは、エージェントが普段書く形の `git commit
 
 ```jsonc
 {
-  // 単価は同梱の単価表より優先する
-  "pricing": { "<モデル>": { "input": 4, "output": 20, "cacheRead": 0.2, "cacheWrite5m": 5, "cacheWrite1h": 8 } },
+  // 単価は同梱の単価表より優先する。単価が変わったモデルは、since を持つ期間の配列で書く
+  "pricing": {
+    "<モデル>": { "input": 4, "output": 20, "cacheRead": 0.2, "cacheWrite5m": 5, "cacheWrite1h": 8 },
+    "<単価が変わったモデル>": [
+      { "input": 4, "output": 20 },
+      { "since": "2026-12-01", "input": 5, "output": 25 }
+    ]
+  },
   "reviewPricing": { "copilot": 0.04 },
   "ci": { "external": false },
   "activityWindowMinutes": 15,
@@ -215,7 +221,7 @@ Hook のスクリプトは、エージェントが普段書く形の `git commit
 
 | キー | 置ける層 | 意味 |
 | --- | --- | --- |
-| `pricing` | リポジトリ | モデルごとの単価（USD / 100 万トークン）。同梱の単価表（`assets/pricing.json`）より優先する。`input` と `output` は必須 |
+| `pricing` | リポジトリ | モデルごとの単価（USD / 100 万トークン）。同梱の単価表（`assets/pricing.json`）より優先する。`input` と `output` は必須。単価が変わったモデルは、`since`（有効になる日）を持つ期間の配列で書く。期間の扱いは `references/records.md`「費用」にある |
 | `reviewPricing` | リポジトリ | レビューツールごとの 1 回あたりの推定額（USD）。同梱の推定額（`assets/pricing.json` の `reviews`）より優先する。どちらにも無ければ、そのツールのレビューの費用は空欄にする |
 | `ci.external` | リポジトリ | GitHub Actions 以外の CI（check runs・commit status）も取得するか。取得は PR の head の commit ごとに呼び出すので、デフォルトでは無効 |
 | `activityWindowMinutes` | リポジトリ | 人の活動の前後で、人がいたとみなす幅（分）。デフォルトは 15 |

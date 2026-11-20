@@ -268,7 +268,7 @@ export function dateRange(from, to) {
  * @property {number} unknownCostBuckets 費用が単価不明の usage の行の数
  */
 
-/** @typedef {{ config: RepoConfig; bundledPricing: Record<string, import("../config.mjs").Price>; bundledReviewPricing: Record<string, number>; tz: string; now: number; since: string | null; until: string | null; recordFiles: number }} BuildOptions */
+/** @typedef {{ config: RepoConfig; bundledPricing: Record<string, import("../config.mjs").PricePeriod[]>; bundledReviewPricing: Record<string, number>; tz: string; now: number; since: string | null; until: string | null; recordFiles: number }} BuildOptions */
 
 /**
  * buildReport の入力と、集計の全体で使う値。
@@ -488,11 +488,17 @@ function usageAccOf(usage, { date, person, agent, model }) {
  */
 function usageCost(r, model, o) {
   // 記録の時点で単価が無かった行は、今の単価表（リポジトリの設定・同梱）で計算し直す。
+  // 単価は行の開始時刻に有効な期間のものを使う（開始時刻は addUsageRow が日付に使うのと同じ読み方をする）。
   // キャッシュの書き込みは 5 分と 1 時間を 1 列にまとめて記録しているので、5 分の単価で数える
   let cost = r.cost_usd === "" || r.cost_usd === undefined ? null : Number(r.cost_usd);
   let sources = (r.cost_source ?? "").split("+").filter(Boolean);
   if (cost === null) {
-    const { price, source } = resolvePrice(model, o.config.pricing, o.bundledPricing);
+    const at = parseTime(r.start) ?? 0;
+    const { price, source } = resolvePrice(
+      model,
+      { repo: o.config.pricing, bundled: o.bundledPricing },
+      at,
+    );
     if (price) {
       const tokens = {
         input: Number(r.input_tokens || 0),
