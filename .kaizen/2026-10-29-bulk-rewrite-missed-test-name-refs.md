@@ -67,7 +67,7 @@ KEDB 照合は「一括」「expect_failing」「テスト名」で行った。`
 
 ## 提案
 
-テスト名を変えたときに `expect_failing` を合わせ直す手順を省く言い訳を、`state-space-and-mutation-proof.md` と `AGENTS.md`「編集」に書き、それでも従う理由を添える。
+テストを足す作業と一括の書き換えで、`expect_failing` を確かめる手順（定義ファイルの再実行・3 つの鍵の grep）を省く言い訳を、`state-space-and-mutation-proof.md` と `AGENTS.md`「編集」に書き、それでも従う理由を添える。名前を変えるだけの作業は、規約が言い切っていないので扱わない。
 
 - 適用先の候補: `.agents/rules/state-space-and-mutation-proof.md`「assertion を書き換えたら」に、次の言い訳と理由を足す。
   「新しい判定には定義を作らないので、ランナーを実行しなくてよい」。定義を作るかと、変えたテストを `test_file` に持つ既存の定義ファイルをランナーにかけ直すかは別の判断である。
