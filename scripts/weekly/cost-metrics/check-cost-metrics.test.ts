@@ -945,7 +945,7 @@ describe("まとめて集める", () => {
     ].join("\n");
     const run: Runner = async (command, args) => {
       if (command !== "git") return JSON.stringify([{ total_count: 0, workflow_runs: [] }]);
-      if (args[2] === "rev-parse") return "false\n";
+      if (args.includes("rev-parse")) return "false\n";
       return args.includes(".kaizen") ? kaizenLog : "";
     };
     const result = await collect(run, { config: parseConfig(configJson()), root, now: NOW });

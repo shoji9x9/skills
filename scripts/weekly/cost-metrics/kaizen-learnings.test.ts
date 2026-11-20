@@ -35,6 +35,7 @@ import {
   type Status,
   type StatusEvent,
   statusLog,
+  unquotePath,
 } from "./kaizen-learnings.ts";
 
 const NOW = new Date("2026-11-20T00:00:00Z");
@@ -355,6 +356,52 @@ describe("git の履歴", () => {
     ]);
   });
 
+  test.each([
+    ["囲んでいない", ".kaizen/a.md", ".kaizen/a.md"],
+    ["ASCII 以外の 8 進数", '".kaizen/2026-10-01-\\346\\227\\245.md"', ".kaizen/2026-10-01-日.md"],
+    ["引用符と \\", '".kaizen/2026-10-01-\\"q\\\\.md"', '.kaizen/2026-10-01-"q\\.md'],
+    ["制御文字", '".kaizen/2026-10-01-\\t.md"', ".kaizen/2026-10-01-\t.md"],
+  ])("引用符で囲んだパスを戻す: %s", (_name, quoted, expected) => {
+    expect(unquotePath(quoted)).toBe(expected);
+  });
+
+  test("引用符で囲んだ見出しと名前の変更の学びも数える（期間の中で記録して消した学びを含む）", () => {
+    const top = '".kaizen/2026-10-01-\\346\\227\\245.md"';
+    const archived = '".kaizen/archive/2026-10-01-\\346\\227\\245.md"';
+    const gone = '".kaizen/2026-10-02-\\346\\266\\210.md"';
+    const header = (path: string) => `diff --git "a/${path.slice(1)} "b/${path.slice(1)}`;
+    const log = [
+      `@@C ${"2".repeat(40)} ${isoAgo(1)}`,
+      "",
+      `diff --git "a/${top.slice(1)} "b/${archived.slice(1)}`,
+      "similarity index 100%",
+      `rename from ${top}`,
+      `rename to ${archived}`,
+      header(gone),
+      "deleted file mode 100644",
+      "@@ -1,3 +0,0 @@",
+      "-status: pending",
+      `@@C ${"1".repeat(40)} ${isoAgo(3)}`,
+      "",
+      header(top),
+      "new file mode 100644",
+      "@@ -0,0 +1,3 @@",
+      "+---",
+      "+status: pending",
+      "+---",
+      header(gone),
+      "new file mode 100644",
+      "@@ -0,0 +1,3 @@",
+      "+---",
+      "+status: pending",
+      "+---",
+    ].join("\n");
+    const { events } = parseStatusLog(log, ".kaizen");
+    expect(statuses(events.get("2026-10-01-日.md"))).toEqual(["pending"]);
+    expect(statuses(events.get("2026-10-02-消.md"))).toEqual(["pending", null]);
+    expect([...events.keys()].sort()).toEqual(["2026-10-01-日.md", "2026-10-02-消.md"]);
+  });
+
   test("前に消した学びの名前へ名前を変えたときは、事象を時刻の順に並べる", () => {
     const log = gitLog([
       {
@@ -477,7 +524,7 @@ describe("git の履歴", () => {
     };
     await statusLog(run, "/r", ".kaizen");
     const log = calls[1] ?? [];
-    expect(log.slice(0, 3)).toEqual(["-C", "/r", "log"]);
+    expect(log.slice(0, 5)).toEqual(["-C", "/r", "-c", "core.quotePath=false", "log"]);
     expect(log).toEqual(
       expect.arrayContaining([
         "--first-parent",

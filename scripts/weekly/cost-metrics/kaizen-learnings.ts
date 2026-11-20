@@ -124,6 +124,42 @@ function noteNameOf(path: string, dir: string): string | null {
   return parent === dir || parent === `${dir}/archive` ? name : null;
 }
 
+const C_ESCAPES: Record<string, number> = { a: 7, b: 8, t: 9, n: 10, v: 11, f: 12, r: 13 };
+
+/**
+ * git が引用符で囲んで出すパス（`"a/\346\227\245.md"`）を、元の文字列に戻す。囲んでいなければそのまま返す。
+ * git は、引用符・`\`・制御文字と、core.quotePath が true なら ASCII 以外のバイトを、C の文字列と同じ書き方で書く。
+ */
+export function unquotePath(path: string): string {
+  if (!(path.length >= 2 && path.startsWith('"') && path.endsWith('"'))) return path;
+  const bytes: number[] = [];
+  const body = path.slice(1, -1);
+  for (let i = 0; i < body.length; i += 1) {
+    const ch = body[i] ?? "";
+    if (ch !== "\\") {
+      bytes.push(...Buffer.from(ch, "utf8"));
+      continue;
+    }
+    const octal = /^[0-7]{3}/u.exec(body.slice(i + 1))?.[0];
+    if (octal !== undefined) {
+      bytes.push(Number.parseInt(octal, 8));
+      i += 3;
+      continue;
+    }
+    const next = body[i + 1] ?? "";
+    bytes.push(C_ESCAPES[next] ?? next.charCodeAt(0));
+    i += 1;
+  }
+  return Buffer.from(bytes).toString("utf8");
+}
+
+/** 差分の見出し（`diff --git a/<元> b/<先>`）から、変更の後のパスを取り出す。引用符で囲んだパスも読む。 */
+function diffTarget(line: string): string | null {
+  const quoted = /(?:^| )("b\/(?:[^"\\]|\\.)*")$/u.exec(line)?.[1];
+  if (quoted !== undefined) return unquotePath(quoted).slice(2);
+  return /^diff --git .* b\/(\S+)$/u.exec(line)?.[1] ?? null;
+}
+
 type CommitChanges = {
   at: number;
   renamed: [string, string][];
@@ -151,7 +187,7 @@ function startCommit(state: LogState, line: string): void {
 }
 
 function renameLine(state: LogState, line: string, dir: string): void {
-  const name = noteNameOf(line.replace(/^rename (from|to) /u, ""), dir);
+  const name = noteNameOf(unquotePath(line.replace(/^rename (from|to) /u, "")), dir);
   if (line.startsWith("rename from ")) {
     state.renameFrom = name;
     return;
@@ -179,11 +215,9 @@ function addStatus(state: LogState, line: string): void {
 function readLogLine(state: LogState, line: string, dir: string): void {
   if (line.startsWith(COMMIT)) return startCommit(state, line);
   if (line.startsWith("diff --git ")) {
-    // git は ASCII 以外の文字を含むパスを引用符で囲んで出す（core.quotePath）。読めない見出しは学びでないとして扱い、
-    // 前のファイルの名前を残さない。残すと、そのファイルに足した行を前の学びの status として読む。
-    // 引用符で囲まれた学びは履歴に現れないので、checkHistory が作業ツリーとの食い違いとして例外にする。
-    const diff = /^diff --git a\/.+ b\/(.+)$/u.exec(line);
-    state.file = diff === null ? null : noteNameOf(diff[1] ?? "", dir);
+    // 読めない見出しは学びでないとして扱い、前のファイルの名前を残さない。残すと、そのファイルに足した行を前の学びの status として読む。
+    const target = diffTarget(line);
+    state.file = target === null ? null : noteNameOf(target, dir);
     return;
   }
   const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/u.exec(line);
@@ -243,7 +277,9 @@ export function parseStatusLog(log: string, dir: string): StatusHistory {
  * `-G` で `status:` の行を変えた commit に絞ると、status を変えずに名前だけを変えた commit が落ちるので、絞らない。
  */
 export async function statusLog(run: Runner, root: string, dir: string): Promise<string> {
-  const git = (args: string[]): Promise<string> => run("git", ["-C", root, ...args]);
+  // core.quotePath を false にして、ASCII 以外の文字を含む学びの名前を、引用符と 8 進数で書かせない（書かれた分は unquotePath で戻す）。
+  const git = (args: string[]): Promise<string> =>
+    run("git", ["-C", root, "-c", "core.quotePath=false", ...args]);
   if ((await git(["rev-parse", "--is-shallow-repository"])).trim() !== "false") {
     throw new Error("git の履歴が浅い（checkout の fetch-depth を 0 にする）");
   }
