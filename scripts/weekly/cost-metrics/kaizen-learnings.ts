@@ -250,7 +250,8 @@ export async function statusLog(run: Runner, root: string, dir: string): Promise
   return git([
     "log",
     "--first-parent",
-    "-m",
+    // merge commit は 1 つ目の親との差分だけを読む。2 つ目の親との差分は、branch の側から見た変更で、main に入った変更ではない。
+    "--diff-merges=first-parent",
     "-M",
     `--format=${COMMIT}%H %cI`,
     "-p",
@@ -307,6 +308,19 @@ function countAt(history: ReadonlyMap<string, StatusEvent[]>, at: number): Recor
 /** その status に初めてなった時刻。なっていなければ undefined。 */
 function firstAt(events: readonly StatusEvent[], status: Status): number | undefined {
   return events.find((e) => e.status === status)?.at;
+}
+
+/** 期間の中で最初に記録した学びの数。後で消した学びも、履歴に残るので数える。 */
+function recordedIn(
+  history: ReadonlyMap<string, StatusEvent[]>,
+  window: { from: number; to: number },
+): number {
+  let count = 0;
+  for (const events of history.values()) {
+    const at = events[0]?.at;
+    if (at !== undefined && at > window.from && at <= window.to) count += 1;
+  }
+  return count;
 }
 
 /** 期間の中で、別の status からその status に変わった学びの数。 */
@@ -378,12 +392,10 @@ export function kaizenMetrics(
   const counts = emptyCounts();
   const days: number[] = [];
   const stale: string[] = [];
-  let extracted = 0;
   for (const [name, note] of notes) {
     counts[note.status] += 1;
     const events = history.get(name) ?? [];
     const created = events[0]?.at ?? end;
-    if (created > start && created <= end) extracted += 1;
     const applied = firstAt(events, "applied");
     if (note.status === "applied" && applied !== undefined) days.push((applied - created) / DAY_MS);
     if (note.status === "pending" && end - created >= config.staleDays * DAY_MS) stale.push(name);
@@ -391,7 +403,7 @@ export function kaizenMetrics(
   return {
     counts,
     previous: countAt(history, start),
-    extracted,
+    extracted: recordedIn(history, { from: start, to: end }),
     applied: changedTo(history, "applied", { from: start, to: end }),
     forgotten: changedTo(history, "forgotten", { from: start, to: end }),
     daysToApply: { median: median(days), notes: days.length },

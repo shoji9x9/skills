@@ -478,7 +478,15 @@ describe("git の履歴", () => {
     await statusLog(run, "/r", ".kaizen");
     const log = calls[1] ?? [];
     expect(log.slice(0, 3)).toEqual(["-C", "/r", "log"]);
-    expect(log).toEqual(expect.arrayContaining(["--first-parent", "-m", "-M", "--text", "-p"]));
+    expect(log).toEqual(
+      expect.arrayContaining([
+        "--first-parent",
+        "--diff-merges=first-parent",
+        "-M",
+        "--text",
+        "-p",
+      ]),
+    );
     expect(log.slice(-2)).toEqual(["--", ".kaizen"]);
   });
 });
@@ -516,12 +524,14 @@ describe("数える", () => {
         "d.md": [ev(10, "rejected")],
         // 期間の中で消した学びは、今の件数に入らず、期間の始まりの件数に入る。
         "e.md": [ev(30, "applied"), ev(1, null)],
+        // 期間の中で記録してから消した学びは、期間の中の記録に数える。
+        "f.md": [ev(3, "pending"), ev(2, null)],
       },
     );
     expect(m.counts).toEqual({ pending: 1, applied: 1, forgotten: 1, rejected: 1 });
     expect(m.previous).toEqual({ pending: 2, applied: 1, forgotten: 0, rejected: 1 });
     expect({ extracted: m.extracted, applied: m.applied, forgotten: m.forgotten }).toEqual({
-      extracted: 1,
+      extracted: 2,
       applied: 1,
       forgotten: 1,
     });
@@ -746,6 +756,9 @@ describe("まとめて数える", () => {
     expect(m?.previous).toEqual({ pending: 1, applied: 1, forgotten: 0, rejected: 0 });
     expect(m?.daysToApply).toEqual({ median: 10, notes: 1 });
     expect(m?.skippedLines).toBe(1);
+    // merge の 2 つ目の親（topic）との差分には a の `+status: applied` があるが、main に入った変更ではないので読まない。
+    const { events } = parseStatusLog(await statusLog(defaultRunner, root, ".kaizen"), ".kaizen");
+    expect(statuses(events.get("2026-10-01-a.md"))).toEqual(["pending", "applied"]);
     expect(m?.recurrences.map((r) => [r.name, r.of])).toEqual([
       ["2026-11-01-b.md", ["2026-10-01-a.md"]],
     ]);
