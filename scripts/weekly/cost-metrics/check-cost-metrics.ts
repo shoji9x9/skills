@@ -2,37 +2,48 @@
 // 週次のワークフロー（.github/workflows/check-cost-metrics.yml）が実行し、候補を追跡 Issue に載せる。
 // 候補を挙げるだけで、チェックを廃止するか、ジョブを直すかは人が決める。
 //
-// 集める指標は次の 4 つである。対象と閾値は、隣の check-cost-metrics.json で決める。
+// 集める指標は次の 5 つである。対象と閾値は、隣の check-cost-metrics.json で決める。
 // - 空の免除・保留の一覧: check-cost-metrics.json の lists に挙げた一覧のファイルが空になっている（readers は確かめず、案内として添える）
 // - 修正の PR が多いチェック: 直近の期間に、チェックのファイルを変えた fix の PR の数（lists の一覧と fix_prs.exclude のファイルは数えない）
 // - GitHub Actions のジョブの所要時間: 直近の期間と前の期間の中央値を比べ、遅くなったジョブを挙げる（最大値は所要時間の表にだけ載せる）
 // - セッションの開始時に読み込む文書のバイト数: 起点のファイルと `@path` で取り込む文書の合計が、上限の報告の割合に達したら挙げる（session-context.ts）
+// - kaizen の学び: status ごとの件数と増減・直近の期間の記録と適用と忘却・適用までの日数・古い pending・再発を数え、閾値を超えたら挙げる（kaizen-learnings.ts）
 //
 // 確かめられなかったものを「該当なし」として扱わない。次のときは exit 1 で止まる。
 // - 設定・一覧のファイルを読めない
 // - セッションの開始時に読み込む文書（起点か取り込み先）が無い
 // - git の履歴が浅い
+// - kaizen の学びを読めない、または学びの status が git の履歴と食い違う（kaizen-learnings.ts の冒頭に条件がある）
 // - fix_prs.exclude のファイルが今無い、または数えるときにテストの本体の名前に寄せられて何も外さない
 // - git や API が失敗する、または API の一覧が上限（1000 件）を超えて取りこぼす
 //
-// 使い方: node scripts/weekly/check-cost-metrics.ts --out <本文のパス> --comment-out <コメントのパス> [--previous <前回の本文のパス>]
+// 使い方: node scripts/weekly/cost-metrics/check-cost-metrics.ts --out <本文のパス> --comment-out <コメントのパス> [--previous <前回の本文のパス>]
 // 標準出力の最後の行に `due=<件数>` を出す。件数が 0 のときも本文とコメントのファイルは書く。
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { isCliEntry } from "../lib/cli/entry.ts";
-import { errorMessage } from "../lib/errors.ts";
-import { isNonBlankString, isPlainObject, isRecord } from "../lib/guards.ts";
-import { isArray } from "../lib/is-array.ts";
-import { spawnAsync } from "../lib/spawn-async.ts";
+import { isCliEntry } from "../../lib/cli/entry.ts";
+import { errorMessage } from "../../lib/errors.ts";
+import { isNonBlankString, isPlainObject, isRecord } from "../../lib/guards.ts";
+import { isArray } from "../../lib/is-array.ts";
+import { spawnAsync } from "../../lib/spawn-async.ts";
+import { median } from "./median.ts";
 import { type ContextFile, sessionContextFiles } from "./session-context.ts";
+import {
+  collectKaizen,
+  type KaizenConfig,
+  type KaizenFinding,
+  type KaizenMetrics,
+  kaizenFindings,
+  kaizenTable,
+} from "./kaizen-learnings.ts";
 import {
   formatDiffComment,
   kindTracking,
   naturalOrder,
   parseTrackingCli,
   tableCell,
-} from "../lib/text/tracking-diff.ts";
+} from "../../lib/text/tracking-diff.ts";
 
 const CONFIG = join(dirname(fileURLToPath(import.meta.url)), "check-cost-metrics.json");
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -81,6 +92,8 @@ export type Config = {
   };
   /** entries は読み込みの起点のファイル、reportRatio は limitBytes に対して候補に挙げる割合（0 より大きく 1 以下）。 */
   sessionContext: { entries: string[]; limitBytes: number; reportRatio: number };
+  /** dir は学びのディレクトリ、days は直近の期間、stale_days は古い pending の日数、max_* は候補に挙げない上限の件数。 */
+  kaizen: KaizenConfig;
 };
 
 function stringList(value: unknown, where: string): string[] {
@@ -159,6 +172,29 @@ function parseFixExclude(value: unknown): FixExclude[] | undefined {
   return entries;
 }
 
+/** 0 以上の整数。上限の件数は 0（1 件でもあれば挙げる）を許す。 */
+function count(value: unknown, where: string): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+    throw new Error(`${where} が 0 以上の整数でない`);
+  }
+  return value;
+}
+
+/**
+ * リポジトリのルートからの相対のディレクトリ。git の出力のパスと文字列で比べるので、
+ * 末尾の `/`・`./`・`..`・絶対パスのように、同じ場所を別の字面で書いた値は例外にする。
+ */
+function relativeDir(value: unknown, where: string): string {
+  if (!isNonBlankString(value)) throw new Error(`${where} が空でない文字列でない`);
+  const parts = value.split("/");
+  if (parts.some((p) => p === "" || p === "." || p === "..")) {
+    throw new Error(
+      `${where} がルートからの相対パス（末尾の / や . と .. を含まない形）でない: ${value}`,
+    );
+  }
+  return value;
+}
+
 /** 0 より大きく 1 以下の割合。1 を超えると、上限を超えても候補に挙げない設定になるので例外にする。 */
 function ratio(value: unknown, where: string): number {
   const found = positive(value, where);
@@ -181,6 +217,7 @@ export function parseConfig(text: string): Config {
   const fix = section(value, "fix_prs");
   const dur = section(value, "durations");
   const ctx = section(value, "session_context");
+  const kz = section(value, "kaizen");
   const lists = value["lists"].map(parseList);
   // 同じ一覧を 2 回書くと、識別子が重複し、次の実行が前回の本文を読めなくなる。
   const duplicated = firstDuplicate(lists.map((l) => l.file));
@@ -205,6 +242,13 @@ export function parseConfig(text: string): Config {
       entries: stringList(ctx["entries"], "session_context.entries"),
       limitBytes: positive(ctx["limit_bytes"], "session_context.limit_bytes"),
       reportRatio: ratio(ctx["report_ratio"], "session_context.report_ratio"),
+    },
+    kaizen: {
+      dir: relativeDir(kz["dir"], "kaizen.dir"),
+      days: positive(kz["days"], "kaizen.days"),
+      staleDays: positive(kz["stale_days"], "kaizen.stale_days"),
+      maxPending: count(kz["max_pending"], "kaizen.max_pending"),
+      maxStale: count(kz["max_stale"], "kaizen.max_stale"),
     },
   };
 }
@@ -245,11 +289,13 @@ export function countEntries(rule: CountRule, value: unknown, file: string): num
   }
 }
 
-export type Finding = {
-  kind: "empty-list" | "fix-heavy" | "slow-job" | "context-size";
-  target: string;
-  detail: string;
-};
+export type Finding =
+  | {
+      kind: "empty-list" | "fix-heavy" | "slow-job" | "context-size";
+      target: string;
+      detail: string;
+    }
+  | KaizenFinding;
 
 async function loadList(target: ListTarget, root: string): Promise<unknown> {
   const path = join(root, target.file);
@@ -466,16 +512,9 @@ export function jobSamples(
     });
 }
 
-function median(sorted: readonly number[]): number {
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 1
-    ? (sorted[mid] ?? 0)
-    : ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2;
-}
-
 export function stats(seconds: readonly number[]): Stats {
   const sorted = [...seconds].sort((a, b) => a - b);
-  return { runs: sorted.length, median: median(sorted), max: sorted.at(-1) ?? 0 };
+  return { runs: sorted.length, median: median(sorted) ?? 0, max: sorted.at(-1) ?? 0 };
 }
 
 export type JobRow = { key: string; current: Stats; previous: Stats };
@@ -597,6 +636,9 @@ const KIND_LABEL: Record<Finding["kind"], string> = {
   "fix-heavy": "修正の PR が多いチェック",
   "slow-job": "遅くなったジョブ",
   "context-size": "セッションの開始時に読み込む文書",
+  "kaizen-pending": "pending の kaizen の学び",
+  "kaizen-stale": "古い pending の kaizen の学び",
+  "kaizen-recurrence": "適用した後に再発した kaizen の学び",
 };
 
 /** 前回との差分に使う識別子は、種別と対象だけで作る（件数や秒数は週ごとに変わる）。 */
@@ -647,22 +689,25 @@ export type Result = {
   findings: Finding[];
   rows: JobRow[];
   context: ContextFile[];
+  kaizen: KaizenMetrics | null;
   config: Config;
+  now: Date;
 };
 
 /** 追跡 Issue の本文。最後の行に、次の実行が差分に使う識別子の一覧を埋める。 */
 export function formatBody(result: Result, previous: readonly string[] = []): string {
-  const { findings, rows, context, config } = result;
+  const { findings, rows, context, kaizen, config, now } = result;
   const { kept, resolved } = diffFindings(findings, previous);
   const lines = [
     "チェックと CI の費用の指標から挙げた、直す候補の一覧です。廃止するか直すかは人が決めます。",
-    "この Issue は `Check cost metrics` ワークフローが作成・更新・クローズします。対象と閾値は `scripts/weekly/check-cost-metrics.json` にあります。",
+    "この Issue は `Check cost metrics` ワークフローが作成・更新・クローズします。対象と閾値は `scripts/weekly/cost-metrics/check-cost-metrics.json` にあります。",
     "",
     `直す候補: ${findings.length} 件`,
     "",
     ...findingTable(findings, kept),
     ...durationTable(rows, config.durations.days),
     ...contextTable(context, config.sessionContext),
+    ...kaizenTable(kaizen, { now, config: config.kaizen }),
   ];
   return tracking.finish(lines, findings, resolved);
 }
@@ -688,7 +733,7 @@ export const defaultRunner: Runner = async (command, args) => {
   return result.stdout;
 };
 
-/** 4 つの指標を集める。確かめられなければ例外を投げる。 */
+/** 5 つの指標を集める。確かめられなければ例外を投げる。 */
 export async function collect(
   run: Runner,
   input: { config: Config; root: string; now: Date },
@@ -702,14 +747,16 @@ export async function collect(
     now,
     lists: config.lists.map((l) => l.file),
   });
+  const kaizen = await collectKaizen(run, { root, now, config: config.kaizen });
   const rows = await jobRows(run, config.durations, now);
   const findings = [
     ...lists,
     ...fixes,
     ...slowJobs(rows, config.durations),
     ...contextSize(context, config.sessionContext),
+    ...kaizenFindings(kaizen, { now, config: config.kaizen }),
   ];
-  return { findings, rows, context, config };
+  return { findings, rows, context, kaizen, config, now };
 }
 
 /** `options` はテストが一時ディレクトリと偽の時刻を渡すためにある。ワークフローはデフォルトで呼ぶ。 */
@@ -721,7 +768,7 @@ export async function main(
   const cli = parseTrackingCli(args);
   if (cli === null) {
     console.error(
-      "使い方: node scripts/weekly/check-cost-metrics.ts --out <本文のパス> --comment-out <コメントのパス> [--previous <前回の本文のパス>]",
+      "使い方: node scripts/weekly/cost-metrics/check-cost-metrics.ts --out <本文のパス> --comment-out <コメントのパス> [--previous <前回の本文のパス>]",
     );
     return 2;
   }
