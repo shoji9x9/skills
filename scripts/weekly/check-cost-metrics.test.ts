@@ -12,6 +12,7 @@
 // | git | 履歴が浅い / 失敗 |
 // | ジョブ | 成功 / 成功以外 / 日時が無い / 期間の境界 / 片方の期間だけ |
 // | 遅くなったか | 回数が足りない / 割合だけ / 秒数だけ / 両方 |
+// | 読み込む文書の合計 | 報告の割合の未満・ちょうど・上限を超える / 設定の割合が 0・1 を超える / 起点が無い |
 // | API | 成功 / 失敗 / 1000 件を超える / total_count が無い / ページの形が違う / 期間の外の run |
 // | 前回の本文 | 目印なし / 識別子あり / 形が違う |
 // | CLI の引数 | 正しい / 足りない / 未知 / --previous が空 |
@@ -23,6 +24,7 @@ import {
   defaultRunner,
   checkFileOf,
   collect,
+  contextSize,
   compareJobs,
   countEntries,
   countFixPrs,
@@ -71,8 +73,12 @@ const configJson = (override: Record<string, unknown> = {}) =>
       min_ratio: 0.2,
       min_seconds: 30,
     },
+    session_context: { entries: ["CLAUDE.md"], limit_bytes: 100, report_ratio: 0.8 },
     ...override,
   });
+
+/** session_context の起点。configJson の上限（100 バイト）の 80% に届かない大きさにする。 */
+const CONTEXT_FILES = { "CLAUDE.md": "# 設定\n" };
 
 function writeFiles(root: string, files: Record<string, string>): void {
   for (const [path, text] of Object.entries(files)) {
@@ -105,6 +111,7 @@ describe("設定", () => {
       lists: [{ file: "a.json", count: { kind: "json-array", key: "exempt" }, readers: ["r.ts"] }],
       fixPrs: { days: 28, min: 3, paths: ["scripts/gates"] },
       durations: { ...durations },
+      sessionContext: { entries: ["CLAUDE.md"], limitBytes: 100, reportRatio: 0.8 },
     });
   });
 
@@ -221,6 +228,22 @@ describe("設定", () => {
         durations: { days: 7, workflows: [1], min_runs: 3, min_ratio: 0.2, min_seconds: 30 },
       },
       "workflows",
+    ],
+    ["session_context が無い", { session_context: null }, "session_context"],
+    [
+      "report_ratio が 1 を超える",
+      { session_context: { entries: ["CLAUDE.md"], limit_bytes: 100, report_ratio: 1.5 } },
+      "report_ratio が 1 を超えている",
+    ],
+    [
+      "report_ratio が 0",
+      { session_context: { entries: ["CLAUDE.md"], limit_bytes: 100, report_ratio: 0 } },
+      "report_ratio",
+    ],
+    [
+      "entries が空",
+      { session_context: { entries: [], limit_bytes: 100, report_ratio: 0.8 } },
+      "session_context.entries",
     ],
   ])("%s は例外にする", (_name, override, message) => {
     expect(() => parseConfig(configJson(override))).toThrow(message);
@@ -709,6 +732,44 @@ test("並べて処理しても、入力の順で返し、失敗を reject する
   expect(await mapLimit([], 2, async (n: number) => n)).toEqual([]);
 });
 
+describe("読み込む文書の合計", () => {
+  const ctx: Config["sessionContext"] = {
+    entries: ["CLAUDE.md"],
+    limitBytes: 100,
+    reportRatio: 0.8,
+  };
+  const files = (...bytes: number[]) =>
+    bytes.map((b, i) => ({ path: `f${i}.md`, bytes: b, hops: i }));
+
+  test.each([
+    ["報告の割合に届かない", [40, 39], []],
+    [
+      "報告の割合ちょうど",
+      [40, 40],
+      [
+        {
+          kind: "context-size",
+          target: "CLAUDE.md",
+          detail: "合計 80 バイト（上限 100 バイトの 80%）",
+        },
+      ],
+    ],
+    [
+      "上限を超える",
+      [100, 30],
+      [
+        {
+          kind: "context-size",
+          target: "CLAUDE.md",
+          detail: "合計 130 バイト（上限 100 バイトの 130%）",
+        },
+      ],
+    ],
+  ])("%s", (_name, bytes, expected) => {
+    expect(contextSize(files(...bytes), ctx)).toEqual(expected);
+  });
+});
+
 describe("追跡 Issue の本文", () => {
   const findings: Finding[] = [
     { kind: "empty-list", target: "a.json", detail: "r.ts、w.yml" },
@@ -722,14 +783,22 @@ describe("追跡 Issue の本文", () => {
       previous: { runs: 2, median: 10, max: 11 },
     },
   ];
+  const context = [
+    { path: "CLAUDE.md", bytes: 10, hops: 0 },
+    { path: "docs/a|b.md", bytes: 30, hops: 1 },
+  ];
 
   test("候補の表・所要時間の表・識別子を書き、表の | をエスケープする", () => {
-    const body = formatBody({ findings, rows, config });
+    const body = formatBody({ findings, rows, context, config });
     expect(body).toContain("直す候補: 2 件");
     expect(body).toContain("readers に書いた案内で、一覧を読む処理を示す。");
     expect(body).toContain("| 空の免除・保留の一覧 | a.json | r.ts、w.yml | 新規 |");
     expect(body).toContain("| 遅くなったジョブ | CI / Lint \\| x（pull_request） |");
     expect(body).toContain("| CI / Lint（pull_request） | 3 | 12 秒 | 20 秒 | 2 | 10 秒 | 11 秒 |");
+    expect(body).toContain(
+      "セッションの開始時に読み込む文書（合計 40 バイト、上限 100 バイトの 40%）",
+    );
+    expect(body).toContain("| docs/a\\|b.md | 1 | 30 |");
     expect(previousKeys(body)).toEqual([
       "empty-list a.json",
       "slow-job CI / Lint | x（pull_request）",
@@ -737,13 +806,13 @@ describe("追跡 Issue の本文", () => {
   });
 
   test("空の一覧の候補が無ければ、readers の注記を書かない", () => {
-    const body = formatBody({ findings: findings.slice(1), rows, config });
+    const body = formatBody({ findings: findings.slice(1), rows, context, config });
     expect(body).toContain("| 遅くなったジョブ |");
     expect(body).not.toContain("readers に書いた");
   });
 
   test("0 件は候補の表を書かない", () => {
-    const body = formatBody({ findings: [], rows: [], config });
+    const body = formatBody({ findings: [], rows: [], context, config });
     expect(body).toContain("直す候補: 0 件");
     expect(body).not.toContain("| 指標 |");
     expect(body).not.toContain("readers に書いた");
@@ -752,7 +821,7 @@ describe("追跡 Issue の本文", () => {
 
   test("前回と比べ、継続と解消を書く（件数が変わっても同じ識別子）", () => {
     const previous = ["empty-list a.json", "fix-heavy lefthook.yml"];
-    const body = formatBody({ findings, rows, config }, previous);
+    const body = formatBody({ findings, rows, context, config }, previous);
     expect(body).toContain("| a.json | r.ts、w.yml | 継続 |");
     expect(body).toContain("前回から解消したもの: fix-heavy lefthook.yml");
     expect(diffFindings(findings, previous).kept).toEqual(["empty-list a.json"]);
@@ -772,9 +841,9 @@ describe("追跡 Issue の本文", () => {
 });
 
 describe("まとめて集める", () => {
-  test("3 つの指標を集める", async () => {
+  test("4 つの指標を集める", async () => {
     const root = makeTempDir("check-cost-metrics-");
-    writeFiles(root, { "a.json": '{"exempt": []}' });
+    writeFiles(root, { "a.json": '{"exempt": []}', ...CONTEXT_FILES });
     const run: Runner = async (command, args) => {
       if (command === "git") return args[2] === "rev-parse" ? "false\n" : "";
       return JSON.stringify([{ total_count: 0, workflow_runs: [] }]);
@@ -782,11 +851,47 @@ describe("まとめて集める", () => {
     const result = await collect(run, { config: parseConfig(configJson()), root, now: NOW });
     expect(result.findings).toEqual([{ kind: "empty-list", target: "a.json", detail: "r.ts" }]);
     expect(result.rows).toEqual([]);
+    expect(result.context).toEqual([{ path: "CLAUDE.md", bytes: 9, hops: 0 }]);
+  });
+
+  test("読み込む文書の合計が報告の割合に達したら候補に挙げる", async () => {
+    const root = makeTempDir("check-cost-metrics-");
+    writeFiles(root, {
+      "a.json": '{"exempt": [1]}',
+      "CLAUDE.md": "@AGENTS.md\n",
+      "AGENTS.md": "x".repeat(80),
+    });
+    const run: Runner = async (command, args) => {
+      if (command === "git") return args[2] === "rev-parse" ? "false\n" : "";
+      return JSON.stringify([{ total_count: 0, workflow_runs: [] }]);
+    };
+    const result = await collect(run, { config: parseConfig(configJson()), root, now: NOW });
+    expect(result.findings).toEqual([
+      {
+        kind: "context-size",
+        target: "CLAUDE.md",
+        detail: "合計 91 バイト（上限 100 バイトの 91%）",
+      },
+    ]);
+  });
+
+  test("起点のファイルが無ければ、ジョブの API を呼ぶ前に例外にする", async () => {
+    const root = makeTempDir("check-cost-metrics-");
+    writeFiles(root, { "a.json": '{"exempt": [1]}' });
+    const calls: string[] = [];
+    const run: Runner = async (command) => {
+      calls.push(command);
+      return "";
+    };
+    await expect(
+      collect(run, { config: parseConfig(configJson()), root, now: NOW }),
+    ).rejects.toThrow("読み込むファイルが無い: CLAUDE.md");
+    expect(calls).toEqual([]);
   });
 
   test("修正の PR の数え方から、lists に載せた一覧を外す", async () => {
     const root = makeTempDir("check-cost-metrics-");
-    writeFiles(root, { "a.json": '{"exempt": [1]}' });
+    writeFiles(root, { "a.json": '{"exempt": [1]}', ...CONTEXT_FILES });
     const log = ["#1", "#2", "#3"]
       .map((n) => rec(`fix: x (${n})`, "", "M\ta.json\nM\tb.ts"))
       .join("");
@@ -823,6 +928,7 @@ describe("CLI", () => {
     writeFiles(root, {
       "a.json": '{"exempt": []}',
       "config.json": configJson(),
+      ...CONTEXT_FILES,
     });
     return { root, config: join(root, "config.json") };
   };
