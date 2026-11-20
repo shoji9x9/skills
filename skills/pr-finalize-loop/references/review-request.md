@@ -167,6 +167,27 @@ push した反復では、デフォルトでは push の直後に（CI の再実
   `review_tool: claude-code-action` では、3 つの方法の代わりに、`check` が `reviewed` を返すことを完了の条件にする。`paused` か `failed` を返したら、待つのをやめる。
   1 つの方法だけを見て待つ処理を書かない。他の方法で届いているレビューを「届いていない」と報告することになる。
   参照する文書に「〜のことがある」と書かれた方法は、例外を足したものであって、方法の置き換えではない。例外だけを実装の条件にしない。
+  同じツールでも、起動のきっかけで届く場所が変わる。`pull_request` で起動したレビューが HEAD に check-run を付けても、`issue_comment`（`@claude review` など）で起動した再レビューは HEAD に check-run を付けず、bot のコメントだけで届くことがある（実測）。
+  `issue_comment` で起動したワークフローの `GITHUB_SHA` はデフォルトブランチの commit だからである（<https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#issue_comment>）。
+- 待つ処理をその場で書かず、同梱の `scripts/wait-review.sh` を使う（`claude-code-action` と `local` を除く）。3 つの方法を毎回すべて見て、届いた根拠か、上限まで届かなかったことを 1 回だけ返す。
+
+  ```bash
+  # head.txt には、待つ HEAD の完全な SHA を、gh pr view --json headRefOid の出力からそのまま保存する（表示から書き写さない）
+  bash <このスキルのディレクトリ>/scripts/wait-review.sh --pr <PR URL> --head-file head.txt \
+    --since <依頼した時刻> --timeout <上限の秒数> [--check-run-name <レビュー用の check-run の名前>]...
+  ```
+
+  - `--since` は、手順 6 の基準の時刻（push した反復では push が終わった時刻、返信だけの反復では最後に投稿した返信の `createdAt`）にする。
+  - `--check-run-name` には、レビュー用だと確かめた check-run の名前をそのまま渡す。`copilot` では `copilot-pull-request-reviewer` を渡す。
+    `claude-code`・`codex` では、前の反復で `app`・名前・出力から確かめた名前を渡す（「レビュー進行中の検出」の仕分け）。確かめた名前が無ければ渡さない。
+    名前を渡さない check-run は届いた根拠にせず、`timeout` のときに `unnamed_check_run` の行に出るので、その候補を同じ方法で仕分ける。
+  - exit 0（`result=arrived`）では、`evidence` の行を読む。`review` はそのまま根拠にする。
+    `check-run` は出力（`output.title`・`output.summary`）を、`bot-comment` は本文を切り詰めずに読み、レビューが行われて完了したことを確かめる（`review-status.md`「HEAD のレビュー済み判定」）。
+    作業中の表記・skip・spend cap などで完了でなければ、その行を `--seen <種類>:<id>@<時刻>` に渡して、残りの上限で呼び直す。
+  - exit 1（`timeout`）は、上限の後にすべての方法で取得し直した結果である。この後の箇条にある、上限に達した後の取得し直しを兼ねる。
+  - exit 3 は、HEAD が進んだ（`head-changed`）か PR が閉じた（`closed`）ことを表す。待つのをやめて、手順 1 から状態を取得し直す。
+  - exit 4（`check-run-failed`）は、名前を渡したレビュー用の check-run が成功以外で完了したことを表す。「レビュー未着で待機終了」として、`failed_check_run` の行を報告に書く。
+  - exit 2 は、取得に続けて失敗して判定できないことを表す。間隔を空けて呼び直し、それでも exit 2 なら「行き詰まり」として止まる。exit 64 は引数の誤りである。
 - 上限は、同じリポジトリの同じレビューツールで観測した、届くまでの時間から決める。実測した通常の遅れより短い固定の上限（90 秒など）で打ち切らない。
   打ち切った後に届いたレビューの、未解決のスレッドを取りこぼす。
 - 上限に達したことを「届いていない」として報告する前に、判定に使うすべての方法で 1 回取得し直す。上限は目安にすぎず、超えたことは届いていない証拠にならない。
@@ -175,5 +196,6 @@ push した反復では、デフォルトでは push の直後に（CI の再実
 ## 進行中のレビューの完了を待つ
 
 進行中のレビュー（設定したツールの自動レビューでも、別のエージェントのレビューでも）を見つけて依頼を保留したときも、上限のあるポーリングで待つ。
+結果が HEAD に届くのを待つときは、「レビューが現れるのを待つ」と同じく `scripts/wait-review.sh` を使う。`--since` には、進行中のレビューを見つけた反復の基準の時刻を渡す。
 上限までに終わらなければ、進行中のシグナルは当てにならないとみなして通常の依頼の判断に戻り、そのことを報告に残す。止まったワークフローのせいで収束が止まらないようにする。
 ただし、名前が決まっていないツールで、何のものか特定できない未完了の check-run が残ったときは、依頼の判断に戻らない。その反復の依頼を保留する（「レビュー進行中の検出」）。

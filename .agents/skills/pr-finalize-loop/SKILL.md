@@ -364,13 +364,15 @@ effort が違うために数えない run も、その指摘は、ほかの指�
 待つときは必ず上限を決める。終わらない待ちと、ポーリングのしすぎの両方を避ける。具体的な間隔と回数は、リポジトリの CI にかかる時間に合わせて変えてよい。
 
 待ち方の詳細は、待つ対象ごとに次のファイルで定める。参照先を読めなければ、その待ちを終わったものとして扱わず、「行き詰まり」として止まる。
+同梱のスクリプトがある待ちは、待つ処理をその場で書かずにスクリプトを使う。その場で書いた処理が判定に使う方法の一部だけを見ていても、それを検出するチェックが無いからである。
 
 | 待つ対象 | 参照先 |
 | --- | --- |
 | CI の完了（runner が割り当てられないジョブと、承認などを待つジョブの上限を含む） | [`references/ci-checks.md`](references/ci-checks.md)「CI の完了を待つ」 |
 | push の直後に CI のチェックが登録されるまで | [`references/ci-checks.md`](references/ci-checks.md)「`no checks` を確かめ直す」 |
-| 依頼したレビューが現れるまで | [`references/review-request.md`](references/review-request.md)「レビューが現れるのを待つ」 |
-| 進行中のレビューが終わるまで | [`references/review-request.md`](references/review-request.md)「進行中のレビューの完了を待つ」 |
+| 依頼したレビューが現れるまで（同梱の `scripts/wait-review.sh`） | [`references/review-request.md`](references/review-request.md)「レビューが現れるのを待つ」 |
+| 進行中のレビューが終わるまで（同梱の `scripts/wait-review.sh`） | [`references/review-request.md`](references/review-request.md)「進行中のレビューの完了を待つ」 |
+| 1 つの run が終わるまで（同梱の `scripts/wait-run.sh`） | [`references/ci-checks.md`](references/ci-checks.md)「個別の run の完了を待つ」 |
 
 ## 長時間実行・コンテキストの引き継ぎ
 

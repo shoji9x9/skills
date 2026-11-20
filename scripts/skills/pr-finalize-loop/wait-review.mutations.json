@@ -1,0 +1,177 @@
+{
+  "$comment": [
+    "wait-review.test.ts の検出能力を示す変異の一覧。",
+    "届いていないレビューを届いたと判定する向きの判定だけを置く（誤っても待ちが早く終わるだけで、エラーにならない）。"
+  ],
+  "test_file": "scripts/skills/pr-finalize-loop/wait-review.test.ts",
+  "mutations": [
+    {
+      "id": "review-author-not-excluded",
+      "why": "作成者のレビューを除かない（返信で作られる作成者の COMMENTED のレビューで、誰もレビューしていない HEAD を届いたと判定する）",
+      "file": "skills/pr-finalize-loop/scripts/wait-review.sh",
+      "find": "\t\t[ \"${login}\" != \"${author}\" ] || continue\n\t\t[ \"${commit_id}\"",
+      "replace": "\t\t[ \"${commit_id}\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "数えないもの 作成者のレビュー（返信は作成者の COMMENTED のレビューになる）は数えない"
+      ]
+    },
+    {
+      "id": "review-commit-not-head",
+      "why": "レビューの commit を HEAD と突き合わせない（前の HEAD へのレビューで、直した commit を届いたと判定する）",
+      "file": "skills/pr-finalize-loop/scripts/wait-review.sh",
+      "find": "\t\t[ \"${commit_id}\" = \"${head}\" ] || continue\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["数えないもの 前の HEAD へのレビューは数えない"]
+    },
+    {
+      "id": "review-since-ignored",
+      "why": "--since より前のレビューを数える（対応を見ていないレビューで届いたと判定する）",
+      "file": "skills/pr-finalize-loop/scripts/wait-review.sh",
+      "find": "\t\t[[ ! \"${submitted}\" < \"${since}\" ]] || continue\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["数えないもの --since より前のレビュー・check-run・コメントは数えない"]
+    },
+    {
+      "id": "review-permission-ignored",
+      "why": "レビューした人の書き込み権限を確かめない（PR にコメントできる誰もが HEAD を届いたことにできる）",
+      "file": "skills/pr-finalize-loop/scripts/wait-review.sh",
+      "find": "[ \"${p}\" = \"admin\" ] || [ \"${p}\" = \"write\" ]",
+      "replace": "true",
+      "occurrences": 1,
+      "expect_failing": [
+        "数えないもの 書き込み権限のある人のレビューは数え、権限の無い人のレビューは数えない",
+        "数えないもの 権限を取得できない人のレビューは数えない",
+        "数えないもの 権限を一時的に取得できなくても、次の取得で書き込み権限を確かめられれば arrived"
+      ]
+    },
+    {
+      "id": "check-run-name-ignored",
+      "why": "名前を渡していない check-run も届いた根拠にする（通常の CI の完了でレビューが届いたと判定する）",
+      "file": "skills/pr-finalize-loop/scripts/wait-review.sh",
+      "find": "if ! is_named \"${name}\"; then",
+      "replace": "if false; then",
+      "occurrences": 1,
+      "expect_failing": [
+        "数えないもの 名前を渡していない check-run は届いた根拠にせず、timeout のときに候補として出す",
+        "数えないもの 名前の部分一致では数えない"
+      ]
+    },
+    {
+      "id": "check-run-since-ignored",
+      "why": "--since より前に完了した check-run を数える",
+      "file": "skills/pr-finalize-loop/scripts/wait-review.sh",
+      "find": "\t\t[[ ! \"${completed}\" < \"${since}\" ]] || continue\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["数えないもの --since より前のレビュー・check-run・コメントは数えない"]
+    },
+    {
+      "id": "check-run-failure-counted",
+      "why": "成功以外で完了したレビュー用の check-run を、届いた根拠にする（spend cap などで止まったレビューを届いたと判定する）",
+      "file": "skills/pr-finalize-loop/scripts/wait-review.sh",
+      "find": "success | neutral) evidence+=",
+      "replace": "success | neutral | failure) evidence+=",
+      "occurrences": 1,
+      "expect_failing": [
+        "待ちの終わり方 名前を渡した check-run が失敗で完了したら check-run-failed（exit 4）",
+        "待ちの終わり方 同じ名前の check-run が再実行中なら、失敗した古い試行で check-run-failed にしない"
+      ]
+    },
+    {
+      "id": "check-run-seen-ignored",
+      "why": "--seen に渡した check-run をもう一度根拠にする（完了でないと判断した根拠で、届いたと判定し直す）",
+      "file": "skills/pr-finalize-loop/scripts/wait-review.sh",
+      "find": "\t\tis_seen \"check-run:${id}@${completed}\" && continue\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "数えないもの --seen に渡した根拠は、同じ時刻なら数えず、時刻が新しければもう一度数える"
+      ]
+    },
+    {
+      "id": "comment-bot-filter-removed",
+      "why": "人のコメントも根拠にする（人が SHA を書いただけで届いたと判定する）",
+      "file": "skills/pr-finalize-loop/scripts/wait-review.sh",
+      "find": "select((.user.type // \"\") == \"Bot\") | ",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "数えないもの 前の HEAD を書いたコメント・人のコメント・作成者のコメントは数えない"
+      ]
+    },
+    {
+      "id": "comment-author-not-excluded",
+      "why": "作成者のコメントを除かない",
+      "file": "skills/pr-finalize-loop/scripts/wait-review.sh",
+      "find": "\t\t[ \"${login}\" != \"${author}\" ] || continue\n\t\t[[ ! \"${updated}\"",
+      "replace": "\t\t[[ ! \"${updated}\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "数えないもの 前の HEAD を書いたコメント・人のコメント・作成者のコメントは数えない"
+      ]
+    },
+    {
+      "id": "comment-since-ignored",
+      "why": "--since より前に作るか編集したコメントを数える",
+      "file": "skills/pr-finalize-loop/scripts/wait-review.sh",
+      "find": "\t\t[[ ! \"${updated}\" < \"${since}\" ]] || continue\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["数えないもの --since より前のレビュー・check-run・コメントは数えない"]
+    },
+    {
+      "id": "comment-seen-ignored",
+      "why": "--seen に渡したコメントをもう一度根拠にする（作業中の表記のコメントで、届いたと判定し直す）",
+      "file": "skills/pr-finalize-loop/scripts/wait-review.sh",
+      "find": "\t\tis_seen \"bot-comment:${id}@${updated}\" && continue\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "数えないもの --seen に渡した根拠は、同じ時刻なら数えず、時刻が新しければもう一度数える"
+      ]
+    },
+    {
+      "id": "comment-full-sha-not-compared",
+      "why": "本文の 40 桁の SHA を HEAD と比べない（前の HEAD を書いたコメントで届いたと判定する）",
+      "file": "skills/pr-finalize-loop/scripts/wait-review.sh",
+      "find": "if [ \"${token}\" = \"${head}\" ]; then",
+      "replace": "if [ \"${#token}\" -eq 40 ]; then",
+      "occurrences": 1,
+      "expect_failing": [
+        "数えないもの 前の HEAD を書いたコメント・人のコメント・作成者のコメントは数えない"
+      ]
+    },
+    {
+      "id": "comment-short-sha-prefix-ignored",
+      "why": "短縮した SHA が HEAD の前方と一致するかを確かめずに解決する（別の commit の短縮した SHA が、API の応答次第で根拠になる）",
+      "file": "skills/pr-finalize-loop/scripts/wait-review.sh",
+      "find": "[ \"${head#\"${token}\"}\" != \"${head}\" ] && ",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "届いた方法 HEAD の前方と一致しない短縮した SHA は、解決しても数えない（API も呼ばない）"
+      ]
+    },
+    {
+      "id": "comment-short-sha-not-resolved",
+      "why": "短縮した SHA を API で解決せずに数える（同じ前方を持つ別の commit で届いたと判定する）",
+      "file": "skills/pr-finalize-loop/scripts/wait-review.sh",
+      "find": "&& resolves_to_head \"${token}\"; then",
+      "replace": "; then",
+      "occurrences": 1,
+      "expect_failing": ["届いた方法 短縮した SHA が HEAD に解決できなければ数えない"]
+    },
+    {
+      "id": "comment-token-boundary",
+      "why": "SHA を語の境界で切り出さない（別の語の一部の 16 進数を SHA として読む）",
+      "file": "skills/pr-finalize-loop/scripts/wait-review.sh",
+      "find": "scan(\"[0-9A-Za-z]+\")",
+      "replace": "scan(\"[0-9a-f]+\")",
+      "occurrences": 1,
+      "expect_failing": ["届いた方法 SHA が別の語の一部なら数えない"]
+    }
+  ]
+}
