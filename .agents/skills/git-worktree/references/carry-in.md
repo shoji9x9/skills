@@ -52,6 +52,7 @@ worktree に入った後、`carry_in.files` に挙げたファイルを 1 件ず
 
 - コピー先で無視対象ではない
 - 共有ツリーのファイルが、通常のファイルでないか、シンボリックリンクである（自動のコピーも、ソース側のシンボリックリンクを飛ばす）
+- 共有ツリーのファイルがあるディレクトリの実体が、共有ツリーの外にある（無視されたシンボリックリンクのディレクトリを通って、外のファイルを運ばない）
 - コピー先に、ファイルかシンボリックリンクが既にある（worktree の中で変えた `.env` を上書きしない）
 - コピー先のディレクトリの実体が、worktree の外にある（commit されたシンボリックリンクを通って外に書き込まない）
 
@@ -65,12 +66,15 @@ fail() { echo "$f: $1。コピーしない" >&2; exit 1; }
 git -C "$wt" check-ignore -q -- "$f" || fail "コピー先で無視対象ではない"
 if [ -L "$src/$f" ] || [ ! -f "$src/$f" ]; then fail "共有ツリーに通常のファイルとして無い"; fi
 if [ -e "$wt/$f" ] || [ -L "$wt/$f" ]; then fail "コピー先に既にある"; fi
-# コピー先のディレクトリのうち、既にある最も深いものの実体を worktree の実体と比べる
-d=$(dirname "$wt/$f")
-while [ ! -e "$d" ] && [ ! -L "$d" ]; do d=$(dirname "$d"); done
-real_wt=$(cd "$wt" && pwd -P) || fail "worktree のルートを解決できない"
-real_d=$(cd "$d" && pwd -P) || fail "コピー先のディレクトリを解決できない"
-case "$real_d/" in "$real_wt"/*) ;; *) fail "コピー先が worktree の外を指す" ;; esac
+# パスの親のディレクトリのうち、既にある最も深いものの実体が、ルートの実体の中にあるかを確かめる
+inside() {
+  d=$(dirname "$2")
+  while [ ! -e "$d" ] && [ ! -L "$d" ]; do d=$(dirname "$d"); done
+  real_root=$(cd "$1" && pwd -P) && real_d=$(cd "$d" && pwd -P) || return 1
+  case "$real_d/" in "$real_root"/*) ;; *) return 1 ;; esac
+}
+inside "$src" "$src/$f" || fail "共有ツリーのファイルの実体が共有ツリーの外にある"
+inside "$wt" "$wt/$f" || fail "コピー先が worktree の外を指す"
 mkdir -p "$(dirname "$wt/$f")"
 cp -p "$src/$f" "$wt/$f"
 ```
