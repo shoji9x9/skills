@@ -3,19 +3,20 @@
 // | 軸 | 値 |
 // | --- | --- |
 // | frontmatter | 無い / 閉じない / status が無い・知らない値・2 回 / 本文の status の行 |
-// | recurrence-of | 無い / `[]` / 1 件 / 2 件 / 引用符 / パス付き / ブロック / 2 回 |
-// | 学びのディレクトリ | 無い / top-level と archive / 学びでない名前（INDEX.md）/ 同じ名前が両方 |
+// | recurrence-of | 無い / `[]` / 1 件 / 2 件 / 引用符 / パス付き / カンマを含む名前 / ブロック / 2 回 |
+// | 学びのディレクトリ | 無い / top-level と archive / 学びでない名前（INDEX.md）/ 同じ名前が両方 / symlink（dir・archive・学び） |
 // | git の履歴の commit | 新しいファイル / status の変更 / 名前の変更 / 消して足す（移動）/ 消す / 学びでないパス / 日時が読めない |
 // | 履歴の status の行 | frontmatter の範囲の内・外 / 1 つの commit で 2 回 / 知らない値 |
+// | 履歴の recurrence-of | 無い / `[]` / 空でない（足した commit から再発に数える） |
 // | git | 履歴が浅い / 呼び出しの引数（first-parent・-m・--text） |
 // | 履歴と作業ツリー | 一致 / status が違う / 履歴で生きているのにファイルが無い |
 // | 期間 | 始まりちょうど（外）/ 終わりちょうど（内）/ 外 |
 // | 適用までの日数 | 0 件 / 奇数件 / 偶数件 |
 // | 古い pending | ちょうど stale_days / 1 日足りない / pending でない |
-// | 再発 | 正しい / 無い学び / 適用していない学び / 再発の後に適用した学び / 期間の内・外 |
+// | 再発 | 正しい / 無い学び / 適用していない学び / 再発の後に適用した学び / 期間の内・外 / 既にある学びに後から足した |
 // | 閾値 | 上限ちょうど（挙げない）/ 上限を超える（挙げる） |
 import { spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
@@ -106,6 +107,11 @@ describe("学びの frontmatter", () => {
       "学びのファイル名でない要素",
     ],
     [
+      "recurrence-of がカンマを含む名前",
+      noteText("pending", ["recurrence-of: [2026-09-01-a,b.md]"]),
+      "カンマを含む名前は挙げられない",
+    ],
+    [
       "recurrence-of がブロック",
       noteText("pending", ["recurrence-of:", "  - 2026-09-01-a.md"]),
       "1 行の flow 配列でない",
@@ -159,6 +165,20 @@ describe("学びのディレクトリ", () => {
     expect(() => readNotes(root, ".kaizen")).toThrow(
       "同じ名前の学びが top-level と archive にある",
     );
+  });
+
+  test.each([
+    ["学びのディレクトリ", ".kaizen", "outside"],
+    ["archive", ".kaizen/archive", "outside"],
+    ["学び", ".kaizen/2026-10-02-b.md", "outside/2026-10-02-b.md"],
+  ])("%sが symlink なら、リンク先を読まずに例外", (_name, link, target) => {
+    const root = makeTempDir("kaizen-learnings-");
+    writeFiles(root, {
+      "outside/2026-10-02-b.md": noteText("pending"),
+      ...(link === ".kaizen" ? {} : { ".kaizen/2026-10-01-a.md": noteText("pending") }),
+    });
+    symlinkSync(join(root, target), join(root, link));
+    expect(() => readNotes(root, ".kaizen")).toThrow("symlink なので、学びとして読まない");
   });
 });
 
@@ -285,6 +305,28 @@ describe("git の履歴", () => {
     expect(events.get("2026-10-01-a.md")).toEqual([
       { at: ago(10), status: "pending" },
       { at: ago(5), status: "applied" },
+    ]);
+  });
+
+  test("空でない recurrence-of を書いた commit の事象だけに印を付ける", () => {
+    const path = ".kaizen/2026-10-01-a.md";
+    const log = gitLog([
+      { daysAgo: 10, changes: [{ kind: "add", path, status: "pending" }] },
+      {
+        daysAgo: 6,
+        changes: [{ kind: "modify", path, status: "pending", extra: ["recurrence-of: []"] }],
+      },
+      {
+        daysAgo: 4,
+        changes: [
+          { kind: "modify", path, status: "pending", extra: ["recurrence-of: [2026-09-01-b.md]"] },
+        ],
+      },
+    ]);
+    expect(parseStatusLog(log, ".kaizen").events.get("2026-10-01-a.md")).toEqual([
+      { at: ago(10), status: "pending" },
+      { at: ago(6), status: "pending" },
+      { at: ago(4), status: "pending", recurrence: true },
     ]);
   });
 
@@ -723,6 +765,17 @@ describe("数える", () => {
     ],
   ])("recurrence-of が%sを挙げていれば例外", (_name, notes, history) => {
     expect(() => metrics(notes, history)).toThrow("recurrence-of の");
+  });
+
+  test("既にある学びに後から recurrence-of を足したら、足した commit の時刻を再発の時刻にする", () => {
+    const m = metrics(
+      { "r.md": note("pending", ["base.md"]), "base.md": note("applied") },
+      {
+        "r.md": [ev(20, "pending"), { at: ago(2), status: "pending", recurrence: true }],
+        "base.md": [ev(30, "pending"), ev(25, "applied")],
+      },
+    );
+    expect(m.recurrences).toEqual([{ name: "r.md", of: ["base.md"], at: ago(2) }]);
   });
 
   test("recurrence-of が、適用した後に消した（kaizen の delete）学びを挙げても数える", () => {

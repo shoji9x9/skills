@@ -22,7 +22,7 @@
 // - 履歴の最後の status が作業ツリーの status と違う、または履歴で消えていない学びのファイルが無い
 // - recurrence-of が、無い学びか、再発した学びを書く前に適用していない学びを挙げている
 // `<dir>` が無いリポジトリでは数えず、null を返す（呼び出し側が、数えなかったことを本文に書く）。
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { median } from "./median.ts";
 
@@ -44,8 +44,11 @@ export type KaizenConfig = {
 };
 
 export type Note = { status: Status; recurrenceOf: string[] };
-/** status が null の事象は、そのファイルを消した commit である。 */
-export type StatusEvent = { at: number; status: Status | null };
+/**
+ * status が null の事象は、そのファイルを消した commit である。
+ * recurrence は、変更の後の frontmatter に空でない recurrence-of があった事象だけ true にする（無ければ欄を置かない）。
+ */
+export type StatusEvent = { at: number; status: Status | null; recurrence?: true };
 export type Runner = (command: string, args: readonly string[]) => Promise<string>;
 
 function isStatus(value: string): value is Status {
@@ -76,8 +79,9 @@ function parseRecurrence(line: string | undefined, name: string): string[] {
   const names = inner.split(",").map((s) => s.trim());
   const bad = names.filter((n) => !NOTE_NAME.test(n));
   if (bad.length > 0) {
+    // 要素はカンマで分けるので、カンマを含む名前の学びは挙げられない。分けた断片が名前の形にならず、ここで例外になる。
     throw new Error(
-      `${name} の recurrence-of に学びのファイル名でない要素がある: ${bad.join(", ")}`,
+      `${name} の recurrence-of に学びのファイル名でない要素がある（カンマを含む名前は挙げられない）: ${bad.join(", ")}`,
     );
   }
   return names;
@@ -96,8 +100,15 @@ export function parseNote(text: string, name: string): Note {
   return { status, recurrenceOf: parseRecurrence(onlyLine(lines, "recurrence-of", name), name) };
 }
 
+/** symlink なら例外にする。リンク先はリポジトリの外でありうるので読まない（kaizen-context-inject.sh と同じ扱い）。 */
+function rejectSymlink(path: string): void {
+  if (lstatSync(path).isSymbolicLink())
+    throw new Error(`${path} は symlink なので、学びとして読まない`);
+}
+
 function noteFiles(path: string): string[] {
   if (!existsSync(path)) return [];
+  rejectSymlink(path);
   return readdirSync(path).filter((name) => NOTE_NAME.test(name));
 }
 
@@ -109,6 +120,7 @@ export function readNotes(root: string, dir: string): Map<string, Note> | null {
   for (const sub of [top, join(top, "archive")]) {
     for (const name of noteFiles(sub)) {
       if (notes.has(name)) throw new Error(`同じ名前の学びが top-level と archive にある: ${name}`);
+      rejectSymlink(join(sub, name));
       notes.set(name, parseNote(readFileSync(join(sub, name), "utf8"), name));
     }
   }
@@ -165,7 +177,7 @@ type CommitChanges = {
   at: number;
   renamed: [string, string][];
   deleted: string[];
-  set: Map<string, Status>;
+  set: Map<string, { status: Status; recurrence: boolean }>;
 };
 
 type LogState = {
@@ -185,22 +197,27 @@ type LogState = {
   skipped: number;
 };
 
-/** 変更の後の内容の frontmatter の status。読めなければ null。 */
-function statusOf(lines: readonly string[]): Status | null {
+/** 変更の後の内容の frontmatter の status と、空でない recurrence-of があるか。status を読めなければ null。 */
+function stateOf(lines: readonly string[]): { status: Status; recurrence: boolean } | null {
   const end = lines.indexOf("---", 1);
   if (lines[0] !== "---" || end === -1) return null;
-  const found = lines.slice(1, end).filter((line) => line.startsWith("status:"));
+  const head = lines.slice(1, end);
+  const found = head.filter((line) => line.startsWith("status:"));
   const value = found.length === 1 ? /^status: (\S+)$/u.exec(found[0] ?? "")?.[1] : undefined;
-  return value !== undefined && isStatus(value) ? value : null;
+  if (value === undefined || !isStatus(value)) return null;
+  return {
+    status: value,
+    recurrence: head.some((line) => /^recurrence-of: \[\s*[^\s\]]/u.test(line)),
+  };
 }
 
 /** 読んでいた学びの差分を閉じ、変更の後の内容から status を読む。名前だけの変更（hunk が無い）と消した学びは読まない。 */
 function finishFile(state: LogState): void {
   const { commit, file } = state;
   if (commit !== null && file !== null && state.inHunk && !state.deleting) {
-    const status = state.partial ? null : statusOf(state.content);
-    if (status === null) state.skipped += 1;
-    else commit.set.set(file, status);
+    const read = state.partial ? null : stateOf(state.content);
+    if (read === null) state.skipped += 1;
+    else commit.set.set(file, read);
   }
   state.file = null;
   state.inHunk = false;
@@ -286,24 +303,30 @@ export function parseStatusLog(log: string, dir: string): StatusHistory {
   for (const line of log.split("\n")) readLogLine(state, line, dir);
   finishFile(state);
   const events = new Map<string, StatusEvent[]>();
+  for (const commit of state.commits.reverse()) applyCommit(events, commit);
+  return { events, skipped: state.skipped };
+}
+
+/** 1 つの commit の変更を、学びごとの事象に足す。 */
+function applyCommit(events: Map<string, StatusEvent[]>, commit: CommitChanges): void {
+  const { at, renamed, deleted, set } = commit;
   const push = (name: string, event: StatusEvent): void => {
     events.set(name, [...(events.get(name) ?? []), event]);
   };
-  for (const { at, renamed, deleted, set } of state.commits.reverse()) {
-    // 名前を変えた学びは、それまでの事象を新しい名前に付け替える。
-    // 新しい名前で前に消した学びがあると、両方の事象が並ぶので、時刻の順に並べ直す（最後の事象を今の status として読む）。
-    for (const [from, to] of renamed) {
-      const merged = [...(events.get(to) ?? []), ...(events.get(from) ?? [])];
-      events.set(
-        to,
-        merged.sort((a, b) => a.at - b.at),
-      );
-      events.delete(from);
-    }
-    for (const name of deleted) if (!set.has(name)) push(name, { at, status: null });
-    for (const [name, status] of set) push(name, { at, status });
+  // 名前を変えた学びは、それまでの事象を新しい名前に付け替える。
+  // 新しい名前で前に消した学びがあると、両方の事象が並ぶので、時刻の順に並べ直す（最後の事象を今の status として読む）。
+  for (const [from, to] of renamed) {
+    const merged = [...(events.get(to) ?? []), ...(events.get(from) ?? [])];
+    events.set(
+      to,
+      merged.sort((a, b) => a.at - b.at),
+    );
+    events.delete(from);
   }
-  return { events, skipped: state.skipped };
+  for (const name of deleted) if (!set.has(name)) push(name, { at, status: null });
+  for (const [name, { status, recurrence }] of set) {
+    push(name, recurrence ? { at, status, recurrence: true } : { at, status });
+  }
 }
 
 /**
@@ -435,7 +458,10 @@ function recurrences(
   const found: Recurrence[] = [];
   for (const [name, note] of notes) {
     if (note.recurrenceOf.length === 0) continue;
-    const at = history.get(name)?.[0]?.at ?? 0;
+    // 再発の時刻は、recurrence-of を最初に書いた commit の時刻にする（既にある学びに後から足すこともある）。
+    // どの commit の内容にも無ければ（commit していない）、最初の記録の時刻にする。
+    const events = history.get(name) ?? [];
+    const at = (events.find((e) => e.recurrence === true) ?? events[0])?.at ?? 0;
     for (const of of note.recurrenceOf) {
       // 挙げた学びは、後で消した（kaizen の delete）ものでもよい。履歴に、再発の学びを書く前に適用した事象があれば足りる。
       const applied = firstAt(history.get(of) ?? [], "applied");
